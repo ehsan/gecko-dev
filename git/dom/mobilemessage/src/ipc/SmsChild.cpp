@@ -109,13 +109,6 @@ SmsChild::RecvNotifyDeliveryErrorMessage(const MobileMessageData& aData)
   return true;
 }
 
-bool
-SmsChild::RecvNotifyReceivedSilentMessage(const MobileMessageData& aData)
-{
-  NotifyObserversWithMobileMessage(kSilentSmsReceivedObserverTopic, aData);
-  return true;
-}
-
 PSmsRequestChild*
 SmsChild::AllocPSmsRequestChild(const IPCSmsRequest& aRequest)
 {

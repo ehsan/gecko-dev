@@ -5,10 +5,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jscntxt.h"
-#include "jsdbgapi.h"
 
 #include "jsapi-tests/tests.h"
+#include "jsdbgapi.h"
+#include "jscntxt.h"
 
 static int callCount[2] = {0, 0};
 
@@ -120,7 +120,7 @@ ThrowHook(JSContext *cx, JSScript *, jsbytecode *, jsval *rval, void *closure)
     JS_ASSERT(!closure);
     called = true;
 
-    JS::RootedObject global(cx, JS::CurrentGlobalOrNull(cx));
+    JS::RootedObject global(cx, JS_GetGlobalForScopeChain(cx));
 
     char text[] = "new Error()";
     jsval _;
@@ -161,7 +161,7 @@ BEGIN_TEST(testDebugger_debuggerObjectVsDebugMode)
     JS::RootedObject debuggeeWrapper(cx, debuggee);
     CHECK(JS_WrapObject(cx, debuggeeWrapper.address()));
     JS::RootedValue v(cx, JS::ObjectValue(*debuggeeWrapper));
-    CHECK(JS_SetProperty(cx, global, "debuggee", v));
+    CHECK(JS_SetProperty(cx, global, "debuggee", v.address()));
 
     EVAL("var dbg = new Debugger(debuggee);\n"
          "var hits = 0;\n"
@@ -199,7 +199,7 @@ BEGIN_TEST(testDebugger_newScriptHook)
     JS::RootedObject gWrapper(cx, g);
     CHECK(JS_WrapObject(cx, gWrapper.address()));
     JS::RootedValue v(cx, JS::ObjectValue(*gWrapper));
-    CHECK(JS_SetProperty(cx, global, "g", v));
+    CHECK(JS_SetProperty(cx, global, "g", v.address()));
 
     EXEC("var dbg = Debugger(g);\n"
          "var hits = 0;\n"

@@ -428,7 +428,7 @@ CompositorOGL::Initialize()
                               0,
                               LOCAL_GL_RGBA,
                               LOCAL_GL_UNSIGNED_BYTE,
-                              nullptr);
+                              NULL);
 
       // unbind this texture, in preparation for binding it to the FBO
       mGLContext->fBindTexture(target, 0);
@@ -911,7 +911,7 @@ CompositorOGL::CreateFBOWithTexture(const IntRect& aRect, SurfaceInitMode aInit,
                             0,
                             LOCAL_GL_RGBA,
                             LOCAL_GL_UNSIGNED_BYTE,
-                            nullptr);
+                            NULL);
   }
   mGLContext->fTexParameteri(mFBOTextureTarget, LOCAL_GL_TEXTURE_MIN_FILTER,
                              LOCAL_GL_LINEAR);
@@ -945,7 +945,7 @@ CompositorOGL::GetProgramTypeForEffect(Effect *aEffect) const
     TextureSourceOGL* source = texturedEffect->mTexture->AsSourceOGL();
 
     return ShaderProgramFromTargetAndFormat(source->GetTextureTarget(),
-                                            source->GetFormat());
+                                            source->GetTextureFormat());
   }
   case EFFECT_YCBCR:
     return YCbCrLayerProgramType;
@@ -1028,8 +1028,7 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
   ShaderProgramType programType = GetProgramTypeForEffect(aEffectChain.mPrimaryEffect);
   ShaderProgramOGL *program = GetProgram(programType, maskType);
   program->Activate();
-  if (programType == RGBARectLayerProgramType ||
-      programType == RGBXRectLayerProgramType) {
+  if (programType == RGBARectLayerProgramType) {
     TexturedEffect* texturedEffect =
         static_cast<TexturedEffect*>(aEffectChain.mPrimaryEffect.get());
     TextureSourceOGL* source = texturedEffect->mTexture->AsSourceOGL();
@@ -1038,7 +1037,6 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
   }
   program->SetLayerQuadRect(aRect);
   program->SetLayerTransform(aTransform);
-  program->SetTextureTransform(gfx3DMatrix());
   program->SetRenderOffset(aOffset.x, aOffset.y);
 
   switch (aEffectChain.mPrimaryEffect->mType) {
@@ -1086,8 +1084,9 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
       }
 
       AutoBindTexture bindSource(source->AsSourceOGL(), LOCAL_GL_TEXTURE0);
-  
-      program->SetTextureTransform(source->AsSourceOGL()->GetTextureTransform());
+      if (programType == RGBALayerExternalProgramType) {
+        program->SetTextureTransform(source->AsSourceOGL()->GetTextureTransform());
+      }
 
       mGLContext->ApplyFilterToBoundTexture(source->AsSourceOGL()->GetTextureTarget(),
                                             ThebesFilter(texturedEffect->mFilter));
@@ -1216,7 +1215,6 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
         program->SetWhiteTextureUnit(1);
         program->SetLayerOpacity(aOpacity);
         program->SetLayerTransform(aTransform);
-        program->SetTextureTransform(gfx3DMatrix());
         program->SetRenderOffset(aOffset.x, aOffset.y);
         program->SetLayerQuadRect(aRect);
         AutoBindTexture bindMask;
@@ -1411,13 +1409,6 @@ CompositorOGL::Resume()
   return true;
 }
 
-TemporaryRef<DataTextureSource>
-CompositorOGL::CreateDataTextureSource(TextureFlags aFlags)
-{
-  RefPtr<DataTextureSource> result =
-    new TextureImageTextureSourceOGL(mGLContext, !(aFlags & ForceSingleTile));
-  return result;
-}
 
 } /* layers */
 } /* mozilla */

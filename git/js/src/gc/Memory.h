@@ -8,7 +8,6 @@
 #define gc_Memory_h
 
 #include <stddef.h>
-
 #include "jsgc.h"
 
 namespace js {

@@ -13,7 +13,7 @@ using mozilla::AutoSafeJSContext;
 namespace mozilla {
 namespace net {
 
-NS_IMPL_ISUPPORTS2(Dashboard, nsIDashboard, nsIDashboardEventNotifier)
+NS_IMPL_THREADSAFE_ISUPPORTS2(Dashboard, nsIDashboard, nsIDashboardEventNotifier)
 using mozilla::dom::Sequence;
 
 Dashboard::Dashboard()
@@ -42,11 +42,8 @@ Dashboard::RequestSockets(NetDashboardCallback* cb)
 void
 Dashboard::GetSocketsDispatch()
 {
-    if (gSocketTransportService) {
+    if (gSocketTransportService)
         gSocketTransportService->GetSocketConnections(&mSock.data);
-        mSock.totalSent = gSocketTransportService->GetSentBytes();
-        mSock.totalRecv = gSocketTransportService->GetReceivedBytes();
-    }
     nsCOMPtr<nsIRunnable> event = NS_NewRunnableMethod(this, &Dashboard::GetSockets);
     mSock.thread->Dispatch(event, NS_DISPATCH_NORMAL);
 }
@@ -93,9 +90,6 @@ Dashboard::GetSockets()
         dict.mSent += mSock.data[i].sent;
         dict.mReceived += mSock.data[i].received;
     }
-
-    dict.mSent += mSock.totalSent;
-    dict.mReceived += mSock.totalRecv;
 
     JS::RootedValue val(cx);
     if (!dict.ToObject(cx, JS::NullPtr(), &val)) {
@@ -144,14 +138,11 @@ Dashboard::GetHttpConnections()
     dict.mPort.Construct();
     dict.mSpdy.Construct();
     dict.mSsl.Construct();
-    dict.mHalfOpens.Construct();
 
     using mozilla::dom::HttpConnInfoDict;
-    using mozilla::dom::HalfOpenInfoDict;
     Sequence<HttpConnInfoDict> &active = dict.mActive.Value();
     Sequence<nsString> &hosts = dict.mHost.Value();
     Sequence<HttpConnInfoDict> &idle = dict.mIdle.Value();
-    Sequence<HalfOpenInfoDict> &halfOpens = dict.mHalfOpens.Value();
     Sequence<uint32_t> &ports = dict.mPort.Value();
     Sequence<bool> &spdy = dict.mSpdy.Value();
     Sequence<bool> &ssl = dict.mSsl.Value();
@@ -159,8 +150,7 @@ Dashboard::GetHttpConnections()
     uint32_t length = mHttp.data.Length();
     if (!active.SetCapacity(length) || !hosts.SetCapacity(length) ||
         !idle.SetCapacity(length) || !ports.SetCapacity(length) ||
-        !spdy.SetCapacity(length) || !ssl.SetCapacity(length) ||
-        !halfOpens.SetCapacity(length)) {
+        !spdy.SetCapacity(length) || !ssl.SetCapacity(length)) {
             mHttp.cb = nullptr;
             mHttp.data.Clear();
             JS_ReportOutOfMemory(cx);
@@ -212,20 +202,6 @@ Dashboard::GetHttpConnections()
             *idle_rtt.AppendElement() = mHttp.data[i].idle[j].rtt;
             *idle_ttl.AppendElement() = mHttp.data[i].idle[j].ttl;
             *idle_protocolVersion.AppendElement() = mHttp.data[i].idle[j].protocolVersion;
-        }
-
-        HalfOpenInfoDict &allHalfOpens = *halfOpens.AppendElement();
-        allHalfOpens.mSpeculative.Construct();
-        Sequence<bool> allHalfOpens_speculative;
-        if(!allHalfOpens_speculative.SetCapacity(mHttp.data[i].halfOpens.Length())) {
-                mHttp.cb = nullptr;
-                mHttp.data.Clear();
-                JS_ReportOutOfMemory(cx);
-                return NS_ERROR_OUT_OF_MEMORY;
-        }
-        allHalfOpens_speculative = allHalfOpens.mSpeculative.Value();
-        for(uint32_t j = 0; j < mHttp.data[i].halfOpens.Length(); j++) {
-            *allHalfOpens_speculative.AppendElement() = mHttp.data[i].halfOpens[j].speculative;
         }
     }
 

@@ -7,15 +7,14 @@
 #ifndef vm_SPSProfiler_h
 #define vm_SPSProfiler_h
 
+#include <stddef.h>
+
 #include "mozilla/DebugOnly.h"
 #include "mozilla/GuardObjects.h"
 #include "mozilla/HashFunctions.h"
 
-#include <stddef.h>
-
-#include "jsscript.h"
-
 #include "js/Utility.h"
+#include "jsscript.h"
 
 /*
  * SPS Profiler integration with the JS Engine

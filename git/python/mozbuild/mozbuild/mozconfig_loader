@@ -11,14 +11,7 @@ set -e
 
 ac_add_options() {
   local opt
-  for opt; do
-    case "$opt" in
-    --target=*)
-      echo "------BEGIN_MK_OPTION"
-      echo $opt | sed s/--target/CONFIG_GUESS/
-      echo "------END_MK_OPTION"
-      ;;
-    esac
+  for opt in $*; do
     echo "------BEGIN_AC_OPTION"
     echo $opt
     echo "------END_AC_OPTION"
@@ -26,7 +19,7 @@ ac_add_options() {
 }
 
 ac_add_app_options() {
-  local app
+  local app opt
   app=$1
   shift
   echo "------BEGIN_AC_APP_OPTION"
@@ -37,7 +30,7 @@ ac_add_app_options() {
 
 mk_add_options() {
   local opt
-  for opt; do
+  for opt in $*; do
     echo "------BEGIN_MK_OPTION"
     echo $opt
     echo "------END_MK_OPTION"

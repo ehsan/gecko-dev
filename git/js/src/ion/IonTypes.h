@@ -7,9 +7,8 @@
 #ifndef ion_IonTypes_h
 #define ion_IonTypes_h
 
-#include "jstypes.h"
-
 #include "js/Value.h"
+#include "jstypes.h"
 
 namespace js {
 namespace ion {

@@ -382,7 +382,7 @@ void
 CommonElementAnimationData::UpdateAnimationGeneration(nsPresContext* aPresContext)
 {
   mAnimationGeneration =
-    aPresContext->RestyleManager()->GetAnimationGeneration();
+    aPresContext->PresShell()->FrameConstructor()->GetAnimationGeneration();
 }
 
 }

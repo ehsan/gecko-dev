@@ -11,6 +11,7 @@
 #include "mozilla/Util.h"
 #include "nsCOMPtr.h"
 #include "nsGkAtoms.h"
+#include "nsIDOMSVGAnimatedEnum.h"
 #include "nsSVGElement.h"
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(LinearGradient)

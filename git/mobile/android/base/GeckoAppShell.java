@@ -297,7 +297,7 @@ public class GeckoAppShell
         // Preparation for pumpMessageLoop()
         MessageQueue.IdleHandler idleHandler = new MessageQueue.IdleHandler() {
             @Override public boolean queueIdle() {
-                final Handler geckoHandler = ThreadUtils.sGeckoHandler;
+                Handler geckoHandler = ThreadUtils.getGeckoHandler();
                 Message idleMsg = Message.obtain(geckoHandler);
                 // Use |Message.obj == GeckoHandler| to identify our "queue is empty" message
                 idleMsg.obj = geckoHandler;
@@ -1256,6 +1256,13 @@ public class GeckoAppShell
 
     public static void showAlertNotification(String aImageUrl, String aAlertTitle, String aAlertText,
                                              String aAlertCookie, String aAlertName) {
+        Log.d(LOGTAG, "GeckoAppShell.showAlertNotification\n" +
+            "- image = '" + aImageUrl + "'\n" +
+            "- title = '" + aAlertTitle + "'\n" +
+            "- text = '" + aAlertText +"'\n" +
+            "- cookie = '" + aAlertCookie +"'\n" +
+            "- name = '" + aAlertName + "'");
+
         // The intent to launch when the user clicks the expanded notification
         String app = getContext().getClass().getName();
         Intent notificationIntent = new Intent(GeckoApp.ACTION_ALERT_CALLBACK);
@@ -1309,7 +1316,7 @@ public class GeckoAppShell
         if (GeckoApp.ACTION_ALERT_CALLBACK.equals(aAction)) {
             callObserver(aAlertName, "alertclickcallback", aAlertCookie);
 
-            if (sNotificationClient.isOngoing(notificationID)) {
+            if (sNotificationClient.isProgressStyle(notificationID)) {
                 // When clicked, keep the notification if it displays progress
                 return;
             }
@@ -1364,10 +1371,18 @@ public class GeckoAppShell
     public static synchronized int getScreenDepth() {
         if (sScreenDepth == 0) {
             sScreenDepth = 16;
-            PixelFormat info = new PixelFormat();
-            PixelFormat.getPixelFormatInfo(getGeckoInterface().getActivity().getWindowManager().getDefaultDisplay().getPixelFormat(), info);
-            if (info.bitsPerPixel >= 24 && isHighMemoryDevice()) {
-                sScreenDepth = 24;
+            if (getGeckoInterface() != null) {
+                switch (getGeckoInterface().getActivity().getWindowManager().getDefaultDisplay().getPixelFormat()) {
+                    case PixelFormat.RGBA_8888 :
+                    case PixelFormat.RGBX_8888 :
+                    case PixelFormat.RGB_888 :
+                    {
+                        if (isHighMemoryDevice()) {
+                            sScreenDepth = 24;
+                        }
+                        break;
+                    }
+                }
             }
         }
 
@@ -2465,12 +2480,12 @@ public class GeckoAppShell
     }
 
     public static boolean pumpMessageLoop() {
-        Handler geckoHandler = ThreadUtils.sGeckoHandler;
-        Message msg = getNextMessageFromQueue(ThreadUtils.sGeckoQueue);
-
+        Handler geckoHandler = ThreadUtils.getGeckoHandler();
+        MessageQueue mq = Looper.myQueue();
+        Message msg = getNextMessageFromQueue(mq); 
         if (msg == null)
             return false;
-        if (msg.obj == geckoHandler && msg.getTarget() == geckoHandler) {
+        if (msg.getTarget() == geckoHandler && msg.obj == geckoHandler) {
             // Our "queue is empty" message; see runGecko()
             msg.recycle();
             return false;

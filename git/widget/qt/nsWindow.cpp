@@ -1523,6 +1523,8 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
     // The user has done something.
     UserActivity();
 
+    bool setNoDefault = false;
+
     if (aEvent->key() == Qt::Key_AltGr) {
         sAltGrModifier = true;
     }
@@ -1631,10 +1633,9 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
             return status;
         }
 
-        // If prevent default on keydown, don't dispatch keypress event
-        if (status == nsEventStatus_eConsumeNoDefault) {
-            return nsEventStatus_eConsumeNoDefault;
-        }
+        // If prevent default on keydown, do same for keypress
+        if (status == nsEventStatus_eConsumeNoDefault)
+            setNoDefault = true;
     }
 
     // Don't pass modifiers as NS_KEY_PRESS events.
@@ -1648,7 +1649,9 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
         aEvent->key() == Qt::Key_Alt     ||
         aEvent->key() == Qt::Key_AltGr) {
 
-        return nsEventStatus_eIgnore;
+        return setNoDefault ?
+            nsEventStatus_eConsumeNoDefault :
+            nsEventStatus_eIgnore;
     }
 
     // Look for specialized app-command keys
@@ -1691,6 +1694,11 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
 
     nsKeyEvent event(true, NS_KEY_PRESS, this);
     InitKeyEvent(event, aEvent);
+
+    // If prevent default on keydown, do same for keypress
+    if (setNoDefault) {
+        event.mFlags.mDefaultPrevented = true;
+    }
 
     // If there is no charcode attainable from the text, try to
     // generate it from the keycode. Check shift state for case
@@ -1867,10 +1875,9 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
 
         nsEventStatus status = DispatchEvent(&downEvent);
 
-        // If prevent default on keydown, don't dispatch keypress event
-        if (status == nsEventStatus_eConsumeNoDefault) {
-            return nsEventStatus_eConsumeNoDefault;
-        }
+        // If prevent default on keydown, do same for keypress
+        if (status == nsEventStatus_eConsumeNoDefault)
+            setNoDefault = true;
     }
 
     nsKeyEvent event(true, NS_KEY_PRESS, this);
@@ -1880,6 +1887,9 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
 
     event.keyCode = domCharCode ? 0 : domKeyCode;
     event.mKeyNameIndex = keyNameIndex;
+
+    if (setNoDefault)
+        event.mFlags.mDefaultPrevented = true;
 
     // send the key press event
     return DispatchEvent(&event);

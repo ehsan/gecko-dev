@@ -34,9 +34,6 @@ public:
 
   virtual ~CompositorOGL();
 
-  virtual TemporaryRef<DataTextureSource>
-  CreateDataTextureSource(TextureFlags aFlags = 0) MOZ_OVERRIDE;
-
   virtual bool Initialize() MOZ_OVERRIDE;
 
   virtual void Destroy() MOZ_OVERRIDE;

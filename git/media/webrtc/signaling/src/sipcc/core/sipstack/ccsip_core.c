@@ -7217,6 +7217,12 @@ sip_sm_init (void)
 
     }
 
+    /* Initialize SDP Parser */
+    if (!sip_sdp_init()) {
+        /* Error initialize the SDP error */
+        return (SIP_ERROR);
+    }
+
     return SIP_OK;
 }
 

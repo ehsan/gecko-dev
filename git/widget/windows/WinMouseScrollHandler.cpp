@@ -13,7 +13,6 @@
 
 #include "WinMouseScrollHandler.h"
 #include "nsWindow.h"
-#include "nsWindowDefs.h"
 #include "KeyboardLayout.h"
 #include "WinUtils.h"
 #include "nsGkAtoms.h"
@@ -151,7 +150,7 @@ MouseScrollHandler::~MouseScrollHandler()
 bool
 MouseScrollHandler::ProcessMessage(nsWindow* aWindow, UINT msg,
                                    WPARAM wParam, LPARAM lParam,
-                                   MSGResult& aResult)
+                                   LRESULT *aRetValue, bool &aEatMessage)
 {
   Device::Elantech::UpdateZoomUntil();
 
@@ -175,16 +174,16 @@ MouseScrollHandler::ProcessMessage(nsWindow* aWindow, UINT msg,
       // WM_MOUSEHWHEEL.  We should consume them always.  If the messages
       // would be handled by our window again, it caused making infinite
       // message loop.
-      aResult.mConsumed = true;
-      aResult.mResult = (msg != WM_MOUSEHWHEEL);
+      aEatMessage = true;
+      *aRetValue = (msg != WM_MOUSEHWHEEL);
       return true;
 
     case WM_HSCROLL:
     case WM_VSCROLL:
-      aResult.mConsumed =
+      aEatMessage =
         GetInstance()->ProcessNativeScrollMessage(aWindow, msg, wParam, lParam);
       sInstance->mSynthesizingEvent->NotifyNativeMessageHandlingFinished();
-      aResult.mResult = 0;
+      *aRetValue = 0;
       return true;
 
     case MOZ_WM_MOUSEVWHEEL:
@@ -192,7 +191,7 @@ MouseScrollHandler::ProcessMessage(nsWindow* aWindow, UINT msg,
       GetInstance()->HandleMouseWheelMessage(aWindow, msg, wParam, lParam);
       sInstance->mSynthesizingEvent->NotifyInternalMessageHandlingFinished();
       // Doesn't need to call next wndproc for internal wheel message.
-      aResult.mConsumed = true;
+      aEatMessage = true;
       return true;
 
     case MOZ_WM_HSCROLL:
@@ -201,7 +200,7 @@ MouseScrollHandler::ProcessMessage(nsWindow* aWindow, UINT msg,
         HandleScrollMessageAsMouseWheelMessage(aWindow, msg, wParam, lParam);
       sInstance->mSynthesizingEvent->NotifyInternalMessageHandlingFinished();
       // Doesn't need to call next wndproc for internal scroll message.
-      aResult.mConsumed = true;
+      aEatMessage = true;
       return true;
 
     case WM_KEYDOWN:
@@ -214,8 +213,8 @@ MouseScrollHandler::ProcessMessage(nsWindow* aWindow, UINT msg,
          ::GetMessageTime()));
       LOG_KEYSTATE();
       if (Device::Elantech::HandleKeyMessage(aWindow, msg, wParam)) {
-        aResult.mResult = 0;
-        aResult.mConsumed = true;
+        *aRetValue = 0;
+        aEatMessage = true;
         return true;
       }
       return false;

@@ -4,11 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ion/arm/MacroAssembler-arm.h"
-
 #include "mozilla/DebugOnly.h"
 #include "mozilla/MathAlgorithms.h"
 
+#include "ion/arm/MacroAssembler-arm.h"
 #include "ion/BaselineFrame.h"
 #include "ion/MoveEmitter.h"
 
@@ -28,14 +27,6 @@ isValueDTRDCandidate(ValueOperand &val)
     if ((val.payloadReg().code() & 1) != 0)
         return false;
     return true;
-}
-
-void
-MacroAssemblerARM::convertBoolToInt32(Register source, Register dest)
-{
-    // Note that C++ bool is only 1 byte, so zero extend it to clear the
-    // higher-order bits.
-    ma_and(Imm32(0xff), source, dest);
 }
 
 void
@@ -350,14 +341,6 @@ MacroAssemblerARM::ma_movPatchable(Imm32 imm_, Register dest,
                                    Assembler::Condition c, RelocStyle rs, Instruction *i)
 {
     int32_t imm = imm_.value;
-    if (i) {
-        // Make sure the current instruction is not an artificial guard
-        // inserted by the assembler buffer.
-        // The InstructionIterator already does this and handles edge cases,
-        // so, just asking an iterator for its current instruction should be
-        // enough to make sure we don't accidentally inspect an artificial guard.
-        i = InstructionIterator(i).cur();
-    }
     switch(rs) {
       case L_MOVWT:
         as_movw(dest, Imm16(imm & 0xffff), c, i);
@@ -405,11 +388,11 @@ MacroAssemblerARM::ma_mov(const ImmGCPtr &ptr, Register dest)
     // before to recover the pointer, and not after.
     writeDataRelocation(ptr);
     RelocStyle rs;
-    if (hasMOVWT())
+    if (hasMOVWT()) {
         rs = L_MOVWT;
-    else
+    } else {
         rs = L_LDR;
-
+    }
     ma_movPatchable(Imm32(ptr.value), dest, Always, rs);
 }
 
@@ -899,31 +882,11 @@ MacroAssemblerARM::ma_mod_mask(Register src, Register dest, Register hold, int32
 
 }
 
-void
-MacroAssemblerARM::ma_smod(Register num, Register div, Register dest)
-{
-    as_sdiv(ScratchRegister, num, div);
-    as_mls(dest, num, ScratchRegister, div);
-}
-
-void
-MacroAssemblerARM::ma_umod(Register num, Register div, Register dest)
-{
-    as_udiv(ScratchRegister, num, div);
-    as_mls(dest, num, ScratchRegister, div);
-}
-
 // division
 void
 MacroAssemblerARM::ma_sdiv(Register num, Register div, Register dest, Condition cond)
 {
     as_sdiv(dest, num, div, cond);
-}
-
-void
-MacroAssemblerARM::ma_udiv(Register num, Register div, Register dest, Condition cond)
-{
-    as_udiv(dest, num, div, cond);
 }
 
 // Memory.
@@ -1543,13 +1506,7 @@ MacroAssemblerARMCompat::callWithExitFrame(IonCode *target)
     Push(Imm32(descriptor)); // descriptor
 
     addPendingJump(m_buffer.nextOffset(), target->raw(), Relocation::IONCODE);
-    RelocStyle rs;
-    if (hasMOVWT())
-        rs = L_MOVWT;
-    else
-        rs = L_LDR;
-
-    ma_movPatchable(Imm32((int) target->raw()), ScratchRegister, Always, rs);
+    ma_mov(Imm32((int) target->raw()), ScratchRegister);
     ma_callIonHalfPush(ScratchRegister);
 }
 
@@ -1561,13 +1518,7 @@ MacroAssemblerARMCompat::callWithExitFrame(IonCode *target, Register dynStack)
     Push(dynStack); // descriptor
 
     addPendingJump(m_buffer.nextOffset(), target->raw(), Relocation::IONCODE);
-    RelocStyle rs;
-    if (hasMOVWT())
-        rs = L_MOVWT;
-    else
-        rs = L_LDR;
-
-    ma_movPatchable(Imm32((int) target->raw()), ScratchRegister, Always, rs);
+    ma_mov(Imm32((int) target->raw()), ScratchRegister);
     ma_callIonHalfPush(ScratchRegister);
 }
 
@@ -2711,18 +2662,13 @@ MacroAssemblerARMCompat::extractTag(const BaseIndex &address, Register scratch)
 }
 
 void
-MacroAssemblerARMCompat::moveValue(const Value &val, Register type, Register data)
-{
+MacroAssemblerARMCompat::moveValue(const Value &val, Register type, Register data) {
     jsval_layout jv = JSVAL_TO_IMPL(val);
     ma_mov(Imm32(jv.s.tag), type);
-    if (val.isMarkable())
-        ma_mov(ImmGCPtr(reinterpret_cast<gc::Cell *>(val.toGCThing())), data);
-    else
-        ma_mov(Imm32(jv.s.payload.i32), data);
+    ma_mov(Imm32(jv.s.payload.i32), data);
 }
 void
-MacroAssemblerARMCompat::moveValue(const Value &val, const ValueOperand &dest)
-{
+MacroAssemblerARMCompat::moveValue(const Value &val, const ValueOperand &dest) {
     moveValue(val, dest.typeReg(), dest.payloadReg());
 }
 
@@ -2730,8 +2676,7 @@ MacroAssemblerARMCompat::moveValue(const Value &val, const ValueOperand &dest)
 // X86/X64-common (ARM too now) interface.
 /////////////////////////////////////////////////////////////////
 void
-MacroAssemblerARMCompat::storeValue(ValueOperand val, Operand dst)
-{
+MacroAssemblerARMCompat::storeValue(ValueOperand val, Operand dst) {
     ma_str(val.payloadReg(), ToPayload(dst));
     ma_str(val.typeReg(), ToType(dst));
 }
@@ -3004,13 +2949,7 @@ MacroAssemblerARM::ma_callIonHalfPush(const Register r)
 void
 MacroAssemblerARM::ma_call(void *dest)
 {
-    RelocStyle rs;
-    if (hasMOVWT())
-        rs = L_MOVWT;
-    else
-        rs = L_LDR;
-
-    ma_movPatchable(Imm32((uint32_t) dest), CallReg, Always, rs);
+    ma_mov(Imm32((uint32_t)dest), CallReg);
     as_blx(CallReg);
 }
 

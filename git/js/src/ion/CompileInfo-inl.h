@@ -8,7 +8,6 @@
 #define ion_CompileInfo_inl_h
 
 #include "ion/CompileInfo.h"
-
 #include "jsscriptinlines.h"
 
 using namespace js;

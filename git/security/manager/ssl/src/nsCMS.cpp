@@ -29,7 +29,8 @@ using namespace mozilla;
 
 static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 
-NS_IMPL_ISUPPORTS2(nsCMSMessage, nsICMSMessage, nsICMSMessage2)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsCMSMessage, nsICMSMessage, 
+                                            nsICMSMessage2)
 
 nsCMSMessage::nsCMSMessage()
 {
@@ -725,7 +726,7 @@ loser:
   return rv;
 }
 
-NS_IMPL_ISUPPORTS1(nsCMSDecoder, nsICMSDecoder)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsCMSDecoder, nsICMSDecoder)
 
 nsCMSDecoder::nsCMSDecoder()
 : m_dcx(nullptr)
@@ -811,7 +812,7 @@ NS_IMETHODIMP nsCMSDecoder::Finish(nsICMSMessage ** aCMSMsg)
   return NS_OK;
 }
 
-NS_IMPL_ISUPPORTS1(nsCMSEncoder, nsICMSEncoder)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsCMSEncoder, nsICMSEncoder)
 
 nsCMSEncoder::nsCMSEncoder()
 : m_ecx(nullptr)

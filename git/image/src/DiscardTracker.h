@@ -8,7 +8,6 @@
 
 #include "mozilla/LinkedList.h"
 #include "mozilla/TimeStamp.h"
-#include "prlock.h"
 
 class nsITimer;
 

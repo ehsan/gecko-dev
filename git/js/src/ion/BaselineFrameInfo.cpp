@@ -5,11 +5,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ion/BaselineFrameInfo.h"
-
-#include "jsanalyze.h"
-
 #include "ion/IonSpewer.h"
 #include "ion/shared/BaselineCompiler-shared.h"
+
+#include "jsanalyze.h"
 
 using namespace js;
 using namespace js::ion;

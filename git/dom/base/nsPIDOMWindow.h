@@ -19,6 +19,7 @@
 #include "nsTArray.h"
 #include "nsIURI.h"
 #include "mozilla/dom/EventTarget.h"
+
 #include "js/RootingAPI.h"
 
 #define DOM_WINDOW_DESTROYED_TOPIC "dom-window-destroyed"
@@ -53,7 +54,6 @@ class nsPIWindowRoot;
 namespace mozilla {
 namespace dom {
 class AudioContext;
-class Element;
 }
 }
 
@@ -196,8 +196,34 @@ public:
   // Internal getter/setter for the frame element, this version of the
   // getter crosses chrome boundaries whereas the public scriptable
   // one doesn't for security reasons.
-  mozilla::dom::Element* GetFrameElementInternal() const;
-  void SetFrameElementInternal(mozilla::dom::Element* aFrameElement);
+  nsIDOMElement* GetFrameElementInternal() const
+  {
+    if (mOuterWindow) {
+      return mOuterWindow->GetFrameElementInternal();
+    }
+
+    NS_ASSERTION(!IsInnerWindow(),
+                 "GetFrameElementInternal() called on orphan inner window");
+
+    return mFrameElement;
+  }
+
+  void SetFrameElementInternal(nsIDOMElement *aFrameElement)
+  {
+    if (IsOuterWindow()) {
+      mFrameElement = aFrameElement;
+
+      return;
+    }
+
+    if (!mOuterWindow) {
+      NS_ERROR("frameElement set on inner window with no outer!");
+
+      return;
+    }
+
+    mOuterWindow->SetFrameElementInternal(aFrameElement);
+  }
 
   bool IsLoadingOrRunningTimeout() const
   {
@@ -313,8 +339,9 @@ public:
   nsPIDOMWindow *EnsureInnerWindow()
   {
     NS_ASSERTION(IsOuterWindow(), "EnsureInnerWindow called on inner window");
-    // GetDoc forces inner window creation if there isn't one already
-    GetDoc();
+    // GetDocument forces inner window creation if there isn't one already
+    nsCOMPtr<nsIDOMDocument> doc;
+    GetDocument(getter_AddRefs(doc));
     return GetCurrentInnerWindow();
   }
 
@@ -671,7 +698,7 @@ protected:
   nsCOMPtr<mozilla::dom::EventTarget> mParentTarget; // strong
 
   // These members are only used on outer windows.
-  nsCOMPtr<mozilla::dom::Element> mFrameElement;
+  nsCOMPtr<nsIDOMElement> mFrameElement;
   nsIDocShell           *mDocShell;  // Weak Reference
 
   // mPerformance is only used on inner windows.

@@ -363,7 +363,8 @@ Element::WrapObject(JSContext *aCx, JS::Handle<JSObject*> aScope)
   // We must ensure that the XBL Binding is installed before we hand
   // back this object.
 
-  if (HasFlag(NODE_MAY_BE_IN_BINDING_MNGR) && GetXBLBinding()) {
+  if (HasFlag(NODE_MAY_BE_IN_BINDING_MNGR) &&
+      doc->BindingManager()->GetBinding(this)) {
     // There's already a binding for this element so nothing left to
     // be done here.
 
@@ -414,6 +415,34 @@ Element::WrapObject(JSContext *aCx, JS::Handle<JSObject*> aScope)
   }
 
   return obj;
+}
+
+Element*
+Element::GetFirstElementChild() const
+{
+  uint32_t i, count = mAttrsAndChildren.ChildCount();
+  for (i = 0; i < count; ++i) {
+    nsIContent* child = mAttrsAndChildren.ChildAt(i);
+    if (child->IsElement()) {
+      return child->AsElement();
+    }
+  }
+  
+  return nullptr;
+}
+
+Element*
+Element::GetLastElementChild() const
+{
+  uint32_t i = mAttrsAndChildren.ChildCount();
+  while (i > 0) {
+    nsIContent* child = mAttrsAndChildren.ChildAt(--i);
+    if (child->IsElement()) {
+      return child->AsElement();
+    }
+  }
+  
+  return nullptr;
 }
 
 nsDOMTokenList*
@@ -1690,7 +1719,8 @@ Element::SetAttrAndNotify(int32_t aNamespaceID,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (document || HasFlag(NODE_FORCE_XBL_BINDINGS)) {
-    nsRefPtr<nsXBLBinding> binding = GetXBLBinding();
+    nsRefPtr<nsXBLBinding> binding =
+      OwnerDoc()->BindingManager()->GetBinding(this);
     if (binding) {
       binding->AttributeChanged(aName, aNamespaceID, false, aNotify);
     }
@@ -1873,7 +1903,8 @@ Element::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (document || HasFlag(NODE_FORCE_XBL_BINDINGS)) {
-    nsRefPtr<nsXBLBinding> binding = GetXBLBinding();
+    nsRefPtr<nsXBLBinding> binding =
+      OwnerDoc()->BindingManager()->GetBinding(this);
     if (binding) {
       binding->AttributeChanged(aName, aNameSpaceID, true, aNotify);
     }

@@ -5,16 +5,15 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "jscompartment.h"
-
 #include "assembler/assembler/MacroAssembler.h"
-#include "ion/arm/BaselineHelpers-arm.h"
-#include "ion/Bailouts.h"
-#include "ion/ExecutionModeInlines.h"
 #include "ion/IonCompartment.h"
-#include "ion/IonFrames.h"
 #include "ion/IonLinker.h"
+#include "ion/IonFrames.h"
 #include "ion/IonSpewer.h"
+#include "ion/Bailouts.h"
 #include "ion/VMFunctions.h"
+#include "ion/arm/BaselineHelpers-arm.h"
+#include "ion/ExecutionModeInlines.h"
 
 using namespace js;
 using namespace js::ion;
@@ -244,7 +243,7 @@ IonRuntime::generateEnterJIT(JSContext *cx, EnterJitType type)
         Label error;
         masm.addPtr(Imm32(IonExitFrameLayout::SizeWithFooter()), sp);
         masm.addPtr(Imm32(BaselineFrame::Size()), framePtr);
-        masm.branchIfFalseBool(ReturnReg, &error);
+        masm.branchTest32(Assembler::Zero, ReturnReg, ReturnReg, &error);
 
         masm.jump(jitcode);
 
@@ -347,11 +346,7 @@ IonRuntime::generateInvalidator(JSContext *cx)
     // remove the space that this frame was using before the bailout
     // (computed by InvalidationBailout)
     masm.ma_add(sp, r1, sp);
-
-    // Jump to shared bailout tail. The BailoutInfo pointer has to be in r2.
-    IonCode *bailoutTail = cx->compartment()->ionCompartment()->getBailoutTail();
-    masm.branch(bailoutTail);
-
+    masm.generateBailoutTail(r1, r2);
     Linker linker(masm);
     IonCode *code = linker.newCode(cx, JSC::OTHER_CODE);
     IonSpew(IonSpew_Invalidate, "   invalidation thunk created at %p", (void *) code->raw());
@@ -461,7 +456,7 @@ IonRuntime::generateArgumentsRectifier(JSContext *cx, ExecutionMode mode, void *
 }
 
 static void
-GenerateBailoutThunk(JSContext *cx, MacroAssembler &masm, uint32_t frameClass)
+GenerateBailoutThunk(MacroAssembler &masm, uint32_t frameClass)
 {
     // the stack should look like:
     // [IonFrame]
@@ -515,6 +510,10 @@ GenerateBailoutThunk(JSContext *cx, MacroAssembler &masm, uint32_t frameClass)
     masm.mov(sp, r1);
     masm.setupAlignedABICall(2);
 
+    // Copy the present stack pointer into a temp register (it happens to be the
+    // argument register)
+    //masm.as_mov(r0, O2Reg(sp));
+
     // Decrement sp by another 4, so we keep alignment
     // Not Anymore!  pushing both the snapshotoffset as well as the
     // masm.as_sub(sp, sp, Imm8(4));
@@ -551,10 +550,7 @@ GenerateBailoutThunk(JSContext *cx, MacroAssembler &masm, uint32_t frameClass)
                           + bailoutFrameSize) // everything else that was pushed on the stack
                     , sp);
     }
-
-    // Jump to shared bailout tail. The BailoutInfo pointer has to be in r2.
-    IonCode *bailoutTail = cx->compartment()->ionCompartment()->getBailoutTail();
-    masm.branch(bailoutTail);
+    masm.generateBailoutTail(r1, r2);
 }
 
 IonCode *
@@ -567,7 +563,7 @@ IonRuntime::generateBailoutTable(JSContext *cx, uint32_t frameClass)
         masm.ma_bl(&bailout);
     masm.bind(&bailout);
 
-    GenerateBailoutThunk(cx, masm, frameClass);
+    GenerateBailoutThunk(masm, frameClass);
 
     Linker linker(masm);
     return linker.newCode(cx, JSC::OTHER_CODE);
@@ -577,7 +573,7 @@ IonCode *
 IonRuntime::generateBailoutHandler(JSContext *cx)
 {
     MacroAssembler masm(cx);
-    GenerateBailoutThunk(cx, masm, NO_FRAME_SIZE_CLASS_ID);
+    GenerateBailoutThunk(masm, NO_FRAME_SIZE_CLASS_ID);
 
     Linker linker(masm);
     return linker.newCode(cx, JSC::OTHER_CODE);
@@ -639,7 +635,6 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
 
       case Type_Int32:
       case Type_Pointer:
-      case Type_Bool:
         outReg = r4;
         regs.take(outReg);
         masm.reserveStack(sizeof(int32_t));
@@ -720,11 +715,6 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
         masm.freeStack(sizeof(int32_t));
         break;
 
-      case Type_Bool:
-        masm.load8ZeroExtend(Address(sp, 0), ReturnReg);
-        masm.freeStack(sizeof(int32_t));
-        break;
-
       default:
         JS_ASSERT(f.outParam == Type_Void);
         break;
@@ -785,7 +775,7 @@ IonRuntime::generatePreBarrier(JSContext *cx, MIRType type)
     return linker.newCode(cx, JSC::OTHER_CODE);
 }
 
-typedef bool (*HandleDebugTrapFn)(JSContext *, BaselineFrame *, uint8_t *, bool *);
+typedef bool (*HandleDebugTrapFn)(JSContext *, BaselineFrame *, uint8_t *, JSBool *);
 static const VMFunction HandleDebugTrapInfo = FunctionInfo<HandleDebugTrapFn>(HandleDebugTrap);
 
 IonCode *
@@ -841,17 +831,6 @@ IonRuntime::generateExceptionTailStub(JSContext *cx)
     MacroAssembler masm;
 
     masm.handleFailureWithHandlerTail();
-
-    Linker linker(masm);
-    return linker.newCode(cx, JSC::OTHER_CODE);
-}
-
-IonCode *
-IonRuntime::generateBailoutTailStub(JSContext *cx)
-{
-    MacroAssembler masm;
-
-    masm.generateBailoutTail(r1, r2);
 
     Linker linker(masm);
     return linker.newCode(cx, JSC::OTHER_CODE);

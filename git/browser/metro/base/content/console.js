@@ -33,6 +33,7 @@ let ConsolePanelView = {
     } catch(ex) {
       // likely don't have an old pref
     }
+    this.updateVisibility();
     Services.prefs.addObserver(this._enabledPref, this, false);
   },
 
@@ -67,10 +68,14 @@ let ConsolePanelView = {
     return Services.prefs.getBoolPref(this._enabledPref);
   },
 
+  updateVisibility: function ec_updateVisibility(aVal, aPref) {
+    let button = document.getElementById("menuitem-console");
+    button.hidden = !this.enabled;
+  },
+
   observe: function(aSubject, aTopic, aData) {
-    if (aTopic == "nsPref:changed") {
-      // We may choose to create a new menu in v2
-      }
+    if (aTopic == "nsPref:changed")
+      this.updateVisibility();
     else
       this.appendItem(aSubject);
   },

@@ -44,7 +44,7 @@ Module::Call(nsIXPConnectWrappedNative* wrapper,
              const JS::CallArgs& args,
              bool* _retval)
 {
-  JSObject* global = JS::CurrentGlobalOrNull(cx);
+  JSObject* global = JS_GetGlobalForScopeChain(cx);
   if (!global)
     return NS_ERROR_NOT_AVAILABLE;
 

@@ -5,8 +5,6 @@
 // This verifies that deleting the database from the profile doesn't break
 // anything
 
-const EXTENSIONS_DB = "extensions.sqlite";
-
 const profileDir = gProfD.clone();
 profileDir.append("extensions");
 
@@ -44,10 +42,10 @@ function run_test_1() {
     shutdownManager();
 
     let db = gProfD.clone();
-    db.append(EXTENSIONS_DB);
+    db.append("extensions.sqlite");
     db.remove(true);
 
-    do_execute_soon(check_test_1);
+    check_test_1();
   });
 }
 
@@ -59,7 +57,7 @@ function check_test_1() {
     do_check_eq(a1.version, "1.0");
 
     let db = gProfD.clone();
-    db.append(EXTENSIONS_DB);
+    db.append("extensions.sqlite");
     do_check_true(db.exists());
     do_check_true(db.fileSize > 0);
 

@@ -52,9 +52,8 @@ SharedSurface_GL::Copy(SharedSurface_GL* src, SharedSurface_GL* dest,
 
         if (dest->AttachType() == AttachmentType::GLTexture) {
             GLuint destTex = dest->Texture();
-            GLenum destTarget = dest->TextureTarget();
 
-            gl->BlitFramebufferToTexture(0, destTex, src->Size(), dest->Size(), destTarget);
+            gl->BlitFramebufferToTexture(0, destTex, src->Size(), dest->Size());
         } else if (dest->AttachType() == AttachmentType::GLRenderbuffer) {
             GLuint destRB = dest->Renderbuffer();
             ScopedFramebufferForRenderbuffer destWrapper(gl, destRB);
@@ -90,9 +89,8 @@ SharedSurface_GL::Copy(SharedSurface_GL* src, SharedSurface_GL* dest,
 
         if (src->AttachType() == AttachmentType::GLTexture) {
             GLuint srcTex = src->Texture();
-            GLenum srcTarget = src->TextureTarget();
 
-            gl->BlitTextureToFramebuffer(srcTex, 0, src->Size(), dest->Size(), srcTarget);
+            gl->BlitTextureToFramebuffer(srcTex, 0, src->Size(), dest->Size());
         } else if (src->AttachType() == AttachmentType::GLRenderbuffer) {
             GLuint srcRB = src->Renderbuffer();
             ScopedFramebufferForRenderbuffer srcWrapper(gl, srcRB);
@@ -117,15 +115,12 @@ SharedSurface_GL::Copy(SharedSurface_GL* src, SharedSurface_GL* dest,
 
     if (src->AttachType() == AttachmentType::GLTexture) {
         GLuint srcTex = src->Texture();
-        GLenum srcTarget = src->TextureTarget();
 
         if (dest->AttachType() == AttachmentType::GLTexture) {
             GLuint destTex = dest->Texture();
-            GLenum destTarget = dest->TextureTarget();
 
             gl->BlitTextureToTexture(srcTex, destTex,
-                                     src->Size(), dest->Size(),
-                                     srcTarget, destTarget);
+                                     src->Size(), dest->Size());
 
             return;
         }
@@ -135,7 +130,7 @@ SharedSurface_GL::Copy(SharedSurface_GL* src, SharedSurface_GL* dest,
             ScopedFramebufferForRenderbuffer destWrapper(gl, destRB);
 
             gl->BlitTextureToFramebuffer(srcTex, destWrapper.FB(),
-                                         src->Size(), dest->Size(), srcTarget);
+                                         src->Size(), dest->Size());
 
             return;
         }
@@ -149,10 +144,9 @@ SharedSurface_GL::Copy(SharedSurface_GL* src, SharedSurface_GL* dest,
 
         if (dest->AttachType() == AttachmentType::GLTexture) {
             GLuint destTex = dest->Texture();
-            GLenum destTarget = dest->TextureTarget();
 
             gl->BlitFramebufferToTexture(srcWrapper.FB(), destTex,
-                                         src->Size(), dest->Size(), destTarget);
+                                         src->Size(), dest->Size());
 
             return;
         }

@@ -316,8 +316,7 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, AbstractFrame
                .setNoScriptRval(false)
                .setPrincipals(principals)
                .setOriginPrincipals(originPrincipals);
-        JSScript *compiled = frontend::CompileScript(cx, &cx->tempLifoAlloc(),
-                                                     scopeobj, callerScript, options,
+        JSScript *compiled = frontend::CompileScript(cx, scopeobj, callerScript, options,
                                                      chars.get(), length, stableStr, staticLevel);
         if (!compiled)
             return false;
@@ -381,8 +380,7 @@ js::DirectEvalFromIon(JSContext *cx,
                .setNoScriptRval(false)
                .setPrincipals(principals)
                .setOriginPrincipals(originPrincipals);
-        JSScript *compiled = frontend::CompileScript(cx, &cx->tempLifoAlloc(),
-                                                     scopeobj, callerScript, options,
+        JSScript *compiled = frontend::CompileScript(cx, scopeobj, callerScript, options,
                                                      chars.get(), length, stableStr, staticLevel);
         if (!compiled)
             return false;

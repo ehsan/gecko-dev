@@ -317,22 +317,25 @@ class LNewObject : public LInstructionHelper<1, 0, 0>
     }
 };
 
-class LNewPar : public LInstructionHelper<1, 1, 2>
+class LParNew : public LInstructionHelper<1, 1, 2>
 {
   public:
-    LIR_HEADER(NewPar);
+    LIR_HEADER(ParNew);
 
-    LNewPar(const LAllocation &slice, const LDefinition &temp1, const LDefinition &temp2) {
-        setOperand(0, slice);
+    LParNew(const LAllocation &parSlice,
+            const LDefinition &temp1,
+            const LDefinition &temp2)
+    {
+        setOperand(0, parSlice);
         setTemp(0, temp1);
         setTemp(1, temp2);
     }
 
-    MNewPar *mir() const {
-        return mir_->toNewPar();
+    MParNew *mir() const {
+        return mir_->toParNew();
     }
 
-    const LAllocation *forkJoinSlice() {
+    const LAllocation *parSlice() {
         return getOperand(0);
     }
 
@@ -345,26 +348,28 @@ class LNewPar : public LInstructionHelper<1, 1, 2>
     }
 };
 
-class LNewDenseArrayPar : public LCallInstructionHelper<1, 2, 3>
+class LParNewDenseArray : public LCallInstructionHelper<1, 2, 3>
 {
   public:
-    LIR_HEADER(NewDenseArrayPar);
+    LIR_HEADER(ParNewDenseArray);
 
-    LNewDenseArrayPar(const LAllocation &slice, const LAllocation &length,
-                      const LDefinition &temp1, const LDefinition &temp2, const LDefinition &temp3)
-    {
-        setOperand(0, slice);
+    LParNewDenseArray(const LAllocation &parSlice,
+                      const LAllocation &length,
+                      const LDefinition &temp1,
+                      const LDefinition &temp2,
+                      const LDefinition &temp3) {
+        setOperand(0, parSlice);
         setOperand(1, length);
         setTemp(0, temp1);
         setTemp(1, temp2);
         setTemp(2, temp3);
     }
 
-    MNewDenseArrayPar *mir() const {
-        return mir_->toNewDenseArrayPar();
+    MParNewDenseArray *mir() const {
+        return mir_->toParNewDenseArray();
     }
 
-    const LAllocation *forkJoinSlice() {
+    const LAllocation *parSlice() {
         return getOperand(0);
     }
 
@@ -427,34 +432,36 @@ class LNewCallObject : public LInstructionHelper<1, 1, 0>
     }
 };
 
-class LNewCallObjectPar : public LInstructionHelper<1, 2, 2>
+class LParNewCallObject : public LInstructionHelper<1, 2, 2>
 {
-    LNewCallObjectPar(const LAllocation &slice, const LAllocation &slots,
-                      const LDefinition &temp1, const LDefinition &temp2)
-    {
-        setOperand(0, slice);
+    LParNewCallObject(const LAllocation &parSlice,
+                      const LAllocation &slots,
+                      const LDefinition &temp1,
+                      const LDefinition &temp2) {
+        setOperand(0, parSlice);
         setOperand(1, slots);
         setTemp(0, temp1);
         setTemp(1, temp2);
     }
 
 public:
-    LIR_HEADER(NewCallObjectPar);
+    LIR_HEADER(ParNewCallObject);
 
-    static LNewCallObjectPar *NewWithSlots(const LAllocation &slice, const LAllocation &slots,
-                                           const LDefinition &temp1, const LDefinition &temp2)
-    {
-        return new LNewCallObjectPar(slice, slots, temp1, temp2);
+    static LParNewCallObject *NewWithSlots(const LAllocation &parSlice,
+                                           const LAllocation &slots,
+                                           const LDefinition &temp1,
+                                           const LDefinition &temp2) {
+        return new LParNewCallObject(parSlice, slots, temp1, temp2);
     }
 
-    static LNewCallObjectPar *NewSansSlots(const LAllocation &slice,
-                                           const LDefinition &temp1, const LDefinition &temp2)
-    {
+    static LParNewCallObject *NewSansSlots(const LAllocation &parSlice,
+                                           const LDefinition &temp1,
+                                           const LDefinition &temp2) {
         LAllocation slots = LConstantIndex::Bogus();
-        return new LNewCallObjectPar(slice, slots, temp1, temp2);
+        return new LParNewCallObject(parSlice, slots, temp1, temp2);
     }
 
-    const LAllocation *forkJoinSlice() {
+    const LAllocation *parSlice() {
         return getOperand(0);
     }
 
@@ -470,8 +477,8 @@ public:
         return slots() && ! slots()->isConstant();
     }
 
-    const MNewCallObjectPar *mir() const {
-        return mir_->toNewCallObjectPar();
+    const MParNewCallObject *mir() const {
+        return mir_->toParNewCallObject();
     }
 
     const LAllocation *getTemp0() {
@@ -504,10 +511,10 @@ class LNewStringObject : public LInstructionHelper<1, 1, 1>
     }
 };
 
-class LAbortPar : public LInstructionHelper<0, 0, 0>
+class LParBailout : public LInstructionHelper<0, 0, 0>
 {
   public:
-    LIR_HEADER(AbortPar);
+    LIR_HEADER(ParBailout);
 };
 
 class LInitElem : public LCallInstructionHelper<0, 1 + 2*BOX_PIECES, 0>
@@ -527,29 +534,6 @@ class LInitElem : public LCallInstructionHelper<0, 1 + 2*BOX_PIECES, 0>
     }
     MInitElem *mir() const {
         return mir_->toInitElem();
-    }
-};
-
-class LInitElemGetterSetter : public LCallInstructionHelper<0, 2 + BOX_PIECES, 0>
-{
-  public:
-    LIR_HEADER(InitElemGetterSetter)
-
-    LInitElemGetterSetter(const LAllocation &object, const LAllocation &value) {
-        setOperand(0, object);
-        setOperand(1, value);
-    }
-
-    static const size_t IdIndex = 2;
-
-    const LAllocation *object() {
-        return getOperand(0);
-    }
-    const LAllocation *value() {
-        return getOperand(1);
-    }
-    MInitElemGetterSetter *mir() const {
-        return mir_->toInitElemGetterSetter();
     }
 };
 
@@ -577,28 +561,6 @@ class LInitProp : public LCallInstructionHelper<0, 1 + BOX_PIECES, 0>
     }
 };
 
-class LInitPropGetterSetter : public LCallInstructionHelper<0, 2, 0>
-{
-  public:
-    LIR_HEADER(InitPropGetterSetter)
-
-    LInitPropGetterSetter(const LAllocation &object, const LAllocation &value) {
-        setOperand(0, object);
-        setOperand(1, value);
-    }
-
-    const LAllocation *object() {
-        return getOperand(0);
-    }
-    const LAllocation *value() {
-        return getOperand(1);
-    }
-
-    MInitPropGetterSetter *mir() const {
-        return mir_->toInitPropGetterSetter();
-    }
-};
-
 class LCheckOverRecursed : public LInstructionHelper<0, 0, 0>
 {
   public:
@@ -608,17 +570,19 @@ class LCheckOverRecursed : public LInstructionHelper<0, 0, 0>
     { }
 };
 
-class LCheckOverRecursedPar : public LInstructionHelper<0, 1, 1>
+class LParCheckOverRecursed : public LInstructionHelper<0, 1, 1>
 {
   public:
-    LIR_HEADER(CheckOverRecursedPar);
+    LIR_HEADER(ParCheckOverRecursed);
 
-    LCheckOverRecursedPar(const LAllocation &slice, const LDefinition &tempReg) {
-        setOperand(0, slice);
+    LParCheckOverRecursed(const LAllocation &parSlice,
+                          const LDefinition &tempReg)
+    {
+        setOperand(0, parSlice);
         setTemp(0, tempReg);
     }
 
-    const LAllocation *forkJoinSlice() {
+    const LAllocation *parSlice() {
         return getOperand(0);
     }
 
@@ -627,17 +591,19 @@ class LCheckOverRecursedPar : public LInstructionHelper<0, 1, 1>
     }
 };
 
-class LCheckInterruptPar : public LInstructionHelper<0, 1, 1>
+class LParCheckInterrupt : public LInstructionHelper<0, 1, 1>
 {
   public:
-    LIR_HEADER(CheckInterruptPar);
+    LIR_HEADER(ParCheckInterrupt);
 
-    LCheckInterruptPar(const LAllocation &slice, const LDefinition &tempReg) {
-        setOperand(0, slice);
+    LParCheckInterrupt(const LAllocation &parSlice,
+                       const LDefinition &tempReg)
+    {
+        setOperand(0, parSlice);
         setTemp(0, tempReg);
     }
 
-    const LAllocation *forkJoinSlice() {
+    const LAllocation *parSlice() {
         return getOperand(0);
     }
 
@@ -1711,33 +1677,6 @@ class LCompareVM : public LCallInstructionHelper<1, 2 * BOX_PIECES, 0>
     }
 };
 
-class LBitAndAndBranch : public LControlInstructionHelper<2, 2, 0>
-{
-  public:
-    LIR_HEADER(BitAndAndBranch)
-    LBitAndAndBranch(MBasicBlock *ifTrue, MBasicBlock *ifFalse)
-    {
-        setSuccessor(0, ifTrue);
-        setSuccessor(1, ifFalse);
-    }
-
-    MBasicBlock *ifTrue() const {
-        return getSuccessor(0);
-    }
-    MBasicBlock *ifFalse() const {
-        return getSuccessor(1);
-    }
-    const LAllocation *left() {
-        return getOperand(0);
-    }
-    const LAllocation *right() {
-        return getOperand(1);
-    }
-    MCompare *mir() {
-        return mir_->toCompare();
-    }
-};
-
 class LIsNullOrLikeUndefined : public LInstructionHelper<1, BOX_PIECES, 2>
 {
   public:
@@ -2367,15 +2306,14 @@ class LConcat : public LInstructionHelper<1, 2, 4>
     }
 };
 
-class LConcatPar : public LInstructionHelper<1, 3, 3>
+class LParConcat : public LInstructionHelper<1, 3, 3>
 {
   public:
-    LIR_HEADER(ConcatPar)
+    LIR_HEADER(ParConcat)
 
-    LConcatPar(const LAllocation &slice, const LAllocation &lhs, const LAllocation &rhs,
-               const LDefinition &temp1, const LDefinition &temp2, const LDefinition &temp3)
-    {
-        setOperand(0, slice);
+    LParConcat(const LAllocation &parSlice, const LAllocation &lhs, const LAllocation &rhs,
+               const LDefinition &temp1, const LDefinition &temp2, const LDefinition &temp3) {
+        setOperand(0, parSlice);
         setOperand(1, lhs);
         setOperand(2, rhs);
         setTemp(0, temp1);
@@ -2383,7 +2321,7 @@ class LConcatPar : public LInstructionHelper<1, 3, 3>
         setTemp(2, temp3);
     }
 
-    const LAllocation *forkJoinSlice() {
+    const LAllocation *parSlice() {
         return this->getOperand(0);
     }
     const LAllocation *lhs() {
@@ -2709,27 +2647,28 @@ class LLambda : public LInstructionHelper<1, 1, 0>
     }
 };
 
-class LLambdaPar : public LInstructionHelper<1, 2, 2>
+class LParLambda : public LInstructionHelper<1, 2, 2>
 {
   public:
-    LIR_HEADER(LambdaPar);
+    LIR_HEADER(ParLambda);
 
-    LLambdaPar(const LAllocation &slice, const LAllocation &scopeChain,
-               const LDefinition &temp1, const LDefinition &temp2)
-    {
-        setOperand(0, slice);
+    LParLambda(const LAllocation &parSlice,
+               const LAllocation &scopeChain,
+               const LDefinition &temp1,
+               const LDefinition &temp2) {
+        setOperand(0, parSlice);
         setOperand(1, scopeChain);
         setTemp(0, temp1);
         setTemp(1, temp2);
     }
-    const LAllocation *forkJoinSlice() {
+    const LAllocation *parSlice() {
         return getOperand(0);
     }
     const LAllocation *scopeChain() {
         return getOperand(1);
     }
-    const MLambdaPar *mir() const {
-        return mir_->toLambdaPar();
+    const MParLambda *mir() const {
+        return mir_->toParLambda();
     }
     const LAllocation *getTemp0() {
         return getTemp(0)->output();
@@ -3997,12 +3936,12 @@ class LFunctionEnvironment : public LInstructionHelper<1, 1, 0>
     }
 };
 
-class LForkJoinSlice : public LCallInstructionHelper<1, 0, 1>
+class LParSlice : public LCallInstructionHelper<1, 0, 1>
 {
   public:
-    LIR_HEADER(ForkJoinSlice);
+    LIR_HEADER(ParSlice);
 
-    LForkJoinSlice(const LDefinition &temp1) {
+    LParSlice(const LDefinition &temp1) {
         setTemp(0, temp1);
     }
 
@@ -4136,7 +4075,7 @@ class LSetPropertyCacheT : public LInstructionHelper<0, 2, 1>
     }
 };
 
-class LSetElementCacheV : public LInstructionHelper<0, 1 + 2 * BOX_PIECES, 2>
+class LSetElementCacheV : public LInstructionHelper<0, 1 + 2 * BOX_PIECES, 1>
 {
   public:
     LIR_HEADER(SetElementCacheV);
@@ -4144,12 +4083,9 @@ class LSetElementCacheV : public LInstructionHelper<0, 1 + 2 * BOX_PIECES, 2>
     static const size_t Index = 1;
     static const size_t Value = 1 + BOX_PIECES;
 
-    LSetElementCacheV(const LAllocation &object, const LDefinition &elem,
-                      const LDefinition &temp)
-    {
+    LSetElementCacheV(const LAllocation &object, const LDefinition &temp) {
         setOperand(0, object);
-        setTemp(0, elem);
-        setTemp(1, temp);
+        setTemp(0, temp);
     }
     const MSetElementCache *mir() const {
         return mir_->toSetElementCache();
@@ -4158,15 +4094,12 @@ class LSetElementCacheV : public LInstructionHelper<0, 1 + 2 * BOX_PIECES, 2>
     const LAllocation *object() {
         return getOperand(0);
     }
-    const LDefinition *temp0() {
+    const LDefinition *temp() {
         return getTemp(0);
-    }
-    const LDefinition *temp1() {
-        return getTemp(1);
     }
 };
 
-class LSetElementCacheT : public LInstructionHelper<0, 2 + BOX_PIECES, 2>
+class LSetElementCacheT : public LInstructionHelper<0, 2 + BOX_PIECES, 1>
 {
   public:
     LIR_HEADER(SetElementCacheT);
@@ -4174,11 +4107,10 @@ class LSetElementCacheT : public LInstructionHelper<0, 2 + BOX_PIECES, 2>
     static const size_t Index = 2;
 
     LSetElementCacheT(const LAllocation &object, const LAllocation &value,
-                      const LDefinition &elem, const LDefinition &temp) {
+                      const LDefinition &temp) {
         setOperand(0, object);
         setOperand(1, value);
-        setTemp(0, elem);
-        setTemp(1, temp);
+        setTemp(0, temp);
     }
     const MSetElementCache *mir() const {
         return mir_->toSetElementCache();
@@ -4190,11 +4122,8 @@ class LSetElementCacheT : public LInstructionHelper<0, 2 + BOX_PIECES, 2>
     const LAllocation *value() {
         return getOperand(1);
     }
-    const LDefinition *temp0() {
+    const LDefinition *temp() {
         return getTemp(0);
-    }
-    const LDefinition *temp1() {
-        return getTemp(1);
     }
 };
 
@@ -4352,8 +4281,7 @@ class LRest : public LCallInstructionHelper<1, 1, 3>
     LIR_HEADER(Rest)
 
     LRest(const LAllocation &numActuals, const LDefinition &temp1, const LDefinition &temp2,
-          const LDefinition &temp3)
-    {
+          const LDefinition &temp3) {
         setOperand(0, numActuals);
         setTemp(0, temp1);
         setTemp(1, temp2);
@@ -4367,21 +4295,20 @@ class LRest : public LCallInstructionHelper<1, 1, 3>
     }
 };
 
-class LRestPar : public LCallInstructionHelper<1, 2, 3>
+class LParRest : public LCallInstructionHelper<1, 2, 3>
 {
   public:
-    LIR_HEADER(RestPar);
+    LIR_HEADER(ParRest);
 
-    LRestPar(const LAllocation &slice, const LAllocation &numActuals,
-             const LDefinition &temp1, const LDefinition &temp2, const LDefinition &temp3)
-    {
-        setOperand(0, slice);
+    LParRest(const LAllocation &parSlice, const LAllocation &numActuals,
+             const LDefinition &temp1, const LDefinition &temp2, const LDefinition &temp3) {
+        setOperand(0, parSlice);
         setOperand(1, numActuals);
         setTemp(0, temp1);
         setTemp(1, temp2);
         setTemp(2, temp3);
     }
-    const LAllocation *forkJoinSlice() {
+    const LAllocation *parSlice() {
         return getOperand(0);
     }
     const LAllocation *numActuals() {
@@ -4392,13 +4319,15 @@ class LRestPar : public LCallInstructionHelper<1, 2, 3>
     }
 };
 
-class LGuardThreadLocalObject : public LCallInstructionHelper<0, 2, 1>
+class LParWriteGuard : public LCallInstructionHelper<0, 2, 1>
 {
   public:
-    LIR_HEADER(GuardThreadLocalObject);
+    LIR_HEADER(ParWriteGuard);
 
-    LGuardThreadLocalObject(const LAllocation &slice, const LAllocation &object, const LDefinition &temp1) {
-        setOperand(0, slice);
+    LParWriteGuard(const LAllocation &parSlice,
+                   const LAllocation &object,
+                   const LDefinition &temp1) {
+        setOperand(0, parSlice);
         setOperand(1, object);
         setTemp(0, temp1);
     }
@@ -4407,7 +4336,7 @@ class LGuardThreadLocalObject : public LCallInstructionHelper<0, 2, 1>
         return true;
     }
 
-    const LAllocation *forkJoinSlice() {
+    const LAllocation *parSlice() {
         return getOperand(0);
     }
 
@@ -4417,6 +4346,18 @@ class LGuardThreadLocalObject : public LCallInstructionHelper<0, 2, 1>
 
     const LAllocation *getTempReg() {
         return getTemp(0)->output();
+    }
+};
+
+class LParDump : public LCallInstructionHelper<0, BOX_PIECES, 0>
+{
+  public:
+    LIR_HEADER(ParDump);
+
+    static const size_t Value = 0;
+
+    const LAllocation *value() {
+        return getOperand(0);
     }
 };
 

@@ -2,30 +2,33 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "base/basictypes.h"
+
 #include "IndexedDBParent.h"
 
-#include "AsyncConnectionHelper.h"
+#include "nsIDOMFile.h"
+#include "nsIDOMEvent.h"
+#include "nsIXPConnect.h"
+
 #include "mozilla/AppProcessChecker.h"
 #include "mozilla/Assertions.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/dom/ContentParent.h"
-#include "mozilla/dom/indexedDB/DatabaseInfo.h"
-#include "mozilla/dom/indexedDB/IDBDatabase.h"
-#include "mozilla/dom/indexedDB/IDBEvents.h"
-#include "mozilla/dom/indexedDB/IDBFactory.h"
-#include "mozilla/dom/indexedDB/IDBIndex.h"
-#include "mozilla/dom/indexedDB/IDBKeyRange.h"
-#include "mozilla/dom/indexedDB/IDBObjectStore.h"
-#include "mozilla/dom/indexedDB/IDBTransaction.h"
-#include "mozilla/dom/ipc/Blob.h"
-#include "mozilla/dom/TabParent.h"
 #include "mozilla/unused.h"
 #include "mozilla/Util.h"
+#include "mozilla/dom/ContentParent.h"
+#include "mozilla/dom/TabParent.h"
+#include "mozilla/dom/ipc/Blob.h"
 #include "nsContentUtils.h"
 #include "nsCxPusher.h"
-#include "nsIDOMEvent.h"
-#include "nsIDOMFile.h"
-#include "nsIXPConnect.h"
+
+#include "AsyncConnectionHelper.h"
+#include "DatabaseInfo.h"
+#include "IDBDatabase.h"
+#include "IDBEvents.h"
+#include "IDBFactory.h"
+#include "IDBIndex.h"
+#include "IDBKeyRange.h"
+#include "IDBObjectStore.h"
+#include "IDBTransaction.h"
 
 #define CHROME_ORIGIN "chrome"
 #define PERMISSION_PREFIX "indexedDB-chrome-"
@@ -236,7 +239,7 @@ IndexedDBParent::DeallocPIndexedDBDeleteDatabaseRequestParent(
  ******************************************************************************/
 
 IndexedDBDatabaseParent::IndexedDBDatabaseParent()
-: mEventListener(MOZ_THIS_IN_INITIALIZER_LIST())
+: mEventListener(ALLOW_THIS_IN_INITIALIZER_LIST(this))
 {
   MOZ_COUNT_CTOR(IndexedDBDatabaseParent);
 }
@@ -468,9 +471,7 @@ IndexedDBDatabaseParent::HandleRequestEvent(nsIDOMEvent* aEvent,
       // If we get here then the child process is either dead or in the process
       // of being killed. Abort the transaction now to prevent any changes to
       // the database.
-      ErrorResult rv;
-      transaction->Abort(rv);
-      if (rv.Failed()) {
+      if (NS_FAILED(transaction->Abort())) {
         NS_WARNING("Failed to abort transaction!");
       }
       return NS_ERROR_FAILURE;
@@ -635,7 +636,7 @@ IndexedDBDatabaseParent::DeallocPIndexedDBTransactionParent(
  ******************************************************************************/
 
 IndexedDBTransactionParent::IndexedDBTransactionParent()
-: mEventListener(MOZ_THIS_IN_INITIALIZER_LIST()),
+: mEventListener(ALLOW_THIS_IN_INITIALIZER_LIST(this)),
   mArtificialRequestCount(false)
 {
   MOZ_COUNT_CTOR(IndexedDBTransactionParent);
@@ -719,8 +720,7 @@ IndexedDBTransactionParent::ActorDestroy(ActorDestroyReason aWhy)
     if (mArtificialRequestCount) {
       // The transaction never completed and now the child side is dead. Abort
       // here to be safe.
-      ErrorResult rv;
-      mTransaction->Abort(rv);
+      mTransaction->Abort();
 
       mTransaction->OnRequestFinished();
 #ifdef DEBUG
@@ -795,14 +795,10 @@ IndexedDBTransactionParent::RecvPIndexedDBObjectStoreConstructor(
     {
       AutoSetCurrentTransaction asct(mTransaction);
 
-      ErrorResult rv;
-      nsCOMPtr<nsIIDBObjectStore> store = mTransaction->ObjectStore(name, rv);
-      if (rv.Failed()) {
-        NS_WARNING("Failed to get object store!");
-        return false;
-      }
+      nsresult rv =
+        mTransaction->ObjectStoreInternal(name, getter_AddRefs(objectStore));
+      NS_ENSURE_SUCCESS(rv, false);
 
-      objectStore = static_cast<IDBObjectStore*>(store.get());
       actor->SetObjectStore(objectStore);
     }
 
@@ -2078,7 +2074,7 @@ IndexedDBCursorRequestParent::Continue(const ContinueParams& aParams)
 
 IndexedDBDeleteDatabaseRequestParent::IndexedDBDeleteDatabaseRequestParent(
                                                            IDBFactory* aFactory)
-: mEventListener(MOZ_THIS_IN_INITIALIZER_LIST()), mFactory(aFactory)
+: mEventListener(ALLOW_THIS_IN_INITIALIZER_LIST(this)), mFactory(aFactory)
 {
   MOZ_COUNT_CTOR(IndexedDBDeleteDatabaseRequestParent);
   MOZ_ASSERT(aFactory);

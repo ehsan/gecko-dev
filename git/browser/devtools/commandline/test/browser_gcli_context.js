@@ -37,17 +37,26 @@ function test() {
 
 // var helpers = require('gclitest/helpers');
 // var mockCommands = require('gclitest/mockCommands');
+var cli = require('gcli/cli');
+
+var origLogErrors = undefined;
 
 exports.setup = function(options) {
   mockCommands.setup();
+
+  origLogErrors = cli.logErrors;
+  cli.logErrors = false;
 };
 
 exports.shutdown = function(options) {
   mockCommands.shutdown();
+
+  cli.logErrors = origLogErrors;
+  origLogErrors = undefined;
 };
 
 exports.testBaseline = function(options) {
-  return helpers.audit(options, [
+  helpers.audit(options, [
     // These 3 establish a baseline for comparison when we have used the
     // context command
     {
@@ -91,7 +100,7 @@ exports.testBaseline = function(options) {
 };
 
 exports.testContext = function(options) {
-  return helpers.audit(options, [
+  helpers.audit(options, [
     // Use the 'tsn' context
     {
       setup:    'context tsn',

@@ -141,7 +141,7 @@ InspectorPanel.prototype = {
         this.highlighter.unlock();
       }
 
-      this.markup.expandNode(this.selection.nodeFront);
+      this.markup.expandNode(this.selection.node);
 
       this.emit("ready");
       deferred.resolve(this);
@@ -156,28 +156,15 @@ InspectorPanel.prototype = {
   /**
    * Return a promise that will resolve to the default node for selection.
    */
-  _getDefaultNodeForSelection: function() {
-    if (this._defaultNode) {
-      return this._defaultNode;
-    }
-    let walker = this.walker;
-
+  _getDefaultNodeForSelection : function() {
     // if available set body node as default selected node
     // else set documentElement
-    return walker.getRootNode().then(rootNode => {
-      return walker.querySelector(rootNode, "body");
-    }).then(front => {
+    return this.walker.querySelector(this.walker.rootNode, "body").then(front => {
       if (front) {
         return front;
       }
       return this.walker.documentElement(this.walker.rootNode);
-    }).then(node => {
-      if (walker !== this.walker) {
-        promise.reject(null);
-      }
-      this._defaultNode = node;
-      return node;
-    })
+    });
   },
 
   /**
@@ -227,19 +214,18 @@ InspectorPanel.prototype = {
     } else if (this.target.window) {
       searchDoc = this.target.window.document;
     } else {
-      searchDoc = null;
+      return;
     }
     // Initiate the selectors search object.
-    let setNodeFunction = function(eventName, node) {
-      this.selection.setNodeFront(node, "selectorsearch");
+    let setNodeFunction = function(node) {
+      this.selection.setNode(node, "selectorsearch");
     }.bind(this);
     if (this.searchSuggestions) {
       this.searchSuggestions.destroy();
       this.searchSuggestions = null;
     }
     this.searchBox = this.panelDoc.getElementById("inspector-searchbox");
-    this.searchSuggestions = new SelectorSearch(this, searchDoc, this.searchBox);
-    this.searchSuggestions.on("node-selected", setNodeFunction);
+    this.searchSuggestions = new SelectorSearch(searchDoc, this.searchBox, setNodeFunction);
   },
 
   /**
@@ -288,21 +274,32 @@ InspectorPanel.prototype = {
    */
   onNavigatedAway: function InspectorPanel_onNavigatedAway(event, payload) {
     let newWindow = payload._navPayload || payload;
-    this._defaultNode = null;
+    this.walker.release().then(null, console.error);
+    this.walker = null;
     this.selection.setNodeFront(null);
+    this.selection.setWalker(null);
     this._destroyMarkup();
     this.isDirty = false;
 
-    this._getDefaultNodeForSelection().then(defaultNode => {
+    this.target.inspector.getWalker().then(walker => {
       if (this._destroyPromise) {
+        walker.release().then(null, console.error);
         return;
       }
-      this.selection.setNodeFront(defaultNode, "navigateaway");
 
-      this._initMarkup();
-      this.once("markuploaded", () => {
-        this.markup.expandNode(this.selection.nodeFront);
-        this.setupSearchBox();
+      this.walker = walker;
+      this.selection.setWalker(walker);
+      this._getDefaultNodeForSelection().then(defaultNode => {
+        if (this._destroyPromise) {
+          return;
+        }
+        this.selection.setNodeFront(defaultNode, "navigateaway");
+
+        this._initMarkup();
+        this.once("markuploaded", () => {
+          this.markup.expandNode(this.selection.node);
+          this.setupSearchBox();
+        });
       });
     });
   },
@@ -394,7 +391,7 @@ InspectorPanel.prototype = {
   onDetached: function InspectorPanel_onDetached(event, parentNode) {
     this.cancelLayoutChange();
     this.breadcrumbs.cutAfter(this.breadcrumbs.indexOf(parentNode));
-    this.selection.setNodeFront(parentNode ? parentNode : this._defaultNode, "detached");
+    this.selection.setNodeFront(parentNode, "detached");
   },
 
   /**
@@ -627,7 +624,10 @@ InspectorPanel.prototype = {
     if (!this.selection.isNode()) {
       return;
     }
-    this._copyLongStr(this.walker.innerHTML(this.selection.nodeFront));
+    let toCopy = this.selection.node.innerHTML;
+    if (toCopy) {
+      clipboardHelper.copyString(toCopy);
+    }
   },
 
   /**
@@ -638,17 +638,10 @@ InspectorPanel.prototype = {
     if (!this.selection.isNode()) {
       return;
     }
-
-    this._copyLongStr(this.walker.outerHTML(this.selection.nodeFront));
-  },
-
-  _copyLongStr: function(promise) {
-    return promise.then(longstr => {
-      return longstr.string().then(toCopy => {
-        longstr.release().then(null, console.error);
-        clipboardHelper.copyString(toCopy);
-      });
-    }).then(null, console.error);
+    let toCopy = this.selection.node.outerHTML;
+    if (toCopy) {
+      clipboardHelper.copyString(toCopy);
+    }
   },
 
   /**
@@ -675,13 +668,17 @@ InspectorPanel.prototype = {
       return;
     }
 
+    let toDelete = this.selection.node;
+
+    let parent = this.selection.node.parentNode;
+
     // If the markup panel is active, use the markup panel to delete
     // the node, making this an undoable action.
     if (this.markup) {
-      this.markup.deleteNode(this.selection.nodeFront);
+      this.markup.deleteNode(toDelete);
     } else {
       // remove the node from content
-      this.walker.removeNode(this.selection.nodeFront);
+      parent.removeChild(toDelete);
     }
   },
 

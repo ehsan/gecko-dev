@@ -23,7 +23,6 @@
 #include "prsystem.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Telemetry.h"
-#include "mozilla/Services.h"
 
 #include "nsLayoutStatics.h"
 #include "nsContentUtils.h"
@@ -865,313 +864,63 @@ XPCJSRuntime::FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status, JSBool is
     }
 }
 
-static void WatchdogMain(void *arg);
-class Watchdog;
-class WatchdogManager;
 class AutoLockWatchdog {
-    Watchdog* const mWatchdog;
+    XPCJSRuntime* const mRuntime;
+
   public:
-    AutoLockWatchdog(Watchdog* aWatchdog);
-    ~AutoLockWatchdog();
+    AutoLockWatchdog(XPCJSRuntime* aRuntime)
+      : mRuntime(aRuntime) {
+        PR_Lock(mRuntime->mWatchdogLock);
+    }
+
+    ~AutoLockWatchdog() {
+        PR_Unlock(mRuntime->mWatchdogLock);
+    }
 };
 
-class Watchdog
+bool
+XPCJSRuntime::IsRuntimeActive()
 {
-  public:
-    Watchdog(WatchdogManager *aManager)
-      : mManager(aManager)
-      , mLock(nullptr)
-      , mWakeup(nullptr)
-      , mThread(nullptr)
-      , mHibernating(false)
-      , mInitialized(false)
-      , mShuttingDown(false)
-    {}
-    ~Watchdog() { MOZ_ASSERT(!Initialized()); }
-
-    WatchdogManager* Manager() { return mManager; }
-    bool Initialized() { return mInitialized; }
-    bool ShuttingDown() { return mShuttingDown; }
-    PRLock *GetLock() { return mLock; }
-    bool Hibernating() { return mHibernating; }
-    void WakeUp()
-    {
-        MOZ_ASSERT(Initialized());
-        MOZ_ASSERT(Hibernating());
-        mHibernating = false;
-        PR_NotifyCondVar(mWakeup);
-    }
-
-    //
-    // Invoked by the main thread only.
-    //
-
-    void Init()
-    {
-        MOZ_ASSERT(NS_IsMainThread());
-        mLock = PR_NewLock();
-        if (!mLock)
-            NS_RUNTIMEABORT("PR_NewLock failed.");
-        mWakeup = PR_NewCondVar(mLock);
-        if (!mWakeup)
-            NS_RUNTIMEABORT("PR_NewCondVar failed.");
-
-        {
-            AutoLockWatchdog lock(this);
-
-            mThread = PR_CreateThread(PR_USER_THREAD, WatchdogMain, this,
-                                      PR_PRIORITY_NORMAL, PR_LOCAL_THREAD,
-                                      PR_UNJOINABLE_THREAD, 0);
-            if (!mThread)
-                NS_RUNTIMEABORT("PR_CreateThread failed!");
-
-            // WatchdogMain acquires the lock and then asserts mInitialized. So
-            // make sure to set mInitialized before releasing the lock here so
-            // that it's atomic with the creation of the thread.
-            mInitialized = true;
-        }
-    }
-
-    void Shutdown()
-    {
-        MOZ_ASSERT(NS_IsMainThread());
-        MOZ_ASSERT(Initialized());
-        {   // Scoped lock.
-            AutoLockWatchdog lock(this);
-
-            // Signal to the watchdog thread that it's time to shut down.
-            mShuttingDown = true;
-
-            // Wake up the watchdog, and wait for it to call us back.
-            PR_NotifyCondVar(mWakeup);
-            PR_WaitCondVar(mWakeup, PR_INTERVAL_NO_TIMEOUT);
-            MOZ_ASSERT(!mShuttingDown);
-        }
-
-        // Destroy state.
-        mThread = nullptr;
-        PR_DestroyCondVar(mWakeup);
-        mWakeup = nullptr;
-        PR_DestroyLock(mLock);
-        mLock = nullptr;
-
-        // All done.
-        mInitialized = false;
-    }
-
-    //
-    // Invoked by the watchdog thread only.
-    //
-
-    void Hibernate()
-    {
-        MOZ_ASSERT(!NS_IsMainThread());
-        mHibernating = true;
-        Sleep(PR_INTERVAL_NO_TIMEOUT);
-    }
-    void Sleep(PRIntervalTime timeout)
-    {
-        MOZ_ASSERT(!NS_IsMainThread());
-        MOZ_ALWAYS_TRUE(PR_WaitCondVar(mWakeup, timeout) == PR_SUCCESS);
-    }
-    void Finished()
-    {
-        MOZ_ASSERT(!NS_IsMainThread());
-        mShuttingDown = false;
-        PR_NotifyCondVar(mWakeup);
-    }
-
-  private:
-    WatchdogManager *mManager;
-
-    PRLock *mLock;
-    PRCondVar *mWakeup;
-    PRThread *mThread;
-    bool mHibernating;
-    bool mInitialized;
-    bool mShuttingDown;
-};
-
-class WatchdogManager : public nsIObserver
-{
-  public:
-
-    NS_DECL_ISUPPORTS
-    WatchdogManager(XPCJSRuntime *aRuntime) : mRuntime(aRuntime)
-                                            , mRuntimeState(RUNTIME_INACTIVE)
-    {
-        // All the timestamps start at zero except for runtime state change.
-        PodArrayZero(mTimestamps);
-        mTimestamps[TimestampRuntimeStateChange] = PR_Now();
-
-        // Enable the watchdog, if appropriate.
-        RefreshWatchdog();
-
-        // Register ourselves as an observer to get updates on the pref.
-        mozilla::Preferences::AddStrongObserver(this, "dom.use_watchdog");
-    }
-    virtual ~WatchdogManager()
-    {
-        // Shutting down the watchdog requires context-switching to the watchdog
-        // thread, which isn't great to do in a destructor. So we require
-        // consumers to shut it down manually before releasing it.
-        MOZ_ASSERT(!mWatchdog);
-        mozilla::Preferences::RemoveObserver(this, "dom.use_watchdog");
-    }
-
-    NS_IMETHOD Observe(nsISupports* aSubject, const char* aTopic,
-                       const PRUnichar* aData)
-    {
-        RefreshWatchdog();
-        return NS_OK;
-    }
-
-    // Runtime statistics. These live on the watchdog manager, are written
-    // from the main thread, and are read from the watchdog thread (holding
-    // the lock in each case).
-    void
-    RecordRuntimeActivity(bool active)
-    {
-        // The watchdog reads this state, so acquire the lock before writing it.
-        MOZ_ASSERT(NS_IsMainThread());
-        Maybe<AutoLockWatchdog> lock;
-        if (mWatchdog)
-            lock.construct(mWatchdog);
-
-        // Write state.
-        mTimestamps[TimestampRuntimeStateChange] = PR_Now();
-        mRuntimeState = active ? RUNTIME_ACTIVE : RUNTIME_INACTIVE;
-
-        // The watchdog may be hibernating, waiting for the runtime to go
-        // active. Wake it up if necessary.
-        if (active && mWatchdog && mWatchdog->Hibernating())
-            mWatchdog->WakeUp();
-    }
-    bool IsRuntimeActive() { return mRuntimeState == RUNTIME_ACTIVE; }
-    PRTime TimeSinceLastRuntimeStateChange()
-    {
-        return PR_Now() - GetTimestamp(TimestampRuntimeStateChange);
-    }
-
-    // Note - Because of the runtime activity timestamp, these are read and
-    // written from both threads.
-    void RecordTimestamp(WatchdogTimestampCategory aCategory)
-    {
-        // The watchdog thread always holds the lock when it runs.
-        Maybe<AutoLockWatchdog> maybeLock;
-        if (NS_IsMainThread() && mWatchdog)
-            maybeLock.construct(mWatchdog);
-        mTimestamps[aCategory] = PR_Now();
-    }
-    PRTime GetTimestamp(WatchdogTimestampCategory aCategory)
-    {
-        // The watchdog thread always holds the lock when it runs.
-        Maybe<AutoLockWatchdog> maybeLock;
-        if (NS_IsMainThread() && mWatchdog)
-            maybeLock.construct(mWatchdog);
-        return mTimestamps[aCategory];
-    }
-
-    XPCJSRuntime* Runtime() { return mRuntime; }
-    Watchdog* GetWatchdog() { return mWatchdog; }
-
-    void RefreshWatchdog()
-    {
-        bool wantWatchdog = Preferences::GetBool("dom.use_watchdog", true);
-        if (wantWatchdog == !!mWatchdog)
-            return;
-        if (wantWatchdog)
-            StartWatchdog();
-        else
-            StopWatchdog();
-    }
-
-    void StartWatchdog()
-    {
-        MOZ_ASSERT(!mWatchdog);
-        mWatchdog = new Watchdog(this);
-        mWatchdog->Init();
-    }
-
-    void StopWatchdog()
-    {
-        MOZ_ASSERT(mWatchdog);
-        mWatchdog->Shutdown();
-        mWatchdog = nullptr;
-    }
-
-  private:
-    XPCJSRuntime *mRuntime;
-    nsAutoPtr<Watchdog> mWatchdog;
-
-    enum { RUNTIME_ACTIVE, RUNTIME_INACTIVE } mRuntimeState;
-    PRTime mTimestamps[TimestampCount];
-};
-
-NS_IMPL_ISUPPORTS1(WatchdogManager, nsIObserver)
-
-AutoLockWatchdog::AutoLockWatchdog(Watchdog *aWatchdog) : mWatchdog(aWatchdog)
-{
-    PR_Lock(mWatchdog->GetLock());
+    return mRuntimeState == RUNTIME_ACTIVE;
 }
 
-AutoLockWatchdog::~AutoLockWatchdog()
+PRTime
+XPCJSRuntime::TimeSinceLastRuntimeStateChange()
 {
-    PR_Unlock(mWatchdog->GetLock());
+    return PR_Now() - mTimeAtLastRuntimeStateChange;
 }
 
-static void
-WatchdogMain(void *arg)
+//static
+void
+XPCJSRuntime::WatchdogMain(void *arg)
 {
     PR_SetCurrentThreadName("JS Watchdog");
 
-    Watchdog* self = static_cast<Watchdog*>(arg);
-    WatchdogManager* manager = self->Manager();
+    XPCJSRuntime* self = static_cast<XPCJSRuntime*>(arg);
 
     // Lock lasts until we return
     AutoLockWatchdog lock(self);
 
-    MOZ_ASSERT(self->Initialized());
-    MOZ_ASSERT(!self->ShuttingDown());
-    while (!self->ShuttingDown()) {
+    PRIntervalTime sleepInterval;
+    while (self->mWatchdogThread) {
         // Sleep only 1 second if recently (or currently) active; otherwise, hibernate
-        if (manager->IsRuntimeActive() ||
-            manager->TimeSinceLastRuntimeStateChange() <= PRTime(2*PR_USEC_PER_SEC))
-        {
-            self->Sleep(PR_TicksPerSecond());
-        } else {
-            manager->RecordTimestamp(TimestampWatchdogHibernateStart);
-            self->Hibernate();
-            manager->RecordTimestamp(TimestampWatchdogHibernateStop);
+        if (self->IsRuntimeActive() || self->TimeSinceLastRuntimeStateChange() <= PRTime(2*PR_USEC_PER_SEC))
+            sleepInterval = PR_TicksPerSecond();
+        else {
+            sleepInterval = PR_INTERVAL_NO_TIMEOUT;
+            self->mWatchdogHibernating = true;
         }
-
-        // Rise and shine.
-        manager->RecordTimestamp(TimestampWatchdogWakeup);
+        MOZ_ALWAYS_TRUE(PR_WaitCondVar(self->mWatchdogWakeup, sleepInterval) == PR_SUCCESS);
 
         // Don't trigger the operation callback if activity started less than one second ago.
         // The callback is only used for detecting long running scripts, and triggering the
         // callback from off the main thread can be expensive.
-        if (manager->IsRuntimeActive() &&
-            manager->TimeSinceLastRuntimeStateChange() >= PRTime(PR_USEC_PER_SEC))
-        {
-            JS_TriggerOperationCallback(manager->Runtime()->Runtime());
-        }
+        if (self->IsRuntimeActive() && self->TimeSinceLastRuntimeStateChange() >= PRTime(PR_USEC_PER_SEC))
+            JS_TriggerOperationCallback(self->Runtime());
     }
 
-    // Tell the manager that we've shut down.
-    self->Finished();
-}
-
-PRTime
-XPCJSRuntime::GetWatchdogTimestamp(WatchdogTimestampCategory aCategory)
-{
-    return mWatchdogManager->GetTimestamp(aCategory);
-}
-
-NS_EXPORT_(void)
-xpc::SimulateActivityCallback(bool aActive)
-{
-    XPCJSRuntime::ActivityCallback(XPCJSRuntime::Get(), aActive);
+    /* Wake up the main thread waiting for the watchdog to terminate. */
+    PR_NotifyCondVar(self->mWatchdogWakeup);
 }
 
 //static
@@ -1179,7 +928,17 @@ void
 XPCJSRuntime::ActivityCallback(void *arg, JSBool active)
 {
     XPCJSRuntime* self = static_cast<XPCJSRuntime*>(arg);
-    self->mWatchdogManager->RecordRuntimeActivity(active);
+
+    AutoLockWatchdog lock(self);
+
+    self->mTimeAtLastRuntimeStateChange = PR_Now();
+    self->mRuntimeState = active ? RUNTIME_ACTIVE : RUNTIME_INACTIVE;
+
+    // Wake the watchdog up if it is hibernating due to a long period of inactivity.
+    if (active && self->mWatchdogHibernating) {
+        self->mWatchdogHibernating = false;
+        PR_NotifyCondVar(self->mWatchdogWakeup);
+    }
 }
 
 // static
@@ -1304,8 +1063,23 @@ XPCJSRuntime::~XPCJSRuntime()
 
     xpc_DelocalizeRuntime(Runtime());
 
-    if (mWatchdogManager->GetWatchdog())
-        mWatchdogManager->StopWatchdog();
+    if (mWatchdogWakeup) {
+        // If the watchdog thread is running, tell it to terminate waking it
+        // up if necessary and wait until it signals that it finished. As we
+        // must release the lock before calling PR_DestroyCondVar, we use an
+        // extra block here.
+        {
+            AutoLockWatchdog lock(this);
+            if (mWatchdogThread) {
+                mWatchdogThread = nullptr;
+                PR_NotifyCondVar(mWatchdogWakeup);
+                PR_WaitCondVar(mWatchdogWakeup, PR_INTERVAL_NO_TIMEOUT);
+            }
+        }
+        PR_DestroyCondVar(mWatchdogWakeup);
+        PR_DestroyLock(mWatchdogLock);
+        mWatchdogWakeup = nullptr;
+    }
 
     if (mCallContext)
         mCallContext->SystemIsBeingShutDown();
@@ -1419,6 +1193,7 @@ XPCJSRuntime::~XPCJSRuntime()
         delete mDetachedWrappedNativeProtoMap;
     }
 
+    JS_ShutDown();
 #ifdef MOZ_ENABLE_PROFILER_SPS
     // Tell the profiler that the runtime is gone
     if (PseudoStack *stack = mozilla_get_pseudo_stack())
@@ -2173,7 +1948,7 @@ ReportJSRuntimeExplicitTreeStats(const JS::RuntimeStats &rtStats,
 class JSCompartmentsMultiReporter MOZ_FINAL : public nsIMemoryMultiReporter
 {
   public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
 
     NS_IMETHOD GetName(nsACString &name) {
         name.AssignLiteral("compartments");
@@ -2219,7 +1994,7 @@ class JSCompartmentsMultiReporter MOZ_FINAL : public nsIMemoryMultiReporter
     }
 };
 
-NS_IMPL_ISUPPORTS1(JSCompartmentsMultiReporter
+NS_IMPL_THREADSAFE_ISUPPORTS1(JSCompartmentsMultiReporter
                               , nsIMemoryMultiReporter
                               )
 
@@ -2709,7 +2484,12 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
    mVariantRoots(nullptr),
    mWrappedJSRoots(nullptr),
    mObjectHolderRoots(nullptr),
-   mWatchdogManager(new WatchdogManager(this)),
+   mWatchdogLock(nullptr),
+   mWatchdogWakeup(nullptr),
+   mWatchdogThread(nullptr),
+   mWatchdogHibernating(false),
+   mRuntimeState(RUNTIME_INACTIVE),
+   mTimeAtLastRuntimeStateChange(PR_Now()),
    mJunkScope(nullptr),
    mExceptionManagerNotAvailable(false)
 {
@@ -2804,6 +2584,23 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
     if (!JS_GetGlobalDebugHooks(runtime)->debuggerHandler)
         xpc_InstallJSDebuggerKeywordHandler(runtime);
 #endif
+
+    mWatchdogLock = PR_NewLock();
+    if (!mWatchdogLock)
+        NS_RUNTIMEABORT("PR_NewLock failed.");
+    mWatchdogWakeup = PR_NewCondVar(mWatchdogLock);
+    if (!mWatchdogWakeup)
+        NS_RUNTIMEABORT("PR_NewCondVar failed.");
+
+    {
+        AutoLockWatchdog lock(this);
+
+        mWatchdogThread = PR_CreateThread(PR_USER_THREAD, WatchdogMain, this,
+                                          PR_PRIORITY_NORMAL, PR_LOCAL_THREAD,
+                                          PR_UNJOINABLE_THREAD, 0);
+        if (!mWatchdogThread)
+            NS_RUNTIMEABORT("PR_CreateThread failed!");
+    }
 }
 
 // static
@@ -2825,7 +2622,7 @@ XPCJSRuntime::newXPCJSRuntime(nsXPConnect* aXPConnect)
         self->GetNativeScriptableSharedMap()    &&
         self->GetDyingWrappedNativeProtoMap()   &&
         self->GetMapLock()                      &&
-        self->mWatchdogManager) {
+        self->mWatchdogThread) {
         return self;
     }
 
@@ -2851,11 +2648,10 @@ XPCJSRuntime::OnJSContextNew(JSContext *cx)
         RootedString str(cx);
         for (unsigned i = 0; i < IDX_TOTAL_COUNT; i++) {
             str = JS_InternString(cx, mStrings[i]);
-            if (!str) {
+            if (!str || !JS_ValueToId(cx, STRING_TO_JSVAL(str), &mStrIDs[i])) {
                 mStrIDs[0] = JSID_VOID;
                 return false;
             }
-            mStrIDs[i] = INTERNED_STRING_TO_JSID(cx, str);
             mStrJSVals[i] = STRING_TO_JSVAL(str);
         }
 

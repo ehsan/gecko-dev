@@ -198,7 +198,8 @@ nsStringBundle::FormatStringFromName(const PRUnichar *aName,
 }
                                      
 
-NS_IMPL_ISUPPORTS1(nsStringBundle, nsIStringBundle)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsStringBundle,
+                              nsIStringBundle)
 
 /* void GetStringFromID (in long aID, out wstring aResult); */
 NS_IMETHODIMP
@@ -521,10 +522,10 @@ nsStringBundleService::nsStringBundleService() :
 
 }
 
-NS_IMPL_ISUPPORTS3(nsStringBundleService,
-                   nsIStringBundleService,
-                   nsIObserver,
-                   nsISupportsWeakReference)
+NS_IMPL_THREADSAFE_ISUPPORTS3(nsStringBundleService,
+                              nsIStringBundleService,
+                              nsIObserver,
+                              nsISupportsWeakReference)
 
 nsStringBundleService::~nsStringBundleService()
 {

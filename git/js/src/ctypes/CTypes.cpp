@@ -8,10 +8,10 @@
 
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/StandardInteger.h"
 
 #include <limits>
 #include <math.h>
-#include <stdint.h>
 
 #if defined(XP_WIN) || defined(XP_OS2)
 #include <float.h>
@@ -1257,7 +1257,7 @@ static bool GetObjectProperty(JSContext *cx, HandleObject obj,
                               const char *property, MutableHandleObject result)
 {
   RootedValue val(cx);
-  if (!JS_GetProperty(cx, obj, property, &val)) {
+  if (!JS_GetProperty(cx, obj, property, val.address())) {
     return false;
   }
 
@@ -2544,7 +2544,7 @@ ImplicitConvert(JSContext* cx,
           return false;
 
         RootedValue prop(cx);
-        if (!JS_GetPropertyById(cx, valObj, id, &prop))
+        if (!JS_GetPropertyById(cx, valObj, id, prop.address()))
           return false;
 
         // Convert the field via ImplicitConvert().
@@ -3132,7 +3132,7 @@ CType::ConstructBasic(JSContext* cx,
     return JS_FALSE;
 
   if (args.length() == 1) {
-    if (!ExplicitConvert(cx, args[0], obj, CData::GetData(result)))
+    if (!ExplicitConvert(cx, args.handleAt(0), obj, CData::GetData(result)))
       return JS_FALSE;
   }
 
@@ -3325,12 +3325,11 @@ CType::Trace(JSTracer* trc, JSObject* obj)
 
     FieldInfoHash* fields =
       static_cast<FieldInfoHash*>(JSVAL_TO_PRIVATE(slot));
-    for (FieldInfoHash::Enum e(*fields); !e.empty(); e.popFront()) {
-      JSString *key = e.front().key;
+    for (FieldInfoHash::Range r = fields->all(); !r.empty(); r.popFront()) {
+      JSString *key = r.front().key;
       JS_CallStringTracer(trc, &key, "fieldName");
-      if (key != e.front().key)
-          e.rekeyFront(JS_ASSERT_STRING_IS_FLAT(key));
-      JS_CallHeapObjectTracer(trc, &e.front().value.mType, "fieldType");
+      JS_ASSERT(key == r.front().key);
+      JS_CallObjectTracer(trc, &r.front().value.mType, "fieldType");
     }
 
     break;
@@ -3345,10 +3344,10 @@ CType::Trace(JSTracer* trc, JSObject* obj)
     JS_ASSERT(fninfo);
 
     // Identify our objects to the tracer.
-    JS_CallHeapObjectTracer(trc, &fninfo->mABI, "abi");
-    JS_CallHeapObjectTracer(trc, &fninfo->mReturnType, "returnType");
+    JS_CallObjectTracer(trc, &fninfo->mABI, "abi");
+    JS_CallObjectTracer(trc, &fninfo->mReturnType, "returnType");
     for (size_t i = 0; i < fninfo->mArgTypes.length(); ++i)
-      JS_CallHeapObjectTracer(trc, &fninfo->mArgTypes[i], "argType");
+      JS_CallObjectTracer(trc, &fninfo->mArgTypes[i], "argType");
 
     break;
   }
@@ -3955,7 +3954,7 @@ PointerType::ConstructData(JSContext* cx,
       JS_ReportError(cx, "first argument must be a function");
       return JS_FALSE;
     }
-    return ExplicitConvert(cx, args[0], obj, CData::GetData(result));
+    return ExplicitConvert(cx, args.handleAt(0), obj, CData::GetData(result));
   }
 
   //
@@ -4292,7 +4291,7 @@ ArrayType::ConstructData(JSContext* cx,
       // This could be a JS array, or a CData array.
       RootedObject arg(cx, &args[0].toObject());
       RootedValue lengthVal(cx);
-      if (!JS_GetProperty(cx, arg, "length", &lengthVal) ||
+      if (!JS_GetProperty(cx, arg, "length", lengthVal.address()) ||
           !jsvalToSize(cx, lengthVal, false, &length)) {
         JS_ReportError(cx, "argument must be an array object or length");
         return JS_FALSE;
@@ -4344,7 +4343,7 @@ ArrayType::ConstructData(JSContext* cx,
   args.rval().setObject(*result);
 
   if (convertObject) {
-    if (!ExplicitConvert(cx, args[0], obj, CData::GetData(result)))
+    if (!ExplicitConvert(cx, args.handleAt(0), obj, CData::GetData(result)))
       return JS_FALSE;
   }
 
@@ -4644,7 +4643,7 @@ ExtractStructField(JSContext* cx, jsval val, JSObject** typeObj)
   }
 
   RootedValue propVal(cx);
-  if (!JS_GetPropertyById(cx, obj, nameid, &propVal))
+  if (!JS_GetPropertyById(cx, obj, nameid, propVal.address()))
     return NULL;
 
   if (propVal.isPrimitive() || !CType::IsCType(&propVal.toObject())) {
@@ -4732,16 +4731,6 @@ StructType::Create(JSContext* cx, unsigned argc, jsval* vp)
 
   args.rval().setObject(*result);
   return JS_TRUE;
-}
-
-static void
-PostBarrierCallback(JSTracer *trc, void *k, void *d)
-{
-    JSString *prior = static_cast<JSString*>(k);
-    FieldInfoHash *table = static_cast<FieldInfoHash*>(d);
-    JSString *key = prior;
-    JS_CallStringTracer(trc, &key, "CType fieldName");
-    table->rekey(JS_ASSERT_STRING_IS_FLAT(prior), JS_ASSERT_STRING_IS_FLAT(key));
 }
 
 JSBool
@@ -4834,7 +4823,6 @@ StructType::DefineInternal(JSContext* cx, JSObject* typeObj_, JSObject* fieldsOb
       info.mIndex = i;
       info.mOffset = fieldOffset;
       ASSERT_OK(fields->add(entryPtr, name, info));
-      JS_StoreStringPostBarrierCallback(cx, PostBarrierCallback, name, fields.get());
 
       structSize = fieldOffset + fieldSize;
 
@@ -5023,7 +5011,7 @@ StructType::ConstructData(JSContext* cx,
     // are mutually exclusive, so we can pick the right one.
 
     // Try option 1) first.
-    if (ExplicitConvert(cx, args[0], obj, buffer))
+    if (ExplicitConvert(cx, args.handleAt(0), obj, buffer))
       return JS_TRUE;
 
     if (fields->count() != 1)
@@ -5047,7 +5035,7 @@ StructType::ConstructData(JSContext* cx,
     for (FieldInfoHash::Range r = fields->all(); !r.empty(); r.popFront()) {
       const FieldInfo& field = r.front().value;
       STATIC_ASSUME(field.mIndex < fields->count());  /* Quantified invariant */
-      if (!ImplicitConvert(cx, args[field.mIndex], field.mType,
+      if (!ImplicitConvert(cx, args.handleAt(field.mIndex), field.mType,
              buffer + field.mOffset,
              false, NULL))
         return JS_FALSE;
@@ -5764,7 +5752,7 @@ FunctionType::Call(JSContext* cx,
   }
 
   for (unsigned i = 0; i < argcFixed; ++i)
-    if (!ConvertArgument(cx, args[i], fninfo->mArgTypes[i], &values[i], &strings))
+    if (!ConvertArgument(cx, args.handleAt(i), fninfo->mArgTypes[i], &values[i], &strings))
       return false;
 
   if (fninfo->mIsVariadic) {
@@ -5789,7 +5777,7 @@ FunctionType::Call(JSContext* cx,
           !(type = PrepareType(cx, OBJECT_TO_JSVAL(type))) ||
           // Relying on ImplicitConvert only for the limited purpose of
           // converting one CType to another (e.g., T[] to T*).
-          !ConvertArgument(cx, args[i], type, &values[i], &strings) ||
+          !ConvertArgument(cx, args.handleAt(i), type, &values[i], &strings) ||
           !(fninfo->mFFITypes[i] = CType::GetFFIType(cx, type))) {
         // These functions report their own errors.
         return false;
@@ -6094,10 +6082,10 @@ CClosure::Trace(JSTracer* trc, JSObject* obj)
 
   // Identify our objects to the tracer. (There's no need to identify
   // 'closureObj', since that's us.)
-  JS_CallHeapObjectTracer(trc, &cinfo->typeObj, "typeObj");
-  JS_CallHeapObjectTracer(trc, &cinfo->jsfnObj, "jsfnObj");
+  JS_CallObjectTracer(trc, &cinfo->typeObj, "typeObj");
+  JS_CallObjectTracer(trc, &cinfo->jsfnObj, "jsfnObj");
   if (cinfo->thisObj)
-    JS_CallHeapObjectTracer(trc, &cinfo->thisObj, "thisObj");
+    JS_CallObjectTracer(trc, &cinfo->thisObj, "thisObj");
 }
 
 void
@@ -6538,10 +6526,12 @@ CData::GetRuntime(JSContext* cx, unsigned argc, jsval* vp)
   return JS_TRUE;
 }
 
-typedef JS::TwoByteCharsZ (*InflateUTF8Method)(JSContext *, const JS::UTF8Chars, size_t *);
+typedef bool (*InflateUTF8Method)(JSContext *, const char *, size_t,
+                                  jschar *, size_t *);
 
+template <InflateUTF8Method InflateUTF8>
 static JSBool
-ReadStringCommon(JSContext* cx, InflateUTF8Method inflateUTF8, unsigned argc, jsval *vp)
+ReadStringCommon(JSContext* cx, unsigned argc, jsval* vp)
 {
   CallArgs args = CallArgsFromVp(argc, vp);
   if (args.length() != 0) {
@@ -6594,11 +6584,19 @@ ReadStringCommon(JSContext* cx, InflateUTF8Method inflateUTF8, unsigned argc, js
     size_t length = strnlen(bytes, maxLength);
 
     // Determine the length.
-    jschar *dst = inflateUTF8(cx, JS::UTF8Chars(bytes, length), &length).get();
+    size_t dstlen;
+    if (!InflateUTF8(cx, bytes, length, NULL, &dstlen))
+      return JS_FALSE;
+
+    jschar* dst =
+      static_cast<jschar*>(JS_malloc(cx, (dstlen + 1) * sizeof(jschar)));
     if (!dst)
       return JS_FALSE;
 
-    result = JS_NewUCString(cx, dst, length);
+    ASSERT_OK(InflateUTF8(cx, bytes, length, dst, &dstlen));
+    dst[dstlen] = 0;
+
+    result = JS_NewUCString(cx, dst, dstlen);
     break;
   }
   case TYPE_int16_t:
@@ -6627,13 +6625,13 @@ ReadStringCommon(JSContext* cx, InflateUTF8Method inflateUTF8, unsigned argc, js
 JSBool
 CData::ReadString(JSContext* cx, unsigned argc, jsval* vp)
 {
-  return ReadStringCommon(cx, JS::UTF8CharsToNewTwoByteCharsZ, argc, vp);
+  return ReadStringCommon<InflateUTF8StringToBuffer>(cx, argc, vp);
 }
 
 JSBool
 CData::ReadStringReplaceMalformed(JSContext* cx, unsigned argc, jsval* vp)
 {
-  return ReadStringCommon(cx, JS::LossyUTF8CharsToNewTwoByteCharsZ, argc, vp);
+  return ReadStringCommon<InflateUTF8StringToBufferReplaceInvalid>(cx, argc, vp);
 }
 
 JSString *
@@ -7411,7 +7409,7 @@ Int64::Construct(JSContext* cx,
   // Get ctypes.Int64.prototype from the 'prototype' property of the ctor.
   RootedValue slot(cx);
   RootedObject callee(cx, &args.callee());
-  ASSERT_OK(JS_GetProperty(cx, callee, "prototype", &slot));
+  ASSERT_OK(JS_GetProperty(cx, callee, "prototype", slot.address()));
   RootedObject proto(cx, JSVAL_TO_OBJECT(slot));
   JS_ASSERT(JS_GetClass(proto) == &sInt64ProtoClass);
 
@@ -7581,7 +7579,7 @@ UInt64::Construct(JSContext* cx,
   // Get ctypes.UInt64.prototype from the 'prototype' property of the ctor.
   RootedValue slot(cx);
   RootedObject callee(cx, &args.callee());
-  ASSERT_OK(JS_GetProperty(cx, callee, "prototype", &slot));
+  ASSERT_OK(JS_GetProperty(cx, callee, "prototype", slot.address()));
   RootedObject proto(cx, &slot.toObject());
   JS_ASSERT(JS_GetClass(proto) == &sUInt64ProtoClass);
 

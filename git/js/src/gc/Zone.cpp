@@ -4,14 +4,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "gc/Zone.h"
-
 #include "jsgc.h"
 
 #ifdef JS_ION
 #include "ion/BaselineJIT.h"
-#include "ion/Ion.h"
 #include "ion/IonCompartment.h"
+#include "ion/Ion.h"
 #endif
 #include "vm/Debugger.h"
 #include "vm/Runtime.h"
@@ -34,7 +32,6 @@ JS::Zone::Zone(JSRuntime *rt)
     gcTriggerBytes(0),
     gcHeapGrowthFactor(3.0),
     isSystem(false),
-    usedByExclusiveThread(false),
     scheduledForDestruction(false),
     maybeAlive(true),
     gcMallocBytes(0),

@@ -50,16 +50,19 @@ public:
                               const nsAString& aValue,
                               nsAttrValue& aResult);
 
-  void AppendInsertedChild(nsIContent* aChild)
+  void AppendInsertedChild(nsIContent* aChild,
+                           nsBindingManager* aBindingManager)
   {
     mInsertedChildren.AppendElement(aChild);
-    aChild->SetXBLInsertionParent(GetParent());
+    aBindingManager->SetInsertionParent(aChild, GetParent());
   }
 
-  void InsertInsertedChildAt(nsIContent* aChild, uint32_t aIndex)
+  void InsertInsertedChildAt(nsIContent* aChild,
+                             uint32_t aIndex,
+                             nsBindingManager* aBindingManager)
   {
     mInsertedChildren.InsertElementAt(aIndex, aChild);
-    aChild->SetXBLInsertionParent(GetParent());
+    aBindingManager->SetInsertionParent(aChild, GetParent());
   }
 
   void RemoveInsertedChild(nsIContent* aChild)
@@ -76,32 +79,32 @@ public:
     mInsertedChildren.Clear();
   }
 
-  void ClearInsertedChildrenAndInsertionParents()
+  void ClearInsertedChildrenAndInsertionParents(nsBindingManager* aBindingManager)
   {
     for (uint32_t c = 0; c < mInsertedChildren.Length(); ++c) {
-      mInsertedChildren[c]->SetXBLInsertionParent(nullptr);
+      aBindingManager->SetInsertionParent(mInsertedChildren[c], nullptr);
     }
     mInsertedChildren.Clear();
   }
 
-  void MaybeSetupDefaultContent()
+  void MaybeSetupDefaultContent(nsBindingManager* aBindingManager)
   {
     if (!HasInsertedChildren()) {
       for (nsIContent* child = static_cast<nsINode*>(this)->GetFirstChild();
            child;
            child = child->GetNextSibling()) {
-        child->SetXBLInsertionParent(GetParent());
+        aBindingManager->SetInsertionParent(child, GetParent());
       }
     }
   }
 
-  void MaybeRemoveDefaultContent()
+  void MaybeRemoveDefaultContent(nsBindingManager* aBindingManager)
   {
     if (!HasInsertedChildren()) {
       for (nsIContent* child = static_cast<nsINode*>(this)->GetFirstChild();
            child;
            child = child->GetNextSibling()) {
-        child->SetXBLInsertionParent(nullptr);
+        aBindingManager->SetInsertionParent(child, nullptr);
       }
     }
   }

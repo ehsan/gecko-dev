@@ -303,9 +303,6 @@ this.DOMApplicationRegistry = {
       baseDir = FileUtils.getDir("coreAppsDir", ["webapps", aId], false);
       if (!baseDir.exists()) {
         return;
-      } else if (!baseDir.directoryEntries.hasMoreElements()) {
-        debug("Error: Core app in " + baseDir.path + " is empty");
-        return;
       }
     } catch(e) {
       // In ENG builds, we don't have apps in coreAppsDir.
@@ -342,11 +339,7 @@ this.DOMApplicationRegistry = {
     filesToMove.forEach(function(aFile) {
         let file = baseDir.clone();
         file.append(aFile);
-        try {
-          file.copyTo(destDir, aFile);
-        } catch(e) {
-          debug("Error: Failed to copy " + file.path + " to " + destDir.path);
-        }
+        file.copyTo(destDir, aFile);
       });
 
     app.installState = "installed";
@@ -2104,8 +2097,6 @@ this.DOMApplicationRegistry = {
         app.downloadAvailable = false;
         this._saveApps((function() {
           this.updateAppHandlers(null, aManifest, appObject);
-          this.broadcastMessage("Webapps:AddApp", { id: aId, app: appObject });
-
           if (supportUseCurrentProfile()) {
             // Update the permissions for this app.
             PermissionsInstaller.installPermissions({ manifest: aManifest,
@@ -2547,6 +2538,31 @@ this.DOMApplicationRegistry = {
                   throw "INSTALL_FROM_DENIED";
                 }
 
+                // Get ids.json if the file is signed
+                if (isSigned) {
+                  let idsStream;
+                  try {
+                    idsStream = zipReader.getInputStream("META-INF/ids.json");
+                  } catch (e) {
+                    throw zipReader.hasEntry("META-INF/ids.json")
+                          ? e
+                          : "MISSING_IDS_JSON";
+                  }
+                  let ids =
+                    JSON.parse(
+                      converter.ConvertToUnicode(
+                        NetUtil.readInputStreamToString(
+                          idsStream, idsStream.available()) || ""));
+                  if ((!ids.id) || !Number.isInteger(ids.version) ||
+                      (ids.version <= 0)) {
+                     throw "INVALID_IDS_JSON";
+                  }
+                  let storeId = aApp.installOrigin + "#" + ids.id;
+                  checkForStoreIdMatch(storeId, ids.version);
+                  app.storeId = storeId;
+                  app.storeVersion = ids.version;
+                }
+
                 let maxStatus = isSigned ? Ci.nsIPrincipal.APP_STATUS_PRIVILEGED
                                          : Ci.nsIPrincipal.APP_STATUS_INSTALLED;
 
@@ -2591,67 +2607,38 @@ this.DOMApplicationRegistry = {
                     throw "INVALID_ORIGIN";
                   }
 
-                  if (aIsUpdate) {
-                    // Changing the origin during an update is not allowed.
-                    if (uri.prePath != app.origin) {
-                      throw "INVALID_ORIGIN_CHANGE";
-                    }
-                    // Nothing else to do for an update... since the
-                    // origin can't change we don't need to move the
-                    // app nor can we have a duplicated origin
-                  } else {
-                    debug("Setting origin to " + uri.prePath +
-                          " for " + app.manifestURL);
-                    let newId = uri.prePath.substring(6); // "app://".length
-
-                    if (newId in self.webapps) {
-                      throw "DUPLICATE_ORIGIN";
-                    }
-                    app.origin = uri.prePath;
-
-                    app.id = newId;
-                    self.webapps[newId] = app;
-                    delete self.webapps[id];
-
-                    // Rename the directories where the files are installed.
-                    [DIRECTORY_NAME, "TmpD"].forEach(function(aDir) {
-                        let parent = FileUtils.getDir(aDir,
-                          ["webapps"], true, true);
-                        let dir = FileUtils.getDir(aDir,
-                          ["webapps", id], true, true);
-                        dir.moveTo(parent, newId);
-                    });
-
-                    // Signals that we need to swap the old id with the new app.
-                    self.broadcastMessage("Webapps:RemoveApp", { id: id });
-                    self.broadcastMessage("Webapps:AddApp", { id: newId,
-                                                              app: app });
+                  // Changing the origin during an update is not allowed.
+                  if (aIsUpdate && uri.prePath != app.origin) {
+                    throw "INVALID_ORIGIN_CHANGE";
                   }
-                }
 
-                // Get ids.json if the file is signed
-                if (isSigned) {
-                  let idsStream;
-                  try {
-                    idsStream = zipReader.getInputStream("META-INF/ids.json");
-                  } catch (e) {
-                    throw zipReader.hasEntry("META-INF/ids.json")
-                          ? e
-                          : "MISSING_IDS_JSON";
+                  debug("Setting origin to " + uri.prePath +
+                        " for " + app.manifestURL);
+                  let newId = uri.prePath.substring(6); // "app://".length
+
+                  if (newId in self.webapps) {
+                    throw "DUPLICATE_ORIGIN";
                   }
-                  let ids =
-                    JSON.parse(
-                      converter.ConvertToUnicode(
-                        NetUtil.readInputStreamToString(
-                          idsStream, idsStream.available()) || ""));
-                  if ((!ids.id) || !Number.isInteger(ids.version) ||
-                      (ids.version <= 0)) {
-                     throw "INVALID_IDS_JSON";
-                  }
-                  let storeId = aApp.installOrigin + "#" + ids.id;
-                  checkForStoreIdMatch(storeId, ids.version);
-                  app.storeId = storeId;
-                  app.storeVersion = ids.version;
+                  app.origin = uri.prePath;
+
+                  // Update the registry.
+                  app.id = newId;
+                  self.webapps[newId] = app;
+                  delete self.webapps[id];
+
+                  // Rename the directories where the files are installed.
+                  [DIRECTORY_NAME, "TmpD"].forEach(function(aDir) {
+                    let parent = FileUtils.getDir(aDir,
+                                             ["webapps"], true, true);
+                    let dir = FileUtils.getDir(aDir,
+                                             ["webapps", id], true, true);
+                    dir.moveTo(parent, newId);
+                  });
+
+                  // Signals that we need to swap the old id with the new app.
+                  self.broadcastMessage("Webapps:RemoveApp", { id: id });
+                  self.broadcastMessage("Webapps:AddApp", { id: newId,
+                                                            app: app });
                 }
 
                 if (aOnSuccess) {
@@ -2795,10 +2782,8 @@ this.DOMApplicationRegistry = {
       this.broadcastMessage("Webapps:Uninstall:Broadcast:Return:OK", appClone);
       // Catch exception on callback call to ensure notifying observers after
       try {
-        if (aOnSuccess) {
-          aOnSuccess();
-        }
-      } catch(ex) {
+        aOnSuccess();
+      } catch(e) {
         Cu.reportError("DOMApplicationRegistry: Exception on app uninstall: " +
                        ex + "\n" + ex.stack);
       }
@@ -2980,6 +2965,10 @@ this.DOMApplicationRegistry = {
 
   getAppLocalIdByManifestURL: function(aManifestURL) {
     return AppsUtils.getAppLocalIdByManifestURL(this.webapps, aManifestURL);
+  },
+
+  getAppFromObserverMessage: function(aMessage) {
+    return AppsUtils.getAppFromObserverMessage(this.webapps, aMessage);
   },
 
   getCoreAppsBasePath: function() {

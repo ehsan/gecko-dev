@@ -10,7 +10,6 @@
 #ifdef JS_ION
 
 #include "ion/IonFrames.h"
-
 #include "ion/IonFrameIterator.h"
 #include "ion/LIR.h"
 

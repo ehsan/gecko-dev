@@ -135,10 +135,9 @@ public:
 
   NS_DECL_ISUPPORTS
 
-  virtual nsIDOMCSSRule*
-  IndexedGetter(uint32_t aIndex, bool& aFound) MOZ_OVERRIDE;
-  virtual uint32_t
-  Length() MOZ_OVERRIDE;
+  NS_DECL_NSIDOMCSSRULELIST
+
+  virtual nsIDOMCSSRule* GetItemAt(uint32_t aIndex, nsresult* aResult);
 
   void DropReference() { mGroupRule = nullptr; }
 
@@ -172,30 +171,45 @@ NS_INTERFACE_MAP_END
 NS_IMPL_ADDREF(GroupRuleRuleList)
 NS_IMPL_RELEASE(GroupRuleRuleList)
 
-uint32_t
-GroupRuleRuleList::Length()
+NS_IMETHODIMP
+GroupRuleRuleList::GetLength(uint32_t* aLength)
 {
-  if (!mGroupRule) {
-    return 0;
+  if (mGroupRule) {
+    *aLength = (uint32_t)mGroupRule->StyleRuleCount();
+  } else {
+    *aLength = 0;
   }
 
-  return SafeCast<uint32_t>(mGroupRule->StyleRuleCount());
+  return NS_OK;
 }
 
 nsIDOMCSSRule*
-GroupRuleRuleList::IndexedGetter(uint32_t aIndex, bool& aFound)
+GroupRuleRuleList::GetItemAt(uint32_t aIndex, nsresult* aResult)
 {
-  aFound = false;
+  *aResult = NS_OK;
 
   if (mGroupRule) {
     nsRefPtr<Rule> rule = mGroupRule->GetStyleRuleAt(aIndex);
     if (rule) {
-      aFound = true;
       return rule->GetDOMRule();
     }
   }
 
   return nullptr;
+}
+
+NS_IMETHODIMP
+GroupRuleRuleList::Item(uint32_t aIndex, nsIDOMCSSRule** aReturn)
+{
+  nsresult rv;
+  nsIDOMCSSRule* rule = GetItemAt(aIndex, &rv);
+  if (!rule) {
+    *aReturn = nullptr;
+    return rv;
+  }
+
+  NS_ADDREF(*aReturn = rule);
+  return NS_OK;
 }
 
 } // namespace css

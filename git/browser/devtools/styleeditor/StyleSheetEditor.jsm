@@ -538,10 +538,8 @@ function setupBracketCompletion(sourceEditor)
     let utils = editorElement.ownerDocument.defaultView.
                   QueryInterface(Ci.nsIInterfaceRequestor).
                   getInterface(Ci.nsIDOMWindowUtils);
-                  
-    if (utils.sendKeyEvent("keydown", keyCode, 0, modifiers)) {
-      utils.sendKeyEvent("keypress", 0, charCode, modifiers);
-    }
+    let handled = utils.sendKeyEvent("keydown", keyCode, 0, modifiers);
+    utils.sendKeyEvent("keypress", 0, charCode, modifiers, !handled);
     utils.sendKeyEvent("keyup", keyCode, 0, modifiers);
     // and rewind caret
     sourceEditor.setCaretOffset(sourceEditor.getCaretOffset() - 1);

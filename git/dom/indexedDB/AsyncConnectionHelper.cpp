@@ -176,7 +176,8 @@ AsyncConnectionHelper::~AsyncConnectionHelper()
         NS_ProxyRelease(mainThread, static_cast<nsIIDBDatabase*>(database));
       }
       if (transaction) {
-        NS_ProxyRelease(mainThread, static_cast<IDBWrapperCache*>(transaction));
+        NS_ProxyRelease(mainThread,
+                        static_cast<nsIIDBTransaction*>(transaction));
       }
     }
   }
@@ -184,8 +185,8 @@ AsyncConnectionHelper::~AsyncConnectionHelper()
   NS_ASSERTION(!mOldProgressHandler, "Should not have anything here!");
 }
 
-NS_IMPL_ISUPPORTS2(AsyncConnectionHelper, nsIRunnable,
-                   mozIStorageProgressHandler)
+NS_IMPL_THREADSAFE_ISUPPORTS2(AsyncConnectionHelper, nsIRunnable,
+                                                     mozIStorageProgressHandler)
 
 NS_IMETHODIMP
 AsyncConnectionHelper::Run()

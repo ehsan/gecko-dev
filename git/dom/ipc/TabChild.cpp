@@ -544,13 +544,13 @@ TabChild::HandlePossibleViewportChange()
 
   float minScale = 1.0f;
 
-  nsCOMPtr<Element> htmlDOMElement = document->GetHtmlElement();
+  nsCOMPtr<nsIDOMElement> htmlDOMElement = do_QueryInterface(document->GetHtmlElement());
   HTMLBodyElement* bodyDOMElement = document->GetBodyElement();
 
   int32_t htmlWidth = 0, htmlHeight = 0;
   if (htmlDOMElement) {
-    htmlWidth = htmlDOMElement->ScrollWidth();
-    htmlHeight = htmlDOMElement->ScrollHeight();
+    htmlDOMElement->GetScrollWidth(&htmlWidth);
+    htmlDOMElement->GetScrollHeight(&htmlHeight);
   }
   int32_t bodyWidth = 0, bodyHeight = 0;
   if (bodyDOMElement) {
@@ -1032,20 +1032,6 @@ TabChild::GetDOMWindowUtils()
   return utils.forget();
 }
 
-already_AddRefed<nsIDOMWindowUtils>
-TabChild::GetDOMWindowUtils(nsIContent* content)
-{
-  nsCOMPtr<nsIDOMWindowUtils> utils;
-  nsIDocument* doc = content->GetCurrentDoc();
-  if (doc) {
-    nsCOMPtr<nsIDOMWindow> window = doc->GetDefaultView();
-    if (window) {
-      utils = do_GetInterface(window);
-    }
-  }
-  return utils.forget();
-}
-
 static nsInterfaceHashtable<nsPtrHashKey<PContentDialogChild>, nsIDialogParamBlock> gActiveDialogs;
 
 NS_IMETHODIMP
@@ -1473,34 +1459,32 @@ TabChild::DispatchMessageManagerMessage(const nsAString& aMessageName,
                        aMessageName, false, &cloneData, nullptr, nullptr);
 }
 
+static void
+ScrollWindowTo(nsIDOMWindow* aWindow, const CSSPoint& aPoint)
+{
+    nsGlobalWindow* window = static_cast<nsGlobalWindow*>(aWindow);
+    nsIScrollableFrame* sf = window->GetScrollFrame();
+
+    if (sf) {
+        sf->ScrollToCSSPixelsApproximate(aPoint);
+    }
+}
+
 bool
 TabChild::RecvUpdateFrame(const FrameMetrics& aFrameMetrics)
 {
-  MOZ_ASSERT(aFrameMetrics.mScrollId != FrameMetrics::NULL_SCROLL_ID);
-
-  if (aFrameMetrics.mScrollId == FrameMetrics::ROOT_SCROLL_ID) {
-    uint32_t presShellId;
     nsCOMPtr<nsIDOMWindowUtils> utils(GetDOMWindowUtils());
+
+    uint32_t presShellId;
     nsresult rv = utils->GetPresShellId(&presShellId);
     MOZ_ASSERT(NS_SUCCEEDED(rv));
-
-    if (NS_SUCCEEDED(rv) && aFrameMetrics.mPresShellId == presShellId) {
-      return ProcessUpdateFrame(aFrameMetrics);
+    if (NS_SUCCEEDED(rv) && aFrameMetrics.mPresShellId != presShellId) {
+        // We've recieved a message that is out of date and we want to ignore.
+        // However we can't reply without painting so we reply by painting the
+        // exact same thing as we did before.
+        return ProcessUpdateFrame(mLastMetrics);
     }
-  } else {
-    // aFrameMetrics.mScrollId is not FrameMetrics::ROOT_SCROLL_ID,
-    // so we are trying to update a subframe. This requires special handling.
-    nsCOMPtr<nsIContent> content = nsLayoutUtils::FindContentFor(
-                                      aFrameMetrics.mScrollId);
-    if (content) {
-      return ProcessUpdateSubframe(content, aFrameMetrics);
-    }
-  }
-
-  // We've recieved a message that is out of date and we want to ignore.
-  // However we can't reply without painting so we reply by painting the
-  // exact same thing as we did before.
-  return ProcessUpdateFrame(mLastMetrics);
+    return ProcessUpdateFrame(aFrameMetrics);
 }
 
 bool
@@ -1549,60 +1533,49 @@ TabChild::ProcessUpdateFrame(const FrameMetrics& aFrameMetrics)
     nsCOMPtr<nsIDOMWindowUtils> utils(GetDOMWindowUtils());
     nsCOMPtr<nsIDOMWindow> window = do_GetInterface(mWebNav);
 
-    // set the scroll port size, which determines the scroll range
     utils->SetScrollPositionClampingScrollPortSize(
       cssCompositedRect.width, cssCompositedRect.height);
-
-    // scroll the window to the desired spot
-    nsIScrollableFrame* sf = static_cast<nsGlobalWindow*>(window.get())->GetScrollFrame();
-    if (sf) {
-        sf->ScrollToCSSPixelsApproximate(aFrameMetrics.mScrollOffset);
-    }
-
-    // set the resolution
-    LayoutDeviceToLayerScale resolution = aFrameMetrics.CalculateResolution()
-      / aFrameMetrics.mDevPixelsPerCSSPixel * ScreenToLayerScale(1);
+    ScrollWindowTo(window, aFrameMetrics.mScrollOffset);
+    LayoutDeviceToLayerScale resolution =
+      aFrameMetrics.CalculateResolution()
+      / aFrameMetrics.mDevPixelsPerCSSPixel
+      * ScreenToLayerScale(1);
     utils->SetResolution(resolution.scale, resolution.scale);
 
-    // and set the display port
-    nsCOMPtr<nsIDOMDocument> domDoc;
-    mWebNav->GetDocument(getter_AddRefs(domDoc));
-    if (domDoc) {
-      nsCOMPtr<nsIDOMElement> element;
-      domDoc->GetDocumentElement(getter_AddRefs(element));
-      if (element) {
-        utils->SetDisplayPortForElement(
-          aFrameMetrics.mDisplayPort.x, aFrameMetrics.mDisplayPort.y,
-          aFrameMetrics.mDisplayPort.width, aFrameMetrics.mDisplayPort.height,
-          element);
-      }
-    }
+    SetDisplayPort(aFrameMetrics);
 
     mLastMetrics = aFrameMetrics;
+
     return true;
 }
 
-bool
-TabChild::ProcessUpdateSubframe(nsIContent* aContent,
-                                const FrameMetrics& aMetrics)
+void
+TabChild::SetDisplayPort(const FrameMetrics& aFrameMetrics)
 {
-  // scroll the frame to the desired spot
-  nsIScrollableFrame* scrollFrame = nsLayoutUtils::FindScrollableFrameFor(aMetrics.mScrollId);
-  if (scrollFrame) {
-    scrollFrame->ScrollToCSSPixelsApproximate(aMetrics.mScrollOffset);
+  nsCOMPtr<nsIDOMDocument> domDoc;
+  mWebNav->GetDocument(getter_AddRefs(domDoc));
+  if (!domDoc) {
+    return;
   }
 
-  nsCOMPtr<nsIDOMWindowUtils> utils(GetDOMWindowUtils(aContent));
-  nsCOMPtr<nsIDOMElement> element = do_QueryInterface(aContent);
-  if (utils && element) {
-    // and set the display port
+  // nsLayoutUtils::FindContentFor() doesn't provide a look-up for the root
+  // scroll idea. This is because the root scroll ID could refer to a different
+  // element in the DOM when navigating to a new document.
+  nsCOMPtr<nsIDOMElement> element;
+  if (aFrameMetrics.mScrollId == FrameMetrics::ROOT_SCROLL_ID) {
+    domDoc->GetDocumentElement(getter_AddRefs(element));
+  } else {
+    element = do_QueryInterface(nsLayoutUtils::FindContentFor(
+      aFrameMetrics.mScrollId));
+  }
+
+  if (element) {
+    nsCOMPtr<nsIDOMWindowUtils> utils(GetDOMWindowUtils());
     utils->SetDisplayPortForElement(
-      aMetrics.mDisplayPort.x, aMetrics.mDisplayPort.y,
-      aMetrics.mDisplayPort.width, aMetrics.mDisplayPort.height,
+      aFrameMetrics.mDisplayPort.x, aFrameMetrics.mDisplayPort.y,
+      aFrameMetrics.mDisplayPort.width, aFrameMetrics.mDisplayPort.height,
       element);
   }
-
-  return true;
 }
 
 bool

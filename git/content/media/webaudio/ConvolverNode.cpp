@@ -144,7 +144,7 @@ public:
         for (uint32_t i = 0; i < numChannels; ++i) {
           const float* src = static_cast<const float*>(aInput.mChannelData[i]);
           float* dest = static_cast<float*>(const_cast<void*>(input.mChannelData[i]));
-          AudioBlockCopyChannelWithScale(src, aInput.mVolume, dest);
+          AudioBlockAddChannelWithScale(src, aInput.mVolume, dest);
         }
       }
 

@@ -6,18 +6,17 @@
 
 #include "ion/MIR.h"
 
-#include "mozilla/FloatingPoint.h"
-
-#include "jsnum.h"
-#include "jsstr.h"
+#include "mozilla/Casting.h"
 
 #include "ion/BaselineInspector.h"
-#include "ion/EdgeCaseAnalysis.h"
 #include "ion/IonBuilder.h"
-#include "ion/IonSpewer.h"
 #include "ion/LICM.h" // For LinearSum
 #include "ion/MIRGraph.h"
+#include "ion/EdgeCaseAnalysis.h"
 #include "ion/RangeAnalysis.h"
+#include "ion/IonSpewer.h"
+#include "jsnum.h"
+#include "jsstr.h"
 
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
@@ -27,7 +26,7 @@
 using namespace js;
 using namespace js::ion;
 
-using mozilla::DoublesAreIdentical;
+using mozilla::BitwiseCast;
 
 void
 MDefinition::PrintOpcodeName(FILE *fp, MDefinition::Opcode op)
@@ -122,11 +121,6 @@ EvaluateConstantOperands(MBinaryInstruction *ins, bool *ptypeChange = NULL)
       default:
         MOZ_ASSUME_UNREACHABLE("NYI");
     }
-
-    // setNumber eagerly transforms a number to int32.
-    // Transform back to double, if the output type is double.
-    if (ins->type() == MIRType_Double && ret.isInt32())
-        ret.setDouble(ret.toNumber());
 
     if (ins->type() != MIRTypeFromValue(ret)) {
         if (ptypeChange)
@@ -889,7 +883,10 @@ IsConstant(MDefinition *def, double v)
     if (!def->isConstant())
         return false;
 
-    return DoublesAreIdentical(def->toConstant()->value().toNumber(), v);
+    // Compare the underlying bits to not equate -0 and +0.
+    uint64_t lhs = BitwiseCast<uint64_t>(def->toConstant()->value().toNumber());
+    uint64_t rhs = BitwiseCast<uint64_t>(v);
+    return lhs == rhs;
 }
 
 MDefinition *
@@ -1180,6 +1177,13 @@ MMod::canBeDivideByZero() const
 {
     JS_ASSERT(specialization_ == MIRType_Int32);
     return !rhs()->isConstant() || rhs()->toConstant()->value().toInt32() == 0;
+}
+
+bool
+MMod::canBeNegativeDividend() const
+{
+    JS_ASSERT(specialization_ == MIRType_Int32);
+    return !lhs()->range() || lhs()->range()->lower() < 0;
 }
 
 bool
@@ -2214,6 +2218,20 @@ MBeta::printOpcode(FILE *fp) const
     fprintf(fp, "%s", sp.string());
 }
 
+void
+MBeta::computeRange()
+{
+    bool emptyRange = false;
+
+    Range *range = Range::intersect(val_->range(), comparison_, &emptyRange);
+    if (emptyRange) {
+        IonSpew(IonSpew_Range, "Marking block for inst %d unexitable", id());
+        block()->setEarlyAbort();
+    } else {
+        setRange(range);
+    }
+}
+
 bool
 MNewObject::shouldUseVM() const
 {
@@ -2275,7 +2293,8 @@ InlinePropertyTable::trimTo(AutoObjectVector &targets, Vector<bool> &choiceSet)
 }
 
 void
-InlinePropertyTable::trimToTargets(AutoObjectVector &targets)
+InlinePropertyTable::trimToAndMaybePatchTargets(AutoObjectVector &targets,
+                                                AutoObjectVector &originals)
 {
     IonSpew(IonSpew_Inlining, "Got inlineable property cache with %d cases",
             (int)numEntries());
@@ -2283,8 +2302,12 @@ InlinePropertyTable::trimToTargets(AutoObjectVector &targets)
     size_t i = 0;
     while (i < numEntries()) {
         bool foundFunc = false;
-        for (size_t j = 0; j < targets.length(); j++) {
-            if (entries_[i]->func == targets[j]) {
+        // Compare using originals, but if we find a matching function,
+        // patch it to the target, which might be a clone.
+        for (size_t j = 0; j < originals.length(); j++) {
+            if (entries_[i]->func == originals[j]) {
+                if (entries_[i]->func != targets[j])
+                    entries_[i] = new Entry(entries_[i]->typeObj, &targets[j]->as<JSFunction>());
                 foundFunc = true;
                 break;
             }
@@ -2323,6 +2346,12 @@ InlinePropertyTable::buildTypeSetForFunction(JSFunction *func) const
         }
     }
     return types;
+}
+
+bool
+MInArray::needsNegativeIntCheck() const
+{
+    return !index()->range() || index()->range()->lower() < 0;
 }
 
 void *

@@ -168,9 +168,9 @@
       // Make module available immediately
       // (necessary in case of circular dependencies)
       if (modules.has(path)) {
-        return modules.get(path).exports;
+        return modules.get(path);
       }
-      modules.set(path, module);
+      modules.set(path, exports);
 
 
       // Load source of module, synchronously
@@ -216,7 +216,6 @@
       }
 
       Object.freeze(module.exports);
-      Object.freeze(module);
       return module.exports;
     };
   })();

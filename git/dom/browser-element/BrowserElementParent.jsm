@@ -67,16 +67,6 @@ function defineAndExpose(obj, name, value) {
   obj.__exposedProps__[name] = 'r';
 }
 
-function visibilityChangeHandler(weakBEP, win) {
-  let bep = weakBEP.get();
-  if (bep) {
-    bep._ownerVisibilityChange();
-  } else {
-    win.removeEventListener('visibilitychange', visibilityChangeHandler,
-                            /* useCapture */ false);
-  }
-}
-
 this.BrowserElementParentBuilder = {
   create: function create(frameLoader, hasRemoteFrame) {
     return new BrowserElementParent(frameLoader, hasRemoteFrame);
@@ -113,7 +103,6 @@ function BrowserElementParent(frameLoader, hasRemoteFrame) {
     "titlechange": this._fireEventFromMsg,
     "iconchange": this._fireEventFromMsg,
     "close": this._fireEventFromMsg,
-    "opensearch": this._fireEventFromMsg,
     "securitychange": this._fireEventFromMsg,
     "error": this._fireEventFromMsg,
     "scroll": this._fireEventFromMsg,
@@ -179,12 +168,9 @@ function BrowserElementParent(frameLoader, hasRemoteFrame) {
   defineDOMRequestMethod('getCanGoForward', 'get-can-go-forward');
 
   // Listen to visibilitychange on the iframe's owner window, and forward it
-  // down to the child.  The event listener must hold a weak reference to this,
-  // otherwise the window will hold this object alive.
-
-  var weakSelf = Cu.getWeakReference(this);
+  // down to the child.
   this._window.addEventListener('visibilitychange',
-                                visibilityChangeHandler.bind(null, weakSelf, this._window),
+                                this._ownerVisibilityChange.bind(this),
                                 /* useCapture = */ false,
                                 /* wantsUntrusted = */ false);
 

@@ -25,5 +25,7 @@ interface mozRTCSessionDescription {
   attribute RTCSdpType? type;
   attribute DOMString? sdp;
 
-  jsonifier;
+  // Bug 863402 serializer support workaround
+  //serializer = {attribute};
+  object toJSON();
 };

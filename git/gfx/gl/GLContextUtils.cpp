@@ -7,7 +7,7 @@
 
 #include "mozilla/Preferences.h"
 #include "mozilla/Assertions.h"
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 using namespace mozilla::gfx;
 
@@ -26,7 +26,7 @@ void main(void) {                           \n\
 }                                           \n\
 ";
 
-static const char kTex2DBlit_FragShaderSource[] = "\
+static const char kTexBlit_FragShaderSource[] = "\
 #ifdef GL_FRAGMENT_PRECISION_HIGH                   \n\
     precision highp float;                          \n\
 #else                                               \n\
@@ -42,99 +42,67 @@ void main(void) {                                   \n\
 }                                                   \n\
 ";
 
-static const char kTex2DRectBlit_FragShaderSource[] = "\
-#ifdef GL_FRAGMENT_PRECISION_HIGH                             \n\
-    precision highp float;                                    \n\
-#else                                                         \n\
-    precision mediump float;                                  \n\
-#endif                                                        \n\
-                                                              \n\
-uniform sampler2D uTexUnit;                                   \n\
-uniform vec2 uTexCoordMult;                                   \n\
-                                                              \n\
-varying vec2 vTexCoord;                                       \n\
-                                                              \n\
-void main(void) {                                             \n\
-    gl_FragColor = texture2DRect(uTexUnit,                    \n\
-                                 vTexCoord * uTexCoordMult);  \n\
-}                                                             \n\
-";
-
 // Allowed to be destructive of state we restore in functions below.
 bool
-GLContext::InitTexQuadProgram(GLenum target)
+GLContext::UseTexQuadProgram()
 {
-    MOZ_ASSERT(target == LOCAL_GL_TEXTURE_2D ||
-               target == LOCAL_GL_TEXTURE_RECTANGLE_ARB);
     bool success = false;
-
-    GLuint *programPtr;
-    GLuint *fragShaderPtr;
-    const char* fragShaderSource;
-    if (target == LOCAL_GL_TEXTURE_2D) {
-        programPtr = &mTex2DBlit_Program;
-        fragShaderPtr = &mTex2DBlit_FragShader;
-        fragShaderSource = kTex2DBlit_FragShaderSource;
-    } else {
-        programPtr = &mTex2DRectBlit_Program;
-        fragShaderPtr = &mTex2DRectBlit_FragShader;
-        fragShaderSource = kTex2DRectBlit_FragShaderSource;
-    }
-
-    GLuint& program = *programPtr;
-    GLuint& fragShader = *fragShaderPtr;
 
     // Use do-while(false) to let us break on failure
     do {
-        if (program) {
+        if (mTexBlit_Program) {
             // Already have it...
             success = true;
             break;
         }
 
-        if (!mTexBlit_Buffer) {
+        /* CCW tri-strip:
+         * 2---3
+         * | \ |
+         * 0---1
+         */
+        GLfloat verts[] = {
+            0.0f, 0.0f,
+            1.0f, 0.0f,
+            0.0f, 1.0f,
+            1.0f, 1.0f
+        };
 
-            /* CCW tri-strip:
-             * 2---3
-             * | \ |
-             * 0---1
-             */
-            GLfloat verts[] = {
-                0.0f, 0.0f,
-                1.0f, 0.0f,
-                0.0f, 1.0f,
-                1.0f, 1.0f
-            };
+        MOZ_ASSERT(!mTexBlit_Buffer);
+        fGenBuffers(1, &mTexBlit_Buffer);
+        fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mTexBlit_Buffer);
 
-            MOZ_ASSERT(!mTexBlit_Buffer);
-            fGenBuffers(1, &mTexBlit_Buffer);
-            fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mTexBlit_Buffer);
+        const size_t vertsSize = sizeof(verts);
+        MOZ_ASSERT(vertsSize >= 3 * sizeof(GLfloat)); // Make sure we have a sane size.
+        fBufferData(LOCAL_GL_ARRAY_BUFFER, vertsSize, verts, LOCAL_GL_STATIC_DRAW);
 
-            const size_t vertsSize = sizeof(verts);
-            // Make sure we have a sane size.
-            MOZ_ASSERT(vertsSize >= 3 * sizeof(GLfloat));
-            fBufferData(LOCAL_GL_ARRAY_BUFFER, vertsSize, verts, LOCAL_GL_STATIC_DRAW);
-        }
+        fEnableVertexAttribArray(0);
+        fVertexAttribPointer(0,
+                             2,
+                             LOCAL_GL_FLOAT,
+                             false,
+                             0,
+                             nullptr);
 
-        if (!mTexBlit_VertShader) {
+        MOZ_ASSERT(!mTexBlit_VertShader);
+        MOZ_ASSERT(!mTexBlit_FragShader);
 
-            const char* vertShaderSource = kTexBlit_VertShaderSource;
+        const char* vertShaderSource = kTexBlit_VertShaderSource;
+        const char* fragShaderSource = kTexBlit_FragShaderSource;
 
-            mTexBlit_VertShader = fCreateShader(LOCAL_GL_VERTEX_SHADER);
-            fShaderSource(mTexBlit_VertShader, 1, &vertShaderSource, nullptr);
-            fCompileShader(mTexBlit_VertShader);
-        }
+        mTexBlit_VertShader = fCreateShader(LOCAL_GL_VERTEX_SHADER);
+        fShaderSource(mTexBlit_VertShader, 1, &vertShaderSource, nullptr);
+        fCompileShader(mTexBlit_VertShader);
 
-        MOZ_ASSERT(!fragShader);
-        fragShader = fCreateShader(LOCAL_GL_FRAGMENT_SHADER);
-        fShaderSource(fragShader, 1, &fragShaderSource, nullptr);
-        fCompileShader(fragShader);
+        mTexBlit_FragShader = fCreateShader(LOCAL_GL_FRAGMENT_SHADER);
+        fShaderSource(mTexBlit_FragShader, 1, &fragShaderSource, nullptr);
+        fCompileShader(mTexBlit_FragShader);
 
-        program = fCreateProgram();
-        fAttachShader(program, mTexBlit_VertShader);
-        fAttachShader(program, fragShader);
-        fBindAttribLocation(program, 0, "aPosition");
-        fLinkProgram(program);
+        mTexBlit_Program = fCreateProgram();
+        fAttachShader(mTexBlit_Program, mTexBlit_VertShader);
+        fAttachShader(mTexBlit_Program, mTexBlit_FragShader);
+        fBindAttribLocation(mTexBlit_Program, 0, "aPosition");
+        fLinkProgram(mTexBlit_Program);
 
         if (DebugMode()) {
             GLint status = 0;
@@ -157,19 +125,19 @@ GLContext::InitTexQuadProgram(GLenum target)
             }
 
             status = 0;
-            fGetShaderiv(fragShader, LOCAL_GL_COMPILE_STATUS, &status);
+            fGetShaderiv(mTexBlit_FragShader, LOCAL_GL_COMPILE_STATUS, &status);
             if (status != LOCAL_GL_TRUE) {
                 NS_ERROR("Frag shader compilation failed.");
 
                 GLint length = 0;
-                fGetShaderiv(fragShader, LOCAL_GL_INFO_LOG_LENGTH, &length);
+                fGetShaderiv(mTexBlit_FragShader, LOCAL_GL_INFO_LOG_LENGTH, &length);
                 if (!length) {
                     printf_stderr("No shader info log available.\n");
                     break;
                 }
 
                 nsAutoArrayPtr<char> buffer(new char[length]);
-                fGetShaderInfoLog(fragShader, length, nullptr, buffer);
+                fGetShaderInfoLog(mTexBlit_FragShader, length, nullptr, buffer);
 
                 printf_stderr("Shader info log (%d bytes): %s\n", length, buffer.get());
                 break;
@@ -177,31 +145,30 @@ GLContext::InitTexQuadProgram(GLenum target)
         }
 
         GLint status = 0;
-        fGetProgramiv(program, LOCAL_GL_LINK_STATUS, &status);
+        fGetProgramiv(mTexBlit_Program, LOCAL_GL_LINK_STATUS, &status);
         if (status != LOCAL_GL_TRUE) {
             if (DebugMode()) {
                 NS_ERROR("Linking blit program failed.");
                 GLint length = 0;
-                fGetProgramiv(program, LOCAL_GL_INFO_LOG_LENGTH, &length);
+                fGetProgramiv(mTexBlit_Program, LOCAL_GL_INFO_LOG_LENGTH, &length);
                 if (!length) {
                     printf_stderr("No program info log available.\n");
                     break;
                 }
 
                 nsAutoArrayPtr<char> buffer(new char[length]);
-                fGetProgramInfoLog(program, length, nullptr, buffer);
+                fGetProgramInfoLog(mTexBlit_Program, length, nullptr, buffer);
 
                 printf_stderr("Program info log (%d bytes): %s\n", length, buffer.get());
             }
             break;
         }
 
-        MOZ_ASSERT(fGetAttribLocation(program, "aPosition") == 0);
-        GLint texUnitLoc = fGetUniformLocation(program, "uTexUnit");
-        MOZ_ASSERT(texUnitLoc != -1, "uniform not found");
+        MOZ_ASSERT(fGetAttribLocation(mTexBlit_Program, "aPosition") == 0);
+        GLuint texUnitLoc = fGetUniformLocation(mTexBlit_Program, "uTexUnit");
 
         // Set uniforms here:
-        fUseProgram(program);
+        fUseProgram(mTexBlit_Program);
         fUniform1i(texUnitLoc, 0);
 
         success = true;
@@ -215,7 +182,7 @@ GLContext::InitTexQuadProgram(GLenum target)
         return false;
     }
 
-    fUseProgram(program);
+    fUseProgram(mTexBlit_Program);
     fEnableVertexAttribArray(0);
     fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mTexBlit_Buffer);
     fVertexAttribPointer(0,
@@ -224,22 +191,6 @@ GLContext::InitTexQuadProgram(GLenum target)
                          false,
                          0,
                          nullptr);
-    return true;
-}
-
-bool
-GLContext::UseTexQuadProgram(GLenum target, const gfxIntSize& srcSize)
-{
-    if (!InitTexQuadProgram(target)) {
-        return false;
-    }
-
-    if (target == LOCAL_GL_TEXTURE_RECTANGLE_ARB) {
-        GLint texCoordMultLoc = fGetUniformLocation(mTex2DRectBlit_Program, "uTexCoordMult");
-        MOZ_ASSERT(texCoordMultLoc != -1, "uniform not found");
-        fUniform2f(texCoordMultLoc, srcSize.width, srcSize.height);
-    }
-
     return true;
 }
 
@@ -254,21 +205,13 @@ GLContext::DeleteTexBlitProgram()
         fDeleteShader(mTexBlit_VertShader);
         mTexBlit_VertShader = 0;
     }
-    if (mTex2DBlit_FragShader) {
-        fDeleteShader(mTex2DBlit_FragShader);
-        mTex2DBlit_FragShader = 0;
+    if (mTexBlit_FragShader) {
+        fDeleteShader(mTexBlit_FragShader);
+        mTexBlit_FragShader = 0;
     }
-    if (mTex2DRectBlit_FragShader) {
-        fDeleteShader(mTex2DRectBlit_FragShader);
-        mTex2DRectBlit_FragShader = 0;
-    }
-    if (mTex2DBlit_Program) {
-        fDeleteProgram(mTex2DBlit_Program);
-        mTex2DBlit_Program = 0;
-    }
-    if (mTex2DRectBlit_Program) {
-        fDeleteProgram(mTex2DRectBlit_Program);
-        mTex2DRectBlit_Program = 0;
+    if (mTexBlit_Program) {
+        fDeleteProgram(mTexBlit_Program);
+        mTexBlit_Program = 0;
     }
 }
 
@@ -324,8 +267,7 @@ GLContext::BlitFramebufferToFramebuffer(GLuint srcFB, GLuint destFB,
 void
 GLContext::BlitTextureToFramebuffer(GLuint srcTex, GLuint destFB,
                                     const gfxIntSize& srcSize,
-                                    const gfxIntSize& destSize,
-                                    GLenum srcTarget)
+                                    const gfxIntSize& destSize)
 {
     MOZ_ASSERT(fIsTexture(srcTex));
     MOZ_ASSERT(!destFB || fIsFramebuffer(destFB));
@@ -333,7 +275,7 @@ GLContext::BlitTextureToFramebuffer(GLuint srcTex, GLuint destFB,
     if (IsExtensionSupported(EXT_framebuffer_blit) ||
         IsExtensionSupported(ANGLE_framebuffer_blit))
     {
-        ScopedFramebufferForTexture srcWrapper(this, srcTex, srcTarget);
+        ScopedFramebufferForTexture srcWrapper(this, srcTex);
         MOZ_ASSERT(srcWrapper.IsComplete());
 
         BlitFramebufferToFramebuffer(srcWrapper.FB(), destFB,
@@ -343,10 +285,14 @@ GLContext::BlitTextureToFramebuffer(GLuint srcTex, GLuint destFB,
 
 
     ScopedBindFramebuffer boundFB(this, destFB);
-    // UseTexQuadProgram initializes a shader that reads
-    // from texture unit 0.
-    ScopedBindTextureUnit boundTU(this, LOCAL_GL_TEXTURE0);
-    ScopedBindTexture boundTex(this, srcTex, srcTarget);
+
+    GLuint boundTexUnit = 0;
+    GetUIntegerv(LOCAL_GL_ACTIVE_TEXTURE, &boundTexUnit);
+    fActiveTexture(LOCAL_GL_TEXTURE0);
+
+    GLuint boundTex = 0;
+    GetUIntegerv(LOCAL_GL_TEXTURE_BINDING_2D, &boundTex);
+    fBindTexture(LOCAL_GL_TEXTURE_2D, srcTex);
 
     GLuint boundProgram = 0;
     GetUIntegerv(LOCAL_GL_CURRENT_PROGRAM, &boundProgram);
@@ -409,7 +355,7 @@ GLContext::BlitTextureToFramebuffer(GLuint srcTex, GLuint destFB,
     fViewport(0, 0, destSize.width, destSize.height);
 
     // Does destructive things to (only!) what we just saved above.
-    bool good = UseTexQuadProgram(srcTarget, srcSize);
+    bool good = UseTexQuadProgram();
     if (!good) {
         // We're up against the wall, so bail.
         // This should really be MOZ_CRASH(why) or MOZ_RUNTIME_ASSERT(good).
@@ -441,13 +387,14 @@ GLContext::BlitTextureToFramebuffer(GLuint srcTex, GLuint destFB,
     fBindBuffer(LOCAL_GL_ARRAY_BUFFER, boundBuffer);
 
     fUseProgram(boundProgram);
+    fBindTexture(LOCAL_GL_TEXTURE_2D, boundTex);
+    fActiveTexture(boundTexUnit);
 }
 
 void
 GLContext::BlitFramebufferToTexture(GLuint srcFB, GLuint destTex,
                                     const gfxIntSize& srcSize,
-                                    const gfxIntSize& destSize,
-                                    GLenum destTarget)
+                                    const gfxIntSize& destSize)
 {
     MOZ_ASSERT(!srcFB || fIsFramebuffer(srcFB));
     MOZ_ASSERT(fIsTexture(destTex));
@@ -455,18 +402,18 @@ GLContext::BlitFramebufferToTexture(GLuint srcFB, GLuint destTex,
     if (IsExtensionSupported(EXT_framebuffer_blit) ||
         IsExtensionSupported(ANGLE_framebuffer_blit))
     {
-        ScopedFramebufferForTexture destWrapper(this, destTex, destTarget);
+        ScopedFramebufferForTexture destWrapper(this, destTex);
 
         BlitFramebufferToFramebuffer(srcFB, destWrapper.FB(),
                                      srcSize, destSize);
         return;
     }
 
-    ScopedBindTexture autoTex(this, destTex, destTarget);
+    ScopedBindTexture autoTex(this, destTex);
     ScopedBindFramebuffer boundFB(this, srcFB);
     ScopedGLState scissor(this, LOCAL_GL_SCISSOR_TEST, false);
 
-    fCopyTexSubImage2D(destTarget, 0,
+    fCopyTexSubImage2D(LOCAL_GL_TEXTURE_2D, 0,
                        0, 0,
                        0, 0,
                        srcSize.width, srcSize.height);
@@ -475,26 +422,25 @@ GLContext::BlitFramebufferToTexture(GLuint srcFB, GLuint destTex,
 void
 GLContext::BlitTextureToTexture(GLuint srcTex, GLuint destTex,
                                 const gfxIntSize& srcSize,
-                                const gfxIntSize& destSize,
-                                GLenum srcTarget, GLenum destTarget)
+                                const gfxIntSize& destSize)
 {
     MOZ_ASSERT(fIsTexture(srcTex));
     MOZ_ASSERT(fIsTexture(destTex));
 
     if (mTexBlit_UseDrawNotCopy) {
         // Draw is texture->framebuffer
-        ScopedFramebufferForTexture destWrapper(this, destTex, destTarget);
+        ScopedFramebufferForTexture destWrapper(this, destTex);
 
         BlitTextureToFramebuffer(srcTex, destWrapper.FB(),
-                                 srcSize, destSize, srcTarget);
+                                 srcSize, destSize);
         return;
     }
 
     // Generally, just use the CopyTexSubImage path
-    ScopedFramebufferForTexture srcWrapper(this, srcTex, srcTarget);
+    ScopedFramebufferForTexture srcWrapper(this, srcTex);
 
     BlitFramebufferToTexture(srcWrapper.FB(), destTex,
-                             srcSize, destSize, destTarget);
+                             srcSize, destSize);
 }
 
 uint32_t GetBitsPerTexel(GLenum format, GLenum type)

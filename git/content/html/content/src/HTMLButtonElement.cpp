@@ -505,14 +505,15 @@ HTMLButtonElement::SaveState()
     return NS_OK;
   }
   
-  nsPresState* state = GetPrimaryPresState();
+  nsPresState *state = nullptr;
+  nsresult rv = GetPrimaryPresState(this, &state);
   if (state) {
     // We do not want to save the real disabled state but the disabled
     // attribute.
     state->SetDisabled(HasAttr(kNameSpaceID_None, nsGkAtoms::disabled));
   }
 
-  return NS_OK;
+  return rv;
 }
 
 bool

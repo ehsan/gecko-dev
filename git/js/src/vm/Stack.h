@@ -12,7 +12,6 @@
 #include "jsautooplen.h"
 #include "jsfun.h"
 #include "jsscript.h"
-
 #include "ion/IonFrameIterator.h"
 
 struct JSContext;
@@ -1022,14 +1021,6 @@ class FrameRegs
         pc = script->code + script->length - JSOP_STOP_LENGTH;
         JS_ASSERT(*pc == JSOP_STOP);
     }
-
-    MutableHandleValue stackHandleAt(int i) {
-        return MutableHandleValue::fromMarkedLocation(&sp[i]);
-    }
-
-    HandleValue stackHandleAt(int i) const {
-        return HandleValue::fromMarkedLocation(&sp[i]);
-    }
 };
 
 /*****************************************************************************/
@@ -1528,7 +1519,7 @@ class ScriptFrameIter
     ArgumentsObject &argsObj() const;
 
     // Ensure that thisv is correct, see ComputeThis.
-    bool        computeThis(JSContext *cx) const;
+    bool        computeThis() const;
     Value       thisv() const;
 
     Value       returnValue() const;
@@ -1549,18 +1540,9 @@ class ScriptFrameIter
 /* A filtering of the ScriptFrameIter to only stop at non-self-hosted scripts. */
 class NonBuiltinScriptFrameIter : public ScriptFrameIter
 {
-#ifdef DEBUG
-    static bool includeSelfhostedFrames();
-#else
-    static bool includeSelfhostedFrames() {
-        return false;
-    }
-#endif
-
     void settle() {
-        if (!includeSelfhostedFrames())
-            while (!done() && script()->selfHosted)
-                ScriptFrameIter::operator++();
+        while (!done() && script()->selfHosted)
+            ScriptFrameIter::operator++();
     }
 
   public:

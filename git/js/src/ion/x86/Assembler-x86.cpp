@@ -5,7 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ion/x86/Assembler-x86.h"
-
 #include "gc/Marking.h"
 
 using namespace js;

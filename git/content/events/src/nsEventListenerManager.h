@@ -6,21 +6,21 @@
 #ifndef nsEventListenerManager_h__
 #define nsEventListenerManager_h__
 
+#include "nsEventListenerManager.h"
 #include "jsapi.h"
-#include "mozilla/dom/EventListenerBinding.h"
-#include "mozilla/dom/EventTarget.h"
-#include "mozilla/MemoryReporting.h"
+#include "nsCOMPtr.h"
+#include "nsIDOMEventListener.h"
 #include "nsAutoPtr.h"
 #include "nsCOMArray.h"
-#include "nsCOMPtr.h"
 #include "nsCxPusher.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsGkAtoms.h"
-#include "nsGUIEvent.h"
-#include "nsIDOMEventListener.h"
-#include "nsIJSEventListener.h"
 #include "nsIScriptContext.h"
+#include "nsCycleCollectionParticipant.h"
 #include "nsTObserverArray.h"
+#include "nsGUIEvent.h"
+#include "nsIJSEventListener.h"
+#include "mozilla/MemoryReporting.h"
+#include "mozilla/dom/EventTarget.h"
+#include "mozilla/dom/EventListenerBinding.h"
 
 class nsIDOMEvent;
 class nsIAtom;

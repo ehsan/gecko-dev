@@ -101,9 +101,6 @@ WebConsoleClient.prototype = {
    *        - frameActor: a FrameActor ID. The FA holds a reference to
    *        a Debugger.Frame. This option allows you to evaluate the string in
    *        the frame of the given FA.
-   *
-   *        - url: the url to evaluate the script as. Defaults to
-   *        "debugger eval code".
    */
   evaluateJS: function WCC_evaluateJS(aString, aOnResponse, aOptions = {})
   {
@@ -113,7 +110,6 @@ WebConsoleClient.prototype = {
       text: aString,
       bindObjectActor: aOptions.bindObjectActor,
       frameActor: aOptions.frameActor,
-      url: aOptions.url,
     };
     this._client.request(packet, aOnResponse);
   },

@@ -115,9 +115,6 @@ private:
 
 MediaRecorder::~MediaRecorder()
 {
-  if (mTrackUnionStream) {
-    mTrackUnionStream->Destroy();
-  }
 }
 
 void
@@ -147,7 +144,7 @@ MediaRecorder::ExtractEncodedData()
       mEncodedBufferCache->AppendBuffer(outputBufs[i]);
     }
 
-    if (mTimeSlice > 0 && (TimeStamp::Now() - lastBlobTimeStamp).ToMilliseconds() > mTimeSlice) {
+    if ((TimeStamp::Now() - lastBlobTimeStamp).ToMilliseconds() > mTimeSlice) {
       NS_DispatchToMainThread(new PushBlobTask(this));
       lastBlobTimeStamp = TimeStamp::Now();
     }

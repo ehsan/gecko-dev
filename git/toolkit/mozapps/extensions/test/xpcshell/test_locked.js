@@ -170,8 +170,9 @@ function run_test() {
       onUpdateFinished: function() {
         a4.findUpdates({
           onUpdateFinished: function() {
-            // Let the updates finish before restarting the manager
-            do_execute_soon(run_test_1);
+            restartManager();
+
+            run_test_1();
           }
         }, AddonManager.UPDATE_WHEN_PERIODIC_UPDATE);
       }
@@ -184,7 +185,6 @@ function end_test() {
 }
 
 function run_test_1() {
-  restartManager();
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
                                "addon2@tests.mozilla.org",
                                "addon3@tests.mozilla.org",
@@ -193,8 +193,9 @@ function run_test_1() {
                                "addon6@tests.mozilla.org",
                                "addon7@tests.mozilla.org",
                                "theme1@tests.mozilla.org",
-                               "theme2@tests.mozilla.org"],
-                               callback_soon(function([a1, a2, a3, a4, a5, a6, a7, t1, t2]) {
+                               "theme2@tests.mozilla.org"], function([a1, a2, a3,
+                                                                      a4, a5, a6,
+                                                                      a7, t1, t2]) {
     do_check_neq(a1, null);
     do_check_true(a1.isActive);
     do_check_false(a1.userDisabled);
@@ -281,8 +282,9 @@ function run_test_1() {
                                  "addon6@tests.mozilla.org",
                                  "addon7@tests.mozilla.org",
                                  "theme1@tests.mozilla.org",
-                                 "theme2@tests.mozilla.org"],
-                                 callback_soon(function get_after_lock([a1, a2, a3, a4, a5, a6, a7, t1, t2]) {
+                                 "theme2@tests.mozilla.org"], function([a1, a2, a3,
+                                                                        a4, a5, a6,
+                                                                        a7, t1, t2]) {
       // Should be correctly recovered
       do_check_neq(a1, null);
       do_check_true(a1.isActive);
@@ -370,8 +372,9 @@ function run_test_1() {
                                    "addon6@tests.mozilla.org",
                                    "addon7@tests.mozilla.org",
                                    "theme1@tests.mozilla.org",
-                                   "theme2@tests.mozilla.org"],
-                                   callback_soon(function([a1, a2, a3, a4, a5, a6, a7, t1, t2]) {
+                                   "theme2@tests.mozilla.org"], function([a1, a2, a3,
+                                                                          a4, a5, a6,
+                                                                          a7, t1, t2]) {
         do_check_neq(a1, null);
         do_check_true(a1.isActive);
         do_check_false(a1.userDisabled);
@@ -450,8 +453,9 @@ function run_test_1() {
                                      "addon6@tests.mozilla.org",
                                      "addon7@tests.mozilla.org",
                                      "theme1@tests.mozilla.org",
-                                     "theme2@tests.mozilla.org"],
-                                     callback_soon(function([a1, a2, a3, a4, a5, a6, a7, t1, t2]) {
+                                     "theme2@tests.mozilla.org"], function([a1, a2, a3,
+                                                                            a4, a5, a6,
+                                                                            a7, t1, t2]) {
           do_check_neq(a1, null);
           do_check_true(a1.isActive);
           do_check_false(a1.userDisabled);
@@ -514,8 +518,8 @@ function run_test_1() {
           do_check_true(isThemeInAddonsList(profileDir, t2.id));
 
           end_test();
-        }));
-      }));
-    }));
-  }));
+        });
+      });
+    });
+  });
 }

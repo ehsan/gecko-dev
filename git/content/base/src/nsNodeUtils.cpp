@@ -249,7 +249,8 @@ nsNodeUtils::LastRelease(nsINode* aNode)
     ownerDoc->ClearBoxObjectFor(elem);
     
     NS_ASSERTION(aNode->HasFlag(NODE_FORCE_XBL_BINDINGS) ||
-                 !elem->GetXBLBinding(),
+                 !ownerDoc->BindingManager() ||
+                 !ownerDoc->BindingManager()->GetBinding(elem),
                  "Non-forced node has binding on destruction");
 
     // if NODE_FORCE_XBL_BINDINGS is set, the node might still have a binding

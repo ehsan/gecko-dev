@@ -4,15 +4,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ion/MIRGraph.h"
-
 #include "jsanalyze.h"
 
 #include "ion/Ion.h"
-#include "ion/IonBuilder.h"
 #include "ion/IonSpewer.h"
 #include "ion/MIR.h"
-
+#include "ion/MIRGraph.h"
+#include "ion/IonBuilder.h"
 #include "jsinferinlines.h"
 
 using namespace js;
@@ -125,34 +123,35 @@ MIRGraph::unmarkBlocks()
 }
 
 MDefinition *
-MIRGraph::forkJoinSlice()
+MIRGraph::parSlice()
 {
     // Search the entry block to find a par slice instruction.  If we do not
     // find one, add one after the Start instruction.
     //
     // Note: the original design used a field in MIRGraph to cache the
-    // forkJoinSlice rather than searching for it again.  However, this could
-    // become out of date due to DCE.  Given that we do not generally have to
-    // search very far to find the par slice instruction if it exists, and
-    // that we don't look for it that often, I opted to simply eliminate the
-    // cache and search anew each time, so that it is that much easier to keep
-    // the IR coherent. - nmatsakis
+    // parSlice rather than searching for it again.  However, this
+    // could become out of date due to DCE.  Given that we do not
+    // generally have to search very far to find the par slice
+    // instruction if it exists, and that we don't look for it that
+    // often, I opted to simply eliminate the cache and search anew
+    // each time, so that it is that much easier to keep the IR
+    // coherent. - nmatsakis
 
     MBasicBlock *entry = entryBlock();
     JS_ASSERT(entry->info().executionMode() == ParallelExecution);
 
     MInstruction *start = NULL;
     for (MInstructionIterator ins(entry->begin()); ins != entry->end(); ins++) {
-        if (ins->isForkJoinSlice())
+        if (ins->isParSlice())
             return *ins;
         else if (ins->isStart())
             start = *ins;
     }
     JS_ASSERT(start);
 
-    MForkJoinSlice *slice = new MForkJoinSlice();
-    entry->insertAfter(start, slice);
-    return slice;
+    MParSlice *parSlice = new MParSlice();
+    entry->insertAfter(start, parSlice);
+    return parSlice;
 }
 
 MBasicBlock *
@@ -216,9 +215,9 @@ MBasicBlock::NewSplitEdge(MIRGraph &graph, CompileInfo &info, MBasicBlock *pred)
 }
 
 MBasicBlock *
-MBasicBlock::NewAbortPar(MIRGraph &graph, CompileInfo &info,
-                         MBasicBlock *pred, jsbytecode *entryPc,
-                         MResumePoint *resumePoint)
+MBasicBlock::NewParBailout(MIRGraph &graph, CompileInfo &info,
+                           MBasicBlock *pred, jsbytecode *entryPc,
+                           MResumePoint *resumePoint)
 {
     MBasicBlock *block = new MBasicBlock(graph, info, entryPc, NORMAL);
 
@@ -231,7 +230,7 @@ MBasicBlock::NewAbortPar(MIRGraph &graph, CompileInfo &info,
     if (!block->addPredecessorWithoutPhis(pred))
         return NULL;
 
-    block->end(new MAbortPar());
+    block->end(new MParBailout());
     return block;
 }
 

@@ -4,16 +4,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ion/IonCaches.h"
-
 #include "mozilla/DebugOnly.h"
 
+#include "ion/PerfSpewer.h"
 #include "ion/CodeGenerator.h"
 #include "ion/Ion.h"
+#include "ion/IonCaches.h"
 #include "ion/IonLinker.h"
 #include "ion/IonSpewer.h"
-#include "ion/PerfSpewer.h"
 #include "ion/VMFunctions.h"
+
 #include "vm/Shape.h"
 
 #include "vm/Interpreter-inl.h"
@@ -1052,39 +1052,6 @@ GenerateArrayLength(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher 
     return true;
 }
 
-static void
-GenerateTypedArrayLength(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &attacher,
-                         JSObject *obj, Register object, TypedOrValueRegister output)
-{
-    JS_ASSERT(obj->is<TypedArrayObject>());
-
-    Label failures;
-
-    Register tmpReg;
-    if (output.hasValue()) {
-        tmpReg = output.valueReg().scratchReg();
-    } else {
-        JS_ASSERT(output.type() == MIRType_Int32);
-        tmpReg = output.typedReg().gpr();
-    }
-    JS_ASSERT(object != tmpReg);
-
-    // Implement the negated version of JSObject::isTypedArray predicate.
-    masm.loadObjClass(object, tmpReg);
-    masm.branchPtr(Assembler::Below, tmpReg, ImmWord(&TypedArrayObject::classes[0]), &failures);
-    masm.branchPtr(Assembler::AboveOrEqual, tmpReg, ImmWord(&TypedArrayObject::classes[TypedArrayObject::TYPE_MAX]), &failures);
-
-    // Load length.
-    masm.loadTypedOrValue(Address(object, TypedArrayObject::lengthOffset()), output);
-
-    /* Success. */
-    attacher.jumpRejoin(masm);
-
-    /* Failure. */
-    masm.bind(&failures);
-    attacher.jumpNextStub(masm);
-}
-
 bool
 GetPropertyIC::attachReadSlot(JSContext *cx, IonScript *ion, JSObject *obj, JSObject *holder,
                               HandleShape shape)
@@ -1255,11 +1222,36 @@ GetPropertyIC::attachArrayLength(JSContext *cx, IonScript *ion, JSObject *obj)
 bool
 GetPropertyIC::attachTypedArrayLength(JSContext *cx, IonScript *ion, JSObject *obj)
 {
+    JS_ASSERT(obj->is<TypedArrayObject>());
     JS_ASSERT(!idempotent());
 
+    Label failures;
     MacroAssembler masm(cx);
     RepatchStubAppender attacher(*this);
-    GenerateTypedArrayLength(cx, masm, attacher, obj, object(), output());
+
+    Register tmpReg;
+    if (output().hasValue()) {
+        tmpReg = output().valueReg().scratchReg();
+    } else {
+        JS_ASSERT(output().type() == MIRType_Int32);
+        tmpReg = output().typedReg().gpr();
+    }
+    JS_ASSERT(object() != tmpReg);
+
+    // Implement the negated version of JSObject::isTypedArray predicate.
+    masm.loadObjClass(object(), tmpReg);
+    masm.branchPtr(Assembler::Below, tmpReg, ImmWord(&TypedArrayObject::classes[0]), &failures);
+    masm.branchPtr(Assembler::AboveOrEqual, tmpReg, ImmWord(&TypedArrayObject::classes[TypedArrayObject::TYPE_MAX]), &failures);
+
+    // Load length.
+    masm.loadTypedOrValue(Address(object(), TypedArrayObject::lengthOffset()), output());
+
+    /* Success. */
+    attacher.jumpRejoin(masm);
+
+    /* Failure. */
+    masm.bind(&failures);
+    attacher.jumpNextStub(masm);
 
     JS_ASSERT(!hasTypedArrayLengthStub_);
     hasTypedArrayLengthStub_ = true;
@@ -1607,18 +1599,11 @@ ParallelIonCache::destroy()
         js_delete(stubbedShapes_);
 }
 
-void
-GetPropertyParIC::reset()
-{
-    ParallelIonCache::reset();
-    hasTypedArrayLengthStub_ = false;
-}
-
 /* static */ bool
-GetPropertyParIC::canAttachReadSlot(LockedJSContext &cx, IonCache &cache,
-                                    TypedOrValueRegister output, JSObject *obj,
-                                    PropertyName *name, MutableHandleObject holder,
-                                    MutableHandleShape shape)
+ParallelGetPropertyIC::canAttachReadSlot(LockedJSContext &cx, IonCache &cache,
+                                         TypedOrValueRegister output, JSObject *obj,
+                                         PropertyName *name, MutableHandleObject holder,
+                                         MutableHandleShape shape)
 {
     // Bail if we have hooks or are not native.
     if (!obj->hasIdempotentProtoChain())
@@ -1641,8 +1626,8 @@ GetPropertyParIC::canAttachReadSlot(LockedJSContext &cx, IonCache &cache,
 }
 
 bool
-GetPropertyParIC::attachReadSlot(LockedJSContext &cx, IonScript *ion, JSObject *obj,
-                                 JSObject *holder, Shape *shape)
+ParallelGetPropertyIC::attachReadSlot(LockedJSContext &cx, IonScript *ion, JSObject *obj,
+                                      JSObject *holder, Shape *shape)
 {
     // Ready to generate the read slot stub.
     DispatchStubPrepender attacher(*this);
@@ -1653,7 +1638,7 @@ GetPropertyParIC::attachReadSlot(LockedJSContext &cx, IonScript *ion, JSObject *
 }
 
 bool
-GetPropertyParIC::attachArrayLength(LockedJSContext &cx, IonScript *ion, JSObject *obj)
+ParallelGetPropertyIC::attachArrayLength(LockedJSContext &cx, IonScript *ion, JSObject *obj)
 {
     MacroAssembler masm(cx);
     DispatchStubPrepender attacher(*this);
@@ -1663,23 +1648,11 @@ GetPropertyParIC::attachArrayLength(LockedJSContext &cx, IonScript *ion, JSObjec
     return linkAndAttachStub(cx, masm, attacher, ion, "parallel array length");
 }
 
-bool
-GetPropertyParIC::attachTypedArrayLength(LockedJSContext &cx, IonScript *ion, JSObject *obj)
-{
-    MacroAssembler masm(cx);
-    DispatchStubPrepender attacher(*this);
-    GenerateTypedArrayLength(cx, masm, attacher, obj, object(), output());
-
-    JS_ASSERT(!hasTypedArrayLengthStub_);
-    hasTypedArrayLengthStub_ = true;
-    return linkAndAttachStub(cx, masm, attacher, ion, "parallel typed array length");
-}
-
 ParallelResult
-GetPropertyParIC::update(ForkJoinSlice *slice, size_t cacheIndex,
-                         HandleObject obj, MutableHandleValue vp)
+ParallelGetPropertyIC::update(ForkJoinSlice *slice, size_t cacheIndex,
+                              HandleObject obj, MutableHandleValue vp)
 {
-    AutoFlushCache afc("GetPropertyParCache");
+    AutoFlushCache afc("ParallelGetPropertyCache");
     PerThreadData *pt = slice->perThreadData;
 
     const SafepointIndex *safepointIndex;
@@ -1687,7 +1660,7 @@ GetPropertyParIC::update(ForkJoinSlice *slice, size_t cacheIndex,
     RootedScript topScript(pt, GetTopIonJSScript(pt, &safepointIndex, &returnAddr));
     IonScript *ion = topScript->parallelIonScript();
 
-    GetPropertyParIC &cache = ion->getCache(cacheIndex).toGetPropertyPar();
+    ParallelGetPropertyIC &cache = ion->getCache(cacheIndex).toParallelGetProperty();
 
     // Grab the property early, as the pure path is fast anyways and doesn't
     // need a lock. If we can't do it purely, bail out of parallel execution.
@@ -1732,13 +1705,10 @@ GetPropertyParIC::update(ForkJoinSlice *slice, size_t cacheIndex,
                 attachedStub = true;
             }
 
-            if (!attachedStub && !cache.hasTypedArrayLengthStub() &&
-                obj->is<TypedArrayObject>() && slice->names().length == cache.name() &&
-                (cache.output().type() == MIRType_Value || cache.output().type() == MIRType_Int32))
-            {
-                if (!cache.attachTypedArrayLength(cx, ion, obj))
-                    return TP_FATAL;
-                attachedStub = true;
+            if (!attachedStub) {
+                // ParallelDo will take care of invalidating all bailed out
+                // scripts, so just bail out now.
+                return TP_RETRY_SEQUENTIALLY;
             }
         }
     }
@@ -2681,11 +2651,18 @@ SetElementIC::attachDenseElement(JSContext *cx, IonScript *ion, JSObject *obj, c
     masm.branchTestInt32(Assembler::NotEqual, indexVal, &failures);
 
     // Unbox the index.
-    Register index = masm.extractInt32(indexVal, temp0());
+    Register scratch = temp();
+    Register index = masm.extractInt32(indexVal, scratch);
+    Register elements = scratch;
 
     {
+        // If needed, push the object register to store the element pointer.
+        if (scratch == index) {
+            masm.push(object());
+            elements = object();
+        }
+
         // Load obj->elements.
-        Register elements = temp1();
         masm.loadPtr(Address(object(), JSObject::offsetOfElements()), elements);
 
         // Compute the location of the element.
@@ -2730,11 +2707,18 @@ SetElementIC::attachDenseElement(JSContext *cx, IonScript *ion, JSObject *obj, c
         // Store the value.
         masm.bind(&storeElem);
         masm.storeConstantOrRegister(value(), target);
+
+        if (elements == object())
+            masm.pop(object());
     }
     attacher.jumpRejoin(masm);
 
     // All failures flow to here.
-    masm.bind(&outOfBounds);
+    {
+        masm.bind(&outOfBounds);
+        if (elements == object())
+            masm.pop(object());
+    }
     masm.bind(&failures);
     attacher.jumpNextStub(masm);
 
@@ -2767,9 +2751,9 @@ SetElementIC::reset()
 }
 
 bool
-GetElementParIC::attachReadSlot(LockedJSContext &cx, IonScript *ion, JSObject *obj,
-                                const Value &idval, PropertyName *name, JSObject *holder,
-                                Shape *shape)
+ParallelGetElementIC::attachReadSlot(LockedJSContext &cx, IonScript *ion, JSObject *obj,
+                                     const Value &idval, PropertyName *name, JSObject *holder,
+                                     Shape *shape)
 {
     MacroAssembler masm(cx);
     DispatchStubPrepender attacher(*this);
@@ -2786,8 +2770,8 @@ GetElementParIC::attachReadSlot(LockedJSContext &cx, IonScript *ion, JSObject *o
 }
 
 bool
-GetElementParIC::attachDenseElement(LockedJSContext &cx, IonScript *ion, JSObject *obj,
-                                    const Value &idval)
+ParallelGetElementIC::attachDenseElement(LockedJSContext &cx, IonScript *ion, JSObject *obj,
+                                         const Value &idval)
 {
     MacroAssembler masm(cx);
     DispatchStubPrepender attacher(*this);
@@ -2798,8 +2782,8 @@ GetElementParIC::attachDenseElement(LockedJSContext &cx, IonScript *ion, JSObjec
 }
 
 bool
-GetElementParIC::attachTypedArrayElement(LockedJSContext &cx, IonScript *ion,
-                                         TypedArrayObject *tarr, const Value &idval)
+ParallelGetElementIC::attachTypedArrayElement(LockedJSContext &cx, IonScript *ion,
+                                              TypedArrayObject *tarr, const Value &idval)
 {
     MacroAssembler masm(cx);
     DispatchStubPrepender attacher(*this);
@@ -2808,10 +2792,10 @@ GetElementParIC::attachTypedArrayElement(LockedJSContext &cx, IonScript *ion,
 }
 
 ParallelResult
-GetElementParIC::update(ForkJoinSlice *slice, size_t cacheIndex, HandleObject obj,
-                        HandleValue idval, MutableHandleValue vp)
+ParallelGetElementIC::update(ForkJoinSlice *slice, size_t cacheIndex, HandleObject obj,
+                             HandleValue idval, MutableHandleValue vp)
 {
-    AutoFlushCache afc("GetElementParCache");
+    AutoFlushCache afc("ParallelGetElementCache");
     PerThreadData *pt = slice->perThreadData;
 
     const SafepointIndex *safepointIndex;
@@ -2819,7 +2803,7 @@ GetElementParIC::update(ForkJoinSlice *slice, size_t cacheIndex, HandleObject ob
     RootedScript topScript(pt, GetTopIonJSScript(pt, &safepointIndex, &returnAddr));
     IonScript *ion = topScript->parallelIonScript();
 
-    GetElementParIC &cache = ion->getCache(cacheIndex).toGetElementPar();
+    ParallelGetElementIC &cache = ion->getCache(cacheIndex).toParallelGetElement();
 
     // Try to get the element early, as the pure path doesn't need a lock. If
     // we can't do it purely, bail out of parallel execution.
@@ -2852,8 +2836,8 @@ GetElementParIC::update(ForkJoinSlice *slice, size_t cacheIndex, HandleObject ob
                 RootedShape shape(cx);
                 RootedObject holder(cx);
                 PropertyName *name = JSID_TO_ATOM(id)->asPropertyName();
-                if (GetPropertyParIC::canAttachReadSlot(cx, cache, cache.output(), obj,
-                                                        name, &holder, &shape))
+                if (ParallelGetPropertyIC::canAttachReadSlot(cx, cache, cache.output(), obj,
+                                                             name, &holder, &shape))
                 {
                     if (!cache.attachReadSlot(cx, ion, obj, idval, name, holder, shape))
                         return TP_FATAL;

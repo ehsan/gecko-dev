@@ -191,7 +191,11 @@ nsPageFrame::ProcessSpecialCodes(const nsString& aStr, nsString& aNewStr)
   // then subst in the current date/time
   NS_NAMED_LITERAL_STRING(kDate, "&D");
   if (aStr.Find(kDate) != kNotFound) {
-    aNewStr.ReplaceSubstring(kDate.get(), mPD->mDateTimeStr.get());
+    if (mPD->mDateTimeStr != nullptr) {
+      aNewStr.ReplaceSubstring(kDate.get(), mPD->mDateTimeStr);
+    } else {
+      aNewStr.ReplaceSubstring(kDate.get(), EmptyString().get());
+    }
   }
 
   // NOTE: Must search for &PT before searching for &P
@@ -201,7 +205,7 @@ nsPageFrame::ProcessSpecialCodes(const nsString& aStr, nsString& aNewStr)
   // values
   NS_NAMED_LITERAL_STRING(kPageAndTotal, "&PT");
   if (aStr.Find(kPageAndTotal) != kNotFound) {
-    PRUnichar * uStr = nsTextFormatter::smprintf(mPD->mPageNumAndTotalsFormat.get(), mPageNum, mTotNumPages);
+    PRUnichar * uStr = nsTextFormatter::smprintf(mPD->mPageNumAndTotalsFormat, mPageNum, mTotNumPages);
     aNewStr.ReplaceSubstring(kPageAndTotal.get(), uStr);
     nsMemory::Free(uStr);
   }
@@ -210,24 +214,32 @@ nsPageFrame::ProcessSpecialCodes(const nsString& aStr, nsString& aNewStr)
   // and replace the page number code with the actual value
   NS_NAMED_LITERAL_STRING(kPage, "&P");
   if (aStr.Find(kPage) != kNotFound) {
-    PRUnichar * uStr = nsTextFormatter::smprintf(mPD->mPageNumFormat.get(), mPageNum);
+    PRUnichar * uStr = nsTextFormatter::smprintf(mPD->mPageNumFormat, mPageNum);
     aNewStr.ReplaceSubstring(kPage.get(), uStr);
     nsMemory::Free(uStr);
   }
 
   NS_NAMED_LITERAL_STRING(kTitle, "&T");
   if (aStr.Find(kTitle) != kNotFound) {
-    aNewStr.ReplaceSubstring(kTitle.get(), mPD->mDocTitle.get());
+    if (mPD->mDocTitle != nullptr) {
+      aNewStr.ReplaceSubstring(kTitle.get(), mPD->mDocTitle);
+    } else {
+      aNewStr.ReplaceSubstring(kTitle.get(), EmptyString().get());
+    }
   }
 
   NS_NAMED_LITERAL_STRING(kDocURL, "&U");
   if (aStr.Find(kDocURL) != kNotFound) {
-    aNewStr.ReplaceSubstring(kDocURL.get(), mPD->mDocURL.get());
+    if (mPD->mDocURL != nullptr) {
+      aNewStr.ReplaceSubstring(kDocURL.get(), mPD->mDocURL);
+    } else {
+      aNewStr.ReplaceSubstring(kDocURL.get(), EmptyString().get());
+    }
   }
 
   NS_NAMED_LITERAL_STRING(kPageTotal, "&L");
   if (aStr.Find(kPageTotal) != kNotFound) {
-    PRUnichar * uStr = nsTextFormatter::smprintf(mPD->mPageNumFormat.get(), mTotNumPages);
+    PRUnichar * uStr = nsTextFormatter::smprintf(mPD->mPageNumFormat, mTotNumPages);
     aNewStr.ReplaceSubstring(kPageTotal.get(), uStr);
     nsMemory::Free(uStr);
   }
@@ -578,7 +590,7 @@ nsPageFrame::PaintHeaderFooter(nsRenderingContext& aRenderingContext,
 
   // Get the FontMetrics to determine width.height of strings
   nsRefPtr<nsFontMetrics> fontMet;
-  pc->DeviceContext()->GetMetricsFor(mPD->mHeadFootFont, nullptr,
+  pc->DeviceContext()->GetMetricsFor(*mPD->mHeadFootFont, nullptr,
                                      pc->GetUserFontSet(),
                                      *getter_AddRefs(fontMet));
 

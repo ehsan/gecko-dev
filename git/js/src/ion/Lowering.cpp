@@ -4,23 +4,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "ion/LIR.h"
 #include "ion/Lowering.h"
-
-#include "mozilla/DebugOnly.h"
-
+#include "ion/MIR.h"
+#include "ion/MIRGraph.h"
+#include "ion/IonSpewer.h"
+#include "ion/RangeAnalysis.h"
 #include "jsanalyze.h"
 #include "jsbool.h"
 #include "jsnum.h"
-
-#include "ion/IonSpewer.h"
-#include "ion/LIR.h"
-#include "ion/MIR.h"
-#include "ion/MIRGraph.h"
-#include "ion/RangeAnalysis.h"
+#include "ion/shared/Lowering-shared-inl.h"
+#include "mozilla/DebugOnly.h"
 
 #include "jsinferinlines.h"
-
-#include "ion/shared/Lowering-shared-inl.h"
 
 using namespace js;
 using namespace ion;
@@ -118,10 +114,11 @@ LIRGenerator::visitCheckOverRecursed(MCheckOverRecursed *ins)
 }
 
 bool
-LIRGenerator::visitCheckOverRecursedPar(MCheckOverRecursedPar *ins)
+LIRGenerator::visitParCheckOverRecursed(MParCheckOverRecursed *ins)
 {
-    LCheckOverRecursedPar *lir =
-        new LCheckOverRecursedPar(useRegister(ins->forkJoinSlice()), temp());
+    LParCheckOverRecursed *lir = new LParCheckOverRecursed(
+        useRegister(ins->parSlice()),
+        temp());
     if (!add(lir, ins))
         return false;
     if (!assignSafepoint(lir, ins))
@@ -207,18 +204,19 @@ LIRGenerator::visitNewCallObject(MNewCallObject *ins)
 }
 
 bool
-LIRGenerator::visitNewCallObjectPar(MNewCallObjectPar *ins)
+LIRGenerator::visitParNewCallObject(MParNewCallObject *ins)
 {
-    const LAllocation &parThreadContext = useRegister(ins->forkJoinSlice());
+    const LAllocation &parThreadContext = useRegister(ins->parSlice());
     const LDefinition &temp1 = temp();
     const LDefinition &temp2 = temp();
 
-    LNewCallObjectPar *lir;
+    LParNewCallObject *lir;
     if (ins->slots()->type() == MIRType_Slots) {
         const LAllocation &slots = useRegister(ins->slots());
-        lir = LNewCallObjectPar::NewWithSlots(parThreadContext, slots, temp1, temp2);
+        lir = LParNewCallObject::NewWithSlots(parThreadContext, slots,
+                                              temp1, temp2);
     } else {
-        lir = LNewCallObjectPar::NewSansSlots(parThreadContext, temp1, temp2);
+        lir = LParNewCallObject::NewSansSlots(parThreadContext, temp1, temp2);
     }
 
     return define(lir, ins);
@@ -234,9 +232,9 @@ LIRGenerator::visitNewStringObject(MNewStringObject *ins)
 }
 
 bool
-LIRGenerator::visitAbortPar(MAbortPar *ins)
+LIRGenerator::visitParBailout(MParBailout *ins)
 {
-    LAbortPar *lir = new LAbortPar();
+    LParBailout *lir = new LParBailout();
     return add(lir, ins);
 }
 
@@ -253,31 +251,12 @@ LIRGenerator::visitInitElem(MInitElem *ins)
 }
 
 bool
-LIRGenerator::visitInitElemGetterSetter(MInitElemGetterSetter *ins)
-{
-    LInitElemGetterSetter *lir = new LInitElemGetterSetter(useRegisterAtStart(ins->object()),
-                                                           useRegisterAtStart(ins->value()));
-    if (!useBoxAtStart(lir, LInitElemGetterSetter::IdIndex, ins->idValue()))
-        return false;
-
-    return add(lir, ins) && assignSafepoint(lir, ins);
-}
-
-bool
 LIRGenerator::visitInitProp(MInitProp *ins)
 {
     LInitProp *lir = new LInitProp(useRegisterAtStart(ins->getObject()));
     if (!useBoxAtStart(lir, LInitProp::ValueIndex, ins->getValue()))
         return false;
 
-    return add(lir, ins) && assignSafepoint(lir, ins);
-}
-
-bool
-LIRGenerator::visitInitPropGetterSetter(MInitPropGetterSetter *ins)
-{
-    LInitPropGetterSetter *lir = new LInitPropGetterSetter(useRegisterAtStart(ins->object()),
-                                                           useRegisterAtStart(ins->value()));
     return add(lir, ins) && assignSafepoint(lir, ins);
 }
 
@@ -541,27 +520,6 @@ ReorderComparison(JSOp op, MDefinition **lhsp, MDefinition **rhsp)
     return op;
 }
 
-static void
-ReorderCommutative(MDefinition **lhsp, MDefinition **rhsp)
-{
-    MDefinition *lhs = *lhsp;
-    MDefinition *rhs = *rhsp;
-
-    // Ensure that if there is a constant, then it is in rhs.
-    // In addition, since clobbering binary operations clobber the left
-    // operand, prefer a non-constant lhs operand with no further uses.
-
-    if (rhs->isConstant())
-        return;
-
-    if (lhs->isConstant() ||
-        (rhs->defUseCount() == 1 && lhs->defUseCount() > 1))
-    {
-        *rhsp = lhs;
-        *lhsp = rhs;
-    }
-}
-
 bool
 LIRGenerator::visitTest(MTest *test)
 {
@@ -713,17 +671,6 @@ LIRGenerator::visitTest(MTest *test)
             if (!useBoxAtStart(lir, LCompareVAndBranch::RhsInput, right))
                 return false;
             return add(lir, comp);
-        }
-    }
-
-    // Check if the operand for this test is a bitand operation. If it is, we want
-    // to emit an LBitAndAndBranch rather than an LTest*AndBranch.
-    if (opd->isBitAnd() && opd->isEmittedAtUses()) {
-        MDefinition *lhs = opd->getOperand(0);
-        MDefinition *rhs = opd->getOperand(1);
-        if (lhs->type() == MIRType_Int32 && rhs->type() == MIRType_Int32) {
-            ReorderCommutative(&lhs, &rhs);
-            return lowerForBitAndAndBranch(new LBitAndAndBranch(ifTrue, ifFalse), test, lhs, rhs);
         }
     }
 
@@ -901,6 +848,27 @@ LIRGenerator::visitCompare(MCompare *comp)
     MOZ_ASSUME_UNREACHABLE("Unrecognized compare type.");
 }
 
+static void
+ReorderCommutative(MDefinition **lhsp, MDefinition **rhsp)
+{
+    MDefinition *lhs = *lhsp;
+    MDefinition *rhs = *rhsp;
+
+    // Ensure that if there is a constant, then it is in rhs.
+    // In addition, since clobbering binary operations clobber the left
+    // operand, prefer a non-constant lhs operand with no further uses.
+
+    if (rhs->isConstant())
+        return;
+
+    if (lhs->isConstant() ||
+        (rhs->defUseCount() == 1 && lhs->defUseCount() > 1))
+    {
+        *rhsp = lhs;
+        *lhsp = rhs;
+    }
+}
+
 bool
 LIRGenerator::lowerBitOp(JSOp op, MInstruction *ins)
 {
@@ -960,36 +928,9 @@ LIRGenerator::visitBitNot(MBitNot *ins)
     return assignSafepoint(lir, ins);
 }
 
-static bool
-CanEmitBitAndAtUses(MInstruction *ins)
-{
-    if (!ins->canEmitAtUses())
-        return false;
-
-    if (ins->getOperand(0)->type() != MIRType_Int32 || ins->getOperand(1)->type() != MIRType_Int32)
-        return false;
-
-    MUseDefIterator iter(ins);
-    if (!iter)
-        return false;
-
-    if (!iter.def()->isTest())
-        return false;
-
-    iter++;
-    return !iter;
-}
-
 bool
 LIRGenerator::visitBitAnd(MBitAnd *ins)
 {
-    // Sniff out if the output of this bitand is used only for a branching.
-    // If it is, then we will emit an LBitAndAndBranch instruction in place
-    // of this bitand and any test that uses this bitand. Thus, we can
-    // ignore this BitAnd.
-    if (CanEmitBitAndAtUses(ins))
-        return emitAtUses(ins);
-
     return lowerBitOp(JSOP_BITAND, ins);
 }
 
@@ -1380,9 +1321,9 @@ LIRGenerator::visitConcat(MConcat *ins)
 }
 
 bool
-LIRGenerator::visitConcatPar(MConcatPar *ins)
+LIRGenerator::visitParConcat(MParConcat *ins)
 {
-    MDefinition *slice = ins->forkJoinSlice();
+    MDefinition *parSlice = ins->parSlice();
     MDefinition *lhs = ins->lhs();
     MDefinition *rhs = ins->rhs();
 
@@ -1390,7 +1331,7 @@ LIRGenerator::visitConcatPar(MConcatPar *ins)
     JS_ASSERT(rhs->type() == MIRType_String);
     JS_ASSERT(ins->type() == MIRType_String);
 
-    LConcatPar *lir = new LConcatPar(useFixed(slice, CallTempReg5),
+    LParConcat *lir = new LParConcat(useFixed(parSlice, CallTempReg5),
                                      useFixed(lhs, CallTempReg0),
                                      useFixed(rhs, CallTempReg1),
                                      tempFixed(CallTempReg2),
@@ -1659,11 +1600,11 @@ LIRGenerator::visitLambda(MLambda *ins)
 }
 
 bool
-LIRGenerator::visitLambdaPar(MLambdaPar *ins)
+LIRGenerator::visitParLambda(MParLambda *ins)
 {
     JS_ASSERT(!ins->fun()->hasSingletonType());
     JS_ASSERT(!types::UseNewTypeForClone(ins->fun()));
-    LLambdaPar *lir = new LLambdaPar(useRegister(ins->forkJoinSlice()),
+    LParLambda *lir = new LParLambda(useRegister(ins->parSlice()),
                                      useRegister(ins->scopeChain()),
                                      temp(), temp());
     return define(lir, ins);
@@ -1738,28 +1679,28 @@ LIRGenerator::visitFunctionEnvironment(MFunctionEnvironment *ins)
 }
 
 bool
-LIRGenerator::visitForkJoinSlice(MForkJoinSlice *ins)
+LIRGenerator::visitParSlice(MParSlice *ins)
 {
-    LForkJoinSlice *lir = new LForkJoinSlice(tempFixed(CallTempReg0));
+    LParSlice *lir = new LParSlice(tempFixed(CallTempReg0));
     return defineReturn(lir, ins);
 }
 
 bool
-LIRGenerator::visitGuardThreadLocalObject(MGuardThreadLocalObject *ins)
+LIRGenerator::visitParWriteGuard(MParWriteGuard *ins)
 {
-    LGuardThreadLocalObject *lir =
-        new LGuardThreadLocalObject(useFixed(ins->forkJoinSlice(), CallTempReg0),
-                                    useFixed(ins->object(), CallTempReg1),
-                                    tempFixed(CallTempReg2));
+    LParWriteGuard *lir = new LParWriteGuard(useFixed(ins->parSlice(), CallTempReg0),
+                                             useFixed(ins->object(), CallTempReg1),
+                                             tempFixed(CallTempReg2));
     lir->setMir(ins);
     return add(lir, ins);
 }
 
 bool
-LIRGenerator::visitCheckInterruptPar(MCheckInterruptPar *ins)
+LIRGenerator::visitParCheckInterrupt(MParCheckInterrupt *ins)
 {
-    LCheckInterruptPar *lir =
-        new LCheckInterruptPar(useRegister(ins->forkJoinSlice()), temp());
+    LParCheckInterrupt *lir = new LParCheckInterrupt(
+        useRegister(ins->parSlice()),
+        temp());
     if (!add(lir, ins))
         return false;
     if (!assignSafepoint(lir, ins))
@@ -1768,21 +1709,30 @@ LIRGenerator::visitCheckInterruptPar(MCheckInterruptPar *ins)
 }
 
 bool
-LIRGenerator::visitNewPar(MNewPar *ins)
+LIRGenerator::visitParDump(MParDump *ins)
 {
-    LNewPar *lir = new LNewPar(useRegister(ins->forkJoinSlice()), temp(), temp());
+    LParDump *lir = new LParDump();
+    useBoxFixed(lir, LParDump::Value, ins->value(), CallTempReg0, CallTempReg1);
+    return add(lir);
+}
+
+bool
+LIRGenerator::visitParNew(MParNew *ins)
+{
+    LParNew *lir = new LParNew(useRegister(ins->parSlice()),
+                               temp(), temp());
     return define(lir, ins);
 }
 
 bool
-LIRGenerator::visitNewDenseArrayPar(MNewDenseArrayPar *ins)
+LIRGenerator::visitParNewDenseArray(MParNewDenseArray *ins)
 {
-    LNewDenseArrayPar *lir =
-        new LNewDenseArrayPar(useFixed(ins->forkJoinSlice(), CallTempReg0),
-                              useFixed(ins->length(), CallTempReg1),
-                              tempFixed(CallTempReg2),
-                              tempFixed(CallTempReg3),
-                              tempFixed(CallTempReg4));
+    LParNewDenseArray *lir = new LParNewDenseArray(
+        useFixed(ins->parSlice(), CallTempReg0),
+        useFixed(ins->length(), CallTempReg1),
+        tempFixed(CallTempReg2),
+        tempFixed(CallTempReg3),
+        tempFixed(CallTempReg4));
     return defineReturn(lir, ins);
 }
 
@@ -2349,7 +2299,7 @@ LIRGenerator::visitGetPropertyPolymorphic(MGetPropertyPolymorphic *ins)
 
     if (ins->type() == MIRType_Value) {
         LGetPropertyPolymorphicV *lir = new LGetPropertyPolymorphicV(useRegister(ins->obj()));
-        return assignSnapshot(lir, Bailout_CachedShapeGuard) && defineBox(lir, ins);
+        return assignSnapshot(lir) && defineBox(lir, ins);
     }
 
     LDefinition maybeTemp = (ins->type() == MIRType_Double) ? temp() : LDefinition::BogusTemp();
@@ -2372,7 +2322,7 @@ LIRGenerator::visitSetPropertyPolymorphic(MSetPropertyPolymorphic *ins)
     LAllocation value = useRegisterOrConstant(ins->value());
     LSetPropertyPolymorphicT *lir =
         new LSetPropertyPolymorphicT(useRegister(ins->obj()), value, ins->value()->type(), temp());
-    return assignSnapshot(lir, Bailout_CachedShapeGuard) && add(lir, ins);
+    return assignSnapshot(lir) && add(lir, ins);
 }
 
 bool
@@ -2504,7 +2454,7 @@ LIRGenerator::visitSetElementCache(MSetElementCache *ins)
 
     LInstruction *lir;
     if (ins->value()->type() == MIRType_Value) {
-        lir = new LSetElementCacheV(useRegister(ins->object()), temp(), temp());
+        lir = new LSetElementCacheV(useRegister(ins->object()), temp());
 
         if (!useBox(lir, LSetElementCacheV::Index, ins->index()))
             return false;
@@ -2514,7 +2464,7 @@ LIRGenerator::visitSetElementCache(MSetElementCache *ins)
         lir = new LSetElementCacheT(
             useRegister(ins->object()),
             useRegisterOrConstant(ins->value()),
-            temp(), temp());
+            temp());
 
         if (!useBox(lir, LSetElementCacheT::Index, ins->index()))
             return false;
@@ -2623,11 +2573,11 @@ LIRGenerator::visitRest(MRest *ins)
 }
 
 bool
-LIRGenerator::visitRestPar(MRestPar *ins)
+LIRGenerator::visitParRest(MParRest *ins)
 {
     JS_ASSERT(ins->numActuals()->type() == MIRType_Int32);
 
-    LRestPar *lir = new LRestPar(useFixed(ins->forkJoinSlice(), CallTempReg0),
+    LParRest *lir = new LParRest(useFixed(ins->parSlice(), CallTempReg0),
                                  useFixed(ins->numActuals(), CallTempReg1),
                                  tempFixed(CallTempReg2),
                                  tempFixed(CallTempReg3),

@@ -843,7 +843,7 @@ function JSPropertyProvider(aScope, aInputValue, aCursor)
 
   return {
     matchProp: matchProp,
-    matches: matches,
+    matches: matches.sort(),
   };
 }
 
@@ -1823,10 +1823,8 @@ NetworkMonitor.prototype = {
 
     gActivityDistributor.addObserver(this);
 
-    if (Services.appinfo.processType != Ci.nsIXULRuntime.PROCESS_TYPE_CONTENT) {
-      Services.obs.addObserver(this._httpResponseExaminer,
-                               "http-on-examine-response", false);
-    }
+    Services.obs.addObserver(this._httpResponseExaminer,
+                             "http-on-examine-response", false);
   },
 
   /**
@@ -2332,10 +2330,8 @@ NetworkMonitor.prototype = {
    */
   destroy: function NM_destroy()
   {
-    if (Services.appinfo.processType != Ci.nsIXULRuntime.PROCESS_TYPE_CONTENT) {
-      Services.obs.removeObserver(this._httpResponseExaminer,
-                                  "http-on-examine-response");
-    }
+    Services.obs.removeObserver(this._httpResponseExaminer,
+                                "http-on-examine-response");
 
     gActivityDistributor.removeObserver(this);
 

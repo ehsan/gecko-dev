@@ -44,9 +44,6 @@ class ViEReceiver : public RtpData {
   void StartReceive();
   void StopReceive();
 
-  void StartRTCPReceive();
-  void StopRTCPReceive();
-
   int StartRTPDump(const char file_nameUTF8[1024]);
   int StopRTPDump();
 
@@ -83,7 +80,6 @@ class ViEReceiver : public RtpData {
   uint8_t* decryption_buffer_;
   RtpDump* rtp_dump_;
   bool receiving_;
-  bool receiving_rtcp_;
 };
 
 }  // namespace webrt

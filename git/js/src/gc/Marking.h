@@ -12,6 +12,7 @@
 
 #include "gc/Barrier.h"
 #include "gc/Nursery.h"
+#include "js/TemplateLib.h"
 #include "ion/IonCode.h"
 
 extern "C" {

@@ -20,8 +20,7 @@ function addCreds(scheme, host)
 {
   var authMgr = Components.classes['@mozilla.org/network/http-auth-manager;1']
                           .getService(Ci.nsIHttpAuthManager);
-  authMgr.setAuthIdentity(scheme, host, httpserv.identity.primaryPort,
-                          "basic", "secret", "/", "", "user", "pass");
+  authMgr.setAuthIdentity(scheme, host, 4444, "basic", "secret", "/", "", "user", "pass");
 }
 
 function clearCreds()
@@ -34,8 +33,7 @@ function clearCreds()
 function makeChan() {
   var ios = Cc["@mozilla.org/network/io-service;1"]
                       .getService(Ci.nsIIOService);
-  var chan = ios.newChannel("http://localhost:" +
-                            httpserv.identity.primaryPort + "/", null, null)
+  var chan = ios.newChannel("http://localhost:4444/", null, null)
                 .QueryInterface(Ci.nsIHttpChannel);
   return chan;
 }
@@ -199,12 +197,12 @@ function run_test()
   
   httpserv = new HttpServer();
   httpserv.registerPathHandler("/", handler);
-  httpserv.start(-1);
+  httpserv.start(4444);
 
   const prefs = Cc["@mozilla.org/preferences-service;1"]
                          .getService(Ci.nsIPrefBranch);
   prefs.setCharPref("network.proxy.http", "localhost");
-  prefs.setIntPref("network.proxy.http_port", httpserv.identity.primaryPort);
+  prefs.setIntPref("network.proxy.http_port", 4444);
   prefs.setCharPref("network.proxy.no_proxies_on", "");
   prefs.setIntPref("network.proxy.type", 1);
 

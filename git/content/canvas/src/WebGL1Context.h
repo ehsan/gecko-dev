@@ -25,15 +25,6 @@ public:
 
 
     // -------------------------------------------------------------------------
-    // IMPLEMENT WebGLContext
-
-    virtual bool IsWebGL2() const MOZ_OVERRIDE
-    {
-        return false;
-    }
-
-
-    // -------------------------------------------------------------------------
     // IMPLEMENT nsWrapperCache
 
     virtual JSObject* WrapObject(JSContext *cx,

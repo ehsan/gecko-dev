@@ -63,7 +63,7 @@ function run_test_1() {
     do_check_neq(a5, null);
     do_check_true(a5.isActive);
 
-    do_execute_soon(run_test_2);
+    run_test_2();
   });
 }
 

@@ -8,18 +8,15 @@
  * Tests for correct behavior of asynchronous responses.
  */
 
-XPCOMUtils.defineLazyGetter(this, "PREPATH", function() {
-  return "http://localhost:" + srv.identity.primaryPort;
-});
-
-var srv;
+const PORT = 4444;
+const PREPATH = "http://localhost:" + PORT;
 
 function run_test()
 {
-  srv = createServer();
+  var srv = createServer();
   for (var path in handlers)
     srv.registerPathHandler(path, handlers[path]);
-  srv.start(-1);
+  srv.start(PORT);
 
   runHttpTests(tests, testComplete(srv));
 }
@@ -29,18 +26,8 @@ function run_test()
  * BEGIN TESTS *
  ***************/
 
-XPCOMUtils.defineLazyGetter(this, "tests", function() {
-  return [
-    new Test(PREPATH + "/handleSync", null, start_handleSync, null),
-    new Test(PREPATH + "/handleAsync1", null, start_handleAsync1,
-             stop_handleAsync1),
-    new Test(PREPATH + "/handleAsync2", init_handleAsync2, start_handleAsync2,
-             stop_handleAsync2),
-    new Test(PREPATH + "/handleAsyncOrdering", null, null,
-             stop_handleAsyncOrdering)
-  ];
-});
-
+var test;
+var tests = [];
 var handlers = {};
 
 function handleSync(request, response)
@@ -66,6 +53,11 @@ function start_handleSync(ch, cx)
   do_check_eq(ch.responseStatus, 200);
   do_check_eq(ch.responseStatusText, "handleSync pass");
 }
+
+test = new Test(PREPATH + "/handleSync",
+                null, start_handleSync, null),
+tests.push(test);
+
 
 function handleAsync1(request, response)
 {
@@ -132,6 +124,11 @@ function stop_handleAsync1(ch, cx, status, data)
 {
   do_check_eq(data.length, 0);
 }
+
+test = new Test(PREPATH + "/handleAsync1",
+                null, start_handleAsync1, stop_handleAsync1),
+tests.push(test);
+
 
 const startToHeaderDelay = 500;
 const startToFinishedDelay = 750;
@@ -236,6 +233,11 @@ function stop_handleAsync2(ch, cx, status, data)
   do_check_eq(String.fromCharCode.apply(null, data), "BODY");
 }
 
+test = new Test(PREPATH + "/handleAsync2",
+                init_handleAsync2, start_handleAsync2, stop_handleAsync2);
+tests.push(test);
+
+
 /*
  * Tests that accessing output stream *before* calling processAsync() works
  * correctly, sending written data immediately as it is written, not buffering
@@ -302,3 +304,7 @@ function stop_handleAsyncOrdering(ch, cx, status, data)
       do_throw("value " + v + " at index " + index + " should be zero");
   });
 }
+
+test = new Test(PREPATH + "/handleAsyncOrdering",
+                null, null, stop_handleAsyncOrdering);
+tests.push(test);

@@ -54,16 +54,18 @@ function WebConsoleActor(aConnection, aParentActor)
 {
   this.conn = aConnection;
 
-  if (aParentActor.browser instanceof Ci.nsIDOMWindow) {
-    // B2G tab actor |this.browser| points to a DOM window, not
+  if (aParentActor instanceof BrowserTabActor &&
+      aParentActor.browser instanceof Ci.nsIDOMWindow) {
+    // B2G tab actor |this.browser| points to a DOM chrome window, not
     // a xul:browser element.
     //
-    // TODO: bug 802246 - b2g has tab actor which is
+    // TODO: bug 802246 - b2g has only one tab actor, the shell.xul, which is
     // not properly supported by the console actor - see bug for details.
     //
-    // Below we work around the problem: selecting a b2g tab actor
+    // Below we work around the problem: selecting the shell.xul tab actor
     // behaves as if the user picked the global console actor.
-    this._window = aParentActor.browser;
+    //this._window = aParentActor.browser;
+    this._window = Services.wm.getMostRecentWindow("navigator:browser");
     this._isGlobalActor = true;
   }
   else if (aParentActor instanceof BrowserTabActor &&
@@ -578,7 +580,6 @@ WebConsoleActor.prototype =
     let evalOptions = {
       bindObjectActor: aRequest.bindObjectActor,
       frameActor: aRequest.frameActor,
-      url: aRequest.url,
     };
     let evalInfo = this.evalWithDebugger(input, evalOptions);
     let evalResult = evalInfo.result;
@@ -625,29 +626,11 @@ WebConsoleActor.prototype =
   {
     // TODO: Bug 842682 - use the debugger API for autocomplete in the Web
     // Console, and provide suggestions from the selected debugger stack frame.
-    // Also, properly reuse _getJSTermHelpers instead of re-implementing it
-    // here.
     let result = JSPropertyProvider(this.window, aRequest.text,
                                     aRequest.cursor) || {};
-    let matches = result.matches || [];
-    let reqText = aRequest.text.substr(0, aRequest.cursor);
-
-    // We consider '$' as alphanumerc because it is used in the names of some
-    // helper functions.
-    let lastNonAlphaIsDot = /[.][a-zA-Z0-9$]*$/.test(reqText);
-    if (!lastNonAlphaIsDot) {
-      let helpers = {
-        sandbox: Object.create(null)
-      };
-      JSTermHelpers(helpers);
-
-      let helperNames = Object.getOwnPropertyNames(helpers.sandbox);
-      matches = matches.concat(helperNames.filter(n => n.startsWith(result.matchProp)));
-    }
-
     return {
       from: this.actorID,
-      matches: matches.sort(),
+      matches: result.matches || [],
       matchProp: result.matchProp,
     };
   },
@@ -813,8 +796,6 @@ WebConsoleActor.prototype =
    *         evaluated.
    *         - result: the result of the evaluation.
    *         - helperResult: any result coming from a JSTerm helper function.
-   *         - url: the url to evaluate the script as. Defaults to
-   *         "debugger eval code".
    */
   evalWithDebugger: function WCA_evalWithDebugger(aString, aOptions = {})
   {
@@ -913,17 +894,12 @@ WebConsoleActor.prototype =
     // Ready to evaluate the string.
     helpers.evalInput = aString;
 
-    let evalOptions;
-    if (typeof aOptions.url == "string") {
-      evalOptions = { url: aOptions.url };
-    }
-
     let result;
     if (frame) {
-      result = frame.evalWithBindings(aString, bindings, evalOptions);
+      result = frame.evalWithBindings(aString, bindings);
     }
     else {
-      result = dbgWindow.evalInGlobalWithBindings(aString, bindings, evalOptions);
+      result = dbgWindow.evalInGlobalWithBindings(aString, bindings);
     }
 
     let helperResult = helpers.helperResult;

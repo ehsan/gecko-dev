@@ -28,7 +28,6 @@ class TestText(MarionetteTestCase):
         l.send_keys("o")
         self.assertEqual("asdfo", self.marionette.execute_script("return arguments[0].value;", [l]))
 
-''' Disabled in bug 896043 and when working on Chrome code re-enable for bug 896046
 class TestTextChrome(MarionetteTestCase):
     def setUp(self):
         MarionetteTestCase.setUp(self)
@@ -71,4 +70,3 @@ class TestTextChrome(MarionetteTestCase):
         self.assertEqual("test", box.text)
         box.send_keys("at")
         self.assertEqual("attest", box.text)
-'''

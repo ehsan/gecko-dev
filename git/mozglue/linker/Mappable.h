@@ -16,8 +16,11 @@
 /**
  * Abstract class to handle mmap()ing from various kind of entities, such as
  * plain files or Zip entries. The virtual members are meant to act as the
- * equivalent system functions, except mapped memory is always MAP_PRIVATE,
- * even though a given implementation may use something different internally.
+ * equivalent system functions, with a few differences:
+ * - mapped memory is always MAP_PRIVATE, even though a given implementation
+ *   may use something different internally.
+ * - memory after length and up to the end of the corresponding page is nulled
+ *   out.
  */
 class Mappable: public mozilla::RefCounted<Mappable>
 {
@@ -265,7 +268,7 @@ private:
   mozilla::ScopedDeleteArray<unsigned char> chunkAvail;
 
   /* Number of chunks that have already been decompressed. */
-  mozilla::Atomic<size_t> chunkAvailNum;
+  size_t chunkAvailNum;
 
   /* Mutex protecting decompression */
   pthread_mutex_t mutex;

@@ -168,8 +168,8 @@
         'WEBRTC_RELATIVE_PATH',
       	'HAVE_WEBRTC_VIDEO',
         'HAVE_WEBRTC_VOICE',
-        'HAVE_STDINT_H=1',
         'HAVE_STDLIB_H=1',
+        'INTEGER_TYPES_H="\\"mozilla/StandardInteger.h\\""',
         'HAVE_UINT8_T=1',
         'HAVE_UINT16_T=1',
         'HAVE_UINT32_T=1',
@@ -222,7 +222,8 @@
             'WIN32',
             'GIPS_VER=3480',
             'SIPCC_BUILD',
-            'HAVE_WINSOCK2_H'
+            'HAVE_WINSOCK2_H',
+            'CPR_STDINT_INCLUDE=\\"mozilla/StandardInteger.h\\"'
           ],
 
           'cflags_mozilla': [

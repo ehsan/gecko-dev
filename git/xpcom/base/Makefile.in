@@ -15,6 +15,11 @@ MSVC_ENABLE_PGO := 1
 MOZILLA_INTERNAL_API =1
 LIBXUL_LIBRARY = 1
 
+# TODO: we do this in crashreporter and storage/src too, should be centralized
+ifeq ($(OS_ARCH),Linux)
+DEFINES += -DXP_LINUX
+endif
+
 CSRCS = \
 		nsErrorAssertsC.c \
 		$(NULL)
@@ -35,6 +40,7 @@ DISABLED_SDK_HEADERS     = \
 		ErrorListCDefines.h \
 		nsISupportsBase.h \
 		nscore.h \
+		nsAtomicRefcnt.h \
 		nsCycleCollector.h \
 		nsObjCExceptions.h \
 

@@ -21,9 +21,6 @@ window.sizeToContent = function() {
   Cu.reportError("window.sizeToContent is not allowed in this window");
 }
 
-/*
- * Returns the browser for the currently displayed tab.
- */
 function getBrowser() {
   return Browser.selectedBrowser;
 }
@@ -75,7 +72,6 @@ var Browser = {
     GestureModule.init();
     BrowserTouchHandler.init();
     PopupBlockerObserver.init();
-    APZCObserver.init();
 
     // Init the touch scrollbox
     this.contentScrollbox = Elements.browsers;
@@ -130,20 +126,11 @@ var Browser = {
     Util.forceOnline();
 
     // If this is an intial window launch the commandline handler passes us the default
-    // page as an argument.
+    // page as an argument. commandURL _should_ never be empty, but we protect against it
+    // below. However, we delay trying to get the fallback homepage until we really need it.
     let commandURL = null;
-    try {
-      let argsObj = window.arguments[0].wrappedJSObject;
-      if (argsObj && argsObj.pageloadURL) {
-        // Talos tp-cmdline parameter
-        commandURL = argsObj.pageloadURL;
-      } else if (window.arguments && window.arguments[0]) {
-        // BrowserCLH paramerter
-        commandURL = window.arguments[0];
-      }
-    } catch (ex) {
-      Util.dumpLn(ex);
-    }
+    if (window.arguments && window.arguments[0])
+      commandURL = window.arguments[0];
 
     messageManager.addMessageListener("DOMLinkAdded", this);
     messageManager.addMessageListener("MozScrolledAreaChanged", this);
@@ -248,7 +235,6 @@ var Browser = {
   },
 
   shutdown: function shutdown() {
-    APZCObserver.shutdown();
     BrowserUI.uninit();
     ContentAreaObserver.shutdown();
 
@@ -1219,10 +1205,6 @@ nsBrowserAccess.prototype = {
 
   isTabContentWindow: function(aWindow) {
     return Browser.browsers.some(function (browser) browser.contentWindow == aWindow);
-  },
-
-  get contentWindow() {
-    return Browser.selectedBrowser.contentWindow;
   }
 };
 
@@ -1394,7 +1376,8 @@ function getNotificationBox(aBrowser) {
 }
 
 function showDownloadManager(aWindowContext, aID, aReason) {
-  // TODO: Bug 883962: Toggle the downloads infobar as our current "download manager".
+  PanelUI.show("downloads-container");
+  // TODO: select the download with aID
 }
 
 function Tab(aURI, aParams, aOwner) {

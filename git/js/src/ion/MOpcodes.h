@@ -65,7 +65,7 @@ namespace ion {
     _(Div)                                                                  \
     _(Mod)                                                                  \
     _(Concat)                                                               \
-    _(ConcatPar)                                                            \
+    _(ParConcat)                                                            \
     _(CharCodeAt)                                                           \
     _(FromCharCode)                                                         \
     _(Return)                                                               \
@@ -86,9 +86,7 @@ namespace ion {
     _(NewCallObject)                                                        \
     _(NewStringObject)                                                      \
     _(InitElem)                                                             \
-    _(InitElemGetterSetter)                                                 \
     _(InitProp)                                                             \
-    _(InitPropGetterSetter)                                                 \
     _(Start)                                                                \
     _(OsrEntry)                                                             \
     _(Nop)                                                                  \
@@ -188,16 +186,17 @@ namespace ion {
     _(AsmJSPassStackArg)                                                    \
     _(AsmJSCall)                                                            \
     _(AsmJSCheckOverRecursed)                                               \
-    _(CheckOverRecursedPar)                                                 \
-    _(NewCallObjectPar)                                                     \
-    _(NewPar)                                                               \
-    _(NewDenseArrayPar)                                                     \
-    _(AbortPar)                                                             \
-    _(LambdaPar)                                                            \
-    _(RestPar)                                                              \
-    _(ForkJoinSlice)                                                        \
-    _(GuardThreadLocalObject)                                               \
-    _(CheckInterruptPar)
+    _(ParCheckOverRecursed)                                                 \
+    _(ParNewCallObject)                                                     \
+    _(ParNew)                                                               \
+    _(ParNewDenseArray)                                                     \
+    _(ParBailout)                                                           \
+    _(ParLambda)                                                            \
+    _(ParRest)                                                              \
+    _(ParSlice)                                                             \
+    _(ParWriteGuard)                                                        \
+    _(ParDump)                                                              \
+    _(ParCheckInterrupt)
 
 // Forward declarations of MIR types.
 #define FORWARD_DECLARE(op) class M##op;

@@ -7,8 +7,6 @@
 #ifndef vm_ObjectImpl_inl_h
 #define vm_ObjectImpl_inl_h
 
-#include "vm/ObjectImpl.h"
-
 #include "mozilla/Assertions.h"
 
 #include "jscompartment.h"
@@ -17,10 +15,13 @@
 
 #include "gc/Heap.h"
 #include "gc/Marking.h"
-#include "vm/Interpreter.h"
-#include "vm/ProxyObject.h"
+#include "js/TemplateLib.h"
+#include "vm/ObjectImpl.h"
 
 #include "gc/Barrier-inl.h"
+#include "vm/Interpreter.h"
+#include "vm/ObjectImpl.h"
+#include "vm/ProxyObject.h"
 
 inline JSCompartment *
 js::ObjectImpl::compartment() const

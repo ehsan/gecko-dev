@@ -117,8 +117,6 @@
       this.results = [];
       this.scope = null;
       this.duration = 0;
-      this.unexpectedTimeouts = 0;
-      this.lastOutputTime = 0;
     }
     browserTest.prototype = {
       get passCount() {
@@ -132,7 +130,6 @@
       },
 
       addResult: function addResult(result) {
-        this.lastOutputTime = Date.now();
         this.results.push(result);
 
         this.dumper.dump(result.result + " | " + this.path + " | " + result.msg + "\n");

@@ -163,9 +163,7 @@ class MozbuildObject(ProcessExecutionMixin):
 
             raise ObjdirMismatchException(topobjdir, config['topobjdir'])
 
-        topobjdir = config['topobjdir'] or topobjdir
-        if topobjdir:
-            topobjdir = os.path.normpath(topobjdir)
+        topobjdir = os.path.normpath(config['topobjdir'] or topobjdir)
 
         # If we can't resolve topobjdir, oh well. The constructor will figure
         # it out via config.guess.
@@ -284,11 +282,6 @@ class MozbuildObject(ProcessExecutionMixin):
 
     @property
     def _config_guess(self):
-        if self._config_guess_output is None:
-            make_extra = self.mozconfig['make_extra'] or []
-            make_extra = dict(m.split('=', 1) for m in make_extra)
-            self._config_guess_output = make_extra.get('CONFIG_GUESS', None)
-
         if self._config_guess_output is None:
             p = os.path.join(self.topsrcdir, 'build', 'autoconf',
                 'config.guess')

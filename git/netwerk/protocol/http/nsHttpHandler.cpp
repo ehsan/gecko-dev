@@ -18,7 +18,7 @@
 #include "nsIDOMConnection.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMNavigator.h"
-#include "nsIMozNavigatorNetwork.h"
+#include "nsIDOMNavigatorNetwork.h"
 #include "nsINetworkProperties.h"
 #include "nsIHttpChannel.h"
 #include "nsIURL.h"
@@ -1502,13 +1502,13 @@ nsHttpHandler::SetAcceptEncodings(const char *aAcceptEncodings)
 // nsHttpHandler::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS6(nsHttpHandler,
-                   nsIHttpProtocolHandler,
-                   nsIProxiedProtocolHandler,
-                   nsIProtocolHandler,
-                   nsIObserver,
-                   nsISupportsWeakReference,
-                   nsISpeculativeConnect)
+NS_IMPL_THREADSAFE_ISUPPORTS6(nsHttpHandler,
+                              nsIHttpProtocolHandler,
+                              nsIProxiedProtocolHandler,
+                              nsIProtocolHandler,
+                              nsIObserver,
+                              nsISupportsWeakReference,
+                              nsISpeculativeConnect)
 
 //-----------------------------------------------------------------------------
 // nsHttpHandler::nsIProtocolHandler
@@ -1906,7 +1906,7 @@ nsHttpHandler::TickleWifi(nsIInterfaceRequestor *cb)
 
     nsCOMPtr<nsIDOMNavigator> domNavigator;
     domWindow->GetNavigator(getter_AddRefs(domNavigator));
-    nsCOMPtr<nsIMozNavigatorNetwork> networkNavigator =
+    nsCOMPtr<nsIDOMMozNavigatorNetwork> networkNavigator =
         do_QueryInterface(domNavigator);
     if (!networkNavigator)
         return;
@@ -1939,12 +1939,12 @@ nsHttpHandler::TickleWifi(nsIInterfaceRequestor *cb)
 // nsHttpsHandler implementation
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS5(nsHttpsHandler,
-                   nsIHttpProtocolHandler,
-                   nsIProxiedProtocolHandler,
-                   nsIProtocolHandler,
-                   nsISupportsWeakReference,
-                   nsISpeculativeConnect)
+NS_IMPL_THREADSAFE_ISUPPORTS5(nsHttpsHandler,
+                              nsIHttpProtocolHandler,
+                              nsIProxiedProtocolHandler,
+                              nsIProtocolHandler,
+                              nsISupportsWeakReference,
+                              nsISpeculativeConnect)
 
 nsresult
 nsHttpsHandler::Init()

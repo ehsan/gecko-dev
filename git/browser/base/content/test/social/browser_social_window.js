@@ -26,7 +26,8 @@ function openWindowAndWaitForInit(callback) {
   Services.obs.addObserver(function providerSet(subject, topic, data) {
     Services.obs.removeObserver(providerSet, topic);
     info(topic + " observer was notified - continuing test");
-    executeSoon(() => callback(w));
+    // executeSoon to let the browser UI observers run first
+    executeSoon(function() {callback(w)});
   }, topic, false);
 }
 

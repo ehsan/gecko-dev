@@ -244,16 +244,6 @@ public:
     void AfterDrawCall();
     void BeforeReadCall();
 
-    /**
-     * Attempts to read pixels from the current bound framebuffer, if
-     * it is backed by a SharedSurface_GL.
-     *
-     * Returns true if the pixel data has been read back, false
-     * otherwise.
-     */
-    bool ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height,
-                    GLenum format, GLenum type, GLvoid *pixels);
-
     /* Morph swaps out our SurfaceStream mechanism and replaces it with
      * one best suited to our platform and compositor configuration.
      *

@@ -25,26 +25,23 @@
     } catch (e) {
       ok(false,
          "Unexpected exception trying to add alarm for tomorrow.");
-
-      // Proceed to next test.
       return testPastDate();
     }
     domRequest.onsuccess = function(e) {
       navigator.mozAlarms.remove(e.target.result);
       ok(true, "Add alarm for future date.");
 
-      // Awesome, no error so proceed to next test.
+      // Awesome, no error so proceed to next test
       testPastDate();
     };
     domRequest.onerror = function(e) {
       ok(false, "Unable to add alarm for tomorrow`.");
-
-      // Proceed to next test.
       testPastDate();
     };
+
   }
 
-  // Verify passing a Date that's already past doesn't fail (it should fire immediately).
+  // Verify passing a Date that's already past fails
   function testPastDate() {
     var yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
@@ -55,61 +52,61 @@
     } catch (e) {
       ok(false,
          "Unexpected exception trying to add alarm for yesterday.");
-
-      // Move on to the next test.
-      testNullDate();
+      return testNull();
     }
     domRequest.onsuccess = function(e) {
       navigator.mozAlarms.remove(e.target.result);
 
       ok(true, "Should be able to add alarm for already past date, which should fire immediately.");
-
-      // Move on to the next test.
-      testNullDate();
+      testNull();
     };
     domRequest.onerror = function(e) {
       ok(false, "Unable to add alarm for yesterday.");
 
-      // Move on to the next test.
-      testNullDate();
+      // Errors as it should, on to the next test
+      testNull();
     }
   }
 
   // Verify passing null does indeed fail
-  function testNullDate() {
+  function testNull() {
+    var domRequest;
     try {
-      navigator.mozAlarms.add(null, "honorTimezone", {});
-      ok(false, "Expected an exception to be thrown for alarm with null date.");
+      domRequest = navigator.mozAlarms.add(null, "honorTimezone", {});
     } catch(e) {
-      ok(true, "Exception thrown for alarm with null date.");
-    }
+      ok(false, "Unexpected exception thrown while testing null case.");
 
-    // Move on to the next test.
-    testInvalidTimeZone()
-  }
-
-  function testInvalidTimeZone() {
-    try {
-      navigator.mozAlarms.add(new Date(), "badTimeZoneArg", {});
-      ok(false, "Expected an exception to be thrown while testing bad time zone arg.");
-    } catch(e) {
-      ok(true, "Exception thrown while testing bad time zone arg.");
+      // Exception thrown
+      return SimpleTest.finish();
     }
-    SimpleTest.finish();
+    domRequest.onsuccess = function(e) {
+      // Null should not be valid
+      ok(false, "Null should not be accepted as input for `date` param.");
+      SimpleTest.finish();
+    };
+    domRequest.onerror = function(e) {
+      // Null should not be valid
+      ok(true, "Passing null for date value causes failure.");
+
+      SimpleTest.finish();
+    };
   }
 
   function startTests() {
 
     SpecialPowers.pushPrefEnv({"set": [["dom.mozAlarms.enabled", true]]}, function() {
+
       // Currently applicable only on FxOS
       if (navigator.userAgent.indexOf("Mobile") != -1 &&
-          navigator.appVersion.indexOf("Android") == -1)
-      {
+          navigator.appVersion.indexOf("Android") == -1) {
+
         testFutureDate();
+
       } else {
         ok(true, "mozAlarms on Firefox OS only.");
         SimpleTest.finish();
       }
+
     });
   }
 

@@ -9,12 +9,11 @@
 
 #include "mozilla/DebugOnly.h"
 
-#include "jsopcode.h"
-
 #include "ion/arm/Assembler-arm.h"
 #include "ion/IonCaches.h"
 #include "ion/IonFrames.h"
 #include "ion/MoveResolver.h"
+#include "jsopcode.h"
 
 using mozilla::DebugOnly;
 
@@ -45,7 +44,6 @@ class MacroAssemblerARM : public Assembler
         secondScratchReg_ = reg;
     }
 
-    void convertBoolToInt32(Register source, Register dest);
     void convertInt32ToDouble(const Register &src, const FloatRegister &dest);
     void convertInt32ToDouble(const Address &src, FloatRegister dest);
     void convertUInt32ToDouble(const Register &src, const FloatRegister &dest);
@@ -240,13 +238,8 @@ class MacroAssemblerARM : public Assembler
     // implicitly assumes that we can overwrite dest at the beginning of the sequence
     void ma_mod_mask(Register src, Register dest, Register hold, int32_t shift);
 
-    // mod, depends on integer divide instructions being supported
-    void ma_smod(Register num, Register div, Register dest);
-    void ma_umod(Register num, Register div, Register dest);
-
-    // division, depends on integer divide instructions being supported
+    // division
     void ma_sdiv(Register num, Register div, Register dest, Condition cond = Always);
-    void ma_udiv(Register num, Register div, Register dest, Condition cond = Always);
 
     // memory
     // shortcut for when we know we're transferring 32 bits of data
@@ -517,25 +510,13 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     void call(IonCode *c) {
         BufferOffset bo = m_buffer.nextOffset();
         addPendingJump(bo, c->raw(), Relocation::IONCODE);
-        RelocStyle rs;
-        if (hasMOVWT())
-            rs = L_MOVWT;
-        else
-            rs = L_LDR;
-
-        ma_movPatchable(Imm32((int) c->raw()), ScratchRegister, Always, rs);
+        ma_mov(Imm32((uint32_t)c->raw()), ScratchRegister);
         ma_callIonHalfPush(ScratchRegister);
     }
     void branch(IonCode *c) {
         BufferOffset bo = m_buffer.nextOffset();
         addPendingJump(bo, c->raw(), Relocation::IONCODE);
-        RelocStyle rs;
-        if (hasMOVWT())
-            rs = L_MOVWT;
-        else
-            rs = L_LDR;
-
-        ma_movPatchable(Imm32((int) c->raw()), ScratchRegister, Always, rs);
+        ma_mov(Imm32((uint32_t)c->raw()), ScratchRegister);
         ma_bx(ScratchRegister);
     }
     void branch(const Register reg) {

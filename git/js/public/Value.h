@@ -1467,7 +1467,6 @@ class ValueOperations
     void *toGCThing() const { return value()->toGCThing(); }
 
     JSValueType extractNonDoubleType() const { return value()->extractNonDoubleType(); }
-    uint32_t toPrivateUint32() const { return value()->toPrivateUint32(); }
 
     JSWhyMagic whyMagic() const { return value()->whyMagic(); }
 };
@@ -1645,12 +1644,12 @@ inline Anchor<Value>::~Anchor()
 namespace detail {
 
 struct ValueAlignmentTester { char c; JS::Value v; };
-static_assert(sizeof(ValueAlignmentTester) == 16,
-              "JS::Value must be 16-byte-aligned");
+MOZ_STATIC_ASSERT(sizeof(ValueAlignmentTester) == 16,
+                  "JS::Value must be 16-byte-aligned");
 
 struct LayoutAlignmentTester { char c; jsval_layout l; };
-static_assert(sizeof(LayoutAlignmentTester) == 16,
-              "jsval_layout must be 16-byte-aligned");
+MOZ_STATIC_ASSERT(sizeof(LayoutAlignmentTester) == 16,
+                  "jsval_layout must be 16-byte-aligned");
 
 } // namespace detail
 #endif /* DEBUG */
@@ -1664,8 +1663,8 @@ static_assert(sizeof(LayoutAlignmentTester) == 16,
  */
 typedef JS::Value jsval;
 
-static_assert(sizeof(jsval_layout) == sizeof(JS::Value),
-              "jsval_layout and JS::Value must have identical layouts");
+MOZ_STATIC_ASSERT(sizeof(jsval_layout) == sizeof(JS::Value),
+                  "jsval_layout and JS::Value must have identical layouts");
 
 /************************************************************************/
 

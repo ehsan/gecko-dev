@@ -16,8 +16,6 @@ Cu.import("resource://gre/modules/AddonManager.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
 Cu.import("resource://gre/modules/JNI.jsm");
 Cu.import('resource://gre/modules/Payment.jsm');
-Cu.import("resource://gre/modules/PermissionPromptHelper.jsm");
-Cu.import("resource://gre/modules/ContactService.jsm");
 
 #ifdef ACCESSIBILITY
 Cu.import("resource://gre/modules/accessibility/AccessFu.jsm");
@@ -206,9 +204,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "Rect",
                                   "resource://gre/modules/Geometry.jsm");
 
 function resolveGeckoURI(aURI) {
-  if (!aURI)
-    throw "Can't resolve an empty uri";
-
   if (aURI.startsWith("chrome://")) {
     let registry = Cc['@mozilla.org/chrome/chrome-registry;1'].getService(Ci["nsIChromeRegistry"]);
     return registry.convertChromeURL(Services.io.newURI(aURI, null, null)).spec;
@@ -295,7 +290,6 @@ var BrowserApp = {
     Services.obs.addObserver(this, "FormHistory:Init", false);
     Services.obs.addObserver(this, "gather-telemetry", false);
     Services.obs.addObserver(this, "keyword-search", false);
-    Services.obs.addObserver(this, "SelectedText:Get", false);
 
     Services.obs.addObserver(this, "sessionstore-state-purge-complete", false);
 
@@ -335,8 +329,7 @@ var BrowserApp = {
     WebappsUI.init();
     RemoteDebugger.init();
     Reader.init();
-    UserAgentOverrides.init();
-    DesktopUserAgent.init();
+    UserAgent.init();
     ExternalApps.init();
     Distribution.init();
     Tabs.init();
@@ -547,18 +540,6 @@ var BrowserApp = {
         aTarget.mozRequestFullScreen();
       });
 
-    NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.mute"),
-      NativeWindow.contextmenus.mediaContext("media-unmuted"),
-      function(aTarget) {
-        aTarget.muted = true;
-      });
-  
-    NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.unmute"),
-      NativeWindow.contextmenus.mediaContext("media-muted"),
-      function(aTarget) {
-        aTarget.muted = false;
-      });
-
     NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.copyImageLocation"),
       NativeWindow.contextmenus.imageLocationCopyableContext,
       function(aTarget) {
@@ -658,8 +639,7 @@ var BrowserApp = {
     WebappsUI.uninit();
     RemoteDebugger.uninit();
     Reader.uninit();
-    UserAgentOverrides.uninit();
-    DesktopUserAgent.uninit();
+    UserAgent.uninit();
     ExternalApps.uninit();
     Distribution.uninit();
     Tabs.uninit();
@@ -1011,7 +991,7 @@ var BrowserApp = {
   getPreferences: function getPreferences(aPrefsRequest, aListen) {
     let prefs = [];
 
-    for (let prefName of aPrefsRequest.preferences) {
+    for each (let prefName in aPrefsRequest.preferences) {
       let pref = {
         name: prefName,
         type: "",
@@ -1443,14 +1423,6 @@ var BrowserApp = {
         });
         break;
 
-      case "SelectedText:Get":
-        sendMessageToJava({
-          type: "SelectedText:Data",
-          requestId: aData,
-          text: SelectionHandler.getSelectedText()
-        });
-        break;
-
       case "Browser:Quit":
         this.quit();
         break;
@@ -1581,8 +1553,6 @@ var NativeWindow = {
     Services.obs.addObserver(this, "PageActions:Clicked", false);
     Services.obs.addObserver(this, "PageActions:LongClicked", false);
     Services.obs.addObserver(this, "Doorhanger:Reply", false);
-    Services.obs.addObserver(this, "Toast:Click", false);
-    Services.obs.addObserver(this, "Toast:Hidden", false);
     this.contextmenus.init();
   },
 
@@ -1591,8 +1561,6 @@ var NativeWindow = {
     Services.obs.removeObserver(this, "PageActions:Clicked");
     Services.obs.removeObserver(this, "PageActions:LongClicked");
     Services.obs.removeObserver(this, "Doorhanger:Reply");
-    Services.obs.removeObserver(this, "Toast:Click", false);
-    Services.obs.removeObserver(this, "Toast:Hidden", false);
     this.contextmenus.uninit();
   },
 
@@ -1612,26 +1580,12 @@ var NativeWindow = {
   },
 
   toast: {
-    _callbacks: {},
-    show: function(aMessage, aDuration, aOptions) {
-      let msg = {
+    show: function(aMessage, aDuration) {
+      sendMessageToJava({
         type: "Toast:Show",
         message: aMessage,
         duration: aDuration
-      };
-
-      if (aOptions && aOptions.button) {
-        msg.button = {
-          label: aOptions.button.label,
-          id: uuidgen.generateUUID().toString(),
-          // If the caller specified a button, make sure we convert any chrome urls
-          // to jar:jar urls so that the frontend can show them
-          icon: aOptions.button.icon ? resolveGeckoURI(aOptions.button.icon) : null,
-        };
-        this._callbacks[msg.button.id] = aOptions.button.callback;
-      }
-
-      sendMessageToJava(msg);
+      });
     }
   },
 
@@ -1767,14 +1721,6 @@ var NativeWindow = {
     } else if (aTopic == "PageActions:LongClicked") {
         if (this.pageactions._items[aData].longClickCallback)
           this.pageactions._items[aData].longClickCallback();
-    } else if (aTopic == "Toast:Click") {
-      if (this.toast._callbacks[aData]) {
-        this.toast._callbacks[aData]();
-        delete this.toast._callbacks[aData];
-      }
-    } else if (aTopic == "Toast:Hidden") {
-      if (this.toast._callbacks[aData])
-        delete this.toast._callbacks[aData];
     } else if (aTopic == "Doorhanger:Reply") {
       let data = JSON.parse(aData);
       let reply_id = data["callback"];
@@ -1967,12 +1913,6 @@ var NativeWindow = {
             let controls = aElt.controls;
             if (!controls && aMode == "media-hidingcontrols")
               return true;
-
-            let muted = aElt.muted;
-            if (muted && aMode == "media-muted")
-              return true;
-            else if (!muted && aMode == "media-unmuted")
-              return true;
           }
           return false;
         }
@@ -2065,8 +2005,6 @@ var NativeWindow = {
       this.menuitems = [];
       let menuitemsSet = false;
 
-      Services.obs.notifyObservers(null, "before-build-contextmenu", "");
-
       // now walk up the tree and for each node look for any context menu items that apply
       let element = target;
       this._nativeItemsSeparator = 0;
@@ -2081,8 +2019,7 @@ var NativeWindow = {
         }
 
         // then check for any context menu items registered in the ui
-        for (let itemId of Object.keys(this.items)) {
-          let item = this.items[itemId];
+         for each (let item in this.items) {
           if (!this._getMenuItemForId(item.id) && item.matches(element, aX, aY)) {
             this.menuitems.push(item);
           }
@@ -2367,11 +2304,13 @@ var LightWeightThemeWebInstaller = {
   }
 };
 
-var DesktopUserAgent = {
+var UserAgent = {
   DESKTOP_UA: null,
+  YOUTUBE_DOMAIN: /(^|\.)youtube\.com$/,
 
   init: function ua_init() {
     Services.obs.addObserver(this, "DesktopMode:Change", false);
+    UserAgentOverrides.init();
     UserAgentOverrides.addComplexOverride(this.onRequest.bind(this));
 
     // See https://developer.mozilla.org/en/Gecko_user_agent_string_reference
@@ -2383,31 +2322,42 @@ var DesktopUserAgent = {
 
   uninit: function ua_uninit() {
     Services.obs.removeObserver(this, "DesktopMode:Change");
+    UserAgentOverrides.uninit();
   },
 
   onRequest: function(channel, defaultUA) {
     let channelWindow = this._getWindowForRequest(channel);
     let tab = BrowserApp.getTabForWindow(channelWindow);
     if (tab == null)
-      return null;
+      return;
 
-    return this.getUserAgentForTab(tab);
+    let ua = this.getUserAgentForUriAndTab(channel.URI, tab, defaultUA);
+    if (ua)
+      channel.setRequestHeader("User-Agent", ua, false);
   },
 
-  getUserAgentForWindow: function ua_getUserAgentForWindow(aWindow) {
+  getUserAgentForWindow: function ua_getUserAgentForWindow(aWindow, defaultUA) {
     let tab = BrowserApp.getTabForWindow(aWindow.top);
     if (tab)
-      return this.getUserAgentForTab(tab);
-
-    return null;
+      return this.getUserAgentForUriAndTab(tab.browser.currentURI, tab, defaultUA);
+    return defaultUA;
   },
 
-  getUserAgentForTab: function ua_getUserAgentForTab(aTab) {
+  getUserAgentForUriAndTab: function ua_getUserAgentForUriAndTab(aUri, aTab, defaultUA) {
     // Send desktop UA if "Request Desktop Site" is enabled.
     if (aTab.desktopMode)
       return this.DESKTOP_UA;
 
-    return null;
+    // Not all schemes have a host member.
+    if (aUri.schemeIs("http") || aUri.schemeIs("https")) {
+      if (this.YOUTUBE_DOMAIN.test(aUri.host)) {
+        // Send the phone UA to Youtube if this is a tablet.
+        if (!defaultUA.contains("Android; Mobile;"))
+          return defaultUA.replace("Android;", "Android; Mobile;");
+      }
+    }
+
+    return defaultUA;
   },
 
   _getRequestLoadContext: function ua_getRequestLoadContext(aRequest) {
@@ -2542,10 +2492,6 @@ nsBrowserAccess.prototype = {
 
   isTabContentWindow: function(aWindow) {
     return BrowserApp.getBrowserForWindow(aWindow) != null;
-  },
-
-  get contentWindow() {
-    return BrowserApp.selectedBrowser.contentWindow;
   }
 };
 
@@ -5964,9 +5910,6 @@ var IndexedDB = {
 };
 
 var ClipboardHelper = {
-  // Recorded so search with option can be removed/replaced when default engine changed.
-  _searchMenuItem: -1,
-
   init: function() {
     NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.copy"), ClipboardHelper.getCopyContext(false), ClipboardHelper.copy.bind(ClipboardHelper));
     NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.copyAll"), ClipboardHelper.getCopyContext(true), ClipboardHelper.copy.bind(ClipboardHelper));
@@ -5975,26 +5918,6 @@ var ClipboardHelper = {
     NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.share"), ClipboardHelper.shareContext, ClipboardHelper.share.bind(ClipboardHelper));
     NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.paste"), ClipboardHelper.pasteContext, ClipboardHelper.paste.bind(ClipboardHelper));
     NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.changeInputMethod"), NativeWindow.contextmenus.textContext, ClipboardHelper.inputMethod.bind(ClipboardHelper));
-
-    // We add this contextmenu item right before the menu is built to avoid having to initialise the search service early.
-    Services.obs.addObserver(this, "before-build-contextmenu", false);
-  },
-
-  uninit: function ch_uninit() {
-    Services.obs.removeObserver(this, "before-build-contextmenu");
-  },
-
-  observe: function observe(aSubject, aTopic) {
-    if (aTopic == "ContextMenu:Open") {
-      this._setSearchMenuItem();
-    }
-  },
-
-  _setSearchMenuItem: function setSearchMenuItem() {
-    if (this._searchMenuItem) {
-      NativeWindow.contextmenus.remove(this._searchMenuItem);
-    }
-    this._searchMenuItem = NativeWindow.contextmenus.add(Strings.browser.formatStringFromName("contextmenu.search", [Services.search.defaultEngine.name], 1), ClipboardHelper.searchWithContext, ClipboardHelper.searchWith.bind(ClipboardHelper));
   },
 
   get clipboardHelper() {
@@ -6029,10 +5952,6 @@ var ClipboardHelper = {
 
   selectAll: function(aElement, aX, aY) {
     SelectionHandler.selectAll(aElement, aX, aY);
-  },
-
-  searchWith: function(aElement) {
-    SelectionHandler.searchSelection(aElement);
   },
 
   share: function() {
@@ -6100,12 +6019,6 @@ var ClipboardHelper = {
 
   shareContext: {
     matches: function shareContextMatches(aElement, aX, aY) {
-      return SelectionHandler.shouldShowContextMenu(aX, aY);
-    }
-  },
-
-  searchWithContext: {
-    matches: function searchWithContextMatches(aElement, aX, aY) {
       return SelectionHandler.shouldShowContextMenu(aX, aY);
     }
   },
@@ -6267,9 +6180,6 @@ var IdentityHandler = {
     return result;
   },
 
-  /**
-   * Determines the identity mode corresponding to the icon we show in the urlbar.
-   */
   getIdentityMode: function getIdentityMode(aState) {
     if (aState & Ci.nsIWebProgressListener.STATE_BLOCKED_MIXED_ACTIVE_CONTENT)
       return this.IDENTITY_MODE_MIXED_CONTENT_BLOCKED;
@@ -6316,10 +6226,8 @@ var IdentityHandler = {
     let mode = this.getIdentityMode(aState);
     let result = { mode: mode };
 
-    // Don't show identity data for pages with an unknown identity or if any
-    // mixed content is loaded (mixed display content is loaded by default).
-    if (mode == this.IDENTITY_MODE_UNKNOWN ||
-        aState & Ci.nsIWebProgressListener.STATE_IS_BROKEN)
+    // We can't to do anything else for pages without identity data
+    if (mode == this.IDENTITY_MODE_UNKNOWN)
       return result;
 
     // Ideally we'd just make this a Java string
@@ -6522,7 +6430,7 @@ var SearchEngines = {
           formData.push({ name: escapedName, value: escapedValue });
           break;
         case "select-one":
-          for (let option of el.options) {
+          for each (let option in el.options) {
             if (option.selected) {
               formData.push({ name: escapedName, value: escapedValue });
               break;
@@ -7205,16 +7113,14 @@ let Reader = {
 
   getArticleForTab: function Reader_getArticleForTab(tabId, url, callback) {
     let tab = BrowserApp.getTabForId(tabId);
-    if (tab) {
-      let article = tab.savedArticle;
-      if (article && article.url == url) {
-        this.log("Saved article found in tab");
-        callback(article);
-        return;
-      }
-    }
+    let article = tab.savedArticle;
 
-    this.parseDocumentFromURL(url, callback);
+    if (article && article.url == url) {
+      this.log("Saved article found in tab");
+      callback(article);
+    } else {
+      this.parseDocumentFromURL(url, callback);
+    }
   },
 
   parseDocumentFromTab: function(tabId, callback) {

@@ -537,7 +537,7 @@ class ThreadLocalJSRuntime
     mGlobal = JS_NewGlobalObject(mContext, &sGlobalClass, NULL);
     NS_ENSURE_TRUE(mGlobal, NS_ERROR_OUT_OF_MEMORY);
 
-    js::SetDefaultObjectForContext(mContext, mGlobal);
+    JS_SetGlobalObject(mContext, mGlobal);
     return NS_OK;
   }
 
@@ -558,11 +558,6 @@ class ThreadLocalJSRuntime
   JSContext *Context() const
   {
     return mContext;
-  }
-
-  JSObject *Global() const
-  {
-    return mGlobal;
   }
 
   ~ThreadLocalJSRuntime()
@@ -677,7 +672,7 @@ public:
       aData.name, aData.type, fileInfo.forget());
 
     JS::Rooted<JS::Value> wrappedFileHandle(aCx);
-    JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
+    JS::Rooted<JSObject*> global(aCx, JS_GetGlobalForScopeChain(aCx));
     nsresult rv =
       nsContentUtils::WrapNative(aCx, global,
                                  static_cast<nsIDOMFileHandle*>(fileHandle),
@@ -738,7 +733,7 @@ public:
       }
 
       JS::Rooted<JS::Value> wrappedBlob(aCx);
-      JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
+      JS::Rooted<JSObject*> global(aCx, JS_GetGlobalForScopeChain(aCx));
       rv = nsContentUtils::WrapNative(aCx, global, domBlob,
                                       &NS_GET_IID(nsIDOMBlob),
                                       wrappedBlob.address());
@@ -765,7 +760,7 @@ public:
     }
 
     JS::Rooted<JS::Value> wrappedFile(aCx);
-    JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
+    JS::Rooted<JSObject*> global(aCx, JS_GetGlobalForScopeChain(aCx));
     rv = nsContentUtils::WrapNative(aCx, global, domFile,
                                     &NS_GET_IID(nsIDOMFile),
                                     wrappedFile.address());
@@ -1331,8 +1326,8 @@ bool
 IDBObjectStore::ReadFileHandle(JSStructuredCloneReader* aReader,
                                FileHandleData* aRetval)
 {
-  static_assert(SCTAG_DOM_FILEHANDLE == 0xFFFF8004,
-                "Update me!");
+  MOZ_STATIC_ASSERT(SCTAG_DOM_FILEHANDLE == 0xFFFF8004,
+                    "Update me!");
   MOZ_ASSERT(aReader && aRetval);
 
   nsCString type;
@@ -1356,10 +1351,10 @@ IDBObjectStore::ReadBlobOrFile(JSStructuredCloneReader* aReader,
                                uint32_t aTag,
                                BlobOrFileData* aRetval)
 {
-  static_assert(SCTAG_DOM_BLOB == 0xFFFF8001 &&
-                SCTAG_DOM_FILE_WITHOUT_LASTMODIFIEDDATE == 0xFFFF8002 &&
-                SCTAG_DOM_FILE == 0xFFFF8005,
-                "Update me!");
+  MOZ_STATIC_ASSERT(SCTAG_DOM_BLOB == 0xFFFF8001 &&
+                    SCTAG_DOM_FILE_WITHOUT_LASTMODIFIEDDATE == 0xFFFF8002 &&
+                    SCTAG_DOM_FILE == 0xFFFF8005,
+                    "Update me!");
   MOZ_ASSERT(aReader && aRetval);
   MOZ_ASSERT(aTag == SCTAG_DOM_FILE ||
              aTag == SCTAG_DOM_FILE_WITHOUT_LASTMODIFIEDDATE ||
@@ -1417,12 +1412,12 @@ IDBObjectStore::StructuredCloneReadCallback(JSContext* aCx,
 {
   // We need to statically assert that our tag values are what we expect
   // so that if people accidentally change them they notice.
-  static_assert(SCTAG_DOM_BLOB == 0xFFFF8001 &&
-                SCTAG_DOM_FILE_WITHOUT_LASTMODIFIEDDATE == 0xFFFF8002 &&
-                SCTAG_DOM_FILEHANDLE == 0xFFFF8004 &&
-                SCTAG_DOM_FILE == 0xFFFF8005,
-                "You changed our structured clone tag values and just ate "
-                "everyone's IndexedDB data.  I hope you are happy.");
+  MOZ_STATIC_ASSERT(SCTAG_DOM_BLOB == 0xFFFF8001 &&
+                    SCTAG_DOM_FILE_WITHOUT_LASTMODIFIEDDATE == 0xFFFF8002 &&
+                    SCTAG_DOM_FILEHANDLE == 0xFFFF8004 &&
+                    SCTAG_DOM_FILE == 0xFFFF8005,
+                    "You changed our structured clone tag values and just ate "
+                    "everyone's IndexedDB data.  I hope you are happy.");
 
   if (aTag == SCTAG_DOM_FILE_WITHOUT_LASTMODIFIEDDATE ||
       aTag == SCTAG_DOM_FILEHANDLE ||
@@ -2405,11 +2400,11 @@ IDBObjectStore::GetKeyPath(JSContext* aCx,
 }
 
 NS_IMETHODIMP
-IDBObjectStore::GetTransaction(nsISupports** aTransaction)
+IDBObjectStore::GetTransaction(nsIIDBTransaction** aTransaction)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  nsRefPtr<IDBWrapperCache> transaction(mTransaction);
+  nsCOMPtr<nsIIDBTransaction> transaction(mTransaction);
   transaction.forget(aTransaction);
   return NS_OK;
 }
@@ -4038,7 +4033,6 @@ CreateIndexHelper::InsertDataFromObjectStore(mozIStorageConnection* aConnection)
 
   JSContext* cx = tlsEntry->Context();
   JSAutoRequest ar(cx);
-  JSAutoCompartment ac(cx, tlsEntry->Global());
 
   do {
     StructuredCloneReadInfo cloneReadInfo;

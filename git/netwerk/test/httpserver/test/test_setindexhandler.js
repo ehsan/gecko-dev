@@ -11,25 +11,21 @@ var srv, serverBasePath;
 function run_test()
 {
   srv = createServer();
-  serverBasePath = do_get_profile();
+  serverBasePath = do_get_cwd();
   srv.registerDirectory("/", serverBasePath);
   srv.setIndexHandler(myIndexHandler);
-  srv.start(-1);
+  srv.start(4444);
 
   runHttpTests(tests, testComplete(srv));
 }
 
-XPCOMUtils.defineLazyGetter(this, "URL", function() {
-  return "http://localhost:" + srv.identity.primaryPort + "/";
-});
 
-XPCOMUtils.defineLazyGetter(this, "tests", function() {
-  return [
-    new Test(URL, init, startCustomIndexHandler, stopCustomIndexHandler),
-    new Test(URL, init, startDefaultIndexHandler, stopDefaultIndexHandler)
-  ];
-});
+var tests = [];
+var test;
 
+test = new Test("http://localhost:4444/",
+                init, startCustomIndexHandler, stopCustomIndexHandler);
+tests.push(test);
 function init(ch)
 {
   ch.loadFlags |= Ci.nsIRequest.LOAD_BYPASS_CACHE; // important!
@@ -45,6 +41,9 @@ function stopCustomIndexHandler(ch, cx, status, data)
   do_check_eq(String.fromCharCode.apply(null, data), "directory!");
 }
 
+test = new Test("http://localhost:4444/",
+                init, startDefaultIndexHandler, stopDefaultIndexHandler);
+tests.push(test);
 function startDefaultIndexHandler(ch, cx)
 {
   do_check_eq(ch.responseStatus, 200);

@@ -239,7 +239,6 @@ ImageLayerOGL::RenderLayer(int,
                                         yuvImage->GetSize().width,
                                         yuvImage->GetSize().height));
     program->SetLayerTransform(GetEffectiveTransform());
-    program->SetTextureTransform(gfx3DMatrix());
     program->SetLayerOpacity(GetEffectiveOpacity());
     program->SetRenderOffset(aOffset);
     program->SetYCbCrTextureUnits(0, 1, 2);
@@ -298,7 +297,6 @@ ImageLayerOGL::RenderLayer(int,
                                         cairoImage->GetSize().width, 
                                         cairoImage->GetSize().height));
     program->SetLayerTransform(GetEffectiveTransform());
-    program->SetTextureTransform(gfx3DMatrix());
     program->SetLayerOpacity(GetEffectiveOpacity());
     program->SetRenderOffset(aOffset);
     program->SetTextureUnit(0);
@@ -326,7 +324,6 @@ ImageLayerOGL::RenderLayer(int,
       program->SetTexCoordMultiplier(data->mSize.width, data->mSize.height);
     }
     program->SetLayerTransform(GetEffectiveTransform());
-    program->SetTextureTransform(gfx3DMatrix());
     program->SetLayerOpacity(GetEffectiveOpacity());
     program->SetRenderOffset(aOffset);
     program->SetTextureUnit(0);
@@ -395,7 +392,7 @@ UploadYUVToTexture(GLContext* gl, const PlanarYCbCrImage::Data& aData,
 }
 
 ImageLayerOGL::ImageLayerOGL(LayerManagerOGL *aManager)
-  : ImageLayer(aManager, nullptr)
+  : ImageLayer(aManager, NULL)
   , LayerOGL(aManager)
   , mTextureRecycleBin(new TextureRecycleBin())
 { 

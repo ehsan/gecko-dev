@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "vm/Stack-inl.h"
+#include "vm/Stack.h"
 
 #include "mozilla/PodOperations.h"
 
@@ -15,7 +15,9 @@
 #include "ion/BaselineFrame.h"
 #include "ion/IonCompartment.h"
 #endif
+
 #include "vm/Interpreter-inl.h"
+#include "vm/Stack-inl.h"
 #include "vm/Probes-inl.h"
 
 using namespace js;
@@ -1097,12 +1099,12 @@ ScriptFrameIter::argsObj() const
 }
 
 bool
-ScriptFrameIter::computeThis(JSContext *cx) const
+ScriptFrameIter::computeThis() const
 {
     JS_ASSERT(!done());
     if (!isIon()) {
-        assertSameCompartment(cx, scopeChain());
-        return ComputeThis(cx, abstractFramePtr());
+        JS_ASSERT(data_.cx_);
+        return ComputeThis(data_.cx_, abstractFramePtr());
     }
     return true;
 }
@@ -1216,14 +1218,6 @@ ScriptFrameIter::frameSlotValue(size_t index) const
 
 #if defined(_MSC_VER)
 # pragma optimize("", on)
-#endif
-
-#ifdef DEBUG
-/* static */
-bool NonBuiltinScriptFrameIter::includeSelfhostedFrames() {
-    static char* env = getenv("MOZ_SHOW_ALL_JS_FRAMES");
-    return (bool)env;
-}
 #endif
 
 /*****************************************************************************/

@@ -4,22 +4,25 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "vm/ForkJoin.h"
-
 #include "jscntxt.h"
 
 #ifdef JS_THREADSAFE
-# include "prthread.h"
-# include "prprf.h"
-# include "ion/BaselineJIT.h"
-# include "vm/Monitor.h"
+#  include "prthread.h"
+#  include "prprf.h"
+#endif
+
+#include "vm/ForkJoin.h"
+
+#if defined(JS_THREADSAFE)
+#include "ion/BaselineJIT.h"
+#include "vm/Monitor.h"
 #endif
 
 #if defined(DEBUG) && defined(JS_THREADSAFE) && defined(JS_ION)
-# include "ion/Ion.h"
-# include "ion/IonCompartment.h"
-# include "ion/MIR.h"
-# include "ion/MIRGraph.h"
+#  include "ion/Ion.h"
+#  include "ion/MIR.h"
+#  include "ion/MIRGraph.h"
+#  include "ion/IonCompartment.h"
 #endif // DEBUG && THREADSAFE && ION
 
 #include "vm/Interpreter-inl.h"
@@ -1712,9 +1715,9 @@ bool
 ForkJoinSlice::InitializeTLS()
 {
     if (!TLSInitialized) {
-        if (PR_NewThreadPrivateIndex(&ThreadPrivateIndex, NULL) != PR_SUCCESS)
-            return false;
         TLSInitialized = true;
+        PRStatus status = PR_NewThreadPrivateIndex(&ThreadPrivateIndex, NULL);
+        return status == PR_SUCCESS;
     }
     return true;
 }

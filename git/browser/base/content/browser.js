@@ -137,9 +137,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
 XPCOMUtils.defineLazyModuleGetter(this, "SitePermissions",
   "resource:///modules/SitePermissions.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "SessionStore",
-  "resource:///modules/sessionstore/SessionStore.jsm");
-
 let gInitialPages = [
   "about:blank",
   "about:newtab",
@@ -731,6 +728,18 @@ const gFormSubmitObserver = {
 
 var gBrowserInit = {
   onLoad: function() {
+    // window.arguments[0]: URI to load (string), or an nsISupportsArray of
+    //                      nsISupportsStrings to load, or a xul:tab of
+    //                      a tabbrowser, which will be replaced by this
+    //                      window (for this case, all other arguments are
+    //                      ignored).
+    //                 [1]: character set (string)
+    //                 [2]: referrer (nsIURI)
+    //                 [3]: postData (nsIInputStream)
+    //                 [4]: allowThirdPartyFixup (bool)
+    if ("arguments" in window && window.arguments[0])
+      var uriToLoad = window.arguments[0];
+
     gMultiProcessBrowser = gPrefService.getBoolPref("browser.tabs.remote");
 
     var mustLoadSidebar = false;
@@ -746,7 +755,6 @@ var gBrowserInit = {
     gBrowser.addEventListener("PluginCrashed",         gPluginHandler, true);
     gBrowser.addEventListener("PluginOutdated",        gPluginHandler, true);
     gBrowser.addEventListener("PluginInstantiated",    gPluginHandler, true);
-    gBrowser.addEventListener("PluginRemoved",         gPluginHandler, true);
 
     gBrowser.addEventListener("NewPluginInstalled", gPluginHandler.newPluginInstalled, true);
 
@@ -771,7 +779,6 @@ var gBrowserInit = {
       new nsBrowserAccess();
 
     // set default character set if provided
-    // window.arguments[1]: character set (string)
     if ("arguments" in window && window.arguments.length > 1 && window.arguments[1]) {
       if (window.arguments[1].startsWith("charset=")) {
         var arrayArgComponents = window.arguments[1].split("=");
@@ -816,8 +823,7 @@ var gBrowserInit = {
     // setup history swipe animation
     gHistorySwipeAnimation.init();
 
-    if (window.opener && !window.opener.closed &&
-        PrivateBrowsingUtils.isWindowPrivate(window) == PrivateBrowsingUtils.isWindowPrivate(window.opener)) {
+    if (window.opener && !window.opener.closed) {
       let openerSidebarBox = window.opener.document.getElementById("sidebar-box");
       // If the opener had a sidebar, open the same sidebar in our window.
       // The opener can be the hidden window too, if we're coming from the state
@@ -938,7 +944,7 @@ var gBrowserInit = {
     retrieveToolbarIconsizesFromTheme();
 
     // Wait until chrome is painted before executing code not critical to making the window visible
-    this._boundDelayedStartup = this._delayedStartup.bind(this, mustLoadSidebar);
+    this._boundDelayedStartup = this._delayedStartup.bind(this, uriToLoad, mustLoadSidebar);
     window.addEventListener("MozAfterPaint", this._boundDelayedStartup);
 
     this._loadHandled = true;
@@ -949,7 +955,7 @@ var gBrowserInit = {
     this._boundDelayedStartup = null;
   },
 
-  _delayedStartup: function(mustLoadSidebar) {
+  _delayedStartup: function(uriToLoad, mustLoadSidebar) {
     let tmp = {};
     Cu.import("resource://gre/modules/TelemetryTimestamps.jsm", tmp);
     let TelemetryTimestamps = tmp.TelemetryTimestamps;
@@ -968,7 +974,6 @@ var gBrowserInit = {
     socialBrowser.addEventListener("MozApplicationManifest",
                               OfflineApps, false);
 
-    let uriToLoad = this._getUriToLoad();
     var isLoadingBlank = isBlankPageURL(uriToLoad);
 
     // This pageshow listener needs to be registered before we may call
@@ -1005,9 +1010,6 @@ var gBrowserInit = {
 
         gBrowser.swapBrowsersAndCloseOther(gBrowser.selectedTab, uriToLoad);
       }
-      // window.arguments[2]: referrer (nsIURI)
-      //                 [3]: postData (nsIInputStream)
-      //                 [4]: allowThirdPartyFixup (bool)
       else if (window.arguments.length >= 3) {
         loadURI(uriToLoad, window.arguments[2], window.arguments[3] || null,
                 window.arguments[4] || false);
@@ -1095,6 +1097,15 @@ var gBrowserInit = {
       NP.trackBrowserWindow(window);
     }
 
+    // initialize the session-restore service (in case it's not already running)
+    let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
+    ss.init(window);
+
+    // Enable the Restore Last Session command if needed
+    if (ss.canRestoreLastSession &&
+        !PrivateBrowsingUtils.isWindowPrivate(window))
+      goSetCommandEnabled("Browser:RestoreLastSession", true);
+
     PlacesToolbarHelper.init();
 
     ctrlTab.readPref();
@@ -1156,6 +1167,7 @@ var gBrowserInit = {
 #endif
 
     gBrowserThumbnails.init();
+    TabView.init();
 
     setUrlAndSearchBarWidthForConditionalForwardButton();
     window.addEventListener("resize", function resizeHandler(event) {
@@ -1270,44 +1282,9 @@ var gBrowserInit = {
 #endif
 #endif
 
-    SessionStore.promiseInitialized.then(() => {
-      // Enable the Restore Last Session command if needed
-      if (SessionStore.canRestoreLastSession &&
-          !PrivateBrowsingUtils.isWindowPrivate(window))
-        goSetCommandEnabled("Browser:RestoreLastSession", true);
-
-      TabView.init();
-
-      setTimeout(function () { BrowserChromeTest.markAsReady(); }, 0);
-    });
-
     Services.obs.notifyObservers(window, "browser-delayed-startup-finished", "");
+    setTimeout(function () { BrowserChromeTest.markAsReady(); }, 0);
     TelemetryTimestamps.add("delayedStartupFinished");
-  },
-
-  // Returns the URI(s) to load at startup.
-  _getUriToLoad: function () {
-    // window.arguments[0]: URI to load (string), or an nsISupportsArray of
-    //                      nsISupportsStrings to load, or a xul:tab of
-    //                      a tabbrowser, which will be replaced by this
-    //                      window (for this case, all other arguments are
-    //                      ignored).
-    if (!window.arguments || !window.arguments[0])
-      return null;
-
-    let uri = window.arguments[0];
-    let sessionStartup = Cc["@mozilla.org/browser/sessionstartup;1"]
-                           .getService(Ci.nsISessionStartup);
-    let defaultArgs = Cc["@mozilla.org/browser/clh;1"]
-                        .getService(Ci.nsIBrowserHandler)
-                        .defaultArgs;
-
-    // If the given URI matches defaultArgs (the default homepage) we want
-    // to block its load if we're going to restore a session anyway.
-    if (uri == defaultArgs && sessionStartup.willOverrideHomepage)
-      return null;
-
-    return uri;
   },
 
   onUnload: function() {
@@ -2328,14 +2305,11 @@ function BrowserOnAboutPageLoad(doc) {
     }
     docElt.setAttribute("snippetsVersion", AboutHomeUtils.snippetsVersion);
 
-    let updateSearchEngine = function() {
+    function updateSearchEngine() {
       let engine = AboutHomeUtils.defaultSearchEngine;
       docElt.setAttribute("searchEngineName", engine.name);
-      docElt.setAttribute("searchEnginePostData", engine.postDataString || "");
-      // Again, keep the searchEngineURL as the last attribute, because the
-      // mutation observer in aboutHome.js is counting on that.
       docElt.setAttribute("searchEngineURL", engine.searchURL);
-    };
+    }
     updateSearchEngine();
 
     // Listen for the event that's triggered when the user changes search engine.
@@ -3011,7 +2985,8 @@ const DOMLinkHandler = {
             type = type.replace(/^\s+|\s*(?:;.*)?$/g, "");
 
             if (type == "application/opensearchdescription+xml" && link.title &&
-                /^(?:https?|ftp):/i.test(link.href)) {
+                /^(?:https?|ftp):/i.test(link.href) &&
+                !PrivateBrowsingUtils.isWindowPrivate(window)) {
               var engine = { title: link.title, href: link.href };
               BrowserSearch.addEngine(engine, link.ownerDocument);
               searchAdded = true;
@@ -3940,10 +3915,8 @@ var XULBrowserWindow = {
 
         // Update starring UI
         BookmarkingUI.updateStarState();
-        if (SocialUI.enabled) {
-          SocialMark.updateMarkState();
-          SocialShare.update();
-        }
+        SocialMark.updateMarkState();
+        SocialShare.update();
       }
 
       // Show or hide browser chrome based on the whitelist
@@ -4459,10 +4432,6 @@ nsBrowserAccess.prototype = {
 
   isTabContentWindow: function (aWindow) {
     return gBrowser.browsers.some(function (browser) browser.contentWindow == aWindow);
-  },
-
-  get contentWindow() {
-    return gBrowser.contentWindow;
   }
 }
 
@@ -6290,31 +6259,15 @@ function undoCloseTab(aIndex) {
   var tab = null;
   var ss = Cc["@mozilla.org/browser/sessionstore;1"].
            getService(Ci.nsISessionStore);
-  let numberOfTabsToUndoClose = 0;
-  if (Number.isInteger(aIndex)) {
-    if (ss.getClosedTabCount(window) > aIndex) {
-      numberOfTabsToUndoClose = 1;
-    } else {
-      return tab;
-    }
-  } else {
-    numberOfTabsToUndoClose = ss.getNumberOfTabsClosedLast(window);
-    aIndex = 0;
-  }
-
-  while (numberOfTabsToUndoClose > 0 &&
-         numberOfTabsToUndoClose--) {
+  if (ss.getClosedTabCount(window) > (aIndex || 0)) {
     TabView.prepareUndoCloseTab(blankTabToRemove);
-    tab = ss.undoCloseTab(window, aIndex);
+    tab = ss.undoCloseTab(window, aIndex || 0);
     TabView.afterUndoCloseTab();
-    if (blankTabToRemove) {
+
+    if (blankTabToRemove)
       gBrowser.removeTab(blankTabToRemove);
-      blankTabToRemove = null;
-    }
   }
 
-  // Reset the number of tabs closed last time to the default.
-  ss.setNumberOfTabsClosedLast(window, 1);
   return tab;
 }
 
@@ -7108,15 +7061,10 @@ var TabContextMenu = {
       menuItem.disabled = disabled;
 
     // Session store
-    let ss = Cc["@mozilla.org/browser/sessionstore;1"].
-               getService(Ci.nsISessionStore);
-    let undoCloseTabElement = document.getElementById("context_undoCloseTab");
-    let closedTabCount = ss.getNumberOfTabsClosedLast(window);
-    undoCloseTabElement.disabled = closedTabCount == 0;
-    // Change the label of "Undo Close Tab" to specify if it will undo a batch-close
-    // or a single close.
-    let visibleLabel = closedTabCount <= 1 ? "singletablabel" : "multipletablabel";
-    undoCloseTabElement.setAttribute("label", undoCloseTabElement.getAttribute(visibleLabel));
+    document.getElementById("context_undoCloseTab").disabled =
+      Cc["@mozilla.org/browser/sessionstore;1"].
+      getService(Ci.nsISessionStore).
+      getClosedTabCount(window) == 0;
 
     // Only one of pin/unpin should be visible
     document.getElementById("context_pinTab").hidden = this.contextTab.pinned;

@@ -9,11 +9,12 @@
 
 #ifdef JS_ION
 
-#include "jsscript.h"
 #include "jstypes.h"
-
 #include "ion/IonCode.h"
 #include "ion/SnapshotReader.h"
+
+class JSFunction;
+class JSScript;
 
 namespace js {
     class ActivationIterator;

@@ -44,7 +44,7 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/LookAndFeel.h"
 #include "mozilla/dom/Element.h"
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 #include "mozilla/Util.h"
 #include "mozilla/MathAlgorithms.h"
 #include "FrameLayerBuilder.h"
@@ -2032,24 +2032,6 @@ AppendToTop(nsDisplayListBuilder* aBuilder, nsDisplayList* aDest,
   }
 }
 
-struct HoveredStateComparator
-{
-  bool Equals(nsIFrame* A, nsIFrame* B) const {
-    bool aHovered = A->GetContent()->HasAttr(kNameSpaceID_None,
-                                             nsGkAtoms::hover);
-    bool bHovered = B->GetContent()->HasAttr(kNameSpaceID_None,
-                                             nsGkAtoms::hover);
-    return aHovered == bHovered;
-  }
-  bool LessThan(nsIFrame* A, nsIFrame* B) const {
-    bool aHovered = A->GetContent()->HasAttr(kNameSpaceID_None,
-                                             nsGkAtoms::hover);
-    bool bHovered = B->GetContent()->HasAttr(kNameSpaceID_None,
-                                             nsGkAtoms::hover);
-    return !aHovered && bHovered;
-  }
-};
-
 void
 nsGfxScrollFrameInner::AppendScrollPartsTo(nsDisplayListBuilder*   aBuilder,
                                            const nsRect&           aDirtyRect,
@@ -2057,30 +2039,18 @@ nsGfxScrollFrameInner::AppendScrollPartsTo(nsDisplayListBuilder*   aBuilder,
                                            bool&                   aCreateLayer,
                                            bool                    aPositioned)
 {
-  bool overlayScrollbars =
-    LookAndFeel::GetInt(LookAndFeel::eIntID_UseOverlayScrollbars) != 0;
-
-  nsAutoTArray<nsIFrame*, 3> scrollParts;
   for (nsIFrame* kid = mOuter->GetFirstPrincipalChild(); kid; kid = kid->GetNextSibling()) {
     if (kid == mScrolledFrame ||
-        (kid->IsPositioned() || overlayScrollbars) != aPositioned)
+        (kid->IsPositioned() != aPositioned))
       continue;
 
-    scrollParts.AppendElement(kid);
-  }
-
-  scrollParts.Sort(HoveredStateComparator());
-
-  for (uint32_t i = 0; i < scrollParts.Length(); ++i) {
     nsDisplayListCollection partList;
-    mOuter->BuildDisplayListForChild(
-      aBuilder, scrollParts[i], aDirtyRect, partList,
-      nsIFrame::DISPLAY_CHILD_FORCE_STACKING_CONTEXT);
+    mOuter->BuildDisplayListForChild(aBuilder, kid, aDirtyRect, partList,
+                                     nsIFrame::DISPLAY_CHILD_FORCE_STACKING_CONTEXT);
 
     // Don't append textarea resizers to the positioned descendants because
     // we don't want them to float on top of overlapping elements.
-    bool appendToPositioned = aPositioned &&
-                              !(scrollParts[i] == mResizerBox && !mIsRoot);
+    bool appendToPositioned = aPositioned && !(kid == mResizerBox && !mIsRoot);
 
     nsDisplayList* dest = appendToPositioned ?
       aLists.PositionedDescendants() : aLists.BorderBackground();
@@ -2088,7 +2058,7 @@ nsGfxScrollFrameInner::AppendScrollPartsTo(nsDisplayListBuilder*   aBuilder,
     // DISPLAY_CHILD_FORCE_STACKING_CONTEXT put everything into
     // partList.PositionedDescendants().
     ::AppendToTop(aBuilder, dest,
-                  partList.PositionedDescendants(), scrollParts[i],
+                  partList.PositionedDescendants(), kid,
                   aCreateLayer);
   }
 }
@@ -2251,13 +2221,18 @@ nsGfxScrollFrameInner::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       }
     } else {
       nsRect clip = mScrollPort + aBuilder->ToReferenceFrame(mOuter);
-      nscoord radii[8];
-      bool haveRadii = mOuter->GetPaddingBoxBorderRadii(radii);
       // Our override of GetBorderRadii ensures we never have a radius at
       // the corners where we have a scrollbar.
       if (mClipAllDescendants) {
-        clipState.ClipContentDescendants(clip, haveRadii ? radii : nullptr);
+#ifdef DEBUG
+        nscoord radii[8];
+#endif
+        NS_ASSERTION(!mOuter->GetPaddingBoxBorderRadii(radii),
+                     "Roots with radii not supported");
+        clipState.ClipContentDescendants(clip);
       } else {
+        nscoord radii[8];
+        bool haveRadii = mOuter->GetPaddingBoxBorderRadii(radii);
         clipState.ClipContainingBlockDescendants(clip, haveRadii ? radii : nullptr);
       }
     }
@@ -2838,10 +2813,6 @@ nsGfxScrollFrameInner::CreateAnonymousContent(
                                 NS_LITERAL_STRING("horizontal"), false);
     mHScrollbarContent->SetAttr(kNameSpaceID_None, nsGkAtoms::clickthrough,
                                 NS_LITERAL_STRING("always"), false);
-    if (mIsRoot) {
-      mHScrollbarContent->SetAttr(kNameSpaceID_None, nsGkAtoms::root_,
-                                  NS_LITERAL_STRING("true"), false);
-    }
     if (!aElements.AppendElement(mHScrollbarContent))
       return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -2853,10 +2824,6 @@ nsGfxScrollFrameInner::CreateAnonymousContent(
                                 NS_LITERAL_STRING("vertical"), false);
     mVScrollbarContent->SetAttr(kNameSpaceID_None, nsGkAtoms::clickthrough,
                                 NS_LITERAL_STRING("always"), false);
-    if (mIsRoot) {
-      mVScrollbarContent->SetAttr(kNameSpaceID_None, nsGkAtoms::root_,
-                                  NS_LITERAL_STRING("true"), false);
-    }
     if (!aElements.AppendElement(mVScrollbarContent))
       return NS_ERROR_OUT_OF_MEMORY;
   }

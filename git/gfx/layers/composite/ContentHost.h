@@ -77,15 +77,27 @@ public:
     return PaintState();
   }
 
-  virtual LayerRenderState GetRenderState() MOZ_OVERRIDE;
+  virtual LayerRenderState GetRenderState() MOZ_OVERRIDE
+  {
+    LayerRenderState result = mDeprecatedTextureHost->GetRenderState();
+
+    if (mBufferRotation != nsIntPoint()) {
+      result.mFlags |= LAYER_RENDER_STATE_BUFFER_ROTATION;
+    }
+    result.SetOffset(GetOriginOffset());
+    return result;
+  }
 
   virtual void SetCompositor(Compositor* aCompositor) MOZ_OVERRIDE;
 
 #ifdef MOZ_DUMP_PAINTING
-  virtual already_AddRefed<gfxImageSurface> GetAsSurface();
+  virtual already_AddRefed<gfxImageSurface> GetAsSurface()
+  {
+    return mDeprecatedTextureHost->GetAsSurface();
+  }
 #endif
 
-  virtual void Dump(FILE* aFile=nullptr,
+  virtual void Dump(FILE* aFile=NULL,
                     const char* aPrefix="",
                     bool aDumpHtml=false) MOZ_OVERRIDE;
 
@@ -147,7 +159,7 @@ public:
                                  const TextureInfo& aTextureInfo) MOZ_OVERRIDE;
   virtual void DestroyTextures() MOZ_OVERRIDE;
 
-  virtual void Dump(FILE* aFile=nullptr,
+  virtual void Dump(FILE* aFile=NULL,
                     const char* aPrefix="",
                     bool aDumpHtml=false) MOZ_OVERRIDE;
 

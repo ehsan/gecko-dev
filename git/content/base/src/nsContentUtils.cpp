@@ -1649,10 +1649,9 @@ nsContentUtils::TraceSafeJSContext(JSTracer* aTrc)
   if (!cx) {
     return;
   }
-  if (JSObject* global = js::DefaultObjectForContextOrNull(cx)) {
-    JS::AssertGCThingMustBeTenured(global);
+  if (JSObject* global = js::GetDefaultGlobalForContext(cx)) {
     JS_CallObjectTracer(aTrc, &global, "safe context");
-    MOZ_ASSERT(global == js::DefaultObjectForContextOrNull(cx));
+    MOZ_ASSERT(global == js::GetDefaultGlobalForContext(cx));
   }
 }
 
@@ -1675,7 +1674,7 @@ nsContentUtils::GetDocumentFromCaller()
   AutoJSContext cx;
 
   nsCOMPtr<nsPIDOMWindow> win =
-    do_QueryInterface(nsJSUtils::GetStaticScriptGlobal(JS::CurrentGlobalOrNull(cx)));
+    do_QueryInterface(nsJSUtils::GetStaticScriptGlobal(JS_GetGlobalForScopeChain(cx)));
   if (!win) {
     return nullptr;
   }
@@ -1749,7 +1748,8 @@ bool
 nsContentUtils::LookupBindingMember(JSContext* aCx, nsIContent *aContent,
                                     JS::HandleId aId, JSPropertyDescriptor* aDesc)
 {
-  nsXBLBinding* binding = aContent->GetXBLBinding();
+  nsXBLBinding* binding = aContent->OwnerDoc()->BindingManager()
+                                  ->GetBinding(aContent);
   if (!binding)
     return true;
   return binding->LookupMember(aCx, aId, aDesc);
@@ -3568,7 +3568,8 @@ nsContentUtils::HasMutationListeners(nsINode* aNode,
 
     if (aNode->IsNodeOfType(nsINode::eCONTENT)) {
       nsIContent* content = static_cast<nsIContent*>(aNode);
-      nsIContent* insertionParent = content->GetXBLInsertionParent();
+      nsIContent* insertionParent =
+        doc->BindingManager()->GetInsertionParent(content);
       if (insertionParent) {
         aNode = insertionParent;
         continue;
@@ -5666,7 +5667,7 @@ nsContentUtils::CreateBlobBuffer(JSContext* aCx,
   } else {
     return NS_ERROR_OUT_OF_MEMORY;
   }
-  JS::Rooted<JSObject*> scope(aCx, JS::CurrentGlobalOrNull(aCx));
+  JS::Rooted<JSObject*> scope(aCx, JS_GetGlobalForScopeChain(aCx));
   return nsContentUtils::WrapNative(aCx, scope, blob, aBlob.address(), nullptr,
                                     true);
 }
@@ -6105,8 +6106,7 @@ nsContentUtils::SetUpChannelOwner(nsIPrincipal* aLoadingPrincipal,
     if (aForceOwner) {
       nsAutoCString uriStr;
       aURI->GetSpec(uriStr);
-      if(!uriStr.EqualsLiteral("about:srcdoc") &&
-         !uriStr.EqualsLiteral("view-source:about:srcdoc")) {
+      if(!uriStr.EqualsLiteral("about:srcdoc")) {
         nsCOMPtr<nsIURI> ownerURI;
         nsresult rv = aLoadingPrincipal->GetURI(getter_AddRefs(ownerURI));
         MOZ_ASSERT(NS_SUCCEEDED(rv) && SchemeIs(ownerURI, NS_NULLPRINCIPAL_SCHEME));

@@ -128,8 +128,6 @@ var LoginManagerContent = {
             return;
 
         var acForm = acInputField.form;
-        if (!acForm)
-            return;
 
         // If the username is blank, bail out now -- we don't want
         // fillForm() to try filling in a login without a username
@@ -596,9 +594,11 @@ var LoginManagerContent = {
         if (passwordField == null)
             return [false, foundLogins];
 
-        // If the password field is disabled or read-only, there's nothing to do.
-        if (passwordField.disabled || passwordField.readOnly) {
-            log("not filling form, password field disabled or read-only");
+        // If the fields are disabled or read-only, there's nothing to do.
+        if (passwordField.disabled || passwordField.readOnly ||
+            usernameField && (usernameField.disabled ||
+                              usernameField.readOnly)) {
+            log("not filling form, login fields disabled");
             return [false, foundLogins];
         }
 
@@ -678,8 +678,8 @@ var LoginManagerContent = {
         // should be firing notifications if and only if we can fill the form.
         var selectedLogin = null;
 
-        if (usernameField && (usernameField.value || usernameField.disabled || usernameField.readOnly)) {
-            // If username was specified in the field, it's disabled or it's readOnly, only fill in the
+        if (usernameField && usernameField.value) {
+            // If username was specified in the form, only fill in the
             // password if we find a matching login.
             var username = usernameField.value.toLowerCase();
 
@@ -714,8 +714,7 @@ var LoginManagerContent = {
         var didFillForm = false;
         if (selectedLogin && autofillForm && !isFormDisabled) {
             // Fill the form
-            // Don't modify the username field if it's disabled or readOnly so we preserve its case.
-            if (usernameField && !(usernameField.disabled || usernameField.readOnly))
+            if (usernameField)
                 usernameField.value = selectedLogin.username;
             passwordField.value = selectedLogin.password;
             didFillForm = true;

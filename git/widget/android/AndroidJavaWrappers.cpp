@@ -949,7 +949,7 @@ AndroidGeckoLayerClient::SetPageRect(const CSSRect& aCssPageRect)
 void
 AndroidGeckoLayerClient::SyncViewportInfo(const LayerIntRect& aDisplayPort, const CSSToLayerScale& aDisplayResolution,
                                           bool aLayersUpdated, ScreenPoint& aScrollOffset, CSSToScreenScale& aScale,
-                                          LayerMargin& aFixedLayerMargins, ScreenPoint& aOffset)
+                                          gfx::Margin& aFixedLayerMargins, ScreenPoint& aOffset)
 {
     NS_ASSERTION(!isNull(), "SyncViewportInfo called on null layer client!");
     JNIEnv *env = GetJNIForThread();    // this is called on the compositor thread
@@ -981,7 +981,7 @@ AndroidGeckoLayerClient::SyncViewportInfo(const LayerIntRect& aDisplayPort, cons
 void
 AndroidGeckoLayerClient::SyncFrameMetrics(const ScreenPoint& aScrollOffset, float aZoom, const CSSRect& aCssPageRect,
                                           bool aLayersUpdated, const CSSRect& aDisplayPort, const CSSToLayerScale& aDisplayResolution,
-                                          bool aIsFirstPaint, LayerMargin& aFixedLayerMargins, ScreenPoint& aOffset)
+                                          bool aIsFirstPaint, gfx::Margin& aFixedLayerMargins, ScreenPoint& aOffset)
 {
     NS_ASSERTION(!isNull(), "SyncFrameMetrics called on null layer client!");
     JNIEnv *env = GetJNIForThread();    // this is called on the compositor thread
@@ -1258,7 +1258,7 @@ AndroidViewTransform::GetScale(JNIEnv *env)
 }
 
 void
-AndroidViewTransform::GetFixedLayerMargins(JNIEnv *env, LayerMargin &aFixedLayerMargins)
+AndroidViewTransform::GetFixedLayerMargins(JNIEnv *env, gfx::Margin &aFixedLayerMargins)
 {
     if (!env)
         return;

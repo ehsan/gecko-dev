@@ -586,8 +586,10 @@
                 if (this._shouldShowProgress(aRequest)) {
                   if (!(aStateFlags & nsIWebProgressListener.STATE_RESTORING)) {
                     this.mTab.setAttribute("busy", "true");
-                    if (!(aWebProgress.loadType & Ci.nsIDocShell.LOAD_CMD_RELOAD))
-                      this.mTabBrowser.setTabTitleLoading(this.mTab);
+                    if (!gMultiProcessBrowser) {
+                      if (!(this.mBrowser.docShell.loadType & Ci.nsIDocShell.LOAD_CMD_RELOAD))
+                        this.mTabBrowser.setTabTitleLoading(this.mTab);
+                    }
                   }
 
                   if (this.mTab.selected)
@@ -699,9 +701,10 @@
 
                 // Don't clear the favicon if this onLocationChange was
                 // triggered by a pushState or a replaceState.  See bug 550565.
-                if (aWebProgress.isLoadingDocument &&
-                    !(aWebProgress.loadType & Ci.nsIDocShell.LOAD_CMD_PUSHSTATE)) {
-                  this.mBrowser.mIconURL = null;
+                if (!gMultiProcessBrowser) {
+                  if (aWebProgress.isLoadingDocument &&
+                      !(this.mBrowser.docShell.loadType & Ci.nsIDocShell.LOAD_CMD_PUSHSTATE))
+                    this.mBrowser.mIconURL = null;
                 }
 
                 let autocomplete = this.mTabBrowser._placesAutocomplete;
@@ -827,23 +830,30 @@
         <parameter name="aTab"/>
         <body>
           <![CDATA[
-            var browser = this.getBrowserForTab(aTab);
-            var documentURI = browser.documentURI;
-            var icon = null;
+            // Bug 691610 - e10s support for useDefaultIcon
+            if (gMultiProcessBrowser)
+              return;
 
-            if (browser.imageDocument) {
+            var browser = this.getBrowserForTab(aTab);
+            var docURIObject = browser.contentDocument.documentURIObject;
+            var icon = null;
+            if (browser.contentDocument instanceof ImageDocument) {
               if (Services.prefs.getBoolPref("browser.chrome.site_icons")) {
                 let sz = Services.prefs.getIntPref("browser.chrome.image_icons.max_size");
-                if (browser.imageDocument.width <= sz &&
-                    browser.imageDocument.height <= sz) {
-                  icon = browser.currentURI;
-                }
+                try {
+                  let req = browser.contentDocument.imageRequest;
+                  if (req &&
+                      req.image &&
+                      req.image.width <= sz &&
+                      req.image.height <= sz)
+                    icon = browser.currentURI;
+                } catch (e) { }
               }
             }
             // Use documentURIObject in the check for shouldLoadFavIcon so that we
             // do the right thing with about:-style error pages.  Bug 453442
-            else if (this.shouldLoadFavIcon(documentURI)) {
-              let url = documentURI.prePath + "/favicon.ico";
+            else if (this.shouldLoadFavIcon(docURIObject)) {
+              let url = docURIObject.prePath + "/favicon.ico";
               if (!this.isFailedIcon(url))
                 icon = url;
             }
@@ -1457,8 +1467,7 @@
             // Do nothing if we're a private window.
             let docShellsSwapped = false;
             if (aURI == BROWSER_NEW_TAB_URL &&
-                !PrivateBrowsingUtils.isWindowPrivate(window) &&
-                !gMultiProcessBrowser) {
+                !PrivateBrowsingUtils.isWindowPrivate(window)) {
               docShellsSwapped = gBrowserNewTabPreloader.newTab(t);
             }
 
@@ -1556,9 +1565,13 @@
               throw new Error("Invalid argument: " + aCloseTabs);
           }
 
-          if (tabsToClose <= 1 ||
-              aCloseTabs != this.closingTabsEnum.ALL ||
-              !Services.prefs.getBoolPref("browser.tabs.warnOnClose"))
+          if (tabsToClose <= 1)
+            return true;
+
+          const pref = aCloseTabs == this.closingTabsEnum.ALL ?
+                       "browser.tabs.warnOnClose" : "browser.tabs.warnOnCloseOtherTabs";
+          var shouldPrompt = Services.prefs.getBoolPref(pref);
+          if (!shouldPrompt)
             return true;
 
           var ps = Services.prompt;
@@ -1582,12 +1595,13 @@
                          + (ps.BUTTON_TITLE_CANCEL * ps.BUTTON_POS_1),
                          bundle.getString("tabs.closeButtonMultiple"),
                          null, null,
-                         bundle.getString("tabs.closeWarningPromptMe"),
+                         aCloseTabs == this.closingTabsEnum.ALL ?
+                           bundle.getString("tabs.closeWarningPromptMe") : null,
                          warnOnClose);
           var reallyClose = (buttonPressed == 0);
 
           // don't set the pref unless they press OK and it's false
-          if (reallyClose && !warnOnClose.value)
+          if (aCloseTabs == this.closingTabsEnum.ALL && reallyClose && !warnOnClose.value)
             Services.prefs.setBoolPref(pref, false);
 
           return reallyClose;
@@ -1615,13 +1629,9 @@
           <![CDATA[
             if (this.warnAboutClosingTabs(this.closingTabsEnum.TO_END, aTab)) {
               let tabs = this.getTabsToTheEndFrom(aTab);
-              let numberOfTabsToClose = tabs.length;
-              for (let i = numberOfTabsToClose - 1; i >= 0; --i) {
+              for (let i = tabs.length - 1; i >= 0; --i) {
                 this.removeTab(tabs[i], {animate: true});
               }
-              let ss = Cc["@mozilla.org/browser/sessionstore;1"].
-                       getService(Ci.nsISessionStore);
-              ss.setNumberOfTabsClosedLast(window, numberOfTabsToClose);
             }
           ]]>
         </body>
@@ -1638,16 +1648,10 @@
               let tabs = this.visibleTabs;
               this.selectedTab = aTab;
 
-              let closedTabs = 0;
               for (let i = tabs.length - 1; i >= 0; --i) {
-                if (tabs[i] != aTab && !tabs[i].pinned) {
+                if (tabs[i] != aTab && !tabs[i].pinned)
                   this.removeTab(tabs[i]);
-                  closedTabs++;
-                }
               }
-              let ss = Cc["@mozilla.org/browser/sessionstore;1"].
-                       getService(Ci.nsISessionStore);
-              ss.setNumberOfTabsClosedLast(window, closedTabs);
             }
           ]]>
         </body>
@@ -1675,10 +1679,6 @@
               var animate = aParams.animate;
               var byMouse = aParams.byMouse;
             }
-
-            let ss = Cc["@mozilla.org/browser/sessionstore;1"].
-                     getService(Ci.nsISessionStore);
-            ss.setNumberOfTabsClosedLast(window, 1);
 
             // Handle requests for synchronously removing an already
             // asynchronously closing tab.
@@ -2089,9 +2089,8 @@
             if (otherFindBar &&
                 otherFindBar.findMode == otherFindBar.FIND_NORMAL) {
               let ourFindBar = this.getFindBar(aOurTab);
+              ourFindBar.hidden = otherFindBar.hidden;
               ourFindBar._findField.value = otherFindBar._findField.value;
-              if (!otherFindBar.hidden)
-                ourFindBar.onFindCommand();
             }
 
             // Finish tearing down the tab that's going away.

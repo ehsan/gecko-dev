@@ -159,10 +159,10 @@ inline JSContext *
 xpc_UnmarkGrayContext(JSContext *cx)
 {
     if (cx) {
-        JSObject *global = js::DefaultObjectForContextOrNull(cx);
+        JSObject *global = js::GetDefaultGlobalForContext(cx);
         xpc_UnmarkGrayObject(global);
         if (global && JS_IsInRequest(JS_GetRuntime(cx))) {
-            JSObject *scope = JS::CurrentGlobalOrNull(cx);
+            JSObject *scope = JS_GetGlobalForScopeChain(cx);
             if (scope != global)
                 xpc_UnmarkGrayObject(scope);
         }
@@ -434,9 +434,6 @@ NS_EXPORT_(void)
 SystemErrorReporterExternal(JSContext *cx, const char *message,
                             JSErrorReport *rep);
 
-NS_EXPORT_(void)
-SimulateActivityCallback(bool aActive);
-
 } // namespace xpc
 
 namespace mozilla {
@@ -477,12 +474,6 @@ extern bool
 DefineStaticJSVals(JSContext *cx);
 void
 Register(nsScriptNameSpaceManager* aNameSpaceManager);
-
-/**
- * A test for whether WebIDL methods that should only be visible to
- * chrome or XBL scopes should be exposed.
- */
-bool IsChromeOrXBL(JSContext* cx, JSObject* /* unused */);
 
 } // namespace dom
 } // namespace mozilla

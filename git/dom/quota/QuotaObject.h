@@ -42,7 +42,7 @@ private:
   virtual ~QuotaObject()
   { }
 
-  mozilla::ThreadSafeAutoRefCnt mRefCnt;
+  nsAutoRefCnt mRefCnt;
 
   OriginInfo* mOriginInfo;
   nsString mPath;

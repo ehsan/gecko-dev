@@ -104,7 +104,7 @@ function run_test() {
     do_check_false(hasFlag(t2.permissions, AddonManager.PERM_CAN_DISABLE));
     do_check_true(hasFlag(t2.permissions, AddonManager.PERM_CAN_ENABLE));
 
-    do_execute_soon(run_test_1);
+    run_test_1();
   });
 }
 
@@ -136,7 +136,7 @@ function run_test_1() {
     do_check_false(hasFlag(t1.permissions, AddonManager.PERM_CAN_DISABLE));
     do_check_true(hasFlag(t1.permissions, AddonManager.PERM_CAN_ENABLE));
 
-    do_execute_soon(check_test_1);
+    check_test_1();
   });
 }
 
@@ -163,7 +163,7 @@ function check_test_1() {
     do_check_false(hasFlag(t2.permissions, AddonManager.PERM_CAN_ENABLE));
     do_check_false(gLWThemeChanged);
 
-    do_execute_soon(run_test_2);
+    run_test_2();
   });
 }
 
@@ -191,7 +191,7 @@ function run_test_2() {
     do_check_false(isThemeInAddonsList(profileDir, "theme2@tests.mozilla.org"));
     do_check_false(gLWThemeChanged);
 
-    do_execute_soon(run_test_3);
+    run_test_3();
   });
 }
 
@@ -280,7 +280,7 @@ function run_test_3() {
       do_check_true(gLWThemeChanged);
       gLWThemeChanged = false;
 
-      do_execute_soon(run_test_4);
+      run_test_4();
     });
   });
 }
@@ -350,7 +350,7 @@ function run_test_4() {
       do_check_true(gLWThemeChanged);
       gLWThemeChanged = false;
 
-      do_execute_soon(run_test_5);
+      run_test_5();
     });
   });
 }
@@ -412,7 +412,7 @@ function run_test_5() {
     do_check_true(hasFlag(AddonManager.PERM_CAN_ENABLE, p2.permissions));
     do_check_true(gLWThemeChanged);
 
-    do_execute_soon(check_test_5);
+    check_test_5();
   });
 }
 
@@ -431,7 +431,7 @@ function check_test_5() {
     do_check_true(gLWThemeChanged);
     gLWThemeChanged = false;
 
-    do_execute_soon(run_test_6);
+    run_test_6();
   });
 }
 
@@ -489,7 +489,7 @@ function run_test_6() {
     do_check_false(hasFlag(AddonManager.PENDING_DISABLE, t2.pendingOperations));
     do_check_false(gLWThemeChanged);
 
-    do_execute_soon(check_test_6);
+    check_test_6();
   });
 }
 
@@ -508,7 +508,7 @@ function check_test_6() {
     do_check_true(gLWThemeChanged);
     gLWThemeChanged = false;
 
-    do_execute_soon(run_test_7);
+    run_test_7();
   });
 }
 
@@ -528,7 +528,7 @@ function run_test_7() {
     do_check_eq(LightweightThemeManager.usedThemes.length, 1);
     do_check_false(gLWThemeChanged);
 
-    do_execute_soon(run_test_8);
+    run_test_8();
   });
 }
 
@@ -557,7 +557,7 @@ function run_test_8() {
     do_check_true(gLWThemeChanged);
     gLWThemeChanged = false;
 
-    do_execute_soon(run_test_9);
+    run_test_9();
   });
 }
 
@@ -579,7 +579,7 @@ function run_test_9() {
       do_check_eq(newt1, null);
       do_check_false(gLWThemeChanged);
 
-      do_execute_soon(run_test_10);
+      run_test_10();
     });
   });
 }
@@ -631,7 +631,7 @@ function run_test_10() {
 
       restartManager();
 
-      do_execute_soon(run_test_11);
+      run_test_11();
     });
   });
 }
@@ -673,7 +673,7 @@ function check_test_11() {
     do_check_eq(t1.screenshots[0], previewSpec);
     do_check_false(gLWThemeChanged);
 
-    do_execute_soon(run_test_12);
+    run_test_12();
   });
 }
 
@@ -710,7 +710,7 @@ function check_test_12() {
     do_check_neq(t1, null);
     do_check_false(gLWThemeChanged);
 
-    do_execute_soon(run_test_13);
+    run_test_13();
   });
 }
 
@@ -768,7 +768,7 @@ function check_test_13() {
     t1.uninstall();
     restartManager();
 
-    do_execute_soon(run_test_14);
+    run_test_14();
   });
 }
 

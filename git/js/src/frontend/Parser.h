@@ -10,7 +10,6 @@
 /*
  * JS parser definitions.
  */
-
 #include "jsprvtd.h"
 #include "jspubtd.h"
 
@@ -101,7 +100,6 @@ struct ParseContext : public GenericParseContext
     StmtInfoPC      *topScopeStmt;  /* top lexical scope statement */
     Rooted<StaticBlockObject *> blockChain;
                                     /* compile time block scope chain */
-    Node            maybeFunction;  /* sc->isFunctionBox, the pn where pn->pn_funbox == sc */
 
     const unsigned  staticLevel;    /* static compilation unit nesting level */
 
@@ -235,8 +233,7 @@ struct ParseContext : public GenericParseContext
     bool            inDeclDestructuring:1;
 
     ParseContext(Parser<ParseHandler> *prs, GenericParseContext *parent,
-                 Node maybeFunction, SharedContext *sc,
-                 Directives *newDirectives,
+                 SharedContext *sc, Directives *newDirectives,
                  unsigned staticLevel, uint32_t bodyid)
       : GenericParseContext(parent, sc),
         bodyid(0),           // initialized in init()
@@ -244,7 +241,6 @@ struct ParseContext : public GenericParseContext
         topStmt(NULL),
         topScopeStmt(NULL),
         blockChain(prs->context),
-        maybeFunction(maybeFunction),
         staticLevel(staticLevel),
         parenDepth(0),
         yieldCount(0),
@@ -299,8 +295,7 @@ struct ParseContext : public GenericParseContext
 template <typename ParseHandler>
 inline
 Directives::Directives(ParseContext<ParseHandler> *parent)
-  : strict_(parent->sc->strict),
-    asmJS_(parent->useAsmOrInsideUseAsm())
+  : strict_(parent->sc->strict)
 {}
 
 template <typename ParseHandler>
@@ -332,7 +327,6 @@ class Parser : private AutoGCRooter, public StrictModeGetter
     ParseContext<ParseHandler> *pc;
 
     SourceCompressionToken *sct;        /* compression token for aborting */
-    ScriptSource        *ss;
 
     /* Root atoms and objects allocated for the parsed tree. */
     AutoKeepAtoms       keepAtoms;
@@ -369,26 +363,6 @@ class Parser : private AutoGCRooter, public StrictModeGetter
            LazyScript *lazyOuterFunction);
     ~Parser();
 
-    // A Parser::Mark is the extension of the LifoAlloc::Mark to the entire
-    // Parser's state. Note: clients must still take care that any ParseContext
-    // that points into released ParseNodes is destroyed.
-    class Mark
-    {
-        friend class Parser;
-        LifoAlloc::Mark mark;
-        ObjectBox *traceListHead;
-    };
-    Mark mark() const {
-        Mark m;
-        m.mark = alloc.mark();
-        m.traceListHead = traceListHead;
-        return m;
-    }
-    void release(Mark m) {
-        alloc.release(m.mark);
-        traceListHead = m.traceListHead;
-    }
-
     friend void js::frontend::MarkParser(JSTracer *trc, AutoGCRooter *parser);
 
     const char *getFilename() const { return tokenStream.getFilename(); }
@@ -405,7 +379,7 @@ class Parser : private AutoGCRooter, public StrictModeGetter
      */
     ObjectBox *newObjectBox(JSObject *obj);
     ModuleBox *newModuleBox(Module *module, ParseContext<ParseHandler> *pc);
-    FunctionBox *newFunctionBox(Node fn, JSFunction *fun, ParseContext<ParseHandler> *pc,
+    FunctionBox *newFunctionBox(JSFunction *fun, ParseContext<ParseHandler> *pc,
                                 Directives directives);
 
     /*
@@ -435,7 +409,7 @@ class Parser : private AutoGCRooter, public StrictModeGetter
 
     /* Public entry points for parsing. */
     Node statement(bool canHaveDirectives = false);
-    bool maybeParseDirective(Node list, Node pn, bool *cont);
+    bool maybeParseDirective(Node pn, bool *cont);
 
     // Parse a function, given only its body. Used for the Function constructor.
     Node standaloneFunctionBody(HandleFunction fun, const AutoNameVector &formals,
@@ -612,8 +586,6 @@ class Parser : private AutoGCRooter, public StrictModeGetter
                        FunctionSyntaxKind kind = Expression);
 
     TokenPos pos() const { return tokenStream.currentToken().pos; }
-
-    bool asmJS(Node list);
 
     friend class CompExprTransplanter;
     friend class GenexpGuard<ParseHandler>;

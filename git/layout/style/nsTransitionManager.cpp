@@ -219,13 +219,13 @@ static void ReparentBeforeAndAfter(dom::Element* aElement,
     nsRefPtr<nsStyleContext> beforeStyle =
       aStyleSet->ReparentStyleContext(before->StyleContext(),
                                      aNewStyle, aElement);
-    before->SetStyleContext(beforeStyle);
+    before->SetStyleContextWithoutNotification(beforeStyle);
   }
   if (nsIFrame* after = nsLayoutUtils::GetBeforeFrame(aPrimaryFrame)) {
     nsRefPtr<nsStyleContext> afterStyle =
       aStyleSet->ReparentStyleContext(after->StyleContext(),
                                      aNewStyle, aElement);
-    after->SetStyleContext(afterStyle);
+    after->SetStyleContextWithoutNotification(afterStyle);
   }
 }
 
@@ -318,7 +318,7 @@ nsTransitionManager::UpdateThrottledStyle(dom::Element* aElement,
   aChangeList.AppendChange(primaryFrame, primaryFrame->GetContent(),
                            styleChange);
 
-  primaryFrame->SetStyleContext(newStyle);
+  primaryFrame->SetStyleContextWithoutNotification(newStyle);
 
   ReparentBeforeAndAfter(aElement, primaryFrame, newStyle, mPresContext->PresShell()->StyleSet());
 
@@ -358,7 +358,7 @@ nsTransitionManager::UpdateThrottledStylesForSubtree(nsIContent* aContent,
 
     newStyle = styleSet->ReparentStyleContext(primaryFrame->StyleContext(),
                                               aParentStyle, element);
-    primaryFrame->SetStyleContext(newStyle);
+    primaryFrame->SetStyleContextWithoutNotification(newStyle);
     ReparentBeforeAndAfter(element, primaryFrame, newStyle, styleSet);
   }
 
@@ -430,9 +430,10 @@ nsTransitionManager::UpdateAllThrottledStyles()
     }
   }
 
-  RestyleManager* restyleManager = mPresContext->RestyleManager();
-  restyleManager->ProcessRestyledFrames(changeList);
-  restyleManager->FlushOverflowChangedTracker();
+  mPresContext->PresShell()->FrameConstructor()->
+    ProcessRestyledFrames(changeList);
+  mPresContext->PresShell()->FrameConstructor()->
+    FlushOverflowChangedTracker();
 }
 
 void

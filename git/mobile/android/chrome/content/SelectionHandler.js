@@ -237,10 +237,7 @@ var SelectionHandler = {
       return this._contentWindow.getSelection();
   },
 
-  getSelectedText: function sh_getSelectedText() {
-    if (!this._contentWindow)
-      return "";
-
+  _getSelectedText: function sh_getSelectedText() {
     let selection = this._getSelection();
     if (selection)
       return selection.toString().trim();
@@ -376,7 +373,7 @@ var SelectionHandler = {
   },
 
   copySelection: function sh_copySelection() {
-    let selectedText = this.getSelectedText();
+    let selectedText = this._getSelectedText();
     if (selectedText.length) {
       let clipboard = Cc["@mozilla.org/widget/clipboardhelper;1"].getService(Ci.nsIClipboardHelper);
       clipboard.copyString(selectedText, this._contentWindow.document);
@@ -386,21 +383,12 @@ var SelectionHandler = {
   },
 
   shareSelection: function sh_shareSelection() {
-    let selectedText = this.getSelectedText();
+    let selectedText = this._getSelectedText();
     if (selectedText.length) {
       sendMessageToJava({
         type: "Share:Text",
         text: selectedText
       });
-    }
-    this._closeSelection();
-  },
-
-  searchSelection: function sh_searchSelection() {
-    let selectedText = this._getSelectedText();
-    if (selectedText.length) {
-      let req = Services.search.defaultEngine.getSubmission(selectedText);
-      BrowserApp.selectOrOpenTab(req.uri.spec);
     }
     this._closeSelection();
   },

@@ -37,8 +37,8 @@ static nsCellMap::CellDataArray * sEmptyRow;
 CellData::CellData(nsTableCellFrame* aOrigCell)
 {
   MOZ_COUNT_CTOR(CellData);
-  static_assert(sizeof(mOrigCell) == sizeof(mBits),
-                "mOrigCell and mBits must be the same size");
+  MOZ_STATIC_ASSERT(sizeof(mOrigCell) == sizeof(mBits),
+                    "mOrigCell and mBits must be the same size");
   mOrigCell = aOrigCell;
 }
 

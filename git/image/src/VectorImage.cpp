@@ -510,9 +510,6 @@ VectorImage::GetIntrinsicSize(nsSize* aSize)
     return NS_ERROR_FAILURE;
 
   nsIFrame* rootFrame = mSVGDocumentWrapper->GetRootLayoutFrame();
-  if (!rootFrame)
-    return NS_ERROR_FAILURE;
-
   *aSize = nsSize(-1, -1);
   nsIFrame::IntrinsicSize rfSize = rootFrame->GetIntrinsicSize();
   if (rfSize.width.GetUnit() == eStyleUnit_Coord)
@@ -532,9 +529,6 @@ VectorImage::GetIntrinsicRatio(nsSize* aRatio)
     return NS_ERROR_FAILURE;
 
   nsIFrame* rootFrame = mSVGDocumentWrapper->GetRootLayoutFrame();
-  if (!rootFrame)
-    return NS_ERROR_FAILURE;
-
   *aRatio = rootFrame->GetIntrinsicRatio();
   return NS_OK;
 }

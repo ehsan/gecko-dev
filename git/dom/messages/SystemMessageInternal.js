@@ -49,8 +49,8 @@ function debug(aMsg) {
 
 
 let defaultMessageConfigurator = {
-  get mustShowRunningApp() {
-    return false;
+  get safeToSendBeforeRunningApp() {
+    return true;
   }
 };
 
@@ -168,7 +168,7 @@ SystemMessageInternal.prototype = {
     return page;
   },
 
-  sendMessage: function sendMessage(aType, aMessage, aPageURI, aManifestURI, aExtra) {
+  sendMessage: function sendMessage(aType, aMessage, aPageURI, aManifestURI) {
     // Buffer system messages until the webapps' registration is ready,
     // so that we can know the correct pages registered to be sent.
     if (!this._webappsRegistryReady) {
@@ -176,8 +176,7 @@ SystemMessageInternal.prototype = {
                                    type: aType,
                                    msg: aMessage,
                                    pageURI: aPageURI,
-                                   manifestURI: aManifestURI,
-                                   extra: aExtra });
+                                   manifestURI: aManifestURI });
       return;
     }
 
@@ -186,15 +185,13 @@ SystemMessageInternal.prototype = {
     let messageID = gUUIDGenerator.generateUUID().toString();
 
     debug("Sending " + aType + " " + JSON.stringify(aMessage) +
-      " for " + aPageURI.spec + " @ " + aManifestURI.spec +
-      '; extra: ' + JSON.stringify(aExtra));
+      " for " + aPageURI.spec + " @ " + aManifestURI.spec);
 
     let result = this._sendMessageCommon(aType,
                                          aMessage,
                                          messageID,
                                          aPageURI.spec,
-                                         aManifestURI.spec,
-                                         aExtra);
+                                         aManifestURI.spec);
     debug("Returned status of sending message: " + result);
 
     // Don't need to open the pages and queue the system message
@@ -208,18 +205,20 @@ SystemMessageInternal.prototype = {
       // Queue this message in the corresponding pages.
       this._queueMessage(page, aMessage, messageID);
 
-      this._openAppPage(page, aMessage, aExtra, result);
+        if (result === MSG_SENT_FAILURE_APP_NOT_RUNNING) {
+          // Don't open the page again if we already sent the message to it.
+          this._openAppPage(page, aMessage);
+        }
     }
   },
 
-  broadcastMessage: function broadcastMessage(aType, aMessage, aExtra) {
+  broadcastMessage: function broadcastMessage(aType, aMessage) {
     // Buffer system messages until the webapps' registration is ready,
     // so that we can know the correct pages registered to be broadcasted.
     if (!this._webappsRegistryReady) {
       this._bufferedSysMsgs.push({ how: "broadcast",
                                    type: aType,
-                                   msg: aMessage,
-                                   extra: aExtra });
+                                   msg: aMessage });
       return;
     }
 
@@ -227,8 +226,7 @@ SystemMessageInternal.prototype = {
     // clean it up from the pending message queue when apps receive it.
     let messageID = gUUIDGenerator.generateUUID().toString();
 
-    debug("Broadcasting " + aType + " " + JSON.stringify(aMessage) +
-      '; extra = ' + JSON.stringify(aExtra));
+    debug("Broadcasting " + aType + " " + JSON.stringify(aMessage));
     // Find pages that registered an handler for this type.
     this._pages.forEach(function(aPage) {
       if (aPage.type == aType) {
@@ -236,8 +234,7 @@ SystemMessageInternal.prototype = {
                                              aMessage,
                                              messageID,
                                              aPage.uri,
-                                             aPage.manifest,
-                                             aExtra);
+                                             aPage.manifest);
         debug("Returned status of sending message: " + result);
 
 
@@ -250,7 +247,10 @@ SystemMessageInternal.prototype = {
         // Queue this message in the corresponding pages.
         this._queueMessage(aPage, aMessage, messageID);
 
-        this._openAppPage(aPage, aMessage, aExtra, result);
+        if (result === MSG_SENT_FAILURE_APP_NOT_RUNNING) {
+          // Open app pages to handle their pending messages.
+          this._openAppPage(aPage, aMessage);
+        }
       }
     }, this);
   },
@@ -503,10 +503,10 @@ SystemMessageInternal.prototype = {
           switch (aSysMsg.how) {
             case "send":
               this.sendMessage(
-                aSysMsg.type, aSysMsg.msg, aSysMsg.pageURI, aSysMsg.manifestURI, aSysMsg.extra);
+                aSysMsg.type, aSysMsg.msg, aSysMsg.pageURI, aSysMsg.manifestURI);
               break;
             case "broadcast":
-              this.broadcastMessage(aSysMsg.type, aSysMsg.msg, aSysMsg.extra);
+              this.broadcastMessage(aSysMsg.type, aSysMsg.msg);
               break;
           }
         }, this);
@@ -524,28 +524,12 @@ SystemMessageInternal.prototype = {
     }
   },
 
-  _openAppPage: function _openAppPage(aPage, aMessage, aExtra, aMsgSentStatus) {
-    // This means the app must be brought to the foreground.
-    let showApp = this._getMessageConfigurator(aPage.type).mustShowRunningApp;
-
-    // We should send the open-app message if the system message was
-    // not sent, or if it was sent but we should show the app anyway.
-    if ((aMsgSentStatus === MSG_SENT_SUCCESS) && !showApp) {
-      return;
-    }
-
-    // This flag means the app must *only* be brought to the foreground
-    // and we don't need to load the app to handle messages.
-    let onlyShowApp = (aMsgSentStatus === MSG_SENT_SUCCESS) && showApp;
-
+  _openAppPage: function _openAppPage(aPage, aMessage) {
     // We don't need to send the full object to observers.
     let page = { uri: aPage.uri,
                  manifest: aPage.manifest,
                  type: aPage.type,
-                 extra: aExtra,
-                 target: aMessage.target,
-                 onlyShowApp: onlyShowApp,
-                 showApp: showApp };
+                 target: aMessage.target };
     debug("Asking to open " + JSON.stringify(page));
     Services.obs.notifyObservers(this, "system-messages-open-app", JSON.stringify(page));
   },
@@ -575,7 +559,7 @@ SystemMessageInternal.prototype = {
   },
 
   _sendMessageCommon:
-    function _sendMessageCommon(aType, aMessage, aMessageID, aPageURI, aManifestURI, aExtra) {
+    function _sendMessageCommon(aType, aMessage, aMessageID, aPageURI, aManifestURI) {
     // Don't send the system message not granted by the app's permissions.
     if (!SystemMessagePermissionsChecker
           .isSystemMessagePermittedToSend(aType,
@@ -589,34 +573,40 @@ SystemMessageInternal.prototype = {
                                            manifest: aManifestURI,
                                            uri: aPageURI });
 
-    let targets = this._listeners[aManifestURI];
-    if (targets) {
-      for (let index = 0; index < targets.length; ++index) {
-        let target = targets[index];
-        // We only need to send the system message to the targets (processes)
-        // which contain the window page that matches the manifest/page URL of
-        // the destination of system message.
-        if (target.winCounts[aPageURI] === undefined) {
-          continue;
+    // Tries to send the message to a previously opened app only if it's safe
+    // to do so. Generically, it's safe to send the message if the app isn't
+    // going to be reloaded. And it's not safe otherwise
+    if (this._getMessageConfigurator(aType).safeToSendBeforeRunningApp) {
+
+      let targets = this._listeners[aManifestURI];
+      if (targets) {
+        for (let index = 0; index < targets.length; ++index) {
+          let target = targets[index];
+          // We only need to send the system message to the targets (processes)
+          // which contain the window page that matches the manifest/page URL of
+          // the destination of system message.
+          if (target.winCounts[aPageURI] === undefined) {
+            continue;
+          }
+
+          appPageIsRunning = true;
+          // We need to acquire a CPU wake lock for that page and expect that
+          // we'll receive a "SystemMessageManager:HandleMessagesDone" message
+          // when the page finishes handling the system message. At that point,
+          // we'll release the lock we acquired.
+          this._acquireCpuWakeLock(pageKey);
+
+          // Multiple windows can share the same target (process), the content
+          // window needs to check if the manifest/page URL is matched. Only
+          // *one* window should handle the system message.
+          let manager = target.target;
+          manager.sendAsyncMessage("SystemMessageManager:Message",
+                                   { type: aType,
+                                     msg: aMessage,
+                                     manifest: aManifestURI,
+                                     uri: aPageURI,
+                                     msgID: aMessageID });
         }
-
-        appPageIsRunning = true;
-        // We need to acquire a CPU wake lock for that page and expect that
-        // we'll receive a "SystemMessageManager:HandleMessagesDone" message
-        // when the page finishes handling the system message. At that point,
-        // we'll release the lock we acquired.
-        this._acquireCpuWakeLock(pageKey);
-
-        // Multiple windows can share the same target (process), the content
-        // window needs to check if the manifest/page URL is matched. Only
-        // *one* window should handle the system message.
-        let manager = target.target;
-        manager.sendAsyncMessage("SystemMessageManager:Message",
-                                 { type: aType,
-                                   msg: aMessage,
-                                   manifest: aManifestURI,
-                                   uri: aPageURI,
-                                   msgID: aMessageID });
       }
     }
 

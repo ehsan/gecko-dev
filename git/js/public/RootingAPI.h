@@ -11,6 +11,7 @@
 #include "mozilla/TypeTraits.h"
 
 #include "js/Utility.h"
+#include "js/TemplateLib.h"
 
 #include "jspubtd.h"
 
@@ -169,27 +170,29 @@ struct JS_PUBLIC_API(NullPtr)
 };
 
 /*
- * The Heap<T> class is a C/C++ heap-stored reference to a JS GC thing.  All
- * members of heap classes that refer to GC thing should use Heap<T> (or
- * possibly TenuredHeap<T>, described below).
+ * An encapsulated pointer class for heap based GC thing pointers.
  *
- * Heap<T> wraps the complex mechanisms required to ensure GC safety for the
- * contained reference into a C++ class that behaves similarly to a normal
- * pointer.
+ * This implements post-barriers for GC thing pointers stored on the heap. It is
+ * designed to be used for all heap-based GC thing pointers outside the JS
+ * engine.
  *
- * GC references stored on the C/C++ stack must use Rooted/Handle/MutableHandle
- * instead.
+ * The template parameter T must be a JS GC thing pointer, masked pointer or
+ * possible pointer, such as a JS::Value or jsid.
  *
- * Requirements for type T:
- *  - Must be one of: Value, jsid, JSObject*, JSString*, JSScript*
+ * The class must be used to declare data members of heap classes only.
+ * Stack-based GC thing pointers should used Rooted<T>.
+ *
+ * Write barriers are implemented by overloading the assingment operator.
+ * Assiging to a Heap<T> triggers the appropriate calls into the GC to notify it
+ * of the change.
  */
 template <typename T>
 class Heap : public js::HeapBase<T>
 {
   public:
     Heap() {
-        static_assert(sizeof(T) == sizeof(Heap<T>),
-                      "Heap<T> must be binary compatible with T.");
+        MOZ_STATIC_ASSERT(sizeof(T) == sizeof(Heap<T>),
+                          "Heap<T> must be binary compatible with T.");
         init(js::GCMethods<T>::initial());
     }
     explicit Heap(T p) { init(p); }
@@ -255,117 +258,6 @@ class Heap : public js::HeapBase<T>
     T ptr;
 };
 
-#ifdef DEBUG
-/*
- * For generational GC, assert that an object is in the tenured generation as
- * opposed to being in the nursery.
- */
-extern JS_FRIEND_API(void)
-AssertGCThingMustBeTenured(JSObject* obj);
-#else
-inline void
-AssertGCThingMustBeTenured(JSObject *obj) {}
-#endif
-
-/*
- * The TenuredHeap<T> class is similar to the Heap<T> class above in that it
- * encapsulates the GC concerns of an on-heap reference to a JS object. However,
- * it has two important differences:
- *
- *  1) Pointers which are statically known to only reference "tenured" objects
- *     can avoid the extra overhead of SpiderMonkey's write barriers.
- *
- *  2) Objects in the "tenured" heap have stronger alignment restrictions than
- *     those in the "nursery", so it is possible to store flags in the lower
- *     bits of pointers known to be tenured. TenuredHeap wraps a normal tagged
- *     pointer with a nice API for accessing the flag bits and adds various
- *     assertions to ensure that it is not mis-used.
- *
- * GC things are said to be "tenured" when they are located in the long-lived
- * heap: e.g. they have gained tenure as an object by surviving past at least
- * one GC. For performance, SpiderMonkey allocates some things which are known
- * to normally be long lived directly into the tenured generation; for example,
- * global objects. Additionally, SpiderMonkey does not visit individual objects
- * when deleting non-tenured objects, so object with finalizers are also always
- * tenured; for instance, this includes most DOM objects.
- *
- * The considerations to keep in mind when using a TenuredHeap<T> vs a normal
- * Heap<T> are:
- *
- *  - It is invalid for a TenuredHeap<T> to refer to a non-tenured thing.
- *  - It is however valid for a Heap<T> to refer to a tenured thing.
- *  - It is not possible to store flag bits in a Heap<T>.
- */
-template <typename T>
-class TenuredHeap : public js::HeapBase<T>
-{
-  public:
-    TenuredHeap() : bits(0) {
-        static_assert(sizeof(T) == sizeof(TenuredHeap<T>),
-                      "TenuredHeap<T> must be binary compatible with T.");
-    }
-    explicit TenuredHeap(T p) : bits(0) { setPtr(p); }
-    explicit TenuredHeap(const TenuredHeap<T> &p) : bits(0) { setPtr(p.ptr); }
-
-    bool operator==(const TenuredHeap<T> &other) { return bits == other.bits; }
-    bool operator!=(const TenuredHeap<T> &other) { return bits != other.bits; }
-
-    void setPtr(T newPtr) {
-        JS_ASSERT((reinterpret_cast<uintptr_t>(newPtr) & flagsMask) == 0);
-        JS_ASSERT(!js::GCMethods<T>::poisoned(newPtr));
-        if (newPtr)
-            AssertGCThingMustBeTenured(newPtr);
-        bits = (bits & flagsMask) | reinterpret_cast<uintptr_t>(newPtr);
-    }
-
-    void setFlags(uintptr_t flagsToSet) {
-        JS_ASSERT((flagsToSet & ~flagsMask) == 0);
-        bits |= flagsToSet;
-    }
-
-    void unsetFlags(uintptr_t flagsToUnset) {
-        JS_ASSERT((flagsToUnset & ~flagsMask) == 0);
-        bits &= ~flagsToUnset;
-    }
-
-    bool hasFlag(uintptr_t flag) const {
-        JS_ASSERT((flag & ~flagsMask) == 0);
-        return (bits & flag) != 0;
-    }
-
-    T getPtr() const { return reinterpret_cast<T>(bits & ~flagsMask); }
-    uintptr_t getFlags() const { return bits & flagsMask; }
-
-    operator T() const { return getPtr(); }
-    T operator->() const { return getPtr(); }
-
-    TenuredHeap<T> &operator=(T p) {
-        setPtr(p);
-        return *this;
-    }
-
-    /*
-     * Set the pointer to a value which will cause a crash if it is
-     * dereferenced.
-     */
-    void setToCrashOnTouch() {
-        bits = (bits & flagsMask) | crashOnTouchPointer;
-    }
-
-    bool isSetToCrashOnTouch() {
-        return (bits & ~flagsMask) == crashOnTouchPointer;
-    }
-
-  private:
-    enum {
-        maskBits = 3,
-        flagsMask = (1 << maskBits) - 1,
-        crashOnTouchPointer = 1 << maskBits
-    };
-
-    uintptr_t bits;
-};
-
 /*
  * Reference to a T that has been rooted elsewhere. This is most useful
  * as a parameter type, which guarantees that the T lvalue is properly
@@ -385,22 +277,22 @@ class MOZ_NONHEAP_CLASS Handle : public js::HandleBase<T>
     Handle(Handle<S> handle,
            typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy = 0)
     {
-        static_assert(sizeof(Handle<T>) == sizeof(T *),
-                      "Handle must be binary compatible with T*.");
+        MOZ_STATIC_ASSERT(sizeof(Handle<T>) == sizeof(T *),
+                          "Handle must be binary compatible with T*.");
         ptr = reinterpret_cast<const T *>(handle.address());
     }
 
     /* Create a handle for a NULL pointer. */
     Handle(js::NullPtr) {
-        static_assert(mozilla::IsPointer<T>::value,
-                      "js::NullPtr overload not valid for non-pointer types");
+        MOZ_STATIC_ASSERT(mozilla::IsPointer<T>::value,
+                          "js::NullPtr overload not valid for non-pointer types");
         ptr = reinterpret_cast<const T *>(&js::NullPtr::constNullValue);
     }
 
     /* Create a handle for a NULL pointer. */
     Handle(JS::NullPtr) {
-        static_assert(mozilla::IsPointer<T>::value,
-                      "JS::NullPtr overload not valid for non-pointer types");
+        MOZ_STATIC_ASSERT(mozilla::IsPointer<T>::value,
+                          "JS::NullPtr overload not valid for non-pointer types");
         ptr = reinterpret_cast<const T *>(&JS::NullPtr::constNullValue);
     }
 
@@ -408,20 +300,16 @@ class MOZ_NONHEAP_CLASS Handle : public js::HandleBase<T>
         ptr = handle.address();
     }
 
+    Handle(const Heap<T> &heapPtr) {
+        ptr = heapPtr.address();
+    }
+
     /*
-     * Take care when calling this method!
+     * This may be called only if the location of the T is guaranteed
+     * to be marked (for some reason other than being a Rooted),
+     * e.g., if it is guaranteed to be reachable from an implicit root.
      *
-     * This creates a Handle from the raw location of a T.
-     *
-     * It should be called only if the following conditions hold:
-     *
-     *  1) the location of the T is guaranteed to be marked (for some reason
-     *     other than being a Rooted), e.g., if it is guaranteed to be reachable
-     *     from an implicit root.
-     *
-     *  2) the contents of the location are immutable, or at least cannot change
-     *     for the lifetime of the handle, as its users may not expect its value
-     *     to change underneath them.
+     * Create a Handle from a raw location of a T.
      */
     static Handle fromMarkedLocation(const T *p) {
         Handle h;
@@ -518,8 +406,8 @@ class MOZ_STACK_CLASS MutableHandle : public js::MutableHandleBase<T>
 
     T *ptr;
 
-    template <typename S> void operator=(S v) MOZ_DELETE;
-    void operator=(MutableHandle other) MOZ_DELETE;
+    template <typename S>
+    void operator=(S v) MOZ_DELETE;
 };
 
 typedef MutableHandle<JSObject*>   MutableHandleObject;
@@ -1034,8 +922,8 @@ template <typename T>
 inline
 MutableHandle<T>::MutableHandle(Rooted<T> *root)
 {
-    static_assert(sizeof(MutableHandle<T>) == sizeof(T *),
-                  "MutableHandle must be binary compatible with T*.");
+    MOZ_STATIC_ASSERT(sizeof(MutableHandle<T>) == sizeof(T *),
+                      "MutableHandle must be binary compatible with T*.");
     ptr = root->address();
 }
 

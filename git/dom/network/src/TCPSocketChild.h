@@ -47,9 +47,8 @@ public:
                             const CallbackData& aData,
                             const nsString& aReadyState,
                             const uint32_t& aBuffered) MOZ_OVERRIDE;
-  virtual bool RecvRequestDelete() MOZ_OVERRIDE;
 private:
-  JSObject* mWindowObj;
+  JSObject* mSocketObj;
 };
 
 } // namespace dom

@@ -26,8 +26,6 @@ public class StringUtils {
      * wasSearchQuery is returned
     */
     public static boolean isSearchQuery(String text, boolean wasSearchQuery) {
-        // We remove leading and trailing white spaces when decoding URLs
-        text = text.trim();
         if (text.length() == 0)
             return wasSearchQuery;
 

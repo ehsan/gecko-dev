@@ -19,6 +19,7 @@
 #include "nsIDOMGeoPositionError.h"
 #include "nsIDOMGeoPositionCallback.h"
 #include "nsIDOMGeoPositionErrorCallback.h"
+#include "nsIDOMNavigatorGeolocation.h"
 #include "nsIDOMGeoPositionCoords.h"
 
 #include "nsPIDOMWindow.h"

@@ -7,10 +7,9 @@
 #ifndef ion_Compactbuffer_h
 #define ion_Compactbuffer_h
 
-#include "jsalloc.h"
-
-#include "ion/IonTypes.h"
 #include "js/Vector.h"
+#include "jsalloc.h"
+#include "ion/IonTypes.h"
 
 namespace js {
 namespace ion {

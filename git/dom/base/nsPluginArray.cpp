@@ -282,7 +282,8 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsPluginElement)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(nsPluginElement, mMimeTypes)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(nsPluginElement,
+                                        mMimeTypes)
 
 nsPluginElement::nsPluginElement(nsWeakPtr aWindow,
                                  nsPluginTag* aPluginTag)
@@ -290,6 +291,13 @@ nsPluginElement::nsPluginElement(nsWeakPtr aWindow,
     mPluginTag(aPluginTag)
 {
   SetIsDOMBinding();
+}
+
+nsPluginElement::~nsPluginElement()
+{
+  for (uint32_t i = 0; i < mMimeTypes.Length(); ++i) {
+    mMimeTypes[i]->Invalidate();
+  }
 }
 
 nsPIDOMWindow*

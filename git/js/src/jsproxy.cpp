@@ -13,10 +13,8 @@
 #include "jsfun.h"
 #include "jsgc.h"
 #include "jsprvtd.h"
-#include "jswrapper.h"
 
 #include "gc/Marking.h"
-#include "vm/WrapperObject.h"
 
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
@@ -2419,7 +2417,7 @@ js::AppendUnique(JSContext *cx, AutoIdVector &base, AutoIdVector &others)
         if (unique)
             uniqueOthers.append(others[i]);
     }
-    return base.appendAll(uniqueOthers);
+    return base.append(uniqueOthers);
 }
 
 bool
@@ -2685,12 +2683,7 @@ Proxy::objectClassIs(HandleObject proxy, ESClassValue classValue, JSContext *cx)
 const char *
 Proxy::className(JSContext *cx, HandleObject proxy)
 {
-    // Check for unbounded recursion, but don't signal an error; className
-    // needs to be infallible.
-    int stackDummy;
-    if (!JS_CHECK_STACK_SIZE(cx->mainThread().nativeStackLimit, &stackDummy))
-        return "too much recursion";
-
+    JS_CHECK_RECURSION(cx, return NULL);
     BaseProxyHandler *handler = proxy->as<ProxyObject>().handler();
     AutoEnterPolicy policy(cx, handler, proxy, JS::JSID_VOIDHANDLE,
                            BaseProxyHandler::GET, /* mayThrow = */ false);
@@ -3010,7 +3003,7 @@ ProxyObject::trace(JSTracer *trc, JSObject *obj)
     ProxyObject *proxy = &obj->as<ProxyObject>();
 
 #ifdef DEBUG
-    if (!trc->runtime->gcDisableStrictProxyCheckingCount && proxy->is<WrapperObject>()) {
+    if (!trc->runtime->gcDisableStrictProxyCheckingCount && proxy->isWrapper()) {
         JSObject *referent = &proxy->private_().toObject();
         if (referent->compartment() != proxy->compartment()) {
             /*
@@ -3033,7 +3026,7 @@ ProxyObject::trace(JSTracer *trc, JSObject *obj)
      * The GC can use the second reserved slot to link the cross compartment
      * wrappers into a linked list, in which case we don't want to trace it.
      */
-    if (!proxy->is<CrossCompartmentWrapperObject>())
+    if (!IsCrossCompartmentWrapper(proxy))
         MarkSlot(trc, proxy->slotOfExtra(1), "extra1");
 }
 

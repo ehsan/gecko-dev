@@ -310,11 +310,8 @@
          noautofocus="true"
          position="before_start">
     <vbox>
-      <hbox>
-        <label id="filter-label"/>
-      </hbox>
-      <label id="searchbox-panel-operators"
-             value="&debuggerUI.searchPanelOperators;"/>
+      <label id="searchbox-panel-description"
+             value="&debuggerUI.searchPanelTitle;"/>
       <hbox align="center">
         <button id="global-operator-button"
                 class="searchbox-panel-operator-button"

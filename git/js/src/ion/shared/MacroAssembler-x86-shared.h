@@ -7,18 +7,17 @@
 #ifndef ion_shared_MacroAssembler_x86_shared_h
 #define ion_shared_MacroAssembler_x86_shared_h
 
-#include "mozilla/Casting.h"
 #include "mozilla/DebugOnly.h"
 
+#ifdef JS_CPU_X86
+# include "ion/x86/Assembler-x86.h"
+#elif JS_CPU_X64
+# include "ion/x64/Assembler-x64.h"
+#endif
+#include "ion/IonFrames.h"
 #include "jsopcode.h"
 
 #include "ion/IonCaches.h"
-#include "ion/IonFrames.h"
-#if defined(JS_CPU_X86)
-# include "ion/x86/Assembler-x86.h"
-#elif defined(JS_CPU_X64)
-# include "ion/x64/Assembler-x64.h"
-#endif
 
 namespace js {
 namespace ion {
@@ -405,12 +404,6 @@ class MacroAssemblerX86Shared : public Assembler
         // worthwhile in cases where a load is likely to be delayed.
 
         return false;
-    }
-
-    void convertBoolToInt32(Register source, Register dest) {
-        // Note that C++ bool is only 1 byte, so zero extend it to clear the
-        // higher-order bits.
-        movzxbl(source, dest);
     }
 
     void emitSet(Assembler::Condition cond, const Register &dest,

@@ -77,11 +77,6 @@ public:
   static nsIContent* FindContentFor(ViewID aId);
 
   /**
-   * Find the scrollable frame for a given ID.
-   */
-  static nsIScrollableFrame* FindScrollableFrameFor(ViewID aId);
-
-  /**
    * Get display port for the given element.
    */
   static bool GetDisplayPort(nsIContent* aContent, nsRect *aResult);
@@ -531,28 +526,19 @@ public:
                                      nsTArray<ViewID> &aOutIDs,
                                      bool aIgnoreRootScrollFrame);
 
-  enum FrameForPointFlags {
-    /**
-     * When set, paint suppression is ignored, so we'll return non-root page
-     * elements even if paint suppression is stopping them from painting.
-     */
-    IGNORE_PAINT_SUPPRESSION = 0x01,
-    /**
-     * When set, clipping due to the root scroll frame (and any other viewport-
-     * related clipping) is ignored.
-     */
-    IGNORE_ROOT_SCROLL_FRAME = 0x02
-  };
-
   /**
    * Given aFrame, the root frame of a stacking context, find its descendant
    * frame under the point aPt that receives a mouse event at that location,
    * or nullptr if there is no such frame.
    * @param aPt the point, relative to the frame origin
-   * @param aFlags some combination of FrameForPointFlags
+   * @param aShouldIgnoreSuppression a boolean to control if the display
+   * list builder should ignore paint suppression or not
+   * @param aIgnoreRootScrollFrame whether or not the display list builder
+   * should ignore the root scroll frame.
    */
   static nsIFrame* GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt,
-                                    uint32_t aFlags = 0);
+                                    bool aShouldIgnoreSuppression = false,
+                                    bool aIgnoreRootScrollFrame = false);
 
   /**
    * Given aFrame, the root frame of a stacking context, find all descendant
@@ -560,11 +546,15 @@ public:
    * or nullptr if there is no such frame.
    * @param aRect the rect, relative to the frame origin
    * @param aOutFrames an array to add all the frames found
-   * @param aFlags some combination of FrameForPointFlags
+   * @param aShouldIgnoreSuppression a boolean to control if the display
+   * list builder should ignore paint suppression or not
+   * @param aIgnoreRootScrollFrame whether or not the display list builder
+   * should ignore the root scroll frame.
    */
   static nsresult GetFramesForArea(nsIFrame* aFrame, const nsRect& aRect,
                                    nsTArray<nsIFrame*> &aOutFrames,
-                                   uint32_t aFlags = 0);
+                                   bool aShouldIgnoreSuppression = false,
+                                   bool aIgnoreRootScrollFrame = false);
 
   /**
    * Transform aRect relative to aAncestor down to the coordinate system of
@@ -577,13 +567,10 @@ public:
   /**
    * Transform aRect relative to aFrame up to the coordinate system of
    * aAncestor. Computes the bounding-box of the true quadrilateral.
-   * Pass non-null aPreservesAxisAlignedRectangles and it will be set to true if
-   * we only need to use a 2d transform that PreservesAxisAlignedRectangles().
    */
   static nsRect TransformFrameRectToAncestor(nsIFrame* aFrame,
                                              const nsRect& aRect,
-                                             const nsIFrame* aAncestor,
-                                             bool* aPreservesAxisAlignedRectangles = nullptr);
+                                             const nsIFrame* aAncestor);
 
 
   /**
@@ -1634,11 +1621,6 @@ public:
    * Checks whether we want to layerize animated images whenever possible.
    */
   static bool AnimatedImageLayersEnabled();
-
-  /**
-   * Checks if we should enable parsing for CSS Filters.
-   */
-  static bool CSSFiltersEnabled();
 
   /**
    * Unions the overflow areas of all non-popup children of aFrame with

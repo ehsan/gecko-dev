@@ -14,25 +14,24 @@
 #include "mozilla/PodOperations.h"
 #include "mozilla/RangedPtr.h"
 
+#include "double-conversion.h"
+
 #ifdef XP_OS2
 #define _PC_53  PC_53
 #define _MCW_EM MCW_EM
 #define _MCW_PC MCW_PC
 #endif
-
 #include <locale.h>
 #include <math.h>
 #include <string.h>
 
-#include "double-conversion.h"
+#include "jstypes.h"
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jscntxt.h"
 #include "jsdtoa.h"
 #include "jsobj.h"
 #include "jsstr.h"
-#include "jstypes.h"
-
 #include "vm/GlobalObject.h"
 #include "vm/NumericConversions.h"
 #include "vm/StringBuffer.h"
@@ -243,7 +242,7 @@ num_isNaN(JSContext *cx, unsigned argc, Value *vp)
     }
 
     double x;
-    if (!ToNumber(cx, args[0], &x))
+    if (!ToNumber(cx, args.handleAt(0), &x))
         return false;
 
     args.rval().setBoolean(mozilla::IsNaN(x));
@@ -261,7 +260,7 @@ num_isFinite(JSContext *cx, unsigned argc, Value *vp)
     }
 
     double x;
-    if (!ToNumber(cx, args[0], &x))
+    if (!ToNumber(cx, args.handleAt(0), &x))
         return false;
 
     args.rval().setBoolean(mozilla::IsFinite(x));
@@ -277,7 +276,7 @@ num_parseFloat(JSContext *cx, unsigned argc, Value *vp)
         args.rval().setDouble(js_NaN);
         return JS_TRUE;
     }
-    JSString *str = ToString<CanGC>(cx, args[0]);
+    JSString *str = ToString<CanGC>(cx, args.handleAt(0));
     if (!str)
         return JS_FALSE;
     const jschar *bp = str->getChars(cx);
@@ -344,7 +343,7 @@ js::num_parseInt(JSContext *cx, unsigned argc, Value *vp)
     }
 
     /* Step 1. */
-    RootedString inputString(cx, ToString<CanGC>(cx, args[0]));
+    RootedString inputString(cx, ToString<CanGC>(cx, args.handleAt(0)));
     if (!inputString)
         return false;
     args[0].setString(inputString);
@@ -439,7 +438,7 @@ Number(JSContext *cx, unsigned argc, Value *vp)
     bool isConstructing = args.isConstructing();
 
     if (args.length() > 0) {
-        if (!ToNumber(cx, args[0]))
+        if (!ToNumber(cx, args.handleAt(0)))
             return false;
         args.rval().set(args[0]);
     } else {
@@ -605,7 +604,7 @@ num_toString_impl(JSContext *cx, CallArgs args)
     int32_t base = 10;
     if (args.hasDefined(0)) {
         double d2;
-        if (!ToInteger(cx, args[0], &d2))
+        if (!ToInteger(cx, args.handleAt(0), &d2))
             return false;
 
         if (d2 < 2 || d2 > 36) {
@@ -624,8 +623,8 @@ num_toString_impl(JSContext *cx, CallArgs args)
     return true;
 }
 
-JSBool
-js_num_toString(JSContext *cx, unsigned argc, Value *vp)
+static JSBool
+num_toString(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     return CallNonGenericMethod<IsNumber, num_toString_impl>(cx, args);
@@ -830,7 +829,7 @@ num_toFixed_impl(JSContext *cx, CallArgs args)
     if (args.length() == 0) {
         precision = 0;
     } else {
-        if (!ComputePrecisionInRange(cx, -20, MAX_PRECISION, args[0], &precision))
+        if (!ComputePrecisionInRange(cx, -20, MAX_PRECISION, args.handleAt(0), &precision))
             return false;
     }
 
@@ -856,7 +855,7 @@ num_toExponential_impl(JSContext *cx, CallArgs args)
         precision = 0;
     } else {
         mode = DTOSTR_EXPONENTIAL;
-        if (!ComputePrecisionInRange(cx, 0, MAX_PRECISION, args[0], &precision))
+        if (!ComputePrecisionInRange(cx, 0, MAX_PRECISION, args.handleAt(0), &precision))
             return false;
     }
 
@@ -894,7 +893,7 @@ num_toPrecision_impl(JSContext *cx, CallArgs args)
         precision = 0;
     } else {
         mode = DTOSTR_PRECISION;
-        if (!ComputePrecisionInRange(cx, 1, MAX_PRECISION, args[0], &precision))
+        if (!ComputePrecisionInRange(cx, 1, MAX_PRECISION, args.handleAt(0), &precision))
             return false;
     }
 
@@ -912,7 +911,7 @@ static const JSFunctionSpec number_methods[] = {
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str,       num_toSource,          0, 0),
 #endif
-    JS_FN(js_toString_str,       js_num_toString,       1, 0),
+    JS_FN(js_toString_str,       num_toString,          1, 0),
 #if ENABLE_INTL_API
          {js_toLocaleString_str, {NULL, NULL},           0,0, "Number_toLocaleString"},
 #else
@@ -979,7 +978,7 @@ Number_toInteger(JSContext *cx, unsigned argc, Value *vp)
         return true;
     }
     double asint;
-    if (!ToInteger(cx, args[0], &asint))
+    if (!ToInteger(cx, args.handleAt(0), &asint))
         return false;
     args.rval().setNumber(asint);
     return true;

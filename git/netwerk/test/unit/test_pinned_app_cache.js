@@ -57,14 +57,8 @@ const kManifest2 = "CACHE MANIFEST\n" +
 
 const kDataFileSize = 1024;	// file size for each content page
 const kCacheSize = kDataFileSize * 5; // total space for offline cache storage
-
-XPCOMUtils.defineLazyGetter(this, "kHttpLocation", function() {
-  return "http://localhost:" + httpServer.identity.primaryPort + "/";
-});
-
-XPCOMUtils.defineLazyGetter(this, "kHttpLocation_ip", function() {
-  return "http://127.0.0.1:" + httpServer.identity.primaryPort + "/";
-});
+const kHttpLocation = "http://localhost:4444/";
+const kHttpLocation_ip = "http://127.0.0.1:4444/";
 
 function manifest1_handler(metadata, response) {
   do_print("manifest1\n");
@@ -119,7 +113,7 @@ function init_http_server() {
   for (i = 1; i <= 8; i++) {
     httpServer.registerPathHandler("/pages/foo" + i, datafile_handler);
   }
-  httpServer.start(-1);
+  httpServer.start(4444);
 }
 
 function init_cache_capacity() {

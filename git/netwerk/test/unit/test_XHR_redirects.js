@@ -17,12 +17,8 @@ var sOther;
 const BUGID = "676059";
 const OTHERBUGID = "696849";
 
-XPCOMUtils.defineLazyGetter(this, "pSame", function() {
-  return sSame.identity.primaryPort;
-});
-XPCOMUtils.defineLazyGetter(this, "pOther", function() {
-  return sOther.identity.primaryPort;
-});
+const pSame = 4444;
+const pOther = 4445;
 
 function createXHR(async, method, path)
 {
@@ -67,12 +63,12 @@ function run_test() {
 
   // same-origin target
   sSame.registerPathHandler("/bug" + BUGID + "-target", echoMethod);
-  sSame.start(-1);
+  sSame.start(pSame);
 
   // cross-origin target
   sOther = new HttpServer();
   sOther.registerPathHandler("/bug" + OTHERBUGID + "-target", echoMethod);
-  sOther.start(-1);
+  sOther.start(pOther);
 
   // format: redirectType, methodToSend, redirectedMethod, finalStatus
   //   redirectType sets the URI the initial request goes to

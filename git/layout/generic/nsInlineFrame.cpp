@@ -18,7 +18,7 @@
 #include "nsRenderingContext.h"
 #include "nsCSSAnonBoxes.h"
 #include "nsAutoPtr.h"
-#include "RestyleManager.h"
+#include "nsFrameManager.h"
 #include "nsDisplayList.h"
 #include "mozilla/Likely.h"
 
@@ -284,11 +284,11 @@ ReparentChildListStyle(nsPresContext* aPresContext,
                        const nsFrameList::Slice& aFrames,
                        nsIFrame* aParentFrame)
 {
-  RestyleManager* restyleManager = aPresContext->RestyleManager();
+  nsFrameManager *frameManager = aPresContext->FrameManager();
 
   for (nsFrameList::Enumerator e(aFrames); !e.AtEnd(); e.Next()) {
     NS_ASSERTION(e.get()->GetParent() == aParentFrame, "Bogus parentage");
-    restyleManager->ReparentStyleContext(e.get());
+    frameManager->ReparentStyleContext(e.get());
   }
 }
 
@@ -384,11 +384,11 @@ nsInlineFrame::Reflow(nsPresContext*          aPresContext,
           ReparentFloatsForInlineChild(lineContainer, firstChild, true);
         }
         const bool inFirstLine = aReflowState.mLineLayout->GetInFirstLine();
-        RestyleManager* restyleManager = PresContext()->RestyleManager();
+        nsFrameManager* fm = PresContext()->FrameManager();
         for (nsIFrame* f = firstChild; f; f = f->GetNextSibling()) {
           f->SetParent(this);
           if (inFirstLine) {
-            restyleManager->ReparentStyleContext(f);
+            fm->ReparentStyleContext(f);
           }
         }
       }
@@ -461,7 +461,7 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
 
   nsLineLayout* lineLayout = aReflowState.mLineLayout;
   bool inFirstLine = aReflowState.mLineLayout->GetInFirstLine();
-  RestyleManager* restyleManager = aPresContext->RestyleManager();
+  nsFrameManager* frameManager = aPresContext->FrameManager();
   bool ltr = (NS_STYLE_DIRECTION_LTR == aReflowState.mStyleVisibility->mDirection);
   nscoord leftEdge = 0;
   // Don't offset by our start borderpadding if we have a prev continuation or
@@ -506,7 +506,7 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
         }
         child->SetParent(this);
         if (inFirstLine) {
-          restyleManager->ReparentStyleContext(child);
+          frameManager->ReparentStyleContext(child);
         }
         // We also need to do the same for |frame|'s next-in-flows that are in
         // the sibling list. Otherwise, if we reflow |frame| and it's complete
@@ -540,7 +540,7 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
             if (mFrames.ContainsFrame(nextInFlow)) {
               nextInFlow->SetParent(this);
               if (inFirstLine) {
-                restyleManager->ReparentStyleContext(nextInFlow);
+                frameManager->ReparentStyleContext(nextInFlow);
               }
             }
             else {
@@ -847,7 +847,7 @@ nsInlineFrame::PushFrames(nsPresContext* aPresContext,
 //////////////////////////////////////////////////////////////////////
 
 int
-nsInlineFrame::GetSkipSides(const nsHTMLReflowState* aReflowState) const
+nsInlineFrame::GetSkipSides() const
 {
   int skip = 0;
   if (!IsLeftMost()) {
@@ -990,7 +990,7 @@ nsFirstLineFrame::PullOneFrame(nsPresContext* aPresContext, InlineReflowState& i
     // We are a first-line frame. Fixup the child frames
     // style-context that we just pulled.
     NS_ASSERTION(frame->GetParent() == this, "Incorrect parent?");
-    aPresContext->RestyleManager()->ReparentStyleContext(frame);
+    aPresContext->FrameManager()->ReparentStyleContext(frame);
   }
   return frame;
 }

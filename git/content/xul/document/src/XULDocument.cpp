@@ -1293,15 +1293,16 @@ XULDocument::Persist(const nsAString& aID,
     if (mApplyingPersistedAttrs)
         return NS_OK;
 
-    Element* element = nsDocument::GetElementById(aID);
-    if (!element)
+    nsresult rv;
+
+    nsIContent *element = nsDocument::GetElementById(aID);
+    if (! element)
         return NS_OK;
 
     nsCOMPtr<nsIAtom> tag;
     int32_t nameSpaceID;
 
     nsCOMPtr<nsINodeInfo> ni = element->GetExistingAttrNameFromQName(aAttr);
-    nsresult rv;
     if (ni) {
         tag = ni->NameAtom();
         nameSpaceID = ni->NamespaceID();

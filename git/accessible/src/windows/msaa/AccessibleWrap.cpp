@@ -1617,8 +1617,8 @@ AccessibleWrap::HandleAccEvent(AccEvent* aEvent)
 
   uint32_t eventType = aEvent->GetEventType();
 
-  static_assert(sizeof(gWinEventMap)/sizeof(gWinEventMap[0]) == nsIAccessibleEvent::EVENT_LAST_ENTRY,
-                "MSAA event map skewed");
+  MOZ_STATIC_ASSERT(sizeof(gWinEventMap)/sizeof(gWinEventMap[0]) == nsIAccessibleEvent::EVENT_LAST_ENTRY,
+                    "MSAA event map skewed");
 
   NS_ENSURE_TRUE(eventType > 0 && eventType < ArrayLength(gWinEventMap), NS_ERROR_FAILURE);
 
@@ -1826,22 +1826,24 @@ AccessibleWrap::GetXPAccessibleFor(const VARIANT& aVarChild)
     // Convert child ID to unique ID.
     void* uniqueID = reinterpret_cast<void*>(-aVarChild.lVal);
 
-    DocAccessible* document = Document();
-    Accessible* child =
-      document->GetAccessibleByUniqueIDInSubtree(uniqueID);
-
-    // If it is a document then just return an accessible.
+    // Document.
     if (IsDoc())
-      return child;
+      return AsDoc()->GetAccessibleByUniqueIDInSubtree(uniqueID);
 
-    // Otherwise check whether the accessible is a child (this path works for
-    // ARIA documents and popups).
-    Accessible* parent = child;
-    while (parent && parent != document) {
-      if (parent == this)
-        return child;
+    // ARIA document and menu popups.
+    if (ARIARole() == roles::DOCUMENT || IsMenuPopup()) {
+      DocAccessible* document = Document();
+      Accessible* child =
+        document->GetAccessibleByUniqueIDInSubtree(uniqueID);
 
-      parent = parent->Parent();
+      // Check whether the accessible for the given ID is a child.
+      Accessible* parent = child ? child->Parent() : nullptr;
+      while (parent && parent != document) {
+        if (parent == this)
+          return child;
+
+        parent = parent->Parent();
+      }
     }
 
     return nullptr;

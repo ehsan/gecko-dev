@@ -25,7 +25,7 @@ namespace mozilla {
 class InputEvent;
 
 namespace layers {
-class APZCTreeManager;
+class AsyncPanZoomController;
 class GestureEventListener;
 class TargetConfig;
 class LayerTransactionParent;
@@ -132,12 +132,10 @@ private:
   nsRefPtr<nsFrameLoader> mFrameLoader;
   nsRefPtr<ContainerLayer> mContainer;
   // When our scrolling behavior is ASYNC_PAN_ZOOM, we have a nonnull
-  // APZCTreeManager. It's used to manipulate the shadow layer tree
-  // on the compositor thread.
-  nsRefPtr<layers::APZCTreeManager> mApzcTreeManager;
+  // AsyncPanZoomController.  It's associated with the shadow layer
+  // tree on the compositor thread.
+  nsRefPtr<layers::AsyncPanZoomController> mPanZoomController;
   nsRefPtr<RemoteContentController> mContentController;
-
-  layers::APZCTreeManager* GetApzcTreeManager();
 
   // This contains the views for all the scrollable frames currently in the
   // painted region of our remote content.

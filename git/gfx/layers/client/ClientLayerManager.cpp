@@ -232,16 +232,6 @@ ClientLayerManager::EndEmptyTransaction(EndTransactionFlags aFlags)
   return true;
 }
 
-CompositorChild *
-ClientLayerManager::GetRemoteRenderer()
-{
-  if (!mWidget) {
-    return nullptr;
-  }
-
-  return mWidget->GetRemoteRenderer();
-}
-
 void 
 ClientLayerManager::MakeSnapshotIfRequired()
 {
@@ -249,7 +239,7 @@ ClientLayerManager::MakeSnapshotIfRequired()
     return;
   }
   if (mWidget) {
-    if (CompositorChild* remoteRenderer = GetRemoteRenderer()) {
+    if (CompositorChild* remoteRenderer = mWidget->GetRemoteRenderer()) {
       nsIntRect bounds;
       mWidget->GetBounds(bounds);
       SurfaceDescriptor inSnapshot, snapshot;
@@ -323,13 +313,6 @@ ClientLayerManager::ForwardTransaction()
           ->SetDescriptorFromReply(ots.textureId(), ots.image());
         break;
       }
-      case EditReply::TReplyTextureRemoved: {
-        // XXX - to manage reuse of gralloc buffers, we'll need to add some
-        // glue code here to find the TextureClient and invoke a callback to
-        // let the camera know that the gralloc buffer is not used anymore on
-        // the compositor side and that it can reuse it.
-        break;
-      }
 
       default:
         NS_RUNTIMEABORT("not reached");
@@ -400,7 +383,7 @@ ClientLayerManager::ClearLayer(Layer* aLayer)
 void
 ClientLayerManager::GetBackendName(nsAString& aName)
 {
-  switch (GetCompositorBackendType()) {
+  switch (Compositor::GetBackend()) {
     case LAYERS_BASIC: aName.AssignLiteral("Basic"); return;
     case LAYERS_OPENGL: aName.AssignLiteral("OpenGL"); return;
     case LAYERS_D3D9: aName.AssignLiteral("Direct3D 9"); return;

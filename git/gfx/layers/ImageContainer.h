@@ -13,7 +13,6 @@
 #include "mozilla/TimeStamp.h"
 #include "ImageTypes.h"
 #include "nsTArray.h"
-#include "pratom.h"
 
 #ifdef XP_WIN
 struct ID3D10Texture2D;
@@ -34,9 +33,6 @@ namespace layers {
 
 class ImageClient;
 class SharedPlanarYCbCrImage;
-class DeprecatedSharedPlanarYCbCrImage;
-class TextureClient;
-class SurfaceDescriptor;
 
 struct ImageBackendData
 {
@@ -44,18 +40,6 @@ struct ImageBackendData
 
 protected:
   ImageBackendData() {}
-};
-
-// sadly we'll need this until we get rid of Deprected image classes
-class ISharedImage {
-public:
-    virtual uint8_t* GetBuffer() = 0;
-
-    /**
-     * For use with the CompositableClient only (so that the later can
-     * synchronize the TextureClient with the TextureHost).
-     */
-    virtual TextureClient* GetTextureClient() = 0;
 };
 
 /**
@@ -78,17 +62,12 @@ class Image {
 public:
   virtual ~Image() {}
 
-  virtual ISharedImage* AsSharedImage() { return nullptr; }
 
   ImageFormat GetFormat() { return mFormat; }
   void* GetImplData() { return mImplData; }
 
   virtual already_AddRefed<gfxASurface> GetAsSurface() = 0;
   virtual gfxIntSize GetSize() = 0;
-  virtual nsIntRect GetPictureRect()
-  {
-    return nsIntRect(0, 0, GetSize().width, GetSize().height);
-  }
 
   ImageBackendData* GetBackendData(LayersBackend aBackend)
   { return mBackendData[aBackend]; }
@@ -559,7 +538,7 @@ protected:
 
   nsRefPtr<BufferRecycleBin> mRecycleBin;
 
-  // This contains the remote image data for this container, if this is nullptr
+  // This contains the remote image data for this container, if this is NULL
   // that means the container has no other process that may control its active
   // image.
   RemoteImageData *mRemoteData;
@@ -740,7 +719,6 @@ public:
   PlanarYCbCrImage(BufferRecycleBin *aRecycleBin);
 
   virtual SharedPlanarYCbCrImage *AsSharedPlanarYCbCrImage() { return nullptr; }
-  virtual DeprecatedSharedPlanarYCbCrImage *AsDeprecatedSharedPlanarYCbCrImage() { return nullptr; }
 
 protected:
   /**
@@ -804,7 +782,7 @@ public:
 
   gfxIntSize GetSize() { return mSize; }
 
-  CairoImage() : Image(nullptr, CAIRO_SURFACE) {}
+  CairoImage() : Image(NULL, CAIRO_SURFACE) {}
 
   nsCountedRef<nsMainThreadSurfaceRef> mSurface;
   gfxIntSize mSize;
@@ -812,7 +790,7 @@ public:
 
 class RemoteBitmapImage : public Image {
 public:
-  RemoteBitmapImage() : Image(nullptr, REMOTE_IMAGE_BITMAP) {}
+  RemoteBitmapImage() : Image(NULL, REMOTE_IMAGE_BITMAP) {}
 
   already_AddRefed<gfxASurface> GetAsSurface();
 

@@ -150,7 +150,8 @@ nsIContent*
 nsIContent::GetFlattenedTreeParent() const
 {
   if (HasFlag(NODE_MAY_BE_IN_BINDING_MNGR)) {
-    nsIContent* parent = GetXBLInsertionParent();
+    nsIContent* parent = OwnerDoc()->BindingManager()->
+      GetInsertionParent(const_cast<nsIContent*>(this));
     if (parent) {
       return parent;
     }
@@ -284,7 +285,8 @@ nsIContent::GetBaseURI() const
     if (elem->IsSVG()) {
       nsIContent* bindingParent = elem->GetBindingParent();
       if (bindingParent) {
-        nsXBLBinding* binding = bindingParent->GetXBLBinding();
+        nsXBLBinding* binding =
+          bindingParent->OwnerDoc()->BindingManager()->GetBinding(bindingParent);
         if (binding) {
           // XXX sXBL/XBL2 issue
           // If this is an anonymous XBL element use the binding
@@ -339,10 +341,10 @@ GetJSObjectChild(nsWrapperCache* aCache)
 }
 
 static bool
-NeedsScriptTraverse(nsINode* aNode)
+NeedsScriptTraverse(nsWrapperCache* aCache)
 {
-  return aNode->PreservingWrapper() && aNode->GetWrapperPreserveColor() &&
-         !aNode->IsBlackAndDoesNotNeedTracing(aNode);
+  JSObject* o = GetJSObjectChild(aCache);
+  return o && xpc_IsGrayGCThing(o);
 }
 
 //----------------------------------------------------------------------
@@ -358,11 +360,11 @@ NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_0(nsChildContentList)
 // nsChildContentList only ever has a single child, its wrapper, so if
 // the wrapper is black, the list can't be part of a garbage cycle.
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsChildContentList)
-  return tmp->IsBlack();
+  return !NeedsScriptTraverse(tmp);
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_END
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_BEGIN(nsChildContentList)
-  return tmp->IsBlackAndDoesNotNeedTracing(tmp);
+  return !NeedsScriptTraverse(tmp);
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_END
 
 // CanSkipThis returns false to avoid problems with incomplete unlinking.
@@ -503,6 +505,28 @@ nsNodeSupportsWeakRefTearoff::GetWeakReference(nsIWeakReference** aInstancePtr)
 }
 
 //----------------------------------------------------------------------
+
+NS_IMPL_CYCLE_COLLECTION_1(nsTouchEventReceiverTearoff, mElement)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsTouchEventReceiverTearoff)
+  NS_INTERFACE_MAP_ENTRY(nsITouchEventReceiver)
+NS_INTERFACE_MAP_END_AGGREGATED(mElement)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsTouchEventReceiverTearoff)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsTouchEventReceiverTearoff)
+
+//----------------------------------------------------------------------
+
+NS_IMPL_CYCLE_COLLECTION_1(nsInlineEventHandlersTearoff, mElement)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsInlineEventHandlersTearoff)
+  NS_INTERFACE_MAP_ENTRY(nsIInlineEventHandlers)
+NS_INTERFACE_MAP_END_AGGREGATED(mElement)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsInlineEventHandlersTearoff)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsInlineEventHandlersTearoff)
+
+//----------------------------------------------------------------------
 FragmentOrElement::nsDOMSlots::nsDOMSlots()
   : nsINode::nsSlots(),
     mDataset(nullptr),
@@ -542,12 +566,6 @@ FragmentOrElement::nsDOMSlots::Traverse(nsCycleCollectionTraversalCallback &cb, 
     cb.NoteXPCOMChild(mControllers);
   }
 
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mSlots->mXBLBinding");
-  cb.NoteNativeChild(mXBLBinding, NS_CYCLE_COLLECTION_PARTICIPANT(nsXBLBinding));
-
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mSlots->mXBLInsertionParent");
-  cb.NoteXPCOMChild(mXBLInsertionParent.get());
-
   NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mSlots->mChildrenList");
   cb.NoteXPCOMChild(NS_ISUPPORTS_CAST(nsIDOMNodeList*, mChildrenList));
 
@@ -566,8 +584,6 @@ FragmentOrElement::nsDOMSlots::Unlink(bool aIsXUL)
   }
   if (aIsXUL)
     NS_IF_RELEASE(mControllers);
-  mXBLBinding = nullptr;
-  mXBLInsertionParent = nullptr;
   mChildrenList = nullptr;
   mUndoManager = nullptr;
   if (mClassList) {
@@ -787,7 +803,8 @@ nsIContent::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   // check for an anonymous parent
   // XXX XBL2/sXBL issue
   if (HasFlag(NODE_MAY_BE_IN_BINDING_MNGR)) {
-    nsIContent* insertionParent = GetXBLInsertionParent();
+    nsIContent* insertionParent = OwnerDoc()->BindingManager()->
+      GetInsertionParent(this);
     NS_ASSERTION(!(aVisitor.mEventTargetAtParent && insertionParent &&
                    aVisitor.mEventTargetAtParent != insertionParent),
                  "Retargeting and having insertion parent!");
@@ -870,80 +887,6 @@ FragmentOrElement::GetBindingParent() const
     return slots->mBindingParent;
   }
   return nullptr;
-}
-
-nsXBLBinding*
-FragmentOrElement::GetXBLBinding() const
-{
-  if (HasFlag(NODE_MAY_BE_IN_BINDING_MNGR)) {
-    nsDOMSlots *slots = GetExistingDOMSlots();
-    if (slots) {
-      return slots->mXBLBinding;
-    }
-  }
-
-  return nullptr;
-}
-
-void
-FragmentOrElement::SetXBLBinding(nsXBLBinding* aBinding,
-                                 nsBindingManager* aOldBindingManager)
-{
-  nsBindingManager* bindingManager;
-  if (aOldBindingManager) {
-    MOZ_ASSERT(!aBinding, "aOldBindingManager should only be provided "
-                          "when removing a binding.");
-    bindingManager = aOldBindingManager;
-  } else {
-    bindingManager = OwnerDoc()->BindingManager();
-  }
-
-  // After this point, aBinding will be the most-derived binding for aContent.
-  // If we already have a binding for aContent, make sure to
-  // remove it from the attached stack.  Otherwise we might end up firing its
-  // constructor twice (if aBinding inherits from it) or firing its constructor
-  // after aContent has been deleted (if aBinding is null and the content node
-  // dies before we process mAttachedStack).
-  nsRefPtr<nsXBLBinding> oldBinding = GetXBLBinding();
-  if (oldBinding) {
-    bindingManager->RemoveFromAttachedQueue(oldBinding);
-  }
-
-  nsDOMSlots *slots = DOMSlots();
-  if (aBinding) {
-    SetFlags(NODE_MAY_BE_IN_BINDING_MNGR);
-    slots->mXBLBinding = aBinding;
-    bindingManager->AddBoundContent(this);
-  } else {
-    slots->mXBLBinding = nullptr;
-    bindingManager->RemoveBoundContent(this);
-    if (oldBinding) {
-      oldBinding->SetBoundElement(nullptr);
-    }
-  }
-}
-
-nsIContent*
-FragmentOrElement::GetXBLInsertionParent() const
-{
-  if (HasFlag(NODE_MAY_BE_IN_BINDING_MNGR)) {
-    nsDOMSlots *slots = GetExistingDOMSlots();
-    if (slots) {
-      return slots->mXBLInsertionParent;
-    }
-  }
-
-  return nullptr;
-}
-
-void
-FragmentOrElement::SetXBLInsertionParent(nsIContent* aContent)
-{
-  nsDOMSlots *slots = DOMSlots();
-  if (aContent) {
-    SetFlags(NODE_MAY_BE_IN_BINDING_MNGR);
-  }
-  slots->mXBLInsertionParent = aContent;
 }
 
 nsresult
@@ -1444,7 +1387,8 @@ NodeHasActiveFrame(nsIDocument* aCurrentDoc, nsINode* aNode)
 bool
 OwnedByBindingManager(nsIDocument* aCurrentDoc, nsINode* aNode)
 {
-  return aNode->IsElement() && aNode->AsElement()->GetXBLBinding();
+  return aNode->IsElement() &&
+    aCurrentDoc->BindingManager()->GetBinding(aNode->AsElement());
 }
 
 // CanSkip checks if aNode is black, and if it is, returns
@@ -1739,6 +1683,10 @@ NS_INTERFACE_MAP_BEGIN(FragmentOrElement)
                                  new nsNodeSupportsWeakRefTearoff(this))
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMXPathNSResolver,
                                  new nsNode3Tearoff(this))
+  NS_INTERFACE_MAP_ENTRY_TEAROFF(nsITouchEventReceiver,
+                                 new nsTouchEventReceiverTearoff(this))
+  NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIInlineEventHandlers,
+                                 new nsInlineEventHandlersTearoff(this))
   // DOM bindings depend on the identity pointer being the
   // same as nsINode (which nsIContent inherits).
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIContent)

@@ -15,7 +15,7 @@
 
 #include "base/basictypes.h"
 
-#include "nsISupportsImpl.h"
+#include "nsAtomicRefcnt.h"
 
 #include "mozilla/ipc/SyncChannel.h"
 #include "nsAutoPtr.h"
@@ -392,15 +392,22 @@ private:
     {
       public:
         RefCountedTask(CancelableTask* aTask)
-        : mTask(aTask) {}
+        : mTask(aTask)
+        , mRefCnt(0) {}
         ~RefCountedTask() { delete mTask; }
         void Run() { mTask->Run(); }
         void Cancel() { mTask->Cancel(); }
-
-        NS_INLINE_DECL_THREADSAFE_REFCOUNTING(RefCountedTask)
+        void AddRef() {
+            NS_AtomicIncrementRefcnt(mRefCnt);
+        }
+        void Release() {
+            if (NS_AtomicDecrementRefcnt(mRefCnt) == 0)
+                delete this;
+        }
 
       private:
         CancelableTask* mTask;
+        nsrefcnt mRefCnt;
     };
 
     //

@@ -1268,7 +1268,8 @@ nsTableFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       // in its own display item, so do that to take advantage of
       // opacity and visibility optimizations
       if (deflate == nsMargin(0, 0, 0, 0)) {
-        DisplayBackgroundUnconditional(aBuilder, aLists, false);
+        nsDisplayBackgroundImage* bg;
+        DisplayBackgroundUnconditional(aBuilder, aLists, false, &bg);
       }
     }
     
@@ -1332,7 +1333,7 @@ nsTableFrame::PaintTableBorderBackground(nsRenderingContext& aRenderingContext,
 }
 
 int
-nsTableFrame::GetSkipSides(const nsHTMLReflowState* aReflowState) const
+nsTableFrame::GetSkipSides() const
 {
   int skip = 0;
   // frame attribute was accounted for in nsHTMLTableElement::MapTableBorderInto

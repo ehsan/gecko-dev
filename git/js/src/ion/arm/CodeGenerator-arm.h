@@ -78,7 +78,6 @@ class CodeGeneratorARM : public CodeGeneratorShared
     virtual bool visitSoftDivI(LSoftDivI *ins);
     virtual bool visitDivPowTwoI(LDivPowTwoI *ins);
     virtual bool visitModI(LModI *ins);
-    virtual bool visitSoftModI(LSoftModI *ins);
     virtual bool visitModPowTwoI(LModPowTwoI *ins);
     virtual bool visitModMaskI(LModMaskI *ins);
     virtual bool visitPowHalfD(LPowHalfD *ins);
@@ -95,7 +94,6 @@ class CodeGeneratorARM : public CodeGeneratorShared
     virtual bool visitCompareBAndBranch(LCompareBAndBranch *lir);
     virtual bool visitCompareV(LCompareV *lir);
     virtual bool visitCompareVAndBranch(LCompareVAndBranch *lir);
-    virtual bool visitBitAndAndBranch(LBitAndAndBranch *baab);
     virtual bool visitUInt32ToDouble(LUInt32ToDouble *lir);
     virtual bool visitNotI(LNotI *ins);
     virtual bool visitNotD(LNotD *ins);
@@ -121,8 +119,6 @@ class CodeGeneratorARM : public CodeGeneratorShared
                            const Register &elements, const LAllocation *index);
 
     bool divICommon(MDiv *mir, Register lhs, Register rhs, Register output, LSnapshot *snapshot,
-                    Label &done);
-    bool modICommon(MMod *mir, Register lhs, Register rhs, Register output, LSnapshot *snapshot,
                     Label &done);
 
   public:
@@ -164,6 +160,8 @@ class CodeGeneratorARM : public CodeGeneratorShared
 
     bool generateInvalidateEpilogue();
   protected:
+    bool generateAsmJSPrologue(const MIRTypeVector &argTypes, MIRType returnType,
+                             Label *internalEntry);
     void postAsmJSCall(LAsmJSCall *lir) {
 #if  !defined(JS_CPU_ARM_HARDFP)
         if (lir->mir()->type() == MIRType_Double) {
@@ -171,11 +169,9 @@ class CodeGeneratorARM : public CodeGeneratorShared
         }
 #endif
 }
-
+ 
     bool visitEffectiveAddress(LEffectiveAddress *ins);
-    bool visitUDiv(LUDiv *ins);
-    bool visitUMod(LUMod *ins);
-    bool visitSoftUDivOrMod(LSoftUDivOrMod *ins);
+    bool visitUDivOrMod(LUDivOrMod *ins);
 };
 
 typedef CodeGeneratorARM CodeGeneratorSpecific;

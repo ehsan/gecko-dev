@@ -9,6 +9,7 @@
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsError.h"
+#include "nsIDOMSVGAnimatedEnum.h"
 #include "nsISMILAttr.h"
 #include "nsSVGElement.h"
 #include "mozilla/Attributes.h"

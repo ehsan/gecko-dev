@@ -62,6 +62,43 @@ var SettingsListener = {
 
 SettingsListener.init();
 
+// =================== Audio ====================
+SettingsListener.observe('audio.volume.master', 1.0, function(value) {
+  let audioManager = Services.audioManager;
+  if (!audioManager)
+    return;
+
+  audioManager.masterVolume = Math.max(0.0, Math.min(value, 1.0));
+});
+
+let audioChannelSettings = [];
+
+if ("nsIAudioManager" in Ci) {
+  const nsIAudioManager = Ci.nsIAudioManager;
+  audioChannelSettings = [
+    // settings name, max value, apply to stream types
+    ['audio.volume.content', 15, [nsIAudioManager.STREAM_TYPE_SYSTEM, nsIAudioManager.STREAM_TYPE_MUSIC]],
+    ['audio.volume.notification', 15, [nsIAudioManager.STREAM_TYPE_RING, nsIAudioManager.STREAM_TYPE_NOTIFICATION]],
+    ['audio.volume.alarm', 15, [nsIAudioManager.STREAM_TYPE_ALARM]],
+    ['audio.volume.telephony', 5, [nsIAudioManager.STREAM_TYPE_VOICE_CALL]],
+    ['audio.volume.bt_sco', 15, [nsIAudioManager.STREAM_TYPE_BLUETOOTH_SCO]],
+  ];
+}
+
+for each (let [setting, maxValue, streamTypes] in audioChannelSettings) {
+  (function AudioStreamSettings(setting, maxValue, streamTypes) {
+    SettingsListener.observe(setting, maxValue, function(value) {
+      let audioManager = Services.audioManager;
+      if (!audioManager)
+        return;
+
+      for each(let streamType in streamTypes) {
+        audioManager.setStreamVolumeIndex(streamType, Math.min(value, maxValue));
+      }
+    });
+  })(setting, maxValue, streamTypes);
+}
+
 // =================== Console ======================
 
 SettingsListener.observe('debug.console.enabled', true, function(value) {
@@ -198,11 +235,7 @@ SettingsListener.observe('devtools.debugger.remote-enabled', false, function(val
   Services.prefs.setBoolPref('devtools.debugger.remote-enabled', value);
   // This preference is consulted during startup
   Services.prefs.savePrefFile(null);
-  try {
-    value ? RemoteDebugger.start() : RemoteDebugger.stop();
-  } catch(e) {
-    dump("Error while initializing devtools: " + e + "\n" + e.stack + "\n");
-  }
+  value ? RemoteDebugger.start() : RemoteDebugger.stop();
 
 #ifdef MOZ_WIDGET_GONK
   let enableAdb = value;

@@ -72,13 +72,10 @@ function testHighlighter(node)
   is(getHighlitNode(), node, "Right node is highlighted");
 }
 
-let callNo = 0;
 function testMarkupView(node)
 {
   let i = getActiveInspector();
-  try {
-    is(i.markup._selectedContainer.node.rawNode(), node, "Right node is selected in the markup view");
-  } catch(ex) { console.error(ex); }
+  is(i.markup._selectedContainer.node, node, "Right node is selected in the markup view");
 }
 
 function testBreadcrumbs(node)
@@ -94,15 +91,7 @@ function _clickOnInspectMenuItem(node) {
   document.popupNode = node;
   var contentAreaContextMenu = document.getElementById("contentAreaContextMenu");
   var contextMenu = new nsContextMenu(contentAreaContextMenu);
-  var promise = devtools.require("sdk/core/promise");
-  var deferred = promise.defer();
-  contextMenu.inspectNode().then(() => {
-    let i = getActiveInspector();
-    i.once("inspector-updated", () => {
-      deferred.resolve(undefined);
-    });
-  });
-  return deferred.promise;
+  return contextMenu.inspectNode();
 }
 
 function runContextMenuTest()

@@ -14,10 +14,11 @@
 #include "jscntxt.h"
 #include "jscompartment.h"
 
-#include "ds/LifoAlloc.h"
-#include "ion/Bailouts.h"
 #include "ion/IonCode.h"
 #include "ion/IonMacroAssembler.h"
+#include "ion/Bailouts.h"
+
+#include "ds/LifoAlloc.h"
 
 namespace js {
 namespace ion {

@@ -68,6 +68,7 @@
 #include "CoreLocationLocationProvider.h"
 #endif
 
+#include "nsIDOMDocument.h"
 #include "nsIDocument.h"
 
 // Some limit to the number of get or watch geolocation requests
@@ -225,7 +226,6 @@ private:
 ////////////////////////////////////////////////////
 // PositionError
 ////////////////////////////////////////////////////
-DOMCI_DATA(GeoPositionError, PositionError)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(PositionError)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
@@ -611,8 +611,8 @@ NS_INTERFACE_MAP_BEGIN(nsGeolocationService)
   NS_INTERFACE_MAP_ENTRY(nsIObserver)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_ADDREF(nsGeolocationService)
-NS_IMPL_RELEASE(nsGeolocationService)
+NS_IMPL_THREADSAFE_ADDREF(nsGeolocationService)
+NS_IMPL_THREADSAFE_RELEASE(nsGeolocationService)
 
 
 static bool sGeoEnabled = true;
@@ -719,7 +719,7 @@ nsGeolocationService::HandleMozsettingChanged(const PRUnichar* aData)
 
     JS::Rooted<JSObject*> obj(cx, &val.toObject());
     JS::Rooted<JS::Value> key(cx);
-    if (!JS_GetProperty(cx, obj, "key", &key) || !key.isString()) {
+    if (!JS_GetProperty(cx, obj, "key", key.address()) || !key.isString()) {
       return;
     }
 
@@ -729,7 +729,7 @@ nsGeolocationService::HandleMozsettingChanged(const PRUnichar* aData)
     }
 
     JS::Rooted<JS::Value> value(cx);
-    if (!JS_GetProperty(cx, obj, "value", &value) || !value.isBoolean()) {
+    if (!JS_GetProperty(cx, obj, "value", value.address()) || !value.isBoolean()) {
       return;
     }
 
@@ -1049,7 +1049,9 @@ Geolocation::Init(nsIDOMWindow* aContentDom)
     }
 
     // Grab the principal of the document
-    nsCOMPtr<nsIDocument> doc = window->GetDoc();
+    nsCOMPtr<nsIDOMDocument> domdoc;
+    aContentDom->GetDocument(getter_AddRefs(domdoc));
+    nsCOMPtr<nsIDocument> doc = do_QueryInterface(domdoc);
     if (!doc) {
       return NS_ERROR_FAILURE;
     }

@@ -86,12 +86,6 @@
     "kind": "flag",
     "description": "Set if the cycle collector ran out of memory at some point"
   },
-  "CYCLE_COLLECTOR_ASYNC_SNOW_WHITE_FREEING": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": 50,
-    "description": "Time spent on one asynchronous SnowWhite freeing (ms)"
-  },
   "FORGET_SKIPPABLE_MAX": {
     "kind": "exponential",
     "high": "10000",
@@ -2545,13 +2539,6 @@
     "extended_statistics_ok": true,
     "description": "Session restore: Time to make a backup copy of the session file (ms)"
   },
-  "FX_SESSION_RESTORE_RESTORE_WINDOW_MS": {
-    "kind": "exponential",
-    "high": "3000",
-    "n_buckets": 10,
-    "extended_statistics_ok": true,
-    "description": "Session restore: Time spent blocking the main thread while restoring a window state (ms)"
-  },
   "INNERWINDOWS_WITH_MUTATION_LISTENERS": {
     "kind": "boolean",
     "description": "Deleted or to-be-reused innerwindow which has had mutation event listeners."
@@ -3179,18 +3166,6 @@
     "n_buckets": "1000",
     "description": "The time (in milliseconds) that it took a 'navigateTo' request to go round trip."
   },
-  "DEVTOOLS_DEBUGGER_RDP_LOCAL_EVENTLISTENERS_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took an 'eventListeners' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_REMOTE_EVENTLISTENERS_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took an 'eventListeners' request to go round trip."
-  },
   "DEVTOOLS_DEBUGGER_RDP_LOCAL_DETACH_MS": {
     "kind": "exponential",
     "high": "10000",
@@ -3346,18 +3321,6 @@
     "high": "10000",
     "n_buckets": "1000",
     "description": "The time (in milliseconds) that it took a 'prototype' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_REMOTE_DISPLAYSTRING_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'displayString' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_LOCAL_DISPLAYSTRING_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'displayString' request to go round trip."
   },
   "DEVTOOLS_DEBUGGER_RDP_LOCAL_SUBSTRING_MS": {
     "kind": "exponential",
@@ -3749,11 +3712,6 @@
     "kind": "enumerated",
     "n_values": 4,
     "description": "Accumulates type of content (mixed, mixed passive, unmixed) per page load"
-  },
-  "NTLM_MODULE_USED": {
-    "kind": "enumerated",
-    "n_values": 8,
-    "description": "The module used for the NTLM protocol (Windows_API, Kerberos, Samba_auth or Generic) and whether or not the authentication was used to connect to a proxy server. This data is collected only once per session (at first NTLM authentification)."
   },
   "FX_THUMBNAILS_BG_QUEUE_SIZE_ON_CAPTURE": {
     "kind": "exponential",

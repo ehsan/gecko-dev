@@ -12,7 +12,6 @@
 class nsDisplayItem;
 class nsDisplayListBuilder;
 class nsDisplayBackgroundImage;
-class nsDisplayThemedBackground;
 
 /**
  * This stores the geometry of an nsDisplayItem, and the area
@@ -89,16 +88,6 @@ class nsDisplayBackgroundGeometry : public nsDisplayItemGeometry
 {
 public:
   nsDisplayBackgroundGeometry(nsDisplayBackgroundImage* aItem, nsDisplayListBuilder* aBuilder);
-
-  virtual void MoveBy(const nsPoint& aOffset) MOZ_OVERRIDE;
-
-  nsRect mPositioningArea;
-};
-
-class nsDisplayThemedBackgroundGeometry : public nsDisplayItemGeometry
-{
-public:
-  nsDisplayThemedBackgroundGeometry(nsDisplayThemedBackground* aItem, nsDisplayListBuilder* aBuilder);
 
   virtual void MoveBy(const nsPoint& aOffset) MOZ_OVERRIDE;
 

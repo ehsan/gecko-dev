@@ -77,11 +77,12 @@ var WebrtcUI = {
     let { windowID: windowID, callID: callID } = JSON.parse(aData);
 
     let contentWindow = Services.wm.getOuterWindowWithId(windowID);
+    let browser = BrowserApp.getBrowserForWindow(contentWindow);
     let params = aSubject.QueryInterface(Ci.nsIMediaStreamOptions);
 
-    Services.wm.getMostRecentWindow(null).navigator.mozGetUserMediaDevices(
+    browser.ownerDocument.defaultView.navigator.mozGetUserMediaDevices(
       function (devices) {
-        WebrtcUI.prompt(windowID, callID, params.audio, params.video, devices);
+        WebrtcUI.prompt(browser, callID, params.audio, params.video, devices);
       },
       function (error) {
         Cu.reportError(error);
@@ -155,7 +156,7 @@ var WebrtcUI = {
     }
   },
 
-  prompt: function prompt(aWindowID, aCallID, aAudioRequested, aVideoRequested, aDevices) {
+  prompt: function prompt(aBrowser, aCallID, aAudioRequested, aVideoRequested, aDevices) {
     let audioDevices = [];
     let videoDevices = [];
     for (let device of aDevices) {
@@ -182,8 +183,7 @@ var WebrtcUI = {
     else
       return;
 
-    let contentWindow = Services.wm.getOuterWindowWithId(aWindowID);
-    let host = contentWindow.document.documentURIObject.host;
+    let host = aBrowser.contentDocument.documentURIObject.asciiHost;
     let requestor = BrowserApp.manifest ? "'" + BrowserApp.manifest.name  + "'" : host;
     let message = Strings.browser.formatStringFromName("getUserMedia.share" + requestType + ".message", [ requestor ], 1);
 

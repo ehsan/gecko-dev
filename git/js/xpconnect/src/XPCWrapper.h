@@ -23,7 +23,7 @@ namespace XPCNativeWrapper {
    (_wn)->GetScriptableInfo()->GetFlags()._flag())
 
 bool
-AttachNewConstructorObject(JSContext *aCx, JS::HandleObject aGlobalObject);
+AttachNewConstructorObject(JSContext *aCx, JSObject *aGlobalObject);
 
 } // namespace XPCNativeWrapper
 

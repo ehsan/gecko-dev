@@ -72,10 +72,11 @@ IsAncestorBinding(nsIDocument* aDocument,
   NS_ASSERTION(aChild, "expected a child content");
 
   uint32_t bindingRecursion = 0;
+  nsBindingManager* bindingManager = aDocument->BindingManager();
   for (nsIContent *bindingParent = aChild->GetBindingParent();
        bindingParent;
        bindingParent = bindingParent->GetBindingParent()) {
-    nsXBLBinding* binding = bindingParent->GetXBLBinding();
+    nsXBLBinding* binding = bindingManager->GetBinding(bindingParent);
     if (!binding) {
       continue;
     }
@@ -450,7 +451,9 @@ nsXBLService::LoadBindings(nsIContent* aContent, nsIURI* aURL,
     return NS_OK;
   }
 
-  nsXBLBinding *binding = aContent->GetXBLBinding();
+  nsBindingManager *bindingManager = document->BindingManager();
+  
+  nsXBLBinding *binding = bindingManager->GetBinding(aContent);
   if (binding) {
     if (binding->MarkedForDeath()) {
       FlushStyleBindings(aContent);
@@ -493,7 +496,7 @@ nsXBLService::LoadBindings(nsIContent* aContent, nsIURI* aURL,
   }
   else {
     // Install the binding on the content node.
-    aContent->SetXBLBinding(newBinding);
+    bindingManager->SetBinding(aContent, newBinding);
   }
 
   {
@@ -526,12 +529,15 @@ nsXBLService::FlushStyleBindings(nsIContent* aContent)
 {
   nsCOMPtr<nsIDocument> document = aContent->OwnerDoc();
 
-  nsXBLBinding *binding = aContent->GetXBLBinding();
+  nsBindingManager *bindingManager = document->BindingManager();
+  
+  nsXBLBinding *binding = bindingManager->GetBinding(aContent);
+  
   if (binding) {
     // Clear out the script references.
     binding->ChangeDocument(document, nullptr);
 
-    aContent->SetXBLBinding(nullptr); // Flush old style bindings
+    bindingManager->SetBinding(aContent, nullptr); // Flush old style bindings
   }
    
   return NS_OK;

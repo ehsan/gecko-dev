@@ -164,9 +164,9 @@ JSClass sNPObjectJSWrapperClass =
   };
 
 typedef struct NPObjectMemberPrivate {
-    JS::Heap<JSObject *> npobjWrapper;
-    JS::Heap<JS::Value> fieldValue;
-    JS::Heap<jsid> methodName;
+    JSObject *npobjWrapper;
+    JS::Value fieldValue;
+    NPIdentifier methodName;
     NPP   npp;
 } NPObjectMemberPrivate;
 
@@ -540,7 +540,7 @@ nsJSObjWrapper::NP_Invalidate(NPObject *npobj)
 }
 
 static JSBool
-GetProperty(JSContext *cx, JSObject *obj, NPIdentifier id, JS::MutableHandle<JS::Value> rval)
+GetProperty(JSContext *cx, JSObject *obj, NPIdentifier id, JS::Value *rval)
 {
   NS_ASSERTION(NPIdentifierIsInt(id) || NPIdentifierIsString(id),
                "id must be either string or int!\n");
@@ -574,7 +574,7 @@ nsJSObjWrapper::NP_HasMethod(NPObject *npobj, NPIdentifier id)
   AutoJSExceptionReporter reporter(cx);
 
   JS::Rooted<JS::Value> v(cx);
-  JSBool ok = GetProperty(cx, npjsobj->mJSObj, id, &v);
+  JSBool ok = GetProperty(cx, npjsobj->mJSObj, id, v.address());
 
   return ok && !JSVAL_IS_PRIMITIVE(v) &&
     ::JS_ObjectIsFunction(cx, JSVAL_TO_OBJECT(v));
@@ -610,7 +610,7 @@ doInvoke(NPObject *npobj, NPIdentifier method, const NPVariant *args,
   AutoJSExceptionReporter reporter(cx);
 
   if (method != NPIdentifier_VOID) {
-    if (!GetProperty(cx, npjsobj->mJSObj, method, &fv) ||
+    if (!GetProperty(cx, npjsobj->mJSObj, method, fv.address()) ||
         ::JS_TypeOfValue(cx, fv) != JSTYPE_FUNCTION) {
       return false;
     }
@@ -752,7 +752,7 @@ nsJSObjWrapper::NP_GetProperty(NPObject *npobj, NPIdentifier id,
   JSAutoCompartment ac(cx, npjsobj->mJSObj);
 
   JS::Rooted<JS::Value> v(cx);
-  return (GetProperty(cx, npjsobj->mJSObj, id, &v) &&
+  return (GetProperty(cx, npjsobj->mJSObj, id, v.address()) &&
           JSValToNPVariant(npp, cx, v, result));
 }
 
@@ -787,7 +787,8 @@ nsJSObjWrapper::NP_SetProperty(NPObject *npobj, NPIdentifier id,
 
   NS_ASSERTION(NPIdentifierIsInt(id) || NPIdentifierIsString(id),
                "id must be either string or int!\n");
-  ok = ::JS_SetPropertyById(cx, npjsobj->mJSObj, NPIdentifierToJSId(id), v);
+  ok = ::JS_SetPropertyById(cx, npjsobj->mJSObj, NPIdentifierToJSId(id),
+                            v.address());
 
   // return ok == JS_TRUE to quiet down compiler warning, even if
   // return ok is what we really want.
@@ -1621,7 +1622,7 @@ NPObjWrapper_Convert(JSContext *cx, JS::Handle<JSObject*> obj, JSType hint, JS::
   // giving plugins a [[DefaultValue]] which uses only toString and not valueOf.
 
   JS::Rooted<JS::Value> v(cx, JSVAL_VOID);
-  if (!JS_GetProperty(cx, obj, "toString", &v))
+  if (!JS_GetProperty(cx, obj, "toString", v.address()))
     return false;
   if (!JSVAL_IS_PRIMITIVE(v) && JS_ObjectIsCallable(cx, JSVAL_TO_OBJECT(v))) {
     if (!JS_CallFunctionValue(cx, obj, v, 0, NULL, vp.address()))
@@ -2016,7 +2017,7 @@ CreateNPObjectMember(NPP npp, JSContext *cx, JSObject *obj, NPObject* npobj,
   memberPrivate->npobjWrapper = obj;
 
   memberPrivate->fieldValue = fieldValue;
-  memberPrivate->methodName = id;
+  memberPrivate->methodName = identifier;
   memberPrivate->npp = npp;
 
   ::JS_RemoveValueRoot(cx, vp);
@@ -2123,7 +2124,7 @@ NPObjectMember_Call(JSContext *cx, unsigned argc, JS::Value *vp)
 
   NPVariant npv;
   JSBool ok;
-  ok = npobj->_class->invoke(npobj, JSIdToNPIdentifier(memberPrivate->methodName),
+  ok = npobj->_class->invoke(npobj, memberPrivate->methodName,
                              npargs, argc, &npv);
 
   // Release arguments.
@@ -2161,18 +2162,20 @@ NPObjectMember_Trace(JSTracer *trc, JSObject *obj)
     return;
 
   // Our NPIdentifier is not always interned, so we must root it explicitly.
-  JS_CallHeapIdTracer(trc, &memberPrivate->methodName, "NPObjectMemberPrivate.methodName");
+  jsid id = NPIdentifierToJSId(memberPrivate->methodName);
+  JS_CallIdTracer(trc, &id, "NPObjectMemberPrivate.methodName");
+  memberPrivate->methodName = JSIdToNPIdentifier(id);
 
   if (!JSVAL_IS_PRIMITIVE(memberPrivate->fieldValue)) {
-    JS_CallHeapValueTracer(trc, &memberPrivate->fieldValue,
-                           "NPObject Member => fieldValue");
+    JS_CallValueTracer(trc, &memberPrivate->fieldValue,
+                       "NPObject Member => fieldValue");
   }
 
   // There's no strong reference from our private data to the
   // NPObject, so make sure to mark the NPObject wrapper to keep the
   // NPObject alive as long as this NPObjectMember is alive.
   if (memberPrivate->npobjWrapper) {
-    JS_CallHeapObjectTracer(trc, &memberPrivate->npobjWrapper,
-                            "NPObject Member => npobjWrapper");
+    JS_CallObjectTracer(trc, &memberPrivate->npobjWrapper,
+                        "NPObject Member => npobjWrapper");
   }
 }

@@ -19,11 +19,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=807222
 <script type="application/javascript">
 
 /** Test for Bug 807222 **/
-var expectedProps = [ "Image", "Audio", "Option",
+var expectedProps = [ "Image", "Audio", "Option", "USSDReceivedEvent",
                       "PerformanceTiming", "CSS2Properties", "SVGElement" ];
-if (navigator.mozTelephony) {
-  expectedProps.push("USSDReceivedEvent");
-}
 var actualProps = Object.getOwnPropertyNames(window);
 
 for (var i = 0; i < expectedProps.length; ++i) {

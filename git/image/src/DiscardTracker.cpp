@@ -8,7 +8,6 @@
 #include "RasterImage.h"
 #include "DiscardTracker.h"
 #include "mozilla/Preferences.h"
-#include "pratom.h"
 
 namespace mozilla {
 namespace image {

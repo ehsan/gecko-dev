@@ -52,13 +52,11 @@ class Transaction;
 class SurfaceDescriptor;
 class CanvasSurface;
 class DeprecatedTextureClientShmem;
-class ShmemTextureClient;
 class ContentClientRemote;
 class CompositableChild;
 class ImageClient;
 class CanvasClient;
 class ContentClient;
-class TextureClient;
 
 
 /**
@@ -230,17 +228,17 @@ public:
   void SetRoot(ShadowableLayer* aRoot);
   /**
    * Insert |aChild| after |aAfter| in |aContainer|.  |aAfter| can be
-   * nullptr to indicated that |aChild| should be appended to the end of
+   * NULL to indicated that |aChild| should be appended to the end of
    * |aContainer|'s child list.
    */
   void InsertAfter(ShadowableLayer* aContainer,
                    ShadowableLayer* aChild,
-                   ShadowableLayer* aAfter = nullptr);
+                   ShadowableLayer* aAfter=NULL);
   void RemoveChild(ShadowableLayer* aContainer,
                    ShadowableLayer* aChild);
   void RepositionChild(ShadowableLayer* aContainer,
                        ShadowableLayer* aChild,
-                       ShadowableLayer* aAfter = nullptr);
+                       ShadowableLayer* aAfter=NULL);
 
   /**
    * Set aMaskLayer as the mask on aLayer.
@@ -304,32 +302,6 @@ public:
    */
   void UpdatePictureRect(CompositableClient* aCompositable,
                          const nsIntRect& aRect);
-
-  /**
-   * See CompositableForwarder::AddTexture
-   */
-  virtual void AddTexture(CompositableClient* aCompositable,
-                          TextureClient* aClient) MOZ_OVERRIDE;
-
-  /**
-   * See CompositableForwarder::RemoveTexture
-   */
-  virtual void RemoveTexture(CompositableClient* aCompositable,
-                             uint64_t aTextureID,
-                             TextureFlags aFlags) MOZ_OVERRIDE;
-
-  /**
-   * See CompositableForwarder::UpdatedTexture
-   */
-  virtual void UpdatedTexture(CompositableClient* aCompositable,
-                              TextureClient* aTexture,
-                              nsIntRegion* aRegion) MOZ_OVERRIDE;
-
-  /**
-   * See CompositableForwarder::UseTexture
-   */
-  virtual void UseTexture(CompositableClient* aCompositable,
-                          TextureClient* aClient) MOZ_OVERRIDE;
 
   /**
    * End the current transaction and forward it to LayerManagerComposite.
@@ -500,13 +472,13 @@ public:
 
   /**
    * Return the IPC handle to a Shadow*Layer referring to this if one
-   * exists, nullptr if not.
+   * exists, NULL if not.
    */
   PLayerChild* GetShadow() { return mShadow; }
 
   virtual CompositableClient* GetCompositableClient() { return nullptr; }
 protected:
-  ShadowableLayer() : mShadow(nullptr) {}
+  ShadowableLayer() : mShadow(NULL) {}
 
   PLayerChild* mShadow;
 };

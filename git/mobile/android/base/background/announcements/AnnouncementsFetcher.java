@@ -71,7 +71,7 @@ public class AnnouncementsFetcher {
       return -1;
     }
 
-    if (now < GlobalConstants.BUILD_TIMESTAMP_MSEC) {
+    if (now < GlobalConstants.BUILD_TIMESTAMP) {
       Logger.warn(LOG_TAG, "Current time " + now + " earlier than build date. Not calculating idle.");
       return -1;
     }

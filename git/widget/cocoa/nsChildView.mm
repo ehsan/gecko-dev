@@ -66,9 +66,6 @@
 #include "nsAccessibilityService.h"
 #include "mozilla/a11y/Platform.h"
 #endif
-#ifdef MOZ_CRASHREPORTER
-#include "nsExceptionHandler.h"
-#endif
 
 #include "mozilla/Preferences.h"
 
@@ -330,8 +327,8 @@ public:
   virtual GLContext* gl() const MOZ_OVERRIDE { return mGLContext; }
   virtual ShaderProgramOGL* GetProgram(ShaderProgramType aType) MOZ_OVERRIDE
   {
-    MOZ_ASSERT(aType == RGBARectLayerProgramType, "unexpected program type");
-    return mRGBARectProgram;
+    MOZ_ASSERT(aType == BGRARectLayerProgramType, "unexpected program type");
+    return mBGRARectProgram;
   }
   virtual void BindAndDrawQuad(ShaderProgramOGL *aProg) MOZ_OVERRIDE;
 
@@ -346,7 +343,7 @@ public:
 
 protected:
   nsRefPtr<mozilla::gl::GLContext> mGLContext;
-  nsAutoPtr<mozilla::layers::ShaderProgramOGL> mRGBARectProgram;
+  nsAutoPtr<mozilla::layers::ShaderProgramOGL> mBGRARectProgram;
   GLuint mQuadVBO;
 };
 
@@ -962,15 +959,6 @@ nsChildView::BackingScaleFactorChanged()
     guiEvent.time = PR_IntervalNow();
     DispatchEvent(&guiEvent, status);
   }
-}
-
-int32_t
-nsChildView::RoundsWidgetCoordinatesTo()
-{
-  if (BackingScaleFactor() == 2.0) {
-    return 2;
-  }
-  return 1;
 }
 
 NS_IMETHODIMP nsChildView::ConstrainPosition(bool aAllowSlop,
@@ -1962,8 +1950,8 @@ nsChildView::CreateCompositor()
       compositor::GetLayerManager(mCompositorParent);
     Compositor *compositor = manager->GetCompositor();
 
-    ClientLayerManager *clientManager = static_cast<ClientLayerManager*>(GetLayerManager());
-    if (clientManager->GetCompositorBackendType() == LAYERS_OPENGL) {
+    LayersBackend backend = compositor->GetBackend();
+    if (backend == LAYERS_OPENGL) {
       CompositorOGL *compositorOGL = static_cast<CompositorOGL*>(compositor);
 
       NSOpenGLContext *glContext = (NSOpenGLContext *)compositorOGL->gl()->GetNativeData(GLContext::NativeGLContext);
@@ -2598,7 +2586,6 @@ RectTextureImage::Draw(GLManager* aManager,
   program->Activate();
   program->SetLayerQuadRect(nsIntRect(nsIntPoint(0, 0), mUsedSize));
   program->SetLayerTransform(aTransform * gfx3DMatrix::Translation(aLocation.x, aLocation.y, 0));
-  program->SetTextureTransform(gfx3DMatrix());
   program->SetLayerOpacity(1.0);
   program->SetRenderOffset(nsIntPoint(0, 0));
   program->SetTexCoordMultiplier(mUsedSize.width, mUsedSize.height);
@@ -2616,8 +2603,8 @@ GLPresenter::GLPresenter(GLContext* aContext)
 {
   mGLContext->SetFlipped(true);
   mGLContext->MakeCurrent();
-  mRGBARectProgram = new ShaderProgramOGL(mGLContext,
-    ProgramProfileOGL::GetProfileFor(RGBARectLayerProgramType, MaskNone));
+  mBGRARectProgram = new ShaderProgramOGL(mGLContext,
+    ProgramProfileOGL::GetProfileFor(BGRARectLayerProgramType, MaskNone));
 
   // Create mQuadVBO.
   mGLContext->fGenBuffers(1, &mQuadVBO);
@@ -2681,7 +2668,7 @@ GLPresenter::BeginFrame(nsIntSize aRenderSize)
   gfx3DMatrix matrix3d = gfx3DMatrix::From2D(viewMatrix);
   matrix3d._33 = 0.0f;
 
-  mRGBARectProgram->CheckAndSetProjectionMatrix(matrix3d);
+  mBGRARectProgram->CheckAndSetProjectionMatrix(matrix3d);
 
   // Default blend function implements "OVER"
   mGLContext->fBlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ONE_MINUS_SRC_ALPHA,
@@ -5221,44 +5208,16 @@ static int32_t RoundUp(double aDouble)
 
 #if !defined(RELEASE_BUILD) || defined(DEBUG)
   if (mGeckoChild && mTextInputHandler && mTextInputHandler->IsFocused()) {
-#ifdef MOZ_CRASHREPORTER
-    NSWindow* window = [self window];
-    NSString* info = [NSString stringWithFormat:@"\nview [%@], window [%@], key event [%@], window is key %i, is fullscreen %i, is zoomed %i, app is active %i",
-                      self, window, theEvent, [window isKeyWindow], ([window styleMask] & (1 << 14)) != 0,
-                      [window isZoomed], [NSApp isActive]];
-    nsAutoCString additionalInfo([info UTF8String]);
-#endif
     if (mIsPluginView) {
       if (TextInputHandler::IsSecureEventInputEnabled()) {
-        #define CRASH_MESSAGE "While a plugin has focus, we must not be in secure mode"
-#ifdef MOZ_CRASHREPORTER
-        CrashReporter::AppendAppNotesToCrashReport(NS_LITERAL_CSTRING("\nBug 893973: ") +
-                                                   NS_LITERAL_CSTRING(CRASH_MESSAGE));
-        CrashReporter::AppendAppNotesToCrashReport(additionalInfo);
-#endif
-        MOZ_CRASH(CRASH_MESSAGE);
-        #undef CRASH_MESSAGE
+        MOZ_CRASH("While a plugin has focus, we must not be in secure mode");
       }
     } else if (mGeckoChild->GetInputContext().IsPasswordEditor() &&
                !TextInputHandler::IsSecureEventInputEnabled()) {
-      #define CRASH_MESSAGE "A password editor has focus, but not in secure input mode"
-#ifdef MOZ_CRASHREPORTER
-      CrashReporter::AppendAppNotesToCrashReport(NS_LITERAL_CSTRING("\nBug 893973: ") +
-                                                 NS_LITERAL_CSTRING(CRASH_MESSAGE));
-      CrashReporter::AppendAppNotesToCrashReport(additionalInfo);
-#endif
-      MOZ_CRASH(CRASH_MESSAGE);
-      #undef CRASH_MESSAGE
+      MOZ_CRASH("A password editor has focus, but not in secure input mode");
     } else if (!mGeckoChild->GetInputContext().IsPasswordEditor() &&
                TextInputHandler::IsSecureEventInputEnabled()) {
-      #define CRASH_MESSAGE "A non-password editor has focus, but in secure input mode"
-#ifdef MOZ_CRASHREPORTER
-      CrashReporter::AppendAppNotesToCrashReport(NS_LITERAL_CSTRING("\nBug 893973: ") +
-                                                 NS_LITERAL_CSTRING(CRASH_MESSAGE));
-      CrashReporter::AppendAppNotesToCrashReport(additionalInfo);
-#endif
-      MOZ_CRASH(CRASH_MESSAGE);
-      #undef CRASH_MESSAGE
+      MOZ_CRASH("A non-password editor has focus, but in secure input mode");
     }
   }
 #endif // #if !defined(RELEASE_BUILD) || defined(DEBUG)

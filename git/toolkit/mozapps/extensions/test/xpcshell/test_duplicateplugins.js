@@ -156,7 +156,7 @@ function run_test_2() {
     do_check_true(PLUGINS[0].disabled);
     do_check_true(PLUGINS[1].disabled);
 
-    do_execute_soon(run_test_3);
+    run_test_3();
   });
 }
 

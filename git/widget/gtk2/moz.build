@@ -16,7 +16,6 @@ CPP_SOURCES += [
     'WidgetTraceEvent.cpp',
     'nsAppShell.cpp',
     'nsBidiKeyboard.cpp',
-    'nsColorPicker.cpp',
     'nsFilePicker.cpp',
     'nsGtkIMModule.cpp',
     'nsGtkKeyUtils.cpp',
@@ -53,3 +52,6 @@ if CONFIG['MOZ_X11']:
         'nsClipboard.cpp',
         'nsDragService.cpp',
     ]
+
+CPP_SOURCES += [
+]

@@ -80,43 +80,41 @@ Reverb::Reverb(ThreadSharedFloatArrayBufferList* impulseResponse, size_t impulse
 {
     float scale = 1;
 
-    nsAutoTArray<const float*,4> irChannels;
-    for (size_t i = 0; i < impulseResponse->GetChannels(); ++i) {
-        irChannels.AppendElement(impulseResponse->GetData(i));
-    }
-    nsAutoTArray<float,1024> tempBuf;
-
     if (normalize) {
         scale = calculateNormalizationScale(impulseResponse, impulseResponseBufferLength, sampleRate);
 
         if (scale) {
-            tempBuf.SetLength(irChannels.Length()*impulseResponseBufferLength);
-            for (uint32_t i = 0; i < irChannels.Length(); ++i) {
-                float* buf = &tempBuf[i*impulseResponseBufferLength];
-                AudioBufferCopyWithScale(irChannels[i], scale, buf,
-                                         impulseResponseBufferLength);
-                irChannels[i] = buf;
+            for (uint32_t i = 0; i < impulseResponse->GetChannels(); ++i) {
+                AudioBufferInPlaceScale(const_cast<float*>(impulseResponse->GetData(i)),
+                                        1, scale, impulseResponseBufferLength);
             }
         }
     }
 
-    initialize(irChannels, impulseResponseBufferLength, renderSliceSize,
-               maxFFTSize, numberOfChannels, useBackgroundThreads);
+    initialize(impulseResponse, impulseResponseBufferLength, renderSliceSize, maxFFTSize, numberOfChannels, useBackgroundThreads);
+
+    // Undo scaling since this shouldn't be a destructive operation on impulseResponse.
+    // FIXME: What about roundoff? Perhaps consider making a temporary scaled copy
+    // instead of scaling and unscaling in place.
+    if (normalize && scale) {
+        for (uint32_t i = 0; i < impulseResponse->GetChannels(); ++i) {
+            AudioBufferInPlaceScale(const_cast<float*>(impulseResponse->GetData(i)),
+                                    1, 1 / scale, impulseResponseBufferLength);
+        }
+    }
 }
 
-void Reverb::initialize(const nsTArray<const float*>& impulseResponseBuffer,
-                        size_t impulseResponseBufferLength, size_t renderSliceSize,
-                        size_t maxFFTSize, size_t numberOfChannels, bool useBackgroundThreads)
+void Reverb::initialize(ThreadSharedFloatArrayBufferList* impulseResponseBuffer, size_t impulseResponseBufferLength, size_t renderSliceSize, size_t maxFFTSize, size_t numberOfChannels, bool useBackgroundThreads)
 {
     m_impulseResponseLength = impulseResponseBufferLength;
 
     // The reverb can handle a mono impulse response and still do stereo processing
-    size_t numResponseChannels = impulseResponseBuffer.Length();
+    size_t numResponseChannels = impulseResponseBuffer->GetChannels();
     m_convolvers.SetCapacity(numberOfChannels);
 
     int convolverRenderPhase = 0;
     for (size_t i = 0; i < numResponseChannels; ++i) {
-        const float* channel = impulseResponseBuffer[i];
+        const float* channel = impulseResponseBuffer->GetData(i);
         size_t length = impulseResponseBufferLength;
 
         nsAutoPtr<ReverbConvolver> convolver(new ReverbConvolver(channel, length, renderSliceSize, maxFFTSize, convolverRenderPhase, useBackgroundThreads));

@@ -7,7 +7,6 @@
 #include <string.h>
 
 #include "gdb-tests.h"
-#include "jsfriendapi.h"
 
 using namespace JS;
 
@@ -71,7 +70,7 @@ main (int argc, const char **argv)
     JS::CompartmentOptions options;
     options.setVersion(JSVERSION_LATEST);
     RootedObject global(cx, checkPtr(JS_NewGlobalObject(cx, &global_class, NULL, options)));
-    js::SetDefaultObjectForContext(cx, global);
+    JS_SetGlobalObject(cx, global);
 
     JSAutoCompartment ac(cx, global);
 

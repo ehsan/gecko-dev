@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "GrallocImages.h"
+#include "GonkIOSurfaceImage.h"
 #include "MediaDecoderReader.h"
 #include "AbstractMediaDecoder.h"
 #include "MediaDecoderStateMachine.h"
@@ -12,7 +12,7 @@
 #include "ImageContainer.h"
 
 #include "mozilla/mozalloc.h"
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 #include <algorithm>
 
 namespace mozilla {
@@ -348,16 +348,16 @@ VideoData* VideoData::Create(VideoInfo& aInfo,
                                        aTimecode,
                                        aInfo.mDisplay));
 
-  ImageFormat format = GRALLOC_PLANAR_YCBCR;
+  ImageFormat format = GONK_IO_SURFACE;
   v->mImage = aContainer->CreateImage(&format, 1);
   if (!v->mImage) {
     return nullptr;
   }
-  NS_ASSERTION(v->mImage->GetFormat() == GRALLOC_PLANAR_YCBCR,
+  NS_ASSERTION(v->mImage->GetFormat() == GONK_IO_SURFACE,
                "Wrong format?");
-  typedef mozilla::layers::GrallocImage GrallocImage;
-  GrallocImage* videoImage = static_cast<GrallocImage*>(v->mImage.get());
-  GrallocImage::GrallocData data;
+  typedef mozilla::layers::GonkIOSurfaceImage GonkIOSurfaceImage;
+  GonkIOSurfaceImage* videoImage = static_cast<GonkIOSurfaceImage*>(v->mImage.get());
+  GonkIOSurfaceImage::Data data;
 
   data.mPicSize = gfxIntSize(aPicture.width, aPicture.height);
   data.mGraphicBuffer = aBuffer;

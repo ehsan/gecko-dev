@@ -6,10 +6,7 @@
 
 /* JS symbol tables. */
 
-#include "vm/Shape-inl.h"
-
 #include "mozilla/DebugOnly.h"
-#include "mozilla/MathAlgorithms.h"
 #include "mozilla/PodOperations.h"
 
 #include "jsapi.h"
@@ -18,10 +15,12 @@
 #include "jsobj.h"
 
 #include "js/HashTable.h"
+#include "vm/Shape.h"
 
 #include "jscntxtinlines.h"
 #include "jsobjinlines.h"
 
+#include "vm/Shape-inl.h"
 #include "vm/Runtime-inl.h"
 
 using namespace js;
@@ -29,7 +28,6 @@ using namespace js::gc;
 
 using mozilla::DebugOnly;
 using mozilla::PodZero;
-using mozilla::CeilingLog2Size;
 
 bool
 ShapeTable::init(ExclusiveContext *cx, Shape *lastProp)
@@ -41,7 +39,7 @@ ShapeTable::init(ExclusiveContext *cx, Shape *lastProp)
      * event, let's try to grow, overallocating to hold at least twice the
      * current population.
      */
-    uint32_t sizeLog2 = CeilingLog2Size(2 * entryCount);
+    uint32_t sizeLog2 = JS_CEILING_LOG2W(2 * entryCount);
     if (sizeLog2 < MIN_SIZE_LOG2)
         sizeLog2 = MIN_SIZE_LOG2;
 

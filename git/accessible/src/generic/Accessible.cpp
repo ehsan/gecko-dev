@@ -1681,12 +1681,6 @@ Accessible::Value(nsString& aValue)
     return;
   }
 
-  // Value of textbox is a textified subtree.
-  if (mRoleMapEntry->Is(nsGkAtoms::textbox)) {
-    nsTextEquivUtils::GetTextEquivFromSubtree(this, aValue);
-    return;
-  }
-
   // Value of combobox is a text of current or selected item.
   if (mRoleMapEntry->Is(nsGkAtoms::combobox)) {
     Accessible* option = CurrentItem();
@@ -2293,28 +2287,13 @@ Accessible::DispatchClickEvent(nsIContent *aContent, uint32_t aActionIndex)
                                    nsIPresShell::ScrollAxis(),
                                    nsIPresShell::SCROLL_OVERFLOW_HIDDEN);
 
-  nsIFrame* frame = aContent->GetPrimaryFrame();
-  if (!frame)
+  // Fire mouse down and mouse up events.
+  bool res = nsCoreUtils::DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, presShell,
+                                               aContent);
+  if (!res)
     return;
 
-  // Compute x and y coordinates.
-  nsPoint point;
-  nsCOMPtr<nsIWidget> widget = frame->GetNearestWidget(point);
-  if (!widget)
-    return;
-
-  nsSize size = frame->GetSize();
-
-  nsPresContext* presContext = presShell->GetPresContext();
-
-  int32_t x = presContext->AppUnitsToDevPixels(point.x + size.width / 2);
-  int32_t y = presContext->AppUnitsToDevPixels(point.y + size.height / 2);
-
-  // Simulate a touch interaction by dispatching touch events with mouse events.
-  nsCoreUtils::DispatchTouchEvent(NS_TOUCH_START, x, y, aContent, frame, presShell, widget);
-  nsCoreUtils::DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, x, y, aContent, frame, presShell, widget);
-  nsCoreUtils::DispatchTouchEvent(NS_TOUCH_END, x, y, aContent, frame, presShell, widget);
-  nsCoreUtils::DispatchMouseEvent(NS_MOUSE_BUTTON_UP, x, y, aContent, frame, presShell, widget);
+  nsCoreUtils::DispatchMouseEvent(NS_MOUSE_BUTTON_UP, presShell, aContent);
 }
 
 NS_IMETHODIMP
@@ -3353,14 +3332,14 @@ Accessible::GetLevelInternal()
 void
 Accessible::StaticAsserts() const
 {
-  static_assert(eLastChildrenFlag <= (2 << kChildrenFlagsBits) - 1,
-                "Accessible::mChildrenFlags was oversized by eLastChildrenFlag!");
-  static_assert(eLastStateFlag <= (2 << kStateFlagsBits) - 1,
-                "Accessible::mStateFlags was oversized by eLastStateFlag!");
-  static_assert(eLastAccType <= (2 << kTypeBits) - 1,
-                "Accessible::mType was oversized by eLastAccType!");
-  static_assert(eLastAccGenericType <= (2 << kGenericTypesBits) - 1,
-                "Accessible::mGenericType was oversized by eLastAccGenericType!");
+  MOZ_STATIC_ASSERT(eLastChildrenFlag <= (2 << kChildrenFlagsBits) - 1,
+                    "Accessible::mChildrenFlags was oversized by eLastChildrenFlag!");
+  MOZ_STATIC_ASSERT(eLastStateFlag <= (2 << kStateFlagsBits) - 1,
+                    "Accessible::mStateFlags was oversized by eLastStateFlag!");
+  MOZ_STATIC_ASSERT(eLastAccType <= (2 << kTypeBits) - 1,
+                    "Accessible::mType was oversized by eLastAccType!");
+  MOZ_STATIC_ASSERT(eLastAccGenericType <= (2 << kGenericTypesBits) - 1,
+                    "Accessible::mGenericType was oversized by eLastAccGenericType!");
 }
 
 

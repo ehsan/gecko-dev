@@ -1,6 +1,7 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=99 ft=cpp:
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
@@ -9,8 +10,8 @@
  * are faster to access again.
  */
 
-#ifndef mozilla_SplayTree_h
-#define mozilla_SplayTree_h
+#ifndef mozilla_SplayTree_h_
+#define mozilla_SplayTree_h_
 
 #include "mozilla/Assertions.h"
 #include "mozilla/NullPtr.h"
@@ -281,4 +282,4 @@ class SplayTree
 
 }  /* namespace mozilla */
 
-#endif /* mozilla_SplayTree_h */
+#endif /* mozilla_SplayTree_h_ */

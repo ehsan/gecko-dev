@@ -12,7 +12,7 @@
 #endif
 
 #define SCTP_DEBUG 1
-#define SCTP_STDINT_INCLUDE <stdint.h>
+#define SCTP_STDINT_INCLUDE "mozilla/StandardInteger.h"
 
 #ifdef _MSC_VER
 // Disable "warning C4200: nonstandard extension used : zero-sized array in
@@ -272,8 +272,8 @@ void DataChannelConnection::DestroyOnSTS(struct socket *aMasterSocket,
   disconnect_all();
 }
 
-NS_IMPL_ISUPPORTS1(DataChannelConnection,
-                   nsITimerCallback)
+NS_IMPL_THREADSAFE_ISUPPORTS1(DataChannelConnection,
+                              nsITimerCallback)
 
 bool
 DataChannelConnection::Init(unsigned short aPort, uint16_t aNumStreams, bool aUsingDtls)

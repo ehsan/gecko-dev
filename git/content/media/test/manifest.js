@@ -38,6 +38,7 @@ var gProgressTests = [
 // Used by test_played.html
 var gPlayedTests = [
   { name:"big.wav", type:"audio/x-wav", duration:9.0 },
+  { name:"sound.ogg", type:"audio/ogg", duration:4.0 },
   { name:"seek.ogv", type:"video/ogg", duration:3.966 },
   { name:"seek.webm", type:"video/webm", duration:3.966 },
   { name:"gizmo.mp4", type:"video/mp4", duration:5.56 },
@@ -76,12 +77,6 @@ var gTrackTests = [
   { name:"short-video.ogv", type:"video/ogg", duration:1.081, hasAudio:true, hasVideo:true },
   { name:"seek.webm", type:"video/webm", duration:3.966, size:215529, hasAudio:false, hasVideo:true },
   { name:"bogus.duh", type:"bogus/duh" }
-];
-
-// Used by any media recorder test. Need one test file per decoder backend
-// currently supported by the media encoder.
-var gMediaRecorderTests = [
-  { name:"detodos.opus", type:"audio/ogg; codecs=opus", duration:2.9135 }
 ];
 
 // These are files that we want to make sure we can play through.  We can
@@ -216,7 +211,7 @@ var gInvalidTests = [
 // we've specified.
 function fileUriToSrc(path, mustExist) {
   // android mochitest doesn't support file://
-  if (navigator.appVersion.indexOf("Android") != -1 || SpecialPowers.Services.appinfo.name == "B2G")
+  if (navigator.appVersion.indexOf("Android") != -1)
     return path;
 
   const Ci = SpecialPowers.Ci;
@@ -691,25 +686,25 @@ function mediaTestCleanup() {
   var oldGStreamer = undefined;
   var oldOpus = undefined;
 
-  try { oldGStreamer = SpecialPowers.getBoolPref("media.gstreamer.enabled"); } catch(ex) { }
-  try { oldDefault   = SpecialPowers.getIntPref("media.preload.default"); } catch(ex) { }
-  try { oldAuto      = SpecialPowers.getIntPref("media.preload.auto"); } catch(ex) { }
-  try { oldOpus      = SpecialPowers.getBoolPref("media.opus.enabled"); } catch(ex) { }
+  try { oldGStreamer = branch.getBoolPref("gstreamer.enabled"); } catch(ex) { }
+  try { oldDefault   = branch.getIntPref("preload.default"); } catch(ex) { }
+  try { oldAuto      = branch.getIntPref("preload.auto"); } catch(ex) { }
+  try { oldOpus      = branch.getBoolPref("opus.enabled"); } catch(ex) { }
 
-  SpecialPowers.setIntPref("media.preload.default", 2); // preload_metadata
-  SpecialPowers.setIntPref("media.preload.auto", 3); // preload_enough
+  branch.setIntPref("preload.default", 2); // preload_metadata
+  branch.setIntPref("preload.auto", 3); // preload_enough
   // test opus playback iff the pref exists
   if (oldOpus !== undefined)
-    SpecialPowers.setBoolPref("media.opus.enabled", true);
+    branch.setBoolPref("opus.enabled", true);
   if (oldGStreamer !== undefined)
-    SpecialPowers.setBoolPref("media.gstreamer.enabled", true);
+    branch.setBoolPref("gstreamer.enabled", true);
 
   window.addEventListener("unload", function() {
     if (oldGStreamer !== undefined)
-      SpecialPowers.setBoolPref("media.gstreamer.enabled", oldGStreamer);
-    SpecialPowers.setIntPref("media.preload.default", oldDefault);
-    SpecialPowers.setIntPref("media.preload.auto", oldAuto);
+      branch.setBoolPref("gstreamer.enabled", oldGStreamer);
+    branch.setIntPref("preload.default", oldDefault);
+    branch.setIntPref("preload.auto", oldAuto);
     if (oldOpus !== undefined)
-      SpecialPowers.setBoolPref("media.opus.enabled", oldOpus);
+      branch.setBoolPref("opus.enabled", oldOpus);
   }, false);
  })();

@@ -33,8 +33,6 @@ public final class GeckoProfile {
     private File mMozDir;
     private File mDir;
 
-    private boolean mInGuestMode = false;
-
     static private INIParser getProfilesINI(Context context) {
       File filesDir = context.getFilesDir();
       File mozillaDir = new File(filesDir, "mozilla");
@@ -43,11 +41,8 @@ public final class GeckoProfile {
     }
 
     public static GeckoProfile get(Context context) {
-        if (context instanceof GeckoApp) {
-            if (((GeckoApp)context).mProfile != null)
-                return ((GeckoApp)context).mProfile;
+        if (context instanceof GeckoApp)
             return get(context, ((GeckoApp)context).getDefaultProfileName());
-        }
 
         return get(context, "");
     }
@@ -58,24 +53,17 @@ public final class GeckoProfile {
             if (profile != null)
                 return profile;
         }
-        return get(context, profileName, (File)null);
+        return get(context, profileName, null);
     }
 
     public static GeckoProfile get(Context context, String profileName, String profilePath) {
-        File dir = null;
-        if (!TextUtils.isEmpty(profilePath))
-            dir = new File(profilePath);
-        return get(context, profileName, dir);
-    }
-
-    public static GeckoProfile get(Context context, String profileName, File profileDir) {
         if (context == null) {
             throw new IllegalArgumentException("context must be non-null");
         }
 
         // if no profile was passed in, look for the default profile listed in profiles.ini
         // if that doesn't exist, look for a profile called 'default'
-        if (TextUtils.isEmpty(profileName) && profileDir == null) {
+        if (TextUtils.isEmpty(profileName) && TextUtils.isEmpty(profilePath)) {
             profileName = GeckoProfile.findDefaultProfile(context);
             if (profileName == null)
                 profileName = "default";
@@ -85,10 +73,10 @@ public final class GeckoProfile {
         synchronized (sProfileCache) {
             GeckoProfile profile = sProfileCache.get(profileName);
             if (profile == null) {
-                profile = new GeckoProfile(context, profileName, profileDir);
+                profile = new GeckoProfile(context, profileName, profilePath);
                 sProfileCache.put(profileName, profile);
             } else {
-                profile.setDir(profileDir);
+                profile.setDir(profilePath);
             }
             return profile;
         }
@@ -111,77 +99,25 @@ public final class GeckoProfile {
         return new GeckoProfile(context, profileName).remove();
     }
 
-    public static GeckoProfile createGuestProfile(Context context) {
-        if (context == null) {
-            throw new IllegalArgumentException("context must be non-null");
-        }
-        try {
-            removeGuestProfile(context);
-
-            File guestDir = context.getDir("guest", Context.MODE_PRIVATE);
-            guestDir.mkdir();
-
-            GeckoProfile profile = get(context, "guest", guestDir);
-            profile.mInGuestMode = true;
-            return profile;
-        } catch (Exception ex) {
-            Log.e(LOGTAG, "Error creating guest profile", ex);
-        }
-        return null;
-    }
-
-    public static void removeGuestProfile(Context context) {
-        if (context == null) {
-            throw new IllegalArgumentException("context must be non-null");
-        }
-        try {
-            File guestDir = context.getDir("guest", Context.MODE_PRIVATE);
-            if (guestDir.exists()) {
-                delete(guestDir);
-            }
-        } catch (Exception ex) {
-            Log.e(LOGTAG, "Error removing guest profile", ex);
-        }
-    }
-
-    public static boolean delete(File file) throws IOException {
-        // Try to do a quick initial delete
-        if (file.delete())
-            return true;
-
-        if (file.isDirectory()) {
-            // If the quick delete failed and this is a dir, recursively delete the contents of the dir
-            String files[] = file.list();
-            for (String temp : files) {
-                File fileDelete = new File(file, temp);
-                delete(fileDelete);
-            }
-        }
-
-        // Even if this is a dir, it should now be empty and delete should work
-        return file.delete();
-    }
-
     private GeckoProfile(Context context, String profileName) {
         mContext = context;
         mName = profileName;
     }
 
-    private GeckoProfile(Context context, String profileName, File profileDir) {
+    private GeckoProfile(Context context, String profileName, String profilePath) {
         mContext = context;
         mName = profileName;
-        setDir(profileDir);
+        setDir(profilePath);
     }
 
-    public boolean inGuestMode() {
-        return mInGuestMode;
-    }
-
-    private void setDir(File dir) {
-        if (dir != null && dir.exists() && dir.isDirectory()) {
-            mDir = dir;
-        } else {
-            Log.w(LOGTAG, "requested profile directory missing: " + dir);
+    private void setDir(String profilePath) {
+        if (!TextUtils.isEmpty(profilePath)) {
+            File dir = new File(profilePath);
+            if (dir.exists() && dir.isDirectory()) {
+                mDir = dir;
+            } else {
+                Log.w(LOGTAG, "requested profile directory missing: " + profilePath);
+            }
         }
     }
 
@@ -195,7 +131,15 @@ public final class GeckoProfile {
         }
 
         try {
-            // Check if a profile with this name already exists.
+            // Check for old profiles that may need migration.
+            ProfileMigrator profileMigrator = new ProfileMigrator(mContext);
+            if (!GeckoApp.sIsUsingCustomProfile &&
+                !profileMigrator.isProfileMoved()) {
+                Log.i(LOGTAG, "New installation or update, checking for old profiles.");
+                profileMigrator.launchMoveProfile();
+            }
+
+            // now check if a profile with this name that already exists
             File mozillaDir = ensureMozillaDirectory(mContext);
             mDir = findProfileDir(mozillaDir);
             if (mDir == null) {

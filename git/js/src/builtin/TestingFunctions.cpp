@@ -15,7 +15,6 @@
 #include "jswrapper.h"
 
 #include "ion/AsmJS.h"
-#include "ion/AsmJSLink.h"
 #include "vm/ForkJoin.h"
 #include "vm/Interpreter.h"
 
@@ -32,14 +31,14 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
     RootedObject info(cx, JS_NewObject(cx, NULL, NULL, NULL));
     if (!info)
         return false;
-    RootedValue value(cx);
+    Value value;
 
 #ifdef JSGC_ROOT_ANALYSIS
     value = BooleanValue(true);
 #else
     value = BooleanValue(false);
 #endif
-    if (!JS_SetProperty(cx, info, "rooting-analysis", value))
+    if (!JS_SetProperty(cx, info, "rooting-analysis", &value))
         return false;
 
 #ifdef JSGC_USE_EXACT_ROOTING
@@ -47,7 +46,7 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
 #else
     value = BooleanValue(false);
 #endif
-    if (!JS_SetProperty(cx, info, "exact-rooting", value))
+    if (!JS_SetProperty(cx, info, "exact-rooting", &value))
         return false;
 
 #ifdef DEBUG
@@ -55,7 +54,7 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
 #else
     value = BooleanValue(false);
 #endif
-    if (!JS_SetProperty(cx, info, "debug", value))
+    if (!JS_SetProperty(cx, info, "debug", &value))
         return false;
 
 #ifdef JS_HAS_CTYPES
@@ -63,7 +62,7 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
 #else
     value = BooleanValue(false);
 #endif
-    if (!JS_SetProperty(cx, info, "has-ctypes", value))
+    if (!JS_SetProperty(cx, info, "has-ctypes", &value))
         return false;
 
 #ifdef JS_CPU_X86
@@ -71,7 +70,7 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
 #else
     value = BooleanValue(false);
 #endif
-    if (!JS_SetProperty(cx, info, "x86", value))
+    if (!JS_SetProperty(cx, info, "x86", &value))
         return false;
 
 #ifdef JS_CPU_X64
@@ -79,7 +78,7 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
 #else
     value = BooleanValue(false);
 #endif
-    if (!JS_SetProperty(cx, info, "x64", value))
+    if (!JS_SetProperty(cx, info, "x64", &value))
         return false;
 
 #ifdef MOZ_ASAN
@@ -87,7 +86,7 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
 #else
     value = BooleanValue(false);
 #endif
-    if (!JS_SetProperty(cx, info, "asan", value))
+    if (!JS_SetProperty(cx, info, "asan", &value))
         return false;
 
 #ifdef JS_GC_ZEAL
@@ -95,7 +94,7 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
 #else
     value = BooleanValue(false);
 #endif
-    if (!JS_SetProperty(cx, info, "has-gczeal", value))
+    if (!JS_SetProperty(cx, info, "has-gczeal", &value))
         return false;
 
 #ifdef JS_THREADSAFE
@@ -103,7 +102,7 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
 #else
     value = BooleanValue(false);
 #endif
-    if (!JS_SetProperty(cx, info, "threadsafe", value))
+    if (!JS_SetProperty(cx, info, "threadsafe", &value))
         return false;
 
 #ifdef JS_MORE_DETERMINISTIC
@@ -111,7 +110,7 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
 #else
     value = BooleanValue(false);
 #endif
-    if (!JS_SetProperty(cx, info, "more-deterministic", value))
+    if (!JS_SetProperty(cx, info, "more-deterministic", &value))
         return false;
 
 #ifdef MOZ_PROFILING
@@ -119,7 +118,7 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
 #else
     value = BooleanValue(false);
 #endif
-    if (!JS_SetProperty(cx, info, "profiling", value))
+    if (!JS_SetProperty(cx, info, "profiling", &value))
         return false;
 
 #ifdef INCLUDE_MOZILLA_DTRACE
@@ -127,7 +126,7 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
 #else
     value = BooleanValue(false);
 #endif
-    if (!JS_SetProperty(cx, info, "dtrace", value))
+    if (!JS_SetProperty(cx, info, "dtrace", &value))
         return false;
 
 #ifdef MOZ_TRACE_JSCALLS
@@ -135,7 +134,7 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
 #else
     value = BooleanValue(false);
 #endif
-    if (!JS_SetProperty(cx, info, "trace-jscalls-api", value))
+    if (!JS_SetProperty(cx, info, "trace-jscalls-api", &value))
         return false;
 
 #ifdef JSGC_INCREMENTAL
@@ -143,7 +142,7 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
 #else
     value = BooleanValue(false);
 #endif
-    if (!JS_SetProperty(cx, info, "incremental-gc", value))
+    if (!JS_SetProperty(cx, info, "incremental-gc", &value))
         return false;
 
 #ifdef JSGC_GENERATIONAL
@@ -151,7 +150,7 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
 #else
     value = BooleanValue(false);
 #endif
-    if (!JS_SetProperty(cx, info, "generational-gc", value))
+    if (!JS_SetProperty(cx, info, "generational-gc", &value))
         return false;
 
 #ifdef MOZ_VALGRIND
@@ -159,7 +158,7 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
 #else
     value = BooleanValue(false);
 #endif
-    if (!JS_SetProperty(cx, info, "valgrind", value))
+    if (!JS_SetProperty(cx, info, "valgrind", &value))
         return false;
 
 #ifdef JS_OOM_DO_BACKTRACES
@@ -167,7 +166,7 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
 #else
     value = BooleanValue(false);
 #endif
-    if (!JS_SetProperty(cx, info, "oom-backtraces", value))
+    if (!JS_SetProperty(cx, info, "oom-backtraces", &value))
         return false;
 
 #ifdef ENABLE_PARALLEL_JS
@@ -175,15 +174,7 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
 #else
     value = BooleanValue(false);
 #endif
-    if (!JS_SetProperty(cx, info, "parallelJS", value))
-        return false;
-
-#ifdef ENABLE_BINARYDATA
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "binary-data", value))
+    if (!JS_SetProperty(cx, info, "parallelJS", &value))
         return false;
 
     *vp = ObjectValue(*info);
@@ -240,7 +231,7 @@ MinorGC(JSContext *cx, unsigned argc, jsval *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     if (args.get(0) == BooleanValue(true))
-        cx->runtime()->gcStoreBuffer.setAboutToOverflow();
+        cx->runtime()->gcStoreBuffer.setOverflowed();
 
     MinorGC(cx->runtime(), gcreason::API);
 #endif
@@ -801,7 +792,7 @@ static JSClass FinalizeCounterClass = {
 static JSBool
 MakeFinalizeObserver(JSContext *cx, unsigned argc, jsval *vp)
 {
-    RootedObject scope(cx, JS::CurrentGlobalOrNull(cx));
+    RootedObject scope(cx, JS_GetGlobalForScopeChain(cx));
     if (!scope)
         return false;
 
@@ -985,6 +976,32 @@ GetObjectMetadata(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
+#ifndef JS_ION
+JSBool
+js::IsAsmJSCompilationAvailable(JSContext *cx, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    args.rval().set(BooleanValue(false));
+    return true;
+}
+
+JSBool
+js::IsAsmJSModule(JSContext *cx, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    args.rval().set(BooleanValue(false));
+    return true;
+}
+
+JSBool
+js::IsAsmJSFunction(JSContext *cx, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    args.rval().set(BooleanValue(false));
+    return true;
+}
+#endif
+
 static JSFunctionSpecWithHelp TestingFunctions[] = {
     JS_FN_HELP("gc", ::GC, 0, 0,
 "gc([obj] | 'compartment')",
@@ -993,9 +1010,9 @@ static JSFunctionSpecWithHelp TestingFunctions[] = {
 "  GC via schedulegc."),
 
     JS_FN_HELP("minorgc", ::MinorGC, 0, 0,
-"minorgc([aboutToOverflow])",
-"  Run a minor collector on the Nursery. When aboutToOverflow is true, marks\n"
-"  the store buffer as about-to-overflow before collecting."),
+"minorgc([overflow])",
+"  Run a minor collector on the Nursery. When overflow is true, marks the\n"
+"  store buffer as overflowed before collecting."),
 
     JS_FN_HELP("gcparam", GCParameter, 2, 0,
 "gcparam(name [, value])",

@@ -4,21 +4,24 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ion/VMFunctions.h"
-
-#include "builtin/ParallelArray.h"
-#include "frontend/BytecodeCompiler.h"
-#include "ion/BaselineIC.h"
 #include "ion/Ion.h"
 #include "ion/IonCompartment.h"
+#include "ion/BaselineFrame-inl.h"
+#include "ion/BaselineIC.h"
 #include "ion/IonFrames.h"
+
 #include "vm/ArrayObject.h"
 #include "vm/Debugger.h"
 #include "vm/Interpreter.h"
-
-#include "ion/BaselineFrame-inl.h"
-#include "vm/Interpreter-inl.h"
 #include "vm/StringObject-inl.h"
+
+#include "builtin/ParallelArray.h"
+
+#include "frontend/BytecodeCompiler.h"
+
+#include "jsboolinlines.h"
+
+#include "vm/Interpreter-inl.h"
 
 using namespace js;
 using namespace js::ion;
@@ -144,72 +147,94 @@ InitProp(JSContext *cx, HandleObject obj, HandlePropertyName name, HandleValue v
 
 template<bool Equal>
 bool
-LooselyEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
+LooselyEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res)
 {
-    if (!js::LooselyEqual(cx, lhs, rhs, res))
+    bool equal;
+    if (!js::LooselyEqual(cx, lhs, rhs, &equal))
         return false;
-    if (!Equal)
-        *res = !*res;
+    *res = (equal == Equal);
     return true;
 }
 
-template bool LooselyEqual<true>(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, bool *res);
-template bool LooselyEqual<false>(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, bool *res);
+template bool LooselyEqual<true>(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res);
+template bool LooselyEqual<false>(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res);
 
 template<bool Equal>
 bool
-StrictlyEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
+StrictlyEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res)
 {
-    if (!js::StrictlyEqual(cx, lhs, rhs, res))
+    bool equal;
+    if (!js::StrictlyEqual(cx, lhs, rhs, &equal))
         return false;
-    if (!Equal)
-        *res = !*res;
+    *res = (equal == Equal);
     return true;
 }
 
-template bool StrictlyEqual<true>(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, bool *res);
-template bool StrictlyEqual<false>(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, bool *res);
+template bool StrictlyEqual<true>(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res);
+template bool StrictlyEqual<false>(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res);
 
 bool
-LessThan(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
+LessThan(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res)
 {
-    return LessThanOperation(cx, lhs, rhs, res);
+    bool cond;
+    if (!LessThanOperation(cx, lhs, rhs, &cond))
+        return false;
+    *res = cond;
+    return true;
 }
 
 bool
-LessThanOrEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
+LessThanOrEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res)
 {
-    return LessThanOrEqualOperation(cx, lhs, rhs, res);
+    bool cond;
+    if (!LessThanOrEqualOperation(cx, lhs, rhs, &cond))
+        return false;
+    *res = cond;
+    return true;
 }
 
 bool
-GreaterThan(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
+GreaterThan(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res)
 {
-    return GreaterThanOperation(cx, lhs, rhs, res);
+    bool cond;
+    if (!GreaterThanOperation(cx, lhs, rhs, &cond))
+        return false;
+    *res = cond;
+    return true;
 }
 
 bool
-GreaterThanOrEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
+GreaterThanOrEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res)
 {
-    return GreaterThanOrEqualOperation(cx, lhs, rhs, res);
+    bool cond;
+    if (!GreaterThanOrEqualOperation(cx, lhs, rhs, &cond))
+        return false;
+    *res = cond;
+    return true;
 }
 
 template<bool Equal>
 bool
-StringsEqual(JSContext *cx, HandleString lhs, HandleString rhs, bool *res)
+StringsEqual(JSContext *cx, HandleString lhs, HandleString rhs, JSBool *res)
 {
-    if (!js::EqualStrings(cx, lhs, rhs, res))
+    bool equal;
+    if (!js::EqualStrings(cx, lhs, rhs, &equal))
         return false;
-    if (!Equal)
-        *res = !*res;
+    *res = (equal == Equal);
     return true;
 }
 
-template bool StringsEqual<true>(JSContext *cx, HandleString lhs, HandleString rhs, bool *res);
-template bool StringsEqual<false>(JSContext *cx, HandleString lhs, HandleString rhs, bool *res);
+template bool StringsEqual<true>(JSContext *cx, HandleString lhs, HandleString rhs, JSBool *res);
+template bool StringsEqual<false>(JSContext *cx, HandleString lhs, HandleString rhs, JSBool *res);
+
+JSBool
+ObjectEmulatesUndefined(JSObject *obj)
+{
+    return EmulatesUndefined(obj);
+}
 
 bool
-IteratorMore(JSContext *cx, HandleObject obj, bool *res)
+IteratorMore(JSContext *cx, HandleObject obj, JSBool *res)
 {
     RootedValue tmp(cx);
     if (!js_IteratorMore(cx, obj, &tmp))
@@ -455,7 +480,7 @@ SPSExit(JSContext *cx, HandleScript script)
 }
 
 bool
-OperatorIn(JSContext *cx, HandleValue key, HandleObject obj, bool *out)
+OperatorIn(JSContext *cx, HandleValue key, HandleObject obj, JSBool *out)
 {
     RootedId id(cx);
     if (!ValueToId<CanGC>(cx, key, &id))
@@ -471,7 +496,7 @@ OperatorIn(JSContext *cx, HandleValue key, HandleObject obj, bool *out)
 }
 
 bool
-OperatorInI(JSContext *cx, uint32_t index, HandleObject obj, bool *out)
+OperatorInI(JSContext *cx, uint32_t index, HandleObject obj, JSBool *out)
 {
     RootedValue key(cx, Int32Value(index));
     return OperatorIn(cx, key, obj, out);
@@ -547,7 +572,7 @@ GetDynamicName(JSContext *cx, JSObject *scopeChain, JSString *str, Value *vp)
     vp->setUndefined();
 }
 
-bool
+JSBool
 FilterArguments(JSContext *cx, JSString *str)
 {
     // getChars() is fallible, but cannot GC: it can only allocate a character
@@ -590,7 +615,7 @@ GetIndexFromString(JSString *str)
 }
 
 bool
-DebugPrologue(JSContext *cx, BaselineFrame *frame, bool *mustReturn)
+DebugPrologue(JSContext *cx, BaselineFrame *frame, JSBool *mustReturn)
 {
     *mustReturn = false;
 
@@ -616,7 +641,7 @@ DebugPrologue(JSContext *cx, BaselineFrame *frame, bool *mustReturn)
 }
 
 bool
-DebugEpilogue(JSContext *cx, BaselineFrame *frame, bool ok)
+DebugEpilogue(JSContext *cx, BaselineFrame *frame, JSBool ok)
 {
     // Unwind scope chain to stack depth 0.
     UnwindScope(cx, frame, 0);
@@ -704,7 +729,7 @@ InitRestParameter(JSContext *cx, uint32_t length, Value *rest, HandleObject temp
 }
 
 bool
-HandleDebugTrap(JSContext *cx, BaselineFrame *frame, uint8_t *retAddr, bool *mustReturn)
+HandleDebugTrap(JSContext *cx, BaselineFrame *frame, uint8_t *retAddr, JSBool *mustReturn)
 {
     *mustReturn = false;
 
@@ -752,7 +777,7 @@ HandleDebugTrap(JSContext *cx, BaselineFrame *frame, uint8_t *retAddr, bool *mus
 }
 
 bool
-OnDebuggerStatement(JSContext *cx, BaselineFrame *frame, jsbytecode *pc, bool *mustReturn)
+OnDebuggerStatement(JSContext *cx, BaselineFrame *frame, jsbytecode *pc, JSBool *mustReturn)
 {
     *mustReturn = false;
 

@@ -16,14 +16,12 @@
     _(SoftDivI)                 \
     _(DivPowTwoI)               \
     _(ModI)                     \
-    _(SoftModI)                 \
     _(ModPowTwoI)               \
     _(ModMaskI)                 \
     _(PowHalfD)                 \
     _(UInt32ToDouble)           \
-    _(UDiv)                     \
-    _(UMod)                     \
-    _(SoftUDivOrMod)            \
+    _(UDivOrMod)                \
     _(AsmJSLoadFuncPtr)
+
 
 #endif /* ion_arm_LOpcodes_arm_h */

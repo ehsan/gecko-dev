@@ -71,15 +71,15 @@ public class AnnouncementsBroadcastService extends BackgroundService {
       Logger.debug(LOG_TAG, "No previous launch recorded.");
     }
 
-    if (now < GlobalConstants.BUILD_TIMESTAMP_MSEC) {
+    if (now < GlobalConstants.BUILD_TIMESTAMP) {
       Logger.warn(LOG_TAG, "Current time " + now + " is older than build date " +
-                           GlobalConstants.BUILD_TIMESTAMP_MSEC + ". Ignoring until clock is corrected.");
+                           GlobalConstants.BUILD_TIMESTAMP + ". Ignoring until clock is corrected.");
       return;
     }
 
-    if (now > AnnouncementsConstants.LATEST_ACCEPTED_LAUNCH_TIMESTAMP_MSEC) {
+    if (now > AnnouncementsConstants.LATEST_ACCEPTED_LAUNCH_TIMESTAMP) {
       Logger.warn(LOG_TAG, "Launch time " + now + " is later than max sane launch timestamp " +
-                           AnnouncementsConstants.LATEST_ACCEPTED_LAUNCH_TIMESTAMP_MSEC +
+                           AnnouncementsConstants.LATEST_ACCEPTED_LAUNCH_TIMESTAMP +
                            ". Ignoring until clock is corrected.");
       return;
     }

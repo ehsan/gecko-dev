@@ -21,7 +21,7 @@
 #include "plstr.h"
 #include "nsIScriptExternalNameSet.h"
 
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 class nsIDocShell;
 class nsString;

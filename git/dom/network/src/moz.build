@@ -6,19 +6,17 @@
 
 EXPORTS.mozilla.dom.network += [
     'Constants.h',
-    'TCPServerSocketChild.h',
-    'TCPServerSocketParent.h',
     'TCPSocketChild.h',
     'TCPSocketParent.h',
     'Types.h',
+    'Utils.h',
 ]
 
 CPP_SOURCES += [
     'Connection.cpp',
-    'TCPServerSocketChild.cpp',
-    'TCPServerSocketParent.cpp',
     'TCPSocketChild.cpp',
     'TCPSocketParent.cpp',
+    'Utils.cpp',
 ]
 
 if CONFIG['MOZ_B2G_RIL']:
@@ -31,7 +29,6 @@ if CONFIG['MOZ_B2G_RIL']:
     ]
 
 EXTRA_COMPONENTS += [
-    'TCPServerSocket.js',
     'TCPSocket.js',
     'TCPSocket.manifest',
     'TCPSocketParentIntermediary.js',
@@ -44,6 +41,5 @@ if CONFIG['MOZ_B2G_RIL']:
     ]
 
 IPDL_SOURCES += [
-    'PTCPServerSocket.ipdl',
     'PTCPSocket.ipdl',
 ]

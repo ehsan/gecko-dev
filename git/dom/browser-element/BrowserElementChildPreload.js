@@ -171,7 +171,7 @@ BrowserElementChild.prototype = {
                      /* wantsUntrusted = */ false);
 
     addEventListener('DOMLinkAdded',
-                     this._linkAddedHandler.bind(this),
+                     this._iconChangedHandler.bind(this),
                      /* useCapture = */ true,
                      /* wantsUntrusted = */ false);
 
@@ -264,9 +264,8 @@ BrowserElementChild.prototype = {
   },
 
   observe: function(subject, topic, data) {
-    // Ignore notifications not about our document.  (Note that |content| /can/
-    // be null; see bug 874900.)
-    if (!content || subject != content.document)
+    // Ignore notifications not about our document.
+    if (subject != content.document)
       return;
     switch (topic) {
       case 'fullscreen-origin-change':
@@ -448,45 +447,22 @@ BrowserElementChild.prototype = {
   },
 
   _iconChangedHandler: function(e) {
-    debug('Got iconchanged: (' + e.target.href + ')');
+    debug("Got iconchanged: (" + e.target.href + ")");
+    var hasIcon = e.target.rel.split(' ').some(function(x) {
+      return x.toLowerCase() === 'icon';
+    });
 
-    sendAsyncMsg('iconchange', { _payload_: e.target.href });
-  },
-
-  _openSearchHandler: function(e) {
-    debug('Got opensearch: (' + e.target.href + ')');
-
-    if (e.target.type !== "application/opensearchdescription+xml") {
-      return;
-    }
-
-    sendAsyncMsg('opensearch', { title: e.target.title,
-                                 href: e.target.href });
-
-  },
-
-  // Processes the "rel" field in <link> tags and forward to specific handlers.
-  _linkAddedHandler: function(e) {
-    let win = e.target.ownerDocument.defaultView;
-    // Ignore links which don't come from the top-level
-    // <iframe mozbrowser> window.
-    if (win != content) {
-      debug('Not top level!');
-      return;
-    }
-
-    let handlers = {
-      'icon': this._iconChangedHandler,
-      'search': this._openSearchHandler
-    };
-
-    debug('Got linkAdded: (' + e.target.href + ') ' + e.target.rel);
-    e.target.rel.split(' ').forEach(function(x) {
-      let token = x.toLowerCase();
-      if (handlers[token]) {
-        handlers[token](e);
+    if (hasIcon) {
+      var win = e.target.ownerDocument.defaultView;
+      // Ignore iconchanges which don't come from the top-level
+      // <iframe mozbrowser> window.
+      if (win == content) {
+        sendAsyncMsg('iconchange', { _payload_: e.target.href });
       }
-    }, this);
+      else {
+        debug("Not top level!");
+      }
+    }
   },
 
   _addMozAfterPaintHandler: function(callback) {

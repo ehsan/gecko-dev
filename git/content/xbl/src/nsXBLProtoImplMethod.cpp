@@ -237,8 +237,6 @@ nsresult
 nsXBLProtoImplMethod::Read(nsIScriptContext* aContext,
                            nsIObjectInputStream* aStream)
 {
-  MOZ_ASSERT(!IsCompiled() && !GetUncompiledMethod());
-
   JS::Rooted<JSObject*> methodObject(aContext->GetNativeContext());
   nsresult rv = XBL_DeserializeFunction(aContext, aStream, &methodObject);
   if (NS_FAILED(rv)) {
@@ -263,12 +261,7 @@ nsXBLProtoImplMethod::Write(nsIScriptContext* aContext,
     rv = aStream->WriteWStringZ(mName);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    // Calling fromMarkedLocation() is safe because mMethod is traced by the
-    // Trace() method above, and because its value is never changed after it has
-    // been set to a compiled method.
-    JS::Handle<JSObject*> method =
-      JS::Handle<JSObject*>::fromMarkedLocation(mMethod.AsHeapObject().address());
-    return XBL_SerializeFunction(aContext, aStream, method);
+    return XBL_SerializeFunction(aContext, aStream, mMethod.AsHeapObject());
   }
 
   return NS_OK;
@@ -278,7 +271,7 @@ nsresult
 nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
 {
   NS_PRECONDITION(IsCompiled(), "Can't execute uncompiled method");
-
+  
   if (!GetCompiledMethod()) {
     // Nothing to do here
     return NS_OK;
@@ -354,7 +347,10 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
     // anything else.  We just report it.  Note that we need to set aside the
     // frame chain here, since the constructor invocation is not related to
     // whatever is on the stack right now, really.
-    nsJSUtils::ReportPendingException(cx);
+    JSBool saved = JS_SaveFrameChain(cx);
+    JS_ReportPendingException(cx);
+    if (saved)
+        JS_RestoreFrameChain(cx);
     return NS_ERROR_FAILURE;
   }
 
@@ -371,12 +367,7 @@ nsXBLProtoImplAnonymousMethod::Write(nsIScriptContext* aContext,
     nsresult rv = aStream->Write8(aType);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    // Calling fromMarkedLocation() is safe because mMethod is traced by the
-    // Trace() method above, and because its value is never changed after it has
-    // been set to a compiled method.
-    JS::Handle<JSObject*> method =
-      JS::Handle<JSObject*>::fromMarkedLocation(mMethod.AsHeapObject().address());
-    rv = XBL_SerializeFunction(aContext, aStream, method);
+    rv = XBL_SerializeFunction(aContext, aStream, mMethod.AsHeapObject());
     NS_ENSURE_SUCCESS(rv, rv);
   }
 

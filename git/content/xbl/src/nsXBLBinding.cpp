@@ -323,6 +323,8 @@ nsXBLBinding::GenerateAnonymousContent()
   bool hasContent = (contentCount > 0);
   if (hasContent) {
     nsIDocument* doc = mBoundElement->OwnerDoc();
+    
+    nsBindingManager *bindingManager = doc->BindingManager();
 
     nsCOMPtr<nsINode> clonedNode;
     nsCOMArray<nsINode> nodesWithProperties;
@@ -353,22 +355,22 @@ nsXBLBinding::GenerateAnonymousContent()
     if (mDefaultInsertionPoint && mInsertionPoints.IsEmpty()) {
       ExplicitChildIterator iter(mBoundElement);
       for (nsIContent* child = iter.GetNextChild(); child; child = iter.GetNextChild()) {
-        mDefaultInsertionPoint->AppendInsertedChild(child);
+        mDefaultInsertionPoint->AppendInsertedChild(child, bindingManager);
       }
     } else {
       // It is odd to come into this code if mInsertionPoints is not empty, but
       // we need to make sure to do the compatibility hack below if the bound
-      // node has any non <xul:template> or <xul:observes> children.
+      // node has any non <xul:template> or <xul:observer> children.
       ExplicitChildIterator iter(mBoundElement);
       for (nsIContent* child = iter.GetNextChild(); child; child = iter.GetNextChild()) {
         XBLChildrenElement* point = FindInsertionPointForInternal(child);
         if (point) {
-          point->AppendInsertedChild(child);
+          point->AppendInsertedChild(child, bindingManager);
         } else {
           nsINodeInfo *ni = child->NodeInfo();
           if (ni->NamespaceID() != kNameSpaceID_XUL ||
               (!ni->Equals(nsGkAtoms::_template) &&
-               !ni->Equals(nsGkAtoms::observes))) {
+               !ni->Equals(nsGkAtoms::observer))) {
             // Compatibility hack. For some reason the original XBL
             // implementation dropped the content of a binding if any child of
             // the bound element didn't match any of the <children> in the
@@ -390,10 +392,10 @@ nsXBLBinding::GenerateAnonymousContent()
 
     // Set binding parent on default content if need
     if (mDefaultInsertionPoint) {
-      mDefaultInsertionPoint->MaybeSetupDefaultContent();
+      mDefaultInsertionPoint->MaybeSetupDefaultContent(bindingManager);
     }
     for (uint32_t i = 0; i < mInsertionPoints.Length(); ++i) {
-      mInsertionPoints[i]->MaybeSetupDefaultContent();
+      mInsertionPoints[i]->MaybeSetupDefaultContent(bindingManager);
     }
 
     mPrototypeBinding->SetInitialAttributes(mBoundElement, mContent);
@@ -700,7 +702,8 @@ nsXBLBinding::UnhookEventHandlers()
 }
 
 static void
-UpdateInsertionParent(XBLChildrenElement* aPoint,
+UpdateInsertionParent(nsBindingManager* aBindingManager,
+                      XBLChildrenElement* aPoint,
                       nsIContent* aOldBoundElement)
 {
   if (aPoint->IsDefaultInsertion()) {
@@ -720,9 +723,9 @@ UpdateInsertionParent(XBLChildrenElement* aPoint,
     // latter case, the child is now inserted into |aOldBoundElement| from some
     // binding above us, so we set its insertion parent to aOldBoundElement.
     if (child->GetParentNode() == aOldBoundElement) {
-      child->SetXBLInsertionParent(nullptr);
+      aBindingManager->SetInsertionParent(child, nullptr);
     } else {
-      child->SetXBLInsertionParent(aOldBoundElement);
+      aBindingManager->SetInsertionParent(child, aOldBoundElement);
     }
   }
 }
@@ -834,15 +837,19 @@ nsXBLBinding::ChangeDocument(nsIDocument* aOldDocument, nsIDocument* aNewDocumen
       nsXBLBinding::UninstallAnonymousContent(aOldDocument, mContent);
     }
 
+    nsBindingManager* bindingManager = aOldDocument->BindingManager();
+
     // Now that we've unbound our anonymous content from the tree and updated
     // its binding parent, update the insertion parent for content inserted
     // into our <children> elements.
     if (mDefaultInsertionPoint) {
-      UpdateInsertionParent(mDefaultInsertionPoint, mBoundElement);
+      UpdateInsertionParent(bindingManager, mDefaultInsertionPoint,
+                            mBoundElement);
     }
 
     for (size_t i = 0; i < mInsertionPoints.Length(); ++i) {
-      UpdateInsertionParent(mInsertionPoints[i], mBoundElement);
+      UpdateInsertionParent(bindingManager, mInsertionPoints[i],
+                            mBoundElement);
     }
 
     // Now that our inserted children no longer think they're inserted
@@ -1163,18 +1170,9 @@ nsXBLBinding::LookupMemberInternal(JSContext* aCx, nsString& aName,
   // Find our class object. It's in a protected scope and permanent just in case,
   // so should be there no matter what.
   JS::RootedValue classObject(aCx);
-  if (!JS_GetProperty(aCx, aXBLScope, mJSClass->name, &classObject)) {
+  if (!JS_GetProperty(aCx, aXBLScope, mJSClass->name, classObject.address())) {
     return false;
   }
-
-  // The bound element may have been adoped by a document and have a different
-  // wrapper (and different xbl scope) than when the binding was applied, in
-  // this case getting the class object will fail. Behave as if the class
-  // object did not exist.
-  if (classObject.isUndefined()) {
-    return true;
-  }
-
   MOZ_ASSERT(classObject.isObject());
 
   // Look for the property on this binding. If it's not there, try the next

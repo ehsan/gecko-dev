@@ -20,7 +20,6 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.util.Log;
 import android.app.Activity;
-import java.io.IOException;
 
 
 import java.util.Locale;
@@ -99,25 +98,14 @@ public class GeckoThread extends Thread implements GeckoEventListener {
     }
 
     private String addCustomProfileArg(String args) {
-        String profile = "";
-        if (GeckoAppShell.getGeckoInterface() != null) {
-            if (GeckoAppShell.getGeckoInterface().getProfile().inGuestMode()) {
-                try {
-                    profile = " -profile " + GeckoAppShell.getGeckoInterface().getProfile().getDir().getCanonicalPath();
-                } catch (IOException ioe) { Log.e(LOGTAG, "error getting guest profile path", ioe); }
-            } else if (GeckoApp.sIsUsingCustomProfile) {
-                profile = " -P " + GeckoAppShell.getGeckoInterface().getProfile().getName();
-            }
-        }
+        String profile = GeckoAppShell.getGeckoInterface() == null || GeckoApp.sIsUsingCustomProfile ? "" : (" -P " + GeckoAppShell.getGeckoInterface().getProfile().getName());
         return (args != null ? args : "") + profile;
     }
 
     @Override
     public void run() {
         Looper.prepare();
-        ThreadUtils.sGeckoThread = this;
-        ThreadUtils.sGeckoHandler = new Handler();
-        ThreadUtils.sGeckoQueue = Looper.myQueue();
+        ThreadUtils.setGeckoThread(this, new Handler());
 
         String path = initGeckoEnvironment();
 

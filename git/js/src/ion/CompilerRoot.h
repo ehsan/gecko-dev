@@ -11,8 +11,6 @@
 
 #include "jscntxt.h"
 
-#include "ion/Ion.h"
-#include "ion/IonAllocPolicy.h"
 #include "js/RootingAPI.h"
 
 namespace js {

@@ -4,46 +4,45 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/plugins/PluginModuleParent.h"
-
-#include "base/process_util.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/dom/PCrashReporterParent.h"
-#include "mozilla/ipc/SyncChannel.h"
-#include "mozilla/plugins/BrowserStreamParent.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/Services.h"
-#include "mozilla/unused.h"
-#include "nsAutoPtr.h"
-#include "nsCRT.h"
-#include "nsIFile.h"
-#include "nsIObserverService.h"
-#include "nsNPAPIPlugin.h"
-#include "nsPrintfCString.h"
-#include "PluginIdentifierParent.h"
-#include "prsystem.h"
-
-#ifdef XP_WIN
-#include "PluginHangUIParent.h"
-#include "mozilla/widget/AudioSession.h"
-#endif
-
-#ifdef MOZ_ENABLE_PROFILER_SPS
-#include "nsIProfileSaveEvent.h"
-#endif
-
 #ifdef MOZ_WIDGET_GTK
 #include <glib.h>
 #elif XP_MACOSX
 #include "PluginInterposeOSX.h"
 #include "PluginUtilsOSX.h"
 #endif
-
 #ifdef MOZ_WIDGET_QT
 #include <QtCore/QCoreApplication>
 #include <QtCore/QEventLoop>
 #include "NestedLoopTimer.h"
 #endif
+
+#include "base/process_util.h"
+
+#include "mozilla/Preferences.h"
+#include "mozilla/unused.h"
+#include "mozilla/ipc/SyncChannel.h"
+#include "mozilla/plugins/PluginModuleParent.h"
+#include "mozilla/plugins/BrowserStreamParent.h"
+#include "mozilla/dom/PCrashReporterParent.h"
+#include "PluginIdentifierParent.h"
+
+#include "nsAutoPtr.h"
+#include "nsCRT.h"
+#include "nsNPAPIPlugin.h"
+#include "nsIFile.h"
+#include "nsPrintfCString.h"
+
+#include "prsystem.h"
+
+#ifdef XP_WIN
+#include "PluginHangUIParent.h"
+#include "mozilla/widget/AudioSession.h"
+#endif
+#ifdef MOZ_ENABLE_PROFILER_SPS
+#include "nsIProfileSaveEvent.h"
+#endif
+#include "mozilla/Services.h"
+#include "nsIObserverService.h"
 
 using base::KillProcess;
 
@@ -121,7 +120,7 @@ PluginModuleParent::PluginModuleParent(const char* aFilePath)
     , mGetSitesWithDataSupported(false)
     , mNPNIface(NULL)
     , mPlugin(NULL)
-    , mTaskFactory(MOZ_THIS_IN_INITIALIZER_LIST())
+    , ALLOW_THIS_IN_INITIALIZER_LIST(mTaskFactory(this))
 #ifdef XP_WIN
     , mPluginCpuUsageOnHang()
     , mHangUIParent(nullptr)
@@ -1193,11 +1192,9 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs
     uint32_t flags = 0;
 
     if (!CallNP_Initialize(flags, error)) {
-        mShutdown = true;
         return NS_ERROR_FAILURE;
     }
     else if (*error != NPERR_NO_ERROR) {
-        mShutdown = true;
         return NS_OK;
     }
 
@@ -1223,14 +1220,8 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error)
     flags |= kAllowAsyncDrawing;
 #endif
 
-    if (!CallNP_Initialize(flags, error)) {
-        mShutdown = true;
+    if (!CallNP_Initialize(flags, error))
         return NS_ERROR_FAILURE;
-    }
-    if (*error != NPERR_NO_ERROR) {
-        mShutdown = true;
-        return NS_OK;
-    }
 
 #if defined XP_WIN
     // Send the info needed to join the chrome process's audio session to the

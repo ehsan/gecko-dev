@@ -112,7 +112,7 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoLiveAttr,
     eTableCell,
     kNoReqStates,
-    eARIASelectableIfDefined,
+    eARIASelectable,
     eARIAReadonlyOrEditableIfDefined
   },
   { // combobox
@@ -176,10 +176,9 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoAction,
     eNoLiveAttr,
     eSelect | eTable,
-    kNoReqStates,
+    states::FOCUSABLE,
     eARIAMultiSelectable,
-    eARIAReadonlyOrEditable,
-    eFocusableUntilDisabled
+    eARIAReadonlyOrEditable
   },
   { // gridcell
     &nsGkAtoms::gridcell,
@@ -264,8 +263,7 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eListControl | eSelect,
     kNoReqStates,
     eARIAMultiSelectable,
-    eARIAReadonly,
-    eFocusableUntilDisabled
+    eARIAReadonly
   },
   { // listitem
     &nsGkAtoms::listitem,
@@ -465,7 +463,7 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoLiveAttr,
     eTableCell,
     kNoReqStates,
-    eARIASelectableIfDefined,
+    eARIASelectable,
     eARIAReadonlyOrEditableIfDefined
   },
   { // scrollbar
@@ -541,7 +539,7 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     kUseMapRole,
     eNoValue,
     eNoAction,
-    eNoLiveAttr,
+    ePoliteLiveAttr,
     eSelect,
     kNoReqStates
   },
@@ -607,8 +605,7 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eSelect,
     kNoReqStates,
     eARIAReadonly,
-    eARIAMultiSelectable,
-    eFocusableUntilDisabled
+    eARIAMultiSelectable
   },
   { // treegrid
     &nsGkAtoms::treegrid,
@@ -619,9 +616,8 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoLiveAttr,
     eSelect | eTable,
     kNoReqStates,
-    eARIAReadonlyOrEditable,
-    eARIAMultiSelectable,
-    eFocusableUntilDisabled
+    eARIAReadonly,
+    eARIAMultiSelectable
   },
   { // treeitem
     &nsGkAtoms::treeitem,

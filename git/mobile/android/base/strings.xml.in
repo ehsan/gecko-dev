@@ -18,6 +18,8 @@
 <resources>
   <string name="moz_app_displayname">@MOZ_APP_DISPLAYNAME@</string>
 #include ../services/strings.xml.in
+  <string name="splash_settingup">&splash_settingup;</string>
+  <string name="splash_bookmarks_history">&splash_bookmarks_history;</string>
   <string name="no_space_to_start_error">&no_space_to_start_error;</string>
   <string name="error_loading_file">&error_loading_file;</string>
 
@@ -42,11 +44,11 @@
 
   <string name="launcher_shortcuts_title">&launcher_shortcuts_title;</string>
   <string name="launcher_shortcuts_empty">&launcher_shortcuts_empty;</string>
-
+  
   <string name="choose_file">&choose_file;</string>
 
   <string name="awesomebar_default_text">&awesomebar_default_text;</string>
-
+  
   <string name="remote_tabs">&remote_tabs;</string>
   <string name="remote_tabs_show_all">&remote_tabs_show_all;</string>
 
@@ -194,8 +196,6 @@
   <string name="reading_list_failed">&reading_list_failed;</string>
   <string name="reading_list_duplicate">&reading_list_duplicate;</string>
 
-  <string name="page_action_dropmarker_description">&page_action_dropmarker_description;</string>
-
   <string name="contextmenu_open_new_tab">&contextmenu_open_new_tab;</string>
   <string name="contextmenu_open_private_tab">&contextmenu_open_private_tab;</string>
   <string name="contextmenu_open_in_reader">&contextmenu_open_in_reader;</string>
@@ -244,7 +244,7 @@
   <string name="abouthome_about_apps">&abouthome_about_apps3;</string>
   <string name="abouthome_sync_bold_name">&abouthome_sync_bold_name;</string>
   <string name="abouthome_apps_bold_name">&abouthome_apps_bold_name2;</string>
-
+  
   <string name="abouthome_topsites_edit">&abouthome_topsites_edit;</string>
   <string name="abouthome_topsites_pin">&abouthome_topsites_pin;</string>
   <string name="abouthome_topsites_unpin">&abouthome_topsites_unpin;</string>
@@ -299,12 +299,12 @@
   <!-- Updater notifications -->
   <string name="updater_start_title">&updater_start_title2;</string>
   <string name="updater_start_select">&updater_start_select2;</string>
-
+ 
   <string name="updater_downloading_title">&updater_downloading_title2;</string>
   <string name="updater_downloading_title_failed">&updater_downloading_title_failed2;</string>
   <string name="updater_downloading_select">&updater_downloading_select2;</string>
   <string name="updater_downloading_retry">&updater_downloading_retry2;</string>
-
+   
   <string name="updater_apply_title">&updater_apply_title2;</string>
   <string name="updater_apply_select">&updater_apply_select2;</string>
 
@@ -316,18 +316,4 @@
   <string name="wallpaper_progress">&wallpaper_progress;</string>
   <string name="wallpaper_fail">&wallpaper_fail;</string>
 
-  <!-- Contacts API -->
-  <string name="contacts_account_chooser_dialog_title">Share contacts from...</string>
-
-
-  <!-- Guest mode -->
-  <string name="enter_guest_mode">&enter_guest_mode;</string>
-  <string name="exit_guest_mode">&exit_guest_mode;</string>
-  <string name="guest_mode_dialog_continue">&guest_mode_dialog_continue;</string>
-  <string name="guest_mode_dialog_cancel">&guest_mode_dialog_cancel;</string>
-  <string name="guest_mode_enter_title">&guest_mode_enter_title;</string>
-  <string name="guest_mode_enter_text">&guest_mode_enter_text;</string>
-
-  <string name="guest_mode_leave_title">&guest_mode_leave_title;</string>
-  <string name="guest_mode_leave_text">&guest_mode_leave_text;</string>
 </resources>

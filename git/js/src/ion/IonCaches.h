@@ -7,12 +7,9 @@
 #ifndef ion_IonCaches_h
 #define ion_IonCaches_h
 
-#ifdef JS_CPU_ARM
-# include "ion/arm/Assembler-arm.h"
-#endif
 #include "ion/IonCode.h"
 #include "ion/Registers.h"
-#include "ion/shared/Assembler-shared.h"
+
 #include "vm/ForkJoin.h"
 
 class JSFunction;
@@ -32,8 +29,8 @@ namespace ion {
     _(BindName)                                                 \
     _(Name)                                                     \
     _(CallsiteClone)                                            \
-    _(GetPropertyPar)                                           \
-    _(GetElementPar)
+    _(ParallelGetProperty)                                      \
+    _(ParallelGetElement)
 
 // Forward declarations of Cache kinds.
 #define FORWARD_DECLARE(kind) class kind##IC;
@@ -707,8 +704,7 @@ class SetElementIC : public RepatchIonCache
 {
   protected:
     Register object_;
-    Register temp0_;
-    Register temp1_;
+    Register temp_;
     ValueOperand index_;
     ConstantOrRegister value_;
     bool strict_;
@@ -716,12 +712,11 @@ class SetElementIC : public RepatchIonCache
     bool hasDenseStub_ : 1;
 
   public:
-    SetElementIC(Register object, Register temp0, Register temp1,
+    SetElementIC(Register object, Register temp,
                  ValueOperand index, ConstantOrRegister value,
                  bool strict)
       : object_(object),
-        temp0_(temp0),
-        temp1_(temp1),
+        temp_(temp),
         index_(index),
         value_(value),
         strict_(strict),
@@ -736,11 +731,8 @@ class SetElementIC : public RepatchIonCache
     Register object() const {
         return object_;
     }
-    Register temp0() const {
-        return temp0_;
-    }
-    Register temp1() const {
-        return temp1_;
+    Register temp() const {
+        return temp_;
     }
     ValueOperand index() const {
         return index_;
@@ -908,32 +900,28 @@ class ParallelIonCache : public DispatchIonCache
     bool hasOrAddStubbedShape(LockedJSContext &cx, Shape *shape, bool *alreadyStubbed);
 };
 
-class GetPropertyParIC : public ParallelIonCache
+class ParallelGetPropertyIC : public ParallelIonCache
 {
   protected:
     Register object_;
     PropertyName *name_;
     TypedOrValueRegister output_;
-    bool hasTypedArrayLengthStub_ : 1;
 
    public:
-    GetPropertyParIC(Register object, PropertyName *name, TypedOrValueRegister output)
+    ParallelGetPropertyIC(Register object, PropertyName *name, TypedOrValueRegister output)
       : object_(object),
         name_(name),
-        output_(output),
-        hasTypedArrayLengthStub_(false)
+        output_(output)
     {
     }
 
-    CACHE_HEADER(GetPropertyPar)
+    CACHE_HEADER(ParallelGetProperty)
 
 #ifdef JS_CPU_X86
     // x86 lacks a general purpose scratch register for dispatch caches and
     // must be given one manually.
     void initializeAddCacheState(LInstruction *ins, AddCacheState *addState);
 #endif
-
-    void reset();
 
     Register object() const {
         return object_;
@@ -944,9 +932,6 @@ class GetPropertyParIC : public ParallelIonCache
     TypedOrValueRegister output() const {
         return output_;
     }
-    bool hasTypedArrayLengthStub() const {
-        return hasTypedArrayLengthStub_;
-    }
 
     static bool canAttachReadSlot(LockedJSContext &cx, IonCache &cache,
                                   TypedOrValueRegister output, JSObject *obj,
@@ -956,13 +941,12 @@ class GetPropertyParIC : public ParallelIonCache
     bool attachReadSlot(LockedJSContext &cx, IonScript *ion, JSObject *obj, JSObject *holder,
                         Shape *shape);
     bool attachArrayLength(LockedJSContext &cx, IonScript *ion, JSObject *obj);
-    bool attachTypedArrayLength(LockedJSContext &cx, IonScript *ion, JSObject *obj);
 
     static ParallelResult update(ForkJoinSlice *slice, size_t cacheIndex, HandleObject obj,
                                  MutableHandleValue vp);
 };
 
-class GetElementParIC : public ParallelIonCache
+class ParallelGetElementIC : public ParallelIonCache
 {
   protected:
     Register object_;
@@ -972,8 +956,8 @@ class GetElementParIC : public ParallelIonCache
     bool monitoredResult_ : 1;
 
   public:
-    GetElementParIC(Register object, ConstantOrRegister index,
-                    TypedOrValueRegister output, bool monitoredResult)
+    ParallelGetElementIC(Register object, ConstantOrRegister index,
+                         TypedOrValueRegister output, bool monitoredResult)
       : object_(object),
         index_(index),
         output_(output),
@@ -981,7 +965,7 @@ class GetElementParIC : public ParallelIonCache
     {
     }
 
-    CACHE_HEADER(GetElementPar)
+    CACHE_HEADER(ParallelGetElement)
 
 #ifdef JS_CPU_X86
     // x86 lacks a general purpose scratch register for dispatch caches and

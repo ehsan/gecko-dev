@@ -12,7 +12,7 @@
 
 #include "mozilla/MemoryChecking.h"
 #include "mozilla/MemoryReporting.h"
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 #include "nscore.h"
 #include "nsQueryFrame.h"
 #include "nsTArray.h"

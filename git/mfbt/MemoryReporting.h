@@ -6,8 +6,8 @@
 
 /* Memory reporting infrastructure. */
 
-#ifndef mozilla_MemoryReporting_h
-#define mozilla_MemoryReporting_h
+#ifndef mozilla_MemoryReporting_h_
+#define mozilla_MemoryReporting_h_
 
 #include <stddef.h>
 
@@ -27,4 +27,4 @@ typedef size_t (*MallocSizeOf)(const void* p);
 
 typedef size_t (*MozMallocSizeOf)(const void* p);
 
-#endif /* mozilla_MemoryReporting_h */
+#endif /* mozilla_MemoryReporting_h_ */

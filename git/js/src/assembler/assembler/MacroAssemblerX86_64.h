@@ -568,10 +568,10 @@ public:
         storePtr(ImmPtr(reinterpret_cast<void *>(imm.u.u64)), address);
     }
 
-    static bool supportsFloatingPoint() { return true; }
+    bool supportsFloatingPoint() const { return true; }
     // See comment on MacroAssemblerARMv7::supportsFloatingPointTruncate()
-    static bool supportsFloatingPointTruncate() { return true; }
-    static bool supportsFloatingPointSqrt() { return true; }
+    bool supportsFloatingPointTruncate() const { return true; }
+    bool supportsFloatingPointSqrt() const { return true; }
 
 private:
     friend class LinkBuffer;

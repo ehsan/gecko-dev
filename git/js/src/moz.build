@@ -73,6 +73,7 @@ EXPORTS.js += [
     '../public/PropertyKey.h',
     '../public/RequiredDefines.h',
     '../public/RootingAPI.h',
+    '../public/TemplateLib.h',
     '../public/Utility.h',
     '../public/Value.h',
     '../public/Vector.h',
@@ -80,7 +81,6 @@ EXPORTS.js += [
 
 CPP_SOURCES += [
     'ArgumentsObject.cpp',
-    'BinaryData.cpp',
     'BytecodeCompiler.cpp',
     'BytecodeEmitter.cpp',
     'CharacterEncoding.cpp',
@@ -197,7 +197,6 @@ if CONFIG['ENABLE_ION']:
         'AliasAnalysis.cpp',
         'AsmJS.cpp',
         'AsmJSLink.cpp',
-        'AsmJSModule.cpp',
         'AsmJSSignalHandlers.cpp',
         'BacktrackingAllocator.cpp',
         'Bailouts.cpp',

@@ -21,7 +21,7 @@
 using namespace xpc;
 using namespace JS;
 
-NS_IMPL_ISUPPORTS1(nsXPCWrappedJSClass, nsIXPCWrappedJSClass)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsXPCWrappedJSClass, nsIXPCWrappedJSClass)
 
 // the value of this variable is never used - we use its address as a sentinel
 static uint32_t zero_methods_descriptor;
@@ -230,7 +230,7 @@ nsXPCWrappedJSClass::CallQueryInterfaceOnJSObject(JSContext* cx,
 
     // check upfront for the existence of the function property
     funid = mRuntime->GetStringID(XPCJSRuntime::IDX_QUERY_INTERFACE);
-    if (!JS_GetPropertyById(cx, jsobj, funid, &fun) || JSVAL_IS_PRIMITIVE(fun))
+    if (!JS_GetPropertyById(cx, jsobj, funid, fun.address()) || JSVAL_IS_PRIMITIVE(fun))
         return nullptr;
 
     // Ensure that we are asking for a scriptable interface.
@@ -330,7 +330,7 @@ GetNamedPropertyAsVariantRaw(XPCCallContext& ccx,
     nsXPTType type = nsXPTType((uint8_t)TD_INTERFACE_TYPE);
     RootedValue val(ccx);
 
-    return JS_GetPropertyById(ccx, aJSObj, aName, &val) &&
+    return JS_GetPropertyById(ccx, aJSObj, aName, val.address()) &&
            // Note that this always takes the T_INTERFACE path through
            // JSData2Native, so the value passed for useAllocator
            // doesn't really matter. We pass true for consistency.
@@ -960,13 +960,13 @@ nsXPCWrappedJSClass::CheckForException(XPCCallContext & ccx,
     // to run on this JSContext
     nsresult pending_result = xpcc->GetPendingResult();
 
-    RootedValue js_exception(cx);
-    JSBool is_js_exception = JS_GetPendingException(cx, js_exception.address());
+    jsval js_exception;
+    JSBool is_js_exception = JS_GetPendingException(cx, &js_exception);
 
     /* JS might throw an expection whether the reporter was called or not */
     if (is_js_exception) {
         if (!xpc_exception)
-            XPCConvert::JSValToXPCException(&js_exception, anInterfaceName,
+            XPCConvert::JSValToXPCException(js_exception, anInterfaceName,
                                             aPropertyName,
                                             getter_AddRefs(xpc_exception));
 
@@ -1021,14 +1021,8 @@ nsXPCWrappedJSClass::CheckForException(XPCCallContext & ccx,
             // Try to use the error reporter set on the context to handle this
             // error if it came from a JS exception.
             if (reportable && is_js_exception &&
-                JS_GetErrorReporter(cx) != xpcWrappedJSErrorReporter)
-            {
-                // If the error reporter ignores the error, it will call
-                // xpc->MarkErrorUnreported().
-                xpcc->ClearUnreportedError();
+                JS_GetErrorReporter(cx) != xpcWrappedJSErrorReporter) {
                 reportable = !JS_ReportPendingException(cx);
-                if (!xpcc->WasErrorReported())
-                    reportable = true;
             }
 
             if (reportable) {
@@ -1264,7 +1258,7 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16_t methodIndex,
                 }
             }
         } else {
-            if (!JS_GetProperty(cx, obj, name, &fval))
+            if (!JS_GetProperty(cx, obj, name, fval.address()))
                 goto pre_call_clean_up;
             // XXX We really want to factor out the error reporting better and
             // specifically report the failure to find a function with this name.
@@ -1366,7 +1360,7 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16_t methodIndex,
             if (param.IsIn()) {
                 if (!JS_SetPropertyById(cx, out_obj,
                                         mRuntime->GetStringID(XPCJSRuntime::IDX_VALUE),
-                                        val)) {
+                                        val.address())) {
                     goto pre_call_clean_up;
                 }
             }
@@ -1431,10 +1425,10 @@ pre_call_clean_up:
 
     RootedValue rval(cx);
     if (XPT_MD_IS_GETTER(info->flags)) {
-        success = JS_GetProperty(cx, obj, name, &rval);
+        success = JS_GetProperty(cx, obj, name, rval.address());
     } else if (XPT_MD_IS_SETTER(info->flags)) {
+        success = JS_SetProperty(cx, obj, name, argv);
         rval = *argv;
-        success = JS_SetProperty(cx, obj, name, rval);
     } else {
         if (!JSVAL_IS_PRIMITIVE(fval)) {
             uint32_t oldOpts = JS_GetOptions(cx);
@@ -1514,7 +1508,7 @@ pre_call_clean_up:
         else if (JSVAL_IS_PRIMITIVE(argv[i]) ||
                  !JS_GetPropertyById(cx, JSVAL_TO_OBJECT(argv[i]),
                                      mRuntime->GetStringID(XPCJSRuntime::IDX_VALUE),
-                                     &val))
+                                     val.address()))
             break;
 
         // setup allocator and/or iid
@@ -1558,7 +1552,7 @@ pre_call_clean_up:
                 val = rval;
             else if (!JS_GetPropertyById(cx, JSVAL_TO_OBJECT(argv[i]),
                                          mRuntime->GetStringID(XPCJSRuntime::IDX_VALUE),
-                                         &val))
+                                         val.address()))
                 break;
 
             // setup allocator and/or iid

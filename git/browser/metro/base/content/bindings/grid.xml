@@ -55,11 +55,9 @@
               this.clearSelection();
             }
             this._selectedItem = wasSelected ? null : anItem;
-            if (wasSelected)
-              anItem.removeAttribute("selected");
-            else
-              anItem.setAttribute("selected", true);
-            this._fireEvent("selectionchange");
+            anItem.selected = !wasSelected;
+
+            this._fireOnSelectionChange();
           ]]>
         </body>
       </method>
@@ -74,14 +72,13 @@
               this.clearSelection();
             }
             this._selectedItem = anItem;
-            if (wasSelected) {
-              return;
-            }
-            anItem.setAttribute("selected", true);
+            anItem.selected = true;
             if (isSingleMode) {
-              this._fireEvent("select");
+              if (!wasSelected) {
+                this._fireOnSelect();
+              }
             } else {
-              this._fireEvent("selectionchange");
+              this._fireOnSelectionChange();
             }
           ]]>
         </body>
@@ -101,7 +98,7 @@
               this.selectItem(aItem);
             }
 
-            if (this.controller && this.controller.handleItemClick)
+	    if (this.controller && this.controller.handleItemClick)
               this.controller.handleItemClick(aItem, aEvent);
           ]]>
         </body>
@@ -112,7 +109,7 @@
         <parameter name="aEvent"/>
         <body>
           <![CDATA[
-            if(!this.isBound || this.suppressOnSelect)
+            if(!this.isBound)
               return;
             // we'll republish this as a selectionchange event on the grid
             aEvent.stopPropagation();
@@ -121,8 +118,8 @@
         </body>
       </method>
 
-      <property name="contextSetName" readonly="true"
-                onget="return this.getAttribute('set-name');"/>
+      <property name="contextNoun" readonly="true"
+                onget="return this.getAttribute('noun');"/>
 
       <property name="contextActions">
         <getter>
@@ -173,7 +170,7 @@
       <property name="selectedItems">
         <getter>
           <![CDATA[
-            return this.querySelectorAll("richgriditem[selected]");
+            return this.querySelectorAll("richgriditem[selected='true']");
           ]]>
         </getter>
       </property>
@@ -358,17 +355,21 @@
 
       <field name="_rowCount">0</field>
       <property name="rowCount" readonly="true" onget="return this._rowCount;"/>
+
       <field name="_columnCount">0</field>
       <property name="columnCount" readonly="true" onget="return this._columnCount;"/>
+
       <property name="_containerSize">
         <getter><![CDATA[
             // return the rect that represents our bounding box
-            let containerNode = this.hasAttribute("flex") ? this : this.parentNode;
+            let containerNode = this.parentNode;
+
             // Autocomplete is a binding within a binding, so we have to step
             // up an additional parentNode.
             if (containerNode.id == "results-vbox" ||
                 containerNode.id == "searches-vbox")
                 containerNode = containerNode.parentNode;
+
             let rect = containerNode.getBoundingClientRect();
             // return falsy if the container has no height
             return rect.height ? {
@@ -485,7 +486,6 @@
             if (this._columnCount) {
               gridStyle.MozColumnCount = this._columnCount;
             }
-            this._fireEvent("arranged");
           ]]>
         </body>
       </method>
@@ -506,6 +506,8 @@
       </method>
 
       <!-- Inteface to suppress selection events -->
+
+      <field name="_suppressOnSelect"/>
       <property name="suppressOnSelect"
                   onget="return this.getAttribute('suppressonselect') == 'true';"
                   onset="this.setAttribute('suppressonselect', val);"/>
@@ -566,13 +568,11 @@
             typeSizes = this.ownerDocument.defaultView._richgridTileSizes = {};
 
             let sheets = this.ownerDocument.styleSheets;
-            // The (first matching) rules that will give us tile type => width/height values
-            // The keys in this object are string-matched against the selectorText
-            // of rules in our stylesheet. Quoted values in a selector will always use " not '
+            // the (first matching) rules that will give us tile type => width/height values
             let typeSelectors = {
-              'richgriditem' : "default",
-              'richgriditem[tiletype="thumbnail"]': "thumbnail",
-              'richgriditem[compact]': "compact"
+              "richgriditem" : "default",
+              "richgriditem[customImage]": "thumbnail",
+              "richgriditem[compact]": "compact"
             };
             let rules, sheet;
             for (let i=0; (sheet=sheets[i]); i++) {
@@ -619,33 +619,35 @@
           <![CDATA[
             let item = this.ownerDocument.createElement("richgriditem");
             item.setAttribute("label", aLabel);
-            if (aValue) {
+            if (aValue)
               item.setAttribute("value", aValue);
-            }
-            if(this.hasAttribute("tiletype")) {
-              item.setAttribute("tiletype", this.getAttribute("tiletype"));
-            }
             return item;
           ]]>
         </body>
       </method>
 
-      <method name="_fireEvent">
-        <parameter name="aType"/>
+      <method name="_fireOnSelect">
         <body>
           <![CDATA[
-            switch (aType) {
-              case "select" :
-              case "selectionchange" :
-                if (this.suppressOnSelect)
-                  return;
-                break;
-              case "arranged" :
-                break;
-            }
+            if (this.suppressOnSelect || this._suppressOnSelect)
+              return;
 
             let event = document.createEvent("Events");
-            event.initEvent(aType, true, true);
+            event.initEvent("select", true, true);
+            this.dispatchEvent(event);
+          ]]>
+        </body>
+      </method>
+      <method name="_fireOnSelectionChange">
+        <body>
+          <![CDATA[
+            // flush out selection-related cached properties so they get recalc'd next time
+            // fire an event?
+            if (this.suppressOnSelect || this._suppressOnSelect)
+              return;
+
+            let event = document.createEvent("Events");
+            event.initEvent("selectionchange", true, true);
             this.dispatchEvent(event);
           ]]>
         </body>
@@ -788,8 +790,6 @@
       </handler>
       <handler event="MozCrossSlideSelect">
         <![CDATA[
-          if (this.suppressOnSelect)
-            return;
           this.toggleItemSelection(event.target);
         ]]>
       </handler>
@@ -941,10 +941,7 @@
         <![CDATA[
           // fires for right-click, long-click and (keyboard) contextmenu input
           // toggle the selected state of tiles in a grid
-          let gridParent = this.control;
-          if(!this.isBound || !gridParent)
-            return;
-          gridParent.handleItemContextMenu(this, event);
+          this.control.handleItemContextMenu(this, event);
         ]]>
       </handler>
     </handlers>

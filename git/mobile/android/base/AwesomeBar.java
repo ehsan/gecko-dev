@@ -646,7 +646,7 @@ public class AwesomeBar extends GeckoActivity
                 }
 
                 Bitmap bitmap = null;
-                if (b != null) {
+                if (b != null && b.length > 0) {
                     bitmap = BitmapUtils.decodeByteArray(b);
                 }
 
@@ -740,8 +740,7 @@ public class AwesomeBar extends GeckoActivity
 
         // If the AwesomeBar has a composition string, don't call updateGoButton().
         // That method resets IME and composition state will be broken.
-        if (!hasCompositionString(s) ||
-            InputMethods.isGestureKeyboard(mText.getContext())) {
+        if (!hasCompositionString(s)) {
             updateGoButton(text);
         }
 

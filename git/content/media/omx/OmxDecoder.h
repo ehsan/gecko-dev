@@ -8,7 +8,7 @@
 
 #include "GonkNativeWindow.h"
 #include "GonkNativeWindowClient.h"
-#include "GrallocImages.h"
+#include "GonkIOSurfaceImage.h"
 #include "MPAPI.h"
 #include "MediaResource.h"
 #include "AbstractMediaDecoder.h"

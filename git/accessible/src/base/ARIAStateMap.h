@@ -7,7 +7,7 @@
 #ifndef _mozilla_a11y_aria_ARIAStateMap_h_
 #define _mozilla_a11y_aria_ARIAStateMap_h_
 
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 namespace mozilla {
 
@@ -42,10 +42,8 @@ enum EStateRule
   eARIAReadonlyOrEditableIfDefined,
   eARIARequired,
   eARIASelectable,
-  eARIASelectableIfDefined,
   eReadonlyUntilEditable,
-  eIndeterminateIfNoValue,
-  eFocusableUntilDisabled
+  eIndeterminateIfNoValue
 };
 
 /**

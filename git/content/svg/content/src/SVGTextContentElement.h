@@ -55,13 +55,17 @@ protected:
   nsSVGTextFrame2* GetSVGTextFrame();
   bool FrameIsSVGText();
 
+  virtual EnumAttributesInfo GetEnumInfo() MOZ_OVERRIDE;
+  virtual LengthAttributesInfo GetLengthInfo() MOZ_OVERRIDE;
+
   enum { LENGTHADJUST };
-  virtual nsSVGEnum* EnumAttributes() = 0;
+  nsSVGEnum mEnumAttributes[1];
   static nsSVGEnumMapping sLengthAdjustMap[];
   static EnumInfo sEnumInfo[1];
 
   enum { TEXTLENGTH };
-  virtual nsSVGLength2* LengthAttributes() = 0;
+  nsSVGLength2 mLengthAttributes[1];
+
   static LengthInfo sLengthInfo[1];
 };
 

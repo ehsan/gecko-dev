@@ -18,8 +18,7 @@ XPCOMUtils.defineLazyGetter(this, "BROWSER_NEW_TAB_URL", function () {
           !PrivateBrowsingUtils.permanentPrivateBrowsing)
         return "about:privatebrowsing";
     }
-    let url = Services.prefs.getComplexValue(PREF, Ci.nsISupportsString).data;
-    return url || "about:blank";
+    return Services.prefs.getCharPref(PREF) || "about:blank";
   }
 
   function update() {

@@ -86,7 +86,6 @@ MOCHITEST_FILES =	test_acid3_test46.html \
 		test_bug798567.html \
 		test_bug829816.html \
 		file_bug829816.css \
-		test_bug887741_at-rules_in_declaration_lists.html \
 		test_cascade.html \
 		test_ch_ex_no_infloops.html \
 		test_compute_data_with_start_struct.html \
@@ -97,7 +96,6 @@ MOCHITEST_FILES =	test_acid3_test46.html \
 		test_default_computed_style.html \
 		test_css_cross_domain.html \
 		test_css_eof_handling.html \
-		test_css_function_mismatched_parenthesis.html \
 		test_css_supports.html \
 		test_default_bidi_css.html \
 		test_descriptor_storage.html \

@@ -65,7 +65,7 @@ protected:
   ClearingBehavior mClearingBehavior;
 
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   bool
   Dispatch(JSContext* aCx);

@@ -646,10 +646,9 @@ nsComboboxControlFrame::AbsolutelyPositionDropDown()
     return eDropDownPositionPendingResize;
   }
 
-  // Position the drop-down below if there is room, otherwise place it above
-  // if there is room.  If there is no room for it on either side then place
-  // it below (to avoid overlapping UI like the URL bar).
-  bool b = dropdownSize.height <= below || dropdownSize.height > above;
+  // Position the drop-down below if there is room, otherwise place it
+  // on the side that has more room.
+  bool b = dropdownSize.height <= below || below >= above;
   nsPoint dropdownPosition(0, b ? GetRect().height : -dropdownSize.height);
   if (StyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL) {
     // Align the right edge of the drop-down with the right edge of the control.

@@ -92,11 +92,10 @@
 #include "nsJSUtils.h"
 #include "XPCQuickStubs.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/CanvasRenderingContext2DBinding.h"
 #include "mozilla/dom/HTMLImageElement.h"
 #include "mozilla/dom/HTMLVideoElement.h"
+#include "mozilla/dom/CanvasRenderingContext2DBinding.h"
 #include "mozilla/dom/TextMetrics.h"
-#include "mozilla/dom/UnionTypes.h"
 
 #ifdef USE_SKIA_GPU
 #undef free // apparently defined by some windows header, clashing with a free()
@@ -105,7 +104,6 @@
 #include "GLContextProvider.h"
 #include "GLContextSkia.h"
 #include "SurfaceTypes.h"
-#include "nsIGfxInfo.h"
 using mozilla::gl::GLContext;
 using mozilla::gl::GLContextProvider;
 #endif
@@ -401,15 +399,31 @@ CanvasGradient::AddColorStop(float offset, const nsAString& colorstr, ErrorResul
   mRawStops.AppendElement(newStop);
 }
 
-NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(CanvasGradient, AddRef)
-NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(CanvasGradient, Release)
+NS_DEFINE_STATIC_IID_ACCESSOR(CanvasGradient, NS_CANVASGRADIENTAZURE_PRIVATE_IID)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(CanvasGradient)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(CanvasGradient)
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(CanvasGradient, mContext)
 
-NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(CanvasPattern, AddRef)
-NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(CanvasPattern, Release)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(CanvasGradient)
+  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_MAP_ENTRY(mozilla::dom::CanvasGradient)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+NS_INTERFACE_MAP_END
+
+NS_DEFINE_STATIC_IID_ACCESSOR(CanvasPattern, NS_CANVASPATTERNAZURE_PRIVATE_IID)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(CanvasPattern)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(CanvasPattern)
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(CanvasPattern, mContext)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(CanvasPattern)
+  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_MAP_ENTRY(mozilla::dom::CanvasPattern)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+NS_INTERFACE_MAP_END
 
 class CanvasRenderingContext2DUserData : public LayerUserData {
 public:
@@ -633,6 +647,17 @@ CanvasRenderingContext2D::Reset()
   return NS_OK;
 }
 
+static void
+WarnAboutUnexpectedStyle(HTMLCanvasElement* canvasElement)
+{
+  nsContentUtils::ReportToConsole(
+    nsIScriptError::warningFlag,
+    "Canvas",
+    canvasElement ? canvasElement->OwnerDoc() : nullptr,
+    nsContentUtils::eDOM_PROPERTIES,
+    "UnexpectedCanvasVariantStyle");
+}
+
 void
 CanvasRenderingContext2D::SetStyleFromString(const nsAString& str,
                                              Style whichStyle)
@@ -647,18 +672,27 @@ CanvasRenderingContext2D::SetStyleFromString(const nsAString& str,
   CurrentState().SetColorStyle(whichStyle, color);
 }
 
-void
-CanvasRenderingContext2D::GetStyleAsUnion(StringOrCanvasGradientOrCanvasPatternReturnValue& aValue,
-                                          Style aWhichStyle)
+nsISupports*
+CanvasRenderingContext2D::GetStyleAsStringOrInterface(nsAString& aStr,
+                                                      CanvasMultiGetterType& aType,
+                                                      Style aWhichStyle)
 {
   const ContextState &state = CurrentState();
+  nsISupports* supports;
   if (state.patternStyles[aWhichStyle]) {
-    aValue.SetAsCanvasPattern() = state.patternStyles[aWhichStyle];
+    aStr.SetIsVoid(true);
+    supports = state.patternStyles[aWhichStyle];
+    aType = CMG_STYLE_PATTERN;
   } else if (state.gradientStyles[aWhichStyle]) {
-    aValue.SetAsCanvasGradient() = state.gradientStyles[aWhichStyle];
+    aStr.SetIsVoid(true);
+    supports = state.gradientStyles[aWhichStyle];
+    aType = CMG_STYLE_GRADIENT;
   } else {
-    StyleColorToString(state.colorStyles[aWhichStyle], aValue.SetAsString());
+    StyleColorToString(state.colorStyles[aWhichStyle], aStr);
+    supports = nullptr;
+    aType = CMG_STYLE_STRING;
   }
+  return supports;
 }
 
 // static
@@ -825,40 +859,34 @@ CanvasRenderingContext2D::EnsureTarget()
 
      if (layerManager) {
 #ifdef USE_SKIA_GPU
-      if (gfxPlatform::GetPlatform()->UseAcceleratedSkiaCanvas()) {
-        SurfaceCaps caps = SurfaceCaps::ForRGBA();
-        caps.preserve = true;
+       if (gfxPlatform::GetPlatform()->UseAcceleratedSkiaCanvas()) {
+         SurfaceCaps caps = SurfaceCaps::ForRGBA();
+         caps.preserve = true;
 
 #ifdef MOZ_WIDGET_GONK
-        layers::ShadowLayerForwarder *forwarder = layerManager->AsShadowForwarder();
-        if (forwarder) {
-          caps.surfaceAllocator = static_cast<layers::ISurfaceAllocator*>(forwarder);
-        }
+         layers::ShadowLayerForwarder *forwarder = layerManager->AsShadowForwarder();
+         if (forwarder) {
+           caps.surfaceAllocator = static_cast<layers::ISurfaceAllocator*>(forwarder);
+         }
 #endif
 
-        DemoteOldestContextIfNecessary();
+         DemoteOldestContextIfNecessary();
 
-        nsRefPtr<GLContext> glContext;
-        nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
-        nsString vendor;
+         nsRefPtr<GLContext> glContext;
 
-        if (!mForceSoftware &&
-            gfxInfo &&
-            NS_SUCCEEDED(gfxInfo->GetAdapterVendorID(vendor)) &&
-            StringBeginsWith(vendor, NS_LITERAL_STRING("NVIDIA")))
-        {
-          glContext = GLContextProvider::CreateOffscreen(gfxIntSize(size.width, size.height),
-                                                         caps, GLContext::ContextFlagsNone);
-        }
+         if (!mForceSoftware) {
+           glContext = GLContextProvider::CreateOffscreen(gfxIntSize(size.width, size.height),
+                                                          caps, GLContext::ContextFlagsNone);
+         }
 
-        if (glContext) {
-          SkAutoTUnref<GrGLInterface> i(CreateGrGLInterfaceFromGLContext(glContext));
-          mTarget = Factory::CreateDrawTargetSkiaWithGLContextAndGrGLInterface(glContext, i, size, format);
-          AddDemotableContext(this);
-        } else {
-          mTarget = layerManager->CreateDrawTarget(size, format);
-        }
-      } else
+         if (glContext) {
+           SkAutoTUnref<GrGLInterface> i(CreateGrGLInterfaceFromGLContext(glContext));
+           mTarget = Factory::CreateDrawTargetSkiaWithGLContextAndGrGLInterface(glContext, i, size, format);
+           AddDemotableContext(this);
+         } else {
+           mTarget = layerManager->CreateDrawTarget(size, format);
+         }
+       } else
 #endif
        mTarget = layerManager->CreateDrawTarget(size, format);
      } else {
@@ -1314,25 +1342,92 @@ CanvasRenderingContext2D::GetMozCurrentTransformInverse(JSContext* cx,
 //
 
 void
-CanvasRenderingContext2D::SetStyleFromUnion(const StringOrCanvasGradientOrCanvasPattern& value,
-                                            Style whichStyle)
+CanvasRenderingContext2D::SetStyleFromJSValue(JSContext* cx,
+                                              JS::Handle<JS::Value> value,
+                                              Style whichStyle)
 {
-  if (value.IsString()) {
-    SetStyleFromString(value.GetAsString(), whichStyle);
+  if (value.isString()) {
+    nsDependentJSString strokeStyle;
+    if (strokeStyle.init(cx, value.toString())) {
+      SetStyleFromString(strokeStyle, whichStyle);
+    }
     return;
   }
 
-  if (value.IsCanvasGradient()) {
-    SetStyleFromGradient(value.GetAsCanvasGradient(), whichStyle);
-    return;
+  if (value.isObject()) {
+    nsCOMPtr<nsISupports> holder;
+
+    CanvasGradient* gradient;
+    JS::Rooted<JS::Value> rootedVal(cx, value);
+    nsresult rv = xpc_qsUnwrapArg<CanvasGradient>(cx, value, &gradient,
+                                                  static_cast<nsISupports**>(getter_AddRefs(holder)),
+                                                  rootedVal.address());
+    if (NS_SUCCEEDED(rv)) {
+      SetStyleFromGradient(gradient, whichStyle);
+      return;
+    }
+
+    CanvasPattern* pattern;
+    rv = xpc_qsUnwrapArg<CanvasPattern>(cx, value, &pattern,
+                                        static_cast<nsISupports**>(getter_AddRefs(holder)),
+                                        rootedVal.address());
+    if (NS_SUCCEEDED(rv)) {
+      SetStyleFromPattern(pattern, whichStyle);
+      return;
+    }
   }
 
-  if (value.IsCanvasPattern()) {
-    SetStyleFromPattern(value.GetAsCanvasPattern(), whichStyle);
-    return;
-  }
+  WarnAboutUnexpectedStyle(mCanvasElement);
+}
 
-  MOZ_ASSUME_UNREACHABLE("Invalid union value");
+static JS::Value
+WrapStyle(JSContext* cx, JSObject* objArg,
+          CanvasRenderingContext2D::CanvasMultiGetterType type,
+          nsAString& str, nsISupports* supports, ErrorResult& error)
+{
+  JS::Rooted<JS::Value> v(cx);
+  bool ok;
+  switch (type) {
+    case CanvasRenderingContext2D::CMG_STYLE_STRING:
+    {
+      ok = xpc::StringToJsval(cx, str, v.address());
+      break;
+    }
+    case CanvasRenderingContext2D::CMG_STYLE_PATTERN:
+    case CanvasRenderingContext2D::CMG_STYLE_GRADIENT:
+    {
+      JS::Rooted<JSObject*> obj(cx, objArg);
+      ok = dom::WrapObject(cx, obj, supports, &v);
+      break;
+    }
+    default:
+      MOZ_CRASH("unexpected CanvasMultiGetterType");
+  }
+  if (!ok) {
+    error.Throw(NS_ERROR_FAILURE);
+  }
+  return v;
+}
+
+
+JS::Value
+CanvasRenderingContext2D::GetStrokeStyle(JSContext* cx,
+                                         ErrorResult& error)
+{
+  nsString str;
+  CanvasMultiGetterType t;
+  nsISupports* supports = GetStyleAsStringOrInterface(str, t, STYLE_STROKE);
+  return WrapStyle(cx, GetWrapper(), t, str, supports, error);
+}
+
+JS::Value
+CanvasRenderingContext2D::GetFillStyle(JSContext* cx,
+                                       ErrorResult& error)
+{
+  nsString str;
+  CanvasMultiGetterType t;
+  nsISupports* supports = GetStyleAsStringOrInterface(str, t, STYLE_FILL);
+  return WrapStyle(cx, GetWrapper(), t, str, supports, error);
 }
 
 void
@@ -3243,9 +3338,7 @@ CanvasRenderingContext2D::DrawWindow(nsIDOMWindow* window, double x,
                                            FORMAT_B8G8R8A8);
     mgfx::Rect destRect(0, 0, w, h);
     mgfx::Rect sourceRect(0, 0, sw, sh);
-    mTarget->DrawSurface(data, destRect, sourceRect,
-                         DrawSurfaceOptions(mgfx::FILTER_POINT),
-                         DrawOptions(1.0f, OP_SOURCE, AA_NONE));
+    mTarget->DrawSurface(data, destRect, sourceRect);
     mTarget->Flush();
   } else {
     mTarget->SetTransform(matrix);

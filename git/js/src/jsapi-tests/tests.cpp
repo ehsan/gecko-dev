@@ -5,12 +5,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "jsapi-tests/tests.h"
-
-#include <stdio.h>
-
-#include "jsobj.h"
-
 #include "js/RootingAPI.h"
+#include "jsobj.h"
+#include <stdio.h>
 
 JSAPITest *JSAPITest::list;
 
@@ -26,8 +23,8 @@ bool JSAPITest::init()
     JS::RootedObject global(cx, createGlobal());
     if (!global)
         return false;
-    JS_EnterCompartment(cx, global);
-    return true;
+    oldCompartment = JS_EnterCompartment(cx, global);
+    return oldCompartment != NULL;
 }
 
 bool JSAPITest::exec(const char *bytes, const char *filename, int lineno)
@@ -77,11 +74,6 @@ int main(int argc, char *argv[])
     int failures = 0;
     const char *filter = (argc == 2) ? argv[1] : NULL;
 
-    if (!JS_Init()) {
-        printf("TEST-UNEXPECTED-FAIL | jsapi-tests | JS_Init() failed.\n");
-        return 1;
-    }
-
     for (JSAPITest *test = JSAPITest::list; test; test = test->next) {
         const char *name = test->name();
         if (filter && strstr(name, filter) == NULL)
@@ -109,8 +101,6 @@ int main(int argc, char *argv[])
         }
         test->uninit();
     }
-
-    JS_ShutDown();
 
     if (failures) {
         printf("\n%d unexpected failure%s.\n", failures, (failures == 1 ? "" : "s"));

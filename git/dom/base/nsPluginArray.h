@@ -74,6 +74,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsPluginElement)
 
   nsPluginElement(nsWeakPtr aWindow, nsPluginTag* aPluginTag);
+  virtual ~nsPluginElement();
 
   nsPIDOMWindow* GetParentObject() const;
   virtual JSObject* WrapObject(JSContext* aCx,

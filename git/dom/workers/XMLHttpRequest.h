@@ -31,7 +31,7 @@ public:
     uint32_t mStatus;
     nsCString mStatusText;
     uint16_t mReadyState;
-    JS::Heap<JS::Value> mResponse;
+    jsval mResponse;
     nsresult mResponseTextResult;
     nsresult mStatusResult;
     nsresult mResponseResult;
@@ -44,7 +44,7 @@ public:
   };
 
 private:
-  JS::Heap<JSObject*> mJSObject;
+  JSObject* mJSObject;
   XMLHttpRequestUpload* mUpload;
   WorkerPrivate* mWorkerPrivate;
   nsRefPtr<Proxy> mProxy;

@@ -6,7 +6,7 @@
 #ifndef nsCocoaFeatures_h_
 #define nsCocoaFeatures_h_
 
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 class nsCocoaFeatures {
 public:

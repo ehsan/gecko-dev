@@ -255,11 +255,11 @@ IDBRequest::GetSource(nsISupports** aSource)
 }
 
 NS_IMETHODIMP
-IDBRequest::GetTransaction(nsISupports** aTransaction)
+IDBRequest::GetTransaction(nsIIDBTransaction** aTransaction)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  nsRefPtr<IDBWrapperCache> transaction(mTransaction);
+  nsCOMPtr<nsIIDBTransaction> transaction(mTransaction);
   transaction.forget(aTransaction);
   return NS_OK;
 }

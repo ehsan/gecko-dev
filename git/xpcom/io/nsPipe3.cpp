@@ -14,6 +14,7 @@
 #include "nsCRT.h"
 #include "prlog.h"
 #include "nsIClassInfoImpl.h"
+#include "nsAtomicRefcnt.h"
 #include "nsAlgorithm.h"
 
 using namespace mozilla;
@@ -127,7 +128,7 @@ private:
     nsPipe                        *mPipe;
 
     // separate refcnt so that we know when to close the consumer
-    mozilla::ThreadSafeAutoRefCnt  mReaderRefCnt;
+    nsrefcnt                       mReaderRefCnt;
     int64_t                        mLogicalOffset;
     bool                           mBlocking;
 
@@ -181,7 +182,7 @@ private:
     nsPipe                         *mPipe;
 
     // separate refcnt so that we know when to close the producer
-    mozilla::ThreadSafeAutoRefCnt   mWriterRefCnt;
+    nsrefcnt                        mWriterRefCnt;
     int64_t                         mLogicalOffset;
     bool                            mBlocking;
 
@@ -200,7 +201,7 @@ public:
     friend class nsPipeInputStream;
     friend class nsPipeOutputStream;
 
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIPIPE
 
     // nsPipe methods:
@@ -310,7 +311,7 @@ nsPipe::~nsPipe()
 {
 }
 
-NS_IMPL_ISUPPORTS1(nsPipe, nsIPipe)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsPipe, nsIPipe)
 
 NS_IMETHODIMP
 nsPipe::Init(bool nonBlockingIn,
@@ -679,14 +680,14 @@ nsPipeInputStream::OnInputException(nsresult reason, nsPipeEvents &events)
 NS_IMETHODIMP_(nsrefcnt)
 nsPipeInputStream::AddRef(void)
 {
-    ++mReaderRefCnt;
+    NS_AtomicIncrementRefcnt(mReaderRefCnt);
     return mPipe->AddRef();
 }
 
 NS_IMETHODIMP_(nsrefcnt)
 nsPipeInputStream::Release(void)
 {
-    if (--mReaderRefCnt == 0)
+    if (NS_AtomicDecrementRefcnt(mReaderRefCnt) == 0)
         Close();
     return mPipe->Release();
 }
@@ -1034,14 +1035,14 @@ nsPipeOutputStream::OnOutputException(nsresult reason, nsPipeEvents &events)
 NS_IMETHODIMP_(nsrefcnt)
 nsPipeOutputStream::AddRef()
 {
-    ++mWriterRefCnt;
+    NS_AtomicIncrementRefcnt(mWriterRefCnt);
     return mPipe->AddRef();
 }
 
 NS_IMETHODIMP_(nsrefcnt)
 nsPipeOutputStream::Release()
 {
-    if (--mWriterRefCnt == 0)
+    if (NS_AtomicDecrementRefcnt(mWriterRefCnt) == 0)
         Close();
     return mPipe->Release();
 }

@@ -11,12 +11,10 @@ using namespace mozilla::ipc;
 
 bool RawDBusConnection::sDBusIsInit(false);
 
-RawDBusConnection::RawDBusConnection()
-{
+RawDBusConnection::RawDBusConnection() {
 }
 
-RawDBusConnection::~RawDBusConnection()
-{
+RawDBusConnection::~RawDBusConnection() {
 }
 
 nsresult RawDBusConnection::EstablishDBusConnection()

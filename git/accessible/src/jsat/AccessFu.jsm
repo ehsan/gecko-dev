@@ -116,7 +116,7 @@ this.AccessFu = {
     Services.obs.addObserver(this, 'Accessibility:PreviousObject', false);
     Services.obs.addObserver(this, 'Accessibility:Focus', false);
     Services.obs.addObserver(this, 'Accessibility:ActivateObject', false);
-    Services.obs.addObserver(this, 'Accessibility:MoveByGranularity', false);
+    Services.obs.addObserver(this, 'Accessibility:MoveCaret', false);
     Utils.win.addEventListener('TabOpen', this);
     Utils.win.addEventListener('TabClose', this);
     Utils.win.addEventListener('TabSelect', this);
@@ -159,7 +159,7 @@ this.AccessFu = {
     Services.obs.removeObserver(this, 'Accessibility:PreviousObject');
     Services.obs.removeObserver(this, 'Accessibility:Focus');
     Services.obs.removeObserver(this, 'Accessibility:ActivateObject');
-    Services.obs.removeObserver(this, 'Accessibility:MoveByGranularity');
+    Services.obs.removeObserver(this, 'Accessibility:MoveCaret');
 
     if (this.doneCallback) {
       this.doneCallback();
@@ -201,9 +201,6 @@ this.AccessFu = {
       case 'AccessFu:ActivateContextMenu':
         this.Input.activateContextMenu(aMessage.json);
         break;
-      case 'AccessFu:DoScroll':
-        this.Input.doScroll(aMessage.json);
-        break;
     }
   },
 
@@ -243,7 +240,6 @@ this.AccessFu = {
     aMessageManager.addMessageListener('AccessFu:Input', this);
     aMessageManager.addMessageListener('AccessFu:Ready', this);
     aMessageManager.addMessageListener('AccessFu:ActivateContextMenu', this);
-    aMessageManager.addMessageListener('AccessFu:DoScroll', this);
   },
 
   _removeMessageListeners: function _removeMessageListeners(aMessageManager) {
@@ -251,7 +247,6 @@ this.AccessFu = {
     aMessageManager.removeMessageListener('AccessFu:Input', this);
     aMessageManager.removeMessageListener('AccessFu:Ready', this);
     aMessageManager.removeMessageListener('AccessFu:ActivateContextMenu', this);
-    aMessageManager.removeMessageListener('AccessFu:DoScroll', this);
   },
 
   _handleMessageManager: function _handleMessageManager(aMessageManager) {
@@ -282,8 +277,8 @@ this.AccessFu = {
           this.showCurrent(true);
         }
         break;
-      case 'Accessibility:MoveByGranularity':
-        this.Input.moveByGranularity(JSON.parse(aData));
+      case 'Accessibility:MoveCaret':
+        this.Input.moveCaret(JSON.parse(aData));
         break;
       case 'remote-browser-frame-shown':
       case 'in-process-browser-or-app-frame-shown':
@@ -361,56 +356,7 @@ this.AccessFu = {
 
   // Keep track of message managers tha already have a 'content-script.js'
   // injected.
-  _processedMessageManagers: [],
-
-  /**
-   * Adjusts the given bounds relative to the given browser. Converts from screen
-   * or device pixels to either device or CSS pixels.
-   * @param {Rect} aJsonBounds the bounds to adjust
-   * @param {browser} aBrowser the browser we want the bounds relative to
-   * @param {bool} aToCSSPixels whether to convert to CSS pixels (as opposed to
-   *               device pixels)
-   * @param {bool} aFromDevicePixels whether to convert from device pixels (as
-   *               opposed to screen pixels)
-   */
-  adjustContentBounds: function(aJsonBounds, aBrowser, aToCSSPixels, aFromDevicePixels) {
-    let bounds = new Rect(aJsonBounds.left, aJsonBounds.top,
-                          aJsonBounds.right - aJsonBounds.left,
-                          aJsonBounds.bottom - aJsonBounds.top);
-    let win = Utils.win;
-    let dpr = win.devicePixelRatio;
-    let vp = Utils.getViewport(win);
-    let offset = { left: -win.mozInnerScreenX, top: -win.mozInnerScreenY };
-
-    if (!aBrowser.contentWindow) {
-      // OOP browser, add offset of browser.
-      // The offset of the browser element in relation to its parent window.
-      let clientRect = aBrowser.getBoundingClientRect();
-      let win = aBrowser.ownerDocument.defaultView;
-      offset.left += clientRect.left + win.mozInnerScreenX;
-      offset.top += clientRect.top + win.mozInnerScreenY;
-    }
-
-    // Here we scale from screen pixels to layout device pixels by dividing by
-    // the resolution (caused by pinch-zooming). The resolution is the viewport
-    // zoom divided by the devicePixelRatio. If there's no viewport, then we're
-    // on a platform without pinch-zooming and we can just ignore this.
-    if (!aFromDevicePixels && vp) {
-      bounds = bounds.scale(vp.zoom / dpr, vp.zoom / dpr);
-    }
-
-    // Add the offset; the offset is in CSS pixels, so multiply the
-    // devicePixelRatio back in before adding to preserve unit consistency.
-    bounds = bounds.translate(offset.left * dpr, offset.top * dpr);
-
-    // If we want to get to CSS pixels from device pixels, this needs to be
-    // further divided by the devicePixelRatio due to widget scaling.
-    if (aToCSSPixels) {
-      bounds = bounds.scale(1 / dpr, 1 / dpr);
-    }
-
-    return bounds.expandToIntegers();
-  }
+  _processedMessageManagers: []
 };
 
 var Output = {
@@ -526,7 +472,7 @@ var Output = {
         }
 
         let padding = aDetails.padding;
-        let r = AccessFu.adjustContentBounds(aDetails.bounds, aBrowser, true);
+        let r = this._adjustBounds(aDetails.bounds, aBrowser);
 
         // First hide it to avoid flickering when changing the style.
         highlightBox.style.display = 'none';
@@ -590,7 +536,7 @@ var Output = {
     for each (let androidEvent in aDetails) {
       androidEvent.type = 'Accessibility:Event';
       if (androidEvent.bounds)
-        androidEvent.bounds = AccessFu.adjustContentBounds(androidEvent.bounds, aBrowser);
+        androidEvent.bounds = this._adjustBounds(androidEvent.bounds, aBrowser, true);
 
       switch(androidEvent.eventType) {
         case ANDROID_VIEW_TEXT_CHANGED:
@@ -613,6 +559,33 @@ var Output = {
 
   Braille: function Braille(aDetails, aBrowser) {
     Logger.debug('Braille output: ' + aDetails.text);
+  },
+
+  _adjustBounds: function(aJsonBounds, aBrowser, aIncludeZoom) {
+    let bounds = new Rect(aJsonBounds.left, aJsonBounds.top,
+                          aJsonBounds.right - aJsonBounds.left,
+                          aJsonBounds.bottom - aJsonBounds.top);
+    let vp = Utils.getViewport(Utils.win) || { zoom: 1.0, offsetY: 0 };
+    let root = Utils.win;
+    let offset = { left: -root.mozInnerScreenX, top: -root.mozInnerScreenY };
+    let scale = 1 / Utils.getPixelsPerCSSPixel(Utils.win);
+
+    if (!aBrowser.contentWindow) {
+      // OOP browser, add offset of browser.
+      // The offset of the browser element in relation to its parent window.
+      let clientRect = aBrowser.getBoundingClientRect();
+      let win = aBrowser.ownerDocument.defaultView;
+      offset.left += clientRect.left + win.mozInnerScreenX;
+      offset.top += clientRect.top + win.mozInnerScreenY;
+    }
+
+    let newBounds = bounds.scale(scale, scale).translate(offset.left, offset.top);
+
+    if (aIncludeZoom) {
+      newBounds = newBounds.scale(vp.zoom, vp.zoom);
+    }
+
+    return newBounds.expandToIntegers();
   }
 };
 
@@ -642,6 +615,9 @@ var Input = {
         this._handleKeypress(aEvent);
         break;
       case 'mozAccessFuGesture':
+        let vp = Utils.getViewport(Utils.win) || { zoom: 1.0 };
+        aEvent.detail.x *= vp.zoom;
+        aEvent.detail.y *= vp.zoom;
         this._handleGesture(aEvent.detail);
         break;
       }
@@ -658,7 +634,7 @@ var Input = {
     switch (gestureName) {
       case 'dwell1':
       case 'explore1':
-        this.moveToPoint('Simple', aGesture.x, aGesture.y);
+        this.moveToPoint('SimpleTouch', aGesture.x, aGesture.y);
         break;
       case 'doubletap1':
         this.activateCurrent();
@@ -673,16 +649,16 @@ var Input = {
         this.moveCursor('movePrevious', 'Simple', 'gesture');
         break;
       case 'swiperight2':
-        this.sendScrollMessage(-1, true);
+        this.scroll(-1, true);
         break;
       case 'swipedown2':
-        this.sendScrollMessage(-1);
+        this.scroll(-1);
         break;
       case 'swipeleft2':
-        this.sendScrollMessage(1, true);
+        this.scroll(1, true);
         break;
       case 'swipeup2':
-        this.sendScrollMessage(1);
+        this.scroll(1);
         break;
       case 'explore2':
         Utils.CurrentBrowser.contentWindow.scrollBy(
@@ -793,23 +769,16 @@ var Input = {
                          origin: 'top', inputType: aInputType});
   },
 
-  moveByGranularity: function moveByGranularity(aDetails) {
-    const MOVEMENT_GRANULARITY_PARAGRAPH = 8;
-
+  moveCaret: function moveCaret(aDetails) {
     if (!this.editState.editing) {
-      if (aDetails.granularity === MOVEMENT_GRANULARITY_PARAGRAPH) {
-        this.moveCursor('move' + aDetails.direction, 'Paragraph', 'gesture');
-        return;
-      }
-    } else {
-      aDetails.atStart = this.editState.atStart;
-      aDetails.atEnd = this.editState.atEnd;
+      return;
     }
 
+    aDetails.atStart = this.editState.atStart;
+    aDetails.atEnd = this.editState.atEnd;
+
     let mm = Utils.getMessageManager(Utils.CurrentBrowser);
-    let type = this.editState.editing ? 'AccessFu:MoveCaret' :
-                                        'AccessFu:MoveByGranularity';
-    mm.sendAsyncMessage(type, aDetails);
+    mm.sendAsyncMessage('AccessFu:MoveCaret', aDetails);
   },
 
   activateCurrent: function activateCurrent(aData) {
@@ -825,12 +794,12 @@ var Input = {
     mm.sendAsyncMessage('AccessFu:ContextMenu', {});
   },
 
-  activateContextMenu: function activateContextMenu(aDetails) {
+  activateContextMenu: function activateContextMenu(aMessage) {
     if (Utils.MozBuildApp === 'mobile/android') {
-      let p = AccessFu.adjustContentBounds(aDetails.bounds, Utils.CurrentBrowser,
-                                           true, true).center();
+      let vp = Utils.getViewport(Utils.win) || { zoom: 1.0 };
       Services.obs.notifyObservers(null, 'Gesture:LongPress',
-                                   JSON.stringify({x: p.x, y: p.y}));
+                                   JSON.stringify({x: aMessage.x / vp.zoom,
+                                                   y: aMessage.y / vp.zoom}));
     }
   },
 
@@ -838,27 +807,9 @@ var Input = {
     this.editState = aEditState;
   },
 
-  // XXX: This is here for backwards compatability with screen reader simulator
-  // it should be removed when the extension is updated on amo.
   scroll: function scroll(aPage, aHorizontal) {
-    this.sendScrollMessage(aPage, aHorizontal);
-  },
-
-  sendScrollMessage: function sendScrollMessage(aPage, aHorizontal) {
     let mm = Utils.getMessageManager(Utils.CurrentBrowser);
     mm.sendAsyncMessage('AccessFu:Scroll', {page: aPage, horizontal: aHorizontal, origin: 'top'});
-  },
-
-  doScroll: function doScroll(aDetails) {
-    let horizontal = aDetails.horizontal;
-    let page = aDetails.page;
-    let p = AccessFu.adjustContentBounds(aDetails.bounds, Utils.CurrentBrowser,
-                                         true, true).center();
-    let wu = Utils.win.QueryInterface(Ci.nsIInterfaceRequestor).
-      getInterface(Ci.nsIDOMWindowUtils);
-    wu.sendWheelEvent(p.x, p.y,
-                      horizontal ? page : 0, horizontal ? 0 : page, 0,
-                      Utils.win.WheelEvent.DOM_DELTA_PAGE, 0, 0, 0, 0);
   },
 
   get keyMap() {

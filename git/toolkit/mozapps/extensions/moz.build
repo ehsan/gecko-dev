@@ -31,7 +31,6 @@ EXTRA_JS_MODULES += [
     'AddonRepository.jsm',
     'AddonUpdateChecker.jsm',
     'ChromeManifestParser.jsm',
-    'DeferredSave.jsm',
     'LightweightThemeImageOptimizer.jsm',
     'LightweightThemeManager.jsm',
     'PluginProvider.jsm',

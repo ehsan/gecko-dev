@@ -30,6 +30,11 @@ const prefs = new Preferences("services.push.");
 const kPUSHDB_DB_NAME = "push";
 const kPUSHDB_DB_VERSION = 1; // Change this if the IndexedDB format changes
 const kPUSHDB_STORE_NAME = "push";
+const kCONFLICT_RETRY_ATTEMPTS = 3; // If channelID registration says 409, how
+                                    // many times to retry with a new channelID
+
+const kERROR_CHID_CONFLICT = 409;   // Error code sent by push server if this
+                                    // channel already exists on the server.
 
 const kUDP_WAKEUP_WS_STATUS_CODE = 4774;  // WebSocket Close status code sent
                                           // by server to signal that it can
@@ -340,29 +345,19 @@ this.PushService = {
         break;
       case "webapps-uninstall":
         debug("webapps-uninstall");
-
-        let data;
-        try {
-          data = JSON.parse(aData);
-        } catch (ex) {
-          debug("webapps-uninstall: JSON parsing error: " + aData);
-          return;
-        }
-
-        let manifestURL = data.manifestURL;
         let appsService = Cc["@mozilla.org/AppsService;1"]
                             .getService(Ci.nsIAppsService);
-        if (appsService.getAppLocalIdByManifestURL(manifestURL) ==
-            Ci.nsIScriptSecurityManager.NO_APP_ID) {
-          debug("webapps-uninstall: No app found " + manifestURL);
+        var app = appsService.getAppFromObserverMessage(aData);
+        if (!app) {
+          debug("webapps-uninstall: No app found " + aData.origin);
           return;
         }
 
-        this._db.getAllByManifestURL(manifestURL, function(records) {
+        this._db.getAllByManifestURL(app.manifestURL, function(records) {
           debug("Got " + records.length);
           for (var i = 0; i < records.length; i++) {
             this._db.delete(records[i].channelID, null, function() {
-              debug("app uninstall: " + manifestURL +
+              debug("app uninstall: " + app.manifestURL +
                     " Could not delete entry " + records[i].channelID);
             });
             // courtesy, but don't establish a connection
@@ -373,7 +368,7 @@ this.PushService = {
             }
           }
         }.bind(this), function() {
-          debug("Error in getAllByManifestURL: url " + manifestURL);
+          debug("Error in getAllByManifestURL: url " + app.manifestURL);
         });
 
         break;
@@ -1141,10 +1136,22 @@ this.PushService = {
    */
   _onRegisterError: function(aPageRecord, aMessageManager, reply) {
     debug("_onRegisterError()");
+    switch (reply.status) {
+      case kERROR_CHID_CONFLICT:
+        if (typeof aPageRecord._attempts !== "number")
+          aPageRecord._attempts = 0;
 
-    if (reply.status) {
-      debug("General failure " + reply.status);
-      throw { requestID: aPageRecord.requestID, error: reply.error };    
+        if (aPageRecord._attempts < kCONFLICT_RETRY_ATTEMPTS) {
+          aPageRecord._attempts++;
+          // Since register is async, it's OK to launch it in a callback.
+          debug("CONFLICT: trying again");
+          this.register(aPageRecord, aMessageManager);
+          return;
+        }
+        throw { requestID: aPageRecord.requestID, error: "conflict" };
+      default:
+        debug("General failure " + reply.status);
+        throw { requestID: aPageRecord.requestID, error: reply.error };
     }
   },
 

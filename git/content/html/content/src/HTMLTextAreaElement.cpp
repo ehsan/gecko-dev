@@ -946,7 +946,7 @@ HTMLTextAreaElement::SaveState()
   // Only save if value != defaultValue (bug 62713)
   nsPresState *state = nullptr;
   if (mValueChanged) {
-    state = GetPrimaryPresState();
+    rv = GetPrimaryPresState(this, &state);
     if (state) {
       nsAutoString value;
       GetValueInternal(value, true);
@@ -969,8 +969,7 @@ HTMLTextAreaElement::SaveState()
 
   if (mDisabledChanged) {
     if (!state) {
-      state = GetPrimaryPresState();
-      rv = NS_OK;
+      rv = GetPrimaryPresState(this, &state);
     }
     if (state) {
       // We do not want to save the real disabled state but the disabled
