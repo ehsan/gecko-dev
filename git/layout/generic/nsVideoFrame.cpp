@@ -306,7 +306,7 @@ nsVideoFrame::Reflow(nsPresContext*           aPresContext,
 
       ReflowChild(imageFrame, aPresContext, kidDesiredSize, kidReflowState,
                         posterTopLeft.x, posterTopLeft.y, 0, aStatus);
-      FinishReflowChild(imageFrame, aPresContext, kidDesiredSize, &kidReflowState,
+      FinishReflowChild(imageFrame, aPresContext, &kidReflowState, kidDesiredSize,
                         posterTopLeft.x, posterTopLeft.y, 0);
     } else if (child->GetContent() == mVideoControls) {
       // Reflow the video controls frame.
@@ -343,7 +343,7 @@ nsVideoFrame::Reflow(nsPresContext*           aPresContext,
       ReflowChild(child, aPresContext, kidDesiredSize, kidReflowState,
                   mBorderPadding.left, mBorderPadding.top, 0, aStatus);
       FinishReflowChild(child, aPresContext,
-                        kidDesiredSize, &kidReflowState,
+                        &kidReflowState, kidDesiredSize,
                         mBorderPadding.left, mBorderPadding.top, 0);
     }
   }

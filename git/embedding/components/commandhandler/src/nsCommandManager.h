@@ -21,6 +21,7 @@ template<class E> class nsCOMArray;
 
 class nsCommandManager :  public nsICommandManager,
                           public nsPICommandUpdater,
+                       // public nsISecurityCheckedComponent,
                           public nsSupportsWeakReference
 
 {

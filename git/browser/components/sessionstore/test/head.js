@@ -5,19 +5,12 @@
 const TAB_STATE_NEEDS_RESTORE = 1;
 const TAB_STATE_RESTORING = 2;
 
-const ROOT = getRootDirectory(gTestPath);
-const FRAME_SCRIPTS = [
-  ROOT + "content.js",
-  ROOT + "content-forms.js"
-];
+const FRAME_SCRIPT = "chrome://mochitests/content/browser/browser/components/" +
+                     "sessionstore/test/content.js";
 
 let mm = Cc["@mozilla.org/globalmessagemanager;1"]
            .getService(Ci.nsIMessageListenerManager);
-
-for (let script of FRAME_SCRIPTS) {
-  mm.loadFrameScript(script, true);
-}
-
+mm.loadFrameScript(FRAME_SCRIPT, true);
 mm.addMessageListener("SessionStore:setupSyncHandler", onSetupSyncHandler);
 
 /**
@@ -31,9 +24,7 @@ function onSetupSyncHandler(msg) {
 }
 
 registerCleanupFunction(() => {
-  for (let script of FRAME_SCRIPTS) {
-    mm.removeDelayedFrameScript(script, true);
-  }
+  mm.removeDelayedFrameScript(FRAME_SCRIPT);
   mm.removeMessageListener("SessionStore:setupSyncHandler", onSetupSyncHandler);
 });
 
@@ -346,64 +337,39 @@ function BrowserWindowIterator() {
   }
 }
 
-let gWebProgressListener = {
+let gProgressListener = {
   _callback: null,
+  _checkRestoreState: true,
 
-  setCallback: function (aCallback) {
+  setCallback: function gProgressListener_setCallback(aCallback, aCheckRestoreState = true) {
     if (!this._callback) {
       window.gBrowser.addTabsProgressListener(this);
     }
     this._callback = aCallback;
+    this._checkRestoreState = aCheckRestoreState;
   },
 
-  unsetCallback: function () {
+  unsetCallback: function gProgressListener_unsetCallback() {
     if (this._callback) {
       this._callback = null;
       window.gBrowser.removeTabsProgressListener(this);
     }
   },
 
-  onStateChange: function (aBrowser, aWebProgress, aRequest,
-                           aStateFlags, aStatus) {
-    if (aStateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
+  onStateChange:
+  function gProgressListener_onStateChange(aBrowser, aWebProgress, aRequest,
+                                           aStateFlags, aStatus) {
+    if ((!this._checkRestoreState ||
+         (aBrowser.__SS_restoreState && aBrowser.__SS_restoreState == TAB_STATE_RESTORING)) &&
+        aStateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
         aStateFlags & Ci.nsIWebProgressListener.STATE_IS_NETWORK &&
         aStateFlags & Ci.nsIWebProgressListener.STATE_IS_WINDOW) {
-      this._callback(aBrowser);
-    }
-  }
-};
-
-registerCleanupFunction(function () {
-  gWebProgressListener.unsetCallback();
-});
-
-let gProgressListener = {
-  _callback: null,
-
-  setCallback: function (callback) {
-    Services.obs.addObserver(this, "sessionstore-debug-tab-restored", false);
-    this._callback = callback;
-  },
-
-  unsetCallback: function () {
-    if (this._callback) {
-      this._callback = null;
-    Services.obs.removeObserver(this, "sessionstore-debug-tab-restored");
+      let args = [aBrowser].concat(this._countTabs());
+      this._callback.apply(this, args);
     }
   },
 
-  observe: function (browser, topic, data) {
-    gProgressListener.onRestored(browser);
-  },
-
-  onRestored: function (browser) {
-    if (browser.__SS_restoreState == TAB_STATE_RESTORING) {
-      let args = [browser].concat(gProgressListener._countTabs());
-      gProgressListener._callback.apply(gProgressListener, args);
-    }
-  },
-
-  _countTabs: function () {
+  _countTabs: function gProgressListener_countTabs() {
     let needsRestore = 0, isRestoring = 0, wasRestored = 0;
 
     for (let win in BrowserWindowIterator()) {
@@ -549,21 +515,4 @@ function promiseTabRestored(tab) {
 function sendMessage(browser, name, data = {}) {
   browser.messageManager.sendAsyncMessage(name, data);
   return promiseContentMessage(browser, name);
-}
-
-// This creates list of functions that we will map to their corresponding
-// ss-test:* messages names. Those will be sent to the frame script and
-// be used to read and modify form data.
-const FORM_HELPERS = [
-  "getTextContent",
-  "getInputValue", "setInputValue",
-  "getInputChecked", "setInputChecked",
-  "getSelectedIndex", "setSelectedIndex",
-  "getMultipleSelected", "setMultipleSelected",
-  "getFileNameArray", "setFileNameArray",
-];
-
-for (let name of FORM_HELPERS) {
-  let msg = "ss-test:" + name;
-  this[name] = (browser, data) => sendMessage(browser, msg, data);
 }

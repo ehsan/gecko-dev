@@ -889,7 +889,7 @@ public:
                                            const FileHandleData& aData)
   {
     // FileHandle can't be used in index creation, so just make a dummy object.
-    return JS_NewObject(aCx, nullptr, JS::NullPtr(), JS::NullPtr());
+    return JS_NewObject(aCx, nullptr, nullptr, nullptr);
   }
 
   static JSObject* CreateAndWrapBlobOrFile(JSContext* aCx,
@@ -908,7 +908,7 @@ public:
     //   File.lastModifiedDate
 
     JS::Rooted<JSObject*> obj(aCx,
-      JS_NewObject(aCx, nullptr, JS::NullPtr(), JS::NullPtr()));
+      JS_NewObject(aCx, nullptr, nullptr, nullptr));
     if (!obj) {
       NS_WARNING("Failed to create object!");
       return nullptr;

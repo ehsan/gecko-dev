@@ -1,11 +1,9 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
- "use strict";
 
 var traceback = require("sdk/console/traceback");
 var {Cc,Ci,Cr,Cu} = require("chrome");
-const { on, off } = require("sdk/system/events");
 
 function throwNsIException() {
   var ios = Cc['@mozilla.org/network/io-service;1']
@@ -18,6 +16,7 @@ function throwError() {
 }
 
 exports.testFormatDoesNotFetchRemoteFiles = function(assert) {
+  var observers = require("sdk/deprecated/observer-service");
   ["http", "https"].forEach(
     function(scheme) {
       var httpRequests = 0;
@@ -25,7 +24,7 @@ exports.testFormatDoesNotFetchRemoteFiles = function(assert) {
         httpRequests++;
       }
 
-      on("http-on-modify-request", onHttp);
+      observers.add("http-on-modify-request", onHttp);
 
       try {
         var tb = [{filename: scheme + "://www.mozilla.org/",
@@ -36,7 +35,7 @@ exports.testFormatDoesNotFetchRemoteFiles = function(assert) {
         assert.fail(e);
       }
 
-      off("http-on-modify-request", onHttp);
+      observers.remove("http-on-modify-request", onHttp);
 
       assert.equal(httpRequests, 0,
                        "traceback.format() does not make " +

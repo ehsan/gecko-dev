@@ -13,15 +13,12 @@ EXTRA_COMPONENTS += [
 JS_MODULES_PATH = 'modules/sessionstore'
 
 EXTRA_JS_MODULES = [
-    'ContentRestore.jsm',
     'DocShellCapabilities.jsm',
-    'FormData.jsm',
+    'DocumentUtils.jsm',
     'FrameTree.jsm',
-    'GlobalState.jsm',
     'Messenger.jsm',
     'PageStyle.jsm',
     'PrivacyLevel.jsm',
-    'PrivacyLevelFilter.jsm',
     'RecentlyClosedTabsAndWindowsMenuUtils.jsm',
     'ScrollPosition.jsm',
     'SessionCookies.jsm',
@@ -33,6 +30,7 @@ EXTRA_JS_MODULES = [
     'TabAttributes.jsm',
     'TabState.jsm',
     'TabStateCache.jsm',
+    'TextAndScrollData.jsm',
     'Utils.jsm',
     'XPathGenerator.jsm',
 ]

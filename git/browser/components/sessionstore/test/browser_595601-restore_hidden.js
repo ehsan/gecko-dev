@@ -57,11 +57,12 @@ function test_loadTabs(restoreHiddenTabs, callback) {
 let TabsProgressListener = {
   init: function (win) {
     this.window = win;
-    Services.obs.addObserver(this, "sessionstore-debug-tab-restored", false);
+
+    this.window.gBrowser.addTabsProgressListener(this);
   },
 
   uninit: function () {
-    Services.obs.removeObserver(this, "sessionstore-debug-tab-restored");
+    this.window.gBrowser.removeTabsProgressListener(this);
 
     delete this.window;
     delete this.callback;
@@ -71,12 +72,11 @@ let TabsProgressListener = {
     this.callback = callback;
   },
 
-  observe: function (browser) {
-    TabsProgressListener.onRestored(browser);
-  },
-
-  onRestored: function (browser) {
-    if (this.callback && browser.__SS_restoreState == TAB_STATE_RESTORING)
+  onStateChange: function (aBrowser, aWebProgress, aRequest, aStateFlags, aStatus) {
+    if (this.callback && aBrowser.__SS_restoreState == TAB_STATE_RESTORING &&
+        aStateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
+        aStateFlags & Ci.nsIWebProgressListener.STATE_IS_NETWORK &&
+        aStateFlags & Ci.nsIWebProgressListener.STATE_IS_WINDOW)
       this.callback.apply(null, [this.window].concat(this.countTabs()));
   },
 

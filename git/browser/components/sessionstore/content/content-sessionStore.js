@@ -18,8 +18,6 @@ Cu.import("resource://gre/modules/Timer.jsm", this);
 
 XPCOMUtils.defineLazyModuleGetter(this, "DocShellCapabilities",
   "resource:///modules/sessionstore/DocShellCapabilities.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "FormData",
-  "resource:///modules/sessionstore/FormData.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PageStyle",
   "resource:///modules/sessionstore/PageStyle.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "ScrollPosition",
@@ -28,13 +26,11 @@ XPCOMUtils.defineLazyModuleGetter(this, "SessionHistory",
   "resource:///modules/sessionstore/SessionHistory.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "SessionStorage",
   "resource:///modules/sessionstore/SessionStorage.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "TextAndScrollData",
+  "resource:///modules/sessionstore/TextAndScrollData.jsm");
 
 Cu.import("resource:///modules/sessionstore/FrameTree.jsm", this);
 let gFrameTree = new FrameTree(this);
-
-Cu.import("resource:///modules/sessionstore/ContentRestore.jsm", this);
-XPCOMUtils.defineLazyGetter(this, 'gContentRestore',
-                            () => { return new ContentRestore(this) });
 
 /**
  * Returns a lazy function that will evaluate the given
@@ -74,34 +70,23 @@ function isSessionStorageEvent(event) {
  */
 let EventListener = {
 
+  DOM_EVENTS: [
+    "pageshow", "change", "input"
+  ],
+
   init: function () {
-    addEventListener("load", this, true);
-    addEventListener("pageshow", this, true);
+    this.DOM_EVENTS.forEach(e => addEventListener(e, this, true));
   },
 
   handleEvent: function (event) {
     switch (event.type) {
-      case "load":
-        // Ignore load events from subframes.
-        if (event.target == content.document) {
-          // If we're in the process of restoring, this load may signal
-          // the end of the restoration.
-          let epoch = gContentRestore.getRestoreEpoch();
-          if (epoch) {
-            // Restore the form data and scroll position.
-            gContentRestore.restoreDocument();
-
-            // Ask SessionStore.jsm to trigger SSTabRestored.
-            sendAsyncMessage("SessionStore:restoreDocumentComplete", {epoch: epoch});
-          }
-
-          // Send a load message for all loads so we can invalidate the TabStateCache.
-          sendAsyncMessage("SessionStore:load");
-        }
-        break;
       case "pageshow":
         if (event.persisted && event.target == content.document)
           sendAsyncMessage("SessionStore:pageshow");
+        break;
+      case "input":
+      case "change":
+        sendAsyncMessage("SessionStore:input");
         break;
       default:
         debug("received unknown event '" + event.type + "'");
@@ -116,61 +101,26 @@ let EventListener = {
 let MessageListener = {
 
   MESSAGES: [
-    "SessionStore:collectSessionHistory",
-
-    "SessionStore:restoreHistory",
-    "SessionStore:restoreTabContent",
-    "SessionStore:resetRestore",
+    "SessionStore:collectSessionHistory"
   ],
 
   init: function () {
     this.MESSAGES.forEach(m => addMessageListener(m, this));
   },
 
-  receiveMessage: function ({name, data}) {
-    let id = data ? data.id : 0;
+  receiveMessage: function ({name, data: {id}}) {
     switch (name) {
       case "SessionStore:collectSessionHistory":
         let history = SessionHistory.collect(docShell);
-        sendAsyncMessage(name, {id: id, data: history});
-        break;
-      case "SessionStore:restoreHistory":
-        let reloadCallback = () => {
-          // Inform SessionStore.jsm about the reload. It will send
-          // restoreTabContent in response.
-          sendAsyncMessage("SessionStore:reloadPendingTab", {epoch: data.epoch});
-        };
-        gContentRestore.restoreHistory(data.epoch, data.tabData, reloadCallback);
-
-        // When restoreHistory finishes, we send a synchronous message to
-        // SessionStore.jsm so that it can run SSTabRestoring. Users of
-        // SSTabRestoring seem to get confused if chrome and content are out of
-        // sync about the state of the restore (particularly regarding
-        // docShell.currentURI). Using a synchronous message is the easiest way
-        // to temporarily synchronize them.
-        sendSyncMessage("SessionStore:restoreHistoryComplete", {epoch: data.epoch});
-        break;
-      case "SessionStore:restoreTabContent":
-        let epoch = gContentRestore.getRestoreEpoch();
-        let finishCallback = () => {
-          // Tell SessionStore.jsm that it may want to restore some more tabs,
-          // since it restores a max of MAX_CONCURRENT_TAB_RESTORES at a time.
-          sendAsyncMessage("SessionStore:restoreTabContentComplete", {epoch: epoch});
-        };
-
-        // We need to pass the value of didStartLoad back to SessionStore.jsm.
-        let didStartLoad = gContentRestore.restoreTabContent(finishCallback);
-
-        sendAsyncMessage("SessionStore:restoreTabContentStarted", {epoch: epoch});
-
-        if (!didStartLoad) {
-          // Pretend that the load succeeded so that event handlers fire correctly.
-          sendAsyncMessage("SessionStore:restoreTabContentComplete", {epoch: epoch});
-          sendAsyncMessage("SessionStore:restoreDocumentComplete", {epoch: epoch});
+        if ("index" in history) {
+          let tabIndex = history.index - 1;
+          // Don't include private data. It's only needed when duplicating
+          // tabs, which collects data synchronously.
+          TextAndScrollData.updateFrame(history.entries[tabIndex],
+                                        content,
+                                        docShell.isAppTab);
         }
-        break;
-      case "SessionStore:resetRestore":
-        gContentRestore.resetRestore();
+        sendAsyncMessage(name, {id: id, data: history});
         break;
       default:
         debug("received unknown message '" + name + "'");
@@ -197,7 +147,15 @@ let SyncHandler = {
   },
 
   collectSessionHistory: function (includePrivateData) {
-    return SessionHistory.collect(docShell);
+    let history = SessionHistory.collect(docShell);
+    if ("index" in history) {
+      let tabIndex = history.index - 1;
+      TextAndScrollData.updateFrame(history.entries[tabIndex],
+                                    content,
+                                    docShell.isAppTab,
+                                    {includePrivateData: includePrivateData});
+    }
+    return history;
   },
 
   /**
@@ -281,51 +239,6 @@ let ScrollPositionListener = {
 
   collect: function () {
     return gFrameTree.map(ScrollPosition.collect);
-  }
-};
-
-/**
- * Listens for changes to input elements. Whenever the value of an input
- * element changes we will re-collect data for the current frame tree and send
- * a message to the parent process.
- *
- * Causes a SessionStore:update message to be sent that contains the form data
- * for all reachable frames.
- *
- * Example:
- *   {
- *     formdata: {url: "http://mozilla.org/", id: {input_id: "input value"}},
- *     children: [
- *       null,
- *       {url: "http://sub.mozilla.org/", id: {input_id: "input value 2"}}
- *     ]
- *   }
- */
-let FormDataListener = {
-  init: function () {
-    addEventListener("input", this, true);
-    addEventListener("change", this, true);
-    gFrameTree.addObserver(this);
-  },
-
-  handleEvent: function (event) {
-    let frame = event.target &&
-                event.target.ownerDocument &&
-                event.target.ownerDocument.defaultView;
-
-    // Don't collect form data for frames created at or after the load event
-    // as SessionStore can't restore form data for those.
-    if (frame && gFrameTree.contains(frame)) {
-      MessageQueue.push("formdata", () => this.collect());
-    }
-  },
-
-  onFrameTreeReset: function () {
-    MessageQueue.push("formdata", () => null);
-  },
-
-  collect: function () {
-    return gFrameTree.map(FormData.collect);
   }
 };
 
@@ -648,7 +561,6 @@ let MessageQueue = {
 
 EventListener.init();
 MessageListener.init();
-FormDataListener.init();
 SyncHandler.init();
 ProgressListener.init();
 PageStyleListener.init();

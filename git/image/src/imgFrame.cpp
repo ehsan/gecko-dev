@@ -110,6 +110,7 @@ imgFrame::imgFrame() :
   mLockCount(0),
   mBlendMethod(1), /* imgIContainer::kBlendOver */
   mSinglePixel(false),
+  mNeverUseDeviceSurface(false),
   mFormatChanged(false),
   mCompositingFailed(false),
   mNonPremult(false),
@@ -177,7 +178,7 @@ nsresult imgFrame::Init(int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeight,
     // going to) so that the image surface can wrap it.  Can't be done
     // the other way around.
 #ifdef USE_WIN_SURFACE
-    if (!ShouldUseImageSurfaces()) {
+    if (!mNeverUseDeviceSurface && !ShouldUseImageSurfaces()) {
       mWinSurface = new gfxWindowsSurface(gfxIntSize(mSize.width, mSize.height), mFormat);
       if (mWinSurface && mWinSurface->CairoStatus() == 0) {
         // no error
@@ -207,7 +208,7 @@ nsresult imgFrame::Init(int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeight,
     }
 
 #ifdef XP_MACOSX
-    if (!ShouldUseImageSurfaces()) {
+    if (!mNeverUseDeviceSurface && !ShouldUseImageSurfaces()) {
       mQuartzSurface = new gfxQuartzImageSurface(mImageSurface);
     }
 #endif
@@ -290,7 +291,7 @@ nsresult imgFrame::Optimize()
 
   // if we're being forced to use image surfaces due to
   // resource constraints, don't try to optimize beyond same-pixel.
-  if (ShouldUseImageSurfaces())
+  if (mNeverUseDeviceSurface || ShouldUseImageSurfaces())
     return NS_OK;
 
   mOptSurface = nullptr;

@@ -74,7 +74,8 @@ typedef enum JSTryNoteKind {
  */
 struct JSTryNote {
     uint8_t         kind;       /* one of JSTryNoteKind */
-    uint32_t        stackDepth; /* stack depth upon exception handler entry */
+    uint8_t         padding;    /* explicit padding on uint16_t boundary */
+    uint16_t        stackDepth; /* stack depth upon exception handler entry */
     uint32_t        start;      /* start of the try statement or loop
                                    relative to script->main */
     uint32_t        length;     /* length of the try statement or loop */
@@ -188,7 +189,7 @@ class Bindings
     HeapPtr<Shape> callObjShape_;
     uintptr_t bindingArrayAndFlag_;
     uint16_t numArgs_;
-    uint32_t numVars_;
+    uint16_t numVars_;
 
     /*
      * During parsing, bindings are allocated out of a temporary LifoAlloc.
@@ -219,7 +220,7 @@ class Bindings
      * pointer into the Binding array stored in script->data.
      */
     static bool initWithTemporaryStorage(ExclusiveContext *cx, InternalBindingsHandle self,
-                                         unsigned numArgs, uint32_t numVars,
+                                         unsigned numArgs, unsigned numVars,
                                          Binding *bindingArray);
 
     uint8_t *switchToScriptStorage(Binding *newStorage);
@@ -232,17 +233,17 @@ class Bindings
                       HandleScript srcScript);
 
     unsigned numArgs() const { return numArgs_; }
-    uint32_t numVars() const { return numVars_; }
-    uint32_t count() const { return numArgs() + numVars(); }
+    unsigned numVars() const { return numVars_; }
+    unsigned count() const { return numArgs() + numVars(); }
 
     /* Return the initial shape of call objects created for this scope. */
     Shape *callObjShape() const { return callObjShape_; }
 
     /* Convenience method to get the var index of 'arguments'. */
-    static uint32_t argumentsVarIndex(ExclusiveContext *cx, InternalBindingsHandle);
+    static unsigned argumentsVarIndex(ExclusiveContext *cx, InternalBindingsHandle);
 
     /* Return whether the binding at bindingIndex is aliased. */
-    bool bindingIsAliased(uint32_t bindingIndex);
+    bool bindingIsAliased(unsigned bindingIndex);
 
     /* Return whether this scope has any aliased bindings. */
     bool hasAnyAliasedBindings() const {
@@ -627,6 +628,10 @@ class JSScript : public js::gc::BarrieredCell<JSScript>
     /* Information used to re-lazify a lazily-parsed interpreted function. */
     js::LazyScript *lazyScript;
 
+#if JS_BITS_PER_WORD == 32
+    uint32_t padding0;
+#endif
+
     /*
      * Pointer to either baseline->method()->raw() or ion->method()->raw(), or
      * nullptr if there's no Baseline or Ion script.
@@ -646,7 +651,6 @@ class JSScript : public js::gc::BarrieredCell<JSScript>
                                    predef'ing prolog */
 
     uint32_t        natoms_;    /* length of atoms array */
-    uint32_t        nslots_;    /* vars plus maximum stack depth */
 
     /* Range of characters in scriptSource which contains this script's source. */
     uint32_t        sourceStart_;
@@ -667,13 +671,18 @@ class JSScript : public js::gc::BarrieredCell<JSScript>
 
     // 16-bit fields.
 
+    uint16_t        PADDING16;
     uint16_t        version;    /* JS version under which script was compiled */
 
     uint16_t        funLength_; /* ES6 function length */
 
+    uint16_t        nfixed_;    /* number of slots besides stack operands in
+                                   slot array */
+
     uint16_t        nTypeSets_; /* number of type sets used in this script for
                                    dynamic type monitoring */
 
+    uint16_t        nslots_;    /* vars plus maximum stack depth */
     uint16_t        staticLevel_;/* static level for display maintenance */
 
     // Bit fields.
@@ -867,7 +876,7 @@ class JSScript : public js::gc::BarrieredCell<JSScript>
 
     size_t nfixed() const {
         js::AutoThreadSafeAccess ts(this);
-        return function_ ? bindings.numVars() : 0;
+        return nfixed_;
     }
 
     size_t nslots() const {
@@ -1436,7 +1445,7 @@ class JSScript : public js::gc::BarrieredCell<JSScript>
         return JSOp(*pc) == JSOP_RETRVAL;
     }
 
-    bool varIsAliased(uint32_t varSlot);
+    bool varIsAliased(unsigned varSlot);
     bool formalIsAliased(unsigned argSlot);
     bool formalLivesInArgumentsObject(unsigned argSlot);
 
@@ -1517,7 +1526,7 @@ namespace js {
 class BindingIter
 {
     const InternalBindingsHandle bindings_;
-    uint32_t i_;
+    unsigned i_;
 
     friend class Bindings;
 
@@ -1530,7 +1539,7 @@ class BindingIter
     void operator++(int) { JS_ASSERT(!done()); i_++; }
     BindingIter &operator++() { (*this)++; return *this; }
 
-    uint32_t frameIndex() const {
+    unsigned frameIndex() const {
         JS_ASSERT(!done());
         return i_ < bindings_->numArgs() ? i_ : i_ - bindings_->numArgs();
     }

@@ -143,25 +143,9 @@ function Panel(options) {
 
   if ("title" in options)
     this.title = options.title;
-
-  if ("layout" in options)
-    this.layout = options.layout;
-
-  if ("views" in options)
-    this.views = options.views;
 }
 
 let HomePanels = {
-  // Valid layouts for a panel.
-  Layout: {
-    FRAME: "frame"
-  },
-
-  // Valid types of views for a dataset.
-  View: {
-    LIST: "list"
-  },
-
   // Holds the currrent set of registered panels.
   _panels: {},
 
@@ -171,9 +155,7 @@ let HomePanels = {
       let panel = this._panels[id];
       panels.push({
         id: panel.id,
-        title: panel.title,
-        layout: panel.layout,
-        views: panel.views
+        title: panel.title
       });
     }
 
@@ -187,26 +169,12 @@ let HomePanels = {
   add: function(options) {
     let panel = new Panel(options);
     if (!panel.id || !panel.title) {
-      throw "Home.panels: Can't create a home panel without an id and title!";
+      throw "Can't create a home panel without an id and title!";
     }
 
     // Bail if the panel already exists
     if (panel.id in this._panels) {
-      throw "Home.panels: Panel already exists: id = " + panel.id;
-    }
-
-    if (!this._valueExists(this.Layout, panel.layout)) {
-      throw "Home.panels: Invalid layout for panel: panel.id = " + panel.id + ", panel.layout =" + panel.layout;
-    }
-
-    for (let view of panel.views) {
-      if (!this._valueExists(this.View, view.type)) {
-        throw "Home.panels: Invalid view type: panel.id = " + panel.id + ", view.type = " + view.type;
-      }
-
-      if (!view.dataset) {
-        throw "Home.panels: No dataset provided for view: panel.id = " + panel.id + ", view.type = " + view.type;
-      }
+      throw "Panel already exists: " + panel.id;
     }
 
     this._panels[panel.id] = panel;
@@ -219,16 +187,6 @@ let HomePanels = {
       type: "HomePanels:Remove",
       id: panel.id
     });
-  },
-
-  // Helper function used to see if a value is in an object.
-  _valueExists: function(obj, value) {
-    for (let key in obj) {
-      if (obj[key] == value) {
-        return true;
-      }
-    }
-    return false;
   }
 };
 

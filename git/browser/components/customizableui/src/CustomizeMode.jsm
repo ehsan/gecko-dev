@@ -15,7 +15,6 @@ const kAboutURI = "about:customizing";
 const kDragDataTypePrefix = "text/toolbarwrapper-id/";
 const kPlaceholderClass = "panel-customization-placeholder";
 const kSkipSourceNodePref = "browser.uiCustomization.skipSourceNodeCheck";
-const kToolbarVisibilityBtn = "customization-toolbar-visibility-button";
 const kMaxTransitionDurationMs = 2000;
 
 Cu.import("resource://gre/modules/Services.jsm");
@@ -112,16 +111,6 @@ CustomizeMode.prototype = {
         }.bind(this);
         Services.obs.addObserver(delayedStartupObserver, "browser-delayed-startup-finished", false);
         yield delayedStartupDeferred.promise;
-      }
-
-      let toolbarVisibilityBtn = document.getElementById(kToolbarVisibilityBtn);
-      let togglableToolbars = window.getTogglableToolbars();
-      let bookmarksToolbar = document.getElementById("PersonalToolbar");
-      if (togglableToolbars.length == 0 ||
-          (togglableToolbars.length == 1 && togglableToolbars[0] == bookmarksToolbar)) {
-        toolbarVisibilityBtn.setAttribute("hidden", "true");
-      } else {
-        toolbarVisibilityBtn.removeAttribute("hidden");
       }
 
       // Disable lightweight themes while in customization mode since
@@ -582,9 +571,6 @@ CustomizeMode.prototype = {
 
     if (aNode.hasAttribute("flex")) {
       wrapper.setAttribute("flex", aNode.getAttribute("flex"));
-      if (aPlace == "palette") {
-        aNode.removeAttribute("flex");
-      }
     }
 
 
@@ -649,10 +635,6 @@ CustomizeMode.prototype = {
 
     if (aWrapper.hasAttribute("itemchecked")) {
       toolbarItem.checked = true;
-    }
-
-    if (aWrapper.hasAttribute("flex") && !toolbarItem.hasAttribute("flex")) {
-      toolbarItem.setAttribute("flex", aWrapper.getAttribute("flex"));
     }
 
     if (aWrapper.hasAttribute("itemcommand")) {
@@ -933,7 +915,6 @@ CustomizeMode.prototype = {
     let dt = aEvent.dataTransfer;
     let documentId = aEvent.target.ownerDocument.documentElement.id;
     let draggedItem = item.firstChild;
-    let isInToolbar = CustomizableUI.getPlaceForItem(item) == "toolbar";
 
     dt.mozSetDataAt(kDragDataTypePrefix + documentId, draggedItem.id, 0);
     dt.effectAllowed = "move";
@@ -954,9 +935,6 @@ CustomizeMode.prototype = {
         item.hidden = true;
         this._showPanelCustomizationPlaceholders();
         DragPositionManager.start(this.window);
-        if (!isInToolbar && item.nextSibling) {
-          this._setDragActive(item.nextSibling, "before", draggedItem.id, false);
-        }
       }
       this._initializeDragAfterMove = null;
       this.window.clearTimeout(this._dragInitializeTimeout);
@@ -1306,7 +1284,7 @@ CustomizeMode.prototype = {
       let window = aItem.ownerDocument.defaultView;
       let draggedItem = window.document.getElementById(aDraggedItemId);
       if (!aInToolbar) {
-        this._setGridDragActive(aItem, draggedItem, aValue);
+        this._setPanelDragActive(aItem, draggedItem, aValue);
       } else {
         // Calculate width of the item when it'd be dropped in this position
         let width = this._getDragItemSize(aItem, draggedItem).width;
@@ -1352,7 +1330,7 @@ CustomizeMode.prototype = {
     }
   },
 
-  _setGridDragActive: function(aDragOverNode, aDraggedItem, aValue) {
+  _setPanelDragActive: function(aDragOverNode, aDraggedItem, aValue) {
     let targetArea = this._getCustomizableParent(aDragOverNode);
     let positionManager = DragPositionManager.getManagerForArea(targetArea);
     let draggedSize = this._getDragItemSize(aDragOverNode, aDraggedItem);

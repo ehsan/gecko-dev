@@ -540,7 +540,7 @@ private:
     /*
      * Not setting this will cause JS_CHECK_RECURSION to report false
      * positives
-     */
+     */ 
     JS_SetNativeStackQuota(mRuntime, 128 * sizeof(size_t) * 1024); 
 
     mContext = JS_NewContext(mRuntime, 0);
@@ -554,18 +554,18 @@ private:
     mGlobal = JS_NewGlobalObject(mContext, &sGlobalClass, nullptr,
                                  JS::DontFireOnNewGlobalHook, options);
     NS_ENSURE_TRUE(mGlobal, NS_ERROR_OUT_OF_MEMORY);
-    JS::Rooted<JSObject*> global(mContext, mGlobal);
 
-    JSAutoCompartment ac(mContext, global);
-    js::SetDefaultObjectForContext(mContext, global);
-    JS_InitStandardClasses(mContext, global);
+    JSAutoCompartment ac(mContext, mGlobal);
+    js::SetDefaultObjectForContext(mContext, mGlobal);
+    JS_InitStandardClasses(mContext, mGlobal);
 
     JS_SetErrorReporter(mContext, PACErrorReporter);
 
-    if (!JS_DefineFunctions(mContext, global, PACGlobalFunctions))
+    if (!JS_DefineFunctions(mContext, mGlobal, PACGlobalFunctions))
       return NS_ERROR_FAILURE;
 
-    JS_FireOnNewGlobalObject(mContext, global);
+    JS::Rooted<JSObject*> rootedGlobal(mContext, mGlobal);
+    JS_FireOnNewGlobalObject(mContext, rootedGlobal);
 
     return NS_OK;
   }

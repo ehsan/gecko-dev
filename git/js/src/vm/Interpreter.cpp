@@ -2922,7 +2922,7 @@ END_CASE(JSOP_SETARG)
 CASE(JSOP_GETLOCAL)
 CASE(JSOP_CALLLOCAL)
 {
-    uint32_t i = GET_LOCALNO(REGS.pc);
+    unsigned i = GET_SLOTNO(REGS.pc);
     PUSH_COPY_SKIP_CHECK(REGS.fp()->unaliasedLocal(i));
 
     /*
@@ -2938,7 +2938,7 @@ END_CASE(JSOP_GETLOCAL)
 
 CASE(JSOP_SETLOCAL)
 {
-    uint32_t i = GET_LOCALNO(REGS.pc);
+    unsigned i = GET_SLOTNO(REGS.pc);
     REGS.fp()->unaliasedLocal(i) = REGS.sp[-1];
 }
 END_CASE(JSOP_SETLOCAL)
@@ -3395,7 +3395,7 @@ CASE(JSOP_YIELD)
 
 CASE(JSOP_ARRAYPUSH)
 {
-    uint32_t slot = GET_LOCALNO(REGS.pc);
+    uint32_t slot = GET_UINT16(REGS.pc);
     JS_ASSERT(script->nfixed() <= slot);
     JS_ASSERT(slot < script->nslots());
     RootedObject &obj = rootObject0;

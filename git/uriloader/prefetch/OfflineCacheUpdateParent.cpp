@@ -58,7 +58,10 @@ OfflineCacheUpdateParent::OfflineCacheUpdateParent(uint32_t aAppId,
     , mAppId(aAppId)
 {
     // Make sure the service has been initialized
-    nsOfflineCacheUpdateService::EnsureService();
+    nsOfflineCacheUpdateService* service =
+        nsOfflineCacheUpdateService::EnsureService();
+    if (!service)
+        return;
 
     LOG(("OfflineCacheUpdateParent::OfflineCacheUpdateParent [%p]", this));
 }
@@ -136,6 +139,12 @@ OfflineCacheUpdateParent::Schedule(const URIParams& aManifestURI,
     }
 
     return NS_OK;
+}
+
+void
+OfflineCacheUpdateParent::Kill()
+{
+    unused << SendFinish(false, false);
 }
 
 NS_IMETHODIMP

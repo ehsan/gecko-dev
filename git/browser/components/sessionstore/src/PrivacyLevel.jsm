@@ -15,7 +15,7 @@ const PREF_DEFERRED = "browser.sessionstore.privacy_level_deferred";
 
 // The following constants represent the different possible privacy levels that
 // can be set by the user and that we need to consider when collecting text
-// data, and cookies.
+// data, cookies, and POSTDATA.
 //
 // Collect data from all sites (http and https).
 const PRIVACY_NONE = 0;
