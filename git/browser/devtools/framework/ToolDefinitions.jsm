@@ -201,9 +201,12 @@ this.defaultTools = [
   webConsoleDefinition,
   debuggerDefinition,
   inspectorDefinition,
-  profilerDefinition,
   netMonitorDefinition
 ];
+
+if (Services.prefs.getBoolPref("devtools.profiler.enabled")) {
+  defaultTools.push(profilerDefinition);
+}
 
 /**
  * Lookup l10n string from a string bundle.
