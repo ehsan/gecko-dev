@@ -7,7 +7,7 @@
 #include "GLContext.h"                  // for GLContext, etc
 #include "GLSharedHandleHelpers.h"
 #include "GLUploadHelpers.h"
-#include "GLReadTexImageHelper.h"
+#include "GLContextUtils.h"             // for GLContextUtils
 #include "SharedSurface.h"              // for SharedSurface
 #include "SharedSurfaceEGL.h"           // for SharedSurface_EGLImage
 #include "SharedSurfaceGL.h"            // for SharedSurface_GLTexture, etc
