@@ -8,7 +8,6 @@
 
 #include <algorithm>
 
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/AutoRestore.h"
 #include "mozilla/Casting.h"
@@ -20,6 +19,7 @@
 #include "mozilla/StartupTimeline.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/unused.h"
+#include "mozilla/Util.h"
 #include "mozilla/VisualEventTracer.h"
 
 #ifdef MOZ_LOGGING

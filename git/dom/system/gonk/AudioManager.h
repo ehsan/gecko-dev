@@ -28,6 +28,8 @@
       {0x89, 0x10, 0xf9, 0x3c, 0x55, 0xe6, 0x62, 0xec}}
 #define NS_AUDIOMANAGER_CONTRACTID "@mozilla.org/telephony/audiomanager;1"
 
+using namespace mozilla::dom;
+
 namespace mozilla {
 namespace hal {
 class SwitchEvent;

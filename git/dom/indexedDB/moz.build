@@ -35,18 +35,21 @@ EXPORTS.mozilla.dom.indexedDB += [
     'KeyPath.h',
 ]
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'AsyncConnectionHelper.cpp',
     'CheckPermissionsHelper.cpp',
     'Client.cpp',
     'DatabaseInfo.cpp',
     'FileInfo.cpp',
     'FileManager.cpp',
+    'IDBCursor.cpp',
     'IDBDatabase.cpp',
     'IDBEvents.cpp',
     'IDBFactory.cpp',
     'IDBFileHandle.cpp',
+    'IDBIndex.cpp',
     'IDBKeyRange.cpp',
+    'IDBObjectStore.cpp',
     'IDBRequest.cpp',
     'IDBTransaction.cpp',
     'IDBWrapperCache.cpp',
@@ -55,13 +58,6 @@ UNIFIED_SOURCES += [
     'KeyPath.cpp',
     'OpenDatabaseHelper.cpp',
     'TransactionThreadPool.cpp',
-]
-
-# These files cannot be built in unified mode because of name collisions
-SOURCES += [
-    'IDBCursor.cpp',
-    'IDBIndex.cpp',
-    'IDBObjectStore.cpp',
 ]
 
 FAIL_ON_WARNINGS = True

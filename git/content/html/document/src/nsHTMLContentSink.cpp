@@ -10,7 +10,7 @@
  * Don't bother adding new stuff in this file.
  */
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "nsContentSink.h"
 #include "nsCOMPtr.h"

@@ -12,6 +12,7 @@
 #endif
 
 #include "GLDefs.h"
+#include "mozilla/Util.h"
 #include "nscore.h"
 #include "prlink.h"
 

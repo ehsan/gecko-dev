@@ -23,31 +23,12 @@ docShell.QueryInterface(Ci.nsIDocShellTreeItem).name = infos.name;
 docShell.setFullscreenAllowed(infos.fullscreenAllowed);
 
 
-function parentDocShell(docshell) {
-  if (!docshell) {
-    return null;
-  }
-  let treeitem = docshell.QueryInterface(Ci.nsIDocShellTreeItem);
-  return treeitem.parent ? treeitem.parent.QueryInterface(Ci.nsIDocShell) : null;
-}
-
-function isTopBrowserElement(docShell) {
-  while (docShell) {
-    docShell = parentDocShell(docShell);
-    if (docShell && docShell.isBrowserOrApp) {
-      return false;
-    }
-  }
-  return true;
-}
-
 if (!('BrowserElementIsPreloaded' in this)) {
-  if (isTopBrowserElement(docShell) &&
-      Services.prefs.getBoolPref("dom.mozInputMethod.enabled")) {
-    try {
+  try {
+    if (Services.prefs.getBoolPref("dom.mozInputMethod.enabled")) {
       Services.scriptloader.loadSubScript("chrome://global/content/forms.js");
-    } catch (e) {
     }
+  } catch (e) {
   }
   // Those are produc-specific files that's sometimes unavailable.
   try {
