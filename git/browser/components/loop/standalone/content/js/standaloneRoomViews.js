@@ -107,10 +107,7 @@ loop.standaloneRoomViews = (function(mozL10n) {
     render: function() {
       return (
         React.DOM.header(null, 
-          React.DOM.h1(null, mozL10n.get("clientShortname2")), 
-          React.DOM.a({target: "_blank", href: loop.config.roomsSupportUrl}, 
-            React.DOM.i({className: "icon icon-help"})
-          )
+          React.DOM.h1(null, mozL10n.get("clientShortname2"))
         )
       );
     }

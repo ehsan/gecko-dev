@@ -42,7 +42,7 @@ interface MozNFCManager {
    * otherwise error
    */
   [CheckPermissions="nfc-manager"]
-  Promise<boolean> checkP2PRegistration(DOMString manifestUrl);
+  DOMRequest checkP2PRegistration(DOMString manifestUrl);
 
   /**
    * Notify that user has accepted to share nfc message on P2P UI
@@ -60,19 +60,19 @@ interface MozNFCManager {
    * Power on the NFC hardware and start polling for NFC tags or devices.
    */
   [CheckPermissions="nfc-manager"]
-  Promise<void> startPoll();
+  DOMRequest startPoll();
 
   /**
    * Stop polling for NFC tags or devices. i.e. enter low power mode.
    */
   [CheckPermissions="nfc-manager"]
-  Promise<void> stopPoll();
+  DOMRequest stopPoll();
 
   /**
    * Power off the NFC hardware.
    */
   [CheckPermissions="nfc-manager"]
-  Promise<void> powerOff();
+  DOMRequest powerOff();
 };
 
 [JSImplementation="@mozilla.org/navigatorNfc;1",

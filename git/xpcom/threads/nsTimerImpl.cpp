@@ -13,9 +13,6 @@
 #include "pratom.h"
 #include "GeckoProfiler.h"
 #include "mozilla/Atomics.h"
-#ifdef MOZ_NUWA_PROCESS
-#include "ipc/Nuwa.h"
-#endif
 
 using mozilla::Atomic;
 using mozilla::TimeDuration;

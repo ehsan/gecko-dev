@@ -6,38 +6,41 @@ MARIONETTE_HEAD_JS = 'head.js';
 
 function testEnableNFC() {
   log('Running \'testEnableNFC\'');
-  let promise = nfc.startPoll();
-  promise.then(() => {
+  let req = nfc.startPoll();
+  req.onsuccess = function () {
     ok(true);
     runNextTest();
-  }).catch(() => {
+  };
+  req.onerror = function () {
     ok(false, "startPoll failed");
     runNextTest();
-  });
+  };
 }
 
 function testDisableNFC() {
   log('Running \'testDisableNFC\'');
-  let promise = nfc.powerOff();
-  promise.then(() => {
+  let req = nfc.powerOff();
+  req.onsuccess = function () {
     ok(true);
     runNextTest();
-  }).catch(() => {
+  };
+  req.onerror = function () {
     ok(false, "powerOff failed");
     runNextTest();
-  });
+  };
 }
 
 function testStopPollNFC() {
   log('Running \'testStopPollNFC\'');
-  let promise = nfc.stopPoll();
-  promise.then(() => {
+  let req = nfc.stopPoll();
+  req.onsuccess = function () {
     ok(true);
     runNextTest();
-  }).catch(() => {
+  };
+  req.onerror = function () {
     ok(false, "stopPoll failed");
     runNextTest();
-  });
+  };
 }
 
 let tests = [

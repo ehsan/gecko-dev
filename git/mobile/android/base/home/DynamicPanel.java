@@ -262,6 +262,12 @@ public class DynamicPanel extends HomeFragment {
         public void requestDataset(DatasetRequest request) {
             Log.d(LOGTAG, "Requesting request: " + request);
 
+            // Ignore dataset requests while the fragment is not
+            // allowed to load its content.
+            if (!getCanLoadHint()) {
+                return;
+            }
+
             final Bundle bundle = new Bundle();
             bundle.putParcelable(DATASET_REQUEST, request);
 
@@ -346,7 +352,7 @@ public class DynamicPanel extends HomeFragment {
     /**
      * LoaderCallbacks implementation that interacts with the LoaderManager.
      */
-    private class PanelLoaderCallbacks extends TransitionAwareCursorLoaderCallbacks {
+    private class PanelLoaderCallbacks implements LoaderCallbacks<Cursor> {
         @Override
         public Loader<Cursor> onCreateLoader(int id, Bundle args) {
             final DatasetRequest request = (DatasetRequest) args.getParcelable(DATASET_REQUEST);
@@ -356,7 +362,7 @@ public class DynamicPanel extends HomeFragment {
         }
 
         @Override
-        public void onLoadFinishedAfterTransitions(Loader<Cursor> loader, Cursor cursor) {
+        public void onLoadFinished(Loader<Cursor> loader, Cursor cursor) {
             final DatasetRequest request = getRequestFromLoader(loader);
             Log.d(LOGTAG, "Finished loader for request: " + request);
 
@@ -367,8 +373,6 @@ public class DynamicPanel extends HomeFragment {
 
         @Override
         public void onLoaderReset(Loader<Cursor> loader) {
-            super.onLoaderReset(loader);
-
             final DatasetRequest request = getRequestFromLoader(loader);
             Log.d(LOGTAG, "Resetting loader for request: " + request);
 

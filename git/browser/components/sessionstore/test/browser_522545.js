@@ -193,16 +193,16 @@ function test() {
       is(browser.userTypedValue, null, "userTypedValue is empty to start");
       is(browser.userTypedClear, 0, "userTypedClear is 0 to start");
 
-      let inputText = "example.org";
-      gURLBar.focus();
-      gURLBar.value = inputText.slice(0, -1);
-      EventUtils.synthesizeKey(inputText.slice(-1) , {});
+      gURLBar.value = "example.org";
+      let event = document.createEvent("Events");
+      event.initEvent("input", true, false);
+      gURLBar.dispatchEvent(event);
 
       executeSoon(function () {
         is(browser.userTypedValue, "example.org",
-           "userTypedValue was set when changing URLBar value");
+           "userTypedValue was set when changing gURLBar.value");
         is(browser.userTypedClear, 0,
-           "userTypedClear was not changed when changing URLBar value");
+           "userTypedClear was not changed when changing gURLBar.value");
 
         // Now make sure ss gets these values too
         let newState = JSON.parse(ss.getBrowserState());
@@ -235,7 +235,7 @@ function test() {
          "userTypedValue was null after loading a URI");
       is(browser.userTypedClear, 0,
          "userTypeClear reset to 0");
-      is(gURLBar.textValue, gURLBar.trimValue("http://example.com/"),
+      is(gURLBar.value, gURLBar.trimValue("http://example.com/"),
          "Address bar's value set after loading URI");
       runNextTest();
     });

@@ -107,8 +107,8 @@ loop.FeedbackAPIClient = (function($, _) {
       req.fail(function(jqXHR, textStatus, errorThrown) {
         var message = "Error posting user feedback data";
         var httpError = jqXHR.status + " " + errorThrown;
-        cb(new Error(message + ": " + httpError + "; " +
-                     (jqXHR.responseJSON && jqXHR.responseJSON.detail || "")));
+        console.error(message, httpError, JSON.stringify(jqXHR.responseJSON));
+        cb(new Error(message + ": " + httpError));
       });
     }
   };

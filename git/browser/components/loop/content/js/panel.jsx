@@ -165,11 +165,12 @@ loop.panel = (function(_, mozL10n) {
   });
 
   var GettingStartedView = React.createClass({
-    handleButtonClick: function() {
-      navigator.mozLoop.openGettingStartedTour("getting-started");
+    componentDidMount: function() {
       navigator.mozLoop.setLoopPref("gettingStarted.seen", true);
-      var event = new CustomEvent("GettingStartedSeen");
-      window.dispatchEvent(event);
+    },
+
+    handleButtonClick: function() {
+      navigator.mozLoop.openGettingStartedTour();
     },
 
     render: function() {
@@ -281,19 +282,12 @@ loop.panel = (function(_, mozL10n) {
       }
     },
 
-    handleHelpEntry: function(event) {
-      event.preventDefault();
-      var helloSupportUrl = navigator.mozLoop.getLoopPref('support_url');
-      window.open(helloSupportUrl);
-      window.close();
-    },
-
     _isSignedIn: function() {
       return !!navigator.mozLoop.userProfile;
     },
 
     openGettingStartedTour: function() {
-      navigator.mozLoop.openGettingStartedTour("settings-menu");
+      navigator.mozLoop.openGettingStartedTour("settingsMenu");
     },
 
     render: function() {
@@ -326,9 +320,6 @@ loop.panel = (function(_, mozL10n) {
                                    onClick={this.handleClickAuthEntry}
                                    displayed={navigator.mozLoop.fxAEnabled}
                                    icon={this._isSignedIn() ? "signout" : "signin"} />
-            <SettingsDropdownEntry label={mozL10n.get("help_label")}
-                                   onClick={this.handleHelpEntry}
-                                   icon="help" />
           </ul>
         </div>
       );
@@ -703,7 +694,6 @@ loop.panel = (function(_, mozL10n) {
     getInitialState: function() {
       return {
         userProfile: this.props.userProfile || navigator.mozLoop.userProfile,
-        gettingStartedSeen: navigator.mozLoop.getLoopPref("gettingStarted.seen"),
       };
     },
 
@@ -751,12 +741,6 @@ loop.panel = (function(_, mozL10n) {
       this.updateServiceErrors();
     },
 
-    _gettingStartedSeen: function() {
-      this.setState({
-        gettingStartedSeen: navigator.mozLoop.getLoopPref("gettingStarted.seen"),
-      });
-    },
-
     /**
      * The rooms feature is hidden by default for now. Once it gets mainstream,
      * this method can be simplified.
@@ -766,6 +750,7 @@ loop.panel = (function(_, mozL10n) {
         return (
           <Tab name="call">
             <div className="content-area">
+              <GettingStartedView />
               <CallUrlResult client={this.props.client}
                              notifications={this.props.notifications}
                              callUrl={this.props.callUrl} />
@@ -777,6 +762,7 @@ loop.panel = (function(_, mozL10n) {
 
       return (
         <Tab name="rooms">
+          <GettingStartedView />
           <RoomList dispatcher={this.props.dispatcher}
                     store={this.props.roomStore}
                     userDisplayName={this._getUserDisplayName()}/>
@@ -800,12 +786,10 @@ loop.panel = (function(_, mozL10n) {
 
     componentDidMount: function() {
       window.addEventListener("LoopStatusChanged", this._onStatusChanged);
-      window.addEventListener("GettingStartedSeen", this._gettingStartedSeen);
     },
 
     componentWillUnmount: function() {
       window.removeEventListener("LoopStatusChanged", this._onStatusChanged);
-      window.removeEventListener("GettingStartedSeen", this._gettingStartedSeen);
     },
 
     _getUserDisplayName: function() {
@@ -815,17 +799,6 @@ loop.panel = (function(_, mozL10n) {
 
     render: function() {
       var NotificationListView = sharedViews.NotificationListView;
-
-      if (!this.state.gettingStartedSeen) {
-        return (
-          <div>
-            <NotificationListView notifications={this.props.notifications}
-                                  clearOnDocumentHidden={true} />
-            <GettingStartedView />
-            <ToSView />
-          </div>
-        );
-      }
 
       return (
         <div>

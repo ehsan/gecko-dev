@@ -20,9 +20,6 @@ loop.conversation = (function(mozL10n) {
   var CallIdentifierView = loop.conversationViews.CallIdentifierView;
   var DesktopRoomConversationView = loop.roomViews.DesktopRoomConversationView;
 
-  // Matches strings of the form "<nonspaces>@<nonspaces>" or "+<digits>"
-  var EMAIL_OR_PHONE_RE = /^(:?\S+@\S+|\+\d+)$/;
-
   var IncomingCallView = React.createClass({displayName: 'IncomingCallView',
     mixins: [sharedMixins.DropdownMenuMixin, sharedMixins.AudioMixin],
 
@@ -229,8 +226,7 @@ loop.conversation = (function(mozL10n) {
                          .isRequired,
       sdk: React.PropTypes.object.isRequired,
       conversationAppStore: React.PropTypes.instanceOf(
-        loop.store.ConversationAppStore).isRequired,
-      feedbackStore: React.PropTypes.instanceOf(loop.store.FeedbackStore)
+        loop.store.ConversationAppStore).isRequired
     },
 
     getInitialState: function() {
@@ -302,9 +298,21 @@ loop.conversation = (function(mozL10n) {
 
           document.title = mozL10n.get("conversation_has_ended");
 
+          var feebackAPIBaseUrl = navigator.mozLoop.getLoopPref(
+            "feedback.baseUrl");
+
+          var appVersionInfo = navigator.mozLoop.appVersionInfo;
+
+          var feedbackClient = new loop.FeedbackAPIClient(feebackAPIBaseUrl, {
+            product: navigator.mozLoop.getLoopPref("feedback.product"),
+            platform: appVersionInfo.OS,
+            channel: appVersionInfo.channel,
+            version: appVersionInfo.version
+          });
+
           return (
             sharedViews.FeedbackView({
-              feedbackStore: this.props.feedbackStore, 
+              feedbackApiClient: feedbackClient, 
               onAfterFeedbackReceived: this.closeWindow.bind(this)}
             )
           );
@@ -497,27 +505,14 @@ loop.conversation = (function(mozL10n) {
     declineAndBlock: function() {
       navigator.mozLoop.stopAlerting();
       var token = this.props.conversation.get("callToken");
-      var callerId = this.props.conversation.get("callerId");
-
-      // If this is a direct call, we'll need to block the caller directly.
-      if (callerId && EMAIL_OR_PHONE_RE.test(callerId)) {
-        navigator.mozLoop.calls.blockDirectCaller(callerId, function(err) {
+      this.props.client.deleteCallUrl(token,
+        this.props.conversation.get("sessionType"),
+        function(error) {
           // XXX The conversation window will be closed when this cb is triggered
           // figure out if there is a better way to report the error to the user
-          // (bug 1103150).
-          console.log(err.fileName + ":" + err.lineNumber + ": " + err.message);
+          // (bug 1048909).
+          console.log(error);
         });
-      } else {
-        this.props.client.deleteCallUrl(token,
-          this.props.conversation.get("sessionType"),
-          function(error) {
-            // XXX The conversation window will be closed when this cb is triggered
-            // figure out if there is a better way to report the error to the user
-            // (bug 1048909).
-            console.log(error);
-          });
-      }
-
       this._declineCall();
     },
 
@@ -551,8 +546,7 @@ loop.conversation = (function(mozL10n) {
       conversationStore: React.PropTypes.instanceOf(loop.store.ConversationStore)
                               .isRequired,
       dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired,
-      roomStore: React.PropTypes.instanceOf(loop.store.RoomStore),
-      feedbackStore: React.PropTypes.instanceOf(loop.store.FeedbackStore)
+      roomStore: React.PropTypes.instanceOf(loop.store.RoomStore)
     },
 
     getInitialState: function() {
@@ -580,26 +574,26 @@ loop.conversation = (function(mozL10n) {
             client: this.props.client, 
             conversation: this.props.conversation, 
             sdk: this.props.sdk, 
-            conversationAppStore: this.props.conversationAppStore, 
-            feedbackStore: this.props.feedbackStore}
+            conversationAppStore: this.props.conversationAppStore}
           ));
         }
         case "outgoing": {
           return (OutgoingConversationView({
             store: this.props.conversationStore, 
-            dispatcher: this.props.dispatcher, 
-            feedbackStore: this.props.feedbackStore}
+            dispatcher: this.props.dispatcher}
           ));
         }
         case "room": {
           return (DesktopRoomConversationView({
             dispatcher: this.props.dispatcher, 
             roomStore: this.props.roomStore, 
-            feedbackStore: this.props.feedbackStore}
+            dispatcher: this.props.dispatcher}
           ));
         }
         case "failed": {
-          return GenericFailureView({cancelCall: this.closeWindow});
+          return (GenericFailureView({
+            cancelCall: this.closeWindow}
+          ));
         }
         default: {
           // If we don't have a windowType, we don't know what we are yet,
@@ -636,14 +630,6 @@ loop.conversation = (function(mozL10n) {
       dispatcher: dispatcher,
       sdk: OT
     });
-    var appVersionInfo = navigator.mozLoop.appVersionInfo;
-    var feedbackClient = new loop.FeedbackAPIClient(
-      navigator.mozLoop.getLoopPref("feedback.baseUrl"), {
-      product: navigator.mozLoop.getLoopPref("feedback.product"),
-      platform: appVersionInfo.OS,
-      channel: appVersionInfo.channel,
-      version: appVersionInfo.version
-    });
 
     // Create the stores.
     var conversationAppStore = new loop.store.ConversationAppStore({
@@ -662,9 +648,6 @@ loop.conversation = (function(mozL10n) {
     var roomStore = new loop.store.RoomStore(dispatcher, {
       mozLoop: navigator.mozLoop,
       activeRoomStore: activeRoomStore
-    });
-    var feedbackStore = new loop.store.FeedbackStore(dispatcher, {
-      feedbackClient: feedbackClient
     });
 
     // XXX Old class creation for the incoming conversation view, whilst
@@ -698,7 +681,6 @@ loop.conversation = (function(mozL10n) {
     React.renderComponent(AppControllerView({
       conversationAppStore: conversationAppStore, 
       roomStore: roomStore, 
-      feedbackStore: feedbackStore, 
       conversationStore: conversationStore, 
       client: client, 
       conversation: conversation, 

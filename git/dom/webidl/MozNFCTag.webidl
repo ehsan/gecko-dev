@@ -66,29 +66,17 @@ interface MozNFCTag {
    */
   readonly attribute boolean? canBeMadeReadOnly;
 
-  /**
-   * Read current NDEF data on the tag.
-   */
   [Throws]
-  Promise<sequence<MozNDEFRecord>> readNDEF();
+  DOMRequest readNDEF();
 
-  /**
-   * Write NDEF data to the tag.
-   */
   [Throws]
-  Promise<void> writeNDEF(sequence<MozNDEFRecord> records);
+  DOMRequest writeNDEF(sequence<MozNDEFRecord> records);
 
-  /**
-   * Make a tag read-only.
-   */
   [Throws]
-  Promise<void> makeReadOnly();
+  DOMRequest makeReadOnly();
 
-  /**
-   * Format a tag as NDEF.
-   */
   [Throws]
-  Promise<void> format();
+  DOMRequest format();
 };
 
 // Mozilla Only

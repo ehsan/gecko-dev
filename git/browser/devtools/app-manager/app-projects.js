@@ -16,15 +16,14 @@ const { indexedDB } = require("sdk/indexed-db");
 
 const IDB = {
   _db: null,
-  databaseName: "AppProjects",
 
   open: function () {
     let deferred = promise.defer();
 
-    let request = indexedDB.open(IDB.databaseName, 5);
+    let request = indexedDB.open("AppProjects", 5);
     request.onerror = function(event) {
-      deferred.reject("Unable to open AppProjects indexedDB: " +
-                      this.error.name + " - " + this.error.message );
+      deferred.reject("Unable to open AppProjects indexedDB. " +
+                      "Error code: " + event.target.errorCode);
     };
     request.onupgradeneeded = function(event) {
       let db = event.target.result;
@@ -148,10 +147,11 @@ const store = new ObservableObject({ projects:[] });
 
 let loadDeferred = promise.defer();
 
-loadDeferred.resolve(IDB.open().then(function (projects) {
+IDB.open().then(function (projects) {
   store.object.projects = projects;
   AppProjects.emit("ready", store.object.projects);
-}));
+  loadDeferred.resolve();
+});
 
 const AppProjects = {
   load: function() {

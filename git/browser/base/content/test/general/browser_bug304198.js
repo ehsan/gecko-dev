@@ -21,15 +21,16 @@ function test() {
 
   function cycleTabs() {
     gBrowser.selectedTab = fullURLTab;
-    is(gURLBar.textValue, testURL, 'gURLBar.textValue should be testURL after switching back to fullURLTab');
+    is(gURLBar.value, testURL, 'gURLBar.value should be testURL after switching back to fullURLTab');
 
     gBrowser.selectedTab = partialURLTab;
-    is(gURLBar.textValue, testPartialURL, 'gURLBar.textValue should be testPartialURL after switching back to partialURLTab');
+    is(gURLBar.value, testPartialURL, 'gURLBar.value should be testPartialURL after switching back to partialURLTab');
+
     gBrowser.selectedTab = deletedURLTab;
-    is(gURLBar.textValue, '', 'gURLBar.textValue should be "" after switching back to deletedURLTab');
+    is(gURLBar.value, '', 'gURLBar.value should be "" after switching back to deletedURLTab');
 
     gBrowser.selectedTab = fullURLTab;
-    is(gURLBar.textValue, testURL, 'gURLBar.textValue should be testURL after switching back to fullURLTab');
+    is(gURLBar.value, testURL, 'gURLBar.value should be testURL after switching back to fullURLTab');
   }
 
   // function borrowed from browser_bug386835.js
@@ -58,13 +59,13 @@ function test() {
 
   function prepareDeletedURLTab(cb) {
     gBrowser.selectedTab = deletedURLTab;
-    is(gURLBar.textValue, testURL, 'gURLBar.textValue should be testURL after initial switch to deletedURLTab');
+    is(gURLBar.value, testURL, 'gURLBar.value should be testURL after initial switch to deletedURLTab');
 
     // simulate the user removing the whole url from the location bar
     gPrefService.setBoolPref("browser.urlbar.clickSelectsAll", true);
 
     urlbarBackspace(function () {
-      is(gURLBar.textValue, "", 'gURLBar.textValue should be "" (just set)');
+      is(gURLBar.value, "", 'gURLBar.value should be "" (just set)');
       if (gPrefService.prefHasUserValue("browser.urlbar.clickSelectsAll"))
         gPrefService.clearUserPref("browser.urlbar.clickSelectsAll");
       cb();
@@ -73,13 +74,13 @@ function test() {
 
   function prepareFullURLTab(cb) {
     gBrowser.selectedTab = fullURLTab;
-    is(gURLBar.textValue, testURL, 'gURLBar.textValue should be testURL after initial switch to fullURLTab');
+    is(gURLBar.value, testURL, 'gURLBar.value should be testURL after initial switch to fullURLTab');
     cb();
   }
 
   function preparePartialURLTab(cb) {
     gBrowser.selectedTab = partialURLTab;
-    is(gURLBar.textValue, testURL, 'gURLBar.textValue should be testURL after initial switch to partialURLTab');
+    is(gURLBar.value, testURL, 'gURLBar.value should be testURL after initial switch to partialURLTab');
 
     // simulate the user removing part of the url from the location bar
     gPrefService.setBoolPref("browser.urlbar.clickSelectsAll", false);
@@ -90,7 +91,7 @@ function test() {
       if (deleted < charsToDelete) {
         urlbarBackspace(arguments.callee);
       } else {
-        is(gURLBar.textValue, testPartialURL, "gURLBar.textValue should be testPartialURL (just set)");
+        is(gURLBar.value, testPartialURL, "gURLBar.value should be testPartialURL (just set)");
         if (gPrefService.prefHasUserValue("browser.urlbar.clickSelectsAll"))
           gPrefService.clearUserPref("browser.urlbar.clickSelectsAll");
         cb();
