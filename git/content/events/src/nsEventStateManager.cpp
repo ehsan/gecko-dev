@@ -3195,17 +3195,11 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         if (mDocument && fm) {
           nsCOMPtr<nsIDOMWindow> currentWindow;
           fm->GetFocusedWindow(getter_AddRefs(currentWindow));
-          if (currentWindow && mDocument->GetWindow() &&
-              currentWindow != mDocument->GetWindow() &&
+          if (currentWindow && currentWindow != mDocument->GetWindow() &&
               !nsContentUtils::IsChromeDoc(mDocument)) {
-            nsCOMPtr<nsIDOMWindow> currentTop;
-            nsCOMPtr<nsIDOMWindow> newTop;
-            currentWindow->GetTop(getter_AddRefs(currentTop));
-            mDocument->GetWindow()->GetTop(getter_AddRefs(newTop));
             nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(currentWindow);
             nsCOMPtr<nsIDocument> currentDoc = do_QueryInterface(win->GetExtantDocument());
-            if (nsContentUtils::IsChromeDoc(currentDoc) ||
-                (currentTop && newTop && currentTop != newTop)) {
+            if (nsContentUtils::IsChromeDoc(currentDoc)) {
               fm->SetFocusedWindow(mDocument->GetWindow());
             }
           }

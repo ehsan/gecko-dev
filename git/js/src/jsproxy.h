@@ -124,9 +124,6 @@ class JS_FRIEND_API(BaseProxyHandler) {
     virtual bool getElementIfPresent(JSContext *cx, JSObject *obj, JSObject *receiver,
                                      uint32_t index, Value *vp, bool *present);
     virtual bool getPrototypeOf(JSContext *cx, JSObject *proxy, JSObject **proto);
-
-    /* See comment for weakmapKeyDelegateOp in jsclass.h. */
-    virtual JSObject *weakmapKeyDelegate(JSObject *proxy);
 };
 
 /*
@@ -179,7 +176,6 @@ class JS_PUBLIC_API(IndirectProxyHandler) : public BaseProxyHandler {
                               Value *vp) MOZ_OVERRIDE;
     virtual bool iteratorNext(JSContext *cx, JSObject *proxy,
                               Value *vp) MOZ_OVERRIDE;
-    virtual JSObject *weakmapKeyDelegate(JSObject *proxy);
 };
 
 /*

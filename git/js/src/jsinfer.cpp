@@ -1981,27 +1981,6 @@ public:
 // TypeCompartment
 /////////////////////////////////////////////////////////////////////
 
-static inline bool
-TypeInferenceSupported()
-{
-#ifdef JS_METHODJIT
-    // JM+TI will generate FPU instructions with TI enabled. As a workaround,
-    // we disable TI to prevent this on platforms which do not have FPU
-    // support.
-    JSC::MacroAssembler masm;
-    if (!masm.supportsFloatingPoint())
-        return false;
-#endif
-
-#if WTF_ARM_ARCH_VERSION == 6
-    // If building for ARMv6 targets, we can't be guaranteed an FPU,
-    // so we hardcode TI off for consistency (see bug 793740).
-    return false;
-#endif
-
-    return true;
-}
-
 void
 TypeCompartment::init(JSContext *cx)
 {
@@ -2009,14 +1988,13 @@ TypeCompartment::init(JSContext *cx)
 
     compiledInfo.outputIndex = RecompileInfo::NoCompilerRunning;
 
-    if (!cx ||
-        !cx->hasRunOption(JSOPTION_TYPE_INFERENCE) ||
-        !TypeInferenceSupported())
-    {
-        return;
+    if (cx && cx->getRunOptions() & JSOPTION_TYPE_INFERENCE) {
+#ifdef JS_METHODJIT
+        JSC::MacroAssembler masm;
+        if (masm.supportsFloatingPoint())
+#endif
+            inferenceEnabled = true;
     }
-
-    inferenceEnabled = true;
 }
 
 TypeObject *

@@ -267,7 +267,9 @@
            type="arrow"
            hidden="true"
            consumeoutsideclicks="true"
-           noautofocus="true"/>
+           noautofocus="true">
+      <box id="social-notification-box" flex="1"></box>
+    </panel>
     <panel id="social-flyout-panel"
            class="social-panel"
            onpopupshown="SocialFlyout.onShown()"

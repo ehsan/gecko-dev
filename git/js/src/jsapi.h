@@ -1867,9 +1867,6 @@ typedef void
 typedef JSBool
 (* JSEqualityOp)(JSContext *cx, JSHandleObject obj, const jsval *v, JSBool *bp);
 
-typedef JSRawObject
-(* JSWeakmapKeyDelegateOp)(JSRawObject obj);
-
 /*
  * Typedef for native functions called by the JS VM.
  *
