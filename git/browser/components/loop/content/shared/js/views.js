@@ -85,8 +85,6 @@ loop.shared.views = (function(_, l10n) {
    *                                 loop.shared.utils.SCREEN_SHARE_STATES
    */
   var ScreenShareControlButton = React.createClass({displayName: "ScreenShareControlButton",
-    mixins: [sharedMixins.DropdownMenuMixin],
-
     propTypes: {
       dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired,
       visible: React.PropTypes.bool.isRequired,
@@ -98,12 +96,9 @@ loop.shared.views = (function(_, l10n) {
         this.props.dispatcher.dispatch(
           new sharedActions.EndScreenShare({}));
       } else {
-        this.toggleDropdownMenu();
+        this.props.dispatcher.dispatch(
+          new sharedActions.StartScreenShare({}));
       }
-    },
-
-    _handleShareWindows: function() {
-      this.props.dispatcher.dispatch(new sharedActions.StartScreenShare({}));
     },
 
     _getTitle: function() {
@@ -118,36 +113,18 @@ loop.shared.views = (function(_, l10n) {
         return null;
       }
 
-      var cx = React.addons.classSet;
-
-      var isActive = this.props.state === SCREEN_SHARE_STATES.ACTIVE;
-      var screenShareClasses = cx({
+      var screenShareClasses = React.addons.classSet({
         "btn": true,
         "btn-screen-share": true,
         "transparent-button": true,
-        "menu-showing": this.state.showMenu,
-        "active": isActive,
+        "active": this.props.state === SCREEN_SHARE_STATES.ACTIVE,
         "disabled": this.props.state === SCREEN_SHARE_STATES.PENDING
-      });
-      var dropdownMenuClasses = cx({
-        "native-dropdown-menu": true,
-        "conversation-window-dropdown": true,
-        "visually-hidden": !this.state.showMenu
       });
 
       return (
-        React.createElement("div", null, 
-          React.createElement("button", {className: screenShareClasses, 
-                  onClick: this.handleClick, 
-                  title: this._getTitle()}, 
-            isActive ? null : React.createElement("span", {className: "chevron"})
-          ), 
-          React.createElement("ul", {ref: "menu", className: dropdownMenuClasses}, 
-            React.createElement("li", {onClick: this._handleShareWindows}, 
-              l10n.get("share_windows_button_title")
-            )
-          )
-        )
+        React.createElement("button", {className: screenShareClasses, 
+                onClick: this.handleClick, 
+                title: this._getTitle()})
       );
     }
   });
@@ -381,7 +358,7 @@ loop.shared.views = (function(_, l10n) {
           React.createElement("div", {className: "conversation in-call"}, 
             React.createElement("div", {className: "media nested"}, 
               React.createElement("div", {className: "video_wrapper remote_wrapper"}, 
-                React.createElement("div", {className: "video_inner remote focus-stream"})
+                React.createElement("div", {className: "video_inner remote remote-stream"})
               ), 
               React.createElement("div", {className: localStreamClasses})
             ), 

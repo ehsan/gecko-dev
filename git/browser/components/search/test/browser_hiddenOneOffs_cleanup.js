@@ -38,9 +38,9 @@ add_task(function* test_remove() {
 
   is(hiddenOneOffs.length, 1,
      "hiddenOneOffs has the correct engine count post removal.");
-  is(hiddenOneOffs.some(x => x == "FooDupe"), false,
+  is(hiddenOneOffs.includes("FooDupe"), false,
      "Removed Engine is not in hiddenOneOffs after removal");
-  is(hiddenOneOffs.some(x => x == "Foo"), true,
+  is(hiddenOneOffs.includes("Foo"), true,
      "Current hidden engine is not affected by removal.");
 
   info("Removing testEngine.xml");
@@ -61,9 +61,9 @@ add_task(function* test_add() {
 
   is(hiddenOneOffs.length, 1,
      "hiddenOneOffs has the correct number of hidden engines present post add.");
-  is(hiddenOneOffs.some(x => x == "FooDupe"), false,
+  is(hiddenOneOffs.includes("FooDupe"), false,
      "Added engine is not present in hidden list.");
-  is(hiddenOneOffs.some(x => x == "Foo"), true,
+  is(hiddenOneOffs.includes("Foo"), true,
      "Adding an engine does not remove engines from hidden list.");
 });
 

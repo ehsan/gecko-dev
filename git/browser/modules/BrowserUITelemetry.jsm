@@ -669,7 +669,6 @@ this.BrowserUITelemetry = {
     "spell-add-dictionaries-main", "spell-dictionaries",
     "spell-dictionaries-menu", "spell-add-dictionaries",
     "bidi-text-direction-toggle", "bidi-page-direction-toggle", "inspect",
-    "media-eme-learn-more"
   ]),
 
   _contextMenuInteractions: {},
