@@ -1,0 +1,83 @@
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://global/skin" type="text/css"?>
+<?xml-stylesheet href="chrome://mochikit/content/tests/SimpleTest/test.css"
+                 type="text/css"?>
+<!--
+https://bugzilla.mozilla.org/show_bug.cgi?id=533596
+-->
+<window title="Mozilla Bug 533596"
+  xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  <script type="application/javascript"
+          src="chrome://mochikit/content/MochiKit/packed.js"></script>
+  <script type="application/javascript"
+          src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
+
+  <!-- test results are displayed in the html:body -->
+  <body xmlns="http://www.w3.org/1999/xhtml">
+
+  <iframe type="content"
+          src="http://example.org/tests/js/src/xpconnect/tests/mochitest/file_evalInSandbox.html"
+          onload="go(this, true)">
+  </iframe>
+  <iframe type="content"
+          src="data:text/html,&lt;html&gt;&lt;body&gt;&lt;script&gt;document.foo %3D 'bar'%3B&lt;%2Fscript&gt;&lt;%2Fbody&gt;&lt;%2Fhtml&gt;"
+          onload="go(this, false)">
+  </iframe>
+  </body>
+
+  <!-- test code goes here -->
+  <script type="application/javascript"><![CDATA[
+      const Cu = Components.utils;
+      const Ci = Components.interfaces;
+      const utils = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                          .getInterface(Ci.nsIDOMWindowUtils);
+
+      var testsRun = 0;
+      function checkCrossOriginSandbox(sandbox)
+      {
+          is(utils.getClassName(sandbox),
+             "Proxy",
+             "sandbox was wrapped correctly");
+
+          is(utils.getClassName(Cu.evalInSandbox("this.document", sandbox)),
+             "Proxy",
+             "return value was rewrapped correctly");
+      }
+      function go(ifr, crossOrigin) {
+        var win = ifr.contentWindow;
+        if (crossOrigin) {
+          var sandbox = new Cu.Sandbox(win, win, false);
+
+          checkCrossOriginSandbox(sandbox);
+
+          ok(Cu.evalInSandbox("('wrappedJSObject' in this.document);", sandbox),
+             "wrappers inside eIS are XPCNativeWrappers");
+          ok(Cu.evalInSandbox("!('foo' in this.document);", sandbox),
+             "must not see expandos");
+
+          sandbox = new Cu.Sandbox(win, win, true);
+
+          checkCrossOriginSandbox(sandbox);
+
+          ok(Cu.evalInSandbox("('foo' in this.document);", sandbox),
+             "can see expandos");
+        }
+        else {
+          var sandbox = new Cu.Sandbox(win, win, false);
+
+          ok(Cu.evalInSandbox("('foo' in this.document);", sandbox),
+             "must see expandos for a chrome sandbox");
+
+          sandbox = new Cu.Sandbox(win, win, true);
+
+          ok(Cu.evalInSandbox("('foo' in this.document);", sandbox),
+             "can see expandos");
+        }
+
+        if (++testsRun == 2)
+          SimpleTest.finish();
+      }
+
+      SimpleTest.waitForExplicitFinish();
+  ]]></script>
+</window>
