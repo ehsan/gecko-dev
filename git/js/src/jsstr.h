@@ -256,17 +256,10 @@ InflateString(ThreadSafeContext *cx, const char *bytes, size_t *length);
  * enough for 'srclen' jschars. The buffer is NOT null-terminated.
  */
 inline void
-CopyAndInflateChars(jschar *dst, const char *src, size_t srclen)
+InflateStringToBuffer(const char *src, size_t srclen, jschar *dst)
 {
     for (size_t i = 0; i < srclen; i++)
         dst[i] = (unsigned char) src[i];
-}
-
-inline void
-CopyAndInflateChars(jschar *dst, const JS::Latin1Char *src, size_t srclen)
-{
-    for (size_t i = 0; i < srclen; i++)
-        dst[i] = src[i];
 }
 
 /*

@@ -357,12 +357,11 @@ CompareStringsPar(ForkJoinContext *cx, JSString *left, JSString *right, int32_t 
 {
     ScopedThreadSafeStringInspector leftInspector(left);
     ScopedThreadSafeStringInspector rightInspector(right);
-    AutoCheckCannotGC nogc;
-    if (!leftInspector.ensureChars(cx, nogc) || !rightInspector.ensureChars(cx, nogc))
+    if (!leftInspector.ensureChars(cx) || !rightInspector.ensureChars(cx))
         return false;
 
-    *res = CompareChars(leftInspector.twoByteChars(), left->length(),
-                        rightInspector.twoByteChars(), right->length());
+    *res = CompareChars(leftInspector.chars(), left->length(),
+                        rightInspector.chars(), right->length());
     return true;
 }
 

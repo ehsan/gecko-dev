@@ -673,7 +673,7 @@ ContentParent::JoinAllSubprocesses()
 }
 
 /*static*/ already_AddRefed<ContentParent>
-ContentParent::GetNewOrUsed(bool aForBrowserElement, ProcessPriority aPriority)
+ContentParent::GetNewOrUsed(bool aForBrowserElement)
 {
     if (!sNonAppContentParents)
         sNonAppContentParents = new nsTArray<ContentParent*>();
@@ -704,7 +704,7 @@ ContentParent::GetNewOrUsed(bool aForBrowserElement, ProcessPriority aPriority)
         p = new ContentParent(/* app = */ nullptr,
                               aForBrowserElement,
                               /* isForPreallocated = */ false,
-                              aPriority);
+                              PROCESS_PRIORITY_FOREGROUND);
         p->Init();
     }
 
@@ -723,7 +723,7 @@ ContentParent::GetInitialProcessPriority(Element* aFrameElement)
     }
 
     if (aFrameElement->AttrValueIs(kNameSpaceID_None, nsGkAtoms::mozapptype,
-                                   NS_LITERAL_STRING("inputmethod"), eCaseMatters)) {
+                                   NS_LITERAL_STRING("keyboard"), eCaseMatters)) {
         return PROCESS_PRIORITY_FOREGROUND_KEYBOARD;
     } else if (!aFrameElement->AttrValueIs(kNameSpaceID_None, nsGkAtoms::mozapptype,
                                            NS_LITERAL_STRING("critical"), eCaseMatters)) {
@@ -767,13 +767,8 @@ ContentParent::CreateBrowserOrApp(const TabContext& aContext,
         return nullptr;
     }
 
-    ProcessPriority initialPriority = GetInitialProcessPriority(aFrameElement);
-
     if (aContext.IsBrowserElement() || !aContext.HasOwnApp()) {
-        nsRefPtr<ContentParent> cp = GetNewOrUsed(aContext.IsBrowserElement(),
-                                                  initialPriority);
-
-        if (cp) {
+        if (nsRefPtr<ContentParent> cp = GetNewOrUsed(aContext.IsBrowserElement())) {
             uint32_t chromeFlags = 0;
 
             // Propagate the private-browsing status of the element's parent
@@ -824,6 +819,7 @@ ContentParent::CreateBrowserOrApp(const TabContext& aContext,
         return nullptr;
     }
 
+    ProcessPriority initialPriority = GetInitialProcessPriority(aFrameElement);
     nsRefPtr<ContentParent> p = sAppContentParents->Get(manifestURL);
 
     if (!p && Preferences::GetBool("dom.ipc.reuse_parent_app")) {

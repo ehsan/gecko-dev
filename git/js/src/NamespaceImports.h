@@ -41,8 +41,6 @@ class SourceBufferHolder;
 
 class HandleValueArray;
 
-class AutoCheckCannotGC;
-
 }
 
 // Do the importing.
@@ -66,7 +64,6 @@ using JS::UndefinedValue;
 
 using JS::IsPoisonedPtr;
 
-using JS::Latin1Char;
 using JS::Latin1CharsZ;
 using JS::ConstTwoByteChars;
 using JS::TwoByteChars;
@@ -132,8 +129,6 @@ using JS::UndefinedHandleValue;
 using JS::HandleValueArray;
 
 using JS::Zone;
-
-using JS::AutoCheckCannotGC;
 
 } /* namespace js */
 

@@ -431,6 +431,9 @@ var gAdvancedPane = {
   {
     var cacheService = Components.classes["@mozilla.org/network/application-cache-service;1"].
                        getService(Components.interfaces.nsIApplicationCacheService);
+    if (!groups)
+      groups = cacheService.getGroups();
+
     var ios = Components.classes["@mozilla.org/network/io-service;1"].
               getService(Components.interfaces.nsIIOService);
 
@@ -459,14 +462,9 @@ var gAdvancedPane = {
       list.removeChild(list.firstChild);
     }
 
-    var groups;
-    try {
-      var cacheService = Components.classes["@mozilla.org/network/application-cache-service;1"].
-                         getService(Components.interfaces.nsIApplicationCacheService);
-      groups = cacheService.getGroups();
-    } catch (e) {
-      return;
-    }
+    var cacheService = Components.classes["@mozilla.org/network/application-cache-service;1"].
+                       getService(Components.interfaces.nsIApplicationCacheService);
+    var groups = cacheService.getGroups();
 
     var bundle = document.getElementById("bundlePreferences");
 
@@ -522,20 +520,18 @@ var gAdvancedPane = {
       return;
 
     // clear offline cache entries
-    try {
-      var cacheService = Components.classes["@mozilla.org/network/application-cache-service;1"].
-                         getService(Components.interfaces.nsIApplicationCacheService);
-      var ios = Components.classes["@mozilla.org/network/io-service;1"].
-                getService(Components.interfaces.nsIIOService);
-      var groups = cacheService.getGroups();
-      for (var i = 0; i < groups.length; i++) {
-          var uri = ios.newURI(groups[i], null, null);
-          if (uri.asciiHost == host) {
-              var cache = cacheService.getActiveCache(groups[i]);
-              cache.discard();
-          }
-      }
-    } catch (e) {}
+    var cacheService = Components.classes["@mozilla.org/network/application-cache-service;1"].
+                       getService(Components.interfaces.nsIApplicationCacheService);
+    var ios = Components.classes["@mozilla.org/network/io-service;1"].
+              getService(Components.interfaces.nsIIOService);
+    var groups = cacheService.getGroups();
+    for (var i = 0; i < groups.length; i++) {
+        var uri = ios.newURI(groups[i], null, null);
+        if (uri.asciiHost == host) {
+            var cache = cacheService.getActiveCache(groups[i]);
+            cache.discard();
+        }
+    }
 
     // remove the permission
     var pm = Components.classes["@mozilla.org/permissionmanager;1"]

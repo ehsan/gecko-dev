@@ -5597,14 +5597,14 @@ JS_DecodeBytes(JSContext *cx, const char *src, size_t srclen, jschar *dst, size_
     size_t dstlen = *dstlenp;
 
     if (srclen > dstlen) {
-        CopyAndInflateChars(dst, src, dstlen);
+        InflateStringToBuffer(src, dstlen, dst);
 
         AutoSuppressGC suppress(cx);
         JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_BUFFER_TOO_SMALL);
         return false;
     }
 
-    CopyAndInflateChars(dst, src, srclen);
+    InflateStringToBuffer(src, srclen, dst);
     *dstlenp = srclen;
     return true;
 }

@@ -93,7 +93,7 @@ protected:
       return nullptr;
     }
     return SEC_ASN1EncodeItem(arena.get(), nullptr, certName.get(),
-                              SEC_ASN1_GET(CERT_NameTemplate));
+                              CERT_NameTemplate);
   }
 
   void MakeTwoCerts(const char* issuerCN, SECItem* issuerSerial,

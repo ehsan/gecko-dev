@@ -751,7 +751,9 @@ public:
 
   // A special value that is used to indicate an invalid or unknown index
   // into the array.
-  static const index_type NoIndex = index_type(-1);
+  enum {
+    NoIndex = index_type(-1)
+  };
 
   using base_type::Length;
 

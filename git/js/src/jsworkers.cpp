@@ -1047,7 +1047,7 @@ HelperThread::handleGCHelperWorkload()
 void
 HelperThread::threadLoop()
 {
-    JS::AutoSuppressGCAnalysis nogc;
+    JS::AutoAssertNoGC nogc;
     AutoLockHelperThreadState lock;
 
     js::TlsPerThreadData.set(threadData.addr());

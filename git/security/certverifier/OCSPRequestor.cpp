@@ -6,8 +6,6 @@
 
 #include "OCSPRequestor.h"
 
-#include <limits>
-
 #include "mozilla/Base64.h"
 #include "nsIURLParser.h"
 #include "nsNSSCallbacks.h"
@@ -71,16 +69,6 @@ DoOCSPRequest(PLArenaPool* arena, const char* url,
               const SECItem* encodedRequest, PRIntervalTime timeout,
               bool useGET)
 {
-  if (!arena || !url || !encodedRequest || !encodedRequest->data) {
-    PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
-    return nullptr;
-  }
-  uint32_t urlLen = PL_strlen(url);
-  if (urlLen > static_cast<uint32_t>(std::numeric_limits<int32_t>::max())) {
-    PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
-    return nullptr;
-  }
-
   nsCOMPtr<nsIURLParser> urlParser = do_GetService(NS_STDURLPARSER_CONTRACTID);
   if (!urlParser) {
     PR_SetError(SEC_ERROR_LIBRARY_FAILURE, 0);
@@ -93,7 +81,7 @@ DoOCSPRequest(PLArenaPool* arena, const char* url,
   int32_t authorityLen;
   uint32_t pathPos;
   int32_t pathLen;
-  nsresult rv = urlParser->ParseURL(url, static_cast<int32_t>(urlLen),
+  nsresult rv = urlParser->ParseURL(url, PL_strlen(url),
                                     &schemePos, &schemeLen,
                                     &authorityPos, &authorityLen,
                                     &pathPos, &pathLen);
@@ -105,8 +93,7 @@ DoOCSPRequest(PLArenaPool* arena, const char* url,
     PR_SetError(SEC_ERROR_CERT_BAD_ACCESS_LOCATION, 0);
     return nullptr;
   }
-  nsAutoCString scheme(url + schemePos,
-                       static_cast<nsAutoCString::size_type>(schemeLen));
+  nsAutoCString scheme(url + schemePos, schemeLen);
   if (!scheme.LowerCaseEqualsLiteral("http")) {
     // We dont support https:// to avoid loops see Bug 92923
     PR_SetError(SEC_ERROR_CERT_BAD_ACCESS_LOCATION, 0);
@@ -131,17 +118,11 @@ DoOCSPRequest(PLArenaPool* arena, const char* url,
   }
   if (port == -1) {
     port = 80;
-  } else if (port < 0 || port > 0xffff) {
-    PR_SetError(SEC_ERROR_CERT_BAD_ACCESS_LOCATION, 0);
-    return nullptr;
   }
-  nsAutoCString
-    hostname(url + authorityPos + hostnamePos,
-             static_cast<nsACString_internal::size_type>(hostnameLen));
+  nsAutoCString hostname(url + authorityPos + hostnamePos, hostnameLen);
 
   SEC_HTTP_SERVER_SESSION serverSessionPtr = nullptr;
-  if (nsNSSHttpInterface::createSessionFcn(hostname.BeginReading(),
-                                           static_cast<uint16_t>(port),
+  if (nsNSSHttpInterface::createSessionFcn(hostname.BeginReading(), port,
                                            &serverSessionPtr) != SECSuccess) {
     PR_SetError(SEC_ERROR_NO_MEMORY, 0);
     return nullptr;
@@ -151,7 +132,7 @@ DoOCSPRequest(PLArenaPool* arena, const char* url,
 
   nsAutoCString path;
   if (pathLen > 0) {
-    path.Assign(url + pathPos, static_cast<nsAutoCString::size_type>(pathLen));
+    path.Assign(url + pathPos, pathLen);
   } else {
     path.Assign("/");
   }
@@ -170,7 +151,7 @@ DoOCSPRequest(PLArenaPool* arena, const char* url,
     }
   }
 
-  SEC_HTTP_REQUEST_SESSION requestSessionPtr;
+  SEC_HTTP_REQUEST_SESSION requestSessionPtr = nullptr;
   if (nsNSSHttpInterface::createFcn(serverSession.get(), "http",
                                     path.get(), method.get(),
                                     timeout, &requestSessionPtr)
@@ -178,7 +159,6 @@ DoOCSPRequest(PLArenaPool* arena, const char* url,
     PR_SetError(SEC_ERROR_NO_MEMORY, 0);
     return nullptr;
   }
-
   ScopedHTTPRequestSession requestSession(
     reinterpret_cast<nsNSSHttpRequestSession*>(requestSessionPtr));
 
