@@ -877,14 +877,6 @@ nsChildView::GetParent(void)
   return mParentWidget;
 }
 
-nsIWidget*
-nsChildView::GetTopLevelWidget()
-{
-  nsIWidget* current = this;
-  for (nsIWidget* parent = GetParent(); parent ; parent = parent->GetParent())
-    current = parent;
-  return current;
-}
 
 NS_IMETHODIMP nsChildView::ModalEventFilter(PRBool aRealEvent, void *aEvent,
                                             PRBool *aForWindow)
@@ -2721,6 +2713,15 @@ NSEvent* gLastDragEvent = nil;
 }
 
 
+static BOOL IsPaintingSuppressed(nsIWidget* aWidget)
+{
+  nsIWidget* topLevelWidget = aWidget->GetTopLevelWidget();
+  NSWindow* win = (NSWindow*)topLevelWidget->GetNativeData(NS_NATIVE_WINDOW);
+  return ([win isKindOfClass:[ToolbarWindow class]] &&
+          [(ToolbarWindow*)win isPaintingSuppressed]);
+}
+
+
 // The display system has told us that a portion of our view is dirty. Tell
 // gecko to paint it
 - (void)drawRect:(NSRect)aRect
@@ -2728,7 +2729,8 @@ NSEvent* gLastDragEvent = nil;
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
   PRBool isVisible;
-  if (!mGeckoChild || NS_FAILED(mGeckoChild->IsVisible(isVisible)) || !isVisible)
+  if (!mGeckoChild || NS_FAILED(mGeckoChild->IsVisible(isVisible)) ||
+      !isVisible || IsPaintingSuppressed(mGeckoChild))
     return;
 
   CGContextRef cgContext = (CGContextRef)[[NSGraphicsContext currentContext] graphicsPort];
@@ -5720,8 +5722,14 @@ static BOOL keyUpAlreadySentKeyDown = NO;
       // We make the assumption that the dragOver handlers have correctly set
       // the |canDrop| property of the Drag Session.
       PRBool canDrop = PR_FALSE;
-      if (!NS_SUCCEEDED(dragSession->GetCanDrop(&canDrop)) || !canDrop)
+      if (!NS_SUCCEEDED(dragSession->GetCanDrop(&canDrop)) || !canDrop) {
+        nsCOMPtr<nsIDOMNode> sourceNode;
+        dragSession->GetSourceNode(getter_AddRefs(sourceNode));
+        if (!sourceNode) {
+          mDragService->EndDragSession(PR_FALSE);
+        }
         return NO;
+      }
     }
     
     unsigned int modifierFlags = [[NSApp currentEvent] modifierFlags];
@@ -5737,7 +5745,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   }
 
   // set up gecko event
-  nsMouseEvent geckoEvent(PR_TRUE, aMessage, nsnull, nsMouseEvent::eReal);
+  nsDragEvent geckoEvent(PR_TRUE, aMessage, nsnull);
   [self convertGenericCocoaEvent:nil toGeckoEvent:&geckoEvent];
 
   // Use our own coordinates in the gecko event.
@@ -5751,7 +5759,8 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   if (!mGeckoChild)
     return YES;
 
-  if (aMessage == NS_DRAGDROP_EXIT && dragSession) {
+  if ((aMessage == NS_DRAGDROP_EXIT || aMessage == NS_DRAGDROP_DROP) &&
+      dragSession) {
     nsCOMPtr<nsIDOMNode> sourceNode;
     dragSession->GetSourceNode(getter_AddRefs(sourceNode));
     if (!sourceNode) {
