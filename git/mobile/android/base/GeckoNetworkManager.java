@@ -37,7 +37,7 @@ import android.util.Log;
 public class GeckoNetworkManager extends BroadcastReceiver implements NativeEventListener {
     private static final String LOGTAG = "GeckoNetworkManager";
 
-    private static GeckoNetworkManager sInstance;
+    static private GeckoNetworkManager sInstance;
 
     public static void destroy() {
         if (sInstance != null) {
@@ -75,7 +75,7 @@ public class GeckoNetworkManager extends BroadcastReceiver implements NativeEven
         EventDispatcher.getInstance().unregisterGeckoThreadListener(this, "Wifi:Enable");
     }
 
-    private volatile ConnectionType mConnectionType = ConnectionType.NONE;
+    private ConnectionType mConnectionType = ConnectionType.NONE;
     private final IntentFilter mNetworkFilter = new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION);
 
     // Whether the manager should be listening to Network Information changes.
@@ -88,7 +88,6 @@ public class GeckoNetworkManager extends BroadcastReceiver implements NativeEven
     // The application context used for registering receivers, so
     // we can unregister them again later.
     private volatile Context mApplicationContext;
-    private boolean mIsListening;
 
     public static GeckoNetworkManager getInstance() {
         if (sInstance == null) {
@@ -119,23 +118,14 @@ public class GeckoNetworkManager extends BroadcastReceiver implements NativeEven
     }
 
     private void startListening() {
-        if (mIsListening) {
-            Log.w(LOGTAG, "Already started!");
-            return;
-        }
-
         final Context appContext = mApplicationContext;
         if (appContext == null) {
             Log.w(LOGTAG, "Not registering receiver: no context!");
             return;
         }
 
-        // registerReceiver will return null if registering fails.
-        if (appContext.registerReceiver(this, mNetworkFilter) == null) {
-            Log.e(LOGTAG, "Registering receiver failed");
-        } else {
-            mIsListening = true;
-        }
+        Log.v(LOGTAG, "Registering receiver.");
+        appContext.registerReceiver(this, mNetworkFilter);
     }
 
     public void stop() {
@@ -168,13 +158,7 @@ public class GeckoNetworkManager extends BroadcastReceiver implements NativeEven
             return;
         }
 
-        if (!mIsListening) {
-            Log.w(LOGTAG, "Already stopped!");
-            return;
-        }
-
         mApplicationContext.unregisterReceiver(this);
-        mIsListening = false;
     }
 
     private int wifiDhcpGatewayAddress() {
@@ -204,29 +188,23 @@ public class GeckoNetworkManager extends BroadcastReceiver implements NativeEven
     }
 
     private void updateConnectionType() {
-        final ConnectionType previousConnectionType = mConnectionType;
-        final ConnectionType newConnectionType = getConnectionType();
-        if (newConnectionType == previousConnectionType) {
-            return;
-        }
+        ConnectionType previousConnectionType = mConnectionType;
+        mConnectionType = getConnectionType();
 
-        mConnectionType = newConnectionType;
-
-        if (!mShouldNotify) {
+        if (mConnectionType == previousConnectionType || !mShouldNotify) {
             return;
         }
 
         GeckoAppShell.sendEventToGecko(GeckoEvent.createNetworkEvent(
-                                       newConnectionType.value,
-                                       newConnectionType == ConnectionType.WIFI,
+                                       mConnectionType.value,
+                                       mConnectionType == ConnectionType.WIFI,
                                        wifiDhcpGatewayAddress()));
     }
 
     public double[] getCurrentInformation() {
-        final ConnectionType connectionType = mConnectionType;
-        return new double[] { connectionType.value,
-                              connectionType == ConnectionType.WIFI ? 1.0 : 0.0,
-                              wifiDhcpGatewayAddress() };
+        return new double[] { mConnectionType.value,
+                              (mConnectionType == ConnectionType.WIFI) ? 1.0 : 0.0,
+                              wifiDhcpGatewayAddress()};
     }
 
     public void enableNotifications() {
