@@ -395,12 +395,12 @@ BluetoothRequestParent::DoRequest(const SetPinCodeRequest& aRequest)
   MOZ_ASSERT(mService);
   MOZ_ASSERT(mRequestType == Request::TSetPinCodeRequest);
 
-  bool result =
+  nsresult rv =
     mService->SetPinCodeInternal(aRequest.path(),
                                  aRequest.pincode(),
                                  mReplyRunnable.get());
 
-  NS_ENSURE_TRUE(result, false);
+  NS_ENSURE_SUCCESS(rv, false);
 
   return true;
 }
@@ -411,12 +411,12 @@ BluetoothRequestParent::DoRequest(const SetPasskeyRequest& aRequest)
   MOZ_ASSERT(mService);
   MOZ_ASSERT(mRequestType == Request::TSetPasskeyRequest);
 
-  bool result =
+  nsresult rv =
     mService->SetPasskeyInternal(aRequest.path(),
                                  aRequest.passkey(),
                                  mReplyRunnable.get());
 
-  NS_ENSURE_TRUE(result, false);
+  NS_ENSURE_SUCCESS(rv, false);
 
   return true;
 }
@@ -428,12 +428,12 @@ BluetoothRequestParent::DoRequest(const ConfirmPairingConfirmationRequest&
   MOZ_ASSERT(mService);
   MOZ_ASSERT(mRequestType == Request::TConfirmPairingConfirmationRequest);
 
-  bool result =
+  nsresult rv =
     mService->SetPairingConfirmationInternal(aRequest.path(),
                                              true,
                                              mReplyRunnable.get());
 
-  NS_ENSURE_TRUE(result, false);
+  NS_ENSURE_SUCCESS(rv, false);
 
   return true;
 }
@@ -444,12 +444,12 @@ BluetoothRequestParent::DoRequest(const ConfirmAuthorizationRequest& aRequest)
   MOZ_ASSERT(mService);
   MOZ_ASSERT(mRequestType == Request::TConfirmAuthorizationRequest);
 
-  bool result =
+  nsresult rv =
     mService->SetAuthorizationInternal(aRequest.path(),
                                        true,
                                        mReplyRunnable.get());
 
-  NS_ENSURE_TRUE(result, false);
+  NS_ENSURE_SUCCESS(rv, false);
 
   return true;
 }
@@ -461,12 +461,12 @@ BluetoothRequestParent::DoRequest(const DenyPairingConfirmationRequest&
   MOZ_ASSERT(mService);
   MOZ_ASSERT(mRequestType == Request::TDenyPairingConfirmationRequest);
 
-  bool result =
+  nsresult rv =
     mService->SetPairingConfirmationInternal(aRequest.path(),
                                              false,
                                              mReplyRunnable.get());
 
-  NS_ENSURE_TRUE(result, false);
+  NS_ENSURE_SUCCESS(rv, false);
 
   return true;
 }
@@ -477,12 +477,12 @@ BluetoothRequestParent::DoRequest(const DenyAuthorizationRequest& aRequest)
   MOZ_ASSERT(mService);
   MOZ_ASSERT(mRequestType == Request::TDenyAuthorizationRequest);
 
-  bool result =
+  nsresult rv =
     mService->SetAuthorizationInternal(aRequest.path(),
                                        false,
                                        mReplyRunnable.get());
 
-  NS_ENSURE_TRUE(result, false);
+  NS_ENSURE_SUCCESS(rv, false);
 
   return true;
 }

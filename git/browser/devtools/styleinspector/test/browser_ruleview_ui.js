@@ -31,7 +31,7 @@ function startTest()
     '#testid {' +
     '  background-color: blue;' +
     '} ' +
-    '.testclass, .unmatched {' +
+    '.testclass {' +
     '  background-color: green;' +
     '}';
 
@@ -54,10 +54,6 @@ function startTest()
     ruleView.highlight(null);
     is(ruleView.element.querySelectorAll("#noResults").length, 1, "After highlighting null, has a no-results element again.");
     ruleView.highlight(testElement);
-
-    let classEditor = ruleView.element.children[2]._ruleEditor;
-    is(classEditor.selectorText.querySelector(".ruleview-selector-matched").textContent, ".testclass", ".textclass should be matched.");
-    is(classEditor.selectorText.querySelector(".ruleview-selector-unmatched").textContent, ".unmatched", ".unmatched should not be matched.");
 
     waitForFocus(testCancelNew, ruleDialog);
   }, true);
