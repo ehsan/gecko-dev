@@ -3906,13 +3906,15 @@ nsContentUtils::CreateContextualFragment(nsINode* aContextNode,
                             fragment, 
                             contextAsContent->Tag(), 
                             contextAsContent->GetNameSpaceID(), 
-                            (document->GetCompatibilityMode() == eCompatibility_NavQuirks));    
+                            (document->GetCompatibilityMode() == eCompatibility_NavQuirks),
+                            PR_FALSE);
     } else {
       parser->ParseFragment(aFragment, 
                             fragment,
                             nsGkAtoms::body, 
                             kNameSpaceID_XHTML, 
-                            (document->GetCompatibilityMode() == eCompatibility_NavQuirks));
+                            (document->GetCompatibilityMode() == eCompatibility_NavQuirks),
+                            PR_FALSE);
     }
   
     frag.swap(*aReturn);
@@ -6301,6 +6303,40 @@ nsContentUtils::IsSubDocumentTabbable(nsIContent* aContent)
   // means the current document is a zombie document.
   // Only navigate into the subdocument if it's not a zombie.
   return !zombieViewer;
+}
+
+void
+nsContentUtils::FlushLayoutForTree(nsIDOMWindow* aWindow)
+{
+    nsCOMPtr<nsPIDOMWindow> piWin = do_QueryInterface(aWindow);
+    if (!piWin)
+        return;
+
+    // Note that because FlushPendingNotifications flushes parents, this
+    // is O(N^2) in docshell tree depth.  However, the docshell tree is
+    // usually pretty shallow.
+
+    nsCOMPtr<nsIDOMDocument> domDoc;
+    aWindow->GetDocument(getter_AddRefs(domDoc));
+    nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
+    if (doc) {
+        doc->FlushPendingNotifications(Flush_Layout);
+    }
+
+    nsCOMPtr<nsIDocShellTreeNode> node =
+        do_QueryInterface(piWin->GetDocShell());
+    if (node) {
+        PRInt32 i = 0, i_end;
+        node->GetChildCount(&i_end);
+        for (; i < i_end; ++i) {
+            nsCOMPtr<nsIDocShellTreeItem> item;
+            node->GetChildAt(i, getter_AddRefs(item));
+            nsCOMPtr<nsIDOMWindow> win = do_GetInterface(item);
+            if (win) {
+                FlushLayoutForTree(win);
+            }
+        }
+    }
 }
 
 void nsContentUtils::RemoveNewlines(nsString &aString)

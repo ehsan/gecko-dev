@@ -5167,7 +5167,15 @@ function handleLinkClick(event, href, linkNode) {
 }
 
 function middleMousePaste(event) {
-  var url = getShortcutOrURI(readFromClipboard());
+  let clipboard = readFromClipboard();
+  if (!clipboard)
+    return;
+
+  // Strip embedded newlines and surrounding whitespace, to match the URL
+  // bar's behavior (stripsurroundingwhitespace)
+  clipboard.replace(/\s*\n\s*/g, "");
+
+  let url = getShortcutOrURI(clipboard);
   try {
     makeURI(url);
   } catch (ex) {
@@ -6594,10 +6602,15 @@ var FeedHandler = {
   onFeedButtonClick: function(event) {
     event.stopPropagation();
 
-    if (event.target.hasAttribute("feed") &&
-        event.eventPhase == Event.AT_TARGET &&
+    let feeds = gBrowser.selectedBrowser.feeds || [];
+    // If there are multiple feeds, the menu will open, so no need to do
+    // anything. If there are no feeds, nothing to do either.
+    if (feeds.length != 1)
+      return;
+
+    if (event.eventPhase == Event.AT_TARGET &&
         (event.button == 0 || event.button == 1)) {
-        this.subscribeToFeed(null, event);
+      this.subscribeToFeed(feeds[0].href, event);
     }
   },
 
@@ -6626,12 +6639,8 @@ var FeedHandler = {
     while (menuPopup.firstChild)
       menuPopup.removeChild(menuPopup.firstChild);
 
-    if (feeds.length == 1) {
-      var feedButton = document.getElementById("feed-button");
-      if (feedButton)
-        feedButton.setAttribute("feed", feeds[0].href);
+    if (feeds.length <= 1)
       return false;
-    }
 
     // Build the menu showing the available feed choices for viewing.
     for (var i = 0; i < feeds.length; ++i) {
@@ -6704,35 +6713,30 @@ var FeedHandler = {
    * a page is loaded or the user switches tabs to a page that has feeds.
    */
   updateFeeds: function() {
-    var feedButton = document.getElementById("feed-button");
+    clearTimeout(this._updateFeedTimeout);
 
     var feeds = gBrowser.selectedBrowser.feeds;
-    if (!feeds || feeds.length == 0) {
-      if (feedButton) {
-        feedButton.disabled = true;
-        feedButton.removeAttribute("feed");
-      }
+    var haveFeeds = feeds && feeds.length > 0;
+
+    var feedButton = document.getElementById("feed-button");
+    if (feedButton)
+      feedButton.disabled = !haveFeeds;
+
+    if (!haveFeeds) {
       this._feedMenuitem.setAttribute("disabled", "true");
-      this._feedMenupopup.setAttribute("hidden", "true");
       this._feedMenuitem.removeAttribute("hidden");
+      this._feedMenupopup.setAttribute("hidden", "true");
+      return;
+    }
+
+    if (feeds.length > 1) {
+      this._feedMenuitem.setAttribute("hidden", "true");
+      this._feedMenupopup.removeAttribute("hidden");
     } else {
-      if (feedButton)
-        feedButton.disabled = false;
-
-      if (feeds.length > 1) {
-        this._feedMenuitem.setAttribute("hidden", "true");
-        this._feedMenupopup.removeAttribute("hidden");
-        if (feedButton)
-          feedButton.removeAttribute("feed");
-      } else {
-        if (feedButton)
-          feedButton.setAttribute("feed", feeds[0].href);
-
-        this._feedMenuitem.setAttribute("feed", feeds[0].href);
-        this._feedMenuitem.removeAttribute("disabled");
-        this._feedMenuitem.removeAttribute("hidden");
-        this._feedMenupopup.setAttribute("hidden", "true");
-      }
+      this._feedMenuitem.setAttribute("feed", feeds[0].href);
+      this._feedMenuitem.removeAttribute("disabled");
+      this._feedMenuitem.removeAttribute("hidden");
+      this._feedMenupopup.setAttribute("hidden", "true");
     }
   },
 
@@ -6749,10 +6753,13 @@ var FeedHandler = {
 
     browserForLink.feeds.push({ href: link.href, title: link.title });
 
+    // If this addition was for the current browser, update the UI. For
+    // background browsers, we'll update on tab switch.
     if (browserForLink == gBrowser.selectedBrowser) {
-      var feedButton = document.getElementById("feed-button");
-      if (feedButton)
-        feedButton.collapsed = false;
+      // Batch updates to avoid updating the UI for multiple onLinkAdded events
+      // fired within 100ms of each other.
+      clearTimeout(this._updateFeedTimeout);
+      this._updateFeedTimeout = setTimeout(this.updateFeeds.bind(this), 100);
     }
   }
 };

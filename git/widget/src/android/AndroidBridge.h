@@ -170,6 +170,12 @@ public:
 
     void ShowFilePicker(nsAString& aFilePath, nsAString& aFilters);
 
+    void SetFullScreen(PRBool aFullScreen);
+
+    void ShowInputMethodPicker();
+
+    void HideProgressDialogOnce();
+
     struct AutoLocalJNIFrame {
         AutoLocalJNIFrame(int nEntries = 128) : mEntries(nEntries) {
             AndroidBridge::Bridge()->JNI()->PushLocalFrame(mEntries);
@@ -235,6 +241,9 @@ protected:
     jmethodID jAlertsProgressListener_OnProgress;
     jmethodID jAlertsProgressListener_OnCancel;
     jmethodID jGetDpi;
+    jmethodID jSetFullScreen;
+    jmethodID jShowInputMethodPicker;
+    jmethodID jHideProgressDialog;
 
     // stuff we need for CallEglCreateWindowSurface
     jclass jEGLSurfaceImplClass;
