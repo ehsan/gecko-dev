@@ -82,27 +82,23 @@ let gOutstandingGenerators = new NamableTracker();
 // asynchronous coroutine-based functions our current one was called
 // from.
 function AsyncException(asyncStack, exceptionToWrap) {
-  this._originalException = exceptionToWrap;
+  this._exceptionToWrap = exceptionToWrap;
   this._asyncStack = asyncStack;
 
   // Here we'll have our exception instance's prototype be dynamically
   // generated; this ultimately allows us to dynamically "subclass"
   // the exception we're wrapping at runtime.
   this.__proto__ = {
-    __proto__: this._originalException,
-
-    get asyncStack() this._asyncStack,
-    get originalException() this._originalException,
+    get asyncStack() {
+      return this._asyncStack;
+    },
 
     addAsyncFrame: function AsyncException_addAsyncFrame(frame) {
       this._asyncStack += ((this._asyncStack? "\n" : "") +
                            formatAsyncFrame(frame));
-    },
-
-    toString: function AsyncException_toString() {
-      return this._originalException;
     }
   };
+  this.__proto__.__proto__ = this._exceptionToWrap;
 }
 
 function Generator(thisArg, method, onComplete, args) {
