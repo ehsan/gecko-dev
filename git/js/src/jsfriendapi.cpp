@@ -96,7 +96,9 @@ JS_FindCompilationScope(JSContext *cx, HandleObject objArg)
      * Innerize the target_obj so that we compile in the correct (inner)
      * scope.
      */
-    return GetInnerObject(obj);
+    if (JSObjectOp op = obj->getClass()->ext.innerObject)
+        obj = op(cx, obj);
+    return obj;
 }
 
 JS_FRIEND_API(JSFunction *)

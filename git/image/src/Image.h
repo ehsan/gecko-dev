@@ -10,7 +10,6 @@
 #include "imgIContainer.h"
 #include "imgStatusTracker.h"
 #include "ImageURL.h"
-#include "nsStringFwd.h"
 
 class nsIRequest;
 class nsIInputStream;
@@ -84,13 +83,6 @@ public:
   virtual size_t HeapSizeOfDecodedWithComputedFallback(mozilla::MallocSizeOf aMallocSizeOf) const = 0;
   virtual size_t NonHeapSizeOfDecoded() const = 0;
   virtual size_t OutOfProcessSizeOfDecoded() const = 0;
-
-  /**
-   * Gets the size of the memory taken up for the parsed vector image's
-   * document (e.g. SVGDocument), and returns the document's URL via the
-   * aDocURL outparam.
-   */
-  virtual size_t HeapSizeOfVectorImageDocument(nsACString* aDocURL = nullptr) const = 0;
 
   virtual void IncrementAnimationConsumers() = 0;
   virtual void DecrementAnimationConsumers() = 0;

@@ -13,6 +13,8 @@
 #include "nscore.h"
 #include "nsIFactory.h"
 #include "nsISupports.h"
+#include "nsIComponentManager.h" 
+#include "nsIServiceManager.h"
 #include "nsIDocument.h"
 #include "nsIHTMLDocument.h"
 #include "nsCOMPtr.h"
@@ -29,6 +31,7 @@
 #include "nsRange.h"
 #include "nsIDOMRange.h"
 #include "nsIDOMDocument.h"
+#include "nsICharsetConverterManager.h"
 #include "nsGkAtoms.h"
 #include "nsIContent.h"
 #include "nsIParserService.h"
@@ -50,7 +53,6 @@
 #include "nsIEditor.h"
 #include "nsIHTMLEditor.h"
 #include "nsIDocShell.h"
-#include "mozilla/dom/EncodingUtils.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -148,6 +150,7 @@ protected:
   nsCOMPtr<nsIUnicodeEncoder>    mUnicodeEncoder;
   nsCOMPtr<nsINode>              mCommonParent;
   nsCOMPtr<nsIDocumentEncoderNodeFixup> mNodeFixup;
+  nsCOMPtr<nsICharsetConverterManager> mCharsetConverterManager;
 
   nsString          mMimeType;
   nsCString         mCharset;
@@ -1061,6 +1064,12 @@ nsDocumentEncoder::EncodeToStringWithMaxLength(uint32_t aMaxLength,
   nsresult rv = NS_OK;
 
   nsCOMPtr<nsIAtom> charsetAtom;
+  if (!mCharset.IsEmpty()) {
+    if (!mCharsetConverterManager) {
+      mCharsetConverterManager = do_GetService(NS_CHARSETCONVERTERMANAGER_CONTRACTID, &rv);
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
+  }
   
   bool rewriteEncodingDeclaration = !(mSelection || mRange || mNode) && !(mFlags & OutputDontRewriteEncodingDeclaration);
   mSerializer->Init(mFlags, mWrapColumn, mCharset.get(), mIsCopying, rewriteEncodingDeclaration);
@@ -1195,11 +1204,14 @@ nsDocumentEncoder::EncodeToStream(nsIOutputStream* aStream)
   if (!mDocument)
     return NS_ERROR_NOT_INITIALIZED;
 
-  nsAutoCString encoding;
-  if (!EncodingUtils::FindEncodingForLabelNoReplacement(mCharset, encoding)) {
-    return NS_ERROR_UCONV_NOCONV;
+  if (!mCharsetConverterManager) {
+    mCharsetConverterManager = do_GetService(NS_CHARSETCONVERTERMANAGER_CONTRACTID, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
-  mUnicodeEncoder = EncodingUtils::EncoderForEncoding(encoding);
+
+  rv = mCharsetConverterManager->GetUnicodeEncoder(mCharset.get(),
+                                                   getter_AddRefs(mUnicodeEncoder));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (mMimeType.LowerCaseEqualsLiteral("text/plain")) {
     rv = mUnicodeEncoder->SetOutputErrorBehavior(nsIUnicodeEncoder::kOnError_Replace, nullptr, '?');

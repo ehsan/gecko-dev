@@ -18,7 +18,6 @@
 #include "jit/MIR.h"
 #include "jit/MIRGraph.h"
 #include "vm/Shape.h"
-#include "vm/TraceLogging.h"
 
 #include "jsscriptinlines.h"
 
@@ -57,16 +56,9 @@ bool
 CodeGeneratorMIPS::generateEpilogue()
 {
     masm.bind(&returnLabel_);
-
-#ifdef JS_TRACE_LOGGING
-    if (!gen->compilingAsmJS() && gen->info().executionMode() == SequentialExecution) {
-        if (!emitTracelogStopEvent(TraceLogger::IonMonkey))
-            return false;
-        if (!emitTracelogScriptStop())
-            return false;
-    }
+#if JS_TRACE_LOGGING
+    masm.tracelogStop();
 #endif
-
     if (gen->compilingAsmJS()) {
         // Pop the stack we allocated at the start of the function.
         masm.freeStack(frameDepth_);
