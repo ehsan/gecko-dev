@@ -1,4 +1,3 @@
-#filter substitution
 <?xml version="1.0" encoding="UTF-8"?>
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
   <PreferenceCategory
@@ -9,7 +8,7 @@
     android:summary="@string/sync_settings_summary_pair">
     <intent
       android:action="android.intent.action.MAIN"
-      android:targetPackage="@ANDROID_PACKAGE_NAME@"
+      android:targetPackage="org.mozilla.gecko"
       android:targetClass="org.mozilla.gecko.sync.setup.activities.SetupSyncActivity">
       <extra
         android:name="isSetup"
