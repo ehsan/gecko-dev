@@ -10,6 +10,7 @@
 
 #include "gc/Statistics.h"
 #include "vm/ArgumentsObject.h"
+#include "vm/ForkJoin.h"
 
 #include "jsgcinlines.h"
 
@@ -184,6 +185,12 @@ StoreBuffer::setAboutToOverflow()
         runtime_->gc.stats.count(gcstats::STAT_STOREBUFFER_OVERFLOW);
     }
     runtime_->gc.requestMinorGC(JS::gcreason::FULL_STORE_BUFFER);
+}
+
+bool
+StoreBuffer::inParallelSection() const
+{
+    return InParallelSection();
 }
 
 void

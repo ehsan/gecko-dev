@@ -1050,20 +1050,7 @@ private:
   private:
     explicit DiskConsumptionObserver(nsWeakPtr const &aWeakObserver)
       : mObserver(aWeakObserver) { }
-    virtual ~DiskConsumptionObserver() {
-      if (mObserver && !NS_IsMainThread()) {
-        nsIWeakReference *obs;
-        mObserver.forget(&obs);
-
-        nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
-        if (mainThread) {
-          NS_ProxyRelease(mainThread, obs);
-        } else {
-          NS_WARNING("Cannot get main thread, leaking weak reference to "
-                     "CacheStorageConsumptionObserver.");
-        }
-      }
-    }
+    virtual ~DiskConsumptionObserver() { }
 
     NS_IMETHODIMP Run()
     {
@@ -1071,8 +1058,6 @@ private:
 
       nsCOMPtr<nsICacheStorageConsumptionObserver> observer =
         do_QueryReferent(mObserver);
-
-      mObserver = nullptr;
 
       if (observer) {
         observer->OnNetworkCacheDiskConsumption(mSize);

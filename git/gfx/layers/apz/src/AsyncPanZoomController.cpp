@@ -1029,16 +1029,14 @@ AsyncPanZoomController::ArePointerEventsConsumable(TouchBlockState* aBlock, uint
   return true;
 }
 
-nsEventStatus AsyncPanZoomController::HandleInputEvent(const InputData& aEvent,
-                                                       const Matrix4x4& aTransformToApzc) {
+nsEventStatus AsyncPanZoomController::HandleInputEvent(const InputData& aEvent) {
   AssertOnControllerThread();
 
   nsEventStatus rv = nsEventStatus_eIgnore;
 
   switch (aEvent.mInputType) {
   case MULTITOUCH_INPUT: {
-    MultiTouchInput multiTouchInput = aEvent.AsMultiTouchInput();
-    multiTouchInput.TransformToLocal(aTransformToApzc);
+    const MultiTouchInput& multiTouchInput = aEvent.AsMultiTouchInput();
 
     nsRefPtr<GestureEventListener> listener = GetGestureEventListener();
     if (listener) {
@@ -1058,9 +1056,7 @@ nsEventStatus AsyncPanZoomController::HandleInputEvent(const InputData& aEvent,
     break;
   }
   case PANGESTURE_INPUT: {
-    PanGestureInput panGestureInput = aEvent.AsPanGestureInput();
-    panGestureInput.TransformToLocal(aTransformToApzc);
-
+    const PanGestureInput& panGestureInput = aEvent.AsPanGestureInput();
     switch (panGestureInput.mType) {
       case PanGestureInput::PANGESTURE_MAYSTART: rv = OnPanMayBegin(panGestureInput); break;
       case PanGestureInput::PANGESTURE_CANCELLED: rv = OnPanCancelled(panGestureInput); break;
@@ -1075,27 +1071,11 @@ nsEventStatus AsyncPanZoomController::HandleInputEvent(const InputData& aEvent,
     break;
   }
   case SCROLLWHEEL_INPUT: {
-    ScrollWheelInput scrollInput = aEvent.AsScrollWheelInput();
-    scrollInput.TransformToLocal(aTransformToApzc);
-
+    const ScrollWheelInput& scrollInput = aEvent.AsScrollWheelInput();
     rv = OnScrollWheel(scrollInput);
     break;
   }
-  case PINCHGESTURE_INPUT: {
-    PinchGestureInput pinchInput = aEvent.AsPinchGestureInput();
-    pinchInput.TransformToLocal(aTransformToApzc);
-
-    rv = HandleGestureEvent(pinchInput);
-    break;
-  }
-  case TAPGESTURE_INPUT: {
-    TapGestureInput tapInput = aEvent.AsTapGestureInput();
-    tapInput.TransformToLocal(aTransformToApzc);
-
-    rv = HandleGestureEvent(tapInput);
-    break;
-  }
-  default: NS_WARNING("Unhandled input event type"); break;
+  default: return HandleGestureEvent(aEvent);
   }
 
   return rv;
@@ -1777,21 +1757,22 @@ nsEventStatus AsyncPanZoomController::OnCancelTap(const TapGestureInput& aEvent)
 }
 
 
-Matrix4x4 AsyncPanZoomController::GetTransformToThis() const {
-  if (APZCTreeManager* treeManagerLocal = GetApzcTreeManager()) {
-    return treeManagerLocal->GetScreenToApzcTransform(this);
-  }
-  return Matrix4x4();
-}
-
 ScreenPoint AsyncPanZoomController::ToScreenCoordinates(const ParentLayerPoint& aVector,
                                                         const ParentLayerPoint& aAnchor) const {
-  return TransformVector<ScreenPixel>(GetTransformToThis().Inverse(), aVector, aAnchor);
+  if (APZCTreeManager* treeManagerLocal = GetApzcTreeManager()) {
+    Matrix4x4 apzcToScreen = treeManagerLocal->GetScreenToApzcTransform(this).Inverse();
+    return TransformVector<ScreenPixel>(apzcToScreen, aVector, aAnchor);
+  }
+  return ViewAs<ScreenPixel>(aVector, PixelCastJustification::TransformNotAvailable);
 }
 
 ParentLayerPoint AsyncPanZoomController::ToParentLayerCoordinates(const ScreenPoint& aVector,
                                                                   const ScreenPoint& aAnchor) const {
-  return TransformVector<ParentLayerPixel>(GetTransformToThis(), aVector, aAnchor);
+  if (APZCTreeManager* treeManagerLocal = GetApzcTreeManager()) {
+    Matrix4x4 transform = treeManagerLocal->GetScreenToApzcTransform(this);
+    return TransformVector<ParentLayerPixel>(transform, aVector, aAnchor);
+  }
+  return ViewAs<ParentLayerPixel>(aVector, PixelCastJustification::TransformNotAvailable);
 }
 
 ScreenCoord AsyncPanZoomController::PanDistance() const {

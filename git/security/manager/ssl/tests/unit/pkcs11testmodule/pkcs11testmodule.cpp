@@ -175,9 +175,8 @@ CK_RV Test_C_SetPIN(CK_SESSION_HANDLE, CK_UTF8CHAR_PTR, CK_ULONG,
 }
 
 CK_RV Test_C_OpenSession(CK_SLOT_ID, CK_FLAGS, CK_VOID_PTR, CK_NOTIFY,
-                         CK_SESSION_HANDLE_PTR phSession)
+                         CK_SESSION_HANDLE_PTR)
 {
-  *phSession = 1;
   return CKR_OK;
 }
 

@@ -231,7 +231,7 @@ function checkVariableView (view, index, hash, description = "") {
   // If node shouldn't display any properties, ensure that the 'empty' message is
   // visible
   if (!variables.length) {
-    ok(isVisible(scope.window.$("#properties-empty")),
+    ok(isVisible(scope.window.$("#properties-tabpanel-content-empty")),
       description + " should show the empty properties tab.");
     return;
   }
@@ -413,25 +413,15 @@ function checkAutomationValue (values, time, expected) {
    */
   function getValueAt (values, time) {
     for (let i = 0; i < values.length; i++) {
-      if (values[i].delta === time) {
+      if (values[i].t === time) {
         return values[i].value;
       }
-      if (values[i].delta > time) {
+      if (values[i].t > time) {
         return (values[i - 1].value + values[i].value) / 2;
       }
     }
     return values[values.length - 1].value;
   }
-}
-
-/**
- * Wait for all inspector tabs to complete rendering.
- */
-function waitForInspectorRender (panelWin, EVENTS) {
-  return Promise.all([
-    once(panelWin, EVENTS.UI_PROPERTIES_TAB_RENDERED),
-    once(panelWin, EVENTS.UI_AUTOMATION_TAB_RENDERED)
-  ]);
 }
 
 /**

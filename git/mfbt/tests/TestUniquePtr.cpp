@@ -7,6 +7,7 @@
 #include "mozilla/Assertions.h"
 #include "mozilla/Compiler.h"
 #include "mozilla/Move.h"
+#include "mozilla/NullPtr.h"
 #include "mozilla/TypeTraits.h"
 #include "mozilla/UniquePtr.h"
 #include "mozilla/Vector.h"
@@ -14,6 +15,7 @@
 #include <stddef.h>
 
 using mozilla::DefaultDelete;
+using mozilla::IsNullPointer;
 using mozilla::IsSame;
 using mozilla::MakeUnique;
 using mozilla::Swap;
@@ -380,8 +382,24 @@ TestFunctionReferenceDeleter()
   return true;
 }
 
+template<typename T, bool = IsNullPointer<decltype(nullptr)>::value>
+struct AppendNullptrTwice;
+
 template<typename T>
-struct AppendNullptrTwice
+struct AppendNullptrTwice<T, false>
+{
+  AppendNullptrTwice() {}
+
+  bool operator()(Vector<T>& vec)
+  {
+    CHECK(vec.append(static_cast<typename T::Pointer>(nullptr)));
+    CHECK(vec.append(static_cast<typename T::Pointer>(nullptr)));
+    return true;
+  }
+};
+
+template<typename T>
+struct AppendNullptrTwice<T, true>
 {
   AppendNullptrTwice() {}
 

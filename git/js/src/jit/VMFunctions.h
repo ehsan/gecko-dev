@@ -120,7 +120,7 @@ struct VMFunction
     // The root type of the out param if outParam == Type_Handle.
     RootType outParamRootType;
 
-    // PJS FIXME: get rid of executionMode
+    // Does this function take a ForkJoinContext * or a JSContext *?
     ExecutionMode executionMode;
 
     // Number of Values the VM wrapper should pop from the stack when it returns.
@@ -468,6 +468,20 @@ template <> struct OutParamToRootType<MutableHandleString> {
     static const VMFunction::RootType result = VMFunction::RootString;
 };
 
+template <class> struct MatchContext { };
+template <> struct MatchContext<JSContext *> {
+    static const ExecutionMode execMode = SequentialExecution;
+};
+template <> struct MatchContext<ExclusiveContext *> {
+    static const ExecutionMode execMode = SequentialExecution;
+};
+template <> struct MatchContext<ThreadSafeContext *> {
+    // ThreadSafeContext functions can be called from either mode, but for
+    // calling from parallel they should be wrapped first, so we default to
+    // SequentialExecution here.
+    static const ExecutionMode execMode = SequentialExecution;
+};
+
 #define FOR_EACH_ARGS_1(Macro, Sep, Last) Macro(1) Last(1)
 #define FOR_EACH_ARGS_2(Macro, Sep, Last) FOR_EACH_ARGS_1(Macro, Sep, Sep) Macro(2) Last(2)
 #define FOR_EACH_ARGS_3(Macro, Sep, Last) FOR_EACH_ARGS_2(Macro, Sep, Sep) Macro(3) Last(3)
@@ -484,10 +498,9 @@ template <> struct OutParamToRootType<MutableHandleString> {
 #define SEP_OR(_) |
 #define NOTHING(_)
 
-// PJS FIXME: get rid of executionMode()
 #define FUNCTION_INFO_STRUCT_BODY(ForEachNb)                                            \
     static inline ExecutionMode executionMode() {                                       \
-        return SequentialExecution;                                                     \
+        return MatchContext<Context>::execMode;                                         \
     }                                                                                   \
     static inline DataType returnType() {                                               \
         return TypeToDataType<R>::result;                                               \
@@ -538,9 +551,8 @@ template <class R, class Context>
 struct FunctionInfo<R (*)(Context)> : public VMFunction {
     typedef R (*pf)(Context);
 
-    // PJS FIXME: get rid of executionMode()
     static inline ExecutionMode executionMode() {
-        return SequentialExecution;
+        return MatchContext<Context>::execMode;
     }
     static inline DataType returnType() {
         return TypeToDataType<R>::result;

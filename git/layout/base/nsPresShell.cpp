@@ -8861,7 +8861,7 @@ PresShell::DidPaintWindow()
 bool
 PresShell::IsVisible()
 {
-  if (!mIsActive || !mViewManager)
+  if (!mViewManager)
     return false;
 
   nsView* view = mViewManager->GetRootView();
@@ -8871,7 +8871,7 @@ PresShell::IsVisible()
   // inner view of subdoc frame
   view = view->GetParent();
   if (!view)
-    return true;
+    return mIsActive;
 
   // subdoc view
   view = view->GetParent();

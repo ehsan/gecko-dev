@@ -3634,7 +3634,7 @@ ContainerState::PostprocessRetainedLayers(nsIntRegion* aOpaqueRegionForContainer
 
     if (hideAll) {
       e->mVisibleRegion.SetEmpty();
-    } else if (!e->mLayer->IsScrollbarContainer()) {
+    } else {
       const nsIntRect* clipRect = e->mLayer->GetClipRect();
       if (clipRect && opaqueRegionForContainer >= 0 &&
           opaqueRegions[opaqueRegionForContainer].mOpaqueRegion.Contains(*clipRect)) {

@@ -55,7 +55,6 @@ class nsFocusManager;
 class nsGlobalWindow;
 class nsICSSDeclaration;
 class nsISMILAttr;
-class nsDocument;
 
 namespace mozilla {
 namespace dom {
@@ -399,7 +398,6 @@ private:
   friend class mozilla::EventStateManager;
   friend class ::nsGlobalWindow;
   friend class ::nsFocusManager;
-  friend class ::nsDocument;
 
   // Also need to allow Link to call UpdateLinkState.
   friend class Link;

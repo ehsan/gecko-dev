@@ -27,7 +27,7 @@ using namespace js::jit;
 using mozilla::DebugOnly;
 using mozilla::NativeEndian;
 
-TraceLoggerThreadState *traceLoggerState = nullptr;
+TraceLoggerThreadState traceLoggers;
 
 #if defined(_WIN32)
 #include <intrin.h>
@@ -99,32 +99,13 @@ class AutoTraceLoggerThreadStateLock
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-static bool
-EnsureTraceLoggerState()
-{
-    if (MOZ_LIKELY(traceLoggerState))
-        return true;
-
-    traceLoggerState = js_new<TraceLoggerThreadState>();
-    if (!traceLoggerState)
-        return false;
-
-    if (!traceLoggerState->init()) {
-        DestroyTraceLoggerThreadState();
-        return false;
-    }
-
-    return true;
-}
-
-void
-js::DestroyTraceLoggerThreadState()
-{
-    if (traceLoggerState) {
-        js_delete(traceLoggerState);
-        traceLoggerState = nullptr;
-    }
-}
+TraceLoggerThread::TraceLoggerThread()
+  : enabled(0),
+    failed(false),
+    graph(),
+    iteration_(0),
+    top(nullptr)
+{ }
 
 bool
 TraceLoggerThread::init()
@@ -158,8 +139,7 @@ TraceLoggerThread::initGraph()
     if (!graph.get())
         return;
 
-    MOZ_ASSERT(traceLoggerState);
-    uint64_t start = rdtsc() - traceLoggerState->startupTime;
+    uint64_t start = rdtsc() - traceLoggers.startupTime;
     if (!graph->init(start)) {
         graph = nullptr;
         return;
@@ -403,8 +383,7 @@ TraceLoggerThread::getOrCreateEventPayload(TraceLoggerTextId type, const char *f
 
     // Only log scripts when enabled otherwise return the global Scripts textId,
     // which will get filtered out.
-    MOZ_ASSERT(traceLoggerState);
-    if (!traceLoggerState->isTextIdEnabled(type))
+    if (!traceLoggers.isTextIdEnabled(type))
         return getOrCreateEventPayload(type);
 
     PointerHashMap::AddPtr p = pointerMap.lookupForAdd(ptr);
@@ -481,8 +460,7 @@ void
 TraceLoggerThread::startEvent(uint32_t id)
 {
     MOZ_ASSERT(TLTextIdIsTreeEvent(id) || id == TraceLogger_Error);
-    MOZ_ASSERT(traceLoggerState);
-    if (!traceLoggerState->isTextIdEnabled(id))
+    if (!traceLoggers.isTextIdEnabled(id))
        return;
 
     logTimestamp(id);
@@ -506,8 +484,7 @@ void
 TraceLoggerThread::stopEvent(uint32_t id)
 {
     MOZ_ASSERT(TLTextIdIsTreeEvent(id) || id == TraceLogger_Error);
-    MOZ_ASSERT(traceLoggerState);
-    if (!traceLoggerState->isTextIdEnabled(id))
+    if (!traceLoggers.isTextIdEnabled(id))
         return;
 
     logTimestamp(TraceLogger_Stop);
@@ -525,9 +502,8 @@ TraceLoggerThread::logTimestamp(uint32_t id)
     if (enabled == 0)
         return;
 
-    MOZ_ASSERT(traceLoggerState);
     if (!events.ensureSpaceBeforeAdd()) {
-        uint64_t start = rdtsc() - traceLoggerState->startupTime;
+        uint64_t start = rdtsc() - traceLoggers.startupTime;
 
         if (graph.get())
             graph->log(events);
@@ -544,7 +520,7 @@ TraceLoggerThread::logTimestamp(uint32_t id)
             entryStart.textId = TraceLogger_Internal;
 
             EventEntry &entryStop = events.pushUninitialized();
-            entryStop.time = rdtsc() - traceLoggerState->startupTime;
+            entryStop.time = rdtsc() - traceLoggers.startupTime;
             entryStop.textId = TraceLogger_Stop;
         }
 
@@ -557,11 +533,24 @@ TraceLoggerThread::logTimestamp(uint32_t id)
         }
     }
 
-    uint64_t time = rdtsc() - traceLoggerState->startupTime;
+    uint64_t time = rdtsc() - traceLoggers.startupTime;
 
     EventEntry &entry = events.pushUninitialized();
     entry.time = time;
     entry.textId = id;
+}
+
+TraceLoggerThreadState::TraceLoggerThreadState()
+{
+    initialized = false;
+    enabled = 0;
+    mainThreadEnabled = false;
+    offThreadEnabled = false;
+    graphSpewingEnabled = false;
+
+    lock = PR_NewLock();
+    if (!lock)
+        MOZ_CRASH();
 }
 
 TraceLoggerThreadState::~TraceLoggerThreadState()
@@ -583,9 +572,7 @@ TraceLoggerThreadState::~TraceLoggerThreadState()
         lock = nullptr;
     }
 
-#ifdef DEBUG
-    initialized = false;
-#endif
+    enabled = 0;
 }
 
 static bool
@@ -602,11 +589,12 @@ ContainsFlag(const char *str, const char *flag)
 }
 
 bool
-TraceLoggerThreadState::init()
+TraceLoggerThreadState::lazyInit()
 {
-    lock = PR_NewLock();
-    if (!lock)
-        return false;
+    if (initialized)
+        return enabled > 0;
+
+    initialized = true;
 
     if (!threadLoggers.init())
         return false;
@@ -723,11 +711,7 @@ TraceLoggerThreadState::init()
     }
 
     startupTime = rdtsc();
-
-#ifdef DEBUG
-    initialized = true;
-#endif
-
+    enabled = 1;
     return true;
 }
 
@@ -781,9 +765,7 @@ TraceLoggerThreadState::disableTextId(JSContext *cx, uint32_t textId)
 TraceLoggerThread *
 js::TraceLoggerForMainThread(CompileRuntime *runtime)
 {
-    if (!EnsureTraceLoggerState())
-        return nullptr;
-    return traceLoggerState->forMainThread(runtime);
+    return traceLoggers.forMainThread(runtime);
 }
 
 TraceLoggerThread *
@@ -795,9 +777,7 @@ TraceLoggerThreadState::forMainThread(CompileRuntime *runtime)
 TraceLoggerThread *
 js::TraceLoggerForMainThread(JSRuntime *runtime)
 {
-    if (!EnsureTraceLoggerState())
-        return nullptr;
-    return traceLoggerState->forMainThread(runtime);
+    return traceLoggers.forMainThread(runtime);
 }
 
 TraceLoggerThread *
@@ -809,9 +789,11 @@ TraceLoggerThreadState::forMainThread(JSRuntime *runtime)
 TraceLoggerThread *
 TraceLoggerThreadState::forMainThread(PerThreadData *mainThread)
 {
-    MOZ_ASSERT(initialized);
     if (!mainThread->traceLogger) {
         AutoTraceLoggerThreadStateLock lock(this);
+
+        if (!lazyInit())
+            return nullptr;
 
         TraceLoggerThread *logger = create();
         if (!logger)
@@ -838,17 +820,16 @@ TraceLoggerThread *
 js::TraceLoggerForCurrentThread()
 {
     PRThread *thread = PR_GetCurrentThread();
-    if (!EnsureTraceLoggerState())
-        return nullptr;
-    return traceLoggerState->forThread(thread);
+    return traceLoggers.forThread(thread);
 }
 
 TraceLoggerThread *
 TraceLoggerThreadState::forThread(PRThread *thread)
 {
-    MOZ_ASSERT(initialized);
-
     AutoTraceLoggerThreadStateLock lock(this);
+
+    if (!lazyInit())
+        return nullptr;
 
     ThreadLoggerHashMap::AddPtr p = threadLoggers.lookupForAdd(thread);
     if (p)
@@ -890,24 +871,18 @@ TraceLoggerThreadState::create()
 bool
 js::TraceLogTextIdEnabled(uint32_t textId)
 {
-    if (!EnsureTraceLoggerState())
-        return false;
-    return traceLoggerState->isTextIdEnabled(textId);
+    return traceLoggers.isTextIdEnabled(textId);
 }
 
 void
 js::TraceLogEnableTextId(JSContext *cx, uint32_t textId)
 {
-    if (!EnsureTraceLoggerState())
-        return;
-    traceLoggerState->enableTextId(cx, textId);
+    traceLoggers.enableTextId(cx, textId);
 }
 void
 js::TraceLogDisableTextId(JSContext *cx, uint32_t textId)
 {
-    if (!EnsureTraceLoggerState())
-        return;
-    traceLoggerState->disableTextId(cx, textId);
+    traceLoggers.disableTextId(cx, textId);
 }
 
 TraceLoggerEvent::TraceLoggerEvent(TraceLoggerThread *logger, TraceLoggerTextId textId)

@@ -28,6 +28,7 @@
 #include "jit/VMFunctions.h"
 #include "vm/ArgumentsObject.h"
 #include "vm/Debugger.h"
+#include "vm/ForkJoin.h"
 #include "vm/Interpreter.h"
 #include "vm/TraceLogging.h"
 

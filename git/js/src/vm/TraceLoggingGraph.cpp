@@ -22,7 +22,7 @@
 
 using mozilla::NativeEndian;
 
-TraceLoggerGraphState *traceLoggerGraphState = nullptr;
+TraceLoggerGraphState traceLoggersGraph;
 
 class AutoTraceLoggerGraphStateLock
 {
@@ -42,22 +42,26 @@ class AutoTraceLoggerGraphStateLock
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-bool
-TraceLoggerGraphState::init()
+TraceLoggerGraphState::TraceLoggerGraphState()
+  : numLoggers(0),
+    out(nullptr)
 {
     lock = PR_NewLock();
     if (!lock)
-        return false;
+        MOZ_CRASH();
+}
+
+bool
+TraceLoggerGraphState::ensureInitialized()
+{
+    if (out)
+        return true;
 
     out = fopen(TRACE_LOG_DIR "tl-data.json", "w");
     if (!out)
         return false;
 
     fprintf(out, "[");
-
-#ifdef DEBUG
-    initialized = true;
-#endif
     return true;
 }
 
@@ -73,10 +77,6 @@ TraceLoggerGraphState::~TraceLoggerGraphState()
         PR_DestroyLock(lock);
         lock = nullptr;
     }
-
-#ifdef DEBUG
-    initialized = false;
-#endif
 }
 
 uint32_t
@@ -84,7 +84,10 @@ TraceLoggerGraphState::nextLoggerId()
 {
     AutoTraceLoggerGraphStateLock lock(this);
 
-    MOZ_ASSERT(initialized);
+    if (!ensureInitialized()) {
+        fprintf(stderr, "TraceLogging: Couldn't create the main log file.");
+        return uint32_t(-1);
+    }
 
     if (numLoggers > 999) {
         fprintf(stderr, "TraceLogging: Can't create more than 999 different loggers.");
@@ -110,33 +113,6 @@ TraceLoggerGraphState::nextLoggerId()
     return numLoggers++;
 }
 
-static bool
-EnsureTraceLoggerGraphState()
-{
-    if (MOZ_LIKELY(traceLoggerGraphState))
-        return true;
-
-    traceLoggerGraphState = js_new<TraceLoggerGraphState>();
-    if (!traceLoggerGraphState)
-        return false;
-
-    if (!traceLoggerGraphState->init()) {
-        js::DestroyTraceLoggerGraphState();
-        return false;
-    }
-
-    return true;
-}
-
-void
-js::DestroyTraceLoggerGraphState()
-{
-    if (traceLoggerGraphState) {
-        js_delete(traceLoggerGraphState);
-        traceLoggerGraphState = nullptr;
-    }
-}
-
 bool
 TraceLoggerGraph::init(uint64_t startTimestamp)
 {
@@ -149,12 +125,7 @@ TraceLoggerGraph::init(uint64_t startTimestamp)
         return false;
     }
 
-    if (!EnsureTraceLoggerGraphState()) {
-        failed = true;
-        return false;
-    }
-
-    uint32_t loggerId = traceLoggerGraphState->nextLoggerId();
+    uint32_t loggerId = traceLoggersGraph.nextLoggerId();
     if (loggerId == uint32_t(-1)) {
         failed = true;
         return false;

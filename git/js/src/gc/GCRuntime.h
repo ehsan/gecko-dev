@@ -520,7 +520,7 @@ class GCRuntime
 #endif
 
     template <AllowGC allowGC>
-    static void *refillFreeListFromAnyThread(ExclusiveContext *cx, AllocKind thingKind);
+    static void *refillFreeListFromAnyThread(ThreadSafeContext *cx, AllocKind thingKind);
     static void *refillFreeListInGC(Zone *zone, AllocKind thingKind);
 
     // Free certain LifoAlloc blocks from the background sweep thread.
@@ -529,8 +529,6 @@ class GCRuntime
 
     // Public here for ReleaseArenaLists and FinalizeTypedArenas.
     void releaseArena(ArenaHeader *aheader, const AutoLockGC &lock);
-
-    void releaseHeldRelocatedArenas();
 
   private:
     void minorGCImpl(JS::gcreason::Reason reason, Nursery::TypeObjectList *pretenureTypes);
@@ -545,6 +543,7 @@ class GCRuntime
     template <AllowGC allowGC>
     static void *refillFreeListFromMainThread(JSContext *cx, AllocKind thingKind);
     static void *refillFreeListOffMainThread(ExclusiveContext *cx, AllocKind thingKind);
+    static void *refillFreeListPJS(ForkJoinContext *cx, AllocKind thingKind);
 
     /*
      * Return the list of chunks that can be released outside the GC lock.
@@ -793,7 +792,7 @@ class GCRuntime
      * frame, rather than at the beginning. In this case, the next slice will be
      * delayed so that we don't get back-to-back slices.
      */
-    bool interFrameGC;
+    volatile uintptr_t interFrameGC;
 
     /* Default budget for incremental GC slice. See SliceBudget in jsgc.h. */
     int64_t sliceBudget;
@@ -812,9 +811,10 @@ class GCRuntime
 #ifdef JSGC_COMPACTING
     /*
      * Some code cannot tolerate compacting GC so it can be disabled with this
-     * counter.
+     * counter.  This can happen from code executing in a ThreadSafeContext so
+     * we make it atomic.
      */
-    unsigned compactingDisabled;
+    mozilla::Atomic<uint32_t, mozilla::ReleaseAcquire> compactingDisabled;
 #endif
 
     /*

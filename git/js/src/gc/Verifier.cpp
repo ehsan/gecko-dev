@@ -254,7 +254,7 @@ gc::GCRuntime::startVerifyPreBarriers()
     for (ZonesIter zone(rt, WithAtoms); !zone.done(); zone.next()) {
         PurgeJITCaches(zone);
         zone->setNeedsIncrementalBarrier(true, Zone::UpdateJit);
-        zone->arenas.purge();
+        zone->allocator.arenas.purge();
     }
 
     return;

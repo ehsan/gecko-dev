@@ -1204,15 +1204,6 @@ public:
     }
   }
 
-  // Set during construction for the container layer of scrollbar components.
-  void SetIsScrollbarContainer()
-  {
-    if (!mIsScrollbarContainer) {
-      mIsScrollbarContainer = true;
-      Mutated();
-    }
-  }
-
   // These getters can be used anytime.
   float GetOpacity() { return mOpacity; }
   gfx::CompositionOp GetMixBlendMode() const { return mMixBlendMode; }
@@ -1247,7 +1238,6 @@ public:
   const LayerRect& GetStickyScrollRangeInner() { return mStickyPositionData->mInner; }
   FrameMetrics::ViewID GetScrollbarTargetContainerId() { return mScrollbarTargetId; }
   ScrollDirection GetScrollbarDirection() { return mScrollbarDirection; }
-  bool IsScrollbarContainer() { return mIsScrollbarContainer; }
   Layer* GetMaskLayer() const { return mMaskLayer; }
 
 
@@ -1686,7 +1676,6 @@ protected:
   nsAutoPtr<StickyPositionData> mStickyPositionData;
   FrameMetrics::ViewID mScrollbarTargetId;
   ScrollDirection mScrollbarDirection;
-  bool mIsScrollbarContainer;
   DebugOnly<uint32_t> mDebugColorIndex;
   // If this layer is used for OMTA, then this counter is used to ensure we
   // stay in sync with the animation manager

@@ -62,10 +62,6 @@
  *         0x240: [start, end, dictId, 0, 4]    0x300 [start, end, dictId, 0, 0]
  */
 
-namespace js {
-void DestroyTraceLoggerGraphState();
-}
-
 class TraceLoggerGraphState
 {
     uint32_t numLoggers;
@@ -73,27 +69,17 @@ class TraceLoggerGraphState
     // File pointer to the "tl-data.json" file. (Explained above).
     FILE *out;
 
-#ifdef DEBUG
-    bool initialized;
-#endif
-
   public:
     PRLock *lock;
 
   public:
-    TraceLoggerGraphState()
-      : numLoggers(0),
-        out(nullptr),
-#ifdef DEBUG
-        initialized(false),
-#endif
-        lock(nullptr)
-    {}
-
-    bool init();
+    TraceLoggerGraphState();
     ~TraceLoggerGraphState();
 
     uint32_t nextLoggerId();
+
+  private:
+    bool ensureInitialized();
 };
 
 class TraceLoggerGraph

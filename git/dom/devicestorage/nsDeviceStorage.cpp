@@ -2270,10 +2270,10 @@ nsDOMDeviceStorageCursor::Continue(ErrorResult& aRv)
     return;
   }
 
-  if (!mResult.isUndefined()) {
+  if (mResult != JSVAL_VOID) {
     // We call onsuccess multiple times. Clear the last
     // result.
-    mResult.setUndefined();
+    mResult = JSVAL_VOID;
     mDone = false;
   }
 
