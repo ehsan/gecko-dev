@@ -6217,24 +6217,43 @@ nsCSSFrameConstructor::MaybeConstructLazily(Operation aOperation,
   nsIContent* content = aContainer;
   while (content &&
          !content->HasFlag(NODE_DESCENDANTS_NEED_FRAMES)) {
-    NS_ASSERTION(content->GetPrimaryFrame() &&
-                 !content->HasFlag(NODE_NEEDS_FRAME),
+    NS_ASSERTION(content->GetPrimaryFrame() ||
+      (content->GetFlattenedTreeParent() &&
+       content->GetFlattenedTreeParent()->GetPrimaryFrame() &&
+       content->GetFlattenedTreeParent()->GetPrimaryFrame()->IsLeaf()),
+      // The clumsy leaf frame check is for leaf frames that process their own
+      // children and may ignore anonymous children (eg framesets).
+      "Ancestors of nodes with frames to be constructed lazily should have "
+      "frames");
+    NS_ASSERTION(!content->HasFlag(NODE_NEEDS_FRAME) ||
+                 content->GetPrimaryFrame()->GetContent() != content,
+                 //XXX the content->GetPrimaryFrame()->GetContent() != content
+                 // check is needed due to bug 135040. Remove it once that's
+                 // fixed.
                  "Ancestors of nodes with frames to be constructed lazily "
-                 "should have frames and not have NEEDS_FRAME bit set");
+                 "should not have NEEDS_FRAME bit set");
     content->SetFlags(NODE_DESCENDANTS_NEED_FRAMES);
     content = content->GetFlattenedTreeParent();
   }
 
   // Set NODE_NEEDS_FRAME on the new nodes.
   if (aOperation == CONTENTINSERT) {
-    NS_ASSERTION(!aChild->GetPrimaryFrame(),
+    NS_ASSERTION(!aChild->GetPrimaryFrame() ||
+                 aChild->GetPrimaryFrame()->GetContent() != aChild,
+                 //XXX the aChild->GetPrimaryFrame()->GetContent() != aChild
+                 // check is needed due to bug 135040. Remove it once that's
+                 // fixed.
                  "setting NEEDS_FRAME on a node that already has a frame?");
     aChild->SetFlags(NODE_NEEDS_FRAME);
   } else { // CONTENTAPPEND
     PRUint32 containerCount = aContainer->GetChildCount();
     for (PRUint32 i = aIndex; i < containerCount; i++) {
       nsIContent* child = aContainer->GetChildAt(i);
-      NS_ASSERTION(!child->GetPrimaryFrame(),
+      NS_ASSERTION(!child->GetPrimaryFrame() ||
+                   child->GetPrimaryFrame()->GetContent() != child,
+                   //XXX the child->GetPrimaryFrame()->GetContent() != child
+                   // check is needed due to bug 135040. Remove it once that's
+                   // fixed.
                    "setting NEEDS_FRAME on a node that already has a frame?");
       child->SetFlags(NODE_NEEDS_FRAME);
     }
@@ -6292,7 +6311,11 @@ nsCSSFrameConstructor::CreateNeededFrames(nsIContent* aContent)
   for (PRUint32 i = 0; i < childCount; i++) {
     nsIContent* child = aContent->GetChildAt(i);
     if (child->HasFlag(NODE_NEEDS_FRAME)) {
-      NS_ASSERTION(!child->GetPrimaryFrame(),
+      NS_ASSERTION(!child->GetPrimaryFrame() ||
+                   child->GetPrimaryFrame()->GetContent() != child,
+                   //XXX the child->GetPrimaryFrame()->GetContent() != child
+                   // check is needed due to bug 135040. Remove it once that's
+                   // fixed.
                    "NEEDS_FRAME set on a node that already has a frame?");
       if (!inRun) {
         inRun = PR_TRUE;
@@ -6833,7 +6856,7 @@ nsCSSFrameConstructor::ContentRangeInserted(nsIContent*            aContainer,
   NS_ASSERTION(isSingleInsert || !aAllowLazyConstruction,
                "range insert shouldn't be lazy");
   NS_ASSERTION(isSingleInsert || !aContainer ||
-               aEndIndexInContainer < aContainer->GetChildCount(),
+               PRUint32(aEndIndexInContainer) < aContainer->GetChildCount(),
                "end index should not include all nodes");
 
 #ifdef MOZ_XUL
