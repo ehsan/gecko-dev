@@ -39,8 +39,8 @@ public:
 #endif
 
 protected:
-  ContentHost(const TextureInfo& aTextureInfo)
-    : CompositableHost(aTextureInfo)
+  ContentHost(const TextureInfo& aTextureInfo, Compositor* aCompositor)
+    : CompositableHost(aTextureInfo, aCompositor)
   {}
 };
 
@@ -61,7 +61,7 @@ public:
   typedef ThebesLayerBuffer::ContentType ContentType;
   typedef ThebesLayerBuffer::PaintState PaintState;
 
-  ContentHostBase(const TextureInfo& aTextureInfo);
+  ContentHostBase(const TextureInfo& aTextureInfo, Compositor* aCompositor);
   ~ContentHostBase();
 
   virtual void Composite(EffectChain& aEffectChain,
@@ -135,8 +135,9 @@ protected:
 class ContentHostDoubleBuffered : public ContentHostBase
 {
 public:
-  ContentHostDoubleBuffered(const TextureInfo& aTextureInfo)
-    : ContentHostBase(aTextureInfo)
+  ContentHostDoubleBuffered(const TextureInfo& aTextureInfo,
+                            Compositor* aCompositor)
+    : ContentHostBase(aTextureInfo, aCompositor)
   {}
 
   ~ContentHostDoubleBuffered();
@@ -172,8 +173,9 @@ protected:
 class ContentHostSingleBuffered : public ContentHostBase
 {
 public:
-  ContentHostSingleBuffered(const TextureInfo& aTextureInfo)
-    : ContentHostBase(aTextureInfo)
+  ContentHostSingleBuffered(const TextureInfo& aTextureInfo,
+                            Compositor* aCompositor)
+    : ContentHostBase(aTextureInfo, aCompositor)
   {}
   virtual ~ContentHostSingleBuffered();
 

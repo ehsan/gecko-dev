@@ -60,13 +60,14 @@ public class TopSitesView extends GridView {
     private static int mNumberOfCols;
 
     public static enum UnpinFlags {
-        REMOVE_PIN
+        REMOVE_PIN,
+        REMOVE_HISTORY
     }
 
     private Context mContext;
     private BrowserApp mActivity;
-    private AboutHome.UriLoadListener mUriLoadListener;
-    private AboutHome.LoadCompleteListener mLoadCompleteListener;
+    private AboutHomeContent.UriLoadCallback mUriLoadCallback = null;
+    private AboutHomeContent.VoidCallback mLoadCompleteCallback = null;
 
     protected TopSitesCursorAdapter mTopSitesAdapter;
 
@@ -104,8 +105,8 @@ public class TopSitesView extends GridView {
                     return;
                 }
 
-                if (mUriLoadListener != null)
-                    mUriLoadListener.onAboutHomeUriLoad(spec);
+                if (mUriLoadCallback != null)
+                    mUriLoadCallback.callback(spec);
             }
         });
 
@@ -127,6 +128,7 @@ public class TopSitesView extends GridView {
                     menu.findItem(R.id.abouthome_open_private_tab).setVisible(false);
                     menu.findItem(R.id.abouthome_topsites_pin).setVisible(false);
                     menu.findItem(R.id.abouthome_topsites_unpin).setVisible(false);
+                    menu.findItem(R.id.abouthome_topsites_remove).setVisible(false);
                 } else if (holder.isPinned()) {
                     menu.findItem(R.id.abouthome_topsites_pin).setVisible(false);
                 } else {
@@ -191,44 +193,39 @@ public class TopSitesView extends GridView {
     }
 
     public void loadTopSites() {
-        ThreadUtils.postToBackgroundThread(new Runnable() {
+        final ContentResolver resolver = mContext.getContentResolver();
+
+        // Swap in the new cursor.
+        final Cursor oldCursor = (mTopSitesAdapter != null) ? mTopSitesAdapter.getCursor() : null;
+        final Cursor newCursor = BrowserDB.getTopSites(resolver, mNumberOfTopSites);
+
+        post(new Runnable() {
             @Override
             public void run() {
-                final ContentResolver resolver = mContext.getContentResolver();
+                if (mTopSitesAdapter == null) {
+                    mTopSitesAdapter = new TopSitesCursorAdapter(mContext,
+                                                                 R.layout.abouthome_topsite_item,
+                                                                 newCursor,
+                                                                 new String[] { URLColumns.TITLE },
+                                                                 new int[] { R.id.title });
 
-                // Swap in the new cursor.
-                final Cursor oldCursor = (mTopSitesAdapter != null) ? mTopSitesAdapter.getCursor() : null;
-                final Cursor newCursor = BrowserDB.getTopSites(resolver, mNumberOfTopSites);
+                    setAdapter(mTopSitesAdapter);
+                } else {
+                    mTopSitesAdapter.changeCursor(newCursor);
+                }
 
-                post(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (mTopSitesAdapter == null) {
-                            mTopSitesAdapter = new TopSitesCursorAdapter(mContext,
-                                                                         R.layout.abouthome_topsite_item,
-                                                                         newCursor,
-                                                                         new String[] { URLColumns.TITLE },
-                                                                         new int[] { R.id.title });
+                if (mTopSitesAdapter.getCount() > 0)
+                    loadTopSitesThumbnails(resolver);
 
-                            setAdapter(mTopSitesAdapter);
-                        } else {
-                            mTopSitesAdapter.changeCursor(newCursor);
-                        }
+                // Free the old Cursor in the right thread now.
+                if (oldCursor != null && !oldCursor.isClosed())
+                    oldCursor.close();
 
-                        if (mTopSitesAdapter.getCount() > 0)
-                            loadTopSitesThumbnails(resolver);
-
-                        // Free the old Cursor in the right thread now.
-                        if (oldCursor != null && !oldCursor.isClosed())
-                            oldCursor.close();
-
-                        // Even if AboutHome isn't necessarily entirely loaded if we
-                        // get here, for phones this is the part the user initially sees,
-                        // so it's the one we will care about for now.
-                        if (mLoadCompleteListener != null)
-                            mLoadCompleteListener.onAboutHomeLoadComplete();
-                    }
-                });
+                // Even if AboutHome isn't necessarily entirely loaded if we
+                // get here, for phones this is the part the user initially sees,
+                // so it's the one we will care about for now.
+                if (mLoadCompleteCallback != null)
+                    mLoadCompleteCallback.callback();
             }
         });
     }
@@ -357,12 +354,12 @@ public class TopSitesView extends GridView {
         mNumberOfCols = getResources().getInteger(R.integer.number_of_top_sites_cols);
     }
 
-    public void setUriLoadListener(AboutHome.UriLoadListener uriLoadListener) {
-        mUriLoadListener = uriLoadListener;
+    public void setUriLoadCallback(AboutHomeContent.UriLoadCallback uriLoadCallback) {
+        mUriLoadCallback = uriLoadCallback;
     }
 
-    public void setLoadCompleteListener(AboutHome.LoadCompleteListener listener) {
-        mLoadCompleteListener = listener;
+    public void setLoadCompleteCallback(AboutHomeContent.VoidCallback callback) {
+        mLoadCompleteCallback = callback;
     }
 
     private class TopSitesViewHolder {
@@ -548,6 +545,9 @@ public class TopSitesView extends GridView {
             public Void doInBackground(Void... params) {
                 final ContentResolver resolver = mContext.getContentResolver();
                 BrowserDB.unpinSite(resolver, position);
+                if (flags == UnpinFlags.REMOVE_HISTORY) {
+                    BrowserDB.removeHistoryEntry(resolver, url);
+                }
                 return null;
             }
         }).execute();

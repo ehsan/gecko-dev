@@ -35,7 +35,7 @@ public:
   NS_DECL_NSIDOMMOZVOICEMAIL
   NS_DECL_NSIVOICEMAILLISTENER
 
-  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper)
+  NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
 
   Voicemail(nsPIDOMWindow* aWindow, nsIVoicemailProvider* aProvider);
   virtual ~Voicemail();

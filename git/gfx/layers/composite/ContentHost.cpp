@@ -11,8 +11,9 @@ namespace mozilla {
 using namespace gfx;
 namespace layers {
 
-ContentHostBase::ContentHostBase(const TextureInfo& aTextureInfo)
-  : ContentHost(aTextureInfo)
+ContentHostBase::ContentHostBase(const TextureInfo& aTextureInfo,
+                                 Compositor* aCompositor)
+  : ContentHost(aTextureInfo, aCompositor)
   , mPaintWillResample(false)
   , mInitialised(false)
 {}

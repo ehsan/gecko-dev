@@ -66,8 +66,8 @@ class TiledLayerBufferComposite
   friend class TiledLayerBuffer<TiledLayerBufferComposite, TiledTexture>;
 
 public:
-  TiledLayerBufferComposite()
-    : mCompositor(nullptr)
+  TiledLayerBufferComposite(Compositor* aCompositor)
+    : mCompositor(aCompositor)
   {}
 
   void Upload(const BasicTiledLayerBuffer* aMainMemoryTiledBuffer,
@@ -80,11 +80,6 @@ public:
   // Stores the absolute resolution of the containing frame, calculated
   // by the sum of the resolutions of all parent layers' FrameMetrics.
   const gfxSize& GetFrameResolution() { return mFrameResolution; }
-
-  void SetCompositor(Compositor* aCompositor)
-  {
-    mCompositor = aCompositor;
-  }
 
 protected:
   TiledTexture ValidateTile(TiledTexture aTile,
@@ -131,8 +126,10 @@ class TiledContentHost : public ContentHost,
                          public TiledLayerComposer
 {
 public:
-  TiledContentHost(const TextureInfo& aTextureInfo)
-    : ContentHost(aTextureInfo)
+  TiledContentHost(const TextureInfo& aTextureInfo, Compositor* aCompositor)
+    : ContentHost(aTextureInfo, aCompositor)
+    , mVideoMemoryTiledBuffer(aCompositor)
+    , mLowPrecisionVideoMemoryTiledBuffer(aCompositor)
     , mPendingUpload(false)
     , mPendingLowPrecisionUpload(false)
   {}
@@ -182,7 +179,7 @@ public:
 
   virtual CompositableType GetType() { return BUFFER_TILED; }
 
-  virtual TiledLayerComposer* AsTiledLayerComposer() MOZ_OVERRIDE { return this; }
+  virtual TiledLayerComposer* AsTiledLayerComposer() { return this; }
 
   virtual bool EnsureTextureHost(TextureIdentifier aTextureId,
                                  const SurfaceDescriptor& aSurface,
@@ -192,15 +189,6 @@ public:
     MOZ_NOT_REACHED("Does nothing");
     return false;
   }
-
-  virtual void SetCompositor(Compositor* aCompositor) MOZ_OVERRIDE
-  {
-    CompositableHost::SetCompositor(aCompositor);
-    mVideoMemoryTiledBuffer.SetCompositor(aCompositor);
-    mLowPrecisionVideoMemoryTiledBuffer.SetCompositor(aCompositor);
-  }
-
-  virtual void Attach(Layer* aLayer, Compositor* aCompositor) MOZ_OVERRIDE;
 
 #ifdef MOZ_LAYERS_HAVE_LOG
   virtual void PrintInfo(nsACString& aTo, const char* aPrefix);

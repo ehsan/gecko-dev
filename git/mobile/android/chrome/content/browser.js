@@ -150,10 +150,6 @@ function sendMessageToJava(aMessage) {
   return getBridge().handleGeckoMessage(JSON.stringify(aMessage));
 }
 
-function fuzzyEquals(a, b) {
-  return (Math.abs(a - b) < 1e-6);
-}
-
 #ifdef MOZ_CRASHREPORTER
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 XPCOMUtils.defineLazyServiceGetter(this, "CrashReporter",
@@ -385,13 +381,6 @@ var BrowserApp = {
         let newtabStrings = Strings.browser.GetStringFromName("newprivatetabpopup.opened");
         let label = PluralForm.get(1, newtabStrings).replace("#1", 1);
         NativeWindow.toast.show(label, "short");
-      });
-
-    NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.addToReadingList"),
-      NativeWindow.contextmenus.linkOpenableContext,
-      function(aTarget) {
-        let url = NativeWindow.contextmenus._getLinkURL(aTarget);
-        Services.obs.notifyObservers(null, "Reader:Add", JSON.stringify({ url: url }));
       });
 
     NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.copyLink"),
@@ -636,8 +625,6 @@ var BrowserApp = {
     aTab.setResolution(aTab._zoom, true);
     this.displayedDocumentChanged();
     this.deck.selectedPanel = aTab.browser;
-    // Focus the browser so that things like selection will be styled correctly.
-    aTab.browser.focus();
   },
 
   get selectedBrowser() {
@@ -2593,7 +2580,7 @@ Tab.prototype = {
   },
 
   getActive: function getActive() {
-    return this.browser.docShellIsActive;
+      return this.browser.docShellIsActive;
   },
 
   setDisplayPort: function(aDisplayPort) {
@@ -2626,7 +2613,7 @@ Tab.prototype = {
         this._drawZoom = resolution;
         cwu.setResolution(resolution, resolution);
       }
-    } else if (!fuzzyEquals(resolution, zoom)) {
+    } else if (Math.abs(resolution - zoom) >= 1e-6) {
       dump("Warning: setDisplayPort resolution did not match zoom for background tab! (" + resolution + " != " + zoom + ")");
     }
 
@@ -2648,11 +2635,12 @@ Tab.prototype = {
       height: (aDisplayPort.bottom - aDisplayPort.top) / resolution
     };
 
+    let epsilon = 0.001;
     if (this._oldDisplayPort == null ||
-        !fuzzyEquals(displayPort.x, this._oldDisplayPort.x) ||
-        !fuzzyEquals(displayPort.y, this._oldDisplayPort.y) ||
-        !fuzzyEquals(displayPort.width, this._oldDisplayPort.width) ||
-        !fuzzyEquals(displayPort.height, this._oldDisplayPort.height)) {
+        Math.abs(displayPort.x - this._oldDisplayPort.x) > epsilon ||
+        Math.abs(displayPort.y - this._oldDisplayPort.y) > epsilon ||
+        Math.abs(displayPort.width - this._oldDisplayPort.width) > epsilon ||
+        Math.abs(displayPort.height - this._oldDisplayPort.height) > epsilon) {
       if (BrowserApp.gUseLowPrecision) {
         // Set the display-port to be 4x the size of the critical display-port,
         // on each dimension, giving us a 0.25x lower precision buffer around the
@@ -2848,13 +2836,15 @@ Tab.prototype = {
 
     // Adjust the max line box width to be no more than the viewport width, but
     // only if the reflow-on-zoom preference is enabled.
-    let isZooming = Math.abs(aViewport.zoom - this._zoom) >= 1e-6;
-    if (isZooming &&
-        BrowserEventHandler.mReflozPref &&
-        BrowserApp.selectedTab._mReflozPoint &&
-        BrowserApp.selectedTab.probablyNeedRefloz) {
-      BrowserApp.selectedTab.performReflowOnZoom(aViewport);
-      BrowserApp.selectedTab.probablyNeedRefloz = false;
+    if (BrowserEventHandler.mReflozPref && BrowserEventHandler._mLastPinchData) {
+      let webNav = window.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
+      let docShell = webNav.QueryInterface(Ci.nsIDocShell);
+      let docViewer = docShell.contentViewer.QueryInterface(Ci.nsIMarkupDocumentViewer);
+      let viewportWidth = gScreenWidth / aViewport.zoom;
+      // We add in a bit of fudge just so that the end characters don't accidentally
+      // get clipped. 15px is an arbitrary choice.
+      docViewer.changeMaxLineBoxWidth(viewportWidth - 15);
+      BrowserEventHandler._mLastPinchData = null;
     }
 
     let win = this.browser.contentWindow;
@@ -2885,7 +2875,7 @@ Tab.prototype = {
 
   setResolution: function(aZoom, aForce) {
     // Set zoom level
-    if (aForce || !fuzzyEquals(aZoom, this._zoom)) {
+    if (aForce || Math.abs(aZoom - this._zoom) >= 1e-6) {
       this._zoom = aZoom;
       if (BrowserApp.selectedTab == this) {
         let cwu = window.top.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
@@ -3580,7 +3570,7 @@ Tab.prototype = {
   },
 
   setBrowserSize: function(aWidth, aHeight) {
-    if (fuzzyEquals(this.browserWidth, aWidth) && fuzzyEquals(this.browserHeight, aHeight)) {
+    if (Math.abs(this.browserWidth - aWidth) < 1e-6 && Math.abs(this.browserHeight - aHeight) < 1e-6) {
       return;
     }
 
@@ -3900,9 +3890,7 @@ var BrowserEventHandler = {
         break;
 
       case "MozMagnifyGesture":
-        if (BrowserEventHandler.mReflozPref) {
-          this.onPinchFinish(aData, BrowserApp.selectedTab._mReflozPoint.x, BrowserApp.selectedTab._mReflozPoint.y);
-        }
+        this.onPinchFinish(aData, this._mLastPinchPoint.x, this._mLastPinchPoint.y);
         break;
 
       default:
@@ -3935,7 +3923,7 @@ var BrowserEventHandler = {
     let dw = (aRect.width - vRect.width);
     let dx = (aRect.x - vRect.x);
 
-    if (fuzzyEquals(aViewport.zoom, maxZoomAllowed) && overlap.width / aRect.width > 0.9) {
+    if (Math.abs(aViewport.zoom - maxZoomAllowed) < 1e-6 && overlap.width / aRect.width > 0.9) {
       // we're already at the max zoom and the block is not spilling off the side of the screen so that even
       // if the block isn't taking up most of the viewport we can't pan/zoom in any more. return true so that we zoom out
       return true;
@@ -4013,37 +4001,21 @@ var BrowserEventHandler = {
     sendMessageToJava(rect);
   },
 
-  _zoomInAndSnapToRange: function(aRange) {
-    if (!aRange) {
-      Cu.reportError("aRange is null in zoomInAndSnapToRange. Unable to maintain position.");
+  _zoomInAndSnapToElement: function(aX, aY, aElement) {
+    let viewport = BrowserApp.selectedTab.getViewport();
+    if (viewport.zoom < 1.0) {
+      // We don't want to do this on zoom out.
       return;
     }
 
-    let viewport = BrowserApp.selectedTab.getViewport();
     let fudge = 15; // Add a bit of fudge.
-    let boundingElement = aRange.offsetNode;
-    while (!boundingElement.getBoundingClientRect && boundingElement.parentNode) {
-      boundingElement = boundingElement.parentNode;
-    }
+    let win = BrowserApp.selectedBrowser.contentWindow;
 
-    let rect = ElementTouchHelper.getBoundingContentRect(boundingElement);
-    let drRect = aRange.getClientRect();
-    let scrollTop =
-      BrowserApp.selectedBrowser.contentDocument.documentElement.scrollTop ||
-      BrowserApp.selectedBrowser.contentDocument.body.scrollTop;
-
-    // We subtract half the height of the viewport so that we can (ideally)
-    // center the area of interest on the screen.
-    let topPos = scrollTop + drRect.top - (viewport.cssHeight / 2.0);
-
-    // Factor in the border and padding
-    let boundingStyle = window.getComputedStyle(boundingElement);
-    let leftAdjustment = parseInt(boundingStyle.paddingLeft) +
-                         parseInt(boundingStyle.borderLeftWidth);
+    let rect = ElementTouchHelper.getBoundingContentRect(aElement);
 
     rect.type = "Browser:ZoomToRect";
-    rect.x = Math.max(viewport.cssPageLeft, rect.x  - fudge + leftAdjustment);
-    rect.y = Math.max(topPos, viewport.cssPageTop);
+    rect.x = Math.max(viewport.cssPageLeft, rect.x  - fudge);
+    rect.y = viewport.cssY;
     rect.w = viewport.cssWidth;
     rect.h = viewport.cssHeight;
 
@@ -4051,25 +4023,18 @@ var BrowserEventHandler = {
    },
 
    onPinch: function(aData) {
-     // We only want to do this if reflow-on-zoom is enabled.
-     if (BrowserEventHandler.mReflozPref &&
-         !BrowserApp.selectedTab._mReflozPoint) {
-       let data = JSON.parse(aData);
-       let zoomPointX = data.x;
-       let zoomPointY = data.y;
-
-       BrowserApp.selectedTab._mReflozPoint = { x: zoomPointX, y: zoomPointY,
-         range: BrowserApp.selectedBrowser.contentDocument.caretPositionFromPoint(zoomPointX, zoomPointY) };
-         BrowserApp.selectedTab.probablyNeedRefloz = true;
-     }
+     let data = JSON.parse(aData);
+     this._mLastPinchPoint = {x: data.x, y: data.y};
    },
 
    onPinchFinish: function(aData, aX, aY) {
-     // We only want to do this if reflow-on-zoom is enabled.
-     if (BrowserEventHandler.mReflozPref) {
-       let range = BrowserApp.selectedTab._mReflozPoint.range;
-       this._zoomInAndSnapToRange(range);
-       BrowserApp.selectedTab._mReflozPoint = null;
+     if (this.mReflozPref) {
+       let data = JSON.parse(aData);
+       let pinchElement = ElementTouchHelper.anyElementFromPoint(aX, aY);
+       data.element = pinchElement;
+       BrowserApp.selectedTab._mLastPinchElement = pinchElement;
+       this._mLastPinchData = data;
+       this._zoomInAndSnapToElement(data.x, data.y, data.element);
      }
    },
 
@@ -4089,6 +4054,8 @@ var BrowserEventHandler = {
   _scrollableElement: null,
 
   _highlightElement: null,
+
+  _mLastPinchData: null,
 
   _doTapHighlight: function _doTapHighlight(aElement) {
     DOMUtils.setContentState(aElement, kStateActive);
@@ -6522,10 +6489,6 @@ let Reader = {
 
   DEBUG: 0,
 
-  READER_ADD_SUCCESS: 0,
-  READER_ADD_FAILED: 1,
-  READER_ADD_DUPLICATE: 2,
-
   // Don't try to parse the page if it has too many elements (for memory and
   // performance reasons)
   MAX_ELEMS_TO_PARSE: 3000,
@@ -6541,62 +6504,30 @@ let Reader = {
   observe: function(aMessage, aTopic, aData) {
     switch(aTopic) {
       case "Reader:Add": {
-        let args = JSON.parse(aData);
+        let tab = BrowserApp.getTabForId(aData);
+        let currentURI = tab.browser.currentURI;
+        let url = currentURI.spec;
 
-        let tabID = null;
-        let url, urlWithoutRef;
-
-        if ('tabID' in args) {
-          tabID = args.tabID;
-
-          let tab = BrowserApp.getTabForId(tabID);
-          let currentURI = tab.browser.currentURI;
-
-          url = currentURI.spec;
-          urlWithoutRef = currentURI.specIgnoringRef;
-        } else if ('url' in args) {
-          let uri = Services.io.newURI(args.url, null, null);
-          url = uri.spec;
-          urlWithoutRef = uri.specIgnoringRef;
-        } else {
-          throw new Error("Reader:Add requires a tabID or an URL as argument");
-        }
-
-        let sendResult = function(result, title) {
-          this.log("Reader:Add success=" + result + ", url=" + url + ", title=" + title);
+        let sendResult = function(success, title) {
+          this.log("Reader:Add success=" + success + ", url=" + url + ", title=" + title);
 
           sendMessageToJava({
             type: "Reader:Added",
-            result: result,
+            success: success,
             title: title,
             url: url,
           });
         }.bind(this);
 
-        let handleArticle = function(article) {
+        this.getArticleForTab(aData, currentURI.specIgnoringRef, function (article) {
           if (!article) {
-            sendResult(this.READER_ADD_FAILED, "");
+            sendResult(false, "");
             return;
           }
 
           this.storeArticleInCache(article, function(success) {
-            let result = (success ? this.READER_ADD_SUCCESS : this.READER_ADD_FAILED);
-            sendResult(result, article.title);
-          }.bind(this));
-        }.bind(this);
-
-        this.getArticleFromCache(urlWithoutRef, function (article) {
-          // If the article is already in reading list, bail
-          if (article) {
-            sendResult(this.READER_ADD_DUPLICATE, "");
-            return;
-          }
-
-          if (tabID != null) {
-            this.getArticleForTab(tabID, urlWithoutRef, handleArticle);
-          } else {
-            this.parseDocumentFromURL(urlWithoutRef, handleArticle);
-          }
+            sendResult(success, article.title);
+          });
         }.bind(this));
         break;
       }

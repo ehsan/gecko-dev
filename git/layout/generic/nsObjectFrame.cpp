@@ -1534,12 +1534,34 @@ nsObjectFrame::GetPaintedRect(nsDisplayPlugin* aItem)
   return r;
 }
 
+void
+nsObjectFrame::UpdateImageLayer(const gfxRect& aRect)
+{
+  if (!mInstanceOwner) {
+    return;
+  }
+
+#ifdef XP_MACOSX
+  if (!mInstanceOwner->UseAsyncRendering()) {
+    mInstanceOwner->DoCocoaEventDrawRect(aRect, nullptr);
+  }
+#endif
+}
+
 LayerState
 nsObjectFrame::GetLayerState(nsDisplayListBuilder* aBuilder,
                              LayerManager* aManager)
 {
   if (!mInstanceOwner)
     return LAYER_NONE;
+
+#ifdef XP_MACOSX
+  if (!mInstanceOwner->UseAsyncRendering() &&
+      mInstanceOwner->IsRemoteDrawingCoreAnimation() &&
+      mInstanceOwner->GetEventModel() == NPEventModelCocoa) {
+    return LAYER_ACTIVE;
+  }
+#endif
 
 #ifdef MOZ_WIDGET_ANDROID
   // We always want a layer on Honeycomb and later
@@ -1604,11 +1626,7 @@ nsObjectFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
 
     NS_ASSERTION(layer->GetType() == Layer::TYPE_IMAGE, "Bad layer type");
     ImageLayer* imglayer = static_cast<ImageLayer*>(layer.get());
-#ifdef XP_MACOSX
-    if (!mInstanceOwner->UseAsyncRendering()) {
-      mInstanceOwner->DoCocoaEventDrawRect(r, nullptr);
-    }
-#endif
+    UpdateImageLayer(r);
 
     imglayer->SetScaleToSize(size, ImageLayer::SCALE_STRETCH);
     imglayer->SetContainer(container);

@@ -21,24 +21,25 @@ namespace mozilla {
 namespace layers {
 
 /* static */ TemporaryRef<ImageClient>
-ImageClient::CreateImageClient(CompositableType aCompositableHostType,
+ImageClient::CreateImageClient(LayersBackend aParentBackend,
+                               CompositableType aCompositableHostType,
                                CompositableForwarder* aForwarder,
                                TextureFlags aFlags)
 {
   RefPtr<ImageClient> result = nullptr;
   switch (aCompositableHostType) {
   case BUFFER_IMAGE_SINGLE:
-    if (aForwarder->GetCompositorBackendType() == LAYERS_OPENGL) {
+    if (aParentBackend == LAYERS_OPENGL) {
       result = new ImageClientSingle(aForwarder, aFlags, BUFFER_IMAGE_SINGLE);
     }
     break;
   case BUFFER_IMAGE_BUFFERED:
-    if (aForwarder->GetCompositorBackendType() == LAYERS_OPENGL) {
+    if (aParentBackend == LAYERS_OPENGL) {
       result = new ImageClientSingle(aForwarder, aFlags, BUFFER_IMAGE_BUFFERED);
     }
     break;
   case BUFFER_BRIDGE:
-    if (aForwarder->GetCompositorBackendType() == LAYERS_OPENGL) {
+    if (aParentBackend == LAYERS_OPENGL) {
       result = new ImageClientBridge(aForwarder, aFlags);
     }
     break;

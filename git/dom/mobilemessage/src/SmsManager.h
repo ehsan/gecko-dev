@@ -24,7 +24,7 @@ public:
   NS_DECL_NSIOBSERVER
   NS_DECL_NSIDOMMOZSMSMANAGER
 
-  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper)
+  NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
 
   static already_AddRefed<SmsManager>
   CreateInstanceIfAllowed(nsPIDOMWindow *aWindow);

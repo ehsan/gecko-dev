@@ -22,14 +22,6 @@ GLContextProviderNull::CreateOffscreen(const gfxIntSize&,
     return nullptr;
 }
 
-SharedTextureHandle
-GLContextProviderNull::CreateSharedHandle(GLContext::SharedTextureShareType shareType,
-                                          void* buffer,
-                                          GLContext::SharedTextureBufferType bufferType)
-{
-  return 0;
-}
-
 GLContext*
 GLContextProviderNull::GetGlobalContext(ContextFlags)
 {

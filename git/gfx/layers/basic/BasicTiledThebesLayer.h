@@ -94,7 +94,8 @@ private:
    */
   void EndPaint(bool aFinish);
 
-  RefPtr<TiledContentClient> mContentClient;
+  BasicTiledLayerBuffer mTiledBuffer;
+  BasicTiledLayerBuffer mLowPrecisionTiledBuffer;
   nsIntRegion mLowPrecisionValidRegion;
   BasicTiledLayerPaintData mPaintData;
 };

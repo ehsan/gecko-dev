@@ -48,9 +48,10 @@ class SurfaceDescriptor;
 class CompositableHost : public RefCounted<CompositableHost>
 {
 public:
-  CompositableHost(const TextureInfo& aTextureInfo)
+  CompositableHost(const TextureInfo& aTextureInfo,
+                   Compositor* aCompositor = nullptr)
     : mTextureInfo(aTextureInfo)
-    , mCompositor(nullptr)
+    , mCompositor(aCompositor)
     , mLayer(nullptr)
   {
     MOZ_COUNT_CTOR(CompositableHost);
@@ -61,7 +62,8 @@ public:
     MOZ_COUNT_DTOR(CompositableHost);
   }
 
-  static TemporaryRef<CompositableHost> Create(const TextureInfo& aTextureInfo);
+  static TemporaryRef<CompositableHost> Create(const TextureInfo& aTextureInfo,
+                                               Compositor* aCompositor = nullptr);
 
   virtual CompositableType GetType() = 0;
 
@@ -144,9 +146,7 @@ public:
   Layer* GetLayer() const { return mLayer; }
   void SetLayer(Layer* aLayer) { mLayer = aLayer; }
 
-  virtual TiledLayerComposer* AsTiledLayerComposer() { return nullptr; }
-
-  virtual void Attach(Layer* aLayer, Compositor* aCompositor)
+  void Attach(Layer* aLayer, Compositor* aCompositor)
   {
     SetCompositor(aCompositor);
     SetLayer(aLayer);

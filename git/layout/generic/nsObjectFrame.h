@@ -159,6 +159,8 @@ public:
   virtual bool ReflowFinished() MOZ_OVERRIDE;
   virtual void ReflowCallbackCanceled() MOZ_OVERRIDE;
 
+  void UpdateImageLayer(const gfxRect& aRect);
+
   /**
    * Builds either an ImageLayer or a ReadbackLayer, depending on the type
    * of aItem (TYPE_PLUGIN or TYPE_PLUGIN_READBACK respectively).

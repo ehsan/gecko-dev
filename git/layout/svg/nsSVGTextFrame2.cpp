@@ -993,13 +993,10 @@ TextRenderedRun::GetCharNumAtPosition(nsPresContext* aContext,
     return -1;
   }
 
-  float cssPxPerDevPx = aContext->
-    AppUnitsToFloatCSSPixels(aContext->AppUnitsPerDevPixel());
-
   // Convert the point from user space into run user space, and take
   // into account any mFontSizeScaleFactor.
   gfxMatrix m = GetTransformFromRunUserSpaceToUserSpace(aContext).Invert();
-  gfxPoint p = m.Transform(aPoint) / cssPxPerDevPx * mFontSizeScaleFactor;
+  gfxPoint p = m.Transform(aPoint) * mFontSizeScaleFactor;
 
   // First check that the point lies vertically between the top and bottom
   // edges of the text.
@@ -3635,27 +3632,18 @@ nsSVGTextFrame2::ConvertTextElementCharIndexToAddressableIndex(
                                                            int32_t aIndex,
                                                            nsIContent* aContent)
 {
-  CharIterator it(this, CharIterator::eOriginal, aContent);
+  CharIterator it(this, CharIterator::eAddressable, aContent);
   if (!it.AdvanceToSubtree()) {
     return -1;
   }
-  int32_t result = 0;
-  int32_t textElementCharIndex;
+  uint32_t result = 0;
   while (!it.AtEnd() &&
-         it.IsWithinSubtree()) {
-    bool addressable = !it.IsOriginalCharUnaddressable();
-    textElementCharIndex = it.TextElementCharIndex();
+         it.IsWithinSubtree() &&
+         it.TextElementCharIndex() < static_cast<uint32_t>(aIndex)) {
+    result++;
     it.Next();
-    uint32_t delta = it.TextElementCharIndex() - textElementCharIndex;
-    aIndex -= delta;
-    if (addressable) {
-      if (aIndex < 0) {
-        return result;
-      }
-      result += delta;
-    }
   }
-  return -1;
+  return result;
 }
 
 /**
@@ -3828,7 +3816,7 @@ nsSVGTextFrame2::GetCharNumAtPosition(nsIContent* aContent,
     // Hit test this rendered run.  Later runs will override earlier ones.
     int32_t index = run.GetCharNumAtPosition(context, p);
     if (index != -1) {
-      result = index + run.mTextElementCharIndex;
+      result = index + run.mTextElementCharIndex - run.mTextFrameContentOffset;
     }
   }
 
@@ -4673,7 +4661,11 @@ nsSVGTextFrame2::DoGlyphPositioning()
     }
     // Fill in unspecified rotation values.
     if (!mPositions[i].IsAngleSpecified()) {
-      mPositions[i].mAngle = 0.0f;
+      mPositions[i].mAngle = mPositions[i - 1].mAngle;
+      if (mPositions[i].mAngle != 0.0f) {
+        // Any non-zero rotation must begin a run boundary.
+        mPositions[i].mRunBoundary = true;
+      }
     }
   }
 

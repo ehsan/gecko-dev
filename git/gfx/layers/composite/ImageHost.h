@@ -24,8 +24,8 @@ public:
   TextureHost* GetTextureHost() MOZ_OVERRIDE { return nullptr; }
 
 protected:
-  ImageHost(const TextureInfo& aTextureInfo)
-  : CompositableHost(aTextureInfo)
+  ImageHost(const TextureInfo& aTextureInfo, Compositor* aCompositor)
+  : CompositableHost(aTextureInfo, aCompositor)
   {
     MOZ_COUNT_CTOR(ImageHost);
   }
@@ -40,8 +40,8 @@ protected:
 class ImageHostSingle : public ImageHost
 {
 public:
-  ImageHostSingle(const TextureInfo& aTextureInfo)
-    : ImageHost(aTextureInfo)
+  ImageHostSingle(const TextureInfo& aTextureInfo, Compositor* aCompositor)
+    : ImageHost(aTextureInfo, aCompositor)
     , mTextureHost(nullptr)
     , mHasPictureRect(false)
   {}
@@ -99,8 +99,8 @@ protected:
 class ImageHostBuffered : public ImageHostSingle
 {
 public:
-  ImageHostBuffered(const TextureInfo& aTextureInfo)
-    : ImageHostSingle(aTextureInfo)
+  ImageHostBuffered(const TextureInfo& aTextureInfo, Compositor* aCompositor)
+    : ImageHostSingle(aTextureInfo, aCompositor)
   {}
 
   virtual bool Update(const SurfaceDescriptor& aImage,

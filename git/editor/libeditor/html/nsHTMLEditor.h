@@ -565,6 +565,7 @@ protected:
                                      nsIDOMNode **aTargetNode,       
                                      int32_t *aTargetOffset,   
                                      bool *aDoContinue);
+  nsresult   GetAttributeToModifyOnNode(nsIDOMNode *aNode, nsAString &aAttrib);
 
   bool       IsInLink(nsIDOMNode *aNode, nsCOMPtr<nsIDOMNode> *outLink = nullptr);
   nsresult   StripFormattingNodes(nsIDOMNode *aNode, bool aOnlyList = false);

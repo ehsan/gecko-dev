@@ -231,7 +231,7 @@ add_task(function test_restorePromptsReupload() {
     do_check_eq(wbos[0], bmk2_guid);
 
     _("Now restore from a backup.");
-    yield BookmarkJSONUtils.importFromFile(backupFile, true);
+    PlacesUtils.restoreBookmarksFromJSONFile(backupFile);
 
     _("Ensure we have the bookmarks we expect locally.");
     let guids = store.getAllIDs();

@@ -9,7 +9,6 @@ import org.mozilla.gecko.BrowserApp;
 import org.mozilla.gecko.Favicons;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.util.GamepadUtils;
-import org.mozilla.gecko.util.ThreadUtils;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -41,7 +40,7 @@ public class AddonsSection extends AboutHomeSection {
 
     private Context mContext;
     private BrowserApp mActivity;
-    private AboutHome.UriLoadListener mUriLoadListener;
+    private AboutHomeContent.UriLoadCallback mUriLoadCallback = null;
 
     private static Rect sIconBounds;
     private static TextAppearanceSpan sSubTitleSpan;
@@ -58,14 +57,14 @@ public class AddonsSection extends AboutHomeSection {
         setOnMoreTextClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (mUriLoadListener != null)
-                    mUriLoadListener.onAboutHomeUriLoad(mContext.getString(R.string.bookmarkdefaults_url_addons));
+                if (mUriLoadCallback != null)
+                    mUriLoadCallback.callback("https://addons.mozilla.org/android");
             }
         });
     }
 
-    public void setUriLoadListener(AboutHome.UriLoadListener uriLoadListener) {
-        mUriLoadListener = uriLoadListener;
+    public void setUriLoadCallback(AboutHomeContent.UriLoadCallback uriLoadCallback) {
+        mUriLoadCallback = uriLoadCallback;
     }
 
     private String readFromZipFile(String filename) {
@@ -75,6 +74,8 @@ public class AddonsSection extends AboutHomeSection {
             InputStream fileStream = null;
             File applicationPackage = new File(mActivity.getApplication().getPackageResourcePath());
             zip = new ZipFile(applicationPackage);
+            if (zip == null)
+                return null;
             ZipEntry fileEntry = zip.getEntry(filename);
             if (fileEntry == null)
                 return null;
@@ -138,88 +139,83 @@ public class AddonsSection extends AboutHomeSection {
     }
 
     public void readRecommendedAddons() {
-        ThreadUtils.postToBackgroundThread(new Runnable() {
+        final String addonsFilename = "recommended-addons.json";
+        String jsonString;
+        try {
+            jsonString = mActivity.getProfile().readFile(addonsFilename);
+        } catch (IOException ioe) {
+            Log.i(LOGTAG, "filestream is null");
+            jsonString = readFromZipFile(addonsFilename);
+        }
+
+        JSONArray addonsArray = null;
+        if (jsonString != null) {
+            try {
+                addonsArray = new JSONObject(jsonString).getJSONArray("addons");
+            } catch (JSONException e) {
+                Log.i(LOGTAG, "error reading json file", e);
+            }
+        }
+
+        final JSONArray array = addonsArray;
+        post(new Runnable() {
             @Override
             public void run() {
-                final String addonsFilename = "recommended-addons.json";
-                String jsonString;
                 try {
-                    jsonString = mActivity.getProfile().readFile(addonsFilename);
-                } catch (IOException ioe) {
-                    Log.i(LOGTAG, "filestream is null");
-                    jsonString = readFromZipFile(addonsFilename);
-                }
-
-                JSONArray addonsArray = null;
-                if (jsonString != null) {
-                    try {
-                        addonsArray = new JSONObject(jsonString).getJSONArray("addons");
-                    } catch (JSONException e) {
-                        Log.i(LOGTAG, "error reading json file", e);
+                    if (array == null || array.length() == 0) {
+                        hide();
+                        return;
                     }
-                }
 
-                final JSONArray array = addonsArray;
-                post(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            if (array == null || array.length() == 0) {
-                                hide();
-                                return;
+                    for (int i = 0; i < array.length(); i++) {
+                        JSONObject jsonobj = array.getJSONObject(i);
+                        String name = jsonobj.getString("name");
+                        String version = jsonobj.getString("version");
+                        String text = name + " " + version;
+
+                        SpannableString spannable = new SpannableString(text);
+                        spannable.setSpan(sSubTitleSpan, name.length() + 1, text.length(), 0);
+
+                        final TextView row = (TextView) LayoutInflater.from(mContext).inflate(R.layout.abouthome_addon_row, getItemsContainer(), false);
+                        row.setText(spannable, TextView.BufferType.SPANNABLE);
+
+                        Drawable drawable = mContext.getResources().getDrawable(R.drawable.ic_addons_empty);
+                        drawable.setBounds(sIconBounds);
+                        row.setCompoundDrawables(drawable, null, null, null);
+
+                        String iconUrl = jsonobj.getString("iconURL");
+                        String pageUrl = getPageUrlFromIconUrl(iconUrl);
+
+                        final String homepageUrl = jsonobj.getString("homepageURL");
+                        row.setOnClickListener(new View.OnClickListener() {
+                            @Override
+                            public void onClick(View v) {
+                                if (mUriLoadCallback != null)
+                                    mUriLoadCallback.callback(homepageUrl);
                             }
+                        });
+                        row.setOnKeyListener(GamepadUtils.getClickDispatcher());
 
-                            for (int i = 0; i < array.length(); i++) {
-                                JSONObject jsonobj = array.getJSONObject(i);
-                                String name = jsonobj.getString("name");
-                                String version = jsonobj.getString("version");
-                                String text = name + " " + version;
-
-                                SpannableString spannable = new SpannableString(text);
-                                spannable.setSpan(sSubTitleSpan, name.length() + 1, text.length(), 0);
-
-                                final TextView row = (TextView) LayoutInflater.from(mContext).inflate(R.layout.abouthome_addon_row, getItemsContainer(), false);
-                                row.setText(spannable, TextView.BufferType.SPANNABLE);
-
-                                Drawable drawable = mContext.getResources().getDrawable(R.drawable.ic_addons_empty);
-                                drawable.setBounds(sIconBounds);
-                                row.setCompoundDrawables(drawable, null, null, null);
-
-                                String iconUrl = jsonobj.getString("iconURL");
-                                String pageUrl = getPageUrlFromIconUrl(iconUrl);
-
-                                final String homepageUrl = jsonobj.getString("homepageURL");
-                                row.setOnClickListener(new View.OnClickListener() {
-                                    @Override
-                                    public void onClick(View v) {
-                                        if (mUriLoadListener != null)
-                                            mUriLoadListener.onAboutHomeUriLoad(homepageUrl);
-                                    }
-                                });
-                                row.setOnKeyListener(GamepadUtils.getClickDispatcher());
-
-                                Favicons favicons = Favicons.getInstance();
-                                favicons.loadFavicon(pageUrl, iconUrl, true,
-                                            new Favicons.OnFaviconLoadedListener() {
-                                    @Override
-                                    public void onFaviconLoaded(String url, Bitmap favicon) {
-                                        if (favicon != null) {
-                                            Drawable drawable = new BitmapDrawable(favicon);
-                                            drawable.setBounds(sIconBounds);
-                                            row.setCompoundDrawables(drawable, null, null, null);
-                                        }
-                                    }
-                                });
-
-                                addItem(row);
+                        Favicons favicons = Favicons.getInstance();
+                        favicons.loadFavicon(pageUrl, iconUrl, true,
+                                    new Favicons.OnFaviconLoadedListener() {
+                            @Override
+                            public void onFaviconLoaded(String url, Bitmap favicon) {
+                                if (favicon != null) {
+                                    Drawable drawable = new BitmapDrawable(favicon);
+                                    drawable.setBounds(sIconBounds);
+                                    row.setCompoundDrawables(drawable, null, null, null);
+                                }
                             }
+                        });
 
-                            show();
-                        } catch (JSONException e) {
-                            Log.i(LOGTAG, "error reading json file", e);
-                        }
+                        addItem(row);
                     }
-                });
+
+                    show();
+                } catch (JSONException e) {
+                    Log.i(LOGTAG, "error reading json file", e);
+                }
             }
         });
     }
