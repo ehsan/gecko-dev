@@ -661,15 +661,7 @@ nsBaseWidget::AutoLayerManagerSetup::~AutoLayerManagerSetup()
 LayerManager* nsBaseWidget::GetLayerManager()
 {
   if (!mLayerManager) {
-    nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-
-    PRBool allowAcceleration = PR_TRUE;
-    if (prefs) {
-      prefs->GetBoolPref("mozilla.widget.accelerated-layers",
-                         &allowAcceleration);
-    }
-
-    if (mUseAcceleratedRendering && allowAcceleration) {
+    if (mUseAcceleratedRendering) {
       nsRefPtr<LayerManagerOGL> layerManager =
         new mozilla::layers::LayerManagerOGL(this);
       /**
