@@ -13,6 +13,7 @@ import android.text.TextUtils;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.Interpolator;
+import android.widget.TextView;
 
 import com.nineoldandroids.animation.Animator;
 import com.nineoldandroids.animation.AnimatorSet;
@@ -78,12 +79,16 @@ public class MainActivity extends LocaleAware.LocaleAwareFragmentActivity
     private static final Interpolator SUGGESTION_TRANSITION_INTERPOLATOR =
             new AccelerateDecelerateInterpolator();
 
-    // View used for suggestion animation.
+    // Views used for suggestion animation.
+    private TextView animationText;
     private View animationCard;
 
     // Suggestion card background padding.
     private int cardPaddingX;
     private int cardPaddingY;
+
+    // Vertical translation of suggestion animation text to align with the search bar.
+    private int textEndY;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -148,10 +153,12 @@ public class MainActivity extends LocaleAware.LocaleAwareFragmentActivity
 
         suggestions = findViewById(R.id.suggestions);
 
+        animationText = (TextView) findViewById(R.id.animation_text);
         animationCard = findViewById(R.id.animation_card);
 
-        cardPaddingX = getResources().getDimensionPixelSize(R.dimen.search_row_padding);
-        cardPaddingY = getResources().getDimensionPixelSize(R.dimen.search_row_padding);
+        cardPaddingX = getResources().getDimensionPixelSize(R.dimen.card_background_padding_x);
+        cardPaddingY = getResources().getDimensionPixelSize(R.dimen.card_background_padding_y);
+        textEndY = getResources().getDimensionPixelSize(R.dimen.animation_text_translation_y);
 
         if (savedInstanceState != null) {
             setSearchState(SearchState.valueOf(savedInstanceState.getString(KEY_SEARCH_STATE)));
@@ -185,6 +192,7 @@ public class MainActivity extends LocaleAware.LocaleAwareFragmentActivity
         postSearch = null;
         settingsButton = null;
         suggestions = null;
+        animationText = null;
         animationCard = null;
     }
 
@@ -237,9 +245,8 @@ public class MainActivity extends LocaleAware.LocaleAwareFragmentActivity
         startSearch(query);
 
         if (suggestionAnimation != null) {
-            searchBar.setText(query);
             // Animate the suggestion card if start bounds are specified.
-            animateSuggestion(suggestionAnimation);
+            animateSuggestion(query, suggestionAnimation);
         } else {
             // Otherwise immediately switch to the results view.
             setEditState(EditState.WAITING);
@@ -278,11 +285,17 @@ public class MainActivity extends LocaleAware.LocaleAwareFragmentActivity
     }
 
     /**
-     * Animates search suggestion item to fill the results view area.
+     * Animates search suggestion to search bar. This animation has 2 main parts:
      *
+     * 1) Vertically translate query text from suggestion card to search bar.
+     * 2) Expand suggestion card to fill the results view area.
+     *
+     * @param query
      * @param suggestionAnimation
      */
-    private void animateSuggestion(final SuggestionAnimation suggestionAnimation) {
+    private void animateSuggestion(final String query, final SuggestionAnimation suggestionAnimation) {
+        animationText.setText(query);
+
         final Rect startBounds = suggestionAnimation.getStartBounds();
         final Rect endBounds = new Rect();
         animationCard.getGlobalVisibleRect(endBounds, null);
@@ -294,10 +307,12 @@ public class MainActivity extends LocaleAware.LocaleAwareFragmentActivity
         final float startScaleX = (float) (startBounds.width() - cardPaddingX * 2) / endBounds.width();
         final float startScaleY = (float) (startBounds.height() - cardPaddingY * 2) / endBounds.height();
 
+        animationText.setVisibility(View.VISIBLE);
         animationCard.setVisibility(View.VISIBLE);
 
         final AnimatorSet set = new AnimatorSet();
         set.playTogether(
+                ObjectAnimator.ofFloat(animationText, "translationY", startBounds.top, textEndY),
                 ObjectAnimator.ofFloat(animationCard, "translationY", cardStartY, 0),
                 ObjectAnimator.ofFloat(animationCard, "alpha", 0.5f, 1),
                 ObjectAnimator.ofFloat(animationCard, "scaleX", startScaleX, 1f),
@@ -314,8 +329,13 @@ public class MainActivity extends LocaleAware.LocaleAwareFragmentActivity
                 setEditState(EditState.WAITING);
                 setSearchState(SearchState.POSTSEARCH);
 
+                searchBar.setText(query);
+
                 // We need to manually clear the animation for the views to be hidden on gingerbread.
+                animationText.clearAnimation();
                 animationCard.clearAnimation();
+
+                animationText.setVisibility(View.INVISIBLE);
                 animationCard.setVisibility(View.INVISIBLE);
             }
 

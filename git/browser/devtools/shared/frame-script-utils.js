@@ -16,7 +16,3 @@ addMessageListener("devtools:test:reload", function ({ data }) {
   data = data || {};
   content.location.reload(data.forceget);
 });
-
-addEventListener("load", function() {
-  sendAsyncMessage("devtools:test:load");
-}, true);

@@ -14,6 +14,8 @@ Cu.import("resource://gre/modules/Promise.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "LightweightThemeManager",
   "resource://gre/modules/LightweightThemeManager.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "PermissionsUtils",
+  "resource://gre/modules/PermissionsUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "ResetProfile",
   "resource://gre/modules/ResetProfile.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "CustomizableUI",
@@ -25,6 +27,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "BrowserUITelemetry",
 
 
 const UITOUR_PERMISSION   = "uitour";
+const PREF_PERM_BRANCH    = "browser.uitour.";
 const PREF_SEENPAGEIDS    = "browser.uitour.seenPageIDs";
 const MAX_BUTTONS         = 4;
 
@@ -599,6 +602,14 @@ this.UITour = {
                            .wrappedJSObject;
   },
 
+  importPermissions: function() {
+    try {
+      PermissionsUtils.importFromPrefs(PREF_PERM_BRANCH, UITOUR_PERMISSION);
+    } catch (e) {
+      Cu.reportError(e);
+    }
+  },
+
   ensureTrustedOrigin: function(aDocument) {
     if (aDocument.defaultView.top != aDocument.defaultView)
       return false;
@@ -611,6 +622,7 @@ this.UITour = {
     if (!this.isSafeScheme(uri))
       return false;
 
+    this.importPermissions();
     let permission = Services.perms.testPermission(uri, UITOUR_PERMISSION);
     return permission == Services.perms.ALLOW_ACTION;
   },
