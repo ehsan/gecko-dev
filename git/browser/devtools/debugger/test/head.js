@@ -50,8 +50,8 @@ function removeTab(aTab) {
 }
 
 function closeDebuggerAndFinish(aTab) {
-  DebuggerUI.chromeWindow.addEventListener("Debugger:Shutdown", function cleanup() {
-    DebuggerUI.chromeWindow.removeEventListener("Debugger:Shutdown", cleanup, false);
+  DebuggerUI.aWindow.addEventListener("Debugger:Shutdown", function cleanup() {
+    DebuggerUI.aWindow.removeEventListener("Debugger:Shutdown", cleanup, false);
     finish();
   }, false);
   DebuggerUI.getDebugger(aTab).close();
@@ -96,13 +96,12 @@ function debug_tab_pane(aURL, aOnDebugging)
     let debuggee = tab.linkedBrowser.contentWindow.wrappedJSObject;
 
     let pane = DebuggerUI.toggleDebugger();
-    pane._frame.addEventListener("Debugger:Connecting", function dbgConnected() {
-      pane._frame.removeEventListener("Debugger:Connecting", dbgConnected, true);
-
+    pane.onConnected = function() {
       // Wait for the initial resume...
       pane.debuggerWindow.gClient.addOneTimeListener("resumed", function() {
+        delete pane.onConnected;
         aOnDebugging(tab, debuggee, pane);
       });
-    }, true);
+    };
   });
 }

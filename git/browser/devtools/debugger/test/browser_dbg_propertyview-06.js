@@ -20,7 +20,7 @@ function test() {
 }
 
 function testSimpleCall() {
-  gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
+  gPane.activeThread.addOneTimeListener("framesadded", function() {
     Services.tm.currentThread.dispatch({ run: function() {
 
       let globalScope = gDebugger.DebuggerView.Properties.globalScope;
@@ -117,7 +117,7 @@ function testSimpleCall() {
       is(localVar5.querySelector(".info").textContent, "[object Object]",
         "The grip information for the localVar5 wasn't set correctly.");
 
-      gDebugger.DebuggerController.activeThread.resume(function() {
+      gDebugger.StackFrames.activeThread.resume(function() {
         closeDebuggerAndFinish(gTab);
       });
     }}, 0);

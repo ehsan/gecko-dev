@@ -31,11 +31,11 @@ function test()
 }
 
 function testSelectLine() {
-  gDebugger.DebuggerController.activeThread.addOneTimeListener("scriptsadded", function() {
+  gPane.activeThread.addOneTimeListener("scriptsadded", function() {
     Services.tm.currentThread.dispatch({ run: function() {
       gScripts = gDebugger.DebuggerView.Scripts._scripts;
 
-      is(gDebugger.DebuggerController.activeThread.state, "paused",
+      is(gDebugger.StackFrames.activeThread.state, "paused",
         "Should only be getting stack frames while paused.");
 
       is(gScripts.itemCount, 2, "Found the expected number of scripts.");
@@ -67,7 +67,7 @@ function testSelectLine() {
             is(gDebugger.editor.getCaretPosition().line, 4,
                "The correct line is selected.");
 
-            gDebugger.DebuggerController.activeThread.resume(function() {
+            gDebugger.StackFrames.activeThread.resume(function() {
               closeDebuggerAndFinish(gTab);
             });
           });

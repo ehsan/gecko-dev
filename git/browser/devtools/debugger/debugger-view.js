@@ -1,6 +1,6 @@
 /* -*- Mode: javascript; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ft=javascript ts=2 et sw=2 tw=80: */
-/* ***** BEGIN LICENSE BLOCK *****
+/* vim: set ts=2 et sw=2 tw=80: */
+/***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -32,12 +32,18 @@
  * under the terms of either the GPL or the LGPL, and not to allow others to
  * use your version of this file under the terms of the MPL, indicate your
  * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
+ * and other provisions required by the LGPL or the GPL. If you do not delete
  * the provisions above, a recipient may use your version of this file under
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
- * ***** END LICENSE BLOCK ***** */
+ ***** END LICENSE BLOCK *****/
 "use strict";
+
+const Cu = Components.utils;
+const DBG_STRINGS_URI = "chrome://browser/locale/devtools/debugger.properties";
+
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import('resource://gre/modules/Services.jsm');
 
 /**
  * Object mediating visual changes and event listeners between the debugger and
@@ -46,212 +52,35 @@
 let DebuggerView = {
 
   /**
-   * An instance of SourceEditor.
+   * L10N shortcut function
+   *
+   * @param string aName
+   * @return string
    */
-  editor: null,
-
-  /**
-   * Initializes the SourceEditor instance.
-   */
-  initializeEditor: function DV_initializeEditor() {
-    let placeholder = document.getElementById("editor");
-
-    let config = {
-      mode: SourceEditor.MODES.JAVASCRIPT,
-      showLineNumbers: true,
-      readOnly: true,
-      showAnnotationRuler: true,
-      showOverviewRuler: true,
-    };
-
-    this.editor = new SourceEditor();
-    this.editor.init(placeholder, config, this._onEditorLoad.bind(this));
+  getStr: function DV_getStr(aName) {
+    return this.stringBundle.GetStringFromName(aName);
   },
 
   /**
-   * Removes the SourceEditor instance and added breakpoints.
+   * L10N shortcut function
+   *
+   * @param string aName
+   * @param array aArray
+   * @return string
    */
-  destroyEditor: function DV_destroyEditor() {
-    DebuggerController.Breakpoints.destroy();
-    this.editor = null;
-  },
-
-  /**
-   * The load event handler for the source editor. This method does post-load
-   * editor initialization.
-   */
-  _onEditorLoad: function DV__onEditorLoad() {
-    DebuggerController.Breakpoints.initialize();
+  getFormatStr: function DV_getFormatStr(aName, aArray) {
+    return this.stringBundle.formatStringFromName(aName, aArray, aArray.length);
   }
 };
 
-/**
- * Functions handling the scripts UI.
- */
-function ScriptsView() {
-  this._onScriptsChange = this._onScriptsChange.bind(this);
-}
-
-ScriptsView.prototype = {
-
-  /**
-   * Removes all elements from the scripts container, leaving it empty.
-   */
-  empty: function DVS_empty() {
-    while (this._scripts.firstChild) {
-      this._scripts.removeChild(this._scripts.firstChild);
-    }
-  },
-
-  /**
-   * Checks whether the script with the specified URL is among the scripts
-   * known to the debugger and shown in the list.
-   *
-   * @param string aUrl
-   *        The script URL.
-   * @return boolean
-   */
-  contains: function DVS_contains(aUrl) {
-    if (this._scripts.getElementsByAttribute("value", aUrl).length > 0) {
-      return true;
-    }
-    return false;
-  },
-
-  /**
-   * Checks whether the script with the specified label is among the scripts
-   * known to the debugger and shown in the list.
-   *
-   * @param string aLabel
-   *        The script label.
-   * @return boolean
-   */
-  containsLabel: function DVS_containsLabel(aLabel) {
-    if (this._scripts.getElementsByAttribute("label", aLabel).length > 0) {
-      return true;
-    }
-    return false;
-  },
-
-  /**
-   * Selects the script with the specified URL from the list.
-   *
-   * @param string aUrl
-   *        The script URL.
-   */
-  selectScript: function DVS_selectScript(aUrl) {
-    for (let i = 0, l = this._scripts.itemCount; i < l; i++) {
-      if (this._scripts.getItemAtIndex(i).value == aUrl) {
-        this._scripts.selectedIndex = i;
-        return;
-      }
-    }
-  },
-
-  /**
-   * Checks whether the script with the specified URL is selected in the list.
-   *
-   * @param string aUrl
-   *        The script URL.
-   */
-  isSelected: function DVS_isSelected(aUrl) {
-    if (this._scripts.selectedItem &&
-        this._scripts.selectedItem.value == aUrl) {
-      return true;
-    }
-    return false;
-  },
-
-  /**
-   * Retrieve the URL of the selected script.
-   * @return string | null
-   */
-  get selected() {
-    return this._scripts.selectedItem ?
-           this._scripts.selectedItem.value : null;
-  },
-
-  /**
-   * Returns the list of URIs for scripts in the page.
-   * @return array
-   */
-  get scriptLocations() {
-    let locations = [];
-    for (let i = 0, l = this._scripts.itemCount; i < l; i++) {
-      locations.push(this._scripts.getItemAtIndex(i).value);
-    }
-    return locations;
-  },
-
-  /**
-   * Adds a script to the scripts container.
-   * If the script already exists (was previously added), null is returned.
-   * Otherwise, the newly created element is returned.
-   *
-   * @param string aLabel
-   *        The simplified script location to be shown.
-   * @param string aScript
-   *        The source script.
-   * @return object
-   *         The newly created html node representing the added script.
-   */
-  addScript: function DVS_addScript(aLabel, aScript) {
-    // Make sure we don't duplicate anything.
-    if (this.containsLabel(aLabel)) {
-      return null;
-    }
-
-    let script = this._scripts.appendItem(aLabel, aScript.url);
-    script.setAttribute("tooltiptext", aScript.url);
-    script.setUserData("sourceScript", aScript, null);
-
-    this._scripts.selectedItem = script;
-    return script;
-  },
-
-  /**
-   * The cached click listener for the scripts container.
-   */
-  _onScriptsChange: function DVS__onScriptsChange() {
-    let script = this._scripts.selectedItem.getUserData("sourceScript");
-    DebuggerController.SourceScripts.showScript(script);
-  },
-
-  /**
-   * The cached scripts container.
-   */
-  _scripts: null,
-
-  /**
-   * Initialization function, called when the debugger is initialized.
-   */
-  initialize: function DVS_initialize() {
-    this._scripts = document.getElementById("scripts");
-    this._scripts.addEventListener("select", this._onScriptsChange, false);
-  },
-
-  /**
-   * Destruction function, called when the debugger is shut down.
-   */
-  destroy: function DVS_destroy() {
-    this._scripts.removeEventListener("select", this._onScriptsChange, false);
-    this._scripts = null;
-  }
-};
+XPCOMUtils.defineLazyGetter(DebuggerView, "stringBundle", function() {
+  return Services.strings.createBundle(DBG_STRINGS_URI);
+});
 
 /**
  * Functions handling the html stackframes UI.
  */
-function StackFramesView() {
-  this._onFramesScroll = this._onFramesScroll.bind(this);
-  this._onCloseButtonClick = this._onCloseButtonClick.bind(this);
-  this._onResumeButtonClick = this._onResumeButtonClick.bind(this);
-  this._onStepOverClick = this._onStepOverClick.bind(this);
-  this._onStepInClick = this._onStepInClick.bind(this);
-  this._onStepOutClick = this._onStepOutClick.bind(this);
-}
-
-StackFramesView.prototype = {
+DebuggerView.Stackframes = {
 
   /**
    * Sets the current frames state based on the debugger active thread state.
@@ -264,19 +93,29 @@ StackFramesView.prototype = {
     let status = document.getElementById("status");
 
     // If we're paused, show a pause label and a resume label on the button.
-    if (aState == "paused") {
-      status.textContent = L10N.getStr("pausedState");
-      resume.label = L10N.getStr("resumeLabel");
-    }
-    // If we're attached, do the opposite.
-    else if (aState == "attached") {
-      status.textContent = L10N.getStr("runningState");
-      resume.label = L10N.getStr("pauseLabel");
-    }
-    // No valid state parameter.
-    else {
+    if (aState === "paused") {
+      status.textContent = DebuggerView.getStr("pausedState");
+      resume.label = DebuggerView.getStr("resumeLabel");
+    } else if (aState === "attached") {
+      // If we're attached, do the opposite.
+      status.textContent = DebuggerView.getStr("runningState");
+      resume.label = DebuggerView.getStr("pauseLabel");
+    } else {
+      // No valid state parameter.
       status.textContent = "";
     }
+  },
+
+  /**
+   * Sets the onClick listener for the stackframes container.
+   *
+   * @param function aHandler
+   *        The delegate used as the event listener.
+   */
+  addClickListener: function DVF_addClickListener(aHandler) {
+    // save the handler so it can be removed on shutdown
+    this._onFramesClick = aHandler;
+    this._frames.addEventListener("click", aHandler, false);
   },
 
   /**
@@ -293,14 +132,14 @@ StackFramesView.prototype = {
    * with an empty text note attached.
    */
   emptyText: function DVF_emptyText() {
-    // Make sure the container is empty first.
+    // make sure the container is empty first
     this.empty();
 
     let item = document.createElement("div");
 
-    // The empty node should look grayed out to avoid confusion.
+    // the empty node should look grayed out to avoid confusion
     item.className = "empty list-item";
-    item.appendChild(document.createTextNode(L10N.getStr("emptyText")));
+    item.appendChild(document.createTextNode(DebuggerView.getStr("emptyText")));
 
     this._frames.appendChild(item);
   },
@@ -320,7 +159,7 @@ StackFramesView.prototype = {
    *         The newly created html node representing the added frame.
    */
   addFrame: function DVF_addFrame(aDepth, aFrameNameText, aFrameDetailsText) {
-    // Make sure we don't duplicate anything.
+    // make sure we don't duplicate anything
     if (document.getElementById("stackframe-" + aDepth)) {
       return null;
     }
@@ -329,11 +168,11 @@ StackFramesView.prototype = {
     let frameName = document.createElement("span");
     let frameDetails = document.createElement("span");
 
-    // Create a list item to be added to the stackframes container.
+    // create a list item to be added to the stackframes container
     frame.id = "stackframe-" + aDepth;
     frame.className = "dbg-stackframe list-item";
 
-    // This list should display the name and details for the frame.
+    // this list should display the name and details for the frame
     frameName.className = "dbg-stackframe-name";
     frameDetails.className = "dbg-stackframe-details";
     frameName.appendChild(document.createTextNode(aFrameNameText));
@@ -344,7 +183,7 @@ StackFramesView.prototype = {
 
     this._frames.appendChild(frame);
 
-    // Return the element for later use if necessary.
+    // return the element for later use if necessary
     return frame;
   },
 
@@ -353,35 +192,25 @@ StackFramesView.prototype = {
    *
    * @param number aDepth
    *        The frame depth specified by the debugger.
-   * @param boolean aFlag
-   *        True if the frame should be deselected, false otherwise.
+   * @param boolean aSelect
+   *        True if the frame should be selected, false otherwise.
    */
-  highlightFrame: function DVF_highlightFrame(aDepth, aFlag) {
+  highlightFrame: function DVF_highlightFrame(aDepth, aSelect) {
     let frame = document.getElementById("stackframe-" + aDepth);
 
-    // The list item wasn't found in the stackframe container.
+    // the list item wasn't found in the stackframe container
     if (!frame) {
       return;
     }
 
-    // Add the 'selected' css class if the frame isn't already selected.
-    if (!aFlag && !frame.classList.contains("selected")) {
+    // add the 'selected' css class if the frame isn't already selected
+    if (aSelect && !frame.classList.contains("selected")) {
       frame.classList.add("selected");
-    }
-    // Remove the 'selected' css class if the frame is already selected.
-    else if (aFlag && frame.classList.contains("selected")) {
+
+    // remove the 'selected' css class if the frame is already selected
+    } else if (!aSelect && frame.classList.contains("selected")) {
       frame.classList.remove("selected");
     }
-  },
-
-  /**
-   * Deselects a frame from the stackframe container.
-   *
-   * @param number aDepth
-   *        The frame depth specified by the debugger.
-   */
-  unhighlightFrame: function DVF_unhighlightFrame(aDepth) {
-    this.highlightFrame(aDepth, true)
   },
 
   /**
@@ -405,36 +234,26 @@ StackFramesView.prototype = {
   },
 
   /**
-   * Listener handling the stackframes container click event.
+   * The cached click listener for the stackframes container.
    */
-  _onFramesClick: function DVF__onFramesClick(aEvent) {
-    let target = aEvent.target;
-
-    while (target) {
-      if (target.debuggerFrame) {
-        DebuggerController.StackFrames.selectFrame(target.debuggerFrame.depth);
-        return;
-      }
-      target = target.parentNode;
-    }
-  },
+  _onFramesClick: null,
 
   /**
    * Listener handling the stackframes container scroll event.
    */
   _onFramesScroll: function DVF__onFramesScroll(aEvent) {
-    // Update the stackframes container only if we have to.
+    // update the stackframes container only if we have to
     if (this._dirty) {
       let clientHeight = this._frames.clientHeight;
       let scrollTop = this._frames.scrollTop;
       let scrollHeight = this._frames.scrollHeight;
 
-      // If the stackframes container was scrolled past 95% of the height,
-      // load more content.
+      // if the stackframes container was scrolled past 95% of the height,
+      // load more content
       if (scrollTop >= (scrollHeight - clientHeight) * 0.95) {
         this._dirty = false;
 
-        DebuggerController.StackFrames.addMoreFrames();
+        StackFrames._addMoreFrames();
       }
     }
   },
@@ -443,17 +262,21 @@ StackFramesView.prototype = {
    * Listener handling the close button click event.
    */
   _onCloseButtonClick: function DVF__onCloseButtonClick() {
-    DebuggerController.dispatchEvent("Debugger:Close");
+    let root = document.documentElement;
+    let debuggerClose = document.createEvent("Events");
+
+    debuggerClose.initEvent("DebuggerClose", true, false);
+    root.dispatchEvent(debuggerClose);
   },
 
   /**
    * Listener handling the pause/resume button click event.
    */
   _onResumeButtonClick: function DVF__onResumeButtonClick() {
-    if (DebuggerController.activeThread.paused) {
-      DebuggerController.activeThread.resume();
+    if (ThreadState.activeThread.paused) {
+      ThreadState.activeThread.resume();
     } else {
-      DebuggerController.activeThread.interrupt();
+      ThreadState.activeThread.interrupt();
     }
   },
 
@@ -461,21 +284,21 @@ StackFramesView.prototype = {
    * Listener handling the step over button click event.
    */
   _onStepOverClick: function DVF__onStepOverClick() {
-    DebuggerController.activeThread.stepOver();
+    ThreadState.activeThread.stepOver();
   },
 
   /**
    * Listener handling the step in button click event.
    */
   _onStepInClick: function DVF__onStepInClick() {
-    DebuggerController.activeThread.stepIn();
+    ThreadState.activeThread.stepIn();
   },
 
   /**
    * Listener handling the step out button click event.
    */
   _onStepOutClick: function DVF__onStepOutClick() {
-    DebuggerController.activeThread.stepOut();
+    ThreadState.activeThread.stepOut();
   },
 
   /**
@@ -504,7 +327,6 @@ StackFramesView.prototype = {
     stepOver.addEventListener("click", this._onStepOverClick, false);
     stepIn.addEventListener("click", this._onStepInClick, false);
     stepOut.addEventListener("click", this._onStepOutClick, false);
-    frames.addEventListener("click", this._onFramesClick, false);
     frames.addEventListener("scroll", this._onFramesScroll, false);
     window.addEventListener("resize", this._onFramesScroll, false);
 
@@ -538,13 +360,7 @@ StackFramesView.prototype = {
 /**
  * Functions handling the properties view.
  */
-function PropertiesView() {
-  this._addScope = this._addScope.bind(this);
-  this._addVar = this._addVar.bind(this);
-  this._addProperties = this._addProperties.bind(this);
-}
-
-PropertiesView.prototype = {
+DebuggerView.Properties = {
 
   /**
    * Adds a scope to contain any inspected variables.
@@ -560,18 +376,18 @@ PropertiesView.prototype = {
    *         if a node was not created.
    */
   _addScope: function DVP__addScope(aName, aId) {
-    // Make sure the parent container exists.
+    // make sure the parent container exists
     if (!this._vars) {
       return null;
     }
 
-    // Compute the id of the element if not specified.
+    // compute the id of the element if not specified
     aId = aId || (aName.toLowerCase().trim().replace(" ", "-") + "-scope");
 
-    // Contains generic nodes and functionality.
+    // contains generic nodes and functionality
     let element = this._createPropertyElement(aName, aId, "scope", this._vars);
 
-    // Make sure the element was created successfully.
+    // make sure the element was created successfully
     if (!element) {
       return null;
     }
@@ -581,7 +397,7 @@ PropertiesView.prototype = {
      */
     element.addVar = this._addVar.bind(this, element);
 
-    // Return the element for later use if necessary.
+    // return the element for later use if necessary
     return element;
   },
 
@@ -600,19 +416,19 @@ PropertiesView.prototype = {
    *         The newly created html node representing the added var.
    */
   _addVar: function DVP__addVar(aScope, aName, aId) {
-    // Make sure the scope container exists.
+    // make sure the scope container exists
     if (!aScope) {
       return null;
     }
 
-    // Compute the id of the element if not specified.
+    // compute the id of the element if not specified
     aId = aId || (aScope.id + "->" + aName + "-variable");
 
-    // Contains generic nodes and functionality.
+    // contains generic nodes and functionality
     let element = this._createPropertyElement(aName, aId, "variable",
                                               aScope.querySelector(".details"));
 
-    // Make sure the element was created successfully.
+    // make sure the element was created successfully
     if (!element) {
       return null;
     }
@@ -627,18 +443,18 @@ PropertiesView.prototype = {
      */
     element.addProperties = this._addProperties.bind(this, element);
 
-    // Setup the additional elements specific for a variable node.
+    // setup the additional elements specific for a variable node
     element.refresh(function() {
       let separator = document.createElement("span");
       let info = document.createElement("span");
       let title = element.querySelector(".title");
       let arrow = element.querySelector(".arrow");
 
-      // Separator shouldn't be selectable.
+      // separator shouldn't be selectable
       separator.className = "unselectable";
       separator.appendChild(document.createTextNode(": "));
 
-      // The variable information (type, class and/or value).
+      // the variable information (type, class and/or value)
       info.className = "info";
 
       title.appendChild(separator);
@@ -646,7 +462,7 @@ PropertiesView.prototype = {
 
     }.bind(this));
 
-    // Return the element for later use if necessary.
+    // return the element for later use if necessary
     return element;
   },
 
@@ -665,27 +481,21 @@ PropertiesView.prototype = {
    *        e.g. 42
    *             true
    *             "nasu"
-   *             { type: "undefined" }
-   *             { type: "null" }
-   *             { type: "object", class: "Object" }
+   *             { type: "undefined" } }
+   *             { type: "null" } }
+   *             { type: "object", class: "Object" } }
    * @return object
    *         The same variable.
    */
   _setGrip: function DVP__setGrip(aVar, aGrip) {
-    // Make sure the variable container exists.
+    // make sure the variable container exists
     if (!aVar) {
       return null;
-    }
-    if (aGrip === undefined) {
-      aGrip = { type: "undefined" };
-    }
-    if (aGrip === null) {
-      aGrip = { type: "null" };
     }
 
     let info = aVar.querySelector(".info") || aVar.target.info;
 
-    // Make sure the info node exists.
+    // make sure the info node exists
     if (!info) {
       return null;
     }
@@ -713,30 +523,30 @@ PropertiesView.prototype = {
    *               "someProp3": { value: { type: "undefined" } },
    *               "someProp4": { value: { type: "null" } },
    *               "someProp5": { value: { type: "object", class: "Object" } },
-   *               "someProp6": { get: { type: "object", class: "Function" },
-   *                              set: { type: "undefined" } }
+   *               "someProp6": { get: { "type": "object", "class": "Function" },
+   *                              set: { "type": "undefined" } } }
    * @return object
    *         The same variable.
    */
   _addProperties: function DVP__addProperties(aVar, aProperties) {
-    // For each property, add it using the passed object key/grip.
+    // for each property, add it using the passed object key/grip
     for (let i in aProperties) {
       // Can't use aProperties.hasOwnProperty(i), because it may be overridden.
       if (Object.getOwnPropertyDescriptor(aProperties, i)) {
 
-        // Get the specified descriptor for current property.
+        // get the specified descriptor for current property
         let desc = aProperties[i];
 
-        // As described in the remote debugger protocol, the value grip must be
-        // contained in a 'value' property.
+        // as described in the remote debugger protocol, the value grip must be
+        // contained in a 'value' property
         let value = desc["value"];
 
-        // For accessor property descriptors, the two grips need to be
-        // contained in 'get' and 'set' properties.
+        // for accessor property descriptors, the two grips need to be
+        // contained in 'get' and 'set' properties
         let getter = desc["get"];
         let setter = desc["set"];
 
-        // Handle data property and accessor property descriptors.
+        // handle data property and accessor property descriptors
         if (value !== undefined) {
           this._addProperty(aVar, [i, value]);
         }
@@ -775,19 +585,19 @@ PropertiesView.prototype = {
    *         The newly created html node representing the added prop.
    */
   _addProperty: function DVP__addProperty(aVar, aProperty, aName, aId) {
-    // Make sure the variable container exists.
+    // make sure the variable container exists
     if (!aVar) {
       return null;
     }
 
-    // Compute the id of the element if not specified.
+    // compute the id of the element if not specified
     aId = aId || (aVar.id + "->" + aProperty[0] + "-property");
 
-    // Contains generic nodes and functionality.
+    // contains generic nodes and functionality
     let element = this._createPropertyElement(aName, aId, "property",
                                               aVar.querySelector(".details"));
 
-    // Make sure the element was created successfully.
+    // make sure the element was created successfully
     if (!element) {
       return null;
     }
@@ -802,7 +612,7 @@ PropertiesView.prototype = {
      */
     element.addProperties = this._addProperties.bind(this, element);
 
-    // Setup the additional elements specific for a variable node.
+    // setup the additional elements specific for a variable node
     element.refresh(function(pKey, pGrip) {
       let propertyString = this._propertyString(pGrip);
       let propertyColor = this._propertyColor(pGrip);
@@ -812,41 +622,41 @@ PropertiesView.prototype = {
       let title = element.querySelector(".title");
       let arrow = element.querySelector(".arrow");
 
-      // Use a key element to specify the property name.
+      // use a key element to specify the property name
       key.className = "key";
       key.appendChild(document.createTextNode(pKey));
 
-      // Use a value element to specify the property value.
+      // use a value element to specify the property value
       value.className = "value";
       value.appendChild(document.createTextNode(propertyString));
       value.classList.add(propertyColor);
 
-      // Separator shouldn't be selected.
+      // separator shouldn't be selected
       separator.className = "unselectable";
       separator.appendChild(document.createTextNode(": "));
 
-      if ("undefined" !== typeof pKey) {
+      if (pKey) {
         title.appendChild(key);
       }
-      if ("undefined" !== typeof pGrip) {
+      if (pGrip) {
         title.appendChild(separator);
         title.appendChild(value);
       }
 
-      // Make the property also behave as a variable, to allow
-      // recursively adding properties to properties.
+      // make the property also behave as a variable, to allow
+      // recursively adding properties to properties
       element.target = {
         info: value
       };
 
-      // Save the property to the variable for easier access.
+      // save the property to the variable for easier access
       Object.defineProperty(aVar, pKey, { value: element,
                                           writable: false,
                                           enumerable: true,
                                           configurable: true });
     }.bind(this), aProperty);
 
-    // Return the element for later use if necessary.
+    // return the element for later use if necessary
     return element;
   },
 
@@ -860,13 +670,13 @@ PropertiesView.prototype = {
    */
   _propertyString: function DVP__propertyString(aGrip) {
     if (aGrip && "object" === typeof aGrip) {
-      switch (aGrip.type) {
+      switch (aGrip["type"]) {
         case "undefined":
           return "undefined";
         case "null":
           return "null";
         default:
-          return "[" + aGrip.type + " " + aGrip.class + "]";
+          return "[" + aGrip["type"] + " " + aGrip["class"] + "]";
       }
     } else {
       switch (typeof aGrip) {
@@ -892,7 +702,7 @@ PropertiesView.prototype = {
    */
   _propertyColor: function DVP__propertyColor(aGrip) {
     if (aGrip && "object" === typeof aGrip) {
-      switch (aGrip.type) {
+      switch (aGrip["type"]) {
         case "undefined":
           return "token-undefined";
         case "null":
@@ -927,7 +737,7 @@ PropertiesView.prototype = {
    *         The newly created html node representing the generic elem.
    */
   _createPropertyElement: function DVP__createPropertyElement(aName, aId, aClass, aParent) {
-    // Make sure we don't duplicate anything and the parent exists.
+    // make sure we don't duplicate anything and the parent exists
     if (document.getElementById(aId)) {
       return null;
     }
@@ -941,23 +751,23 @@ PropertiesView.prototype = {
     let title = document.createElement("div");
     let details = document.createElement("div");
 
-    // Create a scope node to contain all the elements.
+    // create a scope node to contain all the elements
     element.id = aId;
     element.className = aClass;
 
-    // The expand/collapse arrow.
+    // the expand/collapse arrow
     arrow.className = "arrow";
     arrow.style.visibility = "hidden";
 
-    // The name element.
+    // the name element
     name.className = "name unselectable";
     name.appendChild(document.createTextNode(aName || ""));
 
-    // The title element, containing the arrow and the name.
+    // the title element, containing the arrow and the name
     title.className = "title";
     title.addEventListener("click", function() { element.toggle(); }, true);
 
-    // The node element which will contain any added scope variables.
+    // the node element which will contain any added scope variables
     details.className = "details";
 
     title.appendChild(arrow);
@@ -1036,45 +846,6 @@ PropertiesView.prototype = {
 
       if ("function" === typeof element.ontoggle) {
         element.ontoggle(element);
-      }
-      return element;
-    };
-
-    /**
-     * Shows the element expand/collapse arrow (only if necessary!).
-     * @return object
-     *         The same element.
-     */
-    element.showArrow = function DVP_element_showArrow() {
-      if (details.childNodes.length) {
-        arrow.style.visibility = "visible";
-      }
-      return element;
-    };
-
-    /**
-     * Forces the element expand/collapse arrow to be visible, even if there
-     * are no child elements.
-     *
-     * @param boolean aPreventHideFlag
-     *        Prevents the arrow to be hidden when requested.
-     * @return object
-     *         The same element.
-     */
-    element.forceShowArrow = function DVP_element_forceShowArrow(aPreventHideFlag) {
-      element._preventHide = aPreventHideFlag;
-      arrow.style.visibility = "visible";
-      return element;
-    };
-
-    /**
-     * Hides the element expand/collapse arrow.
-     * @return object
-     *         The same element.
-     */
-    element.hideArrow = function DVP_element_hideArrow() {
-      if (!element._preventHide) {
-        arrow.style.visibility = "hidden";
       }
       return element;
     };
@@ -1165,8 +936,8 @@ PropertiesView.prototype = {
       let arrow = node.querySelector(".arrow");
       let children = node.querySelector(".details").childNodes.length;
 
-      // If the parent details node has at least one element, set the
-      // expand/collapse arrow visible.
+      // if the parent details node has at least one element, set the
+      // expand/collapse arrow visible
       if (children) {
         arrow.style.visibility = "visible";
       } else {
@@ -1174,7 +945,7 @@ PropertiesView.prototype = {
       }
     }.bind(this);
 
-    // Return the element for later use and customization.
+    // return the element for later use and customization
     return element;
   },
 
@@ -1188,11 +959,11 @@ PropertiesView.prototype = {
   /**
    * Sets the display mode for the global scope container.
    *
-   * @param boolean aFlag
+   * @param boolean value
    *        False to hide the container, true to show.
    */
-  set globalScope(aFlag) {
-    if (aFlag) {
+  set globalScope(value) {
+    if (value) {
       this._globalScope.show();
     } else {
       this._globalScope.hide();
@@ -1209,11 +980,11 @@ PropertiesView.prototype = {
   /**
    * Sets the display mode for the local scope container.
    *
-   * @param boolean aFlag
+   * @param boolean value
    *        False to hide the container, true to show.
    */
-  set localScope(aFlag) {
-    if (aFlag) {
+  set localScope(value) {
+    if (value) {
       this._localScope.show();
     } else {
       this._localScope.hide();
@@ -1230,11 +1001,11 @@ PropertiesView.prototype = {
   /**
    * Sets the display mode for the with block scope container.
    *
-   * @param boolean aFlag
+   * @param boolean value
    *        False to hide the container, true to show.
    */
-  set withScope(aFlag) {
-    if (aFlag) {
+  set withScope(value) {
+    if (value) {
       this._withScope.show();
     } else {
       this._withScope.hide();
@@ -1251,11 +1022,11 @@ PropertiesView.prototype = {
   /**
    * Sets the display mode for the with block scope container.
    *
-   * @param boolean aFlag
+   * @param boolean value
    *        False to hide the container, true to show.
    */
-  set closureScope(aFlag) {
-    if (aFlag) {
+  set closureScope(value) {
+    if (value) {
       this._closureScope.show();
     } else {
       this._closureScope.hide();
@@ -1280,10 +1051,10 @@ PropertiesView.prototype = {
    */
   initialize: function DVP_initialize() {
     this._vars = document.getElementById("variables");
-    this._localScope = this._addScope(L10N.getStr("localScope")).expand();
-    this._withScope = this._addScope(L10N.getStr("withScope")).hide();
-    this._closureScope = this._addScope(L10N.getStr("closureScope")).hide();
-    this._globalScope = this._addScope(L10N.getStr("globalScope"));
+    this._localScope = this._addScope(DebuggerView.getStr("localScope")).expand();
+    this._withScope = this._addScope(DebuggerView.getStr("withScope")).hide();
+    this._closureScope = this._addScope(DebuggerView.getStr("closureScope")).hide();
+    this._globalScope = this._addScope(DebuggerView.getStr("globalScope"));
   },
 
   /**
@@ -1299,15 +1070,167 @@ PropertiesView.prototype = {
 };
 
 /**
- * Preliminary setup for the DebuggerView object.
+ * Functions handling the html scripts UI.
  */
-DebuggerView.Scripts = new ScriptsView();
-DebuggerView.StackFrames = new StackFramesView();
-DebuggerView.Properties = new PropertiesView();
+DebuggerView.Scripts = {
 
-/**
- * Export the source editor to the global scope for easier access in tests.
- */
-Object.defineProperty(window, "editor", {
-  get: function() { return DebuggerView.editor; }
-});
+  /**
+   * Sets the change event listener for the source scripts container.
+   *
+   * @param function aHandler
+   *        The delegate used as the event listener.
+   */
+  addChangeListener: function DVS_addChangeListener(aHandler) {
+    // Save the handler so it can be removed on shutdown.
+    this._onScriptsChange = aHandler;
+    this._scripts.addEventListener("select", aHandler, false);
+  },
+
+  /**
+   * Removes all elements from the scripts container, leaving it empty.
+   */
+  empty: function DVS_empty() {
+    while (this._scripts.firstChild) {
+      this._scripts.removeChild(this._scripts.firstChild);
+    }
+  },
+
+  /**
+   * Checks whether the script with the specified URL is among the scripts
+   * known to the debugger and shown in the list.
+   *
+   * @param string aUrl
+   *        The script URL.
+   * @return boolean
+   */
+  contains: function DVS_contains(aUrl) {
+    if (this._scripts.getElementsByAttribute("value", aUrl).length > 0) {
+      return true;
+    }
+    return false;
+  },
+
+  /**
+   * Checks whether the script with the specified label is among the scripts
+   * known to the debugger and shown in the list.
+   *
+   * @param string aLabel
+   *        The script label.
+   * @return boolean
+   */
+  containsLabel: function DVS_containsLabel(aLabel) {
+    if (this._scripts.getElementsByAttribute("label", aLabel).length > 0) {
+      return true;
+    }
+    return false;
+  },
+
+  /**
+   * Checks whether the script with the specified URL is selected in the list.
+   *
+   * @param string aUrl
+   *        The script URL.
+   */
+  isSelected: function DVS_isSelected(aUrl) {
+    if (this._scripts.selectedItem &&
+        this._scripts.selectedItem.value == aUrl) {
+      return true;
+    }
+    return false;
+  },
+
+  /**
+   * Selects the script with the specified URL from the list.
+   *
+   * @param string aUrl
+   *        The script URL.
+   */
+   selectScript: function DVS_selectScript(aUrl) {
+    for (let i = 0; i < this._scripts.itemCount; i++) {
+      if (this._scripts.getItemAtIndex(i).value == aUrl) {
+        this._scripts.selectedIndex = i;
+        break;
+      }
+    }
+  },
+
+   /**
+   	* Retrieve the URL of the selected script.
+   	* @return string|null
+   	*/
+   get selected() {
+    return this._scripts.selectedItem ?
+           this._scripts.selectedItem.value : null;
+   },
+
+  /**
+   * Adds a script to the scripts container.
+   * If the script already exists (was previously added), null is returned.
+   * Otherwise, the newly created element is returned.
+   *
+   * @param string aLabel
+   *        The simplified script location to be shown.
+   * @param string aScript
+   *        The source script.
+   * @return object
+   *         The newly created html node representing the added script.
+   */
+  addScript: function DVS_addScript(aLabel, aScript) {
+    // make sure we don't duplicate anything
+    if (this.containsLabel(aLabel)) {
+      return null;
+    }
+
+    let script = this._scripts.appendItem(aLabel, aScript.url);
+    script.setAttribute("tooltiptext", aScript.url);
+    script.setUserData("sourceScript", aScript, null);
+
+    this._scripts.selectedItem = script;
+    return script;
+  },
+
+  /**
+   * Returns the list of URIs for scripts in the page.
+   */
+  scriptLocations: function DVS_scriptLocations() {
+    let locations = [];
+    for (let i = 0; i < this._scripts.itemCount; i++) {
+      locations.push(this._scripts.getItemAtIndex(i).value);
+    }
+    return locations;
+  },
+
+  /**
+   * The cached click listener for the scripts container.
+   */
+  _onScriptsChange: null,
+
+  /**
+   * The cached scripts container.
+   */
+  _scripts: null,
+
+  /**
+   * Initialization function, called when the debugger is initialized.
+   */
+  initialize: function DVS_initialize() {
+    this._scripts = document.getElementById("scripts");
+  },
+
+  /**
+   * Destruction function, called when the debugger is shut down.
+   */
+  destroy: function DVS_destroy() {
+    this._scripts.removeEventListener("select", this._onScriptsChange, false);
+    this._scripts = null;
+  }
+};
+
+
+let DVF = DebuggerView.Stackframes;
+DVF._onFramesScroll = DVF._onFramesScroll.bind(DVF);
+DVF._onCloseButtonClick = DVF._onCloseButtonClick.bind(DVF);
+DVF._onResumeButtonClick = DVF._onResumeButtonClick.bind(DVF);
+DVF._onStepOverClick = DVF._onStepOverClick.bind(DVF);
+DVF._onStepInClick = DVF._onStepInClick.bind(DVF);
+DVF._onStepOutClick = DVF._onStepOutClick.bind(DVF);

@@ -5,10 +5,7 @@
 const SYSTEM_PROPERTY_KEY_MAX = 32;
 const SYSTEM_PROPERTY_VALUE_MAX = 92;
 
-// We leave this as 'undefined' instead of setting it to 'false'. That
-// way a file that includes us can have it defined already without us
-// overriding the value here.
-let DEBUG;
+const DEBUG=false;
 
 /**
  * Expose some system-level functions.
