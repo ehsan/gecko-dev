@@ -284,7 +284,7 @@ function testAccessibleTree(aAccOrElmOrID, aAccTree)
 
   if ("children" in aAccTree) {
     var children = acc.children;
-    is(children.length, aAccTree.children.length,
+    is(aAccTree.children.length, children.length,
        "Different amount of expected children.");
 
     if (aAccTree.children.length == children.length) { 

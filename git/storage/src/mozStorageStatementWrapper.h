@@ -1,6 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
- * ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -37,23 +36,27 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef _mozStorageStatementWrapper_h_
-#define _mozStorageStatementWrapper_h_
-
-#include "nsTArray.h"
-#include "nsIXPCScriptable.h"
+#ifndef _MOZSTORAGESTATEMENTWRAPPER_H_
+#define _MOZSTORAGESTATEMENTWRAPPER_H_
 
 #include "mozStorageStatement.h"
 #include "mozIStorageStatementWrapper.h"
+#include "nsIXPCScriptable.h"
 
-namespace mozilla {
-namespace storage {
+#include "nsVoidArray.h"
+#include "nsTArray.h"
 
-class StatementWrapper : public mozIStorageStatementWrapper
-                       , public nsIXPCScriptable
+#include "sqlite3.h"
+
+
+/***
+ *** mozStorageStatementWrapper
+ ***/
+class mozStorageStatementWrapper : public mozIStorageStatementWrapper,
+                                   public nsIXPCScriptable
 {
 public:
-    StatementWrapper();
+    mozStorageStatementWrapper();
 
     // interfaces
     NS_DECL_ISUPPORTS
@@ -61,13 +64,15 @@ public:
     NS_DECL_NSIXPCSCRIPTABLE
 
 private:
-    ~StatementWrapper();
+    ~mozStorageStatementWrapper();
 
-    sqlite3_stmt *nativeStatement() {
-      return mStatement->nativeStatement();
+protected:
+    sqlite3_stmt* NativeStatement() {
+        return mStatement->nativeStatement();
     }
 
-    nsRefPtr<Statement> mStatement;
+    // note: pointer to the concrete statement
+    nsRefPtr<mozStorageStatement> mStatement;
     PRUint32 mParamCount;
     PRUint32 mResultColumnCount;
     nsTArray<nsString> mColumnNames;
@@ -76,7 +81,4 @@ private:
     nsCOMPtr<mozIStorageStatementParams> mStatementParams;
 };
 
-} // namespace storage
-} // namespace mozilla
-
-#endif // _mozStorageStatementWrapper_h_
+#endif /* _MOZSTORAGESTATEMENTWRAPPER_H_ */

@@ -85,6 +85,8 @@
 
 #include "nsIAppStartup.h"
 
+#include "nsDocShellCID.h"
+
 #include "nsIObserverService.h"
 
 #include "nsILocalFile.h"
@@ -403,7 +405,7 @@ nsBrowserInstance::ReinitializeContentVariables()
       if (docShellAsItem) {
         nsXPIDLString name;
         docShellAsItem->GetName(getter_Copies(name));
-        printf("Attaching to Content DocShell [%s]\n", NS_LossyConvertUTF16toASCII(name).get());
+        printf("Attaching to Content WebShell [%s]\n", NS_LossyConvertUTF16toASCII(name).get());
       }
     }
   }
@@ -457,7 +459,7 @@ nsBrowserInstance::LoadUrl(const PRUnichar * urlToLoad)
   nsCOMPtr<nsIDocShell> docShell;
   GetContentAreaDocShell(getter_AddRefs(docShell));
 
-  /* Ask nsDocShell to load the URl */
+  /* Ask nsWebShell to load the URl */
   nsCOMPtr<nsIWebNavigation> webNav(do_QueryInterface(docShell));
     
   // Normal browser.
@@ -512,8 +514,7 @@ nsBrowserInstance::SetWebShellWindow(nsIDOMWindowInternal* aWin)
       do_QueryInterface(win->GetDocShell());
 
     if (docShellAsItem) {
-      // inform our top level docshell that we are its parent URI
-      // content listener...
+      // inform our top level webshell that we are its parent URI content listener...
       nsXPIDLString name;
       docShellAsItem->GetName(getter_Copies(name));
       printf("Attaching to WebShellWindow[%s]\n", NS_LossyConvertUTF16toASCII(name).get());

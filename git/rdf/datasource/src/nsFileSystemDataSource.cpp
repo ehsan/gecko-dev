@@ -48,6 +48,7 @@
 #include "nsIRDFDataSource.h"
 #include "nsIRDFObserver.h"
 #include "nsIServiceManager.h"
+#include "nsVoidArray.h"
 #include "nsXPIDLString.h"
 #include "nsRDFCID.h"
 #include "rdfutil.h"

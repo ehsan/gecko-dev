@@ -40,6 +40,11 @@
  * Purpose:     testing priorities
  */
 
+#ifdef XP_MAC
+#error "This test does not run on Macintosh"
+#else
+
+
 #include "prcmon.h"
 #include "prinit.h"
 #include "prinrval.h"
@@ -222,5 +227,7 @@ int main(int argc, char **argv)
 	return 1;  /* or here */
 
 }  /* main */
+
+#endif  /* ifdef XP_MAC */
 
 /* priotest.c */

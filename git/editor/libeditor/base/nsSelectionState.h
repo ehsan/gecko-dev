@@ -42,7 +42,6 @@
 #include "nsTArray.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMRange.h"
-#include "nsCycleCollectionParticipant.h"
 
 class nsIDOMCharacterData;
 class nsISelection;
@@ -74,9 +73,6 @@ class nsSelectionState
       
     nsSelectionState();
     ~nsSelectionState();
-
-    void DoTraverse(nsCycleCollectionTraversalCallback &cb);
-    void DoUnlink() { MakeEmpty(); }
   
     nsresult SaveSelection(nsISelection *aSel);
     nsresult RestoreSelection(nsISelection *aSel);

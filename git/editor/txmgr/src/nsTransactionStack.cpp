@@ -40,7 +40,6 @@
 #include "nsTransactionStack.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
-#include "nsCycleCollectionParticipant.h"
 
 nsTransactionStack::nsTransactionStack()
   : mQue(0)
@@ -158,19 +157,6 @@ nsTransactionStack::GetSize(PRInt32 *aStackSize)
   *aStackSize = mQue.GetSize();
 
   return NS_OK;
-}
-
-void
-nsTransactionStack::DoTraverse(nsCycleCollectionTraversalCallback &cb)
-{
-  for (PRInt32 i = 0, qcount = mQue.GetSize(); i < qcount; ++i) {
-    nsTransactionItem *item =
-      static_cast<nsTransactionItem*>(mQue.ObjectAt(i));
-    if (item) {
-      NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "transaction stack mQue[i]");
-      cb.NoteNativeChild(item, &NS_CYCLE_COLLECTION_NAME(nsTransactionItem));
-    }
-  }
 }
 
 nsTransactionRedoStack::~nsTransactionRedoStack()

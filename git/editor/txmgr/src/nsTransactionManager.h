@@ -43,7 +43,6 @@
 #include "nsITransactionManager.h"
 #include "nsCOMArray.h"
 #include "nsITransactionListener.h"
-#include "nsCycleCollectionParticipant.h"
 
 class nsITransaction;
 class nsITransactionListener;
@@ -78,9 +77,7 @@ public:
   virtual ~nsTransactionManager();
 
   /* Macro for AddRef(), Release(), and QueryInterface() */
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsTransactionManager,
-                                           nsITransactionManager)
+  NS_DECL_ISUPPORTS
 
   /* nsITransactionManager method implementations. */
   NS_DECL_NSITRANSACTIONMANAGER

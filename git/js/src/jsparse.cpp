@@ -2030,7 +2030,7 @@ JSCompiler::setFunctionKinds(JSFunctionBox *funbox, uint16& tcflags)
 
                             /*
                              * Watch out for code such as
-                             *
+                             * 
                              *   (function () {
                              *   ...
                              *   var jQuery = ... = function (...) {
@@ -3049,18 +3049,18 @@ BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
                 return JS_FALSE;
             }
         } else {
-            bool error = (op == JSOP_DEFCONST ||
-                          dn_kind == JSDefinition::CONST ||
-                          (dn_kind == JSDefinition::LET &&
-                           (stmt->type != STMT_CATCH || OuterLet(tc, stmt, atom))));
-
             if (JS_HAS_STRICT_OPTION(cx)
                 ? op != JSOP_DEFVAR || dn_kind != JSDefinition::VAR
-                : error) {
+                : op == JSOP_DEFCONST ||
+                  dn_kind == JSDefinition::CONST ||
+                  (dn_kind == JSDefinition::LET &&
+                   (stmt->type != STMT_CATCH || OuterLet(tc, stmt, atom)))) {
                 name = js_AtomToPrintableString(cx, atom);
                 if (!name ||
                     !js_ReportCompileErrorNumber(cx, TS(tc->compiler), pn,
-                                                 !error
+                                                 (op != JSOP_DEFCONST &&
+                                                  dn_kind != JSDefinition::CONST &&
+                                                  dn_kind != JSDefinition::LET)
                                                  ? JSREPORT_WARNING | JSREPORT_STRICT
                                                  : JSREPORT_ERROR,
                                                  JSMSG_REDECLARED_VAR,
@@ -6060,15 +6060,6 @@ BumpStaticLevel(JSParseNode *pn, JSTreeContext *tc)
     }
 }
 
-static void
-AdjustBlockId(JSParseNode *pn, uintN adjust, JSTreeContext *tc)
-{
-    JS_ASSERT(pn->pn_arity == PN_LIST || pn->pn_arity == PN_FUNC || pn->pn_arity == PN_NAME);
-    pn->pn_blockid += adjust;
-    if (pn->pn_blockid >= tc->blockidGen)
-        tc->blockidGen = pn->pn_blockid + 1;
-}
-
 bool
 CompExprTransplanter::transplant(JSParseNode *pn)
 {
@@ -6080,7 +6071,7 @@ CompExprTransplanter::transplant(JSParseNode *pn)
         for (JSParseNode *pn2 = pn->pn_head; pn2; pn2 = pn2->pn_next)
             transplant(pn2);
         if (pn->pn_pos >= root->pn_pos)
-            AdjustBlockId(pn, adjust, tc);
+            pn->pn_blockid += adjust;
         break;
 
       case PN_TERNARY:
@@ -6156,7 +6147,7 @@ CompExprTransplanter::transplant(JSParseNode *pn)
             if (dn->isPlaceholder() && dn->pn_pos >= root->pn_pos && dn->dn_uses == pn) {
                 if (genexp)
                     BumpStaticLevel(dn, tc);
-                AdjustBlockId(dn, adjust, tc);
+                dn->pn_blockid += adjust;
             }
 
             JSAtom *atom = pn->pn_atom;
@@ -6205,7 +6196,7 @@ CompExprTransplanter::transplant(JSParseNode *pn)
         }
 
         if (pn->pn_pos >= root->pn_pos)
-            AdjustBlockId(pn, adjust, tc);
+            pn->pn_blockid += adjust;
         break;
 
       case PN_NAMESET:
@@ -7568,7 +7559,6 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
                     /* So CURRENT_TOKEN gets TOK_COMMA and not TOK_LB. */
                     js_MatchToken(cx, ts, TOK_COMMA);
                     pn2 = NewParseNode(PN_NULLARY, tc);
-                    pn->pn_xflags |= PNX_HOLEY;
                 } else {
                     pn2 = AssignExpr(cx, ts, tc);
                 }

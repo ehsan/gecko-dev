@@ -46,10 +46,7 @@
 class nsIVariant;
 struct sqlite3_stmt;
 
-namespace mozilla {
-namespace storage {
-
-class Row : public mozIStorageRow
+class mozStorageRow : public mozIStorageRow
 {
 public:
   NS_DECL_ISUPPORTS
@@ -81,8 +78,5 @@ private:
    */
   nsDataHashtable<nsCStringHashKey, PRUint32> mNameHashtable;
 };
-
-} // namespace storage
-} // namespace mozilla
 
 #endif // __mozStorageRow_h__

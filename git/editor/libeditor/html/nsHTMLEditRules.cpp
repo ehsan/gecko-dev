@@ -225,12 +225,11 @@ mDocChangeRange(nsnull)
 nsHTMLEditRules::~nsHTMLEditRules()
 {
   // remove ourselves as a listener to edit actions
-  // In some cases, we have already been removed by 
-  // ~nsHTMLEditor, in which case we will get a null pointer here
+  // In the normal case, we have already been removed by 
+  // ~nsHTMLEditor, in which case we will get an error here
   // which we ignore.  But this allows us to add the ability to
   // switch rule sets on the fly if we want.
-  if (mHTMLEditor)
-    mHTMLEditor->RemoveEditActionListener(this);
+  mHTMLEditor->RemoveEditActionListener(this);
 }
 
 /********************************************************
@@ -239,7 +238,7 @@ nsHTMLEditRules::~nsHTMLEditRules()
 
 NS_IMPL_ADDREF_INHERITED(nsHTMLEditRules, nsTextEditRules)
 NS_IMPL_RELEASE_INHERITED(nsHTMLEditRules, nsTextEditRules)
-NS_IMPL_QUERY_INTERFACE_INHERITED2(nsHTMLEditRules, nsTextEditRules, nsIHTMLEditRules, nsIEditActionListener)
+NS_IMPL_QUERY_INTERFACE3(nsHTMLEditRules, nsIHTMLEditRules, nsIEditRules, nsIEditActionListener)
 
 
 /********************************************************
@@ -303,12 +302,6 @@ nsHTMLEditRules::Init(nsPlaintextEditor *aEditor, PRUint32 aFlags)
   return res;
 }
 
-NS_IMETHODIMP
-nsHTMLEditRules::DetachEditor()
-{
-  mHTMLEditor = nsnull;
-  return nsTextEditRules::DetachEditor();
-}
 
 NS_IMETHODIMP
 nsHTMLEditRules::BeforeEdit(PRInt32 action, nsIEditor::EDirection aDirection)
@@ -2415,7 +2408,6 @@ nsHTMLEditRules::WillDeleteSelection(nsISelection *aSelection,
       {
         // deleting across blocks
         // are the blocks of same type?
-        NS_ENSURE_STATE(leftParent && rightParent);
         
         // are the blocks siblings?
         nsCOMPtr<nsIDOMNode> leftBlockParent;

@@ -578,8 +578,7 @@ public:
     void UpdateSurfaceClip();
 
     /**
-     * This will return the current bounds of the clip region in user
-     * space.
+     * This will return the current bounds of the clip region.
      */
     gfxRect GetClipExtents();
 

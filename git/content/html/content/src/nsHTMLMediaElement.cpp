@@ -739,12 +739,10 @@ nsHTMLMediaElement::nsHTMLMediaElement(nsINodeInfo *aNodeInfo, PRBool aFromParse
     mDelayingLoadEvent(PR_FALSE),
     mIsRunningSelectResource(PR_FALSE)
 {
-  RegisterFreezableElement();
 }
 
 nsHTMLMediaElement::~nsHTMLMediaElement()
 {
-  UnregisterFreezableElement();
   if (mDecoder) {
     mDecoder->Shutdown();
     mDecoder = nsnull;
@@ -1205,7 +1203,6 @@ void nsHTMLMediaElement::NetworkError()
 void nsHTMLMediaElement::PlaybackEnded()
 {
   NS_ASSERTION(mDecoder->IsEnded(), "Decoder fired ended, but not in ended state");
-  ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA);
   DispatchAsyncSimpleEvent(NS_LITERAL_STRING("ended"));
 }
 

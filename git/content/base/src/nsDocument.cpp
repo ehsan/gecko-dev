@@ -1986,11 +1986,8 @@ nsDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
   if (aLoadGroup) {
     mDocumentLoadGroup = do_GetWeakReference(aLoadGroup);
     // there was an assertion here that aLoadGroup was not null.  This
-    // is no longer valid: nsDocShell::SetDocument does not create a
-    // load group, and it works just fine
-
-    // XXXbz what does "just fine" mean exactly?  And given that there
-    // is no nsDocShell::SetDocument, what is this talking about?
+    // is no longer valid nsWebShell::SetDocument does not create a
+    // load group, and it works just fine.
   }
 
   mLastModified.Truncate();
@@ -7530,48 +7527,3 @@ nsDocument::UnsuppressEventHandlingAndFireEvents(PRBool aFireEvents)
   }
 }
 
-void
-nsIDocument::RegisterFreezableElement(nsIContent* aContent)
-{
-  if (!mFreezableElements) {
-    mFreezableElements = new nsTHashtable<nsPtrHashKey<nsIContent> >();
-    if (!mFreezableElements)
-      return;
-    mFreezableElements->Init();
-  }
-  mFreezableElements->PutEntry(aContent);
-}
-
-PRBool
-nsIDocument::UnregisterFreezableElement(nsIContent* aContent)
-{
-  if (!mFreezableElements)
-    return PR_FALSE;
-  if (!mFreezableElements->GetEntry(aContent))
-    return PR_FALSE;
-  mFreezableElements->RemoveEntry(aContent);
-  return PR_TRUE;
-}
-
-struct EnumerateFreezablesData {
-  nsIDocument::FreezableElementEnumerator mEnumerator;
-  void* mData;
-};
-
-static PLDHashOperator
-EnumerateFreezables(nsPtrHashKey<nsIContent>* aEntry, void* aData)
-{
-  EnumerateFreezablesData* data = static_cast<EnumerateFreezablesData*>(aData);
-  data->mEnumerator(aEntry->GetKey(), data->mData);
-  return PL_DHASH_NEXT;
-}
-
-void
-nsIDocument::EnumerateFreezableElements(FreezableElementEnumerator aEnumerator,
-                                        void* aData)
-{
-  if (!mFreezableElements)
-    return;
-  EnumerateFreezablesData data = { aEnumerator, aData };
-  mFreezableElements->EnumerateEntries(EnumerateFreezables, &data);
-}

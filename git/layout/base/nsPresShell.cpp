@@ -1044,9 +1044,9 @@ protected:
 #endif
 
   // Helper for ScrollContentIntoView
-  void DoScrollContentIntoView(nsIContent* aContent,
-                               PRIntn      aVPercent,
-                               PRIntn      aHPercent);
+  nsresult DoScrollContentIntoView(nsIContent* aContent,
+                                   PRIntn      aVPercent,
+                                   PRIntn      aHPercent);
 
   friend class nsPresShellEventCB;
 
@@ -4135,10 +4135,19 @@ PresShell::ScrollContentIntoView(nsIContent* aContent,
                                  PRIntn      aVPercent,
                                  PRIntn      aHPercent)
 {
+  mContentToScrollTo = aContent;
+  mContentScrollVPosition = aVPercent;
+  mContentScrollHPosition = aHPercent;
+
   nsCOMPtr<nsIContent> content = aContent; // Keep content alive while flushing.
   NS_ENSURE_TRUE(content, NS_ERROR_NULL_POINTER);
   nsCOMPtr<nsIDocument> currentDoc = content->GetCurrentDoc();
   NS_ENSURE_STATE(currentDoc);
+  currentDoc->FlushPendingNotifications(Flush_InterruptibleLayout);
+
+  // If mContentToScrollTo is non-null, that means we interrupted the reflow
+  // and won't necessarily get the position correct, but do a best-effort
+  // scroll.
 
   // Before we scroll the frame into view, ask the command dispatcher
   // if we're resetting focus because a window just got an activate
@@ -4161,28 +4170,10 @@ PresShell::ScrollContentIntoView(nsIContent* aContent,
     }
   }
 
-  mContentToScrollTo = aContent;
-  mContentScrollVPosition = aVPercent;
-  mContentScrollHPosition = aHPercent;
-
-  // Flush layout and attempt to scroll in the process.
-  currentDoc->FlushPendingNotifications(Flush_InterruptibleLayout);
-
-  // If mContentToScrollTo is non-null, that means we interrupted the reflow
-  // (or suppressed it altogether because we're suppressing interruptible
-  // flushes right now) and won't necessarily get the position correct, but do
-  // a best-effort scroll here.  The other option would be to do this inside
-  // FlushPendingNotifications, but I'm not sure the repeated scrolling that
-  // could trigger if reflows keep getting interrupted would be more desirable
-  // than a single best-effort scroll followed by one final scroll on the first
-  // completed reflow.
-  if (mContentToScrollTo) {
-    DoScrollContentIntoView(content, aVPercent, aHPercent);
-  }
-  return NS_OK;
+  return DoScrollContentIntoView(content, aVPercent, aHPercent);
 }
 
-void
+nsresult
 PresShell::DoScrollContentIntoView(nsIContent* aContent,
                                    PRIntn      aVPercent,
                                    PRIntn      aHPercent)
@@ -4190,7 +4181,7 @@ PresShell::DoScrollContentIntoView(nsIContent* aContent,
   nsIFrame* frame = GetPrimaryFrameFor(aContent);
   if (!frame) {
     mContentToScrollTo = nsnull;
-    return;
+    return NS_ERROR_NULL_POINTER;
   }
 
   // This is a two-step process.
@@ -4223,6 +4214,8 @@ PresShell::DoScrollContentIntoView(nsIContent* aContent,
     frameBounds += closestView->GetPosition();
     closestView = parent;
   }
+
+  return NS_OK;
 }
 
 // GetLinkLocation: copy link location to clipboard
@@ -5414,7 +5407,7 @@ PresShell::PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
   nsIDeviceContext* deviceContext = pc->DeviceContext();
 
   // use the rectangle to create the surface
-  nsIntRect pixelArea = aArea.ToOutsidePixels(pc->AppUnitsPerDevPixel());
+  nsIntRect pixelArea = nsRect::ToOutsidePixels(aArea, pc->AppUnitsPerDevPixel());
 
   // if the area of the image is larger than the maximum area, scale it down
   float scale = 0.0;
@@ -5548,7 +5541,7 @@ PresShell::RenderNode(nsIDOMNode* aNode,
     aRegion->GetBoundingBox(&rrectPixels.x, &rrectPixels.y,
                             &rrectPixels.width, &rrectPixels.height);
 
-    nsRect rrect = rrectPixels.ToAppUnits(nsPresContext::AppUnitsPerCSSPixel());
+    nsRect rrect = nsIntRect::ToAppUnits(rrectPixels, nsPresContext::AppUnitsPerCSSPixel());
     area.IntersectRect(area, rrect);
     
     nsPresContext* pc = GetPresContext();
@@ -6665,24 +6658,29 @@ PresShell::RemoveOverrideStyleSheet(nsIStyleSheet *aSheet)
 }
 
 static void
-FreezeElement(nsIContent *aContent, void *aShell)
+StopPluginInstance(PresShell *aShell, nsIContent *aContent)
 {
-#ifdef MOZ_MEDIA
-  nsCOMPtr<nsIDOMHTMLMediaElement> domMediaElem(do_QueryInterface(aContent));
-  if (domMediaElem) {
-    nsHTMLMediaElement* mediaElem = static_cast<nsHTMLMediaElement*>(aContent);
-    mediaElem->Freeze();
-    return;
-  }
-#endif
+  nsIFrame *frame = aShell->FrameManager()->GetPrimaryFrameFor(aContent, -1);
 
-  nsIPresShell* shell = static_cast<nsIPresShell*>(aShell);
-  nsIFrame *frame = shell->FrameManager()->GetPrimaryFrameFor(aContent, -1);
   nsIObjectFrame *objectFrame = do_QueryFrame(frame);
-  if (objectFrame) {
-    objectFrame->StopPlugin();
-  }
+  if (!objectFrame)
+    return;
+
+  objectFrame->StopPlugin();
 }
+
+#ifdef MOZ_MEDIA
+static void
+StopMediaInstance(PresShell *aShell, nsIContent *aContent)
+{
+  nsCOMPtr<nsIDOMHTMLMediaElement> domMediaElem(do_QueryInterface(aContent));
+  if (!domMediaElem)
+    return;
+
+  nsHTMLMediaElement* mediaElem = static_cast<nsHTMLMediaElement*>(aContent);
+  mediaElem->Freeze();
+}
+#endif
 
 static PRBool
 FreezeSubDocument(nsIDocument *aDocument, void *aData)
@@ -6697,7 +6695,16 @@ FreezeSubDocument(nsIDocument *aDocument, void *aData)
 void
 PresShell::Freeze()
 {
-  mDocument->EnumerateFreezableElements(FreezeElement, this);
+  nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(mDocument);
+  if (domDoc) {
+    EnumeratePlugins(domDoc, NS_LITERAL_STRING("object"), StopPluginInstance);
+    EnumeratePlugins(domDoc, NS_LITERAL_STRING("applet"), StopPluginInstance);
+    EnumeratePlugins(domDoc, NS_LITERAL_STRING("embed"), StopPluginInstance);
+#ifdef MOZ_MEDIA
+    EnumeratePlugins(domDoc, NS_LITERAL_STRING("video"), StopMediaInstance);
+    EnumeratePlugins(domDoc, NS_LITERAL_STRING("audio"), StopMediaInstance);
+#endif
+  }
 
   if (mCaret)
     mCaret->SetCaretVisible(PR_FALSE);
@@ -6748,23 +6755,28 @@ PresShell::NeedsFocusOrBlurAfterSuppression(nsPIDOMEventTarget* aTarget,
 }
 
 static void
-ThawElement(nsIContent *aContent, void *aShell)
+StartPluginInstance(PresShell *aShell, nsIContent *aContent)
 {
-#ifdef MOZ_MEDIA
-  nsCOMPtr<nsIDOMHTMLMediaElement> domMediaElem(do_QueryInterface(aContent));
-  if (domMediaElem) {
-    nsHTMLMediaElement* mediaElem = static_cast<nsHTMLMediaElement*>(aContent);
-    mediaElem->Thaw();
-    return;
-  }
-#endif
-
   nsCOMPtr<nsIObjectLoadingContent> objlc(do_QueryInterface(aContent));
-  if (objlc) {
-    nsCOMPtr<nsIPluginInstance> inst;
-    objlc->EnsureInstantiation(getter_AddRefs(inst));
-  }
+  if (!objlc)
+    return;
+
+  nsCOMPtr<nsIPluginInstance> inst;
+  objlc->EnsureInstantiation(getter_AddRefs(inst));
 }
+
+#ifdef MOZ_MEDIA
+static void
+StartMediaInstance(PresShell *aShell, nsIContent *aContent)
+{
+  nsCOMPtr<nsIDOMHTMLMediaElement> domMediaElem(do_QueryInterface(aContent));
+  if (!domMediaElem)
+    return;
+
+  nsHTMLMediaElement* mediaElem = static_cast<nsHTMLMediaElement*>(aContent);
+  mediaElem->Thaw();
+}
+#endif
 
 static PRBool
 ThawSubDocument(nsIDocument *aDocument, void *aData)
@@ -6779,7 +6791,16 @@ ThawSubDocument(nsIDocument *aDocument, void *aData)
 void
 PresShell::Thaw()
 {
-  mDocument->EnumerateFreezableElements(ThawElement, this);
+  nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(mDocument);
+  if (domDoc) {
+    EnumeratePlugins(domDoc, NS_LITERAL_STRING("object"), StartPluginInstance);
+    EnumeratePlugins(domDoc, NS_LITERAL_STRING("applet"), StartPluginInstance);
+    EnumeratePlugins(domDoc, NS_LITERAL_STRING("embed"), StartPluginInstance);
+#ifdef MOZ_MEDIA
+    EnumeratePlugins(domDoc, NS_LITERAL_STRING("video"), StartMediaInstance);
+    EnumeratePlugins(domDoc, NS_LITERAL_STRING("audio"), StartMediaInstance);
+#endif
+  }
 
   if (mDocument)
     mDocument->EnumerateSubDocuments(ThawSubDocument, nsnull);

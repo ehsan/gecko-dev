@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -12,15 +12,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is mozilla.org code.
+ * The Original Code is the Netscape Portable Runtime (NSPR).
  *
  * The Initial Developer of the Original Code is
- * the Mozilla Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2009
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Boris Zbarsky <bzbarsky@mit.edu> (original author)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -36,32 +35,41 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsISupports.idl"
+#include "primpl.h"
+#include "MacMemAllocator.h"
 
-interface nsIInputStream;
-interface nsIOutputStream;
+void _MD_InitGC() {}
 
-/**
- * nsIIOUtil provdes various xpcom/io-related utility methods.
- */
-[scriptable, uuid(e8152f7f-4209-4c63-ad23-c3d2aa0c5a49)]
-interface nsIIOUtil : nsISupports
+void *_MD_GrowGCHeap(size_t *sizep)
 {
-  /**
-   * Test whether an input stream is buffered.  See nsStreamUtils.h
-   * documentation for NS_InputStreamIsBuffered for the definition of
-   * "buffered" used here and for edge-case behavior.
-   *
-   * @throws NS_ERROR_INVALID_POINTER if null is passed in.
-   */
-  boolean inputStreamIsBuffered(in nsIInputStream aStream);
+	void			*heapPtr = NULL;
+	size_t			heapSize = *sizep;
+	
+	// In previous versions of this code we tried to allocate GC heaps from the application
+	// heap.  In the 4.0 application, we try to keep our app heap allications to a minimum
+	// and instead go through our own memory allocation routines.
+	heapPtr = malloc(heapSize);
+	
+	if (heapPtr == NULL) {		
+		FreeMemoryStats		stats;
+		
+		memtotal(heapSize, &stats);		// How much can we allcoate?
+		
+		if (stats.maxBlockSize < heapSize)
+			heapSize = stats.maxBlockSize;
+		
+		heapPtr = malloc(heapSize);
+		
+		if (heapPtr == NULL) 			// Now we're hurting
+			heapSize = 0;
+	}
+	
+	*sizep = heapSize;
+	return heapPtr;
+}
 
-  /**
-   * Test whether an output stream is buffered.  See nsStreamUtils.h
-   * documentation for NS_OutputStreamIsBuffered for the definition of
-   * "buffered" used here and for edge-case behavior.
-   *
-   * @throws NS_ERROR_INVALID_POINTER if null is passed in.
-   */
-  boolean outputStreamIsBuffered(in nsIOutputStream aStream);
-};
+
+void _MD_FreeGCSegment(void *base, int32 /* len */)
+{
+	free(base);
+}

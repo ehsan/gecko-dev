@@ -1113,7 +1113,7 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
           region->GetBoundingBox(&damIntRect.x, &damIntRect.y,
                                  &damIntRect.width, &damIntRect.height);
           nsRect damRect =
-            damIntRect.ToAppUnits(mContext->AppUnitsPerDevPixel());
+            nsIntRect::ToAppUnits(damIntRect, mContext->AppUnitsPerDevPixel());
 
           nsIWidget* widget = view->GetNearestWidget(nsnull);
           if (widget && widget->GetTransparencyMode() == eTransparencyOpaque) {
@@ -2015,7 +2015,7 @@ nsIntRect nsViewManager::ViewToWidget(nsView *aView, nsView* aWidgetView, const 
   rect += aView->ViewToWidgetOffset();
 
   // finally, convert to device coordinates.
-  return rect.ToOutsidePixels(mContext->AppUnitsPerDevPixel());
+  return nsRect::ToOutsidePixels(rect, mContext->AppUnitsPerDevPixel());
 }
 
 nsresult nsViewManager::GetVisibleRect(nsRect& aVisibleRect)
