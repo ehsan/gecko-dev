@@ -41,7 +41,6 @@
 #include "prmem.h"
 #include "nsAutoPtr.h"
 #include "nsAudioStream.h"
-#include "nsAlgorithm.h"
 extern "C" {
 #include "sydneyaudio/sydney_audio.h"
 }
@@ -256,14 +255,8 @@ double nsAudioStream::GetTime()
 {
   // If the audio backend failed to open, emulate the current playback
   // position using the system clock.
-  if (!mAudioHandle) {
-    if (mPaused) {
-      return mPauseTime;
-    }
-    float curTime = CurrentTimeInSeconds() - mStartTime;
-    float maxTime = float(mSamplesBuffered) / mRate / mChannels;
-    return NS_MIN(curTime, maxTime);
-  }
+  if (!mAudioHandle)
+    return mPaused ? mPauseTime : CurrentTimeInSeconds() - mStartTime;
 
   int64_t bytes = 0;
 #if defined(WIN32)
