@@ -22,7 +22,6 @@
 
 #include "gc/Marking.h"
 #include "jit/BaselineJIT.h"
-#include "jit/CompileInfo.h"
 #include "jit/Ion.h"
 #include "jit/IonAnalysis.h"
 #include "jit/JitCompartment.h"
@@ -36,6 +35,7 @@
 #include "jsobjinlines.h"
 #include "jsscriptinlines.h"
 
+#include "jit/ExecutionMode-inl.h"
 #include "vm/NativeObject-inl.h"
 
 using namespace js;
@@ -1219,13 +1219,13 @@ class TypeConstraintFreezeStack : public TypeConstraint
 } /* anonymous namespace */
 
 bool
-types::FinishCompilation(JSContext *cx, HandleScript script, CompilerConstraintList *constraints,
-                         RecompileInfo *precompileInfo)
+types::FinishCompilation(JSContext *cx, HandleScript script, ExecutionMode executionMode,
+                         CompilerConstraintList *constraints, RecompileInfo *precompileInfo)
 {
     if (constraints->failed())
         return false;
 
-    CompilerOutput co(script);
+    CompilerOutput co(script, executionMode);
 
     TypeZone &types = cx->zone()->types;
     if (!types.compilerOutputs) {
@@ -1237,7 +1237,7 @@ types::FinishCompilation(JSContext *cx, HandleScript script, CompilerConstraintL
 #ifdef DEBUG
     for (size_t i = 0; i < types.compilerOutputs->length(); i++) {
         const CompilerOutput &co = (*types.compilerOutputs)[i];
-        MOZ_ASSERT_IF(co.isValid(), co.script() != script);
+        MOZ_ASSERT_IF(co.isValid(), co.script() != script || co.mode() != executionMode);
     }
 #endif
 
@@ -5147,11 +5147,12 @@ TypeZone::beginSweep(FreeOp *fop, bool releaseTypes, AutoClearTypeInferenceState
             CompilerOutput &output = (*compilerOutputs)[i];
             if (output.isValid()) {
                 JSScript *script = output.script();
+                ExecutionMode mode = output.mode();
                 if (IsScriptAboutToBeFinalized(&script)) {
-                    script->ionScript()->recompileInfoRef() = RecompileInfo();
+                    jit::GetIonScript(script, mode)->recompileInfoRef() = RecompileInfo();
                     output.invalidate();
                 } else {
-                    CompilerOutput newOutput(script);
+                    CompilerOutput newOutput(script, output.mode());
 
                     if (!newCompilerOutputs)
                         newCompilerOutputs = js_new<CompilerOutputVector>();
@@ -5159,7 +5160,7 @@ TypeZone::beginSweep(FreeOp *fop, bool releaseTypes, AutoClearTypeInferenceState
                         output.setSweepIndex(newCompilerOutputs->length() - 1);
                     } else {
                         oom.setOOM();
-                        script->ionScript()->recompileInfoRef() = RecompileInfo();
+                        jit::GetIonScript(script, mode)->recompileInfoRef() = RecompileInfo();
                         output.invalidate();
                     }
                 }

@@ -151,8 +151,6 @@ BytecodeEmitter::BytecodeEmitter(BytecodeEmitter *parent,
 {
     MOZ_ASSERT_IF(evalCaller, insideEval);
     MOZ_ASSERT_IF(emitterMode == LazyFunction, lazyScript);
-    // Function scripts are never eval scripts.
-    MOZ_ASSERT_IF(evalStaticScope, !sc->isFunctionBox());
 }
 
 bool
@@ -5378,8 +5376,7 @@ EmitFunc(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
             uint32_t lineNum = bce->parser->tokenStream.srcCoords.lineNum(pn->pn_pos.begin);
             BytecodeEmitter bce2(bce, bce->parser, funbox, script, /* lazyScript = */ js::NullPtr(),
-                                 bce->insideEval, bce->evalCaller,
-                                 /* evalStaticScope = */ js::NullPtr(),
+                                 bce->insideEval, bce->evalCaller, bce->evalStaticScope,
                                  bce->hasGlobalScope, lineNum, bce->emitterMode);
             if (!bce2.init())
                 return false;

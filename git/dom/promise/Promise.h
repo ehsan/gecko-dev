@@ -19,7 +19,6 @@
 #include "nsWrapperCache.h"
 #include "nsAutoPtr.h"
 #include "js/TypeDecls.h"
-#include "jspubtd.h"
 
 #include "mozilla/dom/workers/bindings/WorkerFeature.h"
 
@@ -176,10 +175,6 @@ public:
        const Sequence<JS::Value>& aIterable, ErrorResult& aRv);
 
   void AppendNativeHandler(PromiseNativeHandler* aRunnable);
-
-  JSObject* GlobalJSObject() const;
-
-  JSCompartment* Compartment() const;
 
 protected:
   // Do NOT call this unless you're Promise::Create.  I wish we could enforce
