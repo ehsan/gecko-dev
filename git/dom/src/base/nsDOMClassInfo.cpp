@@ -319,8 +319,8 @@
 #include "nsIDOMHTMLSourceElement.h"
 #include "nsIDOMHTMLVideoElement.h"
 #include "nsIDOMHTMLAudioElement.h"
-#include "nsIDOMProgressEvent.h"
 #endif
+#include "nsIDOMProgressEvent.h"
 #include "nsIDOMNSUIEvent.h"
 #include "nsIDOMCSS2Properties.h"
 #include "nsIDOMCSSCharsetRule.h"
@@ -1203,7 +1203,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
 
   NS_DEFINE_CLASSINFO_DATA(XMLHttpProgressEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(XMLHttpRequest, nsDOMGenericSH,
+  NS_DEFINE_CLASSINFO_DATA(XMLHttpRequest, nsEventTargetSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(ClientRect, nsDOMGenericSH,
@@ -1267,13 +1267,17 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLSourceElement, nsHTMLElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(ProgressEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLMediaError, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLAudioElement, nsHTMLElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
 #endif
+
+  NS_DEFINE_CLASSINFO_DATA(ProgressEvent, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+
+  NS_DEFINE_CLASSINFO_DATA(XMLHttpRequestUpload, nsEventTargetSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   // DOM Traversal NodeIterator class  
   NS_DEFINE_CLASSINFO_DATA(NodeIterator, nsDOMGenericSH,
@@ -3360,13 +3364,16 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_BEGIN(XMLHttpRequest, nsIXMLHttpRequest)
     DOM_CLASSINFO_MAP_ENTRY(nsIXMLHttpRequest)
     DOM_CLASSINFO_MAP_ENTRY(nsIJSXMLHttpRequest)
+    DOM_CLASSINFO_MAP_ENTRY(nsIXMLHttpRequestEventTarget)
+    DOM_CLASSINFO_MAP_ENTRY(nsIXMLHttpRequestUploadGetter)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIInterfaceRequestor)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(XMLHttpProgressEvent, nsIDOMEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMLSProgressEvent)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMProgressEvent)
+    DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
 #if defined(MOZ_SVG) && defined(MOZ_SVG_FOREIGNOBJECT)
@@ -3474,11 +3481,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(ProgressEvent, nsIDOMProgressEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMProgressEvent)
-    DOM_CLASSINFO_EVENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
   DOM_CLASSINFO_MAP_BEGIN(HTMLMediaError, nsIDOMHTMLMediaError)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLMediaError)
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
@@ -3489,6 +3491,16 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 #endif
+  DOM_CLASSINFO_MAP_BEGIN(ProgressEvent, nsIDOMProgressEvent)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMProgressEvent)
+    DOM_CLASSINFO_EVENT_MAP_ENTRIES
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(XMLHttpRequestUpload, nsIXMLHttpRequestUpload)
+    DOM_CLASSINFO_MAP_ENTRY(nsIXMLHttpRequestEventTarget)
+    DOM_CLASSINFO_MAP_ENTRY(nsIXMLHttpRequestUpload)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+  DOM_CLASSINFO_MAP_END
 
 #ifdef NS_DEBUG
   {
@@ -7141,6 +7153,21 @@ nsEventReceiverSH::RegisterCompileHandler(nsIXPConnectWrappedNative *wrapper,
   return NS_FAILED(rv) ? rv : NS_SUCCESS_I_DID_SOMETHING;
 }
 
+nsresult
+nsEventReceiverSH::DefineAddEventListener(JSContext *cx, JSObject *obj,
+                                          jsval id, JSObject **objp)
+{
+  NS_ASSERTION(id == sAddEventListener_id, "Wrong call?!?");
+  JSString *str = JSVAL_TO_STRING(id);
+  // addEventListener always takes at least 3 arguments.
+  JSFunction *fnc =
+    ::JS_DefineFunction(cx, obj, ::JS_GetStringBytes(str),
+                        nsEventReceiverSH::AddEventListenerHelper, 3,
+                        JSPROP_ENUMERATE);
+  *objp = obj;
+  return fnc ? NS_OK : NS_ERROR_UNEXPECTED;
+}
+
 NS_IMETHODIMP
 nsEventReceiverSH::NewResolve(nsIXPConnectWrappedNative *wrapper,
                               JSContext *cx, JSObject *obj, jsval id,
@@ -7192,15 +7219,7 @@ nsEventReceiverSH::NewResolve(nsIXPConnectWrappedNative *wrapper,
   }
 
   if (id == sAddEventListener_id) {
-    JSString *str = JSVAL_TO_STRING(id);
-    // addEventListener always takes at least 3 arguments.
-    JSFunction *fnc =
-      ::JS_DefineFunction(cx, obj, ::JS_GetStringBytes(str),
-                          AddEventListenerHelper, 3, JSPROP_ENUMERATE);
-
-    *objp = obj;
-
-    return fnc ? NS_OK : NS_ERROR_UNEXPECTED;
+    return nsEventReceiverSH::DefineAddEventListener(cx, obj, id, objp);
   }
 
   PRBool did_define = PR_FALSE;
@@ -7242,6 +7261,22 @@ nsEventReceiverSH::AddProperty(nsIXPConnectWrappedNative *wrapper,
   return nsEventReceiverSH::SetProperty(wrapper, cx, obj, id, vp, _retval);
 }
 
+// EventTarget helper
+
+NS_IMETHODIMP
+nsEventTargetSH::NewResolve(nsIXPConnectWrappedNative *wrapper,
+                            JSContext *cx, JSObject *obj, jsval id,
+                            PRUint32 flags, JSObject **objp, PRBool *_retval)
+{
+  if ((flags & JSRESOLVE_ASSIGNING) || !JSVAL_IS_STRING(id)) {
+    return NS_OK;
+  }
+  if (id == sAddEventListener_id) {
+    return nsEventReceiverSH::DefineAddEventListener(cx, obj, id, objp);
+  }
+  return nsDOMGenericSH::NewResolve(wrapper, cx, obj, id, flags, objp,
+                                    _retval);
+}
 
 // Element helper
 
