@@ -38,5 +38,6 @@
 TIERS += js
 
 tier_js_dirs += \
+	js/src/fdlibm \
 	js/src \
 	$(NULL)
