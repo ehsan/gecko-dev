@@ -42,7 +42,13 @@ function testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState,
 function getStringStates(aAccOrElmOrID)
 {
   var [state, extraState] = getStates(aAccOrElmOrID);
-  return statesToString(state, extraState);
+  var list = gAccRetrieval.getStringStates(state, extraState);
+
+  var str = "";
+  for (var index = 0; index < list.length; index++)
+    str += list.item(index) + ", ";
+
+  return str;
 }
 
 function getStates(aAccOrElmOrID)

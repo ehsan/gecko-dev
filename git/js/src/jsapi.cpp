@@ -1183,10 +1183,6 @@ JS_GetOptions(JSContext *cx)
             (cx)->version |= JSVERSION_HAS_XML;                               \
         else                                                                  \
             (cx)->version &= ~JSVERSION_HAS_XML;                              \
-        if ((cx)->options & JSOPTION_ANONFUNFIX)                              \
-            (cx)->version |= JSVERSION_ANONFUNFIX;                            \
-        else                                                                  \
-            (cx)->version &= ~JSVERSION_ANONFUNFIX;                           \
     JS_END_MACRO
 
 JS_PUBLIC_API(uint32)
@@ -2599,31 +2595,6 @@ JS_SetGCParameter(JSRuntime *rt, JSGCParamKey key, uint32 value)
       case JSGC_STACKPOOL_LIFESPAN:
         rt->gcEmptyArenaPoolLifespan = value;
         break;
-      default:
-        JS_ASSERT(key == JSGC_TRIGGER_FACTOR);
-        JS_ASSERT(value >= 100);
-        rt->gcTriggerFactor = value;
-        return;
-    }
-}
-
-JS_PUBLIC_API(uint32)
-JS_GetGCParameter(JSRuntime *rt, JSGCParamKey key)
-{
-    switch (key) {
-      case JSGC_MAX_BYTES:
-        return rt->gcMaxBytes;
-      case JSGC_MAX_MALLOC_BYTES:
-        return rt->gcMaxMallocBytes;
-      case JSGC_STACKPOOL_LIFESPAN:
-        return rt->gcEmptyArenaPoolLifespan;
-      case JSGC_TRIGGER_FACTOR:
-        return rt->gcTriggerFactor;
-      case JSGC_BYTES:
-        return rt->gcBytes;
-      default:
-        JS_ASSERT(key == JSGC_NUMBER);
-        return rt->gcNumber;
     }
 }
 
@@ -3393,15 +3364,17 @@ LookupResult(JSContext *cx, JSObject *obj, JSObject *obj2, JSProperty *prop)
 }
 
 static JSBool
-GetPropertyAttributesById(JSContext *cx, JSObject *obj, jsid id,
-                          uintN *attrsp, JSBool *foundp,
-                          JSPropertyOp *getterp, JSPropertyOp *setterp)
+GetPropertyAttributes(JSContext *cx, JSObject *obj, JSAtom *atom,
+                      uintN *attrsp, JSBool *foundp,
+                      JSPropertyOp *getterp, JSPropertyOp *setterp)
 {
     JSObject *obj2;
     JSProperty *prop;
     JSBool ok;
 
-    if (!LookupPropertyById(cx, obj, id, JSRESOLVE_QUALIFIED,
+    if (!atom)
+        return JS_FALSE;
+    if (!LookupPropertyById(cx, obj, ATOM_TO_JSID(atom), JSRESOLVE_QUALIFIED,
                             &obj2, &prop)) {
         return JS_FALSE;
     }
@@ -3419,7 +3392,7 @@ GetPropertyAttributesById(JSContext *cx, JSObject *obj, jsid id,
     }
 
     *foundp = JS_TRUE;
-    ok = OBJ_GET_ATTRIBUTES(cx, obj, id, prop, attrsp);
+    ok = OBJ_GET_ATTRIBUTES(cx, obj, ATOM_TO_JSID(atom), prop, attrsp);
     if (ok && OBJ_IS_NATIVE(obj)) {
         JSScopeProperty *sprop = (JSScopeProperty *) prop;
 
@@ -3430,17 +3403,6 @@ GetPropertyAttributesById(JSContext *cx, JSObject *obj, jsid id,
     }
     OBJ_DROP_PROPERTY(cx, obj, prop);
     return ok;
-}
-
-static JSBool
-GetPropertyAttributes(JSContext *cx, JSObject *obj, JSAtom *atom,
-                      uintN *attrsp, JSBool *foundp,
-                      JSPropertyOp *getterp, JSPropertyOp *setterp)
-{
-    if (!atom)
-        return JS_FALSE;
-    return GetPropertyAttributesById(cx, obj, ATOM_TO_JSID(atom),
-                                     attrsp, foundp, getterp, setterp);
 }
 
 static JSBool
@@ -3501,8 +3463,8 @@ JS_GetPropertyAttrsGetterAndSetterById(JSContext *cx, JSObject *obj,
                                        JSPropertyOp *setterp)
 {
     CHECK_REQUEST(cx);
-    return GetPropertyAttributesById(cx, obj, id, attrsp, foundp,
-                                     getterp, setterp);
+    return GetPropertyAttributes(cx, obj, JSID_TO_ATOM(id),
+                                 attrsp, foundp, getterp, setterp);
 }
 
 JS_PUBLIC_API(JSBool)

@@ -1013,7 +1013,7 @@ nsScriptLoader::ShouldExecuteScript(nsIDocument* aDocument,
 }
 
 void
-nsScriptLoader::EndDeferringScripts(PRBool aKillDeferred)
+nsScriptLoader::EndDeferringScripts()
 {
   if (mDeferEnabled) {
     // Have to check because we apparently get EndDeferringScripts
@@ -1022,12 +1022,7 @@ nsScriptLoader::EndDeferringScripts(PRBool aKillDeferred)
   }
   mDeferEnabled = PR_FALSE;
   for (PRUint32 i = 0; i < (PRUint32)mRequests.Count(); ++i) {
-    if (aKillDeferred && mRequests[i]->mDefer) {
-      mRequests.RemoveObjectAt(i--);
-    }
-    else {
-      mRequests[i]->mDefer = PR_FALSE;
-    }
+    mRequests[i]->mDefer = PR_FALSE;
   }
 
   ProcessPendingRequests();

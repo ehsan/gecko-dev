@@ -48,7 +48,7 @@ ifeq ($(OS_ARCH),WINNT)
 CPPSRCS    = redit.cpp
 PROGRAM    = redit$(BIN_SUFFIX)
 SDK_BINARY =  \
-	$(PROGRAM) \
+	$(HOST_PROGRAM) \
 	$(NULL)
 endif
 
