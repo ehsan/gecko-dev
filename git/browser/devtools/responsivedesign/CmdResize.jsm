@@ -53,12 +53,10 @@ gcli.addCommand({
       mgr.on("off", aChangeHandler);
     },
     offChange: function(aTarget, aChangeHandler) {
-      if (aTarget.tab) {
-        let browserWindow = aTarget.tab.ownerDocument.defaultView;
-        let mgr = browserWindow.ResponsiveUI.ResponsiveUIManager;
-        mgr.off("on", aChangeHandler);
-        mgr.off("off", aChangeHandler);
-      }
+      let browserWindow = aTarget.tab.ownerDocument.defaultView;
+      let mgr = browserWindow.ResponsiveUI.ResponsiveUIManager;
+      mgr.off("on", aChangeHandler);
+      mgr.off("off", aChangeHandler);
     },
   },
   exec: gcli_cmd_resize

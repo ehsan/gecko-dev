@@ -19,5 +19,4 @@ DIRS += [
     'responsivedesign',
     'framework',
     'profiler',
-    'fontinspector',
 ]

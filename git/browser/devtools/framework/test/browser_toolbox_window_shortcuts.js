@@ -66,10 +66,9 @@ function selectCB(event, id) {
 }
 
 function tidyUp() {
-  toolbox.destroy().then(function() {
-    gBrowser.removeCurrentTab();
+  toolbox.destroy();
+  gBrowser.removeCurrentTab();
 
-    toolbox = toolIDs = idIndex = Toolbox = null;
-    finish();
-  });
+  toolbox = toolIDs = idIndex = Toolbox = null;
+  finish();
 }

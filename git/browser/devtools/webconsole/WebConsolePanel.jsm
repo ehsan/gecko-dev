@@ -10,9 +10,6 @@ const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "Promise",
-    "resource://gre/modules/commonjs/sdk/core/promise.js");
-
 XPCOMUtils.defineLazyModuleGetter(this, "HUDService",
     "resource:///modules/HUDService.jsm");
 
@@ -41,31 +38,17 @@ WebConsolePanel.prototype = {
   {
     let parentDoc = this._toolbox.doc;
     let iframe = parentDoc.getElementById("toolbox-panel-iframe-webconsole");
-    let promise;
+    let promise = HUDService.openWebConsole(this.target, iframe);
 
-    // Local debugging needs to make the target remote.
-    if (!this.target.isRemote) {
-      promise = this.target.makeRemote();
-    } else {
-      promise = Promise.resolve(this.target);
-    }
-
-    return promise
-      .then(function(aTarget) {
-        this._frameWindow._remoteTarget = aTarget;
-        return HUDService.openWebConsole(this.target, iframe);
-      }.bind(this))
-      .then(function onSuccess(aWebConsole) {
-        this.hud = aWebConsole;
-        this._isReady = true;
-        this.emit("ready");
-        return this;
-      }.bind(this), function onError(aReason) {
-        let msg = "WebConsolePanel open failed. " +
-                  aReason.error + ": " + aReason.message;
-        dump(msg + "\n");
-        Cu.reportError(msg);
-      });
+    return promise.then(function onSuccess(aWebConsole) {
+      this.hud = aWebConsole;
+      this._isReady = true;
+      this.emit("ready");
+      return this;
+    }.bind(this), function onError(aReason) {
+      Cu.reportError("WebConsolePanel open failed. " +
+                     aReason.error + ": " + aReason.message);
+    });
   },
 
   get target() this._toolbox.target,

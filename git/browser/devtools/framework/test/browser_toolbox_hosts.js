@@ -90,14 +90,12 @@ function testToolSelect()
 function testDestroy()
 {
   toolbox.destroy().then(function() {
-    target = TargetFactory.forTab(gBrowser.selectedTab);
     gDevTools.showToolbox(target).then(testRememberHost);
   });
 }
 
-function testRememberHost(aToolbox)
+function testRememberHost()
 {
-  toolbox = aToolbox;
   // last host was the window - make sure it's the same when re-opening
   is(toolbox.hostType, Toolbox.HostType.WINDOW, "host remembered");
 
@@ -125,9 +123,8 @@ function cleanup()
 {
   Services.prefs.setCharPref("devtools.toolbox.host", Toolbox.HostType.BOTTOM);
 
-  toolbox.destroy().then(function() {
-    DevTools = Toolbox = toolbox = target = null;
-    gBrowser.removeCurrentTab();
-    finish();
-  });
- }
+  toolbox.destroy();
+  DevTools = Toolbox = toolbox = target = null;
+  gBrowser.removeCurrentTab();
+  finish();
+}

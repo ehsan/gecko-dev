@@ -679,6 +679,7 @@ DebuggerProgressListener.prototype = {
         from: this._tabActor.actorID,
         type: "tabNavigated",
         url: aRequest.URI.spec,
+        title: "",
         nativeConsoleAPI: true,
         state: "start",
       });

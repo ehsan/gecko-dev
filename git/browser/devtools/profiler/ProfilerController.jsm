@@ -23,6 +23,19 @@ XPCOMUtils.defineLazyGetter(this, "DebuggerServer", function () {
  * DebuggerServer.
  */
 function ProfilerConnection(client) {
+  if (!DebuggerServer.initialized) {
+    DebuggerServer.init();
+    DebuggerServer.addBrowserActors();
+  }
+
+  this.isRemote = true;
+
+  if (!client) {
+    let transport = DebuggerServer.connectPipe();
+    client = new DebuggerClient(transport);
+    this.isRemote = false;
+  }
+
   this.client = client;
 }
 
@@ -36,10 +49,22 @@ ProfilerConnection.prototype = {
    *        Function to be called once we're connected to the client.
    */
   connect: function PCn_connect(aCallback) {
-    this.client.listTabs(function (aResponse) {
-      this.actor = aResponse.profilerActor;
-      aCallback();
-    }.bind(this));
+    let client = this.client;
+
+    let listTabs = function () {
+      client.listTabs(function (aResponse) {
+        this.actor = aResponse.profilerActor;
+        aCallback();
+      }.bind(this));
+    }.bind(this);
+
+    if (this.isRemote) {
+      return void listTabs();
+    }
+
+    client.connect(function (aType, aTraits) {
+      listTabs();
+    });
   },
 
   /**
@@ -104,7 +129,9 @@ ProfilerConnection.prototype = {
    * Cleanup.
    */
   destroy: function PCn_destroy() {
-    this.client = null;
+    this.client.close(function () {
+      this.client = null;
+    }.bind(this));
   }
 };
 
@@ -112,13 +139,14 @@ ProfilerConnection.prototype = {
  * Object defining the profiler controller components.
  */
 function ProfilerController(target) {
-  this.profiler = new ProfilerConnection(target.client);
-  // Chrome debugging targets have already obtained a reference to the profiler
-  // actor.
-  this._connected = !!target.chrome;
-  if (target.chrome) {
-    this.profiler.actor = target.form.profilerActor;
+  let client;
+
+  if (target.isRemote) {
+    client = target.client;
   }
+
+  this.profiler = new ProfilerConnection(client);
+  this._connected = false;
 }
 
 ProfilerController.prototype = {
@@ -132,7 +160,7 @@ ProfilerController.prototype = {
    */
   connect: function (aCallback) {
     if (this._connected) {
-      return void aCallback();
+      aCallback();
     }
 
     this.profiler.connect(function onConnect() {

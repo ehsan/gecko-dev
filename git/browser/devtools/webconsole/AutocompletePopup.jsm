@@ -225,9 +225,7 @@ AutocompletePopup.prototype = {
    */
   set selectedIndex(aIndex) {
     this._list.selectedIndex = aIndex;
-    if (this._list.ensureIndexIsVisible) {
-      this._list.ensureIndexIsVisible(this._list.selectedIndex);
-    }
+    this._list.ensureIndexIsVisible(this._list.selectedIndex);
   },
 
   /**
