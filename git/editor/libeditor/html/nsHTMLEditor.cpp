@@ -80,18 +80,13 @@ using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::widget;
 
-// Some utilities to handle overloading of "A" tag for link and named anchor.
-static bool
-IsLinkTag(const nsString& s)
-{
-  return s.EqualsIgnoreCase("href");
-}
+// Some utilities to handle annoying overloading of "A" tag for link and named anchor
+static char hrefText[] = "href";
+static char anchorTxt[] = "anchor";
+static char namedanchorText[] = "namedanchor";
 
-static bool
-IsNamedAnchorTag(const nsString& s)
-{
-  return s.EqualsIgnoreCase("anchor") || s.EqualsIgnoreCase("namedanchor");
-}
+#define IsLinkTag(s) (s.EqualsIgnoreCase(hrefText))
+#define IsNamedAnchorTag(s) (s.EqualsIgnoreCase(anchorTxt) || s.EqualsIgnoreCase(namedanchorText))
 
 nsHTMLEditor::nsHTMLEditor()
 : nsPlaintextEditor()
@@ -653,7 +648,7 @@ nsHTMLEditor::HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent)
       }
 
       bool handled = false;
-      nsresult rv = NS_OK;
+      nsresult rv;
       if (nsHTMLEditUtils::IsTableElement(blockParent)) {
         rv = TabInTable(nativeKeyEvent->IsShift(), &handled);
         if (handled) {

@@ -5,6 +5,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 UNIFIED_SOURCES += [
+    'nsCharsetConverterManager.cpp',
     'nsConverterInputStream.cpp',
     'nsConverterOutputStream.cpp',
     'nsCP1252ToUnicode.cpp',
@@ -214,3 +215,4 @@ LOCAL_INCLUDES += [
 
 FINAL_LIBRARY = 'xul'
 
+JAR_MANIFESTS += ['jar.mn']

@@ -38,7 +38,7 @@ class FreeOp;
 namespace gc {
 
 struct Arena;
-class ArenaList;
+struct ArenaList;
 struct ArenaHeader;
 struct Chunk;
 

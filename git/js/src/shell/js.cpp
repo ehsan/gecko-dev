@@ -2814,7 +2814,7 @@ EvalInContext(JSContext *cx, unsigned argc, jsval *vp)
             ac.construct(cx, sobj);
         }
 
-        sobj = GetInnerObject(sobj);
+        sobj = GetInnerObject(cx, sobj);
         if (!sobj)
             return false;
         if (!(sobj->getClass()->flags & JSCLASS_IS_GLOBAL)) {
@@ -3505,7 +3505,7 @@ Parent(JSContext *cx, unsigned argc, jsval *vp)
 
     /* Outerize if necessary.  Embrace the ugliness! */
     if (parent) {
-        if (js::ObjectOp op = parent->getClass()->ext.outerObject)
+        if (JSObjectOp op = parent->getClass()->ext.outerObject)
             args.rval().setObjectOrNull(op(cx, parent));
     }
 

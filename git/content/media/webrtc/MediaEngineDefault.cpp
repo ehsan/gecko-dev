@@ -425,10 +425,10 @@ MediaEngineDefaultAudioSource::Start(SourceMediaStream* aStream, TrackID aID)
 #if defined(MOZ_WIDGET_GONK) && defined(DEBUG)
 // B2G emulator debug is very, very slow and has problems dealing with realtime audio inputs
   mTimer->InitWithCallback(this, MediaEngine::DEFAULT_AUDIO_TIMER_MS*10,
-                           nsITimer::TYPE_REPEATING_PRECISE_CAN_SKIP);
+                           nsITimer::TYPE_REPEATING_PRECISE);
 #else
   mTimer->InitWithCallback(this, MediaEngine::DEFAULT_AUDIO_TIMER_MS,
-                           nsITimer::TYPE_REPEATING_PRECISE_CAN_SKIP);
+                           nsITimer::TYPE_REPEATING_PRECISE);
 #endif
   mState = kStarted;
 

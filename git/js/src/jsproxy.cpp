@@ -1802,28 +1802,26 @@ ScriptedDirectProxyHandler::getOwnPropertyNames(JSContext *cx, HandleObject prox
                            cx->names().getOwnPropertyNames);
 }
 
-// ES6 (5 April 2014) Proxy.[[Delete]](P)
+// Proxy.[[Delete]](P, Throw)
 bool
 ScriptedDirectProxyHandler::delete_(JSContext *cx, HandleObject proxy, HandleId id, bool *bp)
 {
-    // step 2
+    // step 1
     RootedObject handler(cx, GetDirectProxyHandlerObject(proxy));
 
-    // TODO: step 3: Implement revocation semantics
-
-    // step 4
+    // step 2
     RootedObject target(cx, proxy->as<ProxyObject>().target());
 
-    // step 5
+    // step 3
     RootedValue trap(cx);
     if (!JSObject::getProperty(cx, handler, handler, cx->names().deleteProperty, &trap))
         return false;
 
-    // step 7
+    // step 4
     if (trap.isUndefined())
         return DirectProxyHandler::delete_(cx, proxy, id, bp);
 
-    // step 8
+    // step 5
     RootedValue value(cx);
     if (!IdToExposableValue(cx, id, &value))
         return false;
@@ -1835,26 +1833,24 @@ ScriptedDirectProxyHandler::delete_(JSContext *cx, HandleObject proxy, HandleId 
     if (!Invoke(cx, ObjectValue(*handler), trap, ArrayLength(argv), argv, &trapResult))
         return false;
 
-    // step 9
+    // step 6-7
     if (ToBoolean(trapResult)) {
-        // step 12
         Rooted<PropertyDescriptor> desc(cx);
         if (!GetOwnPropertyDescriptor(cx, target, id, &desc))
             return false;
 
-        // step 14-15
         if (desc.object() && desc.isPermanent()) {
             RootedValue v(cx, IdToValue(id));
             js_ReportValueError(cx, JSMSG_CANT_DELETE, JSDVG_IGNORE_STACK, v, js::NullPtr());
             return false;
         }
 
-        // step 16
         *bp = true;
         return true;
     }
 
-    // step 11
+    // step 8
+    // FIXME: API does not include a Throw parameter
     *bp = false;
     return true;
 }
@@ -2809,7 +2805,7 @@ Proxy::slice(JSContext *cx, HandleObject proxy, uint32_t begin, uint32_t end,
 }
 
 JSObject *
-js::proxy_innerObject(JSObject *obj)
+js::proxy_innerObject(JSContext *cx, HandleObject obj)
 {
     return obj->as<ProxyObject>().private_().toObjectOrNull();
 }

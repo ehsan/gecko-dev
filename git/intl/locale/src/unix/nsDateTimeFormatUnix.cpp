@@ -14,9 +14,6 @@
 #include "nsCRT.h"
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
-#include "mozilla/dom/EncodingUtils.h"
-
-using mozilla::dom::EncodingUtils;
 
 NS_IMPL_ISUPPORTS(nsDateTimeFormatUnix, nsIDateTimeFormat)
 
@@ -45,7 +42,7 @@ nsresult nsDateTimeFormatUnix::Initialize(nsILocale* locale)
     }
   }
 
-  mCharset.AssignLiteral("windows-1252");
+  mCharset.AssignLiteral("ISO-8859-1");
   mPlatformLocale.Assign("en_US");
 
   // get locale name string, use app default if no locale specified
@@ -84,7 +81,12 @@ nsresult nsDateTimeFormatUnix::Initialize(nsILocale* locale)
     }
   }
 
-  mDecoder = EncodingUtils::DecoderForEncoding(mCharset);
+  // Initialize unicode decoder
+  nsCOMPtr <nsICharsetConverterManager>  charsetConverterManager;
+  charsetConverterManager = do_GetService(NS_CHARSETCONVERTERMANAGER_CONTRACTID, &res);
+  if (NS_SUCCEEDED(res)) {
+    res = charsetConverterManager->GetUnicodeDecoder(mCharset.get(), getter_AddRefs(mDecoder));
+  }
 
   LocalePreferred24hour();
 
