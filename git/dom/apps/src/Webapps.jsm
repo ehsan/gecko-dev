@@ -399,7 +399,7 @@ let DOMApplicationRegistry = {
   updateApps: function(aRecords, aCallback) {
     for (let i = 0; i < aRecords.length; i++) {
       let record = aRecords[i];
-      if (record.hidden) {
+      if (record.deleted) {
         if (!this.webapps[record.id])
           continue;
         let origin = this.webapps[record.id].origin;

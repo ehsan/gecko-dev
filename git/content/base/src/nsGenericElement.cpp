@@ -1045,6 +1045,44 @@ nsGenericElement::GetScrollWidth(PRInt32 *aScrollWidth)
   return NS_OK;
 }
 
+PRInt32
+nsGenericElement::GetScrollLeftMax()
+{
+  nsIScrollableFrame* sf = GetScrollFrame();
+  if (!sf) {
+    return 0;
+  }
+
+  return nsPresContext::AppUnitsToIntCSSPixels(sf->GetScrollRange().XMost());
+}
+
+NS_IMETHODIMP
+nsGenericElement::GetScrollLeftMax(PRInt32 *aScrollLeftMax)
+{
+  *aScrollLeftMax = GetScrollLeftMax();
+
+  return NS_OK;
+}
+
+PRInt32
+nsGenericElement::GetScrollTopMax()
+{
+  nsIScrollableFrame* sf = GetScrollFrame();
+  if (!sf) {
+    return 0;
+  }
+
+  return nsPresContext::AppUnitsToIntCSSPixels(sf->GetScrollRange().YMost());
+}
+
+NS_IMETHODIMP
+nsGenericElement::GetScrollTopMax(PRInt32 *aScrollTopMax)
+{
+  *aScrollTopMax = GetScrollTopMax();
+
+  return NS_OK;
+}
+
 nsRect
 nsGenericElement::GetClientAreaRect()
 {
@@ -2809,16 +2847,6 @@ public:
     return NS_OK;
   }
 
-  static void UnbindAll()
-  {
-    nsRefPtr<ContentUnbinder> ub = sContentUnbinder;
-    sContentUnbinder = nsnull;
-    while (ub) {
-      ub->Run();
-      ub = ub->mNext;
-    }
-  }
-
   static void Append(nsIContent* aSubtreeRoot)
   {
     if (!sContentUnbinder) {
@@ -2844,12 +2872,6 @@ private:
 };
 
 ContentUnbinder* ContentUnbinder::sContentUnbinder = nsnull;
-
-void
-nsGenericElement::ClearContentUnbinder()
-{
-  ContentUnbinder::UnbindAll();
-}
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGenericElement)
   nsINode::Unlink(tmp);
@@ -3094,29 +3116,19 @@ nsGenericElement::CanSkipInCC(nsINode* aNode)
 }
 
 nsAutoTArray<nsINode*, 1020>* gPurpleRoots = nsnull;
-nsAutoTArray<nsIContent*, 1020>* gNodesToUnbind = nsnull;
 
-void ClearCycleCollectorCleanupData()
+void ClearPurpleRoots()
 {
-  if (gPurpleRoots) {
-    PRUint32 len = gPurpleRoots->Length();
-    for (PRUint32 i = 0; i < len; ++i) {
-      nsINode* n = gPurpleRoots->ElementAt(i);
-      n->SetIsPurpleRoot(false);
-    }
-    delete gPurpleRoots;
-    gPurpleRoots = nsnull;
+  if (!gPurpleRoots) {
+    return;
   }
-  if (gNodesToUnbind) {
-    PRUint32 len = gNodesToUnbind->Length();
-    for (PRUint32 i = 0; i < len; ++i) {
-      nsIContent* c = gNodesToUnbind->ElementAt(i);
-      c->SetIsPurpleRoot(false);
-      ContentUnbinder::Append(c);
-    }
-    delete gNodesToUnbind;
-    gNodesToUnbind = nsnull;
+  PRUint32 len = gPurpleRoots->Length();
+  for (PRUint32 i = 0; i < len; ++i) {
+    nsINode* n = gPurpleRoots->ElementAt(i);
+    n->SetIsPurpleRoot(false);
   }
+  delete gPurpleRoots;
+  gPurpleRoots = nsnull;
 }
 
 static bool
@@ -3190,8 +3202,8 @@ nsGenericElement::CanSkip(nsINode* aNode, bool aRemovingAllowed)
     return false;
   }
  
-  // Subtree has been traversed already, and aNode has
-  // been handled in a way that doesn't require revisiting it.
+  // Subtree has been traversed already, and aNode
+  // wasn't removed from purple buffer. No need to do more here.
   if (root->IsPurpleRoot()) {
     return false;
   }
@@ -3201,12 +3213,8 @@ nsGenericElement::CanSkip(nsINode* aNode, bool aRemovingAllowed)
   nsAutoTArray<nsIContent*, 1020> nodesToClear;
 
   bool foundBlack = root->IsBlack();
-  bool domOnlyCycle = false;
   if (root != currentDoc) {
     currentDoc = nsnull;
-    if (!foundBlack) {
-      domOnlyCycle = static_cast<nsIContent*>(root)->OwnedOnlyByTheDOMTree();
-    }
     if (ShouldClearPurple(static_cast<nsIContent*>(root))) {
       nodesToClear.AppendElement(static_cast<nsIContent*>(root));
     }
@@ -3220,7 +3228,6 @@ nsGenericElement::CanSkip(nsINode* aNode, bool aRemovingAllowed)
        node = node->GetNextNode(root)) {
     foundBlack = foundBlack || node->IsBlack();
     if (foundBlack) {
-      domOnlyCycle = false;
       if (currentDoc) {
         // If we can mark the whole document black, no need to optimize
         // so much, since when the next purple node in the document will be
@@ -3233,36 +3240,19 @@ nsGenericElement::CanSkip(nsINode* aNode, bool aRemovingAllowed)
         node->RemovePurple();
       }
       MarkNodeChildren(node);
-    } else {
-      domOnlyCycle = domOnlyCycle && node->OwnedOnlyByTheDOMTree();
-      if (ShouldClearPurple(node)) {
-        // Collect interesting nodes which we can clear if we find that
-        // they are kept alive in a black tree or are in a DOM-only cycle.
-        nodesToClear.AppendElement(node);
-      }
+    } else if (ShouldClearPurple(node)) {
+      // Collect interesting nodes which we can clear if we find that
+      // they are kept alive in a black tree.
+      nodesToClear.AppendElement(node);
     }
   }
 
   if (!currentDoc || !foundBlack) { 
-    root->SetIsPurpleRoot(true);
-    if (domOnlyCycle) {
-      if (!gNodesToUnbind) {
-        gNodesToUnbind = new nsAutoTArray<nsIContent*, 1020>();
-      }
-      gNodesToUnbind->AppendElement(static_cast<nsIContent*>(root));
-      for (PRUint32 i = 0; i < nodesToClear.Length(); ++i) {
-        nsIContent* n = nodesToClear[i];
-        if ((n != aNode || aRemovingAllowed) && n->IsPurple()) {
-          n->RemovePurple();
-        }
-      }
-      return true;
-    } else {
-      if (!gPurpleRoots) {
-        gPurpleRoots = new nsAutoTArray<nsINode*, 1020>();
-      }
-      gPurpleRoots->AppendElement(root);
+    if (!gPurpleRoots) {
+      gPurpleRoots = new nsAutoTArray<nsINode*, 1020>();
     }
+    root->SetIsPurpleRoot(true);
+    gPurpleRoots->AppendElement(root);
   }
 
   if (!foundBlack) {
@@ -3309,7 +3299,7 @@ nsGenericElement::CanSkipThis(nsINode* aNode)
 void
 nsGenericElement::InitCCCallbacks()
 {
-  nsCycleCollector_setForgetSkippableCallback(ClearCycleCollectorCleanupData);
+  nsCycleCollector_setForgetSkippableCallback(ClearPurpleRoots);
   nsCycleCollector_setBeforeUnlinkCallback(ClearBlackMarkedNodes);
 }
 
