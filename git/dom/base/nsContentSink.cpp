@@ -1550,8 +1550,4 @@ nsContentSink::NotifyDocElementCreated(nsIDocument* aDoc)
       NotifyObservers(domDoc, "document-element-inserted",
                       EmptyString().get());
   }
-
-  nsContentUtils::DispatchChromeEvent(aDoc, aDoc,
-                                      NS_LITERAL_STRING("DOMDocElementInserted"),
-                                      true, false);
 }
