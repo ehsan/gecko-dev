@@ -60,6 +60,10 @@
 #include "mozilla/dom/TabChild.h"
 #include "mozilla/Util.h"
 
+#ifdef XP_WIN
+#include "winuser.h"
+#endif
+
 #include "nsPresShell.h"
 #include "nsPresContext.h"
 #include "nsIContent.h"
@@ -6260,6 +6264,11 @@ IsFullScreenAndRestrictedKeyEvent(nsIContent* aTarget, const nsEvent* aEvent)
     case NS_VK_CONTROL:
     case NS_VK_ALT:
     case NS_VK_META:
+#ifdef XP_WIN
+    case VK_VOLUME_MUTE:
+    case VK_VOLUME_DOWN:
+    case VK_VOLUME_UP:
+#endif
       // Unrestricted key code.
       return false;
     default:
@@ -7286,14 +7295,14 @@ PresShell::DoReflow(nsIFrame* target, bool aInterruptible)
                 desiredSize.height == size.height),
                "non-root frame's desired size changed during an "
                "incremental reflow");
-  NS_ASSERTION(desiredSize.VisualOverflow().IsEqualInterior(
+  NS_ASSERTION(target == rootFrame || desiredSize.VisualOverflow().IsEqualInterior(
                  nsRect(nsPoint(0, 0),
                         nsSize(desiredSize.width, desiredSize.height))),
-               "reflow roots must not have visible overflow");
-  NS_ASSERTION(desiredSize.ScrollableOverflow().IsEqualEdges(
+               "non-root reflow roots must not have visible overflow");
+  NS_ASSERTION(target == rootFrame || desiredSize.ScrollableOverflow().IsEqualEdges(
                  nsRect(nsPoint(0, 0),
                         nsSize(desiredSize.width, desiredSize.height))),
-               "reflow roots must not have scrollable overflow");
+               "non-root reflow roots must not have scrollable overflow");
   NS_ASSERTION(status == NS_FRAME_COMPLETE,
                "reflow roots should never split");
 

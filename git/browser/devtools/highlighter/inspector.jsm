@@ -285,6 +285,7 @@ Highlighter.prototype = {
    */
   destroy: function Highlighter_destroy()
   {
+    this.IUI.win.clearTimeout(this.transitionDisabler);
     this.browser.removeEventListener("scroll", this, true);
     this.browser.removeEventListener("resize", this, true);
     this.boundCloseEventHandler = null;
@@ -2220,7 +2221,9 @@ InspectorProgressListener.prototype = {
             aRequest.resume();
             aRequest = null;
             this.IUI.closeInspectorUI();
+            return true;
           }
+          return false;
         }.bind(this),
       },
       {
