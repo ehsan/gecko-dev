@@ -130,7 +130,6 @@ pref("browser.triple_click_selects_paragraph", true);
 
 pref("gfx.color_management.enabled", false);
 pref("gfx.color_management.display_profile", "");
-pref("gfx.color_management.rendering_intent", 0);
 
 pref("accessibility.browsewithcaret", false);
 pref("accessibility.warn_on_browsewithcaret", true);

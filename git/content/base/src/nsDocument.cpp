@@ -2145,8 +2145,8 @@ nsDocument::ElementFromPoint(PRInt32 aX, PRInt32 aY, nsIDOMElement** aReturn)
   // replace it with the first non-anonymous parent node of type element.
   while (ptContent &&
          !ptContent->IsNodeOfType(nsINode::eELEMENT) ||
-         ptContent->IsInAnonymousSubtree()) {
-    // XXXldb: Faster to jump to GetBindingParent if non-null?
+         ptContent->GetBindingParent() ||
+         ptContent->IsNativeAnonymous()) {
     ptContent = ptContent->GetParent();
   }
  

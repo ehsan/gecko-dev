@@ -435,15 +435,18 @@ nsIContent*
 nsIContent::FindFirstNonNativeAnonymous() const
 {
   // This handles also nested native anonymous content.
-  for (const nsIContent *content = this; content;
-       content = content->GetBindingParent()) {
-    if (!content->IsInNativeAnonymousSubtree()) {
-      // Oops, this function signature allows casting const to
-      // non-const.  (Then again, so does GetChildAt(0)->GetParent().)
-      return const_cast<nsIContent*>(content);
+  nsIContent* content = GetBindingParent();
+  nsIContent* possibleResult = 
+    !IsNativeAnonymous() ? const_cast<nsIContent*>(this) : nsnull;
+  while (content) {
+    if (content->IsNativeAnonymous()) {
+      content = possibleResult = content->GetParent();
+    } else {
+      content = content->GetBindingParent();
     }
   }
-  return nsnull;
+
+  return possibleResult;
 }
 
 //----------------------------------------------------------------------
@@ -2088,11 +2091,11 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   NS_PRECONDITION(!aParent || !aDocument ||
                   !aParent->HasFlag(NODE_FORCE_XBL_BINDINGS),
                   "Parent in document but flagged as forcing XBL");
-  NS_PRECONDITION(aBindingParent != this,
-                  "Content must not be its own binding parent");
-  NS_PRECONDITION(!IsRootOfNativeAnonymousSubtree() ||
-                  aBindingParent == aParent,
-                  "Native anonymous content must have its parent as its "
+  NS_PRECONDITION(aBindingParent != this || IsNativeAnonymous(),
+                  "Only native anonymous content should have itself as its "
+                  "own binding parent");
+  NS_PRECONDITION(!IsNativeAnonymous() || aBindingParent == this,
+                  "Native anonymous content must have itself as its "
                   "own binding parent");
 
   if (!aBindingParent && aParent) {
@@ -2118,13 +2121,13 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
       slots->mBindingParent = aBindingParent; // Weak, so no addref happens.
     }
   }
-  NS_ASSERTION(!aBindingParent || IsRootOfNativeAnonymousSubtree() ||
+  NS_ASSERTION(!aBindingParent || IsNativeAnonymous() ||
                !HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE) ||
                aBindingParent->IsInNativeAnonymousSubtree(),
                "Trying to re-bind content from native anonymous subtree to"
                "non-native anonymous parent!");
-  if (IsRootOfNativeAnonymousSubtree() ||
-      aParent && aParent->IsInNativeAnonymousSubtree()) {
+  if (IsNativeAnonymous() ||
+      aBindingParent && aBindingParent->IsInNativeAnonymousSubtree()) {
     SetFlags(NODE_IS_IN_ANONYMOUS_SUBTREE);
   }
 
@@ -2299,7 +2302,7 @@ FindNativeAnonymousSubtreeOwner(nsIContent* aContent)
   if (aContent->IsInNativeAnonymousSubtree()) {
     PRBool isNativeAnon = PR_FALSE;
     while (aContent && !isNativeAnon) {
-      isNativeAnon = aContent->IsRootOfNativeAnonymousSubtree();
+      isNativeAnon = aContent->IsNativeAnonymous();
       aContent = aContent->GetParent();
     }
   }
@@ -2315,7 +2318,7 @@ nsGenericElement::doPreHandleEvent(nsIContent* aContent,
 
   // Don't propagate mouseover and mouseout events when mouse is moving
   // inside native anonymous content.
-  PRBool isAnonForEvents = aContent->IsRootOfNativeAnonymousSubtree();
+  PRBool isAnonForEvents = aContent->IsNativeAnonymous();
   if ((aVisitor.mEvent->message == NS_MOUSE_ENTER_SYNTH ||
        aVisitor.mEvent->message == NS_MOUSE_EXIT_SYNTH) &&
       // This is an optimization - try to stop event propagation when

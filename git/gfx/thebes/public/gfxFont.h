@@ -920,13 +920,6 @@ public:
      * or PR_UINT32_MAX if no such N exists, where GetAdvanceWidth assumes
      * the effect of
      * SetLineBreaks(aStart, N, aLineBreakBefore, N < aMaxLength, aProvider)
-     *
-     * @param aCanWordWrap true if we can break between any two grapheme
-     * clusters. This is set by word-wrap: break-word
-     *
-     * @param aBreakPriority in/out the priority of the break opportunity
-     * saved in the line. If we are prioritizing break opportunities, we will
-     * not set a break with a lower priority. @see gfxBreakPriority.
      * 
      * Note that negative advance widths are possible especially if negative
      * spacing is provided.
@@ -939,9 +932,7 @@ public:
                                  Metrics *aMetrics, PRBool aTightBoundingBox,
                                  gfxContext *aRefContextForTightBoundingBox,
                                  PRBool *aUsedHyphenation,
-                                 PRUint32 *aLastBreak,
-                                 PRBool aCanWordWrap,
-                                 gfxBreakPriority *aBreakPriority);
+                                 PRUint32 *aLastBreak);
 
     /**
      * Update the reference context.

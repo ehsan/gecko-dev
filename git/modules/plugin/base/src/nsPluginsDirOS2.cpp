@@ -44,7 +44,6 @@
 #include "prlink.h"
 #include "plstr.h"
 #include "prmem.h"
-#include "prprf.h"
 #include "nsPluginDefs.h"
 
 #include "nsString.h"
@@ -232,7 +231,7 @@ nsresult nsPluginFile::GetPluginInfo( nsPluginInfo &info)
 
       info.fName = LoadRCDATAString( hPlug, NS_INFO_ProductName);
 
-      info.fVersion = LoadRCDATAVersion( hPlug, NS_INFO_ProductVersion);
+      info.fFileVersion = LoadRCDATAVersion( hPlug, NS_INFO_ProductVersion);
 
       // get description (doesn't matter if it's missing)...
       info.fDescription = LoadRCDATAString( hPlug, NS_INFO_FileDescription);

@@ -67,13 +67,12 @@
         return;
       }
 
-      var errorMsg = " for " + aID + "at offset " + aOffset;
       is(startOffset.value, aStartOffset,
-         "Wrong start offset" + errorMsg);
+         "Wrong start offset for " + aID);
       is(endOffset.value, aEndOffset,
-          "Wrong end offset" + errorMsg);
+          "Wrong end offset for " + aID);
 
-      compareTextAttrs(errorMsg, attrs, aAttrs);
+      compareTextAttrs(aID, attrs, aAttrs);
 
       var defAttrs = null;
       try{
@@ -86,10 +85,10 @@
         return;
       }
 
-      compareTextAttrs(errorMsg, defAttrs, aDefAttrs);
+      compareTextAttrs(aID, defAttrs, aDefAttrs);
     }
 
-    function compareTextAttrs(aErrorMsg, aAttrs, aExpectedAttrs)
+    function compareTextAttrs(aID, aAttrs, aExpectedAttrs)
     {
       var enumerate = aAttrs.enumerate();
       while (enumerate.hasMoreElements()) {
@@ -97,11 +96,10 @@
           QueryInterface(Components.interfaces.nsIPropertyElement);
 
         if (!(prop.key in aExpectedAttrs))
-          ok(false,
-             "Unexpected attribute '" + prop.key + "'" + aErrorMsg);
+          ok(false, "Unexpected attribute '" + prop.key + "' for " + aID);
         else
           is(prop.value, aExpectedAttrs[prop.key],
-             "Attribute '" + prop.key + "' has wrong value" + aErrorMsg);
+             "Attribute '" + prop.key + "' has wrong value for " + aID);
       }
 
       for (var name in aExpectedAttrs) {
@@ -112,8 +110,7 @@
         }
 
         if (!value)
-          ok(false,
-             "There is no expected attribute '" + name + "'" + aErrorMsg);
+          ok(false, "There is no expected attribute '" + name + "' for " + aID);
       }
     }
 
@@ -145,7 +142,7 @@
       gObserverService.addObserver(gA11yEventObserver, "accessible-event",
                                   false);
 
-      ID = "area8";
+      ID = "area7";
   
       var node = document.getElementById(ID);
       node.focus();
@@ -164,8 +161,7 @@
             "font-weight": "400",
             "text-indent": "0px",
             "color": "rgb(0, 0, 0)",
-            "font-family": "Lucida Grande",
-            "text-position": "baseline"
+            "font-family": "Lucida Grande"
           };
 
           var attrs = { "background-color": "transparent" };
@@ -205,8 +201,7 @@
         "font-weight": "400",
         "text-indent": "0px",
         "color": "rgb(0, 0, 0)",
-        "font-family": "serif",
-        "text-position": "baseline"
+        "font-family": "serif"
       };
 
       var attrs = {};
@@ -229,8 +224,7 @@
         "font-weight": "400",
         "text-indent": "0px",
         "color": "rgb(0, 0, 0)",
-        "font-family": "serif",
-        "text-position": "baseline"
+        "font-family": "serif"
       };
 
       attrs = {};
@@ -259,8 +253,7 @@
         "font-weight": "400",
         "text-indent": "0px",
         "color": "rgb(0, 0, 0)",
-        "font-family": "serif",
-        "text-position": "baseline"
+        "font-family": "serif"
       };
 
       attrs = {"color": "rgb(0, 128, 0)"};
@@ -283,8 +276,7 @@
         "font-weight": "400",
         "text-indent": "0px",
         "color": "rgb(0, 0, 0)",
-        "font-family": "serif",
-        "text-position": "baseline"
+        "font-family": "serif"
       };
 
       attrs = {"color": "rgb(0, 128, 0)"};
@@ -307,8 +299,7 @@
         "font-weight": "400",
         "text-indent": "0px",
         "color": "rgb(0, 0, 0)",
-        "font-family": "serif",
-        "text-position": "baseline"
+        "font-family": "serif"
       };
 
       attrs = {"color": "rgb(0, 128, 0)"};
@@ -324,7 +315,7 @@
       testTextAttrs(ID, 11, attrs, 11, 18, defAttrs);
 
       //////////////////////////////////////////////////////////////////////////
-      // area6 (CSS vertical-align property, bug 445938)
+      // area6
       ID = "area6";
       defAttrs = {
         "font-style": "normal",
@@ -334,47 +325,7 @@
         "font-weight": "400",
         "text-indent": "0px",
         "color": "rgb(0, 0, 0)",
-        "font-family": "serif",
-        "text-position": "baseline"
-      };
-
-      attrs = {};
-      testTextAttrs(ID, 0, attrs, 0, 5, defAttrs);
-
-      attrs = {"text-position": "super", "font-size": "13px" };
-      testTextAttrs(ID, 5, attrs, 5, 13, defAttrs);
-
-      attrs = {};
-      testTextAttrs(ID, 13, attrs, 13, 27, defAttrs);
-
-      attrs = {"text-position": "super" };
-      testTextAttrs(ID, 27, attrs, 27, 35, defAttrs);
-
-      attrs = {};
-      testTextAttrs(ID, 35, attrs, 35, 39, defAttrs);
-
-      attrs = {"text-position": "sub", "font-size": "13px" };
-      testTextAttrs(ID, 39, attrs, 39, 50, defAttrs);
-
-      attrs = {};
-      testTextAttrs(ID, 50, attrs, 50, 55, defAttrs);
-
-      attrs = {"text-position": "sub" };
-      testTextAttrs(ID, 55, attrs, 55, 64, defAttrs);
-
-      //////////////////////////////////////////////////////////////////////////
-      // area7
-      ID = "area7";
-      defAttrs = {
-        "font-style": "normal",
-        "text-align": "start",
-        "font-size": "16px",
-        "background-color": "transparent",
-        "font-weight": "400",
-        "text-indent": "0px",
-        "color": "rgb(0, 0, 0)",
-        "font-family": "serif",
-        "text-position": "baseline"
+        "font-family": "serif"
       };
 
       attrs = {"language": "ru"};
@@ -452,14 +403,7 @@
     <img src="moz.png" alt="image"/>
     <span style="color: red">Red</span>Normal
   </p>
-  <p id="area6">
-    This <sup>sentence</sup> has the word 
-    <span style="vertical-align:super;">sentence</span> in 
-    <sub>superscript</sub> and 
-    <span style="vertical-align:sub;">subscript</span>
-  </p>
-
-  <p lang="en" id="area7">
+  <p lang="en" id="area6">
     <span lang="ru">Привет</span>
     <span style="background-color: blue">Blue BG color</span>
     <span lang="de">Ich bin/Du bist</span>
@@ -469,7 +413,7 @@
     </span>
   </p>
 
-  <input id="area8" value="valid text inalid tixt"/>
+  <input id="area7" value="valid text inalid tixt"/>
 
   <p id="output"/>
 </body>

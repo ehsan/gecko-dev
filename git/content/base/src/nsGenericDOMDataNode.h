@@ -269,9 +269,6 @@ public:
     return NS_OK;
   }
 
-  nsresult SplitData(PRUint32 aOffset, nsIContent** aReturn,
-                     PRBool aCloneAfterOriginal = PR_TRUE);
-
   //----------------------------------------
 
 #ifdef DEBUG

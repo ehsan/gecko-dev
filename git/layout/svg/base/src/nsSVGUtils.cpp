@@ -177,6 +177,7 @@ public:
     mFrame->RemoveStateBits(NS_STATE_SVG_FILTERED);
   }
 
+  nsRect GetRect() { return mFilterRect; }
   nsSVGFilterFrame *GetFilterFrame();
   void UpdateRect();
 
@@ -204,8 +205,11 @@ nsSVGFilterProperty::nsSVGFilterProperty(nsIContent *aFilter,
                                          nsIFrame *aFilteredFrame)
   : nsSVGPropertyBase(aFilter, aFilteredFrame, nsGkAtoms::filter)
 {
+  nsSVGFilterFrame *filterFrame = GetFilterFrame();
+  if (filterFrame)
+    mFilterRect = filterFrame->GetInvalidationRegion(mFrame);
+
   mFrame->AddStateBits(NS_STATE_SVG_FILTERED);
-  UpdateRect();
 }
 
 nsSVGFilterFrame *
@@ -226,11 +230,8 @@ void
 nsSVGFilterProperty::UpdateRect()
 {
   nsSVGFilterFrame *filter = GetFilterFrame();
-  if (filter) {
-    nsISVGChildFrame *svg;
-    CallQueryInterface(mFrame, &svg);
-    mFilterRect = filter->GetInvalidationRegion(mFrame, svg->GetCoveredRegion());
-  }
+  if (filter)
+    mFilterRect = filter->GetInvalidationRegion(mFrame);
 }
 
 void
@@ -238,9 +239,9 @@ nsSVGFilterProperty::DoUpdate()
 {
   nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(mFrame);
   if (outerSVGFrame) {
-    outerSVGFrame->InvalidateRect(mFilterRect);
+    outerSVGFrame->InvalidateCoveredRegion(mFrame);
     UpdateRect();
-    outerSVGFrame->InvalidateRect(mFilterRect);
+    outerSVGFrame->InvalidateCoveredRegion(mFrame);
   }
 }
 
@@ -854,9 +855,9 @@ nsSVGUtils::GetBBox(nsFrameList *aFrames, nsIDOMSVGRect **_retval)
 }
 
 nsRect
-nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect)
+nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame)
 {
-  nsRect rect = aRect;
+  nsRect rect;
 
   while (aFrame) {
     if (aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG)
@@ -866,10 +867,7 @@ nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect)
       nsSVGFilterProperty *property;
       property = static_cast<nsSVGFilterProperty *>
                             (aFrame->GetProperty(nsGkAtoms::filter));
-      nsSVGFilterFrame *filter = property->GetFilterFrame();
-      if (filter) {
-        rect = filter->GetInvalidationRegion(aFrame, rect);
-      }
+      rect = property->GetRect();
     }
     aFrame = aFrame->GetParent();
   }
@@ -910,10 +908,15 @@ nsSVGUtils::UpdateGraphic(nsISVGChildFrame *aSVGFrame)
   } else {
     frame->RemoveStateBits(NS_STATE_SVG_DIRTY);
 
-    PRBool changed = outerSVGFrame->UpdateAndInvalidateCoveredRegion(frame);
-    if (changed) {
-      NotifyAncestorsOfFilterRegionChange(frame);
-    }
+    // Invalidate the area we used to cover
+    outerSVGFrame->InvalidateCoveredRegion(frame);
+
+    aSVGFrame->UpdateCoveredRegion();
+
+    // Invalidate the area we now cover
+    outerSVGFrame->InvalidateCoveredRegion(frame);
+
+    NotifyAncestorsOfFilterRegionChange(frame);
   }
 }
 
@@ -1321,11 +1324,11 @@ nsSVGUtils::PaintChildWithEffects(nsSVGRenderState *aContext,
   nsFrameState state = aFrame->GetStateBits();
 
   /* Check if we need to draw anything */
-  if (aDirtyRect && svgChildFrame->HasValidCoveredRect()) {
+  if (aDirtyRect) {
     if (state & NS_STATE_SVG_FILTERED) {
-      if (!aDirtyRect->Intersects(FindFilterInvalidation(aFrame, aFrame->GetRect())))
+      if (!aDirtyRect->Intersects(FindFilterInvalidation(aFrame)))
         return;
-    } else {
+    } else if (svgChildFrame->HasValidCoveredRect()) {
       if (!aDirtyRect->Intersects(aFrame->GetRect()))
         return;
     }
