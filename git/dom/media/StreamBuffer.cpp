@@ -27,7 +27,7 @@ StreamBuffer::DumpTrackInfo() const
       STREAM_LOG(PR_LOG_ALWAYS, ("Track[%d] %d: ended", i, track->GetID()));
     } else {
       STREAM_LOG(PR_LOG_ALWAYS, ("Track[%d] %d: %lld", i, track->GetID(),
-                                 track->GetEnd()));
+                                 track->GetEndTimeRoundDown()));
     }
   }
 }
@@ -40,7 +40,7 @@ StreamBuffer::GetEnd() const
   for (uint32_t i = 0; i < mTracks.Length(); ++i) {
     Track* track = mTracks[i];
     if (!track->IsEnded()) {
-      t = std::min(t, track->GetEnd());
+      t = std::min(t, track->GetEndTimeRoundDown());
     }
   }
   return t;
@@ -59,7 +59,7 @@ StreamBuffer::GetAllTracksEnd() const
     if (!track->IsEnded()) {
       return STREAM_TIME_MAX;
     }
-    t = std::max(t, track->GetEnd());
+    t = std::max(t, track->GetEndTimeRoundDown());
   }
   return t;
 }
@@ -91,12 +91,12 @@ StreamBuffer::ForgetUpTo(StreamTime aTime)
 
   for (uint32_t i = 0; i < mTracks.Length(); ++i) {
     Track* track = mTracks[i];
-    if (track->IsEnded() && track->GetEnd() <= aTime) {
+    if (track->IsEnded() && track->GetEndTimeRoundDown() <= aTime) {
       mTracks.RemoveElementAt(i);
       --i;
       continue;
     }
-    StreamTime forgetTo = std::min(track->GetEnd() - 1, aTime);
+    TrackTicks forgetTo = std::min(track->GetEnd() - 1, track->TimeToTicksRoundDown(aTime));
     track->ForgetUpTo(forgetTo);
   }
 }

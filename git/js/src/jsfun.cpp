@@ -443,13 +443,9 @@ ResolveInterpretedFunctionPrototype(JSContext *cx, HandleObject obj)
 }
 
 bool
-js::FunctionHasResolveHook(const JSAtomState &atomState, jsid id)
+js::FunctionHasResolveHook(const JSAtomState &atomState, PropertyName *name)
 {
-    if (!JSID_IS_ATOM(id))
-        return false;
-
-    JSAtom *atom = JSID_TO_ATOM(id);
-    return atom == atomState.prototype || atom == atomState.length || atom == atomState.name;
+    return name == atomState.prototype || name == atomState.length || name == atomState.name;
 }
 
 bool
@@ -1073,17 +1069,16 @@ js::FunctionToString(JSContext *cx, HandleFunction fun, bool bodyOnly, bool lamb
                 return nullptr;
 
             // Fish out the argument names.
-            MOZ_ASSERT(script->bindings.numArgs() == fun->nargs());
-
-            BindingIter bi(script);
-            for (unsigned i = 0; i < fun->nargs(); i++, bi++) {
-                MOZ_ASSERT(bi.argIndex() == i);
-                if (i && !out.append(", "))
+            BindingVector *localNames = cx->new_<BindingVector>(cx);
+            ScopedJSDeletePtr<BindingVector> freeNames(localNames);
+            if (!FillBindingVector(script, localNames))
+                return nullptr;
+            for (unsigned i = 0; i < fun->nargs(); i++) {
+                if ((i && !out.append(", ")) ||
+                    (i == unsigned(fun->nargs() - 1) && fun->hasRest() && !out.append("...")) ||
+                    !out.append((*localNames)[i].name())) {
                     return nullptr;
-                if (i == unsigned(fun->nargs() - 1) && fun->hasRest() && !out.append("..."))
-                    return nullptr;
-                if (!out.append(bi->name()))
-                    return nullptr;
+                }
             }
             if (!out.append(") {\n"))
                 return nullptr;

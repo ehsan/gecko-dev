@@ -31,7 +31,8 @@ SpeechStreamListener::~SpeechStreamListener()
 void
 SpeechStreamListener::NotifyQueuedTrackChanges(MediaStreamGraph* aGraph,
                                                TrackID aID,
-                                               StreamTime aTrackOffset,
+                                               TrackRate aTrackRate,
+                                               TrackTicks aTrackOffset,
                                                uint32_t aTrackEvents,
                                                const MediaSegment& aQueuedMedia)
 {
@@ -49,8 +50,7 @@ SpeechStreamListener::NotifyQueuedTrackChanges(MediaStreamGraph* aGraph,
     if (iterator->IsNull()) {
       nsTArray<int16_t> nullData;
       PodZero(nullData.AppendElements(duration), duration);
-      ConvertAndDispatchAudioChunk(duration, iterator->mVolume,
-                                   nullData.Elements(), aGraph->GraphRate());
+      ConvertAndDispatchAudioChunk(duration, iterator->mVolume, nullData.Elements(), aTrackRate);
     } else {
       AudioSampleFormat format = iterator->mBufferFormat;
 
@@ -59,11 +59,11 @@ SpeechStreamListener::NotifyQueuedTrackChanges(MediaStreamGraph* aGraph,
       if (format == AUDIO_FORMAT_S16) {
         ConvertAndDispatchAudioChunk(duration,iterator->mVolume,
                                      static_cast<const int16_t*>(iterator->mChannelData[0]),
-                                     aGraph->GraphRate());
+                                     aTrackRate);
       } else if (format == AUDIO_FORMAT_FLOAT32) {
         ConvertAndDispatchAudioChunk(duration,iterator->mVolume,
                                      static_cast<const float*>(iterator->mChannelData[0]),
-                                     aGraph->GraphRate());
+                                     aTrackRate);
       }
     }
 

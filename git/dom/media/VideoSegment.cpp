@@ -92,7 +92,7 @@ VideoChunk::~VideoChunk()
 
 void
 VideoSegment::AppendFrame(already_AddRefed<Image>&& aImage,
-                          StreamTime aDuration,
+                          TrackTicks aDuration,
                           const IntSize& aIntrinsicSize,
                           bool aForceBlack)
 {

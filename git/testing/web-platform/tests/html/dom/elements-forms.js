@@ -51,7 +51,7 @@ var formElements = {
 		placeholder: "string",
 		readOnly: "boolean",
 		required: "boolean",
-		// https://html.spec.whatwg.org/multipage/#attr-input-size
+		// http://www.whatwg.org/html/#attr-input-size
 		size: {type: "limited unsigned long", defaultVal: 20},
 		src: "url",
 		step: "string",
@@ -97,9 +97,7 @@ var formElements = {
 	},
 	option: {
 		disabled: "boolean",
-		label: {type: "string", customGetter: true},
 		defaultSelected: {type: "boolean", domAttrName: "selected"},
-		value: {type: "string", customGetter: true},
 	},
 	textarea: {
 		// TODO: autocomplete is special.

@@ -4,7 +4,6 @@ import unittest
 
 sys.path.insert(1, os.path.abspath(os.path.join(__file__, "../..")))
 import base_test
-from webdriver import exceptions, wait
 
 
 class AlertsQuitTest(base_test.WebDriverBaseTest):
@@ -13,7 +12,7 @@ class AlertsQuitTest(base_test.WebDriverBaseTest):
         self.driver.get(self.webserver.where_is('modal/res/alerts.html'))
 
     def test_can_quit_when_an_alert_is_present(self):
-        self.driver.find_element_by_css('#alert').click()
+        self.driver.find_element_by_id('alert').click()
         alert = self.wait.until(lambda x: x.switch_to_alert())
         self.driver.quit()
         with self.assertRaises(Exception):

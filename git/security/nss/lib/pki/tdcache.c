@@ -1046,6 +1046,32 @@ nssTrustDomain_GetCertForIssuerAndSNFromCache (
     return rvCert;
 }
 
+static PRStatus
+issuer_and_serial_from_encoding (
+  NSSBER *encoding, 
+  NSSDER *issuer, 
+  NSSDER *serial
+)
+{
+    SECItem derCert, derIssuer, derSerial;
+    SECStatus secrv;
+    derCert.data = (unsigned char *)encoding->data;
+    derCert.len = encoding->size;
+    secrv = CERT_IssuerNameFromDERCert(&derCert, &derIssuer);
+    if (secrv != SECSuccess) {
+	return PR_FAILURE;
+    }
+    secrv = CERT_SerialNumberFromDERCert(&derCert, &derSerial);
+    if (secrv != SECSuccess) {
+	return PR_FAILURE;
+    }
+    issuer->data = derIssuer.data;
+    issuer->size = derIssuer.len;
+    serial->data = derSerial.data;
+    serial->size = derSerial.len;
+    return PR_SUCCESS;
+}
+
 /*
  * Look for a specific cert in the cache
  */
@@ -1058,7 +1084,7 @@ nssTrustDomain_GetCertByDERFromCache (
     PRStatus nssrv = PR_FAILURE;
     NSSDER issuer, serial;
     NSSCertificate *rvCert;
-    nssrv = nssPKIX509_GetIssuerAndSerialFromDER(der, &issuer, &serial);
+    nssrv = issuer_and_serial_from_encoding(der, &issuer, &serial);
     if (nssrv != PR_SUCCESS) {
 	return NULL;
     }

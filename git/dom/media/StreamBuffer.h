@@ -12,6 +12,12 @@
 namespace mozilla {
 
 /**
+ * Media time relative to the start of a StreamBuffer.
+ */
+typedef MediaTime StreamTime;
+const StreamTime STREAM_TIME_MAX = MEDIA_TIME_MAX;
+
+/**
  * Unique ID for track within a StreamBuffer. Tracks from different
  * StreamBuffers may have the same ID; this matters when appending StreamBuffers,
  * since tracks with the same ID are matched. Only IDs greater than 0 are allowed.
@@ -38,6 +44,20 @@ inline TrackTicks RateConvertTicksRoundUp(TrackRate aOutRate,
   return (aTicks * aOutRate + aInRate - 1) / aInRate;
 }
 
+inline TrackTicks SecondsToTicksRoundDown(TrackRate aRate, double aSeconds)
+{
+  NS_ASSERTION(0 < aRate && aRate <= TRACK_RATE_MAX, "Bad rate");
+  NS_ASSERTION(0 <= aSeconds && aSeconds <= TRACK_TICKS_MAX/TRACK_RATE_MAX,
+               "Bad seconds");
+  return aSeconds * aRate;
+}
+inline double TrackTicksToSeconds(TrackRate aRate, TrackTicks aTicks)
+{
+  NS_ASSERTION(0 < aRate && aRate <= TRACK_RATE_MAX, "Bad rate");
+  NS_ASSERTION(0 <= aTicks && aTicks <= TRACK_TICKS_MAX, "Bad ticks");
+  return static_cast<double>(aTicks)/aRate;
+}
+
 /**
  * This object contains the decoded data for a stream's tracks.
  * A StreamBuffer can be appended to. Logically a StreamBuffer only gets longer,
@@ -60,19 +80,22 @@ public:
    * the same track across StreamBuffers. A StreamBuffer should never have
    * two tracks with the same ID (even if they don't overlap in time).
    * TODO Tracks can also be enabled and disabled over time.
-   * TODO Add TimeVarying<StreamTime,bool> mEnabled.
+   * TODO Add TimeVarying<TrackTicks,bool> mEnabled.
    * Takes ownership of aSegment.
    */
   class Track {
-    Track(TrackID aID, StreamTime aStart, MediaSegment* aSegment)
+    Track(TrackID aID, TrackRate aRate, TrackTicks aStart, MediaSegment* aSegment, TrackRate aGraphRate)
       : mStart(aStart),
         mSegment(aSegment),
+        mRate(aRate),
+        mGraphRate(aGraphRate),
         mID(aID),
         mEnded(false)
     {
       MOZ_COUNT_CTOR(Track);
 
       NS_ASSERTION(aID > TRACK_NONE, "Bad track ID");
+      NS_ASSERTION(0 < aRate && aRate <= TRACK_RATE_MAX, "Invalid rate");
       NS_ASSERTION(0 <= aStart && aStart <= aSegment->GetDuration(), "Bad start position");
     }
   public:
@@ -88,10 +111,27 @@ public:
       return nullptr;
     }
     MediaSegment* GetSegment() const { return mSegment; }
+    TrackRate GetRate() const { return mRate; }
     TrackID GetID() const { return mID; }
     bool IsEnded() const { return mEnded; }
-    StreamTime GetStart() const { return mStart; }
-    StreamTime GetEnd() const { return mSegment->GetDuration(); }
+    TrackTicks GetStart() const { return mStart; }
+    TrackTicks GetEnd() const { return mSegment->GetDuration(); }
+    StreamTime GetEndTimeRoundDown() const
+    {
+      return TicksToTimeRoundDown(mSegment->GetDuration());
+    }
+    StreamTime GetStartTimeRoundDown() const
+    {
+      return TicksToTimeRoundDown(mStart);
+    }
+    TrackTicks TimeToTicksRoundDown(StreamTime aTime) const
+    {
+      return RateConvertTicksRoundDown(mRate, mGraphRate, aTime);
+    }
+    StreamTime TicksToTimeRoundDown(TrackTicks aTicks) const
+    {
+      return RateConvertTicksRoundDown(mGraphRate, mRate, aTicks);
+    }
     MediaSegment::Type GetType() const { return mSegment->GetType(); }
 
     void SetEnded() { mEnded = true; }
@@ -101,6 +141,7 @@ public:
       NS_ASSERTION(aTrack->mID == mID, "IDs must match");
       NS_ASSERTION(aTrack->mStart == 0, "Source track must start at zero");
       NS_ASSERTION(aTrack->mSegment->GetType() == GetType(), "Track types must match");
+      NS_ASSERTION(aTrack->mRate == mRate, "Track rates must match");
 
       mSegment->AppendFrom(aTrack->mSegment);
       mEnded = aTrack->mEnded;
@@ -109,11 +150,11 @@ public:
     {
       return mSegment.forget();
     }
-    void ForgetUpTo(StreamTime aTime)
+    void ForgetUpTo(TrackTicks aTime)
     {
       mSegment->ForgetUpTo(aTime);
     }
-    void FlushAfter(StreamTime aNewEnd)
+    void FlushAfter(TrackTicks aNewEnd)
     {
       // Forget everything after a given endpoint
       // a specified amount
@@ -133,10 +174,12 @@ public:
     friend class StreamBuffer;
 
     // Start offset is in ticks at rate mRate
-    StreamTime mStart;
+    TrackTicks mStart;
     // The segment data starts at the start of the owning StreamBuffer, i.e.,
     // there's mStart silence/no video at the beginning.
     nsAutoPtr<MediaSegment> mSegment;
+    TrackRate mRate; // track rate in ticks per second
+    TrackRate mGraphRate; // graph rate in StreamTime per second
     // Unique ID
     TrackID mID;
     // True when the track ends with the data in mSegment
@@ -200,11 +243,11 @@ public:
    * holding a Track reference.
    * aSegment must have aStart worth of null data.
    */
-  Track& AddTrack(TrackID aID, StreamTime aStart, MediaSegment* aSegment)
+  Track& AddTrack(TrackID aID, TrackRate aRate, TrackTicks aStart, MediaSegment* aSegment)
   {
     NS_ASSERTION(!FindTrack(aID), "Track with this ID already exists");
 
-    Track* track = new Track(aID, aStart, aSegment);
+    Track* track = new Track(aID, aRate, aStart, aSegment, GraphRate());
     mTracks.InsertElementSorted(track, CompareTracksByID());
 
     if (mTracksKnownTime == STREAM_TIME_MAX) {
@@ -212,7 +255,8 @@ public:
       // http://mxr.mozilla.org/mozilla-central/source/media/webrtc/signaling/src/mediapipeline/MediaPipeline.cpp?rev=96b197deb91e&mark=1292-1297#1292
       NS_WARNING("Adding track to StreamBuffer that should have no more tracks");
     } else {
-      NS_ASSERTION(mTracksKnownTime <= aStart, "Start time too early");
+      NS_ASSERTION(track->TimeToTicksRoundDown(mTracksKnownTime) <= aStart,
+                   "Start time too early");
     }
     return *track;
   }

@@ -1754,10 +1754,9 @@ class BindingIter
         i_++;
     }
 
-    // Stack slots are assigned to arguments (aliased and unaliased) and
-    // unaliased locals. frameIndex() returns the slot index. It's invalid to
-    // call this method when the iterator is stopped on an aliased local, as it
-    // has no stack slot.
+    // Stack slots are assigned to arguments and unaliased locals. frameIndex()
+    // returns the slot index. It's invalid to call this method when the
+    // iterator is stopped on an aliased local, as it has no stack slot.
     uint32_t frameIndex() const {
         MOZ_ASSERT(!done());
         if (i_ < bindings_->numArgs())
@@ -1765,10 +1764,6 @@ class BindingIter
         MOZ_ASSERT(!(*this)->aliased());
         return unaliasedLocal_;
     }
-
-    // If the current binding is an argument, argIndex() returns its index.
-    // It returns the same value as frameIndex(), as slots are allocated for
-    // both unaliased and aliased arguments.
     uint32_t argIndex() const {
         MOZ_ASSERT(!done());
         MOZ_ASSERT(i_ < bindings_->numArgs());
@@ -1792,6 +1787,16 @@ class BindingIter
     const Binding &operator*() const { MOZ_ASSERT(!done()); return bindings_->bindingArray()[i_]; }
     const Binding *operator->() const { MOZ_ASSERT(!done()); return &bindings_->bindingArray()[i_]; }
 };
+
+/*
+ * This helper function fills the given BindingVector with the sequential
+ * values of BindingIter.
+ */
+
+typedef Vector<Binding, 32> BindingVector;
+
+extern bool
+FillBindingVector(HandleScript fromScript, BindingVector *vec);
 
 /*
  * Iterator over the aliased formal bindings in ascending index order. This can

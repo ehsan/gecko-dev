@@ -241,7 +241,7 @@ public:
 
   virtual dom::DelayNodeEngine* AsDelayNodeEngine() { return nullptr; }
 
-  virtual void SetStreamTimeParameter(uint32_t aIndex, StreamTime aParam)
+  virtual void SetStreamTimeParameter(uint32_t aIndex, TrackTicks aParam)
   {
     NS_ERROR("Invalid SetStreamTimeParameter index");
   }

@@ -46,19 +46,20 @@ namespace mozilla {
 void
 MediaEncoder::NotifyQueuedTrackChanges(MediaStreamGraph* aGraph,
                                        TrackID aID,
-                                       StreamTime aTrackOffset,
+                                       TrackRate aTrackRate,
+                                       TrackTicks aTrackOffset,
                                        uint32_t aTrackEvents,
                                        const MediaSegment& aQueuedMedia)
 {
   // Process the incoming raw track data from MediaStreamGraph, called on the
   // thread of MediaStreamGraph.
   if (mAudioEncoder && aQueuedMedia.GetType() == MediaSegment::AUDIO) {
-    mAudioEncoder->NotifyQueuedTrackChanges(aGraph, aID,
+    mAudioEncoder->NotifyQueuedTrackChanges(aGraph, aID, aTrackRate,
                                             aTrackOffset, aTrackEvents,
                                             aQueuedMedia);
 
   } else if (mVideoEncoder && aQueuedMedia.GetType() == MediaSegment::VIDEO) {
-      mVideoEncoder->NotifyQueuedTrackChanges(aGraph, aID,
+      mVideoEncoder->NotifyQueuedTrackChanges(aGraph, aID, aTrackRate,
                                               aTrackOffset, aTrackEvents,
                                               aQueuedMedia);
   }

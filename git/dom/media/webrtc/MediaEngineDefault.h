@@ -54,7 +54,7 @@ public:
                           SourceMediaStream *aSource,
                           TrackID aId,
                           StreamTime aDesiredTime,
-                          StreamTime &aLastEndTime);
+                          TrackTicks &aLastEndTime);
   virtual bool SatisfiesConstraintSets(
       const nsTArray<const dom::MediaTrackConstraintSet*>& aConstraintSets)
   {
@@ -123,7 +123,7 @@ public:
                           SourceMediaStream *aSource,
                           TrackID aId,
                           StreamTime aDesiredTime,
-                          StreamTime &aLastEndTime) {}
+                          TrackTicks &aLastEndTime) {}
 
   virtual bool IsFake() {
     return true;

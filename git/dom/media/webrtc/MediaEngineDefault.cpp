@@ -26,6 +26,7 @@
 #include "YuvStamper.h"
 #endif
 
+#define VIDEO_RATE USECS_PER_S
 #define AUDIO_RATE 16000
 #define AUDIO_FRAME_LENGTH ((AUDIO_RATE * MediaEngine::DEFAULT_AUDIO_TIMER_MS) / 1000)
 namespace mozilla {
@@ -133,7 +134,7 @@ MediaEngineDefaultVideoSource::Start(SourceMediaStream* aStream, TrackID aID)
     return NS_ERROR_FAILURE;
   }
 
-  aStream->AddTrack(aID, 0, new VideoSegment());
+  aStream->AddTrack(aID, VIDEO_RATE, 0, new VideoSegment());
   aStream->AdvanceKnownTracksTime(STREAM_TIME_MAX);
 
   // Remember TrackID so we can end it later
@@ -229,7 +230,7 @@ MediaEngineDefaultVideoSource::NotifyPull(MediaStreamGraph* aGraph,
                                           SourceMediaStream *aSource,
                                           TrackID aID,
                                           StreamTime aDesiredTime,
-                                          StreamTime &aLastEndTime)
+                                          TrackTicks &aLastEndTime)
 {
   // AddTrack takes ownership of segment
   VideoSegment segment;
@@ -240,7 +241,8 @@ MediaEngineDefaultVideoSource::NotifyPull(MediaStreamGraph* aGraph,
 
   // Note: we're not giving up mImage here
   nsRefPtr<layers::Image> image = mImage;
-  StreamTime delta = aDesiredTime - aLastEndTime;
+  TrackTicks target = aSource->TimeToTicksRoundUp(USECS_PER_S, aDesiredTime);
+  TrackTicks delta = target - aLastEndTime;
 
   if (delta > 0) {
     // nullptr images are allowed
@@ -249,7 +251,7 @@ MediaEngineDefaultVideoSource::NotifyPull(MediaStreamGraph* aGraph,
     // This can fail if either a) we haven't added the track yet, or b)
     // we've removed or finished the track.
     if (aSource->AppendToTrack(aID, &segment)) {
-      aLastEndTime = aDesiredTime;
+      aLastEndTime = target;
     }
   }
 }
@@ -369,7 +371,7 @@ MediaEngineDefaultAudioSource::Start(SourceMediaStream* aStream, TrackID aID)
 
   // AddTrack will take ownership of segment
   AudioSegment* segment = new AudioSegment();
-  mSource->AddAudioTrack(aID, AUDIO_RATE, 0, segment);
+  mSource->AddTrack(aID, AUDIO_RATE, 0, segment);
 
   // We aren't going to add any more tracks
   mSource->AdvanceKnownTracksTime(STREAM_TIME_MAX);

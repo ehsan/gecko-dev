@@ -1,4 +1,4 @@
 Web Animations Tests
 ====================
 
-Specification: http://w3c.github.io/web-animations/
+Specification: http://dev.w3.org/fxtf/web-animations/

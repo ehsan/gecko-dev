@@ -1466,8 +1466,10 @@ namespace {
 struct ExpressionDecompiler
 {
     JSContext *cx;
+    InterpreterFrame *fp;
     RootedScript script;
     RootedFunction fun;
+    BindingVector *localNames;
     BytecodeParser parser;
     Sprinter sprinter;
 
@@ -1475,9 +1477,11 @@ struct ExpressionDecompiler
         : cx(cx),
           script(cx, script),
           fun(cx, fun),
+          localNames(nullptr),
           parser(cx, script),
           sprinter(cx)
     {}
+    ~ExpressionDecompiler();
     bool init();
     bool decompilePCForStackOperand(jsbytecode *pc, int i);
     bool decompilePC(jsbytecode *pc);
@@ -1627,12 +1631,24 @@ ExpressionDecompiler::decompilePC(jsbytecode *pc)
     return write("(intermediate value)");
 }
 
+ExpressionDecompiler::~ExpressionDecompiler()
+{
+    js_delete<BindingVector>(localNames);
+}
+
 bool
 ExpressionDecompiler::init()
 {
     assertSameCompartment(cx, script);
 
     if (!sprinter.init())
+        return false;
+
+    localNames = cx->new_<BindingVector>(cx);
+    if (!localNames)
+        return false;
+    RootedScript script_(cx, script);
+    if (!FillBindingVector(script_, localNames))
         return false;
 
     if (!parser.parse())
@@ -1669,15 +1685,8 @@ JSAtom *
 ExpressionDecompiler::getArg(unsigned slot)
 {
     MOZ_ASSERT(fun);
-    MOZ_ASSERT(slot < script->bindings.numArgs());
-
-    for (BindingIter bi(script); bi; bi++) {
-        MOZ_ASSERT(bi->kind() == Binding::ARGUMENT);
-        if (bi.argIndex() == slot)
-            return bi->name();
-    }
-
-    MOZ_CRASH("No binding");
+    MOZ_ASSERT(slot < script->bindings.count());
+    return (*localNames)[slot].name();
 }
 
 JSAtom *
@@ -1685,17 +1694,14 @@ ExpressionDecompiler::getLocal(uint32_t local, jsbytecode *pc)
 {
     MOZ_ASSERT(local < script->nfixed());
     if (local < script->nbodyfixed()) {
-        for (BindingIter bi(script); bi; bi++) {
-            if (bi->kind() != Binding::ARGUMENT && !bi->aliased() && bi.frameIndex() == local)
-                return bi->name();
-        }
-
-        MOZ_CRASH("No binding");
+        MOZ_ASSERT(fun);
+        uint32_t slot = local + fun->nargs();
+        MOZ_ASSERT(slot < script->bindings.count());
+        return (*localNames)[slot].name();
     }
     for (NestedScopeObject *chain = script->getStaticScope(pc);
          chain;
-         chain = chain->enclosingNestedScope())
-    {
+         chain = chain->enclosingNestedScope()) {
         if (!chain->is<StaticBlockObject>())
             continue;
         StaticBlockObject &block = chain->as<StaticBlockObject>();

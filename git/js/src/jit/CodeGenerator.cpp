@@ -9109,34 +9109,13 @@ CodeGenerator::visitLoadUnboxedPointerT(LLoadUnboxedPointerT *lir)
     const LAllocation *index = lir->index();
     Register out = ToRegister(lir->output());
 
-    bool bailOnNull;
-    int32_t offsetAdjustment;
-    if (lir->mir()->isLoadUnboxedObjectOrNull()) {
-        MOZ_ASSERT(lir->mir()->toLoadUnboxedObjectOrNull()->bailOnNull());
-        bailOnNull = true;
-        offsetAdjustment = lir->mir()->toLoadUnboxedObjectOrNull()->offsetAdjustment();
-    } else if (lir->mir()->isLoadUnboxedString()) {
-        bailOnNull = false;
-        offsetAdjustment = lir->mir()->toLoadUnboxedString()->offsetAdjustment();
-    } else {
-        MOZ_CRASH();
-    }
-
     if (index->isConstant()) {
-        Address source(elements, ToInt32(index) * sizeof(uintptr_t) + offsetAdjustment);
-        masm.loadPtr(source, out);
+        int32_t offset = ToInt32(index) * sizeof(uintptr_t) + lir->mir()->offsetAdjustment();
+        masm.loadPtr(Address(elements, offset), out);
     } else {
-        BaseIndex source(elements, ToRegister(index), ScalePointer, offsetAdjustment);
-        masm.loadPtr(source, out);
+        masm.loadPtr(BaseIndex(elements, ToRegister(index), ScalePointer,
+                               lir->mir()->offsetAdjustment()), out);
     }
-
-    if (bailOnNull) {
-        Label bail;
-        masm.branchTestPtr(Assembler::Zero, out, out, &bail);
-        if (!bailoutFrom(&bail, lir->snapshot()))
-            return false;
-    }
-
     return true;
 }
 

@@ -10,8 +10,6 @@
 
 #include "nsStyleChangeList.h"
 #include "nsIContent.h"
-#include "nsIFrame.h"
-#include "nsFrameManager.h"
 
 static const uint32_t kGrowArrayBy = 10;
 
@@ -60,13 +58,8 @@ nsStyleChangeList::AppendChange(nsIFrame* aFrame, nsIContent* aContent, nsChange
   NS_ASSERTION(aContent || !(aHint & nsChangeHint_ReconstructFrame),
                "must have content");
   // XXXbz we should make this take Element instead of nsIContent
-  NS_ASSERTION(!aContent || aContent->IsElement() ||
-               // display:contents elements posts the changes for their children:
-               (aFrame && aContent->GetParent() &&
-                aFrame->PresContext()->FrameManager()->
-                  GetDisplayContentsStyleFor(aContent->GetParent())),
-               "Shouldn't be trying to restyle non-elements directly, "
-               "except if it's a display:contents child");
+  NS_ASSERTION(!aContent || aContent->IsElement(),
+               "Shouldn't be trying to restyle non-elements directly");
   NS_ASSERTION(!(aHint & nsChangeHint_AllReflowHints) ||
                (aHint & nsChangeHint_NeedReflow),
                "Reflow hint bits set without actually asking for a reflow");

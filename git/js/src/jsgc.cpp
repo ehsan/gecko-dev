@@ -189,7 +189,6 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Move.h"
 
-#include <ctype.h>
 #include <string.h>
 #ifndef XP_WIN
 # include <sys/mman.h>
@@ -1286,22 +1285,22 @@ GCRuntime::setNextScheduled(uint32_t count)
 }
 
 bool
-GCRuntime::parseAndSetZeal(const char *str)
+GCRuntime::initZeal()
 {
+    const char *env = getenv("JS_GC_ZEAL");
+    if (!env)
+        return true;
+
     int zeal = -1;
-    int frequency = -1;
-
-    if (isdigit(str[0])) {
-        zeal = atoi(str);
-
-        const char *p = strchr(str, ',');
-        if (!p)
-            frequency = JS_DEFAULT_ZEAL_FREQ;
-        else
+    int frequency = JS_DEFAULT_ZEAL_FREQ;
+    if (strcmp(env, "help") != 0) {
+        zeal = atoi(env);
+        const char *p = strchr(env, ',');
+        if (p)
             frequency = atoi(p + 1);
     }
 
-    if (zeal < 0 || zeal > ZealLimit || frequency <= 0) {
+    if (zeal < 0 || zeal > ZealLimit || frequency < 0) {
         fprintf(stderr, "Format: JS_GC_ZEAL=level[,N]\n");
         fputs(ZealModeHelpText, stderr);
         return false;
@@ -1361,8 +1360,7 @@ GCRuntime::init(uint32_t maxbytes, uint32_t maxNurseryBytes)
 #endif
 
 #ifdef JS_GC_ZEAL
-    const char *zealSpec = getenv("JS_GC_ZEAL");
-    if (zealSpec && zealSpec[0] && !parseAndSetZeal(zealSpec))
+    if (!initZeal())
         return false;
 #endif
 
@@ -1988,7 +1986,6 @@ ArenaLists::allocateFromArena(JS::Zone *zone, AllocKind thingKind,
     if (!aheader)
         return nullptr;
 
-    MOZ_ASSERT(!maybeLock->wasUnlocked());
     MOZ_ASSERT(al.isCursorAtEnd());
     al.insertAtCursor(aheader);
 
@@ -3277,6 +3274,7 @@ GCRuntime::maybeAllocTriggerZoneGC(Zone *zone, const AutoLockGC &lock)
     if (usedBytes >= thresholdBytes) {
         // The threshold has been surpassed, immediately trigger a GC,
         // which will be done non-incrementally.
+        AutoUnlockGC unlock(rt);
         triggerZoneGC(zone, JS::gcreason::ALLOC_TRIGGER);
     } else if (usedBytes >= igcThresholdBytes) {
         // Reduce the delay to the start of the next incremental slice.
@@ -3290,6 +3288,7 @@ GCRuntime::maybeAllocTriggerZoneGC(Zone *zone, const AutoLockGC &lock)
             // to try to avoid performing non-incremental GCs on zones
             // which allocate a lot of data, even when incremental slices
             // can't be triggered via scheduling in the event loop.
+            AutoUnlockGC unlock(rt);
             triggerZoneGC(zone, JS::gcreason::ALLOC_TRIGGER);
 
             // Delay the next slice until a certain amount of allocation
@@ -3415,7 +3414,7 @@ GCRuntime::decommitAllWithoutUnlocking(const AutoLockGC &lock)
 }
 
 void
-GCRuntime::decommitArenas(AutoLockGC &lock)
+GCRuntime::decommitArenas(const AutoLockGC &lock)
 {
     // Verify that all entries in the empty chunks pool are decommitted.
     for (ChunkPool::Iter chunk(emptyChunks(lock)); !chunk.done(); chunk.next())
@@ -3446,7 +3445,7 @@ GCRuntime::decommitArenas(AutoLockGC &lock)
             ArenaHeader *aheader = chunk->allocateArena(rt, nullptr, FINALIZE_OBJECT0, lock);
             bool ok;
             {
-                AutoUnlockGC unlock(lock);
+                AutoUnlockGC unlock(rt);
                 ok = MarkPagesUnused(aheader->getArena(), ArenaSize);
             }
             chunk->releaseArena(rt, aheader, lock, Chunk::ArenaDecommitState(ok));
@@ -3461,14 +3460,14 @@ GCRuntime::decommitArenas(AutoLockGC &lock)
 }
 
 void
-GCRuntime::expireChunksAndArenas(bool shouldShrink, AutoLockGC &lock)
+GCRuntime::expireChunksAndArenas(bool shouldShrink, const AutoLockGC &lock)
 {
 #ifdef JSGC_FJGENERATIONAL
     rt->threadPool.pruneChunkCache();
 #endif
 
     if (Chunk *toFree = expireEmptyChunkPool(shouldShrink, lock)) {
-        AutoUnlockGC unlock(lock);
+        AutoUnlockGC unlock(rt);
         freeChunkList(toFree);
     }
 
@@ -3645,7 +3644,7 @@ BackgroundAllocTask::run()
     while (!cancel_ && runtime->gc.wantBackgroundAllocation(lock)) {
         Chunk *chunk;
         {
-            AutoUnlockGC unlock(lock);
+            AutoUnlockGC unlock(runtime);
             chunk = Chunk::allocate(runtime);
             if (!chunk)
                 break;
@@ -3698,11 +3697,11 @@ GCHelperState::waitBackgroundSweepEnd()
 }
 
 void
-GCHelperState::doSweep(AutoLockGC &lock)
+GCHelperState::doSweep(const AutoLockGC &lock)
 {
     if (sweepFlag) {
         sweepFlag = false;
-        AutoUnlockGC unlock(lock);
+        AutoUnlockGC unlock(rt);
 
         rt->gc.sweepBackgroundThings();
 

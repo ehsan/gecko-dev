@@ -9,11 +9,6 @@ function getSourceMapURL() {
     return fw.script.source.sourceMapURL;
 }
 
-function setSourceMapURL(url) {
-    let fw = gw.makeDebuggeeValue(g.f);
-    fw.script.source.sourceMapURL = url;
-}
-
 // Without a source map
 g.evaluate("function f(x) { return 2*x; }");
 assertEq(getSourceMapURL(), null);
@@ -73,10 +68,3 @@ g.evaluate('function f() {}\n' +
            '//# sourceMappingURL=http://example.com/foo.js.map',
            {sourceMapURL: 'http://example.com/bar.js.map'});
 assertEq(getSourceMapURL(), 'http://example.com/foo.js.map');
-
-// Make sure setting the sourceMapURL manually works
-setSourceMapURL('baz.js.map');
-assertEq(getSourceMapURL(), 'baz.js.map');
-
-setSourceMapURL('');
-assertEq(getSourceMapURL(), 'baz.js.map');
