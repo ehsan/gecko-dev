@@ -130,15 +130,6 @@
 #undef NOISY_TRIM
 #endif
 
-using namespace mozilla;
-
-static void DestroyTabWidth(void* aPropertyValue)
-{
-  delete static_cast<nsTArray<gfxFloat>*>(aPropertyValue);
-}
-
-NS_DECLARE_FRAME_PROPERTY(TabWidthProperty, DestroyTabWidth)
-
 // The following flags are set during reflow
 
 // This bit is set on the first frame in a continuation indicating
@@ -2491,6 +2482,12 @@ PropertyProvider::GetSpacingInternal(PRUint32 aStart, PRUint32 aLength,
   }
 }
 
+static void TabWidthDestructor(void* aObject, nsIAtom* aProp, void* aValue,
+                               void* aData)
+{
+  delete static_cast<nsTArray<gfxFloat>*>(aValue);
+}
+
 static gfxFloat
 ComputeTabWidthAppUnits(nsIFrame* aFrame, gfxTextRun* aTextRun)
 {
@@ -2527,7 +2524,7 @@ PropertyProvider::GetTabWidths(PRUint32 aStart, PRUint32 aLength)
   if (!mTabWidths) {
     if (!mReflowing) {
       mTabWidths = static_cast<nsTArray<gfxFloat>*>
-        (mFrame->Properties().Get(TabWidthProperty()));
+                              (mFrame->GetProperty(nsGkAtoms::tabWidthProperty));
       if (!mTabWidths) {
         NS_WARNING("We need precomputed tab widths, but they're not here...");
         return nsnull;
@@ -2542,7 +2539,10 @@ PropertyProvider::GetTabWidths(PRUint32 aStart, PRUint32 aLength)
       nsAutoPtr<nsTArray<gfxFloat> > tabs(new nsTArray<gfxFloat>());
       if (!tabs)
         return nsnull;
-      mFrame->Properties().Set(TabWidthProperty(), tabs);
+      nsresult rv = mFrame->SetProperty(nsGkAtoms::tabWidthProperty, tabs,
+                                        TabWidthDestructor, nsnull);
+      if (NS_FAILED(rv))
+        return nsnull;
       mTabWidths = tabs.forget();
     }
   }
@@ -3521,16 +3521,16 @@ nsContinuingTextFrame::Init(nsIContent* aContent,
   }
 #ifdef IBMBIDI
   if (aPrevInFlow->GetStateBits() & NS_FRAME_IS_BIDI) {
-    FramePropertyTable *propTable = PresContext()->PropertyTable();
-    // Get all the properties from the prev-in-flow first to take
-    // advantage of the propTable's cache and simplify the assertion below
-    void* embeddingLevel = propTable->Get(aPrevInFlow, EmbeddingLevelProperty());
-    void* baseLevel = propTable->Get(aPrevInFlow, BaseLevelProperty());
-    void* charType = propTable->Get(aPrevInFlow, CharTypeProperty());
-    propTable->Set(this, EmbeddingLevelProperty(), embeddingLevel);
-    propTable->Set(this, BaseLevelProperty(), baseLevel);
-    propTable->Set(this, CharTypeProperty(), charType);
-
+    nsPropertyTable *propTable = PresContext()->PropertyTable();
+    propTable->SetProperty(this, nsGkAtoms::embeddingLevel,
+          propTable->GetProperty(aPrevInFlow, nsGkAtoms::embeddingLevel),
+                           nsnull, nsnull);
+    propTable->SetProperty(this, nsGkAtoms::baseLevel,
+              propTable->GetProperty(aPrevInFlow, nsGkAtoms::baseLevel),
+                           nsnull, nsnull);
+    propTable->SetProperty(this, nsGkAtoms::charType,
+               propTable->GetProperty(aPrevInFlow, nsGkAtoms::charType),
+                           nsnull, nsnull);
     if (nextContinuation) {
       SetNextContinuation(nextContinuation);
       nextContinuation->SetPrevContinuation(this);
@@ -3538,10 +3538,13 @@ nsContinuingTextFrame::Init(nsIContent* aContent,
       while (nextContinuation &&
              nextContinuation->GetContentOffset() < mContentOffset) {
         NS_ASSERTION(
-          embeddingLevel == propTable->Get(nextContinuation, EmbeddingLevelProperty()) &&
-          baseLevel == propTable->Get(nextContinuation, BaseLevelProperty()) &&
-          charType == propTable->Get(nextContinuation, CharTypeProperty()),
-          "stealing text from different type of BIDI continuation");
+          propTable->GetProperty(this, nsGkAtoms::embeddingLevel) ==
+          propTable->GetProperty(nextContinuation, nsGkAtoms::embeddingLevel) &&
+          propTable->GetProperty(this, nsGkAtoms::baseLevel) ==
+          propTable->GetProperty(nextContinuation, nsGkAtoms::baseLevel) &&
+          propTable->GetProperty(this, nsGkAtoms::charType) ==
+          propTable->GetProperty(nextContinuation, nsGkAtoms::charType),
+            "stealing text from different type of BIDI continuation");
         nextContinuation->mContentOffset = mContentOffset;
         nextContinuation = static_cast<nsTextFrame*>(nextContinuation->GetNextContinuation());
       }

@@ -263,14 +263,16 @@ protected:
   {
     nsIFrame* prevCont = aFrame->GetPrevContinuation();
     if (!prevCont && (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL)) {
-      nsIFrame* block = static_cast<nsIFrame*>
-        (aFrame->Properties().Get(nsIFrame::IBSplitSpecialPrevSibling()));
+      nsIFrame* block =
+        static_cast<nsIFrame*>
+                   (aFrame->GetProperty(nsGkAtoms::IBSplitSpecialPrevSibling));
       if (block) {
         // The {ib} properties are only stored on first continuations
         NS_ASSERTION(!block->GetPrevContinuation(),
                      "Incorrect value for IBSplitSpecialPrevSibling");
-        prevCont = static_cast<nsIFrame*>
-          (block->Properties().Get(nsIFrame::IBSplitSpecialPrevSibling()));
+        prevCont =
+          static_cast<nsIFrame*>
+                     (block->GetProperty(nsGkAtoms::IBSplitSpecialPrevSibling));
         NS_ASSERTION(prevCont, "How did that happen?");
       }
     }
@@ -283,11 +285,13 @@ protected:
     if (!nextCont && (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL)) {
       // The {ib} properties are only stored on first continuations
       aFrame = aFrame->GetFirstContinuation();
-      nsIFrame* block = static_cast<nsIFrame*>
-        (aFrame->Properties().Get(nsIFrame::IBSplitSpecialSibling()));
+      nsIFrame* block =
+        static_cast<nsIFrame*>
+                   (aFrame->GetProperty(nsGkAtoms::IBSplitSpecialSibling));
       if (block) {
-        nextCont = static_cast<nsIFrame*>
-          (block->Properties().Get(nsIFrame::IBSplitSpecialSibling()));
+        nextCont =
+          static_cast<nsIFrame*>
+                     (block->GetProperty(nsGkAtoms::IBSplitSpecialSibling));
         NS_ASSERTION(nextCont, "How did that happen?");
       }
     }
@@ -671,7 +675,7 @@ static nsRect
 GetOutlineInnerRect(nsIFrame* aFrame)
 {
   nsRect* savedOutlineInnerRect = static_cast<nsRect*>
-    (aFrame->Properties().Get(nsIFrame::OutlineInnerRectProperty()));
+    (aFrame->GetProperty(nsGkAtoms::outlineInnerRectProperty));
   if (savedOutlineInnerRect)
     return *savedOutlineInnerRect;
   return aFrame->GetOverflowRect();

@@ -469,14 +469,14 @@ nsHTMLScrollFrame::ReflowScrolledFrame(ScrollReflowState* aState,
     availWidth = NS_MAX(0, availWidth - vScrollbarPrefSize.width);
   }
 
-  nsPresContext* presContext = PresContext();
-
   // We're forcing the padding on our scrolled frame, so let it know what that
   // padding is.
-  presContext->PropertyTable()->
-    Set(mInner.mScrolledFrame, UsedPaddingProperty(),
-        new nsMargin(aState->mReflowState.mComputedPadding));
-
+  mInner.mScrolledFrame->
+    SetProperty(nsGkAtoms::usedPaddingProperty,
+                new nsMargin(aState->mReflowState.mComputedPadding),
+                nsCSSOffsetState::DestroyMarginFunc);  
+  
+  nsPresContext* presContext = PresContext();
   // Pass PR_FALSE for aInit so we can pass in the correct padding
   nsHTMLReflowState kidReflowState(presContext, aState->mReflowState,
                                    mInner.mScrolledFrame,
@@ -800,7 +800,8 @@ nsHTMLScrollFrame::Reflow(nsPresContext*           aPresContext,
   // oldScrollPosition is a multiple of device pixels. This could have been
   // thrown out by a zoom change.
   nsIntPoint ptDevPx;
-  nsPoint oldScrollPosition = mInner.GetScrollPosition();
+  nsPoint oldScrollPosition =
+    mInner.ClampAndRestrictToDevPixels(mInner.GetScrollPosition(), &ptDevPx);
   
   state.mComputedBorder = aReflowState.mComputedBorderPadding -
     aReflowState.mComputedPadding;
@@ -808,10 +809,7 @@ nsHTMLScrollFrame::Reflow(nsPresContext*           aPresContext,
   nsresult rv = ReflowContents(&state, aDesiredSize);
   if (NS_FAILED(rv))
     return rv;
-
-  // Restore the old scroll position, for now, even if that's not valid anymore
-  // because we changed size. We'll fix it up in a post-reflow callback, because
-  // our current size may only be temporary (e.g. we're compute XUL desired sizes).
+  
   PlaceScrollArea(state, oldScrollPosition);
   if (!mInner.mPostedReflowCallback) {
     // Make sure we'll try scrolling to restored position
@@ -1347,11 +1345,13 @@ nsGfxScrollFrameInner::AsyncScrollCallback(nsITimer *aTimer, void* anInstance)
     }
 
     self->ScrollToImpl(destination);
+    // 'self' may be a dangling pointer here since ScrollToImpl may have destroyed it
   } else {
     delete self->mAsyncScroll;
     self->mAsyncScroll = nsnull;
 
     self->ScrollToImpl(self->mDestination);
+    // 'self' may be a dangling pointer here since ScrollToImpl may have destroyed it
   }
 }
 
@@ -2913,9 +2913,6 @@ nsGfxScrollFrameInner::ReflowFinished()
   mPostedReflowCallback = PR_FALSE;
 
   ScrollToRestoredPosition();
-
-  // Clamp scroll position
-  ScrollToImpl(GetScrollPosition());
 
   if (NS_SUBTREE_DIRTY(mOuter) || !mUpdateScrollbarAttributes)
     return PR_FALSE;

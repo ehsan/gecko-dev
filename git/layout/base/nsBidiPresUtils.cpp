@@ -56,8 +56,6 @@
 #include "nsContainerFrame.h"
 #include "nsFirstLetterFrame.h"
 
-using namespace mozilla;
-
 static const PRUnichar kSpace            = 0x0020;
 static const PRUnichar kLineSeparator    = 0x2028;
 static const PRUnichar kObjectSubstitute = 0xFFFC;
@@ -398,7 +396,7 @@ nsBidiPresUtils::Resolve(nsBlockFrame*   aBlockFrame,
   PRInt32     contentTextLength;
   nsIAtom*    frameType = nsnull;
 
-  FramePropertyTable *propTable = presContext->PropertyTable();
+  nsPropertyTable *propTable = presContext->PropertyTable();
 
   nsBlockInFlowLineIterator lineIter(aBlockFrame, aBlockFrame->begin_lines(), PR_FALSE);
   if (lineIter.GetLine() == aBlockFrame->end_lines()) {
@@ -428,10 +426,11 @@ nsBidiPresUtils::Resolve(nsBlockFrame*   aBlockFrame,
           frame->AdjustOffsetsForBidi(0, 0);
           // Set the base level and embedding level of the current run even
           // on an empty frame. Otherwise frame reordering will not be correct.
-          propTable->Set(frame, nsIFrame::EmbeddingLevelProperty(),
-                         NS_INT32_TO_PTR(embeddingLevel));
-          propTable->Set(frame, nsIFrame::BaseLevelProperty(),
-                         NS_INT32_TO_PTR(paraLevel));
+          propTable->SetProperty(frame, nsGkAtoms::embeddingLevel,
+                                 NS_INT32_TO_PTR(embeddingLevel),
+                                 nsnull, nsnull);
+          propTable->SetProperty(frame, nsGkAtoms::baseLevel,
+                                 NS_INT32_TO_PTR(paraLevel), nsnull, nsnull);
           continue;
         }
         PRInt32 start, end;
@@ -472,17 +471,17 @@ nsBidiPresUtils::Resolve(nsBlockFrame*   aBlockFrame,
       ++lineOffset;
     }
     else {
-      propTable->Set(frame, nsIFrame::EmbeddingLevelProperty(),
-                     NS_INT32_TO_PTR(embeddingLevel));
-      propTable->Set(frame, nsIFrame::BaseLevelProperty(),
-                     NS_INT32_TO_PTR(paraLevel));
+      propTable->SetProperty(frame, nsGkAtoms::embeddingLevel,
+                             NS_INT32_TO_PTR(embeddingLevel), nsnull, nsnull);
+      propTable->SetProperty(frame, nsGkAtoms::baseLevel,
+                             NS_INT32_TO_PTR(paraLevel), nsnull, nsnull);
       if (isTextFrame) {
         PRInt32 typeLimit = NS_MIN(logicalLimit, lineOffset + fragmentLength);
         CalculateCharType(lineOffset, typeLimit, logicalLimit, runLength,
                            runCount, charType, prevType);
         // IBMBIDI - Egypt - Start
-        propTable->Set(frame, nsIFrame::CharTypeProperty(),
-                       NS_INT32_TO_PTR(charType));
+        propTable->SetProperty(frame, nsGkAtoms::charType,
+                               NS_INT32_TO_PTR(charType), nsnull, nsnull);
         // IBMBIDI - Egypt - End
 
         if ( (runLength > 0) && (runLength < fragmentLength) ) {
@@ -1180,14 +1179,14 @@ nsBidiPresUtils::RemoveBidiContinuation(nsIFrame*       aFrame,
                                         PRInt32         aLastIndex,
                                         PRInt32&        aOffset) const
 {
-  FrameProperties props = aFrame->Properties();
-  nsBidiLevel embeddingLevel =
-    (nsCharType)NS_PTR_TO_INT32(props.Get(nsIFrame::EmbeddingLevelProperty()));
-  nsBidiLevel baseLevel =
-    (nsCharType)NS_PTR_TO_INT32(props.Get(nsIFrame::BaseLevelProperty()));
-  nsCharType charType =
-    (nsCharType)NS_PTR_TO_INT32(props.Get(nsIFrame::CharTypeProperty()));
-
+  nsresult rv;
+  nsBidiLevel embeddingLevel = (nsCharType)NS_PTR_TO_INT32(aFrame->GetProperty(nsGkAtoms::embeddingLevel, &rv));
+  NS_ASSERTION(NS_SUCCEEDED(rv), "embeddingLevel attribute missing from aFrame");
+  nsBidiLevel baseLevel = (nsCharType)NS_PTR_TO_INT32(aFrame->GetProperty(nsGkAtoms::baseLevel, &rv));
+  NS_ASSERTION(NS_SUCCEEDED(rv), "baseLevel attribute missing from aFrame");
+  nsCharType charType = (nsCharType)NS_PTR_TO_INT32(aFrame->GetProperty(nsGkAtoms::charType, &rv));
+  NS_ASSERTION(NS_SUCCEEDED(rv), "charType attribute missing from aFrame");
+  
   for (PRInt32 index = aFirstIndex + 1; index <= aLastIndex; index++) {
     nsIFrame* frame = mLogicalFrames[index];
     if (nsGkAtoms::directionalFrame == frame->GetType()) {
@@ -1197,13 +1196,9 @@ nsBidiPresUtils::RemoveBidiContinuation(nsIFrame*       aFrame,
     else {
       // Make the frame and its continuation ancestors fluid,
       // so they can be reused or deleted by normal reflow code
-      FrameProperties frameProps = frame->Properties();
-      frameProps.Set(nsIFrame::EmbeddingLevelProperty(),
-                     NS_INT32_TO_PTR(embeddingLevel));
-      frameProps.Set(nsIFrame::BaseLevelProperty(),
-                     NS_INT32_TO_PTR(baseLevel));
-      frameProps.Set(nsIFrame::CharTypeProperty(),
-                     NS_INT32_TO_PTR(charType));
+      frame->SetProperty(nsGkAtoms::embeddingLevel, NS_INT32_TO_PTR(embeddingLevel));
+      frame->SetProperty(nsGkAtoms::baseLevel, NS_INT32_TO_PTR(baseLevel));
+      frame->SetProperty(nsGkAtoms::charType, NS_INT32_TO_PTR(charType));
       frame->AddStateBits(NS_FRAME_IS_BIDI);
       while (frame) {
         nsIFrame* prev = frame->GetPrevContinuation();

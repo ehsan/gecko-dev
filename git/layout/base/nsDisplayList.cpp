@@ -82,7 +82,9 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
 
   nsPresContext* pc = aReferenceFrame->PresContext();
   nsIPresShell *shell = pc->PresShell();
-  mIsBackgroundOnly = shell->IsPaintingSuppressed();
+  PRBool suppressed;
+  shell->IsPaintingSuppressed(&suppressed);
+  mIsBackgroundOnly = suppressed;
   if (pc->IsRenderingOnlySelection()) {
     nsCOMPtr<nsISelectionController> selcon(do_QueryInterface(shell));
     if (selcon) {
@@ -94,6 +96,16 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
   if (mIsBackgroundOnly) {
     mBuildCaret = PR_FALSE;
   }
+}
+
+// Destructor function for the dirty rect property
+static void
+DestroyRectFunc(void*    aFrame,
+                nsIAtom* aPropertyName,
+                void*    aPropertyValue,
+                void*    aDtorData)
+{
+  delete static_cast<nsRect*>(aPropertyValue);
 }
 
 static void MarkFrameForDisplay(nsIFrame* aFrame, nsIFrame* aStopAtFrame) {
@@ -117,18 +129,17 @@ static void MarkOutOfFlowFrameForDisplay(nsIFrame* aDirtyFrame, nsIFrame* aFrame
   nsRect overflowRect = aFrame->GetOverflowRect();
   if (!dirty.IntersectRect(dirty, overflowRect))
     return;
-  aFrame->Properties().Set(nsDisplayListBuilder::OutOfFlowDirtyRectProperty(),
-                           new nsRect(dirty));
+  // if "new nsRect" fails, this won't do anything, but that's okay
+  aFrame->SetProperty(nsGkAtoms::outOfFlowDirtyRectProperty,
+                      new nsRect(dirty), DestroyRectFunc);
 
   MarkFrameForDisplay(aFrame, aDirtyFrame);
 }
 
 static void UnmarkFrameForDisplay(nsIFrame* aFrame) {
-  nsPresContext* presContext = aFrame->PresContext();
-  presContext->PropertyTable()->
-    Delete(aFrame, nsDisplayListBuilder::OutOfFlowDirtyRectProperty());
+  aFrame->DeleteProperty(nsGkAtoms::outOfFlowDirtyRectProperty);
 
-  nsFrameManager* frameManager = presContext->PresShell()->FrameManager();
+  nsFrameManager* frameManager = aFrame->PresContext()->PresShell()->FrameManager();
 
   for (nsIFrame* f = aFrame; f;
        f = nsLayoutUtils::GetParentOrPlaceholderFor(frameManager, f)) {
@@ -180,7 +191,8 @@ nsDisplayListBuilder::IsMovingFrame(nsIFrame* aFrame)
 
 nsCaret *
 nsDisplayListBuilder::GetCaret() {
-  nsRefPtr<nsCaret> caret = CurrentPresShellState()->mPresShell->GetCaret();
+  nsRefPtr<nsCaret> caret;
+  CurrentPresShellState()->mPresShell->GetCaret(getter_AddRefs(caret));
   return caret;
 }
 
@@ -199,7 +211,8 @@ nsDisplayListBuilder::EnterPresShell(nsIFrame* aReferenceFrame,
   if (!mBuildCaret)
     return;
 
-  nsRefPtr<nsCaret> caret = state->mPresShell->GetCaret();
+  nsRefPtr<nsCaret> caret;
+  state->mPresShell->GetCaret(getter_AddRefs(caret));
   state->mCaretFrame = caret->GetCaretFrame();
 
   if (state->mCaretFrame) {
@@ -1069,7 +1082,7 @@ PRBool
 nsDisplayBackground::IsOpaque(nsDisplayListBuilder* aBuilder) {
   // theme background overrides any other background
   if (mIsThemed)
-    return mThemeTransparency == nsITheme::eOpaque;
+    return PR_FALSE;
 
   const nsStyleBackground* bg;
 

@@ -157,8 +157,7 @@ nsBlockReflowState::~nsBlockReflowState()
   }
 
   if (GetFlag(BRS_PROPTABLE_FLOATCLIST)) {
-    mPresContext->PropertyTable()->
-      Delete(mBlock, nsBlockFrame::FloatContinuationProperty());
+    mBlock->UnsetProperty(nsGkAtoms::floatContinuationProperty);
   }
 }
 
@@ -433,9 +432,8 @@ void
 nsBlockReflowState::SetupFloatContinuationList()
 {
   if (!GetFlag(BRS_PROPTABLE_FLOATCLIST)) {
-    mPresContext->PropertyTable()->
-      Set(mBlock, nsBlockFrame::FloatContinuationProperty(),
-          &mFloatContinuations);
+    mBlock->SetProperty(nsGkAtoms::floatContinuationProperty,
+                        &mFloatContinuations, nsnull);
     SetFlag(BRS_PROPTABLE_FLOATCLIST, PR_TRUE);
   }
 }

@@ -159,6 +159,11 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
+
+  static void* GetProperty(nsIFrame*            aFrame,
+                           nsIAtom*             aPropertyName,
+                           PRBool               aCreateIfNecessary = PR_FALSE);
+
   static float GetTwipsToPixels(nsPresContext* aPresContext);
 
   // Return true if aParentReflowState.frame or any of its ancestors within
