@@ -141,6 +141,7 @@ abstract public class GeckoApp
         final Intent i = intent;
         new Thread() {
             public void run() {
+                long startup_time = System.currentTimeMillis();
                 try {
                     if (mLibLoadThread != null)
                         mLibLoadThread.join();
@@ -459,15 +460,12 @@ abstract public class GeckoApp
     protected void unpackComponents()
         throws IOException, FileNotFoundException
     {
-        File applicationPackage = new File(getApplication().getPackageResourcePath());
+        ZipFile zip;
+        InputStream listStream;
+
         File componentsDir = new File(sGREDir, "components");
-        if (componentsDir.lastModified() == applicationPackage.lastModified())
-            return;
-
         componentsDir.mkdir();
-        componentsDir.setLastModified(applicationPackage.lastModified());
-
-        ZipFile zip = new ZipFile(applicationPackage);
+        zip = new ZipFile(getApplication().getPackageResourcePath());
 
         byte[] buf = new byte[8192];
         try {
