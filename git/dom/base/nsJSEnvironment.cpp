@@ -3496,12 +3496,12 @@ DOMGCSliceCallback(JSRuntime *aRt, js::GCProgress aProgress, const js::GCDescrip
       sFirstCollectionTime = now;
     }
 
-    NS_NAMED_LITERAL_STRING(kFmt, "GC(T+%.1f) ");
-    nsString prefix, gcstats;
+    NS_NAMED_LITERAL_STRING(kFmt, "GC(T+%.1f) %s");
+    nsString msg, gcstats;
     gcstats.Adopt(aDesc.formatMessage(aRt));
-    prefix.Adopt(nsTextFormatter::smprintf(kFmt.get(),
-                                           double(delta) / PR_USEC_PER_SEC));
-    nsString msg = prefix + gcstats;
+    msg.Adopt(nsTextFormatter::smprintf(kFmt.get(),
+                                        double(delta) / PR_USEC_PER_SEC,
+                                        gcstats.get()));
     nsCOMPtr<nsIConsoleService> cs = do_GetService(NS_CONSOLESERVICE_CONTRACTID);
     if (cs) {
       cs->LogStringMessage(msg.get());
