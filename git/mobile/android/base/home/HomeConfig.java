@@ -612,7 +612,6 @@ public final class HomeConfig {
         private final ItemHandler mItemHandler;
         private final String mBackImageUrl;
         private final String mFilter;
-        private final EmptyViewConfig mEmptyViewConfig;
 
         private static final String JSON_KEY_TYPE = "type";
         private static final String JSON_KEY_DATASET = "dataset";
@@ -620,7 +619,6 @@ public final class HomeConfig {
         private static final String JSON_KEY_ITEM_HANDLER = "itemHandler";
         private static final String JSON_KEY_BACK_IMAGE_URL = "backImageUrl";
         private static final String JSON_KEY_FILTER = "filter";
-        private static final String JSON_KEY_EMPTY = "empty";
 
         public ViewConfig(int index, JSONObject json) throws JSONException, IllegalArgumentException {
             mIndex = index;
@@ -630,13 +628,6 @@ public final class HomeConfig {
             mItemHandler = ItemHandler.fromId(json.getString(JSON_KEY_ITEM_HANDLER));
             mBackImageUrl = json.optString(JSON_KEY_BACK_IMAGE_URL, null);
             mFilter = json.optString(JSON_KEY_FILTER, null);
-
-            final JSONObject jsonEmptyViewConfig = json.optJSONObject(JSON_KEY_EMPTY);
-            if (jsonEmptyViewConfig != null) {
-                mEmptyViewConfig = new EmptyViewConfig(jsonEmptyViewConfig);
-            } else {
-                mEmptyViewConfig = null;
-            }
 
             validate();
         }
@@ -650,7 +641,6 @@ public final class HomeConfig {
             mItemHandler = (ItemHandler) in.readParcelable(getClass().getClassLoader());
             mBackImageUrl = in.readString();
             mFilter = in.readString();
-            mEmptyViewConfig = (EmptyViewConfig) in.readParcelable(getClass().getClassLoader());
 
             validate();
         }
@@ -663,14 +653,12 @@ public final class HomeConfig {
             mItemHandler = viewConfig.mItemHandler;
             mBackImageUrl = viewConfig.mBackImageUrl;
             mFilter = viewConfig.mFilter;
-            mEmptyViewConfig = viewConfig.mEmptyViewConfig;
 
             validate();
         }
 
         public ViewConfig(int index, ViewType type, String datasetId, ItemType itemType,
-                          ItemHandler itemHandler, String backImageUrl, String filter,
-                          EmptyViewConfig emptyViewConfig) {
+                          ItemHandler itemHandler, String backImageUrl, String filter) {
             mIndex = index;
             mType = type;
             mDatasetId = datasetId;
@@ -678,7 +666,6 @@ public final class HomeConfig {
             mItemHandler = itemHandler;
             mBackImageUrl = backImageUrl;
             mFilter = filter;
-            mEmptyViewConfig = emptyViewConfig;
 
             validate();
         }
@@ -729,10 +716,6 @@ public final class HomeConfig {
             return mFilter;
         }
 
-        public EmptyViewConfig getEmptyViewConfig() {
-            return mEmptyViewConfig;
-        }
-
         public JSONObject toJSON() throws JSONException {
             final JSONObject json = new JSONObject();
 
@@ -747,10 +730,6 @@ public final class HomeConfig {
 
             if (!TextUtils.isEmpty(mFilter)) {
                 json.put(JSON_KEY_FILTER, mFilter);
-            }
-
-            if (mEmptyViewConfig != null) {
-                json.put(JSON_KEY_EMPTY, mEmptyViewConfig.toJSON());
             }
 
             return json;
@@ -770,7 +749,6 @@ public final class HomeConfig {
             dest.writeParcelable(mItemHandler, 0);
             dest.writeString(mBackImageUrl);
             dest.writeString(mFilter);
-            dest.writeParcelable(mEmptyViewConfig, 0);
         }
 
         public static final Creator<ViewConfig> CREATOR = new Creator<ViewConfig>() {
@@ -782,75 +760,6 @@ public final class HomeConfig {
             @Override
             public ViewConfig[] newArray(final int size) {
                 return new ViewConfig[size];
-            }
-        };
-    }
-
-    public static class EmptyViewConfig implements Parcelable {
-        private final String mText;
-        private final String mImageUrl;
-
-        private static final String JSON_KEY_TEXT = "text";
-        private static final String JSON_KEY_IMAGE_URL = "imageUrl";
-
-        public EmptyViewConfig(JSONObject json) throws JSONException, IllegalArgumentException {
-            mText = json.optString(JSON_KEY_TEXT, null);
-            mImageUrl = json.optString(JSON_KEY_IMAGE_URL, null);
-        }
-
-        @SuppressWarnings("unchecked")
-        public EmptyViewConfig(Parcel in) {
-            mText = in.readString();
-            mImageUrl = in.readString();
-        }
-
-        public EmptyViewConfig(EmptyViewConfig emptyViewConfig) {
-            mText = emptyViewConfig.mText;
-            mImageUrl = emptyViewConfig.mImageUrl;
-        }
-
-        public EmptyViewConfig(String text, String imageUrl) {
-            mText = text;
-            mImageUrl = imageUrl;
-        }
-
-        public String getText() {
-            return mText;
-        }
-
-        public String getImageUrl() {
-            return mImageUrl;
-        }
-
-        public JSONObject toJSON() throws JSONException {
-            final JSONObject json = new JSONObject();
-
-            json.put(JSON_KEY_TEXT, mText);
-            json.put(JSON_KEY_IMAGE_URL, mImageUrl);
-
-            return json;
-        }
-
-        @Override
-        public int describeContents() {
-            return 0;
-        }
-
-        @Override
-        public void writeToParcel(Parcel dest, int flags) {
-            dest.writeString(mText);
-            dest.writeString(mImageUrl);
-        }
-
-        public static final Creator<EmptyViewConfig> CREATOR = new Creator<EmptyViewConfig>() {
-            @Override
-            public EmptyViewConfig createFromParcel(final Parcel in) {
-                return new EmptyViewConfig(in);
-            }
-
-            @Override
-            public EmptyViewConfig[] newArray(final int size) {
-                return new EmptyViewConfig[size];
             }
         };
     }

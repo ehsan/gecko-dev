@@ -78,7 +78,7 @@ public:
   virtual int      GetSensorOrientation(uint32_t aType = RAW_SENSOR_ORIENTATION);
 
   virtual int      AutoFocus();
-  virtual int      CancelAutoFocus();
+  virtual void     CancelAutoFocus();
   virtual int      StartFaceDetection();
   virtual int      StopFaceDetection();
   virtual int      TakePicture();
