@@ -7462,18 +7462,9 @@ nsGlobalWindow::GetListenerManager(bool aCreateIfNotFound)
 nsIScriptContext*
 nsGlobalWindow::GetContextForEventHandlers(nsresult* aRv)
 {
-  *aRv = NS_ERROR_UNEXPECTED;
-  if (IsInnerWindow()) {
-    nsPIDOMWindow* outer = GetOuterWindow();
-    NS_ENSURE_TRUE(outer && outer->GetCurrentInnerWindow() == this, nsnull);
-  }
-
-  nsIScriptContext* scx;
-  if ((scx = GetContext())) {
-    *aRv = NS_OK;
-    return scx;
-  }
-  return nsnull;
+  nsIScriptContext* scx = GetContext();
+  *aRv = scx ? NS_OK : NS_ERROR_UNEXPECTED;
+  return scx;
 }
 
 //*****************************************************************************
