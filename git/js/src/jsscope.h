@@ -9,7 +9,6 @@
 #define jsscope_h___
 
 #include "mozilla/Attributes.h"
-#include "mozilla/GuardObjects.h"
 
 #include "jsobj.h"
 #include "jspropertytree.h"
@@ -420,10 +419,10 @@ struct StackBaseShape
     {
       public:
         explicit AutoRooter(JSContext *cx, const StackBaseShape *base_
-                            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                            JS_GUARD_OBJECT_NOTIFIER_PARAM)
           : AutoGCRooter(cx, STACKBASESHAPE), base(base_), skip(cx, base_)
         {
-            MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+            JS_GUARD_OBJECT_NOTIFIER_INIT;
         }
 
         friend void AutoGCRooter::trace(JSTracer *trc);
@@ -431,7 +430,7 @@ struct StackBaseShape
       private:
         const StackBaseShape *base;
         SkipRoot skip;
-        MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+        JS_DECL_USE_GUARD_OBJECT_NOTIFIER
     };
 };
 
@@ -576,10 +575,10 @@ class Shape : public js::gc::Cell
         {
           public:
             explicit AutoRooter(JSContext *cx, Range *r_
-                                MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                                JS_GUARD_OBJECT_NOTIFIER_PARAM)
               : AutoGCRooter(cx, SHAPERANGE), r(r_), skip(cx, r_)
             {
-                MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+                JS_GUARD_OBJECT_NOTIFIER_INIT;
             }
 
             friend void AutoGCRooter::trace(JSTracer *trc);
@@ -588,7 +587,7 @@ class Shape : public js::gc::Cell
           private:
             Range *r;
             SkipRoot skip;
-            MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+            JS_DECL_USE_GUARD_OBJECT_NOTIFIER
         };
     };
 
@@ -883,18 +882,18 @@ class AutoRooterGetterSetter
   public:
     explicit AutoRooterGetterSetter(JSContext *cx, uint8_t attrs,
                                     PropertyOp *pgetter, StrictPropertyOp *psetter
-                                    MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                                    JS_GUARD_OBJECT_NOTIFIER_PARAM)
     {
         if (attrs & (JSPROP_GETTER | JSPROP_SETTER))
             inner.construct(cx, attrs, pgetter, psetter);
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     friend void AutoGCRooter::trace(JSTracer *trc);
 
   private:
     mozilla::Maybe<Inner> inner;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 struct EmptyShape : public js::Shape
@@ -1015,10 +1014,10 @@ struct StackShape
     {
       public:
         explicit AutoRooter(JSContext *cx, const StackShape *shape_
-                            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                            JS_GUARD_OBJECT_NOTIFIER_PARAM)
           : AutoGCRooter(cx, STACKSHAPE), shape(shape_), skip(cx, shape_)
         {
-            MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+            JS_GUARD_OBJECT_NOTIFIER_INIT;
         }
 
         friend void AutoGCRooter::trace(JSTracer *trc);
@@ -1026,7 +1025,7 @@ struct StackShape
       private:
         const StackShape *shape;
         SkipRoot skip;
-        MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+        JS_DECL_USE_GUARD_OBJECT_NOTIFIER
     };
  };
 

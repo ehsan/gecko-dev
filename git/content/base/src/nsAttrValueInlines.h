@@ -67,7 +67,7 @@ struct MiscContainer
     MOZ_COUNT_DTOR(MiscContainer);
   }
 
-  bool GetString(nsAString& aString) const;
+  bool GetString(nsDependentString& aString) const;
 
   inline bool IsRefCounted() const
   {

@@ -33,6 +33,7 @@
 #include "nsIDOMElement.h"
 #include "Link.h"
 #include "mozilla/dom/Element.h"
+#include "nsIDOMSVGElement.h"
 #include "nsIDOMSVGTitleElement.h"
 #include "nsIDOMEvent.h"
 #include "nsIDOMMouseEvent.h"
@@ -60,8 +61,8 @@
 #include "imgIContainer.h"
 #include "nsContextMenuInfo.h"
 #include "nsPresContext.h"
-#include "nsViewManager.h"
-#include "nsView.h"
+#include "nsIViewManager.h"
+#include "nsIView.h"
 #include "nsEventListenerManager.h"
 #include "nsIDOMDragEvent.h"
 #include "nsIConstraintValidation.h"
@@ -1014,11 +1015,19 @@ DefaultTooltipTextProvider::DefaultTooltipTextProvider()
 static bool
 UseSVGTitle(nsIDOMElement *currElement)
 {
-  nsCOMPtr<dom::Element> element(do_QueryInterface(currElement));
-  if (!element || !element->IsSVG() || !element->GetParentNode())
+  nsCOMPtr<nsIDOMSVGElement> svgContent(do_QueryInterface(currElement));
+  if (!svgContent)
     return false;
 
-  return element->GetParentNode()->NodeType() != nsIDOMNode::DOCUMENT_NODE;
+  nsCOMPtr<nsIDOMNode> parent;
+  currElement->GetParentNode(getter_AddRefs(parent));
+  if (!parent)
+    return false;
+
+  uint16_t nodeType;
+  nsresult rv = parent->GetNodeType(&nodeType);
+
+  return NS_SUCCEEDED(rv) && nodeType != nsIDOMNode::DOCUMENT_NODE;
 }
 
 /* void getNodeText (in nsIDOMNode aNode, out wstring aText); */
@@ -1429,14 +1438,14 @@ ChromeTooltipListener::sTooltipCallback(nsITimer *aTimer,
       do_GetInterface(static_cast<nsIWebBrowser*>(self->mWebBrowser));
     nsCOMPtr<nsIPresShell> shell;
     if (docShell) {
-      shell = docShell->GetPresShell();
+      docShell->GetPresShell(getter_AddRefs(shell));
     }
 
     nsIWidget* widget = nullptr;
     if (shell) {
-      nsViewManager* vm = shell->GetViewManager();
+      nsIViewManager* vm = shell->GetViewManager();
       if (vm) {
-        nsView* view = vm->GetRootView();
+        nsIView* view = vm->GetRootView();
         if (view) {
           nsPoint offset;
           widget = view->GetNearestWidget(&offset);

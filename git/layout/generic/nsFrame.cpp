@@ -21,8 +21,8 @@
 #include "nsReadableUtils.h"
 #include "nsStyleContext.h"
 #include "nsTableOuterFrame.h"
-#include "nsView.h"
-#include "nsViewManager.h"
+#include "nsIView.h"
+#include "nsIViewManager.h"
 #include "nsIScrollableFrame.h"
 #include "nsPresContext.h"
 #include "nsCRT.h"
@@ -301,7 +301,7 @@ nsIFrame::IsVisibleConsideringAncestors(uint32_t aFlags) const
 
   const nsIFrame* frame = this;
   while (frame) {
-    nsView* view = frame->GetView();
+    nsIView* view = frame->GetView();
     if (view && view->GetVisibility() == nsViewVisibility_kHide)
       return false;
     
@@ -605,7 +605,7 @@ nsFrame::DestroyFrom(nsIFrame* aDestructRoot)
 
   // Get the view pointer now before the frame properties disappear
   // when we call NotifyDestroyingFrame()
-  nsView* view = GetView();
+  nsIView* view = GetView();
   nsPresContext* presContext = PresContext();
 
   nsIPresShell *shell = presContext->GetPresShell();
@@ -4374,7 +4374,7 @@ nsIFrame* nsIFrame::GetTailContinuation()
 NS_DECLARE_FRAME_PROPERTY(ViewProperty, nullptr)
 
 // Associated view object
-nsView*
+nsIView*
 nsIFrame::GetView() const
 {
   // Check the frame state bit and see if the frame has a view
@@ -4384,17 +4384,17 @@ nsIFrame::GetView() const
   // Check for a property on the frame
   void* value = Properties().Get(ViewProperty());
   NS_ASSERTION(value, "frame state bit was set but frame has no view");
-  return static_cast<nsView*>(value);
+  return static_cast<nsIView*>(value);
 }
 
-/* virtual */ nsView*
+/* virtual */ nsIView*
 nsIFrame::GetViewExternal() const
 {
   return GetView();
 }
 
 nsresult
-nsIFrame::SetView(nsView* aView)
+nsIFrame::SetView(nsIView* aView)
 {
   if (aView) {
     aView->SetFrame(this);
@@ -4576,7 +4576,7 @@ nsRect nsIFrame::GetScreenRectInAppUnits() const
 // Returns the offset from this frame to the closest geometric parent that
 // has a view. Also returns the containing view or null in case of error
 NS_IMETHODIMP nsFrame::GetOffsetFromView(nsPoint&  aOffset,
-                                         nsView** aView) const
+                                         nsIView** aView) const
 {
   NS_PRECONDITION(nullptr != aView, "null OUT parameter pointer");
   nsIFrame* frame = (nsIFrame*)this;
@@ -5282,14 +5282,14 @@ nsFrame::UpdateOverflow()
   }
 
   if (FinishAndStoreOverflow(overflowAreas, GetSize())) {
-    nsView* view = GetView();
+    nsIView* view = GetView();
     if (view) {
       uint32_t flags = 0;
       GetLayoutFlags(flags);
 
       if ((flags & NS_FRAME_NO_SIZE_VIEW) == 0) {
         // Make sure the frame's view is properly sized.
-        nsViewManager* vm = view->GetViewManager();
+        nsIViewManager* vm = view->GetViewManager();
         vm->ResizeView(view, overflowAreas.VisualOverflow(), true);
       }
     }
@@ -5841,7 +5841,7 @@ nsFrame::GetNextPrevLineFromeBlockFrame(nsPresContext* aPresContext,
         farStoppingFrame = firstFrame;
       }
       nsPoint offset;
-      nsView * view; //used for call of get offset from view
+      nsIView * view; //used for call of get offset from view
       aBlockFrame->GetOffsetFromView(offset,&view);
       nscoord newDesiredX  = aPos->mDesiredX - offset.x;//get desired x into blockframe coordinates!
       result = it->FindFrameAt(searchingLine, newDesiredX, &resultFrame, &isBeforeFirstFrame, &isAfterLastFrame);
@@ -5879,7 +5879,7 @@ nsFrame::GetNextPrevLineFromeBlockFrame(nsPresContext* aPresContext,
 
         nsRect tempRect = resultFrame->GetRect();
         nsPoint offset;
-        nsView * view; //used for call of get offset from view
+        nsIView * view; //used for call of get offset from view
         result = resultFrame->GetOffsetFromView(offset, &view);
         if (NS_FAILED(result))
           return result;
@@ -5923,7 +5923,7 @@ nsFrame::GetNextPrevLineFromeBlockFrame(nsPresContext* aPresContext,
 
         if (!resultFrame->HasView())
         {
-          nsView* view;
+          nsIView* view;
           nsPoint offset;
           resultFrame->GetOffsetFromView(offset, &view);
           ContentOffsets offsets =
@@ -5967,7 +5967,7 @@ nsFrame::GetNextPrevLineFromeBlockFrame(nsPresContext* aPresContext,
       }
       while ( !found ){
         nsPoint point(aPos->mDesiredX, 0);
-        nsView* view;
+        nsIView* view;
         nsPoint offset;
         resultFrame->GetOffsetFromView(offset, &view);
         ContentOffsets offsets =
@@ -6755,7 +6755,7 @@ nsIFrame::GetFrameFromDirection(nsDirection aDirection, bool aVisual,
   return NS_OK;
 }
 
-nsView* nsIFrame::GetClosestView(nsPoint* aOffset) const
+nsIView* nsIFrame::GetClosestView(nsPoint* aOffset) const
 {
   nsPoint offset(0,0);
   for (const nsIFrame *f = this; f; f = f->GetParent()) {

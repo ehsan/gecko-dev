@@ -257,7 +257,7 @@ js::GetOwnPropertyDescriptor(JSContext *cx, HandleObject obj, HandleId id,
 {
     // FIXME: Call TrapGetOwnProperty directly once ScriptedIndirectProxies is removed
     if (obj->isProxy())
-        return Proxy::getOwnPropertyDescriptor(cx, obj, id, desc, 0);
+        return Proxy::getOwnPropertyDescriptor(cx, obj, id, false, desc);
 
     RootedObject pobj(cx);
     RootedShape shape(cx);
@@ -2618,11 +2618,8 @@ js::SetProto(JSContext *cx, HandleObject obj, Handle<js::TaggedProto> proto, boo
         return true;
     }
 
-    if (proto.isObject()) {
-        RootedObject protoObj(cx, proto.toObject());
-        if (!JSObject::setNewTypeUnknown(cx, protoObj))
-            return false;
-    }
+    if (proto.isObject() && !proto.toObject()->setNewTypeUnknown(cx))
+        return false;
 
     TypeObject *type = cx->compartment->getNewType(cx, proto);
     if (!type)
@@ -3610,7 +3607,7 @@ baseops::SetPropertyHelper(JSContext *cx, HandleObject obj, HandleObject receive
         if (!pobj->isNative()) {
             if (pobj->isProxy()) {
                 AutoPropertyDescriptorRooter pd(cx);
-                if (!Proxy::getPropertyDescriptor(cx, pobj, id, &pd, JSRESOLVE_ASSIGNING))
+                if (!Proxy::getPropertyDescriptor(cx, pobj, id, true, &pd))
                     return false;
 
                 if ((pd.attrs & (JSPROP_SHARED | JSPROP_SHADOWABLE)) == JSPROP_SHARED) {

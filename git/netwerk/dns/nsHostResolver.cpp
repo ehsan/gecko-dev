@@ -1077,7 +1077,6 @@ CacheEntryEnumerator(PLDHashTable *table, PLDHashEntryHdr *entry,
             if (NetAddrToString(addr, buf, sizeof(buf))) {
                 info.hostaddr.AppendElement(buf);
             }
-            addr = nullptr;
             addrElement = addrElement->getNext();
             if (addrElement) {
                 addr = &addrElement->mAddress;

@@ -432,7 +432,7 @@ function promiseTopicObserved(aTopic)
  */
 function promiseClearHistory() {
   let promise = promiseTopicObserved(PlacesUtils.TOPIC_EXPIRATION_FINISHED);
-  do_execute_soon(function() PlacesUtils.bhistory.removeAllPages());
+  PlacesUtils.bhistory.removeAllPages();
   return promise;
 }
 

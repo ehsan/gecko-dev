@@ -113,8 +113,7 @@ ToolbarView.prototype = {
   _onTogglePanesPressed: function DVT__onTogglePanesPressed() {
     DebuggerView.togglePanes({
       visible: DebuggerView.panesHidden,
-      animated: true,
-      delayed: true
+      animated: true
     });
   },
 
@@ -1057,7 +1056,6 @@ create({ constructor: FilteredSourcesView, proto: MenuContainer.prototype }, {
     let panel = this._panel = document.createElement("panel");
     panel.id = "filtered-sources-panel";
     panel.setAttribute("noautofocus", "true");
-    panel.setAttribute("level", "top");
     panel.setAttribute("position", FILTERED_SOURCES_POPUP_POSITION);
     document.documentElement.appendChild(panel);
 

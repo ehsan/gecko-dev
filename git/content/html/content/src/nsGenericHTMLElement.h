@@ -239,9 +239,6 @@ public:
     }
     return style;
   }
-
-  virtual bool IsEventAttributeName(nsIAtom* aName) MOZ_OVERRIDE;
-
 #define EVENT(name_, id_, type_, struct_) /* nothing; handled by nsINode */
 // The using nsINode::Get/SetOn* are to avoid warnings about shadowing the XPCOM
 // getter and setter on nsINode.
@@ -323,9 +320,6 @@ protected:
   nsresult SetTokenList(nsIAtom* aAtom, nsIVariant* aValue);
 public:
   nsresult SetContentEditable(const nsAString &aContentEditable);
-  virtual already_AddRefed<mozilla::dom::UndoManager> GetUndoManager();
-  virtual bool UndoScope();
-  virtual void SetUndoScope(bool aUndoScope, mozilla::ErrorResult& aError);
   nsresult GetDataset(nsISupports** aDataset);
   // Callback for destructor of of dataset to ensure to null out weak pointer.
   nsresult ClearDataset();
@@ -832,13 +826,6 @@ protected:
 
     SetHTMLAttr(aName, value, aError);
   }
-  void SetHTMLUnsignedIntAttr(nsIAtom* aName, uint32_t aValue, mozilla::ErrorResult& aError)
-  {
-    nsAutoString value;
-    value.AppendInt(aValue);
-
-    SetHTMLAttr(aName, value, aError);
-  }
 
   /**
    * Helper method for NS_IMPL_STRING_ATTR macro.
@@ -1024,8 +1011,6 @@ protected:
    * made editable through contentEditable or designMode.
    */
   bool IsEditableRoot() const;
-
-  nsresult SetUndoScopeInternal(bool aUndoScope);
 
 private:
   void ChangeEditableState(int32_t aChange);

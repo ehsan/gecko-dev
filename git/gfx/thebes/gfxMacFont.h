@@ -57,13 +57,10 @@ protected:
     virtual void CreatePlatformShaper();
 
     // override to prefer CoreText shaping with fonts that depend on AAT
-    virtual bool ShapeText(gfxContext      *aContext,
+    virtual bool ShapeWord(gfxContext *aContext,
+                           gfxShapedWord *aShapedWord,
                            const PRUnichar *aText,
-                           uint32_t         aOffset,
-                           uint32_t         aLength,
-                           int32_t          aScript,
-                           gfxShapedText   *aShapedText,
-                           bool             aPreferPlatformShaping = false);
+                           bool aPreferPlatformShaping = false);
 
     void InitMetrics();
     void InitMetricsFromPlatform();

@@ -120,13 +120,10 @@ gfxMacFont::~gfxMacFont()
 }
 
 bool
-gfxMacFont::ShapeText(gfxContext      *aContext,
+gfxMacFont::ShapeWord(gfxContext *aContext,
+                      gfxShapedWord *aShapedWord,
                       const PRUnichar *aText,
-                      uint32_t         aOffset,
-                      uint32_t         aLength,
-                      int32_t          aScript,
-                      gfxShapedText   *aShapedText,
-                      bool             aPreferPlatformShaping)
+                      bool aPreferPlatformShaping)
 {
     if (!mIsValid) {
         NS_WARNING("invalid font! expect incorrect text rendering");
@@ -135,8 +132,7 @@ gfxMacFont::ShapeText(gfxContext      *aContext,
 
     bool requiresAAT =
         static_cast<MacOSFontEntry*>(GetFontEntry())->RequiresAATLayout();
-    return gfxFont::ShapeText(aContext, aText, aOffset, aLength,
-                              aScript, aShapedText, requiresAAT);
+    return gfxFont::ShapeWord(aContext, aShapedWord, aText, requiresAAT);
 }
 
 void

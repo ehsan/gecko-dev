@@ -39,9 +39,7 @@ richlistitem.download button {
                                            .downloadRetry,
 
 .download-state:not(          [state="1"]  /* Finished           */)
-                                           .downloadShow,
-
-.download-state:not([state]) > button
+                                           .downloadShow
 {
   display: none;
 }

@@ -78,7 +78,6 @@
 @BINPATH@/@MOZ_CHILD_PROCESS_NAME@
 #endif
 #ifdef XP_WIN32
-@BINPATH@/plugin-hang-ui@BIN_SUFFIX@
 #ifndef MOZ_DEBUG
 #if MOZ_MSVC_REDIST == 1400
 @BINPATH@/Microsoft.VC80.CRT.manifest
@@ -343,10 +342,7 @@
 @BINPATH@/components/DownloadsUI.js
 @BINPATH@/components/BrowserPlaces.manifest
 @BINPATH@/components/BrowserPageThumbs.manifest
-#ifdef MOZ_PER_WINDOW_PRIVATE_BROWSING
-@BINPATH@/components/nsPrivateBrowsingServiceObsolete.manifest
-@BINPATH@/components/nsPrivateBrowsingServiceObsolete.js
-#else
+#ifndef MOZ_PER_WINDOW_PRIVATE_BROWSING
 @BINPATH@/components/nsPrivateBrowsingService.manifest
 @BINPATH@/components/nsPrivateBrowsingService.js
 #endif

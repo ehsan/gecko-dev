@@ -1153,10 +1153,10 @@ XPCOMUtils.defineLazyGetter(PlacesUIUtils, "ptm", function() {
     //// nsITransactionManager forwarders.
 
     beginBatch: function()
-      PlacesUtils.transactionManager.beginBatch(null),
+      PlacesUtils.transactionManager.beginBatch(),
 
     endBatch: function()
-      PlacesUtils.transactionManager.endBatch(false),
+      PlacesUtils.transactionManager.endBatch(),
 
     doTransaction: function(txn)
       PlacesUtils.transactionManager.doTransaction(txn),

@@ -588,7 +588,6 @@ CodeGeneratorX86Shared::visitMulI(LMulI *ins)
     const LAllocation *lhs = ins->lhs();
     const LAllocation *rhs = ins->rhs();
     MMul *mul = ins->mir();
-    JS_ASSERT_IF(mul->mode() == MMul::Integer, !mul->canBeNegativeZero() && !mul->canOverflow());
 
     if (rhs->isConstant()) {
         // Bailout on -0.0

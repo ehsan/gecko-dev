@@ -1001,17 +1001,13 @@ CompileBackEnd(MIRGenerator *mir)
       }
 
       case RegisterAllocator_Backtracking: {
-#ifdef DEBUG
         integrity.record();
-#endif
 
         BacktrackingAllocator regalloc(mir, &lirgen, *lir);
         if (!regalloc.go())
             return NULL;
-
-#ifdef DEBUG
-        integrity.check(false);
-#endif
+        if (!integrity.check(true))
+            return NULL;
 
         IonSpewPass("Allocate Registers [Backtracking]");
         break;

@@ -19,7 +19,7 @@
 #include "nsCSSPseudoElements.h"
 #include "nsCSSAnonBoxes.h"
 #include "nsCSSColorUtils.h"
-#include "nsView.h"
+#include "nsIView.h"
 #include "nsPlaceholderFrame.h"
 #include "nsIScrollableFrame.h"
 #include "nsCSSFrameConstructor.h"
@@ -49,14 +49,14 @@
 #include "gfxTypes.h"
 #include "gfxUserFontSet.h"
 #include "nsTArray.h"
-#include "mozilla/dom/HTMLCanvasElement.h"
+#include "nsHTMLCanvasElement.h"
 #include "nsICanvasRenderingContextInternal.h"
 #include "gfxPlatform.h"
 #include "nsClientRect.h"
 #ifdef MOZ_MEDIA
 #include "nsHTMLVideoElement.h"
 #endif
-#include "mozilla/dom/HTMLImageElement.h"
+#include "nsHTMLImageElement.h"
 #include "imgIRequest.h"
 #include "nsIImageLoadingContent.h"
 #include "nsCOMPtr.h"
@@ -777,7 +777,7 @@ nsLayoutUtils::GetCrossDocParentFrame(const nsIFrame* aFrame,
   if (p)
     return p;
 
-  nsView* v = aFrame->GetView();
+  nsIView* v = aFrame->GetView();
   if (!v)
     return nullptr;
   v = v->GetParent(); // anonymous inner view
@@ -1010,16 +1010,16 @@ nsIFrame* nsLayoutUtils::GetLastSibling(nsIFrame* aFrame) {
 }
 
 // static
-nsView*
-nsLayoutUtils::FindSiblingViewFor(nsView* aParentView, nsIFrame* aFrame) {
+nsIView*
+nsLayoutUtils::FindSiblingViewFor(nsIView* aParentView, nsIFrame* aFrame) {
   nsIFrame* parentViewFrame = aParentView->GetFrame();
   nsIContent* parentViewContent = parentViewFrame ? parentViewFrame->GetContent() : nullptr;
-  for (nsView* insertBefore = aParentView->GetFirstChild(); insertBefore;
+  for (nsIView* insertBefore = aParentView->GetFirstChild(); insertBefore;
        insertBefore = insertBefore->GetNextSibling()) {
     nsIFrame* f = insertBefore->GetFrame();
     if (!f) {
       // this view could be some anonymous view attached to a meaningful parent
-      for (nsView* searchView = insertBefore->GetParent(); searchView;
+      for (nsIView* searchView = insertBefore->GetParent(); searchView;
            searchView = searchView->GetParent()) {
         f = searchView->GetFrame();
         if (f) {
@@ -1227,7 +1227,7 @@ nsLayoutUtils::GetEventCoordinatesRelativeTo(nsIWidget* aWidget,
     return nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
   }
 
-  nsView* view = aFrame->GetView();
+  nsIView* view = aFrame->GetView();
   if (view) {
     nsIWidget* frameWidget = view->GetWidget();
     if (frameWidget && frameWidget == aWidget) {
@@ -1255,7 +1255,7 @@ nsLayoutUtils::GetEventCoordinatesRelativeTo(nsIWidget* aWidget,
     rootFrame = f;
   }
 
-  nsView* rootView = rootFrame->GetView();
+  nsIView* rootView = rootFrame->GetView();
   if (!rootView) {
     return nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
   }
@@ -1573,7 +1573,7 @@ static nsIntPoint GetWidgetOffset(nsIWidget* aWidget, nsIWidget*& aRootWidget) {
 nsPoint
 nsLayoutUtils::TranslateWidgetToView(nsPresContext* aPresContext,
                                      nsIWidget* aWidget, nsIntPoint aPt,
-                                     nsView* aView)
+                                     nsIView* aView)
 {
   nsPoint viewOffset;
   nsIWidget* viewWidget = aView->GetNearestWidget(&viewOffset);
@@ -1736,7 +1736,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
 {
   SAMPLE_LABEL("nsLayoutUtils","PaintFrame");
   if (aFlags & PAINT_WIDGET_LAYERS) {
-    nsView* view = aFrame->GetView();
+    nsIView* view = aFrame->GetView();
     if (!(view && view->GetWidget() && GetDisplayRootFrame(aFrame) == aFrame)) {
       aFlags &= ~PAINT_WIDGET_LAYERS;
       NS_ASSERTION(aRenderingContext, "need a rendering context");
@@ -1898,7 +1898,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
     // If the passed in backstop color makes us draw something different from
     // normal, we need to flush layers.
     if ((aFlags & PAINT_WIDGET_LAYERS) && !willFlushRetainedLayers) {
-      nsView* view = aFrame->GetView();
+      nsIView* view = aFrame->GetView();
       if (view) {
         nscolor backstop = presShell->ComputeBackstopColor(view);
         // The PresShell's canvas background color doesn't get updated until
@@ -4512,7 +4512,7 @@ nsLayoutUtils::SurfaceFromElement(nsIImageLoadingContent* aElement,
 }
 
 nsLayoutUtils::SurfaceFromElementResult
-nsLayoutUtils::SurfaceFromElement(HTMLImageElement *aElement,
+nsLayoutUtils::SurfaceFromElement(nsHTMLImageElement *aElement,
                                   uint32_t aSurfaceFlags)
 {
   return SurfaceFromElement(static_cast<nsIImageLoadingContent*>(aElement),
@@ -4520,7 +4520,7 @@ nsLayoutUtils::SurfaceFromElement(HTMLImageElement *aElement,
 }
 
 nsLayoutUtils::SurfaceFromElementResult
-nsLayoutUtils::SurfaceFromElement(HTMLCanvasElement* aElement,
+nsLayoutUtils::SurfaceFromElement(nsHTMLCanvasElement* aElement,
                                   uint32_t aSurfaceFlags)
 {
   SurfaceFromElementResult result;
@@ -4559,7 +4559,7 @@ nsLayoutUtils::SurfaceFromElement(HTMLCanvasElement* aElement,
 
     nsRefPtr<gfxContext> ctx = new gfxContext(surf);
     // XXX shouldn't use the external interface, but maybe we can layerify this
-    uint32_t flags = premultAlpha ? HTMLCanvasElement::RenderFlagPremultAlpha : 0;
+    uint32_t flags = premultAlpha ? nsHTMLCanvasElement::RenderFlagPremultAlpha : 0;
     rv = aElement->RenderContextsExternal(ctx, gfxPattern::FILTER_NEAREST, flags);
     if (NS_FAILED(rv))
       return result;
@@ -4636,8 +4636,8 @@ nsLayoutUtils::SurfaceFromElement(dom::Element* aElement,
                                   uint32_t aSurfaceFlags)
 {
   // If it's a <canvas>, we may be able to just grab its internal surface
-  if (HTMLCanvasElement* canvas =
-        HTMLCanvasElement::FromContentOrNull(aElement)) {
+  if (nsHTMLCanvasElement* canvas =
+        nsHTMLCanvasElement::FromContentOrNull(aElement)) {
     return SurfaceFromElement(canvas, aSurfaceFlags);
   }
 

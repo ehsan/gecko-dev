@@ -166,8 +166,6 @@ class nsInlineEventHandlersTearoff;
 namespace mozilla {
 namespace dom {
 
-class UndoManager;
-
 class FragmentOrElement : public nsIContent
 {
 public:
@@ -313,12 +311,6 @@ public:
      * @see nsGenericHTMLElement::GetDataset
      */
     nsDOMStringMap* mDataset; // [Weak]
-
-    /**
-     * The .undoManager property.
-     * @see nsGenericHTMLElement::GetUndoManager
-     */
-    nsRefPtr<UndoManager> mUndoManager;
 
     /**
      * SMIL Overridde style rules (for SMIL animation of CSS properties)

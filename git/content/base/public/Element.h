@@ -116,7 +116,6 @@ namespace mozilla {
 namespace dom {
 
 class Link;
-class UndoManager;
 
 // IID for the dom::Element interface
 #define NS_ELEMENT_IID \
@@ -696,21 +695,6 @@ public:
            nsPresContext::AppUnitsToIntCSSPixels(sf->GetScrollRange().XMost()) :
            0;
   }
-
-  virtual already_AddRefed<mozilla::dom::UndoManager> GetUndoManager()
-  {
-    return nullptr;
-  }
-
-  virtual bool UndoScope()
-  {
-    return false;
-  }
-
-  virtual void SetUndoScope(bool aUndoScope, mozilla::ErrorResult& aError)
-  {
-  }
-
   virtual void GetInnerHTML(nsAString& aInnerHTML,
                             mozilla::ErrorResult& aError);
   virtual void SetInnerHTML(const nsAString& aInnerHTML,

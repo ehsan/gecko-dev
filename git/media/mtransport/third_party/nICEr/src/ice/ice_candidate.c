@@ -188,8 +188,8 @@ int nr_ice_candidate_destroy(nr_ice_candidate **candp)
         break;
     }
 
-    NR_async_timer_cancel(cand->delay_timer);
-    NR_async_timer_cancel(cand->ready_cb_timer);
+    if(cand->delay_timer)
+      NR_async_timer_cancel(cand->delay_timer);
 
     RFREE(cand->foundation);
     RFREE(cand->label);
@@ -318,14 +318,6 @@ int nr_ice_candidate_compute_priority(nr_ice_candidate *cand)
     return(_status);
   }
 
-static void nr_ice_candidate_fire_ready_cb(NR_SOCKET s, int how, void *cb_arg)
-  {
-    nr_ice_candidate *cand = cb_arg;
-
-    cand->ready_cb(0, 0, cand->ready_cb_arg);
-    cand->ready_cb_timer = 0;
-  }
-
 int nr_ice_candidate_initialize(nr_ice_candidate *cand, NR_async_cb ready_cb, void *cb_arg)
   {
     int r,_status;
@@ -340,9 +332,7 @@ int nr_ice_candidate_initialize(nr_ice_candidate *cand, NR_async_cb ready_cb, vo
         cand->osock=cand->isock->sock;
         cand->state=NR_ICE_CAND_STATE_INITIALIZED;
         // Post this so that it doesn't happen in-line
-        cand->ready_cb = ready_cb;
-        cand->ready_cb_arg = cb_arg;
-        NR_ASYNC_TIMER_SET(0, nr_ice_candidate_fire_ready_cb, (void *)cand, &cand->ready_cb_timer);
+        NR_ASYNC_SCHEDULE(ready_cb,cb_arg);
         break;
 #ifdef USE_TURN
       case RELAYED:

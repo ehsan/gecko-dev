@@ -232,7 +232,7 @@ nsSVGTextContainerFrame::GetSubStringLength(uint32_t charnum, uint32_t nchars)
 }
 
 int32_t
-nsSVGTextContainerFrame::GetCharNumAtPosition(nsISVGPoint *point)
+nsSVGTextContainerFrame::GetCharNumAtPosition(DOMSVGPoint *point)
 {
   int32_t index = -1;
   int32_t offset = 0;

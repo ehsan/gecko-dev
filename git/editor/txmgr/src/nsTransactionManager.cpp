@@ -76,14 +76,14 @@ nsTransactionManager::DoTransaction(nsITransaction *aTransaction)
     return NS_OK;
   }
 
-  result = BeginTransaction(aTransaction, nullptr);
+  result = BeginTransaction(aTransaction);
 
   if (NS_FAILED(result)) {
     DidDoNotify(aTransaction, result);
     return result;
   }
 
-  result = EndTransaction(false);
+  result = EndTransaction();
 
   nsresult result2 = DidDoNotify(aTransaction, result);
 
@@ -216,7 +216,7 @@ nsTransactionManager::Clear()
 }
 
 NS_IMETHODIMP
-nsTransactionManager::BeginBatch(nsISupports* aData)
+nsTransactionManager::BeginBatch()
 {
   nsresult result;
 
@@ -237,7 +237,7 @@ nsTransactionManager::BeginBatch(nsISupports* aData)
     return NS_OK;
   }
 
-  result = BeginTransaction(0, aData);
+  result = BeginTransaction(0);
   
   nsresult result2 = DidBeginBatchNotify(result);
 
@@ -248,7 +248,7 @@ nsTransactionManager::BeginBatch(nsISupports* aData)
 }
 
 NS_IMETHODIMP
-nsTransactionManager::EndBatch(bool aAllowEmpty)
+nsTransactionManager::EndBatch()
 {
   nsCOMPtr<nsITransaction> ti;
   nsresult result;
@@ -286,7 +286,7 @@ nsTransactionManager::EndBatch(bool aAllowEmpty)
     return NS_OK;
   }
 
-  result = EndTransaction(aAllowEmpty);
+  result = EndTransaction();
 
   nsresult result2 = DidEndBatchNotify(result);
 
@@ -455,50 +455,6 @@ nsTransactionManager::GetRedoList(nsITransactionList **aTransactionList)
   return (! *aTransactionList) ? NS_ERROR_OUT_OF_MEMORY : NS_OK;
 }
 
-nsresult
-nsTransactionManager::BatchTopUndo()
-{
-  if (mUndoStack.GetSize() < 2) {
-    // Not enough transactions to merge into one batch.
-    return NS_OK;
-  }
-
-  nsRefPtr<nsTransactionItem> lastUndo;
-  nsRefPtr<nsTransactionItem> previousUndo;
-
-  lastUndo = mUndoStack.Pop();
-  MOZ_ASSERT(lastUndo, "There should be at least two transactions.");
-
-  previousUndo = mUndoStack.Peek();
-  MOZ_ASSERT(previousUndo, "There should be at least two transactions.");
-
-  nsresult result = previousUndo->AddChild(lastUndo);
-
-  // Transfer data from the transactions that is going to be
-  // merged to the transaction that it is being merged with.
-  nsCOMArray<nsISupports>& lastData = lastUndo->GetData();
-  nsCOMArray<nsISupports>& previousData = previousUndo->GetData();
-  NS_ENSURE_TRUE(previousData.AppendObjects(lastData), NS_ERROR_UNEXPECTED);
-  lastData.Clear();
-
-  return result;
-}
-
-nsresult
-nsTransactionManager::RemoveTopUndo()
-{
-  nsRefPtr<nsTransactionItem> lastUndo;
-
-  lastUndo = mUndoStack.Peek();
-  if (!lastUndo) {
-    return NS_OK;
-  }
-
-  lastUndo = mUndoStack.Pop();
-
-  return NS_OK;
-}
-
 NS_IMETHODIMP
 nsTransactionManager::AddListener(nsITransactionListener *aListener)
 {
@@ -515,14 +471,14 @@ nsTransactionManager::RemoveListener(nsITransactionListener *aListener)
   return mListeners.RemoveObject(aListener) ? NS_OK : NS_ERROR_FAILURE;
 }
 
-NS_IMETHODIMP
+nsresult
 nsTransactionManager::ClearUndoStack()
 {
   mUndoStack.Clear();
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsTransactionManager::ClearRedoStack()
 {
   mRedoStack.Clear();
@@ -761,19 +717,13 @@ nsTransactionManager::DidMergeNotify(nsITransaction *aTop,
 }
 
 nsresult
-nsTransactionManager::BeginTransaction(nsITransaction *aTransaction,
-                                       nsISupports *aData)
+nsTransactionManager::BeginTransaction(nsITransaction *aTransaction)
 {
   nsresult result = NS_OK;
 
   // XXX: POSSIBLE OPTIMIZATION
   //      We could use a factory that pre-allocates/recycles transaction items.
   nsRefPtr<nsTransactionItem> tx = new nsTransactionItem(aTransaction);
-
-  if (aData) {
-    nsCOMArray<nsISupports>& data = tx->GetData();
-    data.AppendObject(aData);
-  }
 
   if (!tx) {
     return NS_ERROR_OUT_OF_MEMORY;
@@ -792,7 +742,7 @@ nsTransactionManager::BeginTransaction(nsITransaction *aTransaction,
 }
 
 nsresult
-nsTransactionManager::EndTransaction(bool aAllowEmpty)
+nsTransactionManager::EndTransaction()
 {
   nsresult result              = NS_OK;
 
@@ -803,7 +753,7 @@ nsTransactionManager::EndTransaction(bool aAllowEmpty)
 
   nsCOMPtr<nsITransaction> tint = tx->GetTransaction();
 
-  if (!tint && !aAllowEmpty) {
+  if (!tint) {
     int32_t nc = 0;
 
     // If we get here, the transaction must be a dummy batch transaction

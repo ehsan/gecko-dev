@@ -18,11 +18,8 @@ class nsISMILAnimationElement;
 class nsSMILValue;
 
 namespace mozilla {
-namespace dom {
-class DOMSVGAnimatedPreserveAspectRatio;
-}
 
-class SVGAnimatedPreserveAspectRatio MOZ_FINAL
+class SVGAnimatedPreserveAspectRatio
 {
 public:
   void Init() {
@@ -47,8 +44,7 @@ public:
       return NS_ERROR_FAILURE;
     }
     SetBaseValue(SVGPreserveAspectRatio(
-                   static_cast<SVGAlign>(aAlign), mBaseVal.GetMeetOrSlice(),
-                   mBaseVal.GetDefer()),
+                   aAlign, mBaseVal.GetMeetOrSlice(), mBaseVal.GetDefer()),
                  aSVGElement);
     return NS_OK;
   }
@@ -58,8 +54,7 @@ public:
       return NS_ERROR_FAILURE;
     }
     SetBaseValue(SVGPreserveAspectRatio(
-                   mBaseVal.GetAlign(), static_cast<SVGMeetOrSlice>(aMeetOrSlice),
-                   mBaseVal.GetDefer()),
+                   mBaseVal.GetAlign(), aMeetOrSlice, mBaseVal.GetDefer()),
                  aSVGElement);
     return NS_OK;
   }
@@ -75,7 +70,7 @@ public:
     { return mIsAnimated || mIsBaseSet; }
 
   nsresult ToDOMAnimatedPreserveAspectRatio(
-    mozilla::dom::DOMSVGAnimatedPreserveAspectRatio **aResult,
+    nsISupports **aResult,
     nsSVGElement* aSVGElement);
   // Returns a new nsISMILAttr object that the caller must delete
   nsISMILAttr* ToSMILAttr(nsSVGElement* aSVGElement);

@@ -394,11 +394,10 @@ SPSProfiler::unregisterScript(UnrootedScript script, mjit::JITChunk *chunk)
 }
 #endif
 
-SPSEntryMarker::SPSEntryMarker(JSRuntime *rt
-                               MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
+SPSEntryMarker::SPSEntryMarker(JSRuntime *rt JS_GUARD_OBJECT_NOTIFIER_PARAM_NO_INIT)
     : profiler(&rt->spsProfiler)
 {
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+    JS_GUARD_OBJECT_NOTIFIER_INIT;
     if (!profiler->enabled()) {
         profiler = NULL;
         return;

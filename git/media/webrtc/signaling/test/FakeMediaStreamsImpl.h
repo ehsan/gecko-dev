@@ -53,8 +53,7 @@ void Fake_SourceMediaStream::Periodic() {
   if (mPullEnabled && !mStop) {
     for (std::set<Fake_MediaStreamListener *>::iterator it =
              mListeners.begin(); it != mListeners.end(); ++it) {
-      mDesiredTime += 10;
-      (*it)->NotifyPull(NULL, mozilla::MillisecondsToMediaTime(mDesiredTime));
+      (*it)->NotifyPull(NULL, mozilla::MillisecondsToMediaTime(10));
     }
   }
 }

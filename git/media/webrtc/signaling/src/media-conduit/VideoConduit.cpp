@@ -659,9 +659,6 @@ WebrtcVideoConduit::CodecConfigToWebRTCCodec(const VideoCodecConfig* codecInfo,
   cinst.plType  = codecInfo->mType;
   cinst.width   = codecInfo->mWidth;
   cinst.height  = codecInfo->mHeight;
-  cinst.minBitrate = 50;
-  cinst.startBitrate = 300;
-  cinst.maxBitrate = 2000;
 }
 
 bool

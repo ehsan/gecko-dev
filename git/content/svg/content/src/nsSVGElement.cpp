@@ -337,7 +337,7 @@ nsSVGElement::AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
     mContentStyleRule = nullptr;
   }
 
-  if (IsEventAttributeName(aName) && aValue) {
+  if (IsEventName(aName) && aValue) {
     NS_ABORT_IF_FALSE(aValue->Type() == nsAttrValue::eString,
       "Expected string value for script body");
     nsresult rv = SetEventHandler(GetEventNameForAttr(aName),
@@ -696,7 +696,7 @@ nsSVGElement::UnsetAttrInternal(int32_t aNamespaceID, nsIAtom* aName,
     if (IsAttributeMapped(aName))
       mContentStyleRule = nullptr;
 
-    if (IsEventAttributeName(aName)) {
+    if (IsEventName(aName)) {
       nsEventListenerManager* manager = GetListenerManager(false);
       if (manager) {
         nsIAtom* eventName = GetEventNameForAttr(aName);
@@ -1174,16 +1174,19 @@ nsSVGElement::GetOwnerSVGElement(ErrorResult& rv)
 NS_IMETHODIMP
 nsSVGElement::GetViewportElement(nsIDOMSVGElement * *aViewportElement)
 {
-  nsSVGElement* elem = GetViewportElement();
+  nsCOMPtr<nsSVGElement> elem = GetViewportElement();
   nsCOMPtr<nsIDOMSVGElement> svgElem = do_QueryInterface(elem);
   svgElem.forget(aViewportElement);
   return NS_OK;
 }
 
-nsSVGElement*
+already_AddRefed<nsSVGElement>
 nsSVGElement::GetViewportElement()
 {
-  return SVGContentUtils::GetNearestViewportElement(this);
+  nsCOMPtr<nsIDOMSVGElement> elem =
+    SVGContentUtils::GetNearestViewportElement(this);
+  nsCOMPtr<nsSVGElement> svgElem = do_QueryInterface(elem);
+  return svgElem.forget();
 }
 
 already_AddRefed<nsIDOMSVGAnimatedString>
@@ -1295,6 +1298,12 @@ MappedAttrParser::CreateStyleRule()
 
 //----------------------------------------------------------------------
 // Implementation Helpers:
+
+bool
+nsSVGElement::IsEventName(nsIAtom* aName)
+{
+  return false;
+}
 
 void
 nsSVGElement::UpdateContentStyleRule()
@@ -2554,7 +2563,7 @@ nsSVGElement::RecompileScriptEventListeners()
     }
 
     nsIAtom *attr = name->Atom();
-    if (!IsEventAttributeName(attr)) {
+    if (!IsEventName(attr)) {
       continue;
     }
 

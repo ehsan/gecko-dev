@@ -5,7 +5,6 @@
 #include "nsISupports.idl"
 
 interface nsIDOMMozSmsMessage;
-interface nsIDOMMozSmsSegmentInfo;
 interface nsISmsRequest;
 
 %{C++
@@ -13,13 +12,11 @@ interface nsISmsRequest;
 #define SMS_SERVICE_CONTRACTID "@mozilla.org/sms/smsservice;1"
 %}
 
-[scriptable, builtinclass, uuid(4310bdb5-eefa-4f70-965a-74041228ab26)]
+[scriptable, builtinclass, uuid(d4772337-3754-49ba-81cc-e141fff30377)]
 interface nsISmsService : nsISupports
 {
   boolean hasSupport();
-
-  nsIDOMMozSmsSegmentInfo getSegmentInfoForText(in DOMString text);
-
+  unsigned short getNumberOfMessagesForText(in DOMString text);
   void send(in DOMString number,
             in DOMString message,
             in nsISmsRequest request);
@@ -34,8 +31,4 @@ interface nsISmsService : nsISupports
                                        in DOMString messageClass,
                                        in jsval     timestamp,
                                        in bool      read);
-
-  nsIDOMMozSmsSegmentInfo createSmsSegmentInfo(in long segments,
-                                               in long charsPerSegment,
-                                               in long charsAvailableInLastSegment);
 };

@@ -1739,11 +1739,12 @@ create({ constructor: GlobalSearchView, proto: MenuContainer.prototype }, {
    */
   _bounceMatch: function DVGS__bounceMatch(aMatch) {
     Services.tm.currentThread.dispatch({ run: function() {
+      aMatch.setAttribute("focused", "");
+
       aMatch.addEventListener("transitionend", function onEvent() {
         aMatch.removeEventListener("transitionend", onEvent);
         aMatch.removeAttribute("focused");
       });
-      aMatch.setAttribute("focused", "");
     }}, 0);
   },
 

@@ -357,9 +357,11 @@ nsWindow::nsWindow()
     mContainer           = nullptr;
     mGdkWindow           = nullptr;
     mShell               = nullptr;
+    mWindowGroup         = nullptr;
     mHasMappedToplevel   = false;
     mIsFullyObscured     = false;
     mRetryPointerGrab    = false;
+    mTransientParent     = nullptr;
     mWindowType          = eWindowType_child;
     mSizeState           = nsSizeMode_Normal;
     mLastSizeMode        = nsSizeMode_Normal;
@@ -668,6 +670,11 @@ nsWindow::Destroy(void)
     }
 #endif /* MOZ_X11 && MOZ_WIDGET_GTK2 */
   
+    if (mWindowGroup) {
+        g_object_unref(mWindowGroup);
+        mWindowGroup = nullptr;
+    }
+
     // Destroy thebes surface now. Badness can happen if we destroy
     // the surface after its X Window.
     mThebesSurface = nullptr;
@@ -766,6 +773,8 @@ nsWindow::SetParent(nsIWidget *aNewParent)
         return NS_ERROR_NOT_IMPLEMENTED;
     }
 
+    NS_ASSERTION(!mTransientParent, "child widget with transient parent");
+
     nsCOMPtr<nsIWidget> kungFuDeathGrip = this;
     if (mParent) {
         mParent->RemoveChild(this);
@@ -819,12 +828,26 @@ nsWindow::ReparentNativeWidget(nsIWidget* aNewParent)
     nsWindow* newParent = static_cast<nsWindow*>(aNewParent);
     GdkWindow* newParentWindow = newParent->mGdkWindow;
     GtkWidget* newContainer = newParent->GetMozContainerWidget();
-    GtkWindow* shell = GTK_WINDOW(mShell);
 
-    if (shell && gtk_window_get_transient_for(shell)) {
+    if (mTransientParent) {
       GtkWindow* topLevelParent =
           GTK_WINDOW(gtk_widget_get_toplevel(newContainer));
-      gtk_window_set_transient_for(shell, topLevelParent);
+      gtk_window_set_transient_for(GTK_WINDOW(mShell), topLevelParent);
+      mTransientParent = topLevelParent;
+      if (mWindowGroup) {
+          g_object_unref(mWindowGroup);
+          mWindowGroup = NULL;
+      }
+      if (gtk_window_get_group(mTransientParent)) {
+          gtk_window_group_add_window(gtk_window_get_group(mTransientParent),
+                                      GTK_WINDOW(mShell));
+          mWindowGroup = gtk_window_get_group(mTransientParent);
+          g_object_ref(mWindowGroup);
+      }
+      else if (gtk_window_get_group(GTK_WINDOW(mShell))) {
+          gtk_window_group_remove_window(gtk_window_get_group(GTK_WINDOW(mShell)),
+                                         GTK_WINDOW(mShell));
+      }
     }
 
     ReparentNativeWidgetInternal(aNewParent, newContainer, newParentWindow,
@@ -3345,6 +3368,8 @@ nsWindow::Create(nsIWidget        *aParent,
          aInitData->mWindowType == eWindowType_invisible) ?
         nullptr : aParent;
 
+    NS_ASSERTION(!mWindowGroup, "already have window group (leaking it)");
+
 #ifdef ACCESSIBILITY
     // Send a DBus message to check whether a11y is enabled
     a11y::PreInit();
@@ -3426,6 +3451,24 @@ nsWindow::Create(nsIWidget        *aParent,
                                      GDK_WINDOW_TYPE_HINT_DIALOG);
             gtk_window_set_transient_for(GTK_WINDOW(mShell),
                                          topLevelParent);
+            mTransientParent = topLevelParent;
+            // add ourselves to the parent window's window group
+            if (!topLevelParent) {
+                gtk_widget_realize(mShell);
+                GdkWindow* dialoglead = gtk_widget_get_window(mShell);
+                gdk_window_set_group(dialoglead, dialoglead);
+            }
+            if (parentGdkWindow) {
+                if (parentnsWindow->mWindowGroup) {
+                    gtk_window_group_add_window(parentnsWindow->mWindowGroup,
+                                                GTK_WINDOW(mShell));
+                    // store this in case any children are created
+                    mWindowGroup = parentnsWindow->mWindowGroup;
+                    g_object_ref(mWindowGroup);
+                    LOG(("adding window %p to group %p\n",
+                         (void *)mShell, (void *)mWindowGroup));
+                }
+            }
         }
         else if (mWindowType == eWindowType_popup) {
             // With popup windows, we want to control their position, so don't
@@ -3512,6 +3555,14 @@ nsWindow::Create(nsIWidget        *aParent,
             if (topLevelParent) {
                 gtk_window_set_transient_for(GTK_WINDOW(mShell),
                                             topLevelParent);
+                mTransientParent = topLevelParent;
+
+                GtkWindowGroup *groupParent = gtk_window_get_group(topLevelParent);
+                if (groupParent) {
+                    gtk_window_group_add_window(groupParent, GTK_WINDOW(mShell));
+                    mWindowGroup = groupParent;
+                    g_object_ref(mWindowGroup);
+                }
             }
         }
         else { // must be eWindowType_toplevel
@@ -3521,9 +3572,12 @@ nsWindow::Create(nsIWidget        *aParent,
                                    gdk_get_program_class());
 
             // each toplevel window gets its own window group
-            GtkWindowGroup *group = gtk_window_group_new();
-            gtk_window_group_add_window(group, GTK_WINDOW(mShell));
-            g_object_unref(group);
+            mWindowGroup = gtk_window_group_new();
+
+            // and add ourselves to the window group
+            LOG(("adding window %p to new group %p\n",
+                 (void *)mShell, (void *)mWindowGroup));
+            gtk_window_group_add_window(mWindowGroup, GTK_WINDOW(mShell));
         }
 
         // Prevent GtkWindow from painting a background to flicker.

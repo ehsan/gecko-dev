@@ -28,44 +28,29 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGPolyElementBase)
 nsSVGPolyElement::nsSVGPolyElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsSVGPolyElementBase(aNodeInfo)
 {
-  SetIsDOMBinding();
+
 }
 
 //----------------------------------------------------------------------
 // nsIDOMSGAnimatedPoints methods:
 
 /* readonly attribute DOMSVGPointList points; */
-NS_IMETHODIMP
+NS_IMETHODIMP 
 nsSVGPolyElement::GetPoints(nsISupports * *aPoints)
 {
-  *aPoints = Points().get();
-  return NS_OK;
-}
-
-already_AddRefed<DOMSVGPointList>
-nsSVGPolyElement::Points()
-{
   void *key = mPoints.GetBaseValKey();
-  nsRefPtr<DOMSVGPointList> points = DOMSVGPointList::GetDOMWrapper(key, this, false);
-  return points.forget();
+  *aPoints = DOMSVGPointList::GetDOMWrapper(key, this, false).get();
+  return NS_OK;
 }
 
 /* readonly attribute DOMSVGPointList animatedPoints; */
-NS_IMETHODIMP
+NS_IMETHODIMP 
 nsSVGPolyElement::GetAnimatedPoints(nsISupports * *aAnimatedPoints)
 {
-  *aAnimatedPoints = AnimatedPoints().get();
+  void *key = mPoints.GetAnimValKey();
+  *aAnimatedPoints = DOMSVGPointList::GetDOMWrapper(key, this, true).get();
   return NS_OK;
 }
-
-already_AddRefed<DOMSVGPointList>
-nsSVGPolyElement::AnimatedPoints()
-{
-  void *key = mPoints.GetAnimValKey();
-  nsRefPtr<DOMSVGPointList> points = DOMSVGPointList::GetDOMWrapper(key, this, true);
-  return points.forget();
-}
-
 
 //----------------------------------------------------------------------
 // nsIContent methods

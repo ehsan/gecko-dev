@@ -167,26 +167,24 @@ let SlowSQL = {
 
   /**
    * Creates a header row for a Slow SQL table
-   * Tabs & newlines added to cells to make it easier to copy-paste.
    *
    * @param aTable Parent table element
    * @param aTitle Table's title
    */
   renderTableHeader: function SlowSQL_renderTableHeader(aTable, aTitle) {
     let caption = document.createElement("caption");
-    caption.appendChild(document.createTextNode(aTitle + "\n"));
+    caption.appendChild(document.createTextNode(aTitle));
     aTable.appendChild(caption);
 
     let headings = document.createElement("tr");
-    this.appendColumn(headings, "th", this.slowSqlHits + "\t");
-    this.appendColumn(headings, "th", this.slowSqlAverage + "\t");
-    this.appendColumn(headings, "th", this.slowSqlStatement + "\n");
+    this.appendColumn(headings, "th", this.slowSqlHits);
+    this.appendColumn(headings, "th", this.slowSqlAverage);
+    this.appendColumn(headings, "th", this.slowSqlStatement);
     aTable.appendChild(headings);
   },
 
   /**
    * Fills out the table body
-   * Tabs & newlines added to cells to make it easier to copy-paste.
    *
    * @param aTable Parent table element
    * @param aSql SQL stats object
@@ -197,9 +195,9 @@ let SlowSQL = {
 
       let sqlRow = document.createElement("tr");
 
-      this.appendColumn(sqlRow, "td", hitCount + "\t");
-      this.appendColumn(sqlRow, "td", averageTime.toFixed(0) + "\t");
-      this.appendColumn(sqlRow, "td", sql + "\n");
+      this.appendColumn(sqlRow, "td", hitCount);
+      this.appendColumn(sqlRow, "td", averageTime.toFixed(0));
+      this.appendColumn(sqlRow, "td", sql);
 
       aTable.appendChild(sqlRow);
     }
@@ -214,8 +212,8 @@ let SlowSQL = {
    */
   appendColumn: function SlowSQL_appendColumn(aRowElement, aColType, aColText) {
     let colElement = document.createElement(aColType);
-    let colTextElement = document.createTextNode(aColText);
-    colElement.appendChild(colTextElement);
+    let aColTextElement = document.createTextNode(aColText);
+    colElement.appendChild(aColTextElement);
     aRowElement.appendChild(colElement);
   }
 };
@@ -531,7 +529,6 @@ let KeyValueTable = {
 
   /**
    * Create the table header
-   * Tabs & newlines added to cells to make it easier to copy-paste.
    *
    * @param aTable Table element
    */
@@ -540,9 +537,9 @@ let KeyValueTable = {
     aTable.appendChild(headerRow);
 
     let keysColumn = document.createElement("th");
-    keysColumn.appendChild(document.createTextNode(this.keysHeader + "\t"));
+    keysColumn.appendChild(document.createTextNode(this.keysHeader));
     let valuesColumn = document.createElement("th");
-    valuesColumn.appendChild(document.createTextNode(this.valuesHeader + "\n"));
+    valuesColumn.appendChild(document.createTextNode(this.valuesHeader));
 
     headerRow.appendChild(keysColumn);
     headerRow.appendChild(valuesColumn);
@@ -550,7 +547,6 @@ let KeyValueTable = {
 
   /**
    * Create the table body
-   * Tabs & newlines added to cells to make it easier to copy-paste.
    *
    * @param aTable Table element
    * @param aMeasurements Key/value map
@@ -565,11 +561,11 @@ let KeyValueTable = {
       aTable.appendChild(newRow);
 
       let keyField = document.createElement("td");
-      keyField.appendChild(document.createTextNode(key + "\t"));
+      keyField.appendChild(document.createTextNode(key));
       newRow.appendChild(keyField);
 
       let valueField = document.createElement("td");
-      valueField.appendChild(document.createTextNode(value + "\n"));
+      valueField.appendChild(document.createTextNode(value));
       newRow.appendChild(valueField);
     }
   }

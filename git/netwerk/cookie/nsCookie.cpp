@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsCookie.h"
-#include "nsUTF8ConverterService.h"
 #include <stdlib.h>
 
 /******************************************************************************
@@ -78,14 +77,8 @@ nsCookie::Create(const nsACString &aName,
                  bool              aIsSecure,
                  bool              aIsHttpOnly)
 {
-  // Ensure mValue contains a valid UTF-8 sequence. Otherwise XPConnect will
-  // truncate the string after the first invalid octet.
-  nsUTF8ConverterService converter;
-  nsAutoCString aUTF8Value;
-  converter.ConvertStringToUTF8(aValue, "UTF-8", false, true, 1, aUTF8Value);
-
   // find the required string buffer size, adding 4 for the terminating nulls
-  const uint32_t stringLength = aName.Length() + aUTF8Value.Length() +
+  const uint32_t stringLength = aName.Length() + aValue.Length() +
                                 aHost.Length() + aPath.Length() + 4;
 
   // allocate contiguous space for the nsCookie and its strings -
@@ -97,7 +90,7 @@ nsCookie::Create(const nsACString &aName,
   // assign string members
   char *name, *value, *host, *path, *end;
   name = static_cast<char *>(place) + sizeof(nsCookie);
-  StrBlockCopy(aName, aUTF8Value, aHost, aPath,
+  StrBlockCopy(aName, aValue, aHost, aPath,
                name, value, host, path, end);
 
   // If the creationTime given to us is higher than the running maximum, update

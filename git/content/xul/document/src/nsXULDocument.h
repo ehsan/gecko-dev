@@ -40,9 +40,8 @@ class nsIXULPrototypeScript;
 #endif
 #include "nsURIHashKey.h"
 #include "nsInterfaceHashtable.h"
-
+ 
 struct JSObject;
-struct JSTracer;
 struct PRLogModuleInfo;
 
 class nsRefMapEntry : public nsStringHashKey
@@ -179,9 +178,6 @@ public:
     NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsXULDocument, nsXMLDocument)
 
     virtual nsXPCClassInfo* GetClassInfo();
-
-    void TraceProtos(JSTracer* aTrc, uint32_t aGCNumber);
-
 protected:
     // Implementation methods
     friend nsresult

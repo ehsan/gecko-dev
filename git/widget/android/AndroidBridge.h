@@ -65,7 +65,6 @@ class NetworkInformation;
 namespace dom {
 namespace sms {
 struct SmsFilterData;
-struct SmsSegmentInfoData;
 } // namespace sms
 } // namespace dom
 
@@ -319,7 +318,7 @@ public:
     void DisableBatteryNotifications();
     void GetCurrentBatteryInformation(hal::BatteryInformation* aBatteryInfo);
 
-    nsresult GetSegmentInfoForText(const nsAString& aText, dom::sms::SmsSegmentInfoData* aData);
+    uint16_t GetNumberOfMessagesForText(const nsAString& aText);
     void SendMessage(const nsAString& aNumber, const nsAString& aText, nsISmsRequest* aRequest);
     void GetMessage(int32_t aMessageId, nsISmsRequest* aRequest);
     void DeleteMessage(int32_t aMessageId, nsISmsRequest* aRequest);
@@ -387,8 +386,6 @@ protected:
 
     // the GeckoAppShell java class
     jclass mGeckoAppShellClass;
-    // the android.telephony.SmsMessage class
-    jclass mAndroidSmsMessageClass;
 
     AndroidBridge();
     ~AndroidBridge();
@@ -472,7 +469,7 @@ protected:
     jmethodID jDestroySurface;
     jmethodID jGetProxyForURI;
 
-    jmethodID jCalculateLength;
+    jmethodID jNumberOfMessages;
     jmethodID jSendMessage;
     jmethodID jGetMessage;
     jmethodID jDeleteMessage;

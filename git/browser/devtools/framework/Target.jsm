@@ -286,8 +286,7 @@ TabWebProgressListener.prototype = {
       return;
     }
 
-    // emit event if the top frame is navigating
-    if (this.target && this.target.window == progress.DOMWindow) {
+    if (this.target) {
       this.target.emit("will-navigate", request);
     }
   },

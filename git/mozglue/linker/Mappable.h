@@ -114,8 +114,6 @@ private:
   {
     static void release(char *value)
     {
-      if (!value)
-        return;
       unlink(value);
       mozilla::ScopedDeleteArrayTraits<char>::release(value);
     }

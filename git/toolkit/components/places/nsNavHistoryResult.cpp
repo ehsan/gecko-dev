@@ -2857,8 +2857,7 @@ NS_IMETHODIMP
 nsNavHistoryQueryResultNode::OnDeleteVisits(nsIURI* aURI,
                                             PRTime aVisitTime,
                                             const nsACString& aGUID,
-                                            uint16_t aReason,
-                                            uint32_t aTransitionType)
+                                            uint16_t aReason)
 {
   NS_PRECONDITION(mOptions->QueryType() == nsINavHistoryQueryOptions::QUERY_TYPE_HISTORY,
                   "Bookmarks queries should not get a OnDeleteVisits notification");
@@ -2868,15 +2867,6 @@ nsNavHistoryQueryResultNode::OnDeleteVisits(nsIURI* aURI,
     // query this is equivalent to a onDeleteURI notification.
     nsresult rv = OnDeleteURI(aURI, aGUID, aReason);
     NS_ENSURE_SUCCESS(rv, rv);
-  }
-  if (aTransitionType > 0) {
-    // All visits for aTransitionType have been removed, if the query is
-    // filtering on such transition type, this is equivalent to an onDeleteURI
-    // notification.
-    if ((mQueries[0]->Transitions()).Contains(aTransitionType)) {
-      nsresult rv = OnDeleteURI(aURI, aGUID, aReason);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
   }
 
   return NS_OK;
@@ -4847,10 +4837,8 @@ NS_IMETHODIMP
 nsNavHistoryResult::OnDeleteVisits(nsIURI* aURI,
                                    PRTime aVisitTime,
                                    const nsACString& aGUID,
-                                   uint16_t aReason,
-                                   uint32_t aTransitionType)
+                                   uint16_t aReason)
 {
-  ENUMERATE_HISTORY_OBSERVERS(OnDeleteVisits(aURI, aVisitTime, aGUID, aReason,
-                                             aTransitionType));
+  ENUMERATE_HISTORY_OBSERVERS(OnDeleteVisits(aURI, aVisitTime, aGUID, aReason));
   return NS_OK;
 }

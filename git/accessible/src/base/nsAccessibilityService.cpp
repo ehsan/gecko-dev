@@ -56,7 +56,6 @@
 #include "nsLayoutUtils.h"
 #include "nsNPAPIPluginInstance.h"
 #include "nsObjectFrame.h"
-#include "nsSVGPathGeometryFrame.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
@@ -197,7 +196,9 @@ nsAccessibilityService::GetRootDocumentAccessible(nsIPresShell* aPresShell,
       treeItem->GetRootTreeItem(getter_AddRefs(rootTreeItem));
       if (treeItem != rootTreeItem) {
         nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(rootTreeItem));
-        ps = docShell->GetPresShell();
+        nsCOMPtr<nsIPresShell> presShell;
+        docShell->GetPresShell(getter_AddRefs(presShell));
+        ps = presShell;
       }
 
       return aCanCreate ? GetDocAccessible(ps) : ps->GetDocAccessible();
@@ -911,16 +912,8 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
   }
 
   if (!newAcc) {
-    if (content->IsSVG()) {
-      nsSVGPathGeometryFrame* pathGeometryFrame = do_QueryFrame(frame);
-      if (pathGeometryFrame) {
-        // A graphic elements: rect, circle, ellipse, line, path, polygon,
-        // polyline and image. A 'use' and 'text' graphic elements require
-        // special support.
-        newAcc = new EnumRoleAccessible(content, document, roles::GRAPHIC);
-      } else if (content->Tag() == nsGkAtoms::svg) {
-        newAcc = new EnumRoleAccessible(content, document, roles::DIAGRAM);
-      }
+    if (content->IsSVG(nsGkAtoms::svg)) {
+      newAcc = new EnumRoleAccessible(content, document, roles::DIAGRAM);
     } else if (content->IsMathML(nsGkAtoms::math)) {
       newAcc = new EnumRoleAccessible(content, document, roles::EQUATION);
     }

@@ -14,8 +14,6 @@
 #include "nsGkAtoms.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
-
 typedef nsSVGElement nsSVGSymbolElementBase;
 
 class nsSVGSymbolElement : public nsSVGSymbolElementBase,
@@ -101,10 +99,7 @@ NS_IMETHODIMP
 nsSVGSymbolElement::GetPreserveAspectRatio(nsISupports
                                            **aPreserveAspectRatio)
 {
-  nsRefPtr<DOMSVGAnimatedPreserveAspectRatio> ratio;
-  mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(getter_AddRefs(ratio), this);
-  ratio.forget(aPreserveAspectRatio);
-  return NS_OK;
+  return mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(aPreserveAspectRatio, this);
 }
 
 //----------------------------------------------------------------------

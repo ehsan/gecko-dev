@@ -70,31 +70,32 @@ class GetUserMediaCallbackMediaStreamListener : public MediaStreamListener
 {
 public:
   GetUserMediaCallbackMediaStreamListener(nsIThread *aThread,
-    already_AddRefed<SourceMediaStream> aStream,
-    already_AddRefed<MediaInputPort> aPort,
+    nsDOMMediaStream* aStream,
     MediaEngineSource* aAudioSource,
     MediaEngineSource* aVideoSource)
     : mMediaThread(aThread)
     , mAudioSource(aAudioSource)
     , mVideoSource(aVideoSource)
     , mStream(aStream)
-    , mPort(aPort)
+    , mSourceStream(aStream->GetStream()->AsSourceStream())
     , mLastEndTimeAudio(0)
-    , mLastEndTimeVideo(0) {}
+    , mLastEndTimeVideo(0) { MOZ_ASSERT(mSourceStream); }
 
   ~GetUserMediaCallbackMediaStreamListener()
   {
-    // It's OK to release mStream and mPort on any thread; they have thread-safe
-    // refcounts.
+    // In theory this could be released from the MediaStreamGraph thread (RemoveListener)
+    if (mStream) {
+      nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
+      nsDOMMediaStream *stream;
+      mStream.forget(&stream);
+      // Releases directly if on MainThread already
+      NS_ProxyRelease(mainThread, stream, false);
+    }
   }
 
-  MediaStream *Stream()
-  {
-    return mStream;
-  }
   SourceMediaStream *GetSourceStream()
   {
-    return mStream->AsSourceStream();
+    return mStream->GetStream()->AsSourceStream();
   }
 
   void
@@ -105,7 +106,7 @@ public:
   {
     NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
     // Caller holds strong reference to us, so no death grip required
-    mStream->RemoveListener(this);
+    mStream->GetStream()->RemoveListener(this);
   }
 
   // Proxy NotifyPull() to sources
@@ -115,10 +116,10 @@ public:
     // Currently audio sources ignore NotifyPull, but they could
     // watch it especially for fake audio.
     if (mAudioSource) {
-      mAudioSource->NotifyPull(aGraph, mStream, kAudioTrack, aDesiredTime, mLastEndTimeAudio);
+      mAudioSource->NotifyPull(aGraph, mSourceStream, kAudioTrack, aDesiredTime, mLastEndTimeAudio);
     }
     if (mVideoSource) {
-      mVideoSource->NotifyPull(aGraph, mStream, kVideoTrack, aDesiredTime, mLastEndTimeVideo);
+      mVideoSource->NotifyPull(aGraph, mSourceStream, kVideoTrack, aDesiredTime, mLastEndTimeVideo);
     }
   }
 
@@ -133,8 +134,8 @@ private:
   nsCOMPtr<nsIThread> mMediaThread;
   nsRefPtr<MediaEngineSource> mAudioSource;
   nsRefPtr<MediaEngineSource> mVideoSource;
-  nsRefPtr<SourceMediaStream> mStream;
-  nsRefPtr<MediaInputPort> mPort;
+  nsRefPtr<nsDOMMediaStream> mStream;
+  SourceMediaStream *mSourceStream; // mStream controls ownership
   TrackTicks mLastEndTimeAudio;
   TrackTicks mLastEndTimeVideo;
 };
@@ -150,7 +151,16 @@ typedef enum {
 class MediaOperationRunnable : public nsRunnable
 {
 public:
-  // so we can send Stop without AddRef()ing from the MSG thread
+  MediaOperationRunnable(MediaOperation aType,
+    nsDOMMediaStream* aStream,
+    MediaEngineSource* aAudioSource,
+    MediaEngineSource* aVideoSource)
+    : mType(aType)
+    , mAudioSource(aAudioSource)
+    , mVideoSource(aVideoSource)
+    , mStream(aStream)
+    {}
+
   MediaOperationRunnable(MediaOperation aType,
     GetUserMediaCallbackMediaStreamListener* aListener,
     MediaEngineSource* aAudioSource,
@@ -158,20 +168,33 @@ public:
     : mType(aType)
     , mAudioSource(aAudioSource)
     , mVideoSource(aVideoSource)
+    , mStream(nullptr)
     , mListener(aListener)
     {}
 
   ~MediaOperationRunnable()
   {
-    // MediaStreams can be released on any thread.
+    // nsDOMMediaStreams are cycle-collected and thus main-thread-only for
+    // refcounting and releasing
+    if (mStream) {
+      nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
+      nsDOMMediaStream *stream;
+      mStream.forget(&stream);
+      NS_ProxyRelease(mainThread, stream, true);
+    }
   }
 
   NS_IMETHOD
   Run()
   {
-    SourceMediaStream *source = mListener->GetSourceStream();
+    SourceMediaStream *source;
     // No locking between these is required as all the callbacks for the
     // same MediaStream will occur on the same thread.
+    if (mStream) {
+      source = mStream->GetStream()->AsSourceStream();
+    } else {
+      source = mListener->GetSourceStream();
+    }
     MOZ_ASSERT(source);
     if (!source)  // paranoia
       return NS_ERROR_FAILURE;
@@ -219,7 +242,6 @@ public:
           }
           // Do this after stopping all tracks with EndTrack()
           source->Finish();
-          // the TrackUnion destination of the port will autofinish
 
           nsRefPtr<GetUserMediaNotificationEvent> event =
             new GetUserMediaNotificationEvent(GetUserMediaNotificationEvent::STOPPING);
@@ -239,6 +261,7 @@ private:
   MediaOperation mType;
   nsRefPtr<MediaEngineSource> mAudioSource; // threadsafe
   nsRefPtr<MediaEngineSource> mVideoSource; // threadsafe
+  nsRefPtr<nsDOMMediaStream> mStream;       // not threadsafe
   nsRefPtr<GetUserMediaCallbackMediaStreamListener> mListener; // threadsafe
 };
 
@@ -291,7 +314,6 @@ public:
       obs->AddObserver(sSingleton, "xpcom-shutdown", false);
       obs->AddObserver(sSingleton, "getUserMedia:response:allow", false);
       obs->AddObserver(sSingleton, "getUserMedia:response:deny", false);
-      obs->AddObserver(sSingleton, "getUserMedia:revoke", false);
     }
     return sSingleton;
   }

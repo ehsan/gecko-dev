@@ -344,7 +344,6 @@ DOMCI_CLASS(MozSmsEvent)
 DOMCI_CLASS(MozSmsRequest)
 DOMCI_CLASS(MozSmsFilter)
 DOMCI_CLASS(MozSmsCursor)
-DOMCI_CLASS(MozSmsSegmentInfo)
 
 DOMCI_CLASS(MozConnection)
 #ifdef MOZ_B2G_RIL

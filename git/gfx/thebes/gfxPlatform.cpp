@@ -1601,7 +1601,8 @@ gfxPlatform::SetupClusterBoundaries(gfxTextRun *aTextRun, const PRUnichar *aStri
         return;
     }
 
-    aTextRun->SetupClusterBoundaries(0, aString, aTextRun->GetLength());
+    gfxShapedWord::SetupClusterBoundaries(aTextRun->GetCharacterGlyphs(),
+                                          aString, aTextRun->GetLength());
 }
 
 int32_t

@@ -7,7 +7,6 @@
 #include "DOMSVGStringList.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 nsSVGElement::StringListInfo nsSVGViewElement::sStringListInfo[1] =
 {
@@ -97,10 +96,7 @@ NS_IMETHODIMP
 nsSVGViewElement::GetPreserveAspectRatio(nsISupports
                                          **aPreserveAspectRatio)
 {
-  nsRefPtr<DOMSVGAnimatedPreserveAspectRatio> ratio;
-  mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(getter_AddRefs(ratio), this);
-  ratio.forget(aPreserveAspectRatio);
-  return NS_OK;
+  return mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(aPreserveAspectRatio, this);
 }
 
 //----------------------------------------------------------------------

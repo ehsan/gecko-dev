@@ -178,6 +178,7 @@ abstract public class GeckoApp
     public static boolean sIsUsingCustomProfile = false;
 
     private PromptService mPromptService;
+    private Favicons mFavicons;
     private TextSelection mTextSelection;
 
     protected DoorHangerPopup mDoorHangerPopup;
@@ -801,9 +802,7 @@ abstract public class GeckoApp
         }
     }
 
-    public void addTab() { }
-
-    public void addPrivateTab() { }
+    void addTab() { }
 
     public void showNormalTabs() { }
 
@@ -2359,7 +2358,12 @@ abstract public class GeckoApp
         if (mTextSelection != null)
             mTextSelection.destroy();
 
-        Tabs.getInstance().detachFromActivity(this);
+        GeckoAppShell.getHandler().post(new Runnable() {
+            public void run() {
+                if (mFavicons != null)
+                    mFavicons.close();
+            }
+        });
 
         if (SmsManager.getInstance() != null) {
             SmsManager.getInstance().stop();

@@ -28,7 +28,7 @@
 
 #include "nsIDOMWebGLRenderingContext.h"
 #include "nsICanvasRenderingContextInternal.h"
-#include "mozilla/dom/HTMLCanvasElement.h"
+#include "nsHTMLCanvasElement.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIMemoryReporter.h"
 #include "nsIJSNativeInitializer.h"
@@ -332,7 +332,7 @@ public:
     }
 
     // WebIDL WebGLRenderingContext API
-    dom::HTMLCanvasElement* GetCanvas() const {
+    nsHTMLCanvasElement* GetCanvas() const {
         return mCanvasElement;
     }
     WebGLsizei DrawingBufferWidth() const {
@@ -550,7 +550,7 @@ public:
     template<class ElementType>
     void TexImage2D(WebGLenum target, WebGLint level,
                     WebGLenum internalformat, WebGLenum format, WebGLenum type,
-                    const ElementType& elt, ErrorResult& rv) {
+                    ElementType* elt, ErrorResult& rv) {
         if (!IsContextStable())
             return;
         nsRefPtr<gfxImageSurface> isurf;
@@ -587,7 +587,7 @@ public:
     template<class ElementType>
     void TexSubImage2D(WebGLenum target, WebGLint level,
                        WebGLint xoffset, WebGLint yoffset, WebGLenum format,
-                       WebGLenum type, const ElementType& elt, ErrorResult& rv) {
+                       WebGLenum type, ElementType* elt, ErrorResult& rv) {
         if (!IsContextStable())
             return;
         nsRefPtr<gfxImageSurface> isurf;
@@ -843,7 +843,6 @@ protected:
     bool mHasRobustness;
     bool mIsMesa;
     bool mLoseContextOnHeapMinimize;
-    bool mCanLoseContextInForeground;
 
     template<typename WebGLObjectType>
     void DeleteWebGLObjectsArray(nsTArray<WebGLObjectType>& array);
@@ -986,10 +985,6 @@ protected:
         if (!mPixelStorePremultiplyAlpha)
             flags |= nsLayoutUtils::SFE_NO_PREMULTIPLY_ALPHA;
         return nsLayoutUtils::SurfaceFromElement(aElement, flags);
-    }
-    template<class ElementType>
-    nsLayoutUtils::SurfaceFromElementResult SurfaceFromElement(const dom::NonNull<ElementType>& aElement) {
-      return SurfaceFromElement(aElement.get());
     }
 
     nsresult SurfaceFromElementResultToImageSurface(nsLayoutUtils::SurfaceFromElementResult& res,

@@ -428,9 +428,4 @@ public class LayerView extends FrameLayout {
     public boolean isFullScreen() {
         return mFullScreen;
     }
-
-    @Override
-    public boolean onGenericMotionEvent(MotionEvent event) {
-        return mTouchEventHandler == null ? false : mTouchEventHandler.handleEvent(event);
-    }
 }

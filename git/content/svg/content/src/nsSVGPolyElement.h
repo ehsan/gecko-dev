@@ -14,10 +14,6 @@ typedef nsSVGPathGeometryElement nsSVGPolyElementBase;
 
 class gfxContext;
 
-namespace mozilla {
-class DOMSVGPointList;
-}
-
 class nsSVGPolyElement : public nsSVGPolyElementBase,
                          public nsIDOMSVGAnimatedPoints
 {
@@ -45,10 +41,6 @@ public:
   virtual bool IsMarkable() { return true; }
   virtual void GetMarkPoints(nsTArray<nsSVGMark> *aMarks);
   virtual void ConstructPath(gfxContext *aCtx);
-
-  // WebIDL
-  already_AddRefed<mozilla::DOMSVGPointList> Points();
-  already_AddRefed<mozilla::DOMSVGPointList> AnimatedPoints();
 
 protected:
   SVGAnimatedPointList mPoints;

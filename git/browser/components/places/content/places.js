@@ -1252,7 +1252,6 @@ let ContentArea = {
 
   init: function CA_init() {
     this._deck = document.getElementById("placesViewsDeck");
-    this._toolbar = document.getElementById("placesToolbar");
     ContentTree.init();
   },
 
@@ -1316,23 +1315,7 @@ let ContentArea = {
   set currentPlace(aQueryString) {
     this.currentView = this.getContentViewForQueryString(aQueryString);
     this.currentView.place = aQueryString;
-    this._updateToolbarSet();
     return aQueryString;
-  },
-
-  _updateToolbarSet: function CA__updateToolbarSet() {
-    let toolbarSet = this.currentViewOptions.toolbarSet;
-    for (let elt of this._toolbar.childNodes) {
-      // On Windows and Linux the menu buttons are menus wrapped in a menubar.
-      if (elt.id == "placesMenu") {
-        for (let menuElt of elt.childNodes) {
-          menuElt.hidden = toolbarSet.indexOf(menuElt.id) == -1;
-        }
-      }
-      else {
-        elt.hidden = toolbarSet.indexOf(elt.id) == -1;
-      }
-    }
   },
 
   /**
@@ -1364,10 +1347,7 @@ let ContentTree = {
 
   get view() this._view,
 
-  get viewOptions() Object.seal({
-    showDetailsPane: true,
-    toolbarSet: "back-button, forward-button, organizeButton, viewMenu, maintenanceButton, libraryToolbarSpacer, searchFilter"
-  }),
+  get viewOptions() Object.seal({ showDetailsPane: true }),
 
   openSelectedNode: function CT_openSelectedNode(aEvent) {
     let view = this.view;

@@ -599,7 +599,7 @@ PeerConnectionImpl::ConvertConstraints(
 
   // Mandatory constraints.
   if (JS_GetProperty(aCx, &constraints, "mandatory", &mandatory)) {
-    if (mandatory.isObject()) {
+    if (JSVAL_IS_PRIMITIVE(mandatory) && mandatory.isObject() && !JSVAL_IS_NULL(mandatory)) {
       JSObject* opts = JSVAL_TO_OBJECT(mandatory);
       JS::AutoIdArray mandatoryOpts(aCx, JS_Enumerate(aCx, opts));
 
@@ -622,7 +622,7 @@ PeerConnectionImpl::ConvertConstraints(
 
   // Optional constraints.
   if (JS_GetProperty(aCx, &constraints, "optional", &optional)) {
-    if (optional.isObject()) {
+    if (JSVAL_IS_PRIMITIVE(optional) && optional.isObject() && !JSVAL_IS_NULL(optional)) {
       JSObject* opts = JSVAL_TO_OBJECT(optional);
       if (JS_IsArrayObject(aCx, opts)) {
         uint32_t length;
@@ -632,7 +632,7 @@ PeerConnectionImpl::ConvertConstraints(
         for (i = 0; i < length; i++) {
           jsval val;
           JS_GetElement(aCx, opts, i, &val);
-          if (val.isObject()) {
+          if (JSVAL_IS_PRIMITIVE(val)) {
             // Extract name & value and store.
             // FIXME: MediaConstraints does not support optional constraints?
           }

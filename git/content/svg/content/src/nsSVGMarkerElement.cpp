@@ -16,7 +16,6 @@
 #include "SVGAngle.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 nsSVGElement::LengthInfo nsSVGMarkerElement::sLengthInfo[4] =
 {
@@ -129,10 +128,7 @@ NS_IMETHODIMP
 nsSVGMarkerElement::GetPreserveAspectRatio(nsISupports
                                            **aPreserveAspectRatio)
 {
-  nsRefPtr<DOMSVGAnimatedPreserveAspectRatio> ratio;
-  mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(getter_AddRefs(ratio), this);
-  ratio.forget(aPreserveAspectRatio);
-  return NS_OK;
+  return mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(aPreserveAspectRatio, this);
 }
 
 //----------------------------------------------------------------------
@@ -266,7 +262,7 @@ nsSVGMarkerElement::UnsetAttr(int32_t aNamespaceID, nsIAtom* aName,
     }
   }
 
-  return nsSVGElement::UnsetAttr(aNamespaceID, aName, aNotify);
+  return nsSVGMarkerElementBase::UnsetAttr(aNamespaceID, aName, aNotify);
 }
 
 //----------------------------------------------------------------------

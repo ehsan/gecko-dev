@@ -440,7 +440,7 @@ nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegat
                kidDesiredSize.width, kidDesiredSize.height);
   aKidFrame->SetRect(rect);
 
-  nsView* view = aKidFrame->GetView();
+  nsIView* view = aKidFrame->GetView();
   if (view) {
     // Size and position the view and set its opacity, visibility, content
     // transparency, and clip

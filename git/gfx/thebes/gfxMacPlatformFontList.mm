@@ -344,8 +344,9 @@ MacOSFontEntry::IsCFF()
 
 MacOSFontEntry::MacOSFontEntry(const nsAString& aPostscriptName,
                                int32_t aWeight,
+                               gfxFontFamily *aFamily,
                                bool aIsStandardFace)
-    : gfxFontEntry(aPostscriptName, aIsStandardFace),
+    : gfxFontEntry(aPostscriptName, aFamily, aIsStandardFace),
       mFontRef(NULL),
       mFontRefInitialized(false),
       mRequiresAAT(false),
@@ -360,7 +361,7 @@ MacOSFontEntry::MacOSFontEntry(const nsAString& aPostscriptName,
                                uint16_t aWeight, uint16_t aStretch,
                                uint32_t aItalicStyle,
                                bool aIsUserFont, bool aIsLocal)
-    : gfxFontEntry(aPostscriptName, false),
+    : gfxFontEntry(aPostscriptName, nullptr, false),
       mFontRef(NULL),
       mFontRefInitialized(false),
       mRequiresAAT(false),
@@ -541,7 +542,8 @@ gfxMacFontFamily::FindStyleVariations()
 
         // create a font entry
         MacOSFontEntry *fontEntry =
-            new MacOSFontEntry(postscriptFontName, cssWeight, isStandardFace);
+            new MacOSFontEntry(postscriptFontName, cssWeight, this,
+                               isStandardFace);
         if (!fontEntry) {
             break;
         }

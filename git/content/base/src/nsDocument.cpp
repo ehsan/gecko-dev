@@ -184,7 +184,6 @@
 #include "nsIAppsService.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/DocumentFragment.h"
-#include "mozilla/dom/UndoManager.h"
 #include "nsFrame.h" 
 #include "nsDOMCaretPosition.h"
 #include "nsIDOMHTMLTextAreaElement.h"
@@ -1680,7 +1679,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDocument)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mOriginalDocument)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mCachedEncoder)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mStateObjectCached)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mUndoManager)
 
   // Traverse all our nsCOMArrays.
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mStyleSheets)
@@ -1738,7 +1736,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mImageMaps)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mOriginalDocument)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mCachedEncoder)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mUndoManager)
 
   tmp->mParentDocument = nullptr;
 
@@ -2643,22 +2640,6 @@ nsDocument::GetAllowPlugins(bool * aAllowPlugins)
   return NS_OK;
 }
 
-already_AddRefed<UndoManager>
-nsDocument::GetUndoManager()
-{
-  Element* rootElement = GetRootElement();
-  if (!rootElement) {
-    return nullptr;
-  }
-
-  if (!mUndoManager) {
-    mUndoManager = new UndoManager(rootElement);
-  }
-
-  nsRefPtr<UndoManager> undoManager = mUndoManager;
-  return undoManager.forget();
-}
-
 /* Return true if the document is in the focused top-level window, and is an
  * ancestor of the focused DOMWindow. */
 NS_IMETHODIMP
@@ -3119,7 +3100,7 @@ nsDocument::TryChannelCharset(nsIChannel *aChannel,
 }
 
 nsresult
-nsDocument::CreateShell(nsPresContext* aContext, nsViewManager* aViewManager,
+nsDocument::CreateShell(nsPresContext* aContext, nsIViewManager* aViewManager,
                         nsStyleSet* aStyleSet,
                         nsIPresShell** aInstancePtrResult)
 {
@@ -3132,7 +3113,7 @@ nsDocument::CreateShell(nsPresContext* aContext, nsViewManager* aViewManager,
 
 nsresult
 nsDocument::doCreateShell(nsPresContext* aContext,
-                          nsViewManager* aViewManager, nsStyleSet* aStyleSet,
+                          nsIViewManager* aViewManager, nsStyleSet* aStyleSet,
                           nsCompatibility aCompatMode,
                           nsIPresShell** aInstancePtrResult)
 {

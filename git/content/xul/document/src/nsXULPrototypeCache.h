@@ -91,6 +91,11 @@ public:
     nsresult PutStyleSheet(nsCSSStyleSheet* aStyleSheet);
 
     /**
+     * Remove a XUL document from the set of loading documents.
+     */
+    void RemoveFromCacheSet(nsIURI* aDocumentURI);
+
+    /**
      * Write the XUL prototype document to a cache file. The proto must be
      * fully loaded.
      */
@@ -105,6 +110,8 @@ public:
     nsresult GetOutputStream(nsIURI* aURI, nsIObjectOutputStream** objectOutput);
     nsresult FinishOutputStream(nsIURI* aURI);
     nsresult HasData(nsIURI* aURI, bool* exists);
+
+    static mozilla::scache::StartupCache* GetStartupCache();
 
     static nsXULPrototypeCache* GetInstance();
 
@@ -131,8 +138,12 @@ protected:
     nsDataHashtable<nsURIHashKey,CacheScriptEntry>         mScriptTable;
     nsRefPtrHashtable<nsURIHashKey,nsXBLDocumentInfo>  mXBLDocTable;
 
-    nsTHashtable<nsURIHashKey> mCacheURITable;
+    ///////////////////////////////////////////////////////////////////////////
+    // StartupCache
+    // this is really a hash set, with a dummy data parameter
+    nsDataHashtable<nsURIHashKey,uint32_t> mCacheURITable;
 
+    static mozilla::scache::StartupCache* gStartupCache;
     nsInterfaceHashtable<nsURIHashKey, nsIStorageStream> mOutputStreamTable;
     nsInterfaceHashtable<nsURIHashKey, nsIObjectInputStream> mInputStreamTable;
  

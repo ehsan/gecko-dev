@@ -35,17 +35,8 @@ this.ResponsiveUIManager = {
     if (aTab.__responsiveUI) {
       aTab.__responsiveUI.close();
     } else {
-      new ResponsiveUI(aWindow, aTab);
+      aTab.__responsiveUI = new ResponsiveUI(aWindow, aTab);
     }
-  },
-
-  /**
-   * Returns true if responsive view is active for the provided tab.
-   *
-   * @param aTab the tab targeted.
-   */
-  isActiveForTab: function(aTab) {
-    return !!aTab.__responsiveUI;
   },
 
   /**
@@ -60,13 +51,13 @@ this.ResponsiveUIManager = {
     switch (aCommand) {
       case "resize to":
         if (!aTab.__responsiveUI) {
-          new ResponsiveUI(aWindow, aTab);
+          aTab.__responsiveUI = new ResponsiveUI(aWindow, aTab);
         }
         aTab.__responsiveUI.setSize(aArgs.width, aArgs.height);
         break;
       case "resize on":
         if (!aTab.__responsiveUI) {
-          new ResponsiveUI(aWindow, aTab);
+          aTab.__responsiveUI = new ResponsiveUI(aWindow, aTab);
         }
         break;
       case "resize off":
@@ -175,8 +166,6 @@ function ResponsiveUI(aWindow, aTab)
 
   if (this._floatingScrollbars)
     switchToFloatingScrollbars(this.tab);
-
-  this.tab.__responsiveUI = this;
 
   ResponsiveUIManager.emit("on", this.tab, this);
 }

@@ -9,7 +9,6 @@
 #define String_h_
 
 #include "mozilla/Attributes.h"
-#include "mozilla/GuardObjects.h"
 
 #include "jsapi.h"
 #include "jsatom.h"
@@ -836,17 +835,17 @@ class AutoNameVector : public AutoVectorRooter<PropertyName *>
     typedef AutoVectorRooter<PropertyName *> BaseType;
   public:
     explicit AutoNameVector(JSContext *cx
-                            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                            JS_GUARD_OBJECT_NOTIFIER_PARAM)
         : AutoVectorRooter<PropertyName *>(cx, NAMEVECTOR)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     HandlePropertyName operator[](size_t i) const {
         return HandlePropertyName::fromMarkedLocation(&BaseType::operator[](i));
     }
 
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 } /* namespace js */

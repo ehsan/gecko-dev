@@ -74,8 +74,7 @@ private:
                            const nsAString &aNewValue,                  \
                            const nsACString &aGUID);                    \
   NS_IMETHOD OnDeleteVisits(nsIURI* aURI, PRTime aVisitTime,            \
-                            const nsACString& aGUID, uint16_t aReason,  \
-                            uint32_t aTransitionType);
+                            const nsACString& aGUID, uint16_t aReason);
 
 // The internal version has an output aAdded parameter, it is incremented by
 // query nodes when the visited uri belongs to them. If no such query exists,

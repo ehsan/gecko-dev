@@ -35,7 +35,7 @@
 #include "nsINameSpaceManager.h"
 #include "nsIPresShell.h"
 #include "nsIServiceManager.h"
-#include "nsViewManager.h"
+#include "nsIViewManager.h"
 #include "nsIScrollableFrame.h"
 #include "nsUnicharUtils.h"
 #include "nsIURI.h"
@@ -872,7 +872,7 @@ DocAccessible::AttributeWillChange(nsIDocument* aDocument,
   // because dependent IDs cache doesn't contain IDs from non accessible
   // elements.
   if (aModType != nsIDOMMutationEvent::ADDITION)
-    RemoveDependentIDsFor(aElement, aAttribute);
+    RemoveDependentIDsFor(accessible, aAttribute);
 
   // Store the ARIA attribute old value so that it can be used after
   // attribute change. Note, we assume there's no nested ARIA attribute
@@ -928,7 +928,7 @@ DocAccessible::AttributeChanged(nsIDocument* aDocument,
   // dependent IDs cache when its accessible is created.
   if (aModType == nsIDOMMutationEvent::MODIFICATION ||
       aModType == nsIDOMMutationEvent::ADDITION) {
-    AddDependentIDsFor(aElement, aAttribute);
+    AddDependentIDsFor(accessible, aAttribute);
   }
 }
 
@@ -1253,7 +1253,7 @@ DocAccessible::GetNativeWindow() const
   if (!mPresShell)
     return nullptr;
 
-  nsViewManager* vm = mPresShell->GetViewManager();
+  nsIViewManager* vm = mPresShell->GetViewManager();
   if (!vm)
     return nullptr;
 
@@ -1312,10 +1312,8 @@ DocAccessible::BindToDocument(Accessible* aAccessible,
   mAccessibleCache.Put(aAccessible->UniqueID(), aAccessible);
 
   aAccessible->SetRoleMapEntry(aRoleMapEntry);
-
-  nsIContent* content = aAccessible->GetContent();
-  if (content && content->IsElement())
-    AddDependentIDsFor(content->AsElement());
+  if (aAccessible->IsElement())
+    AddDependentIDsFor(aAccessible);
 
   return true;
 }
@@ -1536,7 +1534,7 @@ DocAccessible::ProcessLoad()
 }
 
 void
-DocAccessible::AddDependentIDsFor(dom::Element* aRelProviderElm,
+DocAccessible::AddDependentIDsFor(Accessible* aRelProvider,
                                   nsIAtom* aRelAttr)
 {
   for (uint32_t idx = 0; idx < kRelationAttrsLen; idx++) {
@@ -1545,19 +1543,19 @@ DocAccessible::AddDependentIDsFor(dom::Element* aRelProviderElm,
       continue;
 
     if (relAttr == nsGkAtoms::_for) {
-      if (!aRelProviderElm->IsHTML() ||
-          (aRelProviderElm->Tag() != nsGkAtoms::label &&
-           aRelProviderElm->Tag() != nsGkAtoms::output))
+      if (!aRelProvider->GetContent()->IsHTML() ||
+          (aRelProvider->GetContent()->Tag() != nsGkAtoms::label &&
+           aRelProvider->GetContent()->Tag() != nsGkAtoms::output))
         continue;
 
     } else if (relAttr == nsGkAtoms::control) {
-      if (!aRelProviderElm->IsXUL() ||
-          (aRelProviderElm->Tag() != nsGkAtoms::label &&
-           aRelProviderElm->Tag() != nsGkAtoms::description))
+      if (!aRelProvider->GetContent()->IsXUL() ||
+          (aRelProvider->GetContent()->Tag() != nsGkAtoms::label &&
+           aRelProvider->GetContent()->Tag() != nsGkAtoms::description))
         continue;
     }
 
-    IDRefsIterator iter(this, aRelProviderElm, relAttr);
+    IDRefsIterator iter(this, aRelProvider->GetContent(), relAttr);
     while (true) {
       const nsDependentSubstring id = iter.NextID();
       if (id.IsEmpty())
@@ -1573,7 +1571,7 @@ DocAccessible::AddDependentIDsFor(dom::Element* aRelProviderElm,
 
       if (providers) {
         AttrRelProvider* provider =
-          new AttrRelProvider(relAttr, aRelProviderElm);
+          new AttrRelProvider(relAttr, aRelProvider->GetContent());
         if (provider) {
           providers->AppendElement(provider);
 
@@ -1597,7 +1595,7 @@ DocAccessible::AddDependentIDsFor(dom::Element* aRelProviderElm,
 }
 
 void
-DocAccessible::RemoveDependentIDsFor(dom::Element* aRelProviderElm,
+DocAccessible::RemoveDependentIDsFor(Accessible* aRelProvider,
                                      nsIAtom* aRelAttr)
 {
   for (uint32_t idx = 0; idx < kRelationAttrsLen; idx++) {
@@ -1605,7 +1603,7 @@ DocAccessible::RemoveDependentIDsFor(dom::Element* aRelProviderElm,
     if (aRelAttr && aRelAttr != *kRelationAttrs[idx])
       continue;
 
-    IDRefsIterator iter(this, aRelProviderElm, relAttr);
+    IDRefsIterator iter(this, aRelProvider->GetContent(), relAttr);
     while (true) {
       const nsDependentSubstring id = iter.NextID();
       if (id.IsEmpty())
@@ -1616,7 +1614,7 @@ DocAccessible::RemoveDependentIDsFor(dom::Element* aRelProviderElm,
         for (uint32_t jdx = 0; jdx < providers->Length(); ) {
           AttrRelProvider* provider = (*providers)[jdx];
           if (provider->mRelAttr == relAttr &&
-              provider->mContent == aRelProviderElm)
+              provider->mContent == aRelProvider->GetContent())
             providers->RemoveElement(provider);
           else
             jdx++;
@@ -1916,9 +1914,8 @@ DocAccessible::UncacheChildrenInSubtree(Accessible* aRoot)
 {
   aRoot->mStateFlags |= eIsNotInDocument;
 
-  nsIContent* rootContent = aRoot->GetContent();
-  if (rootContent && rootContent->IsElement())
-    RemoveDependentIDsFor(rootContent->AsElement());
+  if (aRoot->IsElement())
+    RemoveDependentIDsFor(aRoot);
 
   uint32_t count = aRoot->ContentChildCount();
   for (uint32_t idx = 0; idx < count; idx++)

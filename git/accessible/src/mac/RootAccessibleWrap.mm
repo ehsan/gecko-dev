@@ -10,7 +10,7 @@
 #include "nsCOMPtr.h"
 #include "nsObjCExceptions.h"
 #include "nsIWidget.h"
-#include "nsViewManager.h"
+#include "nsIViewManager.h"
 
 using namespace mozilla::a11y;
 
@@ -40,7 +40,7 @@ RootAccessibleWrap::GetNativeWidget(void** aOutView)
 {
   nsIFrame *frame = GetFrame();
   if (frame) {
-    nsView *view = frame->GetViewExternal();
+    nsIView *view = frame->GetViewExternal();
     if (view) {
       nsIWidget *widget = view->GetWidget();
       if (widget) {

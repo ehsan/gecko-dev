@@ -1688,21 +1688,29 @@ class MCreateThisWithTemplate
 
 // Caller-side allocation of |this| for |new|:
 // Given a prototype operand, construct |this| for JSOP_NEW.
-class MCreateThisWithProto
-  : public MBinaryInstruction,
+// For native constructors, returns MagicValue(JS_IS_CONSTRUCTING).
+class MCreateThis
+  : public MAryInstruction<2>,
     public MixPolicy<ObjectPolicy<0>, ObjectPolicy<1> >
 {
-    MCreateThisWithProto(MDefinition *callee, MDefinition *prototype)
-      : MBinaryInstruction(callee, prototype)
+    bool needNativeCheck_;
+
+    MCreateThis(MDefinition *callee, MDefinition *prototype)
+      : needNativeCheck_(true)
     {
-        setResultType(MIRType_Object);
+        initOperand(0, callee);
+        initOperand(1, prototype);
+
+        // Type is mostly object, except for native constructors
+        // therefore the need of Value type.
+        setResultType(MIRType_Value);
     }
 
   public:
-    INSTRUCTION_HEADER(CreateThisWithProto)
-    static MCreateThisWithProto *New(MDefinition *callee, MDefinition *prototype)
+    INSTRUCTION_HEADER(CreateThis)
+    static MCreateThis *New(MDefinition *callee, MDefinition *prototype)
     {
-        return new MCreateThisWithProto(callee, prototype);
+        return new MCreateThis(callee, prototype);
     }
 
     MDefinition *getCallee() const {
@@ -1711,37 +1719,12 @@ class MCreateThisWithProto
     MDefinition *getPrototype() const {
         return getOperand(1);
     }
-
-    // Although creation of |this| modifies global state, it is safely repeatable.
-    AliasSet getAliasSet() const {
-        return AliasSet::None();
+    void removeNativeCheck() {
+        needNativeCheck_ = false;
+        setResultType(MIRType_Object);
     }
-    TypePolicy *typePolicy() {
-        return this;
-    }
-};
-
-// Caller-side allocation of |this| for |new|:
-// Constructs |this| when possible, else MagicValue(JS_IS_CONSTRUCTING).
-class MCreateThis
-  : public MUnaryInstruction,
-    public ObjectPolicy<0>
-{
-    MCreateThis(MDefinition *callee)
-      : MUnaryInstruction(callee)
-    {
-        setResultType(MIRType_Value);
-    }
-
-  public:
-    INSTRUCTION_HEADER(CreateThis)
-    static MCreateThis *New(MDefinition *callee)
-    {
-        return new MCreateThis(callee);
-    }
-
-    MDefinition *getCallee() const {
-        return getOperand(0);
+    bool needNativeCheck() const {
+        return needNativeCheck_;
     }
 
     // Although creation of |this| modifies global state, it is safely repeatable.
@@ -2625,13 +2608,6 @@ class MSub : public MBinaryArithInstruction
 
 class MMul : public MBinaryArithInstruction
 {
-  public:
-    enum Mode {
-        Normal,
-        Integer
-    };
-
-  private:
     // Annotation the result could be a negative zero
     // and we need to guard this during execution.
     bool canBeNegativeZero_;
@@ -2645,23 +2621,12 @@ class MMul : public MBinaryArithInstruction
     // In that case the truncated result isn't correct.
     bool implicitTruncate_;
 
-    Mode mode_;
-
-    MMul(MDefinition *left, MDefinition *right, MIRType type, Mode mode)
+    MMul(MDefinition *left, MDefinition *right, MIRType type)
       : MBinaryArithInstruction(left, right),
         canBeNegativeZero_(true),
         possibleTruncate_(false),
-        implicitTruncate_(false),
-        mode_(mode)
+        implicitTruncate_(false)
     {
-        if (mode == Integer) {
-            // This implements the required behavior for Math.imul, which
-            // can never fail and always truncates its output to int32.
-            canBeNegativeZero_ = false;
-            possibleTruncate_ = implicitTruncate_ = true;
-        }
-        JS_ASSERT_IF(mode != Integer, mode == Normal);
-
         if (type != MIRType_Value)
             specialization_ = type;
         setResultType(type);
@@ -2670,10 +2635,10 @@ class MMul : public MBinaryArithInstruction
   public:
     INSTRUCTION_HEADER(Mul)
     static MMul *New(MDefinition *left, MDefinition *right) {
-        return new MMul(left, right, MIRType_Value, MMul::Normal);
+        return new MMul(left, right, MIRType_Value);
     }
-    static MMul *New(MDefinition *left, MDefinition *right, MIRType type, Mode mode = Normal) {
-        return new MMul(left, right, type, mode);
+    static MMul *New(MDefinition *left, MDefinition *right, MIRType type) {
+        return new MMul(left, right, type);
     }
 
     MDefinition *foldsTo(bool useValueNumbers);
@@ -2716,8 +2681,6 @@ class MMul : public MBinaryArithInstruction
         // because we are not sure if it was removed by this or other passes.
         canBeNegativeZero_ = !truncate;
     }
-
-    Mode mode() { return mode_; }
 };
 
 class MDiv : public MBinaryArithInstruction

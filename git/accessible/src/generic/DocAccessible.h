@@ -365,7 +365,7 @@ protected:
    * @param aRelProvider [in] accessible that element has relation attribute
    * @param aRelAttr     [in, optional] relation attribute
    */
-  void AddDependentIDsFor(dom::Element* aRelProviderElm,
+  void AddDependentIDsFor(Accessible* aRelProvider,
                           nsIAtom* aRelAttr = nullptr);
 
   /**
@@ -376,7 +376,7 @@ protected:
    * @param aRelProvider [in] accessible that element has relation attribute
    * @param aRelAttr     [in, optional] relation attribute
    */
-  void RemoveDependentIDsFor(dom::Element* aRelProviderElm,
+  void RemoveDependentIDsFor(Accessible* aRelProvider,
                              nsIAtom* aRelAttr = nullptr);
 
   /**
