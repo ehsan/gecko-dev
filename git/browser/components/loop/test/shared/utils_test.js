@@ -117,7 +117,7 @@ describe("loop.shared.utils", function() {
     describe("mozLoop set", function() {
       beforeEach(function() {
         navigator.mozLoop = {
-          getLoopPref: function(prefName) {
+          getLoopBoolPref: function(prefName) {
             return prefName === "test.true";
           }
         };
@@ -156,7 +156,7 @@ describe("loop.shared.utils", function() {
       });
       composeEmail = sandbox.spy();
       navigator.mozLoop = {
-        getLoopPref: sandbox.spy(),
+        getLoopCharPref: sandbox.spy(),
         composeEmail: composeEmail
       };
     });

@@ -16,12 +16,7 @@
 // of transitioning layout to use writing-mode and logical directions, but
 // not yet ready to ship vertical support.
 
-// XXX To be removed, and the #ifdef blocks below made unconditional,
-//     once we're confident we can leave it permanently enabled.
-
-#ifndef RELEASE_BUILD
-#define WRITING_MODE_VERTICAL_ENABLED 1
-#endif
+/* #define WRITING_MODE_VERTICAL_ENABLED 1 */
 
 // It is the caller's responsibility to operate on logical-coordinate objects
 // with matched writing modes. Failure to do so will be a runtime bug; the

@@ -1480,9 +1480,8 @@ DrawTargetCairo::CreateSimilarDrawTarget(const IntSize &aSize, SurfaceFormat aFo
 
   if (!cairo_surface_status(similar)) {
     RefPtr<DrawTargetCairo> target = new DrawTargetCairo();
-    if (target->InitAlreadyReferenced(similar, aSize)) {
-      return target.forget();
-    }
+    target->InitAlreadyReferenced(similar, aSize);
+    return target.forget();
   }
 
   gfxCriticalError() << "Failed to create similar cairo surface! Size: " << aSize << " Status: " << cairo_surface_status(similar);
@@ -1538,11 +1537,8 @@ DrawTargetCairo::CreateShadowDrawTarget(const IntSize &aSize, SurfaceFormat aFor
   // operations in graphics memory.
   if (aSigma == 0.0F) {
     RefPtr<DrawTargetCairo> target = new DrawTargetCairo();
-    if (target->InitAlreadyReferenced(similar, aSize)) {
-      return target.forget();
-    } else {
-      return nullptr;
-    }
+    target->InitAlreadyReferenced(similar, aSize);
+    return target.forget();
   }
 
   cairo_surface_t* blursurf = cairo_image_surface_create(CAIRO_FORMAT_A8,
@@ -1564,10 +1560,8 @@ DrawTargetCairo::CreateShadowDrawTarget(const IntSize &aSize, SurfaceFormat aFor
   cairo_surface_destroy(similar);
 
   RefPtr<DrawTargetCairo> target = new DrawTargetCairo();
-  if (target->InitAlreadyReferenced(tee, aSize)) {
-    return target.forget();
-  }
-  return nullptr;
+  target->InitAlreadyReferenced(tee, aSize);
+  return target.forget();
 }
 
 bool

@@ -125,7 +125,6 @@ nsresult
 GonkVideoDecoderManager::CreateVideoData(int64_t aStreamOffset, VideoData **v)
 {
   *v = nullptr;
-  nsRefPtr<VideoData> data;
   int64_t timeUs;
   int32_t keyFrame;
 
@@ -174,15 +173,16 @@ GonkVideoDecoderManager::CreateVideoData(int64_t aStreamOffset, VideoData **v)
     grallocClient->SetMediaBuffer(mVideoBuffer);
     textureClient->SetRecycleCallback(GonkVideoDecoderManager::RecycleCallback, this);
 
-    data = VideoData::Create(mInfo.mVideo,
-                             mImageContainer,
-                             aStreamOffset,
-                             timeUs,
-                             1, // We don't know the duration.
-                             textureClient,
-                             keyFrame,
-                             -1,
-                             picture);
+    *v = VideoData::Create(mInfo.mVideo,
+                          mImageContainer,
+                          aStreamOffset,
+                          timeUs,
+                          1, // We don't know the duration.
+                          textureClient,
+                          keyFrame,
+                          -1,
+                          picture);
+
   } else {
     if (!mVideoBuffer->data()) {
       ALOG("No data in Video Buffer!");
@@ -241,7 +241,7 @@ GonkVideoDecoderManager::CreateVideoData(int64_t aStreamOffset, VideoData **v)
     b.mPlanes[2].mOffset = 0;
     b.mPlanes[2].mSkip = 0;
 
-    data = VideoData::Create(
+    *v = VideoData::Create(
         mInfo.mVideo,
         mImageContainer,
         pos,
@@ -253,8 +253,6 @@ GonkVideoDecoderManager::CreateVideoData(int64_t aStreamOffset, VideoData **v)
         picture);
     ReleaseVideoBuffer();
   }
-
-  data.forget(v);
   return NS_OK;
 }
 
@@ -304,7 +302,7 @@ GonkVideoDecoderManager::SetVideoFormat()
 // Blocks until decoded sample is produced by the deoder.
 nsresult
 GonkVideoDecoderManager::Output(int64_t aStreamOffset,
-                                nsRefPtr<MediaData>& aOutData)
+                                nsAutoPtr<MediaData>& aOutData)
 {
   aOutData = nullptr;
   status_t err;
@@ -317,8 +315,8 @@ GonkVideoDecoderManager::Output(int64_t aStreamOffset,
   switch (err) {
     case OK:
     {
-      nsRefPtr<VideoData> data;
-      nsresult rv = CreateVideoData(aStreamOffset, getter_AddRefs(data));
+      VideoData* data = nullptr;
+      nsresult rv = CreateVideoData(aStreamOffset, &data);
       if (rv == NS_ERROR_NOT_AVAILABLE) {
 	// Decoder outputs a empty video buffer, try again
         return NS_ERROR_NOT_AVAILABLE;
@@ -352,8 +350,8 @@ GonkVideoDecoderManager::Output(int64_t aStreamOffset,
     case android::ERROR_END_OF_STREAM:
     {
       ALOG("Got the EOS frame!");
-      nsRefPtr<VideoData> data;
-      nsresult rv = CreateVideoData(aStreamOffset, getter_AddRefs(data));
+      VideoData* data = nullptr;
+      nsresult rv = CreateVideoData(aStreamOffset, &data);
       if (rv == NS_ERROR_NOT_AVAILABLE) {
 	// For EOS, no need to do any thing.
         return NS_ERROR_ABORT;

@@ -22,7 +22,7 @@ struct ReorderQueueComparator
   }
 };
 
-typedef nsTPriorityQueue<nsRefPtr<VideoData>, ReorderQueueComparator> ReorderQueue;
+typedef nsTPriorityQueue<VideoData*, ReorderQueueComparator> ReorderQueue;
 
 } // namespace mozilla
 

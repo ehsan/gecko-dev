@@ -79,15 +79,14 @@ public:
     layers::SurfaceTextureImage* typedImg = static_cast<layers::SurfaceTextureImage*>(img.get());
     typedImg->SetData(data);
 
-    nsRefPtr<VideoData> v = VideoData::CreateFromImage(videoInfo, mImageContainer, aInfo->getOffset(),
-                                                       aInfo->getPresentationTimeUs(),
-                                                       aDuration,
-                                                       img, isSync,
-                                                       aInfo->getPresentationTimeUs(),
-                                                       gfx::IntRect(0, 0,
-                                                         mConfig.display_width,
-                                                         mConfig.display_height));
-    mCallback->Output(v);
+    mCallback->Output(VideoData::CreateFromImage(videoInfo, mImageContainer, aInfo->getOffset(),
+                                                 aInfo->getPresentationTimeUs(),
+                                                 aDuration,
+                                                 img, isSync,
+                                                 aInfo->getPresentationTimeUs(),
+                                                 gfx::IntRect(0, 0,
+                                                   mConfig.display_width,
+                                                   mConfig.display_height)));
     return NS_OK;
   }
 

@@ -215,15 +215,15 @@ bool RawReader::DecodeVideoFrame(bool &aKeyframeSkip,
   b.mPlanes[2].mWidth = mMetadata.frameWidth / 2;
   b.mPlanes[2].mOffset = b.mPlanes[2].mSkip = 0;
 
-  nsRefPtr<VideoData> v = VideoData::Create(mInfo.mVideo,
-                                            mDecoder->GetImageContainer(),
-                                            -1,
-                                            currentFrameTime,
-                                            (USECS_PER_S / mFrameRate),
-                                            b,
-                                            1, // In raw video every frame is a keyframe
-                                            -1,
-                                            ToIntRect(mPicture));
+  VideoData *v = VideoData::Create(mInfo.mVideo,
+                                   mDecoder->GetImageContainer(),
+                                   -1,
+                                   currentFrameTime,
+                                   (USECS_PER_S / mFrameRate),
+                                   b,
+                                   1, // In raw video every frame is a keyframe
+                                   -1,
+                                   ToIntRect(mPicture));
   if (!v)
     return false;
 
@@ -278,8 +278,12 @@ nsresult RawReader::SeekInternal(int64_t aTime)
       }
     }
 
-    if (mVideoQueue.PeekFront() && mVideoQueue.PeekFront()->GetEndTime() < aTime) {
-      nsRefPtr<VideoData> releaseMe = mVideoQueue.PopFront();
+    nsAutoPtr<VideoData> video(mVideoQueue.PeekFront());
+    if (video && video->GetEndTime() < aTime) {
+      mVideoQueue.PopFront();
+      video = nullptr;
+    } else {
+      video.forget();
     }
   }
 

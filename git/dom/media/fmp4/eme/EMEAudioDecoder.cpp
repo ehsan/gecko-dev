@@ -175,20 +175,20 @@ EMEAudioDecoder::Decoded(const nsTArray<int16_t>& aPCM,
     return;
   }
 
-  nsRefPtr<AudioData> audio(new AudioData(mStreamOffset,
-                                          timestamp.value(),
-                                          duration.value(),
-                                          numFrames,
-                                          audioData.forget(),
-                                          aChannels,
-                                          aRate));
+  nsAutoPtr<AudioData> audio(new AudioData(mStreamOffset,
+                                           timestamp.value(),
+                                           duration.value(),
+                                           numFrames,
+                                           audioData.forget(),
+                                           aChannels,
+                                           aRate));
 
   #ifdef LOG_SAMPLE_DECODE
   LOG("Decoded audio sample! timestamp=%lld duration=%lld currentLength=%u",
       timestamp, duration, currentLength);
   #endif
 
-  mCallback->Output(audio);
+  mCallback->Output(audio.forget());
 }
 
 void

@@ -24,8 +24,6 @@ class ImageContainer;
 class MediaData {
 public:
 
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaData)
-
   enum Type {
     AUDIO_DATA = 0,
     VIDEO_DATA
@@ -41,6 +39,8 @@ public:
     , mDuration(aDuration)
     , mDiscontinuity(false)
   {}
+
+  virtual ~MediaData() {}
 
   // Type of contained data.
   const Type mType;
@@ -60,9 +60,6 @@ public:
 
   int64_t GetEndTime() const { return mTime + mDuration; }
 
-protected:
-  virtual ~MediaData() {}
-
 };
 
 // Holds chunk a decoded audio frames.
@@ -80,7 +77,15 @@ public:
     , mFrames(aFrames)
     , mChannels(aChannels)
     , mRate(aRate)
-    , mAudioData(aData) {}
+    , mAudioData(aData)
+  {
+    MOZ_COUNT_CTOR(AudioData);
+  }
+
+  ~AudioData()
+  {
+    MOZ_COUNT_DTOR(AudioData);
+  }
 
   size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const;
 
@@ -95,9 +100,6 @@ public:
   nsRefPtr<SharedBuffer> mAudioBuffer;
   // mFrames frames, each with mChannels values
   nsAutoArrayPtr<AudioDataValue> mAudioData;
-
-protected:
-  ~AudioData() {}
 };
 
 namespace layers {
@@ -141,58 +143,58 @@ public:
   // Returns nsnull if an error occurs. This may indicate that memory couldn't
   // be allocated to create the VideoData object, or it may indicate some
   // problem with the input data (e.g. negative stride).
-  static already_AddRefed<VideoData> Create(VideoInfo& aInfo,
-                                            ImageContainer* aContainer,
-                                            Image* aImage,
-                                            int64_t aOffset,
-                                            int64_t aTime,
-                                            int64_t aDuration,
-                                            const YCbCrBuffer &aBuffer,
-                                            bool aKeyframe,
-                                            int64_t aTimecode,
-                                            const IntRect& aPicture);
+  static VideoData* Create(VideoInfo& aInfo,
+                           ImageContainer* aContainer,
+                           Image* aImage,
+                           int64_t aOffset,
+                           int64_t aTime,
+                           int64_t aDuration,
+                           const YCbCrBuffer &aBuffer,
+                           bool aKeyframe,
+                           int64_t aTimecode,
+                           const IntRect& aPicture);
 
   // Variant that always makes a copy of aBuffer
-  static already_AddRefed<VideoData> Create(VideoInfo& aInfo,
-                                            ImageContainer* aContainer,
-                                            int64_t aOffset,
-                                            int64_t aTime,
-                                            int64_t aDuration,
-                                            const YCbCrBuffer &aBuffer,
-                                            bool aKeyframe,
-                                            int64_t aTimecode,
-                                            const IntRect& aPicture);
+  static VideoData* Create(VideoInfo& aInfo,
+                           ImageContainer* aContainer,
+                           int64_t aOffset,
+                           int64_t aTime,
+                           int64_t aDuration,
+                           const YCbCrBuffer &aBuffer,
+                           bool aKeyframe,
+                           int64_t aTimecode,
+                           const IntRect& aPicture);
 
   // Variant to create a VideoData instance given an existing aImage
-  static already_AddRefed<VideoData> Create(VideoInfo& aInfo,
-                                            Image* aImage,
-                                            int64_t aOffset,
-                                            int64_t aTime,
-                                            int64_t aDuration,
-                                            const YCbCrBuffer &aBuffer,
-                                            bool aKeyframe,
-                                            int64_t aTimecode,
-                                            const IntRect& aPicture);
+  static VideoData* Create(VideoInfo& aInfo,
+                           Image* aImage,
+                           int64_t aOffset,
+                           int64_t aTime,
+                           int64_t aDuration,
+                           const YCbCrBuffer &aBuffer,
+                           bool aKeyframe,
+                           int64_t aTimecode,
+                           const IntRect& aPicture);
 
-  static already_AddRefed<VideoData> Create(VideoInfo& aInfo,
-                                             ImageContainer* aContainer,
-                                             int64_t aOffset,
-                                             int64_t aTime,
-                                             int64_t aDuration,
-                                             layers::TextureClient* aBuffer,
-                                             bool aKeyframe,
-                                             int64_t aTimecode,
-                                             const IntRect& aPicture);
+  static VideoData* Create(VideoInfo& aInfo,
+                           ImageContainer* aContainer,
+                           int64_t aOffset,
+                           int64_t aTime,
+                           int64_t aDuration,
+                           layers::TextureClient* aBuffer,
+                           bool aKeyframe,
+                           int64_t aTimecode,
+                           const IntRect& aPicture);
 
-  static already_AddRefed<VideoData> CreateFromImage(VideoInfo& aInfo,
-                                                     ImageContainer* aContainer,
-                                                     int64_t aOffset,
-                                                     int64_t aTime,
-                                                     int64_t aDuration,
-                                                     const nsRefPtr<Image>& aImage,
-                                                     bool aKeyframe,
-                                                     int64_t aTimecode,
-                                                     const IntRect& aPicture);
+  static VideoData* CreateFromImage(VideoInfo& aInfo,
+                                    ImageContainer* aContainer,
+                                    int64_t aOffset,
+                                    int64_t aTime,
+                                    int64_t aDuration,
+                                    const nsRefPtr<Image>& aImage,
+                                    bool aKeyframe,
+                                    int64_t aTimecode,
+                                    const IntRect& aPicture);
 
   // Creates a new VideoData identical to aOther, but with a different
   // specified duration. All data from aOther is copied into the new
@@ -201,21 +203,21 @@ public:
   // in reader backends that can't determine the duration of a VideoData
   // until the next frame is decoded, i.e. it's a way to change the const
   // duration field on a VideoData.
-  static already_AddRefed<VideoData> ShallowCopyUpdateDuration(VideoData* aOther,
-                                                               int64_t aDuration);
+  static VideoData* ShallowCopyUpdateDuration(VideoData* aOther,
+                                              int64_t aDuration);
 
   // Creates a new VideoData identical to aOther, but with a different
   // specified timestamp. All data from aOther is copied into the new
   // VideoData, as ShallowCopyUpdateDuration() does.
-  static already_AddRefed<VideoData> ShallowCopyUpdateTimestamp(VideoData* aOther,
-                                                                int64_t aTimestamp);
+  static VideoData* ShallowCopyUpdateTimestamp(VideoData* aOther,
+                                               int64_t aTimestamp);
 
   // Creates a new VideoData identical to aOther, but with a different
   // specified timestamp and duration. All data from aOther is copied
   // into the new VideoData, as ShallowCopyUpdateDuration() does.
-  static already_AddRefed<VideoData>
-  ShallowCopyUpdateTimestampAndDuration(VideoData* aOther, int64_t aTimestamp,
-                                        int64_t aDuration);
+  static VideoData* ShallowCopyUpdateTimestampAndDuration(VideoData* aOther,
+                                                          int64_t aTimestamp,
+                                                          int64_t aDuration);
 
   // Initialize PlanarYCbCrImage. Only When aCopyData is true,
   // video data is copied to PlanarYCbCrImage.
@@ -228,14 +230,15 @@ public:
   // Constructs a duplicate VideoData object. This intrinsically tells the
   // player that it does not need to update the displayed frame when this
   // frame is played; this frame is identical to the previous.
-  static already_AddRefed<VideoData> CreateDuplicate(int64_t aOffset,
-                                                     int64_t aTime,
-                                                     int64_t aDuration,
-                                                     int64_t aTimecode)
+  static VideoData* CreateDuplicate(int64_t aOffset,
+                                    int64_t aTime,
+                                    int64_t aDuration,
+                                    int64_t aTimecode)
   {
-    nsRefPtr<VideoData> rv = new VideoData(aOffset, aTime, aDuration, aTimecode);
-    return rv.forget();
+    return new VideoData(aOffset, aTime, aDuration, aTimecode);
   }
+
+  ~VideoData();
 
   size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const;
 
@@ -256,6 +259,7 @@ public:
   const bool mDuplicate;
   const bool mKeyframe;
 
+public:
   VideoData(int64_t aOffset,
             int64_t aTime,
             int64_t aDuration,
@@ -268,8 +272,6 @@ public:
             int64_t aTimecode,
             IntSize aDisplay);
 
-protected:
-  ~VideoData();
 };
 
 } // namespace mozilla

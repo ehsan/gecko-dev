@@ -62,11 +62,13 @@
   );
 
   var dispatcher = new loop.Dispatcher();
-  var activeRoomStore = new loop.store.ActiveRoomStore(dispatcher, {
+  var activeRoomStore = new loop.store.ActiveRoomStore({
+    dispatcher: dispatcher,
     mozLoop: navigator.mozLoop,
     sdkDriver: {}
   });
-  var roomStore = new loop.store.RoomStore(dispatcher, {
+  var roomStore = new loop.store.RoomStore({
+    dispatcher: dispatcher,
     mozLoop: navigator.mozLoop
   });
 

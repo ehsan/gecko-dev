@@ -316,7 +316,7 @@ AudioSink::PlayFromAudioQueue()
 {
   AssertOnAudioThread();
   NS_ASSERTION(!mAudioStream->IsPaused(), "Don't play when paused");
-  nsRefPtr<AudioData> audio(AudioQueue().PopFront());
+  nsAutoPtr<AudioData> audio(AudioQueue().PopFront());
 
   SINK_LOG_V("playing %u frames of audio at time %lld",
              audio->mFrames, audio->mTime);

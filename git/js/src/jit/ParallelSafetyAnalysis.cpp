@@ -203,7 +203,6 @@ class ParallelSafetyVisitor : public MDefinitionVisitor
     UNSAFE_OP(ToObjectOrNull)
     CUSTOM_OP(NewArray)
     UNSAFE_OP(NewArrayCopyOnWrite)
-    UNSAFE_OP(NewArrayDynamicLength)
     UNSAFE_OP(NewTypedObject)
     CUSTOM_OP(NewObject)
     CUSTOM_OP(NewCallObject)
