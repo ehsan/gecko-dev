@@ -67,7 +67,7 @@ class WebSocketChannelParent : public PWebSocketParent,
                      const nsCString& aOrigin,
                      const nsCString& aProtocol,
                      const bool& aSecure);
-  bool RecvClose(const PRUint16 & code, const nsCString & reason);
+  bool RecvClose();
   bool RecvSendMsg(const nsCString& aMsg);
   bool RecvSendBinaryMsg(const nsCString& aMsg);
   bool RecvDeleteSelf();

@@ -6938,7 +6938,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     // that named child frames will override external properties
     // which have been registered with the script namespace manager.
 
-    PRBool did_resolve = PR_FALSE;
+    JSBool did_resolve = JS_FALSE;
     rv = GlobalResolve(win, cx, obj, id, &did_resolve);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -7078,7 +7078,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
         win->InitJavaProperties(); 
 
-        JSBool hasProp;
+        PRBool hasProp;
         PRBool ok = ::JS_HasPropertyById(cx, obj, id, &hasProp);
 
         isResolvingJavaProperties = PR_FALSE;
@@ -7796,8 +7796,7 @@ nsEventReceiverSH::NewResolve(nsIXPConnectWrappedNative *wrapper,
     JSAutoRequest ar(cx);
 
     JSObject *proto = ::JS_GetPrototype(cx, obj);
-    PRBool ok = PR_TRUE;
-    JSBool hasProp = JS_FALSE;
+    PRBool ok = PR_TRUE, hasProp = PR_FALSE;
     if (!proto || ((ok = ::JS_HasPropertyById(cx, proto, id, &hasProp)) &&
                    !hasProp)) {
       // Make sure the flags here match those in

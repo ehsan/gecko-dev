@@ -1171,7 +1171,6 @@ public:
             } else {
                 mShaderType = RGBALayerProgramType;
             }
-            Resize(aSize);
         } else {
             // Convert RGB24 to either ARGB32 on mobile.  We can't
             // generate GL_RGB data, so we'll always have an alpha byte
@@ -1186,6 +1185,9 @@ public:
             // We currently always use BGRA type textures
             mShaderType = BGRALayerProgramType;
         }
+
+	// We resize here so we should have a valid buffer after creation
+        Resize(aSize);
     }
 
     virtual ~TextureImageEGL()
@@ -1380,22 +1382,12 @@ public:
 
     virtual void BindTexture(GLenum aTextureUnit)
     {
-        // Ensure the texture is allocated before it is used.
-        if (mTextureState == Created) {
-            Resize(mSize);
-        }
-
         mGLContext->fActiveTexture(aTextureUnit);
         mGLContext->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
         mGLContext->fActiveTexture(LOCAL_GL_TEXTURE0);
     }
 
-    virtual GLuint GetTextureID() 
-    {
-        // Ensure the texture is allocated before it is used.
-        if (mTextureState == Created) {
-            Resize(mSize);
-        }
+    virtual GLuint GetTextureID() {
         return mTexture;
     };
 
