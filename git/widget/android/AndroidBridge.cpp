@@ -47,7 +47,7 @@ using namespace mozilla;
 
 NS_IMPL_ISUPPORTS0(nsFilePickerCallback)
 
-StaticRefPtr<AndroidBridge> AndroidBridge::sBridge;
+nsRefPtr<AndroidBridge> AndroidBridge::sBridge = nullptr;
 static unsigned sJavaEnvThreadIndex = 0;
 static void JavaThreadDetachFunc(void *arg);
 
@@ -219,7 +219,7 @@ AndroidBridge::Init(JNIEnv *jEnv,
 
     jPumpMessageLoop = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "pumpMessageLoop", "()Z");
 
-    jAddPluginView = jEnv->GetStaticMethodID(jGeckoAppShellClass, "addPluginView", "(Landroid/view/View;FFFFZ)V");
+    jAddPluginView = jEnv->GetStaticMethodID(jGeckoAppShellClass, "addPluginView", "(Landroid/view/View;IIIIZ)V");
     jRemovePluginView = jEnv->GetStaticMethodID(jGeckoAppShellClass, "removePluginView", "(Landroid/view/View;Z)V");
 
     jLayerView = (jclass) jEnv->NewGlobalRef(jEnv->FindClass("org/mozilla/gecko/gfx/LayerView"));
@@ -1431,7 +1431,7 @@ namespace mozilla {
         nsCOMPtr<nsIThread> mMainThread;
 
     };
-    StaticRefPtr<TracerRunnable> sTracerRunnable;
+    nsCOMPtr<TracerRunnable> sTracerRunnable;
 
     bool InitWidgetTracing() {
         if (!sTracerRunnable)
@@ -2484,21 +2484,16 @@ NS_IMETHODIMP nsAndroidBridge::SetBrowserApp(nsIAndroidBrowserApp *aBrowserApp)
 }
 
 void
-AndroidBridge::AddPluginView(jobject view, const LayoutDeviceRect& rect, bool isFullScreen) {
+AndroidBridge::AddPluginView(jobject view, const gfxRect& rect, bool isFullScreen) {
     JNIEnv *env = GetJNIEnv();
     if (!env)
         return;
 
     AutoLocalJNIFrame jniFrame(env);
 
-    nsWindow* win = nsWindow::TopWindow();
-    if (!win)
-        return;
-
-    CSSRect cssRect = rect / CSSToLayoutDeviceScale(win->GetDefaultScale());
     env->CallStaticVoidMethod(sBridge->mGeckoAppShellClass,
                               sBridge->jAddPluginView, view,
-                              cssRect.x, cssRect.y, cssRect.width, cssRect.height,
+                              (int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height,
                               isFullScreen);
 }
 

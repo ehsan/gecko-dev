@@ -157,7 +157,10 @@ public:
     mIterating = false;
   }
 
-  virtual nsIntRect GetTileRect() MOZ_OVERRIDE;
+  virtual nsIntRect GetTileRect() MOZ_OVERRIDE
+  {
+    return mTexImage->GetTileRect();
+  }
 
   virtual size_t GetTileCount() MOZ_OVERRIDE
   {
@@ -394,7 +397,10 @@ public:
     mIterating = false;
   }
 
-  nsIntRect GetTileRect() MOZ_OVERRIDE;
+  nsIntRect GetTileRect() MOZ_OVERRIDE
+  {
+    return mTexture->GetTileRect();
+  }
 
   size_t GetTileCount() MOZ_OVERRIDE
   {

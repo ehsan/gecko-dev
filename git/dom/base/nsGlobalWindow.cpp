@@ -11436,6 +11436,13 @@ nsGlobalWindow::DisableTimeChangeNotifications()
   nsSystemTimeChangeObserver::RemoveWindowListener(this);
 }
 
+// static
+bool
+nsGlobalWindow::HasIndexedDBSupport()
+{
+  return Preferences::GetBool("indexedDB.feature.enabled", true);
+}
+
 static size_t
 SizeOfEventTargetObjectsEntryExcludingThisFun(
   nsPtrHashKey<nsDOMEventTargetHelper> *aEntry,

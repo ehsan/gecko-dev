@@ -92,7 +92,6 @@
 #endif
 
 #include "AudioStream.h"
-#include "WebAudioUtils.h"
 
 #ifdef MOZ_WIDGET_GONK
 #include "nsVolumeService.h"
@@ -354,7 +353,6 @@ nsLayoutStatics::Shutdown()
 #endif
 
   AudioStream::ShutdownLibrary();
-  WebAudioUtils::Shutdown();
 
 #ifdef MOZ_WMF
   WMFDecoder::UnloadDLLs();

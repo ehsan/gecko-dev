@@ -9,11 +9,13 @@ MODULE = 'htmlparser'
 CPP_SOURCES += [
     'CNavDTD.cpp',
     'CParserContext.cpp',
+    'nsDTDUtils.cpp',
     'nsElementTable.cpp',
     'nsExpatDriver.cpp',
     'nsHTMLEntities.cpp',
     'nsHTMLTags.cpp',
     'nsHTMLTokenizer.cpp',
+    'nsHTMLTokens.cpp',
     'nsParser.cpp',
     'nsParserModule.cpp',
     'nsParserMsgUtils.cpp',
@@ -21,6 +23,7 @@ CPP_SOURCES += [
     'nsParserService.cpp',
     'nsScanner.cpp',
     'nsScannerString.cpp',
+    'nsToken.cpp',
 ]
 
 LIBRARY_NAME = 'htmlpars'

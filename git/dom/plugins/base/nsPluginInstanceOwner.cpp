@@ -172,7 +172,7 @@ nsPluginInstanceOwner::GetImageContainer()
   data.mShareType = mozilla::gl::GLContext::SameProcess;
   data.mInverted = mInstance->Inverted();
 
-  LayoutDeviceRect r = GetPluginRect();
+  gfxRect r = GetPluginRect();
   data.mSize = gfxIntSize(r.width, r.height);
 
   SharedTextureImage* pluginImage = static_cast<SharedTextureImage*>(img.get());
@@ -182,8 +182,8 @@ nsPluginInstanceOwner::GetImageContainer()
 
   float xResolution = mObjectFrame->PresContext()->GetRootPresContext()->PresShell()->GetXResolution();
   float yResolution = mObjectFrame->PresContext()->GetRootPresContext()->PresShell()->GetYResolution();
-  ScreenSize screenSize = (r * LayoutDeviceToScreenScale(xResolution, yResolution)).Size();
-  mInstance->NotifySize(nsIntSize(screenSize.width, screenSize.height));
+  r.Scale(xResolution, yResolution);
+  mInstance->NotifySize(nsIntSize(r.width, r.height));
 
   return container.forget();
 #endif
@@ -1620,15 +1620,16 @@ GetOffsetRootContent(nsIFrame* aFrame)
   return offset;
 }
 
-LayoutDeviceRect nsPluginInstanceOwner::GetPluginRect()
+gfxRect nsPluginInstanceOwner::GetPluginRect()
 {
   // Get the offset of the content relative to the page
   nsRect bounds = mObjectFrame->GetContentRectRelativeToSelf() + GetOffsetRootContent(mObjectFrame);
-  LayoutDeviceIntRect rect = LayoutDeviceIntRect::FromAppUnitsToNearest(bounds, mObjectFrame->PresContext()->AppUnitsPerDevPixel());
-  return LayoutDeviceRect(rect);
+  nsIntRect intBounds = bounds.ToNearestPixels(mObjectFrame->PresContext()->AppUnitsPerDevPixel());
+
+  return gfxRect(intBounds);
 }
 
-bool nsPluginInstanceOwner::AddPluginView(const LayoutDeviceRect& aRect /* = LayoutDeviceRect(0, 0, 0, 0) */)
+bool nsPluginInstanceOwner::AddPluginView(const gfxRect& aRect /* = gfxRect(0, 0, 0, 0) */)
 {
   if (!mJavaView) {
     mJavaView = mInstance->GetJavaSurface();

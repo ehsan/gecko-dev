@@ -20,6 +20,3 @@ if CONFIG['MOZ_XUL'] and \
         EXTRA_PP_COMPONENTS += [
             'nsFilePicker.manifest',
         ]
-        DIRS += [
-            'test',
-        ]

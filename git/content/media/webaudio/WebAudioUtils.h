@@ -210,8 +210,6 @@ struct WebAudioUtils {
     // Otherwise, this conversion must be well defined.
     return IntType(f);
   }
-
-  static void Shutdown();
 };
 
 }

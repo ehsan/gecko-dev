@@ -381,7 +381,7 @@ public:
                           bool aLayersUpdated, const CSSRect& aDisplayPort, const CSSToLayerScale& aDisplayResolution,
                           bool aIsFirstPaint, LayerMargin& aFixedLayerMargins, ScreenPoint& aOffset);
 
-    void AddPluginView(jobject view, const LayoutDeviceRect& rect, bool isFullScreen);
+    void AddPluginView(jobject view, const gfxRect& rect, bool isFullScreen);
     void RemovePluginView(jobject view, bool isFullScreen);
 
     // These methods don't use a ScreenOrientation because it's an
@@ -421,7 +421,7 @@ public:
                             const int32_t      aPort,
                             nsACString & aResult);
 protected:
-    static StaticRefPtr<AndroidBridge> sBridge;
+    static nsRefPtr<AndroidBridge> sBridge;
     nsTArray<nsCOMPtr<nsIMobileMessageCallback> > mSmsRequests;
 
     // the global JavaVM

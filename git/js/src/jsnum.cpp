@@ -550,11 +550,8 @@ js::Int32ToString(ThreadSafeContext *cx, int32_t si)
         JS_ASSERT_IF(si == INT32_MIN, ui == uint32_t(INT32_MAX) + 1);
     }
 
-    JSCompartment *comp = cx->isExclusiveContext()
-                          ? cx->asExclusiveContext()->compartment()
-                          : NULL;
-    if (comp) {
-        if (JSFlatString *str = comp->dtoaCache.lookup(10, si))
+    if (cx->isExclusiveContext()) {
+        if (JSFlatString *str = cx->asExclusiveContext()->dtoaCache().lookup(10, si))
             return str;
     }
 
@@ -573,8 +570,8 @@ js::Int32ToString(ThreadSafeContext *cx, int32_t si)
     jschar *dst = str->init(end - start);
     PodCopy(dst, start.get(), end - start + 1);
 
-    if (comp)
-        comp->dtoaCache.cache(10, si, str);
+    if (cx->isExclusiveContext())
+        cx->asExclusiveContext()->dtoaCache().cache(10, si, str);
     return str;
 }
 
@@ -660,7 +657,7 @@ js_num_toString(JSContext *cx, unsigned argc, Value *vp)
     return CallNonGenericMethod<IsNumber, num_toString_impl>(cx, args);
 }
 
-#if !EXPOSE_INTL_API
+#if !ENABLE_INTL_API
 JS_ALWAYS_INLINE bool
 num_toLocaleString_impl(JSContext *cx, CallArgs args)
 {
@@ -793,7 +790,7 @@ num_toLocaleString(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
     return CallNonGenericMethod<IsNumber, num_toLocaleString_impl>(cx, args);
 }
-#endif /* !EXPOSE_INTL_API */
+#endif
 
 JS_ALWAYS_INLINE bool
 num_valueOf_impl(JSContext *cx, CallArgs args)
@@ -942,7 +939,7 @@ static const JSFunctionSpec number_methods[] = {
     JS_FN(js_toSource_str,       num_toSource,          0, 0),
 #endif
     JS_FN(js_toString_str,       js_num_toString,       1, 0),
-#if EXPOSE_INTL_API
+#if ENABLE_INTL_API
          {js_toLocaleString_str, {NULL, NULL},           0,0, "Number_toLocaleString"},
 #else
     JS_FN(js_toLocaleString_str, num_toLocaleString,     0,0),
@@ -1104,10 +1101,10 @@ js::InitRuntimeNumberState(JSRuntime *rt)
 
     number_constants[NC_MIN_VALUE].dval = mozilla::MinDoubleValue();
 
-    // XXX If EXPOSE_INTL_API becomes true all the time at some point,
+    // XXX If ENABLE_INTL_API becomes true all the time at some point,
     //     js::InitRuntimeNumberState is no longer fallible, and we should
     //     change its return type.
-#if !EXPOSE_INTL_API
+#if !ENABLE_INTL_API
     /* Copy locale-specific separators into the runtime strings. */
     const char *thousandsSeparator, *decimalPoint, *grouping;
 #ifdef HAVE_LOCALECONV
@@ -1151,11 +1148,11 @@ js::InitRuntimeNumberState(JSRuntime *rt)
 
     js_memcpy(storage, grouping, groupingSize);
     rt->numGrouping = grouping;
-#endif /* !EXPOSE_INTL_API */
+#endif
     return true;
 }
 
-#if !EXPOSE_INTL_API
+#if !ENABLE_INTL_API
 void
 js::FinishRuntimeNumberState(JSRuntime *rt)
 {
@@ -1278,10 +1275,6 @@ js_NumberToStringWithBase(ThreadSafeContext *cx, double d, int base)
     if (base < 2 || base > 36)
         return NULL;
 
-    JSCompartment *comp = cx->isExclusiveContext()
-                          ? cx->asExclusiveContext()->compartment()
-                          : NULL;
-
     int32_t i;
     if (mozilla::DoubleIsInt32(d, &i)) {
         if (base == 10 && StaticStrings::hasInt(i))
@@ -1294,16 +1287,16 @@ js_NumberToStringWithBase(ThreadSafeContext *cx, double d, int base)
             return cx->staticStrings().getUnit(c);
         }
 
-        if (comp) {
-            if (JSFlatString *str = comp->dtoaCache.lookup(base, d))
+        if (cx->isExclusiveContext()) {
+            if (JSFlatString *str = cx->asExclusiveContext()->dtoaCache().lookup(base, d))
                 return str;
         }
 
         numStr = IntToCString(&cbuf, i, base);
         JS_ASSERT(!cbuf.dbuf && numStr >= cbuf.sbuf && numStr < cbuf.sbuf + cbuf.sbufSize);
     } else {
-        if (comp) {
-            if (JSFlatString *str = comp->dtoaCache.lookup(base, d))
+        if (cx->isExclusiveContext()) {
+            if (JSFlatString *str = cx->asExclusiveContext()->dtoaCache().lookup(base, d))
                 return str;
         }
 
@@ -1320,8 +1313,8 @@ js_NumberToStringWithBase(ThreadSafeContext *cx, double d, int base)
 
     JSFlatString *s = js_NewStringCopyZ<allowGC>(cx, numStr);
 
-    if (comp)
-        comp->dtoaCache.cache(base, d, s);
+    if (cx->isExclusiveContext())
+        cx->asExclusiveContext()->dtoaCache().cache(base, d, s);
 
     return s;
 }

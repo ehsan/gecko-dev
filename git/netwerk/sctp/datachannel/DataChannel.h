@@ -344,7 +344,7 @@ public:
     , mStream(stream)
     , mPrPolicy(policy)
     , mPrValue(value)
-    , mFlags(flags)
+    , mFlags(0)
     , mIsRecvBinary(false)
     {
       NS_ASSERTION(mConnection,"NULL connection");
