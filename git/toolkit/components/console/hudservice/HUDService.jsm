@@ -228,7 +228,7 @@ ResponseListener.prototype =
 
     if (HUDService.saveRequestAndResponseBodies &&
         this.receivedData.length < RESPONSE_BODY_LIMIT) {
-    this.receivedData += data;
+      this.receivedData += data;
     }
 
     binaryOutputStream.writeBytes(data, aCount);
@@ -696,10 +696,10 @@ function NetworkPanel(aParent, aHttpActivity)
     close: "true"
   });
 
-  // Create the browser that displays the NetworkPanel XHTML.
-  this.browser = createAndAppendElement(this.panel, "browser", {
+  // Create the iframe that displays the NetworkPanel XHTML.
+  this.iframe = createAndAppendElement(this.panel, "iframe", {
     src: "chrome://browser/content/NetworkPanel.xhtml",
-    disablehistory: "true",
+    type: "content",
     flex: "1"
   });
 
@@ -710,7 +710,7 @@ function NetworkPanel(aParent, aHttpActivity)
     self.panel.removeEventListener("popuphidden", onPopupHide, false);
     self.panel.parentNode.removeChild(self.panel);
     self.panel = null;
-    self.browser = null;
+    self.iframe = null;
     self.document = null;
     self.httpActivity = null;
 
@@ -723,7 +723,7 @@ function NetworkPanel(aParent, aHttpActivity)
   // Set the document object and update the content once the panel is loaded.
   this.panel.addEventListener("load", function onLoad() {
     self.panel.removeEventListener("load", onLoad, true)
-    self.document = self.browser.contentWindow.document;
+    self.document = self.iframe.contentWindow.document;
     self.update();
   }, true);
 
@@ -1184,14 +1184,14 @@ NetworkPanel.prototype =
   },
 
   /**
-   * Updates the content of the NetworkPanel's browser.
+   * Updates the content of the NetworkPanel's iframe.
    *
    * @returns void
    */
   update: function NP_update()
   {
     /**
-     * After the browser contentWindow is ready, the document object is set.
+     * After the iframe's contentWindow is ready, the document object is set.
      * If the document object isn't set yet, then the page is loaded and nothing
      * can be updated.
      */
@@ -3818,7 +3818,7 @@ function findCompletionBeginning(aStr)
  */
 function JSPropertyProvider(aScope, aInputValue)
 {
-  let obj = aScope;
+  let obj = XPCNativeWrapper.unwrap(aScope);
 
   // Analyse the aInputValue and find the beginning of the last part that
   // should be completed.
