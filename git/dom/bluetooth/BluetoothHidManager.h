@@ -8,10 +8,11 @@
 #define mozilla_dom_bluetooth_bluetoothhidmanager_h__
 
 #include "BluetoothCommon.h"
-#include "BluetoothProfileController.h"
 #include "BluetoothProfileManagerBase.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
+
+class BluetoothReplyRunnable;
 
 class BluetoothHidManager : public BluetoothProfileManagerBase
 {
@@ -55,7 +56,7 @@ private:
   // data member
   bool mConnected;
   nsString mDeviceAddress;
-  nsRefPtr<BluetoothProfileController> mController;
+  BluetoothProfileController* mController;
 };
 
 END_BLUETOOTH_NAMESPACE

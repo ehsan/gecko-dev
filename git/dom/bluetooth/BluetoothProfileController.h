@@ -9,7 +9,6 @@
 
 #include "BluetoothUuid.h"
 #include "nsAutoPtr.h"
-#include "mozilla/RefPtr.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
 
@@ -55,7 +54,7 @@ class BluetoothProfileManagerBase;
 class BluetoothReplyRunnable;
 typedef void (*BluetoothProfileControllerCallback)();
 
-class BluetoothProfileController : public RefCounted<BluetoothProfileController>
+class BluetoothProfileController
 {
 public:
   BluetoothProfileController(const nsAString& aDeviceAddress,
@@ -79,7 +78,7 @@ public:
   void OnConnect(const nsAString& aErrorStr);
   void OnDisconnect(const nsAString& aErrorStr);
 
-  uint32_t GetCod() const
+  uint32_t GetCod()
   {
     return mCod;
   }

@@ -1427,10 +1427,9 @@ RILContentHelper.prototype = {
   receiveMessage: function receiveMessage(msg) {
     let request;
     debug("Received message '" + msg.name + "': " + JSON.stringify(msg.json));
-
-    let data = msg.json.data;
     switch (msg.name) {
-      case "RIL:CardStateChanged":
+      case "RIL:CardStateChanged": {
+        let data = msg.json.data;
         if (this.rilContext.cardState != data.cardState) {
           this.rilContext.cardState = data.cardState;
           this._deliverEvent("_iccListeners",
@@ -1438,19 +1437,20 @@ RILContentHelper.prototype = {
                              null);
         }
         break;
+      }
       case "RIL:IccInfoChanged":
-        this.updateIccInfo(data);
+        this.updateIccInfo(msg.json.data);
         this._deliverEvent("_iccListeners", "notifyIccInfoChanged", null);
         break;
       case "RIL:VoiceInfoChanged":
-        this.updateConnectionInfo(data,
+        this.updateConnectionInfo(msg.json.data,
                                   this.rilContext.voiceConnectionInfo);
         this._deliverEvent("_mobileConnectionListeners",
                            "notifyVoiceChanged",
                            null);
         break;
       case "RIL:DataInfoChanged":
-        this.updateConnectionInfo(data,
+        this.updateConnectionInfo(msg.json.data,
                                   this.rilContext.dataConnectionInfo);
         this._deliverEvent("_mobileConnectionListeners",
                            "notifyDataChanged",
@@ -1459,150 +1459,157 @@ RILContentHelper.prototype = {
       case "RIL:OtaStatusChanged":
         this._deliverEvent("_mobileConnectionListeners",
                            "notifyOtaStatusChanged",
-                           [data]);
+                           [msg.json.data]);
         break;
       case "RIL:GetAvailableNetworks":
-        this.handleGetAvailableNetworks(data);
+        this.handleGetAvailableNetworks(msg.json);
         break;
       case "RIL:NetworkSelectionModeChanged":
-        this.rilContext.networkSelectionMode = data.mode;
+        this.rilContext.networkSelectionMode = msg.json.data.mode;
         break;
       case "RIL:SelectNetwork":
-        this.handleSelectNetwork(data,
+        this.handleSelectNetwork(msg.json,
                                  RIL.GECKO_NETWORK_SELECTION_MANUAL);
         break;
       case "RIL:SelectNetworkAuto":
-        this.handleSelectNetwork(data,
+        this.handleSelectNetwork(msg.json,
                                  RIL.GECKO_NETWORK_SELECTION_AUTOMATIC);
         break;
       case "RIL:VoicemailNotification":
-        this.handleVoicemailNotification(data);
+        this.handleVoicemailNotification(msg.json.data);
         break;
       case "RIL:VoicemailInfoChanged":
-        this.updateInfo(data, this.voicemailInfo);
+        this.updateInfo(msg.json.data, this.voicemailInfo);
         break;
       case "RIL:CardLockResult":
-        if (data.success) {
-          let result = new MobileIccCardLockResult(data);
-          this.fireRequestSuccess(data.requestId, result);
+        if (msg.json.success) {
+          let result = new MobileIccCardLockResult(msg.json);
+          this.fireRequestSuccess(msg.json.requestId, result);
         } else {
-          if (data.rilMessageType == "iccSetCardLock" ||
-              data.rilMessageType == "iccUnlockCardLock") {
+          if (msg.json.rilMessageType == "iccSetCardLock" ||
+              msg.json.rilMessageType == "iccUnlockCardLock") {
             this._deliverEvent("_iccListeners",
                                "notifyIccCardLockError",
-                               [data.lockType, data.retryCount]);
+                               [msg.json.lockType, msg.json.retryCount]);
           }
-          this.fireRequestError(data.requestId, data.errorMsg);
+          this.fireRequestError(msg.json.requestId, msg.json.errorMsg);
         }
         break;
       case "RIL:CardLockRetryCount":
-        if (data.success) {
-          let result = new MobileIccCardLockRetryCount(data);
-          this.fireRequestSuccess(data.requestId, result);
+        if (msg.json.success) {
+          let result = new MobileIccCardLockRetryCount(msg.json);
+          this.fireRequestSuccess(msg.json.requestId, result);
         } else {
-          this.fireRequestError(data.requestId, data.errorMsg);
+          this.fireRequestError(msg.json.requestId, msg.json.errorMsg);
         }
         break;
-      case "RIL:USSDReceived":
+      case "RIL:USSDReceived": {
+        let data = msg.json.data;
         this._deliverEvent("_mobileConnectionListeners",
                            "notifyUssdReceived",
                            [data.message, data.sessionEnded]);
         break;
+      }
       case "RIL:SendMMI":
       case "RIL:CancelMMI":
-        this.handleSendCancelMMI(data);
+        this.handleSendCancelMMI(msg.json);
         break;
       case "RIL:StkCommand":
         this._deliverEvent("_iccListeners", "notifyStkCommand",
-                           [JSON.stringify(data)]);
+                           [JSON.stringify(msg.json.data)]);
         break;
       case "RIL:StkSessionEnd":
         this._deliverEvent("_iccListeners", "notifyStkSessionEnd", null);
         break;
       case "RIL:IccOpenChannel":
-        this.handleSimpleRequest(data.requestId, data.errorMsg,
-                                 data.channel);
+        this.handleSimpleRequest(msg.json.requestId, msg.json.errorMsg,
+                                 msg.json.channel);
         break;
       case "RIL:IccCloseChannel":
-        this.handleSimpleRequest(data.requestId, data.errorMsg, null);
+        this.handleSimpleRequest(msg.json.requestId, msg.json.errorMsg, null);
         break;
       case "RIL:IccExchangeAPDU":
-        this.handleIccExchangeAPDU(data);
+        this.handleIccExchangeAPDU(msg.json);
         break;
       case "RIL:ReadIccContacts":
-        this.handleReadIccContacts(data);
+        this.handleReadIccContacts(msg.json);
         break;
       case "RIL:UpdateIccContact":
-        this.handleSimpleRequest(data.requestId, data.errorMsg, null);
+        this.handleSimpleRequest(msg.json.requestId, msg.json.errorMsg, null);
         break;
-      case "RIL:DataError":
+      case "RIL:DataError": {
+        let data = msg.json.data;
         this.updateConnectionInfo(data, this.rilContext.dataConnectionInfo);
         this._deliverEvent("_mobileConnectionListeners", "notifyDataError",
                            [data.errorMsg]);
         break;
+      }
       case "RIL:GetCallForwardingOption":
-        this.handleGetCallForwardingOption(data);
+        this.handleGetCallForwardingOption(msg.json);
         break;
       case "RIL:SetCallForwardingOption":
-        this.handleSimpleRequest(data.requestId, data.errorMsg, null);
+        this.handleSimpleRequest(msg.json.requestId, msg.json.errorMsg, null);
         break;
       case "RIL:GetCallBarringOption":
-        this.handleGetCallBarringOption(data);
+        this.handleGetCallBarringOption(msg.json);
         break;
       case "RIL:SetCallBarringOption":
-        this.handleSimpleRequest(data.requestId, data.errorMsg, null);
+        this.handleSimpleRequest(msg.json.requestId, msg.json.errorMsg, null);
         break;
       case "RIL:ChangeCallBarringPassword":
-        this.handleSimpleRequest(data.requestId, data.errorMsg, null);
+        this.handleSimpleRequest(msg.json.requestId, msg.json.errorMsg, null);
         break;
       case "RIL:GetCallWaitingOption":
-        this.handleSimpleRequest(data.requestId, data.errorMsg,
-                                 data.enabled);
+        this.handleSimpleRequest(msg.json.requestId, msg.json.errorMsg,
+                                 msg.json.enabled);
         break;
       case "RIL:SetCallWaitingOption":
-        this.handleSimpleRequest(data.requestId, data.errorMsg, null);
+        this.handleSimpleRequest(msg.json.requestId, msg.json.errorMsg, null);
         break;
-      case "RIL:CfStateChanged":
+      case "RIL:CfStateChanged": {
+        let data = msg.json.data;
         this._deliverEvent("_mobileConnectionListeners",
                            "notifyCFStateChange",
                            [data.success, data.action,
                             data.reason, data.number,
                             data.timeSeconds, data.serviceClass]);
         break;
+      }
       case "RIL:GetCallingLineIdRestriction":
-        this.handleGetCallingLineIdRestriction(data);
+        this.handleGetCallingLineIdRestriction(msg.json);
         break;
       case "RIL:SetCallingLineIdRestriction":
-        this.handleSimpleRequest(data.requestId, data.errorMsg, null);
+        this.handleSimpleRequest(msg.json.requestId, msg.json.errorMsg, null);
         break;
       case "RIL:CellBroadcastReceived": {
-        let message = new CellBroadcastMessage(data);
+        let message = new CellBroadcastMessage(msg.json.data);
         this._deliverEvent("_cellBroadcastListeners",
                            "notifyMessageReceived",
                            [message]);
         break;
       }
       case "RIL:SetRoamingPreference":
-        this.handleSimpleRequest(data.requestId, data.errorMsg, null);
+        this.handleSimpleRequest(msg.json.requestId, msg.json.errorMsg, null);
         break;
       case "RIL:GetRoamingPreference":
-        this.handleSimpleRequest(data.requestId, data.errorMsg,
-                                 data.mode);
+        this.handleSimpleRequest(msg.json.requestId, msg.json.errorMsg,
+                                 msg.json.mode);
         break;
       case "RIL:ExitEmergencyCbMode":
-        this.handleExitEmergencyCbMode(data);
+        this.handleExitEmergencyCbMode(msg.json);
         break;
       case "RIL:EmergencyCbModeChanged":
+        let data = msg.json.data;
         this._deliverEvent("_mobileConnectionListeners",
                            "notifyEmergencyCbModeChanged",
                            [data.active, data.timeoutMs]);
         break;
       case "RIL:SetVoicePrivacyMode":
-        this.handleSimpleRequest(data.requestId, data.errorMsg, null);
+        this.handleSimpleRequest(msg.json.requestId, msg.json.errorMsg, null);
         break;
       case "RIL:GetVoicePrivacyMode":
-        this.handleSimpleRequest(data.requestId, data.errorMsg,
-                                 data.enabled);
+        this.handleSimpleRequest(msg.json.requestId, msg.json.errorMsg,
+                                 msg.json.enabled);
         break;
     }
   },

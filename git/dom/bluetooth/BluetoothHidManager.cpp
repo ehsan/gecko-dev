@@ -10,6 +10,7 @@
 
 #include "BluetoothCommon.h"
 #include "BluetoothService.h"
+#include "BluetoothProfileController.h"
 #include "BluetoothUtils.h"
 
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"

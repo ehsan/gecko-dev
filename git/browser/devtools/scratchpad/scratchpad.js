@@ -56,9 +56,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "VariablesView",
 XPCOMUtils.defineLazyModuleGetter(this, "VariablesViewController",
   "resource:///modules/devtools/VariablesViewController.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "EnvironmentClient",
-  "resource://gre/modules/devtools/dbg-client.jsm");
-
 XPCOMUtils.defineLazyModuleGetter(this, "ObjectClient",
   "resource://gre/modules/devtools/dbg-client.jsm");
 
@@ -855,8 +852,6 @@ var Scratchpad = {
       fp.init(window, this.strings.GetStringFromName("openFile.title"),
               Ci.nsIFilePicker.modeOpen);
       fp.defaultString = "";
-      fp.appendFilter("JavaScript Files", "*.js; *.jsm; *.json");
-      fp.appendFilter("All Files", "*.*");
       fp.open(aResult => {
         if (aResult != Ci.nsIFilePicker.returnCancel) {
           promptCallback(fp.file);
@@ -1105,8 +1100,6 @@ var Scratchpad = {
     fp.init(window, this.strings.GetStringFromName("saveFileAs"),
             Ci.nsIFilePicker.modeSave);
     fp.defaultString = "scratchpad.js";
-    fp.appendFilter("JavaScript Files", "*.js; *.jsm; *.json");
-    fp.appendFilter("All Files", "*.*");
     fp.open(fpCallback);
   },
 
@@ -1317,7 +1310,6 @@ var Scratchpad = {
       this._triggerObservers("Ready");
       this.populateRecentFilesMenu();
       PreferenceObserver.init();
-      CloseObserver.init();
     }).then(null, (err) => console.log(err.message));
   },
 
@@ -1462,10 +1454,8 @@ var Scratchpad = {
    */
   close: function SP_close(aCallback)
   {
-    let shouldClose;
-
     this.promptSave((aShouldClose, aSaved, aStatus) => {
-       shouldClose = aShouldClose;
+      let shouldClose = aShouldClose;
       if (aSaved && !Components.isSuccessCode(aStatus)) {
         shouldClose = false;
       }
@@ -1476,11 +1466,9 @@ var Scratchpad = {
       }
 
       if (aCallback) {
-        aCallback(shouldClose);
+        aCallback();
       }
     });
-
-    return shouldClose;
   },
 
   _observers: [],
@@ -1756,9 +1744,6 @@ ScratchpadSidebar.prototype = {
         });
 
         VariablesViewController.attach(this.variablesView, {
-          getEnvironmentClient: aGrip => {
-            return new EnvironmentClient(this._scratchpad.debuggerClient, aGrip);
-          },
           getObjectClient: aGrip => {
             return new ObjectClient(this._scratchpad.debuggerClient, aGrip);
           },
@@ -1899,35 +1884,6 @@ var PreferenceObserver = {
     this.branch.removeObserver("", this);
     this.branch = null;
   }
-};
-
-
-/**
- * The CloseObserver listens for the last browser window closing and attempts to
- * close the Scratchpad.
- */
-var CloseObserver = {
-  init: function CO_init()
-  {
-    Services.obs.addObserver(this, "browser-lastwindow-close-requested", false);
-  },
-
-  observe: function CO_observe(aSubject)
-  {
-    if (Scratchpad.close()) {
-      this.uninit();
-    }
-    else {
-      aSubject.QueryInterface(Ci.nsISupportsPRBool);
-      aSubject.data = true;
-    }
-  },
-
-  uninit: function CO_uninit()
-  {
-    Services.obs.removeObserver(this, "browser-lastwindow-close-requested",
-                                false);
-  },
 };
 
 XPCOMUtils.defineLazyGetter(Scratchpad, "strings", function () {
