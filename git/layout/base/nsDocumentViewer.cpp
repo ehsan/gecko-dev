@@ -1419,7 +1419,9 @@ DocumentViewerImpl::Open(nsISupports *aState, nsISHEntry *aSHEntry)
 
     nsIViewManager *vm = GetViewManager();
     NS_ABORT_IF_FALSE(vm, "no view manager");
-    nsIView* v = vm->GetRootView();
+    nsIView *v;
+    nsresult rv = vm->GetRootView(v);
+    NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "failed in getting the root view");
     NS_ABORT_IF_FALSE(v, "no root view");
     NS_ABORT_IF_FALSE(mParentWidget, "no mParentWidget to set");
     v->AttachToTopLevelWidget(mParentWidget);
@@ -1564,7 +1566,8 @@ DocumentViewerImpl::Destroy()
     if (mPresShell) {
       nsIViewManager *vm = mPresShell->GetViewManager();
       if (vm) {
-        nsIView *rootView = vm->GetRootView();
+        nsIView *rootView = nsnull;
+        vm->GetRootView(rootView);
 
         if (rootView) {
           // The invalidate that removing this view causes is dropped because
@@ -2360,7 +2363,8 @@ void
 DocumentViewerImpl::DetachFromTopLevelWidget()
 {
   if (mViewManager) {
-    nsIView* oldView = mViewManager->GetRootView();
+    nsIView* oldView = nsnull;
+    mViewManager->GetRootView(oldView);
     if (oldView && oldView->IsAttachedToTopLevel()) {
       oldView->DetachFromTopLevelWidget();
     }

@@ -87,9 +87,11 @@
 #include "jsatom.h"
 #include "jsbit.h"
 #include "jsbool.h"
+#include "jstracer.h"
 #include "jsbuiltins.h"
 #include "jscntxt.h"
 #include "jsversion.h"
+#include "jsdbgapi.h" /* for js_TraceWatchPoints */
 #include "jsfun.h"
 #include "jsgc.h"
 #include "jsinterp.h"
@@ -100,7 +102,6 @@
 #include "jsscope.h"
 #include "jsstr.h"
 #include "jsstaticcheck.h"
-#include "jstracer.h"
 #include "jsvector.h"
 #include "jswrapper.h"
 
@@ -108,7 +109,6 @@
 #include "jscntxtinlines.h"
 #include "jsinterpinlines.h"
 #include "jsobjinlines.h"
-#include "jsstrinlines.h"
 
 using namespace js;
 using namespace js::gc;
@@ -945,7 +945,8 @@ array_trace(JSTracer *trc, JSObject *obj)
     JS_ASSERT(obj->isDenseArray());
 
     uint32 capacity = obj->getDenseArrayCapacity();
-    MarkValueRange(trc, capacity, obj->slots, "element");
+    for (uint32 i = 0; i < capacity; i++)
+        MarkValue(trc, obj->getDenseArrayElement(i), "dense_array_elems");
 }
 
 static JSBool
@@ -984,7 +985,7 @@ Class js_ArrayClass = {
     NULL,           /* construct   */
     NULL,           /* xdrObject   */
     NULL,           /* hasInstance */
-    array_trace,    /* trace       */
+    NULL,           /* mark        */
     JS_NULL_CLASS_EXT,
     {
         array_lookupProperty,
@@ -996,6 +997,7 @@ Class js_ArrayClass = {
         array_deleteProperty,
         NULL,       /* enumerate      */
         array_typeOf,
+        array_trace,
         array_fix,
         NULL,       /* thisObject     */
         NULL,       /* clear          */
@@ -1154,7 +1156,7 @@ array_toSource(JSContext *cx, uintN argc, Value *vp)
     if (IS_SHARP(he)) {
         if (!sb.append("[]"))
             goto out;
-        cx->free_(sharpchars);
+        cx->free(sharpchars);
         goto make_string;
     }
 #endif
@@ -1251,7 +1253,7 @@ array_toString_sub(JSContext *cx, JSObject *obj, JSBool locale,
         genBefore = cx->busyArrays.generation();
     } else {
         /* Cycle, so return empty string. */
-        rval->setString(cx->runtime->atomState.emptyAtom);
+        rval->setString(ATOM_TO_STRING(cx->runtime->atomState.emptyAtom));
         return true;
     }
 
@@ -1818,7 +1820,7 @@ js::array_sort(JSContext *cx, uintN argc, Value *vp)
      * exist, allowing OS to avoiding committing RAM. See bug 330812.
      */
     {
-        Value *vec = (Value *) cx->malloc_(2 * size_t(len) * sizeof(Value));
+        Value *vec = (Value *) cx->malloc(2 * size_t(len) * sizeof(Value));
         if (!vec)
             return false;
 
@@ -1828,9 +1830,9 @@ js::array_sort(JSContext *cx, uintN argc, Value *vp)
            public:
             AutoFreeVector(JSContext *cx, Value *&vec) : cx(cx), vec(vec) { }
             ~AutoFreeVector() {
-                cx->free_(vec);
+                cx->free(vec);
             }
-        } free_(cx, vec);
+        } free(cx, vec);
 
         AutoArrayRooter tvr(cx, 0, vec);
 
@@ -1940,7 +1942,7 @@ js::array_sort(JSContext *cx, uintN argc, Value *vp)
                 } while (i != 0);
 
                 JS_ASSERT(tvr.array == vec);
-                vec = (Value *) cx->realloc_(vec, 4 * size_t(newlen) * sizeof(Value));
+                vec = (Value *) cx->realloc(vec, 4 * size_t(newlen) * sizeof(Value));
                 if (!vec) {
                     vec = tvr.array;  /* N.B. AutoFreeVector */
                     return false;
@@ -3142,7 +3144,7 @@ js_ArrayInfo(JSContext *cx, uintN argc, jsval *vp)
         if (arg.isPrimitive() ||
             !(array = arg.toObjectOrNull())->isArray()) {
             fprintf(stderr, "%s: not array\n", bytes);
-            cx->free_(bytes);
+            cx->free(bytes);
             continue;
         }
         fprintf(stderr, "%s: %s (len %u", bytes,
@@ -3153,7 +3155,7 @@ js_ArrayInfo(JSContext *cx, uintN argc, jsval *vp)
                     array->getDenseArrayCapacity());
         }
         fputs(")\n", stderr);
-        cx->free_(bytes);
+        cx->free(bytes);
     }
 
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
@@ -3257,7 +3259,7 @@ js_CloneDensePrimitiveArray(JSContext *cx, JSObject *obj, JSObject **clone)
      */
     jsuint jsvalCount = JS_MIN(obj->getDenseArrayCapacity(), length);
 
-    AutoValueVector vector(cx);
+    js::AutoValueVector vector(cx);
     if (!vector.reserve(jsvalCount))
         return JS_FALSE;
 
@@ -3266,7 +3268,7 @@ js_CloneDensePrimitiveArray(JSContext *cx, JSObject *obj, JSObject **clone)
 
         if (val.isString()) {
             // Strings must be made immutable before being copied to a clone.
-            if (!val.toString()->ensureFixed(cx))
+            if (!js_MakeStringImmutable(cx, val.toString()))
                 return JS_FALSE;
         } else if (val.isObject()) {
             /*
@@ -3277,7 +3279,7 @@ js_CloneDensePrimitiveArray(JSContext *cx, JSObject *obj, JSObject **clone)
             return JS_TRUE;
         }
 
-        vector.infallibleAppend(val);
+        vector.append(val);
     }
 
     *clone = NewDenseCopiedArray(cx, jsvalCount, vector.begin());

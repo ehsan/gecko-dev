@@ -422,7 +422,6 @@ class GeckoSurfaceView
                 // may want to expose multiple, or filter
                 // for best.
                 mLastGeoAddress = addresses.get(0);
-                GeckoAppShell.sendEventToGecko(new GeckoEvent(location[0], mLastGeoAddress));
             } catch (Exception e) {
                 Log.w("GeckoSurfaceView", "GeocoderTask "+e);
             }
@@ -434,7 +433,7 @@ class GeckoSurfaceView
     public void onLocationChanged(Location location)
     {
         if (mGeocoder == null)
-            mGeocoder = new Geocoder(getContext(), Locale.getDefault());
+            mGeocoder = new Geocoder(getContext());
 
         if (mLastGeoAddress == null) {
             new GeocoderTask().execute(location);
@@ -449,7 +448,7 @@ class GeckoSurfaceView
             // pfm value.  don't want to slam the
             // geocoder with very similar values, so
             // only call after about 100m
-            if (results[0] > 100)
+            if (results[0] > 100) 
                 new GeocoderTask().execute(location);
         }
 

@@ -851,7 +851,7 @@ mjit::Compiler::jsop_typeof()
 
         if (atom) {
             frame.pop();
-            frame.push(StringValue(atom));
+            frame.push(StringValue(ATOM_TO_STRING(atom)));
             return;
         }
     }

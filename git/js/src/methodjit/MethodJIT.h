@@ -171,7 +171,7 @@ struct Trampolines {
  * the JaegerCompartment at a time.
  */
 class JaegerCompartment {
-    JSC::ExecutableAllocator *execAlloc_;    // allocator for jit code
+    JSC::ExecutableAllocator *execAlloc;     // allocator for jit code
     Trampolines              trampolines;    // force-return trampolines
     VMFrame                  *activeFrame_;  // current active VMFrame
 
@@ -182,8 +182,8 @@ class JaegerCompartment {
 
     ~JaegerCompartment() { Finish(); }
 
-    JSC::ExecutableAllocator *execAlloc() {
-        return execAlloc_;
+    JSC::ExecutablePool *poolForSize(size_t size) {
+        return execAlloc->poolForSize(size);
     }
 
     VMFrame *activeFrame() {
@@ -233,9 +233,9 @@ class CompilerAllocPolicy : public ContextAllocPolicy
     : ContextAllocPolicy(cx), oomFlag(oomFlag) {}
     CompilerAllocPolicy(JSContext *cx, Compiler &compiler);
 
-    void *malloc_(size_t bytes) { return checkAlloc(ContextAllocPolicy::malloc_(bytes)); }
-    void *realloc_(void *p, size_t bytes) {
-        return checkAlloc(ContextAllocPolicy::realloc_(p, bytes));
+    void *malloc(size_t bytes) { return checkAlloc(ContextAllocPolicy::malloc(bytes)); }
+    void *realloc(void *p, size_t bytes) {
+        return checkAlloc(ContextAllocPolicy::realloc(p, bytes));
     }
 };
 
@@ -485,11 +485,12 @@ JSScript::nativeCodeForPC(bool constructing, jsbytecode *pc)
     return native;
 }
 
-#if defined(_MSC_VER) || defined(_WIN64)
+#ifdef _MSC_VER
 extern "C" void *JaegerThrowpoline(js::VMFrame *vmFrame);
 #else
 extern "C" void JaegerThrowpoline();
 #endif
+extern "C" void InjectJaegerReturn();
 
 #endif /* jsjaeger_h__ */
 

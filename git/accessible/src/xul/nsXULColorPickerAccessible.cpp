@@ -163,11 +163,11 @@ nsXULColorPickerAccessible::CacheChildren()
 {
   nsAccTreeWalker walker(mWeakShell, mContent, PR_TRUE);
 
-  nsAccessible* child = nsnull;
-  while ((child = walker.NextChild())) {
+  nsRefPtr<nsAccessible> child;
+  while ((child = walker.GetNextChild())) {
     PRUint32 role = child->Role();
 
-    // Get an accessible for menupopup or panel elements.
+    // Get an accessbile for menupopup or panel elements.
     if (role == nsIAccessibleRole::ROLE_ALERT) {
       AppendChild(child);
       return;

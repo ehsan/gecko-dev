@@ -3122,8 +3122,8 @@ nsAccessible::CacheChildren()
 {
   nsAccTreeWalker walker(mWeakShell, mContent, GetAllowsAnonChildAccessibles());
 
-  nsAccessible* child = nsnull;
-  while ((child = walker.NextChild()) && AppendChild(child));
+  nsRefPtr<nsAccessible> child;
+  while ((child = walker.GetNextChild()) && AppendChild(child));
 }
 
 void

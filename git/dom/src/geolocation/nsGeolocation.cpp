@@ -243,6 +243,7 @@ nsGeolocationRequest::nsGeolocationRequest(nsGeolocation* aLocator,
                                            PRBool aWatchPositionRequest)
   : mAllowed(PR_FALSE),
     mCleared(PR_FALSE),
+    mIsFirstUpdate(PR_TRUE),
     mIsWatchPositionRequest(aWatchPositionRequest),
     mCallback(aCallback),
     mErrorCallback(aErrorCallback),
@@ -462,8 +463,11 @@ nsGeolocationRequest::SendLocation(nsIDOMGeoPosition* aPosition)
 void
 nsGeolocationRequest::Update(nsIDOMGeoPosition* aPosition)
 {
-  nsCOMPtr<nsIRunnable> ev  = new RequestSendLocationEvent(aPosition, this);
-  NS_DispatchToMainThread(ev);
+  if (mIsFirstUpdate) {
+    mIsFirstUpdate = PR_FALSE;
+    nsCOMPtr<nsIRunnable> ev  = new RequestSendLocationEvent(aPosition, this);
+    NS_DispatchToMainThread(ev);
+  }
 }
 
 void

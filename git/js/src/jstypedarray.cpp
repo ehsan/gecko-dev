@@ -123,7 +123,7 @@ ArrayBuffer::class_finalize(JSContext *cx, JSObject *obj)
     ArrayBuffer *abuf = ArrayBuffer::fromJSObject(obj);
     if (abuf) {
         abuf->freeStorage(cx);
-        cx->delete_(abuf);
+        cx->destroy<ArrayBuffer>(abuf);
     }
 }
 
@@ -161,12 +161,12 @@ ArrayBuffer::create(JSContext *cx, int32 nbytes)
         return NULL;
     }
 
-    ArrayBuffer *abuf = cx->new_<ArrayBuffer>();
+    ArrayBuffer *abuf = cx->create<ArrayBuffer>();
     if (!abuf)
         return NULL;
 
     if (!abuf->allocateStorage(cx, nbytes)) {
-        Foreground::delete_(abuf);
+        cx->destroy<ArrayBuffer>(abuf);
         return NULL;
     }
 
@@ -180,7 +180,7 @@ ArrayBuffer::allocateStorage(JSContext *cx, uint32 nbytes)
     JS_ASSERT(data == 0);
 
     if (nbytes) {
-        data = cx->calloc_(nbytes);
+        data = cx->calloc(nbytes);
         if (!data)
             return false;
     }
@@ -193,7 +193,7 @@ void
 ArrayBuffer::freeStorage(JSContext *cx)
 {
     if (data) {
-        cx->free_(data);
+        cx->free(data);
 #ifdef DEBUG
         // the destructor asserts that data is 0 in debug builds
         data = NULL;
@@ -681,13 +681,13 @@ class TypedArrayTemplate
           case JSENUMERATE_INIT_ALL:
             statep->setBoolean(true);
             if (idp)
-                *idp = ::INT_TO_JSID(tarray->length + 1);
+                *idp = INT_TO_JSID(tarray->length + 1);
             break;
 
           case JSENUMERATE_INIT:
             statep->setInt32(0);
             if (idp)
-                *idp = ::INT_TO_JSID(tarray->length);
+                *idp = INT_TO_JSID(tarray->length);
             break;
 
           case JSENUMERATE_NEXT:
@@ -697,7 +697,7 @@ class TypedArrayTemplate
             } else {
                 uint32 index = statep->toInt32();
                 if (index < uint32(tarray->length)) {
-                    *idp = ::INT_TO_JSID(index);
+                    *idp = INT_TO_JSID(index);
                     statep->setInt32(index + 1);
                 } else {
                     JS_ASSERT(index == tarray->length);
@@ -727,7 +727,7 @@ class TypedArrayTemplate
         if (!obj)
             return NULL;
 
-        ThisTypeArray *tarray = cx->new_<ThisTypeArray>(bufobj, byteOffset, len);
+        ThisTypeArray *tarray = cx->create<ThisTypeArray>(bufobj, byteOffset, len);
         if (!tarray)
             return NULL;
 
@@ -832,7 +832,7 @@ class TypedArrayTemplate
     {
         ThisTypeArray *tarray = ThisTypeArray::fromJSObject(obj);
         if (tarray)
-            cx->delete_(tarray);
+            cx->destroy<ThisTypeArray>(tarray);
     }
 
     /* subarray(start[, end]) */
@@ -1105,8 +1105,7 @@ class TypedArrayTemplate
         uint32 length = end - begin;
 
         JS_ASSERT(begin < UINT32_MAX / sizeof(NativeType));
-        JS_ASSERT(UINT32_MAX - begin * sizeof(NativeType) >= tarray->byteOffset);
-        uint32 byteOffset = tarray->byteOffset + begin * sizeof(NativeType);
+        uint32 byteOffset = begin * sizeof(NativeType);
 
         return createTypedArray(cx, bufobj, byteOffset, length);
     }
@@ -1164,7 +1163,7 @@ class TypedArrayTemplate
             Value v;
 
             for (uintN i = 0; i < len; ++i) {
-                if (!ar->getProperty(cx, ::INT_TO_JSID(i), &v))
+                if (!ar->getProperty(cx, INT_TO_JSID(i), &v))
                     return false;
                 *dest++ = nativeFromValue(cx, v);
             }
@@ -1264,7 +1263,7 @@ class TypedArrayTemplate
 
         // We have to make a copy of the source array here, since
         // there's overlap, and we have to convert types.
-        void *srcbuf = cx->malloc_(tarray->byteLength);
+        void *srcbuf = cx->malloc(tarray->byteLength);
         if (!srcbuf)
             return false;
         memcpy(srcbuf, tarray->data, tarray->byteLength);
@@ -1324,7 +1323,7 @@ class TypedArrayTemplate
             break;
         }
 
-        UnwantedForeground::free_(srcbuf);
+        js_free(srcbuf);
         return true;
     }
 
@@ -1504,7 +1503,7 @@ template<> JSFunctionSpec _typedArray::jsfuncs[] = {                           \
     NULL,           /* construct   */                                          \
     NULL,           /* xdrObject   */                                          \
     NULL,           /* hasInstance */                                          \
-    _typedArray::obj_trace,                                                    \
+    NULL,           /* mark        */                                          \
     JS_NULL_CLASS_EXT,                                                         \
     {                                                                          \
         _typedArray::obj_lookupProperty,                                       \
@@ -1516,6 +1515,7 @@ template<> JSFunctionSpec _typedArray::jsfuncs[] = {                           \
         _typedArray::obj_deleteProperty,                                       \
         _typedArray::obj_enumerate,                                            \
         _typedArray::obj_typeOf,                                               \
+        _typedArray::obj_trace,                                                \
         NULL,       /* thisObject      */                                      \
         NULL,       /* clear           */                                      \
     }                                                                          \

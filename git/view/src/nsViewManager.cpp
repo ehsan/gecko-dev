@@ -242,10 +242,10 @@ nsViewManager::CreateView(const nsRect& aBounds,
   return v;
 }
 
-NS_IMETHODIMP_(nsIView*)
-nsViewManager::GetRootView()
+NS_IMETHODIMP nsViewManager::GetRootView(nsIView *&aView)
 {
-  return mRootView;
+  aView = mRootView;
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsViewManager::SetRootView(nsIView *aView)
@@ -659,7 +659,7 @@ ShouldIgnoreInvalidation(nsViewManager* aVM)
     if (vo && vo->ShouldIgnoreInvalidation()) {
       return PR_TRUE;
     }
-    nsView* view = aVM->GetRootViewImpl()->GetParent();
+    nsView* view = aVM->GetRootView()->GetParent();
     aVM = view ? view->GetViewManager() : nsnull;
   }
   return PR_FALSE;

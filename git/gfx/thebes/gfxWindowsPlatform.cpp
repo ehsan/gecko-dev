@@ -656,7 +656,8 @@ gfxWindowsPlatform::GetPlatformCMSOutputProfile()
     if (!res)
         return nsnull;
 
-    qcms_profile* profile = qcms_profile_from_unicode_path(str);
+    qcms_profile* profile =
+        qcms_profile_from_path(NS_ConvertUTF16toUTF8(str).get());
 #ifdef DEBUG_tor
     if (profile)
         fprintf(stderr,

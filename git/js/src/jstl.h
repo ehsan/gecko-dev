@@ -46,6 +46,13 @@
 #include <new>
 #include <string.h>
 
+/* Gross special case for Gecko, which defines malloc/calloc/free. */
+#ifdef mozilla_mozalloc_macro_wrappers_h
+#  define JSSTL_UNDEFD_MOZALLOC_WRAPPERS
+/* The "anti-header" */
+#  include "mozilla/mozalloc_undef_macro_wrappers.h"
+#endif
+
 namespace js {
 
 /* JavaScript Template Library. */
@@ -168,9 +175,6 @@ template <> struct IsPodType<double>          { static const bool result = true;
 template <class T, size_t N> inline T *ArraySize(T (&)[N]) { return N; }
 template <class T, size_t N> inline T *ArrayEnd(T (&arr)[N]) { return arr + N; }
 
-template <bool cond, typename T, T v1, T v2> struct If        { static const T result = v1; };
-template <typename T, T v1, T v2> struct If<false, T, v1, v2> { static const T result = v2; };
-
 } /* namespace tl */
 
 /* Useful for implementing containers that assert non-reentrancy */
@@ -235,11 +239,11 @@ PointerRangeSize(T *begin, T *end)
 /*
  * Allocation policies.  These model the concept:
  *  - public copy constructor, assignment, destructor
- *  - void *malloc_(size_t)
+ *  - void *malloc(size_t)
  *      Responsible for OOM reporting on NULL return value.
- *  - void *realloc_(size_t)
+ *  - void *realloc(size_t)
  *      Responsible for OOM reporting on NULL return value.
- *  - void free_(void *)
+ *  - void free(void *)
  *  - reportAllocOverflow()
  *      Called on overflow before the container returns NULL.
  */
@@ -248,9 +252,9 @@ PointerRangeSize(T *begin, T *end)
 class SystemAllocPolicy
 {
   public:
-    void *malloc_(size_t bytes) { return js::OffTheBooks::malloc_(bytes); }
-    void *realloc_(void *p, size_t bytes) { return js::OffTheBooks::realloc_(p, bytes); }
-    void free_(void *p) { js::UnwantedForeground::free_(p); }
+    void *malloc(size_t bytes) { return js_malloc(bytes); }
+    void *realloc(void *p, size_t bytes) { return js_realloc(p, bytes); }
+    void free(void *p) { js_free(p); }
     void reportAllocOverflow() const {}
 };
 
@@ -307,9 +311,6 @@ class LazilyConstructed
 
     T &asT() { return *storage.addr(); }
 
-    explicit LazilyConstructed(const LazilyConstructed &other);
-    const LazilyConstructed &operator=(const LazilyConstructed &other);
-
   public:
     LazilyConstructed() { constructed = false; }
     ~LazilyConstructed() { if (constructed) asT().~T(); }
@@ -363,11 +364,6 @@ class LazilyConstructed
     void destroy() {
         ref().~T();
         constructed = false;
-    }
-
-    void destroyIfConstructed() {
-        if (!empty())
-            destroy();
     }
 };
 
@@ -491,5 +487,9 @@ InitConst(const T &t)
 }
 
 } /* namespace js */
+
+#ifdef JSSTL_UNDEFD_MOZALLOC_WRAPPERS
+#  include "mozilla/mozalloc_macro_wrappers.h"
+#endif
 
 #endif /* jstl_h_ */

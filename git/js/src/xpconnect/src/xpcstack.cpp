@@ -160,11 +160,11 @@ XPCJSStackFrame::CreateStack(JSContext* cx, JSStackFrame* fp,
                 jsbytecode* pc = JS_GetFramePC(cx, fp);
                 if(script && pc)
                 {
-                    JS::AutoEnterScriptCompartment ac;
+                    JSAutoEnterCompartment ac;
                     if(ac.enter(cx, script))
-                    {
-                        const char* filename = JS_GetScriptFilename(cx, script);
-                        if(filename)
+                     {
+                         const char* filename = JS_GetScriptFilename(cx, script);
+                         if(filename)
                         {
                             self->mFilename = (char*)
                                     nsMemory::Clone(filename,

@@ -317,7 +317,7 @@ class NodeBuilder
         if (!atom)
             return false;
 
-        dst->setString(atom);
+        *dst = Valueify(ATOM_TO_JSVAL(atom));
         return true;
     }
 
@@ -592,7 +592,7 @@ class NodeBuilder
 
     bool xmlFilterExpression(Value left, Value right, TokenPos *pos, Value *dst);
 
-    bool xmlAttributeSelector(Value expr, bool computed, TokenPos *pos, Value *dst);
+    bool xmlAttributeSelector(Value expr, TokenPos *pos, Value *dst);
 
     bool xmlQualifiedIdentifier(Value left, Value right, bool computed, TokenPos *pos, Value *dst);
 
@@ -1454,16 +1454,13 @@ NodeBuilder::xmlDefaultNamespace(Value ns, TokenPos *pos, Value *dst)
 }
 
 bool
-NodeBuilder::xmlAttributeSelector(Value expr, bool computed, TokenPos *pos, Value *dst)
+NodeBuilder::xmlAttributeSelector(Value expr, TokenPos *pos, Value *dst)
 {
     Value cb = callbacks[AST_XMLATTR_SEL];
     if (!cb.isNull())
-        return callback(cb, expr, BooleanValue(computed), pos, dst);
+        return callback(cb, expr, pos, dst);
 
-    return newNode(AST_XMLATTR_SEL, pos,
-                   "attribute", expr,
-                   "computed", BooleanValue(computed),
-                   dst);
+    return newNode(AST_XMLATTR_SEL, pos, "attribute", expr, dst);
 }
 
 bool
@@ -1613,7 +1610,7 @@ class ASTSerializer
     uint32        lineno;
 
     Value atomContents(JSAtom *atom) {
-        return StringValue(atom ? atom : cx->runtime->atomState.emptyAtom);
+        return Valueify(ATOM_TO_JSVAL(atom ? atom : cx->runtime->atomState.emptyAtom));
     }
 
     BinaryOperator binop(TokenKind tk, JSOp op);
@@ -1841,7 +1838,7 @@ ASTSerializer::statements(JSParseNode *pn, NodeVector &elts)
         Value elt;
         if (!sourceElement(next, &elt))
             return false;
-        elts.infallibleAppend(elt);
+        JS_ALWAYS_TRUE(elts.append(elt)); /* space check above */
     }
 
     return true;
@@ -1857,7 +1854,7 @@ ASTSerializer::expressions(JSParseNode *pn, NodeVector &elts)
         Value elt;
         if (!expression(next, &elt))
             return false;
-        elts.infallibleAppend(elt);
+        JS_ALWAYS_TRUE(elts.append(elt)); /* space check above */
     }
 
     return true;
@@ -1873,7 +1870,7 @@ ASTSerializer::xmls(JSParseNode *pn, NodeVector &elts)
         Value elt;
         if (!xml(next, &elt))
             return false;
-        elts.infallibleAppend(elt);
+        JS_ALWAYS_TRUE(elts.append(elt)); /* space check above */
     }
 
     return true;
@@ -1938,6 +1935,8 @@ ASTSerializer::variableDeclaration(JSParseNode *pn, bool let, Value *dst)
     VarDeclKind kind = let ? VARDECL_LET : VARDECL_VAR;
 
     NodeVector dtors(cx);
+    if (!dtors.reserve(pn->pn_count))
+        return false;
 
     /* In a for-in context, variable declarations contain just a single pattern. */
     if (pn->pn_xflags & PNX_FORINVAR) {
@@ -1948,13 +1947,11 @@ ASTSerializer::variableDeclaration(JSParseNode *pn, bool let, Value *dst)
                builder.variableDeclaration(dtors, kind, &pn->pn_pos, dst);
     }
 
-    if (!dtors.reserve(pn->pn_count))
-        return false;
     for (JSParseNode *next = pn->pn_head; next; next = next->pn_next) {
         Value child;
         if (!variableDeclarator(next, &kind, &child))
             return false;
-        dtors.infallibleAppend(child);
+        JS_ALWAYS_TRUE(dtors.append(child)); /* space check above */
     }
 
     return builder.variableDeclaration(dtors, kind, &pn->pn_pos, dst);
@@ -2000,7 +1997,7 @@ ASTSerializer::letHead(JSParseNode *pn, NodeVector &dtors)
          */
         if (!variableDeclarator(next, &kind, &child))
             return false;
-        dtors.infallibleAppend(child);
+        JS_ALWAYS_TRUE(dtors.append(child)); /* space check above */
     }
 
     return true;
@@ -2048,7 +2045,7 @@ ASTSerializer::switchStatement(JSParseNode *pn, Value *dst)
 #endif
         if (!switchCase(next, &child))
             return false;
-        cases.infallibleAppend(child);
+        JS_ALWAYS_TRUE(cases.append(child)); /* space check above */
     }
 
     return builder.switchStatement(disc, cases, lexical, &pn->pn_pos, dst);
@@ -2081,7 +2078,7 @@ ASTSerializer::tryStatement(JSParseNode *pn, Value *dst)
             Value clause;
             if (!catchClause(next->pn_expr, &clause))
                 return false;
-            clauses.infallibleAppend(clause);
+            JS_ALWAYS_TRUE(clauses.append(clause)); /* space check above */
         }
     }
 
@@ -2319,36 +2316,57 @@ bool
 ASTSerializer::leftAssociate(JSParseNode *pn, Value *dst)
 {
     JS_ASSERT(pn->pn_arity == PN_LIST);
-    JS_ASSERT(pn->pn_count >= 1);
+
+    const size_t len = pn->pn_count;
+    JS_ASSERT(len >= 1);
+
+    if (len == 1)
+        return expression(pn->pn_head, dst);
+
+    JS_ASSERT(len >= 2);
+
+    Vector<JSParseNode *, 8> list(cx);
+    if (!list.reserve(len))
+        return false;
+
+    for (JSParseNode *next = pn->pn_head; next; next = next->pn_next) {
+        JS_ALWAYS_TRUE(list.append(next)); /* space check above */
+    }
 
     TokenKind tk = PN_TYPE(pn);
+
     bool lor = tk == TOK_OR;
     bool logop = lor || (tk == TOK_AND);
 
-    JSParseNode *head = pn->pn_head;
-    Value left;
-    if (!expression(head, &left))
+    Value right;
+
+    if (!expression(list[len - 1], &right))
         return false;
-    for (JSParseNode *next = head->pn_next; next; next = next->pn_next) {
-        Value right;
-        if (!expression(next, &right))
+
+    size_t i = len - 2;
+
+    do {
+        JSParseNode *next = list[i];
+
+        Value left;
+        if (!expression(next, &left))
             return false;
 
-        TokenPos subpos = { pn->pn_pos.begin, next->pn_pos.end };
+        TokenPos subpos = { next->pn_pos.begin, pn->pn_pos.end };
 
         if (logop) {
-            if (!builder.logicalExpression(lor, left, right, &subpos, &left))
+            if (!builder.logicalExpression(lor, left, right, &subpos, &right))
                 return false;
         } else {
             BinaryOperator op = binop(PN_TYPE(pn), PN_OP(pn));
             LOCAL_ASSERT(op > BINOP_ERR && op < BINOP_LIMIT);
 
-            if (!builder.binaryExpression(op, left, right, &subpos, &left))
+            if (!builder.binaryExpression(op, left, right, &subpos, &right))
                 return false;
         }
-    }
+    } while (i-- != 0);
 
-    *dst = left;
+    *dst = right;
     return true;
 }
 
@@ -2576,7 +2594,7 @@ ASTSerializer::expression(JSParseNode *pn, Value *dst)
             Value arg;
             if (!expression(next, &arg))
                 return false;
-            args.infallibleAppend(arg);
+            JS_ALWAYS_TRUE(args.append(arg)); /* space check above */
         }
 
         return PN_TYPE(pn) == TOK_NEW
@@ -2595,15 +2613,9 @@ ASTSerializer::expression(JSParseNode *pn, Value *dst)
       case TOK_LB:
       {
         Value left, right;
-        bool computed = true;
-#ifdef JS_HAS_XML_SUPPORT
-        computed = (PN_TYPE(pn->pn_right) != TOK_DBLCOLON &&
-                    PN_TYPE(pn->pn_right) != TOK_ANYNAME &&
-                    PN_TYPE(pn->pn_right) != TOK_AT);
-#endif
         return expression(pn->pn_left, &left) &&
                expression(pn->pn_right, &right) &&
-               builder.memberExpression(computed, left, right, &pn->pn_pos, dst);
+               builder.memberExpression(true, left, right, &pn->pn_pos, dst);
       }
 
       case TOK_RB:
@@ -2614,12 +2626,12 @@ ASTSerializer::expression(JSParseNode *pn, Value *dst)
 
         for (JSParseNode *next = pn->pn_head; next; next = next->pn_next) {
             if (PN_TYPE(next) == TOK_COMMA) {
-                elts.infallibleAppend(MagicValue(JS_SERIALIZE_NO_NODE));
+                JS_ALWAYS_TRUE(elts.append(MagicValue(JS_SERIALIZE_NO_NODE))); /* space check above */
             } else {
                 Value expr;
                 if (!expression(next, &expr))
                     return false;
-                elts.infallibleAppend(expr);
+                JS_ALWAYS_TRUE(elts.append(expr)); /* space check above */
             }
         }
 
@@ -2636,7 +2648,7 @@ ASTSerializer::expression(JSParseNode *pn, Value *dst)
             Value prop;
             if (!property(next, &prop))
                 return false;
-            elts.infallibleAppend(prop);
+            JS_ALWAYS_TRUE(elts.append(prop)); /* space check above */
         }
 
         return builder.objectExpression(elts, &pn->pn_pos, dst);
@@ -2724,12 +2736,8 @@ ASTSerializer::expression(JSParseNode *pn, Value *dst)
       case TOK_AT:
       {
         Value expr;
-        JSParseNode *kid = pn->pn_kid;
-        bool computed = ((PN_TYPE(kid) != TOK_NAME || PN_OP(kid) != JSOP_QNAMEPART) &&
-                         PN_TYPE(kid) != TOK_DBLCOLON &&
-                         PN_TYPE(kid) != TOK_ANYNAME);
-        return expression(kid, &expr) &&
-            builder.xmlAttributeSelector(expr, computed, &pn->pn_pos, dst);
+        return expression(pn->pn_kid, &expr) &&
+               builder.xmlAttributeSelector(expr, &pn->pn_pos, dst);
       }
 
       case TOK_FILTER:
@@ -2886,7 +2894,7 @@ ASTSerializer::literal(JSParseNode *pn, Value *dst)
     Value val;
     switch (PN_TYPE(pn)) {
       case TOK_STRING:
-        val.setString(pn->pn_atom);
+        val = Valueify(ATOM_TO_JSVAL(pn->pn_atom));
         break;
 
       case TOK_REGEXP:
@@ -2935,12 +2943,12 @@ ASTSerializer::arrayPattern(JSParseNode *pn, VarDeclKind *pkind, Value *dst)
 
     for (JSParseNode *next = pn->pn_head; next; next = next->pn_next) {
         if (PN_TYPE(next) == TOK_COMMA) {
-            elts.infallibleAppend(MagicValue(JS_SERIALIZE_NO_NODE));
+            JS_ALWAYS_TRUE(elts.append(MagicValue(JS_SERIALIZE_NO_NODE))); /* space check above */
         } else {
             Value patt;
             if (!pattern(next, pkind, &patt))
                 return false;
-            elts.infallibleAppend(patt);
+            JS_ALWAYS_TRUE(elts.append(patt)); /* space check above */
         }
     }
 
@@ -2966,7 +2974,7 @@ ASTSerializer::objectPattern(JSParseNode *pn, VarDeclKind *pkind, Value *dst)
             return false;
         }
 
-        elts.infallibleAppend(prop);
+        JS_ALWAYS_TRUE(elts.append(prop)); /* space check above */
     }
 
     return builder.objectPattern(elts, &pn->pn_pos, dst);

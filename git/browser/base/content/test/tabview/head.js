@@ -70,20 +70,14 @@ function afterAllTabItemsUpdated(callback, win) {
 }
 
 // ---------
-function newWindowWithTabView(shownCallback, loadCallback, width, height) {
-  let winWidth = width || 800;
-  let winHeight = height || 800;
-  let win = window.openDialog(getBrowserURL(), "_blank",
-                              "chrome,all,dialog=no,height=" + winHeight +
-                              ",width=" + winWidth);
+function newWindowWithTabView(callback) {
+  let win = window.openDialog(getBrowserURL(), "_blank", 
+                              "chrome,all,dialog=no,height=800,width=800");
   let onLoad = function() {
     win.removeEventListener("load", onLoad, false);
-    if (typeof loadCallback == "function")
-      loadCallback(win);
-
     let onShown = function() {
       win.removeEventListener("tabviewshown", onShown, false);
-      shownCallback(win);
+      callback(win);
     };
     win.addEventListener("tabviewshown", onShown, false);
     win.TabView.toggle();
@@ -171,67 +165,6 @@ function whenTabViewIsShown(callback, win) {
     callback();
   }, false);
 }
-
-// ----------
-function showSearch(callback, win) {
-  win = win || window;
-
-  let contentWindow = win.document.getElementById("tab-view").contentWindow;
-  if (contentWindow.isSearchEnabled()) {
-    callback();
-    return;
-  }
-
-  whenSearchIsEnabled(callback, win);
-  contentWindow.performSearch();
-}
-
-// ----------
-function hideSearch(callback, win) {
-  win = win || window;
-
-  let contentWindow = win.document.getElementById("tab-view").contentWindow;
-  if (!contentWindow.isSearchEnabled()) {
-    callback();
-    return;
-  }
-
-  whenSearchIsDisabled(callback, win);
-  contentWindow.hideSearch();
-}
-
-// ----------
-function whenSearchIsEnabled(callback, win) {
-  win = win || window;
-
-  let contentWindow = win.document.getElementById("tab-view").contentWindow;
-  if (contentWindow.isSearchEnabled()) {
-    callback();
-    return;
-  }
-
-  contentWindow.addEventListener("tabviewsearchenabled", function () {
-    contentWindow.removeEventListener("tabviewsearchenabled", arguments.callee, false);
-    callback();
-  }, false);
-}
-
-// ----------
-function whenSearchIsDisabled(callback, win) {
-  win = win || window;
-
-  let contentWindow = win.document.getElementById("tab-view").contentWindow;
-  if (!contentWindow.isSearchEnabled()) {
-    callback();
-    return;
-  }
-
-  contentWindow.addEventListener("tabviewsearchdisabled", function () {
-    contentWindow.removeEventListener("tabviewsearchdisabled", arguments.callee, false);
-    callback();
-  }, false);
-}
-
 
 // ----------
 function hideGroupItem(groupItem, callback) {

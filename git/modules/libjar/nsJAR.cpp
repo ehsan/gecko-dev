@@ -171,7 +171,6 @@ nsJAR::Open(nsIFile* zipFile)
   if (mLock) return NS_ERROR_FAILURE; // Already open!
 
   mZipFile = zipFile;
-  mOuterZipEntry.Truncate();
 
   mLock = nsAutoLock::NewLock("nsJAR::mLock");
   NS_ENSURE_TRUE(mLock, NS_ERROR_OUT_OF_MEMORY);
@@ -238,6 +237,7 @@ nsJAR::Close()
   mManifestData.Reset();
   mGlobalStatus = JAR_MANIFEST_NOT_PARSED;
   mTotalItemsInManifest = 0;
+  mOuterZipEntry.Truncate(0);
 
 #ifdef MOZ_OMNIJAR
   if (mZip == mozilla::OmnijarReader()) {
@@ -1290,28 +1290,31 @@ nsZipReaderCache::ReleaseZip(nsJAR* zip)
     mZipCacheFlushes++;
 #endif
 
+  // Clear the cache pointer in case we gave out this oldest guy while
+  // his Release call was being made. Otherwise we could nest on ReleaseZip
+  // when the second owner calls Release and we are still here in this lock.
+  oldest->SetZipReaderCache(nsnull);
+
   // remove from hashtable
   nsCAutoString uri;
   rv = oldest->GetJarPath(uri);
   if (NS_FAILED(rv))
     return rv;
 
-  if (oldest->mOuterZipEntry.IsEmpty()) {
+  if (zip->mOuterZipEntry.IsEmpty()) {
     uri.Insert(NS_LITERAL_CSTRING("file:"), 0);
   } else {
     uri.Insert(NS_LITERAL_CSTRING("jar:"), 0);
     uri.AppendLiteral("!/");
-    uri.Append(oldest->mOuterZipEntry);
+    uri.Append(zip->mOuterZipEntry);
   }
 
   nsCStringKey key(uri);
-  nsRefPtr<nsJAR> removed;
-  mZips.Remove(&key, (nsISupports **)removed.StartAssignment());
+#ifdef DEBUG
+  PRBool removed =
+#endif
+    mZips.Remove(&key);   // Releases
   NS_ASSERTION(removed, "botched");
-  NS_ASSERTION(oldest == removed, "removed wrong entry");
-
-  if (removed)
-    removed->SetZipReaderCache(nsnull);
 
   return NS_OK;
 }

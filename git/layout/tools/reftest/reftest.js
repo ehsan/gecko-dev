@@ -121,12 +121,6 @@ const TYPE_LOAD = 'load';     // test without a reference (just test that it doe
                               // not assert, crash, hang, or leak)
 const TYPE_SCRIPT = 'script'; // test contains individual test results
 
-// The order of these constants matters, since when we have a status
-// listed for a *manifest*, we combine the status with the status for
-// the test by using the *larger*.  
-// FIXME: In the future, we may also want to use this rule for combining
-// statuses that are on the same line (rather than making the last one
-// win).
 const EXPECTED_PASS = 0;
 const EXPECTED_FAIL = 1;
 const EXPECTED_RANDOM = 2;
@@ -401,11 +395,11 @@ function BuildConditionSandbox(aURL) {
       sandbox.d2d = false;
     }
 
-    sandbox.layersGPUAccelerated =
-      gWindowUtils && gWindowUtils.layerManagerType != "Basic";
-    sandbox.layersOpenGL =
-      gWindowUtils && gWindowUtils.layerManagerType == "OpenGL";
-
+    if (gWindowUtils && gWindowUtils.layerManagerType != "Basic")
+      sandbox.layersGPUAccelerated = true;
+    else
+      sandbox.layersGPUAccelerated = false;
+ 
     // Shortcuts for widget toolkits.
     sandbox.Android = xr.OS == "Android";
     sandbox.cocoaWidget = xr.widgetToolkit == "cocoa";
@@ -511,12 +505,12 @@ function ReadTopManifest(aFileURL)
     var url = gIOService.newURI(aFileURL, null, null);
     if (!url)
       throw "Expected a file or http URL for the manifest.";
-    ReadManifest(url, EXPECTED_PASS);
+    ReadManifest(url);
 }
 
 // Note: If you materially change the reftest manifest parsing,
 // please keep the parser in print-manifest-dirs.py in sync.
-function ReadManifest(aURL, inherited_status)
+function ReadManifest(aURL)
 {
     var secMan = CC[NS_SCRIPTSECURITYMANAGER_CONTRACTID]
                      .getService(CI.nsIScriptSecurityManager);
@@ -564,7 +558,6 @@ function ReadManifest(aURL, inherited_status)
         var maxAsserts = 0;
         var needs_focus = false;
         var slow = false;
-        
         while (items[0].match(/^(fails|needs-focus|random|skip|asserts|slow|silentfail)/)) {
             var item = items.shift();
             var stat;
@@ -620,8 +613,6 @@ function ReadManifest(aURL, inherited_status)
             }
         }
 
-        expected_status = Math.max(expected_status, inherited_status);
-
         if (minAsserts > maxAsserts) {
             throw "Bad range in manifest file " + aURL.spec + " line " + lineNo;
         }
@@ -658,7 +649,7 @@ function ReadManifest(aURL, inherited_status)
             var incURI = gIOService.newURI(items[1], null, listURL);
             secMan.checkLoadURI(aURL, incURI,
                                 CI.nsIScriptSecurityManager.DISALLOW_SCRIPT);
-            ReadManifest(incURI, expected_status);
+            ReadManifest(incURI);
         } else if (items[0] == TYPE_LOAD) {
             if (items.length != 2 ||
                 (expected_status != EXPECTED_PASS &&
@@ -1212,7 +1203,7 @@ function LoadFailed(why)
 {
     ++gTestResults.FailedLoad;
     gDumpLog("REFTEST TEST-UNEXPECTED-FAIL | " +
-         gURLs[0]["url" + gState].spec + " | load failed: " + why + "\n");
+         gURLs[0]["url" + gState].spec + " | " + why + "\n");
     FlushTestLog();
     FinishTestItem();
 }

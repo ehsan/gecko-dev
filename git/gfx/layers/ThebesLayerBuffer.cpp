@@ -225,14 +225,6 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
   result.mDidSelfCopy = PR_FALSE;
   float curXRes = aLayer->GetXResolution();
   float curYRes = aLayer->GetYResolution();
-  // If we have non-identity resolution then mBufferRotation might not fall
-  // on a buffer pixel boundary, in which case that row of pixels will contain
-  // a mix of two completely different rows of the layer, which would be
-  // a catastrophe. So disable rotation in that case.
-  // We also need to disable rotation if we're going to be resampled when
-  // drawing, because we might sample across the rotation boundary.
-  PRBool canHaveRotation =
-    !(aFlags & PAINT_WILL_RESAMPLE) && aXResolution == 1.0 && aYResolution == 1.0;
 
   nsIntRegion validRegion = aLayer->GetValidRegion();
 
@@ -307,10 +299,17 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
   if (result.mRegionToDraw.IsEmpty())
     return result;
 
+  // If we have non-identity resolution then mBufferRotation might not fall
+  // on a buffer pixel boundary, in which case that row of pixels will contain
+  // a mix of two completely different rows of the layer, which would be
+  // a catastrophe. So disable rotation in that case.
+  // We also need to disable rotation if we're going to be resampled when
+  // drawing, because we might sample across the rotation boundary.
+  PRBool canHaveRotation =
+    !(aFlags & PAINT_WILL_RESAMPLE) && aXResolution == 1.0 && aYResolution == 1.0;
   nsIntRect drawBounds = result.mRegionToDraw.GetBounds();
   nsRefPtr<gfxASurface> destBuffer;
   PRBool bufferDimsChanged = PR_FALSE;
-  PRUint32 bufferFlags = canHaveRotation ? ALLOW_REPEAT : 0;
   if (canReuseBuffer) {
     NS_ASSERTION(curXRes == aXResolution && curYRes == aYResolution,
                  "resolution changes must Clear()!");
@@ -345,8 +344,9 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
         } else {
           // We can't do a real self-copy because the buffer is rotated.
           // So allocate a new buffer for the destination.
+          destBufferRect = neededRegion.GetBounds();
           bufferDimsChanged = PR_TRUE;
-          destBuffer = CreateBuffer(contentType, destBufferDims, bufferFlags);
+          destBuffer = CreateBuffer(contentType, destBufferDims);
           if (!destBuffer)
             return result;
         }
@@ -363,8 +363,9 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
     }
   } else {
     // The buffer's not big enough, so allocate a new one
+    destBufferRect = neededRegion.GetBounds();
     bufferDimsChanged = PR_TRUE;
-    destBuffer = CreateBuffer(contentType, destBufferDims, bufferFlags);
+    destBuffer = CreateBuffer(contentType, destBufferDims);
     if (!destBuffer)
       return result;
   }
