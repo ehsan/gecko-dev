@@ -10,17 +10,16 @@ let gTests = [
       let navbar = document.getElementById("nav-bar");
       ok(CustomizableUI.inDefaultState, "Should start in default state");
 
-      let button = createDummyXULButton(kWidgetId, "Test non-removable inDefaultState handling");
+      CustomizableUI.createWidget({id: kWidgetId, removable: false, label: "Test"});
       CustomizableUI.addWidgetToArea(kWidgetId, CustomizableUI.AREA_NAVBAR);
-      button.setAttribute("removable", "false");
       ok(CustomizableUI.inDefaultState, "Should still be in default state after navbar addition");
-      button.remove();
+      CustomizableUI.destroyWidget(kWidgetId);
 
-      button = createDummyXULButton(kWidgetId, "Test non-removable inDefaultState handling");
+      CustomizableUI.createWidget({id: kWidgetId, removable: false, label: "Test"});
       CustomizableUI.addWidgetToArea(kWidgetId, CustomizableUI.AREA_PANEL);
-      button.setAttribute("removable", "false");
       ok(CustomizableUI.inDefaultState, "Should still be in default state after panel addition");
-      button.remove();
+      CustomizableUI.destroyWidget(kWidgetId);
+
       ok(CustomizableUI.inDefaultState, "Should be in default state after destroying both widgets");
     },
     teardown: null

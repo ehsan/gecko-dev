@@ -1406,7 +1406,7 @@ ObjectStateChange(ExclusiveContext *cxArg, TypeObject *object, bool markingUnkno
 }
 
 static void
-CheckNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun);
+CheckNewScriptProperties(JSContext *cx, TypeObject *type, HandleFunction fun);
 
 namespace {
 
@@ -1440,7 +1440,8 @@ class ConstraintDataFreezeConfiguredProperty
         if (type->flags & OBJECT_FLAG_NEW_SCRIPT_REGENERATE) {
             type->flags &= ~OBJECT_FLAG_NEW_SCRIPT_REGENERATE;
             if (type->hasNewScript()) {
-                CheckNewScriptProperties(cx, type, type->newScript()->fun);
+                RootedFunction fun(cx, type->newScript()->fun);
+                CheckNewScriptProperties(cx, type, fun);
             } else {
                 JS_ASSERT(type->flags & OBJECT_FLAG_ADDENDUM_CLEARED);
                 type->flags &= ~OBJECT_FLAG_NEW_SCRIPT_REGENERATE;
@@ -3239,7 +3240,7 @@ types::AddClearDefiniteFunctionUsesInScript(JSContext *cx, TypeObject *type,
  * newScript on the type after they were cleared by a GC.
  */
 static void
-CheckNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun)
+CheckNewScriptProperties(JSContext *cx, TypeObject *type, HandleFunction fun)
 {
     JS_ASSERT(cx->compartment()->activeAnalysis);
 
@@ -3678,32 +3679,29 @@ JSObject::makeLazyType(JSContext *cx, HandleObject obj)
 }
 
 /* static */ inline HashNumber
-TypeObjectWithNewScriptEntry::hash(const Lookup &lookup)
+TypeObjectEntry::hash(const Lookup &lookup)
 {
     return PointerHasher<JSObject *, 3>::hash(lookup.hashProto.raw()) ^
-           PointerHasher<const Class *, 3>::hash(lookup.clasp) ^
-           PointerHasher<JSFunction *, 3>::hash(lookup.newFunction);
+           PointerHasher<const Class *, 3>::hash(lookup.clasp);
 }
 
 /* static */ inline bool
-TypeObjectWithNewScriptEntry::match(const TypeObjectWithNewScriptEntry &key, const Lookup &lookup)
+TypeObjectEntry::match(TypeObject *key, const Lookup &lookup)
 {
-    return key.object->proto == lookup.matchProto.raw() &&
-           key.object->clasp == lookup.clasp &&
-           key.newFunction == lookup.newFunction;
+    return key->proto == lookup.matchProto.raw() && key->clasp == lookup.clasp;
 }
 
 #ifdef DEBUG
 bool
 JSObject::hasNewType(const Class *clasp, TypeObject *type)
 {
-    TypeObjectWithNewScriptSet &table = compartment()->newTypeObjects;
+    TypeObjectSet &table = compartment()->newTypeObjects;
 
     if (!table.initialized())
         return false;
 
-    TypeObjectWithNewScriptSet::Ptr p = table.lookup(TypeObjectWithNewScriptSet::Lookup(clasp, this, nullptr));
-    return p && p->object == type;
+    TypeObjectSet::Ptr p = table.lookup(TypeObjectSet::Lookup(clasp, this));
+    return p && *p == type;
 }
 #endif /* DEBUG */
 
@@ -3718,10 +3716,10 @@ JSObject::setNewTypeUnknown(JSContext *cx, const Class *clasp, HandleObject obj)
      * not have the SETS_MARKED_UNKNOWN bit set, so may require a type set
      * crawl if prototypes of the object change dynamically in the future.
      */
-    TypeObjectWithNewScriptSet &table = cx->compartment()->newTypeObjects;
+    TypeObjectSet &table = cx->compartment()->newTypeObjects;
     if (table.initialized()) {
-        if (TypeObjectWithNewScriptSet::Ptr p = table.lookup(TypeObjectWithNewScriptSet::Lookup(clasp, obj.get(), nullptr)))
-            MarkTypeObjectUnknownProperties(cx, p->object);
+        if (TypeObjectSet::Ptr p = table.lookup(TypeObjectSet::Lookup(clasp, obj.get())))
+            MarkTypeObjectUnknownProperties(cx, *p);
     }
 
     return true;
@@ -3735,64 +3733,69 @@ JSObject::setNewTypeUnknown(JSContext *cx, const Class *clasp, HandleObject obj)
  */
 class NewTypeObjectsSetRef : public BufferableRef
 {
-    TypeObjectWithNewScriptSet *set;
-    const Class *clasp;
-    JSObject *proto;
-    JSFunction *newFunction;
+    TypeObjectSet *set;
+    TypeObject    *typeObject;
+    JSObject      *proto;
 
   public:
-    NewTypeObjectsSetRef(TypeObjectWithNewScriptSet *s, const Class *clasp, JSObject *proto, JSFunction *newFunction)
-        : set(s), clasp(clasp), proto(proto), newFunction(newFunction)
-    {}
+    NewTypeObjectsSetRef(TypeObjectSet *s, TypeObject *t, JSObject *p)
+      : set(s), typeObject(t), proto(p) {}
 
     void mark(JSTracer *trc) {
+        const Class *clasp = typeObject->clasp;
         JSObject *prior = proto;
         JS_SET_TRACING_LOCATION(trc, (void*)&*prior);
         Mark(trc, &proto, "newTypeObjects set prototype");
         if (prior == proto)
             return;
 
-        TypeObjectWithNewScriptSet::Ptr p = set->lookup(TypeObjectWithNewScriptSet::Lookup(clasp, prior, proto, newFunction));
+        TypeObjectSet::Ptr p = set->lookup(TypeObjectSet::Lookup(clasp, prior, proto));
         JS_ASSERT(p);  // newTypeObjects set must still contain original entry.
 
-        set->rekeyAs(TypeObjectWithNewScriptSet::Lookup(clasp, prior, proto, newFunction),
-                     TypeObjectWithNewScriptSet::Lookup(clasp, proto, newFunction), *p);
+        set->rekeyAs(TypeObjectSet::Lookup(clasp, prior, proto),
+                     TypeObjectSet::Lookup(clasp, proto), typeObject);
     }
 };
 #endif
 
 TypeObject *
-ExclusiveContext::getNewType(const Class *clasp, TaggedProto proto, JSFunction *fun)
+ExclusiveContext::getNewType(const Class *clasp, TaggedProto proto_, JSFunction *fun_)
 {
-    JS_ASSERT_IF(fun, proto.isObject());
-    JS_ASSERT_IF(proto.isObject(), isInsideCurrentCompartment(proto.toObject()));
+    JS_ASSERT_IF(fun_, proto_.isObject());
+    JS_ASSERT_IF(proto_.isObject(), isInsideCurrentCompartment(proto_.toObject()));
 
-    TypeObjectWithNewScriptSet &newTypeObjects = compartment()->newTypeObjects;
+    TypeObjectSet &newTypeObjects = compartment_->newTypeObjects;
 
     if (!newTypeObjects.initialized() && !newTypeObjects.init())
         return nullptr;
 
-    // Canonicalize new functions to use the original one associated with its script.
-    if (fun) {
-        if (fun->hasScript())
-            fun = fun->nonLazyScript()->function();
-        else if (fun->isInterpretedLazy())
-            fun = fun->lazyScript()->function();
-        else
-            fun = nullptr;
-    }
-
-    TypeObjectWithNewScriptSet::AddPtr p =
-        newTypeObjects.lookupForAdd(TypeObjectWithNewScriptSet::Lookup(clasp, proto, fun));
+    DependentAddPtr<TypeObjectSet> p(this, newTypeObjects,
+                                     TypeObjectSet::Lookup(clasp, proto_));
+    SkipRoot skipHash(this, &p); /* Prevent the hash from being poisoned. */
     if (p) {
-        TypeObject *type = p->object;
+        TypeObject *type = *p;
         JS_ASSERT(type->clasp == clasp);
-        JS_ASSERT(type->proto.get() == proto.raw());
-        JS_ASSERT_IF(type->hasNewScript(), type->newScript()->fun == fun);
+        JS_ASSERT(type->proto.get() == proto_.raw());
+
+        /*
+         * If set, the type's newScript indicates the script used to create
+         * all objects in existence which have this type. If there are objects
+         * in existence which are not created by calling 'new' on newScript,
+         * we must clear the new script information from the type and will not
+         * be able to assume any definite properties for instances of the type.
+         * This case is rare, but can happen if, for example, two scripted
+         * functions have the same value for their 'prototype' property, or if
+         * Object.create is called with a prototype object that is also the
+         * 'prototype' property of some scripted function.
+         */
+        if (type->hasNewScript() && type->newScript()->fun != fun_)
+            type->clearAddendum(this);
+
         return type;
     }
 
-    AutoEnterAnalysis enter(this);
+    Rooted<TaggedProto> proto(this, proto_);
+    RootedFunction fun(this, fun_);
 
     if (proto.isObject() && !proto.toObject()->setDelegate(this))
         return nullptr;
@@ -3802,23 +3805,24 @@ ExclusiveContext::getNewType(const Class *clasp, TaggedProto proto, JSFunction *
         ? proto.toObject()->lastProperty()->hasObjectFlag(BaseShape::NEW_TYPE_UNKNOWN)
         : true;
 
-    Rooted<TaggedProto> protoRoot(this, proto);
-    TypeObject *type = compartment()->types.newTypeObject(this, clasp, protoRoot, markUnknown);
+    RootedTypeObject type(this, compartment_->types.newTypeObject(this, clasp, proto, markUnknown));
     if (!type)
         return nullptr;
 
-    if (!newTypeObjects.add(p, TypeObjectWithNewScriptEntry(type, fun)))
+    if (!p.add(newTypeObjects, TypeObjectSet::Lookup(clasp, proto), type.get()))
         return nullptr;
 
 #ifdef JSGC_GENERATIONAL
     if (proto.isObject() && hasNursery() && nursery().isInside(proto.toObject())) {
         asJSContext()->runtime()->gcStoreBuffer.putGeneric(
-            NewTypeObjectsSetRef(&newTypeObjects, clasp, proto.toObject(), fun));
+            NewTypeObjectsSetRef(&newTypeObjects, type.get(), proto.toObject()));
     }
 #endif
 
     if (!typeInferenceEnabled())
         return type;
+
+    AutoEnterAnalysis enter(this);
 
     if (proto.isObject()) {
         RootedObject obj(this, proto.toObject());
@@ -3874,14 +3878,14 @@ ExclusiveContext::getLazyType(const Class *clasp, TaggedProto proto)
 
     AutoEnterAnalysis enter(this);
 
-    TypeObjectWithNewScriptSet &table = compartment()->lazyTypeObjects;
+    TypeObjectSet &table = compartment()->lazyTypeObjects;
 
     if (!table.initialized() && !table.init())
         return nullptr;
 
-    TypeObjectWithNewScriptSet::AddPtr p = table.lookupForAdd(TypeObjectWithNewScriptSet::Lookup(clasp, proto, nullptr));
+    DependentAddPtr<TypeObjectSet> p(this, table, TypeObjectSet::Lookup(clasp, proto));
     if (p) {
-        TypeObject *type = p->object;
+        TypeObject *type = *p;
         JS_ASSERT(type->lazy());
 
         return type;
@@ -3892,7 +3896,7 @@ ExclusiveContext::getLazyType(const Class *clasp, TaggedProto proto)
     if (!type)
         return nullptr;
 
-    if (!table.add(p, TypeObjectWithNewScriptEntry(type, nullptr)))
+    if (!p.add(table, TypeObjectSet::Lookup(clasp, protoRoot), type))
         return nullptr;
 
     type->singleton = (JSObject *) TypeObject::LAZY_SINGLETON;
@@ -4168,25 +4172,19 @@ TypeCompartment::clearCompilerOutputs(FreeOp *fop)
 }
 
 void
-JSCompartment::sweepNewTypeObjectTable(TypeObjectWithNewScriptSet &table)
+JSCompartment::sweepNewTypeObjectTable(TypeObjectSet &table)
 {
     gcstats::AutoPhase ap(runtimeFromMainThread()->gcStats,
                           gcstats::PHASE_SWEEP_TABLES_TYPE_OBJECT);
 
     JS_ASSERT(zone()->isGCSweeping());
     if (table.initialized()) {
-        for (TypeObjectWithNewScriptSet::Enum e(table); !e.empty(); e.popFront()) {
-            TypeObjectWithNewScriptEntry entry = e.front();
-            if (IsTypeObjectAboutToBeFinalized(entry.object.unsafeGet())) {
+        for (TypeObjectSet::Enum e(table); !e.empty(); e.popFront()) {
+            TypeObject *type = e.front();
+            if (IsTypeObjectAboutToBeFinalized(&type))
                 e.removeFront();
-            } else if (entry.newFunction && IsObjectAboutToBeFinalized(&entry.newFunction)) {
-                e.removeFront();
-            } else if (entry.object != e.front().object) {
-                TypeObjectWithNewScriptSet::Lookup lookup(entry.object->clasp,
-                                                          entry.object->proto.get(),
-                                                          entry.newFunction);
-                e.rekeyFront(lookup, entry);
-            }
+            else if (type != e.front())
+                e.rekeyFront(TypeObjectSet::Lookup(type->clasp, type->proto.get()), type);
         }
     }
 }

@@ -98,7 +98,6 @@ EXPORTS.gfxipc += [
 ]
 
 EXPORTS.mozilla.layers += [
-    'AtomicRefCountedWithFinalize.h',
     'basic/BasicCompositor.h',
     'basic/MacIOSurfaceTextureHostBasic.h',
     'basic/TextureHostBasic.h',
@@ -187,7 +186,6 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
     ]
     UNIFIED_SOURCES += [
         'GrallocImages.cpp',
-        'opengl/EGLImageHelpers.cpp',
         'opengl/GrallocTextureClient.cpp',
         'opengl/GrallocTextureHost.cpp',
     ]
@@ -254,9 +252,11 @@ UNIFIED_SOURCES += [
     'ipc/SharedPlanarYCbCrImage.cpp',
     'ipc/SharedRGBImage.cpp',
     'ipc/TaskThrottler.cpp',
+    'Layers.cpp',
     'LayerScope.cpp',
     'LayersLogging.cpp',
     'LayerSorter.cpp',
+    'LayerTreeInvalidation.cpp',
     'opengl/CompositingRenderTargetOGL.cpp',
     'opengl/CompositorOGL.cpp',
     'opengl/OGLShaderProgram.cpp',
@@ -272,17 +272,7 @@ UNIFIED_SOURCES += [
 SOURCES += [
     'basic/BasicImageLayer.cpp',
     'ImageContainer.cpp',
-    'Layers.cpp',
-    'LayerTreeInvalidation.cpp',
 ]
-
-# Workaround compiler bug (Bug 795594)
-if CONFIG['_MSC_VER'] and CONFIG['CPU_ARCH'] == 'x86_64':
-    for src in [
-        'Layers.cpp',
-        'LayerTreeInvalidation.cpp',
-    ]:
-        SOURCES[src].no_pgo = True
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
     SOURCES += [
@@ -300,7 +290,6 @@ IPDL_SOURCES = [
     'ipc/PImageBridge.ipdl',
     'ipc/PLayer.ipdl',
     'ipc/PLayerTransaction.ipdl',
-    'ipc/PTexture.ipdl',
 ]
 
 MSVC_ENABLE_PGO = True
