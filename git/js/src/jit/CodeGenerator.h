@@ -53,7 +53,7 @@ class CodeGenerator : public CodeGeneratorSpecific
 
   public:
     bool generate();
-    bool generateAsmJS(AsmJSFunctionLabels *labels);
+    bool generateAsmJS(Label *stackOverflowLabel);
     bool link(JSContext *cx, types::CompilerConstraintList *constraints);
 
     bool visitLabel(LLabel *lir);

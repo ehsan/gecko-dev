@@ -11,7 +11,6 @@
 #include "nsAutoPtr.h"
 #include "gfxPoint.h"
 #include "mozilla/RefPtr.h"
-#include "mozilla/UniquePtr.h"
 
 class gfxContext;
 struct gfxRect;
@@ -150,7 +149,7 @@ protected:
      /**
       * The object that actually does the blurring for us.
       */
-    mozilla::UniquePtr<mozilla::gfx::AlphaBoxBlur> mBlur;
+    mozilla::gfx::AlphaBoxBlur *mBlur;
 };
 
 #endif /* GFX_BLUR_H */

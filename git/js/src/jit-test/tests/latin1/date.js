@@ -1,5 +1,5 @@
-function test(lat1) {
-    assertEq(isLatin1(lat1), true);
+function test(s) {
+    var lat1 = toLatin1(s);
 
     var twoByte = "\u1200" + lat1;
     twoByte.indexOf("X"); // Flatten.

@@ -186,14 +186,13 @@ CompositableClient::GetAsyncID() const
 }
 
 TemporaryRef<BufferTextureClient>
-CompositableClient::CreateBufferTextureClient(gfx::SurfaceFormat aFormat,
-                                              gfx::IntSize aSize,
-                                              gfx::BackendType aMoz2DBackend,
-                                              TextureFlags aTextureFlags)
+CompositableClient::CreateBufferTextureClient(SurfaceFormat aFormat,
+                                              TextureFlags aTextureFlags,
+                                              gfx::BackendType aMoz2DBackend)
 {
-  return TextureClient::CreateForRawBufferAccess(GetForwarder(),
-                                                 aFormat, aSize, aMoz2DBackend,
-                                                 aTextureFlags | mTextureFlags);
+  return TextureClient::CreateBufferTextureClient(GetForwarder(), aFormat,
+                                                  aTextureFlags | mTextureFlags,
+                                                  aMoz2DBackend);
 }
 
 TemporaryRef<TextureClient>

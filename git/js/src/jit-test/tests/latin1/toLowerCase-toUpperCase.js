@@ -1,6 +1,5 @@
 function testToLowerCase() {
-    var s1 = "abcdefgABCDEFGH 123456";
-    assertEq(isLatin1(s1), true);
+    var s1 = toLatin1("abcdefgABCDEFGH 123456");
 
     // Latin1
     var s2 = s1.toLowerCase();
@@ -27,8 +26,7 @@ function testToLowerCase() {
 testToLowerCase();
 
 function testToUpperCase() {
-    var s1 = "abcdefgABCDEFGH 12345";
-    assertEq(isLatin1(s1), true);
+    var s1 = toLatin1("abcdefgABCDEFGH 12345");
 
     // Latin1
     var s2 = s1.toUpperCase();
@@ -46,7 +44,7 @@ function testToUpperCase() {
 
     // Tricky case: Latin1 character \u00FF maps to \u0178, a
     // non-Latin1 character.
-    s1 = "ABC\u00FF";
+    s1 = toLatin1("ABC\u00FF");
     assertEq(isLatin1(s1), true);
     s2 = s1.toUpperCase();
     assertEq(isLatin1(s2), false);

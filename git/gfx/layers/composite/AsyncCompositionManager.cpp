@@ -405,7 +405,9 @@ SampleValue(float aPortion, Animation& aAnimation, StyleAnimationValue& aStart,
   transform.Translate(scaledOrigin);
 
   InfallibleTArray<TransformFunction> functions;
-  functions.AppendElement(TransformMatrix(ToMatrix4x4(transform)));
+  Matrix4x4 realTransform;
+  ToMatrix4x4(transform, realTransform);
+  functions.AppendElement(TransformMatrix(realTransform));
   *aValue = functions;
 }
 
@@ -511,7 +513,10 @@ SampleAnimations(Layer* aLayer, TimeStamp aPoint)
 Matrix4x4
 CombineWithCSSTransform(const gfx3DMatrix& treeTransform, Layer* aLayer)
 {
-  return ToMatrix4x4(treeTransform) * aLayer->GetTransform();
+  Matrix4x4 result;
+  ToMatrix4x4(treeTransform, result);
+  result = result * aLayer->GetTransform();
+  return result;
 }
 
 bool
@@ -696,7 +701,9 @@ ApplyAsyncTransformToScrollbarForContent(TimeStamp aCurrentFrame, ContainerLayer
     // the content. This is needed because otherwise that transient async transform is
     // part of the effective transform of this scrollbar, and the scrollbar will jitter
     // as the content scrolls.
-    transform = transform * ToMatrix4x4(transientTransform.Inverse());
+    Matrix4x4 targetUntransform;
+    ToMatrix4x4(transientTransform.Inverse(), targetUntransform);
+    transform = transform * targetUntransform;
   }
 
   // GetTransform already takes the pre- and post-scale into account.  Since we
@@ -764,7 +771,8 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer)
   const FrameMetrics& metrics = container->GetFrameMetrics();
   // We must apply the resolution scale before a pan/zoom transform, so we call
   // GetTransform here.
-  gfx3DMatrix currentTransform = To3DMatrix(aLayer->GetTransform());
+  gfx3DMatrix currentTransform;
+  To3DMatrix(aLayer->GetTransform(), currentTransform);
   Matrix4x4 oldTransform = aLayer->GetTransform();
 
   gfx3DMatrix treeTransform;
@@ -841,7 +849,9 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer)
   computedTransform.ScalePost(1.0f/container->GetPostXScale(),
                               1.0f/container->GetPostYScale(),
                               1);
-  layerComposite->SetShadowTransform(ToMatrix4x4(computedTransform));
+  Matrix4x4 matrix;
+  ToMatrix4x4(computedTransform, matrix);
+  layerComposite->SetShadowTransform(matrix);
   NS_ASSERTION(!layerComposite->GetShadowTransformSetByAnimation(),
                "overwriting animated transform!");
 

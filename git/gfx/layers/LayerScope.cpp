@@ -381,9 +381,9 @@ public:
             return true;
 
         uint32_t size = aPacket.ByteSize();
-        UniquePtr<uint8_t[]> data(new uint8_t[size]);
-        aPacket.SerializeToArray(data.get(), size);
-        return WebSocketHelper::GetSocketManager()->WriteAll(data.get(), size);
+        nsAutoArrayPtr<uint8_t> data(new uint8_t[size]);
+        aPacket.SerializeToArray(data, size);
+        return WebSocketHelper::GetSocketManager()->WriteAll(data, size);
     }
 
 protected:
@@ -473,16 +473,16 @@ private:
 
             mDatasize = aImage->GetSize().height * aImage->Stride();
 
-            UniquePtr<char[]> compresseddata(
+            nsAutoArrayPtr<char> compresseddata(
                 new char[LZ4::maxCompressedSize(mDatasize)]);
-            if (compresseddata) {
+            if (compresseddata.get()) {
                 int ndatasize = LZ4::compress((char*)aImage->GetData(),
                                               mDatasize,
-                                              compresseddata.get());
+                                              compresseddata);
                 if (ndatasize > 0) {
                     mDatasize = ndatasize;
                     tp->set_dataformat((1 << 16 | tp->dataformat()));
-                    tp->set_data(compresseddata.get(), mDatasize);
+                    tp->set_data(compresseddata, mDatasize);
                 } else {
                     NS_WARNING("Compress data failed");
                     tp->set_data(aImage->GetData(), mDatasize);
@@ -611,7 +611,7 @@ public:
         nsresult rv = NS_OK;
 
         while ((d = mList.popFirst()) != nullptr) {
-            UniquePtr<DebugGLData> cleaner(d);
+            nsAutoPtr<DebugGLData> cleaner(d);
             if (!d->Write()) {
                 rv = NS_ERROR_FAILURE;
                 break;

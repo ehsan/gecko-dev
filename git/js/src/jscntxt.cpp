@@ -619,6 +619,16 @@ js::PrintError(JSContext *cx, FILE *file, const char *message, JSErrorReport *re
     return true;
 }
 
+char *
+js_strdup(ExclusiveContext *cx, const char *s)
+{
+    size_t n = strlen(s) + 1;
+    void *p = cx->malloc_(n);
+    if (!p)
+        return nullptr;
+    return (char *)js_memcpy(p, s, n);
+}
+
 /*
  * The arguments from ap need to be packaged up into an array and stored
  * into the report struct.
@@ -751,7 +761,7 @@ js_ExpandErrorArguments(ExclusiveContext *cx, JSErrorCallback callback,
              */
             if (efs->format) {
                 size_t len;
-                *messagep = DuplicateString(cx, efs->format).release();
+                *messagep = js_strdup(cx, efs->format);
                 if (!*messagep)
                     goto error;
                 len = strlen(*messagep);
@@ -1124,6 +1134,10 @@ JSContext::JSContext(JSRuntime *rt)
 #endif
     innermostGenerator_(nullptr)
 {
+#ifdef DEBUG
+    stackIterAssertionEnabled = true;
+#endif
+
     JS_ASSERT(static_cast<ContextFriendFields*>(this) ==
               ContextFriendFields::get(this));
 }

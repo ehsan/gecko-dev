@@ -172,34 +172,17 @@ add_task(function* testInstalledDetails() {
 });
 
 add_task(function* testPreferencesButton() {
-  let file = Services.dirsvc.get("ProfD", Ci.nsIFile);
-  file.append("openh264");
-  file.append("testDir");
+  yield gCategoryUtilities.openType("plugin");
+  let doc = gManagerWindow.document;
+  let item = get_addon_element(gManagerWindow, OPENH264_PLUGIN_ID);
 
-  let prefValues = [
-    { enabled: false, path: "" },
-    { enabled: false, path: file.path },
-    { enabled: true, path: "" },
-    { enabled: true, path: file.path },
-  ];
+  let button = doc.getAnonymousElementByAttribute(item, "anonid", "preferences-btn");
+  EventUtils.synthesizeMouseAtCenter(button, { clickCount: 1 }, gManagerWindow);
+  let deferred = Promise.defer();
+  wait_for_view_load(gManagerWindow, deferred.resolve);
+  yield deferred.promise;
 
-  for (let prefs of prefValues) {
-    dump("Testing preferences button with pref settings: " + JSON.stringify(prefs) + "\n");
-    Services.prefs.setCharPref(OPENH264_PREF_PATH, prefs.path);
-    Services.prefs.setBoolPref(OPENH264_PREF_ENABLED, prefs.enabled);
-
-    yield gCategoryUtilities.openType("plugin");
-    let doc = gManagerWindow.document;
-    let item = get_addon_element(gManagerWindow, OPENH264_PLUGIN_ID);
-
-    let button = doc.getAnonymousElementByAttribute(item, "anonid", "preferences-btn");
-    EventUtils.synthesizeMouseAtCenter(button, { clickCount: 1 }, gManagerWindow);
-    let deferred = Promise.defer();
-    wait_for_view_load(gManagerWindow, deferred.resolve);
-    yield deferred.promise;
-
-    is(gOptionsObserver.lastDisplayed, OPENH264_PLUGIN_ID);
-  }
+  is(gOptionsObserver.lastDisplayed, OPENH264_PLUGIN_ID);
 });
 
 add_task(function* test_cleanup() {
