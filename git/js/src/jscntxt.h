@@ -122,6 +122,10 @@ template<typename T> class Seq;
 
 }  /* namespace nanojit */
 
+namespace JSC {
+    class ExecutableAllocator;
+}
+
 namespace js {
 
 /* Tracer constants. */
@@ -217,6 +221,24 @@ struct TracerState
                 uintN &inlineCallCountp, VMSideExit** innermostNestedGuardp);
     ~TracerState();
 };
+
+namespace mjit {
+    struct ThreadData
+    {
+        JSC::ExecutableAllocator *execPool;
+
+        // Scripts that have had PICs patched or PIC stubs generated.
+        typedef js::HashSet<JSScript*, DefaultHasher<JSScript*>, js::SystemAllocPolicy> ScriptSet;
+        ScriptSet picScripts;
+
+        bool Initialize();
+        void Finish();
+
+        bool addScript(JSScript *script);
+        void removeScript(JSScript *script);
+        void purge(JSContext *cx);
+    };
+}
 
 /*
  * Storage for the execution state and store during trace execution. Generated
@@ -629,9 +651,6 @@ class StackSpace
     inline Value *firstUnused() const;
 
     inline void assertIsCurrent(JSContext *cx) const;
-#ifdef DEBUG
-    CallStack *getCurrentCallStack() const { return currentCallStack; }
-#endif
 
     /*
      * Allocate nvals on the top of the stack, report error on failure.
@@ -758,6 +777,8 @@ class StackSpace
     /* Our privates leak into xpconnect, which needs a public symbol. */
     JS_REQUIRES_STACK
     JS_FRIEND_API(bool) pushInvokeArgsFriendAPI(JSContext *, uintN, InvokeArgsGuard &);
+
+    CallStack *getCurrentCallStack() const { return currentCallStack; }
 };
 
 JS_STATIC_ASSERT(StackSpace::CAPACITY_VALS % StackSpace::COMMIT_VALS == 0);
@@ -788,6 +809,20 @@ class FrameRegsIter
     JSStackFrame *fp() const { return curfp; }
     Value *sp() const { return cursp; }
     jsbytecode *pc() const { return curpc; }
+};
+
+class AllFramesIter
+{
+    CallStack         *curcs;
+    JSStackFrame      *curfp;
+
+  public:
+    JS_REQUIRES_STACK AllFramesIter(JSContext *cx);
+
+    bool done() const { return curfp == NULL; }
+    AllFramesIter &operator++();
+
+    JSStackFrame *fp() const { return curfp; }
 };
 
 /* Holds the number of recording attemps for an address. */
@@ -1018,6 +1053,10 @@ struct JSThreadData {
 #ifdef JS_TRACER
     /* Trace-tree JIT recorder/interpreter state. */
     js::TraceMonitor    traceMonitor;
+#endif
+
+#ifdef JS_METHODJIT
+    js::mjit::ThreadData jmData;
 #endif
 
     /* Lock-free hashed lists of scripts created by eval to garbage-collect. */
@@ -1571,6 +1610,7 @@ struct JSRuntime {
 #define JS_GSN_CACHE(cx)        (JS_THREAD_DATA(cx)->gsnCache)
 #define JS_PROPERTY_CACHE(cx)   (JS_THREAD_DATA(cx)->propertyCache)
 #define JS_TRACE_MONITOR(cx)    (JS_THREAD_DATA(cx)->traceMonitor)
+#define JS_METHODJIT_DATA(cx)   (JS_THREAD_DATA(cx)->jmData)
 #define JS_SCRIPTS_TO_GC(cx)    (JS_THREAD_DATA(cx)->scriptsToGC)
 
 #ifdef JS_EVAL_CACHE_METERING
@@ -1653,10 +1693,12 @@ struct JSContext
     explicit JSContext(JSRuntime *rt);
 
     /*
-     * If this flag is set, we were asked to call back the operation callback
-     * as soon as possible.
+     * If this flag is non-zero, we were asked to interrupt execution as soon
+     * as possible. The bits below describe the reason.
      */
-    volatile jsint      operationCallbackFlag;
+    volatile jsword     interruptFlags;
+
+    static const jsword INTERRUPT_OPERATION_CALLBACK = 0x1;
 
     /* JSRuntime contextList linkage. */
     JSCList             link;
@@ -1695,7 +1737,7 @@ struct JSContext
     JSPackedBool        insideGCMarkCallback;
 
     /* Exception state -- the exception member is a GC root by definition. */
-    JSPackedBool        throwing;           /* is there a pending exception? */
+    JSBool              throwing;           /* is there a pending exception? */
     js::Value           exception;          /* most-recently-thrown exception */
 
     /* Limit pointer for checking native stack consumption during recursion. */
@@ -1721,7 +1763,7 @@ struct JSContext
     JS_REQUIRES_STACK
     JSFrameRegs         *regs;
 
-  private:
+  public:
     friend class js::StackSpace;
     friend bool js::Interpret(JSContext *);
 
@@ -1734,7 +1776,6 @@ struct JSContext
         this->regs = regs;
     }
 
-  public:
     /* Temporary arena pool used while compiling and decompiling. */
     JSArenaPool         tempPool;
 
@@ -2926,7 +2967,8 @@ extern JSErrorFormatString js_ErrorFormatString[JSErr_Limit];
  * false otherwise.
  */
 #define JS_CHECK_OPERATION_LIMIT(cx) \
-    (!(cx)->operationCallbackFlag || js_InvokeOperationCallback(cx))
+    (!((cx)->interruptFlags & JSContext::INTERRUPT_OPERATION_CALLBACK) || \
+     js_InvokeOperationCallback(cx))
 
 /*
  * Invoke the operation callback and return false if the current execution
@@ -2942,6 +2984,9 @@ js_InvokeOperationCallback(JSContext *cx);
 
 void
 js_TriggerAllOperationCallbacks(JSRuntime *rt, JSBool gcLocked);
+
+extern JSBool
+js_HandleExecutionInterrupt(JSContext *cx);
 
 extern JSStackFrame *
 js_GetScriptedCaller(JSContext *cx, JSStackFrame *fp);
