@@ -1606,7 +1606,6 @@ pref("security.notification_enable_delay", 500);
 
 pref("security.csp.enable", true);
 pref("security.csp.debug", false);
-pref("security.csp.experimentalEnabled", false);
 
 // Mixed content blocking
 pref("security.mixed_content.block_active_content", false);
@@ -1873,6 +1872,9 @@ pref("layout.css.supports-rule.enabled", true);
 
 // Is support for CSS Filters enabled?
 pref("layout.css.filters.enabled", false);
+
+// Is support for CSS Flexbox enabled?
+pref("layout.css.flexbox.enabled", true);
 
 // Is support for CSS sticky positioning enabled?
 #ifdef RELEASE_BUILD

@@ -18,8 +18,3 @@ LIBXUL_LIBRARY = True
 
 EXPORT_LIBRARY = True
 
-LOCAL_INCLUDES += [
-    '../setup',
-    '../webBrowser',
-]
-

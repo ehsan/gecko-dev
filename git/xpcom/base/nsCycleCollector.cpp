@@ -101,7 +101,6 @@
 /* This must occur *after* base/process_util.h to avoid typedefs conflicts. */
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Util.h"
-#include "mozilla/LinkedList.h"
 
 #include "mozilla/CycleCollectedJSRuntime.h"
 #include "nsCycleCollectionParticipant.h"
@@ -1112,7 +1111,7 @@ GraphWalker<Visitor>::DoWalk(nsDeque &aQueue)
     }
 }
 
-struct CCGraphDescriber : public LinkedListElement<CCGraphDescriber>
+struct CCGraphDescriber
 {
   CCGraphDescriber()
   : mAddress("0x"), mToAddress("0x"), mCnt(0), mType(eUnknown) {}
@@ -1140,12 +1139,12 @@ class nsCycleCollectorLogger MOZ_FINAL : public nsICycleCollectorListener
 public:
     nsCycleCollectorLogger() :
       mStream(nullptr), mWantAllTraces(false),
-      mDisableLog(false), mWantAfterProcessing(false)
+      mDisableLog(false), mWantAfterProcessing(false),
+      mNextIndex(0)
     {
     }
     ~nsCycleCollectorLogger()
     {
-        ClearDescribers();
         if (mStream) {
             MozillaUnRegisterDebugFILE(mStream);
             fclose(mStream);
@@ -1210,7 +1209,8 @@ public:
     NS_IMETHOD Begin()
     {
         mCurrentAddress.AssignLiteral("0x");
-        ClearDescribers();
+        mDescribers.Clear();
+        mNextIndex = 0;
         if (mDisableLog) {
             return NS_OK;
         }
@@ -1278,8 +1278,7 @@ public:
                     aObjectDescription);
         }
         if (mWantAfterProcessing) {
-            CCGraphDescriber* d =  new CCGraphDescriber();
-            mDescribers.insertBack(d);
+            CCGraphDescriber* d = mDescribers.AppendElement();
             mCurrentAddress.AssignLiteral("0x");
             mCurrentAddress.AppendInt(aAddress, 16);
             d->mType = CCGraphDescriber::eRefCountedObject;
@@ -1297,8 +1296,7 @@ public:
                     aMarked ? ".marked" : "", aObjectDescription);
         }
         if (mWantAfterProcessing) {
-            CCGraphDescriber* d =  new CCGraphDescriber();
-            mDescribers.insertBack(d);
+            CCGraphDescriber* d = mDescribers.AppendElement();
             mCurrentAddress.AssignLiteral("0x");
             mCurrentAddress.AppendInt(aAddress, 16);
             d->mType = aMarked ? CCGraphDescriber::eGCMarkedObject :
@@ -1314,8 +1312,7 @@ public:
             fprintf(mStream, "> %p %s\n", (void*)aToAddress, aEdgeName);
         }
         if (mWantAfterProcessing) {
-            CCGraphDescriber* d =  new CCGraphDescriber();
-            mDescribers.insertBack(d);
+            CCGraphDescriber* d = mDescribers.AppendElement();
             d->mType = CCGraphDescriber::eEdge;
             d->mAddress = mCurrentAddress;
             d->mToAddress.AppendInt(aToAddress, 16);
@@ -1346,8 +1343,7 @@ public:
             fprintf(mStream, "%p [known=%u]\n", (void*)aAddress, aKnownEdges);
         }
         if (mWantAfterProcessing) {
-            CCGraphDescriber* d =  new CCGraphDescriber();
-            mDescribers.insertBack(d);
+            CCGraphDescriber* d = mDescribers.AppendElement();
             d->mType = CCGraphDescriber::eRoot;
             d->mAddress.AppendInt(aAddress, 16);
             d->mCnt = aKnownEdges;
@@ -1360,8 +1356,7 @@ public:
             fprintf(mStream, "%p [garbage]\n", (void*)aAddress);
         }
         if (mWantAfterProcessing) {
-            CCGraphDescriber* d =  new CCGraphDescriber();
-            mDescribers.insertBack(d);
+            CCGraphDescriber* d = mDescribers.AppendElement();
             d->mType = CCGraphDescriber::eGarbage;
             d->mAddress.AppendInt(aAddress, 16);
         }
@@ -1408,41 +1403,42 @@ public:
                            bool* aCanContinue)
     {
         NS_ENSURE_STATE(aHandler && mWantAfterProcessing);
-        CCGraphDescriber* d = mDescribers.popFirst();
-        if (d) {
-            switch (d->mType) {
+        if (mNextIndex < mDescribers.Length()) {
+            CCGraphDescriber& d = mDescribers[mNextIndex++];
+            switch (d.mType) {
                 case CCGraphDescriber::eRefCountedObject:
-                    aHandler->NoteRefCountedObject(d->mAddress,
-                                                   d->mCnt,
-                                                   d->mName);
+                    aHandler->NoteRefCountedObject(d.mAddress,
+                                                   d.mCnt,
+                                                   d.mName);
                     break;
                 case CCGraphDescriber::eGCedObject:
                 case CCGraphDescriber::eGCMarkedObject:
-                    aHandler->NoteGCedObject(d->mAddress,
-                                             d->mType ==
+                    aHandler->NoteGCedObject(d.mAddress,
+                                             d.mType ==
                                                CCGraphDescriber::eGCMarkedObject,
-                                             d->mName);
+                                             d.mName);
                     break;
                 case CCGraphDescriber::eEdge:
-                    aHandler->NoteEdge(d->mAddress,
-                                       d->mToAddress,
-                                       d->mName);
+                    aHandler->NoteEdge(d.mAddress,
+                                       d.mToAddress,
+                                       d.mName);
                     break;
                 case CCGraphDescriber::eRoot:
-                    aHandler->DescribeRoot(d->mAddress,
-                                           d->mCnt);
+                    aHandler->DescribeRoot(d.mAddress,
+                                           d.mCnt);
                     break;
                 case CCGraphDescriber::eGarbage:
-                    aHandler->DescribeGarbage(d->mAddress);
+                    aHandler->DescribeGarbage(d.mAddress);
                     break;
                 case CCGraphDescriber::eUnknown:
                     NS_NOTREACHED("CCGraphDescriber::eUnknown");
                     break;
             }
-            delete d;
         }
-        if (!(*aCanContinue = !mDescribers.isEmpty())) {
+        if (!(*aCanContinue = mNextIndex < mDescribers.Length())) {
             mCurrentAddress.AssignLiteral("0x");
+            mDescribers.Clear();
+            mNextIndex = 0;
         }
         return NS_OK;
     }
@@ -1481,14 +1477,6 @@ private:
         return dont_AddRef(logFile);
     }
 
-    void ClearDescribers()
-    {
-      CCGraphDescriber* d;
-      while((d = mDescribers.popFirst())) {
-        delete d;
-      }
-    }
-
     FILE *mStream;
     nsCOMPtr<nsIFile> mOutFile;
     bool mWantAllTraces;
@@ -1496,7 +1484,8 @@ private:
     bool mWantAfterProcessing;
     nsString mFilenameIdentifier;
     nsCString mCurrentAddress;
-    mozilla::LinkedList<CCGraphDescriber> mDescribers;
+    nsTArray<CCGraphDescriber> mDescribers;
+    uint32_t mNextIndex;
 };
 
 NS_IMPL_ISUPPORTS1(nsCycleCollectorLogger, nsICycleCollectorListener)

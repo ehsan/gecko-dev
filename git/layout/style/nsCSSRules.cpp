@@ -413,7 +413,10 @@ ImportRule::SetSheet(nsCSSStyleSheet* aSheet)
   aSheet->SetOwnerRule(this);
 
   // set our medialist to be the same as the sheet's medialist
-  mMedia = mChildSheet->Media();
+  nsCOMPtr<nsIDOMMediaList> mediaList;
+  mChildSheet->GetMedia(getter_AddRefs(mediaList));
+  NS_ABORT_IF_FALSE(mediaList, "GetMedia returned null");
+  mMedia = static_cast<nsMediaList*>(mediaList.get());
 }
 
 NS_IMETHODIMP
@@ -770,9 +773,11 @@ MediaRule::MediaRule(const MediaRule& aCopy)
   : GroupRule(aCopy)
 {
   if (aCopy.mMedia) {
-    mMedia = aCopy.mMedia->Clone();
-    // XXXldb This doesn't really make sense.
-    mMedia->SetStyleSheet(aCopy.GetStyleSheet());
+    aCopy.mMedia->Clone(getter_AddRefs(mMedia));
+    if (mMedia) {
+      // XXXldb This doesn't really make sense.
+      mMedia->SetStyleSheet(aCopy.GetStyleSheet());
+    }
   }
 }
 

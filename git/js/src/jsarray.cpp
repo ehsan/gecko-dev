@@ -137,7 +137,7 @@ static bool
 DoubleIndexToId(JSContext *cx, double index, MutableHandleId id)
 {
     if (index == uint32_t(index))
-        return IndexToId(cx, uint32_t(index), id.address());
+        return IndexToId(cx, uint32_t(index), id);
 
     Value tmp = DoubleValue(index);
     return ValueToId<CanGC>(cx, HandleValue::fromMarkedLocation(&tmp), id);
@@ -716,7 +716,7 @@ js::ArraySetLength(typename ExecutionModeTraits<mode>::ContextType cxArg,
         // returned from the function before step 15 above.
         JSContext *cx = cxArg->asJSContext();
         RootedId elementId(cx);
-        if (!IndexToId(cx, newLen - 1, elementId.address()))
+        if (!IndexToId(cx, newLen - 1, &elementId))
             return false;
         return arr->reportNotConfigurable(cx, elementId);
     }

@@ -361,8 +361,7 @@ public:
   DoDatabaseWork(mozIStorageConnection* aConnection) MOZ_OVERRIDE;
 
   virtual nsresult
-  GetSuccessResult(JSContext* aCx, JS::MutableHandle<JS::Value> aVal)
-                   MOZ_OVERRIDE;
+  GetSuccessResult(JSContext* aCx, JS::MutableHandleValue aVal) MOZ_OVERRIDE;
 
   virtual void
   ReleaseMainThreadObjects() MOZ_OVERRIDE;
@@ -510,8 +509,7 @@ public:
   DoDatabaseWork(mozIStorageConnection* aConnection) MOZ_OVERRIDE;
 
   virtual nsresult
-  GetSuccessResult(JSContext* aCx, JS::MutableHandle<JS::Value> aVal)
-                   MOZ_OVERRIDE;
+  GetSuccessResult(JSContext* aCx, JS::MutableHandleValue aVal) MOZ_OVERRIDE;
 
   virtual void
   ReleaseMainThreadObjects() MOZ_OVERRIDE;
@@ -2967,7 +2965,7 @@ IDBObjectStore::Count(JSContext* aCx,
 
 already_AddRefed<IDBRequest>
 IDBObjectStore::GetAllKeys(JSContext* aCx,
-                           const Optional<JS::Handle<JS::Value>>& aKey,
+                           const Optional<JS::HandleValue>& aKey,
                            const Optional<uint32_t>& aLimit, ErrorResult& aRv)
 {
   MOZ_ASSERT(NS_IsMainThread());
@@ -2993,8 +2991,8 @@ IDBObjectStore::GetAllKeys(JSContext* aCx,
 
 already_AddRefed<IDBRequest>
 IDBObjectStore::OpenKeyCursor(JSContext* aCx,
-                              const Optional<JS::Handle<JS::Value>>& aRange,
-                              IDBCursorDirection aDirection, ErrorResult& aRv)
+                              const Optional<JS::HandleValue>& aRange,
+                              IDBCursorDirection aDirection,  ErrorResult& aRv)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -4248,7 +4246,7 @@ OpenKeyCursorHelper::EnsureCursor()
 
 nsresult
 OpenKeyCursorHelper::GetSuccessResult(JSContext* aCx,
-                                      JS::MutableHandle<JS::Value> aVal)
+                                      JS::MutableHandleValue aVal)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -4913,8 +4911,7 @@ GetAllKeysHelper::DoDatabaseWork(mozIStorageConnection* /* aConnection */)
 }
 
 nsresult
-GetAllKeysHelper::GetSuccessResult(JSContext* aCx,
-                                   JS::MutableHandle<JS::Value> aVal)
+GetAllKeysHelper::GetSuccessResult(JSContext* aCx, JS::MutableHandleValue aVal)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mKeys.Length() <= mLimit);
@@ -4926,7 +4923,7 @@ GetAllKeysHelper::GetSuccessResult(JSContext* aCx,
   nsTArray<Key> keys;
   mKeys.SwapElements(keys);
 
-  JS::Rooted<JSObject*> array(aCx, JS_NewArrayObject(aCx, 0, NULL));
+  JS::RootedObject array(aCx, JS_NewArrayObject(aCx, 0, NULL));
   if (!array) {
     NS_WARNING("Failed to make array!");
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
@@ -4942,7 +4939,7 @@ GetAllKeysHelper::GetSuccessResult(JSContext* aCx,
       const Key& key = keys[index];
       MOZ_ASSERT(!key.IsUnset());
 
-      JS::Rooted<JS::Value> value(aCx);
+      JS::RootedValue value(aCx);
       nsresult rv = key.ToJSVal(aCx, &value);
       if (NS_FAILED(rv)) {
         NS_WARNING("Failed to get jsval for key!");

@@ -52,6 +52,7 @@ template <js::AllowGC allowGC>
 extern JSString *
 NumberToString(js::ThreadSafeContext *cx, double d);
 
+template <js::AllowGC allowGC>
 extern JSAtom *
 NumberToAtom(js::ExclusiveContext *cx, double d);
 
@@ -59,6 +60,7 @@ template <AllowGC allowGC>
 extern JSFlatString *
 Int32ToString(ThreadSafeContext *cx, int32_t i);
 
+template <AllowGC allowGC>
 extern JSAtom *
 Int32ToAtom(ExclusiveContext *cx, int32_t si);
 

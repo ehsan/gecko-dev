@@ -203,12 +203,12 @@ inDOMUtils::GetCSSStyleRules(nsIDOMElement *aElement,
   }
 
   nsRuleNode* ruleNode = nullptr;
-  nsCOMPtr<Element> element = do_QueryInterface(aElement);
-  NS_ENSURE_STATE(element);
+  nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
+  NS_ENSURE_STATE(content);
   nsRefPtr<nsStyleContext> styleContext;
-  GetRuleNodeForElement(element, pseudoElt, getter_AddRefs(styleContext), &ruleNode);
+  GetRuleNodeForContent(content, pseudoElt, getter_AddRefs(styleContext), &ruleNode);
   if (!ruleNode) {
-    // This can fail for elements that are not in the document or
+    // This can fail for content nodes that are not in the document or
     // if the document they're in doesn't have a presshell.  Bail out.
     return NS_OK;
   }
@@ -699,17 +699,19 @@ inDOMUtils::GetContentState(nsIDOMElement *aElement, nsEventStates::InternalType
 }
 
 /* static */ nsresult
-inDOMUtils::GetRuleNodeForElement(dom::Element* aElement,
+inDOMUtils::GetRuleNodeForContent(nsIContent* aContent,
                                   nsIAtom* aPseudo,
                                   nsStyleContext** aStyleContext,
                                   nsRuleNode** aRuleNode)
 {
-  MOZ_ASSERT(aElement);
-
   *aRuleNode = nullptr;
   *aStyleContext = nullptr;
 
-  nsIDocument* doc = aElement->GetDocument();
+  if (!aContent->IsElement()) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  nsIDocument* doc = aContent->GetDocument();
   NS_ENSURE_TRUE(doc, NS_ERROR_UNEXPECTED);
 
   nsIPresShell *presShell = doc->GetShell();
@@ -718,10 +720,11 @@ inDOMUtils::GetRuleNodeForElement(dom::Element* aElement,
   nsPresContext *presContext = presShell->GetPresContext();
   NS_ENSURE_TRUE(presContext, NS_ERROR_UNEXPECTED);
 
-  presContext->EnsureSafeToHandOutCSSRules();
+  bool safe = presContext->EnsureSafeToHandOutCSSRules();
+  NS_ENSURE_TRUE(safe, NS_ERROR_OUT_OF_MEMORY);
 
   nsRefPtr<nsStyleContext> sContext =
-    nsComputedDOMStyle::GetStyleContextForElement(aElement, aPseudo, presShell);
+    nsComputedDOMStyle::GetStyleContextForElement(aContent->AsElement(), aPseudo, presShell);
   if (sContext) {
     *aRuleNode = sContext->RuleNode();
     sContext.forget(aStyleContext);

@@ -613,11 +613,6 @@ public:
   virtual bool enumerate(JSContext *cx, JS::Handle<JSObject*> proxy,
                          JS::AutoIdVector &props) MOZ_OVERRIDE;
 
-  virtual bool watch(JSContext *cx, JS::Handle<JSObject*> proxy,
-                     JS::Handle<jsid> id, JS::Handle<JSObject*> callable) MOZ_OVERRIDE;
-  virtual bool unwatch(JSContext *cx, JS::Handle<JSObject*> proxy,
-                       JS::Handle<jsid> id) MOZ_OVERRIDE;
-
   // Derived traps
   virtual bool has(JSContext *cx, JS::Handle<JSObject*> proxy,
                    JS::Handle<jsid> id, bool *bp) MOZ_OVERRIDE;
@@ -965,20 +960,6 @@ nsOuterWindowProxy::AppendIndexedPropertyNames(JSContext *cx, JSObject *proxy,
   }
 
   return true;
-}
-
-bool
-nsOuterWindowProxy::watch(JSContext *cx, JS::Handle<JSObject*> proxy,
-                          JS::Handle<jsid> id, JS::Handle<JSObject*> callable)
-{
-  return js::WatchGuts(cx, proxy, id, callable);
-}
-
-bool
-nsOuterWindowProxy::unwatch(JSContext *cx, JS::Handle<JSObject*> proxy,
-                            JS::Handle<jsid> id)
-{
-  return js::UnwatchGuts(cx, proxy, id);
 }
 
 nsOuterWindowProxy
@@ -10396,7 +10377,7 @@ nsGlobalWindow::ShowSlowScriptDialog()
   NS_ENSURE_TRUE(prompt, KillSlowScript);
 
   // Check if we should offer the option to debug
-  JS::Rooted<JSScript*> script(cx);
+  JS::RootedScript script(cx);
   unsigned lineno;
   bool hasFrame = JS_DescribeScriptedCaller(cx, &script, &lineno);
 

@@ -73,8 +73,8 @@ public:
                                                                        aTitle,
                                                                        options);
     JSAutoCompartment ac(aCx, mGlobal);
-    JS::Rooted<JSObject*> scope(aCx, mGlobal);
-    JS::Rooted<JSObject*> element(aCx, notification->WrapObject(aCx, scope));
+    JS::RootedObject scope(aCx, mGlobal);
+    JS::RootedObject element(aCx, notification->WrapObject(aCx, scope));
     NS_ENSURE_TRUE(element, NS_ERROR_FAILURE);
 
     if (!JS_DefineElement(aCx, mNotifications, mCount++,
@@ -87,8 +87,7 @@ public:
   NS_IMETHOD Done(JSContext* aCx)
   {
     JSAutoCompartment ac(aCx, mGlobal);
-    Optional<JS::Handle<JS::Value>> result(aCx,
-                                           JS::ObjectValue(*mNotifications));
+    Optional<JS::HandleValue> result(aCx, JS::ObjectValue(*mNotifications));
     mPromise->MaybeResolve(aCx, result);
     return NS_OK;
   }
@@ -554,7 +553,7 @@ Notification::ShowInternal()
       rv = appsService->GetManifestURLByLocalId(appId, manifestUrl);
       if (NS_SUCCEEDED(rv)) {
         mozilla::AutoSafeJSContext cx;
-        JS::Rooted<JS::Value> val(cx);
+        JS::RootedValue val(cx);
         AppNotificationServiceOptions ops;
         ops.mTextClickable = true;
         ops.mManifestURL = manifestUrl;

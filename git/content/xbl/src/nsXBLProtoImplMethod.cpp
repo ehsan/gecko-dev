@@ -195,8 +195,9 @@ nsXBLProtoImplMethod::CompileMember(const nsCString& aClassStr,
   options.setFileAndLine(functionUri.get(),
                          uncompiledMethod->mBodyText.GetLineNumber())
          .setVersion(JSVERSION_LATEST);
-  JS::Rooted<JSObject*> methodObject(cx);
-  nsresult rv = nsJSUtils::CompileFunction(cx, JS::NullPtr(), options, cname,
+  JS::RootedObject rootedNull(cx, nullptr); // See bug 781070.
+  JS::RootedObject methodObject(cx);
+  nsresult rv = nsJSUtils::CompileFunction(cx, rootedNull, options, cname,
                                            paramCount,
                                            const_cast<const char**>(args),
                                            body, methodObject.address());

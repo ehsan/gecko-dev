@@ -83,10 +83,10 @@ DataStoreDB.prototype = {
     );
   },
 
-  addRevision: function(aStore, aKey, aType, aSuccessCb) {
-    debug("AddRevision: " + aKey + " - " + aType);
+  addRevision: function(aStore, aId, aType, aSuccessCb) {
+    debug("AddRevision: " + aId + " - " + aType);
     let revisionId =  uuidgen.generateUUID().toString();
-    let request = aStore.put({ revisionId: revisionId, objectId: aKey, operation: aType });
+    let request = aStore.put({ revisionId: revisionId, objectId: aId, operation: aType });
     request.onsuccess = function() {
       aSuccessCb(revisionId);
     }

@@ -478,7 +478,7 @@ DeserializeName(ExclusiveContext *cx, const uint8_t *cursor, PropertyName **name
         src = (jschar *)cursor;
     }
 
-    JSAtom *atom = AtomizeChars(cx, src, length);
+    JSAtom *atom = AtomizeChars<CanGC>(cx, src, length);
     if (!atom)
         return nullptr;
 

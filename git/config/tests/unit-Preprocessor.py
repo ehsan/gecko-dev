@@ -6,7 +6,7 @@ import sys
 import os.path
 from mozunit import main, MockedOpen
 
-from mozbuild.preprocessor import Preprocessor
+from Preprocessor import Preprocessor
 
 def NamedIO(name, content):
   with open(name, 'w') as f:

@@ -114,11 +114,11 @@ public:
                          bool aIsImportant,
                          bool aIsSVGMode);
 
-  void ParseMediaList(const nsSubstring& aBuffer,
-                      nsIURI* aURL, // for error reporting
-                      uint32_t aLineNumber, // for error reporting
-                      nsMediaList* aMediaList,
-                      bool aHTMLMode);
+  nsresult ParseMediaList(const nsSubstring& aBuffer,
+                          nsIURI* aURL, // for error reporting
+                          uint32_t aLineNumber, // for error reporting
+                          nsMediaList* aMediaList,
+                          bool aHTMLMode);
 
   bool ParseColorString(const nsSubstring& aBuffer,
                         nsIURI* aURL, // for error reporting
@@ -1151,7 +1151,7 @@ CSSParserImpl::ParseProperty(const nsCSSProperty aPropID,
 #pragma optimize( "", on )
 #endif
 
-void
+nsresult
 CSSParserImpl::ParseMediaList(const nsSubstring& aBuffer,
                               nsIURI* aURI, // for error reporting
                               uint32_t aLineNumber, // for error reporting
@@ -1189,6 +1189,8 @@ CSSParserImpl::ParseMediaList(const nsSubstring& aBuffer,
   CLEAR_ERROR();
   ReleaseScanner();
   mHTMLMediaMode = false;
+
+  return NS_OK;
 }
 
 bool
@@ -1962,7 +1964,7 @@ CSSParserImpl::ParseImportRule(RuleAppendFunc aAppendFunc, void* aData)
 
     // Safe to assert this, since we ensured that there is something
     // other than the ';' coming after the @import's url() token.
-    NS_ASSERTION(media->Length() != 0, "media list must be nonempty");
+    NS_ASSERTION(media->Count() != 0, "media list must be nonempty");
   }
 
   ProcessImport(url, media, aAppendFunc, aData);
@@ -11263,14 +11265,14 @@ nsCSSParser::ParseProperty(const nsCSSProperty aPropID,
                   aIsImportant, aIsSVGMode);
 }
 
-void
+nsresult
 nsCSSParser::ParseMediaList(const nsSubstring& aBuffer,
                             nsIURI*            aURI,
                             uint32_t           aLineNumber,
                             nsMediaList*       aMediaList,
                             bool               aHTMLMode)
 {
-  static_cast<CSSParserImpl*>(mImpl)->
+  return static_cast<CSSParserImpl*>(mImpl)->
     ParseMediaList(aBuffer, aURI, aLineNumber, aMediaList, aHTMLMode);
 }
 

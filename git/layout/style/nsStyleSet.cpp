@@ -1999,7 +1999,9 @@ nsStyleSet::EnsureUniqueInnerOnCSSSheets()
     nsCOMArray<nsIStyleSheet> &sheets = mSheets[gCSSSheetTypes[i]];
     for (uint32_t j = 0, j_end = sheets.Count(); j < j_end; ++j) {
       nsCSSStyleSheet *sheet = static_cast<nsCSSStyleSheet*>(sheets[j]);
-      queue.AppendElement(sheet);
+      if (!queue.AppendElement(sheet)) {
+        return nsCSSStyleSheet::eUniqueInner_CloneFailed;
+      }
     }
   }
 
@@ -2016,12 +2018,17 @@ nsStyleSet::EnsureUniqueInnerOnCSSSheets()
 
     nsCSSStyleSheet::EnsureUniqueInnerResult sheetRes =
       sheet->EnsureUniqueInner();
+    if (sheetRes == nsCSSStyleSheet::eUniqueInner_CloneFailed) {
+      return sheetRes;
+    }
     if (sheetRes == nsCSSStyleSheet::eUniqueInner_ClonedInner) {
       res = sheetRes;
     }
 
     // Enqueue all the sheet's children.
-    sheet->AppendAllChildSheets(queue);
+    if (!sheet->AppendAllChildSheets(queue)) {
+      return nsCSSStyleSheet::eUniqueInner_CloneFailed;
+    }
   }
   return res;
 }

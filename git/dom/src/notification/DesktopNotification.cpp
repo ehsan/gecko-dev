@@ -93,7 +93,7 @@ DesktopNotification::PostDesktopNotification()
       nsString manifestUrl = EmptyString();
       appsService->GetManifestURLByLocalId(appId, manifestUrl);
       mozilla::AutoSafeJSContext cx;
-      JS::Rooted<JS::Value> val(cx);
+      JS::RootedValue val(cx);
       AppNotificationServiceOptions ops;
       ops.mTextClickable = true;
       ops.mManifestURL = manifestUrl;
