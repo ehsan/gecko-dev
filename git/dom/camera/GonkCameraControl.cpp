@@ -676,8 +676,6 @@ nsGonkCameraControl::StartPreviewImpl(StartPreviewTask* aStartPreview)
   if (aStartPreview->mDOMPreview) {
     mDOMPreview->Started();
   }
-
-  OnPreviewStateChange(PREVIEW_STARTED);
   return NS_OK;
 }
 
@@ -696,7 +694,6 @@ nsGonkCameraControl::StopPreviewInternal(bool aForced)
     mDOMPreview = nullptr;
   }
 
-  OnPreviewStateChange(PREVIEW_STOPPED);
   return NS_OK;
 }
 
@@ -866,10 +863,6 @@ nsGonkCameraControl::TakePictureImpl(TakePictureTask* aTakePicture)
   if (mCameraHw->TakePicture() != OK) {
     return NS_ERROR_FAILURE;
   }
-  
-  // In Gonk, taking a picture implicitly kills the preview stream,
-  // so we need to reflect that here.
-  OnPreviewStateChange(PREVIEW_STOPPED);
   return NS_OK;
 }
 

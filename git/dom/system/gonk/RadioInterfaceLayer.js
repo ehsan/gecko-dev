@@ -209,17 +209,6 @@ function convertRILCallState(state) {
   }
 }
 
-function convertRILSuppSvcNotification(notification) {
-  switch (notification) {
-    case RIL.GECKO_SUPP_SVC_NOTIFICATION_REMOTE_HELD:
-      return nsITelephonyProvider.NOTIFICATION_REMOTE_HELD;
-    case RIL.GECKO_SUPP_SVC_NOTIFICATION_REMOTE_RESUMED:
-      return nsITelephonyProvider.NOTIFICATION_REMOTE_RESUMED;
-    default:
-      throw new Error("Unknown rilSuppSvcNotification: " + notification);
-  }
-}
-
 /**
  * Fake nsIAudioManager implementation so that we can run the telephony
  * code in a non-Gonk build.
@@ -949,9 +938,6 @@ RadioInterface.prototype = {
         break;
       case "callError":
         this.handleCallError(message);
-        break;
-      case "suppSvcNotification":
-        this.handleSuppSvcNotification(message);
         break;
       case "iccOpenChannel":
         this.handleIccOpenChannel(message);
@@ -1822,14 +1808,6 @@ RadioInterface.prototype = {
   handleCallError: function handleCallError(message) {
     gMessageManager.sendTelephonyMessage("RIL:CallError",
                                          this.clientId, message);
-  },
-
-  /**
-   * Handle supplementary service notification.
-   */
-  handleSuppSvcNotification: function handleSuppSvcNotification(message) {
-    message.notification = convertRILSuppSvcNotification(message.notification);
-    this._sendTelephonyMessage("RIL:SuppSvcNotification", message);
   },
 
   /**
