@@ -126,16 +126,16 @@ gfxUserFontSet::AddFontFace(const nsAString& aFamilyName,
                             int32_t aStretch,
                             uint32_t aItalicStyle,
                             const nsTArray<gfxFontFeature>& aFeatureSettings,
-                            uint32_t aLanguageOverride,
+                            const nsString& aLanguageOverride,
                             gfxSparseBitSet *aUnicodeRanges)
 {
-    MOZ_ASSERT(aWeight != 0,
-               "aWeight must not be 0; use NS_FONT_WEIGHT_NORMAL instead");
-
     nsAutoString key(aFamilyName);
     ToLowerCase(key);
 
     bool found;
+
+    if (aWeight == 0)
+        aWeight = NS_FONT_WEIGHT_NORMAL;
 
     // stretch, italic/oblique ==> zero implies normal
 
@@ -144,6 +144,9 @@ gfxUserFontSet::AddFontFace(const nsAString& aFamilyName,
         family = new gfxMixedFontFamily(aFamilyName);
         mFontFamilies.Put(key, family);
     }
+
+    uint32_t languageOverride =
+        gfxFontStyle::ParseFontLanguageOverride(aLanguageOverride);
 
     // If there's already a proxy in the family whose descriptors all match,
     // we can just move it to the end of the list instead of adding a new
@@ -161,7 +164,7 @@ gfxUserFontSet::AddFontFace(const nsAString& aFamilyName,
             static_cast<gfxProxyFontEntry*>(fontList[i].get());
         if (!existingProxyEntry->Matches(aFontFaceSrcList,
                                          aWeight, aStretch, aItalicStyle,
-                                         aFeatureSettings, aLanguageOverride,
+                                         aFeatureSettings, languageOverride,
                                          aUnicodeRanges)) {
             continue;
         }
@@ -178,7 +181,7 @@ gfxUserFontSet::AddFontFace(const nsAString& aFamilyName,
         new gfxProxyFontEntry(aFontFaceSrcList, aWeight, aStretch,
                               aItalicStyle,
                               aFeatureSettings,
-                              aLanguageOverride,
+                              languageOverride,
                               aUnicodeRanges);
     family->AddFontEntry(proxyEntry);
 #ifdef PR_LOGGING
@@ -829,14 +832,6 @@ nsTHashtable<gfxUserFontSet::UserFontCache::Entry>*
 NS_IMPL_ISUPPORTS(gfxUserFontSet::UserFontCache::Flusher, nsIObserver)
 
 PLDHashOperator
-gfxUserFontSet::UserFontCache::Entry::RemoveUnlessPersistent(Entry* aEntry,
-                                                             void* aUserData)
-{
-    return aEntry->mPersistence == kPersistent ? PL_DHASH_NEXT :
-                                                 PL_DHASH_REMOVE;
-}
-
-PLDHashOperator
 gfxUserFontSet::UserFontCache::Entry::RemoveIfPrivate(Entry* aEntry,
                                                       void* aUserData)
 {
@@ -869,7 +864,7 @@ gfxUserFontSet::UserFontCache::Flusher::Observe(nsISupports* aSubject,
     }
 
     if (!strcmp(aTopic, "cacheservice:empty-cache")) {
-        sUserFonts->EnumerateEntries(Entry::RemoveUnlessPersistent, nullptr);
+        sUserFonts->Clear();
     } else if (!strcmp(aTopic, "last-pb-context-exited")) {
         sUserFonts->EnumerateEntries(Entry::RemoveIfPrivate, nullptr);
     } else if (!strcmp(aTopic, "xpcom-shutdown")) {
@@ -927,8 +922,7 @@ gfxUserFontSet::UserFontCache::Entry::KeyEquals(const KeyTypePointer aKey) const
 }
 
 void
-gfxUserFontSet::UserFontCache::CacheFont(gfxFontEntry *aFontEntry,
-                                         EntryPersistence aPersistence)
+gfxUserFontSet::UserFontCache::CacheFont(gfxFontEntry *aFontEntry)
 {
     NS_ASSERTION(aFontEntry->mFamilyName.Length() != 0,
                  "caching a font associated with no family yet");
@@ -957,7 +951,7 @@ gfxUserFontSet::UserFontCache::CacheFont(gfxFontEntry *aFontEntry,
         principal = data->mPrincipal;
     }
     sUserFonts->PutEntry(Key(data->mURI, principal, aFontEntry,
-                             data->mPrivate, aPersistence));
+                             data->mPrivate));
 
 #ifdef DEBUG_USERFONT_CACHE
     printf("userfontcache added fontentry: %p\n", aFontEntry);

@@ -571,10 +571,9 @@ nsAppShell::ProcessNextNativeEvent(bool aMayWait)
       }
       EventAttributes attrs = GetEventAttributes(currentEvent);
       UInt32 eventKind = GetEventKind(currentEvent);
-      UInt32 eventClass = GetEventClass(currentEvent);
       bool osCocoaEvent =
-        ((eventClass == 'appl') ||
-         ((eventClass == 'cgs ') && (eventKind != NSApplicationDefined)));
+        ((GetEventClass(currentEvent) == 'cgs ') &&
+         ((eventKind == NSAppKitDefined) || (eventKind == NSSystemDefined)));
       // If attrs is kEventAttributeUserEvent or kEventAttributeMonitored
       // (i.e. a user input event), we shouldn't process it here while
       // aMayWait is false.  Likewise if currentEvent will eventually be

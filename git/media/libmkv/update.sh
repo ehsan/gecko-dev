@@ -36,4 +36,3 @@ patch -p1 < gecko_fix.patch
 patch -p1 < const_fix.patch
 patch -p3 < bock_fix.patch
 patch -p3 < bug970774.patch
-patch -p3 < cleanup.patch

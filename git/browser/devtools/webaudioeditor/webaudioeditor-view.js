@@ -16,11 +16,10 @@ const COLLAPSE_INSPECTOR_STRING = L10N.getStr("collapseInspector");
 const INSPECTOR_WIDTH = 300;
 
 // Globals for d3 stuff
-// Default properties of the graph on rerender
-const GRAPH_DEFAULTS = {
-  translate: [20, 20],
-  scale: 1
-};
+// Width/height in pixels of SVG graph
+// TODO investigate to see how this works in other host types bug 994257
+const WIDTH = 1000;
+const HEIGHT = 400;
 
 // Sizes of SVG arrows in graph
 const ARROW_HEIGHT = 5;
@@ -85,39 +84,15 @@ let WebAudioGraphView = {
    * and clears out old content
    */
   resetUI: function () {
-    this.clearGraph();
-    this.resetGraphPosition();
+    this.resetGraph();
   },
 
   /**
    * Clears out the rendered graph, called when resetting the SVG elements to draw again,
    * or when resetting the entire UI tool
    */
-  clearGraph: function () {
+  resetGraph: function () {
     $("#graph-target").innerHTML = "";
-  },
-
-  /**
-   * Moves the graph back to its original scale and translation.
-   */
-  resetGraphPosition: function () {
-    if (this._zoomBinding) {
-      let { translate, scale } = GRAPH_DEFAULTS;
-      // Must set the `zoomBinding` so the next `zoom` event is in sync with
-      // where the graph is visually (set by the `transform` attribute).
-      this._zoomBinding.scale(scale);
-      this._zoomBinding.translate(translate);
-      d3.select("#graph-target")
-        .attr("transform", "translate(" + translate + ") scale(" + scale + ")");
-    }
-  },
-
-  getCurrentScale: function () {
-    return this._zoomBinding ? this._zoomBinding.scale() : null;
-  },
-
-  getCurrentTranslation: function () {
-    return this._zoomBinding ? this._zoomBinding.translate() : null;
   },
 
   /**
@@ -149,7 +124,7 @@ let WebAudioGraphView = {
    */
   draw: function () {
     // Clear out previous SVG information
-    this.clearGraph();
+    this.resetGraph();
 
     let graph = new dagreD3.Digraph();
     let edges = [];
@@ -203,7 +178,7 @@ let WebAudioGraphView = {
 
     // Override Dagre-d3's post render function by passing in our own.
     // This way we can leave styles out of it.
-    renderer.postRender((graph, root) => {
+    renderer.postRender(function (graph, root) {
       // We have to manually set the marker styling since we cannot
       // do this currently with CSS, although it is in spec for SVG2
       // https://svgwg.org/svg2-draft/painting.html#VertexMarkerProperties
@@ -229,12 +204,6 @@ let WebAudioGraphView = {
           .attr("d", "M 0 0 L 10 5 L 0 10 z");
       }
 
-      // Reselect the previously selected audio node
-      let currentNode = WebAudioInspectorView.getCurrentAudioNode();
-      if (currentNode) {
-        this.focusNode(currentNode.id);
-      }
-
       // Fire an event upon completed rendering
       window.emit(EVENTS.UI_GRAPH_RENDERED, AudioNodes.length, edges.length);
     });
@@ -251,10 +220,6 @@ let WebAudioGraphView = {
           .attr("transform", "translate(" + ev.translate + ") scale(" + ev.scale + ")");
       });
       d3.select("svg").call(this._zoomBinding);
-
-      // Set initial translation and scale -- this puts D3's awareness of
-      // the graph in sync with what the user sees originally.
-      this.resetGraphPosition();
     }
   },
 
@@ -431,7 +396,7 @@ let WebAudioInspectorView = {
   /**
    * Returns the current AudioNodeView.
    */
-  getCurrentAudioNode: function () {
+  getCurrentNode: function () {
     return this._currentNode;
   },
 

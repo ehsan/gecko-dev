@@ -31,7 +31,6 @@ namespace jit {
     _(Div)                                      \
     _(Mod)                                      \
     _(Concat)                                   \
-    _(StringLength)                             \
     _(Floor)                                    \
     _(Round)                                    \
     _(CharCodeAt)                               \
@@ -270,18 +269,6 @@ class RConcat MOZ_FINAL : public RInstruction
 
     virtual uint32_t numOperands() const {
         return 2;
-    }
-
-    bool recover(JSContext *cx, SnapshotIterator &iter) const;
-};
-
-class RStringLength MOZ_FINAL : public RInstruction
-{
-public:
-    RINSTRUCTION_HEADER_(StringLength)
-
-    virtual uint32_t numOperands() const {
-        return 1;
     }
 
     bool recover(JSContext *cx, SnapshotIterator &iter) const;
