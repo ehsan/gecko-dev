@@ -67,7 +67,6 @@ public class MultiTileLayer extends Layer {
     private IntSize mBufferSize;
     private Region mDirtyRegion;
     private Region mValidRegion;
-    private Point mRenderOffset;
     private final LinkedList<SubTile> mTiles;
     private final HashMap<Long, SubTile> mPositionHash;
 
@@ -79,7 +78,6 @@ public class MultiTileLayer extends Layer {
         mBufferSize = new IntSize(0, 0);
         mDirtyRegion = new Region();
         mValidRegion = new Region();
-        mRenderOffset = new Point();
         mTiles = new LinkedList<SubTile>();
         mPositionHash = new HashMap<Long, SubTile>();
     }
@@ -162,12 +160,6 @@ public class MultiTileLayer extends Layer {
         return new Long((((long)point.x) << 32) | point.y);
     }
 
-    private Point getOffsetOrigin() {
-        Point origin = new Point(getOrigin());
-        origin.offset(-mRenderOffset.x, -mRenderOffset.y);
-        return origin;
-    }
-
     /**
      * Performs the necessary functions to update the specified properties of
      * a sub-tile.
@@ -180,7 +172,7 @@ public class MultiTileLayer extends Layer {
                 // buffer. This is done as SingleTileLayer always updates the
                 // entire width, regardless of the dirty-rect's width, and so
                 // can override existing data.
-                Point origin = getOffsetOrigin();
+                Point origin = getOrigin();
                 Rect validRect = tile.getValidTextureArea();
                 validRect.offset(tileOrigin.x - origin.x, tileOrigin.y - origin.y);
                 Region validRegion = new Region(validRect);
@@ -234,9 +226,9 @@ public class MultiTileLayer extends Layer {
         }
 
         // Check that we're capable of updating from this origin.
-        Point origin = getOffsetOrigin();
+        Point origin = getOrigin();
         if ((origin.x % mTileSize.width) != 0 || (origin.y % mTileSize.height) != 0) {
-            Log.e(LOGTAG, "MultiTileLayer doesn't support non tile-aligned buffers! (" +
+            Log.e(LOGTAG, "MultiTileLayer doesn't support non tile-aligned origins! (" +
                   origin.x + ", " + origin.y + ")");
             return true;
         }
@@ -333,7 +325,7 @@ public class MultiTileLayer extends Layer {
                 }
 
                 // Dirty tile, find out if we already have this tile to reuse.
-                boolean reusedTile;
+                boolean reusedTile = true;
                 Point tileOrigin = new Point(x, y);
                 SubTile tile = mPositionHash.get(longFromPoint(tileOrigin));
 
@@ -343,10 +335,6 @@ public class MultiTileLayer extends Layer {
                     reusedTile = false;
                 } else {
                     mTiles.remove(tile);
-
-                    // Reuse the tile (i.e. keep the texture data and metrics)
-                    // only if the resolution matches
-                    reusedTile = FloatUtils.fuzzyEquals(tile.getResolution(), getResolution());
                 }
 
                 // Place tile at the end of the tile-list so it isn't re-used.
@@ -400,41 +388,11 @@ public class MultiTileLayer extends Layer {
     @Override
     public void draw(RenderContext context) {
         for (SubTile layer : mTiles) {
-            // Skip invalid tiles
-            if (layer.key == null) {
-                continue;
-            }
-
             // Avoid work, only draw tiles that intersect with the viewport
             RectF layerBounds = layer.getBounds(context, new FloatSize(layer.getSize()));
-            if (RectF.intersects(layerBounds, context.viewport)) {
+            if (RectF.intersects(layerBounds, context.viewport))
                 layer.draw(context);
-            }
         }
-    }
-
-    @Override
-    public void setOrigin(Point origin) {
-        Point oldOrigin = getOrigin();
-
-        if (!origin.equals(oldOrigin)) {
-            super.setOrigin(origin);
-            invalidateBuffer();
-        }
-    }
-
-    @Override
-    public void setResolution(float resolution) {
-        float oldResolution = getResolution();
-
-        if (!FloatUtils.fuzzyEquals(resolution, oldResolution)) {
-            super.setResolution(resolution);
-            invalidateBuffer();
-        }
-    }
-
-    public void setRenderOffset(Point offset) {
-        mRenderOffset.set(offset.x, offset.y);
     }
 
     /**

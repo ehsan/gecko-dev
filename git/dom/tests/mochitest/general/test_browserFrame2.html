@@ -25,10 +25,7 @@ SimpleTest.waitForExplicitFinish();
 function runTest() {
   browserFrameHelpers.setEnabledPref(false);
 
-  var iframe = document.createElement('iframe');
-  iframe.mozbrowser = true;
-  document.body.appendChild(iframe);
-
+  var iframe = document.getElementById('iframe');
   iframe.addEventListener('mozbrowserloadstart', function() {
     ok(false, 'Should not send mozbrowserloadstart event.');
   });
@@ -44,6 +41,8 @@ function runTest() {
 addEventListener('load', function() { SimpleTest.executeSoon(runTest); });
 
 </script>
+
+<iframe id='iframe' mozbrowser></iframe>
 
 </body>
 </html>

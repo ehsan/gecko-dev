@@ -38,7 +38,7 @@
  
 #import "mozAccessible.h"
 
-#import "MacUtils.h"
+// to get the mozView formal protocol, that all gecko's ChildViews implement.
 #import "mozView.h"
 #import "nsRoleMap.h"
 
@@ -127,6 +127,24 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSNULL;
 }
 
+/**
+ * Get a localized string from the string bundle.
+ * Return nil is not found.
+ */
+static NSString* 
+GetLocalizedString(const nsString& aString)
+{
+  if (!nsAccessNode::GetStringBundle())
+    return nil;
+
+  nsXPIDLString text;
+  nsresult rv = nsAccessNode::GetStringBundle()->GetStringFromName(aString.get(),
+                                 getter_Copies(text));
+  NS_ENSURE_SUCCESS(rv, nil);
+
+  return !text.IsEmpty() ? nsCocoaUtils::ToNSString(text) : nil;
+}
+
 #pragma mark -
 
 @implementation mozAccessible
@@ -201,9 +219,6 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
                                                            NSAccessibilityTitleUIElementAttribute,
                                                            NSAccessibilityTopLevelUIElementAttribute,
                                                            NSAccessibilityDescriptionAttribute,
-#if DEBUG
-                                                           @"AXMozDescription",
-#endif
                                                            nil];
   }
 
@@ -218,11 +233,6 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
 
   if (mIsExpired)
     return nil;
-
-#if DEBUG
-  if ([attribute isEqualToString:@"AXMozDescription"])
-    return [NSString stringWithFormat:@"role = %u", mRole];
-#endif
   
   if ([attribute isEqualToString:NSAccessibilityChildrenAttribute])
     return [self children];
@@ -244,8 +254,8 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
   if ([attribute isEqualToString:NSAccessibilityValueAttribute])
     return [self value];
   if ([attribute isEqualToString:NSAccessibilityRoleDescriptionAttribute]) {
-    if (mRole == roles::DOCUMENT)
-      return utils::LocalizedString(NS_LITERAL_STRING("htmlContent"));
+    if (mRole == roles::INTERNAL_FRAME || mRole == roles::DOCUMENT_FRAME)
+      return GetLocalizedString(NS_LITERAL_STRING("htmlContent")) ? : @"HTML Content";
 
     return NSAccessibilityRoleDescription([self role], nil);
   }

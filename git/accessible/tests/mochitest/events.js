@@ -174,7 +174,7 @@ const DO_NOT_FINISH_TEST = 1;
  *     //   phase getter: function() {},
  *     //
  *     //   * Callback, called to match handled event. *
- *     //   match : function(aEvent) {},
+ *     //   match : function() {},
  *     //
  *     //   * Callback, called when event is handled
  *     //   check: function(aEvent) {},
@@ -1340,10 +1340,10 @@ function caretMoveChecker(aCaretOffset, aTargetOrFunc, aTargetFuncArg)
  * State change checker.
  */
 function stateChangeChecker(aState, aIsExtraState, aIsEnabled,
-                            aTargetOrFunc, aTargetFuncArg, aIsAsync)
+                            aTargetOrFunc, aTargetFuncArg)
 {
   this.__proto__ = new invokerChecker(EVENT_STATE_CHANGE, aTargetOrFunc,
-                                      aTargetFuncArg, aIsAsync);
+                                      aTargetFuncArg);
 
   this.check = function stateChangeChecker_check(aEvent)
   {
@@ -1370,22 +1370,6 @@ function stateChangeChecker(aState, aIsExtraState, aIsEnabled,
     var unxpdExtraState = aIsEnabled ? 0 : (aIsExtraState ? aState : 0);
     testStates(event.accessible, state, extraState, unxpdState, unxpdExtraState);
   }
-
-  this.match = function stateChangeChecker_match(aEvent)
-  {
-    if (aEvent instanceof nsIAccessibleStateChangeEvent) {
-      var scEvent = aEvent.QueryInterface(nsIAccessibleStateChangeEvent);
-      return aEvent.accessible = this.target && scEvent.state == aState;
-    }
-    return false;
-  }
-}
-
-function asyncStateChangeChecker(aState, aIsExtraState, aIsEnabled,
-                                 aTargetOrFunc, aTargetFuncArg)
-{
-  this.__proto__ = new stateChangeChecker(aState, aIsExtraState, aIsEnabled,
-                                          aTargetOrFunc, aTargetFuncArg, true);
 }
 
 /**

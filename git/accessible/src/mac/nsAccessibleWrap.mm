@@ -104,9 +104,6 @@ nsAccessibleWrap::GetNativeType ()
              [mozButtonAccessible class];
     }
     
-    case roles::PAGETAB:
-      return [mozButtonAccessible class];
-
     case roles::CHECKBUTTON:
       return [mozCheckboxAccessible class];
       
@@ -116,9 +113,6 @@ nsAccessibleWrap::GetNativeType ()
     case roles::HEADING:
       return [mozHeadingAccessible class];
 
-    case roles::PAGETABLIST:
-      return [mozTabsAccessible class];
-      
     case roles::ENTRY:
     case roles::STATICTEXT:
     case roles::LABEL:

@@ -70,7 +70,6 @@ CPPSRCS		= \
 		nsStackWalk.cpp \
 		nsMemoryReporterManager.cpp \
 		FunctionTimer.cpp \
-		ClearOnShutdown.cpp \
 		$(NULL)
 
 ifeq ($(OS_ARCH),Linux)

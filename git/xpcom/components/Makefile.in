@@ -81,6 +81,7 @@ SDK_XPIDLSRCS	= \
 LOCAL_INCLUDES	= \
 	-I$(srcdir)/../reflect/xptinfo/src \
 	-I$(srcdir)/../base \
+	-I$(srcdir)/../thread \
 	-I$(srcdir)/../ds \
 	-I$(srcdir)/../build \
 	-I.. \

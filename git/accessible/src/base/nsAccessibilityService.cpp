@@ -395,7 +395,7 @@ nsAccessibilityService::CreateHTMLObjectFrameAccessible(nsObjectFrame* aFrame,
     nsCString plugId;
     nsresult rv = pluginInstance->GetValueFromPlugin(
       NPPVpluginNativeAccessibleAtkPlugId, &plugId);
-    if (NS_SUCCEEDED(rv) && !plugId.IsEmpty()) {
+    if (NS_SUCCEEDED(rv) && !plugId.IsVoid()) {
       AtkSocketAccessible* socketAccessible =
         new AtkSocketAccessible(aContent, weakShell, plugId);
 

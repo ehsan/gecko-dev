@@ -64,8 +64,8 @@ function test() {
        "window value was set before the window was overwritten");
     ss.setWindowState(newWin, JSON.stringify(newState), true);
 
-    // use newWin.setTimeout(..., 0) to mirror sss_restoreWindowFeatures
-    newWin.setTimeout(function() {
+    // use setTimeout(..., 0) to mirror sss_restoreWindowFeatures
+    setTimeout(function() {
       is(ss.getWindowValue(newWin, uniqueKey), "",
          "window value was implicitly cleared");
 
@@ -78,7 +78,7 @@ function test() {
       delete newState.windows[0].sizemode;
       ss.setWindowState(newWin, JSON.stringify(newState), true);
 
-      newWin.setTimeout(function() {
+      setTimeout(function() {
         is(JSON.parse(ss.getClosedTabData(newWin)).length, 0,
            "closed tabs were implicitly cleared");
 
@@ -87,7 +87,7 @@ function test() {
         newState.windows[0].sizemode = "normal";
         ss.setWindowState(newWin, JSON.stringify(newState), true);
 
-        newWin.setTimeout(function() {
+        setTimeout(function() {
           isnot(newWin.windowState, newWin.STATE_MAXIMIZED,
                 "the window was explicitly unmaximized");
 

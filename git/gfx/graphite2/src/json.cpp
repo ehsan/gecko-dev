@@ -27,7 +27,7 @@ of the License or (at your option) any later version.
 // JSON debug logging
 // Author: Tim Eves
 
-#include <stdio.h>
+#include <cstdio>
 #include "inc/json.h"
 
 using namespace graphite2;
