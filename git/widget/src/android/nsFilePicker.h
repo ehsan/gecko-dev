@@ -12,14 +12,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla Webapp code.
+ * The Original Code is Mozilla Android code.
  *
  * The Initial Developer of the Original Code is Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Fabrice Desré <fabrice@mozilla.com>
+ *   Brad Lassey <blassey@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,22 +35,19 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsWebappsSupport_h__
-#define nsWebappsSupport_h__
+#ifndef NSFILEPICKER_H
+#define NSFILEPICKER_H
 
-#include "nsIWebappsSupport.h"
+#include "nsIFilePicker.h"
+#include "nsString.h"
 
-class nsWebappsSupport : public nsIWebappsSupport
+class nsFilePicker : public nsIFilePicker
 {
 public:
-
   NS_DECL_ISUPPORTS
-  NS_DECL_NSIWEBAPPSSUPPORT
+  NS_DECL_NSIFILEPICKER
 
-  nsWebappsSupport() {};
-  ~nsWebappsSupport() {};
-
+private:
+  nsString mFilePath;
 };
-
-#endif // nsWebappsSupport_h__
-
+#endif
