@@ -568,10 +568,7 @@ function Search(searchString, searchParam, autocompleteListener,
   // Set the default behavior for this search.
   this._behavior = this._searchString ? Prefs.defaultBehavior
                                       : Prefs.emptySearchDefaultBehavior;
-
-  let params = new Set(searchParam.split(" "));
-  this._enableActions = params.has("enable-actions");
-  this._disablePrivateActions = params.has("disable-private-actions");
+  this._enableActions = searchParam.split(" ").indexOf("enable-actions") != -1;
 
   this._searchTokens =
     this.filterTokens(getUnfilteredSearchTokens(this._searchString));
@@ -633,14 +630,8 @@ Search.prototype = {
    * @return true if the behavior is set, false otherwise.
    */
   hasBehavior: function (type) {
-    let behavior = Ci.mozIPlacesAutoComplete["BEHAVIOR_" + type.toUpperCase()];
-
-    if (this._disablePrivateActions &&
-        behavior == Ci.mozIPlacesAutoComplete.BEHAVIOR_OPENPAGE) {
-      return false;
-    }
-
-    return this._behavior & behavior;
+    return this._behavior &
+           Ci.mozIPlacesAutoComplete["BEHAVIOR_" + type.toUpperCase()];
   },
 
   /**

@@ -428,8 +428,6 @@ loop.conversationViews = (function(mozL10n) {
    * the different views that need displaying.
    */
   var OutgoingConversationView = React.createClass({
-    mixins: [sharedMixins.AudioMixin],
-
     propTypes: {
       dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired,
       store: React.PropTypes.instanceOf(
@@ -495,7 +493,6 @@ loop.conversationViews = (function(mozL10n) {
           );
         }
         case CALL_STATES.FINISHED: {
-          this.play("terminated");
           return this._renderFeedbackView();
         }
         case CALL_STATES.INIT: {

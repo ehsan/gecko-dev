@@ -67,8 +67,7 @@ this.EXPORTED_SYMBOLS = ["PlacesTransactions"];
  *            a live bookmark is associated.
  *  - tag - a string.
  *  - tags: an array of strings.
- *  - guid, parentGuid, newParentGuid: a valid Places GUID string.
- *  - guids: an array of valid Places GUID strings.
+ *  - guid, parentGuid, newParentGuid: a valid places GUID string.
  *  - title: a string
  *  - index, newIndex: the position of an item in its containing folder,
  *    starting from 0.
@@ -463,6 +462,7 @@ Enqueuer.prototype = {
    */
   get promise() this._promise
 };
+
 
 let TransactionsManager = {
   // See the documentation at the top of this file. |transact| calls are not
@@ -869,7 +869,6 @@ DefineTransaction.defineInputProps(["index", "newIndex"],
                                    PlacesUtils.bookmarks.DEFAULT_INDEX);
 DefineTransaction.defineInputProps(["annotation"],
                                    DefineTransaction.annotationObjectValidate);
-DefineTransaction.defineArrayInputProp("guids", "guid");
 DefineTransaction.defineArrayInputProp("urls", "url");
 DefineTransaction.defineArrayInputProp("tags", "tag");
 DefineTransaction.defineArrayInputProp("annotations", "annotation");
@@ -1270,40 +1269,29 @@ PT.EditUrl.prototype = Object.seal({
  *
  * Required Input Properties: guid, annotationObject
  */
-PT.Annotate = DefineTransaction(["guids", "annotations"]);
+PT.Annotate = DefineTransaction(["guid", "annotations"]);
 PT.Annotate.prototype = {
-  *execute(aGuids, aNewAnnos) {
-    let undoAnnosForItem = new Map(); // itemId => undoAnnos;
-    for (let guid of aGuids) {
-      let itemId = yield PlacesUtils.promiseItemId(guid);
-      let currentAnnos = PlacesUtils.getAnnotationsForItem(itemId);
-
-      let undoAnnos = [];
-      for (let newAnno of aNewAnnos) {
-        let currentAnno = currentAnnos.find(a => a.name == newAnno.name);
-        if (!!currentAnno) {
-          undoAnnos.push(currentAnno);
-        }
-        else {
-          // An unset value removes the annotation.
-          undoAnnos.push({ name: newAnno.name });
-        }
+  execute: function* (aGuid, aNewAnnos) {
+    let itemId = yield PlacesUtils.promiseItemId(aGuid);
+    let currentAnnos = PlacesUtils.getAnnotationsForItem(itemId);
+    let undoAnnos = [];
+    for (let newAnno of aNewAnnos) {
+      let currentAnno = currentAnnos.find( a => a.name == newAnno.name );
+      if (!!currentAnno) {
+        undoAnnos.push(currentAnno);
       }
-      undoAnnosForItem.set(itemId, undoAnnos);
-
-      PlacesUtils.setAnnotationsForItem(itemId, aNewAnnos);
+      else {
+        // An unset value removes the annotation.
+        undoAnnos.push({ name: newAnno.name });
+      }
     }
 
-    this.undo = function() {
-      for (let [itemId, undoAnnos] of undoAnnosForItem) {
-        PlacesUtils.setAnnotationsForItem(itemId, undoAnnos);
-      }
+    PlacesUtils.setAnnotationsForItem(itemId, aNewAnnos);
+    this.undo = () => {
+      PlacesUtils.setAnnotationsForItem(itemId, undoAnnos);
     };
-    this.redo = function* () {
-      for (let guid of aGuids) {
-        let itemId = yield PlacesUtils.promiseItemId(guid);
-        PlacesUtils.setAnnotationsForItem(itemId, aNewAnnos);
-      }
+    this.redo = () => {
+      PlacesUtils.setAnnotationsForItem(itemId, aNewAnnos);
     };
   }
 };
@@ -1396,61 +1384,28 @@ PT.SortByName.prototype = {
 /**
  * Transaction for removing an item (any type).
  *
- * Required Input Properties: guids.
+ * Required Input Properties: guid.
  */
-PT.Remove = DefineTransaction(["guids"]);
+PT.Remove = DefineTransaction(["guid"]);
 PT.Remove.prototype = {
-  *execute(aGuids) {
-    function promiseBookmarksTree(guid) {
-      try {
-        return PlacesUtils.promiseBookmarksTree(guid);
-      }
-      catch(ex) {
-        throw new Error("Failed to get info for the specified item (guid: " +
-                        guid + "). Ex: " + ex);
-      }
+  execute: function* (aGuid) {
+    const bms = PlacesUtils.bookmarks;
+
+    let itemInfo = null;
+    try {
+      itemInfo = yield PlacesUtils.promiseBookmarksTree(aGuid);
     }
-    let toRestore = [for (guid of aGuids) yield promiseBookmarksTree(guid)];
-
-    let removeThem = Task.async(function* () {
-      for (let guid of aGuids) {
-        PlacesUtils.bookmarks.removeItem(yield PlacesUtils.promiseItemId(guid));
-      }
-    });
-    yield removeThem();
-
-    this.undo = Task.async(function* () {
-      for (let info of toRestore) {
-        yield createItemsFromBookmarksTree(info, true);
-      }
-    });
-    this.redo = removeThem;
+    catch(ex) {
+      throw new Error("Failed to get info for the specified item (guid: " +
+                      aGuid + "). Ex: " + ex);
+    }
+    PlacesUtils.bookmarks.removeItem(yield PlacesUtils.promiseItemId(aGuid));
+    this.undo = createItemsFromBookmarksTree.bind(null, itemInfo, true);
   }
 };
 
 /**
- * Transactions for removing all bookmarks for one or more urls.
- *
- * Required Input Properties: urls.
- */
-PT.RemoveBookmarksForUrls = DefineTransaction(["urls"]);
-PT.RemoveBookmarksForUrls.prototype = {
-  *execute(aUrls) {
-    let guids = [];
-    for (let url of aUrls) {
-      yield PlacesUtils.bookmarks.fetch({ url }, info => {
-        guids.push(info.guid);
-      });
-    }
-    let removeTxn = TransactionsHistory.getRawTransaction(PT.Remove(guids));
-    yield removeTxn.execute();
-    this.undo = removeTxn.undo.bind(removeTxn);
-    this.redo = removeTxn.redo.bind(removeTxn);
-  }
-};
-
-/**
- * Transaction for tagging urls.
+ * Transaction for tagging a URI.
  *
  * Required Input Properties: urls, tags.
  */

@@ -10,7 +10,8 @@ Instructions
 .. code-block:: shell
 
   ./mach build && ./mach package
-  ./mach gradle build
+  cd $OBJDIR/mobile/android
+  ./gradlew build
 
 The debug APK will be at
 ``$OBJDIR/mobile/android/gradle/app/build/outputs/apk/app-debug.apk``.

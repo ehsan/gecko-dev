@@ -574,10 +574,10 @@ describe("loop.store.ActiveRoomStore", function () {
         "fakeToken", "1627384950");
     });
 
-    it("should set the state to ENDED", function() {
+    it("should set the state to ready", function() {
       store.windowUnload();
 
-      expect(store._storeState.roomState).eql(ROOM_STATES.ENDED);
+      expect(store._storeState.roomState).eql(ROOM_STATES.READY);
     });
   });
 
@@ -619,10 +619,10 @@ describe("loop.store.ActiveRoomStore", function () {
         "fakeToken", "1627384950");
     });
 
-    it("should set the state to ENDED", function() {
+    it("should set the state to ready", function() {
       store.leaveRoom();
 
-      expect(store._storeState.roomState).eql(ROOM_STATES.ENDED);
+      expect(store._storeState.roomState).eql(ROOM_STATES.READY);
     });
   });
 

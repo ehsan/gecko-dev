@@ -92,14 +92,6 @@ function isIcons(icons, expectedIcons, message) {
   }
 }
 
-function isStkText(stkText, expectedStkText, message) {
-  is(stkText.text, expectedStkText.text, message);
-  if (expectedStkText.icons) {
-    is(stkText.iconSelfExplanatory, expectedStkText.iconSelfExplanatory, message);
-    isIcons(stkText.icons, expectedStkText.icons, message);
-  }
-}
-
 let pendingEmulatorCmdCount = 0;
 function sendStkPduToEmulator(command, func, expect) {
   ++pendingEmulatorCmdCount;

@@ -16,15 +16,28 @@ var FEEDBACK_STATES = loop.store.FEEDBACK_STATES;
 describe("loop.shared.views.FeedbackView", function() {
   "use strict";
 
-  var sandbox, comp, dispatcher, fakeFeedbackClient, feedbackStore;
+  var sandbox, comp, dispatcher, feedbackStore, fakeAudioXHR, fakeFeedbackClient;
 
   beforeEach(function() {
     sandbox = sinon.sandbox.create();
+    fakeAudioXHR = {
+      open: sinon.spy(),
+      send: function() {},
+      abort: function() {},
+      getResponseHeader: function(header) {
+        if (header === "Content-Type")
+          return "audio/ogg";
+      },
+      responseType: null,
+      response: new ArrayBuffer(10),
+      onload: null
+    };
     dispatcher = new loop.Dispatcher();
     fakeFeedbackClient = {send: sandbox.stub()};
     feedbackStore = new loop.store.FeedbackStore(dispatcher, {
       feedbackClient: fakeFeedbackClient
     });
+    sandbox.stub(window, "XMLHttpRequest").returns(fakeAudioXHR);
     comp = TestUtils.renderIntoDocument(sharedViews.FeedbackView({
       feedbackStore: feedbackStore
     }));

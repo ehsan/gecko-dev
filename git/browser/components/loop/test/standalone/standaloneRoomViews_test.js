@@ -38,42 +38,27 @@ describe("loop.standaloneRoomViews", function() {
         }));
     }
 
-    function expectActionDispatched(view) {
-      sinon.assert.calledOnce(dispatch);
-      sinon.assert.calledWithExactly(dispatch,
-        sinon.match.instanceOf(sharedActions.SetupStreamElements));
-      sinon.assert.calledWithExactly(dispatch, sinon.match(function(value) {
-        return value.getLocalElementFunc() ===
-               view.getDOMNode().querySelector(".local");
-      }));
-      sinon.assert.calledWithExactly(dispatch, sinon.match(function(value) {
-        return value.getRemoteElementFunc() ===
-               view.getDOMNode().querySelector(".remote");
-      }));
-    }
-
     describe("#componentWillUpdate", function() {
-      it("should dispatch a `SetupStreamElements` action on room joined",
-        function() {
-          activeRoomStore.setStoreState({roomState: ROOM_STATES.READY});
-          var view = mountTestComponent();
+      it("dispatch an `SetupStreamElements` action on room joined", function() {
+        activeRoomStore.setStoreState({roomState: ROOM_STATES.READY});
+        var view = mountTestComponent();
 
-          sinon.assert.notCalled(dispatch);
+        sinon.assert.notCalled(dispatch);
 
-          activeRoomStore.setStoreState({roomState: ROOM_STATES.JOINED});
+        activeRoomStore.setStoreState({roomState: ROOM_STATES.JOINED});
 
-          expectActionDispatched(view);
-        });
-
-      it("should dispatch a `SetupStreamElements` action on room rejoined",
-        function() {
-          activeRoomStore.setStoreState({roomState: ROOM_STATES.ENDED});
-          var view = mountTestComponent();
-
-          activeRoomStore.setStoreState({roomState: ROOM_STATES.JOINED});
-
-          expectActionDispatched(view);
-        });
+        sinon.assert.calledOnce(dispatch);
+        sinon.assert.calledWithExactly(dispatch,
+          sinon.match.instanceOf(sharedActions.SetupStreamElements));
+        sinon.assert.calledWithExactly(dispatch, sinon.match(function(value) {
+          return value.getLocalElementFunc() ===
+                 view.getDOMNode().querySelector(".local");
+        }));
+        sinon.assert.calledWithExactly(dispatch, sinon.match(function(value) {
+          return value.getRemoteElementFunc() ===
+                 view.getDOMNode().querySelector(".remote");
+        }));
+      });
     });
 
     describe("#publishStream", function() {

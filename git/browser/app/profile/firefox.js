@@ -183,7 +183,7 @@ pref("app.update.metro.enabled", true);
 pref("app.update.silent", false);
 
 // If set to true, the hamburger button will show badges for update events.
-#ifndef RELEASE_BUILD
+#ifdef MOZ_DEV_EDITION
 pref("app.update.badge", true);
 #else
 pref("app.update.badge", false);

@@ -28,8 +28,7 @@
   var UnsupportedBrowserView  = loop.webapp.UnsupportedBrowserView;
   var UnsupportedDeviceView   = loop.webapp.UnsupportedDeviceView;
   var CallUrlExpiredView      = loop.webapp.CallUrlExpiredView;
-  var GumPromptConversationView = loop.webapp.GumPromptConversationView;
-  var WaitingConversationView = loop.webapp.WaitingConversationView;
+  var PendingConversationView = loop.webapp.PendingConversationView;
   var StartConversationView   = loop.webapp.StartConversationView;
   var FailedConversationView  = loop.webapp.FailedConversationView;
   var EndedConversationView   = loop.webapp.EndedConversationView;
@@ -129,7 +128,7 @@
       "audio", "audio-hover", "audio-active", "block",
       "block-red", "block-hover", "block-active", "contacts", "contacts-hover",
       "contacts-active", "copy", "checkmark", "google", "google-hover",
-      "google-active", "history", "history-hover", "history-active", "leave",
+      "google-active", "history", "history-hover", "history-active",
       "precall", "precall-hover", "precall-active", "settings", "settings-hover",
       "settings-active", "tag", "tag-hover", "tag-active", "trash", "unblock",
       "unblock-hover", "unblock-active", "video", "video-hover", "video-active"
@@ -327,24 +326,16 @@
             </div>
           </Section>
 
-          <Section name="GumPromptConversationView">
-            <Example summary="Gum Prompt conversation view" dashed="true">
+          <Section name="PendingConversationView">
+            <Example summary="Pending conversation view (connecting)" dashed="true">
               <div className="standalone">
-                <GumPromptConversationView />
-              </div>
-            </Example>
-          </Section>
-
-          <Section name="WaitingConversationView">
-            <Example summary="Waiting conversation view (connecting)" dashed="true">
-              <div className="standalone">
-                <WaitingConversationView websocket={mockWebSocket}
+                <PendingConversationView websocket={mockWebSocket}
                                          dispatcher={dispatcher} />
               </div>
             </Example>
-            <Example summary="Waiting conversation view (ringing)" dashed="true">
+            <Example summary="Pending conversation view (ringing)" dashed="true">
               <div className="standalone">
-                <WaitingConversationView websocket={mockWebSocket}
+                <PendingConversationView websocket={mockWebSocket}
                                          dispatcher={dispatcher}
                                          callState="ringing"/>
               </div>

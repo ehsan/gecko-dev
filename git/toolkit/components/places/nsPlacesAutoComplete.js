@@ -498,9 +498,8 @@ nsPlacesAutoComplete.prototype = {
     this._currentSearchString =
       fixupSearchText(this._originalSearchString.toLowerCase());
 
-    let params = new Set(aSearchParam.split(" "));
-    this._enableActions = params.has("enable-actions");
-    this._disablePrivateActions = params.has("disable-private-actions");
+    let searchParamParts = aSearchParam.split(" ");
+    this._enableActions = searchParamParts.indexOf("enable-actions") != -1;
 
     this._listener = aListener;
     let result = Cc["@mozilla.org/autocomplete/simple-result;1"].
@@ -1294,14 +1293,8 @@ nsPlacesAutoComplete.prototype = {
    */
   _hasBehavior: function PAC_hasBehavior(aType)
   {
-    let behavior = Ci.mozIPlacesAutoComplete["BEHAVIOR_" + aType.toUpperCase()];
-
-    if (this._disablePrivateActions &&
-        behavior == Ci.mozIPlacesAutoComplete.BEHAVIOR_OPENPAGE) {
-      return false;
-    }
-
-    return this._behavior & behavior;
+    return (this._behavior &
+            Ci.mozIPlacesAutoComplete["BEHAVIOR_" + aType.toUpperCase()]);
   },
 
   /**
