@@ -204,8 +204,8 @@ public:
   PRBool IsFirstInserted() const;
   void   SetFirstInserted(PRBool aValue);
 
-  nscoord GetContentHeight() const;
-  void    SetContentHeight(nscoord aTwipValue);
+  PRBool GetContentHeight() const;
+  void   SetContentHeight(nscoord aTwipValue);
 
   PRBool HasStyleHeight() const;
 

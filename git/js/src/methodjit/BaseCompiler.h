@@ -112,8 +112,7 @@ class LinkerHelper : public JSC::LinkBuffer
 #endif
 
   public:
-    LinkerHelper(Assembler &masm, JSC::CodeKind kind) : JSC::LinkBuffer(kind)
-        , masm(masm)
+    LinkerHelper(Assembler &masm) : masm(masm)
 #ifdef DEBUG
         , verifiedRange(false)
 #endif

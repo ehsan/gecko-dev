@@ -290,7 +290,8 @@ AsyncConnectionHelper::Run()
 #ifdef DEBUG
     if (NS_SUCCEEDED(rv)) {
       nsCOMPtr<nsISupports> handlerSupports(do_QueryInterface(handler));
-      nsCOMPtr<nsISupports> thisSupports = do_QueryObject(this);
+      nsCOMPtr<nsISupports> thisSupports =
+        do_QueryInterface(static_cast<nsIRunnable*>(this));
       NS_ASSERTION(thisSupports == handlerSupports, "Mismatch!");
     }
 #endif

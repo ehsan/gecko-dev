@@ -25,10 +25,14 @@ public:
 
     int numErrors() const { return mNumErrors; }
 
+    virtual void visitSymbol(TIntermSymbol*);
+    virtual void visitConstantUnion(TIntermConstantUnion*);
     virtual bool visitBinary(Visit, TIntermBinary*);
     virtual bool visitUnary(Visit, TIntermUnary*);
+    virtual bool visitSelection(Visit, TIntermSelection*);
     virtual bool visitAggregate(Visit, TIntermAggregate*);
     virtual bool visitLoop(Visit, TIntermLoop*);
+    virtual bool visitBranch(Visit, TIntermBranch*);
 
 private:
     void error(TSourceLoc loc, const char *reason, const char* token);

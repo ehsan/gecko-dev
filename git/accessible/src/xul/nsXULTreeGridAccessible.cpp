@@ -1170,7 +1170,8 @@ nsXULTreeGridCellAccessible::GetAttributesInternal(nsIPersistentProperties *aAtt
   if (!grandParent)
     return NS_OK;
 
-  nsCOMPtr<nsIAccessibleTable> tableAccessible = do_QueryObject(grandParent);
+  nsCOMPtr<nsIAccessibleTable> tableAccessible =
+    do_QueryInterface(static_cast<nsIAccessible*>(grandParent));
 
   // XXX - temp fix for crash bug 516047
   if (!tableAccessible)

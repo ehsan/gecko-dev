@@ -59,10 +59,6 @@
 #include <dlfcn.h>
 #include "nscore.h"
 
-#ifdef __SUNPRO_CC
-#include <stdio.h>
-#endif
-
 namespace mozilla {
 namespace widget {
 // the read end of the pipe, which will be used by GfxInfo

@@ -98,7 +98,6 @@ CPPSRCS = \
   ValidateLimitations.cpp \
   ForLoopUnroll.cpp \
   MapLongVariableNames.cpp \
-  BuiltInFunctionEmulator.cpp \
   $(NULL)
 
 # flex/yacc generated files
@@ -114,9 +113,6 @@ CPPSRCS += \
   TranslatorHLSL.cpp \
   UnfoldSelect.cpp \
   SearchSymbol.cpp \
-  OutputESSL.cpp \
-  OutputGLSLBase.cpp \
-  TranslatorESSL.cpp \
   $(NULL)
 
 CSRCS   = \
@@ -145,7 +141,6 @@ CPPSRCS += \
   $(NULL)
 
 DEFFILE = $(srcdir)/libEGL.def
-RCFILE = $(srcdir)/libEGL.rc
 
 include $(topsrcdir)/config/rules.mk
 

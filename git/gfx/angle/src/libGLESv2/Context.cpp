@@ -156,11 +156,8 @@ Context::Context(const egl::Config *config, const gl::Context *shareContext) : m
 
     mHasBeenCurrent = false;
 
-    mSupportsDXT1Textures = false;
-    mSupportsDXT3Textures = false;
-    mSupportsDXT5Textures = false;
+    mSupportsCompressedTextures = false;
     mSupportsEventQueries = false;
-    mNumCompressedTextureFormats = 0;
     mMaxSupportedSamples = 0;
     mMaskedClearSavedState = NULL;
     markAllStateDirty();
@@ -283,9 +280,7 @@ void Context::makeCurrent(egl::Display *display, egl::Surface *surface)
         mMaxSupportedSamples = max;
 
         mSupportsEventQueries = display->getEventQuerySupport();
-        mSupportsDXT1Textures = display->getDXT1TextureSupport();
-        mSupportsDXT3Textures = display->getDXT3TextureSupport();
-        mSupportsDXT5Textures = display->getDXT5TextureSupport();
+        mSupportsCompressedTextures = display->getCompressedTextureSupport();
         mSupportsFloatTextures = display->getFloatTextureSupport(&mSupportsFloatLinearFilter, &mSupportsFloatRenderableTextures);
         mSupportsHalfFloatTextures = display->getHalfFloatTextureSupport(&mSupportsHalfFloatLinearFilter, &mSupportsHalfFloatRenderableTextures);
         mSupportsLuminanceTextures = display->getLuminanceTextureSupport();
@@ -293,22 +288,7 @@ void Context::makeCurrent(egl::Display *display, egl::Surface *surface)
 
         mSupports32bitIndices = mDeviceCaps.MaxVertexIndex >= (1 << 16);
 
-        mNumCompressedTextureFormats = 0;
-        if (supportsDXT1Textures())
-        {
-            mNumCompressedTextureFormats += 2;
-        }
-        if (supportsDXT3Textures())
-        {
-            mNumCompressedTextureFormats += 1;
-        }
-        if (supportsDXT5Textures())
-        {
-            mNumCompressedTextureFormats += 1;
-        }
-
         initExtensionString();
-        initRendererString();
 
         mState.viewportX = 0;
         mState.viewportY = 0;
@@ -1260,7 +1240,18 @@ bool Context::getIntegerv(GLenum pname, GLint *params)
       case GL_MAX_TEXTURE_SIZE:                 *params = getMaximumTextureDimension();         break;
       case GL_MAX_CUBE_MAP_TEXTURE_SIZE:        *params = getMaximumCubeTextureDimension();     break;
       case GL_NUM_COMPRESSED_TEXTURE_FORMATS:   
-        params[0] = mNumCompressedTextureFormats;
+        {
+            if (supportsCompressedTextures())
+            {
+                // at current, only GL_COMPRESSED_RGB_S3TC_DXT1_EXT and 
+                // GL_COMPRESSED_RGBA_S3TC_DXT1_EXT are supported
+                *params = 2;
+            }
+            else
+            {
+                *params = 0;
+            }
+        }
         break;
       case GL_MAX_SAMPLES_ANGLE:
         {
@@ -1316,18 +1307,10 @@ bool Context::getIntegerv(GLenum pname, GLint *params)
         break;
       case GL_COMPRESSED_TEXTURE_FORMATS:
         {
-            if (supportsDXT1Textures())
+            if (supportsCompressedTextures())
             {
-                *params++ = GL_COMPRESSED_RGB_S3TC_DXT1_EXT;
-                *params++ = GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;
-            }
-            if (supportsDXT3Textures())
-            {
-                *params++ = GL_COMPRESSED_RGBA_S3TC_DXT3_ANGLE;
-            }
-            if (supportsDXT5Textures())
-            {
-                *params++ = GL_COMPRESSED_RGBA_S3TC_DXT5_ANGLE;
+                params[0] = GL_COMPRESSED_RGB_S3TC_DXT1_EXT;
+                params[1] = GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;
             }
         }
         break;
@@ -1439,12 +1422,7 @@ bool Context::getQueryParameterInfo(GLenum pname, GLenum *type, unsigned int *nu
     // application.
     switch (pname)
     {
-      case GL_COMPRESSED_TEXTURE_FORMATS:
-        {
-            *type = GL_INT;
-            *numParams = mNumCompressedTextureFormats;
-        }
-        break;
+      case GL_COMPRESSED_TEXTURE_FORMATS: /* no compressed texture formats are supported */ 
       case GL_SHADER_BINARY_FORMATS:
         {
             *type = GL_INT;
@@ -1759,15 +1737,6 @@ void Context::applyState(GLenum drawMode)
     GLint alwaysFront = !isTriangleMode(drawMode);
     programObject->setUniform1iv(pointsOrLines, 1, &alwaysFront);
 
-    egl::Display *display = getDisplay();
-    D3DADAPTER_IDENTIFIER9 *identifier = display->getAdapterIdentifier();
-    bool zeroColorMaskAllowed = identifier->VendorId != 0x1002;
-    // Apparently some ATI cards have a bug where a draw with a zero color
-    // write mask can cause later draws to have incorrect results. Instead,
-    // set a nonzero color write mask but modify the blend state so that no
-    // drawing is done.
-    // http://code.google.com/p/angleproject/issues/detail?id=169
-
     if (mCullStateDirty || mFrontFaceDirty)
     {
         if (mState.cullFace)
@@ -1795,12 +1764,6 @@ void Context::applyState(GLenum drawMode)
         }
 
         mDepthStateDirty = false;
-    }
-
-    if (!zeroColorMaskAllowed && (mMaskStateDirty || mBlendStateDirty))
-    {
-        mBlendStateDirty = true;
-        mMaskStateDirty = true;
     }
 
     if (mBlendStateDirty)
@@ -1911,22 +1874,8 @@ void Context::applyState(GLenum drawMode)
 
     if (mMaskStateDirty)
     {
-        int colorMask = es2dx::ConvertColorMask(mState.colorMaskRed, mState.colorMaskGreen, 
-                                                mState.colorMaskBlue, mState.colorMaskAlpha);
-        if (colorMask == 0 && !zeroColorMaskAllowed)
-        {
-            // Enable green channel, but set blending so nothing will be drawn.
-            device->SetRenderState(D3DRS_COLORWRITEENABLE, D3DCOLORWRITEENABLE_GREEN);
-            device->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
-
-            device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_ZERO);
-            device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ONE);
-            device->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
-        }
-        else
-        {
-            device->SetRenderState(D3DRS_COLORWRITEENABLE, colorMask);
-        }
+        device->SetRenderState(D3DRS_COLORWRITEENABLE, es2dx::ConvertColorMask(mState.colorMaskRed, mState.colorMaskGreen, 
+                                                                               mState.colorMaskBlue, mState.colorMaskAlpha));
         device->SetRenderState(D3DRS_ZWRITEENABLE, mState.depthMask ? TRUE : FALSE);
 
         mMaskStateDirty = false;
@@ -2180,11 +2129,8 @@ void Context::readPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum
 
         switch (result)
         {
-          // It turns out that D3D will sometimes produce more error
-          // codes than those documented.
           case D3DERR_DRIVERINTERNALERROR:
           case D3DERR_DEVICELOST:
-          case D3DERR_DEVICEHUNG:
             return error(GL_OUT_OF_MEMORY);
           default:
             UNREACHABLE();
@@ -2908,7 +2854,7 @@ void Context::drawClosingLine(unsigned int first, unsigned int last)
     {
         device->SetIndices(mClosingIB->getBuffer());
 
-        device->DrawIndexedPrimitive(D3DPT_LINELIST, 0, 0, last, offset, 1);
+        device->DrawIndexedPrimitive(D3DPT_LINELIST, 0, 0, 2, offset, 1);
     }
     else
     {
@@ -3075,19 +3021,9 @@ bool Context::supportsEventQueries() const
     return mSupportsEventQueries;
 }
 
-bool Context::supportsDXT1Textures() const
+bool Context::supportsCompressedTextures() const
 {
-    return mSupportsDXT1Textures;
-}
-
-bool Context::supportsDXT3Textures() const
-{
-    return mSupportsDXT3Textures;
-}
-
-bool Context::supportsDXT5Textures() const
-{
-    return mSupportsDXT5Textures;
+    return mSupportsCompressedTextures;
 }
 
 bool Context::supportsFloatTextures() const
@@ -3362,19 +3298,9 @@ void Context::initExtensionString()
         mExtensionString += "GL_NV_fence ";
     }
 
-    if (supportsDXT1Textures())
+    if (supportsCompressedTextures())
     {
         mExtensionString += "GL_EXT_texture_compression_dxt1 ";
-    }
-
-    if (supportsDXT3Textures())
-    {
-        mExtensionString += "GL_ANGLE_texture_compression_dxt3 ";
-    }
-
-    if (supportsDXT5Textures())
-    {
-        mExtensionString += "GL_ANGLE_texture_compression_dxt5 ";
     }
 
     if (supportsFloatTextures())
@@ -3422,21 +3348,6 @@ void Context::initExtensionString()
 const char *Context::getExtensionString() const
 {
     return mExtensionString.c_str();
-}
-
-void Context::initRendererString()
-{
-    egl::Display *display = getDisplay();
-    D3DADAPTER_IDENTIFIER9 *identifier = display->getAdapterIdentifier();
-
-    mRendererString = "ANGLE (";
-    mRendererString += identifier->Description;
-    mRendererString += ")";
-}
-
-const char *Context::getRendererString() const
-{
-    return mRendererString.c_str();
 }
 
 void Context::blitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, 

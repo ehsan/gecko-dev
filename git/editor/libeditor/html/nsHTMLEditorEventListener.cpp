@@ -67,8 +67,10 @@
 nsresult
 nsHTMLEditorEventListener::Connect(nsEditor* aEditor)
 {
-  nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryObject(aEditor);
-  nsCOMPtr<nsIHTMLInlineTableEditor> htmlInlineTableEditor = do_QueryObject(aEditor);
+  nsCOMPtr<nsIHTMLEditor> htmlEditor =
+    do_QueryInterface(static_cast<nsIEditor*>(aEditor));
+  nsCOMPtr<nsIHTMLInlineTableEditor> htmlInlineTableEditor =
+    do_QueryInterface(static_cast<nsIEditor*>(aEditor));
   NS_PRECONDITION(htmlEditor && htmlInlineTableEditor,
                   "Set nsHTMLEditor or its sub class");
   return nsEditorEventListener::Connect(aEditor);
