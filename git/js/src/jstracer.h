@@ -306,8 +306,7 @@ class TraceRecorder {
 
 public:
     TraceRecorder(JSContext* cx, nanojit::GuardRecord*, nanojit::Fragment*, TreeInfo*,
-            unsigned ngslots, uint8* globalTypeMap, uint8* stackTypeMap, 
-            nanojit::GuardRecord* expectedInnerExit);
+            unsigned ngslots, uint8* globalTypeMap, uint8* stackTypeMap);
     ~TraceRecorder();
 
     nanojit::SideExit* snapshot(nanojit::ExitType exitType);
