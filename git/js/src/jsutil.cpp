@@ -210,7 +210,7 @@ JS_DumpHistogram(JSBasicStats *bs, FILE *fp)
 
 #endif /* JS_BASIC_STATS */
 
-#if defined(DEBUG_notme) && defined(XP_UNIX)
+#if defined DEBUG_notme && defined XP_UNIX
 
 #define __USE_GNU 1
 #include <dlfcn.h>
@@ -314,7 +314,7 @@ CallTree(void **bp)
     return site;
 }
 
-JS_FRIEND_API(JSCallsite *)
+JSCallsite *
 JS_Backtrace(int skip)
 {
     void **bp, **bpdown;
@@ -342,14 +342,4 @@ JS_Backtrace(int skip)
     return CallTree(bp);
 }
 
-JS_FRIEND_API(void)
-JS_DumpBacktrace(JSCallsite *trace)
-{
-    while (trace) {
-        fprintf(stdout, "%s [%s +0x%X]\n", trace->name, trace->library,
-                trace->offset);
-        trace = trace->parent;
-    }
-}
-
-#endif /* defined(DEBUG_notme) && defined(XP_UNIX) */
+#endif /* DEBUG_notme && XP_UNIX */

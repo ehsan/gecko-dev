@@ -546,33 +546,14 @@ getLoop(JSTraceMonitor* tm, const void *ip, uint32 globalShape)
     return getVMFragment(tm, ip, globalShape);
 }
 
-static inline void*
-placementNewInLirBuffer(size_t size, nanojit::LirBuffer *buf)
-{
-    LirBufWriter writer(buf);
-    char *mem = (char*) writer.skip(size)->payload();
-    if (!mem)
-        return NULL;
-    memset (mem, 0, size);
-    return mem;
-}
-
-void*
-avmplus::GCObject::operator new(size_t size, nanojit::LirBuffer *buf)
-{
-    return placementNewInLirBuffer(size, buf);
-}
-
-void*
-operator new(size_t size, nanojit::LirBuffer *buf)
-{
-    return placementNewInLirBuffer(size, buf);
-}
-
 static Fragment*
 getAnchor(JSTraceMonitor* tm, const void *ip, uint32 globalShape)
 {
-    VMFragment *f = new (tm->lirbuf) VMFragment(ip, globalShape);
+    LirBufWriter writer(tm->lirbuf);
+    char *fragmem = (char*) writer.skip(sizeof(VMFragment))->payload();
+    if (!fragmem)
+        return NULL;
+    VMFragment *f = new (fragmem) VMFragment(ip, globalShape);
     JS_ASSERT(f);
 
     Fragment *p = getVMFragment(tm, ip, globalShape);
@@ -1253,16 +1234,15 @@ TraceRecorder::TraceRecorder(JSContext* cx, VMSideExit* _anchor, Fragment* _frag
     import(treeInfo, lirbuf->sp, stackSlots, ngslots, callDepth, typeMap);
 
     if (fragment == fragment->root) {
-        LIns* counter = lir->insLoadi(cx_ins,
-                                      offsetof(JSContext, operationCount));
-        if (js_HasOperationLimit(cx)) {
-            /* Add code to decrease the operationCount if the embedding relies
-               on its auto-updating. */
-            counter = lir->ins2i(LIR_sub, counter, JSOW_SCRIPT_JUMP);
-            lir->insStorei(counter, cx_ins,
-                           offsetof(JSContext, operationCount));
-        }
-        guard(false, lir->ins2i(LIR_le, counter, 0), snapshot(TIMEOUT_EXIT));
+        LIns* x = NULL;
+
+        /*
+         * We poll the operation callback request flag. It is updated asynchronously whenever 
+         * the callback is to be invoked.
+         */
+        x = lir->insLoadi(cx_ins, offsetof(JSContext, operationCallbackFlag));
+        if (x)
+            guard(true, lir->ins_eq0(x), snapshot(TIMEOUT_EXIT));
     }
 
     /* If we are attached to a tree call guard, make sure the guard the inner tree exited from
@@ -1275,6 +1255,16 @@ TraceRecorder::TraceRecorder(JSContext* cx, VMSideExit* _anchor, Fragment* _frag
     }
 }
 
+TreeInfo::~TreeInfo()
+{
+    UnstableExit* temp;
+
+    while (unstableExits) {
+        temp = unstableExits->next;
+        delete unstableExits;
+        unstableExits = temp;
+    }
+}
 
 TraceRecorder::~TraceRecorder()
 {
@@ -1291,6 +1281,7 @@ TraceRecorder::~TraceRecorder()
     if (fragment) {
         if (wasRootFragment && !fragment->root->code()) {
             JS_ASSERT(!fragment->root->vmprivate);
+            delete treeInfo;
         }
 
         if (trashSelf)
@@ -1298,6 +1289,8 @@ TraceRecorder::~TraceRecorder()
 
         for (unsigned int i = 0; i < whichTreesToTrash.length(); i++)
             js_TrashTree(cx, whichTreesToTrash.get(i));
+    } else if (wasRootFragment) {
+        delete treeInfo;
     }
 #ifdef DEBUG
     delete verbose_filter;
@@ -2609,7 +2602,7 @@ TraceRecorder::closeLoop(JSTraceMonitor* tm, bool& demote)
              */
             debug_only_v(printf("Trace has unstable loop variable with no stable peer, "
                                 "compiling anyway.\n");)
-            UnstableExit* uexit = new (tm->lirbuf) UnstableExit;
+            UnstableExit* uexit = new UnstableExit;
             uexit->fragment = fragment;
             uexit->exit = exit;
             uexit->next = treeInfo->unstableExits;
@@ -2714,6 +2707,7 @@ TraceRecorder::joinEdgesToEntry(Fragmento* fragmento, Fragment* peer_root)
                 }
                 if (remove) {
                     *unext = uexit->next;
+                    delete uexit;
                     uexit = *unext;
                 } else {
                     unext = &uexit->next;
@@ -2957,6 +2951,12 @@ nanojit::LirNameMap::formatGuard(LIns *i, char *out)
 }
 #endif
 
+void
+nanojit::Fragment::onDestroy()
+{
+    delete (TreeInfo *)vmprivate;
+}
+
 static JS_REQUIRES_STACK bool
 js_DeleteRecorder(JSContext* cx)
 {
@@ -3075,6 +3075,7 @@ js_TrashTree(JSContext* cx, Fragment* f)
     unsigned length = ti->dependentTrees.length();
     for (unsigned n = 0; n < length; ++n)
         js_TrashTree(cx, data[n]);
+    delete ti;
     JS_ASSERT(!f->code() && !f->vmprivate);
 }
 
@@ -3318,7 +3319,7 @@ js_RecordTree(JSContext* cx, JSTraceMonitor* tm, Fragment* f, Fragment* outer,
     JS_ASSERT(!f->code() && !f->vmprivate);
 
     /* setup the VM-private treeInfo structure for this fragment */
-    TreeInfo* ti = new (tm->lirbuf) TreeInfo(f, globalShape, globalSlots);
+    TreeInfo* ti = new (&gc) TreeInfo(f, globalShape, globalSlots);
 
     /* capture the coerced type of each active slot in the type map */
     ti->typeMap.captureTypes(cx, *globalSlots, 0/*callDepth*/);
@@ -3441,6 +3442,7 @@ js_AttemptToStabilizeTree(JSContext* cx, VMSideExit* exit, Fragment* outer)
             for (UnstableExit* uexit = from_ti->unstableExits; uexit != NULL; uexit = uexit->next) {
                 if (uexit->exit == exit) {
                     *tail = uexit->next;
+                    delete uexit;
                     bound = true;
                     break;
                 }
@@ -4225,6 +4227,10 @@ js_MonitorLoopEdge(JSContext* cx, uintN& inlineCallCount)
     if (!js_CheckGlobalObjectShape(cx, tm, globalObj, &globalShape, &globalSlots))
         js_FlushJITCache(cx);
 
+    /* Do not enter the JIT code with a pending operation callback. */
+    if (cx->operationCallbackFlag)
+        return false;
+    
     jsbytecode* pc = cx->fp->regs->pc;
 
     if (oracle.getHits(pc) >= 0 &&
@@ -4586,20 +4592,6 @@ js_FlushJITOracle(JSContext* cx)
     if (!TRACING_ENABLED(cx))
         return;
     oracle.clear();
-}
-
-extern JS_REQUIRES_STACK void
-js_FlushScriptFragments(JSContext* cx, JSScript* script)
-{
-    if (!TRACING_ENABLED(cx))
-        return;
-    debug_only_v(printf("Flushing fragments for script %p.\n", script);)
-    JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
-    for (size_t i = 0; i < FRAGMENT_TABLE_SIZE; ++i) {
-        VMFragment *f = tm->vmfragments[i];
-        if (f && JS_UPTRDIFF(f->ip, script->code) < script->length)
-            tm->vmfragments[i] = NULL;
-    }
 }
 
 extern JS_REQUIRES_STACK void
@@ -5541,10 +5533,7 @@ TraceRecorder::test_property_cache(JSObject* obj, LIns* obj_ins, JSObject*& obj2
     JSAtom* atom;
     JSPropCacheEntry* entry;
     PROPERTY_CACHE_TEST(cx, pc, aobj, obj2, entry, atom);
-    if (!atom) {
-        // Null atom means that obj2 is locked and must now be unlocked.
-        JS_UNLOCK_OBJ(cx, obj2);
-    } else {
+    if (atom) {
         // Miss: pre-fill the cache for the interpreter, as well as for our needs.
         // FIXME: 452357 - correctly propagate exceptions into the interpreter from
         // js_FindPropertyHelper, js_LookupPropertyWithFlags, and elsewhere.
@@ -6443,13 +6432,6 @@ TraceRecorder::record_JSOP_PRIMTOP()
 {
     // Either this opcode does nothing or we couldn't have traced here, because
     // we'd have thrown an exception -- so do nothing if we actually hit this.
-    return true;
-}
-
-JS_REQUIRES_STACK bool
-TraceRecorder::record_JSOP_OBJTOP()
-{
-    // See the comment in record_JSOP_PRIMTOP.
     return true;
 }
 
@@ -9119,6 +9101,10 @@ ObjectToIterator_tn(JSContext* cx, jsbytecode* pc, JSObject *obj, int32 flags)
         cx->builtinStatus |= JSBUILTIN_ERROR;
         return NULL;
     }
+    if (OBJ_GET_CLASS(cx, JSVAL_TO_OBJECT(v)) == &js_GeneratorClass) {
+        js_LeaveTrace(cx);
+        return NULL;
+    }
     return JSVAL_TO_OBJECT(v);
 }
 
@@ -9393,6 +9379,7 @@ InitIMacroCode()
         return false;                                                         \
     }
 
+UNUSED(135)
 UNUSED(203)
 UNUSED(204)
 UNUSED(205)
