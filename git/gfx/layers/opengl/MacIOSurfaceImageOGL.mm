@@ -46,8 +46,7 @@ namespace mozilla {
 namespace layers {
 
 MacIOSurfaceImageOGL::MacIOSurfaceImageOGL(LayerManagerOGL *aManager)
-  : MacIOSurfaceImage(nsnull), mSize(0, 0), mPluginInstanceOwner(nsnull),
-    mUpdateCallback(nsnull), mDestroyCallback(nsnull)
+  : MacIOSurfaceImage(nsnull), mSize(0, 0)
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread to create a cairo image");
 
@@ -63,13 +62,6 @@ MacIOSurfaceImageOGL::MacIOSurfaceImageOGL(LayerManagerOGL *aManager)
                        LOCAL_GL_TEXTURE_MAG_FILTER, 
                        LOCAL_GL_NEAREST);
     gl->fBindTexture(LOCAL_GL_TEXTURE_RECTANGLE_ARB, 0);
-  }
-}
-
-MacIOSurfaceImageOGL::~MacIOSurfaceImageOGL()
-{
-  if (mDestroyCallback) {
-    mDestroyCallback(mPluginInstanceOwner);
   }
 }
 
@@ -96,23 +88,17 @@ MacIOSurfaceImageOGL::SetData(const MacIOSurfaceImage::Data &aData)
 }
 
 void
-MacIOSurfaceImageOGL::SetUpdateCallback(UpdateSurfaceCallback aCallback, void* aPluginInstanceOwner)
+MacIOSurfaceImageOGL::SetCallback(UpdateSurfaceCallback aCallback, void* aObjectFrame)
 {
-  mUpdateCallback = aCallback;
-  mPluginInstanceOwner = aPluginInstanceOwner;
-}
-
-void
-MacIOSurfaceImageOGL::SetDestroyCallback(DestroyCallback aCallback)
-{
-  mDestroyCallback = aCallback;
+  mCallback = aCallback;
+  mObjectFrame = aObjectFrame;
 }
 
 void 
 MacIOSurfaceImageOGL::Update(ImageContainer* aContainer)
 {
-  if (mUpdateCallback) {
-    mUpdateCallback(aContainer, mPluginInstanceOwner);
+  if (mCallback) {
+    mCallback(aContainer, mObjectFrame);
   }
 }
 

@@ -4,12 +4,10 @@
 function test() {
   waitForExplicitFinish();
 
-  newWindowWithTabView(part1);
+  newWindowWithTabView(onTabViewShown);
 }
 
-function part1(win) {
-  registerCleanupFunction(function() win.close());
-
+function onTabViewShown(win) {
   let contentWindow = win.document.getElementById("tab-view").contentWindow;
   is(contentWindow.GroupItems.groupItems.length, 1, "Has only one group");
 
@@ -54,32 +52,8 @@ function part1(win) {
     checkActive(function() {
       checkActive(function() {
         win.close();
-        newWindowWithTabView(part2);
+        finish();
       });
     }, 490);
   }, 10)
-}
-
-function part2(win) {
-  registerCleanupFunction(function() win.close());
-
-  let newTab = win.gBrowser.loadOneTab("about:blank", {inBackground: true});
-  hideTabView(function() {
-    let selectedTab = win.gBrowser.selectedTab;
-    isnot(selectedTab, newTab, "They are different tabs");
-
-    // switch the selected tab to new tab
-    win.gBrowser.selectedTab = newTab;
-
-    win.addEventListener("tabviewhidden", function () {
-      win.removeEventListener("tabviewhidden", arguments.callee, false);
-      is(win.gBrowser.selectedTab, newTab, "The seleted tab should be the same as before (new tab)");
-       win.close();
-       finish();
-    }, false);
-    // show tabview
-    EventUtils.synthesizeKey("e", { accelKey: true, shiftKey: true }, win);
-    // hide tabview
-    EventUtils.synthesizeKey("e", { accelKey: true, shiftKey: true }, win);
-  })
 }

@@ -219,7 +219,7 @@ NotificationController::WillRefresh(mozilla::TimeStamp aTime)
 #endif
 
     mTreeConstructedState = eTreeConstructed;
-    mDocument->NotifyOfInitialUpdate();
+    mDocument->CacheChildrenInSubtree(mDocument);
 
     NS_ASSERTION(mContentInsertions.Length() == 0,
                  "Pending content insertions while initial accessible tree isn't created!");
@@ -304,10 +304,10 @@ NotificationController::WillRefresh(mozilla::TimeStamp aTime)
     if (accEvent->mEventRule != AccEvent::eDoNotEmit) {
       mDocument->ProcessPendingEvent(accEvent);
 
-      AccMutationEvent* showOrHideEvent = downcast_accEvent(accEvent);
-      if (showOrHideEvent) {
-        if (showOrHideEvent->mTextChangeEvent)
-          mDocument->ProcessPendingEvent(showOrHideEvent->mTextChangeEvent);
+      AccMutationEvent* showOrhideEvent = downcast_accEvent(accEvent);
+      if (showOrhideEvent) {
+        if (showOrhideEvent->mTextChangeEvent)
+          mDocument->ProcessPendingEvent(showOrhideEvent->mTextChangeEvent);
       }
     }
     if (!mDocument)

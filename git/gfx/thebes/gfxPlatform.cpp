@@ -50,6 +50,8 @@
 #include "gfxPlatformGtk.h"
 #elif defined(MOZ_WIDGET_QT)
 #include "gfxQtPlatform.h"
+#elif defined(XP_BEOS)
+#include "gfxBeOSPlatform.h"
 #elif defined(XP_OS2)
 #include "gfxOS2Platform.h"
 #elif defined(ANDROID)
@@ -268,6 +270,8 @@ gfxPlatform::Init()
     gPlatform = new gfxPlatformGtk;
 #elif defined(MOZ_WIDGET_QT)
     gPlatform = new gfxQtPlatform;
+#elif defined(XP_BEOS)
+    gPlatform = new gfxBeOSPlatform;
 #elif defined(XP_OS2)
     gPlatform = new gfxOS2Platform;
 #elif defined(ANDROID)

@@ -5504,7 +5504,7 @@ nsContentUtils::WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
     return NS_OK;
   }
 
-  JSObject *wrapper = xpc_FastGetCachedWrapper(cache, scope, vp);
+  JSObject *wrapper = xpc_GetCachedSlimWrapper(cache, scope, vp);
   if (wrapper) {
     return NS_OK;
   }
@@ -6354,8 +6354,7 @@ static nsIView* GetDisplayRootFor(nsIView* aView)
 }
 
 static already_AddRefed<LayerManager>
-LayerManagerForDocumentInternal(nsIDocument *aDoc, bool aRequirePersistent,
-                                bool* aAllowRetaining)
+LayerManagerForDocumentInternal(nsIDocument *aDoc, bool aRequirePersistent)
 {
   nsIDocument* doc = aDoc;
   nsIDocument* displayDoc = doc->GetDisplayDocument();
@@ -6393,10 +6392,9 @@ LayerManagerForDocumentInternal(nsIDocument *aDoc, bool aRequirePersistent,
           nsIWidget* widget = displayRoot->GetNearestWidget(nsnull);
           if (widget) {
             nsRefPtr<LayerManager> manager =
-              widget->
-                GetLayerManager(aRequirePersistent ? nsIWidget::LAYER_MANAGER_PERSISTENT : 
-                                                     nsIWidget::LAYER_MANAGER_CURRENT,
-                                aAllowRetaining);
+              static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(widget)->
+                GetLayerManager(aRequirePersistent ? nsIWidget_MOZILLA_2_0_BRANCH::LAYER_MANAGER_PERSISTENT : 
+                                                     nsIWidget_MOZILLA_2_0_BRANCH::LAYER_MANAGER_CURRENT);
             return manager.forget();
           }
         }
@@ -6408,15 +6406,15 @@ LayerManagerForDocumentInternal(nsIDocument *aDoc, bool aRequirePersistent,
 }
 
 already_AddRefed<LayerManager>
-nsContentUtils::LayerManagerForDocument(nsIDocument *aDoc, bool *aAllowRetaining)
+nsContentUtils::LayerManagerForDocument(nsIDocument *aDoc)
 {
-  return LayerManagerForDocumentInternal(aDoc, false, aAllowRetaining);
+  return LayerManagerForDocumentInternal(aDoc, false);
 }
 
 already_AddRefed<LayerManager>
-nsContentUtils::PersistentLayerManagerForDocument(nsIDocument *aDoc, bool *aAllowRetaining)
+nsContentUtils::PersistentLayerManagerForDocument(nsIDocument *aDoc)
 {
-  return LayerManagerForDocumentInternal(aDoc, true, aAllowRetaining);
+  return LayerManagerForDocumentInternal(aDoc, true);
 }
 
 bool

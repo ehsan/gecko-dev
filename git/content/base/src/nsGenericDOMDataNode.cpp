@@ -67,8 +67,6 @@
 #include "pldhash.h"
 #include "prprf.h"
 
-namespace css = mozilla::css;
-
 nsGenericDOMDataNode::nsGenericDOMDataNode(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsIContent(aNodeInfo)
 {
@@ -1115,20 +1113,21 @@ nsGenericDOMDataNode::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
 }
 
 #ifdef MOZ_SMIL
-nsIDOMCSSStyleDeclaration*
-nsGenericDOMDataNode::GetSMILOverrideStyle()
+nsresult
+nsGenericDOMDataNode::GetSMILOverrideStyle(nsIDOMCSSStyleDeclaration** aStyle)
 {
-  return nsnull;
+  *aStyle = nsnull;
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-css::StyleRule*
+nsICSSStyleRule*
 nsGenericDOMDataNode::GetSMILOverrideStyleRule()
 {
   return nsnull;
 }
 
 nsresult
-nsGenericDOMDataNode::SetSMILOverrideStyleRule(css::StyleRule* aStyleRule,
+nsGenericDOMDataNode::SetSMILOverrideStyleRule(nsICSSStyleRule* aStyleRule,
                                                PRBool aNotify)
 {
   NS_NOTREACHED("How come we're setting SMILOverrideStyle on a non-element?");
@@ -1136,14 +1135,14 @@ nsGenericDOMDataNode::SetSMILOverrideStyleRule(css::StyleRule* aStyleRule,
 }
 #endif // MOZ_SMIL
 
-css::StyleRule*
+nsICSSStyleRule*
 nsGenericDOMDataNode::GetInlineStyleRule()
 {
   return nsnull;
 }
 
 NS_IMETHODIMP
-nsGenericDOMDataNode::SetInlineStyleRule(css::StyleRule* aStyleRule,
+nsGenericDOMDataNode::SetInlineStyleRule(nsICSSStyleRule* aStyleRule,
                                          PRBool aNotify)
 {
   NS_NOTREACHED("How come we're setting inline style on a non-element?");

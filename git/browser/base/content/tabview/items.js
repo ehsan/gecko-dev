@@ -23,7 +23,6 @@
  * Aza Raskin <aza@mozilla.com>
  * Michael Yoshitaka Erlewine <mitcho@mitcho.com>
  * Sean Dunn <seanedunn@yahoo.com>
- * Tim Taubert <tim.taubert@gmx.de>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -170,10 +169,8 @@ Item.prototype = {
     this.dragOptions = {
       cancelClass: 'close stackExpander',
       start: function(e, ui) {
-        if (this.isAGroupItem) {
+        if (this.isAGroupItem)
           GroupItems.setActiveGroupItem(this);
-          this._unfreezeItemSize();
-        }
         // if we start dragging a tab within a group, start with dropSpace on.
         else if (this.parent != null)
           this.parent._dropSpaceActive = true;
@@ -601,35 +598,6 @@ Item.prototype = {
       var droppables;
       var dropTarget;
 
-      // determine the best drop target based on the current mouse coordinates
-      let determineBestDropTarget = function (e, box) {
-        // drop events
-        var best = {
-          dropTarget: null,
-          score: 0
-        };
-
-        droppables.forEach(function(droppable) {
-          var intersection = box.intersection(droppable.bounds);
-          if (intersection && intersection.area() > best.score) {
-            var possibleDropTarget = droppable.item;
-            var accept = true;
-            if (possibleDropTarget != dropTarget) {
-              var dropOptions = possibleDropTarget.dropOptions;
-              if (dropOptions && typeof dropOptions.accept == "function")
-                accept = dropOptions.accept.apply(possibleDropTarget, [self]);
-            }
-
-            if (accept) {
-              best.dropTarget = possibleDropTarget;
-              best.score = intersection.area();
-            }
-          }
-        });
-
-        return best.dropTarget;
-      }
-
       // ___ mousemove
       var handleMouseMove = function(e) {
         // global drag tracking
@@ -656,9 +624,31 @@ Item.prototype = {
           if (typeof self.dragOptions.drag == "function")
             self.dragOptions.drag.apply(self, [e]);
 
-          let bestDropTarget = determineBestDropTarget(e, box);
+          // drop events
+          var best = {
+            dropTarget: null,
+            score: 0
+          };
 
-          if (bestDropTarget != dropTarget) {
+          droppables.forEach(function(droppable) {
+            var intersection = box.intersection(droppable.bounds);
+            if (intersection && intersection.area() > best.score) {
+              var possibleDropTarget = droppable.item;
+              var accept = true;
+              if (possibleDropTarget != dropTarget) {
+                var dropOptions = possibleDropTarget.dropOptions;
+                if (dropOptions && typeof dropOptions.accept == "function")
+                  accept = dropOptions.accept.apply(possibleDropTarget, [self]);
+              }
+
+              if (accept) {
+                best.dropTarget = possibleDropTarget;
+                best.score = intersection.area();
+              }
+            }
+          });
+
+          if (best.dropTarget != dropTarget) {
             var dropOptions;
             if (dropTarget) {
               dropOptions = dropTarget.dropOptions;
@@ -666,7 +656,7 @@ Item.prototype = {
                 dropOptions.out.apply(dropTarget, [e]);
             }
 
-            dropTarget = bestDropTarget;
+            dropTarget = best.dropTarget;
 
             if (dropTarget) {
               dropOptions = dropTarget.dropOptions;
@@ -720,10 +710,10 @@ Item.prototype = {
         }
 
         startMouse = new Point(e.pageX, e.pageY);
-        let bounds = self.getBounds();
-        startPos = bounds.position();
+        startPos = self.getBounds().position();
         startEvent = e;
         startSent = false;
+        dropTarget = null;
 
         droppables = [];
         iQ('.iq-droppable').each(function(elem) {
@@ -735,8 +725,6 @@ Item.prototype = {
             });
           }
         });
-
-        dropTarget = determineBestDropTarget(e, bounds);
 
         iQ(gWindow)
           .mousemove(handleMouseMove)
@@ -866,13 +854,6 @@ Item.prototype = {
 // Class: Items
 // Keeps track of all Items.
 let Items = {
-  // ----------
-  // Function: toString
-  // Prints [Items] for debug use
-  toString: function Items_toString() {
-    return "[Items]";
-  },
-
   // ----------
   // Variable: defaultGutter
   // How far apart Items should be from each other and from bounds

@@ -158,13 +158,9 @@ nsPluginByteRangeStreamListener::OnStartRequest(nsIRequest *request, nsISupports
   
   if (responseCode != 200) {
     PRBool bWantsAllNetworkStreams = PR_FALSE;
-    rv = pslp->GetPluginInstance()->GetValueFromPlugin(NPPVpluginWantsAllNetworkStreams,
-                                                       &bWantsAllNetworkStreams);
-    // If the call returned an error code make sure we still use our default value.
-    if (NS_FAILED(rv)) {
-      bWantsAllNetworkStreams = PR_FALSE;
-    }
-
+    pslp->GetPluginInstance()->
+    GetValueFromPlugin(NPPVpluginWantsAllNetworkStreams,
+                       (void*)&bWantsAllNetworkStreams);
     if (!bWantsAllNetworkStreams){
       return NS_ERROR_FAILURE;
     }
@@ -519,7 +515,7 @@ NS_IMETHODIMP
 nsPluginStreamListenerPeer::OnStartRequest(nsIRequest *request,
                                            nsISupports* aContext)
 {
-  nsresult rv = NS_OK;
+  nsresult  rv = NS_OK;
 
   if (mRequests.IndexOfObject(GetBaseRequest(request)) == -1) {
     NS_ASSERTION(mRequests.Count() == 0,
@@ -553,13 +549,8 @@ nsPluginStreamListenerPeer::OnStartRequest(nsIRequest *request,
     
     if (responseCode > 206) { // not normal
       PRBool bWantsAllNetworkStreams = PR_FALSE;
-      rv = mPluginInstance->GetValueFromPlugin(NPPVpluginWantsAllNetworkStreams,
-                                               &bWantsAllNetworkStreams);
-      // If the call returned an error code make sure we still use our default value.
-      if (NS_FAILED(rv)) {
-        bWantsAllNetworkStreams = PR_FALSE;
-      }
-
+      mPluginInstance->GetValueFromPlugin(NPPVpluginWantsAllNetworkStreams,
+                                          (void*)&bWantsAllNetworkStreams);
       if (!bWantsAllNetworkStreams) {
         mRequestFailed = PR_TRUE;
         return NS_ERROR_FAILURE;

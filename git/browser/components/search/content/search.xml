@@ -640,12 +640,6 @@
         ]]></body>
       </method>
 
-      <!--
-        This method overrides the autocomplete binding's openPopup (essentially
-        duplicating the logic from the autocomplete popup binding's
-        openAutocompletePopup method), modifying it so that the popup is aligned with
-        the inner textbox, but sized to not extend beyond the search bar border.
-      -->
       <method name="openPopup">
         <body><![CDATA[
           var popup = this.popup;
@@ -668,18 +662,10 @@
 
             document.popupNode = null;
 
-            const isRTL = getComputedStyle(this, "").direction == "rtl";
-
             var outerRect = this.getBoundingClientRect();
             var innerRect = this.inputField.getBoundingClientRect();
-            if (isRTL) {
-              var width = innerRect.right - outerRect.left;
-            } else {
-              var width = outerRect.right - innerRect.left;
-            }
+            var width = outerRect.right - innerRect.left;
             popup.setAttribute("width", width > 100 ? width : 100);
-
-            var yOffset = outerRect.bottom - innerRect.bottom;
 
             // setConsumeRollupEvent() before we call openPopup(), 
             // see bug #404438 for more details
@@ -687,7 +673,7 @@
               this.consumeRollupEvent ? 
                 Ci.nsIPopupBoxObject.ROLLUP_CONSUME : 
                 Ci.nsIPopupBoxObject.ROLLUP_NO_CONSUME);
-            popup.openPopup(this.inputField, "after_start", 0, yOffset, false, false);
+            popup.openPopup(null, "", innerRect.left, outerRect.bottom, false, false);
           }
         ]]></body>
       </method>

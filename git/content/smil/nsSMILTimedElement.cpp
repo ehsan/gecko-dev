@@ -511,7 +511,8 @@ nsSMILTimedElement::DoSampleAt(nsSMILTime aContainerTime, PRBool aEndOnly)
     case STATE_STARTUP:
       {
         nsSMILInterval firstInterval;
-        mElementState = GetNextInterval(nsnull, nsnull, firstInterval)
+        mElementState =
+         NS_SUCCEEDED(GetNextInterval(nsnull, nsnull, firstInterval))
          ? STATE_WAITING
          : STATE_POSTACTIVE;
         stateChanged = PR_TRUE;
@@ -555,7 +556,8 @@ nsSMILTimedElement::DoSampleAt(nsSMILTime aContainerTime, PRBool aEndOnly)
 
         if (mCurrentInterval->End()->Time() <= sampleTime) {
           nsSMILInterval newInterval;
-          mElementState = GetNextInterval(mCurrentInterval, nsnull, newInterval)
+          mElementState =
+            NS_SUCCEEDED(GetNextInterval(mCurrentInterval, nsnull, newInterval))
             ? STATE_WAITING
             : STATE_POSTACTIVE;
           if (mClient) {
@@ -1481,17 +1483,17 @@ nsSMILTimedElement::FilterInstanceTimes(InstanceTimeList& aList)
 // See:
 // http://www.w3.org/TR/2001/REC-smil-animation-20010904/#Timing-BeginEnd-LC-Start
 //
-PRBool
+nsresult
 nsSMILTimedElement::GetNextInterval(const nsSMILInterval* aPrevInterval,
                                     const nsSMILInstanceTime* aFixedBeginTime,
                                     nsSMILInterval& aResult) const
 {
   NS_ABORT_IF_FALSE(!aFixedBeginTime || aFixedBeginTime->Time().IsResolved(),
       "Unresolved begin time specified for interval start");
-  static const nsSMILTimeValue zeroTime(0L);
+  static nsSMILTimeValue zeroTime(0L);
 
   if (mRestartMode == RESTART_NEVER && aPrevInterval)
-    return PR_FALSE;
+    return NS_ERROR_FAILURE;
 
   // Calc starting point
   nsSMILTimeValue beginAfter;
@@ -1514,9 +1516,8 @@ nsSMILTimedElement::GetNextInterval(const nsSMILInterval* aPrevInterval,
   while (PR_TRUE) {
     // Calculate begin time
     if (aFixedBeginTime) {
-      if (aFixedBeginTime->Time() < beginAfter) {
-        return PR_FALSE;
-      }
+      if (aFixedBeginTime->Time() < beginAfter)
+        return NS_ERROR_FAILURE;
       // our ref-counting is not const-correct
       tempBegin = const_cast<nsSMILInstanceTime*>(aFixedBeginTime);
     } else if ((!mAnimationElement ||
@@ -1526,9 +1527,8 @@ nsSMILTimedElement::GetNextInterval(const nsSMILInterval* aPrevInterval,
     } else {
       PRInt32 beginPos = 0;
       tempBegin = GetNextGreaterOrEqual(mBeginInstances, beginAfter, beginPos);
-      if (!tempBegin || !tempBegin->Time().IsResolved()) {
-        return PR_FALSE;
-      }
+      if (!tempBegin || !tempBegin->Time().IsResolved())
+        return NS_ERROR_FAILURE;
     }
     NS_ABORT_IF_FALSE(tempBegin && tempBegin->Time().IsResolved() && 
         tempBegin->Time() >= beginAfter,
@@ -1560,7 +1560,7 @@ nsSMILTimedElement::GetNextInterval(const nsSMILInterval* aPrevInterval,
                                    mEndInstances.IsEmpty() ||
                                    EndHasEventConditions();
       if (!tempEnd && !openEndedIntervalOk)
-        return PR_FALSE; // Bad interval
+        return NS_ERROR_FAILURE; // Bad interval
 
       nsSMILTimeValue intervalEnd = tempEnd
                                   ? tempEnd->Time() : nsSMILTimeValue();
@@ -1588,19 +1588,19 @@ nsSMILTimedElement::GetNextInterval(const nsSMILInterval* aPrevInterval,
     if (tempEnd->Time() > zeroTime ||
        (tempBegin->Time() == zeroTime && tempEnd->Time() == zeroTime)) {
       aResult.Set(*tempBegin, *tempEnd);
-      return PR_TRUE;
+      return NS_OK;
     }
 
     if (mRestartMode == RESTART_NEVER) {
       // tempEnd <= 0 so we're going to loop which effectively means restarting
-      return PR_FALSE;
+      return NS_ERROR_FAILURE;
     }
 
     beginAfter = tempEnd->Time();
   }
   NS_NOTREACHED("Hmm... we really shouldn't be here");
 
-  return PR_FALSE;
+  return NS_ERROR_FAILURE;
 }
 
 nsSMILInstanceTime*
@@ -1803,7 +1803,10 @@ nsSMILTimedElement::UpdateCurrentInterval(PRBool aForceChangeNotice)
                                       ? mCurrentInterval->Begin()
                                       : nsnull;
   nsSMILInterval updatedInterval;
-  if (GetNextInterval(GetPreviousInterval(), beginTime, updatedInterval)) {
+  nsresult rv =
+    GetNextInterval(GetPreviousInterval(), beginTime, updatedInterval);
+
+  if (NS_SUCCEEDED(rv)) {
 
     if (mElementState == STATE_POSTACTIVE) {
 

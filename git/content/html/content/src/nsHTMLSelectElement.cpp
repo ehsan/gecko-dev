@@ -187,8 +187,9 @@ DOMCI_NODE_DATA(HTMLSelectElement, nsHTMLSelectElement)
 
 // QueryInterface implementation for nsHTMLSelectElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLSelectElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE3(nsHTMLSelectElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE4(nsHTMLSelectElement,
                                    nsIDOMHTMLSelectElement,
+                                   nsIDOMHTMLSelectElement_Mozilla_2_0_Branch,
                                    nsISelectElement,
                                    nsIConstraintValidation)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLSelectElement,
@@ -212,10 +213,10 @@ nsHTMLSelectElement::SetCustomValidity(const nsAString& aError)
   nsIDocument* doc = GetCurrentDoc();
   if (doc) {
     MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-    doc->ContentStateChanged(this, NS_EVENT_STATE_INVALID |
-                                   NS_EVENT_STATE_VALID |
-                                   NS_EVENT_STATE_MOZ_UI_INVALID |
-                                   NS_EVENT_STATE_MOZ_UI_VALID);
+    doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_INVALID |
+                                            NS_EVENT_STATE_VALID |
+                                            NS_EVENT_STATE_MOZ_UI_INVALID |
+                                            NS_EVENT_STATE_MOZ_UI_VALID);
   }
 
   return NS_OK;
@@ -366,10 +367,10 @@ nsHTMLSelectElement::RemoveOptionsFromList(nsIContent* aOptions,
         nsIDocument* doc = GetCurrentDoc();
         if (doc) {
           MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-          doc->ContentStateChanged(this, NS_EVENT_STATE_VALID |
-                                         NS_EVENT_STATE_INVALID |
-                                         NS_EVENT_STATE_MOZ_UI_INVALID |
-                                         NS_EVENT_STATE_MOZ_UI_VALID);
+          doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_VALID |
+                                                  NS_EVENT_STATE_INVALID |
+                                                  NS_EVENT_STATE_MOZ_UI_INVALID |
+                                                  NS_EVENT_STATE_MOZ_UI_VALID);
         }
       }
     }
@@ -899,10 +900,10 @@ nsHTMLSelectElement::OnOptionSelected(nsISelectControlFrame* aSelectFrame,
     nsIDocument* doc = GetCurrentDoc();
     if (doc) {
       MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-      doc->ContentStateChanged(this, NS_EVENT_STATE_VALID |
-                                     NS_EVENT_STATE_INVALID |
-                                     NS_EVENT_STATE_MOZ_UI_INVALID |
-                                     NS_EVENT_STATE_MOZ_UI_VALID);
+      doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_VALID |
+                                              NS_EVENT_STATE_INVALID |
+                                              NS_EVENT_STATE_MOZ_UI_INVALID |
+                                              NS_EVENT_STATE_MOZ_UI_VALID);
     }
   }
 }
@@ -1269,7 +1270,7 @@ NS_IMPL_BOOL_ATTR(nsHTMLSelectElement, Disabled, disabled)
 NS_IMPL_BOOL_ATTR(nsHTMLSelectElement, Multiple, multiple)
 NS_IMPL_STRING_ATTR(nsHTMLSelectElement, Name, name)
 NS_IMPL_BOOL_ATTR(nsHTMLSelectElement, Required, required)
-NS_IMPL_NON_NEGATIVE_INT_ATTR_DEFAULT_VALUE(nsHTMLSelectElement, Size, size, 0)
+NS_IMPL_POSITIVE_INT_ATTR_DEFAULT_VALUE(nsHTMLSelectElement, Size, size, 0)
 NS_IMPL_INT_ATTR(nsHTMLSelectElement, TabIndex, tabindex)
 
 NS_IMETHODIMP
@@ -1344,10 +1345,10 @@ nsHTMLSelectElement::SelectSomething(PRBool aNotify)
         nsIDocument* doc = GetCurrentDoc();
         if (doc) {
           MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-          doc->ContentStateChanged(this, NS_EVENT_STATE_VALID |
-                                         NS_EVENT_STATE_INVALID |
-                                         NS_EVENT_STATE_MOZ_UI_INVALID |
-                                         NS_EVENT_STATE_MOZ_UI_VALID);
+          doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_VALID |
+                                                  NS_EVENT_STATE_INVALID |
+                                                  NS_EVENT_STATE_MOZ_UI_INVALID |
+                                                  NS_EVENT_STATE_MOZ_UI_VALID);
         }
       }
 
@@ -1410,7 +1411,7 @@ nsHTMLSelectElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
     nsIDocument* doc = GetCurrentDoc();
     if (doc) {
       MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-      doc->ContentStateChanged(this, states);
+      doc->ContentStatesChanged(this, nsnull, states);
     }
   }
 
@@ -1586,8 +1587,8 @@ nsHTMLSelectElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
     nsIDocument* doc = GetCurrentDoc();
     if (doc) {
       MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-      doc->ContentStateChanged(this, NS_EVENT_STATE_MOZ_UI_VALID |
-                                     NS_EVENT_STATE_MOZ_UI_INVALID);
+      doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_MOZ_UI_VALID |
+                                              NS_EVENT_STATE_MOZ_UI_INVALID);
     }
   }
 
@@ -2328,8 +2329,8 @@ nsHTMLSelectElement::SetSelectionChanged(PRBool aValue, PRBool aNotify)
     nsIDocument* doc = GetCurrentDoc();
     if (doc) {
       MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-      doc->ContentStateChanged(this, NS_EVENT_STATE_MOZ_UI_INVALID |
-                                     NS_EVENT_STATE_MOZ_UI_VALID);
+      doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_MOZ_UI_INVALID |
+                                              NS_EVENT_STATE_MOZ_UI_VALID);
     }
   }
 }

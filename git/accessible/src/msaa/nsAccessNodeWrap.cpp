@@ -308,7 +308,7 @@ STDMETHODIMP nsAccessNodeWrap::get_attributesForNames(
     /* [length_is][size_is][retval] */ BSTR __RPC_FAR *aAttribValues)
 {
 __try {
-  if (IsDefunct() || !IsElement())
+  if (IsDefunct() || IsDocument())
     return E_FAIL;
 
   nsCOMPtr<nsIDOMElement> domElement(do_QueryInterface(mContent));
@@ -616,7 +616,12 @@ void nsAccessNodeWrap::InitAccessibility()
 
   DoATSpecificProcessing();
 
-  nsWinUtils::MaybeStartWindowEmulation();
+  // Register window class that'll be used for document accessibles associated
+  // with tabs.
+  if (nsWinUtils::IsWindowEmulationEnabled()) {
+    nsWinUtils::RegisterNativeWindow(kClassNameTabContent);
+    sHWNDCache.Init(4);
+  }
 
   nsAccessNode::InitXPAccessibility();
 }
@@ -626,7 +631,10 @@ void nsAccessNodeWrap::ShutdownAccessibility()
   NS_IF_RELEASE(gTextEvent);
   ::DestroyCaret();
 
-  nsWinUtils::ShutdownWindowEmulation();
+  // Unregister window call that's used for document accessibles associated
+  // with tabs.
+  if (nsWinUtils::IsWindowEmulationEnabled())
+    ::UnregisterClassW(kClassNameTabContent, GetModuleHandle(NULL));
 
   nsAccessNode::ShutdownXPAccessibility();
 }
@@ -767,13 +775,6 @@ nsAccessNodeWrap::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
         }
       }
       return 0;
-    }
-    case WM_NCHITTEST:
-    {
-      LRESULT lRet = ::DefWindowProc(hWnd, msg, wParam, lParam);
-      if (HTCLIENT == lRet)
-        lRet = HTTRANSPARENT;
-      return lRet;
     }
   }
 

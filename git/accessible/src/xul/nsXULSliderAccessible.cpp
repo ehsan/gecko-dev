@@ -272,7 +272,7 @@ nsXULSliderAccessible::GetSliderAttr(nsIAtom *aName, double *aValue)
     return NS_OK;
 
   PRInt32 error = NS_OK;
-  double value = attrValue.ToDouble(&error);
+  double value = attrValue.ToFloat(&error);
   if (NS_SUCCEEDED(error))
     *aValue = value;
 

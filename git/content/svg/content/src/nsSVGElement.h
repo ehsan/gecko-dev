@@ -52,6 +52,7 @@
 #include "nsISVGValue.h"
 #include "nsISVGValueObserver.h"
 #include "nsWeakReference.h"
+#include "nsICSSStyleRule.h"
 
 #ifdef MOZ_SMIL
 #include "nsISMILAttr.h"
@@ -68,7 +69,6 @@ class nsSVGEnum;
 struct nsSVGEnumMapping;
 class nsSVGViewBox;
 class nsSVGString;
-class nsSVGClass;
 struct gfxMatrix;
 namespace mozilla {
 class SVGAnimatedNumberList;
@@ -199,7 +199,6 @@ public:
   virtual void DidAnimatePathSegList();
   virtual void DidAnimateTransform();
   virtual void DidAnimateString(PRUint8 aAttrEnum);
-  virtual void DidAnimateClass();
 
   void GetAnimatedLengthValues(float *aFirst, ...);
   void GetAnimatedNumberValues(float *aFirst, ...);
@@ -255,7 +254,7 @@ protected:
   void UpdateContentStyleRule();
 #ifdef MOZ_SMIL
   void UpdateAnimatedContentStyleRule();
-  mozilla::css::StyleRule* GetAnimatedContentStyleRule();
+  nsICSSStyleRule* GetAnimatedContentStyleRule();
 #endif // MOZ_SMIL
 
   nsISVGValue* GetMappedAttribute(PRInt32 aNamespaceID, nsIAtom* aName);
@@ -468,7 +467,6 @@ protected:
   virtual NumberListAttributesInfo GetNumberListInfo();
   virtual LengthListAttributesInfo GetLengthListInfo();
   virtual StringAttributesInfo GetStringInfo();
-  virtual nsSVGClass *GetClass();
 
   static nsSVGEnumMapping sSVGUnitTypesMap[];
 
@@ -499,7 +497,7 @@ private:
     GetModificationDataForObservable(nsISVGValue* aObservable,
                                      nsISVGValue::modificationType aModType);
 
-  nsRefPtr<mozilla::css::StyleRule> mContentStyleRule;
+  nsCOMPtr<nsICSSStyleRule> mContentStyleRule;
   nsAttrAndChildArray mMappedAttributes;
 
   PRPackedBool mSuppressNotification;

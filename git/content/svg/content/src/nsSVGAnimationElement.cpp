@@ -270,14 +270,16 @@ nsSVGAnimationElement::BindToTree(nsIDocument* aDocument,
                                                       aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv,rv);
 
-  // XXXdholbert is GetCtx (as a check for SVG parent) still needed here?
-  if (!GetCtx()) {
+  // XXXdholbert is ownerDOMSVG (as a check for SVG parent) still needed here?
+  nsCOMPtr<nsIDOMSVGSVGElement> ownerDOMSVG;
+  rv = GetOwnerSVGElement(getter_AddRefs(ownerDOMSVG));
+
+  if (NS_FAILED(rv) || !ownerDOMSVG)
     // No use proceeding. We don't have an SVG parent (yet) so we won't be able
     // to register ourselves etc. Maybe next time we'll have more luck.
     // (This sort of situation will arise a lot when trees are being constructed
     // piece by piece via script)
     return NS_OK;
-  }
 
   // Add myself to the animation controller's master set of animation elements.
   if (aDocument) {
@@ -418,13 +420,18 @@ nsSVGAnimationElement::IsNodeOfType(PRUint32 aFlags) const
 nsSMILTimeContainer*
 nsSVGAnimationElement::GetTimeContainer()
 {
-  nsSVGSVGElement *element = nsSVGUtils::GetOuterSVGElement(this);
+  nsSMILTimeContainer *result = nsnull;
+  nsCOMPtr<nsIDOMSVGSVGElement> ownerDOMSVG;
 
-  if (element) {
-    return element->GetTimedDocumentRoot();
+  nsresult rv = GetOwnerSVGElement(getter_AddRefs(ownerDOMSVG));
+
+  if (NS_SUCCEEDED(rv) && ownerDOMSVG) {
+    nsSVGSVGElement *ownerSVG =
+      static_cast<nsSVGSVGElement*>(ownerDOMSVG.get());
+    result = ownerSVG->GetTimedDocumentRoot();
   }
 
-  return nsnull;
+  return result;
 }
 
 // nsIDOMElementTimeControl

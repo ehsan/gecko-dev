@@ -9,22 +9,19 @@
 
 // hhea - Horizontal Header
 // http://www.microsoft.com/opentype/otspec/hhea.htm
-// vhea - Vertical Header
-// http://www.microsoft.com/opentype/otspec/vhea.htm
-// This file is used for both tables because they share the same structures.
 
 namespace ots {
 
-bool ots_Xhea_parse(OpenTypeFile *file, const uint8_t *data, size_t length,
-                    OpenTypeHHEA **out_hhea) {
+bool ots_hhea_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
   Buffer table(data, length);
   OpenTypeHHEA *hhea = new OpenTypeHHEA;
-  *out_hhea = hhea;
+  file->hhea = hhea;
 
-  if (!table.ReadU32(&hhea->version)) {
+  uint32_t version = 0;
+  if (!table.ReadU32(&version)) {
     return OTS_FAILURE();
   }
-  if (hhea->version >> 16 != 1) {
+  if (version >> 16 != 1) {
     return OTS_FAILURE();
   }
 
@@ -89,24 +86,15 @@ bool ots_Xhea_parse(OpenTypeFile *file, const uint8_t *data, size_t length,
   return true;
 }
 
-bool ots_hhea_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
-  return ots_Xhea_parse(file, data, length, &file->hhea);
-}
-
-bool ots_vhea_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
-  return ots_Xhea_parse(file, data, length, &file->vhea);
-}
-
 bool ots_hhea_should_serialise(OpenTypeFile *file) {
   return file->hhea;
 }
 
-bool ots_vhea_should_serialise(OpenTypeFile *file) {
-  return file->preserve_otl && file->vhea;
-}
+bool ots_hhea_serialise(OTSStream *out, OpenTypeFile *file) {
+  const OpenTypeHHEA *hhea = file->hhea;
 
-bool ots_Xhea_serialise(OTSStream *out, OpenTypeFile *file, const OpenTypeHHEA *hhea) {
-  if (!out->WriteS16(hhea->ascent) ||
+  if (!out->WriteU32(0x00010000) ||
+      !out->WriteS16(hhea->ascent) ||
       !out->WriteS16(hhea->descent) ||
       !out->WriteS16(hhea->linegap) ||
       !out->WriteU16(hhea->adv_width_max) ||
@@ -125,26 +113,8 @@ bool ots_Xhea_serialise(OTSStream *out, OpenTypeFile *file, const OpenTypeHHEA *
   return true;
 }
 
-bool ots_hhea_serialise(OTSStream *out, OpenTypeFile *file) {
-  if (!out->WriteU32(0x00010000)) {
-    return OTS_FAILURE();
-  }
-  return ots_Xhea_serialise(out, file, file->hhea);
-}
-
-bool ots_vhea_serialise(OTSStream *out, OpenTypeFile *file) {
-  if (!out->WriteU32(file->vhea->version)) {
-    return OTS_FAILURE();
-  }
-  return ots_Xhea_serialise(out, file, file->vhea);
-}
-
 void ots_hhea_free(OpenTypeFile *file) {
   delete file->hhea;
-}
-
-void ots_vhea_free(OpenTypeFile *file) {
-  delete file->vhea;
 }
 
 }  // namespace ots

@@ -90,9 +90,7 @@
 
 #view-port-container {
   /* Needed to allow the radius to clip the inner content, see bug 595656 */
-  /* Disabled because of bug 623615
   overflow: hidden;
-  */
   background-color: rgba(255, 255, 255, 0.35);
   background-image: -moz-linear-gradient(top,
                                          rgba(255, 255, 255, 0),
@@ -553,7 +551,6 @@
   color: #3F3F3F;
   margin-bottom: 0;
   -moz-box-align: end;
-  -moz-box-flex: 1;
 }
 
 .creator {

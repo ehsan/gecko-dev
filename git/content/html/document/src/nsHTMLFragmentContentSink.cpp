@@ -70,7 +70,7 @@
 #include "nsCSSParser.h"
 #include "nsCSSProperty.h"
 #include "mozilla/css/Declaration.h"
-#include "mozilla/css/StyleRule.h"
+#include "nsICSSStyleRule.h"
 #include "nsUnicharInputStream.h"
 #include "nsCSSStyleSheet.h"
 #include "nsICSSRuleList.h"
@@ -815,7 +815,7 @@ protected:
                         nsIAtom **aResult);
 
   // The return value will be true if we have sanitized the rule
-  PRBool SanitizeStyleRule(css::StyleRule *aRule, nsAutoString &aRuleText);
+  PRBool SanitizeStyleRule(nsICSSStyleRule *aRule, nsAutoString &aRuleText);
 
   PRPackedBool mSkip; // used when we descend into <style> or <script>
   PRPackedBool mProcessStyle; // used when style is explicitly white-listed
@@ -894,10 +894,12 @@ nsHTMLParanoidFragmentSink::Cleanup()
 nsresult
 NS_NewHTMLParanoidFragmentSink(nsIFragmentContentSink** aResult)
 {
+  nsHTMLParanoidFragmentSink* it = new nsHTMLParanoidFragmentSink();
+  if (!it) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
   nsresult rv = nsHTMLParanoidFragmentSink::Init();
   NS_ENSURE_SUCCESS(rv, rv);
-
-  nsHTMLParanoidFragmentSink* it = new nsHTMLParanoidFragmentSink();
   NS_ADDREF(*aResult = it);
   
   return NS_OK;
@@ -1048,7 +1050,7 @@ nsHTMLParanoidFragmentSink::AddAttributes(const nsIParserNode& aNode,
       // Pass the CSS Loader object to the parser, to allow parser error reports
       // to include the outer window ID.
       nsCSSParser parser(mTargetDocument->CSSLoader());
-      nsRefPtr<css::StyleRule> rule;
+      nsCOMPtr<nsICSSStyleRule> rule;
       rv = parser.ParseStyleAttribute(aNode.GetValueAt(i),
                                       mTargetDocument->GetDocumentURI(),
                                       baseURI,
@@ -1211,12 +1213,15 @@ nsHTMLParanoidFragmentSink::CloseContainer(const nsHTMLTag aTag)
                 case nsICSSRule::STYLE_RULE: {
                   // For style rules, we will just look for and remove the
                   // -moz-binding properties.
-                  nsRefPtr<css::StyleRule> styleRule = do_QueryObject(rule);
+                  nsCOMPtr<nsICSSStyleRule> styleRule = do_QueryInterface(rule);
                   NS_ASSERTION(styleRule, "Must be a style rule");
                   nsAutoString decl;
                   didSanitize = SanitizeStyleRule(styleRule, decl) || didSanitize;
-                  styleRule->GetCssText(decl);
-                  sanitizedStyleText.Append(decl);
+                  rv = styleRule->GetCssText(decl);
+                  // Only add the rule when sanitized.
+                  if (NS_SUCCEEDED(rv)) {
+                    sanitizedStyleText.Append(decl);
+                  }
                 }
               }
             }
@@ -1234,7 +1239,7 @@ nsHTMLParanoidFragmentSink::CloseContainer(const nsHTMLTag aTag)
 }
 
 PRBool
-nsHTMLParanoidFragmentSink::SanitizeStyleRule(css::StyleRule *aRule, nsAutoString &aRuleText)
+nsHTMLParanoidFragmentSink::SanitizeStyleRule(nsICSSStyleRule *aRule, nsAutoString &aRuleText)
 {
   PRBool didSanitize = PR_FALSE;
   aRuleText.Truncate();

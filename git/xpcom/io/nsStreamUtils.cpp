@@ -262,7 +262,7 @@ public:
     virtual ~nsAStreamCopier()
     {
         if (mLock)
-            nsAutoLock::DestroyLock(mLock);
+            PR_DestroyLock(mLock);
     }
 
     // kick off the async copy...
@@ -284,7 +284,7 @@ public:
         mCloseSource = closeSource;
         mCloseSink = closeSink;
 
-        mLock = nsAutoLock::NewLock("nsAStreamCopier::mLock");
+        mLock = PR_NewLock();
         if (!mLock)
             return NS_ERROR_OUT_OF_MEMORY;
 

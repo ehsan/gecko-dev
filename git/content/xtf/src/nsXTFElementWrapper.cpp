@@ -916,7 +916,7 @@ nsXTFElementWrapper::SetIntrinsicState(nsEventStates::InternalType aNewState)
 
   mIntrinsicState = newStates;
   mozAutoDocUpdate upd(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-  doc->ContentStateChanged(this, bits);
+  doc->ContentStatesChanged(this, nsnull, bits);
 
   return NS_OK;
 }

@@ -203,7 +203,7 @@ __try {
     // Return window system accessible object for root document and tab document
     // accessibles.
     if (!doc->ParentDocument() ||
-        nsWinUtils::IsWindowEmulationStarted() &&
+        nsWinUtils::IsWindowEmulationEnabled() &&
         nsWinUtils::IsTabDocument(doc->GetDocumentNode())) {
       HWND hwnd = static_cast<HWND>(doc->GetNativeWindow());
       if (hwnd && SUCCEEDED(AccessibleObjectFromWindow(hwnd, OBJID_WINDOW,
@@ -236,7 +236,9 @@ __try {
   if (nsAccUtils::MustPrune(this))
     return NS_OK;
 
-  *pcountChildren = GetChildCount();
+  PRInt32 numChildren;
+  GetChildCount(&numChildren);
+  *pcountChildren = numChildren;
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
   return S_OK;
@@ -1012,7 +1014,9 @@ __try {
 
   mEnumVARIANTPosition += aNumElements;
 
-  PRInt32 numChildren = GetChildCount();
+  PRInt32 numChildren;
+  GetChildCount(&numChildren);
+
   if (mEnumVARIANTPosition > numChildren)
   {
     mEnumVARIANTPosition = numChildren;
@@ -1768,7 +1772,7 @@ void nsAccessibleWrap::UpdateSystemCaret()
   // off-screen model can follow the caret
   ::DestroyCaret();
 
-  nsRootAccessible* rootAccessible = RootAccessible();
+  nsRefPtr<nsRootAccessible> rootAccessible = GetRootAccessible();
   if (!rootAccessible) {
     return;
   }

@@ -89,7 +89,7 @@ nsMediaDecoder::nsMediaDecoder() :
 nsMediaDecoder::~nsMediaDecoder()
 {
   if (mVideoUpdateLock) {
-    nsAutoLock::DestroyLock(mVideoUpdateLock);
+    PR_DestroyLock(mVideoUpdateLock);
     mVideoUpdateLock = nsnull;
   }
   MOZ_COUNT_DTOR(nsMediaDecoder);
@@ -98,7 +98,7 @@ nsMediaDecoder::~nsMediaDecoder()
 PRBool nsMediaDecoder::Init(nsHTMLMediaElement* aElement)
 {
   mElement = aElement;
-  mVideoUpdateLock = nsAutoLock::NewLock("nsMediaDecoder::mVideoUpdateLock");
+  mVideoUpdateLock = PR_NewLock();
 
   return mVideoUpdateLock != nsnull;
 }
@@ -255,8 +255,7 @@ void nsMediaDecoder::FireTimeUpdate()
 
 void nsMediaDecoder::SetVideoData(const gfxIntSize& aSize,
                                   float aPixelAspectRatio,
-                                  Image* aImage,
-                                  TimeStamp aTarget)
+                                  Image* aImage)
 {
   nsAutoLock lock(mVideoUpdateLock);
 
@@ -269,26 +268,12 @@ void nsMediaDecoder::SetVideoData(const gfxIntSize& aSize,
   }
   if (mImageContainer && aImage) {
     gfxIntSize oldFrameSize = mImageContainer->GetCurrentSize();
-
-    TimeStamp paintTime = mImageContainer->GetPaintTime();
-    if (!paintTime.IsNull() && !mPaintTarget.IsNull()) {
-      mPaintDelay = paintTime - mPaintTarget;
-    }
-
     mImageContainer->SetCurrentImage(aImage);
     gfxIntSize newFrameSize = mImageContainer->GetCurrentSize();
     if (oldFrameSize != newFrameSize) {
       mImageContainerSizeChanged = PR_TRUE;
     }
   }
-
-  mPaintTarget = aTarget;
-}
-
-double nsMediaDecoder::GetFrameDelay()
-{
-  nsAutoLock lock(mVideoUpdateLock);
-  return mPaintDelay.ToSeconds();
 }
 
 void nsMediaDecoder::PinForSeek()
@@ -335,8 +320,7 @@ PRBool nsMediaDecoder::CanPlayThrough()
   // our download rate or decode rate estimation is otherwise inaccurate,
   // we don't suddenly discover that we need to buffer. This is particularly
   // required near the start of the media, when not much data is downloaded.
-  PRInt64 readAheadMargin =
-    static_cast<PRInt64>(stats.mPlaybackRate * CAN_PLAY_THROUGH_MARGIN);
+  PRInt64 readAheadMargin = stats.mPlaybackRate * CAN_PLAY_THROUGH_MARGIN;
   return stats.mTotalBytes == stats.mDownloadPosition ||
          stats.mDownloadPosition > stats.mPlaybackPosition + readAheadMargin;
 }

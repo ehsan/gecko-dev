@@ -302,8 +302,6 @@ PRBool          nsWindow::sUseElantechGestureHacks = PR_FALSE;
 // If we're using D3D9, this will not be allowed during initial 5 seconds.
 bool            nsWindow::sAllowD3D9              = false;
 
-TriStateBool nsWindow::sHasBogusPopupsDropShadowOnMultiMonitor = TRI_UNKNOWN;
-
 #ifdef ACCESSIBILITY
 BOOL            nsWindow::sIsAccessibilityOn      = FALSE;
 // Accessibility wm_getobject handler
@@ -1228,12 +1226,13 @@ NS_METHOD nsWindow::Show(PRBool bState)
 #endif
 
   if (mWindowType == eWindowType_popup) {
-    // See bug 603793. When we try to draw D3D9/10 windows with a drop shadow
+    // See bug 603793. When we try to draw D3D10 windows with a drop shadow
     // without the DWM on a secondary monitor, windows fails to composite
     // our windows correctly. We therefor switch off the drop shadow for
     // pop-up windows when the DWM is disabled and two monitors are
     // connected.
-    if (HasBogusPopupsDropShadowOnMultiMonitor() &&
+    if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() ==
+        gfxWindowsPlatform::RENDER_DIRECT2D &&
         GetMonitorCount() > 1 &&
         !nsUXThemeData::CheckForCompositor())
     {
@@ -1299,9 +1298,6 @@ NS_METHOD nsWindow::Show(PRBool bState)
             break;
           // use default for nsSizeMode_Minimized on Windows CE
 #else
-          case nsSizeMode_Fullscreen:
-            ::ShowWindow(mWnd, SW_SHOW);
-            break;
           case nsSizeMode_Maximized :
             ::ShowWindow(mWnd, SW_SHOWMAXIMIZED);
             break;
@@ -2643,7 +2639,7 @@ void nsWindow::UpdateTransparentRegion(const nsIntRegion &aTransparentRegion)
   // all values must be set to -1 to get a full sheet of glass.
   MARGINS margins = { -1, -1, -1, -1 };
   bool visiblePlugin = false;
-  if (!opaqueRegion.IsEmpty()) {
+  if (!opaqueRegion.IsEmpty() && !mHideChrome) {
     nsIntRect pluginBounds;
     for (nsIWidget* child = GetFirstChild(); child; child = child->GetNextSibling()) {
       nsWindowType type;
@@ -2901,16 +2897,21 @@ nsWindow::MakeFullScreen(PRBool aFullScreen)
 
   UpdateNonClientMargins();
 
-  PRBool visible = mIsVisible;
-  Show(PR_FALSE);
-  
+  // Prevent window updates during the transition.
+  DWORD style;
+  if (nsUXThemeData::CheckForCompositor()) {
+    style = GetWindowLong(mWnd, GWL_STYLE);
+    SetWindowLong(mWnd, GWL_STYLE, style & ~WS_VISIBLE);
+  }
+
   // Will call hide chrome, reposition window. Note this will
   // also cache dimensions for restoration, so it should only
   // be called once per fullscreen request.
   nsresult rv = nsBaseWidget::MakeFullScreen(aFullScreen);
 
-  if (visible) {
-    Show(PR_TRUE);
+  if (nsUXThemeData::CheckForCompositor()) {
+    style = GetWindowLong(mWnd, GWL_STYLE);
+    SetWindowLong(mWnd, GWL_STYLE, style | WS_VISIBLE);
     Invalidate(PR_FALSE);
   }
 
@@ -4463,22 +4464,8 @@ nsWindow::IPCWindowProcHandler(UINT& msg, WPARAM& wParam, LPARAM& lParam)
     // via calls to ShowWindow.
     case WM_ACTIVATE:
       if (lParam != 0 && LOWORD(wParam) == WA_ACTIVE &&
-          IsWindow((HWND)lParam)) {
-        // Check for Adobe Reader X sync activate message from their
-        // helper window and ignore. Fixes an annoying focus problem.
-        if ((InSendMessageEx(NULL)&(ISMEX_REPLIED|ISMEX_SEND)) == ISMEX_SEND) {
-          PRUnichar szClass[10];
-          HWND focusWnd = (HWND)lParam;
-          if (IsWindowVisible(focusWnd) &&
-              GetClassNameW(focusWnd, szClass,
-                            sizeof(szClass)/sizeof(PRUnichar)) &&
-              !wcscmp(szClass, L"Edit") &&
-              !IsOurProcessWindow(focusWnd)) {
-            break;
-          }
-        }
+          IsWindow((HWND)lParam))
         handled = PR_TRUE;
-      }
     break;
     // Wheel events forwarded from the child.
     case WM_MOUSEWHEEL:
@@ -4531,14 +4518,10 @@ nsWindow::IPCWindowProcHandler(UINT& msg, WPARAM& wParam, LPARAM& lParam)
 static PRBool
 DisplaySystemMenu(HWND hWnd, nsSizeMode sizeMode, PRBool isRtl, PRInt32 x, PRInt32 y)
 {
+  GetSystemMenu(hWnd, TRUE); // reset the system menu
   HMENU hMenu = GetSystemMenu(hWnd, FALSE);
   if (hMenu) {
     // update the options
-    EnableMenuItem(hMenu, SC_RESTORE, MF_BYCOMMAND | MF_ENABLED);
-    EnableMenuItem(hMenu, SC_SIZE, MF_BYCOMMAND | MF_ENABLED);
-    EnableMenuItem(hMenu, SC_MOVE, MF_BYCOMMAND | MF_ENABLED);
-    EnableMenuItem(hMenu, SC_MAXIMIZE, MF_BYCOMMAND | MF_ENABLED);
-    EnableMenuItem(hMenu, SC_MINIMIZE, MF_BYCOMMAND | MF_ENABLED);
     switch(sizeMode) {
       case nsSizeMode_Fullscreen:
         EnableMenuItem(hMenu, SC_RESTORE, MF_BYCOMMAND | MF_GRAYED);
@@ -5306,12 +5289,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
                                   PR_FALSE, nsMouseEvent::eRightButton,
                                   MOUSE_INPUT_SOURCE());
       DispatchPendingEvents();
-      break;
-
-    case WM_EXITSIZEMOVE:
-      if (!sIsInMouseCapture) {
-        DispatchStandardEvent(NS_DONESIZEMOVE);
-      }
       break;
 
     case WM_APPCOMMAND:
@@ -7780,7 +7757,7 @@ HWND nsWindow::FindOurWindowAtPoint(const POINT& aPoint)
   return info.mOutHWND;
 }
 
-typedef DWORD (WINAPI *GetProcessImageFileNameProc)(HANDLE, LPWSTR, DWORD);
+typedef DWORD (*GetProcessImageFileNameProc)(HANDLE, LPWSTR, DWORD);
 
 // Determine whether the given HWND is the handle for the Elantech helper
 // window.  The helper window cannot be distinguished based on its
@@ -8124,36 +8101,6 @@ nsWindow::StartAllowingD3D9(bool aReinitialize)
   } else {
     EnumAllWindows(AllowD3D9Callback);
   }
-}
-
-bool
-nsWindow::HasBogusPopupsDropShadowOnMultiMonitor() {
-  if (sHasBogusPopupsDropShadowOnMultiMonitor == TRI_UNKNOWN) {
-    // Since any change in the preferences requires a restart, this can be
-    // done just once.
-    // Check for Direct2D first.
-    sHasBogusPopupsDropShadowOnMultiMonitor =
-      gfxWindowsPlatform::GetPlatform()->GetRenderMode() ==
-        gfxWindowsPlatform::RENDER_DIRECT2D ? TRI_TRUE : TRI_FALSE;
-    if (!sHasBogusPopupsDropShadowOnMultiMonitor) {
-      // Otherwise check if Direct3D 9 may be used.
-      LayerManagerPrefs prefs;
-      GetLayerManagerPrefs(&prefs);
-      if (!prefs.mDisableAcceleration && !prefs.mPreferOpenGL) {
-        nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
-        if (gfxInfo) {
-          PRInt32 status;
-          if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_DIRECT3D_9_LAYERS, &status))) {
-            if (status == nsIGfxInfo::FEATURE_NO_INFO || prefs.mForceAcceleration)
-            {
-              sHasBogusPopupsDropShadowOnMultiMonitor = TRI_TRUE;
-            }
-          }
-        }
-      }
-    }
-  }
-  return !!sHasBogusPopupsDropShadowOnMultiMonitor;
 }
 
 /**************************************************************

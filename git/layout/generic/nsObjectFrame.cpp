@@ -405,9 +405,6 @@ public:
   {
     mObjectFrame = aOwner;
   }
-  nsObjectFrame* GetOwner() {
-    return mObjectFrame;
-  }
 
   PRUint32 GetLastEventloopNestingLevel() const {
     return mLastEventloopNestingLevel; 
@@ -1645,7 +1642,7 @@ nsObjectFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   #endif
     }
 
-    nsRefPtr<ImageContainer> container = GetImageContainer();
+    ImageContainer* container = GetImageContainer();
     nsRefPtr<Image> currentImage = container ? container->GetCurrentImage() : nsnull;
     if (!currentImage || !isVisible ||
         container->GetCurrentSize() != gfxIntSize(window->width, window->height)) {
@@ -1887,43 +1884,31 @@ nsObjectFrame::PrintPlugin(nsIRenderingContext& aRenderingContext,
                    nsnull, status);  // DidReflow will take care of it
 }
 
-already_AddRefed<ImageContainer>
+ImageContainer*
 nsObjectFrame::GetImageContainer(LayerManager* aManager)
 {
   nsRefPtr<LayerManager> manager = aManager;
-  bool retain = false;
 
   if (!manager) {
-    manager = nsContentUtils::LayerManagerForDocument(mContent->GetOwnerDoc(), &retain);
+    manager = nsContentUtils::LayerManagerForDocument(mContent->GetOwnerDoc());
   }
   if (!manager) {
     return nsnull;
   }
-  
-  nsRefPtr<ImageContainer> container;
 
   // XXX - in the future image containers will be manager independent and
   // we can remove the manager equals check and only check the backend type.
   if (mImageContainer) {
     if ((!mImageContainer->Manager() || mImageContainer->Manager() == manager) &&
-        mImageContainer->GetBackendType() == manager->GetBackendType()) {
-      container = mImageContainer;
-      return container.forget();
-    }
-  }
-
-  container = manager->CreateImageContainer();
-
-  if (retain) {
+        mImageContainer->GetBackendType() == manager->GetBackendType())
+      return mImageContainer;
     // Clear current image before we reset mImageContainer. Only mImageContainer
     // is allowed to contain the image for this plugin.
-    if (mImageContainer) {
-      mImageContainer->SetCurrentImage(nsnull);
-    }
-    mImageContainer = container;
+    mImageContainer->SetCurrentImage(nsnull);
   }
 
-  return container.forget();
+  mImageContainer = manager->CreateImageContainer();
+  return mImageContainer;
 }
 
 nsRect
@@ -1975,18 +1960,9 @@ nsPluginInstanceOwner::NotifyPaintWaiter(nsDisplayListBuilder* aBuilder)
   }
 }
 
-static void DrawPlugin(ImageContainer* aContainer, void* aPluginInstanceOwner)
+static void DrawPlugin(ImageContainer* aContainer, void* aObjectFrame)
 {
-  nsObjectFrame* frame = static_cast<nsPluginInstanceOwner*>(aPluginInstanceOwner)->GetOwner();
-  if (frame) {
-    frame->UpdateImageLayer(aContainer, gfxRect(0,0,0,0));
-  }
-}
-
-static void OnDestroyImage(void* aPluginInstanceOwner)
-{
-  nsPluginInstanceOwner* owner = static_cast<nsPluginInstanceOwner*>(aPluginInstanceOwner);
-  NS_IF_RELEASE(owner);
+  static_cast<nsObjectFrame*>(aObjectFrame)->UpdateImageLayer(aContainer, gfxRect(0,0,0,0));
 }
 
 void
@@ -2009,16 +1985,12 @@ nsPluginInstanceOwner::SetCurrentImage(ImageContainer* aContainer)
   nsCOMPtr<nsIPluginInstance_MOZILLA_2_0_BRANCH> inst = do_QueryInterface(mInstance);
   if (inst) {
     nsRefPtr<Image> image;
-    // Every call to nsIPluginInstance_MOZILLA_2_0_BRANCH::GetImage() creates
-    // a new image.  See nsIPluginInstance.idl.
     inst->GetImage(aContainer, getter_AddRefs(image));
     if (image) {
 #ifdef XP_MACOSX
       if (image->GetFormat() == Image::MAC_IO_SURFACE && mObjectFrame) {
         MacIOSurfaceImage *oglImage = static_cast<MacIOSurfaceImage*>(image.get());
-        NS_ADDREF_THIS();
-        oglImage->SetUpdateCallback(&DrawPlugin, this);
-        oglImage->SetDestroyCallback(&OnDestroyImage);
+        oglImage->SetCallback(&DrawPlugin, mObjectFrame);
       }
 #endif
       aContainer->SetCurrentImage(image);
@@ -2551,7 +2523,7 @@ nsObjectFrame::HandleEvent(nsPresContext* aPresContext,
       return fm->SetFocus(elem, 0);
   }
   else if (anEvent->message == NS_PLUGIN_FOCUS) {
-    nsIFocusManager* fm = nsFocusManager::GetFocusManager();
+    nsIFocusManager_MOZILLA_2_0_BRANCH* fm = nsFocusManager::GetFocusManager();
     if (fm)
       return fm->FocusPlugin(GetContent());
   }
@@ -3517,14 +3489,9 @@ NS_IMETHODIMP nsPluginInstanceOwner::InvalidateRect(NPRect *invalidRect)
 
 #ifdef MOZ_USE_IMAGE_EXPOSE
   PRBool simpleImageRender = PR_FALSE;
-  nsresult rv = mInstance->GetValueFromPlugin(NPPVpluginWindowlessLocalBool,
-                                              &simpleImageRender);
-  // If the call returned an error code make sure we still use our default value.
-  if (NS_FAILED(rv)) {
-    simpleImageRender = PR_FALSE;
-  }
-
-  if (simpleImageRender) {
+  mInstance->GetValueFromPlugin(NPPVpluginWindowlessLocalBool,
+                                &simpleImageRender);
+  if (simpleImageRender) {  
     NativeImageDraw(invalidRect);
     return NS_OK;
   }
@@ -4406,8 +4373,8 @@ void nsPluginInstanceOwner::RenderCoreAnimation(CGContextRef aCGContext,
 
   if (mCARenderer.isInit() == false) {
     void *caLayer = NULL;
-    nsresult rv = mInstance->GetValueFromPlugin(NPPVpluginCoreAnimationLayer, &caLayer);
-    if (NS_FAILED(rv) || !caLayer) {
+    mInstance->GetValueFromPlugin(NPPVpluginCoreAnimationLayer, &caLayer);
+    if (!caLayer) {
       return;
     }
 
@@ -5816,19 +5783,6 @@ nsPluginInstanceOwner::PrepareToStop(PRBool aDelayedStop)
   // Drop image reference because the child may destroy the surface after we return.
   nsRefPtr<ImageContainer> container = mObjectFrame->GetImageContainer();
   if (container) {
-#ifdef XP_MACOSX
-    nsRefPtr<Image> image = container->GetCurrentImage();
-    if (image && (image->GetFormat() == Image::MAC_IO_SURFACE) && mObjectFrame) {
-      // Undo what we did to the current image in SetCurrentImage().
-      MacIOSurfaceImage *oglImage = static_cast<MacIOSurfaceImage*>(image.get());
-      oglImage->SetUpdateCallback(nsnull, nsnull);
-      oglImage->SetDestroyCallback(nsnull);
-      // If we have a current image here, its destructor hasn't yet been
-      // called, so OnDestroyImage() can't yet have been called.  So we need
-      // to do ourselves what OnDestroyImage() would have done.
-      NS_RELEASE_THIS();
-    }
-#endif
     container->SetCurrentImage(nsnull);
   }
 
@@ -5891,9 +5845,6 @@ void nsPluginInstanceOwner::Paint(const gfxRect& aDirtyRect, CGContextRef cgCont
 
 void nsPluginInstanceOwner::DoCocoaEventDrawRect(const gfxRect& aDrawRect, CGContextRef cgContext)
 {
-  if (!mInstance || !mObjectFrame)
-    return;
- 
   // The context given here is only valid during the HandleEvent call.
   NPCocoaEvent updateEvent;
   InitializeNPCocoaEvent(&updateEvent);
@@ -5961,12 +5912,8 @@ void nsPluginInstanceOwner::Paint(gfxContext* aContext,
   // us to handle plugins that do not self invalidate (slowly, but
   // accurately), and it allows us to reduce flicker.
   PRBool simpleImageRender = PR_FALSE;
-  nsresult rv = mInstance->GetValueFromPlugin(NPPVpluginWindowlessLocalBool,
-                                              &simpleImageRender);
-  // If the call returned an error code make sure we still use our default value.
-  if (NS_FAILED(rv)) {
-    simpleImageRender = PR_FALSE;
-  }
+  mInstance->GetValueFromPlugin(NPPVpluginWindowlessLocalBool,
+                                &simpleImageRender);
   if (simpleImageRender) {
     gfxMatrix matrix = aContext->CurrentMatrix();
     if (!matrix.HasNonAxisAlignedTransform())
@@ -7032,15 +6979,10 @@ nsPluginInstanceOwner::SetAbsoluteScreenPosition(nsIDOMElement* element,
     return NS_OK;
 
   PRBool simpleImageRender = PR_FALSE;
-  nsresult rv = mInstance->GetValueFromPlugin(NPPVpluginWindowlessLocalBool,
-                                              &simpleImageRender);
-  // If the call returned an error code make sure we still use our default value.
-  if (NS_FAILED(rv)) {
-    simpleImageRender = PR_FALSE;
-  }
-  if (simpleImageRender) {
+  mInstance->GetValueFromPlugin(NPPVpluginWindowlessLocalBool,
+                                &simpleImageRender);
+  if (simpleImageRender)
     NativeImageDraw();
-  }
   return NS_OK;
 }
 #endif

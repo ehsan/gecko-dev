@@ -503,13 +503,14 @@ nsPrintEngine::DoCommonPrint(PRBool                  aIsPrintPreview,
   if (aIsPrintPreview) {
     SetIsCreatingPrintPreview(PR_TRUE);
     SetIsPrintPreview(PR_TRUE);
-    nsCOMPtr<nsIMarkupDocumentViewer_MOZILLA_2_0_BRANCH> viewer =
+    nsCOMPtr<nsIMarkupDocumentViewer> viewer =
       do_QueryInterface(mDocViewerPrint);
     if (viewer) {
       viewer->SetTextZoom(1.0f);
       viewer->SetFullZoom(1.0f);
-      viewer->SetMinFontSize(0);
     }
+  } else {
+    SetIsPrinting(PR_TRUE);
   }
 
   // Create a print session and let the print settings know about it.
@@ -554,10 +555,6 @@ nsPrintEngine::DoCommonPrint(PRBool                  aIsPrintPreview,
   nsCOMPtr<nsIDocShellTreeNode> parentAsNode =
     do_QueryInterface(mPrt->mPrintObject->mDocShell);
   BuildDocTree(parentAsNode, &mPrt->mPrintDocList, mPrt->mPrintObject);
-
-  if (!aIsPrintPreview) {
-    SetIsPrinting(PR_TRUE);
-  }
 
   // XXX This isn't really correct...
   if (!mPrt->mPrintObject->mDocument ||
@@ -2763,14 +2760,8 @@ void nsPrintEngine::SetIsPrinting(PRBool aIsPrinting)
   mIsDoingPrinting = aIsPrinting;
   // Calling SetIsPrinting while in print preview confuses the document viewer
   // This is safe because we prevent exiting print preview while printing
-  if (!mIsDoingPrintPreview &&
-      mPrt && mPrt->mPrintObject && mPrt->mPrintObject->mDocShell) {
-    nsCOMPtr<nsIContentViewer> viewer;
-    mPrt->mPrintObject->mDocShell->GetContentViewer(getter_AddRefs(viewer));
-    nsCOMPtr<nsIDocumentViewerPrint> docViewerPrint = do_QueryInterface(viewer);
-    if (docViewerPrint) {
-      docViewerPrint->SetIsPrinting(aIsPrinting);
-    }
+  if (mDocViewerPrint && !mIsDoingPrintPreview) {
+    mDocViewerPrint->SetIsPrinting(aIsPrinting);
   }
   if (mPrt && aIsPrinting) {
     mPrt->mPreparingForPrint = PR_TRUE;

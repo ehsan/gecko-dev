@@ -69,6 +69,10 @@ CPPSRCS		= \
 		PluginPRLibrary.cpp \
 		$(NULL)
 
+ifeq ($(OS_ARCH), BeOS)
+	CPPSRCS += nsPluginsDirBeOS.cpp
+	CPPSRCS += nsPluginNativeWindow.cpp
+else
 ifneq (,$(filter WINNT WINCE,$(OS_ARCH)))
 	CPPSRCS += nsPluginsDirWin.cpp
 	CPPSRCS += nsPluginNativeWindowWin.cpp
@@ -91,6 +95,7 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
 	CPPSRCS += nsPluginNativeWindowQt.cpp
 else
 	CPPSRCS += nsPluginNativeWindow.cpp
+endif
 endif
 endif
 endif
@@ -126,6 +131,11 @@ include $(topsrcdir)/config/rules.mk
 
 ifeq ($(OS_ARCH),WINNT)
 OS_LIBS		+= $(call EXPAND_LIBNAME,version)
+endif
+
+ifeq ($(OS_ARCH), OpenVMS)
+DEFINES		+= -DGENERIC_MOTIF_REDEFINES
+OS_CXXFLAGS	+= -Wc,warn=disa=NOSIMPINT
 endif
 
 CXXFLAGS         += $(TK_CFLAGS)

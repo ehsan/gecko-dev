@@ -226,14 +226,19 @@ nsStyleContext::FindChildWithRules(const nsIAtom* aPseudoTag,
 const void* nsStyleContext::GetCachedStyleData(nsStyleStructID aSID)
 {
   const void* cachedData;
-  if (nsCachedStyleData::IsReset(aSID)) {
+  PRBool isReset = nsCachedStyleData::IsReset(aSID);
+  if (isReset) {
     if (mCachedResetData) {
-      cachedData = mCachedResetData->mStyleStructs[aSID];
+      char* slot = reinterpret_cast<char*>(mCachedResetData) +
+                   nsCachedStyleData::gInfo[aSID].mInheritResetOffset;
+      cachedData = *reinterpret_cast<void**>(slot);
     } else {
       cachedData = nsnull;
     }
   } else {
-    cachedData = mCachedInheritedData.mStyleStructs[aSID];
+    char* slot = reinterpret_cast<char*>(&mCachedInheritedData) +
+                 nsCachedStyleData::gInfo[aSID].mInheritResetOffset;
+    cachedData = *reinterpret_cast<void**>(slot);
   }
   return cachedData;
 }
@@ -309,19 +314,22 @@ nsStyleContext::SetStyle(nsStyleStructID aSID, void* aStruct)
   // See the comments there (in nsRuleNode.h) for more details about
   // what this is doing and why.
 
-  void** dataSlot;
+  char* dataSlot;
   if (nsCachedStyleData::IsReset(aSID)) {
     if (!mCachedResetData) {
       mCachedResetData = new (mRuleNode->GetPresContext()) nsResetStyleData;
       // XXXbz And if that fails?
     }
-    dataSlot = &mCachedResetData->mStyleStructs[aSID];
+    dataSlot = reinterpret_cast<char*>(mCachedResetData) +
+               nsCachedStyleData::gInfo[aSID].mInheritResetOffset;
   } else {
-    dataSlot = &mCachedInheritedData.mStyleStructs[aSID];
+    dataSlot = reinterpret_cast<char*>(&mCachedInheritedData) +
+               nsCachedStyleData::gInfo[aSID].mInheritResetOffset;
   }
-  NS_ASSERTION(!*dataSlot || (mBits & nsCachedStyleData::GetBitForSID(aSID)),
+  NS_ASSERTION(!*reinterpret_cast<void**>(dataSlot) ||
+               (mBits & nsCachedStyleData::GetBitForSID(aSID)),
                "Going to leak style data");
-  *dataSlot = aStruct;
+  *reinterpret_cast<void**>(dataSlot) = aStruct;
 }
 
 void

@@ -467,7 +467,7 @@ PrivateBrowsingService.prototype = {
 
   handle: function PBS_handle(aCmdLine) {
     if (aCmdLine.handleFlag("private", false))
-      aCmdLine.preventDefault = true; // It has already been handled
+      ; // It has already been handled
     else if (aCmdLine.handleFlag("private-toggle", false)) {
       if (this._autoStarted) {
         throw Cr.NS_ERROR_ABORT;

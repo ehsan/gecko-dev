@@ -100,7 +100,7 @@
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptGlobalObjectOwner.h"
 #include "nsIServiceManager.h"
-#include "mozilla/css/StyleRule.h"
+#include "nsICSSStyleRule.h"
 #include "nsIStyleSheet.h"
 #include "nsIURL.h"
 #include "nsIViewManager.h"
@@ -152,8 +152,6 @@
 #include "nsIDOMXULCommandEvent.h"
 #include "nsIDOMNSEvent.h"
 #include "nsCCUncollectableMarker.h"
-
-namespace css = mozilla::css;
 
 // Global object maintenance
 nsIXBLService * nsXULElement::gXBLService = nsnull;
@@ -1343,9 +1341,6 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
         NS_ENSURE_SUCCESS(rv, rv);
     }
 
-    nsIDocument* doc = GetCurrentDoc();
-    mozAutoDocUpdate updateBatch(doc, UPDATE_CONTENT_MODEL, aNotify);
-
     PRBool isId = PR_FALSE;
     if (aName == nsGkAtoms::id && aNameSpaceID == kNameSpaceID_None) {
       // Have to do this before clearing flag. See RemoveFromIdTable
@@ -1363,6 +1358,9 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
 
     nsAutoString oldValue;
     GetAttr(aNameSpaceID, aName, oldValue);
+
+    nsIDocument* doc = GetCurrentDoc();
+    mozAutoDocUpdate updateBatch(doc, UPDATE_CONTENT_MODEL, aNotify);
 
     // When notifying, make sure to keep track of states whose value
     // depends solely on the value of an attribute.
@@ -1473,7 +1471,7 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
         stateMask ^= IntrinsicState();
         if (doc && !stateMask.IsEmpty()) {
             MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, aNotify);
-            doc->ContentStateChanged(this, stateMask);
+            doc->ContentStatesChanged(this, nsnull, stateMask);
         }
         nsNodeUtils::AttributeChanged(this, aNameSpaceID, aName,
                                       nsIDOMMutationEvent::REMOVAL);
@@ -1804,7 +1802,7 @@ nsXULElement::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
     return NS_OK;
 }
 
-css::StyleRule*
+nsICSSStyleRule*
 nsXULElement::GetInlineStyleRule()
 {
     if (!HasFlag(NODE_MAY_HAVE_STYLE)) {
@@ -1969,7 +1967,7 @@ nsXULElement::EnsureLocalStyle()
             protoattr->mValue.ToString(stringValue);
 
             nsAttrValue value;
-            nsRefPtr<css::StyleRule> styleRule = do_QueryObject(ruleClone);
+            nsCOMPtr<nsICSSStyleRule> styleRule = do_QueryInterface(ruleClone);
             value.SetTo(styleRule, &stringValue);
 
             nsresult rv =
@@ -2347,7 +2345,7 @@ nsresult nsXULElement::MakeHeavyweight()
             nsString stringValue;
             protoattr->mValue.ToString(stringValue);
 
-            nsRefPtr<css::StyleRule> styleRule = do_QueryObject(ruleClone);
+            nsCOMPtr<nsICSSStyleRule> styleRule = do_QueryInterface(ruleClone);
             attrValue.SetTo(styleRule, &stringValue);
         }
         else {
@@ -2878,7 +2876,7 @@ nsXULPrototypeElement::SetAttrAt(PRUint32 aPos, const nsAString& aValue,
     else if (mAttributes[aPos].mName.Equals(nsGkAtoms::style)) {
         mHasStyleAttribute = PR_TRUE;
         // Parse the element's 'style' attribute
-        nsRefPtr<css::StyleRule> rule;
+        nsCOMPtr<nsICSSStyleRule> rule;
 
         nsCSSParser parser;
         NS_ENSURE_TRUE(parser, NS_ERROR_OUT_OF_MEMORY);

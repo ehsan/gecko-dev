@@ -513,25 +513,21 @@ nsCertOverrideService::RememberValidityOverride(const nsACString & aHostName, PR
 
   CERTCertificateCleaner nsscertCleaner(nsscert);
 
-  char* nickname = nsNSSCertificate::defaultServerNickname(nsscert);
-  if (!aTemporary && nickname && *nickname)
+  nsCAutoString nickname;
+  nickname = nsNSSCertificate::defaultServerNickname(nsscert);
+  if (!aTemporary && !nickname.IsEmpty())
   {
     PK11SlotInfo *slot = PK11_GetInternalKeySlot();
-    if (!slot) {
-      PR_Free(nickname);
+    if (!slot)
       return NS_ERROR_FAILURE;
-    }
   
     SECStatus srv = PK11_ImportCert(slot, nsscert, CK_INVALID_HANDLE, 
-                                    nickname, PR_FALSE);
+                                    const_cast<char*>(nickname.get()), PR_FALSE);
     PK11_FreeSlot(slot);
   
-    if (srv != SECSuccess) {
-      PR_Free(nickname);
+    if (srv != SECSuccess)
       return NS_ERROR_FAILURE;
-    }
   }
-  PR_FREEIF(nickname);
 
   nsCAutoString fpStr;
   nsresult rv = GetCertFingerprintByOidTag(nsscert, 

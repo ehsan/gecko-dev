@@ -253,7 +253,7 @@ function setupDisplayport(contentRootElement) {
     var dph = attrOrDefault("reftest-displayport-h", 0);
     if (dpw !== 0 || dph !== 0) {
         LogInfo("Setting displayport to <x=0, y=0, w="+ dpw +", h="+ dph +">");
-        windowUtils().setDisplayPortForElement(0, 0, dpw, dph, content.document.documentElement);
+        windowUtils().setDisplayPort(0, 0, dpw, dph);
     }
 
     // XXX support resolution when needed

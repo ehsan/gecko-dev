@@ -58,7 +58,6 @@ class AccGroupInfo;
 class EmbeddedObjCollector;
 class nsAccessible;
 class nsHyperTextAccessible;
-class nsHTMLLIAccessible;
 struct nsRoleMapEntry;
 class nsTextAccessible;
 
@@ -190,23 +189,16 @@ public:
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
 
   /**
-   * Used by GetChildAtPoint() method to get direct or deepest child at point.
-   */
-  enum EWhichChildAtPoint {
-    eDirectChild,
-    eDeepestChild
-  };
-
-  /**
    * Return direct or deepest child at the given point.
    *
-   * @param  aX           [in] x coordinate relative screen
-   * @param  aY           [in] y coordinate relative screen
-   * @param  aWhichChild  [in] flag points if deepest or direct child
-   *                        should be returned
+   * @param  aX             [in] x coordinate relative screen
+   * @param  aY             [in] y coordinate relative screen
+   * @param  aDeepestChild  [in] flag points if deep child should be returned
+   * @param  aChild         [out] found child
    */
-  virtual nsAccessible* GetChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                        EWhichChildAtPoint aWhichChild);
+  virtual nsresult GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                   PRBool aDeepestChild,
+                                   nsIAccessible **aChild);
 
   /**
    * Return calculated group level based on accessible hierarchy.
@@ -372,12 +364,6 @@ public:
   inline bool IsHyperText() const { return mFlags & eHyperTextAccessible; }
   nsHyperTextAccessible* AsHyperText();
 
-  inline bool IsHTMLListItem() const { return mFlags & eHTMLListItemAccessible; }
-  nsHTMLLIAccessible* AsHTMLListItem();
-
-  inline bool IsRoot() const { return mFlags & eRootAccessible; }
-  nsRootAccessible* AsRoot();
-
   inline bool IsTextLeaf() const { return mFlags & eTextLeafAccessible; }
   nsTextAccessible* AsTextLeaf();
 
@@ -523,9 +509,7 @@ protected:
   enum AccessibleTypes {
     eApplicationAccessible = 1 << 2,
     eHyperTextAccessible = 1 << 3,
-    eHTMLListItemAccessible = 1 << 4,
-    eRootAccessible = 1 << 5,
-    eTextLeafAccessible = 1 << 6
+    eTextLeafAccessible = 1 << 4
   };
 
   //////////////////////////////////////////////////////////////////////////////

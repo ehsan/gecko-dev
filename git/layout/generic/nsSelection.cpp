@@ -4933,9 +4933,6 @@ nsTypedSelection::Collapse(nsINode* aParentNode, PRInt32 aOffset)
     return NS_ERROR_INVALID_ARG;
   if (!mFrameSelection)
     return NS_ERROR_NOT_INITIALIZED; // Can't do selection
-
-  nsCOMPtr<nsINode> kungfuDeathGrip = aParentNode;
-
   mFrameSelection->InvalidateDesiredX();
   if (!IsValidSelectionPoint(mFrameSelection, aParentNode))
     return NS_ERROR_FAILURE;
@@ -5861,7 +5858,7 @@ nsTypedSelection::Modify(const nsAString& aAlter, const nsAString& aDirection,
                         (PRUint32) nsIDOMKeyEvent::DOM_VK_LEFT;
   }
   else if (aGranularity.LowerCaseEqualsLiteral("word")) {
-    amount = eSelectWordNoSpace;
+    amount = eSelectWord;
     keycode = forward ? (PRUint32) nsIDOMKeyEvent::DOM_VK_RIGHT :
                         (PRUint32) nsIDOMKeyEvent::DOM_VK_LEFT;
   }

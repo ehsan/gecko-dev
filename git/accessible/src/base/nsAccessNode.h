@@ -105,7 +105,7 @@ public:
   /**
    * Return the root document accessible for this accessnode.
    */
-  nsRootAccessible* RootAccessible() const;
+  already_AddRefed<nsRootAccessible> GetRootAccessible();
 
   /**
    * Reference to a node of focused accessible.

@@ -48,7 +48,6 @@
 #include "nsFocusManager.h"
 #include "nsIEventStateManager.h"
 #include "nsEventStateManager.h"
-#include "nsFrameManager.h"
 
 #include "nsIScrollableFrame.h"
 
@@ -82,9 +81,6 @@
 
 #include "Layers.h"
 
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla::dom;
 using namespace mozilla::layers;
 
 static PRBool IsUniversalXPConnectCapable()
@@ -101,6 +97,7 @@ DOMCI_DATA(WindowUtils, nsDOMWindowUtils)
 NS_INTERFACE_MAP_BEGIN(nsDOMWindowUtils)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMWindowUtils)
   NS_INTERFACE_MAP_ENTRY(nsIDOMWindowUtils)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMWindowUtils_MOZILLA_2_0_BRANCH)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(WindowUtils)
 NS_INTERFACE_MAP_END
@@ -261,17 +258,9 @@ nsDOMWindowUtils::SetCSSViewport(float aWidthPx, float aHeightPx)
   return NS_OK;
 }
 
-static void DestroyNsRect(void* aObject, nsIAtom* aPropertyName,
-                          void* aPropertyValue, void* aData)
-{
-  nsRect* rect = static_cast<nsRect*>(aPropertyValue);
-  delete rect;
-}
-
 NS_IMETHODIMP
-nsDOMWindowUtils::SetDisplayPortForElement(float aXPx, float aYPx,
-                                           float aWidthPx, float aHeightPx,
-                                           nsIDOMElement* aElement)
+nsDOMWindowUtils::SetDisplayPort(float aXPx, float aYPx,
+                                 float aWidthPx, float aHeightPx)
 {
   if (!IsUniversalXPConnectCapable()) {
     return NS_ERROR_DOM_SECURITY_ERR;
@@ -286,61 +275,9 @@ nsDOMWindowUtils::SetDisplayPortForElement(float aXPx, float aYPx,
                      nsPresContext::CSSPixelsToAppUnits(aYPx),
                      nsPresContext::CSSPixelsToAppUnits(aWidthPx),
                      nsPresContext::CSSPixelsToAppUnits(aHeightPx));
+  presShell->SetDisplayPort(displayport);
 
-  if (!aElement) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
-
-  if (!content) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  nsRect lastDisplayPort;
-  if (nsLayoutUtils::GetDisplayPort(content, &lastDisplayPort) &&
-      displayport == lastDisplayPort) {
-    return NS_OK;
-  }
-
-  content->SetProperty(nsGkAtoms::DisplayPort, new nsRect(displayport),
-                       DestroyNsRect);
-
-  nsIFrame* rootScrollFrame = presShell->GetRootScrollFrame();
-  if (rootScrollFrame) {
-    if (content == rootScrollFrame->GetContent()) {
-      // We are setting a root displayport for a document.
-      // The pres shell needs a special flag set.
-      presShell->SetIgnoreViewportScrolling(PR_TRUE);
-
-      // The root document currently has a widget, but we might end up
-      // painting content inside the displayport but outside the widget
-      // bounds. This ensures the document's view honors invalidations
-      // within the displayport.
-      nsPresContext* presContext = GetPresContext();
-      if (presContext && presContext->IsRoot()) {
-        nsIFrame* rootFrame = presShell->GetRootFrame();
-        nsIView* view = rootFrame->GetView();
-        if (view) {
-          view->SetInvalidationDimensions(&displayport);
-        }
-      }
-    }
-  }
-
-  if (presShell) {
-    nsIFrame* rootFrame = presShell->FrameManager()->GetRootFrame();
-    if (rootFrame) {
-      nsIContent* rootContent =
-        rootScrollFrame ? rootScrollFrame->GetContent() : nsnull;
-      nsRect rootDisplayport;
-      bool usingDisplayport = rootContent &&
-        nsLayoutUtils::GetDisplayPort(rootContent, &rootDisplayport);
-      rootFrame->InvalidateWithFlags(
-        usingDisplayport ? rootDisplayport : rootFrame->GetVisualOverflowRect(),
-        nsIFrame::INVALIDATE_NO_THEBES_LAYERS);
-    }
-  }
+  presShell->SetIgnoreViewportScrolling(PR_TRUE);
 
   return NS_OK;
 }
@@ -1009,8 +946,9 @@ nsDOMWindowUtils::GetIMEIsOpen(PRBool *aState)
     return NS_ERROR_FAILURE;
 
   // Open state should not be available when IME is not enabled.
+  nsIWidget_MOZILLA_2_0_BRANCH* widget2 = static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(widget.get());
   IMEContext context;
-  nsresult rv = widget->GetInputMode(context);
+  nsresult rv = widget2->GetInputMode(context);
   NS_ENSURE_SUCCESS(rv, rv);
   if (context.mStatus != nsIWidget::IME_STATUS_ENABLED)
     return NS_ERROR_NOT_AVAILABLE;
@@ -1027,8 +965,9 @@ nsDOMWindowUtils::GetIMEStatus(PRUint32 *aState)
   if (!widget)
     return NS_ERROR_FAILURE;
 
+  nsIWidget_MOZILLA_2_0_BRANCH* widget2 = static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(widget.get());
   IMEContext context;
-  nsresult rv = widget->GetInputMode(context);
+  nsresult rv = widget2->GetInputMode(context);
   NS_ENSURE_SUCCESS(rv, rv);
 
   *aState = context.mStatus;
@@ -1045,8 +984,9 @@ nsDOMWindowUtils::GetFocusedInputType(char** aType)
     return NS_ERROR_FAILURE;
   }
 
+  nsIWidget_MOZILLA_2_0_BRANCH* widget2 = static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(widget.get());
   IMEContext context;
-  nsresult rv = widget->GetInputMode(context);
+  nsresult rv = widget2->GetInputMode(context);
   NS_ENSURE_SUCCESS(rv, rv);
 
   *aType = ToNewCString(context.mHTMLInputType);
@@ -1626,13 +1566,12 @@ nsDOMWindowUtils::GetLayerManagerType(nsAString& aType)
 }
 
 static PRBool
-ComputeAnimationValue(nsCSSProperty aProperty,
-                      Element* aElement,
+ComputeAnimationValue(nsCSSProperty aProperty, nsIContent* aContent,
                       const nsAString& aInput,
                       nsStyleAnimation::Value& aOutput)
 {
 
-  if (!nsStyleAnimation::ComputeValue(aProperty, aElement, aInput,
+  if (!nsStyleAnimation::ComputeValue(aProperty, aContent, aInput,
                                       PR_FALSE, aOutput)) {
     return PR_FALSE;
   }
@@ -1682,8 +1621,8 @@ nsDOMWindowUtils::ComputeAnimationDistance(nsIDOMElement* aElement,
 
   nsStyleAnimation::Value v1, v2;
   if (property == eCSSProperty_UNKNOWN ||
-      !ComputeAnimationValue(property, content->AsElement(), aValue1, v1) ||
-      !ComputeAnimationValue(property, content->AsElement(), aValue2, v2)) {
+      !ComputeAnimationValue(property, content, aValue1, v1) ||
+      !ComputeAnimationValue(property, content, aValue2, v2)) {
     return NS_ERROR_ILLEGAL_VALUE;
   }
 

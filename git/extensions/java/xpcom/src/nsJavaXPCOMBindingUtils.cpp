@@ -334,7 +334,7 @@ InitializeJavaGlobals(JNIEnv *env)
     }
   }
 
-  gJavaXPCOMLock = nsAutoLock::NewLock("gJavaXPCOMLock");
+  gJavaXPCOMLock = PR_NewLock();
   gJavaXPCOMInitialized = PR_TRUE;
   return PR_TRUE;
 
@@ -440,7 +440,7 @@ FreeJavaGlobals(JNIEnv* env)
 
   if (tempLock) {
     PR_Unlock(tempLock);
-    nsAutoLock::DestroyLock(tempLock);
+    PR_DestroyLock(tempLock);
   }
 }
 

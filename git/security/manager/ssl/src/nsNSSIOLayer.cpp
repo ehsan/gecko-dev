@@ -936,7 +936,7 @@ void nsSSLIOLayerHelpers::Cleanup()
     PR_DestroyPollableEvent(mSharedPollableEvent);
 
   if (mutex) {
-    nsAutoLock::DestroyLock(mutex);
+    PR_DestroyLock(mutex);
     mutex = nsnull;
   }
 
@@ -2275,7 +2275,7 @@ nsresult nsSSLIOLayerHelpers::Init()
     nsSSLIOLayerMethods.poll = nsSSLIOLayerPoll;
   }
 
-  mutex = nsAutoLock::NewLock("nsSSLIOLayerHelpers::mutex");
+  mutex = PR_NewLock();
   if (!mutex)
     return NS_ERROR_OUT_OF_MEMORY;
 

@@ -158,10 +158,11 @@ nsresult writeoutto(const char* i_pURL, char** o_Result, PRInt32 urlFactory = UR
 
 nsresult writeout(const char* i_pURL, PRInt32 urlFactory = URL_FACTORY_DEFAULT)
 {
+    char* temp = 0;
     if (!i_pURL) return NS_ERROR_FAILURE;
-    nsCString temp;
-    int rv = writeoutto(i_pURL, getter_Copies(temp), urlFactory);
-    printf("%s\n%s\n", i_pURL, temp.get());
+    int rv = writeoutto(i_pURL, &temp, urlFactory);
+    printf("%s\n%s\n", i_pURL, temp);
+    delete[] temp;
     return rv;
 }
 
@@ -186,8 +187,8 @@ nsresult testURL(const char* i_pURL, PRInt32 urlFactory = URL_FACTORY_DEFAULT)
     char temp[512];
     int count=0;
     int failed=0;
-    nsCString prevResult;
-    nsCString tempurl;
+    char* prevResult = nsnull;
+    char* tempurl = nsnull;
 
     while (fgets(temp,512,testfile))
     {
@@ -196,24 +197,26 @@ nsresult testURL(const char* i_pURL, PRInt32 urlFactory = URL_FACTORY_DEFAULT)
 
         if (0 == count%3)
         {
+            if (prevResult) delete[] prevResult;
             printf("Testing:  %s\n", temp);
-            writeoutto(temp, getter_Copies(prevResult), urlFactory);
+            writeoutto(temp, &prevResult, urlFactory);
         }
         else if (1 == count%3) {
-            tempurl.Assign(temp);
+            if (tempurl) delete[] tempurl;
+            tempurl = strdup(temp);
         } else { 
-            if (prevResult.IsEmpty())
+            if (!prevResult)
                 printf("no results to compare to!\n");
             else 
             {
                 PRInt32 res;
-                printf("Result:   %s\n", prevResult.get());
+                printf("Result:   %s\n", prevResult);
                 if (urlFactory != URL_FACTORY_DEFAULT) {
-                    printf("Expected: %s\n", tempurl.get());
-                    res = PL_strcmp(tempurl.get(), prevResult.get());
+                    printf("Expected: %s\n", tempurl);
+                    res = PL_strcmp(tempurl, prevResult);
                 } else {
                     printf("Expected: %s\n", temp);
-                    res = PL_strcmp(temp, prevResult.get());
+                    res = PL_strcmp(temp, prevResult);
                 }
 
                 if (res == 0)

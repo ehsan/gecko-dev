@@ -6,9 +6,6 @@ IPDLSRCS =					\
   PTestDesc.ipdl				\
   PTestDescSub.ipdl				\
   PTestDescSubsub.ipdl				\
-  PTestFailedCtor.ipdl				\
-  PTestFailedCtorSub.ipdl			\
-  PTestFailedCtorSubsub.ipdl			\
   PTestHandle.ipdl				\
   PTestHangs.ipdl				\
   PTestJSON.ipdl				\

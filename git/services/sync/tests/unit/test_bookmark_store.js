@@ -35,7 +35,7 @@ function test_bookmark_create() {
     do_check_eq(Svc.Bookmark.getItemType(id), Svc.Bookmark.TYPE_BOOKMARK);
     do_check_true(Svc.Bookmark.getBookmarkURI(id).equals(fxuri));
     do_check_eq(Svc.Bookmark.getItemTitle(id), fxrecord.title);
-    do_check_eq(Svc.Annos.getItemAnnotation(id, "bookmarkProperties/description"),
+    do_check_eq(Utils.anno(id, "bookmarkProperties/description"),
                 fxrecord.description);
     do_check_eq(Svc.Bookmark.getFolderIdForItem(id),
                 Svc.Bookmark.toolbarFolder);
@@ -69,7 +69,7 @@ function test_bookmark_create() {
     do_check_eq(Svc.Bookmark.getItemTitle(id), null);
     let error;
     try {
-      Svc.Annos.getItemAnnotation(id, "bookmarkProperties/description");
+      Utils.anno(id, "bookmarkProperties/description");
     } catch(ex) {
       error = ex;
     }
@@ -89,8 +89,7 @@ function test_bookmark_update() {
     let bmk1_id = Svc.Bookmark.insertBookmark(
       Svc.Bookmark.toolbarFolder, fxuri, Svc.Bookmark.DEFAULT_INDEX,
       "Get Firefox!");
-    Svc.Annos.setItemAnnotation(bmk1_id, "bookmarkProperties/description",
-                                "Firefox is awesome.", 0, Svc.Annos.EXPIRE_NEVER);
+    Utils.anno(bmk1_id, "bookmarkProperties/description", "Firefox is awesome.");
     Svc.Bookmark.setKeywordForBookmark(bmk1_id, "firefox");
     let bmk1_guid = store.GUIDForId(bmk1_id);
 
@@ -103,7 +102,7 @@ function test_bookmark_update() {
     store.applyIncoming(record);
 
     _("Verify that the values have been cleared.");
-    do_check_eq(Svc.Annos.getItemAnnotation(bmk1_id, "bookmarkProperties/description"), "");
+    do_check_eq(Utils.anno(bmk1_id, "bookmarkProperties/description"), "");
     do_check_eq(Svc.Bookmark.getItemTitle(bmk1_id), "");
     do_check_eq(Svc.Bookmark.getKeywordForBookmark(bmk1_id), null);
   } finally {
@@ -307,7 +306,7 @@ function test_orphan() {
     do_check_eq(Svc.Bookmark.getFolderIdForItem(bmk1_id), Svc.Bookmark.toolbarFolder);
     let error;
     try {
-      Svc.Annos.getItemAnnotation(bmk1_id, PARENT_ANNO);
+      Utils.anno(bmk1_id, PARENT_ANNO);
     } catch(ex) {
       error = ex;
     }
@@ -320,7 +319,7 @@ function test_orphan() {
 
     _("Verify that bookmark has been flagged as orphan, has not moved.");
     do_check_eq(Svc.Bookmark.getFolderIdForItem(bmk1_id), Svc.Bookmark.toolbarFolder);
-    do_check_eq(Svc.Annos.getItemAnnotation(bmk1_id, PARENT_ANNO), "non-existent");
+    do_check_eq(Utils.anno(bmk1_id, PARENT_ANNO), "non-existent");
 
   } finally {
     _("Clean up.");
@@ -335,16 +334,14 @@ function test_reparentOrphans() {
     let folder1_guid = store.GUIDForId(folder1_id);
 
     _("Create a bogus orphan record and write the record back to the store to trigger _reparentOrphans.");
-    Svc.Annos.setItemAnnotation(folder1_id, PARENT_ANNO, folder1_guid, 0,
-                                Svc.Annos.EXPIRE_NEVER);
+    Utils.anno(folder1_id, PARENT_ANNO, folder1_guid);
     let record = store.createRecord(folder1_guid);
     record.title = "New title for Folder 1";
     store._childrenToOrder = {};
     store.applyIncoming(record);
 
     _("Verify that is has been marked as an orphan even though it couldn't be moved into itself.");
-    do_check_eq(Svc.Annos.getItemAnnotation(folder1_id, PARENT_ANNO),
-                folder1_guid);
+    do_check_eq(Utils.anno(folder1_id, PARENT_ANNO), folder1_guid);
 
   } finally {
     _("Clean up.");
@@ -381,7 +378,7 @@ function test_copying_avoid_duplicate_guids() {
     let id = store.idForGUID(fxrecord.id);
     do_check_eq(store.GUIDForId(id), fxrecord.id);
     do_check_true(Svc.Bookmark.getBookmarkURI(id).equals(fxuri));
-    do_check_eq(Svc.Annos.getItemAnnotation(id, "bookmarkProperties/description"),
+    do_check_eq(Utils.anno(id, "bookmarkProperties/description"),
                 fxrecord.description);
     
     _("Copy the record as happens in the UI: with the same GUID.");
@@ -400,9 +397,8 @@ function test_copying_avoid_duplicate_guids() {
     do_check_neq(store.GUIDForId(copy), store.GUIDForId(id));
     
     _("Verify that the anno itself has changed.");
-    do_check_neq(Svc.Annos.getItemAnnotation(copy, "sync/guid"), fxrecord.id);
-    do_check_eq(Svc.Annos.getItemAnnotation(copy, "sync/guid"),
-                store.GUIDForId(copy));
+    do_check_neq(Utils.anno(copy, "sync/guid"), fxrecord.id);
+    do_check_eq(Utils.anno(copy, "sync/guid"), store.GUIDForId(copy));
     
   } finally {
     _("Clean up.");

@@ -9205,10 +9205,6 @@ nsHTMLEditRules::DocumentModifiedWorker()
   if (!mHTMLEditor) {
     return;
   }
-
-  // DeleteNode below may cause a flush, which could destroy the editor
-  nsAutoRemovableScriptBlocker scriptBlocker;
-
   nsCOMPtr<nsIHTMLEditor> kungFuDeathGrip(mHTMLEditor);
   nsCOMPtr<nsISelection> selection;
   nsresult res = mHTMLEditor->GetSelection(getter_AddRefs(selection));

@@ -116,13 +116,6 @@ function scorePatternMatch(pattern, matched, offset) {
 // <TabItem>s and <xul:tab>s without having to worry which
 // one is which.
 var TabUtils = {
-  // ----------
-  // Function: toString
-  // Prints [TabUtils] for debug use
-  toString: function TabUtils_toString() {
-    return "[TabUtils]";
-  },
-
   // ---------
   // Function: _nameOfTab
   // Given a <TabItem> or a <xul:tab> returns the tab's name.
@@ -173,14 +166,7 @@ function TabMatcher(term) {
   this.term = term; 
 }
 
-TabMatcher.prototype = {
-  // ----------
-  // Function: toString
-  // Prints [TabMatcher (term)] for debug use
-  toString: function TabMatcher_toString() {
-    return "[TabMatcher (" + this.term + ")]";
-  },
-
+TabMatcher.prototype = {  
   // ---------
   // Function: _filterAndSortMatches
   // Given an array of <TabItem>s and <xul:tab>s returns a new array
@@ -330,13 +316,6 @@ function SearchEventHandlerClass() {
 }
 
 SearchEventHandlerClass.prototype = {
-  // ----------
-  // Function: toString
-  // Prints [SearchEventHandler] for debug use
-  toString: function SearchEventHandlerClass_toString() {
-    return "[SearchEventHandler]";
-  },
-
   // ----------
   // Function: init
   // Initializes the searchbox to be focused, and everything

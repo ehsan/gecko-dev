@@ -35,6 +35,7 @@
 #
 # ***** END LICENSE BLOCK *****
 
+
 DEPTH     = ../../..
 topsrcdir = @top_srcdir@
 srcdir    = @srcdir@
@@ -42,21 +43,13 @@ VPATH     = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-MODULE = parentalcontrols
-
-XPIDLSRCS = \
-  nsIParentalControlsService.idl \
-  $(NULL)
+DIRS = public
 
 ifndef MOZ_DISABLE_PARENTAL_CONTROLS
 ifeq (WINNT,$(OS_ARCH))
-LIBRARY_NAME = parentalcontrols_s
-FORCE_STATIC_LIB = 1
-LIBXUL_LIBRARY = 1
-CPPSRCS = \
-  nsParentalControlsServiceWin.cpp \
-  $(NULL)
+DIRS += src
 endif
 endif
 
 include $(topsrcdir)/config/rules.mk
+

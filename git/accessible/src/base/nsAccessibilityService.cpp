@@ -100,7 +100,6 @@
 #endif
 
 #include "mozilla/FunctionTimer.h"
-#include "mozilla/dom/Element.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessibilityService
@@ -276,7 +275,7 @@ nsAccessibilityService::CreateHTMLImageAccessible(nsIContent* aContent,
     if (!mapElmName.IsEmpty()) {
       if (mapElmName.CharAt(0) == '#')
         mapElmName.Cut(0,1);
-      mapElm = do_QueryInterface(htmlDoc->GetImageMap(mapElmName));
+      mapElm = htmlDoc->GetImageMap(mapElmName);
     }
   }
 
@@ -539,22 +538,6 @@ nsAccessibilityService::UpdateText(nsIPresShell* aPresShell,
 }
 
 void
-nsAccessibilityService::UpdateListBullet(nsIPresShell* aPresShell,
-                                         nsIContent* aHTMLListItemContent,
-                                         bool aHasBullet)
-{
-  nsDocAccessible* document = GetDocAccessible(aPresShell->GetDocument());
-  if (document) {
-    nsAccessible* accessible = document->GetAccessible(aHTMLListItemContent);
-    if (accessible) {
-      nsHTMLLIAccessible* listItem = accessible->AsHTMLListItem();
-      if (listItem)
-        listItem->UpdateBullet(aHasBullet);
-    }
-  }
-}
-
-void
 nsAccessibilityService::PresShellDestroyed(nsIPresShell *aPresShell)
 {
   // Presshell destruction will automatically destroy shells for descendant
@@ -574,21 +557,6 @@ nsAccessibilityService::PresShellDestroyed(nsIPresShell *aPresShell)
   nsDocAccessible* docAccessible = GetDocAccessibleFromCache(doc);
   if (docAccessible)
     docAccessible->Shutdown();
-}
-
-void
-nsAccessibilityService::PresShellActivated(nsIPresShell* aPresShell)
-{
-  nsIDocument* DOMDoc = aPresShell->GetDocument();
-  if (DOMDoc) {
-    nsDocAccessible* document = GetDocAccessibleFromCache(DOMDoc);
-    if (document) {
-      nsRootAccessible* rootDocument = document->RootAccessible();
-      NS_ASSERTION(rootDocument, "Entirely broken tree: no root document!");
-      if (rootDocument)
-        rootDocument->DocumentActivated(document);
-    }
-  }
 }
 
 void

@@ -422,7 +422,7 @@ nsDocumentEncoder::SerializeNodeEnd(nsINode* aNode,
     return NS_OK;
 
   if (aNode->IsElement()) {
-    mSerializer->AppendElementEnd(aNode->AsElement(), aStr);
+    mSerializer->AppendElementEnd(static_cast<nsIContent*>(aNode), aStr);
   }
   return NS_OK;
 }
@@ -1471,7 +1471,7 @@ nsHTMLCopyEncoder::IncludeInContext(nsINode *aNode)
           tag == nsGkAtoms::dfn      ||
           tag == nsGkAtoms::code     ||
           tag == nsGkAtoms::cite     ||
-          tag == nsGkAtoms::var      ||
+          tag == nsGkAtoms::variable ||
           tag == nsGkAtoms::abbr     ||
           tag == nsGkAtoms::font     ||
           tag == nsGkAtoms::script   ||

@@ -209,7 +209,6 @@ nsView::nsView(nsViewManager* aViewManager, nsViewVisibility aVisibility)
   mViewManager = aViewManager;
   mDirtyRegion = nsnull;
   mDeletionObserver = nsnull;
-  mHaveInvalidationDimensions = PR_FALSE;
   mWidgetIsTopLevel = PR_FALSE;
 }
 
@@ -269,17 +268,6 @@ nsView::~nsView()
   }
 
   // Destroy and release the widget
-  DestroyWidget();
-
-  delete mDirtyRegion;
-
-  if (mDeletionObserver) {
-    mDeletionObserver->Clear();
-  }
-}
-
-void nsView::DestroyWidget()
-{
   if (mWindow)
   {
     // Release memory for the view wrapper
@@ -302,6 +290,11 @@ void nsView::DestroyWidget()
     }
 
     NS_RELEASE(mWindow);
+  }
+  delete mDirtyRegion;
+
+  if (mDeletionObserver) {
+    mDeletionObserver->Clear();
   }
 }
 
@@ -355,11 +348,6 @@ void nsView::SetPosition(nscoord aX, nscoord aY)
                "Don't try to move the root widget to something non-zero");
 
   ResetWidgetBounds(PR_TRUE, PR_TRUE, PR_FALSE);
-}
-
-void nsIView::SetInvalidationDimensions(const nsRect* aRect)
-{
-  return Impl()->SetInvalidationDimensions(aRect);
 }
 
 void nsView::SetPositionIgnoringChildWidgets(nscoord aX, nscoord aY)
@@ -504,13 +492,6 @@ void nsView::SetDimensions(const nsRect& aRect, PRBool aPaint, PRBool aResizeWid
 
   if (aResizeWidget) {
     ResetWidgetBounds(PR_FALSE, PR_FALSE, aPaint);
-  }
-}
-
-void nsView::SetInvalidationDimensions(const nsRect* aRect)
-{
-  if ((mHaveInvalidationDimensions = !!aRect)) {
-    mInvalidationDimensions = *aRect;
   }
 }
 
@@ -702,11 +683,6 @@ nsresult nsIView::CreateWidgetForPopup(nsWidgetInitData *aWidgetInitData,
 {
   return Impl()->CreateWidgetForPopup(aWidgetInitData, aParentWidget,
                                       aEnableDragDrop, aResetVisibility);
-}
-
-void nsIView::DestroyWidget()
-{
-  Impl()->DestroyWidget();
 }
 
 struct DefaultWidgetInitData : public nsWidgetInitData {

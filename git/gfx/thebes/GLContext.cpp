@@ -51,8 +51,6 @@
 #include "GLContext.h"
 #include "GLContextProvider.h"
 
-#include "gfxCrashReporterUtils.h"
-
 namespace mozilla {
 namespace gl {
 
@@ -164,10 +162,7 @@ LibrarySymbolLoader::LoadSymbols(PRLibrary *lib,
 PRBool
 GLContext::InitWithPrefix(const char *prefix, PRBool trygl)
 {
-    ScopedGfxFeatureReporter reporter("GL Context");
-
     if (mInitialized) {
-        reporter.SetSuccessful();
         return PR_TRUE;
     }
 
@@ -401,12 +396,9 @@ GLContext::InitWithPrefix(const char *prefix, PRBool trygl)
         mDebugMode |= DebugAbortOnError;
 #endif
 
-    if (mInitialized)
-        reporter.SetSuccessful();
-    else {
-        // if initialization fails, ensure all symbols are zero, to avoid hard-to-understand bugs
-        mSymbols.Zero();
-    }
+    // if initialization fails, ensure all symbols are zero, to avoid hard-to-understand bugs
+    if (!mInitialized)
+      mSymbols.Zero();
 
     return mInitialized;
 }
@@ -572,7 +564,7 @@ BasicTextureImage::BeginUpdate(nsIntRegion& aRegion)
     ImageFormat format =
         (GetContentType() == gfxASurface::CONTENT_COLOR) ?
         gfxASurface::ImageFormatRGB24 : gfxASurface::ImageFormatARGB32;
-    if (mTextureState != Valid)
+    if (!mTextureInited)
     {
         // if the texture hasn't been initialized yet, or something important
         // changed, we need to recreate our backing surface and force the
@@ -620,13 +612,13 @@ BasicTextureImage::EndUpdate()
         mGLContext->UploadSurfaceToTexture(mUpdateSurface,
                                            mUpdateRegion,
                                            mTexture,
-                                           mTextureState == Created,
+                                           !mTextureInited,
                                            mUpdateOffset,
                                            relative);
     FinishedSurfaceUpload();
 
     mUpdateSurface = nsnull;
-    mTextureState = Valid;
+    mTextureInited = PR_TRUE;
 }
 
 already_AddRefed<gfxASurface>
@@ -652,7 +644,7 @@ BasicTextureImage::DirectUpdate(gfxASurface *aSurf, const nsIntRegion& aRegion)
 {
     nsIntRect bounds = aRegion.GetBounds();
     nsIntRegion region;
-    if (mTextureState != Valid) {
+    if (!mTextureInited) {
         bounds = nsIntRect(0, 0, mSize.width, mSize.height);
         region = nsIntRegion(bounds);
     } else {
@@ -663,10 +655,10 @@ BasicTextureImage::DirectUpdate(gfxASurface *aSurf, const nsIntRegion& aRegion)
         mGLContext->UploadSurfaceToTexture(aSurf,
                                            region,
                                            mTexture,
-                                           mTextureState == Created,
+                                           !mTextureInited,
                                            bounds.TopLeft(),
                                            PR_FALSE);
-    mTextureState = Valid;
+    mTextureInited = PR_TRUE;
     return true;
 }
 
@@ -687,7 +679,7 @@ BasicTextureImage::Resize(const nsIntSize& aSize)
                             LOCAL_GL_UNSIGNED_BYTE,
                             NULL);
 
-    mTextureState = Initialized;
+    mTextureInited = PR_TRUE;
     mSize = aSize;
 }
 

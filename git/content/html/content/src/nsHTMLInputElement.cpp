@@ -723,8 +723,9 @@ nsHTMLInputElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
       if (GetValueChanged()) {
         // We don't have our default value anymore.  Set our value on
         // the clone.
+        // XXX GetValue should be const
         nsAutoString value;
-        GetValueInternal(value);
+        const_cast<nsHTMLInputElement*>(this)->GetValue(value);
         // SetValueInternal handles setting the VALUE_CHANGED bit for us
         it->SetValueInternal(value, PR_FALSE, PR_TRUE);
       }
@@ -799,7 +800,7 @@ nsHTMLInputElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                  const nsAString* aValue,
                                  PRBool aNotify)
 {
-  // States changes that have to be passed to ContentStateChanged().
+  // States changes that have to be passed to ContentStatesChanged().
   nsEventStates states;
 
   if (aNameSpaceID == kNameSpaceID_None) {
@@ -953,7 +954,7 @@ nsHTMLInputElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
       if (doc && !states.IsEmpty()) {
         MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-        doc->ContentStateChanged(this, states);
+        doc->ContentStatesChanged(this, nsnull, states);
       }
     }
   }
@@ -1027,7 +1028,7 @@ nsHTMLInputElement::SetIndeterminateInternal(PRBool aValue,
   nsIDocument* document = GetCurrentDoc();
   if (document) {
     mozAutoDocUpdate upd(document, UPDATE_CONTENT_STATE, PR_TRUE);
-    document->ContentStateChanged(this, NS_EVENT_STATE_INDETERMINATE);
+    document->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_INDETERMINATE);
   }
 
   return NS_OK;
@@ -1039,14 +1040,8 @@ nsHTMLInputElement::SetIndeterminate(PRBool aValue)
   return SetIndeterminateInternal(aValue, PR_TRUE);
 }
 
-NS_IMETHODIMP
+NS_IMETHODIMP 
 nsHTMLInputElement::GetValue(nsAString& aValue)
-{
-  return GetValueInternal(aValue);
-}
-
-nsresult
-nsHTMLInputElement::GetValueInternal(nsAString& aValue) const
 {
   nsTextEditorState* state = GetEditorState();
   if (state) {
@@ -1080,15 +1075,6 @@ nsHTMLInputElement::GetValueInternal(nsAString& aValue) const
   }
 
   return NS_OK;
-}
-
-bool
-nsHTMLInputElement::IsValueEmpty() const
-{
-  nsAutoString value;
-  GetValueInternal(value);
-
-  return value.IsEmpty();
 }
 
 NS_IMETHODIMP 
@@ -1391,7 +1377,7 @@ nsHTMLInputElement::SetFiles(const nsCOMArray<nsIDOMFile>& aFiles,
 }
 
 const nsCOMArray<nsIDOMFile>&
-nsHTMLInputElement::GetFiles() const
+nsHTMLInputElement::GetFiles()
 {
   return mFiles;
 }
@@ -1444,7 +1430,7 @@ nsHTMLInputElement::SetValueInternal(const nsAString& aValue,
       nsIDocument* doc = GetCurrentDoc();
       if (doc) {
         mozAutoDocUpdate upd(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-        doc->ContentStateChanged(this, NS_EVENT_STATE_MOZ_PLACEHOLDER);
+        doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_MOZ_PLACEHOLDER);
       }
     }
 
@@ -1483,8 +1469,8 @@ nsHTMLInputElement::SetValueChanged(PRBool aValueChanged)
     nsIDocument* doc = GetCurrentDoc();
     if (doc) {
       mozAutoDocUpdate upd(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-      doc->ContentStateChanged(this, NS_EVENT_STATE_MOZ_UI_VALID |
-                                     NS_EVENT_STATE_MOZ_UI_INVALID);
+      doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_MOZ_UI_VALID |
+                                              NS_EVENT_STATE_MOZ_UI_INVALID);
     }
   }
 
@@ -1533,9 +1519,9 @@ nsHTMLInputElement::SetCheckedChangedInternal(PRBool aCheckedChanged)
     nsIDocument* document = GetCurrentDoc();
     if (document) {
       mozAutoDocUpdate upd(document, UPDATE_CONTENT_STATE, PR_TRUE);
-      document->ContentStateChanged(this,
-                                    NS_EVENT_STATE_MOZ_UI_VALID |
-                                    NS_EVENT_STATE_MOZ_UI_INVALID);
+      document->ContentStatesChanged(this, nsnull,
+                                     NS_EVENT_STATE_MOZ_UI_VALID |
+                                     NS_EVENT_STATE_MOZ_UI_INVALID);
     }
   }
 }
@@ -1733,7 +1719,7 @@ nsHTMLInputElement::SetCheckedInternal(PRBool aChecked, PRBool aNotify)
     nsIDocument* document = GetCurrentDoc();
     if (document) {
       mozAutoDocUpdate upd(document, UPDATE_CONTENT_STATE, aNotify);
-      document->ContentStateChanged(this, NS_EVENT_STATE_CHECKED);
+      document->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_CHECKED);
     }
   }
 
@@ -2147,7 +2133,7 @@ nsHTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
     nsIDocument* doc = GetCurrentDoc();
     if (doc) {
       MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-      doc->ContentStateChanged(this, states);
+      doc->ContentStatesChanged(this, nsnull, states);
     }
   }
 
@@ -2604,9 +2590,10 @@ nsHTMLInputElement::HandleTypeChange(PRUint8 aNewType)
   }
 
   // Only single line text inputs have a text editor state.
-  bool isNewTypeSingleLine = IsSingleLineTextControl(PR_FALSE, aNewType);
-  bool isCurrentTypeSingleLine = IsSingleLineTextControl(PR_FALSE, mType);
-
+  PRBool isNewTypeSingleLine =
+    IsSingleLineTextControlInternal(PR_FALSE, aNewType);
+  PRBool isCurrentTypeSingleLine =
+    IsSingleLineTextControl(PR_FALSE);
   if (isNewTypeSingleLine && !isCurrentTypeSingleLine) {
     FreeData();
     mInputData.mState = new nsTextEditorState(this);
@@ -3379,9 +3366,20 @@ nsHTMLInputElement::IntrinsicState() const
   }
 
   if (PlaceholderApplies() && HasAttr(kNameSpaceID_None, nsGkAtoms::placeholder) &&
-      !nsContentUtils::IsFocusedContent((nsIContent*)(this)) &&
-      IsValueEmpty()) {
-    state |= NS_EVENT_STATE_MOZ_PLACEHOLDER;
+      !nsContentUtils::IsFocusedContent((nsIContent*)(this))) {
+    // TODO: we really need a GetValue(...) const method, see bug 585097
+    nsTextEditorState* edState = GetEditorState();
+    nsAutoString value;
+
+    if (edState) {
+      edState->GetValue(value, PR_TRUE);
+    } else {
+      GetAttr(kNameSpaceID_None, nsGkAtoms::value, value);
+    }
+
+    if (value.IsEmpty()) {
+      state |= NS_EVENT_STATE_MOZ_PLACEHOLDER;
+    }
   }
 
   if (mForm && !mForm->GetValidity() && IsSubmitControl()) {
@@ -3784,10 +3782,10 @@ nsHTMLInputElement::SetCustomValidity(const nsAString& aError)
   nsIDocument* doc = GetCurrentDoc();
   if (doc) {
     MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-    doc->ContentStateChanged(this, NS_EVENT_STATE_INVALID |
-                                   NS_EVENT_STATE_VALID |
-                                   NS_EVENT_STATE_MOZ_UI_INVALID |
-                                   NS_EVENT_STATE_MOZ_UI_VALID);
+    doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_INVALID |
+                                            NS_EVENT_STATE_VALID |
+                                            NS_EVENT_STATE_MOZ_UI_INVALID |
+                                            NS_EVENT_STATE_MOZ_UI_VALID);
   }
 
   return NS_OK;
@@ -3817,7 +3815,7 @@ nsHTMLInputElement::IsTooLong()
 }
 
 PRBool
-nsHTMLInputElement::IsValueMissing() const
+nsHTMLInputElement::IsValueMissing()
 {
   if (!HasAttr(kNameSpaceID_None, nsGkAtoms::required) ||
       !DoesRequiredApply()) {
@@ -3829,7 +3827,10 @@ nsHTMLInputElement::IsValueMissing() const
       return PR_FALSE;
     }
 
-    return IsValueEmpty();
+    nsAutoString value;
+    NS_ENSURE_SUCCESS(GetValue(value), PR_FALSE);
+
+    return value.IsEmpty();
   }
 
   switch (mType)
@@ -3847,14 +3848,14 @@ nsHTMLInputElement::IsValueMissing() const
 }
 
 PRBool
-nsHTMLInputElement::HasTypeMismatch() const
+nsHTMLInputElement::HasTypeMismatch()
 {
   if (mType != NS_FORM_INPUT_EMAIL && mType != NS_FORM_INPUT_URL) {
     return PR_FALSE;
   }
 
   nsAutoString value;
-  NS_ENSURE_SUCCESS(GetValueInternal(value), PR_FALSE);
+  NS_ENSURE_SUCCESS(GetValue(value), PR_FALSE);
 
   if (value.IsEmpty()) {
     return PR_FALSE;
@@ -3886,7 +3887,7 @@ nsHTMLInputElement::HasTypeMismatch() const
 }
 
 PRBool
-nsHTMLInputElement::HasPatternMismatch() const
+nsHTMLInputElement::HasPatternMismatch()
 {
   nsAutoString pattern;
   if (!DoesPatternApply() ||
@@ -3895,7 +3896,7 @@ nsHTMLInputElement::HasPatternMismatch() const
   }
 
   nsAutoString value;
-  NS_ENSURE_SUCCESS(GetValueInternal(value), PR_FALSE);
+  NS_ENSURE_SUCCESS(GetValue(value), PR_FALSE);
 
   if (value.IsEmpty()) {
     return PR_FALSE;
@@ -4000,10 +4001,9 @@ nsHTMLInputElement::UpdateAllValidityStates(PRBool aNotify)
     nsIDocument* doc = GetCurrentDoc();
     if (doc) {
       MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-      doc->ContentStateChanged(this,
-                               NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID |
-                               NS_EVENT_STATE_MOZ_UI_VALID |
-                               NS_EVENT_STATE_MOZ_UI_INVALID);
+      doc->ContentStatesChanged(this, nsnull,
+                                NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID |
+                                NS_EVENT_STATE_MOZ_UI_VALID | NS_EVENT_STATE_MOZ_UI_INVALID);
     }
   }
 }
@@ -4323,11 +4323,11 @@ public:
                             mValidity);
 
     if (mNotify && mDocument) {
-      mDocument->ContentStateChanged(input,
-                                     NS_EVENT_STATE_VALID |
-                                     NS_EVENT_STATE_INVALID |
-                                     NS_EVENT_STATE_MOZ_UI_VALID |
-                                     NS_EVENT_STATE_MOZ_UI_INVALID);
+      mDocument->ContentStatesChanged(input, nsnull,
+                                      NS_EVENT_STATE_VALID |
+                                      NS_EVENT_STATE_INVALID |
+                                      NS_EVENT_STATE_MOZ_UI_VALID |
+                                      NS_EVENT_STATE_MOZ_UI_INVALID);
     }
 
     return NS_OK;
@@ -4543,7 +4543,7 @@ nsHTMLInputElement::OnValueChanged(PRBool aNotify)
     nsIDocument* doc = GetCurrentDoc();
     if (doc) {
       MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-      doc->ContentStateChanged(this, NS_EVENT_STATE_MOZ_PLACEHOLDER);
+      doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_MOZ_PLACEHOLDER);
     }
   }
 }

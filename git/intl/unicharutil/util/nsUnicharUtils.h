@@ -103,7 +103,6 @@ public:
 class nsASCIICaseInsensitiveStringComparator : public nsStringComparator
 {
 public:
-  nsASCIICaseInsensitiveStringComparator() {}
   virtual int operator() (const PRUnichar*,
                           const PRUnichar*,
                           PRUint32,

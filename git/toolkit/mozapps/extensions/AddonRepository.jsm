@@ -719,7 +719,7 @@ var AddonRepository = {
    */
   getAddonsByIDs: function(aIDs, aCallback) {
     let startupInfo = Cc["@mozilla.org/toolkit/app-startup;1"].
-                      getService(Ci.nsIAppStartup).
+                      getService(Ci.nsIAppStartup_MOZILLA_2_0).
                       getStartupInfo();
 
     let ids = aIDs.slice(0);
@@ -1064,6 +1064,12 @@ var AddonRepository = {
     let results = [];
     for (let i = 0; i < aElements.length && results.length < this._maxResults; i++) {
       let element = aElements[i];
+
+      // Ignore sandboxed add-ons
+      let status = this._getUniqueDescendant(element, "status");
+      // The status element has a unique id for each status type. 4 is Public.
+      if (status == null || status.getAttribute("id") != 4)
+        continue;
 
       // Ignore add-ons not compatible with this Application
       let tags = this._getUniqueDescendant(element, "compatible_applications");

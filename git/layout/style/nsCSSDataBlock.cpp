@@ -190,6 +190,10 @@ nsCSSCompressedDataBlock::MapRuleInfoInto(nsRuleData *aRuleData) const
                     TryToStartImageLoad(*val, doc, iProp);
                 }
                 *target = *val;
+                if (iProp == eCSSProperty_font_family) {
+                    // XXX Are there other things like this?
+                    aRuleData->mFontData->mFamilyFromHTML = PR_FALSE;
+                }
                 if (nsCSSProps::PropHasFlags(iProp,
                         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED) &&
                     ShouldIgnoreColors(aRuleData))
@@ -329,6 +333,15 @@ nsCSSExpandedDataBlock::~nsCSSExpandedDataBlock()
 {
     AssertInitialState();
 }
+
+const size_t
+nsCSSExpandedDataBlock::kOffsetTable[] = {
+    #define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_,        \
+                     kwtable_, stylestruct_, stylestructoffset_, animtype_)    \
+        offsetof(nsCSSExpandedDataBlock, m##datastruct_.member_),
+    #include "nsCSSPropList.h"
+    #undef CSS_PROP
+};
 
 void
 nsCSSExpandedDataBlock::DoExpand(nsCSSCompressedDataBlock *aBlock,
@@ -599,9 +612,8 @@ nsCSSExpandedDataBlock::DoAssertInitialState()
     mPropertiesImportant.AssertIsEmpty("not initial state");
 
     for (PRUint32 i = 0; i < eCSSProperty_COUNT_no_shorthands; ++i) {
-        nsCSSProperty prop = nsCSSProperty(i);
-        NS_ABORT_IF_FALSE(PropertyAt(prop)->GetUnit() == eCSSUnit_Null,
-                          "not initial state");
+        NS_ABORT_IF_FALSE(PropertyAt(nsCSSProperty(i))->GetUnit() ==
+                          eCSSUnit_Null, "not initial state");
     }
 }
 #endif

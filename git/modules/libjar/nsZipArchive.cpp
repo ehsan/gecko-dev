@@ -83,6 +83,8 @@ nsRecyclingAllocator *gZlibAllocator = NULL;
     #include <unistd.h>
 #elif defined(XP_WIN) || defined(XP_OS2)
     #include <io.h>
+#elif defined(XP_BEOS)
+    #include <unistd.h>
 #endif
 
 #ifdef __SYMBIAN32__
@@ -113,7 +115,7 @@ static const PRUint16 kSyntheticDate = (1 + (1 << 5) + (0 << 9));
 static PRUint16 xtoint(const PRUint8 *ii);
 static PRUint32 xtolong(const PRUint8 *ll);
 static PRUint32 HashName(const char* aName, PRUint16 nameLen);
-#ifdef XP_UNIX
+#if defined(XP_UNIX) || defined(XP_BEOS)
 static nsresult ResolveSymlink(const char *path);
 #endif
 
@@ -438,7 +440,7 @@ nsresult nsZipArchive::ExtractFile(nsZipItem *item, const char *outname,
     PR_Close(aFd);
     if (rv != NS_OK)
       PR_Delete(outname);
-#ifdef XP_UNIX
+#if defined(XP_UNIX) || defined(XP_BEOS)
     else if (item->IsSymlink())
       rv = ResolveSymlink(outname);
 #endif
@@ -548,7 +550,7 @@ MOZ_WIN_MEM_TRY_CATCH(return NS_ERROR_FAILURE)
   return NS_ERROR_FILE_TARGET_DOES_NOT_EXIST;
 }
 
-#ifdef XP_UNIX
+#if defined(XP_UNIX) || defined(XP_BEOS)
 //---------------------------------------------
 // ResolveSymlink
 //---------------------------------------------
@@ -985,7 +987,7 @@ PRTime nsZipItem::LastModTime()
   return GetModTime(Date(), Time());
 }
 
-#ifdef XP_UNIX
+#if defined(XP_UNIX) || defined(XP_BEOS)
 bool nsZipItem::IsSymlink()
 {
   if (isSynthetic) return false;

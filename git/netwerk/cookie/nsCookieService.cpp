@@ -1257,9 +1257,7 @@ nsCookieService::HandleCorruptDB(DBState* aDBState)
   case DBState::REBUILDING: {
     // We had an error while rebuilding the DB. Game over. Close the database
     // and let the close handler do nothing; then we'll move it out of the way.
-    if (mDefaultDBState->dbConn) {
-      mDefaultDBState->dbConn->AsyncClose(mDefaultDBState->closeListener);
-    }
+    mDefaultDBState->dbConn->AsyncClose(mDefaultDBState->closeListener);
     CloseDefaultDBConnection();
     break;
   }
@@ -1531,7 +1529,6 @@ nsCookieService::SetCookieStringInternal(nsIURI          *aHostURI,
   switch (cookieStatus) {
   case STATUS_REJECTED:
     NotifyRejected(aHostURI);
-    return;
   case STATUS_REJECTED_WITH_ERROR:
     return;
   default:
@@ -3026,11 +3023,14 @@ nsCookieService::GetBaseDomainFromHost(const nsACString &aHost,
     return NS_ERROR_INVALID_ARG;
 
   // aHost may contain a leading dot; if so, strip it now.
-  PRBool domain = !aHost.IsEmpty() && aHost.First() == '.';
+  nsDependentCString host(aHost);
+  PRBool domain = !host.IsEmpty() && host.First() == '.';
+  if (domain)
+    host.Rebind(host.BeginReading() + 1, host.EndReading());
 
   // get the base domain. this will fail if the host contains a leading dot,
   // more than one trailing dot, or is otherwise malformed.
-  nsresult rv = mTLDService->GetBaseDomainFromHost(Substring(aHost, domain), 0, aBaseDomain);
+  nsresult rv = mTLDService->GetBaseDomainFromHost(host, 0, aBaseDomain);
   if (rv == NS_ERROR_HOST_IS_IP_ADDRESS ||
       rv == NS_ERROR_INSUFFICIENT_DOMAIN_LEVELS) {
     // aHost is either an IP address, an alias such as 'localhost', an eTLD
@@ -3040,7 +3040,7 @@ nsCookieService::GetBaseDomainFromHost(const nsACString &aHost,
     if (domain)
       return NS_ERROR_INVALID_ARG;
 
-    aBaseDomain = aHost;
+    aBaseDomain = host;
     return NS_OK;
   }
   return rv;
