@@ -49,7 +49,6 @@
 #include <gdk/gdk.h>
 
 using namespace mozilla;
-using namespace mozilla::widget;
 
 static nsINativeKeyBindings::DoCommandCallback gCurrentCallback;
 static void *gCurrentCallbackData;
@@ -283,7 +282,7 @@ nsNativeKeyBindings::KeyPress(const nsNativeKeyEvent& aEvent,
   if (aEvent.charCode != 0)
     keyCode = gdk_unicode_to_keyval(aEvent.charCode);
   else
-    keyCode = KeymapWrapper::GuessGDKKeyval(aEvent.keyCode);
+    keyCode = DOMKeyCodeToGdkKeyCode(aEvent.keyCode);
 
   if (KeyPressInternal(aEvent, aCallback, aCallbackData, keyCode))
     return true;

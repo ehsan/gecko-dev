@@ -114,6 +114,8 @@ public:
     void CommonCreate(nsIWidget *aParent, bool aListenForResizes);
     
     // event handling code
+    void InitKeyEvent(nsKeyEvent &aEvent, GdkEventKey *aGdkEvent);
+
     void DispatchActivateEvent(void);
     void DispatchDeactivateEvent(void);
     void DispatchResizeEvent(nsIntRect &aRect, nsEventStatus &aStatus);
