@@ -144,6 +144,13 @@ nsSVGElement::Init()
     enumInfo.Reset(i);
   }
 
+  nsSVGPreserveAspectRatio *preserveAspectRatio =
+    GetPreserveAspectRatio();
+
+  if (preserveAspectRatio) {
+    preserveAspectRatio->Init();
+  }
+
   StringAttributesInfo stringInfo = GetStringInfo();
 
   for (i = 0; i < stringInfo.mStringCount; i++) {
@@ -320,9 +327,9 @@ nsSVGElement::ParseAttribute(PRInt32 aNamespaceID,
     return PR_TRUE;
   }
 
+  nsresult rv = NS_OK;
   PRBool foundMatch = PR_FALSE;
   if (aNamespaceID == kNameSpaceID_None) {
-    nsresult rv;
 
     // Check for nsSVGLength2 attribute
     LengthAttributesInfo lengthInfo = GetLengthInfo();
@@ -430,13 +437,17 @@ nsSVGElement::ParseAttribute(PRInt32 aNamespaceID,
       }
     }
 
-    if (foundMatch) {
-      if (NS_FAILED(rv)) {
-        ReportAttributeParseFailure(GetOwnerDoc(), aAttribute, aValue);
-        return PR_FALSE;
+    if (!foundMatch && aAttribute == nsGkAtoms::preserveAspectRatio) {
+      // Check for nsSVGPreserveAspectRatio attribute
+      nsSVGPreserveAspectRatio *preserveAspectRatio =
+        GetPreserveAspectRatio();
+      if (preserveAspectRatio) {
+        rv = preserveAspectRatio->SetBaseValueString(aValue, this, PR_FALSE);
+        if (NS_FAILED(rv)) {
+          preserveAspectRatio->Init();
+        }
+        foundMatch = PR_TRUE;
       }
-      aResult.SetTo(aValue);
-      return PR_TRUE;
     }
   }
 
@@ -451,6 +462,15 @@ nsSVGElement::ParseAttribute(PRInt32 aNamespaceID,
         break;
       }
     }
+  }
+
+  if (foundMatch) {
+    if (NS_FAILED(rv)) {
+      ReportAttributeParseFailure(GetOwnerDoc(), aAttribute, aValue);
+      return PR_FALSE;
+    }
+    aResult.SetTo(aValue);
+    return PR_TRUE;
   }
 
   return nsSVGElementBase::ParseAttribute(aNamespaceID, aAttribute, aValue,
@@ -572,6 +592,18 @@ nsSVGElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
         }
       }
     }
+
+    if (!foundMatch && aName == nsGkAtoms::preserveAspectRatio) {
+      // Check if this is a preserveAspectRatio attribute going away
+      nsSVGPreserveAspectRatio *preserveAspectRatio =
+        GetPreserveAspectRatio();
+
+      if (preserveAspectRatio) {
+        preserveAspectRatio->Init();
+        DidChangePreserveAspectRatio(PR_FALSE);
+        foundMatch = PR_TRUE;
+      }
+    }
   }
 
   if (!foundMatch) {
@@ -594,7 +626,9 @@ nsSVGElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
     nsCOMPtr<nsISVGValue> svg_value = GetMappedAttribute(aNamespaceID, aName);
 
     if (svg_value) {
+      mSuppressNotification = PR_TRUE;
       ResetOldStyleBaseType(svg_value);
+      mSuppressNotification = PR_FALSE;
     }
   }
 
@@ -609,17 +643,6 @@ nsSVGElement::ResetOldStyleBaseType(nsISVGValue *svg_value)
     nsCOMPtr<nsIDOMSVGRect> rect;
     r->GetBaseVal(getter_AddRefs(rect));
     static_cast<nsSVGRect*>(rect.get())->Clear();
-  }
-  nsCOMPtr<nsIDOMSVGAnimatedPreserveAspectRatio> ar = do_QueryInterface(svg_value);
-  if (ar) {
-    nsCOMPtr<nsIDOMSVGPreserveAspectRatio> par;
-    ar->GetBaseVal(getter_AddRefs(par));
-    par->SetAlign(nsIDOMSVGPreserveAspectRatio::SVG_PRESERVEASPECTRATIO_XMIDYMID);
-    par->SetMeetOrSlice(nsIDOMSVGPreserveAspectRatio::SVG_MEETORSLICE_MEET);
-  }
-  nsCOMPtr<nsIDOMSVGPointList> pl = do_QueryInterface(svg_value);
-  if (pl) {
-    pl->Clear();
   }
   nsCOMPtr<nsIDOMSVGAnimatedLengthList> ll = do_QueryInterface(svg_value);
   if (ll) {
@@ -994,7 +1017,7 @@ nsSVGElement::DidModifySVGObservable(nsISVGValue* aObservable,
 
   return SetAttrAndNotify(attrName->NamespaceID(), attrName->LocalName(),
                           attrName->GetPrefix(), EmptyString(), newValue,
-                          modification, hasListeners, PR_TRUE);
+                          modification, hasListeners, PR_TRUE, nsnull);
 }
 
 //----------------------------------------------------------------------
@@ -1422,6 +1445,30 @@ nsSVGElement::DidChangeEnum(PRUint8 aAttrEnum, PRBool aDoSetAttr)
   info.mEnums[aAttrEnum].GetBaseValueString(newStr, this);
 
   SetAttr(kNameSpaceID_None, *info.mEnumInfo[aAttrEnum].mName,
+          newStr, PR_TRUE);
+}
+
+nsSVGPreserveAspectRatio *
+nsSVGElement::GetPreserveAspectRatio()
+{
+  return nsnull;
+}
+
+void
+nsSVGElement::DidChangePreserveAspectRatio(PRBool aDoSetAttr)
+{
+  if (!aDoSetAttr)
+    return;
+
+  nsSVGPreserveAspectRatio *preserveAspectRatio = GetPreserveAspectRatio();
+
+  NS_ASSERTION(preserveAspectRatio,
+               "DidChangePreserveAspectRatio on element with no preserveAspectRatio attrib");
+
+  nsAutoString newStr;
+  preserveAspectRatio->GetBaseValueString(newStr);
+
+  SetAttr(kNameSpaceID_None, nsGkAtoms::preserveAspectRatio,
           newStr, PR_TRUE);
 }
 

@@ -208,6 +208,7 @@ static PRLogModuleInfo* gDOMLeakPRLog;
 #endif
 
 nsIFactory *nsGlobalWindow::sComputedDOMStyleFactory   = nsnull;
+nsIDOMStorageList *nsGlobalWindow::sGlobalStorageList  = nsnull;
 
 static nsIEntropyCollector *gEntropyCollector          = nsnull;
 static PRInt32              gRefCnt                    = 0;
@@ -780,6 +781,7 @@ void
 nsGlobalWindow::ShutDown()
 {
   NS_IF_RELEASE(sComputedDOMStyleFactory);
+  NS_IF_RELEASE(sGlobalStorageList);
 }
 
 // static
@@ -1003,8 +1005,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGlobalWindow)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mScriptContexts[i])
   }
 
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(gGlobalStorageList)
-
   for (PRUint32 i = 0; i < NS_STID_ARRAY_UBOUND; ++i) {      
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mInnerWindowHolders[i])
   }
@@ -1035,8 +1035,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindow)
   for (PRUint32 i = 0; i < NS_STID_ARRAY_UBOUND; ++i) {      
     NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mScriptContexts[i])
   }
-
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(gGlobalStorageList)
 
   for (PRUint32 i = 0; i < NS_STID_ARRAY_UBOUND; ++i) {      
     NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mInnerWindowHolders[i])
@@ -1798,10 +1796,18 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
         PRBool termFuncSet = PR_FALSE;
 
         if (oldDoc == aDocument) {
-          JSContext *cx = nsContentUtils::GetCurrentJSContext();
+          // Suspend the current context's request before Pop() resumes the old
+          // context's request.
+          JSAutoSuspendRequest asr(cx);
+
+          // Pop our context here so that we get the correct one for the
+          // termination function.
+          cxPusher.Pop();
+
+          JSContext *oldCx = nsContentUtils::GetCurrentJSContext();
 
           nsIScriptContext *callerScx;
-          if (cx && (callerScx = GetScriptContextFromJSContext(cx))) {
+          if (oldCx && (callerScx = GetScriptContextFromJSContext(oldCx))) {
             // We're called from document.open() (and document.open() is
             // called from JS), clear the scope etc in a termination
             // function on the calling context to prevent clearing the
@@ -1809,7 +1815,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
             NS_ASSERTION(!currentInner->IsFrozen(),
                 "How does this opened window get into session history");
 
-            JSAutoRequest ar(cx);
+            JSAutoRequest ar(oldCx);
 
             callerScx->SetTerminationFunction(ClearWindowScope,
                                               static_cast<nsIDOMWindow *>
@@ -1817,6 +1823,9 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
             termFuncSet = PR_TRUE;
           }
+
+          // Re-push our context.
+          cxPusher.Push(cx);
         }
 
         // Don't clear scope on our current inner window if it's going to be
@@ -3876,6 +3885,9 @@ nsGlobalWindow::EnsureReflowFlushAndPaint()
   NS_ASSERTION(mDocShell, "EnsureReflowFlushAndPaint() called with no "
                "docshell!");
 
+  if (!mDocShell)
+    return;
+
   nsCOMPtr<nsIPresShell> presShell;
   mDocShell->GetPresShell(getter_AddRefs(presShell));
 
@@ -4670,13 +4682,13 @@ nsGlobalWindow::ClearInterval()
 }
 
 NS_IMETHODIMP
-nsGlobalWindow::SetTimeout(PRBool *_retval)
+nsGlobalWindow::SetTimeout(PRInt32 *_retval)
 {
   return SetTimeoutOrInterval(PR_FALSE, _retval);
 }
 
 NS_IMETHODIMP
-nsGlobalWindow::SetInterval(PRBool *_retval)
+nsGlobalWindow::SetInterval(PRInt32 *_retval)
 {
   return SetTimeoutOrInterval(PR_TRUE, _retval);
 }
@@ -5932,6 +5944,8 @@ nsGlobalWindow::ShowModalDialog(const nsAString& aURI, nsIVariant *aArgs,
 {
   *aRetVal = nsnull;
 
+  NS_ENSURE_TRUE(mDocShell, NS_ERROR_FAILURE);
+
   nsCOMPtr<nsIDOMWindow> dlgWin;
   nsAutoString options(NS_LITERAL_STRING("-moz-internal-modal=1,status=1"));
 
@@ -6039,6 +6053,7 @@ nsGlobalWindow::Find(const nsAString& aStr, PRBool aCaseSensitive,
   *aDidFind = PR_FALSE;
 
   nsCOMPtr<nsIWebBrowserFind> finder(do_GetInterface(mDocShell));
+  NS_ENSURE_TRUE(finder, NS_ERROR_FAILURE);
 
   // Set the options of the search
   rv = finder->SetSearchString(PromiseFlatString(aStr).get());
@@ -6700,12 +6715,12 @@ nsGlobalWindow::GetGlobalStorage(nsIDOMStorageList ** aGlobalStorage)
   NS_ENSURE_ARG_POINTER(aGlobalStorage);
 
 #ifdef MOZ_STORAGE
-  if (!gGlobalStorageList) {
-    nsresult rv = NS_NewDOMStorageList(getter_AddRefs(gGlobalStorageList));
+  if (!sGlobalStorageList) {
+    nsresult rv = NS_NewDOMStorageList(&sGlobalStorageList);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  *aGlobalStorage = gGlobalStorageList;
+  *aGlobalStorage = sGlobalStorageList;
   NS_IF_ADDREF(*aGlobalStorage);
 
   return NS_OK;
@@ -9401,7 +9416,8 @@ nsNavigator::MozIsLocallyAvailable(const nsAString &aURI,
 
   if (aWhenOffline) {
     loadFlags |= nsICachingChannel::LOAD_CHECK_OFFLINE_CACHE |
-                 nsICachingChannel::LOAD_ONLY_FROM_CACHE;
+                 nsICachingChannel::LOAD_ONLY_FROM_CACHE |
+                 nsIRequest::LOAD_FROM_CACHE;
   }
 
   nsCOMPtr<nsIChannel> channel;

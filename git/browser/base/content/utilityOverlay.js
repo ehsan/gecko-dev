@@ -352,6 +352,12 @@ function getShellService()
 }
 
 function isBidiEnabled() {
+  // first check the pref.
+  if (getBoolPref("bidi.browser.ui", false))
+    return true;
+
+  // if the pref isn't set, check for an RTL locale and force the pref to true
+  // if we find one.
   var rv = false;
 
   try {
@@ -366,12 +372,11 @@ function isBidiEnabled() {
       case "ur-":
       case "syr":
         rv = true;
+        var pref = Components.classes["@mozilla.org/preferences-service;1"]
+                             .getService(Components.interfaces.nsIPrefBranch);
+        pref.setBoolPref("bidi.browser.ui", true);
     }
   } catch (e) {}
-
-  // check the overriding pref
-  if (!rv)
-    rv = getBoolPref("bidi.browser.ui");
 
   return rv;
 }
@@ -442,7 +447,8 @@ function openReleaseNotes(event)
   
   openUILink(relnotesURL, event, false, true);
 }
-  
+
+#ifdef MOZ_UPDATER
 /**
  * Opens the update manager and checks for updates to the application.
  */
@@ -463,6 +469,7 @@ function checkForUpdates()
   else
     prompter.checkForUpdates();
 }
+#endif
 
 function buildHelpMenu()
 {
@@ -471,6 +478,7 @@ function buildHelpMenu()
   if (typeof safebrowsing != "undefined")
     safebrowsing.setReportPhishingMenu();
 
+#ifdef MOZ_UPDATER
   var updates = 
       Components.classes["@mozilla.org/updates/update-service;1"].
       getService(Components.interfaces.nsIApplicationUpdateService);
@@ -519,6 +527,10 @@ function buildHelpMenu()
     checkForUpdates.setAttribute("loading", "true");
   else
     checkForUpdates.removeAttribute("loading");
+#else
+  // Needed by safebrowsing for inserting its menuitem so just hide it
+  document.getElementById("updateSeparator").hidden = true;
+#endif
 }
 
 function isElementVisible(aElement)

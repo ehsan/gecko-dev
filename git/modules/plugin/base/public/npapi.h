@@ -273,21 +273,14 @@ typedef enum {
  *   gcc 3.x generated vtables on UNIX and OSX are incompatible with 
  *   previous compilers.
  */
-#if (defined (XP_UNIX) && defined(__GNUC__) && (__GNUC__ >= 3))
+#if (defined(XP_UNIX) && defined(__GNUC__) && (__GNUC__ >= 3))
 #define _NP_ABI_MIXIN_FOR_GCC3 NP_ABI_GCC3_MASK
 #else
 #define _NP_ABI_MIXIN_FOR_GCC3 0
 #endif
 
+#ifdef XP_MACOSX
 #define NP_ABI_MACHO_MASK 0x01000000
-/*
- *   On OSX, the Mach-O executable format is significantly
- *   different than CFM. In addition to having a different
- *   C++ ABI, it also has has different C calling convention.
- *   You must use glue code when calling between CFM and
- *   Mach-O C functions. 
- */
-#if (defined(TARGET_RT_MAC_MACHO))
 #define _NP_ABI_MIXIN_FOR_MACHO NP_ABI_MACHO_MASK
 #else
 #define _NP_ABI_MIXIN_FOR_MACHO 0
@@ -596,11 +589,11 @@ extern "C" {
 /* NPP_* functions are provided by the plugin and called by the navigator. */
 
 #ifdef XP_UNIX
-char* NPP_GetMIMEDescription(void);
+char* NPP_GetMIMEDescription();
 #endif
 
-NPError NP_LOADDS NPP_Initialize(void);
-void    NP_LOADDS NPP_Shutdown(void);
+NPError NP_LOADDS NPP_Initialize();
+void    NP_LOADDS NPP_Shutdown();
 NPError NP_LOADDS NPP_New(NPMIMEType pluginType, NPP instance,
                           uint16_t mode, int16_t argc, char* argn[],
                           char* argv[], NPSavedData* saved);
@@ -621,7 +614,7 @@ int16_t NP_LOADDS NPP_HandleEvent(NPP instance, void* event);
 void    NP_LOADDS NPP_URLNotify(NPP instance, const char* url,
                                 NPReason reason, void* notifyData);
 #ifdef OJI
-jref    NP_LOADDS NPP_GetJavaClass(void);
+jref    NP_LOADDS NPP_GetJavaClass();
 #endif
 NPError NP_LOADDS NPP_GetValue(NPP instance, NPPVariable variable, void *value);
 NPError NP_LOADDS NPP_SetValue(NPP instance, NPNVariable variable, void *value);
@@ -654,7 +647,7 @@ void        NP_LOADDS NPN_MemFree(void* ptr);
 uint32_t    NP_LOADDS NPN_MemFlush(uint32_t size);
 void        NP_LOADDS NPN_ReloadPlugins(NPBool reloadPages);
 #ifdef OJI
-JRIEnv*     NP_LOADDS NPN_GetJavaEnv(void);
+JRIEnv*     NP_LOADDS NPN_GetJavaEnv();
 jref        NP_LOADDS NPN_GetJavaPeer(NPP instance);
 #endif
 NPError     NP_LOADDS NPN_GetValue(NPP instance, NPNVariable variable,

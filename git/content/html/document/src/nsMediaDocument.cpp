@@ -85,7 +85,7 @@ nsMediaDocumentStreamListener::OnStartRequest(nsIRequest* request, nsISupports *
     return mNextStream->OnStartRequest(request, ctxt);
   }
 
-  return NS_OK;
+  return NS_BINDING_ABORTED;
 }
 
 NS_IMETHODIMP
@@ -279,9 +279,7 @@ nsMediaDocument::StartLayout()
   nsPresShellIterator iter(this);
   nsCOMPtr<nsIPresShell> shell;
   while ((shell = iter.GetNextShell())) {
-    PRBool didInitialReflow = PR_FALSE;
-    shell->GetDidInitialReflow(&didInitialReflow);
-    if (didInitialReflow) {
+    if (shell->DidInitialReflow()) {
       // Don't mess with this presshell: someone has already handled
       // its initial reflow.
       continue;

@@ -83,9 +83,11 @@ nsThebesFontMetrics::Init(const nsFont& aFont, nsIAtom* aLangGroup,
         langGroup.Assign(lg);
     }
 
+    PRBool printerFont = mDeviceContext->IsPrinterSurface();
     mFontStyle = new gfxFontStyle(aFont.style, aFont.weight, size, langGroup,
                                   aFont.sizeAdjust, aFont.systemFont,
-                                  aFont.familyNameQuirks);
+                                  aFont.familyNameQuirks,
+                                  printerFont);
 
     mFontGroup =
         gfxPlatform::GetPlatform()->CreateFontGroup(aFont.name, mFontStyle, 
@@ -493,4 +495,10 @@ PRBool
 nsThebesFontMetrics::GetRightToLeftText()
 {
     return mIsRightToLeft;
+}
+
+/* virtual */ gfxUserFontSet*
+nsThebesFontMetrics::GetUserFontSet()
+{
+    return mFontGroup->GetUserFontSet();
 }

@@ -22,6 +22,7 @@
 #   Annie Sullivan <annie.sullivan@gmail.com>
 #   Joe Hughes <joe@retrovirus.com>
 #   Asaf Romano <mano@mozilla.com>
+#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -166,6 +167,9 @@ var StarUI = {
 
   _doShowEditBookmarkPanel:
   function SU__doShowEditBookmarkPanel(aItemId, aAnchorElement, aPosition) {
+    if (this.panel.state != "closed")
+      return;
+
     this._blockCommands(); // un-done in the popuphiding handler
 
     var bundle = this._element("bundle_browser");
@@ -191,6 +195,14 @@ var StarUI = {
     // if the cancel button/ESC does not remove the bookmark.
     this._element("editBookmarkPanelRemoveButton").hidden = this._batching;
 
+    // The label of the remove button differs if the URI is bookmarked
+    // multiple times.
+    var bookmarks = PlacesUtils.getBookmarksForURI(gBrowser.currentURI);
+    var forms = bundle.getString("editBookmark.removeBookmarks.label");
+    Cu.import("resource://gre/modules/PluralForm.jsm");
+    var label = PluralForm.get(bookmarks.length, forms).replace("#1", bookmarks.length);
+    this._element("editBookmarkPanelRemoveButton").label = label;
+
     // unset the unstarred state, if set
     this._element("editBookmarkPanelStarIcon").removeAttribute("unstarred");
 
@@ -208,17 +220,10 @@ var StarUI = {
                                       isTransient: false,
                                       merge: function() { return false; } });
 
-    if (this.panel.state == "closed") {
-      // Consume dismiss clicks, see bug 400924
-      this.panel.popupBoxObject
-          .setConsumeRollupEvent(Ci.nsIPopupBoxObject.ROLLUP_CONSUME);
-      this.panel.openPopup(aAnchorElement, aPosition, -1, -1);
-    }
-    else {
-      var namePicker = this._element("editBMPanel_namePicker");
-      namePicker.focus();
-      namePicker.editor.selectAll();
-    }
+    // Consume dismiss clicks, see bug 400924
+    this.panel.popupBoxObject
+        .setConsumeRollupEvent(Ci.nsIPopupBoxObject.ROLLUP_CONSUME);
+    this.panel.openPopup(aAnchorElement, aPosition, -1, -1);
 
     gEditItemOverlay.initPanel(this._itemId,
                                { hiddenRows: ["description", "location",
@@ -231,7 +236,7 @@ var StarUI = {
       if (!this._element("editBookmarkPanelContent").hidden) {
         var namePicker = this._element("editBMPanel_namePicker");
         namePicker.focus();
-        namePicker.editor.selectAll();
+        namePicker.select();
       }
       else
         this.panel.focus();
@@ -946,7 +951,11 @@ var PlacesMenuDNDController = {
 
 var PlacesStarButton = {
   init: function PSB_init() {
-    PlacesUtils.bookmarks.addObserver(this, false);
+    try {
+      PlacesUtils.bookmarks.addObserver(this, false);
+    } catch(ex) {
+      Components.utils.reportError("PlacesStarButton.init(): error adding bookmark observer: " + ex);
+    }
   },
 
   uninit: function PSB_uninit() {

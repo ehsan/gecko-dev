@@ -144,8 +144,14 @@ nsComputedDOMStyle::Shutdown()
 }
 
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsComputedDOMStyle)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsComputedDOMStyle)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsComputedDOMStyle)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mContent)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
 // QueryInterface implementation for nsComputedDOMStyle
-NS_INTERFACE_MAP_BEGIN(nsComputedDOMStyle)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsComputedDOMStyle)
   NS_INTERFACE_MAP_ENTRY(nsIComputedDOMStyle)
   NS_INTERFACE_MAP_ENTRY(nsICSSDeclaration)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSStyleDeclaration)
@@ -170,9 +176,9 @@ static void doDestroyComputedDOMStyle(nsComputedDOMStyle *aComputedStyle)
   }
 }
 
-NS_IMPL_ADDREF(nsComputedDOMStyle)
-NS_IMPL_RELEASE_WITH_DESTROY(nsComputedDOMStyle,
-                             doDestroyComputedDOMStyle(this))
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsComputedDOMStyle)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_DESTROY(nsComputedDOMStyle,
+                                              doDestroyComputedDOMStyle(this))
 
 
 NS_IMETHODIMP
@@ -2123,7 +2129,7 @@ nsComputedDOMStyle::GetWordSpacing(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  SetValueToCoord(val, GetStyleText()->mWordSpacing);
+  val->SetAppUnits(GetStyleText()->mWordSpacing);
 
   return CallQueryInterface(val, aValue);
 }
@@ -2694,11 +2700,7 @@ nsComputedDOMStyle::GetClip(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *rightVal = nsnull;
   nsROCSSPrimitiveValue *bottomVal = nsnull;
   nsROCSSPrimitiveValue *leftVal = nsnull;
-  if (display->mClipFlags == NS_STYLE_CLIP_AUTO ||
-      display->mClipFlags == (NS_STYLE_CLIP_TOP_AUTO |
-                              NS_STYLE_CLIP_RIGHT_AUTO |
-                              NS_STYLE_CLIP_BOTTOM_AUTO |
-                              NS_STYLE_CLIP_LEFT_AUTO)) {
+  if (display->mClipFlags == NS_STYLE_CLIP_AUTO) {
     val->SetIdent(nsGkAtoms::_auto);
   } else {
     // create the cssvalues for the sides, stick them in the rect object

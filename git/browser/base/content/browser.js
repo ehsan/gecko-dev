@@ -87,8 +87,6 @@ var gContextMenu = null;
 
 var gChromeState = null; // chrome state before we went into print preview
 
-var gSanitizeListener = null;
-
 var gAutoHideTabbarPrefListener = null;
 var gBookmarkAllTabsHandler = null;
 
@@ -333,12 +331,12 @@ const gPopupBlockerObserver = {
 
     if (!gBrowser.pageReport) {
       // Hide the popup blocker statusbar button
-      this._reportButton.removeAttribute("blocked");
+      this._reportButton.hidden = true;
 
       return;
     }
 
-    this._reportButton.setAttribute("blocked", true);
+    this._reportButton.hidden = false;
 
     // Only show the notification again if we've not already shown it. Since
     // notifications are per-browser, we don't need to worry about re-adding
@@ -694,8 +692,9 @@ let gGestureSupport = {
   },
 
   /**
-   * Dispatch events based on the type of mouse gesture event.
-   * For now, make sure to stop propagation of every gesture event
+   * Dispatch events based on the type of mouse gesture event. For now, make
+   * sure to stop propagation of every gesture event so that web content cannot
+   * receive gesture events.
    *
    * @param aEvent
    *        The gesture event to handle
@@ -703,36 +702,73 @@ let gGestureSupport = {
   handleEvent: function GS_handleEvent(aEvent) {
     aEvent.stopPropagation();
 
+    // Create a preference object with some defaults
+    let def = function(aThreshold, aLatched)
+      ({ threshold: aThreshold, latched: !!aLatched });
+
     switch (aEvent.type) {
       case "MozSwipeGesture":
         return this.onSwipe(aEvent);
       case "MozMagnifyGestureStart":
+        return this._setupGesture(aEvent, "pinch", def(150, 1), "out", "in");
       case "MozRotateGestureStart":
-        return this.onStart(aEvent);
+        return this._setupGesture(aEvent, "twist", def(25, 0), "right", "left");
       case "MozMagnifyGestureUpdate":
-        return this._handleUpdate(aEvent, 100, "pinch.out", "pinch.in");
       case "MozRotateGestureUpdate":
-        return this._handleUpdate(aEvent, 22.5, "twist.right", "twist.left");
+        return this._doUpdate(aEvent);
     }
   },
 
   /**
-   * Convert a gesture and pressed keys into the corresponding command action.
-   * The preference must have "shift" before "alt" before "ctrl" before "meta"
-   * with each separated by periods.
+   * Called at the start of "pinch" and "twist" gestures to setup all of the
+   * information needed to process the gesture
    *
-   * @param aGestureKeys
-   *        An array that has the gesture type as the first element and
-   *        additional elements for each key pressed
-   * @return Id of the command to execute
+   * @param aEvent
+   *        The continual motion start event to handle
+   * @param aGesture
+   *        Name of the gesture to handle
+   * @param aPref
+   *        Preference object with the names of preferences and defaults
+   * @param aInc
+   *        Command to trigger for increasing motion (without gesture name)
+   * @param aDec
+   *        Command to trigger for decreasing motion (without gesture name)
    */
-  _getCommand: function GS__getCommand(aGestureKeys) {
-    const gestureBranch = "browser.gesture."
-    try {
-      return gPrefService.getCharPref(gestureBranch + aGestureKeys.join("."));
-    }
-    // No preference is set, so don't give a command
-    catch (e) {}
+  _setupGesture: function GS__setupGesture(aEvent, aGesture, aPref, aInc, aDec) {
+    // Try to load user-set values from preferences
+    for (let [pref, def] in Iterator(aPref))
+      aPref[pref] = this._getPref(aGesture + "." + pref, def);
+
+    // Keep track of the total deltas and latching behavior
+    let offset = 0;
+    let latchDir = aEvent.delta > 0 ? 1 : -1;
+    let isLatched = false;
+
+    // Create the update function here to capture closure state
+    this._doUpdate = function GS__doUpdate(aEvent) {
+      // Update the offset with new event data
+      offset += aEvent.delta;
+
+      // Check if the cumulative deltas exceed the threshold
+      if (Math.abs(offset) > aPref["threshold"]) {
+        // Trigger the action if we don't care about latching; otherwise, make
+        // sure either we're not latched and going the same direction of the
+        // initial motion; or we're latched and going the opposite way
+        let sameDir = (latchDir ^ offset) >= 0;
+        if (!aPref["latched"] || (isLatched ^ sameDir)) {
+          this._doAction(aEvent, [aGesture, offset > 0 ? aInc : aDec]);
+
+          // We must be getting latched or leaving it, so just toggle
+          isLatched = !isLatched;
+        }
+
+        // Reset motion counter to prepare for more of the same gesture
+        offset = 0;
+      }
+    };
+
+    // The start event also contains deltas, so handle an update right away
+    this._doUpdate(aEvent);
   },
 
   /**
@@ -762,7 +798,9 @@ let gGestureSupport = {
    * @param aEvent
    *        The original gesture event to convert into a fake click event
    * @param aGesture
-   *        Name of the gesture
+   *        Array of gesture name parts (to be joined by periods)
+   * @return Name of the command found for the event's keys and gesture. If no
+   *         command is found, no value is returned (undefined).
    */
   _doAction: function GS__doAction(aEvent, aGesture) {
     // Create a fake event that pretends the gesture is a button click
@@ -775,25 +813,32 @@ let gGestureSupport = {
     let keyCombos = [];
     const keys = ["shift", "alt", "ctrl", "meta"];
     for each (let key in keys)
-      if (aEvent[key + "Key"]) 
+      if (aEvent[key + "Key"])
         keyCombos.push(key);
 
     try {
       // Try each combination of key presses in decreasing order for commands
       for (let subCombo in this._power(keyCombos)) {
-        let command = this._getCommand([aGesture].concat(subCombo));
+        // Convert a gesture and pressed keys into the corresponding command
+        // action where the preference has the gesture before "shift" before
+        // "alt" before "ctrl" before "meta" all separated by periods
+        let command = this._getPref(aGesture.concat(subCombo).join("."));
+
         // Do the command if we found one to do
         if (command) {
           let node = document.getElementById(command);
           // Use the command element if it exists
-          if (node && node.hasAttribute("oncommand"))
+          if (node && node.hasAttribute("oncommand")) {
             // XXX: Use node.oncommand(event) once bug 246720 is fixed
-            return node.getAttribute("disabled") == "true" ? true :
+            if (node.getAttribute("disabled") != "true")
               new Function("event", node.getAttribute("oncommand")).
-              call(node, fakeEvent);
-
+                call(node, fakeEvent);
+          }
           // Otherwise it should be a "standard" command
-          return goDoCommand(command);
+          else
+            goDoCommand(command);
+
+          return command;
         }
       }
     }
@@ -802,59 +847,49 @@ let gGestureSupport = {
   },
 
   /**
+   * Convert continual motion events into an action if it exceeds a threshold
+   * in a given direction. This function will be set by _setupGesture to
+   * capture state that needs to be shared across multiple gesture updates.
+   *
+   * @param aEvent
+   *        The continual motion update event to handle
+   */
+  _doUpdate: function(aEvent) {},
+
+  /**
    * Convert the swipe gesture into a browser action based on the direction
    *
    * @param aEvent
    *        The swipe event to handle
    */
   onSwipe: function GS_onSwipe(aEvent) {
-    switch (aEvent.direction) {
-      case SimpleGestureEvent.DIRECTION_LEFT:
-        return this._doAction(aEvent, "swipe.left");
-      case SimpleGestureEvent.DIRECTION_RIGHT:
-        return this._doAction(aEvent, "swipe.right");
-      case SimpleGestureEvent.DIRECTION_UP:
-        return this._doAction(aEvent, "swipe.up");
-      case SimpleGestureEvent.DIRECTION_DOWN:
-        return this._doAction(aEvent, "swipe.down");
+    // Figure out which one (and only one) direction was triggered 
+    for each (let dir in ["UP", "RIGHT", "DOWN", "LEFT"])
+      if (aEvent.direction == aEvent["DIRECTION_" + dir])
+        return this._doAction(aEvent, ["swipe", dir.toLowerCase()]);
+  },
+
+  /**
+   * Get a gesture preference or use a default if it doesn't exist
+   *
+   * @param aPref
+   *        Name of the preference to load under the gesture branch
+   * @param aDef
+   *        Default value if the preference doesn't exist
+   */
+  _getPref: function GS__getPref(aPref, aDef) {
+    // Preferences branch under which all gestures preferences are stored
+    const branch = "browser.gesture.";
+
+    try {
+      // Determine what type of data to load based on default value's type
+      let type = typeof aDef;
+      let getFunc = "get" + (type == "boolean" ? "Bool" : 
+                             type == "number" ? "Int" : "Char") + "Pref";
+      return gPrefService[getFunc](branch + aPref);
     }
-  },
-
-  // Keep track of offsets for continual motion events, e.g., zoom and rotate
-  _lastOffset: 0,
-
-  /**
-   * Handle the beginning of a continual motion event
-   *
-   * @param aEvent
-   *        The continual motion event
-   */
-  onStart: function GS_onStart(aEvent) {
-    this._lastOffset = 0;
-  },
-
-  /**
-   * Helper function to determine if a continual motion event has passed some
-   * threshold and should trigger some action. If the action is triggered, the
-   * tracking of the motion is reset as if a new motion has started.
-   *
-   * @param aEvent
-   *        The continual motion event to handle
-   * @param aThreshold
-   *        Minimum positive/negative difference before the action is triggered
-   * @param aInc
-   *        Name of the gesture for increasing motion
-   * @param aDec
-   *        Name of the gesture for decreasing motion
-   */
-  _handleUpdate: function GS__handleUpdate(aEvent, aThreshold, aInc, aDec) {
-    // Update the offset with new event data
-    this._lastOffset += aEvent.delta;
-
-    // Do the gesture action when we pass the threshold and then reset motion
-    if (Math.abs(this._lastOffset) > aThreshold) {
-      this._doAction(aEvent, this._lastOffset > 0 ? aInc : aDec);
-      this.onStart(aEvent);
+    catch (e) {
+      return aDef;
     }
   },
 };
@@ -1107,7 +1142,11 @@ function prepareForStartup() {
   gBrowser.browsers[0].removeAttribute("disablehistory");
 
   // enable global history
-  gBrowser.docShell.QueryInterface(Components.interfaces.nsIDocShellHistory).useGlobalHistory = true;
+  try {
+    gBrowser.docShell.QueryInterface(Components.interfaces.nsIDocShellHistory).useGlobalHistory = true;
+  } catch(ex) {
+    Components.utils.reportError("Places database may be locked: " + ex);
+  }
 
   // hook up UI through progress listener
   gBrowser.addProgressListener(window.XULBrowserWindow, Components.interfaces.nsIWebProgress.NOTIFY_ALL);
@@ -1159,7 +1198,7 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   gNavToolbox.customizeChange = BrowserToolboxCustomizeChange;
 
   // Set up Sanitize Item
-  gSanitizeListener = new SanitizeListener();
+  initializeSanitizer();
 
   // Enable/Disable auto-hide tabbar
   gAutoHideTabbarPrefListener = new AutoHideTabbarPrefListener();
@@ -1275,9 +1314,7 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   gBrowser.addEventListener("command", BrowserOnCommand, false);
 
   tabPreviews.init();
-#ifdef USE_TAB_PREVIEWS
   ctrlTab.init();
-#endif
 
   // Initialize the microsummary service by retrieving it, prompting its factory
   // to create its singleton, whose constructor initializes the service.
@@ -1310,6 +1347,11 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
     DownloadMonitorPanel.init();
   }, 10000);
 
+  // Delayed initialization of PlacesDBUtils.
+  // This component checks for database coherence once per day, on
+  // an idle timer, taking corrective actions where needed.
+  setTimeout(function() PlacesUtils.startPlacesDBUtils(), 15000);
+
 #ifndef XP_MACOSX
   updateEditUIVisibility();
   let placesContext = document.getElementById("placesContext");
@@ -1324,9 +1366,8 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
 function BrowserShutdown()
 {
   tabPreviews.uninit();
-#ifdef USE_TAB_PREVIEWS
   ctrlTab.uninit();
-#endif
+
   gGestureSupport.init(false);
 
   try {
@@ -1356,9 +1397,6 @@ function BrowserShutdown()
   } catch (ex) {
     Components.utils.reportError(ex);
   }
-
-  if (gSanitizeListener)
-    gSanitizeListener.shutdown();
 
   BrowserOffline.uninit();
   OfflineApps.uninit();
@@ -1439,14 +1477,11 @@ function nonBrowserWindowDelayedStartup()
   BrowserOffline.init();
   
   // Set up Sanitize Item
-  gSanitizeListener = new SanitizeListener();
+  initializeSanitizer();
 }
 
 function nonBrowserWindowShutdown()
 {
-  if (gSanitizeListener)
-    gSanitizeListener.shutdown();
-
   BrowserOffline.uninit();
 }
 #endif
@@ -1482,43 +1517,18 @@ AutoHideTabbarPrefListener.prototype =
   }
 }
 
-function SanitizeListener()
+function initializeSanitizer()
 {
-  gPrefService.addObserver(this.promptDomain, this, false);
+  // Always use the label with ellipsis
+  var label = gNavigatorBundle.getString("sanitizeWithPromptLabel2");
+  document.getElementById("sanitizeItem").setAttribute("label", label);
 
-  this._defaultLabel = document.getElementById("sanitizeItem")
-                               .getAttribute("label");
-  this._updateSanitizeItem();
-
-  if (gPrefService.prefHasUserValue(this.didSanitizeDomain)) {
-    gPrefService.clearUserPref(this.didSanitizeDomain);
+  const kDidSanitizeDomain = "privacy.sanitize.didShutdownSanitize";
+  if (gPrefService.prefHasUserValue(kDidSanitizeDomain)) {
+    gPrefService.clearUserPref(kDidSanitizeDomain);
     // We need to persist this preference change, since we want to
     // check it at next app start even if the browser exits abruptly
     gPrefService.QueryInterface(Ci.nsIPrefService).savePrefFile(null);
-  }
-}
-
-SanitizeListener.prototype =
-{
-  promptDomain      : "privacy.sanitize.promptOnSanitize",
-  didSanitizeDomain : "privacy.sanitize.didShutdownSanitize",
-
-  observe: function (aSubject, aTopic, aPrefName)
-  {
-    this._updateSanitizeItem();
-  },
-
-  shutdown: function ()
-  {
-    gPrefService.removeObserver(this.promptDomain, this);
-  },
-
-  _updateSanitizeItem: function ()
-  {
-    var label = gPrefService.getBoolPref(this.promptDomain) ?
-        gNavigatorBundle.getString("sanitizeWithPromptLabel2") : 
-        this._defaultLabel;
-    document.getElementById("sanitizeItem").setAttribute("label", label);
   }
 }
 
@@ -2370,6 +2380,11 @@ function BrowserOnCommand(event) {
           notificationBox.PRIORITY_CRITICAL_HIGH,
           buttons
         );
+      }
+    }
+    else if (/^about:privatebrowsing/.test(errorDoc.documentURI)) {
+      if (ot == errorDoc.getElementById("startPrivateBrowsing")) {
+        gPrivateBrowsingUI.toggleMode();
       }
     }
 }
@@ -6064,20 +6079,15 @@ var FeedHandler = {
     var feeds = gBrowser.mCurrentBrowser.feeds;
     if (!feeds || feeds.length == 0) {
       if (feedButton) {
-        feedButton.removeAttribute("feeds");
+        feedButton.collapsed = true;
         feedButton.removeAttribute("feed");
-        feedButton.setAttribute("tooltiptext", 
-                                gNavigatorBundle.getString("feedNoFeeds"));
       }
       this._feedMenuitem.setAttribute("disabled", "true");
       this._feedMenupopup.setAttribute("hidden", "true");
       this._feedMenuitem.removeAttribute("hidden");
     } else {
-      if (feedButton) {
-        feedButton.setAttribute("feeds", "true");
-        feedButton.setAttribute("tooltiptext", 
-                                gNavigatorBundle.getString("feedHasFeedsNew"));
-      }
+      if (feedButton)
+        feedButton.collapsed = false;
       
       if (feeds.length > 1) {
         this._feedMenuitem.setAttribute("hidden", "true");
@@ -6113,11 +6123,8 @@ var FeedHandler = {
       browserForLink.feeds = feeds;
       if (browserForLink == gBrowser || browserForLink == gBrowser.mCurrentBrowser) {
         var feedButton = document.getElementById("feed-button");
-        if (feedButton) {
-          feedButton.setAttribute("feeds", "true");
-          feedButton.setAttribute("tooltiptext", 
-                                  gNavigatorBundle.getString("feedHasFeedsNew"));
-        }
+        if (feedButton)
+          feedButton.collapsed = false;
       }
     }
   }
@@ -6170,8 +6177,13 @@ HistoryMenu.populateUndoSubmenu = function PHM_populateUndoSubmenu() {
   for (var i = 0; i < undoItems.length; i++) {
     var m = document.createElement("menuitem");
     m.setAttribute("label", undoItems[i].title);
-    if (undoItems[i].image)
-      m.setAttribute("image", undoItems[i].image);
+    if (undoItems[i].image) {
+      let iconURL = undoItems[i].image;
+      // don't initiate a connection just to fetch a favicon (see bug 467828)
+      if (/^https?:/.test(iconURL))
+        iconURL = "moz-anno:favicon:" + iconURL;
+      m.setAttribute("image", iconURL);
+    }
     m.setAttribute("class", "menuitem-iconic bookmark-item");
     m.setAttribute("value", i);
     m.setAttribute("oncommand", "undoCloseTab(" + i + ");");
@@ -6833,7 +6845,14 @@ let gPrivateBrowsingUI = {
     var brandBundle = bundleService.createBundle("chrome://branding/locale/brand.properties");
 
     var appName = brandBundle.GetStringFromName("brandShortName");
+# On Mac, use the header as the title.
+#ifdef XP_MACOSX
+    var dialogTitle = pbBundle.GetStringFromName("privateBrowsingMessageHeader");
+    var header = "";
+#else
     var dialogTitle = pbBundle.GetStringFromName("privateBrowsingDialogTitle");
+    var header = pbBundle.GetStringFromName("privateBrowsingMessageHeader") + "\n\n";
+#endif
     var message = pbBundle.formatStringFromName("privateBrowsingMessage", [appName], 1);
 
     var promptService = Cc["@mozilla.org/embedcomp/prompt-service;1"].
@@ -6849,7 +6868,7 @@ let gPrivateBrowsingUI = {
     var neverAskText = pbBundle.GetStringFromName("privateBrowsingNeverAsk");
 
     var result;
-    var choice = promptService.confirmEx(null, dialogTitle, message,
+    var choice = promptService.confirmEx(null, dialogTitle, header + message,
                                flags, button0Title, button1Title, null,
                                neverAskText, neverAsk);
 
@@ -6868,29 +6887,22 @@ let gPrivateBrowsingUI = {
   },
 
   onEnterPrivateBrowsing: function PBUI_onEnterPrivateBrowsing() {
-    let pbMenuItem = document.getElementById("privateBrowsingItem");
-    if (pbMenuItem)
-      pbMenuItem.setAttribute("checked", "true");
+    this._setPBMenuTitle("stop");
 
     this._privateBrowsingAutoStarted = this._privateBrowsingService.autoStarted;
 
     if (!this._privateBrowsingAutoStarted) {
       // Adjust the window's title
       let docElement = document.documentElement;
-#ifdef XP_MACOSX // see bug 411929 comment 38 for the reason behind this
-      docElement.setAttribute("titlemodifier",
-        docElement.getAttribute("titlemodifier_privatebrowsing"));
-      docElement.setAttribute("titledefault", "");
-#else
       docElement.setAttribute("title",
         docElement.getAttribute("title_privatebrowsing"));
       docElement.setAttribute("titlemodifier",
         docElement.getAttribute("titlemodifier_privatebrowsing"));
-#endif
       docElement.setAttribute("browsingmode", "private");
     }
     else {
       // Disable the menu item in auto-start mode
+      let pbMenuItem = document.getElementById("privateBrowsingItem");
       if (pbMenuItem)
         pbMenuItem.setAttribute("disabled", "true");
       document.getElementById("Tools:PrivateBrowsing")
@@ -6904,27 +6916,27 @@ let gPrivateBrowsingUI = {
 
     gFindBar.getElement("findbar-textbox").reset();
 
-    let pbMenuItem = document.getElementById("privateBrowsingItem");
-    if (pbMenuItem)
-      pbMenuItem.removeAttribute("checked");
+    this._setPBMenuTitle("start");
 
     if (!this._privateBrowsingAutoStarted) {
       // Adjust the window's title
       let docElement = document.documentElement;
-#ifdef XP_MACOSX // see bug 411929 comment 38 for the reason behind this
-      docElement.setAttribute("titlemodifier", "");
-      docElement.setAttribute("titledefault",
-        docElement.getAttribute("titlemodifier_normal"));
-#else
       docElement.setAttribute("title",
         docElement.getAttribute("title_normal"));
       docElement.setAttribute("titlemodifier",
         docElement.getAttribute("titlemodifier_normal"));
-#endif
       docElement.setAttribute("browsingmode", "normal");
     }
     else
       this._privateBrowsingAutoStarted = false;
+  },
+
+  _setPBMenuTitle: function PBUI__setPBMenuTitle(aMode) {
+    let pbMenuItem = document.getElementById("privateBrowsingItem");
+    if (pbMenuItem) {
+      pbMenuItem.setAttribute("label", pbMenuItem.getAttribute(aMode + "label"));
+      pbMenuItem.setAttribute("accesskey", pbMenuItem.getAttribute(aMode + "accesskey"));
+    }
   },
 
   toggleMode: function PBUI_toggleMode() {

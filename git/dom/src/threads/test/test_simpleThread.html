@@ -26,7 +26,7 @@ Tests of DOM Worker Threads (Bug 437152)
       case "no-op":
         break;
       case "started":
-        is(gotError, true);
+        is(gotErrors, true);
         worker.postMessage("no-op");
         worker.postMessage("stop");
         break;
@@ -40,20 +40,25 @@ Tests of DOM Worker Threads (Bug 437152)
     }
   }, false);
 
-  var gotError = false;
+  var gotErrors = false;
   worker.onerror = function(event) {
     is(event.target, worker);
-    is(event.data,
-       '[JavaScript Error: "uncaught exception: Bad message: asdf"]');
-    gotError = true;
+    is(event.message, "uncaught exception: Bad message: asdf");
 
     worker.onerror = function(otherEvent) {
-      ok(false, "Worker had an error:" + otherEvent.data);
-      SimpleTest.finish();
-    }
+      is(otherEvent.target, worker);
+      is(otherEvent.message, "Components is not defined");
+        gotErrors = true;
+
+      worker.onerror = function(oneMoreEvent) {
+        ok(false, "Worker had an error:" + oneMoreEvent.message);
+        SimpleTest.finish();
+      };
+    };
   };
 
   worker.postMessage("asdf");
+  worker.postMessage("components");
   worker.postMessage("start");
 
   SimpleTest.waitForExplicitFinish();

@@ -78,7 +78,9 @@ static nsSystemFontsGTK2 *gSystemFonts = nsnull;
 #include "gfxWindowsSurface.h"
 #include "gfxPDFSurface.h"
 static nsSystemFontsWin *gSystemFonts = nsnull;
+#ifndef WINCE
 #include <usp10.h>
+#endif
 #elif defined(XP_OS2)
 #include "nsSystemFontsOS2.h"
 #include "gfxPDFSurface.h"
@@ -129,7 +131,7 @@ nsThebesDeviceContext::nsThebesDeviceContext()
 
     mWidgetSurfaceCache.Init();
 
-#ifdef XP_WIN
+#if defined(XP_WIN) && !defined(WINCE)
     SCRIPT_DIGITSUBSTITUTE sds;
     ScriptRecordDigitSubstitution(LOCALE_USER_DEFAULT, &sds);
 #endif
@@ -144,6 +146,12 @@ nsThebesDeviceContext::Shutdown()
 {
     delete gSystemFonts;
     gSystemFonts = nsnull;
+}
+
+PRBool
+nsThebesDeviceContext::IsPrinterSurface()
+{
+  return(mPrintingSurface != NULL);
 }
 
 nsresult
@@ -232,7 +240,7 @@ nsThebesDeviceContext::SetDPI()
         dpi = 96;
 
 #elif defined(MOZ_WIDGET_QT)
-		// TODO: get real DPI here with Qt methods
+        // TODO: get real DPI here with Qt methods
         dpi = 96;
 #else
 #error undefined platform dpi
@@ -437,8 +445,8 @@ nsThebesDeviceContext::CheckFontExistence(const nsString& aFaceName)
 NS_IMETHODIMP
 nsThebesDeviceContext::GetDepth(PRUint32& aDepth)
 {
-    nsCOMPtr<nsIScreen> primaryScreen;
     if (mDepth == 0) {
+        nsCOMPtr<nsIScreen> primaryScreen;
         mScreenManager->GetPrimaryScreen(getter_AddRefs(primaryScreen));
         primaryScreen->GetColorDepth(reinterpret_cast<PRInt32 *>(&mDepth));
     }

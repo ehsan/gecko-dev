@@ -45,6 +45,10 @@
 #include "nanojit/nanojit.h"
 #include "jstracer.h"
 
+#ifdef THIS
+#undef THIS
+#endif
+
 enum JSTNErrType { INFALLIBLE, FAIL_NULL, FAIL_NEG, FAIL_VOID, FAIL_JSVAL };
 enum { JSTN_ERRTYPE_MASK = 7, JSTN_MORE = 8 };
 
@@ -118,13 +122,11 @@ struct JSTraceableNative {
  *
  * If a traceable native can fail, the values that indicate failure are part of
  * the return type:
- *     JSVAL_FAIL: JSVAL_ERROR_COOKIE
- *     BOOL_FAIL: JSVAL_TO_BOOLEAN(JSVAL_VOID)
- *     INT32_FAIL: any negative value
- *     STRING_FAIL: NULL
+ *     JSVAL_FAIL:       JSVAL_ERROR_COOKIE
+ *     BOOL_FAIL:        JSVAL_TO_BOOLEAN(JSVAL_VOID)
+ *     INT32_FAIL:       any negative value
+ *     STRING_FAIL:      NULL
  *     OBJECT_FAIL_NULL: NULL
- *     OBJECT_FAIL_VOID: JSVAL_TO_OBJECT(JSVAL_VOID)
- *         (NULL means the function successfully returned JS null.)
  *
  * Special builtins known to the tracer can have their own idiosyncratic
  * error codes.
@@ -158,7 +160,6 @@ struct JSTraceableNative {
 #define _JS_CTYPE_STRING_FAIL      _JS_CTYPE(JSString *,             _JS_PTR, --, --, FAIL_NULL)
 #define _JS_CTYPE_OBJECT           _JS_CTYPE(JSObject *,             _JS_PTR, "","o", INFALLIBLE)
 #define _JS_CTYPE_OBJECT_FAIL_NULL _JS_CTYPE(JSObject *,             _JS_PTR, --, --, FAIL_NULL)
-#define _JS_CTYPE_OBJECT_FAIL_VOID _JS_CTYPE(JSObject *,             _JS_PTR, --, --, FAIL_VOID)
 #define _JS_CTYPE_REGEXP           _JS_CTYPE(JSObject *,             _JS_PTR, "","r", INFALLIBLE)
 #define _JS_CTYPE_SCOPEPROP        _JS_CTYPE(JSScopeProperty *,      _JS_PTR, --, --, INFALLIBLE)
 #define _JS_CTYPE_SIDEEXIT         _JS_CTYPE(SideExit *,             _JS_PTR, --, --, INFALLIBLE)
@@ -339,10 +340,9 @@ js_BooleanOrUndefinedToNumber(JSContext* cx, int32 unboxed);
 /* Defined in jsarray.cpp */
 JS_DECLARE_CALLINFO(js_Array_dense_setelem)
 JS_DECLARE_CALLINFO(js_FastNewArray)
-JS_DECLARE_CALLINFO(js_Array_1int)
+JS_DECLARE_CALLINFO(js_NewUninitializedArray)
+JS_DECLARE_CALLINFO(js_FastNewArrayWithLength)
 JS_DECLARE_CALLINFO(js_Array_1str)
-JS_DECLARE_CALLINFO(js_Array_2obj)
-JS_DECLARE_CALLINFO(js_Array_3num)
 
 /* Defined in jsdate.cpp */
 JS_DECLARE_CALLINFO(js_FastNewDate)

@@ -39,7 +39,6 @@
 #include "nsSVGRect.h"
 #include "nsCOMPtr.h"
 #include "nsISVGValueUtils.h"
-#include "nsSVGAnimatedPreserveAspectRatio.h"
 #include "nsSVGPreserveAspectRatio.h"
 #include "nsSVGMatrix.h"
 #include "nsDOMError.h"
@@ -78,10 +77,12 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Marker)
 //----------------------------------------------------------------------
 // nsISupports methods
 
-NS_IMPL_ADDREF(nsSVGOrientType::DOMAnimatedEnum)
-NS_IMPL_RELEASE(nsSVGOrientType::DOMAnimatedEnum)
+NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGOrientType::DOMAnimatedEnum, mSVGElement)
 
-NS_INTERFACE_MAP_BEGIN(nsSVGOrientType::DOMAnimatedEnum)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGOrientType::DOMAnimatedEnum)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGOrientType::DOMAnimatedEnum)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGOrientType::DOMAnimatedEnum)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedEnumeration)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGAnimatedEnumeration)
@@ -153,20 +154,6 @@ nsSVGMarkerElement::Init()
     NS_ENSURE_SUCCESS(rv,rv);
   }
 
-  // DOM property: preserveAspectRatio
-  {
-    nsCOMPtr<nsIDOMSVGPreserveAspectRatio> preserveAspectRatio;
-    rv = NS_NewSVGPreserveAspectRatio(getter_AddRefs(preserveAspectRatio));
-    NS_ENSURE_SUCCESS(rv,rv);
-    rv = NS_NewSVGAnimatedPreserveAspectRatio(
-      getter_AddRefs(mPreserveAspectRatio),
-      preserveAspectRatio);
-    NS_ENSURE_SUCCESS(rv,rv);
-    rv = AddMappedSVGValue(nsGkAtoms::preserveAspectRatio,
-                           mPreserveAspectRatio);
-    NS_ENSURE_SUCCESS(rv,rv);
-  }
-  
   return NS_OK;
 }
 
@@ -188,11 +175,10 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(nsSVGMarkerElement)
 
 /* readonly attribute nsIDOMSVGAnimatedPreserveAspectRatio preserveAspectRatio; */
 NS_IMETHODIMP
-nsSVGMarkerElement::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio * *aPreserveAspectRatio)
+nsSVGMarkerElement::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio
+                                           **aPreserveAspectRatio)
 {
-  *aPreserveAspectRatio = mPreserveAspectRatio;
-  NS_ADDREF(*aPreserveAspectRatio);
-  return NS_OK;
+  return mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(aPreserveAspectRatio, this);
 }
 
 //----------------------------------------------------------------------
@@ -366,6 +352,14 @@ nsSVGMarkerElement::DidChangeLength(PRUint8 aAttrEnum, PRBool aDoSetAttr)
   }
 }
 
+void
+nsSVGMarkerElement::DidChangePreserveAspectRatio(PRBool aDoSetAttr)
+{
+  nsSVGMarkerElementBase::DidChangePreserveAspectRatio(aDoSetAttr);
+
+  mViewBoxToViewportTransform = nsnull;
+}
+
 void 
 nsSVGMarkerElement::SetParentCoordCtxProvider(nsSVGSVGElement *aContext)
 {
@@ -399,6 +393,12 @@ nsSVGMarkerElement::GetEnumInfo()
 {
   return EnumAttributesInfo(mEnumAttributes, sEnumInfo,
                             NS_ARRAY_LENGTH(sEnumInfo));
+}
+
+nsSVGPreserveAspectRatio *
+nsSVGMarkerElement::GetPreserveAspectRatio()
+{
+  return &mPreserveAspectRatio;
 }
 
 //----------------------------------------------------------------------

@@ -64,17 +64,27 @@ gfxFontconfigUtils::Shutdown() {
 }
 
 /* static */ PRUint8
+gfxFontconfigUtils::FcSlantToThebesStyle(int aFcSlant)
+{
+    switch (aFcSlant) {
+        case FC_SLANT_ITALIC:
+            return FONT_STYLE_ITALIC;
+        case FC_SLANT_OBLIQUE:
+            return FONT_STYLE_OBLIQUE;
+        default:
+            return FONT_STYLE_NORMAL;
+    }
+}
+
+/* static */ PRUint8
 gfxFontconfigUtils::GetThebesStyle(FcPattern *aPattern)
 {
     int slant;
-    if (FcPatternGetInteger(aPattern, FC_SLANT, 0, &slant) == FcResultMatch) {
-        if (slant == FC_SLANT_ITALIC)
-            return FONT_STYLE_ITALIC;
-        if (slant == FC_SLANT_OBLIQUE)
-            return FONT_STYLE_OBLIQUE;
+    if (FcPatternGetInteger(aPattern, FC_SLANT, 0, &slant) != FcResultMatch) {
+        return FONT_STYLE_NORMAL;
     }
 
-    return FONT_STYLE_NORMAL;
+    return FcSlantToThebesStyle(slant);
 }
 
 /* static */ int
@@ -209,10 +219,8 @@ GuessFcWeight(const gfxFontStyle& aFontStyle)
 static void
 AddString(FcPattern *aPattern, const char *object, const char *aString)
 {
-    // Cast from signed chars used in nsString to unsigned in fontconfig
-    const FcChar8 *fcString = gfxFontconfigUtils::ToFcChar8(aString);
-    // and cast away the const for fontconfig, that will merely make a copy.
-    FcPatternAddString(aPattern, object, const_cast<FcChar8*>(fcString));
+    FcPatternAddString(aPattern, object,
+                       gfxFontconfigUtils::ToFcChar8(aString));
 }
 
 static void
@@ -229,7 +237,7 @@ AddLangGroup(FcPattern *aPattern, const nsACString& aLangGroup)
 
 
 nsReturnRef<FcPattern>
-gfxFontconfigUtils::NewPattern(const nsStringArray& aFamilies,
+gfxFontconfigUtils::NewPattern(const nsTArray<nsString>& aFamilies,
                                const gfxFontStyle& aFontStyle,
                                const char *aLang)
 {
@@ -245,8 +253,8 @@ gfxFontconfigUtils::NewPattern(const nsStringArray& aFamilies,
         AddString(pattern, FC_LANG, aLang);
     }
 
-    for (PRInt32 i = 0; i < aFamilies.Count(); ++i) {
-        NS_ConvertUTF16toUTF8 family(*aFamilies[i]);
+    for (PRUint32 i = 0; i < aFamilies.Length(); ++i) {
+        NS_ConvertUTF16toUTF8 family(aFamilies[i]);
         AddString(pattern, FC_FAMILY, family.get());
     }
 
@@ -257,6 +265,7 @@ gfxFontconfigUtils::gfxFontconfigUtils()
     : mLastConfig(NULL)
 {
     mFontsByFamily.Init(50);
+    mFontsByFullname.Init(50);
     mLangSupportTable.Init(20);
     UpdateFontListInternal();
 }
@@ -529,6 +538,7 @@ gfxFontconfigUtils::UpdateFontListInternal(PRBool aForce)
     FcFontSet *fontSet = FcConfigGetFonts(currentConfig, FcSetSystem);
 
     mFontsByFamily.Clear();
+    mFontsByFullname.Clear();
     mLangSupportTable.Clear();
     mAliasForMultiFonts.Clear();
 
@@ -736,7 +746,7 @@ gfxFontconfigUtils::ResolveFontName(const nsAString& aFontName,
     // entire match pattern.  That info is not available here, but there
     // will be a font so leave the resolving to the gfxFontGroup.
     if (IsExistingFamily(fontname) ||
-        mAliasForMultiFonts.IndexOfIgnoreCase(fontname))
+        mAliasForMultiFonts.IndexOfIgnoreCase(fontname) != -1)
         aAborted = !(*aCallback)(aFontName, aClosure);
 
     return NS_OK;
@@ -745,13 +755,121 @@ gfxFontconfigUtils::ResolveFontName(const nsAString& aFontName,
 PRBool
 gfxFontconfigUtils::IsExistingFamily(const nsCString& aFamilyName)
 {
-    return mFontsByFamily.GetEntry(ToFcChar8(aFamilyName.get())) != nsnull;
+    return mFontsByFamily.GetEntry(ToFcChar8(aFamilyName)) != nsnull;
 }
 
 const nsTArray< nsCountedRef<FcPattern> >&
 gfxFontconfigUtils::GetFontsForFamily(const FcChar8 *aFamilyName)
 {
     FontsByFcStrEntry *entry = mFontsByFamily.GetEntry(aFamilyName);
+
+    if (!entry)
+        return mEmptyPatternArray;
+
+    return entry->GetFonts();
+}
+
+// Fontconfig only provides a fullname property for fonts in formats with SFNT
+// wrappers.  For other font formats (including PCF and PS Type 1), a fullname
+// must be generated from the family and style properties.  Only the first
+// family and style is checked, but that should be OK, as I don't expect
+// non-SFNT fonts to have multiple families or styles.
+PRBool
+gfxFontconfigUtils::GetFullnameFromFamilyAndStyle(FcPattern *aFont,
+                                                  nsACString *aFullname)
+{
+    FcChar8 *family;
+    if (FcPatternGetString(aFont, FC_FAMILY, 0, &family) != FcResultMatch)
+        return PR_FALSE;
+
+    aFullname->Truncate();
+    aFullname->Append(ToCString(family));
+
+    FcChar8 *style;
+    if (FcPatternGetString(aFont, FC_STYLE, 0, &style) == FcResultMatch &&
+        strcmp(ToCString(style), "Regular") != 0) {
+        aFullname->Append(' ');
+        aFullname->Append(ToCString(style));
+    }
+
+    return PR_TRUE;
+}
+
+PRBool
+gfxFontconfigUtils::FontsByFullnameEntry::KeyEquals(KeyTypePointer aKey) const
+{
+    const FcChar8 *key = mKey;
+    // If mKey is NULL, key comes from the style and family of the first font.
+    nsCAutoString fullname;
+    if (!key) {
+        NS_ASSERTION(mFonts.Length(), "No font in FontsByFullnameEntry!");
+        GetFullnameFromFamilyAndStyle(mFonts[0], &fullname);
+
+        key = ToFcChar8(fullname);
+    }
+
+    return FcStrCmpIgnoreCase(aKey, key) == 0;
+}
+
+void
+gfxFontconfigUtils::AddFullnameEntries()
+{
+    // This FcFontSet is owned by fontconfig
+    FcFontSet *fontSet = FcConfigGetFonts(NULL, FcSetSystem);
+
+    // Record the existing font families
+    for (int f = 0; f < fontSet->nfont; ++f) {
+        FcPattern *font = fontSet->fonts[f];
+
+        int v = 0;
+        FcChar8 *fullname;
+        while (FcPatternGetString(font,
+                                  FC_FULLNAME, v, &fullname) == FcResultMatch) {
+            FontsByFullnameEntry *entry = mFontsByFullname.PutEntry(fullname);
+            if (entry) {
+                // entry always has space for one font, so the first AddFont
+                // will always succeed, and so the entry will always have a
+                // font from which to obtain the key.
+                PRBool added = entry->AddFont(font);
+                // The key may be NULL either if this is the first font, or if
+                // the first font does not have a fullname property, and so
+                // the key is obtained from the font.  Set the key in both
+                // cases.  The check that AddFont succeeded is required for
+                // the second case.
+                if (!entry->mKey && added) {
+                    entry->mKey = fullname;
+                }
+            }
+
+            ++v;
+        }
+
+        // Fontconfig does not provide a fullname property for all fonts.
+        if (v == 0) {
+            nsCAutoString name;
+            if (!GetFullnameFromFamilyAndStyle(font, &name))
+                continue;
+
+            FontsByFullnameEntry *entry =
+                mFontsByFullname.PutEntry(ToFcChar8(name));
+            if (entry) {
+                entry->AddFont(font);
+                // Either entry->mKey has been set for a previous font or it
+                // remains NULL to indicate that the key is obtained from the
+                // first font.
+            }
+        }
+    }
+}
+
+const nsTArray< nsCountedRef<FcPattern> >&
+gfxFontconfigUtils::GetFontsForFullname(const FcChar8 *aFullname)
+{
+    if (mFontsByFullname.Count() == 0) {
+        AddFullnameEntries();
+    }
+
+    FontsByFullnameEntry *entry = mFontsByFullname.GetEntry(aFullname);
 
     if (!entry)
         return mEmptyPatternArray;
@@ -785,16 +903,23 @@ CompareLangString(const FcChar8 *aLangA, const FcChar8 *aLangB) {
 FcLangResult
 gfxFontconfigUtils::GetLangSupport(FcPattern *aFont, const FcChar8 *aLang)
 {
-    // When fontconfig builds a pattern for the font, it will set a single
-    // LangSet property value for the font.  That value may be removed and
-    // additional string values may be added through FcConfigSubsitute with
-    // FcMatchScan.  Values that are neither LangSet nor string are considered
-    // errors in fontconfig sort and match functions.
+    // When fontconfig builds a pattern for a system font, it will set a
+    // single LangSet property value for the font.  That value may be removed
+    // and additional string values may be added through FcConfigSubsitute
+    // with FcMatchScan.  Values that are neither LangSet nor string are
+    // considered errors in fontconfig sort and match functions.
+    //
+    // If no string nor LangSet value is found, then either the font is a
+    // system font and the LangSet has been removed through FcConfigSubsitute,
+    // or the font is a web font and its language support is unknown.
+    // Returning FcLangDifferentLang for these fonts ensures that this font
+    // will not be assumed to satisfy the language, and so language will be
+    // prioritized in sorting fallback fonts.
     FcValue value;
     FcLangResult best = FcLangDifferentLang;
-    int v = 0;
-    while (FcPatternGet(aFont, FC_LANG, v, &value) == FcResultMatch) {
-        ++v;
+    for (int v = 0;
+         FcPatternGet(aFont, FC_LANG, v, &value) == FcResultMatch;
+         ++v) {
 
         FcLangResult support;
         switch (value.type) {
@@ -805,8 +930,8 @@ gfxFontconfigUtils::GetLangSupport(FcPattern *aFont, const FcChar8 *aLang)
                 support = CompareLangString(value.u.s, aLang);
                 break;
             default:
-                // error
-                return FcLangEqual;
+                // error. continue to see if there is a useful value.
+                continue;
         }
 
         if (support < best) { // lower is better
@@ -815,11 +940,6 @@ gfxFontconfigUtils::GetLangSupport(FcPattern *aFont, const FcChar8 *aLang)
             best = support;
         }        
     }
-
-    // A missing FC_LANG property is considered a match in fontconfig sort
-    // and match functions.
-    if (v == 0)
-        return FcLangEqual;        
 
     return best;
 }

@@ -85,7 +85,10 @@ class nsCSSFrameConstructor
 {
 public:
   nsCSSFrameConstructor(nsIDocument *aDocument, nsIPresShell* aPresShell);
-  ~nsCSSFrameConstructor(void) { }
+  ~nsCSSFrameConstructor(void) {
+    NS_ASSERTION(mUpdateCount == 0, "Dying in the middle of our own update?");
+    NS_ASSERTION(mFocusSuppressCount == 0, "Focus suppression will be wrong");
+  }
 
   // Maintain global objects - gXBLService
   static nsIXBLService * GetXBLService();
@@ -154,7 +157,11 @@ public:
   void EndUpdate();
   void RecalcQuotesAndCounters();
 
-  void WillDestroyFrameTree();
+  void WillDestroyFrameTree(PRBool aDestroyingPresShell);
+
+  // Get an integer that increments every time there is a style change
+  // as a result of a change to the :hover content state.
+  PRUint32 GetHoverGeneration() const { return mHoverGeneration; }
 
   // Note: It's the caller's responsibility to make sure to wrap a
   // ProcessRestyledFrames call in a view update batch.
@@ -197,10 +204,16 @@ public:
   // itself.
   void ProcessPendingRestyles();
   
+  // Rebuilds all style data by throwing out the old rule tree and
+  // building a new one, and additionally applying aExtraHint (which
+  // must not contain nsChangeHint_ReconstructFrame) to the root frame.
   void RebuildAllStyleData(nsChangeHint aExtraHint);
 
   void PostRestyleEvent(nsIContent* aContent, nsReStyleHint aRestyleHint,
                         nsChangeHint aMinChangeHint);
+private:
+  void PostRestyleEventInternal();
+public:
 
   /**
    * Asynchronously clear style data from the root frame downwards and ensure
@@ -212,7 +225,7 @@ public:
    * style data has become invalid. We assume that the root frame will not
    * need to be reframed.
    */
-  void PostRebuildAllStyleDataEvent();
+  void PostRebuildAllStyleDataEvent(nsChangeHint aExtraHint);
 
   // Request to create a continuing frame
   nsresult CreateContinuingFrame(nsPresContext* aPresContext,
@@ -1183,12 +1196,15 @@ private:
   nsQuoteList         mQuoteList;
   nsCounterManager    mCounterManager;
   PRUint16            mUpdateCount;
+  PRUint32            mFocusSuppressCount;
   PRPackedBool        mQuotesDirty : 1;
   PRPackedBool        mCountersDirty : 1;
   PRPackedBool        mIsDestroyingFrameTree : 1;
   PRPackedBool        mRebuildAllStyleData : 1;
   // This is true if mDocElementContainingBlock supports absolute positioning
   PRPackedBool        mHasRootAbsPosContainingBlock : 1;
+  PRUint32            mHoverGeneration;
+  nsChangeHint        mRebuildAllExtraHint;
 
   nsRevocableEventPtr<RestyleEvent> mRestyleEvent;
 

@@ -4,6 +4,11 @@
 const nsIAccessibleRetrieval = Components.interfaces.nsIAccessibleRetrieval;
 
 const nsIAccessibleEvent = Components.interfaces.nsIAccessibleEvent;
+const nsIAccessibleStateChangeEvent =
+  Components.interfaces.nsIAccessibleStateChangeEvent;
+const nsIAccessibleCaretMoveEvent =
+  Components.interfaces.nsIAccessibleCaretMoveEvent;
+
 const nsIAccessibleStates = Components.interfaces.nsIAccessibleStates;
 const nsIAccessibleRole = Components.interfaces.nsIAccessibleRole;
 const nsIAccessibleTypes = Components.interfaces.nsIAccessibleTypes;
@@ -70,7 +75,61 @@ const EXT_STATE_EXPANDABLE = nsIAccessibleStates.EXT_STATE_EXPANDABLE;
 var gAccRetrieval = null;
 
 /**
- * Return accessible for the given ID attribute or DOM element.
+ * Invokes the given function when document is loaded. Preferable to mochitests
+ * 'addLoadEvent' function -- additionally ensures state of the document
+ * accessible is not busy.
+ *
+ * @param aFunc  the function to invoke
+ */
+function addA11yLoadEvent(aFunc)
+{
+  function waitForDocLoad()
+  {
+    window.setTimeout(
+      function()
+      {
+        var accDoc = getAccessible(document);
+        var state = {};
+        accDoc.getState(state, {});
+        if (state.value & nsIAccessibleStates.STATE_BUSY)
+          return waitForDocLoad();
+
+        aFunc.call();
+      },
+      0
+    );
+  }
+
+  addLoadEvent(waitForDocLoad);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Get DOM node/accesible helpers
+
+/**
+ * Return the DOM node.
+ */
+function getNode(aNodeOrID)
+{
+  if (!aNodeOrID)
+    return null;
+
+  var node = aNodeOrID;
+
+  if (!(aNodeOrID instanceof nsIDOMNode)) {
+    node = document.getElementById(aNodeOrID);
+
+    if (!node) {
+      ok(false, "Can't get DOM element for " + aNodeOrID);
+      return null;
+    }
+  }
+
+  return node;
+}
+
+/**
+ * Return accessible for the given ID attribute or DOM element or accessible.
  *
  * @param aAccOrElmOrID  [in] DOM element or ID attribute to get an accessible
  *                        for or an accessible to query additional interfaces.
@@ -195,6 +254,75 @@ function unregisterA11yEventListener(aEventType, aEventHandler)
   }
 }
 
+/**
+ * Creates event queue for the given event type. The queue consists of invoker
+ * objects, each of them generates the event of the event type. When queue is
+ * started then every invoker object is asked to generate event after timeout.
+ * When event is caught then current invoker object is asked to check wether
+ * event was handled correctly.
+ *
+ * Invoker interface is:
+ *   var invoker = {
+ *     invoke: function(){}, // generates event for the DOM node
+ *     check: function(aEvent){}, // checks event for correctness
+ *     DOMNode getter() {} // DOM node event is generated for
+ *     getID: function(){} // returns invoker ID
+ *   };
+ *
+ * @param  aEventType     the given event type
+ */
+function eventQueue(aEventType)
+{
+  /**
+   * Add invoker object into queue.
+   */
+  this.push = function eventQueue_push(aEventInvoker)
+  {
+    this.mInvokers.push(aEventInvoker);
+  }
+
+  /**
+   * Start the queue processing.
+   */
+  this.invoke = function eventQueue_invoke()
+  {
+    window.setTimeout(
+      function(aQueue)
+      {
+        if (aQueue.mIndex == aQueue.mInvokers.length - 1) {
+          unregisterA11yEventListener(aQueue.mEventType, aQueue.mEventHandler);
+
+          for (var idx = 0; idx < aQueue.mInvokers.length; idx++) {
+            var invoker = aQueue.mInvokers[idx];
+            ok(invoker.wasCaught,
+               "test with ID = '" + invoker.getID() + "' failed.");
+          }
+
+          SimpleTest.finish();
+          return;
+        }
+
+        aQueue.mInvokers[++aQueue.mIndex].invoke();
+
+        aQueue.invoke();
+      },
+      200, this
+    );
+  }
+
+  this.getInvoker = function eventQueue_getInvoker()
+  {
+    return this.mInvokers[this.mIndex];
+  }
+
+  this.mEventType = aEventType;
+  this.mEventHandler = new eventHandlerForEventQueue(this);
+
+  registerA11yEventListener(this.mEventType, this.mEventHandler);
+
+  this.mInvokers = new Array();
+  this.mIndex = -1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Private
@@ -235,3 +363,24 @@ var gA11yEventObserver =
       listenersArray[index].handleEvent(event);
   }
 };
+
+function eventHandlerForEventQueue(aQueue)
+{
+  this.handleEvent = function eventHandlerForEventQueue_handleEvent(aEvent)
+  {
+    var invoker = this.mQueue.getInvoker();
+    if (!invoker) // skip events before test was started
+      return;
+
+    if ("debugCheck" in invoker)
+      invoker.debugCheck(aEvent);
+
+    if (aEvent.DOMNode == invoker.DOMNode) {
+      invoker.check(aEvent);
+      invoker.wasCaught = true;
+    }
+  }
+  
+  this.mQueue = aQueue;
+}
+

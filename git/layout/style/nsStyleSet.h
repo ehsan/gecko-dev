@@ -53,8 +53,20 @@
 #include "nsRuleNode.h"
 #include "nsTArray.h"
 #include "nsCOMArray.h"
+#include "nsAutoPtr.h"
+#include "nsIStyleRule.h"
 
 class nsIURI;
+class nsCSSFontFaceRule;
+
+class nsEmptyStyleRule : public nsIStyleRule
+{
+  NS_DECL_ISUPPORTS
+  NS_IMETHOD MapRuleInfoInto(nsRuleData* aRuleData);
+#ifdef DEBUG
+  NS_IMETHOD List(FILE* out = stdout, PRInt32 aIndent = 0) const;
+#endif
+};
 
 // The style set object is created by the document viewer and ownership is
 // then handed off to the PresShell.  Only the PresShell should delete a
@@ -112,6 +124,11 @@ class nsStyleSet
   ProbePseudoStyleFor(nsIContent* aParentContent,
                       nsIAtom* aPseudoTag,
                       nsStyleContext* aParentContext);
+
+  // Append all the currently-active font face rules to aArray.  Return
+  // true for success and false for failure.
+  PRBool AppendFontFaceRules(nsPresContext* aPresContext,
+                             nsTArray<nsFontFaceRuleContainer>& aArray);
 
   // Begin ignoring style context destruction, to avoid lots of unnecessary
   // work on document teardown.
@@ -210,6 +227,16 @@ class nsStyleSet
   // sheet must already have been added to the UA sheets.  The pointer must not
   // be null.  This should only be called once for a given style set.
   void SetQuirkStyleSheet(nsIStyleSheet* aQuirkStyleSheet);
+
+  // Return whether the rule tree has cached data such that we need to
+  // do dynamic change handling for changes that change the results of
+  // media queries or require rebuilding all style data.
+  // We don't care whether we have cached rule processors or whether
+  // they have cached rule cascades; getting the rule cascades again in
+  // order to do rule matching will get the correct rule cascade.
+  PRBool HasCachedStyleData() const {
+    return (mRuleTree && mRuleTree->TreeHasCachedData()) || !mRoots.IsEmpty();
+  }
   
  private:
   // Not to be implemented
@@ -224,6 +251,10 @@ class nsStyleSet
 
   void AddImportantRules(nsRuleNode* aCurrLevelNode,
                          nsRuleNode* aLastPrevLevelNode);
+
+  // Move mRuleWalker forward by the appropriate rule if we need to add
+  // a rule due to property restrictions on pseudo-elements.
+  void WalkRestrictionRule(nsIAtom* aPseudoType);
 
 #ifdef DEBUG
   // Just like AddImportantRules except it doesn't actually add anything; it
@@ -279,6 +310,10 @@ class nsStyleSet
 
   PRInt32 mDestroyedCount; // used to batch style context GC
   nsTArray<nsStyleContext*> mRoots; // style contexts with no parent
+
+  // Empty style rules to force things that restrict which properties
+  // apply into different branches of the rule tree.
+  nsRefPtr<nsEmptyStyleRule> mFirstLineRule, mFirstLetterRule;
 
   PRUint16 mBatching;
 

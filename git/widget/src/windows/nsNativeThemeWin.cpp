@@ -168,11 +168,6 @@ static SIZE GetGutterSize(HANDLE theme, HDC hdc)
     return ret;
 }
 
-static inline PRBool IsFrameRTL(nsIFrame *frame)
-{
-  return frame->GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL;
-}
-
 static HRESULT DrawThemeBGRTLAware(HANDLE theme, HDC hdc, int part, int state,
                                    const RECT *widgetRect, const RECT *clipRect,
                                    PRBool isRTL)
@@ -277,8 +272,6 @@ nsNativeThemeWin::GetTheme(PRUint8 aWidgetType)
     case NS_THEME_PROGRESSBAR_CHUNK_VERTICAL:
       return nsUXThemeData::GetTheme(eUXProgress);
     case NS_THEME_TAB:
-    case NS_THEME_TAB_LEFT_EDGE:
-    case NS_THEME_TAB_RIGHT_EDGE:
     case NS_THEME_TAB_PANEL:
     case NS_THEME_TAB_PANELS:
       return nsUXThemeData::GetTheme(eUXTab);
@@ -700,9 +693,7 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
       aState = TS_NORMAL;
       return NS_OK;
     }
-    case NS_THEME_TAB:
-    case NS_THEME_TAB_LEFT_EDGE:
-    case NS_THEME_TAB_RIGHT_EDGE: {
+    case NS_THEME_TAB: {
       aPart = TABP_TAB;
       if (!aFrame) {
         aState = TS_NORMAL;
@@ -981,21 +972,26 @@ RENDER_AGAIN:
 
   // For left edge and right edge tabs, we need to adjust the widget
   // rects and clip rects so that the edges don't get drawn.
-  if (aWidgetType == NS_THEME_TAB_LEFT_EDGE || aWidgetType == NS_THEME_TAB_RIGHT_EDGE) {
-    // HACK ALERT: There appears to be no way to really obtain this value, so we're forced
-    // to just use the default value for Luna (which also happens to be correct for
-    // all the other skins I've tried).
-    PRInt32 edgeSize = 2;
+  if (aWidgetType == NS_THEME_TAB) {
+    PRBool isLeft = IsLeftToSelectedTab(aFrame);
+    PRBool isRight = !isLeft && IsRightToSelectedTab(aFrame);
+
+    if (isLeft || isRight) {
+      // HACK ALERT: There appears to be no way to really obtain this value, so we're forced
+      // to just use the default value for Luna (which also happens to be correct for
+      // all the other skins I've tried).
+      PRInt32 edgeSize = 2;
     
-    // Armed with the size of the edge, we now need to either shift to the left or to the
-    // right.  The clip rect won't include this extra area, so we know that we're
-    // effectively shifting the edge out of view (such that it won't be painted).
-    if (aWidgetType == NS_THEME_TAB_LEFT_EDGE)
-      // The right edge should not be drawn.  Extend our rect by the edge size.
-      widgetRect.right += edgeSize;
-    else
-      // The left edge should not be drawn.  Move the widget rect's left coord back.
-      widgetRect.left -= edgeSize;
+      // Armed with the size of the edge, we now need to either shift to the left or to the
+      // right.  The clip rect won't include this extra area, so we know that we're
+      // effectively shifting the edge out of view (such that it won't be painted).
+      if (isLeft)
+        // The right edge should not be drawn.  Extend our rect by the edge size.
+        widgetRect.right += edgeSize;
+      else
+        // The left edge should not be drawn.  Move the widget rect's left coord back.
+        widgetRect.left -= edgeSize;
+    }
   }
 
   // widgetRect is the bounding box for a widget, yet the scale track is only
@@ -1228,12 +1224,14 @@ nsNativeThemeWin::GetWidgetBorder(nsIDeviceContext* aContext,
   aResult->right = outerRect.right - contentRect.right;
 
   // Remove the edges for tabs that are before or after the selected tab,
-  if (aWidgetType == NS_THEME_TAB_LEFT_EDGE)
-    // Remove the right edge, since we won't be drawing it.
-    aResult->right = 0;
-  else if (aWidgetType == NS_THEME_TAB_RIGHT_EDGE)
-    // Remove the left edge, since we won't be drawing it.
-    aResult->left = 0;
+  if (aWidgetType == NS_THEME_TAB) {
+    if (IsLeftToSelectedTab(aFrame))
+      // Remove the right edge, since we won't be drawing it.
+      aResult->right = 0;
+    else if (IsRightToSelectedTab(aFrame))
+      // Remove the left edge, since we won't be drawing it.
+      aResult->left = 0;
+  }
 
   if (aFrame && (aWidgetType == NS_THEME_TEXTFIELD || aWidgetType == NS_THEME_TEXTFIELD_MULTILINE)) {
     nsIContent* content = aFrame->GetContent();
@@ -1655,6 +1653,12 @@ nsNativeThemeWin::ThemeNeedsComboboxDropmarker()
   return PR_TRUE;
 }
 
+nsTransparencyMode
+nsNativeThemeWin::GetWidgetTransparency(PRUint8 aWidgetType)
+{
+  return eTransparencyOpaque;
+}
+
 /* Windows 9x/NT/2000/Classic XP Theme Support */
 
 PRBool 
@@ -1702,8 +1706,6 @@ nsNativeThemeWin::ClassicThemeSupportsWidget(nsPresContext* aPresContext,
     case NS_THEME_PROGRESSBAR_CHUNK:
     case NS_THEME_PROGRESSBAR_CHUNK_VERTICAL:
     case NS_THEME_TAB:
-    case NS_THEME_TAB_LEFT_EDGE:
-    case NS_THEME_TAB_RIGHT_EDGE:
     case NS_THEME_TAB_PANEL:
     case NS_THEME_TAB_PANELS:
     case NS_THEME_MENUITEM:
@@ -1738,8 +1740,6 @@ nsNativeThemeWin::ClassicGetWidgetBorder(nsIDeviceContext* aContext,
     case NS_THEME_DROPDOWN:
     case NS_THEME_DROPDOWN_TEXTFIELD:
     case NS_THEME_TAB:
-    case NS_THEME_TAB_LEFT_EDGE:
-    case NS_THEME_TAB_RIGHT_EDGE:
     case NS_THEME_TEXTFIELD:
     case NS_THEME_TEXTFIELD_MULTILINE:
       (*aResult).top = (*aResult).left = (*aResult).bottom = (*aResult).right = 2;
@@ -1870,8 +1870,6 @@ nsNativeThemeWin::ClassicGetMinimumWidgetSize(nsIRenderingContext* aContext, nsI
     case NS_THEME_PROGRESSBAR:
     case NS_THEME_PROGRESSBAR_VERTICAL:
     case NS_THEME_TAB:
-    case NS_THEME_TAB_LEFT_EDGE:
-    case NS_THEME_TAB_RIGHT_EDGE:
     case NS_THEME_TAB_PANEL:
     case NS_THEME_TAB_PANELS:
       // no minimum widget size
@@ -2073,8 +2071,6 @@ nsresult nsNativeThemeWin::ClassicGetThemePartAndState(nsIFrame* aFrame, PRUint8
     case NS_THEME_PROGRESSBAR:
     case NS_THEME_PROGRESSBAR_VERTICAL:
     case NS_THEME_TAB:
-    case NS_THEME_TAB_LEFT_EDGE:
-    case NS_THEME_TAB_RIGHT_EDGE:
     case NS_THEME_TAB_PANEL:
     case NS_THEME_TAB_PANELS:
     case NS_THEME_MENUBAR:
@@ -2554,14 +2550,12 @@ RENDER_AGAIN:
 
       break;
     // Draw Tab
-    case NS_THEME_TAB:
-    case NS_THEME_TAB_LEFT_EDGE:
-    case NS_THEME_TAB_RIGHT_EDGE: {
+    case NS_THEME_TAB: {
       DrawTab(hdc, widgetRect,
         IsBottomTab(aFrame) ? BF_BOTTOM : BF_TOP, 
         IsSelectedTab(aFrame),
-        aWidgetType != NS_THEME_TAB_RIGHT_EDGE,
-        aWidgetType != NS_THEME_TAB_LEFT_EDGE);      
+        !IsRightToSelectedTab(aFrame),
+        !IsLeftToSelectedTab(aFrame));
 
       break;
     }
@@ -2702,8 +2696,6 @@ nsNativeThemeWin::GetWidgetNativeDrawingFlags(PRUint8 aWidgetType)
     case NS_THEME_PROGRESSBAR_CHUNK:
     case NS_THEME_PROGRESSBAR_CHUNK_VERTICAL:
     case NS_THEME_TAB:
-    case NS_THEME_TAB_LEFT_EDGE:
-    case NS_THEME_TAB_RIGHT_EDGE:
     case NS_THEME_TAB_PANEL:
     case NS_THEME_TAB_PANELS:
     case NS_THEME_MENUBAR:

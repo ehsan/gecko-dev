@@ -939,6 +939,7 @@ interface nsINavHistoryQueryOptions : nsISupports
    * This returns nsINavHistoryQueryResultNode nodes for each tag.
    * The node contains information how to load its content:
    * - list of bookmarks with the given tag will be loaded.
+   * Setting this resultType will force queryType to QUERY_TYPE_BOOKMARKS.
    */
   const unsigned short RESULTS_AS_TAG_QUERY = 6;
 
@@ -946,6 +947,7 @@ interface nsINavHistoryQueryOptions : nsISupports
    * This is a container with an URI result type that contains the last
    * modified bookmarks for the given tag.
    * Tag folder id must be defined in the query.
+   * Setting this resultType will force queryType to QUERY_TYPE_BOOKMARKS.
    */
   const unsigned short RESULTS_AS_TAG_CONTENTS = 7;
 
@@ -1061,6 +1063,16 @@ interface nsINavHistoryQueryOptions : nsISupports
 interface nsINavHistoryService : nsISupports
 {
   /**
+   * System Notifications:
+   *
+   * places-init-complete - Sent once the History service is completely
+   *                        initialized successfully.
+   * places-database-locked - Sent if initialization of the History service
+   *                          failed due to the inability to open the places.sqlite
+   *                          for access reasons.
+   */
+
+  /**
    * This transition type means the user followed a link and got a new toplevel
    * window.
    */
@@ -1117,6 +1129,11 @@ interface nsINavHistoryService : nsISupports
    * Set when database was corrupt and we replaced it
    */
   const unsigned short DATABASE_STATUS_CORRUPT = 2;
+
+  /**
+   * Set when database schema has been upgraded
+   */
+  const unsigned short DATABASE_STATUS_UPGRADED = 3;
 
   /**
    * Returns the current database status

@@ -58,6 +58,29 @@
 #include "nsIFrame.h"
 #include "nsContentUtils.h"
 
+NS_IMPL_ISUPPORTS1(nsEmptyStyleRule, nsIStyleRule)
+
+NS_IMETHODIMP
+nsEmptyStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
+{
+  return NS_OK;
+}
+
+#ifdef DEBUG
+NS_IMETHODIMP
+nsEmptyStyleRule::List(FILE* out, PRInt32 aIndent) const
+{
+  return NS_OK;
+}
+#endif
+
+static const nsStyleSet::sheetType gCSSSheetTypes[] = {
+  nsStyleSet::eAgentSheet,
+  nsStyleSet::eUserSheet,
+  nsStyleSet::eDocSheet,
+  nsStyleSet::eOverrideSheet
+};
+
 nsStyleSet::nsStyleSet()
   : mRuleTree(nsnull),
     mRuleWalker(nsnull),
@@ -73,6 +96,12 @@ nsStyleSet::nsStyleSet()
 nsresult
 nsStyleSet::Init(nsPresContext *aPresContext)
 {
+  mFirstLineRule = new nsEmptyStyleRule;
+  mFirstLetterRule = new nsEmptyStyleRule;
+  if (!mFirstLineRule || !mFirstLetterRule) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
   if (!BuildDefaultStyleData(aPresContext)) {
     mDefaultStyleData.Destroy(0, aPresContext);
     return NS_ERROR_OUT_OF_MEMORY;
@@ -171,7 +200,8 @@ nsStyleSet::GatherRuleProcessors(sheetType aType)
           NS_ASSERTION(cssSheet, "not a CSS sheet");
           cssSheets.AppendObject(cssSheet);
         }
-        mRuleProcessors[aType] = new nsCSSRuleProcessor(cssSheets);
+        mRuleProcessors[aType] = new nsCSSRuleProcessor(cssSheets, 
+                                                        PRUint8(aType));
       } break;
 
       default:
@@ -344,20 +374,25 @@ void
 nsStyleSet::EnableQuirkStyleSheet(PRBool aEnable)
 {
 #ifdef DEBUG
-  if (mRuleProcessors[eAgentSheet]) {
+  PRBool oldEnabled;
+  {
+    nsCOMPtr<nsIDOMCSSStyleSheet> domSheet =
+      do_QueryInterface(mQuirkStyleSheet);
+    domSheet->GetDisabled(&oldEnabled);
+    oldEnabled = !oldEnabled;
+  }
+#endif
+  mQuirkStyleSheet->SetEnabled(aEnable);
+#ifdef DEBUG
+  // This should always be OK, since SetEnabled should call
+  // ClearRuleCascades.
+  // Note that we can hit this codepath multiple times when document.open()
+  // (potentially implied) happens multiple times.
+  if (mRuleProcessors[eAgentSheet] && aEnable != oldEnabled) {
     static_cast<nsCSSRuleProcessor*>(static_cast<nsIStyleRuleProcessor*>(
       mRuleProcessors[eAgentSheet]))->AssertQuirksChangeOK();
   }
 #endif
-#ifdef DEBUG_dbaron_off // XXX Make this |DEBUG| once it stops firing.
-  PRBool applicableNow;
-  mQuirkStyleSheet->GetApplicable(applicableNow);
-  NS_ASSERTION(!mRuleProcessors[eAgentSheet] || aEnable == applicableNow,
-               "enabling/disabling quirk stylesheet too late or incomplete quirk stylesheet");
-  if (mRuleProcessors[eAgentSheet] && aEnable == applicableNow)
-    printf("WARNING: We set the quirks mode too many times.\n"); // we do!
-#endif
-  mQuirkStyleSheet->SetEnabled(aEnable);
 }
 
 static PRBool
@@ -676,6 +711,17 @@ nsStyleSet::ResolveStyleForNonElement(nsStyleContext* aParentContext)
   return result;
 }
 
+void
+nsStyleSet::WalkRestrictionRule(nsIAtom* aPseudoType)
+{
+  // This needs to match GetPseudoRestriction in nsRuleNode.cpp.
+  if (aPseudoType) {
+    if (aPseudoType == nsCSSPseudoElements::firstLetter)
+      mRuleWalker->Forward(mFirstLetterRule);
+    else if (aPseudoType == nsCSSPseudoElements::firstLine)
+      mRuleWalker->Forward(mFirstLineRule);
+  }
+}
 
 static PRBool
 EnumPseudoRulesMatching(nsIStyleRuleProcessor* aProcessor, void* aData)
@@ -712,6 +758,7 @@ nsStyleSet::ResolvePseudoStyleFor(nsIContent* aParentContent,
   if (aPseudoTag && presContext) {
     PseudoRuleProcessorData data(presContext, aParentContent, aPseudoTag,
                                  aComparator, mRuleWalker);
+    WalkRestrictionRule(aPseudoTag);
     FileRules(EnumPseudoRulesMatching, &data);
 
     result = GetContext(presContext, aParentContext, aPseudoTag).get();
@@ -749,9 +796,12 @@ nsStyleSet::ProbePseudoStyleFor(nsIContent* aParentContent,
   if (aPseudoTag && presContext) {
     PseudoRuleProcessorData data(presContext, aParentContent, aPseudoTag,
                                  nsnull, mRuleWalker);
+    WalkRestrictionRule(aPseudoTag);
+    // not the root if there was a restriction rule
+    nsRuleNode *adjustedRoot = mRuleWalker->GetCurrentNode();
     FileRules(EnumPseudoRulesMatching, &data);
 
-    if (!mRuleWalker->AtRoot())
+    if (mRuleWalker->GetCurrentNode() != adjustedRoot)
       result = GetContext(presContext, aParentContext, aPseudoTag).get();
 
     // Now reset the walker back to the root of the tree.
@@ -775,6 +825,21 @@ nsStyleSet::ProbePseudoStyleFor(nsIContent* aParentContent,
   }
   
   return result;
+}
+
+PRBool
+nsStyleSet::AppendFontFaceRules(nsPresContext* aPresContext,
+                                nsTArray<nsFontFaceRuleContainer>& aArray)
+{
+  NS_ENSURE_FALSE(mInShutdown, PR_FALSE);
+
+  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(gCSSSheetTypes); ++i) {
+    nsCSSRuleProcessor *ruleProc = static_cast<nsCSSRuleProcessor*>
+                                    (mRuleProcessors[gCSSSheetTypes[i]].get());
+    if (ruleProc && !ruleProc->AppendFontFaceRules(aPresContext, aArray))
+      return PR_FALSE;
+  }
+  return PR_TRUE;
 }
 
 void

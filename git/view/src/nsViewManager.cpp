@@ -894,28 +894,12 @@ NS_IMETHODIMP nsViewManager::UpdateView(nsIView *aView, const nsRect &aRect, PRU
     return NS_OK;
   }
 
-  // if this is a floating view, it isn't covered by any widgets other than
-  // its children. In that case we walk up to its parent widget and use
-  // that as the root to update from. This also means we update areas that
-  // may be outside the parent view(s), which is necessary for floats.
-  if (view->GetFloating()) {
-    nsView* widgetParent = view;
-
-    while (!widgetParent->HasWidget()) {
-      widgetParent->ConvertToParentCoords(&damagedRect.x, &damagedRect.y);
-      widgetParent = widgetParent->GetParent();
-    }
-
-    UpdateWidgetArea(widgetParent, nsRegion(damagedRect), nsnull);
-  } else {
-    // Propagate the update to the root widget of the root view manager, since
-    // iframes, for example, can overlap each other and be translucent.  So we
-    // have to possibly invalidate our rect in each of the widgets we have
-    // lying about.
-    damagedRect.MoveBy(ComputeViewOffset(view));
-
-    UpdateWidgetArea(RootViewManager()->GetRootView(), nsRegion(damagedRect), nsnull);
-  }
+  nsView* displayRoot = GetDisplayRootFor(view);
+  // Propagate the update to the displayRoot, since iframes, for example,
+  // can overlap each other and be translucent.  So we have to possibly
+  // invalidate our rect in each of the widgets we have lying about.
+  damagedRect.MoveBy(view->GetOffsetTo(displayRoot));
+  UpdateWidgetArea(displayRoot, nsRegion(damagedRect), nsnull);
 
   RootViewManager()->IncrementUpdateCount();
 
@@ -1245,7 +1229,8 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
              aEvent->message != NS_MOUSE_EXIT &&
              aEvent->message != NS_MOUSE_ENTER) ||
             NS_IS_KEY_EVENT(aEvent) ||
-            NS_IS_IME_EVENT(aEvent)) {
+            NS_IS_IME_EVENT(aEvent) ||
+            NS_IS_PLUGIN_EVENT(aEvent)) {
           gLastUserEventTime = PR_IntervalToMicroseconds(PR_IntervalNow());
         }
 
@@ -1261,7 +1246,7 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
         
         if (!NS_IS_KEY_EVENT(aEvent) && !NS_IS_IME_EVENT(aEvent) &&
             !NS_IS_CONTEXT_MENU_KEY(aEvent) && !NS_IS_FOCUS_EVENT(aEvent) &&
-            !NS_IS_QUERY_CONTENT_EVENT(aEvent) &&
+            !NS_IS_QUERY_CONTENT_EVENT(aEvent) && !NS_IS_PLUGIN_EVENT(aEvent) &&
              aEvent->eventStructType != NS_ACCESSIBLE_EVENT) {
           // will dispatch using coordinates. Pretty bogus but it's consistent
           // with what presshell does.
@@ -1780,14 +1765,26 @@ void nsViewManager::UpdateWidgetsForView(nsView* aView)
 {
   NS_PRECONDITION(aView, "Must have view!");
 
+  nsWeakView parentWeakView = aView;
   if (aView->HasWidget()) {
-    aView->GetWidget()->Update();
+    aView->GetWidget()->Update();  // Flushes Layout!
+    if (!parentWeakView.IsAlive()) {
+      return;
+    }
   }
 
-  for (nsView* childView = aView->GetFirstChild();
-       childView;
-       childView = childView->GetNextSibling()) {
+  nsView* childView = aView->GetFirstChild();
+  while (childView) {
+    nsWeakView childWeakView = childView;
     UpdateWidgetsForView(childView);
+    if (NS_LIKELY(childWeakView.IsAlive())) {
+      childView = childView->GetNextSibling();
+    }
+    else {
+      // The current view was destroyed - restart at the first child if the
+      // parent is still alive.
+      childView = parentWeakView.IsAlive() ? aView->GetFirstChild() : nsnull;
+    }
   }
 }
 
@@ -2027,29 +2024,6 @@ NS_IMETHODIMP nsViewManager::ForceUpdate()
   }
   
   return NS_OK;
-}
-
-nsPoint nsViewManager::ComputeViewOffset(const nsView *aView)
-{
-  NS_PRECONDITION(aView, "Null view in ComputeViewOffset?");
-  
-  nsPoint origin(0, 0);
-#ifdef DEBUG
-  const nsView* rootView;
-  const nsView* origView = aView;
-#endif
-
-  while (aView) {
-#ifdef DEBUG
-    rootView = aView;
-#endif
-    origin += aView->GetPosition();
-    aView = aView->GetParent();
-  }
-  NS_ASSERTION(rootView ==
-               origView->GetViewManager()->RootViewManager()->GetRootView(),
-               "Unexpected root view");
-  return origin;
 }
 
 void nsViewManager::ViewToWidget(nsView *aView, nsView* aWidgetView, nsRect &aRect) const
@@ -2351,6 +2325,10 @@ nsViewManager::SynthesizeMouseMove(PRBool aFromScroll)
  */
 static nsView* FindFloatingViewContaining(nsView* aView, nsPoint aPt)
 {
+  if (aView->GetVisibility() == nsViewVisibility_kHide)
+    // No need to look into descendants.
+    return nsnull;
+
   for (nsView* v = aView->GetFirstChild(); v; v = v->GetNextSibling()) {
     nsView* r = FindFloatingViewContaining(v, aPt - v->GetOffsetTo(aView));
     if (r)
@@ -2358,9 +2336,33 @@ static nsView* FindFloatingViewContaining(nsView* aView, nsPoint aPt)
   }
 
   if (aView->GetFloating() && aView->HasWidget() &&
-      aView->GetDimensions().Contains(aPt) && IsViewVisible(aView))
+      aView->GetDimensions().Contains(aPt))
     return aView;
     
+  return nsnull;
+}
+
+/*
+ * This finds the first view containing the given point in a postorder
+ * traversal of the view tree that contains the point, assuming that the
+ * point is not in a floating view.  It assumes that only floating views
+ * extend outside the bounds of their parents.
+ *
+ * This methods should only be called if FindFloatingViewContaining
+ * returns null.
+ */
+static nsView* FindViewContaining(nsView* aView, nsPoint aPt)
+{
+  for (nsView* v = aView->GetFirstChild(); v; v = v->GetNextSibling()) {
+    if (aView->GetDimensions().Contains(aPt) &&
+        aView->GetVisibility() != nsViewVisibility_kHide) {
+      nsView* r = FindViewContaining(v, aPt - v->GetOffsetTo(aView));
+      if (r)
+        return r;
+      return v;
+    }
+  }
+
   return nsnull;
 }
 
@@ -2396,12 +2398,17 @@ nsViewManager::ProcessSynthMouseMoveEvent(PRBool aFromScroll)
   // but it's OK to do it once per synthetic mouse event
   nsView* view = FindFloatingViewContaining(mRootView, pt);
   nsPoint offset(0, 0);
+  nsViewManager *pointVM;
   if (!view) {
     view = mRootView;
+    nsView *pointView = FindViewContaining(mRootView, pt);
+    // pointView can be null in situations related to mouse capture
+    pointVM = (pointView ? pointView : view)->GetViewManager();
   } else {
     offset = view->GetOffsetTo(mRootView);
     offset.x = NSAppUnitsToIntPixels(offset.x, p2a);
     offset.y = NSAppUnitsToIntPixels(offset.y, p2a);
+    pointVM = view->GetViewManager();
   }
   nsMouseEvent event(PR_TRUE, NS_MOUSE_MOVE, view->GetWidget(),
                      nsMouseEvent::eSynthesized);
@@ -2409,8 +2416,10 @@ nsViewManager::ProcessSynthMouseMoveEvent(PRBool aFromScroll)
   event.time = PR_IntervalNow();
   // XXX set event.isShift, event.isControl, event.isAlt, event.isMeta ?
 
-  nsEventStatus status;
-  view->GetViewManager()->DispatchEvent(&event, &status);
+  nsCOMPtr<nsIViewObserver> observer = pointVM->GetViewObserver();
+  if (observer) {
+    observer->DispatchSynthMouseMove(&event, !aFromScroll);
+  }
 
   if (!aFromScroll)
     mSynthMouseMoveEvent.Forget();

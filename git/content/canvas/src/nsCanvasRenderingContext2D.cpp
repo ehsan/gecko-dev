@@ -1468,7 +1468,7 @@ nsCanvasRenderingContext2D::ShadowInitialize(const gfxRect& extents, gfxAlphaBox
                        blurRadius.height, blurRadius.width);
     drawExtents = drawExtents.Intersect(clipExtents - CurrentState().shadowOffset);
 
-    gfxContext* ctx = blur.Init(drawExtents, blurRadius);
+    gfxContext* ctx = blur.Init(drawExtents, blurRadius, nsnull);
 
     if (!ctx)
         return nsnull;
@@ -1967,13 +1967,17 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
     // un-zoom the font size to avoid being affected by text-only zoom
     const nscoord fontSize = nsStyleFont::UnZoomText(parentContext->PresContext(), fontStyle->mFont.size);
 
+    PRBool printerFont = (presShell->GetPresContext()->Type() == nsPresContext::eContext_PrintPreview ||
+                          presShell->GetPresContext()->Type() == nsPresContext::eContext_Print);
+
     gfxFontStyle style(fontStyle->mFont.style,
                        fontStyle->mFont.weight,
                        NSAppUnitsToFloatPixels(fontSize, aupcp),
                        langGroup,
                        fontStyle->mFont.sizeAdjust,
                        fontStyle->mFont.systemFont,
-                       fontStyle->mFont.familyNameQuirks);
+                       fontStyle->mFont.familyNameQuirks,
+                       printerFont);
 
     CurrentState().fontGroup = gfxPlatform::GetPlatform()->CreateFontGroup(fontStyle->mFont.name, &style, presShell->GetPresContext()->GetUserFontSet());
     NS_ASSERTION(CurrentState().fontGroup, "Could not get font group");
@@ -3396,8 +3400,11 @@ nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, PRInt32 aX, PRInt3
              nsPresContext::CSSPixelsToAppUnits(aY),
              nsPresContext::CSSPixelsToAppUnits(aW),
              nsPresContext::CSSPixelsToAppUnits(aH));
-    presShell->RenderDocument(r, PR_FALSE, PR_TRUE, bgColor,
-                              mThebes);
+    PRUint32 renderDocFlags = nsIPresShell::RENDER_IGNORE_VIEWPORT_SCROLLING;
+    if (flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_DRAW_CARET) {
+        renderDocFlags |= nsIPresShell::RENDER_CARET;
+    }
+    presShell->RenderDocument(r, renderDocFlags, bgColor, mThebes);
 
     // get rid of the pattern surface ref, just in case
     mThebes->SetColor(gfxRGBA(1,1,1,1));

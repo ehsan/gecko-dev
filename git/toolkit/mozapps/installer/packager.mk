@@ -87,25 +87,25 @@ UNPACK_TAR       = tar -x
 
 ifeq ($(MOZ_PKG_FORMAT),TAR)
 PKG_SUFFIX	= .tar
-MAKE_PACKAGE 	= $(CREATE_FINAL_TAR) - $(MOZ_PKG_APPNAME) > $(PACKAGE)
+MAKE_PACKAGE 	= $(CREATE_FINAL_TAR) - $(MOZ_PKG_DIR) > $(PACKAGE)
 UNMAKE_PACKAGE	= $(UNPACK_TAR) < $(UNPACKAGE)
 MAKE_SDK = $(CREATE_FINAL_TAR) - $(MOZ_APP_NAME)-sdk > $(SDK)
 endif
 ifeq ($(MOZ_PKG_FORMAT),TGZ)
 PKG_SUFFIX	= .tar.gz
-MAKE_PACKAGE 	= $(CREATE_FINAL_TAR) - $(MOZ_PKG_APPNAME) | gzip -vf9 > $(PACKAGE)
+MAKE_PACKAGE 	= $(CREATE_FINAL_TAR) - $(MOZ_PKG_DIR) | gzip -vf9 > $(PACKAGE)
 UNMAKE_PACKAGE	= gunzip -c $(UNPACKAGE) | $(UNPACK_TAR)
 MAKE_SDK = $(CREATE_FINAL_TAR) - $(MOZ_APP_NAME)-sdk | gzip -vf9 > $(SDK)
 endif
 ifeq ($(MOZ_PKG_FORMAT),BZ2)
 PKG_SUFFIX	= .tar.bz2
-MAKE_PACKAGE 	= $(CREATE_FINAL_TAR) - $(MOZ_PKG_APPNAME) | bzip2 -vf > $(PACKAGE)
+MAKE_PACKAGE 	= $(CREATE_FINAL_TAR) - $(MOZ_PKG_DIR) | bzip2 -vf > $(PACKAGE)
 UNMAKE_PACKAGE	= bunzip2 -c $(UNPACKAGE) | $(UNPACK_TAR)
 MAKE_SDK = $(CREATE_FINAL_TAR) - $(MOZ_APP_NAME)-sdk | bzip2 -vf > $(SDK)
 endif
 ifeq ($(MOZ_PKG_FORMAT),ZIP)
 PKG_SUFFIX	= .zip
-MAKE_PACKAGE	= $(ZIP) -r9D $(PACKAGE) $(MOZ_PKG_APPNAME)
+MAKE_PACKAGE	= $(ZIP) -r9D $(PACKAGE) $(MOZ_PKG_DIR)
 UNMAKE_PACKAGE	= $(UNZIP) $(UNPACKAGE)
 MAKE_SDK = $(ZIP) -r9D $(SDK) $(MOZ_APP_NAME)-sdk
 endif
@@ -142,7 +142,7 @@ ifdef UNIVERSAL_BINARY
 STAGEPATH = universal/
 endif
 ifndef PKG_DMG_SOURCE
-PKG_DMG_SOURCE = $(STAGEPATH)$(MOZ_PKG_APPNAME)
+PKG_DMG_SOURCE = $(STAGEPATH)$(MOZ_PKG_DIR)
 endif
 MAKE_PACKAGE	= $(_ABS_MOZSRCDIR)/build/package/mac_osx/pkg-dmg \
   --source "$(PKG_DMG_SOURCE)" --target "$(PACKAGE)" \
@@ -159,7 +159,7 @@ UNMAKE_PACKAGE	= \
   expect $(_ABS_MOZSRCDIR)/build/package/mac_osx/installdmg.ex $(UNPACKAGE) > hdi.output; \
   DEV_NAME=`perl -n -e 'if($$_=~/(\/dev\/disk[^ ]*)/) {print $$1."\n";exit;}'< hdi.output`; \
   MOUNTPOINT=`perl -n -e 'split(/\/dev\/disk[^ ]*/,$$_,2);if($$_[1]=~/(\/.[^\r]*)/) {print $$1;exit;}'< hdi.output` || cleanup 1; \
-  rsync -a "$${MOUNTPOINT}/$(_APPNAME)" $(MOZ_PKG_APPNAME) || cleanup 1; \
+  rsync -a "$${MOUNTPOINT}/$(_APPNAME)" $(MOZ_PKG_DIR) || cleanup 1; \
   test -n "$(MOZ_PKG_MAC_DSSTORE)" && \
     { rsync -a "$${MOUNTPOINT}/.DS_Store" "$(MOZ_PKG_MAC_DSSTORE)" || cleanup 1; }; \
   test -n "$(MOZ_PKG_MAC_BACKGROUND)" && \
@@ -202,13 +202,13 @@ SIGN_CMD	= $(RUN_TEST_PROGRAM) $(DIST)/bin/shlibsign -v -i
 endif
 endif
 
-SOFTOKN		= $(DIST)/$(STAGEPATH)$(MOZ_PKG_APPNAME)$(_BINPATH)/$(DLL_PREFIX)softokn3$(NSS_DLL_SUFFIX)
-FREEBL		= $(DIST)/$(STAGEPATH)$(MOZ_PKG_APPNAME)$(_BINPATH)/$(DLL_PREFIX)freebl3$(NSS_DLL_SUFFIX)
-FREEBL_32FPU	= $(DIST)/$(STAGEPATH)$(MOZ_PKG_APPNAME)$(_BINPATH)/$(DLL_PREFIX)freebl_32fpu_3$(DLL_SUFFIX)
-FREEBL_32INT	= $(DIST)/$(STAGEPATH)$(MOZ_PKG_APPNAME)$(_BINPATH)/$(DLL_PREFIX)freebl_32int_3$(DLL_SUFFIX)
-FREEBL_32INT64	= $(DIST)/$(STAGEPATH)$(MOZ_PKG_APPNAME)$(_BINPATH)/$(DLL_PREFIX)freebl_32int64_3$(DLL_SUFFIX)
-FREEBL_64FPU	= $(DIST)/$(STAGEPATH)$(MOZ_PKG_APPNAME)$(_BINPATH)/$(DLL_PREFIX)freebl_64fpu_3$(DLL_SUFFIX)
-FREEBL_64INT	= $(DIST)/$(STAGEPATH)$(MOZ_PKG_APPNAME)$(_BINPATH)/$(DLL_PREFIX)freebl_64int_3$(DLL_SUFFIX)
+SOFTOKN		= $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/$(DLL_PREFIX)softokn3$(NSS_DLL_SUFFIX)
+FREEBL		= $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/$(DLL_PREFIX)freebl3$(NSS_DLL_SUFFIX)
+FREEBL_32FPU	= $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/$(DLL_PREFIX)freebl_32fpu_3$(DLL_SUFFIX)
+FREEBL_32INT	= $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/$(DLL_PREFIX)freebl_32int_3$(DLL_SUFFIX)
+FREEBL_32INT64	= $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/$(DLL_PREFIX)freebl_32int64_3$(DLL_SUFFIX)
+FREEBL_64FPU	= $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/$(DLL_PREFIX)freebl_64fpu_3$(DLL_SUFFIX)
+FREEBL_64INT	= $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/$(DLL_PREFIX)freebl_64int_3$(DLL_SUFFIX)
 
 SIGN_NSS	+= $(SIGN_CMD) $(SOFTOKN); \
 	if test -f $(FREEBL); then $(SIGN_CMD) $(FREEBL); fi; \
@@ -257,6 +257,7 @@ NO_PKG_FILES += \
 	components/xpti.dat \
 	content_unit_tests \
 	necko_unit_tests \
+	*.dSYM \
 	$(NULL)
 
 # browser/locales/Makefile uses this makefile for its variable defs, but
@@ -270,7 +271,7 @@ DEFINES += -DDLL_PREFIX=$(DLL_PREFIX) -DDLL_SUFFIX=$(DLL_SUFFIX)
 ifdef MOZ_PKG_REMOVALS
 MOZ_PKG_REMOVALS_GEN = removed-files
 
-$(MOZ_PKG_REMOVALS_GEN): $(MOZ_PKG_REMOVALS) Makefile Makefile.in
+$(MOZ_PKG_REMOVALS_GEN): $(MOZ_PKG_REMOVALS) $(GLOBAL_DEPS)
 	$(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py -Fsubstitution $(DEFINES) $(ACDEFINES) $(MOZ_PKG_REMOVALS) > $(MOZ_PKG_REMOVALS_GEN)
 
 GARBAGE += $(MOZ_PKG_REMOVALS_GEN)
@@ -340,35 +341,35 @@ endif
 	$(PERL) $(MOZILLA_DIR)/xpinstall/packager/xptlink.pl -s $(DIST) -d $(DIST)/xpt -f $(DEPTH)/installer-stage/nonlocalized/components -v -x "$(XPIDL_LINK)"
 
 stage-package: $(MOZ_PKG_MANIFEST) $(MOZ_PKG_REMOVALS_GEN)
-	@rm -rf $(DIST)/$(MOZ_PKG_APPNAME) $(DIST)/$(PKG_PATH)$(PKG_BASENAME).tar $(DIST)/$(PKG_PATH)$(PKG_BASENAME).dmg $@ $(EXCLUDE_LIST)
+	@rm -rf $(DIST)/$(MOZ_PKG_DIR) $(DIST)/$(PKG_PATH)$(PKG_BASENAME).tar $(DIST)/$(PKG_PATH)$(PKG_BASENAME).dmg $@ $(EXCLUDE_LIST)
 # NOTE: this must be a tar now that dist links into the tree so that we
 # do not strip the binaries actually in the tree.
 	@echo "Creating package directory..."
-	@mkdir $(DIST)/$(MOZ_PKG_APPNAME)
+	@mkdir $(DIST)/$(MOZ_PKG_DIR)
 ifdef MOZ_PKG_MANIFEST
 	$(RM) -rf $(DIST)/xpt
 	$(call PACKAGER_COPY, "$(DIST)",\
-		 "$(DIST)/$(MOZ_PKG_APPNAME)", \
+		 "$(DIST)/$(MOZ_PKG_DIR)", \
 		"$(MOZ_PKG_MANIFEST)", "$(PKGCP_OS)", 1, 0, 1)
-	$(PERL) $(MOZILLA_DIR)/xpinstall/packager/xptlink.pl -s $(DIST) -d $(DIST)/xpt -f $(DIST)/$(MOZ_PKG_APPNAME)/components -v -x "$(XPIDL_LINK)"
+	$(PERL) $(MOZILLA_DIR)/xpinstall/packager/xptlink.pl -s $(DIST) -d $(DIST)/xpt -f $(DIST)/$(MOZ_PKG_DIR)/components -v -x "$(XPIDL_LINK)"
 else # !MOZ_PKG_MANIFEST
 ifeq ($(MOZ_PKG_FORMAT),DMG)
 # If UNIVERSAL_BINARY, the package will be made from an already-prepared
 # STAGEPATH
 ifndef UNIVERSAL_BINARY
 ifndef STAGE_SDK
-	@cd $(DIST) && rsync -auv --copy-unsafe-links $(_APPNAME) $(MOZ_PKG_APPNAME)
+	@cd $(DIST) && rsync -auv --copy-unsafe-links $(_APPNAME) $(MOZ_PKG_DIR)
 else
-	@cd $(DIST)/bin && tar $(TAR_CREATE_FLAGS) - * | (cd ../$(MOZ_PKG_APPNAME); tar -xf -)
+	@cd $(DIST)/bin && tar $(TAR_CREATE_FLAGS) - * | (cd ../$(MOZ_PKG_DIR); tar -xf -)
 endif
 endif
 else
-	@cd $(DIST)/bin && tar $(TAR_CREATE_FLAGS) - * | (cd ../$(MOZ_PKG_APPNAME); tar -xf -)
+	@cd $(DIST)/bin && tar $(TAR_CREATE_FLAGS) - * | (cd ../$(MOZ_PKG_DIR); tar -xf -)
 endif # DMG
 endif # MOZ_PKG_MANIFEST
 ifndef PKG_SKIP_STRIP
 	@echo "Stripping package directory..."
-	@cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_APPNAME); find . ! -type d \
+	@cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR); find . ! -type d \
 			! -name "*.js" \
 			! -name "*.xpt" \
 			! -name "*.gif" \
@@ -395,10 +396,10 @@ ifndef PKG_SKIP_STRIP
 endif
 	@echo "Removing unpackaged files..."
 ifdef NO_PKG_FILES
-	cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_APPNAME)$(_BINPATH); rm -rf $(NO_PKG_FILES)
+	cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH); rm -rf $(NO_PKG_FILES)
 endif
 ifdef MOZ_PKG_REMOVALS
-	$(SYSINSTALL) $(MOZ_PKG_REMOVALS_GEN) $(DIST)/$(STAGEPATH)$(MOZ_PKG_APPNAME)$(_BINPATH)
+	$(SYSINSTALL) $(IFLAGS1) $(MOZ_PKG_REMOVALS_GEN) $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)
 endif # MOZ_PKG_REMOVALS
 
 make-package: stage-package
@@ -420,7 +421,7 @@ ifneq (,$(filter WINNT Darwin,$(OS_ARCH)))
 	$(error "make install" is not supported on this platform. Use "make package" instead.)
 endif
 	$(NSINSTALL) -D $(DESTDIR)$(installdir)
-	(cd $(DIST)/$(MOZ_PKG_APPNAME) && tar $(TAR_CREATE_FLAGS) - .) | \
+	(cd $(DIST)/$(MOZ_PKG_DIR) && tar $(TAR_CREATE_FLAGS) - .) | \
 	  (cd $(DESTDIR)$(installdir) && tar -xf -)
 	$(NSINSTALL) -D $(DESTDIR)$(bindir)
 	$(RM) -f $(DESTDIR)$(bindir)/$(MOZ_APP_NAME)
@@ -456,7 +457,7 @@ ifdef INSTALL_SDK # Here comes the hard part
 endif # INSTALL_SDK
 
 make-sdk:
-	$(MAKE) stage-package UNIVERSAL_BINARY= STAGE_SDK=1 MOZ_PKG_APPNAME=sdk-stage
+	$(MAKE) stage-package UNIVERSAL_BINARY= STAGE_SDK=1 MOZ_PKG_DIR=sdk-stage
 	@echo "Packaging SDK..."
 	$(RM) -rf $(DIST)/$(MOZ_APP_NAME)-sdk
 	$(NSINSTALL) -D $(DIST)/$(MOZ_APP_NAME)-sdk/bin
@@ -484,8 +485,19 @@ ifeq ($(OS_TARGET), WINNT)
 INSTALLER_PACKAGE = $(DIST)/$(PKG_INST_PATH)$(PKG_INST_BASENAME).exe
 endif
 
+# These are necessary because some of our packages/installers contain spaces
+# in their filenames and GNU Make's $(wildcard) function doesn't properly
+# deal with them.
+empty :=
+space = $(empty) $(empty)
+QUOTED_WILDCARD = $(if $(wildcard $(subst $(space),?,$(1))),"$(1)")
+
 upload:
-	$(PYTHON) $(topsrcdir)/build/upload.py --base-path $(DIST) $(DIST)/$(PACKAGE) $(INSTALLER_PACKAGE)
+	$(PYTHON) $(topsrcdir)/build/upload.py --base-path $(DIST) \
+    	$(call QUOTED_WILDCARD,$(DIST)/$(PACKAGE)) \
+		$(call QUOTED_WILDCARD,$(INSTALLER_PACKAGE)) \
+		$(call QUOTED_WILDCARD,$(DIST)/$(COMPLETE_MAR)) \
+		$(if $(UPLOAD_EXTRA_FILES), $(foreach f, $(UPLOAD_EXTRA_FILES), $(wildcard $(DIST)/$(f))))
 
 ifndef MOZ_PKG_SRCDIR
 MOZ_PKG_SRCDIR = $(topsrcdir)

@@ -344,6 +344,33 @@ LoginManagerStorage_legacy.prototype = {
 
 
     /*
+     * getAllEncryptedLogins
+     *
+     * Returns an array of nsAccountInfo, each in the encrypted state.
+     */
+    getAllEncryptedLogins : function (count) {
+        var result = [];
+
+        // Each entry is an array -- append the array entries to |result|.
+        for each (var hostLogins in this._logins) {
+            // Return copies to the caller. Prevents callers from modifying
+            // our internal storage
+            for each (var login in hostLogins) {
+                var clone = new this._nsLoginInfo();
+                clone.init(login.hostname, login.formSubmitURL, login.httpRealm,
+                           login.wrappedJSObject.encryptedUsername,
+                           login.wrappedJSObject.encryptedPassword,
+                           login.usernameField, login.passwordField);
+                result.push(clone);
+            }
+        }
+
+        count.value = result.length; // needed for XPCOM
+        return result;
+    },
+
+
+    /*
      * removeAllLogins
      *
      * Removes all logins from storage.
@@ -814,9 +841,11 @@ LoginManagerStorage_legacy.prototype = {
          */
         const isHTTP = /^https?:\/\//;
         const isLDAP = /^ldaps?:\/\//;
+        const isNews = /^news?:\/\//;
         if (!isHTTP.test(aLogin.hostname) && !isFormLogin) {
-            // LDAP logins need to keep the path.
-            if (isLDAP.test(aLogin.hostname))
+            // LDAP and News logins need to keep the path.
+            if (isLDAP.test(aLogin.hostname) ||
+                isNews.test(aLogin.hostname))
                 aLogin.httpRealm = aLogin.hostname + pathname;
             else
                 aLogin.httpRealm = aLogin.hostname;

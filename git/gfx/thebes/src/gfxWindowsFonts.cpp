@@ -889,6 +889,14 @@ gfxWindowsFontGroup::~gfxWindowsFontGroup()
 gfxWindowsFont *
 gfxWindowsFontGroup::GetFontAt(PRInt32 i)
 {
+    // If it turns out to be hard for all clients that cache font
+    // groups to call UpdateFontList at appropriate times, we could
+    // instead consider just calling UpdateFontList from someplace
+    // more central (such as here).
+    NS_ASSERTION(!mUserFontSet || mCurrGeneration == GetGeneration(),
+                 "Whoever was caching this font group should have "
+                 "called UpdateFontList on it");
+
     if (!mFonts[i]) {
         nsRefPtr<gfxWindowsFont> font =
             gfxWindowsFont::GetOrMakeFont(mFontEntries[i], &mStyle);
@@ -973,6 +981,17 @@ gfxWindowsFontGroup::InitFontList()
         mFonts.AppendElements(mFontEntries.Length());
     }
 
+    // force the underline offset to get recalculated
+    mUnderlineOffset = UNDERLINE_OFFSET_NOT_SET;
+}
+
+gfxFloat 
+gfxWindowsFontGroup::GetUnderlineOffset()
+{
+    if (mUnderlineOffset != UNDERLINE_OFFSET_NOT_SET)
+        return mUnderlineOffset;
+
+    // not yet initialized, need to calculate
     if (!mStyle.systemFont) {
         for (PRUint32 i = 0; i < mFontEntries.Length(); ++i) {
             if (mFontEntries[i]->mIsBadUnderlineFont) {
@@ -984,6 +1003,10 @@ gfxWindowsFontGroup::InitFontList()
         }
     }
 
+    if (mUnderlineOffset == UNDERLINE_OFFSET_NOT_SET)
+        mUnderlineOffset = GetFontAt(0)->GetMetrics().underlineOffset;
+
+    return mUnderlineOffset;
 }
 
 static PRBool
@@ -1343,7 +1366,7 @@ public:
         mAlternativeString(nsnull), mScriptItem(aItem),
         mScript(aItem->a.eScript), mGroup(aGroup),
         mNumGlyphs(0), mMaxGlyphs(ESTIMATE_MAX_GLYPHS(aLength)),
-        mFontSelected(PR_FALSE)
+        mFontSelected(PR_FALSE), mForceGDIPlace(PR_FALSE)
     {
         NS_ASSERTION(mMaxGlyphs < 65535, "UniscribeItem is too big, ScriptShape() will fail!");
         mGlyphs.SetLength(mMaxGlyphs);
@@ -1394,6 +1417,19 @@ public:
                 mGlyphs.SetLength(mMaxGlyphs);
                 mAttr.SetLength(mMaxGlyphs);
                 continue;
+            }
+
+            // Uniscribe can't do shaping with some fonts, so it sets the 
+            // fNoGlyphIndex flag in the SCRIPT_ANALYSIS structure to indicate
+            // this.  This occurs with CFF fonts loaded with 
+            // AddFontMemResourceEx but it's not clear what the other cases
+            // are, so just log a warning for now.
+            // see http://msdn.microsoft.com/en-us/library/ms776520(VS.85).aspx
+
+            if (sa.fNoGlyphIndex) {
+                mForceGDIPlace = PR_TRUE;
+                NS_WARNING("Uniscribe refuses to shape with given font");
+                return ShapeGDI();
             }
 
             if (rv == E_PENDING) {
@@ -1519,6 +1555,9 @@ public:
     HRESULT Place() {
         mOffsets.SetLength(mNumGlyphs);
         mAdvances.SetLength(mNumGlyphs);
+
+        if (mForceGDIPlace)
+            return PlaceGDI();
 
         PRBool allCJK = PR_TRUE;
 
@@ -1762,6 +1801,11 @@ private:
     nsRefPtr<gfxWindowsFont> mCurrentFont;
 
     PRPackedBool mFontSelected;
+
+    // when shaping, Uniscribe refuses to shape with some fonts
+    // (e.g. CFF fonts loaded with AddFontMemResourceEx), so need
+    // to force GDI placement
+    PRPackedBool mForceGDIPlace;
 
     nsTArray<gfxTextRange> mRanges;
 };

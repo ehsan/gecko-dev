@@ -54,22 +54,20 @@ class gfxMixedFontFamily;
 // lifetime: from when @font-face rule processed until font is loaded
 struct gfxFontFaceSrc {
     PRPackedBool           mIsLocal;       // url or local
-    nsString               mLocalName;     // full font name if local
-    nsCOMPtr<nsIURI>       mURI;           // uri if url 
-    nsCOMPtr<nsIURI>       mReferrer;      // referrer url if url
+
+    // if url, whether to use the origin principal or not
+    PRPackedBool           mUseOriginPrincipal;
 
     // format hint flags, union of all possible formats
     // (e.g. TrueType, EOT, SVG, etc.)
     // see FLAG_FORMAT_* enum values below
     PRUint32               mFormatFlags;
-};
 
-// subclassed by loader code to contain needed context info
-// lifetime: user font set lifetime 
-class gfxFontLoaderContext {
-public:
-  gfxFontLoaderContext() { }
-  virtual ~gfxFontLoaderContext() { }
+    nsString               mLocalName;     // full font name if local
+    nsCOMPtr<nsIURI>       mURI;           // uri if url 
+    nsCOMPtr<nsIURI>       mReferrer;      // referrer url if url
+    nsCOMPtr<nsISupports>  mOriginPrincipal; // principal if url 
+    
 };
 
 // subclassed to store platform-specific code cleaned out when font entry is deleted
@@ -146,25 +144,10 @@ class gfxProxyFontEntry;
 class THEBES_API gfxUserFontSet {
 
 public:
-    class LoaderContext;
-    typedef nsresult (*LoaderCallback) (gfxFontEntry *aFontToLoad, 
-                                        nsIURI *aSrcURL,
-                                        nsIURI *aReferrerURI,
-                                        LoaderContext *aContextData);
-
-    class LoaderContext {
-    public:
-        LoaderContext(LoaderCallback aLoader)
-            : mUserFontSet(nsnull), mLoaderProc(aLoader) { }
-        virtual ~LoaderContext() { }
-
-        gfxUserFontSet* mUserFontSet;
-        LoaderCallback  mLoaderProc;
-    };
 
     THEBES_INLINE_DECL_REFCOUNTING(gfxUserFontSet)
 
-    gfxUserFontSet(LoaderContext *aContext);
+    gfxUserFontSet();
     virtual ~gfxUserFontSet();
 
     enum {
@@ -196,15 +179,27 @@ public:
                      PRUint32 aItalicStyle = 0, 
                      gfxSparseBitSet *aUnicodeRanges = nsnull);
 
+    // Whether there is a face with this family name
+    PRBool HasFamily(const nsAString& aFamilyName) const
+    {
+        return GetFamily(aFamilyName) != nsnull;
+    }
+
     // lookup a font entry for a given style, returns null if not loaded
     gfxFontEntry *FindFontEntry(const nsAString& aName, 
-                                const gfxFontStyle& aFontStyle, PRBool& aNeedsBold);
+                                const gfxFontStyle& aFontStyle, 
+                                PRBool& aNeedsBold);
+                                
+    // initialize the process that loads external font data, which upon 
+    // completion will call OnLoadComplete method
+    virtual nsresult StartLoad(gfxFontEntry *aFontToLoad, 
+                               const gfxFontFaceSrc *aFontFaceSrc) = 0;
 
     // when download has been completed, pass back data here
     // aDownloadStatus == NS_OK ==> download succeeded, error otherwise
     // returns true if platform font creation sucessful (or local()
     // reference was next in line)
-    PRBool OnLoadComplete(gfxFontEntry *aFontToLoad, 
+    PRBool OnLoadComplete(gfxFontEntry *aFontToLoad, nsISupports *aLoader,
                           const PRUint8 *aFontData, PRUint32 aLength,
                           nsresult aDownloadStatus);
 
@@ -220,6 +215,8 @@ protected:
     // increment the generation on font load
     void IncrementGeneration();
 
+    gfxMixedFontFamily *GetFamily(const nsAString& aName) const;
+
     // remove family
     void RemoveFamily(const nsAString& aFamilyName);
 
@@ -227,9 +224,6 @@ protected:
     nsRefPtrHashtable<nsStringHashKey, gfxMixedFontFamily> mFontFamilies;
 
     PRUint64        mGeneration;
-
-    // owned by user font set obj, deleted within destructor
-    nsAutoPtr<LoaderContext> mLoaderContext;
 };
 
 // acts a placeholder until the real font is downloaded
@@ -238,6 +232,7 @@ class gfxProxyFontEntry : public gfxFontEntry {
 
 public:
     gfxProxyFontEntry(const nsTArray<gfxFontFaceSrc>& aFontFaceSrcList, 
+                      gfxMixedFontFamily *aFamily,
                       PRUint32 aWeight, 
                       PRUint32 aStretch, 
                       PRUint32 aItalicStyle, 

@@ -41,9 +41,20 @@ DEPTH		= .
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 
+include $(DEPTH)/config/autoconf.mk
+
 DIRS		= config
 
-include $(DEPTH)/config/autoconf.mk
+ifdef DEHYDRA_PATH
+DIRS += analysis-tests
+endif
+
+ifndef JS_MOZ_INSTALL
+# This is the appropriate behavior for GNU-style 'make install'.  For
+# Mozilla in-tree behavior, leaving NSDISTMODE unset is the right
+# thing; config/js/Makefile.in sets JS_MOZ_INSTALL in that case.
+NSDISTMODE	= copy
+endif
 
 MODULE		= js
 LIBRARY_NAME	= mozjs
@@ -87,7 +98,6 @@ endif
 
 ifeq (,$(filter-out WINNT WINCE,$(OS_ARCH)))
 LIBRARY_NAME	= js$(MOZ_BITS)$(VERSION_NUMBER)
-RESFILE		= js$(MOZ_BITS)40.res
 endif
 
 # JavaScript must be built shared, even for static builds, as it is used by
@@ -215,6 +225,7 @@ INSTALLED_HEADERS = \
 		jsscan.h \
 		jsscope.h \
 		jsscript.h \
+		jsstaticcheck.h \
 		jsstddef.h \
 		jsstr.h \
 		jstracer.h \
@@ -544,19 +555,6 @@ endif
 ifdef CROSS_COMPILE
 # jscpucfg needs to know when it's supposed to produce a config for the target
 JSCPUCFG_DEFINES = $(ACDEFINES)
-
-# This is incredibly hacky.  Darwin NSPR uses the same MDCPUCFG for multiple
-# processors, and determines which processor to configure for based on
-# #ifdef i386.  This macro is among the NSPR defines, but is also automatically
-# defined by the compiler when building for i386.  It therefore needs to be
-# defined here if targeting i386, and explicitly undefined otherwise.
-ifeq ($(OS_ARCH),Darwin)
-ifeq ($(TARGET_CPU),powerpc)
-JSCPUCFG_DEFINES += -Ui386
-else
-JSCPUCFG_DEFINES += -Di386=1
-endif
-endif
 endif
 
 ifeq ($(OS_ARCH),QNX)
@@ -616,10 +614,10 @@ js-config: js-config.in Makefile $(DEPTH)/config/autoconf.mk $(topsrcdir)/config
 SCRIPTS = js-config
 
 install:: $(INSTALLED_HEADERS)
-	$(SYSINSTALL) $(IFLAGS1) $^ $(includedir)/$(MODULE)
+	$(INSTALL) $(IFLAGS1) $^ $(includedir)/$(MODULE)
 
 install:: $(SCRIPTS) $(PROGRAM)
-	$(SYSINSTALL) $(IFLAGS2) $^ $(bindir)
+	$(INSTALL) $(IFLAGS2) $^ $(bindir)
 
 # The Mozilla top-level makefiles use install-runtime-libs directly to
 # place an additional copy of the libraries in the 'dist/bin'
@@ -627,13 +625,13 @@ install:: $(SCRIPTS) $(PROGRAM)
 install:: install-runtime-libs
 install-runtime-libs:: $(LIBRARY) $(SHARED_LIBRARY) $(IMPORT_LIBRARY)
 ifneq (,$(LIBRARY))
-	$(SYSINSTALL) $(IFLAGS1) $(LIBRARY) $(libdir)
+	$(INSTALL) $(IFLAGS1) $(LIBRARY) $(libdir)
 endif
 ifneq (,$(SHARED_LIBRARY))
-	$(SYSINSTALL) $(IFLAGS2) $(SHARED_LIBRARY) $(libdir)
+	$(INSTALL) $(IFLAGS2) $(SHARED_LIBRARY) $(libdir)
 endif
 ifneq (,$(IMPORT_LIBRARY))
-	$(SYSINSTALL) $(IFLAGS2) $(IMPORT_LIBRARY) $(libdir)
+	$(INSTALL) $(IFLAGS2) $(IMPORT_LIBRARY) $(libdir)
 endif
 
 # Extra dependancies and rules for auto-generated headers
@@ -660,5 +658,15 @@ $(CURDIR)/javascript-trace.h: $(srcdir)/javascript-trace.d
 	sed 's/if _DTRACE_VERSION/ifdef INCLUDE_MOZILLA_DTRACE/' \
 	    javascript-trace.h.in > javascript-trace.h
 
-$(CPPSRCS:%.cpp=%.$(OBJ_SUFFIX)): $(CURDIR)/javascript-trace.h
+# We can't automatically generate dependencies on auto-generated headers;
+# we have to list them explicitly.
+$(addsuffix .$(OBJ_SUFFIX),jsdtracef jsinterp jsobj): $(CURDIR)/javascript-trace.h
 endif
+
+imacro_asm.js: imacro_asm.js.in
+	$(CC) -c -x c -E -P -I$(srcdir) $? > $@
+
+GARBAGE += imacro_asm.js
+
+%.c.out: %.jsasm $(PROGRAM) imacro_asm.js
+	./$(PROGRAM) imacro_asm.js $< > $@

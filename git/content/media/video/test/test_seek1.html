@@ -22,9 +22,10 @@ var seekFlagEnd = false;
 var readonly = true;
 var completed = false;
 
-ok(!document.getElementById('v').seeking, "seeking should default to false");
+var v = document.getElementById('v');
+ok(!v.seeking, "seeking should default to false");
 try {
-  v1.seeking = 1;
+  v.seeking = 1;
   readonly = false;
 }
 catch(e) {
@@ -46,6 +47,7 @@ function seekStarted() {
     return false;
 
   var v = document.getElementById('v');
+  v.pause();
   startPassed = true;
   seekFlagStart = v.seeking;
   return false;
@@ -58,6 +60,7 @@ function seekEnded() {
   var v = document.getElementById('v');
   var t = v.currentTime;
   ok(t >= 2 && t <= 3, "Video currentTime should be around 2: " + t);
+  v.play();
   endPassed = true;
   seekFlagEnd = v.seeking;
   return false;

@@ -48,6 +48,7 @@
 #include "nsStubMutationObserver.h"
 #include "nsSVGEnum.h"
 #include "nsSVGString.h"
+#include "nsSVGPreserveAspectRatio.h"
 
 //--------------------- Patterns ------------------------
 
@@ -93,7 +94,7 @@ public:
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGElement::)
 
   // nsIContent interface
-  NS_IMETHODIMP_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
+  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
@@ -103,6 +104,7 @@ protected:
 
   virtual LengthAttributesInfo GetLengthInfo();
   virtual EnumAttributesInfo GetEnumInfo();
+  virtual nsSVGPreserveAspectRatio *GetPreserveAspectRatio();
   virtual StringAttributesInfo GetStringInfo();
 
   // nsIDOMSVGPatternElement values
@@ -123,7 +125,7 @@ protected:
 
   // nsIDOMSVGFitToViewbox properties
   nsCOMPtr<nsIDOMSVGAnimatedRect> mViewBox;
-  nsCOMPtr<nsIDOMSVGAnimatedPreserveAspectRatio> mPreserveAspectRatio;
+  nsSVGPreserveAspectRatio mPreserveAspectRatio;
 };
 
 #endif

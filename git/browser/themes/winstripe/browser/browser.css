@@ -1261,14 +1261,8 @@ statusbarpanel#statusbar-display {
 }
 
 #page-report-button {
-  list-style-image: none;
   width: 20px;
-  display: none;
-}
-
-#page-report-button[blocked] {
   list-style-image: url("chrome://browser/skin/Info.png");
-  display: -moz-box;
 }
 
 /* ::::: throbber ::::: */
@@ -1523,24 +1517,15 @@ tabpanels {
 }
 
 .tabs-newtab-button > .toolbarbutton-text,
-%ifndef USE_TAB_PREVIEWS
-.tabs-alltabs-button > .toolbarbutton-icon,
-%endif
-.tabs-alltabs-button > .toolbarbutton-text  {
+.tabs-alltabs-button > .toolbarbutton-text {
   display: none;
 }
 
-%ifdef USE_TAB_PREVIEWS
 .tabs-alltabs-button > .toolbarbutton-icon {
   list-style-image: url("chrome://browser/skin/tabbrowser/alltabs.png");
   margin: 6px 0 4px;
   -moz-image-region: auto;
 }
-%else
-.tabs-alltabs-button > .toolbarbutton-menu-dropmarker {
-  margin: 2px 1px 2px 0px;
-}
-%endif
 
 .tabs-alltabs-box-animate {
   margin-top: 2px;
@@ -1554,22 +1539,6 @@ tabpanels {
 stack[chromedir="rtl"] > hbox > .tabs-alltabs-box-animate {
   background-image: url("chrome://browser/skin/tabbrowser/alltabs-box-overflow-start-bkgnd-animate.png");
 }
-
-%ifndef USE_TAB_PREVIEWS
-/* All tabs menupopup */
-.alltabs-item > .menu-iconic-left > .menu-iconic-icon {
-  list-style-image: url("chrome://global/skin/icons/folder-item.png");
-  -moz-image-region: rect(0px, 16px, 16px, 0px);
-}
-
-.alltabs-item[selected="true"] {
-  font-weight: bold;
-}
-
-.alltabs-item[busy] > .menu-iconic-left > .menu-iconic-icon {
-  list-style-image: url("chrome://global/skin/icons/loading_16.png");
-}
-%endif
 
 /* Tabstrip close button */
 .tabs-closebutton {
@@ -1679,7 +1648,8 @@ toolbar[mode="text"] > #window-controls > toolbarbutton > .toolbarbutton-text {
 }
 
 /* Feed icon */
-#feed-button, #feed-button > .button-box,
+#feed-button,
+#feed-button > .button-box,
 #feed-button:hover:active > .button-box {
   padding: 0px;
   margin: 0px;
@@ -1687,34 +1657,21 @@ toolbar[mode="text"] > #window-controls > toolbarbutton > .toolbarbutton-text {
   background-color: transparent;
 }
 
-#feed-button > hbox > .button-menu-dropmarker,
-#feed-button > hbox > .button-text {
-  display: none;
-}
-
 #feed-button {
-  -moz-binding: url("chrome://global/content/bindings/button.xml#menu");
   -moz-appearance: none; 
   min-width: 0px; 
   padding: 0 2px !important;
-}
-
-#feed-button[feeds] {
   list-style-image: url("chrome://browser/skin/feeds/feed-icons-16.png");
   -moz-image-region: rect(0px 16px 16px 0px);
 }
 
-#feed-button[feeds]:hover {
+#feed-button:hover {
   -moz-image-region: rect(0px 32px 16px 16px);
 }
 
-#feed-button[feeds][open="true"],
-#feed-button[feeds]:hover:active {
+#feed-button[open="true"],
+#feed-button:hover:active {
   -moz-image-region: rect(0px 48px 16px 32px);
-}
-
-#feed-button:not([feeds]) {
-  visibility: collapse;
 }
 
 /* ::::: About Popup Blocking dialog ::::: */

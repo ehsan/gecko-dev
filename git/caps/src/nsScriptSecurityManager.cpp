@@ -1284,6 +1284,7 @@ nsScriptSecurityManager::CheckLoadURIWithPrincipal(nsIPrincipal* aPrincipal,
                                nsIScriptSecurityManager::DISALLOW_INHERIT_PRINCIPAL),
                     NS_ERROR_UNEXPECTED);
     NS_ENSURE_ARG_POINTER(aPrincipal);
+    NS_ENSURE_ARG_POINTER(aTargetURI);
 
     if (aPrincipal == mSystemPrincipal) {
         // Allow access
@@ -3143,13 +3144,19 @@ nsScriptSecurityManager::OnChannelRedirect(nsIChannel* oldChannel,
 
     nsCOMPtr<nsIURI> newURI;
     newChannel->GetURI(getter_AddRefs(newURI));
+    nsCOMPtr<nsIURI> newOriginalURI;
+    newChannel->GetOriginalURI(getter_AddRefs(newOriginalURI));
 
-    NS_ENSURE_STATE(oldPrincipal && newURI);
+    NS_ENSURE_STATE(oldPrincipal && newURI && newOriginalURI);
 
     const PRUint32 flags =
         nsIScriptSecurityManager::LOAD_IS_AUTOMATIC_DOCUMENT_REPLACEMENT |
         nsIScriptSecurityManager::DISALLOW_SCRIPT;
-    return CheckLoadURIWithPrincipal(oldPrincipal, newURI, flags);
+    nsresult rv = CheckLoadURIWithPrincipal(oldPrincipal, newURI, flags);
+    if (NS_SUCCEEDED(rv) && newOriginalURI != newURI) {
+        rv = CheckLoadURIWithPrincipal(oldPrincipal, newOriginalURI, flags);
+    }
+    return rv;
 }
 
 

@@ -88,7 +88,7 @@ NS_NewFileControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 }
 
 nsFileControlFrame::nsFileControlFrame(nsStyleContext* aContext):
-  nsAreaFrame(aContext),
+  nsBlockFrame(aContext),
   mTextFrame(nsnull), 
   mCachedState(nsnull)
 {
@@ -107,7 +107,7 @@ nsFileControlFrame::Init(nsIContent* aContent,
                          nsIFrame*   aParent,
                          nsIFrame*   aPrevInFlow)
 {
-  nsresult rv = nsAreaFrame::Init(aContent, aParent, aPrevInFlow);
+  nsresult rv = nsBlockFrame::Init(aContent, aParent, aPrevInFlow);
   NS_ENSURE_SUCCESS(rv, rv);
 
   mMouseListener = new MouseListener(this);
@@ -143,7 +143,7 @@ nsFileControlFrame::Destroy()
   }
 
   mMouseListener->ForgetFrame();
-  nsAreaFrame::Destroy();
+  nsBlockFrame::Destroy();
 }
 
 nsresult
@@ -243,7 +243,7 @@ nsFileControlFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
     return NS_OK;
   }
 
-  return nsAreaFrame::QueryInterface(aIID, aInstancePtr);
+  return nsBlockFrame::QueryInterface(aIID, aInstancePtr);
 }
 
 void 
@@ -420,8 +420,8 @@ NS_IMETHODIMP nsFileControlFrame::Reflow(nsPresContext*          aPresContext,
     }
   }
 
-  // The Areaframe takes care of all our reflow
-  return nsAreaFrame::Reflow(aPresContext, aDesiredSize, aReflowState,
+  // nsBlockFrame takes care of all our reflow
+  return nsBlockFrame::Reflow(aPresContext, aDesiredSize, aReflowState,
                              aStatus);
 }
 
@@ -430,7 +430,7 @@ NS_IMETHODIMP
 nsFileControlFrame::SetInitialChildList(nsIAtom*        aListName,
                                         nsIFrame*       aChildList)
 {
-  nsAreaFrame::SetInitialChildList(aListName, aChildList);
+  nsBlockFrame::SetInitialChildList(aListName, aChildList);
 
   // given that the CSS frame constructor created all our frames. We need to find the text field
   // so we can get info from it.
@@ -503,16 +503,18 @@ nsFileControlFrame::AttributeChanged(PRInt32         aNameSpaceID,
                                      PRInt32         aModType)
 {
   // propagate disabled to text / button inputs
-  if (aNameSpaceID == kNameSpaceID_None &&
-      aAttribute == nsGkAtoms::disabled) {
-    SyncAttr(aNameSpaceID, aAttribute, SYNC_BOTH);
-  // propagate size to text
-  } else if (aNameSpaceID == kNameSpaceID_None &&
-             aAttribute == nsGkAtoms::size) {
-    SyncAttr(aNameSpaceID, aAttribute, SYNC_TEXT);
+  if (aNameSpaceID == kNameSpaceID_None) {
+    if (aAttribute == nsGkAtoms::disabled) {
+      SyncAttr(aNameSpaceID, aAttribute, SYNC_BOTH);
+    // propagate size to text
+    } else if (aAttribute == nsGkAtoms::size) {
+      SyncAttr(aNameSpaceID, aAttribute, SYNC_TEXT);
+    } else if (aAttribute == nsGkAtoms::tabindex) {
+      SyncAttr(aNameSpaceID, aAttribute, SYNC_BUTTON);
+    }
   }
 
-  return nsAreaFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);
+  return nsBlockFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);
 }
 
 PRBool
@@ -576,7 +578,7 @@ nsFileControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // styles in forms.css) -- doing it just makes us look ugly in some cases and
   // has no effect in others.
   nsDisplayListCollection tempList;
-  nsresult rv = nsAreaFrame::BuildDisplayList(aBuilder, aDirtyRect, tempList);
+  nsresult rv = nsBlockFrame::BuildDisplayList(aBuilder, aDirtyRect, tempList);
   if (NS_FAILED(rv))
     return rv;
 

@@ -99,6 +99,7 @@
 #include "nsITextControlFrame.h"
 #include "nsINameSpaceManager.h"
 #include "nsIPercentHeightObserver.h"
+#include "nsStyleStructInlines.h"
 
 #ifdef IBMBIDI
 #include "nsBidiPresUtils.h"
@@ -553,6 +554,16 @@ nsFrame::GetOffsets(PRInt32 &aStart, PRInt32 &aEnd) const
 /* virtual */ void
 nsFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
+  // We have to start loading the border image before or during reflow,
+  // because the border-image's width overrides only apply once the
+  // image is loaded.  Starting the load of the image means we'll get a
+  // reflow when the image loads.  (Otherwise, if the image loads
+  // between reflow and paint, we never get the notification and our
+  // size ends up wrong.)
+  imgIRequest *borderImage = GetStyleBorder()->GetBorderImage();
+  if (borderImage) {
+    PresContext()->LoadBorderImage(borderImage, this);
+  }
 }
 
 /* virtual */ nsMargin
@@ -7314,7 +7325,6 @@ DR_FrameTypeInfo* DR_State::GetFrameTypeInfo(char* aFrameName)
 
 void DR_State::InitFrameTypeTable()
 {  
-  AddFrameTypeInfo(nsGkAtoms::areaFrame,             "area",      "area");
   AddFrameTypeInfo(nsGkAtoms::blockFrame,            "block",     "block");
   AddFrameTypeInfo(nsGkAtoms::brFrame,               "br",        "br");
   AddFrameTypeInfo(nsGkAtoms::bulletFrame,           "bullet",    "bullet");
@@ -7346,6 +7356,9 @@ void DR_State::InitFrameTypeTable()
   AddFrameTypeInfo(nsGkAtoms::textInputFrame,        "textCtl",   "textInput");
   AddFrameTypeInfo(nsGkAtoms::textFrame,             "text",      "text");
   AddFrameTypeInfo(nsGkAtoms::viewportFrame,         "VP",        "viewport");
+#ifdef MOZ_XUL
+  AddFrameTypeInfo(nsGkAtoms::XULLabelFrame,         "XULLabel",  "XULLabel");
+#endif
   AddFrameTypeInfo(nsnull,                               "unknown",   "unknown");
 }
 

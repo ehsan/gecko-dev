@@ -118,7 +118,6 @@
 #include "nsPIDOMWindow.h"
 #include "nsJSEnvironment.h"
 #include "nsIFocusController.h"
-#include "nsIMenuParent.h"
 
 #include "nsIScrollableView.h"
 #include "nsIHTMLDocument.h"
@@ -1321,7 +1320,7 @@ DocumentViewerImpl::Close(nsISHEntry *aSHEntry)
       // out of band cleanup of webshell
       mDocument->SetScriptGlobalObject(nsnull);
 
-      if (!mSHEntry)
+      if (!mSHEntry && mDocument)
         mDocument->RemovedFromDocShell();
     }
 
@@ -1967,12 +1966,8 @@ DocumentViewerImpl::Hide(void)
 
   nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mContainer));
   if (docShell) {
-    PRBool saveLayoutState = PR_FALSE;
-    docShell->GetShouldSaveLayoutState(&saveLayoutState);
-    if (saveLayoutState) {
-      nsCOMPtr<nsILayoutHistoryState> layoutState;
-      mPresShell->CaptureHistoryState(getter_AddRefs(layoutState), PR_TRUE);
-    }
+    nsCOMPtr<nsILayoutHistoryState> layoutState;
+    mPresShell->CaptureHistoryState(getter_AddRefs(layoutState), PR_TRUE);
   }
 
   mPresShell->Destroy();

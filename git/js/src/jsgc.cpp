@@ -2791,12 +2791,19 @@ js_TraceStackFrame(JSTracer *trc, JSStackFrame *fp)
         JS_CALL_OBJECT_TRACER(trc, fp->varobj, "variables");
     if (fp->script) {
         js_TraceScript(trc, fp->script);
-        if (fp->regs) {
+
+        /* fp->slots is null for watch pseudo-frames, see js_watch_set. */
+        if (fp->slots) {
             /*
              * Don't mark what has not been pushed yet, or what has been
              * popped already.
              */
-            nslots = (uintN) (fp->regs->sp - fp->slots);
+            if (fp->regs) {
+                nslots = (uintN) (fp->regs->sp - fp->slots);
+                JS_ASSERT(nslots >= fp->script->nfixed);
+            } else {
+                nslots = fp->script->nfixed;
+            }
             TRACE_JSVALS(trc, nslots, fp->slots, "slot");
         }
     } else {
@@ -2922,28 +2929,37 @@ js_TraceContext(JSTracer *trc, JSContext *acx)
      * Iterate frame chain and dormant chains.
      *
      * (NB: see comment on this whole "dormant" thing in js_Execute.)
+     *
+     * Since js_GetTopStackFrame needs to dereference cx->thread to check for
+     * JIT frames, we check for non-null thread here and avoid null checks
+     * there. See bug 471197.
      */
-    fp = acx->fp;
-    nextChain = acx->dormantFrameChain;
-    if (!fp)
-        goto next_chain;
+#ifdef JS_THREADSAFE
+    if (acx->thread)
+#endif
+    {
+        fp = js_GetTopStackFrame(acx);
+        nextChain = acx->dormantFrameChain;
+        if (!fp)
+            goto next_chain;
 
-    /* The top frame must not be dormant. */
-    JS_ASSERT(!fp->dormantNext);
-    for (;;) {
-        do {
-            js_TraceStackFrame(trc, fp);
-        } while ((fp = fp->down) != NULL);
+        /* The top frame must not be dormant. */
+        JS_ASSERT(!fp->dormantNext);
+        for (;;) {
+            do {
+                js_TraceStackFrame(trc, fp);
+            } while ((fp = fp->down) != NULL);
 
-      next_chain:
-        if (!nextChain)
-            break;
-        fp = nextChain;
-        nextChain = nextChain->dormantNext;
+          next_chain:
+            if (!nextChain)
+                break;
+            fp = nextChain;
+            nextChain = nextChain->dormantNext;
+        }
     }
 
     /* Mark other roots-by-definition in acx. */
-    if (acx->globalObject)
+    if (acx->globalObject && !JS_HAS_OPTION(acx, JSOPTION_UNROOTED_GLOBAL))
         JS_CALL_OBJECT_TRACER(trc, acx->globalObject, "global object");
     TraceWeakRoots(trc, &acx->weakRoots);
     if (acx->throwing) {
@@ -2995,6 +3011,8 @@ js_TraceContext(JSTracer *trc, JSContext *acx)
 
     if (acx->sharpObjectMap.depth > 0)
         js_TraceSharpMap(trc, &acx->sharpObjectMap);
+
+    js_TraceRegExpStatics(trc, acx);
 }
 
 void

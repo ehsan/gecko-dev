@@ -146,7 +146,7 @@ const INSTALLERROR_SUCCESS               = 0;
 const INSTALLERROR_INVALID_VERSION       = -1;
 const INSTALLERROR_INVALID_GUID          = -2;
 const INSTALLERROR_INCOMPATIBLE_VERSION  = -3;
-const INSTALLERROR_PHONED_HOME           = -4;
+const INSTALLERROR_PHONING_HOME          = -4;
 const INSTALLERROR_INCOMPATIBLE_PLATFORM = -5;
 const INSTALLERROR_BLOCKLISTED           = -6;
 const INSTALLERROR_INSECURE_UPDATE       = -7;
@@ -2519,10 +2519,6 @@ ExtensionManager.prototype = {
    */
   observe: function EM_observe(subject, topic, data) {
     switch (topic) {
-    case "app-startup":
-      gOS.addObserver(this, "profile-after-change", false);
-      gOS.addObserver(this, "quit-application", false);
-      break;
     case "profile-after-change":
       this._profileSelected();
       break;
@@ -2531,10 +2527,6 @@ ExtensionManager.prototype = {
       break;
     case "offline-requested":
       this._confirmCancelDownloadsOnOffline(subject);
-      break;
-    case "quit-application":
-      gOS.removeObserver(this, "profile-after-change");
-      gOS.removeObserver(this, "quit-application");
       break;
     case "xpcom-shutdown":
       this._shutdown();
@@ -2688,9 +2680,11 @@ ExtensionManager.prototype = {
 
     // Release strongly held services.
     gOS = null;
-    if (this._ptr && gRDF) {
+    if (this._ds) {
       gRDF.UnregisterDataSource(this._ptr);
       this._ptr = null;
+      this._ds.shutdown();
+      this._ds = null;
     }
     gRDF = null;
     if (gPref) {
@@ -3620,11 +3614,6 @@ ExtensionManager.prototype = {
     // Block attempts to flush for the entire startup
     gAllowFlush = false;
 
-    // Version mismatch, we have to load the extensions datasource and do
-    // version checking. Time hit here doesn't matter since this doesn't happen
-    // all that often.
-    this._upgradeFromV10();
-
     // Make the extensions datasource consistent if it isn't already.
     var isDirty = false;
     if (this._ensureDatasetIntegrity())
@@ -3795,190 +3784,6 @@ ExtensionManager.prototype = {
       var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
                getService(Ci.nsIWindowWatcher);
       ww.openWindow(null, URI_EXTENSION_UPDATE_DIALOG, "", features, null);
-    }
-  },
-
-  /*
-   * Catch all for facilitating a version 1.0 profile upgrade.
-   * 1) removes the abandoned default theme directory from the profile.
-   * 2) prepares themes installed with version 1.0 for installation.
-   * 3) initiates an install to populate the new extensions datasource.
-   * 4) migrates the disabled attribute from the old datasource.
-   * 5) migrates the app compatibility info from the old datasource.
-   */
-  _upgradeFromV10: function EM__upgradeFromV10() {
-    var extensionsDS = getFile(KEY_PROFILEDIR, [FILE_EXTENSIONS]);
-    var dsExists = extensionsDS.exists();
-    // Toolkiit 1.7 profiles (Firefox 1.0, Thunderbird 1.0, etc.) have a default
-    // theme directory in the profile's extensions directory that will be
-    // disabled due to having a maxVersion that is incompatible with the
-    // toolkit 1.8 release of the app.
-    var profileDefaultTheme = getDirNoCreate(KEY_PROFILEDS, [DIR_EXTENSIONS,
-                                             stripPrefix(RDFURI_DEFAULT_THEME, PREFIX_ITEM_URI)]);
-    if (profileDefaultTheme && profileDefaultTheme.exists()) {
-      removeDirRecursive(profileDefaultTheme);
-      // Sunbird 0.3a1 didn't move the default theme into the app's extensions
-      // directory and we can't install it while uninstalling the one in the
-      // profile directory. If we have a toolkit 1.8 extensions datasource and
-      // a profile default theme deleting the toolkit 1.8 extensions datasource
-      // will fix this problem when the datasource is re-created.
-      if (dsExists)
-        extensionsDS.remove(false);
-    }
-
-    // return early if the toolkit 1.7 extensions datasource file doesn't exist.
-    var oldExtensionsFile = getFile(KEY_PROFILEDIR, [DIR_EXTENSIONS, "Extensions.rdf"]);
-    if (!oldExtensionsFile.exists())
-      return;
-
-    // Sunbird 0.2 used a different GUID for the default theme
-    profileDefaultTheme = getDirNoCreate(KEY_PROFILEDS, [DIR_EXTENSIONS,
-                                         "{8af2d0a7-e394-4de2-ae55-2dae532a7a9b}"]);
-    if (profileDefaultTheme && profileDefaultTheme.exists())
-      removeDirRecursive(profileDefaultTheme);
-
-    // Firefox 0.9 profiles may have DOMi 1.0 with just an install.rdf
-    var profileDOMi = getDirNoCreate(KEY_PROFILEDS, [DIR_EXTENSIONS,
-                                     "{641d8d09-7dda-4850-8228-ac0ab65e2ac9}"]);
-    if (profileDOMi && profileDOMi.exists())
-      removeDirRecursive(profileDOMi);
-
-    // return early to avoid migrating data twice if we already have a
-    // toolkit 1.8 extension datasource.
-    if (dsExists)
-      return;
-
-    // Prepare themes for installation
-    // Only enumerate directories in the app-profile and app-global locations.
-    var locations = [KEY_APP_PROFILE, KEY_APP_GLOBAL];
-    for (var i = 0; i < locations.length; ++i) {
-      var location = InstallLocations.get(locations[i]);
-      if (!location.canAccess)
-        continue;
-
-      var entries = location.itemLocations;
-      var entry;
-      while ((entry = entries.nextFile)) {
-        var installRDF = entry.clone();
-        installRDF.append(FILE_INSTALL_MANIFEST);
-
-        var chromeDir = entry.clone();
-        chromeDir.append(DIR_CHROME);
-
-        // It must be a directory without an install.rdf and it must contain
-        // a chrome directory
-        if (!entry.isDirectory() || installRDF.exists() || !chromeDir.exists())
-          continue;
-
-        var chromeEntries = chromeDir.directoryEntries.QueryInterface(Ci.nsIDirectoryEnumerator);
-        if (!chromeEntries.hasMoreElements())
-          continue;
-
-        // We're relying on the fact that there is only one JAR file
-        // in the "chrome" directory. This is a hack, but it works.
-        var jarFile = chromeEntries.nextFile;
-        if (jarFile.isDirectory())
-          continue;
-        var id = location.getIDForLocation(entry);
-
-        try {
-          var zipReader = getZipReaderForFile(jarFile);
-          zipReader.extract(FILE_INSTALL_MANIFEST, installRDF);
-
-          var contentsManifestFile = location.getItemFile(id, FILE_CONTENTS_MANIFEST);
-          zipReader.extract(FILE_CONTENTS_MANIFEST, contentsManifestFile);
-
-          var rootFiles = ["preview.png", "icon.png"];
-          for (var i = 0; i < rootFiles.length; ++i) {
-            try {
-              var target = location.getItemFile(id, rootFiles[i]);
-              zipReader.extract(rootFiles[i], target);
-            }
-            catch (e) {
-            }
-          }
-          zipReader.close();
-        }
-        catch (e) {
-          ERROR("ExtensionManager:_upgradeFromV10 - failed to extract theme files\r\n" +
-                "Exception: " + e);
-        }
-      }
-    }
-
-    // When upgrading from a version 1.0 profile we need to populate the
-    // extensions datasource with all items before checking for incompatible
-    // items since the datasource hasn't been created yet.
-    var itemsToCheck = [];
-    if (this._checkForFileChanges()) {
-      // Create a list of all items that are to be installed so we can migrate
-      // these items's settings to the new datasource.
-      var items = PendingOperations.getOperations(OP_NEEDS_INSTALL);
-      for (i = items.length - 1; i >= 0; --i) {
-        if (items[i].locationKey == KEY_APP_PROFILE ||
-            items[i].locationKey == KEY_APP_GLOBAL)
-          itemsToCheck.push(items[i].id);
-      }
-      this._finishOperations();
-    }
-
-    // If there are no items to migrate settings for return early.
-    if (itemsToCheck.length == 0)
-      return;
-
-    var fileURL = getURLSpecFromFile(oldExtensionsFile);
-    var oldExtensionsDS = gRDF.GetDataSourceBlocking(fileURL);
-    var versionChecker = getVersionChecker();
-    var ds = this.datasource;
-    var currAppVersion = gApp.version;
-    var currAppID = gApp.ID;
-    for (var i = 0; i < itemsToCheck.length; ++i) {
-      var item = ds.getItemForID(itemsToCheck[i]);
-      var oldPrefix = (item.type == Ci.nsIUpdateItem.TYPE_EXTENSION) ? PREFIX_EXTENSION : PREFIX_THEME;
-      var oldRes = gRDF.GetResource(oldPrefix + item.id);
-      // Disable the item if it was disabled in the version 1.0 extensions
-      // datasource.
-      if (oldExtensionsDS.GetTarget(oldRes, EM_R("disabled"), true))
-        ds.setItemProperty(item.id, EM_R("userDisabled"), EM_L("true"));
-
-      // app enable all items. If it is incompatible it will be app disabled
-      // later on.
-      ds.setItemProperty(item.id, EM_R("appDisabled"), null);
-
-      // if the item is already compatible don't attempt to migrate the
-      // item's compatibility info
-      var newRes = getResourceForID(itemsToCheck[i]);
-      if (ds.isCompatible(ds, newRes))
-        continue;
-
-      var updatedMinVersion = null;
-      var updatedMaxVersion = null;
-      var targetApps = oldExtensionsDS.GetTargets(oldRes, EM_R("targetApplication"), true);
-      while (targetApps.hasMoreElements()) {
-        var targetApp = targetApps.getNext();
-        if (targetApp instanceof Ci.nsIRDFResource) {
-          try {
-            var foundAppID = stringData(oldExtensionsDS.GetTarget(targetApp, EM_R("id"), true));
-            // Different target application?  (Note:  v1.0 didn't support toolkit app ID)
-            if (foundAppID != currAppID)
-              continue;
-
-            updatedMinVersion = stringData(oldExtensionsDS.GetTarget(targetApp, EM_R("minVersion"), true));
-            updatedMaxVersion = stringData(oldExtensionsDS.GetTarget(targetApp, EM_R("maxVersion"), true));
-
-            // Only set the target app info if the extension's target app info
-            // in the version 1.0 extensions datasource makes it compatible
-            if (versionChecker.compare(currAppVersion, updatedMinVersion) >= 0 &&
-                versionChecker.compare(currAppVersion, updatedMaxVersion) <= 0)
-              ds.setTargetApplicationInfo(item.id, foundAppID, updatedMinVersion,
-                                          updatedMaxVersion, null);
-
-            break;
-          }
-          catch (e) {
-          }
-        }
-      }
     }
   },
 
@@ -4302,6 +4107,9 @@ ExtensionManager.prototype = {
    *          An updated Install Manifest from the Version Update check.
    *          Can be null when invoked from callers other than the Version
    *          Update check.
+   * @returns The install result code. If this is INSTALLERROR_PHONING_HOME
+   *          then a remote update check has been started to attempt to resolve
+   *          compatibility problems.
    */
   installItemFromFileInternal: function EM_installItemFromFileInternal(aXPIFile,
                                                                        aInstallLocationKey,
@@ -4550,25 +4358,29 @@ ExtensionManager.prototype = {
 
           // Try and install again, but use the updated compatibility DB.
           // This will send out an apropriate onInstallEnded notification for us.
-          em.installItemFromFileInternal(this._xpi, aInstallLocationKey,
-                                         this._installManifest);
+          var status = em.installItemFromFileInternal(this._xpi,
+                                                      aInstallLocationKey,
+                                                      this._installManifest);
 
-          // Add the updated compatibility info to the datasource if done
-          if (StartupCache.entries[aInstallLocationKey][addon.id].op == OP_NONE) {
-            em.datasource.setTargetApplicationInfo(addon.id,
-                                                   addon.targetAppID,
-                                                   addon.minAppVersion,
-                                                   addon.maxAppVersion,
-                                                   null);
-          }
-          else { // needs a restart
-            // Add updatedMinVersion and updatedMaxVersion so it can be used
-            // to update the datasource during the installation or upgrade.
-            em.datasource.setUpdatedTargetAppInfo(addon.id,
-                                                  addon.targetAppID,
-                                                  addon.minAppVersion,
-                                                  addon.maxAppVersion,
-                                                  null);
+          // The install may still have failed at this point due to the blocklist
+          if (status == INSTALLERROR_SUCCESS) {
+            // Add the updated compatibility info to the datasource if done
+            if (StartupCache.entries[aInstallLocationKey][addon.id].op == OP_NONE) {
+              em.datasource.setTargetApplicationInfo(addon.id,
+                                                     addon.targetAppID,
+                                                     addon.minAppVersion,
+                                                     addon.maxAppVersion,
+                                                     null);
+            }
+            else { // needs a restart
+              // Add updatedMinVersion and updatedMaxVersion so it can be used
+              // to update the datasource during the installation or upgrade.
+              em.datasource.setUpdatedTargetAppInfo(addon.id,
+                                                    addon.targetAppID,
+                                                    addon.minAppVersion,
+                                                    addon.maxAppVersion,
+                                                    null);
+            }
           }
         }
         else {
@@ -4626,7 +4438,7 @@ ExtensionManager.prototype = {
             "Installation will not proceed.");
         for (var i = 0; i < this._installListeners.length; ++i)
           this._installListeners[i].onInstallEnded(addon, INSTALLERROR_INVALID_MANIFEST);
-        return;
+        return INSTALLERROR_INVALID_MANIFEST;
       }
     }
     else
@@ -4656,12 +4468,12 @@ ExtensionManager.prototype = {
       if (shouldPhoneHomeIfNecessary && installData.currentApp) {
         var installLocation = getInstallLocation(installData.id, aInstallLocationKey);
         if (!installLocation)
-          return;
+          return INSTALLERROR_INCOMPATIBLE_VERSION;
         var stagedFile = installLocation.stageFile(aXPIFile, installData.id);
         (new IncompatibleObserver(this)).checkForUpdates(addon, installManifest,
                                                          stagedFile);
         // Return early to prevent deletion of the install manifest file.
-        return;
+        return INSTALLERROR_PHONING_HOME;
       }
       else {
         // XXXben Look up XULRunnerSettingsThingy to see if there is a registered
@@ -4676,6 +4488,7 @@ ExtensionManager.prototype = {
     case INSTALLERROR_SOFTBLOCKED:
       if (!showBlocklistMessage(installData, true))
         break;
+      installData.error = INSTALLERROR_SUCCESS;
       // Fall through to continue the install
     case INSTALLERROR_SUCCESS:
       // Installation of multiple extensions / themes contained within a single xpi.
@@ -4694,7 +4507,7 @@ ExtensionManager.prototype = {
         // but that's an edge case I don't care about.
         for (var i = 0; i < this._installListeners.length; ++i)
           this._installListeners[i].onInstallEnded(addon, INSTALLERROR_RESTRICTED);
-        return;
+        return INSTALLERROR_RESTRICTED;
       }
 
       // Stage a copy of the XPI/JAR file for our own evil purposes...
@@ -4791,6 +4604,8 @@ ExtensionManager.prototype = {
     // The install of this item is complete, notify observers
     for (var i = 0; i < this._installListeners.length; ++i)
       this._installListeners[i].onInstallEnded(addon, installData.error);
+
+    return installData.error;
   },
 
   /**
@@ -5778,12 +5593,17 @@ ExtensionManager.prototype = {
       // being updated during an install.
       if (!manager) {
         var id = currItem.id
-        ds.setItemProperties(id, {
+        var props = {
           availableUpdateURL: null,
           availableUpdateHash: null,
           availableUpdateVersion: null,
           availableUpdateInfo: null
-        });
+        };
+        var updateVersion = ds.getItemProperty(id, "availableUpdateVersion");
+        var updateURL = ds.getItemProperty(id, "availableUpdateURL");
+        if (updateVersion && (updateURL == currItem.xpiURL))
+          props.newVersion = EM_L(updateVersion);
+        ds.setItemProperties(id, props);
         ds.updateProperty(id, "availableUpdateURL");
         ds.updateProperty(id, "updateable");
       }
@@ -5935,7 +5755,7 @@ ExtensionManager.prototype = {
    */
   get datasource() {
     this._ensureDS();
-    return this._ds.QueryInterface(Ci.nsIRDFDataSource);
+    return this._ds;
   },
 
   // nsIClassInfo
@@ -5951,7 +5771,7 @@ ExtensionManager.prototype = {
   classDescription: "Extension Manager",
   contractID: "@mozilla.org/extensions/manager;1",
   classID: Components.ID("{8A115FAA-7DCB-4e8f-979B-5F53472F51CF}"),
-  _xpcom_categories: [{ category: "app-startup", service: true }],
+  _xpcom_categories: [{ category: "profile-after-change" }],
   _xpcom_factory: {
     createInstance: function(outer, iid) {
       if (outer != null)
@@ -6312,11 +6132,13 @@ ExtensionItemUpdater.prototype = {
    *          The already installed nsIUpdateItem that the update is for
    * @param   aRemoteItem
    *          The nsIUpdateItem we are trying to update to
+   * @param   aUpdateCheckType
+   *          The type of update check being performed
    *
    * @returns true if the item is compatible and is not blocklisted.
    *          false if the item is not compatible or is blocklisted.
    */
-  _isValidUpdate: function _isValidUpdate(aLocalItem, aRemoteItem) {
+  _isValidUpdate: function _isValidUpdate(aLocalItem, aRemoteItem, aUpdateCheckType) {
     var appExtensionsVersion = (aRemoteItem.targetAppID != TOOLKIT_ID) ?
                                this._appVersion :
                                this._platformVersion;
@@ -6331,14 +6153,17 @@ ExtensionItemUpdater.prototype = {
     if (!max || gVersionChecker.compare(appExtensionsVersion, max) > 0)
       return false;
 
-    if (!gBlocklist)
-      gBlocklist = Cc["@mozilla.org/extensions/blocklist;1"].
-                   getService(Ci.nsIBlocklistService);
-    // Denies updates that are hard blocked, soft blocked items will be warned
-    // about during the install.
-    if (gBlocklist.isAddonBlocklisted(aLocalItem.id, aRemoteItem.version,
-                                      this._appVersion, this._platformVersion))
-      return false;
+    // Ignore the blocklist for compatibility only checks.
+    if (aUpdateCheckType != Ci.nsIExtensionManager.UPDATE_CHECK_COMPATIBILITY) {
+      if (!gBlocklist)
+        gBlocklist = Cc["@mozilla.org/extensions/blocklist;1"].
+                     getService(Ci.nsIBlocklistService);
+      // Denies updates that are hard blocked, soft blocked items will be warned
+      // about during the install.
+      if (gBlocklist.isAddonBlocklisted(aLocalItem.id, aRemoteItem.version,
+                                        this._appVersion, this._platformVersion))
+        return false;
+    }
 
     return true;
   },
@@ -6920,7 +6745,7 @@ RDFItemUpdater.prototype = {
                                  aLocalItem.type,
                                  appID);
 
-      if (this._updater._isValidUpdate(aLocalItem, updatedItem)) {
+      if (this._updater._isValidUpdate(aLocalItem, updatedItem, aUpdateCheckType)) {
         if (aUpdateCheckType == Ci.nsIExtensionManager.UPDATE_CHECK_NEWVERSION) {
           var infourl = this._getPropertyFromResource(aDataSource, targetApp,
                                                       "updateInfoURL");
@@ -7111,6 +6936,17 @@ ExtensionsDataSource.prototype = {
   _em       : null,
   _itemRoot     : null,
   _defaultTheme : null,
+
+  /**
+   * Called during application shutdown to clear any references held.
+   * The ExtensionsDataSource is unusable after calling this.
+   */
+  shutdown: function EMDS_shutdown() {
+    this._inner = null;
+    this._em = null;
+    this._itemRoot = null;
+    this._defaultTheme = null;
+  },
 
   /**
    * Determines if an item's dependencies are satisfied. An item's dependencies
@@ -8875,6 +8711,13 @@ ExtensionsDataSource.prototype = {
   FlushTo: function EMDS_FlushTo(uri) {
   },
 
+  classDescription: "Extension Manager Data Source",
+  contractID: "@mozilla.org/rdf/datasource;1?name=extensions",
+  classID: Components.ID("{69BB8313-2D4F-45EC-97E0-D39DA58ECCE9}"),
+  _xpcom_factory: {
+    createInstance: function() Cc[ExtensionManager.prototype.contractID].
+                               getService(Ci.nsIExtensionManager).datasource
+  },
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIRDFDataSource,
                                          Ci.nsIRDFRemoteDataSource])
 };
@@ -8945,20 +8788,8 @@ UpdateItem.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIUpdateItem])
 };
 
-function DatasourceModule() {}
-DatasourceModule.prototype = {
-  classDescription: "Extension Manager Data Source",
-  contractID: "@mozilla.org/rdf/datasource;1?name=extensions",
-  classID: Components.ID("{69BB8313-2D4F-45EC-97E0-D39DA58ECCE9}"),
-  _xpcom_factory: {
-    createInstance: function() Cc[ExtensionManager.prototype.contractID].
-                               getService(Ci.nsIExtensionManager).datasource
-  }
-};
-
-
 function NSGetModule(compMgr, fileSpec)
-  XPCOMUtils.generateModule([ExtensionManager, DatasourceModule, UpdateItem]);
+  XPCOMUtils.generateModule([ExtensionManager, ExtensionsDataSource, UpdateItem]);
 
 #if 0
 /**

@@ -370,9 +370,7 @@ nsHttpServer.prototype =
    */
   onSocketAccepted: function(socket, trans)
   {
-    dumpn("*** onSocketAccepted(socket=" + socket + ", trans=" + trans + ") " +
-          "on thread " + gThreadManager.currentThread +
-          " (main is " + gThreadManager.mainThread + ")");
+    dumpn("*** onSocketAccepted(socket=" + socket + ", trans=" + trans + ")");
 
     dumpn(">>> new connection on " + trans.host + ":" + trans.port);
 
@@ -523,6 +521,22 @@ nsHttpServer.prototype =
   get identity()
   {
     return this._identity;
+  },
+
+  //
+  // see nsIHttpServer.getState
+  //
+  getState: function(k)
+  {
+    return this._handler._getState(k);
+  },
+
+  //
+  // see nsIHttpServer.setState
+  //
+  setState: function(k, v)
+  {
+    return this._handler._setState(k, v);
   },
 
   // NSISUPPORTS
@@ -926,7 +940,13 @@ Connection.prototype =
     this.server._handler.handleError(code, this, metadata);
   },
 
-  /** Ends this connection, destroying the resources it uses. */
+  /**
+   * Ends this connection, destroying the resources it uses.  This function
+   * should only be called after a response has been completely constructed,
+   * response headers have been sent, and the response body remains to be set,
+   * which all happens before ServerHandler._pendingRequests is incremented,
+   * because it handles the corresponding decrement of that value.
+   */
   end: function()
   {
     this.server._endConnection(this);
@@ -1040,7 +1060,28 @@ RequestReader.prototype =
     if (!data)
       return;
 
-    data.appendBytes(readBytes(input, input.available()));
+    try
+    {
+      data.appendBytes(readBytes(input, input.available()));
+    }
+    catch (e)
+    {
+      if (e.result !== Cr.NS_ERROR_BASE_STREAM_CLOSED)
+      {
+        dumpn("*** WARNING: unexpected error when reading from socket; will " +
+              "be treated as if the input stream had been closed");
+      }
+
+      // We've lost a race -- input has been closed, but we're still expecting
+      // to read more data.  available() will throw in this case, and since
+      // we're dead in the water now, destroy the connection.  NB: we don't use
+      // end() here because that has interesting interactions with
+      // ServerHandler._pendingRequests.
+      dumpn("*** onInputStreamReady called on a closed input, destroying " +
+            "connection");
+      this._connection.destroy();
+      return;
+    }
 
     switch (this._state)
     {
@@ -1102,7 +1143,7 @@ RequestReader.prototype =
 
     // if we don't have a full line, wait until we do
     if (!readSuccess)
-      return true;
+      return false;
 
     // we have the first non-blank line
     try
@@ -1938,6 +1979,11 @@ function ServerHandler(server)
    * when no index file is present.
    */
   this._indexHandler = defaultIndexHandler;
+
+  /**
+   * State storage for the server.
+   */
+  this._state = {};
 }
 ServerHandler.prototype =
 {
@@ -2351,6 +2397,12 @@ ServerHandler.prototype =
         var s = Cu.Sandbox(gGlobalObject);
         s.importFunction(dump, "dump");
 
+        // Define a basic key-value state-preservation API across requests, with
+        // keys initially corresponding to the empty string.
+        var self = this;
+        s.importFunction(function getState(k) { return self._getState(k); });
+        s.importFunction(function setState(k, v) { self._setState(k, v); });
+
         try
         {
           // Alas, the line number in errors dumped to console when calling the
@@ -2422,6 +2474,39 @@ ServerHandler.prototype =
       
       maybeAddHeaders(file, metadata, response);
     }
+  },
+
+  /**
+   * Get the value corresponding to a given key for SJS state preservation
+   * across requests.
+   *
+   * @param k : string
+   *   the key whose corresponding value is to be returned
+   * @returns string
+   *   the corresponding value, which is initially the empty string
+   */
+  _getState: function(k)
+  {
+    NS_ASSERT(typeof k == "string");
+    var state = this._state;
+    if (k in state)
+      return state[k];
+    return state[k] = "";
+  },
+
+  /**
+   * Set the value corresponding to a given key for SJS state preservation
+   * across requests.
+   *
+   * @param k : string
+   *   the key whose corresponding value is to be set
+   * @param v : string
+   *   the value to be set
+   */
+  _setState: function(k, v)
+  {
+    NS_ASSERT(typeof v == "string");
+    this._state[k] = String(v);
   },
 
   /**
@@ -2570,6 +2655,7 @@ ServerHandler.prototype =
     }
     catch (e)
     {
+      dumpn("*** error in handleError: " + e);
       connection.close();
       connection.server.stop();
     }

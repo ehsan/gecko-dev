@@ -351,8 +351,6 @@ def GetVCSFilename(file, srcdir):
     else:
         if os.path.isdir(os.path.join(path, "CVS")):
             fileInfo = CVSFileInfo(file, srcdir)
-            if fileInfo:
-               root = fileInfo.root
         elif os.path.isdir(os.path.join(path, ".svn")) or \
              os.path.isdir(os.path.join(path, "_svn")):
             fileInfo = SVNFileInfo(file);
@@ -363,6 +361,7 @@ def GetVCSFilename(file, srcdir):
 
     if fileInfo:
         file = fileInfo.filename
+        root = fileInfo.root
 
     # we want forward slashes on win32 paths
     return (file.replace("\\", "/"), root)
@@ -376,15 +375,15 @@ def GetPlatformSpecificDumper(**kwargs):
             'sunos5': Dumper_Solaris,
             'darwin': Dumper_Mac}[sys.platform](**kwargs)
 
-def SourceIndex(fileStream, outputPath, cvs_root):
+def SourceIndex(fileStream, outputPath, vcs_root):
     """Takes a list of files, writes info to a data block in a .stream file"""
     # Creates a .pdb.stream file in the mozilla\objdir to be used for source indexing
     # Create the srcsrv data block that indexes the pdb file
     result = True
     pdbStreamFile = open(outputPath, "w")
-    pdbStreamFile.write('''SRCSRV: ini ------------------------------------------------\r\nVERSION=1\r\nSRCSRV: variables ------------------------------------------\r\nCVS_EXTRACT_CMD=%fnchdir%(%targ%)cvs.exe -d %fnvar%(%var2%) checkout -r %var4% -d %var4% -N %var3%\r\nMYSERVER=''')
-    pdbStreamFile.write(cvs_root)
-    pdbStreamFile.write('''\r\nSRCSRVTRG=%targ%\%var4%\%fnbksl%(%var3%)\r\nSRCSRVCMD=%CVS_EXTRACT_CMD%\r\nSRCSRV: source files ---------------------------------------\r\n''')
+    pdbStreamFile.write('''SRCSRV: ini ------------------------------------------------\r\nVERSION=2\r\nINDEXVERSION=2\r\nVERCTRL=http\r\nSRCSRV: variables ------------------------------------------\r\nHGSERVER=''')
+    pdbStreamFile.write(vcs_root)
+    pdbStreamFile.write('''\r\nSRCSRVVERCTRL=http\r\nHTTP_EXTRACT_TARGET=%hgserver%/raw-file/%var3%/%var2%\r\nSRCSRVTRG=%http_extract_target%\r\nSRCSRV: source files ---------------------------------------\r\n''')
     pdbStreamFile.write(fileStream) # can't do string interpolation because the source server also uses this and so there are % in the above
     pdbStreamFile.write("SRCSRV: end ------------------------------------------------\r\n\n")
     pdbStreamFile.close()
@@ -427,6 +426,10 @@ class Dumper:
     def ShouldProcess(self, file):
         return False
 
+    # and can override this
+    def ShouldSkipDir(self, dir):
+        return False
+
     def RunFileCommand(self, file):
         """Utility function, returns the output of file(1)"""
         try:
@@ -441,7 +444,7 @@ class Dumper:
         return file
 
     # This is a no-op except on Win32
-    def SourceServerIndexing(self, debug_file, guid, sourceFileStream, cvs_root):
+    def SourceServerIndexing(self, debug_file, guid, sourceFileStream, vcs_root):
         return ""
 
     # subclasses override this if they want to support this
@@ -450,7 +453,7 @@ class Dumper:
 
     def Process(self, file_or_dir):
         "Process a file or all the (valid) files in a directory."
-        if os.path.isdir(file_or_dir):
+        if os.path.isdir(file_or_dir) and not self.ShouldSkipDir(file_or_dir):
             return self.ProcessDir(file_or_dir)
         elif os.path.isfile(file_or_dir):
             return self.ProcessFile(file_or_dir)
@@ -462,6 +465,9 @@ class Dumper:
         are determined by calling ShouldProcess."""
         result = True
         for root, dirs, files in os.walk(dir):
+            for d in dirs[:]:
+                if self.ShouldSkipDir(d):
+                    dirs.remove(d)
             for f in files:
                 fullpath = os.path.join(root, f)
                 if self.ShouldProcess(fullpath):
@@ -474,9 +480,9 @@ class Dumper:
         in the proper directory structure in  |symbol_path|."""
         result = False
         sourceFileStream = ''
-        # tries to get cvsroot from the .mozconfig first - if it's not set
-        # the tinderbox cvs_path will be assigned further down
-        cvs_root = os.environ.get("SRCSRV_ROOT")
+        # tries to get the vcs root from the .mozconfig first - if it's not set
+        # the tinderbox vcs path will be assigned further down
+        vcs_root = os.environ.get("SRCSRV_ROOT")
         for arch in self.archs:
             try:
                 cmd = os.popen("%s %s %s" % (self.dump_syms, arch, file), "r")
@@ -512,14 +518,14 @@ class Dumper:
                             sourcepath = filename
                             if self.vcsinfo:
                                 (filename, rootname) = GetVCSFilename(filename, self.srcdir)
-                                # sets cvs_root in case the loop through files were to end on an empty rootname
-                                if cvs_root is None:
+                                # sets vcs_root in case the loop through files were to end on an empty rootname
+                                if vcs_root is None:
                                   if rootname:
-                                     cvs_root = rootname
-                            # gather up files with cvs for indexing   
-                            if filename.startswith("cvs"):
+                                     vcs_root = rootname
+                            # gather up files with hg for indexing   
+                            if filename.startswith("hg"):
                                 (ver, checkout, source_file, revision) = filename.split(":", 3)
-                                sourceFileStream += sourcepath + "*MYSERVER*" + source_file + '*' + revision + "\r\n"
+                                sourceFileStream += sourcepath + "*" + source_file + '*' + revision + "\r\n"
                             f.write("FILE %s %s\n" % (index, filename))
                         else:
                             # pass through all other lines unchanged
@@ -531,9 +537,9 @@ class Dumper:
                     print rel_path
                     if self.copy_debug:
                         self.CopyDebug(file, debug_file, guid)
-                    if self.srcsrv:
+                    if self.srcsrv and vcs_root:
                         # Call on SourceServerIndexing
-                        result = self.SourceServerIndexing(debug_file, guid, sourceFileStream, cvs_root)
+                        result = self.SourceServerIndexing(debug_file, guid, sourceFileStream, vcs_root)
                     result = True
             except StopIteration:
                 pass
@@ -590,13 +596,13 @@ class Dumper_Win32(Dumper):
         shutil.copyfile(file, full_path)
         pass
         
-    def SourceServerIndexing(self, debug_file, guid, sourceFileStream, cvs_root):
+    def SourceServerIndexing(self, debug_file, guid, sourceFileStream, vcs_root):
         # Creates a .pdb.stream file in the mozilla\objdir to be used for source indexing
         cwd = os.getcwd()
         streamFilename = debug_file + ".stream"
         stream_output_path = os.path.join(cwd, streamFilename)
         # Call SourceIndex to create the .stream file
-        result = SourceIndex(sourceFileStream, stream_output_path, cvs_root)
+        result = SourceIndex(sourceFileStream, stream_output_path, vcs_root)
         
         if self.copy_debug:
             pdbstr_path = os.environ.get("PDBSTR_PATH")
@@ -665,6 +671,30 @@ class Dumper_Mac(Dumper):
         if file.endswith(".dylib") or os.access(file, os.X_OK):
             return self.RunFileCommand(file).startswith("Mach-O")
         return False
+
+    def ShouldSkipDir(self, dir):
+        """We create .dSYM bundles on the fly, but if someone runs
+        buildsymbols twice, we should skip any bundles we created
+        previously, otherwise we'll recurse into them and try to 
+        dump the inner bits again."""
+        if dir.endswith(".dSYM"):
+            return True
+        return False
+
+    def ProcessFile(self, file):
+        """dump_syms on Mac needs to be run on a dSYM bundle produced
+        by dsymutil(1), so run dsymutil here and pass the bundle name
+        down to the superclass method instead."""
+        dsymbundle = file + ".dSYM"
+        if os.path.exists(dsymbundle):
+            shutil.rmtree(dsymbundle)
+        # dsymutil takes --arch=foo instead of -a foo like everything else
+        os.system("dsymutil %s %s >/dev/null" % (' '.join([a.replace('-a ', '--arch=') for a in self.archs]),
+                                      file))
+        res = Dumper.ProcessFile(self, dsymbundle)
+        if not self.copy_debug:
+            shutil.rmtree(dsymbundle)
+        return res
 
 # Entry point if called as a standalone program
 def main():
