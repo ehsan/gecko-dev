@@ -35,7 +35,6 @@ PARALLEL_DIRS += [
     'prompts',
     'protobuf',
     'reflect',
-    'sqlite',
     'startup',
     'statusfilter',
     'telemetry',

@@ -1154,10 +1154,6 @@
             ourFieldValues[field] = this[field];
             otherFieldValues[field] = aOtherBrowser[field];
           }
-
-          if (window.PopupNotifications)
-            PopupNotifications._swapBrowserNotifications(aOtherBrowser, this);
-
           this.QueryInterface(Components.interfaces.nsIFrameLoaderOwner)
               .swapFrameLoaders(aOtherBrowser);
 

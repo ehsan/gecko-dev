@@ -213,20 +213,15 @@ public:
     mPresContext = nullptr;
   }
 
-  bool IsFrozen() { return mFreezeCount > 0; }
-
   /**
    * Freeze the refresh driver.  It should stop delivering future
-   * refreshes until thawed. Note that the number of calls to Freeze() must
-   * match the number of calls to Thaw() in order for the refresh driver to
-   * be un-frozen.
+   * refreshes until thawed.
    */
   void Freeze();
 
   /**
-   * Thaw the refresh driver.  If the number of calls to Freeze() matches the
-   * number of calls to this function, the refresh driver should start
-   * delivering refreshes again.
+   * Thaw the refresh driver.  If needed, it should start delivering
+   * refreshes again.
    */
   void Thaw();
 
@@ -304,7 +299,7 @@ private:
   nsPresContext *mPresContext; // weak; pres context passed in constructor
                                // and unset in Disconnect
 
-  uint32_t mFreezeCount;
+  bool mFrozen;
   bool mThrottled;
   bool mTestControllingRefreshes;
   bool mViewManagerFlushIsPending;

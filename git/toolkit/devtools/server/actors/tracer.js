@@ -24,11 +24,7 @@ if (!Object.getOwnPropertyDescriptor(Debugger.Frame.prototype, "depth")) {
         if (!this.older) {
           this._depth = 0;
         } else {
-          // Hide depth from self-hosted frames.
-          const increment = this.script && this.script.url == "self-hosted"
-            ? 0
-            : 1;
-          this._depth = increment + this.older.depth;
+          this._depth = 1 + this.older.depth;
         }
       }
 
@@ -319,10 +315,6 @@ TraceActor.prototype = {
    *        The stack frame that was entered.
    */
   onEnterFrame: function(aFrame) {
-    if (aFrame.script && aFrame.script.url == "self-hosted") {
-      return;
-    }
-
     let packet = {
       type: "enteredFrame",
       sequence: this._sequence++

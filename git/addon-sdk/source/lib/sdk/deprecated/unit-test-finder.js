@@ -14,7 +14,6 @@ const suites = require('@test/options').allTestModules;
 const { Loader } = require("sdk/test/loader");
 const cuddlefish = require("sdk/loader/cuddlefish");
 
-let loader = Loader(module);
 const NOT_TESTS = ['setup', 'teardown'];
 
 var TestFinder = exports.TestFinder = function TestFinder(options) {
@@ -52,10 +51,11 @@ TestFinder.prototype = {
     } else
       filter = function() {return true};
 
-    suites.forEach(function(suite) {
+    suites.forEach(
+      function(suite) {
         // Load each test file as a main module in its own loader instance
         // `suite` is defined by cuddlefish/manifest.py:ManifestBuilder.build
-
+        let loader = Loader(module);
         let suiteModule;
 
         try {
