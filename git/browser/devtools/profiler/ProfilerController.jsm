@@ -142,7 +142,7 @@ ProfilerConnection.prototype = {
  */
 function ProfilerController(target) {
   this.profiler = new ProfilerConnection(target.client);
-  this.profiles = new Map();
+  this.pool = {};
 
   // Chrome debugging targets have already obtained a reference to the
   // profiler actor.
@@ -210,14 +210,12 @@ ProfilerController.prototype = {
    *        argument: an error object (may be null).
    */
   start: function PC_start(name, cb) {
-    if (this.profiles.has(name)) {
+    if (this.pool[name]) {
       return;
     }
 
+    let profile = this.pool[name] = makeProfile(name);
     let profiler = this.profiler;
-    let profile = makeProfile(name);
-    this.profiles.set(name, profile);
-
 
     // If profile is already running, no need to do anything.
     if (this.isProfileRecording(profile)) {
@@ -253,15 +251,15 @@ ProfilerController.prototype = {
    */
   stop: function PC_stop(name, cb) {
     let profiler = this.profiler;
-    let profile = this.profiles.get(name);
+    let profile = this.pool[name];
 
     if (!profile || !this.isProfileRecording(profile)) {
       return;
     }
 
     let isRecording = function () {
-      for (let [ name, profile ] of this.profiles) {
-        if (this.isProfileRecording(profile)) {
+      for (let name in this.pool) {
+        if (this.isProfileRecording(this.pool[name])) {
           return true;
         }
       }

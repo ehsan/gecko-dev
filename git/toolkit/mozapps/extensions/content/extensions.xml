@@ -1237,8 +1237,7 @@
             }
           }
 
-          this._preferencesBtn.hidden = (!this.mAddon.optionsURL) ||
-                                        this.mAddon.optionsType == AddonManager.OPTIONS_TYPE_INLINE_INFO;
+          this._preferencesBtn.hidden = !this.mAddon.optionsURL;
 
           if (this.hasPermission("enable")) {
             this._enableBtn.hidden = false;

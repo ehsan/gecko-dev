@@ -35,13 +35,11 @@ add_test(function() {
 
     AddonManager.getAddonByID(testPluginId, function(testPlugin) {
       let pluginEl = get_addon_element(gManagerWindow, testPluginId);
-      is(pluginEl.mAddon.optionsType, AddonManager.OPTIONS_TYPE_INLINE_INFO, "Options should be inline info type");
+      is(pluginEl.mAddon.optionsType, AddonManager.OPTIONS_TYPE_INLINE, "Options should be inline type");
       pluginEl.parentNode.ensureElementIsVisible(pluginEl);
 
       let button = gManagerWindow.document.getAnonymousElementByAttribute(pluginEl, "anonid", "preferences-btn");
-      is_element_hidden(button, "Preferences button should be hidden");
-
-      button = gManagerWindow.document.getAnonymousElementByAttribute(pluginEl, "anonid", "details-btn");
+      is_element_visible(button, "Preferences button should be visible");
       EventUtils.synthesizeMouseAtCenter(button, { clickCount: 1 }, gManagerWindow);
 
       wait_for_view_load(gManagerWindow, function() {
