@@ -38,16 +38,12 @@ LOOP_SERVER_ENV.update({"NODE_ENV": "dev",
 
 class LoopTestServers:
     def __init__(self):
-        loop_server_location = os.environ.get('LOOP_SERVER')
-        if loop_server_location.startswith("http"):
-            FIREFOX_PREFERENCES["loop.server"] = loop_server_location
-            return
-
-        self.loop_server = self.start_loop_server(loop_server_location)
+        self.loop_server = self.start_loop_server()
         self.content_server = self.start_content_server()
 
     @staticmethod
-    def start_loop_server(loop_server_location):
+    def start_loop_server():
+        loop_server_location = os.environ.get('LOOP_SERVER')
         if loop_server_location is None:
             raise Exception('LOOP_SERVER variable not set')
 
@@ -72,8 +68,6 @@ class LoopTestServers:
         return p
 
     def shutdown(self):
-        if hasattr(self, "content_server"):
-            self.content_server.kill()
-        if hasattr(self, "loop_server"):
-            self.loop_server.kill()
+        self.content_server.kill()
+        self.loop_server.kill()
 

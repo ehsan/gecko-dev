@@ -132,10 +132,7 @@ class HomePagerTabStrip extends PagerTabStrip {
     private class PreDrawListener implements ViewTreeObserver.OnPreDrawListener {
         @Override
         public boolean onPreDraw() {
-            if (!TransitionsTracker.areTransitionsRunning()) {
-                // Don't show the title bounce animation if other animations are running.
-                animateTitles();
-            }
+            animateTitles();
             getViewTreeObserver().removeOnPreDrawListener(this);
             return true;
         }
