@@ -772,18 +772,9 @@ var WifiManager = (function() {
       if (manager.state !== "DISABLING" && manager.state !== "UNINITIALIZED") {
         notify("supplicantlost", { success: true });
       }
-
-      if (manager.stopSupplicantCallback) {
-        cancelWaitForTerminateEventTimer();
-        // It's possible that the terminating event triggered by timer comes
-        // earlier than the event from wpa_supplicant. Since
-        // stopSupplicantCallback contains async. callbacks, swap it to local
-        // to prevent calling the callback twice.
-        let stopSupplicantCallback = manager.stopSupplicantCallback.bind(manager);
-        manager.stopSupplicantCallback = null;
-        stopSupplicantCallback();
-        stopSupplicantCallback = null;
-      }
+      wifiCommand.closeSupplicantConnection(function() {
+        manager.connectToSupplicant = false;
+      });
       return false;
     }
     if (eventData.indexOf("CTRL-EVENT-DISCONNECTED") === 0) {
@@ -903,24 +894,6 @@ var WifiManager = (function() {
   manager.authenticationFailuresCount = 0;
   manager.loopDetectionCount = 0;
   manager.dhcpFailuresCount = 0;
-  manager.stopSupplicantCallback = null;
-
-  var waitForTerminateEventTimer = null;
-  function cancelWaitForTerminateEventTimer() {
-    if (waitForTerminateEventTimer) {
-      waitForTerminateEventTimer.cancel();
-      waitForTerminateEventTimer = null;
-    }
-  };
-  function createWaitForTerminateEventTimer(onTimeout) {
-    if (waitForTerminateEventTimer) {
-      return;
-    }
-    waitForTerminateEventTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-    waitForTerminateEventTimer.initWithCallback(onTimeout,
-                                                4000,
-                                                Ci.nsITimer.TYPE_ONE_SHOT);
-  };
 
   var waitForDriverReadyTimer = null;
   function cancelWaitForDriverReadyTimer() {
@@ -1023,24 +996,14 @@ var WifiManager = (function() {
       // supplicant gracefully, then we need to continue telling it to die
       // until it does.
       let doDisableWifi = function() {
-        manager.stopSupplicantCallback = (function () {
-          wifiCommand.stopSupplicant(function (status) {
-            wifiCommand.closeSupplicantConnection(function() {
+        wifiCommand.terminateSupplicant(function (ok) {
+          manager.connectionDropped(function () {
+            wifiCommand.stopSupplicant(function (status) {
               manager.state = "UNINITIALIZED";
               netUtil.disableInterface(manager.ifname, function (ok) {
                 unloadDriver(WIFI_FIRMWARE_STATION, callback);
               });
             });
-          });
-        }).bind(this);
-
-        let terminateEventCallback = (function() {
-          handleEvent("CTRL-EVENT-TERMINATING");
-        }).bind(this);
-        createWaitForTerminateEventTimer(terminateEventCallback);
-
-        wifiCommand.terminateSupplicant(function (ok) {
-          manager.connectionDropped(function () {
           });
         });
       }

@@ -855,6 +855,7 @@ TraceLogging::lazyInit()
         enabledTextIds[TraceLogger::EliminateRedundantChecks] = true;
         enabledTextIds[TraceLogger::GenerateLIR] = true;
         enabledTextIds[TraceLogger::RegisterAllocation] = true;
+        enabledTextIds[TraceLogger::UnsplitEdges] = true;
         enabledTextIds[TraceLogger::GenerateCode] = true;
     }
 

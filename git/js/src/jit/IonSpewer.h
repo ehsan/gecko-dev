@@ -24,9 +24,9 @@ namespace jit {
     _(Abort)                                \
     /* Information about compiled scripts */\
     _(Scripts)                              \
-    /* Info about failing to log script */  \
-    _(Logs)                                 \
     /* Information during MIR building */   \
+    _(Logs)                                 \
+    /* Info about failing to log script */  \
     _(MIR)                                  \
     /* Information during alias analysis */ \
     _(Alias)                                \

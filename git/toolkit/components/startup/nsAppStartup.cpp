@@ -363,7 +363,6 @@ nsAppStartup::Quit(uint32_t aMode)
           windowEnumerator->GetNext(getter_AddRefs(window));
           nsCOMPtr<nsPIDOMWindow> domWindow(do_QueryInterface(window));
           if (domWindow) {
-            MOZ_ASSERT(domWindow->IsOuterWindow());
             if (!domWindow->CanClose())
               return NS_OK;
           }
@@ -505,10 +504,8 @@ nsAppStartup::CloseAllWindows()
 
     nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(isupports);
     NS_ASSERTION(window, "not an nsPIDOMWindow");
-    if (window) {
-      MOZ_ASSERT(window->IsOuterWindow());
+    if (window)
       window->ForceClose();
-    }
   }
 }
 

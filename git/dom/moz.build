@@ -42,6 +42,7 @@ PARALLEL_DIRS += [
     'archivereader',
     'bindings',
     'battery',
+    'bluetooth',
     'browser-element',
     'contacts',
     'phonenumberutils',
@@ -113,11 +114,6 @@ if CONFIG['MOZ_NFC']:
 
 if CONFIG['MOZ_B2G']:
     PARALLEL_DIRS += ['downloads']
-
-if CONFIG['MOZ_B2G_BT_API_V2']:
-    PARALLEL_DIRS += ['bluetooth2']
-else:
-    PARALLEL_DIRS += ['bluetooth']
 
 TEST_DIRS += [
     'tests',

@@ -531,9 +531,6 @@
 @BINPATH@/components/Push.manifest
 @BINPATH@/components/PushServiceLauncher.js
 
-@BINPATH@/components/SlowScriptDebug.manifest
-@BINPATH@/components/SlowScriptDebug.js
-
 #ifndef RELEASE_BUILD
 @BINPATH@/components/InterAppComm.manifest
 @BINPATH@/components/InterAppCommService.js

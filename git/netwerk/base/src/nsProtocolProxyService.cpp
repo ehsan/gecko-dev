@@ -383,7 +383,6 @@ nsProtocolProxyService::nsProtocolProxyService()
     , mSOCKSProxyPort(-1)
     , mSOCKSProxyVersion(4)
     , mSOCKSProxyRemoteDNS(false)
-    , mProxyOverTLS(true)
     , mPACMan(nullptr)
     , mSessionStart(PR_Now())
     , mFailedProxyTimeout(30 * 60) // 30 minute default
@@ -528,11 +527,6 @@ nsProtocolProxyService::PrefsChanged(nsIPrefBranch *prefBranch,
     if (!pref || !strcmp(pref, PROXY_PREF("socks_remote_dns")))
         proxy_GetBoolPref(prefBranch, PROXY_PREF("socks_remote_dns"),
                           mSOCKSProxyRemoteDNS);
-
-    if (!pref || !strcmp(pref, PROXY_PREF("proxy_over_tls"))) {
-        proxy_GetBoolPref(prefBranch, PROXY_PREF("proxy_over_tls"),
-                          mProxyOverTLS);
-    }
 
     if (!pref || !strcmp(pref, PROXY_PREF("failover_timeout")))
         proxy_GetIntPref(prefBranch, PROXY_PREF("failover_timeout"),
@@ -941,11 +935,6 @@ nsProtocolProxyService::ProcessPACString(const nsCString &pacString,
     nsProxyInfo *pi = nullptr, *first = nullptr, *last = nullptr;
     while (*proxies) {
         proxies = ExtractProxyInfo(proxies, aResolveFlags, &pi);
-        if (pi && !mProxyOverTLS) {
-            delete pi;
-            pi = nullptr;
-        }
-
         if (pi) {
             if (last) {
                 NS_ASSERTION(last->mNext == nullptr, "leaking nsProxyInfo");

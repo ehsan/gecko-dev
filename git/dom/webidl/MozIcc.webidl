@@ -353,7 +353,6 @@ interface MozIcc : EventTarget
    *        One of type as below,
    *        - 'adn': Abbreviated Dialling Number.
    *        - 'fdn': Fixed Dialling Number.
-   *        - 'sdn': Service Dialling Number.
    *
    * @return a DOMRequest.
    */

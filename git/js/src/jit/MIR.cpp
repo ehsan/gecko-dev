@@ -30,13 +30,6 @@ using mozilla::NumbersAreIdentical;
 using mozilla::IsFloat32Representable;
 using mozilla::Maybe;
 
-#ifdef DEBUG
-size_t MUse::index() const
-{
-    return consumer()->indexOf(this);
-}
-#endif
-
 template<size_t Op> static void
 ConvertDefinitionToDouble(TempAllocator &alloc, MDefinition *def, MInstruction *consumer)
 {
@@ -387,6 +380,67 @@ MDefinition::hasLiveDefUses() const
     return false;
 }
 
+MUseIterator
+MDefinition::removeUse(MUseIterator use)
+{
+    return uses_.removeAt(use);
+}
+
+MUseIterator
+MNode::replaceOperand(MUseIterator use, MDefinition *def)
+{
+    JS_ASSERT(def != nullptr);
+    uint32_t index = use->index();
+    MDefinition *prev = use->producer();
+
+    JS_ASSERT(use->index() < numOperands());
+    JS_ASSERT(use->producer() == getOperand(index));
+    JS_ASSERT(use->consumer() == this);
+
+    if (prev == def)
+        return use;
+
+    MUseIterator result(prev->removeUse(use));
+    setOperand(index, def);
+    return result;
+}
+
+void
+MNode::replaceOperand(size_t index, MDefinition *def)
+{
+    JS_ASSERT(def != nullptr);
+    MUse *use = getUseFor(index);
+    MDefinition *prev = use->producer();
+
+    JS_ASSERT(use->index() == index);
+    JS_ASSERT(use->index() < numOperands());
+    JS_ASSERT(use->producer() == getOperand(index));
+    JS_ASSERT(use->consumer() == this);
+
+    if (prev == def)
+        return;
+
+    prev->removeUse(use);
+    setOperand(index, def);
+}
+
+void
+MNode::discardOperand(size_t index)
+{
+    MUse *use = getUseFor(index);
+
+    JS_ASSERT(use->index() == index);
+    JS_ASSERT(use->producer() == getOperand(index));
+    JS_ASSERT(use->consumer() == this);
+
+    use->producer()->removeUse(use);
+
+#ifdef DEBUG
+    // Causes any producer/consumer lookups to trip asserts.
+    use->set(nullptr, nullptr, index);
+#endif
+}
+
 void
 MDefinition::replaceAllUsesWith(MDefinition *dom)
 {
@@ -398,9 +452,8 @@ MDefinition::replaceAllUsesWith(MDefinition *dom)
         getOperand(i)->setUseRemovedUnchecked();
 
     for (MUseIterator i(usesBegin()); i != usesEnd(); ) {
-        MUse *use = *i++;
-        JS_ASSERT(use->producer() == this);
-        use->replaceProducer(dom);
+        JS_ASSERT(i->producer() == this);
+        i = i->consumer()->replaceOperand(i, dom);
     }
 }
 
@@ -571,7 +624,7 @@ MControlInstruction::printOpcode(FILE *fp) const
 {
     MDefinition::printOpcode(fp);
     for (size_t j = 0; j < numSuccessors(); j++)
-        fprintf(fp, " block%u", getSuccessor(j)->id());
+        fprintf(fp, " block%d", getSuccessor(j)->id());
 }
 
 void
@@ -915,29 +968,30 @@ MTypeBarrier::printOpcode(FILE *fp) const
 void
 MPhi::removeOperand(size_t index)
 {
-    JS_ASSERT(index < numOperands());
-    JS_ASSERT(numOperands() > 1);
-    JS_ASSERT(getUseFor(index)->index() == index);
-    JS_ASSERT(getUseFor(index)->consumer() == this);
+    MUse *use = getUseFor(index);
+
+    JS_ASSERT(index < inputs_.length());
+    JS_ASSERT(inputs_.length() > 1);
+
+    JS_ASSERT(use->index() == index);
+    JS_ASSERT(use->producer() == getOperand(index));
+    JS_ASSERT(use->consumer() == this);
+
+    // Remove use from producer's use chain.
+    use->producer()->removeUse(use);
 
     // If we have phi(..., a, b, c, d, ..., z) and we plan
     // on removing a, then first shift downward so that we have
     // phi(..., b, c, d, ..., z, z):
     size_t length = inputs_.length();
-    for (size_t i = index; i < length - 1; i++)
-        inputs_[i].replaceProducer(inputs_[i + 1].producer());
+    for (size_t i = index; i < length - 1; i++) {
+        MUse *next = MPhi::getUseFor(i + 1);
+        next->producer()->removeUse(next);
+        MPhi::setOperand(i, next->producer());
+    }
 
     // truncate the inputs_ list:
-    inputs_[length - 1].discardProducer();
     inputs_.shrinkBy(1);
-}
-
-void
-MPhi::removeAllOperands()
-{
-    for (size_t i = 0; i < inputs_.length(); i++)
-        inputs_[i].discardProducer();
-    inputs_.clear();
 }
 
 MDefinition *
@@ -1146,8 +1200,9 @@ MPhi::addInput(MDefinition *ins)
     // else the slower addInputSlow need to get called.
     JS_ASSERT(inputs_.length() < capacity_);
 
+    uint32_t index = inputs_.length();
     inputs_.append(MUse());
-    inputs_.back().init(ins, this);
+    MPhi::setOperand(index, ins);
 }
 
 bool
@@ -1174,7 +1229,7 @@ MPhi::addInputSlow(MDefinition *ins, bool *ptypeChange)
     if (!inputs_.append(MUse()))
         return false;
 
-    inputs_.back().init(ins, this);
+    MPhi::setOperand(index, ins);
 
     if (ptypeChange) {
         MIRType resultType = this->type();
@@ -1206,8 +1261,7 @@ MCall::addArg(size_t argnum, MDefinition *arg)
 {
     // The operand vector is initialized in reverse order by the IonBuilder.
     // It cannot be checked for consistency until all arguments are added.
-    // FixedList doesn't initialize its elements, so do an unchecked init.
-    initOperand(argnum + NumNonArgumentOperands, arg);
+    setOperand(argnum + NumNonArgumentOperands, arg);
 }
 
 void
@@ -2270,6 +2324,7 @@ MResumePoint::New(TempAllocator &alloc, MBasicBlock *block, jsbytecode *pc, MRes
 MResumePoint::MResumePoint(MBasicBlock *block, jsbytecode *pc, MResumePoint *caller,
                            Mode mode)
   : MNode(block),
+    stackDepth_(block->stackDepth()),
     pc_(pc),
     caller_(caller),
     instruction_(nullptr),
@@ -2278,17 +2333,13 @@ MResumePoint::MResumePoint(MBasicBlock *block, jsbytecode *pc, MResumePoint *cal
     block->addResumePoint(this);
 }
 
-bool MResumePoint::init(TempAllocator &alloc)
-{
-    return operands_.init(alloc, block()->stackDepth());
-}
-
 void
 MResumePoint::inherit(MBasicBlock *block)
 {
-    // FixedList doesn't initialize its elements, so do unchecked inits.
-    for (size_t i = 0; i < stackDepth(); i++)
-        initOperand(i, block->getSlot(i));
+    for (size_t i = 0; i < stackDepth(); i++) {
+        MDefinition *def = block->getSlot(i);
+        setOperand(i, def);
+    }
 }
 
 void
@@ -2325,12 +2376,6 @@ void
 MResumePoint::dump() const
 {
     dump(stderr);
-}
-
-bool
-MResumePoint::isObservableOperand(MUse *u) const
-{
-    return isObservableOperand(indexOf(u));
 }
 
 bool
@@ -3049,11 +3094,10 @@ MAsmJSCall::New(TempAllocator &alloc, const CallSiteDesc &desc, Callee callee,
 
     if (!call->operands_.init(alloc, call->argRegs_.length() + (callee.which() == Callee::Dynamic ? 1 : 0)))
         return nullptr;
-    // FixedList doesn't initialize its elements, so do an unchecked init.
     for (size_t i = 0; i < call->argRegs_.length(); i++)
-        call->initOperand(i, args[i].def);
+        call->setOperand(i, args[i].def);
     if (callee.which() == Callee::Dynamic)
-        call->initOperand(call->argRegs_.length(), callee.dynamic());
+        call->setOperand(call->argRegs_.length(), callee.dynamic());
 
     return call;
 }

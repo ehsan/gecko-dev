@@ -174,10 +174,6 @@ class RTCStatsQuery {
 
     mozilla::dom::RTCStatsReportInternal report;
     std::string error;
-    // A timestamp to help with telemetry.
-    mozilla::TimeStamp iceStartTime;
-    // Just for convenience, maybe integrate into the report later
-    bool failed;
 
   private:
     friend class PeerConnectionImpl;

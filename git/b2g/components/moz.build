@@ -10,6 +10,7 @@ EXTRA_COMPONENTS += [
     'ActivitiesGlue.js',
     'AlertsService.js',
     'B2GAboutRedirector.js',
+    'ContentHandler.js',
     'ContentPermissionPrompt.js',
     'FilePicker.js',
     'HelperAppDialog.js',
