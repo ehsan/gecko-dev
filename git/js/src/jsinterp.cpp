@@ -2669,8 +2669,10 @@ js_Interpret(JSContext *cx)
      */
 #define CHECK_BRANCH()                                                        \
     JS_BEGIN_MACRO                                                            \
-        if (!JS_CHECK_OPERATION_LIMIT(cx, JSOW_SCRIPT_JUMP))                  \
-            goto error;                                                       \
+        if ((cx->operationCount -= JSOW_SCRIPT_JUMP) <= 0) {                  \
+            if (!js_ResetOperationCount(cx))                                  \
+                goto error;                                                   \
+        }                                                                     \
     JS_END_MACRO
 
 #define BRANCH(n)                                                             \
