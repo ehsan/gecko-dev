@@ -28,14 +28,14 @@
     _(NewDeclEnvObject)             \
     _(NewCallObject)                \
     _(NewStringObject)              \
-    _(NewPar)                       \
-    _(NewDenseArrayPar)             \
-    _(NewCallObjectPar)             \
-    _(AbortPar)                     \
+    _(ParNew)                       \
+    _(ParNewDenseArray)             \
+    _(ParNewCallObject)             \
+    _(ParBailout)                   \
     _(InitElem)                     \
     _(InitProp)                     \
     _(CheckOverRecursed)            \
-    _(CheckOverRecursedPar)         \
+    _(ParCheckOverRecursed)         \
     _(DefVar)                       \
     _(DefFun)                       \
     _(CallKnown)                    \
@@ -81,7 +81,6 @@
     _(CompareV)                     \
     _(CompareVAndBranch)            \
     _(CompareVM)                    \
-    _(BitAndAndBranch)              \
     _(IsNullOrLikeUndefined)        \
     _(IsNullOrLikeUndefinedAndBranch)\
     _(EmulatesUndefined)            \
@@ -109,7 +108,7 @@
     _(ModD)                         \
     _(BinaryV)                      \
     _(Concat)                       \
-    _(ConcatPar)                    \
+    _(ParConcat)                    \
     _(CharCodeAt)                   \
     _(FromCharCode)                 \
     _(Int32ToDouble)                \
@@ -127,7 +126,7 @@
     _(RegExpTest)                   \
     _(Lambda)                       \
     _(LambdaForSingleton)           \
-    _(LambdaPar)                    \
+    _(ParLambda)                    \
     _(ImplicitThis)                 \
     _(Slots)                        \
     _(Elements)                     \
@@ -140,7 +139,8 @@
     _(GuardShape)                   \
     _(GuardObjectType)              \
     _(GuardClass)                   \
-    _(GuardThreadLocalObject)       \
+    _(ParWriteGuard)                \
+    _(ParDump)                      \
     _(TypeBarrier)                  \
     _(MonitorTypes)                 \
     _(PostWriteBarrierO)            \
@@ -177,7 +177,7 @@
     _(StoreFixedSlotV)              \
     _(StoreFixedSlotT)              \
     _(FunctionEnvironment)          \
-    _(ForkJoinSlice)                \
+    _(ParSlice)                     \
     _(GetPropertyCacheV)            \
     _(GetPropertyCacheT)            \
     _(GetPropertyPolymorphicV)      \
@@ -213,7 +213,7 @@
     _(GetArgument)                  \
     _(RunOncePrologue)              \
     _(Rest)                         \
-    _(RestPar)                      \
+    _(ParRest)                      \
     _(TypeOfV)                      \
     _(ToIdV)                        \
     _(Floor)                        \
@@ -241,7 +241,7 @@
     _(AsmJSPassStackArg)            \
     _(AsmJSCall)                    \
     _(AsmJSCheckOverRecursed)       \
-    _(CheckInterruptPar)
+    _(ParCheckInterrupt)
 
 #if defined(JS_CPU_X86)
 # include "ion/x86/LOpcodes-x86.h"

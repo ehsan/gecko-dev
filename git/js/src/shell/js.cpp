@@ -1119,14 +1119,20 @@ FileAsString(JSContext *cx, const char *pathname)
                     JS_ReportError(cx, "can't read %s: %s", pathname,
                                    (ptrdiff_t(cc) < 0) ? strerror(errno) : "short read");
                 } else {
-                    jschar *ucbuf =
-                        JS::UTF8CharsToNewTwoByteCharsZ(cx, JS::UTF8Chars(buf, len), &len).get();
-                    if (!ucbuf) {
+                    jschar *ucbuf;
+                    size_t uclen;
+
+                    len = (size_t)cc;
+
+                    if (!InflateUTF8StringToBuffer(cx, buf, len, NULL, &uclen)) {
                         JS_ReportError(cx, "Invalid UTF-8 in file '%s'", pathname);
                         gExitCode = EXITCODE_RUNTIME_ERROR;
                         return NULL;
                     }
-                    str = JS_NewUCStringCopyN(cx, ucbuf, len);
+
+                    ucbuf = (jschar*)malloc(uclen * sizeof(jschar));
+                    InflateUTF8StringToBuffer(cx, buf, len, ucbuf, &uclen);
+                    str = JS_NewUCStringCopyN(cx, ucbuf, uclen);
                     free(ucbuf);
                 }
                 JS_free(cx, buf);

@@ -4,18 +4,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ion/shared/CodeGenerator-shared-inl.h"
-
 #include "mozilla/DebugOnly.h"
 
-#include "builtin/ParallelArray.h"
-#include "ion/IonMacroAssembler.h"
-#include "ion/IonSpewer.h"
-#include "ion/MIR.h"
+#include "ion/shared/CodeGenerator-shared.h"
 #include "ion/MIRGenerator.h"
-#include "ion/ParallelFunctions.h"
-
 #include "ion/IonFrames-inl.h"
+#include "ion/MIR.h"
+#include "ion/shared/CodeGenerator-shared-inl.h"
+#include "ion/IonSpewer.h"
+#include "ion/IonMacroAssembler.h"
+#include "ion/ParallelFunctions.h"
+#include "builtin/ParallelArray.h"
 
 using namespace js;
 using namespace js::ion;
@@ -561,18 +560,20 @@ CodeGeneratorShared::markArgumentSlots(LSafepoint *safepoint)
     return true;
 }
 
-OutOfLineAbortPar *
-CodeGeneratorShared::oolAbortPar(ParallelBailoutCause cause, MBasicBlock *basicBlock,
-                                 jsbytecode *bytecode)
+OutOfLineParallelAbort *
+CodeGeneratorShared::oolParallelAbort(ParallelBailoutCause cause,
+                                      MBasicBlock *basicBlock,
+                                      jsbytecode *bytecode)
 {
-    OutOfLineAbortPar *ool = new OutOfLineAbortPar(cause, basicBlock, bytecode);
+    OutOfLineParallelAbort *ool = new OutOfLineParallelAbort(cause, basicBlock, bytecode);
     if (!ool || !addOutOfLineCode(ool))
         return NULL;
     return ool;
 }
 
-OutOfLineAbortPar *
-CodeGeneratorShared::oolAbortPar(ParallelBailoutCause cause, LInstruction *lir)
+OutOfLineParallelAbort *
+CodeGeneratorShared::oolParallelAbort(ParallelBailoutCause cause,
+                                      LInstruction *lir)
 {
     MDefinition *mir = lir->mirRaw();
     MBasicBlock *block = mir->block();
@@ -583,35 +584,35 @@ CodeGeneratorShared::oolAbortPar(ParallelBailoutCause cause, LInstruction *lir)
         else
             pc = block->pc();
     }
-    return oolAbortPar(cause, block, pc);
+    return oolParallelAbort(cause, block, pc);
 }
 
-OutOfLinePropagateAbortPar *
-CodeGeneratorShared::oolPropagateAbortPar(LInstruction *lir)
+OutOfLinePropagateParallelAbort *
+CodeGeneratorShared::oolPropagateParallelAbort(LInstruction *lir)
 {
-    OutOfLinePropagateAbortPar *ool = new OutOfLinePropagateAbortPar(lir);
+    OutOfLinePropagateParallelAbort *ool = new OutOfLinePropagateParallelAbort(lir);
     if (!ool || !addOutOfLineCode(ool))
         return NULL;
     return ool;
 }
 
 bool
-OutOfLineAbortPar::generate(CodeGeneratorShared *codegen)
+OutOfLineParallelAbort::generate(CodeGeneratorShared *codegen)
 {
-    codegen->callTraceLIR(0xDEADBEEF, NULL, "AbortPar");
-    return codegen->visitOutOfLineAbortPar(this);
+    codegen->callTraceLIR(0xDEADBEEF, NULL, "ParallelBailout");
+    return codegen->visitOutOfLineParallelAbort(this);
 }
 
 bool
-OutOfLinePropagateAbortPar::generate(CodeGeneratorShared *codegen)
+OutOfLinePropagateParallelAbort::generate(CodeGeneratorShared *codegen)
 {
-    codegen->callTraceLIR(0xDEADBEEF, NULL, "AbortPar");
-    return codegen->visitOutOfLinePropagateAbortPar(this);
+    codegen->callTraceLIR(0xDEADBEEF, NULL, "ParallelBailout");
+    return codegen->visitOutOfLinePropagateParallelAbort(this);
 }
 
 bool
 CodeGeneratorShared::callTraceLIR(uint32_t blockIndex, LInstruction *lir,
-                                  const char *bailoutName)
+                                    const char *bailoutName)
 {
     JS_ASSERT_IF(!lir, bailoutName);
 

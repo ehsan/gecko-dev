@@ -9,9 +9,10 @@
 
 #include "mozilla/Array.h"
 
+#include "ion/LiveRangeAllocator.h"
+
 #include "ds/PriorityQueue.h"
 #include "ds/SplayTree.h"
-#include "ion/LiveRangeAllocator.h"
 
 // Backtracking priority queue based register allocator based on that described
 // in the following blog post:

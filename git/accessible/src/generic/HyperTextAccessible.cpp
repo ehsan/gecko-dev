@@ -932,19 +932,13 @@ HyperTextAccessible::GetTextBeforeOffset(int32_t aOffset,
       *aEndOffset = FindLineBoundary(offset, eThisLineBegin);
       return GetText(*aStartOffset, *aEndOffset, aText);
 
-    case BOUNDARY_LINE_END: {
+    case BOUNDARY_LINE_END:
       if (aOffset == nsIAccessibleText::TEXT_OFFSET_CARET)
         offset = AdjustCaretOffset(offset);
 
       *aEndOffset = FindLineBoundary(offset, ePrevLineEnd);
-      int32_t tmpOffset = *aEndOffset;
-      // Adjust offset if line is wrapped.
-      if (*aEndOffset != 0 && !IsLineEndCharAt(*aEndOffset))
-        tmpOffset--;
-
-      *aStartOffset = FindLineBoundary(tmpOffset, ePrevLineEnd);
+      *aStartOffset = FindLineBoundary(*aEndOffset, ePrevLineEnd);
       return GetText(*aStartOffset, *aEndOffset, aText);
-    }
 
     default:
       return NS_ERROR_INVALID_ARG;
@@ -2157,8 +2151,12 @@ HyperTextAccessible::GetCharAt(int32_t aOffset, EGetTextType aShift,
   aChar.Truncate();
 
   int32_t offset = ConvertMagicOffset(aOffset) + static_cast<int32_t>(aShift);
-  if (!CharAt(offset, aChar))
+  int32_t childIdx = GetChildIndexAtOffset(offset);
+  if (childIdx == -1)
     return false;
+
+  Accessible* child = GetChildAt(childIdx);
+  child->AppendTextTo(aChar, offset - GetChildOffset(childIdx), 1);
 
   if (aStartOffset)
     *aStartOffset = offset;

@@ -10,11 +10,6 @@
 #include "mozilla/Array.h"
 
 #include "jsutil.h"
-
-// ARM defines the RegisterID within Architecture-arm.h
-#if !defined(JS_CPU_ARM)
-#include "assembler/assembler/MacroAssembler.h"
-#endif
 #include "ion/IonTypes.h"
 #if defined(JS_CPU_X86)
 # include "ion/x86/Architecture-x86.h"
@@ -22,6 +17,11 @@
 # include "ion/x64/Architecture-x64.h"
 #elif defined(JS_CPU_ARM)
 # include "ion/arm/Architecture-arm.h"
+#endif
+
+// ARM defines the RegisterID within Architecture-arm.h
+#if !defined(JS_CPU_ARM)
+#include "assembler/assembler/MacroAssembler.h"
 #endif
 
 namespace js {

@@ -37,8 +37,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "Task",
 XPCOMUtils.defineLazyModuleGetter(this, "CrossSlide",
                                   "resource:///modules/CrossSlide.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "OS",
+XPCOMUtils.defineLazyGetter(this, "OS",
                                   "resource://gre/modules/osfile.jsm");
+
 XPCOMUtils.defineLazyModuleGetter(this, "View",
                                   "resource:///modules/View.jsm");
 
