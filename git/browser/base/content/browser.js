@@ -1287,6 +1287,10 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
     Components.utils.reportError("Failed to init content pref service:\n" + ex);
   }
 
+  let NP = {};
+  Cu.import("resource://gre/modules/NetworkPrioritizer.jsm", NP);
+  NP.trackBrowserWindow(window);
+
   // initialize the session-restore service (in case it's not already running)
   if (document.documentElement.getAttribute("windowtype") == "navigator:browser") {
     try {
@@ -3770,10 +3774,13 @@ var FullScreen =
       }
     }
 
-    if (aShow)
+    if (aShow) {
       gNavToolbox.removeAttribute("inFullscreen");
-    else
+      document.documentElement.removeAttribute("inFullscreen");
+    } else {
       gNavToolbox.setAttribute("inFullscreen", true);
+      document.documentElement.setAttribute("inFullscreen", true);
+    }
 
     var controls = document.getElementsByAttribute("fullscreencontrol", "true");
     for (var i = 0; i < controls.length; ++i)
@@ -5461,9 +5468,9 @@ var OfflineApps = {
   {
     var cacheService = Components.classes["@mozilla.org/network/application-cache-service;1"].
                        getService(Components.interfaces.nsIApplicationCacheService);
-    if (!groups) {
-      groups = cacheService.getGroups({});
-    }
+    if (!groups)
+      groups = cacheService.getGroups();
+
     var ios = Components.classes["@mozilla.org/network/io-service;1"].
               getService(Components.interfaces.nsIIOService);
 

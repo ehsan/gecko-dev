@@ -465,20 +465,19 @@ IsFrameSpecial(nsIFrame* aFrame)
 
 static nsIFrame* GetSpecialSibling(nsIFrame* aFrame)
 {
+  NS_PRECONDITION(IsFrameSpecial(aFrame), "Shouldn't call this");
+
   // We only store the "special sibling" annotation with the first
   // frame in the continuation chain. Walk back to find that frame now.
-  aFrame = aFrame->GetFirstContinuation();
-
-  void* value = aFrame->GetProperty(nsGkAtoms::IBSplitSpecialSibling);
-
-  return static_cast<nsIFrame*>(value);
+  return
+    static_cast<nsIFrame*>
+    (aFrame->GetFirstContinuation()->
+       GetProperty(nsGkAtoms::IBSplitSpecialSibling));
 }
 
-static nsIFrame*
-GetIBSplitSpecialPrevSiblingForAnonymousBlock(nsIFrame* aFrame)
+static nsIFrame* GetSpecialPrevSibling(nsIFrame* aFrame)
 {
-  NS_PRECONDITION(IsFrameSpecial(aFrame) && !IsInlineFrame(aFrame),
-                  "Shouldn't call this");
+  NS_PRECONDITION(IsFrameSpecial(aFrame), "Shouldn't call this");
   
   // We only store the "special sibling" annotation with the first
   // frame in the continuation chain. Walk back to find that frame now.  
@@ -489,13 +488,17 @@ GetIBSplitSpecialPrevSiblingForAnonymousBlock(nsIFrame* aFrame)
 }
 
 static nsIFrame*
-GetLastSpecialSibling(nsIFrame* aFrame, PRBool aIgnoreEmpty)
+GetLastSpecialSibling(nsIFrame* aFrame, PRBool aReturnEmptyTrailingInline)
 {
   for (nsIFrame *frame = aFrame, *next; ; frame = next) {
     next = GetSpecialSibling(frame);
     if (!next ||
-        (aIgnoreEmpty && !next->GetFirstChild(nsnull)))
+        (!aReturnEmptyTrailingInline && !next->GetFirstChild(nsnull) &&
+         !GetSpecialSibling(next))) {
+      NS_ASSERTION(!next || !IsInlineOutside(frame),
+                   "Should have a block here!");
       return frame;
+    }
   }
   NS_NOTREACHED("unreachable code");
   return nsnull;
@@ -506,19 +509,25 @@ SetFrameIsSpecial(nsIFrame* aFrame, nsIFrame* aSpecialSibling)
 {
   NS_PRECONDITION(aFrame, "bad args!");
 
-  // Mark the frame and all of its siblings as "special".
-  for (nsIFrame* frame = aFrame; frame != nsnull; frame = frame->GetNextContinuation()) {
-    frame->AddStateBits(NS_FRAME_IS_SPECIAL);
-  }
+  // We should be the only continuation
+  NS_ASSERTION(!aFrame->GetPrevContinuation(),
+               "assigning special sibling to other than first continuation!");
+  NS_ASSERTION(!aFrame->GetNextContinuation() ||
+               IsFrameSpecial(aFrame->GetNextContinuation()),
+               "should have no non-special continuations here");
+
+  // Mark the frame as "special".
+  aFrame->AddStateBits(NS_FRAME_IS_SPECIAL);
 
   if (aSpecialSibling) {
-    // We should be the first continuation
-    NS_ASSERTION(!aFrame->GetPrevContinuation(),
-                 "assigning special sibling to other than first continuation!");
+    NS_ASSERTION(!aSpecialSibling->GetPrevContinuation(),
+                 "assigning something other than the first continuation as the "
+                 "special sibling");
 
     // Store the "special sibling" (if we were given one) with the
     // first frame in the flow.
     aFrame->SetProperty(nsGkAtoms::IBSplitSpecialSibling, aSpecialSibling);
+    aSpecialSibling->SetProperty(nsGkAtoms::IBSplitSpecialPrevSibling, aFrame);
   }
 }
 
@@ -542,7 +551,7 @@ GetIBContainingBlockFor(nsIFrame* aFrame)
     // style context -- they're not the frames we're looking for!  In
     // particular, they may be hiding a real parent that _is_ special.
     if (!IsFrameSpecial(parentFrame) &&
-        !parentFrame->GetStyleContext()->GetPseudoType())
+        !parentFrame->GetStyleContext()->GetPseudo())
       break;
 
     aFrame = parentFrame;
@@ -578,37 +587,19 @@ FindFirstBlock(nsFrameList::FrameLinkEnumerator& aLink)
   }
 }
 
-// This function returns an frame link enumerator pointing to the last link in
-// the list which has a block prev frame.  This means the enumerator might be
-// at end.  If there are no blocks at all, the returned enumerator will point
-// to the beginning of the list.
+// This function returns a frame link enumerator pointing to the first link in
+// the list for which the next frame is not block.  If there is no such link,
+// it points to the end of the list.
 static nsFrameList::FrameLinkEnumerator
-FindLastBlock(const nsFrameList& aList)
+FindFirstNonBlock(const nsFrameList& aList)
 {
-  nsFrameList::FrameLinkEnumerator cur(aList), last(aList);
-  for ( ; !cur.AtEnd(); cur.Next()) {
-    if (!IsInlineOutside(cur.NextFrame())) {
-      last = cur;
-      last.Next();
+  nsFrameList::FrameLinkEnumerator link(aList);
+  for (; !link.AtEnd(); link.Next()) {
+    if (IsInlineOutside(link.NextFrame())) {
+      break;
     }
   }
-
-  return last;
-}
-
-/*
- * The special-prev-sibling is useful for
- * finding the "special parent" of a frame (i.e., a frame from which a
- * good parent style context can be obtained), one looks at the
- * special previous sibling annotation of the real parent of the frame
- * (if the real parent has NS_FRAME_IS_SPECIAL).
- */
-inline void
-MarkIBSpecialPrevSibling(nsIFrame *aAnonymousFrame,
-                         nsIFrame *aSpecialParent)
-{
-  aAnonymousFrame->SetProperty(nsGkAtoms::IBSplitSpecialPrevSibling,
-                               aSpecialParent, nsnull, nsnull);
+  return link;
 }
 
 inline void
@@ -1177,17 +1168,6 @@ nsFrameConstructorState::AddChild(nsIFrame* aNewFrame,
   } else {
     frameItems->AddChild(aNewFrame);
   }
-
-  // Now add the special siblings too.
-  nsIFrame* specialSibling = aNewFrame;
-  while (specialSibling && IsFrameSpecial(specialSibling)) {
-    specialSibling = GetSpecialSibling(specialSibling);
-    if (specialSibling) {
-      NS_ASSERTION(frameItems == &aFrameItems,
-                   "IB split ending up in an out-of-flow childlist?");
-      frameItems->AddChild(specialSibling);
-    }
-  }
   
   return NS_OK;
 }
@@ -1316,111 +1296,55 @@ PRBool IsBorderCollapse(nsIFrame* aFrame)
 }
 
 /**
- * Utility method, called from MoveChildrenTo(), that recursively
- * descends down the frame hierarchy looking for floating frames that
- * need parent pointer adjustments to account for the containment block
- * changes that could occur as the result of the reparenting done in
- * MoveChildrenTo().
+ * Moves aFrameList from aOldParent to aNewParent.  This updates the parent
+ * pointer of the frames in the list, reparents their views as needed, and sets
+ * the NS_FRAME_HAS_VIEW bit on aNewParent and its ancestors as needed.  Then
+ * it sets the list as the initial child list on aNewParent.  Note that this
+ * method differs from ReparentFrames in that it doesn't change the kids' style
+ * contexts.
  */
+// XXXbz Since this is only used for {ib} splits, could we just copy the view
+// bits from aOldParent to aNewParent and then use the
+// nsFrameList::ApplySetParent?  That would still leave us doing two passes
+// over the list, of course; if we really wanted to we could factor out the
+// relevant part of ReparentFrameViewList, I suppose...  Or just get rid of
+// views, which would make most of this function go away.
 static void
-AdjustFloatParentPtrs(nsIFrame*                aFrame,
-                      nsFrameConstructorState& aState,
-                      nsFrameConstructorState& aOuterState)
+MoveChildrenTo(nsPresContext* aPresContext,
+               nsIFrame* aOldParent,
+               nsIFrame* aNewParent,
+               nsFrameList& aFrameList)
 {
-  NS_PRECONDITION(aFrame, "must have frame to work with");
+  NS_PRECONDITION(aOldParent->GetParent() == aNewParent->GetParent(),
+                  "Unexpected old and new parents");
+  NS_PRECONDITION(aNewParent->GetChildList(nsnull).IsEmpty(),
+                  "New parent should have no kids");
+  NS_PRECONDITION(aNewParent->GetStateBits() & NS_FRAME_FIRST_REFLOW,
+                  "New parent shouldn't have been reflowed yet");
 
-  nsIFrame *outOfFlowFrame = nsPlaceholderFrame::GetRealFrameFor(aFrame);
-  if (outOfFlowFrame != aFrame) {
-    if (outOfFlowFrame->GetStyleDisplay()->IsFloating()) {
-      // Update the parent pointer for outOfFlowFrame since its
-      // containing block has changed as the result of reparenting
-      // and move it from the outer state to the inner, bug 307277.
-      
-      nsIFrame *parent = aState.mFloatedItems.containingBlock;
-      NS_ASSERTION(parent, "Should have float containing block here!");
-      NS_ASSERTION(outOfFlowFrame->GetParent() == aOuterState.mFloatedItems.containingBlock,
-                   "expected the float to be a child of the outer CB");
-
-      aOuterState.mFloatedItems.RemoveFrame(outOfFlowFrame);
-      aState.mFloatedItems.AddChild(outOfFlowFrame);
-
-      outOfFlowFrame->SetParent(parent);
-      if (outOfFlowFrame->GetStateBits() &
-          (NS_FRAME_HAS_VIEW | NS_FRAME_HAS_CHILD_WITH_VIEW)) {
-        // We don't need to walk up the tree, since we're doing this
-        // recursively.
-        parent->AddStateBits(NS_FRAME_HAS_CHILD_WITH_VIEW);
-      }
-    }
-
-    // All out-of-flows are automatically float containing blocks, so we're
-    // done here.
-    return;
+  if (aNewParent->HasView() || aOldParent->HasView()) {
+    // Move the frames into the new view
+    nsHTMLContainerFrame::ReparentFrameViewList(aPresContext, aFrameList,
+                                                aOldParent, aNewParent);
   }
 
-  if (aFrame->IsFloatContainingBlock()) {
-    // No need to recurse further; floats whose placeholders are
-    // inside a block already have the right parent.
-    return;
-  }
-
-  // Dive down into children to see if any of their
-  // placeholders need adjusting.
-  nsIFrame *childFrame = aFrame->GetFirstChild(nsnull);
-  while (childFrame) {
-    // XXX_kin: Do we need to prevent descent into anonymous content here?
-
-    AdjustFloatParentPtrs(childFrame, aState, aOuterState);
-    childFrame = childFrame->GetNextSibling();
-  }
-}
-
-/**
- * Moves frames to a new parent, updating the style context and propagating
- * relevant frame state bits. |aState| may be null, in which case the parent
- * pointers of out-of-flow frames will remain untouched.
- */
-// XXXbz it would be nice if this could take a framelist-like thing, but it
-// would need to take some sort of sublist, not nsFrameList, since the frames
-// get inserted into their new home before we call this method.  This could
-// easily take an nsFrameList::Slice if SetInitialChildList and InsertFrames
-// returned one from their respective underlying framelist ops....
-static void
-MoveChildrenTo(nsFrameManager*          aFrameManager,
-               nsIFrame*                aNewParent,
-               nsIFrame*                aFrameList,
-               nsIFrame*                aFrameListEnd,
-               nsFrameConstructorState* aState,
-               nsFrameConstructorState* aOuterState)
-{
   PRBool setHasChildWithView = PR_FALSE;
 
-  while (aFrameList && aFrameList != aFrameListEnd) {
+  for (nsFrameList::Enumerator e(aFrameList); !e.AtEnd(); e.Next()) {
     if (!setHasChildWithView
-        && (aFrameList->GetStateBits() & (NS_FRAME_HAS_VIEW | NS_FRAME_HAS_CHILD_WITH_VIEW))) {
+        && (e.get()->GetStateBits() &
+            (NS_FRAME_HAS_VIEW | NS_FRAME_HAS_CHILD_WITH_VIEW))) {
       setHasChildWithView = PR_TRUE;
     }
 
-    aFrameList->SetParent(aNewParent);
-
-    // If aState is not null, the caller expects us to make adjustments so that
-    // floats whose placeholders are descendants of frames in aFrameList point
-    // to the correct parent.
-    if (aState) {
-      NS_ASSERTION(aOuterState, "need an outer state too");
-      AdjustFloatParentPtrs(aFrameList, *aState, *aOuterState);
-    }
-
-    aFrameList = aFrameList->GetNextSibling();
+    e.get()->SetParent(aNewParent);
   }
 
   if (setHasChildWithView) {
-    do {
-      aNewParent->AddStateBits(NS_FRAME_HAS_CHILD_WITH_VIEW);
-      aNewParent = aNewParent->GetParent();
-    } while (aNewParent &&
-             !(aNewParent->GetStateBits() & NS_FRAME_HAS_CHILD_WITH_VIEW));
+    aNewParent->AddStateBits(NS_FRAME_HAS_CHILD_WITH_VIEW);
   }
+
+  aNewParent->SetInitialChildList(nsnull, aFrameList);
 }
 
 // -----------------------------------------------------------
@@ -1925,7 +1849,7 @@ IsTableRelated(nsIAtom* aParentType)
 static PRBool
 IsTablePseudo(nsIFrame* aFrame)
 {
-  nsIAtom* pseudoType = aFrame->GetStyleContext()->GetPseudoType();
+  nsIAtom* pseudoType = aFrame->GetStyleContext()->GetPseudo();
   return pseudoType &&
     (pseudoType == nsCSSAnonBoxes::table ||
      pseudoType == nsCSSAnonBoxes::inlineTable ||
@@ -1934,12 +1858,12 @@ IsTablePseudo(nsIFrame* aFrame)
      pseudoType == nsCSSAnonBoxes::tableRow ||
      pseudoType == nsCSSAnonBoxes::tableCell ||
      (pseudoType == nsCSSAnonBoxes::cellContent &&
-      aFrame->GetParent()->GetStyleContext()->GetPseudoType() ==
+      aFrame->GetParent()->GetStyleContext()->GetPseudo() ==
         nsCSSAnonBoxes::tableCell) ||
      (pseudoType == nsCSSAnonBoxes::tableOuter &&
-      (aFrame->GetFirstChild(nsnull)->GetStyleContext()->GetPseudoType() ==
+      (aFrame->GetFirstChild(nsnull)->GetStyleContext()->GetPseudo() ==
          nsCSSAnonBoxes::table ||
-       aFrame->GetFirstChild(nsnull)->GetStyleContext()->GetPseudoType() ==
+       aFrame->GetFirstChild(nsnull)->GetStyleContext()->GetPseudo() ==
          nsCSSAnonBoxes::inlineTable)));
 }
 
@@ -3493,7 +3417,7 @@ FindAncestorWithGeneratedContentPseudo(nsIFrame* aFrame)
   for (nsIFrame* f = aFrame->GetParent(); f; f = f->GetParent()) {
     NS_ASSERTION(f->IsGeneratedContentFrame(),
                  "should not have exited generated content");
-    nsIAtom* pseudo = f->GetStyleContext()->GetPseudoType();
+    nsIAtom* pseudo = f->GetStyleContext()->GetPseudo();
     if (pseudo == nsCSSPseudoElements::before ||
         pseudo == nsCSSPseudoElements::after)
       return f;
@@ -3659,14 +3583,14 @@ nsCSSFrameConstructor::FindHTMLData(nsIContent* aContent,
   }
 
   NS_ASSERTION(!aParentFrame ||
-               aParentFrame->GetStyleContext()->GetPseudoType() !=
+               aParentFrame->GetStyleContext()->GetPseudo() !=
                  nsCSSAnonBoxes::fieldsetContent ||
                aParentFrame->GetParent()->GetType() == nsGkAtoms::fieldSetFrame,
                "Unexpected parent for fieldset content anon box");
   if (aTag == nsGkAtoms::legend &&
       (!aParentFrame ||
        (aParentFrame->GetType() != nsGkAtoms::fieldSetFrame &&
-        aParentFrame->GetStyleContext()->GetPseudoType() !=
+        aParentFrame->GetStyleContext()->GetPseudo() !=
           nsCSSAnonBoxes::fieldsetContent) ||
        !aContent->GetParent() ||
        !aContent->GetParent()->IsHTML() ||
@@ -5178,7 +5102,7 @@ SetAsUndisplayedContent(nsFrameManager* aFrameManager, nsIContent* aContent,
                         nsStyleContext* aStyleContext,
                         PRBool aIsGeneratedContent)
 {
-  if (aStyleContext->GetPseudoType()) {
+  if (aStyleContext->GetPseudo()) {
     if (aIsGeneratedContent) {
       aContent->UnbindFromTree();
     }
@@ -5378,9 +5302,12 @@ nsCSSFrameConstructor::AddFrameConstructionItemsInternal(nsFrameConstructorState
     // right now.
     BuildInlineChildItems(aState, *item);
     item->mHasInlineEnds = PR_TRUE;
+    item->mIsBlock = PR_FALSE;
   } else {
-    item->mIsAllInline = item->mHasInlineEnds =
-      // Table-internal things are inline-outside if they're kids of
+    // Compute a boolean isInline which is guaranteed to be false for blocks
+    // (but may also be false for some inlines).
+    PRBool isInline =
+      // Table-internal things are inline-outside if and only if they're kids of
       // inlines, since they'll trigger construction of inline-table
       // pseudos.
       ((bits & FCDATA_IS_TABLE_PART) &&
@@ -5388,24 +5315,43 @@ nsCSSFrameConstructor::AddFrameConstructionItemsInternal(nsFrameConstructorState
         aParentFrame->GetStyleDisplay()->mDisplay == NS_STYLE_DISPLAY_INLINE)) ||
       // Things that are inline-outside but aren't inline frames are inline
       display->IsInlineOutside() ||
-      // Things that we're guaranteed will end up out-of-flow are inline.  This
-      // is not a precise test, since one of our ancestor inlines might add an
-      // absolute containing block (if it's relatively positioned) or float
-      // containing block (the latter if it gets split by child blocks on both
-      // sides of us) when there wasn't such a containining block before.  But
-      // it's conservative in the sense that anything that will really end up
-      // as an in-flow non-inline will have false mIsAllInline.  It just might
-      // be that even an inline that has mIsAllInline false doesn't need an
-      // {ib} split.  So this is just an optimization to keep from doing too
-      // much work when that happens.
-      (!(bits & FCDATA_DISALLOW_OUT_OF_FLOW) &&
-       aState.GetGeometricParent(display, nsnull)) ||
       // Popups that are certainly out of flow.
       isPopup;
+
+    // Set mIsAllInline conservatively.  It just might be that even an inline
+    // that has mIsAllInline false doesn't need an {ib} split.  So this is just
+    // an optimization to keep from doing too much work in cases when we can
+    // show that mIsAllInline is true..
+    item->mIsAllInline = item->mHasInlineEnds = isInline ||
+      // Figure out whether we're guaranteed this item will be out of flow.
+      // This is not a precise test, since one of our ancestor inlines might add
+      // an absolute containing block (if it's relatively positioned) when there
+      // wasn't such a containing block before.  But it's conservative in the
+      // sense that anything that will really end up as an in-flow non-inline
+      // will test false here.  In other words, if this test is true we're
+      // guaranteed to be inline; if it's false we don't know what we'll end up
+      // as.
+      //
+      // If we make this test precise, we can remove some of the code dealing
+      // with the imprecision in ConstructInline and adjust the comments on
+      // mIsAllInline and mIsBlock in the header.  And probably remove mIsBlock
+      // altogether, since then it will always be equal to !mHasInlineEnds.
+      (!(bits & FCDATA_DISALLOW_OUT_OF_FLOW) &&
+       aState.GetGeometricParent(display, nsnull));
+
+    // Set mIsBlock conservatively.  It's OK to set it false for some real
+    // blocks, but not OK to set it true for things that aren't blocks.  Since
+    // isOutOfFlow might be false even in cases when the frame will end up
+    // out-of-flow, we can't use it here.  But we _can_ say that the frame will
+    // for sure end up in-flow if it's not floated or absolutely positioned.
+    item->mIsBlock =
+      !isInline && !display->IsAbsolutelyPositioned() && !display->IsFloating();
   }
 
   if (item->mIsAllInline) {
     aItems.InlineItemAdded();
+  } else if (item->mIsBlock) {
+    aItems.BlockItemAdded();
   }
 
   // Our item should be treated as a line participant if we have the relevant
@@ -5531,7 +5477,7 @@ nsCSSFrameConstructor::ConstructFramesFromItem(nsFrameConstructorState& aState,
     // setting it on a table pseudo-frame inserted under that instead.  That's
     // OK, though; we just need to do the property set so that the content will
     // get cleaned up when the frame is destroyed.
-    aParentFrame->SetProperty(styleContext->GetPseudoType(),
+    aParentFrame->SetProperty(styleContext->GetPseudo(),
                               item.mContent, DestroyContent);
 
     // Now that we've passed ownership of item.mContent to the frame, unset
@@ -5682,6 +5628,19 @@ AdjustAppendParentForAfterContent(nsPresContext* aPresContext,
   }
 
   *aAfterFrame = nsnull;
+
+  if (IsFrameSpecial(aParentFrame)) {
+    // We might be in a situation where the last part of the {ib} split was
+    // empty.  Since we have no ::after pseudo-element, we do in fact want to be
+    // appending to that last part, so advance to it if needed.  Note that here
+    // aParentFrame is the result of a GetLastSpecialSibling call, so must be
+    // either the last or next to last special sibling.
+    nsIFrame* trailingInline = GetSpecialSibling(aParentFrame);
+    if (trailingInline) {
+      aParentFrame = trailingInline->GetLastContinuation();
+    }
+  }
+
   return aParentFrame;
 }
 
@@ -5718,8 +5677,7 @@ GetInsertNextSibling(nsIFrame* aParentFrame, nsIFrame* aPrevSibling)
 /**
  * This function is called by ContentAppended() and ContentInserted() when
  * appending flowed frames to a parent's principal child list. It handles the
- * case where the parent frame has :after pseudo-element generated content and
- * the case where the parent is the block of an {ib} split.
+ * case where the parent is the trailing inline of an {ib} split.
  */
 nsresult
 nsCSSFrameConstructor::AppendFrames(nsFrameConstructorState&       aState,
@@ -5740,35 +5698,46 @@ nsCSSFrameConstructor::AppendFrames(nsFrameConstructorState&       aState,
                !aParentFrame->GetNextContinuation() ||
                !aParentFrame->GetNextContinuation()->GetFirstChild(nsnull),
                "aParentFrame has later continuations with kids?");
+  NS_ASSERTION(nextSibling ||
+               !IsFrameSpecial(aParentFrame) ||
+               (IsInlineFrame(aParentFrame) &&
+                !GetSpecialSibling(aParentFrame) &&
+                !aParentFrame->GetNextContinuation()),
+               "aParentFrame is not last?");
 
-  // If we we're inserting a list of frames that ends in inlines at the end of
-  // the block part of an {ib} split, we need to move them out to the beginning
-  // of a trailing inline part.
-  if (!nextSibling &&
-      IsFrameSpecial(aParentFrame) &&
-      !IsInlineFrame(aParentFrame) &&
-      IsInlineOutside(aFrameList.LastChild())) {
-    // We want to put some of the frames into the following inline frame.
-    nsFrameList::FrameLinkEnumerator lastBlock = FindLastBlock(aFrameList);
-    nsFrameList inlineKids = aFrameList.ExtractTail(lastBlock);
+  // If we're inserting a list of frames at the end of the trailing inline
+  // of an {ib} split, we may need to create additional {ib} siblings to parent
+  // them.
+  if (!nextSibling && IsFrameSpecial(aParentFrame)) {
+    // We want to put some of the frames into this inline frame.
+    nsFrameList::FrameLinkEnumerator firstBlockEnumerator(aFrameList);
+    FindFirstBlock(firstBlockEnumerator);
 
-    NS_ASSERTION(inlineKids.NotEmpty(), "How did that happen?");
+    nsFrameList inlineKids = aFrameList.ExtractHead(firstBlockEnumerator);
+    if (!inlineKids.IsEmpty()) {
+      aState.mFrameManager->AppendFrames(aParentFrame, nsnull, inlineKids);
+    }
 
-    nsIFrame* inlineSibling = GetSpecialSibling(aParentFrame);
-    NS_ASSERTION(inlineSibling, "How did that happen?");
+    if (!aFrameList.IsEmpty()) {
+      const nsStyleDisplay* parentDisplay = aParentFrame->GetStyleDisplay();
+      PRBool positioned =
+        parentDisplay->mPosition == NS_STYLE_POSITION_RELATIVE ||
+        parentDisplay->HasTransform();
+      nsFrameItems ibSiblings;
+      CreateIBSiblings(aState, aParentFrame, positioned, aFrameList,
+                       ibSiblings);
 
-    nsIFrame* stateParent = inlineSibling->GetParent();
+      // Make sure to trigger reflow of the inline that used to be our
+      // last one and now isn't anymore, since its GetSkipSides() has
+      // changed.
+      mPresShell->FrameNeedsReflow(aParentFrame,
+                                   nsIPresShell::eTreeChange,
+                                   NS_FRAME_HAS_DIRTY_CHILDREN);
 
-    nsFrameConstructorState targetState(mPresShell, mFixedContainingBlock,
-                                        GetAbsoluteContainingBlock(stateParent),
-                                        GetFloatContainingBlock(stateParent));
+      return aState.mFrameManager->InsertFrames(aParentFrame->GetParent(),
+                                                nsnull, aParentFrame, ibSiblings);
+    }
 
-    MoveFramesToEndOfIBSplit(aState, inlineSibling, inlineKids,
-                             aParentFrame, &targetState);
-  }
-    
-  if (aFrameList.IsEmpty()) {
-    // It all got eaten by the special inline
     return NS_OK;
   }
   
@@ -5889,7 +5858,7 @@ nsCSSFrameConstructor::FindFrameForContentSibling(nsIContent* aContent,
     // The frame may be a special frame (a split inline frame that
     // contains a block).  Get the last part of that split.
     if (IsFrameSpecial(sibling)) {
-      sibling = GetLastSpecialSibling(sibling, PR_FALSE);
+      sibling = GetLastSpecialSibling(sibling, PR_TRUE);
     }
 
     // The frame may have a continuation. If so, we want the last
@@ -6037,7 +6006,7 @@ nsCSSFrameConstructor::GetInsertionPrevSibling(nsIFrame*& aParentFrame,
         // Since we're appending, we'll walk to the last anonymous frame
         // that was created for the broken inline frame.  But don't walk
         // to the trailing inline if it's empty; stop at the block.
-        aParentFrame = GetLastSpecialSibling(aParentFrame, PR_TRUE);
+        aParentFrame = GetLastSpecialSibling(aParentFrame, PR_FALSE);
       }
       // Get continuation that parents the last child.  This MUST be done
       // before the AdjustAppendParentForAfterContent call.
@@ -6298,7 +6267,7 @@ nsCSSFrameConstructor::ContentAppended(nsIContent*     aContainer,
     // Since we're appending, we'll walk to the last anonymous frame
     // that was created for the broken inline frame.  But don't walk
     // to the trailing inline if it's empty; stop at the block.
-    parentFrame = GetLastSpecialSibling(parentFrame, PR_TRUE);
+    parentFrame = GetLastSpecialSibling(parentFrame, PR_FALSE);
   }
 
   // Get continuation that parents the last child.  This MUST be done
@@ -9007,18 +8976,19 @@ nsCSSFrameConstructor::MaybeRecreateContainerForFrameRemoval(nsIFrame* aFrame,
     return PR_FALSE;
   }
 
-  // If inFlowFrame is an inline, then it cannot possibly have caused the
-  // splitting.  If the frame is being reconstructed and being changed to a
-  // block, the ContentInserted call will handle the containing block reframe.
-  // So in this case, we don't need to reframe.
-  if (IsInlineOutside(inFlowFrame)) {
+  // If inFlowFrame is not the only in-flow child of |parent|, then removing
+  // it will change nothing about the {ib} split.
+  if (inFlowFrame != parent->GetFirstChild(nsnull) ||
+      inFlowFrame->GetLastContinuation()->GetNextSibling()) {
     return PR_FALSE;
   }
 
-  // If aFrame is not the first or last block, then removing it is not
-  // going to affect the splitting.
-  if (inFlowFrame != parent->GetFirstChild(nsnull) &&
-      inFlowFrame->GetLastContinuation()->GetNextSibling()) {
+  // If the parent is the first or last part of the {ib} split, then
+  // removing one of its kids will have no effect on the splitting.
+  // Get the first continuation up front so we don't have to do it twice.
+  nsIFrame* parentFirstContinuation = parent->GetFirstContinuation();
+  if (!GetSpecialSibling(parentFirstContinuation) ||
+      !GetSpecialPrevSibling(parentFirstContinuation)) {
     return PR_FALSE;
   }
 
@@ -10657,6 +10627,62 @@ nsCSSFrameConstructor::ConstructInline(nsFrameConstructorState& aState,
                                        nsFrameItems&            aFrameItems,
                                        nsIFrame**               aNewFrame)
 {
+  // If an inline frame has non-inline kids, then we chop up the child list
+  // into runs of blocks and runs of inlines, create anonymous block frames to
+  // contain the runs of blocks, inline frames with our style context for the
+  // runs of inlines, and put all these frames, in order, into aFrameItems.  We
+  // put the first one into *aNewFrame.  The whole setup is called an {ib}
+  // split; in what follows "frames in the split" refers to the anonymous blocks
+  // and inlines that contain our children.
+  //
+  // {ib} splits maintain the following invariants:
+  // 1) All frames in the split have the NS_FRAME_IS_SPECIAL bit set.
+  // 2) Each frame in the split has the nsGkAtoms::IBSplitSpecialSibling
+  //    property pointing to the next frame in the split, except for the last
+  //    one, which does not have it set.
+  // 3) Each frame in the split has the nsGkAtoms::IBSplitSpecialPrevSibling
+  //    property pointing to the previous frame in the split, except for the
+  //    first one, which does not have it set.
+  // 4) The first and last frame in the split are always inlines.
+  //
+  // An invariant that is NOT maintained is that the wrappers are actually
+  // linked via GetNextSibling linkage.  A simple example is an inline
+  // containing an inline that contains a block.  The three parts of the inner
+  // inline end up with three different parents.
+  //
+  // For example, this HTML:
+  // <span>
+  //   <div>a</div>
+  //   <span>
+  //     b
+  //     <div>c</div>
+  //   </span>
+  //   d
+  //   <div>e</div>
+  //   f
+  //  </span>
+  // Gives the following frame tree:
+  //
+  // Inline (outer span)
+  // Block (anonymous, outer span)
+  //   Block (div)
+  //     Text("a")
+  // Inline (outer span)
+  //   Inline (inner span)
+  //     Text("b")
+  // Block (anonymous, outer span)
+  //   Block (anonymous, inner span)
+  //     Block (div)
+  //       Text("c")
+  // Inline (outer span)
+  //   Inline (inner span)
+  //   Text("d")
+  // Block (anonymous, outer span)
+  //   Block (div)
+  //     Text("e")
+  // Inline (outer span)
+  //   Text("f")
+
   nsIContent* const content = aItem.mContent;
   nsStyleContext* const styleContext = aItem.mStyleContext;
 
@@ -10717,160 +10743,103 @@ nsCSSFrameConstructor::ConstructInline(nsFrameConstructorState& aState,
     return rv;
   }
 
-  // This inline frame contains several types of children. Therefore
-  // this frame has to be chopped into several pieces. We will produce
-  // as a result of this 3 lists of children. The first list contains
-  // all of the inline children that precede the first block child
-  // (and may be empty). The second list contains all of the block
-  // children and any inlines that are between them (and must not be
-  // empty, otherwise - why are we here?). The final list contains all
-  // of the inline children that follow the final block child.
+  // This inline frame contains several types of children. Therefore this frame
+  // has to be chopped into several pieces, as described above.
 
   // Grab the first inline's kids
   nsFrameList firstInlineKids = childItems.ExtractHead(firstBlockEnumerator);
   newFrame->SetInitialChildList(nsnull, firstInlineKids);
-                                             
-  // The kids between the first and last block belong to an anonymous block
-  // that we create right now. The anonymous block will be the parent of the
-  // block children of the inline.
-  nsIAtom* blockStyle;
-  nsRefPtr<nsStyleContext> blockSC;
-  nsIFrame* blockFrame;
-  if (positioned) {
-    blockStyle = nsCSSAnonBoxes::mozAnonymousPositionedBlock;
-    
-    blockSC = mPresShell->StyleSet()->
-      ResolvePseudoStyleFor(content, blockStyle, styleContext);
-  }
-  else {
-    blockStyle = nsCSSAnonBoxes::mozAnonymousBlock;
 
-    blockSC = mPresShell->StyleSet()->
-      ResolvePseudoStyleFor(content, blockStyle, styleContext);
-  }
-  blockFrame = NS_NewBlockFrame(mPresShell, blockSC);
+  aFrameItems.AddChild(newFrame);
 
-  InitAndRestoreFrame(aState, content, aParentFrame, nsnull, blockFrame, PR_FALSE);
+  CreateIBSiblings(aState, newFrame, positioned, childItems, aFrameItems);
 
-  // Any inline frame could have a view (e.g., opacity)
-  nsHTMLContainerFrame::CreateViewForFrame(blockFrame, PR_FALSE);
-
-  // Find the last block child which defines the end of our block kids and the
-  // start of our trailing inline's kids
-  nsFrameList::FrameLinkEnumerator lastBlock = FindLastBlock(childItems);
-  nsFrameList blockKids = childItems.ExtractHead(lastBlock);
-
-  if (blockFrame->HasView() || newFrame->HasView()) {
-    // Move the block's child frames into the new view
-    nsHTMLContainerFrame::ReparentFrameViewList(aState.mPresContext, blockKids,
-                                                newFrame, blockFrame);
-  }
-
-  // Save the first frame in blockKids for the MoveChildrenTo call, since
-  // SetInitialChildList will empty blockKids.
-  nsIFrame* firstBlock = blockKids.FirstChild();
-  blockFrame->SetInitialChildList(nsnull, blockKids);
-
-  nsFrameConstructorState state(mPresShell, mFixedContainingBlock,
-                                GetAbsoluteContainingBlock(blockFrame),
-                                GetFloatContainingBlock(blockFrame));
-
-  // If we have an inline between two blocks all inside an inline and the inner
-  // inline contains a float, the float will end up in the float list of the
-  // parent block of the inline, but its parent pointer will be the anonymous
-  // block we create...  AdjustFloatParentPtrs() deals with this by moving the
-  // float from the outer state |aState| to the inner |state|.
-  MoveChildrenTo(state.mFrameManager, blockFrame, firstBlock, nsnull,
-                 &state, &aState);
-
-  // What's left in childItems belongs to our trailing inline frame
-  nsIFrame* inlineFrame;
-  if (positioned) {
-    inlineFrame = NS_NewPositionedInlineFrame(mPresShell, styleContext);
-  }
-  else {
-    inlineFrame = NS_NewInlineFrame(mPresShell, styleContext);
-  }
-
-  InitAndRestoreFrame(aState, content, aParentFrame, nsnull, inlineFrame,
-                      PR_FALSE);
-
-  // Any frame might need a view
-  nsHTMLContainerFrame::CreateViewForFrame(inlineFrame, PR_FALSE);
-
-  if (childItems.NotEmpty()) {
-    MoveFramesToEndOfIBSplit(aState, inlineFrame, childItems, blockFrame,
-                             nsnull);
-  }
-
-  // Mark the frames as special. That way if any of the append/insert/remove
-  // methods try to fiddle with the children, the containing block will be
-  // reframed instead.
-  SetFrameIsSpecial(newFrame, blockFrame);
-  SetFrameIsSpecial(blockFrame, inlineFrame);
-  SetFrameIsSpecial(inlineFrame, nsnull);
-  MarkIBSpecialPrevSibling(blockFrame, newFrame);
-  MarkIBSpecialPrevSibling(inlineFrame, blockFrame);
-
-#ifdef DEBUG
-  if (gNoisyInlineConstruction) {
-    printf("nsCSSFrameConstructor::ConstructInline:\n");
-    if (*aNewFrame) {
-      printf("  ==> leading inline frame:\n");
-      (*aNewFrame)->List(stdout, 2);
-    }
-    if (blockFrame) {
-      printf("  ==> block frame:\n");
-      blockFrame->List(stdout, 2);
-    }
-    if (inlineFrame) {
-      printf("  ==> trailing inline frame:\n");
-      inlineFrame->List(stdout, 2);
-    }
-  }
-#endif
-
-  if (NS_SUCCEEDED(rv)) {
-    aState.AddChild(newFrame, aFrameItems, content, styleContext, aParentFrame);
-    *aNewFrame = newFrame;
-  }
-  return rv;
+  *aNewFrame = newFrame;
+  return NS_OK;
 }
 
 void
-nsCSSFrameConstructor::MoveFramesToEndOfIBSplit(nsFrameConstructorState& aState,
-                                                nsIFrame* aExistingEndFrame,
-                                                nsFrameList& aFramesToMove,
-                                                nsIFrame* aBlockPart,
-                                                nsFrameConstructorState* aTargetState)
+nsCSSFrameConstructor::CreateIBSiblings(nsFrameConstructorState& aState,
+                                        nsIFrame* aInitialInline,
+                                        PRBool aIsPositioned,
+                                        nsFrameItems& aChildItems,
+                                        nsFrameItems& aSiblings)
 {
-  NS_PRECONDITION(aBlockPart, "Must have a block part");
-  NS_PRECONDITION(aExistingEndFrame, "Must have trailing inline");
-  NS_PRECONDITION(aFramesToMove.NotEmpty(), "Must have frames to move");
+  nsIContent* content = aInitialInline->GetContent();
+  nsStyleContext* styleContext = aInitialInline->GetStyleContext();
+  nsIFrame* parentFrame = aInitialInline->GetParent();
 
-  nsIFrame* newFirstChild = aFramesToMove.FirstChild();
-  if (aExistingEndFrame->HasView() ||
-      newFirstChild->GetParent()->HasView()) {
-    // Move the frames into the new view
-    nsHTMLContainerFrame::ReparentFrameViewList(aState.mPresContext,
-                                                aFramesToMove,
-                                                newFirstChild->GetParent(),
-                                                aExistingEndFrame);
-  }
+  // Resolve the right style context for our anonymous blocks.
+  nsRefPtr<nsStyleContext> blockSC =
+    mPresShell->StyleSet()->
+      ResolvePseudoStyleFor(content,
+                            aIsPositioned ?
+                              nsCSSAnonBoxes::mozAnonymousPositionedBlock :
+                              nsCSSAnonBoxes::mozAnonymousBlock,
+                            styleContext);
 
-  // Reparent (cheaply) the child frames.  Have to grab the frame pointers
-  // for MoveChildrenTo now, since aFramesToMove will get cleared when we add
-  // the frames to aExistingEndFrame.  We already have newFirstChild.
-  nsIFrame* existingFirstChild = aExistingEndFrame->GetFirstChild(nsnull);
-  if (!existingFirstChild &&
-      (aExistingEndFrame->GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
-    aExistingEndFrame->SetInitialChildList(nsnull, aFramesToMove);
-  } else {
-    aExistingEndFrame->InsertFrames(nsnull, nsnull, aFramesToMove);
-  }
-  nsFrameConstructorState* startState = aTargetState ? &aState : nsnull;
-  MoveChildrenTo(aState.mFrameManager, aExistingEndFrame, newFirstChild,
-                 existingFirstChild, aTargetState, startState);
+  nsIFrame* lastNewInline = aInitialInline->GetFirstContinuation();
+  do {
+    // On entry to this loop aChildItems is not empty and the first frame in it
+    // is block-level.
+    NS_PRECONDITION(aChildItems.NotEmpty(), "Should have child items");
+    NS_PRECONDITION(!IsInlineOutside(aChildItems.FirstChild()),
+                    "Must have list starting with block");
+
+    // The initial run of blocks belongs to an anonymous block that we create
+    // right now. The anonymous block will be the parent of these block
+    // children of the inline.
+    nsIFrame* blockFrame;
+    blockFrame = NS_NewBlockFrame(mPresShell, blockSC);
+
+    InitAndRestoreFrame(aState, content, parentFrame, nsnull, blockFrame,
+                        PR_FALSE);
+
+    // Any frame could have a view
+    nsHTMLContainerFrame::CreateViewForFrame(blockFrame, PR_FALSE);
+
+    // Find the first non-block child which defines the end of our block kids
+    // and the start of our next inline's kids
+    nsFrameList::FrameLinkEnumerator firstNonBlock =
+      FindFirstNonBlock(aChildItems);
+    nsFrameList blockKids = aChildItems.ExtractHead(firstNonBlock);
+
+    MoveChildrenTo(aState.mPresContext, aInitialInline, blockFrame, blockKids);
+
+    SetFrameIsSpecial(lastNewInline, blockFrame);
+    aSiblings.AddChild(blockFrame);
+
+    // Now grab the initial inlines in aChildItems and put them into an inline
+    // frame
+    nsIFrame* inlineFrame;
+    if (aIsPositioned) {
+      inlineFrame = NS_NewPositionedInlineFrame(mPresShell, styleContext);
+    }
+    else {
+      inlineFrame = NS_NewInlineFrame(mPresShell, styleContext);
+    }
+
+    InitAndRestoreFrame(aState, content, parentFrame, nsnull, inlineFrame,
+                        PR_FALSE);
+
+    // Any frame might need a view
+    nsHTMLContainerFrame::CreateViewForFrame(inlineFrame, PR_FALSE);
+
+    if (aChildItems.NotEmpty()) {
+      nsFrameList::FrameLinkEnumerator firstBlock(aChildItems);
+      FindFirstBlock(firstBlock);
+      nsFrameList inlineKids = aChildItems.ExtractHead(firstBlock);
+
+      MoveChildrenTo(aState.mPresContext, aInitialInline, inlineFrame,
+                     inlineKids);
+    }
+
+    SetFrameIsSpecial(blockFrame, inlineFrame);
+    aSiblings.AddChild(inlineFrame);
+    lastNewInline = inlineFrame;
+  } while (aChildItems.NotEmpty());
+
+  SetFrameIsSpecial(lastNewInline, nsnull);
 }
 
 void
@@ -10930,7 +10899,7 @@ nsCSSFrameConstructor::WipeContainingBlock(nsFrameConstructorState& aState,
     return PR_FALSE;
   }
   
-  // Before we go and append the frames, we must check for three
+  // Before we go and append the frames, we must check for several
   // special situations.
 
   // Situation #1 is a XUL frame that contains frames that are required
@@ -11111,68 +11080,48 @@ nsCSSFrameConstructor::WipeContainingBlock(nsFrameConstructorState& aState,
     }
   }
 
-  // Situation #3 is an inline frame that will now contain block
-  // frames. This is a no-no and the frame construction logic knows
-  // how to fix this.  See defition of IsInlineFrame() for what "an
-  // inline" is.  Whether we have "a block" is tested for by
-  // AreAllItemsInline.
+  // Now we have several cases involving {ib} splits.  Put them all in a
+  // do/while with breaks to take us to the "go and reconstruct" code.
+  do {
+    if (IsInlineFrame(aFrame)) {
+      if (aItems.AreAllItemsInline()) {
+        // We can just put the kids in.
+        return PR_FALSE;
+      }
 
-  // We also need to check for an append of content ending in an
-  // inline to the block in an {ib} split or an insert of content
-  // starting with an inline to the start of that block.  If that
-  // happens, we also need to reframe, since that content needs to go
-  // into the following or preceding inline in the split.
+      if (!IsFrameSpecial(aFrame)) {
+        // Need to go ahead and reconstruct.
+        break;
+      }
 
-  if (IsInlineFrame(aFrame)) {
-    // Nothing to do if all kids are inline
-    if (aItems.AreAllItemsInline()) {
+      // Now we're adding kids including some blocks to an inline part of an
+      // {ib} split.  If we plan to call AppendFrames, and don't have a next
+      // sibling for the new frames, and our parent is the last continuation of
+      // the last part of the {ib} split, then AppendFrames will handle things
+      // for us.  Bail out in that case.
+      if (aIsAppend && !nextSibling && !aFrame->GetNextContinuation() &&
+          !GetSpecialSibling(aFrame)) {
+        return PR_FALSE;
+      }
+
+      // Need to reconstruct.
+      break;
+    }
+
+    // Now we know we have a block parent.  If it's not special, we're all set.
+    if (!IsFrameSpecial(aFrame)) {
       return PR_FALSE;
     }
-  } else if (!IsFrameSpecial(aFrame)) {
-    return PR_FALSE;
-  } else {
-    // aFrame is the block in an {ib} split.  Check that we're not
-    // messing up either end of it.
-    if (aPrevSibling || !aItems.IsStartInline()) {
-      // Not messing up the beginning.  Now let's look at the end.
-      if (nextSibling) {
-        // Can't possibly screw up the end; bail out
-        return PR_FALSE;
-      }
 
-      if (aIsAppend) {
-        // Will be handled in AppendFrames(), except the case when we might have
-        // floats that we won't be able to move out because there is no float
-        // containing block to move them into.
-
-        // Walk up until we get a float containing block that's not part of an
-        // {ib} split, since otherwise we might have to ship floats out of it
-        // too.
-        // XXXbz we could keep track of whether we have any descendants with
-        // float style in the FrameConstructionItem if we really want, but it's
-        // not clear to me that we need to.  In any case, the right solution
-        // here is to construct with the right parents to start with.
-        nsIFrame* floatContainer = aFrame;
-        do {
-          floatContainer = GetFloatContainingBlock(
-            GetIBSplitSpecialPrevSiblingForAnonymousBlock(floatContainer));
-          if (!floatContainer) {
-            break;
-          }
-          if (!IsFrameSpecial(floatContainer)) {
-            return PR_FALSE;
-          }
-        } while (1);
-      }
-
-      // This is an append that won't go through AppendFrames, or won't be able
-      // to ship floats out in AppendFrames.  We can bail out if the last frame
-      // we're appending is not inline.
-      if (!aItems.IsEndInline()) {
-        return PR_FALSE;
-      }
+    // We're adding some kids to a block part of an {ib} split.  If all the
+    // kids are blocks, we don't need to reconstruct.
+    if (aItems.AreAllItemsBlock()) {
+      return PR_FALSE;
     }
-  }
+
+    // We might have some inline kids for this block.  Just reconstruct.
+    break;
+  } while (0);
 
   // If we don't have a containing block, start with aFrame and look for one.
   if (!aContainingBlock) {
@@ -11192,7 +11141,7 @@ nsCSSFrameConstructor::WipeContainingBlock(nsFrameConstructorState& aState,
   // too hard (and I suspect that we do in fact need to walk out of all of
   // them).
   while (IsFrameSpecial(aContainingBlock) || IsInlineOutside(aContainingBlock) ||
-         aContainingBlock->GetStyleContext()->GetPseudoType()) {
+         aContainingBlock->GetStyleContext()->GetPseudo()) {
     aContainingBlock = aContainingBlock->GetParent();
     NS_ASSERTION(aContainingBlock,
                  "Must have non-inline, non-special, non-pseudo frame as root "
@@ -11825,6 +11774,9 @@ AdjustCountsForItem(FrameConstructionItem* aItem, PRInt32 aDelta)
   if (aItem->mIsAllInline) {
     mInlineCount += aDelta;
   }
+  if (aItem->mIsBlock) {
+    mBlockCount += aDelta;
+  }
   if (aItem->mIsLineParticipant) {
     mLineParticipantCount += aDelta;
   }
@@ -11901,6 +11853,7 @@ Iterator::AppendItemsToList(const Iterator& aEnd,
 
   // Copy over the various counters
   aTargetList.mInlineCount = mList.mInlineCount;
+  aTargetList.mBlockCount = mList.mBlockCount;
   aTargetList.mLineParticipantCount = mList.mLineParticipantCount;
   aTargetList.mItemCount = mList.mItemCount;
   memcpy(aTargetList.mDesiredParentCounts, mList.mDesiredParentCounts,
