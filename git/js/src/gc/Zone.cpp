@@ -23,7 +23,7 @@ Zone * const Zone::NotOnList = reinterpret_cast<Zone *>(1);
 
 JS::Zone::Zone(JSRuntime *rt)
   : JS::shadow::Zone(rt, &rt->gc.marker),
-    arenas(rt),
+    allocator(this),
     types(this),
     compartments(),
     gcGrayRoots(),

@@ -848,6 +848,9 @@ Activation::isProfiling() const
     if (isJit())
         return asJit()->isProfiling();
 
+    if (isForkJoin())
+        return asForkJoin()->isProfiling();
+
     MOZ_ASSERT(isAsmJS());
     return asAsmJS()->isProfiling();
 }

@@ -11,10 +11,42 @@
 
 #include "gc/GCTrace.h"
 #include "gc/Zone.h"
+#include "vm/ForkJoin.h"
 
 namespace js {
 
 class Shape;
+
+inline Allocator *
+ThreadSafeContext::allocator() const
+{
+    MOZ_ASSERT_IF(isJSContext(), &asJSContext()->zone()->allocator == allocator_);
+    return allocator_;
+}
+
+template <typename T>
+inline bool
+ThreadSafeContext::isThreadLocal(T thing) const
+{
+    if (!isForkJoinContext())
+        return true;
+
+    // Global invariant
+    MOZ_ASSERT(!IsInsideNursery(thing));
+
+    // The thing is not in the nursery, but is it in the private tenured area?
+    if (allocator_->arenas.containsArena(runtime_, thing->asTenured().arenaHeader()))
+    {
+        // GC should be suppressed in preparation for mutating thread local
+        // objects, as we don't want to trip any barriers.
+        MOZ_ASSERT(!thing->zoneFromAnyThread()->needsIncrementalBarrier());
+        MOZ_ASSERT(!thing->runtimeFromAnyThread()->needsIncrementalBarrier());
+
+        return true;
+    }
+
+    return false;
+}
 
 namespace gc {
 
@@ -74,10 +106,10 @@ class ArenaIter
         init(zone, kind);
     }
 
-    void init(JS::Zone *zone, AllocKind kind) {
-        aheader = zone->arenas.getFirstArena(kind);
-        unsweptHeader = zone->arenas.getFirstArenaToSweep(kind);
-        sweptHeader = zone->arenas.getFirstSweptArena(kind);
+    void init(Allocator *allocator, AllocKind kind) {
+        aheader = allocator->arenas.getFirstArena(kind);
+        unsweptHeader = allocator->arenas.getFirstArenaToSweep(kind);
+        sweptHeader = allocator->arenas.getFirstSweptArena(kind);
         if (!unsweptHeader) {
             unsweptHeader = sweptHeader;
             sweptHeader = nullptr;
@@ -87,6 +119,10 @@ class ArenaIter
             unsweptHeader = sweptHeader;
             sweptHeader = nullptr;
         }
+    }
+
+    void init(JS::Zone *zone, AllocKind kind) {
+        init(&zone->allocator, kind);
     }
 
     bool done() const {
@@ -158,7 +194,7 @@ class ArenaCellIterImpl
     void init(ArenaHeader *aheader) {
 #ifdef DEBUG
         AllocKind kind = aheader->getAllocKind();
-        MOZ_ASSERT(aheader->zone->arenas.isSynchronizedFreeList(kind));
+        MOZ_ASSERT(aheader->zone->allocator.arenas.isSynchronizedFreeList(kind));
 #endif
         initUnsynchronized(aheader);
     }
@@ -226,7 +262,7 @@ class ZoneCellIterImpl
     ZoneCellIterImpl() {}
 
     void init(JS::Zone *zone, AllocKind kind) {
-        MOZ_ASSERT(zone->arenas.isSynchronizedFreeList(kind));
+        MOZ_ASSERT(zone->allocator.arenas.isSynchronizedFreeList(kind));
         arenaIter.init(zone, kind);
         if (!arenaIter.done())
             cellIter.init(arenaIter.get());
@@ -277,7 +313,7 @@ class ZoneCellIter : public ZoneCellIterImpl
 
   public:
     ZoneCellIter(JS::Zone *zone, AllocKind kind)
-      : lists(&zone->arenas),
+      : lists(&zone->allocator.arenas),
         kind(kind)
     {
         JSRuntime *rt = zone->runtimeFromMainThread();
@@ -289,7 +325,7 @@ class ZoneCellIter : public ZoneCellIterImpl
          * currently active.
          */
         if (IsBackgroundFinalized(kind) &&
-            zone->arenas.needBackgroundFinalizeWait(kind))
+            zone->allocator.arenas.needBackgroundFinalizeWait(kind))
         {
             rt->gc.waitBackgroundSweepEnd();
         }
@@ -414,7 +450,7 @@ PossiblyFail()
 
 template <AllowGC allowGC>
 static inline bool
-CheckAllocatorState(ExclusiveContext *cx, AllocKind kind)
+CheckAllocatorState(ThreadSafeContext *cx, AllocKind kind)
 {
     if (!cx->isJSContext())
         return true;
@@ -459,7 +495,7 @@ CheckAllocatorState(ExclusiveContext *cx, AllocKind kind)
 
 template <typename T>
 static inline void
-CheckIncrementalZoneState(ExclusiveContext *cx, T *t)
+CheckIncrementalZoneState(ThreadSafeContext *cx, T *t)
 {
 #ifdef DEBUG
     if (!cx->isJSContext())
@@ -480,7 +516,7 @@ CheckIncrementalZoneState(ExclusiveContext *cx, T *t)
 
 template <AllowGC allowGC>
 inline JSObject *
-AllocateObject(ExclusiveContext *cx, AllocKind kind, size_t nDynamicSlots, InitialHeap heap,
+AllocateObject(ThreadSafeContext *cx, AllocKind kind, size_t nDynamicSlots, InitialHeap heap,
                const js::Class *clasp)
 {
     size_t thingSize = Arena::thingSize(kind);
@@ -504,13 +540,17 @@ AllocateObject(ExclusiveContext *cx, AllocKind kind, size_t nDynamicSlots, Initi
 
     HeapSlot *slots = nullptr;
     if (nDynamicSlots) {
-        slots = cx->zone()->pod_malloc<HeapSlot>(nDynamicSlots);
+        if (cx->isExclusiveContext())
+            slots = cx->asExclusiveContext()->zone()->pod_malloc<HeapSlot>(nDynamicSlots);
+        else
+            slots = js_pod_malloc<HeapSlot>(nDynamicSlots);
         if (MOZ_UNLIKELY(!slots))
             return nullptr;
         js::Debug_SetSlotRangeToCrashOnTouch(slots, nDynamicSlots);
     }
 
-    JSObject *obj = reinterpret_cast<JSObject *>(cx->arenas()->allocateFromFreeList(kind, thingSize));
+    JSObject *obj = reinterpret_cast<JSObject *>(
+            cx->allocator()->arenas.allocateFromFreeList(kind, thingSize));
     if (!obj)
         obj = reinterpret_cast<JSObject *>(GCRuntime::refillFreeListFromAnyThread<allowGC>(cx, kind));
 
@@ -526,7 +566,7 @@ AllocateObject(ExclusiveContext *cx, AllocKind kind, size_t nDynamicSlots, Initi
 
 template <typename T, AllowGC allowGC>
 inline T *
-AllocateNonObject(ExclusiveContext *cx)
+AllocateNonObject(ThreadSafeContext *cx)
 {
     static_assert(sizeof(T) >= CellSize,
                   "All allocations must be at least the allocator-imposed minimum size.");
@@ -538,7 +578,7 @@ AllocateNonObject(ExclusiveContext *cx)
     if (!CheckAllocatorState<allowGC>(cx, kind))
         return nullptr;
 
-    T *t = static_cast<T *>(cx->arenas()->allocateFromFreeList(kind, thingSize));
+    T *t = static_cast<T *>(cx->allocator()->arenas.allocateFromFreeList(kind, thingSize));
     if (!t)
         t = static_cast<T *>(GCRuntime::refillFreeListFromAnyThread<allowGC>(cx, kind));
 
@@ -599,7 +639,7 @@ IsInsideGGCNursery(const js::gc::Cell *cell)
 
 template <js::AllowGC allowGC>
 inline JSObject *
-NewGCObject(js::ExclusiveContext *cx, js::gc::AllocKind kind, size_t nDynamicSlots,
+NewGCObject(js::ThreadSafeContext *cx, js::gc::AllocKind kind, size_t nDynamicSlots,
             js::gc::InitialHeap heap, const js::Class *clasp)
 {
     MOZ_ASSERT(kind >= js::gc::FINALIZE_OBJECT0 && kind <= js::gc::FINALIZE_OBJECT_LAST);
@@ -608,46 +648,46 @@ NewGCObject(js::ExclusiveContext *cx, js::gc::AllocKind kind, size_t nDynamicSlo
 
 template <js::AllowGC allowGC>
 inline jit::JitCode *
-NewJitCode(js::ExclusiveContext *cx)
+NewJitCode(js::ThreadSafeContext *cx)
 {
     return gc::AllocateNonObject<jit::JitCode, allowGC>(cx);
 }
 
 inline
 types::TypeObject *
-NewTypeObject(js::ExclusiveContext *cx)
+NewTypeObject(js::ThreadSafeContext *cx)
 {
     return gc::AllocateNonObject<types::TypeObject, js::CanGC>(cx);
 }
 
 template <js::AllowGC allowGC>
 inline JSString *
-NewGCString(js::ExclusiveContext *cx)
+NewGCString(js::ThreadSafeContext *cx)
 {
     return js::gc::AllocateNonObject<JSString, allowGC>(cx);
 }
 
 template <js::AllowGC allowGC>
 inline JSFatInlineString *
-NewGCFatInlineString(js::ExclusiveContext *cx)
+NewGCFatInlineString(js::ThreadSafeContext *cx)
 {
     return js::gc::AllocateNonObject<JSFatInlineString, allowGC>(cx);
 }
 
 inline JSExternalString *
-NewGCExternalString(js::ExclusiveContext *cx)
+NewGCExternalString(js::ThreadSafeContext *cx)
 {
     return js::gc::AllocateNonObject<JSExternalString, js::CanGC>(cx);
 }
 
 inline Shape *
-NewGCShape(ExclusiveContext *cx)
+NewGCShape(ThreadSafeContext *cx)
 {
     return gc::AllocateNonObject<Shape, CanGC>(cx);
 }
 
 inline Shape *
-NewGCAccessorShape(ExclusiveContext *cx)
+NewGCAccessorShape(ThreadSafeContext *cx)
 {
     return gc::AllocateNonObject<AccessorShape, CanGC>(cx);
 }
@@ -655,20 +695,20 @@ NewGCAccessorShape(ExclusiveContext *cx)
 } /* namespace js */
 
 inline JSScript *
-js_NewGCScript(js::ExclusiveContext *cx)
+js_NewGCScript(js::ThreadSafeContext *cx)
 {
     return js::gc::AllocateNonObject<JSScript, js::CanGC>(cx);
 }
 
 inline js::LazyScript *
-js_NewGCLazyScript(js::ExclusiveContext *cx)
+js_NewGCLazyScript(js::ThreadSafeContext *cx)
 {
     return js::gc::AllocateNonObject<js::LazyScript, js::CanGC>(cx);
 }
 
 template <js::AllowGC allowGC>
 inline js::BaseShape *
-js_NewGCBaseShape(js::ExclusiveContext *cx)
+js_NewGCBaseShape(js::ThreadSafeContext *cx)
 {
     return js::gc::AllocateNonObject<js::BaseShape, allowGC>(cx);
 }

@@ -439,8 +439,7 @@ def check_output(out, err, rc, timed_out, test, options):
 
         # Allow a non-zero exit code if we want to allow OOM, but only if we
         # actually got OOM.
-        if test.allow_oom and 'out of memory' in err \
-           and 'Assertion failure' not in err and 'MOZ_CRASH' not in err:
+        if test.allow_oom and 'out of memory' in err and 'Assertion failure' not in err:
             return True
 
         # Allow a non-zero exit code if we want to allow unhandlable OOM, but

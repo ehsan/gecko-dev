@@ -48,7 +48,7 @@ GenerateRequest(IDBIndex* aIndex)
 
 IDBIndex::IDBIndex(IDBObjectStore* aObjectStore, const IndexMetadata* aMetadata)
   : mObjectStore(aObjectStore)
-  , mCachedKeyPath(JS::UndefinedValue())
+  , mCachedKeyPath(JSVAL_VOID)
   , mMetadata(aMetadata)
   , mId(aMetadata->id())
   , mRooted(false)
@@ -63,7 +63,7 @@ IDBIndex::~IDBIndex()
   AssertIsOnOwningThread();
 
   if (mRooted) {
-    mCachedKeyPath.setUndefined();
+    mCachedKeyPath = JSVAL_VOID;
     mozilla::DropJSObjects(this);
   }
 }
@@ -559,7 +559,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IDBIndex)
 
   // Don't unlink mObjectStore!
 
-  tmp->mCachedKeyPath.setUndefined();
+  tmp->mCachedKeyPath = JSVAL_VOID;
 
   if (tmp->mRooted) {
     mozilla::DropJSObjects(tmp);

@@ -555,6 +555,12 @@ FrameIter::settleOnActivation()
             return;
         }
 
+        // ForkJoin activations don't contain iterable frames, so skip them.
+        if (activation->isForkJoin()) {
+            ++data_.activations_;
+            continue;
+        }
+
         MOZ_ASSERT(activation->isInterpreter());
 
         InterpreterActivation *interpAct = activation->asInterpreter();

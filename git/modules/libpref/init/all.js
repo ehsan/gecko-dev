@@ -4422,9 +4422,6 @@ pref("dom.udpsocket.enabled", false);
 // Disable before keyboard events and after keyboard events by default.
 pref("dom.beforeAfterKeyboardEvent.enabled", false);
 
-// Presentation API
-pref("dom.presentation.enabled", false);
-
 // Use raw ICU instead of CoreServices API in Unicode collation
 #ifdef XP_MACOSX
 pref("intl.collation.mac.use_icu", true);
@@ -4449,9 +4446,6 @@ pref("dom.mozSettings.SettingsService.verbose.enabled", false);
 // IndexedDB transactions to be opened as readonly or keep everything as
 // readwrite.
 pref("dom.mozSettings.allowForceReadOnly", false);
-
-// RequestSync API is disabled by default.
-pref("dom.requestSync.enabled", false);
 
 // Search service settings
 pref("browser.search.log", false);

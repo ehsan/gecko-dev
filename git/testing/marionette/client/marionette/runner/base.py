@@ -395,11 +395,6 @@ class BaseMarionetteOptions(OptionParser):
                         action='store_true',
                         default=False,
                         help='Enable the jsdebugger for marionette javascript.')
-        self.add_option('--e10s',
-                        dest='e10s',
-                        action='store_true',
-                        default=False,
-                        help='Enable e10s when running marionette tests.')
 
     def parse_args(self, args=None, values=None):
         options, tests = OptionParser.parse_args(self, args, values)
@@ -452,11 +447,6 @@ class BaseMarionetteOptions(OptionParser):
         if options.jsdebugger:
             options.app_args.append('-jsdebugger')
 
-        if options.e10s:
-            options.prefs = {
-                'browser.tabs.remote.autostart': True
-            }
-
         for handler in self.verify_usage_handlers:
             handler(options, tests)
 
@@ -476,7 +466,7 @@ class BaseMarionetteTestRunner(object):
                  shuffle=False, shuffle_seed=random.randint(0, sys.maxint),
                  sdcard=None, this_chunk=1, total_chunks=1, sources=None,
                  server_root=None, gecko_log=None, result_callbacks=None,
-                 adb_host=None, adb_port=None, prefs=None, **kwargs):
+                 adb_host=None, adb_port=None, **kwargs):
         self.address = address
         self.emulator = emulator
         self.emulator_binary = emulator_binary
@@ -518,7 +508,6 @@ class BaseMarionetteTestRunner(object):
         self.result_callbacks = result_callbacks if result_callbacks is not None else []
         self._adb_host = adb_host
         self._adb_port = adb_port
-        self.prefs = prefs
 
         def gather_debug(test, status):
             rv = {}
@@ -631,7 +620,6 @@ class BaseMarionetteTestRunner(object):
             'timeout': self.timeout,
             'adb_host': self._adb_host,
             'adb_port': self._adb_port,
-            'prefs': self.prefs,
         }
         if self.bin:
             kwargs.update({

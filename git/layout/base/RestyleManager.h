@@ -181,17 +181,8 @@ public:
    */
   typedef nsRefPtrHashtable<nsRefPtrHashKey<nsIContent>, nsStyleContext>
             ReframingStyleContextTable;
-  class MOZ_STACK_CLASS ReframingStyleContexts MOZ_FINAL {
+  class ReframingStyleContexts {
   public:
-    /**
-     * Construct a ReframingStyleContexts object.  The caller must
-     * ensure that aRestyleManager lives at least as long as the
-     * object.  (This is generally easy since the caller is typically a
-     * method of RestyleManager.)
-     */
-    explicit ReframingStyleContexts(RestyleManager* aRestyleManager);
-    ~ReframingStyleContexts();
-
     void Put(nsIContent* aContent, nsStyleContext* aStyleContext) {
       MOZ_ASSERT(aContent);
       nsCSSPseudoElements::Type pseudoType = aStyleContext->GetPseudoType();
@@ -224,8 +215,6 @@ public:
       return nullptr;
     }
   private:
-    RestyleManager* mRestyleManager;
-    AutoRestore<ReframingStyleContexts*> mRestorePointer;
     ReframingStyleContextTable mElementContexts;
     ReframingStyleContextTable mBeforePseudoContexts;
     ReframingStyleContextTable mAfterPseudoContexts;
@@ -289,7 +278,7 @@ public:
   // ProcessPendingRestyles calls into one of our RestyleTracker
   // objects.  It then calls back to these functions at the beginning
   // and end of its work.
-  void BeginProcessingRestyles(RestyleTracker& aRestyleTracker);
+  void BeginProcessingRestyles();
   void EndProcessingRestyles();
 
   // Update styles for animations that are running on the compositor and
@@ -337,6 +326,12 @@ public:
   // own reasons.)
   void RebuildAllStyleData(nsChangeHint aExtraHint,
                            nsRestyleHint aRestyleHint);
+
+  // Helper that does part of the work of RebuildAllStyleData, shared by
+  // RestyleElement for 'rem' handling.
+  void DoRebuildAllStyleData(RestyleTracker& aRestyleTracker,
+                             nsChangeHint aExtraHint,
+                             nsRestyleHint aRestyleHint);
 
   // See PostRestyleEventCommon below.
   void PostRestyleEvent(Element* aElement,
@@ -460,9 +455,6 @@ private:
                       RestyleTracker& aRestyleTracker,
                       nsRestyleHint   aRestyleHint);
 
-  void StartRebuildAllStyleData(RestyleTracker& aRestyleTracker);
-  void FinishRebuildAllStyleData();
-
   void StyleChangeReflow(nsIFrame* aFrame, nsChangeHint aHint);
 
   // Recursively add all the given frame and all children to the tracker.
@@ -473,29 +465,10 @@ private:
   // be performed instead.
   bool RecomputePosition(nsIFrame* aFrame);
 
-  bool ShouldStartRebuildAllFor(RestyleTracker& aRestyleTracker) {
-    // When we process our primary restyle tracker and we have a pending
-    // rebuild-all, we need to process it.
-    return mDoRebuildAllStyleData &&
-           &aRestyleTracker == &mPendingRestyles;
-  }
-
-  void ProcessRestyles(RestyleTracker& aRestyleTracker) {
-    // Fast-path the common case (esp. for the animation restyle
-    // tracker) of not having anything to do.
-    if (aRestyleTracker.Count() || ShouldStartRebuildAllFor(aRestyleTracker)) {
-      aRestyleTracker.DoProcessRestyles();
-    }
-  }
-
 private:
   nsPresContext* mPresContext; // weak, disconnected in Disconnect
 
-  // True if we need to reconstruct the rule tree the next time we
-  // process restyles.
-  bool mDoRebuildAllStyleData : 1;
-  // True if we're currently in the process of reconstructing the rule tree.
-  bool mInRebuildAllStyleData : 1;
+  bool mRebuildAllStyleData : 1;
   // True if we're already waiting for a refresh notification
   bool mObservingRefreshDriver : 1;
   // True if we're in the middle of a nsRefreshDriver refresh

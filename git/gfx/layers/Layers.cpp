@@ -208,7 +208,6 @@ Layer::Layer(LayerManager* aManager, void* aImplData) :
   mStickyPositionData(nullptr),
   mScrollbarTargetId(FrameMetrics::NULL_SCROLL_ID),
   mScrollbarDirection(ScrollDirection::NONE),
-  mIsScrollbarContainer(false),
   mDebugColorIndex(0),
   mAnimationGeneration(0)
 {}

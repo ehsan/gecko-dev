@@ -252,22 +252,17 @@ void *
 chunk_alloc_default(void *new_addr, size_t size, size_t alignment, bool *zero,
     unsigned arena_ind)
 {
-	dss_prec_t dss_prec = dss_prec_disabled;
+	arena_t *arena;
 
-	if (have_dss) {
-		arena_t *arena;
-
-		arena = arena_get(tsd_fetch(), arena_ind, false, true);
-		/*
-		 * The arena we're allocating on behalf of must have been
-		 * initialized already.
-		 */
-		assert(arena != NULL);
-		dss_prec = arena->dss_prec;
-	}
+	arena = arena_get(tsd_fetch(), arena_ind, false, true);
+	/*
+	 * The arena we're allocating on behalf of must have been initialized
+	 * already.
+	 */
+	assert(arena != NULL);
 
 	return (chunk_alloc_core(new_addr, size, alignment, false, zero,
-	    dss_prec));
+	    arena->dss_prec));
 }
 
 static void

@@ -44,8 +44,8 @@ IDBKeyRange::IDBKeyRange(nsISupports* aGlobal,
                          bool aUpperOpen,
                          bool aIsOnly)
   : mGlobal(aGlobal)
-  , mCachedLowerVal(JS::UndefinedValue())
-  , mCachedUpperVal(JS::UndefinedValue())
+  , mCachedLowerVal(JSVAL_VOID)
+  , mCachedUpperVal(JSVAL_VOID)
   , mLowerOpen(aLowerOpen)
   , mUpperOpen(aUpperOpen)
   , mIsOnly(aIsOnly)
@@ -247,10 +247,10 @@ IDBKeyRange::DropJSObjects()
   mozilla::DropJSObjects(this);
 }
 
-bool
-IDBKeyRange::WrapObject(JSContext* aCx, JS::MutableHandle<JSObject*> aReflector)
+JSObject*
+IDBKeyRange::WrapObject(JSContext* aCx)
 {
-  return IDBKeyRangeBinding::Wrap(aCx, this, aReflector);
+  return IDBKeyRangeBinding::Wrap(aCx, this);
 }
 
 void

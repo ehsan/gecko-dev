@@ -826,12 +826,12 @@ this.PlacesUIUtils = {
    * web panel.
    * see also openUILinkIn
    */
-  openNodeIn: function PUIU_openNodeIn(aNode, aWhere, aView, aPrivate) {
+  openNodeIn: function PUIU_openNodeIn(aNode, aWhere, aView) {
     let window = aView.ownerWindow;
-    this._openNodeIn(aNode, aWhere, window, aPrivate);
+    this._openNodeIn(aNode, aWhere, window);
   },
 
-  _openNodeIn: function PUIU_openNodeIn(aNode, aWhere, aWindow, aPrivate=false) {
+  _openNodeIn: function PUIU_openNodeIn(aNode, aWhere, aWindow) {
     if (aNode && PlacesUtils.nodeIsURI(aNode) &&
         this.checkURLSecurity(aNode, aWindow)) {
       let isBookmark = PlacesUtils.nodeIsBookmark(aNode);
@@ -855,10 +855,8 @@ this.PlacesUIUtils = {
           }
         }
       }
-
       aWindow.openUILinkIn(aNode.uri, aWhere, {
-        inBackground: Services.prefs.getBoolPref("browser.tabs.loadBookmarksInBackground"),
-        private: aPrivate,
+        inBackground: Services.prefs.getBoolPref("browser.tabs.loadBookmarksInBackground")
       });
     }
   },

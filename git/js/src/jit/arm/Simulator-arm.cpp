@@ -373,7 +373,7 @@ class SimulatorRuntime
   protected:
     ICacheMap icache_;
 
-    // Synchronize access between main thread and compilation threads.
+    // Synchronize access between main thread and compilation/PJS threads.
     PRLock *lock_;
     mozilla::DebugOnly<PRThread *> lockOwner_;
 

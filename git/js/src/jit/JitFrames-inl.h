@@ -11,6 +11,7 @@
 
 #include "jit/JitFrameIterator.h"
 #include "jit/LIR.h"
+#include "vm/ForkJoin.h"
 
 #include "jit/JitFrameIterator-inl.h"
 

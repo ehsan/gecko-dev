@@ -2476,6 +2476,9 @@ TypeZone::addPendingRecompile(JSContext *cx, JSScript *script)
     if (script->hasIonScript())
         addPendingRecompile(cx, script->ionScript()->recompileInfo());
 
+    if (script->hasParallelIonScript())
+        addPendingRecompile(cx, script->parallelIonScript()->recompileInfo());
+
     // When one script is inlined into another the caller listens to state
     // changes on the callee's script, so trigger these to force recompilation
     // of any such callers.
@@ -5023,7 +5026,8 @@ JSScript::maybeSweepTypes(AutoClearTypeInferenceStateOnOOM *oom)
     // the case unless the script has been compiled since we started sweeping.
     if (types.sweepReleaseTypes &&
         !hasBaselineScript() &&
-        !hasIonScript())
+        !hasIonScript() &&
+        !hasParallelIonScript())
     {
         types_->destroy();
         types_ = nullptr;
@@ -5045,6 +5049,8 @@ JSScript::maybeSweepTypes(AutoClearTypeInferenceStateOnOOM *oom)
     // Update the recompile indexes in any IonScripts still on the script.
     if (hasIonScript())
         ionScript()->recompileInfoRef().shouldSweep(types);
+    if (hasParallelIonScript())
+        parallelIonScript()->recompileInfoRef().shouldSweep(types);
 }
 
 void

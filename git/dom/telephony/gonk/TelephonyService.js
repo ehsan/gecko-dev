@@ -627,9 +627,7 @@ TelephonyService.prototype = {
       };
 
       if (activeCall.isConference) {
-        this.holdConference(aClientId,
-                            { notifySuccess: function () {},
-                              notifyError: function (errorMsg) {} });
+        this.holdConference(aClientId);
       } else {
         this.holdCall(aClientId, activeCall.callIndex,
                       { notifySuccess: function () {},
@@ -1021,53 +1019,54 @@ TelephonyService.prototype = {
                           this._defaultCallbackHandler.bind(this, aCallback));
   },
 
-  conferenceCall: function(aClientId, aCallback) {
+  conferenceCall: function(aClientId) {
     let indexes = Object.keys(this._currentCalls[aClientId]);
     if (indexes.length < 2) {
-      aCallback.notifyError(RIL.GECKO_ERROR_GENERIC_FAILURE);
+      // TODO: Bug 975949 - [B2G] Telephony should throw exceptions when some
+      // operations aren't allowed instead of simply ignoring them.
       return;
     }
 
     for (let i = 0; i < indexes.length; ++i) {
       let call = this._currentCalls[aClientId][indexes[i]];
       if (!call.isMergeable) {
-        aCallback.notifyError(RIL.GECKO_ERROR_GENERIC_FAILURE);
         return;
       }
     }
 
+    function onCdmaConferenceCallSuccess() {
+      let indexes = Object.keys(this._currentCalls[aClientId]);
+      if (indexes.length < 2) {
+        return;
+      }
+
+      for (let i = 0; i < indexes.length; ++i) {
+        let call = this._currentCalls[aClientId][indexes[i]];
+        call.state = RIL.CALL_STATE_ACTIVE;
+        call.isConference = true;
+        this.notifyCallStateChanged(aClientId, call);
+      }
+      this.notifyConferenceCallStateChanged(RIL.CALL_STATE_ACTIVE);
+    }
+
     this._sendToRilWorker(aClientId, "conferenceCall", null, response => {
       if (!response.success) {
-        aCallback.notifyError(RIL.GECKO_ERROR_GENERIC_FAILURE);
         this._notifyAllListeners("notifyConferenceError", [response.errorName,
                                                            response.errorMsg]);
         return;
       }
 
       if (response.isCdma) {
-        let indexes = Object.keys(this._currentCalls[aClientId]);
-        if (indexes.length < 2) {
-          aCallback.notifyError(RIL.GECKO_ERROR_GENERIC_FAILURE);
-          return;
-        }
-
-        for (let i = 0; i < indexes.length; ++i) {
-          let call = this._currentCalls[aClientId][indexes[i]];
-          call.state = RIL.CALL_STATE_ACTIVE;
-          call.isConference = true;
-          this.notifyCallStateChanged(aClientId, call);
-        }
-        this.notifyConferenceCallStateChanged(RIL.CALL_STATE_ACTIVE);
+        onCdmaConferenceCallSuccess.call(this);
       }
-
-      aCallback.notifySuccess();
     });
   },
 
-  separateCall: function(aClientId, aCallIndex, aCallback) {
+  separateCall: function(aClientId, aCallIndex) {
     let call = this._currentCalls[aClientId][aCallIndex];
     if (!call || !call.isConference) {
-      aCallback.notifyError(RIL.GECKO_ERROR_GENERIC_FAILURE);
+      // TODO: Bug 975949 - [B2G] Telephony should throw exceptions when some
+      // operations aren't allowed instead of simply ignoring them.
       return;
     }
 
@@ -1077,44 +1076,52 @@ TelephonyService.prototype = {
       return;
     }
 
+    function onCdmaSeparateCallSuccess() {
+      // See 3gpp2, S.R0006-522-A v1.0. Table 4, XID 6S.
+      let call = this._currentCalls[aClientId][aCallIndex];
+      if (!call || !call.isConference) {
+        return;
+      }
+
+      let childId = call.childId;
+      if (!childId) {
+        return;
+      }
+
+      let childCall = this._currentCalls[aClientId][childId];
+      this.notifyCallDisconnected(aClientId, childCall);
+    }
+
     this._sendToRilWorker(aClientId, "separateCall", { callIndex: aCallIndex },
                           response => {
       if (!response.success) {
-        aCallback.notifyError(RIL.GECKO_ERROR_GENERIC_FAILURE);
         this._notifyAllListeners("notifyConferenceError", [response.errorName,
                                                            response.errorMsg]);
         return;
       }
 
       if (response.isCdma) {
-        // See 3gpp2, S.R0006-522-A v1.0. Table 4, XID 6S.
-        let call = this._currentCalls[aClientId][aCallIndex];
-        if (!call || !call.isConference || !call.childId) {
-          aCallback.notifyError(RIL.GECKO_ERROR_GENERIC_FAILURE);
-          return;
-        }
-
-        let childCall = this._currentCalls[aClientId][call.childId];
-        this.notifyCallDisconnected(aClientId, childCall);
+        onCdmaSeparateCallSuccess.call(this);
       }
-
-      aCallback.notifySuccess();
     });
   },
 
   hangUpConference: function(aClientId, aCallback) {
-    this._sendToRilWorker(aClientId, "hangUpConference", null,
-                          this._defaultCallbackHandler.bind(this, aCallback));
+    this._sendToRilWorker(aClientId, "hangUpConference", null, response => {
+      if (!response.success) {
+        aCallback.notifyError(response.errorMsg);
+      } else {
+        aCallback.notifySuccess();
+      }
+    });
   },
 
-  holdConference: function(aClientId, aCallback) {
-    this._sendToRilWorker(aClientId, "holdConference", null,
-                          this._defaultCallbackHandler.bind(this, aCallback));
+  holdConference: function(aClientId) {
+    this._sendToRilWorker(aClientId, "holdConference");
   },
 
-  resumeConference: function(aClientId, aCallback) {
-    this._sendToRilWorker(aClientId, "resumeConference", null,
-                          this._defaultCallbackHandler.bind(this, aCallback));
+  resumeConference: function(aClientId) {
+    this._sendToRilWorker(aClientId, "resumeConference");
   },
 
   sendUSSD: function(aClientId, aUssd, aCallback) {

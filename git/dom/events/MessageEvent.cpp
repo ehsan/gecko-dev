@@ -19,7 +19,7 @@ namespace dom {
 NS_IMPL_CYCLE_COLLECTION_CLASS(MessageEvent)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(MessageEvent, Event)
-  tmp->mData.setUndefined();
+  tmp->mData = JSVAL_VOID;
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mWindowSource)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mPortSource)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mPorts)
@@ -46,13 +46,13 @@ MessageEvent::MessageEvent(EventTarget* aOwner,
                            nsPresContext* aPresContext,
                            WidgetEvent* aEvent)
   : Event(aOwner, aPresContext, aEvent)
-  , mData(JS::UndefinedValue())
+  , mData(JSVAL_VOID)
 {
 }
 
 MessageEvent::~MessageEvent()
 {
-  mData.setUndefined();
+  mData = JSVAL_VOID;
   DropJSObjects(this);
 }
 

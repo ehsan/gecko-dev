@@ -8,23 +8,23 @@
 interface TelephonyCallGroup : EventTarget {
   readonly attribute CallsList calls;
 
-  [NewObject, Throws]
-  Promise<void> add(TelephonyCall call);
+  [Throws]
+  void add(TelephonyCall call);
 
-  [NewObject, Throws]
-  Promise<void> add(TelephonyCall call, TelephonyCall secondCall);
+  [Throws]
+  void add(TelephonyCall call, TelephonyCall secondCall);
 
-  [NewObject, Throws]
-  Promise<void> remove(TelephonyCall call);
+  [Throws]
+  void remove(TelephonyCall call);
 
   [NewObject]
   Promise<void> hangUp();
 
-  [NewObject, Throws]
-  Promise<void> hold();
+  [Throws]
+  void hold();
 
-  [NewObject, Throws]
-  Promise<void> resume();
+  [Throws]
+  void resume();
 
   readonly attribute DOMString state;
 
