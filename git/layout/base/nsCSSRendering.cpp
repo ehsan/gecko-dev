@@ -596,12 +596,14 @@ nsCSSRendering::PaintBorder(nsPresContext* aPresContext,
 
   // pull out styles, colors, composite colors
   NS_FOR_CSS_SIDES (i) {
-    PRBool foreground;
+    PRBool transparent, foreground;
     borderStyles[i] = aBorderStyle.GetBorderStyle(i);
-    aBorderStyle.GetBorderColor(i, borderColors[i], foreground);
+    aBorderStyle.GetBorderColor(i, borderColors[i], transparent, foreground);
     aBorderStyle.GetCompositeColors(i, &compositeColors[i]);
 
-    if (foreground)
+    if (transparent)
+      borderColors[i] = 0x0;
+    else if (foreground)
       borderColors[i] = ourColor->mColor;
   }
 
@@ -640,16 +642,6 @@ nsCSSRendering::PaintBorder(nsPresContext* aPresContext,
   SN();
 }
 
-static nsRect
-GetOutlineInnerRect(nsIFrame* aFrame)
-{
-  nsRect* savedOutlineInnerRect = static_cast<nsRect*>
-    (aFrame->GetProperty(nsGkAtoms::outlineInnerRectProperty));
-  if (savedOutlineInnerRect)
-    return *savedOutlineInnerRect;
-  return aFrame->GetOverflowRect();
-}
-
 void
 nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
                              nsIRenderingContext& aRenderingContext,
@@ -679,6 +671,9 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
   // get the radius for our outline
   GetBorderRadiusTwips(aOutlineStyle.mOutlineRadius, aBorderArea.width, twipsRadii);
 
+  nscoord offset;
+  aOutlineStyle.GetOutlineOffset(offset);
+
   // When the outline property is set on :-moz-anonymous-block or
   // :-moz-anonyomus-positioned-block pseudo-elements, it inherited that
   // outline from the inline that was broken because it contained a
@@ -695,34 +690,47 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
     frameForArea = frameForArea->GetFirstChild(nsnull);
     NS_ASSERTION(frameForArea, "anonymous block with no children?");
   } while (frameForArea);
-  nsRect innerRect; // relative to aBorderArea.TopLeft()
+  nsRect overflowArea;
   if (frameForArea == aForFrame) {
-    innerRect = GetOutlineInnerRect(aForFrame);
+    overflowArea = aForFrame->GetOverflowRect();
   } else {
     for (; frameForArea; frameForArea = frameForArea->GetNextSibling()) {
       // The outline has already been included in aForFrame's overflow
       // area, but not in those of its descendants, so we have to
       // include it.  Otherwise we'll end up drawing the outline inside
       // the border.
-      nsRect r(GetOutlineInnerRect(frameForArea) +
+      nsRect r(frameForArea->GetOverflowRect() +
                frameForArea->GetOffsetTo(aForFrame));
-      innerRect.UnionRect(innerRect, r);
+      nscoord delta = PR_MAX(offset + width, 0);
+      r.Inflate(delta, delta);
+      overflowArea.UnionRect(overflowArea, r);
     }
   }
 
-  innerRect += aBorderArea.TopLeft();
-  nscoord offset = aOutlineStyle.mOutlineOffset;
-  innerRect.Inflate(offset, offset);
+  nsRect outerRect(overflowArea + aBorderArea.TopLeft());
+  nsRect innerRect(outerRect);
+  if (width + offset >= 0) {
+    // the overflow area is exactly the outside edge of the outline
+    innerRect.Deflate(width, width);
+  } else {
+    // the overflow area is exactly the rectangle containing the frame and its
+    // children; we can compute the outline directly
+    innerRect.Deflate(-offset, -offset);
+    if (innerRect.width < 0 || innerRect.height < 0) {
+      return; // Protect against negative outline sizes
+    }
+    outerRect = innerRect;
+    outerRect.Inflate(width, width);
+  }
+
   // If the dirty rect is completely inside the border area (e.g., only the
   // content is being painted), then we can skip out now
   // XXX this isn't exactly true for rounded borders, where the inside curves may
   // encroach into the content area.  A safer calculation would be to
   // shorten insideRect by the radius one each side before performing this test.
-  if (innerRect.Contains(aDirtyRect))
+  if (innerRect.Contains(aDirtyRect)) {
     return;
-
-  nsRect outerRect = innerRect;
-  outerRect.Inflate(width, width);
+  }
 
   // Get our conversion values
   nscoord twipsPerPixel = aPresContext->DevPixelsToAppUnits(1);
@@ -960,7 +968,7 @@ nsCSSRendering::FindNonTransparentBackground(nsStyleContext* aContext,
   
   while (context) {
     result = context->GetStyleBackground();
-    if (NS_GET_A(result->mBackgroundColor) > 0)
+    if (0 == (result->mBackgroundFlags & NS_STYLE_BG_COLOR_TRANSPARENT))
       break;
 
     context = context->GetParent();
@@ -1190,8 +1198,9 @@ nsCSSRendering::PaintBoxShadow(nsPresContext* aPresContext,
   for (PRUint32 i = styleBorder->mBoxShadow->Length(); i > 0; --i) {
     nsCSSShadowItem* shadowItem = styleBorder->mBoxShadow->ShadowAt(i - 1);
     gfxRect shadowRect(frameRect.x, frameRect.y, frameRect.width, frameRect.height);
-    shadowRect.MoveBy(gfxPoint(shadowItem->mXOffset, shadowItem->mYOffset));
-    shadowRect.Outset(shadowItem->mSpread);
+    shadowRect.MoveBy(gfxPoint(shadowItem->mXOffset.GetCoordValue(),
+                               shadowItem->mYOffset.GetCoordValue()));
+    shadowRect.Outset(shadowItem->mSpread.GetCoordValue());
 
     gfxRect shadowRectPlusBlur = shadowRect;
     shadowRect.ScaleInverse(twipsPerPixel);
@@ -1199,7 +1208,7 @@ nsCSSRendering::PaintBoxShadow(nsPresContext* aPresContext,
 
     // shadowRect won't include the blur, so make an extra rect here that includes the blur
     // for use in the even-odd rule below.
-    nscoord blurRadius = shadowItem->mRadius;
+    nscoord blurRadius = shadowItem->mRadius.GetCoordValue();
     shadowRectPlusBlur.Outset(blurRadius);
     shadowRectPlusBlur.ScaleInverse(twipsPerPixel);
     shadowRectPlusBlur.RoundOut();
@@ -1297,21 +1306,22 @@ nsCSSRendering::PaintBackground(nsPresContext* aPresContext,
 
   nsIViewManager* vm = aPresContext->GetViewManager();
 
-  if (NS_GET_A(canvasColor.mBackgroundColor) < 255) {
-    // If the window is intended to be opaque, ensure that we always
-    // paint an opaque color for its root element, in case there's no
-    // background at all or a partly transparent image.
-    nsIView* rView;
-    vm->GetRootView(rView);
-    if (!rView->GetParent() &&
-        (!rView->HasWidget() ||
-         rView->GetWidget()->GetTransparencyMode() == eTransparencyOpaque)) {
-      nscolor backColor = aPresContext->DefaultBackgroundColor();
-      NS_ASSERTION(NS_GET_A(backColor) == 255,
-                   "default background color is not opaque");
+  if (canvasColor.mBackgroundFlags & NS_STYLE_BG_COLOR_TRANSPARENT) {
+    nsIView* rootView;
+    vm->GetRootView(rootView);
+    if (!rootView->GetParent()) {
+      PRBool widgetIsTransparent = PR_FALSE;
 
-      canvasColor.mBackgroundColor =
-        NS_ComposeColors(backColor, canvasColor.mBackgroundColor);
+      if (rootView->HasWidget())
+        // We don't want to draw a bg for glass windows either
+        widgetIsTransparent = eTransparencyOpaque != rootView->GetWidget()->GetTransparencyMode();
+      
+      if (!widgetIsTransparent) {
+        // Ensure that we always paint a color for the root (in case there's
+        // no background at all or a partly transparent image).
+        canvasColor.mBackgroundFlags &= ~NS_STYLE_BG_COLOR_TRANSPARENT;
+        canvasColor.mBackgroundColor = aPresContext->DefaultBackgroundColor();
+      }
     }
   }
 
@@ -1409,9 +1419,10 @@ IsSolidBorderEdge(const nsStyleBorder& aBorder, PRUint32 aSide)
     return PR_FALSE;
 
   nscolor color;
+  PRBool isTransparent;
   PRBool isForeground;
-  aBorder.GetBorderColor(aSide, color, isForeground);
-  return NS_GET_A(color) == 255;
+  aBorder.GetBorderColor(aSide, color, isTransparent, isForeground);
+  return !isTransparent && NS_GET_A(color) == 255;
 }
 
 /**
@@ -1584,7 +1595,8 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
   // on the dirty rect before accounting for the background-position.
   nscoord tileWidth = imageSize.width;
   nscoord tileHeight = imageSize.height;
-  PRBool  needBackgroundColor = NS_GET_A(aColor.mBackgroundColor) > 0;
+  PRBool  needBackgroundColor = !(aColor.mBackgroundFlags &
+                                  NS_STYLE_BG_COLOR_TRANSPARENT);
   PRIntn  repeat = aColor.mBackgroundRepeat;
 
   switch (repeat) {
@@ -2324,7 +2336,7 @@ nsCSSRendering::PaintBackgroundColor(nsPresContext* aPresContext,
   // color if we're not completely transparent.  See the corresponding check
   // for whether we're allowed to paint background images in
   // PaintBackgroundWithSC before the first call to PaintBackgroundColor.
-  if (NS_GET_A(aColor.mBackgroundColor) == 0 &&
+  if ((aColor.mBackgroundFlags & NS_STYLE_BG_COLOR_TRANSPARENT) &&
       (aCanPaintNonWhite || aColor.IsTransparent())) {
     // nothing to paint
     return;

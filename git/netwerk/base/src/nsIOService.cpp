@@ -954,8 +954,8 @@ nsIOService::EscapeURL(const nsACString &aStr,
                        PRUint32 aFlags, nsACString &aResult)
 {
   aResult.Truncate();
-  NS_EscapeURL(aStr.BeginReading(), aStr.Length(), 
-               aFlags | esc_AlwaysCopy, aResult);
+  PRBool escaped = NS_EscapeURL(aStr.BeginReading(), aStr.Length(), 
+                                aFlags | esc_AlwaysCopy, aResult);
   return NS_OK;
 }
 
@@ -964,8 +964,8 @@ nsIOService::UnescapeString(const nsACString &aStr,
                             PRUint32 aFlags, nsACString &aResult)
 {
   aResult.Truncate();
-  NS_UnescapeURL(aStr.BeginReading(), aStr.Length(), 
-                 aFlags | esc_AlwaysCopy, aResult);
+  PRBool unescaped = NS_UnescapeURL(aStr.BeginReading(), aStr.Length(), 
+                                    aFlags | esc_AlwaysCopy, aResult);
   return NS_OK;
 }
 

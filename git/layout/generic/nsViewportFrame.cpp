@@ -321,7 +321,7 @@ ViewportFrame::Reflow(nsPresContext*          aPresContext,
   // If we were dirty then do a repaint
   if (GetStateBits() & NS_FRAME_IS_DIRTY) {
     nsRect damageRect(0, 0, aDesiredSize.width, aDesiredSize.height);
-    Invalidate(damageRect);
+    Invalidate(damageRect, PR_FALSE);
   }
 
   // XXX Should we do something to clip our children to this?
@@ -348,19 +348,15 @@ ViewportFrame::IsContainingBlock() const
 void
 ViewportFrame::InvalidateInternal(const nsRect& aDamageRect,
                                   nscoord aX, nscoord aY, nsIFrame* aForChild,
-                                  PRUint32 aFlags)
+                                  PRBool aImmediate)
 {
-  nsRect r = aDamageRect + nsPoint(aX, aY);
-  PresContext()->NotifyInvalidation(r, (aFlags & INVALIDATE_CROSS_DOC) != 0);
-
   nsIFrame* parent = nsLayoutUtils::GetCrossDocParentFrame(this);
   if (parent) {
     nsPoint pt = GetOffsetTo(parent);
-    parent->InvalidateInternal(r, pt.x, pt.y, this,
-                               aFlags | INVALIDATE_CROSS_DOC);
+    parent->InvalidateInternal(aDamageRect, aX + pt.x, aY + pt.y, this, aImmediate);
     return;
   }
-  InvalidateRoot(r, aFlags);
+  InvalidateRoot(aDamageRect, aX, aY, aImmediate);
 }
 
 #ifdef DEBUG

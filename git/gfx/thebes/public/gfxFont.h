@@ -454,8 +454,9 @@ public:
         --mRefCnt;
         NS_LOG_RELEASE(this, mRefCnt, "gfxFont");
         if (mRefCnt == 0) {
-            NotifyReleased();
-            // |this| may have been deleted.
+            // Don't delete just yet; return the object to the cache for
+            // possibly recycling within some time limit
+            gfxFontCache::GetCache()->NotifyReleased(this);
             return 0;
         }
         return mRefCnt;
@@ -466,21 +467,8 @@ public:
 protected:
     nsAutoRefCnt mRefCnt;
 
-    void NotifyReleased() {
-        gfxFontCache *cache = gfxFontCache::GetCache();
-        if (cache) {
-            // Don't delete just yet; return the object to the cache for
-            // possibly recycling within some time limit
-            cache->NotifyReleased(this);
-        } else {
-            // The cache may have already been shut down.
-            delete this;
-        }
-    }
-
-    gfxFont(gfxFontEntry *aFontEntry, const gfxFontStyle *aFontStyle);
-
 public:
+    gfxFont(gfxFontEntry *aFontEntry, const gfxFontStyle *aFontStyle);
     virtual ~gfxFont();
 
     const nsString& GetName() const { return mFontEntry->Name(); }
@@ -649,6 +637,7 @@ public:
 protected:
     nsRefPtr<gfxFontEntry> mFontEntry;
 
+    // The family name of the font
     PRPackedBool               mIsValid;
     nsExpirationState          mExpirationState;
     gfxFontStyle               mStyle;
@@ -1491,10 +1480,9 @@ private:
 };
 
 class THEBES_API gfxFontGroup : public gfxTextRunFactory {
-protected:
+public:
     gfxFontGroup(const nsAString& aFamilies, const gfxFontStyle *aStyle);
 
-public:
     virtual ~gfxFontGroup() {
         mFonts.Clear();
     }

@@ -110,10 +110,9 @@ NS_IMETHODIMP nsICODecoder::Close()
   // This should be a mFrame function, so that we don't have to query for interface...
   nsIntRect r(0, 0, mDirEntry.mWidth, mDirEntry.mHeight);
   nsCOMPtr<nsIImage> img(do_GetInterface(mFrame));
-  nsresult rv = NS_OK;
-  if (img) 
-    rv = img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r);
-    
+  if (img)
+    img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r);
+
   mImage->DecodingComplete();
 
   if (mObserver) {
@@ -144,7 +143,7 @@ NS_IMETHODIMP nsICODecoder::Close()
   }
   mDecodingAndMask = PR_FALSE;
 
-  return rv;
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsICODecoder::Flush()

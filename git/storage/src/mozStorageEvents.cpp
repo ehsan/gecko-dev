@@ -162,7 +162,7 @@ public:
 
   NS_IMETHOD Run()
   {
-    if (!mCanceled && mCallback)
+    if (!mCanceled)
       (void)mCallback->HandleError(mErrorObj);
 
     mCompletionNotifier->completed(this);

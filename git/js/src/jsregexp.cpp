@@ -338,6 +338,10 @@ typedef struct REGlobalData {
     size_t cursz;                   /* size of current stack entry */
     size_t backTrackCount;          /* how many times we've backtracked */
     size_t backTrackLimit;          /* upper limit on backtrack states */
+
+    JSArenaPool     pool;           /* It's faster to use one malloc'd pool
+                                       than to malloc/free the three items
+                                       that are allocated from this pool */
 } REGlobalData;
 
 /*
@@ -2103,7 +2107,7 @@ PushBackTrackState(REGlobalData *gData, REOp op,
         JS_COUNT_OPERATION(gData->cx, JSOW_ALLOCATION);
         btincr = JS_ROUNDUP(btincr, btsize);
         JS_ARENA_GROW_CAST(gData->backTrackStack, REBackTrackData *,
-                           &gData->cx->regexpPool, btsize, btincr);
+                           &gData->pool, btsize, btincr);
         if (!gData->backTrackStack) {
             js_ReportOutOfScriptQuota(gData->cx);
             gData->ok = JS_FALSE;
@@ -2556,8 +2560,7 @@ ReallocStateStack(REGlobalData *gData)
     size_t limit = gData->stateStackLimit;
     size_t sz = sizeof(REProgState) * limit;
 
-    JS_ARENA_GROW_CAST(gData->stateStack, REProgState *,
-                       &gData->cx->regexpPool, sz, sz);
+    JS_ARENA_GROW_CAST(gData->stateStack, REProgState *, &gData->pool, sz, sz);
     if (!gData->stateStack) {
         js_ReportOutOfScriptQuota(gData->cx);
         gData->ok = JS_FALSE;
@@ -3374,7 +3377,7 @@ InitMatch(JSContext *cx, REGlobalData *gData, JSRegExp *re, size_t length)
 
     gData->backTrackStackSize = INITIAL_BACKTRACK;
     JS_ARENA_ALLOCATE_CAST(gData->backTrackStack, REBackTrackData *,
-                           &cx->regexpPool,
+                           &gData->pool,
                            INITIAL_BACKTRACK);
     if (!gData->backTrackStack)
         goto bad;
@@ -3391,7 +3394,7 @@ InitMatch(JSContext *cx, REGlobalData *gData, JSRegExp *re, size_t length)
 
     gData->stateStackLimit = INITIAL_STATESTACK;
     JS_ARENA_ALLOCATE_CAST(gData->stateStack, REProgState *,
-                           &cx->regexpPool,
+                           &gData->pool,
                            sizeof(REProgState) * INITIAL_STATESTACK);
     if (!gData->stateStack)
         goto bad;
@@ -3402,7 +3405,7 @@ InitMatch(JSContext *cx, REGlobalData *gData, JSRegExp *re, size_t length)
     gData->ok = JS_TRUE;
 
     JS_ARENA_ALLOCATE_CAST(result, REMatchState *,
-                           &cx->regexpPool,
+                           &gData->pool,
                            offsetof(REMatchState, parens)
                            + re->parenCount * sizeof(RECapture));
     if (!result)
@@ -3441,8 +3444,6 @@ js_ExecuteRegExp(JSContext *cx, JSRegExp *re, JSString *str, size_t *indexp,
     JSObject *obj;
 
     RECapture *parsub = NULL;
-    void *mark;
-    int64 *timestamp;
 
     /*
      * It's safe to load from cp because JSStrings have a zero at the end,
@@ -3458,18 +3459,15 @@ js_ExecuteRegExp(JSContext *cx, JSRegExp *re, JSString *str, size_t *indexp,
     gData.start = start;
     gData.skipped = 0;
 
-    if (!cx->regexpPool.first.next) {
-        /*
-         * The first arena in the regexpPool must have a timestamp at its base.
-         */
-        JS_ARENA_ALLOCATE_CAST(timestamp, int64 *,
-                               &cx->regexpPool, sizeof *timestamp);
-        if (!timestamp)
-            return JS_FALSE;
-        *timestamp = JS_Now();
-    }
-    mark = JS_ARENA_MARK(&cx->regexpPool);
-
+    /*
+     * To avoid multiple allocations in InitMatch(), the arena size parameter
+     * should be at least as big as:
+     * INITIAL_BACKTRACK
+     * + (sizeof(REProgState) * INITIAL_STATESTACK)
+     * + (offsetof(REMatchState, parens) + avgParanSize * sizeof(RECapture))
+     */
+    JS_INIT_ARENA_POOL(&gData.pool, "RegExpPool", 12288, 4,
+                       &cx->scriptStackQuota);
     x = InitMatch(cx, &gData, re, length);
 
     if (!x) {
@@ -3644,7 +3642,7 @@ js_ExecuteRegExp(JSContext *cx, JSRegExp *re, JSString *str, size_t *indexp,
     res->rightContext.length = gData.cpend - ep;
 
 out:
-    JS_ARENA_RELEASE(&cx->regexpPool, mark);
+    JS_FinishArenaPool(&gData.pool);
     return ok;
 }
 

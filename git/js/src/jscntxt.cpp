@@ -286,21 +286,8 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
     cx->version = JSVERSION_DEFAULT;
     JS_INIT_ARENA_POOL(&cx->stackPool, "stack", stackChunkSize, sizeof(jsval),
                        &cx->scriptStackQuota);
-
-    JS_INIT_ARENA_POOL(&cx->tempPool, "temp",
-                       1024,  /* FIXME: bug 421435 */
-                       sizeof(jsdouble), &cx->scriptStackQuota);
-
-    /*
-     * To avoid multiple allocations in InitMatch() (in jsregexp.c), the arena
-     * size parameter should be at least as big as:
-     *   INITIAL_BACKTRACK
-     *   + (sizeof(REProgState) * INITIAL_STATESTACK)
-     *   + (offsetof(REMatchState, parens) + avgParanSize * sizeof(RECapture))
-     */
-    JS_INIT_ARENA_POOL(&cx->regexpPool, "regexp",
-                       12 * 1024 - 40,  /* FIXME: bug 421435 */
-                       sizeof(void *), &cx->scriptStackQuota);
+    JS_INIT_ARENA_POOL(&cx->tempPool, "temp", 1024, sizeof(jsdouble),
+                       &cx->scriptStackQuota);
 
     if (!js_InitRegExpStatics(cx, &cx->regExpStatics)) {
         js_DestroyContext(cx, JSDCM_NEW_FAILED);
@@ -468,7 +455,6 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
     /* Free the stuff hanging off of cx. */
     JS_FinishArenaPool(&cx->stackPool);
     JS_FinishArenaPool(&cx->tempPool);
-    JS_FinishArenaPool(&cx->regexpPool);
 
     if (cx->lastMessage)
         free(cx->lastMessage);

@@ -18,7 +18,6 @@ function test() {
 }
 
 function doTest() {
-  theBrowser.removeEventListener("load", listener, true);
   var fake_window = { ok: ok, SimpleTest: { finish: finish } };
   theBrowser.contentWindow.wrappedJSObject.run(fake_window);
   gBrowser.removeTab(theTab);

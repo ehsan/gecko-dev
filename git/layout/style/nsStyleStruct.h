@@ -62,7 +62,6 @@
 #include "nsIAtom.h"
 #include "nsIURI.h"
 #include "nsCSSValue.h"
-#include "nsStyleTransformMatrix.h"
 
 class nsIFrame;
 class imgIRequest;
@@ -145,7 +144,7 @@ struct nsStyleColor {
 };
 
 struct nsStyleBackground {
-  nsStyleBackground();
+  nsStyleBackground(nsPresContext* aPresContext);
   nsStyleBackground(const nsStyleBackground& aOther);
   ~nsStyleBackground();
 
@@ -180,11 +179,11 @@ struct nsStyleBackground {
   nscolor mBackgroundColor;       // [reset]
   nsCOMPtr<imgIRequest> mBackgroundImage; // [reset]
 
-  // True if this background is completely transparent.
   PRBool IsTransparent() const
   {
-    return (NS_GET_A(mBackgroundColor) == 0 &&
-            (mBackgroundFlags & NS_STYLE_BG_IMAGE_NONE));
+    return (mBackgroundFlags &
+            (NS_STYLE_BG_COLOR_TRANSPARENT | NS_STYLE_BG_IMAGE_NONE)) ==
+            (NS_STYLE_BG_COLOR_TRANSPARENT | NS_STYLE_BG_IMAGE_NONE);
   }
 
   // We have to take slower codepaths for fixed background attachment,
@@ -194,12 +193,11 @@ struct nsStyleBackground {
   PRBool HasFixedBackground() const;
 };
 
-// See https://bugzilla.mozilla.org/show_bug.cgi?id=271586#c43 for why
-// this is hard to replace with 'currentColor'.
+#define BORDER_COLOR_TRANSPARENT  0x40
 #define BORDER_COLOR_FOREGROUND   0x20
 #define OUTLINE_COLOR_INITIAL     0x80
-// FOREGROUND | INITIAL(OUTLINE)
-#define BORDER_COLOR_SPECIAL      0xA0
+// TRANSPARENT | FOREGROUND | INITIAL(OUTLINE)
+#define BORDER_COLOR_SPECIAL      0xE0
 #define BORDER_STYLE_MASK         0x1F
 
 #define NS_SPACING_MARGIN   0
@@ -221,7 +219,7 @@ struct nsStyleMargin {
   static nsChangeHint MaxDifference();
 #endif
 
-  nsStyleSides  mMargin;          // [reset] coord, percent, auto
+  nsStyleSides  mMargin;          // [reset] length, percent, auto
 
   PRBool GetMargin(nsMargin& aMargin) const
   {
@@ -252,7 +250,7 @@ struct nsStylePadding {
   static nsChangeHint MaxDifference();
 #endif
   
-  nsStyleSides  mPadding;         // [reset] coord, percent
+  nsStyleSides  mPadding;         // [reset] length, percent
 
   PRBool GetPadding(nsMargin& aPadding) const
   {
@@ -271,18 +269,20 @@ protected:
 struct nsBorderColors {
   nsBorderColors* mNext;
   nscolor mColor;
+  PRBool mTransparent;
 
   nsBorderColors* CopyColors() {
     nsBorderColors* next = nsnull;
     if (mNext)
       next = mNext->CopyColors();
-    return new nsBorderColors(mColor, next);
+    return new nsBorderColors(mColor, mTransparent, next);
   }
 
   nsBorderColors() :mNext(nsnull) { mColor = NS_RGB(0,0,0); }
 
-  nsBorderColors(const nscolor& aColor, nsBorderColors* aNext=nsnull) {
+  nsBorderColors(const nscolor& aColor, PRBool aTransparent, nsBorderColors* aNext=nsnull) {
     mColor = aColor;
+    mTransparent = aTransparent;
     mNext = aNext;
   }
 
@@ -290,27 +290,25 @@ struct nsBorderColors {
     delete mNext;
   }
 
-  static PRBool Equal(const nsBorderColors* c1,
-                      const nsBorderColors* c2) {
-    if (c1 == c2)
-      return PR_TRUE;
+  PRBool Equals(nsBorderColors* aOther) {
+    nsBorderColors* c1 = this;
+    nsBorderColors* c2 = aOther;
     while (c1 && c2) {
-      if (c1->mColor != c2->mColor)
+      if (c1->mColor != c2->mColor ||
+          c1->mTransparent != c2->mTransparent)
         return PR_FALSE;
       c1 = c1->mNext;
       c2 = c2->mNext;
     }
-    // both should be NULL if these are equal, otherwise one
-    // has more colors than another
     return !c1 && !c2;
   }
 };
 
 struct nsCSSShadowItem {
-  nscoord mXOffset;
-  nscoord mYOffset;
-  nscoord mRadius;
-  nscoord mSpread;
+  nsStyleCoord mXOffset;    // length (coord, chars)
+  nsStyleCoord mYOffset;    // length (coord, chars)
+  nsStyleCoord mRadius;     // length (coord, chars)
+  nsStyleCoord mSpread;     // length (coord, chars)
 
   nscolor      mColor;
   PRPackedBool mHasColor; // Whether mColor should be used
@@ -417,7 +415,7 @@ struct nsStyleBorder {
 #endif
   PRBool ImageBorderDiffers() const;
  
-  nsStyleSides  mBorderRadius;    // [reset] coord, percent
+  nsStyleSides  mBorderRadius;    // [reset] length, percent
   nsStyleSides  mBorderImageSplit; // [reset] integer, percent
   PRUint8       mFloatEdge;       // [reset] see nsStyleConsts.h
   PRUint8       mBorderImageHFill; // [reset]
@@ -512,16 +510,16 @@ struct nsStyleBorder {
   inline PRBool IsBorderImageLoaded() const;
 
   void GetBorderColor(PRUint8 aSide, nscolor& aColor,
-                      PRBool& aForeground) const
+                      PRBool& aTransparent, PRBool& aForeground) const
   {
-    aForeground = PR_FALSE;
+    aTransparent = aForeground = PR_FALSE;
     NS_ASSERTION(aSide <= NS_SIDE_LEFT, "bad side"); 
     if ((mBorderStyle[aSide] & BORDER_COLOR_SPECIAL) == 0)
       aColor = mBorderColor[aSide]; 
     else if (mBorderStyle[aSide] & BORDER_COLOR_FOREGROUND)
       aForeground = PR_TRUE;
     else
-      NS_NOTREACHED("OUTLINE_COLOR_INITIAL should not be set here");
+      aTransparent = PR_TRUE;
   }
 
   void SetBorderColor(PRUint8 aSide, nscolor aColor) 
@@ -543,10 +541,10 @@ struct nsStyleBorder {
       *aColors = mBorderColors[aIndex];
   }
 
-  void AppendBorderColor(PRInt32 aIndex, nscolor aColor)
+  void AppendBorderColor(PRInt32 aIndex, nscolor aColor, PRBool aTransparent)
   {
     NS_ASSERTION(aIndex >= 0 && aIndex <= 3, "bad side for composite border color");
-    nsBorderColors* colorEntry = new nsBorderColors(aColor);
+    nsBorderColors* colorEntry = new nsBorderColors(aColor, aTransparent);
     if (!mBorderColors[aIndex])
       mBorderColors[aIndex] = colorEntry;
     else {
@@ -556,6 +554,13 @@ struct nsStyleBorder {
       last->mNext = colorEntry;
     }
     mBorderStyle[aIndex] &= ~BORDER_COLOR_SPECIAL;
+  }
+
+  void SetBorderTransparent(PRUint8 aSide)
+  {
+    NS_ASSERTION(aSide <= NS_SIDE_LEFT, "bad side"); 
+    mBorderStyle[aSide] &= ~BORDER_COLOR_SPECIAL;
+    mBorderStyle[aSide] |= BORDER_COLOR_TRANSPARENT; 
   }
 
   void SetBorderToForeground(PRUint8 aSide)
@@ -617,13 +622,27 @@ struct nsStyleOutline {
   static nsChangeHint MaxDifference();
 #endif
  
-  nsStyleSides  mOutlineRadius;    // [reset] coord, percent
+  nsStyleSides  mOutlineRadius;    // [reset] length, percent
                                    // (top=topLeft, right=topRight, bottom=bottomRight, left=bottomLeft)
 
-  // Note that this is a specified value.  You can get the actual values
-  // with GetOutlineWidth.  You cannot get the computed value directly.
-  nsStyleCoord  mOutlineWidth;    // [reset] coord, enum (see nsStyleConsts.h)
-  nscoord       mOutlineOffset;   // [reset]
+  // Note that these are specified values.  You can get the actual values with
+  // GetOutlineWidth and GetOutlineOffset.  You cannot get the computed values
+  // directly.
+  nsStyleCoord  mOutlineOffset;   // [reset] length XXX Why nsStyleCoord?
+  nsStyleCoord  mOutlineWidth;    // [reset] length, enum (see nsStyleConsts.h)
+
+  PRBool GetOutlineOffset(nscoord& aOffset) const
+  {
+    if (mOutlineOffset.GetUnit() == eStyleUnit_Coord) {
+      nscoord offset = mOutlineOffset.GetCoordValue();
+      aOffset = NS_ROUND_OFFSET_TO_PIXELS(offset, mTwipsPerPixel);
+      return PR_TRUE;
+    } else {
+      NS_ERROR("GetOutlineOffset: bad unit type");
+      aOffset = 0;
+      return PR_FALSE;
+    }
+  }
 
   PRBool GetOutlineWidth(nscoord& aWidth) const
   {
@@ -887,10 +906,7 @@ struct nsStyleDisplay {
   PRUint8 mOverflowX;           // [reset] see nsStyleConsts.h
   PRUint8 mOverflowY;           // [reset] see nsStyleConsts.h
   PRUint8   mClipFlags;         // [reset] see nsStyleConsts.h
-  PRPackedBool mTransformPresent;  // [reset] Whether there is a -moz-transform.
-  nsStyleTransformMatrix mTransform; // [reset] The stored transform matrix
-  nsStyleCoord mTransformOrigin[2]; // [reset] percent, coord.
-
+  
   PRBool IsBlockInside() const {
     return NS_STYLE_DISPLAY_BLOCK == mDisplay ||
            NS_STYLE_DISPLAY_LIST_ITEM == mDisplay ||
@@ -922,11 +938,8 @@ struct nsStyleDisplay {
   PRBool IsAbsolutelyPositioned() const {return (NS_STYLE_POSITION_ABSOLUTE == mPosition) ||
                                                 (NS_STYLE_POSITION_FIXED == mPosition);}
 
-  /* Returns true if we're positioned or there's a transform in effect. */
-  PRBool IsPositioned() const {
-    return IsAbsolutelyPositioned() ||
-      NS_STYLE_POSITION_RELATIVE == mPosition || mTransformPresent;
-  }
+  PRBool IsPositioned() const {return IsAbsolutelyPositioned() ||
+                                      (NS_STYLE_POSITION_RELATIVE == mPosition);}
 
   PRBool IsScrollableOverflow() const {
     // mOverflowX and mOverflowY always match when one of them is
@@ -941,11 +954,6 @@ struct nsStyleDisplay {
     return mOverflowX == NS_STYLE_OVERFLOW_CLIP ||
            (mOverflowX == NS_STYLE_OVERFLOW_HIDDEN &&
             mOverflowY == NS_STYLE_OVERFLOW_HIDDEN);
-  }
-
-  /* Returns whether the element has the -moz-transform property. */
-  PRBool HasTransform() const {
-    return mTransformPresent;
   }
 };
 
@@ -992,8 +1000,8 @@ struct nsStyleTableBorder {
   static nsChangeHint MaxDifference();
 #endif
   
-  nscoord       mBorderSpacingX;// [inherited]
-  nscoord       mBorderSpacingY;// [inherited]
+  nsStyleCoord  mBorderSpacingX;// [inherited] coord
+  nsStyleCoord  mBorderSpacingY;// [inherited] coord
   PRUint8       mBorderCollapse;// [inherited]
   PRUint8       mCaptionSide;   // [inherited]
   PRUint8       mEmptyCells;    // [inherited]
@@ -1335,8 +1343,6 @@ struct nsStyleColumn {
 
   nscolor      mColumnRuleColor;  // [reset]
   PRUint8      mColumnRuleStyle;  // [reset]
-  // See https://bugzilla.mozilla.org/show_bug.cgi?id=271586#c43 for why
-  // this is hard to replace with 'currentColor'.
   PRPackedBool mColumnRuleColorIsForeground;
 
   void SetColumnRuleWidth(nscoord aWidth) {

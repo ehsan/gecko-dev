@@ -1006,9 +1006,9 @@ nsObjectFrame::IsHidden(PRBool aCheckVisibilityStyle) const
     nsAutoString hidden;
     if (mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::hidden, hidden) &&
        (hidden.IsEmpty() ||
-        (!hidden.LowerCaseEqualsLiteral("false") &&
-         !hidden.LowerCaseEqualsLiteral("no") &&
-         !hidden.LowerCaseEqualsLiteral("off")))) {
+        !hidden.LowerCaseEqualsLiteral("false") &&
+        !hidden.LowerCaseEqualsLiteral("no") &&
+        !hidden.LowerCaseEqualsLiteral("off"))) {
       return PR_TRUE;
     }
   }
@@ -1169,6 +1169,7 @@ nsObjectFrame::PrintPlugin(nsIRenderingContext& aRenderingContext,
     return;
 
   // now we need to setup the correct location for printing
+  nsresult rv;
   nsPluginWindow    window;
   window.window =   nsnull;
 
@@ -1217,7 +1218,7 @@ nsObjectFrame::PrintPlugin(nsIRenderingContext& aRenderingContext,
   window.width =   aDirtyRect.width;
   window.height =   aDirtyRect.height;
   npprint.print.embedPrint.window        = window;
-  nsresult rv = pi->Print(&npprint);
+  rv = pi->Print(&npprint);
   if (NS_FAILED(rv)) {
     PR_LOG(nsObjectFrameLM, PR_LOG_DEBUG, ("error: plugin returned failure %lx\n", (long)rv));
     fclose(plugintmpfile);
@@ -1240,7 +1241,7 @@ nsObjectFrame::PrintPlugin(nsIRenderingContext& aRenderingContext,
   npprint.print.embedPrint.platformPrint = hps;
   npprint.print.embedPrint.window = window;
   // send off print info to plugin
-  pi->Print(&npprint);
+  rv = pi->Print(&npprint);
 #elif defined(XP_WIN)
 
   /* On Windows, we use the win32 printing surface to print.  This, in
@@ -1294,7 +1295,7 @@ nsObjectFrame::PrintPlugin(nsIRenderingContext& aRenderingContext,
     npprint.print.embedPrint.platformPrint = dc;
     npprint.print.embedPrint.window = window;
     // send off print info to plugin
-    pi->Print(&npprint);
+    rv = pi->Print(&npprint);
 
     nativeDraw.EndNativeDrawing();
   } while (nativeDraw.ShouldRenderAgain());
@@ -1331,7 +1332,7 @@ nsObjectFrame::PrintPlugin(nsIRenderingContext& aRenderingContext,
   npprint.print.embedPrint.platformPrint = dc;
   npprint.print.embedPrint.window = window;
   // send off print info to plugin
-  pi->Print(&npprint);
+    rv = pi->Print(&npprint);
 #endif
 
   // XXX Nav 4.x always sent a SetWindow call after print. Should we do the same?
@@ -1810,16 +1811,13 @@ static PRBool
 DoDelayedStop(nsPluginInstanceOwner *aInstanceOwner, PRBool aDelayedStop)
 {
   // Don't delay stopping QuickTime (bug 425157), Flip4Mac (bug 426524),
-  // XStandard (bug 430219), CMISS Zinc (bug 429604). ARM Flash (454756)
+  // XStandard (bug 430219), CMISS Zinc (bug 429604).
   if (aDelayedStop
 #ifndef XP_WIN
       && !::MatchPluginName(aInstanceOwner, "QuickTime")
       && !::MatchPluginName(aInstanceOwner, "Flip4Mac")
       && !::MatchPluginName(aInstanceOwner, "XStandard plugin")
       && !::MatchPluginName(aInstanceOwner, "CMISS Zinc Plugin")
-#endif
-#if defined(XP_UNIX) && defined(__arm__)
-      && !::MatchPluginName(aInstanceOwner, "Shockwave Flash")
 #endif
       ) {
     nsCOMPtr<nsIRunnable> evt = new nsStopPluginRunnable(aInstanceOwner);

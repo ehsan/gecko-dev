@@ -230,18 +230,17 @@ function synthesizeMouse(aTarget, aOffsetX, aOffsetY, aEvent, aWindow)
  * aOffsetY.
  *
  * aEvent is an object which may contain the properties:
- *   shiftKey, ctrlKey, altKey, metaKey, accessKey, button, type, axis, delta, hasPixels
+ *   shiftKey, ctrlKey, altKey, metaKey, accessKey, button, type, axis, units, delta
  *
- * If the type is specified, a mouse scroll event of that type is fired. Otherwise,
+ * If the type is specified, an mouse scroll event of that type is fired. Otherwise,
  * "DOMMouseScroll" is used.
  *
  * If the axis is specified, it must be one of "horizontal" or "vertical". If not specified,
  * "vertical" is used.
  * 
  * 'delta' is the amount to scroll by (can be positive or negative). It must
- * be specified.
- *
- * 'hasPixels' specifies whether kHasPixels should be set in the scrollFlags.
+ * be specified. 'units' is the units of 'delta', either "pixels" or "lines"; "lines"
+ * is the default if 'units' is ommitted.
  *
  * aWindow is optional, and defaults to the current window object.
  */
@@ -258,7 +257,7 @@ function synthesizeMouseScroll(aTarget, aOffsetX, aOffsetY, aEvent, aWindow)
     // See nsMouseScrollFlags in nsGUIEvent.h
     const kIsVertical = 0x02;
     const kIsHorizontal = 0x04;
-    const kHasPixels = 0x08;
+    const kIsPixels = 0x08;
 
     var button = aEvent.button || 0;
     var modifiers = _parseModifiers(aEvent);
@@ -268,9 +267,10 @@ function synthesizeMouseScroll(aTarget, aOffsetX, aOffsetY, aEvent, aWindow)
 
     var type = aEvent.type || "DOMMouseScroll";
     var axis = aEvent.axis || "vertical";
+    var units = aEvent.units || "lines";
     var scrollFlags = (axis == "horizontal") ? kIsHorizontal : kIsVertical;
-    if (aEvent.hasPixels) {
-      scrollFlags |= kHasPixels;
+    if (units == "pixels") {
+      scrollFlags |= kIsPixels;
     }
     utils.sendMouseScrollEvent(type, left + aOffsetX, top + aOffsetY, button,
                                scrollFlags, aEvent.delta, modifiers);

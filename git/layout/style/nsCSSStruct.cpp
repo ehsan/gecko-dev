@@ -213,8 +213,7 @@ nsCSSValueListRect::sides[4] = {
 
 // --- nsCSSDisplay -----------------
 
-/* During allocation, null-out the transform list. */
-nsCSSDisplay::nsCSSDisplay(void) : mTransform(nsnull)
+nsCSSDisplay::nsCSSDisplay(void)
 {
   MOZ_COUNT_CTOR(nsCSSDisplay);
 }

@@ -68,7 +68,7 @@ public:
   void shut();
   NPBool isInitialized();
   
-  int16_t handleEvent(void* event);
+  int16 handleEvent(void* event);
 
   void showVersion();
   void clear();

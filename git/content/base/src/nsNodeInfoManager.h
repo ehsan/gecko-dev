@@ -85,8 +85,8 @@ public:
   /**
    * Methods for creating nodeinfo's from atoms and/or strings.
    */
-  already_AddRefed<nsINodeInfo> GetNodeInfo(nsIAtom *aName, nsIAtom *aPrefix,
-                                            PRInt32 aNamespaceID);
+  nsresult GetNodeInfo(nsIAtom *aName, nsIAtom *aPrefix,
+                       PRInt32 aNamespaceID, nsINodeInfo** aNodeInfo);
   nsresult GetNodeInfo(const nsAString& aName, nsIAtom *aPrefix,
                        PRInt32 aNamespaceID, nsINodeInfo** aNodeInfo);
   nsresult GetNodeInfo(const nsAString& aQualifiedName,

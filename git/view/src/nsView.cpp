@@ -46,6 +46,7 @@
 #include "nsIRegion.h"
 #include "nsIInterfaceRequestor.h"
 
+
 //mmptemp
 
 static nsEventStatus PR_CALLBACK HandleEvent(nsGUIEvent *aEvent);
@@ -873,16 +874,4 @@ nsIView::SetDeletionObserver(nsWeakView* aDeletionObserver)
     aDeletionObserver->SetPrevious(mDeletionObserver);
   }
   mDeletionObserver = aDeletionObserver;
-}
-
-/* We invalidate the frame on a scroll iff this frame is marked as such or if
- * some parent is.
- */
-PRBool nsIView::NeedsInvalidateFrameOnScroll() const
-{
-  for (const nsIView *currView = this; currView != nsnull; currView = currView->GetParent())
-    if (currView->mVFlags & NS_VIEW_FLAG_INVALIDATE_ON_SCROLL)
-      return PR_TRUE;
-  
-  return PR_FALSE;
 }

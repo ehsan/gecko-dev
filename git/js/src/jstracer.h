@@ -203,15 +203,6 @@ public:
 
 extern struct nanojit::CallInfo builtins[];
 
-enum JSTNErrType { INFALLIBLE, FAIL_NULL, FAIL_NEG, FAIL_VOID, FAIL_JSVAL };
-struct JSTraceableNative {
-    JSFastNative native;
-    int          builtin;
-    const char  *prefix;
-    const char  *argtypes;
-    JSTNErrType  errtype;
-};
-
 class TraceRecorder {
     JSContext*              cx;
     JSTraceMonitor*         traceMonitor;
@@ -247,7 +238,6 @@ class TraceRecorder {
     nanojit::Fragment*      whichTreeToTrash;
     Queue<jsbytecode*>      inlinedLoopEdges;
     Queue<jsbytecode*>      cfgMerges;
-    JSTraceableNative*      pendingTraceableNative;
 
     bool isGlobal(jsval* p) const;
     ptrdiff_t nativeGlobalOffset(jsval* p) const;
@@ -294,8 +284,9 @@ class TraceRecorder {
     bool incElem(jsint incr, bool pre = true);
     bool incName(jsint incr, bool pre = true);
 
-    enum { CMP_NEGATE = 1, CMP_TRY_BRANCH_AFTER_COND = 2, CMP_CASE = 4, CMP_STRICT = 8 };
+    enum { CMP_NEGATE = 1, CMP_TRY_BRANCH_AFTER_COND = 2, CMP_CASE = 4 };
     bool cmp(nanojit::LOpcode op, int flags = 0);
+    bool equal(int flags = 0);
 
     bool unary(nanojit::LOpcode op);
     bool binary(nanojit::LOpcode op);
@@ -336,7 +327,7 @@ class TraceRecorder {
                               nanojit::LIns* dslots_ins, nanojit::LIns* idx_ins);
     void clearFrameSlotsFromCache();
     bool guardShapelessCallee(jsval& callee);
-    bool interpretedFunctionCall(jsval& fval, JSFunction* fun, uintN argc, bool constructing);
+    bool interpretedFunctionCall(jsval& fval, JSFunction* fun, uintN argc);
     bool forInLoop(jsval* vp);
 
     void trackCfgMerges(jsbytecode* pc);
@@ -369,7 +360,6 @@ public:
     bool record_LeaveFrame();
     bool record_SetPropHit(JSPropCacheEntry* entry, JSScopeProperty* sprop);
     bool record_SetPropMiss(JSPropCacheEntry* entry);
-    bool record_FastNativeCallComplete();
 
     void deepAbort() { deepAborted = true; }
     bool wasDeepAborted() { return deepAborted; }
@@ -410,7 +400,6 @@ public:
     JS_END_MACRO
 
 #define RECORD(x)               RECORD_ARGS(x, ())
-#define TRACE_0(x)              TRACE_ARGS(x, ())
 #define TRACE_1(x,a)            TRACE_ARGS(x, (a))
 #define TRACE_2(x,a,b)          TRACE_ARGS(x, (a, b))
 
@@ -438,7 +427,6 @@ js_FlushJITOracle(JSContext* cx);
 #else  /* !JS_TRACER */
 
 #define RECORD(x)               ((void)0)
-#define TRACE_0(x)              ((void)0)
 #define TRACE_1(x,a)            ((void)0)
 #define TRACE_2(x,a,b)          ((void)0)
 

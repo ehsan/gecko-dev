@@ -130,7 +130,6 @@ interface nsIDOMWindowUtils : nsISupports {
   /** Synthesize a mouse scroll event for a window. The event types supported
    *  are: 
    *    DOMMouseScroll
-   *    MozMousePixelScroll
    *
    * Events are sent in coordinates offset by aX and aY from the window.
    *
@@ -144,7 +143,7 @@ interface nsIDOMWindowUtils : nsISupports {
    * @param aButton button to synthesize
    * @param aScrollFlags flag bits --- see nsMouseScrollFlags in nsGUIEvent.h
    * @param aDelta the direction and amount to scroll (in lines or pixels,
-   * depending on the event type)
+   * depending on whether kIsPixels is set in aScrollFlags)
    * @param aModifiers modifiers pressed, using constants defined in nsIDOMNSEvent
    */
   void sendMouseScrollEvent(in AString aType,

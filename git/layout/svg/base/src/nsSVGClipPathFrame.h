@@ -54,10 +54,10 @@ protected:
 public:
   // nsSVGClipPathFrame methods:
   nsresult ClipPaint(nsSVGRenderState* aContext,
-                     nsIFrame* aParent,
+                     nsISVGChildFrame* aParent,
                      nsIDOMSVGMatrix *aMatrix);
 
-  PRBool ClipHitTest(nsIFrame* aParent,
+  PRBool ClipHitTest(nsISVGChildFrame* aParent,
                      nsIDOMSVGMatrix *aMatrix,
                      const nsPoint &aPoint);
 
@@ -100,7 +100,7 @@ public:
     nsSVGClipPathFrame *mFrame;
   };
 
-  nsIFrame *mClipParent;
+  nsISVGChildFrame *mClipParent;
   nsCOMPtr<nsIDOMSVGMatrix> mClipParentMatrix;
 
   // nsSVGContainerFrame methods:

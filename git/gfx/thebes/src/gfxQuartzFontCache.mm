@@ -901,7 +901,6 @@ gfxQuartzFontCache::SetFixedPitch(const nsAString& aFamilyName)
 
     for (i = 0; i < numFonts; i++) {
         fontlist[i]->mTraits |= NSFixedPitchFontMask;
-        fontlist[i]->mFixedPitch = 1;
     }
 }
 

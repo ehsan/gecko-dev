@@ -46,6 +46,7 @@
 
 #include "gfxFontconfigUtils.h"
 #ifdef MOZ_PANGO
+#include <pango/pangocairo.h>
 #include "gfxPangoFonts.h"
 #include "gfxContext.h"
 #else
@@ -88,7 +89,7 @@
 #include FT_FREETYPE_H
 #endif
 
-double gfxPlatformGtk::sDPI = -1.0;
+PRInt32 gfxPlatformGtk::sDPI = -1;
 gfxFontconfigUtils *gfxPlatformGtk::sFontconfigUtils = nsnull;
 
 #ifndef MOZ_PANGO
@@ -370,8 +371,43 @@ gfxPlatformGtk::UpdateFontList()
             fe->mFTFontIndex = 0;
         }
 
-        fe->mWeight = gfxFontconfigUtils::GetThebesWeight(fs->fonts[i]);
-        //printf(" - weight: %d\n", fe->mWeight);
+        if (FcPatternGetInteger(fs->fonts[i], FC_WEIGHT, 0, &x) == FcResultMatch) {
+            switch(x) {
+            case 0:
+                fe->mWeight = 100;
+                break;
+            case 40:
+                fe->mWeight = 200;
+                break;
+            case 50:
+                fe->mWeight = 300;
+                break;
+            case 75:
+            case 80:
+                fe->mWeight = 400;
+                break;
+            case 100:
+                fe->mWeight = 500;
+                break;
+            case 180:
+                fe->mWeight = 600;
+                break;
+            case 200:
+                fe->mWeight = 700;
+                break;
+            case 205:
+                fe->mWeight = 800;
+                break;
+            case 210:
+                fe->mWeight = 900;
+                break;
+            default:
+                // rough estimate
+                fe->mWeight = (((x * 4) + 100) / 100) * 100;
+                break;
+            }
+            //printf(" - weight: %d\n", fe->mWeight);
+        }
 
         fe->mItalic = PR_FALSE;
         if (FcPatternGetInteger(fs->fonts[i], FC_SLANT, 0, &x) == FcResultMatch) {
@@ -501,11 +537,15 @@ gfxPlatformGtk::CreateFontGroup(const nsAString &aFamilies,
 void
 gfxPlatformGtk::InitDPI()
 {
-    sDPI = gdk_screen_get_resolution(gdk_screen_get_default());
+#ifdef MOZ_PANGO
+    PangoContext *context = gdk_pango_context_get ();
+    sDPI = pango_cairo_context_get_resolution (context);
+    g_object_unref (context);
+#endif
 
-    if (sDPI <= 0.0) {
-        // Fall back to something sane
-        sDPI = 96.0;
+    if (sDPI <= 0) {
+	// Fall back to something sane
+	sDPI = 96;
     }
 }
 

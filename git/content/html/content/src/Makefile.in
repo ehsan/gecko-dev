@@ -78,7 +78,6 @@ REQUIRES	= xpcom \
 
 EXPORTS		= \
 		nsImageMapUtils.h \
-		nsClientRect.h \
 		$(NULL)
 
 CPPSRCS		= \

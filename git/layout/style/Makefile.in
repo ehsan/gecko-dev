@@ -122,7 +122,6 @@ EXPORTS		= \
 		nsStyleStructFwd.h \
 		nsStyleStructInlines.h \
 		nsStyleStructList.h \
-		nsStyleTransformMatrix.h \
 		nsStyleUtil.h \
 		$(NULL)
 
@@ -162,7 +161,6 @@ CPPSRCS		= \
 		nsStyleCoord.cpp \
 		nsStyleSet.cpp \
 		nsStyleStruct.cpp \
-		nsStyleTransformMatrix.cpp \
 		nsStyleUtil.cpp \
 		$(NULL)
 

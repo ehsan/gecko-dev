@@ -288,9 +288,9 @@ txMozillaTextOutput::createXHTMLElement(nsIAtom* aName,
     *aResult = nsnull;
 
     nsCOMPtr<nsINodeInfo> ni;
-    ni = mDocument->NodeInfoManager()->
-        GetNodeInfo(aName, nsnull, kNameSpaceID_XHTML);
-    NS_ENSURE_TRUE(ni, NS_ERROR_FAILURE);
+    nsresult rv = mDocument->NodeInfoManager()->
+        GetNodeInfo(aName, nsnull, kNameSpaceID_XHTML, getter_AddRefs(ni));
+    NS_ENSURE_SUCCESS(rv, rv);
 
     return NS_NewHTMLElement(aResult, ni, PR_FALSE);
 }

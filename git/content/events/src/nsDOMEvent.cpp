@@ -70,20 +70,21 @@ static const char* const sEventNames[] = {
   "DOMNodeRemovedFromDocument", "DOMNodeInsertedIntoDocument",
   "DOMAttrModified", "DOMCharacterDataModified",
   "DOMActivate", "DOMFocusIn", "DOMFocusOut",
-  "pageshow", "pagehide", "DOMMouseScroll", "MozMousePixelScroll",
-  "offline", "online", "copy", "cut", "paste",
+  "pageshow", "pagehide", "DOMMouseScroll", "offline", "online",
+  "copy", "cut", "paste"
 #ifdef MOZ_SVG
+ ,
   "SVGLoad", "SVGUnload", "SVGAbort", "SVGError", "SVGResize", "SVGScroll",
-  "SVGZoom",
+  "SVGZoom"
 #endif // MOZ_SVG
 #ifdef MOZ_MEDIA
+  ,
   "loadstart", "progress", "loadedmetadata", "loadedfirstframe",
   "emptied", "stalled", "play", "pause",
   "waiting", "seeking", "seeked", "timeupdate", "ended", "dataunavailable",
   "canshowcurrentframe", "canplay", "canplaythrough", "ratechange",
-  "durationchange", "volumechange",
+  "durationchange", "volumechange"
 #endif // MOZ_MEDIA
-  "MozAfterPaint"
 };
 
 static char *sPopupAllowedEvents;
@@ -478,8 +479,6 @@ nsDOMEvent::SetEventType(const nsAString& aEventTypeArg)
   } else if (mEvent->eventStructType == NS_MOUSE_SCROLL_EVENT) {
     if (atom == nsGkAtoms::onDOMMouseScroll)
       mEvent->message = NS_MOUSE_SCROLL;
-    else if (atom == nsGkAtoms::onMozMousePixelScroll)
-      mEvent->message = NS_MOUSE_PIXEL_SCROLL;
   } else if (mEvent->eventStructType == NS_DRAG_EVENT) {
     if (atom == nsGkAtoms::ondragstart)
       mEvent->message = NS_DRAGDROP_START;
@@ -647,11 +646,6 @@ nsDOMEvent::SetEventType(const nsAString& aEventTypeArg)
       mEvent->message = NS_MEDIA_ERROR;
   }
 #endif // MOZ_MEDIA
-  else if (mEvent->eventStructType == NS_NOTIFYPAINT_EVENT) {
-    if (atom == nsGkAtoms::onMozAfterPaint)
-      mEvent->message = NS_AFTERPAINT;
-  }
-
   if (mEvent->message == NS_USER_DEFINED_EVENT)
     mEvent->userType = atom;
 
@@ -963,14 +957,6 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
       newEvent->eventStructType = NS_XUL_COMMAND_EVENT;
        static_cast<nsXULCommandEvent*>(newEvent)->sourceEvent =
          static_cast<nsXULCommandEvent*>(mEvent)->sourceEvent;
-      break;
-    }
-    case NS_NOTIFYPAINT_EVENT:
-    {
-      nsNotifyPaintEvent* event = static_cast<nsNotifyPaintEvent*>(mEvent);
-      newEvent =
-        new nsNotifyPaintEvent(PR_FALSE, msg,
-                               event->sameDocRegion, event->crossDocRegion);
       break;
     }
     default:
@@ -1407,8 +1393,6 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_pagehide];
   case NS_MOUSE_SCROLL:
     return sEventNames[eDOMEvents_DOMMouseScroll];
-  case NS_MOUSE_PIXEL_SCROLL:
-    return sEventNames[eDOMEvents_MozMousePixelScroll];
   case NS_OFFLINE:
     return sEventNames[eDOMEvents_offline];
   case NS_ONLINE:
@@ -1477,8 +1461,6 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
   case NS_VOLUMECHANGE:
     return sEventNames[eDOMEvents_volumechange];
 #endif
-  case NS_AFTERPAINT:
-    return sEventNames[eDOMEvents_afterpaint];
   default:
     break;
   }

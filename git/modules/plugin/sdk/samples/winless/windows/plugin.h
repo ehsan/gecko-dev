@@ -51,7 +51,7 @@ public:
   NPBool isInitialized();
 
   NPError SetWindow(NPWindow* aWindow);
-  uint16_t HandleEvent(void* aEvent);
+  uint16 HandleEvent(void* aEvent);
 
 private:
   NPP mInstance;

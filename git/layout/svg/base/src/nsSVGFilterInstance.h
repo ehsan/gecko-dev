@@ -51,8 +51,6 @@
 
 class nsSVGLength2;
 class nsSVGElement;
-class nsSVGFilterElement;
-class nsSVGFilterPaintCallback;
 
 /**
  * This class performs all filter processing.
@@ -66,9 +64,8 @@ class NS_STACK_CLASS nsSVGFilterInstance
 public:
   float GetPrimitiveLength(nsSVGLength2 *aLength) const;
 
-  nsSVGFilterInstance(nsIFrame *aTargetFrame,
-                      nsSVGFilterPaintCallback *aPaintCallback,
-                      nsSVGFilterElement *aFilterElement,
+  nsSVGFilterInstance(nsISVGChildFrame *aTargetFrame,
+                      nsIContent* aFilterElement,
                       nsIDOMSVGRect *aTargetBBox,
                       const gfxRect& aFilterRect,
                       const nsIntSize& aFilterSpaceSize,
@@ -77,7 +74,6 @@ public:
                       const nsIntRect& aDirtyInputRect,
                       PRUint16 aPrimitiveUnits) :
     mTargetFrame(aTargetFrame),
-    mPaintCallback(aPaintCallback),
     mFilterElement(aFilterElement),
     mTargetBBox(aTargetBBox),
     mFilterSpaceToDeviceSpaceTransform(aFilterSpaceToDeviceSpaceTransform),
@@ -104,8 +100,6 @@ public:
   
   nsresult Render(gfxASurface** aOutput);
   nsresult ComputeOutputDirtyRect(nsIntRect* aDirty);
-  nsresult ComputeSourceNeededRect(nsIntRect* aDirty);
-  nsresult ComputeOutputBBox(nsIntRect* aBBox);
 
   already_AddRefed<nsIDOMSVGMatrix> GetUserSpaceToFilterSpaceTransform() const;
   nsIDOMSVGMatrix* GetFilterSpaceToDeviceSpaceTransform() const {
@@ -180,10 +174,15 @@ private:
     aRect->IntersectRect(*aRect, filterSpace);
   }
   void ClipToGfxRect(nsIntRect* aRect, const gfxRect& aGfx) const;
+  nsSVGElement* TargetElement() const
+  {
+    nsIFrame* f;
+    CallQueryInterface(mTargetFrame, &f);
+    return static_cast<nsSVGElement*>(f->GetContent());
+  }
 
-  nsIFrame*               mTargetFrame;
-  nsSVGFilterPaintCallback* mPaintCallback;
-  nsSVGFilterElement*     mFilterElement;
+  nsISVGChildFrame*       mTargetFrame;
+  nsIContent*             mFilterElement;
   nsCOMPtr<nsIDOMSVGRect> mTargetBBox;
   nsCOMPtr<nsIDOMSVGMatrix> mFilterSpaceToDeviceSpaceTransform;
   gfxRect                 mFilterRect;
