@@ -2286,7 +2286,7 @@ nsGenericHTMLFormElement::~nsGenericHTMLFormElement()
 
   // Clean up.  Set the form to nsnull so it knows we went away.
   // Do not notify as the content is being destroyed.
-  ClearForm(PR_TRUE, PR_FALSE);
+  SetForm(nsnull, PR_TRUE, PR_FALSE);
 }
 
 NS_IMPL_QUERY_INTERFACE_INHERITED1(nsGenericHTMLFormElement,
@@ -2307,30 +2307,15 @@ nsGenericHTMLFormElement::SaveSubtreeState()
   nsGenericHTMLElement::SaveSubtreeState();
 }
 
-void
-nsGenericHTMLFormElement::SetForm(nsIDOMHTMLFormElement* aForm)
+NS_IMETHODIMP
+nsGenericHTMLFormElement::SetForm(nsIDOMHTMLFormElement* aForm,
+                                  PRBool aRemoveFromForm,
+                                  PRBool aNotify)
 {
-  NS_PRECONDITION(aForm, "Don't pass null here");
-  NS_ASSERTION(!mForm,
-               "We don't support switching from one non-null form to another.");
+  NS_ASSERTION(!mForm || HasFlag(ADDED_TO_FORM),
+               "Form control should have had flag set.");
 
-  // keep a *weak* ref to the form here
-  CallQueryInterface(aForm, &mForm);
-  mForm->Release();
-}
-
-void
-nsGenericHTMLFormElement::ClearForm(PRBool aRemoveFromForm,
-                                    PRBool aNotify)
-{
-  NS_ASSERTION((mForm != nsnull) == HasFlag(ADDED_TO_FORM),
-               "Form control should have had flag set correctly");
-
-  if (!mForm) {
-    return;
-  }
-  
-  if (aRemoveFromForm) {
+  if (mForm && aRemoveFromForm) {
     nsAutoString nameVal, idVal;
     GetAttr(kNameSpaceID_None, nsGkAtoms::name, nameVal);
     GetAttr(kNameSpaceID_None, nsGkAtoms::id, idVal);
@@ -2344,10 +2329,19 @@ nsGenericHTMLFormElement::ClearForm(PRBool aRemoveFromForm,
     if (!idVal.IsEmpty()) {
       mForm->RemoveElementFromTable(this, idVal);
     }
+
+    UnsetFlags(ADDED_TO_FORM);
   }
 
-  UnsetFlags(ADDED_TO_FORM);
-  mForm = nsnull;
+  if (aForm) {
+    // keep a *weak* ref to the form here
+    CallQueryInterface(aForm, &mForm);
+    mForm->Release();
+  } else {
+    mForm = nsnull;
+  }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -2449,7 +2443,7 @@ nsGenericHTMLFormElement::BindToTree(nsIDocument* aDocument,
     // probably changed _somewhere_.
     nsCOMPtr<nsIDOMHTMLFormElement> form = FindForm();
     if (form) {
-      SetForm(form);
+      SetForm(form, PR_FALSE, PR_FALSE);
     }
   }
 
@@ -2486,12 +2480,12 @@ nsGenericHTMLFormElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
     // Might need to unset mForm
     if (aNullParent) {
       // No more parent means no more form
-      ClearForm(PR_TRUE, PR_TRUE);
+      SetForm(nsnull, PR_TRUE, PR_TRUE);
     } else {
       // Recheck whether we should still have an mForm.
       nsCOMPtr<nsIDOMHTMLFormElement> form = FindForm(mForm);
       if (!form) {
-        ClearForm(PR_TRUE, PR_TRUE);
+        SetForm(nsnull, PR_TRUE, PR_TRUE);
       } else {
         UnsetFlags(MAYBE_ORPHAN_FORM_ELEMENT);
       }

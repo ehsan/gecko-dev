@@ -511,7 +511,6 @@ DEHYDRA_MODULES = \
 TREEHYDRA_MODULES = \
   $(topsrcdir)/xpcom/analysis/outparams.js \
   $(topsrcdir)/xpcom/analysis/stack.js \
-  $(topsrcdir)/xpcom/analysis/flow.js \
   $(NULL)
 
 DEHYDRA_ARGS = \

@@ -189,10 +189,7 @@ void nsPNGDecoder::EndImageFrame()
 
     nsIntRect r(0, 0, width, height);
     nsCOMPtr<nsIImage> img(do_GetInterface(mFrame));
-    if (NS_FAILED(img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r))) {
-      mError = PR_TRUE;
-      // allow the call out to the observers.
-    }
+    img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r);
     mObserver->OnDataAvailable(nsnull, mFrame, &r);
   }
 
@@ -819,10 +816,7 @@ row_callback(png_structp png_ptr, png_bytep new_row,
       // Only do incremental image display for the first frame
       nsIntRect r(0, row_num, width, 1);
       nsCOMPtr<nsIImage> img(do_GetInterface(decoder->mFrame));
-      if (NS_FAILED(img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r))) {
-        decoder->mError = PR_TRUE;  /* bail */
-        return;
-      }
+      img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r);
       decoder->mObserver->OnDataAvailable(nsnull, decoder->mFrame, &r);
     }
   }

@@ -616,9 +616,10 @@ nsImageDocument::CreateSyntheticDocument()
   }
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::img, nsnull,
-                                           kNameSpaceID_None);
-  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_FAILURE);
+  rv = mNodeInfoManager->GetNodeInfo(nsGkAtoms::img, nsnull,
+                                     kNameSpaceID_None,
+                                     getter_AddRefs(nodeInfo));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   mImageContent = NS_NewHTMLImageElement(nodeInfo);
   if (!mImageContent) {

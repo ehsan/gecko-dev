@@ -4357,6 +4357,7 @@ MOZ_JSLOADER=1
 MOZ_LIBART_CFLAGS=
 MOZ_LIBART_LIBS=
 MOZ_MATHML=1
+MOZ_MOCHITEST=1
 MOZ_MORK=1
 MOZ_MORKREADER=
 MOZ_AUTH_EXTENSION=1
@@ -5528,6 +5529,15 @@ if test -z "$MOZ_CRASHREPORTER_ENABLE_PERCENT"; then
 fi
 AC_DEFINE_UNQUOTED(MOZ_CRASHREPORTER_ENABLE_PERCENT, $MOZ_CRASHREPORTER_ENABLE_PERCENT)
 
+
+dnl ========================================================
+dnl = Build mochitest JS/DOM tests (on by default)
+dnl ========================================================
+MOZ_ARG_DISABLE_BOOL(mochitest,
+[  --disable-mochitest        Disable mochitest harness],
+    MOZ_MOCHITEST=,
+    MOZ_MOCHITEST=1 )
+
 dnl ========================================================
 dnl = Enable compilation of specific extension modules
 dnl ========================================================
@@ -6076,14 +6086,12 @@ AC_SUBST(JS_ULTRASPARC_OPTS)
 dnl ========================================================
 dnl = Hildon and OSSO checks
 dnl ========================================================
-PKG_CHECK_MODULES(LIBHILDONMIME,libhildonmime,
-                  MOZ_PLATFORM_HILDON=1,
-                  MOZ_PLATFORM_HILDON=)
-if test $MOZ_PLATFORM_HILDON; then
-   AC_DEFINE(MOZ_PLATFORM_HILDON)
+PKG_CHECK_MODULES(LIBHILONMIME,libhildonmime,
+                  NS_HILDON=1,
+                  NS_HILDON=)
+if test $NS_HILDON; then
+   AC_DEFINE(NS_HILDON)
 fi
-AC_SUBST(LIBHILDONMIME_CFLAGS)
-AC_SUBST(LIBHILDONMIME_LIBS)
 
 PKG_CHECK_MODULES(LIBOSSO,libosso,
                   NS_OSSO=1,
@@ -6095,8 +6103,6 @@ if test $NS_OSSO; then
     fi
     AC_DEFINE(NS_OSSO)     
 fi
-AC_SUBST(LIBOSSO_CFLAGS)
-AC_SUBST(LIBOSSO_LIBS)
 
 dnl ========================================================
 dnl =
@@ -7155,10 +7161,6 @@ MOZ_ARG_ENABLE_BOOL(libxul,
     MOZ_ENABLE_LIBXUL=1,
     MOZ_ENABLE_LIBXUL=)
 
-if test -n "$MOZ_STATIC_BUILD_UNSUPPORTED" -a -n "$BUILD_STATIC_LIBS"; then
-	AC_MSG_ERROR([--enable-static is not supported for building $MOZ_APP_NAME. You probably want --enable-libxul.])
-fi
-
 if test -n "$MOZ_ENABLE_LIBXUL" -a -n "$BUILD_STATIC_LIBS"; then
 	AC_MSG_ERROR([--enable-libxul is not compatible with --enable-static])
 fi
@@ -7827,7 +7829,7 @@ AC_SUBST(MOZ_WIDGET_TOOLKIT)
 AC_SUBST(MOZ_GFX_TOOLKIT)
 AC_SUBST(MOZ_UPDATE_XTERM)
 AC_SUBST(MINIMO)
-AC_SUBST(MOZ_PLATFORM_HILDON)
+AC_SUBST(NS_HILDON)
 AC_SUBST(NS_OSSO)
 AC_SUBST(MOZ_AUTH_EXTENSION)
 AC_SUBST(MOZ_MATHML)
@@ -7909,6 +7911,7 @@ AC_SUBST(MOZ_SPELLCHECK)
 AC_SUBST(MOZ_XPFE_COMPONENTS)
 AC_SUBST(MOZ_USER_DIR)
 AC_SUBST(MOZ_CRASHREPORTER)
+AC_SUBST(MOZ_MOCHITEST)
 
 AC_SUBST(ENABLE_STRIP)
 AC_SUBST(PKG_SKIP_STRIP)
@@ -8187,6 +8190,11 @@ AC_SUBST(CYGDRIVE_MOUNT)
 AC_SUBST(WIN_TOP_SRC)
 
 AC_SUBST(MOZILLA_VERSION)
+
+. ${srcdir}/config/chrome-versions.sh
+AC_DEFINE_UNQUOTED(MOZILLA_LOCALE_VERSION,"$MOZILLA_LOCALE_VERSION")
+AC_DEFINE_UNQUOTED(MOZILLA_REGION_VERSION,"$MOZILLA_REGION_VERSION")
+AC_DEFINE_UNQUOTED(MOZILLA_SKIN_VERSION,"$MOZILLA_SKIN_VERSION")
 
 AC_SUBST(ac_configure_args)
 

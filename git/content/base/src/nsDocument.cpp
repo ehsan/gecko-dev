@@ -301,13 +301,9 @@ nsIdentifierMapEntry::~nsIdentifierMapEntry()
 void
 nsIdentifierMapEntry::Traverse(nsCycleCollectionTraversalCallback* aCallback)
 {
-  if (mNameContentList != NAME_NOT_VALID) {
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*aCallback,
-                                       "mIdentifierMap mNameContentList");
-    aCallback->NoteXPCOMChild(static_cast<nsIDOMNodeList*>(mNameContentList));
-  }
+  if (mNameContentList != NAME_NOT_VALID)
+    aCallback->NoteXPCOMChild(mNameContentList);
 
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*aCallback, "mIdentifierMap mDocAllList");
   aCallback->NoteXPCOMChild(static_cast<nsIDOMNodeList*>(mDocAllList));
 }
 
@@ -1231,7 +1227,6 @@ public:
   nsCycleCollectionTraversalCallback *mCb;
   virtual void Visit(nsIContent* aContent)
   {
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*mCb, "mLinkMap entry");
     mCb->NoteXPCOMChild(aContent);
   }
 };
@@ -1241,6 +1236,7 @@ LinkMapTraverser(nsUint32ToContentHashEntry* aEntry, void* userArg)
 {
   LinkMapTraversalVisitor visitor;
   visitor.mCb = static_cast<nsCycleCollectionTraversalCallback*>(userArg);
+  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*visitor.mCb, "mLinkMap entry");
   aEntry->VisitContent(&visitor);
   return PL_DHASH_NEXT;
 }
@@ -4447,8 +4443,8 @@ nsDocument::SetTitle(const nsAString& aTitle)
 
     {
       nsCOMPtr<nsINodeInfo> titleInfo;
-      titleInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::title, nsnull,
-                                                kNameSpaceID_None);
+      mNodeInfoManager->GetNodeInfo(nsGkAtoms::title, nsnull,
+              kNameSpaceID_None, getter_AddRefs(titleInfo));
       if (!titleInfo)
         return NS_OK;
       title = NS_NewHTMLTitleElement(titleInfo);
@@ -6159,6 +6155,7 @@ nsresult
 nsDocument::CreateElem(nsIAtom *aName, nsIAtom *aPrefix, PRInt32 aNamespaceID,
                        PRBool aDocumentDefaultType, nsIContent **aResult)
 {
+  nsresult rv;
 #ifdef DEBUG
   nsAutoString qName;
   if (aPrefix) {
@@ -6181,11 +6178,12 @@ nsDocument::CreateElem(nsIAtom *aName, nsIAtom *aPrefix, PRInt32 aNamespaceID,
   *aResult = nsnull;
   
   PRInt32 elementType = aDocumentDefaultType ? mDefaultElementType :
-    aNamespaceID;
+                                               aNamespaceID;
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  nodeInfo = mNodeInfoManager->GetNodeInfo(aName, aPrefix, aNamespaceID);
-  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_FAILURE);
+  rv = mNodeInfoManager->GetNodeInfo(aName, aPrefix, aNamespaceID,
+                                     getter_AddRefs(nodeInfo));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_NewElement(aResult, elementType, nodeInfo, PR_FALSE);
 }

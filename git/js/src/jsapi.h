@@ -455,7 +455,7 @@ class JSAutoRequest {
 
 class JSAutoSuspendRequest {
   public:
-    JSAutoSuspendRequest(JSContext *cx) : mContext(cx), mSaveDepth(0) {
+    JSAutoSuspendRequest(JSContext *cx) : mContext(cx) {
         if (mContext) {
             mSaveDepth = JS_SuspendRequest(mContext);
         }

@@ -162,7 +162,7 @@ typedef struct JSInlineFrame {
     PROPERTY_CACHE_HASH(pc, kshape)
 
 #define PROPERTY_CACHE_HASH_ATOM(atom,obj,pobj)                               \
-    PROPERTY_CACHE_HASH((jsuword)(atom) >> 2, OBJ_SHAPE(obj))
+    PROPERTY_CACHE_HASH((jsuword)(atom) >> 2, OBJ_SCOPE(obj)->shape)
 
 /*
  * Property cache value capability macros.
@@ -276,8 +276,8 @@ typedef struct JSPropertyCache {
 
 /*
  * Fill property cache entry for key cx->fp->pc, optimized value word computed
- * from obj and sprop, and entry capability forged from 24-bit OBJ_SHAPE(obj),
- * 4-bit scopeIndex, and 4-bit protoIndex.
+ * from obj and sprop, and entry capability forged from OBJ_SCOPE(obj)->shape,
+ * scopeIndex, and protoIndex.
  */
 extern void
 js_FillPropertyCache(JSContext *cx, JSObject *obj, jsuword kshape,
@@ -304,7 +304,8 @@ js_FillPropertyCache(JSContext *cx, JSObject *obj, jsuword kshape,
 #define PROPERTY_CACHE_TEST(cx, pc, obj, pobj, entry, atom)                   \
     do {                                                                      \
         JSPropertyCache *cache_ = &JS_PROPERTY_CACHE(cx);                     \
-        uint32 kshape_ = (JS_ASSERT(OBJ_IS_NATIVE(obj)), OBJ_SHAPE(obj));     \
+        uint32 kshape_ = (JS_ASSERT(OBJ_IS_NATIVE(obj)),                      \
+                          OBJ_SCOPE(obj)->shape);                             \
         entry = &cache_->table[PROPERTY_CACHE_HASH_PC(pc, kshape_)];          \
         PCMETER(cache_->tests++);                                             \
         JS_ASSERT(&obj != &pobj);                                             \
@@ -320,7 +321,7 @@ js_FillPropertyCache(JSContext *cx, JSObject *obj, jsuword kshape,
                 pobj = tmp_;                                                  \
                 JS_LOCK_OBJ(cx, pobj);                                        \
             }                                                                 \
-            if (PCVCAP_SHAPE(entry->vcap) == OBJ_SHAPE(pobj)) {               \
+            if (PCVCAP_SHAPE(entry->vcap) == OBJ_SCOPE(pobj)->shape) {        \
                 PCMETER(cache_->pchits++);                                    \
                 PCMETER(!PCVCAP_TAG(entry->vcap) || cache_->protopchits++);   \
                 pobj = OBJ_SCOPE(pobj)->object;                               \

@@ -986,6 +986,10 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
 
   UpdateUrlbarSearchSplitterState();
   
+  try {
+    placesMigrationTasks();
+  } catch(ex) {}
+
   PlacesStarButton.init();
 
   // called when we go into full screen, even if it is
@@ -1892,7 +1896,18 @@ function BrowserViewSourceOfDocument(aDocument)
     // If no page descriptor is available, just use the view-source URL...
   }
 
-  top.gViewSourceUtils.viewSource(webNav.currentURI.spec, pageCookie, aDocument);
+  ViewSourceOfURL(webNav.currentURI.spec, pageCookie, aDocument);
+}
+
+function ViewSourceOfURL(aURL, aPageDescriptor, aDocument)
+{
+  var utils = window.top.gViewSourceUtils;
+  if (getBoolPref("view_source.editor.external", false)) {
+    utils.openInExternalEditor(aURL, aPageDescriptor, aDocument);
+  }
+  else {
+    utils.openInInternalViewer(aURL, aPageDescriptor, aDocument);
+  }
 }
 
 // doc - document to use for source, or null for this window's document
@@ -3897,11 +3912,13 @@ var XULBrowserWindow = {
             gBrowser.userTypedValue = null;
 
           if (location.spec != "about:blank") {
+            const kErrorBindingAborted = 0x804B0002;
+            const kErrorNetTimeout = 0x804B000E;
             switch (aStatus) {
-              case Components.results.NS_BINDING_ABORTED:
+              case kErrorBindingAborted:
                 msg = gNavigatorBundle.getString("nv_stopped");
                 break;
-              case Components.results.NS_ERROR_NET_TIMEOUT:
+              case kErrorNetTimeout:
                 msg = gNavigatorBundle.getString("nv_timeout");
                 break;
             }

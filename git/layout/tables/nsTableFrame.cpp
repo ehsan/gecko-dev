@@ -4575,9 +4575,12 @@ GetColorAndStyle(const nsIFrame*  aFrame,
       (NS_STYLE_BORDER_STYLE_HIDDEN == aStyle)) {
     return;
   }
-  PRBool foreground;
-  styleData->GetBorderColor(aSide, aColor, foreground);
-  if (foreground) {
+  PRBool transparent, foreground;
+  styleData->GetBorderColor(aSide, aColor, transparent, foreground);
+  if (transparent) { 
+    aColor = 0;
+  }
+  else if (foreground) {
     aColor = aFrame->GetStyleColor()->mColor;
   }
 }

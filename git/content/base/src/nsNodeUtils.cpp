@@ -516,10 +516,11 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
   nsINodeInfo *nodeInfo = aNode->mNodeInfo;
   nsCOMPtr<nsINodeInfo> newNodeInfo;
   if (nodeInfoManager) {
-    newNodeInfo = nodeInfoManager->GetNodeInfo(nodeInfo->NameAtom(),
-                                               nodeInfo->GetPrefixAtom(),
-                                               nodeInfo->NamespaceID());
-    NS_ENSURE_TRUE(newNodeInfo, NS_ERROR_FAILURE);
+    rv = nodeInfoManager->GetNodeInfo(nodeInfo->NameAtom(),
+                                      nodeInfo->GetPrefixAtom(),
+                                      nodeInfo->NamespaceID(),
+                                      getter_AddRefs(newNodeInfo));
+    NS_ENSURE_SUCCESS(rv, rv);
 
     nodeInfo = newNodeInfo;
   }

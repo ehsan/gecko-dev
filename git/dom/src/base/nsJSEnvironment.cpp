@@ -906,38 +906,36 @@ nsJSContext::DOMOperationCallback(JSContext *cx)
     // try to clean up:
     nsJSContext::CC();
 
-    // never prevent system scripts from running
-    if (! ::JS_IsSystemObject(cx, ::JS_GetGlobalObject(cx))) {
+    // if that didn't work, warn the user
+    mem->IsLowMemory(&lowMemory);
+    if (lowMemory) {
 
-      // lets see if CC() did anything, if not, cancel the script.
-      mem->IsLowMemory(&lowMemory);
-      if (lowMemory) {
+      PRBool preventDialog = nsContentUtils::GetBoolPref("dom.prevent_oom_dialog", PR_FALSE);
+      if (preventDialog)
+        return JS_FALSE;
 
-        if (nsContentUtils::GetBoolPref("dom.prevent_oom_dialog", PR_FALSE))
-          return JS_FALSE;
-        
-        nsCOMPtr<nsIPrompt> prompt = GetPromptFromContext(ctx);
-        
-        nsXPIDLString title, msg;
-        rv = nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
-                                                "LowMemoryTitle",
-                                                title);
-        
-        rv |= nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
-                                                 "LowMemoryMessage",
-                                                 msg);
-        
-        //GetStringFromName can return NS_OK and still give NULL string
-        if (NS_FAILED(rv) || !title || !msg) {
-          NS_ERROR("Failed to get localized strings.");
-          return JS_FALSE;
-        }
-        
-        prompt->Alert(title, msg);
+      nsCOMPtr<nsIPrompt> prompt = GetPromptFromContext(ctx);
+      
+      nsXPIDLString title, msg;
+      rv = nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
+                                              "LowMemoryTitle",
+                                              title);
+
+      rv |= nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
+                                               "LowMemoryMessage",
+                                               msg);
+
+      //GetStringFromName can return NS_OK and still give NULL string
+      if (NS_FAILED(rv) || !title || !msg) {
+        NS_ERROR("Failed to get localized strings.");
         return JS_FALSE;
       }
+
+      prompt->Alert(title, msg);
+      return JS_FALSE;
     }
   }
+
 
   PRTime now = PR_Now();
 
@@ -3849,9 +3847,7 @@ nsJSRuntime::GetNameSpaceManager()
   return gNameSpaceManager;
 }
 
-/* static */
-void
-nsJSRuntime::Shutdown()
+void nsJSRuntime::ShutDown()
 {
   if (sGCTimer) {
     // We're being shut down, if we have a GC timer scheduled, cancel

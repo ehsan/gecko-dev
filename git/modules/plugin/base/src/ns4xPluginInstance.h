@@ -37,8 +37,16 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef ns4xPluginInstance_h_
-#define ns4xPluginInstance_h_
+#ifndef ns4xPluginInstance_h__
+#define ns4xPluginInstance_h__
+
+#define _UINT32
+
+/* On HPUX, int32 is already defined in /usr/include/moduel.h */
+/* #ifndef hpux */
+#ifndef HPUX11
+#define _INT32
+#endif /* HPUX11 */
 
 #include "nsCOMPtr.h"
 #include "nsVoidArray.h"
@@ -50,7 +58,9 @@
 #include "nsIPluginInstanceInternal.h"
 
 #include "npupp.h"
-#include "prlink.h"
+#include "prlink.h"  // for PRLibrary
+
+////////////////////////////////////////////////////////////////////////
 
 class ns4xPluginStreamListener;
 class nsPIDOMWindow;
@@ -74,6 +84,7 @@ public:
     NS_DECL_NSIPLUGININSTANCE
     NS_DECL_NSISCRIPTABLEPLUGIN
 
+    ////////////////////////////////////////////////////////////////////////
     // nsIPluginInstanceInternal methods
 
     virtual JSObject *GetJSObject(JSContext *cx);
@@ -87,12 +98,17 @@ public:
 
     virtual void DefineJavaProperties();
 
+    ////////////////////////////////////////////////////////////////////////
     // ns4xPluginInstance-specific methods
 
-    // Return the 4.x-style interface object.
+    /**
+     * Return the 4.x-style interface object.
+     */
     nsresult GetNPP(NPP * aNPP);
 
-    // Return the callbacks for the plugin instance.
+    /**
+     * Return the callbacks for the plugin instance.
+     */
     nsresult GetCallbacks(const NPPluginFuncs ** aCallbacks);
 
     NPError SetWindowless(PRBool aWindowless);
@@ -111,8 +127,10 @@ public:
                              PRBool aCallNotify,
                              const char * aURL);
 
-    // Construct a new 4.x plugin instance with the specified peer
-    // and callbacks.
+    /**
+     * Construct a new 4.x plugin instance with the specified peer
+     * and callbacks.
+     */
     ns4xPluginInstance(NPPluginFuncs* callbacks, PRLibrary* aLibrary);
 
     // Use Release() to destroy this
@@ -136,27 +154,36 @@ protected:
 
     nsresult InitializePlugin(nsIPluginInstancePeer* peer);
 
-    // Calls NPP_GetValue
+    /**
+     * Calls NPP_GetValue
+     */
     nsresult GetValueInternal(NPPVariable variable, void* value);
-
-    // The plugin instance peer for this instance.
+    
+    /**
+     * The plugin instance peer for this instance.
+     */
     nsCOMPtr<nsIPluginInstancePeer> mPeer;
 
-    // A pointer to the plugin's callback functions. This information
-    // is actually stored in the plugin class (<b>nsPluginClass</b>),
-    // and is common for all plugins of the class.
+    /**
+     * A pointer to the plugin's callback functions. This information
+     * is actually stored in the plugin class (<b>nsPluginClass</b>),
+     * and is common for all plugins of the class.
+     */
     NPPluginFuncs* fCallbacks;
 
-    // The 4.x-style structure used to communicate between the plugin
-    // instance and the browser.
+    /**
+     * The 4.x-style structure used to communicate between the plugin
+     * instance and the browser.
+     */
     NPP_t fNPP;
 
 #ifdef XP_MACOSX
     NPDrawingModel mDrawingModel;
 #endif
 
-    // these are used to store the windowless properties
-    // which the browser will later query
+    //these are used to store the windowless properties
+    //which the browser will later query
+
     PRPackedBool  mWindowless;
     PRPackedBool  mTransparent;
     PRPackedBool  mStarted;
@@ -165,7 +192,8 @@ protected:
     PRPackedBool  mWantsAllNetworkStreams;
 
 public:
-    // True while creating the plugin, or calling NPP_SetWindow() on it.
+    // True while creating the plugin, or calling NPP_SetWindow() on
+    // it.
     PRPackedBool  mInPluginInitCall;
     PRLibrary* fLibrary;
     nsInstanceStream *mStreams;
@@ -173,4 +201,4 @@ public:
     nsVoidArray mPopupStates;
 };
 
-#endif // ns4xPluginInstance_h_
+#endif // ns4xPluginInstance_h__

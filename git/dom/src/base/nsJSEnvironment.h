@@ -309,6 +309,9 @@ public:
   // nsISupports
   NS_DECL_ISUPPORTS
 
+  // nsIScriptRuntime
+  virtual void ShutDown();
+
   virtual PRUint32 GetScriptTypeID() {
             return nsIProgrammingLanguage::JAVASCRIPT;
   }
@@ -320,8 +323,9 @@ public:
   virtual nsresult DropScriptObject(void *object);
   virtual nsresult HoldScriptObject(void *object);
   
+  // Private stuff.
+  // called by the nsDOMScriptObjectFactory to initialize statics
   static void Startup();
-  static void Shutdown();
   // Setup all the statics etc - safe to call multiple times after Startup()
   static nsresult Init();
   // Get the NameSpaceManager, creating if necessary

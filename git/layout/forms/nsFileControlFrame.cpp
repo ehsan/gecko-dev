@@ -153,8 +153,9 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   nsCOMPtr<nsIDocument> doc = mContent->GetDocument();
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::input, nsnull,
-                                                 kNameSpaceID_None);
+  doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::input, nsnull,
+                                      kNameSpaceID_None,
+                                      getter_AddRefs(nodeInfo));
 
   // Create the text content
   NS_NewHTMLElement(getter_AddRefs(mTextContent), nodeInfo, PR_FALSE);

@@ -97,7 +97,6 @@ nsSVGForeignObjectFrame::Init(nsIContent* aContent,
                               nsIFrame*   aPrevInFlow)
 {
   nsresult rv = nsSVGForeignObjectFrameBase::Init(aContent, aParent, aPrevInFlow);
-  AddStateBits(NS_STATE_SVG_PROPAGATE_TRANSFORM);
   if (NS_SUCCEEDED(rv)) {
     nsSVGUtils::GetOuterSVGFrame(this)->RegisterForeignObject(this);
   }
@@ -451,18 +450,8 @@ nsSVGForeignObjectFrame::NotifyRedrawUnsuspended()
 NS_IMETHODIMP
 nsSVGForeignObjectFrame::SetMatrixPropagation(PRBool aPropagate)
 {
-  if (aPropagate) {
-    AddStateBits(NS_STATE_SVG_PROPAGATE_TRANSFORM);
-  } else {
-    RemoveStateBits(NS_STATE_SVG_PROPAGATE_TRANSFORM);
-  }
+  mPropagateTransform = aPropagate;
   return NS_OK;
-}
-
-PRBool
-nsSVGForeignObjectFrame::GetMatrixPropagation()
-{
-  return (GetStateBits() & NS_STATE_SVG_PROPAGATE_TRANSFORM) != 0;
 }
 
 NS_IMETHODIMP
@@ -525,7 +514,7 @@ nsSVGForeignObjectFrame::GetTMIncludingOffset()
 already_AddRefed<nsIDOMSVGMatrix>
 nsSVGForeignObjectFrame::GetCanvasTM()
 {
-  if (!GetMatrixPropagation()) {
+  if (!mPropagateTransform) {
     nsIDOMSVGMatrix *retval;
     if (mOverrideCTM) {
       retval = mOverrideCTM;

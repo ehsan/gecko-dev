@@ -211,12 +211,7 @@ public:
 
   NS_IMETHOD              GetAttention(PRInt32 aCycleCount);
   NS_IMETHOD              GetLastInputEventTime(PRUint32& aTime);
-
-  // Note that the result of GetTopLevelWindow method can be different from the
-  // result of GetTopLevelHWND method.  The result can be non-floating window.
-  // Because our top level window may be contained in another window which is
-  // not managed by us.
-  nsWindow*               GetTopLevelWindow(PRBool aStopOnDialogOrPopup);
+  nsWindow*               GetTopLevelWindow();
 
   gfxASurface             *GetThebesSurface();
 
@@ -292,7 +287,7 @@ protected:
 
   static nsWindow*        GetNSWindowPtr(HWND aWnd);
   static BOOL             SetNSWindowPtr(HWND aWnd, nsWindow * ptr);
-  nsWindow*               GetParentWindow();
+  nsWindow*               GetParent(PRBool aStopOnFirstTopLevel);
 
   void                    DispatchPendingEvents();
   virtual PRBool          ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT *aRetValue);
@@ -525,12 +520,7 @@ protected:
 
 public:
   static void GlobalMsgWindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-  // Note that the result of GetTopLevelHWND can be different from the result
-  // of GetTopLevelWindow method.  Because this is checking whether the window
-  // is top level only in Win32 window system.  Therefore, the result window
-  // may not be managed by us.
-  static HWND GetTopLevelHWND(HWND aWnd,
-                              PRBool aStopOnDialogOrPopup = PR_FALSE);
+  static HWND GetTopLevelHWND(HWND aWnd, PRBool aStopOnFirstTopLevel = PR_FALSE);
 };
 
 //

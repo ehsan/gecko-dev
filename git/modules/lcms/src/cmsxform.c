@@ -254,22 +254,6 @@ void NullXFORM(_LPcmsTRANSFORM p,
        output = (LPBYTE) out;
        n = Size;                    // Buffer len
 
-       // If the input and output formats are the same,
-       // we don't need to pack and unpack pixels
-       if (p -> InputFormat == p -> OutputFormat) {
-
-              // Only copy bytes if the buffers aren't the same
-              if (in != out) {
-
-                     // Copy in a nondestructive manner in case
-                     // the buffers overlap for some reason
-                     memmove(out, in, 
-                             Size * T_BYTES(p -> InputFormat) * T_CHANNELS(p -> InputFormat));
-              }
-
-              return;
-       }
-
        for (i=0; i < n; i++)
        {
        accum = p -> FromInput(p, wIn, accum);
@@ -1539,16 +1523,6 @@ _LPcmsTRANSFORM PickTransformRoutine(_LPcmsTRANSFORM p,
                        (p -> ExitColorSpace == icSigRgbData)  &&
                        !(p -> dwOriginalFlags & cmsFLAGS_BLACKPOINTCOMPENSATION)) {
 
-                          // We've found our type of transform - don't override it later with a precalculated transform
-                          p -> dwOriginalFlags |= cmsFLAGS_NOTPRECALC;
-
-
-                          // If the input profile pointer-matches with the output profile, 
-                          // optimize the transformation away into a null xform
-                          if (p -> InputProfile == p -> OutputProfile) {
-                                 p -> xform = NullXFORM;
-                                 return p;
-                          }
 
                           // If the floating point path is requested, see if we support it
                           if (p -> dwOriginalFlags & cmsFLAGS_FLOATSHAPER)
@@ -1571,6 +1545,8 @@ _LPcmsTRANSFORM PickTransformRoutine(_LPcmsTRANSFORM p,
 #else
                           p -> xform = (p -> dwOriginalFlags & cmsFLAGS_FLOATSHAPER) ? MatrixShaperXFORMFloat : MatrixShaperXFORM;
 #endif
+
+                          p -> dwOriginalFlags |= cmsFLAGS_NOTPRECALC;
 
                           if (!cmsBuildSmeltMatShaper(p))
                           {

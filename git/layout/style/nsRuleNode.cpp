@@ -1719,7 +1719,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     }
     case eStyleStruct_Background:
     {
-      nsStyleBackground* bg = new (mPresContext) nsStyleBackground();
+      nsStyleBackground* bg = new (mPresContext) nsStyleBackground(mPresContext);
       if (NS_LIKELY(bg != nsnull)) {
         aContext->SetStyle(eStyleStruct_Background, bg);
       }
@@ -3397,22 +3397,28 @@ nsRuleNode::ComputeBackgroundData(void* aStartStruct,
                                   const nsRuleDataStruct& aData, 
                                   nsStyleContext* aContext, 
                                   nsRuleNode* aHighestNode,
-                                  const RuleDetail aRuleDetail,
-                                  PRBool aInherited)
+                                  const RuleDetail aRuleDetail, PRBool aInherited)
 {
-  COMPUTE_START_RESET(Background, (), bg, parentBG, Color, colorData)
+  COMPUTE_START_RESET(Background, (mPresContext), bg, parentBG,
+                      Color, colorData)
 
   // save parentFlags in case bg == parentBG and we clobber them later
   PRUint8 parentFlags = parentBG->mBackgroundFlags;
 
-  // background-color: color, string, inherit
-  if (eCSSUnit_Initial == colorData.mBackColor.GetUnit()) {
-    bg->mBackgroundColor = NS_RGBA(0, 0, 0, 0);
-  } else if (!SetColor(colorData.mBackColor, parentBG->mBackgroundColor,
-                       mPresContext, aContext, bg->mBackgroundColor,
-                       inherited)) {
-    NS_ASSERTION(eCSSUnit_Null == colorData.mBackColor.GetUnit(),
-                 "unexpected color unit");
+  // background-color: color, string, enum (flags), inherit
+  if (eCSSUnit_Inherit == colorData.mBackColor.GetUnit()) { // do inherit first, so SetColor doesn't do it
+    bg->mBackgroundColor = parentBG->mBackgroundColor;
+    bg->mBackgroundFlags &= ~NS_STYLE_BG_COLOR_TRANSPARENT;
+    bg->mBackgroundFlags |= (parentFlags & NS_STYLE_BG_COLOR_TRANSPARENT);
+    inherited = PR_TRUE;
+  }
+  else if (SetColor(colorData.mBackColor, parentBG->mBackgroundColor, 
+                    mPresContext, aContext, bg->mBackgroundColor, inherited)) {
+    bg->mBackgroundFlags &= ~NS_STYLE_BG_COLOR_TRANSPARENT;
+  }
+  else if (eCSSUnit_Enumerated == colorData.mBackColor.GetUnit() ||
+           eCSSUnit_Initial == colorData.mBackColor.GetUnit()) {
+    bg->mBackgroundFlags |= NS_STYLE_BG_COLOR_TRANSPARENT;
   }
 
   // background-image: url (stored as image), none, inherit
@@ -3702,9 +3708,11 @@ nsRuleNode::ComputeBorderData(void* aStartStruct,
         border->EnsureBorderColors();
         border->ClearBorderColors(side);
         while (list) {
-          if (SetColor(list->mValue, unused, mPresContext,
-                       aContext, borderColor, inherited))
-            border->AppendBorderColor(side, borderColor);
+          if (SetColor(list->mValue, unused, mPresContext, aContext, borderColor, inherited))
+            border->AppendBorderColor(side, borderColor, PR_FALSE);
+          else if (eCSSUnit_Enumerated == list->mValue.GetUnit() &&
+                   NS_STYLE_COLOR_TRANSPARENT == list->mValue.GetIntValue())
+            border->AppendBorderColor(side, nsnull, PR_TRUE);
           list = list->mNext;
         }
       }
@@ -3713,6 +3721,7 @@ nsRuleNode::ComputeBorderData(void* aStartStruct,
 
   // border-color, border-*-color: color, string, enum, inherit
   nsCSSRect ourBorderColor(marginData.mBorderColor);
+  PRBool transparent;
   PRBool foreground;
   AdjustLogicalBoxProp(aContext,
                        marginData.mBorderLeftColorLTRSource,
@@ -3730,8 +3739,11 @@ nsRuleNode::ComputeBorderData(void* aStartStruct,
       if (eCSSUnit_Inherit == value.GetUnit()) {
         if (parentContext) {
           inherited = PR_TRUE;
-          parentBorder->GetBorderColor(side, borderColor, foreground);
-          if (foreground) {
+          parentBorder->GetBorderColor(side, borderColor,
+                                       transparent, foreground);
+          if (transparent)
+            border->SetBorderTransparent(side);
+          else if (foreground) {
             // We want to inherit the color from the parent, not use the
             // color on the element where this chunk of style data will be
             // used.  We can ensure that the data for the parent are fully
@@ -3750,6 +3762,9 @@ nsRuleNode::ComputeBorderData(void* aStartStruct,
       }
       else if (eCSSUnit_Enumerated == value.GetUnit()) {
         switch (value.GetIntValue()) {
+          case NS_STYLE_COLOR_TRANSPARENT:
+            border->SetBorderTransparent(side);
+            break;
           case NS_STYLE_COLOR_MOZ_USE_TEXT_COLOR:
             border->SetBorderToForeground(side);
             break;

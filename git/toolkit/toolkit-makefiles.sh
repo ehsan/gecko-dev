@@ -670,6 +670,9 @@ MAKEFILES_xulapp="
   toolkit/system/unixproxy/Makefile
   toolkit/system/osxproxy/Makefile
   toolkit/components/help/Makefile
+  toolkit/components/history/Makefile
+  toolkit/components/history/public/Makefile
+  toolkit/components/history/src/Makefile
   toolkit/components/passwordmgr/Makefile
   toolkit/components/passwordmgr/public/Makefile
   toolkit/components/passwordmgr/src/Makefile

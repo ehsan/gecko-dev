@@ -213,6 +213,13 @@ nsSVGTextFrame::NotifyRedrawUnsuspended()
 }
 
 NS_IMETHODIMP
+nsSVGTextFrame::SetMatrixPropagation(PRBool aPropagate)
+{
+  mPropagateTransform = aPropagate;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsSVGTextFrame::SetOverrideCTM(nsIDOMSVGMatrix *aCTM)
 {
   mOverrideCTM = aCTM;
@@ -275,7 +282,7 @@ nsSVGTextFrame::GetBBox(nsIDOMSVGRect **_retval)
 already_AddRefed<nsIDOMSVGMatrix>
 nsSVGTextFrame::GetCanvasTM()
 {
-  if (!GetMatrixPropagation()) {
+  if (!mPropagateTransform) {
     nsIDOMSVGMatrix *retval;
     if (mOverrideCTM) {
       retval = mOverrideCTM;

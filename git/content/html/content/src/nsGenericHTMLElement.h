@@ -824,8 +824,9 @@ public:
 
   // nsIFormControl
   NS_IMETHOD GetForm(nsIDOMHTMLFormElement** aForm);
-  virtual void SetForm(nsIDOMHTMLFormElement* aForm);
-  virtual void ClearForm(PRBool aRemoveFromForm, PRBool aNotify);
+  NS_IMETHOD SetForm(nsIDOMHTMLFormElement* aForm,
+                     PRBool aRemoveFromForm,
+                     PRBool aNotify);
 
   NS_IMETHOD SaveState()
   {

@@ -61,7 +61,6 @@
 #include "jsopcode.h"
 #include "jsscope.h"
 #include "jsscript.h"
-#include "jsstaticcheck.h"
 
 /* Forward declarations for js_ErrorClass's initializer. */
 static JSBool
@@ -902,7 +901,7 @@ exn_toSource(JSContext *cx, uintN argc, jsval *vp)
         return JS_FALSE;
     *vp = STRING_TO_JSVAL(name);
 
-    MUST_FLOW_THROUGH("out");
+    /* After this, control must flow through label out: to exit. */
     JS_PUSH_TEMP_ROOT(cx, 3, localroots, &tvr);
 
 #ifdef __GNUC__
@@ -1208,7 +1207,7 @@ js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp)
     if (cx->generatingError)
         return JS_FALSE;
 
-    MUST_FLOW_THROUGH("out");
+    /* After this point the control must flow through the label out. */
     cx->generatingError = JS_TRUE;
 
     /* Protect the newly-created strings below from nesting GCs. */

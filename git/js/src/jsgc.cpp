@@ -1251,7 +1251,7 @@ js_InitGC(JSRuntime *rt, uint32 maxbytes)
      * for default backward API compatibility.
      */
     rt->gcMaxBytes = rt->gcMaxMallocBytes = maxbytes;
-    rt->gcEmptyArenaPoolLifespan = 30000;
+    rt->gcStackPoolLifespan = 30000;
 
     METER(memset(&rt->gcStats, 0, sizeof rt->gcStats));
     return JS_TRUE;
@@ -2783,36 +2783,24 @@ TraceWeakRoots(JSTracer *trc, JSWeakRoots *wr)
 JS_FRIEND_API(void)
 js_TraceContext(JSTracer *trc, JSContext *acx)
 {
+    JSArena *a;
+    int64 age;
     JSStackFrame *fp, *nextChain;
     JSStackHeader *sh;
     JSTempValueRooter *tvr;
 
     if (IS_GC_MARKING_TRACER(trc)) {
-
-#define FREE_OLD_ARENAS(pool)                                                 \
-        JS_BEGIN_MACRO                                                        \
-            int64 _age;                                                       \
-            JSArena * _a = (pool).current;                                    \
-            if (_a == (pool).first.next &&                                    \
-                _a->avail == _a->base + sizeof(int64)) {                      \
-                _age = JS_Now() - *(int64 *) _a->base;                        \
-                if (_age > (int64) acx->runtime->gcEmptyArenaPoolLifespan *   \
-                           1000)                                              \
-                    JS_FreeArenaPool(&(pool));                                \
-            }                                                                 \
-        JS_END_MACRO
-
         /*
-         * Release the stackPool's arenas if the stackPool has existed for
-         * longer than the limit specified by gcEmptyArenaPoolLifespan.
+         * Release stackPool here, if it has been in existence for longer than
+         * the limit specified by gcStackPoolLifespan.
          */
-        FREE_OLD_ARENAS(acx->stackPool);
-
-        /*
-         * Release the regexpPool's arenas based on the same criterion as for
-         * the stackPool.
-         */
-        FREE_OLD_ARENAS(acx->regexpPool);
+        a = acx->stackPool.current;
+        if (a == acx->stackPool.first.next &&
+            a->avail == a->base + sizeof(int64)) {
+            age = JS_Now() - *(int64 *) a->base;
+            if (age > (int64) acx->runtime->gcStackPoolLifespan * 1000)
+                JS_FinishArenaPool(&acx->stackPool);
+        }
 
         /*
          * Clear the double free list to release all the pre-allocated doubles.

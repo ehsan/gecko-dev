@@ -1032,8 +1032,7 @@ RequestReader.prototype =
       return;
 
     var moreAvailable = false;
-    var wasInBody = false;
-    
+
     switch (this._state)
     {
       case READER_INITIAL:
@@ -1044,15 +1043,11 @@ RequestReader.prototype =
         moreAvailable = this._processHeaders(input, count);
         break;
 
-      case READER_IN_BODY:
-        wasInBody = true;
-        moreAvailable = this._processBody(input, count);
-        break;
       default:
         NS_ASSERT(false);
     }
 
-    if (!wasInBody && this._state == READER_IN_BODY && moreAvailable)
+    if (this._state == READER_IN_BODY && moreAvailable)
       moreAvailable = this._processBody(input, count);
 
     if (moreAvailable)
@@ -1179,7 +1174,7 @@ RequestReader.prototype =
       if (this._contentLength > 0)
       {
         var bodyData = this._data.purge();
-        if (!bodyData || bodyData.length == 0)
+        if (bodyData.length == 0)
         {
           if (count > this._contentLength)
             count = this._contentLength;

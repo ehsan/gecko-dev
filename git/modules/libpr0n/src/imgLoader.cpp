@@ -290,7 +290,6 @@ PRUint32 imgCacheQueue::GetSize() const
 }
 
 #include <algorithm>
-using namespace std;
 
 void imgCacheQueue::Remove(imgCacheEntry *entry)
 {

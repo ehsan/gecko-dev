@@ -1512,12 +1512,6 @@ static PRBool SelectorMatches(RuleProcessorData &data,
     else if (nsCSSPseudoClasses::mozTypeUnsupported == pseudoClass->mAtom) {
       stateToCheck = NS_EVENT_STATE_TYPE_UNSUPPORTED;
     }
-    else if (nsCSSPseudoClasses::mozHandlerDisabled == pseudoClass->mAtom) {
-      stateToCheck = NS_EVENT_STATE_HANDLER_DISABLED;
-    }
-    else if (nsCSSPseudoClasses::mozHandlerBlocked == pseudoClass->mAtom) {
-      stateToCheck = NS_EVENT_STATE_HANDLER_BLOCKED;
-    }
     else if (nsCSSPseudoClasses::defaultPseudo == pseudoClass->mAtom) {
       stateToCheck = NS_EVENT_STATE_DEFAULT;
     }
@@ -2333,16 +2327,17 @@ CascadeSheetRulesInto(nsICSSStyleSheet* aSheet, void* aData)
   sheet->GetApplicable(bSheetApplicable);
 
   if (bSheetApplicable &&
-      sheet->UseForPresentation(data->mPresContext, data->mCacheKey) &&
-      sheet->mInner) {
-    nsCSSStyleSheet* child = sheet->mInner->mFirstChild;
+      sheet->UseForPresentation(data->mPresContext, data->mCacheKey)) {
+    nsCSSStyleSheet* child = sheet->mFirstChild;
     while (child) {
       CascadeSheetRulesInto(child, data);
       child = child->mNext;
     }
 
-    if (!sheet->mInner->mOrderedRules.EnumerateForwards(InsertRuleByWeight, data))
-      return PR_FALSE;
+    if (sheet->mInner) {
+      if (!sheet->mInner->mOrderedRules.EnumerateForwards(InsertRuleByWeight, data))
+        return PR_FALSE;
+    }
   }
   return PR_TRUE;
 }

@@ -35,8 +35,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef ns4xPluginStreamListener_h_
-#define ns4xPluginStreamListener_h_
+#ifndef ns4xPluginStreamListener_h__
+#define ns4xPluginStreamListener_h__
 
 #include "nsIPluginStreamListener.h"
 #include "nsIPluginStreamInfo.h"
@@ -124,4 +124,4 @@ protected:
 NS_DEFINE_STATIC_IID_ACCESSOR(nsI4xPluginStreamInfo,
                               NS_I4XPLUGINSTREAMINFO_IID)
 
-#endif // ns4xPluginStreamListener_h_
+#endif

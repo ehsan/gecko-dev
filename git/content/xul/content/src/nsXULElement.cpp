@@ -329,12 +329,14 @@ nsXULElement::Create(nsXULPrototypeElement* aPrototype,
         return NS_ERROR_NULL_POINTER;
 
     nsCOMPtr<nsINodeInfo> nodeInfo;
+    nsresult rv;
     if (aDocument) {
         nsINodeInfo* ni = aPrototype->mNodeInfo;
-        nodeInfo = aDocument->NodeInfoManager()->GetNodeInfo(ni->NameAtom(),
-                                                             ni->GetPrefixAtom(),
-                                                             ni->NamespaceID());
-        NS_ENSURE_TRUE(nodeInfo, NS_ERROR_FAILURE);
+        rv = aDocument->NodeInfoManager()->GetNodeInfo(ni->NameAtom(),
+                                                       ni->GetPrefixAtom(),
+                                                       ni->NamespaceID(),
+                                                       getter_AddRefs(nodeInfo));
+        NS_ENSURE_SUCCESS(rv, rv);
     }
     else {
         nodeInfo = aPrototype->mNodeInfo;
@@ -1828,9 +1830,11 @@ nsXULElement::GetID() const
 }
 
 const nsAttrValue*
-nsXULElement::DoGetClasses() const
+nsXULElement::GetClasses() const
 {
-    NS_ASSERTION(HasFlag(NODE_MAY_HAVE_CLASS), "Unexpected call");
+    if (!HasFlag(NODE_MAY_HAVE_CLASS)) {
+        return nsnull;
+    }
     return FindLocalOrProtoAttr(kNameSpaceID_None, nsGkAtoms::_class);
 }
 
@@ -2700,9 +2704,9 @@ nsXULPrototypeElement::Serialize(nsIObjectOutputStream* aStream,
     for (i = 0; i < mNumAttributes; ++i) {
         nsCOMPtr<nsINodeInfo> ni;
         if (mAttributes[i].mName.IsAtom()) {
-            ni = mNodeInfo->NodeInfoManager()->
+            mNodeInfo->NodeInfoManager()->
                 GetNodeInfo(mAttributes[i].mName.Atom(), nsnull,
-                            kNameSpaceID_None);
+                            kNameSpaceID_None, getter_AddRefs(ni));
             NS_ASSERTION(ni, "the nodeinfo should already exist");
         }
         else {

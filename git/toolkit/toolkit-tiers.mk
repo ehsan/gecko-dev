@@ -268,6 +268,6 @@ ifdef MOZ_MAPINFO
 tier_toolkit_dirs	+= tools/codesighs
 endif
 
-ifdef ENABLE_TESTS
+ifdef MOZ_MOCHITEST
 tier_toolkit_dirs	+= testing/mochitest
 endif

@@ -378,15 +378,6 @@ NS_IMETHODIMP nsViewManager::SetWindowDimensions(nscoord aWidth, nscoord aHeight
   return NS_OK;
 }
 
-NS_IMETHODIMP nsViewManager::FlushDelayedResize()
-{
-  if (mDelayedResize != nsSize(NSCOORD_NONE, NSCOORD_NONE)) {
-    DoSetWindowDimensions(mDelayedResize.width, mDelayedResize.height);
-    mDelayedResize.SizeTo(NSCOORD_NONE, NSCOORD_NONE);
-  }
-  return NS_OK;
-}
-
 static void ConvertNativeRegionToAppRegion(nsIRegion* aIn, nsRegion* aOut,
                                            nsIDeviceContext* context)
 {
@@ -1082,7 +1073,9 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
                       : nsnull) {
             if (vm->mDelayedResize != nsSize(NSCOORD_NONE, NSCOORD_NONE) &&
                 IsViewVisible(vm->mRootView)) {
-              vm->FlushDelayedResize();
+              vm->DoSetWindowDimensions(vm->mDelayedResize.width,
+                                        vm->mDelayedResize.height);
+              vm->mDelayedResize.SizeTo(NSCOORD_NONE, NSCOORD_NONE);
 
               // Paint later.
               vm->UpdateView(vm->mRootView, NS_VMREFRESH_NO_SYNC);

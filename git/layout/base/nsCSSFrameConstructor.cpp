@@ -489,7 +489,7 @@ static nsIFrame* GetSpecialSibling(nsIFrame* aFrame)
 }
 
 static nsIFrame*
-GetIBSplitSpecialPrevSiblingForAnonymousBlock(nsIFrame* aFrame)
+GetIBSplitSpecialPrevSibling(nsIFrame* aFrame)
 {
   NS_PRECONDITION(IsFrameSpecial(aFrame) && !IsInlineFrame(aFrame),
                   "Shouldn't call this");
@@ -608,7 +608,10 @@ FindLastBlock(nsIFrame* aKid)
 }
 
 /*
- * The special-prev-sibling is useful for
+ * Unlike the special (next) sibling, the special previous sibling
+ * property points only from the anonymous block to the original
+ * inline that preceded it.  DO NOT CHANGE THAT -- the
+ * GetParentStyleContextFrame code depends on it!  It is useful for
  * finding the "special parent" of a frame (i.e., a frame from which a
  * good parent style context can be obtained), one looks at the
  * special previous sibling annotation of the real parent of the frame
@@ -1964,8 +1967,9 @@ nsCSSFrameConstructor::CreateGeneratedContent(nsIContent*     aParentContent,
     // XXX Check if it's an image type we can handle...
 
     nsCOMPtr<nsINodeInfo> nodeInfo;
-    nodeInfo = mDocument->NodeInfoManager()->GetNodeInfo(nsGkAtoms::mozgeneratedcontentimage, nsnull,
-                                                         kNameSpaceID_XHTML);
+    mDocument->NodeInfoManager()->GetNodeInfo(nsGkAtoms::mozgeneratedcontentimage, nsnull,
+                                              kNameSpaceID_XHTML,
+                                              getter_AddRefs(nodeInfo));
 
     nsCOMPtr<nsIContent> content;
     NS_NewGenConImageContent(getter_AddRefs(content), nodeInfo,
@@ -2136,8 +2140,9 @@ nsCSSFrameConstructor::CreateGeneratedContentFrame(nsFrameConstructorState& aSta
   nsCOMPtr<nsINodeInfo> nodeInfo;
   nsIAtom* elemName = aPseudoElement == nsCSSPseudoElements::before ?
     nsGkAtoms::mozgeneratedcontentbefore : nsGkAtoms::mozgeneratedcontentafter;
-  nodeInfo = mDocument->NodeInfoManager()->GetNodeInfo(elemName, nsnull,
-                                                       kNameSpaceID_None);
+  mDocument->NodeInfoManager()->GetNodeInfo(elemName, nsnull,
+                                            kNameSpaceID_None,
+                                            getter_AddRefs(nodeInfo));
   nsIContent* container;
   nsresult rv = NS_NewXMLElement(&container, nodeInfo);
   if (NS_FAILED(rv))
@@ -4134,12 +4139,6 @@ nsCSSFrameConstructor::ConstructDocElementFrame(nsFrameConstructorState& aState,
                propagatedScrollToViewport,
                "Scrollbars should have been propagated to the viewport");
 #endif
-
-  if (NS_UNLIKELY(display->mDisplay == NS_STYLE_DISPLAY_NONE)) {
-    mInitialContainingBlock = nsnull;
-    mRootElementStyleFrame = nsnull;
-    return NS_OK;
-  }
 
   nsFrameConstructorSaveState absoluteSaveState;
   if (mHasRootAbsPosContainingBlock) {
@@ -7838,8 +7837,7 @@ nsCSSFrameConstructor::AppendFrames(nsFrameConstructorState&       aState,
       nsIContent* content = nsnull;
       nsStyleContext* styleContext = nsnull;
       if (!inlineSibling) {
-        nsIFrame* firstInline =
-          GetIBSplitSpecialPrevSiblingForAnonymousBlock(parentFrame);
+        nsIFrame* firstInline = GetIBSplitSpecialPrevSibling(parentFrame);
         NS_ASSERTION(firstInline, "How did that happen?");
 
         content = firstInline->GetContent();
@@ -12457,11 +12455,8 @@ nsCSSFrameConstructor::ConstructInline(nsFrameConstructorState& aState,
   SetFrameIsSpecial(aNewFrame, blockFrame);
   SetFrameIsSpecial(blockFrame, inlineFrame);
   MarkIBSpecialPrevSibling(blockFrame, aNewFrame);
-  if (inlineFrame) {
-    MarkIBSpecialPrevSibling(inlineFrame, blockFrame);
-  }
 
-  #ifdef DEBUG
+#ifdef DEBUG
   if (gNoisyInlineConstruction) {
     nsIFrameDebug*  frameDebug;
 
@@ -12730,8 +12725,8 @@ nsCSSFrameConstructor::WipeContainingBlock(nsFrameConstructorState& aState,
       // too.
       nsIFrame* floatContainer = aFrame;
       do {
-        floatContainer = GetFloatContainingBlock(
-          GetIBSplitSpecialPrevSiblingForAnonymousBlock(floatContainer));
+        floatContainer =
+          GetFloatContainingBlock(GetIBSplitSpecialPrevSibling(floatContainer));
         if (!floatContainer) {
           break;
         }

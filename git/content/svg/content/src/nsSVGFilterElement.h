@@ -54,7 +54,6 @@ class nsSVGFilterElement : public nsSVGFilterElementBase,
                            public nsIDOMSVGUnitTypes
 {
   friend class nsSVGFilterFrame;
-  friend class nsAutoFilterInstance;
 
 protected:
   friend nsresult NS_NewSVGFilterElement(nsIContent **aResult,

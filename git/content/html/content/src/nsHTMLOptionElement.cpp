@@ -145,15 +145,17 @@ NS_NewHTMLOptionElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
    * if someone says "var opt = new Option();" in JavaScript, in a case like
    * that we request the nsINodeInfo from the document's nodeinfo list.
    */
+  nsresult rv;
   nsCOMPtr<nsINodeInfo> nodeInfo(aNodeInfo);
   if (!nodeInfo) {
     nsCOMPtr<nsIDocument> doc =
       do_QueryInterface(nsContentUtils::GetDocumentFromCaller());
     NS_ENSURE_TRUE(doc, nsnull);
 
-    nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::option, nsnull,
-                                                   kNameSpaceID_None);
-    NS_ENSURE_TRUE(nodeInfo, nsnull);
+    rv = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::option, nsnull,
+                                             kNameSpaceID_None,
+                                             getter_AddRefs(nodeInfo));
+    NS_ENSURE_SUCCESS(rv, nsnull);
   }
 
   return new nsHTMLOptionElement(nodeInfo);

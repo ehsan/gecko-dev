@@ -65,8 +65,8 @@
 #include "jsscan.h"
 #include "jsscope.h"
 #include "jsscript.h"
+
 #include "jsautooplen.h"
-#include "jsstaticcheck.h"
 
 /* Allocation chunk counts, must be powers of two in general. */
 #define BYTECODE_CHUNK  256     /* code allocation increment */
@@ -1166,7 +1166,7 @@ OptimizeSpanDeps(JSContext *cx, JSCodeGenerator *cg)
     return JS_TRUE;
 }
 
-static ptrdiff_t
+static JSBool
 EmitJump(JSContext *cx, JSCodeGenerator *cg, JSOp op, ptrdiff_t off)
 {
     JSBool extend;
@@ -1175,13 +1175,13 @@ EmitJump(JSContext *cx, JSCodeGenerator *cg, JSOp op, ptrdiff_t off)
 
     extend = off < JUMP_OFFSET_MIN || JUMP_OFFSET_MAX < off;
     if (extend && !cg->spanDeps && !BuildSpanDepTable(cx, cg))
-        return -1;
+        return JS_FALSE;
 
     jmp = js_Emit3(cx, cg, op, JUMP_OFFSET_HI(off), JUMP_OFFSET_LO(off));
     if (jmp >= 0 && (extend || cg->spanDeps)) {
         pc = CG_CODE(cg, jmp);
         if (!AddSpanDep(cx, cg, pc, pc, off))
-            return -1;
+            return JS_FALSE;
     }
     return jmp;
 }
@@ -2978,7 +2978,6 @@ EmitSwitch(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
          * must set ok and goto out to exit this function.  To keep things
          * simple, all switchOp cases exit that way.
          */
-        MUST_FLOW_THROUGH("out");
         if (cg->spanDeps) {
             /*
              * We have already generated at least one big jump so we must
@@ -4020,9 +4019,17 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
          * definitions can be scheduled before generating the rest of code.
          */
         if (!(cg->treeContext.flags & TCF_IN_FUNCTION)) {
-            JS_ASSERT(!cg->treeContext.topStmt);
             CG_SWITCH_TO_PROLOG(cg);
-            EMIT_INDEX_OP(JSOP_DEFFUN, index);
+
+            /*
+             * Emit JSOP_CLOSURE for eval code to do fewer checks when
+             * instantiating top-level functions in the non-eval case.
+             */
+            JS_ASSERT(!cg->treeContext.topStmt);
+            op = (cg->treeContext.parseContext->callerFrame)
+                 ? JSOP_CLOSURE
+                 : JSOP_DEFFUN;
+            EMIT_INDEX_OP(op, index);
             CG_SWITCH_TO_MAIN(cg);
 
             /* Emit NOP for the decompiler. */
@@ -5109,12 +5116,12 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
                             return JS_FALSE;
                     } else {
                         /*
-                         * JSOP_DEFFUN in a top-level block with function
+                         * A closure in a top-level block with function
                          * definitions appears, for example, when "if (true)"
                          * is optimized away from "if (true) function x() {}".
                          * See bug 428424.
                          */
-                        JS_ASSERT(pn2->pn_op == JSOP_DEFFUN);
+                        JS_ASSERT(pn2->pn_op == JSOP_CLOSURE);
                     }
                 }
             }
