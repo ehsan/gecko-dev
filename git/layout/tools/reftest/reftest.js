@@ -623,14 +623,6 @@ function OnDocumentLoad(event)
 
             // We don't want to be notified again
             contentRootElement.removeEventListener("DOMAttrModified", AttrModifiedListener, false);
-            // Wait for the next return-to-event-loop before continuing to flush rendering and
-            // check isMozAfterPaintPending --- for example, the attribute may have been modified
-            // in an subdocument's load event handler, in which case we need load event processing
-            // to complete and unsuppress painting before we check isMozAfterPaintPending.
-            setTimeout(AttrModifiedListenerContinuation, 0);
-        }
-
-        function AttrModifiedListenerContinuation() {
             if (doPrintMode())
                 setupPrintMode();
             FlushRendering();

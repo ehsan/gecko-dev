@@ -33,7 +33,7 @@ http://www.w3.org/2003/01/REC-SVG11-20030114-errata#getCurrentTime_setCurrentTim
         document.getElementById('wrong').style.visibility = 'visible';
       }
 
-      document.documentElement.removeAttribute("class");
+      setTimeout('document.documentElement.removeAttribute("class")', 0);
     }
   ]]></script>
   <circle cx="50" cy="50" r="30" fill="blue">

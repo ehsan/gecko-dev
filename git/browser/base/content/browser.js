@@ -4314,7 +4314,7 @@ nsBrowserAccess.prototype =
         newWindow = openDialog(getBrowserURL(), "_blank", "all,dialog=no", url, null, null, null);
         break;
       case Ci.nsIBrowserDOMWindow.OPEN_NEWTAB :
-        let win, needToFocusWin;
+        var win = needToFocusWin = null;
 
         // try the current window.  if we're in a popup, fall back on the most recent browser window
         if (!window.document.documentElement.getAttribute("chromehidden"))
@@ -5554,14 +5554,7 @@ function WindowIsClosing()
 {
   var cn = gBrowser.tabContainer.childNodes;
   var numtabs = cn.length;
-  var reallyClose = 
-    closeWindow(false,
-                function () {
-                  return gBrowser.warnAboutClosingTabs(true);
-                });
-
-  if (!reallyClose)
-    return false;
+  var reallyClose = true;
 
   for (var i = 0; reallyClose && i < numtabs; ++i) {
     var ds = gBrowser.getBrowserForTab(cn[i]).docShell;
@@ -5570,7 +5563,16 @@ function WindowIsClosing()
       reallyClose = false;
   }
 
-  return reallyClose;
+  if (!reallyClose)
+    return false;
+
+  // closeWindow takes a second optional function argument to open up a
+  // window closing warning dialog if we're not quitting. (Quitting opens
+  // up another dialog so we don't need to.)
+  return closeWindow(false,
+    function () {
+      return gBrowser.warnAboutClosingTabs(true);
+    });
 }
 
 var MailIntegration = {
