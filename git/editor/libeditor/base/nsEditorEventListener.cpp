@@ -5,7 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
 #include "mozilla/Preferences.h"        // for Preferences
-#include "mozilla/TextEvents.h"         // for WidgetCompositionEvent
 #include "mozilla/dom/Element.h"        // for Element
 #include "mozilla/dom/EventTarget.h"    // for EventTarget
 #include "nsAString.h"
@@ -43,6 +42,8 @@
 #include "nsINode.h"                    // for nsINode, ::NODE_IS_EDITABLE, etc
 #include "nsIPlaintextEditor.h"         // for nsIPlaintextEditor, etc
 #include "nsIPresShell.h"               // for nsIPresShell
+#include "nsIPrivateTextEvent.h"        // for nsIPrivateTextEvent
+#include "nsIPrivateTextRange.h"        // for nsIPrivateTextRangeList
 #include "nsISelection.h"               // for nsISelection
 #include "nsISelectionController.h"     // for nsISelectionController, etc
 #include "nsISelectionPrivate.h"        // for nsISelectionPrivate
@@ -660,12 +661,24 @@ nsEditorEventListener::HandleText(nsIDOMEvent* aTextEvent)
     return NS_OK;
   }
 
+  nsCOMPtr<nsIPrivateTextEvent> textEvent = do_QueryInterface(aTextEvent);
+  if (!textEvent) {
+     //non-ui event passed in.  bad things.
+     return NS_OK;
+  }
+
+  nsAutoString                      composedText;
+  nsCOMPtr<nsIPrivateTextRangeList> textRangeList;
+
+  textEvent->GetText(composedText);
+  textRangeList = textEvent->GetInputRange();
+
   // if we are readonly or disabled, then do nothing.
   if (mEditor->IsReadonly() || mEditor->IsDisabled()) {
     return NS_OK;
   }
 
-  return mEditor->UpdateIMEComposition(aTextEvent);
+  return mEditor->UpdateIMEComposition(composedText, textRangeList);
 }
 
 /**
@@ -892,9 +905,7 @@ nsEditorEventListener::HandleStartComposition(nsIDOMEvent* aCompositionEvent)
   if (!mEditor->IsAcceptableInputEvent(aCompositionEvent)) {
     return NS_OK;
   }
-  WidgetCompositionEvent* compositionStart =
-    aCompositionEvent->GetInternalNSEvent()->AsCompositionEvent();
-  return mEditor->BeginIMEComposition(compositionStart);
+  return mEditor->BeginIMEComposition();
 }
 
 void

@@ -3268,7 +3268,7 @@ nsDisplayMixBlendMode::BuildLayer(nsDisplayListBuilder* aBuilder,
     return nullptr;
   }
 
-  container->DeprecatedSetMixBlendMode(nsCSSRendering::GetGFXBlendMode(mFrame->StyleDisplay()->mMixBlendMode));
+  container->SetMixBlendMode(nsCSSRendering::GetGFXBlendMode(mFrame->StyleDisplay()->mMixBlendMode));
 
   return container.forget();
 }

@@ -98,17 +98,7 @@ public:
   /**
    * Get TextComposition from widget.
    */
-  static already_AddRefed<mozilla::TextComposition>
-    GetTextCompositionFor(nsIWidget* aWidget);
-
-  /**
-   * Returns TextComposition instance for the event.
-   *
-   * @param aEvent      Should be a composition event or a text event which is
-   *                    being dispatched.
-   */
-  static already_AddRefed<mozilla::TextComposition>
-    GetTextCompositionFor(mozilla::WidgetGUIEvent* aEvent);
+  static mozilla::TextComposition* GetTextCompositionFor(nsIWidget* aWidget);
 
   /**
    * Send a notification to IME.  It depends on the IME or platform spec what

@@ -12,6 +12,7 @@
 #include "nsIServiceManager.h"
 #include "nsComponentManagerUtils.h"
 #include <objbase.h>
+#include <initguid.h>
 #include "WinUtils.h"
 
 #include "nsUXThemeData.h"

@@ -292,7 +292,7 @@ private:
     JS::Rooted<JS::Value> stackValue(cx);
     {
       JS::Rooted<JSObject*> stackObj(cx,
-        JS_NewArrayObject(cx, mStackData.Length()));
+        JS_NewArrayObject(cx, mStackData.Length(), nullptr));
       if (!stackObj) {
         return;
       }
@@ -447,7 +447,8 @@ WorkerConsole::Method(JSContext* aCx, const char* aMethodName,
     stack.swap(caller);
   }
 
-  JS::Rooted<JSObject*> arguments(aCx, JS_NewArrayObject(aCx, aData.Length()));
+  JS::Rooted<JSObject*> arguments(aCx,
+    JS_NewArrayObject(aCx, aData.Length(), nullptr));
   if (!arguments) {
     return;
   }

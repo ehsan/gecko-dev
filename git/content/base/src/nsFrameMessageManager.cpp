@@ -457,7 +457,7 @@ nsFrameMessageManager::GetDelayedFrameScripts(JSContext* aCx, JS::MutableHandle<
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
-  JS::Rooted<JSObject*> array(aCx, JS_NewArrayObject(aCx, mPendingScripts.Length()));
+  JS::Rooted<JSObject*> array(aCx, JS_NewArrayObject(aCx, mPendingScripts.Length(), nullptr));
   NS_ENSURE_TRUE(array, NS_ERROR_OUT_OF_MEMORY);
 
   JS::Rooted<JSString*> url(aCx);
@@ -466,11 +466,10 @@ nsFrameMessageManager::GetDelayedFrameScripts(JSContext* aCx, JS::MutableHandle<
     url = JS_NewUCStringCopyN(aCx, mPendingScripts[i].get(), mPendingScripts[i].Length());
     NS_ENSURE_TRUE(url, NS_ERROR_OUT_OF_MEMORY);
 
-    JS::AutoValueArray<2> pairElts(aCx);
-    pairElts[0].setString(url);
-    pairElts[1].setBoolean(mPendingScriptsGlobalStates[i]);
+    JS::Value pairElts[] = { JS::StringValue(url),
+                             JS::BooleanValue(mPendingScriptsGlobalStates[i]) };
 
-    pair = JS_NewArrayObject(aCx, pairElts);
+    pair = JS_NewArrayObject(aCx, 2, pairElts);
     NS_ENSURE_TRUE(pair, NS_ERROR_OUT_OF_MEMORY);
 
     NS_ENSURE_TRUE(JS_SetElement(aCx, array, i, pair),
@@ -599,7 +598,7 @@ nsFrameMessageManager::SendMessage(const nsAString& aMessageName,
   }
 
   uint32_t len = retval.Length();
-  JS::Rooted<JSObject*> dataArray(aCx, JS_NewArrayObject(aCx, len));
+  JS::Rooted<JSObject*> dataArray(aCx, JS_NewArrayObject(aCx, len, nullptr));
   NS_ENSURE_TRUE(dataArray, NS_ERROR_OUT_OF_MEMORY);
 
   for (uint32_t i = 0; i < len; ++i) {

@@ -15,7 +15,7 @@ import org.mozilla.gecko.util.EventDispatcher;
 import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.util.GeckoEventResponder;
 import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.WebappAllocator;
+import org.mozilla.gecko.WebAppAllocator;
 
 import android.app.Activity;
 import android.app.ActivityManager;
@@ -40,7 +40,7 @@ import org.json.JSONObject;
 
 public class EventListener implements GeckoEventListener, GeckoEventResponder {
 
-    private static final String LOGTAG = "GeckoWebappEventListener";
+    private static final String LOGTAG = "GeckoWebAppEventListener";
 
     private EventListener() { }
 
@@ -63,55 +63,55 @@ public class EventListener implements GeckoEventListener, GeckoEventResponder {
     }
 
     public static void registerEvents() {
-        registerEventListener("Webapps:Preinstall");
-        registerEventListener("Webapps:InstallApk");
-        registerEventListener("Webapps:Postinstall");
-        registerEventListener("Webapps:Open");
-        registerEventListener("Webapps:Uninstall");
-        registerEventListener("Webapps:GetApkVersions");
+        registerEventListener("WebApps:PreInstall");
+        registerEventListener("WebApps:InstallApk");
+        registerEventListener("WebApps:PostInstall");
+        registerEventListener("WebApps:Open");
+        registerEventListener("WebApps:Uninstall");
+        registerEventListener("WebApps:GetApkVersions");
     }
 
     public static void unregisterEvents() {
-        unregisterEventListener("Webapps:Preinstall");
-        unregisterEventListener("Webapps:InstallApk");
-        unregisterEventListener("Webapps:Postinstall");
-        unregisterEventListener("Webapps:Open");
-        unregisterEventListener("Webapps:Uninstall");
-        unregisterEventListener("Webapps:GetApkVersions");
+        unregisterEventListener("WebApps:PreInstall");
+        unregisterEventListener("WebApps:InstallApk");
+        unregisterEventListener("WebApps:PostInstall");
+        unregisterEventListener("WebApps:Open");
+        unregisterEventListener("WebApps:Uninstall");
+        unregisterEventListener("WebApps:GetApkVersions");
     }
 
     @Override
     public void handleMessage(String event, JSONObject message) {
         try {
-            if (AppConstants.MOZ_ANDROID_SYNTHAPKS && event.equals("Webapps:InstallApk")) {
+            if (AppConstants.MOZ_ANDROID_SYNTHAPKS && event.equals("WebApps:InstallApk")) {
                 installApk(GeckoAppShell.getGeckoInterface().getActivity(), message.getString("filePath"), message.getString("data"));
-            } else if (event.equals("Webapps:Postinstall")) {
+            } else if (event.equals("WebApps:PostInstall")) {
                 if (AppConstants.MOZ_ANDROID_SYNTHAPKS) {
-                    postInstallWebapp(message.getString("apkPackageName"), message.getString("origin"));
+                    postInstallWebApp(message.getString("apkPackageName"), message.getString("origin"));
                 } else {
-                    postInstallWebapp(message.getString("name"),
+                    postInstallWebApp(message.getString("name"),
                                       message.getString("manifestURL"),
                                       message.getString("origin"),
                                       message.getString("iconURL"),
                                       message.getString("originalOrigin"));
                 }
-            } else if (event.equals("Webapps:Open")) {
-                Intent intent = GeckoAppShell.getWebappIntent(message.getString("manifestURL"),
+            } else if (event.equals("WebApps:Open")) {
+                Intent intent = GeckoAppShell.getWebAppIntent(message.getString("manifestURL"),
                                                               message.getString("origin"),
                                                               "", null);
                 if (intent == null) {
                     return;
                 }
                 GeckoAppShell.getGeckoInterface().getActivity().startActivity(intent);
-            } else if (!AppConstants.MOZ_ANDROID_SYNTHAPKS && event.equals("Webapps:Uninstall")) {
-                uninstallWebapp(message.getString("origin"));
-            } else if (!AppConstants.MOZ_ANDROID_SYNTHAPKS && event.equals("Webapps:Preinstall")) {
+            } else if (!AppConstants.MOZ_ANDROID_SYNTHAPKS && event.equals("WebApps:Uninstall")) {
+                uninstallWebApp(message.getString("origin"));
+            } else if (!AppConstants.MOZ_ANDROID_SYNTHAPKS && event.equals("WebApps:PreInstall")) {
                 String name = message.getString("name");
                 String manifestURL = message.getString("manifestURL");
                 String origin = message.getString("origin");
 
                 // preInstallWebapp will return a File object pointing to the profile directory of the webapp
-                mCurrentResponse = preInstallWebapp(name, manifestURL, origin).toString();
+                mCurrentResponse = preInstallWebApp(name, manifestURL, origin).toString();
             } else if (event.equals("WebApps:GetApkVersions")) {
                 mCurrentResponse = getApkVersions(GeckoAppShell.getGeckoInterface().getActivity(),
                                                   message.getJSONArray("packageNames")).toString();
@@ -128,15 +128,15 @@ public class EventListener implements GeckoEventListener, GeckoEventResponder {
     }
 
     // Not used by MOZ_ANDROID_SYNTHAPKS.
-    public static File preInstallWebapp(String aTitle, String aURI, String aOrigin) {
-        int index = WebappAllocator.getInstance(GeckoAppShell.getContext()).findAndAllocateIndex(aOrigin, aTitle, (String) null);
+    public static File preInstallWebApp(String aTitle, String aURI, String aOrigin) {
+        int index = WebAppAllocator.getInstance(GeckoAppShell.getContext()).findAndAllocateIndex(aOrigin, aTitle, (String) null);
         GeckoProfile profile = GeckoProfile.get(GeckoAppShell.getContext(), "webapp" + index);
         return profile.getDir();
     }
 
     // Not used by MOZ_ANDROID_SYNTHAPKS.
-    public static void postInstallWebapp(String aTitle, String aURI, String aOrigin, String aIconURL, String aOriginalOrigin) {
-        WebappAllocator allocator = WebappAllocator.getInstance(GeckoAppShell.getContext());
+    public static void postInstallWebApp(String aTitle, String aURI, String aOrigin, String aIconURL, String aOriginalOrigin) {
+        WebAppAllocator allocator = WebAppAllocator.getInstance(GeckoAppShell.getContext());
         int index = allocator.getIndexForApp(aOriginalOrigin);
 
         assert aIconURL != null;
@@ -151,13 +151,13 @@ public class EventListener implements GeckoEventListener, GeckoEventResponder {
     }
 
     // Used by MOZ_ANDROID_SYNTHAPKS.
-    public static void postInstallWebapp(String aPackageName, String aOrigin) {
+    public static void postInstallWebApp(String aPackageName, String aOrigin) {
         Allocator allocator = Allocator.getInstance(GeckoAppShell.getContext());
         int index = allocator.findOrAllocatePackage(aPackageName);
         allocator.putOrigin(index, aOrigin);
     }
 
-    public static void uninstallWebapp(final String uniqueURI) {
+    public static void uninstallWebApp(final String uniqueURI) {
         // On uninstall, we need to do a couple of things:
         //   1. nuke the running app process.
         //   2. nuke the profile that was assigned to that webapp
@@ -173,7 +173,7 @@ public class EventListener implements GeckoEventListener, GeckoEventResponder {
 
                 // kill the app if it's running
                 String targetProcessName = GeckoAppShell.getContext().getPackageName();
-                targetProcessName = targetProcessName + ":" + targetProcessName + ".Webapp" + index;
+                targetProcessName = targetProcessName + ":" + targetProcessName + ".WebApp" + index;
 
                 ActivityManager am = (ActivityManager) GeckoAppShell.getContext().getSystemService(Context.ACTIVITY_SERVICE);
                 List<ActivityManager.RunningAppProcessInfo> procs = am.getRunningAppProcesses();

@@ -127,7 +127,7 @@ JSObjectBuilder::ArrayPush(JS::HandleObject aArray, JS::HandleObject aObject)
 
 JSObject*
 JSObjectBuilder::CreateArray() {
-  JSObject *array = JS_NewArrayObject(mCx, 0);
+  JSObject *array = JS_NewArrayObject(mCx, 0, nullptr);
   if (!array)
     mOk = false;
 
