@@ -87,8 +87,6 @@ void
 BluetoothDevice::Unroot()
 {
   if (mIsRooted) {
-    mJsUuids = nullptr;
-    mJsServices = nullptr;
     NS_DROP_JS_OBJECTS(this, BluetoothDevice);
     mIsRooted = false;
   }

@@ -208,6 +208,7 @@ nsIContentPolicy *nsContentUtils::sContentPolicyService;
 bool nsContentUtils::sTriedToGetContentPolicy = false;
 nsILineBreaker *nsContentUtils::sLineBreaker;
 nsIWordBreaker *nsContentUtils::sWordBreaker;
+uint32_t nsContentUtils::sJSGCThingRootCount;
 #ifdef IBMBIDI
 nsIBidiKeyboard *nsContentUtils::sBidiKeyboard = nullptr;
 #endif
@@ -4518,18 +4519,28 @@ nsContentUtils::HoldJSObjects(void* aScriptObjectHolder,
 {
   NS_ENSURE_TRUE(sXPConnect, NS_ERROR_UNEXPECTED);
 
-  return sXPConnect->AddJSHolder(aScriptObjectHolder, aTracer);
+  nsresult rv = sXPConnect->AddJSHolder(aScriptObjectHolder, aTracer);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (sJSGCThingRootCount++ == 0) {
+    nsLayoutStatics::AddRef();
+  }
+  NS_LOG_ADDREF(sXPConnect, sJSGCThingRootCount, "HoldJSObjects",
+                sizeof(void*));
+
+  return NS_OK;
 }
 
 /* static */
 nsresult
 nsContentUtils::DropJSObjects(void* aScriptObjectHolder)
 {
-  if (!sXPConnect) {
-    return NS_OK;
+  NS_LOG_RELEASE(sXPConnect, sJSGCThingRootCount - 1, "HoldJSObjects");
+  nsresult rv = sXPConnect->RemoveJSHolder(aScriptObjectHolder);
+  if (--sJSGCThingRootCount == 0) {
+    nsLayoutStatics::Release();
   }
-
-  return sXPConnect->RemoveJSHolder(aScriptObjectHolder);
+  return rv;
 }
 
 #ifdef DEBUG
@@ -6866,8 +6877,9 @@ nsContentUtils::ReleaseWrapper(void* aScriptObjectHolder,
     if (aCache->IsDOMBinding() && obj) {
       xpc::GetObjectScope(obj)->RemoveDOMExpandoObject(obj);
     }
-    aCache->SetPreservingWrapper(false);
     DropJSObjects(aScriptObjectHolder);
+
+    aCache->SetPreservingWrapper(false);
   }
 }
 

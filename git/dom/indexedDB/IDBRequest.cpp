@@ -40,7 +40,6 @@ IDBRequest::IDBRequest()
 
 IDBRequest::~IDBRequest()
 {
-  mResultVal = JSVAL_VOID;
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 }
 
