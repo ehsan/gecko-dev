@@ -325,7 +325,7 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
                 SharedPreferences preferences = context.getSharedPreferences("GeckoApp", 0);
                 mShowFrameRate = preferences.getBoolean("showFrameRate", false);
             }
-        }).start();
+        }).run();
     }
 
     class FadeRunnable implements Runnable {

@@ -108,7 +108,6 @@ abstract public class GeckoApp
     public static boolean mFullScreen = false;
     public static File sGREDir = null;
     public static Menu sMenu;
-    private static GeckoThread sGeckoThread = null;
     public Handler mMainHandler;
     private File mProfileDir;
     private static boolean sIsGeckoReady = false;
@@ -385,6 +384,29 @@ abstract public class GeckoApp
         return pluginCL.loadClass(className);
     }
 
+    // Returns true when the intent is going to be handled by gecko launch
+    boolean launch(Intent intent)
+    {
+        Log.w(LOGTAG, "zerdatime " + new Date().getTime() + " - launch");
+        
+        if (!checkAndSetLaunchState(LaunchState.Launching, LaunchState.Launched))
+            return false;
+
+                String args = intent.getStringExtra("args");
+                if (args != null && args.contains("-profile")) {
+                    // XXX: TO-DO set mProfileDir to the path passed in
+                    mUserDefinedProfile = true;
+                }
+
+        if (intent == null)
+            intent = getIntent();
+
+        prefetchDNS(intent.getData());
+        new GeckoThread(intent, mLastUri, mLastTitle).start();
+
+        return true;
+    }
+
     @Override
     public boolean onCreateOptionsMenu(Menu menu)
     {
@@ -531,7 +553,7 @@ abstract public class GeckoApp
                 GeckoAppShell.sendEventToGecko(new GeckoEvent("Permissions:Get", null));
                 return true;
             case R.id.addons:
-                loadUrlInTab("about:addons");
+                loadUrlInNewTab("about:addons");
                 return true;
             case R.id.agent_mode:
                 Tab selectedTab = Tabs.getInstance().getSelectedTab();
@@ -590,13 +612,11 @@ abstract public class GeckoApp
                 if (getLayerController().getLayerClient() != mSoftwareLayerClient)
                     return;
 
-                if (lastHistoryEntry.mUri.equals(mLastUri))
+                if (mLastUri == lastHistoryEntry.mUri &&
+                    mLastTitle == lastHistoryEntry.mTitle)
                     return;
-
-                ViewportMetrics viewportMetrics = mSoftwareLayerClient.getGeckoViewportMetrics();
-                if (viewportMetrics != null)
-                    mLastViewport = viewportMetrics.toJSON();
-
+   
+                mLastViewport = mSoftwareLayerClient.getGeckoViewportMetrics().toJSON();
                 mLastUri = lastHistoryEntry.mUri;
                 mLastTitle = lastHistoryEntry.mTitle;
                 Bitmap bitmap = mSoftwareLayerClient.getBitmap();
@@ -1410,9 +1430,7 @@ abstract public class GeckoApp
             mLastViewport = savedInstanceState.getString(SAVED_STATE_VIEWPORT);
             mLastScreen = savedInstanceState.getByteArray(SAVED_STATE_SCREEN);
         }
-
-        Intent intent = getIntent();
-        String uri = intent.getDataString();
+        String uri = getIntent().getDataString();
         String title = uri;
         if (uri != null && uri.length() > 0) {
             mLastUri = uri;
@@ -1424,27 +1442,10 @@ abstract public class GeckoApp
             showAboutHome();
         }
 
-        mAppContext = this;
-
-        if (sGREDir == null)
-            sGREDir = new File(this.getApplicationInfo().dataDir);
-
-        String args = intent.getStringExtra("args");
-        if (args != null && args.contains("-profile")) {
-            // XXX: TO-DO set mProfileDir to the path passed in
-            mUserDefinedProfile = true;
-        }
-
-        prefetchDNS(intent.getData());
-
-        sGeckoThread = new GeckoThread(intent, mLastUri, mLastTitle);
-        if (!ACTION_DEBUG.equals(intent.getAction()) &&
-            checkAndSetLaunchState(LaunchState.Launching, LaunchState.Launched))
-            sGeckoThread.start();
-
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.gecko_app);
+        mAppContext = this;
 
         if (Build.VERSION.SDK_INT >= 11) {
             mBrowserToolbar = (BrowserToolbar) getLayoutInflater().inflate(R.layout.gecko_app_actionbar, null);
@@ -1514,6 +1515,9 @@ abstract public class GeckoApp
 
         Log.w(LOGTAG, "zerdatime " + new Date().getTime() + " - UI almost up");
 
+        if (sGREDir == null)
+            sGREDir = new File(this.getApplicationInfo().dataDir);
+
         if (!sTryCatchAttached) {
             sTryCatchAttached = true;
             mMainHandler.post(new Runnable() {
@@ -1576,7 +1580,7 @@ abstract public class GeckoApp
 
         final GeckoApp self = this;
  
-        GeckoAppShell.getHandler().postDelayed(new Runnable() {
+        mMainHandler.postDelayed(new Runnable() {
             public void run() {
                 
                 Log.w(LOGTAG, "zerdatime " + new Date().getTime() + " - pre checkLaunchState");
@@ -1653,13 +1657,13 @@ abstract public class GeckoApp
                 public void run() {
                     Log.i(LOGTAG, "Launching from debug intent after 5s wait");
                     setLaunchState(LaunchState.Launching);
-                    sGeckoThread.start();
+                    launch(getIntent());
                 }
             }, 1000 * 5 /* 5 seconds */);
             Log.i(LOGTAG, "Intent : ACTION_DEBUG - waiting 5s before launching");
             return;
         }
-        if (checkLaunchState(LaunchState.WaitForDebugger) || intent == getIntent())
+        if (checkLaunchState(LaunchState.WaitForDebugger) || launch(intent))
             return;
 
         if (Intent.ACTION_MAIN.equals(action)) {
@@ -1845,6 +1849,7 @@ abstract public class GeckoApp
         Map<String,String> envMap = System.getenv();
         Set<Map.Entry<String,String>> envSet = envMap.entrySet();
         Iterator<Map.Entry<String,String>> envIter = envSet.iterator();
+        StringBuffer envstr = new StringBuffer();
         int c = 0;
         while (envIter.hasNext()) {
             Map.Entry<String,String> entry = envIter.next();
@@ -2192,24 +2197,11 @@ abstract public class GeckoApp
     }
 
     /**
-     * Open the url as a new tab, and mark the selected tab as its "parent".
-     * If the url is already open in a tab, the existing tab is selected.
+     * Open the link as a new tab, and mark the selected tab as its "parent".
      * Use this for tabs opened by the browser chrome, so users can press the
      * "Back" button to return to the previous tab.
      */
-    public void loadUrlInTab(String url) {
-        ArrayList<Tab> tabs = Tabs.getInstance().getTabsInOrder();
-        if (tabs != null) {
-            Iterator<Tab> tabsIter = tabs.iterator();
-            while (tabsIter.hasNext()) {
-                Tab tab = tabsIter.next();
-                if (url.equals(tab.getURL())) {
-                    GeckoAppShell.sendEventToGecko(new GeckoEvent("Tab:Select", String.valueOf(tab.getId())));
-                    return;
-                }
-            }
-        }
-
+    public void loadUrlInNewTab(String url) {
         JSONObject args = new JSONObject();
         try {
             args.put("url", url);

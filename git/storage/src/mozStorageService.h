@@ -53,8 +53,6 @@
 #include "mozIStorageService.h"
 #include "mozIStorageServiceQuotaManagement.h"
 
-class nsIMemoryReporter;
-class nsIMemoryMultiReporter;
 class nsIXPConnect;
 struct sqlite3_vfs;
 
@@ -129,9 +127,7 @@ public:
   void unregisterConnection(Connection *aConnection);
 
   /**
-   * Gets the list of open connections.  Note that you must test each
-   * connection with mozIStorageConnection::connectionReady before doing
-   * anything with it, and skip it if it's not ready.
+   * Gets the list of open connections.
    *
    * @pre mRegistrationMutex is not held
    *
@@ -191,16 +187,11 @@ private:
 
   nsCOMPtr<nsIFile> mProfileStorageFile;
 
-  nsCOMPtr<nsIMemoryReporter> mStorageSQLiteReporter;
-  nsCOMPtr<nsIMemoryMultiReporter> mStorageSQLiteMultiReporter;
-
   static Service *gService;
 
   static nsIXPConnect *sXPConnect;
 
   static PRInt32 sSynchronousPref;
-
-  friend class ServiceMainThreadInitializer;
 };
 
 } // namespace storage

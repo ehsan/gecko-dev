@@ -193,8 +193,9 @@ class SortFunction(Function):
     __slots__ = Function.__slots__
 
     def resolve(self, makefile, variables, fd, setting):
-        d = set(self._arguments[0].resolvesplit(makefile, variables, setting))
-        util.joiniter(fd, sorted(d))
+        d = list(self._arguments[0].resolvesplit(makefile, variables, setting))
+        d.sort()
+        util.joiniter(fd, d)
 
 class WordFunction(Function):
     name = 'word'

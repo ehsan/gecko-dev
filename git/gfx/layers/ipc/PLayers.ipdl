@@ -42,7 +42,7 @@
 include protocol PLayer;
 include protocol PRenderFrame;
 
-include "gfxipc/ShadowLayerUtils.h";
+include "IPC/ShadowLayerUtils.h";
 
 using gfx3DMatrix;
 using gfxRGBA;

@@ -114,6 +114,7 @@
 
 #include "mozAutoDocUpdate.h"
 #include "nsContentCreatorFunctions.h"
+#include "nsCharSeparatedTokenizer.h"
 #include "nsContentUtils.h"
 #include "nsRadioVisitor.h"
 
@@ -3903,7 +3904,8 @@ nsHTMLInputElement::GetValidationMessage(nsAString& aValidationMessage,
 bool
 nsHTMLInputElement::IsValidEmailAddressList(const nsAString& aValue)
 {
-  HTMLSplitOnSpacesTokenizer tokenizer(aValue, ',');
+  nsCharSeparatedTokenizerTemplate<nsContentUtils::IsHTMLWhitespace>
+    tokenizer(aValue, ',');
 
   while (tokenizer.hasMoreTokens()) {
     if (!IsValidEmailAddress(tokenizer.nextToken())) {
@@ -4122,7 +4124,8 @@ nsHTMLInputElement::GetFilterFromAccept()
   nsAutoString accept;
   GetAttr(kNameSpaceID_None, nsGkAtoms::accept, accept);
 
-  HTMLSplitOnSpacesTokenizer tokenizer(accept, ',');
+  nsCharSeparatedTokenizerTemplate<nsContentUtils::IsHTMLWhitespace>
+    tokenizer(accept, ',');
 
   while (tokenizer.hasMoreTokens()) {
     const nsDependentSubstring token = tokenizer.nextToken();

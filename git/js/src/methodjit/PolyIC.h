@@ -299,8 +299,7 @@ struct GetElementIC : public BasePolyIC {
     }
     void purge(Repatcher &repatcher);
     LookupStatus update(VMFrame &f, JSObject *obj, const Value &v, jsid id, Value *vp);
-    LookupStatus attachGetProp(VMFrame &f, JSObject *obj, const Value &v, PropertyName *name,
-                               Value *vp);
+    LookupStatus attachGetProp(VMFrame &f, JSObject *obj, const Value &v, jsid id, Value *vp);
     LookupStatus attachArguments(VMFrame &f, JSObject *obj, const Value &v, jsid id, Value *vp);
     LookupStatus attachTypedArray(VMFrame &f, JSObject *obj, const Value &v, jsid id, Value *vp);
     LookupStatus disable(JSContext *cx, const char *reason);
@@ -535,7 +534,7 @@ struct PICInfo : public BasePolyIC {
     jsbytecode *pc;
     
     // Index into the script's atom table.
-    PropertyName *name;
+    JSAtom *atom;
 
     // Reset the data members to the state of a fresh PIC before any patching
     // or stub generation was done.

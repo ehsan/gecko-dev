@@ -255,10 +255,7 @@ public class PanZoomController
             // the screen orientation changed) so abort it and start a new one to
             // ensure the viewport doesn't contain out-of-bounds areas
         case NOTHING:
-            // Don't do animations here; they're distracting and can cause flashes on page
-            // transitions.
-            mController.setViewportMetrics(getValidViewportMetrics());
-            mController.notifyLayerClientOfGeometryChange();
+            bounce();
             break;
         }
     }
@@ -983,12 +980,18 @@ public class PanZoomController
     public void onScaleEnd(ScaleGestureDetector detector) {
         Log.d(LOGTAG, "onScaleEnd in " + mState);
 
+        PointF o = mController.getOrigin();
         if (mState == PanZoomState.ANIMATED_ZOOM)
             return;
 
         mState = PanZoomState.PANNING_HOLD_LOCKED;
         mX.firstTouchPos = mX.lastTouchPos = mX.touchPos = detector.getFocusX();
         mY.firstTouchPos = mY.lastTouchPos = mY.touchPos = detector.getFocusY();
+
+        RectF viewport = mController.getViewport();
+
+        FloatSize pageSize = mController.getPageSize();
+        RectF pageRect = new RectF(0,0, pageSize.width, pageSize.height);
 
         // Force a viewport synchronisation
         mController.setForceRedraw();

@@ -547,7 +547,7 @@ js_ConstructXMLQNameObject(JSContext *cx, const Value &nsval, const Value &lnval
         argv[0] = nsval;
     }
     argv[1] = lnval;
-    return JS_ConstructObjectWithArguments(cx, Jsvalify(&QNameClass), NULL, 2, argv);
+    return js_ConstructObject(cx, &QNameClass, NULL, NULL, 2, argv);
 }
 
 static JSBool
@@ -603,7 +603,8 @@ js_IsXMLName(JSContext *cx, jsval v)
  * if argc is 1 and argv[0] is JSVAL_VOID.
  */
 static JSBool
-NamespaceHelper(JSContext *cx, intN argc, jsval *argv, jsval *rval)
+NamespaceHelper(JSContext *cx, JSObject *obj, intN argc, jsval *argv,
+                jsval *rval)
 {
     jsval urival, prefixval;
     JSObject *uriobj;
@@ -627,16 +628,18 @@ NamespaceHelper(JSContext *cx, intN argc, jsval *argv, jsval *rval)
         }
     }
 
-    /* Namespace called as function. */
-    if (argc == 1 && isNamespace) {
-        /* Namespace called with one Namespace argument is identity. */
-        *rval = urival;
-        return JS_TRUE;
-    }
+    if (!obj) {
+        /* Namespace called as function. */
+        if (argc == 1 && isNamespace) {
+            /* Namespace called with one Namespace argument is identity. */
+            *rval = urival;
+            return JS_TRUE;
+        }
 
-    JSObject *obj = NewBuiltinClassInstanceXML(cx, &NamespaceClass);
-    if (!obj)
-        return JS_FALSE;
+        obj = NewBuiltinClassInstanceXML(cx, &NamespaceClass);
+        if (!obj)
+            return JS_FALSE;
+    }
 
     /* Per ECMA-357, 13.2.5, these properties must be "own". */
     if (!JS_DefineProperties(cx, obj, namespace_props))
@@ -710,7 +713,9 @@ NamespaceHelper(JSContext *cx, intN argc, jsval *argv, jsval *rval)
 static JSBool
 Namespace(JSContext *cx, uintN argc, Value *vp)
 {
-    return NamespaceHelper(cx, argc, vp + 2, vp);
+    JSObject *thisobj = NULL;
+    (void)IsConstructing_PossiblyWithGivenThisObject(vp, &thisobj);
+    return NamespaceHelper(cx, thisobj, argc, vp + 2, vp);
 }
 
 /*
@@ -718,7 +723,7 @@ Namespace(JSContext *cx, uintN argc, Value *vp)
  * if argc is 1 and argv[0] is JSVAL_VOID.
  */
 static JSBool
-QNameHelper(JSContext *cx, intN argc, jsval *argv, jsval *rval)
+QNameHelper(JSContext *cx, JSObject *obj, intN argc, jsval *argv, jsval *rval)
 {
     jsval nameval, nsval;
     JSBool isQName, isNamespace;
@@ -737,17 +742,19 @@ QNameHelper(JSContext *cx, intN argc, jsval *argv, jsval *rval)
             JSVAL_TO_OBJECT(nameval)->getClass() == &QNameClass;
     }
 
-    /* QName called as function. */
-    if (argc == 1 && isQName) {
-        /* QName called with one QName argument is identity. */
-        *rval = nameval;
-        return JS_TRUE;
-    }
+    if (!obj) {
+        /* QName called as function. */
+        if (argc == 1 && isQName) {
+            /* QName called with one QName argument is identity. */
+            *rval = nameval;
+            return JS_TRUE;
+        }
 
         /* Create and return a new QName object exactly as if constructed. */
-    JSObject *obj = NewBuiltinClassInstanceXML(cx, &QNameClass);
-    if (!obj)
-        return JS_FALSE;
+        obj = NewBuiltinClassInstanceXML(cx, &QNameClass);
+        if (!obj)
+            return JS_FALSE;
+    }
     *rval = OBJECT_TO_JSVAL(obj);
 
     if (isQName) {
@@ -834,7 +841,9 @@ out:
 static JSBool
 QName(JSContext *cx, uintN argc, Value *vp)
 {
-    return QNameHelper(cx, argc, vp + 2, vp);
+    JSObject *thisobj = NULL;
+    (void)IsConstructing_PossiblyWithGivenThisObject(vp, &thisobj);
+    return QNameHelper(cx, thisobj, argc, vp + 2, vp);
 }
 
 /*
@@ -2282,7 +2291,7 @@ GetNamespace(JSContext *cx, JSObject *qn, const JSXMLArray<JSObject> *inScopeNSe
     if (!match) {
         argv[0] = prefix ? STRING_TO_JSVAL(prefix) : JSVAL_VOID;
         argv[1] = STRING_TO_JSVAL(uri);
-        ns = JS_ConstructObjectWithArguments(cx, Jsvalify(&NamespaceClass), NULL, 2, argv);
+        ns = js_ConstructObject(cx, &NamespaceClass, NULL, NULL, 2, argv);
         if (!ns)
             return NULL;
         match = ns;
@@ -2961,7 +2970,7 @@ ToXMLName(JSContext *cx, jsval v, jsid *funidp)
 
 construct:
     v = STRING_TO_JSVAL(name);
-    obj = JS_ConstructObjectWithArguments(cx, Jsvalify(&QNameClass), NULL, 1, &v);
+    obj = js_ConstructObject(cx, &QNameClass, NULL, NULL, 1, &v);
     if (!obj)
         return NULL;
 
@@ -5484,7 +5493,7 @@ xml_addNamespace(JSContext *cx, uintN argc, jsval *vp)
     if (!xml)
         return JS_FALSE;
 
-    if (!NamespaceHelper(cx, argc == 0 ? -1 : 1, vp + 2, vp))
+    if (!NamespaceHelper(cx, NULL, argc == 0 ? -1 : 1, vp + 2, vp))
         return JS_FALSE;
     JS_ASSERT(!JSVAL_IS_PRIMITIVE(*vp));
 
@@ -6583,7 +6592,7 @@ xml_removeNamespace(JSContext *cx, uintN argc, jsval *vp)
     if (!xml)
         return JS_FALSE;
 
-    if (!NamespaceHelper(cx, argc == 0 ? -1 : 1, vp + 2, vp))
+    if (!NamespaceHelper(cx, NULL, argc == 0 ? -1 : 1, vp + 2, vp))
         return JS_FALSE;
     JS_ASSERT(!JSVAL_IS_PRIMITIVE(*vp));
     ns = JSVAL_TO_OBJECT(*vp);
@@ -6644,7 +6653,7 @@ xml_replace(JSContext *cx, uintN argc, jsval *vp)
          * Call function QName per spec, not ToXMLName, to avoid attribute
          * names.
          */
-        if (!QNameHelper(cx, argc == 0 ? -1 : 1, vp + 2, vp))
+        if (!QNameHelper(cx, NULL, argc == 0 ? -1 : 1, vp + 2, vp))
             return JS_FALSE;
         JS_ASSERT(!JSVAL_IS_PRIMITIVE(*vp));
         nameqn = JSVAL_TO_OBJECT(*vp);
@@ -6745,7 +6754,7 @@ xml_setName(JSContext *cx, uintN argc, jsval *vp)
         }
     }
 
-    nameqn = JS_ConstructObjectWithArguments(cx, Jsvalify(&QNameClass), NULL, 1, &name);
+    nameqn = js_ConstructObject(cx, &QNameClass, NULL, NULL, 1, &name);
     if (!nameqn)
         return JS_FALSE;
 
@@ -6850,8 +6859,11 @@ xml_setNamespace(JSContext *cx, uintN argc, jsval *vp)
     if (!JSXML_HAS_NAME(xml))
         return JS_TRUE;
 
-    ns = JS_ConstructObjectWithArguments(cx, Jsvalify(&NamespaceClass), NULL,
-                                         argc == 0 ? 0 : 1, vp + 2);
+    xml = CHECK_COPY_ON_WRITE(cx, xml, obj);
+    if (!xml)
+        return JS_FALSE;
+
+    ns = js_ConstructObject(cx, &NamespaceClass, NULL, obj, argc == 0 ? 0 : 1, vp + 2);
     if (!ns)
         return JS_FALSE;
     vp[0] = OBJECT_TO_JSVAL(ns);
@@ -6859,7 +6871,7 @@ xml_setNamespace(JSContext *cx, uintN argc, jsval *vp)
 
     qnargv[0] = OBJECT_TO_JSVAL(ns);
     qnargv[1] = OBJECT_TO_JSVAL(xml->name);
-    qn = JS_ConstructObjectWithArguments(cx, Jsvalify(&QNameClass), NULL, 2, qnargv);
+    qn = js_ConstructObject(cx, &QNameClass, NULL, NULL, 2, qnargv);
     if (!qn)
         return JS_FALSE;
 
@@ -7586,7 +7598,7 @@ js_GetDefaultXMLNamespace(JSContext *cx, jsval *vp)
     for (tmp = scopeChain; tmp; tmp = tmp->enclosingScope()) {
         if (tmp->isBlock() || tmp->isWith())
             continue;
-        if (!tmp->getSpecial(cx, tmp, SpecialId::defaultXMLNamespace(), &v))
+        if (!tmp->getSpecial(cx, SpecialId::defaultXMLNamespace(), &v))
             return JS_FALSE;
         if (!JSVAL_IS_PRIMITIVE(v)) {
             *vp = v;
@@ -7595,7 +7607,7 @@ js_GetDefaultXMLNamespace(JSContext *cx, jsval *vp)
         obj = tmp;
     }
 
-    ns = JS_ConstructObjectWithArguments(cx, Jsvalify(&NamespaceClass), NULL, 0, NULL);
+    ns = js_ConstructObject(cx, &NamespaceClass, NULL, obj, 0, NULL);
     if (!ns)
         return JS_FALSE;
     v = OBJECT_TO_JSVAL(ns);
@@ -7613,7 +7625,7 @@ js_SetDefaultXMLNamespace(JSContext *cx, const Value &v)
     Value argv[2];
     argv[0].setString(cx->runtime->emptyString);
     argv[1] = v;
-    JSObject *ns = JS_ConstructObjectWithArguments(cx, Jsvalify(&NamespaceClass), NULL, 2, argv);
+    JSObject *ns = js_ConstructObject(cx, &NamespaceClass, NULL, NULL, 2, argv);
     if (!ns)
         return JS_FALSE;
 
@@ -7732,7 +7744,7 @@ js_FindXMLProperty(JSContext *cx, const Value &nameval, JSObject **objp, jsid *i
     nameobj = &nameval.toObject();
     if (nameobj->getClass() == &AnyNameClass) {
         v = STRING_TO_JSVAL(cx->runtime->atomState.starAtom);
-        nameobj = JS_ConstructObjectWithArguments(cx, Jsvalify(&QNameClass), NULL, 1, &v);
+        nameobj = js_ConstructObject(cx, &QNameClass, NULL, NULL, 1, &v);
         if (!nameobj)
             return JS_FALSE;
     } else {

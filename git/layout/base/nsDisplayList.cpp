@@ -2538,9 +2538,8 @@ nsDisplayTransform::GetResultingTransformMatrix(const nsIFrame* aFrame,
   }
 
   const nsStyleDisplay* parentDisp = nsnull;
-  nsStyleContext* parentStyleContext = aFrame->GetStyleContext()->GetParent();
-  if (parentStyleContext) {
-    parentDisp = parentStyleContext->GetStyleDisplay();
+  if (aFrame->GetParent()) {
+    parentDisp = aFrame->GetParent()->GetStyleDisplay();
   }
   if (nsLayoutUtils::Are3DTransformsEnabled() &&
       parentDisp && parentDisp->mChildPerspective.GetUnit() == eStyleUnit_Coord &&

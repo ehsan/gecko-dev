@@ -131,6 +131,7 @@ enum TokenKind {
     TOK_XMLPI,                     /* XML processing instruction */
     TOK_AT,                        /* XML attribute op (@) */
     TOK_DBLCOLON,                  /* namespace qualified name op (::) */
+    TOK_ANYNAME,                   /* XML AnyName singleton (*) */
     TOK_DBLDOT,                    /* XML descendant op (..) */
     TOK_FILTER,                    /* XML filtering predicate op (.()) */
     TOK_XMLELEM,                   /* XML element node type (no token) */
@@ -198,6 +199,12 @@ inline bool
 TokenKindIsEquality(TokenKind tt)
 {
     return TOK_EQUALITY_START <= tt && tt <= TOK_EQUALITY_LAST;
+}
+
+inline bool
+TokenKindIsXML(TokenKind tt)
+{
+    return tt == TOK_AT || tt == TOK_DBLCOLON || tt == TOK_ANYNAME;
 }
 
 inline bool

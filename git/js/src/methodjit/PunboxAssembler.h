@@ -129,13 +129,12 @@ class PunboxAssembler : public JSC::MacroAssembler
     }
 
     void loadValueAsComponents(const Value &val, RegisterID type, RegisterID payload) {
-        uint64_t bits = JSVAL_TO_IMPL(val).asBits;
-        move(Imm64(bits & JSVAL_TAG_MASK), type);
-        move(Imm64(bits & JSVAL_PAYLOAD_MASK), payload);
+        move(Imm64(val.asRawBits() & JSVAL_TAG_MASK), type);
+        move(Imm64(val.asRawBits() & JSVAL_PAYLOAD_MASK), payload);
     }
 
     void loadValuePayload(const Value &val, RegisterID payload) {
-        move(Imm64(JSVAL_TO_IMPL(val).asBits & JSVAL_PAYLOAD_MASK), payload);
+        move(Imm64(val.asRawBits() & JSVAL_PAYLOAD_MASK), payload);
     }
 
     /*
@@ -181,7 +180,7 @@ class PunboxAssembler : public JSC::MacroAssembler
 
     /* Overload for constant type and constant data. */
     DataLabel32 storeValueWithAddressOffsetPatch(const Value &v, Address address) {
-        move(ImmPtr(JSVAL_TO_IMPL(v).asPtr), Registers::ValueReg);
+        move(ImmPtr(reinterpret_cast<void*>(v.asRawBits())), Registers::ValueReg);
         return storePtrWithAddressOffsetPatch(Registers::ValueReg, valueOf(address));
     }
 
@@ -249,7 +248,7 @@ class PunboxAssembler : public JSC::MacroAssembler
 
     template <typename T>
     void storeValue(const Value &v, T address) {
-        storePtr(Imm64(JSVAL_TO_IMPL(v).asBits), valueOf(address));
+        storePtr(Imm64(v.asRawBits()), valueOf(address));
     }
 
     template <typename T>

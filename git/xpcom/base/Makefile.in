@@ -138,12 +138,6 @@ SDK_HEADERS     = \
 		nsCycleCollector.h \
 		nsObjCExceptions.h \
 
-ifeq ($(OS_ARCH),WINNT)
-SDK_HEADERS += \
-		nsWindowsHelpers.h \
-		$(NULL)
-endif
-
 XPIDLSRCS	= \
 		nsIConsoleListener.idl \
 		nsIConsoleMessage.idl \
