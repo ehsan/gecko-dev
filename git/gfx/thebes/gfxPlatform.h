@@ -13,6 +13,7 @@
 #include "nsAutoPtr.h"
 
 #include "gfxTypes.h"
+#include "gfxFontFamilyList.h"
 #include "nsRect.h"
 
 #include "qcms.h"
@@ -201,8 +202,12 @@ public:
      * surface, even if aTarget changes.
      * aTarget should not keep a reference to the returned surface because that
      * will cause a cycle.
+     *
+     * This function is static so that it can be accessed from
+     * PluginInstanceChild (where we can't call gfxPlatform::GetPlatform()
+     * because the prefs service can only be accessed from the main process).
      */
-    virtual mozilla::RefPtr<mozilla::gfx::SourceSurface>
+    static mozilla::RefPtr<mozilla::gfx::SourceSurface>
       GetSourceSurfaceForSurface(mozilla::gfx::DrawTarget *aTarget, gfxASurface *aSurface);
 
     static void ClearSourceSurfaceForSurface(gfxASurface *aSurface);
@@ -288,19 +293,6 @@ public:
     }
 
     /**
-     * Font name resolver, this returns actual font name(s) by the callback
-     * function. If the font doesn't exist, the callback function is not called.
-     * If the callback function returns false, the aAborted value is set to
-     * true, otherwise, false.
-     */
-    typedef bool (*FontResolverCallback) (const nsAString& aName,
-                                            void *aClosure);
-    virtual nsresult ResolveFontName(const nsAString& aFontName,
-                                     FontResolverCallback aCallback,
-                                     void *aClosure,
-                                     bool& aAborted) = 0;
-
-    /**
      * Resolving a font name to family name. The result MUST be in the result of GetFontList().
      * If the name doesn't in the system, aFamilyName will be empty string, but not failed.
      */
@@ -309,9 +301,10 @@ public:
     /**
      * Create the appropriate platform font group
      */
-    virtual gfxFontGroup *CreateFontGroup(const nsAString& aFamilies,
-                                          const gfxFontStyle *aStyle,
-                                          gfxUserFontSet *aUserFontSet) = 0;
+    virtual gfxFontGroup
+    *CreateFontGroup(const mozilla::FontFamilyList& aFontFamilyList,
+                     const gfxFontStyle *aStyle,
+                     gfxUserFontSet *aUserFontSet) = 0;
                                           
                                           
     /**
