@@ -5,7 +5,7 @@ function test() {
   gBrowser.addTab();
   gBrowser.addTab();
 
-  checkTabs(4);
+  assertTabs(4);
 
   ctrlTabTest([2]      , 1, 0);
   ctrlTabTest([2, 3, 1], 2, 2);
@@ -28,11 +28,11 @@ function test() {
     releaseCtrl();
   }
 
-  checkTabs(3);
+  assertTabs(3);
   ctrlTabTest([2, 1, 0], 9, 1);
 
   gBrowser.addTab();
-  checkTabs(4);
+  assertTabs(4);
 
   { // test for bug 445369
     selectTabs([1, 2, 0]);
@@ -53,12 +53,12 @@ function test() {
        "Ctrl+Tab*2 -> Ctrl+W -> Ctrl+Shift+Tab*2 keeps the selected tab");
   }
   gBrowser.removeTab(gBrowser.tabContainer.lastChild);
-  checkTabs(2);
+  assertTabs(2);
 
   ctrlTabTest([1], 1, 0);
 
   gBrowser.removeTab(gBrowser.tabContainer.lastChild);
-  checkTabs(1);
+  assertTabs(1);
 
   { // test for bug 445768
     let focusedWindow = document.commandDispatcher.focusedWindow;
@@ -89,7 +89,7 @@ function test() {
   function isOpen()
     ctrlTab.isOpen;
 
-  function checkTabs(aTabs) {
+  function assertTabs(aTabs) {
     var tabs = gBrowser.tabs.length;
     if (tabs != aTabs) {
       while (gBrowser.tabs.length > 1)
