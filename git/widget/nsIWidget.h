@@ -482,7 +482,6 @@ struct SizeConstraints {
 };
 
 // IMEMessage is shared by IMEStateManager and TextComposition.
-// Update values in GeckoEditable.java if you make changes here.
 // XXX Negative values are used in Android...
 enum IMEMessage MOZ_ENUM_TYPE(int8_t)
 {

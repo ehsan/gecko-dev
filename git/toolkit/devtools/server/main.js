@@ -802,8 +802,7 @@ ActorPool.prototype = {
     if (!aActor.actorID) {
       let prefix = aActor.actorPrefix;
       if (typeof aActor == "function") {
-        // typeName is a convention used with protocol.js-based actors
-        prefix = aActor.prototype.actorPrefix || aActor.prototype.typeName;
+        prefix = aActor.prototype.actorPrefix;
       }
       aActor.actorID = this.conn.allocID(prefix || undefined);
     }

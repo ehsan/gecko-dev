@@ -374,10 +374,6 @@ public:
 class FifoWatcher : public FdWatcher
 {
 public:
-  FifoWatcher(nsCString aPath)
-    : mDirPath(aPath)
-    {}
-
   static void MaybeCreate()
   {
     MOZ_ASSERT(NS_IsMainThread());
@@ -393,12 +389,8 @@ public:
       return;
     }
 
-    nsAutoCString dirPath;
-    Preferences::GetCString(
-      "memory_info_dumper.watch_fifo.directory", &dirPath);
-
     // The FifoWatcher is held alive by the observer service.
-    nsRefPtr<FifoWatcher> fw = new FifoWatcher(dirPath);
+    nsRefPtr<FifoWatcher> fw = new FifoWatcher();
     fw->Init();
   }
 
@@ -408,12 +400,14 @@ public:
     // there.  Otherwise, put it into the system's tmp directory.
 
     nsCOMPtr<nsIFile> file;
+    nsAutoCString dirPath;
+    nsresult rv = Preferences::GetCString(
+      "memory_info_dumper.watch_fifo.directory", &dirPath);
 
-    nsresult rv;
-    if (mDirPath.Length() > 0) {
-      rv = XRE_GetFileFromPath(mDirPath.get(), getter_AddRefs(file));
+    if (NS_SUCCEEDED(rv)) {
+      rv = XRE_GetFileFromPath(dirPath.get(), getter_AddRefs(file));
       if (NS_FAILED(rv)) {
-        LOG("FifoWatcher failed to open file \"%s\"", mDirPath.get());
+        LOG("FifoWatcher failed to open file \"%s\"", dirPath.get());
         return -1;
       }
     } else {
@@ -535,9 +529,6 @@ public:
       LOG("Got unexpected value from fifo; ignoring it.");
     }
   }
-
-private:
-  nsAutoCString mDirPath;
 };
 
 } // anonymous namespace
