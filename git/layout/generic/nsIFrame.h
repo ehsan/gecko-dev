@@ -235,10 +235,7 @@ typedef PRUint64 nsFrameState;
 // to its coordinate system (e.g. CSS transform, SVG foreignObject).
 // This is used primarily in GetTransformMatrix to optimize for the
 // common case.
-// ALSO, if this bit is set, the frame's first-continuation may
-// have an associated nsSVGRenderingObserverList.
-#define  NS_FRAME_MAY_BE_TRANSFORMED_OR_HAVE_RENDERING_OBSERVERS \
-                                                    NS_FRAME_STATE_BIT(16)
+#define  NS_FRAME_MAY_BE_TRANSFORMED                NS_FRAME_STATE_BIT(16)
 
 #ifdef IBMBIDI
 // If this bit is set, the frame itself is a bidi continuation,
@@ -265,6 +262,9 @@ typedef PRUint64 nsFrameState;
 // The lower 20 bits and upper 32 bits of the frame state are reserved
 // by this API.
 #define NS_FRAME_RESERVED                           ~NS_FRAME_IMPL_RESERVED
+
+// This bit acts as a loop flag for recursive paint server drawing.
+#define NS_FRAME_DRAWING_AS_PAINTSERVER             NS_FRAME_STATE_BIT(32)
 
 // Box layout bits
 #define NS_STATE_IS_HORIZONTAL                      NS_FRAME_STATE_BIT(22)
