@@ -107,10 +107,9 @@ SpeechRecognition::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 }
 
 already_AddRefed<SpeechRecognition>
-SpeechRecognition::Constructor(const GlobalObject& aGlobal,
-                               ErrorResult& aRv)
+SpeechRecognition::Constructor(const GlobalObject& aGlobal, ErrorResult& aRv)
 {
-  nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aGlobal.GetAsSupports());
+  nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aGlobal.Get());
   if (!win) {
     aRv.Throw(NS_ERROR_FAILURE);
   }

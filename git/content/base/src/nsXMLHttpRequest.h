@@ -16,7 +16,6 @@
 #include "nsIDocument.h"
 #include "nsIStreamListener.h"
 #include "nsWeakReference.h"
-#include "jsapi.h"
 #include "nsIChannelEventSink.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIInterfaceRequestor.h"
@@ -142,9 +141,9 @@ public:
               const mozilla::dom::MozXMLHttpRequestParameters& aParams,
               ErrorResult& aRv)
   {
-    nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(aGlobal.GetAsSupports());
+    nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(aGlobal.Get());
     nsCOMPtr<nsIScriptObjectPrincipal> principal =
-      do_QueryInterface(aGlobal.GetAsSupports());
+      do_QueryInterface(aGlobal.Get());
     if (!global || ! principal) {
       aRv.Throw(NS_ERROR_FAILURE);
       return nullptr;

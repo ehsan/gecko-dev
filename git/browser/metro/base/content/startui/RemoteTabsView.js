@@ -98,7 +98,6 @@ RemoteTabsView.prototype = Util.extend(Object.create(View.prototype), {
       }, this);
     }
     this.setUIAccessVisible(show);
-    this._set.arrangeItems();
   },
 
   destruct: function destruct() {
@@ -128,4 +127,8 @@ let RemoteTabsStartView = {
       this._view.destruct();
     }
   },
+
+  show: function show() {
+    this._grid.arrangeItems();
+  }
 };

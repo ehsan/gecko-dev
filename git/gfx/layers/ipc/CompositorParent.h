@@ -16,6 +16,7 @@
 //#define COMPOSITOR_PERFORMANCE_WARNING
 
 #include <stdint.h>                     // for uint64_t
+#include "GeckoProfilerFunc.h"          // for TimeStamp
 #include "Layers.h"                     // for Layer
 #include "ShadowLayersManager.h"        // for ShadowLayersManager
 #include "base/basictypes.h"            // for DISALLOW_EVIL_CONSTRUCTORS

@@ -99,6 +99,8 @@ class Configuration:
                     item.setUserData("mainThread", True)
                 if item in worker:
                     item.setUserData("workers", True)
+        flagWorkerOrMainThread(self.dictionaries, mainDictionaries,
+                               workerDictionaries);
         flagWorkerOrMainThread(self.callbacks, mainCallbacks, workerCallbacks)
 
     def getInterface(self, ifname):
@@ -478,14 +480,11 @@ class Descriptor(DescriptorProvider):
     def needsHeaderInclude(self):
         """
         An interface doesn't need a header file if it is not concrete,
-        not pref-controlled, has no prototype object, and has no
-        static methods or attributes.
+        not pref-controlled, and has only consts.
         """
         return (self.interface.isExternal() or self.concrete or
             self.interface.getExtendedAttribute("PrefControlled") or
-            self.interface.hasInterfacePrototypeObject() or
-            any((m.isAttr() or m.isMethod()) and m.isStatic() for m
-                in self.interface.members))
+            self.interface.hasInterfacePrototypeObject())
 
     def wantsQI(self):
         # If it was specified explicitly use that.

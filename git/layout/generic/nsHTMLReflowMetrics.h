@@ -8,6 +8,9 @@
 #ifndef nsHTMLReflowMetrics_h___
 #define nsHTMLReflowMetrics_h___
 
+#include <stdio.h>
+#include "nsISupports.h"
+#include "nsMargin.h"
 #include "nsRect.h"
 #include "nsBoundingMetrics.h"
 

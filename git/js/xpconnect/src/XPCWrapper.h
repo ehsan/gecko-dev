@@ -9,7 +9,6 @@
 
 #include "xpcprivate.h"
 #include "xpcpublic.h"
-#include "jswrapper.h"
 
 class nsIScriptSecurityManager;
 

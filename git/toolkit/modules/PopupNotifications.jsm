@@ -268,9 +268,8 @@ PopupNotifications.prototype = {
     let notifications = this._getNotificationsForBrowser(browser);
     notifications.push(notification);
 
-    let isActive = this._isActiveBrowser(browser);
     let fm = Cc["@mozilla.org/focus-manager;1"].getService(Ci.nsIFocusManager);
-    if (isActive && fm.activeWindow == this.window) {
+    if (browser.docShell.isActive && fm.activeWindow == this.window) {
       // show panel now
       this._update(notifications, notification.anchorElement, true);
     } else {
@@ -284,7 +283,7 @@ PopupNotifications.prototype = {
       // this browser is a tab (thus showing the anchor icon). For
       // non-tabbrowser browsers, we need to make the icon visible now or the
       // user will not be able to open the panel.
-      if (!notification.dismissed && isActive) {
+      if (!notification.dismissed && browser.docShell.isActive) {
         this.window.getAttention();
         if (notification.anchorElement.parentNode != this.iconBox) {
           notification.anchorElement.setAttribute(ICON_ATTRIBUTE_SHOWING, "true");
@@ -348,7 +347,7 @@ PopupNotifications.prototype = {
 
     this._setNotificationsForBrowser(aBrowser, notifications);
 
-    if (this._isActiveBrowser(aBrowser)) {
+    if (aBrowser.docShell.isActive) {
       // get the anchor element if the browser has defined one so it will
       // _update will handle both the tabs iconBox and non-tab permission
       // anchors.
@@ -366,8 +365,8 @@ PopupNotifications.prototype = {
    */
   remove: function PopupNotifications_remove(notification) {
     this._remove(notification);
-
-    if (this._isActiveBrowser(notification.browser)) {
+    
+    if (notification.browser.docShell.isActive) {
       let notifications = this._getNotificationsForBrowser(notification.browser);
       this._update(notifications, notification.anchorElement);
     }
@@ -419,7 +418,7 @@ PopupNotifications.prototype = {
     if (index == -1)
       return;
 
-    if (this._isActiveBrowser(notification.browser))
+    if (notification.browser.docShell.isActive)
       notification.anchorElement.removeAttribute(ICON_ATTRIBUTE_SHOWING);
 
     // remove the notification
@@ -703,14 +702,6 @@ PopupNotifications.prototype = {
   _setNotificationsForBrowser: function PopupNotifications_setNotifications(browser, notifications) {
     popupNotificationsMap.set(browser, notifications);
     return notifications;
-  },
-
-  _isActiveBrowser: function (browser) {
-    // Note: This helper only exists, because in e10s builds,
-    // we can't access the docShell of a browser from chrome.
-    return browser.docShell
-      ? browser.docShell.isActive
-      : (this.window.gBrowser.selectedBrowser == browser);
   },
 
   _onIconBoxCommand: function PopupNotifications_onIconBoxCommand(event) {

@@ -124,7 +124,7 @@ MediaRecorder::~MediaRecorder()
 }
 
 void
-MediaRecorder::Init(nsPIDOMWindow* aOwnerWindow)
+MediaRecorder::Init(JSContext* aCx, nsPIDOMWindow* aOwnerWindow)
 {
   MOZ_ASSERT(aOwnerWindow);
   MOZ_ASSERT(aOwnerWindow->IsInnerWindow());
@@ -273,23 +273,23 @@ MediaRecorder::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 }
 
 /* static */ already_AddRefed<MediaRecorder>
-MediaRecorder::Constructor(const GlobalObject& aGlobal,
+MediaRecorder::Constructor(const GlobalObject& aGlobal, JSContext* aCx,
                            DOMMediaStream& aStream, ErrorResult& aRv)
 {
-  nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(aGlobal.GetAsSupports());
+  nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(aGlobal.Get());
   if (!sgo) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
 
-  nsCOMPtr<nsPIDOMWindow> ownerWindow = do_QueryInterface(aGlobal.GetAsSupports());
+  nsCOMPtr<nsPIDOMWindow> ownerWindow = do_QueryInterface(aGlobal.Get());
   if (!ownerWindow) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
 
   nsRefPtr<MediaRecorder> object = new MediaRecorder(aStream);
-  object->Init(ownerWindow);
+  object->Init(aCx, ownerWindow);
   return object.forget();
 }
 

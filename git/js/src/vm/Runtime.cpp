@@ -106,8 +106,6 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
 #ifdef DEBUG
     operationCallbackOwner(NULL),
 #endif
-#endif
-#ifdef JS_WORKER_THREADS
     exclusiveAccessLock(NULL),
     exclusiveAccessOwner(NULL),
     mainThreadHasExclusiveAccess(false),
@@ -271,9 +269,7 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     parallelWarmup(0),
     ionReturnOverride_(MagicValue(JS_ARG_POISON)),
     useHelperThreads_(useHelperThreads),
-    requestedHelperThreadCount(-1),
-    useHelperThreadsForIonCompilation_(true),
-    useHelperThreadsForParsing_(true)
+    requestedHelperThreadCount(-1)
 #ifdef DEBUG
     , enteredPolicy(NULL)
 #endif
@@ -318,9 +314,7 @@ JSRuntime::init(uint32_t maxbytes)
     operationCallbackLock = PR_NewLock();
     if (!operationCallbackLock)
         return false;
-#endif
 
-#ifdef JS_WORKER_THREADS
     exclusiveAccessLock = PR_NewLock();
     if (!exclusiveAccessLock)
         return false;
@@ -397,26 +391,23 @@ JSRuntime::~JSRuntime()
 {
     mainThread.removeFromThreadList();
 
-#ifdef JS_WORKER_THREADS
+#ifdef JS_THREADSAFE
+# ifdef JS_ION
     if (workerThreadState)
         js_delete(workerThreadState);
+# endif
+    sourceCompressorThread.finish();
+
+    JS_ASSERT(!operationCallbackOwner);
+    if (operationCallbackLock)
+        PR_DestroyLock(operationCallbackLock);
 
     JS_ASSERT(!exclusiveAccessOwner);
     if (exclusiveAccessLock)
         PR_DestroyLock(exclusiveAccessLock);
 
     JS_ASSERT(!numExclusiveThreads);
-
-    // Avoid bogus asserts during teardown.
-    exclusiveThreadsPaused = true;
-#endif
-
-#ifdef JS_THREADSAFE
-    sourceCompressorThread.finish();
-
-    JS_ASSERT(!operationCallbackOwner);
-    if (operationCallbackLock)
-        PR_DestroyLock(operationCallbackLock);
+    exclusiveThreadsPaused = true; // Avoid bogus asserts during teardown.
 #endif
 
     /*
@@ -732,7 +723,7 @@ JSRuntime::activeGCInAtomsZone()
     return zone->needsBarrier() || zone->isGCScheduled() || zone->wasGCStarted();
 }
 
-#ifdef JS_WORKER_THREADS
+#ifdef JS_THREADSAFE
 
 void
 JSRuntime::setUsedByExclusiveThread(Zone *zone)
@@ -749,10 +740,6 @@ JSRuntime::clearUsedByExclusiveThread(Zone *zone)
     zone->usedByExclusiveThread = false;
     numExclusiveThreads--;
 }
-
-#endif // JS_WORKER_THREADS
-
-#ifdef JS_THREADSAFE
 
 bool
 js::CurrentThreadCanAccessRuntime(JSRuntime *rt)

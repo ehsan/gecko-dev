@@ -190,19 +190,15 @@ documenttab[selected] .documenttab-selection {
 #startui-page {
   overflow-x: scroll;
   overflow-y: hidden;
-  height: 100%;
 }
 
 #startui-body {
   height: 100%;
-  margin: 0;
 }
 
 #start-container {
   display: -moz-box;
   min-width: @grid_double_column_width@;
-  height: 100%;
-  width: 100%;
 }
 
 #start-topsites {
@@ -214,8 +210,7 @@ documenttab[selected] .documenttab-selection {
   padding-bottom: @toolbar_height@;
 }
 
-#start-container[viewstate="snapped"],
-#start-container[viewstate="portrait"] {
+#start-container[viewstate="snapped"] {
   -moz-box-orient: vertical;
 }
 

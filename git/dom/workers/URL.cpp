@@ -19,7 +19,7 @@
 #include "nsIDOMFile.h"
 
 USING_WORKERS_NAMESPACE
-using mozilla::dom::GlobalObject;
+using mozilla::dom::WorkerGlobalObject;
 
 // Base class for the Revoke and Create runnable objects.
 class URLRunnable : public nsRunnable
@@ -117,7 +117,7 @@ private:
 
 public:
   CreateURLRunnable(WorkerPrivate* aWorkerPrivate, nsIDOMBlob* aBlob,
-                    const mozilla::dom::objectURLOptions& aOptions,
+                    const mozilla::dom::objectURLOptionsWorkers& aOptions,
                     nsString& aURL)
   : URLRunnable(aWorkerPrivate),
     mBlob(aBlob),
@@ -227,8 +227,8 @@ public:
 
 // static
 void
-URL::CreateObjectURL(const GlobalObject& aGlobal, JSObject* aBlob,
-                     const mozilla::dom::objectURLOptions& aOptions,
+URL::CreateObjectURL(const WorkerGlobalObject& aGlobal, JSObject* aBlob,
+                     const mozilla::dom::objectURLOptionsWorkers& aOptions,
                      nsString& aResult, mozilla::ErrorResult& aRv)
 {
   JSContext* cx = aGlobal.GetContext();
@@ -254,8 +254,8 @@ URL::CreateObjectURL(const GlobalObject& aGlobal, JSObject* aBlob,
 
 // static
 void
-URL::CreateObjectURL(const GlobalObject& aGlobal, JSObject& aBlob,
-                     const mozilla::dom::objectURLOptions& aOptions,
+URL::CreateObjectURL(const WorkerGlobalObject& aGlobal, JSObject& aBlob,
+                     const mozilla::dom::objectURLOptionsWorkers& aOptions,
                      nsString& aResult, mozilla::ErrorResult& aRv)
 {
   return CreateObjectURL(aGlobal, &aBlob, aOptions, aResult, aRv);
@@ -263,7 +263,7 @@ URL::CreateObjectURL(const GlobalObject& aGlobal, JSObject& aBlob,
 
 // static
 void
-URL::RevokeObjectURL(const GlobalObject& aGlobal, const nsAString& aUrl)
+URL::RevokeObjectURL(const WorkerGlobalObject& aGlobal, const nsAString& aUrl)
 {
   JSContext* cx = aGlobal.GetContext();
   WorkerPrivate* workerPrivate = GetWorkerPrivateFromContext(cx);

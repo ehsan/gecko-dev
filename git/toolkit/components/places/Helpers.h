@@ -15,6 +15,7 @@
 #include "nsThreadUtils.h"
 #include "nsProxyRelease.h"
 #include "mozilla/Telemetry.h"
+#include "jsapi.h"
 
 namespace mozilla {
 namespace places {

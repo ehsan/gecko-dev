@@ -4497,7 +4497,8 @@ EmitFunc(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
      */
     if (fun->isInterpreted()) {
         bool singleton =
-            cx->typeInferenceEnabled() &&
+            cx->isJSContext() &&
+            cx->asJSContext()->typeInferenceEnabled() &&
             bce->script->compileAndGo &&
             fun->isInterpreted() &&
             (bce->checkSingletonContext() ||
@@ -5667,8 +5668,7 @@ frontend::EmitTree(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
                 }
             }
         }
-        bool hasDefaults = bce->sc->asFunctionBox()->hasDefaults();
-        if (hasDefaults) {
+        if (fun->hasDefaults()) {
             ParseNode *rest = NULL;
             bool restIsDefn = false;
             if (fun->hasRest()) {
@@ -5717,7 +5717,7 @@ frontend::EmitTree(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
                 continue;
             if (!BindNameToSlot(cx, bce, pn2))
                 return false;
-            if (pn2->pn_next == pnlast && fun->hasRest() && !hasDefaults) {
+            if (pn2->pn_next == pnlast && fun->hasRest() && !fun->hasDefaults()) {
                 // Fill rest parameter. We handled the case with defaults above.
                 JS_ASSERT(!bce->sc->asFunctionBox()->argumentsHasLocalBinding());
                 bce->switchToProlog();

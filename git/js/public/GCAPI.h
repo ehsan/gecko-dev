@@ -9,7 +9,6 @@
 
 #include "js/HeapAPI.h"
 #include "js/RootingAPI.h"
-#include "js/Value.h"
 
 namespace JS {
 
@@ -208,7 +207,7 @@ PokeGC(JSRuntime *rt);
 extern JS_FRIEND_API(bool)
 WasIncrementalGC(JSRuntime *rt);
 
-class JS_PUBLIC_API(ObjectPtr)
+class ObjectPtr
 {
     Heap<JSObject *> value;
 
@@ -234,7 +233,9 @@ class JS_PUBLIC_API(ObjectPtr)
         IncrementalObjectBarrier(value);
     }
 
-    bool isAboutToBeFinalized();
+    bool isAboutToBeFinalized() {
+        return JS_IsAboutToBeFinalized(&value);
+    }
 
     ObjectPtr &operator=(JSObject *obj) {
         IncrementalObjectBarrier(value);
@@ -242,7 +243,9 @@ class JS_PUBLIC_API(ObjectPtr)
         return *this;
     }
 
-    void trace(JSTracer *trc, const char *name);
+    void trace(JSTracer *trc, const char *name) {
+        JS_CallHeapObjectTracer(trc, &value, name);
+    }
 
     JSObject &operator*() const { return *value; }
     JSObject *operator->() const { return value; }

@@ -63,7 +63,7 @@ SpeechSynthesisUtterance::Constructor(GlobalObject& aGlobal,
                                       const nsAString& aText,
                                       ErrorResult& aRv)
 {
-  nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aGlobal.GetAsSupports());
+  nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aGlobal.Get());
 
   if (!win) {
     aRv.Throw(NS_ERROR_FAILURE);

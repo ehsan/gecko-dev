@@ -186,12 +186,12 @@ struct WorkerThread
 #endif /* JS_THREADSAFE && JS_ION */
 
 inline bool
-OffThreadIonCompilationEnabled(JSRuntime *rt)
+OffThreadCompilationEnabled(JSContext *cx)
 {
 #ifdef JS_WORKER_THREADS
-    return rt->useHelperThreads()
-        && rt->helperThreadCount() != 0
-        && rt->useHelperThreadsForIonCompilation();
+    return ion::js_IonOptions.parallelCompilation
+        && cx->runtime()->useHelperThreads()
+        && cx->runtime()->helperThreadCount() != 0;
 #else
     return false;
 #endif

@@ -16,6 +16,7 @@
 #include "CanvasUtils.h"
 #include "gfxFont.h"
 #include "mozilla/ErrorResult.h"
+#include "mozilla/dom/ImageData.h"
 #include "mozilla/dom/CanvasGradient.h"
 #include "mozilla/dom/CanvasRenderingContext2DBinding.h"
 #include "mozilla/dom/CanvasPattern.h"
@@ -30,7 +31,6 @@ class SourceSurface;
 
 namespace dom {
 class HTMLImageElementOrHTMLCanvasElementOrHTMLVideoElement;
-class ImageData;
 class StringOrCanvasGradientOrCanvasPattern;
 class StringOrCanvasGradientOrCanvasPatternReturnValue;
 class TextMetrics;

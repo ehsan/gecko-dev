@@ -34,7 +34,7 @@
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/HTMLMediaElement.h"
 #include "mozilla/dom/HTMLTemplateElement.h"
-#include "mozilla/dom/TextDecoder.h"
+#include "mozilla/dom/TextDecoderBase.h"
 #include "mozilla/Likely.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Selection.h"
@@ -927,8 +927,7 @@ nsContentUtils::ParseSandboxAttributeToFlags(const nsAString& aSandboxAttrValue)
                  SANDBOXED_FORMS |
                  SANDBOXED_SCRIPTS |
                  SANDBOXED_AUTOMATIC_FEATURES |
-                 SANDBOXED_POINTER_LOCK |
-                 SANDBOXED_DOMAIN;
+                 SANDBOXED_POINTER_LOCK;
 
   if (!aSandboxAttrValue.IsEmpty()) {
     // The separator optional flag is used because the HTML5 spec says any
@@ -3422,15 +3421,15 @@ nsContentUtils::ConvertStringFromCharset(const nsACString& aCharset,
   }
 
   ErrorResult rv;
-  nsAutoPtr<TextDecoder> decoder(new TextDecoder());
-  decoder->Init(NS_ConvertUTF8toUTF16(aCharset), false, rv);
+  TextDecoderBase decoder;
+  decoder.Init(NS_ConvertUTF8toUTF16(aCharset), false, rv);
   if (rv.Failed()) {
     rv.ClearMessage();
     return rv.ErrorCode();
   }
 
-  decoder->Decode(aInput.BeginReading(), aInput.Length(), false,
-                  aOutput, rv);
+  decoder.Decode(aInput.BeginReading(), aInput.Length(), false,
+                 aOutput, rv);
   return rv.ErrorCode();
 }
 

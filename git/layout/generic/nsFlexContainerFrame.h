@@ -11,6 +11,8 @@
 #define nsFlexContainerFrame_h___
 
 #include "nsContainerFrame.h"
+#include "nsTArray.h"
+#include "mozilla/Types.h"
 
 nsIFrame* NS_NewFlexContainerFrame(nsIPresShell* aPresShell,
                                    nsStyleContext* aContext);
@@ -21,7 +23,6 @@ class FlexItem;
 class FlexboxAxisTracker;
 class MainAxisPositionTracker;
 class SingleLineCrossAxisPositionTracker;
-template <class T> class nsTArray;
 
 class nsFlexContainerFrame : public nsFlexContainerFrameSuper {
   NS_DECL_FRAMEARENA_HELPERS

@@ -29,9 +29,12 @@
 #define JSD_USE_NSPR_LOCKS 1
 #endif /* MOZILLA_CLIENT */
 
-#include "jshash.h"
+#include "jstypes.h"
+#include "jsprf.h"
+#include "jshash.h" /* Added by JSIFY */
 #include "jsclist.h"
 #include "jsdebug.h"
+#include "jsapi.h"
 #include "jsdbgapi.h"
 #include "jsd_lock.h"
 

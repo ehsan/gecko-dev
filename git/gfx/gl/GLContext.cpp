@@ -28,10 +28,6 @@
 #include <CoreServices/CoreServices.h>
 #endif
 
-#if defined(MOZ_WIDGET_COCOA)
-#include "nsCocoaFeatures.h"
-#endif
-
 using namespace mozilla::gfx;
 
 namespace mozilla {
@@ -475,7 +471,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         }
 
         // Check for aux symbols based on extensions
-        if (IsSupported(GLFeature::framebuffer_blit))
+        if (IsExtensionSupported(XXX_framebuffer_blit))
         {
             SymLoadStruct auxSymbols[] = {
                 {
@@ -492,12 +488,12 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             if (!LoadSymbols(&auxSymbols[0], trygl, prefix)) {
                 NS_ERROR("GL supports framebuffer_blit without supplying glBlitFramebuffer");
 
-                MarkUnsupported(GLFeature::framebuffer_blit);
+                MarkExtensionGroupUnsupported(XXX_framebuffer_blit);
                 mSymbols.fBlitFramebuffer = nullptr;
             }
         }
 
-        if (IsSupported(GLFeature::framebuffer_multisample))
+        if (IsExtensionSupported(XXX_framebuffer_multisample))
         {
             SymLoadStruct auxSymbols[] = {
                 {
@@ -514,7 +510,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             if (!LoadSymbols(&auxSymbols[0], trygl, prefix)) {
                 NS_ERROR("GL supports framebuffer_multisample without supplying glRenderbufferStorageMultisample");
 
-                MarkUnsupported(GLFeature::framebuffer_multisample);
+                MarkExtensionGroupUnsupported(XXX_framebuffer_multisample);
                 mSymbols.fRenderbufferStorageMultisample = nullptr;
             }
         }
@@ -574,7 +570,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             if (!LoadSymbols(&vaoSymbols[0], trygl, prefix)) {
                 NS_ERROR("GL supports Vertex Array Object without supplying its functions.");
 
-                MarkUnsupported(GLFeature::vertex_array_object);
+                MarkExtensionGroupUnsupported(XXX_vertex_array_object);
                 mSymbols.fIsVertexArray = nullptr;
                 mSymbols.fGenVertexArrays = nullptr;
                 mSymbols.fBindVertexArray = nullptr;
@@ -597,7 +593,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             if (!LoadSymbols(&vaoSymbols[0], trygl, prefix)) {
                 NS_ERROR("GL supports Vertex Array Object without supplying its functions.");
 
-                MarkUnsupported(GLFeature::vertex_array_object);
+                MarkExtensionGroupUnsupported(XXX_vertex_array_object);
                 mSymbols.fIsVertexArray = nullptr;
                 mSymbols.fGenVertexArrays = nullptr;
                 mSymbols.fBindVertexArray = nullptr;
@@ -605,7 +601,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             }
         }
 
-        if (IsSupported(GLFeature::draw_instanced)) {
+        if (IsExtensionSupported(XXX_draw_instanced)) {
             SymLoadStruct drawInstancedSymbols[] = {
                 { (PRFuncPtr*) &mSymbols.fDrawArraysInstanced,
                   { "DrawArraysInstanced",
@@ -631,13 +627,13 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             if (!LoadSymbols(drawInstancedSymbols, trygl, prefix)) {
                 NS_ERROR("GL supports instanced draws without supplying its functions.");
 
-                MarkUnsupported(GLFeature::draw_instanced);
+                MarkExtensionGroupUnsupported(XXX_draw_instanced);
                 mSymbols.fDrawArraysInstanced = nullptr;
                 mSymbols.fDrawElementsInstanced = nullptr;
             }
         }
 
-        if (IsSupported(GLFeature::instanced_arrays)) {
+        if (IsExtensionSupported(XXX_instanced_arrays)) {
             SymLoadStruct instancedArraySymbols[] = {
                 { (PRFuncPtr*) &mSymbols.fVertexAttribDivisor,
                   { "VertexAttribDivisor",
@@ -653,12 +649,12 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             if (!LoadSymbols(instancedArraySymbols, trygl, prefix)) {
                 NS_ERROR("GL supports array instanced without supplying it function.");
 
-                mInitialized &= MarkUnsupported(GLFeature::instanced_arrays);
+                mInitialized &= MarkExtensionGroupUnsupported(XXX_instanced_arrays);
                 mSymbols.fVertexAttribDivisor = nullptr;
             }
         }
 
-        if (IsSupported(GLFeature::transform_feedback)) {
+        if (IsExtensionSupported(XXX_transform_feedback)) {
             SymLoadStruct transformFeedbackSymbols[] = {
                 { (PRFuncPtr*) &mSymbols.fBindBufferBase,
                   { "BindBufferBase",
@@ -715,8 +711,8 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             if (!LoadSymbols(transformFeedbackSymbols, trygl, prefix)) {
                 NS_ERROR("GL supports transform feedback without supplying its functions.");
 
-                MarkUnsupported(GLFeature::transform_feedback);
-                MarkUnsupported(GLFeature::bind_buffer_offset);
+                MarkExtensionGroupUnsupported(XXX_transform_feedback);
+                MarkExtensionGroupUnsupported(XXX_bind_buffer_offset);
                 mSymbols.fBindBufferBase = nullptr;
                 mSymbols.fBindBufferRange = nullptr;
                 mSymbols.fBeginTransformFeedback = nullptr;
@@ -727,7 +723,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             }
         }
 
-        if (IsSupported(GLFeature::bind_buffer_offset)) {
+        if (IsExtensionSupported(XXX_bind_buffer_offset)) {
             SymLoadStruct bindBufferOffsetSymbols[] = {
                 { (PRFuncPtr*) &mSymbols.fBindBufferOffset,
                   { "BindBufferOffset",
@@ -742,12 +738,12 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             if (!LoadSymbols(bindBufferOffsetSymbols, trygl, prefix)) {
                 NS_ERROR("GL supports BindBufferOffset without supplying its function.");
 
-                MarkUnsupported(GLFeature::bind_buffer_offset);
+                MarkExtensionGroupUnsupported(XXX_bind_buffer_offset);
                 mSymbols.fBindBufferOffset = nullptr;
             }
         }
 
-        if (IsSupported(GLFeature::query_objects)) {
+        if (IsExtensionSupported(XXX_query_objects)) {
             SymLoadStruct queryObjectsSymbols[] = {
                 { (PRFuncPtr*) &mSymbols.fBeginQuery, { "BeginQuery", "BeginQueryEXT", nullptr } },
                 { (PRFuncPtr*) &mSymbols.fGenQueries, { "GenQueries", "GenQueriesEXT", nullptr } },
@@ -762,11 +758,11 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             if (!LoadSymbols(queryObjectsSymbols, trygl, prefix)) {
                 NS_ERROR("GL supports query objects without supplying its functions.");
 
-                mInitialized &= MarkUnsupported(GLFeature::query_objects);
-                mInitialized &= MarkUnsupported(GLFeature::get_query_object_iv);
-                mInitialized &= MarkUnsupported(GLFeature::occlusion_query);
-                MarkUnsupported(GLFeature::occlusion_query_boolean);
-                MarkUnsupported(GLFeature::occlusion_query2);
+                mInitialized &= MarkExtensionGroupUnsupported(XXX_query_objects);
+                mInitialized &= MarkExtensionGroupUnsupported(XXX_get_query_object_iv);
+                mInitialized &= MarkExtensionGroupUnsupported(XXX_occlusion_query);
+                MarkExtensionGroupUnsupported(XXX_occlusion_query_boolean);
+                MarkExtensionGroupUnsupported(XXX_occlusion_query2);
                 mSymbols.fBeginQuery = nullptr;
                 mSymbols.fGenQueries = nullptr;
                 mSymbols.fDeleteQueries = nullptr;
@@ -777,7 +773,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             }
         }
 
-        if (IsSupported(GLFeature::get_query_object_iv)) {
+        if (IsExtensionSupported(XXX_get_query_object_iv)) {
             SymLoadStruct queryObjectsSymbols[] = {
                 { (PRFuncPtr*) &mSymbols.fGetQueryObjectiv, { "GetQueryObjectiv", "GetQueryObjectivEXT", nullptr } },
                 { nullptr, { nullptr } },
@@ -786,7 +782,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             if (!LoadSymbols(queryObjectsSymbols, trygl, prefix)) {
                 NS_ERROR("GL supports query objects iv getter without supplying its function.");
 
-                mInitialized &= MarkUnsupported(GLFeature::get_query_object_iv);
+                mInitialized &= MarkExtensionGroupUnsupported(XXX_get_query_object_iv);
                 mSymbols.fGetQueryObjectiv = nullptr;
             }
         }
@@ -857,7 +853,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         mMaxTextureImageSize = mMaxTextureSize;
 
         mMaxSamples = 0;
-        if (IsSupported(GLFeature::framebuffer_multisample)) {
+        if (IsExtensionSupported(XXX_framebuffer_multisample)) {
             fGetIntegerv(LOCAL_GL_MAX_SAMPLES, (GLint*)&mMaxSamples);
         }
 
@@ -915,10 +911,8 @@ GLContext::InitExtensions()
 #ifdef XP_MACOSX
     // The Mac Nvidia driver, for versions up to and including 10.8, don't seem
     // to properly support this.  See 814839
-    // this has been fixed in Mac OS X 10.9. See 907946
     if (WorkAroundDriverBugs() &&
-        Vendor() == gl::GLContext::VendorNVIDIA &&
-        !nsCocoaFeatures::OnMavericksOrLater())
+        Vendor() == gl::GLContext::VendorNVIDIA)
     {
         MarkExtensionUnsupported(gl::GLContext::EXT_packed_depth_stencil);
     }

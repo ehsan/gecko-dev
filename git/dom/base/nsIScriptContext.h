@@ -11,6 +11,7 @@
 #include "nsISupports.h"
 #include "nsCOMPtr.h"
 #include "nsIProgrammingLanguage.h"
+#include "jsfriendapi.h"
 #include "jspubtd.h"
 #include "js/GCAPI.h"
 

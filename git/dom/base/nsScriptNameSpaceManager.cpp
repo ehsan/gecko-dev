@@ -174,13 +174,6 @@ nsScriptNameSpaceManager::AddToHash(PLDHashTable *aTable, const nsAString *aKey,
   return &entry->mGlobalName;
 }
 
-void
-nsScriptNameSpaceManager::RemoveFromHash(PLDHashTable *aTable,
-                                         const nsAString *aKey)
-{
-  PL_DHashTableOperate(aTable, aKey, PL_DHASH_REMOVE);
-}
-
 nsGlobalNameStruct*
 nsScriptNameSpaceManager::GetConstructorProto(const nsGlobalNameStruct* aStruct)
 {
@@ -399,7 +392,6 @@ nsScriptNameSpaceManager::Init()
 
   if (serv) {
     serv->AddObserver(this, NS_XPCOM_CATEGORY_ENTRY_ADDED_OBSERVER_ID, true);
-    serv->AddObserver(this, NS_XPCOM_CATEGORY_ENTRY_REMOVED_OBSERVER_ID, true);
   }
 
   return NS_OK;
@@ -623,12 +615,10 @@ nsScriptNameSpaceManager::RegisterDOMCIData(const char *aName,
 }
 
 nsresult
-nsScriptNameSpaceManager::OperateCategoryEntryHash(nsICategoryManager* aCategoryManager,
-                                                   const char* aCategory,
-                                                   nsISupports* aEntry,
-                                                   bool aRemove)
+nsScriptNameSpaceManager::AddCategoryEntryToHash(nsICategoryManager* aCategoryManager,
+                                                 const char* aCategory,
+                                                 nsISupports* aEntry)
 {
-  MOZ_ASSERT(aCategoryManager);
   // Get the type from the category name.
   // NOTE: we could have passed the type in FillHash() and guessed it in
   // Observe() but this way, we have only one place to update and this is
@@ -659,31 +649,6 @@ nsScriptNameSpaceManager::OperateCategoryEntryHash(nsICategoryManager* aCategory
   nsAutoCString categoryEntry;
   nsresult rv = strWrapper->GetData(categoryEntry);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  PLDHashTable *table;
-  if (type == nsGlobalNameStruct::eTypeNavigatorProperty) {
-    table = &mNavigatorNames;
-  } else {
-    table = &mGlobalNames;
-  }
-
-  // We need to handle removal before calling GetCategoryEntry
-  // because the category entry is already removed before we are
-  // notified.
-  if (aRemove) {
-    NS_ConvertASCIItoUTF16 entry(categoryEntry);
-    const nsGlobalNameStruct *s =
-      type == nsGlobalNameStruct::eTypeNavigatorProperty ?
-      LookupNavigatorName(entry) : LookupNameInternal(entry);
-    // Verify mType so that this API doesn't remove names
-    // registered by others.
-    if (!s || s->mType != type) {
-      return NS_OK;
-    }
-
-    RemoveFromHash(table, &entry);
-    return NS_OK;
-  }
 
   nsXPIDLCString contractId;
   rv = aCategoryManager->GetCategoryEntry(aCategory, categoryEntry.get(),
@@ -744,6 +709,13 @@ nsScriptNameSpaceManager::OperateCategoryEntryHash(nsICategoryManager* aCategory
     }
   }
 
+  PLDHashTable *table;
+  if (type == nsGlobalNameStruct::eTypeNavigatorProperty) {
+    table = &mNavigatorNames;
+  } else {
+    table = &mGlobalNames;
+  }
+
   nsGlobalNameStruct *s = AddToHash(table, categoryEntry.get());
   NS_ENSURE_TRUE(s, NS_ERROR_OUT_OF_MEMORY);
 
@@ -760,24 +732,6 @@ nsScriptNameSpaceManager::OperateCategoryEntryHash(nsICategoryManager* aCategory
   return NS_OK;
 }
 
-nsresult
-nsScriptNameSpaceManager::AddCategoryEntryToHash(nsICategoryManager* aCategoryManager,
-                                                 const char* aCategory,
-                                                 nsISupports* aEntry)
-{
-  return OperateCategoryEntryHash(aCategoryManager, aCategory, aEntry,
-                                  /* aRemove = */ false);
-}
-
-nsresult
-nsScriptNameSpaceManager::RemoveCategoryEntryFromHash(nsICategoryManager* aCategoryManager,
-                                                      const char* aCategory,
-                                                      nsISupports* aEntry)
-{
-  return OperateCategoryEntryHash(aCategoryManager, aCategory, aEntry,
-                                  /* aRemove = */ true);
-}
-
 NS_IMETHODIMP
 nsScriptNameSpaceManager::Observe(nsISupports* aSubject, const char* aTopic,
                                   const PRUnichar* aData)
@@ -786,7 +740,7 @@ nsScriptNameSpaceManager::Observe(nsISupports* aSubject, const char* aTopic,
     return NS_OK;
   }
 
-  if (!strcmp(aTopic, NS_XPCOM_CATEGORY_ENTRY_ADDED_OBSERVER_ID)) {
+  if (strcmp(aTopic, NS_XPCOM_CATEGORY_ENTRY_ADDED_OBSERVER_ID) == 0) {
     nsCOMPtr<nsICategoryManager> cm =
       do_GetService(NS_CATEGORYMANAGER_CONTRACTID);
     if (!cm) {
@@ -795,19 +749,11 @@ nsScriptNameSpaceManager::Observe(nsISupports* aSubject, const char* aTopic,
 
     return AddCategoryEntryToHash(cm, NS_ConvertUTF16toUTF8(aData).get(),
                                   aSubject);
-  } else if (!strcmp(aTopic, NS_XPCOM_CATEGORY_ENTRY_REMOVED_OBSERVER_ID)) {
-    nsCOMPtr<nsICategoryManager> cm =
-      do_GetService(NS_CATEGORYMANAGER_CONTRACTID);
-    if (!cm) {
-      return NS_OK;
-    }
-
-    return RemoveCategoryEntryFromHash(cm, NS_ConvertUTF16toUTF8(aData).get(),
-                                       aSubject);
   }
 
-  // TODO: we could observe NS_XPCOM_CATEGORY_CLEARED_OBSERVER_ID
-  // but we are safe without it. See bug 600460.
+  // TODO: we could observe NS_XPCOM_CATEGORY_ENTRY_REMOVED_OBSERVER_ID
+  // and NS_XPCOM_CATEGORY_CLEARED_OBSERVER_ID but we are safe without it.
+  // See bug 600460.
 
   return NS_OK;
 }

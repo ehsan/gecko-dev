@@ -7,7 +7,6 @@
 /* Class that wraps JS objects to appear as XPCOM objects. */
 
 #include "xpcprivate.h"
-#include "jsprf.h"
 #include "nsCxPusher.h"
 #include "nsContentUtils.h"
 #include "nsProxyRelease.h"

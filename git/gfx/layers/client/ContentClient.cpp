@@ -83,7 +83,6 @@ ContentClientBasic::CreateBuffer(ContentType aType,
                                  uint32_t aFlags,
                                  gfxASurface**)
 {
-  MOZ_ASSERT(!(aFlags & BUFFER_COMPONENT_ALPHA));
   nsRefPtr<gfxASurface> referenceSurface = GetBuffer();
   if (!referenceSurface) {
     gfxContext* defaultTarget = mManager->GetDefaultTarget();
@@ -106,13 +105,9 @@ ContentClientBasic::CreateDTBuffer(ContentType aType,
                                    uint32_t aFlags,
                                    RefPtr<DrawTarget>* aWhiteDT)
 {
-  MOZ_ASSERT(!(aFlags & BUFFER_COMPONENT_ALPHA));
-  gfxASurface::gfxImageFormat format =
-    gfxPlatform::GetPlatform()->OptimalFormatForContent(aType);
-
-  return gfxPlatform::GetPlatform()->CreateOffscreenContentDrawTarget(
-    IntSize(aRect.width, aRect.height),
-    ImageFormatToSurfaceFormat(format));
+  NS_RUNTIMEABORT("ContentClientBasic does not support Moz2D drawing yet!");
+  // TODO[Bas] - Implement me!?
+  return nullptr;
 }
 
 void
@@ -214,12 +209,6 @@ ContentClientRemoteBuffer::BuildDeprecatedTextureClients(ContentType aType,
   }
 
   CreateFrontBufferAndNotify(aRect);
-}
-
-bool
-ContentClientBasic::SupportsAzureContent() const
-{
-  return gfxPlatform::GetPlatform()->SupportsAzureContent();
 }
  
 bool

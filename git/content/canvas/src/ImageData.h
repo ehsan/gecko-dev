@@ -16,6 +16,8 @@
 #include "nsTraceRefcnt.h"
 #include "xpcpublic.h"
 
+#include "jsapi.h"
+
 namespace mozilla {
 namespace dom {
 
@@ -48,7 +50,7 @@ public:
   {
     return mHeight;
   }
-  JSObject* Data(JSContext* cx, JS::Handle<JSObject*> /* unused */) const
+  JSObject* Data(JSContext* cx) const
   {
     return GetDataObject();
   }

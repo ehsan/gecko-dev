@@ -23,7 +23,6 @@
 
 #include "jsapi.h"
 #include "jsfriendapi.h"
-#include "jsprf.h"
 #include "JavaScriptParent.h"
 
 #include "mozilla/dom/BindingUtils.h"
@@ -801,9 +800,8 @@ XPCConvert::NativeInterface2JSObject(jsval* d,
                                      bool allowNativeWrapper,
                                      nsresult* pErr)
 {
-    MOZ_ASSERT_IF(Interface, iid);
-    if (!iid)
-        iid = &NS_GET_IID(nsISupports);
+    MOZ_ASSERT(!Interface || iid,
+               "Need the iid if you pass in an XPCNativeInterface cache.");
 
     *d = JSVAL_NULL;
     if (dest)

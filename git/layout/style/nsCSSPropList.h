@@ -2861,7 +2861,7 @@ CSS_PROP_DISPLAY(
     CSS_PROPERTY_PARSE_FUNCTION,
     "",
     0,
-    nullptr,
+    kDisplayKTable,
     offsetof(nsStyleDisplay, mSpecifiedTransform),
     eStyleAnimType_Custom)
 CSS_PROP_DISPLAY(

@@ -13,8 +13,6 @@ native xpcContextCallback(xpcContextCallback);
 
 %{C++
 
-#include "jsapi.h"  // for JSGCStatus
-
 typedef void
 (* xpcGCCallback)(JSGCStatus status);
 

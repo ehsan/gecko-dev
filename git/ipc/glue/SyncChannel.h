@@ -10,8 +10,6 @@
 
 #include "mozilla/ipc/AsyncChannel.h"
 
-#include <math.h>
-
 namespace mozilla {
 namespace ipc {
 //-----------------------------------------------------------------------------

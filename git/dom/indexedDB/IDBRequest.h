@@ -21,19 +21,10 @@
 class nsIScriptContext;
 class nsPIDOMWindow;
 
-namespace mozilla {
-namespace dom {
-class IDBObjectStoreOrIDBIndexOrIDBCursorReturnValue;
-}
-}
-
 BEGIN_INDEXEDDB_NAMESPACE
 
 class HelperBase;
-class IDBCursor;
 class IDBFactory;
-class IDBIndex;
-class IDBObjectStore;
 class IDBTransaction;
 class IndexedDBRequestParentBase;
 
@@ -45,27 +36,17 @@ public:
                                                          IDBWrapperCache)
 
   static
-  already_AddRefed<IDBRequest> Create(IDBWrapperCache* aOwnerCache,
-                                      IDBTransaction* aTransaction);
-
-  static
-  already_AddRefed<IDBRequest> Create(IDBObjectStore* aSource,
-                                      IDBWrapperCache* aOwnerCache,
-                                      IDBTransaction* aTransaction);
-
-  static
-  already_AddRefed<IDBRequest> Create(IDBIndex* aSource,
-                                      IDBWrapperCache* aOwnerCache,
-                                      IDBTransaction* aTransaction);
-  static
-  already_AddRefed<IDBRequest> Create(IDBCursor* aSource,
+  already_AddRefed<IDBRequest> Create(nsISupports* aSource,
                                       IDBWrapperCache* aOwnerCache,
                                       IDBTransaction* aTransaction);
 
   // nsIDOMEventTarget
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
 
-  void GetSource(Nullable<IDBObjectStoreOrIDBIndexOrIDBCursorReturnValue>& aSource) const;
+  nsISupports* Source()
+  {
+    return mSource;
+  }
 
   void Reset();
 
@@ -134,6 +115,13 @@ public:
   JS::Value
   GetResult(JSContext* aCx, ErrorResult& aRv) const;
 
+  nsISupports*
+  GetSource() const
+  {
+    NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+    return mSource;
+  }
+
   IDBTransaction*
   GetTransaction() const
   {
@@ -151,18 +139,7 @@ protected:
   IDBRequest();
   ~IDBRequest();
 
-  // At most one of these three fields can be non-null.
-  nsRefPtr<IDBObjectStore> mSourceAsObjectStore;
-  nsRefPtr<IDBIndex> mSourceAsIndex;
-  nsRefPtr<IDBCursor> mSourceAsCursor;
-
-  // Check that the above condition holds.
-#ifdef DEBUG
-  void AssertSourceIsCorrect() const;
-#else
-  void AssertSourceIsCorrect() const {}
-#endif
-
+  nsCOMPtr<nsISupports> mSource;
   nsRefPtr<IDBTransaction> mTransaction;
 
   JS::Heap<JS::Value> mResultVal;

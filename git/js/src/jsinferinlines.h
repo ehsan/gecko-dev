@@ -185,8 +185,9 @@ Type::ObjectType(TypeObjectKey *obj)
 }
 
 inline Type
-GetValueType(const Value &val)
+GetValueType(JSContext *cx, const Value &val)
 {
+    JS_ASSERT(cx->typeInferenceEnabled());
     if (val.isDouble())
         return Type::DoubleType();
     if (val.isObject())
@@ -309,10 +310,10 @@ struct AutoEnterAnalysis
     JSCompartment *compartment;
     bool oldActiveAnalysis;
 
-    AutoEnterAnalysis(ExclusiveContext *cx)
+    AutoEnterAnalysis(JSContext *cx)
       : suppressGC(cx)
     {
-        init(cx->defaultFreeOp(), cx->compartment());
+        init(cx->runtime()->defaultFreeOp(), cx->compartment());
     }
 
     AutoEnterAnalysis(FreeOp *fop, JSCompartment *comp)
@@ -534,7 +535,7 @@ TrackPropertyTypes(ExclusiveContext *cx, JSObject *obj, jsid id)
     if (!cx->typeInferenceEnabled() || obj->hasLazyType() || obj->type()->unknownProperties())
         return false;
 
-    if (obj->hasSingletonType() && !obj->type()->maybeGetProperty(cx, id))
+    if (obj->hasSingletonType() && !obj->type()->maybeGetProperty(id, cx->asJSContext()))
         return false;
 
     return true;
@@ -565,7 +566,7 @@ AddTypePropertyId(ExclusiveContext *cx, JSObject *obj, jsid id, Type type)
     if (cx->typeInferenceEnabled()) {
         id = IdToTypeId(id);
         if (TrackPropertyTypes(cx, obj, id))
-            obj->type()->addPropertyType(cx, id, type);
+            obj->type()->addPropertyType(cx->asJSContext(), id, type);
     }
 }
 
@@ -575,19 +576,19 @@ AddTypePropertyId(ExclusiveContext *cx, JSObject *obj, jsid id, const Value &val
     if (cx->typeInferenceEnabled()) {
         id = IdToTypeId(id);
         if (TrackPropertyTypes(cx, obj, id))
-            obj->type()->addPropertyType(cx, id, value);
+            obj->type()->addPropertyType(cx->asJSContext(), id, value);
     }
 }
 
 inline void
-AddTypeProperty(ExclusiveContext *cx, TypeObject *obj, const char *name, Type type)
+AddTypeProperty(JSContext *cx, TypeObject *obj, const char *name, Type type)
 {
     if (cx->typeInferenceEnabled() && !obj->unknownProperties())
         obj->addPropertyType(cx, name, type);
 }
 
 inline void
-AddTypeProperty(ExclusiveContext *cx, TypeObject *obj, const char *name, const Value &value)
+AddTypeProperty(JSContext *cx, TypeObject *obj, const char *name, const Value &value)
 {
     if (cx->typeInferenceEnabled() && !obj->unknownProperties())
         obj->addPropertyType(cx, name, value);
@@ -598,7 +599,7 @@ inline void
 MarkTypeObjectFlags(ExclusiveContext *cx, JSObject *obj, TypeObjectFlags flags)
 {
     if (cx->typeInferenceEnabled() && !obj->hasLazyType() && !obj->type()->hasAllFlags(flags))
-        obj->type()->setFlags(cx, flags);
+        obj->type()->setFlags(cx->asJSContext(), flags);
 }
 
 /*
@@ -629,7 +630,7 @@ MarkTypePropertyConfigured(ExclusiveContext *cx, HandleObject obj, jsid id)
     if (cx->typeInferenceEnabled()) {
         id = IdToTypeId(id);
         if (TrackPropertyTypes(cx, obj, id))
-            obj->type()->markPropertyConfigured(cx, id);
+            obj->type()->markPropertyConfigured(cx->asJSContext(), id);
     }
 }
 
@@ -638,7 +639,7 @@ inline void
 MarkObjectStateChange(ExclusiveContext *cx, JSObject *obj)
 {
     if (cx->typeInferenceEnabled() && !obj->hasLazyType() && !obj->type()->unknownProperties())
-        obj->type()->markStateChange(cx);
+        obj->type()->markStateChange(cx->asJSContext());
 }
 
 /*
@@ -647,17 +648,23 @@ MarkObjectStateChange(ExclusiveContext *cx, JSObject *obj)
  */
 
 inline void
-FixArrayType(ExclusiveContext *cx, HandleObject obj)
+FixArrayType(ExclusiveContext *cxArg, HandleObject obj)
 {
-    if (cx->typeInferenceEnabled())
-        cx->compartment()->types.fixArrayType(cx, obj);
+    if (cxArg->isJSContext()) {
+        JSContext *cx = cxArg->asJSContext();
+        if (cx->typeInferenceEnabled())
+            cx->compartment()->types.fixArrayType(cx, obj);
+    }
 }
 
 inline void
-FixObjectType(ExclusiveContext *cx, HandleObject obj)
+FixObjectType(ExclusiveContext *cxArg, HandleObject obj)
 {
-    if (cx->typeInferenceEnabled())
-        cx->compartment()->types.fixObjectType(cx, obj);
+    if (cxArg->isJSContext()) {
+        JSContext *cx = cxArg->asJSContext();
+        if (cx->typeInferenceEnabled())
+            cx->compartment()->types.fixObjectType(cx, obj);
+    }
 }
 
 /* Interface helpers for JSScript*. */
@@ -963,7 +970,7 @@ TypeScript::SetThis(JSContext *cx, JSScript *script, Type type)
 TypeScript::SetThis(JSContext *cx, JSScript *script, const js::Value &value)
 {
     if (cx->typeInferenceEnabled())
-        SetThis(cx, script, GetValueType(value));
+        SetThis(cx, script, GetValueType(cx, value));
 }
 
 /* static */ inline void
@@ -985,7 +992,7 @@ TypeScript::SetArgument(JSContext *cx, JSScript *script, unsigned arg, Type type
 TypeScript::SetArgument(JSContext *cx, JSScript *script, unsigned arg, const js::Value &value)
 {
     if (cx->typeInferenceEnabled()) {
-        Type type = GetValueType(value);
+        Type type = GetValueType(cx, value);
         SetArgument(cx, script, arg, type);
     }
 }
@@ -1273,9 +1280,9 @@ TypeSet::clearObjects()
 }
 
 inline void
-TypeSet::addType(ExclusiveContext *cxArg, Type type)
+TypeSet::addType(JSContext *cx, Type type)
 {
-    JS_ASSERT(cxArg->compartment()->activeAnalysis);
+    JS_ASSERT(cx->compartment()->activeAnalysis);
 
     if (unknown())
         return;
@@ -1301,14 +1308,14 @@ TypeSet::addType(ExclusiveContext *cxArg, Type type)
             goto unknownObject;
 
         LifoAlloc &alloc =
-            purged() ? cxArg->compartment()->analysisLifoAlloc : cxArg->typeLifoAlloc();
+            purged() ? cx->compartment()->analysisLifoAlloc : cx->typeLifoAlloc();
 
         uint32_t objectCount = baseObjectCount();
         TypeObjectKey *object = type.objectKey();
         TypeObjectKey **pentry = HashSetInsert<TypeObjectKey *,TypeObjectKey,TypeObjectKey>
                                      (alloc, objectSet, objectCount, object);
         if (!pentry) {
-            cxArg->compartment()->types.setPendingNukeTypes(cxArg);
+            cx->compartment()->types.setPendingNukeTypes(cx);
             return;
         }
         if (*pentry)
@@ -1340,20 +1347,17 @@ TypeSet::addType(ExclusiveContext *cxArg, Type type)
               TypeString(type));
 
     /* Propagate the type to all constraints. */
-    if (JSContext *cx = cxArg->maybeJSContext()) {
-        TypeConstraint *constraint = constraintList;
-        while (constraint) {
-            cx->compartment()->types.addPending(cx, constraint, this, type);
-            constraint = constraint->next;
-        }
-        cx->compartment()->types.resolvePending(cx);
-    } else {
-        JS_ASSERT(!constraintList);
+    TypeConstraint *constraint = constraintList;
+    while (constraint) {
+        cx->compartment()->types.addPending(cx, constraint, this, type);
+        constraint = constraint->next;
     }
+
+    cx->compartment()->types.resolvePending(cx);
 }
 
 inline void
-TypeSet::setOwnProperty(ExclusiveContext *cxArg, bool configured)
+TypeSet::setOwnProperty(JSContext *cx, bool configured)
 {
     TypeFlags nflags = TYPE_FLAG_OWN_PROPERTY | (configured ? TYPE_FLAG_CONFIGURED_PROPERTY : 0);
 
@@ -1363,14 +1367,10 @@ TypeSet::setOwnProperty(ExclusiveContext *cxArg, bool configured)
     flags |= nflags;
 
     /* Propagate the change to all constraints. */
-    if (JSContext *cx = cxArg->maybeJSContext()) {
-        TypeConstraint *constraint = constraintList;
-        while (constraint) {
-            constraint->newPropertyState(cx, this);
-            constraint = constraint->next;
-        }
-    } else {
-        JS_ASSERT(!constraintList);
+    TypeConstraint *constraint = constraintList;
+    while (constraint) {
+        constraint->newPropertyState(cx, this);
+        constraint = constraint->next;
     }
 }
 
@@ -1476,7 +1476,7 @@ TypeObject::setBasePropertyCount(uint32_t count)
 }
 
 inline HeapTypeSet *
-TypeObject::getProperty(ExclusiveContext *cx, jsid id, bool own)
+TypeObject::getProperty(JSContext *cx, jsid id, bool own)
 {
     JS_ASSERT(cx->compartment()->activeAnalysis);
 
@@ -1524,7 +1524,7 @@ TypeObject::getProperty(ExclusiveContext *cx, jsid id, bool own)
 }
 
 inline HeapTypeSet *
-TypeObject::maybeGetProperty(ExclusiveContext *cx, jsid id)
+TypeObject::maybeGetProperty(jsid id, JSContext *cx)
 {
     JS_ASSERT(JSID_IS_VOID(id) || JSID_IS_EMPTY(id) || JSID_IS_STRING(id));
     JS_ASSERT_IF(!JSID_IS_EMPTY(id), id == IdToTypeId(id));

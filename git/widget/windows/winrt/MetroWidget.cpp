@@ -836,11 +836,9 @@ CompositorParent* MetroWidget::NewCompositorParent(int aSurfaceWidth, int aSurfa
   CompositorParent *compositor = nsBaseWidget::NewCompositorParent(aSurfaceWidth, aSurfaceHeight);
 
   if (ShouldUseAPZC()) {
-    mRootLayerTreeId = compositor->RootLayerTreeId();
-    CompositorParent::SetControllerForLayerTree(mRootLayerTreeId, this);
-
+    CompositorParent::SetControllerForLayerTree(compositor->RootLayerTreeId(), this);
     MetroWidget::sAPZC = CompositorParent::GetAPZCTreeManager(compositor->RootLayerTreeId());
-    MetroWidget::sAPZC->SetDPI(GetDPI());
+    mRootLayerTreeId = compositor->RootLayerTreeId();
 
     nsresult rv;
     nsCOMPtr<nsIObserverService> observerService = do_GetService("@mozilla.org/observer-service;1", &rv);

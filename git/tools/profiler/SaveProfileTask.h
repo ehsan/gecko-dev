@@ -12,6 +12,7 @@
 #include "nsDirectoryServiceUtils.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsXULAppAPI.h"
+#include "jsfriendapi.h"
 #include "nsIJSRuntimeService.h"
 #include "nsIProfileSaveEvent.h"
 

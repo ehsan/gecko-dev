@@ -76,7 +76,6 @@
 
 #include "ImageContainer.h"
 #include "nsIPowerManagerService.h"
-#include "nsRange.h"
 #include <algorithm>
 
 #ifdef PR_LOGGING

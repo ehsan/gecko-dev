@@ -5,8 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "xpcprivate.h"
-#include "jsdbgapi.h"
-#include "jsprf.h"
 
 #ifdef XP_WIN
 #include <windows.h>

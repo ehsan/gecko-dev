@@ -7,6 +7,7 @@
 #define nsIJSEventListener_h__
 
 #include "nsIScriptContext.h"
+#include "jsapi.h"
 #include "xpcpublic.h"
 #include "nsIDOMEventListener.h"
 #include "nsIAtom.h"

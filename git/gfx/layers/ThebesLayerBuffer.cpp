@@ -8,7 +8,7 @@
 #include <algorithm>                    // for max
 #include "BasicImplData.h"              // for BasicImplData
 #include "BasicLayersImpl.h"            // for ToData
-#include "GeckoProfiler.h"              // for PROFILER_LABEL
+#include "GeckoProfilerImpl.h"          // for PROFILER_LABEL
 #include "Layers.h"                     // for ThebesLayer, Layer, etc
 #include "gfxColor.h"                   // for gfxRGBA
 #include "gfxContext.h"                 // for gfxContext, etc
@@ -277,7 +277,6 @@ ThebesLayerBuffer::DrawTo(ThebesLayer* aLayer,
     aTarget->Restore();
   } else {
     RefPtr<DrawTarget> dt = aTarget->GetDrawTarget();
-    bool clipped = false;
 
     // If the entire buffer is valid, we can just draw the whole thing,
     // no need to clip. But we'll still clip if clipping is cheap ---
@@ -293,24 +292,11 @@ ThebesLayerBuffer::DrawTo(ThebesLayer* aLayer,
       // we might sample pixels outside GetEffectiveVisibleRegion(), which is wrong
       // and may cause gray lines.
       gfxUtils::ClipToRegionSnapped(dt, aLayer->GetEffectiveVisibleRegion());
-      clipped = true;
     }
 
-    RefPtr<SourceSurface> mask;
-    if (aMask) {
-      mask = gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(dt, aMask);
-    }
-
-    Matrix maskTransform;
-    if (aMaskTransform) {
-      maskTransform = ToMatrix(*aMaskTransform);
-    }
-
-    DrawBufferWithRotation(dt, BUFFER_BLACK, aOpacity, mask, &maskTransform);
-    if (clipped) {
-      dt->PopClip();
-    }
-  }
+    DrawBufferWithRotation(aTarget, BUFFER_BLACK, aOpacity, aMask, aMaskTransform);
+    aTarget->Restore();
+   }
 }
 
 static void

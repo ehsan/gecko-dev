@@ -771,7 +771,7 @@ nsStringBundleService::FormatStatusMessage(nsresult aStatus,
 
   // XXX hack for mailnews who has already formatted their messages:
   if (aStatus == NS_OK && aStatusArg) {
-    *result = NS_strdup(aStatusArg);
+    *result = nsCRT::strdup(aStatusArg);
     NS_ENSURE_TRUE(*result, NS_ERROR_OUT_OF_MEMORY);
     return NS_OK;
   }

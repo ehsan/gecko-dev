@@ -9,6 +9,7 @@
 #include <algorithm>                    // for max, min
 #include "AnimationCommon.h"            // for ComputedTimingFunction
 #include "CompositableHost.h"           // for CompositableHost
+#include "GeckoProfilerFunc.h"          // for TimeStamp, TimeDuration
 #include "ImageContainer.h"             // for ImageContainer, etc
 #include "ImageLayers.h"                // for ImageLayer
 #include "LayerSorter.h"                // for SortLayersBy3DZOrder
@@ -135,7 +136,7 @@ LayerManager::CreateDrawTarget(const IntSize &aSize,
                                SurfaceFormat aFormat)
 {
   return gfxPlatform::GetPlatform()->
-    CreateOffscreenCanvasDrawTarget(aSize, aFormat);
+    CreateOffscreenDrawTarget(aSize, aFormat);
 }
 
 TextureFactoryIdentifier

@@ -529,10 +529,9 @@ HTMLImageElement::IntrinsicState() const
 already_AddRefed<HTMLImageElement>
 HTMLImageElement::Image(const GlobalObject& aGlobal,
                         const Optional<uint32_t>& aWidth,
-                        const Optional<uint32_t>& aHeight,
-                        ErrorResult& aError)
+                        const Optional<uint32_t>& aHeight, ErrorResult& aError)
 {
-  nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aGlobal.GetAsSupports());
+  nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aGlobal.Get());
   nsIDocument* doc;
   if (!win || !(doc = win->GetExtantDoc())) {
     aError.Throw(NS_ERROR_FAILURE);

@@ -93,6 +93,11 @@ struct IonOptions
     // Default: true
     bool eaa;
 
+    // Toggles whether compilation occurs off the main thread.
+    //
+    // Default: true iff there are at least two CPUs available
+    bool parallelCompilation;
+
 #ifdef CHECK_OSIPOINT_REGISTERS
     // Emit extra code to verify live regs at the start of a VM call
     // are not modified before its OsiPoint.
@@ -199,6 +204,8 @@ struct IonOptions
         eagerCompilation = true;
         usesBeforeCompile = 0;
         baselineUsesBeforeCompile = 0;
+
+        parallelCompilation = false;
     }
 
     IonOptions()
@@ -214,6 +221,7 @@ struct IonOptions
         checkRangeAnalysis(false),
         uce(true),
         eaa(true),
+        parallelCompilation(false),
 #ifdef CHECK_OSIPOINT_REGISTERS
         checkOsiPointRegisters(false),
 #endif

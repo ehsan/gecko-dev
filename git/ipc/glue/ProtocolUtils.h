@@ -15,7 +15,6 @@
 #include "prenv.h"
 
 #include "IPCMessageStart.h"
-#include "mozilla/Attributes.h"
 #include "mozilla/ipc/FileDescriptor.h"
 #include "mozilla/ipc/Shmem.h"
 #include "mozilla/ipc/Transport.h"
@@ -113,12 +112,8 @@ LoggingEnabled()
 #endif
 }
 
-MOZ_NEVER_INLINE void
+void
 ProtocolErrorBreakpoint(const char* aMsg);
-
-MOZ_NEVER_INLINE void
-FatalError(const char* aProtocolName, const char* aMsg,
-           base::ProcessHandle aHandle, bool aIsParent);
 
 typedef IPCMessageStart ProtocolId;
 

@@ -15,7 +15,6 @@
 #include "prlog.h"
 #include "nsIClassInfoImpl.h"
 #include "nsAlgorithm.h"
-#include "nsMemory.h"
 
 using namespace mozilla;
 

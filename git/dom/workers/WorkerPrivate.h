@@ -15,6 +15,7 @@
 #include "nsIThreadInternal.h"
 #include "nsPIDOMWindow.h"
 
+#include "jsapi.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/CondVar.h"
 #include "mozilla/Mutex.h"

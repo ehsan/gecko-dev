@@ -352,7 +352,7 @@ ExclusiveContext::maybePause() const
 
 class AutoLockForExclusiveAccess
 {
-#ifdef JS_WORKER_THREADS
+#ifdef JS_THREADSAFE
     JSRuntime *runtime;
 
     void init(JSRuntime *rt) {
@@ -389,7 +389,7 @@ class AutoLockForExclusiveAccess
             runtime->mainThreadHasExclusiveAccess = false;
         }
     }
-#else // JS_WORKER_THREADS
+#else // JS_THREADSAFE
   public:
     AutoLockForExclusiveAccess(ExclusiveContext *cx MOZ_GUARD_OBJECT_NOTIFIER_PARAM) {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
@@ -401,16 +401,10 @@ class AutoLockForExclusiveAccess
         // An empty destructor is needed to avoid warnings from clang about
         // unused local variables of this type.
     }
-#endif // JS_WORKER_THREADS
+#endif // JS_THREADSAFE
 
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
-
-inline LifoAlloc &
-ExclusiveContext::typeLifoAlloc()
-{
-    return zone()->types.typeLifoAlloc;
-}
 
 }  /* namespace js */
 
@@ -418,6 +412,12 @@ inline js::LifoAlloc &
 JSContext::analysisLifoAlloc()
 {
     return compartment()->analysisLifoAlloc;
+}
+
+inline js::LifoAlloc &
+JSContext::typeLifoAlloc()
+{
+    return zone()->types.typeLifoAlloc;
 }
 
 inline void

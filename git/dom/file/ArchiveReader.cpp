@@ -23,15 +23,14 @@ using namespace mozilla::dom;
 USING_FILE_NAMESPACE
 
 /* static */ already_AddRefed<ArchiveReader>
-ArchiveReader::Constructor(const GlobalObject& aGlobal,
-                           nsIDOMBlob* aBlob,
+ArchiveReader::Constructor(const GlobalObject& aGlobal, nsIDOMBlob* aBlob,
                            const ArchiveReaderOptions& aOptions,
                            ErrorResult& aError)
 {
   MOZ_ASSERT(aBlob);
   MOZ_ASSERT(PrefEnabled());
 
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.GetAsSupports());
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.Get());
   if (!window) {
     aError.Throw(NS_ERROR_UNEXPECTED);
     return nullptr;

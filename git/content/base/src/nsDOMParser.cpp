@@ -361,16 +361,16 @@ nsDOMParser::Init(nsIPrincipal* principal, nsIURI* documentURI,
 }
 
 /*static */already_AddRefed<nsDOMParser>
-nsDOMParser::Constructor(const GlobalObject& aOwner,
-                         nsIPrincipal* aPrincipal, nsIURI* aDocumentURI,
-                         nsIURI* aBaseURI, ErrorResult& rv)
+nsDOMParser::Constructor(const GlobalObject& aOwner, nsIPrincipal* aPrincipal,
+                         nsIURI* aDocumentURI, nsIURI* aBaseURI,
+                         ErrorResult& rv)
 {
   if (!nsContentUtils::IsCallerChrome()) {
     rv.Throw(NS_ERROR_DOM_SECURITY_ERR);
     return nullptr;
   }
-  nsRefPtr<nsDOMParser> domParser = new nsDOMParser(aOwner.GetAsSupports());
-  rv = domParser->InitInternal(aOwner.GetAsSupports(), aPrincipal, aDocumentURI,
+  nsRefPtr<nsDOMParser> domParser = new nsDOMParser(aOwner.Get());
+  rv = domParser->InitInternal(aOwner.Get(), aPrincipal, aDocumentURI,
                                aBaseURI);
   if (rv.Failed()) {
     return nullptr;
@@ -379,8 +379,7 @@ nsDOMParser::Constructor(const GlobalObject& aOwner,
 }
 
 /*static */already_AddRefed<nsDOMParser>
-nsDOMParser::Constructor(const GlobalObject& aOwner,
-                         ErrorResult& rv)
+nsDOMParser::Constructor(const GlobalObject& aOwner, ErrorResult& rv)
 {
   nsCOMPtr<nsIPrincipal> prin;
   nsCOMPtr<nsIURI> documentURI;
@@ -403,8 +402,8 @@ nsDOMParser::Constructor(const GlobalObject& aOwner,
     return nullptr;
   }
 
-  nsRefPtr<nsDOMParser> domParser = new nsDOMParser(aOwner.GetAsSupports());
-  rv = domParser->InitInternal(aOwner.GetAsSupports(), prin, documentURI, baseURI);
+  nsRefPtr<nsDOMParser> domParser = new nsDOMParser(aOwner.Get());
+  rv = domParser->InitInternal(aOwner.Get(), prin, documentURI, baseURI);
   if (rv.Failed()) {
     return nullptr;
   }

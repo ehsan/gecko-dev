@@ -10,6 +10,7 @@
 #include "npfunctions.h"
 #include "nsPluginHost.h"
 
+#include "jsapi.h"
 #include "nsCxPusher.h"
 
 #include "mozilla/PluginLibrary.h"

@@ -34,6 +34,7 @@
 #include "nsAutoPtr.h"
 #include "nsStyledElement.h"
 #include "nsIFrameLoader.h"
+#include "jspubtd.h"
 #include "nsFrameLoader.h"
 
 class nsIDocument;

@@ -336,7 +336,7 @@ this.DOMFMRadioParent = {
     let self = this;
 
     FMRadio.addEventListener("enabled", function on_enabled() {
-      dump("Perf:FMRadio:Enable " + (Date.now()- timeStart) + " ms.\n");
+      debug("FM Radio is enabled!");
       self._enabling = false;
 
       FMRadio.removeEventListener("enabled", on_enabled);
@@ -357,8 +357,6 @@ this.DOMFMRadioParent = {
       // send the 'frequencyChange' message manually.
       ppmm.broadcastAsyncMessage("DOMFMRadio:frequencyChange", { });
     });
-
-    let timeStart = Date.now();
 
     FMRadio.enable({
       lowerLimit: FM_BANDS[self._currentBand].lower,

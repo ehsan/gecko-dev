@@ -165,20 +165,20 @@ AllocChars(ThreadSafeContext *maybecx, size_t length, jschar **chars, size_t *ca
 }
 
 bool
-JSRope::copyNonPureChars(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> &out) const
+JSRope::getCharsNonDestructive(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> &out) const
 {
-    return copyNonPureCharsInternal(cx, out, false);
+    return getCharsNonDestructiveInternal(cx, out, false);
 }
 
 bool
-JSRope::copyNonPureCharsZ(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> &out) const
+JSRope::getCharsZNonDestructive(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> &out) const
 {
-    return copyNonPureCharsInternal(cx, out, true);
+    return getCharsNonDestructiveInternal(cx, out, true);
 }
 
 bool
-JSRope::copyNonPureCharsInternal(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> &out,
-                                 bool nullTerminate) const
+JSRope::getCharsNonDestructiveInternal(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> &out,
+                                       bool nullTerminate) const
 {
     /*
      * Perform non-destructive post-order traversal of the rope, splatting
@@ -186,37 +186,66 @@ JSRope::copyNonPureCharsInternal(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> 
      */
 
     size_t n = length();
+    jschar *s;
     if (cx)
-        out.reset(cx->pod_malloc<jschar>(n + 1));
+        s = cx->pod_malloc<jschar>(n + 1);
     else
-        out.reset(js_pod_malloc<jschar>(n + 1));
+        s = js_pod_malloc<jschar>(n + 1);
 
-    if (!out)
+    if (!s)
         return false;
+    jschar *pos = s;
 
     Vector<const JSString *, 8, SystemAllocPolicy> nodeStack;
-    const JSString *str = this;
-    jschar *pos = out;
-    while (true) {
-        if (str->isRope()) {
-            if (!nodeStack.append(str->asRope().rightChild()))
-                return false;
-            str = str->asRope().leftChild();
+    if (!nodeStack.append(this))
+        return false;
+
+    const JSString *prev = NULL;
+    while (!nodeStack.empty()) {
+        const JSString *node = nodeStack.back();
+
+        if (node->isRope()) {
+            JSRope *rope = &node->asRope();
+
+            if (!prev ||
+                (prev->isRope() &&
+                 (prev->asRope().leftChild() == node ||
+                  prev->asRope().rightChild() == node)))
+            {
+                /* On our way down, push the left child. */
+                if (!nodeStack.append(rope->leftChild()))
+                    return false;
+            } else if (rope->leftChild() == prev) {
+                /*
+                 * On our way back up from the left child, push the right
+                 * child.
+                 */
+                if (!nodeStack.append(rope->rightChild()))
+                    return false;
+            } else {
+                /*
+                 * On our way back up from the right child, just pop the
+                 * stack. Non-leaf nodes in the rope contain no value to be
+                 * consumed.
+                 */
+                nodeStack.popBack();
+            }
         } else {
-            size_t len = str->length();
-            PodCopy(pos, str->asLinear().chars(), len);
+            /* For leaf nodes, copy the characters into the buffer. */
+            size_t len = node->length();
+            PodCopy(pos, node->asLinear().chars(), len);
             pos += len;
-            if (nodeStack.empty())
-                break;
-            str = nodeStack.popCopy();
+
+            nodeStack.popBack();
         }
+
+        prev = node;
     }
 
-    JS_ASSERT(pos == out + n);
-
     if (nullTerminate)
-        out[n] = 0;
+        s[n] = 0;
 
+    out.reset(s);
     return true;
 }
 
@@ -425,7 +454,7 @@ template JSString *
 js::ConcatStrings<NoGC>(ThreadSafeContext *cx, JSString *left, JSString *right);
 
 bool
-JSDependentString::copyNonPureCharsZ(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> &out) const
+JSDependentString::getCharsZNonDestructive(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> &out) const
 {
     JS_ASSERT(JSString::isDependent());
 
@@ -548,10 +577,9 @@ ScopedThreadSafeStringInspector::ensureChars(ThreadSafeContext *cx)
             return false;
         chars_ = linear->chars();
     } else {
-        if (str_->hasPureChars()) {
-            chars_ = str_->pureChars();
-        } else {
-            if (!str_->copyNonPureChars(cx, scopedChars_))
+        chars_ = str_->maybeChars();
+        if (!chars_) {
+            if (!str_->getCharsNonDestructive(cx, scopedChars_))
                 return false;
             chars_ = scopedChars_;
         }

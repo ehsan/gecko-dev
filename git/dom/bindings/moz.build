@@ -11,7 +11,6 @@ EXPORTS.mozilla += [
 ]
 
 EXPORTS.mozilla.dom += [
-    'AtomList.h',
     'BindingDeclarations.h',
     'BindingUtils.h',
     'CallbackFunction.h',
@@ -21,7 +20,6 @@ EXPORTS.mozilla.dom += [
     'DOMJSProxyHandler.h',
     'Date.h',
     'Errors.msg',
-    'GeneratedAtomList.h',
     'NonRefcountedDOMObject.h',
     'Nullable.h',
     'PrimitiveConversions.h',

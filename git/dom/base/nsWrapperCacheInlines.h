@@ -8,6 +8,7 @@
 
 #include "nsWrapperCache.h"
 #include "xpcpublic.h"
+#include "jsapi.h"
 
 inline JSObject*
 nsWrapperCache::GetWrapper() const
