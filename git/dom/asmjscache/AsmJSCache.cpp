@@ -1584,8 +1584,8 @@ static const uint32_t sAsmJSCookie = 0x600d600d;
 
 bool
 OpenEntryForRead(nsIPrincipal* aPrincipal,
-                 const char16_t* aBegin,
-                 const char16_t* aLimit,
+                 const jschar* aBegin,
+                 const jschar* aLimit,
                  size_t* aSize,
                  const uint8_t** aMemory,
                  intptr_t* aFile)
@@ -1643,8 +1643,8 @@ CloseEntryForRead(size_t aSize,
 bool
 OpenEntryForWrite(nsIPrincipal* aPrincipal,
                   bool aInstalled,
-                  const char16_t* aBegin,
-                  const char16_t* aEnd,
+                  const jschar* aBegin,
+                  const jschar* aEnd,
                   size_t aSize,
                   uint8_t** aMemory,
                   intptr_t* aFile)

@@ -140,12 +140,7 @@ public class TabsPanel extends LinearLayout
         mPanelRemote = (PanelView) findViewById(R.id.remote_tabs);
         mPanelRemote.setTabsPanel(this);
 
-        // Only applies to v11+ in landscape.
-        // We ship a stub to avoid a compiler error when referencing the
-        // ID, so we conditionalize here.
-        if (Versions.feature11Plus) {
-            mFooter = (RelativeLayout) findViewById(R.id.tabs_panel_footer);
-        }
+        mFooter = (RelativeLayout) findViewById(R.id.tabs_panel_footer);
 
         mAddTab = (ImageButton) findViewById(R.id.add_tab);
         mAddTab.setOnClickListener(new Button.OnClickListener() {
@@ -430,10 +425,8 @@ public class TabsPanel extends LinearLayout
         mPanel.show();
 
         if (mCurrentPanel == Panel.REMOTE_TABS) {
-            // The footer is only defined in the sidebar, for landscape v11+ views.
-            if (mFooter != null) {
+            if (mFooter != null)
                 mFooter.setVisibility(View.GONE);
-            }
 
             mAddTab.setVisibility(View.INVISIBLE);
 
@@ -519,8 +512,7 @@ public class TabsPanel extends LinearLayout
             if (mVisible) {
                 ViewHelper.setTranslationX(mHeader, -tabsPanelWidth);
                 ViewHelper.setTranslationX(mTabsContainer, -tabsPanelWidth);
-
-                // The footer view is only present on the sidebar, v11+.
+                // The footer view is only present on the sidebar
                 ViewHelper.setTranslationX(mFooter, -tabsPanelWidth);
             }
             final int translationX = (mVisible ? 0 : -tabsPanelWidth);

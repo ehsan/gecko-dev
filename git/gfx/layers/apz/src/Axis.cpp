@@ -49,9 +49,7 @@ void Axis::UpdateWithTouchAtDevicePoint(ScreenCoord aPos, uint32_t aTimestampMs)
 
   float newVelocity = mAxisLocked ? 0.0f : (float)(mPos - aPos) / (float)(aTimestampMs - mPosTimeMs);
   if (gfxPrefs::APZMaxVelocity() > 0.0f) {
-    ScreenPoint maxVelocity = MakePoint(gfxPrefs::APZMaxVelocity() * APZCTreeManager::GetDPI());
-    mAsyncPanZoomController->ToLocalScreenCoordinates(&maxVelocity, mAsyncPanZoomController->PanStart());
-    newVelocity = std::min(newVelocity, maxVelocity.Length());
+    newVelocity = std::min(newVelocity, gfxPrefs::APZMaxVelocity() * APZCTreeManager::GetDPI());
   }
 
   mVelocity = newVelocity;
@@ -209,16 +207,12 @@ void Axis::ClearOverscroll() {
   mOverscroll = 0;
 }
 
-ScreenCoord Axis::PanStart() const {
-  return mStartPos;
+float Axis::PanDistance() {
+  return fabsf((mPos - mStartPos).value);
 }
 
-ScreenCoord Axis::PanDistance() const {
-  return fabs(mPos - mStartPos);
-}
-
-ScreenCoord Axis::PanDistance(ScreenCoord aPos) const {
-  return fabs(aPos - mStartPos);
+float Axis::PanDistance(ScreenCoord aPos) {
+  return fabsf((aPos - mStartPos).value);
 }
 
 void Axis::EndTouch(uint32_t aTimestampMs) {
@@ -393,11 +387,6 @@ CSSCoord AxisX::GetRectOffset(const CSSRect& aRect) const
   return aRect.x;
 }
 
-ScreenPoint AxisX::MakePoint(ScreenCoord aCoord) const
-{
-  return ScreenPoint(aCoord, 0);
-}
-
 AxisY::AxisY(AsyncPanZoomController* aAsyncPanZoomController)
   : Axis(aAsyncPanZoomController)
 {
@@ -417,11 +406,6 @@ CSSCoord AxisY::GetRectLength(const CSSRect& aRect) const
 CSSCoord AxisY::GetRectOffset(const CSSRect& aRect) const
 {
   return aRect.y;
-}
-
-ScreenPoint AxisY::MakePoint(ScreenCoord aCoord) const
-{
-  return ScreenPoint(0, aCoord);
 }
 
 }

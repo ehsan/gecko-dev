@@ -3385,7 +3385,7 @@ class CGIsPermittedMethod(CGAbstractMethod):
         self.crossOriginSetters = crossOriginSetters
         self.crossOriginMethods = crossOriginMethods
         args = [Argument("JSFlatString*", "prop"),
-                Argument("char16_t", "propFirstChar"),
+                Argument("jschar", "propFirstChar"),
                 Argument("bool", "set")]
         CGAbstractMethod.__init__(self, descriptor, "IsPermitted", "bool", args,
                                   inline=True)

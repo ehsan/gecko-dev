@@ -739,6 +739,10 @@ public:
 
     void DebugDump(int16_t depth);
 
+    void MarkErrorUnreported() { mErrorUnreported = true; }
+    void ClearUnreportedError() { mErrorUnreported = false; }
+    bool WasErrorReported() { return !mErrorUnreported; }
+
     ~XPCContext();
 
 private:
@@ -3004,7 +3008,8 @@ private:
 };
 
 /******************************************************************************
- * Handles pre/post script processing.
+ * Handles pre/post script processing and the setting/resetting the error
+ * reporter
  */
 class MOZ_STACK_CLASS AutoScriptEvaluate
 {
@@ -3014,25 +3019,27 @@ public:
      * @param cx The JSContext, this can be null, we don't do anything then
      */
     explicit AutoScriptEvaluate(JSContext * cx MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-         : mJSContext(cx), mEvaluated(false) {
+         : mJSContext(cx), mErrorReporterSet(false), mEvaluated(false) {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     /**
-     * Does the pre script evaluation.
+     * Does the pre script evaluation and sets the error reporter if given
      * This function should only be called once, and will assert if called
      * more than once
+     * @param errorReporter the error reporter callback function to set
      */
 
-    bool StartEvaluating(JS::HandleObject scope);
+    bool StartEvaluating(JS::HandleObject scope, JSErrorReporter errorReporter = nullptr);
 
     /**
-     * Does the post script evaluation.
+     * Does the post script evaluation and resets the error reporter
      */
     ~AutoScriptEvaluate();
 private:
     JSContext* mJSContext;
     mozilla::Maybe<JS::AutoSaveExceptionState> mState;
+    bool mErrorReporterSet;
     bool mEvaluated;
     mozilla::Maybe<JSAutoCompartment> mAutoCompartment;
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER

@@ -31,6 +31,8 @@ class JSAddonId;
 
 struct jsid;
 
+typedef char16_t jschar;
+
 namespace JS {
 
 typedef unsigned char Latin1Char;

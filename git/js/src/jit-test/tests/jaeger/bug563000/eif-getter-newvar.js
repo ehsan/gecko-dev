@@ -1,5 +1,5 @@
-var g = newGlobal();
-var dbg = new g.Debugger(this);
+// |jit-test| debug
+setDebug(true);
 
 this.__defineGetter__("someProperty", function () { evalInFrame(1, "var x = 'success'"); });
 function caller(obj) {

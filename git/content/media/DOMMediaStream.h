@@ -30,9 +30,7 @@ class nsXPCClassInfo;
 
 namespace mozilla {
 
-class DOMLocalMediaStream;
 class MediaStream;
-class MediaEngineSource;
 
 namespace dom {
 class AudioNode;
@@ -103,8 +101,6 @@ public:
   virtual void SetTrackEnabled(TrackID aTrackID, bool aEnabled);
 
   virtual void StopTrack(TrackID aTrackID);
-
-  virtual DOMLocalMediaStream* AsDOMLocalMediaStream() { return nullptr; }
 
   bool IsFinished();
   /**
@@ -304,8 +300,6 @@ public:
   virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
 
   virtual void Stop();
-
-  virtual MediaEngineSource* GetMediaEngine(TrackID aTrackID) { return nullptr; }
 
   /**
    * Create an nsDOMLocalMediaStream whose underlying stream is a SourceMediaStream.

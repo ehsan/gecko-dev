@@ -927,7 +927,7 @@ AsyncPanZoomController::Destroy()
 }
 
 bool
-AsyncPanZoomController::IsDestroyed() const
+AsyncPanZoomController::IsDestroyed()
 {
   return mTreeManager == nullptr;
 }
@@ -1453,7 +1453,9 @@ AsyncPanZoomController::ConvertToGecko(const ScreenPoint& aPoint, CSSPoint* aOut
 {
   APZCTreeManager* treeManagerLocal = mTreeManager;
   if (treeManagerLocal) {
-    Matrix4x4 transformToGecko = treeManagerLocal->GetApzcToGeckoTransform(this);
+    Matrix4x4 transformToApzc;
+    Matrix4x4 transformToGecko;
+    treeManagerLocal->GetInputTransforms(this, transformToApzc, transformToGecko);
     Point result = transformToGecko * Point(aPoint.x, aPoint.y);
     // NOTE: This isn't *quite* LayoutDevicePoint, we just don't have a name
     // for this coordinate space and it maps the closest to LayoutDevicePoint.
@@ -1542,9 +1544,7 @@ nsEventStatus AsyncPanZoomController::OnPan(const PanGestureInput& aEvent, bool 
   mX.UpdateWithTouchAtDevicePoint(aEvent.mPanStartPoint.x, aEvent.mTime);
   mY.UpdateWithTouchAtDevicePoint(aEvent.mPanStartPoint.y, aEvent.mTime);
 
-  ScreenPoint panDisplacement = aEvent.mPanDisplacement;
-  ToGlobalScreenCoordinates(&panDisplacement, aEvent.mPanStartPoint);
-  HandlePanningUpdate(panDisplacement);
+  HandlePanningUpdate(aEvent.mPanDisplacement.x, aEvent.mPanDisplacement.y);
 
   // TODO: Handle pan events sent without pan begin / pan end events properly.
   if (mPanGestureState) {
@@ -1694,49 +1694,9 @@ nsEventStatus AsyncPanZoomController::OnCancelTap(const TapGestureInput& aEvent)
   return nsEventStatus_eIgnore;
 }
 
-// Helper function for To[Global|Local]ScreenCoordinates().
-// TODO(botond): Generalize this into a template function in UnitTransforms.h.
-static void TransformVector(const Matrix4x4& aTransform,
-                            ScreenPoint* aVector,
-                            const ScreenPoint& aAnchor) {
-  ScreenPoint start = aAnchor;
-  ScreenPoint end = aAnchor + *aVector;
-  start = TransformTo<ScreenPixel>(aTransform, start);
-  end = TransformTo<ScreenPixel>(aTransform, end);
-  *aVector = end - start;
-}
-
-void AsyncPanZoomController::ToGlobalScreenCoordinates(ScreenPoint* aVector,
-                                                       const ScreenPoint& aAnchor) const {
-  if (APZCTreeManager* treeManagerLocal = mTreeManager) {
-    Matrix4x4 transform = treeManagerLocal->GetScreenToApzcTransform(this);
-    transform.Invert();
-    TransformVector(transform, aVector, aAnchor);
-  }
-}
-
-void AsyncPanZoomController::ToLocalScreenCoordinates(ScreenPoint* aVector,
-                                                      const ScreenPoint& aAnchor) const {
-  if (APZCTreeManager* treeManagerLocal = mTreeManager) {
-    Matrix4x4 transform = treeManagerLocal->GetScreenToApzcTransform(this);
-    TransformVector(transform, aVector, aAnchor);
-  }
-}
-
-float AsyncPanZoomController::PanDistance() const {
-  ScreenPoint panVector;
-  ScreenPoint panStart;
-  {
-    ReentrantMonitorAutoEnter lock(mMonitor);
-    panVector = ScreenPoint(mX.PanDistance(), mY.PanDistance());
-    panStart = PanStart();
-  }
-  ToGlobalScreenCoordinates(&panVector, panStart);
-  return NS_hypot(panVector.x, panVector.y);
-}
-
-ScreenPoint AsyncPanZoomController::PanStart() const {
-  return ScreenPoint(mX.PanStart(), mY.PanStart());
+float AsyncPanZoomController::PanDistance() {
+  ReentrantMonitorAutoEnter lock(mMonitor);
+  return NS_hypot(mX.PanDistance(), mY.PanDistance());
 }
 
 const ScreenPoint AsyncPanZoomController::GetVelocityVector() {
@@ -1812,16 +1772,16 @@ void AsyncPanZoomController::HandlePanning(double aAngle) {
   }
 }
 
-void AsyncPanZoomController::HandlePanningUpdate(const ScreenPoint& aDelta) {
+void AsyncPanZoomController::HandlePanningUpdate(float aDX, float aDY) {
   // If we're axis-locked, check if the user is trying to break the lock
   if (GetAxisLockMode() == STICKY && !mPanDirRestricted) {
 
-    double angle = atan2(aDelta.y, aDelta.x); // range [-pi, pi]
+    double angle = atan2(aDY, aDX); // range [-pi, pi]
     angle = fabs(angle); // range [0, pi]
 
     float breakThreshold = gfxPrefs::APZAxisBreakoutThreshold() * APZCTreeManager::GetDPI();
 
-    if (fabs(aDelta.x) > breakThreshold || fabs(aDelta.y) > breakThreshold) {
+    if (fabs(aDX) > breakThreshold || fabs(aDY) > breakThreshold) {
       if (mState == PANNING_LOCKED_X || mState == CROSS_SLIDING_X) {
         if (!IsCloseToHorizontal(angle, gfxPrefs::APZAxisBreakoutAngle())) {
           mY.SetAxisLocked(false);
@@ -2066,11 +2026,9 @@ void AsyncPanZoomController::TrackTouch(const MultiTouchInput& aEvent) {
   ScreenPoint prevTouchPoint(mX.GetPos(), mY.GetPos());
   ScreenPoint touchPoint = GetFirstTouchScreenPoint(aEvent);
 
-  ScreenPoint delta(mX.PanDistance(touchPoint.x),
-                    mY.PanDistance(touchPoint.y));
-  const ScreenPoint panStart = PanStart();
-  ToGlobalScreenCoordinates(&delta, panStart);
-  HandlePanningUpdate(delta);
+  float dx = mX.PanDistance(touchPoint.x);
+  float dy = mY.PanDistance(touchPoint.y);
+  HandlePanningUpdate(dx, dy);
 
   UpdateWithTouchAtDevicePoint(aEvent);
 
@@ -2507,7 +2465,7 @@ void AsyncPanZoomController::SampleContentTransformForFrame(ViewTransform* aOutT
   }
 }
 
-ViewTransform AsyncPanZoomController::GetCurrentAsyncTransform() const {
+ViewTransform AsyncPanZoomController::GetCurrentAsyncTransform() {
   ReentrantMonitorAutoEnter lock(mMonitor);
 
   CSSPoint lastPaintScrollOffset;
@@ -2545,14 +2503,14 @@ ViewTransform AsyncPanZoomController::GetCurrentAsyncTransform() const {
   return ViewTransform(scale, -translation);
 }
 
-Matrix4x4 AsyncPanZoomController::GetNontransientAsyncTransform() const {
+Matrix4x4 AsyncPanZoomController::GetNontransientAsyncTransform() {
   ReentrantMonitorAutoEnter lock(mMonitor);
   return Matrix4x4().Scale(mLastContentPaintMetrics.mResolution.scale,
                            mLastContentPaintMetrics.mResolution.scale,
                            1.0f);
 }
 
-Matrix4x4 AsyncPanZoomController::GetTransformToLastDispatchedPaint() const {
+Matrix4x4 AsyncPanZoomController::GetTransformToLastDispatchedPaint() {
   ReentrantMonitorAutoEnter lock(mMonitor);
 
   // Technically we should be taking the scroll delta in the coordinate space

@@ -197,10 +197,8 @@ nsEventStatus GestureEventListener::HandleInputTouchMultiStart()
 
 bool GestureEventListener::MoveDistanceIsLarge()
 {
-  const ScreenPoint start = mLastTouchInput.mTouches[0].mScreenPoint;
-  ScreenPoint delta = start - mTouchStartPosition;
-  mAsyncPanZoomController->ToGlobalScreenCoordinates(&delta, start);
-  return (delta.Length() > AsyncPanZoomController::GetTouchStartTolerance());
+  ScreenIntPoint delta = mLastTouchInput.mTouches[0].mScreenPoint - mTouchStartPosition;
+  return (NS_hypot(delta.x, delta.y) > AsyncPanZoomController::GetTouchStartTolerance());
 }
 
 nsEventStatus GestureEventListener::HandleInputTouchMove()

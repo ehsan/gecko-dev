@@ -455,7 +455,7 @@ protected:
      * If the current transcluded script is being compiled off thread, the
      * source for that script.
      */
-    char16_t* mOffThreadCompileStringBuf;
+    jschar* mOffThreadCompileStringBuf;
     size_t mOffThreadCompileStringLength;
 
     /**

@@ -201,7 +201,7 @@ function getServicePack() {
   const BYTE = ctypes.uint8_t;
   const WORD = ctypes.uint16_t;
   const DWORD = ctypes.uint32_t;
-  const WCHAR = ctypes.char16_t;
+  const WCHAR = ctypes.jschar;
   const BOOL = ctypes.int;
 
   // This structure is described at:

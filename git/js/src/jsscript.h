@@ -341,7 +341,7 @@ class ScriptSource;
 class UncompressedSourceCache
 {
     typedef HashMap<ScriptSource *,
-                    const char16_t *,
+                    const jschar *,
                     DefaultHasher<ScriptSource *>,
                     SystemAllocPolicy> Map;
 
@@ -351,13 +351,13 @@ class UncompressedSourceCache
     {
         UncompressedSourceCache *cache_;
         ScriptSource *source_;
-        const char16_t *charsToFree_;
+        const jschar *charsToFree_;
       public:
         explicit AutoHoldEntry();
         ~AutoHoldEntry();
       private:
         void holdEntry(UncompressedSourceCache *cache, ScriptSource *source);
-        void deferDelete(const char16_t *chars);
+        void deferDelete(const jschar *chars);
         ScriptSource *source() const { return source_; }
         friend class UncompressedSourceCache;
     };
@@ -369,8 +369,8 @@ class UncompressedSourceCache
   public:
     UncompressedSourceCache() : map_(nullptr), holder_(nullptr) {}
 
-    const char16_t *lookup(ScriptSource *ss, AutoHoldEntry &asp);
-    bool put(ScriptSource *ss, const char16_t *chars, AutoHoldEntry &asp);
+    const jschar *lookup(ScriptSource *ss, AutoHoldEntry &asp);
+    bool put(ScriptSource *ss, const jschar *chars, AutoHoldEntry &asp);
 
     void purge();
 
@@ -401,7 +401,7 @@ class ScriptSource
 
     union {
         struct {
-            const char16_t *chars;
+            const jschar *chars;
             bool ownsChars;
         } uncompressed;
 
@@ -419,8 +419,8 @@ class ScriptSource
     // The filename of this script.
     mozilla::UniquePtr<char[], JS::FreePolicy> filename_;
 
-    mozilla::UniquePtr<char16_t[], JS::FreePolicy> displayURL_;
-    mozilla::UniquePtr<char16_t[], JS::FreePolicy> sourceMapURL_;
+    mozilla::UniquePtr<jschar[], JS::FreePolicy> displayURL_;
+    mozilla::UniquePtr<jschar[], JS::FreePolicy> sourceMapURL_;
     JSPrincipals *originPrincipals_;
 
     // bytecode offset in caller script that generated this code.
@@ -505,13 +505,13 @@ class ScriptSource
         JS_ASSERT(hasSourceData());
         return argumentsNotIncluded_;
     }
-    const char16_t *chars(JSContext *cx, UncompressedSourceCache::AutoHoldEntry &asp);
+    const jschar *chars(JSContext *cx, UncompressedSourceCache::AutoHoldEntry &asp);
     JSFlatString *substring(JSContext *cx, uint32_t start, uint32_t stop);
     JSFlatString *substringDontDeflate(JSContext *cx, uint32_t start, uint32_t stop);
     void addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf,
                                 JS::ScriptSourceInfo *info) const;
 
-    const char16_t *uncompressedChars() const {
+    const jschar *uncompressedChars() const {
         JS_ASSERT(dataType == DataUncompressed);
         return data.uncompressed.chars;
     }
@@ -541,7 +541,7 @@ class ScriptSource
         return data.parent;
     }
 
-    void setSource(const char16_t *chars, size_t length, bool ownsChars = true);
+    void setSource(const jschar *chars, size_t length, bool ownsChars = true);
     void setCompressedSource(JSRuntime *maybert, void *raw, size_t nbytes, HashNumber hash);
     void updateCompressedSourceSet(JSRuntime *rt);
     bool ensureOwnsSource(ExclusiveContext *cx);
@@ -566,17 +566,17 @@ class ScriptSource
     }
 
     // Display URLs
-    bool setDisplayURL(ExclusiveContext *cx, const char16_t *displayURL);
+    bool setDisplayURL(ExclusiveContext *cx, const jschar *displayURL);
     bool hasDisplayURL() const { return displayURL_ != nullptr; }
-    const char16_t * displayURL() {
+    const jschar * displayURL() {
         MOZ_ASSERT(hasDisplayURL());
         return displayURL_.get();
     }
 
     // Source maps
-    bool setSourceMapURL(ExclusiveContext *cx, const char16_t *sourceMapURL);
+    bool setSourceMapURL(ExclusiveContext *cx, const jschar *sourceMapURL);
     bool hasSourceMapURL() const { return sourceMapURL_ != nullptr; }
-    const char16_t * sourceMapURL() {
+    const jschar * sourceMapURL() {
         MOZ_ASSERT(hasSourceMapURL());
         return sourceMapURL_.get();
     }

@@ -156,7 +156,7 @@ struct ScriptLoadInfo
 
   nsString mURL;
   nsCOMPtr<nsIChannel> mChannel;
-  char16_t* mScriptTextBuf;
+  jschar* mScriptTextBuf;
   size_t mScriptTextLength;
 
   nsresult mLoadResult;
