@@ -6861,7 +6861,7 @@ let gPrivateBrowsingUI = {
                                    getService(Ci.nsIPrivateBrowsingService);
 
     if (this.privateBrowsingEnabled)
-      this.onEnterPrivateBrowsing(true);
+      this.onEnterPrivateBrowsing();
   },
 
   uninit: function PBUI_unint() {
@@ -6956,7 +6956,7 @@ let gPrivateBrowsingUI = {
     return result;
   },
 
-  onEnterPrivateBrowsing: function PBUI_onEnterPrivateBrowsing(aOnWindowOpen) {
+  onEnterPrivateBrowsing: function PBUI_onEnterPrivateBrowsing() {
     if (BrowserSearch.searchBar)
       this._searchBarValue = BrowserSearch.searchBar.textbox.value;
 
@@ -6993,7 +6993,7 @@ let gPrivateBrowsingUI = {
       DownloadMonitorPanel.updateStatus();
     }, 0);
 
-    if (!aOnWindowOpen && this._disableUIOnToggle)
+    if (this._disableUIOnToggle)
       document.getElementById("Tools:PrivateBrowsing")
               .setAttribute("disabled", "true");
   },
