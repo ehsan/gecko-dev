@@ -252,12 +252,13 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
 }
 
 /*  Full Screen UI */
-
 #fullscr-toggler {
-  height: 1px;
-  background: black;
+  display: none;
+  min-height: 5px;
+  height: 5px;
 }
 
+#navigator-toolbox[inFullscreen="true"] > #fullscr-toggler,
 #nav-bar[mode="text"] > #window-controls > toolbarbutton > .toolbarbutton-icon {
   display: -moz-box;
 }

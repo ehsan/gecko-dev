@@ -3518,10 +3518,12 @@ var FullScreen =
       // events than raw listening of mouse coords.
       let fullScrToggler = document.getElementById("fullscr-toggler");
       if (!fullScrToggler) {
-        fullScrToggler = document.createElement("hbox");
+        fullScrToggler = document.createElement("toolbar");
         fullScrToggler.id = "fullscr-toggler";
-        fullScrToggler.collapsed = true;
-        gNavToolbox.parentNode.insertBefore(fullScrToggler, gNavToolbox.nextSibling);
+        fullScrToggler.setAttribute("customizable", "false");
+        fullScrToggler.setAttribute("moz-collapsed", "true");
+        var navBar = document.getElementById("nav-bar");
+        navBar.parentNode.insertBefore(fullScrToggler, navBar);
       }
       fullScrToggler.addEventListener("mouseover", this._expandCallback, false);
       fullScrToggler.addEventListener("dragenter", this._expandCallback, false);
@@ -3722,8 +3724,12 @@ var FullScreen =
                                                    this._collapseCallback, false);
     }
 
-    gNavToolbox.collapsed = !aShow;
-    document.getElementById("fullscr-toggler").collapsed = aShow;
+    var allFSToolbars = document.getElementsByTagNameNS(this._XULNS, "toolbar");
+    for (var i = 0; i < allFSToolbars.length; i++) {
+      if (allFSToolbars[i].getAttribute("fullscreentoolbar") == "true")
+        allFSToolbars[i].setAttribute("moz-collapsed", !aShow);
+    }
+    document.getElementById("fullscr-toggler").setAttribute("moz-collapsed", aShow);
     this._isChromeCollapsed = !aShow;
     if (gPrefService.getIntPref("browser.fullscreen.animateUp") == 2)
       this._shouldAnimate = true;
