@@ -243,7 +243,7 @@ GrallocTextureClientOGL::AllocateGralloc(gfx::IntSize aSize,
 
   MaybeMagicGrallocBufferHandle handle;
   PGrallocBufferChild* actor =
-    allocator->AllocGrallocBuffer(aSize,
+    allocator->AllocGrallocBuffer(gfx::ThebesIntSize(aSize),
                                   aAndroidFormat,
                                   aUsage,
                                   &handle);

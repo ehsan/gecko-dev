@@ -1803,9 +1803,8 @@ DocAccessible::UpdateTree(Accessible* aContainer, nsIContent* aChildNode,
         Accessible* child = aContainer->ContentChildAt(idx);
 
         // If accessible doesn't have its own content then we assume parent
-        // will handle its update.  If child is DocAccessible then we don't
-        // handle updating it here either.
-        if (!child->HasOwnContent() || child->IsDoc()) {
+        // will handle its update.
+        if (!child->HasOwnContent()) {
           idx++;
           continue;
         }

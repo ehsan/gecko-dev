@@ -719,7 +719,7 @@ class TemporaryTypeSet : public TypeSet
 };
 
 bool
-AddClearDefiniteGetterSetterForPrototypeChain(JSContext *cx, TypeObject *type, HandleId id);
+AddClearDefiniteGetterSetterForPrototypeChain(JSContext *cx, TypeObject *type, jsid id);
 
 void
 AddClearDefiniteFunctionUsesInScript(JSContext *cx, TypeObject *type,
@@ -1002,7 +1002,10 @@ struct TypeObject : gc::BarrieredCell<TypeObject>
         return addendum->asTypedObject();
     }
 
-    void setAddendum(TypeObjectAddendum *addendum);
+    void setAddendum(TypeObjectAddendum *addendum) {
+        JS_ASSERT(CurrentThreadCanWriteCompilationData());
+        this->addendum = addendum;
+    }
 
     /*
      * Tag the type object for a binary data type descriptor, instance,

@@ -8,7 +8,6 @@
 #include <d3d10_1.h>
 #include <dxgi.h>
 
-#include "mozilla/gfx/Point.h"
 #include "mozilla/layers/LayerManagerComposite.h"
 #include "mozilla/layers/PLayerTransaction.h"
 #include "ShadowLayers.h"
@@ -21,7 +20,7 @@ namespace layers {
 // Platform-specific shadow-layers interfaces.  See ShadowLayers.h.
 // D3D10 doesn't need all these yet.
 bool
-ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfx::IntSize&,
+ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfxIntSize&,
                                                   gfxContentType,
                                                   uint32_t,
                                                   SurfaceDescriptor*)
@@ -56,7 +55,7 @@ ShadowLayerForwarder::PlatformGetDescriptorSurfaceContentType(
 ShadowLayerForwarder::PlatformGetDescriptorSurfaceSize(
   const SurfaceDescriptor&,
   OpenMode,
-  gfx::IntSize*,
+  gfxIntSize*,
   gfxASurface**)
 {
   return false;

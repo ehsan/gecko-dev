@@ -279,7 +279,7 @@ const ContentPanning = {
       this._activationTimer.cancel();
     }
 
-    if (this.panning && docShell.asyncPanZoomEnabled === false) {
+    if (this.panning) {
       // Only do this when we're actually executing a pan gesture.
       // Otherwise synthetic mouse events will be canceled.
       evt.stopPropagation();

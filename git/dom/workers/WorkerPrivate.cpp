@@ -1223,8 +1223,7 @@ public:
           MOZ_ASSERT(target == globalTarget->GetWrapperPreserveColor());
 
           // Icky, we have to fire an InternalScriptErrorEvent...
-          MOZ_ASSERT(!NS_IsMainThread());
-          InternalScriptErrorEvent event(true, NS_USER_DEFINED_EVENT);
+          InternalScriptErrorEvent event(true, NS_LOAD_ERROR);
           event.lineNr = aLineNumber;
           event.errorMsg = aMessage.get();
           event.fileName = aFilename.get();
@@ -1239,7 +1238,6 @@ public:
         }
         else if ((sgo = nsJSUtils::GetStaticScriptGlobal(target))) {
           // Icky, we have to fire an InternalScriptErrorEvent...
-          MOZ_ASSERT(NS_IsMainThread());
           InternalScriptErrorEvent event(true, NS_LOAD_ERROR);
           event.lineNr = aLineNumber;
           event.errorMsg = aMessage.get();
@@ -3215,7 +3213,6 @@ WorkerPrivateParent<Derived>::BroadcastErrorToSharedWorkers(
       do_QueryInterface(windowAction.mWindow);
     MOZ_ASSERT(sgo);
 
-    MOZ_ASSERT(NS_IsMainThread());
     InternalScriptErrorEvent event(true, NS_LOAD_ERROR);
     event.lineNr = aLineNumber;
     event.errorMsg = aMessage.BeginReading();
@@ -3543,7 +3540,7 @@ WorkerPrivate::WorkerPrivate(JSContext* aCx,
   mRunningExpiredTimeouts(false), mCloseHandlerStarted(false),
   mCloseHandlerFinished(false), mMemoryReporterRunning(false),
   mBlockedForMemoryReporter(false), mCancelAllPendingRunnables(false),
-  mPeriodicGCTimerRunning(false), mIdleGCTimerRunning(false)
+  mPeriodicGCTimerRunning(false)
 #ifdef DEBUG
   , mPRThread(nullptr)
 #endif
@@ -4100,7 +4097,6 @@ WorkerPrivate::InitializeGCTimers()
   mIdleGCTimerTarget = new TimerThreadEventTarget(this, runnable);
 
   mPeriodicGCTimerRunning = false;
-  mIdleGCTimerRunning = false;
 }
 
 void
@@ -4111,15 +4107,13 @@ WorkerPrivate::SetGCTimerMode(GCTimerMode aMode)
   MOZ_ASSERT(mPeriodicGCTimerTarget);
   MOZ_ASSERT(mIdleGCTimerTarget);
 
-  if ((aMode == PeriodicTimer && mPeriodicGCTimerRunning) ||
-      (aMode == IdleTimer && mIdleGCTimerRunning)) {
+  if (aMode == PeriodicTimer && mPeriodicGCTimerRunning) {
     return;
   }
 
   MOZ_ALWAYS_TRUE(NS_SUCCEEDED(mGCTimer->Cancel()));
 
   mPeriodicGCTimerRunning = false;
-  mIdleGCTimerRunning = false;
 
   LOG(("Worker %p canceled GC timer because %s\n", this,
        aMode == PeriodicTimer ?
@@ -4158,7 +4152,6 @@ WorkerPrivate::SetGCTimerMode(GCTimerMode aMode)
   }
   else {
     LOG(("Worker %p scheduled idle GC timer\n", this));
-    mIdleGCTimerRunning = true;
   }
 }
 
@@ -4178,7 +4171,6 @@ WorkerPrivate::ShutdownGCTimers()
   mPeriodicGCTimerTarget = nullptr;
   mIdleGCTimerTarget = nullptr;
   mPeriodicGCTimerRunning = false;
-  mIdleGCTimerRunning = false;
 }
 
 bool
@@ -5714,6 +5706,12 @@ WorkerPrivate::ConnectMessagePort(JSContext* aCx, uint64_t aMessagePortSerial)
 
   nsRefPtr<MessagePort> port = new MessagePort(this, aMessagePortSerial);
 
+  JS::Rooted<JS::Value> jsPort(aCx);
+  if (!WrapNewBindingObject(aCx, jsGlobal, port, &jsPort)) {
+    MOZ_ASSERT(JS_IsExceptionPending(aCx));
+    return false;
+  }
+
   GlobalObject globalObject(aCx, jsGlobal);
   if (globalObject.Failed()) {
     return false;
@@ -5722,7 +5720,7 @@ WorkerPrivate::ConnectMessagePort(JSContext* aCx, uint64_t aMessagePortSerial)
   RootedDictionary<MessageEventInit> init(aCx);
   init.mBubbles = false;
   init.mCancelable = false;
-  init.mSource.SetValue().SetAsMessagePort() = port;
+  init.mSource = &jsPort.toObject();
 
   ErrorResult rv;
 

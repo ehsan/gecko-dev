@@ -24,8 +24,9 @@ var tmpfile = scriptArgs[6] || "tmp.txt";
 var gcFunctions = {};
 var text = snarf("gcFunctions.lst").split("\n");
 assert(text.pop().length == 0);
-for (var line of text)
-    gcFunctions[mangled(line)] = true;
+for (var line of text) {
+    gcFunctions[line] = true;
+}
 
 var suppressedFunctions = {};
 var text = snarf(suppressedFunctionsFile).split("\n");
@@ -189,7 +190,7 @@ function edgeKillsVariable(edge, variable)
                 break;
 
             assert(callee.Variable.Kind == "Func");
-            var calleeName = readable(callee.Variable.Name[0]);
+            var calleeName = callee.Variable.Name[0];
 
             // Constructor calls include the text 'Name::Name(' or 'Name<...>::Name('.
             var openParen = calleeName.indexOf('(');
@@ -223,9 +224,11 @@ function edgeCanGC(edge)
     if (callee.Kind == "Var") {
         var variable = callee.Variable;
         assert(variable.Kind == "Func");
-        var callee = mangled(variable.Name[0]);
-        if (callee in gcFunctions)
+        if (variable.Name[0] in gcFunctions)
             return "'" + variable.Name[0] + "'";
+        var otherName = otherDestructorName(variable.Name[0]);
+        if (otherName in gcFunctions)
+            return "'" + otherName + "'";
         return null;
     }
     assert(callee.Kind == "Drf");
@@ -238,8 +241,8 @@ function edgeCanGC(edge)
         return (fullFieldName in suppressedFunctions) ? null : fullFieldName;
     }
     assert(callee.Exp[0].Kind == "Var");
-    var varName = callee.Exp[0].Variable.Name[0];
-    return indirectCallCannotGC(functionName, varName) ? null : "*" + varName;
+    var calleeName = callee.Exp[0].Variable.Name[0];
+    return indirectCallCannotGC(functionName, calleeName) ? null : "*" + calleeName;
 }
 
 function variableUseFollowsGC(suppressed, variable, worklist)
@@ -361,12 +364,6 @@ function variableLiveAcrossGC(suppressed, variable)
     return null;
 }
 
-// An unrooted variable has its address stored in another variable via
-// assignment, or passed into a function that can GC. If the address is
-// assigned into some other variable, we can't track it to see if it is held
-// live across a GC. If it is passed into a function that can GC, then it's
-// sort of like a Handle to an unrooted location, and the callee could GC
-// before overwriting it or rooting it.
 function unsafeVariableAddressTaken(suppressed, variable)
 {
     for (var body of functionBodies) {
@@ -497,7 +494,7 @@ function processBodies(functionName)
 {
     if (!("DefineVariable" in functionBodies[0]))
         return;
-    var suppressed = (mangled(functionName) in suppressedFunctions);
+    var suppressed = (functionName in suppressedFunctions);
     for (var variable of functionBodies[0].DefineVariable) {
         if (variable.Variable.Kind == "Return")
             continue;

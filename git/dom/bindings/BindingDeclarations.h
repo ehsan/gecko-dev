@@ -388,12 +388,6 @@ public:
     return *ptr;
   }
 
-  operator T*() {
-    MOZ_ASSERT(inited);
-    MOZ_ASSERT(ptr, "NonNull<T> was set to null");
-    return ptr;
-  }
-
   void operator=(T* t) {
     ptr = t;
     MOZ_ASSERT(ptr);

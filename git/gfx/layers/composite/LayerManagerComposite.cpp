@@ -25,6 +25,7 @@
 #ifdef XP_MACOSX
 #include "gfxPlatformMac.h"
 #endif
+#include "gfxPoint.h"                   // for gfxIntSize
 #include "gfxRect.h"                    // for gfxRect
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
 #include "mozilla/RefPtr.h"             // for RefPtr, TemporaryRef
@@ -117,6 +118,7 @@ bool
 LayerManagerComposite::Initialize()
 {
   bool result = mCompositor->Initialize();
+  mComposer2D = mCompositor->GetWidget()->GetComposer2D();
   return result;
 }
 
@@ -251,7 +253,7 @@ LayerManagerComposite::EndTransaction(DrawThebesLayerCallback aCallback,
 }
 
 already_AddRefed<gfxASurface>
-LayerManagerComposite::CreateOptimalMaskSurface(const IntSize &aSize)
+LayerManagerComposite::CreateOptimalMaskSurface(const gfxIntSize &aSize)
 {
   NS_RUNTIMEABORT("Should only be called on the drawing side");
   return nullptr;
@@ -350,10 +352,7 @@ LayerManagerComposite::Render()
     this->Dump();
   }
 
-  /** Our more efficient but less powerful alter ego, if one is available. */
-  nsRefPtr<Composer2D> composer2D = mCompositor->GetWidget()->GetComposer2D();
-
-  if (composer2D && composer2D->TryRender(mRoot, mWorldMatrix)) {
+  if (mComposer2D && mComposer2D->TryRender(mRoot, mWorldMatrix)) {
     mCompositor->EndFrameForExternalComposition(mWorldMatrix);
     return;
   }
@@ -785,7 +784,7 @@ LayerComposite::Destroy()
 }
 
 bool
-LayerManagerComposite::CanUseCanvasLayerForSize(const IntSize &aSize)
+LayerManagerComposite::CanUseCanvasLayerForSize(const gfxIntSize &aSize)
 {
   return mCompositor->CanUseCanvasLayerForSize(gfx::IntSize(aSize.width,
                                                             aSize.height));

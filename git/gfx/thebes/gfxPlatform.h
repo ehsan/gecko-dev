@@ -519,10 +519,6 @@ public:
 
     static bool ComponentAlphaEnabled();
 
-    // Async video is enabled on this platform.
-    // Must only be called from the main thread.
-    static bool AsyncVideoEnabled();
-
     /**
      * Are we going to try color management?
      */

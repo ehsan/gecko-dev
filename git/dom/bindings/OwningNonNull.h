@@ -31,13 +31,6 @@ public:
     return *mPtr;
   }
 
-  operator T*()
-  {
-    MOZ_ASSERT(mInited);
-    MOZ_ASSERT(mPtr, "OwningNonNull<T> was set to null");
-    return mPtr;
-  }
-
   void operator=(T* aValue)
   {
     init(aValue);

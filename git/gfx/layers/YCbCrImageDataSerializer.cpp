@@ -95,16 +95,16 @@ uint32_t YCbCrImageDataDeserializerBase::GetCbCrStride()
   return info->mCbCrWidth;
 }
 
-gfx::IntSize YCbCrImageDataDeserializerBase::GetYSize()
+gfxIntSize YCbCrImageDataDeserializerBase::GetYSize()
 {
   YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData);
-  return gfx::IntSize(info->mYWidth, info->mYHeight);
+  return gfxIntSize(info->mYWidth, info->mYHeight);
 }
 
-gfx::IntSize YCbCrImageDataDeserializerBase::GetCbCrSize()
+gfxIntSize YCbCrImageDataDeserializerBase::GetCbCrSize()
 {
   YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData);
-  return gfx::IntSize(info->mCbCrWidth, info->mCbCrHeight);
+  return gfxIntSize(info->mCbCrWidth, info->mCbCrHeight);
 }
 
 StereoMode YCbCrImageDataDeserializerBase::GetStereoMode()
@@ -132,6 +132,13 @@ YCbCrImageDataSerializer::ComputeMinBufferSize(const gfx::IntSize& aYSize,
          + MOZ_ALIGN_WORD(sizeof(YCbCrBufferInfo));
 }
 
+size_t
+YCbCrImageDataSerializer::ComputeMinBufferSize(const gfxIntSize& aYSize,
+                                               const gfxIntSize& aCbCrSize)
+{
+  return ComputeMinBufferSize(gfx::IntSize(aYSize.width, aYSize.height),
+                              gfx::IntSize(aCbCrSize.width, aCbCrSize.height));
+}
 // Offset in bytes
 static size_t ComputeOffset(uint32_t aSize)
 {
@@ -176,6 +183,16 @@ YCbCrImageDataSerializer::InitializeBufferInfo(const gfx::IntSize& aYSize,
   return InitializeBufferInfo(yOffset, cbOffset, crOffset, aYSize, aCbCrSize, aStereoMode);
 }
 
+void
+YCbCrImageDataSerializer::InitializeBufferInfo(const gfxIntSize& aYSize,
+                                               const gfxIntSize& aCbCrSize,
+                                               StereoMode aStereoMode)
+{
+  InitializeBufferInfo(gfx::IntSize(aYSize.width, aYSize.height),
+                       gfx::IntSize(aCbCrSize.width, aCbCrSize.height),
+                       aStereoMode);
+}
+
 static void CopyLineWithSkip(const uint8_t* src, uint8_t* dst, uint32_t len, uint32_t skip) {
   for (uint32_t i = 0; i < len; ++i) {
     *dst = *src;
@@ -187,8 +204,8 @@ static void CopyLineWithSkip(const uint8_t* src, uint8_t* dst, uint32_t len, uin
 bool
 YCbCrImageDataSerializer::CopyData(const uint8_t* aYData,
                                    const uint8_t* aCbData, const uint8_t* aCrData,
-                                   gfx::IntSize aYSize, uint32_t aYStride,
-                                   gfx::IntSize aCbCrSize, uint32_t aCbCrStride,
+                                   gfxIntSize aYSize, uint32_t aYStride,
+                                   gfxIntSize aCbCrSize, uint32_t aCbCrStride,
                                    uint32_t aYSkip, uint32_t aCbCrSkip)
 {
   if (!IsValid() || GetYSize() != aYSize || GetCbCrSize() != aCbCrSize) {
@@ -233,7 +250,7 @@ TemporaryRef<gfx::DataSourceSurface>
 YCbCrImageDataDeserializer::ToDataSourceSurface()
 {
   RefPtr<gfx::DataSourceSurface> result =
-    gfx::Factory::CreateDataSourceSurface(GetYSize(), gfx::FORMAT_R8G8B8X8);
+    gfx::Factory::CreateDataSourceSurface(ToIntSize(GetYSize()), gfx::FORMAT_R8G8B8X8);
 
   gfx::ConvertYCbCrToRGB32(GetYData(), GetCbData(), GetCrData(),
                            result->GetData(),

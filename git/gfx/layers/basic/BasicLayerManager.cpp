@@ -27,7 +27,6 @@
 #include "gfxPoint.h"                   // for gfxIntSize, gfxPoint
 #include "gfxRect.h"                    // for gfxRect
 #include "gfxUtils.h"                   // for gfxUtils
-#include "gfx2DGlue.h"                  // for thebes --> moz2d transition
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
 #include "mozilla/WidgetUtils.h"        // for ScreenRotation
 #include "mozilla/gfx/2D.h"             // for DrawTarget
@@ -722,7 +721,7 @@ PixmanTransform(const gfxImageSurface* aDest,
                 const gfx3DMatrix& aTransform,
                 gfxPoint aDestOffset)
 {
-  IntSize destSize = ToIntSize(aDest->GetSize());
+  gfxIntSize destSize = aDest->GetSize();
   pixman_image_t* dest = pixman_image_create_bits(aDest->Format() == gfxImageFormatARGB32 ? PIXMAN_a8r8g8b8 : PIXMAN_x8r8g8b8,
                                                   destSize.width,
                                                   destSize.height,

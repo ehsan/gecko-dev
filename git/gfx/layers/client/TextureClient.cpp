@@ -6,7 +6,6 @@
 #include "mozilla/layers/TextureClient.h"
 #include <stdint.h>                     // for uint8_t, uint32_t, etc
 #include "Layers.h"                     // for Layer, etc
-#include "gfx2DGlue.h"
 #include "gfxContext.h"                 // for gfxContext, etc
 #include "gfxPlatform.h"                // for gfxPlatform
 #include "gfxPoint.h"                   // for gfxIntSize, gfxSize
@@ -52,14 +51,12 @@ namespace layers {
  * deallocte or recycle the it.
  */
 class TextureChild : public PTextureChild
-                   , public AtomicRefCounted<TextureChild>
 {
 public:
   TextureChild()
   : mForwarder(nullptr)
   , mTextureData(nullptr)
   , mTextureClient(nullptr)
-  , mIPCOpen(false)
   {
     MOZ_COUNT_CTOR(TextureChild);
   }
@@ -89,29 +86,11 @@ public:
 
   void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
 
-  bool IPCOpen() const { return mIPCOpen; }
-
 private:
-
-  // AddIPDLReference and ReleaseIPDLReference are only to be called by CreateIPDLActor
-  // and DestroyIPDLActor, respectively. We intentionally make them private to prevent misuse.
-  // The purpose of these methods is to be aware of when the IPC system around this
-  // actor goes down: mIPCOpen is then set to false.
-  void AddIPDLReference() {
-    MOZ_ASSERT(mIPCOpen == false);
-    mIPCOpen = true;
-    AddRef();
-  }
-  void ReleaseIPDLReference() {
-    MOZ_ASSERT(mIPCOpen == true);
-    mIPCOpen = false;
-    Release();
-  }
 
   CompositableForwarder* mForwarder;
   TextureClientData* mTextureData;
   TextureClient* mTextureClient;
-  bool mIPCOpen;
 
   friend class TextureClient;
 };
@@ -145,16 +124,14 @@ TextureChild::ActorDestroy(ActorDestroyReason why)
 PTextureChild*
 TextureClient::CreateIPDLActor()
 {
-  TextureChild* c = new TextureChild();
-  c->AddIPDLReference();
-  return c;
+  return new TextureChild();
 }
 
 // static
 bool
 TextureClient::DestroyIPDLActor(PTextureChild* actor)
 {
-  static_cast<TextureChild*>(actor)->ReleaseIPDLReference();
+  delete actor;
   return true;
 }
 
@@ -173,8 +150,7 @@ TextureClient::InitIPDLActor(CompositableForwarder* aForwarder)
   mActor->mForwarder = aForwarder;
   mActor->mTextureClient = this;
   mShared = true;
-  return mActor->IPCOpen() &&
-         mActor->SendInit(desc, GetFlags());
+  return mActor->SendInit(desc, GetFlags());
 }
 
 PTextureChild*
@@ -257,7 +233,8 @@ ShmemTextureClient::DropTextureData()
 }
 
 TextureClient::TextureClient(TextureFlags aFlags)
-  : mFlags(aFlags)
+  : mActor(nullptr)
+  , mFlags(aFlags)
   , mShared(false)
   , mValid(true)
 {}
@@ -273,14 +250,10 @@ void TextureClient::ForceRemove()
   if (mValid && mActor) {
     if (GetFlags() & TEXTURE_DEALLOCATE_CLIENT) {
       mActor->SetTextureData(DropTextureData());
-      if (mActor->IPCOpen()) {
-        mActor->SendRemoveTextureSync();
-      }
+      mActor->SendRemoveTextureSync();
       mActor->DeleteTextureData();
     } else {
-      if (mActor->IPCOpen()) {
-        mActor->SendRemoveTexture();
-      }
+      mActor->SendRemoveTexture();
     }
   }
   MarkInvalid();
@@ -533,8 +506,8 @@ BufferTextureClient::UpdateYCbCr(const PlanarYCbCrData& aData)
   YCbCrImageDataSerializer serializer(GetBuffer());
   MOZ_ASSERT(serializer.IsValid());
   if (!serializer.CopyData(aData.mYChannel, aData.mCbChannel, aData.mCrChannel,
-                           ThebesIntSize(aData.mYSize), aData.mYStride,
-                           ThebesIntSize(aData.mCbCrSize), aData.mCbCrStride,
+                           aData.mYSize, aData.mYStride,
+                           aData.mCbCrSize, aData.mCbCrStride,
                            aData.mYSkip, aData.mCbSkip)) {
     NS_WARNING("Failed to copy image data!");
     return false;
@@ -885,8 +858,8 @@ AutoLockYCbCrClient::Update(PlanarYCbCrImage* aImage)
 
   YCbCrImageDataSerializer serializer(shmem.get<uint8_t>());
   if (!serializer.CopyData(data->mYChannel, data->mCbChannel, data->mCrChannel,
-                           ThebesIntSize(data->mYSize), data->mYStride,
-                           ThebesIntSize(data->mCbCrSize), data->mCbCrStride,
+                           data->mYSize, data->mYStride,
+                           data->mCbCrSize, data->mCbCrStride,
                            data->mYSkip, data->mCbSkip)) {
     NS_WARNING("Failed to copy image data!");
     return false;

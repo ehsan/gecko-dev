@@ -2045,11 +2045,12 @@ XMLHttpRequest::Send(const nsAString& aBody, ErrorResult& aRv)
 }
 
 void
-XMLHttpRequest::Send(JS::Handle<JSObject*> aBody, ErrorResult& aRv)
+XMLHttpRequest::Send(JSObject* aBody, ErrorResult& aRv)
 {
   JSContext* cx = mWorkerPrivate->GetJSContext();
 
   MOZ_ASSERT(aBody);
+  JS::Rooted<JSObject*> body(cx, aBody);
 
   mWorkerPrivate->AssertIsOnWorkerThread();
 
@@ -2064,12 +2065,12 @@ XMLHttpRequest::Send(JS::Handle<JSObject*> aBody, ErrorResult& aRv)
   }
 
   JS::Rooted<JS::Value> valToClone(cx);
-  if (JS_IsArrayBufferObject(aBody) || JS_IsArrayBufferViewObject(aBody) ||
-      file::GetDOMBlobFromJSObject(aBody)) {
-    valToClone.setObject(*aBody);
+  if (JS_IsArrayBufferObject(body) || JS_IsArrayBufferViewObject(body) ||
+      file::GetDOMBlobFromJSObject(body)) {
+    valToClone.setObject(*body);
   }
   else {
-    JS::Rooted<JS::Value> obj(cx, JS::ObjectValue(*aBody));
+    JS::Rooted<JS::Value> obj(cx, JS::ObjectValue(*body));
     JSString* bodyStr = JS::ToString(cx, obj);
     if (!bodyStr) {
       aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
@@ -2092,20 +2093,6 @@ XMLHttpRequest::Send(JS::Handle<JSObject*> aBody, ErrorResult& aRv)
   }
 
   SendInternal(EmptyString(), buffer, clonedObjects, aRv);
-}
-
-void
-XMLHttpRequest::Send(const ArrayBuffer& aBody, ErrorResult& aRv)
-{
-  JS::Rooted<JSObject*> obj(mWorkerPrivate->GetJSContext(), aBody.Obj());
-  return Send(obj, aRv);
-}
-
-void
-XMLHttpRequest::Send(const ArrayBufferView& aBody, ErrorResult& aRv)
-{
-  JS::Rooted<JSObject*> obj(mWorkerPrivate->GetJSContext(), aBody.Obj());
-  return Send(obj, aRv);
 }
 
 void

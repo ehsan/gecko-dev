@@ -12,7 +12,6 @@
 #include "mozilla/layers/YCbCrImageDataSerializer.h"
 #include "gfxWindowsPlatform.h"
 #include "gfxD2DSurface.h"
-#include "gfx2DGlue.h"
 
 namespace mozilla {
 
@@ -314,7 +313,7 @@ DeprecatedTextureHostShmemD3D11::UpdateImpl(const SurfaceDescriptor& aImage,
 
   nsRefPtr<gfxImageSurface> surf = openSurf.GetAsImage();
 
-  gfx::IntSize size = gfx::ToIntSize(surf->GetSize());
+  gfxIntSize size = surf->GetSize();
 
   uint32_t bpp = 0;
 
@@ -339,7 +338,7 @@ DeprecatedTextureHostShmemD3D11::UpdateImpl(const SurfaceDescriptor& aImage,
     NS_ERROR("Bad image format");
   }
 
-  mSize = size;
+  mSize = IntSize(size.width, size.height);
 
   CD3D11_TEXTURE2D_DESC desc(dxgiFormat, size.width, size.height,
                              1, 1, D3D11_BIND_SHADER_RESOURCE,
@@ -489,9 +488,9 @@ DeprecatedTextureHostYCbCrD3D11::UpdateImpl(const SurfaceDescriptor& aImage,
 
   YCbCrImageDataDeserializer yuvDeserializer(aImage.get_YCbCrImage().data().get<uint8_t>());
 
-  gfx::IntSize gfxCbCrSize = yuvDeserializer.GetCbCrSize();
+  gfxIntSize gfxCbCrSize = yuvDeserializer.GetCbCrSize();
 
-  gfx::IntSize size = yuvDeserializer.GetYSize();
+  gfxIntSize size = yuvDeserializer.GetYSize();
 
   D3D11_SUBRESOURCE_DATA initData;
   initData.pSysMem = yuvDeserializer.GetYData();

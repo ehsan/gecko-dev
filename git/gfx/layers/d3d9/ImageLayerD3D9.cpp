@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ipc/AutoOpenSurface.h"
-#include "mozilla/gfx/Point.h"
 #include "mozilla/layers/PLayerTransaction.h"
 #include "gfxSharedImageSurface.h"
 
@@ -22,8 +21,6 @@
 namespace mozilla {
 namespace layers {
 
-using namespace mozilla::gfx;
-
 static inline _D3DFORMAT
 D3dFormatForGfxFormat(gfxImageFormat aFormat)
 {
@@ -38,7 +35,7 @@ static already_AddRefed<IDirect3DTexture9>
 DataToTexture(IDirect3DDevice9 *aDevice,
               unsigned char *aData,
               int aStride,
-              const IntSize &aSize,
+              const gfxIntSize &aSize,
               _D3DFORMAT aFormat)
 {
   nsRefPtr<IDirect3DTexture9> texture;
@@ -134,13 +131,13 @@ OpenSharedTexture(const D3DSURFACE_DESC& aDesc,
 static already_AddRefed<IDirect3DTexture9>
 SurfaceToTexture(IDirect3DDevice9 *aDevice,
                  gfxASurface *aSurface,
-                 const IntSize &aSize)
+                 const gfxIntSize &aSize)
 {
 
   nsRefPtr<gfxImageSurface> imageSurface = aSurface->GetAsImageSurface();
 
   if (!imageSurface) {
-    imageSurface = new gfxImageSurface(ThebesIntSize(aSize),
+    imageSurface = new gfxImageSurface(aSize,
                                        gfxImageFormatARGB32);
 
     nsRefPtr<gfxContext> context = new gfxContext(imageSurface);
@@ -548,7 +545,7 @@ ImageLayerD3D9::RenderLayer()
 }
 
 already_AddRefed<IDirect3DTexture9>
-ImageLayerD3D9::GetAsTexture(gfx::IntSize* aSize)
+ImageLayerD3D9::GetAsTexture(gfxIntSize* aSize)
 {
   if (!GetContainer()) {
     return nullptr;

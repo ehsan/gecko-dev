@@ -14,13 +14,11 @@
 #include "Layers.h"                     // for Layer
 #include "RenderTrace.h"                // for RenderTraceScope
 #include "ShadowLayerChild.h"           // for ShadowLayerChild
-#include "gfx2DGlue.h"                  // for Moz2D transition helpers
 #include "gfxImageSurface.h"            // for gfxImageSurface
 #include "gfxPlatform.h"                // for gfxImageFormat, gfxPlatform
 #include "gfxSharedImageSurface.h"      // for gfxSharedImageSurface
 #include "ipc/IPCMessageUtils.h"        // for gfxContentType, null_t
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
-#include "mozilla/gfx/Point.h"          // for IntSize
 #include "mozilla/layers/CompositableClient.h"  // for CompositableClient, etc
 #include "mozilla/layers/LayersMessages.h"  // for Edit, etc
 #include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor, etc
@@ -629,7 +627,7 @@ ShadowLayerForwarder::OpenDescriptor(OpenMode aMode,
     gfxImageFormat format
       = static_cast<gfxImageFormat>(image.format());
     surf = new gfxImageSurface((unsigned char *)image.data(),
-                               gfx::ThebesIntSize(image.size()),
+                               image.size(),
                                image.stride(),
                                format);
     return surf.forget();
@@ -657,12 +655,12 @@ ShadowLayerForwarder::GetDescriptorSurfaceContentType(
   return content;
 }
 
-/*static*/ gfx::IntSize
+/*static*/ gfxIntSize
 ShadowLayerForwarder::GetDescriptorSurfaceSize(
   const SurfaceDescriptor& aDescriptor, OpenMode aMode,
   gfxASurface** aSurface)
 {
-  gfx::IntSize size;
+  gfxIntSize size;
   if (PlatformGetDescriptorSurfaceSize(aDescriptor, aMode, &size, aSurface)) {
     return size;
   }
@@ -745,7 +743,7 @@ ShadowLayerForwarder::PlatformGetDescriptorSurfaceContentType(
 ShadowLayerForwarder::PlatformGetDescriptorSurfaceSize(
   const SurfaceDescriptor&,
   OpenMode,
-  gfx::IntSize*,
+  gfxIntSize*,
   gfxASurface**)
 {
   return false;

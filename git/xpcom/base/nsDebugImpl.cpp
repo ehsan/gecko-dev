@@ -371,8 +371,6 @@ NS_DebugBreak(uint32_t aSeverity, const char *aStr, const char *aExpr,
      note += buf.buffer;
      note += ")";
      CrashReporter::AppendAppNotesToCrashReport(note);
-     CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("AbortMessage"),
-                                        nsDependentCString(buf.buffer));
 #endif  // MOZ_CRASHREPORTER
 
 #if defined(DEBUG) && defined(_WIN32)

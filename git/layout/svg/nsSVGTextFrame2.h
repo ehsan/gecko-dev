@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef MOZILLA_SVGTEXTFRAME_H
-#define MOZILLA_SVGTEXTFRAME_H
+#ifndef NS_SVGTEXTFRAME2_H
+#define NS_SVGTEXTFRAME2_H
 
 #include "mozilla/Attributes.h"
 #include "mozilla/RefPtr.h"
@@ -18,10 +18,10 @@
 
 class nsDisplaySVGText;
 class nsRenderingContext;
-class SVGTextFrame;
+class nsSVGTextFrame2;
 class nsTextFrame;
 
-typedef nsSVGDisplayContainerFrame SVGTextFrameBase;
+typedef nsSVGDisplayContainerFrame nsSVGTextFrame2Base;
 
 namespace mozilla {
 
@@ -125,16 +125,16 @@ private:
 
 /**
  * A runnable to mark glyph positions as needing to be recomputed
- * and to invalid the bounds of the SVGTextFrame frame.
+ * and to invalid the bounds of the nsSVGTextFrame2 frame.
  */
 class GlyphMetricsUpdater : public nsRunnable {
 public:
   NS_DECL_NSIRUNNABLE
-  GlyphMetricsUpdater(SVGTextFrame* aFrame) : mFrame(aFrame) { }
-  static void Run(SVGTextFrame* aFrame);
+  GlyphMetricsUpdater(nsSVGTextFrame2* aFrame) : mFrame(aFrame) { }
+  static void Run(nsSVGTextFrame2* aFrame);
   void Revoke() { mFrame = nullptr; }
 private:
-  SVGTextFrame* mFrame;
+  nsSVGTextFrame2* mFrame;
 };
 
 // Slightly horrible callback for deferring application of opacity
@@ -208,10 +208,10 @@ struct SVGTextContextPaint : public gfxTextContextPaint {
  * Frame class for SVG <text> elements, used when the
  * layout.svg.css-text.enabled is true.
  *
- * An SVGTextFrame manages SVG text layout, painting and interaction for
+ * An nsSVGTextFrame2 manages SVG text layout, painting and interaction for
  * all descendent text content elements.  The frame tree will look like this:
  *
- *   SVGTextFrame                     -- for <text>
+ *   nsSVGTextFrame2                  -- for <text>
  *     <anonymous block frame>
  *       ns{Block,Inline,Text}Frames  -- for text nodes, <tspan>s, <a>s, etc.
  *
@@ -238,10 +238,10 @@ struct SVGTextContextPaint : public gfxTextContextPaint {
  * itself do the painting.  Otherwise, a DrawPathCallback is passed to
  * PaintText so that we can fill the text geometry with SVG paint servers.
  */
-class SVGTextFrame : public SVGTextFrameBase
+class nsSVGTextFrame2 : public nsSVGTextFrame2Base
 {
   friend nsIFrame*
-  NS_NewSVGTextFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+  NS_NewSVGTextFrame2(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   friend class mozilla::CharIterator;
   friend class mozilla::GlyphMetricsUpdater;
@@ -256,8 +256,8 @@ class SVGTextFrame : public SVGTextFrameBase
   typedef mozilla::SVGTextContextPaint SVGTextContextPaint;
 
 protected:
-  SVGTextFrame(nsStyleContext* aContext)
-    : SVGTextFrameBase(aContext),
+  nsSVGTextFrame2(nsStyleContext* aContext)
+    : nsSVGTextFrame2Base(aContext),
       mFontSizeScaleFactor(1.0f),
       mLastContextScale(1.0f),
       mLengthAdjustScaleFactor(1.0f)
@@ -266,7 +266,7 @@ protected:
   }
 
 public:
-  NS_DECL_QUERYFRAME_TARGET(SVGTextFrame)
+  NS_DECL_QUERYFRAME_TARGET(nsSVGTextFrame2)
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
 
@@ -291,14 +291,14 @@ public:
   /**
    * Get the "type" of the frame
    *
-   * @see nsGkAtoms::svgTextFrame
+   * @see nsGkAtoms::svgTextFrame2
    */
   virtual nsIAtom* GetType() const MOZ_OVERRIDE;
 
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE
   {
-    return MakeFrameName(NS_LITERAL_STRING("SVGText"), aResult);
+    return MakeFrameName(NS_LITERAL_STRING("SVGText2"), aResult);
   }
 #endif
 
@@ -344,7 +344,7 @@ public:
   nsresult GetRotationOfChar(nsIContent* aContent, uint32_t aCharNum,
                              float* aResult);
 
-  // SVGTextFrame methods:
+  // nsSVGTextFrame2 methods:
 
   /**
    * Schedules mPositions to be recomputed and the covered region to be
@@ -359,14 +359,14 @@ public:
   void ScheduleReflowSVG();
 
   /**
-   * Reflows the anonymous block frame of this non-display SVGTextFrame.
+   * Reflows the anonymous block frame of this non-display nsSVGTextFrame2.
    *
    * When we are under nsSVGDisplayContainerFrame::ReflowSVG, we need to
-   * reflow any SVGTextFrame frames in the subtree in case they are
+   * reflow any nsSVGTextFrame2 frames in the subtree in case they are
    * being observed (by being for example in a <mask>) and the change
    * that caused the reflow would not already have caused a reflow.
    *
-   * Note that displayed SVGTextFrames are reflowed as needed, when PaintSVG
+   * Note that displayed nsSVGTextFrame2s are reflowed as needed, when PaintSVG
    * is called or some SVG DOM method is called on the element.
    */
   void ReflowSVGNonDisplayText();
@@ -382,7 +382,7 @@ public:
    *
    * The only case where we have to do this is in response to a style change on
    * a non-display <text>; the only caller of ScheduleReflowSVGNonDisplayText
-   * currently is SVGTextFrame::DidSetStyleContext.
+   * currently is nsSVGTextFrame2::DidSetStyleContext.
    */
   void ScheduleReflowSVGNonDisplayText();
 
@@ -434,7 +434,7 @@ private:
     {
     }
 
-    void StartObserving(SVGTextFrame* aFrame)
+    void StartObserving(nsSVGTextFrame2* aFrame)
     {
       NS_ASSERTION(!mFrame, "should not be observing yet!");
       mFrame = aFrame;
@@ -459,12 +459,12 @@ private:
     NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
 
   private:
-    SVGTextFrame* mFrame;
+    nsSVGTextFrame2* mFrame;
   };
 
   /**
    * Reflows the anonymous block child if it is dirty or has dirty
-   * children, or if the SVGTextFrame itself is dirty.
+   * children, or if the nsSVGTextFrame2 itself is dirty.
    */
   void MaybeReflowAnonymousBlockChild();
 
@@ -688,7 +688,7 @@ private:
    * should be multiplied by to cause the text run font size to (a) be within a
    * "reasonable" range, and (b) be close to the actual size to be painted on
    * screen.  (The "reasonable" range as determined by some #defines in
-   * SVGTextFrame.cpp is 8..200.)
+   * nsSVGTextFrame2.cpp is 8..200.)
    */
   float mFontSizeScaleFactor;
 

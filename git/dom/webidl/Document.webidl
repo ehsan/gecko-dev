@@ -66,7 +66,9 @@ interface Document : Node {
   ProcessingInstruction createProcessingInstruction(DOMString target, DOMString data);
 
   [Throws]
-  Node importNode(Node node, optional boolean deep = false);
+  Node importNode(Node node, boolean deep);
+  [Throws]
+  Node importNode(Node node);
   [Throws]
   Node adoptNode(Node node);
 

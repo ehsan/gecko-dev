@@ -9235,7 +9235,6 @@ IonBuilder::jsop_setarg(uint32_t arg)
         JS_ASSERT(script()->uninlineable() && !isInlineBuilder());
 
         MSetFrameArgument *store = MSetFrameArgument::New(alloc(), arg, val);
-        modifiesFrameArguments_ = true;
         current->add(store);
         current->setArg(arg);
         return true;
@@ -9266,13 +9265,6 @@ IonBuilder::jsop_setarg(uint32_t arg)
                     JS_ASSERT(op->resultTypeSet() == &argTypes[arg]);
                     if (!argTypes[arg].addType(types::Type::UnknownType(), alloc_->lifoAlloc()))
                         return false;
-                    if (val->isMul()) {
-                        val->setResultType(MIRType_Double);
-                        val->toMul()->setSpecialization(MIRType_Double);
-                    } else {
-                        JS_ASSERT(val->type() == MIRType_Int32);
-                    }
-                    val->setResultTypeSet(nullptr);
                 }
             }
         }

@@ -30,7 +30,7 @@ public:
 
   virtual void RenderLayer();
 
-  virtual already_AddRefed<IDirect3DTexture9> GetAsTexture(gfx::IntSize* aSize);
+  virtual already_AddRefed<IDirect3DTexture9> GetAsTexture(gfxIntSize* aSize);
 
 private:
   IDirect3DTexture9* GetTexture(Image *aImage, bool& aHasAlpha);

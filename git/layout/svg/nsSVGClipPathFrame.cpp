@@ -260,14 +260,14 @@ nsSVGClipPathFrame::IsValid()
         nsIAtom *type = grandKid->GetType();
 
         if (type != nsGkAtoms::svgPathGeometryFrame &&
-            type != nsGkAtoms::svgTextFrame) {
+            type != nsGkAtoms::svgTextFrame2) {
           return false;
         }
       }
       continue;
     }
     if (type != nsGkAtoms::svgPathGeometryFrame &&
-        type != nsGkAtoms::svgTextFrame) {
+        type != nsGkAtoms::svgTextFrame2) {
       return false;
     }
   }

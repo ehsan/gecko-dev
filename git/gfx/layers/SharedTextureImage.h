@@ -9,6 +9,7 @@
 #include "GLContextProvider.h"          // for GLContextProvider
 #include "ImageContainer.h"             // for Image
 #include "ImageTypes.h"                 // for ImageFormat::SHARED_TEXTURE
+#include "gfxPoint.h"                   // for gfxIntSize
 #include "nsCOMPtr.h"                   // for already_AddRefed
 #include "mozilla/gfx/Point.h"          // for IntSize
 

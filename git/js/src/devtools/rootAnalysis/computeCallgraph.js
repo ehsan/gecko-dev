@@ -123,7 +123,12 @@ function getCallees(edge)
     var callees = [];
     if (callee.Kind == "Var") {
         assert(callee.Variable.Kind == "Func");
-        callees.push({'kind': 'direct', 'name': callee.Variable.Name[0]});
+        var origName = callee.Variable.Name[0];
+        var names = [ origName, otherDestructorName(origName) ];
+        for (var name of names) {
+            if (name)
+                callees.push({'kind': 'direct', 'name': name});
+        }
     } else {
         assert(callee.Kind == "Drf");
         if (callee.Exp[0].Kind == "Fld") {

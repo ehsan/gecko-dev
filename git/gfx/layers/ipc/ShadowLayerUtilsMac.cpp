@@ -5,13 +5,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/gfx/Point.h"
 #include "mozilla/layers/PLayerTransaction.h"
 #include "mozilla/layers/ShadowLayers.h"
 #include "mozilla/layers/LayerManagerComposite.h"
 #include "mozilla/layers/CompositorTypes.h"
 
-#include "gfx2DGlue.h"
 #include "gfxPlatform.h"
 
 #include "gfxSharedQuartzSurface.h"
@@ -22,7 +20,7 @@ namespace mozilla {
 namespace layers {
 
 bool
-ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfx::IntSize& aSize,
+ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfxIntSize& aSize,
                                                   gfxContentType aContent,
                                                   uint32_t aCaps,
                                                   SurfaceDescriptor* aBuffer)
@@ -43,7 +41,7 @@ ShadowLayerForwarder::PlatformOpenDescriptor(OpenMode aMode,
 
     nsRefPtr<gfxASurface> surf =
       new gfxQuartzSurface((unsigned char*)image.data(),
-                           gfx::ThebesIntSize(image.size()),
+                           image.size(),
                            image.stride(),
                            format);
     return surf.forget();
@@ -70,7 +68,7 @@ ShadowLayerForwarder::PlatformGetDescriptorSurfaceContentType(
 /*static*/ bool
 ShadowLayerForwarder::PlatformGetDescriptorSurfaceSize(
   const SurfaceDescriptor& aDescriptor, OpenMode aMode,
-  gfx::IntSize* aSize,
+  gfxIntSize* aSize,
   gfxASurface** aSurface)
 {
   return false;

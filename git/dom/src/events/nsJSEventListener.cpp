@@ -169,9 +169,7 @@ nsJSEventListener::HandleEvent(nsIDOMEvent* aEvent)
     NS_ENSURE_TRUE(aEvent, NS_ERROR_UNEXPECTED);
     InternalScriptErrorEvent* scriptEvent =
       aEvent->GetInternalNSEvent()->AsScriptErrorEvent();
-    if (scriptEvent &&
-        (scriptEvent->message == NS_LOAD_ERROR ||
-         scriptEvent->typeString.EqualsLiteral("error"))) {
+    if (scriptEvent && scriptEvent->message == NS_LOAD_ERROR) {
       errorMsg = scriptEvent->errorMsg;
       msgOrEvent.SetAsString() = static_cast<nsAString*>(&errorMsg);
 

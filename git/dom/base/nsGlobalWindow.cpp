@@ -307,9 +307,9 @@ nsGlobalWindow::DOMMinTimeoutValue() const {
   PR_BEGIN_MACRO                                                              \
   if (IsInnerWindow()) {                                                      \
     nsGlobalWindow *outer = GetOuterWindowInternal();                         \
-    if (!HasActiveDocument()) {                                                \
+    if (!outer || outer->GetCurrentInnerWindow() != this) {                   \
       NS_WARNING(outer ?                                                      \
-                 "Inner window does not have active document." :              \
+                 "Inner window is not its outer's current inner window." :    \
                  "No outer window available!");                               \
       return err_rval;                                                        \
     }                                                                         \
@@ -321,13 +321,11 @@ nsGlobalWindow::DOMMinTimeoutValue() const {
   PR_BEGIN_MACRO                                                              \
   if (IsInnerWindow()) {                                                      \
     nsGlobalWindow *outer = GetOuterWindowInternal();                         \
-    if (!HasActiveDocument()) {                                               \
-      if (!outer) {                                                           \
-        NS_WARNING("No outer window available!");                             \
-        errorresult.Throw(NS_ERROR_NOT_INITIALIZED);                          \
-      } else {                                                                \
-        errorresult.Throw(NS_ERROR_XPC_SECURITY_MANAGER_VETO);                \
-      }                                                                       \
+    if (!outer) {                                                             \
+      NS_WARNING("No outer window available!");                               \
+      errorresult.Throw(NS_ERROR_NOT_INITIALIZED);                            \
+    } else if (outer->GetCurrentInnerWindow() != this) {                      \
+      errorresult.Throw(NS_ERROR_XPC_SECURITY_MANAGER_VETO);                  \
     } else {                                                                  \
       return outer->method args;                                              \
     }                                                                         \
@@ -339,9 +337,9 @@ nsGlobalWindow::DOMMinTimeoutValue() const {
   PR_BEGIN_MACRO                                                              \
   if (IsInnerWindow()) {                                                      \
     nsGlobalWindow *outer = GetOuterWindowInternal();                         \
-    if (!HasActiveDocument()) {                                               \
+    if (!outer || outer->GetCurrentInnerWindow() != this) {                   \
       NS_WARNING(outer ?                                                      \
-                 "Inner window does not have active document." :              \
+                 "Inner window is not its outer's current inner window." :    \
                  "No outer window available!");                               \
       return;                                                                 \
     }                                                                         \
@@ -354,9 +352,9 @@ nsGlobalWindow::DOMMinTimeoutValue() const {
   PR_BEGIN_MACRO                                                              \
   if (IsInnerWindow()) {                                                      \
     nsGlobalWindow *outer = GetOuterWindowInternal();                         \
-    if (!HasActiveDocument()) {                                               \
+    if (!outer || outer->GetCurrentInnerWindow() != this) {                   \
       NS_WARNING(outer ?                                                      \
-                 "Inner window does not have active document." :              \
+                 "Inner window is not its outer's current inner window." :    \
                  "No outer window available!");                               \
       return err_rval;                                                        \
     }                                                                         \
@@ -379,9 +377,9 @@ nsGlobalWindow::DOMMinTimeoutValue() const {
   PR_BEGIN_MACRO                                                              \
   if (IsInnerWindow()) {                                                      \
     nsGlobalWindow *outer = GetOuterWindowInternal();                         \
-    if (!HasActiveDocument()) {                                               \
+    if (!outer || outer->GetCurrentInnerWindow() != this) {                   \
       NS_WARNING(outer ?                                                      \
-                 "Inner window does not have active document." :              \
+                 "Inner window is not its outer's current inner window." :    \
                  "No outer window available!");                               \
       return err_rval;                                                        \
     }                                                                         \

@@ -64,7 +64,7 @@
 #include "nsFontFaceList.h"
 #include "nsFontInflationData.h"
 #include "nsSVGUtils.h"
-#include "SVGTextFrame.h"
+#include "nsSVGTextFrame2.h"
 #include "nsStyleStructInlines.h"
 #include "nsStyleTransformMatrix.h"
 #include "nsIFrameInlines.h"
@@ -1853,16 +1853,16 @@ TransformGfxRectToAncestor(nsIFrame *aFrame,
   return ctm.TransformBounds(aRect);
 }
 
-static SVGTextFrame*
+static nsSVGTextFrame2*
 GetContainingSVGTextFrame(nsIFrame* aFrame)
 {
   if (!aFrame->IsSVGText()) {
     return nullptr;
   }
 
-  return static_cast<SVGTextFrame*>
+  return static_cast<nsSVGTextFrame2*>
     (nsLayoutUtils::GetClosestFrameOfType(aFrame->GetParent(),
-                                          nsGkAtoms::svgTextFrame));
+                                          nsGkAtoms::svgTextFrame2));
 }
 
 nsPoint
@@ -1870,7 +1870,7 @@ nsLayoutUtils::TransformAncestorPointToFrame(nsIFrame* aFrame,
                                              const nsPoint& aPoint,
                                              nsIFrame* aAncestor)
 {
-    SVGTextFrame* text = GetContainingSVGTextFrame(aFrame);
+    nsSVGTextFrame2* text = GetContainingSVGTextFrame(aFrame);
 
     float factor = aFrame->PresContext()->AppUnitsPerDevPixel();
     gfxPoint result(NSAppUnitsToFloatPixels(aPoint.x, factor),
@@ -1892,7 +1892,7 @@ nsLayoutUtils::TransformAncestorRectToFrame(nsIFrame* aFrame,
                                             const nsRect &aRect,
                                             const nsIFrame* aAncestor)
 {
-    SVGTextFrame* text = GetContainingSVGTextFrame(aFrame);
+    nsSVGTextFrame2* text = GetContainingSVGTextFrame(aFrame);
 
     float srcAppUnitsPerDevPixel = aAncestor->PresContext()->AppUnitsPerDevPixel();
     gfxRect result(NSAppUnitsToFloatPixels(aRect.x, srcAppUnitsPerDevPixel),
@@ -1920,7 +1920,7 @@ nsLayoutUtils::TransformFrameRectToAncestor(nsIFrame* aFrame,
                                             const nsIFrame* aAncestor,
                                             bool* aPreservesAxisAlignedRectangles /* = nullptr */)
 {
-  SVGTextFrame* text = GetContainingSVGTextFrame(aFrame);
+  nsSVGTextFrame2* text = GetContainingSVGTextFrame(aFrame);
 
   float srcAppUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
   gfxRect result;
@@ -5622,12 +5622,12 @@ nsLayoutUtils::FontSizeInflationFor(const nsIFrame *aFrame)
 {
   if (aFrame->IsSVGText()) {
     const nsIFrame* container = aFrame;
-    while (container->GetType() != nsGkAtoms::svgTextFrame) {
+    while (container->GetType() != nsGkAtoms::svgTextFrame2) {
       container = container->GetParent();
     }
-    NS_ASSERTION(container, "expected to find an ancestor SVGTextFrame");
+    NS_ASSERTION(container, "expected to find an ancestor nsSVGTextFrame2");
     return
-      static_cast<const SVGTextFrame*>(container)->GetFontSizeScaleFactor();
+      static_cast<const nsSVGTextFrame2*>(container)->GetFontSizeScaleFactor();
   }
 
   if (!FontSizeInflationEnabled(aFrame->PresContext())) {

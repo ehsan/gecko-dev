@@ -8,7 +8,6 @@
 #include "LayerManagerD3D10.h"
 #include "LayerManagerD3D10Effect.h"
 #include "gfxWindowsPlatform.h"
-#include "gfx2DGlue.h"
 #include "gfxD2DSurface.h"
 #include "gfxFailure.h"
 #include "cairo-win32.h"
@@ -451,8 +450,8 @@ static void ReleaseTexture(void *texture)
 }
 
 already_AddRefed<gfxASurface>
-LayerManagerD3D10::CreateOptimalSurface(const IntSize &aSize,
-                                        gfxImageFormat aFormat)
+LayerManagerD3D10::CreateOptimalSurface(const gfxIntSize &aSize,
+                                   gfxImageFormat aFormat)
 {
   if ((aFormat != gfxImageFormatRGB24 &&
        aFormat != gfxImageFormatARGB32)) {
@@ -489,7 +488,7 @@ LayerManagerD3D10::CreateOptimalSurface(const IntSize &aSize,
 
 
 already_AddRefed<gfxASurface>
-LayerManagerD3D10::CreateOptimalMaskSurface(const IntSize &aSize)
+LayerManagerD3D10::CreateOptimalMaskSurface(const gfxIntSize &aSize)
 {
   return CreateOptimalSurface(aSize, gfxImageFormatARGB32);
 }
@@ -851,7 +850,7 @@ uint8_t
 LayerD3D10::LoadMaskTexture()
 {
   if (Layer* maskLayer = GetLayer()->GetMaskLayer()) {
-    IntSize size;
+    gfxIntSize size;
     nsRefPtr<ID3D10ShaderResourceView> maskSRV =
       static_cast<LayerD3D10*>(maskLayer->ImplData())->GetAsTexture(&size);
   
@@ -862,7 +861,7 @@ LayerD3D10::LoadMaskTexture()
     gfxMatrix maskTransform;
     bool maskIs2D = maskLayer->GetEffectiveTransform().CanDraw2D(&maskTransform);
     NS_ASSERTION(maskIs2D, "How did we end up with a 3D transform here?!");
-    gfxRect bounds = gfxRect(gfxPoint(), ThebesIntSize(size));
+    gfxRect bounds = gfxRect(gfxPoint(), size);
     bounds = maskTransform.TransformBounds(bounds);
 
     effect()->GetVariableByName("vMaskQuad")->AsVector()->SetFloatVector(

@@ -482,7 +482,7 @@ public:
     if (mIsMainThreadELM) {
       handler = GetEventHandlerInternal(nsGkAtoms::onerror, EmptyString());
     } else {
-      handler = GetEventHandlerInternal(nullptr, NS_LITERAL_STRING("error"));
+      handler = GetEventHandlerInternal(nullptr, NS_LITERAL_STRING("onerror"));
     }
     return handler ? handler->OnErrorEventHandler() : nullptr;
   }

@@ -113,15 +113,15 @@ LayerManager::GetScrollableLayers(nsTArray<Layer*>& aArray)
 }
 
 already_AddRefed<gfxASurface>
-LayerManager::CreateOptimalSurface(const gfx::IntSize &aSize,
+LayerManager::CreateOptimalSurface(const gfxIntSize &aSize,
                                    gfxImageFormat aFormat)
 {
   return gfxPlatform::GetPlatform()->
-    CreateOffscreenSurface(gfx::ThebesIntSize(aSize), gfxASurface::ContentFromFormat(aFormat));
+    CreateOffscreenSurface(aSize, gfxASurface::ContentFromFormat(aFormat));
 }
 
 already_AddRefed<gfxASurface>
-LayerManager::CreateOptimalMaskSurface(const gfx::IntSize &aSize)
+LayerManager::CreateOptimalMaskSurface(const gfxIntSize &aSize)
 {
   return CreateOptimalSurface(aSize, gfxImageFormatA8);
 }

@@ -736,7 +736,6 @@ class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
   bool mBlockedForMemoryReporter;
   bool mCancelAllPendingRunnables;
   bool mPeriodicGCTimerRunning;
-  bool mIdleGCTimerRunning;
 
 #ifdef DEBUG
   PRThread* mPRThread;

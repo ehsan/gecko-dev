@@ -19,16 +19,8 @@ var ignoreIndirectCalls = {
     "nsTraceRefcntImpl.cpp:void (* leakyLogRelease)(void*, int, int)": true,
 };
 
-function indirectCallCannotGC(fullCaller, fullVariable)
+function indirectCallCannotGC(caller, name)
 {
-    var caller = readable(fullCaller);
-
-    // This is usually a simple variable name, but sometimes a full name gets
-    // passed through. And sometimes that name is truncated. Examples:
-    //   _ZL13gAbortHandler|mozalloc_oom.cpp:void (* gAbortHandler)(size_t)
-    //   _ZL14pMutexUnlockFn|umutex.cpp:void (* pMutexUnlockFn)(const void*
-    var name = readable(fullVariable);
-
     if (name in ignoreIndirectCalls)
         return true;
 
@@ -50,7 +42,8 @@ function indirectCallCannotGC(fullCaller, fullVariable)
         return true;
 
     // template method called during marking and hence cannot GC
-    if (name == "op" && caller.indexOf("bool js::WeakMap<Key, Value, HashPolicy>::keyNeedsMark(JSObject*)") != -1)
+    if (name == "op" &&
+        /^bool js::WeakMap<Key, Value, HashPolicy>::keyNeedsMark\(JSObject\*\)/.test(caller))
     {
         return true;
     }
@@ -87,7 +80,6 @@ var ignoreCallees = {
     "mozilla::CycleCollectedJSRuntime.NoteCustomGCThingXPCOMChildren" : true, // During tracing, cannot GC.
     "nsIThreadManager.GetIsMainThread" : true,
     "PLDHashTableOps.hashKey" : true,
-    "z_stream_s.zfree" : true,
 };
 
 function fieldCallCannotGC(csu, fullfield)
@@ -97,6 +89,16 @@ function fieldCallCannotGC(csu, fullfield)
     if (fullfield in ignoreCallees)
         return true;
     return false;
+}
+
+function shouldSuppressGC(name)
+{
+    // Various dead code that should only be called inside AutoEnterAnalysis.
+    // Functions with no known caller are by default treated as not suppressing GC.
+    return /TypeScript::Purge/.test(name)
+        || /StackTypeSet::addPropagateThis/.test(name)
+        || /ScriptAnalysis::addPushedType/.test(name)
+        || /IonBuilder/.test(name);
 }
 
 function ignoreEdgeUse(edge, variable)
@@ -175,11 +177,8 @@ var ignoreFunctions = {
     "void js::AutoCompartment::AutoCompartment(js::ExclusiveContext*, JSCompartment*)": true,
 };
 
-function ignoreGCFunction(mangled)
+function ignoreGCFunction(fun)
 {
-    assert(mangled in readableNames);
-    var fun = readableNames[mangled][0];
-
     if (fun in ignoreFunctions)
         return true;
 
@@ -247,10 +246,6 @@ function isOverridableField(csu, field)
     if (field == 'GetCurrentJSContext')
         return false;
     if (field == 'IsOnCurrentThread')
-        return false;
-    if (field == 'GetNativeContext')
-        return false;
-    if (field == 'GetThreadFromPRThread')
         return false;
     return true;
 }

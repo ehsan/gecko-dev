@@ -15,10 +15,9 @@
 #include "GLDefs.h"                     // for GLenum
 #include "gfxASurface.h"                // for gfxASurface, etc
 #include "gfxPlatform.h"                // for gfxPlatform
+#include "gfxPoint.h"                   // for gfxIntSize
 #include "gfxXlibSurface.h"             // for gfxXlibSurface
-#include "gfx2DGlue.h"                  // for Moz2D transistion helpers
 #include "mozilla/X11Util.h"            // for DefaultXDisplay, FinishX, etc
-#include "mozilla/gfx/Point.h"          // for IntSize
 #include "mozilla/layers/CompositableForwarder.h"
 #include "mozilla/layers/CompositorTypes.h"  // for OpenMode
 #include "mozilla/layers/ISurfaceAllocator.h"  // for ISurfaceAllocator, etc
@@ -87,7 +86,7 @@ SurfaceDescriptorX11::SurfaceDescriptorX11(gfxXlibSurface* aSurf)
 }
 
 SurfaceDescriptorX11::SurfaceDescriptorX11(Drawable aDrawable, XID aFormatID,
-                                           const gfx::IntSize& aSize)
+                                           const gfxIntSize& aSize)
   : mId(aDrawable)
   , mFormat(aFormatID)
   , mSize(aSize)
@@ -102,7 +101,7 @@ SurfaceDescriptorX11::OpenForeign() const
   nsRefPtr<gfxXlibSurface> surf;
   XRenderPictFormat* pictFormat = GetXRenderPictFormatFromId(display, mFormat);
   if (pictFormat) {
-    surf = new gfxXlibSurface(screen, mId, pictFormat, gfx::ThebesIntSize(mSize));
+    surf = new gfxXlibSurface(screen, mId, pictFormat, mSize);
   } else {
     Visual* visual;
     int depth;
@@ -110,13 +109,13 @@ SurfaceDescriptorX11::OpenForeign() const
     if (!visual)
       return nullptr;
 
-    surf = new gfxXlibSurface(display, mId, visual, gfx::ThebesIntSize(mSize));
+    surf = new gfxXlibSurface(display, mId, visual, mSize);
   }
   return surf->CairoStatus() ? nullptr : surf.forget();
 }
 
 bool
-ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfx::IntSize& aSize,
+ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfxIntSize& aSize,
                                                   gfxContentType aContent,
                                                   uint32_t aCaps,
                                                   SurfaceDescriptor* aBuffer)
@@ -134,8 +133,7 @@ ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfx::IntSize& aSize,
   }
 
   gfxPlatform* platform = gfxPlatform::GetPlatform();
-  nsRefPtr<gfxASurface> buffer =
-    platform->CreateOffscreenSurface(gfx::ThebesIntSize(aSize), aContent);
+  nsRefPtr<gfxASurface> buffer = platform->CreateOffscreenSurface(aSize, aContent);
   if (!buffer ||
       buffer->GetType() != gfxSurfaceTypeXlib) {
     NS_ERROR("creating Xlib front/back surfaces failed!");
@@ -179,7 +177,7 @@ ShadowLayerForwarder::PlatformGetDescriptorSurfaceContentType(
 /*static*/ bool
 ShadowLayerForwarder::PlatformGetDescriptorSurfaceSize(
   const SurfaceDescriptor& aDescriptor, OpenMode aMode,
-  gfx::IntSize* aSize,
+  gfxIntSize* aSize,
   gfxASurface** aSurface)
 {
   return false;

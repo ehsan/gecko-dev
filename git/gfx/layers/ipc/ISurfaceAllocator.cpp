@@ -7,7 +7,6 @@
 
 #include "ISurfaceAllocator.h"
 #include <sys/types.h>                  // for int32_t
-#include "gfx2DGlue.h"                  // for IntSize
 #include "gfxASurface.h"                // for gfxASurface, etc
 #include "gfxPlatform.h"                // for gfxPlatform, gfxImageFormat
 #include "gfxSharedImageSurface.h"      // for gfxSharedImageSurface
@@ -43,7 +42,7 @@ IsSurfaceDescriptorValid(const SurfaceDescriptor& aSurface)
 }
 
 bool
-ISurfaceAllocator::AllocSharedImageSurface(const gfx::IntSize& aSize,
+ISurfaceAllocator::AllocSharedImageSurface(const gfxIntSize& aSize,
                                gfxContentType aContent,
                                gfxSharedImageSurface** aBuffer)
 {
@@ -51,10 +50,7 @@ ISurfaceAllocator::AllocSharedImageSurface(const gfx::IntSize& aSize,
   gfxImageFormat format = gfxPlatform::GetPlatform()->OptimalFormatForContent(aContent);
 
   nsRefPtr<gfxSharedImageSurface> back =
-    gfxSharedImageSurface::CreateUnsafe(this,
-                                        gfx::ThebesIntSize(aSize),
-                                        format,
-                                        shmemType);
+    gfxSharedImageSurface::CreateUnsafe(this, aSize, format, shmemType);
   if (!back)
     return false;
 
@@ -64,7 +60,7 @@ ISurfaceAllocator::AllocSharedImageSurface(const gfx::IntSize& aSize,
 }
 
 bool
-ISurfaceAllocator::AllocSurfaceDescriptor(const gfx::IntSize& aSize,
+ISurfaceAllocator::AllocSurfaceDescriptor(const gfxIntSize& aSize,
                                           gfxContentType aContent,
                                           SurfaceDescriptor* aBuffer)
 {
@@ -72,7 +68,7 @@ ISurfaceAllocator::AllocSurfaceDescriptor(const gfx::IntSize& aSize,
 }
 
 bool
-ISurfaceAllocator::AllocSurfaceDescriptorWithCaps(const gfx::IntSize& aSize,
+ISurfaceAllocator::AllocSurfaceDescriptorWithCaps(const gfxIntSize& aSize,
                                                   gfxContentType aContent,
                                                   uint32_t aCaps,
                                                   SurfaceDescriptor* aBuffer)
@@ -166,7 +162,7 @@ ISurfaceAllocator::DestroySharedSurface(SurfaceDescriptor* aSurface)
 
 #if !defined(MOZ_HAVE_PLATFORM_SPECIFIC_LAYER_BUFFERS)
 bool
-ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfx::IntSize&,
+ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfxIntSize&,
                                                   gfxContentType,
                                                   uint32_t,
                                                   SurfaceDescriptor*)

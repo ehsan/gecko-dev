@@ -22,7 +22,6 @@
 #include "mozilla/ReentrantMonitor.h"   // for ReentrantMonitor, etc
 #include "mozilla/ipc/MessageChannel.h" // for MessageChannel, etc
 #include "mozilla/ipc/Transport.h"      // for Transport
-#include "mozilla/gfx/Point.h"          // for IntSize
 #include "mozilla/layers/CompositableClient.h"  // for CompositableChild, etc
 #include "mozilla/layers/ISurfaceAllocator.h"  // for ISurfaceAllocator
 #include "mozilla/layers/ImageClient.h"  // for ImageClient
@@ -43,7 +42,6 @@ struct nsIntRect;
  
 using namespace base;
 using namespace mozilla::ipc;
-using namespace mozilla::gfx;
 
 namespace mozilla {
 namespace ipc {
@@ -214,12 +212,12 @@ static void CreateImageClientSync(RefPtr<ImageClient>* result,
 
 
 struct GrallocParam {
-  IntSize size;
+  gfxIntSize size;
   uint32_t format;
   uint32_t usage;
   SurfaceDescriptor* buffer;
 
-  GrallocParam(const IntSize& aSize,
+  GrallocParam(const gfxIntSize& aSize,
                const uint32_t& aFormat,
                const uint32_t& aUsage,
                SurfaceDescriptor* aBuffer)
@@ -649,7 +647,7 @@ ImageBridgeChild::CreateImageClientNow(CompositableType aType)
 }
 
 PGrallocBufferChild*
-ImageBridgeChild::AllocPGrallocBufferChild(const IntSize&, const uint32_t&, const uint32_t&,
+ImageBridgeChild::AllocPGrallocBufferChild(const gfxIntSize&, const uint32_t&, const uint32_t&,
                                            MaybeMagicGrallocBufferHandle*)
 {
 #ifdef MOZ_HAVE_SURFACEDESCRIPTORGRALLOC
@@ -673,7 +671,7 @@ ImageBridgeChild::DeallocPGrallocBufferChild(PGrallocBufferChild* actor)
 }
 
 bool
-ImageBridgeChild::AllocSurfaceDescriptorGralloc(const IntSize& aSize,
+ImageBridgeChild::AllocSurfaceDescriptorGralloc(const gfxIntSize& aSize,
                                                 const uint32_t& aFormat,
                                                 const uint32_t& aUsage,
                                                 SurfaceDescriptor* aBuffer)
@@ -698,7 +696,7 @@ ImageBridgeChild::AllocSurfaceDescriptorGralloc(const IntSize& aSize,
 }
 
 bool
-ImageBridgeChild::AllocSurfaceDescriptorGrallocNow(const IntSize& aSize,
+ImageBridgeChild::AllocSurfaceDescriptorGrallocNow(const gfxIntSize& aSize,
                                                    const uint32_t& aFormat,
                                                    const uint32_t& aUsage,
                                                    SurfaceDescriptor* aBuffer)
@@ -880,7 +878,7 @@ ImageBridgeChild::DeallocShmem(ipc::Shmem& aShmem)
 }
 
 PGrallocBufferChild*
-ImageBridgeChild::AllocGrallocBuffer(const IntSize& aSize,
+ImageBridgeChild::AllocGrallocBuffer(const gfxIntSize& aSize,
                                      uint32_t aFormat,
                                      uint32_t aUsage,
                                      MaybeMagicGrallocBufferHandle* aHandle)

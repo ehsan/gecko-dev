@@ -26,7 +26,7 @@
 #include "nsStyleContext.h"
 #include "nsStyleStruct.h"
 #include "nsStyleStructInlines.h"
-#include "SVGTextFrame.h"
+#include "nsSVGTextFrame2.h"
 #include "nsCoord.h"
 #include "nsRenderingContext.h"
 #include "nsIPresShell.h"
@@ -4251,7 +4251,7 @@ nsTextFrame::InvalidateFrame(uint32_t aDisplayItemKey)
   if (IsSVGText()) {
     nsIFrame* svgTextFrame =
       nsLayoutUtils::GetClosestFrameOfType(GetParent(),
-                                           nsGkAtoms::svgTextFrame);
+                                           nsGkAtoms::svgTextFrame2);
     svgTextFrame->InvalidateFrame();
     return;
   }
@@ -4264,7 +4264,7 @@ nsTextFrame::InvalidateFrameWithRect(const nsRect& aRect, uint32_t aDisplayItemK
   if (IsSVGText()) {
     nsIFrame* svgTextFrame =
       nsLayoutUtils::GetClosestFrameOfType(GetParent(),
-                                           nsGkAtoms::svgTextFrame);
+                                           nsGkAtoms::svgTextFrame2);
     svgTextFrame->InvalidateFrame();
     return;
   }
@@ -4769,12 +4769,12 @@ GetInflationForTextDecorations(nsIFrame* aFrame, nscoord aInflationMinFontSize)
 {
   if (aFrame->IsSVGText()) {
     const nsIFrame* container = aFrame;
-    while (container->GetType() != nsGkAtoms::svgTextFrame) {
+    while (container->GetType() != nsGkAtoms::svgTextFrame2) {
       container = container->GetParent();
     }
-    NS_ASSERTION(container, "expected to find an ancestor SVGTextFrame");
+    NS_ASSERTION(container, "expected to find an ancestor nsSVGTextFrame2");
     return
-      static_cast<const SVGTextFrame*>(container)->GetFontSizeScaleFactor();
+      static_cast<const nsSVGTextFrame2*>(container)->GetFontSizeScaleFactor();
   }
   return nsLayoutUtils::FontSizeInflationInner(aFrame, aInflationMinFontSize);
 }

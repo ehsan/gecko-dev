@@ -24,18 +24,16 @@ namespace dom {
 // This class iterates normal DOM child nodes of a given DOM node with
 // <xbl:children> nodes replaced by the elements that have been filtered into that
 // insertion point. Any bindings on the given element are ignored for purposes
-// of determining which insertion point children are filtered into. The iterator
-// can be initialized to start at the end by providing false for aStartAtBeginning
-// in order to start iterating in reverse from the last child.
+// of determining which insertion point children are filtered into.
 class ExplicitChildIterator
 {
 public:
-  ExplicitChildIterator(nsIContent* aParent, bool aStartAtBeginning = true)
+  ExplicitChildIterator(nsIContent* aParent)
     : mParent(aParent),
       mChild(nullptr),
       mDefaultChild(nullptr),
       mIndexInInserted(0),
-      mIsFirst(aStartAtBeginning)
+      mIsFirst(true)
   {
   }
 
@@ -59,22 +57,13 @@ public:
     return child == aChildToFind;
   }
 
-  // Returns the current target of this iterator (which might be an explicit
-  // child of the node, fallback content of an insertion point or
-  // a node distributed to an insertion point.
-  nsIContent* Get();
-
-  // The inverse of GetNextChild. Properly steps in and out of insertion
-  // points.
-  nsIContent* GetPreviousChild();
-
 protected:
   // The parent of the children being iterated. For the FlattenedChildIterator,
   // if there is a binding attached to the original parent, mParent points to
   // the <xbl:content> element for the binding.
   nsIContent* mParent;
 
-  // The current child. When we encounter an insertion point,
+  // The current child. When we encounter an <xbl:children> insertion point,
   // mChild remains as the insertion point whose content we're iterating (and
   // our state is controled by mDefaultChild or mIndexInInserted depending on
   // whether the insertion point expands to its default content or not).
@@ -82,14 +71,9 @@ protected:
 
   // If non-null, this points to the current default content for the current
   // insertion point that we're iterating (i.e. mChild, which must be an
-  // nsXBLChildrenElement or HTMLContentElement). Once this transitions back
-  // to null, we continue iterating at mChild's next sibling.
+  // nsXBLChildrenElement). Once this transitions back to null,
+  // we continue iterating at mChild's next sibling.
   nsIContent* mDefaultChild;
-
-  // If non-null, this points to an iterator of the explicit children of
-  // the ShadowRoot projected by the current shadow element that we're
-  // iterating.
-  nsAutoPtr<ExplicitChildIterator> mShadowIterator;
 
   // If not zero, we're iterating inserted children for an insertion point. This
   // is an index into mChild's inserted children array (mChild must be an
@@ -108,6 +92,15 @@ class FlattenedChildIterator : public ExplicitChildIterator
 {
 public:
   FlattenedChildIterator(nsIContent* aParent);
+
+  // Returns the current target of this iterator (which might be an explicit
+  // child of the node, default content for an <xbl:children> element or
+  // an inserted child for an <xbl:children> element.
+  nsIContent* Get();
+
+  // The inverse of GetNextChild. Properly steps in and out of <xbl:children>
+  // elements.
+  nsIContent* GetPreviousChild();
 
   bool XBLInvolved() { return mXBLInvolved; }
 

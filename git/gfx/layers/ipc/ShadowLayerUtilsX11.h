@@ -11,6 +11,7 @@
 #include <X11/X.h>                      // for Drawable
 #include "ipc/IPCMessageUtils.h"
 #include "mozilla/GfxMessageUtils.h"
+#include "gfxPoint.h"                   // for gfxIntSize
 #include "nsCOMPtr.h"                   // for already_AddRefed
 
 #define MOZ_HAVE_SURFACEDESCRIPTORX11
@@ -32,7 +33,7 @@ struct SurfaceDescriptorX11 {
   SurfaceDescriptorX11(gfxXlibSurface* aSurf);
 
   SurfaceDescriptorX11(Drawable aDrawable, XID aFormatID,
-                       const gfx::IntSize& aSize);
+                       const gfxIntSize& aSize);
 
   // Default copy ctor and operator= are OK
 
@@ -49,7 +50,7 @@ struct SurfaceDescriptorX11 {
 
   Drawable mId;
   XID mFormat; // either a PictFormat or VisualID
-  gfx::IntSize mSize;
+  gfxIntSize mSize;
 };
 
 } // namespace layers

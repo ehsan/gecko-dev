@@ -2,7 +2,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import ConfigParser
 import datetime
 import os
 import socket
@@ -466,15 +465,7 @@ class Marionette(object):
                     msg = 'Application "%s" unknown (should be one of %s)'
                     raise NotImplementedError(msg % (app, geckoinstance.apps.keys()))
             else:
-                try:
-                    config = ConfigParser.RawConfigParser()
-                    config.read(os.path.join(os.path.dirname(bin), 'application.ini'))
-                    app = config.get('App', 'Name')
-                    instance_class = geckoinstance.apps[app.lower()]
-                except (ConfigParser.NoOptionError,
-                        ConfigParser.NoSectionError,
-                        KeyError):
-                    instance_class = geckoinstance.GeckoInstance
+                instance_class = geckoinstance.GeckoInstance
             self.instance = instance_class(host=self.host, port=self.port,
                                            bin=self.bin, profile=self.profile, app_args=app_args)
             self.instance.start()

@@ -96,7 +96,6 @@
 #include "nsIWebBrowserChrome.h"
 #include "nsIDocShell.h"
 #include "mozilla/net/NeckoMessageUtils.h"
-#include "gfxPlatform.h"
 
 #if defined(ANDROID) || defined(LINUX)
 #include "nsSystemInfo.h"
@@ -1386,7 +1385,7 @@ ContentParent::InitInternal(ProcessPriority aInitialPriority,
             DebugOnly<bool> opened = PCompositor::Open(this);
             MOZ_ASSERT(opened);
 
-            if (gfxPlatform::AsyncVideoEnabled()) {
+            if (Preferences::GetBool("layers.async-video.enabled",false)) {
                 opened = PImageBridge::Open(this);
                 MOZ_ASSERT(opened);
             }

@@ -63,7 +63,7 @@ nsInlineFrame::InvalidateFrame(uint32_t aDisplayItemKey)
   if (IsSVGText()) {
     nsIFrame* svgTextFrame =
       nsLayoutUtils::GetClosestFrameOfType(GetParent(),
-                                           nsGkAtoms::svgTextFrame);
+                                           nsGkAtoms::svgTextFrame2);
     svgTextFrame->InvalidateFrame();
     return;
   }
@@ -76,7 +76,7 @@ nsInlineFrame::InvalidateFrameWithRect(const nsRect& aRect, uint32_t aDisplayIte
   if (IsSVGText()) {
     nsIFrame* svgTextFrame =
       nsLayoutUtils::GetClosestFrameOfType(GetParent(),
-                                           nsGkAtoms::svgTextFrame);
+                                           nsGkAtoms::svgTextFrame2);
     svgTextFrame->InvalidateFrame();
     return;
   }
