@@ -139,7 +139,7 @@ StyleEditorUI.prototype = {
         this._resetStyleSheetList(styleSheets); 
         this._target.on("will-navigate", this._clear);
         this._target.on("navigate", this._onNewDocument);
-      }, Cu.reportError);
+      });
     });
   },
 
@@ -207,7 +207,7 @@ StyleEditorUI.prototype = {
   _onNewDocument: function() {
     this._debuggee.getStyleSheets().then((styleSheets) => {
       this._resetStyleSheetList(styleSheets);
-    }, Cu.reportError);
+    })
   },
 
   /**
@@ -285,7 +285,7 @@ StyleEditorUI.prototype = {
           this._addStyleSheetEditor(source);
         });
       }
-    }, Cu.reportError);
+    });
   },
 
   /**
@@ -317,8 +317,7 @@ StyleEditorUI.prototype = {
 
     this.editors.push(editor);
 
-    editor.fetchSource(this._sourceLoaded.bind(this, editor))
-          .then(null, Cu.reportError);
+    editor.fetchSource(this._sourceLoaded.bind(this, editor));
     return editor;
   },
 
@@ -559,8 +558,8 @@ StyleEditorUI.prototype = {
                   this.emit("error", { key: "error-compressed", level: "info" });
                 }
               }
-            }, Cu.reportError);
-          }, Cu.reportError);
+            });
+          }, console.error);
         }.bind(this)).then(null, Cu.reportError);
       }.bind(this)
     });

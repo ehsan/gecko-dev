@@ -7,7 +7,6 @@ package org.mozilla.gecko.home;
 
 import java.util.EnumSet;
 
-import org.mozilla.gecko.GeckoProfile;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.ReaderModeUtils;
 import org.mozilla.gecko.Telemetry;
@@ -21,6 +20,7 @@ import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
 import android.content.Context;
 import android.database.Cursor;
 import android.os.Bundle;
+import android.support.v4.app.LoaderManager.LoaderCallbacks;
 import android.support.v4.content.Loader;
 import android.support.v4.widget.CursorAdapter;
 import android.text.SpannableStringBuilder;
@@ -164,16 +164,13 @@ public class ReadingListPanel extends HomeFragment {
      * Cursor loader for the list of reading list items.
      */
     private static class ReadingListLoader extends SimpleCursorLoader {
-        private final BrowserDB mDB;
-
         public ReadingListLoader(Context context) {
             super(context);
-            mDB = GeckoProfile.get(context).getDB();
         }
 
         @Override
         public Cursor loadCursor() {
-            return mDB.getReadingList(getContext().getContentResolver());
+            return BrowserDB.getReadingList(getContext().getContentResolver());
         }
     }
 
