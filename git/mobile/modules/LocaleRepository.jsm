@@ -105,7 +105,7 @@ var LocaleRepository = {
     request.overrideMimeType("text/xml");
   
     let self = this;
-    request.addEventListener("readystatechange", function () {
+    request.onreadystatechange = function () {
       if (request.readyState == 4) {
         if (request.status == 200) {
           self.log("---- got response")
@@ -122,7 +122,7 @@ var LocaleRepository = {
           Cu.reportError("Locale Repository: Error getting locale from AMO [" + request.status + "]");
         }
       }
-    }, false);
+    };
   
     request.send(null);
   },

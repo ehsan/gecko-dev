@@ -131,7 +131,7 @@ GetContainingBlockFor(nsIFrame* aFrame) {
   if (!aFrame) {
     return nsnull;
   }
-  return aFrame->GetContainingBlock();
+  return nsHTMLReflowState::GetContainingBlockFor(aFrame);
 }
 
 nsComputedDOMStyle::nsComputedDOMStyle()
@@ -3332,7 +3332,7 @@ nsComputedDOMStyle::GetLineHeightCoord(nscoord& aCoord)
     if (!mInnerFrame)
       return PR_FALSE;
 
-    if (nsLayoutUtils::IsNonWrapperBlock(mInnerFrame)) {
+    if (mInnerFrame->IsContainingBlock()) {
       blockHeight = mInnerFrame->GetContentRect().height;
     } else {
       GetCBContentHeight(blockHeight);
@@ -3424,12 +3424,7 @@ nsComputedDOMStyle::GetMarginWidthFor(mozilla::css::Side aSide)
   } else {
     AssertFlushedPendingReflows();
 
-    // For tables, GetUsedMargin always returns an empty margin, so we
-    // should read the margin from the outer table frame instead.
-    val->SetAppUnits(mOuterFrame->GetUsedMargin().Side(aSide));
-    NS_ASSERTION(mOuterFrame == mInnerFrame ||
-                 mInnerFrame->GetUsedMargin() == nsMargin(0, 0, 0, 0),
-                 "Inner tables must have zero margins");
+    val->SetAppUnits(mInnerFrame->GetUsedMargin().Side(aSide));
   }
 
   return val;

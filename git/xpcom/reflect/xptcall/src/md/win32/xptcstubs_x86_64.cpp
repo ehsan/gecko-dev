@@ -159,10 +159,7 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint32 methodIndex, PRUint64* args,
 
         case nsXPTType::T_FLOAT:
              if (iCount < PARAM_FPR_COUNT)
-                // The value in xmm register is already prepared to
-                // be retrieved as a float. Therefore, we pass the
-                // value verbatim, as a double without conversion.
-                dp->val.d  = (double)fprData[iCount++];
+                dp->val.f  = (float)fprData[iCount++];
              else
                 dp->val.f  = *((float*)ap++);
              break;

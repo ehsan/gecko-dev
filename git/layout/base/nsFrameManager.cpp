@@ -92,7 +92,6 @@
 #include "imgIRequest.h"
 #include "nsTransitionManager.h"
 #include "RestyleTracker.h"
-#include "nsAbsoluteContainingBlock.h"
 
 #include "nsFrameManager.h"
 #include "nsRuleProcessorData.h"
@@ -471,19 +470,6 @@ nsFrameManager::ClearAllUndisplayedContentIn(nsIContent* aParentContent)
 }
 
 //----------------------------------------------------------------------
-nsresult
-nsFrameManager::AppendFrames(nsIFrame*       aParentFrame,
-                             ChildListID     aListID,
-                             nsFrameList&    aFrameList)
-{
-  if (aParentFrame->IsAbsoluteContainer() &&
-      aListID == aParentFrame->GetAbsoluteListID()) {
-    return aParentFrame->GetAbsoluteContainingBlock()->
-           AppendFrames(aParentFrame, aListID, aFrameList);
-  } else {
-    return aParentFrame->AppendFrames(aListID, aFrameList);
-  }
-}
 
 nsresult
 nsFrameManager::InsertFrames(nsIFrame*       aParentFrame,
@@ -496,13 +482,7 @@ nsFrameManager::InsertFrames(nsIFrame*       aParentFrame,
                   && !IS_TRUE_OVERFLOW_CONTAINER(aPrevFrame),
                   "aPrevFrame must be the last continuation in its chain!");
 
-  if (aParentFrame->IsAbsoluteContainer() &&
-      aListID == aParentFrame->GetAbsoluteListID()) {
-    return aParentFrame->GetAbsoluteContainingBlock()->
-           InsertFrames(aParentFrame, aListID, aPrevFrame, aFrameList);
-  } else {
-    return aParentFrame->InsertFrames(aListID, aPrevFrame, aFrameList);
-  }
+  return aParentFrame->InsertFrames(aListID, aPrevFrame, aFrameList);
 }
 
 nsresult
@@ -527,15 +507,7 @@ nsFrameManager::RemoveFrame(ChildListID     aListID,
   NS_ASSERTION(!(aOldFrame->GetStateBits() & NS_FRAME_OUT_OF_FLOW &&
                  GetPlaceholderFrameFor(aOldFrame)),
                "Must call RemoveFrame on placeholder for out-of-flows.");
-  nsresult rv = NS_OK;
-  nsIFrame* parentFrame = aOldFrame->GetParent();
-  if (parentFrame->IsAbsoluteContainer() &&
-      aListID == parentFrame->GetAbsoluteListID()) {
-    parentFrame->GetAbsoluteContainingBlock()->
-      RemoveFrame(parentFrame, aListID, aOldFrame);
-  } else {
-    rv = parentFrame->RemoveFrame(aListID, aOldFrame);
-  }
+  nsresult rv = aOldFrame->GetParent()->RemoveFrame(aListID, aOldFrame);
 
   mIsDestroyingFrames = wasDestroyingFrames;
 

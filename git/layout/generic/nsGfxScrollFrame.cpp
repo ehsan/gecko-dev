@@ -121,7 +121,6 @@ void
 nsHTMLScrollFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   mInner.Destroy();
-  DestroyAbsoluteFrames(aDestructRoot);
   nsHTMLContainerFrame::DestroyFrom(aDestructRoot);
 }
 
@@ -928,7 +927,7 @@ nsHTMLScrollFrame::Reflow(nsPresContext*           aPresContext,
 
   CheckInvalidateSizeChange(aDesiredSize);
 
-  FinishReflowWithAbsoluteFrames(aPresContext, aDesiredSize, aReflowState, aStatus);
+  FinishAndStoreOverflow(&aDesiredSize);
 
   if (!InInitialReflow() && !mInner.mHadNonInitialReflow) {
     mInner.mHadNonInitialReflow = PR_TRUE;

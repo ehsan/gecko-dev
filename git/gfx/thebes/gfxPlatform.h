@@ -390,8 +390,8 @@ protected:
     void AppendCJKPrefLangs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, 
                             eFontPrefLang aCharLang, eFontPrefLang aPageLang);
                                                
-    PRInt8  mAllowDownloadableFonts;
-    PRInt8  mDownloadableFontsSanitize;
+    bool    mAllowDownloadableFonts;
+    bool    mDownloadableFontsSanitize;
 
     // which scripts should be shaped with harfbuzz
     PRInt32 mUseHarfBuzzScripts;

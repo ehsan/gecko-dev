@@ -152,11 +152,14 @@ public:
   void ReconstructMarginAbove(nsLineList::iterator aLine);
 
   // Caller must have called GetAvailableSpace for the correct position
-  // (which need not be the current mY).
+  // (which need not be the current mY).  Callers need only pass
+  // aReplacedWidth for outer table frames.
   void ComputeReplacedBlockOffsetsForFloats(nsIFrame* aFrame,
                                             const nsRect& aFloatAvailableSpace,
                                             nscoord& aLeftResult,
-                                            nscoord& aRightResult);
+                                            nscoord& aRightResult,
+                                       nsBlockFrame::ReplacedElementWidthToClear
+                                                      *aReplacedWidth = nsnull);
 
   // Caller must have called GetAvailableSpace for the current mY
   void ComputeBlockAvailSpace(nsIFrame* aFrame,

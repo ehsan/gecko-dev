@@ -181,6 +181,7 @@ public:
   virtual nscoord GetCaretBaseline() const;
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
   virtual nsSplittableType GetSplittableType() const;
+  virtual bool IsContainingBlock() const;
   virtual bool IsFloatContainingBlock() const;
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
@@ -333,6 +334,7 @@ protected:
     : nsHTMLContainerFrame(aContext)
     , mMinWidth(NS_INTRINSIC_WIDTH_UNKNOWN)
     , mPrefWidth(NS_INTRINSIC_WIDTH_UNKNOWN)
+    , mAbsoluteContainer(kAbsoluteList)
   {
 #ifdef DEBUG
   InitDebugFlags();
@@ -748,6 +750,10 @@ protected:
 
   friend class nsBlockReflowState;
   friend class nsBlockInFlowLineIterator;
+
+private:
+  nsAbsoluteContainingBlock mAbsoluteContainer;
+
 
 #ifdef DEBUG
 public:
