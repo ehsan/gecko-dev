@@ -31,7 +31,6 @@ include protocol PStorage;
 include protocol PTelephony;
 include protocol PTestShell;
 include protocol PJavaScript;
-include protocol PRemoteSpellcheckEngine;
 include DOMTypes;
 include JavaScriptTypes;
 include InputStreamParams;
@@ -312,7 +311,6 @@ intr protocol PContent
     manages PTelephony;
     manages PTestShell;
     manages PJavaScript;
-    manages PRemoteSpellcheckEngine;
 
 both:
     // Depending on exactly how the new browser is being created, it might be
@@ -466,7 +464,6 @@ parent:
 
     async PJavaScript();
 
-    sync PRemoteSpellcheckEngine();
     PDeviceStorageRequest(DeviceStorageParams params);
 
     PFileSystemRequest(FileSystemParams params);

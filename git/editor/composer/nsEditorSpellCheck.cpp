@@ -42,7 +42,6 @@
 #include "nsString.h"                   // for nsAutoString, nsString, etc
 #include "nsStringFwd.h"                // for nsAFlatString
 #include "nsStyleUtil.h"                // for nsStyleUtil
-#include "nsXULAppAPI.h"                // for XRE_GetProcessType
 
 using namespace mozilla;
 
@@ -706,16 +705,8 @@ nsEditorSpellCheck::UpdateCurrentDictionary(nsIEditorSpellCheckCallback* aCallba
   NS_ENSURE_STATE(doc);
   doc->GetContentLanguage(fetcher->mRootDocContentLang);
 
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    // Content prefs don't work in E10S (Bug 1027898) pretend that we
-    // didn't have any & trigger the asynchrous completion.
-    nsCOMPtr<nsIRunnable> runnable =
-      NS_NewRunnableMethodWithArg<uint16_t>(fetcher, &DictionaryFetcher::HandleCompletion, 0);
-    NS_DispatchToMainThread(runnable);
-  } else {
-    rv = fetcher->Fetch(mEditor);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
+  rv = fetcher->Fetch(mEditor);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
 }

@@ -26,7 +26,6 @@ struct ResourceMapping;
 struct OverrideMapping;
 
 namespace mozilla {
-class RemoteSpellcheckEngineChild;
 
 namespace ipc {
 class OptionalURIParams;
@@ -244,8 +243,6 @@ public:
 
     virtual mozilla::jsipc::PJavaScriptChild* AllocPJavaScriptChild() MOZ_OVERRIDE;
     virtual bool DeallocPJavaScriptChild(mozilla::jsipc::PJavaScriptChild*) MOZ_OVERRIDE;
-    virtual PRemoteSpellcheckEngineChild* AllocPRemoteSpellcheckEngineChild() MOZ_OVERRIDE;
-    virtual bool DeallocPRemoteSpellcheckEngineChild(PRemoteSpellcheckEngineChild*) MOZ_OVERRIDE;
 
     virtual bool RecvSetOffline(const bool& offline) MOZ_OVERRIDE;
 

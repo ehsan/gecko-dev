@@ -1310,12 +1310,6 @@ public class BrowserApp extends GeckoApp
             GeckoPreferences.setResourceToOpen(settingsIntent, resource);
             startActivityForResult(settingsIntent, ACTIVITY_REQUEST_PREFERENCES);
 
-            // Don't use a transition to settings if we're on a device where that
-            // would look bad.
-            if (HardwareUtils.IS_KINDLE_DEVICE) {
-                overridePendingTransition(0, 0);
-            }
-
         } else if ("Telemetry:Gather".equals(event)) {
             Telemetry.HistogramAdd("PLACES_PAGES_COUNT",
                     BrowserDB.getCount(getContentResolver(), "history"));
@@ -1610,9 +1604,6 @@ public class BrowserApp extends GeckoApp
         int flags = Tabs.LOADURL_NONE;
         if (newTab) {
             flags |= Tabs.LOADURL_NEW_TAB;
-            if (Tabs.getInstance().getSelectedTab().isPrivate()) {
-                flags |= Tabs.LOADURL_PRIVATE;
-            }
         }
 
         Tabs.getInstance().loadUrl(url, searchEngine, -1, flags);

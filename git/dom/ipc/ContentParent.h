@@ -36,7 +36,6 @@ class nsIMemoryReporter;
 class ParentIdleListener;
 
 namespace mozilla {
-class PRemoteSpellcheckEngineParent;
 
 namespace ipc {
 class OptionalURIParams;
@@ -253,7 +252,6 @@ public:
     RecvPJavaScriptConstructor(PJavaScriptParent* aActor) MOZ_OVERRIDE {
         return PContentParent::RecvPJavaScriptConstructor(aActor);
     }
-    virtual PRemoteSpellcheckEngineParent* AllocPRemoteSpellcheckEngineParent() MOZ_OVERRIDE;
 
     virtual bool RecvRecordingDeviceEvents(const nsString& aRecordingStatus,
                                            const nsString& aPageURL,
@@ -397,7 +395,6 @@ private:
 
     virtual bool DeallocPJavaScriptParent(mozilla::jsipc::PJavaScriptParent*) MOZ_OVERRIDE;
 
-    virtual bool DeallocPRemoteSpellcheckEngineParent(PRemoteSpellcheckEngineParent*) MOZ_OVERRIDE;
     virtual PBrowserParent* AllocPBrowserParent(const IPCTabContext& aContext,
                                                 const uint32_t& aChromeFlags,
                                                 const uint64_t& aId,
