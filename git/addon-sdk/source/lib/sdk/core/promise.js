@@ -22,8 +22,6 @@
       return imports;
     }, this[factory.name], { uri: __URI__, id: id });
     this.EXPORTED_SYMBOLS = [factory.name];
-  } else if (~String(this).indexOf('Sandbox')) { // Sandbox
-    factory(function require(uri) {}, this, { id: id });
   } else {  // Browser or alike
     var globals = this;
     factory(function require(id) {

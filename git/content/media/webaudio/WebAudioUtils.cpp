@@ -19,9 +19,15 @@ struct ConvertTimeToTickHelper
   static int64_t Convert(double aTime, void* aClosure)
   {
     ConvertTimeToTickHelper* This = static_cast<ConvertTimeToTickHelper*> (aClosure);
-    MOZ_ASSERT(This->mSourceStream->SampleRate() == This->mDestinationStream->SampleRate());
-    return WebAudioUtils::ConvertDestinationStreamTimeToSourceStreamTime(
-        aTime, This->mSourceStream, This->mDestinationStream);
+    if (This->mSourceStream) {
+      MOZ_ASSERT(This->mSourceStream->SampleRate() == This->mDestinationStream->SampleRate());
+      return WebAudioUtils::ConvertDestinationStreamTimeToSourceStreamTime(
+          aTime, This->mSourceStream, This->mDestinationStream);
+    } else {
+      StreamTime streamTime = This->mDestinationStream->GetCurrentPosition();
+      TrackRate sampleRate = This->mDestinationStream->SampleRate();
+      return TimeToTicksRoundUp(sampleRate, streamTime + SecondsToMediaTime(aTime));
+    }
   }
 };
 

@@ -47,22 +47,21 @@ JSObject *
 Wrapper::Renew(JSContext *cx, JSObject *existing, JSObject *obj, Wrapper *handler)
 {
     JS_ASSERT(!obj->isCallable());
-    existing->as<ProxyObject>().renew(cx, handler, ObjectValue(*obj));
-    return existing;
+    return RenewProxyObject(cx, existing, handler, ObjectValue(*obj));
 }
 
 Wrapper *
 Wrapper::wrapperHandler(JSObject *wrapper)
 {
     JS_ASSERT(wrapper->isWrapper());
-    return static_cast<Wrapper*>(wrapper->as<ProxyObject>().handler());
+    return static_cast<Wrapper*>(GetProxyHandler(wrapper));
 }
 
 JSObject *
 Wrapper::wrappedObject(JSObject *wrapper)
 {
     JS_ASSERT(wrapper->isWrapper());
-    return wrapper->as<ProxyObject>().target();
+    return GetProxyTargetObject(wrapper);
 }
 
 JS_FRIEND_API(JSObject *)
@@ -72,7 +71,7 @@ js::UncheckedUnwrap(JSObject *wrapped, bool stopAtOuter, unsigned *flagsp)
     while (wrapped->isWrapper() &&
            !JS_UNLIKELY(stopAtOuter && wrapped->getClass()->ext.innerObject)) {
         flags |= Wrapper::wrapperHandler(wrapped)->flags();
-        wrapped = wrapped->as<ProxyObject>().private_().toObjectOrNull();
+        wrapped = GetProxyPrivate(wrapped).toObjectOrNull();
     }
     if (flagsp)
         *flagsp = flags;
@@ -837,8 +836,20 @@ js::NewDeadProxyObject(JSContext *cx, JSObject *parent)
 bool
 js::IsDeadProxyObject(JSObject *obj)
 {
-    return obj->is<ProxyObject>() &&
-           obj->as<ProxyObject>().handler() == &DeadObjectProxy::singleton;
+    return IsProxy(obj) && GetProxyHandler(obj) == &DeadObjectProxy::singleton;
+}
+
+static void
+NukeSlot(JSObject *wrapper, uint32_t slot, Value v)
+{
+    Value old = wrapper->getSlot(slot);
+    if (old.isMarkable()) {
+        Zone *zone = ZoneOfValue(old);
+        AutoMarkInDeadZone amd(zone);
+        wrapper->setReservedSlot(slot, v);
+    } else {
+        wrapper->setReservedSlot(slot, v);
+    }
 }
 
 void
@@ -848,7 +859,16 @@ js::NukeCrossCompartmentWrapper(JSContext *cx, JSObject *wrapper)
 
     NotifyGCNukeWrapper(wrapper);
 
-    wrapper->as<ProxyObject>().nuke(&DeadObjectProxy::singleton);
+    NukeSlot(wrapper, JSSLOT_PROXY_PRIVATE, NullValue());
+    SetProxyHandler(wrapper, &DeadObjectProxy::singleton);
+
+    if (IsFunctionProxy(wrapper)) {
+        NukeSlot(wrapper, JSSLOT_PROXY_CALL, NullValue());
+        NukeSlot(wrapper, JSSLOT_PROXY_CONSTRUCT, NullValue());
+    }
+
+    NukeSlot(wrapper, JSSLOT_PROXY_EXTRA + 0, NullValue());
+    NukeSlot(wrapper, JSSLOT_PROXY_EXTRA + 1, NullValue());
 
     JS_ASSERT(IsDeadProxyObject(wrapper));
 }

@@ -171,7 +171,7 @@ class CodeGeneratorARM : public CodeGeneratorShared
 }
  
     bool visitEffectiveAddress(LEffectiveAddress *ins);
-    bool visitUDivOrMod(LUDivOrMod *ins);
+    bool visitAsmJSDivOrMod(LAsmJSDivOrMod *ins);
 };
 
 typedef CodeGeneratorARM CodeGeneratorSpecific;

@@ -25,6 +25,7 @@
 #include "vm/RegExpObject.h"
 
 #include "jsobjinlines.h"
+#include "jsstrinlines.h"
 
 using namespace js;
 using namespace js::frontend;
@@ -313,7 +314,7 @@ class NodeBuilder
     }
 
     bool newObject(MutableHandleObject dst) {
-        RootedObject nobj(cx, NewBuiltinClassInstance(cx, &JSObject::class_));
+        RootedObject nobj(cx, NewBuiltinClassInstance(cx, &ObjectClass));
         if (!nobj)
             return false;
 
@@ -620,7 +621,7 @@ NodeBuilder::newNode(ASTType type, TokenPos *pos, MutableHandleObject dst)
     JS_ASSERT(type > AST_ERROR && type < AST_LIMIT);
 
     RootedValue tv(cx);
-    RootedObject node(cx, NewBuiltinClassInstance(cx, &JSObject::class_));
+    RootedObject node(cx, NewBuiltinClassInstance(cx, &ObjectClass));
     if (!node ||
         !setNodeLoc(node, pos) ||
         !atomValue(nodeTypeNames[type], &tv) ||
@@ -3080,7 +3081,7 @@ JS_PUBLIC_API(JSObject *)
 JS_InitReflect(JSContext *cx, JSObject *objArg)
 {
     RootedObject obj(cx, objArg);
-    RootedObject Reflect(cx, NewObjectWithClassProto(cx, &JSObject::class_, NULL, obj, SingletonObject));
+    RootedObject Reflect(cx, NewObjectWithClassProto(cx, &ObjectClass, NULL, obj, SingletonObject));
     if (!Reflect)
         return NULL;
 

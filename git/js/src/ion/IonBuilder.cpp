@@ -19,6 +19,7 @@
 #include "ion/Lowering.h"
 #include "ion/MIRGraph.h"
 
+#include "jsanalyzeinlines.h"
 #include "jsscriptinlines.h"
 
 #include "ion/CompileInfo-inl.h"
@@ -3613,10 +3614,6 @@ IonBuilder::makeInliningDecision(JSFunction *target, CallInfo &callInfo)
     // Heuristics!
     JSScript *targetScript = target->nonLazyScript();
 
-    // Skip heuristics if we have an explicit hint to inline.
-    if (targetScript->shouldInline)
-        return true;
-
     // Cap the inlining depth.
     if (IsSmallFunction(targetScript)) {
         if (inliningDepth_ >= js_IonOptions.smallFunctionMaxInlineDepth) {
@@ -4450,7 +4447,7 @@ IonBuilder::createThisScriptedSingleton(HandleFunction target, MDefinition *call
 
     // Generate an inline path to create a new |this| object with
     // the given singleton prototype.
-    types::TypeObject *type = cx->getNewType(&JSObject::class_, proto.get(), target);
+    types::TypeObject *type = cx->getNewType(&ObjectClass, proto.get(), target);
     if (!type)
         return NULL;
     if (!types::TypeScript::ThisTypes(target->nonLazyScript())->hasType(types::Type::ObjectType(type)))
@@ -5242,7 +5239,7 @@ IonBuilder::jsop_newobject(HandleObject baseObj)
         templateObject = CopyInitializerObject(cx, baseObj, newKind);
     } else {
         gc::AllocKind allocKind = GuessObjectGCKind(0);
-        templateObject = NewBuiltinClassInstance(cx, &JSObject::class_, allocKind, newKind);
+        templateObject = NewBuiltinClassInstance(cx, &ObjectClass, allocKind, newKind);
     }
 
     if (!templateObject)
@@ -6486,19 +6483,6 @@ MDefinition *
 IonBuilder::convertShiftToMaskForStaticTypedArray(MDefinition *id,
                                                   ArrayBufferView::ViewType viewType)
 {
-    // No shifting is necessary if the typed array has single byte elements.
-    if (TypedArrayShift(viewType) == 0)
-        return id;
-
-    // If the index is an already shifted constant, undo the shift to get the
-    // absolute offset being accessed.
-    if (id->isConstant() && id->toConstant()->value().isInt32()) {
-        int32_t index = id->toConstant()->value().toInt32();
-        MConstant *offset = MConstant::New(Int32Value(index << TypedArrayShift(viewType)));
-        current->add(offset);
-        return offset;
-    }
-
     if (!id->isRsh() || id->isEffectful())
         return NULL;
     if (!id->getOperand(1)->isConstant())
@@ -6541,10 +6525,6 @@ IonBuilder::jsop_getelem_typed_static(bool *psucceeded)
     TypedArrayObject *tarr = &tarrObj->as<TypedArrayObject>();
 
     ArrayBufferView::ViewType viewType = JS_GetArrayBufferViewType(tarr);
-
-    // LoadTypedArrayElementStatic currently treats uint32 arrays as int32.
-    if (viewType == ArrayBufferView::TYPE_UINT32)
-        return true;
 
     MDefinition *ptr = convertShiftToMaskForStaticTypedArray(id, viewType);
     if (!ptr)

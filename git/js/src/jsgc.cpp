@@ -65,7 +65,6 @@ using mozilla::Swap;
 #include "gc/Marking.h"
 #include "gc/Memory.h"
 #include "vm/Debugger.h"
-#include "vm/ProxyObject.h"
 #include "vm/Shape.h"
 #include "vm/String.h"
 #include "vm/ForkJoin.h"
@@ -3366,19 +3365,20 @@ IsGrayListObject(JSObject *obj)
     return IsCrossCompartmentWrapper(obj) && !IsDeadProxyObject(obj);
 }
 
-/* static */ unsigned
-ProxyObject::grayLinkSlot(JSObject *obj)
+const unsigned JSSLOT_GC_GRAY_LINK = JSSLOT_PROXY_EXTRA + 1;
+
+static unsigned
+GrayLinkSlot(JSObject *obj)
 {
     JS_ASSERT(IsGrayListObject(obj));
-    return ProxyObject::EXTRA_SLOT + 1;
+    return JSSLOT_GC_GRAY_LINK;
 }
 
 #ifdef DEBUG
 static void
 AssertNotOnGrayList(JSObject *obj)
 {
-    JS_ASSERT_IF(IsGrayListObject(obj),
-                 obj->getReservedSlot(ProxyObject::grayLinkSlot(obj)).isUndefined());
+    JS_ASSERT_IF(IsGrayListObject(obj), obj->getReservedSlot(GrayLinkSlot(obj)).isUndefined());
 }
 #endif
 
@@ -3386,13 +3386,13 @@ static JSObject *
 CrossCompartmentPointerReferent(JSObject *obj)
 {
     JS_ASSERT(IsGrayListObject(obj));
-    return &obj->as<ProxyObject>().private_().toObject();
+    return &GetProxyPrivate(obj).toObject();
 }
 
 static JSObject *
 NextIncomingCrossCompartmentPointer(JSObject *prev, bool unlink)
 {
-    unsigned slot = ProxyObject::grayLinkSlot(prev);
+    unsigned slot = GrayLinkSlot(prev);
     JSObject *next = prev->getReservedSlot(slot).toObjectOrNull();
     JS_ASSERT_IF(next, IsGrayListObject(next));
 
@@ -3408,7 +3408,7 @@ js::DelayCrossCompartmentGrayMarking(JSObject *src)
     JS_ASSERT(IsGrayListObject(src));
 
     /* Called from MarkCrossCompartmentXXX functions. */
-    unsigned slot = ProxyObject::grayLinkSlot(src);
+    unsigned slot = GrayLinkSlot(src);
     JSObject *dest = CrossCompartmentPointerReferent(src);
     JSCompartment *comp = dest->compartment();
 
@@ -3486,7 +3486,7 @@ RemoveFromGrayList(JSObject *wrapper)
     if (!IsGrayListObject(wrapper))
         return false;
 
-    unsigned slot = ProxyObject::grayLinkSlot(wrapper);
+    unsigned slot = GrayLinkSlot(wrapper);
     if (wrapper->getReservedSlot(slot).isUndefined())
         return false;  /* Not on our list. */
 
@@ -3501,7 +3501,7 @@ RemoveFromGrayList(JSObject *wrapper)
     }
 
     while (obj) {
-        unsigned slot = ProxyObject::grayLinkSlot(obj);
+        unsigned slot = GrayLinkSlot(obj);
         JSObject *next = obj->getReservedSlot(slot).toObjectOrNull();
         if (next == wrapper) {
             obj->setCrossCompartmentSlot(slot, ObjectOrNullValue(tail));

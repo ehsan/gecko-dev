@@ -12,9 +12,7 @@
 #include "gc/Marking.h"
 
 #include "jsgcinlines.h"
-
-#include "gc/Barrier-inl.h"
-#include "vm/ObjectImpl-inl.h"
+#include "jsobjinlines.h"
 
 using namespace js;
 using namespace js::gc;

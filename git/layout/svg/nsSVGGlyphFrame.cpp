@@ -307,7 +307,7 @@ nsSVGGlyphFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   nsSVGGlyphFrameBase::DidSetStyleContext(aOldStyleContext);
 
   if (!(GetStateBits() & NS_FRAME_FIRST_REFLOW) ||
-      (GetStateBits() & NS_FRAME_IS_NONDISPLAY)) {
+      (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     ClearTextRun();
     NotifyGlyphMetricsChange();
   }
@@ -499,7 +499,7 @@ nsSVGGlyphFrame::ReflowSVG()
   NS_ASSERTION(nsSVGUtils::OuterSVGIsCallingReflowSVG(this),
                "This call is probably a wasteful mistake");
 
-  NS_ABORT_IF_FALSE(!(GetStateBits() & NS_FRAME_IS_NONDISPLAY),
+  NS_ABORT_IF_FALSE(!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
                     "ReflowSVG mechanism not designed for this");
 
   mRect.SetEmpty();
@@ -677,7 +677,7 @@ nsSVGGlyphFrame::GetCanvasTM(uint32_t aFor)
   if (mOverrideCanvasTM) {
     return *mOverrideCanvasTM;
   }
-  if (!(GetStateBits() & NS_FRAME_IS_NONDISPLAY)) {
+  if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     if ((aFor == FOR_PAINTING && NS_SVGDisplayListPaintingEnabled()) ||
         (aFor == FOR_HIT_TESTING && NS_SVGDisplayListHitTestingEnabled())) {
       return nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(this);
@@ -1679,7 +1679,7 @@ nsSVGGlyphFrame::EnsureTextRun(float *aDrawScale, float *aMetricsScale,
 
     gfxMatrix m;
     if (aForceGlobalTransform ||
-        !(GetStateBits() & NS_FRAME_IS_NONDISPLAY)) {
+        !(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
       m = GetCanvasTM(mGetCanvasTMForFlag);
       if (m.IsSingular())
         return false;

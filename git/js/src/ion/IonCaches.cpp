@@ -424,10 +424,10 @@ IonCache::initializeAddCacheState(LInstruction *ins, AddCacheState *addState)
 static bool
 IsCacheableDOMProxy(JSObject *obj)
 {
-    if (!obj->is<ProxyObject>())
+    if (!obj->isProxy())
         return false;
 
-    BaseProxyHandler *handler = obj->as<ProxyObject>().handler();
+    BaseProxyHandler *handler = GetProxyHandler(obj);
 
     if (handler->family() != GetDOMProxyHandlerFamily())
         return false;
@@ -637,12 +637,11 @@ GenerateDOMProxyChecks(JSContext *cx, MacroAssembler &masm, JSObject *obj,
     //      1. The object is a DOMProxy.
     //      2. The object does not have expando properties, or has an expando
     //          which is known to not have the desired property.
-    Address handlerAddr(object, ProxyObject::offsetOfHandler());
+    Address handlerAddr(object, JSObject::getFixedSlotOffset(JSSLOT_PROXY_HANDLER));
     Address expandoSlotAddr(object, JSObject::getFixedSlotOffset(GetDOMProxyExpandoSlot()));
 
     // Check that object is a DOMProxy.
-    masm.branchPrivatePtr(Assembler::NotEqual, handlerAddr,
-                          ImmWord(obj->as<ProxyObject>().handler()), stubFailure);
+    masm.branchPrivatePtr(Assembler::NotEqual, handlerAddr, ImmWord(GetProxyHandler(obj)), stubFailure);
 
     if (skipExpandoCheck)
         return;
@@ -1349,7 +1348,7 @@ DetermineGetPropKind(JSContext *cx, IonCache &cache, JSObject *receiver,
     {
         // With Proxies, we cannot garantee any property access as the proxy can
         // mask any property from the prototype chain.
-        JS_ASSERT(!checkObj->is<ProxyObject>());
+        JS_ASSERT(!checkObj->isProxy());
         *readSlot = true;
     } else if (IsCacheableGetPropCallNative(checkObj, holder, shape) ||
                IsCacheableGetPropCallPropertyOp(checkObj, holder, shape))

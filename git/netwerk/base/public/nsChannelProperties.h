@@ -6,7 +6,7 @@
 #define nsChannelProperties_h__
 
 #include "nsStringGlue.h"
-#ifdef IMPL_LIBXUL
+#ifdef IMPL_NS_NET
 #include "nsNetStrings.h"
 #endif
 
@@ -25,7 +25,7 @@
  */
 #define NS_CHANNEL_PROP_CHANNEL_POLICY_STR "channel-policy"
 
-#ifdef IMPL_LIBXUL
+#ifdef IMPL_NS_NET
 #define NS_CHANNEL_PROP_CHANNEL_POLICY gNetStrings->kChannelPolicy
 #else
 #define NS_CHANNEL_PROP_CHANNEL_POLICY \

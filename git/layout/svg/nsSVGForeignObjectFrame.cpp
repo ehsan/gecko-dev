@@ -61,10 +61,11 @@ nsSVGForeignObjectFrame::Init(nsIContent* aContent,
                "Content is not an SVG foreignObject!");
 
   nsSVGForeignObjectFrameBase::Init(aContent, aParent, aPrevInFlow);
-  AddStateBits(aParent->GetStateBits() & NS_STATE_SVG_CLIPPATH_CHILD);
+  AddStateBits(aParent->GetStateBits() &
+               (NS_STATE_SVG_NONDISPLAY_CHILD | NS_STATE_SVG_CLIPPATH_CHILD));
   AddStateBits(NS_FRAME_FONT_INFLATION_CONTAINER |
                NS_FRAME_FONT_INFLATION_FLOW_ROOT);
-  if (!(mState & NS_FRAME_IS_NONDISPLAY)) {
+  if (!(mState & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     nsSVGUtils::GetOuterSVGFrame(this)->RegisterForeignObject(this);
   }
 }
@@ -72,7 +73,7 @@ nsSVGForeignObjectFrame::Init(nsIContent* aContent,
 void nsSVGForeignObjectFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   // Only unregister if we registered in the first place:
-  if (!(mState & NS_FRAME_IS_NONDISPLAY)) {
+  if (!(mState & NS_STATE_SVG_NONDISPLAY_CHILD)) {
       nsSVGUtils::GetOuterSVGFrame(this)->UnregisterForeignObject(this);
   }
   nsSVGForeignObjectFrameBase::DestroyFrom(aDestructRoot);
@@ -123,7 +124,7 @@ nsSVGForeignObjectFrame::Reflow(nsPresContext*           aPresContext,
                                 const nsHTMLReflowState& aReflowState,
                                 nsReflowStatus&          aStatus)
 {
-  NS_ABORT_IF_FALSE(!(GetStateBits() & NS_FRAME_IS_NONDISPLAY),
+  NS_ABORT_IF_FALSE(!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
                     "Should not have been called");
 
   // Only InvalidateAndScheduleBoundsUpdate marks us with NS_FRAME_IS_DIRTY,
@@ -197,7 +198,7 @@ nsSVGForeignObjectFrame::PaintSVG(nsRenderingContext *aContext,
                                   const nsIntRect *aDirtyRect)
 {
   NS_ASSERTION(!NS_SVGDisplayListPaintingEnabled() ||
-               (mState & NS_FRAME_IS_NONDISPLAY),
+               (mState & NS_STATE_SVG_NONDISPLAY_CHILD),
                "If display lists are enabled, only painting of non-display "
                "SVG should take this code path");
 
@@ -220,7 +221,7 @@ nsSVGForeignObjectFrame::PaintSVG(nsRenderingContext *aContext,
   /* Check if we need to draw anything. */
   if (aDirtyRect) {
     NS_ASSERTION(!NS_SVGDisplayListPaintingEnabled() ||
-                 (mState & NS_FRAME_IS_NONDISPLAY),
+                 (mState & NS_STATE_SVG_NONDISPLAY_CHILD),
                  "Display lists handle dirty rect intersection test");
     // Transform the dirty rect into app units in our userspace.
     gfxMatrix invmatrix = canvasTM;
@@ -284,11 +285,11 @@ NS_IMETHODIMP_(nsIFrame*)
 nsSVGForeignObjectFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
   NS_ASSERTION(!NS_SVGDisplayListHitTestingEnabled() ||
-               (mState & NS_FRAME_IS_NONDISPLAY),
+               (mState & NS_STATE_SVG_NONDISPLAY_CHILD),
                "If display lists are enabled, only hit-testing of a "
                "clipPath's contents should take this code path");
 
-  if (IsDisabled() || (GetStateBits() & NS_FRAME_IS_NONDISPLAY))
+  if (IsDisabled() || (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD))
     return nullptr;
 
   nsIFrame* kid = GetFirstPrincipalChild();
@@ -343,7 +344,7 @@ nsSVGForeignObjectFrame::ReflowSVG()
   NS_ASSERTION(nsSVGUtils::OuterSVGIsCallingReflowSVG(this),
                "This call is probably a wasteful mistake");
 
-  NS_ABORT_IF_FALSE(!(GetStateBits() & NS_FRAME_IS_NONDISPLAY),
+  NS_ABORT_IF_FALSE(!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
                     "ReflowSVG mechanism not designed for this");
 
   if (!nsSVGUtils::NeedsReflowSVG(this)) {
@@ -488,7 +489,7 @@ nsSVGForeignObjectFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
 gfxMatrix
 nsSVGForeignObjectFrame::GetCanvasTM(uint32_t aFor)
 {
-  if (!(GetStateBits() & NS_FRAME_IS_NONDISPLAY)) {
+  if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     if ((aFor == FOR_PAINTING && NS_SVGDisplayListPaintingEnabled()) ||
         (aFor == FOR_HIT_TESTING && NS_SVGDisplayListHitTestingEnabled())) {
       return nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(this);

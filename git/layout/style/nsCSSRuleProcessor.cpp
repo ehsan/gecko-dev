@@ -2312,7 +2312,9 @@ static bool SelectorMatchesTree(Element* aPrevElement,
         // <xbl:children> element wasn't in the tree to allow old selectors
         // were written before <xbl:children> participated in CSS selector
         // matching to work.
-        if (selector->mOperator == '>' && element->IsActiveChildrenElement()) {
+        if (selector->mOperator == '>' &&
+            element->NodeInfo()->Equals(nsGkAtoms::children,
+                                        kNameSpaceID_XBL)) {
           Element* styleScope = aTreeMatchContext.mCurrentStyleScope;
           if (SelectorMatchesTree(element, selector, aTreeMatchContext,
                                   aLookForRelevantLink)) {

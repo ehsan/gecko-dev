@@ -26,7 +26,7 @@
 #endif
 
 // For placement new used for arena allocations of zip file list
-#include <new>
+#include NEW_H
 #define ZIP_ARENABLOCKSIZE (1*1024)
 
 #ifdef XP_UNIX

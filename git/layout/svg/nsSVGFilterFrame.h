@@ -41,7 +41,7 @@ protected:
       mLoopFlag(false),
       mNoHRefURI(false)
   {
-    AddStateBits(NS_FRAME_IS_NONDISPLAY);
+    AddStateBits(NS_STATE_SVG_NONDISPLAY_CHILD);
   }
 
 public:

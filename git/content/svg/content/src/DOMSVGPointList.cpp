@@ -229,18 +229,7 @@ DOMSVGPointList::Initialize(nsISVGPoint& aNewItem, ErrorResult& aError)
   return InsertItemBefore(*domItem, 0, aError);
 }
 
-already_AddRefed<nsISVGPoint>
-DOMSVGPointList::GetItem(uint32_t index, ErrorResult& error)
-{
-  bool found;
-  nsRefPtr<nsISVGPoint> item = IndexedGetter(index, found, error);
-  if (!found) {
-    error.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
-  }
-  return item.forget();
-}
-
-already_AddRefed<nsISVGPoint>
+nsISVGPoint*
 DOMSVGPointList::IndexedGetter(uint32_t aIndex, bool& aFound,
                                ErrorResult& aError)
 {
@@ -249,7 +238,8 @@ DOMSVGPointList::IndexedGetter(uint32_t aIndex, bool& aFound,
   }
   aFound = aIndex < LengthNoFlush();
   if (aFound) {
-    return GetItemAt(aIndex);
+    EnsureItemAt(aIndex);
+    return mItems[aIndex];
   }
   return nullptr;
 }
@@ -361,12 +351,13 @@ DOMSVGPointList::RemoveItem(uint32_t aIndex, ErrorResult& aError)
   // internal value.
   MaybeRemoveItemFromAnimValListAt(aIndex);
 
-  // We have to return the removed item, so get it, creating it if necessary:
-  nsRefPtr<nsISVGPoint> result = GetItemAt(aIndex);
+  // We have to return the removed item, so make sure it exists:
+  EnsureItemAt(aIndex);
 
   // Notify the DOM item of removal *before* modifying the lists so that the
   // DOM item can copy its *old* value:
   mItems[aIndex]->RemovingFromList();
+  nsCOMPtr<nsISVGPoint> result = mItems[aIndex];
 
   InternalList().RemoveItem(aIndex);
   mItems.RemoveElementAt(aIndex);
@@ -380,16 +371,12 @@ DOMSVGPointList::RemoveItem(uint32_t aIndex, ErrorResult& aError)
   return result.forget();
 }
 
-already_AddRefed<nsISVGPoint>
-DOMSVGPointList::GetItemAt(uint32_t aIndex)
+void
+DOMSVGPointList::EnsureItemAt(uint32_t aIndex)
 {
-  MOZ_ASSERT(aIndex < mItems.Length());
-
   if (!mItems[aIndex]) {
     mItems[aIndex] = new DOMSVGPoint(this, aIndex, IsAnimValList());
   }
-  nsRefPtr<nsISVGPoint> result = mItems[aIndex];
-  return result.forget();
 }
 
 void

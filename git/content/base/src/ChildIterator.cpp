@@ -16,7 +16,7 @@ ExplicitChildIterator::GetNextChild()
   // If we're already in the inserted-children array, look there first
   if (mIndexInInserted) {
     MOZ_ASSERT(mChild);
-    MOZ_ASSERT(mChild->IsActiveChildrenElement());
+    MOZ_ASSERT(mChild->NodeInfo()->Equals(nsGkAtoms::children, kNameSpaceID_XBL));
     MOZ_ASSERT(!mDefaultChild);
 
     XBLChildrenElement* point = static_cast<XBLChildrenElement*>(mChild);
@@ -28,7 +28,7 @@ ExplicitChildIterator::GetNextChild()
   } else if (mDefaultChild) {
     // If we're already in default content, check if there are more nodes there
     MOZ_ASSERT(mChild);
-    MOZ_ASSERT(mChild->IsActiveChildrenElement());
+    MOZ_ASSERT(mChild->NodeInfo()->Equals(nsGkAtoms::children, kNameSpaceID_XBL));
 
     mDefaultChild = mDefaultChild->GetNextSibling();
     if (mDefaultChild) {
@@ -44,7 +44,8 @@ ExplicitChildIterator::GetNextChild()
   }
 
   // Iterate until we find a non-<children>, or a <children> with content.
-  while (mChild && mChild->IsActiveChildrenElement()) {
+  while (mChild &&
+         mChild->NodeInfo()->Equals(nsGkAtoms::children, kNameSpaceID_XBL)) {
     XBLChildrenElement* point = static_cast<XBLChildrenElement*>(mChild);
     if (!point->mInsertedChildren.IsEmpty()) {
       mIndexInInserted = 1;
@@ -84,7 +85,6 @@ FlattenedChildIterator::FlattenedChildIterator(nsIContent* aParent)
          child;
          child = child->GetNextSibling()) {
       if (child->NodeInfo()->Equals(nsGkAtoms::children, kNameSpaceID_XBL)) {
-        MOZ_ASSERT(child->GetBindingParent());
         mXBLInvolved = true;
         break;
       }
@@ -131,7 +131,8 @@ nsIContent* FlattenedChildIterator::GetPreviousChild()
   }
 
   // Iterate until we find a non-<children>, or a <children> with content.
-  while (mChild && mChild->IsActiveChildrenElement()) {
+  while (mChild &&
+         mChild->NodeInfo()->Equals(nsGkAtoms::children, kNameSpaceID_XBL)) {
     XBLChildrenElement* point = static_cast<XBLChildrenElement*>(mChild);
     if (!point->mInsertedChildren.IsEmpty()) {
       mIndexInInserted = point->InsertedChildrenLength();

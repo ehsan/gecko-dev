@@ -259,17 +259,12 @@ class Proxy
 
 inline bool IsObjectProxyClass(const Class *clasp)
 {
-    return clasp == js::ObjectProxyClassPtr || clasp == js::OuterWindowProxyClassPtr;
+    return clasp == &js::ObjectProxyClass || clasp == &js::OuterWindowProxyClass;
 }
 
 inline bool IsFunctionProxyClass(const Class *clasp)
 {
-    return clasp == js::FunctionProxyClassPtr;
-}
-
-inline bool IsProxyClass(const Class *clasp)
-{
-    return IsObjectProxyClass(clasp) || IsFunctionProxyClass(clasp);
+    return clasp == &js::FunctionProxyClass;
 }
 
 inline bool IsObjectProxy(JSObject *obj)
@@ -284,33 +279,36 @@ inline bool IsFunctionProxy(JSObject *obj)
 
 inline bool IsProxy(JSObject *obj)
 {
-    return IsProxyClass(GetObjectClass(obj));
+    Class *clasp = GetObjectClass(obj);
+    return IsObjectProxyClass(clasp) || IsFunctionProxyClass(clasp);
 }
 
+/* Shared between object and function proxies. */
 /*
- * These are part of the API.
- *
- * NOTE: PROXY_PRIVATE_SLOT is 0 because that way slot 0 is usable by API
+ * NOTE: JSSLOT_PROXY_PRIVATE is 0, because that way slot 0 is usable by API
  * clients for both proxy and non-proxy objects.  So an API client that only
  * needs to store one slot's worth of data doesn't need to branch on what sort
  * of object it has.
  */
-const uint32_t PROXY_PRIVATE_SLOT = 0;
-const uint32_t PROXY_HANDLER_SLOT = 1;
-const uint32_t PROXY_EXTRA_SLOT   = 2;
+const uint32_t JSSLOT_PROXY_PRIVATE = 0;
+const uint32_t JSSLOT_PROXY_HANDLER = 1;
+const uint32_t JSSLOT_PROXY_EXTRA   = 2;
+/* Function proxies only. */
+const uint32_t JSSLOT_PROXY_CALL = 4;
+const uint32_t JSSLOT_PROXY_CONSTRUCT = 5;
 
 inline BaseProxyHandler *
 GetProxyHandler(JSObject *obj)
 {
     JS_ASSERT(IsProxy(obj));
-    return (BaseProxyHandler *) GetReservedSlot(obj, PROXY_HANDLER_SLOT).toPrivate();
+    return (BaseProxyHandler *) GetReservedSlot(obj, JSSLOT_PROXY_HANDLER).toPrivate();
 }
 
 inline const Value &
 GetProxyPrivate(JSObject *obj)
 {
     JS_ASSERT(IsProxy(obj));
-    return GetReservedSlot(obj, PROXY_PRIVATE_SLOT);
+    return GetReservedSlot(obj, JSSLOT_PROXY_PRIVATE);
 }
 
 inline JSObject *
@@ -324,14 +322,14 @@ inline const Value &
 GetProxyExtra(JSObject *obj, size_t n)
 {
     JS_ASSERT(IsProxy(obj));
-    return GetReservedSlot(obj, PROXY_EXTRA_SLOT + n);
+    return GetReservedSlot(obj, JSSLOT_PROXY_EXTRA + n);
 }
 
 inline void
 SetProxyHandler(JSObject *obj, BaseProxyHandler *handler)
 {
     JS_ASSERT(IsProxy(obj));
-    SetReservedSlot(obj, PROXY_HANDLER_SLOT, PrivateValue(handler));
+    SetReservedSlot(obj, JSSLOT_PROXY_HANDLER, PrivateValue(handler));
 }
 
 inline void
@@ -339,7 +337,7 @@ SetProxyExtra(JSObject *obj, size_t n, const Value &extra)
 {
     JS_ASSERT(IsProxy(obj));
     JS_ASSERT(n <= 1);
-    SetReservedSlot(obj, PROXY_EXTRA_SLOT + n, extra);
+    SetReservedSlot(obj, JSSLOT_PROXY_EXTRA + n, extra);
 }
 
 enum ProxyCallable {

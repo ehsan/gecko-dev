@@ -2445,7 +2445,6 @@ js::CloneScript(JSContext *cx, HandleObject enclosingScope, HandleFunction fun, 
     dst->isGeneratorExp = src->isGeneratorExp;
 
     /* Copy over hints. */
-    dst->shouldInline = src->shouldInline;
     dst->shouldCloneAtCallsite = src->shouldCloneAtCallsite;
     dst->isCallsiteClone = src->isCallsiteClone;
 

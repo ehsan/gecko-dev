@@ -97,12 +97,12 @@ class LModI : public LBinaryMath<1>
 
 // This class performs a simple x86 'div', yielding either a quotient or remainder depending on
 // whether this instruction is defined to output eax (quotient) or edx (remainder).
-class LUDivOrMod : public LBinaryMath<1>
+class LAsmJSDivOrMod : public LBinaryMath<1>
 {
   public:
-    LIR_HEADER(UDivOrMod);
+    LIR_HEADER(AsmJSDivOrMod);
 
-    LUDivOrMod(const LAllocation &lhs, const LAllocation &rhs, const LDefinition &temp) {
+    LAsmJSDivOrMod(const LAllocation &lhs, const LAllocation &rhs, const LDefinition &temp) {
         setOperand(0, lhs);
         setOperand(1, rhs);
         setTemp(0, temp);

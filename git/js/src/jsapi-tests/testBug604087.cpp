@@ -72,15 +72,15 @@ BEGIN_TEST(testBug604087)
 
     JS::RootedObject c2wrapper(cx, wrap(cx, outerObj, compartment2));
     CHECK(c2wrapper);
-    c2wrapper->as<js::ProxyObject>().setExtra(0, js::Int32Value(2));
+    js::SetProxyExtra(c2wrapper, 0, js::Int32Value(2));
 
     JS::RootedObject c3wrapper(cx, wrap(cx, outerObj, compartment3));
     CHECK(c3wrapper);
-    c3wrapper->as<js::ProxyObject>().setExtra(0, js::Int32Value(3));
+    js::SetProxyExtra(c3wrapper, 0, js::Int32Value(3));
 
     JS::RootedObject c4wrapper(cx, wrap(cx, outerObj, compartment4));
     CHECK(c4wrapper);
-    c4wrapper->as<js::ProxyObject>().setExtra(0, js::Int32Value(4));
+    js::SetProxyExtra(c4wrapper, 0, js::Int32Value(4));
     compartment4 = c4wrapper = NULL;
 
     JS::RootedObject next(cx);

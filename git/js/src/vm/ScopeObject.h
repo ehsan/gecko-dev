@@ -12,7 +12,6 @@
 #include "jsweakmap.h"
 
 #include "gc/Barrier.h"
-#include "vm/ProxyObject.h"
 
 namespace js {
 
@@ -588,7 +587,7 @@ extern JSObject *
 GetDebugScopeForFrame(JSContext *cx, AbstractFramePtr frame);
 
 /* Provides debugger access to a scope. */
-class DebugScopeObject : public ObjectProxyObject
+class DebugScopeObject : public JSObject
 {
     /*
      * The enclosing scope on the dynamic scope chain. This slot is analogous
@@ -700,11 +699,8 @@ template<>
 inline bool
 JSObject::is<js::DebugScopeObject>() const
 {
-    extern bool js_IsDebugScopeSlow(js::ObjectProxyObject *proxy);
-
-    // Note: don't use is<ObjectProxyObject>() here -- it also matches subclasses!
-    return hasClass(&js::ObjectProxyObject::class_) &&
-           js_IsDebugScopeSlow(&const_cast<JSObject*>(this)->as<js::ObjectProxyObject>());
+    extern bool js_IsDebugScopeSlow(JSObject *obj);
+    return getClass() == &js::ObjectProxyClass && js_IsDebugScopeSlow(const_cast<JSObject*>(this));
 }
 
 template<>

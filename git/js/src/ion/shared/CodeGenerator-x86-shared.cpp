@@ -625,7 +625,7 @@ CodeGeneratorX86Shared::visitMulI(LMulI *ins)
 }
 
 bool
-CodeGeneratorX86Shared::visitUDivOrMod(LUDivOrMod *ins)
+CodeGeneratorX86Shared::visitAsmJSDivOrMod(LAsmJSDivOrMod *ins)
 {
     JS_ASSERT(ToRegister(ins->lhs()) == eax);
     Register rhs = ToRegister(ins->rhs());

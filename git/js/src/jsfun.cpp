@@ -34,6 +34,7 @@
 #include "vm/Xdr.h"
 
 #include "jsfuninlines.h"
+#include "jsinferinlines.h"
 #include "jsscriptinlines.h"
 
 #include "vm/Interpreter-inl.h"
@@ -210,7 +211,7 @@ ResolveInterpretedFunctionPrototype(JSContext *cx, HandleObject obj)
     JSObject *objProto = obj->global().getOrCreateObjectPrototype(cx);
     if (!objProto)
         return NULL;
-    RootedObject proto(cx, NewObjectWithGivenProto(cx, &JSObject::class_, objProto, NULL, SingletonObject));
+    RootedObject proto(cx, NewObjectWithGivenProto(cx, &ObjectClass, objProto, NULL, SingletonObject));
     if (!proto)
         return NULL;
 
@@ -746,7 +747,7 @@ JSString *
 fun_toStringHelper(JSContext *cx, HandleObject obj, unsigned indent)
 {
     if (!obj->is<JSFunction>()) {
-        if (obj->is<FunctionProxyObject>())
+        if (IsFunctionProxy(obj))
             return Proxy::fun_toString(cx, obj, indent);
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                              JSMSG_INCOMPATIBLE_PROTO,

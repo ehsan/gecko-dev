@@ -9,6 +9,7 @@
 #include "ion/shared/BaselineCompiler-shared.h"
 
 #include "jsanalyze.h"
+#include "jsinferinlines.h"
 
 #include "vm/Shape-inl.h"
 

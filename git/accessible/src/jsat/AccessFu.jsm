@@ -785,8 +785,6 @@ var Input = {
       B: ['movePrevious', 'Button'],
       c: ['moveNext', 'Combobox'],
       C: ['movePrevious', 'Combobox'],
-      d: ['moveNext', 'Landmark'],
-      D: ['movePrevious', 'Landmark'],
       e: ['moveNext', 'Entry'],
       E: ['movePrevious', 'Entry'],
       f: ['moveNext', 'FormElement'],

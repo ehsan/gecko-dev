@@ -694,7 +694,7 @@ SVGSVGElement::ChildrenOnlyTransformChanged(uint32_t aFlags)
 {
   // Avoid wasteful calls:
   NS_ABORT_IF_FALSE(!(GetPrimaryFrame()->GetStateBits() &
-                      NS_FRAME_IS_NONDISPLAY),
+                      NS_STATE_SVG_NONDISPLAY_CHILD),
                     "Non-display SVG frames don't maintain overflow rects");
 
   nsChangeHint changeHint;

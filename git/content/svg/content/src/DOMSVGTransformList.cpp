@@ -173,18 +173,7 @@ DOMSVGTransformList::Initialize(SVGTransform& newItem, ErrorResult& error)
   return InsertItemBefore(*domItem, 0, error);
 }
 
-already_AddRefed<SVGTransform>
-DOMSVGTransformList::GetItem(uint32_t index, ErrorResult& error)
-{
-  bool found;
-  nsRefPtr<SVGTransform> item = IndexedGetter(index, found, error);
-  if (!found) {
-    error.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
-  }
-  return item.forget();
-}
-
-already_AddRefed<SVGTransform>
+SVGTransform*
 DOMSVGTransformList::IndexedGetter(uint32_t index, bool& found,
                                    ErrorResult& error)
 {
@@ -193,7 +182,8 @@ DOMSVGTransformList::IndexedGetter(uint32_t index, bool& found,
   }
   found = index < LengthNoFlush();
   if (found) {
-    return GetItemAt(index);
+    EnsureItemAt(index);
+    return mItems[index];
   }
   return nullptr;
 }
@@ -305,12 +295,13 @@ DOMSVGTransformList::RemoveItem(uint32_t index, ErrorResult& error)
   // internal value.
   MaybeRemoveItemFromAnimValListAt(index);
 
-  // We have to return the removed item, so get it, creating it if necessary:
-  nsRefPtr<SVGTransform> result = GetItemAt(index);
+  // We have to return the removed item, so make sure it exists:
+  EnsureItemAt(index);
 
   // Notify the DOM item of removal *before* modifying the lists so that the
   // DOM item can copy its *old* value:
-  result->RemovingFromList();
+  mItems[index]->RemovingFromList();
+  nsRefPtr<SVGTransform> result = mItems[index];
 
   InternalList().RemoveItem(index);
   mItems.RemoveElementAt(index);
@@ -363,16 +354,12 @@ DOMSVGTransformList::Consolidate(ErrorResult& error)
 //----------------------------------------------------------------------
 // Implementation helpers:
 
-already_AddRefed<SVGTransform>
-DOMSVGTransformList::GetItemAt(uint32_t aIndex)
+void
+DOMSVGTransformList::EnsureItemAt(uint32_t aIndex)
 {
-  MOZ_ASSERT(aIndex < mItems.Length());
-
   if (!mItems[aIndex]) {
     mItems[aIndex] = new SVGTransform(this, aIndex, IsAnimValList());
   }
-  nsRefPtr<SVGTransform> result = mItems[aIndex];
-  return result.forget();
 }
 
 void

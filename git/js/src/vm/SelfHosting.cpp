@@ -283,8 +283,6 @@ intrinsic_DecompileArg(JSContext *cx, unsigned argc, Value *vp)
  * - |cloneAtCallsite: true| will hint that |fun| should be cloned
  *   each callsite to improve TI resolution.  This is important for
  *   higher-order functions like |Array.map|.
- * - |inline: true| will hint that |fun| be inlined regardless of
- *   JIT heuristics.
  */
 static JSBool
 intrinsic_SetScriptHints(JSContext *cx, unsigned argc, Value *vp)
@@ -306,12 +304,6 @@ intrinsic_SetScriptHints(JSContext *cx, unsigned argc, Value *vp)
         return false;
     if (ToBoolean(propv))
         funScript->shouldCloneAtCallsite = true;
-
-    id = AtomToId(Atomize(cx, "inline", strlen("inline")));
-    if (!JSObject::getGeneric(cx, flags, flags, id, &propv))
-        return false;
-    if (ToBoolean(propv))
-        funScript->shouldInline = true;
 
     args.rval().setUndefined();
     return true;

@@ -52,8 +52,6 @@ class LIRGeneratorARM : public LIRGeneratorShared
     bool lowerDivI(MDiv *div);
     bool lowerModI(MMod *mod);
     bool lowerMulI(MMul *mul, MDefinition *lhs, MDefinition *rhs);
-    bool lowerUDiv(MInstruction *div);
-    bool lowerUMod(MInstruction *mod);
     bool visitPowHalf(MPowHalf *ins);
     bool visitAsmJSNeg(MAsmJSNeg *ins);
     bool visitAsmJSUDiv(MAsmJSUDiv *ins);

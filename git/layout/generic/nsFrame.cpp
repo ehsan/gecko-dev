@@ -83,7 +83,6 @@
 #include "nsDeckFrame.h"
 #include "nsTableFrame.h"
 #include "nsSubDocumentFrame.h"
-#include "nsSVGTextFrame2.h"
 
 #include "gfxContext.h"
 #include "nsRenderingContext.h"
@@ -518,8 +517,7 @@ nsFrame::Init(nsIContent*      aContent,
     mState |= state & (NS_FRAME_INDEPENDENT_SELECTION |
                        NS_FRAME_GENERATED_CONTENT |
                        NS_FRAME_IS_SVG_TEXT |
-                       NS_FRAME_IN_POPUP |
-                       NS_FRAME_IS_NONDISPLAY);
+                       NS_FRAME_IN_POPUP);
   }
   const nsStyleDisplay *disp = StyleDisplay();
   if (disp->HasTransform(this)) {
@@ -698,17 +696,6 @@ nsFrame::GetOffsets(int32_t &aStart, int32_t &aEnd) const
 /* virtual */ void
 nsFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
-  if (IsSVGText()) {
-    nsSVGTextFrame2* svgTextFrame = static_cast<nsSVGTextFrame2*>(
-        nsLayoutUtils::GetClosestFrameOfType(this, nsGkAtoms::svgTextFrame2));
-    // Just as in nsSVGTextFrame2::DidSetStyleContext, we need to ensure that
-    // any non-display nsSVGTextFrame2s get reflowed when a child text frame
-    // gets new style.
-    if (svgTextFrame->GetStateBits() & NS_FRAME_IS_NONDISPLAY) {
-      svgTextFrame->ScheduleReflowSVGNonDisplayText();
-    }
-  }
-
   ImageLoader* imageLoader = PresContext()->Document()->StyleImageLoader();
 
   // If the old context had a background image image and new context
@@ -5120,7 +5107,7 @@ nsIFrame::GetPreEffectsVisualOverflowRect() const
 nsFrame::UpdateOverflow()
 {
   MOZ_ASSERT(!(mState & NS_FRAME_SVG_LAYOUT) ||
-             !(mState & NS_FRAME_IS_NONDISPLAY),
+             !(mState & NS_STATE_SVG_NONDISPLAY_CHILD),
              "Non-display SVG do not maintain visual overflow rects");
 
   nsRect rect(nsPoint(0, 0), GetSize());
@@ -6787,7 +6774,7 @@ nsIFrame::FinishAndStoreOverflow(nsOverflowAreas& aOverflowAreas,
                                  nsSize aNewSize, nsSize* aOldSize)
 {
   NS_ASSERTION(!((GetStateBits() & NS_FRAME_SVG_LAYOUT) &&
-                 (GetStateBits() & NS_FRAME_IS_NONDISPLAY)),
+                 (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)),
                "Don't call - overflow rects not maintained on these SVG frames");
 
   nsRect bounds(nsPoint(0, 0), aNewSize);
@@ -6934,7 +6921,7 @@ nsIFrame::RecomputePerspectiveChildrenOverflow(const nsStyleContext* aStartStyle
     for (; !childFrames.AtEnd(); childFrames.Next()) {
       nsIFrame* child = childFrames.get();
       if ((child->GetStateBits() & NS_FRAME_SVG_LAYOUT) &&
-          (child->GetStateBits() & NS_FRAME_IS_NONDISPLAY)) {
+          (child->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
         continue; // frame does not maintain overflow rects
       }
       if (child->HasPerspective()) {
@@ -6984,7 +6971,7 @@ RecomputePreserve3DChildrenOverflow(nsIFrame* aFrame, const nsRect* aBounds)
     for (; !childFrames.AtEnd(); childFrames.Next()) {
       nsIFrame* child = childFrames.get();
       if ((child->GetStateBits() & NS_FRAME_SVG_LAYOUT) &&
-          (child->GetStateBits() & NS_FRAME_IS_NONDISPLAY)) {
+          (child->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
         continue; // frame does not maintain overflow rects
       }
       if (child->Preserves3DChildren()) {

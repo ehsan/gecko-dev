@@ -37,6 +37,7 @@
 #include "vm/StringBuffer.h"
 
 #include "jscntxtinlines.h"
+#include "jsobjinlines.h"
 #include "jscompartmentinlines.h"
 #include "jsopcodeinlines.h"
 

@@ -14,8 +14,8 @@
 namespace mozilla {
 namespace dom {
 
-class HTMLLegendElement MOZ_FINAL : public nsGenericHTMLElement,
-                                    public nsIDOMHTMLLegendElement
+class HTMLLegendElement : public nsGenericHTMLElement,
+                          public nsIDOMHTMLLegendElement
 {
 public:
   HTMLLegendElement(already_AddRefed<nsINodeInfo> aNodeInfo)

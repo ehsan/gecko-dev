@@ -271,7 +271,7 @@ nsSVGPathGeometryFrame::ReflowSVG()
   NS_ASSERTION(nsSVGUtils::OuterSVGIsCallingReflowSVG(this),
                "This call is probably a wasteful mistake");
 
-  NS_ABORT_IF_FALSE(!(GetStateBits() & NS_FRAME_IS_NONDISPLAY),
+  NS_ABORT_IF_FALSE(!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
                     "ReflowSVG mechanism not designed for this");
 
   if (!nsSVGUtils::NeedsReflowSVG(this)) {
@@ -452,21 +452,30 @@ nsSVGPathGeometryFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
       static_cast<nsSVGPathGeometryElement*>(mContent)->GetMarkPoints(&marks);
       uint32_t num = marks.Length();
 
-      // These are in the same order as the nsSVGMark::Type constants.
-      nsSVGMarkerFrame* markerFrames[] = {
-        properties.GetMarkerStartFrame(),
-        properties.GetMarkerMidFrame(),
-        properties.GetMarkerEndFrame(),
-      };
-      PR_STATIC_ASSERT(NS_ARRAY_LENGTH(markerFrames) == nsSVGMark::eTypeCount);
-
-      for (uint32_t i = 0; i < num; i++) {
-        nsSVGMark& mark = marks[i];
-        nsSVGMarkerFrame* frame = markerFrames[mark.type];
+      if (num) {
+        nsSVGMarkerFrame *frame = properties.GetMarkerStartFrame();
         if (frame) {
           SVGBBox mbbox =
             frame->GetMarkBBoxContribution(aToBBoxUserspace, aFlags, this,
-                                           &marks[i], strokeWidth);
+                                           &marks[0], strokeWidth);
+          bbox.UnionEdges(mbbox);
+        }
+
+        frame = properties.GetMarkerMidFrame();
+        if (frame) {
+          for (uint32_t i = 1; i < num - 1; i++) {
+            SVGBBox mbbox =
+              frame->GetMarkBBoxContribution(aToBBoxUserspace, aFlags, this,
+                                             &marks[i], strokeWidth);
+            bbox.UnionEdges(mbbox);
+          }
+        }
+
+        frame = properties.GetMarkerEndFrame();
+        if (frame) {
+          SVGBBox mbbox =
+            frame->GetMarkBBoxContribution(aToBBoxUserspace, aFlags, this,
+                                           &marks[num-1], strokeWidth);
           bbox.UnionEdges(mbbox);
         }
       }
@@ -482,7 +491,7 @@ nsSVGPathGeometryFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
 gfxMatrix
 nsSVGPathGeometryFrame::GetCanvasTM(uint32_t aFor)
 {
-  if (!(GetStateBits() & NS_FRAME_IS_NONDISPLAY)) {
+  if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     if ((aFor == FOR_PAINTING && NS_SVGDisplayListPaintingEnabled()) ||
         (aFor == FOR_HIT_TESTING && NS_SVGDisplayListHitTestingEnabled())) {
       return nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(this);
@@ -646,22 +655,21 @@ nsSVGPathGeometryFrame::PaintMarkers(nsRenderingContext* aContext)
                  (mContent)->GetMarkPoints(&marks);
 
       uint32_t num = marks.Length();
-      if (num) {
-        // These are in the same order as the nsSVGMark::Type constants.
-        nsSVGMarkerFrame* markerFrames[] = {
-          properties.GetMarkerStartFrame(),
-          properties.GetMarkerMidFrame(),
-          properties.GetMarkerEndFrame(),
-        };
-        PR_STATIC_ASSERT(NS_ARRAY_LENGTH(markerFrames) == nsSVGMark::eTypeCount);
 
-        for (uint32_t i = 0; i < num; i++) {
-          nsSVGMark& mark = marks[i];
-          nsSVGMarkerFrame* frame = markerFrames[mark.type];
-          if (frame) {
-            frame->PaintMark(aContext, this, &mark, strokeWidth);
-          }
+      if (num) {
+        nsSVGMarkerFrame *frame = properties.GetMarkerStartFrame();
+        if (frame)
+          frame->PaintMark(aContext, this, &marks[0], strokeWidth);
+
+        frame = properties.GetMarkerMidFrame();
+        if (frame) {
+          for (uint32_t i = 1; i < num - 1; i++)
+            frame->PaintMark(aContext, this, &marks[i], strokeWidth);
         }
+
+        frame = properties.GetMarkerEndFrame();
+        if (frame)
+          frame->PaintMark(aContext, this, &marks[num-1], strokeWidth);
       }
     }
   }

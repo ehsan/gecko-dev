@@ -206,7 +206,7 @@ nsSVGTextFrame::PaintSVG(nsRenderingContext* aContext,
                          const nsIntRect *aDirtyRect)
 {
   NS_ASSERTION(!NS_SVGDisplayListPaintingEnabled() ||
-               (mState & NS_FRAME_IS_NONDISPLAY),
+               (mState & NS_STATE_SVG_NONDISPLAY_CHILD),
                "If display lists are enabled, only painting of non-display "
                "SVG should take this code path");
 
@@ -219,7 +219,7 @@ NS_IMETHODIMP_(nsIFrame*)
 nsSVGTextFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
   NS_ASSERTION(!NS_SVGDisplayListHitTestingEnabled() ||
-               (mState & NS_FRAME_IS_NONDISPLAY),
+               (mState & NS_STATE_SVG_NONDISPLAY_CHILD),
                "If display lists are enabled, only hit-testing of non-display "
                "SVG should take this code path");
 
@@ -234,7 +234,7 @@ nsSVGTextFrame::ReflowSVG()
   NS_ASSERTION(nsSVGUtils::OuterSVGIsCallingReflowSVG(this),
                "This call is probably a wasteful mistake");
 
-  NS_ABORT_IF_FALSE(!(GetStateBits() & NS_FRAME_IS_NONDISPLAY),
+  NS_ABORT_IF_FALSE(!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
                     "ReflowSVG mechanism not designed for this");
 
   if (!nsSVGUtils::NeedsReflowSVG(this)) {
@@ -270,7 +270,7 @@ nsSVGTextFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
 gfxMatrix
 nsSVGTextFrame::GetCanvasTM(uint32_t aFor)
 {
-  if (!(GetStateBits() & NS_FRAME_IS_NONDISPLAY)) {
+  if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     if ((aFor == FOR_PAINTING && NS_SVGDisplayListPaintingEnabled()) ||
         (aFor == FOR_HIT_TESTING && NS_SVGDisplayListHitTestingEnabled())) {
       return nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(this);

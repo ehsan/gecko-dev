@@ -226,13 +226,13 @@ class LControlInstructionHelper : public LInstructionHelper<0, Operands, Temps> 
     MBasicBlock *successors_[Succs];
 
   public:
-    virtual size_t numSuccessors() const MOZ_FINAL MOZ_OVERRIDE { return Succs; }
+    size_t numSuccessors() const MOZ_FINAL MOZ_OVERRIDE { return Succs; }
 
-    virtual MBasicBlock *getSuccessor(size_t i) const MOZ_FINAL MOZ_OVERRIDE {
+    MBasicBlock *getSuccessor(size_t i) const MOZ_FINAL MOZ_OVERRIDE {
         return successors_[i];
     }
 
-    virtual void setSuccessor(size_t i, MBasicBlock *successor) MOZ_FINAL MOZ_OVERRIDE {
+    void setSuccessor(size_t i, MBasicBlock *successor) MOZ_FINAL MOZ_OVERRIDE {
         successors_[i] = successor;
     }
 };

@@ -8,7 +8,7 @@
 
 #include "nsIntervalSet.h"
 #include "nsAlgorithm.h"
-#include <new>
+#include NEW_H
 #include <algorithm>
 
 nsIntervalSet::nsIntervalSet(IntervalSetAlloc aAlloc, IntervalSetFree aFree,

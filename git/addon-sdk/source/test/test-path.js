@@ -335,11 +335,8 @@ if (isWindows) {
       // arguments result
       [[['/var/lib', '../', 'file/'], '/var/file'],
        [['/var/lib', '/../', 'file/'], '/file'],
-       // For some mysterious reasons OSX debug builds resolve incorrectly
-       // https://tbpl.mozilla.org/php/getParsedLog.php?id=25105489&tree=Mozilla-Inbound
-       // Disable this tests until Bug 891698 is fixed.
-       // [['a/b/c/', '../../..'], process.cwd()],
-       // [['.'], process.cwd()],
+       [['a/b/c/', '../../..'], process.cwd()],
+       [['.'], process.cwd()],
        [['/some/dir', '.', '/absolute/'], '/absolute']];
 }
 var failures = [];

@@ -14,6 +14,8 @@
 #include "ion/VMFunctions.h"
 #include "ion/IonFrames-inl.h"
 
+#include "jsopcodeinlines.h"
+
 #include "vm/Interpreter-inl.h"
 
 using namespace js;
@@ -1411,7 +1413,7 @@ BaselineCompiler::emit_JSOP_NEWINIT()
         JS_ASSERT(key == JSProto_Object);
 
         RootedObject templateObject(cx);
-        templateObject = NewBuiltinClassInstance(cx, &JSObject::class_, TenuredObject);
+        templateObject = NewBuiltinClassInstance(cx, &ObjectClass, TenuredObject);
         if (!templateObject)
             return false;
 

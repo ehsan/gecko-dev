@@ -1017,8 +1017,9 @@ var BrowserUI = {
     }
 
     // Check content helper
-    if (FindHelperUI.isActive) {
-      FindHelperUI.hide();
+    let contentHelper = Elements.contentNavigator;
+    if (contentHelper.isActive) {
+      contentHelper.model.hide();
       return;
     }
 
