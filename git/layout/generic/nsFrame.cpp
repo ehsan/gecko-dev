@@ -124,7 +124,6 @@
 #include "nsDeckFrame.h"
 
 #include "gfxContext.h"
-#include "nsRenderingContext.h"
 #include "CSSCalc.h"
 #include "nsAbsoluteContainingBlock.h"
 

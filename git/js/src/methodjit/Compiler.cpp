@@ -1159,20 +1159,6 @@ mjit::Compiler::generatePrologue()
             }
         }
 
-        if (script->mayNeedArgsObj()) {
-            /*
-             * Make sure that fp->u.nactual is always coherent. This may be
-             * inspected directly by JIT code, and is not guaranteed to be
-             * correct if the UNDERFLOW and OVERFLOW flags are not set.
-             */
-            Jump hasArgs = masm.branchTest32(Assembler::NonZero, FrameFlagsAddress(),
-                                             Imm32(StackFrame::UNDERFLOW_ARGS |
-                                                   StackFrame::OVERFLOW_ARGS));
-            masm.storePtr(ImmPtr((void *)(size_t) script->function()->nargs),
-                          Address(JSFrameReg, StackFrame::offsetOfNumActual()));
-            hasArgs.linkTo(masm.label(), &masm);
-        }
-
         j.linkTo(masm.label(), &masm);
     }
 
@@ -6801,12 +6787,9 @@ mjit::Compiler::jsop_newinit()
         stubArg = (void *) baseobj;
     }
 
-    /*
-     * Don't bake in types for non-compileAndGo scripts, or at initializers
-     * producing objects with singleton types.
-     */
+    /* Don't bake in types for non-compileAndGo scripts. */
     types::TypeObject *type = NULL;
-    if (globalObj && !types::UseNewTypeForInitializer(cx, script, PC)) {
+    if (globalObj) {
         type = types::TypeScript::InitObject(cx, script, PC,
                                              isArray ? JSProto_Array : JSProto_Object);
         if (!type)
@@ -6817,7 +6800,7 @@ mjit::Compiler::jsop_newinit()
         gc::GetGCKindSlots(gc::FINALIZE_OBJECT_LAST) - ObjectElements::VALUES_PER_HEADER;
 
     if (!cx->typeInferenceEnabled() ||
-        !type ||
+        !globalObj ||
         (isArray && count > maxArraySlots) ||
         (!isArray && !baseobj) ||
         (!isArray && baseobj->hasDynamicSlots())) {
@@ -6834,13 +6817,16 @@ mjit::Compiler::jsop_newinit()
     }
 
     JSObject *templateObject;
-    if (isArray)
+    if (isArray) {
         templateObject = NewDenseUnallocatedArray(cx, count);
-    else
-        templateObject = CopyInitializerObject(cx, baseobj);
-    if (!templateObject)
-        return false;
-    templateObject->setType(type);
+        if (!templateObject)
+            return false;
+        templateObject->setType(type);
+    } else {
+        templateObject = CopyInitializerObject(cx, baseobj, type);
+        if (!templateObject)
+            return false;
+    }
 
     RegisterID result = frame.allocReg();
     Jump emptyFreeList = masm.getNewObject(cx, result, templateObject);

@@ -819,7 +819,7 @@ nsHttpChannel::ProcessFailedSSLConnect(PRUint32 httpStatus)
     nsresult rv;
     switch (httpStatus) 
     {
-    case 300: case 301: case 302: case 303: case 307: case 308:
+    case 300: case 301: case 302: case 303: case 307:
         // Bad redirect: not top-level, or it's a POST, bad/missing Location,
         // or ProcessRedirect() failed for some other reason.  Legal
         // redirects that fail because site not available, etc., are handled
@@ -1043,7 +1043,6 @@ nsHttpChannel::ProcessResponse()
     case 301:
     case 302:
     case 307:
-    case 308:
     case 303:
 #if 0
     case 305: // disabled as a security measure (see bug 187996).

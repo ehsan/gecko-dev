@@ -95,7 +95,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
                            Bookmarks.GUID,
                            Bookmarks.URL,
                            Bookmarks.TITLE,
-                           Bookmarks.TYPE,
+                           Bookmarks.IS_FOLDER,
                            Bookmarks.PARENT,
                            Bookmarks.FAVICON }; 
 
@@ -366,15 +366,10 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
                                         Bookmarks.UNFILED_FOLDER_GUID },
                          null);
         } else {
-            // Right now, we only support showing folder and bookmark type of
-            // entries. We should add support for other types though (bug 737024)
             c = cr.query(mBookmarksUriWithProfile,
                          DEFAULT_BOOKMARK_COLUMNS,
-                         Bookmarks.PARENT + " = ? AND " +
-                         "(" + Bookmarks.TYPE + " = ? OR " + Bookmarks.TYPE + " = ?)",
-                         new String[] { String.valueOf(folderId),
-                                        String.valueOf(Bookmarks.TYPE_BOOKMARK),
-                                        String.valueOf(Bookmarks.TYPE_FOLDER) },
+                         Bookmarks.PARENT + " = ? ",
+                         new String[] { String.valueOf(folderId) },
                          null);
         }
 

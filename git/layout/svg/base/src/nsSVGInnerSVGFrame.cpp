@@ -37,8 +37,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsSVGInnerSVGFrame.h"
-
-#include "nsRenderingContext.h"
 #include "nsIFrame.h"
 #include "nsISVGChildFrame.h"
 #include "nsIDOMSVGAnimatedRect.h"
@@ -233,6 +231,24 @@ nsSVGInnerSVGFrame::GetFrameForPoint(const nsPoint &aPoint)
 
 //----------------------------------------------------------------------
 // nsISVGSVGFrame methods:
+
+void
+nsSVGInnerSVGFrame::SuspendRedraw()
+{
+  if (GetParent()->GetStateBits() & NS_STATE_SVG_REDRAW_SUSPENDED)
+    return;
+
+  nsSVGUtils::NotifyRedrawSuspended(this);
+}
+
+void
+nsSVGInnerSVGFrame::UnsuspendRedraw()
+{
+  if (GetParent()->GetStateBits() & NS_STATE_SVG_REDRAW_SUSPENDED)
+    return;
+
+  nsSVGUtils::NotifyRedrawUnsuspended(this);
+}
 
 void
 nsSVGInnerSVGFrame::NotifyViewportChange()

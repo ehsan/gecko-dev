@@ -34,12 +34,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsSVGMarkerFrame.h"
-
 #include "nsIDOMSVGAnimatedRect.h"
 #include "nsIDOMSVGRect.h"
 #include "nsIDocument.h"
-#include "nsRenderingContext.h"
+#include "nsSVGMarkerFrame.h"
 #include "nsSVGPathGeometryFrame.h"
 #include "nsSVGEffects.h"
 #include "nsSVGMarkerElement.h"

@@ -35,7 +35,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsSVGTextPathFrame.h"
-
 #include "nsIDOMSVGTextPathElement.h"
 #include "nsSVGLength2.h"
 #include "nsIDOMSVGURIReference.h"
@@ -43,7 +42,6 @@
 #include "nsContentUtils.h"
 #include "nsSVGPathElement.h"
 #include "nsSVGTextPathElement.h"
-#include "SVGLengthList.h"
 
 using namespace mozilla;
 

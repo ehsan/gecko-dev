@@ -1558,7 +1558,7 @@ nsDocument::nsDocument(const char* aContentType)
 }
 
 static PLDHashOperator
-ClearAllBoxObjects(nsIContent* aKey, nsPIBoxObject* aBoxObject, void* aUserArg)
+ClearAllBoxObjects(const void* aKey, nsPIBoxObject* aBoxObject, void* aUserArg)
 {
   if (aBoxObject) {
     aBoxObject->Clear();
@@ -1628,10 +1628,8 @@ nsDocument::~nsDocument()
   while (--indx >= 0) {
     mCatalogSheets[indx]->SetOwningDocument(nsnull);
   }
-  if (mAttrStyleSheet) {
+  if (mAttrStyleSheet)
     mAttrStyleSheet->SetOwningDocument(nsnull);
-    NS_RELEASE(mAttrStyleSheet);
-  }
   if (mStyleAttrStyleSheet)
     mStyleAttrStyleSheet->SetOwningDocument(nsnull);
 
@@ -1653,6 +1651,14 @@ nsDocument::~nsDocument()
   // XXX Ideally we'd do this cleanup in the nsIDocument destructor.
   if (mNodeInfoManager) {
     mNodeInfoManager->DropDocumentReference();
+  }
+
+  if (mAttrStyleSheet) {
+    mAttrStyleSheet->SetOwningDocument(nsnull);
+  }
+  
+  if (mStyleAttrStyleSheet) {
+    mStyleAttrStyleSheet->SetOwningDocument(nsnull);
   }
 
   delete mHeaderData;
@@ -1767,7 +1773,7 @@ RadioGroupsTraverser(const nsAString& aKey, nsRadioGroupStruct* aData,
 }
 
 static PLDHashOperator
-BoxObjectTraverser(nsIContent* key, nsPIBoxObject* boxObject, void* userArg)
+BoxObjectTraverser(const void* key, nsPIBoxObject* boxObject, void* userArg)
 {
   nsCycleCollectionTraversalCallback *cb = 
     static_cast<nsCycleCollectionTraversalCallback*>(userArg);
@@ -2267,11 +2273,8 @@ nsDocument::ResetStylesheetsToURI(nsIURI* aURI)
     }
     mAttrStyleSheet->Reset(aURI);
   } else {
-    rv = NS_NewHTMLStyleSheet(&mAttrStyleSheet, aURI, this);
-    if (NS_FAILED(rv)) {
-      NS_IF_RELEASE(mAttrStyleSheet);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
+    rv = NS_NewHTMLStyleSheet(getter_AddRefs(mAttrStyleSheet), aURI, this);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   // Don't use AddStyleSheet, since it'll put the sheet into style
@@ -5355,7 +5358,7 @@ nsDocument::GetBoxObjectFor(nsIDOMElement* aElement, nsIBoxObject** aResult)
   *aResult = nsnull;
 
   if (!mBoxObjectTable) {
-    mBoxObjectTable = new nsInterfaceHashtable<nsPtrHashKey<nsIContent>, nsPIBoxObject>;
+    mBoxObjectTable = new nsInterfaceHashtable<nsVoidPtrHashKey, nsPIBoxObject>;
     if (mBoxObjectTable && !mBoxObjectTable->Init(12)) {
       mBoxObjectTable = nsnull;
     }

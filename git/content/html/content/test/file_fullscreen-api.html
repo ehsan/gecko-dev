@@ -16,7 +16,7 @@ Test DOM full-screen API.
   }
   </style>
 </head>
-<body>
+<body onload="start();">
 <script type="application/javascript">
 
 /** Test for Bug 545812 **/
@@ -46,6 +46,8 @@ var button = null;
 var fullScreenChangeCount = 0;
 var fullscreendenied = false;
 var fullScreenErrorRun = false;
+
+document.addEventListener("mozfullscreenerror", function(){fullscreendenied=true;}, false);
 
 function sendMouseClick(element) {
   synthesizeMouseAtCenter(element, {});
@@ -230,11 +232,10 @@ function fullScreenChange(event) {
   fullScreenChangeCount++;
 }
 
-document.addEventListener("mozfullscreenerror", function(){fullscreendenied=true;}, false);
 document.addEventListener("mozfullscreenchange", fullScreenChange, false);
 
-function begin() {
-  fullScreenElement().mozRequestFullScreen();
+function start() {
+  SimpleTest.waitForFocus(function() {fullScreenElement().mozRequestFullScreen();});
 }
 
 </script>

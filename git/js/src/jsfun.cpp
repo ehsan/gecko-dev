@@ -488,7 +488,6 @@ js::XDRFunctionObject(JSXDRState *xdr, JSObject **objp)
 {
     JSContext *cx;
     JSFunction *fun;
-    JSAtom *atom;
     uint32_t firstword;           /* flag telling whether fun->atom is non-null,
                                    plus for fun->u.i.skipmin, fun->u.i.wrapper,
                                    and 14 bits reserved for future use */
@@ -508,7 +507,6 @@ js::XDRFunctionObject(JSXDRState *xdr, JSObject **objp)
         }
         firstword = !!fun->atom;
         flagsword = (fun->nargs << 16) | fun->flags;
-        atom = fun->atom;
         script = fun->script();
     } else {
         RootedVarObject parent(cx, NULL);
@@ -519,13 +517,12 @@ js::XDRFunctionObject(JSXDRState *xdr, JSObject **objp)
             return false;
         if (!fun->clearType(cx))
             return false;
-        atom = NULL;
         script = NULL;
     }
 
     if (!JS_XDRUint32(xdr, &firstword))
         return false;
-    if ((firstword & 1U) && !js_XDRAtom(xdr, &atom))
+    if ((firstword & 1U) && !js_XDRAtom(xdr, &fun->atom))
         return false;
     if (!JS_XDRUint32(xdr, &flagsword))
         return false;
@@ -537,8 +534,7 @@ js::XDRFunctionObject(JSXDRState *xdr, JSObject **objp)
         fun->nargs = flagsword >> 16;
         JS_ASSERT((flagsword & JSFUN_KINDMASK) >= JSFUN_INTERPRETED);
         fun->flags = uint16_t(flagsword);
-        fun->atom.init(atom);
-        fun->initScript(script);
+        fun->setScript(script);
         if (!script->typeSetFunction(cx, fun))
             return false;
         JS_ASSERT(fun->nargs == fun->script()->bindings.countArgs());
@@ -591,7 +587,7 @@ JSFunction::trace(JSTracer *trc)
     }
 
     if (atom)
-        MarkString(trc, &atom, "atom");
+        MarkStringUnbarriered(trc, &atom, "atom");
 
     if (isInterpreted()) {
         if (u.i.script_)
@@ -1012,7 +1008,7 @@ fun_bind(JSContext *cx, unsigned argc, Value *vp)
     }
 
     /* Step 4-6, 10-11. */
-    JSAtom *name = target->isFunction() ? target->toFunction()->atom.get() : NULL;
+    JSAtom *name = target->isFunction() ? target->toFunction()->atom : NULL;
 
     JSObject *funobj =
         js_NewFunction(cx, NULL, CallOrConstructBoundFunction, length,
@@ -1308,7 +1304,7 @@ js_NewFunction(JSContext *cx, JSObject *funobj, Native native, unsigned nargs,
         fun->flags |= JSFUN_EXTENDED;
         fun->initializeExtended();
     }
-    fun->atom.init(atom);
+    fun->atom = atom;
 
     if (native && !fun->setSingletonType(cx))
         return NULL;
@@ -1336,7 +1332,7 @@ js_CloneFunctionObject(JSContext *cx, JSFunction *fun, JSObject *parent,
     } else {
         clone->u.n = fun->u.n;
     }
-    clone->atom.init(fun->atom);
+    clone->atom = fun->atom;
 
     if (kind == JSFunction::ExtendedFinalizeKind) {
         clone->flags |= JSFUN_EXTENDED;

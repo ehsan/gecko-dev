@@ -16,7 +16,6 @@
 class nsWindow;
 class nsGUIEvent;
 class nsMouseScrollEvent;
-struct nsIntPoint;
 struct nsModifierKeyState;
 
 namespace mozilla {
@@ -36,32 +35,9 @@ public:
                              LRESULT *aRetValue,
                              bool &aEatMessage);
 
-  /**
-   * See nsIWidget::SynthesizeNativeMouseScrollEvent() for the detail about
-   * this method.
-   */
-  static nsresult SynthesizeNativeMouseScrollEvent(nsWindow* aWindow,
-                                                   const nsIntPoint& aPoint,
-                                                   PRUint32 aNativeMessage,
-                                                   PRInt32 aDelta,
-                                                   PRUint32 aModifierFlags,
-                                                   PRUint32 aAdditionalFlags);
-
-  /**
-   * IsWaitingInternalMessage() returns true if MouseScrollHandler posted
-   * an internal message for a native mouse wheel message and has not
-   * received it. Otherwise, false.
-   */
-  static bool IsWaitingInternalMessage()
-  {
-    return sInstance && sInstance->mIsWaitingInternalMessage;
-  }
-
 private:
   MouseScrollHandler();
   ~MouseScrollHandler();
-
-  bool mIsWaitingInternalMessage;
 
   static MouseScrollHandler* sInstance;
 
@@ -73,14 +49,6 @@ private:
   static bool DispatchEvent(nsWindow* aWindow, nsGUIEvent& aEvent);
 
   /**
-   * InitEvent() initializes the aEvent.  If aPoint is null, the result of
-   * GetCurrentMessagePos() will be used.
-   */
-  static void InitEvent(nsWindow* aWindow,
-                        nsGUIEvent& aEvent,
-                        nsIntPoint* aPoint = nsnull);
-
-  /**
    * GetModifierKeyState() returns current modifier key state.
    * Note that some devices need some hack for the modifier key state.
    * This method does it automatically.
@@ -88,14 +56,6 @@ private:
    * @param aMessage    Handling message.
    */
   static nsModifierKeyState GetModifierKeyState(UINT aMessage);
-
-  /**
-   * MozGetMessagePos() returns the mouse cursor position when GetMessage()
-   * was called last time.  However, if we're sending a native message,
-   * this returns the specified cursor position by
-   * SynthesizeNativeMouseScrollEvent().
-   */
-  static POINTS GetCurrentMessagePos();
 
   /**
    * ProcessNativeMouseWheelMessage() processes WM_MOUSEWHEEL and
@@ -333,7 +293,6 @@ private:
 
     void Init();
     void MarkDirty();
-    void NotifyUserPrefsMayOverrideSystemSettings();
 
     PRInt32 GetScrollAmount(bool aForVertical) const
     {
@@ -375,24 +334,6 @@ private:
       return mScrollMessageHandledAsWheelMessage;
     }
 
-    PRInt32 GetOverriddenVerticalScrollAmout()
-    {
-      Init();
-      return mOverriddenVerticalScrollAmount;
-    }
-
-    PRInt32 GetOverriddenHorizontalScrollAmout()
-    {
-      Init();
-      return mOverriddenHorizontalScrollAmount;
-    }
-
-    PRInt32 GetMouseScrollTransactionTimeout()
-    {
-      Init();
-      return mMouseScrollTransactionTimeout;
-    }
-
   private:
     void Init();
 
@@ -405,76 +346,9 @@ private:
     bool mInitialized;
     bool mPixelScrollingEnabled;
     bool mScrollMessageHandledAsWheelMessage;
-    PRInt32 mOverriddenVerticalScrollAmount;
-    PRInt32 mOverriddenHorizontalScrollAmount;
-    PRInt32 mMouseScrollTransactionTimeout;
   };
 
   UserPrefs mUserPrefs;
-
-  class SynthesizingEvent {
-  public:
-    SynthesizingEvent() :
-      mWnd(NULL), mMessage(0), mWParam(0), mLParam(0),
-      mStatus(NOT_SYNTHESIZING)
-    {
-    }
-
-    ~SynthesizingEvent() {}
-
-    static bool IsSynthesizing();
-
-    nsresult Synthesize(const POINTS& aCursorPoint, HWND aWnd,
-                        UINT aMessage, WPARAM aWParam, LPARAM aLParam,
-                        const BYTE (&aKeyStates)[256]);
-
-    void NativeMessageReceived(nsWindow* aWindow, UINT aMessage,
-                               WPARAM aWParam, LPARAM aLParam);
-
-    void NotifyNativeMessageHandlingFinished();
-    void NotifyInternalMessageHandlingFinished();
-
-    const POINTS& GetCursorPoint() const { return mCursorPoint; }
-
-  private:
-    POINTS mCursorPoint;
-    HWND mWnd;
-    UINT mMessage;
-    WPARAM mWParam;
-    LPARAM mLParam;
-    BYTE mKeyState[256];
-    BYTE mOriginalKeyState[256];
-
-    enum Status {
-      NOT_SYNTHESIZING,
-      SENDING_MESSAGE,
-      NATIVE_MESSAGE_RECEIVED,
-      INTERNAL_MESSAGE_POSTED,
-    };
-    Status mStatus;
-
-#ifdef PR_LOGGING
-    const char* GetStatusName()
-    {
-      switch (mStatus) {
-        case NOT_SYNTHESIZING:
-          return "NOT_SYNTHESIZING";
-        case SENDING_MESSAGE:
-          return "SENDING_MESSAGE";
-        case NATIVE_MESSAGE_RECEIVED:
-          return "NATIVE_MESSAGE_RECEIVED";
-        case INTERNAL_MESSAGE_POSTED:
-          return "INTERNAL_MESSAGE_POSTED";
-        default:
-          return "Unknown";
-      }
-    }
-#endif
-
-    void Finish();
-  }; // SynthesizingEvent
-
-  SynthesizingEvent* mSynthesizingEvent;
 
 public:
 

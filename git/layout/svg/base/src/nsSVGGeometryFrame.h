@@ -38,19 +38,11 @@
 #ifndef __NS_SVGGEOMETRYFRAME_H__
 #define __NS_SVGGEOMETRYFRAME_H__
 
-#include "gfxMatrix.h"
-#include "gfxTypes.h"
 #include "nsFrame.h"
-#include "nsIFrame.h"
-#include "nsQueryFrame.h"
-#include "nsRect.h"
+#include "gfxMatrix.h"
 
-class gfxContext;
-class nsIContent;
-class nsStyleContext;
 class nsSVGPaintServerFrame;
-
-struct nsStyleSVGPaint;
+class gfxContext;
 
 typedef nsFrame nsSVGGeometryFrameBase;
 

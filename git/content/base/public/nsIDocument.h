@@ -649,9 +649,7 @@ public:
    * Get this document's attribute stylesheet.  May return null if
    * there isn't one.
    */
-  nsHTMLStyleSheet* GetAttributeStyleSheet() const {
-    return mAttrStyleSheet;
-  }
+  virtual nsHTMLStyleSheet* GetAttributeStyleSheet() const = 0;
 
   /**
    * Get this document's inline style sheet.  May return null if there
@@ -1702,7 +1700,6 @@ protected:
   // The cleanup is handled by the nsDocument destructor.
   nsNodeInfoManager* mNodeInfoManager; // [STRONG]
   mozilla::css::Loader* mCSSLoader; // [STRONG]
-  nsHTMLStyleSheet* mAttrStyleSheet;
 
   // The set of all object, embed, applet, video and audio elements for
   // which this is the owner document. (They might not be in the document.)

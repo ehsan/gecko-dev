@@ -578,7 +578,6 @@ DebuggerUI.prototype = {
     script.contentType = aContentType;
     elt.setUserData("sourceScript", script, null);
     dbg._updateEditorBreakpoints();
-    dbg.debuggerWindow.StackFrames.updateEditor();
   }
 };
 

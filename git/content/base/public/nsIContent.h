@@ -114,9 +114,8 @@ public:
    * @param aParent The new parent for the content node.  May be null if the
    *                node is being bound as a direct child of the document.
    * @param aBindingParent The new binding parent for the content node.
-   *                       This is must either be non-null if a particular
-   *                       binding parent is desired or match aParent's binding
-   *                       parent.
+   *                       This is allowed to be null.  In that case, the
+   *                       binding parent of aParent, if any, will be used.
    * @param aCompileEventHandlers whether to initialize the event handlers in
    *        the document (used by nsXULElement)
    * @note either aDocument or aParent must be non-null.  If both are null,

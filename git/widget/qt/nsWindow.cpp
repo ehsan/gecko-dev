@@ -258,7 +258,6 @@ nsWindow::nsWindow()
     mMoveEvent.needDispatch = false;
     
     if (!gGlobalsInitialized) {
-        gfxPlatform::GetPlatform();
         gGlobalsInitialized = true;
 
 #if defined(MOZ_X11) && (MOZ_PLATFORM_MAEMO == 6)

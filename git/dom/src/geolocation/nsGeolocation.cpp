@@ -385,11 +385,6 @@ nsGeolocationRequest::Allow()
       if (tempAge >= 0)
         maximumAge = tempAge;
     }
-    bool highAccuracy;
-    rv = mOptions->GetEnableHighAccuracy(&highAccuracy);
-    if (NS_SUCCEEDED(rv) && highAccuracy) {
-	geoService->SetHigherAccuracy(true);
-    }
   }
 
   if (lastPosition && maximumAge > 0 &&
@@ -485,16 +480,6 @@ nsGeolocationRequest::Update(nsIDOMGeoPosition* aPosition)
 void
 nsGeolocationRequest::Shutdown()
 {
-  if (mOptions) {
-      bool highAccuracy;
-      nsresult rv = mOptions->GetEnableHighAccuracy(&highAccuracy);
-      if (NS_SUCCEEDED(rv) && highAccuracy) {
-	  nsRefPtr<nsGeolocationService> geoService = nsGeolocationService::GetInstance();
-	  if (geoService)
-	      geoService->SetHigherAccuracy(false);
-      }
-  }
-
   if (mTimeoutTimer) {
     mTimeoutTimer->Cancel();
     mTimeoutTimer = nsnull;
@@ -715,24 +700,6 @@ nsGeolocationService::SetDisconnectTimer()
   mDisconnectTimer->Init(this,
                          sProviderTimeout,
                          nsITimer::TYPE_ONE_SHOT);
-}
-
-void
-nsGeolocationService::SetHigherAccuracy(bool aEnable)
-{
-    if (!mHigherAccuracy && aEnable) {
-	  for (PRInt32 i = 0; i < mProviders.Count(); i++) {
-	    mProviders[i]->SetHighAccuracy(true);
-	  }
-    }
-	
-    if (mHigherAccuracy && !aEnable) {
-	  for (PRInt32 i = 0; i < mProviders.Count(); i++) {
-	    mProviders[i]->SetHighAccuracy(false);
-	  }
-    }
-
-    mHigherAccuracy = aEnable;
 }
 
 void 

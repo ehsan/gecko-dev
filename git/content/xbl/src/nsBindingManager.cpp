@@ -1346,7 +1346,7 @@ nsBindingManager::WalkRules(nsIStyleRuleProcessor::EnumFunc aFunc,
   return NS_OK;
 }
 
-typedef nsTHashtable<nsPtrHashKey<nsIStyleRuleProcessor> > RuleProcessorSet;
+typedef nsTHashtable<nsVoidPtrHashKey> RuleProcessorSet;
 
 static PLDHashOperator
 EnumRuleProcessors(nsISupports *aKey, nsXBLBinding *aBinding, void* aClosure)
@@ -1371,10 +1371,10 @@ struct WalkAllRulesData {
 };
 
 static PLDHashOperator
-EnumWalkAllRules(nsPtrHashKey<nsIStyleRuleProcessor> *aKey, void* aClosure)
+EnumWalkAllRules(nsVoidPtrHashKey *aKey, void* aClosure)
 {
-  nsIStyleRuleProcessor *ruleProcessor = aKey->GetKey();
-    
+  nsIStyleRuleProcessor *ruleProcessor =
+    static_cast<nsIStyleRuleProcessor*>(const_cast<void*>(aKey->GetKey()));
   WalkAllRulesData *data = static_cast<WalkAllRulesData*>(aClosure);
 
   (*(data->mFunc))(ruleProcessor, data->mData);
@@ -1404,10 +1404,10 @@ struct MediumFeaturesChangedData {
 };
 
 static PLDHashOperator
-EnumMediumFeaturesChanged(nsPtrHashKey<nsIStyleRuleProcessor> *aKey, void* aClosure)
+EnumMediumFeaturesChanged(nsVoidPtrHashKey *aKey, void* aClosure)
 {
-  nsIStyleRuleProcessor *ruleProcessor = aKey->GetKey();
-    
+  nsIStyleRuleProcessor *ruleProcessor =
+    static_cast<nsIStyleRuleProcessor*>(const_cast<void*>(aKey->GetKey()));
   MediumFeaturesChangedData *data =
     static_cast<MediumFeaturesChangedData*>(aClosure);
 

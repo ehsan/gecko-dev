@@ -216,6 +216,15 @@ nsSVGTextFrame::NotifySVGChanged(PRUint32 aFlags)
   }
 }
 
+void
+nsSVGTextFrame::NotifyRedrawUnsuspended()
+{
+  RemoveStateBits(NS_STATE_SVG_REDRAW_SUSPENDED);
+
+  UpdateGlyphPositioning(false);
+  nsSVGTextFrameBase::NotifyRedrawUnsuspended();
+}
+
 NS_IMETHODIMP
 nsSVGTextFrame::PaintSVG(nsRenderingContext* aContext,
                          const nsIntRect *aDirtyRect)
@@ -233,34 +242,23 @@ nsSVGTextFrame::GetFrameForPoint(const nsPoint &aPoint)
   return nsSVGTextFrameBase::GetFrameForPoint(aPoint);
 }
 
-void
-nsSVGTextFrame::UpdateBounds()
+NS_IMETHODIMP
+nsSVGTextFrame::UpdateCoveredRegion()
 {
-  NS_ASSERTION(nsSVGUtils::OuterSVGIsCallingUpdateBounds(this),
-               "This call is probaby a wasteful mistake");
+  UpdateGlyphPositioning(true);
+  
+  return nsSVGTextFrameBase::UpdateCoveredRegion();
+}
 
-  NS_ABORT_IF_FALSE(!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
-                    "UpdateBounds mechanism not designed for this");
-
-  if (!nsSVGUtils::NeedsUpdatedBounds(this)) {
-    NS_ASSERTION(!mPositioningDirty, "How did this happen?");
-    return;
-  }
-
-  // UpdateGlyphPositioning may have been called under DOM calls and set
-  // mPositioningDirty to false. We may now have better positioning, though, so
-  // set it to true so that UpdateGlyphPositioning will do its work.
-  mPositioningDirty = true;
-
+NS_IMETHODIMP
+nsSVGTextFrame::InitialUpdate()
+{
+  nsresult rv = nsSVGTextFrameBase::InitialUpdate();
+  
   UpdateGlyphPositioning(false);
 
-  // With glyph positions updated, our descendants can invalidate their new
-  // areas correctly:
-  nsSVGTextFrameBase::UpdateBounds();
-
-  // XXXsvgreflow once we store bounds on containers, call
-  // nsSVGUtils::InvalidateBounds(this) if not first reflow.
-}
+  return rv;
+}  
 
 gfxRect
 nsSVGTextFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
@@ -297,9 +295,8 @@ nsSVGTextFrame::GetCanvasTM()
 void
 nsSVGTextFrame::NotifyGlyphMetricsChange()
 {
-  nsSVGUtils::InvalidateAndScheduleBoundsUpdate(this);
-
   mPositioningDirty = true;
+  UpdateGlyphPositioning(false);
 }
 
 void
@@ -347,7 +344,7 @@ nsSVGTextFrame::SetWhitespaceHandling(nsSVGGlyphFrame *aFrame)
 void
 nsSVGTextFrame::UpdateGlyphPositioning(bool aForceGlobalTransform)
 {
-  if (!mPositioningDirty)
+  if ((GetStateBits() & NS_STATE_SVG_REDRAW_SUSPENDED) || !mPositioningDirty)
     return;
 
   mPositioningDirty = false;
@@ -455,4 +452,5 @@ nsSVGTextFrame::UpdateGlyphPositioning(bool aForceGlobalTransform)
     }
     firstFrame = frame;
   }
+  nsSVGUtils::UpdateGraphic(this);
 }

@@ -46,7 +46,7 @@ public interface GlobalSessionCallback {
    * error.
    *
    * @param globalSession
-   * @param failedClusterURL
+   * @param newClusterURL
    *          The new node/weave cluster URL.
    */
   void informNodeAuthenticationFailed(GlobalSession globalSession, URI failedClusterURL);

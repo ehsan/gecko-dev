@@ -41,17 +41,17 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-Components.utils.import("resource://gre/modules/Services.jsm");
-
 const C = Components.classes;
 const I = Components.interfaces;
 
 const ToolkitProfileService = "@mozilla.org/toolkit/profile-service;1";
+const PromptService = "@mozilla.org/embedcomp/prompt-service;1";
 
 var gDialogParams;
 var gProfileManagerBundle;
 var gBrandBundle;
 var gProfileService;
+var gPromptService;
 
 function startup()
 {
@@ -63,6 +63,8 @@ function startup()
 
     gProfileManagerBundle = document.getElementById("bundle_profileManager");
     gBrandBundle = document.getElementById("bundle_brand");
+
+    gPromptService = C[PromptService].getService(I.nsIPromptService);
 
     document.documentElement.centerWindowOnScreen();
 
@@ -110,7 +112,7 @@ function acceptDialog()
     var pleaseSelectTitle = gProfileManagerBundle.getString("pleaseSelectTitle");
     var pleaseSelect =
       gProfileManagerBundle.getFormattedString("pleaseSelect", [appName]);
-    Services.prompt.alert(window, pleaseSelectTitle, pleaseSelect);
+    gPromptService.alert(window, pleaseSelectTitle, pleaseSelect);
 
     return false;
   }
@@ -124,7 +126,7 @@ function acceptDialog()
     var lockedTitle = gProfileManagerBundle.getString("profileLockedTitle");
     var locked =
       gProfileManagerBundle.getFormattedString("profileLocked2", [appName, selectedProfile.profile.name, appName]);
-    Services.prompt.alert(window, lockedTitle, locked);
+    gPromptService.alert(window, lockedTitle, locked);
 
     return false;
   }
@@ -220,7 +222,7 @@ function RenameProfile()
   var msg =
     gProfileManagerBundle.getFormattedString("renameProfilePrompt", [oldName]);
 
-  if (Services.prompt.prompt(window, dialogTitle, msg, newName, null, {value:0})) {
+  if (gPromptService.prompt(window, dialogTitle, msg, newName, null, {value:0})) {
     newName = newName.value;
 
     // User hasn't changed the profile name. Treat as if cancel was pressed.
@@ -233,7 +235,7 @@ function RenameProfile()
     catch (e) {
       var alTitle = gProfileManagerBundle.getString("profileNameInvalidTitle");
       var alMsg = gProfileManagerBundle.getFormattedString("profileNameInvalid", [newName]);
-      Services.prompt.alert(window, alTitle, alMsg);
+      gPromptService.alert(window, alTitle, alMsg);
       return false;
     }
 
@@ -268,10 +270,10 @@ function ConfirmDelete()
       gProfileManagerBundle.getFormattedString("deleteProfileConfirm",
                                                [selectedProfile.rootDir.path]);
 
-    var buttonPressed = Services.prompt.confirmEx(window, dialogTitle, dialogText,
-                          (Services.prompt.BUTTON_TITLE_IS_STRING * Services.prompt.BUTTON_POS_0) +
-                          (Services.prompt.BUTTON_TITLE_CANCEL * Services.prompt.BUTTON_POS_1) +
-                          (Services.prompt.BUTTON_TITLE_IS_STRING * Services.prompt.BUTTON_POS_2),
+    var buttonPressed = gPromptService.confirmEx(window, dialogTitle, dialogText,
+                          (gPromptService.BUTTON_TITLE_IS_STRING * gPromptService.BUTTON_POS_0) +
+                          (gPromptService.BUTTON_TITLE_CANCEL * gPromptService.BUTTON_POS_1) +
+                          (gPromptService.BUTTON_TITLE_IS_STRING * gPromptService.BUTTON_POS_2),
                           gProfileManagerBundle.getString("dontDeleteFiles"),
                           null,
                           gProfileManagerBundle.getString("deleteFiles"),

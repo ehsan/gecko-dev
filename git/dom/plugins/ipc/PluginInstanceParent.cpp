@@ -1461,7 +1461,7 @@ struct ActorSearchData
 };
 
 PLDHashOperator
-ActorSearch(NPObject* aKey,
+ActorSearch(const void* aKey,
             PluginScriptableObjectParent* aData,
             void* aUserData)
 {

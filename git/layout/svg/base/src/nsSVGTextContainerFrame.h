@@ -37,20 +37,13 @@
 #ifndef NS_SVGTEXTCONTAINERFRAME_H
 #define NS_SVGTEXTCONTAINERFRAME_H
 
-#include "nsFrame.h"
-#include "nsIFrame.h"
-#include "nsISVGChildFrame.h"
-#include "nsQueryFrame.h"
 #include "nsSVGContainerFrame.h"
-#include "nsTArray.h"
 
-class nsFrameList;
 class nsIDOMSVGPoint;
 class nsIDOMSVGRect;
 class nsISVGGlyphFragmentNode;
-class nsStyleContext;
-class nsSVGGlyphFrame;
 class nsSVGTextFrame;
+class nsSVGGlyphFrame;
 
 class nsSVGTextContainerFrame : public nsSVGDisplayContainerFrame
 {

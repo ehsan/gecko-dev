@@ -280,7 +280,7 @@ public:
         , mBound(false)
         , mIsPBuffer(false)
         , mIsDoubleBuffered(false)
-        , mCanBindToTexture(false)
+        , mPBufferCanBindToTexture(false)
     {
         // any EGL contexts will always be GLESv2
         SetIsGLES2(true);
@@ -444,15 +444,6 @@ public:
         }
 #endif
         if (aForce || sEGLLibrary.fGetCurrentContext() != mContext) {
-#ifdef MOZ_WIDGET_QT
-            // Shared Qt GL context need to be informed about context switch
-            if (mSharedContext) {
-                QGLContext* qglCtx = static_cast<QGLContext*>(static_cast<GLContextEGL*>(mSharedContext.get())->mPlatformContext);
-                if (qglCtx) {
-                    qglCtx->doneCurrent();
-                }
-            }
-#endif
             succeeded = sEGLLibrary.fMakeCurrent(EGL_DISPLAY(),
                                                  mSurface, mSurface,
                                                  mContext);
@@ -516,6 +507,7 @@ public:
     bool SwapBuffers()
     {
         if (mSurface && !mPlatformContext) {
+            //sEGLLibrary.fSetSwapRectangleANDROID(EGL_DISPLAY(), mSurface, 0, 0, gScreenBounds.width, gScreenBounds.height);
             return sEGLLibrary.fSwapBuffers(EGL_DISPLAY(), mSurface);
         } else {
             return false;
@@ -609,7 +601,7 @@ protected:
 
     bool mIsPBuffer;
     bool mIsDoubleBuffered;
-    bool mCanBindToTexture;
+    bool mPBufferCanBindToTexture;
 
     static EGLSurface CreatePBufferSurfaceTryingPowerOfTwo(EGLConfig config,
                                                            EGLenum bindToTextureFormat,
@@ -665,7 +657,7 @@ GLContextEGL::BindTex2DOffscreen(GLContext *aOffscreen)
 
     GLContextEGL *offs = static_cast<GLContextEGL*>(aOffscreen);
 
-    if (offs->mCanBindToTexture) {
+    if (offs->mIsPBuffer && offs->mPBufferCanBindToTexture) {
         bool ok = sEGLLibrary.fBindTexImage(EGL_DISPLAY(),
                                               offs->mSurface,
                                               LOCAL_EGL_BACK_BUFFER);
@@ -695,7 +687,7 @@ GLContextEGL::UnbindTex2DOffscreen(GLContext *aOffscreen)
 
     GLContextEGL *offs = static_cast<GLContextEGL*>(aOffscreen);
 
-    if (offs->mCanBindToTexture) {
+    if (offs->mIsPBuffer && offs->mPBufferCanBindToTexture) {
         sEGLLibrary.fReleaseTexImage(EGL_DISPLAY(),
                                      offs->mSurface,
                                      LOCAL_EGL_BACK_BUFFER);
@@ -713,7 +705,7 @@ GLContextEGL::ResizeOffscreen(const gfxIntSize& aNewSize)
 
         EGLSurface surface =
             CreatePBufferSurfaceTryingPowerOfTwo(mConfig,
-                                                 mCanBindToTexture
+                                                 mPBufferCanBindToTexture
                                                  ? (mCreationFormat.minAlpha
                                                     ? LOCAL_EGL_TEXTURE_RGBA
                                                     : LOCAL_EGL_TEXTURE_RGB)
@@ -1388,7 +1380,6 @@ DepthToGLFormat(int aDepth)
     return ContextFormat::BasicRGBA32;
 }
 
-static nsRefPtr<GLContext> gGlobalContext;
 
 #ifdef MOZ_WIDGET_QT
 already_AddRefed<GLContext>
@@ -1416,7 +1407,6 @@ GLContextProviderEGL::CreateForWindow(nsIWidget *aWidget)
         glContext->SetIsDoubleBuffered(context->format().doubleBuffer());
 
         glContext->SetPlatformContext(context);
-        gGlobalContext = glContext;
 
         return glContext.forget();
     }
@@ -1750,7 +1740,7 @@ TRY_ATTRIBS_AGAIN:
         return nsnull;
     }
 
-    glContext->mCanBindToTexture = configCanBindToTexture;
+    glContext->mPBufferCanBindToTexture = configCanBindToTexture;
 
     if (!bufferUnused) {  // We *are* using the buffer
       glContext->SetOffscreenSize(aSize, pbsize);
@@ -1899,8 +1889,6 @@ GLContextEGL::CreateEGLPixmapOffscreenContext(const gfxIntSize& aSize,
 
     glContext->HoldSurface(thebesSurface);
 
-    glContext->mCanBindToTexture = true;
-
     return glContext.forget();
 }
 
@@ -1910,8 +1898,7 @@ GLContextEGL::CreateEGLPixmapOffscreenContext(const gfxIntSize& aSize,
 // often without the ability to texture from them directly.
 already_AddRefed<GLContext>
 GLContextProviderEGL::CreateOffscreen(const gfxIntSize& aSize,
-                                      const ContextFormat& aFormat,
-                                      const ContextFlags aFlags)
+                                      const ContextFormat& aFormat)
 {
     if (!sEGLLibrary.EnsureInitialized()) {
         return nsnull;
@@ -1931,7 +1918,7 @@ GLContextProviderEGL::CreateOffscreen(const gfxIntSize& aSize,
         return nsnull;
 
     gfxIntSize fboSize = usePBuffers ? glContext->OffscreenActualSize() : aSize;
-    if (!(aFlags & GLContext::ContextFlagsGlobal) && !glContext->ResizeOffscreenFBO(fboSize, !usePBuffers))
+    if (!glContext->ResizeOffscreenFBO(fboSize, !usePBuffers))
         return nsnull;
 
     return glContext.forget();
@@ -1942,7 +1929,7 @@ GLContextProviderEGL::CreateOffscreen(const gfxIntSize& aSize,
     if (!glContext)
         return nsnull;
 
-    if (!(aFlags & GLContext::ContextFlagsGlobal) && !glContext->ResizeOffscreenFBO(glContext->OffscreenActualSize(), true))
+    if (!glContext->ResizeOffscreenFBO(glContext->OffscreenActualSize(), true))
         return nsnull;
 
     return glContext.forget();
@@ -1954,7 +1941,7 @@ GLContextProviderEGL::CreateOffscreen(const gfxIntSize& aSize,
         return nsnull;
     }
 
-    if (!(aFlags & GLContext::ContextFlagsGlobal) && !gUseBackingSurface && !glContext->ResizeOffscreenFBO(glContext->OffscreenActualSize(), true)) {
+    if (!gUseBackingSurface && !glContext->ResizeOffscreenFBO(glContext->OffscreenActualSize(), true)) {
         // we weren't able to create the initial
         // offscreen FBO, so this is dead
         return nsnull;
@@ -2001,6 +1988,8 @@ GLContextProviderEGL::CreateForNativePixmapSurface(gfxASurface* aSurface)
 #endif
 }
 
+static nsRefPtr<GLContext> gGlobalContext;
+
 GLContext *
 GLContextProviderEGL::GetGlobalContext()
 {
@@ -2011,8 +2000,7 @@ GLContextProviderEGL::GetGlobalContext()
         // CreateOffscreen can call us re-entrantly.
         nsRefPtr<GLContext> ctx =
             GLContextProviderEGL::CreateOffscreen(gfxIntSize(16, 16),
-                                                  ContextFormat(ContextFormat::BasicRGB24),
-                                                  GLContext::ContextFlagsGlobal);
+                                                  ContextFormat(ContextFormat::BasicRGB24));
         gGlobalContext = ctx;
         if (gGlobalContext)
             gGlobalContext->SetIsGlobalSharedContext(true);

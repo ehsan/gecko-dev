@@ -159,8 +159,6 @@
 
 #include "mozilla/CORSMode.h"
 
-#include "nsStyledElement.h"
-
 using namespace mozilla;
 using namespace mozilla::dom;
 
@@ -3090,9 +3088,10 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                   aBindingParent == aParent,
                   "Native anonymous content must have its parent as its "
                   "own binding parent");
-  NS_PRECONDITION(aBindingParent || !aParent ||
-                  aBindingParent == aParent->GetBindingParent(),
-                  "We should be passed the right binding parent");
+
+  if (!aBindingParent && aParent) {
+    aBindingParent = aParent->GetBindingParent();
+  }
 
 #ifdef MOZ_XUL
   // First set the binding parent
@@ -3215,28 +3214,6 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 
   nsNodeUtils::ParentChainChanged(this);
 
-  if (aDocument && HasID() && !aBindingParent) {
-    aDocument->AddToIdTable(this, DoGetID());
-  }
-
-  if (MayHaveStyle() && !IsXUL()) {
-    // XXXbz if we already have a style attr parsed, this won't do
-    // anything... need to fix that.
-    // If MayHaveStyle() is true, we must be an nsStyledElement
-    static_cast<nsStyledElement*>(this)->ReparseStyleAttribute(false);
-  }
-
-  if (aDocument) {
-    // If we're in a document now, let our mapped attrs know what their new
-    // sheet is.  This is safe to run for non-mapped-attribute elements too;
-    // it'll just do a small bit of unnecessary work.  But most elements in
-    // practice are mapped-attribute elements.
-    nsHTMLStyleSheet* sheet = aDocument->GetAttributeStyleSheet();
-    if (sheet) {
-      mAttrsAndChildren.SetMappedAttrStyleSheet(sheet);
-    }
-  }
-
   // XXXbz script execution during binding can trigger some of these
   // postcondition asserts....  But we do want that, since things will
   // generally be quite broken when that happens.
@@ -3254,9 +3231,6 @@ nsGenericElement::UnbindFromTree(bool aDeep, bool aNullParent)
   NS_PRECONDITION(aDeep || (!GetCurrentDoc() && !GetBindingParent()),
                   "Shallow unbind won't clear document and binding parent on "
                   "kids!");
-
-  RemoveFromIdTable();
-
   // Make sure to unbind this node before doing the kids
   nsIDocument *document =
     HasFlag(NODE_FORCE_XBL_BINDINGS) ? OwnerDoc() : GetCurrentDoc();
@@ -3809,9 +3783,7 @@ nsINode::doInsertChildAt(nsIContent* aKid, PRUint32 aIndex,
   nsIContent* parent =
     IsNodeOfType(eDOCUMENT) ? nsnull : static_cast<nsIContent*>(this);
 
-  rv = aKid->BindToTree(doc, parent,
-                        parent ? parent->GetBindingParent() : nsnull,
-                        true);
+  rv = aKid->BindToTree(doc, parent, nsnull, true);
   if (NS_FAILED(rv)) {
     if (GetFirstChild() == aKid) {
       mFirstChild = aKid->GetNextSibling();
@@ -4031,14 +4003,7 @@ bool IsAllowedAsChild(nsIContent* aNewChild, nsINode* aParent,
                   "Nodes that are not documents, document fragments or "
                   "elements can't be parents!");
 
-  // A common case is that aNewChild has no kids, in which case
-  // aParent can't be a descendant of aNewChild unless they're
-  // actually equal to each other.  Fast-path that case, since aParent
-  // could be pretty deep in the DOM tree.
-  if (aParent &&
-      (aNewChild == aParent ||
-       (aNewChild->GetFirstChild() &&
-        nsContentUtils::ContentIsDescendantOf(aParent, aNewChild)))) {
+  if (aParent && nsContentUtils::ContentIsDescendantOf(aParent, aNewChild)) {
     return false;
   }
 

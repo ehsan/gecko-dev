@@ -95,7 +95,7 @@ class RuntimeService : public nsIObserver
   nsTArray<IdleThreadInfo> mIdleThreadArray;
 
   // *Not* protected by mMutex.
-  nsClassHashtable<nsPtrHashKey<nsPIDOMWindow>, nsTArray<WorkerPrivate*> > mWindowMap;
+  nsClassHashtable<nsVoidPtrHashKey, nsTArray<WorkerPrivate*> > mWindowMap;
 
   // Only used on the main thread.
   nsCOMPtr<nsITimer> mIdleThreadTimer;

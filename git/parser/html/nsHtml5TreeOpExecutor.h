@@ -129,17 +129,14 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     bool                          mCallContinueInterruptedParsingIfEnabled;
 
     /**
-     * Non-NS_OK if this parser should refuse to process any more input.
-     * For example, the parser needs to be marked as broken if it drops some
-     * input due to a memory allocation failure. In such a case, the whole
-     * parser needs to be marked as broken, because some input has been lost
-     * and parsing more input could lead to a DOM where pieces of HTML source
+     * True if this parser should refuse to process any more input.
+     * Currently, the only way a parser can break is if it drops some input
+     * due to a memory allocation failure. In such a case, the whole parser
+     * needs to be marked as broken, because some input has been lost and
+     * parsing more input could lead to a DOM where pieces of HTML source
      * that weren't supposed to become scripts become scripts.
-     *
-     * Since NS_OK is actually 0, zeroing operator new takes care of
-     * initializing this.
      */
-    nsresult                      mBroken;
+    bool                          mBroken;
 
   public:
   
@@ -156,7 +153,14 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     /**
      * 
      */
-    NS_IMETHOD WillBuildModel(nsDTDMode aDTDMode);
+    NS_IMETHOD WillBuildModel(nsDTDMode aDTDMode) {
+      NS_ASSERTION(!mDocShell || GetDocument()->GetScriptGlobalObject(),
+                   "Script global object not ready");
+      mDocument->AddObserver(this);
+      WillBuildModelImpl();
+      GetDocument()->BeginLoad();
+      return NS_OK;
+    }
 
     /**
      * Emits EOF.
@@ -259,16 +263,13 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     /**
      * Marks this parser as broken and tells the stream parser (if any) to
      * terminate.
-     *
-     * @return aReason for convenience
      */
-    nsresult MarkAsBroken(nsresult aReason);
+    void MarkAsBroken();
 
     /**
-     * Checks if this parser is broken. Returns a non-NS_OK (i.e. non-0)
-     * value if broken.
+     * Checks if this parser is broken.
      */
-    inline nsresult IsBroken() {
+    inline bool IsBroken() {
       NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
       return mBroken;
     }

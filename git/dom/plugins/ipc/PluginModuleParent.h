@@ -321,7 +321,7 @@ private:
     bool mClearSiteDataSupported;
     bool mGetSitesWithDataSupported;
     const NPNetscapeFuncs* mNPNIface;
-    nsDataHashtable<nsPtrHashKey<void>, PluginIdentifierParent*> mIdentifiers;
+    nsDataHashtable<nsVoidPtrHashKey, PluginIdentifierParent*> mIdentifiers;
     nsNPAPIPlugin* mPlugin;
     ScopedRunnableMethodFactory<PluginModuleParent> mTaskFactory;
     nsString mPluginDumpID;

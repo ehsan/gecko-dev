@@ -87,7 +87,7 @@ nsGTKRemoteService::Startup(const char* aAppName, const char* aProfileName)
 }
 
 PLDHashOperator
-nsGTKRemoteService::StartupHandler(GtkWidget* aKey,
+nsGTKRemoteService::StartupHandler(const void* aKey,
                                    nsIWeakReference* aData,
                                    void* aClosure)
 {
