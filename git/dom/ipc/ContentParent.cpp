@@ -158,11 +158,8 @@ ContentParent::GetSingleton(PRBool aForceNew)
     if (gSingleton && !gSingleton->IsAlive())
         gSingleton = nsnull;
     
-    if (!gSingleton && aForceNew) {
-        nsRefPtr<ContentParent> parent = new ContentParent();
-        gSingleton = parent;
-        parent->Init();
-    }
+    if (!gSingleton && aForceNew)
+        gSingleton = new ContentParent();
 
     return gSingleton;
 }
@@ -347,6 +344,8 @@ ContentParent::ContentParent()
     nsChromeRegistryChrome* chromeRegistry =
         static_cast<nsChromeRegistryChrome*>(registrySvc.get());
     chromeRegistry->SendRegisteredChrome(this);
+
+    Init();
 }
 
 ContentParent::~ContentParent()

@@ -2,7 +2,6 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 let handleDialog;
-let timer; // keep in outer scope so it's not GC'd before firing
 
 function test() {
   waitForExplicitFinish();
@@ -125,7 +124,7 @@ function startCallbackTimer() {
    const dialogDelay = 10;
 
    // Use a timer to invoke a callback to twiddle the authentication dialog
-   timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
+   let timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
    timer.init(observer, dialogDelay, Ci.nsITimer.TYPE_ONE_SHOT);
 }
 
