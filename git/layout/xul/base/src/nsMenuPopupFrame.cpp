@@ -280,7 +280,10 @@ nsMenuPopupFrame::CreateWidgetForView(nsIView* aView)
   aView->CreateWidget(kCChildCID, &widgetData, nsnull, PR_TRUE, PR_TRUE,
                       eContentTypeInherit, parentWidget);
 #endif
-  aView->GetWidget()->SetTransparencyMode(mode);
+  nsIWidget* widget = aView->GetWidget();
+  widget->SetTransparencyMode(viewHasTransparentContent ?
+      eTransparencyTransparent : eTransparencyOpaque);
+  widget->SetWindowShadowStyle(GetStyleUIReset()->mWindowShadow);
   return NS_OK;
 }
 
@@ -560,7 +563,7 @@ nsMenuPopupFrame::InitializePopupWithAnchorAlign(nsIContent* aAnchorContent,
   }
 }
 
-void PR_CALLBACK
+void
 LazyGeneratePopupDone(nsIContent* aPopup, nsIFrame* aFrame, void* aArg)
 {
   // be safe and check the frame type

@@ -1447,8 +1447,7 @@ struct JSFunctionSpec {
     /*
      * extra & 0xFFFF:  Number of extra argument slots for local GC roots.
      *                  If fast native, must be zero.
-     * extra >> 16:     If slow native, reserved for future use (must be 0).
-     *                  If fast native, minimum required argc.
+     * extra >> 16:     Reserved for future use (must be 0).
      */
     uint32          extra;
 };
@@ -2405,7 +2404,7 @@ typedef JSBool (* JSONWriteCallback)(const jschar *buf, uint32 len, void *data);
  * JSON.stringify as specificed by ES3.1 (draft)
  */
 JS_PUBLIC_API(JSBool)
-JS_Stringify(JSContext *cx, jsval *vp, JSObject *replacer, 
+JS_Stringify(JSContext *cx, jsval *vp, JSObject *replacer,
              JSONWriteCallback callback, void *data);
 
 /*

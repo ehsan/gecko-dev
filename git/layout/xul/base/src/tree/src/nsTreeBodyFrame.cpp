@@ -114,7 +114,7 @@
 static NS_DEFINE_CID(kWidgetCID, NS_CHILD_CID);
 
 // Enumeration function that cancels all the image requests in our cache
-PR_STATIC_CALLBACK(PLDHashOperator)
+static PLDHashOperator
 CancelImageRequest(const nsAString& aKey,
                    nsTreeImageCacheEntry aEntry, void* aData)
 {
@@ -4218,9 +4218,11 @@ nsTreeBodyFrame::ClearStyleAndImageCaches()
   return NS_OK;
 }
 
-NS_IMETHODIMP
+/* virtual */ void
 nsTreeBodyFrame::DidSetStyleContext()
 {
+  nsLeafBoxFrame::DidSetStyleContext();
+
   // Clear the style cache; the pointers are no longer even valid
   mStyleCache.Clear();
   // XXX The following is hacky, but it's not incorrect,
@@ -4229,7 +4231,6 @@ nsTreeBodyFrame::DidSetStyleContext()
   mIndentation = GetIndentation();
   mRowHeight = GetRowHeight();
   mStringWidth = -1;
-  return NS_OK;
 }
 
 PRBool 

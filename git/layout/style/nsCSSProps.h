@@ -50,6 +50,12 @@
 #include "nsStyleStruct.h"
 #include "nsCSSKeywords.h"
 
+// Flags for the kFlagsTable bitfield (flags_ in nsCSSPropList.h)
+
+// A property that is a *-ltr-source or *-rtl-source property for one of
+// the directional pseudo-shorthand properties.
+#define CSS_PROPERTY_DIRECTIONAL_SOURCE (1<<0)
+
 class nsCSSProps {
 public:
   static void AddRefTable(void);
@@ -94,6 +100,7 @@ public:
   static const nsCSSType       kTypeTable[eCSSProperty_COUNT_no_shorthands];
   static const nsStyleStructID kSIDTable[eCSSProperty_COUNT_no_shorthands];
   static const PRInt32* const  kKeywordTableTable[eCSSProperty_COUNT_no_shorthands];
+  static const PRUint32        kFlagsTable[eCSSProperty_COUNT];
 
   // A table for shorthand properties.  The appropriate index is the
   // property ID minus eCSSProperty_COUNT_no_shorthands.
@@ -197,6 +204,7 @@ public:
   static const PRInt32 kVolumeKTable[];
   static const PRInt32 kWhitespaceKTable[];
   static const PRInt32 kWidthKTable[]; // also min-width, max-width
+  static const PRInt32 kWindowShadowKTable[];
   static const PRInt32 kWordwrapKTable[];
 };
 

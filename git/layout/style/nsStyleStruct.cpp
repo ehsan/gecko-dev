@@ -113,7 +113,7 @@ static nsChangeHint CalcShadowDifference(nsCSSShadowArray* lhs,
 //
 nsStyleFont::nsStyleFont(const nsFont& aFont, nsPresContext *aPresContext)
   : mFont(aFont),
-    mFlags(NS_STYLE_FONT_DEFAULT)
+    mGenericID(kGenericFont_NONE)
 {
   mSize = mFont.size = nsStyleFont::ZoomText(aPresContext, mFont.size);
 #ifdef MOZ_MATHML
@@ -128,7 +128,7 @@ nsStyleFont::nsStyleFont(const nsFont& aFont, nsPresContext *aPresContext)
 nsStyleFont::nsStyleFont(const nsStyleFont& aSrc)
   : mFont(aSrc.mFont)
   , mSize(aSrc.mSize)
-  , mFlags(aSrc.mFlags)
+  , mGenericID(aSrc.mGenericID)
 #ifdef MOZ_MATHML
   , mScriptLevel(aSrc.mScriptLevel)
   , mScriptUnconstrainedSize(aSrc.mScriptUnconstrainedSize)
@@ -140,7 +140,7 @@ nsStyleFont::nsStyleFont(const nsStyleFont& aSrc)
 
 nsStyleFont::nsStyleFont(nsPresContext* aPresContext)
   : mFont(*(aPresContext->GetDefaultFont(kPresContext_DefaultVariableFont_ID))),
-    mFlags(NS_STYLE_FONT_DEFAULT)
+    mGenericID(kGenericFont_NONE)
 {
   mSize = mFont.size = nsStyleFont::ZoomText(aPresContext, mFont.size);
 #ifdef MOZ_MATHML
@@ -1901,6 +1901,7 @@ nsStyleUIReset::nsStyleUIReset(void)
   mUserSelect = NS_STYLE_USER_SELECT_AUTO;
   mForceBrokenImageIcon = 0;
   mIMEMode = NS_STYLE_IME_MODE_AUTO;
+  mWindowShadow = NS_STYLE_WINDOW_SHADOW_DEFAULT;
 }
 
 nsStyleUIReset::nsStyleUIReset(const nsStyleUIReset& aSource) 
@@ -1908,6 +1909,7 @@ nsStyleUIReset::nsStyleUIReset(const nsStyleUIReset& aSource)
   mUserSelect = aSource.mUserSelect;
   mForceBrokenImageIcon = aSource.mForceBrokenImageIcon;
   mIMEMode = aSource.mIMEMode;
+  mWindowShadow = aSource.mWindowShadow;
 }
 
 nsStyleUIReset::~nsStyleUIReset(void) 
@@ -1917,13 +1919,17 @@ nsStyleUIReset::~nsStyleUIReset(void)
 nsChangeHint nsStyleUIReset::CalcDifference(const nsStyleUIReset& aOther) const
 {
   // ignore mIMEMode
-  if (mForceBrokenImageIcon == aOther.mForceBrokenImageIcon) {
-    if (mUserSelect == aOther.mUserSelect) {
-      return NS_STYLE_HINT_NONE;
-    }
-    return NS_STYLE_HINT_VISUAL;
+  if (mForceBrokenImageIcon != aOther.mForceBrokenImageIcon)
+    return NS_STYLE_HINT_FRAMECHANGE;
+  if (mWindowShadow != aOther.mWindowShadow) {
+    // We really need just an nsChangeHint_SyncFrameView, except
+    // on an ancestor of the frame, so we get that by doing a
+    // reflow.
+    return NS_STYLE_HINT_REFLOW;
   }
-  return NS_STYLE_HINT_FRAMECHANGE;
+  if (mUserSelect != aOther.mUserSelect)
+    return NS_STYLE_HINT_VISUAL;
+  return NS_STYLE_HINT_NONE;
 }
 
 #ifdef DEBUG

@@ -179,6 +179,9 @@ nsIWidget         * gRollupWidget   = nsnull;
 
 - (BOOL)isPaintingSuppressed;
 
+- (void)maybeInvalidateShadow;
+- (void)invalidateShadow;
+
 #if USE_CLICK_HOLD_CONTEXTMENU
  // called on a timer two seconds after a mouse down to see if we should display
  // a context menu (click-hold)
@@ -188,6 +191,10 @@ nsIWidget         * gRollupWidget   = nsnull;
 #ifdef ACCESSIBILITY
 - (id<mozAccessible>)accessible;
 #endif
+
+- (BOOL)isFirstResponder;
+
+- (void)fireKeyEventForFlagsChanged:(NSEvent*)theEvent keyDown:(BOOL)isKeyDown;
 
 @end
 
@@ -258,7 +265,7 @@ UnderlineAttributeToTextRangeType(PRUint32 aUnderlineStyle, NSRange selRange)
   // ime send you some part of text in 1 (NSSingleUnderlineStyle) and some part in 2. 
   // ftang will ask apple for more details
   //
-  // it probably means show 1-pixel thickness underline vs 2-pixel thickness
+  // It probably means show 1-pixel thickness underline vs 2-pixel thickness.
   
   PRUint32 attr;
   if (selRange.length == 0) {
@@ -770,6 +777,28 @@ void nsChildView::SetTransparencyMode(nsTransparencyMode aMode)
   }
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
+}
+
+
+// This is called by nsContainerFrame on the root widget for all window types
+// except popup windows (when nsCocoaWindow::SetWindowShadowStyle is used instead).
+NS_IMETHODIMP nsChildView::SetWindowShadowStyle(PRInt32 aStyle)
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
+  // Find out if this is a window we created by seeing if the delegate is WindowDelegate. If it is,
+  // tell the nsCocoaWindow to set the shadow style.
+  id windowDelegate = [[mView nativeWindow] delegate];
+  if (windowDelegate && [windowDelegate isKindOfClass:[WindowDelegate class]]) {
+    nsCocoaWindow *widget = [(WindowDelegate *)windowDelegate geckoWidget];
+    if (widget) {
+      widget->SetWindowShadowStyle(aStyle);
+    }
+  }
+
+  return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 
@@ -2236,13 +2265,18 @@ NSEvent* gLastDragEvent = nil;
                                                           kCorePboardType_urln,
                                                           nil]];
   [[NSNotificationCenter defaultCenter] addObserver:self
-                                           selector:@selector(systemColorChanged)
+                                           selector:@selector(systemMetricsChanged)
                                                name:NSControlTintDidChangeNotification
                                              object:nil];
   [[NSNotificationCenter defaultCenter] addObserver:self
-                                           selector:@selector(systemColorChanged)
+                                           selector:@selector(systemMetricsChanged)
                                                name:NSSystemColorsDidChangeNotification
                                              object:nil];
+  [[NSDistributedNotificationCenter defaultCenter] addObserver:self
+                                                      selector:@selector(systemMetricsChanged)
+                                                          name:@"AppleAquaScrollBarVariantChanged"
+                                                        object:nil
+                                            suspensionBehavior:NSNotificationSuspensionBehaviorDeliverImmediately]; 
 
   return self;
 
@@ -2263,6 +2297,7 @@ NSEvent* gLastDragEvent = nil;
     sLastViewEntered = nil;
 
   [[NSNotificationCenter defaultCenter] removeObserver:self];
+  [[NSDistributedNotificationCenter defaultCenter] removeObserver:self];
 
   [super dealloc];    
 
@@ -2315,7 +2350,7 @@ NSEvent* gLastDragEvent = nil;
 }
 
 
-- (void)systemColorChanged
+- (void)systemMetricsChanged
 {
   if (!mGeckoChild)
     return;
@@ -2723,6 +2758,38 @@ NSEvent* gLastDragEvent = nil;
 }
 
 
+// Limit shadow invalidation to 10 times per second.
+static const PRInt32 sShadowInvalidationInterval = 100;
+- (void)maybeInvalidateShadow
+{
+  if (!mIsTransparent || ![mWindow hasShadow])
+    return;
+
+  PRIntervalTime now = PR_IntervalNow();
+  PRInt32 elapsed = PR_IntervalToMilliseconds(now - mLastShadowInvalidation);
+  if (!mLastShadowInvalidation ||
+      elapsed >= sShadowInvalidationInterval) {
+    [mWindow invalidateShadow];
+    mLastShadowInvalidation = now;
+    mNeedsShadowInvalidation = NO;
+  } else if (!mNeedsShadowInvalidation) {
+    mNeedsShadowInvalidation = YES;
+    [self performSelector:@selector(invalidateShadow)
+               withObject:nil
+               afterDelay:(sShadowInvalidationInterval - elapsed) / 1000.0];
+  }
+}
+
+
+- (void)invalidateShadow
+{
+  if (!mNeedsShadowInvalidation)
+    return;
+  [mWindow invalidateShadow];
+  mNeedsShadowInvalidation = NO;
+}
+
+
 - (BOOL)isPaintingSuppressed
 {
   NSWindow* win = [self window];
@@ -2800,6 +2867,10 @@ NSEvent* gLastDragEvent = nil;
   mGeckoChild->DispatchWindowEvent(paintEvent);
   if (!mGeckoChild)
     return;
+
+  // If we're a transparent window, and our contents have changed, we need
+  // to make sure the shadow is updated to the new contents.
+  [self maybeInvalidateShadow];
 
   paintEvent.renderingContext = nsnull;
   paintEvent.region = nsnull;
@@ -5623,8 +5694,21 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
-  // Fire key up/down events for the modifier keys (shift, alt, ctrl, command).
-  if ([theEvent type] == NSFlagsChanged) {
+  // CapsLock state and other modifier states are different:
+  // CapsLock state does not revert when the CapsLock key goes up, as the
+  // modifier state does for other modifier keys on key up. Also,
+  // mLastModifierState is set only when this view is the first responder. We
+  // cannot trust mLastModifierState to accurately reflect the state of CapsLock
+  // since CapsLock maybe have been toggled when another window was active.
+  if ([theEvent keyCode] == kCapsLockKeyCode) {
+    // Fire key down event for caps lock.
+    [self fireKeyEventForFlagsChanged:theEvent keyDown:YES];
+    if (!mGeckoChild)
+      return;
+    // XXX should we fire keyup event too? The keyup event for CapsLock key
+    // is never sent to gecko.
+  } else if ([theEvent type] == NSFlagsChanged) {
+    // Fire key up/down events for the modifier keys (shift, alt, ctrl, command).
     unsigned int modifiers =
       nsCocoaUtils::GetCocoaEventModifierFlags(theEvent) & NSDeviceIndependentModifierFlagsMask;
     const PRUint32 kModifierMaskTable[] =
@@ -5635,26 +5719,16 @@ static BOOL keyUpAlreadySentKeyDown = NO;
     for (PRUint32 i = 0; i < kModifierCount; i++) {
       PRUint32 modifierBit = kModifierMaskTable[i];
       if ((modifiers & modifierBit) != (mLastModifierState & modifierBit)) {
-        PRUint32 message = ((modifiers & modifierBit) != 0 ? NS_KEY_DOWN :
-                                                             NS_KEY_UP);
+        BOOL isKeyDown = (modifiers & modifierBit) != 0 ? YES : NO;
 
-        // Fire a key event.
-        nsKeyEvent geckoEvent(PR_TRUE, message, nsnull);
-        [self convertCocoaKeyEvent:theEvent toGeckoEvent:&geckoEvent];
+        [self fireKeyEventForFlagsChanged:theEvent keyDown:isKeyDown];
 
-        // create native EventRecord for use by plugins
-        EventRecord macEvent;
-        ConvertCocoaKeyEventToMacEvent(theEvent, macEvent, message);
-        geckoEvent.nativeMsg = &macEvent;
-
-        mGeckoChild->DispatchWindowEvent(geckoEvent);
         if (!mGeckoChild)
           return;
 
         // Stop if focus has changed.
         // Check to see if we are still the first responder.
-        NSResponder* resp = [[self window] firstResponder];
-        if (resp != (NSResponder*)self)
+        if (![self isFirstResponder])
           break;
       }
     }
@@ -5668,6 +5742,40 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+- (BOOL) isFirstResponder
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
+
+  NSResponder* resp = [[self window] firstResponder];
+  return (resp == (NSResponder*)self);
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
+}
+
+- (void)fireKeyEventForFlagsChanged:(NSEvent*)theEvent keyDown:(BOOL)isKeyDown
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  if (!mGeckoChild || [theEvent type] != NSFlagsChanged)
+    return;
+
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
+
+  PRUint32 message = keyDown ? NS_KEY_DOWN : NS_KEY_UP;
+
+  // Fire a key event.
+  nsKeyEvent geckoEvent(PR_TRUE, message, nsnull);
+  [self convertCocoaKeyEvent:theEvent toGeckoEvent:&geckoEvent];
+
+  // create native EventRecord for use by plugins
+  EventRecord macEvent;
+  ConvertCocoaKeyEventToMacEvent(theEvent, macEvent, message);
+  geckoEvent.nativeMsg = &macEvent;
+
+  mGeckoChild->DispatchWindowEvent(geckoEvent);
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
+}
 
 // This method is called when are are about to lose focus.
 // We must always call through to our superclass, even when mGeckoChild is
