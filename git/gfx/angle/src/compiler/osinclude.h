@@ -37,7 +37,7 @@
 #endif  // ANGLE_USE_NSPR
 
 
-#include "compiler/compilerdebug.h"
+#include "compiler/debug.h"
 
 //
 // Thread Local Storage Operations

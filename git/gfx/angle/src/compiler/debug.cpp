@@ -4,9 +4,9 @@
 // found in the LICENSE file.
 //
 
-// compilerdebug.cpp: Debugging utilities.
+// debug.cpp: Debugging utilities.
 
-#include "compiler/compilerdebug.h"
+#include "compiler/debug.h"
 
 #include <stdarg.h>
 #include <stdio.h>
