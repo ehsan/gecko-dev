@@ -797,13 +797,8 @@ StackFrames.prototype = {
    * Handler for the debugger's prettyprintchange notification.
    */
   _onPrettyPrintChange: function() {
-    // Makes sure the selected source remains selected
-    // after the fillFrames is called.
-    const source = DebuggerView.Sources.selectedValue;
     if (this.activeThread.state == "paused") {
-      this.activeThread.fillFrames(
-         CALL_STACK_PAGE_SIZE,
-         () => DebuggerView.Sources.selectedValue = source);
+      this.activeThread.fillFrames(CALL_STACK_PAGE_SIZE);
     }
   },
 

@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-'use strict';
+// define(function(require, exports, module) {
+
 // <INJECTED SOURCE:START>
 
 // THIS FILE IS GENERATED FROM SOURCE IN THE GCLI PROJECT
@@ -22,25 +23,28 @@
 
 var exports = {};
 
-var TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testContext.js</p>";
+const TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testContext.js</p>";
 
 function test() {
-  return Task.spawn(function() {
-    let options = yield helpers.openTab(TEST_URI);
-    yield helpers.openToolbar(options);
-    gcli.addItems(mockCommands.items);
-
-    yield helpers.runTests(options, exports);
-
-    gcli.removeItems(mockCommands.items);
-    yield helpers.closeToolbar(options);
-    yield helpers.closeTab(options);
-  }).then(finish, helpers.handleError);
+  helpers.addTabWithToolbar(TEST_URI, function(options) {
+    return helpers.runTests(options, exports);
+  }).then(finish);
 }
 
 // <INJECTED SOURCE:END>
 
-// var helpers = require('./helpers');
+'use strict';
+
+// var helpers = require('gclitest/helpers');
+// var mockCommands = require('gclitest/mockCommands');
+
+exports.setup = function(options) {
+  mockCommands.setup();
+};
+
+exports.shutdown = function(options) {
+  mockCommands.shutdown();
+};
 
 exports.testBaseline = function(options) {
   return helpers.audit(options, [
@@ -100,14 +104,15 @@ exports.testContext = function(options) {
         args: {
           command: { name: 'context' },
           prefix: {
-            value: options.requisition.canon.getCommand('tsn'),
+            value: mockCommands.commands.tsn,
             status: 'VALID',
             message: ''
-          }
+          },
         }
       },
       exec: {
-        output: 'Using tsn as a command prefix'
+        output: 'Using tsn as a command prefix',
+        completed: true,
       }
     },
     // For comparison with earlier
@@ -123,8 +128,9 @@ exports.testContext = function(options) {
           text: {
             value: undefined,
             arg: '',
-            status: 'INCOMPLETE'
-          }
+            status: 'INCOMPLETE',
+            message: ''
+          },
         }
       }
     },
@@ -141,11 +147,12 @@ exports.testContext = function(options) {
             arg: ' test',
             status: 'VALID',
             message: ''
-          }
+          },
         }
       },
       exec: {
-        output: 'Exec: tsnExt text=test'
+        output: 'Exec: tsnExt text=test',
+        completed: true,
       }
     },
     {
@@ -174,7 +181,7 @@ exports.testContext = function(options) {
         unassigned: [ ],
         args: {
           command: { name: 'tsb' },
-          toggle: { value: true, arg: ' true', status: 'VALID', message: '' }
+          toggle: { value: true, arg: ' true', status: 'VALID', message: '' },
         }
       }
     },
@@ -195,14 +202,15 @@ exports.testContext = function(options) {
         args: {
           command: { name: 'context' },
           prefix: {
-            value: options.requisition.canon.getCommand('tsn ext'),
+            value: mockCommands.commands.tsnExt,
             status: 'VALID',
             message: ''
           }
         }
       },
       exec: {
-        output: 'Can\'t use \'tsn ext\' as a prefix because it is not a parent command.',
+        output: 'Error: Can\'t use \'tsn ext\' as a prefix because it is not a parent command.',
+        completed: true,
         error: true
       }
     },
@@ -220,14 +228,15 @@ exports.testContext = function(options) {
         args: {
           command: { name: 'context' },
           prefix: {
-            value: options.requisition.canon.getCommand('tsn deep'),
+            value: mockCommands.commands.tsnDeep,
             status: 'VALID',
             message: ''
           }
         }
       },
       exec: {
-        output: ''
+        output: '',
+        completed: true,
       }
     },
     */
@@ -246,9 +255,13 @@ exports.testContext = function(options) {
       },
       exec: {
         output: 'Command prefix is unset',
+        completed: true,
         type: 'string',
         error: false
       }
     }
   ]);
 };
+
+
+// });

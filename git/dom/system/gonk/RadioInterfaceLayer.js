@@ -2152,18 +2152,23 @@ RadioInterface.prototype = {
                                                       message.callIndex,
                                                       message.notification);
         break;
+      case "conferenceError":
+        gTelephonyProvider.notifyConferenceError(message.errorName,
+                                                 message.errorMsg);
+        break;
       case "datacallerror":
         connHandler.handleDataCallError(message);
         break;
       case "datacallstatechange":
         message.ip = null;
-        message.prefixLength = 0;
+        message.netmask = null;
         message.broadcast = null;
         if (message.ipaddr) {
           message.ip = message.ipaddr.split("/")[0];
-          message.prefixLength = parseInt(message.ipaddr.split("/")[1], 10);
           let ip_value = netHelpers.stringToIP(message.ip);
-          let mask_value = netHelpers.makeMask(message.prefixLength);
+          let prefix_len = message.ipaddr.split("/")[1];
+          let mask_value = netHelpers.makeMask(prefix_len);
+          message.netmask = netHelpers.ipToString(mask_value);
           message.broadcast = netHelpers.ipToString((ip_value & mask_value) + ~mask_value);
         }
         connHandler.handleDataCallState(message);
@@ -4175,13 +4180,9 @@ RadioInterface.prototype = {
   },
 
   sendWorkerMessage: function(rilMessageType, message, callback) {
-    if (callback) {
-      this.workerMessenger.send(rilMessageType, message, function(response) {
-        return callback.handleResponse(response);
-      });
-    } else {
-      this.workerMessenger.send(rilMessageType, message);
-    }
+    this.workerMessenger.send(rilMessageType, message, function(response) {
+      return callback.handleResponse(response);
+    });
   }
 };
 
@@ -4214,7 +4215,6 @@ RILNetworkInterface.prototype = {
   NETWORK_TYPE_MOBILE:      Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE,
   NETWORK_TYPE_MOBILE_MMS:  Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_MMS,
   NETWORK_TYPE_MOBILE_SUPL: Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_SUPL,
-  NETWORK_TYPE_MOBILE_IMS:  Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_IMS,
   // The network manager should only need to add the host route for "other"
   // types, which is the same handling method as the supl type. So let the
   // definition of other types to be the same as the one of supl type.
@@ -4247,9 +4247,6 @@ RILNetworkInterface.prototype = {
     if (this.connectedTypes.indexOf("supl") != -1) {
       return this.NETWORK_TYPE_MOBILE_SUPL;
     }
-    if (this.connectedTypes.indexOf("ims") != -1) {
-      return this.NETWORK_TYPE_MOBILE_IMS;
-    }
     return this.NETWORK_TYPE_MOBILE_OTHERS;
   },
 
@@ -4257,7 +4254,7 @@ RILNetworkInterface.prototype = {
 
   ip: null,
 
-  prefixLength: 0,
+  netmask: null,
 
   broadcast: null,
 
@@ -4378,7 +4375,7 @@ RILNetworkInterface.prototype = {
       this.cid = datacall.cid;
       this.name = datacall.ifname;
       this.ip = datacall.ip;
-      this.prefixLength = datacall.prefixLength;
+      this.netmask = datacall.netmask;
       this.broadcast = datacall.broadcast;
       this.gateway = datacall.gw;
       if (datacall.dns) {

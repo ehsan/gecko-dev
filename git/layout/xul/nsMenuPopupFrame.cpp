@@ -400,10 +400,8 @@ nsMenuPopupFrame::LayoutPopup(nsBoxLayoutState& aState, nsIFrame* aParentMenu,
     // if the popup is not open, only do layout while showing or if the menu
     // is sized to the popup
     shouldPosition = (mPopupState == ePopupShowing);
-    if (!shouldPosition && !aSizedToPopup) {
-      RemoveStateBits(NS_FRAME_FIRST_REFLOW);
+    if (!shouldPosition && !aSizedToPopup)
       return;
-    }
   }
 
   // if the popup has just been opened, make sure the scrolled window is at 0,0

@@ -23,7 +23,7 @@
 
 var exports = {};
 
-const TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testUtil.js</p>";
+const TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testScratchpad.js</p>";
 
 function test() {
   helpers.addTabWithToolbar(TEST_URI, function(options) {
@@ -35,23 +35,37 @@ function test() {
 
 'use strict';
 
-var util = require('util/util');
 // var assert = require('test/assert');
 
-exports.testFindCssSelector = function(options) {
-  if (options.isPhantomjs) {
-    assert.log('Skipping tests due to issues with querySelectorAll.');
-    return;
-  }
+var origScratchpad;
 
-  var nodes = options.window.document.querySelectorAll('*');
-  for (var i = 0; i < nodes.length; i++) {
-    var selector = util.findCssSelector(nodes[i]);
-    var matches = options.window.document.querySelectorAll(selector);
+exports.setup = function(options) {
+  origScratchpad = options.display.inputter.scratchpad;
+  options.display.inputter.scratchpad = stubScratchpad;
+};
 
-    assert.is(matches.length, 1, 'multiple matches for ' + selector);
-    assert.is(matches[0], nodes[i], 'non-matching selector: ' + selector);
-  }
+exports.shutdown = function(options) {
+  options.display.inputter.scratchpad = origScratchpad;
+};
+
+var stubScratchpad = {
+  shouldActivate: function(ev) {
+    return true;
+  },
+  activatedCount: 0,
+  linkText: 'scratchpad.linkText'
+};
+stubScratchpad.activate = function(value) {
+  stubScratchpad.activatedCount++;
+  return true;
+};
+
+
+exports.testActivate = function(options) {
+  var ev = {};
+  stubScratchpad.activatedCount = 0;
+  options.display.inputter.handleKeyUp(ev);
+  assert.is(stubScratchpad.activatedCount, 1, 'scratchpad is activated');
 };
 
 

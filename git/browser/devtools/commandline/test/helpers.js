@@ -1,96 +1,38 @@
-/*
- * Copyright 2012, Mozilla Foundation and contributors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+// Use as a JSM
+// ------------
+// helpers._createDebugCheck() can be useful at runtime. To use as a JSM, copy
+// commandline/test/helpers.js to shared/helpers.jsm, and then import to
+// DeveloperToolbar.jsm with:
+//   XPCOMUtils.defineLazyModuleGetter(this, "helpers",
+//                                 "resource:///modules/devtools/helpers.jsm");
+// At the bottom of DeveloperToolbar.prototype._onload add this:
+//   var options = { display: this.display };
+//   this._input.onkeypress = function(ev) {
+//     helpers.setup(options);
+//     dump(helpers._createDebugCheck() + '\n\n');
+//   };
+// Now GCLI will emit output on every keypress that both explains the state
+// of GCLI and can be run as a test case.
 
-'use strict';
-
-// A copy of this code exists in firefox mochitests. They should be kept
-// in sync. Hence the exports synonym for non AMD contexts.
 this.EXPORTED_SYMBOLS = [ 'helpers' ];
 var helpers = {};
 this.helpers = helpers;
+let require = (Cu.import("resource://gre/modules/devtools/Require.jsm", {})).require;
+Components.utils.import("resource://gre/modules/devtools/gcli.jsm", {});
 
-var TargetFactory = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.TargetFactory;
-var require = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.require;
+let console = (Cu.import("resource://gre/modules/devtools/Console.jsm", {})).console;
+let TargetFactory = (Cu.import("resource://gre/modules/devtools/Loader.jsm", {})).devtools.TargetFactory;
 
-var assert = { ok: ok, is: is, log: info };
-var util = require('gcli/util/util');
-var promise = require('gcli/util/promise');
+let promise = (Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", {})).Promise;
+let assert = { ok: ok, is: is, log: info };
+
+var util = require('util/util');
 var cli = require('gcli/cli');
-var KeyEvent = require('gcli/util/util').KeyEvent;
-var gcli = require('gcli/index');
 
-/**
- * See notes in helpers.checkOptions()
- */
-var createFFDisplayAutomator = function(display) {
-  var automator = {
-    setInput: function(typed) {
-      return display.inputter.setInput(typed);
-    },
-
-    setCursor: function(cursor) {
-      return display.inputter.setCursor(cursor);
-    },
-
-    focus: function() {
-      return display.inputter.focus();
-    },
-
-    fakeKey: function(keyCode) {
-      var fakeEvent = {
-        keyCode: keyCode,
-        preventDefault: function() { },
-        timeStamp: new Date().getTime()
-      };
-
-      display.inputter.onKeyDown(fakeEvent);
-
-      if (keyCode === KeyEvent.DOM_VK_BACK_SPACE) {
-        var input = display.inputter.element;
-        input.value = input.value.slice(0, -1);
-      }
-
-      return display.inputter.handleKeyUp(fakeEvent);
-    },
-
-    getInputState: function() {
-      return display.inputter.getInputState();
-    },
-
-    getCompleterTemplateData: function() {
-      return display.completer._getCompleterTemplateData();
-    },
-
-    getErrorMessage: function() {
-      return display.tooltip.errorEle.textContent;
-    }
-  };
-
-  Object.defineProperty(automator, 'focusManager', {
-    get: function() { return display.focusManager; },
-    enumerable: true
-  });
-
-  Object.defineProperty(automator, 'field', {
-    get: function() { return display.tooltip.field; },
-    enumerable: true
-  });
-
-  return automator;
-};
+var converters = require('gcli/converters');
 
 /**
  * Warning: For use with Firefox Mochitests only.
@@ -119,6 +61,8 @@ var createFFDisplayAutomator = function(display) {
  * @param options An optional set of options to customize the way the tests run
  */
 helpers.addTab = function(url, callback, options) {
+  var deferred = promise.defer();
+
   waitForExplicitFinish();
 
   options = options || {};
@@ -131,15 +75,12 @@ helpers.addTab = function(url, callback, options) {
   options.browser = tabbrowser.getBrowserForTab(options.tab);
   options.target = TargetFactory.forTab(options.tab);
 
-  var loaded = helpers.listenOnce(options.browser, "load", true).then(function(ev) {
+  var onPageLoad = function() {
+    options.browser.removeEventListener("load", onPageLoad, true);
     options.document = options.browser.contentDocument;
     options.window = options.document.defaultView;
 
-    var reply = callback.call(null, options);
-
-    return promise.resolve(reply).then(null, function(error) {
-      ok(false, error);
-    }).then(function() {
+    var cleanUp = function() {
       tabbrowser.removeTab(options.tab);
 
       delete options.window;
@@ -151,28 +92,26 @@ helpers.addTab = function(url, callback, options) {
 
       delete options.chromeWindow;
       delete options.isFirefox;
+
+      deferred.resolve();
+    };
+
+    var reply = callback(options);
+    promise.resolve(reply).then(cleanUp, function(error) {
+      ok(false, error);
+      cleanUp();
     });
-  });
+  };
 
   options.browser.contentWindow.location = url;
-  return loaded;
+  options.browser.addEventListener("load", onPageLoad, true);
+
+  return deferred.promise;
 };
 
-/**
- * Open a new tab
- * @param url Address of the page to open
- * @param options Object to which we add properties describing the new tab. The
- * following properties are added:
- * - chromeWindow
- * - tab
- * - browser
- * - target
- * - document
- * - window
- * @return A promise which resolves to the options object when the 'load' event
- * happens on the new tab
- */
 helpers.openTab = function(url, options) {
+  var deferred = promise.defer();
+
   waitForExplicitFinish();
 
   options = options || {};
@@ -187,18 +126,19 @@ helpers.openTab = function(url, options) {
 
   options.browser.contentWindow.location = url;
 
-  return helpers.listenOnce(options.browser, "load", true).then(function() {
+  var onPageLoad = function() {
+    options.browser.removeEventListener("load", onPageLoad, true);
     options.document = options.browser.contentDocument;
     options.window = options.document.defaultView;
-    return options;
-  });
+
+    deferred.resolve(options);
+  };
+
+  options.browser.addEventListener("load", onPageLoad, true);
+
+  return deferred.promise;
 };
 
-/**
- * Undo the effects of |helpers.openTab|
- * @param options The options object passed to |helpers.openTab|
- * @return A promise resolved (with undefined) when the tab is closed
- */
 helpers.closeTab = function(options) {
   options.chromeWindow.gBrowser.removeTab(options.tab);
 
@@ -215,39 +155,25 @@ helpers.closeTab = function(options) {
   return promise.resolve(undefined);
 };
 
-/**
- * Open the developer toolbar in a tab
- * @param options Object to which we add properties describing the developer
- * toolbar. The following properties are added:
- * - automator
- * - requisition
- * @return A promise which resolves to the options object when the 'load' event
- * happens on the new tab
- */
 helpers.openToolbar = function(options) {
-  return options.chromeWindow.DeveloperToolbar.show(true).then(function() {
-    var display = options.chromeWindow.DeveloperToolbar.display;
-    options.automator = createFFDisplayAutomator(display);
-    options.requisition = display.requisition;
+  var deferred = promise.defer();
+
+  options.chromeWindow.DeveloperToolbar.show(true, function() {
+    options.display = options.chromeWindow.DeveloperToolbar.display;
+
+    deferred.resolve(options);
   });
+
+  return deferred.promise;
 };
 
-/**
- * Undo the effects of |helpers.openToolbar|
- * @param options The options object passed to |helpers.openToolbar|
- * @return A promise resolved (with undefined) when the toolbar is closed
- */
 helpers.closeToolbar = function(options) {
-  return options.chromeWindow.DeveloperToolbar.hide().then(function() {
-    delete options.automator;
-    delete options.requisition;
-  });
+  options.chromeWindow.DeveloperToolbar.hide();
+  delete options.display;
+
+  return promise.resolve(undefined);
 };
 
-/**
- * A helper to work with Task.spawn so you can do:
- *   return Task.spawn(realTestFunc).then(finish, helpers.handleError);
- */
 helpers.handleError = function(ex) {
   console.error(ex);
   ok(false, ex);
@@ -255,93 +181,34 @@ helpers.handleError = function(ex) {
 };
 
 /**
- * A helper for calling addEventListener and then removeEventListener as soon
- * as the event is called, passing the results on as a promise
- * @param element The DOM element to listen on
- * @param event The name of the event to listen for
- * @param useCapture Should we use the capturing phase?
- * @return A promise resolved with the event object when the event first happens
- */
-helpers.listenOnce = function(element, event, useCapture) {
-  var deferred = promise.defer();
-  var onEvent = function(ev) {
-    element.removeEventListener(event, onEvent, useCapture);
-    deferred.resolve(ev);
-  };
-  element.addEventListener(event, onEvent, useCapture);
-  return deferred.promise;
-};
-
-/**
- * A wrapper for calling Services.obs.[add|remove]Observer using promises.
- * @param topic The topic parameter to Services.obs.addObserver
- * @param ownsWeak The ownsWeak parameter to Services.obs.addObserver with a
- * default value of false
- * @return a promise that resolves when the ObserverService first notifies us
- * of the topic. The value of the promise is the first parameter to the observer
- * function other parameters are dropped.
- */
-helpers.observeOnce = function(topic, ownsWeak=false) {
-  let deferred = promise.defer();
-  let resolver = function(subject) {
-    Services.obs.removeObserver(resolver, topic);
-    deferred.resolve(subject);
-  };
-  Services.obs.addObserver(resolver, topic, ownsWeak);
-  return deferred.promise;
-};
-
-/**
- * Takes a function that uses a callback as its last parameter, and returns a
- * new function that returns a promise instead
- */
-helpers.promiseify = function(functionWithLastParamCallback, scope) {
-  return function() {
-    let deferred = promise.defer();
-
-    let args = [].slice.call(arguments);
-    args.push(function(callbackParam) {
-      deferred.resolve(callbackParam);
-    });
-
-    try {
-      functionWithLastParamCallback.apply(scope, args);
-    }
-    catch (ex) {
-      deferred.resolve(ex);
-    }
-
-    return deferred.promise;
-  }
-};
-
-/**
  * Warning: For use with Firefox Mochitests only.
  *
  * As addTab, but that also opens the developer toolbar. In addition a new
- * 'automator' property is added to the options object with the display from GCLI
+ * 'display' property is added to the options object with the display from GCLI
  * in the developer toolbar
  */
 helpers.addTabWithToolbar = function(url, callback, options) {
   return helpers.addTab(url, function(innerOptions) {
     var win = innerOptions.chromeWindow;
+    var deferred = promise.defer();
 
-    return win.DeveloperToolbar.show(true).then(function() {
-      var display = win.DeveloperToolbar.display;
-      innerOptions.automator = createFFDisplayAutomator(display);
-      innerOptions.requisition = display.requisition;
+    win.DeveloperToolbar.show(true, function() {
+      innerOptions.display = win.DeveloperToolbar.display;
 
-      var reply = callback.call(null, innerOptions);
+      var cleanUp = function() {
+        win.DeveloperToolbar.hide();
+        delete innerOptions.display;
+        deferred.resolve();
+      };
 
-      return promise.resolve(reply).then(null, function(error) {
+      var reply = callback(innerOptions);
+      promise.resolve(reply).then(cleanUp, function(error) {
         ok(false, error);
         console.error(error);
-      }).then(function() {
-        win.DeveloperToolbar.hide().then(function() {
-          delete innerOptions.automator;
-        });
+        cleanUp();
       });
     });
+    return deferred.promise;
   }, options);
 };
 
@@ -400,29 +267,18 @@ helpers.runTests = function(options, tests) {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-/**
- * Ensure that the options object is setup correctly
- * options should contain an automator object that looks like this:
- * {
- *   getInputState: function() { ... },
- *   setCursor: function(cursor) { ... },
- *   getCompleterTemplateData: function() { ... },
- *   focus: function() { ... },
- *   getErrorMessage: function() { ... },
- *   fakeKey: function(keyCode) { ... },
- *   setInput: function(typed) { ... },
- *   focusManager: ...,
- *   field: ...,
- * }
- */
 function checkOptions(options) {
   if (options == null) {
     console.trace();
     throw new Error('Missing options object');
   }
-  if (options.requisition == null) {
+  if (options.display == null) {
     console.trace();
-    throw new Error('options.requisition == null');
+    throw new Error('options object does not contain a display property');
+  }
+  if (options.display.requisition == null) {
+    console.trace();
+    throw new Error('display object does not contain a requisition');
   }
 }
 
@@ -431,45 +287,48 @@ function checkOptions(options) {
  */
 helpers._actual = {
   input: function(options) {
-    return options.automator.getInputState().typed;
+    return options.display.inputter.element.value;
   },
 
   hints: function(options) {
-    return options.automator.getCompleterTemplateData().then(function(data) {
-      var emptyParams = data.emptyParameters.join('');
-      return (data.directTabText + emptyParams + data.arrowTabText)
+    var templateData = options.display.completer._getCompleterTemplateData();
+    var join = function(directTabText, emptyParameters, arrowTabText) {
+      return (directTabText + emptyParameters.join('') + arrowTabText)
                 .replace(/\u00a0/g, ' ')
                 .replace(/\u21E5/, '->')
                 .replace(/ $/, '');
-    });
+    };
+
+    var promisedJoin = promise.promised(join);
+    return promisedJoin(templateData.directTabText,
+                        templateData.emptyParameters,
+                        templateData.arrowTabText);
   },
 
   markup: function(options) {
-    var cursor = helpers._actual.cursor(options);
-    var statusMarkup = options.requisition.getInputStatusMarkup(cursor);
+    var cursor = options.display.inputter.element.selectionStart;
+    var statusMarkup = options.display.requisition.getInputStatusMarkup(cursor);
     return statusMarkup.map(function(s) {
       return new Array(s.string.length + 1).join(s.status.toString()[0]);
     }).join('');
   },
 
   cursor: function(options) {
-    return options.automator.getInputState().cursor.start;
+    return options.display.inputter.element.selectionStart;
   },
 
   current: function(options) {
-    var cursor = helpers._actual.cursor(options);
-    return options.requisition.getAssignmentAt(cursor).param.name;
+    return options.display.requisition.getAssignmentAt(helpers._actual.cursor(options)).param.name;
   },
 
   status: function(options) {
-    return options.requisition.status.toString();
+    return options.display.requisition.status.toString();
   },
 
   predictions: function(options) {
-    var cursor = helpers._actual.cursor(options);
-    var assignment = options.requisition.getAssignmentAt(cursor);
-    var context = options.requisition.executionContext;
-    return assignment.getPredictions(context).then(function(predictions) {
+    var cursor = options.display.inputter.element.selectionStart;
+    var assignment = options.display.requisition.getAssignmentAt(cursor);
+    return assignment.getPredictions().then(function(predictions) {
       return predictions.map(function(prediction) {
         return prediction.name;
       });
@@ -477,32 +336,32 @@ helpers._actual = {
   },
 
   unassigned: function(options) {
-    return options.requisition._unassigned.map(function(assignment) {
+    return options.display.requisition._unassigned.map(function(assignment) {
       return assignment.arg.toString();
     }.bind(this));
   },
 
   outputState: function(options) {
-    var outputData = options.automator.focusManager._shouldShowOutput();
+    var outputData = options.display.focusManager._shouldShowOutput();
     return outputData.visible + ':' + outputData.reason;
   },
 
   tooltipState: function(options) {
-    var tooltipData = options.automator.focusManager._shouldShowTooltip();
+    var tooltipData = options.display.focusManager._shouldShowTooltip();
     return tooltipData.visible + ':' + tooltipData.reason;
   },
 
   options: function(options) {
-    if (options.automator.field.menu == null) {
+    if (options.display.tooltip.field.menu == null) {
       return [];
     }
-    return options.automator.field.menu.items.map(function(item) {
+    return options.display.tooltip.field.menu.items.map(function(item) {
       return item.name.textContent ? item.name.textContent : item.name;
     });
   },
 
   message: function(options) {
-    return options.automator.getErrorMessage();
+    return options.display.tooltip.errorEle.textContent;
   }
 };
 
@@ -519,7 +378,7 @@ function outputArray(array) {
 
 helpers._createDebugCheck = function(options) {
   checkOptions(options);
-  var requisition = options.requisition;
+  var requisition = options.display.requisition;
   var command = requisition.commandAssignment.value;
   var cursor = helpers._actual.cursor(options);
   var input = helpers._actual.input(options);
@@ -591,6 +450,7 @@ helpers._createDebugCheck = function(options) {
     output += '    },\n';
     output += '    exec: {\n';
     output += '      output: \'\',\n';
+    output += '      completed: true,\n';
     output += '      type: \'string\',\n';
     output += '      error: false\n';
     output += '    }\n';
@@ -606,7 +466,7 @@ helpers._createDebugCheck = function(options) {
  */
 helpers.focusInput = function(options) {
   checkOptions(options);
-  options.automator.focus();
+  options.display.inputter.focus();
 };
 
 /**
@@ -614,7 +474,7 @@ helpers.focusInput = function(options) {
  */
 helpers.pressTab = function(options) {
   checkOptions(options);
-  return helpers.pressKey(options, KeyEvent.DOM_VK_TAB);
+  return helpers.pressKey(options, 9 /*KeyEvent.DOM_VK_TAB*/);
 };
 
 /**
@@ -622,7 +482,7 @@ helpers.pressTab = function(options) {
  */
 helpers.pressReturn = function(options) {
   checkOptions(options);
-  return helpers.pressKey(options, KeyEvent.DOM_VK_RETURN);
+  return helpers.pressKey(options, 13 /*KeyEvent.DOM_VK_RETURN*/);
 };
 
 /**
@@ -630,7 +490,13 @@ helpers.pressReturn = function(options) {
  */
 helpers.pressKey = function(options, keyCode) {
   checkOptions(options);
-  return options.automator.fakeKey(keyCode);
+  var fakeEvent = {
+    keyCode: keyCode,
+    preventDefault: function() { },
+    timeStamp: new Date().getTime()
+  };
+  options.display.inputter.onKeyDown(fakeEvent);
+  return options.display.inputter.handleKeyUp(fakeEvent);
 };
 
 /**
@@ -645,13 +511,10 @@ var ACTIONS = {
     return helpers.pressReturn(options);
   },
   '<UP>': function(options) {
-    return helpers.pressKey(options, KeyEvent.DOM_VK_UP);
+    return helpers.pressKey(options, 38 /*KeyEvent.DOM_VK_UP*/);
   },
   '<DOWN>': function(options) {
-    return helpers.pressKey(options, KeyEvent.DOM_VK_DOWN);
-  },
-  '<BACKSPACE>': function(options) {
-    return helpers.pressKey(options, KeyEvent.DOM_VK_BACK_SPACE);
+    return helpers.pressKey(options, 40 /*KeyEvent.DOM_VK_DOWN*/);
   }
 };
 
@@ -670,14 +533,14 @@ var CHUNKER = /([^<]*)(<[A-Z]+>)/;
 helpers.setInput = function(options, typed, cursor) {
   checkOptions(options);
   var inputPromise;
-  var automator = options.automator;
+  var inputter = options.display.inputter;
   // We try to measure average keypress time, but setInput can simulate
   // several, so we try to keep track of how many
   var chunkLen = 1;
 
   // The easy case is a simple string without things like <TAB>
   if (typed.indexOf('<') === -1) {
-    inputPromise = automator.setInput(typed);
+    inputPromise = inputter.setInput(typed);
   }
   else {
     // Cut the input up into input strings separated by '<KEY>' tokens. The
@@ -688,7 +551,7 @@ helpers.setInput = function(options, typed, cursor) {
     chunkLen = chunks.length + 1;
 
     // We're working on this in chunks so first clear the input
-    inputPromise = automator.setInput('').then(function() {
+    inputPromise = inputter.setInput('').then(function() {
       return util.promiseEach(chunks, function(chunk) {
         if (chunk.charAt(0) === '<') {
           var action = ACTIONS[chunk];
@@ -699,7 +562,7 @@ helpers.setInput = function(options, typed, cursor) {
           return action(options);
         }
         else {
-          return automator.setInput(automator.getInputState().typed + chunk);
+          return inputter.setInput(inputter.element.value + chunk);
         }
       });
     });
@@ -707,12 +570,20 @@ helpers.setInput = function(options, typed, cursor) {
 
   return inputPromise.then(function() {
     if (cursor != null) {
-      automator.setCursor({ start: cursor, end: cursor });
+      options.display.inputter.setCursor({ start: cursor, end: cursor });
+    }
+    else {
+      // This is a hack because jsdom appears to not handle cursor updates
+      // in the same way as most browsers.
+      if (options.isJsdom) {
+        options.display.inputter.setCursor({
+          start: typed.length,
+          end: typed.length
+        });
+      }
     }
 
-    if (automator.focusManager) {
-      automator.focusManager.onInputChange();
-    }
+    options.display.focusManager.onInputChange();
 
     // Firefox testing is noisy and distant, so logging helps
     if (options.isFirefox) {
@@ -732,14 +603,6 @@ helpers.setInput = function(options, typed, cursor) {
  * @return A promise which resolves to undefined when the checks are complete
  */
 helpers._check = function(options, name, checks) {
-  // A test method to check that all args are assigned in some way
-  var requisition = options.requisition;
-  requisition._args.forEach(function(arg) {
-    if (arg.assignment == null) {
-      assert.ok(false, 'No assignment for ' + arg);
-    }
-  });
-
   if (checks == null) {
     return promise.resolve();
   }
@@ -747,15 +610,15 @@ helpers._check = function(options, name, checks) {
   var outstanding = [];
   var suffix = name ? ' (for \'' + name + '\')' : '';
 
-  if (!options.isNoDom && 'input' in checks) {
+  if ('input' in checks) {
     assert.is(helpers._actual.input(options), checks.input, 'input' + suffix);
   }
 
-  if (!options.isNoDom && 'cursor' in checks) {
+  if ('cursor' in checks) {
     assert.is(helpers._actual.cursor(options), checks.cursor, 'cursor' + suffix);
   }
 
-  if (!options.isNoDom && 'current' in checks) {
+  if ('current' in checks) {
     assert.is(helpers._actual.current(options), checks.current, 'current' + suffix);
   }
 
@@ -763,18 +626,18 @@ helpers._check = function(options, name, checks) {
     assert.is(helpers._actual.status(options), checks.status, 'status' + suffix);
   }
 
-  if (!options.isNoDom && 'markup' in checks) {
+  if ('markup' in checks) {
     assert.is(helpers._actual.markup(options), checks.markup, 'markup' + suffix);
   }
 
-  if (!options.isNoDom && 'hints' in checks) {
+  if ('hints' in checks) {
     var hintCheck = function(actualHints) {
       assert.is(actualHints, checks.hints, 'hints' + suffix);
     };
     outstanding.push(helpers._actual.hints(options).then(hintCheck));
   }
 
-  if (!options.isNoDom && 'predictions' in checks) {
+  if ('predictions' in checks) {
     var predictionsCheck = function(actualPredictions) {
       helpers.arrayIs(actualPredictions,
                        checks.predictions,
@@ -783,7 +646,7 @@ helpers._check = function(options, name, checks) {
     outstanding.push(helpers._actual.predictions(options).then(predictionsCheck));
   }
 
-  if (!options.isNoDom && 'predictionsContains' in checks) {
+  if ('predictionsContains' in checks) {
     var containsCheck = function(actualPredictions) {
       checks.predictionsContains.forEach(function(prediction) {
         var index = actualPredictions.indexOf(prediction);
@@ -800,31 +663,40 @@ helpers._check = function(options, name, checks) {
                      'unassigned' + suffix);
   }
 
-  /* TODO: Fix this
-  if (!options.isNoDom && 'tooltipState' in checks) {
-    assert.is(helpers._actual.tooltipState(options),
-              checks.tooltipState,
-              'tooltipState' + suffix);
-  }
-  */
-
-  if (!options.isNoDom && 'outputState' in checks) {
-    assert.is(helpers._actual.outputState(options),
-              checks.outputState,
-              'outputState' + suffix);
+  if ('tooltipState' in checks) {
+    if (options.isJsdom) {
+      assert.log('Skipped ' + name + '/tooltipState due to jsdom');
+    }
+    else {
+      assert.is(helpers._actual.tooltipState(options),
+                checks.tooltipState,
+                'tooltipState' + suffix);
+    }
   }
 
-  if (!options.isNoDom && 'options' in checks) {
+  if ('outputState' in checks) {
+    if (options.isJsdom) {
+      assert.log('Skipped ' + name + '/outputState due to jsdom');
+    }
+    else {
+      assert.is(helpers._actual.outputState(options),
+                checks.outputState,
+                'outputState' + suffix);
+    }
+  }
+
+  if ('options' in checks) {
     helpers.arrayIs(helpers._actual.options(options),
                      checks.options,
                      'options' + suffix);
   }
 
-  if (!options.isNoDom && 'error' in checks) {
+  if ('error' in checks) {
     assert.is(helpers._actual.message(options), checks.error, 'error' + suffix);
   }
 
   if (checks.args != null) {
+    var requisition = options.display.requisition;
     Object.keys(checks.args).forEach(function(paramName) {
       var check = checks.args[paramName];
 
@@ -859,9 +731,14 @@ helpers._check = function(options, name, checks) {
       }
 
       if ('name' in check) {
-        assert.is(assignment.value.name,
-                  check.name,
-                  'arg.' + paramName + '.name' + suffix);
+        if (options.isJsdom) {
+          assert.log('Skipped arg.' + paramName + '.name due to jsdom');
+        }
+        else {
+          assert.is(assignment.value.name,
+                    check.name,
+                    'arg.' + paramName + '.name' + suffix);
+        }
       }
 
       if ('type' in check) {
@@ -882,7 +759,7 @@ helpers._check = function(options, name, checks) {
                   'arg.' + paramName + '.status' + suffix);
       }
 
-      if (!options.isNoDom && 'message' in check) {
+      if ('message' in check) {
         if (typeof check.message.test === 'function') {
           assert.ok(check.message.test(assignment.message),
                     'arg.' + paramName + '.message' + suffix);
@@ -910,7 +787,7 @@ helpers._check = function(options, name, checks) {
  * @return A promise which resolves to undefined when the checks are complete
  */
 helpers._exec = function(options, name, expected) {
-  var requisition = options.requisition;
+  var requisition = options.display.requisition;
   if (expected == null) {
     return promise.resolve({});
   }
@@ -920,8 +797,16 @@ helpers._exec = function(options, name, expected) {
     cli.logErrors = false;
   }
 
+  var completed = true;
+
   try {
     return requisition.exec({ hidden: true }).then(function(output) {
+      if ('completed' in expected) {
+        assert.is(completed,
+                  expected.completed,
+                  'output.completed for: ' + name);
+      }
+
       if ('type' in expected) {
         assert.is(output.type,
                   expected.type,
@@ -934,52 +819,56 @@ helpers._exec = function(options, name, expected) {
                   'output.error for: ' + name);
       }
 
+      if (!options.window) {
+        assert.ok(false, 'Missing options.window in \'' + name + '\'. ' +
+                         'Are you assming that helpers.audit is synchronous? ' +
+                         'It returns a promise');
+        return { output: output };
+      }
+
+      if (!options.window.document.createElement) {
+        assert.log('skipping output tests (missing doc.createElement) for ' + name);
+        return { output: output };
+      }
+
       if (!('output' in expected)) {
         return { output: output };
       }
 
       var context = requisition.conversionContext;
-      var convertPromise;
-      if (options.isNoDom) {
-        convertPromise = output.convert('string', context);
-      }
-      else {
-        convertPromise = output.convert('dom', context).then(function(node) {
-          return node.textContent.trim();
-        });
-      }
+      return output.convert('dom', context).then(function(node) {
+        var actualOutput = node.textContent.trim();
 
-      return convertPromise.then(function(textOutput) {
         var doTest = function(match, against) {
           // Only log the real textContent if the test fails
           if (against.match(match) != null) {
             assert.ok(true, 'html output for \'' + name + '\' ' +
-                            'should match /' + (match.source || match) + '/');
+                            'should match /' + match.source || match + '/');
           } else {
             assert.ok(false, 'html output for \'' + name + '\' ' +
-                             'should match /' + (match.source || match) + '/. ' +
+                             'should match /' + match.source || match + '/. ' +
                              'Actual textContent: "' + against + '"');
           }
         };
 
         if (typeof expected.output === 'string') {
-          assert.is(textOutput,
+          assert.is(actualOutput,
                     expected.output,
                     'html output for ' + name);
         }
         else if (Array.isArray(expected.output)) {
           expected.output.forEach(function(match) {
-            doTest(match, textOutput);
+            doTest(match, actualOutput);
           });
         }
         else {
-          doTest(expected.output, textOutput);
+          doTest(expected.output, actualOutput);
         }
 
         if (expected.error) {
           cli.logErrors = origLogErrors;
         }
-        return { output: output, text: textOutput };
+        return { output: output, text: actualOutput };
       });
     }.bind(this)).then(function(data) {
       if (expected.error) {
@@ -998,31 +887,34 @@ helpers._exec = function(options, name, expected) {
     }
     return promise.resolve({});
   }
+  finally {
+    completed = false;
+  }
 };
 
 /**
  * Helper to setup the test
  */
-helpers._setup = function(options, name, audit) {
-  if (typeof audit.setup === 'string') {
-    return helpers.setInput(options, audit.setup);
+helpers._setup = function(options, name, action) {
+  if (typeof action === 'string') {
+    return helpers.setInput(options, action);
   }
 
-  if (typeof audit.setup === 'function') {
-    return promise.resolve(audit.setup.call(audit));
+  if (typeof action === 'function') {
+    return promise.resolve(action());
   }
 
-  return promise.reject('\'setup\' property must be a string or a function. Is ' + audit.setup);
+  return promise.reject('\'setup\' property must be a string or a function. Is ' + action);
 };
 
 /**
  * Helper to shutdown the test
  */
-helpers._post = function(name, audit, data) {
-  if (typeof audit.post === 'function') {
-    return promise.resolve(audit.post.call(audit, data.output, data.text));
+helpers._post = function(name, action, data) {
+  if (typeof action === 'function') {
+    return promise.resolve(action(data.output, data.text));
   }
-  return promise.resolve(audit.post);
+  return promise.resolve(action);
 };
 
 /*
@@ -1098,7 +990,7 @@ Object.defineProperty(helpers, 'timingSummary', {
  * - name: For debugging purposes. If name is undefined, and 'setup'
  *     is a string then the setup value will be used automatically
  * - skipIf: A function to define if the test should be skipped. Useful for
- *     excluding tests from certain environments (e.g. nodom, firefox, etc).
+ *     excluding tests from certain environments (e.g. jsdom, firefox, etc).
  *     The name of the test will be used in log messages noting the skip
  *     See helpers.reason for pre-defined skip functions. The skip function must
  *     be synchronous, and will be passed the test options object.
@@ -1128,6 +1020,8 @@ Object.defineProperty(helpers, 'timingSummary', {
  *       If typeof output is a string then the output should be exactly equal
  *       to the given string. If the type of output is a RegExp or array of
  *       RegExps then the output should match all RegExps
+ *   - completed: A boolean which declares that we should check to see if the
+ *       command completed synchronously
  * - post: Function to be called after the checks have been run
  */
 helpers.audit = function(options, audits) {
@@ -1174,17 +1068,11 @@ helpers.audit = function(options, audits) {
 
     var start = new Date().getTime();
 
-    var setupDone = helpers._setup(options, name, audit);
+    var setupDone = helpers._setup(options, name, audit.setup);
     return setupDone.then(function(chunkLen) {
+
       if (typeof chunkLen !== 'number') {
         chunkLen = 1;
-      }
-
-      // Nasty hack to allow us to auto-skip tests where we're actually testing
-      // a key-sequence (i.e. targeting terminal.js) when there is no terminal
-      if (chunkLen === -1) {
-        assert.log('Skipped ' + name + ' ' + skipReason);
-        return promise.resolve(undefined);
       }
 
       if (assert.currentTest) {
@@ -1201,7 +1089,7 @@ helpers.audit = function(options, audits) {
       return checkDone.then(function() {
         var execDone = helpers._exec(options, name, audit.exec);
         return execDone.then(function(data) {
-          return helpers._post(name, audit, data).then(function() {
+          return helpers._post(name, audit.post, data).then(function() {
             if (assert.testLogging) {
               log('- END \'' + name + '\' in ' + assert.currentTest);
             }
@@ -1210,7 +1098,7 @@ helpers.audit = function(options, audits) {
       });
     });
   }).then(function() {
-    return options.automator.setInput('');
+    return options.display.inputter.setInput('');
   });
 };
 
@@ -1243,3 +1131,5 @@ function log(message) {
     console.log(message);
   }
 }
+
+//});

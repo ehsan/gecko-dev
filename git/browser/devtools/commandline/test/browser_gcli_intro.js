@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-'use strict';
+// define(function(require, exports, module) {
+
 // <INJECTED SOURCE:START>
 
 // THIS FILE IS GENERATED FROM SOURCE IN THE GCLI PROJECT
@@ -22,31 +23,26 @@
 
 var exports = {};
 
-var TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testIntro.js</p>";
+const TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testIntro.js</p>";
 
 function test() {
-  return Task.spawn(function() {
-    let options = yield helpers.openTab(TEST_URI);
-    yield helpers.openToolbar(options);
-    gcli.addItems(mockCommands.items);
-
-    yield helpers.runTests(options, exports);
-
-    gcli.removeItems(mockCommands.items);
-    yield helpers.closeToolbar(options);
-    yield helpers.closeTab(options);
-  }).then(finish, helpers.handleError);
+  helpers.addTabWithToolbar(TEST_URI, function(options) {
+    return helpers.runTests(options, exports);
+  }).then(finish);
 }
 
 // <INJECTED SOURCE:END>
 
-// var helpers = require('./helpers');
+'use strict';
+
+// var helpers = require('gclitest/helpers');
+var canon = require('gcli/canon');
 
 exports.testIntroStatus = function(options) {
   return helpers.audit(options, [
     {
       skipRemainingIf: function commandIntroMissing() {
-        return options.requisition.canon.getCommand('intro') == null;
+        return canon.getCommand('intro') == null;
       },
       setup:    'intro',
       check: {
@@ -67,7 +63,6 @@ exports.testIntroStatus = function(options) {
     },
     {
       setup:    'intro',
-      skipIf: options.isNoDom,
       check: {
         typed:  'intro',
         markup: 'VVVVV',
@@ -85,3 +80,6 @@ exports.testIntroStatus = function(options) {
     }
   ]);
 };
+
+
+// });
