@@ -74,8 +74,6 @@ int RunGTest()
     ReplaceGTestLogger();
   }
 
-  setenv("XPCOM_DEBUG_BREAK", "stack-and-abort", false);
-
   return RUN_ALL_TESTS();
 }
 

@@ -904,10 +904,7 @@ InitArrayElements(JSContext *cx, HandleObject obj, uint32_t start, uint32_t coun
     if (count == 0)
         return true;
 
-    types::TypeObject *type = obj->getType(cx);
-    if (!type)
-        return false;
-    if (updateTypes && !InitArrayTypes(cx, type, vector, count))
+    if (updateTypes && !InitArrayTypes(cx, obj->getType(cx), vector, count))
         return false;
 
     /*
@@ -1998,8 +1995,7 @@ CanOptimizeForDenseStorage(HandleObject arr, uint32_t startingIndex, uint32_t co
      * case can't happen, because any dense array used as the prototype of
      * another object is first slowified, for type inference's sake.
      */
-    types::TypeObject *arrType = arr->getType(cx);
-    if (JS_UNLIKELY(!arrType || arrType->hasAllFlags(OBJECT_FLAG_ITERATED)))
+    if (JS_UNLIKELY(arr->getType(cx)->hasAllFlags(OBJECT_FLAG_ITERATED)))
         return false;
 
     /*

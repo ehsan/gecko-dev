@@ -156,6 +156,8 @@ public class GeckoAppShell
 
     private static Handler sGeckoHandler;
 
+    public static GfxInfoThread sGfxInfoThread = null;
+
     static ActivityHandlerHelper sActivityHelper = new ActivityHandlerHelper();
 
     /* The Android-side API: API methods that Android calls */
@@ -2174,7 +2176,9 @@ public class GeckoAppShell
     }
 
     public static String getGfxInfoData() {
-        return GfxInfoThread.getData();
+        String data = sGfxInfoThread.getData();
+        sGfxInfoThread = null;
+        return data;
     }
 
     public static void registerSurfaceTextureFrameListener(Object surfaceTexture, final int id) {

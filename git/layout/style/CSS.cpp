@@ -10,7 +10,9 @@
 #include "mozilla/dom/BindingDeclarations.h"
 #include "nsCSSParser.h"
 #include "nsGlobalWindow.h"
+#include "nsIDOMDocument.h"
 #include "nsIDocument.h"
+#include "nsIPrincipal.h"
 #include "nsIURI.h"
 
 namespace mozilla {

@@ -12,6 +12,8 @@
 #ifndef nsHTMLStyleSheet_h_
 #define nsHTMLStyleSheet_h_
 
+#include "mozilla/Attributes.h"
+
 #include "nsIStyleSheet.h"
 #include "nsIStyleRuleProcessor.h"
 #include "nsIStyleRule.h"

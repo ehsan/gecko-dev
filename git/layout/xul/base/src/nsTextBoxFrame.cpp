@@ -31,10 +31,6 @@
 #include "nsLayoutUtils.h"
 #include "mozilla/Attributes.h"
 
-#ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
-#endif
-
 #ifdef IBMBIDI
 #include "nsBidiUtils.h"
 #include "nsBidiPresUtils.h"
@@ -63,9 +59,6 @@ NS_NewTextBoxFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 
 NS_IMPL_FRAMEARENA_HELPERS(nsTextBoxFrame)
 
-NS_QUERYFRAME_HEAD(nsTextBoxFrame)
-  NS_QUERYFRAME_ENTRY(nsTextBoxFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsTextBoxFrameSuper)
 
 NS_IMETHODIMP
 nsTextBoxFrame::AttributeChanged(int32_t         aNameSpaceID,
@@ -603,10 +596,8 @@ nsTextBoxFrame::CalculateTitleForWidth(nsPresContext*      aPresContext,
                                        nsRenderingContext& aRenderingContext,
                                        nscoord              aWidth)
 {
-    if (mTitle.IsEmpty()) {
-        mCroppedTitle.Truncate();
+    if (mTitle.IsEmpty())
         return 0;
-    }
 
     nsRefPtr<nsFontMetrics> fm;
     nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
@@ -1002,17 +993,6 @@ nsTextBoxFrame::CalcDrawRect(nsRenderingContext &aRenderingContext)
     // determine (cropped) title which fits in aRect.width and its width
     nscoord titleWidth =
         CalculateTitleForWidth(presContext, aRenderingContext, textRect.width);
-
-#ifdef ACCESSIBILITY
-    // Make sure to update the accessible tree in case when cropped title is
-    // changed.
-    nsAccessibilityService* accService = GetAccService();
-    if (accService) {
-        accService->UpdateLabelValue(PresContext()->PresShell(), mContent,
-                                     mCroppedTitle);
-    }
-#endif
-
     // determine if and at which position to put the underline
     UpdateAccessIndex();
 

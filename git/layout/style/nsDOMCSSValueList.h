@@ -9,7 +9,10 @@
 
 #include "nsIDOMCSSValueList.h"
 #include "CSSValue.h"
+#include "nsAutoPtr.h"
 #include "nsTArray.h"
+
+class nsComputedDOMStyle;
 
 class nsDOMCSSValueList MOZ_FINAL : public mozilla::dom::CSSValue,
   public nsIDOMCSSValueList

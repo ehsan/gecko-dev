@@ -78,7 +78,6 @@
 #include "nsSVGOuterSVGFrame.h"
 #include "nsSVGTextFrame2.h"
 #include "nsStyleStructInlines.h"
-#include "nsStyleTransformMatrix.h"
 
 #include "mozilla/dom/PBrowserChild.h"
 #include "mozilla/dom/TabChild.h"
@@ -3970,16 +3969,15 @@ ComputeSnappedImageDrawingParameters(gfxContext*     aCtx,
 
 
 static nsresult
-DrawImageInternal(nsRenderingContext*    aRenderingContext,
-                  imgIContainer*         aImage,
-                  GraphicsFilter         aGraphicsFilter,
-                  const nsRect&          aDest,
-                  const nsRect&          aFill,
-                  const nsPoint&         aAnchor,
-                  const nsRect&          aDirty,
-                  const nsIntSize&       aImageSize,
-                  const SVGImageContext* aSVGContext,
-                  uint32_t               aImageFlags)
+DrawImageInternal(nsRenderingContext* aRenderingContext,
+                  imgIContainer*       aImage,
+                  GraphicsFilter       aGraphicsFilter,
+                  const nsRect&        aDest,
+                  const nsRect&        aFill,
+                  const nsPoint&       aAnchor,
+                  const nsRect&        aDirty,
+                  const nsIntSize&     aImageSize,
+                  uint32_t             aImageFlags)
 {
   if (aDest.Contains(aFill)) {
     aImageFlags |= imgIContainer::FLAG_CLAMP;
@@ -4001,7 +3999,7 @@ DrawImageInternal(nsRenderingContext*    aRenderingContext,
 
   aImage->Draw(ctx, aGraphicsFilter, drawingParams.mUserSpaceToImageSpace,
                drawingParams.mFillRect, drawingParams.mSubimage, aImageSize,
-               aSVGContext, aImageFlags);
+               aImageFlags);
   return NS_OK;
 }
 
@@ -4079,18 +4077,17 @@ nsLayoutUtils::DrawSingleUnscaledImage(nsRenderingContext* aRenderingContext,
   fill.IntersectRect(fill, dest);
   return DrawImageInternal(aRenderingContext, aImage, aGraphicsFilter,
                            dest, fill, aDest, aDirty ? *aDirty : dest,
-                           imageSize, nullptr, aImageFlags);
+                           imageSize, aImageFlags);
 }
 
 /* static */ nsresult
-nsLayoutUtils::DrawSingleImage(nsRenderingContext*    aRenderingContext,
-                               imgIContainer*         aImage,
-                               GraphicsFilter         aGraphicsFilter,
-                               const nsRect&          aDest,
-                               const nsRect&          aDirty,
-                               const SVGImageContext* aSVGContext,
-                               uint32_t               aImageFlags,
-                               const nsRect*          aSourceArea)
+nsLayoutUtils::DrawSingleImage(nsRenderingContext* aRenderingContext,
+                               imgIContainer*       aImage,
+                               GraphicsFilter       aGraphicsFilter,
+                               const nsRect&        aDest,
+                               const nsRect&        aDirty,
+                               uint32_t             aImageFlags,
+                               const nsRect*        aSourceArea)
 {
   nsIntSize imageSize;
   if (aImage->GetType() == imgIContainer::TYPE_VECTOR) {
@@ -4119,7 +4116,7 @@ nsLayoutUtils::DrawSingleImage(nsRenderingContext*    aRenderingContext,
   nsRect fill;
   fill.IntersectRect(aDest, dest);
   return DrawImageInternal(aRenderingContext, aImage, aGraphicsFilter, dest, fill,
-                           fill.TopLeft(), aDirty, imageSize, aSVGContext, aImageFlags);
+                           fill.TopLeft(), aDirty, imageSize, aImageFlags);
 }
 
 /* static */ void
@@ -4162,7 +4159,7 @@ nsLayoutUtils::DrawBackgroundImage(nsRenderingContext* aRenderingContext,
 
   return DrawImageInternal(aRenderingContext, aImage, aGraphicsFilter,
                            aDest, aFill, aAnchor, aDirty,
-                           aImageSize, nullptr, aImageFlags);
+                           aImageSize, aImageFlags);
 }
 
 /* static */ nsresult
@@ -4211,7 +4208,7 @@ nsLayoutUtils::DrawImage(nsRenderingContext* aRenderingContext,
 
   return DrawImageInternal(aRenderingContext, aImage, aGraphicsFilter,
                            aDest, aFill, aAnchor, aDirty,
-                           imageSize, nullptr, aImageFlags);
+                           imageSize, aImageFlags);
 }
 
 /* static */ nsRect

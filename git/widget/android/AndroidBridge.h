@@ -17,6 +17,7 @@
 #include "nsIObserver.h"
 #include "nsThreadUtils.h"
 
+#include "AndroidLayerViewWrapper.h"
 #include "AndroidJavaWrappers.h"
 
 #include "nsIMutableArray.h"
@@ -62,10 +63,10 @@ class NetworkInformation;
 } // namespace hal
 
 namespace dom {
-namespace mobilemessage {
+namespace sms {
 struct SmsFilterData;
 struct SmsSegmentInfoData;
-} // namespace mobilemessage
+} // namespace sms
 } // namespace dom
 
 namespace layers {
@@ -87,8 +88,6 @@ typedef struct AndroidSystemColors {
     nscolor panelColorForeground;
     nscolor panelColorBackground;
 } AndroidSystemColors;
-
-typedef void* EGLSurface;
 
 class nsFilePickerCallback : nsISupports {
 public:
@@ -256,8 +255,8 @@ public:
     bool GetShowPasswordSetting();
 
     // Switch Java to composite with the Gecko Compositor thread
-    void RegisterCompositor(JNIEnv* env = NULL);
-    EGLSurface ProvideEGLSurface();
+    void RegisterCompositor(JNIEnv* env = NULL, bool resetting = false);
+    EGLSurface ProvideEGLSurface(bool waitUntilValid);
 
     bool GetStaticStringField(const char *classID, const char *field, nsAString &result, JNIEnv* env = nullptr);
 
@@ -314,11 +313,11 @@ public:
     void DisableBatteryNotifications();
     void GetCurrentBatteryInformation(hal::BatteryInformation* aBatteryInfo);
 
-    nsresult GetSegmentInfoForText(const nsAString& aText, dom::mobilemessage::SmsSegmentInfoData* aData);
+    nsresult GetSegmentInfoForText(const nsAString& aText, dom::sms::SmsSegmentInfoData* aData);
     void SendMessage(const nsAString& aNumber, const nsAString& aText, nsISmsRequest* aRequest);
     void GetMessage(int32_t aMessageId, nsISmsRequest* aRequest);
     void DeleteMessage(int32_t aMessageId, nsISmsRequest* aRequest);
-    void CreateMessageList(const dom::mobilemessage::SmsFilterData& aFilter, bool aReverse, nsISmsRequest* aRequest);
+    void CreateMessageList(const dom::sms::SmsFilterData& aFilter, bool aReverse, nsISmsRequest* aRequest);
     void GetNextMessageInList(int32_t aListId, nsISmsRequest* aRequest);
     void ClearMessageList(int32_t aListId);
     already_AddRefed<nsISmsRequest> DequeueSmsRequest(uint32_t aRequestId);
@@ -498,9 +497,7 @@ protected:
     jfieldID jSurfacePointerField;
 
     jclass jLayerView;
-    jmethodID jProvideEGLSurfaceMethod;
-    jfieldID jEGLSurfacePointerField;
-    jobject mGLControllerObj;
+    jmethodID jRegisterCompositorMethod;
 
     // some convinient types to have around
     jclass jStringClass;

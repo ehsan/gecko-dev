@@ -688,49 +688,41 @@ nsWindow::GetLayerManager(PLayersChild*, LayersBackend, LayerManagerPersistence,
     if (mLayerManager) {
         return mLayerManager;
     }
-    // for OMTC allow use of the single layer manager/compositor
-    // shared across all windows
-    if (UseOffMainThreadCompositing()) {
-        return sLayerManager;
-    }
-    return nullptr;
-}
-
-void
-nsWindow::CreateLayerManager()
-{
-    if (mLayerManager) {
-        return;
-    }
 
     nsWindow *topLevelWindow = FindTopLevel();
     if (!topLevelWindow || topLevelWindow->mWindowType == eWindowType_invisible) {
         // don't create a layer manager for an invisible top-level window
-        return;
+        return nullptr;
     }
 
     mUseLayersAcceleration = ComputeShouldAccelerate(mUseLayersAcceleration);
 
-    if (UseOffMainThreadCompositing()) {
+    bool useCompositor = UseOffMainThreadCompositing();
+
+    if (useCompositor) {
         if (sLayerManager) {
-            return;
+            return sLayerManager;
         }
         CreateCompositor();
         if (mLayerManager) {
             // for OMTC create a single layer manager and compositor that will be
             // used for all windows.
             SetCompositor(mLayerManager, mCompositorParent, mCompositorChild);
-            return;
+            return mLayerManager;
         }
 
         // If we get here, then off main thread compositing failed to initialize.
         sFailedToCreateGLContext = true;
     }
 
-    if (!mUseLayersAcceleration || sFailedToCreateGLContext) {
+    if (!mUseLayersAcceleration ||
+        sFailedToCreateGLContext)
+    {
         printf_stderr(" -- creating basic, not accelerated\n");
         mLayerManager = CreateBasicLayerManager();
     }
+
+    return mLayerManager;
 }
 
 void
@@ -894,8 +886,6 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             break;
 
         case AndroidGeckoEvent::COMPOSITOR_RESUME:
-            win->CreateLayerManager();
-
             // When we receive this, the compositor has already been told to
             // resume. (It turns out that waiting till we reach here to tell
             // the compositor to resume takes too long, resulting in a black
@@ -2241,7 +2231,7 @@ nsWindow::DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect)
 nsRefPtr<mozilla::layers::LayerManager> nsWindow::sLayerManager = 0;
 nsRefPtr<mozilla::layers::CompositorParent> nsWindow::sCompositorParent = 0;
 nsRefPtr<mozilla::layers::CompositorChild> nsWindow::sCompositorChild = 0;
-bool nsWindow::sCompositorPaused = true;
+bool nsWindow::sCompositorPaused = false;
 
 void
 nsWindow::SetCompositor(mozilla::layers::LayerManager* aLayerManager,

@@ -23,6 +23,7 @@
 #include "nsAutoPtr.h"
 #include "nsIStyleRule.h"
 #include "nsCSSPseudoElements.h"
+#include "nsCSSAnonBoxes.h"
 #include "mozilla/Attributes.h"
 
 class nsIURI;

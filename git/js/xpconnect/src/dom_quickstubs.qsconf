@@ -147,6 +147,8 @@ members = [
     # dom/interfaces/json - None.
     # All methods of nsIJSON call GetCurrentNativeCallContext.
 
+    # dom/interfaces/load-save - None.
+
     # dom/interfaces/offline - None.
 
     # dom/interfaces/range

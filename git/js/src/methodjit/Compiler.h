@@ -550,7 +550,7 @@ private:
     void markUndefinedLocal(uint32_t offset, uint32_t i);
     void markUndefinedLocals();
     void fixDoubleTypes(jsbytecode *target);
-    bool watchGlobalReallocation();
+    void watchGlobalReallocation();
     void updateVarType();
     void updateJoinVarTypes();
     void restoreVarType();

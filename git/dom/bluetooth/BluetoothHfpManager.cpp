@@ -274,10 +274,7 @@ public:
   {
     MOZ_ASSERT(NS_IsMainThread());
 
-    // Stop sending RING indicator
-    if (sStopSendingRingFlag) {
-      return;
-    }
+    NS_ENSURE_FALSE_VOID(sStopSendingRingFlag);
 
     if (!gBluetoothHfpManager) {
       NS_WARNING("BluetoothHfpManager no longer exists, cannot send ring!");
@@ -1161,9 +1158,6 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
     mCurrentCallArray.AppendElement(call);
   }
 
-  uint16_t prevCallState = mCurrentCallArray[aCallIndex].mState;
-  mCurrentCallArray[aCallIndex].mState = aCallState;
-
   // Same logic as implementation in ril_worker.js
   if (aNumber.Length() && aNumber[0] == '+') {
     mCurrentCallArray[aCallIndex].mType = TOA_INTERNATIONAL;
@@ -1172,6 +1166,7 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
 
   nsRefPtr<nsRunnable> sendRingTask;
   nsString address;
+  uint16_t prevCallState = mCurrentCallArray[aCallIndex].mState;
   uint32_t callArrayLength = mCurrentCallArray.Length();
   uint32_t index = 1;
 
@@ -1288,6 +1283,10 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
       }
 
       if (aCallIndex == mCurrentCallIndex) {
+        NS_ASSERTION(mCurrentCallArray.Length() > aCallIndex,
+          "Call index out of bounds!");
+        mCurrentCallArray[aCallIndex].mState = aCallState;
+
         // Find the first non-disconnected call (like connected, held),
         // and update mCurrentCallIndex
         while (index < callArrayLength) {
@@ -1312,6 +1311,8 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
       sCINDItems[CINDType::CALLSETUP].value = CallSetupState::NO_CALLSETUP;
       sCINDItems[CINDType::CALLHELD].value = CallHeldState::NO_CALLHELD;
   }
+
+  mCurrentCallArray[aCallIndex].mState = aCallState;
 }
 
 void

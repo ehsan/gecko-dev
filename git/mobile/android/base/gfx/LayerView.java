@@ -91,7 +91,7 @@ public class LayerView extends FrameLayout {
     public LayerView(Context context, AttributeSet attrs) {
         super(context, attrs);
 
-        mGLController = GLController.getInstance(this);
+        mGLController = new GLController(this);
         mPaintState = PAINT_START;
         mBackgroundColor = Color.WHITE;
     }
@@ -207,9 +207,7 @@ public class LayerView extends FrameLayout {
     }
 
     public void abortPanning() {
-        if (mPanZoomController != null) {
-            mPanZoomController.abortPanning();
-        }
+        mLayerClient.getPanZoomController().abortPanning();
     }
 
     public PointF convertViewPointToLayerPoint(PointF viewPoint) {
@@ -228,6 +226,10 @@ public class LayerView extends FrameLayout {
 
     public void setZoomConstraints(ZoomConstraints constraints) {
         mLayerClient.setZoomConstraints(constraints);
+    }
+
+    public void setViewportSize(int width, int height) {
+        mLayerClient.setViewportSize(width, height);
     }
 
     public void setInputConnectionHandler(InputConnectionHandler inputConnectionHandler) {
@@ -251,44 +253,36 @@ public class LayerView extends FrameLayout {
 
     @Override
     public boolean onKeyPreIme(int keyCode, KeyEvent event) {
-        if (mInputConnectionHandler != null && mInputConnectionHandler.onKeyPreIme(keyCode, event)) {
-            return true;
-        }
+        if (mInputConnectionHandler != null)
+            return mInputConnectionHandler.onKeyPreIme(keyCode, event);
         return false;
     }
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (mPanZoomController != null && mPanZoomController.onKeyEvent(event)) {
-            return true;
-        }
-        if (mInputConnectionHandler != null && mInputConnectionHandler.onKeyDown(keyCode, event)) {
-            return true;
-        }
+        if (mInputConnectionHandler != null)
+            return mInputConnectionHandler.onKeyDown(keyCode, event);
         return false;
     }
 
     @Override
     public boolean onKeyLongPress(int keyCode, KeyEvent event) {
-        if (mInputConnectionHandler != null && mInputConnectionHandler.onKeyLongPress(keyCode, event)) {
-            return true;
-        }
+        if (mInputConnectionHandler != null)
+            return mInputConnectionHandler.onKeyLongPress(keyCode, event);
         return false;
     }
 
     @Override
     public boolean onKeyMultiple(int keyCode, int repeatCount, KeyEvent event) {
-        if (mInputConnectionHandler != null && mInputConnectionHandler.onKeyMultiple(keyCode, repeatCount, event)) {
-            return true;
-        }
+        if (mInputConnectionHandler != null)
+            return mInputConnectionHandler.onKeyMultiple(keyCode, repeatCount, event);
         return false;
     }
 
     @Override
     public boolean onKeyUp(int keyCode, KeyEvent event) {
-        if (mInputConnectionHandler != null && mInputConnectionHandler.onKeyUp(keyCode, event)) {
-            return true;
-        }
+        if (mInputConnectionHandler != null)
+            return mInputConnectionHandler.onKeyUp(keyCode, event);
         return false;
     }
 
@@ -400,6 +394,10 @@ public class LayerView extends FrameLayout {
 
     private void onDestroyed() {
         mGLController.surfaceDestroyed();
+
+        if (mListener != null) {
+            mListener.compositionPauseRequested();
+        }
     }
 
     public Object getNativeWindow() {
@@ -413,9 +411,8 @@ public class LayerView extends FrameLayout {
     public static GLController registerCxxCompositor() {
         try {
             LayerView layerView = GeckoApp.mAppContext.getLayerView();
-            GLController controller = layerView.getGLController();
-            controller.compositorCreated();
-            return controller;
+            layerView.mListener.compositorCreated();
+            return layerView.getGLController();
         } catch (Exception e) {
             Log.e(LOGTAG, "Error registering compositor!", e);
             return null;
@@ -423,7 +420,10 @@ public class LayerView extends FrameLayout {
     }
 
     public interface Listener {
+        void compositorCreated();
         void renderRequested();
+        void compositionPauseRequested();
+        void compositionResumeRequested(int width, int height);
         void sizeChanged(int width, int height);
         void surfaceChanged(int width, int height);
     }
@@ -488,16 +488,14 @@ public class LayerView extends FrameLayout {
     @Override
     public void setOverScrollMode(int overscrollMode) {
         super.setOverScrollMode(overscrollMode);
-        if (mPanZoomController != null) {
-            mPanZoomController.setOverScrollMode(overscrollMode);
-        }
+        if (mLayerClient != null)
+            mLayerClient.getPanZoomController().setOverScrollMode(overscrollMode);
     }
 
     @Override
     public int getOverScrollMode() {
-        if (mPanZoomController != null) {
-            return mPanZoomController.getOverScrollMode();
-        }
+        if (mLayerClient != null)
+            return mLayerClient.getPanZoomController().getOverScrollMode();
         return super.getOverScrollMode();
     }
 

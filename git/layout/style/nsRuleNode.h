@@ -17,6 +17,7 @@
 #include "mozilla/StandardInteger.h"
 
 class nsStyleContext;
+struct PLDHashTable;
 struct nsRuleData;
 class nsIStyleRule;
 struct nsCSSValueList;

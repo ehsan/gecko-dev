@@ -46,6 +46,7 @@ void nsCycleCollector_shutdown();
 struct nsCycleCollectionJSRuntime
 {
     virtual nsresult BeginCycleCollection(nsCycleCollectionTraversalCallback &cb) = 0;
+    virtual nsresult FinishTraverse() = 0;
 
     /**
      * Called before/after transitioning to/from the main thread.

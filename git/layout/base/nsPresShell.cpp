@@ -4763,7 +4763,8 @@ PresShell::PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
   // selection.
   nsRefPtr<nsFrameSelection> frameSelection;
   if (aSelection) {
-    frameSelection = static_cast<Selection*>(aSelection)->GetFrameSelection();
+    nsCOMPtr<nsISelectionPrivate> selpriv = do_QueryInterface(aSelection);
+    selpriv->GetFrameSelection(getter_AddRefs(frameSelection));
   }
   else {
     frameSelection = FrameSelection();

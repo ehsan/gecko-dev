@@ -218,10 +218,7 @@ private:
   nsWeakPtr mMemoryMinimizerRunnable;
 };
 
-NS_IMPL_ISUPPORTS3(ProcessPriorityManager,
-                   nsIObserver,
-                   nsIDOMEventListener,
-                   nsITimerCallback)
+NS_IMPL_ISUPPORTS2(ProcessPriorityManager, nsIObserver, nsIDOMEventListener)
 
 ProcessPriorityManager::ProcessPriorityManager()
   : mHoldsCPUWakeLock(false)

@@ -44,7 +44,6 @@ class nsBlockFrame;
 class gfxDrawable;
 
 namespace mozilla {
-class SVGImageContext;
 namespace dom {
 class Element;
 class HTMLImageElement;
@@ -1287,25 +1286,19 @@ public:
    *   @param aImage            The image.
    *   @param aDest             The area that the image should fill
    *   @param aDirty            Pixels outside this area may be skipped.
-   *   @param aSVGContext       If non-null, SVG-related rendering context
-   *                            such as overridden attributes on the image
-   *                            document's root <svg> node. Ignored for
-   *                            raster images.
-   *   @param aImageFlags       Image flags of the imgIContainer::FLAG_*
-   *                            variety.
    *   @param aSourceArea       If non-null, this area is extracted from
    *                            the image and drawn in aDest. It's
    *                            in appunits. For best results it should
    *                            be aligned with image pixels.
+   *   @param aImageFlags       Image flags of the imgIContainer::FLAG_* variety
    */
-  static nsresult DrawSingleImage(nsRenderingContext*    aRenderingContext,
-                                  imgIContainer*         aImage,
-                                  GraphicsFilter         aGraphicsFilter,
-                                  const nsRect&          aDest,
-                                  const nsRect&          aDirty,
-                                  const mozilla::SVGImageContext* aSVGContext,
-                                  uint32_t               aImageFlags,
-                                  const nsRect*          aSourceArea = nullptr);
+  static nsresult DrawSingleImage(nsRenderingContext* aRenderingContext,
+                                  imgIContainer*       aImage,
+                                  GraphicsFilter       aGraphicsFilter,
+                                  const nsRect&        aDest,
+                                  const nsRect&        aDirty,
+                                  uint32_t             aImageFlags,
+                                  const nsRect*        aSourceArea = nullptr);
 
   /**
    * Given an imgIContainer, this method attempts to obtain an intrinsic

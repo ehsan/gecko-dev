@@ -9,7 +9,6 @@
 #include "mozilla/MathAlgorithms.h"
 
 #include "nsStyleAnimation.h"
-#include "nsStyleTransformMatrix.h"
 #include "nsCOMArray.h"
 #include "nsIStyleRule.h"
 #include "mozilla/css/StyleRule.h"
@@ -22,8 +21,10 @@
 #include "mozilla/dom/Element.h"
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/Likely.h"
+#include "prlog.h"
 #include "gfxMatrix.h"
 #include "gfxQuaternion.h"
+#include "nsPrintfCString.h"
 #include <cstdlib> // for std::abs(int/long)
 #include <cmath> // for std::abs(float/double)
 

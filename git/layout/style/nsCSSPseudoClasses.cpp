@@ -8,7 +8,9 @@
 #include "mozilla/Util.h"
 
 #include "nsCSSPseudoClasses.h"
+#include "nsAtomListUtils.h"
 #include "nsStaticAtom.h"
+#include "nsMemory.h"
 #include "mozilla/Preferences.h"
 
 using namespace mozilla;

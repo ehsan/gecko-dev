@@ -27,7 +27,6 @@
 #include "gfxCrashReporterUtils.h"
 #ifdef MOZ_METRO
 #include "DXGI1_2.h"
-#include "nsWindowsHelpers.h"
 #endif
 
 using namespace std;
@@ -217,7 +216,7 @@ LayerManagerD3D10::Initialize(bool force)
   dxgiDevice->GetAdapter(getter_AddRefs(dxgiAdapter));
   
 #ifdef MOZ_METRO
-  if (IsRunningInWindowsMetro()) {
+  if (gfxWindowsPlatform::IsRunningInWindows8Metro()) {
     nsRefPtr<IDXGIFactory2> dxgiFactory;
     dxgiAdapter->GetParent(IID_PPV_ARGS(dxgiFactory.StartAssignment()));
 
@@ -655,12 +654,10 @@ LayerManagerD3D10::VerifyBufferSize()
       mSwapChain->ResizeBuffers(1, rect.width, rect.height,
                                 DXGI_FORMAT_B8G8R8A8_UNORM,
                                 0);
-#ifdef MOZ_METRO
-    } else if (IsRunningInWindowsMetro()) {
+    } else if (gfxWindowsPlatform::IsRunningInWindows8Metro()) {
       mSwapChain->ResizeBuffers(2, rect.width, rect.height,
                                 DXGI_FORMAT_B8G8R8A8_UNORM,
                                 0);
-#endif
     } else {
       mSwapChain->ResizeBuffers(1, rect.width, rect.height,
                                 DXGI_FORMAT_B8G8R8A8_UNORM,

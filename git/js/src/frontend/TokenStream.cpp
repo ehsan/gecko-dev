@@ -122,7 +122,7 @@ TokenStream::TokenStream(JSContext *cx, const CompileOptions &options,
     flags(),
     linebase(base),
     prevLinebase(NULL),
-    userbuf(cx, base, length),
+    userbuf(base, length),
     filename(options.filename),
     sourceMap(NULL),
     listenerTSData(),
@@ -132,9 +132,7 @@ TokenStream::TokenStream(JSContext *cx, const CompileOptions &options,
     originPrincipals(JSScript::normalizeOriginPrincipals(options.principals,
                                                          options.originPrincipals)),
     strictModeGetter(smg),
-    tokenSkip(cx, &tokens),
-    linebaseSkip(cx, &linebase),
-    prevLinebaseSkip(cx, &prevLinebase)
+    tokenSkip(cx, &tokens)
 {
     if (originPrincipals)
         JS_HoldPrincipals(originPrincipals);
@@ -665,7 +663,7 @@ TokenStream::endOffset(const Token &tok)
     JS_ASSERT(lineno <= tok.pos.end.lineno);
     const jschar *end;
     if (lineno < tok.pos.end.lineno) {
-        TokenBuf buf(cx, tok.ptr, userbuf.addressOfNextRawChar() - userbuf.base());
+        TokenBuf buf(tok.ptr, userbuf.addressOfNextRawChar() - userbuf.base());
         for (; lineno < tok.pos.end.lineno; lineno++) {
             jschar c;
             do {

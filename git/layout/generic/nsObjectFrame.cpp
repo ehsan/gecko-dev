@@ -2209,20 +2209,11 @@ nsObjectFrame::EndSwapDocShells(nsIContent* aContent, void*)
     nsIWidget* parent =
       rootPC->PresShell()->GetRootFrame()->GetNearestWidget();
     widget->SetParent(parent);
-    nsWeakFrame weakFrame(objectFrame);
     objectFrame->CallSetWindow();
-    if (!weakFrame.IsAlive()) {
-      return;
-    }
-  }
 
-#ifdef XP_MACOSX
-  if (objectFrame->mWidget) {
+    // Register for geometry updates and make a request.
     objectFrame->RegisterPluginForGeometryUpdates();
   }
-#else
-  objectFrame->RegisterPluginForGeometryUpdates();
-#endif
 }
 
 nsIFrame*

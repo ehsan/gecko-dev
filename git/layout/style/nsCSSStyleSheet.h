@@ -94,6 +94,7 @@ private:
 //
 
 class CSSRuleListImpl;
+struct ChildSheetListBuilder;
 
 // CID for the nsCSSStyleSheet class
 // ca926f30-2a7e-477e-8467-803fb32af20a

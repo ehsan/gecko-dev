@@ -52,7 +52,6 @@ enum AccType {
   eMenuPopupType,
   eProgressType,
   eRootType,
-  eXULLabelType,
   eXULTabpanelsType,
   eXULTreeType,
 

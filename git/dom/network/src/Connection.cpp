@@ -31,10 +31,8 @@ NS_INTERFACE_MAP_BEGIN(Connection)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(MozConnection)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
-// Don't use |Connection| alone, since that confuses nsTraceRefcnt since
-// we're not the only class with that name.
-NS_IMPL_ADDREF_INHERITED(dom::network::Connection, nsDOMEventTargetHelper)
-NS_IMPL_RELEASE_INHERITED(dom::network::Connection, nsDOMEventTargetHelper)
+NS_IMPL_ADDREF_INHERITED(Connection, nsDOMEventTargetHelper)
+NS_IMPL_RELEASE_INHERITED(Connection, nsDOMEventTargetHelper)
 
 NS_IMPL_EVENT_HANDLER(Connection, change)
 

@@ -8,27 +8,23 @@
 #ifndef nsComputedDOMStyle_h__
 #define nsComputedDOMStyle_h__
 
-#include "nsAutoPtr.h"
 #include "mozilla/Attributes.h"
-#include "nsCOMPtr.h"
-#include "nscore.h"
-#include "nsCSSProperty.h"
 #include "nsDOMCSSDeclaration.h"
-#include "nsStyleContext.h"
-#include "nsStyleStruct.h"
-#include "nsIWeakReferenceUtils.h"
 
-namespace mozilla {
-namespace dom {
-class Element;
-}
-}
+#include "nsDOMCSSRGBColor.h"
+#include "nsCSSProps.h"
+
+#include "nsIContent.h"
+#include "nsCOMPtr.h"
+#include "nsWeakReference.h"
+#include "nsAutoPtr.h"
+#include "nsStyleStruct.h"
+#include "nsStyleContext.h"
 
 class nsIFrame;
 class nsIPresShell;
 class nsDOMCSSValueList;
 class nsROCSSPrimitiveValue;
-class nsStyleContext;
 
 class nsComputedDOMStyle MOZ_FINAL : public nsDOMCSSDeclaration
 {

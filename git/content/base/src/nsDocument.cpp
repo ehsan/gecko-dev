@@ -56,9 +56,9 @@
 #include "nsRange.h"
 #include "nsIDOMText.h"
 #include "nsIDOMComment.h"
-#include "mozilla/dom/DocumentType.h"
-#include "mozilla/dom/NodeIterator.h"
-#include "mozilla/dom/TreeWalker.h"
+#include "DocumentType.h"
+#include "nsNodeIterator.h"
+#include "nsTreeWalker.h"
 
 #include "nsIServiceManager.h"
 
@@ -2260,10 +2260,7 @@ nsDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
   }
 
   nsAutoCString contentType;
-  nsCOMPtr<nsIPropertyBag2> bag = do_QueryInterface(aChannel);
-  if ((bag && NS_SUCCEEDED(bag->GetPropertyAsACString(
-                NS_LITERAL_STRING("contentType"), contentType))) ||
-      NS_SUCCEEDED(aChannel->GetContentType(contentType))) {
+  if (NS_SUCCEEDED(aChannel->GetContentType(contentType))) {
     // XXX this is only necessary for viewsource:
     nsACString::const_iterator start, end, semicolon;
     contentType.BeginReading(start);
@@ -4749,7 +4746,7 @@ nsDocument::CreateProcessingInstruction(const nsAString& aTarget,
 already_AddRefed<ProcessingInstruction>
 nsIDocument::CreateProcessingInstruction(const nsAString& aTarget,
                                          const nsAString& aData,
-                                         ErrorResult& rv) const
+                                         mozilla::ErrorResult& rv) const
 {
   nsresult res = nsContentUtils::CheckQName(aTarget, false);
   if (NS_FAILED(res)) {
@@ -4826,7 +4823,7 @@ nsDocument::CreateAttributeNS(const nsAString & aNamespaceURI,
 already_AddRefed<nsIDOMAttr>
 nsIDocument::CreateAttributeNS(const nsAString& aNamespaceURI,
                                const nsAString& aQualifiedName,
-                               ErrorResult& rv)
+                               mozilla::ErrorResult& rv)
 {
   WarnOnceAbout(eCreateAttributeNS);
 
@@ -5364,19 +5361,23 @@ nsDocument::CreateNodeIterator(nsIDOMNode *aRoot,
   return rv.ErrorCode();
 }
 
-already_AddRefed<NodeIterator>
+already_AddRefed<nsIDOMNodeIterator>
 nsIDocument::CreateNodeIterator(nsINode& aRoot, uint32_t aWhatToShow,
                                 NodeFilter* aFilter,
-                                ErrorResult& rv) const
+                                mozilla::ErrorResult& rv) const
 {
   NodeFilterHolder holder(aFilter);
-  return CreateNodeIterator(aRoot, aWhatToShow, holder, rv);
+  // We don't really know how to handle WebIDL callbacks yet, in
+  // nsTraversal, so just go ahead and convert to an XPCOM callback.
+  nsCOMPtr<nsIDOMNodeFilter> filter = holder.ToXPCOMCallback();
+  NodeFilterHolder holder2(filter);
+  return CreateNodeIterator(aRoot, aWhatToShow, holder2, rv);
 }
 
-already_AddRefed<NodeIterator>
+already_AddRefed<nsIDOMNodeIterator>
 nsIDocument::CreateNodeIterator(nsINode& aRoot, uint32_t aWhatToShow,
                                 const NodeFilterHolder& aFilter,
-                                ErrorResult& rv) const
+                                mozilla::ErrorResult& rv) const
 {
   nsINode* root = &aRoot;
   nsresult res = nsContentUtils::CheckSameOrigin(this, root);
@@ -5385,8 +5386,8 @@ nsIDocument::CreateNodeIterator(nsINode& aRoot, uint32_t aWhatToShow,
     return nullptr;
   }
 
-  nsRefPtr<NodeIterator> iterator = new NodeIterator(root, aWhatToShow,
-                                                     aFilter);
+  nsRefPtr<nsNodeIterator> iterator = new nsNodeIterator(root, aWhatToShow,
+                                                         aFilter);
   return iterator.forget();
 }
 
@@ -5413,19 +5414,23 @@ nsDocument::CreateTreeWalker(nsIDOMNode *aRoot,
   return rv.ErrorCode();
 }
 
-already_AddRefed<TreeWalker>
+already_AddRefed<nsIDOMTreeWalker>
 nsIDocument::CreateTreeWalker(nsINode& aRoot, uint32_t aWhatToShow,
                               NodeFilter* aFilter,
-                              ErrorResult& rv) const
+                              mozilla::ErrorResult& rv) const
 {
   NodeFilterHolder holder(aFilter);
-  return CreateTreeWalker(aRoot, aWhatToShow, holder, rv);
+  // We don't really know how to handle WebIDL callbacks yet, in
+  // nsTraversal, so just go ahead and convert to an XPCOM callback.
+  nsCOMPtr<nsIDOMNodeFilter> filter = holder.ToXPCOMCallback();
+  NodeFilterHolder holder2(filter);
+  return CreateTreeWalker(aRoot, aWhatToShow, holder2, rv);
 }
 
-already_AddRefed<TreeWalker>
+already_AddRefed<nsIDOMTreeWalker>
 nsIDocument::CreateTreeWalker(nsINode& aRoot, uint32_t aWhatToShow,
                               const NodeFilterHolder& aFilter,
-                              ErrorResult& rv) const
+                              mozilla::ErrorResult& rv) const
 {
   nsINode* root = &aRoot;
   nsresult res = nsContentUtils::CheckSameOrigin(this, root);
@@ -5434,7 +5439,7 @@ nsIDocument::CreateTreeWalker(nsINode& aRoot, uint32_t aWhatToShow,
     return nullptr;
   }
 
-  nsRefPtr<TreeWalker> walker = new TreeWalker(root, aWhatToShow, aFilter);
+  nsRefPtr<nsTreeWalker> walker = new nsTreeWalker(root, aWhatToShow, aFilter);
   return walker.forget();
 }
 

@@ -8,10 +8,14 @@
  */
 
 #include "nsStyleTransformMatrix.h"
+#include "nsAutoPtr.h"
 #include "nsCSSValue.h"
+#include "nsStyleContext.h"
 #include "nsPresContext.h"
 #include "nsRuleNode.h"
 #include "nsCSSKeywords.h"
+#include "nsMathUtils.h"
+#include "CSSCalc.h"
 #include "nsStyleAnimation.h"
 
 namespace css = mozilla::css;

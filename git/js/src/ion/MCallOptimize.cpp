@@ -581,12 +581,12 @@ IonBuilder::inlineMathPow(CallInfo &callInfo)
         return InliningStatus_NotInlined;
 
     // Typechecking.
+    if (getInlineReturnType() != MIRType_Double)
+        return InliningStatus_NotInlined;
+
     MIRType baseType = getInlineArgType(callInfo, 0);
     MIRType powerType = getInlineArgType(callInfo, 1);
-    MIRType outputType = getInlineReturnType();
 
-    if (outputType != MIRType_Int32 && outputType != MIRType_Double)
-        return InliningStatus_NotInlined;
     if (baseType != MIRType_Int32 && baseType != MIRType_Double)
         return InliningStatus_NotInlined;
     if (powerType != MIRType_Int32 && powerType != MIRType_Double)
@@ -596,7 +596,14 @@ IonBuilder::inlineMathPow(CallInfo &callInfo)
 
     MDefinition *base = callInfo.getArg(0);
     MDefinition *power = callInfo.getArg(1);
-    MDefinition *output = NULL;
+
+    // If the base is integer, convert it to a Double.
+    // Safe since the output must be a Double.
+    if (baseType == MIRType_Int32) {
+        MToDouble *conv = MToDouble::New(base);
+        current->add(conv);
+        base = conv;
+    }
 
     // Optimize some constant powers.
     if (callInfo.getArg(1)->isConstant()) {
@@ -608,7 +615,8 @@ IonBuilder::inlineMathPow(CallInfo &callInfo)
         if (pow == 0.5) {
             MPowHalf *half = MPowHalf::New(base);
             current->add(half);
-            output = half;
+            current->push(half);
+            return InliningStatus_Inlined;
         }
 
         // Math.pow(x, -0.5) == 1 / Math.pow(x, 0.5), even for edge cases.
@@ -619,59 +627,48 @@ IonBuilder::inlineMathPow(CallInfo &callInfo)
             current->add(one);
             MDiv *div = MDiv::New(one, half, MIRType_Double);
             current->add(div);
-            output = div;
+            current->push(div);
+            return InliningStatus_Inlined;
         }
 
         // Math.pow(x, 1) == x.
-        if (pow == 1.0)
-            output = base;
+        if (pow == 1.0) {
+            current->push(base);
+            return InliningStatus_Inlined;
+        }
 
         // Math.pow(x, 2) == x*x.
         if (pow == 2.0) {
-            MMul *mul = MMul::New(base, base, outputType);
+            MMul *mul = MMul::New(base, base, MIRType_Double);
             current->add(mul);
-            output = mul;
+            current->push(mul);
+            return InliningStatus_Inlined;
         }
 
         // Math.pow(x, 3) == x*x*x.
         if (pow == 3.0) {
-            MMul *mul1 = MMul::New(base, base, outputType);
+            MMul *mul1 = MMul::New(base, base, MIRType_Double);
             current->add(mul1);
-            MMul *mul2 = MMul::New(base, mul1, outputType);
+            MMul *mul2 = MMul::New(base, mul1, MIRType_Double);
             current->add(mul2);
-            output = mul2;
+            current->push(mul2);
+            return InliningStatus_Inlined;
         }
 
         // Math.pow(x, 4) == y*y, where y = x*x.
         if (pow == 4.0) {
-            MMul *y = MMul::New(base, base, outputType);
+            MMul *y = MMul::New(base, base, MIRType_Double);
             current->add(y);
-            MMul *mul = MMul::New(y, y, outputType);
+            MMul *mul = MMul::New(y, y, MIRType_Double);
             current->add(mul);
-            output = mul;
+            current->push(mul);
+            return InliningStatus_Inlined;
         }
     }
 
-    // Use MPow for other powers
-    if (!output) {
-        MPow *pow = MPow::New(base, power, powerType);
-        current->add(pow);
-        output = pow;
-    }
-
-    // Cast to the right type
-    if (outputType == MIRType_Int32 && output->type() != MIRType_Int32) {
-        MToInt32 *toInt = MToInt32::New(output);
-        current->add(toInt);
-        output = toInt;
-    }
-    if (outputType == MIRType_Double && output->type() != MIRType_Double) {
-        MToDouble *toDouble = MToDouble::New(output);
-        current->add(toDouble);
-        output = toDouble;
-    }
-
-    current->push(output);
+    MPow *ins = MPow::New(base, power, powerType);
+    current->add(ins);
+    current->push(ins);
     return InliningStatus_Inlined;
 }
 

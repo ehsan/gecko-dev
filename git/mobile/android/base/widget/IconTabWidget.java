@@ -26,14 +26,13 @@ public class IconTabWidget extends TabWidget {
         mContext = context;
     }
 
-    public ImageButton addTab(int resId) {
+    public void addTab(int resId) {
         ImageButton button = (ImageButton) LayoutInflater.from(mContext).inflate(R.layout.tabs_panel_indicator, null);
         button.setImageResource(resId);
 
         addView(button);
         button.setOnClickListener(new TabClickListener(getTabCount() - 1));
         button.setOnFocusChangeListener(this);
-        return button;
     }
 
     public void setTabSelectionListener(OnTabChangedListener listener) {

@@ -9,12 +9,10 @@
 #define mozilla_dom_CSS_h_
 
 #include "mozilla/Attributes.h"
+#include "mozilla/ErrorResult.h"
 #include "mozilla/Preferences.h"
 
 namespace mozilla {
-
-class ErrorResult;
-
 namespace dom {
 
 class GlobalObject;

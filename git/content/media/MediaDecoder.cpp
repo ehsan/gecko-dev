@@ -14,7 +14,7 @@
 #include "nsTArray.h"
 #include "VideoUtils.h"
 #include "MediaDecoderStateMachine.h"
-#include "mozilla/dom/TimeRanges.h"
+#include "nsTimeRanges.h"
 #include "nsContentUtils.h"
 #include "ImageContainer.h"
 #include "MediaResource.h"
@@ -344,7 +344,6 @@ MediaDecoder::MediaDecoder() :
   mFrameBufferLength(0),
   mPinnedForSeek(false),
   mShuttingDown(false),
-  mPausedForPlaybackRateNull(false),
   mAudioChannelType(AUDIO_CHANNEL_NORMAL)
 {
   MOZ_COUNT_CTOR(MediaDecoder);
@@ -539,9 +538,7 @@ nsresult MediaDecoder::Play()
  * not null, is set to the index of the range which ends immediately before aValue
  * (and can be -1 if aValue is before aRanges.Start(0)).
  */
-static bool
-IsInRanges(TimeRanges& aRanges, double aValue, int32_t& aIntervalIndex)
-{
+static bool IsInRanges(nsTimeRanges& aRanges, double aValue, int32_t& aIntervalIndex) {
   uint32_t length;
   aRanges.GetLength(&length);
   for (uint32_t i = 0; i < length; i++) {
@@ -568,7 +565,7 @@ nsresult MediaDecoder::Seek(double aTime)
 
   NS_ABORT_IF_FALSE(aTime >= 0.0, "Cannot seek to a negative value.");
 
-  TimeRanges seekable;
+  nsTimeRanges seekable;
   nsresult res;
   uint32_t length = 0;
   res = GetSeekable(&seekable);
@@ -1285,7 +1282,7 @@ bool MediaDecoder::IsMediaSeekable()
   return mMediaSeekable;
 }
 
-nsresult MediaDecoder::GetSeekable(TimeRanges* aSeekable)
+nsresult MediaDecoder::GetSeekable(nsTimeRanges* aSeekable)
 {
   //TODO : change 0.0 to GetInitialTime() when available
   double initialTime = 0.0;
@@ -1445,7 +1442,7 @@ void MediaDecoder::Invalidate()
 
 // Constructs the time ranges representing what segments of the media
 // are buffered and playable.
-nsresult MediaDecoder::GetBuffered(TimeRanges* aBuffered) {
+nsresult MediaDecoder::GetBuffered(nsTimeRanges* aBuffered) {
   if (mDecoderStateMachine) {
     return mDecoderStateMachine->GetBuffered(aBuffered);
   }

@@ -5,12 +5,16 @@
 
 /* the features that media queries can test */
 
+#include "mozilla/Util.h"
+
 #include "nsMediaFeatures.h"
 #include "nsGkAtoms.h"
 #include "nsCSSKeywords.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
 #include "nsCSSValue.h"
+#include "nsIDocShell.h"
+#include "nsLayoutUtils.h"
 #include "mozilla/LookAndFeel.h"
 #include "nsCSSRuleProcessor.h"
 

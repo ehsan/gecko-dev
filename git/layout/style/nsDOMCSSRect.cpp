@@ -6,9 +6,11 @@
 /* DOM object representing rectangle values in DOM computed style */
 
 #include "mozilla/dom/RectBinding.h"
+#include "nsISupports.h"
+#include "nsCOMPtr.h"
 #include "nsROCSSPrimitiveValue.h"
-#include "nsContentUtils.h"
 #include "nsDOMCSSRect.h"
+#include "nsContentUtils.h"
 #include "nsDOMClassInfoID.h"
 
 using namespace mozilla;

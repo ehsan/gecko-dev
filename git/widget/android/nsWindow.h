@@ -139,7 +139,6 @@ public:
                                    LayersBackend aBackendHint = mozilla::layers::LAYERS_NONE,
                                    LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                                    bool* aAllowRetaining = nullptr);
-    void CreateLayerManager();
 
     NS_IMETHOD ReparentNativeWidget(nsIWidget* aNewParent);
 

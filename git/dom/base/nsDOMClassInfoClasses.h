@@ -179,6 +179,9 @@ DOMCI_CLASS(StorageObsolete)
 DOMCI_CLASS(Storage)
 DOMCI_CLASS(StorageItem)
 
+// XMLHttpRequest
+DOMCI_CLASS(XMLHttpProgressEvent)
+
 DOMCI_CLASS(ClientRect)
 
 DOMCI_CLASS(XULCommandEvent)
