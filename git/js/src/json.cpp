@@ -61,8 +61,6 @@
 
 #include "json.h"
 
-#include "jsatominlines.h"
-
 JSClass js_JSONClass = {
     js_JSON_str,
     JSCLASS_HAS_CACHED_PROTO(JSProto_JSON),
