@@ -352,10 +352,8 @@ nsGenericHTMLElement::SetAttribute(const nsAString& aName,
     nsCOMPtr<nsIAtom> nameAtom;
     if (IsInHTMLDocument()) {
       nsAutoString lower;
-      rv = nsContentUtils::ASCIIToLower(aName, lower);
-      if (NS_SUCCEEDED(rv)) {
-        nameAtom = do_GetAtom(lower);
-      }
+      nsContentUtils::ASCIIToLower(aName, lower);
+      nameAtom = do_GetAtom(lower);
     }
     else {
       nameAtom = do_GetAtom(aName);
