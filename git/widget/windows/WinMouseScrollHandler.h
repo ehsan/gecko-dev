@@ -32,7 +32,6 @@ public:
   static void Initialize();
   static void Shutdown();
 
-  static bool NeedsMessage(UINT aMsg);
   static bool ProcessMessage(nsWindowBase* aWidget,
                              UINT msg,
                              WPARAM wParam,

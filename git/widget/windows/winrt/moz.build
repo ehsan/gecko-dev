@@ -8,6 +8,7 @@ MODULE = 'widget'
 
 CPP_SOURCES += [
     'FrameworkView.cpp',
+    'FrameworkViewGfx.cpp',
     'MetroApp.cpp',
     'MetroAppShell.cpp',
     'MetroContracts.cpp',

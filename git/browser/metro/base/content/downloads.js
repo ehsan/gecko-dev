@@ -154,7 +154,7 @@ var Downloads = {
     let download = this.manager.getDownload(id);
     let uri = this._getReferrerOrSource(download);
     if (uri)
-      BrowserUI.addAndShowTab(uri, Browser.selectedTab);
+      BrowserUI.newTab(uri, Browser.selectedTab);
   },
 
   showAlert: function dh_showAlert(aName, aMessage, aTitle, aIcon, aObserver) {

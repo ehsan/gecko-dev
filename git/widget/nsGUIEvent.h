@@ -1152,8 +1152,7 @@ public:
       keyCode(0), charCode(0),
       location(nsIDOMKeyEvent::DOM_KEY_LOCATION_STANDARD), isChar(0),
       mKeyNameIndex(mozilla::widget::KEY_NAME_INDEX_Unidentified),
-      mNativeKeyEvent(nullptr),
-      mUniqueId(0)
+      mNativeKeyEvent(nullptr)
   {
   }
 
@@ -1172,11 +1171,6 @@ public:
   mozilla::widget::KeyNameIndex mKeyNameIndex;
   // OS-specific native event can optionally be preserved
   void*           mNativeKeyEvent;
-  // Unique id associated with a keydown / keypress event. Used in identifing
-  // keypress events for removal from async event dispatch queue in metrofx
-  // after preventDefault is called on keydown events. It's ok if this wraps
-  // over long periods.
-  uint32_t        mUniqueId;
 
   void GetDOMKeyName(nsAString& aKeyName)
   {
@@ -1211,7 +1205,6 @@ public:
     // Don't copy mNativeKeyEvent because it may be referred after its instance
     // is destroyed.
     mNativeKeyEvent = nullptr;
-    mUniqueId = aEvent.mUniqueId;
   }
 };
 

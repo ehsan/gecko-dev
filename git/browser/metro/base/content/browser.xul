@@ -419,7 +419,7 @@
 #endif
 #endif
       <label id="about-policy-label"
-            onclick="FlyoutPanelsUI.AboutFlyoutPanel.onPolicyClick(event);"
+            onclick="if (event.button == 0) { BrowserUI.onAboutPolicyClick(); }"
             class="text-link" value="&aboutHeader.policy.label;"/>
     </flyoutpanel>
 

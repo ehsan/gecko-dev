@@ -423,16 +423,23 @@ var BrowserUI = {
     });
   },
 
+  onAboutPolicyClick: function() {
+    FlyoutPanelsUI.hide();
+    let linkStr = Services.urlFormatter.formatURLPref("app.privacyURL");
+    BrowserUI.newTab(linkStr, Browser.selectedTab, true);
+  },
+
   /*********************************
    * Tab management
    */
 
-  /**
-   * Open a new tab in the foreground in response to a user action.
-   */
-  addAndShowTab: function (aURI, aOwner) {
-    ContextUI.peekTabs(kNewTabAnimationDelayMsec);
-    return Browser.addTab(aURI || kStartURI, true, aOwner);
+  newTab: function newTab(aURI, aOwner, aPeekTabs) {
+    aURI = aURI || kStartURI;
+    if (aPeekTabs) {
+      ContextUI.peekTabs(kNewTabAnimationDelayMsec);
+    }
+    let tab = Browser.addTab(aURI, true, aOwner);
+    return tab;
   },
 
   setOnTabAnimationEnd: function setOnTabAnimationEnd(aCallback) {
@@ -592,6 +599,10 @@ var BrowserUI = {
         this._adjustDOMforViewState(aData);
         if (aData == "snapped") {
           FlyoutPanelsUI.hide();
+          Elements.autocomplete.setAttribute("orient", "vertical");
+        }
+        else {
+          Elements.autocomplete.setAttribute("orient", "horizontal");
         }
 
         break;
@@ -1066,7 +1077,7 @@ var BrowserUI = {
         this._closeOrQuit();
         break;
       case "cmd_newTab":
-        this.addAndShowTab();
+        this.newTab(null, null, true);
         // Make sure navbar is displayed before setting focus on url bar. Bug 907244
         ContextUI.displayNavbar();
         this._edit.beginEditing(false);
@@ -1304,7 +1315,7 @@ var SettingsCharm = {
         label: Strings.browser.GetStringFromName("helpOnlineCharm"),
         onselected: function() {
           let url = Services.urlFormatter.formatURLPref("app.support.baseURL");
-          BrowserUI.addAndShowTab(url, Browser.selectedTab);
+          BrowserUI.newTab(url, Browser.selectedTab, true);
         }
     });
   },

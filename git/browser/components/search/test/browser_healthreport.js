@@ -4,7 +4,6 @@
 "use strict";
 
 function test() {
-  requestLongerTimeout(2);
   waitForExplicitFinish();
 
   try {
