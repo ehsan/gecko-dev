@@ -113,28 +113,23 @@
   display: none;
 }
 
-/* WebConsole colored drops */
-
-.webconsole-filter-button,
-.webconsole-filter-button[checked=true] {
-  color: white !important;
+.webconsole-clear-console-button > .toolbarbutton-icon {
+  display: none;
 }
 
-.webconsole-filter-button > .toolbarbutton-menubutton-button:before {
-  content: "";
-  display: inline-block;
-  height: 8px;
-  width: 8px;
-  border-radius: 50%;
-  margin-left: 5px;
-  border-width: 1px;
-  border-style: solid;
+.webconsole-filter-button {
+  margin: 0 3px;
+}
+
+.webconsole-filter-button > .toolbarbutton-menubutton-button,
+.webconsole-filter-button:not([type="menu-button"]) {
+  -moz-box-orient: horizontal;
+  list-style-image: url("chrome://browser/skin/devtools/webconsole.png");
 }
 
 /* Network styles */
-.webconsole-filter-button[category="net"] > .toolbarbutton-menubutton-button:before {
-  background-image: linear-gradient(#444444, #000000);
-  border-color: #777;
+.webconsole-filter-button[category="net"] {
+  -moz-image-region: rect(0, 8px, 8px, 0);
 }
 
 .webconsole-msg-network > .webconsole-msg-icon-container {
@@ -146,9 +141,8 @@
 }
 
 /* CSS styles */
-.webconsole-filter-button[category="css"] > .toolbarbutton-menubutton-button:before {
-  background-image: linear-gradient(#2DC3F3, #00B6F0);
-  border-color: #1BA2CC;
+.webconsole-filter-button[category="css"] {
+  -moz-image-region: rect(8px, 8px, 16px, 0);
 }
 
 .webconsole-msg-cssparser > .webconsole-msg-icon-container {
@@ -164,9 +158,8 @@
 }
 
 /* JS styles */
-.webconsole-filter-button[category="js"] > .toolbarbutton-menubutton-button:before {
-  background-image: linear-gradient(#FCB142, #FB9500);
-  border-color: #E98A00;
+.webconsole-filter-button[category="js"] {
+  -moz-image-region: rect(16px, 8px, 24px, 0);
 }
 
 .webconsole-msg-exception > .webconsole-msg-icon-container {
@@ -182,9 +175,8 @@
 }
 
 /* Web Developer styles */
-.webconsole-filter-button[category="logging"] > .toolbarbutton-menubutton-button:before {
-  background-image: linear-gradient(#B9B9B9, #AAAAAA);
-  border-color: #929292;
+.webconsole-filter-button[category="logging"] {
+  -moz-image-region: rect(24px, 8px, 32px, 0);
 }
 
 .webconsole-msg-console > .webconsole-msg-icon-container {
@@ -216,6 +208,10 @@
 
 .webconsole-msg-output {
   -moz-image-region: rect(24px, 48px, 32px, 40px);
+}
+
+.webconsole-close-button {
+  list-style-image: url("moz-icon://stock/gtk-close?size=menu");
 }
 
 /* JSTerm Styles */

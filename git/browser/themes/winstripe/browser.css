@@ -3245,6 +3245,10 @@ stack[anonid=browserStack][responsivemode] {
   transition: height 100ms;
 }
 
+.web-console-splitter {
+  border-top: none;
+}
+
 /* Developer Toolbar */
 
 .developer-toolbar-button {
