@@ -1786,7 +1786,7 @@ Matched(bool test, const Value &v)
     return test ? v.isTrue() : !v.isNull();
 }
 
-typedef bool (*DoMatchCallback)(JSContext *cx, RegExpStatics *res, size_t count, void *data);
+typedef bool (*DoMatchCallback)(JSContext *cx, size_t count, void *data);
 
 /*
  * BitOR-ing these flags allows the DoMatch caller to control when how the
@@ -1804,7 +1804,7 @@ enum MatchControlFlags {
 
 /* Factor out looping and matching logic. */
 static bool
-DoMatch(JSContext *cx, RegExpStatics *res, Value *vp, JSString *str, const RegExpPair &rep,
+DoMatch(JSContext *cx, Value *vp, JSString *str, const RegExpPair &rep,
         DoMatchCallback callback, void *data, MatchControlFlags flags)
 {
     RegExp &re = rep.re();
@@ -1814,13 +1814,13 @@ DoMatch(JSContext *cx, RegExpStatics *res, Value *vp, JSString *str, const RegEx
         if (rep.reobj())
             rep.reobj()->zeroRegExpLastIndex();
         for (size_t count = 0, i = 0, length = str->length(); i <= length; ++count) {
-            if (!re.execute(cx, res, str, &i, testGlobal, vp))
+            if (!re.execute(cx, str, &i, testGlobal, vp))
                 return false;
             if (!Matched(testGlobal, *vp))
                 break;
-            if (!callback(cx, res, count, data))
+            if (!callback(cx, count, data))
                 return false;
-            if (!res->matched())
+            if (!cx->regExpStatics.matched())
                 ++i;
         }
     } else {
@@ -1828,9 +1828,9 @@ DoMatch(JSContext *cx, RegExpStatics *res, Value *vp, JSString *str, const RegEx
         bool testSingle = !!(flags & TEST_SINGLE_BIT),
              callbackOnSingle = !!(flags & CALLBACK_ON_SINGLE_BIT);
         size_t i = 0;
-        if (!re.execute(cx, res, str, &i, testSingle, vp))
+        if (!re.execute(cx, str, &i, testSingle, vp))
             return false;
-        if (callbackOnSingle && Matched(testSingle, *vp) && !callback(cx, res, 0, data))
+        if (callbackOnSingle && Matched(testSingle, *vp) && !callback(cx, 0, data))
             return false;
     }
     return true;
@@ -1864,7 +1864,7 @@ typedef JSObject **MatchArgType;
  * only the "array of matches" returned by match on global regexps.
  */
 static bool
-MatchCallback(JSContext *cx, RegExpStatics *res, size_t count, void *p)
+MatchCallback(JSContext *cx, size_t count, void *p)
 {
     JS_ASSERT(count <= JSID_INT_MAX);  /* by max string length */
 
@@ -1876,7 +1876,7 @@ MatchCallback(JSContext *cx, RegExpStatics *res, size_t count, void *p)
     }
 
     Value v;
-    if (!res->createLastMatch(cx, &v))
+    if (!cx->regExpStatics.createLastMatch(&v))
         return false;
 
     JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED | JSRESOLVE_ASSIGNING);
@@ -1901,8 +1901,7 @@ str_match(JSContext *cx, uintN argc, Value *vp)
 
     AutoObjectRooter array(cx);
     MatchArgType arg = array.addr();
-    RegExpStatics *res = cx->regExpStatics();
-    if (!DoMatch(cx, res, vp, str, *rep, MatchCallback, arg, MATCH_ARGS))
+    if (!DoMatch(cx, vp, str, *rep, MatchCallback, arg, MATCH_ARGS))
         return false;
 
     /* When not global, DoMatch will leave |RegExp.exec()| in *vp. */
@@ -1928,13 +1927,12 @@ str_search(JSContext *cx, uintN argc, Value *vp)
     if (!rep)
         return false;
 
-    RegExpStatics *res = cx->regExpStatics();
     size_t i = 0;
-    if (!rep->re().execute(cx, res, str, &i, true, vp))
+    if (!rep->re().execute(cx, str, &i, true, vp))
         return false;
 
     if (vp->isTrue())
-        vp->setInt32(res->get(0, 0));
+        vp->setInt32(cx->regExpStatics.get(0, 0));
     else
         vp->setInt32(-1);
     return true;
@@ -1961,7 +1959,7 @@ struct ReplaceData
 };
 
 static bool
-InterpretDollar(JSContext *cx, RegExpStatics *res, jschar *dp, jschar *ep, ReplaceData &rdata,
+InterpretDollar(JSContext *cx, jschar *dp, jschar *ep, ReplaceData &rdata,
                 JSSubString *out, size_t *skip)
 {
     JS_ASSERT(*dp == '$');
@@ -1971,17 +1969,18 @@ InterpretDollar(JSContext *cx, RegExpStatics *res, jschar *dp, jschar *ep, Repla
         return false;
 
     /* Interpret all Perl match-induced dollar variables. */
+    RegExpStatics &statics = cx->regExpStatics;
     jschar dc = dp[1];
     if (JS7_ISDEC(dc)) {
         /* ECMA-262 Edition 3: 1-9 or 01-99 */
         uintN num = JS7_UNDEC(dc);
-        if (num > res->getParenCount())
+        if (num > statics.getParenCount())
             return false;
 
         jschar *cp = dp + 2;
         if (cp < ep && (dc = *cp, JS7_ISDEC(dc))) {
             uintN tmp = 10 * num + JS7_UNDEC(dc);
-            if (tmp <= res->getParenCount()) {
+            if (tmp <= statics.getParenCount()) {
                 cp++;
                 num = tmp;
             }
@@ -1992,8 +1991,8 @@ InterpretDollar(JSContext *cx, RegExpStatics *res, jschar *dp, jschar *ep, Repla
         /* Adjust num from 1 $n-origin to 0 array-index-origin. */
         num--;
         *skip = cp - dp;
-        if (num < res->getParenCount())
-            res->getParen(num, out);
+        if (num < statics.getParenCount())
+            statics.getParen(num, out);
         else
             *out = js_EmptySubString;
         return true;
@@ -2007,41 +2006,52 @@ InterpretDollar(JSContext *cx, RegExpStatics *res, jschar *dp, jschar *ep, Repla
         *out = rdata.dollarStr;
         return true;
       case '&':
-        res->getLastMatch(out);
+        statics.getLastMatch(out);
         return true;
       case '+':
-        res->getLastParen(out);
+        statics.getLastParen(out);
         return true;
       case '`':
-        res->getLeftContext(out);
+        statics.getLeftContext(out);
         return true;
       case '\'':
-        res->getRightContext(out);
+        statics.getRightContext(out);
         return true;
     }
     return false;
 }
 
-class PreserveRegExpStatics
+static JS_ALWAYS_INLINE bool
+PushRegExpSubstr(JSContext *cx, const JSSubString &sub, Value *sp)
 {
-    js::RegExpStatics * const saved;
-    js::RegExpStatics container;
+    JSString *whole = cx->regExpStatics.getInput();
+    size_t off = sub.chars - whole->chars();
+    JSString *str = js_NewDependentString(cx, whole, off, sub.length);
+    if (!str)
+        return false;
+    sp->setString(str);
+    return true;
+}
+
+class PreserveRegExpStatics {
+    JSContext           * const cx;
+    js::RegExpStatics   container;
 
   public:
-    explicit PreserveRegExpStatics(RegExpStatics *toSave) : saved(toSave) {
-        container.clone(*toSave);
+    PreserveRegExpStatics(JSContext *cx) : cx(cx), container(cx) {
+        container.clone(cx->regExpStatics);
         container.checkInvariants();
-        saved->checkInvariants();
+        cx->regExpStatics.checkInvariants();
     }
 
     ~PreserveRegExpStatics() {
-        saved->clone(container);
-        saved->checkInvariants();
+        cx->regExpStatics.clone(container);
+        cx->regExpStatics.checkInvariants();
     }
 };
 
 static bool
-FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t *sizep)
+FindReplaceLength(JSContext *cx, ReplaceData &rdata, size_t *sizep)
 {
     JSObject *lambda = rdata.lambda;
     if (lambda) {
@@ -2055,13 +2065,14 @@ FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t 
          * For $&, etc., we must create string jsvals from cx->regExpStatics.
          * We grab up stack space to keep the newborn strings GC-rooted.
          */
-        uintN p = res->getParenCount();
+        RegExpStatics &statics = cx->regExpStatics;
+        uintN p = statics.getParenCount();
         uintN argc = 1 + p + 2;
 
         if (!rdata.args.pushed() && !cx->stack().pushInvokeArgs(cx, argc, &rdata.args))
             return false;
 
-        PreserveRegExpStatics save(res);
+        PreserveRegExpStatics save(cx);
 
         /* Push lambda and its 'this' parameter. */
         CallArgs &args = rdata.args;
@@ -2071,16 +2082,16 @@ FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t 
         Value *sp = args.argv();
 
         /* Push $&, $1, $2, ... */
-        if (!res->createLastMatch(cx, sp++))
+        if (!statics.createLastMatch(sp++))
             return false;
 
-        for (size_t i = 0; i < res->getParenCount(); ++i) {
-            if (!res->createParen(cx, i, sp++))
+        for (size_t i = 0; i < statics.getParenCount(); ++i) {
+            if (!statics.createParen(i, sp++))
                 return false;
         }
 
         /* Push match index and input string. */
-        sp[0].setInt32(res->get(0, 0));
+        sp[0].setInt32(statics.get(0, 0));
         sp[1].setString(rdata.str);
 
         if (!Invoke(cx, rdata.args, 0))
@@ -2106,7 +2117,7 @@ FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t 
     for (jschar *dp = rdata.dollar, *ep = rdata.dollarEnd; dp; dp = js_strchr_limit(dp, '$', ep)) {
         JSSubString sub;
         size_t skip;
-        if (InterpretDollar(cx, res, dp, ep, rdata, &sub, &skip)) {
+        if (InterpretDollar(cx, dp, ep, rdata, &sub, &skip)) {
             replen += sub.length - skip;
             dp += skip;
         } else {
@@ -2118,7 +2129,7 @@ FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t 
 }
 
 static void
-DoReplace(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, jschar *chars)
+DoReplace(JSContext *cx, ReplaceData &rdata, jschar *chars)
 {
     JSString *repstr = rdata.repstr;
     jschar *cp;
@@ -2131,7 +2142,7 @@ DoReplace(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, jschar *chars)
 
         JSSubString sub;
         size_t skip;
-        if (InterpretDollar(cx, res, dp, ep, rdata, &sub, &skip)) {
+        if (InterpretDollar(cx, dp, ep, rdata, &sub, &skip)) {
             len = sub.length;
             js_strncpy(chars, sub.chars, len);
             chars += len;
@@ -2145,19 +2156,20 @@ DoReplace(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, jschar *chars)
 }
 
 static bool
-ReplaceCallback(JSContext *cx, RegExpStatics *res, size_t count, void *p)
+ReplaceCallback(JSContext *cx, size_t count, void *p)
 {
     ReplaceData &rdata = *static_cast<ReplaceData *>(p);
+    RegExpStatics &statics = cx->regExpStatics;
 
     rdata.calledBack = true;
     JSString *str = rdata.str;
     size_t leftoff = rdata.leftIndex;
     const jschar *left = str->chars() + leftoff;
-    size_t leftlen = res->get(0, 0) - leftoff;
-    rdata.leftIndex = res->get(0, 1);
+    size_t leftlen = statics.get(0, 0) - leftoff;
+    rdata.leftIndex = statics.get(0, 1);
 
     size_t replen = 0;  /* silence 'unused' warning */
-    if (!FindReplaceLength(cx, res, rdata, &replen))
+    if (!FindReplaceLength(cx, rdata, &replen))
         return false;
 
     size_t growth = leftlen + replen;
@@ -2168,7 +2180,7 @@ ReplaceCallback(JSContext *cx, RegExpStatics *res, size_t count, void *p)
     rdata.index += growth;
     js_strncpy(chars, left, leftlen);
     chars += leftlen;
-    DoReplace(cx, res, rdata, chars);
+    DoReplace(cx, rdata, chars);
     return true;
 }
 
@@ -2335,8 +2347,7 @@ str_replace_regexp(JSContext *cx, uintN argc, Value *vp, ReplaceData &rdata)
     rdata.leftIndex = 0;
     rdata.calledBack = false;
 
-    RegExpStatics *res = cx->regExpStatics();
-    if (!DoMatch(cx, res, vp, rdata.str, *rep, ReplaceCallback, &rdata, REPLACE_ARGS))
+    if (!DoMatch(cx, vp, rdata.str, *rep, ReplaceCallback, &rdata, REPLACE_ARGS))
         return false;
 
     if (!rdata.calledBack) {
@@ -2346,7 +2357,7 @@ str_replace_regexp(JSContext *cx, uintN argc, Value *vp, ReplaceData &rdata)
     }
 
     JSSubString sub;
-    res->getRightContext(&sub);
+    cx->regExpStatics.getRightContext(&sub);
     if (!rdata.cb.append(sub.chars, sub.length))
         return false;
 
@@ -2483,8 +2494,7 @@ js::str_replace(JSContext *cx, uintN argc, Value *vp)
  * separator occurrence if found, or str->length if no separator is found.
  */
 static jsint
-find_split(JSContext *cx, RegExpStatics *res, JSString *str, js::RegExp *re, jsint *ip,
-           JSSubString *sep)
+find_split(JSContext *cx, JSString *str, js::RegExp *re, jsint *ip, JSSubString *sep)
 {
     jsint i;
     size_t length;
@@ -2520,7 +2530,7 @@ find_split(JSContext *cx, RegExpStatics *res, JSString *str, js::RegExp *re, jsi
       again:
         /* JS1.2 deviated from Perl by never matching at end of string. */
         index = (size_t)i;
-        if (!re->execute(cx, res, str, &index, true, &rval))
+        if (!re->execute(cx, str, &index, true, &rval))
             return -2;
         if (!rval.isTrue()) {
             /* Mismatch: ensure our caller advances i past end of string. */
@@ -2529,7 +2539,7 @@ find_split(JSContext *cx, RegExpStatics *res, JSString *str, js::RegExp *re, jsi
         }
         i = (jsint)index;
         JS_ASSERT(sep);
-        res->getLastMatch(sep);
+        cx->regExpStatics.getLastMatch(sep);
         if (sep->length == 0) {
             /*
              * Empty string match: never split on an empty match at the start
@@ -2632,10 +2642,9 @@ str_split(JSContext *cx, uintN argc, Value *vp)
 
     AutoValueVector splits(cx);
 
-    RegExpStatics *res = cx->regExpStatics();
     jsint i, j;
     uint32 len = i = 0;
-    while ((j = find_split(cx, res, str, re, &i, sep)) >= 0) {
+    while ((j = find_split(cx, str, re, &i, sep)) >= 0) {
         if (limited && len >= limit)
             break;
 
@@ -2650,11 +2659,12 @@ str_split(JSContext *cx, uintN argc, Value *vp)
          * substring that was delimited.
          */
         if (re && sep->chars) {
-            for (uintN num = 0; num < res->getParenCount(); num++) {
+            RegExpStatics &statics = cx->regExpStatics;
+            for (uintN num = 0; num < statics.getParenCount(); num++) {
                 if (limited && len >= limit)
                     break;
                 JSSubString parsub;
-                res->getParen(num, &parsub);
+                statics.getParen(num, &parsub);
                 sub = js_NewStringCopyN(cx, parsub.chars, parsub.length);
                 if (!sub || !splits.append(StringValue(sub)))
                     return false;

@@ -558,7 +558,7 @@ XPC_SJOW_DelProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
 NS_STACK_CLASS class SafeCallGuard {
 public:
   SafeCallGuard(JSContext *cx, nsIPrincipal *principal)
-    : cx(cx) {
+    : cx(cx), statics(cx), tvr(cx) {
     nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
     if (ssm) {
       // Note: We pass null as the target frame pointer because we know that
@@ -572,6 +572,7 @@ public:
       }
     }
 
+    js_SaveAndClearRegExpStatics(cx, &statics, &tvr);
     fp = JS_SaveFrameChain(cx);
     options =
       JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_DONT_REPORT_UNCAUGHT);
@@ -585,6 +586,7 @@ public:
     if (cx) {
       JS_SetOptions(cx, options);
       JS_RestoreFrameChain(cx, fp);
+      js_RestoreRegExpStatics(cx, &statics);
       nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
       if (ssm) {
         ssm->PopContextPrincipal(cx);
@@ -594,6 +596,8 @@ public:
 
 private:
   JSContext *cx;
+  js::RegExpStatics statics;
+  js::AutoStringRooter tvr;
   uint32 options;
   JSStackFrame *fp;
 };

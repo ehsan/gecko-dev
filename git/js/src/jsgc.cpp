@@ -2171,6 +2171,8 @@ MarkContext(JSTracer *trc, JSContext *acx)
     if (acx->sharpObjectMap.depth > 0)
         js_TraceSharpMap(trc, &acx->sharpObjectMap);
 
+    js_TraceRegExpStatics(trc, acx);
+
     MarkValue(trc, acx->iterValue, "iterValue");
 
     acx->compartment->marked = true;

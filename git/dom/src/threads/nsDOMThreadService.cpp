@@ -487,8 +487,7 @@ protected:
       }
 
       // Clear out any old cruft hanging around in the regexp statics.
-      if (JSObject *global = JS_GetGlobalObject(aCx))
-          JS_ClearRegExpStatics(aCx, global);
+      JS_ClearRegExpStatics(aCx);
 
       runnable->Run();
     }

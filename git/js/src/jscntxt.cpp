@@ -1088,6 +1088,9 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
             JS_ClearAllWatchPoints(cx);
         }
 
+        /* Remove more GC roots in regExpStatics, then collect garbage. */
+        JS_ClearRegExpRoots(cx);
+
 #ifdef JS_THREADSAFE
         /*
          * Destroying a context implicitly calls JS_EndRequest().  Also, we must
@@ -1140,6 +1143,7 @@ FreeContext(JSContext *cx)
 #endif
 
     /* Free the stuff hanging off of cx. */
+    cx->regExpStatics.clear();
     VOUCH_DOES_NOT_REQUIRE_STACK();
     JS_FinishArenaPool(&cx->tempPool);
     JS_FinishArenaPool(&cx->regExpPool);
@@ -2007,6 +2011,7 @@ JSContext::JSContext(JSRuntime *rt)
   : runtime(rt),
     compartment(rt->defaultCompartment),
     regs(NULL),
+    regExpStatics(this),
     busyArrays(this)
 {}
 

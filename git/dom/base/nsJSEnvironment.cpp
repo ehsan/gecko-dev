@@ -3340,10 +3340,7 @@ nsJSContext::ClearScope(void *aGlobalObj, PRBool aClearFromProtoChain)
   if (aGlobalObj) {
     JSObject *obj = (JSObject *)aGlobalObj;
     JSAutoRequest ar(mContext);
-    JS_ClearScope(mContext, obj);
-    if (!obj->getParent()) {
-      JS_ClearRegExpStatics(mContext, obj);
-    }
+    ::JS_ClearScope(mContext, obj);
 
     // Always clear watchpoints, to deal with two cases:
     // 1.  The first document for this window is loading, and a miscreant has
@@ -3370,6 +3367,8 @@ nsJSContext::ClearScope(void *aGlobalObj, PRBool aClearFromProtoChain)
         ::JS_ClearScope(mContext, o);
     }
   }
+
+  ::JS_ClearRegExpStatics(mContext);
 
   if (stack) {
     stack->Pop(nsnull);
