@@ -340,14 +340,10 @@ ShadowLayerForwarder::EndTransaction(nsTArray<EditReply>* aReplies)
   NS_ABORT_IF_FALSE(nCsets > 0, "should have bailed by now");
 
   cset.SetCapacity(nCsets);
-  if (!mTxn->mCset.empty()) {
-    cset.AppendElements(&mTxn->mCset.front(), mTxn->mCset.size());
-  }
+  cset.AppendElements(&mTxn->mCset.front(), mTxn->mCset.size());
   // Paints after non-paint ops, including attribute changes.  See
   // above.
-  if (!mTxn->mPaints.empty()) {
-    cset.AppendElements(&mTxn->mPaints.front(), mTxn->mPaints.size());
-  }
+  cset.AppendElements(&mTxn->mPaints.front(), mTxn->mPaints.size());
 
   MOZ_LAYERS_LOG(("[LayersForwarder] syncing before send..."));
   PlatformSyncBeforeUpdate();

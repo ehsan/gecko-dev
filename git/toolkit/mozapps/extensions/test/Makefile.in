@@ -73,5 +73,5 @@ libs::
 			(cd $$dir && zip -r $(TESTXPI)/$$base.xpi *) \
 		done \
 	fi
-	cd $(TESTROOT)/xpcshell/ && tar -cPf - . | (cd $(TESTROOT)/xpcshell-unpack && tar -xPvf - )
+	cp -pPR $(TESTROOT)/xpcshell/. $(TESTROOT)/xpcshell-unpack
 

@@ -553,6 +553,7 @@ nsWindow::Create(nsIWidget *aParent,
   }
 
   mPopupType = aInitData->mPopupHint;
+  mContentType = aInitData->mContentType;
   mIsRTL = aInitData->mRTL;
 
   DWORD style = WindowStyle();
@@ -734,6 +735,18 @@ LPCWSTR nsWindow::WindowClass()
       ERROR_CLASS_ALREADY_EXISTS != GetLastError();
     nsWindow::sIsRegistered = succeeded;
 
+    wc.lpszClassName = kClassNameContentFrame;
+    if (!::RegisterClassW(&wc) && 
+      ERROR_CLASS_ALREADY_EXISTS != GetLastError()) {
+      nsWindow::sIsRegistered = FALSE;
+    }
+
+    wc.lpszClassName = kClassNameContent;
+    if (!::RegisterClassW(&wc) && 
+      ERROR_CLASS_ALREADY_EXISTS != GetLastError()) {
+      nsWindow::sIsRegistered = FALSE;
+    }
+
     wc.lpszClassName = kClassNameGeneral;
     ATOM generalClassAtom = ::RegisterClassW(&wc);
     if (!generalClassAtom && 
@@ -754,6 +767,12 @@ LPCWSTR nsWindow::WindowClass()
   }
   if (mWindowType == eWindowType_dialog) {
     return kClassNameDialog;
+  }
+  if (mContentType == eContentTypeContent) {
+    return kClassNameContent;
+  }
+  if (mContentType == eContentTypeContentFrame) {
+    return kClassNameContentFrame;
   }
   return kClassNameGeneral;
 }
@@ -2789,7 +2808,8 @@ void* nsWindow::GetNativeData(PRUint32 aDataType)
 {
   switch (aDataType) {
     case NS_NATIVE_TMP_WINDOW:
-      return (void*)::CreateWindowExW(mIsRTL ? WS_EX_LAYOUTRTL : 0,
+      return (void*)::CreateWindowExW(WS_EX_NOACTIVATE |
+                                       mIsRTL ? WS_EX_LAYOUTRTL : 0,
                                       WindowClass(),
                                       L"",
                                       WS_CHILD,
@@ -7544,8 +7564,8 @@ nsWindow::OnIMESelectionChange(void)
 #define NS_LOG_WMGETOBJECT_THISWND                                             \
 {                                                                              \
   printf("\n*******Get Doc Accessible*******\nOrig Window: ");                 \
-  printf("\n  {\n     HWND: %d, parent HWND: %d, wndobj: %p,\n",               \
-         mWnd, ::GetParent(mWnd), this);                                       \
+  printf("\n  {\n     HWND: %d, parent HWND: %d, wndobj: %p, content type: %d,\n",\
+         mWnd, ::GetParent(mWnd), this, mContentType);                         \
   NS_LOG_WMGETOBJECT_WNDACC(this)                                              \
   printf("\n  }\n");                                                           \
 }
@@ -7599,7 +7619,14 @@ nsWindow::GetRootAccessible()
   NS_LOG_WMGETOBJECT_THISWND
   NS_LOG_WMGETOBJECT_WND("This Window", mWnd);
 
-  return DispatchAccessibleEvent(NS_GETACCESSIBLE);
+  nsAccessible* docAcc = DispatchAccessibleEvent(NS_GETACCESSIBLE);
+  if (!docAcc)
+    return nsnull;
+
+  nsCOMPtr<nsIAccessibleDocument> rootDocAcc;
+  docAcc->GetRootDocument(getter_AddRefs(rootDocAcc));
+  nsRefPtr<nsAccessible> rootAcc(do_QueryObject(rootDocAcc));
+  return rootAcc;
 }
 
 STDMETHODIMP_(LRESULT)

@@ -254,8 +254,6 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
     program = mOGLManager->GetBGRALayerProgram();
   }
 
-  ApplyFilter(mFilter);
-
   program->Activate();
   program->SetLayerQuadRect(mBounds);
   program->SetLayerTransform(mTransform);

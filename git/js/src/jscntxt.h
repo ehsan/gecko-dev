@@ -3267,7 +3267,7 @@ namespace js {
 
 /* These must be called with GC lock taken. */
 
-JS_FRIEND_API(void)
+void
 TriggerOperationCallback(JSContext *cx);
 
 void

@@ -6383,11 +6383,19 @@ nsWindow::DispatchEventToRootAccessible(PRUint32 aEventType)
         return;
     }
 
-    // Get the root document accessible and fire event to it.
     nsAccessible *acc = DispatchAccessibleEvent();
-    if (acc) {
-        accService->FireAccessibleEvent(aEventType, acc);
+    if (!acc) {
+        return;
     }
+
+    nsCOMPtr<nsIAccessibleDocument> accRootDoc;
+    acc->GetRootDocument(getter_AddRefs(accRootDoc));
+    nsCOMPtr<nsIAccessible> rootAcc(do_QueryInterface(accRootDoc));
+    if (!rootAcc) {
+        return;
+    }
+
+    accService->FireAccessibleEvent(aEventType, rootAcc);
 }
 
 void

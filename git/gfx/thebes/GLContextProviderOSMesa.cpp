@@ -162,8 +162,6 @@ public:
 
     ~GLContextOSMesa()
     {
-        MarkDestroyed();
-
         if (mContext)
             sOSMesaLibrary.fDestroyContext(mContext);
     }

@@ -366,9 +366,6 @@ private:
 #endif // defined(OS_WIN)
 #if defined(OS_MACOSX)
 private:
-#if defined(__i386__)
-    NPEventModel          mEventModel;
-#endif
     CGColorSpaceRef       mShColorSpace;
     CGContextRef          mShContext;
     int16_t               mDrawingModel;
@@ -378,10 +375,6 @@ public:
     const NPCocoaEvent* getCurrentEvent() {
         return mCurrentEvent;
     }
-
-#if defined(__i386__)
-    NPEventModel EventModel() { return mEventModel; }
-#endif
 
 private:
     const NPCocoaEvent   *mCurrentEvent;
@@ -481,11 +474,6 @@ private:
 #ifdef MOZ_X11
     // Used with windowless flash plugin only, see bug 574583
     PRPackedBool          mFlash10Quirks;
-#endif
-#if (MOZ_PLATFORM_MAEMO == 5)
-    // Maemo5 Flash does not remember WindowlessLocal state
-    // we should listen for NPP values negotiation and remember it
-    PRPackedBool          mMaemoImageRendering;
 #endif
 };
 

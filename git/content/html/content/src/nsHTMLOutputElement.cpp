@@ -74,8 +74,6 @@ public:
   NS_IMETHOD Reset();
   NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission);
 
-  virtual bool IsDisabled() const { return PR_FALSE; }
-
   nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const;
 
   PRBool ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,

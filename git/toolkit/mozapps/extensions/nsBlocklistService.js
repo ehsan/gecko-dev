@@ -56,7 +56,6 @@ const PREF_BLOCKLIST_URL              = "extensions.blocklist.url";
 const PREF_BLOCKLIST_ENABLED          = "extensions.blocklist.enabled";
 const PREF_BLOCKLIST_INTERVAL         = "extensions.blocklist.interval";
 const PREF_BLOCKLIST_LEVEL            = "extensions.blocklist.level";
-const PREF_BLOCKLIST_PINGCOUNT        = "extensions.blocklist.pingCount";
 const PREF_PLUGINS_NOTIFYUSER         = "plugins.update.notifyUser";
 const PREF_GENERAL_USERAGENT_LOCALE   = "general.useragent.locale";
 const PREF_PARTNER_BRANCH             = "app.partner.";
@@ -110,7 +109,7 @@ XPCOMUtils.defineLazyGetter(this, "gABI", function bls_gABI() {
                  getService(Ci.nsIMacUtils);
 
   if (macutils.isUniversalBinary)
-    abi += "-u-" + macutils.architecturesInBinary;
+    abi = "Universal-gcc3";
 #endif
   return abi;
 });
@@ -426,15 +425,6 @@ Blocklist.prototype = {
       return;
     }
 
-    var pingCount = 0;
-    try {
-      pingCount = gPref.getIntPref(PREF_BLOCKLIST_PINGCOUNT);
-    }
-    catch (e) {
-    }
-    if (pingCount < 0)
-      pingCount = 1;
-
     dsURI = dsURI.replace(/%APP_ID%/g, gApp.ID);
     dsURI = dsURI.replace(/%APP_VERSION%/g, gApp.version);
     dsURI = dsURI.replace(/%PRODUCT%/g, gApp.name);
@@ -449,16 +439,7 @@ Blocklist.prototype = {
                       getDistributionPrefValue(PREF_APP_DISTRIBUTION));
     dsURI = dsURI.replace(/%DISTRIBUTION_VERSION%/g,
                       getDistributionPrefValue(PREF_APP_DISTRIBUTION_VERSION));
-    dsURI = dsURI.replace(/%PING_COUNT%/g, pingCount);
     dsURI = dsURI.replace(/\+/g, "%2B");
-
-    pingCount++;
-    if (pingCount > 2147483647) {
-      // Rollover to 1 if the value is greater than what is support by an
-      // integer preference. The 1 indicates that this is an existing profile.
-      pingCount = 1;
-    }
-    gPref.setIntPref(PREF_BLOCKLIST_PINGCOUNT, pingCount);
 
     // Verify that the URI is valid
     try {

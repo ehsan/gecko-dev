@@ -1451,6 +1451,8 @@ var gDownloadingPage = {
    *          Additional data
    */
   onStartRequest: function(request, context) {
+    if (request instanceof CoI.nsIIncrementalDownload)
+      LOG("gDownloadingPage", "onStartRequest - spec: " + request.URI.spec);
     // This !paused test is necessary because onStartRequest may fire after
     // the download was paused (for those speedy clickers...)
     if (this._paused)
@@ -1473,6 +1475,8 @@ var gDownloadingPage = {
    *          The total number of bytes that must be transferred
    */
   onProgress: function(request, context, progress, maxProgress) {
+    LOG("gDownloadingPage", "onProgress - progress: " + progress + "/" +
+        maxProgress);
     let status = this._updateDownloadStatus(progress, maxProgress);
     var currentProgress = Math.round(100 * (progress / maxProgress));
 
@@ -1518,6 +1522,8 @@ var gDownloadingPage = {
    *          Human readable version of |status|
    */
   onStatus: function(request, context, status, statusText) {
+    LOG("gDownloadingPage", "onStatus - status: " + status + ", text: " +
+        statusText);
     this._setStatus(statusText);
   },
 
@@ -1531,6 +1537,10 @@ var gDownloadingPage = {
    *          Status code containing the reason for the cessation.
    */
   onStopRequest: function(request, context, status) {
+    if (request instanceof CoI.nsIIncrementalDownload)
+      LOG("gDownloadingPage", "onStopRequest - spec: " + request.URI.spec +
+          ", status: " + status);
+
     if (this._downloadProgress.mode != "normal")
       this._downloadProgress.mode = "normal";
 

@@ -317,10 +317,6 @@ public:
    virtual const char* Name() const { return "OGL"; }
 #endif // MOZ_LAYERS_HAVE_LOG
 
-   const nsIntSize& GetWigetSize() {
-     return mWidgetSize;
-   }
-
 private:
   /** Widget associated with this layer manager */
   nsIWidget *mWidget;
@@ -443,8 +439,6 @@ public:
   typedef mozilla::gl::GLContext GLContext;
 
   GLContext *gl() const { return mOGLManager->gl(); }
-
-  void ApplyFilter(gfxPattern::GraphicsFilter aFilter);
 protected:
   LayerManagerOGL *mOGLManager;
   PRPackedBool mDestroyed;

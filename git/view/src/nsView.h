@@ -120,19 +120,22 @@ public:
   // See nsIView::CreateWidget.
   nsresult CreateWidget(nsWidgetInitData *aWidgetInitData,
                         PRBool aEnableDragDrop,
-                        PRBool aResetVisibility);
+                        PRBool aResetVisibility,
+                        nsContentType aContentType);
 
   // See nsIView::CreateWidgetForParent.
   nsresult CreateWidgetForParent(nsIWidget* aParentWidget,
                                  nsWidgetInitData *aWidgetInitData,
                                  PRBool aEnableDragDrop,
-                                 PRBool aResetVisibility);
+                                 PRBool aResetVisibility,
+                                 nsContentType aContentType);
 
   // See nsIView::CreateWidgetForPopup.
   nsresult CreateWidgetForPopup(nsWidgetInitData *aWidgetInitData,
                                 nsIWidget* aParentWidget,
                                 PRBool aEnableDragDrop,
-                                PRBool aResetVisibility);
+                                PRBool aResetVisibility,
+                                nsContentType aContentType);
 
   // NOT in nsIView, so only available in view module
   // These are also present in nsIView, but these versions return nsView and nsViewManager

@@ -404,7 +404,9 @@ NS_METHOD nsWindow::Create(nsIWidget* aParent,
     // Suppress creation of a Thebes surface for windows that will never
     // be painted because they're always covered by another window.
     if (mWindowType == eWindowType_toplevel ||
-        mWindowType == eWindowType_invisible) {
+        mWindowType == eWindowType_invisible ||
+        (mWindowType == eWindowType_child &&
+         aInitData->mContentType == eContentTypeContent)) {
       mNoPaint = PR_TRUE;
     }
   }
