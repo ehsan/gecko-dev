@@ -349,12 +349,7 @@ class Vector : private AllocPolicy
         return mCapacity;
     }
 
-    T *begin() {
-        JS_ASSERT(!entered);
-        return mBegin;
-    }
-
-    const T *begin() const {
+    T *begin() const {
         JS_ASSERT(!entered);
         return mBegin;
     }

@@ -91,8 +91,7 @@ nsSVGForeignObjectFrame::Init(nsIContent* aContent,
 
   nsresult rv = nsSVGForeignObjectFrameBase::Init(aContent, aParent, aPrevInFlow);
   AddStateBits(aParent->GetStateBits() &
-               (NS_STATE_SVG_NONDISPLAY_CHILD | NS_STATE_SVG_CLIPPATH_CHILD |
-                NS_STATE_SVG_REDRAW_SUSPENDED));
+               (NS_STATE_SVG_NONDISPLAY_CHILD | NS_STATE_SVG_CLIPPATH_CHILD));
   if (NS_SUCCEEDED(rv)) {
     nsSVGUtils::GetOuterSVGFrame(this)->RegisterForeignObject(this);
   }
@@ -258,20 +257,18 @@ nsSVGForeignObjectFrame::PaintSVG(nsSVGRenderState *aContext,
   NS_ASSERTION(!invmatrix.IsSingular(),
                "inverse of non-singular matrix should be non-singular");
 
-  nsRect kidDirtyRect = kid->GetVisualOverflowRect();
-  if (aDirtyRect) {
-    gfxRect transDirtyRect = gfxRect(aDirtyRect->x, aDirtyRect->y,
-                                     aDirtyRect->width, aDirtyRect->height);
-    transDirtyRect = invmatrix.TransformBounds(transDirtyRect);
+  gfxRect transDirtyRect = gfxRect(aDirtyRect->x, aDirtyRect->y,
+                                   aDirtyRect->width, aDirtyRect->height);
+  transDirtyRect = invmatrix.TransformBounds(transDirtyRect);
 
-    transDirtyRect.Scale(nsPresContext::AppUnitsPerCSSPixel());
-    nsPoint tl(NSToCoordFloor(transDirtyRect.X()),
-               NSToCoordFloor(transDirtyRect.Y()));
-    nsPoint br(NSToCoordCeil(transDirtyRect.XMost()),
-               NSToCoordCeil(transDirtyRect.YMost()));
-    kidDirtyRect.IntersectRect(kidDirtyRect,
-                               nsRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y));
-  }
+  transDirtyRect.Scale(nsPresContext::AppUnitsPerCSSPixel());
+  nsPoint tl(NSToCoordFloor(transDirtyRect.X()),
+             NSToCoordFloor(transDirtyRect.Y()));
+  nsPoint br(NSToCoordCeil(transDirtyRect.XMost()),
+             NSToCoordCeil(transDirtyRect.YMost()));
+  nsRect kidDirtyRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y);
+
+  kidDirtyRect.IntersectRect(kidDirtyRect, kid->GetRect());
 
   PRUint32 flags = nsLayoutUtils::PAINT_IN_TRANSFORM;
   if (aContext->IsPaintingToWindow()) {
@@ -294,10 +291,6 @@ nsSVGForeignObjectFrame::GetTransformMatrix(nsIFrame* aAncestor,
   /* Set the ancestor to be the outer frame. */
   *aOutAncestor = nsSVGUtils::GetOuterSVGFrame(this);
   NS_ASSERTION(*aOutAncestor, "How did we end up without an outer frame?");
-
-  if (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD) {
-    return gfx3DMatrix::From2D(gfxMatrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0));
-  }
 
   /* Return the matrix back to the root, factoring in the x and y offsets. */
   return gfx3DMatrix::From2D(GetCanvasTMForChildren());
@@ -409,16 +402,10 @@ nsSVGForeignObjectFrame::NotifySVGChanged(PRUint32 aFlags)
     }
 
   } else if (aFlags & COORD_CONTEXT_CHANGED) {
-    nsSVGForeignObjectElement *fO =
-      static_cast<nsSVGForeignObjectElement*>(mContent);
-    // Coordinate context changes affect mCanvasTM if we have a
-    // percentage 'x' or 'y'
-    if (fO->mLengthAttributes[nsSVGForeignObjectElement::X].IsPercentage() ||
-        fO->mLengthAttributes[nsSVGForeignObjectElement::Y].IsPercentage()) {
-      mCanvasTM = nsnull;
-    }
     // Our coordinate context's width/height has changed. If we have a
     // percentage width/height our dimensions will change so we must reflow.
+    nsSVGForeignObjectElement *fO =
+      static_cast<nsSVGForeignObjectElement*>(mContent);
     if (fO->mLengthAttributes[nsSVGForeignObjectElement::WIDTH].IsPercentage() ||
         fO->mLengthAttributes[nsSVGForeignObjectElement::HEIGHT].IsPercentage()) {
       reflow = true;
@@ -440,17 +427,15 @@ nsSVGForeignObjectFrame::NotifySVGChanged(PRUint32 aFlags)
   }
 }
 
-void
+NS_IMETHODIMP
 nsSVGForeignObjectFrame::NotifyRedrawSuspended()
 {
-  AddStateBits(NS_STATE_SVG_REDRAW_SUSPENDED);
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 nsSVGForeignObjectFrame::NotifyRedrawUnsuspended()
 {
-  RemoveStateBits(NS_STATE_SVG_REDRAW_SUSPENDED);
-
   if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     if (GetStateBits() & NS_STATE_SVG_DIRTY) {
       UpdateGraphic(); // invalidate our entire area
@@ -458,6 +443,7 @@ nsSVGForeignObjectFrame::NotifyRedrawUnsuspended()
       FlushDirtyRegion(0); // only invalidate areas dirtied by our descendants
     }
   }
+  return NS_OK;
 }
 
 gfxRect
@@ -587,6 +573,7 @@ nsSVGForeignObjectFrame::DoReflow()
     return;
 
   // initiate a synchronous reflow here and now:  
+  nsSize availableSpace(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
   nsIPresShell* presShell = presContext->PresShell();
   NS_ASSERTION(presShell, "null presShell");
   nsRefPtr<nsRenderingContext> renderingContext =
@@ -621,7 +608,7 @@ nsSVGForeignObjectFrame::DoReflow()
   // page/column breaking at that height.
   NS_ASSERTION(reflowState.mComputedBorderPadding == nsMargin(0, 0, 0, 0) &&
                reflowState.mComputedMargin == nsMargin(0, 0, 0, 0),
-               "style system should ensure that :-moz-svg-foreign-content "
+               "style system should ensure that :-moz-svg-foreign content "
                "does not get styled");
   NS_ASSERTION(reflowState.ComputedWidth() == size.width,
                "reflow state made child wrong size");
@@ -666,8 +653,7 @@ void
 nsSVGForeignObjectFrame::FlushDirtyRegion(PRUint32 aFlags)
 {
   if ((mSameDocDirtyRegion.IsEmpty() && mSubDocDirtyRegion.IsEmpty()) ||
-      mInReflow ||
-      (GetStateBits() & NS_STATE_SVG_REDRAW_SUSPENDED))
+      mInReflow)
     return;
 
   nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(this);
@@ -675,6 +661,9 @@ nsSVGForeignObjectFrame::FlushDirtyRegion(PRUint32 aFlags)
     NS_ERROR("null outerSVGFrame");
     return;
   }
+
+  if (outerSVGFrame->IsRedrawSuspended())
+    return;
 
   InvalidateDirtyRect(outerSVGFrame, mSameDocDirtyRegion.GetBounds(), aFlags);
   InvalidateDirtyRect(outerSVGFrame, mSubDocDirtyRegion.GetBounds(),

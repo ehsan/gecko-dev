@@ -34,21 +34,24 @@ function test() {
   }
 
   function testNode1() {
+    dump("testNode1\n");
     Services.obs.removeObserver(testNode1, InspectorUI.INSPECTOR_NOTIFICATIONS.TREEPANELREADY);
     is(InspectorUI.selection, node1, "selection matches node");
-    is(getHighlitNode(), node1, "selection matches node");
+    is(InspectorUI.highlighter.node, node1, "selection matches node");
     testNode2();
   }
 
   function testNode2() {
-    InspectorUI.highlighter.addListener("nodeselected", testHighlightingNode2);
+    dump("testNode2\n")
+    Services.obs.addObserver(testHighlightingNode2, InspectorUI.INSPECTOR_NOTIFICATIONS.HIGHLIGHTING, false);
     InspectorUI.treePanelSelect("node2");
   }
 
   function testHighlightingNode2() {
-    InspectorUI.highlighter.removeListener("nodeselected", testHighlightingNode2);
+    dump("testHighlightingNode2\n")
+    Services.obs.removeObserver(testHighlightingNode2, InspectorUI.INSPECTOR_NOTIFICATIONS.HIGHLIGHTING);
     is(InspectorUI.selection, node2, "selection matches node");
-    is(getHighlitNode(), node2, "selection matches node");
+    is(InspectorUI.highlighter.node, node2, "selection matches node");
     Services.obs.addObserver(finishUp, InspectorUI.INSPECTOR_NOTIFICATIONS.CLOSED, false);
     InspectorUI.closeInspectorUI();
   }

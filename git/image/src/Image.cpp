@@ -38,7 +38,7 @@
 #include "Image.h"
 
 namespace mozilla {
-namespace image {
+namespace imagelib {
 
 // Constructor
 Image::Image(imgStatusTracker* aStatusTracker) :
@@ -174,5 +174,5 @@ Image::EvaluateAnimation()
   }
 }
 
-} // namespace image
+} // namespace imagelib
 } // namespace mozilla

@@ -79,6 +79,7 @@ class nsIClipboard;
 class TypeInState;
 class nsIContentFilter;
 class nsIURL;
+class nsIRangeUtils;
 class nsILinkHandler;
 struct PropItem;
 
@@ -323,7 +324,6 @@ public:
   virtual bool TagCanContainTag(const nsAString& aParentTag, const nsAString& aChildTag);
   
   /** returns true if aNode is a container */
-  virtual bool IsContainer(nsINode* aNode);
   virtual bool IsContainer(nsIDOMNode *aNode);
 
   /** make the given selection span the entire document */
@@ -387,18 +387,14 @@ public:
 
   virtual bool IsTextInDirtyFrameVisible(nsIContent *aNode);
 
-  nsresult IsVisTextNode(nsIContent* aNode,
-                         bool* outIsEmptyNode,
-                         bool aSafeToAskFrames);
+  nsresult IsVisTextNode( nsIDOMNode *aNode, 
+                          bool *outIsEmptyNode, 
+                          bool aSafeToAskFrames);
   nsresult IsEmptyNode(nsIDOMNode *aNode, bool *outIsEmptyBlock, 
                        bool aMozBRDoesntCount = false,
                        bool aListOrCellNotEmpty = false,
                        bool aSafeToAskFrames = false);
-  nsresult IsEmptyNode(nsINode* aNode, bool* outIsEmptyBlock,
-                       bool aMozBRDoesntCount = false,
-                       bool aListOrCellNotEmpty = false,
-                       bool aSafeToAskFrames = false);
-  nsresult IsEmptyNodeImpl(nsINode* aNode,
+  nsresult IsEmptyNodeImpl(nsIDOMNode *aNode,
                            bool *outIsEmptyBlock, 
                            bool aMozBRDoesntCount,
                            bool aListOrCellNotEmpty,
@@ -418,14 +414,7 @@ public:
                                   nsCSSStyleSheet *aStyleSheet);
 
   nsresult RemoveStyleSheetFromList(const nsAString &aURL);
-
-  bool IsCSSEnabled()
-  {
-    // TODO: removal of mCSSAware and use only the presence of mHTMLCSSUtils
-    return mCSSAware && mHTMLCSSUtils && mHTMLCSSUtils->IsCSSPrefChecked();
-  }
-
-
+                       
 protected:
 
   NS_IMETHOD  InitRules();
@@ -452,6 +441,11 @@ protected:
   NS_IMETHOD TabInTable(bool inIsShift, bool *outHandled);
   NS_IMETHOD CreateBR(nsIDOMNode *aNode, PRInt32 aOffset, 
                       nsCOMPtr<nsIDOMNode> *outBRNode, nsIEditor::EDirection aSelect = nsIEditor::eNone);
+  NS_IMETHOD CreateBRImpl(nsCOMPtr<nsIDOMNode> *aInOutParent, 
+                         PRInt32 *aInOutOffset, 
+                         nsCOMPtr<nsIDOMNode> *outBRNode, 
+                         nsIEditor::EDirection aSelect);
+  NS_IMETHOD InsertBR(nsCOMPtr<nsIDOMNode> *outBRNode);
 
 // Table Editing (implemented in nsTableEditor.cpp)
 
@@ -722,8 +716,8 @@ protected:
                              bool *aAll,
                              nsAString *outValue,
                              bool aCheckDefaults = true);
-  bool HasStyleOrIdOrClass(mozilla::dom::Element* aElement);
-  nsresult RemoveElementIfNoStyleOrIdOrClass(nsIDOMNode* aElement);
+  nsresult HasStyleOrIdOrClass(nsIDOMElement * aElement, bool *aHasStyleOrIdOrClass);
+  nsresult RemoveElementIfNoStyleOrIdOrClass(nsIDOMElement * aElement, nsIAtom * aTag);
 
   // Whether the outer window of the DOM event target has focus or not.
   bool     OurWindowHasFocus();
@@ -772,6 +766,13 @@ protected:
 
    // for real-time spelling
    nsCOMPtr<nsITextServicesDocument> mTextServices;
+
+  // And a static range utils service
+  static nsIRangeUtils* sRangeHelper;
+
+public:
+  // ... which means that we need to listen to shutdown
+  static void Shutdown();
 
 protected:
 

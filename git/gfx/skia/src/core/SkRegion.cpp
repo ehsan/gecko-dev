@@ -11,6 +11,10 @@
 #include "SkTemplates.h"
 #include "SkThread.h"
 
+#ifdef ANDROID
+#include <stdio.h>
+#endif
+
 SkDEBUGCODE(int32_t gRgnAllocCounter;)
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -167,7 +171,7 @@ bool SkRegion::op(const SkRegion& rgn, const SkIRect& rect, Op op) {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifdef SK_BUILD_FOR_ANDROID
+#ifdef ANDROID
 char* SkRegion::toString()
 {
     Iterator iter(*this);
@@ -966,7 +970,7 @@ bool SkRegion::op(const SkRegion& rgnaOrig, const SkRegion& rgnbOrig, Op op)
             return this->setRegion(*rgna);
         break;
     default:
-        SkDEBUGFAIL("unknown region op");
+        SkASSERT(!"unknown region op");
         return !this->isEmpty();
     }
 

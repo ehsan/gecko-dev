@@ -66,12 +66,12 @@
     events: ['mousedown', 'mousemove', 'mouseup', 'click', 'unload'],
     start: function teh_start() {
       this.events.forEach((function(evt) {
-        shell.contentBrowser.addEventListener(evt, this, true);
+        shell.home.addEventListener(evt, this, true);
       }).bind(this));
     },
     stop: function teh_stop() {
       this.events.forEach((function(evt) {
-        shell.contentBrowser.removeEventListener(evt, this, true);
+        shell.home.removeEventListener(evt, this, true);
       }).bind(this));
     },
     handleEvent: function teh_handleEvent(evt) {
@@ -139,7 +139,12 @@
           return;
 
         case 'click':
-          if (isNewTouchAction) {
+          if (!isNewTouchAction) {
+            debug('click: cancel');
+
+            evt.preventDefault();
+            evt.stopPropagation();
+          } else {
             // Mouse events has been cancelled so dispatch a sequence
             // of events to where touchend has been fired
             if (preventMouseEvents) {

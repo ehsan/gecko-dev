@@ -48,7 +48,9 @@ function test()
 
     cursor = 0;
     executeSoon(function() {
-      InspectorUI.highlighter.addListener("nodeselected", nodeSelected);
+      Services.obs.addObserver(nodeSelected,
+        InspectorUI.INSPECTOR_NOTIFICATIONS.HIGHLIGHTING, false);
+
       InspectorUI.inspectNode(nodes[0].node);
     });
   }
@@ -60,7 +62,8 @@ function test()
       cursor++;
       if (cursor >= nodes.length) {
 
-        InspectorUI.highlighter.removeListener("nodeselected", nodeSelected);
+        Services.obs.removeObserver(nodeSelected,
+          InspectorUI.INSPECTOR_NOTIFICATIONS.HIGHLIGHTING);
         Services.obs.addObserver(finishUp,
           InspectorUI.INSPECTOR_NOTIFICATIONS.CLOSED, false);
 

@@ -455,7 +455,6 @@ SkPDFFunctionShader::SkPDFFunctionShader(SkPDFShader::State* state)
             break;
         case SkShader::kColor_GradientType:
         case SkShader::kNone_GradientType:
-        default:
             return;
     }
 
@@ -525,7 +524,7 @@ SkPDFImageShader::SkPDFImageShader(SkPDFShader::State* state) : fState(state) {
 
     SkMatrix unflip;
     unflip.setTranslate(0, SkScalarRound(surfaceBBox.height()));
-    unflip.preScale(SK_Scalar1, -SK_Scalar1);
+    unflip.preScale(1, -1);
     SkISize size = SkISize::Make(SkScalarRound(surfaceBBox.width()),
                                  SkScalarRound(surfaceBBox.height()));
     SkPDFDevice pattern(size, size, unflip);
@@ -554,7 +553,7 @@ SkPDFImageShader::SkPDFImageShader(SkPDFShader::State* state) : fState(state) {
     }
     if (tileModes[1] == SkShader::kMirror_TileMode) {
         SkMatrix yMirror;
-        yMirror.setScale(SK_Scalar1, -SK_Scalar1);
+        yMirror.setScale(1, -1);
         yMirror.postTranslate(0, 2 * height);
         canvas.drawBitmapMatrix(*image, yMirror);
         patternBBox.fBottom += height;
@@ -616,7 +615,7 @@ SkPDFImageShader::SkPDFImageShader(SkPDFShader::State* state) : fState(state) {
             canvas.drawBitmapMatrix(left, leftMatrix);
 
             if (tileModes[1] == SkShader::kMirror_TileMode) {
-                leftMatrix.postScale(SK_Scalar1, -SK_Scalar1);
+                leftMatrix.postScale(1, -1);
                 leftMatrix.postTranslate(0, 2 * height);
                 canvas.drawBitmapMatrix(left, leftMatrix);
             }
@@ -634,7 +633,7 @@ SkPDFImageShader::SkPDFImageShader(SkPDFShader::State* state) : fState(state) {
             canvas.drawBitmapMatrix(right, rightMatrix);
 
             if (tileModes[1] == SkShader::kMirror_TileMode) {
-                rightMatrix.postScale(SK_Scalar1, -SK_Scalar1);
+                rightMatrix.postScale(1, -1);
                 rightMatrix.postTranslate(0, 2 * height);
                 canvas.drawBitmapMatrix(right, rightMatrix);
             }
@@ -649,7 +648,7 @@ SkPDFImageShader::SkPDFImageShader(SkPDFShader::State* state) : fState(state) {
             SkAssertResult(image->extractSubset(&top, subset));
 
             SkMatrix topMatrix;
-            topMatrix.setScale(SK_Scalar1, -surfaceBBox.fTop);
+            topMatrix.setScale(1, -surfaceBBox.fTop);
             topMatrix.postTranslate(0, surfaceBBox.fTop);
             canvas.drawBitmapMatrix(top, topMatrix);
 
@@ -667,7 +666,7 @@ SkPDFImageShader::SkPDFImageShader(SkPDFShader::State* state) : fState(state) {
             SkAssertResult(image->extractSubset(&bottom, subset));
 
             SkMatrix bottomMatrix;
-            bottomMatrix.setScale(SK_Scalar1, surfaceBBox.fBottom - height);
+            bottomMatrix.setScale(1, surfaceBBox.fBottom - height);
             bottomMatrix.postTranslate(0, height);
             canvas.drawBitmapMatrix(bottom, bottomMatrix);
 
@@ -810,8 +809,7 @@ SkPDFShader::State::State(const SkShader& shader,
         fColorData.set(sk_malloc_throw(
                     fInfo.fColorCount * (sizeof(SkColor) + sizeof(SkScalar))));
         fInfo.fColors = reinterpret_cast<SkColor*>(fColorData.get());
-        fInfo.fColorOffsets =
-            reinterpret_cast<SkScalar*>(fInfo.fColors + fInfo.fColorCount);
+        fInfo.fColorOffsets = reinterpret_cast<SkScalar*>(fInfo.fColors + fInfo.fColorCount);
         shader.asAGradient(&fInfo);
     }
 }

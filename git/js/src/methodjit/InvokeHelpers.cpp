@@ -64,6 +64,7 @@
 #include "jscntxtinlines.h"
 #include "jsatominlines.h"
 #include "StubCalls-inl.h"
+#include "MethodJIT-inl.h"
 
 #include "jsautooplen.h"
 
@@ -320,13 +321,15 @@ UncachedInlineCall(VMFrame &f, InitialFrameFlags initial,
     types::TypeMonitorCall(cx, args, construct);
 
     /* Try to compile if not already compiled. */
-    CompileStatus status = CanMethodJIT(cx, newscript, newscript->code, construct, CompileRequest_Interpreter);
-    if (status == Compile_Error) {
-        /* A runtime exception was thrown, get out. */
-        return false;
+    if (newscript->getJITStatus(construct) == JITScript_None) {
+        CompileStatus status = CanMethodJIT(cx, newscript, construct, CompileRequest_Interpreter);
+        if (status == Compile_Error) {
+            /* A runtime exception was thrown, get out. */
+            return false;
+        }
+        if (status == Compile_Abort)
+            *unjittable = true;
     }
-    if (status == Compile_Abort)
-        *unjittable = true;
 
     /*
      * Make sure we are not calling from an inline frame if we need to make a
@@ -364,13 +367,11 @@ UncachedInlineCall(VMFrame &f, InitialFrameFlags initial,
      */
     if (!newType) {
         if (JITScript *jit = newscript->getJIT(regs.fp()->isConstructing())) {
-            if (jit->invokeEntry) {
-                *pret = jit->invokeEntry;
+            *pret = jit->invokeEntry;
 
-                /* Restore the old fp around and let the JIT code repush the new fp. */
-                regs.popFrame((Value *) regs.fp());
-                return true;
-            }
+            /* Restore the old fp around and let the JIT code repush the new fp. */
+            regs.popFrame((Value *) regs.fp());
+            return true;
         }
     }
 
@@ -547,10 +548,10 @@ js_InternalThrow(VMFrame &f)
                 switch (st) {
                 case JSTRAP_ERROR:
                     cx->clearPendingException();
-                    break;
+                    return NULL;
 
                 case JSTRAP_CONTINUE:
-                    break;
+                  break;
 
                 case JSTRAP_RETURN:
                     cx->clearPendingException();
@@ -591,11 +592,11 @@ js_InternalThrow(VMFrame &f)
         if (f.entryfp == f.fp())
             break;
 
-        JS_ASSERT(&cx->regs() == &f.regs);
+        JS_ASSERT(f.regs.sp == cx->regs().sp);
         InlineReturn(f);
     }
 
-    JS_ASSERT(&cx->regs() == &f.regs);
+    JS_ASSERT(f.regs.sp == cx->regs().sp);
 
     if (!pc)
         return NULL;
@@ -619,6 +620,9 @@ js_InternalThrow(VMFrame &f)
 
     analyze::AutoEnterAnalysis enter(cx);
 
+    cx->regs().pc = pc;
+    cx->regs().sp = fp->base() + script->analysis()->getCode(pc).stackDepth;
+
     /*
      * Interpret the ENTERBLOCK and EXCEPTION opcodes, so that we don't go
      * back into the interpreter with a pending exception. This will cause
@@ -626,7 +630,7 @@ js_InternalThrow(VMFrame &f)
      */
     if (cx->isExceptionPending()) {
         JS_ASSERT(JSOp(*pc) == JSOP_ENTERBLOCK);
-        StaticBlockObject &blockObj = script->getObject(GET_UINT32_INDEX(pc))->asStaticBlock();
+        StaticBlockObject &blockObj = script->getObject(GET_SLOTNO(pc))->asStaticBlock();
         Value *vp = cx->regs().sp + blockObj.slotCount();
         SetValueRangeToUndefined(cx->regs().sp, vp);
         cx->regs().sp = vp;
@@ -692,28 +696,6 @@ void JS_FASTCALL
 stubs::ScriptProbeOnlyEpilogue(VMFrame &f)
 {
     Probes::exitJSFun(f.cx, f.fp()->fun(), f.fp()->script());
-}
-
-void JS_FASTCALL
-stubs::CrossChunkShim(VMFrame &f, void *edge_)
-{
-    DebugOnly<CrossChunkEdge*> edge = (CrossChunkEdge *) edge_;
-
-    mjit::ExpandInlineFrames(f.cx->compartment);
-
-    JSScript *script = f.script();
-    JS_ASSERT(edge->target < script->length);
-    JS_ASSERT(script->code + edge->target == f.pc());
-
-    CompileStatus status = CanMethodJIT(f.cx, script, f.pc(), f.fp()->isConstructing(),
-                                        CompileRequest_Interpreter);
-    if (status == Compile_Error)
-        THROW();
-
-    void **addr = f.returnAddressLocation();
-    *addr = JS_FUNC_TO_DATA_PTR(void *, JaegerInterpoline);
-
-    f.fp()->setRejoin(StubRejoin(REJOIN_RESUME));
 }
 
 JS_STATIC_ASSERT(JSOP_NOP == 0);

@@ -35,7 +35,7 @@ static SkFlattenable* get_paintflat(const SkPaint& paint, unsigned paintFlat) {
         case kShader_PaintFlat:         return paint.getShader();
         case kXfermode_PaintFlat:       return paint.getXfermode();
     }
-    SkDEBUGFAIL("never gets here");
+    SkASSERT(!"never gets here");
     return NULL;
 }
 

@@ -98,8 +98,8 @@ protected:
 
   // These headers will always contain endian independent stuff 
   // They store the BMP headers which will be encoded
-  mozilla::image::BMPFILEHEADER mBMPFileHeader;
-  mozilla::image::BMPINFOHEADER mBMPInfoHeader;
+  mozilla::imagelib::BMPFILEHEADER mBMPFileHeader;
+  mozilla::imagelib::BMPINFOHEADER mBMPInfoHeader;
 
   // Keeps track of the start of the image buffer
   PRUint8* mImageBufferStart;

@@ -161,8 +161,8 @@ public:
     jobject LockBuffer();
     unsigned char *LockBufferBits();
     void UnlockBuffer();
-    bool BeginDrawing(int aWidth, int aHeight, int aTileWidth, int aTileHeight, const nsAString &aMetadata, bool aHasDirectTexture);
-    void EndDrawing(const nsIntRect &aRect);
+    void BeginDrawing(int aWidth, int aHeight);
+    void EndDrawing(const nsIntRect &aRect, const nsAString &aMetadata);
 
 private:
     static jclass jGeckoSoftwareLayerClientClass;
@@ -432,18 +432,14 @@ public:
     int Action() { return mAction; }
     int Type() { return mType; }
     int64_t Time() { return mTime; }
-    nsTArray<nsIntPoint> Points() { return mPoints; }
-    nsTArray<int> PointIndicies() { return mPointIndicies; }
-    nsTArray<float> Pressures() { return mPressures; }
-    nsTArray<float> Orientations() { return mOrientations; }
-    nsTArray<nsIntPoint> PointRadii() { return mPointRadii; }
+    const nsIntPoint& P0() { return mP0; }
+    const nsIntPoint& P1() { return mP1; }
     double Alpha() { return mAlpha; }
     double Beta() { return mBeta; }
     double Gamma() { return mGamma; }
     double X() { return mX; }
     double Y() { return mY; }
     double Z() { return mZ; }
-    double Distance() { return mDistance; }
     const nsIntRect& Rect() { return mRect; }
     nsAString& Characters() { return mCharacters; }
     nsAString& CharactersExtra() { return mCharactersExtra; }
@@ -453,7 +449,6 @@ public:
     int UnicodeChar() { return mUnicodeChar; }
     int Offset() { return mOffset; }
     int Count() { return mCount; }
-    int PointerIndex() { return mPointerIndex; }
     int RangeType() { return mRangeType; }
     int RangeStyles() { return mRangeStyles; }
     int RangeForeColor() { return mRangeForeColor; }
@@ -467,11 +462,8 @@ protected:
     int mAction;
     int mType;
     int64_t mTime;
-    nsTArray<nsIntPoint> mPoints;
-    nsTArray<nsIntPoint> mPointRadii;
-    nsTArray<int> mPointIndicies;
-    nsTArray<float> mOrientations;
-    nsTArray<float> mPressures;
+    nsIntPoint mP0;
+    nsIntPoint mP1;
     nsIntRect mRect;
     int mFlags, mMetaState;
     int mKeyCode, mUnicodeChar;
@@ -480,26 +472,14 @@ protected:
     int mRangeForeColor, mRangeBackColor;
     double mAlpha, mBeta, mGamma;
     double mX, mY, mZ;
-    double mDistance;
-    int mPointerIndex;
     nsString mCharacters, mCharactersExtra;
     nsRefPtr<nsGeoPosition> mGeoPosition;
     nsRefPtr<nsGeoPositionAddress> mGeoAddress;
     double mBandwidth;
     bool mCanBeMetered;
 
-    void ReadIntArray(nsTArray<int> &aVals,
-                      JNIEnv *jenv,
-                      jfieldID field,
-                      PRUint32 count);
-    void ReadFloatArray(nsTArray<float> &aVals,
-                        JNIEnv *jenv,
-                        jfieldID field,
-                        PRUint32 count);
-    void ReadPointArray(nsTArray<nsIntPoint> &mPoints,
-                        JNIEnv *jenv,
-                        jfieldID field,
-                        PRUint32 count);
+    void ReadP0Field(JNIEnv *jenv);
+    void ReadP1Field(JNIEnv *jenv);
     void ReadRectField(JNIEnv *jenv);
     void ReadCharactersField(JNIEnv *jenv);
     void ReadCharactersExtraField(JNIEnv *jenv);
@@ -508,18 +488,14 @@ protected:
     static jfieldID jActionField;
     static jfieldID jTypeField;
     static jfieldID jTimeField;
-    static jfieldID jPoints;
-    static jfieldID jPointIndicies;
-    static jfieldID jOrientations;
-    static jfieldID jPressures;
-    static jfieldID jPointRadii;
+    static jfieldID jP0Field;
+    static jfieldID jP1Field;
     static jfieldID jAlphaField;
     static jfieldID jBetaField;
     static jfieldID jGammaField;
     static jfieldID jXField;
     static jfieldID jYField;
     static jfieldID jZField;
-    static jfieldID jDistanceField;
     static jfieldID jRectField;
     static jfieldID jNativeWindowField;
 
@@ -530,7 +506,6 @@ protected:
     static jfieldID jFlagsField;
     static jfieldID jOffsetField;
     static jfieldID jCountField;
-    static jfieldID jPointerIndexField;
     static jfieldID jUnicodeCharField;
     static jfieldID jRangeTypeField;
     static jfieldID jRangeStylesField;
@@ -564,9 +539,9 @@ public:
         ACTIVITY_START = 17,
         BROADCAST = 19,
         VIEWPORT = 20,
-        VISITED = 21,
-        NETWORK_CHANGED = 22,
-        PROXIMITY_EVENT = 23,
+        TILE_SIZE = 21,
+        VISITED = 22,
+        NETWORK_CHANGED = 23,
         dummy_java_enum_list_end
     };
 

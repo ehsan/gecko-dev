@@ -49,20 +49,11 @@ namespace statistics {
   inline void A11yInitialized()
     { Telemetry::Accumulate(Telemetry::A11Y_INSTANTIATED, true); }
 
-  inline void A11yConsumers(PRUint32 aConsumer)
-    { Telemetry::Accumulate(Telemetry::A11Y_CONSUMERS, aConsumer); }
-
   /**
    * Report that ISimpleDOM* has been used.
    */
   inline void ISimpleDOMUsed()
-  {
-    static bool firstTime = true;
-    if (firstTime) {
-      Telemetry::Accumulate(Telemetry::ISIMPLE_DOM_USAGE, 1);
-      firstTime = false;
-    }
-  }
+    { Telemetry::Accumulate(Telemetry::ISIMPLE_DOM_USAGE, 1); }
 
   /**
    * Report that IAccessibleTable has been used.

@@ -44,6 +44,7 @@
 #include "mozilla/Util.h"
 
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "jsutil.h"
 #include "jsapi.h"
 #include "jsarray.h"
@@ -120,8 +121,7 @@ static const gc::AllocKind ITERATOR_FINALIZE_KIND = gc::FINALIZE_OBJECT2;
 void
 NativeIterator::mark(JSTracer *trc)
 {
-    for (HeapPtr<JSFlatString> *str = begin(); str < end(); str++)
-        MarkString(trc, *str, "prop");
+    MarkIdRange(trc, begin(), end(), "props");
     if (obj)
         MarkObject(trc, obj, "obj");
 }
@@ -507,21 +507,14 @@ NativeIterator::allocateIterator(JSContext *cx, uint32_t slength, const AutoIdVe
 {
     size_t plength = props.length();
     NativeIterator *ni = (NativeIterator *)
-        cx->malloc_(sizeof(NativeIterator)
-                    + plength * sizeof(JSString *)
-                    + slength * sizeof(Shape *));
+        cx->malloc_(sizeof(NativeIterator) + plength * sizeof(jsid) + slength * sizeof(Shape *));
     if (!ni)
         return NULL;
-    AutoValueVector strings(cx);
-    ni->props_array = ni->props_cursor = (HeapPtr<JSFlatString> *) (ni + 1);
+    ni->props_array = ni->props_cursor = (HeapId *) (ni + 1);
     ni->props_end = ni->props_array + plength;
     if (plength) {
-        for (size_t i = 0; i < plength; i++) {
-            JSFlatString *str = IdToString(cx, props[i]);
-            if (!str || !strings.append(StringValue(str)))
-                return NULL;
-            ni->props_array[i].init(str);
-        }
+        for (size_t i = 0; i < plength; i++)
+            ni->props_array[i].init(props[i]);
     }
     return ni;
 }
@@ -923,9 +916,9 @@ js_CloseIterator(JSContext *cx, JSObject *obj)
  * false. It also must have a method |matchesAtMostOne| which allows us to
  * stop searching after the first deletion if true.
  */
-template<typename StringPredicate>
+template<typename IdPredicate>
 static bool
-SuppressDeletedPropertyHelper(JSContext *cx, JSObject *obj, StringPredicate predicate)
+SuppressDeletedPropertyHelper(JSContext *cx, JSObject *obj, IdPredicate predicate)
 {
     JSObject *iterobj = cx->enumerators;
     while (iterobj) {
@@ -934,9 +927,9 @@ SuppressDeletedPropertyHelper(JSContext *cx, JSObject *obj, StringPredicate pred
         /* This only works for identified surpressed keys, not values. */
         if (ni->isKeyIter() && ni->obj == obj && ni->props_cursor < ni->props_end) {
             /* Check whether id is still to come. */
-            HeapPtr<JSFlatString> *props_cursor = ni->current();
-            HeapPtr<JSFlatString> *props_end = ni->end();
-            for (HeapPtr<JSFlatString> *idp = props_cursor; idp < props_end; ++idp) {
+            HeapId *props_cursor = ni->current();
+            HeapId *props_end = ni->end();
+            for (HeapId *idp = props_cursor; idp < props_end; ++idp) {
                 if (predicate(*idp)) {
                     /*
                      * Check whether another property along the prototype chain
@@ -946,17 +939,13 @@ SuppressDeletedPropertyHelper(JSContext *cx, JSObject *obj, StringPredicate pred
                         JSObject *proto = obj->getProto();
                         JSObject *obj2;
                         JSProperty *prop;
-                        jsid id;
-                        if (!ValueToId(cx, StringValue(*idp), &id))
-                            return false;
-                        id = js_CheckForStringIndex(id);
-                        if (!proto->lookupGeneric(cx, id, &obj2, &prop))
+                        if (!proto->lookupGeneric(cx, *idp, &obj2, &prop))
                             return false;
                         if (prop) {
                             uintN attrs;
                             if (obj2->isNative())
                                 attrs = ((Shape *) prop)->attributes();
-                            else if (!obj2->getGenericAttributes(cx, id, &attrs))
+                            else if (!obj2->getGenericAttributes(cx, *idp, &attrs))
                                 return false;
 
                             if (attrs & JSPROP_ENUMERATE)
@@ -979,7 +968,7 @@ SuppressDeletedPropertyHelper(JSContext *cx, JSObject *obj, StringPredicate pred
                     if (idp == props_cursor) {
                         ni->incCursor();
                     } else {
-                        for (HeapPtr<JSFlatString> *p = idp; p + 1 != props_end; p++)
+                        for (HeapId *p = idp; p + 1 != props_end; p++)
                             *p = *(p + 1);
                         ni->props_end = ni->end() - 1;
                     }
@@ -997,22 +986,20 @@ SuppressDeletedPropertyHelper(JSContext *cx, JSObject *obj, StringPredicate pred
     return true;
 }
 
-class SingleStringPredicate {
-    JSFlatString *str;
+class SingleIdPredicate {
+    jsid id;
 public:
-    SingleStringPredicate(JSFlatString *str) : str(str) {}
+    SingleIdPredicate(jsid id) : id(id) {}
 
-    bool operator()(JSFlatString *str) { return EqualStrings(str, this->str); }
+    bool operator()(jsid id) { return id == this->id; }
     bool matchesAtMostOne() { return true; }
 };
 
 bool
 js_SuppressDeletedProperty(JSContext *cx, JSObject *obj, jsid id)
 {
-    JSFlatString *str = IdToString(cx, id);
-    if (!str)
-        return false;
-    return SuppressDeletedPropertyHelper(cx, obj, SingleStringPredicate(str));
+    id = js_CheckForStringIndex(id);
+    return SuppressDeletedPropertyHelper(cx, obj, SingleIdPredicate(id));
 }
 
 bool
@@ -1021,7 +1008,8 @@ js_SuppressDeletedElement(JSContext *cx, JSObject *obj, uint32_t index)
     jsid id;
     if (!IndexToId(cx, index, &id))
         return false;
-    return js_SuppressDeletedProperty(cx, obj, id);
+    JS_ASSERT(id == js_CheckForStringIndex(id));
+    return SuppressDeletedPropertyHelper(cx, obj, SingleIdPredicate(id));
 }
 
 class IndexRangePredicate {
@@ -1030,9 +1018,19 @@ class IndexRangePredicate {
   public:
     IndexRangePredicate(uint32_t begin, uint32_t end) : begin(begin), end(end) {}
 
-    bool operator()(JSFlatString *str) {
-        uint32_t index;
-        return str->isIndex(&index) && begin <= index && index < end;
+    bool operator()(jsid id) {
+        if (JSID_IS_INT(id)) {
+            jsint i = JSID_TO_INT(id);
+            return i > 0 && begin <= uint32_t(i) && uint32_t(i) < end;
+        }
+
+        if (JS_LIKELY(JSID_IS_ATOM(id))) {
+            JSAtom *atom = JSID_TO_ATOM(id);
+            uint32_t index;
+            return atom->isIndex(&index) && begin <= index && index < end;
+        }
+
+        return false;
     }
 
     bool matchesAtMostOne() { return false; }
@@ -1085,10 +1083,7 @@ js_IteratorMore(JSContext *cx, JSObject *iterobj, Value *rval)
         }
     } else {
         JS_ASSERT(!ni->isKeyIter());
-        jsid id;
-        if (!ValueToId(cx, StringValue(*ni->current()), &id))
-            return false;
-        id = js_CheckForStringIndex(id);
+        jsid id = *ni->current();
         ni->incCursor();
         if (!ni->obj->getGeneric(cx, id, rval))
             return false;
@@ -1115,7 +1110,7 @@ js_IteratorNext(JSContext *cx, JSObject *iterobj, Value *rval)
         NativeIterator *ni = iterobj->getNativeIterator();
         if (ni->isKeyIter()) {
             JS_ASSERT(ni->props_cursor < ni->props_end);
-            *rval = StringValue(*ni->current());
+            *rval = IdToValue(*ni->current());
             ni->incCursor();
 
             if (rval->isString())

@@ -139,7 +139,7 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
 
   public:
   
-    nsHtml5TreeOpExecutor(bool aRunsToCompletion = false);
+    nsHtml5TreeOpExecutor();
     virtual ~nsHtml5TreeOpExecutor();
   
     // nsIContentSink
@@ -179,7 +179,7 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     /**
      * Sets the parser.
      */
-    NS_IMETHOD SetParser(nsParserBase* aParser);
+    NS_IMETHOD SetParser(nsIParser* aParser);
 
     /**
      * No-op for backwards compat.
@@ -202,6 +202,7 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     // nsContentSink methods
     virtual void UpdateChildCounts();
     virtual nsresult FlushTags();
+    virtual void PostEvaluateScript(nsIScriptElement *aElement);
     virtual void ContinueInterruptedParsingAsync();
  
     /**
@@ -248,6 +249,7 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
      * a document--only when parsing to an actual DOM fragment
      */
     void EnableFragmentMode(bool aPreventScriptExecution) {
+      mFragmentMode = true;
       mPreventScriptExecution = aPreventScriptExecution;
     }
     
@@ -255,8 +257,8 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
       mPreventScriptExecution = true;
     }
 
-    bool BelongsToStringParser() {
-      return mRunsToCompletion;
+    bool IsFragmentMode() {
+      return mFragmentMode;
     }
 
     /**
@@ -434,6 +436,8 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
 
   private:
     nsHtml5Parser* GetParser();
+
+    nsHtml5Tokenizer* GetTokenizer();
 
     /**
      * Get a nsIURI for an nsString if the URL hasn't been preloaded yet.

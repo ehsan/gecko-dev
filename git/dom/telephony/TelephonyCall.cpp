@@ -75,37 +75,37 @@ TelephonyCall::ChangeStateInternal(PRUint16 aCallState, bool aFireEvents)
 
   nsString stateString;
   switch (aCallState) {
-    case nsIRadioInterfaceLayer::CALL_STATE_DIALING:
+    case nsITelephone::CALL_STATE_DIALING:
       stateString.AssignLiteral("dialing");
       break;
-    case nsIRadioInterfaceLayer::CALL_STATE_RINGING:
+    case nsITelephone::CALL_STATE_RINGING:
       stateString.AssignLiteral("ringing");
       break;
-    case nsIRadioInterfaceLayer::CALL_STATE_BUSY:
+    case nsITelephone::CALL_STATE_BUSY:
       stateString.AssignLiteral("busy");
       break;
-    case nsIRadioInterfaceLayer::CALL_STATE_CONNECTING:
+    case nsITelephone::CALL_STATE_CONNECTING:
       stateString.AssignLiteral("connecting");
       break;
-    case nsIRadioInterfaceLayer::CALL_STATE_CONNECTED:
+    case nsITelephone::CALL_STATE_CONNECTED:
       stateString.AssignLiteral("connected");
       break;
-    case nsIRadioInterfaceLayer::CALL_STATE_HOLDING:
+    case nsITelephone::CALL_STATE_HOLDING:
       stateString.AssignLiteral("holding");
       break;
-    case nsIRadioInterfaceLayer::CALL_STATE_HELD:
+    case nsITelephone::CALL_STATE_HELD:
       stateString.AssignLiteral("held");
       break;
-    case nsIRadioInterfaceLayer::CALL_STATE_RESUMING:
+    case nsITelephone::CALL_STATE_RESUMING:
       stateString.AssignLiteral("resuming");
       break;
-    case nsIRadioInterfaceLayer::CALL_STATE_DISCONNECTING:
+    case nsITelephone::CALL_STATE_DISCONNECTING:
       stateString.AssignLiteral("disconnecting");
       break;
-    case nsIRadioInterfaceLayer::CALL_STATE_DISCONNECTED:
+    case nsITelephone::CALL_STATE_DISCONNECTED:
       stateString.AssignLiteral("disconnected");
       break;
-    case nsIRadioInterfaceLayer::CALL_STATE_INCOMING:
+    case nsITelephone::CALL_STATE_INCOMING:
       stateString.AssignLiteral("incoming");
       break;
     default:
@@ -115,11 +115,11 @@ TelephonyCall::ChangeStateInternal(PRUint16 aCallState, bool aFireEvents)
   mState = stateString;
   mCallState = aCallState;
 
-  if (aCallState == nsIRadioInterfaceLayer::CALL_STATE_DIALING) {
+  if (aCallState == nsITelephone::CALL_STATE_DIALING) {
     mOutgoing = true;
   }
 
-  if (aCallState == nsIRadioInterfaceLayer::CALL_STATE_DISCONNECTED) {
+  if (aCallState == nsITelephone::CALL_STATE_DISCONNECTED) {
     NS_ASSERTION(mLive, "Should be live!");
     mTelephony->RemoveCall(this);
     mLive = false;
@@ -208,33 +208,33 @@ TelephonyCall::GetState(nsAString& aState)
 NS_IMETHODIMP
 TelephonyCall::Answer()
 {
-  if (mCallState != nsIRadioInterfaceLayer::CALL_STATE_INCOMING) {
+  if (mCallState != nsITelephone::CALL_STATE_INCOMING) {
     NS_WARNING("Answer on non-incoming call ignored!");
     return NS_OK;
   }
 
-  nsresult rv = mTelephony->RIL()->AnswerCall(mCallIndex);
+  nsresult rv = mTelephony->Telephone()->AnswerCall(mCallIndex);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  ChangeStateInternal(nsIRadioInterfaceLayer::CALL_STATE_CONNECTING, true);
+  ChangeStateInternal(nsITelephone::CALL_STATE_CONNECTING, true);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 TelephonyCall::HangUp()
 {
-  if (mCallState == nsIRadioInterfaceLayer::CALL_STATE_DISCONNECTING ||
-      mCallState == nsIRadioInterfaceLayer::CALL_STATE_DISCONNECTED) {
+  if (mCallState == nsITelephone::CALL_STATE_DISCONNECTING ||
+      mCallState == nsITelephone::CALL_STATE_DISCONNECTED) {
     NS_WARNING("HangUp on previously disconnected call ignored!");
     return NS_OK;
   }
 
-  nsresult rv = mCallState == nsIRadioInterfaceLayer::CALL_STATE_INCOMING ?
-                mTelephony->RIL()->RejectCall(mCallIndex) :
-                mTelephony->RIL()->HangUp(mCallIndex);
+  nsresult rv = mCallState == nsITelephone::CALL_STATE_INCOMING ?
+                mTelephony->Telephone()->RejectCall(mCallIndex) :
+                mTelephony->Telephone()->HangUp(mCallIndex);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  ChangeStateInternal(nsIRadioInterfaceLayer::CALL_STATE_DISCONNECTING, true);
+  ChangeStateInternal(nsITelephone::CALL_STATE_DISCONNECTING, true);
   return NS_OK;
 }
 

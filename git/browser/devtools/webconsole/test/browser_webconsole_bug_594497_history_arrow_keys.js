@@ -17,7 +17,7 @@ function tabLoad(aEvent) {
     openConsole();
 
     let hudId = HUDService.getHudIdByWindow(content);
-    let HUD = HUDService.hudReferences[hudId];
+    HUD = HUDService.hudReferences[hudId];
 
     inputNode = HUD.jsterm.inputNode;
 

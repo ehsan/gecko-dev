@@ -36,10 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#style-editor-chrome {
-  background-color: hsl(208,11%,27%);
-}
-
 .stylesheet-title,
 .stylesheet-name {
   text-decoration: none;
@@ -135,7 +131,7 @@ h3 {
 }
 
 /* portrait mode */
-@media (max-width: 550px) {
+@media (max-aspect-ratio: 5/3) {
   .splitview-nav {
     box-shadow: none;
   }

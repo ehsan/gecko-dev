@@ -902,7 +902,6 @@
 }
 
 #detail-grid > columns > column:first-child {
-  min-width: 15em;
   max-width: 25em;
 }
 

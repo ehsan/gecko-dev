@@ -41,22 +41,10 @@
 
 // Services = object with smart getters for common XPCOM services
 Components.utils.import("resource://gre/modules/Services.jsm");
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-
-XPCOMUtils.defineLazyGetter(this, "BROWSER_NEW_TAB_URL", function () {
-  return Services.prefs.getCharPref("browser.newtab.url") || "about:blank";
-});
 
 var TAB_DROP_TYPE = "application/x-moz-tabbrowser-tab";
 
 var gBidiUI = false;
-
-/**
- * Determines whether the given url is considered a special URL for new tabs.
- */
-function isBlankPageURL(aURL) {
-  return aURL == "about:blank" || aURL == BROWSER_NEW_TAB_URL;
-}
 
 function getBrowserURL()
 {
@@ -68,7 +56,7 @@ function getTopWin(skipPopups) {
   // whether it's the frontmost window, since commands can be executed in
   // background windows (bug 626148).
   if (top.document.documentElement.getAttribute("windowtype") == "navigator:browser" &&
-      (!skipPopups || top.toolbar.visible))
+      (!skipPopups || !top.document.documentElement.getAttribute("chromehidden")))
     return top;
 
   if (skipPopups) {
@@ -218,7 +206,7 @@ function openLinkIn(url, where, params) {
 
   var w = getTopWin();
   if ((where == "tab" || where == "tabshifted") &&
-      w && !w.toolbar.visible) {
+      w && w.document.documentElement.getAttribute("chromehidden")) {
     w = getTopWin(true);
     aRelatedToCurrent = false;
   }
@@ -311,7 +299,7 @@ function openLinkIn(url, where, params) {
   else
     w.gBrowser.selectedBrowser.focus();
 
-  if (!loadInBackground && isBlankPageURL(url))
+  if (!loadInBackground && url == "about:blank")
     w.focusAndSelectUrlBar();
 }
 

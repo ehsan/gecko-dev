@@ -112,8 +112,6 @@ public:
     static SkShader* CreateSweep(SkScalar cx, SkScalar cy,
                                  const SkColor colors[], const SkScalar pos[],
                                  int count, SkUnitMapper* mapper = NULL);
-
-    SK_DECLARE_FLATTENABLE_REGISTRAR()
 };
 
 #endif

@@ -37,13 +37,8 @@
 #ifndef MOZILLA_SVGNUMBERLIST_H__
 #define MOZILLA_SVGNUMBERLIST_H__
 
-#include "nsCOMPtr.h"
-#include "nsDebug.h"
-#include "nsIContent.h"
-#include "nsINode.h"
-#include "nsIWeakReferenceUtils.h"
-#include "nsSVGElement.h"
 #include "nsTArray.h"
+#include "nsSVGElement.h"
 
 namespace mozilla {
 

@@ -46,7 +46,7 @@
 #include "nsStreamUtils.h"
 
 using namespace mozilla;
-using namespace mozilla::image;
+using namespace mozilla::imagelib;
 
 NS_IMPL_THREADSAFE_ISUPPORTS3(nsICOEncoder, imgIEncoder, nsIInputStream, nsIAsyncInputStream)
 

@@ -24,7 +24,8 @@ Fence::~Fence()
 {
     if (mQuery != NULL)
     {
-        getDisplay()->freeEventQuery(mQuery);
+        mQuery->Release();
+        mQuery = NULL;
     }
 }
 
@@ -37,13 +38,15 @@ GLboolean Fence::isFence()
 
 void Fence::setFence(GLenum condition)
 {
-    if (!mQuery)
+    if (mQuery != NULL)
     {
-        mQuery = getDisplay()->allocateEventQuery();
-        if (!mQuery)
-        {
-            return error(GL_OUT_OF_MEMORY);
-        }
+        mQuery->Release();
+        mQuery = NULL;
+    }
+
+    if (FAILED(getDevice()->CreateQuery(D3DQUERYTYPE_EVENT, &mQuery)))
+    {
+        return error(GL_OUT_OF_MEMORY);
     }
 
     HRESULT result = mQuery->Issue(D3DISSUE_END);

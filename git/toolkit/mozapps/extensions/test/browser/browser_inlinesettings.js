@@ -242,7 +242,6 @@ add_test(function() {
       var button = gManagerWindow.document.getAnonymousElementByAttribute(settings[6], "anonid", "button");
       input = gManagerWindow.document.getAnonymousElementByAttribute(settings[6], "anonid", "input");
       is(input.value, "", "Label value should be empty");
-      is(input.tooltipText, "", "Label tooltip should be empty");
 
       var profD = Services.dirsvc.get("ProfD", Ci.nsIFile);
       var curProcD = Services.dirsvc.get("CurProcD", Ci.nsIFile);
@@ -252,7 +251,6 @@ add_test(function() {
       EventUtils.synthesizeMouseAtCenter(button, { clickCount: 1 }, gManagerWindow);
       is(MockFilePicker.mode, Ci.nsIFilePicker.modeOpen, "File picker mode should be open file");
       is(input.value, profD.path, "Label value should match file chosen");
-      is(input.tooltipText, profD.path, "Label tooltip should match file chosen");
       is(Services.prefs.getCharPref("extensions.inlinesettings1.file"), profD.path, "File pref should match file chosen");
 
       MockFilePicker.returnFiles = [curProcD];
@@ -260,21 +258,18 @@ add_test(function() {
       EventUtils.synthesizeMouseAtCenter(button, { clickCount: 1 }, gManagerWindow);
       is(MockFilePicker.mode, Ci.nsIFilePicker.modeOpen, "File picker mode should be open file");
       is(input.value, profD.path, "Label value should not have changed");
-      is(input.tooltipText, profD.path, "Label tooltip should not have changed");
       is(Services.prefs.getCharPref("extensions.inlinesettings1.file"), profD.path, "File pref should not have changed");
 
       ok(!settings[7].hasAttribute("first-row"), "Not the first row");
       button = gManagerWindow.document.getAnonymousElementByAttribute(settings[7], "anonid", "button");
       input = gManagerWindow.document.getAnonymousElementByAttribute(settings[7], "anonid", "input");
       is(input.value, "", "Label value should be empty");
-      is(input.tooltipText, "", "Label tooltip should be empty");
 
       MockFilePicker.returnFiles = [profD];
       MockFilePicker.returnValue = Ci.nsIFilePicker.returnOK;
       EventUtils.synthesizeMouseAtCenter(button, { clickCount: 1 }, gManagerWindow);
       is(MockFilePicker.mode, Ci.nsIFilePicker.modeGetFolder, "File picker mode should be directory");
       is(input.value, profD.path, "Label value should match file chosen");
-      is(input.tooltipText, profD.path, "Label tooltip should match file chosen");
       is(Services.prefs.getCharPref("extensions.inlinesettings1.directory"), profD.path, "Directory pref should match file chosen");
 
       MockFilePicker.returnFiles = [curProcD];
@@ -282,7 +277,6 @@ add_test(function() {
       EventUtils.synthesizeMouseAtCenter(button, { clickCount: 1 }, gManagerWindow);
       is(MockFilePicker.mode, Ci.nsIFilePicker.modeGetFolder, "File picker mode should be directory");
       is(input.value, profD.path, "Label value should not have changed");
-      is(input.tooltipText, profD.path, "Label tooltip should not have changed");
       is(Services.prefs.getCharPref("extensions.inlinesettings1.directory"), profD.path, "Directory pref should not have changed");
 
     } finally {

@@ -1897,7 +1897,6 @@ LoopState::analyzeLoopBody(unsigned frame)
             break;
 
           case JSOP_LOOPHEAD:
-          case JSOP_LOOPENTRY:
           case JSOP_POP:
           case JSOP_ZERO:
           case JSOP_ONE:

@@ -127,7 +127,6 @@ _TEST_FILES = \
 		test_loop.html \
 		test_media_selection.html \
 		test_mozLoadFrom.html \
-		test_no_load_event.html \
 		test_networkState.html \
 		test_new_audio.html \
 		test_paused.html \
@@ -151,7 +150,6 @@ _TEST_FILES = \
 		test_source_write.html \
 		test_standalone.html \
 		test_timeupdate_small_files.html \
-		test_too_many_elements.html \
 		test_volume.html \
 		test_video_to_canvas.html \
 		use_large_cache.js \
@@ -277,7 +275,6 @@ _TEST_FILES += \
 		test_audio_event_adopt.html \
 		test_framebuffer.html \
 		test_referer.html \
-		test_bug686137.html \
 		$(NULL)
 else
 _TEST_FILES += \

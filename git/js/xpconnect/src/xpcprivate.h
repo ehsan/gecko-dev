@@ -299,6 +299,14 @@ class PtrAndPrincipalHashKey : public PLDHashEntryHdr
 
 }
 
+// NB: nsDataHashtableMT is usually not very useful as all it does is lock
+// around each individual operation performed on it. That would imply, that
+// the pattern: if (!map.Get(key)) map.Put(key, value); is not safe as another
+// thread could race to insert key into map. However, in our case, only one
+// thread at any time could attempt to insert |key| into |map|, so it works
+// well enough for our uses.
+typedef nsDataHashtableMT<nsISupportsHashKey, JSCompartment *> XPCMTCompartmentMap;
+
 // This map is only used on the main thread.
 typedef nsDataHashtable<xpc::PtrAndPrincipalHashKey, JSCompartment *> XPCCompartmentMap;
 
@@ -531,7 +539,7 @@ public:
                         nsCycleCollectionTraversalCallback &cb);
 
     // nsCycleCollectionLanguageRuntime
-    virtual bool NotifyLeaveMainThread();
+    virtual void NotifyLeaveMainThread();
     virtual void NotifyEnterCycleCollectionThread();
     virtual void NotifyLeaveCycleCollectionThread();
     virtual void NotifyEnterMainThread();
@@ -541,7 +549,7 @@ public:
     virtual nsresult FinishCycleCollection();
     virtual nsCycleCollectionParticipant *ToParticipant(void *p);
     virtual bool NeedCollect();
-    virtual void Collect(PRUint32 reason, PRUint32 kind);
+    virtual void Collect(bool shrinkingGC=false);
 #ifdef DEBUG_CC
     virtual void PrintAllReferencesTo(void *p);
 #endif
@@ -688,6 +696,8 @@ public:
 
     XPCCompartmentMap& GetCompartmentMap()
         {return mCompartmentMap;}
+    XPCMTCompartmentMap& GetMTCompartmentMap()
+        {return mMTCompartmentMap;}
 
     XPCLock* GetMapLock() const {return mMapLock;}
 
@@ -826,6 +836,7 @@ private:
     XPCWrappedNativeProtoMap* mDetachedWrappedNativeProtoMap;
     XPCNativeWrapperMap*     mExplicitNativeWrapperMap;
     XPCCompartmentMap        mCompartmentMap;
+    XPCMTCompartmentMap      mMTCompartmentMap;
     XPCLock* mMapLock;
     PRThread* mThreadRunningGC;
     nsTArray<nsXPCWrappedJS*> mWrappedJSToReleaseArray;
@@ -1643,10 +1654,10 @@ private:
     // default parent for the XPCWrappedNatives that have us as the scope,
     // unless a PreCreate hook overrides it.  Note that this _may_ be null (see
     // constructor).
-    js::ObjectPtr                    mGlobalJSObject;
+    JS::HeapPtrObject                mGlobalJSObject;
 
     // Cached value of Object.prototype
-    js::ObjectPtr                    mPrototypeJSObject;
+    JS::HeapPtrObject                mPrototypeJSObject;
     // Prototype to use for wrappers with no helper.
     JSObject*                        mPrototypeNoHelper;
 
@@ -2295,12 +2306,6 @@ public:
             mScriptableInfo->Mark();
     }
 
-    void WriteBarrierPre(JSRuntime* rt)
-    {
-        if (js::IsIncrementalBarrierNeeded(rt) && mJSProtoObject)
-            mJSProtoObject.writeBarrierPre(rt);
-    }
-
     // NOP. This is just here to make the AutoMarkingPtr code compile.
     inline void AutoTrace(JSTracer* trc) {}
 
@@ -2343,7 +2348,7 @@ private:
     }
 
     XPCWrappedNativeScope*   mScope;
-    js::ObjectPtr            mJSProtoObject;
+    JS::HeapPtrObject        mJSProtoObject;
     nsCOMPtr<nsIClassInfo>   mClassInfo;
     PRUint32                 mClassInfoFlags;
     XPCNativeSet*            mSet;
@@ -2732,9 +2737,8 @@ public:
     }
     void SetWrapper(JSObject *obj)
     {
-        js::IncrementalReferenceBarrier(GetWrapperPreserveColor());
         PRWord newval = PRWord(obj) | (mWrapperWord & FLAG_MASK);
-        mWrapperWord = newval;
+        JS_ModifyReference((void **)&mWrapperWord, (void *)newval);
     }
 
     void NoteTearoffs(nsCycleCollectionTraversalCallback& cb);
@@ -3654,7 +3658,9 @@ public:
             JS_Assert("NS_IsMainThread()", __FILE__, __LINE__);
 
         if (cx) {
-            if (js::GetOwnerThread(cx) == sMainJSThread)
+            NS_ASSERTION(js::GetContextThread(cx), "Uh, JS context w/o a thread?");
+
+            if (js::GetContextThread(cx) == sMainJSThread)
                 return sMainThreadData;
         } else if (sMainThreadData && sMainThreadData->mThread == PR_GetCurrentThread()) {
             return sMainThreadData;
@@ -3757,7 +3763,7 @@ public:
         {sMainJSThread = nsnull; sMainThreadData = nsnull;}
 
     static bool IsMainThread(JSContext *cx)
-        { return js::GetOwnerThread(cx) == sMainJSThread; }
+        { return js::GetContextThread(cx) == sMainJSThread; }
 
 private:
     XPCPerThreadData();
@@ -4268,22 +4274,6 @@ public:
                                   nsIVariant* variant,
                                   nsresult* pErr, jsval* pJSVal);
 
-    bool IsPurple()
-    {
-        return mRefCnt.IsPurple();
-    }
-
-    void RemovePurple()
-    {
-        mRefCnt.RemovePurple();
-    }
-
-    void SetCCGeneration(PRUint32 aGen)
-    {
-        mCCGeneration = aGen;
-    }
-
-    PRUint32 CCGeneration() { return mCCGeneration; }
 protected:
     virtual ~XPCVariant() { }
 
@@ -4292,8 +4282,7 @@ protected:
 protected:
     nsDiscriminatedUnion mData;
     jsval                mJSVal;
-    bool                 mReturnRawObject : 1;
-    PRUint32             mCCGeneration : 31;
+    JSBool               mReturnRawObject;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(XPCVariant, XPCVARIANT_IID)
@@ -4404,17 +4393,31 @@ namespace xpc {
 
 struct CompartmentPrivate
 {
-    CompartmentPrivate(PtrAndPrincipalHashKey *key, bool wantXrays)
+    CompartmentPrivate(PtrAndPrincipalHashKey *key, bool wantXrays, bool cycleCollectionEnabled)
         : key(key),
-          wantXrays(wantXrays)
+          ptr(nsnull),
+          wantXrays(wantXrays),
+          cycleCollectionEnabled(cycleCollectionEnabled)
+    {
+        MOZ_COUNT_CTOR(xpc::CompartmentPrivate);
+    }
+
+    CompartmentPrivate(nsISupports *ptr, bool wantXrays, bool cycleCollectionEnabled)
+        : key(nsnull),
+          ptr(ptr),
+          wantXrays(wantXrays),
+          cycleCollectionEnabled(cycleCollectionEnabled)
     {
         MOZ_COUNT_CTOR(xpc::CompartmentPrivate);
     }
 
     ~CompartmentPrivate();
 
+    // NB: key and ptr are mutually exclusive.
     nsAutoPtr<PtrAndPrincipalHashKey> key;
+    nsCOMPtr<nsISupports> ptr;
     bool wantXrays;
+    bool cycleCollectionEnabled;
     nsAutoPtr<JSObject2JSObjectMap> waiverWrapperMap;
     // NB: we don't want this map to hold a strong reference to the wrapper.
     nsAutoPtr<nsDataHashtable<nsPtrHashKey<XPCWrappedNative>, JSObject *> > expandoMap;
@@ -4470,6 +4473,22 @@ struct CompartmentPrivate
             domExpandoMap->RemoveEntry(expando);
     }
 };
+
+inline bool
+CompartmentParticipatesInCycleCollection(JSContext *cx, JSCompartment *compartment)
+{
+    CompartmentPrivate *priv =
+        static_cast<CompartmentPrivate *>(JS_GetCompartmentPrivate(cx, compartment));
+    NS_ASSERTION(priv, "This should never be null!");
+
+    return priv->cycleCollectionEnabled;
+}
+
+inline bool
+ParticipatesInCycleCollection(JSContext *cx, js::gc::Cell *cell)
+{
+    return CompartmentParticipatesInCycleCollection(cx, cell->compartment());
+}
 
 }
 

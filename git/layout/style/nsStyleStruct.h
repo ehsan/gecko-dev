@@ -113,9 +113,6 @@ struct nsStyleFont {
   nsStyleFont(const nsFont& aFont, nsPresContext *aPresContext);
   nsStyleFont(const nsStyleFont& aStyleFont);
   nsStyleFont(nsPresContext *aPresContext);
-private:
-  void Init(nsPresContext *aPresContext);
-public:
   ~nsStyleFont(void) {
     MOZ_COUNT_DTOR(nsStyleFont);
   }
@@ -149,7 +146,6 @@ public:
   nscoord mScriptUnconstrainedSize;
   nscoord mScriptMinSize;        // [inherited] length
   float   mScriptSizeMultiplier; // [inherited]
-  nsCOMPtr<nsIAtom> mLanguage;   // [inherited]
 };
 
 struct nsStyleGradientStop {
@@ -1341,6 +1337,7 @@ struct nsStyleVisibility {
 
   PRUint8 mDirection;                  // [inherited] see nsStyleConsts.h NS_STYLE_DIRECTION_*
   PRUint8   mVisible;                  // [inherited]
+  nsCOMPtr<nsIAtom> mLanguage;         // [inherited]
   PRUint8 mPointerEvents;              // [inherited] see nsStyleConsts.h
 
   bool IsVisible() const {
@@ -1642,6 +1639,14 @@ struct nsStyleDisplay {
     // NS_STYLE_OVERFLOW_VISIBLE or NS_STYLE_OVERFLOW_CLIP.
     return mOverflowX != NS_STYLE_OVERFLOW_VISIBLE &&
            mOverflowX != NS_STYLE_OVERFLOW_CLIP;
+  }
+
+  // For table elements that don't support scroll frame creation, we
+  // support 'overflow: hidden' to mean 'overflow: -moz-hidden-unscrollable'.
+  bool IsTableClip() const {
+    return mOverflowX == NS_STYLE_OVERFLOW_CLIP ||
+           (mOverflowX == NS_STYLE_OVERFLOW_HIDDEN &&
+            mOverflowY == NS_STYLE_OVERFLOW_HIDDEN);
   }
 
   /* Returns whether the element has the -moz-transform property. */

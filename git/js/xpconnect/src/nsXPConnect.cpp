@@ -365,7 +365,7 @@ nsXPConnect::NeedCollect()
 }
 
 void
-nsXPConnect::Collect(PRUint32 reason, PRUint32 kind)
+nsXPConnect::Collect(bool shrinkingGC)
 {
     // We're dividing JS objects into 2 categories:
     //
@@ -424,20 +424,16 @@ nsXPConnect::Collect(PRUint32 reason, PRUint32 kind)
     // XPCCallContext::Init we disable the conservative scanner if that call
     // has started the request on this thread.
     js::AutoSkipConservativeScan ascs(cx);
-    MOZ_ASSERT(reason < js::gcreason::NUM_REASONS);
-    js::gcreason::Reason gcreason = (js::gcreason::Reason)reason;
-    if (kind == nsGCShrinking) {
-        js::ShrinkingGC(cx, gcreason);
-    } else {
-        MOZ_ASSERT(kind == nsGCNormal);
-        js::GCForReason(cx, gcreason);
-    }
+    if (shrinkingGC)
+        JS_ShrinkingGC(cx);
+    else
+        JS_GC(cx);
 }
 
 NS_IMETHODIMP
-nsXPConnect::GarbageCollect(PRUint32 reason, PRUint32 kind)
+nsXPConnect::GarbageCollect(bool shrinkingGC)
 {
-    Collect(reason, kind);
+    Collect(shrinkingGC);
     return NS_OK;
 }
 
@@ -558,10 +554,14 @@ nsXPConnect::BeginCycleCollection(nsCycleCollectionTraversalCallback &cb,
     if (!cx)
         return NS_ERROR_OUT_OF_MEMORY;
 
+    // Clear after mCycleCollectionContext is destroyed
+    JS_SetContextThread(cx);
+
     NS_ASSERTION(!mCycleCollectionContext, "Didn't call FinishTraverse?");
     mCycleCollectionContext = new XPCCallContext(NATIVE_CALLER, cx);
     if (!mCycleCollectionContext->IsValid()) {
         mCycleCollectionContext = nsnull;
+        JS_ClearContextThread(cx);
         return NS_ERROR_FAILURE;
     }
 
@@ -610,15 +610,11 @@ nsXPConnect::BeginCycleCollection(nsCycleCollectionTraversalCallback &cb,
     return NS_OK;
 }
 
-bool
+void
 nsXPConnect::NotifyLeaveMainThread()
 {
     NS_ABORT_IF_FALSE(NS_IsMainThread(), "Off main thread");
-    JSRuntime *rt = mRuntime->GetJSRuntime();
-    if (JS_IsInRequest(rt) || JS_IsInSuspendedRequest(rt))
-        return false;
-    JS_ClearRuntimeThread(rt);
-    return true;
+    JS_ClearRuntimeThread(mRuntime->GetJSRuntime());
 }
 
 void
@@ -645,8 +641,11 @@ nsXPConnect::NotifyEnterMainThread()
 nsresult
 nsXPConnect::FinishTraverse()
 {
-    if (mCycleCollectionContext)
+    if (mCycleCollectionContext) {
+        JSContext *cx = mCycleCollectionContext->GetJSContext();
         mCycleCollectionContext = nsnull;
+        JS_ClearContextThread(cx);
+    }
     return NS_OK;
 }
 
@@ -820,30 +819,6 @@ NoteJSChild(JSTracer *trc, void *thing, JSGCTraceKind kind)
         JS_TraceShapeCycleCollectorChildren(trc, thing);
     } else if (kind != JSTRACE_STRING) {
         JS_TraceChildren(trc, thing, kind);
-    }
-}
-
-void
-xpc_MarkInCCGeneration(nsISupports* aVariant, PRUint32 aGeneration)
-{
-    nsCOMPtr<XPCVariant> variant = do_QueryInterface(aVariant);
-    if (variant) {
-        variant->SetCCGeneration(aGeneration);
-        variant->GetJSVal(); // Unmarks gray JSObject.
-        XPCVariant* weak = variant.get();
-        variant = nsnull;
-        if (weak->IsPurple()) {
-          weak->RemovePurple();
-        }
-    }
-}
-
-void
-xpc_UnmarkGrayObject(nsIXPConnectWrappedJS* aWrappedJS)
-{
-    if (aWrappedJS) {
-        // Unmarks gray JSObject.
-        static_cast<nsXPCWrappedJS*>(aWrappedJS)->GetJSObject();
     }
 }
 
@@ -1048,8 +1023,8 @@ public:
         // collected.
         unsigned refCount = nsXPConnect::GetXPConnect()->GetOutstandingRequests(cx) + 1;
         cb.DescribeRefCountedNode(refCount, js::SizeOfJSContext(), "JSContext");
+        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "[global object]");
         if (JSObject *global = JS_GetGlobalObject(cx)) {
-            NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "[global object]");
             cb.NoteScriptChild(nsIProgrammingLanguage::JAVASCRIPT, global);
         }
 
@@ -1209,7 +1184,8 @@ xpc_CreateGlobalObject(JSContext *cx, JSClass *clasp,
     if (!map.Get(&key, compartment)) {
         xpc::PtrAndPrincipalHashKey *priv_key =
             new xpc::PtrAndPrincipalHashKey(ptr, principal);
-        xpc::CompartmentPrivate *priv = new xpc::CompartmentPrivate(priv_key, wantXrays);
+        xpc::CompartmentPrivate *priv =
+            new xpc::CompartmentPrivate(priv_key, wantXrays, NS_IsMainThread());
         if (!CreateNewCompartment(cx, clasp, principal, priv,
                                   global, compartment)) {
             return UnexpectedFailure(NS_ERROR_FAILURE);
@@ -1238,6 +1214,39 @@ xpc_CreateGlobalObject(JSContext *cx, JSClass *clasp,
     return NS_OK;
 }
 
+nsresult
+xpc_CreateMTGlobalObject(JSContext *cx, JSClass *clasp,
+                         nsISupports *ptr, JSObject **global,
+                         JSCompartment **compartment)
+{
+    // NB: We can be either on or off the main thread here.
+    XPCMTCompartmentMap& map = nsXPConnect::GetRuntimeInstance()->GetMTCompartmentMap();
+    if (!map.Get(ptr, compartment)) {
+        // We allow the pointer to be a principal, in which case it becomes
+        // the principal for the newly created compartment. The caller is
+        // responsible for ensuring that doing this doesn't violate
+        // threadsafety assumptions.
+        nsCOMPtr<nsIPrincipal> principal(do_QueryInterface(ptr));
+        xpc::CompartmentPrivate *priv =
+            new xpc::CompartmentPrivate(ptr, false, NS_IsMainThread());
+        if (!CreateNewCompartment(cx, clasp, principal, priv, global,
+                                  compartment)) {
+            return UnexpectedFailure(NS_ERROR_UNEXPECTED);
+        }
+
+        map.Put(ptr, *compartment);
+    } else {
+        js::AutoSwitchCompartment sc(cx, *compartment);
+
+        JSObject *tempGlobal = JS_NewGlobalObject(cx, clasp);
+        if (!tempGlobal)
+            return UnexpectedFailure(NS_ERROR_FAILURE);
+        *global = tempGlobal;
+    }
+
+    return NS_OK;
+}
+
 NS_IMETHODIMP
 nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
                                              nsISupports *aCOMObj,
@@ -1250,7 +1259,7 @@ nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
     NS_ASSERTION(aJSContext, "bad param");
     NS_ASSERTION(aCOMObj, "bad param");
     NS_ASSERTION(_retval, "bad param");
-    NS_ASSERTION(aPrincipal, "must be able to find a compartment");
+    NS_ASSERTION(aExtraPtr || aPrincipal, "must be able to find a compartment");
 
     // XXX This is not pretty. We make a temporary global object and
     // init it with all the Components object junk just so we have a
@@ -1262,8 +1271,13 @@ nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
     JSCompartment* compartment;
     JSObject* tempGlobal;
 
-    nsresult rv = xpc_CreateGlobalObject(ccx, &xpcTempGlobalClass, aPrincipal,
-                                         aExtraPtr, false, &tempGlobal, &compartment);
+    nsresult rv = aPrincipal
+                  ? xpc_CreateGlobalObject(ccx, &xpcTempGlobalClass, aPrincipal,
+                                           aExtraPtr, false, &tempGlobal,
+                                           &compartment)
+                  : xpc_CreateMTGlobalObject(ccx, &xpcTempGlobalClass,
+                                             aExtraPtr, &tempGlobal,
+                                             &compartment);
     NS_ENSURE_SUCCESS(rv, rv);
 
     JSAutoEnterCompartment ac;
@@ -2546,8 +2560,11 @@ nsXPConnect::CheckForDebugMode(JSRuntime *rt) {
                 continue;
             }
 
-            if (!JS_SetDebugModeForCompartment(cx, comp, gDesiredDebugMode))
-                goto fail;
+            /* ParticipatesInCycleCollection means "on the main thread" */
+            if (xpc::CompartmentParticipatesInCycleCollection(cx, comp)) {
+                if (!JS_SetDebugModeForCompartment(cx, comp, gDesiredDebugMode))
+                    goto fail;
+            }
         }
     }
 

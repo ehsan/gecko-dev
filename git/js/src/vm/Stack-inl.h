@@ -657,9 +657,8 @@ ContextStack::currentScript(jsbytecode **ppc) const
 #ifdef JS_METHODJIT
     mjit::CallSite *inlined = regs->inlined();
     if (inlined) {
-        mjit::JITChunk *chunk = fp->jit()->chunk(regs->pc);
-        JS_ASSERT(inlined->inlineIndex < chunk->nInlineFrames);
-        mjit::InlineFrame *frame = &chunk->inlineFrames()[inlined->inlineIndex];
+        JS_ASSERT(inlined->inlineIndex < fp->jit()->nInlineFrames);
+        mjit::InlineFrame *frame = &fp->jit()->inlineFrames()[inlined->inlineIndex];
         JSScript *script = frame->fun->script();
         if (script->compartment() != cx_->compartment)
             return NULL;

@@ -96,13 +96,13 @@ function inspectorOpen()
   toolsLength = InspectorUI.tools.length;
   toolEvents = InspectorUI.toolEvents.length;
   info("tools registered");
-  InspectorUI.highlighter.addListener("nodeselected", startToolTests);
+  Services.obs.addObserver(startToolTests, InspectorUI.INSPECTOR_NOTIFICATIONS.HIGHLIGHTING, false);
   InspectorUI.inspectNode(h1);
 }
 
 function startToolTests(evt)
 {
-  InspectorUI.highlighter.removeListener("nodeselected", startToolTests);
+  Services.obs.removeObserver(startToolTests, InspectorUI.INSPECTOR_NOTIFICATIONS.HIGHLIGHTING);
   InspectorUI.stopInspecting();
   info("Getting InspectorUI.tools");
   let tools = InspectorUI.tools;

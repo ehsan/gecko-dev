@@ -86,9 +86,8 @@ public class GeckoThread extends Thread {
         // At some point while loading the gecko libs our default locale gets set
         // so just save it to locale here and reset it as default after the join
         Locale locale = Locale.getDefault();
-        String resourcePath = app.getApplication().getPackageResourcePath();
-        GeckoAppShell.ensureSQLiteLibsLoaded(resourcePath);
-        GeckoAppShell.loadGeckoLibs(resourcePath);
+        GeckoAppShell.loadGeckoLibs(
+            app.getApplication().getPackageResourcePath());
         Locale.setDefault(locale);
         Resources res = app.getBaseContext().getResources();
         Configuration config = res.getConfiguration();
@@ -106,7 +105,12 @@ public class GeckoThread extends Thread {
                                    mUri,
                                    mRestoreSession);
         } catch (Exception e) {
-            GeckoAppShell.reportJavaCrash(e);
+            Log.e(LOGTAG, "top level exception", e);
+            StringWriter sw = new StringWriter();
+            PrintWriter pw = new PrintWriter(sw);
+            e.printStackTrace(pw);
+            pw.flush();
+            GeckoAppShell.reportJavaCrash(sw.toString());
         }
     }
 }

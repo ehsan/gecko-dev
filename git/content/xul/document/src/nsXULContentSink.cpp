@@ -300,7 +300,7 @@ XULContentSinkImpl::WillResume(void)
 }
 
 NS_IMETHODIMP 
-XULContentSinkImpl::SetParser(nsParserBase* aParser)
+XULContentSinkImpl::SetParser(nsIParser* aParser)
 {
     NS_IF_RELEASE(mParser);
     mParser = aParser;

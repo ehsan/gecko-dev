@@ -40,7 +40,11 @@
 DEPTH       = ../..
 topsrcdir	  = @top_srcdir@
 srcdir      = @srcdir@
-VPATH       = $(srcdir)
+VPATH       = \
+  $(srcdir) \
+  $(srcdir)/sps \
+  $(srcdir)/public \
+  $(NULL)
 
 include $(DEPTH)/config/autoconf.mk
 
@@ -109,6 +113,8 @@ CPPSRCS += \
   TableTicker.cpp \
   $(NULL)
 endif
+
+
 
 include $(topsrcdir)/config/rules.mk
 

@@ -49,8 +49,6 @@
 #include "nsEventStateManager.h"
 #include "nsFrameManager.h"
 #include "nsRefreshDriver.h"
-#include "nsDOMTouchEvent.h"
-#include "nsIDOMTouchEvent.h"
 
 #include "nsIScrollableFrame.h"
 
@@ -552,79 +550,6 @@ nsDOMWindowUtils::SendMouseScrollEvent(const nsAString& aType,
   return widget->DispatchEvent(&event, status);
 }
 
-
-NS_IMETHODIMP
-nsDOMWindowUtils::SendTouchEvent(const nsAString& aType,
-                                 PRUint32 *aIdentifiers,
-                                 PRInt32 *aXs,
-                                 PRInt32 *aYs,
-                                 PRUint32 *aRxs,
-                                 PRUint32 *aRys,
-                                 float *aRotationAngles,
-                                 float *aForces,
-                                 PRUint32 aCount,
-                                 PRInt32 aModifiers,
-                                 bool aIgnoreRootScrollFrame,
-                                 bool *aPreventDefault)
-{
-  if (!IsUniversalXPConnectCapable()) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
-
-  // get the widget to send the event to
-  nsPoint offset;
-  nsCOMPtr<nsIWidget> widget = GetWidget(&offset);
-  if (!widget) {
-    return NS_ERROR_NULL_POINTER;
-  }
-  PRInt32 msg;
-  if (aType.EqualsLiteral("touchstart")) {
-    msg = NS_TOUCH_START;
-  } else if (aType.EqualsLiteral("touchmove")) {
-    msg = NS_TOUCH_MOVE;
-  } else if (aType.EqualsLiteral("touchend")) {
-    msg = NS_TOUCH_END;
-  } else if (aType.EqualsLiteral("touchcancel")) {
-    msg = NS_TOUCH_CANCEL;
-  } else {
-    return NS_ERROR_UNEXPECTED;
-  }
-  nsTouchEvent event(true, msg, widget);
-  event.isShift = (aModifiers & nsIDOMNSEvent::SHIFT_MASK) ? true : false;
-  event.isControl = (aModifiers & nsIDOMNSEvent::CONTROL_MASK) ? true : false;
-  event.isAlt = (aModifiers & nsIDOMNSEvent::ALT_MASK) ? true : false;
-  event.isMeta = (aModifiers & nsIDOMNSEvent::META_MASK) ? true : false;
-  event.widget = widget;
-  event.time = PR_Now();
-
-  nsPresContext* presContext = GetPresContext();
-  if (!presContext) {
-    return NS_ERROR_FAILURE;
-  }
-  event.touches.SetCapacity(aCount);
-  PRInt32 appPerDev = presContext->AppUnitsPerDevPixel();
-  for (int i = 0; i < aCount; ++i) {
-    nsIntPoint pt(0, 0);
-    pt.x =
-      NSAppUnitsToIntPixels(nsPresContext::CSSPixelsToAppUnits(aXs[i]) + offset.x,
-                            appPerDev);
-    pt.y =
-      NSAppUnitsToIntPixels(nsPresContext::CSSPixelsToAppUnits(aYs[i]) + offset.y,
-                            appPerDev);
-    nsCOMPtr<nsIDOMTouch> t(new nsDOMTouch(aIdentifiers[i],
-                                           pt,
-                                           nsIntPoint(aRxs[i], aRys[i]),
-                                           aRotationAngles[i],
-                                           aForces[i]));
-    event.touches.AppendElement(t);
-  }
-
-  nsEventStatus status;
-  nsresult rv = widget->DispatchEvent(&event, status);
-  *aPreventDefault = (status == nsEventStatus_eConsumeNoDefault);
-  return rv;
-}
-
 NS_IMETHODIMP
 nsDOMWindowUtils::SendKeyEvent(const nsAString& aType,
                                PRInt32 aKeyCode,
@@ -806,8 +731,7 @@ nsDOMWindowUtils::Focus(nsIDOMElement* aElement)
 }
 
 NS_IMETHODIMP
-nsDOMWindowUtils::GarbageCollect(nsICycleCollectorListener *aListener,
-                                 PRInt32 aExtraForgetSkippableCalls)
+nsDOMWindowUtils::GarbageCollect(nsICycleCollectorListener *aListener)
 {
   SAMPLE_LABEL("GC", "GarbageCollect");
   // Always permit this in debug builds.
@@ -817,15 +741,14 @@ nsDOMWindowUtils::GarbageCollect(nsICycleCollectorListener *aListener,
   }
 #endif
 
-  nsJSContext::GarbageCollectNow(js::gcreason::DOM_UTILS);
-  nsJSContext::CycleCollectNow(aListener, aExtraForgetSkippableCalls);
+  nsJSContext::GarbageCollectNow();
+  nsJSContext::CycleCollectNow(aListener);
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMWindowUtils::CycleCollect(nsICycleCollectorListener *aListener,
-                               PRInt32 aExtraForgetSkippableCalls)
+nsDOMWindowUtils::CycleCollect(nsICycleCollectorListener *aListener)
 {
   // Always permit this in debug builds.
 #ifndef DEBUG
@@ -834,7 +757,7 @@ nsDOMWindowUtils::CycleCollect(nsICycleCollectorListener *aListener,
   }
 #endif
 
-  nsJSContext::CycleCollectNow(aListener, aExtraForgetSkippableCalls);
+  nsJSContext::CycleCollectNow(aListener);
   return NS_OK;
 }
 
@@ -922,10 +845,6 @@ nsDOMWindowUtils::NodesFromRect(float aX, float aY,
                                 bool aFlushLayout,
                                 nsIDOMNodeList** aReturn)
 {
-  if (!IsUniversalXPConnectCapable()) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
-
   nsCOMPtr<nsIDocument> doc(do_QueryInterface(mWindow->GetExtantDocument()));
   NS_ENSURE_STATE(doc);
 
@@ -1526,7 +1445,7 @@ nsDOMWindowUtils::GetClassName(const JS::Value& aObject, JSContext* aCx, char** 
     return NS_ERROR_XPC_BAD_CONVERT_JS;
   }
 
-  *aName = NS_strdup(JS_GetClass(JSVAL_TO_OBJECT(aObject))->name);
+  *aName = NS_strdup(JS_GET_CLASS(aCx, JSVAL_TO_OBJECT(aObject))->name);
   NS_ABORT_IF_FALSE(*aName, "NS_strdup should be infallible.");
   return NS_OK;
 }

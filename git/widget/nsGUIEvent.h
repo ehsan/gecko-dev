@@ -42,7 +42,6 @@
 #ifndef nsGUIEvent_h__
 #define nsGUIEvent_h__
 
-#include "nsCOMArray.h"
 #include "nsPoint.h"
 #include "nsRect.h"
 #include "nsRegion.h"
@@ -54,7 +53,6 @@
 #include "nsIDOMMouseEvent.h"
 #include "nsIDOMDataTransfer.h"
 #include "nsIDOMEventTarget.h"
-#include "nsIDOMTouchEvent.h"
 #include "nsWeakPtr.h"
 #include "nsIWidget.h"
 #include "nsTArray.h"
@@ -62,7 +60,6 @@
 #include "nsITransferable.h"
 #include "nsIVariant.h"
 #include "nsStyleConsts.h"
-#include "nsAutoPtr.h"
 
 namespace mozilla {
 namespace dom {
@@ -127,7 +124,6 @@ class nsHashKey;
 #define NS_UISTATECHANGE_EVENT            41
 #define NS_MOZTOUCH_EVENT                 42
 #define NS_PLUGIN_EVENT                   43
-#define NS_TOUCH_EVENT                    44
 
 // These flags are sort of a mess. They're sort of shared between event
 // listener flags and event flags, but only some of them. You've been
@@ -549,14 +545,6 @@ class nsHashKey;
 #define NS_FULL_SCREEN_START         5100
 #define NS_FULLSCREENCHANGE          (NS_FULL_SCREEN_START)
 #define NS_FULLSCREENERROR           (NS_FULL_SCREEN_START + 1)
-
-#define NS_TOUCH_EVENT_START         5200
-#define NS_TOUCH_START               (NS_TOUCH_EVENT_START)
-#define NS_TOUCH_MOVE                (NS_TOUCH_EVENT_START+1)
-#define NS_TOUCH_END                 (NS_TOUCH_EVENT_START+2)
-#define NS_TOUCH_ENTER               (NS_TOUCH_EVENT_START+3)
-#define NS_TOUCH_LEAVE               (NS_TOUCH_EVENT_START+4)
-#define NS_TOUCH_CANCEL              (NS_TOUCH_EVENT_START+5)
 
 /**
  * Return status for event processors, nsEventStatus, is defined in
@@ -1538,31 +1526,6 @@ public:
   }
 
   PRUint32 streamId;
-};
-
-class nsTouchEvent : public nsInputEvent
-{
-public:
-  nsTouchEvent(nsTouchEvent *aEvent)
-    :nsInputEvent(aEvent->flags & NS_EVENT_FLAG_TRUSTED ? true : false,
-                 aEvent->message,
-                 aEvent->widget,
-                 NS_TOUCH_EVENT)
-  {
-    touches.AppendElements(aEvent->touches);
-    MOZ_COUNT_CTOR(nsTouchEvent);
-  }
-  nsTouchEvent(bool isTrusted, PRUint32 msg, nsIWidget* w)
-    : nsInputEvent(isTrusted, msg, w, NS_TOUCH_EVENT)
-  {
-    MOZ_COUNT_CTOR(nsTouchEvent);
-  }
-  ~nsTouchEvent()
-  {
-    MOZ_COUNT_DTOR(nsTouchEvent);
-  }
-
-  nsTArray<nsCOMPtr<nsIDOMTouch> > touches;
 };
 
 /**

@@ -55,6 +55,7 @@
 #include "jsprf.h"
 #include "jsstr.h"
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "jsutil.h"
 #include "jsxml.h"
 

@@ -55,7 +55,6 @@
 #include "nsTArray.h"
 
 class nsIPrincipal;
-class nsIXPConnectWrappedJS;
 struct nsDOMClassInfoData;
 
 #ifndef BAD_TLS_INDEX
@@ -161,15 +160,19 @@ xpc_FastGetCachedWrapper(nsWrapperCache *cache, JSObject *scope)
 
 // The JS GC marks objects gray that are held alive directly or
 // indirectly by an XPConnect root. The cycle collector explores only
-// this subset of the JS heap.
+// this subset of the JS heap.  JSStaticAtoms cause this to crash,
+// because they are statically allocated in the data segment and thus
+// are not really GCThings.
 inline JSBool
 xpc_IsGrayGCThing(void *thing)
 {
-    return js::GCThingIsMarkedGray(thing);
+    return js_GCThingIsMarked(thing, js::gc::GRAY);
 }
 
-// The cycle collector only cares about some kinds of GCthings that are
-// reachable from an XPConnect root. Implemented in nsXPConnect.cpp.
+// The cycle collector only cares about JS objects and XML objects that
+// are held alive directly or indirectly by an XPConnect root.  This
+// version is preferred to xpc_IsGrayGCThing when it isn't known if thing
+// is a JSString or not. Implemented in nsXPConnect.cpp.
 extern JSBool
 xpc_GCThingIsGrayCCThing(void *thing);
 
@@ -185,15 +188,6 @@ xpc_UnmarkGrayObject(JSObject *obj)
     if (obj && xpc_IsGrayGCThing(obj))
         xpc_UnmarkGrayObjectRecursive(obj);
 }
-
-// If aVariant is an XPCVariant, this marks the object to be in aGeneration.
-// This also unmarks the gray JSObject.
-extern void
-xpc_MarkInCCGeneration(nsISupports* aVariant, PRUint32 aGeneration);
-
-// Unmarks aWrappedJS's JSObject.
-extern void
-xpc_UnmarkGrayObject(nsIXPConnectWrappedJS* aWrappedJS);
 
 // No JS can be on the stack when this is called. Probably only useful from
 // xpcshell.
@@ -215,6 +209,7 @@ bool StringToJsval(JSContext *cx, nsString &str, JS::Value *rval);
 
 void *GetCompartmentName(JSContext *cx, JSCompartment *c);
 void DestroyCompartmentName(void *string);
+size_t JsMallocSizeOf(const void *ptr, size_t computedSize);
 
 } // namespace xpc
 
@@ -224,12 +219,10 @@ namespace mozilla {
 namespace xpconnect {
 namespace memory {
 
-// This reports all the stats in |rtStats| that belong in the "explicit" tree,
-// (which isn't all of them).
 void
-ReportJSRuntimeExplicitTreeStats(const JS::RuntimeStats &rtStats, const nsACString &pathPrefix,
-                                 nsIMemoryMultiReporterCallback *callback,
-                                 nsISupports *closure);
+ReportJSRuntimeStats(const JS::IterateData &data, const nsACString &pathPrefix,
+                     nsIMemoryMultiReporterCallback *callback,
+                     nsISupports *closure);
 
 } // namespace memory
 } // namespace xpconnect

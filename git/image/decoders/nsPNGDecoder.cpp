@@ -61,7 +61,7 @@
 #include "gfxPlatform.h"
 
 namespace mozilla {
-namespace image {
+namespace imagelib {
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo *gPNGLog = PR_NewLogModule("PNGDecoder");
@@ -887,5 +887,5 @@ nsPNGDecoder::SpeedHistogram()
 }
 
 
-} // namespace image
+} // namespace imagelib
 } // namespace mozilla

@@ -70,10 +70,10 @@ private:
   SystemWorkerManager();
   ~SystemWorkerManager();
 
-  nsresult InitRIL(JSContext *cx);
+  nsresult InitTelephone(JSContext *cx);
   nsresult InitWifi(JSContext *cx);
 
-  nsCOMPtr<nsIWorkerHolder> mRILWorker;
+  nsCOMPtr<nsIWorkerHolder> mTelephoneWorker;
   nsCOMPtr<nsIWorkerHolder> mWifiWorker;
 
   bool mShutdown;

@@ -67,9 +67,9 @@ class imgRequestNotifyRunnable;
 class imgStatusNotifyRunnable;
 
 namespace mozilla {
-namespace image {
+namespace imagelib {
 class Image;
-} // namespace image
+} // namespace imagelib
 } // namespace mozilla
 
 class imgRequestProxy : public imgIRequest, 
@@ -91,7 +91,7 @@ public:
   // Callers to Init or ChangeOwner are required to call NotifyListener after
   // (although not immediately after) doing so.
   nsresult Init(imgRequest *request, nsILoadGroup *aLoadGroup,
-                mozilla::image::Image* aImage,
+                mozilla::imagelib::Image* aImage,
                 nsIURI* aURI, imgIDecoderObserver *aObserver);
 
   nsresult ChangeOwner(imgRequest *aNewOwner); // this will change mOwner.  Do not call this if the previous
@@ -130,7 +130,7 @@ public:
 
   // Setter for our |mImage| pointer, for imgRequest to use, once it
   // instantiates an Image.
-  void SetImage(mozilla::image::Image* aImage);
+  void SetImage(mozilla::imagelib::Image* aImage);
 
   // Removes all animation consumers that were created with
   // IncrementAnimationConsumers. This is necessary since we need
@@ -228,7 +228,7 @@ private:
 
   // The image we represent. Is null until data has been received, and is then
   // set by imgRequest.
-  nsRefPtr<mozilla::image::Image> mImage;
+  nsRefPtr<mozilla::imagelib::Image> mImage;
 
   // Our principal. Is null until data has been received from the channel, and
   // is then set by imgRequest.

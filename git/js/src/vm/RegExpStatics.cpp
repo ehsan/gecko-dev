@@ -69,7 +69,7 @@ resc_trace(JSTracer *trc, JSObject *obj)
     res->mark(trc);
 }
 
-Class js::RegExpStaticsClass = {
+static Class regexp_statics_class = {
     "RegExpStatics",
     JSCLASS_HAS_PRIVATE,
     JS_PropertyStub,         /* addProperty */
@@ -92,7 +92,7 @@ Class js::RegExpStaticsClass = {
 JSObject *
 RegExpStatics::create(JSContext *cx, GlobalObject *parent)
 {
-    JSObject *obj = NewObjectWithGivenProto(cx, &RegExpStaticsClass, NULL, parent);
+    JSObject *obj = NewObjectWithGivenProto(cx, &regexp_statics_class, NULL, parent);
     if (!obj)
         return NULL;
     RegExpStatics *res = cx->new_<RegExpStatics>();

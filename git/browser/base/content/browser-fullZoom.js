@@ -225,18 +225,12 @@ var FullZoom = {
       return;
 
     // Avoid the cps roundtrip and apply the default/global pref.
-    if (isBlankPageURL(aURI.spec)) {
+    if (aURI.spec == "about:blank") {
       this._applyPrefToSetting(undefined, aBrowser);
       return;
     }
 
     let browser = aBrowser || gBrowser.selectedBrowser;
-
-    // Media documents should always start at 1, and are not affected by prefs.
-    if (!aIsTabSwitch && browser.contentDocument.mozSyntheticDocument) {
-      ZoomManager.setZoomForBrowser(browser, 1);
-      return;
-    }
 
     if (Services.contentPrefs.hasCachedPref(aURI, this.name)) {
       let zoomValue = Services.contentPrefs.getPref(aURI, this.name);
@@ -309,10 +303,9 @@ var FullZoom = {
 
     var browser = aBrowser || (gBrowser && gBrowser.selectedBrowser);
     try {
-      if (browser.contentDocument.mozSyntheticDocument)
-        return;
-
-      if (typeof aValue != "undefined")
+      if (browser.contentDocument instanceof Ci.nsIImageDocument)
+        ZoomManager.setZoomForBrowser(browser, 1);
+      else if (typeof aValue != "undefined")
         ZoomManager.setZoomForBrowser(browser, this._ensureValid(aValue));
       else if (typeof this.globalValue != "undefined")
         ZoomManager.setZoomForBrowser(browser, this.globalValue);
@@ -324,7 +317,7 @@ var FullZoom = {
 
   _applySettingToPref: function FullZoom__applySettingToPref() {
     if (!this.siteSpecific || gInPrintPreviewMode ||
-        content.document.mozSyntheticDocument)
+        content.document instanceof Ci.nsIImageDocument)
       return;
 
     var zoomLevel = ZoomManager.zoom;
@@ -332,7 +325,7 @@ var FullZoom = {
   },
 
   _removePref: function FullZoom__removePref() {
-    if (!(content.document.mozSyntheticDocument))
+    if (!(content.document instanceof Ci.nsIImageDocument))
       Services.contentPrefs.removePref(gBrowser.currentURI, this.name);
   },
 

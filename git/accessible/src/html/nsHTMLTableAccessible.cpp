@@ -1345,7 +1345,7 @@ nsHTMLTableAccessible::HasDescendant(const nsAString& aTagName,
   if (foundItemContent->GetChildCount() > 1)
     return true; // Treat multiple child nodes as non-empty
 
-  nsIContent *innerItemContent = foundItemContent->GetFirstChild();
+  nsIContent *innerItemContent = foundItemContent->GetChildAt(0);
   if (innerItemContent && !innerItemContent->TextIsOnlyWhitespace())
     return true;
 

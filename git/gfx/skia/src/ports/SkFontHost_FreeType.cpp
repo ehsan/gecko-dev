@@ -95,8 +95,6 @@ static SkFaceRec*   gFaceRecHead;
 static bool         gLCDSupportValid;  // true iff |gLCDSupport| has been set.
 static bool         gLCDSupport;  // true iff LCD is supported by the runtime.
 
-static const uint8_t* gGammaTables[2];
-
 /////////////////////////////////////////////////////////////////////////
 
 // See http://freetype.sourceforge.net/freetype2/docs/reference/ft2-bitmap_handling.html#FT_Bitmap_Embolden
@@ -152,7 +150,6 @@ private:
     SkFixed     fScaleX, fScaleY;
     FT_Matrix   fMatrix22;
     uint32_t    fLoadGlyphFlags;
-    bool        fDoLinearMetrics;
 
     FT_Error setupSize();
     void emboldenOutline(FT_Outline* outline);
@@ -295,7 +292,7 @@ static void unref_ft_face(FT_Face face) {
         prev = rec;
         rec = next;
     }
-    SkDEBUGFAIL("shouldn't get here, face not in list");
+    SkASSERT("shouldn't get here, face not in list");
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -325,10 +322,7 @@ static FT_Error getAdvances(FT_Face face, FT_UInt start, FT_UInt count,
 }
 
 static bool canEmbed(FT_Face face) {
-// The Android freetype library does not compile the FT_Get_FSType_Flags
-// function, so we are required to add the !defined(SK_BUILD_FOR_ANDROID) until
-// support is added to Androids port of freetype.
-#if defined(FT_FSTYPE_RESTRICTED_LICENSE_EMBEDDING) && !defined(SK_BUILD_FOR_ANDROID)
+#ifdef FT_FSTYPE_RESTRICTED_LICENSE_EMBEDDING
     FT_UShort fsType = FT_Get_FSType_Flags(face);
     return (fsType & (FT_FSTYPE_RESTRICTED_LICENSE_EMBEDDING |
                       FT_FSTYPE_BITMAP_EMBEDDING_ONLY)) == 0;
@@ -417,7 +411,7 @@ SkAdvancedTypefaceMetrics* SkFontHost::GetAdvancedTypefaceMetrics(
         SkAdvancedTypefaceMetrics::PerGlyphInfo perGlyphInfo,
         const uint32_t* glyphIDs,
         uint32_t glyphIDsCount) {
-#if defined(SK_BUILD_FOR_MAC)
+#if defined(SK_BUILD_FOR_MAC) || defined(ANDROID)
     return NULL;
 #else
     SkAutoMutexAcquire ac(gFTMutex);
@@ -603,9 +597,6 @@ SkAdvancedTypefaceMetrics* SkFontHost::GetAdvancedTypefaceMetrics(
 
 ///////////////////////////////////////////////////////////////////////////
 
-#define BLACK_LUMINANCE_LIMIT   0x40
-#define WHITE_LUMINANCE_LIMIT   0xA0
-
 static bool bothZero(SkScalar a, SkScalar b) {
     return 0 == a && 0 == b;
 }
@@ -645,29 +636,9 @@ void SkFontHost::FilterRec(SkScalerContext::Rec* rec) {
     }
 #endif
     rec->setHinting(h);
-
-    // for compatibility at the moment, discretize luminance to 3 settings
-    // black, white, gray. This helps with fontcache utilization, since we
-    // won't create multiple entries that in the end map to the same results.
-    {
-        unsigned lum = rec->getLuminanceByte();
-        if (gGammaTables[0] || gGammaTables[1]) {
-            if (lum <= BLACK_LUMINANCE_LIMIT) {
-                lum = 0;
-            } else if (lum >= WHITE_LUMINANCE_LIMIT) {
-                lum = SkScalerContext::kLuminance_Max;
-            } else {
-                lum = SkScalerContext::kLuminance_Max >> 1;
-            }
-        } else {
-            lum = 0;    // no gamma correct, so use 0 since SkPaint uses that
-                        // when measuring text w/o regard for luminance
-        }
-        rec->setLuminanceBits(lum);
-    }
 }
 
-#ifdef SK_BUILD_FOR_ANDROID
+#ifdef ANDROID
 uint32_t SkFontHost::GetUnitsPerEm(SkFontID fontID) {
     SkAutoMutexAcquire ac(gFTMutex);
     SkFaceRec *rec = ref_ft_face(fontID);
@@ -690,7 +661,6 @@ SkScalerContext_FreeType::SkScalerContext_FreeType(const SkDescriptor* desc)
         if (!InitFreetype()) {
             sk_throw();
         }
-        SkFontHost::GetGammaTables(gGammaTables);
     }
     ++gFTCount;
 
@@ -747,24 +717,20 @@ SkScalerContext_FreeType::SkScalerContext_FreeType(const SkDescriptor* desc)
     // compute the flags we send to Load_Glyph
     {
         FT_Int32 loadFlags = FT_LOAD_DEFAULT;
-        bool linearMetrics = false;
 
         if (SkMask::kBW_Format == fRec.fMaskFormat) {
             // See http://code.google.com/p/chromium/issues/detail?id=43252#c24
             loadFlags = FT_LOAD_TARGET_MONO;
             if (fRec.getHinting() == SkPaint::kNo_Hinting) {
                 loadFlags = FT_LOAD_NO_HINTING;
-                linearMetrics = true;
             }
         } else {
             switch (fRec.getHinting()) {
             case SkPaint::kNo_Hinting:
                 loadFlags = FT_LOAD_NO_HINTING;
-                linearMetrics = true;
                 break;
             case SkPaint::kSlight_Hinting:
                 loadFlags = FT_LOAD_TARGET_LIGHT;  // This implies FORCE_AUTOHINT
-                linearMetrics = true;
                 break;
             case SkPaint::kNormal_Hinting:
                 if (fRec.fFlags & SkScalerContext::kAutohinting_Flag)
@@ -802,7 +768,6 @@ SkScalerContext_FreeType::SkScalerContext_FreeType(const SkDescriptor* desc)
         loadFlags |= FT_LOAD_IGNORE_GLOBAL_ADVANCE_WIDTH;
 
         fLoadGlyphFlags = loadFlags;
-        fDoLinearMetrics = linearMetrics;
     }
 
     // now create the FT_Size
@@ -930,7 +895,7 @@ void SkScalerContext_FreeType::generateAdvance(SkGlyph* glyph) {
    /* unhinted and light hinted text have linearly scaled advances
     * which are very cheap to compute with some font formats...
     */
-    if (fDoLinearMetrics) {
+    {
         SkAutoMutexAcquire  ac(gFTMutex);
 
         if (this->setupSize()) {
@@ -983,14 +948,6 @@ void SkScalerContext_FreeType::generateMetrics(SkGlyph* glyph) {
       case FT_GLYPH_FORMAT_OUTLINE: {
         FT_BBox bbox;
 
-        if (0 == fFace->glyph->outline.n_contours) {
-            glyph->fWidth = 0;
-            glyph->fHeight = 0;
-            glyph->fTop = 0;
-            glyph->fLeft = 0;
-            break;
-        }
-
         if (fRec.fFlags & kEmbolden_Flag) {
             emboldenOutline(&fFace->glyph->outline);
         }
@@ -1030,7 +987,7 @@ void SkScalerContext_FreeType::generateMetrics(SkGlyph* glyph) {
         break;
 
       default:
-        SkDEBUGFAIL("unknown glyph format");
+        SkASSERT(!"unknown glyph format");
         goto ERROR;
     }
 
@@ -1247,33 +1204,13 @@ void SkScalerContext_FreeType::generateImage(const SkGlyph& glyph) {
                 copyFT2LCD16(glyph, fFace->glyph->bitmap,
                              fRec.fFlags & SkScalerContext::kLCD_BGROrder_Flag);
             } else {
-                SkDEBUGFAIL("unknown glyph bitmap transform needed");
+                SkASSERT(!"unknown glyph bitmap transform needed");
             }
         } break;
 
     default:
-        SkDEBUGFAIL("unknown glyph format");
+        SkASSERT(!"unknown glyph format");
         goto ERROR;
-    }
-
-    if (gGammaTables[0] || gGammaTables[1]) {
-        bool isWhite = fRec.getLuminanceByte() >= WHITE_LUMINANCE_LIMIT;
-        bool isBlack = fRec.getLuminanceByte() <= BLACK_LUMINANCE_LIMIT;
-        if ((isWhite | isBlack) && SkMask::kA8_Format == glyph.fMaskFormat) {
-            int index = isBlack ? 0 : 1;
-            if (gGammaTables[index]) {
-                const uint8_t* SK_RESTRICT table = gGammaTables[index];
-                uint8_t* SK_RESTRICT dst = (uint8_t*)glyph.fImage;
-                unsigned rowBytes = glyph.rowBytes();
-                
-                for (int y = glyph.fHeight - 1; y >= 0; --y) {
-                    for (int x = glyph.fWidth - 1; x >= 0; --x) {
-                        dst[x] = table[dst[x]];
-                    }
-                    dst += rowBytes;
-                }
-            }
-        }
     }
 }
 

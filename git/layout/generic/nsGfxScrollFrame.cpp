@@ -1486,11 +1486,6 @@ nsGfxScrollFrameInner::~nsGfxScrollFrameInner()
     gScrollFrameActivityTracker = nsnull;
   }
   delete mAsyncScroll;
-
-  if (mScrollActivityTimer) {
-    mScrollActivityTimer->Cancel();
-    mScrollActivityTimer = nsnull;
-  }
 }
 
 static nscoord
@@ -1823,31 +1818,6 @@ nsGfxScrollFrameInner::ClampAndRestrictToDevPixels(const nsPoint& aPt,
                  NSIntPixelsToAppUnits(aPtDevPx->y, appUnitsPerDevPixel));
 }
 
-/* static */ void
-nsGfxScrollFrameInner::ScrollActivityCallback(nsITimer *aTimer, void* anInstance)
-{
-  nsGfxScrollFrameInner* self = static_cast<nsGfxScrollFrameInner*>(anInstance);
-
-  // Fire the synth mouse move.
-  self->mScrollActivityTimer->Cancel();
-  self->mScrollActivityTimer = nsnull;
-  self->mOuter->PresContext()->PresShell()->SynthesizeMouseMove(true);
-}
-
-
-void
-nsGfxScrollFrameInner::ScheduleSyntheticMouseMove()
-{
-  if (!mScrollActivityTimer) {
-    mScrollActivityTimer = do_CreateInstance("@mozilla.org/timer;1");
-    if (!mScrollActivityTimer)
-      return;
-  }
-
-  mScrollActivityTimer->InitWithFuncCallback(
-        ScrollActivityCallback, this, 100, nsITimer::TYPE_ONE_SHOT);
-}
-
 void
 nsGfxScrollFrameInner::ScrollToImpl(nsPoint aPt)
 {
@@ -1881,7 +1851,7 @@ nsGfxScrollFrameInner::ScrollToImpl(nsPoint aPt)
   // We pass in the amount to move visually
   ScrollVisual(oldScrollFramePos);
 
-  ScheduleSyntheticMouseMove();
+  presContext->PresShell()->SynthesizeMouseMove(true);
   UpdateScrollbarPosition();
   PostScrollEvent();
 
@@ -2241,7 +2211,7 @@ nsGfxScrollFrameInner::GetLineScrollAmount() const
 {
   nsRefPtr<nsFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(mOuter, getter_AddRefs(fm),
-    nsLayoutUtils::FontSizeInflationFor(mOuter, nsLayoutUtils::eNotInReflow));
+    nsLayoutUtils::FontSizeInflationFor(mOuter));
   NS_ASSERTION(fm, "FontMetrics is null, assuming fontHeight == 1 appunit");
   nscoord fontHeight = 1;
   if (fm) {
@@ -3147,20 +3117,6 @@ nsXULScrollFrame::Layout(nsBoxLayoutState& aState)
     mInner.mHadNonInitialReflow = true;
   }
 
-  // Set up overflow areas for block frames for the benefit of
-  // text-overflow.
-  nsIFrame* f = mInner.mScrolledFrame->GetContentInsertionFrame();
-  if (nsLayoutUtils::GetAsBlock(f)) {
-    nsRect origRect = f->GetRect();
-    nsRect clippedRect = origRect;
-    clippedRect.MoveBy(mInner.mScrollPort.TopLeft());
-    clippedRect.IntersectRect(clippedRect, mInner.mScrollPort);
-    nsOverflowAreas overflow = f->GetOverflowAreas();
-    f->FinishAndStoreOverflow(overflow, clippedRect.Size());
-    clippedRect.MoveTo(origRect.TopLeft());
-    f->SetRect(clippedRect);
-  }
-
   mInner.PostOverflowEvent();
   return NS_OK;
 }
@@ -3233,8 +3189,7 @@ nsGfxScrollFrameInner::ReflowFinished()
     nsPoint scrollPos = GetScrollPosition();
     // XXX shouldn't we use GetPageScrollAmount/GetLineScrollAmount here?
     if (vScroll) {
-      const double kScrollMultiplier = 3;
-      nscoord fontHeight = GetLineScrollAmount().height * kScrollMultiplier;
+      nscoord fontHeight = GetLineScrollAmount().height;
       // We normally use (scrollArea.height - fontHeight) for height
       // of page scrolling.  However, it is too small when
       // fontHeight is very large. (If fontHeight is larger than
@@ -3244,7 +3199,7 @@ nsGfxScrollFrameInner::ReflowFinished()
       nscoord pageincrement = nscoord(mScrollPort.height - fontHeight);
       nscoord pageincrementMin = nscoord(float(mScrollPort.height) * 0.8);
       FinishReflowForScrollbar(vScroll, minY, maxY, scrollPos.y,
-                               NS_MAX(pageincrement, pageincrementMin),
+                               NS_MAX(pageincrement,pageincrementMin),
                                fontHeight);
     }
     if (hScroll) {

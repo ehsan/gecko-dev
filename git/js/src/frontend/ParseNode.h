@@ -115,6 +115,8 @@ enum ParseNodeKind {
     PNK_RETURN,
     PNK_NEW,
     PNK_DELETE,
+    PNK_DEFSHARP,
+    PNK_USESHARP,
     PNK_TRY,
     PNK_CATCH,
     PNK_CATCHLIST,
@@ -375,6 +377,10 @@ enum ParseNodeKind {
  *                          var {x} = object destructuring shorthand shares
  *                          PN_NAME node for x on left and right of PNK_COLON
  *                          node in PNK_RC's list, has PNX_DESTRUCT flag
+ * PNK_DEFSHARP unary       pn_num: jsint value of n in #n=
+ *                          pn_kid: primary function, paren, name, object or
+ *                                  array literal expressions
+ * PNK_USESHARP nullary     pn_num: jsint value of n in #n#
  * PNK_NAME,    name        pn_atom: name, string, or object atom
  * PNK_STRING,              pn_op: JSOP_NAME, JSOP_STRING, or JSOP_OBJECT, or
  *                                 JSOP_REGEXP
@@ -484,7 +490,8 @@ class BreakStatement;
 class ContinueStatement;
 class XMLProcessingInstruction;
 class ConditionalExpression;
-class PropertyAccess;
+class DefSharpExpression;
+class UseSharpExpression;
 
 struct ParseNode {
   private:
@@ -593,6 +600,7 @@ struct ParseNode {
         } binary;
         struct {                        /* one kid if unary */
             ParseNode   *kid;
+            jsint       num;            /* sharp variable number or unused */
             JSBool      hidden;         /* hidden genexp-induced JSOP_YIELD
                                            or directive prologue member (as
                                            pn_prologue) */
@@ -629,6 +637,10 @@ struct ParseNode {
             PropertyName     *target;   /* non-empty */
             JSAtom           *data;     /* may be empty, never null */
         } xmlpi;
+        class {
+            friend class UseSharpExpression;
+            jsint            number;    /* #number# */
+        } usesharp;
     } pn_u;
 
 #define pn_funbox       pn_u.name.funbox
@@ -928,7 +940,8 @@ struct ParseNode {
     inline XMLProcessingInstruction &asXMLProcessingInstruction();
 #endif
     inline ConditionalExpression &asConditionalExpression();
-    inline PropertyAccess &asPropertyAccess();
+    inline DefSharpExpression &asDefSharpExpression();
+    inline UseSharpExpression &asUseSharpExpression();
 };
 
 struct NullaryNode : public ParseNode {
@@ -1136,6 +1149,56 @@ ParseNode::asConditionalExpression()
     return *static_cast<ConditionalExpression *>(this);
 }
 
+class DefSharpExpression : public ParseNode {
+  public:
+    DefSharpExpression(uint16_t number, ParseNode *expr,
+                       const TokenPtr &begin, const TokenPtr &end)
+      : ParseNode(PNK_DEFSHARP, JSOP_NOP, PN_UNARY, TokenPos::make(begin, end))
+    {
+        pn_u.unary.num = number;
+        pn_u.unary.kid = expr;
+    }
+
+    jsint number() const {
+        return pn_u.unary.num;
+    }
+
+    ParseNode &expression() const {
+        return *pn_u.unary.kid;
+    }
+};
+
+inline DefSharpExpression &
+ParseNode::asDefSharpExpression()
+{
+    JS_ASSERT(isKind(PNK_DEFSHARP));
+    JS_ASSERT(isOp(JSOP_NOP));
+    JS_ASSERT(pn_arity == PN_UNARY);
+    return *static_cast<DefSharpExpression *>(this);
+}
+
+class UseSharpExpression : public ParseNode {
+  public:
+    UseSharpExpression(uint16_t number, const TokenPos &pos)
+      : ParseNode(PNK_USESHARP, JSOP_NOP, PN_NULLARY, pos)
+    {
+        pn_u.usesharp.number = number;
+    }
+
+    jsint number() const {
+        return pn_u.usesharp.number;
+    }
+};
+
+inline UseSharpExpression &
+ParseNode::asUseSharpExpression()
+{
+    JS_ASSERT(isKind(PNK_USESHARP));
+    JS_ASSERT(isOp(JSOP_NOP));
+    JS_ASSERT(pn_arity == PN_NULLARY);
+    return *static_cast<UseSharpExpression *>(this);
+}
+
 class ThisLiteral : public ParseNode {
   public:
     ThisLiteral(const TokenPos &pos) : ParseNode(PNK_THIS, JSOP_THIS, PN_NULLARY, pos) { }
@@ -1231,14 +1294,6 @@ class PropertyAccess : public ParseNode {
         return *pn_u.name.atom->asPropertyName();
     }
 };
-
-inline PropertyAccess &
-ParseNode::asPropertyAccess()
-{
-    JS_ASSERT(isKind(PNK_DOT));
-    JS_ASSERT(pn_arity == PN_NAME);
-    return *static_cast<PropertyAccess *>(this);
-}
 
 class PropertyByValue : public ParseNode {
   public:

@@ -44,7 +44,6 @@ const Ci = Components.interfaces;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource:///modules/source-editor-ui.jsm");
 
 XPCOMUtils.defineLazyServiceGetter(this, "clipboardHelper",
                                    "@mozilla.org/widget/clipboardhelper;1",
@@ -127,8 +126,6 @@ function SourceEditor() {
     Services.prefs.getBoolPref(SourceEditor.PREFS.EXPAND_TAB);
 
   this._onOrionSelection = this._onOrionSelection.bind(this);
-
-  this.ui = new SourceEditorUI(this);
 }
 
 SourceEditor.prototype = {
@@ -145,13 +142,6 @@ SourceEditor.prototype = {
   _expandTab: null,
   _tabSize: null,
   _iframeWindow: null,
-
-  /**
-   * The Source Editor user interface manager.
-   * @type object
-   *       An instance of the SourceEditorUI.
-   */
-  ui: null,
 
   /**
    * The editor container element.
@@ -214,7 +204,6 @@ SourceEditor.prototype = {
     this.parentElement = aElement;
     this._config = aConfig;
     this._onReadyCallback = aCallback;
-    this.ui.init();
   },
 
   /**
@@ -283,22 +272,11 @@ SourceEditor.prototype = {
 
     this._dragAndDrop = new TextDND(this._view, this._undoStack);
 
-    let actions = {
-      "undo": [this.undo, this],
-      "redo": [this.redo, this],
-      "tab": [this._doTab, this],
-      "Unindent Lines": [this._doUnindentLines, this],
-      "enter": [this._doEnter, this],
-      "Find...": [this.ui.find, this.ui],
-      "Find Next Occurrence": [this.ui.findNext, this.ui],
-      "Find Previous Occurrence": [this.ui.findPrevious, this.ui],
-      "Goto Line...": [this.ui.gotoLine, this.ui],
-    };
-
-    for (let name in actions) {
-      let action = actions[name];
-      this._view.setAction(name, action[0].bind(action[1]));
-    }
+    this._view.setAction("undo", this.undo.bind(this));
+    this._view.setAction("redo", this.redo.bind(this));
+    this._view.setAction("tab", this._doTab.bind(this));
+    this._view.setAction("Unindent Lines", this._doUnindentLines.bind(this));
+    this._view.setAction("enter", this._doEnter.bind(this));
 
     let keys = (config.keys || []).concat(DEFAULT_KEYBINDINGS);
     keys.forEach(function(aKey) {
@@ -318,7 +296,6 @@ SourceEditor.prototype = {
    */
   _onOrionLoad: function SE__onOrionLoad()
   {
-    this.ui.onReady();
     if (this._onReadyCallback) {
       this._onReadyCallback(this);
       this._onReadyCallback = null;
@@ -906,9 +883,6 @@ SourceEditor.prototype = {
     this._onOrionSelection = null;
 
     this._view.destroy();
-    this.ui.destroy();
-    this.ui = null;
-
     this.parentElement.removeChild(this._iframe);
     this.parentElement = null;
     this._iframeWindow = null;
@@ -922,6 +896,5 @@ SourceEditor.prototype = {
     this._view = null;
     this._model = null;
     this._config = null;
-    this._lastFind = null;
   },
 };

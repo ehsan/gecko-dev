@@ -10,10 +10,10 @@
 #ifndef SkPixelRef_DEFINED
 #define SkPixelRef_DEFINED
 
-#include "SkBitmap.h"
 #include "SkRefCnt.h"
 #include "SkString.h"
 
+class SkBitmap;
 class SkColorTable;
 struct SkIRect;
 class SkMutex;
@@ -22,25 +22,6 @@ class SkFlattenableWriteBuffer;
 
 // this is an opaque class, not interpreted by skia
 class SkGpuTexture;
-
-#if SK_ALLOW_STATIC_GLOBAL_INITIALIZERS
-
-#define SK_DECLARE_PIXEL_REF_REGISTRAR() 
-
-#define SK_DEFINE_PIXEL_REF_REGISTRAR(pixelRef) \
-    static SkPixelRef::Registrar g##pixelRef##Reg(#pixelRef, \
-                                                  pixelRef::Create);
-                                                      
-#else
-
-#define SK_DECLARE_PIXEL_REF_REGISTRAR() static void Init();
-
-#define SK_DEFINE_PIXEL_REF_REGISTRAR(pixelRef) \
-    void pixelRef::Init() { \
-        SkPixelRef::Registrar(#pixelRef, Create); \
-    }
-
-#endif
 
 /** \class SkPixelRef
 
@@ -136,12 +117,6 @@ public:
 
     bool readPixels(SkBitmap* dst, const SkIRect* subset = NULL);
 
-    /** Makes a deep copy of this PixelRef, respecting the requested config.
-        Returns NULL if either there is an error (e.g. the destination could
-        not be created with the given config), or this PixelRef does not 
-        support deep copies.  */
-    virtual SkPixelRef* deepCopy(SkBitmap::Config config) { return NULL; }
-
     // serialization
 
     typedef SkPixelRef* (*Factory)(SkFlattenableReadBuffer&);
@@ -149,7 +124,7 @@ public:
     virtual Factory getFactory() const { return NULL; }
     virtual void flatten(SkFlattenableWriteBuffer&) const;
 
-#ifdef SK_BUILD_FOR_ANDROID
+#ifdef ANDROID
     /**
      *  Acquire a "global" ref on this object.
      *  The default implementation just calls ref(), but subclasses can override
@@ -206,10 +181,6 @@ protected:
     SkPixelRef(SkFlattenableReadBuffer&, SkMutex*);
 
 private:
-#if !SK_ALLOW_STATIC_GLOBAL_INITIALIZERS
-    static void InitializeFlattenables();
-#endif
-
     SkMutex*        fMutex; // must remain in scope for the life of this object
     void*           fPixels;
     SkColorTable*   fColorTable;    // we do not track ownership, subclass does
@@ -221,8 +192,6 @@ private:
 
     // can go from false to true, but never from true to false
     bool    fIsImmutable;
-
-    friend class SkGraphics;
 };
 
 #endif

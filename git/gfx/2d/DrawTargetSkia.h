@@ -101,9 +101,10 @@ public:
                           const DrawOptions &aOptions = DrawOptions());
   virtual void Mask(const Pattern &aSource,
                     const Pattern &aMask,
-                    const DrawOptions &aOptions = DrawOptions());
+                    const DrawOptions &aOptions = DrawOptions())
+  { return; }
   virtual void PushClip(const Path *aPath);
-  virtual void PushClipRect(const Rect& aRect);
+  virtual void PushClipRect(const Rect &aRect) { }
   virtual void PopClip();
   virtual TemporaryRef<SourceSurface> CreateSourceSurfaceFromData(unsigned char *aData,
                                                             const IntSize &aSize,
@@ -119,7 +120,6 @@ public:
   virtual void SetTransform(const Matrix &aTransform);
 
   bool Init(const IntSize &aSize, SurfaceFormat aFormat);
-  void Init(unsigned char* aData, const IntSize &aSize, int32_t aStride, SurfaceFormat aFormat);
   
   operator std::string() const {
     std::stringstream stream;
@@ -138,6 +138,7 @@ private:
   SkRefPtr<SkCanvas> mCanvas;
   SkRefPtr<SkDevice> mDevice;
   nsRefPtr<gfxImageSurface> mImageSurface;
+  SurfaceFormat mFormat;
   vector<SourceSurfaceSkia*> mSnapshots;
 };
 

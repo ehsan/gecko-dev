@@ -173,7 +173,7 @@ nsCacheMetaData::VisitElements(nsICacheMetaDataVisitor * visitor)
         bool keepGoing;
         nsresult rv = visitor->VisitMetaDataElement(key, data, &keepGoing);
         if (NS_FAILED(rv) || !keepGoing)
-            return NS_OK;
+            break;
 
         // Skip value part
         data += strlen(data) + 1;

@@ -126,10 +126,8 @@ template void JS_FASTCALL stubs::SetGlobalName<false>(VMFrame &f, PropertyName *
 void JS_FASTCALL
 stubs::Name(VMFrame &f)
 {
-    Value rval;
-    if (!NameOperation(f.cx, f.pc(), &rval))
+    if (!NameOperation(f.cx, f.pc(), &f.regs.sp[0]))
         THROW();
-    f.regs.sp[0] = rval;
 }
 
 void JS_FASTCALL
@@ -210,6 +208,17 @@ stubs::GetElem(VMFrame &f)
 #endif
 }
 
+static inline bool
+FetchElementId(VMFrame &f, JSObject *obj, const Value &idval, jsid &id, Value *vp)
+{
+    int32_t i_;
+    if (ValueFitsInInt32(idval, &i_) && INT_FITS_IN_JSID(i_)) {
+        id = INT_TO_JSID(i_);
+        return true;
+    }
+    return !!js_InternNonIntElementId(f.cx, obj, idval, &id, vp);
+}
+
 template<JSBool strict>
 void JS_FASTCALL
 stubs::SetElem(VMFrame &f)
@@ -228,7 +237,7 @@ stubs::SetElem(VMFrame &f)
     if (!obj)
         THROW();
 
-    if (!FetchElementId(f.cx, obj, idval, id, &regs.sp[-2]))
+    if (!FetchElementId(f, obj, idval, id, &regs.sp[-2]))
         THROW();
 
     TypeScript::MonitorAssign(cx, f.script(), f.pc(), obj, id, rval);
@@ -276,7 +285,7 @@ stubs::ToId(VMFrame &f)
         THROW();
 
     jsid id;
-    if (!FetchElementId(f.cx, obj, idval, id, &idval))
+    if (!FetchElementId(f, obj, idval, id, &idval))
         THROW();
 
     if (!idval.isInt32())
@@ -288,7 +297,7 @@ stubs::ImplicitThis(VMFrame &f, PropertyName *name)
 {
     JSObject *obj, *obj2;
     JSProperty *prop;
-    if (!FindPropertyHelper(f.cx, name, false, f.cx->stack.currentScriptedScopeChain(), &obj, &obj2, &prop))
+    if (!FindPropertyHelper(f.cx, name, false, false, &obj, &obj2, &prop))
         THROW();
 
     if (!ComputeImplicitThis(f.cx, obj, &f.regs.sp[0]))
@@ -525,7 +534,7 @@ template void JS_FASTCALL stubs::DefFun<false>(VMFrame &f, JSFunction *fun);
             double l, r;                                                      \
             if (!ToNumber(cx, lval, &l) || !ToNumber(cx, rval, &r))           \
                 THROWV(JS_FALSE);                                             \
-            cond = (l OP r);                                                  \
+            cond = JSDOUBLE_COMPARE(l, OP, r, false);                         \
         }                                                                     \
         regs.sp[-2].setBoolean(cond);                                         \
         return cond;                                                          \
@@ -568,7 +577,7 @@ stubs::Not(VMFrame &f)
     f.regs.sp[-1].setBoolean(b);
 }
 
-template <bool EQ>
+template <JSBool EQ, bool IFNAN>
 static inline bool
 StubEqualityOp(VMFrame &f)
 {
@@ -578,25 +587,23 @@ StubEqualityOp(VMFrame &f)
     Value rval = regs.sp[-1];
     Value lval = regs.sp[-2];
 
-    bool cond;
+    JSBool cond;
 
     /* The string==string case is easily the hottest;  try it first. */
     if (lval.isString() && rval.isString()) {
         JSString *l = lval.toString();
         JSString *r = rval.toString();
-        bool equal;
+        JSBool equal;
         if (!EqualStrings(cx, l, r, &equal))
             return false;
         cond = equal == EQ;
     } else
 #if JS_HAS_XML_SUPPORT
     if ((lval.isObject() && lval.toObject().isXML()) ||
-        (rval.isObject() && rval.toObject().isXML()))
-    {
-        JSBool equal;
-        if (!js_TestXMLEquality(cx, lval, rval, &equal))
+        (rval.isObject() && rval.toObject().isXML())) {
+        if (!js_TestXMLEquality(cx, lval, rval, &cond))
             return false;
-        cond = !!equal == EQ;
+        cond = cond == EQ;
     } else
 #endif
 
@@ -606,16 +613,15 @@ StubEqualityOp(VMFrame &f)
             double l = lval.toDouble();
             double r = rval.toDouble();
             if (EQ)
-                cond = (l == r);
+                cond = JSDOUBLE_COMPARE(l, ==, r, IFNAN);
             else
-                cond = (l != r);
+                cond = JSDOUBLE_COMPARE(l, !=, r, IFNAN);
         } else if (lval.isObject()) {
             JSObject *l = &lval.toObject(), *r = &rval.toObject();
             if (JSEqualityOp eq = l->getClass()->ext.equality) {
-                JSBool equal;
-                if (!eq(cx, l, &rval, &equal))
+                if (!eq(cx, l, &rval, &cond))
                     return false;
-                cond = !!equal == EQ;
+                cond = cond == EQ;
             } else {
                 cond = (l == r) == EQ;
             }
@@ -642,7 +648,7 @@ StubEqualityOp(VMFrame &f)
             if (lval.isString() && rval.isString()) {
                 JSString *l = lval.toString();
                 JSString *r = rval.toString();
-                bool equal;
+                JSBool equal;
                 if (!EqualStrings(cx, l, r, &equal))
                     return false;
                 cond = equal == EQ;
@@ -652,9 +658,9 @@ StubEqualityOp(VMFrame &f)
                     return false;
 
                 if (EQ)
-                    cond = (l == r);
+                    cond = JSDOUBLE_COMPARE(l, ==, r, false);
                 else
-                    cond = (l != r);
+                    cond = JSDOUBLE_COMPARE(l, !=, r, true);
             }
         }
     }
@@ -666,7 +672,7 @@ StubEqualityOp(VMFrame &f)
 JSBool JS_FASTCALL
 stubs::Equal(VMFrame &f)
 {
-    if (!StubEqualityOp<true>(f))
+    if (!StubEqualityOp<JS_TRUE, false>(f))
         THROWV(JS_FALSE);
     return f.regs.sp[-2].toBoolean();
 }
@@ -674,7 +680,7 @@ stubs::Equal(VMFrame &f)
 JSBool JS_FASTCALL
 stubs::NotEqual(VMFrame &f)
 {
-    if (!StubEqualityOp<false>(f))
+    if (!StubEqualityOp<JS_FALSE, true>(f))
         THROWV(JS_FALSE);
     return f.regs.sp[-2].toBoolean();
 }
@@ -888,8 +894,8 @@ void JS_FASTCALL
 stubs::RecompileForInline(VMFrame &f)
 {
     ExpandInlineFrames(f.cx->compartment);
-    Recompiler::clearStackReferencesAndChunk(f.cx, f.script(), f.jit(), f.chunkIndex(),
-                                             /* resetUses = */ false);
+    Recompiler recompiler(f.cx, f.script());
+    recompiler.recompile(/* resetUses */ false);
 }
 
 void JS_FASTCALL
@@ -1024,7 +1030,7 @@ stubs::InitElem(VMFrame &f, uint32_t last)
     /* Fetch id now that we have obj. */
     jsid id;
     const Value &idval = regs.sp[-2];
-    if (!FetchElementId(f.cx, obj, idval, id, &regs.sp[-2]))
+    if (!FetchElementId(f, obj, idval, id, &regs.sp[-2]))
         THROW();
 
     /*
@@ -1322,7 +1328,7 @@ stubs::StrictEq(VMFrame &f)
 {
     const Value &rhs = f.regs.sp[-1];
     const Value &lhs = f.regs.sp[-2];
-    bool equal;
+    JSBool equal;
     if (!StrictlyEqual(f.cx, lhs, rhs, &equal))
         THROW();
     f.regs.sp--;
@@ -1334,7 +1340,7 @@ stubs::StrictNe(VMFrame &f)
 {
     const Value &rhs = f.regs.sp[-1];
     const Value &lhs = f.regs.sp[-2];
-    bool equal;
+    JSBool equal;
     if (!StrictlyEqual(f.cx, lhs, rhs, &equal))
         THROW();
     f.regs.sp--;
@@ -1471,38 +1477,21 @@ stubs::LeaveBlock(VMFrame &f)
     fp->setBlockChain(blockObj.enclosingBlock());
 }
 
-inline void *
-FindNativeCode(VMFrame &f, jsbytecode *target)
-{
-    void* native = f.fp()->script()->nativeCodeForPC(f.fp()->isConstructing(), target);
-    if (native)
-        return native;
-
-    uint32_t sourceOffset = f.pc() - f.script()->code;
-    uint32_t targetOffset = target - f.script()->code;
-
-    CrossChunkEdge *edges = f.jit()->edges();
-    for (size_t i = 0; i < f.jit()->nedges; i++) {
-        const CrossChunkEdge &edge = edges[i];
-        if (edge.source == sourceOffset && edge.target == targetOffset)
-            return edge.shimLabel;
-    }
-
-    JS_NOT_REACHED("Missing edge");
-    return NULL;
-}
-
 void * JS_FASTCALL
 stubs::LookupSwitch(VMFrame &f, jsbytecode *pc)
 {
     jsbytecode *jpc = pc;
     JSScript *script = f.fp()->script();
+    bool ctor = f.fp()->isConstructing();
 
     /* This is correct because the compiler adjusts the stack beforehand. */
     Value lval = f.regs.sp[-1];
 
-    if (!lval.isPrimitive())
-        return FindNativeCode(f, pc + GET_JUMP_OFFSET(pc));
+    if (!lval.isPrimitive()) {
+        void* native = script->nativeCodeForPC(ctor, pc + GET_JUMP_OFFSET(pc));
+        JS_ASSERT(native);
+        return native;
+    }
 
     JS_ASSERT(pc[0] == JSOP_LOOKUPSWITCH);
 
@@ -1521,8 +1510,12 @@ stubs::LookupSwitch(VMFrame &f, jsbytecode *pc)
             pc += INDEX_LEN;
             if (rval.isString()) {
                 JSLinearString *rhs = &rval.toString()->asLinear();
-                if (rhs == str || EqualStrings(str, rhs))
-                    return FindNativeCode(f, jpc + GET_JUMP_OFFSET(pc));
+                if (rhs == str || EqualStrings(str, rhs)) {
+                    void* native = script->nativeCodeForPC(ctor,
+                                                           jpc + GET_JUMP_OFFSET(pc));
+                    JS_ASSERT(native);
+                    return native;
+                }
             }
             pc += JUMP_OFFSET_LEN;
         }
@@ -1531,21 +1524,31 @@ stubs::LookupSwitch(VMFrame &f, jsbytecode *pc)
         for (uint32_t i = 1; i <= npairs; i++) {
             Value rval = script->getConst(GET_INDEX(pc));
             pc += INDEX_LEN;
-            if (rval.isNumber() && d == rval.toNumber())
-                return FindNativeCode(f, jpc + GET_JUMP_OFFSET(pc));
+            if (rval.isNumber() && d == rval.toNumber()) {
+                void* native = script->nativeCodeForPC(ctor,
+                                                       jpc + GET_JUMP_OFFSET(pc));
+                JS_ASSERT(native);
+                return native;
+            }
             pc += JUMP_OFFSET_LEN;
         }
     } else {
         for (uint32_t i = 1; i <= npairs; i++) {
             Value rval = script->getConst(GET_INDEX(pc));
             pc += INDEX_LEN;
-            if (lval == rval)
-                return FindNativeCode(f, jpc + GET_JUMP_OFFSET(pc));
+            if (lval == rval) {
+                void* native = script->nativeCodeForPC(ctor,
+                                                       jpc + GET_JUMP_OFFSET(pc));
+                JS_ASSERT(native);
+                return native;
+            }
             pc += JUMP_OFFSET_LEN;
         }
     }
 
-    return FindNativeCode(f, jpc + GET_JUMP_OFFSET(jpc));
+    void* native = script->nativeCodeForPC(ctor, jpc + GET_JUMP_OFFSET(jpc));
+    JS_ASSERT(native);
+    return native;
 }
 
 void * JS_FASTCALL
@@ -1553,7 +1556,7 @@ stubs::TableSwitch(VMFrame &f, jsbytecode *origPc)
 {
     jsbytecode * const originalPC = origPc;
 
-    DebugOnly<JSOp> op = JSOp(*originalPC);
+    JSOp op = JSOp(*originalPC);
     JS_ASSERT(op == JSOP_TABLESWITCH);
 
     uint32_t jumpOffset = GET_JUMP_OFFSET(originalPC);
@@ -1593,7 +1596,11 @@ stubs::TableSwitch(VMFrame &f, jsbytecode *origPc)
 
 finally:
     /* Provide the native address. */
-    return FindNativeCode(f, originalPC + jumpOffset);
+    JSScript* script = f.fp()->script();
+    void* native = script->nativeCodeForPC(f.fp()->isConstructing(),
+                                           originalPC + jumpOffset);
+    JS_ASSERT(native);
+    return native;
 }
 
 void JS_FASTCALL
@@ -1610,7 +1617,7 @@ stubs::DelName(VMFrame &f, PropertyName *name)
 {
     JSObject *obj, *obj2;
     JSProperty *prop;
-    if (!FindProperty(f.cx, name, f.cx->stack.currentScriptedScopeChain(), &obj, &obj2, &prop))
+    if (!FindProperty(f.cx, name, false, &obj, &obj2, &prop))
         THROW();
 
     /* Strict mode code should never contain JSOP_DELNAME opcodes. */
@@ -1736,7 +1743,7 @@ stubs::In(VMFrame &f)
 
     JSObject *obj = &rref.toObject();
     jsid id;
-    if (!FetchElementId(f.cx, obj, f.regs.sp[-2], id, &f.regs.sp[-2]))
+    if (!FetchElementId(f, obj, f.regs.sp[-2], id, &f.regs.sp[-2]))
         THROWV(JS_FALSE);
 
     JSObject *obj2;
@@ -1885,8 +1892,8 @@ stubs::InvariantFailure(VMFrame &f, void *rval)
 
     ExpandInlineFrames(f.cx->compartment);
 
-    mjit::Recompiler::clearStackReferences(f.cx, script);
-    mjit::ReleaseScriptCode(f.cx, script);
+    Recompiler recompiler(f.cx, script);
+    recompiler.recompile();
 
     /* Return the same value (if any) as the call triggering the invariant failure. */
     return rval;
@@ -1897,7 +1904,7 @@ stubs::Exception(VMFrame &f)
 {
     // Check the interrupt flag to allow interrupting deeply nested exception
     // handling.
-    if (f.cx->runtime->interrupt && !js_HandleExecutionInterrupt(f.cx))
+    if (JS_THREAD_DATA(f.cx)->interruptFlags && !js_HandleExecutionInterrupt(f.cx))
         THROW();
 
     f.regs.sp[0] = f.cx->getPendingException();

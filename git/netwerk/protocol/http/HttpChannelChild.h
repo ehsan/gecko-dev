@@ -126,7 +126,7 @@ public:
 protected:
   bool RecvOnStartRequest(const nsHttpResponseHead& responseHead,
                           const bool& useResponseHead,
-                          const nsHttpHeaderArray& requestHeaders,
+                          const RequestHeaderTuples& requestHeaders,
                           const bool& isFromCache,
                           const bool& cacheEntryAvailable,
                           const PRUint32& cacheExpirationTime,
@@ -157,7 +157,7 @@ protected:
   virtual void DoNotifyListenerCleanup();
 
 private:
-  RequestHeaderTuples mClientSetRequestHeaders;
+  RequestHeaderTuples mRequestHeaders;
   nsCOMPtr<nsIChildChannel> mRedirectChannelChild;
   nsCOMPtr<nsISupports> mSecurityInfo;
 
@@ -180,7 +180,7 @@ private:
                                  const nsCString &clientID);
   void OnStartRequest(const nsHttpResponseHead& responseHead,
                       const bool& useResponseHead,
-                      const nsHttpHeaderArray& requestHeaders,
+                      const RequestHeaderTuples& requestHeaders,
                       const bool& isFromCache,
                       const bool& cacheEntryAvailable,
                       const PRUint32& cacheExpirationTime,

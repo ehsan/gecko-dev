@@ -11,7 +11,8 @@ const TEST_ID = "0180_svc";
 // operations located in the precomplete file performed first.
 const TEST_FILES = [
 {
-  description      : "Should never change",
+  description      : "Only added by update.manifest for complete updates " +
+                     "when there is a channel change (add-cc)",
   fileName         : "channel-prefs.js",
   relPathDir       : "a/b/defaults/pref/",
   originalContents : "ShouldNotBeReplaced\n",

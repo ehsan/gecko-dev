@@ -42,36 +42,28 @@ import android.database.Cursor;
 import android.graphics.drawable.BitmapDrawable;
 
 public class BrowserDB {
-    public static String ABOUT_PAGES_URL_FILTER = "about:%";
-
     public static interface URLColumns {
         public static String URL = "url";
         public static String TITLE = "title";
         public static String FAVICON = "favicon";
         public static String THUMBNAIL = "thumbnail";
         public static String DATE_LAST_VISITED = "date-last-visited";
-        public static String VISITS = "visits";
     }
 
     private static BrowserDBIface sDb;
 
     public interface BrowserDBIface {
-        public Cursor filter(ContentResolver cr, CharSequence constraint, int limit);
-
-        public Cursor getTopSites(ContentResolver cr, int limit);
+        public Cursor filter(ContentResolver cr, CharSequence constraint, int limit, CharSequence urlFilter);
 
         public void updateVisitedHistory(ContentResolver cr, String uri);
 
         public void updateHistoryTitle(ContentResolver cr, String uri, String title);
 
-        public void updateHistoryEntry(ContentResolver cr, String uri, String title,
-                                       long date, int visits);
+        public void updateHistoryDate(ContentResolver cr, String uri, long date);
 
         public Cursor getAllVisitedHistory(ContentResolver cr);
 
         public Cursor getRecentHistory(ContentResolver cr, int limit);
-
-        public int getMaxHistoryCount();
 
         public void clearHistory(ContentResolver cr);
 
@@ -88,8 +80,6 @@ public class BrowserDB {
         public void updateFaviconForUrl(ContentResolver cr, String uri, BitmapDrawable favicon);
 
         public void updateThumbnailForUrl(ContentResolver cr, String uri, BitmapDrawable thumbnail);
-
-        public byte[] getThumbnailForUrl(ContentResolver cr, String uri);
     }
 
     static {
@@ -97,12 +87,12 @@ public class BrowserDB {
         sDb = new LocalBrowserDB(BrowserContract.DEFAULT_PROFILE);
     }
 
-    public static Cursor filter(ContentResolver cr, CharSequence constraint, int limit) {
-        return sDb.filter(cr, constraint, limit);
+    public static Cursor filter(ContentResolver cr, CharSequence constraint, int limit, CharSequence urlFilter) {
+        return sDb.filter(cr, constraint, limit, urlFilter);
     }
 
-    public static Cursor getTopSites(ContentResolver cr, int limit) {
-        return sDb.getTopSites(cr, limit);
+    public static Cursor filter(ContentResolver cr, CharSequence constraint, int limit) {
+        return sDb.filter(cr, constraint, limit, null);
     }
 
     public static void updateVisitedHistory(ContentResolver cr, String uri) {
@@ -113,9 +103,8 @@ public class BrowserDB {
         sDb.updateHistoryTitle(cr, uri, title);
     }
 
-    public static void updateHistoryEntry(ContentResolver cr, String uri, String title,
-                                          long date, int visits) {
-        sDb.updateHistoryEntry(cr, uri, title, date, visits);
+    public static void updateHistoryDate(ContentResolver cr, String uri, long date) {
+        sDb.updateHistoryDate(cr, uri, date);
     }
 
     public static Cursor getAllVisitedHistory(ContentResolver cr) {
@@ -124,10 +113,6 @@ public class BrowserDB {
 
     public static Cursor getRecentHistory(ContentResolver cr, int limit) {
         return sDb.getRecentHistory(cr, limit);
-    }
-
-    public static int getMaxHistoryCount() {
-        return sDb.getMaxHistoryCount();
     }
 
     public static void clearHistory(ContentResolver cr) {
@@ -160,9 +145,5 @@ public class BrowserDB {
 
     public static void updateThumbnailForUrl(ContentResolver cr, String uri, BitmapDrawable thumbnail) {
         sDb.updateThumbnailForUrl(cr, uri, thumbnail);
-    }
-
-    public static byte[] getThumbnailForUrl(ContentResolver cr, String uri) {
-        return sDb.getThumbnailForUrl(cr, uri);
     }
 }

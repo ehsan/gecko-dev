@@ -49,7 +49,8 @@ const MAX_TIME_DIFFERENCE = 60000;
 // operations located in the precomplete file performed first.
 const TEST_FILES = [
 {
-  description      : "Should never change",
+  description      : "Only added by update.manifest for complete updates " +
+                     "when there is a channel change (add-cc)",
   fileName         : "channel-prefs.js",
   relPathDir       : "a/b/defaults/pref/",
   originalContents : "ShouldNotBeReplaced\n",
@@ -277,6 +278,12 @@ function run_test() {
 
   let updatesDir = do_get_file(TEST_ID + UPDATES_DIR_SUFFIX);
   let applyToDir = getApplyDirFile();
+
+  // Check that trying to change channels for a partial update doesn't change
+  // the update channel (the channel-prefs.js file should not be updated).
+  let force = updatesDir.clone();
+  force.append(CHANNEL_CHANGE_FILE);
+  force.create(AUS_Ci.nsIFile.FILE_TYPE, PERMS_FILE);
 
   // For Mac OS X set the last modified time for the root directory to a date in
   // the past to test that the last modified time is updated on all updates since

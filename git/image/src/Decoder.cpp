@@ -42,7 +42,7 @@
 #include "nsIScriptError.h"
 
 namespace mozilla {
-namespace image {
+namespace imagelib {
 
 Decoder::Decoder(RasterImage &aImage, imgIDecoderObserver* aObserver)
   : mImage(aImage)
@@ -326,5 +326,5 @@ Decoder::PostDecoderError(nsresult aFailureCode)
   NS_WARNING("Image decoding error - This is probably a bug!");
 }
 
-} // namespace image
+} // namespace imagelib
 } // namespace mozilla

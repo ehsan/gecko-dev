@@ -91,7 +91,6 @@ let inputValues = [
 
 let eventHandlers = [];
 let popupShown = [];
-let HUD;
 
 function tabLoad(aEvent) {
   browser.removeEventListener(aEvent.type, arguments.callee, true);
@@ -222,6 +221,7 @@ function testEnd() {
     }
   }
 
+  eventHandlers = popupshown = null;
   executeSoon(finishTest);
 }
 

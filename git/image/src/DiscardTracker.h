@@ -43,7 +43,7 @@
 class nsITimer;
 
 namespace mozilla {
-namespace image {
+namespace imagelib {
 class RasterImage;
 
 // Struct to make a RasterImage insertable into the tracker list. This
@@ -84,7 +84,7 @@ class DiscardTracker
     static void TimerCallback(nsITimer *aTimer, void *aClosure);
 };
 
-} // namespace image
+} // namespace imagelib
 } // namespace mozilla
 
 #endif /* mozilla_imagelib_DiscardTracker_h_ */

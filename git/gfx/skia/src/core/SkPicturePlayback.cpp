@@ -498,7 +498,7 @@ void SkPicturePlayback::draw(SkCanvas& canvas) {
     SkipClipRec skipRect, skipRegion, skipPath;
 #endif
 
-#ifdef SK_BUILD_FOR_ANDROID
+#ifdef ANDROID
     SkAutoMutexAcquire autoMutex(fDrawMutex);
 #endif
 
@@ -509,11 +509,9 @@ void SkPicturePlayback::draw(SkCanvas& canvas) {
         switch (fReader.readInt()) {
             case CLIP_PATH: {
                 const SkPath& path = getPath();
-                uint32_t packed = getInt();
-                SkRegion::Op op = ClipParams_unpackRegionOp(packed);
-                bool doAA = ClipParams_unpackDoAA(packed);
+                SkRegion::Op op = (SkRegion::Op) getInt();
                 size_t offsetToRestore = getInt();
-                if (!canvas.clipPath(path, op, doAA) && offsetToRestore) {
+                if (!canvas.clipPath(path, op) && offsetToRestore) {
 #ifdef SPEW_CLIP_SKIPPING
                     skipPath.recordSkip(offsetToRestore - fReader.offset());
 #endif
@@ -522,8 +520,7 @@ void SkPicturePlayback::draw(SkCanvas& canvas) {
             } break;
             case CLIP_REGION: {
                 const SkRegion& region = getRegion();
-                uint32_t packed = getInt();
-                SkRegion::Op op = ClipParams_unpackRegionOp(packed);
+                SkRegion::Op op = (SkRegion::Op) getInt();
                 size_t offsetToRestore = getInt();
                 if (!canvas.clipRegion(region, op) && offsetToRestore) {
 #ifdef SPEW_CLIP_SKIPPING
@@ -534,11 +531,9 @@ void SkPicturePlayback::draw(SkCanvas& canvas) {
             } break;
             case CLIP_RECT: {
                 const SkRect& rect = fReader.skipT<SkRect>();
-                uint32_t packed = getInt();
-                SkRegion::Op op = ClipParams_unpackRegionOp(packed);
-                bool doAA = ClipParams_unpackDoAA(packed);
+                SkRegion::Op op = (SkRegion::Op) getInt();
                 size_t offsetToRestore = getInt();
-                if (!canvas.clipRect(rect, op, doAA) && offsetToRestore) {
+                if (!canvas.clipRect(rect, op) && offsetToRestore) {
 #ifdef SPEW_CLIP_SKIPPING
                     skipRect.recordSkip(offsetToRestore - fReader.offset());
 #endif

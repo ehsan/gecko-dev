@@ -272,22 +272,10 @@ public:
   nsOverflowAreas
     RecomputeOverflow(const nsHTMLReflowState& aBlockReflowState);
 
-  enum TextRunType {
-    // Anything in reflow (but not intrinsic width calculation) or
-    // painting should use the inflated text run (i.e., with font size
-    // inflation applied).
-    eInflated,
-    // Intrinsic width calculation should use the non-inflated text run.
-    // When there is font size inflation, it will be different.
-    eNotInflated
-  };
-
   void AddInlineMinWidthForFlow(nsRenderingContext *aRenderingContext,
-                                nsIFrame::InlineMinWidthData *aData,
-                                float aInflation, TextRunType aTextRunType);
+                                nsIFrame::InlineMinWidthData *aData);
   void AddInlinePrefWidthForFlow(nsRenderingContext *aRenderingContext,
-                                 InlinePrefWidthData *aData,
-                                 float aInflation, TextRunType aTextRunType);
+                                 InlinePrefWidthData *aData);
 
   /**
    * Calculate the horizontal bounds of the grapheme clusters that fit entirely
@@ -381,16 +369,22 @@ public:
   // boundary.
   PRInt32 GetInFlowContentLength();
 
+  enum TextRunType {
+    // Anything in reflow (but not intrinsic width calculation) or
+    // painting should use the inflated text run (i.e., with font size
+    // inflation applied).
+    eInflated,
+    // Intrinsic width calculation should use the non-inflated text run.
+    // When there is font size inflation, it will be different.
+    eNotInflated
+  };
+
   /**
    * Acquires the text run for this content, if necessary.
-   * @param aWhichTextRun indicates whether to get an inflated or non-inflated
-   * text run
-   * @param aInflation the text inflation scale
-   * @param aReferenceContext the rendering context to use as a reference for
-   * creating the textrun, if available (if not, we'll create one which will
-   * just be slower)
-   * @param aLineContainer the block ancestor for this frame, or nsnull if
-   * unknown
+   * @param aRC the rendering context to use as a reference for creating
+   * the textrun, if available (if not, we'll create one which will just be slower)
+   * @param aBlock the block ancestor for this frame, or nsnull if unknown
+   * @param aLine the line that this frame is on, if any, or nsnull if unknown
    * @param aFlowEndInTextRun if non-null, this returns the textrun offset of
    * end of the text associated with this frame and its in-flow siblings
    * @return a gfxSkipCharsIterator set up to map DOM offsets for this frame

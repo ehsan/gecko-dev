@@ -1754,6 +1754,8 @@ nsCanvasRenderingContext2D::GetMozFillRule(nsAString& aString)
         aString.AssignLiteral("nonzero"); break;
     case gfxContext::FILL_RULE_EVEN_ODD:
         aString.AssignLiteral("evenodd"); break;
+    default:
+        return NS_ERROR_FAILURE;
     }
     return NS_OK;
 }
@@ -2538,7 +2540,7 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
 
     NS_ASSERTION(fontStyle, "Could not obtain font style");
 
-    nsIAtom* language = sc->GetStyleFont()->mLanguage;
+    nsIAtom* language = sc->GetStyleVisibility()->mLanguage;
     if (!language) {
         language = presShell->GetPresContext()->GetLanguageFromCharset();
     }
@@ -2546,12 +2548,7 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
     // use CSS pixels instead of dev pixels to avoid being affected by page zoom
     const PRUint32 aupcp = nsPresContext::AppUnitsPerCSSPixel();
     // un-zoom the font size to avoid being affected by text-only zoom
-    //
-    // Purposely ignore the font size that respects the user's minimum
-    // font preference (fontStyle->mFont.size) in favor of the
-    // computed size (fontStyle->mSize).  See
-    // https://bugzilla.mozilla.org/show_bug.cgi?id=698652.
-    const nscoord fontSize = nsStyleFont::UnZoomText(parentContext->PresContext(), fontStyle->mSize);
+    const nscoord fontSize = nsStyleFont::UnZoomText(parentContext->PresContext(), fontStyle->mFont.size);
 
     bool printerFont = (presShell->GetPresContext()->Type() == nsPresContext::eContext_PrintPreview ||
                           presShell->GetPresContext()->Type() == nsPresContext::eContext_Print);
@@ -2629,6 +2626,9 @@ nsCanvasRenderingContext2D::GetTextAlign(nsAString& ta)
     case TEXT_ALIGN_CENTER:
         ta.AssignLiteral("center");
         break;
+    default:
+        NS_ERROR("textAlign holds invalid value");
+        return NS_ERROR_FAILURE;
     }
 
     return NS_OK;
@@ -2676,6 +2676,9 @@ nsCanvasRenderingContext2D::GetTextBaseline(nsAString& tb)
     case TEXT_BASELINE_BOTTOM:
         tb.AssignLiteral("bottom");
         break;
+    default:
+        NS_ERROR("textBaseline holds invalid value");
+        return NS_ERROR_FAILURE;
     }
 
     return NS_OK;
@@ -2787,15 +2790,22 @@ struct NS_STACK_CLASS nsCanvasBidiProcessor : public nsBidiPresUtils::BidiProces
             // throughout the text layout process
         }
 
-        mTextRun->Draw(mThebes,
-                       point,
-                       mOp == nsCanvasRenderingContext2D::TEXT_DRAW_OPERATION_STROKE ?
-                                    gfxFont::GLYPH_STROKE : gfxFont::GLYPH_FILL,
-                       0,
-                       mTextRun->GetLength(),
-                       nsnull,
-                       nsnull,
-                       nsnull);
+        // stroke or fill the text depending on operation
+        if (mOp == nsCanvasRenderingContext2D::TEXT_DRAW_OPERATION_STROKE)
+            mTextRun->DrawToPath(mThebes,
+                                 point,
+                                 0,
+                                 mTextRun->GetLength(),
+                                 nsnull,
+                                 nsnull);
+        else
+            // mOp == TEXT_DRAW_OPERATION_FILL
+            mTextRun->Draw(mThebes,
+                           point,
+                           0,
+                           mTextRun->GetLength(),
+                           nsnull,
+                           nsnull);
     }
 
     // current text run
@@ -2877,11 +2887,10 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
       isRTL = GET_BIDI_OPTION_DIRECTION(document->GetBidiOptions()) == IBMBIDI_TEXTDIRECTION_RTL;
     }
 
-    Style style = aOp == TEXT_DRAW_OPERATION_FILL ? STYLE_FILL : STYLE_STROKE;
-
-    bool doDrawShadow = NeedToDrawShadow();
-    bool doUseIntermediateSurface = NeedToUseIntermediateSurface()
-        || NeedIntermediateSurfaceToHandleGlobalAlpha(style);
+    // don't need to take care of these with stroke since Stroke() does that
+    bool doDrawShadow = aOp == TEXT_DRAW_OPERATION_FILL && NeedToDrawShadow();
+    bool doUseIntermediateSurface = aOp == TEXT_DRAW_OPERATION_FILL &&
+        (NeedToUseIntermediateSurface() || NeedIntermediateSurfaceToHandleGlobalAlpha(STYLE_FILL));
 
     // Clear the surface if we need to simulate unbounded SOURCE operator
     ClearSurfaceForUnboundedSource();
@@ -2974,6 +2983,9 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
     case TEXT_BASELINE_BOTTOM:
         anchorY = -fontMetrics.emDescent;
         break;
+    default:
+        NS_ERROR("mTextBaseline holds invalid value");
+        return NS_ERROR_FAILURE;
     }
 
     processor.mPt.y += anchorY;
@@ -3015,7 +3027,6 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
         gfxContext* ctx = ShadowInitialize(drawExtents, blur);
 
         if (ctx) {
-            ApplyStyle(style, false);
             CopyContext(ctx, mThebes);
             ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
             processor.mThebes = ctx;
@@ -3041,14 +3052,22 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
 
     gfxContextPathAutoSaveRestore pathSR(mThebes, false);
 
-    if (doUseIntermediateSurface) {
-        mThebes->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
-
-        // don't want operators to be applied twice
-        mThebes->SetOperator(gfxContext::OPERATOR_SOURCE);
+    // back up and clear path if stroking
+    if (aOp == nsCanvasRenderingContext2D::TEXT_DRAW_OPERATION_STROKE) {
+        pathSR.Save();
+        mThebes->NewPath();
     }
+    // doUseIntermediateSurface is mutually exclusive to op == STROKE
+    else {
+        if (doUseIntermediateSurface) {
+            mThebes->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
 
-    ApplyStyle(style);
+            // don't want operators to be applied twice
+            mThebes->SetOperator(gfxContext::OPERATOR_SOURCE);
+        }
+
+        ApplyStyle(STYLE_FILL);
+    }
 
     rv = nsBidiPresUtils::ProcessText(textToDraw.get(),
                                       textToDraw.Length(),
@@ -3070,8 +3089,13 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
     if (NS_FAILED(rv))
         return rv;
 
-    if (doUseIntermediateSurface)
-        mThebes->Paint(CurrentState().StyleIsColor(style) ? 1.0 : CurrentState().globalAlpha);
+    if (aOp == nsCanvasRenderingContext2D::TEXT_DRAW_OPERATION_STROKE) {
+        // DrawPath takes care of all shadows and composite oddities
+        rv = DrawPath(STYLE_STROKE);
+        if (NS_FAILED(rv))
+            return rv;
+    } else if (doUseIntermediateSurface)
+        mThebes->Paint(CurrentState().StyleIsColor(STYLE_FILL) ? 1.0 : CurrentState().globalAlpha);
 
     if (aOp == nsCanvasRenderingContext2D::TEXT_DRAW_OPERATION_FILL && !doDrawShadow)
         return RedrawUser(boundingBox);

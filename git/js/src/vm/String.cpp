@@ -79,7 +79,7 @@ JSString::isExternal() const
 }
 
 size_t
-JSString::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf)
+JSString::charsHeapSize(JSMallocSizeOfFun mallocSizeOf)
 {
     /* JSRope: do nothing, we'll count all children chars when we hit the leaf strings. */
     if (isRope())
@@ -96,7 +96,7 @@ JSString::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf)
     /* JSExtensibleString: count the full capacity, not just the used space. */
     if (isExtensible()) {
         JSExtensibleString &extensible = asExtensible();
-        return mallocSizeOf(extensible.chars());
+        return mallocSizeOf(extensible.chars(), asExtensible().capacity() * sizeof(jschar));
     }
 
     JS_ASSERT(isFixed());
@@ -111,42 +111,8 @@ JSString::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf)
 
     /* JSAtom, JSFixedString: count the chars. +1 for the null char. */
     JSFixedString &fixed = asFixed();
-    return mallocSizeOf(fixed.chars());
+    return mallocSizeOf(fixed.chars(), (length() + 1) * sizeof(jschar));
 }
-
-#ifdef DEBUG
-void
-JSString::dump()
-{
-    if (const jschar *chars = getChars(NULL)) {
-        fprintf(stderr, "JSString* (%p) = jschar * (%p) = ",
-                (void *) this, (void *) chars);
-
-        extern void DumpChars(const jschar *s, size_t n);
-        DumpChars(chars, length());
-    } else {
-        fprintf(stderr, "(oom in JSString::dump)");
-    }
-    fputc('\n', stderr);
-}
-
-bool
-JSString::equals(const char *s)
-{
-    const jschar *c = getChars(NULL);
-    if (!c) {
-        fprintf(stderr, "OOM in JSString::equals!\n");
-        return false;
-    }
-    while (*c && *s) {
-        if (*c != *s)
-            return false;
-        c++;
-        s++;
-    }
-    return *c == *s;
-}
-#endif /* DEBUG */
 
 static JS_ALWAYS_INLINE bool
 AllocChars(JSContext *maybecx, size_t length, jschar **chars, size_t *capacity)
@@ -542,12 +508,3 @@ StaticStrings::isStatic(JSAtom *atom)
         return false;
     }
 }
-
-#ifdef DEBUG
-void
-JSAtom::dump()
-{
-    fprintf(stderr, "JSAtom* (%p) = ", (void *) this);
-    this->JSString::dump();
-}
-#endif /* DEBUG */

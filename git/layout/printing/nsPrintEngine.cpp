@@ -1355,9 +1355,9 @@ nsPrintEngine::MapContentForPO(nsPrintObject*   aPO,
   }
 
   // walk children content
-  for (nsIContent* child = aContent->GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
+  PRUint32 count = aContent->GetChildCount();
+  for (PRUint32 i = 0; i < count; ++i) {
+    nsIContent *child = aContent->GetChildAt(i);
     MapContentForPO(aPO, child);
   }
 }
@@ -1688,6 +1688,9 @@ nsPrintEngine::SetupToPrintContent()
 
     // Only Shrink if we are smaller
     if (mPrt->mShrinkRatio < 0.998f) {
+      // Clamp Shrink to Fit to 60%
+      mPrt->mShrinkRatio = NS_MAX(mPrt->mShrinkRatio, 0.60f);
+
       for (PRUint32 i=0;i<mPrt->mPrintDocList.Length();i++) {
         nsPrintObject* po = mPrt->mPrintDocList.ElementAt(i);
         NS_ASSERTION(po, "nsPrintObject can't be null!");
@@ -2760,11 +2763,13 @@ bool nsPrintEngine::HasFramesetChild(nsIContent* aContent)
     return false;
   }
 
+  PRUint32 numChildren = aContent->GetChildCount();
+
   // do a breadth search across all siblings
-  for (nsIContent* child = aContent->GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
-    if (child->IsHTML(nsGkAtoms::frameset)) {
+  for (PRUint32 i = 0; i < numChildren; ++i) {
+    nsIContent *child = aContent->GetChildAt(i);
+    if (child->Tag() == nsGkAtoms::frameset &&
+        child->IsHTML()) {
       return true;
     }
   }

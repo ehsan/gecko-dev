@@ -57,6 +57,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "jsutil.h"
 #include "jsapi.h"
 #include "jsarray.h"
@@ -1294,7 +1295,8 @@ Parser::functionArguments(TreeContext &funtc, FunctionBox *funbox, ParseNode **l
                 rhs->pn_cookie.set(funtc.staticLevel, slot);
                 rhs->pn_dflags |= PND_BOUND;
 
-                ParseNode *item = new_<BinaryNode>(PNK_ASSIGN, JSOP_NOP, lhs->pn_pos, lhs, rhs);
+                ParseNode *item =
+                    ParseNode::newBinaryOrAppend(PNK_ASSIGN, JSOP_NOP, lhs, rhs, &funtc);
                 if (!item)
                     return false;
                 if (!list) {
@@ -4392,7 +4394,7 @@ Parser::variables(ParseNodeKind kind, StaticBlockObject *blockObj, VarContext va
             pn2->pn_pos.end = init->pn_pos.end;
 
             if (tc->inFunction() && name == context->runtime->atomState.argumentsAtom) {
-                tc->noteArgumentsNameUse(pn2);
+                tc->noteArgumentsUse(pn2);
                 if (!blockObj)
                     tc->flags |= TCF_FUN_HEAVYWEIGHT;
             }
@@ -5572,6 +5574,19 @@ Parser::generatorExpr(ParseNode *kid)
             return NULL;
 
         /*
+         * We have to dance around a bit to propagate sharp variables from
+         * outertc to gentc before setting TCF_HAS_SHARPS implicitly by
+         * propagating all of outertc's TCF_FUN_FLAGS flags. As below, we have
+         * to be conservative by leaving TCF_HAS_SHARPS set in outertc if we
+         * do propagate to gentc.
+         */
+        if (outertc->flags & TCF_HAS_SHARPS) {
+            gentc.flags |= TCF_IN_FUNCTION;
+            if (!gentc.ensureSharpSlots())
+                return NULL;
+        }
+
+        /*
          * We assume conservatively that any deoptimization flag in tc->flags
          * besides TCF_FUN_PARAM_ARGUMENTS can come from the kid. So we
          * propagate these flags into genfn. For code simplicity we also do
@@ -5745,21 +5760,11 @@ Parser::memberExpr(JSBool allowCallSyntax)
                 } else
 #endif
                 {
-                    PropertyName *field = tokenStream.currentToken().name();
-                    nextMember = new_<PropertyAccess>(lhs, field,
+                    nextMember = new_<PropertyAccess>(lhs, tokenStream.currentToken().name(),
                                                       lhs->pn_pos.begin,
                                                       tokenStream.currentToken().pos.end);
                     if (!nextMember)
                         return NULL;
-
-                    /*
-                     * A property access of the form |<expr>.arguments| might
-                     * access this function's arguments, so we need to flag a
-                     * potential arguments use to ensure an arguments object
-                     * will be created.  See bug 721322.
-                     */
-                    if (tc->inFunction() && field == context->runtime->atomState.argumentsAtom)
-                        tc->noteArgumentsPropertyAccess(nextMember);
                 }
             }
 #if JS_HAS_XML_SUPPORT
@@ -6623,7 +6628,7 @@ Parser::propertyQualifiedIdentifier()
 #endif
 
 ParseNode *
-Parser::identifierName(bool afterDoubleDot)
+Parser::identifierName(bool afterDot)
 {
     JS_ASSERT(tokenStream.isCurrentTokenType(TOK_NAME));
 
@@ -6635,25 +6640,26 @@ Parser::identifierName(bool afterDoubleDot)
     node->setOp(JSOP_NAME);
 
     if ((tc->flags & (TCF_IN_FUNCTION | TCF_FUN_PARAM_ARGUMENTS)) == TCF_IN_FUNCTION &&
-        name == context->runtime->atomState.argumentsAtom)
-    {
+        name == context->runtime->atomState.argumentsAtom) {
+        /*
+         * Flag arguments usage so we can avoid unsafe optimizations such
+         * as formal parameter assignment analysis (because of the hated
+         * feature whereby arguments alias formals). We do this even for
+         * a reference of the form foo.arguments, which ancient code may
+         * still use instead of arguments (more hate).
+         */
+        tc->noteArgumentsUse(node);
+
         /*
          * Bind early to JSOP_ARGUMENTS to relieve later code from having
          * to do this work (new rule for the emitter to count on).
          */
-        if (!afterDoubleDot) {
-            /*
-             * Note use of |arguments| to ensure we can properly create the
-             * |arguments| object for this function.
-             */
-            tc->noteArgumentsNameUse(node);
-
-            if (!(tc->flags & TCF_DECL_DESTRUCTURING) && !tc->inStatement(STMT_WITH)) {
-                node->setOp(JSOP_ARGUMENTS);
-                node->pn_dflags |= PND_BOUND;
-            }
+        if (!afterDot && !(tc->flags & TCF_DECL_DESTRUCTURING)
+            && !tc->inStatement(STMT_WITH)) {
+            node->setOp(JSOP_ARGUMENTS);
+            node->pn_dflags |= PND_BOUND;
         }
-    } else if ((!afterDoubleDot
+    } else if ((!afterDot
 #if JS_HAS_XML_SUPPORT
                 || (!tc->inStrictMode() && tokenStream.peekToken() == TOK_DBLCOLON)
 #endif
@@ -6716,7 +6722,7 @@ Parser::identifierName(bool afterDoubleDot)
 
 #if JS_HAS_XML_SUPPORT
     if (!tc->inStrictMode() && tokenStream.matchToken(TOK_DBLCOLON)) {
-        if (afterDoubleDot) {
+        if (afterDot) {
             if (!checkForFunctionNode(name, node))
                 return NULL;
         }
@@ -6743,7 +6749,7 @@ Parser::starOrAtPropertyIdentifier(TokenKind tt)
 #endif
 
 ParseNode *
-Parser::primaryExpr(TokenKind tt, bool afterDoubleDot)
+Parser::primaryExpr(TokenKind tt, JSBool afterDot)
 {
     JS_ASSERT(tokenStream.isCurrentTokenType(tt));
 
@@ -6918,7 +6924,6 @@ Parser::primaryExpr(TokenKind tt, bool afterDoubleDot)
         for (;;) {
             JSAtom *atom;
             TokenKind ltok = tokenStream.getToken(TSF_KEYWORD_IS_NAME);
-            TokenPtr begin = tokenStream.currentToken().pos.begin;
             switch (ltok) {
               case TOK_NUMBER:
                 pn3 = NullaryNode::create(PNK_NUMBER, tc);
@@ -6985,10 +6990,7 @@ Parser::primaryExpr(TokenKind tt, bool afterDoubleDot)
 
                     /* NB: Getter function in { get x(){} } is unnamed. */
                     pn2 = functionDef(NULL, op == JSOP_GETTER ? Getter : Setter, Expression);
-                    if (!pn2)
-                        return NULL;
-                    TokenPos pos = {begin, pn2->pn_pos.end};
-                    pn2 = new_<BinaryNode>(PNK_COLON, op, pos, pn3, pn2);
+                    pn2 = ParseNode::newBinaryOrAppend(PNK_COLON, op, pn3, pn2, tc);
                     goto skip;
                 }
               case TOK_STRING: {
@@ -7018,16 +7020,16 @@ Parser::primaryExpr(TokenKind tt, bool afterDoubleDot)
             tt = tokenStream.getToken();
             if (tt == TOK_COLON) {
                 pnval = assignExpr();
-                if (!pnval)
-                    return NULL;
 
                 /*
                  * Treat initializers which mutate __proto__ as non-constant,
                  * so that we can later assume singleton objects delegate to
                  * the default Object.prototype.
                  */
-                if (!pnval->isConstant() || atom == context->runtime->atomState.protoAtom)
+                if ((pnval && !pnval->isConstant()) ||
+                    atom == context->runtime->atomState.protoAtom) {
                     pn->pn_xflags |= PNX_NONCONST;
+                }
             }
 #if JS_HAS_DESTRUCTURING_SHORTHAND
             else if (ltok == TOK_NAME && (tt == TOK_COMMA || tt == TOK_RC)) {
@@ -7050,10 +7052,7 @@ Parser::primaryExpr(TokenKind tt, bool afterDoubleDot)
                 return NULL;
             }
 
-            {
-                TokenPos pos = {begin, pnval->pn_pos.end};
-                pn2 = new_<BinaryNode>(PNK_COLON, op, pos, pn3, pnval);
-            }
+            pn2 = ParseNode::newBinaryOrAppend(PNK_COLON, op, pn3, pnval, tc);
           skip:
             if (!pn2)
                 return NULL;
@@ -7127,6 +7126,48 @@ Parser::primaryExpr(TokenKind tt, bool afterDoubleDot)
         break;
 #endif
 
+#if JS_HAS_SHARP_VARS
+      case TOK_DEFSHARP: {
+        if (!tc->ensureSharpSlots())
+            return NULL;
+        const Token &tok = tokenStream.currentToken();
+        TokenPtr begin = tok.pos.begin;
+        uint16_t number = tok.sharpNumber();
+
+        tt = tokenStream.getToken(TSF_OPERAND);
+        ParseNode *expr = primaryExpr(tt, false);
+        if (!expr)
+            return NULL;
+        if (expr->isKind(PNK_USESHARP) ||
+            expr->isKind(PNK_DEFSHARP) ||
+            expr->isKind(PNK_STRING) ||
+            expr->isKind(PNK_NUMBER) ||
+            expr->isKind(PNK_TRUE) ||
+            expr->isKind(PNK_FALSE) ||
+            expr->isKind(PNK_NULL) ||
+            expr->isKind(PNK_THIS))
+        {
+            reportErrorNumber(expr, JSREPORT_ERROR, JSMSG_BAD_SHARP_VAR_DEF);
+            return NULL;
+        }
+        pn = new_<DefSharpExpression>(number, expr, begin, tokenStream.currentToken().pos.end);
+        if (!pn)
+            return NULL;
+        break;
+      }
+
+      case TOK_USESHARP: {
+        if (!tc->ensureSharpSlots())
+            return NULL;
+        /* Check for forward/dangling references at runtime, to allow eval. */
+        const Token &tok = tokenStream.currentToken();
+        pn = new_<UseSharpExpression>(tok.sharpNumber(), tok.pos);
+        if (!pn)
+            return NULL;
+        break;
+      }
+#endif /* JS_HAS_SHARP_VARS */
+
       case TOK_LP:
       {
         JSBool genexp;
@@ -7183,7 +7224,7 @@ Parser::primaryExpr(TokenKind tt, bool afterDoubleDot)
 #endif
 
       case TOK_NAME:
-        pn = identifierName(afterDoubleDot);
+        pn = identifierName(afterDot);
         break;
 
       case TOK_REGEXP:

@@ -41,12 +41,11 @@
 #define nsCoreAnimationSupport_h__
 #ifdef XP_MACOSX
 
-#import <OpenGL/OpenGL.h>
+#import <QuartzCore/QuartzCore.h>
 #import "ApplicationServices/ApplicationServices.h"
 #include "nscore.h"
 #include "gfxTypes.h"
 #include "nsAutoPtr.h"
-#include "nsIOSurface.h"
 
 // Get the system color space.
 CGColorSpaceRef THEBES_API CreateSystemColorSpace();
@@ -54,8 +53,11 @@ CGColorSpaceRef THEBES_API CreateSystemColorSpace();
 // Manages a CARenderer
 struct _CGLPBufferObject;
 struct _CGLContextObject;
+class nsIOSurface;
 
 enum AllowOfflineRendererEnum { ALLOW_OFFLINE_RENDERER, DISALLOW_OFFLINE_RENDERER };
+
+typedef uint32_t IOSurfaceID;
 
 class THEBES_API nsCARenderer {
   NS_INLINE_DECL_REFCOUNTING(nsCARenderer)
@@ -106,6 +108,30 @@ private:
   uint32_t                  mUnsupportedWidth;
   uint32_t                  mUnsupportedHeight;
   AllowOfflineRendererEnum  mAllowOfflineRenderer;
+};
+
+class THEBES_API nsIOSurface {
+    NS_INLINE_DECL_REFCOUNTING(nsIOSurface)
+public:
+  static already_AddRefed<nsIOSurface> CreateIOSurface(int aWidth, int aHeight);
+  static void ReleaseIOSurface(nsIOSurface *aIOSurface);
+  static already_AddRefed<nsIOSurface> LookupSurface(IOSurfaceID aSurfaceID);
+
+  nsIOSurface(CFTypeRef aIOSurfacePtr) : mIOSurfacePtr(aIOSurfacePtr) {}
+  ~nsIOSurface() { CFRelease(mIOSurfacePtr); }
+  IOSurfaceID GetIOSurfaceID();
+  void *GetBaseAddress();
+  size_t GetWidth();
+  size_t GetHeight();
+  size_t GetBytesPerRow();
+  void Lock();
+  void Unlock();
+  CGLError CGLTexImageIOSurface2D(CGLContextObj ctxt,
+                                  GLenum internalFormat, GLenum format, 
+                                  GLenum type, GLuint plane);
+private:
+  friend class nsCARenderer;
+  CFTypeRef mIOSurfacePtr;
 };
 
 #endif // XP_MACOSX

@@ -69,12 +69,12 @@
 #include "AndroidBridge.h"
 #endif
 #include <android/log.h>
-#endif
-
 #define EGL_LIB "libEGL.so"
 #define GLES2_LIB "libGLESv2.so"
-#define EGL_LIB1 "libEGL.so.1"
-#define GLES2_LIB2 "libGLESv2.so.2"
+#else
+#define EGL_LIB "libEGL.so.1"
+#define GLES2_LIB "libGLESv2.so.2"
+#endif
 
 typedef void *EGLNativeDisplayType;
 typedef void *EGLNativePixmapType;
@@ -386,11 +386,6 @@ public:
 
         if (!mEGLLibrary) {
             mEGLLibrary = PR_LoadLibrary(EGL_LIB);
-#if defined(XP_UNIX)
-            if (!mEGLLibrary) {
-                mEGLLibrary = PR_LoadLibrary(EGL_LIB1);
-            }
-#endif
         }
 
         if (!mEGLLibrary) {
@@ -755,11 +750,7 @@ public:
     bool Init()
     {
         if (!OpenLibrary(GLES2_LIB)) {
-#if defined(XP_UNIX)
-            if (!OpenLibrary(GLES2_LIB2)) {
-                NS_WARNING("Couldn't load EGL LIB.");
-            }
-#endif
+            NS_WARNING("Couldn't load EGL LIB.");
             return false;
         }
 
@@ -981,8 +972,7 @@ public:
 
     static already_AddRefed<GLContextEGL>
     CreateEGLPBufferOffscreenContext(const gfxIntSize& aSize,
-                                     const ContextFormat& aFormat,
-                                     bool bufferUnused = false);
+                                     const ContextFormat& aFormat);
 
     void SetOffscreenSize(const gfxIntSize &aRequestedSize,
                           const gfxIntSize &aActualSize)
@@ -992,9 +982,6 @@ public:
     }
 
     void *GetD3DShareHandle() {
-        if (!mPBufferCanBindToTexture)
-            return nsnull;
-
         if (!sEGLLibrary.HasANGLESurfaceD3DTexture2DShareHandle()) {
             return nsnull;
         }
@@ -2066,8 +2053,7 @@ FillPBufferAttribs(nsTArray<EGLint>& aAttrs,
 
 already_AddRefed<GLContextEGL>
 GLContextEGL::CreateEGLPBufferOffscreenContext(const gfxIntSize& aSize,
-                                               const ContextFormat& aFormat,
-                                               bool bufferUnused)
+                                               const ContextFormat& aFormat)
 {
     EGLConfig config;
     EGLSurface surface;
@@ -2144,11 +2130,9 @@ TRY_ATTRIBS_AGAIN:
 
     sEGLLibrary.fBindAPI(LOCAL_EGL_OPENGL_ES_API);
 
-    GLContextEGL* shareContext = GetGlobalContextEGL();
     context = sEGLLibrary.fCreateContext(EGL_DISPLAY(),
                                          config,
-                                         shareContext ? shareContext->mContext
-                                                      : EGL_NO_CONTEXT,
+                                         EGL_NO_CONTEXT,
                                          sEGLLibrary.HasRobustness() ? gContextAttribsRobustness
                                                                      : gContextAttribs);
     if (!context) { 
@@ -2157,7 +2141,7 @@ TRY_ATTRIBS_AGAIN:
         return nsnull;
     }
 
-    nsRefPtr<GLContextEGL> glContext = new GLContextEGL(aFormat, shareContext,
+    nsRefPtr<GLContextEGL> glContext = new GLContextEGL(aFormat, nsnull,
                                                         config, surface, context,
                                                         true);
 
@@ -2165,11 +2149,9 @@ TRY_ATTRIBS_AGAIN:
         return nsnull;
     }
 
-    if (!bufferUnused) {
-      glContext->SetOffscreenSize(aSize, pbsize);
-      glContext->mIsPBuffer = true;
-      glContext->mPBufferCanBindToTexture = configCanBindToTexture;
-    }
+    glContext->SetOffscreenSize(aSize, pbsize);
+    glContext->mIsPBuffer = true;
+    glContext->mPBufferCanBindToTexture = configCanBindToTexture;
 
     return glContext.forget();
 }
@@ -2330,12 +2312,12 @@ GLContextProviderEGL::CreateOffscreen(const gfxIntSize& aSize,
 
 #if defined(ANDROID) || defined(XP_WIN)
     nsRefPtr<GLContextEGL> glContext =
-        GLContextEGL::CreateEGLPBufferOffscreenContext(gfxIntSize(16, 16), aFormat, true);
+        GLContextEGL::CreateEGLPBufferOffscreenContext(aSize, aFormat);
 
     if (!glContext)
         return nsnull;
 
-    if (!glContext->ResizeOffscreenFBO(aSize, true))
+    if (!glContext->ResizeOffscreenFBO(glContext->OffscreenActualSize(), false))
         return nsnull;
 
     return glContext.forget();
@@ -2417,12 +2399,10 @@ GLContextProviderEGL::GetGlobalContext()
     static bool triedToCreateContext = false;
     if (!triedToCreateContext && !gGlobalContext) {
         triedToCreateContext = true;
-        // Don't assign directly to gGlobalContext here, because
-        // CreateOffscreen can call us re-entrantly.
-        nsRefPtr<GLContext> ctx =
-            GLContextProviderEGL::CreateOffscreen(gfxIntSize(16, 16),
-                                                  ContextFormat(ContextFormat::BasicRGB24));
-        gGlobalContext = ctx;
+        gGlobalContext =
+            GLContextEGL::CreateEGLPixmapOffscreenContext(gfxIntSize(16, 16),
+                                                          ContextFormat(ContextFormat::BasicRGB24),
+                                                          false);
         if (gGlobalContext)
             gGlobalContext->SetIsGlobalSharedContext(true);
     }

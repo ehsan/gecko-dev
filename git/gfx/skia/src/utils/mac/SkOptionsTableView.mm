@@ -91,8 +91,7 @@
             int index = 0, count = 0;
             SkOSMenu::FindListItemCount(*item->getEvent(), &count);
             NSMutableArray* optionstrs = [[NSMutableArray alloc] initWithCapacity:count];
-            SkAutoTDeleteArray<SkString> ada(new SkString[count]);
-            SkString* options = ada.get();
+            SkString options[count];
             SkOSMenu::FindListItems(*item->getEvent(), options);
             for (int i = 0; i < count; ++i)
                 [optionstrs addObject:[NSString stringWithUTF8String:options[i].c_str()]];

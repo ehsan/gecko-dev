@@ -53,6 +53,7 @@
 #include "nsIDocument.h"
 #include "nsITheme.h"
 #include "nsIServiceManager.h"
+#include "nsIViewManager.h"
 #include "nsBoxLayout.h"
 #include "FrameLayerBuilder.h"
 
@@ -536,18 +537,6 @@ nsresult
 nsIFrame::Layout(nsBoxLayoutState& aState)
 {
   NS_ASSERTION(aState.GetRenderingContext(), "must have rendering context");
-
-  nsPresContext *presContext = aState.PresContext();
-  AutoRestore<nsIFrame*> restoreCurrentInflationContainer(presContext->
-                           mCurrentInflationContainer);
-  AutoRestore<nscoord> restoreCurrentInflationContainerWidth(presContext->
-                         mCurrentInflationContainerWidth);
-  if (nsLayoutUtils::IsContainerForFontSizeInflation(mParent) &&
-      mParent->IsBoxFrame()) {
-    presContext->mCurrentInflationContainer = mParent;
-    presContext->mCurrentInflationContainerWidth =
-      mParent->GetContentRect().width;
-  }
 
   nsBox *box = static_cast<nsBox*>(this);
   DISPLAY_LAYOUT(box);

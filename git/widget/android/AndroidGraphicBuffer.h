@@ -76,8 +76,6 @@ public:
 
   bool Bind();
 
-  static bool IsBlacklisted();
-
 private:
   PRUint32 mWidth;
   PRUint32 mHeight;

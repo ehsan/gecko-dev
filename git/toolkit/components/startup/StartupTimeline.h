@@ -43,7 +43,6 @@ mozilla_StartupTimeline_Event(SESSION_RESTORED, "sessionRestored")
 mozilla_StartupTimeline_Event(CREATE_TOP_LEVEL_WINDOW, "createTopLevelWindow")
 mozilla_StartupTimeline_Event(LINKER_INITIALIZED, "linkerInitialized")
 mozilla_StartupTimeline_Event(LIBRARIES_LOADED, "librariesLoaded")
-mozilla_StartupTimeline_Event(FIRST_LOAD_URI, "firstLoadURI")
 #else
 
 #ifndef mozilla_StartupTimeline
@@ -75,13 +74,9 @@ public:
     sStartupTimeline[ev] = when;
   }
 
-  static void RecordOnce(Event ev) {
-    if (!HasRecord(ev))
-      sStartupTimeline[ev] = PR_Now();
-  }
-
-  static bool HasRecord(Event ev) {
-    return sStartupTimeline[ev];
+  static void RecordOnce(Event ev, PRTime when = PR_Now()) {
+    if (!sStartupTimeline[ev])
+      sStartupTimeline[ev] = when;
   }
 
 private:

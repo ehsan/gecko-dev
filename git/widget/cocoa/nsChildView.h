@@ -119,10 +119,6 @@ namespace mozilla {
 namespace gl {
 class TextureImage;
 }
-
-namespace layers {
-class LayerManagerOGL;
-}
 }
 
 #ifndef NP_NO_CARBON
@@ -299,9 +295,6 @@ typedef NSInteger NSEventGestureAxis;
 #ifdef __LP64__
   BOOL *mSwipeAnimationCancelled;
 #endif
-
-  // Whether this uses off-main-thread compositing.
-  BOOL mUsingOMTCompositor;
 }
 
 // class initialization
@@ -334,8 +327,6 @@ typedef NSInteger NSEventGestureAxis;
 // If so, we shouldn't focus or unfocus a plugin.
 - (BOOL)isInFailingLeftClickThrough;
 
-- (void)setGLContext:(NSOpenGLContext *)aGLContext;
-
 // Simple gestures support
 //
 // XXX - The swipeWithEvent, beginGestureWithEvent, magnifyWithEvent,
@@ -357,8 +348,6 @@ typedef NSInteger NSEventGestureAxis;
 - (void)maybeTrackScrollEventAsSwipe:(NSEvent *)anEvent
                       scrollOverflow:(PRInt32)overflow;
 #endif
-
-- (void)setUsingOMTCompositor:(BOOL)aUseOMTC;
 @end
 
 class ChildViewMouseTracker {
@@ -444,7 +433,7 @@ public:
 
   NS_IMETHOD        SetCursor(nsCursor aCursor);
   NS_IMETHOD        SetCursor(imgIContainer* aCursor, PRUint32 aHotspotX, PRUint32 aHotspotY);
-
+  
   NS_IMETHOD        CaptureRollupEvents(nsIRollupListener * aListener, bool aDoCapture, bool aConsumeRollupEvent);
   NS_IMETHOD        SetTitle(const nsAString& title);
 
@@ -497,9 +486,8 @@ public:
   already_AddRefed<nsAccessible> GetDocumentAccessible();
 #endif
 
-  virtual void CreateCompositor();
   virtual gfxASurface* GetThebesSurface();
-  virtual void DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect);
+  virtual void DrawOver(LayerManager* aManager, nsIntRect aRect);
 
   virtual void UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries);
 

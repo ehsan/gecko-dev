@@ -129,28 +129,28 @@ public:
   CellData* AppendCell(nsTableCellFrame&     aCellFrame,
                        PRInt32               aRowIndex,
                        bool                  aRebuildIfNecessary,
-                       nsIntRect&            aDamageArea);
+                       nsRect&               aDamageArea);
 
   void InsertCells(nsTArray<nsTableCellFrame*>& aCellFrames,
                    PRInt32                      aRowIndex,
                    PRInt32                      aColIndexBefore,
-                   nsIntRect&                   aDamageArea);
+                   nsRect&                      aDamageArea);
 
   void RemoveCell(nsTableCellFrame* aCellFrame,
                   PRInt32           aRowIndex,
-                  nsIntRect&        aDamageArea);
+                  nsRect&           aDamageArea);
   /** Remove the previously gathered column information */
   void ClearCols();
   void InsertRows(nsTableRowGroupFrame*       aRowGroup,
                   nsTArray<nsTableRowFrame*>& aRows,
                   PRInt32                     aFirstRowIndex,
                   bool                        aConsiderSpans,
-                  nsIntRect&                  aDamageArea);
+                  nsRect&                     aDamageArea);
 
   void RemoveRows(PRInt32         aFirstRowIndex,
                   PRInt32         aNumRowsToRemove,
                   bool            aConsiderSpans,
-                  nsIntRect&      aDamageArea);
+                  nsRect&               aDamageArea);
 
   PRInt32 GetNumCellsOriginatingInRow(PRInt32 aRowIndex) const;
   PRInt32 GetNumCellsOriginatingInCol(PRInt32 aColIndex) const;
@@ -209,7 +209,7 @@ public:
                                PRInt32                      aRowIndex,
                                PRInt32                      aColIndex,
                                bool                         aInsert,
-                               nsIntRect&                   aDamageArea);
+                               nsRect&                      aDamageArea);
 
 protected:
   /**
@@ -224,7 +224,7 @@ protected:
                               PRInt32                     aStartRowIndex,
                               nsTArray<nsTableRowFrame*>* aRowsToInsert,
                               PRInt32                     aNumRowsToRemove,
-                              nsIntRect&                  aDamageArea);
+                              nsRect&                     aDamageArea);
 
 public:
   void ExpandZeroColSpans();
@@ -379,7 +379,7 @@ public:
                        PRInt32           aRowIndex,
                        bool              aRebuildIfNecessary,
                        PRInt32           aRgFirstRowIndex,
-                       nsIntRect&        aDamageArea,
+                       nsRect&           aDamageArea,
                        PRInt32*          aBeginSearchAtCol = nsnull);
 
   /** Function to be called when a cell is added at a location which is spanned
@@ -403,27 +403,27 @@ public:
                    PRInt32                      aRowIndex,
                    PRInt32                      aColIndexBefore,
                    PRInt32                      aRgFirstRowIndex,
-                   nsIntRect&                   aDamageArea);
+                   nsRect&                      aDamageArea);
 
   void RemoveCell(nsTableCellMap&   aMap,
                   nsTableCellFrame* aCellFrame,
                   PRInt32           aRowIndex,
                   PRInt32           aRgFirstRowIndex,
-                  nsIntRect&        aDamageArea);
+                  nsRect&           aDamageArea);
 
   void InsertRows(nsTableCellMap&             aMap,
                   nsTArray<nsTableRowFrame*>& aRows,
                   PRInt32                     aFirstRowIndex,
                   bool                        aConsiderSpans,
                   PRInt32                     aRgFirstRowIndex,
-                  nsIntRect&                  aDamageArea);
+                  nsRect&                     aDamageArea);
 
   void RemoveRows(nsTableCellMap& aMap,
                   PRInt32         aFirstRowIndex,
                   PRInt32         aNumRowsToRemove,
                   bool            aConsiderSpans,
                   PRInt32         aRgFirstRowIndex,
-                  nsIntRect&      aDamageArea);
+                  nsRect&         aDamageArea);
 
   PRInt32 GetNumCellsOriginatingInRow(PRInt32 aRowIndex) const;
   PRInt32 GetNumCellsOriginatingInCol(PRInt32 aColIndex) const;
@@ -505,7 +505,7 @@ protected:
                       nsTArray<nsTableRowFrame*>& aRowFrames,
                       PRInt32                     aStartRowIndex,
                       PRInt32                     aRgFirstRowIndex,
-                      nsIntRect&                  aDamageArea);
+                      nsRect&                     aDamageArea);
 
   void ExpandWithCells(nsTableCellMap&              aMap,
                        nsTArray<nsTableCellFrame*>& aCellFrames,
@@ -514,20 +514,20 @@ protected:
                        PRInt32                      aRowSpan,
                        bool                         aRowSpanIsZero,
                        PRInt32                      aRgFirstRowIndex,
-                       nsIntRect&                   aDamageArea);
+                       nsRect&                      aDamageArea);
 
   void ShrinkWithoutRows(nsTableCellMap& aMap,
                          PRInt32         aFirstRowIndex,
                          PRInt32         aNumRowsToRemove,
                          PRInt32         aRgFirstRowIndex,
-                         nsIntRect&      aDamageArea);
+                         nsRect&         aDamageArea);
 
   void ShrinkWithoutCell(nsTableCellMap&   aMap,
                          nsTableCellFrame& aCellFrame,
                          PRInt32           aRowIndex,
                          PRInt32           aColIndex,
                          PRInt32           aRgFirstRowIndex,
-                         nsIntRect&        aDamageArea);
+                         nsRect&           aDamageArea);
 
   /**
    * Rebuild due to rows being inserted or deleted with cells spanning

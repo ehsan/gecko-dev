@@ -53,8 +53,6 @@
 #include "gfxContext.h"
 #include "gfxMatrix.h"
 #include "gfxPlatform.h"
-#include "nsSVGEffects.h"
-#include "nsSVGPaintServerFrame.h"
 
 using namespace mozilla;
 
@@ -356,9 +354,9 @@ nsSVGGlyphFrame::PaintSVG(nsSVGRenderState *aContext,
 
     if (renderMode == nsSVGRenderState::CLIP_MASK) {
       gfx->SetColor(gfxRGBA(1.0f, 1.0f, 1.0f, 1.0f));
-      DrawCharacters(&iter, gfx, gfxFont::GLYPH_FILL);
+      FillCharacters(&iter, gfx);
     } else {
-      DrawCharacters(&iter, gfx, gfxFont::GLYPH_PATH);
+      AddCharactersToPath(&iter, gfx);
     }
 
     gfx->SetMatrix(matrix);
@@ -373,13 +371,24 @@ nsSVGGlyphFrame::PaintSVG(nsSVGRenderState *aContext,
   CharacterIterator iter(this, true);
   iter.SetInitialMatrix(gfx);
 
-  nsRefPtr<gfxPattern> strokePattern;
-  DrawMode drawMode = SetupCairoState(gfx, &strokePattern);
-
-  if (drawMode) {
-    DrawCharacters(&iter, gfx, drawMode, strokePattern);
+  if (SetupCairoFill(gfx)) {
+    gfxMatrix matrix = gfx->CurrentMatrix();
+    FillCharacters(&iter, gfx);
+    gfx->SetMatrix(matrix);
   }
-  
+
+  if (SetupCairoStroke(gfx)) {
+    // SetupCairoStroke will clear mTextRun whenever
+    // there is a pattern or gradient on the text
+    iter.Reset();
+
+    gfx->NewPath();
+    AddCharactersToPath(&iter, gfx);
+    gfx->Stroke();
+    // We need to clear the context's path so state doesn't leak
+    // out. See bug 337753.
+    gfx->NewPath();
+  }
   gfx->Restore();
 
   return NS_OK;
@@ -525,19 +534,39 @@ nsSVGGlyphFrame::NotifySVGChanged(PRUint32 aFlags)
   }
 }
 
-void
+NS_IMETHODIMP
 nsSVGGlyphFrame::NotifyRedrawSuspended()
 {
-  AddStateBits(NS_STATE_SVG_REDRAW_SUSPENDED);
+  // XXX should we cache the fact that redraw is suspended?
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsSVGGlyphFrame::NotifyRedrawUnsuspended()
+{
+  if (GetStateBits() & NS_STATE_SVG_DIRTY)
+    nsSVGUtils::UpdateGraphic(this);
+
+  return NS_OK;
 }
 
 void
-nsSVGGlyphFrame::NotifyRedrawUnsuspended()
+nsSVGGlyphFrame::AddCharactersToPath(CharacterIterator *aIter,
+                                     gfxContext *aContext)
 {
-  RemoveStateBits(NS_STATE_SVG_REDRAW_SUSPENDED);
+  aIter->SetLineWidthAndDashesForDrawing(aContext);
+  if (aIter->SetupForDirectTextRunDrawing(aContext)) {
+    mTextRun->DrawToPath(aContext, gfxPoint(0, 0), 0,
+                         mTextRun->GetLength(), nsnull, nsnull);
+    return;
+  }
 
-  if (GetStateBits() & NS_STATE_SVG_DIRTY)
-    nsSVGUtils::UpdateGraphic(this);
+  PRUint32 i;
+  while ((i = aIter->NextCluster()) != aIter->InvalidCluster()) {
+    aIter->SetupForDrawing(aContext);
+    mTextRun->DrawToPath(aContext, gfxPoint(0, 0), i, aIter->ClusterLength(),
+                         nsnull, nsnull);
+  }
 }
 
 void
@@ -563,26 +592,20 @@ nsSVGGlyphFrame::AddBoundingBoxesToPath(CharacterIterator *aIter,
 }
 
 void
-nsSVGGlyphFrame::DrawCharacters(CharacterIterator *aIter,
-                                gfxContext *aContext,
-                                DrawMode aDrawMode,
-                                gfxPattern *aStrokePattern)
+nsSVGGlyphFrame::FillCharacters(CharacterIterator *aIter,
+                                gfxContext *aContext)
 {
-  if (aDrawMode & gfxFont::GLYPH_STROKE) {
-    aIter->SetLineWidthAndDashesForDrawing(aContext);
-  }
-
   if (aIter->SetupForDirectTextRunDrawing(aContext)) {
-    mTextRun->Draw(aContext, gfxPoint(0, 0), aDrawMode, 0,
-                   mTextRun->GetLength(), nsnull, nsnull, aStrokePattern);
+    mTextRun->Draw(aContext, gfxPoint(0, 0), 0,
+                   mTextRun->GetLength(), nsnull, nsnull);
     return;
   }
 
   PRUint32 i;
   while ((i = aIter->NextCluster()) != aIter->InvalidCluster()) {
     aIter->SetupForDrawing(aContext);
-    mTextRun->Draw(aContext, gfxPoint(0, 0), aDrawMode, i,
-                   aIter->ClusterLength(), nsnull, nsnull, aStrokePattern);
+    mTextRun->Draw(aContext, gfxPoint(0, 0), i, aIter->ClusterLength(),
+                   nsnull, nsnull);
   }
 }
 
@@ -875,46 +898,6 @@ nsSVGGlyphFrame::GetBaselineOffset(float aMetricsScale)
     return 0.0;
   }
   return baselineAppUnits * aMetricsScale;
-}
-
-DrawMode
-nsSVGGlyphFrame::SetupCairoState(gfxContext *context, nsRefPtr<gfxPattern> *strokePattern) {
-  DrawMode toDraw = DrawMode(0);
-  const nsStyleSVG* style = GetStyleSVG();
-
-  if (HasStroke()) {
-    gfxContextMatrixAutoSaveRestore matrixRestore(context);
-    context->IdentityMatrix();
-
-    toDraw = DrawMode(toDraw | gfxFont::GLYPH_STROKE);
-
-    SetupCairoStrokeHitGeometry(context);
-    float opacity = style->mStrokeOpacity;
-    nsSVGPaintServerFrame *ps = GetPaintServer(&style->mStroke,
-                                               nsSVGEffects::StrokeProperty());
-
-    if (ps) {
-      // Gradient or Pattern: can get pattern directly from frame
-      *strokePattern = ps->GetPaintServerPattern(this, opacity);
-
-      NS_ASSERTION(*strokePattern, "No pattern returned from paint server");
-    } else {
-      nscolor color;
-      nsSVGUtils::GetFallbackOrPaintColor(context, GetStyleContext(),
-                                          &nsStyleSVG::mStroke, &opacity,
-                                          &color);
-      *strokePattern = new gfxPattern(gfxRGBA(NS_GET_R(color) / 255.0,
-                                              NS_GET_G(color) / 255.0,
-                                              NS_GET_B(color) / 255.0,
-                                              NS_GET_A(color) / 255.0 * opacity));
-    }
-  }
-
-  if (SetupCairoFill(context)) {
-    toDraw = DrawMode(toDraw | gfxFont::GLYPH_FILL);
-  }
-
-  return toDraw;
 }
 
 //----------------------------------------------------------------------
@@ -1591,7 +1574,7 @@ nsSVGGlyphFrame::EnsureTextRun(float *aDrawScale, float *aMetricsScale,
     bool printerFont = (presContext->Type() == nsPresContext::eContext_PrintPreview ||
                           presContext->Type() == nsPresContext::eContext_Print);
     gfxFontStyle fontStyle(font.style, font.weight, font.stretch, textRunSize,
-                           mStyleContext->GetStyleFont()->mLanguage,
+                           mStyleContext->GetStyleVisibility()->mLanguage,
                            font.sizeAdjust, font.systemFont,
                            printerFont,
                            font.featureSettings,

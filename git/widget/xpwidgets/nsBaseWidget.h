@@ -51,17 +51,6 @@ class nsIContent;
 class nsAutoRollup;
 class gfxContext;
 
-namespace mozilla {
-namespace layers {
-class CompositorChild;
-class CompositorParent;
-}
-}
-
-namespace base {
-class Thread;
-}
-
 /**
  * Common widget implementation used as base class for native
  * or crossplatform implementations of Widgets. 
@@ -77,9 +66,6 @@ class nsBaseWidget : public nsIWidget
 
 protected:
   typedef mozilla::layers::BasicLayerManager BasicLayerManager;
-  typedef mozilla::layers::CompositorChild CompositorChild;
-  typedef mozilla::layers::CompositorParent CompositorParent;
-  typedef base::Thread Thread;
 
 public:
   nsBaseWidget();
@@ -131,8 +117,7 @@ public:
                                           LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                                           bool* aAllowRetaining = nsnull);
 
-  virtual void            CreateCompositor();
-  virtual void            DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect) {}
+  virtual void            DrawOver(LayerManager* aManager, nsIntRect aRect) {}
   virtual void            UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries) {}
   virtual gfxASurface*    GetThebesSurface();
   NS_IMETHOD              SetModal(bool aModal); 
@@ -179,7 +164,6 @@ public:
               nsDeviceContext *aContext,
               nsWidgetInitData *aInitData = nsnull,
               bool             aForceUseIWidgetParent = false);
-  NS_IMETHOD              SetEventCallback(EVENT_CALLBACK aEventFunction, nsDeviceContext *aContext);
   NS_IMETHOD              AttachViewToTopLevel(EVENT_CALLBACK aViewEventFunction, nsDeviceContext *aContext);
   virtual ViewWrapper*    GetAttachedViewPtr();
   NS_IMETHOD              SetAttachedViewPtr(ViewWrapper* aViewWrapper);
@@ -202,9 +186,6 @@ public:
   }
 
   NS_IMETHOD              ReparentNativeWidget(nsIWidget* aNewParent) = 0;
-
-  virtual PRUint32 GetGLFrameBufferFormat() MOZ_OVERRIDE;
-
   /**
    * Use this when GetLayerManager() returns a BasicLayerManager
    * (nsBaseWidget::GetLayerManager() does). This sets up the widget's
@@ -287,9 +268,6 @@ protected:
   nsDeviceContext* mContext;
   nsRefPtr<LayerManager> mLayerManager;
   nsRefPtr<LayerManager> mBasicLayerManager;
-  nsRefPtr<CompositorChild> mCompositorChild;
-  nsRefPtr<CompositorParent> mCompositorParent;
-  Thread*           mCompositorThread;
   nscolor           mBackground;
   nscolor           mForeground;
   nsCursor          mCursor;

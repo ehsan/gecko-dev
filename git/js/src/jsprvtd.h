@@ -86,6 +86,7 @@ typedef struct JSGenerator          JSGenerator;
 typedef struct JSNativeEnumerator   JSNativeEnumerator;
 typedef struct JSProperty           JSProperty;
 typedef struct JSSharpObjectMap     JSSharpObjectMap;
+typedef struct JSThread             JSThread;
 typedef struct JSTryNote            JSTryNote;
 
 /* Friend "Advanced API" typedefs. */
@@ -126,14 +127,14 @@ struct Class;
 class RegExpObject;
 class RegExpMatcher;
 class RegExpObjectBuilder;
-class RegExpShared;
 class RegExpStatics;
 class MatchPairs;
 
 namespace detail {
 
-class RegExpCode;
-class RegExpCacheValue;
+class RegExpPrivate;
+class RegExpPrivateCode;
+class RegExpPrivateCacheValue;
 
 } /* namespace detail */
 
@@ -220,6 +221,12 @@ class Breakpoint;
 class BreakpointSite;
 class Debugger;
 class WatchpointMap;
+
+typedef HashMap<JSAtom *,
+                detail::RegExpPrivateCacheValue,
+                DefaultHasher<JSAtom *>,
+                RuntimeAllocPolicy>
+    RegExpPrivateCache;
 
 /*
  * Env is the type of what ES5 calls "lexical environments" (runtime

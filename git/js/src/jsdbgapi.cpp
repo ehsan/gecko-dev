@@ -46,6 +46,7 @@
 #include <stdarg.h>
 #include "jsprvtd.h"
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "jsutil.h"
 #include "jsclist.h"
 #include "jsapi.h"
@@ -978,7 +979,7 @@ JS_SetDebugErrorHook(JSRuntime *rt, JSDebugErrorHook hook, void *closure)
 JS_PUBLIC_API(size_t)
 JS_GetObjectTotalSize(JSContext *cx, JSObject *obj)
 {
-    return obj->computedSizeOfThisSlotsElements();
+    return obj->slotsAndStructSize();
 }
 
 static size_t
@@ -1619,13 +1620,13 @@ JS_PUBLIC_API(void)
 JS_DumpBytecode(JSContext *cx, JSScript *script)
 {
 #if defined(DEBUG)
-    Sprinter sprinter(cx);
-    if (!sprinter.init())
-        return;
+    LifoAlloc lifoAlloc(1024);
+    Sprinter sprinter;
+    INIT_SPRINTER(cx, &sprinter, &lifoAlloc, 0);
 
     fprintf(stdout, "--- SCRIPT %s:%d ---\n", script->filename, script->lineno);
     js_Disassemble(cx, script, true, &sprinter);
-    fputs(sprinter.string(), stdout);
+    fputs(sprinter.base, stdout);
     fprintf(stdout, "--- END SCRIPT %s:%d ---\n", script->filename, script->lineno);
 #endif
 }
@@ -1636,13 +1637,13 @@ JS_DumpPCCounts(JSContext *cx, JSScript *script)
 #if defined(DEBUG)
     JS_ASSERT(script->pcCounters);
 
-    Sprinter sprinter(cx);
-    if (!sprinter.init())
-        return;
+    LifoAlloc lifoAlloc(1024);
+    Sprinter sprinter;
+    INIT_SPRINTER(cx, &sprinter, &lifoAlloc, 0);
 
     fprintf(stdout, "--- SCRIPT %s:%d ---\n", script->filename, script->lineno);
     js_DumpPCCounts(cx, script, &sprinter);
-    fputs(sprinter.string(), stdout);
+    fputs(sprinter.base, stdout);
     fprintf(stdout, "--- END SCRIPT %s:%d ---\n", script->filename, script->lineno);
 #endif
 }
