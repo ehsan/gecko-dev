@@ -1004,7 +1004,6 @@ gfxMacPlatformFontList::MakePlatformFontCG(const gfxProxyFontEntry *aProxyEntry,
                                      aProxyEntry->mItalic ?
                                          FONT_STYLE_ITALIC : FONT_STYLE_NORMAL,
                                      true, false));
-    ::CFRelease(fontRef);
 
     // if succeeded and font cmap is good, return the new font
     if (newFontEntry->mIsValid && NS_SUCCEEDED(newFontEntry->ReadCMAP())) {

@@ -60,7 +60,7 @@ const char * const PKIX_ErrorText[] =
 
 #endif /* PKIX_ERROR_DESCRIPTION */
 
-extern const PKIX_Int32 PKIX_PLErrorIndex[];
+extern const int PKIX_PLErrorIndex[];
 
 /* --Private-Functions-------------------------------------------- */
 

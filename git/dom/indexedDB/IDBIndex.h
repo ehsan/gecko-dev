@@ -97,16 +97,6 @@ public:
     return mKeyPath;
   }
 
-  bool UsesKeyPathArray() const
-  {
-    return !mKeyPathArray.IsEmpty();
-  }
-  
-  const nsTArray<nsString>& KeyPathArray() const
-  {
-    return mKeyPathArray;
-  }
-
 private:
   IDBIndex();
   ~IDBIndex();
@@ -119,7 +109,6 @@ private:
   PRInt64 mId;
   nsString mName;
   nsString mKeyPath;
-  nsTArray<nsString> mKeyPathArray;
   bool mUnique;
   bool mMultiEntry;
 };

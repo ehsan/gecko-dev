@@ -75,11 +75,6 @@ function getPref(func, preference, defaultValue) {
   return defaultValue;
 }
 
-function sendMessageToJava(aMsg) {
-  let data = Cc["@mozilla.org/android/bridge;1"].getService(Ci.nsIAndroidBridge).handleGeckoMessage(JSON.stringify(aMsg));
-  return JSON.parse(data);
-}
-
 // -----------------------------------------------------------------------
 // Update Prompt
 // -----------------------------------------------------------------------
@@ -143,11 +138,8 @@ UpdatePrompt.prototype = {
 
       // If nothing aborted, restart the app
       if (cancelQuit.data == false) {
-        sendMessageToJava({
-          gecko: {
-            type: "Update:Restart"
-          }
-        });
+        let appStartup = Cc["@mozilla.org/toolkit/app-startup;1"].getService(Ci.nsIAppStartup);
+        appStartup.quit(Ci.nsIAppStartup.eRestart | Ci.nsIAppStartup.eAttemptQuit);
       }
     }
   },

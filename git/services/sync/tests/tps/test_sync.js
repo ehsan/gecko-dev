@@ -378,7 +378,7 @@ Phase('phase1', [
   [Bookmarks.add, bookmarks_initial],
   [Passwords.add, passwords_initial],
   [History.add, history_initial],
-  [Sync],
+  [Sync, SYNC_WIPE_SERVER],
 ]);
 
 Phase('phase2', [

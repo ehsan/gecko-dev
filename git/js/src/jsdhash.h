@@ -580,30 +580,26 @@ extern JS_PUBLIC_API(uint32_t)
 JS_DHashTableEnumerate(JSDHashTable *table, JSDHashEnumerator etor, void *arg);
 
 typedef size_t
-(* JSDHashSizeOfEntryExcludingThisFun)(JSDHashEntryHdr *hdr,
-                                       JSMallocSizeOfFun mallocSizeOf,
-                                       void *arg);
+(* JSDHashSizeOfEntryFun)(JSDHashEntryHdr *hdr, JSMallocSizeOfFun mallocSizeOf);
 
 /**
- * Measure the size of the table's entry storage, and if
- * |sizeOfEntryExcludingThis| is non-NULL, measure the size of things pointed
- * to by entries.  Doesn't measure |ops| because it's often shared between
- * tables, nor |data| because it's opaque.
+ * Measure the size of the table's entry storage, and if |sizeOfEntry| is
+ * non-NULL, measure the size of things pointed to by entries.  Doesn't measure
+ * |ops| because it's often shared between tables, nor |data| because it's
+ * opaque.
  */
 extern JS_PUBLIC_API(size_t)
 JS_DHashTableSizeOfExcludingThis(const JSDHashTable *table,
-                                 JSDHashSizeOfEntryExcludingThisFun sizeOfEntryExcludingThis,
-                                 JSMallocSizeOfFun mallocSizeOf,
-                                 void *arg = NULL);
+                                 JSDHashSizeOfEntryFun sizeOfEntry,
+                                 JSMallocSizeOfFun mallocSizeOf);
 
 /**
  * Like JS_DHashTableSizeOfExcludingThis, but includes sizeof(*this).
  */
 extern JS_PUBLIC_API(size_t)
 JS_DHashTableSizeOfIncludingThis(const JSDHashTable *table,
-                                 JSDHashSizeOfEntryExcludingThisFun sizeOfEntryExcludingThis,
-                                 JSMallocSizeOfFun mallocSizeOf,
-                                 void *arg = NULL);
+                                 JSDHashSizeOfEntryFun sizeOfEntry,
+                                 JSMallocSizeOfFun mallocSizeOf);
 
 #ifdef DEBUG
 /**

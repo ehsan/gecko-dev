@@ -3667,7 +3667,7 @@ nsTableFrame::GetCellDataAt(PRInt32        aRowIndex,
                             PRInt32&       aColSpan,
                             PRInt32&       aActualRowSpan,
                             PRInt32&       aActualColSpan,
-                            bool&          aIsSelected)
+                            bool&        aIsSelected)
 {
   // Initialize out params
   aCell = nsnull;
@@ -3700,7 +3700,8 @@ nsTableFrame::GetCellDataAt(PRInt32        aRowIndex,
   if (aActualRowSpan == 0 || aActualColSpan == 0)
     return NS_ERROR_FAILURE;
 
-  aIsSelected = cellFrame->IsSelected();
+  result = cellFrame->GetSelected(&aIsSelected);
+  if (NS_FAILED(result)) return result;
 
   // do this last, because it addrefs,
   // and we don't want the caller leaking it on error

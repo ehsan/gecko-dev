@@ -949,9 +949,7 @@ RasterImage::GetImageContainer(LayerManager* aManager,
   
   CairoImage::Data cairoData;
   nsRefPtr<gfxASurface> imageSurface;
-  nsresult rv = GetFrame(FRAME_CURRENT, FLAG_SYNC_DECODE, getter_AddRefs(imageSurface));
-  NS_ENSURE_SUCCESS(rv, rv);
-
+  GetFrame(FRAME_CURRENT, FLAG_SYNC_DECODE, getter_AddRefs(imageSurface));
   cairoData.mSurface = imageSurface;
   GetWidth(&cairoData.mSize.width);
   GetHeight(&cairoData.mSize.height);

@@ -1,15 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<org.mozilla.gecko.AwesomeBarTabs xmlns:android="http://schemas.android.com/apk/res/android"
-                                  android:id="@+id/awesomebar_tabs"
-                                  android:layout_width="fill_parent"
-                                  android:layout_height="wrap_content">
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
 
     <LinearLayout android:orientation="vertical"
                   android:layout_width="fill_parent"
                   android:layout_height="fill_parent">
 
         <TabWidget android:id="@android:id/tabs"
-                   style="@style/TabWidget"/>
+                   android:layout_width="fill_parent"
+                   android:layout_height="wrap_content"
+                   android:background="@color/awesomebar_background"/>
 
         <FrameLayout android:id="@android:id/tabcontent"
                      android:layout_width="fill_parent"
@@ -29,4 +28,4 @@
 
     </LinearLayout>
 
-</org.mozilla.gecko.AwesomeBarTabs>
+</merge>

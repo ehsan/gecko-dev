@@ -106,7 +106,9 @@ nsHTMLTableCellAccessible::NativeState()
 
   if (frame) {
     state |= states::SELECTABLE;
-    if (frame->IsSelected())
+    bool isSelected = false;
+    frame->GetSelected(&isSelected);
+    if (isSelected)
       state |= states::SELECTED;
   }
 

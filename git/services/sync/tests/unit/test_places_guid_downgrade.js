@@ -15,12 +15,12 @@ function setPlacesDatabase(aFileName) {
   removePlacesDatabase();
   _("Copying over places.sqlite.");
   let file = do_get_file(aFileName);
-  file.copyTo(gSyncProfile, kDBName);
+  file.copyTo(gProfD, kDBName);
 }
 
 function removePlacesDatabase() {
   _("Removing places.sqlite.");
-  let file = gSyncProfile.clone();
+  let file = gProfD.clone();
   file.append(kDBName);
   try {
     file.remove(false);
@@ -38,7 +38,7 @@ Svc.Obs.add("places-shutdown", function () {
 function test_initial_state() {
   // Mostly sanity checks our starting DB to make sure it's setup as we expect
   // it to be.
-  let dbFile = gSyncProfile.clone();
+  let dbFile = gProfD.clone();
   dbFile.append(kDBName);
   let db = storageSvc.openUnsharedDatabase(dbFile);
 

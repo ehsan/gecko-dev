@@ -138,7 +138,6 @@ Tilt.prototype = {
     this.visualizers[aId].cleanup();
     this.visualizers[aId] = null;
 
-    this.chromeWindow.gBrowser.selectedBrowser.contentWindow.focus();
     Services.obs.notifyObservers(null, TILT_NOTIFICATIONS.DESTROYED, null);
   },
 

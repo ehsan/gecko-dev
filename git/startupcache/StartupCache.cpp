@@ -82,41 +82,24 @@
 #define SC_WORDSIZE "8"
 #endif
 
-namespace mozilla {
-namespace scache {
-
 static PRInt64
-GetStartupCacheMappingSize()
+GetStartupCacheSize()
 {
     mozilla::scache::StartupCache* sc = mozilla::scache::StartupCache::GetSingleton();
     return sc ? sc->SizeOfMapping() : 0;
 }
 
-NS_MEMORY_REPORTER_IMPLEMENT(StartupCacheMapping,
-                             "explicit/startup-cache/mapping",
+NS_MEMORY_REPORTER_IMPLEMENT(StartupCache,
+                             "explicit/startup-cache",
                              KIND_NONHEAP,
                              nsIMemoryReporter::UNITS_BYTES,
-                             GetStartupCacheMappingSize,
-                             "Memory used to hold the mapping of the startup "
-                             "cache from file.  This memory is likely to be "
+                             GetStartupCacheSize,
+                             "Memory used to hold the startup cache.  This "
+                             "memory is backed by a file and is likely to be "
                              "swapped out shortly after start-up.")
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(StartupCacheDataMallocSizeOf, "startup-cache/data")
-
-static PRInt64
-GetStartupCacheDataSize()
-{
-    mozilla::scache::StartupCache* sc = mozilla::scache::StartupCache::GetSingleton();
-    return sc ? sc->HeapSizeOfIncludingThis(StartupCacheDataMallocSizeOf) : 0;
-}
-
-NS_MEMORY_REPORTER_IMPLEMENT(StartupCacheData,
-                             "explicit/startup-cache/data",
-                             KIND_HEAP,
-                             nsIMemoryReporter::UNITS_BYTES,
-                             GetStartupCacheDataSize,
-                             "Memory used by the startup cache for things "
-                             "other than the file mapping.")
+namespace mozilla {
+namespace scache {
 
 static const char sStartupCacheName[] = "startupCache." SC_WORDSIZE "." SC_ENDIAN;
 static NS_DEFINE_CID(kZipReaderCID, NS_ZIPREADER_CID);
@@ -155,7 +138,7 @@ bool StartupCache::gShutdownInitiated;
 
 StartupCache::StartupCache() 
   : mArchive(NULL), mStartupWriteInitiated(false), mWriteThread(NULL),
-    mMappingMemoryReporter(nsnull), mDataMemoryReporter(nsnull) { }
+    mMemoryReporter(nsnull) { }
 
 StartupCache::~StartupCache() 
 {
@@ -169,10 +152,8 @@ StartupCache::~StartupCache()
   WaitOnWriteThread();
   WriteToDisk();
   gStartupCache = nsnull;
-  (void)::NS_UnregisterMemoryReporter(mMappingMemoryReporter);
-  (void)::NS_UnregisterMemoryReporter(mDataMemoryReporter);
-  mMappingMemoryReporter = nsnull;
-  mDataMemoryReporter = nsnull;
+  (void)::NS_UnregisterMemoryReporter(mMemoryReporter);
+  mMemoryReporter = nsnull;
 }
 
 nsresult
@@ -246,10 +227,8 @@ StartupCache::Init()
     InvalidateCache();
   }
 
-  mMappingMemoryReporter = new NS_MEMORY_REPORTER_NAME(StartupCacheMapping);
-  mDataMemoryReporter    = new NS_MEMORY_REPORTER_NAME(StartupCacheData);
-  (void)::NS_RegisterMemoryReporter(mMappingMemoryReporter);
-  (void)::NS_RegisterMemoryReporter(mDataMemoryReporter);
+  mMemoryReporter = new NS_MEMORY_REPORTER_NAME(StartupCache);
+  (void)::NS_RegisterMemoryReporter(mMemoryReporter);
 
   return NS_OK;
 }
@@ -356,26 +335,10 @@ StartupCache::PutBuffer(const char* id, const char* inbuf, PRUint32 len)
   return ResetStartupWriteTimer();
 }
 
-size_t
+PRInt64
 StartupCache::SizeOfMapping() 
 {
     return mArchive ? mArchive->SizeOfMapping() : 0;
-}
-
-size_t
-StartupCache::HeapSizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
-{
-    // This function could measure more members, but they haven't been found by
-    // DMD to be significant.  They can be added later if necessary.
-    return aMallocSizeOf(this, sizeof(StartupCache)) +
-           mTable.SizeOfExcludingThis(SizeOfEntryExcludingThis, aMallocSizeOf);
-}
-
-/* static */ size_t
-StartupCache::SizeOfEntryExcludingThis(const nsACString& key, const nsAutoPtr<CacheEntry>& data,
-                                       nsMallocSizeOfFun mallocSizeOf, void *)
-{
-    return data->SizeOfExcludingThis(mallocSizeOf);
 }
 
 struct CacheWriteHolder

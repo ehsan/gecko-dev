@@ -64,9 +64,6 @@ InitClass(JSContext* aCx, JSObject* aGlobal, JSObject* aProto,
 
 } // namespace chromeworker
 
-bool
-ClassIsWorker(JSClass* aClass);
-
 END_WORKERS_NAMESPACE
 
 #endif /* mozilla_dom_workers_worker_h__ */

@@ -38,11 +38,14 @@
 
 package org.mozilla.gecko;
 
+import java.util.Date;
+
 import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.LinearLayout.LayoutParams;
 import android.widget.TextView;
 
 import org.json.JSONObject;
@@ -52,6 +55,7 @@ public class DoorHanger extends LinearLayout implements Button.OnClickListener {
     private Context mContext;
     private LinearLayout mChoicesLayout;
     private TextView mTextView;
+    private Button mButton;
     static private LayoutParams mLayoutParams;
     public Tab mTab;
     // value used to identify the notification
@@ -152,7 +156,7 @@ public class DoorHanger extends LinearLayout implements Button.OnClickListener {
             return false;
         }
 
-        if (System.currentTimeMillis() <= mTimeout) {
+        if (new Date().getTime() <= mTimeout) {
             return false;
         }
 

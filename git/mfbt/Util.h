@@ -40,7 +40,6 @@
 #ifndef mozilla_Util_h_
 #define mozilla_Util_h_
 
-#include "mozilla/Attributes.h"
 #include "mozilla/Types.h"
 
 /*
@@ -60,7 +59,7 @@
 MOZ_BEGIN_EXTERN_C
 
 extern MFBT_API(void)
-JS_Assert(const char *s, const char *file, int ln);
+JS_Assert(const char *s, const char *file, JSIntn ln);
 
 MOZ_END_EXTERN_C
 

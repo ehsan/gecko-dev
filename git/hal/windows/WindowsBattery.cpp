@@ -223,15 +223,9 @@ GetCurrentBatteryInformation(hal::BatteryInformation* aBatteryInfo)
                                      : ((double)status.BatteryLifePercent) / 100.0;
   aBatteryInfo->charging() = (status.ACLineStatus != 0);
   if (status.ACLineStatus != 0) {
-    if (aBatteryInfo->level() == 1.0) {
-      // GetSystemPowerStatus API may returns -1 for BatteryFullLifeTime.
-      // So, if battery is 100%, set kDefaultRemainingTime at force.
-      aBatteryInfo->remainingTime() = kDefaultRemainingTime;
-    } else {
-      aBatteryInfo->remainingTime() =
-        status.BatteryFullLifeTime == (DWORD)-1 ? kUnknownRemainingTime
-                                                : status.BatteryFullLifeTime;
-    }
+    aBatteryInfo->remainingTime() =
+      status.BatteryFullLifeTime == (DWORD)-1 ? kUnknownRemainingTime
+                                              : status.BatteryFullLifeTime;
   } else {
     aBatteryInfo->remainingTime() =
       status.BatteryLifeTime == (DWORD)-1 ? kUnknownRemainingTime

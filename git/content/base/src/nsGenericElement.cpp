@@ -91,9 +91,6 @@
 #endif /* MOZ_XUL */
 #include "nsFrameManager.h"
 #include "nsFrameSelection.h"
-#ifdef DEBUG
-#include "nsIRange.h"
-#endif
 
 #include "nsBindingManager.h"
 #include "nsXBLBinding.h"
@@ -1064,9 +1061,8 @@ nsINode::LookupNamespaceURI(const nsAString& aNamespacePrefix,
                             nsAString& aNamespaceURI)
 {
   Element *element = GetNameSpaceElement();
-  if (!element ||
-      NS_FAILED(element->LookupNamespaceURIInternal(aNamespacePrefix,
-                                                    aNamespaceURI))) {
+  if (!element || NS_FAILED(element->LookupNamespaceURI(aNamespacePrefix,
+                                                        aNamespaceURI))) {
     SetDOMStringToNull(aNamespaceURI);
   }
 
@@ -1207,20 +1203,6 @@ nsINode::Trace(nsINode *tmp, TraceCallback cb, void *closure)
   nsContentUtils::TraceWrapper(tmp, cb, closure);
 }
 
-static bool
-IsBlackNode(nsINode* aNode)
-{
-  JSObject* o = aNode->GetWrapperPreserveColor();
-  return o && !xpc_IsGrayGCThing(o);
-}
-
-static bool
-IsXBL(nsINode* aNode)
-{
-  return aNode->IsElement() &&
-         aNode->AsElement()->IsInNamespace(kNameSpaceID_XBL);
-}
-
 /* static */
 bool
 nsINode::Traverse(nsINode *tmp, nsCycleCollectionTraversalCallback &cb)
@@ -1229,34 +1211,6 @@ nsINode::Traverse(nsINode *tmp, nsCycleCollectionTraversalCallback &cb)
   if (currentDoc &&
       nsCCUncollectableMarker::InGeneration(cb, currentDoc->GetMarkedCCGeneration())) {
     return false;
-  }
-
-  if (nsCCUncollectableMarker::sGeneration) {
-    // If we're black no need to traverse.
-    if (IsBlackNode(tmp)) {
-      return false;
-    }
-
-    const PtrBits problematicFlags =
-      (NODE_IS_ANONYMOUS |
-       NODE_IS_IN_ANONYMOUS_SUBTREE |
-       NODE_IS_NATIVE_ANONYMOUS_ROOT |
-       NODE_MAY_BE_IN_BINDING_MNGR |
-       NODE_IS_INSERTION_PARENT);
-
-    if (!tmp->HasFlag(problematicFlags) && !IsXBL(tmp)) {
-      // If we're in a black document, return early.
-      if ((currentDoc && IsBlackNode(currentDoc))) {
-        return false;
-      }
-      // If we're not in anonymous content and we have a black parent,
-      // return early.
-      nsIContent* parent = tmp->GetParent();
-      if (parent && !IsXBL(parent) && IsBlackNode(parent)) {
-        NS_ABORT_IF_FALSE(parent->IndexOf(tmp) >= 0, "Parent doesn't own us?");
-        return false;
-      }
-    }
   }
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mNodeInfo)
@@ -1476,8 +1430,8 @@ nsIContent::GetEditingHost()
 }
 
 nsresult
-nsIContent::LookupNamespaceURIInternal(const nsAString& aNamespacePrefix,
-                                       nsAString& aNamespaceURI) const
+nsIContent::LookupNamespaceURI(const nsAString& aNamespacePrefix,
+                               nsAString& aNamespaceURI) const
 {
   if (aNamespacePrefix.EqualsLiteral("xml")) {
     // Special-case for xml prefix
@@ -4978,11 +4932,6 @@ nsGenericElement::List(FILE* out, PRInt32 aIndent,
 
   fprintf(out, " state=[%llx]", State().GetInternalValue());
   fprintf(out, " flags=[%08x]", static_cast<unsigned int>(GetFlags()));
-  if (IsCommonAncestorForRangeInSelection()) {
-    nsIRange::RangeHashTable* ranges =
-      static_cast<nsIRange::RangeHashTable*>(GetProperty(nsGkAtoms::range));
-    fprintf(out, " ranges:%d", ranges ? ranges->Count() : 0);
-  }
   fprintf(out, " primaryframe=%p", static_cast<void*>(GetPrimaryFrame()));
   fprintf(out, " refcount=%d<", mRefCnt.get());
 

@@ -55,10 +55,6 @@
 #include <pthread.h>
 #include <wchar.h>
 
-#ifdef MOZ_ANDROID_HISTORY
-#include "nsAndroidHistory.h"
-#endif
-
 #ifdef MOZ_LOGGING
 #define FORCE_PR_LOG
 #include "prlog.h"
@@ -88,8 +84,7 @@ nsAppShell::nsAppShell()
     : mQueueLock("nsAppShell.mQueueLock"),
       mCondLock("nsAppShell.mCondLock"),
       mQueueCond(mCondLock, "nsAppShell.mQueueCond"),
-      mNumDraws(0),
-      mNumViewports(0)
+      mNumDraws(0)
 {
     gAppShell = this;
 }
@@ -247,15 +242,6 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         int curType = curEvent->Type();
         int nextType = nextEvent->Type();
 
-        while (nextType == AndroidGeckoEvent::VIEWPORT && mNumViewports > 1) {
-            // Skip this viewport change, as there's another one later and
-            // processing this one will only cause more unnecessary work
-            PopNextEvent();
-            delete nextEvent;
-            nextEvent = PeekNextEvent();
-            nextType = nextEvent->Type();
-        }
-
         while (nextType == AndroidGeckoEvent::DRAW && mLastDrawEvent &&
                mNumDraws > 1)
         {
@@ -385,12 +371,6 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         // of flushing data
         nsIPrefService* prefs = Preferences::GetService();
         if (prefs) {
-            // reset the crash loop state
-            nsCOMPtr<nsIPrefBranch> prefBranch;
-            prefs->GetBranch("browser.sessionstore.", getter_AddRefs(prefBranch));
-            if (prefBranch)
-                prefBranch->SetIntPref("recent_crashes", 0);
-
             prefs->SavePrefFile(nsnull);
         }
 
@@ -405,7 +385,6 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         break;
     }
 
-    case AndroidGeckoEvent::VIEWPORT:
     case AndroidGeckoEvent::BROADCAST: {
 
         if (curEvent->Characters().Length() == 0)
@@ -455,13 +434,6 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         break;
     }
 
-    case AndroidGeckoEvent::VISITED: {
-#ifdef MOZ_ANDROID_HISTORY
-        nsAndroidHistory::NotifyURIVisited(nsString(curEvent->Characters()));
-#endif
-        break;
-    }
-
     default:
         nsWindow::OnGlobalAndroidEvent(curEvent);
     }
@@ -489,8 +461,6 @@ nsAppShell::PopNextEvent()
         if (ae->Type() == AndroidGeckoEvent::DRAW) {
             if (--mNumDraws == 0)
                 mLastDrawEvent = nsnull;
-        } else if (ae->Type() == AndroidGeckoEvent::VIEWPORT) {
-            mNumViewports--;
         }
     }
 
@@ -533,8 +503,6 @@ nsAppShell::PostEvent(AndroidGeckoEvent *ae)
         if (ae->Type() == AndroidGeckoEvent::DRAW) {
             mNumDraws++;
             mLastDrawEvent = ae;
-        } else if (ae->Type() == AndroidGeckoEvent::VIEWPORT) {
-            mNumViewports++;
         }
     }
     NotifyNativeEvent();

@@ -22,7 +22,6 @@ function test() {
     parentNode: gBrowser.selectedBrowser.parentNode,
     contentWindow: gBrowser.selectedBrowser.contentWindow,
     requestAnimationFrame: window.mozRequestAnimationFrame,
-    inspectorUI: window.InspectorUI,
 
     onError: function onWebGLError()
     {

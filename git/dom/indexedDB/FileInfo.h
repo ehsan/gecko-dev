@@ -131,7 +131,7 @@ private:
 class FileInfo##_bits : public FileInfo                                       \
 {                                                                             \
 public:                                                                       \
-  FileInfo##_bits(FileManager* aFileManager, PRInt##_bits aId)                \
+  FileInfo##_bits(FileManager* aFileManager, PRInt64 aId)                     \
   : FileInfo(aFileManager), mId(aId)                                          \
   { }                                                                         \
                                                                               \

@@ -275,10 +275,24 @@ EXPORTS_js = \
 		$(NULL)
 
 ###############################################
-# BEGIN include sources for low-level code shared with mfbt
+# BEGIN include sources for low-level code shared with Gecko
 #
-VPATH += $(srcdir)/../../mfbt
-include $(srcdir)/../../mfbt/exported_headers.mk
+VPATH		+= \
+		$(srcdir)/../../mfbt \
+		$(NULL)
+
+EXPORTS_NAMESPACES += mozilla
+
+EXPORTS_mozilla = \
+		Attributes.h	\
+		GuardObjects.h \
+		MSStdInt.h \
+		RangedPtr.h \
+		RefPtr.h \
+		StdInt.h \
+		Types.h	\
+		Util.h \
+		$(NULL)
 
 ifdef ENABLE_METHODJIT
 

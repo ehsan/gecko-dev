@@ -3872,16 +3872,14 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
       case JSOP_NEWARRAY:
       case JSOP_NEWOBJECT: {
         TypeObject *initializer = GetInitializerType(cx, script, pc);
-        TypeSet *types = script->analysis()->bytecodeTypes(pc);
         if (script->hasGlobal()) {
             if (!initializer)
                 return false;
-            types->addType(cx, Type::ObjectType(initializer));
+            pushed[0].addType(cx, Type::ObjectType(initializer));
         } else {
             JS_ASSERT(!initializer);
-            types->addType(cx, Type::UnknownType());
+            pushed[0].addType(cx, Type::UnknownType());
         }
-        types->addSubset(cx, &pushed[0]);
         break;
       }
 
@@ -4176,17 +4174,15 @@ ScriptAnalysis::analyzeTypes(JSContext *cx)
             detached = true;
         }
 
-
-        if (!detached) {
-            /*
-             * Don't track for parents which add call objects or are generators,
-             * don't resolve NAME accesses into the parent.
-             */
-            if (nesting->parent->analysis()->addsScopeObjects() || 
-                JSOp(*nesting->parent->code) == JSOP_GENERATOR)
-            {
-                DetachNestingParent(script);
-            }
+        /*
+         * Don't track for parents which add call objects or are generators,
+         * don't resolve NAME accesses into the parent.
+         */
+        if (!detached &&
+            (nesting->parent->analysis()->addsScopeObjects() ||
+             JSOp(*nesting->parent->code) == JSOP_GENERATOR)) {
+            DetachNestingParent(script);
+            detached = true;
         }
     }
 
@@ -4526,12 +4522,6 @@ AnalyzeNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun, JSO
         if (op != JSOP_THIS)
             continue;
 
-        /* Maintain ordering property on how 'this' is used, as described above. */
-        if (offset < lastThisPopped) {
-            *pbaseobj = NULL;
-            return false;
-        }
-
         SSAValue thisv = SSAValue::PushedValue(offset, 0);
         SSAUseChain *uses = analysis->useChain(thisv);
 
@@ -4541,6 +4531,11 @@ AnalyzeNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun, JSO
             return false;
         }
 
+        /* Maintain ordering property on how 'this' is used, as described above. */
+        if (offset < lastThisPopped) {
+            *pbaseobj = NULL;
+            return false;
+        }
         lastThisPopped = uses->offset;
 
         /* Only handle 'this' values popped in unconditional code. */

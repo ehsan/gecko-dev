@@ -89,7 +89,12 @@ bool
 nsMathMLmoFrame::IsFrameInSelection(nsIFrame* aFrame)
 {
   NS_ASSERTION(aFrame, "null arg");
-  if (!aFrame || !aFrame->IsSelected())
+  if (!aFrame)
+    return false;
+
+  bool isSelected = false;
+  aFrame->GetSelected(&isSelected);
+  if (!isSelected)
     return false;
 
   const nsFrameSelection* frameSelection = aFrame->GetConstFrameSelection();

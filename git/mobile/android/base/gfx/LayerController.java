@@ -43,14 +43,11 @@ import org.mozilla.gecko.gfx.Layer;
 import org.mozilla.gecko.gfx.LayerClient;
 import org.mozilla.gecko.gfx.LayerView;
 import org.mozilla.gecko.ui.PanZoomController;
-import org.mozilla.gecko.ui.SimpleScaleGestureDetector;
 import org.mozilla.gecko.GeckoApp;
-import org.mozilla.gecko.GeckoEvent;
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Matrix;
 import android.graphics.Point;
 import android.graphics.PointF;
 import android.graphics.Rect;
@@ -61,8 +58,6 @@ import android.view.GestureDetector;
 import android.view.ScaleGestureDetector;
 import android.view.View.OnTouchListener;
 import java.lang.Math;
-import java.util.Timer;
-import java.util.TimerTask;
 
 /**
  * The layer controller manages a tile that represents the visible page. It does panning and
@@ -78,7 +73,6 @@ public class LayerController {
     private LayerView mView;                    /* The main rendering view. */
     private Context mContext;                   /* The current context. */
     private ViewportMetrics mViewportMetrics;   /* The current viewport metrics. */
-    private boolean mWaitForTouchListeners;
 
     private PanZoomController mPanZoomController;
     /*
@@ -86,11 +80,8 @@ public class LayerController {
      * updates our visible rect appropriately.
      */
 
-    private OnTouchListener mOnTouchListener;       /* The touch listener. */
-    private LayerClient mLayerClient;               /* The layer client. */
-
-    /* The new color for the checkerboard. */
-    private int mCheckerboardColor;
+    private OnTouchListener mOnTouchListener;   /* The touch listener. */
+    private LayerClient mLayerClient;           /* The layer client. */
 
     private boolean mForceRedraw;
 
@@ -104,15 +95,6 @@ public class LayerController {
      * we start aggressively redrawing to minimize checkerboarding. */
     private static final int DANGER_ZONE_X = 75;
     private static final int DANGER_ZONE_Y = 150;
-
-    /* The time limit for pages to respond with preventDefault on touchevents
-     * before we begin panning the page */
-    private static final int PREVENT_DEFAULT_TIMEOUT = 200;
-
-    private boolean allowDefaultActions = true;
-    private Timer allowDefaultTimer =  null;
-    private boolean inTouchSession = false;
-    private PointF initialTouchLocation = null;
 
     public LayerController(Context context) {
         mContext = context;
@@ -160,14 +142,11 @@ public class LayerController {
         return mViewportMetrics.getZoomFactor();
     }
 
-    public Bitmap getBackgroundPattern()    { return getDrawable("background"); }
+    public Bitmap getCheckerboardPattern()  { return getDrawable("checkerboard"); }
     public Bitmap getShadowPattern()        { return getDrawable("shadow"); }
 
-    public PanZoomController getPanZoomController()                                 { return mPanZoomController; }
     public GestureDetector.OnGestureListener getGestureListener()                   { return mPanZoomController; }
-    public SimpleScaleGestureDetector.SimpleScaleGestureListener getScaleGestureListener() {
-        return mPanZoomController;
-    }
+    public ScaleGestureDetector.OnScaleGestureListener getScaleGestureListener()    { return mPanZoomController; }
     public GestureDetector.OnDoubleTapListener getDoubleTapListener()               { return mPanZoomController; }
 
     private Bitmap getDrawable(String name) {
@@ -187,38 +166,23 @@ public class LayerController {
      * result in an infinite loop.
      */
     public void setViewportSize(FloatSize size) {
-        // Resize the viewport, and modify its zoom factor so that the page retains proportionally
-        // zoomed relative to the screen.
-        float oldHeight = mViewportMetrics.getSize().height;
-        float oldWidth = mViewportMetrics.getSize().width;
-        float oldZoomFactor = mViewportMetrics.getZoomFactor();
         mViewportMetrics.setSize(size);
-
-        // if the viewport got larger (presumably because the vkb went away), and the page
-        // is smaller than the new viewport size, increase the page size so that the panzoomcontroller
-        // doesn't zoom in to make it fit (bug 718270). this page size change is in anticipation of
-        // gecko increasing the page size to match the new viewport size, which will happen the next
-        // time we get a draw update.
-        if (size.width >= oldWidth && size.height >= oldHeight) {
-            FloatSize pageSize = mViewportMetrics.getPageSize();
-            if (pageSize.width < size.width || pageSize.height < size.height) {
-                mViewportMetrics.setPageSize(new FloatSize(Math.max(pageSize.width, size.width),
-                                                           Math.max(pageSize.height, size.height)));
-            }
-        }
-
-        PointF newFocus = new PointF(size.width / 2.0f, size.height / 2.0f);
-        float newZoomFactor = size.width * oldZoomFactor / oldWidth;
-        mViewportMetrics.scaleTo(newZoomFactor, newFocus);
-
-        Log.d(LOGTAG, "setViewportSize: " + mViewportMetrics);
         setForceRedraw();
 
         if (mLayerClient != null)
             mLayerClient.viewportSizeChanged();
 
         notifyLayerClientOfGeometryChange();
-        mPanZoomController.abortAnimation();
+        mPanZoomController.geometryChanged(true);
+        mView.requestRender();
+    }
+
+    /** Scrolls the viewport to the given point. You must hold the monitor while calling this. */
+    public void scrollTo(PointF point) {
+        mViewportMetrics.setOrigin(point);
+        notifyLayerClientOfGeometryChange();
+        mPanZoomController.geometryChanged(false);
+        GeckoApp.mAppContext.repositionPluginViews(false);
         mView.requestRender();
     }
 
@@ -227,9 +191,18 @@ public class LayerController {
         PointF origin = mViewportMetrics.getOrigin();
         origin.offset(point.x, point.y);
         mViewportMetrics.setOrigin(origin);
-        Log.d(LOGTAG, "scrollBy: " + mViewportMetrics);
 
         notifyLayerClientOfGeometryChange();
+        mPanZoomController.geometryChanged(false);
+        GeckoApp.mAppContext.repositionPluginViews(false);
+        mView.requestRender();
+    }
+
+    /** Sets the current viewport. You must hold the monitor while calling this. */
+    public void setViewport(RectF viewport) {
+        mViewportMetrics.setViewport(viewport);
+        notifyLayerClientOfGeometryChange();
+        mPanZoomController.geometryChanged(false);
         GeckoApp.mAppContext.repositionPluginViews(false);
         mView.requestRender();
     }
@@ -240,17 +213,11 @@ public class LayerController {
             return;
 
         mViewportMetrics.setPageSize(size);
-        Log.d(LOGTAG, "setPageSize: " + mViewportMetrics);
 
         // Page size is owned by the LayerClient, so no need to notify it of
         // this change.
-
-        mView.post(new Runnable() {
-            public void run() {
-                mPanZoomController.pageSizeUpdated();
-                mView.requestRender();
-            }
-        });
+        mPanZoomController.geometryChanged(false);
+        mView.requestRender();
     }
 
     /**
@@ -261,15 +228,13 @@ public class LayerController {
      */
     public void setViewportMetrics(ViewportMetrics viewport) {
         mViewportMetrics = new ViewportMetrics(viewport);
-        Log.d(LOGTAG, "setViewportMetrics: " + mViewportMetrics);
-        // this function may or may not be called on the UI thread,
-        // but repositionPluginViews must only be called on the UI thread.
-        GeckoApp.mAppContext.runOnUiThread(new Runnable() {
-            public void run() {
-                GeckoApp.mAppContext.repositionPluginViews(false);
-            }
-        });
+        GeckoApp.mAppContext.repositionPluginViews(false);
         mView.requestRender();
+    }
+
+    /** Scales the viewport. You must hold the monitor while calling this. */
+    public void scaleTo(float zoomFactor) {
+        scaleWithFocus(zoomFactor, new PointF(0,0));
     }
 
     /**
@@ -278,13 +243,21 @@ public class LayerController {
      */
     public void scaleWithFocus(float zoomFactor, PointF focus) {
         mViewportMetrics.scaleTo(zoomFactor, focus);
-        Log.d(LOGTAG, "scaleWithFocus: " + mViewportMetrics + "; zf=" + zoomFactor);
 
         // We assume the zoom level will only be modified by the
         // PanZoomController, so no need to notify it of this change.
         notifyLayerClientOfGeometryChange();
         GeckoApp.mAppContext.repositionPluginViews(false);
         mView.requestRender();
+    }
+
+    /**
+     * Sets the viewport origin and scales in one operation. You must hold the monitor while
+     * calling this.
+     */
+    public void scaleWithOrigin(float zoomFactor, PointF origin) {
+        mViewportMetrics.setOrigin(origin);
+        scaleTo(zoomFactor);
     }
 
     public boolean post(Runnable action) { return mView.post(action); }
@@ -302,15 +275,10 @@ public class LayerController {
             mLayerClient.geometryChanged();
     }
 
-    /** Aborts any pan/zoom animation that is currently in progress. */
-    public void abortPanZoomAnimation() {
-        if (mPanZoomController != null) {
-            mView.post(new Runnable() {
-                public void run() {
-                    mPanZoomController.abortAnimation();
-                }
-            });
-        }
+    /** Informs the pan/zoom controller that the viewport metrics changed. */
+    public void notifyPanZoomControllerOfGeometryChange(boolean abortAnimation) {
+        if (mPanZoomController != null)
+            mPanZoomController.geometryChanged(abortAnimation);
     }
 
     /**
@@ -333,6 +301,11 @@ public class LayerController {
         float x = mRootLayer.getOrigin().x, y = mRootLayer.getOrigin().y;
         IntSize layerSize = mRootLayer.getSize();
         return new RectF(x, y, x + layerSize.width, y + layerSize.height);
+    }
+
+    public RectF restrictToPageSize(RectF aRect) {
+        FloatSize pageSize = getPageSize();
+        return RectUtils.restrict(aRect, new RectF(0, 0, pageSize.width, pageSize.height));
     }
 
     // Returns true if a checkerboard is about to be visible.
@@ -377,89 +350,11 @@ public class LayerController {
      * pan/zoom controller to do the dirty work.
      */
     public boolean onTouchEvent(MotionEvent event) {
-        int action = event.getAction();
-        PointF point = new PointF(event.getX(), event.getY());
-        if ((action & MotionEvent.ACTION_MASK) == MotionEvent.ACTION_DOWN) {
-            mView.clearEventQueue();
-            initialTouchLocation = point;
-            allowDefaultActions = !mWaitForTouchListeners;
-            post(new Runnable() {
-                public void run() {
-                    preventPanning(mWaitForTouchListeners);
-                }
-            });
-        }
-
-        if (initialTouchLocation != null && (action & MotionEvent.ACTION_MASK) == MotionEvent.ACTION_MOVE) {
-            if (PointUtils.subtract(point, initialTouchLocation).length() > PanZoomController.PAN_THRESHOLD * 240) {
-                initialTouchLocation = null;
-            } else {
-                return !allowDefaultActions;
-            }
-        }
-
+        if (mPanZoomController.onTouchEvent(event))
+            return true;
         if (mOnTouchListener != null)
-            mOnTouchListener.onTouch(mView, event);
-
-        if (!mWaitForTouchListeners)
-            return !allowDefaultActions;
-
-        switch (action & MotionEvent.ACTION_MASK) {
-            case MotionEvent.ACTION_MOVE: {
-                if (!inTouchSession && allowDefaultTimer == null) {
-                    inTouchSession = true;
-                    allowDefaultTimer = new Timer();
-                    allowDefaultTimer.schedule(new TimerTask() {
-                        public void run() {
-                            post(new Runnable() {
-                                public void run() {
-                                    preventPanning(false);
-                                }
-                            });
-                        }
-                    }, PREVENT_DEFAULT_TIMEOUT);
-                }
-                break;
-            }
-            case MotionEvent.ACTION_CANCEL:
-            case MotionEvent.ACTION_UP: {
-                inTouchSession = false;
-            }
-        }
-        return !allowDefaultActions;
-    }
-
-    public void preventPanning(boolean aValue) {
-        if (allowDefaultTimer != null) {
-            allowDefaultTimer.cancel();
-            allowDefaultTimer.purge();
-            allowDefaultTimer = null;
-        }
-        if (aValue == allowDefaultActions) {
-            allowDefaultActions = !aValue;
-    
-            if (aValue) {
-                mView.clearEventQueue();
-                mPanZoomController.cancelTouch();
-            } else {
-                mView.processEventQueue();
-            }
-        }
-    }
-
-    public void setWaitForTouchListeners(boolean aValue) {
-        mWaitForTouchListeners = aValue;
-    }
-
-    /** Retrieves the color that the checkerboard should be. */
-    public int getCheckerboardColor() {
-        return mCheckerboardColor;
-    }
-
-    /** Sets a new color for the checkerboard. */
-    public void setCheckerboardColor(int newColor) {
-        mCheckerboardColor = newColor;
-        mView.requestRender();
+            return mOnTouchListener.onTouch(mView, event);
+        return false;
     }
 }
 

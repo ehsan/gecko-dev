@@ -51,6 +51,7 @@ nsGeoPositionAddress::nsGeoPositionAddress(const nsAString &aStreetNumber,
                                            const nsAString &aCounty,
                                            const nsAString &aRegion,
                                            const nsAString &aCountry,
+                                           const nsAString &aCountryCode,
                                            const nsAString &aPostalCode)
     : mStreetNumber(aStreetNumber)
     , mStreet(aStreet)
@@ -59,6 +60,7 @@ nsGeoPositionAddress::nsGeoPositionAddress(const nsAString &aStreetNumber,
     , mCounty(aCounty)
     , mRegion(aRegion)
     , mCountry(aCountry)
+    , mCountryCode(aCountryCode)
     , mPostalCode(aPostalCode)
 {
 }
@@ -124,6 +126,13 @@ NS_IMETHODIMP
 nsGeoPositionAddress::GetCountry(nsAString & aCountry)
 {
   aCountry = mCountry;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsGeoPositionAddress::GetCountryCode(nsAString & aCountryCode)
+{
+  aCountryCode = mCountryCode;
   return NS_OK;
 }
 

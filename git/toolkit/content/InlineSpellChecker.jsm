@@ -60,7 +60,6 @@ InlineSpellChecker.prototype = {
   // call this to clear state
   uninit: function()
   {
-    this.mEditor = null;
     this.mInlineSpellChecker = null;
     this.mOverMisspelling = false;
     this.mMisspelling = "";

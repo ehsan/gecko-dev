@@ -36,8 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Attributes.h"
-
 #include "nsISupports.h"
 #include "nsExceptionService.h"
 #include "nsIServiceManager.h"
@@ -71,7 +69,7 @@ public:
 };
 
 /** Exception Manager definition **/
-class nsExceptionManager MOZ_FINAL : public nsIExceptionManager
+class nsExceptionManager : public nsIExceptionManager
 {
 public:
   NS_DECL_ISUPPORTS

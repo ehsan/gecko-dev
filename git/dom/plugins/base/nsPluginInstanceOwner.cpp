@@ -122,7 +122,6 @@ static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 #include "ANPBase.h"
 #include "android_npapi.h"
 #include "AndroidBridge.h"
-#include "AndroidMediaLayer.h"
 using namespace mozilla::dom;
 
 #include <android/log.h>
@@ -334,9 +333,8 @@ nsPluginInstanceOwner::nsPluginInstanceOwner()
   mWaitingForPaint = false;
 
 #ifdef MOZ_WIDGET_ANDROID
-  mOnScreen = false;
-  mInverted = false;
-  mLayer = new AndroidMediaLayer();
+  mPluginViewAdded = false;
+  mLastPluginRect = gfxRect(0, 0, 0, 0);
 #endif
 }
 
@@ -391,13 +389,6 @@ nsPluginInstanceOwner::~nsPluginInstanceOwner()
     pluginHost->DeletePluginNativeWindow(mPluginWindow);
     mPluginWindow = nsnull;
   }
-
-#ifdef MOZ_WIDGET_ANDROID
-  if (mLayer) {
-    delete mLayer;
-    mLayer = nsnull;
-  }
-#endif
 
   if (mInstance) {
     mInstance->InvalidateOwner();
@@ -1687,43 +1678,6 @@ void nsPluginInstanceOwner::ScrollPositionDidChange(nscoord aX, nscoord aY)
 }
 
 #ifdef MOZ_WIDGET_ANDROID
-
-void nsPluginInstanceOwner::SendSize(int width, int height)
-{
-  if (!mInstance)
-    return;
-
-  PRInt32 model = mInstance->GetANPDrawingModel();
-
-  if (model != kOpenGL_ANPDrawingModel)
-    return;
-
-  ANPEvent event;
-  event.inSize = sizeof(ANPEvent);
-  event.eventType = kDraw_ANPEventType;
-  event.data.draw.model = kOpenGL_ANPDrawingModel;
-  event.data.draw.data.surfaceSize.width = width;
-  event.data.draw.data.surfaceSize.height = height;
-
-  mInstance->HandleEvent(&event, nsnull);
-}
-
-void nsPluginInstanceOwner::SendOnScreenEvent(bool onScreen)
-{
-  if (!mInstance)
-    return;
-
-  if ((onScreen && !mOnScreen) || (!onScreen && mOnScreen)) {
-    ANPEvent event;
-    event.inSize = sizeof(ANPEvent);
-    event.eventType = kLifecycle_ANPEventType;
-    event.data.lifecycle.action = onScreen ? kOnScreen_ANPLifecycleAction : kOffScreen_ANPLifecycleAction;
-    mInstance->HandleEvent(&event, nsnull);
-
-    mOnScreen = onScreen;
-  }
-}
-
 bool nsPluginInstanceOwner::AddPluginView(const gfxRect& aRect)
 {
   AndroidBridge::AutoLocalJNIFrame frame(1);
@@ -1734,30 +1688,13 @@ bool nsPluginInstanceOwner::AddPluginView(const gfxRect& aRect)
     return false;
   }
 
+  if (aRect.IsEqualEdges(mLastPluginRect)) {
+    // Already added and in position, no work to do
+    return true;
+  }
+
   JNIEnv* env = GetJNIForThread();
   jclass cls = env->FindClass("org/mozilla/gecko/GeckoAppShell");
-
-#ifdef MOZ_JAVA_COMPOSITOR
-  nsAutoString metadata;
-  nsCOMPtr<nsIAndroidDrawMetadataProvider> metadataProvider =
-      AndroidBridge::Bridge()->GetDrawMetadataProvider();
-  metadataProvider->GetDrawMetadata(metadata);
-
-  jstring jMetadata = env->NewString(nsPromiseFlatString(metadata).get(), metadata.Length());
-
-  jmethodID method = env->GetStaticMethodID(cls,
-                                            "addPluginView",
-                                            "(Landroid/view/View;IIIILjava/lang/String;)V");
-
-  env->CallStaticVoidMethod(cls,
-                            method,
-                            javaSurface,
-                            (int)aRect.x,
-                            (int)aRect.y,
-                            (int)aRect.width,
-                            (int)aRect.height,
-                            jMetadata);
-#else
   jmethodID method = env->GetStaticMethodID(cls,
                                             "addPluginView",
                                             "(Landroid/view/View;DDDD)V");
@@ -1769,44 +1706,48 @@ bool nsPluginInstanceOwner::AddPluginView(const gfxRect& aRect)
                             aRect.y,
                             aRect.width,
                             aRect.height);
-#endif
 
-  SendOnScreenEvent(true);
+  if (!mPluginViewAdded) {
+    ANPEvent event;
+    event.inSize = sizeof(ANPEvent);
+    event.eventType = kLifecycle_ANPEventType;
+    event.data.lifecycle.action = kOnScreen_ANPLifecycleAction;
+    mInstance->HandleEvent(&event, nsnull);
+
+    mPluginViewAdded = true;
+  }
 
   return true;
 }
 
 void nsPluginInstanceOwner::RemovePluginView()
 {
-  if (!mInstance || !mObjectFrame | !mOnScreen)
-    return;
+  AndroidBridge::AutoLocalJNIFrame frame(1);
 
-  void* surface = mInstance->GetJavaSurface();
-  if (!surface)
-    return;
+  if (mInstance && mObjectFrame && mPluginViewAdded) {
+    mPluginViewAdded = false;
 
-  JNIEnv* env = GetJNIForThread();
-  if (!env)
-    return;
+    void* surface = mInstance->GetJavaSurface();
+    if (surface) {
+      JNIEnv* env = GetJNIForThread();
+      if (env) {
+        jclass cls = env->FindClass("org/mozilla/gecko/GeckoAppShell");
+        jmethodID method = env->GetStaticMethodID(cls,
+                                                  "removePluginView",
+                                                  "(Landroid/view/View;)V");
+        env->CallStaticVoidMethod(cls, method, surface);
 
-  AndroidBridge::AutoLocalJNIFrame frame(env, 1);
-
-  jclass cls = env->FindClass("org/mozilla/gecko/GeckoAppShell");
-  jmethodID method = env->GetStaticMethodID(cls,
-                                            "removePluginView",
-                                            "(Landroid/view/View;)V");
-  env->CallStaticVoidMethod(cls, method, surface);
-  SendOnScreenEvent(false);
+        {
+          ANPEvent event;
+          event.inSize = sizeof(ANPEvent);
+          event.eventType = kLifecycle_ANPEventType;
+          event.data.lifecycle.action = kOffScreen_ANPLifecycleAction;
+          mInstance->HandleEvent(&event, nsnull);
+        }
+      }
+    }
+  }
 }
-
-void nsPluginInstanceOwner::Invalidate() {
-  NPRect rect;
-  rect.left = rect.top = 0;
-  rect.right = mPluginWindow->width;
-  rect.bottom = mPluginWindow->height;
-  InvalidateRect(&rect);
-}
-
 #endif
 
 nsresult nsPluginInstanceOwner::DispatchFocusToPlugin(nsIDOMEvent* aFocusEvent)
@@ -2831,15 +2772,7 @@ nsPluginInstanceOwner::PrepareToStop(bool aDelayedStop)
 #endif
 
 #ifdef MOZ_WIDGET_ANDROID
-
-  PRInt32 model = mInstance->GetANPDrawingModel();
-  if (model == kSurface_ANPDrawingModel) {
-    RemovePluginView();
-  } else if (model == kOpenGL_ANPDrawingModel && mLayer) {
-    delete mLayer;
-    mLayer = nsnull;
-  }
-
+  RemovePluginView();
 #endif
 
   // Unregister scroll position listeners
@@ -2947,22 +2880,17 @@ void nsPluginInstanceOwner::Paint(gfxContext* aContext,
   if (!mInstance || !mObjectFrame)
     return;
 
-  PRInt32 model = mInstance->GetANPDrawingModel();
+  PRInt32 model;
+  mInstance->GetDrawingModel(&model);
 
   if (model == kSurface_ANPDrawingModel) {
     if (!AddPluginView(aFrameRect)) {
-      Invalidate();
+      NPRect rect;
+      rect.left = rect.top = 0;
+      rect.right = aFrameRect.width;
+      rect.bottom = aFrameRect.height;
+      InvalidateRect(&rect);
     }
-    return;
-  }
-
-  if (model == kOpenGL_ANPDrawingModel) {
-    // FIXME: this is gross
-    float zoomLevel = aFrameRect.width / (float)mPluginWindow->width;
-    mLayer->UpdatePosition(aFrameRect, zoomLevel);
-
-    SendOnScreenEvent(true);
-    SendSize((int)aFrameRect.width, (int)aFrameRect.height);
     return;
   }
 
@@ -3656,16 +3584,8 @@ void nsPluginInstanceOwner::UpdateWindowPositionAndClipRect(bool aSetWindow)
   } else {
     mPluginWindow->clipRect.right = 0;
     mPluginWindow->clipRect.bottom = 0;
-#if 0 //MOZ_WIDGET_ANDROID
-    if (mInstance) {
-      PRInt32 model = mInstance->GetANPDrawingModel();
-
-      if (model == kSurface_ANPDrawingModel) {
-        RemovePluginView();
-      } else if (model == kOpenGL_ANPDrawingModel) {
-        HidePluginLayer();
-      }
-    }
+#ifdef MOZ_WIDGET_ANDROID
+    RemovePluginView();
 #endif
   }
 

@@ -195,7 +195,6 @@
 #include "nsEventStateManager.h"
 #include "nsITimedChannel.h"
 #include "nsICookiePermission.h"
-#include "nsServiceManagerUtils.h"
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
 #include "nsIDOMXULControlElement.h"
@@ -295,8 +294,6 @@ static bool                 gDOMWindowDumpEnabled      = false;
 #if defined(DEBUG_bryner) || defined(DEBUG_chb)
 #define DEBUG_PAGE_CACHE
 #endif
-
-#define DOM_TOUCH_LISTENER_ADDED "dom-touch-listener-added"
 
 // The default shortest interval/timeout we permit
 #define DEFAULT_MIN_TIMEOUT_VALUE 4 // 4ms
@@ -1991,7 +1988,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     if (aState) {
       newInnerWindow = wsh->GetInnerWindow();
       mInnerWindowHolder = wsh->GetInnerWindowHolder();
-
+      
       NS_ASSERTION(newInnerWindow, "Got a state without inner window");
     } else if (thisChrome) {
       newInnerWindow = new nsGlobalChromeWindow(this);
@@ -2041,15 +2038,6 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
       bool termFuncSet = false;
 
       if (oldDoc == aDocument) {
-        // Move the navigator from the old inner window to the new one since
-        // this is a document.write. This is safe from a same-origin point of
-        // view because document.write can only be used by the same origin.
-        newInnerWindow->mNavigator = currentInner->mNavigator;
-        currentInner->mNavigator = nsnull;
-        if (newInnerWindow->mNavigator) {
-          newInnerWindow->mNavigator->SetWindow(newInnerWindow);
-        }
-
         // Suspend the current context's request before Pop() resumes the old
         // context's request.
         JSAutoSuspendRequest asr(cx);
@@ -4396,22 +4384,17 @@ nsGlobalWindow::GetNearestWidget()
 NS_IMETHODIMP
 nsGlobalWindow::SetFullScreen(bool aFullScreen)
 {
-  return SetFullScreenInternal(aFullScreen, true);
-}
-
-nsresult
-nsGlobalWindow::SetFullScreenInternal(bool aFullScreen, bool aRequireTrust)
-{
   FORWARD_TO_OUTER(SetFullScreen, (aFullScreen), NS_ERROR_NOT_INITIALIZED);
 
   NS_ENSURE_TRUE(mDocShell, NS_ERROR_FAILURE);
 
   bool rootWinFullScreen;
   GetFullScreen(&rootWinFullScreen);
-  // Only chrome can change our fullScreen mode, unless we're running in
-  // untrusted mode.
-  if (aFullScreen == rootWinFullScreen || 
-      (aRequireTrust && !nsContentUtils::IsCallerTrustedForWrite())) {
+  // Only chrome can change our fullScreen mode, unless the DOM full-screen
+  // API is enabled.
+  if ((aFullScreen == rootWinFullScreen || 
+      !nsContentUtils::IsCallerTrustedForWrite()) &&
+      !nsContentUtils::IsFullScreenApiEnabled()) {
     return NS_OK;
   }
 
@@ -4421,11 +4404,11 @@ nsGlobalWindow::SetFullScreenInternal(bool aFullScreen, bool aRequireTrust)
   nsCOMPtr<nsIDocShellTreeItem> treeItem = do_QueryInterface(mDocShell);
   nsCOMPtr<nsIDocShellTreeItem> rootItem;
   treeItem->GetRootTreeItem(getter_AddRefs(rootItem));
-  nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(rootItem);
+  nsCOMPtr<nsIDOMWindow> window = do_GetInterface(rootItem);
   if (!window)
     return NS_ERROR_FAILURE;
   if (rootItem != treeItem)
-    return window->SetFullScreenInternal(aFullScreen, aRequireTrust);
+    return window->SetFullScreen(aFullScreen);
 
   // make sure we don't try to set full screen on a non-chrome window,
   // which might happen in embedding world
@@ -7624,15 +7607,6 @@ void nsGlobalWindow::UpdateTouchState()
 
   if (mMayHaveTouchEventListener) {
     mainWidget->RegisterTouchWindow();
-
-    nsCOMPtr<nsIObserverService> observerService =
-      do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
-
-    if (observerService) {
-      observerService->NotifyObservers(static_cast<nsIDOMWindow*>(this),
-                                       DOM_TOUCH_LISTENER_ADDED,
-                                       nsnull);
-    }
   } else {
     mainWidget->UnregisterTouchWindow();
   }

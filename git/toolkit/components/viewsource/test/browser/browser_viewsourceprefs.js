@@ -2,7 +2,7 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-const source = "about:mozilla";
+let source = "about:robots";
 let mWindow, wrapMenuItem, syntaxMenuItem;
 
 // Check the default values are set.

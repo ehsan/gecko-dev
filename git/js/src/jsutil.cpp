@@ -38,10 +38,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/* Various JS utility functions. */
-
-#include "mozilla/Attributes.h"
-
+/*
+ * PR assertion checker.
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include "jstypes.h"
@@ -53,8 +52,6 @@
 #else
 #    include <signal.h>
 #endif
-
-#include "js/TemplateLib.h"
 
 using namespace js;
 
@@ -99,16 +96,7 @@ CrashInJS()
 #endif
 }
 
-/*
- * |JS_Assert| historically took |JSIntn ln| as its last argument.  We've
- * boiled |JSIntn ln| down to simply |int ln| so that mfbt may declare the
- * function without depending on the |JSIntn| typedef, so we must manually
- * verify that the |JSIntn| typedef is consistent.
- */
-JS_STATIC_ASSERT((tl::IsSameType<JSIntn, int>::result));
-
-JS_PUBLIC_API(void)
-JS_Assert(const char *s, const char *file, int ln)
+JS_PUBLIC_API(void) JS_Assert(const char *s, const char *file, JSIntn ln)
 {
     fprintf(stderr, "Assertion failure: %s, at %s:%d\n", s, file, ln);
     fflush(stderr);

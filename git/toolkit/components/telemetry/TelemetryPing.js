@@ -18,6 +18,7 @@
  *
  * Contributor(s):
  *   Taras Glek <tglek@mozilla.com>
+ *   Vladan Djeric <vdjeric@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -61,9 +62,7 @@ const MEM_HISTOGRAMS = {
   "explicit/images/content/used/uncompressed":
     "MEMORY_IMAGES_CONTENT_USED_UNCOMPRESSED",
   "heap-allocated": "MEMORY_HEAP_ALLOCATED",
-  "page-faults-hard": "PAGE_FAULTS_HARD",
-  "low-memory-events-virtual": "LOW_MEMORY_EVENTS_VIRTUAL",
-  "low-memory-events-physical": "LOW_MEMORY_EVENTS_PHYSICAL"
+  "page-faults-hard": "PAGE_FAULTS_HARD"
 };
 // Seconds of idle time before pinging.
 // On idle-daily a gather-telemetry notification is fired, during it probes can
@@ -119,42 +118,6 @@ function getSimpleMeasurements() {
            .telemetryValue;
 
   return ret;
-}
-
-/**
- * Read the update channel from defaults only.  We do this to ensure that
- * the channel is tightly coupled with the application and does not apply
- * to other installations of the application that may use the same profile.
- */
-function getUpdateChannel() {
-  var channel = "default";
-  var prefName;
-  var prefValue;
-
-  var defaults = Services.prefs.getDefaultBranch(null);
-  try {
-    channel = defaults.getCharPref("app.update.channel");
-  } catch (e) {
-    // use default when pref not found
-  }
-
-  try {
-    var partners = Services.prefs.getChildList("app.partner.");
-    if (partners.length) {
-      channel += "-cck";
-      partners.sort();
-
-      for each (prefName in partners) {
-        prefValue = Services.prefs.getCharPref(prefName);
-        channel += "-" + prefValue;
-      }
-    }
-  }
-  catch (e) {
-    Cu.reportError(e);
-  }
-
-  return channel;
 }
 
 function TelemetryPing() {}
@@ -247,8 +210,7 @@ TelemetryPing.prototype = {
       appVersion: ai.version,
       appName: ai.name,
       appBuildID: ai.appBuildID,
-      appUpdateChannel: getUpdateChannel(),
-      platformBuildID: ai.platformBuildID
+      platformBuildID: ai.platformBuildID,
     };
 
     // sysinfo fields are not always available, get what we can.
@@ -362,7 +324,8 @@ TelemetryPing.prototype = {
       ver: PAYLOAD_VERSION,
       info: this.getMetadata(reason),
       simpleMeasurements: getSimpleMeasurements(),
-      histograms: this.getHistograms()
+      histograms: this.getHistograms(),
+      slowSQL: Telemetry.slowSQL
     };
 
     let isTestPing = (reason == "test-ping");

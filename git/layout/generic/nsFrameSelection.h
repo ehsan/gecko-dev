@@ -596,6 +596,7 @@ public:
    */
   nsresult MaintainSelection(nsSelectionAmount aAmount = eSelectNoAmount);
 
+
   nsFrameSelection();
 
   void StartBatchChanges();
@@ -605,7 +606,7 @@ public:
 
   nsIPresShell *GetShell()const  { return mShell; }
 
-  void DisconnectFromPresShell();
+  void DisconnectFromPresShell() { StopAutoScrollTimer(); mShell = nsnull; }
 private:
   nsresult TakeFocus(nsIContent *aNewFocus,
                      PRUint32 aContentOffset,

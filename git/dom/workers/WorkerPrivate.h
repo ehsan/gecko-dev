@@ -216,7 +216,6 @@ private:
   PRUint64 mBusyCount;
   Status mParentStatus;
   PRUint32 mJSContextOptions;
-  PRUint32 mJSRuntimeHeapSize;
   PRUint8 mGCZeal;
   bool mJSObjectRooted;
   bool mParentSuspended;
@@ -308,16 +307,10 @@ public:
   void
   UpdateJSContextOptions(JSContext* aCx, PRUint32 aOptions);
 
-  void
-  UpdateJSRuntimeHeapSize(JSContext* aCx, PRUint32 aJSRuntimeHeapSize);
-
 #ifdef JS_GC_ZEAL
   void
   UpdateGCZeal(JSContext* aCx, PRUint8 aGCZeal);
 #endif
-
-  void
-  GarbageCollect(JSContext* aCx, bool aShrinking);
 
   using events::EventTarget::GetEventListenerOnEventTarget;
   using events::EventTarget::SetEventListenerOnEventTarget;
@@ -448,12 +441,6 @@ public:
   GetJSContextOptions() const
   {
     return mJSContextOptions;
-  }
-
-  PRUint32
-  GetJSRuntimeHeapSize() const
-  {
-    return mJSRuntimeHeapSize;
   }
 
 #ifdef JS_GC_ZEAL
@@ -671,9 +658,6 @@ public:
   UpdateJSContextOptionsInternal(JSContext* aCx, PRUint32 aOptions);
 
   void
-  UpdateJSRuntimeHeapSizeInternal(JSContext* aCx, PRUint32 aJSRuntimeHeapSize);
-
-  void
   ScheduleDeletion(bool aWasPending);
 
   bool
@@ -687,10 +671,6 @@ public:
   void
   UpdateGCZealInternal(JSContext* aCx, PRUint8 aGCZeal);
 #endif
-
-  void
-  GarbageCollectInternal(JSContext* aCx, bool aShrinking,
-                         bool aCollectChildren);
 
   JSContext*
   GetJSContext() const

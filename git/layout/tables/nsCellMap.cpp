@@ -1860,11 +1860,8 @@ nsCellMap::ExpandWithRows(nsTableCellMap&             aMap,
     }
     newRowIndex++;
   }
-  // mark all following rows damaged, they might contain a previously set
-  // damage area which we can not shift.
-  PRInt32 firstDamagedRow = aRgFirstRowIndex + startRowIndex;
-  SetDamageArea(0, firstDamagedRow, aMap.GetColCount(),
-                aMap.GetRowCount() - firstDamagedRow, aDamageArea);
+  SetDamageArea(0, aRgFirstRowIndex + startRowIndex, aMap.GetColCount(),
+                1 + endRowIndex - startRowIndex, aDamageArea);
 }
 
 void nsCellMap::ExpandWithCells(nsTableCellMap&              aMap,
@@ -2031,11 +2028,8 @@ void nsCellMap::ShrinkWithoutRows(nsTableCellMap& aMap,
     mContentRowCount--;
   }
   aMap.RemoveColsAtEnd();
-  // mark all following rows damaged, they might contain a previously set
-  // damage area which we can not shift.
-  PRInt32 firstDamagedRow = aRgFirstRowIndex + aStartRowIndex;
-  SetDamageArea(0, firstDamagedRow, aMap.GetColCount(),
-                aMap.GetRowCount() - firstDamagedRow, aDamageArea);
+  SetDamageArea(0, aRgFirstRowIndex + aStartRowIndex, aMap.GetColCount(), 0,
+                aDamageArea);
 }
 
 PRInt32 nsCellMap::GetColSpanForNewCell(nsTableCellFrame& aCellFrameToAdd,

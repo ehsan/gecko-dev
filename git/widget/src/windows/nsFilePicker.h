@@ -46,10 +46,10 @@
 
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
 // For Vista IFileDialog interfaces
-#if _WIN32_WINNT < _WIN32_WINNT_LONGHORN
+#if _WIN32_WINNT < _WIN32_WINNT_VISTA
 #define _WIN32_WINNT_bak _WIN32_WINNT
 #undef _WIN32_WINNT
-#define _WIN32_WINNT _WIN32_WINNT_LONGHORN
+#define _WIN32_WINNT _WIN32_WINNT_VISTA
 #define _WIN32_IE_bak _WIN32_IE
 #undef _WIN32_IE
 #define _WIN32_IE _WIN32_IE_IE70
@@ -126,12 +126,10 @@ protected:
   static void GetQualifiedPath(const PRUnichar *aInPath, nsString &aOutPath);
   void GetFilterListArray(nsString& aFilterList);
   bool FilePickerWrapper(OPENFILENAMEW* ofn, PickerType aType);
-  bool ShowXPFolderPicker(const nsString& aInitialDir);
-  bool ShowXPFilePicker(const nsString& aInitialDir);
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
   bool ShowFolderPicker(const nsString& aInitialDir);
+  bool ShowXPFolderPicker(const nsString& aInitialDir);
   bool ShowFilePicker(const nsString& aInitialDir);
-#endif
+  bool ShowXPFilePicker(const nsString& aInitialDir);
   void AppendXPFilter(const nsAString& aTitle, const nsAString& aFilter);
   void RememberLastUsedDirectory();
   bool IsPrivacyModeEnabled();
@@ -162,25 +160,30 @@ protected:
   class ComDlgFilterSpec
   {
   public:
-    ComDlgFilterSpec() {}
-    ~ComDlgFilterSpec() {}
+    ComDlgFilterSpec() :
+      mSpecList(nsnull),
+      mLength(0) {}
+    ~ComDlgFilterSpec() {
+      free(mSpecList);
+    }
     
     const PRUint32 Length() {
-      return mSpecList.Length();
+      return mLength;
     }
 
     const bool IsEmpty() {
-      return (mSpecList.Length() == 0);
+      return (mLength == 0);
     }
 
     const COMDLG_FILTERSPEC* get() {
-      return mSpecList.Elements();
+      return mSpecList;
     }
     
     void Append(const nsAString& aTitle, const nsAString& aFilter);
   private:
-    nsAutoTArray<COMDLG_FILTERSPEC, 1> mSpecList;
+    COMDLG_FILTERSPEC* mSpecList;
     nsAutoTArray<nsString, 2> mStrings;
+    PRUint32 mLength;
   };
 
   ComDlgFilterSpec       mComFilterList;

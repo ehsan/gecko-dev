@@ -314,11 +314,6 @@ private:
       return false;
     }
 
-    if (JSVAL_IS_VOID(adaptor)) {
-      *aVp = JSVAL_NULL;
-      return true;
-    }
-
     JS_ASSERT(JSVAL_IS_OBJECT(adaptor));
 
     jsval listener = js::GetFunctionNativeReserved(JSVAL_TO_OBJECT(adaptor),
@@ -929,13 +924,6 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
   }
 
   return global;
-}
-
-bool
-ClassIsWorkerGlobalScope(JSClass* aClass)
-{
-  return WorkerGlobalScope::Class() == aClass ||
-         DedicatedWorkerGlobalScope::Class() == aClass;
 }
 
 END_WORKERS_NAMESPACE

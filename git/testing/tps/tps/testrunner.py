@@ -89,18 +89,15 @@ class TPSTestRunner(object):
                   'XPCOM_DEBUG_BREAK': 'warn',
                 }
   default_preferences = { 'app.update.enabled' : False,
-                          'extensions.getAddons.get.url': 'http://127.0.0.1:4567/en-US/firefox/api/%API_VERSION%/search/guid:%IDS%',
                           'extensions.update.enabled'    : False,
                           'extensions.update.notifyUser' : False,
                           'browser.shell.checkDefaultBrowser' : False,
                           'browser.tabs.warnOnClose' : False,
                           'browser.warnOnQuit': False,
                           'browser.sessionstore.resume_from_crash': False,
-                          'services.sync.addons.ignoreRepositoryChecking': True,
                           'services.sync.firstSync': 'notReady',
                           'services.sync.lastversion': '1.0',
                           'services.sync.log.rootLogger': 'Trace',
-                          'services.sync.log.logger.engine.addons': 'Trace',
                           'services.sync.log.logger.service.main': 'Trace',
                           'services.sync.log.logger.engine.bookmarks': 'Trace',
                           'services.sync.log.appender.console': 'Trace',
@@ -120,14 +117,12 @@ class TPSTestRunner(object):
 
   def __init__(self, extensionDir, emailresults=False, testfile="sync.test",
                binary=None, config=None, rlock=None, mobile=False,
-               autolog=False, logfile="tps.log",
-               ignore_unused_engines=False):
+               autolog=False, logfile="tps.log"):
     self.extensions = []
     self.emailresults = emailresults
     self.testfile = testfile
     self.logfile = os.path.abspath(logfile)
     self.binary = binary
-    self.ignore_unused_engines = ignore_unused_engines
     self.config = config if config else {}
     self.repo = None
     self.changeset = None
@@ -216,16 +211,14 @@ class TPSTestRunner(object):
                                         addons = self.extensions)
 
       # create the test phase
-      phaselist.append(TPSTestPhase(
-          phase,
-          profiles[profilename],
-          testname,
-          tmpfile.filename,
-          self.logfile,
-          self.env,
-          self.firefoxRunner,
-          self.log,
-          ignore_unused_engines=self.ignore_unused_engines))
+      phaselist.append(TPSTestPhase(phase,
+                                    profiles[profilename],
+                                    testname,
+                                    tmpfile.filename,
+                                    self.logfile,
+                                    self.env,
+                                    self.firefoxRunner,
+                                    self.log))
 
     # sort the phase list by name
     phaselist = sorted(phaselist, key=lambda phase: phase.phase)
@@ -242,17 +235,11 @@ class TPSTestRunner(object):
             for f in files:
               weavelog = os.path.join(profiles[profile].profile, 'weave', 'logs', f)
               if os.access(weavelog, os.F_OK):
-                with open(weavelog, 'r') as fh:
-                  for line in fh:
-                    possible_time = line[0:13]
-                    if len(possible_time) == 13 and possible_time.isdigit():
-                      time_ms = int(possible_time)
-                      formatted = time.strftime('%Y-%m-%d %H:%M:%S',
-                              time.localtime(time_ms / 1000))
-                      self.log('%s.%03d %s' % (
-                          formatted, time_ms % 1000, line[14:] ))
-                    else:
-                      self.log(line)
+                f = open(weavelog, 'r')
+                msg = f.read()
+                self.log(msg)
+                f.close()
+              self.log("\n")
         break;
 
     # grep the log for FF and sync versions

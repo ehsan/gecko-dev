@@ -41,8 +41,6 @@
 #ifndef mozilla_mozalloc_abort_h
 #define mozilla_mozalloc_abort_h
 
-#include "mozilla/Attributes.h"
-
 #if defined(MOZALLOC_EXPORT)
 // do nothing: it's been defined to __declspec(dllexport) by
 // mozalloc*.cpp on platforms where that's required
@@ -60,7 +58,7 @@
  * Terminate this process in such a way that breakpad is triggered, if
  * at all possible.
  */
-MOZ_NORETURN MOZALLOC_EXPORT void mozalloc_abort(const char* const msg);
+MOZALLOC_EXPORT void mozalloc_abort(const char* const msg) NS_NORETURN;
 
 
 #endif  /* ifndef mozilla_mozalloc_abort_h */

@@ -366,7 +366,7 @@ protected:
   };
 
   struct NotifyTimeDependentsParams {
-    nsSMILTimedElement*  mTimedElement;
+    nsSMILInterval*      mCurrentInterval;
     nsSMILTimeContainer* mTimeContainer;
   };
 

@@ -4509,10 +4509,10 @@ gfxTextRun::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf)
                       GlyphStorageAllocCount(mCharacterCount, mFlags));
 
     if (mDetailedGlyphs) {
-        total += mDetailedGlyphs->SizeOfIncludingThis(aMallocSizeOf);
+        total += mDetailedGlyphs->SizeOf();
     }
 
-    total += mGlyphRuns.SizeOfExcludingThis(aMallocSizeOf);
+    total += mGlyphRuns.SizeOf();
 
     return total;
 }

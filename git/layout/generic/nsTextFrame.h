@@ -165,7 +165,11 @@ public:
    * false otherwise
    * @param aType the type of selection added or removed
    */
-  void SetSelectedRange(PRUint32 aStart, PRUint32 aEnd, bool aSelected,
+  virtual void SetSelected(bool          aSelected,
+                           SelectionType aType);
+  void SetSelectedRange(PRUint32 aStart,
+                        PRUint32 aEnd,
+                        bool aSelected,
                         SelectionType aType);
 
   virtual bool PeekOffsetNoAmount(bool aForward, PRInt32* aOffset);
@@ -471,12 +475,6 @@ protected:
   PRInt32     mContentLengthHint;
   nscoord     mAscent;
   gfxTextRun* mTextRun;
-
-  /**
-   * Return true if the frame is part of a Selection.
-   * Helper method to implement the public IsSelected() API.
-   */
-  virtual bool IsFrameSelected() const;
 
   // The caller of this method must call DestroySelectionDetails() on the
   // return value, if that return value is not null.  Calling

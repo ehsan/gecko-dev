@@ -318,7 +318,8 @@ void
 nsTableCellFrame::DecorateForSelection(nsRenderingContext& aRenderingContext,
                                        nsPoint aPt)
 {
-  NS_ASSERTION(IsSelected(), "Should only be called for selected cells");
+  NS_ASSERTION(GetStateBits() & NS_FRAME_SELECTED_CONTENT,
+               "Should only be called for selected cells");
   PRInt16 displaySelection;
   nsPresContext* presContext = PresContext();
   displaySelection = DisplaySelection(presContext);
@@ -498,7 +499,9 @@ nsTableCellFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     }
 
     // and display the selection border if we need to
-    if (IsSelected()) {
+    bool isSelected =
+      (GetStateBits() & NS_FRAME_SELECTED_CONTENT) == NS_FRAME_SELECTED_CONTENT;
+    if (isSelected) {
       nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
           nsDisplayGeneric(aBuilder, this, ::PaintTableCellSelection,
                            "TableCellSelection",

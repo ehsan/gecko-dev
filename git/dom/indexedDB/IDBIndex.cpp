@@ -48,8 +48,6 @@
 #include "nsEventDispatcher.h"
 #include "nsThreadUtils.h"
 #include "mozilla/storage.h"
-#include "xpcprivate.h"
-#include "XPCQuickStubs.h"
 
 #include "AsyncConnectionHelper.h"
 #include "IDBCursor.h"
@@ -321,7 +319,6 @@ IDBIndex::Create(IDBObjectStore* aObjectStore,
   index->mId = aIndexInfo->id;
   index->mName = aIndexInfo->name;
   index->mKeyPath = aIndexInfo->keyPath;
-  index->mKeyPathArray = aIndexInfo->keyPathArray;
   index->mUnique = aIndexInfo->unique;
   index->mMultiEntry = aIndexInfo->multiEntry;
 
@@ -383,38 +380,11 @@ IDBIndex::GetStoreName(nsAString& aStoreName)
 }
 
 NS_IMETHODIMP
-IDBIndex::GetKeyPath(JSContext* aCx,
-                     jsval* aVal)
+IDBIndex::GetKeyPath(nsAString& aKeyPath)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  if (UsesKeyPathArray()) {
-    JSObject* array = JS_NewArrayObject(aCx, mKeyPathArray.Length(), nsnull);
-    if (!array) {
-      NS_WARNING("Failed to make array!");
-      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-    }
-
-    for (PRUint32 i = 0; i < mKeyPathArray.Length(); ++i) {
-      jsval val;
-      nsString tmp(mKeyPathArray[i]);
-      if (!xpc_qsStringToJsval(aCx, tmp, &val)) {
-        return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-      }
-
-      if (!JS_SetElement(aCx, array, i, &val)) {
-        return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-      }
-    }
-
-    *aVal = OBJECT_TO_JSVAL(array);
-  }
-  else {
-    nsString tmp(mKeyPath);
-    if (!xpc_qsStringToJsval(aCx, tmp, aVal)) {
-      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-    }
-  }
+  aKeyPath.Assign(mKeyPath);
   return NS_OK;
 }
 

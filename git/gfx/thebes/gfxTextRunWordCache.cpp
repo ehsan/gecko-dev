@@ -220,9 +220,8 @@ protected:
                     PRUint32 aEnd, PRUint32 aHash);
     void Uninit();
 
-    static size_t MaybeSizeOfEntryExcludingThis(CacheHashEntry *aEntry,
-                                                nsMallocSizeOfFun aMallocSizeOf,
-                                                void *aUserData);
+    static PLDHashOperator MaybeSizeOfEntry(CacheHashEntry *aEntry,
+                                            void *aUserData);
     static PLDHashOperator ResetSizeOfEntryAccountingFlags(CacheHashEntry *aEntry,
                                             void *aUserData);
 
@@ -916,16 +915,22 @@ TextRunWordCache::RemoveTextRun(gfxTextRun *aTextRun)
 #endif
 }
 
-/*static*/ size_t
-TextRunWordCache::MaybeSizeOfEntryExcludingThis(CacheHashEntry *aEntry,
-                                                nsMallocSizeOfFun aMallocSizeOf,
-                                                void *)
+struct SizeOfEntryData {
+    nsMallocSizeOfFun mMallocSizeOf;
+    size_t mTotal;
+    SizeOfEntryData(nsMallocSizeOfFun mallocSizeOf) 
+    : mMallocSizeOf(mallocSizeOf), mTotal(0) { }
+};
+
+/*static*/ PLDHashOperator
+TextRunWordCache::MaybeSizeOfEntry(CacheHashEntry *aEntry, void *aUserData)
 {
     gfxTextRun *run = aEntry->mTextRun;
     if (run) {
-        return run->MaybeSizeOfIncludingThis(aMallocSizeOf);
+        SizeOfEntryData *data = static_cast<SizeOfEntryData*>(aUserData);
+        data->mTotal += run->MaybeSizeOfIncludingThis(data->mMallocSizeOf);
     }
-    return 0;
+    return PL_DHASH_NEXT;
 }
 
 /*static*/ PLDHashOperator
@@ -941,7 +946,11 @@ TextRunWordCache::ResetSizeOfEntryAccountingFlags(CacheHashEntry *aEntry, void *
 size_t
 TextRunWordCache::MaybeSizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
-    return mCache.SizeOfExcludingThis(MaybeSizeOfEntryExcludingThis, aMallocSizeOf);
+    size_t total = mCache.ShallowSizeOfExcludingThis(aMallocSizeOf);
+    SizeOfEntryData data(aMallocSizeOf);
+    mCache.EnumerateEntries(MaybeSizeOfEntry, &data);
+    total += data.mTotal;
+    return total;
 }
 
 void

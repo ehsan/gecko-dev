@@ -78,8 +78,8 @@ using mozilla::MutexAutoUnlock;
 using mozilla::Preferences;
 using namespace mozilla::xpconnect::memory;
 
-// The size of the worker runtime heaps in bytes. May be changed via pref.
-#define WORKER_DEFAULT_RUNTIME_HEAPSIZE 32 * 1024 * 1024
+// The size of the worker runtime heaps in bytes.
+#define WORKER_RUNTIME_HEAPSIZE 32 * 1024 * 1024
 
 // The C stack size. We use the same stack size on all platforms for
 // consistency.
@@ -91,8 +91,6 @@ using namespace mozilla::xpconnect::memory;
 
 // The maximum number of threads to use for workers, overridable via pref.
 #define MAX_WORKERS_PER_DOMAIN 10
-
-PR_STATIC_ASSERT(MAX_WORKERS_PER_DOMAIN >= 1);
 
 // The default number of seconds that close handlers will be allowed to run.
 #define MAX_SCRIPT_RUN_TIME_SEC 10
@@ -108,27 +106,7 @@ PR_STATIC_ASSERT(MAX_WORKERS_PER_DOMAIN >= 1);
 #define PREF_WORKERS_GCZEAL "dom.workers.gczeal"
 #define PREF_MAX_SCRIPT_RUN_TIME "dom.max_script_run_time"
 
-#define GC_REQUEST_OBSERVER_TOPIC "child-gc-request"
-#define MEMORY_PRESSURE_OBSERVER_TOPIC "memory-pressure"
-
-#define BROADCAST_ALL_WORKERS(_func, ...)                                      \
-  PR_BEGIN_MACRO                                                               \
-    AssertIsOnMainThread();                                                    \
-                                                                               \
-    nsAutoTArray<WorkerPrivate*, 100> workers;                                 \
-    {                                                                          \
-      MutexAutoLock lock(mMutex);                                              \
-                                                                               \
-      mDomainMap.EnumerateRead(AddAllTopLevelWorkersToArray, &workers);        \
-    }                                                                          \
-                                                                               \
-    if (!workers.IsEmpty()) {                                                  \
-      AutoSafeJSContext cx;                                                    \
-      for (PRUint32 index = 0; index < workers.Length(); index++) {            \
-        workers[index]-> _func (cx, ##__VA_ARGS__);                            \
-      }                                                                        \
-    }                                                                          \
-  PR_END_MACRO
+PR_STATIC_ASSERT(MAX_WORKERS_PER_DOMAIN >= 1);
 
 namespace {
 
@@ -174,7 +152,6 @@ enum {
   PREF_relimit,
   PREF_methodjit,
   PREF_methodjit_always,
-  PREF_mem_max,
 
 #ifdef JS_GC_ZEAL
   PREF_gczeal,
@@ -190,8 +167,7 @@ const char* gPrefsToWatch[] = {
   JS_OPTIONS_DOT_STR "werror",
   JS_OPTIONS_DOT_STR "relimit",
   JS_OPTIONS_DOT_STR "methodjit.content",
-  JS_OPTIONS_DOT_STR "methodjit_always",
-  JS_OPTIONS_DOT_STR "mem.max"
+  JS_OPTIONS_DOT_STR "methodjit_always"
 
 #ifdef JS_GC_ZEAL
   , PREF_WORKERS_GCZEAL
@@ -210,15 +186,7 @@ PrefCallback(const char* aPrefName, void* aClosure)
 
   NS_NAMED_LITERAL_CSTRING(jsOptionStr, JS_OPTIONS_DOT_STR);
 
-  if (!strcmp(aPrefName, gPrefsToWatch[PREF_mem_max])) {
-    PRInt32 pref = Preferences::GetInt(aPrefName, -1);
-    PRUint32 maxBytes = (pref <= 0 || pref >= 0x1000) ?
-                        PRUint32(-1) :
-                        PRUint32(pref) * 1024 * 1024;
-    RuntimeService::SetDefaultJSRuntimeHeapSize(maxBytes);
-    rts->UpdateAllWorkerJSRuntimeHeapSize();
-  }
-  else if (StringBeginsWith(nsDependentCString(aPrefName), jsOptionStr)) {
+  if(StringBeginsWith(nsDependentCString(aPrefName), jsOptionStr)) {
     PRUint32 newOptions = kRequiredJSContextOptions;
     if (Preferences::GetBool(gPrefsToWatch[PREF_strict])) {
       newOptions |= JSOPTION_STRICT;
@@ -268,17 +236,11 @@ CreateJSContextForWorker(WorkerPrivate* aWorkerPrivate)
   aWorkerPrivate->AssertIsOnWorkerThread();
   NS_ASSERTION(!aWorkerPrivate->GetJSContext(), "Already has a context!");
 
-  // The number passed here doesn't matter, we're about to change it in the call
-  // to JS_SetGCParameter.
-  JSRuntime* runtime = JS_NewRuntime(WORKER_DEFAULT_RUNTIME_HEAPSIZE);
+  JSRuntime* runtime = JS_NewRuntime(WORKER_RUNTIME_HEAPSIZE);
   if (!runtime) {
     NS_WARNING("Could not create new runtime!");
     return nsnull;
   }
-
-  // This is the real place where we set the max memory for the runtime.
-  JS_SetGCParameter(runtime, JSGC_MAX_BYTES,
-                    aWorkerPrivate->GetJSRuntimeHeapSize());
 
   JSContext* workerCx = JS_NewContext(runtime, 0);
   if (!workerCx) {
@@ -541,9 +503,6 @@ WorkerCrossThreadDispatcher::PostTask(WorkerTask* aTask)
 END_WORKERS_NAMESPACE
 
 PRUint32 RuntimeService::sDefaultJSContextOptions = kRequiredJSContextOptions;
-
-PRUint32 RuntimeService::sDefaultJSRuntimeHeapSize =
-  WORKER_DEFAULT_RUNTIME_HEAPSIZE;
 
 PRInt32 RuntimeService::sCloseHandlerTimeoutSeconds = MAX_SCRIPT_RUN_TIME_SEC;
 
@@ -917,15 +876,6 @@ RuntimeService::Init()
 
   mObserved = true;
 
-  if (NS_FAILED(obs->AddObserver(this, GC_REQUEST_OBSERVER_TOPIC, false))) {
-    NS_WARNING("Failed to register for GC request notifications!");
-  }
-
-  if (NS_FAILED(obs->AddObserver(this, MEMORY_PRESSURE_OBSERVER_TOPIC,
-                                 false))) {
-    NS_WARNING("Failed to register for memory pressure notifications!");
-  }
-
   for (PRUint32 index = 0; index < ArrayLength(gPrefsToWatch); index++) {
     if (NS_FAILED(Preferences::RegisterCallback(PrefCallback,
                                                 gPrefsToWatch[index], this))) {
@@ -1028,7 +978,7 @@ RuntimeService::Cleanup()
       while (mDomainMap.Count()) {
         MutexAutoUnlock unlock(mMutex);
 
-        if (!NS_ProcessNextEvent(currentThread)) {
+        if (NS_FAILED(NS_ProcessNextEvent(currentThread))) {
           NS_WARNING("Something bad happened!");
           break;
         }
@@ -1049,15 +999,6 @@ RuntimeService::Cleanup()
     NS_WARN_IF_FALSE(obs, "Failed to get observer service?!");
 
     if (obs) {
-      if (NS_FAILED(obs->RemoveObserver(this, GC_REQUEST_OBSERVER_TOPIC))) {
-        NS_WARNING("Failed to unregister for GC request notifications!");
-      }
-
-      if (NS_FAILED(obs->RemoveObserver(this,
-                                        MEMORY_PRESSURE_OBSERVER_TOPIC))) {
-        NS_WARNING("Failed to unregister for memory pressure notifications!");
-      }
-
       nsresult rv =
         obs->RemoveObserver(this, NS_XPCOM_SHUTDOWN_THREADS_OBSERVER_ID);
       mObserved = !NS_SUCCEEDED(rv);
@@ -1216,28 +1157,44 @@ RuntimeService::NoteIdleThread(nsIThread* aThread)
 void
 RuntimeService::UpdateAllWorkerJSContextOptions()
 {
-  BROADCAST_ALL_WORKERS(UpdateJSContextOptions, GetDefaultJSContextOptions());
-}
+  AssertIsOnMainThread();
 
-void
-RuntimeService::UpdateAllWorkerJSRuntimeHeapSize()
-{
-  BROADCAST_ALL_WORKERS(UpdateJSRuntimeHeapSize, GetDefaultJSRuntimeHeapSize());
+  nsAutoTArray<WorkerPrivate*, 100> workers;
+  {
+    MutexAutoLock lock(mMutex);
+
+    mDomainMap.EnumerateRead(AddAllTopLevelWorkersToArray, &workers);
+  }
+
+  if (!workers.IsEmpty()) {
+    AutoSafeJSContext cx;
+    for (PRUint32 index = 0; index < workers.Length(); index++) {
+      workers[index]->UpdateJSContextOptions(cx, GetDefaultJSContextOptions());
+    }
+  }
 }
 
 #ifdef JS_GC_ZEAL
 void
 RuntimeService::UpdateAllWorkerGCZeal()
 {
-  BROADCAST_ALL_WORKERS(UpdateGCZeal, GetDefaultGCZeal());
+  AssertIsOnMainThread();
+
+  nsAutoTArray<WorkerPrivate*, 100> workers;
+  {
+    MutexAutoLock lock(mMutex);
+
+    mDomainMap.EnumerateRead(AddAllTopLevelWorkersToArray, &workers);
+  }
+
+  if (!workers.IsEmpty()) {
+    AutoSafeJSContext cx;
+    for (PRUint32 index = 0; index < workers.Length(); index++) {
+      workers[index]->UpdateGCZeal(cx, GetDefaultGCZeal());
+    }
+  }
 }
 #endif
-
-void
-RuntimeService::GarbageCollectAllWorkers(bool aShrinking)
-{
-  BROADCAST_ALL_WORKERS(GarbageCollect, aShrinking);
-}
 
 // nsISupports
 NS_IMPL_ISUPPORTS1(RuntimeService, nsIObserver)
@@ -1251,14 +1208,6 @@ RuntimeService::Observe(nsISupports* aSubject, const char* aTopic,
 
   if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_THREADS_OBSERVER_ID)) {
     Cleanup();
-    return NS_OK;
-  }
-  if (!strcmp(aTopic, GC_REQUEST_OBSERVER_TOPIC)) {
-    GarbageCollectAllWorkers(false);
-    return NS_OK;
-  }
-  if (!strcmp(aTopic, MEMORY_PRESSURE_OBSERVER_TOPIC)) {
-    GarbageCollectAllWorkers(true);
     return NS_OK;
   }
 

@@ -86,12 +86,11 @@ extern JS_FRIEND_API(JSBool)
 JS_NondeterministicGetWeakMapKeys(JSContext *cx, JSObject *obj, JSObject **ret);
 
 /*
- * Used by the cycle collector to trace through the shape and all
- * shapes it reaches, marking all non-shape children found in the
- * process. Uses bounded stack space.
+ * Marks all the children of a shape except the parent, which avoids using
+ * unbounded stack space. Returns the parent.
  */
-extern JS_FRIEND_API(void)
-JS_TraceShapeCycleCollectorChildren(JSTracer *trc, void *shape);
+extern JS_FRIEND_API(void *)
+JS_TraceShapeChildrenAcyclic(JSTracer *trc, void *shape);
 
 enum {
     JS_TELEMETRY_GC_REASON,

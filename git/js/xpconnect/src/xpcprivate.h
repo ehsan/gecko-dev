@@ -1370,8 +1370,7 @@ private:
 // These are the various JSClasses and callbacks whose use that required
 // visibility from more than one .cpp file.
 
-struct XPCNativeScriptableSharedJSClass;
-extern XPCNativeScriptableSharedJSClass XPC_WN_NoHelper_JSClass;
+extern js::Class XPC_WN_NoHelper_JSClass;
 extern js::Class XPC_WN_NoMods_WithCall_Proto_JSClass;
 extern js::Class XPC_WN_NoMods_NoCall_Proto_JSClass;
 extern js::Class XPC_WN_ModsAllowed_WithCall_Proto_JSClass;
