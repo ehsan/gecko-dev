@@ -125,6 +125,7 @@
 #include "nsIXULWindow.h"
 #include "nsXULPopupManager.h"
 #include "nsCCUncollectableMarker.h"
+#include "nsURILoader.h"
 
 //----------------------------------------------------------------------
 //
@@ -334,9 +335,8 @@ TraverseObservers(nsIURI* aKey, nsIObserver* aData, void* aContext)
 }
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
-    if (nsCCUncollectableMarker::InGeneration(tmp->GetMarkedCCGeneration())) {
-        return NS_OK;
-    }
+    NS_ASSERTION(!nsCCUncollectableMarker::InGeneration(tmp->GetMarkedCCGeneration()),
+                 "Shouldn't traverse nsXULDocument!");
     // XXX tmp->mForwardReferences?
     // XXX tmp->mContextStack?
 
@@ -696,10 +696,11 @@ nsXULDocument::SynchronizeBroadcastListener(nsIDOMElement   *aBroadcaster,
                                             nsIDOMElement   *aListener,
                                             const nsAString &aAttr)
 {
-    if (mUpdateNestLevel > 0) {
+    if (!nsContentUtils::IsSafeToRunScript()) {
         nsDelayedBroadcastUpdate delayedUpdate(aBroadcaster, aListener,
                                                aAttr);
         mDelayedBroadcasters.AppendElement(delayedUpdate);
+        MaybeBroadcast();
         return;
     }
     nsCOMPtr<nsIContent> broadcaster = do_QueryInterface(aBroadcaster);
@@ -3215,7 +3216,7 @@ nsXULDocument::DoneWalking()
         NS_WARN_IF_FALSE(mUpdateNestLevel == 0,
                          "Constructing XUL document in middle of an update?");
         if (mUpdateNestLevel == 0) {
-            InitializeFinalizeFrameLoaders();
+            MaybeInitializeFinalizeFrameLoaders();
         }
 
         NS_DOCUMENT_NOTIFY_OBSERVERS(EndLoad, (this));
@@ -3298,10 +3299,19 @@ nsXULDocument::StyleSheetLoaded(nsICSSStyleSheet* aSheet,
 }
 
 void
-nsXULDocument::EndUpdate(nsUpdateType aUpdateType)
+nsXULDocument::MaybeBroadcast()
 {
-    nsXMLDocument::EndUpdate(aUpdateType);
-    if (mUpdateNestLevel == 0) {
+    // Only broadcast when not in an update and when safe to run scripts.
+    if (mUpdateNestLevel == 0 &&
+        (mDelayedAttrChangeBroadcasts.Length() ||
+         mDelayedBroadcasters.Length())) {
+        if (!nsContentUtils::IsSafeToRunScript()) {
+            if (!mInDestructor) {
+                nsContentUtils::AddScriptRunner(
+                  NS_NEW_RUNNABLE_METHOD(nsXULDocument, this, MaybeBroadcast));
+            }
+            return;
+        }
         if (!mHandlingDelayedAttrChange) {
             mHandlingDelayedAttrChange = PR_TRUE;
             for (PRUint32 i = 0; i < mDelayedAttrChangeBroadcasts.Length(); ++i) {
@@ -3339,6 +3349,14 @@ nsXULDocument::EndUpdate(nsUpdateType aUpdateType)
             }
         }
     }
+}
+
+void
+nsXULDocument::EndUpdate(nsUpdateType aUpdateType)
+{
+    nsXMLDocument::EndUpdate(aUpdateType);
+
+    MaybeBroadcast();
 }
 
 void
@@ -4392,6 +4410,8 @@ nsXULDocument::InsertElement(nsIContent* aParent, nsIContent* aChild, PRBool aNo
     if (!posStr.IsEmpty()) {
         nsCOMPtr<nsIDOMDocument> domDocument(
                do_QueryInterface(aParent->GetDocument()));
+        if (!domDocument) return NS_ERROR_FAILURE;
+
         nsCOMPtr<nsIDOMElement> domElement;
 
         char* str = ToNewCString(posStr);
@@ -4493,7 +4513,7 @@ NS_IMETHODIMP
 nsXULDocument::CachedChromeStreamListener::OnStartRequest(nsIRequest *request,
                                                           nsISupports* acontext)
 {
-    return NS_OK;
+    return NS_ERROR_PARSED_DATA_CACHED;
 }
 
 

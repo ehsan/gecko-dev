@@ -60,6 +60,7 @@
 #include "nsPIDOMWindow.h"
 
 // Other includes
+#include "jscntxt.h"
 #include "nsAutoLock.h"
 #include "nsAutoPtr.h"
 #include "nsContentUtils.h"
@@ -103,10 +104,6 @@ PR_STATIC_ASSERT(THREADPOOL_MAX_THREADS >= THREADPOOL_IDLE_THREADS);
 #define THREADPOOL_THREAD_CAP 20
 
 PR_STATIC_ASSERT(THREADPOOL_THREAD_CAP >= THREADPOOL_MAX_THREADS);
-
-// The number of times our JS operation callback will be called before yielding
-// the thread
-#define CALLBACK_YIELD_THRESHOLD 100
 
 // A "bad" value for the NSPR TLS functions.
 #define BAD_TLS_INDEX (PRUintn)-1
@@ -325,7 +322,7 @@ public:
 
     // Tell the worker which context it will be using
     if (mWorker->SetGlobalForContext(cx)) {
-      RunQueue();
+      RunQueue(cx);
 
       // Remove the global object from the context so that it might be garbage
       // collected.
@@ -347,9 +344,8 @@ public:
 
 protected:
 
-  void RunQueue() {
-    JSContext* cx = (JSContext*)PR_GetThreadPrivate(gJSContextIndex);
-    NS_ASSERTION(cx, "nsDOMThreadService didn't give us a context!");
+  void RunQueue(JSContext* aCx) {
+    PRBool operationCallbackTriggered = PR_FALSE;
 
     while (1) {
       nsCOMPtr<nsIRunnable> runnable;
@@ -371,8 +367,17 @@ protected:
         }
       }
 
+      if (!operationCallbackTriggered) {
+        // Make sure that our operation callback is set to run before starting.
+        // That way we are sure to suspend this worker if needed.
+        JS_TriggerOperationCallback(aCx);
+
+        // Only need to do this the first time.
+        operationCallbackTriggered = PR_TRUE;
+      }
+
       // Clear out any old cruft hanging around in the regexp statics.
-      JS_ClearRegExpStatics(cx);
+      JS_ClearRegExpStatics(aCx);
 
       runnable->Run();
     }
@@ -402,7 +407,7 @@ DOMWorkerOperationCallback(JSContext* aCx)
   PRBool extraThreadAllowed = PR_FALSE;
   jsrefcount suspendDepth = 0;
 
-  while (1) {
+  for (;;) {
     // Kill execution if we're canceled.
     if (worker->IsCanceled()) {
       LOG(("Forcefully killing JS for worker [0x%p]",
@@ -415,8 +420,9 @@ DOMWorkerOperationCallback(JSContext* aCx)
         JS_ResumeRequest(aCx, suspendDepth);
       }
 
-      // Kill exectuion of the currently running JS.
-      return PR_FALSE;
+      // Kill execution of the currently running JS.
+      JS_ClearPendingException(aCx);
+      return JS_FALSE;
     }
 
     // Break out if we're not suspended.
@@ -427,7 +433,7 @@ DOMWorkerOperationCallback(JSContext* aCx)
         }
         JS_ResumeRequest(aCx, suspendDepth);
       }
-      break;
+      return JS_TRUE;
     }
 
     if (!wasSuspended) {
@@ -435,7 +441,8 @@ DOMWorkerOperationCallback(JSContext* aCx)
       // the worker was canceled since we checked above.
       if (worker->IsCanceled()) {
         NS_WARNING("Tried to suspend on a pool that has gone away");
-        return PR_FALSE;
+        JS_ClearPendingException(aCx);
+        return JS_FALSE;
       }
 
       pool = worker->Pool();
@@ -457,19 +464,6 @@ DOMWorkerOperationCallback(JSContext* aCx)
     nsAutoMonitor mon(pool->Monitor());
     mon.Wait();
   }
-
-  // Since only one thread can access a context at once we don't have to worry
-  // about atomically incrementing this counter
-  if (++worker->mCallbackCount >= CALLBACK_YIELD_THRESHOLD) {
-    // Must call this so that GC can happen on the main thread!
-    JS_YieldRequest(aCx);
-
-    // Start the counter over.
-    worker->mCallbackCount = 0;
-  }
-
-  // Continue execution.
-  return JS_TRUE;
 }
 
 void
@@ -485,6 +479,11 @@ DOMWorkerErrorReporter(JSContext* aCx,
     // We don't want to report errors from canceled workers. It's very likely
     // that we only returned an error in the first place because the worker was
     // already canceled.
+    return;
+  }
+
+  if (worker->mErrorHandlerRecursionCount == 2) {
+    // We've somehow ended up in a recursive onerror loop. Bail out.
     return;
   }
 
@@ -508,27 +507,36 @@ DOMWorkerErrorReporter(JSContext* aCx,
                          column, aReport->flags, "DOM Worker javascript");
   NS_ENSURE_SUCCESS(rv,);
 
-  // Try the onerror handler for the worker's scope.
-  nsCOMPtr<nsIDOMEventListener> handler =
-    worker->mInnerHandler->GetOnXListener(NS_LITERAL_STRING("error"));
+  // Don't call the error handler if we're out of stack space.
+  if (aReport->errorNumber != JSMSG_SCRIPT_STACK_QUOTA &&
+      aReport->errorNumber != JSMSG_OVER_RECURSED) {
+    // Try the onerror handler for the worker's scope.
+    nsCOMPtr<nsIDOMEventListener> handler =
+      worker->mInnerHandler->GetOnXListener(NS_LITERAL_STRING("error"));
 
-  if (handler) {
-    nsRefPtr<nsDOMWorkerErrorEvent> event(new nsDOMWorkerErrorEvent());
-    NS_ENSURE_TRUE(event,);
+    if (handler) {
+      nsRefPtr<nsDOMWorkerErrorEvent> event(new nsDOMWorkerErrorEvent());
+      if (event) {
+        rv = event->InitErrorEvent(NS_LITERAL_STRING("error"), PR_FALSE, PR_TRUE,
+                                   nsDependentString(message), filename,
+                                   aReport->lineno);
+        if (NS_SUCCEEDED(rv)) {
+          NS_ASSERTION(worker->GetInnerScope(), "Null scope!");
+          event->SetTarget(worker->GetInnerScope());
 
-    rv = event->InitErrorEvent(NS_LITERAL_STRING("error"), PR_FALSE, PR_TRUE,
-                               nsDependentString(message), filename,
-                               aReport->lineno);
-    NS_ENSURE_SUCCESS(rv,);
+          NS_ASSERTION(worker->mErrorHandlerRecursionCount >= 0,
+                       "Bad recursion count logic!");
+          worker->mErrorHandlerRecursionCount++;
 
-    NS_ASSERTION(worker->GetInnerScope(), "Null scope!");
-    event->SetTarget(worker->GetInnerScope());
+          handler->HandleEvent(static_cast<nsDOMWorkerEvent*>(event));
 
-    rv = handler->HandleEvent(static_cast<nsDOMWorkerEvent*>(event));
-    NS_ENSURE_SUCCESS(rv,);
+          worker->mErrorHandlerRecursionCount--;
 
-    if (event->PreventDefaultCalled()) {
-      return;
+          if (event->PreventDefaultCalled()) {
+            return;
+          }
+        }
+      }
     }
   }
 
@@ -616,6 +624,9 @@ nsDOMThreadService::Init()
   NS_ENSURE_TRUE(success, NS_ERROR_OUT_OF_MEMORY);
 
   success = mPools.Init();
+  NS_ENSURE_TRUE(success, NS_ERROR_OUT_OF_MEMORY);
+
+  success = mJSContexts.SetCapacity(THREADPOOL_THREAD_CAP);
   NS_ENSURE_TRUE(success, NS_ERROR_OUT_OF_MEMORY);
 
   nsCOMPtr<nsIJSRuntimeService>
@@ -823,8 +834,7 @@ nsDOMThreadService::CreateJSContext()
 
   JS_SetErrorReporter(cx, DOMWorkerErrorReporter);
 
-  JS_SetOperationCallback(cx, DOMWorkerOperationCallback,
-                          100 * JS_OPERATION_WEIGHT_BASE);
+  JS_SetOperationCallback(cx, DOMWorkerOperationCallback);
 
   static JSSecurityCallbacks securityCallbacks = {
     nsDOMWorkerSecurityManager::JSCheckAccess,
@@ -837,6 +847,27 @@ nsDOMThreadService::CreateJSContext()
   nsresult rv = nsContentUtils::XPConnect()->
     SetSecurityManagerForJSContext(cx, gWorkerSecurityManager, 0);
   NS_ENSURE_SUCCESS(rv, nsnull);
+
+  PRUint32 stackDummy;
+  jsuword stackLimit, currentStackAddr = (jsuword)&stackDummy;
+
+  // 256k stack space.
+  const jsuword kStackSize = 0x40000;
+
+#if JS_STACK_GROWTH_DIRECTION < 0
+  stackLimit = (currentStackAddr > kStackSize) ?
+               currentStackAddr - kStackSize :
+               0;
+#else
+  stackLimit = (currentStackAddr + kStackSize > currentStackAddr) ?
+               currentStackAddr + kStackSize :
+               (jsuword) -1;
+#endif
+
+  JS_SetThreadStackLimit(cx, stackLimit);
+  JS_SetScriptStackQuota(cx, 100*1024*1024);
+
+  JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_JIT | JSOPTION_ANONFUNFIX);
 
   return cx.forget();
 }
@@ -860,6 +891,23 @@ nsDOMThreadService::GetPoolForGlobal(nsIScriptGlobalObject* aGlobalObject,
 }
 
 void
+nsDOMThreadService::TriggerOperationCallbackForPool(nsDOMWorkerPool* aPool)
+{
+  nsAutoMonitor mon(mMonitor);
+
+  // See if we need to trigger the operation callback on any currently running
+  // contexts.
+  PRUint32 contextCount = mJSContexts.Length();
+  for (PRUint32 index = 0; index < contextCount; index++) {
+    JSContext*& cx = mJSContexts[index];
+    nsDOMWorker* worker = (nsDOMWorker*)JS_GetContextPrivate(cx);
+    if (worker && worker->Pool() == aPool) {
+      JS_TriggerOperationCallback(cx);
+    }
+  }
+}
+
+void
 nsDOMThreadService::CancelWorkersForGlobal(nsIScriptGlobalObject* aGlobalObject)
 {
   NS_ASSERTION(aGlobalObject, "Null pointer!");
@@ -867,6 +915,7 @@ nsDOMThreadService::CancelWorkersForGlobal(nsIScriptGlobalObject* aGlobalObject)
   nsRefPtr<nsDOMWorkerPool> pool = GetPoolForGlobal(aGlobalObject, PR_TRUE);
   if (pool) {
     pool->Cancel();
+    TriggerOperationCallbackForPool(pool);
   }
 }
 
@@ -878,6 +927,7 @@ nsDOMThreadService::SuspendWorkersForGlobal(nsIScriptGlobalObject* aGlobalObject
   nsRefPtr<nsDOMWorkerPool> pool = GetPoolForGlobal(aGlobalObject, PR_FALSE);
   if (pool) {
     pool->Suspend();
+    TriggerOperationCallbackForPool(pool);
   }
 }
 
@@ -889,6 +939,7 @@ nsDOMThreadService::ResumeWorkersForGlobal(nsIScriptGlobalObject* aGlobalObject)
   nsRefPtr<nsDOMWorkerPool> pool = GetPoolForGlobal(aGlobalObject, PR_FALSE);
   if (pool) {
     pool->Resume();
+    TriggerOperationCallbackForPool(pool);
   }
 }
 
@@ -933,6 +984,17 @@ nsDOMThreadService::ChangeThreadPoolMaxThreads(PRInt16 aDelta)
 
   rv = mThreadPool->SetThreadLimit((PRUint32)newThreadCount);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  // If we're allowing an extra thread then post a dummy event to the thread
+  // pool so that any pending workers can get started. The thread pool doesn't
+  // do this on its own like it probably should...
+  if (aDelta == 1) {
+    nsCOMPtr<nsIRunnable> dummy(new nsRunnable());
+    if (dummy) {
+      rv = mThreadPool->Dispatch(dummy, NS_DISPATCH_NORMAL);
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
+  }
 
   return NS_OK;
 }
@@ -1034,6 +1096,16 @@ nsDOMThreadService::OnThreadCreated()
       nsContentUtils::XPConnect()->ReleaseJSContext(cx, PR_TRUE);
       return NS_ERROR_FAILURE;
     }
+
+    nsAutoMonitor mon(mMonitor);
+
+#ifdef DEBUG
+    JSContext** newContext =
+#endif
+    mJSContexts.AppendElement(cx);
+
+    // We ensure the capacity of this array in Init.
+    NS_ASSERTION(newContext, "Should never fail!");
   }
 
   // Make sure that XPConnect knows about this context.
@@ -1053,6 +1125,11 @@ nsDOMThreadService::OnThreadShuttingDown()
   JSContext* cx = (JSContext*)PR_GetThreadPrivate(gJSContextIndex);
   NS_WARN_IF_FALSE(cx, "Thread died with no context?");
   if (cx) {
+    {
+      nsAutoMonitor mon(mMonitor);
+      mJSContexts.RemoveElement(cx);
+    }
+
     JSContext* pushedCx;
     gThreadJSContextStack->Pop(&pushedCx);
     NS_ASSERTION(pushedCx == cx, "Popped the wrong context!");

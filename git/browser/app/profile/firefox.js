@@ -219,11 +219,6 @@ pref("browser.urlbar.autoFill", false);
 // 2: Match only on word boundaries (e.g., after / or .)
 // 3: Match at the beginning of the url or title
 pref("browser.urlbar.matchBehavior", 1);
-// 0: Search nothing
-// 1: Search history (visited pages)
-// 2: Search bookmarks
-// 3: Search both history and bookmarks
-pref("browser.urlbar.search.sources", 3);
 pref("browser.urlbar.filter.javascript", true);
 
 // the maximum number of results to show in autocomplete when doing richResults
@@ -259,7 +254,7 @@ pref("browser.urlbar.default.behavior", 0);
 pref("browser.download.saveLinkAsFilenameTimeout", 1000);
 
 pref("browser.download.useDownloadDir", true);
-pref("browser.download.folderList", 0);
+pref("browser.download.folderList", 1);
 pref("browser.download.manager.showAlertOnComplete", true);
 pref("browser.download.manager.showAlertInterval", 2000);
 pref("browser.download.manager.retention", 2);
@@ -280,9 +275,6 @@ pref("browser.search.defaultenginename",      "chrome://browser-region/locale/re
 
 // disable logging for the search service by default
 pref("browser.search.log", false);
-
-// serialize search plugin XML
-pref("browser.search.cache.enabled", true);
 
 // Ordering of Search Engines in the Engine list. 
 pref("browser.search.order.1",                "chrome://browser-region/locale/region.properties");
@@ -405,9 +397,9 @@ pref("privacy.item.passwords",   false);
 pref("privacy.item.downloads",   true);
 pref("privacy.item.cookies",     false);
 pref("privacy.item.cache",       true);
-pref("privacy.item.siteprefs",   false);
 pref("privacy.item.sessions",    true);
 pref("privacy.item.offlineApps", false);
+pref("privacy.item.siteSettings", false);
 
 // What default should we use for the time span in the sanitizer:
 // 0 - Clear everything
@@ -415,7 +407,7 @@ pref("privacy.item.offlineApps", false);
 // 2 - Last 2 Hours
 // 3 - Last 4 Hours
 // 4 - Today
-pref("privacy.sanitize.timeSpan", 0);
+pref("privacy.sanitize.timeSpan", 1);
 pref("privacy.sanitize.sanitizeOnShutdown", false);
 
 pref("network.proxy.share_proxy_settings",  false); // use the same proxy settings for all protocols
@@ -759,7 +751,7 @@ pref("places.frecency.defaultBucketWeight", 10);
 pref("places.frecency.embedVisitBonus", 0);
 pref("places.frecency.linkVisitBonus", 100);
 pref("places.frecency.typedVisitBonus", 2000);
-pref("places.frecency.bookmarkVisitBonus", 150);
+pref("places.frecency.bookmarkVisitBonus", 75);
 pref("places.frecency.downloadVisitBonus", 0);
 pref("places.frecency.permRedirectVisitBonus", 0);
 pref("places.frecency.tempRedirectVisitBonus", 0);
@@ -779,7 +771,7 @@ pref("browser.ssl_override_behavior", 2);
 // 0 - do not show domain
 // 1 - show effectiveTLD + 1 (e.g. mozilla.org)
 // 2 - show full domain (e.g. bugzilla.mozilla.org)
-pref("browser.identity.ssl_domain_display", 0);
+pref("browser.identity.ssl_domain_display", 1);
 
 // True if the user should be prompted when a web application supports
 // offline apps.
@@ -790,6 +782,9 @@ pref("browser.zoom.full", true);
 
 // Whether or not to save and restore zoom levels on a per-site basis.
 pref("browser.zoom.siteSpecific", true);
+
+// Whether or not to update background tabs to the current zoom level.
+pref("browser.zoom.updateBackgroundTabs", true);
 
 // replace newlines with spaces when pasting into <input type="text"> fields
 pref("editor.singleLine.pasteNewlines", 2);
@@ -808,3 +803,7 @@ pref("browser.privatebrowsing.autostart", false);
 
 // Whether we should skip prompting before starting the private browsing mode
 pref("browser.privatebrowsing.dont_prompt_on_enter", false);
+
+// Don't try to alter this pref, it'll be reset the next time you use the
+// bookmarking dialog
+pref("browser.bookmarks.editDialog.firstEditField", "namePicker");

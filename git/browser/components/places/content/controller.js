@@ -579,7 +579,7 @@ PlacesController.prototype = {
    *     selection attribute. A menu-item would be hidden if at least one of the
    *     given rules apply to one of the selected nodes. The rules should be
    *     separated with the | character.
-   *  5) The "hideifnoinsetionpoint" attribute may be set on a menu-item to
+   *  5) The "hideifnoinsertionpoint" attribute may be set on a menu-item to
    *     true if it should be hidden when there's no insertion point
    *  6) The visibility state of a menu-item is unchanged if none of these
    *     attribute are set.
@@ -600,7 +600,7 @@ PlacesController.prototype = {
     for (var i = 0; i < aPopup.childNodes.length; ++i) {
       var item = aPopup.childNodes[i];
       if (item.localName != "menuseparator") {
-        item.hidden = (item.getAttribute("hideifnoinsetionpoint") == "true" && noIp) ||
+        item.hidden = (item.getAttribute("hideifnoinsertionpoint") == "true" && noIp) ||
                       !this._shouldShowMenuItem(item, metadata);
 
         if (!item.hidden) {
@@ -1055,7 +1055,7 @@ PlacesController.prototype = {
     var oldViewer = result.viewer;
     try {
       result.viewer = null;
-      var nodes = this._view.getDragableSelection();
+      var nodes = this._view.getDraggableSelection();
 
       for (var i = 0; i < nodes.length; ++i) {
         var node = nodes[i];
@@ -1335,6 +1335,19 @@ var PlacesControllerDragHelper = {
 
       var data = dt.mozGetDataAt(flavor, i);
 
+      // urls can be dropped on any insertionpoint
+      // XXXmano: // Remember: this method is called for each dragover event!
+      // Thus we shouldn't use unwrapNodes here at all if possible.
+      // I think it would be OK to accept bogus data here (e.g. text which was
+      // somehow wrapped as TAB_DROP_TYPE, this is not in our control, and
+      // will just case the actual drop to be a no-op), and only rule out valid
+      // expected cases, which are either unsupported flavors, or items which
+      // cannot be dropped in the current insertionpoint. The last case will
+      // likely force us to use unwrapNodes for the private data types of
+      // places.
+      if (flavor == TAB_DROP_TYPE)
+        continue;
+
       try {
         var dragged = PlacesUtils.unwrapNodes(data, flavor)[0];
       } catch (e) {
@@ -1363,6 +1376,7 @@ var PlacesControllerDragHelper = {
     return true;
   },
 
+  
   /**
    * Determines if a node can be moved.
    * 
@@ -1444,8 +1458,22 @@ var PlacesControllerDragHelper = {
         return false;
 
       var data = dt.mozGetDataAt(flavor, i);
-      // There's only ever one in the D&D case.
-      var unwrapped = PlacesUtils.unwrapNodes(data, flavor)[0];
+      var unwrapped;
+      if (flavor != TAB_DROP_TYPE) {
+        // There's only ever one in the D&D case.
+        unwrapped = PlacesUtils.unwrapNodes(data, flavor)[0];
+      }
+      else if (data instanceof XULElement && data.localName == "tab" &&
+               data.ownerDocument.defaultView instanceof ChromeWindow) {
+        var uri = data.linkedBrowser.currentURI;
+        var spec = uri ? uri.spec : "about:blank";
+        var title = data.label;
+        unwrapped = { uri: spec,
+                      title: data.label,
+                      type: PlacesUtils.TYPE_X_MOZ_URL};
+      }
+      else
+        throw("bogus data was passed as a tab")
 
       var index = insertionPoint.index;
 
@@ -1494,10 +1522,12 @@ var PlacesControllerDragHelper = {
                   PlacesUtils.TYPE_X_MOZ_PLACE_SEPARATOR,
                   PlacesUtils.TYPE_X_MOZ_PLACE],
 
+  // The order matters.
   GENERIC_VIEW_DROP_TYPES: [PlacesUtils.TYPE_X_MOZ_PLACE_CONTAINER,
                             PlacesUtils.TYPE_X_MOZ_PLACE_SEPARATOR,
                             PlacesUtils.TYPE_X_MOZ_PLACE,
                             PlacesUtils.TYPE_X_MOZ_URL,
+                            TAB_DROP_TYPE,
                             PlacesUtils.TYPE_UNICODE],
 
   /**

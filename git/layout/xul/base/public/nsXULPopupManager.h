@@ -210,10 +210,12 @@ class nsXULPopupShowingEvent : public nsRunnable
 public:
   nsXULPopupShowingEvent(nsIContent *aPopup,
                          nsIContent *aMenu,
+                         nsPopupType aPopupType,
                          PRBool aIsContextMenu,
                          PRBool aSelectFirstItem)
     : mPopup(aPopup),
       mMenu(aMenu),
+      mPopupType(aPopupType),
       mIsContextMenu(aIsContextMenu),
       mSelectFirstItem(aSelectFirstItem)
   {
@@ -226,6 +228,7 @@ public:
 private:
   nsCOMPtr<nsIContent> mPopup;
   nsCOMPtr<nsIContent> mMenu;
+  nsPopupType mPopupType;
   PRBool mIsContextMenu;
   PRBool mSelectFirstItem;
 };
@@ -495,10 +498,10 @@ public:
   nsIFrame* GetTopPopup(nsPopupType aType);
 
   /**
-   * Return an array of all the open popup frames for menus, in order from
-   * top to bottom.
+   * Return an array of all the open and visible popup frames for
+   * menus, in order from top to bottom.
    */
-  nsTArray<nsIFrame *> GetOpenPopups();
+  nsTArray<nsIFrame *> GetVisiblePopups();
 
   /**
    * Return false if a popup may not be opened. This will return false if the
@@ -716,7 +719,7 @@ protected:
   // range parent and offset set in SetTriggerEvent
   nsCOMPtr<nsIDOMNode> mRangeParent;
   PRInt32 mRangeOffset;
-  nsPoint mCachedMousePoint;
+  nsIntPoint mCachedMousePoint;
 
   // set to the currently active menu bar, if any
   nsMenuBarFrame* mActiveMenuBar;

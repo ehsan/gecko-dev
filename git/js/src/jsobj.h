@@ -128,7 +128,30 @@ struct JSObjectMap {
  */
 struct JSObject {
     JSObjectMap *map;
+
+    /*
+     * Stores the JSClass* for this object, with the two lowest bits encoding
+     * whether this object is a delegate or a system object.
+     *
+     * A delegate is an object linked on another object's prototype
+     * (JSSLOT_PROTO) or scope (JSSLOT_PARENT) chain, which might be implicitly
+     * asked to get or set a property on behalf of another object. Delegates
+     * may be accessed directly too, as might any object, but only those
+     * objects linked after the head of a prototype or scope chain are
+     * delegates. This definition helps to optimize shape-based property cache
+     * purging (see Purge{Scope,Proto}Chain in jsobj.cpp).
+     *
+     * The meaning of the system object bit is defined by the API client. It is
+     * set in JS_NewSystemObject and is queried by JS_IsSystemObject, but it
+     * has no intrinsic meaning to SpiderMonkey. Further, JSFILENAME_SYSTEM and
+     * JS_FlagScriptFilenamePrefix are intended to be complementary to this
+     * bit, but it is up to the API client to implement any such association.
+     *
+     * Both bits are initially zero and may be set or queried using the
+     * STOBJ_(IS|SET)_(DELEGATE|SYSTEM) macros.
+     */
     jsuword     classword;
+
     jsval       fslots[JS_INITIAL_NSLOTS];
     jsval       *dslots;        /* dynamically allocated slots */
 };
@@ -415,7 +438,16 @@ js_InitEval(JSContext *cx, JSObject *obj);
 extern JSObject *
 js_InitObjectClass(JSContext *cx, JSObject *obj);
 
-/* Select Object.prototype method names shared between jsapi.c and jsobj.c. */
+extern JSObject *
+js_InitClass(JSContext *cx, JSObject *obj, JSObject *parent_proto,
+             JSClass *clasp, JSNative constructor, uintN nargs,
+             JSPropertySpec *ps, JSFunctionSpec *fs,
+             JSPropertySpec *static_ps, JSFunctionSpec *static_fs,
+             JSTraceableNative *trcinfo);
+
+/*
+ * Select Object.prototype method names shared between jsapi.cpp and jsobj.cpp.
+ */
 extern const char js_watch_str[];
 extern const char js_unwatch_str[];
 extern const char js_hasOwnProperty_str[];
@@ -459,6 +491,19 @@ js_NewObject(JSContext *cx, JSClass *clasp, JSObject *proto, JSObject *parent,
 extern JSObject *
 js_NewObjectWithGivenProto(JSContext *cx, JSClass *clasp, JSObject *proto,
                            JSObject *parent, uintN objectSize);
+
+/*
+ * Allocate a new native object and initialize all fslots with JSVAL_VOID
+ * starting with the specified slot. The parent slot is set to the value of
+ * proto's parent slot.
+ *
+ * Note that this is the correct global object for native class instances, but
+ * not for user-defined functions called as constructors.  Functions used as
+ * constructors must create instances parented by the parent of the function
+ * object, not by the parent of its .prototype object value.
+ */
+extern JSObject*
+js_NewNativeObject(JSContext *cx, JSClass *clasp, JSObject *proto, uint32 slot);
 
 /*
  * Fast access to immutable standard objects (constructors and prototypes).
@@ -516,6 +561,22 @@ js_CheckForStringIndex(jsid id, const jschar *cp, const jschar *end,
                        JSBool negative);
 
 /*
+ * js_PurgeScopeChain does nothing if obj is not itself a prototype or parent
+ * scope, else it reshapes the scope and prototype chains it links. It calls
+ * js_PurgeScopeChainHelper, which asserts that obj is flagged as a delegate
+ * (i.e., obj has ever been on a prototype or parent chain).
+ */
+extern void
+js_PurgeScopeChainHelper(JSContext *cx, JSObject *obj, jsid id);
+
+static JS_INLINE void
+js_PurgeScopeChain(JSContext *cx, JSObject *obj, jsid id)
+{
+    if (OBJ_IS_DELEGATE(cx, obj))
+        js_PurgeScopeChainHelper(cx, obj, id);
+}
+
+/*
  * Find or create a property named by id in obj's scope, with the given getter
  * and setter, slot, attributes, and other members.
  */
@@ -546,10 +607,13 @@ js_DefineProperty(JSContext *cx, JSObject *obj, jsid id, jsval value,
                   JSPropertyOp getter, JSPropertyOp setter, uintN attrs,
                   JSProperty **propp);
 
+#ifdef __cplusplus /* FIXME: bug 442399 removes this LiveConnect requirement. */
 extern JSBool
 js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, jsval value,
                         JSPropertyOp getter, JSPropertyOp setter, uintN attrs,
-                        uintN flags, intN shortid, JSProperty **propp);
+                        uintN flags, intN shortid, JSProperty **propp,
+                        JSPropCacheEntry** entryp = NULL);
+#endif
 
 /*
  * Unlike js_DefineProperty, propp must be non-null. On success, and if id was
@@ -726,6 +790,10 @@ js_GetWrappedObject(JSContext *cx, JSObject *obj);
 extern const char *
 js_ComputeFilename(JSContext *cx, JSStackFrame *caller,
                    JSPrincipals *principals, uintN *linenop);
+
+/* Infallible, therefore cx is last parameter instead of first. */
+extern JSBool
+js_IsCallable(JSObject *obj, JSContext *cx);
 
 #ifdef DEBUG
 JS_FRIEND_API(void) js_DumpChars(const jschar *s, size_t n);

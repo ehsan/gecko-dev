@@ -44,6 +44,7 @@ const XHTML_NS = "http://www.w3.org/1999/xhtml";
 
 const NS_LOCAL_FILE_CONTRACTID = "@mozilla.org/file/local;1";
 const IO_SERVICE_CONTRACTID = "@mozilla.org/network/io-service;1";
+const DEBUG_CONTRACTID = "@mozilla.org/xpcom/debug;1";
 const NS_LOCALFILEINPUTSTREAM_CONTRACTID =
           "@mozilla.org/network/file-input-stream;1";
 const NS_SCRIPTSECURITYMANAGER_CONTRACTID =
@@ -52,8 +53,14 @@ const NS_REFTESTHELPER_CONTRACTID =
           "@mozilla.org/reftest-helper;1";
 const NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX =
           "@mozilla.org/network/protocol;1?name=";
+const NS_XREAPPINFO_CONTRACTID =
+          "@mozilla.org/xre/app-info;1";
+
 
 const LOAD_FAILURE_TIMEOUT = 10000; // ms
+
+// "<!--CLEAR-->"
+const BLANK_URL_FOR_CLEARING = "data:text/html,%3C%21%2D%2DCLEAR%2D%2D%3E";
 
 var gBrowser;
 var gCanvas1, gCanvas2;
@@ -74,25 +81,31 @@ var gTestResults = {
   FailedLoad: 0,
   UnexpectedFail: 0,
   UnexpectedPass: 0,
+  AssertionUnexpected: 0,
+  AssertionUnexpectedFixed: 0,
   // Known problems...
   KnownFail : 0,
+  AssertionKnown: 0,
   Random : 0,
   Skip: 0,
 };
 var gTotalTests = 0;
 var gState;
 var gCurrentURL;
-var gFailureTimeout;
+var gFailureTimeout = null;
 var gFailureReason;
 var gServer;
 var gCount = 0;
+var gAssertionCount = 0;
 
 var gIOService;
+var gDebug;
 var gWindowUtils;
 
 var gCurrentTestStartTime;
 var gSlowestTestTime = 0;
 var gSlowestTestURL;
+var gClearingForAssertionCheck = false;
 
 const EXPECTED_PASS = 0;
 const EXPECTED_FAIL = 1;
@@ -101,7 +114,8 @@ const EXPECTED_DEATH = 3;  // test must be skipped to avoid e.g. crash/hang
 const EXPECTED_LOAD = 4; // test without a reference (just test that it does
                          // not assert, crash, hang, or leak)
 
-const HTTP_SERVER_PORT = 4444;
+var HTTP_SERVER_PORT = 4444;
+const HTTP_SERVER_PORTS_TO_TRY = 50;
 
 var gRecycledCanvases = new Array();
 
@@ -140,14 +154,33 @@ function OnRefTestLoad()
     var windowElem = document.documentElement;
 
     gIOService = CC[IO_SERVICE_CONTRACTID].getService(CI.nsIIOService);
+    gDebug = CC[DEBUG_CONTRACTID].getService(CI.nsIDebug2);
+    gServer = CC["@mozilla.org/server/jshttp;1"].
+                  createInstance(CI.nsIHttpServer);
 
     try {
-        ReadTopManifest(window.arguments[0]);
-        BuildUseCounts();
         if (gServer) {
             gServer.registerContentType("sjs", "sjs");
-            gServer.start(HTTP_SERVER_PORT);
+            // We want to try different ports in case the port we want
+            // is being used.
+            var tries = HTTP_SERVER_PORTS_TO_TRY;
+            var succeeded = false;
+            do {
+                try {
+                    gServer.start(HTTP_SERVER_PORT);
+                    succeeded = true;
+                } catch (ex) {
+                    gServer.stop();
+                    ++HTTP_SERVER_PORT;
+                    if (--tries == 0) {
+                        throw ex;
+                    }
+                }
+            } while (!succeeded);
         }
+        // Need to read the manifest once we have the final HTTP_SERVER_PORT.
+        ReadTopManifest(window.arguments[0]);
+        BuildUseCounts();
         gTotalTests = gURLs.length;
         gURICanvases = {};
         StartCurrentTest();
@@ -178,6 +211,8 @@ function ReadTopManifest(aFileURL)
     ReadManifest(url);
 }
 
+// Note: If you materially change the reftest manifest parsing,
+// please keep the parser in print-manifest-dirs.py in sync.
 function ReadManifest(aURL)
 {
     var listURL = aURL.QueryInterface(CI.nsIFileURL);
@@ -192,8 +227,11 @@ function ReadManifest(aURL)
 
     // Build the sandbox for fails-if(), etc., condition evaluation.
     var sandbox = new Components.utils.Sandbox(aURL.spec);
-    for (var prop in gAutoconfVars)
-        sandbox[prop] = gAutoconfVars[prop];
+    var xr = CC[NS_XREAPPINFO_CONTRACTID].getService(CI.nsIXULRuntime);
+    sandbox.MOZ_WIDGET_TOOLKIT = xr.widgetToolkit;
+    sandbox.xulRuntime = {widgetToolkit: xr.widgetToolkit,
+                          OS: xr.OS,
+                          XPCOMABI: xr.XPCOMABI};
     var hh = CC[NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX + "http"].
                  getService(CI.nsIHttpProtocolHandler);
     sandbox.http = {};
@@ -202,6 +240,17 @@ function ReadManifest(aURL)
                             "product", "productSub", "productComment",
                             "platform", "oscpu", "language", "misc" ])
         sandbox.http[prop] = hh[prop];
+    // see if we have the test plugin available,
+    // and set a sandox prop accordingly
+    sandbox.haveTestPlugin = false;
+    for (var i = 0; i < navigator.mimeTypes.length; i++) {
+        if (navigator.mimeTypes[i].type == "application/x-test" &&
+            navigator.mimeTypes[i].enabledPlugin != null &&
+            navigator.mimeTypes[i].enabledPlugin.name == "Test Plug-in") {
+            sandbox.haveTestPlugin = true;
+            break;
+        }
+    }
 
     var line = {value:null};
     var lineNo = 0;
@@ -221,7 +270,9 @@ function ReadManifest(aURL)
         var items = str.split(/\s+/); // split on whitespace
 
         var expected_status = EXPECTED_PASS;
-        while (items[0].match(/^(fails|random|skip)/)) {
+        var minAsserts = 0;
+        var maxAsserts = 0;
+        while (items[0].match(/^(fails|random|skip|asserts)/)) {
             var item = items.shift();
             var stat;
             var cond;
@@ -233,6 +284,19 @@ function ReadManifest(aURL)
             } else if (item.match(/^(fails|random|skip)$/)) {
                 stat = item;
                 cond = true;
+            } else if ((m = item.match(/^asserts\((\d+)(-\d+)?\)$/))) {
+                cond = false;
+                minAsserts = Number(m[1]);
+                maxAsserts = (m[2] == undefined) ? minAsserts
+                                                 : Number(m[2].substring(1));
+            } else if ((m = item.match(/^asserts-if\((.*?),(\d+)(-\d+)?\)$/))) {
+                cond = false;
+                if (Components.utils.evalInSandbox("(" + m[1] + ")", sandbox)) {
+                    minAsserts = Number(m[2]);
+                    maxAsserts =
+                      (m[3] == undefined) ? minAsserts
+                                          : Number(m[3].substring(1));
+                }
             } else {
                 throw "Error in manifest file " + aURL.spec + " line " + lineNo;
             }
@@ -246,6 +310,10 @@ function ReadManifest(aURL)
                     expected_status = EXPECTED_DEATH;
                 }
             }
+        }
+
+        if (minAsserts > maxAsserts) {
+            throw "Bad range in manifest file " + aURL.spec + " line " + lineNo;
         }
 
         var runHttp = false;
@@ -287,6 +355,8 @@ function ReadManifest(aURL)
             gURLs.push( { equal: true /* meaningless */,
                           expected: expected_status,
                           prettyPath: prettyPath,
+                          minAsserts: minAsserts,
+                          maxAsserts: maxAsserts,
                           url1: testURI,
                           url2: null } );
         } else if (items[0] == "==" || items[0] == "!=") {
@@ -307,6 +377,8 @@ function ReadManifest(aURL)
             gURLs.push( { equal: (items[0] == "=="),
                           expected: expected_status,
                           prettyPath: prettyPath,
+                          minAsserts: minAsserts,
+                          maxAsserts: maxAsserts,
                           url1: testURI,
                           url2: refURI } );
         } else {
@@ -342,10 +414,6 @@ function BuildUseCounts()
 
 function ServeFiles(manifestURL, depth, directory, files)
 {
-    if (!gServer)
-        gServer = CC["@mozilla.org/server/jshttp;1"].
-                      createInstance(CI.nsIHttpServer);
-
     // Allow serving a tree that's an ancestor of the directory containing
     // the files so that they can use resources in ../ (etc.).
     var dirPath = "/";
@@ -356,7 +424,7 @@ function ServeFiles(manifestURL, depth, directory, files)
     }
 
     gCount++;
-    var path = "/" + gCount;
+    var path = "/" + Date.now() + "/" + gCount;
     gServer.registerDirectory(path + "/", directory);
 
     var secMan = CC[NS_SCRIPTSECURITYMANAGER_CONTRACTID]
@@ -405,13 +473,19 @@ function StartCurrentTest()
 function StartCurrentURI(aState)
 {
     gCurrentTestStartTime = Date.now();
+    if (gFailureTimeout != null) {
+        dump("REFTEST TEST-UNEXPECTED-FAIL | " + 
+             "| program error managing timeouts\n");
+        ++gTestResults.Exception;
+    }
     gFailureTimeout = setTimeout(LoadFailed, LOAD_FAILURE_TIMEOUT);
     gFailureReason = "timed out waiting for onload to fire";
 
     gState = aState;
     gCurrentURL = gURLs[0]["url" + aState].spec;
 
-    if (gURICanvases[gCurrentURL] && gURLs[0].expected != EXPECTED_LOAD) {
+    if (gURICanvases[gCurrentURL] && gURLs[0].expected != EXPECTED_LOAD &&
+        gURLs[0].maxAsserts == 0) {
         // Pretend the document loaded --- DocumentLoaded will notice
         // there's already a canvas for this URL
         setTimeout(DocumentLoaded, 0);
@@ -431,15 +505,21 @@ function DoneTests()
          gTestResults.Pass + " pass, " +
          gTestResults.LoadOnly + " load only)\n");
     count = gTestResults.Exception + gTestResults.FailedLoad +
-            gTestResults.UnexpectedFail + gTestResults.UnexpectedPass;
+            gTestResults.UnexpectedFail + gTestResults.UnexpectedPass +
+            gTestResults.AssertionUnexpected +
+            gTestResults.AssertionUnexpectedFixed;
     dump("REFTEST INFO | Unexpected: " + count + " (" +
          gTestResults.UnexpectedFail + " unexpected fail, " +
          gTestResults.UnexpectedPass + " unexpected pass, " +
+         gTestResults.AssertionUnexpected + " unexpected asserts, " +
+         gTestResults.AssertionUnexpectedFixed + " unexpected fixed asserts, " +
          gTestResults.FailedLoad + " failed load, " +
          gTestResults.Exception + " exception)\n");
-    count = gTestResults.KnownFail + gTestResults.Random + gTestResults.Skip;
+    count = gTestResults.KnownFail + gTestResults.AssertionKnown +
+            gTestResults.Random + gTestResults.Skip;
     dump("REFTEST INFO | Known problems: " + count + " (" +
          gTestResults.KnownFail + " known fail, " +
+         gTestResults.AssertionKnown + " known asserts, " +
          gTestResults.Random + " random, " +
          gTestResults.Skip + " skipped)\n");
 
@@ -467,6 +547,12 @@ function OnDocumentLoad(event)
         // Ignore load events for subframes.
         return;
         
+    if (gClearingForAssertionCheck &&
+        gBrowser.contentDocument.location.href == BLANK_URL_FOR_CLEARING) {
+        DoAssertionCheck();
+        return;
+    }
+
     if (gBrowser.contentDocument.location.href != gCurrentURL)
         // Ignore load events for previous documents.
         return;
@@ -569,6 +655,14 @@ function OnDocumentLoad(event)
 
             // We don't want to be notified again
             contentRootElement.removeEventListener("DOMAttrModified", AttrModifiedListener, false);
+            // Wait for the next return-to-event-loop before continuing to flush rendering and
+            // check isMozAfterPaintPending --- for example, the attribute may have been modified
+            // in an subdocument's load event handler, in which case we need load event processing
+            // to complete and unsuppress painting before we check isMozAfterPaintPending.
+            setTimeout(AttrModifiedListenerContinuation, 0);
+        }
+
+        function AttrModifiedListenerContinuation() {
             if (doPrintMode())
                 setupPrintMode();
             FlushRendering();
@@ -704,12 +798,12 @@ function DocumentLoaded()
 
     clearTimeout(gFailureTimeout);
     gFailureReason = null;
+    gFailureTimeout = null;
 
     if (gURLs[0].expected == EXPECTED_LOAD) {
         ++gTestResults.LoadOnly;
         dump("REFTEST TEST-PASS | " + gURLs[0].prettyPath + " | (LOAD ONLY)\n");
-        gURLs.shift();
-        StartCurrentTest();
+        FinishTestItem();
         return;
     }
 
@@ -797,8 +891,7 @@ function DocumentLoaded()
             UpdateCanvasCache(gURLs[0].url1, gCanvas1);
             UpdateCanvasCache(gURLs[0].url2, gCanvas2);
 
-            gURLs.shift();
-            StartCurrentTest();
+            FinishTestItem();
             break;
         default:
             throw "Unexpected state.";
@@ -807,9 +900,61 @@ function DocumentLoaded()
 
 function LoadFailed()
 {
+    gFailureTimeout = null;
     ++gTestResults.FailedLoad;
     dump("REFTEST TEST-UNEXPECTED-FAIL | " +
          gURLs[0]["url" + gState].spec + " | " + gFailureReason + "\n");
+    FinishTestItem();
+}
+
+function FinishTestItem()
+{
+    // Replace document with BLANK_URL_FOR_CLEARING in case there are
+    // assertions when unloading.
+    gClearingForAssertionCheck = true;
+    gBrowser.loadURI(BLANK_URL_FOR_CLEARING);
+}
+
+function DoAssertionCheck()
+{
+    gClearingForAssertionCheck = false;
+
+    if (gDebug.isDebugBuild) {
+        // TEMPORARILY DISABLING ASSERTION CHECKS FOR NOW.  TO RE-ENABLE,
+        // USE COMMENTED LINE TO REPLACE FOLLOWING ONE.
+        // var newAssertionCount = gDebug.assertionCount;
+        var newAssertionCount = 0;
+        var numAsserts = newAssertionCount - gAssertionCount;
+        gAssertionCount = newAssertionCount;
+
+        var minAsserts = gURLs[0].minAsserts;
+        var maxAsserts = gURLs[0].maxAsserts;
+
+        var expectedAssertions = "expected " + minAsserts;
+        if (minAsserts != maxAsserts) {
+            expectedAssertions += " to " + maxAsserts;
+        }
+        expectedAssertions += " assertions";
+
+        if (numAsserts < minAsserts) {
+            ++gTestResults.AssertionUnexpectedFixed;
+            dump("REFTEST TEST-UNEXPECTED-PASS | " + gURLs[0].prettyPath +
+                 " | assertion count " + numAsserts + " is less than " +
+                 expectedAssertions + "\n");
+        } else if (numAsserts > maxAsserts) {
+            ++gTestResults.AssertionUnexpected;
+            dump("REFTEST TEST-UNEXPECTED-FAIL | " + gURLs[0].prettyPath +
+                 " | assertion count " + numAsserts + " is more than " +
+                 expectedAssertions + "\n");
+        } else if (numAsserts != 0) {
+            ++gTestResults.AssertionKnown;
+            dump("REFTEST TEST-KNOWN-FAIL | " + gURLs[0].prettyPath +
+                 " | assertion count " + numAsserts + " matches " +
+                 expectedAssertions + "\n");
+        }
+    }
+
+    // And start the next test.
     gURLs.shift();
     StartCurrentTest();
 }

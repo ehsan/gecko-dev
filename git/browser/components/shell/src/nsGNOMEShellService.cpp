@@ -63,7 +63,7 @@
 
 #include <glib.h>
 #include <glib-object.h>
-#include <gtk/gtkversion.h>
+#include <gtk/gtk.h>
 #include <gdk/gdk.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <limits.h>
@@ -587,8 +587,7 @@ nsGNOMEShellService::OpenApplicationWithURI(nsILocalFile* aApplication, const ns
 
   const nsCString spec(aURI);
   const char* specStr = spec.get();
-  PRUint32 pid;
-  return process->Run(PR_FALSE, &specStr, 1, &pid);
+  return process->Run(PR_FALSE, &specStr, 1);
 }
 
 NS_IMETHODIMP

@@ -84,7 +84,8 @@ nsThebesFontMetrics::Init(const nsFont& aFont, nsIAtom* aLangGroup,
     }
 
     PRBool printerFont = mDeviceContext->IsPrinterSurface();
-    mFontStyle = new gfxFontStyle(aFont.style, aFont.weight, size, langGroup,
+    mFontStyle = new gfxFontStyle(aFont.style, aFont.weight, aFont.stretch,
+                                  size, langGroup,
                                   aFont.sizeAdjust, aFont.systemFont,
                                   aFont.familyNameQuirks,
                                   printerFont);
@@ -92,6 +93,8 @@ nsThebesFontMetrics::Init(const nsFont& aFont, nsIAtom* aLangGroup,
     mFontGroup =
         gfxPlatform::GetPlatform()->CreateFontGroup(aFont.name, mFontStyle, 
                                                     aUserFontSet);
+    if (mFontGroup->FontListLength() < 1) 
+        return NS_ERROR_UNEXPECTED;
 
     return NS_OK;
 }
@@ -435,7 +438,10 @@ GetTextRunBoundingMetrics(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aLengt
 {
     StubPropertyProvider provider;
     gfxTextRun::Metrics theMetrics =
-        aTextRun->MeasureText(aStart, aLength, PR_TRUE, aContext->ThebesContext(), &provider);
+        aTextRun->MeasureText(aStart, aLength, gfxFont::TIGHT_HINTED_OUTLINE_EXTENTS,
+                              aContext->ThebesContext(), &provider);
+        // note that TIGHT_UNHINTED_OUTLINE_EXTENTS can be expensive (on Windows)
+        // but this is only used for MathML positioning so it's not critical
 
     aBoundingMetrics.leftBearing = NSToCoordFloor(theMetrics.mBoundingBox.X());
     aBoundingMetrics.rightBearing = NSToCoordCeil(theMetrics.mBoundingBox.XMost());

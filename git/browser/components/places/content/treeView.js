@@ -404,25 +404,22 @@ PlacesTreeView.prototype = {
 
   _convertPRTimeToString: function PTV__convertPRTimeToString(aTime) {
     var timeInMilliseconds = aTime / 1000; // PRTime is in microseconds
+
+    // Date is calculated starting from midnight, so the modulo with a day are
+    // milliseconds from today's midnight.
+    // getTimezoneOffset corrects that based on local time.
+    // 86400000 = 24 * 60 * 60 * 1000 = 1 day
+    // 60000 = 60 * 1000 = 1 minute
+    var dateObj = new Date();
+    var timeZoneOffsetInMs = dateObj.getTimezoneOffset() * 60000;
+    var now = dateObj.getTime() - timeZoneOffsetInMs;
+    var midnight = now - (now % (86400000));
+
+    var dateFormat = timeInMilliseconds - timeZoneOffsetInMs >= midnight ?
+                      Ci.nsIScriptableDateFormat.dateFormatNone :
+                      Ci.nsIScriptableDateFormat.dateFormatShort;
+
     var timeObj = new Date(timeInMilliseconds);
-
-    // Check if it is today and only display the time.  Only bother
-    // checking for today if it's within the last 24 hours, since
-    // computing midnight is not really cheap. Sometimes we may get dates
-    // in the future, so always show those.
-    var ago = new Date(Date.now() - timeInMilliseconds);
-    var dateFormat = Ci.nsIScriptableDateFormat.dateFormatShort;
-    if (ago > -10000 && ago < (1000 * 24 * 60 * 60)) {
-      var midnight = new Date(timeInMilliseconds);
-      midnight.setHours(0);
-      midnight.setMinutes(0);
-      midnight.setSeconds(0);
-      midnight.setMilliseconds(0);
-
-      if (timeInMilliseconds > midnight.getTime())
-        dateFormat = Ci.nsIScriptableDateFormat.dateFormatNone;
-    }
-
     return (this._dateService.FormatDateTime("", dateFormat,
       Ci.nsIScriptableDateFormat.timeFormatNoSeconds,
       timeObj.getFullYear(), timeObj.getMonth() + 1,
@@ -884,6 +881,10 @@ PlacesTreeView.prototype = {
     else
       var columnType = aColumn.id;
 
+    // Set the "ltr" property on url cells
+    if (columnType == "url")
+      aProperties.AppendElement(this._getAtomFor("ltr"));
+
     if (columnType != "title")
       return;
 
@@ -927,6 +928,10 @@ PlacesTreeView.prototype = {
       else if (itemId != -1) { // bookmark nodes
         if (PlacesUtils.nodeIsLivemarkContainer(node.parent))
           properties.push(this._getAtomFor("livemarkItem"));
+        else if (PlacesUtils.nodeIsURI(node)) {
+          if (node.uri.lastIndexOf("javascript:", 0) == 0)
+            properties.push(this._getAtomFor("bookmarklet"));
+        }
       }
 
       this._visibleElements[aRow].properties = properties;

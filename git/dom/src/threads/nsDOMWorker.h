@@ -71,6 +71,9 @@ class nsDOMWorkerScope : public nsIWorkerScope,
                          public nsIXPCScriptable,
                          public nsIClassInfo
 {
+  typedef nsresult (NS_STDCALL nsDOMWorkerScope::*SetListenerFunc)
+    (nsIDOMEventListener*);
+
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIWORKERGLOBALSCOPE
@@ -214,8 +217,6 @@ private:
   nsDOMWorker* mParent;
   nsCOMPtr<nsIXPConnectWrappedNative> mParentWN;
 
-  PRUint32 mCallbackCount;
-
   PRLock* mLock;
 
   nsRefPtr<nsDOMWorkerMessageHandler> mInnerHandler;
@@ -237,6 +238,8 @@ private:
 
   nsCOMPtr<nsIPrincipal> mPrincipal;
   nsCOMPtr<nsIURI> mURI;
+
+  PRInt32 mErrorHandlerRecursionCount;
 
   PRPackedBool mCanceled;
   PRPackedBool mSuspended;

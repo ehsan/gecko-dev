@@ -40,7 +40,6 @@
 /*
  * JS atom table.
  */
-#include "jsstddef.h"
 #include <stdlib.h>
 #include <string.h>
 #include "jstypes.h"
@@ -56,6 +55,28 @@
 #include "jsnum.h"
 #include "jsscan.h"
 #include "jsstr.h"
+
+/*
+ * ATOM_HASH assumes that JSHashNumber is 32-bit even on 64-bit systems.
+ */
+JS_STATIC_ASSERT(sizeof(JSHashNumber) == 4);
+JS_STATIC_ASSERT(sizeof(JSAtom *) == JS_BYTES_PER_WORD);
+
+/*
+ * Start and limit offsets for atom pointers in JSAtomState must be aligned
+ * on the word boundary.
+ */
+JS_STATIC_ASSERT(ATOM_OFFSET_START % sizeof(JSAtom *) == 0);
+JS_STATIC_ASSERT(ATOM_OFFSET_LIMIT % sizeof(JSAtom *) == 0);
+
+/*
+ * JS_BOOLEAN_STR and JS_TYPE_STR assume that boolean names starts from the
+ * index 1 and type name starts from the index 1+2 atoms in JSAtomState.
+ */
+JS_STATIC_ASSERT(1 * sizeof(JSAtom *) ==
+                 offsetof(JSAtomState, booleanAtoms) - ATOM_OFFSET_START);
+JS_STATIC_ASSERT((1 + 2) * sizeof(JSAtom *) ==
+                 offsetof(JSAtomState, typeAtoms) - ATOM_OFFSET_START);
 
 const char *
 js_AtomToPrintableString(JSContext *cx, JSAtom *atom)
@@ -78,7 +99,6 @@ js_AtomToPrintableString(JSContext *cx, JSAtom *atom)
  * asserts check these relations.
  */
 JS_STATIC_ASSERT(JSTYPE_LIMIT == 8);
-JS_STATIC_ASSERT(JSVAL_TO_BOOLEAN(JSVAL_VOID) == 2);
 JS_STATIC_ASSERT(JSTYPE_VOID == 0);
 
 const char *const js_common_atom_names[] = {

@@ -728,6 +728,9 @@ public:
     nsresult RemoveJSHolder(void* aHolder);
 
     void UnrootContextGlobals();
+#ifdef DEBUG_CC
+    void RootContextGlobals();
+#endif
 
     void DebugDump(PRInt16 depth);
 
@@ -758,7 +761,11 @@ private:
     XPCJSRuntime(); // no implementation
     XPCJSRuntime(nsXPConnect* aXPConnect);
 
-private:
+    // The caller must be holding the GC lock
+    void RescheduleWatchdog(XPCContext* ccx);
+
+    static void WatchdogMain(void *arg);
+
     static const char* mStrings[IDX_TOTAL_COUNT];
     jsid mStrIDs[IDX_TOTAL_COUNT];
     jsval mStrJSVals[IDX_TOTAL_COUNT];
@@ -785,6 +792,8 @@ private:
     XPCRootSetElem *mObjectHolderRoots;
     JSDHashTable mJSHolders;
     uintN mUnrootedGlobalCount;
+    PRCondVar *mWatchdogWakeup;
+    PRThread *mWatchdogThread;
 };
 
 /***************************************************************************/
@@ -1250,8 +1259,17 @@ public:
     void RemoveWrappedNativeProtos();
 
     static XPCWrappedNativeScope*
+    FindInJSObjectScope(JSContext* cx, JSObject* obj,
+                        JSBool OKIfNotInitialized = JS_FALSE,
+                        XPCJSRuntime* runtime = nsnull);
+
+    static XPCWrappedNativeScope*
     FindInJSObjectScope(XPCCallContext& ccx, JSObject* obj,
-                        JSBool OKIfNotInitialized = JS_FALSE);
+                        JSBool OKIfNotInitialized = JS_FALSE)
+    {
+        return FindInJSObjectScope(ccx, obj, OKIfNotInitialized,
+                                   ccx.GetRuntime());
+    }
 
     static void
     SystemIsBeingShutDown(JSContext* cx);
@@ -4031,7 +4049,7 @@ xpc_CreateSandboxObject(JSContext * cx, jsval * vp, nsISupports *prinOrSop);
 nsresult
 xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
                   const char *filename, PRInt32 lineNo,
-                  PRBool returnStringOnly, jsval *rval);
+                  JSVersion jsVersion, PRBool returnStringOnly, jsval *rval);
 #endif /* !XPCONNECT_STANDALONE */
 
 /***************************************************************************/
@@ -4048,6 +4066,11 @@ GetRTStringByIndex(JSContext *cx, uintN index);
 inline JSObject*
 xpc_NewSystemInheritingJSObject(JSContext *cx, JSClass *clasp, JSObject *proto,
                                 JSObject *parent);
+
+inline JSBool
+xpc_SameScope(XPCWrappedNativeScope *objectscope,
+              XPCWrappedNativeScope *xpcscope,
+              JSBool *sameOrigin);
 
 nsISupports *
 XPC_GetIdentityObject(JSContext *cx, JSObject *obj);
@@ -4067,7 +4090,8 @@ XPC_SJOW_AttachNewConstructorObject(XPCCallContext &ccx,
                                     JSObject *aGlobalObject);
 
 JSBool
-XPC_XOW_WrapObject(JSContext *cx, JSObject *parent, jsval *vp);
+XPC_XOW_WrapObject(JSContext *cx, JSObject *parent, jsval *vp,
+                   XPCWrappedNative *wn = nsnull);
 
 #ifdef XPC_IDISPATCH_SUPPORT
 // IDispatch specific classes

@@ -280,13 +280,6 @@ nsSplitterFrame::Destroy()
 }
 
 
-//
-// QueryInterface
-//
-NS_INTERFACE_MAP_BEGIN(nsSplitterFrame)
-NS_INTERFACE_MAP_END_INHERITING(nsBoxFrame)
-
-
 NS_IMETHODIMP
 nsSplitterFrame::GetCursor(const nsPoint&    aPoint,
                            nsIFrame::Cursor& aCursor)
@@ -478,6 +471,11 @@ nsSplitterFrame::HandleEvent(nsPresContext* aPresContext,
                                       nsGUIEvent* aEvent,
                                       nsEventStatus* aEventStatus)
 {
+  NS_ENSURE_ARG_POINTER(aEventStatus);
+  if (nsEventStatus_eConsumeNoDefault == *aEventStatus) {
+    return NS_OK;
+  }
+
   nsWeakFrame weakFrame(this);
   nsRefPtr<nsSplitterFrameInner> kungFuDeathGrip(mInner);
   switch (aEvent->message) {

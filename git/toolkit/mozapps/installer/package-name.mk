@@ -147,3 +147,9 @@ PKG_SRCPACK_BASENAME = $(MOZ_PKG_APPNAME_LC)-$(MOZ_PKG_VERSION).source
 PKG_SRCPACK_PATH = source/
 
 endif # MOZ_PKG_PRETTYNAMES
+
+# Symbol package naming
+SYMBOL_ARCHIVE_BASENAME = $(PKG_BASENAME).crashreporter-symbols
+
+# Test package naming
+TEST_PACKAGE = $(PKG_BASENAME).tests.tar.bz2

@@ -53,6 +53,11 @@ var gEditItemOverlay = {
   _hiddenRows: [],
   _observersAdded: false,
   _staticFoldersListBuilt: false,
+  _initialized: false,
+
+  // the first field which was edited after this panel was initialized for
+  // a certain item
+  _firstEditedField: "",
 
   get itemId() {
     return this._itemId;
@@ -88,7 +93,7 @@ var gEditItemOverlay = {
     this._element("tagsRow").collapsed = !this._uri ||
       this._hiddenRows.indexOf("tags") != -1 || isQuery;
     // Collapse the tag selector if the item does not accept tags.
-    if (!this._element("tagsSelector").collapsed &&
+    if (!this._element("tagsSelectorRow").collapsed &&
         this._element("tagsRow").collapsed)
       this.toggleTagsSelector();
     this._element("descriptionRow").collapsed =
@@ -123,6 +128,11 @@ var gEditItemOverlay = {
    *          read-only (view) mode even if the given item is editable.
    */
   initPanel: function EIO_initPanel(aFor, aInfo) {
+    // For sanity ensure that the implementer has uninited the panel before
+    // trying to init it again, or we could end up leaking due to observers.
+    if (this._initialized)
+      this.uninitPanel(false);
+
     var aItemIdList;
     if (aFor.length) {
       aItemIdList = aFor;
@@ -218,6 +228,7 @@ var gEditItemOverlay = {
 
       // tags selector
       this._rebuildTagsSelectorList();
+      this._initialized = true;
     }
 
     // name picker
@@ -514,12 +525,13 @@ var gEditItemOverlay = {
   uninitPanel: function EIO_uninitPanel(aHideCollapsibleElements) {
     if (aHideCollapsibleElements) {
       // hide the folder tree if it was previously visible
-      if (!this._folderTree.collapsed)
+      var folderTreeRow = this._element("folderTreeRow");
+      if (!folderTreeRow.collapsed)
         this.toggleFolderTreeVisibility();
 
       // hide the tag selector if it was previously visible
-      var tagsSelector = this._element("tagsSelector");
-      if (!tagsSelector.collapsed)
+      var tagsSelectorRow = this._element("tagsSelectorRow");
+      if (!tagsSelectorRow.collapsed)
         this.toggleTagsSelector();
     }
 
@@ -540,17 +552,19 @@ var gEditItemOverlay = {
     this._allTags = [];
     this._itemIds = [];
     this._multiEdit = false;
+    this._firstEditedField = "";
+    this._initialized = false;
   },
 
   onTagsFieldBlur: function EIO_onTagsFieldBlur() {
-    this._updateTags();
+    if (this._updateTags()) // if anything has changed
+      this._mayUpdateFirstEditField("tagsField");
   },
 
   _updateTags: function EIO__updateTags() {
     if (this._multiEdit)
-      this._updateMultipleTagsForItems();
-    else
-      this._updateSingleTagForItem();
+      return this._updateMultipleTagsForItems();
+    return this._updateSingleTagForItem();
   },
 
   _updateSingleTagForItem: function EIO__updateSingleTagForItem() {
@@ -582,8 +596,32 @@ var gEditItemOverlay = {
         // Ensure the tagsField is in sync, clean it up from empty tags
         var tags = PlacesUtils.tagging.getTagsForURI(this._uri, {}).join(", ");
         this._initTextField("tagsField", tags, false);
+        return true;
       }
     }
+    return false;
+  },
+
+   /**
+    * Stores the first-edit field for this dialog, if the passed-in field
+    * is indeed the first edited field
+    * @param aNewField
+    *        the id of the field that may be set (without the "editBMPanel_"
+    *        prefix)
+    */
+  _mayUpdateFirstEditField: function EIO__mayUpdateFirstEditField(aNewField) {
+    // * The first-edit-field behavior is not applied in the multi-edit case
+    // * if this._firstEditedField is already set, this is not the first field,
+    //   so there's nothing to do
+    if (this._multiEdit || this._firstEditedField)
+      return;
+
+    this._firstEditedField = aNewField;
+
+    // set the pref
+    var prefs = Cc["@mozilla.org/preferences-service;1"].
+                getService(Ci.nsIPrefBranch);
+    prefs.setCharPref("browser.bookmarks.editDialog.firstEditField", aNewField);
   },
 
   _updateMultipleTagsForItems: function EIO__updateMultipleTagsForItems() {
@@ -627,8 +665,10 @@ var gEditItemOverlay = {
 
         // Ensure the tagsField is in sync, clean it up from empty tags
         this._initTextField("tagsField", tags, false);
+        return true;
       }
     }
+    return false;
   },
 
   onNamePickerInput: function EIO_onNamePickerInput() {
@@ -647,6 +687,7 @@ var gEditItemOverlay = {
     // Here we update either the item title or its cached static title
     var newTitle = this._element("userEnteredName").label;
     if (this._getItemStaticTitle() != newTitle) {
+      this._mayUpdateFirstEditField("namePicker");
       if (PlacesUIUtils.microsummaries.hasMicrosummary(this._itemId)) {
         // Note: this implicitly also takes care of the microsummary->static
         // title case, the removeMicorosummary method in the service will set
@@ -748,12 +789,12 @@ var gEditItemOverlay = {
 
   toggleFolderTreeVisibility: function EIO_toggleFolderTreeVisibility() {
     var expander = this._element("foldersExpander");
-    if (!this._folderTree.collapsed) {
+    var folderTreeRow = this._element("folderTreeRow");
+    if (!folderTreeRow.collapsed) {
       expander.className = "expander-down";
       expander.setAttribute("tooltiptext",
                             expander.getAttribute("tooltiptextdown"));
-      this._folderTree.collapsed =
-        this._element("newFolderBox").collapsed = true;
+      folderTreeRow.collapsed = true;
       this._element("chooseFolderSeparator").hidden =
         this._element("chooseFolderMenuItem").hidden = false;
     }
@@ -761,8 +802,7 @@ var gEditItemOverlay = {
       expander.className = "expander-up"
       expander.setAttribute("tooltiptext",
                             expander.getAttribute("tooltiptextup"));
-      this._folderTree.collapsed =
-        this._element("newFolderBox").collapsed = false;
+      folderTreeRow.collapsed = false;
 
       // XXXmano: Ideally we would only do this once, but for some odd reason,
       // the editable mode set on this tree, together with its collapsed state
@@ -844,7 +884,8 @@ var gEditItemOverlay = {
     }
 
     // Update folder-tree selection
-    if (!this._folderTree.collapsed) {
+    var folderTreeRow = this._element("folderTreeRow");
+    if (!folderTreeRow.collapsed) {
       var selectedNode = this._folderTree.selectedNode;
       if (!selectedNode ||
           PlacesUtils.getConcreteItemId(selectedNode) != container)
@@ -854,6 +895,11 @@ var gEditItemOverlay = {
 
   onFolderTreeSelect: function EIO_onFolderTreeSelect() {
     var selectedNode = this._folderTree.selectedNode;
+
+    // Disable the "New Folder" button if we cannot create a new folder
+    this._element("newFolderButton")
+        .disabled = !this._folderTree.insertionPoint || !selectedNode;
+
     if (!selectedNode)
       return;
 
@@ -907,7 +953,8 @@ var gEditItemOverlay = {
 
   _rebuildTagsSelectorList: function EIO__rebuildTagsSelectorList() {
     var tagsSelector = this._element("tagsSelector");
-    if (tagsSelector.collapsed)
+    var tagsSelectorRow = this._element("tagsSelectorRow");
+    if (tagsSelectorRow.collapsed)
       return;
 
     while (tagsSelector.hasChildNodes())
@@ -929,12 +976,13 @@ var gEditItemOverlay = {
 
   toggleTagsSelector: function EIO_toggleTagsSelector() {
     var tagsSelector = this._element("tagsSelector");
+    var tagsSelectorRow = this._element("tagsSelectorRow");
     var expander = this._element("tagsSelectorExpander");
-    if (tagsSelector.collapsed) {
+    if (tagsSelectorRow.collapsed) {
       expander.className = "expander-up";
       expander.setAttribute("tooltiptext",
                             expander.getAttribute("tooltiptextup"));
-      tagsSelector.collapsed = false;
+      tagsSelectorRow.collapsed = false;
       this._rebuildTagsSelectorList();
 
       // This is a no-op if we've added the listener.
@@ -944,7 +992,7 @@ var gEditItemOverlay = {
       expander.className = "expander-down";
       expander.setAttribute("tooltiptext",
                             expander.getAttribute("tooltiptextdown"));
-      tagsSelector.collapsed = true;
+      tagsSelectorRow.collapsed = true;
     }
   },
 
@@ -968,11 +1016,10 @@ var gEditItemOverlay = {
     var ip = this._folderTree.insertionPoint;
 
     // default to the bookmarks menu folder
-    if (!ip ||
-        ip.itemId == PlacesUIUtils.allBookmarksFolderId ||
-        ip.itemId == PlacesUIUtils.unfiledBookmarksFolderId) {
-      ip.itemId = PlacesUtils.bookmarksMenuFolderId;
-      ip.index = -1;
+    if (!ip || ip.itemId == PlacesUIUtils.allBookmarksFolderId) {
+        ip = new InsertionPoint(PlacesUtils.bookmarksMenuFolderId,
+                                PlacesUtils.bookmarks.DEFAULT_INDEX,
+                                Ci.nsITreeView.DROP_ON);
     }
 
     // XXXmano: add a separate "New Folder" string at some point...

@@ -49,6 +49,7 @@
 
 #include "nsIPref.h"  // for pref changes callback notification
 #include "nsServiceManagerUtils.h"
+#include "nsTArray.h"
 
 #include "nsDirectoryServiceUtils.h"
 #include "nsDirectoryServiceDefs.h"
@@ -73,6 +74,8 @@ static const PRUint32 kNumFontsPerSlice = 10; // read in info 10 fonts at a time
 #define INDEX_FONT_TRAITS 3
 
 static const int kAppleMaxWeight = 14;
+static const int kAppleExtraLightWeight = 3;
+static const int kAppleUltraLightWeight = 2;
 
 static const int gAppleWeightToCSSWeight[] = {
     0,
@@ -118,11 +121,12 @@ gfxQuartzFontCache::GenerateFontListKey(const nsAString& aKeyName, nsAString& aR
 #pragma mark-
 
 MacOSFontEntry::MacOSFontEntry(const nsAString& aPostscriptName, 
-                               PRInt32 aAppleWeight, PRUint32 aTraits, MacOSFamilyEntry *aFamily)
-    : gfxFontEntry(aPostscriptName), mTraits(aTraits), mFamily(aFamily), mATSUFontID(0),
-        mATSUIDInitialized(0)
+                               PRInt32 aWeight, PRUint32 aTraits,
+                               PRBool aIsStandardFace)
+    : gfxFontEntry(aPostscriptName), mTraits(aTraits), mATSUFontID(0),
+      mATSUIDInitialized(0), mStandardFace(aIsStandardFace)
 {
-    mWeight = gfxQuartzFontCache::AppleWeightToCSSWeight(aAppleWeight) * 100;
+    mWeight = aWeight;
 
     mItalic = (mTraits & NSItalicFontMask ? 1 : 0);
     mFixedPitch = (mTraits & NSFixedPitchFontMask ? 1 : 0);
@@ -131,11 +135,11 @@ MacOSFontEntry::MacOSFontEntry(const nsAString& aPostscriptName,
 MacOSFontEntry::MacOSFontEntry(const nsAString& aPostscriptName, ATSUFontID aFontID,
                                PRUint16 aWeight, PRUint16 aStretch, PRUint32 aItalicStyle,
                                gfxUserFontData *aUserFontData)
+    : gfxFontEntry(aPostscriptName), mATSUFontID(aFontID),
+      mATSUIDInitialized(PR_TRUE), mStandardFace(PR_FALSE)
 {
     // xxx - stretch is basically ignored for now
 
-    mATSUIDInitialized = PR_TRUE;
-    mATSUFontID = aFontID;
     mUserFontData = aUserFontData;
     mWeight = aWeight;
     mStretch = aStretch;
@@ -145,17 +149,10 @@ MacOSFontEntry::MacOSFontEntry(const nsAString& aPostscriptName, ATSUFontID aFon
     mTraits = (mItalic ? NSItalicFontMask : NSUnitalicFontMask) |
               (mFixedPitch ? NSFixedPitchFontMask : 0) |
               (mWeight >= 600 ? NSBoldFontMask : NSUnboldFontMask);
-
-    mName = aPostscriptName;
 }
 
-const nsString& 
-MacOSFontEntry::FamilyName()
-{
-    return mFamily->Name();
-}
-
-ATSUFontID MacOSFontEntry::GetFontID() 
+ATSUFontID
+MacOSFontEntry::GetFontID() 
 {
     if (!mATSUIDInitialized) {
         mATSUIDInitialized = PR_TRUE;
@@ -491,6 +488,23 @@ MacOSFamilyEntry::FindWeightsForStyle(gfxFontEntry* aFontsForWeights[], const gf
     return found;
 }
 
+class FontEntryStandardFaceComparator {
+  public:
+    PRBool Equals(const nsRefPtr<MacOSFontEntry>& a, const nsRefPtr<MacOSFontEntry>& b) const {
+        return a->mStandardFace == b->mStandardFace;
+    }
+    PRBool LessThan(const nsRefPtr<MacOSFontEntry>& a, const nsRefPtr<MacOSFontEntry>& b) const {
+        return (a->mStandardFace == PR_TRUE && b->mStandardFace == PR_FALSE);
+    }
+};
+
+void
+MacOSFamilyEntry::SortAvailableFonts()
+{
+    mAvailableFonts.Sort(FontEntryStandardFaceComparator());
+}
+
+
 static NSString* CreateNameFromBuffer(const UInt8 *aBuf, ByteCount aLength, 
         FontPlatformCode aPlatformCode, FontScriptCode aScriptCode, FontLanguageCode aLangCode)
 {
@@ -702,6 +716,12 @@ gfxQuartzFontCache::InitFontList()
     mATSGeneration = currentGeneration;
     PR_LOG(gFontInfoLog, PR_LOG_DEBUG, ("(fontinit) updating to generation: %d", mATSGeneration));                                         
     
+    // Bug 420981 - under 10.5, UltraLight and Light have the same weight value
+    PRBool needToCheckLightFaces = PR_FALSE;
+    if (gfxPlatformMac::GetPlatform()->OSXVersion() >= MAC_OS_X_VERSION_10_5_HEX) {
+        needToCheckLightFaces = PR_TRUE;
+    }
+    
     mFontFamilies.Clear();
     mOtherFamilyNames.Clear();
     mOtherFamilyNamesInitialized = PR_FALSE;
@@ -733,8 +753,18 @@ gfxQuartzFontCache::InitFontList()
         for (faceIndex = 0; faceIndex < faceCount; faceIndex++) {
             NSArray *face = [fontfaces objectAtIndex:faceIndex];
             NSString *psname = [face objectAtIndex:INDEX_FONT_POSTSCRIPT_NAME];
-            PRInt32 weight = [[face objectAtIndex:INDEX_FONT_WEIGHT] unsignedIntValue];
+            PRInt32 appKitWeight = [[face objectAtIndex:INDEX_FONT_WEIGHT] unsignedIntValue];
             PRUint32 traits = [[face objectAtIndex:INDEX_FONT_TRAITS] unsignedIntValue];
+            NSString *facename = [face objectAtIndex:INDEX_FONT_FACE_NAME];
+            PRBool isStandardFace = PR_FALSE;
+
+            if (needToCheckLightFaces && appKitWeight == kAppleExtraLightWeight) {
+                // if the facename contains UltraLight, set the weight to the ultralight weight value
+                NSRange range = [facename rangeOfString:@"ultralight" options:NSCaseInsensitiveSearch];
+                if (range.location != NSNotFound) {
+                    appKitWeight = kAppleUltraLightWeight;
+                }
+            }
             
             // 10.5 doesn't set NSUnitalicFontMask and NSUnboldFontMask - manually set these for consistency 
             if (!(traits & NSBoldFontMask))
@@ -742,20 +772,34 @@ gfxQuartzFontCache::InitFontList()
             if (!(traits & NSItalicFontMask))
                 traits |= NSUnitalicFontMask;
             
+            PRInt32 cssWeight = gfxQuartzFontCache::AppleWeightToCSSWeight(appKitWeight) * 100;
+            
             PR_LOG(gFontInfoLog, PR_LOG_DEBUG, ("(fontinit) family: %s, psname: %s, face: %s, apple-weight: %d, css-weight: %d, traits: %8.8x\n", 
-                [availableFamily UTF8String], [psname UTF8String], [[face objectAtIndex:INDEX_FONT_FACE_NAME] UTF8String], weight, gfxQuartzFontCache::AppleWeightToCSSWeight(weight), traits));
+                [availableFamily UTF8String], [psname UTF8String], [facename UTF8String], appKitWeight, cssWeight, traits));
 
             // make a nsString
             GetStringForNSString(psname, postscriptFontName);
-        
+
+            if ([facename isEqualToString:@"Regular"] ||
+                [facename isEqualToString:@"Bold"] ||
+                [facename isEqualToString:@"Italic"] ||
+                [facename isEqualToString:@"Oblique"] ||
+                [facename isEqualToString:@"Bold Italic"] ||
+                [facename isEqualToString:@"Bold Oblique"])
+            {
+                isStandardFace = PR_TRUE;
+            }
+
             // create a font entry
-            MacOSFontEntry *fontEntry = new MacOSFontEntry(postscriptFontName, weight, traits, familyEntry);
+            MacOSFontEntry *fontEntry = new MacOSFontEntry(postscriptFontName, cssWeight, traits, isStandardFace);
             if (!fontEntry) break;            
             
             // insert into font entry array of family
             familyEntry->AddFontEntry(fontEntry);
         }
-        
+
+        familyEntry->SortAvailableFonts();
+
         // add the family entry to the hash table
         ToLowerCase(availableFamilyName);
         mFontFamilies.Put(availableFamilyName, familyEntry);
@@ -858,7 +902,6 @@ gfxQuartzFontCache::InitSingleFaceList()
                         mFontFamilies.Put(key, familyEntry);
                         PR_LOG(gFontInfoLog, PR_LOG_DEBUG, ("(fontinit-singleface) family: %s, psname: %s\n", [display UTF8String], [faceName UTF8String]));
                     }
-                    fontEntry->mFamily = familyEntry;
                 }
             }
         }
@@ -1066,12 +1109,12 @@ gfxQuartzFontCache::GetDefaultFont(const gfxFontStyle* aStyle, PRBool& aNeedsBol
 struct FontListData {
     FontListData(const nsACString& aLangGroup,
                  const nsACString& aGenericFamily,
-                 nsStringArray& aListOfFonts) :
+                 nsTArray<nsString>& aListOfFonts) :
         mLangGroup(aLangGroup), mGenericFamily(aGenericFamily),
         mListOfFonts(aListOfFonts) {}
     const nsACString& mLangGroup;
     const nsACString& mGenericFamily;
-    nsStringArray& mListOfFonts;
+    nsTArray<nsString>& mListOfFonts;
 };
 
 PLDHashOperator PR_CALLBACK
@@ -1083,14 +1126,14 @@ gfxQuartzFontCache::HashEnumFuncForFamilies(nsStringHashKey::KeyType aKey,
 
     nsAutoString localizedFamilyName;
     aFamilyEntry->LocalizedName(localizedFamilyName);
-    data->mListOfFonts.AppendString(localizedFamilyName);
+    data->mListOfFonts.AppendElement(localizedFamilyName);
     return PL_DHASH_NEXT;
 }
 
 void
 gfxQuartzFontCache::GetFontList (const nsACString& aLangGroup,
                                  const nsACString& aGenericFamily,
-                                 nsStringArray& aListOfFonts)
+                                 nsTArray<nsString>& aListOfFonts)
 {
     FontListData data(aLangGroup, aGenericFamily, aListOfFonts);
 
@@ -1256,25 +1299,37 @@ gfxQuartzFontCache::AddOtherFamilyName(MacOSFamilyEntry *aFamilyEntry, nsAString
 }
 
 gfxFontEntry* 
-gfxQuartzFontCache::LookupLocalFont(const nsAString& aFontName)
+gfxQuartzFontCache::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
+                                    const nsAString& aFontName)
 {
     NSString *faceName = GetNSStringForString(aFontName);
-    NSFont *font = [NSFont fontWithName:faceName size:0.0];
+    
+    // first lookup a single face based on postscript name
+    ATSFontRef fontRef = ATSFontFindFromPostScriptName(CFStringRef(faceName), 
+                                                       kATSOptionFlagsDefault);
 
-    if (font) {
-        nsAutoString availableFamilyName;
-        NSString *availableFamily = [font familyName];
-        GetStringForNSString(availableFamily, availableFamilyName);
+    // if not found, lookup using full font name
+    if (fontRef == kInvalidFont)
+        fontRef = ATSFontFindFromName(CFStringRef(faceName), 
+                                      kATSOptionFlagsDefault);
+                                      
+    // not found                                  
+    if (fontRef == kInvalidFont)
+        return nsnull;
 
-        MacOSFamilyEntry *familyEntry = FindFamily(availableFamilyName);
-        if (familyEntry) {
-            MacOSFontEntry *fontEntry = familyEntry->FindFont(aFontName);
-            return fontEntry;
-        }
-    }
+    PRUint16 w = aProxyEntry->mWeight;
+    NS_ASSERTION(w >= 100 && w <= 900, "bogus font weight value!");
 
-    // didn't find the font
-    return nsnull;
+    MacOSFontEntry *newFontEntry =
+        new MacOSFontEntry(aFontName, 
+                           FMGetFontFromATSFontRef(fontRef),
+                           w, aProxyEntry->mStretch, 
+                           (PRUint32(aProxyEntry->mItalic) ? 
+                           FONT_STYLE_ITALIC : 
+                           FONT_STYLE_NORMAL), 
+                           nsnull);
+
+    return newFontEntry;
 }
 
 // grumble, another non-publised Apple API dependency (found in Webkit code)
@@ -1374,10 +1429,8 @@ gfxQuartzFontCache::MakePlatformFont(const gfxFontEntry *aProxyEntry,
         // now lookup the Postscript name; this may fail if the font cache is bad
         OSStatus err;
         NSString *psname = NULL;
-        nsAutoString postscriptName;
         err = ATSFontGetPostScriptName(fontRef, kATSOptionFlagsDefault, (CFStringRef*) (&psname));
         if (err == noErr) {
-            GetStringForNSString(psname, postscriptName);
             [psname release];
         } else {
 #ifdef DEBUG
@@ -1406,8 +1459,16 @@ gfxQuartzFontCache::MakePlatformFont(const gfxFontEntry *aProxyEntry,
         NS_ASSERTION(w >= 100 && w <= 900, "bogus font weight value!");
 
         // create the font entry
+        nsAutoString uniqueName;
+
+        nsresult rv = gfxFontUtils::MakeUniqueUserFontName(uniqueName);
+        if (NS_FAILED(rv)) {
+            delete userFontData;
+            return nsnull;
+        }
+        
         MacOSFontEntry *newFontEntry = 
-            new MacOSFontEntry(postscriptName,
+            new MacOSFontEntry(uniqueName,
                                FMGetFontFromATSFontRef(fontRef),
                                w, aProxyEntry->mStretch, 
                                (PRUint32(aProxyEntry->mItalic) ? 

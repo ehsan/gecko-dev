@@ -73,7 +73,8 @@ const OBSERVING = [
   "domwindowopened", "domwindowclosed",
   "quit-application-requested", "quit-application-granted",
   "quit-application", "browser:purge-session-history",
-  "private-browsing"
+  "private-browsing", "browser:purge-domain-data",
+  "private-browsing-change-granted"
 ];
 
 /*
@@ -199,6 +200,10 @@ SessionStoreService.prototype = {
     
     // observe prefs changes so we can modify stored data to match
     this._prefBranch.addObserver("sessionstore.max_tabs_undo", this, true);
+    
+    // this pref is only read at startup, so no need to observe it
+    this._sessionhistory_max_entries =
+      this._prefBranch.getIntPref("sessionhistory.max_entries");
 
     // get file references
     var dirService = Cc["@mozilla.org/file/directory_service;1"].
@@ -221,7 +226,7 @@ SessionStoreService.prototype = {
     if (iniString) {
       try {
         // parse the session state into JS objects
-        this._initialState = this._safeEval(iniString);
+        this._initialState = this._safeEval("(" + iniString + ")");
         
         let lastSessionCrashed =
           this._initialState.session && this._initialState.session.state &&
@@ -330,7 +335,7 @@ SessionStoreService.prototype = {
         openWindows[aWindow.__SSi] = true;
       });
       // also clear all data about closed tabs and windows
-      for (ix in this._windows) {
+      for (let ix in this._windows) {
         if (ix in openWindows)
           this._windows[ix]._closedTabs = [];
         else
@@ -348,13 +353,33 @@ SessionStoreService.prototype = {
       if ("_stateBackup" in this)
         delete this._stateBackup;
       break;
+    case "browser:purge-domain-data":
+      // does a session history entry contain a url for the given domain?
+      function containsDomain(aEntry) {
+        try {
+          if (this._getURIFromString(aEntry.url).host.hasRootDomain(aData))
+            return true;
+        }
+        catch (ex) { /* url had no host at all */ }
+        return aEntry.children && aEntry.children.some(containsDomain, this);
+      }
+      // remove all closed tabs containing a reference to the given domain
+      for (let ix in this._windows) {
+        let closedTabs = this._windows[ix]._closedTabs;
+        for (let i = closedTabs.length - 1; i >= 0; i--) {
+          if (closedTabs[i].state.entries.some(containsDomain, this))
+            closedTabs.splice(i, 1);
+        }
+      }
+      if (this._loadState == STATE_RUNNING)
+        this.saveState(true);
+      break;
     case "nsPref:changed": // catch pref changes
       switch (aData) {
       // if the user decreases the max number of closed tabs they want
       // preserved update our internal states to match that max
       case "sessionstore.max_tabs_undo":
-        var ix;
-        for (ix in this._windows) {
+        for (let ix in this._windows) {
           this._windows[ix]._closedTabs.splice(this._prefBranch.getIntPref("sessionstore.max_tabs_undo"));
         }
         break;
@@ -385,9 +410,7 @@ SessionStoreService.prototype = {
     case "private-browsing":
       switch (aData) {
       case "enter":
-        this.saveState(true);
         this._inPrivateBrowsing = true;
-        this._stateBackup = this._safeEval(this._getCurrentState(true).toSource());
         break;
       case "exit":
         aSubject.QueryInterface(Ci.nsISupportsPRBool);
@@ -408,6 +431,12 @@ SessionStoreService.prototype = {
           this._inPrivateBrowsing = false;
         delete this._stateBackup;
         break;
+      }
+      break;
+    case "private-browsing-change-granted":
+      if (aData == "enter") {
+        this.saveState(true);
+        this._stateBackup = this._safeEval(this._getCurrentState(true).toSource());
       }
       break;
     }
@@ -490,16 +519,19 @@ SessionStoreService.prototype = {
         this._restoreCount = this._initialState.windows ? this._initialState.windows.length : 0;
         this.restoreWindow(aWindow, this._initialState, this._isCmdLineEmpty(aWindow));
         delete this._initialState;
+        
+        // mark ourselves as running
+        this.saveState(true);
       }
       else {
         // Nothing to restore, notify observers things are complete.
         var observerService = Cc["@mozilla.org/observer-service;1"].
                               getService(Ci.nsIObserverService);
         observerService.notifyObservers(null, NOTIFY_WINDOWS_RESTORED, "");
+        
+        // the next delayed save request should execute immediately
+        this._lastSaveTime -= this._interval;
       }
-      
-      // mark ourselves as running
-      this.saveState(true);
     }
     // this window was opened by _openWindowWithState
     else if (!this._isWindowLoaded(aWindow)) {
@@ -981,8 +1013,11 @@ SessionStoreService.prototype = {
     }
     catch (ex) { } // this could happen if we catch a tab during (de)initialization
     
+    // XXXzeniko anchor navigation doesn't reset __SS_data, so we could reuse
+    //           data even when we shouldn't (e.g. Back, different anchor)
     if (history && browser.parentNode.__SS_data &&
-        browser.parentNode.__SS_data.entries[history.index] && !aFullData) {
+        browser.parentNode.__SS_data.entries[history.index] &&
+        history.index < this._sessionhistory_max_entries - 1 && !aFullData) {
       tabData = browser.parentNode.__SS_data;
       tabData.index = history.index + 1;
     }
@@ -1495,7 +1530,7 @@ SessionStoreService.prototype = {
         nonPopupCount++;
     }
     this._updateCookies(total);
-    
+
     // collect the data for all windows yet to be restored
     for (ix in this._statesToRestore) {
       for each (let winData in this._statesToRestore[ix].windows) {
@@ -1504,13 +1539,16 @@ SessionStoreService.prototype = {
           nonPopupCount++;
       }
     }
-    
+
+#ifndef XP_MACOSX
     // if no non-popup browser window remains open, return the state of the last closed window(s)
     if (nonPopupCount == 0 && this._lastClosedWindows) {
       // prepend the last non-popup browser window, so that if the user loads more tabs
       // at startup we don't accidentally add them to a popup window
       total = this._lastClosedWindows.concat(total);
     }
+#endif
+
     if (activeWindow) {
       this.activeWindowSSiCache = activeWindow.__SSi || "";
     }
@@ -1626,26 +1664,28 @@ SessionStoreService.prototype = {
     }
 
     // when overwriting tabs, remove all superflous ones
-    for (t = openTabCount - 1; t >= newTabCount; t--) {
-      tabbrowser.removeTab(tabbrowser.mTabs[t]);
+    if (aOverwriteTabs && newTabCount < openTabCount) {
+      Array.slice(tabbrowser.mTabs, newTabCount, openTabCount)
+           .forEach(tabbrowser.removeTab, tabbrowser);
     }
     
     if (aOverwriteTabs) {
       this.restoreWindowFeatures(aWindow, winData);
+      delete this._windows[aWindow.__SSi].extData;
     }
     if (winData.cookies) {
       this.restoreCookies(winData.cookies);
     }
     if (winData.extData) {
-      if (aOverwriteTabs  || !this._windows[aWindow.__SSi].extData) {
+      if (!this._windows[aWindow.__SSi].extData) {
         this._windows[aWindow.__SSi].extData = {};
       }
       for (var key in winData.extData) {
         this._windows[aWindow.__SSi].extData[key] = winData.extData[key];
       }
     }
-    if (winData._closedTabs && (root._firstTabs || aOverwriteTabs)) {
-      this._windows[aWindow.__SSi]._closedTabs = winData._closedTabs;
+    if (aOverwriteTabs || root._firstTabs) {
+      this._windows[aWindow.__SSi]._closedTabs = winData._closedTabs || [];
     }
     
     this.restoreHistoryPrecursor(aWindow, tabs, winData.tabs,
@@ -1996,6 +2036,9 @@ SessionStoreService.prototype = {
         
         let value = aData[key];
         if (typeof value == "string" && node.type != "file") {
+          if (node.value == value)
+            continue; // don't dispatch an input event for no change
+          
           node.value = value;
           
           let event = aDocument.createEvent("UIEvents");
@@ -2128,20 +2171,20 @@ SessionStoreService.prototype = {
     if (!isNaN(aLeft) && !isNaN(aTop) && (aLeft != win_("screenX") || aTop != win_("screenY"))) {
       aWindow.moveTo(aLeft, aTop);
     }
-    switch (aSizeMode)
+    if (aSizeMode && win_("sizemode") != aSizeMode)
     {
-    case "maximized":
-    	if (win_("sizemode") != "maximized")
-    	  aWindow.maximize();
-    	break
-    case "minimized":
-    	if (win_("sizemode") != "minimized")
-    	  aWindow.minimize();
-    	break
-    default:
-    	if (win_("sizemode") != "normal")
-    	  aWindow.restore();
-    	break
+      switch (aSizeMode)
+      {
+      case "maximized":
+        aWindow.maximize();
+        break;
+      case "minimized":
+        aWindow.minimize();
+        break;
+      case "normal":
+        aWindow.restore();
+        break;
+      }
     }
     var sidebar = aWindow.document.getElementById("sidebar-box");
     if (sidebar.getAttribute("sidebarcommand") != aSidebar) {
@@ -2639,6 +2682,21 @@ let XPathHelper = {
     return (this.restorableFormNodes = formNodesXPath);
   }
 };
+
+// see nsPrivateBrowsingService.js
+String.prototype.hasRootDomain = function hasRootDomain(aDomain)
+{
+  let index = this.indexOf(aDomain);
+  if (index == -1)
+    return false;
+
+  if (this == aDomain)
+    return true;
+
+  let prevChar = this[index - 1];
+  return (index == (this.length - aDomain.length)) &&
+         (prevChar == "." || prevChar == "/");
+}
 
 function NSGetModule(aComMgr, aFileSpec)
   XPCOMUtils.generateModule([SessionStoreService]);

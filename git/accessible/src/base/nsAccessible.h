@@ -41,6 +41,10 @@
 
 #include "nsAccessNodeWrap.h"
 
+#include "nsARIAMap.h"
+#include "nsRelUtils.h"
+#include "nsTextEquivUtils.h"
+
 #include "nsIAccessible.h"
 #include "nsPIAccessible.h"
 #include "nsIAccessibleHyperLink.h"
@@ -48,15 +52,14 @@
 #include "nsIAccessibleValue.h"
 #include "nsIAccessibleRole.h"
 #include "nsIAccessibleStates.h"
-#include "nsAccessibleRelationWrap.h"
 #include "nsIAccessibleEvent.h"
 
 #include "nsIDOMNodeList.h"
 #include "nsINameSpaceManager.h"
 #include "nsWeakReference.h"
 #include "nsString.h"
+#include "nsTArray.h"
 #include "nsIDOMDOMStringList.h"
-#include "nsARIAMap.h"
 
 struct nsRect;
 class nsIContent;
@@ -74,6 +77,10 @@ NS_ERROR_GENERATE_SUCCESS(NS_ERROR_MODULE_GENERAL, 0x21)
 #define NS_OK_EMPTY_NAME \
 NS_ERROR_GENERATE_SUCCESS(NS_ERROR_MODULE_GENERAL, 0x23)
 
+// see nsAccessible::GetNameInternal
+#define NS_OK_NAME_FROM_TOOLTIP \
+NS_ERROR_GENERATE_SUCCESS(NS_ERROR_MODULE_GENERAL, 0x25)
+
 // Saves a data member -- if child count equals this value we haven't
 // cached children or child count yet
 enum { eChildCountUninitialized = -1 };
@@ -88,11 +95,11 @@ public:
   NS_DECL_NSIDOMDOMSTRINGLIST
 
   PRBool Add(const nsAString& aName) {
-    return mNames.AppendString(aName);
+    return mNames.AppendElement(aName) != nsnull;
   }
 
 private:
-  nsStringArray mNames;
+  nsTArray<nsString> mNames;
 };
 
 
@@ -151,6 +158,14 @@ public:
   virtual nsresult GetNameInternal(nsAString& aName);
 
   /**
+   * Returns enumerated accessible role from native markup (see constants in
+   * nsIAccessibleRole). Doesn't take into account ARIA roles.
+   *
+   * @param aRole  [out] accessible role.
+   */
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+
+  /**
    * Return the state of accessible that doesn't take into account ARIA states.
    * Use nsIAccessible::state to get all states for accessible. If
    * second argument is omitted then second bit field of accessible state won't
@@ -179,18 +194,6 @@ protected:
   virtual void GetBoundsRect(nsRect& aRect, nsIFrame** aRelativeFrame);
   PRBool IsVisible(PRBool *aIsOffscreen); 
 
-  // Relation helpers
-
-  /**
-   * For a given ARIA relation, such as labelledby or describedby, get the collated text
-   * for the subtree that's pointed to.
-   *
-   * @param aIDProperty  The ARIA relationship property to get the text for
-   * @param aName        Where to put the text
-   * @return error or success code
-   */
-  nsresult GetTextFromRelationID(nsIAtom *aIDProperty, nsString &aName);
-
   //////////////////////////////////////////////////////////////////////////////
   // Name helpers.
 
@@ -203,14 +206,6 @@ protected:
    * Compute the name for XUL node.
    */
   nsresult GetXULName(nsAString& aName);
-
-  // For accessibles that are not lists of choices, the name of the subtree should be the 
-  // sum of names in the subtree
-  nsresult AppendFlatStringFromSubtree(nsIContent *aContent, nsAString *aFlatString);
-  nsresult AppendNameFromAccessibleFor(nsIContent *aContent, nsAString *aFlatString,
-                                       PRBool aFromValue = PR_FALSE);
-  nsresult AppendFlatStringFromContentNode(nsIContent *aContent, nsAString *aFlatString);
-  nsresult AppendStringWithSpaces(nsAString *aFlatString, const nsAString& textEquivalent);
 
   // helper method to verify frames
   static nsresult GetFullKeyName(const nsAString& aModifierName, const nsAString& aKeyName, nsAString& aStringOut);

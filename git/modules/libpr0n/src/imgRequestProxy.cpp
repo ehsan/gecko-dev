@@ -118,7 +118,7 @@ nsresult imgRequestProxy::Init(imgRequest *request, nsILoadGroup *aLoadGroup, im
   }
   mLoadGroup = aLoadGroup;
 
-  // Note: AddProxy won't send all the On* notifications immediatly
+  // Note: AddProxy won't send all the On* notifications immediately
   request->AddProxy(this);
 
   return NS_OK;
@@ -196,14 +196,7 @@ NS_IMETHODIMP imgRequestProxy::IsPending(PRBool *_retval)
 /* readonly attribute nsresult status; */
 NS_IMETHODIMP imgRequestProxy::GetStatus(nsresult *aStatus)
 {
-  // XXXbz this is wrong...  Canceling with a status should make that
-  // status the status of the request, generally.
-  if (!mOwner)
-    return NS_ERROR_FAILURE;
-
-  *aStatus = mOwner->GetNetworkStatus();
-
-  return NS_OK;
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 /* void cancel (in nsresult status); */
@@ -416,6 +409,17 @@ NS_IMETHODIMP imgRequestProxy::GetSecurityInfo(nsISupports** _retval)
     return mOwner->GetSecurityInfo(_retval);
 
   *_retval = nsnull;
+  return NS_OK;
+}
+
+NS_IMETHODIMP imgRequestProxy::GetHasTransferredData(PRBool* hasData)
+{
+  if (mOwner) {
+    *hasData = mOwner->HasTransferredData();
+  } else {
+    // The safe thing to do is to claim we have data
+    *hasData = PR_TRUE;
+  }
   return NS_OK;
 }
 

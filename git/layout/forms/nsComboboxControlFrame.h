@@ -96,8 +96,8 @@ public:
   nsComboboxControlFrame(nsStyleContext* aContext);
   ~nsComboboxControlFrame();
 
-  // nsISupports
-  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
+  NS_DECL_QUERYFRAME
+  NS_DECL_ISUPPORTS_INHERITED
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
@@ -175,18 +175,19 @@ public:
   virtual void RollupFromList();
   virtual void AbsolutelyPositionDropDown();
   virtual PRInt32 GetIndexOfDisplayArea();
+  /**
+   * @note This method might destroy |this|.
+   */
   NS_IMETHOD RedisplaySelectedText();
   virtual PRInt32 UpdateRecentIndex(PRInt32 aIndex);
   virtual void OnContentReset();
 
   // nsISelectControlFrame
-  NS_IMETHOD AddOption(nsPresContext* aPresContext, PRInt32 index);
-  NS_IMETHOD RemoveOption(nsPresContext* aPresContext, PRInt32 index);
+  NS_IMETHOD AddOption(PRInt32 index);
+  NS_IMETHOD RemoveOption(PRInt32 index);
   NS_IMETHOD GetOptionSelected(PRInt32 aIndex, PRBool* aValue);
   NS_IMETHOD DoneAddingChildren(PRBool aIsDone);
-  NS_IMETHOD OnOptionSelected(nsPresContext* aPresContext,
-                              PRInt32 aIndex,
-                              PRBool aSelected);
+  NS_IMETHOD OnOptionSelected(PRInt32 aIndex, PRBool aSelected);
   NS_IMETHOD OnSetSelectedIndex(PRInt32 aOldIndex, PRInt32 aNewIndex);
 
   //nsIRollupListener
@@ -292,10 +293,6 @@ protected:
 #ifdef DO_REFLOW_COUNTER
   PRInt32 mReflowId;
 #endif
-
-private:
-  NS_IMETHOD_(nsrefcnt) AddRef() { return NS_OK; }
-  NS_IMETHOD_(nsrefcnt) Release() { return NS_OK; }
 };
 
 #endif

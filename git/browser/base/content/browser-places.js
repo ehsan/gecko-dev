@@ -113,21 +113,23 @@ var StarUI = {
         break;
       case "keypress":
         if (aEvent.keyCode == KeyEvent.DOM_VK_ESCAPE) {
-          // In edit mode, if we're not editing a folder, the ESC key is mapped
-          // to the cancel button
+          // If the panel is visible the ESC key is mapped to the cancel button
+          // unless we are editing a folder in the folderTree, or an
+          // autocomplete popup is open.
           if (!this._element("editBookmarkPanelContent").hidden) {
             var elt = aEvent.target;
-            if (elt.localName != "tree" ||
-                (elt.localName == "tree" && !elt.hasAttribute("editing")))
+            if ((elt.localName != "tree" || !elt.hasAttribute("editing")) &&
+                !elt.popupOpen)
               this.cancelButtonOnCommand();
           }
         }
         else if (aEvent.keyCode == KeyEvent.DOM_VK_RETURN) {
-          // hide the panel unless the folder tree is focused
-          // or the tag autocomplete popup is open
+          // hide the panel unless the folder tree or an expander are focused
+          // or an autocomplete popup is open.
           if (aEvent.target.localName != "tree" &&
-              (aEvent.target.id != "editBMPanel_tagsField" ||
-               !aEvent.target.popupOpen))
+              aEvent.target.className != "expander-up" &&
+              aEvent.target.className != "expander-down" &&
+              !aEvent.target.popupOpen)
             this.panel.hidePopup();
         }
         break;
@@ -234,12 +236,17 @@ var StarUI = {
   function SU_panelShown(aEvent) {
     if (aEvent.target == this.panel) {
       if (!this._element("editBookmarkPanelContent").hidden) {
-        var namePicker = this._element("editBMPanel_namePicker");
-        namePicker.focus();
-        namePicker.select();
+        fieldToFocus = "editBMPanel_" +
+          gPrefService.getCharPref("browser.bookmarks.editDialog.firstEditField");
+        var elt = this._element(fieldToFocus);
+        elt.focus();
+        elt.select();
       }
-      else
+      else {
+        // Note this isn't actually used anymore, we should remove this
+        // once we decide not to bring back the page bookmarked notification
         this.panel.focus();
+      }
     }
   },
 

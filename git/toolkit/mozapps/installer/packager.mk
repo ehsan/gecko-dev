@@ -64,7 +64,13 @@ else
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 MOZ_PKG_FORMAT  = BZ2
 else
+ifeq (,$(filter-out WINCE, $(OS_ARCH)))
+MOZ_PKG_CAB_SCRIPT ?= $(error MOZ_PKG_CAB_SCRIPT not specified)
+MOZ_PKG_CAB_INF ?= $(error MOZ_PKG_CAB_INF not specified)
+MOZ_PKG_FORMAT  = CAB
+else
 MOZ_PKG_FORMAT  = TGZ
+endif
 endif
 endif
 INSTALLER_DIR   = unix
@@ -106,6 +112,12 @@ endif
 ifeq ($(MOZ_PKG_FORMAT),ZIP)
 PKG_SUFFIX	= .zip
 MAKE_PACKAGE	= $(ZIP) -r9D $(PACKAGE) $(MOZ_PKG_DIR)
+UNMAKE_PACKAGE	= $(UNZIP) $(UNPACKAGE)
+MAKE_SDK = $(ZIP) -r9D $(SDK) $(MOZ_APP_NAME)-sdk
+endif
+ifeq ($(MOZ_PKG_FORMAT),CAB)
+PKG_SUFFIX	= .cab
+MAKE_PACKAGE = $(MOZ_PKG_CAB_SCRIPT) "$(VSINSTALLDIR)" "$(topsrcdir)" "$(MOZ_PKG_DIR)" "$(MOZ_PKG_CAB_INF)" "$(MOZ_APP_NAME)" "$(PACKAGE)"
 UNMAKE_PACKAGE	= $(UNZIP) $(UNPACKAGE)
 MAKE_SDK = $(ZIP) -r9D $(SDK) $(MOZ_APP_NAME)-sdk
 endif
@@ -156,7 +168,7 @@ UNMAKE_PACKAGE	= \
   }; \
   unset NEXT_ROOT; \
   export PAGER=true; \
-  expect $(_ABS_MOZSRCDIR)/build/package/mac_osx/installdmg.ex $(UNPACKAGE) > hdi.output; \
+  expect $(_ABS_MOZSRCDIR)/build/package/mac_osx/installdmg.ex $(UNPACKAGE) | tee hdi.output; \
   DEV_NAME=`perl -n -e 'if($$_=~/(\/dev\/disk[^ ]*)/) {print $$1."\n";exit;}'< hdi.output`; \
   MOUNTPOINT=`perl -n -e 'split(/\/dev\/disk[^ ]*/,$$_,2);if($$_[1]=~/(\/.[^\r]*)/) {print $$1;exit;}'< hdi.output` || cleanup 1; \
   rsync -a "$${MOUNTPOINT}/$(_APPNAME)" $(MOZ_PKG_DIR) || cleanup 1; \
@@ -225,6 +237,7 @@ NO_PKG_FILES += \
 	core \
 	bsdecho \
 	gtscc \
+	js \
 	js-config \
 	jscpucfg \
 	nsinstall \
@@ -494,9 +507,11 @@ QUOTED_WILDCARD = $(if $(wildcard $(subst $(space),?,$(1))),"$(1)")
 
 upload:
 	$(PYTHON) $(topsrcdir)/build/upload.py --base-path $(DIST) \
-    	$(call QUOTED_WILDCARD,$(DIST)/$(PACKAGE)) \
+		$(call QUOTED_WILDCARD,$(DIST)/$(PACKAGE)) \
 		$(call QUOTED_WILDCARD,$(INSTALLER_PACKAGE)) \
 		$(call QUOTED_WILDCARD,$(DIST)/$(COMPLETE_MAR)) \
+		$(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)$(TEST_PACKAGE)) \
+		$(call QUOTED_WILDCARD,$(DIST)/$(SYMBOL_ARCHIVE_BASENAME).zip) \
 		$(if $(UPLOAD_EXTRA_FILES), $(foreach f, $(UPLOAD_EXTRA_FILES), $(wildcard $(DIST)/$(f))))
 
 ifndef MOZ_PKG_SRCDIR

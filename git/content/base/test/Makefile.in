@@ -146,6 +146,7 @@ _TEST_FILES = 	test_bug5141.html \
 		file_bug326337.xml \
 		file_bug326337_multipart.txt \
 		file_bug326337_multipart.txt^headers^ \
+		test_bug333198.html \
 		test_bug402150.html \
 		test_bug402150.html^headers^ \
 		test_bug401662.html \
@@ -240,11 +241,14 @@ _TEST_FILES = 	test_bug5141.html \
 		test_bug368972.html \
 		test_bug448993.html \
 		test_bug450160.html \
+		test_bug453736.html \
 		test_bug454326.html \
 		test_bug457746.html \
 		bug457746.sjs \
 		test_CrossSiteXHR.html \
 		file_CrossSiteXHR_inner.html \
+		file_CrossSiteXHR_inner_data.sjs \
+		file_CrossSiteXHR_inner.jar \
 		file_CrossSiteXHR_server.sjs \
 		test_CrossSiteXHR_cache.html \
 		file_CrossSiteXHR_cache_server.sjs \
@@ -272,6 +276,14 @@ _TEST_FILES = 	test_bug5141.html \
 		bug444322.js \
 		test_bug455629.html \
 		bug455629-helper.svg \
+		test_bug473162-1.html \
+		test_bug473162-2.html \
+		test_XHRSendData.html \
+		file_XHRSendData.sjs \
+		file_XHRSendData_doc.xml \
+		file_XHRSendData_doc.xml^headers^ \
+		test_bug466751.xhtml \
+		test_bug461555.html \
 		$(NULL)
 
 # Disabled for now. Mochitest isn't reliable enough for these.

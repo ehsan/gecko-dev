@@ -88,6 +88,7 @@ public:
         }
     }
     PRBool test(PRUint32 aIndex) {
+        NS_ASSERTION(mBlocks.DebugGetHeader(), "mHdr is null, this is bad");
         PRUint32 blockIndex = aIndex/BLOCK_SIZE_BITS;
         if (blockIndex >= mBlocks.Length())
             return PR_FALSE;
@@ -366,6 +367,9 @@ public:
     // for a given font list pref name, set up a list of font names
     static void GetPrefsFontList(const char *aPrefName, 
                                  nsTArray<nsString>& aFontList);
+
+    // generate a unique font name
+    static nsresult MakeUniqueUserFontName(nsAString& aName);
 
 };
 

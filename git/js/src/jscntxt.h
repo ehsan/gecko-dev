@@ -93,6 +93,9 @@ typedef struct JSGSNCache {
 #define JS_CLEAR_GSN_CACHE(cx)      GSN_CACHE_CLEAR(&JS_GSN_CACHE(cx))
 #define JS_METER_GSN_CACHE(cx,cnt)  GSN_CACHE_METER(&JS_GSN_CACHE(cx), cnt)
 
+typedef struct InterpState InterpState;
+typedef struct VMSideExit VMSideExit;
+
 #ifdef __cplusplus
 namespace nanojit {
     class Fragment;
@@ -102,12 +105,20 @@ namespace nanojit {
 class TraceRecorder;
 extern "C++" { template<typename T> class Queue; }
 typedef Queue<uint16> SlotList;
-class TypeMap;
 
 # define CLS(T)  T*
 #else
 # define CLS(T)  void*
 #endif
+
+#define FRAGMENT_TABLE_SIZE 512
+struct VMFragment;
+
+#define MONITOR_N_GLOBAL_STATES 4
+struct GlobalState {
+    uint32                  globalShape;
+    CLS(SlotList)           globalSlots;
+};
 
 /*
  * Trace monitor. Every JSThread (if JS_THREADSAFE) or JSRuntime (if not
@@ -120,16 +131,42 @@ typedef struct JSTraceMonitor {
      * both interpreter activation and last-ditch garbage collection when up
      * against our runtime's memory limits. This flag also suppresses calls to
      * JS_ReportOutOfMemory when failing due to runtime limits.
+     *
+     * !onTrace && !recorder: not on trace.
+     * onTrace && recorder: recording a trace.
+     * onTrace && !recorder: executing a trace.
+     * !onTrace && recorder && !prohibitRecording:
+     *      not on trace; deep-aborted while recording.
+     * !onTrace && recorder && prohibitRecording:
+     *      not on trace; deep-bailed in SpiderMonkey code called from a
+     *      trace. JITted code is on the stack.
      */
-    JSBool                  onTrace;
+    JSPackedBool            onTrace;
+
+    /*
+     * Do not start recording after a deep bail.  That would free JITted code
+     * pages that we will later return to.
+     */
+    JSPackedBool            prohibitRecording;
+
+    /* See reservedObjects below. */
+    JSPackedBool            useReservedObjects;
+
     CLS(nanojit::LirBuffer) lirbuf;
     CLS(nanojit::Fragmento) fragmento;
     CLS(TraceRecorder)      recorder;
-    uint32                  globalShape;
-    CLS(SlotList)           globalSlots;
-    CLS(TypeMap)            globalTypeMap;
-    jsval                   *recoveryDoublePool;
-    jsval                   *recoveryDoublePoolPtr;
+    jsval                   *reservedDoublePool;
+    jsval                   *reservedDoublePoolPtr;
+
+    struct GlobalState globalStates[MONITOR_N_GLOBAL_STATES];
+    struct VMFragment* vmfragments[FRAGMENT_TABLE_SIZE];
+    JSBool needFlush;
+
+    /*
+     * reservedObjects is a linked list (via fslots[0]) of preallocated JSObjects.
+     * The JIT uses this to ensure that leaving a trace tree can't fail.
+     */
+    JSObject                *reservedObjects;
 
     /* Fragmento for the regular expression compiler. This is logically
      * a distinct compiler but needs to be managed in exactly the same
@@ -141,12 +178,37 @@ typedef struct JSTraceMonitor {
     CLS(TraceRecorder)      abortStack;
 } JSTraceMonitor;
 
+typedef struct InterpStruct InterpStruct;
+
 #ifdef JS_TRACER
 # define JS_ON_TRACE(cx)            (JS_TRACE_MONITOR(cx).onTrace)
-# define JS_EXECUTING_TRACE(cx)     (JS_ON_TRACE(cx) && !JS_TRACE_MONITOR(cx).recorder)
 #else
 # define JS_ON_TRACE(cx)            JS_FALSE
-# define JS_EXECUTING_TRACE(cx)     JS_FALSE
+#endif
+
+#ifdef DEBUG
+# define JS_EVAL_CACHE_METERING 1
+#endif
+
+/* Number of potentially reusable scriptsToGC to search for the eval cache. */
+#ifndef JS_EVAL_CACHE_SHIFT
+# define JS_EVAL_CACHE_SHIFT        6
+#endif
+#define JS_EVAL_CACHE_SIZE          JS_BIT(JS_EVAL_CACHE_SHIFT)
+
+#ifdef JS_EVAL_CACHE_METERING
+# define EVAL_CACHE_METER_LIST(_)   _(probe), _(hit), _(step), _(noscope)
+# define ID(x)                      x
+
+/* Have to typedef this for LiveConnect C code, which includes us. */
+typedef struct JSEvalCacheMeter {
+    uint64 EVAL_CACHE_METER_LIST(ID);
+} JSEvalCacheMeter;
+
+# undef ID
+# define DECLARE_EVAL_CACHE_METER   JSEvalCacheMeter evalCacheMeter;
+#else
+# define DECLARE_EVAL_CACHE_METER   /* nothing */
 #endif
 
 #ifdef JS_THREADSAFE
@@ -180,26 +242,24 @@ struct JSThread {
     /* Property cache for faster call/get/set invocation. */
     JSPropertyCache     propertyCache;
 
+#ifdef JS_TRACER
     /* Trace-tree JIT recorder/interpreter state. */
     JSTraceMonitor      traceMonitor;
+#endif
 
-    /* Lock-free list of scripts created by eval to garbage-collect. */
-    JSScript            *scriptsToGC;
+    /* Lock-free hashed lists of scripts created by eval to garbage-collect. */
+    JSScript            *scriptsToGC[JS_EVAL_CACHE_SIZE];
+
+    DECLARE_EVAL_CACHE_METER
 };
 
-#define JS_GSN_CACHE(cx)        ((cx)->thread->gsnCache)
-#define JS_PROPERTY_CACHE(cx)   ((cx)->thread->propertyCache)
-#define JS_TRACE_MONITOR(cx)    ((cx)->thread->traceMonitor)
-#define JS_SCRIPTS_TO_GC(cx)    ((cx)->thread->scriptsToGC)
+#define JS_CACHE_LOCUS(cx)      ((cx)->thread)
 
 extern void
 js_ThreadDestructorCB(void *ptr);
 
-extern JSBool
-js_SetContextThread(JSContext *cx);
-
 extern void
-js_ClearContextThread(JSContext *cx);
+js_InitContextThread(JSContext *cx, JSThread *thread);
 
 extern JSThread *
 js_GetCurrentThread(JSRuntime *rt);
@@ -219,6 +279,24 @@ typedef enum JSRuntimeState {
     JSRTS_UP,
     JSRTS_LANDING
 } JSRuntimeState;
+
+#ifdef JS_TRACER
+typedef enum JSBuiltinStatus {
+    JSBUILTIN_OK = 0,
+    JSBUILTIN_BAILED = 1,
+    JSBUILTIN_ERROR = 2
+} JSBuiltinStatus;
+#endif
+
+typedef enum JSBuiltinFunctionId {
+    JSBUILTIN_ObjectToIterator,
+    JSBUILTIN_CallIteratorNext,
+    JSBUILTIN_GetProperty,
+    JSBUILTIN_GetElement,
+    JSBUILTIN_SetProperty,
+    JSBUILTIN_SetElement,
+    JSBUILTIN_LIMIT
+} JSBuiltinFunctionId;
 
 typedef struct JSPropertyTreeEntry {
     JSDHashEntryHdr     hdr;
@@ -258,6 +336,7 @@ struct JSRuntime {
     uint32              gcLevel;
     uint32              gcNumber;
     JSTracer            *gcMarkingTracer;
+    uint32              gcTriggerFactor;
 
     /*
      * NB: do not pack another flag here by claiming gcPadding unless the new
@@ -327,6 +406,14 @@ struct JSRuntime {
      */
     JSString            *emptyString;
     JSString            **unitStrings;
+
+    /*
+     * Builtin functions, lazily created and held for use by the trace recorder.
+     *
+     * This field would be #ifdef JS_TRACER, but XPConnect is compiled without
+     * -DJS_TRACER and includes this header.
+     */
+    JSObject            *builtinFunctions[JSBUILTIN_LIMIT];
 
     /* List of active contexts sharing this runtime; protected by gcLock. */
     JSCList             contextList;
@@ -450,13 +537,12 @@ struct JSRuntime {
     /* Trace-tree JIT recorder/interpreter state. */
     JSTraceMonitor      traceMonitor;
 
-    /* Lock-free list of scripts created by eval to garbage-collect. */
-    JSScript            *scriptsToGC;
+    /* Lock-free hashed lists of scripts created by eval to garbage-collect. */
+    JSScript            *scriptsToGC[JS_EVAL_CACHE_SIZE];
 
-#define JS_GSN_CACHE(cx)        ((cx)->runtime->gsnCache)
-#define JS_PROPERTY_CACHE(cx)   ((cx)->runtime->propertyCache)
-#define JS_TRACE_MONITOR(cx)    ((cx)->runtime->traceMonitor)
-#define JS_SCRIPTS_TO_GC(cx)    ((cx)->runtime->scriptsToGC)
+    DECLARE_EVAL_CACHE_METER
+
+#define JS_CACHE_LOCUS(cx)      ((cx)->runtime)
 #endif
 
     /*
@@ -489,15 +575,6 @@ struct JSRuntime {
     ((((shape) >> NATIVE_ENUM_CACHE_LOG2) ^ (shape)) & NATIVE_ENUM_CACHE_MASK)
 
     jsuword             nativeEnumCache[NATIVE_ENUM_CACHE_SIZE];
-
-    /*
-     * Runtime-wide flag set to true when any Array prototype has an indexed
-     * property defined on it, creating a hazard for code reading or writing
-     * over a hole from a dense Array instance that is not prepared to look up
-     * the proto chain (the writing case must involve a check for a read-only
-     * element, which cannot be shadowed).
-     */
-    JSBool              anyArrayProtoHasElement;
 
     /*
      * Various metering fields are defined at the end of JSRuntime. In this
@@ -573,6 +650,19 @@ struct JSRuntime {
     JSGCStats           gcStats;
 #endif
 };
+
+/* Common macros to access thread-local caches in JSThread or JSRuntime. */
+#define JS_GSN_CACHE(cx)        (JS_CACHE_LOCUS(cx)->gsnCache)
+#define JS_PROPERTY_CACHE(cx)   (JS_CACHE_LOCUS(cx)->propertyCache)
+#define JS_TRACE_MONITOR(cx)    (JS_CACHE_LOCUS(cx)->traceMonitor)
+#define JS_SCRIPTS_TO_GC(cx)    (JS_CACHE_LOCUS(cx)->scriptsToGC)
+
+#ifdef JS_EVAL_CACHE_METERING
+# define EVAL_CACHE_METER(x)    (JS_CACHE_LOCUS(cx)->evalCacheMeter.x++)
+#else
+# define EVAL_CACHE_METER(x)    ((void) 0)
+#endif
+#undef DECLARE_EVAL_CACHE_METER
 
 #ifdef DEBUG
 # define JS_RUNTIME_METER(rt, which)    JS_ATOMIC_INCREMENT(&(rt)->which)
@@ -679,12 +769,7 @@ typedef struct JSLocalRootStack {
  * bits. This is how, for example, js_GetGCThingTraceKind uses its |thing|
  * parameter -- it consults GC-thing flags stored separately from the thing to
  * decide the kind of thing.
- *
- * The following checks that this type-punning is possible.
  */
-JS_STATIC_ASSERT(sizeof(JSTempValueUnion) == sizeof(jsval));
-JS_STATIC_ASSERT(sizeof(JSTempValueUnion) == sizeof(void *));
-
 #define JS_PUSH_TEMP_ROOT_COMMON(cx,x,tvr,cnt,kind)                           \
     JS_BEGIN_MACRO                                                            \
         JS_ASSERT((cx)->tempValueRooters != (tvr));                           \
@@ -738,10 +823,10 @@ JS_STATIC_ASSERT(sizeof(JSTempValueUnion) == sizeof(void *));
 
 struct JSContext {
     /*
-     * Operation count. It is declared as the first field in the struct to
-     * ensure the fastest possible access.
+     * If this flag is set, we were asked to call back the operation callback
+     * as soon as possible.
      */
-    int32               operationCount;
+    volatile jsint      operationCallbackFlag;
 
     /* JSRuntime contextList linkage. */
     JSCList             link;
@@ -818,6 +903,7 @@ struct JSContext {
     JSRuntime           *runtime;
 
     /* Stack arena pool and frame pointer register. */
+    JS_REQUIRES_STACK
     JSArenaPool         stackPool;
 
     JS_REQUIRES_STACK
@@ -850,13 +936,7 @@ struct JSContext {
     /* Per-context optional error reporter. */
     JSErrorReporter     errorReporter;
 
-    /*
-     * Flag indicating that the operation callback is set. When the flag is 0
-     * but operationCallback is not null, operationCallback stores the branch
-     * callback.
-     */
-    uint32              operationCallbackIsSet :    1;
-    uint32              operationLimit         :    31;
+    /* Branch callback. */
     JSOperationCallback operationCallback;
 
     /* Interpreter activation count. */
@@ -909,6 +989,23 @@ struct JSContext {
 
     /* Stored here to avoid passing it around as a parameter. */
     uintN               resolveFlags;
+
+#ifdef JS_TRACER
+    /*
+     * State for the current tree execution.  bailExit is valid if the tree has
+     * called back into native code via a _FAIL builtin and has not yet bailed,
+     * else garbage (NULL in debug builds).
+     */
+    InterpState         *interpState;
+    VMSideExit          *bailExit;
+
+    /*
+     * Used by _FAIL builtins; see jsbuiltins.h. The builtin sets the
+     * JSBUILTIN_BAILED bit if it bails off trace and the JSBUILTIN_ERROR bit
+     * if an error or exception occurred. Cleared on side exit.
+     */
+    uint32              builtinStatus;
+#endif
 };
 
 #ifdef JS_THREADSAFE
@@ -916,6 +1013,15 @@ struct JSContext {
 #endif
 
 #ifdef __cplusplus
+
+static inline JSAtom **
+FrameAtomBase(JSContext *cx, JSStackFrame *fp)
+{
+    return fp->imacpc
+           ? COMMON_ATOMS_START(&cx->runtime->atomState)
+           : fp->script->atomMap.vector;
+}
+
 /* FIXME(bug 332648): Move this into a public header. */
 class JSAutoTempValueRooter
 {
@@ -924,14 +1030,21 @@ class JSAutoTempValueRooter
         : mContext(cx) {
         JS_PUSH_TEMP_ROOT(mContext, len, vec, &mTvr);
     }
-    JSAutoTempValueRooter(JSContext *cx, jsval v)
+    explicit JSAutoTempValueRooter(JSContext *cx, jsval v = JSVAL_NULL)
         : mContext(cx) {
         JS_PUSH_SINGLE_TEMP_ROOT(mContext, v, &mTvr);
+    }
+    JSAutoTempValueRooter(JSContext *cx, JSString *str)
+        : mContext(cx) {
+        JS_PUSH_TEMP_ROOT_STRING(mContext, str, &mTvr);
     }
 
     ~JSAutoTempValueRooter() {
         JS_POP_TEMP_ROOT(mContext, &mTvr);
     }
+
+    jsval value() { return mTvr.u.value; }
+    jsval * addr() { return &mTvr.u.value; }
 
   protected:
     JSContext *mContext;
@@ -942,6 +1055,26 @@ class JSAutoTempValueRooter
     static void operator delete(void *, size_t);
 #endif
 
+    JSTempValueRooter mTvr;
+};
+
+class JSAutoTempIdRooter
+{
+public:
+    explicit JSAutoTempIdRooter(JSContext *cx, jsid id = INT_TO_JSID(0))
+        : mContext(cx) {
+        JS_PUSH_SINGLE_TEMP_ROOT(mContext, ID_TO_VALUE(id), &mTvr);
+    }
+
+    ~JSAutoTempIdRooter() {
+        JS_POP_TEMP_ROOT(mContext, &mTvr);
+    }
+
+    jsid id() { return (jsid) mTvr.u.value; }
+    jsid * addr() { return (jsid *) &mTvr.u.value; }
+
+private:
+    JSContext *mContext;
     JSTempValueRooter mTvr;
 };
 
@@ -959,7 +1092,8 @@ class JSAutoResolveFlags
     JSContext *mContext;
     uintN mSaved;
 };
-#endif
+
+#endif /* __cpluscplus */
 
 /*
  * Slightly more readable macros for testing per-context option settings (also
@@ -996,6 +1130,8 @@ class JSAutoResolveFlags
 
 #define JSVERSION_MASK                  0x0FFF  /* see JSVersion in jspubtd.h */
 #define JSVERSION_HAS_XML               0x1000  /* flag induced by XML option */
+#define JSVERSION_ANONFUNFIX            0x2000  /* see jsapi.h, the comments
+                                                   for JSOPTION_ANONFUNFIX */
 
 #define JSVERSION_NUMBER(cx)            ((JSVersion)((cx)->version &          \
                                                      JSVERSION_MASK))
@@ -1018,6 +1154,14 @@ js_InitThreadPrivateIndex(void (*ptr)(void *));
  */
 extern JSBool
 js_CleanupThreadPrivateData();
+
+/*
+ * Ensures the JSOPTION_XML and JSOPTION_ANONFUNFIX bits of cx->options are
+ * reflected in cx->version, since each bit must travel with a script that has
+ * it set.
+ */
+extern void
+js_SyncOptionsToVersion(JSContext *cx);
 
 /*
  * Common subroutine of JS_SetVersion and js_SetVersion, to update per-context
@@ -1063,6 +1207,14 @@ js_ContextFromLinkField(JSCList *link)
  */
 extern JSContext *
 js_ContextIterator(JSRuntime *rt, JSBool unlocked, JSContext **iterp);
+
+/*
+ * Iterate through contexts with active requests. The caller must be holding
+ * rt->gcLock in case of a thread-safe build, or otherwise guarantee that the
+ * context list is not alternated asynchroniously.
+ */
+extern JS_FRIEND_API(JSContext *)
+js_NextActiveContext(JSRuntime *, JSContext *);
 
 /*
  * JSClass.resolve and watchpoint recursion damping machinery.
@@ -1215,55 +1367,54 @@ extern JSErrorFormatString js_ErrorFormatString[JSErr_Limit];
 #endif
 
 /*
- * Update the operation counter according to the given weight and call the
- * operation callback when we reach the operation limit. To make this
- * frequently executed macro faster we decrease the counter from
- * JSContext.operationLimit and compare against zero to check the limit.
- *
+ * If the operation callback flag was set, call the operation callback.
  * This macro can run the full GC. Return true if it is OK to continue and
  * false otherwise.
  */
-#define JS_CHECK_OPERATION_LIMIT(cx, weight)                                  \
-    (JS_CHECK_OPERATION_WEIGHT(weight),                                       \
-     (((cx)->operationCount -= (weight)) > 0 || js_ResetOperationCount(cx)))
+#define JS_CHECK_OPERATION_LIMIT(cx) \
+    (!(cx)->operationCallbackFlag || js_InvokeOperationCallback(cx))
 
 /*
- * A version of JS_CHECK_OPERATION_LIMIT that just updates the operation count
- * without calling the operation callback or any other API. This macro resets
- * the count to 0 when it becomes negative to prevent a wrap-around when the
- * macro is called repeatably.
- */
-#define JS_COUNT_OPERATION(cx, weight)                                        \
-    ((void)(JS_CHECK_OPERATION_WEIGHT(weight),                                \
-            (cx)->operationCount = ((cx)->operationCount > 0)                 \
-                                   ? (cx)->operationCount - (weight)          \
-                                   : 0))
-
-/*
- * The implementation of the above macros assumes that subtracting weights
- * twice from a positive number does not wrap-around INT32_MIN.
- */
-#define JS_CHECK_OPERATION_WEIGHT(weight)                                     \
-    (JS_ASSERT((uint32) (weight) > 0),                                        \
-     JS_ASSERT((uint32) (weight) < JS_BIT(30)))
-
-/* Relative operations weights. */
-#define JSOW_JUMP                   1
-#define JSOW_ALLOCATION             100
-#define JSOW_LOOKUP_PROPERTY        5
-#define JSOW_GET_PROPERTY           10
-#define JSOW_SET_PROPERTY           20
-#define JSOW_NEW_PROPERTY           200
-#define JSOW_DELETE_PROPERTY        30
-#define JSOW_ENTER_SHARP            JS_OPERATION_WEIGHT_BASE
-#define JSOW_SCRIPT_JUMP            JS_OPERATION_WEIGHT_BASE
-
-/*
- * Reset the operation count and call the operation callback assuming that the
- * operation limit is reached.
+ * Invoke the operation callback and return false if the current execution
+ * is to be terminated.
  */
 extern JSBool
-js_ResetOperationCount(JSContext *cx);
+js_InvokeOperationCallback(JSContext *cx);
+
+extern JSStackFrame *
+js_GetScriptedCaller(JSContext *cx, JSStackFrame *fp);
+
+#ifdef JS_TRACER
+/*
+ * Reconstruct the JS stack and clear cx->onTrace. We must be currently
+ * executing a _FAIL builtin from trace on cx. The machine code for the trace
+ * remains on the C stack when js_DeepBail returns.
+ *
+ * Implemented in jstracer.cpp.
+ */
+JS_FORCES_STACK JS_FRIEND_API(void)
+js_DeepBail(JSContext *cx);
+#endif
+
+static JS_FORCES_STACK JS_INLINE void
+js_LeaveTrace(JSContext *cx)
+{
+#ifdef JS_TRACER
+    if (JS_ON_TRACE(cx))
+        js_DeepBail(cx);
+#endif
+}
+
+static JS_INLINE JSBool
+js_CanLeaveTrace(JSContext *cx)
+{
+    JS_ASSERT(JS_ON_TRACE(cx));
+#ifdef JS_TRACER
+    return cx->bailExit != NULL;
+#else
+    return JS_FALSE;
+#endif
+}
 
 /*
  * Get the current cx->fp, first lazily instantiating stack frames if needed.
@@ -1271,11 +1422,12 @@ js_ResetOperationCount(JSContext *cx);
  *
  * Defined in jstracer.cpp if JS_TRACER is defined.
  */
-extern JS_FORCES_STACK JSStackFrame *
-js_GetTopStackFrame(JSContext *cx);
-
-extern JSStackFrame *
-js_GetScriptedCaller(JSContext *cx, JSStackFrame *fp);
+static JS_FORCES_STACK JS_INLINE JSStackFrame *
+js_GetTopStackFrame(JSContext *cx)
+{
+    js_LeaveTrace(cx);
+    return cx->fp;
+}
 
 JS_END_EXTERN_C
 

@@ -1106,8 +1106,12 @@
       </handler>
 
       <handler event="keypress" key="&windowClose.key;" modifiers="accel" phase="capturing">
+      <![CDATA[
         if (this.instantApply)
           window.close();
+        event.stopPropagation();
+        event.preventDefault();
+      ]]>
       </handler>
 
       <handler event="keypress"
@@ -1117,7 +1121,14 @@
                keycode="&openHelp.commandkey;"
 #endif
                phase="capturing">
+      <![CDATA[
+        var helpButton = this.getButton("help");
+        if (helpButton.disabled || helpButton.hidden)
+          return;
         this._fireEvent("dialoghelp", this);
+        event.stopPropagation();
+        event.preventDefault();
+      ]]>
       </handler>
     </handlers>
   </binding>

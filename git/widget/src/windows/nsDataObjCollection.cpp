@@ -76,16 +76,10 @@ nsDataObjCollection::~nsDataObjCollection()
 {
   NS_IF_RELEASE(mTransferable);
 
-  PRInt32 i;
+  PRUint32 i;
 
-  for (i = 0; i < mDataFlavors.Count(); ++i) {
-    delete (nsString *)mDataFlavors.ElementAt(i);
-  }
- 
-  for (i = 0; i < mDataObjects.Count(); ++i) {
-    IDataObject * dataObj = (IDataObject *)mDataObjects.ElementAt(i);
-    NS_RELEASE(dataObj);
-  }
+  mDataFlavors.Clear();
+  mDataObjects.Clear();
 
   m_enumFE->Release();
 }
@@ -154,8 +148,8 @@ STDMETHODIMP nsDataObjCollection::GetData(LPFORMATETC pFE, LPSTGMEDIUM pSTM)
   PRNTDEBUG("nsDataObjCollection::GetData\n");
   PRNTDEBUG3("  format: %d  Text: %d\n", pFE->cfFormat, CF_TEXT);
 
-  for (PRInt32 i = 0; i < mDataObjects.Count(); ++i) {
-    IDataObject * dataObj = (IDataObject *)mDataObjects.ElementAt(i);
+  for (PRUint32 i = 0; i < mDataObjects.Length(); ++i) {
+    IDataObject * dataObj = mDataObjects.ElementAt(i);
     if (S_OK == dataObj->GetData(pFE, pSTM)) {
       return S_OK;
     }
@@ -189,8 +183,8 @@ STDMETHODIMP nsDataObjCollection::QueryGetData(LPFORMATETC pFE)
   }
 
 
-  for (PRInt32 i = 0; i < mDataObjects.Count(); ++i) {
-    IDataObject * dataObj = (IDataObject *)mDataObjects.ElementAt(i);
+  for (PRUint32 i = 0; i < mDataObjects.Length(); ++i) {
+    IDataObject * dataObj = mDataObjects.ElementAt(i);
     if (S_OK == dataObj->QueryGetData(pFE)) {
       return S_OK;
     }
@@ -338,7 +332,7 @@ void nsDataObjCollection::AddDataFlavor(nsString * aDataFlavor, LPFORMATETC aFE)
   // Later, OLE will tell us it's needs a certain type of FORMATETC (text, unicode, etc)
   // so we will look up data flavor that corresponds to the FE
   // and then ask the transferable for that type of data
-  mDataFlavors.AppendElement(new nsString(*aDataFlavor));
+  mDataFlavors.AppendElement(*aDataFlavor);
   m_enumFE->AddFE(aFE);
 }
 
@@ -347,6 +341,5 @@ void nsDataObjCollection::AddDataFlavor(nsString * aDataFlavor, LPFORMATETC aFE)
 //-----------------------------------------------------
 void nsDataObjCollection::AddDataObject(IDataObject * aDataObj)
 {
-  NS_ADDREF(aDataObj);
   mDataObjects.AppendElement(aDataObj);
 }

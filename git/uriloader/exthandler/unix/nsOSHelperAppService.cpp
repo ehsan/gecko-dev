@@ -1156,8 +1156,7 @@ nsOSHelperAppService::GetHandlerAndDescriptionFromMailcapFile(const nsAString& a
                     continue;
                   const char *args[] = { "-c", testCommand.get() };
                   LOG(("Running Test: %s\n", testCommand.get()));
-                  PRUint32 pid;
-                  rv = process->Run(PR_TRUE, args, 2, &pid);
+                  rv = process->Run(PR_TRUE, args, 2);
                   if (NS_FAILED(rv))
                     continue;
                   PRInt32 exitValue;
@@ -1275,6 +1274,10 @@ nsresult nsOSHelperAppService::OSProtocolHandlerExists(const char * aProtocolSch
   // Check the GConf registry for a protocol handler
   if (!*aHandlerExists)
     *aHandlerExists = nsGNOMERegistry::HandlerExists(aProtocolScheme);
+#ifdef MOZ_PLATFORM_HILDON
+  if (!*aHandlerExists)
+    *aHandlerExists = nsMIMEInfoUnix::HandlerExists(aProtocolScheme);
+#endif
 #endif
 
   return NS_OK;

@@ -24,6 +24,7 @@
 #   Asaf Romano <mano@mozilla.com>
 #   Marco Bonardo <mak77@bonardo.net>
 #   Dietrich Ayala <dietrich@mozilla.com>
+#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -323,7 +324,11 @@ BrowserGlue.prototype = {
         showPrompt = this._prefs.getBoolPref("browser.tabs.warnOnClose");
     } catch (ex) {}
 
-    if (!showPrompt)
+    // Never show a prompt inside the private browsing mode
+    var inPrivateBrowsing = Cc["@mozilla.org/privatebrowsing;1"].
+                            getService(Ci.nsIPrivateBrowsingService).
+                            privateBrowsingEnabled;
+    if (!showPrompt || inPrivateBrowsing)
       return false;
 
     var buttonChoice = 0;
@@ -441,10 +446,10 @@ BrowserGlue.prototype = {
     var brandBundle  = this._bundleService.createBundle("chrome://branding/locale/brand.properties");
     var rightsBundle = this._bundleService.createBundle("chrome://browser/locale/aboutRights.properties");
 
-    var buttonLabel     = rightsBundle.GetStringFromName("buttonLabel");
-    var buttonAccessKey = rightsBundle.GetStringFromName("buttonAccessKey");
-    var productName     = brandBundle.GetStringFromName("brandFullName");
-    var notifyText      = rightsBundle.formatStringFromName("notifyText", [productName], 1);
+    var buttonLabel      = rightsBundle.GetStringFromName("buttonLabel");
+    var buttonAccessKey  = rightsBundle.GetStringFromName("buttonAccessKey");
+    var productName      = brandBundle.GetStringFromName("brandFullName");
+    var notifyRightsText = rightsBundle.formatStringFromName("notifyRightsText", [productName], 1);
     
     var buttons = [
                     {
@@ -461,7 +466,7 @@ BrowserGlue.prototype = {
     var currentVersion = this._prefs.getIntPref("browser.rights.version");
     this._prefs.setBoolPref("browser.rights." + currentVersion + ".shown", true);
 
-    var box = notifyBox.appendNotification(notifyText, "about-rights", null, notifyBox.PRIORITY_INFO_LOW, buttons);
+    var box = notifyBox.appendNotification(notifyRightsText, "about-rights", null, notifyBox.PRIORITY_INFO_LOW, buttons);
     box.persistence = 3; // arbitrary number, just so bar sticks around for a bit
   },
 
@@ -508,6 +513,18 @@ BrowserGlue.prototype = {
     var databaseStatus = histsvc.databaseStatus;
     var importBookmarks = databaseStatus == histsvc.DATABASE_STATUS_CREATE ||
                           databaseStatus == histsvc.DATABASE_STATUS_CORRUPT;
+
+    if (databaseStatus == histsvc.DATABASE_STATUS_CREATE) {
+      // If the database has just been created, but we already have any
+      // bookmark, this is not the initial import.  This can happen after a
+      // migration from a different browser since migrators run before us.
+      // In such a case we should not import, unless some pref has been set.
+      var bmsvc = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
+                  getService(Ci.nsINavBookmarksService);
+      if (bmsvc.getIdForItemAt(bmsvc.bookmarksMenuFolder, 0) != -1 ||
+          bmsvc.getIdForItemAt(bmsvc.toolbarFolder, 0) != -1)
+        importBookmarks = false;
+    }
 
     // Check if user or an extension has required to import bookmarks.html
     var importBookmarksHTML = false;
@@ -566,7 +583,18 @@ BrowserGlue.prototype = {
     }
     else {
       // ensurePlacesDefaultQueriesInitialized() is called by import.
-      this._prefs.setIntPref("browser.places.smartBookmarksVersion", 0);
+      // Don't try to recreate smart bookmarks if autoExportHTML is true or
+      // smart bookmarks are disabled.
+      var autoExportHTML = false;
+      try {
+        autoExportHTML = this._prefs.getBoolPref("browser.bookmarks.autoExportHTML");
+      } catch(ex) {}
+      var smartBookmarksVersion = 0;
+      try {
+        smartBookmarksVersion = this._prefs.getIntPref("browser.places.smartBookmarksVersion");
+      } catch(ex) {}
+      if (!autoExportHTML && smartBookmarksVersion != -1)
+        this._prefs.setIntPref("browser.places.smartBookmarksVersion", 0);
 
       // Get bookmarks.html file location
       var dirService = Cc["@mozilla.org/file/directory_service;1"].
@@ -916,12 +944,7 @@ BrowserGlue.prototype = {
     }
   },
 
-#ifdef XP_UNIX
-#ifndef XP_MACOSX
-#define BROKEN_WM_Z_ORDER
-#endif
-#endif
-#ifdef XP_OS2
+#ifndef XP_WIN
 #define BROKEN_WM_Z_ORDER
 #endif
 

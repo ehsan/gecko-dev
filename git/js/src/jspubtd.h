@@ -140,6 +140,7 @@ typedef struct JSFunctionSpec    JSFunctionSpec;
 typedef struct JSTracer          JSTracer;
 typedef struct JSIdArray         JSIdArray;
 typedef struct JSProperty        JSProperty;
+typedef struct JSPropertyDescriptor JSPropertyDescriptor;
 typedef struct JSPropertySpec    JSPropertySpec;
 typedef struct JSObject          JSObject;
 typedef struct JSObjectMap       JSObjectMap;
@@ -612,6 +613,11 @@ typedef enum JSContextOp {
  */
 typedef JSBool
 (* JSContextCallback)(JSContext *cx, uintN contextOp);
+
+#ifndef JS_THREADSAFE
+typedef void
+(* JSHeartbeatCallback)(JSRuntime *rt);
+#endif
 
 typedef enum JSGCStatus {
     JSGC_BEGIN,

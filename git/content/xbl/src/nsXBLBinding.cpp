@@ -368,6 +368,8 @@ nsXBLBinding::InstallAnonymousContent(nsIContent* aAnonParent, nsIContent* aElem
       return;
     }        
 
+    child->SetFlags(NODE_IS_ANONYMOUS);
+
 #ifdef MOZ_XUL
     // To make XUL templates work (and other goodies that happen when
     // an element is added to a XUL document), we need to notify the
@@ -1570,14 +1572,11 @@ nsXBLBinding::ImplementsInterface(REFNSIID aIID) const
     (mNextBinding && mNextBinding->ImplementsInterface(aIID));
 }
 
-already_AddRefed<nsIDOMNodeList>
+nsINodeList*
 nsXBLBinding::GetAnonymousNodes()
 {
   if (mContent) {
-    nsCOMPtr<nsIDOMElement> elt(do_QueryInterface(mContent));
-    nsIDOMNodeList *nodeList = nsnull;
-    elt->GetChildNodes(&nodeList);
-    return nodeList;
+    return mContent->GetChildNodesList();
   }
 
   if (mNextBinding)

@@ -71,24 +71,12 @@ nsVideoFrame::~nsVideoFrame()
 {
 }
 
-NS_INTERFACE_MAP_BEGIN(nsVideoFrame)
-  NS_INTERFACE_MAP_ENTRY(nsIAnonymousContentCreator)
-#ifdef NS_DEBUG
-  NS_INTERFACE_MAP_ENTRY(nsIFrameDebug)
+NS_QUERYFRAME_HEAD(nsVideoFrame)
+  NS_QUERYFRAME_ENTRY(nsIAnonymousContentCreator)
+#ifdef DEBUG
+  NS_QUERYFRAME_ENTRY(nsIFrameDebug)
 #endif
-NS_INTERFACE_MAP_END_INHERITING(nsContainerFrame)
-
-NS_IMETHODIMP_(nsrefcnt) 
-nsVideoFrame::AddRef(void)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP_(nsrefcnt)
-nsVideoFrame::Release(void)
-{
-    return NS_OK;
-}
+NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
 
 nsresult
 nsVideoFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
@@ -342,20 +330,6 @@ nsSize nsVideoFrame::GetIntrinsicSize(nsIRenderingContext *aRenderingContext)
     nsresult rv;
 
     size = element->GetVideoSize(size);
-    if (element->HasAttr(kNameSpaceID_None, nsGkAtoms::width)) {
-      PRInt32 width = -1;
-      rv = element->GetWidth(&width);
-      if (NS_SUCCEEDED(rv)) {
-        size.width = width;
-      }
-    }
-    if (element->HasAttr(kNameSpaceID_None, nsGkAtoms::height)) {
-      PRInt32 height = -1;
-      rv = element->GetHeight(&height);
-      if (NS_SUCCEEDED(rv)) {
-        size.height = height;
-      }
-    }
   }
 
   return nsSize(nsPresContext::CSSPixelsToAppUnits(size.width), 

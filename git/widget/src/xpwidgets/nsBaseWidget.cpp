@@ -145,7 +145,7 @@ nsBaseWidget::~nsBaseWidget()
 //
 //-------------------------------------------------------------------------
 void nsBaseWidget::BaseCreate(nsIWidget *aParent,
-                              const nsRect &aRect,
+                              const nsIntRect &aRect,
                               EVENT_CALLBACK aHandleEventFunction,
                               nsIDeviceContext *aContext,
                               nsIAppShell *aAppShell,
@@ -256,6 +256,10 @@ NS_METHOD nsBaseWidget::Destroy()
   // Just in case our parent is the only ref to us
   nsCOMPtr<nsIWidget> kungFuDeathGrip(this);
   
+  // Clear the device context's mWidget field -- otherwise it may get accessed
+  // after it's been deleted.  See bug 479749.
+  if (mContext)
+    mContext->Init(nsnull);
   // disconnect from the parent
   nsIWidget *parent = GetParent();
   if (parent) {
@@ -602,7 +606,7 @@ NS_IMETHODIMP nsBaseWidget::MakeFullScreen(PRBool aFullScreen)
 
   if (aFullScreen) {
     if (!mOriginalBounds)
-      mOriginalBounds = new nsRect();
+      mOriginalBounds = new nsIntRect();
     GetScreenBounds(*mOriginalBounds);
 
     // Move to top-left corner of screen and size to the screen dimensions
@@ -750,7 +754,7 @@ NS_METHOD nsBaseWidget::AddEventListener(nsIEventListener * aListener)
 * If the implementation of nsWindow supports borders this method MUST be overridden
 *
 **/
-NS_METHOD nsBaseWidget::GetClientBounds(nsRect &aRect)
+NS_METHOD nsBaseWidget::GetClientBounds(nsIntRect &aRect)
 {
   return GetBounds(aRect);
 }
@@ -759,7 +763,7 @@ NS_METHOD nsBaseWidget::GetClientBounds(nsRect &aRect)
 * If the implementation of nsWindow supports borders this method MUST be overridden
 *
 **/
-NS_METHOD nsBaseWidget::GetBounds(nsRect &aRect)
+NS_METHOD nsBaseWidget::GetBounds(nsIntRect &aRect)
 {
   aRect = mBounds;
   return NS_OK;
@@ -770,7 +774,7 @@ NS_METHOD nsBaseWidget::GetBounds(nsRect &aRect)
 * this method must be overridden
 *
 **/
-NS_METHOD nsBaseWidget::GetScreenBounds(nsRect &aRect)
+NS_METHOD nsBaseWidget::GetScreenBounds(nsIntRect &aRect)
 {
   return GetBounds(aRect);
 }
@@ -779,7 +783,7 @@ NS_METHOD nsBaseWidget::GetScreenBounds(nsRect &aRect)
 * 
 *
 **/
-NS_METHOD nsBaseWidget::SetBounds(const nsRect &aRect)
+NS_METHOD nsBaseWidget::SetBounds(const nsIntRect &aRect)
 {
   mBounds = aRect;
 
@@ -794,8 +798,8 @@ NS_METHOD nsBaseWidget::SetBounds(const nsRect &aRect)
 **/
 NS_METHOD nsBaseWidget::GetBorderSize(PRInt32 &aWidth, PRInt32 &aHeight)
 {
-  nsRect rectWin;
-  nsRect rect;
+  nsIntRect rectWin;
+  nsIntRect rect;
   GetBounds(rectWin);
   GetClientBounds(rect);
 
@@ -810,7 +814,7 @@ NS_IMETHODIMP nsBaseWidget::ScrollWidgets(PRInt32 aDx, PRInt32 aDy)
   return NS_ERROR_FAILURE;
 }
 
-NS_IMETHODIMP nsBaseWidget::ScrollRect(nsRect &aRect, PRInt32 aDx, PRInt32 aDy)
+NS_IMETHODIMP nsBaseWidget::ScrollRect(nsIntRect &aRect, PRInt32 aDx, PRInt32 aDy)
 {
   return NS_ERROR_FAILURE;
 }
@@ -1261,7 +1265,7 @@ nsBaseWidget::debug_DumpPaintEvent(FILE *                aFileOut,
 /* static */ void
 nsBaseWidget::debug_DumpInvalidate(FILE *                aFileOut,
                                    nsIWidget *           aWidget,
-                                   const nsRect *        aRect,
+                                   const nsIntRect *     aRect,
                                    PRBool                aIsSynchronous,
                                    const nsCAutoString & aWidgetName,
                                    PRInt32               aWindowID)

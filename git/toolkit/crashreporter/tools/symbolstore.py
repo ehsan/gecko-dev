@@ -58,6 +58,7 @@ import sys
 import os
 import re
 import shutil
+from subprocess import call, STDOUT
 from optparse import OptionParser
 
 # Utility classes
@@ -258,7 +259,7 @@ class SVNFileInfo(VCSFileInfo):
         print >> sys.stderr, "Failed to get SVN Filename for %s" % self.file
         return self.file
 
-class HGRepoInfo():
+class HGRepoInfo:
     # HG info is per-repo, so cache it in a static
     # member var
     repos = {}
@@ -329,7 +330,7 @@ def IsInDir(file, dir):
     # but the srcdir can be mixed case
     return os.path.abspath(file).lower().startswith(os.path.abspath(dir).lower())
 
-def GetVCSFilename(file, srcdir):
+def GetVCSFilename(file, srcdirs):
     """Given a full path to a file, and the top source directory,
     look for version control information about this file, and return
     a tuple containing
@@ -349,15 +350,21 @@ def GetVCSFilename(file, srcdir):
         # Already cached this info, use it.
         fileInfo = vcsFileInfoCache[file]
     else:
-        if os.path.isdir(os.path.join(path, "CVS")):
-            fileInfo = CVSFileInfo(file, srcdir)
-        elif os.path.isdir(os.path.join(path, ".svn")) or \
-             os.path.isdir(os.path.join(path, "_svn")):
-            fileInfo = SVNFileInfo(file);
-        elif os.path.isdir(os.path.join(srcdir, '.hg')) and \
-             IsInDir(file, srcdir):
-            fileInfo = HGFileInfo(file, srcdir)
-        vcsFileInfoCache[file] = fileInfo
+        for srcdir in srcdirs:
+            if os.path.isdir(os.path.join(path, "CVS")):
+                fileInfo = CVSFileInfo(file, srcdir)
+                if fileInfo:
+                    root = fileInfo.root
+            elif os.path.isdir(os.path.join(path, ".svn")) or \
+                 os.path.isdir(os.path.join(path, "_svn")):
+                 fileInfo = SVNFileInfo(file);
+            elif os.path.isdir(os.path.join(srcdir, '.hg')) and \
+                 IsInDir(file, srcdir):
+                 fileInfo = HGFileInfo(file, srcdir)
+
+            if fileInfo: 
+                vcsFileInfoCache[file] = fileInfo
+                break
 
     if fileInfo:
         file = fileInfo.filename
@@ -405,7 +412,7 @@ class Dumper:
     ProcessDir.  Instead, call GetPlatformSpecificDumper to
     get an instance of a subclass."""
     def __init__(self, dump_syms, symbol_path,
-                 archs=None, srcdir=None, copy_debug=False, vcsinfo=False, srcsrv=False):
+                 archs=None, srcdirs=None, copy_debug=False, vcsinfo=False, srcsrv=False):
         # popen likes absolute paths, at least on windows
         self.dump_syms = os.path.abspath(dump_syms)
         self.symbol_path = symbol_path
@@ -414,10 +421,10 @@ class Dumper:
             self.archs = ['']
         else:
             self.archs = ['-a %s' % a for a in archs.split()]
-        if srcdir is not None:
-            self.srcdir = os.path.normpath(srcdir)
+        if srcdirs is not None:
+            self.srcdirs = [os.path.normpath(a) for a in srcdirs]
         else:
-            self.srcdir = None
+            self.srcdirs = None
         self.copy_debug = copy_debug
         self.vcsinfo = vcsinfo
         self.srcsrv = srcsrv
@@ -510,14 +517,15 @@ class Dumper:
                             # FILE index filename
                             (x, index, filename) = line.split(None, 2)
                             if sys.platform == "sunos5":
-                                start = filename.find(self.srcdir)
-                                if start == -1:
-                                    start = 0
-                                filename = filename[start:]
+                                for srcdir in self.srcdirs:
+                                    start = filename.find(self.srcdir)
+                                    if start != -1:
+                                        filename = filename[start:]
+                                        break
                             filename = self.FixFilenameCase(filename.rstrip())
                             sourcepath = filename
                             if self.vcsinfo:
-                                (filename, rootname) = GetVCSFilename(filename, self.srcdir)
+                                (filename, rootname) = GetVCSFilename(filename, self.srcdirs)
                                 # sets vcs_root in case the loop through files were to end on an empty rootname
                                 if vcs_root is None:
                                   if rootname:
@@ -590,11 +598,19 @@ class Dumper_Win32(Dumper):
         rel_path = os.path.join(debug_file,
                                 guid,
                                 debug_file).replace("\\", "/")
-        print rel_path
         full_path = os.path.normpath(os.path.join(self.symbol_path,
                                                   rel_path))
         shutil.copyfile(file, full_path)
-        pass
+        # try compressing it
+        compressed_file = os.path.splitext(full_path)[0] + ".pd_"
+        # ignore makecab's output
+        success = call(["makecab.exe", full_path, compressed_file],
+                       stdout=open("NUL:","w"), stderr=STDOUT)
+        if success == 0 and os.path.exists(compressed_file):
+            os.unlink(full_path)
+            print os.path.splitext(rel_path)[0] + ".pd_"
+        else:
+            print rel_path
         
     def SourceServerIndexing(self, debug_file, guid, sourceFileStream, vcs_root):
         # Creates a .pdb.stream file in the mozilla\objdir to be used for source indexing
@@ -692,9 +708,26 @@ class Dumper_Mac(Dumper):
         os.system("dsymutil %s %s >/dev/null" % (' '.join([a.replace('-a ', '--arch=') for a in self.archs]),
                                       file))
         res = Dumper.ProcessFile(self, dsymbundle)
-        if not self.copy_debug:
-            shutil.rmtree(dsymbundle)
+        # CopyDebug will already have been run from Dumper.ProcessFile
+        shutil.rmtree(dsymbundle)
         return res
+
+    def CopyDebug(self, file, debug_file, guid):
+        """ProcessFile has already produced a dSYM bundle, so we should just
+        copy that to the destination directory. However, we'll package it
+        into a .tar.bz2 because the debug symbols are pretty huge, and
+        also because it's a bundle, so it's a directory. |file| here is the
+        dSYM bundle, and |debug_file| is the original filename."""
+        rel_path = os.path.join(debug_file,
+                                guid,
+                                os.path.basename(file) + ".tar.bz2")
+        full_path = os.path.abspath(os.path.join(self.symbol_path,
+                                                  rel_path))
+        success = call(["tar", "cjf", full_path, os.path.basename(file)],
+                       cwd=os.path.dirname(file),
+                       stdout=open("/dev/null","w"), stderr=STDOUT)
+        if success == 0 and os.path.exists(full_path):
+            print rel_path
 
 # Entry point if called as a standalone program
 def main():
@@ -706,7 +739,7 @@ def main():
                       action="store", dest="archs",
                       help="Run dump_syms -a <arch> for each space separated cpu architecture in ARCHS (only on OS X)")
     parser.add_option("-s", "--srcdir",
-                      action="store", dest="srcdir",
+                      action="append", dest="srcdir", default=[],
                       help="Use SRCDIR to determine relative paths to source files")
     parser.add_option("-v", "--vcs-info",
                       action="store_true", dest="vcsinfo",
@@ -731,7 +764,7 @@ def main():
                                        symbol_path=args[1],
                                        copy_debug=options.copy_debug,
                                        archs=options.archs,
-                                       srcdir=options.srcdir,
+                                       srcdirs=options.srcdir,
                                        vcsinfo=options.vcsinfo,
                                        srcsrv=options.srcsrv)
     for arg in args[2:]:

@@ -47,12 +47,14 @@ function seekEnded() {
 
 function loadedData() {
   gLoadedDataCount++;
-  ok(gLoadedDataCount <= 1, "No more than 1 onloaddata events");
+  ok(gLoadedDataCount <= 1, "No more than 1 onloadeddata events");
 }
 
 function loadedMetaData() {
   gLoadedMetaDataCount++;
   ok(gLoadedMetaDataCount <= 1, "No more than 1 onloadedmetadata events");
+  is(video().videoWidth, 320, "width is available");
+  is(video().videoHeight, 240, "height is available");
   video().play();
   return false;
 }
@@ -76,7 +78,7 @@ SimpleTest.waitForExplicitFinish();
 </script>
 </pre>
 <video id="v"
-       src="320x240.ogg"
+       src="320x240.ogv"
        onloadedmetadata="return loadedMetaData();"
        onended="playbackEnded();"
        onloadeddata="return loadedData();"       

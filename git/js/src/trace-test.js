@@ -13,6 +13,18 @@ const RECORDLOOP = HOTLOOP;
 // The loop count at which we run the trace
 const RUNLOOP = HOTLOOP + 1;
 
+var gDoMandelbrotTest = true;
+if ("gSkipSlowTests" in this && gSkipSlowTests) {
+    print("** Skipping slow tests");
+    gDoMandelbrotTest = false;
+}
+
+if (!('gSrcdir' in this))
+    gSrcdir = '.';
+
+if (!('gReportSummary' in this))
+    gReportSummary = true;
+
 var testName = null;
 if ("arguments" in this && arguments.length > 0)
   testName = arguments[0];
@@ -29,6 +41,7 @@ function jitstatHandler(f)
     f("recorderAborted");
     f("traceCompleted");
     f("sideExitIntoInterpreter");
+    f("timeoutIntoInterpreter");
     f("typeMapMismatchAtEntry");
     f("returnToDifferentLoopHeader");
     f("traceTriggered");
@@ -36,20 +49,44 @@ function jitstatHandler(f)
     f("treesTrashed");
     f("slotPromoted");
     f("unstableLoopVariable");
-    f("noCompatInnerTrees");
     f("breakLoopExits");
     f("returnLoopExits");
+    f("mergedLoopExits")
+    f("noCompatInnerTrees");
 }
+
+var jitProps = {};
+jitstatHandler(function(prop) {
+                 jitProps[prop] = true;
+               });
+var hadJITstats = false;
+for (var p in jitProps)
+  hadJITstats = true;
 
 function test(f)
 {
   if (!testName || testName == f.name) {
+    var expectedJITstats = f.jitstats;
+    if (hadJITstats && expectedJITstats)
+    {
+      var expectedProps = {};
+      jitstatHandler(function(prop) {
+                       if (prop in expectedJITstats)
+                         expectedProps[prop] = true;
+                     });
+      for (var p in expectedJITstats)
+      {
+        if (!(p in expectedProps))
+          throw "Bad property in " + f.name + ".jitstats: " + p;
+      }
+    }
+
     // Collect our jit stats
     var localJITstats = {};
-    jitstatHandler(function(prop, local, global) {
+    jitstatHandler(function(prop) {
                      localJITstats[prop] = tracemonkey[prop];
                    });
-    check(f.name, f(), f.expected, localJITstats, f.jitstats);
+    check(f.name, f(), f.expected, localJITstats, expectedJITstats);
   }
 }
 
@@ -108,7 +145,7 @@ function check(desc, actual, expected, oldJITstats, expectedJITstats)
                    });
     if (pass) {
       passes.push(desc);
-      return print(desc, ": passed");
+      return print("TEST-PASS | trace-test.js |", desc);
     }
   }
   fails.push(desc);
@@ -133,7 +170,7 @@ function check(desc, actual, expected, oldJITstats, expectedJITstats)
                        }
                      });
   }
-  print(desc, ": FAILED: expected", typeof(expected),
+  print("TEST-UNEXPECTED-FAIL | trace-test.js |", desc, ": expected", typeof(expected),
         "(", uneval(expected), ")",
         (expectedStats ? " [" + expectedStats + "] " : ""),
         "!= actual",
@@ -911,6 +948,30 @@ function deep2() {
 deep2.expected = "ok";
 test(deep2);
 
+function heavyFn1(i) { 
+    if (i == 3) {
+	var x = 3;
+        return [0, i].map(function (i) i + x);
+    }
+    return [];
+}
+function testHeavy() {
+    for (var i = 0; i <= 3; i++)
+        heavyFn1(i);
+}
+test(testHeavy);
+
+function heavyFn2(i) {
+    if (i < 1000)
+        return heavyFn1(i);
+    return function () i;
+}
+function testHeavy2() {
+    for (var i = 0; i <= 3; i++)
+        heavyFn2(i);
+}
+test(testHeavy2);
+
 var merge_type_maps_x = 0, merge_type_maps_y = 0;
 function merge_type_maps() {
     for (merge_type_maps_x = 0; merge_type_maps_x < 50; ++merge_type_maps_x)
@@ -1178,12 +1239,12 @@ function testContinueWithLabel() {
     var i = 0;
     var j = 20;
     checkiandj :
-    while (i<10) {
-        i+=1;
+    while (i < 10) {
+        i += 1;
         checkj :
-        while (j>10) {
-            j-=1;
-            if ((j%2)==0)
+        while (j > 10) {
+            j -= 1;
+            if ((j % 2) == 0)
             continue checkj;
         }
     }
@@ -1605,8 +1666,8 @@ function testNestedExitStackOuter() {
 testNestedExitStackOuter.expected = 81;
 testNestedExitStackOuter.jitstats = {
     recorderStarted: 5,
-    recorderAborted: 2,
-    traceTriggered: 9
+    recorderAborted: 1,
+    traceTriggered: 10
 };
 test(testNestedExitStackOuter);
 
@@ -2045,6 +2106,84 @@ function testArrayPushPop() {
 testArrayPushPop.expected = "55,45";
 test(testArrayPushPop);
 
+function testSlowArrayPop() {
+    var a = [];
+    for (var i = 0; i < RUNLOOP; i++)
+        a[i] = [0];
+    a[RUNLOOP-1].__defineGetter__("0", function () { return 'xyzzy'; });
+
+    var last;
+    for (var i = 0; i < RUNLOOP; i++)
+        last = a[i].pop();  // reenters interpreter in getter
+    return last;
+}
+testSlowArrayPop.expected = 'xyzzy';
+test(testSlowArrayPop);
+
+// Same thing but it needs to reconstruct multiple stack frames (so,
+// multiple functions called inside the loop)
+function testSlowArrayPopMultiFrame() {    
+    var a = [];
+    for (var i = 0; i < RUNLOOP; i++)
+        a[i] = [0];
+    a[RUNLOOP-1].__defineGetter__("0", function () { return 23; });
+
+    function child(a, i) {
+        return a[i].pop();  // reenters interpreter in getter
+    }
+    function parent(a, i) {
+        return child(a, i);
+    }
+    function gramps(a, i) { 
+        return parent(a, i);
+    }
+
+    var last;
+    for (var i = 0; i < RUNLOOP; i++)
+        last = gramps(a, i);
+    return last;
+}
+testSlowArrayPopMultiFrame.expected = 23;
+test(testSlowArrayPopMultiFrame);
+
+// Same thing but nested trees, each reconstructing one or more stack frames 
+// (so, several functions with loops, such that the loops end up being
+// nested though they are not lexically nested)
+
+function testSlowArrayPopNestedTrees() {    
+    var a = [];
+    for (var i = 0; i < RUNLOOP; i++)
+        a[i] = [0];
+    a[RUNLOOP-1].__defineGetter__("0", function () { return 3.14159 });
+
+    function child(a, i, j, k) {
+        var last = 2.71828;
+        for (var l = 0; l < RUNLOOP; l++)
+            if (i == RUNLOOP-1 && j == RUNLOOP-1 && k == RUNLOOP-1)
+                last = a[l].pop();  // reenters interpreter in getter
+        return last;
+    }
+    function parent(a, i, j) {
+        var last;
+        for (var k = 0; k < RUNLOOP; k++)
+            last = child(a, i, j, k);
+        return last;
+    }
+    function gramps(a, i) { 
+        var last;
+        for (var j = 0; j < RUNLOOP; j++)
+            last = parent(a, i, j);
+        return last;
+    }
+
+    var last;
+    for (var i = 0; i < RUNLOOP; i++)
+        last = gramps(a, i);
+    return last;
+}
+testSlowArrayPopNestedTrees.expected = 3.14159;
+test(testSlowArrayPopNestedTrees);
+
 function testResumeOp() {
     var a = [1,"2",3,"4",5,"6",7,"8",9,"10",11,"12",13,"14",15,"16"];
     var x = "";
@@ -2132,6 +2271,15 @@ function testNumToString() {
 }
 testNumToString.expected = "123456789,-123456789,123456789,-123456789,75bcd15,-75bcd15,21i3v9,-21i3v9";
 test(testNumToString);
+
+function testLongNumToString() {
+    var s;
+    for (var i = 0; i < 5; i++)
+        s = (0x08000000).toString(2);
+    return s;
+}
+testLongNumToString.expected = '1000000000000000000000000000';
+test(testLongNumToString);
 
 function testSubstring() {
     for (var i = 0; i < 5; ++i) {
@@ -2367,7 +2515,7 @@ function testThinLoopDemote() {
     function f()
     {
         var k = 1;
-        for (var n = 0; n < 2; n++) {
+        for (var n = 0; n < 4; n++) {
             k = (k * 10);
         }
         return k;
@@ -2375,13 +2523,13 @@ function testThinLoopDemote() {
     f();
     return f();
 }
-testThinLoopDemote.expected = 100;
+testThinLoopDemote.expected = 10000;
 testThinLoopDemote.jitstats = {
-    recorderStarted: 3,
+    recorderStarted: 2,
     recorderAborted: 0,
-    traceCompleted: 1,
-    traceTriggered: 0,
-    unstableLoopVariable: 2
+    traceCompleted: 2,
+    traceTriggered: 3,
+    unstableLoopVariable: 1
 };
 test(testThinLoopDemote);
 
@@ -2424,11 +2572,11 @@ function testWeirdDateParse() {
 }
 testWeirdDateParse.expected = "11,17,2008,11,17,2008,11,17,2008,11,17,2008,11,17,2008";
 testWeirdDateParse.jitstats = {
-    recorderStarted: 10,
+    recorderStarted: 8,
     recorderAborted: 1,
-    traceCompleted: 5,
-    traceTriggered: 13,
-    unstableLoopVariable: 6,
+    traceCompleted: 7,
+    traceTriggered: 14,
+    unstableLoopVariable: 3,
     noCompatInnerTrees: 1
 };
 test(testWeirdDateParse);
@@ -2486,6 +2634,42 @@ function testApply() {
 }
 testApply.expected = "5,5,5,5,5,5,5,5,5,5";
 test(testApply);
+
+function testNestedForIn() {
+    var a = {x: 1, y: 2, z: 3};
+    var s = '';
+    for (var p1 in a)
+        for (var p2 in a)
+            s += p1 + p2 + ' ';
+    return s;
+}
+testNestedForIn.expected = 'xx xy xz yx yy yz zx zy zz ';
+test(testNestedForIn);
+
+function testForEach() {
+    var r;
+    var a = ["zero", "one", "two", "three"];
+    for (var i = 0; i < RUNLOOP; i++) {
+        r = "";
+        for each (var s in a)
+            r += s + " ";
+    }
+    return r;
+}
+testForEach.expected = "zero one two three ";
+test(testForEach);
+
+function testThinForEach() {
+    var a = ["red"];
+    var n = 0;
+    for (var i = 0; i < 10; i++)
+        for each (var v in a)
+            if (v)
+                n++;
+    return n;
+}
+testThinForEach.expected = 10;
+test(testThinForEach);
 
 function testComparisons()
 {
@@ -3615,12 +3799,12 @@ test(testUnaryImacros);
 function testAddAnyInconvertibleObject()
 {
   var count = 0;
-  function toString() { ++count; if (count == 5) return {}; return "" + count; }
+  function toString() { ++count; if (count == 95) return {}; return "" + count; }
 
   var threw = false;
   try
   {
-    for (var i = 0; i < 10; i++)
+    for (var i = 0; i < 100; i++)
     {
         var o = {valueOf: undefined, toString: toString};
         var q = 5 + o;
@@ -3629,12 +3813,12 @@ function testAddAnyInconvertibleObject()
   catch (e)
   {
     threw = true;
-    if (i !== 4)
-      return "expected i === 4, got " + i;
-    if (q !== "54")
-      return "expected q === '54', got " + q + " (type " + typeof q + ")";
-    if (count !== 5)
-      return "expected count === 5, got " + count;
+    if (i !== 94)
+      return "expected i === 94, got " + i;
+    if (q !== "594")
+      return "expected q === '594', got " + q + " (type " + typeof q + ")";
+    if (count !== 95)
+      return "expected count === 95, got " + count;
   }
   if (!threw)
     return "expected throw with 5 + o"; // hey, a rhyme!
@@ -3645,19 +3829,25 @@ testAddAnyInconvertibleObject.expected = "pass";
 testAddAnyInconvertibleObject.jitstats = {
   recorderStarted: 1,
   recorderAborted: 0,
-  sideExits: 1
+  sideExitIntoInterpreter: 93
 };
 test(testAddAnyInconvertibleObject);
 
 function testAddInconvertibleObjectAny()
 {
   var count = 0;
-  function toString() { ++count; if (count == 5) return {}; return "" + count; }
+  function toString()
+  {
+    ++count;
+    if (count == 95)
+      return {};
+    return "" + count;
+  }
 
   var threw = false;
   try
   {
-    for (var i = 0; i < 10; i++)
+    for (var i = 0; i < 100; i++)
     {
         var o = {valueOf: undefined, toString: toString};
         var q = o + 5;
@@ -3666,12 +3856,12 @@ function testAddInconvertibleObjectAny()
   catch (e)
   {
     threw = true;
-    if (i !== 4)
-      return "expected i === 4, got " + i;
-    if (q !== "45")
-      return "expected q === '54', got " + q + " (type " + typeof q + ")";
-    if (count !== 5)
-      return "expected count === 5, got " + count;
+    if (i !== 94)
+      return "expected i === 94, got " + i;
+    if (q !== "945")
+      return "expected q === '945', got " + q + " (type " + typeof q + ")";
+    if (count !== 95)
+      return "expected count === 95, got " + count;
   }
   if (!threw)
     return "expected throw with o + 5";
@@ -3682,21 +3872,21 @@ testAddInconvertibleObjectAny.expected = "pass";
 testAddInconvertibleObjectAny.jitstats = {
   recorderStarted: 1,
   recorderAborted: 0,
-  sideExits: 1
+  sideExitIntoInterpreter: 93
 };
 test(testAddInconvertibleObjectAny);
 
 function testAddInconvertibleObjectInconvertibleObject()
 {
   var count1 = 0;
-  function toString1() { ++count1; if (count1 == 5) return {}; return "" + count1; }
+  function toString1() { ++count1; if (count1 == 95) return {}; return "" + count1; }
   var count2 = 0;
-  function toString2() { ++count2; if (count2 == 5) return {}; return "" + count2; }
+  function toString2() { ++count2; if (count2 == 95) return {}; return "" + count2; }
 
   var threw = false;
   try
   {
-    for (var i = 0; i < 10; i++)
+    for (var i = 0; i < 100; i++)
     {
         var o1 = {valueOf: undefined, toString: toString1};
         var o2 = {valueOf: undefined, toString: toString2};
@@ -3706,14 +3896,14 @@ function testAddInconvertibleObjectInconvertibleObject()
   catch (e)
   {
     threw = true;
-    if (i !== 4)
-      return "expected i === 4, got " + i;
-    if (q !== "44")
-      return "expected q === '44', got " + q + " (type " + typeof q + ")";
-    if (count1 !== 5)
-      return "expected count1 === 5, got " + count1;
-    if (count2 !== 4)
-      return "expected count2 === 5, got " + count2;
+    if (i !== 94)
+      return "expected i === 94, got " + i;
+    if (q !== "9494")
+      return "expected q === '9494', got " + q + " (type " + typeof q + ")";
+    if (count1 !== 95)
+      return "expected count1 === 95, got " + count1;
+    if (count2 !== 94)
+      return "expected count2 === 94, got " + count2;
   }
   if (!threw)
     return "expected throw with o1 + o2";
@@ -3724,33 +3914,33 @@ testAddInconvertibleObjectInconvertibleObject.expected = "pass";
 testAddInconvertibleObjectInconvertibleObject.jitstats = {
   recorderStarted: 1,
   recorderAborted: 0,
-  sideExits: 1
+  sideExitIntoInterpreter: 93
 };
 test(testAddInconvertibleObjectInconvertibleObject);
 
 function testBitOrAnyInconvertibleObject()
 {
   var count = 0;
-  function toString() { ++count; if (count == 5) return {}; return count; }
+  function toString() { ++count; if (count == 95) return {}; return count; }
 
   var threw = false;
   try
   {
-    for (var i = 0; i < 10; i++)
+    for (var i = 0; i < 100; i++)
     {
         var o = {valueOf: undefined, toString: toString};
-        var q = 2 | o;
+        var q = 1 | o;
     }
   }
   catch (e)
   {
     threw = true;
-    if (i !== 4)
-      return "expected i === 4, got " + i;
-    if (q !== 6)
-      return "expected q === 6, got " + q;
-    if (count !== 5)
-      return "expected count === 5, got " + count;
+    if (i !== 94)
+      return "expected i === 94, got " + i;
+    if (q !== 95)
+      return "expected q === 95, got " + q;
+    if (count !== 95)
+      return "expected count === 95, got " + count;
   }
   if (!threw)
     return "expected throw with 2 | o"; // hey, a rhyme!
@@ -3761,33 +3951,33 @@ testBitOrAnyInconvertibleObject.expected = "pass";
 testBitOrAnyInconvertibleObject.jitstats = {
   recorderStarted: 1,
   recorderAborted: 0,
-  sideExits: 1
+  sideExitIntoInterpreter: 93
 };
 test(testBitOrAnyInconvertibleObject);
 
 function testBitOrInconvertibleObjectAny()
 {
   var count = 0;
-  function toString() { ++count; if (count == 5) return {}; return count; }
+  function toString() { ++count; if (count == 95) return {}; return count; }
 
   var threw = false;
   try
   {
-    for (var i = 0; i < 10; i++)
+    for (var i = 0; i < 100; i++)
     {
         var o = {valueOf: undefined, toString: toString};
-        var q = o | 2;
+        var q = o | 1;
     }
   }
   catch (e)
   {
     threw = true;
-    if (i !== 4)
-      return "expected i === 4, got " + i;
-    if (q !== 6)
-      return "expected q === 6, got " + q;
-    if (count !== 5)
-      return "expected count === 5, got " + count;
+    if (i !== 94)
+      return "expected i === 94, got " + i;
+    if (q !== 95)
+      return "expected q === 95, got " + q;
+    if (count !== 95)
+      return "expected count === 95, got " + count;
   }
   if (!threw)
     return "expected throw with o | 2";
@@ -3798,21 +3988,21 @@ testBitOrInconvertibleObjectAny.expected = "pass";
 testBitOrInconvertibleObjectAny.jitstats = {
   recorderStarted: 1,
   recorderAborted: 0,
-  sideExits: 1
+  sideExitIntoInterpreter: 93
 };
 test(testBitOrInconvertibleObjectAny);
 
 function testBitOrInconvertibleObjectInconvertibleObject()
 {
   var count1 = 0;
-  function toString1() { ++count1; if (count1 == 5) return {}; return count1; }
+  function toString1() { ++count1; if (count1 == 95) return {}; return count1; }
   var count2 = 0;
-  function toString2() { ++count2; if (count2 == 5) return {}; return count2; }
+  function toString2() { ++count2; if (count2 == 95) return {}; return count2; }
 
   var threw = false;
   try
   {
-    for (var i = 0; i < 10; i++)
+    for (var i = 0; i < 100; i++)
     {
         var o1 = {valueOf: undefined, toString: toString1};
         var o2 = {valueOf: undefined, toString: toString2};
@@ -3822,14 +4012,14 @@ function testBitOrInconvertibleObjectInconvertibleObject()
   catch (e)
   {
     threw = true;
-    if (i !== 4)
-      return "expected i === 4, got " + i;
-    if (q !== 4)
-      return "expected q === 4, got " + q;
-    if (count1 !== 5)
-      return "expected count1 === 5, got " + count1;
-    if (count2 !== 4)
-      return "expected count2 === 5, got " + count2;
+    if (i !== 94)
+      return "expected i === 94, got " + i;
+    if (q !== 94)
+      return "expected q === 94, got " + q;
+    if (count1 !== 95)
+      return "expected count1 === 95, got " + count1;
+    if (count2 !== 94)
+      return "expected count2 === 94, got " + count2;
   }
   if (!threw)
     return "expected throw with o1 | o2";
@@ -3840,7 +4030,7 @@ testBitOrInconvertibleObjectInconvertibleObject.expected = "pass";
 testBitOrInconvertibleObjectInconvertibleObject.jitstats = {
   recorderStarted: 1,
   recorderAborted: 0,
-  sideExits: 1
+  sideExitIntoInterpreter: 93
 };
 test(testBitOrInconvertibleObjectInconvertibleObject);
 
@@ -3922,6 +4112,433 @@ function testLirBufOOM()
 testLirBufOOM.expected = "ok";
 test(testLirBufOOM);
 
+function testStringResolve() {
+    var x = 0;
+    for each (let d in [new String('q'), new String('q'), new String('q')]) {
+        if (("" + (0 in d)) === "true")
+            x++;
+    }
+    return x;
+}
+testStringResolve.expected = 3;
+test(testStringResolve);
+
+//test no multitrees assert
+function testGlobalMultitrees1() {
+    (function() { 
+      for (var j = 0; j < 4; ++j) {
+        for each (e in ['A', 1, 'A']) {
+        }
+      }
+    })();
+    return true;
+}
+testGlobalMultitrees1.expected = true;
+test(testGlobalMultitrees1);
+
+var q = [];
+for each (b in [0x3FFFFFFF, 0x3FFFFFFF, 0x3FFFFFFF]) {
+  for each (let e in [{}, {}, {}, "", {}]) { 
+    b = (b | 0x40000000) + 1;
+    q.push(b);
+  }
+}
+function testLetWithUnstableGlobal() {
+    return q.join(",");
+}
+testLetWithUnstableGlobal.expected = "2147483648,-1073741823,-1073741822,-1073741821,-1073741820,2147483648,-1073741823,-1073741822,-1073741821,-1073741820,2147483648,-1073741823,-1073741822,-1073741821,-1073741820";
+test(testLetWithUnstableGlobal);
+delete b;
+delete q;
+
+for each (testBug474769_b in [1, 1, 1, 1.5, 1, 1]) {
+    (function() { for each (let testBug474769_h in [0, 0, 1.4, ""]) {} })()
+}
+function testBug474769() {
+    return testBug474769_b;
+}
+testBug474769.expected = 1;
+test(testBug474769);
+
+function testReverseArgTypes() {
+    for (var j = 0; j < 4; ++j) ''.replace('', /x/);
+    return 1;
+}
+testReverseArgTypes.expected = 1;
+test(testReverseArgTypes);
+
+function testBug458838() {
+    var a = 1;
+    function g() {
+        var b = 0
+            for (var i = 0; i < 10; ++i) {
+                b += a;
+            }
+        return b;
+    }
+
+    return g();
+}
+testBug458838.expected = 10;
+testBug458838.jitstats = {
+  recorderStarted: 1,
+  recorderAborted: 1,
+  traceCompleted: 0
+};
+test(testBug458838);
+
+function testInterpreterReentry() {
+    this.__defineSetter__('x', function(){})
+    for (var j = 0; j < 5; ++j) { x = 3; }
+    return 1;
+}
+testInterpreterReentry.expected = 1;
+test(testInterpreterReentry);
+
+function testInterpreterReentry2() {
+    var a = false;
+    var b = {};
+    var c = false;
+    var d = {};
+    this.__defineGetter__('e', function(){});
+    for (let f in this) print(f);
+    [1 for each (g in this) for each (h in [])]
+    return 1;
+}
+testInterpreterReentry2.expected = 1;
+test(testInterpreterReentry2);
+
+function testInterpreterReentry3() {
+    for (let i=0;i<5;++i) this["y" + i] = function(){};
+    this.__defineGetter__('e', function (x2) { yield; });
+    [1 for each (a in this) for (b in {})];
+    return 1;
+}
+testInterpreterReentry3.expected = 1;
+test(testInterpreterReentry3);
+
+function testInterpreterReentry4() {
+    var obj = {a:1, b:1, c:1, d:1, get e() 1000 };
+    for (var p in obj)
+        obj[p];
+}
+test(testInterpreterReentry4);
+
+function testInterpreterReentry5() {
+    var arr = [0, 1, 2, 3, 4];
+    arr.__defineGetter__("4", function() 1000);
+    for (var i = 0; i < 5; i++)
+        arr[i];
+    for (var p in arr)
+        arr[p];
+}
+test(testInterpreterReentry5);
+
+function testInterpreterReentry6() {
+    var obj = {a:1, b:1, c:1, d:1, set e(x) { this._e = x; }};
+    for (var p in obj)
+        obj[p] = "grue";
+    return obj._e;
+}
+testInterpreterReentry6.expected = "grue";
+test(testInterpreterReentry6);
+
+function testInterpreterReentry7() {
+    var arr = [0, 1, 2, 3, 4];
+    arr.__defineSetter__("4", function(x) { this._4 = x; });
+    for (var i = 0; i < 5; i++)
+        arr[i] = "grue";
+    var tmp = arr._4;
+    for (var p in arr)
+        arr[p] = "bleen";
+    return tmp + " " + arr._4;
+}
+testInterpreterReentry7.expected = "grue bleen";
+test(testInterpreterReentry7);
+
+// Bug 462027 comment 54.
+function testInterpreterReentery8() {
+    var e = <x><y/></x>;
+    for (var j = 0; j < 4; ++j) { +[e]; }
+}
+test(testInterpreterReentery8);
+
+function testHolePushing() {
+    var a = ["foobar", "baz"];
+    for (var i = 0; i < 5; i++)
+        a = [, "overwritten", "new"];
+    var s = "[";
+    for (i = 0; i < a.length; i++) {
+        s += (i in a) ? a[i] : "<hole>";
+        if (i != a.length - 1)
+            s += ",";
+    }
+    return s + "], " + (0 in a);
+}
+testHolePushing.expected = "[<hole>,overwritten,new], false";
+test(testHolePushing);
+
+function testDeepBail1() {
+    var y = <z/>;
+    for (var i = 0; i < RUNLOOP; i++)
+        "" in y;
+}
+test(testDeepBail1);
+
+/* Array comprehension tests */
+
+function Range(start, stop) {
+    this.i = start;
+    this.stop = stop;
+}
+Range.prototype = {
+    __iterator__: function() this,
+    next: function() {
+        if (this.i >= this.stop)
+            throw StopIteration;
+        return this.i++;
+    }
+};
+
+function range(start, stop) {
+    return new Range(start, stop);
+}
+
+function testArrayComp1() {
+    return [a for (a in range(0, 10))].join('');
+}
+testArrayComp1.expected='0123456789';
+test(testArrayComp1);
+
+function testArrayComp2() {
+    return [a + b for (a in range(0, 5)) for (b in range(0, 5))].join('');
+}
+testArrayComp2.expected='0123412345234563456745678';
+test(testArrayComp2);
+
+function testSwitchUndefined()
+{
+  var x = undefined;
+  var y = 0;
+  for (var i = 0; i < 5; i++)
+  {
+    switch (x)
+    {
+      default:
+        y++;
+    }
+  }
+  return y;
+}
+testSwitchUndefined.expected = 5;
+test(testSwitchUndefined);
+
+function testGeneratorDeepBail() {
+    function g() { yield 2; }
+    var iterables = [[1], [], [], [], g()];
+
+    var total = 0;
+    for (let i = 0; i < iterables.length; i++)
+        for each (let j in iterables[i])
+                     total += j;
+    return total;
+}
+testGeneratorDeepBail.expected = 3;
+test(testGeneratorDeepBail);
+
+function testRegexpGet() {
+    var re = /hi/;
+    var a = [];
+    for (let i = 0; i < 5; ++i)
+        a.push(re.source);
+    return a.toString();
+}
+testRegexpGet.expected = "hi,hi,hi,hi,hi";
+test(testRegexpGet);
+
+function testThrowingObjectEqUndefined()
+{
+  try
+  {
+    var obj = { toString: function() { throw 0; } };
+    for (var i = 0; i < 5; i++)
+      "" + (obj == undefined);
+    return i === 5;
+  }
+  catch (e)
+  {
+    return "" + e;
+  }
+}
+testThrowingObjectEqUndefined.expected = true;
+testThrowingObjectEqUndefined.jitstats = {
+  sideExitIntoInterpreter: 1
+};
+test(testThrowingObjectEqUndefined);
+
+function x4(v) { return "" + v + v + v + v; }
+function testConvertibleObjectEqUndefined()
+{
+  var compares =
+    [
+     false, false, false, false,
+     undefined, undefined, undefined, undefined,
+     false, false, false, false,
+     undefined, undefined, undefined, undefined,
+     false, false, false, false,
+     undefined, undefined, undefined, undefined,
+     false, false, false, false,
+     undefined, undefined, undefined, undefined,
+     false, false, false, false,
+     undefined, undefined, undefined, undefined,
+    ];
+  var count = 0;
+  var obj = { valueOf: function() { count++; return 1; } };
+  var results = compares.map(function(v) { return "unwritten"; });
+
+  for (var i = 0, sz = compares.length; i < sz; i++)
+    results[i] = compares[i] == obj;
+
+  return results.join("") + count;
+}
+testConvertibleObjectEqUndefined.expected =
+  x4(false) + x4(false) + x4(false) + x4(false) + x4(false) + x4(false) +
+  x4(false) + x4(false) + x4(false) + x4(false) + "20";
+testConvertibleObjectEqUndefined.jitstats = {
+  sideExitIntoInterpreter: 3
+};
+test(testConvertibleObjectEqUndefined);
+
+function testUndefinedPropertyAccess() {
+    var x = [1,2,3];
+    var y = {};
+    var a = { foo: 1 };
+    y.__proto__ = x;
+    var z = [x, x, x, y, y, y, y, a, a, a];
+    var s = "";
+    for (var i = 0; i < z.length; ++i)
+        s += z[i].foo;
+    return s;
+}
+testUndefinedPropertyAccess.expected = "undefinedundefinedundefinedundefinedundefinedundefinedundefined111";
+testUndefinedPropertyAccess.jitstats = {
+    traceCompleted: 3
+};
+test(testUndefinedPropertyAccess);
+
+q = "";
+function g() { q += "g"; }
+function h() { q += "h"; }
+a = [g, g, g, g, h];
+for (i=0; i<5; i++) { f = a[i];  f(); }
+
+function testRebranding() {
+    return q;
+}
+testRebranding.expected = "ggggh";
+test(testRebranding);
+delete q;
+delete g;
+delete h;
+delete a;
+delete f;
+
+function testLambdaCtor() {
+    var a = [];
+    for (var x = 0; x < RUNLOOP; ++x) {
+        var f = function(){};
+        a[a.length] = new f;
+    }
+
+    // This prints false until the upvar2 bug is fixed:
+    // print(a[HOTLOOP].__proto__ !== a[HOTLOOP-1].__proto__);
+
+    // Assert that the last f was properly constructed.
+    return a[RUNLOOP-1].__proto__ === f.prototype;
+}
+testLambdaCtor.expected = true;
+test(testLambdaCtor);
+
+function testNonStubGetter() {
+    let ([] = false) { (this.watch("x", /a/g)); };
+    (function () { (eval("(function(){for each (x in [1, 2, 2]);});"))(); })();
+    this.unwatch("x");
+    return "ok";
+}
+testNonStubGetter.expected = "ok";
+test(testNonStubGetter);
+
+function testString() {
+    var q;
+    for (var i = 0; i <= RUNLOOP; ++i) {
+        q = [];
+        q.push(String(void 0));
+        q.push(String(true));
+        q.push(String(5));
+        q.push(String(5.5));
+        q.push(String("5"));
+        q.push(String([5]));
+    }
+    return q.join(",");
+}
+testString.expected = "undefined,true,5,5.5,5,5";
+testString.jitstats = {
+    recorderStarted: 1,
+    sideExitIntoInterpreter: 1
+};
+test(testString);
+
+function testToStringBeforeValueOf()
+{
+  var o = {toString: function() { return "s"; }, valueOf: function() { return "v"; } };
+  var a = [];
+  for (var i = 0; i < 10; i++)
+    a.push(String(o));
+  return a.join(",");
+}
+testToStringBeforeValueOf.expected = "s,s,s,s,s,s,s,s,s,s";
+testToStringBeforeValueOf.jitstats = {
+  recorderStarted: 1,
+  sideExitIntoInterpreter: 1
+};
+test(testToStringBeforeValueOf);
+
+function testNullToString()
+{
+  var a = [];
+  for (var i = 0; i < 10; i++)
+    a.push(String(null));
+  for (i = 0; i < 10; i++) {
+    var t = typeof a[i];
+    if (t != "string")
+      a.push(t);
+  }
+  return a.join(",");
+}
+testNullToString.expected = "null,null,null,null,null,null,null,null,null,null";
+testNullToString.jitstats = {
+  recorderStarted: 2,
+  sideExitIntoInterpreter: 2,
+  recorderAborted: 0
+};
+test(testNullToString);
+
+function testAddNull()
+{
+  var rv;
+  for (var x = 0; x < HOTLOOP + 1; ++x)
+    rv = null + [,,];
+  return rv;
+}
+testAddNull.expected = "null,";
+testAddNull.jitstats = {
+  recorderStarted: 1,
+  sideExitIntoInterpreter: 1,
+  recorderAborted: 0
+};
+test(testAddNull);
+
+
 /*****************************************************************************
  *                                                                           *
  *  _____ _   _  _____ ______ _____ _______                                  *
@@ -3949,13 +4566,14 @@ test(testLirBufOOM);
  *                                                                           *
  *****************************************************************************/
 
-load("trace-test-math.js");
+load(gSrcdir + "/math-trace-tests.js");
 
 // BEGIN MANDELBROT STUFF
 // XXXbz I would dearly like to wrap it up into a function to avoid polluting
 // the global scope, but the function ends up heavyweight, and then we lose on
 // the jit.
-load("mandelbrot-results.js");
+if (gDoMandelbrotTest) {
+load(gSrcdir + "/mandelbrot-results.js");
 //function testMandelbrotAll() {
   // Configuration options that affect which codepaths we follow.
   var doImageData = true;
@@ -3967,10 +4585,6 @@ load("mandelbrot-results.js");
   const scaler = 5;
   const numRows = 600;
   const numCols = 600;
-
-  // For now, avoid hitting memory pressure
-  gcparam("maxBytes", 1300000000);
-  gcparam("maxMallocBytes", 1300000000);
 
   const colorNames = [
     "black",
@@ -4198,6 +4812,7 @@ load("mandelbrot-results.js");
   test(createMandelSet);
 //}
 //testMandelbrotAll();
+} /* if (gDoMandelbrotTest) */
 // END MANDELBROT STUFF
 
 /*****************************************************************************
@@ -4233,5 +4848,7 @@ testGlobalProtoAccess.expected = "ok";
 test(testGlobalProtoAccess);
 
 /* Keep these at the end so that we can see the summary after the trace-debug spew. */
-print("\npassed:", passes.length && passes.join(","));
-print("\nFAILED:", fails.length && fails.join(","));
+if (gReportSummary) {
+    print("\npassed:", passes.length && passes.join(","));
+    print("\nFAILED:", fails.length && fails.join(","));
+ }

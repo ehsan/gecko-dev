@@ -44,7 +44,6 @@
 #include "gfxPlatform.h"
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
-#include "nsVoidArray.h"
 #include "prlong.h"
 
 #ifdef PR_LOGGING
@@ -262,8 +261,12 @@ gfxUserFontSet::OnLoadComplete(gfxFontEntry *aFontToLoad,
     LoadStatus status;
 
     status = LoadNext(pe);
-    if (status == STATUS_LOADED)
+    if (status == STATUS_LOADED) {
+        // load may succeed if external font resource followed by
+        // local font, in this case need to bump generation
+        IncrementGeneration();
         return PR_TRUE;
+    }
 
     return PR_FALSE;
 }
@@ -293,12 +296,12 @@ gfxUserFontSet::LoadNext(gfxProxyFontEntry *aProxyEntry)
                 gfxPlatform::GetPlatform()->LookupLocalFont(aProxyEntry,
                                                             currSrc.mLocalName);
             if (fe) {
-                aProxyEntry->mFamily->ReplaceFontEntry(aProxyEntry, fe);
                 LOG(("userfonts (%p) [src %d] loaded local: (%s) for (%s) gen: %8.8x\n", 
                      this, aProxyEntry->mSrcIndex, 
                      NS_ConvertUTF16toUTF8(currSrc.mLocalName).get(), 
                      NS_ConvertUTF16toUTF8(aProxyEntry->mFamily->Name()).get(), 
                      PRUint32(mGeneration)));
+                aProxyEntry->mFamily->ReplaceFontEntry(aProxyEntry, fe);
                 return STATUS_LOADED;
             } else {
                 LOG(("userfonts (%p) [src %d] failed local: (%s) for (%s)\n", 

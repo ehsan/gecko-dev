@@ -1261,6 +1261,8 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
     // prepare to do the function call. This adds a fair amount of complexity,
     // but is a good optimization compared to calling JS_AddRoot for each item.
 
+    js_LeaveTrace(cx);
+
     // setup stack
 
     // if this isn't a function call then we don't need to push extra stuff
@@ -1468,13 +1470,13 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
                     {
                         // JSPROP_GETTER means the getter is actually a
                         // function object.
-                        ccx.SetCallee((JSObject*)getter);
+                        ccx.SetCallee(JS_FUNC_TO_DATA_PTR(JSObject*, getter));
                     }
                     else if(XPT_MD_IS_SETTER(info->flags) && (attrs & JSPROP_SETTER))
                     {
                         // JSPROP_SETTER means the setter is actually a
                         // function object.
-                        ccx.SetCallee((JSObject*)setter);
+                        ccx.SetCallee(JS_FUNC_TO_DATA_PTR(JSObject*, setter));
                     }
                 }
             }
