@@ -1819,8 +1819,8 @@ nsresult
 Loader::LoadInlineStyle(nsIContent* aElement,
                         nsIUnicharInputStream* aStream, 
                         PRUint32 aLineNumber,
-                        const nsAString& aTitle,
-                        const nsAString& aMedia,
+                        const nsSubstring& aTitle,
+                        const nsSubstring& aMedia,
                         nsICSSLoaderObserver* aObserver,
                         PRBool* aCompleted,
                         PRBool* aIsAlternate)
@@ -1889,8 +1889,8 @@ Loader::LoadInlineStyle(nsIContent* aElement,
 nsresult
 Loader::LoadStyleLink(nsIContent* aElement,
                       nsIURI* aURL, 
-                      const nsAString& aTitle,
-                      const nsAString& aMedia,
+                      const nsSubstring& aTitle,
+                      const nsSubstring& aMedia,
                       PRBool aHasAlternateRel,
                       nsICSSLoaderObserver* aObserver,
                       PRBool* aIsAlternate)
