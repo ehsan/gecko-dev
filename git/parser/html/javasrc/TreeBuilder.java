@@ -39,7 +39,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
-import nu.validator.htmlparser.annotation.Auto;
 import nu.validator.htmlparser.annotation.Const;
 import nu.validator.htmlparser.annotation.IdType;
 import nu.validator.htmlparser.annotation.Inline;
@@ -168,7 +167,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
 
     final static int DIV_OR_BLOCKQUOTE_OR_CENTER_OR_MENU = 50;
 
-    final static int ADDRESS_OR_ARTICLE_OR_ASIDE_OR_DETAILS_OR_DIR_OR_FIGCAPTION_OR_FIGURE_OR_FOOTER_OR_HEADER_OR_HGROUP_OR_NAV_OR_SECTION_OR_SUMMARY = 51;
+    final static int ADDRESS_OR_DIR_OR_ARTICLE_OR_ASIDE_OR_DATAGRID_OR_DETAILS_OR_HGROUP_OR_FIGURE_OR_FOOTER_OR_HEADER_OR_NAV_OR_SECTION = 51;
 
     final static int RUBY_OR_SPAN_OR_SUB_OR_SUP_OR_VAR = 52;
 
@@ -337,6 +336,8 @@ public abstract class TreeBuilder<T> implements TokenHandler,
 
     private static final int NOT_FOUND_ON_STACK = Integer.MAX_VALUE;
 
+    private static final int AAA_MAX_ITERATIONS = 10;
+
     // [NOCPP[
 
     private static final @Local String HTML_LOCAL = "html";
@@ -384,11 +385,11 @@ public abstract class TreeBuilder<T> implements TokenHandler,
 
     private T contextNode;
 
-    private @Auto StackNode<T>[] stack;
+    private StackNode<T>[] stack;
 
     private int currentPtr = -1;
 
-    private @Auto StackNode<T>[] listOfActiveFormattingElements;
+    private StackNode<T>[] listOfActiveFormattingElements;
 
     private int listPtr = -1;
 
@@ -401,7 +402,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
      */
     private T deepTreeSurrogateParent;
 
-    protected @Auto char[] charBuffer;
+    protected char[] charBuffer;
 
     protected int charBufferLen = 0;
 
@@ -1402,6 +1403,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                 stack[currentPtr].release();
                 currentPtr--;
             }
+            Portability.releaseArray(stack);
             stack = null;
         }
         if (listOfActiveFormattingElements != null) {
@@ -1411,12 +1413,16 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                 }
                 listPtr--;
             }
+            Portability.releaseArray(listOfActiveFormattingElements);
             listOfActiveFormattingElements = null;
         }
         // [NOCPP[
         idLocations.clear();
         // ]NOCPP]
-        charBuffer = null;
+        if (charBuffer != null) {
+            Portability.releaseArray(charBuffer);
+            charBuffer = null;
+        }
         end();
     }
 
@@ -1838,7 +1844,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                             case P:
                             case DIV_OR_BLOCKQUOTE_OR_CENTER_OR_MENU:
                             case UL_OR_OL_OR_DL:
-                            case ADDRESS_OR_ARTICLE_OR_ASIDE_OR_DETAILS_OR_DIR_OR_FIGCAPTION_OR_FIGURE_OR_FOOTER_OR_HEADER_OR_HGROUP_OR_NAV_OR_SECTION_OR_SUMMARY:
+                            case ADDRESS_OR_DIR_OR_ARTICLE_OR_ASIDE_OR_DATAGRID_OR_DETAILS_OR_HGROUP_OR_FIGURE_OR_FOOTER_OR_HEADER_OR_NAV_OR_SECTION:
                                 implicitlyCloseP();
                                 appendToCurrentNodeAndPushElementMayFoster(
                                         "http://www.w3.org/1999/xhtml",
@@ -1944,7 +1950,6 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                             case B_OR_BIG_OR_CODE_OR_EM_OR_I_OR_S_OR_SMALL_OR_STRIKE_OR_STRONG_OR_TT_OR_U:
                             case FONT:
                                 reconstructTheActiveFormattingElements();
-                                maybeForgetEarlierDuplicateFormattingElement(elementName.name, attributes);
                                 appendToCurrentNodeAndPushFormattingElementMayFoster(
                                         "http://www.w3.org/1999/xhtml",
                                         elementName, attributes);
@@ -2073,9 +2078,10 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                                         HtmlAttributes.EMPTY_ATTRIBUTES);
                                 int promptIndex = attributes.getIndex(AttributeName.PROMPT);
                                 if (promptIndex > -1) {
-                                    @Auto char[] prompt = Portability.newCharArrayFromString(attributes.getValue(promptIndex));
+                                    char[] prompt = Portability.newCharArrayFromString(attributes.getValue(promptIndex));
                                     appendCharacters(stack[currentPtr].node,
                                             prompt, 0, prompt.length);
+                                    Portability.releaseArray(prompt);
                                 } else {
                                     appendIsindexPrompt(stack[currentPtr].node);
                                 }
@@ -2947,7 +2953,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
         int charsetState = CHARSET_INITIAL;
         int start = -1;
         int end = -1;
-        @Auto char[] buffer = Portability.newCharArrayFromString(attributeValue);
+        char[] buffer = Portability.newCharArrayFromString(attributeValue);
 
         charsetloop: for (int i = 0; i < buffer.length; i++) {
             char c = buffer[i];
@@ -3095,6 +3101,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
             charset = Portability.newStringFromBuffer(buffer, start, end
                     - start);
         }
+        Portability.releaseArray(buffer);
         return charset;
     }
 
@@ -3412,7 +3419,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                         case PRE_OR_LISTING:
                         case FIELDSET:
                         case BUTTON:
-                        case ADDRESS_OR_ARTICLE_OR_ASIDE_OR_DETAILS_OR_DIR_OR_FIGCAPTION_OR_FIGURE_OR_FOOTER_OR_HEADER_OR_HGROUP_OR_NAV_OR_SECTION_OR_SUMMARY:
+                        case ADDRESS_OR_DIR_OR_ARTICLE_OR_ASIDE_OR_DATAGRID_OR_DETAILS_OR_HGROUP_OR_FIGURE_OR_FOOTER_OR_HEADER_OR_NAV_OR_SECTION:
                             eltPos = findLastInScope(name);
                             if (eltPos == TreeBuilder.NOT_FOUND_ON_STACK) {
                                 err("Stray end tag \u201C" + name + "\u201D.");
@@ -3528,6 +3535,12 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                                 }
                             }
                             break endtagloop;
+                        case A:
+                        case B_OR_BIG_OR_CODE_OR_EM_OR_I_OR_S_OR_SMALL_OR_STRIKE_OR_STRONG_OR_TT_OR_U:
+                        case FONT:
+                        case NOBR:
+                            adoptionAgencyEndTag(name);
+                            break endtagloop;
                         case OBJECT:
                         case MARQUEE_OR_APPLET:
                             eltPos = findLastInScope(name);
@@ -3586,14 +3599,6 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                             } else {
                                 // fall through
                             }
-                        case A:
-                        case B_OR_BIG_OR_CODE_OR_EM_OR_I_OR_S_OR_SMALL_OR_STRIKE_OR_STRONG_OR_TT_OR_U:
-                        case FONT:
-                        case NOBR:
-                            if (adoptionAgencyEndTag(name)) {
-                                break endtagloop;
-                            }
-                            // else handle like any other tag
                         default:
                             if (isCurrent(name)) {
                                 pop();
@@ -4235,6 +4240,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
         if (currentPtr == stack.length) {
             StackNode<T>[] newStack = new StackNode[stack.length + 64];
             System.arraycopy(stack, 0, newStack, 0, stack.length);
+            Portability.releaseArray(stack);
             stack = newStack;
         }
         stack[currentPtr] = node;
@@ -4246,6 +4252,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
         if (currentPtr == stack.length) {
             StackNode<T>[] newStack = new StackNode[stack.length + 64];
             System.arraycopy(stack, 0, newStack, 0, stack.length);
+            Portability.releaseArray(stack);
             stack = newStack;
         }
         stack[currentPtr] = node;
@@ -4257,6 +4264,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
             StackNode<T>[] newList = new StackNode[listOfActiveFormattingElements.length + 64];
             System.arraycopy(listOfActiveFormattingElements, 0, newList, 0,
                     listOfActiveFormattingElements.length);
+            Portability.releaseArray(listOfActiveFormattingElements);
             listOfActiveFormattingElements = newList;
         }
         listOfActiveFormattingElements[listPtr] = node;
@@ -4327,10 +4335,10 @@ public abstract class TreeBuilder<T> implements TokenHandler,
         listPtr--;
     }
 
-    private boolean adoptionAgencyEndTag(@Local String name) throws SAXException {
+    private void adoptionAgencyEndTag(@Local String name) throws SAXException {
         // If you crash around here, perhaps some stack node variable claimed to
         // be a weak ref isn't.
-        for (int i = 0; i < 8; ++i) {
+        for (int i = 0; i < AAA_MAX_ITERATIONS; ++i) {
             int formattingEltListPos = listPtr;
             while (formattingEltListPos > -1) {
                 StackNode<T> listNode = listOfActiveFormattingElements[formattingEltListPos]; // weak
@@ -4344,7 +4352,8 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                 formattingEltListPos--;
             }
             if (formattingEltListPos == -1) {
-                return false;
+                err("No element \u201C" + name + "\u201D to close.");
+                return;
             }
             StackNode<T> formattingElt = listOfActiveFormattingElements[formattingEltListPos]; // this
             // *looks*
@@ -4372,11 +4381,11 @@ public abstract class TreeBuilder<T> implements TokenHandler,
             if (formattingEltStackPos == -1) {
                 err("No element \u201C" + name + "\u201D to close.");
                 removeFromListOfActiveFormattingElements(formattingEltListPos);
-                return true;
+                return;
             }
             if (!inScope) {
                 err("No element \u201C" + name + "\u201D to close.");
-                return true;
+                return;
             }
             // stackPos now points to the formatting element and it is in scope
             if (errorHandler != null && formattingEltStackPos != currentPtr) {
@@ -4396,7 +4405,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                     pop();
                 }
                 removeFromListOfActiveFormattingElements(formattingEltListPos);
-                return true;
+                return;
             }
             StackNode<T> commonAncestor = stack[formattingEltStackPos - 1]; // weak
             // ref
@@ -4405,7 +4414,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
             int bookmark = formattingEltListPos;
             int nodePos = furthestBlockPos;
             StackNode<T> lastNode = furthestBlock; // weak ref
-            for (int j = 0; j < 3; ++j) {
+            for (int j = 0; j < AAA_MAX_ITERATIONS; ++j) {
                 nodePos--;
                 StackNode<T> node = stack[nodePos]; // weak ref
                 int nodeListPos = findInListOfActiveFormattingElements(node);
@@ -4483,7 +4492,6 @@ public abstract class TreeBuilder<T> implements TokenHandler,
             insertIntoStack(formattingClone, furthestBlockPos);
             Portability.releaseElement(clone);
         }
-        return true;
     }
 
     private void insertIntoStack(StackNode<T> node, int position)
@@ -4535,26 +4543,6 @@ public abstract class TreeBuilder<T> implements TokenHandler,
         return -1;
     }
 
-
-    private void maybeForgetEarlierDuplicateFormattingElement(
-            @Local String name, HtmlAttributes attributes) throws SAXException {
-        int candidate = -1;
-        int count = 0;
-        for (int i = listPtr; i >= 0; i--) {
-            StackNode<T> node = listOfActiveFormattingElements[i];
-            if (node == null) {
-                break;
-            }
-            if (node.name == name && node.attributes.equalsAnother(attributes)) {
-                candidate = i;
-                ++count;
-            }
-        }
-        if (count >= 3) {
-            removeFromListOfActiveFormattingElements(candidate);
-        }
-    }
-    
     private int findLastOrRoot(@Local String name) {
         for (int i = currentPtr; i > 0; i--) {
             if (stack[i].name == name) {
@@ -5093,6 +5081,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
         if (newLen > charBuffer.length) {
             char[] newBuf = new char[newLen];
             System.arraycopy(charBuffer, 0, newBuf, 0, charBufferLen);
+            Portability.releaseArray(charBuffer);
             charBuffer = newBuf;
         }
         System.arraycopy(buf, start, charBuffer, charBufferLen, length);
@@ -5468,6 +5457,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
             }
         }
         if (listOfActiveFormattingElements.length < listLen) {
+            Portability.releaseArray(listOfActiveFormattingElements);
             listOfActiveFormattingElements = new StackNode[listLen];
         }
         listPtr = listLen - 1;
@@ -5476,6 +5466,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
             stack[i].release();
         }
         if (stack.length < stackLen) {
+            Portability.releaseArray(stack);
             stack = new StackNode[stackLen];
         }
         currentPtr = stackLen - 1;

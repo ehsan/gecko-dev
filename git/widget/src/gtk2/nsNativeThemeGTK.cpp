@@ -69,8 +69,7 @@
 #include "gfxPlatformGtk.h"
 #include "gfxGdkNativeRenderer.h"
 
-NS_IMPL_ISUPPORTS_INHERITED2(nsNativeThemeGTK, nsNativeTheme, nsITheme,
-                                                              nsIObserver)
+NS_IMPL_ISUPPORTS2(nsNativeThemeGTK, nsITheme, nsIObserver)
 
 static int gLastGdkError;
 

@@ -43,7 +43,7 @@
       is(objectStore.indexNames.length, 1, "Correct indexNames list");
       is(objectStore.indexNames.item(0), indexName, "Correct name");
 
-      objectStore.deleteIndex(indexName);
+      objectStore.removeIndex(indexName);
 
       is(event.result, undefined, "Correct result");
       is(objectStore.indexNames.length, 0, "Correct indexNames list");

@@ -84,7 +84,6 @@ protected:
   NS_OVERRIDE virtual const nsAttrValue* GetAttr(nsIAtom* aAttName) const;
   NS_OVERRIDE virtual PRBool             GetAttr(nsIAtom* aAttName,
                                                  nsAString& aResult) const;
-  NS_OVERRIDE virtual PRBool WillReplace() const;
 
   PRBool IsDisallowedAttribute(const nsIAtom* aAttribute) const;
 };

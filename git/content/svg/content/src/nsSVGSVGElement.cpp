@@ -1035,7 +1035,6 @@ nsSVGSVGElement::BindToTree(nsIDocument* aDocument,
     rv = mTimedDocumentRoot->SetParent(smilController);
     if (mStartAnimationOnBindToTree) {
       mTimedDocumentRoot->Begin();
-      mStartAnimationOnBindToTree = PR_FALSE;
     }
   }
 

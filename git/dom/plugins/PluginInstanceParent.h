@@ -261,7 +261,9 @@ public:
 #endif // definied(OS_MACOSX)
 
     nsresult AsyncSetWindow(NPWindow* window);
+    nsresult NotifyPainted(void);
     nsresult GetSurface(gfxASurface** aSurface);
+    nsresult UseAsyncPainting(PRBool* aIsAsync);
 
 private:
     // Quirks mode support for various plugin mime types
@@ -320,6 +322,9 @@ private:
 
     // ObjectFrame layer wrapper
     nsRefPtr<gfxASurface>    mFrontSurface;
+
+    // Don't spam plugin process with extra paint notifications
+    PRPackedBool             mSentPaintNotification;
 };
 
 

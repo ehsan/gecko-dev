@@ -834,7 +834,7 @@ public:
   // nsIFormControl
   virtual mozilla::dom::Element* GetFormElement();
   virtual void SetForm(nsIDOMHTMLFormElement* aForm);
-  virtual void ClearForm(PRBool aRemoveFromForm);
+  virtual void ClearForm(PRBool aRemoveFromForm, PRBool aNotify);
 
   nsresult GetForm(nsIDOMHTMLFormElement** aForm);
 
@@ -1560,7 +1560,6 @@ NS_DECLARE_NS_NEW_HTML_ELEMENT_AS_SHARED(Html)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(IFrame)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Image)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Input)
-NS_DECLARE_NS_NEW_HTML_ELEMENT(IsIndex)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(LI)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Label)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Legend)

@@ -139,6 +139,7 @@ nsSVGScriptElement::nsSVGScriptElement(already_AddRefed<nsINodeInfo> aNodeInfo,
   : nsSVGScriptElementBase(aNodeInfo)
   , nsScriptElement(aFromParser)
 {
+  mDoneAddingChildren = !aFromParser;
   AddMutationObserver(this);
 }
 

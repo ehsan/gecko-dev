@@ -59,7 +59,7 @@ public:
   nsNativeThemeCocoa();
   virtual ~nsNativeThemeCocoa();
 
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_ISUPPORTS
 
   // The nsITheme interface.
   NS_IMETHOD DrawWidgetBackground(nsIRenderingContext* aContext,

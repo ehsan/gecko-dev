@@ -7,10 +7,7 @@
 #endif
 
 #include "nsUTF8Utils.h"
-
-#ifndef XRE_DONT_PROTECT_DLL_LOAD
 #include "nsSetDllDirectory.h"
-#endif
 
 #if defined(_MSC_VER) && defined(_M_IX86) && defined(XRE_WANT_DLL_BLOCKLIST)
 #include "nsWindowsDllBlocklist.cpp"

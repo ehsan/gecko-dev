@@ -1012,24 +1012,6 @@ PlacesTreeView.prototype = {
     }
   },
 
-  _inBatchMode: false,
-  batching: function PTV__batching(aToggleMode) {
-    if (aToggleMode) {
-      this._inBatchMode = true;
-      if (this.selection) {
-        this.selection.selectEventsSuppressed = true;
-      }
-      this._tree.beginUpdateBatch();
-    }
-    else if (this._inBatchMode){
-      this._inBatchMode = false;
-      if (this.selection) {
-        this.selection.selectEventsSuppressed = false;
-      }
-      this._tree.endUpdateBatch();
-    }
-  },
-
   get result() this._result,
   set result(val) {
     if (this._result) {

@@ -647,6 +647,9 @@ protected:
   // readyState change to HAVE_CURRENT_DATA.
   PRPackedBool mWaitingFired;
 
+  // PR_TRUE if we're in BindToTree().
+  PRPackedBool mIsBindingToTree;
+
   // PR_TRUE if we're running the "load()" method.
   PRPackedBool mIsRunningLoadMethod;
 

@@ -199,7 +199,7 @@ ContentParent::IsAlive()
 }
 
 bool
-ContentParent::RecvReadPrefsArray(InfallibleTArray<PrefTuple> *prefs)
+ContentParent::RecvReadPrefsArray(nsTArray<PrefTuple> *prefs)
 {
     EnsurePrefService();
     mPrefService->MirrorPreferences(prefs);
@@ -218,7 +218,7 @@ ContentParent::EnsurePrefService()
 }
 
 bool
-ContentParent::RecvReadPermissions(InfallibleTArray<IPC::Permission>* aPermissions)
+ContentParent::RecvReadPermissions(nsTArray<IPC::Permission>* aPermissions)
 {
 #ifdef MOZ_PERMISSIONS
     nsRefPtr<nsPermissionManager> permissionManager =
@@ -461,9 +461,9 @@ ContentParent::RecvShowFilePicker(const PRInt16& mode,
                                   const nsString& title,
                                   const nsString& defaultFile,
                                   const nsString& defaultExtension,
-                                  const InfallibleTArray<nsString>& filters,
-                                  const InfallibleTArray<nsString>& filterNames,
-                                  InfallibleTArray<nsString>* files,
+                                  const nsTArray<nsString>& filters,
+                                  const nsTArray<nsString>& filterNames,
+                                  nsTArray<nsString>* files,
                                   PRInt16* retValue,
                                   nsresult* result)
 {
@@ -601,7 +601,7 @@ ContentParent::RecvShowAlertNotification(const nsString& aImageUrl, const nsStri
 
 bool
 ContentParent::RecvSyncMessage(const nsString& aMsg, const nsString& aJSON,
-                               InfallibleTArray<nsString>* aRetvals)
+                               nsTArray<nsString>* aRetvals)
 {
   nsRefPtr<nsFrameMessageManager> ppm = nsFrameMessageManager::sParentProcessManager;
   if (ppm) {

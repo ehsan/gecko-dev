@@ -90,8 +90,8 @@ private:
     nsString  mDefault;
     nsString  mDefaultExtension;
 
-    InfallibleTArray<nsString> mFilters;
-    InfallibleTArray<nsString> mFilterNames;
+    nsTArray<nsString> mFilters;
+    nsTArray<nsString> mFilterNames;
 };
 
 #endif // NSFILEPICKERPROXY_H

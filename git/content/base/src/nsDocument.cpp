@@ -205,8 +205,6 @@ static NS_DEFINE_CID(kDOMEventGroupCID, NS_DOMEVENTGROUP_CID);
 
 using namespace mozilla::dom;
 
-typedef nsTArray<Link*> LinkArray;
-
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gDocumentLeakPRLog;
@@ -3904,7 +3902,7 @@ nsDocument::InternalAllowXULXBL()
 void
 nsDocument::AddObserver(nsIDocumentObserver* aObserver)
 {
-  NS_ASSERTION(mObservers.IndexOf(aObserver) == nsTArray<int>::NoIndex,
+  NS_ASSERTION(mObservers.IndexOf(aObserver) == nsTArray_base::NoIndex,
                "Observer already in the list");
   mObservers.AppendElement(aObserver);
   AddMutationObserver(aObserver);
@@ -5545,10 +5543,8 @@ nsDocument::GetAnimationController()
     }
   }
 
-  // If we're hidden (or being hidden), notify the newly-created animation
-  // controller. (Skip this check for SVG-as-an-image documents, though,
-  // because they don't get OnPageShow / OnPageHide calls).
-  if (!mIsShowing && !mIsBeingUsedAsImage) {
+  // If we're hidden (or being hidden), notify the animation controller.
+  if (!mIsShowing) {
     mAnimationController->OnPageHide();
   }
 
@@ -7550,7 +7546,7 @@ static
 PLDHashOperator
 EnumerateStyledLinks(nsPtrHashKey<Link>* aEntry, void* aArray)
 {
-  LinkArray* array = static_cast<LinkArray*>(aArray);
+  nsTArray<Link*>* array = static_cast<nsTArray<Link*>*>(aArray);
   (void)array->AppendElement(aEntry->GetKey());
   return PL_DHASH_NEXT;
 }
@@ -7561,12 +7557,12 @@ nsDocument::RefreshLinkHrefs()
   // Get a list of all links we know about.  We will reset them, which will
   // remove them from the document, so we need a copy of what is in the
   // hashtable.
-  LinkArray linksToNotify(mStyledLinks.Count());
+  nsTArray<Link*> linksToNotify(mStyledLinks.Count());
   (void)mStyledLinks.EnumerateEntries(EnumerateStyledLinks, &linksToNotify);
 
   // Reset all of our styled links.
   MOZ_AUTO_DOC_UPDATE(this, UPDATE_CONTENT_STATE, PR_TRUE);
-  for (LinkArray::size_type i = 0; i < linksToNotify.Length(); i++) {
+  for (nsTArray_base::size_type i = 0; i < linksToNotify.Length(); i++) {
     linksToNotify[i]->ResetLinkState(true);
   }
 }

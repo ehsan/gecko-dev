@@ -43,7 +43,6 @@
 #include "nsAccUtils.h"
 #include "nsAccTreeWalker.h"
 #include "nsCoreUtils.h"
-#include "nsDocAccessible.h"
 #include "nsRelUtils.h"
 
 // NOTE: alphabetically ordered
@@ -223,10 +222,6 @@ nsXULButtonAccessible::CacheChildren()
       // for it. Ignore dropmarker button what is placed as a last child.
       buttonAccessible.swap(child);
       break;
-
-    } else {
-      // Unbind rejected accessible from document.
-      GetDocAccessible()->UnbindFromDocument(child);
     }
   }
 

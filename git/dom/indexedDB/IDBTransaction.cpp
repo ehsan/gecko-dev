@@ -43,7 +43,6 @@
 
 #include "mozilla/storage.h"
 #include "nsDOMClassInfo.h"
-#include "nsEventDispatcher.h"
 #include "nsPIDOMWindow.h"
 #include "nsProxyRelease.h"
 #include "nsThreadUtils.h"
@@ -110,8 +109,7 @@ IDBTransaction::IDBTransaction()
   mTimeout(0),
   mPendingRequests(0),
   mSavepointCount(0),
-  mAborted(false),
-  mClosed(false)
+  mAborted(false)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 }
@@ -150,10 +148,6 @@ IDBTransaction::OnRequestFinished()
     if (!mAborted) {
       NS_ASSERTION(mReadyState == nsIIDBTransaction::LOADING, "Bad state!");
     }
-
-    NS_ASSERTION(!mClosed, "Shouldn't be closed yet!");
-    mClosed = true;
-
     CommitOrRollback();
   }
 }
@@ -323,7 +317,7 @@ IDBTransaction::AddStatement(bool aCreate,
 }
 
 already_AddRefed<mozIStorageStatement>
-IDBTransaction::DeleteStatement(bool aAutoIncrement)
+IDBTransaction::RemoveStatement(bool aAutoIncrement)
 {
   if (aAutoIncrement) {
     return GetCachedStatement(
@@ -538,40 +532,10 @@ bool
 IDBTransaction::TransactionIsOpen() const
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  return (mReadyState == nsIIDBTransaction::INITIAL ||
-          mReadyState == nsIIDBTransaction::LOADING) &&
-         !mClosed;
+  return mReadyState == nsIIDBTransaction::INITIAL ||
+         mReadyState == nsIIDBTransaction::LOADING;
 }
 #endif
-
-already_AddRefed<IDBObjectStore>
-IDBTransaction::GetOrCreateObjectStore(const nsAString& aName,
-                                       ObjectStoreInfo* aObjectStoreInfo)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(!aName.IsEmpty(), "Empty name!");
-  NS_ASSERTION(aObjectStoreInfo, "Null pointer!");
-
-  nsRefPtr<IDBObjectStore> retval;
-
-  for (PRUint32 index = 0; index < mCreatedObjectStores.Length(); index++) {
-    nsRefPtr<IDBObjectStore>& objectStore = mCreatedObjectStores[index];
-    if (objectStore->Name() == aName) {
-      retval = objectStore;
-      return retval.forget();
-    }
-  }
-
-  retval = IDBObjectStore::Create(this, aObjectStoreInfo);
-  NS_ENSURE_TRUE(retval, nsnull);
-
-  if (!mCreatedObjectStores.AppendElement(retval)) {
-    NS_WARNING("Out of memory!");
-    return nsnull;
-  }
-
-  return retval.forget();
-}
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(IDBTransaction)
 
@@ -579,29 +543,19 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBTransaction,
                                                   nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mDatabase,
                                                        nsPIDOMEventTarget)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnErrorListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnCompleteListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnAbortListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnTimeoutListener)
-
-  for (PRUint32 i = 0; i < tmp->mCreatedObjectStores.Length(); i++) {
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mCreatedObjectStores[i]");
-    cb.NoteXPCOMChild(static_cast<nsIIDBObjectStore*>(
-                      tmp->mCreatedObjectStores[i].get()));
-  }
-
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnErrorListener)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBTransaction,
                                                 nsDOMEventTargetHelper)
   // Don't unlink mDatabase!
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnErrorListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnCompleteListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnAbortListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnTimeoutListener)
-
-  tmp->mCreatedObjectStores.Clear();
-
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnErrorListener)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(IDBTransaction)
@@ -655,11 +609,12 @@ IDBTransaction::GetObjectStoreNames(nsIDOMDOMStringList** aObjectStores)
     DatabaseInfo* info;
     if (!DatabaseInfo::Get(mDatabase->Id(), &info)) {
       NS_ERROR("This should never fail!");
+      return NS_ERROR_UNEXPECTED;
     }
 
     if (!info->GetObjectStoreNames(stackArray)) {
       NS_ERROR("Out of memory!");
-      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+      return NS_ERROR_OUT_OF_MEMORY;
     }
 
     arrayOfNames = &stackArray;
@@ -671,9 +626,8 @@ IDBTransaction::GetObjectStoreNames(nsIDOMDOMStringList** aObjectStores)
   PRUint32 count = arrayOfNames->Length();
   for (PRUint32 index = 0; index < count; index++) {
     NS_ENSURE_TRUE(list->Add(arrayOfNames->ElementAt(index)),
-                   NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+                   NS_ERROR_OUT_OF_MEMORY);
   }
-
   list.forget(aObjectStores);
   return NS_OK;
 }
@@ -685,7 +639,7 @@ IDBTransaction::ObjectStore(const nsAString& aName,
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   if (!TransactionIsOpen()) {
-    return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
+    return NS_ERROR_UNEXPECTED;
   }
 
   ObjectStoreInfo* info = nsnull;
@@ -696,11 +650,11 @@ IDBTransaction::ObjectStore(const nsAString& aName,
   }
 
   if (!info) {
-    return NS_ERROR_DOM_INDEXEDDB_NOT_FOUND_ERR;
+    return NS_ERROR_NOT_AVAILABLE;
   }
 
-  nsRefPtr<IDBObjectStore> objectStore = GetOrCreateObjectStore(aName, info);
-  NS_ENSURE_TRUE(objectStore, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  nsRefPtr<IDBObjectStore> objectStore(IDBObjectStore::Create(this, info));
+  NS_ENSURE_TRUE(objectStore, NS_ERROR_FAILURE);
 
   objectStore.forget(_retval);
   return NS_OK;
@@ -712,25 +666,13 @@ IDBTransaction::Abort()
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   if (!TransactionIsOpen()) {
-    return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
+    return NS_ERROR_UNEXPECTED;
   }
 
   mAborted = true;
   mReadyState = nsIIDBTransaction::DONE;
+
   return NS_OK;
-}
-
-NS_IMETHODIMP
-IDBTransaction::SetOnerror(nsIDOMEventListener* aErrorListener)
-{
-  return RemoveAddEventListener(NS_LITERAL_STRING(ERROR_EVT_STR),
-                                mOnErrorListener, aErrorListener);
-}
-
-NS_IMETHODIMP
-IDBTransaction::GetOnerror(nsIDOMEventListener** aErrorListener)
-{
-  return GetInnerEventListener(mOnErrorListener, aErrorListener);
 }
 
 NS_IMETHODIMP
@@ -784,14 +726,6 @@ IDBTransaction::SetOntimeout(nsIDOMEventListener* aOntimeout)
                                 mOnTimeoutListener, aOntimeout);
 }
 
-nsresult
-IDBTransaction::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
-{
-  aVisitor.mCanHandle = PR_TRUE;
-  aVisitor.mParentTarget = mDatabase;
-  return NS_OK;
-}
-
 CommitHelper::CommitHelper(IDBTransaction* aTransaction)
 : mTransaction(aTransaction),
   mAborted(!!aTransaction->mAborted),
@@ -809,8 +743,6 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(CommitHelper, nsIRunnable)
 NS_IMETHODIMP
 CommitHelper::Run()
 {
-  NS_ASSERTION(mTransaction->mClosed, "Should be closed!");
-
   if (NS_IsMainThread()) {
     NS_ASSERTION(mDoomedObjects.IsEmpty(), "Didn't release doomed objects!");
 
@@ -841,7 +773,7 @@ CommitHelper::Run()
     else {
       event = IDBEvent::CreateGenericEvent(NS_LITERAL_STRING(COMPLETE_EVT_STR));
     }
-    NS_ENSURE_TRUE(event, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+    NS_ENSURE_TRUE(event, NS_ERROR_FAILURE);
 
     PRBool dummy;
     if (NS_FAILED(mTransaction->DispatchEvent(event, &dummy))) {

@@ -58,9 +58,8 @@ class nsIAtom;
 class nsICSSStyleRule;
 class nsISVGValue;
 class nsIDocument;
-template<class E, class A> class nsTArray;
-template<class E, class A> class nsTPtrArray;
-struct nsTArrayDefaultAllocator;
+template<class E> class nsTArray;
+template<class E> class nsTPtrArray;
 
 #define NS_ATTRVALUE_MAX_STRINGLENGTH_ATOM 12
 
@@ -231,8 +230,6 @@ public:
    * @param aString the string to parse
    * @param aCanBePercent PR_TRUE if it can be a percent value (%)
    * @return whether the value could be parsed
-   *
-   * @see http://www.whatwg.org/html/#rules-for-parsing-dimension-values
    */
   PRBool ParseSpecialIntValue(const nsAString& aString,
                               PRBool aCanBePercent);
@@ -384,7 +381,7 @@ private:
                           PRBool aCanBePercent = PR_FALSE,
                           PRBool* aIsPercent = nsnull) const;
 
-  static nsTPtrArray<const EnumTable, nsTArrayDefaultAllocator>* sEnumTableArray;
+  static nsTPtrArray<const EnumTable>* sEnumTableArray;
 
   PtrBits mBits;
 };

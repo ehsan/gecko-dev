@@ -130,12 +130,6 @@ typedef intptr_t NativeWindowHandle; // never actually used, will always be 0
 #error Need NativeWindowHandle for this platform
 #endif
 
-#ifdef XP_WIN
-typedef base::SharedMemoryHandle WindowsSharedMemoryHandle;
-#else
-typedef mozilla::null_t WindowsSharedMemoryHandle;
-#endif
-
 #ifdef MOZ_CRASHREPORTER
 typedef CrashReporter::ThreadId NativeThreadId;
 #else

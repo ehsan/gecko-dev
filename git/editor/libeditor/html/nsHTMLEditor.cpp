@@ -239,7 +239,6 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLEditor, nsEditor)
 
 NS_INTERFACE_MAP_BEGIN(nsHTMLEditor)
   NS_INTERFACE_MAP_ENTRY(nsIHTMLEditor)
-  NS_INTERFACE_MAP_ENTRY(nsIHTMLEditor_MOZILLA_2_0_BRANCH)
   NS_INTERFACE_MAP_ENTRY(nsIHTMLObjectResizer)
   NS_INTERFACE_MAP_ENTRY(nsIHTMLAbsPosEditor)
   NS_INTERFACE_MAP_ENTRY(nsIHTMLInlineTableEditor)
@@ -1341,16 +1340,6 @@ PRBool nsHTMLEditor::IsVisBreak(nsIDOMNode *aNode)
     return PR_FALSE;
   
   return PR_TRUE;
-}
-
-NS_IMETHODIMP
-nsHTMLEditor::BreakIsVisible(nsIDOMNode *aNode, PRBool *aIsVisible)
-{
-  NS_ENSURE_ARG_POINTER(aNode && aIsVisible);
-
-  *aIsVisible = IsVisBreak(aNode);
-
-  return NS_OK;
 }
 
 
@@ -3794,7 +3783,7 @@ nsHTMLEditor::GetEmbeddedObjects(nsISupportsArray** aNodeList)
 NS_IMETHODIMP nsHTMLEditor::DeleteNode(nsIDOMNode * aNode)
 {
   // do nothing if the node is read-only
-  if (!IsModifiableNode(aNode) && !IsMozEditorBogusNode(aNode)) {
+  if (!IsModifiableNode(aNode)) {
     return NS_ERROR_FAILURE;
   }
 
@@ -3856,16 +3845,12 @@ void
 nsHTMLEditor::ContentInserted(nsIDocument *aDocument, nsIContent* aContainer,
                               nsIContent* aChild, PRInt32 /* unused */)
 {
-  if (!aChild) {
+  if (!aChild || !aChild->IsElement()) {
     return;
   }
 
   if (ShouldReplaceRootElement()) {
     ResetRootElementAndEventTarget();
-  }
-  // We don't need to handle our own modifications
-  else if (!mAction && (aContainer ? aContainer->IsEditable() : aDocument->IsEditable())) {
-    mRules->DocumentModified();
   }
 }
 
@@ -3876,10 +3861,6 @@ nsHTMLEditor::ContentRemoved(nsIDocument *aDocument, nsIContent* aContainer,
 {
   if (SameCOMIdentity(aChild, mRootElement)) {
     ResetRootElementAndEventTarget();
-  }
-  // We don't need to handle our own modifications
-  else if (!mAction && (aContainer ? aContainer->IsEditable() : aDocument->IsEditable())) {
-    mRules->DocumentModified();
   }
 }
 

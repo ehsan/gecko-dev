@@ -42,8 +42,8 @@
   text-shadow: none;
 }
 
-.hud-box.animated {
-  -moz-transition: height 350ms;
+.hud-group label {
+  padding-left: 1em;
 }
 
 .hud-outer-wrapper {
@@ -62,32 +62,38 @@
   font-weight: bold;
 }
 
+.hud-output-node * {
+  -moz-user-select: text;
+  white-space: pre-wrap;
+  -moz-user-focus: normal;
+}
+
 .hud-clickable {
-  cursor: pointer;
+  cursor: pointer !important;
   text-decoration: underline;
 }
 
-.hud-network {
+.hud-output-node .hud-network {
   color: blue;
 }
 
-.hud-error {
+.hud-output-node .hud-error {
   color: red;
 }
 
-.hud-log {
+.hud-output-node .hud-log {
   color: black;
 }
 
-.hud-warn {
+.hud-output-node .hud-warn {
   color: orange;
 }
 
-.hud-info {
+.hud-output-node .hud-info {
   color: green;
 }
 
-.hud-exception {
+.hud-output-node .hud-exception {
   color: red;
   font-weight: bold;
 }
@@ -96,10 +102,7 @@
   width: 100%;
   margin-top: 0.3em;
   margin-bottom: 0.3em;
-  padding-left: 1em;
-  -moz-user-select: text;
-  white-space: pre-wrap;
-  -moz-user-focus: normal;
+  padding-left: 0.3em;
 }
 
 .hud-output-node {
@@ -121,7 +124,7 @@
   color: GrayText;
 }
 
-.hud-group:first-child > .hud-divider {
+.hud-group:first-child .hud-divider {
   display: none;
 }
 
@@ -148,6 +151,10 @@
   -moz-box-direction: reverse;
 }
 
+.jsterm-output-node div {
+  -moz-user-select: text;
+}
+
 .jsterm-scroll-to-node {
   height: 1px;
   width: 1px;
@@ -161,13 +168,13 @@
   font-family: monospace;
   font-size: 9pt;
   background: url("chrome://global/skin/icons/commandline.png") 4px 3px
-    no-repeat;
-  border: none;
-  padding: 0px 0px 0px 16px;
-  -moz-appearance: none;
+      no-repeat !important;
+  border: none !important;
+  padding: 0px 0px 0px 16px !important;
+  -moz-appearance: none !important;
 }
 
-.jsterm-input-node > .textbox-input-box > .textbox-textarea {
+.jsterm-input-node textarea {
   overflow-x: hidden;
 }
 
@@ -181,13 +188,13 @@
 }
 
 .jsterm-close-button {
-  background: none;
-  border: none;
+  background: none !important;
+  border: none !important;
   list-style-image: url("chrome://global/skin/icons/close.png");
-  margin: 0px;
-  min-width: 0px;
-  padding: 1px 3px 1px 7px;
-  -moz-appearance: none;
+  margin: 0px !important;
+  min-width: 0px !important;
+  padding: 1px 3px 1px 7px !important;
+  -moz-appearance: none !important;
   -moz-image-region: rect(0, 16px, 16px, 0);
   -moz-user-focus: ignore;
 }

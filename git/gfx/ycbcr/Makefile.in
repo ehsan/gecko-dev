@@ -19,7 +19,6 @@ EXPORTS      = chromium_types.h \
 
 CPPSRCS = yuv_convert.cpp \
           yuv_row_c.cpp \
-          yuv_row_table.cpp \
           $(NULL)
 
 ifdef _MSC_VER
@@ -27,20 +26,25 @@ CPPSRCS += yuv_row_win.cpp \
            $(NULL)
 else
 ifeq ($(OS_ARCH),Linux)
-CPPSRCS += yuv_row_posix.cpp \
+CPPSRCS += yuv_row_linux.cpp \
            $(NULL)
 else
 ifeq ($(OS_ARCH),SunOS)
-CPPSRCS += yuv_row_posix.cpp \
+CPPSRCS += yuv_row_linux.cpp \
            $(NULL)
 else
 ifeq ($(OS_ARCH),Darwin)
-CPPSRCS += yuv_row_posix.cpp \
+ifeq ($(OS_TEST),x86_64)
+CPPSRCS += yuv_row_linux.cpp \
            $(NULL)
+else
+CPPSRCS += yuv_row_mac.cpp \
+           $(NULL)
+endif
 else
 CPPSRCS += yuv_row_other.cpp \
            $(NULL)
-endif # Darwin
+endif # mac
 endif # SunOS
 endif # linux
 endif # windows

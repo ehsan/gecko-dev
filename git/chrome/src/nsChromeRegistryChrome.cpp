@@ -457,7 +457,7 @@ EnumerateOverride(nsIURI* aURIKey,
 
 struct EnumerationArgs
 {
-  InfallibleTArray<ChromePackage>& packages;
+  nsTArray<ChromePackage>& packages;
   const nsCString& selectedLocale;
   const nsCString& selectedSkin;
 };
@@ -466,9 +466,9 @@ void
 nsChromeRegistryChrome::SendRegisteredChrome(
     mozilla::dom::PContentParent* aParent)
 {
-  InfallibleTArray<ChromePackage> packages;
-  InfallibleTArray<ResourceMapping> resources;
-  InfallibleTArray<OverrideMapping> overrides;
+  nsTArray<ChromePackage> packages;
+  nsTArray<ResourceMapping> resources;
+  nsTArray<OverrideMapping> overrides;
 
   EnumerationArgs args = {
     packages, mSelectedLocale, mSelectedSkin

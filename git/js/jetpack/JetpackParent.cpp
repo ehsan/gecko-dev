@@ -100,9 +100,7 @@ JetpackParent::SendMessage(const nsAString& aMessageName)
     if (!jsval_to_Variant(cx, argv[i], data.AppendElement()))
       return NS_ERROR_INVALID_ARG;
 
-  InfallibleTArray<Variant> dataForSend;
-  dataForSend.SwapElements(data);
-  if (!SendSendMessage(nsString(aMessageName), dataForSend))
+  if (!SendSendMessage(nsString(aMessageName), data))
     return NS_ERROR_FAILURE;
 
   return NS_OK;
@@ -164,7 +162,7 @@ private:
 
 bool
 JetpackParent::RecvSendMessage(const nsString& messageName,
-                               const InfallibleTArray<Variant>& data)
+                               const nsTArray<Variant>& data)
 {
   AutoCXPusher cxp(mContext);
   JSAutoRequest request(mContext);
@@ -178,8 +176,8 @@ JetpackParent::RecvSendMessage(const nsString& messageName,
 
 bool
 JetpackParent::AnswerCallMessage(const nsString& messageName,
-                                 const InfallibleTArray<Variant>& data,
-                                 InfallibleTArray<Variant>* results)
+                                 const nsTArray<Variant>& data,
+                                 nsTArray<Variant>* results)
 {
   AutoCXPusher cxp(mContext);
   JSAutoRequest request(mContext);

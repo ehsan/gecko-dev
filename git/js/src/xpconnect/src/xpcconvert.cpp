@@ -290,7 +290,8 @@ XPCConvert::NativeData2JS(XPCLazyCallContext& lccx, jsval* d, const void* s,
 
     case nsXPTType::T_JSVAL :
         {
-            *d = *((jsval*)s);
+            JS_STATIC_ASSERT(sizeof(jsval) <= sizeof(uint64));
+            *d = **((jsval**)s);
 
             JSAutoEnterCompartment ac;
             XPCCallContext &ccx = lccx.GetXPCCallContext();

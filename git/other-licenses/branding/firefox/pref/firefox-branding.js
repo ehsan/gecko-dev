@@ -14,9 +14,8 @@ pref("app.update.url.manual", "http://www.firefox.com");
 // supplied in the "An update is available" page of the update wizard. 
 pref("app.update.url.details", "http://www.mozilla.com/%LOCALE%/%APP%/releases/");
 
-// Release notes and vendor URLs
+// Release notes URL
 pref("app.releaseNotesURL", "http://www.mozilla.com/%LOCALE%/%APP%/%VERSION%/releasenotes/");
-pref("app.vendorURL", "http://www.mozilla.com/%LOCALE%/%APP%/");
 
 pref("browser.search.param.ms-pc", "MOZI");
 pref("browser.search.param.yahoo-fr", "moz35");

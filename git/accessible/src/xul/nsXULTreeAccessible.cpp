@@ -472,21 +472,23 @@ nsXULTreeAccessible::GetTreeItemAccessible(PRInt32 aRow)
     return nsnull;
 
   void *key = reinterpret_cast<void*>(aRow);
-  nsAccessible* cachedTreeItem = mAccessibleCache.GetWeak(key);
-  if (cachedTreeItem)
-    return cachedTreeItem;
+  nsRefPtr<nsAccessible> accessible = mAccessibleCache.GetWeak(key);
 
-  nsRefPtr<nsAccessible> treeItem = CreateTreeItemAccessible(aRow);
-  if (treeItem) {
-    if (mAccessibleCache.Put(key, treeItem)) {
-      if (GetDocAccessible()->BindToDocument(treeItem, nsnull))
-        return treeItem;
+  if (!accessible) {
+    accessible = CreateTreeItemAccessible(aRow);
+    if (!accessible)
+      return nsnull;
 
-      mAccessibleCache.Remove(key);
+    if (!accessible->Init()) {
+      accessible->Shutdown();
+      return nsnull;
     }
+
+    if (!mAccessibleCache.Put(key, accessible))
+      return nsnull;
   }
 
-  return nsnull;
+  return accessible;
 }
 
 void
@@ -499,21 +501,22 @@ nsXULTreeAccessible::InvalidateCache(PRInt32 aRow, PRInt32 aCount)
   if (aCount > 0)
     return;
 
-  nsDocAccessible* document = GetDocAccessible();
-
   // Fire destroy event for removed tree items and delete them from caches.
   for (PRInt32 rowIdx = aRow; rowIdx < aRow - aCount; rowIdx++) {
 
     void* key = reinterpret_cast<void*>(rowIdx);
-    nsAccessible* treeItem = mAccessibleCache.GetWeak(key);
+    nsAccessible *accessible = mAccessibleCache.GetWeak(key);
 
-    if (treeItem) {
+    if (accessible) {
       nsRefPtr<AccEvent> event =
-        new AccEvent(nsIAccessibleEvent::EVENT_HIDE, treeItem);
+        new AccEvent(nsIAccessibleEvent::EVENT_HIDE, accessible);
       nsEventShell::FireEvent(event);
 
-      // Unbind from document, shutdown and remove from tree cache.
-      document->UnbindFromDocument(treeItem);
+      // Shutdown and remove accessible from document cache and tree cache.
+      nsDocAccessible *docAccessible = GetDocAccessible();
+      if (docAccessible)
+        docAccessible->ShutdownAccessible(accessible);
+
       mAccessibleCache.Remove(key);
     }
   }
@@ -531,11 +534,14 @@ nsXULTreeAccessible::InvalidateCache(PRInt32 aRow, PRInt32 aCount)
   for (PRInt32 rowIdx = newRowCount; rowIdx < oldRowCount; ++rowIdx) {
 
     void *key = reinterpret_cast<void*>(rowIdx);
-    nsAccessible* treeItem = mAccessibleCache.GetWeak(key);
+    nsAccessible *accessible = mAccessibleCache.GetWeak(key);
 
-    if (treeItem) {
-      // Unbind from document, shutdown and remove from tree cache.
-      document->UnbindFromDocument(treeItem);
+    if (accessible) {
+      // Shutdown and remove accessible from document cache and tree cache.
+      nsDocAccessible *docAccessible = GetDocAccessible();
+      if (docAccessible)
+        docAccessible->ShutdownAccessible(accessible);
+
       mAccessibleCache.Remove(key);
     }
   }

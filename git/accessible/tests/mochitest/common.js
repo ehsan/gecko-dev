@@ -320,41 +320,27 @@ function testAccessibleTree(aAccOrElmOrID, aAccTree)
   if (!acc)
     return;
 
-  var accTree = aAccTree;
-
-  // Support of simplified accessible tree object.
-  var key = Object.keys(accTree)[0];
-  var roleName = "ROLE_" + key;
-  if (roleName in nsIAccessibleRole) {
-    accTree = {
-      role: nsIAccessibleRole[roleName],
-      children: accTree[key]
-    };
-  }
-
-  // Test accessible properties.
-  for (var prop in accTree) {
+  for (var prop in aAccTree) {
     var msg = "Wrong value of property '" + prop + "' for " + prettyName(acc) + ".";
     if (prop == "role") {
-      is(roleToString(acc[prop]), roleToString(accTree[prop]), msg);
+      is(roleToString(acc[prop]), roleToString(aAccTree[prop]), msg);
 
     } else if (prop == "states") {
-      var statesObj = accTree[prop];
+      var statesObj = aAccTree[prop];
       testStates(acc, statesObj.states, statesObj.extraStates,
                  statesObj.absentStates, statesObj.absentExtraStates);
 
     } else if (prop != "children") {
-      is(acc[prop], accTree[prop], msg);
+      is(acc[prop], aAccTree[prop], msg);
     }
   }
 
-  // Test children.
-  if ("children" in accTree && accTree["children"] instanceof Array) {
+  if ("children" in aAccTree && aAccTree["children"] instanceof Array) {
     var children = acc.children;
-    is(children.length, accTree.children.length,
+    is(children.length, aAccTree.children.length,
        "Different amount of expected children of " + prettyName(acc) + ".");
 
-    if (accTree.children.length == children.length) {
+    if (aAccTree.children.length == children.length) {
       var childCount = children.length;
 
       // nsIAccessible::firstChild
@@ -404,7 +390,7 @@ function testAccessibleTree(aAccOrElmOrID, aAccTree)
            "Wrong previous sibling of " + prettyName(child));
 
         // Go down through subtree
-        testAccessibleTree(child, accTree.children[i]);
+        testAccessibleTree(child, aAccTree.children[i]);
       }
     }
   }
