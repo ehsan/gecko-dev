@@ -1612,10 +1612,10 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
   JSContext *cx = GetJSContextFromDoc(doc);
   NS_ENSURE_TRUE(cx, false);
 
-  JSAutoRequest req(cx);
-
   nsCOMPtr<nsIScriptContext> scx = GetScriptContextFromJSContext(cx);
   NS_ENSURE_TRUE(scx, false);
+
+  JSAutoRequest req(cx);
 
   JSObject *obj =
     nsNPObjWrapper::GetNewOrUsed(npp, cx, npobj);
@@ -2232,6 +2232,11 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
   case NPNVsupportsCocoaBool: {
     *(NPBool*)result = PR_TRUE;
 
+    return NPERR_NO_ERROR;
+  }
+
+  case NPNVsupportsUpdatedCocoaTextInputBool: {
+    *(NPBool*)result = true;
     return NPERR_NO_ERROR;
   }
 #endif

@@ -81,9 +81,16 @@ PARTIAL_DATA_SYNC:                     60 * 1000, // 1 minute
 // and the mobile sync interval.
 HMAC_EVENT_INTERVAL:                   600000,
 
+// How long to wait between sync attempts if the Master Password is locked.
+MASTER_PASSWORD_LOCKED_RETRY_INTERVAL: 15 * 60 * 1000,   // 15 minutes
+
 // 50 is hardcoded here because of URL length restrictions.
 // (GUIDs can be up to 64 chars long)
 MOBILE_BATCH_SIZE:                     50,
+
+// Default batch size for applying incoming records.
+DEFAULT_STORE_BATCH_SIZE:              1,
+HISTORY_STORE_BATCH_SIZE:              50, // same as MOBILE_BATCH_SIZE
 
 // score thresholds for early syncs
 SINGLE_USER_THRESHOLD:                 1000,
@@ -116,6 +123,7 @@ LOGIN_FAILED:                          "error.login.failed",
 SYNC_FAILED_PARTIAL:                   "error.sync.failed_partial",
 CLIENT_NOT_CONFIGURED:                 "service.client_not_configured",
 STATUS_DISABLED:                       "service.disabled",
+MASTER_PASSWORD_LOCKED:                "service.master_password_locked",
 
 // success states
 LOGIN_SUCCEEDED:                       "success.login",
@@ -147,6 +155,7 @@ RESPONSE_OVER_QUOTA:                   "14",
 ENGINE_UPLOAD_FAIL:                    "error.engine.reason.record_upload_fail",
 ENGINE_DOWNLOAD_FAIL:                  "error.engine.reason.record_download_fail",
 ENGINE_UNKNOWN_FAIL:                   "error.engine.reason.unknown_fail",
+ENGINE_APPLY_FAIL:                     "error.engine.reason.apply_fail",
 ENGINE_METARECORD_DOWNLOAD_FAIL:       "error.engine.reason.metarecord_download_fail",
 ENGINE_METARECORD_UPLOAD_FAIL:         "error.engine.reason.metarecord_upload_fail",
 
@@ -161,6 +170,7 @@ JPAKE_ERROR_KEYMISMATCH:               "jpake.error.keymismatch",
 JPAKE_ERROR_WRONGMESSAGE:              "jpake.error.wrongmessage",
 
 // Ways that a sync can be disabled (messages only to be printed in debug log)
+kSyncMasterPasswordLocked:             "User elected to leave Master Password locked",
 kSyncWeaveDisabled:                    "Weave is disabled",
 kSyncNotLoggedIn:                      "User is not logged in",
 kSyncNetworkOffline:                   "Network is offline",

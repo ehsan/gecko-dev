@@ -62,6 +62,12 @@ extern "C" {
 #define SA_PER_STREAM_VOLUME 1
 #endif
 
+// Android's audio backend is not available in content processes, so audio must
+// be remoted to the parent chrome process.
+#if defined(ANDROID) && defined(MOZ_IPC)
+#define REMOTE_AUDIO 1
+#endif
+
 using mozilla::TimeStamp;
 
 #ifdef PR_LOGGING
@@ -83,7 +89,7 @@ class nsAudioStreamLocal : public nsAudioStream
   void Shutdown();
   nsresult Write(const void* aBuf, PRUint32 aCount, PRBool aBlocking);
   PRUint32 Available();
-  void SetVolume(float aVolume);
+  void SetVolume(double aVolume);
   void Drain();
   void Pause();
   void Resume();
@@ -128,7 +134,7 @@ class nsAudioStreamRemote : public nsAudioStream
   void Shutdown();
   nsresult Write(const void* aBuf, PRUint32 aCount, PRBool aBlocking);
   PRUint32 Available();
-  void SetVolume(float aVolume);
+  void SetVolume(double aVolume);
   void Drain();
   void Pause();
   void Resume();
@@ -203,10 +209,10 @@ class AudioWriteEvent : public nsRunnable
 class AudioSetVolumeEvent : public nsRunnable
 {
  public:
-  AudioSetVolumeEvent(AudioChild* aChild, float volume)
+  AudioSetVolumeEvent(AudioChild* aChild, double aVolume)
   {
     mAudioChild = aChild;
-    mVolume = volume;
+    mVolume = aVolume;
   }
 
   NS_IMETHOD Run()
@@ -219,7 +225,7 @@ class AudioSetVolumeEvent : public nsRunnable
   }
   
   nsRefPtr<AudioChild> mAudioChild;
-  float mVolume;
+  double mVolume;
 };
 
 class AudioDrainEvent : public nsRunnable
@@ -281,7 +287,7 @@ class AudioShutdownEvent : public nsRunnable
   NS_IMETHOD Run()
   {
     if (mAudioChild->IsIPCOpen())
-      PAudioChild::Send__delete__(mAudioChild);
+      mAudioChild->SendShutdown();
     return NS_OK;
   }
   
@@ -312,7 +318,7 @@ nsAudioStream::GetThread()
 
 nsAudioStream* nsAudioStream::AllocateStream()
 {
-#ifdef MOZ_IPC
+#if defined(REMOTE_AUDIO)
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     return new nsAudioStreamRemote();
   }
@@ -491,7 +497,7 @@ PRUint32 nsAudioStreamLocal::Available()
   return s / sizeof(short);
 }
 
-void nsAudioStreamLocal::SetVolume(float aVolume)
+void nsAudioStreamLocal::SetVolume(double aVolume)
 {
   NS_ASSERTION(aVolume >= 0.0 && aVolume <= 1.0, "Invalid volume");
 #if defined(SA_PER_STREAM_VOLUME)
@@ -506,6 +512,8 @@ void nsAudioStreamLocal::SetVolume(float aVolume)
 
 void nsAudioStreamLocal::Drain()
 {
+  NS_ASSERTION(!mPaused, "Don't drain audio when paused, it won't finish!");
+
   if (mInError)
     return;
 
@@ -673,7 +681,7 @@ PRInt32 nsAudioStreamRemote::GetMinWriteSamples()
 }
 
 void
-nsAudioStreamRemote::SetVolume(float aVolume)
+nsAudioStreamRemote::SetVolume(double aVolume)
 {
   if (!mAudioChild)
     return;

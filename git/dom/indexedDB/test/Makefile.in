@@ -51,11 +51,13 @@ TEST_FILES = \
   event_propagation_iframe.html \
   exceptions_in_success_events_iframe.html \
   helpers.js \
+  leaving_page_iframe.html \
   test_add_twice_failure.html \
   test_bad_keypath.html \
   test_bfcache.html \
   test_clear.html \
   test_create_index.html \
+  test_create_index_with_integer_keys.html \
   test_create_objectStore.html \
   test_cursors.html \
   test_cursor_mutation.html \
@@ -72,10 +74,12 @@ TEST_FILES = \
   test_indexes.html \
   test_indexes_bad_values.html \
   test_key_requirements.html \
+  test_leaving_page.html \
   test_objectCursors.html \
   test_objectStore_inline_autoincrement_key_added_on_put.html \
   test_objectStore_remove_values.html \
   test_object_identity.html \
+  test_odd_result_order.html \
   test_open_empty_db.html \
   test_open_objectStore.html \
   test_overlapping_transactions.html \
@@ -100,6 +104,9 @@ TEST_FILES = \
 
 ifeq (browser,$(MOZ_BUILD_APP))
 BROWSER_TEST_FILES = \
+  browser_forgetThisSite.js \
+  browser_forgetThisSiteAdd.html \
+  browser_forgetThisSiteGet.html \
   browserHelpers.js \
   browser_permissionsPrompt.html \
   browser_permissionsPromptAllow.js \

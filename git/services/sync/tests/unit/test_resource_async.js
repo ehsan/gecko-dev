@@ -1,4 +1,3 @@
-Cu.import("resource://services-sync/auth.js");
 Cu.import("resource://services-sync/ext/Observers.js");
 Cu.import("resource://services-sync/identity.js");
 Cu.import("resource://services-sync/log4moz.js");
@@ -166,17 +165,6 @@ function run_test() {
   Observers.add("weave:service:quota:remaining",
                 function (subject) quotaValue = subject);
 
-
-  // Ensure exceptions from inside callbacks leads to test failures.
-  function ensureThrows(func) {
-    return function() {
-      try {
-        func.apply(this, arguments);
-      } catch (ex) {
-        do_throw(ex);
-      }
-    };
-  }
 
   let res_upload = new AsyncResource("http://localhost:8080/upload");
   let res_headers = new AsyncResource("http://localhost:8080/headers");

@@ -146,6 +146,7 @@ _BROWSER_FILES = \
                  browser_bug562649.js \
                  browser_bug563588.js \
                  browser_bug565575.js \
+                 browser_zbug569342.js \
                  browser_bug575561.js \
                  browser_bug577121.js \
                  browser_bug579872.js \
@@ -165,8 +166,11 @@ _BROWSER_FILES = \
                  browser_bug599325.js \
                  browser_bug609700.js \
                  browser_bug616836.js \
+                 browser_bug623893.js \
+                 browser_bug624734.js \
                  browser_contextSearchTabPosition.js \
                  browser_ctrlTab.js \
+                 browser_customize_popupNotification.js \
                  browser_disablechrome.js \
                  browser_discovery.js \
                  browser_duplicateIDs.js \
@@ -228,12 +232,12 @@ _BROWSER_FILES = \
                  browser_tabMatchesInAwesomebar.js \
                  file_bug550565_popup.html \
                  file_bug550565_favicon.ico \
-                 browser_overLinkInLocationBar.js \
                  browser_aboutHome.js \
                  app_bug575561.html \
                  app_subframe_bug575561.html \
                  browser_contentAreaClick.js \
                  browser_addon_bar_close_button.js \
+                 browser_addon_bar_shortcut.js \
                  $(NULL)
 
 # compartment-disabled

@@ -175,7 +175,7 @@ trymoreglyphs:
             continue;
         }
 
-        if (mFont->ProvidesHintedWidths()) {
+        if (!static_cast<gfxDWriteFont*>(mFont)->mUseSubpixelPositions) {
             hr = analyzer->GetGdiCompatibleGlyphPlacements(
                                               aString + range.start,
                                               clusters.Elements(),
@@ -188,7 +188,7 @@ trymoreglyphs:
                                               font->GetAdjustedSize(),
                                               1.0,
                                               nsnull,
-                                              TRUE,
+                                              FALSE,
                                               FALSE,
                                               FALSE,
                                               &runHead->mScript,

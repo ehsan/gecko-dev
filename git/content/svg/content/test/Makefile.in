@@ -66,8 +66,12 @@ _TEST_FILES = \
 		test_nonAnimStrings.xhtml \
 		test_pathSeg.xhtml \
 		test_pointer-events.xhtml \
+		test_pointer-events-2.xhtml \
 		test_scientific.html \
 		scientific-helper.svg \
+		test_SVGAnimatedImageSMILDisabled.html \
+		animated-svg-image-helper.html \
+		animated-svg-image-helper.svg \
 		test_SVGLengthList.xhtml \
 		test_SVGPathSegList.xhtml \
 		test_SVGStyleElement.xhtml \

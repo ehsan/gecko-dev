@@ -176,6 +176,14 @@ public:
              const SurfaceDescriptor& newSurface,
              SurfaceDescriptor* prevSurface);
 
+    virtual PPluginSurfaceParent*
+    AllocPPluginSurface(const WindowsSharedMemoryHandle& handle,
+                        const gfxIntSize& size,
+                        const bool& transparent);
+
+    virtual bool
+    DeallocPPluginSurface(PPluginSurfaceParent* s);
+
     virtual bool
     AnswerNPN_PushPopupsEnabledState(const bool& aState);
 
@@ -212,6 +220,9 @@ public:
                            double *destX,
                            double *destY,
                            bool *result);
+
+    NS_OVERRIDE virtual bool
+    RecvNegotiatedCarbon();
 
     NPError NPP_SetWindow(const NPWindow* aWindow);
 

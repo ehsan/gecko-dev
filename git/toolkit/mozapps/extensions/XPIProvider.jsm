@@ -74,6 +74,8 @@ const PREF_XPI_WHITELIST_PERMISSIONS  = "xpinstall.whitelist.add";
 const PREF_XPI_BLACKLIST_PERMISSIONS  = "xpinstall.blacklist.add";
 const PREF_XPI_UNPACK                 = "extensions.alwaysUnpack";
 const PREF_INSTALL_REQUIREBUILTINCERTS = "extensions.install.requireBuiltInCerts";
+const PREF_INSTALL_DISTRO_ADDONS      = "extensions.installDistroAddons";
+const PREF_BRANCH_INSTALLED_ADDON     = "extensions.installedDistroAddon.";
 
 const URI_EXTENSION_UPDATE_DIALOG     = "chrome://mozapps/content/extensions/update.xul";
 
@@ -91,6 +93,7 @@ const FILE_XPI_ADDONS_LIST            = "extensions.ini";
 const KEY_PROFILEDIR                  = "ProfD";
 const KEY_APPDIR                      = "XCurProcD";
 const KEY_TEMPDIR                     = "TmpD";
+const KEY_APP_DISTRIBUTION            = "XREAppDist";
 
 const KEY_APP_PROFILE                 = "app-profile";
 const KEY_APP_GLOBAL                  = "app-global";
@@ -163,38 +166,42 @@ var gIDTest = /^(\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\
 }, this);
 
 /**
- * A safe way to move a file or the contents of a directory to a new directory.
- * The move is performed recursively and if anything fails an attempt is made to
- * rollback the entire operation. The operation may also be rolled back to its
- * original state after it has completed by calling the rollback method.
+ * A safe way to install a file or the contents of a directory to a new
+ * directory. The file or directory is moved or copied recursively and if
+ * anything fails an attempt is made to rollback the entire operation. The
+ * operation may also be rolled back to its original state after it has
+ * completed by calling the rollback method.
  *
- * Moves can be chained. Calling move multiple times will remember the whole set
- * and if one fails all of the move operations will be rolled back.
+ * Operations can be chained. Calling move or copy multiple times will remember
+ * the whole set and if one fails all of the operations will be rolled back.
  */
-function SafeMoveOperation() {
-  this._movedFiles = [];
+function SafeInstallOperation() {
+  this._installedFiles = [];
   this._createdDirs = [];
 }
 
-SafeMoveOperation.prototype = {
-  _movedFiles: null,
+SafeInstallOperation.prototype = {
+  _installedFiles: null,
   _createdDirs: null,
 
-  _moveFile: function(aFile, aTargetDirectory) {
-    let oldFile = aFile.clone();
+  _installFile: function(aFile, aTargetDirectory, aCopy) {
+    let oldFile = aCopy ? null : aFile.clone();
     let newFile = aFile.clone();
     try {
-      newFile.moveTo(aTargetDirectory, null);
+      if (aCopy)
+        newFile.copyTo(aTargetDirectory, null);
+      else
+        newFile.moveTo(aTargetDirectory, null);
     }
     catch (e) {
-      ERROR("Failed to move file " + aFile.path + " to " +
-            aTargetDirectory.path, e);
+      ERROR("Failed to " + (aCopy ? "copy" : "move") + " file " + aFile.path +
+            " to " + aTargetDirectory.path, e);
       throw e;
     }
-    this._movedFiles.push({ oldFile: oldFile, newFile: newFile });
+    this._installedFiles.push({ oldFile: null, newFile: newFile });
   },
 
-  _moveDirectory: function(aDirectory, aTargetDirectory) {
+  _installDirectory: function(aDirectory, aTargetDirectory, aCopy) {
     let newDir = aTargetDirectory.clone();
     newDir.append(aDirectory.leafName);
     try {
@@ -220,13 +227,18 @@ SafeMoveOperation.prototype = {
 
     cacheEntries.forEach(function(aEntry) {
       try {
-        this._moveDirEntry(aEntry, newDir);
+        this._installDirEntry(aEntry, newDir, aCopy);
       }
       catch (e) {
-        ERROR("Failed to move entry " + aEntry.path, e);
+        ERROR("Failed to " + (aCopy ? "copy" : "move") + " entry " +
+              aEntry.path, e);
         throw e;
       }
     }, this);
+
+    // If this is only a copy operation then there is nothing else to do
+    if (aCopy)
+      return;
 
     // The directory should be empty by this point. If it isn't this will throw
     // and all of the operations will be rolled back
@@ -241,18 +253,19 @@ SafeMoveOperation.prototype = {
 
     // Note we put the directory move in after all the file moves so the
     // directory is recreated before all the files are moved back
-    this._movedFiles.push({ oldFile: aDirectory, newFile: newDir });
+    this._installedFiles.push({ oldFile: aDirectory, newFile: newDir });
   },
 
-  _moveDirEntry: function(aDirEntry, aTargetDirectory) {
+  _installDirEntry: function(aDirEntry, aTargetDirectory, aCopy) {
     try {
       if (aDirEntry.isDirectory())
-        this._moveDirectory(aDirEntry, aTargetDirectory);
+        this._installDirectory(aDirEntry, aTargetDirectory, aCopy);
       else
-        this._moveFile(aDirEntry, aTargetDirectory);
+        this._installFile(aDirEntry, aTargetDirectory, aCopy);
     }
     catch (e) {
-      ERROR("Failure moving " + aDirEntry.path + " to " + aTargetDirectory.path);
+      ERROR("Failure " + (aCopy ? "copying" : "moving") + " " + aDirEntry.path +
+            " to " + aTargetDirectory.path);
       throw e;
     }
   },
@@ -269,7 +282,27 @@ SafeMoveOperation.prototype = {
    */
   move: function(aFile, aTargetDirectory) {
     try {
-      this._moveDirEntry(aFile, aTargetDirectory);
+      this._installDirEntry(aFile, aTargetDirectory, false);
+    }
+    catch (e) {
+      this.rollback();
+      throw e;
+    }
+  },
+
+  /**
+   * Copies a file or directory into a new directory. If an error occurs then
+   * all new files that have been created will be removed.
+   *
+   * @param  aFile
+   *         The file or directory to be copied.
+   * @param  aTargetDirectory
+   *         The directory to copy into, this is expected to be an empty
+   *         directory.
+   */
+  copy: function(aFile, aTargetDirectory) {
+    try {
+      this._installDirEntry(aFile, aTargetDirectory, true);
     }
     catch (e) {
       this.rollback();
@@ -283,12 +316,16 @@ SafeMoveOperation.prototype = {
    * state
    */
   rollback: function() {
-    while (this._movedFiles.length > 0) {
-      let move = this._movedFiles.pop();
+    while (this._installedFiles.length > 0) {
+      let move = this._installedFiles.pop();
       if (move.newFile.isDirectory()) {
         let oldDir = move.oldFile.parent.clone();
         oldDir.append(move.oldFile.leafName);
         oldDir.create(Ci.nsILocalFile.DIRECTORY_TYPE, FileUtils.PERMS_DIRECTORY);
+      }
+      else if (!move.oldFile) {
+        // No old file means this was a copied file
+        move.newFile.remove(true);
       }
       else {
         move.newFile.moveTo(move.oldFile.parent, null);
@@ -775,6 +812,13 @@ function loadManifestFromZipFile(aXPIFile) {
   finally {
     zipReader.close();
   }
+}
+
+function loadManifestFromFile(aFile) {
+  if (aFile.isFile())
+    return loadManifestFromZipFile(aFile);
+  else
+    return loadManifestFromDir(aFile);
 }
 
 /**
@@ -1362,7 +1406,7 @@ var XPIProvider = {
     Services.prefs.addObserver(this.checkCompatibilityPref, this, false);
     Services.prefs.addObserver(PREF_EM_CHECK_UPDATE_SECURITY, this, false);
 
-    this.checkForChanges(aAppChanged);
+    let flushCaches = this.checkForChanges(aAppChanged);
 
     // Changes to installed extensions may have changed which theme is selected
     this.applyThemeChange();
@@ -1377,6 +1421,7 @@ var XPIProvider = {
       // Should we show a UI or just pass the list via a pref?
       if (Prefs.getBoolPref(PREF_EM_SHOW_MISMATCH_UI, true)) {
         this.showMismatchWindow();
+        flushCaches = true;
       }
       else if (this.startupChanges.appDisabled.length > 0) {
         // Remember the list of add-ons that were disabled this startup so
@@ -1384,6 +1429,12 @@ var XPIProvider = {
         Services.prefs.setCharPref(PREF_EM_DISABLED_ADDONS_LIST,
                                    this.startupChanges.appDisabled.join(","));
       }
+    }
+
+    if (flushCaches) {
+      // Init this, so it will get the notification.
+      let xulPrototypeCache = Cc["@mozilla.org/xul/xul-prototype-cache;1"].getService(Ci.nsISupports);
+      Services.obs.notifyObservers(null, "startupcache-invalidate", null);
     }
 
     this.enabledAddons = Prefs.getCharPref(PREF_EM_ENABLED_ADDONS, "");
@@ -1795,6 +1846,131 @@ var XPIProvider = {
   },
 
   /**
+   * Installs any add-ons located in the extensions directory of the
+   * application's distribution specific directory into the profile unless a
+   * newer version already exists or the user has previously uninstalled the
+   * distributed add-on.
+   *
+   * @param  aManifests
+   *         A dictionary to add new install manifests to to save having to
+   *         reload them later
+   * @return true if any new add-ons were installed
+   */
+  installDistributionAddons: function XPI_installDistributionAddons(aManifests) {
+    let distroDir;
+    try {
+      distroDir = FileUtils.getDir(KEY_APP_DISTRIBUTION, [DIR_EXTENSIONS]);
+    }
+    catch (e) {
+      return false;
+    }
+
+    if (!distroDir.exists())
+      return false;
+
+    if (!distroDir.isDirectory())
+      return false;
+
+    let changed = false;
+    let profileLocation = this.installLocationsByName[KEY_APP_PROFILE];
+
+    let entries = distroDir.directoryEntries
+                           .QueryInterface(Ci.nsIDirectoryEnumerator);
+    let entry;
+    while (entry = entries.nextFile) {
+      // Should never happen really
+      if (!(entry instanceof Ci.nsILocalFile))
+        continue;
+
+      let id = entry.leafName;
+
+      if (entry.isFile()) {
+        if (id.substring(id.length - 4).toLowerCase() == ".xpi") {
+          id = id.substring(0, id.length - 4);
+        }
+        else {
+          LOG("Ignoring distribution add-on that isn't an XPI: " + entry.path);
+          continue;
+        }
+      }
+      else if (!entry.isDirectory()) {
+        LOG("Ignoring distribution add-on that isn't a file or directory: " +
+            entry.path);
+        continue;
+      }
+
+      if (!gIDTest.test(id)) {
+        LOG("Ignoring distribution add-on whose name is not a valid add-on ID: " +
+            entry.path);
+        continue;
+      }
+
+      let addon;
+      try {
+        addon = loadManifestFromFile(entry);
+      }
+      catch (e) {
+        WARN("File entry " + entry.path + " contains an invalid add-on", e);
+        continue;
+      }
+
+      if (addon.id != id) {
+        WARN("File entry " + entry.path + " contains an add-on with an " +
+             "incorrect ID")
+        continue;
+      }
+
+      let existingEntry = null;
+      try {
+        existingEntry = profileLocation.getLocationForID(id);
+      }
+      catch (e) {
+      }
+
+      if (existingEntry) {
+        let existingAddon;
+        try {
+          existingAddon = loadManifestFromFile(existingEntry);
+
+          if (Services.vc.compare(addon.version, existingAddon.version) <= 0)
+            continue;
+        }
+        catch (e) {
+          // Bad add-on in the profile so just proceed and install over the top
+          WARN("Profile contains an add-on with a bad or missing install " +
+               "manifest at " + existingEntry.path + ", overwriting", e);
+        }
+      }
+      else if (Prefs.getBoolPref(PREF_BRANCH_INSTALLED_ADDON + id, false)) {
+        continue;
+      }
+
+      // Install the add-on
+      try {
+        profileLocation.installAddon(id, entry, null, true);
+        LOG("Installed distribution add-on " + id);
+
+        Services.prefs.setBoolPref(PREF_BRANCH_INSTALLED_ADDON + id, true)
+
+        // aManifests may contain a copy of a newly installed add-on's manifest
+        // and we'll have overwritten that so instead cache our install manifest
+        // which will later be put into the database in processFileChanges
+        if (!(KEY_APP_PROFILE in aManifests))
+          aManifests[KEY_APP_PROFILE] = {};
+        aManifests[KEY_APP_PROFILE][id] = addon;
+        changed = true;
+      }
+      catch (e) {
+        ERROR("Failed to install distribution add-on " + entry.path, e);
+      }
+    }
+
+    entries.close();
+
+    return changed;
+  },
+
+  /**
    * Compares the add-ons that are currently installed to those that were
    * known to be installed when the application last ran and applies any
    * changes found to the database. Also sends "startupcache-invalidate" signal to
@@ -1823,6 +1999,8 @@ var XPIProvider = {
                                                       aMigrateData,
                                                       aActiveBundles) {
     let visibleAddons = {};
+    let oldBootstrappedAddons = this.bootstrappedAddons;
+    this.bootstrappedAddons = {};
 
     /**
      * Updates an add-on's metadata and determines if a restart of the
@@ -1849,10 +2027,7 @@ var XPIProvider = {
         // If not load it
         if (!newAddon) {
           let file = aInstallLocation.getLocationForID(aOldAddon.id);
-          if (file.isFile())
-            newAddon = loadManifestFromZipFile(file);
-          else
-            newAddon = loadManifestFromDir(file);
+          newAddon = loadManifestFromFile(file);
           // Carry over the userDisabled setting for add-ons that just appeared
           newAddon.userDisabled = aOldAddon.userDisabled;
         }
@@ -1870,12 +2045,8 @@ var XPIProvider = {
         else
           WARN("Could not uninstall invalid item from locked install location");
         // If this was an active add-on then we must force a restart
-        if (aOldAddon.active) {
-          if (aOldAddon.bootstrap)
-            delete XPIProvider.bootstrappedAddons[aOldAddon.id];
-          else
-            return true;
-        }
+        if (aOldAddon.active)
+          return true;
 
         return false;
       }
@@ -1994,20 +2165,18 @@ var XPIProvider = {
             // Update the add-ons active state
             aOldAddon.active = !isDisabled;
             XPIDatabase.updateAddonActive(aOldAddon);
-            if (aOldAddon.active) {
-              XPIProvider.bootstrappedAddons[aOldAddon.id] = {
-                version: aOldAddon.version,
-                descriptor: aAddonState.descriptor
-              };
-            }
-            else {
-              delete XPIProvider.bootstrappedAddons[aOldAddon.id];
-            }
           }
           else {
             changed = true;
           }
         }
+      }
+
+      if (aOldAddon.visible && aOldAddon.active && aOldAddon.bootstrap) {
+        XPIProvider.bootstrappedAddons[aOldAddon.id] = {
+          version: aOldAddon.version,
+          descriptor: aAddonState.descriptor
+        };
       }
 
       return changed;
@@ -2035,16 +2204,9 @@ var XPIProvider = {
         if (aOldAddon.type == "theme")
           XPIProvider.enableDefaultTheme();
 
-        // If this was an active add-on and bootstrapped we must remove it from
-        // the bootstrapped list, otherwise we need to force a restart.
+        // If this was not a bootstrapped add-on then we must force a restart.
         if (!aOldAddon.bootstrap)
           return true;
-
-        // If this is the currently active bootstrapped add-on for this ID then
-        // remove it from the list.
-        if (aOldAddon.id in XPIProvider.bootstrappedAddons &&
-            XPIProvider.bootstrappedAddons[aOldAddon.id].descriptor == aOldAddon._descriptor)
-          XPIProvider.unloadBootstrapScope(aOldAddon.id);
       }
 
       return false;
@@ -2078,10 +2240,7 @@ var XPIProvider = {
         // Otherwise load the manifest from the add-on
         if (!newAddon) {
           let file = aInstallLocation.getLocationForID(aId);
-          if (file.isFile())
-            newAddon = loadManifestFromZipFile(file);
-          else
-            newAddon = loadManifestFromDir(file);
+          newAddon = loadManifestFromFile(file);
         }
         // The add-on in the manifest should match the add-on ID.
         if (newAddon.id != aId)
@@ -2164,8 +2323,9 @@ var XPIProvider = {
         let installReason = BOOTSTRAP_REASONS.ADDON_INSTALL;
 
         // If we're hiding a bootstrapped add-on then call its uninstall method
-        if (newAddon.id in XPIProvider.bootstrappedAddons) {
-          let oldBootstrap = XPIProvider.bootstrappedAddons[newAddon.id];
+        if (newAddon.id in oldBootstrappedAddons) {
+          let oldBootstrap = oldBootstrappedAddons[newAddon.id];
+          XPIProvider.bootstrappedAddons[newAddon.id] = oldBootstrap;
 
           installReason = Services.vc.compare(oldBootstrap.version, newAddon.version) < 0 ?
                           BOOTSTRAP_REASONS.ADDON_UPGRADE :
@@ -2278,11 +2438,6 @@ var XPIProvider = {
     cache = JSON.stringify(this.getInstallLocationStates());
     Services.prefs.setCharPref(PREF_INSTALL_CACHE, cache);
 
-    if (changed) {
-      // Init this, so it will get the notification.
-      let xulPrototypeCache = Cc["@mozilla.org/xul/xul-prototype-cache;1"].getService(Ci.nsISupports);
-      Services.obs.notifyObservers(null, "startupcache-invalidate", null);
-    }
     return changed;
   },
 
@@ -2350,6 +2505,11 @@ var XPIProvider = {
     // If the schema appears to have changed then we should update the database
     updateDatabase |= DB_SCHEMA != Prefs.getIntPref(PREF_DB_SCHEMA, 0);
 
+    // If the application has changed then check for new distribution add-ons
+    if (aAppChanged !== false &&
+        Prefs.getBoolPref(PREF_INSTALL_DISTRO_ADDONS, true))
+      updateDatabase = this.installDistributionAddons(manifests) | updateDatabase;
+
     // Load the list of bootstrapped add-ons first so processFileChanges can
     // modify it
     this.bootstrappedAddons = JSON.parse(Prefs.getCharPref(PREF_BOOTSTRAP_ADDONS,
@@ -2365,6 +2525,24 @@ var XPIProvider = {
       // If the state has changed then we must update the database
       let cache = Prefs.getCharPref(PREF_INSTALL_CACHE, null);
       updateDatabase |= cache != JSON.stringify(state);
+    }
+
+    if (!updateDatabase) {
+      let bootstrapDescriptors = [this.bootstrappedAddons[b].descriptor
+                                  for (b in this.bootstrappedAddons)];
+
+      state.forEach(function(aInstallLocationState) {
+        for (let id in aInstallLocationState.addons) {
+          let pos = bootstrapDescriptors.indexOf(aInstallLocationState.addons[id].descriptor);
+          if (pos != -1)
+            bootstrapDescriptors.splice(pos, 1);
+        }
+      });
+  
+      if (bootstrapDescriptors.length > 0) {
+        WARN("Bootstrap state is invalid (missing add-ons: " + bootstrapDescriptors.toSource() + ")");
+        updateDatabase = true;
+      }
     }
 
     // Catch any errors during the main startup and rollback the database changes
@@ -2412,7 +2590,7 @@ var XPIProvider = {
         Services.prefs.setBoolPref(PREF_PENDING_OPERATIONS, false);
         Services.prefs.setCharPref(PREF_BOOTSTRAP_ADDONS,
                                    JSON.stringify(this.bootstrappedAddons));
-        return;
+        return true;
       }
 
       LOG("No changes found");
@@ -2431,6 +2609,8 @@ var XPIProvider = {
       LOG("Add-ons list is missing, recreating");
       XPIDatabase.writeAddonsList();
     }
+
+    return false;
   },
 
   /**
@@ -2899,6 +3079,11 @@ var XPIProvider = {
     let name = aFile.leafName;
     let spec;
 
+    if (!bootstrap.exists()) {
+      ERROR("Attempted to load bootstrap scope from missing directory " + bootstrap.path);
+      return;
+    }
+
     if (bootstrap.isDirectory()) {
       bootstrap.append("bootstrap.js");
       let uri = Services.io.newFileURI(bootstrap);
@@ -2911,7 +3096,14 @@ var XPIProvider = {
                    createInstance(Ci.mozIJSSubScriptLoader);
 
       try {
-        loader.loadSubScript(spec, this.bootstrapScopes[aId]);
+        // As we don't want our caller to control the JS version used for the
+        // bootstrap file, we run loadSubScript within the context of the
+        // sandbox with the latest JS version set explicitly.
+        this.bootstrapScopes[aId].__SCRIPT_URI_SPEC__ = spec;
+        Components.utils.evalInSandbox(
+          "Components.classes['@mozilla.org/moz/jssubscript-loader;1'] \
+                     .createInstance(Components.interfaces.mozIJSSubScriptLoader) \
+                     .loadSubScript(__SCRIPT_URI_SPEC__);", this.bootstrapScopes[aId], "ECMAv5");
       }
       catch (e) {
         WARN("Error loading bootstrap.js for " + aId, e);
@@ -4029,6 +4221,15 @@ var XPIDatabase = {
     DB_BOOL_METADATA.forEach(function(aProp) {
       addon[aProp] = aRow[aProp] != 0;
     });
+    try {
+      addon._sourceBundle = addon._installLocation.getLocationForID(addon.id);
+    }
+    catch (e) {
+      // An exception will be thrown if the add-on appears in the database but
+      // not on disk. In general this should only happen during startup as
+      // this change is being detected.
+    }
+
     this.addonCache[aRow.internal_id] = Components.utils.getWeakReference(addon);
     return addon;
   },
@@ -4210,6 +4411,14 @@ var XPIDatabase = {
     DB_BOOL_METADATA.forEach(function(aProp) {
       addon[aProp] = aRow.getResultByName(aProp) != 0;
     });
+    try {
+      addon._sourceBundle = addon._installLocation.getLocationForID(addon.id);
+    }
+    catch (e) {
+      // An exception will be thrown if the add-on appears in the database but
+      // not on disk. In general this should only happen during startup as
+      // this change is being detected.
+    }
 
     this.addonCache[internal_id] = Components.utils.getWeakReference(addon);
     addon._pendingCallbacks = [aCallback];
@@ -5668,6 +5877,7 @@ AddonInstall.prototype = {
         cleanStagingDir(stagedAddon.parent, []);
 
         // Update the metadata in the database
+        this.addon._sourceBundle = file;
         this.addon._installLocation = this.installLocation;
         this.addon.updateDate = recursiveLastModifiedTime(file);
         this.addon.visible = true;
@@ -6488,17 +6698,21 @@ function AddonWrapper(aAddon) {
 
   this.__defineGetter__("permissions", function() {
     let permissions = 0;
+
+    // Add-ons that aren't installed cannot be modified in any way
+    if (!(aAddon instanceof DBAddonInternal))
+      return permissions;
+
     if (!aAddon.appDisabled) {
       if (aAddon.userDisabled)
         permissions |= AddonManager.PERM_CAN_ENABLE;
       else if (aAddon.type != "theme")
         permissions |= AddonManager.PERM_CAN_DISABLE;
     }
-    // Add-ons that have no install location (these are add-ons that are pending
-    // installation), are in locked install locations, or are pending uninstall
+
+    // Add-ons that are in locked install locations, or are pending uninstall
     // cannot be upgraded or uninstalled
-    if (aAddon._installLocation && !aAddon._installLocation.locked &&
-        !aAddon.pendingUninstall) {
+    if (!aAddon._installLocation.locked && !aAddon.pendingUninstall) {
       // Add-ons that are installed by a file link cannot be upgraded
       if (!aAddon._installLocation.isLinkedAddon(aAddon.id))
         permissions |= AddonManager.PERM_CAN_UPGRADE;
@@ -6560,14 +6774,7 @@ function AddonWrapper(aAddon) {
   };
 
   this.hasResource = function(aPath) {
-    let bundle = null;
-    if (aAddon instanceof DBAddonInternal) {
-      bundle = aAddon._sourceBundle = aAddon._installLocation
-                                            .getLocationForID(aAddon.id);
-    }
-    else {
-      bundle = aAddon._sourceBundle.clone();
-    }
+    let bundle = aAddon._sourceBundle.clone();
 
     if (bundle.isDirectory()) {
       if (aPath) {
@@ -6587,14 +6794,7 @@ function AddonWrapper(aAddon) {
   },
 
   this.getResourceURI = function(aPath) {
-    let bundle = null;
-    if (aAddon instanceof DBAddonInternal) {
-      bundle = aAddon._sourceBundle = aAddon._installLocation
-                                            .getLocationForID(aAddon.id);
-    }
-    else {
-      bundle = aAddon._sourceBundle.clone();
-    }
+    let bundle = aAddon._sourceBundle.clone();
 
     if (bundle.isDirectory()) {
       if (aPath) {
@@ -6826,12 +7026,17 @@ DirectoryInstallLocation.prototype = {
    *         The source nsIFile to install from
    * @param  aExistingAddonID
    *         The ID of an existing add-on to uninstall at the same time
+   * @param  aCopy
+   *         If false the source files will be moved to the new location,
+   *         otherwise they will only be copied
    * @return an nsIFile indicating where the add-on was installed to
    */
-  installAddon: function DirInstallLocation_installAddon(aId, aSource, aExistingAddonID) {
+  installAddon: function DirInstallLocation_installAddon(aId, aSource,
+                                                         aExistingAddonID,
+                                                         aCopy) {
     let trashDir = this.getTrashDir();
 
-    let transaction = new SafeMoveOperation();
+    let transaction = new SafeInstallOperation();
 
     let self = this;
     function moveOldAddon(aId) {
@@ -6856,10 +7061,15 @@ DirectoryInstallLocation.prototype = {
       if (aExistingAddonID && aExistingAddonID != aId)
         moveOldAddon(aExistingAddonID);
 
-      if (aSource.isFile())
-        Services.obs.notifyObservers(aSource, "flush-cache-entry", null);
+      if (aCopy) {
+        transaction.copy(aSource, this._directory);
+      }
+      else {
+        if (aSource.isFile())
+          Services.obs.notifyObservers(aSource, "flush-cache-entry", null);
 
-      transaction.move(aSource, this._directory);
+        transaction.move(aSource, this._directory);
+      }
     }
     finally {
       // It isn't ideal if this cleanup fails but it isn't worth rolling back
@@ -6921,7 +7131,7 @@ DirectoryInstallLocation.prototype = {
     if (file.leafName != aId)
       Services.obs.notifyObservers(file, "flush-cache-entry", null);
 
-    let transaction = new SafeMoveOperation();
+    let transaction = new SafeInstallOperation();
 
     try {
       transaction.move(file, trashDir);

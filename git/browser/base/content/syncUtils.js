@@ -77,20 +77,23 @@ let gSyncUtils = {
 
     // Open up the change dialog
     let changeXUL = "chrome://browser/content/syncGenericChange.xul";
-    let changeOpt = "centerscreen,chrome,dialog,modal,resizable=no";
+    let changeOpt = "centerscreen,chrome,resizable=no";
     Weave.Svc.WinWatcher.activeWindow.openDialog(changeXUL, "", changeOpt, type);
   },
 
   changePassword: function () {
-    this.openChange("ChangePassword");
+    if (Weave.Utils.ensureMPUnlocked())
+      this.openChange("ChangePassword");
   },
 
   resetPassphrase: function () {
-    this.openChange("ResetPassphrase");
+    if (Weave.Utils.ensureMPUnlocked())
+      this.openChange("ResetPassphrase");
   },
 
   updatePassphrase: function () {
-    this.openChange("UpdatePassphrase");
+    if (Weave.Utils.ensureMPUnlocked())
+      this.openChange("UpdatePassphrase");
   },
 
   resetPassword: function () {

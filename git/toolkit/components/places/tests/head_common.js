@@ -50,6 +50,10 @@ const TRANSITION_REDIRECT_PERMANENT = Ci.nsINavHistoryService.TRANSITION_REDIREC
 const TRANSITION_REDIRECT_TEMPORARY = Ci.nsINavHistoryService.TRANSITION_REDIRECT_TEMPORARY;
 const TRANSITION_DOWNLOAD = Ci.nsINavHistoryService.TRANSITION_DOWNLOAD;
 
+// This error icon must stay in sync with FAVICON_ERRORPAGE_URL in
+// nsIFaviconService.idl, aboutCertError.xhtml and netError.xhtml.
+const FAVICON_ERRORPAGE_URL = "chrome://global/skin/icons/warning-16.png";
+
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "Services", function() {
@@ -495,8 +499,8 @@ function waitForFrecency(aURI, aValidator, aCallback, aCbScope, aCbArguments) {
 /**
  * Returns the frecency of a url.
  *
- * @param  aURI
- *         The URI or spec to get frecency for.
+ * @param aURI
+ *        The URI or spec to get frecency for.
  * @return the frecency value.
  */
 function frecencyForUrl(aURI)
@@ -507,13 +511,34 @@ function frecencyForUrl(aURI)
   );
   stmt.bindUTF8StringParameter(0, url);
   if (!stmt.executeStep())
-    throw "No result for frecency.";
+    throw new Error("No result for frecency.");
   let frecency = stmt.getInt32(0);
   stmt.finalize();
 
   return frecency;
 }
 
+/**
+ * Returns the hidden status of a url.
+ *
+ * @param aURI
+ *        The URI or spec to get hidden for.
+ * @return @return true if the url is hidden, false otherwise.
+ */
+function isUrlHidden(aURI)
+{
+  let url = aURI instanceof Ci.nsIURI ? aURI.spec : aURI;
+  let stmt = DBConn().createStatement(
+    "SELECT hidden FROM moz_places WHERE url = ?1"
+  );
+  stmt.bindUTF8StringParameter(0, url);
+  if (!stmt.executeStep())
+    throw new Error("No result for hidden.");
+  let hidden = stmt.getInt32(0);
+  stmt.finalize();
+
+  return !!hidden;
+}
 
 /**
  * Compares two times in usecs, considering eventual platform timers skews.
@@ -572,10 +597,16 @@ function waitForAsyncUpdates(aCallback, aScope, aArguments)
  *
  * @param aGuid
  *        The guid to test.
+ * @param [optional] aStack
+ *        The stack frame used to report the error.
  */
-function do_check_valid_places_guid(aGuid)
+function do_check_valid_places_guid(aGuid,
+                                    aStack)
 {
-  do_check_true(/^[a-zA-Z0-9\-_]{12}$/.test(aGuid), Components.stack.caller);
+  if (!aStack) {
+    aStack = Components.stack.caller;
+  }
+  do_check_true(/^[a-zA-Z0-9\-_]{12}$/.test(aGuid), aStack);
 }
 
 /**
@@ -583,17 +614,25 @@ function do_check_valid_places_guid(aGuid)
  *
  * @param aURI
  *        The uri to check.
+ * @param [optional] aGUID
+ *        The expected guid in the database.
  */
-function do_check_guid_for_uri(aURI)
+function do_check_guid_for_uri(aURI,
+                               aGUID)
 {
+  let caller = Components.stack.caller;
   let stmt = DBConn().createStatement(
     "SELECT guid "
   + "FROM moz_places "
   + "WHERE url = :url "
   );
   stmt.params.url = aURI.spec;
-  do_check_true(stmt.executeStep());
-  do_check_valid_places_guid(stmt.row.guid);
+  do_check_true(stmt.executeStep(), caller);
+  do_check_valid_places_guid(stmt.row.guid, caller);
+  if (aGUID) {
+    do_check_valid_places_guid(aGUID, caller);
+    do_check_eq(stmt.row.guid, aGUID, caller);
+  }
   stmt.finalize();
 }
 
@@ -606,4 +645,38 @@ function do_check_guid_for_uri(aURI)
 function do_log_info(aMessage)
 {
   print("TEST-INFO | " + _TEST_FILE + " | " + aMessage);
+}
+
+/**
+ * Runs the next test in the gTests array.  gTests should be a array defined in
+ * each test file.
+ */
+let gRunningTest = null;
+let gTestIndex = 0; // The index of the currently running test.
+function run_next_test()
+{
+  function _run_next_test()
+  {
+    if (gTestIndex < gTests.length) {
+      do_test_pending();
+      gRunningTest = gTests[gTestIndex++];
+      print("TEST-INFO | " + _TEST_FILE + " | Starting " +
+            gRunningTest.name);
+      // Exceptions do not kill asynchronous tests, so they'll time out.
+      try {
+        gRunningTest();
+      }
+      catch (e) {
+        do_throw(e);
+      }
+    }
+  }
+
+  // For sane stacks during failures, we execute this code soon, but not now.
+  do_execute_soon(_run_next_test);
+
+  if (gRunningTest !== null) {
+    // Close the previous test do_test_pending call.
+    do_test_finished();
+  }
 }

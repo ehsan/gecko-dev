@@ -174,16 +174,19 @@
                       accesskey="&setup.tosAgree1.accesskey;"
                       oncommand="this.focus(); gSyncSetup.checkFields();"/>
             <description id="tosDesc"
+                         flex="1"
                          onclick="document.getElementById('tos').focus();
                                   document.getElementById('tos').click()">
               &setup.tosAgree1.label;
               <label class="text-link inline-link"
-                     onclick="event.stopPropagation();gSyncUtils.openToS();"
-                     value="&setup.tosLink.label;"/>
+                     onclick="event.stopPropagation();gSyncUtils.openToS();">
+                &setup.tosLink.label;
+              </label>
               &setup.tosAgree2.label;
               <label class="text-link inline-link"
-                     onclick="event.stopPropagation();gSyncUtils.openPrivacyPolicy();"
-                     value="&setup.ppLink.label;"/>
+                     onclick="event.stopPropagation();gSyncUtils.openPrivacyPolicy();">
+                &setup.ppLink.label;
+              </label>
               &setup.tosAgree3.label;
             </description>
           </hbox>
@@ -309,13 +312,14 @@
             <spacer/>
             <hbox>
               <image class="statusIcon"/>
-              <vbox>
-                <label class="status" value=" "/>
-                <label class="text-link"
-                       value="&resetPassword.label;"
-                       onclick="gSyncUtils.resetPassword(); return false;"/>
-              </vbox>
+              <label class="status" value=" "/>
             </hbox>
+          </row>
+          <row align="center">
+            <spacer/>
+            <label class="text-link"
+                   value="&resetPassword.label;"
+                   onclick="gSyncUtils.resetPassword(); return false;"/>
           </row>
           <row align="center">
             <label control="existingServer"
@@ -357,12 +361,7 @@
       <vbox align="left" id="existingPassphraseFeedbackRow" hidden="true">
         <hbox>
           <image class="statusIcon"/>
-          <vbox>
-            <label class="status" value=" "/>
-            <label class="text-link"
-                   value="&lostSyncKey.label;"
-                   onclick="gSyncUtils.resetPassphrase(); return false;"/>
-          </vbox>
+          <label class="status" value=" "/>
         </hbox>
       </vbox>
     </groupbox>
@@ -371,8 +370,14 @@
       <description>
         &existingSyncKey.description;
         <label class="text-link"
-               value="&addDevice.showMeHow.label;"
-               href="https://services.mozilla.com/sync/help/manual-setup"/>
+               href="https://services.mozilla.com/sync/help/manual-setup">
+          &addDevice.showMeHow.label;
+        </label>
+        <spacer id="passphraseHelpSpacer"/>
+        <label class="text-link"
+               onclick="gSyncUtils.resetPassphrase(); return false;">
+          &resetSyncKey.label;
+        </label>
       </description>
     </vbox>
   </wizardpage>
@@ -430,7 +435,7 @@
             <column/>
             <column flex="1"/>
           </columns>
-          <rows>
+          <rows flex="1">
             <row align="center">
               <radio id="resetClient"
                      class="mergeChoiceButton"
@@ -445,16 +450,18 @@
                      class="mergeChoiceButton"
                      aria-labelledby="wipeClientLabel"/>
               <label id="wipeClientLabel"
-                     control="wipeClient"
-                     value="&choice2.client.main.label;"/>
+                     control="wipeClient">
+                &choice2.client.main.label;
+              </label>
             </row>
             <row align="center">
               <radio id="wipeRemote"
                      class="mergeChoiceButton"
                      aria-labelledby="wipeRemoteLabel"/>
               <label id="wipeRemoteLabel"
-                     control="wipeRemote"
-                     value="&choice2.server.main.label;"/>
+                     control="wipeRemote">
+                &choice2.server.main.label;
+              </label>
             </row>
           </rows>
         </grid>

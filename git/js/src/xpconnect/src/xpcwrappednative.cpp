@@ -65,6 +65,26 @@ NS_CYCLE_COLLECTION_CLASSNAME(XPCWrappedNative)::RootAndUnlinkJSObjects(void *p)
     return NS_OK;
 }
 
+struct TraverseExpandoObjectClosure
+{
+    JSContext *cx;
+    XPCWrappedNative *wn;
+    nsCycleCollectionTraversalCallback &cb;
+};
+
+static PLDHashOperator
+TraverseExpandoObjects(xpc::PtrAndPrincipalHashKey *aKey, JSCompartment *compartment, void *aClosure)
+{
+    TraverseExpandoObjectClosure *closure = static_cast<TraverseExpandoObjectClosure*>(aClosure);
+    xpc::CompartmentPrivate *priv = 
+        (xpc::CompartmentPrivate *)JS_GetCompartmentPrivate(closure->cx, compartment);
+
+    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(closure->cb, "XPCWrappedNative expando object");
+    closure->cb.NoteScriptChild(nsIProgrammingLanguage::JAVASCRIPT,
+                                priv->LookupExpandoObject(closure->wn));
+
+    return PL_DHASH_NEXT;
+}
 
 NS_IMETHODIMP
 NS_CYCLE_COLLECTION_CLASSNAME(XPCWrappedNative)::Traverse(void *p,
@@ -107,6 +127,14 @@ NS_CYCLE_COLLECTION_CLASSNAME(XPCWrappedNative)::Traverse(void *p,
         if(NS_SUCCEEDED(rv))
             cb.NoteScriptChild(nsIProgrammingLanguage::JAVASCRIPT, obj);
     }
+
+    XPCJSRuntime *rt = tmp->GetRuntime();
+    TraverseExpandoObjectClosure closure = {
+         rt->GetXPConnect()->GetCycleCollectionContext()->GetJSContext(),
+         tmp,
+         cb
+    };
+    rt->GetCompartmentMap().EnumerateRead(TraverseExpandoObjects, &closure);
 
     // XPCWrappedNative keeps its native object alive.
     cb.NoteXPCOMChild(tmp->GetIdentityObject());
@@ -853,6 +881,9 @@ XPCWrappedNative::XPCWrappedNative(already_AddRefed<nsISupports> aIdentity,
       mFlatJSObject(INVALID_OBJECT), // non-null to pass IsValid() test
       mScriptableInfo(nsnull),
       mWrapperWord(0)
+#ifdef XPC_CHECK_WRAPPER_THREADSAFETY
+    , mThread(PR_GetCurrentThread())
+#endif
 {
     mIdentity = aIdentity.get();
 
@@ -872,6 +903,9 @@ XPCWrappedNative::XPCWrappedNative(already_AddRefed<nsISupports> aIdentity,
       mFlatJSObject(INVALID_OBJECT), // non-null to pass IsValid() test
       mScriptableInfo(nsnull),
       mWrapperWord(0)
+#ifdef XPC_CHECK_WRAPPER_THREADSAFETY
+    , mThread(PR_GetCurrentThread())
+#endif
 {
     mIdentity = aIdentity.get();
 
@@ -1192,7 +1226,7 @@ XPCWrappedNative::FinishInit(XPCCallContext &ccx)
     }
 
 #ifdef XPC_CHECK_WRAPPER_THREADSAFETY
-    mThread = do_GetCurrentThread();
+    NS_ASSERTION(mThread, "Should have been set at construction time!");
 
     if(HasProto() && GetProto()->ClassIsMainThreadOnly() && !NS_IsMainThread())
     {
@@ -1683,7 +1717,8 @@ XPCWrappedNative::GetWrappedNativeOfJSObject(JSContext* cx,
 
     if(funobj)
     {
-        JSObject* funObjParent = funobj->getParent();
+        JSObject* funObjParent = funobj->getParent()->unwrap();
+        OBJ_TO_INNER_OBJECT(cx, funObjParent);
         NS_ASSERTION(funObjParent, "funobj has no parent");
 
         js::Class* funObjParentClass = funObjParent->getClass();
@@ -2592,8 +2627,13 @@ CallMethodHelper::GatherAndConvertResults()
 
         if(paramInfo.IsRetval())
         {
-            if(!mCallContext.GetReturnValueWasSet() && type.TagPart() != nsXPTType::T_JSVAL)
+            if(!mCallContext.GetReturnValueWasSet()) {
                 mCallContext.SetRetVal(v);
+            } else {
+                // really, this should assert TagPart() == nsXPTType::T_VOID
+                NS_ASSERTION(type.TagPart() != nsXPTType::T_JSVAL,
+                             "dropping declared return value");
+            }
         }
         else if(i < mArgc)
         {
@@ -2780,20 +2820,13 @@ CallMethodHelper::ConvertIndependentParams(JSBool* foundDependentParam)
 
             if (type_tag == nsXPTType::T_JSVAL)
             {
-                if (paramInfo.IsRetval())
-                {
-                    dp->ptr = mCallContext.GetRetVal();
-                }
-                else
-                {
-                    JS_STATIC_ASSERT(sizeof(jsval) <= sizeof(uint64));
-                    jsval *rootp = (jsval *)&dp->val.u64;
-                    dp->ptr = rootp;
-                    *rootp = JSVAL_VOID;
-                    if (!JS_AddValueRoot(mCallContext, rootp))
-                        return JS_FALSE;
-                    dp->SetValIsJSRoot();
-                }
+                JS_STATIC_ASSERT(sizeof(jsval) <= sizeof(uint64));
+                jsval *rootp = (jsval *)&dp->val.u64;
+                dp->ptr = rootp;
+                *rootp = JSVAL_VOID;
+                if (!JS_AddValueRoot(mCallContext, rootp))
+                    return JS_FALSE;
+                dp->SetValIsJSRoot();
             }
 
             if(type.IsPointer() &&
@@ -3750,9 +3783,10 @@ void DEBUG_CheckWrapperThreadSafety(const XPCWrappedNative* wrapper)
     if(proto && proto->ClassIsThreadSafe())
         return;
 
-    PRBool val;
     if(proto && proto->ClassIsMainThreadOnly())
     {
+        // NS_IsMainThread is safe to call even after we've started shutting
+        // down.
         if(!NS_IsMainThread())
         {
             XPCCallContext ccx(NATIVE_CALLER);
@@ -3760,7 +3794,7 @@ void DEBUG_CheckWrapperThreadSafety(const XPCWrappedNative* wrapper)
                 "Main Thread Only wrapper accessed on another thread", wrapper);
         }
     }
-    else if(NS_SUCCEEDED(wrapper->mThread->IsOnCurrentThread(&val)) && !val)
+    else if(PR_GetCurrentThread() != wrapper->mThread)
     {
         XPCCallContext ccx(NATIVE_CALLER);
         DEBUG_ReportWrapperThreadSafetyError(ccx,

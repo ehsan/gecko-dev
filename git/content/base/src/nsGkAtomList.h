@@ -886,6 +886,7 @@ GK_ATOM(setter, "setter")
 GK_ATOM(shape, "shape")
 GK_ATOM(show, "show")
 GK_ATOM(showcaret, "showcaret")
+GK_ATOM(showresizer, "showresizer")
 GK_ATOM(simple, "simple")
 GK_ATOM(single, "single")
 GK_ATOM(size, "size")
@@ -1747,6 +1748,7 @@ GK_ATOM(DeleteTxnName, "Deleting")
 
 // IPC stuff
 GK_ATOM(Remote, "remote")
+GK_ATOM(RemoteId, "_remote_id")
 
 // Names for system metrics
 GK_ATOM(scrollbar_start_backward, "scrollbar-start-backward")

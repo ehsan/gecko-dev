@@ -956,6 +956,12 @@ JS_StringToVersion(const char *string);
 #define JSOPTION_METHODJIT      JS_BIT(14)      /* Whole-method JIT. */
 #define JSOPTION_PROFILING      JS_BIT(15)      /* Profiler to make tracer/methodjit choices. */
 
+/* Options which reflect compile-time properties of scripts. */
+#define JSCOMPILEOPTION_MASK    (JSOPTION_XML | JSOPTION_ANONFUNFIX)
+
+#define JSRUNOPTION_MASK        (JS_BITMASK(16) & ~JSCOMPILEOPTION_MASK)
+#define JSALLOPTION_MASK        (JSCOMPILEOPTION_MASK | JSRUNOPTION_MASK)
+
 extern JS_PUBLIC_API(uint32)
 JS_GetOptions(JSContext *cx);
 
@@ -1175,6 +1181,20 @@ JS_THIS(JSContext *cx, jsval *vp)
 }
 #endif
 
+/*
+ * |this| is passed to functions in ES5 without change.  Functions themselves
+ * do any post-processing they desire to box |this|, compute the global object,
+ * &c.  Use this macro to retrieve a function's unboxed |this| value.
+ *
+ * This macro must not be used in conjunction with JS_THIS or JS_THIS_OBJECT,
+ * or vice versa.  Either use the provided this value with this macro, or
+ * compute the boxed this value using those.
+ *
+ * N.B. constructors must not use JS_THIS_VALUE, as no 'this' object has been
+ * created.
+ */
+#define JS_THIS_VALUE(cx,vp)    ((vp)[1])
+
 extern JS_PUBLIC_API(void *)
 JS_malloc(JSContext *cx, size_t nbytes);
 
@@ -1277,7 +1297,7 @@ js_RemoveRoot(JSRuntime *rt, void *rp);
 #ifdef __cplusplus
 JS_END_EXTERN_C
 
-namespace js {
+namespace JS {
 
 /*
  * Protecting non-jsval, non-JSObject *, non-JSString * values from collection
@@ -1325,12 +1345,12 @@ namespace js {
  * knows about, but when we work with derived values like |ch|, we must root
  * their owners, as the derived value alone won't keep them alive.
  *
- * A js::Anchor is a kind of GC root that allows us to keep the owners of
+ * A JS::Anchor is a kind of GC root that allows us to keep the owners of
  * derived values like |ch| alive throughout the Anchor's lifetime. We could
  * fix the above code as follows:
  *
  *   void f(JSString *str) {
- *     js::Anchor<JSString *> a_str(str);
+ *     JS::Anchor<JSString *> a_str(str);
  *     const jschar *ch = JS_GetStringCharsZ(str);
  *     ... do stuff with ch, but no uses of str ...;
  *   }
@@ -1430,7 +1450,7 @@ inline Anchor<jsval>::~Anchor() {
 #endif
 #endif
 
-}  /* namespace js */
+}  /* namespace JS */
 
 JS_BEGIN_EXTERN_C
 #endif
@@ -1752,8 +1772,19 @@ typedef enum JSGCParamKey {
     JSGC_NUMBER = 5,
 
     /* Max size of the code cache in bytes. */
-    JSGC_MAX_CODE_CACHE_BYTES = 6
+    JSGC_MAX_CODE_CACHE_BYTES = 6,
+
+    /* Select GC mode. */
+    JSGC_MODE = 7
 } JSGCParamKey;
+
+typedef enum JSGCMode {
+    /* Perform only global GCs. */
+    JSGC_MODE_GLOBAL = 0,
+
+    /* Perform per-compartment GCs until too much garbage has accumulated. */
+    JSGC_MODE_COMPARTMENT = 1
+} JSGCMode;
 
 extern JS_PUBLIC_API(void)
 JS_SetGCParameter(JSRuntime *rt, JSGCParamKey key, uint32 value);
@@ -1928,10 +1959,12 @@ struct JSClass {
 #define JSCLASS_FREEZE_CTOR             (1<<(JSCLASS_HIGH_FLAGS_SHIFT+6))
 
 /* Additional global reserved slots, beyond those for standard prototypes. */
-#define JSRESERVED_GLOBAL_SLOTS_COUNT     3
+#define JSRESERVED_GLOBAL_SLOTS_COUNT     5
 #define JSRESERVED_GLOBAL_THIS            (JSProto_LIMIT * 3)
 #define JSRESERVED_GLOBAL_THROWTYPEERROR  (JSRESERVED_GLOBAL_THIS + 1)
 #define JSRESERVED_GLOBAL_REGEXP_STATICS  (JSRESERVED_GLOBAL_THROWTYPEERROR + 1)
+#define JSRESERVED_GLOBAL_FUNCTION_NS     (JSRESERVED_GLOBAL_REGEXP_STATICS + 1)
+#define JSRESERVED_GLOBAL_EVAL_ALLOWED    (JSRESERVED_GLOBAL_FUNCTION_NS + 1)
 
 /*
  * ECMA-262 requires that most constructors used internally create objects
@@ -2564,6 +2597,9 @@ JS_GetFunctionArity(JSFunction *fun);
  */
 extern JS_PUBLIC_API(JSBool)
 JS_ObjectIsFunction(JSContext *cx, JSObject *obj);
+
+extern JS_PUBLIC_API(JSBool)
+JS_ObjectIsCallable(JSContext *cx, JSObject *obj);
 
 extern JS_PUBLIC_API(JSBool)
 JS_DefineFunctions(JSContext *cx, JSObject *obj, JSFunctionSpec *fs);
@@ -3579,6 +3615,24 @@ struct JSErrorReport {
 
 extern JS_PUBLIC_API(JSErrorReporter)
 JS_SetErrorReporter(JSContext *cx, JSErrorReporter er);
+
+/************************************************************************/
+
+/*
+ * Dates.
+ */
+
+extern JS_PUBLIC_API(JSObject *)
+JS_NewDateObject(JSContext *cx, int year, int mon, int mday, int hour, int min, int sec);
+
+extern JS_PUBLIC_API(JSObject *)
+JS_NewDateObjectMsec(JSContext *cx, jsdouble msec);
+
+/*
+ * Infallible predicate to test whether obj is a date object.
+ */
+extern JS_PUBLIC_API(JSBool)
+JS_ObjectIsDate(JSContext *cx, JSObject *obj);
 
 /************************************************************************/
 

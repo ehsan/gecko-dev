@@ -211,7 +211,7 @@ const char *const js_common_atom_names[] = {
 
     "has",                      /* hasAtom                      */
     "hasOwn",                   /* hasOwnAtom                   */
-    "enumerateOwn",             /* enumerateOwnAtom             */
+    "keys",                     /* keysAtom                     */
     "iterate"                   /* iterateAtom                  */
 };
 
@@ -480,7 +480,7 @@ js_AtomizeString(JSContext *cx, JSString *strArg, uintN flags)
     JSAtomState *state = &cx->runtime->atomState;
     AtomSet &atoms = state->atoms;
 
-    AutoLockDefaultCompartment lock(cx);
+    AutoLockAtomsCompartment lock(cx);
     AtomSet::AddPtr p = atoms.lookupForAdd(str);
 
     /* Hashing the string should have flattened it if it was a rope. */
@@ -495,7 +495,7 @@ js_AtomizeString(JSContext *cx, JSString *strArg, uintN flags)
          * compartment.
          */
         bool needNewString = !!(flags & ATOM_TMPSTR) ||
-                             str->asCell()->compartment() != cx->runtime->defaultCompartment;
+                             str->asCell()->compartment() != cx->runtime->atomsCompartment;
 
         /*
          * Unless str is already comes from the default compartment and flat,
@@ -509,7 +509,7 @@ js_AtomizeString(JSContext *cx, JSString *strArg, uintN flags)
             atoms.add(p, StringToInitialAtomEntry(key));
         } else {
             if (needNewString) {
-                SwitchToCompartment sc(cx, cx->runtime->defaultCompartment);
+                SwitchToCompartment sc(cx, cx->runtime->atomsCompartment);
                 if (flags & ATOM_NOCOPY) {
                     key = js_NewString(cx, const_cast<jschar *>(str->flatChars()), length);
                     if (!key)
@@ -589,6 +589,10 @@ js_AtomizeChars(JSContext *cx, const jschar *chars, size_t length, uintN flags)
     JSString str;
 
     CHECK_REQUEST(cx);
+
+    if (!CheckStringLength(cx, length))
+        return NULL;
+
     str.initFlatNotTerminated((jschar *)chars, length);
     return js_AtomizeString(cx, &str, ATOM_TMPSTR | flags);
 }

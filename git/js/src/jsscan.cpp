@@ -183,12 +183,12 @@ TokenStream::TokenStream(JSContext *cx)
 #endif
 
 bool
-TokenStream::init(JSVersion version, const jschar *base, size_t length, const char *fn, uintN ln)
+TokenStream::init(const jschar *base, size_t length, const char *fn, uintN ln, JSVersion v)
 {
-    this->version = version;
-
     filename = fn;
     lineno = ln;
+    version = v;
+    xml = VersionHasXML(v);
 
     userbuf.base = (jschar *)base;
     userbuf.limit = (jschar *)base + length;
@@ -428,11 +428,11 @@ TokenStream::reportCompileErrorNumberVA(JSParseNode *pn, uintN flags, uintN erro
     uintN index, i;
     JSErrorReporter onError;
 
-    if (JSREPORT_IS_STRICT(flags) && !JS_HAS_STRICT_OPTION(cx))
+    if (JSREPORT_IS_STRICT(flags) && !cx->hasStrictOption())
         return JS_TRUE;
 
     warning = JSREPORT_IS_WARNING(flags);
-    if (warning && JS_HAS_WERROR_OPTION(cx)) {
+    if (warning && cx->hasWErrorOption()) {
         flags &= ~JSREPORT_WARNING;
         warning = false;
     }
@@ -583,7 +583,7 @@ js::ReportStrictModeError(JSContext *cx, TokenStream *ts, JSTreeContext *tc, JSP
     if ((ts && ts->isStrictMode()) || (tc && (tc->flags & TCF_STRICT_MODE_CODE))) {
         flags = JSREPORT_ERROR;
     } else {
-        if (!JS_HAS_STRICT_OPTION(cx))
+        if (!cx->hasStrictOption())
             return true;
         flags = JSREPORT_WARNING;
     }
@@ -629,7 +629,7 @@ TokenStream::getXMLEntity()
     char *bytes;
     JSErrNum msg;
 
-    JSCharBuffer &tb = tokenbuf;
+    CharBuffer &tb = tokenbuf;
 
     /* Put the entity, including the '&' already scanned, in tokenbuf. */
     offset = tb.length();
@@ -801,8 +801,8 @@ ScanAsSpace(jschar c)
     return JS_FALSE;
 }
 
-static JS_ALWAYS_INLINE JSAtom *
-atomize(JSContext *cx, JSCharBuffer &cb)
+JS_ALWAYS_INLINE JSAtom *
+TokenStream::atomize(JSContext *cx, CharBuffer &cb)
 {
     return js_AtomizeChars(cx, cb.begin(), cb.length(), 0);
 }
@@ -1043,14 +1043,35 @@ TokenStream::getTokenInternal()
             !(flags & TSF_KEYWORD_IS_NAME) &&
             (kw = FindKeyword(tokenbuf.begin(), tokenbuf.length()))) {
             if (kw->tokentype == TOK_RESERVED) {
-                if (!ReportCompileErrorNumber(cx, this, NULL, JSREPORT_WARNING | JSREPORT_STRICT,
+                if (!ReportCompileErrorNumber(cx, this, NULL, JSREPORT_ERROR,
                                               JSMSG_RESERVED_ID, kw->chars)) {
                     goto error;
                 }
-            } else if (kw->version <= VersionNumber(version)) {
-                tt = kw->tokentype;
-                tp->t_op = (JSOp) kw->op;
-                goto out;
+            } else if (kw->tokentype == TOK_STRICT_RESERVED) {
+                if (isStrictMode()
+                    ? !ReportStrictModeError(cx, this, NULL, NULL, JSMSG_RESERVED_ID, kw->chars)
+                    : !ReportCompileErrorNumber(cx, this, NULL,
+                                                JSREPORT_STRICT | JSREPORT_WARNING,
+                                                JSMSG_RESERVED_ID, kw->chars)) {
+                    goto error;
+                }
+            } else {
+                if (kw->version <= versionNumber()) {
+                    tt = kw->tokentype;
+                    tp->t_op = (JSOp) kw->op;
+                    goto out;
+                }
+
+                /*
+                 * let/yield are a Mozilla extension starting in JS1.7. If we
+                 * aren't parsing for a version supporting these extensions,
+                 * conform to ES5 and forbid these names in strict mode.
+                 */
+                if ((kw->tokentype == TOK_LET || kw->tokentype == TOK_YIELD) &&
+                    !ReportStrictModeError(cx, this, NULL, NULL, JSMSG_RESERVED_ID, kw->chars))
+                {
+                    goto error;
+                }
             }
         }
 
@@ -1399,8 +1420,7 @@ TokenStream::getTokenInternal()
          *
          * The check for this is in jsparse.cpp, Compiler::compileScript.
          */
-        if ((flags & TSF_OPERAND) &&
-            (VersionShouldParseXML(version) || peekChar() != '!')) {
+        if ((flags & TSF_OPERAND) && (hasXML() || peekChar() != '!')) {
             /* Check for XML comment or CDATA section. */
             if (matchChar('!')) {
                 tokenbuf.clear();
@@ -1484,10 +1504,8 @@ TokenStream::getTokenInternal()
                 if (contentIndex < 0) {
                     atom = cx->runtime->atomState.emptyAtom;
                 } else {
-                    atom = js_AtomizeChars(cx,
-                                           tokenbuf.begin() + contentIndex,
-                                           tokenbuf.length() - contentIndex,
-                                           0);
+                    atom = js_AtomizeChars(cx, tokenbuf.begin() + contentIndex,
+                                           tokenbuf.length() - contentIndex, 0);
                     if (!atom)
                         goto error;
                 }
@@ -1558,7 +1576,7 @@ TokenStream::getTokenInternal()
              * "//@line 123\n" sets the number of the *next* line after the
              * comment to 123.
              */
-            if (JS_HAS_ATLINE_OPTION(cx)) {
+            if (cx->hasAtLineOption()) {
                 jschar cp[5];
                 uintN i, line, temp;
                 char filenameBuf[1024];
@@ -1776,7 +1794,7 @@ TokenStream::getTokenInternal()
             }
         }
         tp->t_dval = (jsdouble) n;
-        if (JS_HAS_STRICT_OPTION(cx) &&
+        if (cx->hasStrictOption() &&
             (c == '=' || c == '#')) {
             char buf[20];
             JS_snprintf(buf, sizeof buf, "#%u%c", n, c);

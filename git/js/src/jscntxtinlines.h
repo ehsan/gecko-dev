@@ -543,14 +543,14 @@ class CompartmentChecker
 
     /* Note: should only be used when neither c1 nor c2 may be the default compartment. */
     static void check(JSCompartment *c1, JSCompartment *c2) {
-        JS_ASSERT(c1 != c1->rt->defaultCompartment);
-        JS_ASSERT(c2 != c2->rt->defaultCompartment);
+        JS_ASSERT(c1 != c1->rt->atomsCompartment);
+        JS_ASSERT(c2 != c2->rt->atomsCompartment);
         if (c1 != c2)
             fail(c1, c2);
     }
 
     void check(JSCompartment *c) {
-        if (c && c != context->runtime->defaultCompartment) {
+        if (c && c != context->runtime->atomsCompartment) {
             if (!compartment)
                 compartment = c;
             else if (c != compartment)
@@ -562,12 +562,19 @@ class CompartmentChecker
 
     void check(JSObject *obj) {
         if (obj)
-            check(obj->getCompartment());
+            check(obj->compartment());
+    }
+
+    void check(JSString *str) {
+        if (!JSString::isStatic(str) && !str->isAtomized())
+            check(str->asCell()->compartment());
     }
 
     void check(const js::Value &v) {
         if (v.isObject())
             check(&v.toObject());
+        else if (v.isString())
+            check(v.toString());
     }
 
     void check(jsval v) {
@@ -609,8 +616,6 @@ class CompartmentChecker
     void check(JSStackFrame *fp) {
         check(&fp->scopeChain());
     }
-
-    void check(JSString *) { /* nothing for now */ }
 };
 
 #endif
@@ -792,7 +797,7 @@ CanLeaveTrace(JSContext *cx)
 {
     JS_ASSERT(JS_ON_TRACE(cx));
 #ifdef JS_TRACER
-    return cx->bailExit != NULL;
+    return JS_TRACE_MONITOR(cx).bailExit != NULL;
 #else
     return JS_FALSE;
 #endif

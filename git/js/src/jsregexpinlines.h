@@ -112,6 +112,16 @@ class RegExp
 #endif
     { }
 
+    ~RegExp() {
+#if !ENABLE_YARR_JIT
+        if (compiled)
+            jsRegExpFree(compiled);
+#endif
+    }
+
+    /* Constructor/destructor are hidden; called by cx->create/destroy. */
+    friend struct ::JSContext;
+
     bool compileHelper(JSContext *cx, JSLinearString &pattern);
     bool compile(JSContext *cx);
     static const uint32 allFlags = JSREG_FOLD | JSREG_GLOB | JSREG_MULTILINE | JSREG_STICKY;
@@ -124,21 +134,16 @@ class RegExp
                                 size_t *lastIndex, bool test, Value *rval);
 
   public:
-    ~RegExp() {
-#if !ENABLE_YARR_JIT
-        if (compiled)
-            jsRegExpFree(compiled);
-#endif
-    }
-
     static inline bool isMetaChar(jschar c);
     static inline bool hasMetaChars(const jschar *chars, size_t length);
 
     /*
      * Parse regexp flags. Report an error and return false if an invalid
      * sequence of flags is encountered (repeat/invalid flag).
+     *
+     * N.B. flagStr must be rooted.
      */
-    static bool parseFlags(JSContext *cx, JSString *flagStr, uint32 &flagsOut);
+    static bool parseFlags(JSContext *cx, JSString *flagStr, uintN *flagsOut);
 
     /*
      * Execute regexp on |input| at |*lastIndex|.
@@ -160,10 +165,10 @@ class RegExp
 
     /* Factories */
 
-    static RegExp *create(JSContext *cx, JSString *source, uint32 flags);
+    static AlreadyIncRefed<RegExp> create(JSContext *cx, JSString *source, uint32 flags);
 
     /* Would overload |create|, but |0| resolves ambiguously against pointer and uint. */
-    static RegExp *createFlagged(JSContext *cx, JSString *source, JSString *flags);
+    static AlreadyIncRefed<RegExp> createFlagged(JSContext *cx, JSString *source, JSString *flags);
 
     /*
      * Create an object with new regular expression internals.
@@ -176,7 +181,6 @@ class RegExp
     static JSObject *createObjectNoStatics(JSContext *cx, const jschar *chars, size_t length,
                                            uint32 flags);
     static RegExp *extractFrom(JSObject *obj);
-    static RegExp *clone(JSContext *cx, const RegExp &other);
 
     /* Mutators */
 
@@ -196,8 +200,6 @@ class RegExp
         JS_ASSERT((flags & allFlags) == flags);
         return flags;
     }
-
-    uint32 flagCount() const;
 };
 
 class RegExpMatchBuilder
@@ -396,22 +398,21 @@ RegExp::executeInternal(JSContext *cx, RegExpStatics *res, JSString *inputstr,
     return true;
 }
 
-inline RegExp *
+inline AlreadyIncRefed<RegExp>
 RegExp::create(JSContext *cx, JSString *source, uint32 flags)
 {
+    typedef AlreadyIncRefed<RegExp> RetType;
     JSLinearString *flatSource = source->ensureLinear(cx);
     if (!flatSource)
-        return NULL;
-    RegExp *self;
-    void *mem = cx->malloc(sizeof(*self));
-    if (!mem)
-        return NULL;
-    self = new (mem) RegExp(flatSource, flags, cx->compartment);
+        return RetType(NULL);
+    RegExp *self = cx->create<RegExp>(flatSource, flags, cx->compartment);
+    if (!self)
+        return RetType(NULL);
     if (!self->compile(cx)) {
         cx->destroy<RegExp>(self);
-        return NULL;
+        return RetType(NULL);
     }
-    return self;
+    return RetType(self);
 }
 
 inline JSObject *
@@ -429,7 +430,7 @@ RegExp::createObjectNoStatics(JSContext *cx, const jschar *chars, size_t length,
     JSString *str = js_NewStringCopyN(cx, chars, length);
     if (!str)
         return NULL;
-    RegExp *re = RegExp::create(cx, str, flags);
+    AlreadyIncRefed<RegExp> re = RegExp::create(cx, str, flags);
     if (!re)
         return NULL;
     JSObject *obj = NewBuiltinClassInstance(cx, &js_RegExpClass);
@@ -437,7 +438,7 @@ RegExp::createObjectNoStatics(JSContext *cx, const jschar *chars, size_t length,
         re->decref(cx);
         return NULL;
     }
-    obj->setPrivate(re);
+    obj->setPrivate(re.get());
     obj->zeroRegExpLastIndex();
     return obj;
 }
@@ -508,14 +509,14 @@ RegExp::compile(JSContext *cx)
     static const jschar prefix[] = {'^', '(', '?', ':'};
     static const jschar postfix[] = {')'};
 
-    JSCharBuffer cb(cx);
-    if (!cb.reserve(JS_ARRAY_LENGTH(prefix) + source->length() + JS_ARRAY_LENGTH(postfix)))
+    StringBuffer sb(cx);
+    if (!sb.reserve(JS_ARRAY_LENGTH(prefix) + source->length() + JS_ARRAY_LENGTH(postfix)))
         return false;
-    JS_ALWAYS_TRUE(cb.append(prefix, JS_ARRAY_LENGTH(prefix)));
-    JS_ALWAYS_TRUE(cb.append(source->flatChars(), source->length()));
-    JS_ALWAYS_TRUE(cb.append(postfix, JS_ARRAY_LENGTH(postfix)));
+    JS_ALWAYS_TRUE(sb.append(prefix, JS_ARRAY_LENGTH(prefix)));
+    JS_ALWAYS_TRUE(sb.append(source->chars(), source->length()));
+    JS_ALWAYS_TRUE(sb.append(postfix, JS_ARRAY_LENGTH(postfix)));
 
-    JSLinearString *fakeySource = js_NewStringFromCharBuffer(cx, cb);
+    JSLinearString *fakeySource = sb.finishString();
     if (!fakeySource)
         return false;
     return compileHelper(cx, *fakeySource);
@@ -543,15 +544,6 @@ RegExp::hasMetaChars(const jschar *chars, size_t length)
             return true;
     }
     return false;
-}
-
-inline uint32
-RegExp::flagCount() const
-{
-    uint32 nflags = 0;
-    for (uint32 tmpFlags = flags; tmpFlags != 0; tmpFlags &= tmpFlags - 1)
-        nflags++;
-    return nflags;
 }
 
 inline void
@@ -583,12 +575,6 @@ RegExp::extractFrom(JSObject *obj)
         CompartmentChecker::check(obj->getCompartment(), re->compartment);
 #endif
     return re;
-}
-
-inline RegExp *
-RegExp::clone(JSContext *cx, const RegExp &other)
-{
-    return create(cx, other.source, other.flags);
 }
 
 /* RegExpStatics inlines. */

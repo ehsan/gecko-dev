@@ -138,6 +138,9 @@ JS_BEGIN_EXTERN_C
  *                                     pn_right: initializer
  * TOK_RETURN   unary       pn_kid: return expr or null
  * TOK_SEMI     unary       pn_kid: expr or null statement
+ *                          pn_prologue: true if Directive Prologue member
+ *                              in original source, not introduced via
+ *                              constant folding or other tree rewriting
  * TOK_COLON    name        pn_atom: label, pn_expr: labeled statement
  *
  * <Expressions>
@@ -376,7 +379,9 @@ struct JSParseNode {
         struct {                        /* one kid if unary */
             JSParseNode *kid;
             jsint       num;            /* -1 or sharp variable number */
-            JSBool      hidden;         /* hidden genexp-induced JSOP_YIELD */
+            JSBool      hidden;         /* hidden genexp-induced JSOP_YIELD
+                                           or directive prologue member (as
+                                           pn_prologue) */
         } unary;
         struct {                        /* name, labeled statement, etc. */
             union {
@@ -427,6 +432,7 @@ struct JSParseNode {
 #define pn_kid          pn_u.unary.kid
 #define pn_num          pn_u.unary.num
 #define pn_hidden       pn_u.unary.hidden
+#define pn_prologue     pn_u.unary.hidden
 #define pn_atom         pn_u.name.atom
 #define pn_objbox       pn_u.name.objbox
 #define pn_expr         pn_u.name.expr
@@ -565,13 +571,21 @@ public:
     }
 
     /*
-     * True if this statement node could be a member of a Directive
-     * Prologue.  Note that the prologue may contain strings that
-     * cannot themselves be directives; that's a stricter test.
-     * If Statement begins to simplify trees into this form, then
-     * we'll need additional flags that we can test here.
+     * True if this statement node could be a member of a Directive Prologue: an
+     * expression statement consisting of a single string literal.
+     *
+     * This considers only the node and its children, not its context. After
+     * parsing, check the node's pn_prologue flag to see if it is indeed part of
+     * a directive prologue.
+     *
+     * Note that a Directive Prologue can contain statements that cannot
+     * themselves be directives (string literals that include escape sequences
+     * or escaped newlines, say). This member function returns true for such
+     * nodes; we use it to determine the extent of the prologue.
+     * isEscapeFreeStringLiteral, below, checks whether the node itself could be
+     * a directive.
      */
-    bool isDirectivePrologueMember() const {
+    bool isStringExprStatement() const {
         if (PN_TYPE(this) == js::TOK_SEMI) {
             JS_ASSERT(pn_arity == PN_UNARY);
             JSParseNode *kid = pn_kid;
@@ -581,22 +595,25 @@ public:
     }
 
     /*
-     * True if this node, known to be a Directive Prologue member,
-     * could be a directive itself.
+     * Return true if this node, known to be a string literal, could be the
+     * string of a directive in a Directive Prologue. Directive strings never
+     * contain escape sequences or line continuations.
      */
-    bool isDirective() const {
-        JS_ASSERT(isDirectivePrologueMember());
-        JSParseNode *kid = pn_kid;
-        JSString *str = ATOM_TO_STRING(kid->pn_atom);
+    bool isEscapeFreeStringLiteral() const {
+        JS_ASSERT(pn_type == js::TOK_STRING && !pn_parens);
+        JSString *str = ATOM_TO_STRING(pn_atom);
 
         /*
-         * Directives must contain no EscapeSequences or LineContinuations.
          * If the string's length in the source code is its length as a value,
-         * accounting for the quotes, then it qualifies.
+         * accounting for the quotes, then it must not contain any escape
+         * sequences or line continuations.
          */
         return (pn_pos.begin.lineno == pn_pos.end.lineno &&
                 pn_pos.begin.index + str->length() + 2 == pn_pos.end.index);
     }
+
+    /* Return true if this node appears in a Directive Prologue. */
+    bool isDirectivePrologueMember() const { return pn_prologue; }
 
 #ifdef JS_HAS_GENERATOR_EXPRS
     /*
@@ -864,6 +881,11 @@ struct JSDefinition : public JSParseNode
         return pn_cookie.isFree() || test(PND_GVAR);
     }
 
+    bool isGlobal() const {
+        JS_ASSERT(pn_defn);
+        return test(PND_GVAR);
+    }
+
     // Grr, windows.h or something under it #defines CONST...
 #ifdef CONST
 # undef CONST
@@ -955,6 +977,12 @@ struct JSFunctionBox : public JSObjectBox
     bool joinable() const;
 
     /*
+     * True if this function is inside the scope of a with-statement, an E4X
+     * filter-expression, or a function that uses direct eval.
+     */
+    bool inAnyDynamicScope() const;
+
+    /*
      * Unbrand an object being initialized or constructed if any method cannot
      * be joined to one compiler-created null closure shared among N different
      * closure environments.
@@ -980,11 +1008,11 @@ struct JSFunctionBoxQueue {
 
     bool init(uint32 count) {
         lengthMask = JS_BITMASK(JS_CeilingLog2(count));
-        vector = new JSFunctionBox*[length()];
+        vector = js_array_new<JSFunctionBox*>(length());
         return !!vector;
     }
 
-    ~JSFunctionBoxQueue() { delete[] vector; }
+    ~JSFunctionBoxQueue() { js_array_delete(vector); }
 
     void push(JSFunctionBox *funbox) {
         if (!funbox->queued) {
@@ -1015,7 +1043,7 @@ struct Parser : private js::AutoGCRooter
     JSContext           * const context; /* FIXME Bug 551291: use AutoGCRooter::context? */
     JSAtomListElement   *aleFreeList;
     void                *tempFreeList[NUM_TEMP_FREELISTS];
-    js::TokenStream     tokenStream;
+    TokenStream         tokenStream;
     void                *tempPoolMark;  /* initial JSContext.tempPool mark */
     JSPrincipals        *principals;    /* principals associated with source */
     JSStackFrame *const callerFrame;    /* scripted caller frame for eval and dbgapi */
@@ -1024,7 +1052,6 @@ struct Parser : private js::AutoGCRooter
     uint32              functionCount;  /* number of functions in current unit */
     JSObjectBox         *traceListHead; /* list of parsed object for GC tracing */
     JSTreeContext       *tc;            /* innermost tree context (stack-allocated) */
-    JSVersion           version;        /* cached version to avoid repeated lookups */
 
     /* Root atoms and objects allocated for the parsed tree. */
     js::AutoKeepAtoms   keepAtoms;
@@ -1042,15 +1069,16 @@ struct Parser : private js::AutoGCRooter
      * JSContext.tempPool mark. This means you cannot allocate from tempPool
      * and save the pointer beyond the next Parser destructor invocation.
      */
-    bool init(const jschar *base, size_t length,
-              const char *filename, uintN lineno);
+    bool init(const jschar *base, size_t length, const char *filename, uintN lineno,
+              JSVersion version);
 
     void setPrincipals(JSPrincipals *prin);
 
-    const char *getFilename()
-    {
-        return tokenStream.getFilename();
-    }
+    const char *getFilename() const { return tokenStream.getFilename(); }
+    JSVersion versionWithFlags() const { return tokenStream.versionWithFlags(); }
+    JSVersion versionNumber() const { return tokenStream.versionNumber(); }
+    bool hasXML() const { return tokenStream.hasXML(); }
+    bool hasAnonFunFix() const { return tokenStream.hasAnonFunFix(); }
 
     /*
      * Parse a top-level JS script.
@@ -1079,9 +1107,10 @@ struct Parser : private js::AutoGCRooter
      * starting at funbox, recursively walking its kids, then following its
      * siblings, their kids, etc.
      */
-    bool analyzeFunctions(JSFunctionBox *funbox, uint32& tcflags);
-    bool markFunArgs(JSFunctionBox *funbox, uintN tcflags);
-    void setFunctionKinds(JSFunctionBox *funbox, uint32& tcflags);
+    bool analyzeFunctions(JSTreeContext *tc);
+    void cleanFunctionList(JSFunctionBox **funbox);
+    bool markFunArgs(JSFunctionBox *funbox);
+    void setFunctionKinds(JSFunctionBox *funbox, uint32 *tcflags);
 
     void trace(JSTracer *trc);
 
@@ -1128,7 +1157,7 @@ private:
     JSParseNode *unaryExpr();
     JSParseNode *memberExpr(JSBool allowCallSyntax);
     JSParseNode *primaryExpr(js::TokenKind tt, JSBool afterDot);
-    JSParseNode *parenExpr(JSParseNode *pn1, JSBool *genexp);
+    JSParseNode *parenExpr(JSBool *genexp = NULL);
 
     /*
      * Additional JS parsers.
@@ -1143,7 +1172,7 @@ private:
     JSParseNode *condition();
     JSParseNode *comprehensionTail(JSParseNode *kid, uintN blockid,
                                    js::TokenKind type = js::TOK_SEMI, JSOp op = JSOP_NOP);
-    JSParseNode *generatorExpr(JSParseNode *pn, JSParseNode *kid);
+    JSParseNode *generatorExpr(JSParseNode *kid);
     JSBool argumentList(JSParseNode *listNode);
     JSParseNode *bracketedExpr();
     JSParseNode *letBlock(JSBool statement);
@@ -1188,28 +1217,25 @@ struct Compiler
      * Initialize a compiler. Parameters are passed on to init parser.
      */
     inline bool
-    init(const jschar *base, size_t length,
-         const char *filename, uintN lineno)
+    init(const jschar *base, size_t length, const char *filename, uintN lineno, JSVersion version)
     {
-        return parser.init(base, length, filename, lineno);
+        return parser.init(base, length, filename, lineno, version);
     }
 
     static bool
     compileFunctionBody(JSContext *cx, JSFunction *fun, JSPrincipals *principals,
                         js::Bindings *bindings, const jschar *chars, size_t length,
-                        const char *filename, uintN lineno);
+                        const char *filename, uintN lineno, JSVersion version);
 
     static JSScript *
     compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *callerFrame,
                   JSPrincipals *principals, uint32 tcflags,
                   const jschar *chars, size_t length,
-                  const char *filename, uintN lineno,
-                  JSString *source = NULL,
-                  uintN staticLevel = 0);
+                  const char *filename, uintN lineno, JSVersion version,
+                  JSString *source = NULL, uintN staticLevel = 0);
 
   private:
-    static bool
-    defineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript *script);
+    static bool defineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript *script);
 };
 
 } /* namespace js */

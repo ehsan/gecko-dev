@@ -1228,18 +1228,6 @@ static inline PRBool ApplyOverflowHiddenClipping(nsIFrame* aFrame,
        type == nsGkAtoms::bcTableCellFrame;
 }
 
-static inline PRBool ApplyPaginatedOverflowClipping(nsIFrame* aFrame,
-                                                    const nsStyleDisplay* aDisp)
-{
-  // If we're paginated and aFrame is a block, and it has
-  // NS_BLOCK_CLIP_PAGINATED_OVERFLOW set, then we want to clip our
-  // overflow.
-  return
-    aFrame->PresContext()->IsPaginated() &&
-    aFrame->GetType() == nsGkAtoms::blockFrame &&
-    (aFrame->GetStateBits() & NS_BLOCK_CLIP_PAGINATED_OVERFLOW) != 0;
-}
-
 static PRBool ApplyOverflowClipping(nsDisplayListBuilder* aBuilder,
                                     nsIFrame* aFrame,
                                     const nsStyleDisplay* aDisp, nsRect* aRect) {
@@ -1252,7 +1240,7 @@ static PRBool ApplyOverflowClipping(nsDisplayListBuilder* aBuilder,
   // frames, and any non-visible value for blocks in a paginated context).
   // Other overflow clipping is applied by nsHTML/XULScrollFrame.
   if (!ApplyOverflowHiddenClipping(aFrame, aDisp) &&
-      !ApplyPaginatedOverflowClipping(aFrame, aDisp)) {
+      !nsFrame::ApplyPaginatedOverflowClipping(aFrame)) {
     PRBool clip = aDisp->mOverflowX == NS_STYLE_OVERFLOW_CLIP;
     if (!clip)
       return PR_FALSE;
@@ -2556,6 +2544,8 @@ NS_IMETHODIMP nsFrame::HandleRelease(nsPresContext* aPresContext,
 {
   nsIFrame* activeFrame = GetActiveSelectionFrame(aPresContext, this);
 
+  nsCOMPtr<nsIContent> captureContent = nsIPresShell::GetCapturingContent();
+
   // We can unconditionally stop capturing because
   // we should never be capturing when the mouse button is up
   nsIPresShell::SetCapturingContent(nsnull, 0);
@@ -2597,11 +2587,26 @@ NS_IMETHODIMP nsFrame::HandleRelease(nsPresContext* aPresContext,
   // We might be capturing in some other document and the event just happened to
   // trickle down here. Make sure that document's frame selection is notified.
   // Note, this may cause the current nsFrame object to be deleted, bug 336592.
+  nsRefPtr<nsFrameSelection> frameSelection;
   if (activeFrame != this &&
       static_cast<nsFrame*>(activeFrame)->DisplaySelection(activeFrame->PresContext())
         != nsISelectionController::SELECTION_OFF) {
-    nsRefPtr<nsFrameSelection> frameSelection =
-      activeFrame->GetFrameSelection();
+      frameSelection = activeFrame->GetFrameSelection();
+  }
+
+  // Also check the selection of the capturing content which might be in a
+  // different document.
+  if (!frameSelection && captureContent) {
+    nsIDocument* doc = captureContent->GetCurrentDoc();
+    if (doc) {
+      nsIPresShell* capturingShell = doc->GetShell();
+      if (capturingShell && capturingShell != PresContext()->GetPresShell()) {
+        frameSelection = capturingShell->FrameSelection();
+      }
+    }
+  }
+
+  if (frameSelection) {
     frameSelection->SetMouseDownState(PR_FALSE);
     frameSelection->StopAutoScrollTimer();
   }
@@ -3959,6 +3964,24 @@ nsIFrame::InvalidateLayer(const nsRect& aDamageRect, PRUint32 aDisplayItemKey)
   InvalidateWithFlags(aDamageRect, flags);
 }
 
+void
+nsIFrame::InvalidateTransformLayer()
+{
+  NS_ASSERTION(mParent, "How can a viewport frame have a transform?");
+
+  PRBool hasLayer =
+      FrameLayerBuilder::HasDedicatedLayer(this, nsDisplayItem::TYPE_TRANSFORM);
+  // Invalidate post-transform area in the parent. We have to invalidate
+  // in the parent because our transform style may have changed from what was
+  // used to paint this frame.
+  // It's OK to bypass the SVG effects processing and other processing
+  // performed if we called this->InvalidateWithFlags, because those effects
+  // are performed before applying transforms.
+  mParent->InvalidateInternal(GetVisualOverflowRect() + GetPosition(),
+                              0, 0, this,
+                              hasLayer ? INVALIDATE_NO_THEBES_LAYERS : 0);
+}
+
 class LayerActivity {
 public:
   LayerActivity(nsIFrame* aFrame) : mFrame(aFrame) {}
@@ -4551,9 +4574,11 @@ nsIFrame::CheckInvalidateSizeChange(const nsRect& aOldRect,
 
 PRBool
 nsFrame::IsFrameTreeTooDeep(const nsHTMLReflowState& aReflowState,
-                            nsHTMLReflowMetrics& aMetrics)
+                            nsHTMLReflowMetrics& aMetrics,
+                            nsReflowStatus& aStatus)
 {
   if (aReflowState.mReflowDepth >  MAX_FRAME_DEPTH) {
+    NS_WARNING("frame tree too deep; setting zero size and returning");
     mState |= NS_FRAME_TOO_DEEP_IN_FRAME_TREE;
     ClearOverflowRects();
     aMetrics.width = 0;
@@ -4561,6 +4586,16 @@ nsFrame::IsFrameTreeTooDeep(const nsHTMLReflowState& aReflowState,
     aMetrics.ascent = 0;
     aMetrics.mCarriedOutBottomMargin.Zero();
     aMetrics.mOverflowAreas.Clear();
+
+    if (GetNextInFlow()) {
+      // Reflow depth might vary between reflows, so we might have
+      // successfully reflowed and split this frame before.  If so, we
+      // shouldn't delete its continuations.
+      aStatus = NS_FRAME_NOT_COMPLETE;
+    } else {
+      aStatus = NS_FRAME_COMPLETE;
+    }
+
     return PR_TRUE;
   }
   mState &= ~NS_FRAME_TOO_DEEP_IN_FRAME_TREE;
@@ -6117,7 +6152,8 @@ nsIFrame::FinishAndStoreOverflow(nsOverflowAreas& aOverflowAreas,
   NS_ASSERTION((disp->mOverflowY == NS_STYLE_OVERFLOW_CLIP) ==
                (disp->mOverflowX == NS_STYLE_OVERFLOW_CLIP),
                "If one overflow is clip, the other should be too");
-  if (disp->mOverflowX == NS_STYLE_OVERFLOW_CLIP) {
+  if (disp->mOverflowX == NS_STYLE_OVERFLOW_CLIP ||
+      nsFrame::ApplyPaginatedOverflowClipping(this)) {
     // The contents are actually clipped to the padding area 
     aOverflowAreas.SetAllTo(bounds);
   }

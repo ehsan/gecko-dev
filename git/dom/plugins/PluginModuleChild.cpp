@@ -107,9 +107,9 @@ static HWND sBrowserHwnd = NULL;
 
 PluginModuleChild::PluginModuleChild() :
     mLibrary(0),
+    mQuirks(QUIRKS_NOT_INITIALIZED),
     mShutdownFunc(0),
-    mInitializeFunc(0),
-    mQuirks(QUIRKS_NOT_INITIALIZED)
+    mInitializeFunc(0)
 #if defined(OS_WIN) || defined(OS_MACOSX)
   , mGetEntryPointsFunc(0)
 #elif defined(MOZ_WIDGET_GTK2)
@@ -1788,7 +1788,7 @@ PluginModuleChild::AllocPPluginInstance(const nsCString& aMimeType,
     InitQuirksModes(aMimeType);
 
 #ifdef XP_WIN
-    if (mQuirks & QUIRK_FLASH_HOOK_GETWINDOINFO) {
+    if (mQuirks & QUIRK_FLASH_HOOK_GETWINDOWINFO) {
         sUser32Intercept.Init("user32.dll");
         sUser32Intercept.AddHook("GetWindowInfo", PMCGetWindowInfoHook,
                                  (void**) &sGetWindowInfoPtrStub);
@@ -1827,7 +1827,8 @@ PluginModuleChild::InitQuirksModes(const nsCString& aMimeType)
         mQuirks |= QUIRK_WINLESS_TRACKPOPUP_HOOK;
         mQuirks |= QUIRK_FLASH_THROTTLE_WMUSER_EVENTS; 
         mQuirks |= QUIRK_FLASH_HOOK_SETLONGPTR;
-        mQuirks |= QUIRK_FLASH_HOOK_GETWINDOINFO;
+        mQuirks |= QUIRK_FLASH_HOOK_GETWINDOWINFO;
+        mQuirks |= QUIRK_FLASH_MASK_CLEARTYPE_SETTINGS;
     }
 #endif
 }
@@ -1883,7 +1884,13 @@ PluginModuleChild::AnswerPPluginInstanceConstructor(PPluginInstanceChild* aActor
     // plugins need to actively negotiate something else in order to work
     // out of process.
     if (childInstance->EventModel() == NPEventModelCarbon) {
-        *rv = NPERR_MODULE_LOAD_FAILED_ERROR;
+      // Send notification that a plugin tried to negotiate Carbon NPAPI so that
+      // users can be notified that restarting the browser in i386 mode may allow
+      // them to use the plugin.
+      childInstance->SendNegotiatedCarbon();
+
+      // Fail to instantiate.
+      *rv = NPERR_MODULE_LOAD_FAILED_ERROR;
     }
 #endif
 

@@ -533,8 +533,6 @@ JSThreadData::purge(JSContext *cx)
 
     /* FIXME: bug 506341. */
     propertyCache.purge(cx);
-
-    dtoaCache.s = NULL;
 }
 
 #ifdef JS_THREADSAFE
@@ -746,6 +744,11 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
 
     JS_ASSERT(cx->resolveFlags == 0);
 
+    if (!cx->busyArrays.init()) {
+        FreeContext(cx);
+        return NULL;
+    }
+
 #ifdef JS_THREADSAFE
     if (!js_InitContextThread(cx)) {
         FreeContext(cx);
@@ -838,12 +841,6 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
     cxCallback = rt->cxCallback;
     if (cxCallback && !cxCallback(cx, JSCONTEXT_NEW)) {
         js_DestroyContext(cx, JSDCM_NEW_FAILED);
-        return NULL;
-    }
-
-    /* Using ContextAllocPolicy, so init after JSContext is ready. */
-    if (!cx->busyArrays.init()) {
-        FreeContext(cx);
         return NULL;
     }
 
@@ -1333,7 +1330,7 @@ js_ReportOutOfMemory(JSContext *cx)
      * If we are in a builtin called directly from trace, don't report an
      * error. We will retry in the interpreter instead.
      */
-    if (JS_ON_TRACE(cx) && !cx->bailExit)
+    if (JS_ON_TRACE(cx) && !JS_TRACE_MONITOR(cx).bailExit)
         return;
 #endif
 
@@ -1407,18 +1404,18 @@ checkReportFlags(JSContext *cx, uintN *flags)
         JSStackFrame *fp = js_GetScriptedCaller(cx, NULL);
         if (fp && fp->script()->strictModeCode)
             *flags &= ~JSREPORT_WARNING;
-        else if (JS_HAS_STRICT_OPTION(cx))
+        else if (cx->hasStrictOption())
             *flags |= JSREPORT_WARNING;
         else
             return true;
     } else if (JSREPORT_IS_STRICT(*flags)) {
         /* Warning/error only when JSOPTION_STRICT is set. */
-        if (!JS_HAS_STRICT_OPTION(cx))
+        if (!cx->hasStrictOption())
             return true;
     }
 
     /* Warnings become errors when JSOPTION_WERROR is set. */
-    if (JSREPORT_IS_WARNING(*flags) && JS_HAS_WERROR_OPTION(cx))
+    if (JSREPORT_IS_WARNING(*flags) && cx->hasWErrorOption())
         *flags &= ~JSREPORT_WARNING;
 
     return false;
@@ -1921,8 +1918,8 @@ js_GetCurrentBytecodePC(JSContext* cx)
 
 #ifdef JS_TRACER
     if (JS_ON_TRACE(cx)) {
-        pc = cx->bailExit->pc;
-        imacpc = cx->bailExit->imacpc;
+        pc = JS_TRACE_MONITOR(cx).bailExit->pc;
+        imacpc = JS_TRACE_MONITOR(cx).bailExit->imacpc;
     } else
 #endif
     {
@@ -1947,7 +1944,7 @@ js_CurrentPCIsInImacro(JSContext *cx)
 #ifdef JS_TRACER
     VOUCH_DOES_NOT_REQUIRE_STACK();
     if (JS_ON_TRACE(cx))
-        return cx->bailExit->imacpc != NULL;
+        return JS_TRACE_MONITOR(cx).bailExit->imacpc != NULL;
     return cx->fp()->hasImacropc();
 #else
     return false;
@@ -1991,10 +1988,11 @@ DSTOffsetCache::DSTOffsetCache()
 }
 
 JSContext::JSContext(JSRuntime *rt)
-  : runtime(rt),
-    compartment(rt->defaultCompartment),
+  : hasVersionOverride(false),
+    runtime(rt),
+    compartment(NULL),
     regs(NULL),
-    busyArrays(thisInInitializer())
+    busyArrays()
 {}
 
 void
@@ -2034,9 +2032,8 @@ error:
 
 /*
  * Since this function is only called in the context of a pending exception,
- * the caller must subsequently take an error path. If wrapping fails, we leave
- * the exception cleared, which, in the context of an error path, will be
- * interpreted as an uncatchable exception.
+ * the caller must subsequently take an error path. If wrapping fails, it will
+ * set a new (uncatchable) exception to be used in place of the original.
  */
 void
 JSContext::wrapPendingException()
@@ -2077,6 +2074,7 @@ JSContext::popSegmentAndFrame()
         JS_ASSERT(regs->fp->prev() == NULL);
         setCurrentRegs(NULL);
     }
+    maybeMigrateVersionOverride();
 }
 
 void
@@ -2277,14 +2275,14 @@ void
 JSContext::updateJITEnabled()
 {
 #ifdef JS_TRACER
-    traceJitEnabled = ((options & JSOPTION_JIT) &&
+    traceJitEnabled = ((runOptions & JSOPTION_JIT) &&
                        !IsJITBrokenHere() &&
                        (debugHooks == &js_NullDebugHooks ||
                         (debugHooks == &runtime->globalDebugHooks &&
                          !runtime->debuggerInhibitsJIT())));
 #endif
 #ifdef JS_METHODJIT
-    methodJitEnabled = (options & JSOPTION_METHODJIT) &&
+    methodJitEnabled = (runOptions & JSOPTION_METHODJIT) &&
                        !IsJITBrokenHere()
 # if defined JS_CPU_X86 || defined JS_CPU_X64
                        && JSC::MacroAssemblerX86Common::getSSEState() >=
@@ -2292,7 +2290,7 @@ JSContext::updateJITEnabled()
 # endif
                         ;
 #ifdef JS_TRACER
-    profilingEnabled = (options & JSOPTION_PROFILING) && traceJitEnabled && methodJitEnabled;
+    profilingEnabled = (runOptions & JSOPTION_PROFILING) && traceJitEnabled && methodJitEnabled;
 #endif
 #endif
 }

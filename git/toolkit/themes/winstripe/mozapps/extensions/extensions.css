@@ -281,6 +281,8 @@
 }
 
 .category[disabled] {
+  border-top: 0;
+  border-bottom: 0;
   height: 0;
   opacity: 0;
   -moz-transition-property: height, opacity;
@@ -296,7 +298,6 @@
 .category[selected] {
   background-color: rgba(255, 255, 255, 0.4);
   color: #252F3B;
-  font-weight: bold;
   border-color: #C3CEDF;
   -moz-border-end-color: #E2E9F2;
 }
@@ -510,10 +511,6 @@
   -moz-border-bottom-colors: rgba(0, 0, 0, 0.1) rgba(255, 255, 255, 0.1);
 }
 
-.addon[status="installing"] {
-  -moz-box-align: center;
-}
-
 .details {
   cursor: pointer;
   margin: 0;
@@ -523,7 +520,7 @@
 .icon-container {
   width: 48px;
   height: 48px;
-  margin: 22px 7px 7px 7px;
+  margin: 3px 7px;
 }
 
 .icon {
@@ -549,8 +546,7 @@
   list-style-image: url("chrome://mozapps/skin/plugins/pluginGeneric.png");
 }
 
-.name-container,
-.addon[status="installing"] .name {
+.name-container {
   font-size: 150%;
   font-weight: bold;
   color: #3F3F3F;
@@ -760,10 +756,6 @@
   opacity: 0;
 }
 
-#detail-view:not([loading]) .alert-container {
-  visibility: collapse;
-}
-
 #detail-view[loading-extended] .loading {
   opacity: 1;
   -moz-transition-property: opacity;
@@ -811,13 +803,17 @@
   margin-bottom: 2em;
 }
 
-#detail-desc {
+#detail-desc, #detail-fulldesc {
   -moz-margin-start: 6px;
   /* This is necessary to fix layout issues with multi-line descriptions, see
      bug 592712*/
   outline: solid transparent;
   white-space: pre-wrap;
   min-width: 10em;
+}
+
+#detail-fulldesc {
+  margin-top: 1em;
 }
 
 #detail-contributions {
@@ -1012,7 +1008,6 @@
   border-radius: 0 3px 3px 0;
 }
 
-.download-progress .pause,
 .download-progress .cancel {
   -moz-appearance: none;
   background-color: rgba(255, 255, 255, 0.4);
@@ -1023,35 +1018,26 @@
   margin: 3px;
 }
 
-.download-progress .pause:hover,
 .download-progress .cancel:hover {
   background-color: rgba(255, 255, 255, 0.6);
   border: 1px solid rgba(0, 0, 0, 0.8);
 }
 
-.download-progress .pause:active:hover,
 .download-progress .cancel:active:hover {
   box-shadow: inset rgba(0, 0, 0, 0.5) 1px 1px 2px;
 }
 
-.download-progress .pause .button-box,
 .download-progress .cancel .button-box {
   padding: 0;
   border: none;
 }
 
-.download-progress .pause .button-text,
 .download-progress .cancel .button-text {
   display: none;
 }
 
-.download-progress .pause .button-icon,
 .download-progress .cancel .button-icon {
   -moz-margin-start: 0;
-}
-
-.download-progress .pause {
-  list-style-image: url('chrome://mozapps/skin/extensions/pause.png');
 }
 
 .download-progress .cancel {

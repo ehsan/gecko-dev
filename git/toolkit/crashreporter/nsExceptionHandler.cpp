@@ -209,10 +209,6 @@ static AnnotationTable* crashReporterAPIData_Hash;
 static nsCString* crashReporterAPIData = nsnull;
 static nsCString* notesField = nsnull;
 
-#if defined(XP_WIN)
-static HMODULE dbghelp = NULL;
-#endif
-
 #if defined(MOZ_IPC)
 // OOP crash reporting
 static CrashGenerationServer* crashServer; // chrome process has this
@@ -721,24 +717,34 @@ nsresult SetExceptionHandler(nsILocalFile* aXREDirectory,
   }
 #endif
 
-#ifdef XP_WIN
-  // Try to determine what version of dbghelp.dll we're using.
-  // MinidumpWithFullMemoryInfo is only available in 6.2 or newer.
-  dbghelp = LoadLibraryW(L"dbghelp.dll");
+#ifdef XP_WIN32
   MINIDUMP_TYPE minidump_type = MiniDumpNormal;
-  if (dbghelp) {
-    typedef LPAPI_VERSION (WINAPI *ImagehlpApiVersionPtr)(void);
-    ImagehlpApiVersionPtr imagehlp_api_version =
-      (ImagehlpApiVersionPtr)GetProcAddress(dbghelp, "ImagehlpApiVersion");
-    if (imagehlp_api_version) {
-      LPAPI_VERSION api_version = imagehlp_api_version();
-      if (api_version->MajorVersion > 6 ||
-          (api_version->MajorVersion == 6 && api_version->MinorVersion > 1)) {
+
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+  // Try to determine what version of dbghelp.dll we're using.
+  // MinidumpWithFullMemoryInfo is only available in 6.1.x or newer.
+
+  DWORD version_size = GetFileVersionInfoSizeW(L"dbghelp.dll", NULL);
+  if (version_size > 0) {
+    std::vector<BYTE> buffer(version_size);
+    if (GetFileVersionInfoW(L"dbghelp.dll",
+                            0,
+                            version_size,
+                            &buffer[0])) {
+      UINT len;
+      VS_FIXEDFILEINFO* file_info;
+      VerQueryValue(&buffer[0], L"\\", (void**)&file_info, &len);
+      WORD major = HIWORD(file_info->dwFileVersionMS),
+           minor = LOWORD(file_info->dwFileVersionMS),
+           revision = HIWORD(file_info->dwFileVersionLS);
+      if (major > 6 || (major == 6 && minor > 1) ||
+          (major == 6 && minor == 1 && revision >= 7600)) {
         minidump_type = MiniDumpWithFullMemoryInfo;
       }
     }
   }
-#endif
+#endif // MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+#endif // XP_WIN32
 
   // now set the exception handler
   gExceptionHandler = new google_breakpad::
@@ -765,6 +771,10 @@ nsresult SetExceptionHandler(nsILocalFile* aXREDirectory,
 
   if (!gExceptionHandler)
     return NS_ERROR_OUT_OF_MEMORY;
+
+#ifdef XP_WIN
+  gExceptionHandler->set_handle_debug_exceptions(true);
+#endif
 
   // store application start time
   char timeString[32];
@@ -1023,12 +1033,6 @@ static void OOPDeinit();
 nsresult UnsetExceptionHandler()
 {
   delete gExceptionHandler;
-
-#if defined(XP_WIN)
-  if (dbghelp) {
-    FreeLibrary(dbghelp);
-  }
-#endif
 
   // do this here in the unlikely case that we succeeded in allocating
   // our strings but failed to allocate gExceptionHandler.
@@ -1864,6 +1868,9 @@ SetRemoteExceptionHandler(const nsACString& crashPipe)
                      MiniDumpNormal,
                      NS_ConvertASCIItoUTF16(crashPipe).BeginReading(),
                      NULL);
+#ifdef XP_WIN
+  gExceptionHandler->set_handle_debug_exceptions(true);
+#endif
 
   // we either do remote or nothing, no fallback to regular crash reporting
   return gExceptionHandler->IsOutOfProcess();
@@ -2006,6 +2013,7 @@ CurrentThreadId()
     if (threads_for_task[i] == mach_thread_self())
       return i;
   }
+  abort();
 #else
 #  error "Unsupported platform"
 #endif

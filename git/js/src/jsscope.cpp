@@ -601,6 +601,23 @@ Shape::newDictionaryShape(JSContext *cx, const Shape &child, Shape **listp)
 }
 
 Shape *
+Shape::newDictionaryShapeForAddProperty(JSContext *cx, jsid id,
+                                        PropertyOp getter, PropertyOp setter,
+                                        uint32 slot, uintN attrs, uintN flags, intN shortid)
+{
+    Shape *shape = JS_PROPERTY_TREE(cx).newShape(cx);
+    if (!shape)
+        return NULL;
+
+    new (shape) Shape(id, getter, setter, slot, attrs, (flags & ~FROZEN) | IN_DICTIONARY, shortid);
+    shape->parent = NULL;
+    shape->listp = NULL;
+
+    JS_RUNTIME_METER(cx->runtime, liveDictModeNodes);
+    return shape;
+}
+
+Shape *
 Shape::newDictionaryList(JSContext *cx, Shape **listp)
 {
     Shape *shape = *listp;
@@ -848,6 +865,30 @@ JSObject::addPropertyInternal(JSContext *cx, jsid id,
     return NULL;
 }
 
+/*
+ * Check and adjust the new attributes for the shape to make sure that our
+ * slot access optimizations are sound. It is responsibility of the callers to
+ * enforce all restrictions from ECMA-262 v5 8.12.9 [[DefineOwnProperty]].
+ */
+inline bool
+CheckCanChangeAttrs(JSContext *cx, JSObject *obj, const Shape *shape, uintN *attrsp)
+{
+    if (shape->configurable())
+        return true;
+
+    /* A permanent property must stay permanent. */
+    *attrsp |= JSPROP_PERMANENT;
+
+    /* Reject attempts to remove a slot from the permanent data property. */
+    if (shape->isDataDescriptor() && shape->hasSlot() &&
+        (*attrsp & (JSPROP_GETTER | JSPROP_SETTER | JSPROP_SHARED))) {
+        obj->reportNotConfigurable(cx, shape->id);
+        return false;
+    }
+
+    return true;
+}
+
 const Shape *
 JSObject::putProperty(JSContext *cx, jsid id,
                       PropertyOp getter, PropertyOp setter,
@@ -893,6 +934,9 @@ JSObject::putProperty(JSContext *cx, jsid id,
     /* Property exists: search must have returned a valid *spp. */
     JS_ASSERT(!SHAPE_IS_REMOVED(*spp));
 
+    if (!CheckCanChangeAttrs(cx, this, shape, &attrs))
+        return NULL;
+    
     /*
      * If the caller wants to allocate a slot, but doesn't care which slot,
      * copy the existing shape's slot into slot so we can match shape, if all
@@ -1049,6 +1093,10 @@ JSObject::changeProperty(JSContext *cx, const Shape *shape, uintN attrs, uintN m
         getter = NULL;
     if (setter == PropertyStub)
         setter = NULL;
+
+    if (!CheckCanChangeAttrs(cx, this, shape, &attrs))
+        return NULL;
+    
     if (shape->attrs == attrs && shape->getter() == getter && shape->setter() == setter)
         return shape;
 
@@ -1310,8 +1358,8 @@ void
 JSObject::generateOwnShape(JSContext *cx)
 {
 #ifdef JS_TRACER
-    JS_ASSERT_IF(!parent && JS_ON_TRACE(cx), cx->bailExit);
-     LeaveTraceIfGlobalObject(cx, this);
+    JS_ASSERT_IF(!parent && JS_ON_TRACE(cx), JS_TRACE_MONITOR(cx).bailExit);
+    LeaveTraceIfGlobalObject(cx, this);
 
     /*
      * If we are recording, here is where we forget already-guarded shapes.
@@ -1333,9 +1381,11 @@ JSObject::deletingShapeChange(JSContext *cx, const Shape &shape)
     generateOwnShape(cx);
 }
 
-bool
+const Shape *
 JSObject::methodShapeChange(JSContext *cx, const Shape &shape)
 {
+    const Shape *result = &shape;
+
     JS_ASSERT(!JSID_IS_VOID(shape.id));
     if (shape.isMethod()) {
 #ifdef DEBUG
@@ -1352,12 +1402,12 @@ JSObject::methodShapeChange(JSContext *cx, const Shape &shape)
          * despecializing from a method memoized in the property tree to a
          * plain old function-valued property.
          */
-        if (!putProperty(cx, shape.id, NULL, shape.rawSetter, shape.slot,
-                         shape.attrs,
-                         shape.getFlags() & ~Shape::METHOD,
-                         shape.shortid)) {
-            return false;
-        }
+        result = putProperty(cx, shape.id, NULL, shape.rawSetter, shape.slot,
+                             shape.attrs,
+                             shape.getFlags() & ~Shape::METHOD,
+                             shape.shortid);
+        if (!result)
+            return NULL;
     }
 
     if (branded()) {
@@ -1367,13 +1417,13 @@ JSObject::methodShapeChange(JSContext *cx, const Shape &shape)
             setMethodThrashCount(thrashCount);
             if (thrashCount == JSObject::METHOD_THRASH_COUNT_MAX) {
                 unbrand(cx);
-                return true;
+                return result;
             }
         }
     }
 
     generateOwnShape(cx);
-    return true;
+    return result;
 }
 
 bool
@@ -1386,7 +1436,7 @@ JSObject::methodShapeChange(JSContext *cx, uint32 slot)
             const Shape &shape = r.front();
             JS_ASSERT(!JSID_IS_VOID(shape.id));
             if (shape.slot == slot)
-                return methodShapeChange(cx, shape);
+                return methodShapeChange(cx, shape) != NULL;
         }
     }
     return true;

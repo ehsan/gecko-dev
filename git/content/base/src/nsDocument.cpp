@@ -185,6 +185,7 @@ static NS_DEFINE_CID(kDOMEventGroupCID, NS_DOMEVENTGROUP_CID);
 
 #include "mozAutoDocUpdate.h"
 #include "nsGlobalWindow.h"
+#include "mozilla/dom/indexedDB/IndexedDatabaseManager.h"
 
 #ifdef MOZ_SMIL
 #include "nsSMILAnimationController.h"
@@ -855,6 +856,33 @@ nsExternalResourceMap::ShowViewers()
   mMap.EnumerateRead(ExternalResourceShower, nsnull);
 }
 
+void
+TransferZoomLevels(nsIDocument* aFromDoc,
+                   nsIDocument* aToDoc)
+{
+  NS_ABORT_IF_FALSE(aFromDoc && aToDoc,
+                    "transferring zoom levels from/to null doc");
+
+  nsIPresShell* fromShell = aFromDoc->GetShell();
+  if (!fromShell)
+    return;
+
+  nsPresContext* fromCtxt = fromShell->GetPresContext();
+  if (!fromCtxt)
+    return;
+
+  nsIPresShell* toShell = aToDoc->GetShell();
+  if (!toShell)
+    return;
+
+  nsPresContext* toCtxt = toShell->GetPresContext();
+  if (!toCtxt)
+    return;
+
+  toCtxt->SetFullZoom(fromCtxt->GetFullZoom());
+  toCtxt->SetTextZoom(fromCtxt->TextZoom());
+}
+
 nsresult
 nsExternalResourceMap::AddExternalResource(nsIURI* aURI,
                                            nsIDocumentViewer* aViewer,
@@ -912,6 +940,9 @@ nsExternalResourceMap::AddExternalResource(nsIURI* aURI,
     newResource->mDocument = doc;
     newResource->mViewer = aViewer;
     newResource->mLoadGroup = aLoadGroup;
+    if (doc) {
+      TransferZoomLevels(aDisplayDocument, doc);
+    }
   }
 
   const nsTArray< nsCOMPtr<nsIObserver> > & obs = load->Observers();
@@ -2220,12 +2251,12 @@ nsDocument::ResetStylesheetsToURI(nsIURI* aURI)
 
   // Now reset our inline style and attribute sheets.
   nsresult rv = NS_OK;
-  nsStyleSet::sheetType attrSheetType = GetAttrSheetType();
   if (mAttrStyleSheet) {
     // Remove this sheet from all style sets
     nsCOMPtr<nsIPresShell> shell = GetShell();
     if (shell) {
-      shell->StyleSet()->RemoveStyleSheet(attrSheetType, mAttrStyleSheet);
+      shell->StyleSet()->RemoveStyleSheet(nsStyleSet::ePresHintSheet,
+                                          mAttrStyleSheet);
     }
     mAttrStyleSheet->Reset(aURI);
   } else {
@@ -2265,20 +2296,12 @@ nsDocument::ResetStylesheetsToURI(nsIURI* aURI)
   return rv;
 }
 
-nsStyleSet::sheetType
-nsDocument::GetAttrSheetType()
-{
-  return nsStyleSet::ePresHintSheet;
-}
-
 void
 nsDocument::FillStyleSet(nsStyleSet* aStyleSet)
 {
   NS_PRECONDITION(aStyleSet, "Must have a style set");
   NS_PRECONDITION(aStyleSet->SheetCount(nsStyleSet::ePresHintSheet) == 0,
                   "Style set already has a preshint sheet?");
-  NS_PRECONDITION(aStyleSet->SheetCount(nsStyleSet::eHTMLPresHintSheet) == 0,
-                  "Style set already has a HTML preshint sheet?");
   NS_PRECONDITION(aStyleSet->SheetCount(nsStyleSet::eDocSheet) == 0,
                   "Style set already has document sheets?");
   NS_PRECONDITION(aStyleSet->SheetCount(nsStyleSet::eStyleAttrSheet) == 0,
@@ -2286,7 +2309,7 @@ nsDocument::FillStyleSet(nsStyleSet* aStyleSet)
   NS_PRECONDITION(mStyleAttrStyleSheet, "No style attr stylesheet?");
   NS_PRECONDITION(mAttrStyleSheet, "No attr stylesheet?");
   
-  aStyleSet->AppendStyleSheet(GetAttrSheetType(), mAttrStyleSheet);
+  aStyleSet->AppendStyleSheet(nsStyleSet::ePresHintSheet, mAttrStyleSheet);
 
   aStyleSet->AppendStyleSheet(nsStyleSet::eStyleAttrSheet,
                               mStyleAttrStyleSheet);
@@ -2966,19 +2989,7 @@ nsDocument::SetBaseURI(nsIURI* aURI)
 void
 nsDocument::GetBaseTarget(nsAString &aBaseTarget)
 {
-  aBaseTarget.Truncate();
-  Element* head = GetHeadElement();
-  if (!head) {
-    return;
-  }
-  
-  for (ChildIterator iter(head); !iter.IsDone(); iter.Next()) {
-    nsIContent* child = iter;
-    if (child->NodeInfo()->Equals(nsGkAtoms::base, kNameSpaceID_XHTML) &&
-        child->GetAttr(kNameSpaceID_None, nsGkAtoms::target, aBaseTarget)) {
-      return;
-    }
-  }
+  aBaseTarget = mBaseTarget;
 }
 
 void
@@ -4346,8 +4357,7 @@ nsDocument::CreateElement(const nsAString& aTagName,
     ToLowerCase(aTagName, lcTagName);
   }
 
-  rv = CreateElem(needsLowercase ? static_cast<const nsAString&>(lcTagName)
-                                 : aTagName,
+  rv = CreateElem(needsLowercase ? lcTagName : aTagName,
                   nsnull,
                   IsHTML() ? kNameSpaceID_XHTML : GetDefaultNamespaceID(),
                   PR_TRUE, aReturn);
@@ -7020,6 +7030,7 @@ nsDocument::CanSavePresentation(nsIRequest *aNewRequest)
     }
   }
 
+  // Check if we have pending network requests
   nsCOMPtr<nsILoadGroup> loadGroup = GetDocumentLoadGroup();
   if (loadGroup) {
     nsCOMPtr<nsISimpleEnumerator> requests;
@@ -7045,6 +7056,13 @@ nsDocument::CanSavePresentation(nsIRequest *aNewRequest)
         return PR_FALSE;
       }
     }
+  }
+
+  // Check if we have running IndexedDB transactions
+  indexedDB::IndexedDatabaseManager* idbManager =
+    indexedDB::IndexedDatabaseManager::Get();
+  if (idbManager && idbManager->HasOpenTransactions(win)) {
+    return PR_FALSE;
   }
 
   PRBool canCache = PR_TRUE;
@@ -8105,22 +8123,24 @@ nsDocument::AddImage(imgIRequest* aImage)
   if (!success)
     return NS_ERROR_OUT_OF_MEMORY;
 
+  nsresult rv = NS_OK;
+
   // If this is the first insertion and we're locking images, lock this image
   // too.
-  if ((oldCount == 0) && mLockingImages) {
-    nsresult rv = aImage->LockImage();
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = aImage->RequestDecode();
-    NS_ENSURE_SUCCESS(rv, rv);
+  if (oldCount == 0 && mLockingImages) {
+    rv = aImage->LockImage();
+    if (NS_SUCCEEDED(rv))
+      rv = aImage->RequestDecode();
   }
 
   // If this is the first insertion and we're animating images, request
   // that this image be animated too.
   if (oldCount == 0 && mAnimatingImages) {
-    return aImage->IncrementAnimationConsumers();
+    nsresult rv2 = aImage->IncrementAnimationConsumers();
+    rv = NS_SUCCEEDED(rv) ? rv2 : rv;
   }
 
-  return NS_OK;
+  return rv;
 }
 
 nsresult
@@ -8145,17 +8165,21 @@ nsDocument::RemoveImage(imgIRequest* aImage)
     mImageTracker.Put(aImage, count);
   }
 
+  nsresult rv = NS_OK;
+
   // If we removed the image from the tracker and we're locking images, unlock
   // this image.
-  if ((count == 0) && mLockingImages)
-    return aImage->UnlockImage();
+  if (count == 0 && mLockingImages)
+    rv = aImage->UnlockImage();
 
   // If we removed the image from the tracker and we're animating images,
   // remove our request to animate this image.
-  if (count == 0 && mAnimatingImages)
-    return aImage->DecrementAnimationConsumers();
+  if (count == 0 && mAnimatingImages) {
+    nsresult rv2 = aImage->DecrementAnimationConsumers();
+    rv = NS_SUCCEEDED(rv) ? rv2 : rv;
+  }
 
-  return NS_OK;
+  return rv;
 }
 
 PLDHashOperator LockEnumerator(imgIRequest* aKey,

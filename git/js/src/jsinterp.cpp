@@ -455,12 +455,12 @@ CallThisObjectHook(JSContext *cx, JSObject *obj, Value *argv)
  * The alert should display "true".
  */
 JS_STATIC_INTERPRET bool
-ComputeGlobalThis(JSContext *cx, Value *argv)
+ComputeGlobalThis(JSContext *cx, Value *vp)
 {
-    JSObject *thisp = argv[-2].toObject().getGlobal()->thisObject(cx);
+    JSObject *thisp = vp[0].toObject().getGlobal()->thisObject(cx);
     if (!thisp)
         return false;
-    argv[-1].setObject(*thisp);
+    vp[1].setObject(*thisp);
     return true;
 }
 
@@ -508,21 +508,25 @@ ReportIncompatibleMethod(JSContext *cx, Value *vp, Class *clasp)
 }
 
 bool
-ComputeThisFromArgv(JSContext *cx, Value *argv)
+BoxThisForVp(JSContext *cx, Value *vp)
 {
     /*
      * Check for SynthesizeFrame poisoning and fast constructors which
      * didn't check their vp properly.
      */
-    JS_ASSERT(!argv[-1].isMagic());
+    JS_ASSERT(!vp[1].isMagic());
+#ifdef DEBUG
+    JSFunction *fun = vp[0].toObject().isFunction() ? vp[0].toObject().getFunctionPrivate() : NULL;
+    JS_ASSERT_IF(fun && fun->isInterpreted(), !fun->inStrictMode());
+#endif
 
-    if (argv[-1].isNullOrUndefined())
-        return ComputeGlobalThis(cx, argv);
+    if (vp[1].isNullOrUndefined())
+        return ComputeGlobalThis(cx, vp);
 
-    if (!argv[-1].isObject())
-        return !!js_PrimitiveToObject(cx, &argv[-1]);
+    if (!vp[1].isObject())
+        return !!js_PrimitiveToObject(cx, &vp[1]);
 
-    JS_ASSERT(IsSaneThisObject(argv[-1].toObject()));
+    JS_ASSERT(IsSaneThisObject(vp[1].toObject()));
     return true;
 }
 
@@ -895,7 +899,7 @@ ExternalGetOrSet(JSContext *cx, JSObject *obj, jsid id, const Value &fval,
      */
     JS_CHECK_RECURSION(cx, return JS_FALSE);
 
-    return ExternalInvoke(cx, obj, fval, argc, argv, rval);
+    return ExternalInvoke(cx, ObjectValue(*obj), fval, argc, argv, rval);
 }
 
 bool
@@ -963,7 +967,7 @@ Execute(JSContext *cx, JSObject *chain, JSScript *script,
             return false;
         frame.fp()->globalThis().setObject(*thisp);
 
-        initialVarObj = (cx->options & JSOPTION_VAROBJFIX) ? chain->getGlobal() : chain;
+        initialVarObj = cx->hasRunOption(JSOPTION_VAROBJFIX) ? chain->getGlobal() : chain;
     }
 
     /*
@@ -2180,12 +2184,14 @@ IteratorMore(JSContext *cx, JSObject *iterobj, bool *cond, Value *rval)
 {
     if (iterobj->getClass() == &js_IteratorClass) {
         NativeIterator *ni = (NativeIterator *) iterobj->getPrivate();
-        *cond = (ni->props_cursor < ni->props_end);
-    } else {
-        if (!js_IteratorMore(cx, iterobj, rval))
-            return false;
-        *cond = rval->isTrue();
+        if (ni->isKeyIter()) {
+            *cond = (ni->props_cursor < ni->props_end);
+            return true;
+        }
     }
+    if (!js_IteratorMore(cx, iterobj, rval))
+        return false;
+    *cond = rval->isTrue();
     return true;
 }
 
@@ -2194,19 +2200,15 @@ IteratorNext(JSContext *cx, JSObject *iterobj, Value *rval)
 {
     if (iterobj->getClass() == &js_IteratorClass) {
         NativeIterator *ni = (NativeIterator *) iterobj->getPrivate();
-        JS_ASSERT(ni->props_cursor < ni->props_end);
         if (ni->isKeyIter()) {
-            jsid id = *ni->currentKey();
+            JS_ASSERT(ni->props_cursor < ni->props_end);
+            jsid id = *ni->current();
             if (JSID_IS_ATOM(id)) {
                 rval->setString(JSID_TO_STRING(id));
-                ni->incKeyCursor();
+                ni->incCursor();
                 return true;
             }
             /* Take the slow path if we have to stringify a numeric property name. */
-        } else {
-            *rval = *ni->currentValue();
-            ni->incValueCursor();
-            return true;
         }
     }
     return js_IteratorNext(cx, iterobj, rval);
@@ -3154,6 +3156,7 @@ BEGIN_CASE(JSOP_FORLOCAL)
 END_CASE(JSOP_FORLOCAL)
 
 BEGIN_CASE(JSOP_FORNAME)
+BEGIN_CASE(JSOP_FORGNAME)
 {
     JS_ASSERT(regs.sp - 1 >= regs.fp->base());
     JSAtom *atom;
@@ -3264,7 +3267,6 @@ END_CASE(JSOP_PICK)
 
 #define NATIVE_SET(cx,obj,shape,entry,vp)                                     \
     JS_BEGIN_MACRO                                                            \
-        TRACE_2(SetPropHit, entry, shape);                                    \
         if (shape->hasDefaultSetter() &&                                      \
             (shape)->slot != SHAPE_INVALID_SLOT &&                            \
             !(obj)->brandedOrHasMethodBarrier()) {                            \
@@ -4043,26 +4045,8 @@ do_incop:
 
 {
     int incr, incr2;
-    Value *vp;
-
-BEGIN_CASE(JSOP_INCGLOBAL)
-    incr =  1; incr2 =  1; goto do_bound_global_incop;
-BEGIN_CASE(JSOP_DECGLOBAL)
-    incr = -1; incr2 = -1; goto do_bound_global_incop;
-BEGIN_CASE(JSOP_GLOBALINC)
-    incr =  1; incr2 =  0; goto do_bound_global_incop;
-BEGIN_CASE(JSOP_GLOBALDEC)
-    incr = -1; incr2 =  0; goto do_bound_global_incop;
-
-  do_bound_global_incop:
     uint32 slot;
-    slot = GET_SLOTNO(regs.pc);
-    slot = script->getGlobalSlot(slot);
-    JSObject *obj;
-    obj = regs.fp->scopeChain().getGlobal();
-    vp = &obj->getSlotRef(slot);
-    goto do_int_fast_incop;
-END_CASE(JSOP_INCGLOBAL)
+    Value *vp;
 
     /* Position cases so the most frequent i++ does not need a jump. */
 BEGIN_CASE(JSOP_DECARG)
@@ -4075,7 +4059,6 @@ BEGIN_CASE(JSOP_ARGINC)
     incr =  1; incr2 =  0;
 
   do_arg_incop:
-    // If we initialize in the declaration, MSVC complains that the labels skip init.
     slot = GET_ARGNO(regs.pc);
     JS_ASSERT(slot < regs.fp->numFormalArgs());
     METER_SLOT_OP(op, slot);
@@ -4468,7 +4451,7 @@ BEGIN_CASE(JSOP_SETMETHOD)
                      * new property, not updating an existing slot's value that
                      * might contain a method of a branded shape.
                      */
-                    TRACE_2(SetPropHit, entry, shape);
+                    TRACE_1(AddProperty, obj);
                     obj->nativeSetSlot(slot, rval);
 
                     /*
@@ -5356,31 +5339,6 @@ BEGIN_CASE(JSOP_CALLGLOBAL)
 }
 END_CASE(JSOP_GETGLOBAL)
 
-BEGIN_CASE(JSOP_FORGLOBAL)
-{
-    Value rval;
-    if (!IteratorNext(cx, &regs.sp[-1].toObject(), &rval))
-        goto error;
-    PUSH_COPY(rval);
-    uint32 slot = script->getGlobalSlot(GET_SLOTNO(regs.pc));
-    JSObject *obj = regs.fp->scopeChain().getGlobal();
-    if (!obj->methodWriteBarrier(cx, slot, rval))
-        goto error;
-    obj->nativeSetSlot(slot, rval);
-    regs.sp--;
-}
-END_CASE(JSOP_FORGLOBAL)
-
-BEGIN_CASE(JSOP_SETGLOBAL)
-{
-    uint32 slot = script->getGlobalSlot(GET_SLOTNO(regs.pc));
-    JSObject *obj = regs.fp->scopeChain().getGlobal();
-    if (!obj->methodWriteBarrier(cx, slot, regs.sp[-1]))
-        goto error;
-    obj->nativeSetSlot(slot, regs.sp[-1]);
-}
-END_SET_CASE(JSOP_SETGLOBAL)
-
 BEGIN_CASE(JSOP_DEFCONST)
 BEGIN_CASE(JSOP_DEFVAR)
 {
@@ -5444,7 +5402,7 @@ BEGIN_CASE(JSOP_DEFFUN)
          */
         obj2 = &regs.fp->scopeChain();
     } else {
-        JS_ASSERT(!FUN_FLAT_CLOSURE(fun));
+        JS_ASSERT(!fun->isFlatClosure());
 
         obj2 = GetScopeChainFast(cx, regs.fp, JSOP_DEFFUN, JSOP_DEFFUN_LENGTH);
         if (!obj2)
@@ -5482,62 +5440,54 @@ BEGIN_CASE(JSOP_DEFFUN)
      */
     JSObject *parent = &regs.fp->varobj(cx);
 
-    /*
-     * Check for a const property of the same name -- or any kind of property
-     * if executing with the strict option.  We check here at runtime as well
-     * as at compile-time, to handle eval as well as multiple HTML script tags.
-     */
+    /* ES5 10.5 (NB: with subsequent errata). */
     jsid id = ATOM_TO_JSID(fun->atom);
     JSProperty *prop = NULL;
     JSObject *pobj;
-    JSBool ok = CheckRedeclaration(cx, parent, id, attrs, &pobj, &prop);
-    if (!ok)
+    if (!parent->lookupProperty(cx, id, &pobj, &prop))
         goto error;
-
-    /*
-     * We deviate from ES3 10.1.3, ES5 10.5, by using JSObject::setProperty not
-     * JSObject::defineProperty for a function declaration in eval code whose
-     * id is already bound to a JSPROP_PERMANENT property, to ensure that such
-     * properties can't be deleted.
-     *
-     * We also use JSObject::setProperty for the existing properties of Call
-     * objects with matching attributes to preserve the internal (JSPropertyOp)
-     * getters and setters that update the value of the property in the stack
-     * frame. See bug 467495.
-     */
-    bool doSet = false;
-    if (prop) {
-        JS_ASSERT(!(attrs & ~(JSPROP_ENUMERATE | JSPROP_PERMANENT)));
-        JS_ASSERT((attrs == JSPROP_ENUMERATE) == regs.fp->isEvalFrame());
-
-        if (attrs == JSPROP_ENUMERATE) {
-            /* In eval code: assign rather than (re-)define, always. */
-            doSet = true;
-        } else if (parent->isCall()) {
-            JS_ASSERT(parent == pobj);
-
-            uintN oldAttrs = ((Shape *) prop)->attributes();
-            JS_ASSERT(!(oldAttrs & (JSPROP_READONLY | JSPROP_GETTER | JSPROP_SETTER)));
-
-            /*
-             * We may be processing a function sub-statement or declaration in
-             * function code: we assign rather than redefine if the essential
-             * JSPROP_PERMANENT (not [[Configurable]] in ES5 terms) attribute
-             * is not changing (note that JSPROP_ENUMERATE is set for all Call
-             * object properties).
-             */
-            JS_ASSERT(oldAttrs & attrs & JSPROP_ENUMERATE);
-            if (oldAttrs & JSPROP_PERMANENT)
-                doSet = true;
-        }
-    }
 
     Value rval = ObjectValue(*obj);
-    ok = doSet
-         ? parent->setProperty(cx, id, &rval, script->strictModeCode)
-         : parent->defineProperty(cx, id, rval, PropertyStub, PropertyStub, attrs);
-    if (!ok)
-        goto error;
+
+    do {
+        /* Steps 5d, 5f. */
+        if (!prop || pobj != parent) {
+            if (!parent->defineProperty(cx, id, rval, PropertyStub, PropertyStub, attrs))
+                goto error;
+            break;
+        }
+
+        /* Step 5e. */
+        JS_ASSERT(parent->isNative());
+        Shape *shape = reinterpret_cast<Shape *>(prop);
+        if (parent->isGlobal()) {
+            if (shape->configurable()) {
+                if (!parent->defineProperty(cx, id, rval, PropertyStub, PropertyStub, attrs))
+                    goto error;
+                break;
+            }
+
+            if (shape->isAccessorDescriptor() || !shape->writable() || !shape->enumerable()) {
+                JSAutoByteString bytes;
+                if (const char *name = js_ValueToPrintable(cx, IdToValue(id), &bytes)) {
+                    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
+                                         JSMSG_CANT_REDEFINE_PROP, name);
+                }
+                goto error;
+            }
+        }
+
+        /*
+         * Non-global properties, and global properties which we aren't simply
+         * redefining, must be set.  First, this preserves their attributes.
+         * Second, this will produce warnings and/or errors as necessary if the
+         * specified Call object property is not writable (const).
+         */
+
+        /* Step 5f. */
+        if (!parent->setProperty(cx, id, &rval, script->strictModeCode))
+            goto error;
+    } while (false);
 }
 END_CASE(JSOP_DEFFUN)
 
@@ -5987,7 +5937,7 @@ BEGIN_CASE(JSOP_INITMETHOD)
 
     /* Load the object being initialized into lval/obj. */
     JSObject *obj = &regs.sp[-2].toObject();
-    JS_ASSERT(obj->isNative());
+    JS_ASSERT(obj->isObject());
 
     /*
      * Probe the property cache.
@@ -6025,7 +5975,7 @@ BEGIN_CASE(JSOP_INITMETHOD)
          * property, not updating an existing slot's value that might
          * contain a method of a branded shape.
          */
-        TRACE_2(SetPropHit, entry, shape);
+        TRACE_1(AddProperty, obj);
         obj->nativeSetSlot(slot, rval);
     } else {
         PCMETER(JS_PROPERTY_CACHE(cx).inipcmisses++);
@@ -6313,7 +6263,6 @@ BEGIN_CASE(JSOP_INSTANCEOF)
 }
 END_CASE(JSOP_INSTANCEOF)
 
-#if JS_HAS_DEBUGGER_KEYWORD
 BEGIN_CASE(JSOP_DEBUGGER)
 {
     JSDebuggerHandler handler = cx->debugHooks->debuggerHandler;
@@ -6337,7 +6286,6 @@ BEGIN_CASE(JSOP_DEBUGGER)
     }
 }
 END_CASE(JSOP_DEBUGGER)
-#endif /* JS_HAS_DEBUGGER_KEYWORD */
 
 #if JS_HAS_XML_SUPPORT
 BEGIN_CASE(JSOP_DEFXMLNS)

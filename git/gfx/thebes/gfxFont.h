@@ -460,12 +460,13 @@ private:
 // used when picking fallback font
 struct FontSearch {
     FontSearch(const PRUint32 aCharacter, gfxFont *aFont) :
-        mCh(aCharacter), mFontToMatch(aFont), mMatchRank(0) {
+        mCh(aCharacter), mFontToMatch(aFont), mMatchRank(0), mCount(0) {
     }
     const PRUint32         mCh;
     gfxFont*               mFontToMatch;
     PRInt32                mMatchRank;
     nsRefPtr<gfxFontEntry> mBestMatch;
+    PRUint32               mCount;
 };
 
 class gfxFontFamily {
@@ -493,6 +494,7 @@ public:
     
     void AddFontEntry(nsRefPtr<gfxFontEntry> aFontEntry) {
         mAvailableFonts.AppendElement(aFontEntry);
+        aFontEntry->SetFamily(this);
     }
 
     // note that the styles for this family have been added
@@ -967,7 +969,7 @@ public:
         return nsnull;
     }
 
-    gfxFloat GetAdjustedSize() const {
+    virtual gfxFloat GetAdjustedSize() {
         return mAdjustedSize > 0.0 ? mAdjustedSize : mStyle.size;
     }
 
@@ -1009,16 +1011,16 @@ public:
         return 0;
     }
 
-    // subclasses may provide hinted glyph widths (in font units);
+    // subclasses may provide (possibly hinted) glyph widths (in font units);
     // if they do not override this, harfbuzz will use unhinted widths
     // derived from the font tables
-    virtual PRBool ProvidesHintedWidths() const {
+    virtual PRBool ProvidesGlyphWidths() {
         return PR_FALSE;
     }
 
     // The return value is interpreted as a horizontal advance in 16.16 fixed
     // point format.
-    virtual PRInt32 GetHintedGlyphWidth(gfxContext *aCtx, PRUint16 aGID) {
+    virtual PRInt32 GetGlyphWidth(gfxContext *aCtx, PRUint16 aGID) {
         return -1;
     }
 
@@ -1467,10 +1469,6 @@ public:
      * Draws a substring. Uses only GetSpacing from aBreakProvider.
      * The provided point is the baseline origin on the left of the string
      * for LTR, on the right of the string for RTL.
-     * @param aDirtyRect if non-null, drawing outside of the rectangle can be
-     * (but does not need to be) dropped. Note that if this is null, we cannot
-     * draw partial ligatures and we will assert if partial ligatures
-     * are detected.
      * @param aAdvanceWidth if non-null, the advance width of the substring
      * is returned here.
      * 
@@ -1490,7 +1488,6 @@ public:
      */
     void Draw(gfxContext *aContext, gfxPoint aPt,
               PRUint32 aStart, PRUint32 aLength,
-              const gfxRect *aDirtyRect,
               PropertyProvider *aProvider,
               gfxFloat *aAdvanceWidth);
 
@@ -2030,8 +2027,8 @@ private:
                                      PropertyProvider *aProvider);
     gfxFloat ComputePartialLigatureWidth(PRUint32 aPartStart, PRUint32 aPartEnd,
                                          PropertyProvider *aProvider);
-    void DrawPartialLigature(gfxFont *aFont, gfxContext *aCtx, PRUint32 aStart,
-                             PRUint32 aEnd, const gfxRect *aDirtyRect, gfxPoint *aPt,
+    void DrawPartialLigature(gfxFont *aFont, gfxContext *aCtx,
+                             PRUint32 aStart, PRUint32 aEnd, gfxPoint *aPt,
                              PropertyProvider *aProvider);
     // Advance aStart to the start of the nearest ligature; back up aEnd
     // to the nearest ligature end; may result in *aStart == *aEnd

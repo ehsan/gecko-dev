@@ -166,7 +166,7 @@ function iQClass(selector, context) {
     return null;
   }
 
-  if (typeof selector.selector !== "undefined") {
+  if ("selector" in selector) {
     this.selector = selector.selector;
     this.context = selector.context;
   }
@@ -360,7 +360,7 @@ iQClass.prototype = {
   // pass in just key to retrieve it.
   data: function iQClass_data(key, value) {
     let data = null;
-    if (typeof value === "undefined") {
+    if (value === undefined) {
       Utils.assert(this.length == 1, 'does not yet support multi-objects (or null objects)');
       data = this[0].iQData;
       if (data)
@@ -388,7 +388,7 @@ iQClass.prototype = {
   // what's already there.
   html: function iQClass_html(value) {
     Utils.assert(this.length == 1, 'does not yet support multi-objects (or null objects)');
-    if (typeof value === "undefined")
+    if (value === undefined)
       return this[0].innerHTML;
 
     this[0].innerHTML = value;
@@ -401,7 +401,7 @@ iQClass.prototype = {
   // what's already there.
   text: function iQClass_text(value) {
     Utils.assert(this.length == 1, 'does not yet support multi-objects (or null objects)');
-    if (typeof value === "undefined") {
+    if (value === undefined) {
       return this[0].textContent;
     }
 
@@ -413,7 +413,7 @@ iQClass.prototype = {
   // Given a value, sets the receiver's value to it; otherwise returns what's already there.
   val: function iQClass_val(value) {
     Utils.assert(this.length == 1, 'does not yet support multi-objects (or null objects)');
-    if (typeof value === "undefined") {
+    if (value === undefined) {
       return this[0].value;
     }
 
@@ -446,7 +446,7 @@ iQClass.prototype = {
   // Sets or gets an attribute on the element(s).
   attr: function iQClass_attr(key, value) {
     Utils.assert(typeof key === 'string', 'string key');
-    if (typeof value === "undefined") {
+    if (value === undefined) {
       Utils.assert(this.length == 1, 'retrieval does not support multi-objects (or null objects)');
       return this[0].getAttribute(key);
     }
@@ -471,13 +471,20 @@ iQClass.prototype = {
 
     if (typeof a === 'string') {
       let key = a;
-      if (typeof b === "undefined") {
+      if (b === undefined) {
         Utils.assert(this.length == 1, 'retrieval does not support multi-objects (or null objects)');
 
         return window.getComputedStyle(this[0], null).getPropertyValue(key);
       }
       properties = {};
       properties[key] = b;
+    } else if (a instanceof Rect) {
+      properties = {
+        left: a.left,
+        top: a.top,
+        width: a.width,
+        height: a.height
+      };
     } else {
       properties = a;
     }
@@ -495,6 +502,7 @@ iQClass.prototype = {
       let elem = this[i];
       for (let key in properties) {
         let value = properties[key];
+
         if (pixels[key] && typeof value != 'string')
           value += 'px';
 
@@ -539,6 +547,16 @@ iQClass.prototype = {
     let duration = (options.duration || 400);
     let easing = (easings[options.easing] || 'ease');
 
+    if (css instanceof Rect) {
+      css = {
+        left: css.left,
+        top: css.top,
+        width: css.width,
+        height: css.height
+      };
+    }
+
+
     // The latest versions of Firefox do not animate from a non-explicitly
     // set css properties. So for each element to be animated, go through
     // and explicitly define 'em.
@@ -578,7 +596,7 @@ iQClass.prototype = {
   // Function: fadeOut
   // Animates the receiver to full transparency. Calls callback on completion.
   fadeOut: function iQClass_fadeOut(callback) {
-    Utils.assert(typeof callback == "function" || typeof callback === "undefined", 
+    Utils.assert(typeof callback == "function" || callback === undefined, 
         'does not yet support duration');
 
     this.animate({

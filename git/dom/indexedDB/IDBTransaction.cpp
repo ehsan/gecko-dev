@@ -174,9 +174,9 @@ IDBTransaction::OnRequestFinished()
   NS_ASSERTION(mPendingRequests, "Mismatched calls!");
   --mPendingRequests;
   if (!mPendingRequests) {
-    if (!mAborted) {
-      NS_ASSERTION(mReadyState == nsIIDBTransaction::LOADING, "Bad state!");
-    }
+    NS_ASSERTION(mAborted || mReadyState == nsIIDBTransaction::LOADING,
+                 "Bad state!");
+    mReadyState = IDBTransaction::COMMITTING;
     CommitOrRollback();
   }
 }
@@ -278,8 +278,20 @@ IDBTransaction::GetOrCreateConnection(mozIStorageConnection** aResult)
       IDBFactory::GetConnection(mDatabase->FilePath());
     NS_ENSURE_TRUE(connection, NS_ERROR_FAILURE);
 
-    NS_NAMED_LITERAL_CSTRING(beginTransaction, "BEGIN TRANSACTION;");
-    nsresult rv = connection->ExecuteSimpleSQL(beginTransaction);
+    nsCString beginTransaction;
+    if (mMode == nsIIDBTransaction::READ_WRITE) {
+      beginTransaction.AssignLiteral("BEGIN IMMEDIATE TRANSACTION;");
+    }
+    else {
+      beginTransaction.AssignLiteral("BEGIN TRANSACTION;");
+    }
+
+    nsCOMPtr<mozIStorageStatement> stmt;
+    nsresult rv = connection->CreateStatement(beginTransaction,
+                                              getter_AddRefs(stmt));
+    NS_ENSURE_SUCCESS(rv, false);
+
+    rv = stmt->Execute();
     NS_ENSURE_SUCCESS(rv, false);
 
     connection.swap(mConnection);
@@ -750,7 +762,10 @@ IDBTransaction::Abort()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  if (!IsOpen()) {
+  // We can't use IsOpen here since we need it to be possible to call Abort()
+  // even from outside of transaction callbacks.
+  if (mReadyState != IDBTransaction::INITIAL &&
+      mReadyState != IDBTransaction::LOADING) {
     return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
   }
 
@@ -967,7 +982,7 @@ CommitHelper::Run()
     if (!mAborted) {
       NS_NAMED_LITERAL_CSTRING(release, "END TRANSACTION");
       if (NS_FAILED(mConnection->ExecuteSimpleSQL(release))) {
-        mAborted = PR_TRUE;
+        mAborted = true;
       }
     }
 

@@ -40,6 +40,14 @@
 
 #ifndef jsobj_h___
 #define jsobj_h___
+
+/* Gross special case for Gecko, which defines malloc/calloc/free. */
+#ifdef mozilla_mozalloc_macro_wrappers_h
+#  define JS_OBJ_UNDEFD_MOZALLOC_WRAPPERS
+/* The "anti-header" */
+#  include "mozilla/mozalloc_undef_macro_wrappers.h"
+#endif
+
 /*
  * JS object definitions.
  *
@@ -477,7 +485,7 @@ struct JSObject : js::gc::Cell {
     }
 
     void deletingShapeChange(JSContext *cx, const js::Shape &shape);
-    bool methodShapeChange(JSContext *cx, const js::Shape &shape);
+    const js::Shape *methodShapeChange(JSContext *cx, const js::Shape &shape);
     bool methodShapeChange(JSContext *cx, uint32 slot);
     void protoShapeChange(JSContext *cx);
     void shadowingShapeChange(JSContext *cx, const js::Shape &shape);
@@ -551,9 +559,9 @@ struct JSObject : js::gc::Cell {
      * jsobjinlines.h after methodReadBarrier. The slot flavor is required by
      * JSOP_*GVAR, which deals in slots not shapes, while not deoptimizing to
      * map slot to shape unless JSObject::flags show that this is necessary.
-     * The methodShapeChange overload (directly below) parallels this.
+     * The methodShapeChange overload (above) parallels this.
      */
-    bool methodWriteBarrier(JSContext *cx, const js::Shape &shape, const js::Value &v);
+    const js::Shape *methodWriteBarrier(JSContext *cx, const js::Shape &shape, const js::Value &v);
     bool methodWriteBarrier(JSContext *cx, uint32 slot, const js::Value &v);
 
     bool isIndexed() const          { return !!(flags & INDEXED); }
@@ -1116,6 +1124,7 @@ struct JSObject : js::gc::Cell {
     bool allocSlot(JSContext *cx, uint32 *slotp);
     bool freeSlot(JSContext *cx, uint32 slot);
 
+  public:
     bool reportReadOnly(JSContext* cx, jsid id, uintN report = JSREPORT_ERROR);
     bool reportNotConfigurable(JSContext* cx, jsid id, uintN report = JSREPORT_ERROR);
     bool reportNotExtensible(JSContext *cx, uintN report = JSREPORT_ERROR);
@@ -1478,6 +1487,15 @@ JS_FRIEND_API(JSBool) js_obj_defineSetter(JSContext *cx, uintN argc, js::Value *
 extern JSObject *
 js_InitObjectClass(JSContext *cx, JSObject *obj);
 
+namespace js {
+JSObject *
+DefineConstructorAndPrototype(JSContext *cx, JSObject *obj, JSProtoKey key, JSAtom *atom,
+                              JSObject *protoProto, Class *clasp,
+                              Native constructor, uintN nargs,
+                              JSPropertySpec *ps, JSFunctionSpec *fs,
+                              JSPropertySpec *static_ps, JSFunctionSpec *static_fs);
+}
+
 extern JSObject *
 js_InitClass(JSContext *cx, JSObject *obj, JSObject *parent_proto,
              js::Class *clasp, js::Native constructor, uintN nargs,
@@ -1769,6 +1787,25 @@ js_PrimitiveToObject(JSContext *cx, js::Value *vp);
 extern JSBool
 js_ValueToObjectOrNull(JSContext *cx, const js::Value &v, JSObject **objp);
 
+namespace js {
+
+/*
+ * Invokes the ES5 ToObject algorithm on *vp, writing back the object to vp.
+ * If *vp might already be an object, use ToObject.
+ */
+extern JSObject *
+ToObjectSlow(JSContext *cx, js::Value *vp);
+
+JS_ALWAYS_INLINE JSObject *
+ToObject(JSContext *cx, js::Value *vp)
+{
+    if (vp->isObject())
+        return &vp->toObject();
+    return ToObjectSlow(cx, vp);
+}
+
+}
+
 /*
  * v and vp may alias. On successful return, vp->isObject(). If vp is not
  * rooted, the caller must root vp before the next possible GC.
@@ -1807,7 +1844,7 @@ js_CheckPrincipalsAccess(JSContext *cx, JSObject *scopeobj,
 
 /* For CSP -- checks if eval() and friends are allowed to run. */
 extern JSBool
-js_CheckContentSecurityPolicy(JSContext *cx);
+js_CheckContentSecurityPolicy(JSContext *cx, JSObject *scopeObj);
 
 /* NB: Infallible. */
 extern const char *
@@ -1863,8 +1900,13 @@ extern bool
 EvalKernel(JSContext *cx, uintN argc, js::Value *vp, EvalType evalType, JSStackFrame *caller,
            JSObject *scopeobj);
 
-extern bool
+extern JS_FRIEND_API(bool)
 IsBuiltinEvalFunction(JSFunction *fun);
 
 }
+
+#ifdef JS_OBJ_UNDEFD_MOZALLOC_WRAPPERS
+#  include "mozilla/mozalloc_macro_wrappers.h"
+#endif
+
 #endif /* jsobj_h___ */

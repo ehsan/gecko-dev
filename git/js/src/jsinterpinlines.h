@@ -372,7 +372,7 @@ JSStackFrame::computeThis(JSContext *cx)
          */
         JS_ASSERT(!isEvalFrame());
     }
-    if (!js::ComputeThisFromArgv(cx, &thisv + 1))
+    if (!js::BoxThisForVp(cx, &thisv - 1))
         return NULL;
     JS_ASSERT(IsSaneThisObject(thisv.toObject()));
     return &thisv.toObject();
@@ -586,7 +586,11 @@ InvokeSessionGuard::invoke(JSContext *cx) const
     formals_[-1] = savedThis_;
 
     void *code;
+#ifdef JS_METHODJIT
     if (!optimized() || !(code = script_->getJIT(false /* !constructing */)->invokeEntry))
+#else
+    if (!optimized())
+#endif
         return Invoke(cx, args_, 0);
 
     /* Clear any garbage left from the last Invoke. */
@@ -658,13 +662,7 @@ GetPrimitiveThis(JSContext *cx, Value *vp, T *v)
         return true;
     }
 
-    if (thisv.isObjectOrNull()) {
-        JSObject *obj = thisv.toObjectOrNull();
-        if (!obj || obj->getClass() != Behavior::getClass()) {
-            obj = ComputeThisFromVp(cx, vp);
-            if (!InstanceOf(cx, obj, Behavior::getClass(), vp + 2))
-                return false;
-        }
+    if (thisv.isObject() && thisv.toObject().getClass() == Behavior::getClass()) {
         *v = Behavior::extract(thisv.toObject().getPrimitiveThis());
         return true;
     }

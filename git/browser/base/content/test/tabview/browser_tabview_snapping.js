@@ -70,7 +70,14 @@ function onTabViewWindowLoaded(win) {
   is(secondGroup.getBounds().top - firstGroup.getBounds().bottom, 40,
     "There's currently 40 px between the first group and second group");
 
+  // set double click interval to negative so quick drag and drop doesn't 
+  // trigger the double click code.
+  let origDBlClickInterval = contentWindow.UI.DBLCLICK_INTERVAL;
+  contentWindow.UI.DBLCLICK_INTERVAL = -1;
+
   let endGame = function() {
+    contentWindow.UI.DBLCLICK_INTERVAL = origDBlClickInterval;
+
     firstGroup.container.parentNode.removeChild(firstGroup.container);
     firstGroup.close();
     thirdGroup.container.parentNode.removeChild(thirdGroup.container);
@@ -141,7 +148,7 @@ function simulateDragDrop(tabItem, offsetX, offsetY, contentWindow) {
 
   EventUtils.synthesizeMouse(
     tabItem.container, 1, 1, { type: "mousedown" }, contentWindow);
-  event = contentWindow.document.createEvent("DragEvents");
+  let event = contentWindow.document.createEvent("DragEvents");
   event.initDragEvent(
     "dragenter", true, true, contentWindow, 0, 0, 0, 0, 0,
     false, false, false, false, 1, null, dataTransfer);

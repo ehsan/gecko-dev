@@ -42,6 +42,7 @@
 #include "mozilla/plugins/PPluginInstanceChild.h"
 #include "mozilla/plugins/PluginScriptableObjectChild.h"
 #include "mozilla/plugins/StreamNotifyChild.h"
+#include "mozilla/plugins/PPluginSurfaceChild.h"
 #if defined(OS_WIN)
 #include "mozilla/gfx/SharedDIBWin.h"
 #elif defined(OS_MACOSX)
@@ -107,6 +108,16 @@ protected:
     DoAsyncSetWindow(const gfxSurfaceType& aSurfaceType,
                      const NPRemoteWindow& aWindow,
                      bool aIsAsync);
+
+    virtual PPluginSurfaceChild* AllocPPluginSurface(const WindowsSharedMemoryHandle&,
+                                                     const gfxIntSize&, const bool&) {
+        return new PPluginSurfaceChild();
+    }
+
+    virtual bool DeallocPPluginSurface(PPluginSurfaceChild* s) {
+        delete s;
+        return true;
+    }
 
     NS_OVERRIDE
     virtual bool
@@ -279,6 +290,7 @@ private:
                                           int nIndex,
                                           LONG newLong);
 #endif
+    void HookSystemParametersInfo();
 
     class FlashThrottleAsyncMsg : public ChildAsyncCall
     {
@@ -456,6 +468,15 @@ private:
     // non null mCurrentInvalidateTask will call this function
     void InvalidateRectDelayed(void);
 
+    // Clear mCurrentSurface/mCurrentSurfaceActor/mHelperSurface
+    void ClearCurrentSurface();
+
+    // Swap mCurrentSurface/mBackSurface and their associated actors
+    void SwapSurfaces();
+
+    // Clear all surfaces in response to NPP_Destroy
+    void ClearAllSurfaces();
+
     // Set as true when SetupLayer called
     // and go with different path in InvalidateRect function
     bool mLayersRendering;
@@ -466,6 +487,12 @@ private:
     // Back surface, just keeping reference to
     // surface which is on ParentProcess side
     nsRefPtr<gfxASurface> mBackSurface;
+
+#ifdef XP_WIN
+    // These actors mirror mCurrentSurface/mBackSurface
+    PPluginSurfaceChild* mCurrentSurfaceActor;
+    PPluginSurfaceChild* mBackSurfaceActor;
+#endif
 
     // Accumulated invalidate rect, while back buffer is not accessible,
     // in plugin coordinates.
@@ -499,6 +526,11 @@ private:
     // this is false for maemo platform, and false if plugin
     // supports NPPVpluginTransparentAlphaBool (which is not part of NPAPI yet)
     bool mDoAlphaExtraction;
+
+    // true when the plugin has painted at least once. We use this to ensure
+    // that we ask a plugin to paint at least once even if it's invisible;
+    // some plugin (instances) rely on this in order to work properly.
+    bool mHasPainted;
 
     // Cached rectangle rendered to previous surface(mBackSurface)
     // Used for reading back to current surface and syncing data,

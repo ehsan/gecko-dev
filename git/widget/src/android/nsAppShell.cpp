@@ -75,6 +75,8 @@ nsIGeolocationUpdate *gLocationCallback = nsnull;
 
 nsAppShell *nsAppShell::gAppShell = nsnull;
 
+NS_IMPL_ISUPPORTS_INHERITED1(nsAppShell, nsBaseAppShell, nsIObserver)
+
 nsAppShell::nsAppShell()
     : mQueueLock(nsnull),
       mCondLock(nsnull),
@@ -114,9 +116,27 @@ nsAppShell::Init()
     nsresult rv = nsBaseAppShell::Init();
     if (AndroidBridge::Bridge())
         AndroidBridge::Bridge()->NotifyAppShellReady();
+
+    nsCOMPtr<nsIObserverService> obsServ =
+            mozilla::services::GetObserverService();
+    if (obsServ) {
+        obsServ->AddObserver(this, "xpcom-shutdown", PR_FALSE);
+    }
     return rv;
 }
 
+NS_IMETHODIMP
+nsAppShell::Observe(nsISupports* aSubject,
+                    const char* aTopic,
+                    const PRUnichar* aData)
+{
+    if (!strcmp(aTopic, "xpcom-shutdown")) {
+        // We need to ensure no observers stick around after XPCOM shuts down
+        // or we'll see crashes, as the app shell outlives XPConnect.
+        mObserversHash.Clear();
+    }
+    return nsBaseAppShell::Observe(aSubject, aTopic, aData);
+}
 
 void
 nsAppShell::ScheduleNativeEventCallback()
@@ -212,8 +232,6 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
 
     EVLOG("nsAppShell: event %p %d [ndraws %d]", (void*)curEvent.get(), curEvent->Type(), mNumDraws);
 
-    nsWindow *target = (nsWindow*) curEvent->NativeWindow();
-
     switch (curEvent->Type()) {
     case AndroidGeckoEvent::NATIVE_POKE:
         NativeEventCallback();
@@ -291,10 +309,7 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
     }
 
     default:
-        if (target)
-            target->OnAndroidEvent(curEvent);
-        else
-            nsWindow::OnGlobalAndroidEvent(curEvent);
+        nsWindow::OnGlobalAndroidEvent(curEvent);
     }
 
     EVLOG("nsAppShell: -- done event %p %d", (void*)curEvent.get(), curEvent->Type());

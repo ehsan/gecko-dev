@@ -239,7 +239,10 @@ ImageLayerD3D9::RenderLayer()
   }
 
   nsRefPtr<Image> image = GetContainer()->GetCurrentImage();
-  
+  if (!image) {
+    return;
+  }
+
   SetShaderTransformAndOpacity();
 
   if (GetContainer()->GetBackendType() != LayerManager::LAYERS_D3D9)
@@ -283,7 +286,10 @@ ImageLayerD3D9::RenderLayer()
 
     mD3DManager->SetShaderMode(DeviceManagerD3D9::YCBCRLAYER);
 
-    if (yuvImage->mData.mStereoMode != STEREO_MODE_MONO) {
+    /*
+     * Send 3d control data and metadata
+     */
+    if (mD3DManager->GetNv3DVUtils()) {
       Nv_Stereo_Mode mode;
       switch (yuvImage->mData.mStereoMode) {
       case STEREO_MODE_LEFT_RIGHT:
@@ -298,12 +304,15 @@ ImageLayerD3D9::RenderLayer()
       case STEREO_MODE_TOP_BOTTOM:
         mode = NV_STEREO_MODE_TOP_BOTTOM;
         break;
+      case STEREO_MODE_MONO:
+        mode = NV_STEREO_MODE_MONO;
+        break;
       }
 
-      /*
-       * Send 3d control data and metadata
-       */
-      if (mD3DManager->GetNv3DVUtils()) {
+      // Send control data even in mono case so driver knows to leave stereo mode.
+      mD3DManager->GetNv3DVUtils()->SendNv3DVControl(mode, true, FIREFOX_3DV_APP_HANDLE);
+
+      if (yuvImage->mData.mStereoMode != STEREO_MODE_MONO) {
         mD3DManager->GetNv3DVUtils()->SendNv3DVControl(mode, true, FIREFOX_3DV_APP_HANDLE);
 
         nsRefPtr<IDirect3DSurface9> renderTarget;

@@ -712,6 +712,7 @@ nsDocShell::nsDocShell():
     mIsOffScreenBrowser(PR_FALSE),
     mIsActive(PR_TRUE),
     mIsAppTab(PR_FALSE),
+    mUseGlobalHistory(PR_FALSE),
     mFiredUnloadEvent(PR_FALSE),
     mEODForCurrentDocument(PR_FALSE),
     mURIResultedInDocument(PR_FALSE),
@@ -3090,7 +3091,7 @@ nsDocShell::AddChild(nsIDocShellTreeItem * aChild)
     childDocShell->SetChildOffset(dynamic ? -1 : mChildList.Count() - 1);
 
     /* Set the child's global history if the parent has one */
-    if (mGlobalHistory) {
+    if (mUseGlobalHistory) {
         nsCOMPtr<nsIDocShellHistory>
             dsHistoryChild(do_QueryInterface(aChild));
         if (dsHistoryChild)
@@ -3368,6 +3369,7 @@ nsDocShell::AddChildSHEntry(nsISHEntry * aCloneRef, nsISHEntry * aNewEntry,
             nsCOMPtr<nsISHEntry> nextEntry;
             aCloneRef->GetID(&cloneID);
             rv = CloneAndReplace(currentEntry, this, cloneID, aNewEntry,
+                                 loadType == LOAD_PUSHSTATE,
                                  getter_AddRefs(nextEntry));
 
             if (NS_SUCCEEDED(rv)) {
@@ -3432,6 +3434,8 @@ nsDocShell::SetUseGlobalHistory(PRBool aUseGlobalHistory)
 {
     nsresult rv;
 
+    mUseGlobalHistory = aUseGlobalHistory;
+
     if (!aUseGlobalHistory) {
         mGlobalHistory = nsnull;
         return NS_OK;
@@ -3448,7 +3452,7 @@ nsDocShell::SetUseGlobalHistory(PRBool aUseGlobalHistory)
 NS_IMETHODIMP
 nsDocShell::GetUseGlobalHistory(PRBool *aUseGlobalHistory)
 {
-    *aUseGlobalHistory = (mGlobalHistory != nsnull);
+    *aUseGlobalHistory = mUseGlobalHistory;
     return NS_OK;
 }
 
@@ -3922,6 +3926,36 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
             // Bad Content Encoding.
             error.AssignLiteral("contentEncodingError");
             break;
+        case NS_ERROR_REMOTE_XUL:
+        {
+            error.AssignLiteral("remoteXUL");
+
+            /**
+             * We want to set an hardcoded messageStr which uses the
+             * brandShortName.
+             */
+            nsCOMPtr<nsIStringBundleService> stringBundleService =
+                mozilla::services::GetStringBundleService();
+            if (!stringBundleService) {
+                return NS_ERROR_FAILURE;
+            }
+
+            nsCOMPtr<nsIStringBundle> brandBundle;
+            rv = stringBundleService->CreateBundle(kBrandBundleURL,
+                                                   getter_AddRefs(brandBundle));
+            NS_ENSURE_SUCCESS(rv, rv);
+
+            nsXPIDLString brandName;
+            rv = brandBundle->GetStringFromName(NS_LITERAL_STRING("brandShortName").get(),
+                                                getter_Copies(brandName));
+
+            // We could use something like nsTextFormatter::smprintf.
+            messageStr.AssignLiteral("This page uses an unsupported technology "
+                                     "that is no longer available by default in ");
+            messageStr.Append(brandName);
+            messageStr.AppendLiteral(".");
+            break;
+        }
         case NS_ERROR_UNSAFE_CONTENT_TYPE:
             // Channel refused to load from an unrecognized content type.
             error.AssignLiteral("unsafeContentType");
@@ -4919,7 +4953,7 @@ nsDocShell::SetTitle(const PRUnichar * aTitle)
             treeOwnerAsWin->SetTitle(aTitle);
     }
 
-    if (mCurrentURI && mLoadType != LOAD_ERROR_PAGE) {
+    if (mCurrentURI && mLoadType != LOAD_ERROR_PAGE && mUseGlobalHistory) {
         nsCOMPtr<IHistory> history = services::GetHistoryService();
         if (history) {
             history->SetURITitle(mCurrentURI, mTitle);
@@ -6253,6 +6287,7 @@ nsDocShell::EndPageLoad(nsIWebProgress * aProgress,
                  aStatus == NS_ERROR_MALWARE_URI ||
                  aStatus == NS_ERROR_PHISHING_URI ||
                  aStatus == NS_ERROR_UNSAFE_CONTENT_TYPE ||
+                 aStatus == NS_ERROR_REMOTE_XUL ||
                  NS_ERROR_GET_MODULE(aStatus) == NS_ERROR_MODULE_SECURITY) {
             DisplayLoadError(aStatus, url, nsnull, aChannel);
         }
@@ -6417,7 +6452,8 @@ nsDocShell::EnsureContentViewer()
 
 nsresult
 nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal* aPrincipal,
-                                          nsIURI* aBaseURI)
+                                          nsIURI* aBaseURI,
+                                          PRBool aTryToSaveOldPresentation)
 {
   nsCOMPtr<nsIDocument> blankDoc;
   nsCOMPtr<nsIContentViewer> viewer;
@@ -6449,7 +6485,8 @@ nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal* aPrincipal,
       return NS_ERROR_FAILURE;
     }
 
-    mSavingOldViewer = CanSavePresentation(LOAD_NORMAL, nsnull, nsnull);
+    mSavingOldViewer = aTryToSaveOldPresentation && 
+                       CanSavePresentation(LOAD_NORMAL, nsnull, nsnull);
 
     // Make sure to blow away our mLoadingURI just in case.  No loads
     // from inside this pagehide.
@@ -7292,7 +7329,7 @@ nsDocShell::CreateContentViewer(const char *aContentType,
                                       aContentHandler, getter_AddRefs(viewer));
 
     if (NS_FAILED(rv))
-        return NS_ERROR_FAILURE;
+        return rv;
 
     // Notify the current document that it is about to be unloaded!!
     //
@@ -7474,14 +7511,14 @@ nsDocShell::NewContentViewerObj(const char *aContentType,
 
     // Now create an instance of the content viewer
     // nsLayoutDLF makes the determination if it should be a "view-source" instead of "view"
-    NS_ENSURE_SUCCESS(docLoaderFactory->CreateInstance("view",
-                                                       aOpenedChannel,
-                                                       aLoadGroup, aContentType,
-                                                       static_cast<nsIContentViewerContainer*>(this),
-                                                       nsnull,
-                                                       aContentHandler,
-                                                       aViewer),
-                      NS_ERROR_FAILURE);
+    nsresult rv = docLoaderFactory->CreateInstance("view",
+                                                   aOpenedChannel,
+                                                   aLoadGroup, aContentType,
+                                                   static_cast<nsIContentViewerContainer*>(this),
+                                                   nsnull,
+                                                   aContentHandler,
+                                                   aViewer);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     (*aViewer)->SetContainer(static_cast<nsIContentViewerContainer *>(this));
     return NS_OK;
@@ -8319,12 +8356,14 @@ nsDocShell::InternalLoad(nsIURI * aURI,
 
             /* Set the title for the Global History entry for this anchor url.
              */
-            nsCOMPtr<IHistory> history = services::GetHistoryService();
-            if (history) {
-                history->SetURITitle(aURI, mTitle);
-            }
-            else if (mGlobalHistory) {
-                mGlobalHistory->SetPageTitle(aURI, mTitle);
+            if (mUseGlobalHistory) {
+                nsCOMPtr<IHistory> history = services::GetHistoryService();
+                if (history) {
+                    history->SetURITitle(aURI, mTitle);
+                }
+                else if (mGlobalHistory) {
+                    mGlobalHistory->SetPageTitle(aURI, mTitle);
+                }
             }
 
             if (sameDocIdent) {
@@ -9880,6 +9919,16 @@ nsDocShell::AddToSessionHistory(nsIURI * aURI, nsIChannel * aChannel,
 
 
     if (root == static_cast<nsIDocShellTreeItem *>(this) && mSessionHistory) {
+        // Bug 629559: Detect if this is an anchor navigation and clone the
+        // session history in that case too
+        if (mLoadType == LOAD_PUSHSTATE) {
+            PRUint32 cloneID;
+            mOSHE->GetID(&cloneID);
+            nsCOMPtr<nsISHEntry> newEntry;
+            CloneAndReplace(mOSHE, this, cloneID, entry, PR_TRUE, getter_AddRefs(newEntry));
+            NS_ASSERTION(entry == newEntry, "The new session history should be in the new entry");
+        }
+
         // This is the root docshell
         if (LOAD_TYPE_HAS_FLAGS(mLoadType, LOAD_FLAGS_REPLACE_HISTORY)) {            
             // Replace current entry in session history.
@@ -9961,7 +10010,10 @@ nsDocShell::LoadHistoryEntry(nsISHEntry * aEntry, PRUint32 aLoadType)
         // anything from the current document from leaking into any JavaScript
         // code in the URL.
         nsCOMPtr<nsIPrincipal> prin = do_QueryInterface(owner);
-        rv = CreateAboutBlankContentViewer(prin, nsnull);
+        // Don't cache the presentation if we're going to just reload the
+        // current entry. Caching would lead to trying to save the different
+        // content viewers in the same nsISHEntry object.
+        rv = CreateAboutBlankContentViewer(prin, nsnull, aEntry != mOSHE);
 
         if (NS_FAILED(rv)) {
             // The creation of the intermittent about:blank content
@@ -10090,12 +10142,14 @@ nsDocShell::WalkHistoryEntries(nsISHEntry *aRootEntry,
 struct NS_STACK_CLASS CloneAndReplaceData
 {
     CloneAndReplaceData(PRUint32 aCloneID, nsISHEntry *aReplaceEntry,
-                        nsISHEntry *aDestTreeParent)
+                        PRBool aCloneChildren, nsISHEntry *aDestTreeParent)
         : cloneID(aCloneID),
+          cloneChildren(aCloneChildren),
           replaceEntry(aReplaceEntry),
           destTreeParent(aDestTreeParent) { }
 
     PRUint32              cloneID;
+    PRBool                cloneChildren;
     nsISHEntry           *replaceEntry;
     nsISHEntry           *destTreeParent;
     nsCOMPtr<nsISHEntry>  resultEntry;
@@ -10125,9 +10179,19 @@ nsDocShell::CloneAndReplaceChild(nsISHEntry *aEntry, nsDocShell *aShell,
     aEntry->GetID(&srcID);
 
     if (srcID == cloneID) {
-        // Just replace the entry, and don't walk the children.
+        // Replace the entry
         dest = replaceEntry;
         dest->SetIsSubFrame(PR_TRUE);
+
+        if (data->cloneChildren) {
+            // Walk the children
+            CloneAndReplaceData childData(cloneID, replaceEntry,
+                                          data->cloneChildren, dest);
+            result = WalkHistoryEntries(aEntry, aShell,
+                                        CloneAndReplaceChild, &childData);
+            if (NS_FAILED(result))
+                return result;
+        }
     } else {
         // Clone the SHEntry...
         result = aEntry->Clone(getter_AddRefs(dest));
@@ -10138,7 +10202,8 @@ nsDocShell::CloneAndReplaceChild(nsISHEntry *aEntry, nsDocShell *aShell,
         dest->SetIsSubFrame(PR_TRUE);
 
         // Walk the children
-        CloneAndReplaceData childData(cloneID, replaceEntry, dest);
+        CloneAndReplaceData childData(cloneID, replaceEntry,
+                                      data->cloneChildren, dest);
         result = WalkHistoryEntries(aEntry, aShell,
                                     CloneAndReplaceChild, &childData);
         if (NS_FAILED(result))
@@ -10160,12 +10225,13 @@ nsDocShell::CloneAndReplace(nsISHEntry *aSrcEntry,
                                    nsDocShell *aSrcShell,
                                    PRUint32 aCloneID,
                                    nsISHEntry *aReplaceEntry,
+                                   PRBool aCloneChildren,
                                    nsISHEntry **aResultEntry)
 {
     NS_ENSURE_ARG_POINTER(aResultEntry);
     NS_ENSURE_TRUE(aReplaceEntry, NS_ERROR_FAILURE);
 
-    CloneAndReplaceData data(aCloneID, aReplaceEntry, nsnull);
+    CloneAndReplaceData data(aCloneID, aReplaceEntry, aCloneChildren, nsnull);
     nsresult rv = CloneAndReplaceChild(aSrcEntry, aSrcShell, 0, &data);
 
     data.resultEntry.swap(*aResultEntry);
@@ -10490,8 +10556,9 @@ nsDocShell::AddURIVisit(nsIURI* aURI,
 {
     NS_ASSERTION(aURI, "Visited URI is null!");
 
-    // Only content-type docshells save URI visits.
-    if (mItemType != typeContent) {
+    // Only content-type docshells save URI visits.  Also don't do
+    // anything here if we're not supposed to use global history.
+    if (mItemType != typeContent || !mUseGlobalHistory) {
         return;
     }
 
@@ -10546,6 +10613,9 @@ nsDocShell::ConfirmRepost(PRBool * aRepost)
 {
   nsCOMPtr<nsIPrompt> prompter;
   CallGetInterface(this, static_cast<nsIPrompt**>(getter_AddRefs(prompter)));
+  if (!prompter) {
+      return NS_ERROR_NOT_AVAILABLE;
+  }
 
   nsCOMPtr<nsIStringBundleService> stringBundleService =
     mozilla::services::GetStringBundleService();

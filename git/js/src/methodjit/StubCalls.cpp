@@ -65,6 +65,7 @@
 #include "jsatominlines.h"
 #include "StubCalls-inl.h"
 #include "jsfuninlines.h"
+#include "jstypedarray.h"
 
 #ifdef XP_WIN
 # include "jswin.h"
@@ -697,104 +698,6 @@ stubs::Ursh(VMFrame &f)
 	f.regs.sp[-2].setNumber(uint32(u));
 }
 
-template <int32 N>
-static inline bool
-PostInc(VMFrame &f, Value *vp)
-{
-    double d;
-    if (!ValueToNumber(f.cx, *vp, &d))
-        return false;
-    f.regs.sp++;
-    f.regs.sp[-1].setDouble(d);
-    d += N;
-    vp->setDouble(d);
-    return true;
-}
-
-template <int32 N>
-static inline bool
-PreInc(VMFrame &f, Value *vp)
-{
-    double d;
-    if (!ValueToNumber(f.cx, *vp, &d))
-        return false;
-    d += N;
-    vp->setDouble(d);
-    f.regs.sp++;
-    f.regs.sp[-1].setDouble(d);
-    return true;
-}
-
-void JS_FASTCALL
-stubs::VpInc(VMFrame &f, Value *vp)
-{
-    if (!PostInc<1>(f, vp))
-        THROW();
-}
-
-void JS_FASTCALL
-stubs::VpDec(VMFrame &f, Value *vp)
-{
-    if (!PostInc<-1>(f, vp))
-        THROW();
-}
-
-void JS_FASTCALL
-stubs::DecVp(VMFrame &f, Value *vp)
-{
-    if (!PreInc<-1>(f, vp))
-        THROW();
-}
-
-void JS_FASTCALL
-stubs::IncVp(VMFrame &f, Value *vp)
-{
-    if (!PreInc<1>(f, vp))
-        THROW();
-}
-
-void JS_FASTCALL
-stubs::LocalInc(VMFrame &f, uint32 slot)
-{
-    double d;
-    if (!ValueToNumber(f.cx, f.regs.sp[-2], &d))
-        THROW();
-    f.regs.sp[-2].setNumber(d);
-    f.regs.sp[-1].setNumber(d + 1);
-    f.fp()->slots()[slot] = f.regs.sp[-1];
-}
-
-void JS_FASTCALL
-stubs::LocalDec(VMFrame &f, uint32 slot)
-{
-    double d;
-    if (!ValueToNumber(f.cx, f.regs.sp[-2], &d))
-        THROW();
-    f.regs.sp[-2].setNumber(d);
-    f.regs.sp[-1].setNumber(d - 1);
-    f.fp()->slots()[slot] = f.regs.sp[-1];
-}
-
-void JS_FASTCALL
-stubs::IncLocal(VMFrame &f, uint32 slot)
-{
-    double d;
-    if (!ValueToNumber(f.cx, f.regs.sp[-1], &d))
-        THROW();
-    f.regs.sp[-1].setNumber(d + 1);
-    f.fp()->slots()[slot] = f.regs.sp[-1];
-}
-
-void JS_FASTCALL
-stubs::DecLocal(VMFrame &f, uint32 slot)
-{
-    double d;
-    if (!ValueToNumber(f.cx, f.regs.sp[-1], &d))
-        THROW();
-    f.regs.sp[-1].setNumber(d - 1);
-    f.fp()->slots()[slot] = f.regs.sp[-1];
-}
-
 template<JSBool strict>
 void JS_FASTCALL
 stubs::DefFun(VMFrame &f, JSFunction *fun)
@@ -820,7 +723,7 @@ stubs::DefFun(VMFrame &f, JSFunction *fun)
          */
         obj2 = &fp->scopeChain();
     } else {
-        JS_ASSERT(!FUN_FLAT_CLOSURE(fun));
+        JS_ASSERT(!fun->isFlatClosure());
 
         obj2 = GetScopeChainFast(cx, fp, JSOP_DEFFUN, JSOP_DEFFUN_LENGTH);
         if (!obj2)
@@ -857,62 +760,54 @@ stubs::DefFun(VMFrame &f, JSFunction *fun)
      */
     JSObject *parent = &fp->varobj(cx);
 
-    /*
-     * Check for a const property of the same name -- or any kind of property
-     * if executing with the strict option.  We check here at runtime as well
-     * as at compile-time, to handle eval as well as multiple HTML script tags.
-     */
+    /* ES5 10.5 (NB: with subsequent errata). */
     jsid id = ATOM_TO_JSID(fun->atom);
     JSProperty *prop = NULL;
     JSObject *pobj;
-    JSBool ok = CheckRedeclaration(cx, parent, id, attrs, &pobj, &prop);
-    if (!ok)
+    if (!parent->lookupProperty(cx, id, &pobj, &prop))
         THROW();
-
-    /*
-     * We deviate from ES3 10.1.3, ES5 10.5, by using JSObject::setProperty not
-     * JSObject::defineProperty for a function declaration in eval code whose
-     * id is already bound to a JSPROP_PERMANENT property, to ensure that such
-     * properties can't be deleted.
-     *
-     * We also use JSObject::setProperty for the existing properties of Call
-     * objects with matching attributes to preserve the internal (JSPropertyOp)
-     * getters and setters that update the value of the property in the stack
-     * frame. See bug 467495.
-     */
-    bool doSet = false;
-    if (prop) {
-        JS_ASSERT(!(attrs & ~(JSPROP_ENUMERATE | JSPROP_PERMANENT)));
-        JS_ASSERT((attrs == JSPROP_ENUMERATE) == fp->isEvalFrame());
-
-        if (attrs == JSPROP_ENUMERATE) {
-            /* In eval code: assign rather than (re-)define, always. */
-            doSet = true;
-        } else if (parent->isCall()) {
-            JS_ASSERT(parent == pobj);
-
-            uintN oldAttrs = ((Shape *) prop)->attributes();
-            JS_ASSERT(!(oldAttrs & (JSPROP_READONLY | JSPROP_GETTER | JSPROP_SETTER)));
-
-            /*
-             * We may be processing a function sub-statement or declaration in
-             * function code: we assign rather than redefine if the essential
-             * JSPROP_PERMANENT (not [[Configurable]] in ES5 terms) attribute
-             * is not changing (note that JSPROP_ENUMERATE is set for all Call
-             * object properties).
-             */
-            JS_ASSERT(oldAttrs & attrs & JSPROP_ENUMERATE);
-            if (oldAttrs & JSPROP_PERMANENT)
-                doSet = true;
-        }
-    }
 
     Value rval = ObjectValue(*obj);
-    ok = doSet
-         ? parent->setProperty(cx, id, &rval, strict)
-         : parent->defineProperty(cx, id, rval, PropertyStub, PropertyStub, attrs);
-    if (!ok)
-        THROW();
+
+    do {
+        /* Steps 5d, 5f. */
+        if (!prop || pobj != parent) {
+            if (!parent->defineProperty(cx, id, rval, PropertyStub, PropertyStub, attrs))
+                THROW();
+            break;
+        }
+
+        /* Step 5e. */
+        JS_ASSERT(parent->isNative());
+        Shape *shape = reinterpret_cast<Shape *>(prop);
+        if (parent->isGlobal()) {
+            if (shape->configurable()) {
+                if (!parent->defineProperty(cx, id, rval, PropertyStub, PropertyStub, attrs))
+                    THROW();
+                break;
+            }
+
+            if (shape->isAccessorDescriptor() || !shape->writable() || !shape->enumerable()) {
+                JSAutoByteString bytes;
+                if (const char *name = js_ValueToPrintable(cx, IdToValue(id), &bytes)) {
+                    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
+                                         JSMSG_CANT_REDEFINE_PROP, name);
+                }
+                THROW();
+            }
+        }
+
+        /*
+         * Non-global properties, and global properties which we aren't simply
+         * redefining, must be set.  First, this preserves their attributes.
+         * Second, this will produce warnings and/or errors as necessary if the
+         * specified Call object property is not writable (const).
+         */
+
+        /* Step 5f. */
+        if (!parent->setProperty(cx, id, &rval, strict))
+            THROW();
+    } while (false);
 }
 
 template void JS_FASTCALL stubs::DefFun<true>(VMFrame &f, JSFunction *fun);
@@ -2793,7 +2688,7 @@ stubs::ConvertToTypedInt(JSContext *cx, Value *vp)
 
     JS_ASSERT(vp->isString());
 
-    int32 i32;
+    int32 i32 = 0;
 #ifdef DEBUG
     bool success = 
 #endif
@@ -2819,7 +2714,7 @@ stubs::ConvertToTypedFloat(JSContext *cx, Value *vp)
         vp->setDouble(vp->toBoolean() ? 1 : 0);
     } else {
         JS_ASSERT(vp->isString());
-        double d;
+        double d = 0;
 #ifdef DEBUG
         bool success = 
 #endif

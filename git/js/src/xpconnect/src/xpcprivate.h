@@ -600,6 +600,11 @@ public:
     virtual void PrintAllReferencesTo(void *p);
 #endif
 
+    XPCCallContext *GetCycleCollectionContext()
+    {
+        return mCycleCollectionContext;
+    }
+
     unsigned GetOutstandingRequests(JSContext* cx);
 
     // This returns the singleton nsCycleCollectionParticipant for JSContexts.
@@ -803,6 +808,9 @@ public:
     nsresult RemoveJSHolder(void* aHolder);
 
     void ClearWeakRoots();
+
+    static void SuspectWrappedNative(JSContext *cx, XPCWrappedNative *wrapper,
+                                     nsCycleCollectionTraversalCallback &cb);
 
     void DebugDump(PRInt16 depth);
 
@@ -2805,7 +2813,8 @@ private:
 
 #ifdef XPC_CHECK_WRAPPER_THREADSAFETY
 public:
-    nsCOMPtr<nsIThread>          mThread; // Don't want to overload _mOwningThread
+    // Don't want to overload _mOwningThread
+    PRThread*                    mThread; 
 #endif
 };
 
@@ -4029,7 +4038,7 @@ public:
      * @param errorReporter the error reporter callback function to set
      */
 
-    void StartEvaluating(JSErrorReporter errorReporter = nsnull);
+    PRBool StartEvaluating(JSObject *scope, JSErrorReporter errorReporter = nsnull);
     /**
      * Does the post script evaluation and resets the error reporter
      */
@@ -4040,6 +4049,7 @@ private:
     PRBool mErrorReporterSet;
     PRBool mEvaluated;
     jsword mContextHasThread;
+    JSAutoEnterCompartment mEnterCompartment;
     MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     // No copying or assignment allowed
@@ -4448,48 +4458,67 @@ namespace xpc {
 
 struct CompartmentPrivate
 {
-  CompartmentPrivate(PtrAndPrincipalHashKey *key, bool wantXrays, bool cycleCollectionEnabled)
-    : key(key),
-      ptr(nsnull),
-      wantXrays(wantXrays),
-      cycleCollectionEnabled(cycleCollectionEnabled),
-      waiverWrapperMap(nsnull)
-  {
-  }
+    CompartmentPrivate(PtrAndPrincipalHashKey *key, bool wantXrays, bool cycleCollectionEnabled)
+        : key(key),
+          ptr(nsnull),
+          wantXrays(wantXrays),
+          cycleCollectionEnabled(cycleCollectionEnabled),
+          waiverWrapperMap(nsnull),
+          expandoMap(nsnull)
+    {
+    }
 
-  CompartmentPrivate(nsISupports *ptr, bool wantXrays, bool cycleCollectionEnabled)
-    : key(nsnull),
-      ptr(ptr),
-      wantXrays(wantXrays),
-      cycleCollectionEnabled(cycleCollectionEnabled),
-      waiverWrapperMap(nsnull)
-  {
-  }
+    CompartmentPrivate(nsISupports *ptr, bool wantXrays, bool cycleCollectionEnabled)
+        : key(nsnull),
+          ptr(ptr),
+          wantXrays(wantXrays),
+          cycleCollectionEnabled(cycleCollectionEnabled),
+          waiverWrapperMap(nsnull),
+          expandoMap(nsnull)
+    {
+    }
 
-  ~CompartmentPrivate();
+    ~CompartmentPrivate();
 
-  // NB: key and ptr are mutually exclusive.
-  nsAutoPtr<PtrAndPrincipalHashKey> key;
-  nsCOMPtr<nsISupports> ptr;
-  bool wantXrays;
-  bool cycleCollectionEnabled;
-  JSObject2JSObjectMap *waiverWrapperMap;
+    // NB: key and ptr are mutually exclusive.
+    nsAutoPtr<PtrAndPrincipalHashKey> key;
+    nsCOMPtr<nsISupports> ptr;
+    bool wantXrays;
+    bool cycleCollectionEnabled;
+    JSObject2JSObjectMap *waiverWrapperMap;
+    // NB: we don't want this map to hold a strong reference to the wrapper.
+    nsDataHashtable<nsPtrHashKey<XPCWrappedNative>, JSObject *> *expandoMap;
+
+    bool RegisterExpandoObject(XPCWrappedNative *wn, JSObject *expando) {
+        if (!expandoMap) {
+            expandoMap = new nsDataHashtable<nsPtrHashKey<XPCWrappedNative>, JSObject *>();
+            if (!expandoMap->Init(8))
+                return false;
+        }
+        return expandoMap->Put(wn, expando);
+    }
+
+    JSObject *LookupExpandoObject(XPCWrappedNative *wn) {
+        if (!expandoMap)
+            return nsnull;
+        return expandoMap->Get(wn);
+    }
 };
 
 inline bool
 CompartmentParticipatesInCycleCollection(JSContext *cx, JSCompartment *compartment)
 {
-   CompartmentPrivate *priv =
-       static_cast<CompartmentPrivate *>(JS_GetCompartmentPrivate(cx, compartment));
-   NS_ASSERTION(priv, "This should never be null!");
+    CompartmentPrivate *priv =
+        static_cast<CompartmentPrivate *>(JS_GetCompartmentPrivate(cx, compartment));
+    NS_ASSERTION(priv, "This should never be null!");
 
-   return priv->cycleCollectionEnabled;
+    return priv->cycleCollectionEnabled;
 }
 
 inline bool
 ParticipatesInCycleCollection(JSContext *cx, js::gc::Cell *cell)
 {
-   return CompartmentParticipatesInCycleCollection(cx, cell->compartment());
+    return CompartmentParticipatesInCycleCollection(cx, cell->compartment());
 }
 
 }

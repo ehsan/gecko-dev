@@ -20,6 +20,7 @@
 # Contributor(s):
 #   Raymond Lee <raymond@appcoast.com>
 #   Ian Gilman <ian@iangilman.com>
+#   Tim Taubert <tim.taubert@gmx.de>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -39,7 +40,7 @@ let TabView = {
   _deck: null,
   _window: null,
   _sessionstore: null,
-  _visibilityID: "tabview-visibility",
+  VISIBILITY_IDENTIFIER: "tabview-visibility",
 
   // ----------
   get windowTitle() {
@@ -60,7 +61,8 @@ let TabView = {
       Cc["@mozilla.org/browser/sessionstore;1"].
         getService(Ci.nsISessionStore);
 
-    let data = this._sessionstore.getWindowValue(window, this._visibilityID);
+    let data = this._sessionstore.getWindowValue(window, this.VISIBILITY_IDENTIFIER);
+
     if (data && data == "true") {
       this.show();
     } else {
@@ -76,12 +78,6 @@ let TabView = {
       gBrowser.tabContainer.addEventListener(
         "TabShow", this._tabShowEventListener, true);
     }
-  },
-
-  // ----------
-  uninit: function TabView_uninit() {
-    if (this._window)
-      Services.obs.removeObserver(this, "quit-application-requested");
   },
 
   // ----------
@@ -108,21 +104,10 @@ let TabView = {
       this._deck.appendChild(iframe);
       this._window = iframe.contentWindow;
 
-      // ___ visibility storage handler
-      Services.obs.addObserver(this, "quit-application-requested", false);
-
       if (this._tabShowEventListener) {
         gBrowser.tabContainer.removeEventListener(
           "TabShow", this._tabShowEventListener, true);
       }
-    }
-  },
-
-  // ----------
-  observe: function TabView_observe(subject, topic, data) {
-    if (topic == "quit-application-requested") {
-      let data = (this.isVisible() ? "true" : "false");
-      this._sessionstore.setWindowValue(window, this._visibilityID, data);
     }
   },
 
@@ -172,8 +157,8 @@ let TabView = {
     // will not have happened by the time the browser tries to
     // update the title.
     let activeTab = window.gBrowser.selectedTab;
-    if (activeTab.tabItem && activeTab.tabItem.parent){
-      let groupName = activeTab.tabItem.parent.getTitle();
+    if (activeTab._tabViewTabItem && activeTab._tabViewTabItem.parent){
+      let groupName = activeTab._tabViewTabItem.parent.getTitle();
       if (groupName)
         return groupName;
     }
@@ -190,7 +175,7 @@ let TabView = {
 
     let self = this;
     this._initFrame(function() {
-      let activeGroup = tab.tabItem.parent;
+      let activeGroup = tab._tabViewTabItem.parent;
       let groupItems = self._window.GroupItems.groupItems;
 
       groupItems.forEach(function(groupItem) {
@@ -249,18 +234,35 @@ let TabView = {
         event.preventDefault();
 
         self._initFrame(function() {
-          let tabItem = self._window.GroupItems.getNextGroupItemTab(event.shiftKey);
-          if (tabItem)
-            window.gBrowser.selectedTab = tabItem.tab;
+          let groupItems = self._window.GroupItems;
+          let tabItem = groupItems.getNextGroupItemTab(event.shiftKey);
+          if (!tabItem)
+            return;
+
+          // Switch to the new tab, and close the old group if it's now empty.
+          let oldGroupItem = groupItems.getActiveGroupItem();
+          window.gBrowser.selectedTab = tabItem.tab;
+          oldGroupItem.closeIfEmpty();
         });
       }
     }, true);
   },
-  
+
   // ----------
   // Prepares the tab view for undo close tab.
-  prepareUndoCloseTab: function() {
-    if (this._window)
+  prepareUndoCloseTab: function(blankTabToRemove) {
+    if (this._window) {
       this._window.UI.restoredClosedTab = true;
+
+      if (blankTabToRemove)
+        blankTabToRemove._tabViewTabIsRemovedAfterRestore = true;
+    }
+  },
+
+  // ----------
+  // Cleans up the tab view after undo close tab.
+  afterUndoCloseTab: function () {
+    if (this._window)
+      this._window.UI.restoredClosedTab = false;
   }
 };

@@ -50,8 +50,9 @@
 
 <page xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
       xmlns:xhtml="http://www.w3.org/1999/xhtml"
-      id="addons-page" title="&addons.windowTitle;" disablechrome="true"
+      id="addons-page" title="&addons.windowTitle;"
       role="application" windowtype="Addons:Manager"
+      disablefastfind="true"
       ondragenter="gDragDrop.onDragOver(event)"
       ondragover="gDragDrop.onDragOver(event)"
       ondrop="gDragDrop.onDrop(event)">
@@ -252,10 +253,10 @@
     <box id="view-port-container" flex="1">
 
       <!-- view port -->
-      <deck id="view-port" flex="1">
+      <deck id="view-port" flex="1" selectedIndex="0">
 
         <!-- discover view -->
-        <deck id="discover-view" flex="1" class="view-pane">
+        <deck id="discover-view" flex="1" class="view-pane" selectedIndex="0">
           <vbox id="discover-loading" align="center" pack="stretch" flex="1" class="alert-container">
             <spacer class="alert-spacer-before"/>
             <hbox class="alert loading" align="center">
@@ -324,7 +325,7 @@
           <hbox id="search-filter" align="center">
             <label id="search-filter-label" value="&search.filter2.label;"/>
             <radiogroup id="search-filter-radiogroup" orient="horizontal"
-                        align="center" persist="value" value="local">
+                        align="center" persist="value" value="remote">
               <radio id="search-filter-local" class="search-filter-radio"
                      label="&search.filter2.installed.label;" value="local"
                      tooltiptext="&search.filter2.installed.tooltip;"/>
@@ -392,9 +393,6 @@
                       command="cmd_enableUpdateSecurity"/>
               <spacer flex="5000"/> <!-- Necessary to allow the message to wrap -->
             </hbox>
-            <spacer flex="1"/>
-            <hbox id="list-sorters" class="sort-controls" sortby="name"
-                  ascending="true"/>
           </hbox>
           <vbox id="addon-list-empty" class="alert-container"
                 flex="1" hidden="true">
@@ -551,8 +549,13 @@
                     <label id="detail-creator" class="creator"/>
                   </vbox>
                   <hbox id="detail-desc-container" align="start">
-                    <image id="detail-screenshot" hidden="true"/>
-                    <description id="detail-desc" flex="1"/>
+                    <vbox pack="center"> <!-- Necessary to work around bug 394738 -->
+                      <image id="detail-screenshot" hidden="true"/>
+                    </vbox>
+                    <vbox flex="1">
+                      <description id="detail-desc"/>
+                      <description id="detail-fulldesc"/>
+                    </vbox>
                   </hbox>
                   <vbox id="detail-contributions">
                     <description id="detail-contrib-description">

@@ -54,12 +54,13 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(nsXPCWrappedJSClass, nsIXPCWrappedJSClass)
 // the value of this variable is never used - we use its address as a sentinel
 static uint32 zero_methods_descriptor;
 
-void AutoScriptEvaluate::StartEvaluating(JSErrorReporter errorReporter)
+PRBool AutoScriptEvaluate::StartEvaluating(JSObject *scope, JSErrorReporter errorReporter)
 {
     NS_PRECONDITION(!mEvaluated, "AutoScriptEvaluate::Evaluate should only be called once");
 
-    if(!mJSContext)
-        return;
+    if (!mJSContext)
+        return PR_TRUE;
+
     mEvaluated = PR_TRUE;
     if(!mJSContext->errorReporter)
     {
@@ -69,6 +70,9 @@ void AutoScriptEvaluate::StartEvaluating(JSErrorReporter errorReporter)
     mContextHasThread = JS_GetContextThread(mJSContext);
     if (mContextHasThread)
         JS_BeginRequest(mJSContext);
+
+    if (!mEnterCompartment.enter(mJSContext, scope))
+        return PR_FALSE;
 
     // Saving the exception state keeps us from interfering with another script
     // that may also be running on this context.  This occurred first with the
@@ -85,6 +89,8 @@ void AutoScriptEvaluate::StartEvaluating(JSErrorReporter errorReporter)
         mState = JS_SaveExceptionState(mJSContext);
         JS_ClearPendingException(mJSContext);
     }
+
+    return PR_TRUE;
 }
 
 AutoScriptEvaluate::~AutoScriptEvaluate()
@@ -250,20 +256,24 @@ nsXPCWrappedJSClass::CallQueryInterfaceOnJSObject(XPCCallContext& ccx,
     JSBool success = JS_FALSE;
     jsid funid;
     jsval fun;
-    JSAutoEnterCompartment ac;
-
-    if(!ac.enter(cx, jsobj))
-        return nsnull;
 
     // Don't call the actual function on a content object. We'll determine
     // whether or not a content object is capable of implementing the
     // interface (i.e. whether the interface is scriptable) and most content
     // objects don't have QI implementations anyway. Also see bug 503926.
     if(XPCPerThreadData::IsMainThread(ccx) &&
-       !xpc::AccessCheck::isChrome(jsobj->getCompartment()))
+       !xpc::AccessCheck::isChrome(jsobj->compartment()))
     {
         return nsnull;
     }
+
+    // OK, it looks like we'll be calling into JS code.
+    AutoScriptEvaluate scriptEval(cx);
+
+    // XXX we should install an error reporter that will send reports to
+    // the JS error console service.
+    if (!scriptEval.StartEvaluating(jsobj))
+        return nsnull;
 
     // check upfront for the existence of the function property
     funid = mRuntime->GetStringID(XPCJSRuntime::IDX_QUERY_INTERFACE);
@@ -289,14 +299,6 @@ nsXPCWrappedJSClass::CallQueryInterfaceOnJSObject(XPCCallContext& ccx,
         if(NS_FAILED(info->IsScriptable(&canScript)) || !canScript)
             return nsnull;
     }
-
-    // OK, it looks like we'll be calling into JS code.
-
-    AutoScriptEvaluate scriptEval(cx);
-
-    // XXX we should install an error reporter that will send reports to
-    // the JS error console service.
-    scriptEval.StartEvaluating();
 
     id = xpc_NewIDObject(cx, jsobj, aIID);
     if(id)
@@ -402,7 +404,8 @@ nsXPCWrappedJSClass::GetNamedPropertyAsVariant(XPCCallContext& ccx,
     nsresult rv = NS_ERROR_FAILURE;
 
     AutoScriptEvaluate scriptEval(cx);
-    scriptEval.StartEvaluating();
+    if (!scriptEval.StartEvaluating(aJSObj))
+        return NS_ERROR_FAILURE;
 
     ok = JS_ValueToId(cx, aName, &id) && 
          GetNamedPropertyAsVariantRaw(ccx, aJSObj, id, aResult, &rv);
@@ -425,7 +428,8 @@ nsXPCWrappedJSClass::BuildPropertyEnumerator(XPCCallContext& ccx,
 
     // Saved state must be restored, all exits through 'out'...
     AutoScriptEvaluate scriptEval(cx);
-    scriptEval.StartEvaluating();
+    if (!scriptEval.StartEvaluating(aJSObj))
+        return NS_ERROR_FAILURE;
 
     idArray = JS_Enumerate(cx, aJSObj);
     if(!idArray)
@@ -1305,15 +1309,11 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
         cx = nsnull;
     }
 
-    AutoScriptEvaluate scriptEval(cx);
     js::AutoValueVector args(cx);
+    AutoScriptEvaluate scriptEval(cx);
     ContextPrincipalGuard principalGuard(ccx);
 
     obj = thisObj = wrapper->GetJSObject();
-
-    JSAutoEnterCompartment ac;
-    if (!ac.enter(ccx, obj))
-        goto pre_call_clean_up;
 
     // XXX ASSUMES that retval is last arg. The xpidl compiler ensures this.
     paramCount = info->num_args;
@@ -1323,7 +1323,8 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
     if(!cx || !xpcc || !IsReflectable(methodIndex))
         goto pre_call_clean_up;
 
-    scriptEval.StartEvaluating(xpcWrappedJSErrorReporter);
+    if (!scriptEval.StartEvaluating(obj, xpcWrappedJSErrorReporter))
+        goto pre_call_clean_up;
 
     xpcc->SetPendingResult(pending_result);
     xpcc->SetException(nsnull);
@@ -1336,7 +1337,7 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
         if(ssm)
         {
             nsIPrincipal *objPrincipal =
-                xpc::AccessCheck::getPrincipal(obj->getCompartment());
+                xpc::AccessCheck::getPrincipal(obj->compartment());
             if(objPrincipal)
             {
                 JSStackFrame* fp = nsnull;

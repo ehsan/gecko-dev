@@ -39,6 +39,7 @@
 
 #include "jsprf.h"
 #include "jstl.h"
+#include "jscompartment.h"
 #include "Writer.h"
 #include "nanojit.h"
 
@@ -107,8 +108,11 @@ Writer::init(LogControl *logc_)
     if (logc->lcbits & LC_TMRecorder)
        lir = new (alloc) VerboseWriter(*alloc, lir, lirbuf->printer, logc);
 #endif
-    if (avmplus::AvmCore::config.cseopt)
-        lir = cse = new (alloc) CseFilter(lir, TM_NUM_USED_ACCS, *alloc);
+    if (avmplus::AvmCore::config.cseopt) {
+        cse = new (alloc) CseFilter(lir, TM_NUM_USED_ACCS, *alloc);
+        if (!cse->initOOM)
+            lir = cse;      // Skip CseFilter if we OOM'd when creating it.
+    }
     lir = new (alloc) ExprFilter(lir);
     lir = new (alloc) FuncFilter(lir);
 #ifdef DEBUG
@@ -340,6 +344,11 @@ void ValidateWriter::checkAccSet(LOpcode op, LIns *base, int32_t disp, AccSet ac
         ok = dispWithin(JSContext) &&
              match(base, LIR_ldp, ACCSET_STATE, offsetof(TracerState, cx));
         break;
+
+      case ACCSET_TM:
+          // base = immp
+          ok = base->isImmP() && disp == 0;
+          break;
 
       case ACCSET_EOS:
         // base = ldp.state ...[offsetof(TracerState, eos)]

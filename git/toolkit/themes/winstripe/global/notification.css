@@ -68,7 +68,10 @@ notification[type="critical"] .messageImage {
 }
 
 %ifdef XP_WIN
+/*
+XXX: apply styles to all themes until bug 509642 is fixed
 @media all and (-moz-windows-default-theme) {
+*/
   .popup-notification-menubutton[type="menu-button"] {
     -moz-appearance: none;
     border-radius: 3px;
@@ -99,10 +102,14 @@ notification[type="critical"] .messageImage {
   }
 
   .popup-notification-menubutton > .button-menubutton-button {
+    background-color: transparent;
+    padding: 1px;
+    -moz-border-end: none;
+  }
+
+  .popup-notification-menubutton > .button-menubutton-button > .button-box {
     -moz-padding-start: 8px;
     -moz-padding-end: 5px;
-    -moz-border-end: none;
-    background-color: transparent;
   }
 
   .popup-notification-menubutton > .button-menubutton-dropmarker {
@@ -110,6 +117,11 @@ notification[type="critical"] .messageImage {
     width: auto;
     height: auto;
     list-style-image: url("chrome://global/skin/arrow/arrow-dn-sharp.gif");
+  }
+
+  .popup-notification-menubutton > .button-menubutton-dropmarker {
+    outline: 1px dotted ThreeDDarkShadow;
+    outline-offset: -3px;
   }
 
 %ifdef WINSTRIPE_AERO
@@ -145,8 +157,13 @@ notification[type="critical"] .messageImage {
 %endif
     box-shadow: 0 0 2px rgba(0,0,0,.65) inset;
   }
-}
+/*}*/
 %endif
+
+.popup-notification-closebutton {
+  -moz-margin-end: -14px;
+  margin-top: -10px;
+}
 
 .popup-notification-closeitem {
   list-style-image: url("chrome://global/skin/icons/close.png");

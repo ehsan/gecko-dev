@@ -624,9 +624,6 @@ usage(void)
 #ifdef JS_GC_ZEAL
     fprintf(gErrFile, "  -Z <n>        Toggle GC zeal: low if <n> is 0 (default), high if non-zero\n");
 #endif
-#ifdef MOZ_SHARK
-    fprintf(gErrFile, "  -k  Connect to Shark\n");
-#endif
 #ifdef MOZ_TRACEVIS
     fprintf(gErrFile, "  -T  Start TraceVis\n");
 #endif
@@ -920,11 +917,6 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
             if (!obj)
                 return gExitCode;
             break;
-#ifdef MOZ_SHARK
-        case 'k':
-            JS_ConnectShark();
-            break;
-#endif
 #ifdef MOZ_TRACEVIS
         case 'T':
             if (++i == argc)
@@ -1061,6 +1053,37 @@ Load(JSContext *cx, uintN argc, jsval *vp)
     }
 
     return JS_TRUE;
+}
+
+static JSBool
+Evaluate(JSContext *cx, uintN argc, jsval *vp)
+{
+    if (argc != 1 || !JSVAL_IS_STRING(JS_ARGV(cx, vp)[0])) {
+        JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL,
+                             (argc != 1) ? JSSMSG_NOT_ENOUGH_ARGS : JSSMSG_INVALID_ARGS,
+                             "evaluate");
+        return false;
+    }
+
+    JSString *code = JSVAL_TO_STRING(JS_ARGV(cx, vp)[0]);
+
+    size_t codeLength;
+    const jschar *codeChars = JS_GetStringCharsAndLength(cx, code, &codeLength);
+    if (!codeChars)
+        return false;
+
+    JSObject *thisobj = JS_THIS_OBJECT(cx, vp);
+    if (!thisobj)
+        return false;
+
+    if ((JS_GET_CLASS(cx, thisobj)->flags & JSCLASS_IS_GLOBAL) != JSCLASS_IS_GLOBAL) {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_UNEXPECTED_TYPE,
+                             "this-value passed to evaluate()", "not a global object");
+        return false;
+    }
+
+    JS_SET_RVAL(cx, vp, JSVAL_VOID);
+    return JS_EvaluateUCScript(cx, thisobj, codeChars, codeLength, "@evaluate", 0, NULL);
 }
 
 /*
@@ -3054,6 +3077,11 @@ split_mark(JSContext *cx, JSObject *obj, void *arg)
         JS_MarkGCThing(cx, OBJECT_TO_JSVAL(cpx->inner), "ComplexObject.inner", arg);
     }
 
+    if (cpx->isInner && cpx->outer) {
+        /* Mark the inner object. */
+        JS_MarkGCThing(cx, OBJECT_TO_JSVAL(cpx->outer), "ComplexObject.outer", arg);
+    }
+
     return 0;
 }
 
@@ -4100,7 +4128,7 @@ Parse(JSContext *cx, uintN argc, jsval *vp)
     JSString *scriptContents = JSVAL_TO_STRING(arg0);
     js::Parser parser(cx);
     parser.init(JS_GetStringCharsZ(cx, scriptContents), JS_GetStringLength(scriptContents),
-                "<string>", 0);
+                "<string>", 0, cx->findVersion());
     if (!parser.parse(NULL))
         return JS_FALSE;
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
@@ -4228,11 +4256,15 @@ Deserialize(JSContext *cx, uintN argc, jsval *vp)
 {
     jsval v = argc > 0 ? JS_ARGV(cx, vp)[0] : JSVAL_VOID;
     JSObject *obj;
-    if (!JSVAL_IS_OBJECT(v) || !js_IsTypedArray((obj = JSVAL_TO_OBJECT(v)))) {
+    if (JSVAL_IS_PRIMITIVE(v) || !js_IsTypedArray((obj = JSVAL_TO_OBJECT(v)))) {
         JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_INVALID_ARGS, "deserialize");
         return false;
     }
     TypedArray *array = TypedArray::fromJSObject(obj);
+    if ((array->byteLength & 7) != 0) {
+        JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_INVALID_ARGS, "deserialize");
+        return false;
+    }
     if ((uintptr_t(array->data) & 7) != 0) {
         JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_BAD_ALIGNMENT);
         return false;
@@ -4249,7 +4281,11 @@ Deserialize(JSContext *cx, uintN argc, jsval *vp)
 JSBool
 MJitStats(JSContext *cx, uintN argc, jsval *vp)
 {
-    JS_SET_RVAL(cx, vp, INT_TO_JSVAL(cx->runtime->mjitMemoryUsed));
+#ifdef JS_METHODJIT
+     JS_SET_RVAL(cx, vp, INT_TO_JSVAL(cx->runtime->mjitMemoryUsed));
+#else
+    JS_SET_RVAL(cx, vp, JSVAL_VOID);
+#endif
     return true;
 }
 
@@ -4260,12 +4296,12 @@ StringStats(JSContext *cx, uintN argc, jsval *vp)
     return true;
 }
 
-/* We use a mix of JS_FS and JS_FN to test both kinds of natives. */
 static JSFunctionSpec shell_functions[] = {
     JS_FN("version",        Version,        0,0),
     JS_FN("revertVersion",  RevertVersion,  0,0),
     JS_FN("options",        Options,        0,0),
     JS_FN("load",           Load,           1,0),
+    JS_FN("evaluate",       Evaluate,       1,0),
     JS_FN("readline",       ReadLine,       0,0),
     JS_FN("print",          Print,          0,0),
     JS_FN("putstr",         PutStr,         0,0),
@@ -4319,12 +4355,6 @@ static JSFunctionSpec shell_functions[] = {
     JS_FN("evalcx",         EvalInContext,  1,0),
     JS_FN("evalInFrame",    EvalInFrame,    2,0),
     JS_FN("shapeOf",        ShapeOf,        1,0),
-#ifdef MOZ_SHARK
-    JS_FN("startShark",     js_StartShark,      0,0),
-    JS_FN("stopShark",      js_StopShark,       0,0),
-    JS_FN("connectShark",   js_ConnectShark,    0,0),
-    JS_FN("disconnectShark",js_DisconnectShark, 0,0),
-#endif
 #ifdef MOZ_CALLGRIND
     JS_FN("startCallgrind", js_StartCallgrind,  0,0),
     JS_FN("stopCallgrind",  js_StopCallgrind,   0,0),
@@ -4373,6 +4403,7 @@ static const char *const shell_help_messages[] = {
 "revertVersion()          Revert previously set version number",
 "options([option ...])    Get or toggle JavaScript options",
 "load(['foo.js' ...])     Load files named by string arguments",
+"evaluate(code)           Evaluate code as though it were the contents of a file",
 "readline()               Read a single line from stdin",
 "print([exp ...])         Evaluate and print expressions",
 "putstr([exp])            Evaluate and print expression without newline",
@@ -4448,14 +4479,6 @@ static const char *const shell_help_messages[] = {
 "evalInFrame(n,str,save)  Evaluate 'str' in the nth up frame.\n"
 "                         If 'save' (default false), save the frame chain",
 "shapeOf(obj)             Get the shape of obj (an implementation detail)",
-#ifdef MOZ_SHARK
-"startShark()             Start a Shark session.\n"
-"                         Shark must be running with programatic sampling",
-"stopShark()              Stop a running Shark session",
-"connectShark()           Connect to Shark.\n"
-"                         The -k switch does this automatically",
-"disconnectShark()        Disconnect from Shark",
-#endif
 #ifdef MOZ_CALLGRIND
 "startCallgrind()         Start callgrind instrumentation",
 "stopCallgrind()          Stop callgrind instrumentation",
@@ -4491,9 +4514,14 @@ static const char *const shell_help_messages[] = {
 "serialize(sd)            Serialize sd using JS_WriteStructuredClone. Returns a TypedArray.\n",
 "deserialize(a)           Deserialize data generated by serialize.\n",
 #ifdef JS_METHODJIT
-"mjitstats()             Return stats on mjit memory usage.\n",
+"mjitstats()              Return stats on mjit memory usage.\n",
 #endif
-"stringstats()           Return stats on string memory usage.\n"
+"stringstats()            Return stats on string memory usage.\n"
+#ifdef MOZ_PROFILING
+"startProfiling()         Start a profiling session.\n"
+"                         Profiler must be running with programatic sampling\n"
+"stopProfiling()          Stop a running profiling session"
+#endif
 };
 
 /* Help messages must match shell functions. */
@@ -4594,8 +4622,10 @@ split_setup(JSContext *cx, JSBool evalcx)
         return NULL;
 
     if (!evalcx) {
-        if (!JS_DefineFunctions(cx, inner, shell_functions))
+        if (!JS_DefineFunctions(cx, inner, shell_functions) ||
+            !JS_DefineProfilingFunctions(cx, inner)) {
             return NULL;
+        }
 
         /* Create a dummy arguments object. */
         arguments = JS_NewArrayObject(cx, 0, NULL);
@@ -5352,8 +5382,10 @@ NewGlobalObject(JSContext *cx)
 #endif
     if (!JS::RegisterPerfMeasurement(cx, glob))
         return NULL;
-    if (!JS_DefineFunctions(cx, glob, shell_functions))
+    if (!JS_DefineFunctions(cx, glob, shell_functions) ||
+        !JS_DefineProfilingFunctions(cx, glob)) {
         return NULL;
+    }
 
     JSObject *it = JS_DefineObject(cx, glob, "it", &its_class, NULL, 0);
     if (!it)

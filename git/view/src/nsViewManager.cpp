@@ -65,6 +65,7 @@
 
 static NS_DEFINE_IID(kRegionCID, NS_REGION_CID);
 
+PRTime gFirstPaintTimestamp = 0; // Timestamp of the first paint event
 /**
    XXX TODO XXX
 
@@ -313,6 +314,16 @@ NS_IMETHODIMP nsViewManager::SetWindowDimensions(nscoord aWidth, nscoord aHeight
 {
   if (mRootView) {
     if (mRootView->IsEffectivelyVisible()) {
+      if (mDelayedResize != nsSize(NSCOORD_NONE, NSCOORD_NONE) &&
+          mDelayedResize != nsSize(aWidth, aHeight)) {
+        // We have a delayed resize; that now obsolete size may already have
+        // been flushed to the PresContext so we need to update the PresContext
+        // with the new size because if the new size is exactly the same as the
+        // root view's current size then DoSetWindowDimensions will not
+        // request a resize reflow (which would correct it). See bug 617076.
+        mDelayedResize = nsSize(aWidth, aHeight);
+        FlushDelayedResize(PR_FALSE);
+      }
       mDelayedResize.SizeTo(NSCOORD_NONE, NSCOORD_NONE);
       DoSetWindowDimensions(aWidth, aHeight);
     } else {
@@ -445,6 +456,8 @@ void nsViewManager::RenderViews(nsView *aView, nsIWidget *aWidget,
     nsRegion region = ConvertRegionBetweenViews(aRegion, aView, displayRoot);
     mObserver->Paint(displayRoot, aView, aWidget, region, aIntRegion,
                      aPaintDefaultBackground, aWillSendDidPaint);
+    if (!gFirstPaintTimestamp)
+      gFirstPaintTimestamp = PR_Now();
   }
 }
 

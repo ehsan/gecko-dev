@@ -47,7 +47,7 @@
 
 /* Gross special case for Gecko, which defines malloc/calloc/free. */
 #ifdef mozilla_mozalloc_macro_wrappers_h
-#  define JS_UNDEFD_MOZALLOC_WRAPPERS
+#  define JS_CNTXT_UNDEFD_MOZALLOC_WRAPPERS
 /* The "anti-header" */
 #  include "mozilla/mozalloc_undef_macro_wrappers.h"
 #endif
@@ -136,8 +136,6 @@ static const size_t MAX_SLOW_NATIVE_EXTRA_SLOTS = 16;
 /* Forward declarations of tracer types. */
 class VMAllocator;
 class FrameInfoCache;
-struct REHashFn;
-struct REHashKey;
 struct FrameInfo;
 struct VMSideExit;
 struct TreeFragment;
@@ -145,8 +143,6 @@ struct TracerState;
 template<typename T> class Queue;
 typedef Queue<uint16> SlotList;
 class TypeMap;
-struct REFragment;
-typedef nanojit::HashMap<REHashKey, REFragment*, REHashFn> REHashMap;
 class LoopProfile;
 
 #if defined(JS_JIT_SPEW) || defined(DEBUG)
@@ -177,69 +173,6 @@ class ContextAllocPolicy
     void free(void *p);
     void *realloc(void *p, size_t bytes);
     void reportAllocOverflow() const;
-};
-
-/* Holds the execution state during trace execution. */
-struct TracerState
-{
-    JSContext*     cx;                  // current VM context handle
-    double*        stackBase;           // native stack base
-    double*        sp;                  // native stack pointer, stack[0] is spbase[0]
-    double*        eos;                 // first unusable word after the native stack / begin of globals
-    FrameInfo**    callstackBase;       // call stack base
-    void*          sor;                 // start of rp stack
-    FrameInfo**    rp;                  // call stack pointer
-    void*          eor;                 // first unusable word after the call stack
-    VMSideExit*    lastTreeExitGuard;   // guard we exited on during a tree call
-    VMSideExit*    lastTreeCallGuard;   // guard we want to grow from if the tree
-                                        // call exit guard mismatched
-    void*          rpAtLastTreeCall;    // value of rp at innermost tree call guard
-    VMSideExit*    outermostTreeExitGuard; // the last side exit returned by js_CallTree
-    TreeFragment*  outermostTree;       // the outermost tree we initially invoked
-    uintN*         inlineCallCountp;    // inline call count counter
-    VMSideExit**   innermostNestedGuardp;
-    VMSideExit*    innermost;
-    uint64         startTime;
-    TracerState*   prev;
-
-    // Used by _FAIL builtins; see jsbuiltins.h. The builtin sets the
-    // JSBUILTIN_BAILED bit if it bails off trace and the JSBUILTIN_ERROR bit
-    // if an error or exception occurred.
-    uint32         builtinStatus;
-
-    // Used to communicate the location of the return value in case of a deep bail.
-    double*        deepBailSp;
-
-    // Used when calling natives from trace to root the vp vector.
-    uintN          nativeVpLen;
-    js::Value*     nativeVp;
-
-    TracerState(JSContext *cx, TraceMonitor *tm, TreeFragment *ti,
-                uintN &inlineCallCountp, VMSideExit** innermostNestedGuardp);
-    ~TracerState();
-};
-
-/*
- * Storage for the execution state and store during trace execution. Generated
- * code depends on the fact that the globals begin |MAX_NATIVE_STACK_SLOTS|
- * doubles after the stack begins. Thus, on trace, |TracerState::eos| holds a
- * pointer to the first global.
- */
-struct TraceNativeStorage
-{
-    double stack_global_buf[MAX_NATIVE_STACK_SLOTS + GLOBAL_SLOTS_BUFFER_SIZE];
-    FrameInfo *callstack_buf[MAX_CALL_STACK_ENTRIES];
-
-    double *stack() { return stack_global_buf; }
-    double *global() { return stack_global_buf + MAX_NATIVE_STACK_SLOTS; }
-    FrameInfo **callstack() { return callstack_buf; }
-};
-
-/* Holds data to track a single globa. */
-struct GlobalState {
-    JSObject*               globalObj;
-    uint32                  globalShape;
-    SlotList*               globalSlots;
 };
 
 /*
@@ -900,7 +833,7 @@ private:
                         _(joinedsetmethod), _(joinedinitmethod),              \
                         _(joinedreplace), _(joinedsort), _(joinedmodulepat),  \
                         _(mreadbarrier), _(mwritebarrier), _(mwslotbarrier),  \
-                        _(unjoined)
+                        _(unjoined), _(indynamicscope)
 # define identity(x)    x
 
 struct JSFunctionMeter {
@@ -958,20 +891,6 @@ struct JSThreadData {
 
     /* State used by dtoa.c. */
     DtoaState           *dtoaState;
-
-    /*
-     * A single-entry cache for some base-10 double-to-string conversions.
-     * This helps date-format-xparb.js.  It also avoids skewing the results
-     * for v8-splay.js when measured by the SunSpider harness, where the splay
-     * tree initialization (which includes many repeated double-to-string
-     * conversions) is erroneously included in the measurement; see bug
-     * 562553.
-     */
-    struct {
-        jsdouble d;
-        jsint    base;
-        JSString *s;        // if s==NULL, d and base are not valid
-    } dtoaCache;
 
     /* Base address of the native stack for the current thread. */
     jsuword             *nativeStackBase;
@@ -1070,9 +989,9 @@ typedef js::Vector<JSCompartment *, 0, js::SystemAllocPolicy> WrapperVector;
 
 struct JSRuntime {
     /* Default compartment. */
-    JSCompartment       *defaultCompartment;
+    JSCompartment       *atomsCompartment;
 #ifdef JS_THREADSAFE
-    bool                defaultCompartmentIsLocked;
+    bool                atomsCompartmentIsLocked;
 #endif
 
     /* List of compartments (protected by the GC lock). */
@@ -1131,6 +1050,7 @@ struct JSRuntime {
     js::GCMarker        *gcMarkingTracer;
     uint32              gcTriggerFactor;
     int64               gcJitReleaseTime;
+    JSGCMode            gcMode;
     volatile bool       gcIsNeeded;
 
     /*
@@ -1599,12 +1519,6 @@ namespace js {
 
 class AutoGCRooter;
 
-#define JS_HAS_OPTION(cx,option)        (((cx)->options & (option)) != 0)
-#define JS_HAS_STRICT_OPTION(cx)        JS_HAS_OPTION(cx, JSOPTION_STRICT)
-#define JS_HAS_WERROR_OPTION(cx)        JS_HAS_OPTION(cx, JSOPTION_WERROR)
-#define JS_HAS_COMPILE_N_GO_OPTION(cx)  JS_HAS_OPTION(cx, JSOPTION_COMPILE_N_GO)
-#define JS_HAS_ATLINE_OPTION(cx)        JS_HAS_OPTION(cx, JSOPTION_ATLINE)
-
 static inline bool
 OptionsHasXML(uint32 options)
 {
@@ -1633,9 +1547,10 @@ OptionsSameVersionFlags(uint32 self, uint32 other)
  * become invalid.
  */
 namespace VersionFlags {
-static const uint32 MASK        = 0x0FFF; /* see JSVersion in jspubtd.h */
-static const uint32 HAS_XML     = 0x1000; /* flag induced by XML option */
-static const uint32 ANONFUNFIX  = 0x2000; /* see jsapi.h comment on JSOPTION_ANONFUNFIX */
+static const uintN MASK         = 0x0FFF; /* see JSVersion in jspubtd.h */
+static const uintN HAS_XML      = 0x1000; /* flag induced by XML option */
+static const uintN ANONFUNFIX   = 0x2000; /* see jsapi.h comment on JSOPTION_ANONFUNFIX */
+static const uintN FULL_MASK    = 0x3FFF;
 }
 
 static inline JSVersion
@@ -1687,10 +1602,33 @@ VersionExtractFlags(JSVersion version)
     return JSVersion(uint32(version) & ~VersionFlags::MASK);
 }
 
+static inline void
+VersionCopyFlags(JSVersion *version, JSVersion from)
+{
+    *version = JSVersion(VersionNumber(*version) | VersionExtractFlags(from));
+}
+
 static inline bool
 VersionHasFlags(JSVersion version)
 {
     return !!VersionExtractFlags(version);
+}
+
+static inline uintN
+VersionFlagsToOptions(JSVersion version)
+{
+    uintN copts = (VersionHasXML(version) ? JSOPTION_XML : 0) |
+                  (VersionHasAnonFunFix(version) ? JSOPTION_ANONFUNFIX : 0);
+    JS_ASSERT((copts & JSCOMPILEOPTION_MASK) == copts);
+    return copts;
+}
+
+static inline JSVersion
+OptionFlagsToVersion(uintN options, JSVersion version)
+{
+    VersionSetXML(&version, OptionsHasXML(options));
+    VersionSetAnonFunFix(&version, OptionsHasAnonFunFix(options));
+    return version;
 }
 
 static inline bool
@@ -1698,6 +1636,10 @@ VersionIsKnown(JSVersion version)
 {
     return VersionNumber(version) != JSVERSION_UNKNOWN;
 }
+
+typedef js::HashSet<JSObject *,
+                    js::DefaultHasher<JSObject *>,
+                    js::SystemAllocPolicy> BusyArraysMap;
 
 } /* namespace js */
 
@@ -1718,10 +1660,10 @@ struct JSContext
     JSBool              throwing;           /* is there a pending exception? */
     js::Value           exception;          /* most-recently-thrown exception */
 
-  public:
-    /* Per-context options. */
-    uint32              options;            /* see jsapi.h for JSOPTION_* */
+    /* Per-context run options. */
+    uintN               runOptions;            /* see jsapi.h for JSOPTION_* */
 
+  public:
     /* Locale specific callbacks for string conversion. */
     JSLocaleCallbacks   *localeCallbacks;
 
@@ -1798,7 +1740,7 @@ struct JSContext
 
     /* State for object and array toSource conversion. */
     JSSharpObjectMap    sharpObjectMap;
-    js::HashSet<JSObject *> busyArrays;
+    js::BusyArraysMap   busyArrays;
 
     /* Argument formatter support for JS_{Convert,Push}Arguments{,VA}. */
     JSArgumentFormatMap *argumentFormatMap;
@@ -1893,7 +1835,7 @@ struct JSContext
         return fp;
     }
 
-  private:
+  public:
     /*
      * The default script compilation version can be set iff there is no code running.
      * This typically occurs via the JSAPI right after a context is constructed.
@@ -1909,18 +1851,18 @@ struct JSContext
         hasVersionOverride = true;
     }
 
-  public:
-    void clearVersionOverride() {
-        hasVersionOverride = false;
-    }
-    
-    bool isVersionOverridden() const {
-        return hasVersionOverride;
-    }
-
     /* Set the default script compilation version. */
     void setDefaultVersion(JSVersion version) {
         defaultVersion = version;
+    }
+
+    void clearVersionOverride() { hasVersionOverride = false; }
+    JSVersion getDefaultVersion() const { return defaultVersion; }
+    bool isVersionOverridden() const { return hasVersionOverride; }
+
+    JSVersion getVersionOverride() const {
+        JS_ASSERT(isVersionOverridden());
+        return versionOverride;
     }
 
     /*
@@ -1936,6 +1878,23 @@ struct JSContext
         return true;
     }
 
+  private:
+    /*
+     * If there is no code currently executing, turn the override version into
+     * the default version.
+     *
+     * NB: the only time the version is potentially capable of migrating is
+     * on return from the Execute or ExternalInvoke paths as they call through
+     * JSContext::popSegmentAndFrame.
+     */
+    void maybeMigrateVersionOverride() {
+        if (JS_LIKELY(!isVersionOverridden() || currentSegment))
+            return;
+        defaultVersion = versionOverride;
+        clearVersionOverride();
+    }
+
+  public:
     /*
      * Return:
      * - The override version, if there is an override version.
@@ -1960,29 +1919,33 @@ struct JSContext
         return defaultVersion;
     }
 
-    void optionFlagsToVersion(JSVersion *version) const {
-        js::VersionSetXML(version, js::OptionsHasXML(options));
-        js::VersionSetAnonFunFix(version, js::OptionsHasAnonFunFix(options));
-    }
-
-    void checkOptionVersionSync() const {
-#ifdef DEBUG
-        JSVersion version = findVersion();
-        JS_ASSERT(js::VersionHasXML(version) == js::OptionsHasXML(options));
-        JS_ASSERT(js::VersionHasAnonFunFix(version) == js::OptionsHasAnonFunFix(options));
-#endif
+    void setRunOptions(uintN ropts) {
+        JS_ASSERT((ropts & JSRUNOPTION_MASK) == ropts);
+        runOptions = ropts;
     }
 
     /* Note: may override the version. */
-    void syncOptionsToVersion() {
-        JSVersion version = findVersion();
-        if (js::OptionsHasXML(options) == js::VersionHasXML(version) &&
-            js::OptionsHasAnonFunFix(options) == js::VersionHasAnonFunFix(version))
+    void setCompileOptions(uintN newcopts) {
+        JS_ASSERT((newcopts & JSCOMPILEOPTION_MASK) == newcopts);
+        if (JS_LIKELY(getCompileOptions() == newcopts))
             return;
-        js::VersionSetXML(&version, js::OptionsHasXML(options));
-        js::VersionSetAnonFunFix(&version, js::OptionsHasAnonFunFix(options));
-        maybeOverrideVersion(version);
+        JSVersion version = findVersion();
+        JSVersion newVersion = js::OptionFlagsToVersion(newcopts, version);
+        maybeOverrideVersion(newVersion);
     }
+
+    uintN getRunOptions() const { return runOptions; }
+    uintN getCompileOptions() const { return js::VersionFlagsToOptions(findVersion()); }
+    uintN allOptions() const { return getRunOptions() | getCompileOptions(); }
+
+    bool hasRunOption(uintN ropt) const {
+        JS_ASSERT((ropt & JSRUNOPTION_MASK) == ropt);
+        return !!(runOptions & ropt);
+    }
+
+    bool hasStrictOption() const { return hasRunOption(JSOPTION_STRICT); }
+    bool hasWErrorOption() const { return hasRunOption(JSOPTION_WERROR); }
+    bool hasAtLineOption() const { return hasRunOption(JSOPTION_ATLINE); }
 
 #ifdef JS_THREADSAFE
     JSThread            *thread;
@@ -2014,14 +1977,6 @@ struct JSContext
     js::Value           iterValue;
 
 #ifdef JS_TRACER
-    /*
-     * State for the current tree execution.  bailExit is valid if the tree has
-     * called back into native code via a _FAIL builtin and has not yet bailed,
-     * else garbage (NULL in debug builds).
-     */
-    js::TracerState     *tracerState;
-    js::VMSideExit      *bailExit;
-
     /*
      * True if traces may be executed. Invariant: The value of traceJitenabled
      * is always equal to the expression in updateJITEnabled below.
@@ -2207,9 +2162,6 @@ struct JSContext
      * a boolean flag to minimize the amount of code in its inlined callers.
      */
     JS_FRIEND_API(void) checkMallocGCPressure(void *p);
-
-    /* To silence MSVC warning about using 'this' in a member initializer. */
-    JSContext *thisInInitializer() { return this; }
 }; /* struct JSContext */
 
 #ifdef JS_THREADSAFE
@@ -2282,7 +2234,7 @@ class AutoGCRooter {
 #ifdef __GNUC__
 # pragma GCC visibility push(default)
 #endif
-    friend void MarkContext(JSTracer *trc, JSContext *acx);
+    friend JS_FRIEND_API(void) MarkContext(JSTracer *trc, JSContext *acx);
     friend void MarkRuntime(JSTracer *trc);
 #ifdef __GNUC__
 # pragma GCC visibility pop
@@ -2317,7 +2269,8 @@ class AutoGCRooter {
         VALVECTOR =   -12, /* js::AutoValueVector */
         DESCRIPTOR =  -13, /* js::AutoPropertyDescriptorRooter */
         STRING =      -14, /* js::AutoStringRooter */
-        IDVECTOR =    -15  /* js::AutoIdVector */
+        IDVECTOR =    -15, /* js::AutoIdVector */
+        BINDINGS =    -16  /* js::Bindings */
     };
 
     private:
@@ -2634,9 +2587,11 @@ class AutoEnumStateRooter : private AutoGCRooter
 #ifdef JS_HAS_XML_SUPPORT
 class AutoXMLRooter : private AutoGCRooter {
   public:
-    AutoXMLRooter(JSContext *cx, JSXML *xml)
+    AutoXMLRooter(JSContext *cx, JSXML *xml
+                  JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : AutoGCRooter(cx, XML), xml(xml)
     {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
         JS_ASSERT(xml);
     }
 
@@ -2645,73 +2600,132 @@ class AutoXMLRooter : private AutoGCRooter {
 
   private:
     JSXML * const xml;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 #endif /* JS_HAS_XML_SUPPORT */
 
+class AutoBindingsRooter : private AutoGCRooter {
+  public:
+    AutoBindingsRooter(JSContext *cx, Bindings &bindings
+                       JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : AutoGCRooter(cx, BINDINGS), bindings(bindings)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+
+    friend void AutoGCRooter::trace(JSTracer *trc);
+
+  private:
+    Bindings &bindings;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+};
+
 class AutoLockGC {
-private:
-    JSRuntime *rt;
-public:
-    explicit AutoLockGC(JSRuntime *rt) : rt(rt) { JS_LOCK_GC(rt); }
+  public:
+    explicit AutoLockGC(JSRuntime *rt
+                        JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : rt(rt)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_LOCK_GC(rt);
+    }
     ~AutoLockGC() { JS_UNLOCK_GC(rt); }
+
+  private:
+    JSRuntime *rt;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 class AutoUnlockGC {
-private:
+  private:
     JSRuntime *rt;
-public:
-    explicit AutoUnlockGC(JSRuntime *rt) : rt(rt) { JS_UNLOCK_GC(rt); }
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+
+  public:
+    explicit AutoUnlockGC(JSRuntime *rt
+                          JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : rt(rt)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_UNLOCK_GC(rt);
+    }
     ~AutoUnlockGC() { JS_LOCK_GC(rt); }
 };
 
-class AutoLockDefaultCompartment {
+class AutoLockAtomsCompartment {
   private:
-      JSContext *cx;
+    JSContext *cx;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+
   public:
-    AutoLockDefaultCompartment(JSContext *cx) : cx(cx) {
+    AutoLockAtomsCompartment(JSContext *cx
+                               JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : cx(cx)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
         JS_LOCK(cx, &cx->runtime->atomState.lock);
 #ifdef JS_THREADSAFE
-        cx->runtime->defaultCompartmentIsLocked = true;
+        cx->runtime->atomsCompartmentIsLocked = true;
 #endif
     }
-    ~AutoLockDefaultCompartment() {
+    ~AutoLockAtomsCompartment() {
 #ifdef JS_THREADSAFE
-        cx->runtime->defaultCompartmentIsLocked = false;
+        cx->runtime->atomsCompartmentIsLocked = false;
 #endif
         JS_UNLOCK(cx, &cx->runtime->atomState.lock);
     }
 };
 
-class AutoUnlockDefaultCompartment {
-  private:
-      JSContext *cx;
+class AutoUnlockAtomsCompartment {
+    JSContext *cx;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+
   public:
-    AutoUnlockDefaultCompartment(JSContext *cx) : cx(cx) {
+    AutoUnlockAtomsCompartment(JSContext *cx
+                                 JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : cx(cx)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
 #ifdef JS_THREADSAFE
-        cx->runtime->defaultCompartmentIsLocked = false;
+        cx->runtime->atomsCompartmentIsLocked = false;
 #endif
         JS_UNLOCK(cx, &cx->runtime->atomState.lock);
     }
-    ~AutoUnlockDefaultCompartment() {
+    ~AutoUnlockAtomsCompartment() {
         JS_LOCK(cx, &cx->runtime->atomState.lock);
 #ifdef JS_THREADSAFE
-        cx->runtime->defaultCompartmentIsLocked = true;
+        cx->runtime->atomsCompartmentIsLocked = true;
 #endif
     }
 };
 
 class AutoKeepAtoms {
     JSRuntime *rt;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+
   public:
-    explicit AutoKeepAtoms(JSRuntime *rt) : rt(rt) { JS_KEEP_ATOMS(rt); }
+    explicit AutoKeepAtoms(JSRuntime *rt
+                           JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : rt(rt)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_KEEP_ATOMS(rt);
+    }
     ~AutoKeepAtoms() { JS_UNKEEP_ATOMS(rt); }
 };
 
 class AutoArenaAllocator {
     JSArenaPool *pool;
     void        *mark;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+
   public:
-    explicit AutoArenaAllocator(JSArenaPool *pool) : pool(pool) { mark = JS_ARENA_MARK(pool); }
+    explicit AutoArenaAllocator(JSArenaPool *pool
+                                JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : pool(pool), mark(JS_ARENA_MARK(pool))
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
     ~AutoArenaAllocator() { JS_ARENA_RELEASE(pool, mark); }
 
     template <typename T>
@@ -2725,9 +2739,17 @@ class AutoArenaAllocator {
 class AutoReleasePtr {
     JSContext   *cx;
     void        *ptr;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+
     AutoReleasePtr operator=(const AutoReleasePtr &other);
+
   public:
-    explicit AutoReleasePtr(JSContext *cx, void *ptr) : cx(cx), ptr(ptr) {}
+    explicit AutoReleasePtr(JSContext *cx, void *ptr
+                            JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : cx(cx), ptr(ptr)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
     ~AutoReleasePtr() { cx->free(ptr); }
 };
 
@@ -2737,9 +2759,17 @@ class AutoReleasePtr {
 class AutoReleaseNullablePtr {
     JSContext   *cx;
     void        *ptr;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+
     AutoReleaseNullablePtr operator=(const AutoReleaseNullablePtr &other);
+
   public:
-    explicit AutoReleaseNullablePtr(JSContext *cx, void *ptr) : cx(cx), ptr(ptr) {}
+    explicit AutoReleaseNullablePtr(JSContext *cx, void *ptr
+                                    JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : cx(cx), ptr(ptr)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
     void reset(void *ptr2) {
         if (ptr)
             cx->free(ptr);
@@ -2780,35 +2810,93 @@ class AutoLocalNameArray {
 };
 
 template <class RefCountable>
-class AutoRefCount {
-    JSContext       * const cx;
-    RefCountable    *obj;
+class AlreadyIncRefed
+{
+    typedef RefCountable *****ConvertibleToBool;
+
+    RefCountable *obj;
 
   public:
-    explicit AutoRefCount(JSContext *cx) : cx(cx), obj(NULL) {}
+    explicit AlreadyIncRefed(RefCountable *obj) : obj(obj) {}
 
-    AutoRefCount(JSContext *cx, RefCountable *obj) : cx(cx), obj(NULL) {
-        reset(obj);
+    bool null() const { return obj == NULL; }
+    operator ConvertibleToBool() const { return (ConvertibleToBool)obj; }
+
+    RefCountable *operator->() const { JS_ASSERT(!null()); return obj; }
+    RefCountable &operator*() const { JS_ASSERT(!null()); return *obj; }
+    RefCountable *get() const { return obj; }
+};
+
+template <class RefCountable>
+class NeedsIncRef
+{
+    typedef RefCountable *****ConvertibleToBool;
+
+    RefCountable *obj;
+
+  public:
+    explicit NeedsIncRef(RefCountable *obj) : obj(obj) {}
+
+    bool null() const { return obj == NULL; }
+    operator ConvertibleToBool() const { return (ConvertibleToBool)obj; }
+
+    RefCountable *operator->() const { JS_ASSERT(!null()); return obj; }
+    RefCountable &operator*() const { JS_ASSERT(!null()); return *obj; }
+    RefCountable *get() const { return obj; }
+};
+
+template <class RefCountable>
+class AutoRefCount
+{
+    typedef RefCountable *****ConvertibleToBool;
+
+    JSContext *const cx;
+    RefCountable *obj;
+
+    AutoRefCount(const AutoRefCount &);
+    void operator=(const AutoRefCount &);
+
+  public:
+    explicit AutoRefCount(JSContext *cx)
+      : cx(cx), obj(NULL)
+    {}
+
+    AutoRefCount(JSContext *cx, NeedsIncRef<RefCountable> aobj)
+      : cx(cx), obj(aobj.get())
+    {
+        if (obj)
+            obj->incref(cx);
     }
+
+    AutoRefCount(JSContext *cx, AlreadyIncRefed<RefCountable> aobj)
+      : cx(cx), obj(aobj.get())
+    {}
 
     ~AutoRefCount() {
         if (obj)
             obj->decref(cx);
     }
 
-    void reset(RefCountable *aobj) {
+    void reset(NeedsIncRef<RefCountable> aobj) {
         if (obj)
             obj->decref(cx);
-
-        obj = aobj;
-
+        obj = aobj.get();
         if (obj)
             obj->incref(cx);
     }
 
-    RefCountable *get() {
-        return obj;
+    void reset(AlreadyIncRefed<RefCountable> aobj) {
+        if (obj)
+            obj->decref(cx);
+        obj = aobj.get();
     }
+
+    bool null() const { return obj == NULL; }
+    operator ConvertibleToBool() const { return (ConvertibleToBool)obj; }
+
+    RefCountable *operator->() const { JS_ASSERT(!null()); return obj; }
+    RefCountable &operator*() const { JS_ASSERT(!null()); return *obj; }
+    RefCountable *get() const { return obj; }
 };
 
 } /* namespace js */
@@ -3304,7 +3392,7 @@ NewIdArray(JSContext *cx, jsint length);
 #pragma warning(pop)
 #endif
 
-#ifdef JS_UNDEFD_MOZALLOC_WRAPPERS
+#ifdef JS_CNTXT_UNDEFD_MOZALLOC_WRAPPERS
 #  include "mozilla/mozalloc_macro_wrappers.h"
 #endif
 

@@ -84,14 +84,6 @@
 #include "nsXPCOMCIDInternal.h"
 #include "nsIXULRuntime.h"
 
-// For locale aware string methods
-#include "plstr.h"
-#include "nsIPlatformCharset.h"
-#include "nsICharsetConverterManager.h"
-#include "nsUnicharUtils.h"
-#include "nsILocaleService.h"
-#include "nsICollation.h"
-#include "nsCollationCID.h"
 #include "nsDOMClassInfo.h"
 
 #include "jsdbgapi.h"           // for JS_ClearWatchPointsForObject
@@ -169,14 +161,16 @@ static PRLogModuleInfo* gJSDiagnostics;
 #define NS_MIN_CC_INTERVAL          10000 // ms
 // If previous cycle collection collected more than this number of objects,
 // the next collection will happen somewhat soon.
+// Also, if there are more than this number suspected objects, GC will be called
+// right before CC, if it wasn't called after last CC.
 #define NS_COLLECTED_OBJECTS_LIMIT  5000
 // CC will be called if GC has been called at least this number of times and
 // there are at least NS_MIN_SUSPECT_CHANGES new suspected objects.
 #define NS_MAX_GC_COUNT             5
-#define NS_MIN_SUSPECT_CHANGES      10
+#define NS_MIN_SUSPECT_CHANGES      100
 // CC will be called if there are at least NS_MAX_SUSPECT_CHANGES new suspected
 // objects.
-#define NS_MAX_SUSPECT_CHANGES      100
+#define NS_MAX_SUSPECT_CHANGES      1000
 
 // if you add statics here, add them to the list in nsJSRuntime::Startup
 
@@ -224,10 +218,6 @@ static PRTime sMaxChromeScriptRunTime;
 
 static nsIScriptSecurityManager *sSecurityManager;
 
-static nsICollation *gCollation;
-
-static nsIUnicodeDecoder *gDecoder;
-
 // nsUserActivityObserver observes user-interaction-active and
 // user-interaction-inactive notifications. It counts the number of
 // notifications and if the number is bigger than NS_CC_SOFT_LIMIT_ACTIVE
@@ -271,7 +261,7 @@ nsUserActivityObserver::Observe(nsISupports* aSubject, const char* aTopic,
     if (sUserIsActive) {
       sUserIsActive = PR_FALSE;
       if (!sGCTimer) {
-        nsJSContext::IntervalCC();
+        nsJSContext::MaybeCC(PR_FALSE);
         return NS_OK;
       }
     }
@@ -311,7 +301,7 @@ NS_IMETHODIMP
 nsCCMemoryPressureObserver::Observe(nsISupports* aSubject, const char* aTopic,
                                     const PRUnichar* aData)
 {
-  nsJSContext::CC(nsnull);
+  nsJSContext::CC(nsnull, PR_TRUE);
   return NS_OK;
 }
 
@@ -642,166 +632,6 @@ NS_ScriptErrorReporter(JSContext *cx,
             : ""));
   }
 #endif
-}
-
-static JSBool
-LocaleToUnicode(JSContext *cx, const char *src, jsval *rval)
-{
-  nsresult rv;
-
-  if (!gDecoder) {
-    // use app default locale
-    nsCOMPtr<nsILocaleService> localeService =
-      do_GetService(NS_LOCALESERVICE_CONTRACTID, &rv);
-    if (NS_SUCCEEDED(rv)) {
-      nsCOMPtr<nsILocale> appLocale;
-      rv = localeService->GetApplicationLocale(getter_AddRefs(appLocale));
-      if (NS_SUCCEEDED(rv)) {
-        nsAutoString localeStr;
-        rv = appLocale->
-          GetCategory(NS_LITERAL_STRING(NSILOCALE_TIME), localeStr);
-        NS_ASSERTION(NS_SUCCEEDED(rv), "failed to get app locale info");
-
-        nsCOMPtr<nsIPlatformCharset> platformCharset =
-          do_GetService(NS_PLATFORMCHARSET_CONTRACTID, &rv);
-
-        if (NS_SUCCEEDED(rv)) {
-          nsCAutoString charset;
-          rv = platformCharset->GetDefaultCharsetForLocale(localeStr, charset);
-          if (NS_SUCCEEDED(rv)) {
-            // get/create unicode decoder for charset
-            nsCOMPtr<nsICharsetConverterManager> ccm =
-              do_GetService(NS_CHARSETCONVERTERMANAGER_CONTRACTID, &rv);
-            if (NS_SUCCEEDED(rv))
-              ccm->GetUnicodeDecoder(charset.get(), &gDecoder);
-          }
-        }
-      }
-    }
-  }
-
-  JSString *str = nsnull;
-  PRInt32 srcLength = PL_strlen(src);
-
-  if (gDecoder) {
-    PRInt32 unicharLength = srcLength;
-    PRUnichar *unichars =
-      (PRUnichar *)JS_malloc(cx, (srcLength + 1) * sizeof(PRUnichar));
-    if (unichars) {
-      rv = gDecoder->Convert(src, &srcLength, unichars, &unicharLength);
-      if (NS_SUCCEEDED(rv)) {
-        // terminate the returned string
-        unichars[unicharLength] = 0;
-
-        // nsIUnicodeDecoder::Convert may use fewer than srcLength PRUnichars
-        if (unicharLength + 1 < srcLength + 1) {
-          PRUnichar *shrunkUnichars =
-            (PRUnichar *)JS_realloc(cx, unichars,
-                                    (unicharLength + 1) * sizeof(PRUnichar));
-          if (shrunkUnichars)
-            unichars = shrunkUnichars;
-        }
-        str = JS_NewUCString(cx,
-                             reinterpret_cast<jschar*>(unichars),
-                             unicharLength);
-      }
-      if (!str)
-        JS_free(cx, unichars);
-    }
-  }
-
-  if (!str) {
-    nsDOMClassInfo::ThrowJSException(cx, NS_ERROR_OUT_OF_MEMORY);
-    return JS_FALSE;
-  }
-
-  *rval = STRING_TO_JSVAL(str);
-  return JS_TRUE;
-}
-
-
-static JSBool
-ChangeCase(JSContext *cx, JSString *src, jsval *rval,
-           void(* changeCaseFnc)(const nsAString&, nsAString&))
-{
-  nsDependentJSString depStr;
-  if (!depStr.init(cx, src)) {
-    return JS_FALSE;
-  }
-
-  nsAutoString result;
-  changeCaseFnc(depStr, result);
-
-  JSString *ucstr = JS_NewUCStringCopyN(cx, (jschar*)result.get(), result.Length());
-  if (!ucstr) {
-    return JS_FALSE;
-  }
-
-  *rval = STRING_TO_JSVAL(ucstr);
-
-  return JS_TRUE;
-}
-
-static JSBool
-LocaleToUpperCase(JSContext *cx, JSString *src, jsval *rval)
-{
-  return ChangeCase(cx, src, rval, ToUpperCase);
-}
-
-static JSBool
-LocaleToLowerCase(JSContext *cx, JSString *src, jsval *rval)
-{
-  return ChangeCase(cx, src, rval, ToLowerCase);
-}
-
-static JSBool
-LocaleCompare(JSContext *cx, JSString *src1, JSString *src2, jsval *rval)
-{
-  nsresult rv;
-
-  if (!gCollation) {
-    nsCOMPtr<nsILocaleService> localeService =
-      do_GetService(NS_LOCALESERVICE_CONTRACTID, &rv);
-
-    if (NS_SUCCEEDED(rv)) {
-      nsCOMPtr<nsILocale> locale;
-      rv = localeService->GetApplicationLocale(getter_AddRefs(locale));
-
-      if (NS_SUCCEEDED(rv)) {
-        nsCOMPtr<nsICollationFactory> colFactory =
-          do_CreateInstance(NS_COLLATIONFACTORY_CONTRACTID, &rv);
-
-        if (NS_SUCCEEDED(rv)) {
-          rv = colFactory->CreateCollation(locale, &gCollation);
-        }
-      }
-    }
-
-    if (NS_FAILED(rv)) {
-      nsDOMClassInfo::ThrowJSException(cx, rv);
-
-      return JS_FALSE;
-    }
-  }
-
-  nsDependentJSString depStr1, depStr2;
-  if (!depStr1.init(cx, src1) || !depStr2.init(cx, src2)) {
-    return JS_FALSE;
-  }
-
-  PRInt32 result;
-  rv = gCollation->CompareString(nsICollation::kCollationStrengthDefault,
-                                 depStr1, depStr2, &result);
-
-  if (NS_FAILED(rv)) {
-    nsDOMClassInfo::ThrowJSException(cx, rv);
-
-    return JS_FALSE;
-  }
-
-  *rval = INT_TO_JSVAL(result);
-
-  return JS_TRUE;
 }
 
 #ifdef DEBUG
@@ -1244,7 +1074,8 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
     newDefaultJSOptions &= ~JSOPTION_PROFILING;
 
 #ifdef DEBUG
-  // In debug builds, warnings are enabled in chrome context if javascript.options.strict.debug is true
+  // In debug builds, warnings are enabled in chrome context if
+  // javascript.options.strict.debug is true
   PRBool strictDebug = nsContentUtils::GetBoolPref(js_strict_debug_option_str);
   // Note this callback is also called from context's InitClasses thus we don't
   // need to enable this directly from InitContext
@@ -1266,15 +1097,10 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
   else
     newDefaultJSOptions &= ~JSOPTION_RELIMIT;
 
-  if (newDefaultJSOptions != oldDefaultJSOptions) {
-    // Set options only if we used the old defaults; otherwise the page has
-    // customized some via the options object and we defer to its wisdom.
-    if (::JS_GetOptions(context->mContext) == oldDefaultJSOptions)
-      ::JS_SetOptions(context->mContext, newDefaultJSOptions);
+  ::JS_SetOptions(context->mContext, newDefaultJSOptions & JSRUNOPTION_MASK);
 
-    // Save the new defaults for the next page load (InitContext).
-    context->mDefaultJSOptions = newDefaultJSOptions;
-  }
+  // Save the new defaults for the next page load (InitContext).
+  context->mDefaultJSOptions = newDefaultJSOptions;
 
 #ifdef JS_GC_ZEAL
   PRInt32 zeal = nsContentUtils::GetIntPref(js_zeal_option_str, -1);
@@ -1311,15 +1137,7 @@ nsJSContext::nsJSContext(JSRuntime *aRuntime)
 
     ::JS_SetOperationCallback(mContext, DOMOperationCallback);
 
-    static JSLocaleCallbacks localeCallbacks =
-      {
-        LocaleToUpperCase,
-        LocaleToLowerCase,
-        LocaleCompare,
-        LocaleToUnicode
-      };
-
-    ::JS_SetLocaleCallbacks(mContext, &localeCallbacks);
+    xpc_LocalizeContext(mContext);
   }
   mIsInitialized = PR_FALSE;
   mNumEvaluations = 0;
@@ -1336,7 +1154,11 @@ nsJSContext::~nsJSContext()
 #ifdef DEBUG
   nsCycleCollector_DEBUG_wasFreed(static_cast<nsIScriptContext*>(this));
 #endif
-  NS_PRECONDITION(!mTerminations, "Shouldn't have termination funcs by now");
+
+  // We may still have pending termination functions if the context is destroyed
+  // before they could be executed. In this case, free the references to their
+  // parameters, but don't execute the functions (see bug 622326).
+  delete mTerminations;
 
   mGlobalObjectRef = nsnull;
 
@@ -1351,8 +1173,6 @@ nsJSContext::~nsJSContext()
 
     NS_IF_RELEASE(sRuntimeService);
     NS_IF_RELEASE(sSecurityManager);
-    NS_IF_RELEASE(gCollation);
-    NS_IF_RELEASE(gDecoder);
   }
 }
 
@@ -2138,9 +1958,8 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
   // xxxmarkh - this comment is no longer true - principals are not used at
   // all now, and never were in some cases.
 
-  nsCOMPtr<nsIJSContextStack> stack =
-    do_GetService("@mozilla.org/js/xpc/ContextStack;1", &rv);
-  if (NS_FAILED(rv) || NS_FAILED(stack->Push(mContext)))
+  nsCxPusher pusher;
+  if (!pusher.Push(mContext, PR_TRUE))
     return NS_ERROR_FAILURE;
 
   // check if the event handler can be run on the object in question
@@ -2153,6 +1972,25 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
     PRUint32 argc = 0;
     jsval *argv = nsnull;
 
+    JSObject *funobj = static_cast<JSObject *>(aHandler);
+    nsCOMPtr<nsIPrincipal> principal;
+    rv = sSecurityManager->GetObjectPrincipal(mContext, funobj,
+                                              getter_AddRefs(principal));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    JSStackFrame *currentfp = nsnull;
+    rv = sSecurityManager->PushContextPrincipal(mContext,
+                                                JS_FrameIterator(mContext, &currentfp),
+                                                principal);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    jsval funval = OBJECT_TO_JSVAL(funobj);
+    JSAutoEnterCompartment ac;
+    if (!ac.enter(mContext, funobj) || !JS_WrapObject(mContext, &target)) {
+      sSecurityManager->PopContextPrincipal(mContext);
+      return NS_ERROR_FAILURE;
+    }
+
     js::LazilyConstructed<nsAutoPoolRelease> poolRelease;
     js::LazilyConstructed<js::AutoArrayRooter> tvr;
 
@@ -2163,17 +2001,7 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
     // in the same scope as aTarget.
     rv = ConvertSupportsTojsvals(aargv, target, &argc,
                                  &argv, poolRelease, tvr);
-    if (NS_FAILED(rv)) {
-      stack->Pop(nsnull);
-      return rv;
-    }
-
-    jsval funval = OBJECT_TO_JSVAL(static_cast<JSObject *>(aHandler));
-    JSAutoEnterCompartment ac;
-    if (!ac.enter(mContext, target)) {
-      stack->Pop(nsnull);
-      return NS_ERROR_FAILURE;
-    }
+    NS_ENSURE_SUCCESS(rv, rv);
 
     ++mExecuteDepth;
     PRBool ok = ::JS_CallFunctionValue(mContext, target,
@@ -2193,10 +2021,11 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
       // Tell the caller that the handler threw an error.
       rv = NS_ERROR_FAILURE;
     }
+
+    sSecurityManager->PopContextPrincipal(mContext);
   }
 
-  if (NS_FAILED(stack->Pop(nsnull)))
-    return NS_ERROR_FAILURE;
+  pusher.Pop();
 
   // Convert to variant before calling ScriptEvaluated, as it may GC, meaning
   // we would need to root rval.
@@ -3016,57 +2845,6 @@ nsJSContext::AddSupportsPrimitiveTojsvals(nsISupports *aArg, jsval *aArgv)
   return NS_OK;
 }
 
-static JSPropertySpec OptionsProperties[] = {
-  {"strict",    (int8)JSOPTION_STRICT,   JSPROP_ENUMERATE | JSPROP_PERMANENT},
-  {"werror",    (int8)JSOPTION_WERROR,   JSPROP_ENUMERATE | JSPROP_PERMANENT},
-  {"relimit",   (int8)JSOPTION_RELIMIT,  JSPROP_ENUMERATE | JSPROP_PERMANENT},
-  {0}
-};
-
-static JSBool
-GetOptionsProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
-{
-  if (JSID_IS_INT(id)) {
-    uint32 optbit = (uint32) JSID_TO_INT(id);
-    if (((optbit & (optbit - 1)) == 0 && optbit <= JSOPTION_WERROR) ||
-          optbit == JSOPTION_RELIMIT)
-      *vp = (JS_GetOptions(cx) & optbit) ? JSVAL_TRUE : JSVAL_FALSE;
-  }
-  return JS_TRUE;
-}
-
-static JSBool
-SetOptionsProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
-{
-  if (JSID_IS_INT(id)) {
-    uint32 optbit = (uint32) JSID_TO_INT(id);
-
-    // Don't let options other than strict, werror, or relimit be set -- it
-    // would be bad if web page script could clear
-    // JSOPTION_PRIVATE_IS_NSISUPPORTS!
-    if (((optbit & (optbit - 1)) == 0 && optbit <= JSOPTION_WERROR) ||
-        optbit == JSOPTION_RELIMIT) {
-      JSBool optval;
-      JS_ValueToBoolean(cx, *vp, &optval);
-
-      uint32 optset = ::JS_GetOptions(cx);
-      if (optval)
-        optset |= optbit;
-      else
-        optset &= ~optbit;
-      ::JS_SetOptions(cx, optset);
-    }
-  }
-  return JS_TRUE;
-}
-
-static JSClass OptionsClass = {
-  "JSOptions",
-  0,
-  JS_PropertyStub, JS_PropertyStub, GetOptionsProperty, SetOptionsProperty,
-  JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, nsnull
-};
-
 #ifdef NS_TRACE_MALLOC
 
 #include <errno.h>              // XXX assume Linux if NS_TRACE_MALLOC
@@ -3305,16 +3083,6 @@ static JSFunctionSpec JProfFunctions[] = {
 
 #endif /* defined(MOZ_JPROF) */
 
-#ifdef MOZ_SHARK
-static JSFunctionSpec SharkFunctions[] = {
-    {"startShark",                 js_StartShark,              0, 0},
-    {"stopShark",                  js_StopShark,               0, 0},
-    {"connectShark",               js_ConnectShark,            0, 0},
-    {"disconnectShark",            js_DisconnectShark,         0, 0},
-    {nsnull,                       nsnull,                     0, 0}
-};
-#endif
-
 #ifdef MOZ_CALLGRIND
 static JSFunctionSpec CallgrindFunctions[] = {
     {"startCallgrind",             js_StartCallgrind,          0, 0},
@@ -3354,15 +3122,10 @@ nsJSContext::InitClasses(void *aGlobalObj)
 
   JSAutoRequest ar(mContext);
 
-  // Initialize the options object and set default options in mContext
-  JSObject *optionsObj = ::JS_DefineObject(mContext, globalObj, "_options",
-                                           &OptionsClass, nsnull, 0);
-  if (optionsObj &&
-      ::JS_DefineProperties(mContext, optionsObj, OptionsProperties)) {
-    ::JS_SetOptions(mContext, mDefaultJSOptions);
-  } else {
-    rv = NS_ERROR_FAILURE;
-  }
+  ::JS_SetOptions(mContext, mDefaultJSOptions);
+
+  // Attempt to initialize profiling functions
+  ::JS_DefineProfilingFunctions(mContext, globalObj);
 
 #ifdef NS_TRACE_MALLOC
   // Attempt to initialize TraceMalloc functions
@@ -3372,11 +3135,6 @@ nsJSContext::InitClasses(void *aGlobalObj)
 #ifdef MOZ_JPROF
   // Attempt to initialize JProf functions
   ::JS_DefineFunctions(mContext, globalObj, JProfFunctions);
-#endif
-
-#ifdef MOZ_SHARK
-  // Attempt to initialize Shark functions
-  ::JS_DefineFunctions(mContext, globalObj, SharkFunctions);
 #endif
 
 #ifdef MOZ_CALLGRIND
@@ -3545,7 +3303,7 @@ nsresult
 nsJSContext::SetTerminationFunction(nsScriptTerminationFunc aFunc,
                                     nsISupports* aRef)
 {
-  NS_PRECONDITION(JS_IsRunning(mContext), "should be executing script");
+  NS_PRECONDITION(GetExecutingScript(), "should be executing script");
 
   nsJSContext::TerminationFuncClosure* newClosure =
     new nsJSContext::TerminationFuncClosure(aFunc, aRef, mTerminations);
@@ -3610,37 +3368,6 @@ nsJSContext::ScriptExecuted()
   return NS_OK;
 }
 
-//static
-void
-nsJSContext::CC(nsICycleCollectorListener *aListener)
-{
-  NS_TIME_FUNCTION_MIN(1.0);
-
-  ++sCCollectCount;
-#ifdef DEBUG_smaug
-  printf("Will run cycle collector (%i), %lldms since previous.\n",
-         sCCollectCount, (PR_Now() - sPreviousCCTime) / PR_USEC_PER_MSEC);
-#endif
-  sPreviousCCTime = PR_Now();
-  sDelayedCCollectCount = 0;
-  sCCSuspectChanges = 0;
-  // nsCycleCollector_collect() no longer forces a JS garbage collection,
-  // so we have to do it ourselves here.
-  if (nsContentUtils::XPConnect()) {
-    nsContentUtils::XPConnect()->GarbageCollect();
-  }
-  sCollectedObjectsCounts = nsCycleCollector_collect(aListener);
-  sCCSuspectedCount = nsCycleCollector_suspectedCount();
-  if (nsJSRuntime::sRuntime) {
-    sSavedGCCount = JS_GetGCParameter(nsJSRuntime::sRuntime, JSGC_NUMBER);
-  }
-#ifdef DEBUG_smaug
-  printf("Collected %u objects, %u suspected objects, took %lldms\n",
-         sCollectedObjectsCounts, sCCSuspectedCount,
-         (PR_Now() - sPreviousCCTime) / PR_USEC_PER_MSEC);
-#endif
-}
-
 static inline uint32
 GetGCRunsSinceLastCC()
 {
@@ -3654,6 +3381,40 @@ GetGCRunsSinceLastCC()
     // UINT32_MAX since the last call to JS_GetGCParameter(). 
     return JS_GetGCParameter(nsJSRuntime::sRuntime, JSGC_NUMBER) -
            sSavedGCCount;
+}
+
+//static
+void
+nsJSContext::CC(nsICycleCollectorListener *aListener, PRBool aForceGC)
+{
+  NS_TIME_FUNCTION_MIN(1.0);
+
+  ++sCCollectCount;
+#ifdef DEBUG_smaug
+  printf("Will run cycle collector (%i), %lldms since previous.\n",
+         sCCollectCount, (PR_Now() - sPreviousCCTime) / PR_USEC_PER_MSEC);
+#endif
+  sPreviousCCTime = PR_Now();
+  sDelayedCCollectCount = 0;
+  sCCSuspectChanges = 0;
+  // nsCycleCollector_collect() no longer forces a JS garbage collection,
+  // so we have to do it ourselves here.
+  if (nsContentUtils::XPConnect() &&
+      (aForceGC ||
+       (!GetGCRunsSinceLastCC() &&
+        sCCSuspectedCount > NS_COLLECTED_OBJECTS_LIMIT))) {
+    nsContentUtils::XPConnect()->GarbageCollect();
+  }
+  sCollectedObjectsCounts = nsCycleCollector_collect(aListener);
+  sCCSuspectedCount = nsCycleCollector_suspectedCount();
+  if (nsJSRuntime::sRuntime) {
+    sSavedGCCount = JS_GetGCParameter(nsJSRuntime::sRuntime, JSGC_NUMBER);
+  }
+#ifdef DEBUG_smaug
+  printf("Collected %u objects, %u suspected objects, took %lldms\n",
+         sCollectedObjectsCounts, sCCSuspectedCount,
+         (PR_Now() - sPreviousCCTime) / PR_USEC_PER_MSEC);
+#endif
 }
 
 //static
@@ -3713,7 +3474,7 @@ nsJSContext::CCIfUserInactive()
   if (sUserIsActive) {
     MaybeCC(PR_TRUE);
   } else {
-    IntervalCC();
+    IntervalCC(PR_TRUE);
   }
 }
 
@@ -3728,11 +3489,11 @@ nsJSContext::MaybeCCIfUserInactive()
 
 //static
 PRBool
-nsJSContext::IntervalCC()
+nsJSContext::IntervalCC(PRBool aForceGC)
 {
   if ((PR_Now() - sPreviousCCTime) >=
       PRTime(NS_MIN_CC_INTERVAL * PR_USEC_PER_MSEC)) {
-    nsJSContext::CC(nsnull);
+    nsJSContext::CC(nsnull, aForceGC);
     return PR_TRUE;
   }
 #ifdef DEBUG_smaug
@@ -3950,7 +3711,6 @@ nsJSRuntime::Startup()
   sDidShutdown = PR_FALSE;
   sContextCount = 0;
   sSecurityManager = nsnull;
-  gCollation = nsnull;
 }
 
 static int
@@ -4000,14 +3760,10 @@ SetMemoryHighWaterMarkPrefChangedCallback(const char* aPrefName, void* aClosure)
 static int
 SetMemoryMaxPrefChangedCallback(const char* aPrefName, void* aClosure)
 {
-  PRUint32 max = nsContentUtils::GetIntPref(aPrefName, -1);
-  if (max == -1UL)
-    max = 0xffffffff;
-  else
-    max = max * 1024L * 1024L;
-
-  JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_MAX_BYTES,
-                    max);
+  PRInt32 pref = nsContentUtils::GetIntPref(aPrefName, -1);
+  // handle overflow and negative pref values
+  PRUint32 max = (pref <= 0 || pref >= 0x1000) ? -1 : (PRUint32)pref * 1024 * 1024;
+  JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_MAX_BYTES, max);
   return 0;
 }
 
@@ -4016,6 +3772,16 @@ SetMemoryGCFrequencyPrefChangedCallback(const char* aPrefName, void* aClosure)
 {
   PRInt32 triggerFactor = nsContentUtils::GetIntPref(aPrefName, 300);
   JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_TRIGGER_FACTOR, triggerFactor);
+  return 0;
+}
+
+static int
+SetMemoryGCModePrefChangedCallback(const char* aPrefName, void* aClosure)
+{
+  PRBool enableCompartmentGC = nsContentUtils::GetBoolPref(aPrefName);
+  JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_MODE, enableCompartmentGC
+                                                      ? JSGC_MODE_COMPARTMENT
+                                                      : JSGC_MODE_GLOBAL);
   return 0;
 }
 
@@ -4159,6 +3925,12 @@ nsJSRuntime::Init()
   SetMemoryGCFrequencyPrefChangedCallback("javascript.options.mem.gc_frequency",
                                           nsnull);
 
+  nsContentUtils::RegisterPrefCallback("javascript.options.mem.gc_per_compartment",
+                                       SetMemoryGCModePrefChangedCallback,
+                                       nsnull);
+  SetMemoryGCModePrefChangedCallback("javascript.options.mem.gc_per_compartment",
+                                     nsnull);
+
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
   if (!obs)
     return NS_ERROR_FAILURE;
@@ -4226,8 +3998,6 @@ nsJSRuntime::Shutdown()
     }
     NS_IF_RELEASE(sRuntimeService);
     NS_IF_RELEASE(sSecurityManager);
-    NS_IF_RELEASE(gCollation);
-    NS_IF_RELEASE(gDecoder);
   }
 
   sDidShutdown = PR_TRUE;

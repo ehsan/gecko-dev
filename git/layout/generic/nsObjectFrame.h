@@ -183,7 +183,7 @@ public:
   virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
                                    LayerManager* aManager);
 
-  ImageContainer* GetImageContainer();
+  ImageContainer* GetImageContainer(LayerManager* aManager = nsnull);
 
   /**
    * If aContent has a nsObjectFrame, then prepare it for a DocShell swap.
@@ -321,7 +321,8 @@ public:
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                                   nsRegion* aVisibleRegion);
+                                   nsRegion* aVisibleRegion,
+                                   PRBool& aContainsRootContentDocBG);
 
   NS_DISPLAY_DECL_NAME("Plugin", TYPE_PLUGIN)
 

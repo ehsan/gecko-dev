@@ -38,6 +38,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_LOGGING
+#define FORCE_PR_LOG /* Allow logging in the release build */
+#endif
+#include "prlog.h"
+
 #include "nsIPrefService.h"
 #include "nsServiceManagerUtils.h"
 #include "nsReadableUtils.h"
@@ -71,8 +76,6 @@
 using namespace mozilla;
 
 gfxFontCache *gfxFontCache::gGlobalCache = nsnull;
-
-static PRLogModuleInfo *gFontSelection = PR_NewLogModule("fontSelectionLog");
 
 #ifdef DEBUG_roc
 #define DEBUG_TEXT_RUN_STORAGE_METRICS
@@ -466,11 +469,6 @@ gfxFontFamily::FindFontForStyle(const gfxFontStyle& aFontStyle,
             // check remaining faces in order of preference to find the first that actually exists
             fe = mAvailableFonts[order[trial]];
             if (fe) {
-                PR_LOG(gFontSelection, PR_LOG_DEBUG,
-                       ("(FindFontForStyle) name: %s, sty: %02x, wt: %d, sz: %.1f -> %s (trial %d)\n", 
-                        NS_ConvertUTF16toUTF8(mName).get(),
-                        aFontStyle.style, aFontStyle.weight, aFontStyle.size,
-                        NS_ConvertUTF16toUTF8(fe->Name()).get(), trial));
                 aNeedsSyntheticBold = wantBold && !fe->IsBold();
                 return fe;
             }
@@ -489,10 +487,6 @@ gfxFontFamily::FindFontForStyle(const gfxFontStyle& aFontStyle,
     gfxFontEntry *weightList[10] = { 0 };
     PRBool foundWeights = FindWeightsForStyle(weightList, wantItalic, aFontStyle.stretch);
     if (!foundWeights) {
-        PR_LOG(gFontSelection, PR_LOG_DEBUG,
-               ("(FindFontForStyle) name: %s, sty: %02x, wt: %d, sz: %.1f -> null\n", 
-                NS_ConvertUTF16toUTF8(mName).get(),
-                aFontStyle.style, aFontStyle.weight, aFontStyle.size));
         return nsnull;
     }
 
@@ -535,11 +529,6 @@ gfxFontFamily::FindFontForStyle(const gfxFontStyle& aFontStyle,
         aNeedsSyntheticBold = PR_TRUE;
     }
 
-    PR_LOG(gFontSelection, PR_LOG_DEBUG,
-           ("(FindFontForStyle) name: %s, sty: %02x, wt: %d, sz: %.1f -> %s\n", 
-            NS_ConvertUTF16toUTF8(mName).get(),
-            aFontStyle.style, aFontStyle.weight, aFontStyle.size,
-            NS_ConvertUTF16toUTF8(matchFE->Name()).get()));
     return matchFE;
 }
 
@@ -677,6 +666,22 @@ gfxFontFamily::FindFontForChar(FontSearch *aMatchData)
 
         if (fe->TestCharacterMap(aMatchData->mCh)) {
             rank += 20;
+            aMatchData->mCount++;
+#ifdef PR_LOGGING
+            PRLogModuleInfo *log = gfxPlatform::GetLog(eGfxLog_textrun);
+        
+            if (NS_UNLIKELY(log)) {
+                PRUint32 charRange = gfxFontUtils::CharRangeBit(aMatchData->mCh);
+                PRUint32 unicodeRange = FindCharUnicodeRange(aMatchData->mCh);
+                PRUint32 hbscript = gfxUnicodeProperties::GetScriptCode(aMatchData->mCh);
+                PR_LOG(log, PR_LOG_DEBUG,\
+                       ("(textrun-systemfallback-fonts) char: u+%6.6x "
+                        "char-range: %d unicode-range: %d script: %d match: [%s]\n",
+                        aMatchData->mCh,
+                        charRange, unicodeRange, hbscript,
+                        NS_ConvertUTF16toUTF8(fe->Name()).get()));
+            }
+#endif
         }
 
         // if we didn't match any characters don't bother wasting more time with this face.
@@ -1443,6 +1448,24 @@ gfxFont::SplitAndInitTextRun(gfxContext *aContext,
                              PRInt32 aRunScript)
 {
     PRBool ok;
+
+#ifdef PR_LOGGING
+    PRLogModuleInfo *log = (mStyle.systemFont ?
+                            gfxPlatform::GetLog(eGfxLog_textrunui) :
+                            gfxPlatform::GetLog(eGfxLog_textrun));
+
+    if (NS_UNLIKELY(log)) {
+        nsCAutoString lang;
+        mStyle.language->ToUTF8String(lang);
+        PR_LOG(log, PR_LOG_DEBUG,\
+               ("(%s-fontmatching) font: [%s] lang: %s script: %d len: %d "
+                "TEXTRUN [%s] ENDTEXTRUN\n",
+                (mStyle.systemFont ? "textrunui" : "textrun"),
+                NS_ConvertUTF16toUTF8(GetName()).get(),
+                lang.get(), aRunScript, aRunLength,
+                NS_ConvertUTF16toUTF8(aString + aRunStart, aRunLength).get()));
+    }
+#endif
 
     do {
         // Because various shaping backends struggle with very long runs,
@@ -2385,9 +2408,36 @@ gfxFontGroup::InitTextRun(gfxContext *aContext,
     // the font matching process below
     gfxScriptItemizer scriptRuns(aString, aLength);
 
+#ifdef PR_LOGGING
+    PRLogModuleInfo *log = (mStyle.systemFont ?
+                            gfxPlatform::GetLog(eGfxLog_textrunui) :
+                            gfxPlatform::GetLog(eGfxLog_textrun));
+#endif
+
     PRUint32 runStart = 0, runLimit = aLength;
     PRInt32 runScript = HB_SCRIPT_LATIN;
     while (scriptRuns.Next(runStart, runLimit, runScript)) {
+
+#ifdef PR_LOGGING
+        if (NS_UNLIKELY(log)) {
+            nsCAutoString lang;
+            mStyle.language->ToUTF8String(lang);
+            PRUint32 runLen = runLimit - runStart;
+            PR_LOG(log, PR_LOG_DEBUG,\
+                   ("(%s) fontgroup: [%s] lang: %s script: %d len %d "
+                    "weight: %d width: %d style: %s "
+                    "TEXTRUN [%s] ENDTEXTRUN\n",
+                    (mStyle.systemFont ? "textrunui" : "textrun"),
+                    NS_ConvertUTF16toUTF8(mFamilies).get(),
+                    lang.get(), runScript, runLen,
+                    PRUint32(mStyle.weight), PRUint32(mStyle.stretch),
+                    (mStyle.style & FONT_STYLE_ITALIC ? "italic" :
+                    (mStyle.style & FONT_STYLE_OBLIQUE ? "oblique" :
+                                                            "normal")),
+                    NS_ConvertUTF16toUTF8(aString + runStart, runLen).get()));
+        }
+#endif
+
         InitScriptRun(aContext, aTextRun, aString, aLength,
                       runStart, runLimit, runScript);
     }
@@ -2454,18 +2504,6 @@ gfxFontGroup::InitScriptRun(gfxContext *aContext,
     // ligatures" with the wrong font.
     aTextRun->SanitizeGlyphRuns();
 
-#ifdef DUMP_TEXT_RUNS
-    nsCAutoString lang;
-    style->language->ToUTF8String(lang);
-    PR_LOG(gFontSelection, PR_LOG_DEBUG,\
-           ("InitTextRun %p fontgroup %p (%s) lang: %s len %d features: %s "
-            "TEXTRUN \"%s\" ENDTEXTRUN\n",
-            aTextRun, this,
-            NS_ConvertUTF16toUTF8(mFamilies).get(),
-            lang.get(), aLength,
-            NS_ConvertUTF16toUTF8(mStyle.featureSettings).get(),
-            NS_ConvertUTF16toUTF8(aString, aLength).get()) );
-#endif
 }
 
 
@@ -2544,6 +2582,8 @@ void gfxFontGroup::ComputeRanges(nsTArray<gfxTextRange>& aRanges,
     }
 
     PRUint32 prevCh = 0;
+    gfxFont *prevFont = nsnull;
+
     for (PRUint32 i = 0; i < len; i++) {
 
         const PRUint32 origI = i; // save off in case we increase for surrogate
@@ -2557,9 +2597,7 @@ void gfxFontGroup::ComputeRanges(nsTArray<gfxTextRange>& aRanges,
 
         // find the font for this char
         nsRefPtr<gfxFont> font =
-            FindFontForChar(ch, prevCh, aRunScript,
-                            (aRanges.Length() == 0) ?
-                            nsnull : aRanges[aRanges.Length() - 1].font.get());
+            FindFontForChar(ch, prevCh, aRunScript, prevFont);
 
         prevCh = ch;
 
@@ -2568,6 +2606,7 @@ void gfxFontGroup::ComputeRanges(nsTArray<gfxTextRange>& aRanges,
             gfxTextRange r(0,1);
             r.font = font;
             aRanges.AppendElement(r);
+            prevFont = font;
         } else {
             // if font has changed, make a new range
             gfxTextRange& prevRange = aRanges[aRanges.Length() - 1];
@@ -2578,6 +2617,13 @@ void gfxFontGroup::ComputeRanges(nsTArray<gfxTextRange>& aRanges,
                 gfxTextRange r(origI, i+1);
                 r.font = font;
                 aRanges.AppendElement(r);
+
+                // update prevFont for the next match, *unless* we switched
+                // fonts on a ZWJ, in which case propagating the changed font
+                // is probably not a good idea (see bug 619511)
+                if (!gfxFontUtils::IsJoinCauser(ch)) {
+                    prevFont = font;
+                }
             }
         }
     }
@@ -3247,22 +3293,24 @@ ClipPartialLigature(gfxTextRun *aTextRun, gfxFloat *aLeft, gfxFloat *aRight,
 }
 
 void
-gfxTextRun::DrawPartialLigature(gfxFont *aFont, gfxContext *aCtx, PRUint32 aStart,
-                                PRUint32 aEnd,
-                                const gfxRect *aDirtyRect, gfxPoint *aPt,
+gfxTextRun::DrawPartialLigature(gfxFont *aFont, gfxContext *aCtx,
+                                PRUint32 aStart, PRUint32 aEnd,
+                                gfxPoint *aPt,
                                 PropertyProvider *aProvider)
 {
     if (aStart >= aEnd)
         return;
-    if (!aDirtyRect) {
-        NS_ERROR("Cannot draw partial ligatures without a dirty rect");
-        return;
-    }
+
+    // Need to preserve the path, otherwise this can break canvas text-on-path;
+    // in general it seems like a good thing, as naive callers probably won't
+    // expect gfxTextRun::Draw to implicitly destroy the current path.
+    gfxContextPathAutoSaveRestore savePath(aCtx);
 
     // Draw partial ligature. We hack this by clipping the ligature.
     LigatureData data = ComputeLigatureData(aStart, aEnd, aProvider);
-    gfxFloat left = aDirtyRect->X();
-    gfxFloat right = aDirtyRect->XMost();
+    gfxRect clipExtents = aCtx->GetClipExtents();
+    gfxFloat left = clipExtents.X()*mAppUnitsPerDevUnit;
+    gfxFloat right = clipExtents.XMost()*mAppUnitsPerDevUnit;
     ClipPartialLigature(this, &left, &right, aPt->x, &data);
 
     aCtx->Save();
@@ -3271,9 +3319,9 @@ gfxTextRun::DrawPartialLigature(gfxFont *aFont, gfxContext *aCtx, PRUint32 aStar
     // of mAppUnitsPerDevUnit, we clip to true device unit boundaries.
     // Also, make sure we snap the rectangle to device pixels.
     aCtx->Rectangle(gfxRect(left/mAppUnitsPerDevUnit,
-                            aDirtyRect->Y()/mAppUnitsPerDevUnit,
+                            clipExtents.Y(),
                             (right - left)/mAppUnitsPerDevUnit,
-                            aDirtyRect->Height()/mAppUnitsPerDevUnit), PR_TRUE);
+                            clipExtents.Height()), PR_TRUE);
     aCtx->Clip();
     gfxFloat direction = GetDirection();
     gfxPoint pt(aPt->x - direction*data.mPartAdvance, aPt->y);
@@ -3400,7 +3448,7 @@ gfxTextRun::AdjustAdvancesForSyntheticBold(PRUint32 aStart, PRUint32 aLength)
 
 void
 gfxTextRun::Draw(gfxContext *aContext, gfxPoint aPt,
-                 PRUint32 aStart, PRUint32 aLength, const gfxRect *aDirtyRect,
+                 PRUint32 aStart, PRUint32 aLength,
                  PropertyProvider *aProvider, gfxFloat *aAdvanceWidth)
 {
     NS_ASSERTION(aStart + aLength <= mCharacterCount, "Substring out of range");
@@ -3431,10 +3479,10 @@ gfxTextRun::Draw(gfxContext *aContext, gfxPoint aPt,
         PRUint32 ligatureRunEnd = end;
         ShrinkToLigatureBoundaries(&ligatureRunStart, &ligatureRunEnd);
         
-        DrawPartialLigature(font, aContext, start, ligatureRunStart, aDirtyRect, &pt, aProvider);
+        DrawPartialLigature(font, aContext, start, ligatureRunStart, &pt, aProvider);
         DrawGlyphs(font, aContext, PR_FALSE, &pt, ligatureRunStart,
                    ligatureRunEnd, aProvider, ligatureRunStart, ligatureRunEnd);
-        DrawPartialLigature(font, aContext, ligatureRunEnd, end, aDirtyRect, &pt, aProvider);
+        DrawPartialLigature(font, aContext, ligatureRunEnd, end, &pt, aProvider);
     }
 
     // composite result when synthetic bolding used

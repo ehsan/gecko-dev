@@ -178,33 +178,29 @@ ConstantFoldForIntArray(JSContext *cx, js::TypedArray *tarray, ValueRemat *vr)
     if (!vr->isConstant())
         return true;
 
-    if (vr->knownType() == JSVAL_TYPE_INT32) {
-        if (tarray->type == js::TypedArray::TYPE_UINT8_CLAMPED)
-            *vr = ValueRemat::FromConstant(Int32Value(ClampIntForUint8Array(vr->value().toInt32())));
-        return true;
-    }
-
+    // Convert from string to double first (see bug 624483).
     Value v = vr->value();
-    if (v.isDouble()) {
-        int32 i32 = tarray->type == js::TypedArray::TYPE_UINT8_CLAMPED
-                    ? js_TypedArray_uint8_clamp_double(v.toDouble())
-                    : js_DoubleToECMAInt32(v.toDouble());
-        *vr = ValueRemat::FromConstant(Int32Value(i32));
-        return true;
+    if (v.isString()) {
+        double d;
+        if (!StringToNumberType<double>(cx, v.toString(), &d))
+            return false;
+        v.setNumber(d);
     }
 
     int32 i32 = 0;
-    if (v.isString()) {
-        if (!StringToNumberType<int32>(cx, v.toString(), &i32))
-            return false;
+    if (v.isDouble()) {
+        i32 = (tarray->type == js::TypedArray::TYPE_UINT8_CLAMPED)
+              ? js_TypedArray_uint8_clamp_double(v.toDouble())
+              : js_DoubleToECMAInt32(v.toDouble());
+    } else if (v.isInt32()) {
+        i32 = v.toInt32();
+        if (tarray->type == js::TypedArray::TYPE_UINT8_CLAMPED)
+            i32 = ClampIntForUint8Array(i32);
     } else if (v.isBoolean()) {
         i32 = v.toBoolean() ? 1 : 0;
     } else {
         JS_NOT_REACHED("unknown constant type");
     }
-
-    if (tarray->type == js::TypedArray::TYPE_UINT8_CLAMPED)
-        i32 = ClampIntForUint8Array(i32);
 
     *vr = ValueRemat::FromConstant(Int32Value(i32));
 
@@ -261,7 +257,9 @@ GenConversionForIntArray(Assembler &masm, js::TypedArray *tarray, const ValueRem
 
     if (!vr.isTypeKnown() || vr.knownType() != JSVAL_TYPE_INT32) {
         // If a conversion is necessary, save registers now.
-        Jump checkInt32 = masm.testInt32(Assembler::Equal, vr.typeReg());
+        MaybeJump checkInt32;
+        if (!vr.isTypeKnown())
+            checkInt32 = masm.testInt32(Assembler::Equal, vr.typeReg());
 
         // Store the value to convert.
         StackMarker vp = masm.allocStack(sizeof(Value), sizeof(double));
@@ -281,14 +279,15 @@ GenConversionForIntArray(Assembler &masm, js::TypedArray *tarray, const ValueRem
             stub = stubs::ConvertToTypedInt<true>;
         else 
             stub = stubs::ConvertToTypedInt<false>;
-        masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, stub));
+        masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, stub), false);
         if (vr.dataReg() != Registers::ReturnReg)
             masm.move(Registers::ReturnReg, vr.dataReg());
 
         saveForCall.restore();
         masm.freeStack(vp);
 
-        checkInt32.linkTo(masm.label(), &masm);
+        if (checkInt32.isSet())
+            checkInt32.get().linkTo(masm.label(), &masm);
     }
 
     // Performing clamping, if needed.
@@ -363,7 +362,7 @@ GenConversionForFloatArray(Assembler &masm, js::TypedArray *tarray, const ValueR
         masm.setupABICall(Registers::FastCall, 2);
         masm.storeArg(0, masm.vmFrameOffset(offsetof(VMFrame, cx)));
         masm.storeArgAddr(1, masm.addressOfExtra(vp));
-        masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, stubs::ConvertToTypedFloat));
+        masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, stubs::ConvertToTypedFloat), false);
         saveForCall.restore();
 
         // Load the value from the outparam, then pop the stack.

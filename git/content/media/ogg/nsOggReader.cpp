@@ -310,12 +310,14 @@ nsresult nsOggReader::ReadMetadata()
   }
   if (HasVideo()) {
     mInfo.mPixelAspectRatio = mTheoraState->mPixelAspectRatio;
-    mInfo.mPicture.width = mTheoraState->mInfo.pic_width;
-    mInfo.mPicture.height = mTheoraState->mInfo.pic_height;
-    mInfo.mPicture.x = mTheoraState->mInfo.pic_x;
-    mInfo.mPicture.y = mTheoraState->mInfo.pic_y;
-    mInfo.mFrame.width = mTheoraState->mInfo.frame_width;
-    mInfo.mFrame.height = mTheoraState->mInfo.frame_height;
+    mInfo.mPicture = nsIntRect(mTheoraState->mInfo.pic_x,
+                               mTheoraState->mInfo.pic_y,
+                               mTheoraState->mInfo.pic_width,
+                               mTheoraState->mInfo.pic_height);
+    mInfo.mFrame = nsIntSize(mTheoraState->mInfo.frame_width,
+                             mTheoraState->mInfo.frame_height);
+    mInfo.mDisplay = nsIntSize(mInfo.mPicture.width,
+                               mInfo.mPicture.height);
   }
   mInfo.mDataOffset = mDataOffset;
 
@@ -1643,8 +1645,8 @@ nsresult nsOggReader::GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime)
       PRInt64 endTime = FindEndTime(endOffset, PR_TRUE, &state);
       if (endTime != -1) {
         endTime -= aStartTime;
-        aBuffered->Add(static_cast<float>(startTime) / 1000.0f,
-                       static_cast<float>(endTime) / 1000.0f);
+        aBuffered->Add(static_cast<double>(startTime) / 1000.0,
+                       static_cast<double>(endTime) / 1000.0);
       }
     }
     startOffset = stream->GetNextCachedData(endOffset);
