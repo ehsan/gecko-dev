@@ -4,6 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "jsprf.h"
 #include "jit/arm/Simulator-arm.h"
 #include "jit/BaselineIC.h"
 #include "jit/BaselineJIT.h"
@@ -475,7 +476,7 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
     if (excInfo)
         exprStackSlots = excInfo->numExprSlots;
     else
-        exprStackSlots = iter.slots() - (script->nfixed() + CountArgSlots(script, fun));
+        exprStackSlots = iter.allocations() - (script->nfixed() + CountArgSlots(script, fun));
 
     builder.resetFramePushed();
 
@@ -531,7 +532,7 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
     // If SPS Profiler is enabled, mark the frame as having pushed an SPS entry.
     // This may be wrong for the last frame of ArgumentCheck bailout, but
     // that will be fixed later.
-    if (cx->runtime()->spsProfiler.enabled() && ionScript->hasSPSInstrumentation()) {
+    if (ionScript->hasSPSInstrumentation()) {
         IonSpew(IonSpew_BaselineBailouts, "      Setting SPS flag on frame!");
         flags |= BaselineFrame::HAS_PUSHED_SPS_FRAME;
     }
@@ -623,9 +624,9 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
         size_t thisvOffset = builder.framePushed() + IonJSFrameLayout::offsetOfThis();
         *builder.valuePointerAtStackOffset(thisvOffset) = thisv;
 
-        JS_ASSERT(iter.slots() >= CountArgSlots(script, fun));
+        JS_ASSERT(iter.allocations() >= CountArgSlots(script, fun));
         IonSpew(IonSpew_BaselineBailouts, "      frame slots %u, nargs %u, nfixed %u",
-                iter.slots(), fun->nargs(), script->nfixed());
+                iter.allocations(), fun->nargs(), script->nfixed());
 
         if (!callerPC) {
             // This is the first frame. Store the formals in a Vector until we
@@ -975,6 +976,36 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
             IonSpew(IonSpew_BaselineBailouts, "      Set resumeAddr=%p", opReturnAddr);
         }
 
+        if (cx->runtime()->spsProfiler.enabled()) {
+            if (blFrame->hasPushedSPSFrame()) {
+                // Set PC index to 0 for the innermost frame to match what the
+                // interpreter and Baseline do: they update the SPS pc for
+                // JSOP_CALL ops but set it to 0 when running other ops. Ion code
+                // can set the pc to NullPCIndex and this will confuse SPS when
+                // Baseline calls into the VM at non-CALL ops and re-enters JS.
+                IonSpew(IonSpew_BaselineBailouts, "      Setting PCidx for last frame to 0");
+                cx->runtime()->spsProfiler.updatePC(script, script->code());
+            }
+
+            // Register bailout with profiler.
+            const char *filename = script->filename();
+            if (filename == nullptr)
+                filename = "<unknown>";
+            unsigned len = strlen(filename) + 200;
+            char *buf = js_pod_malloc<char>(len);
+            if (buf == nullptr)
+                return false;
+            JS_snprintf(buf, len, "%s %s %s on line %d of %s:%d",
+                                  BailoutKindString(bailoutKind),
+                                  resumeAfter ? "after" : "at",
+                                  js_CodeName[op],
+                                  int(PCToLineNumber(script, pc)),
+                                  filename,
+                                  int(script->lineno()));
+            cx->runtime()->spsProfiler.markEvent(buf);
+            js_free(buf);
+        }
+
         return true;
     }
 
@@ -1259,9 +1290,10 @@ jit::BailoutIonToBaseline(JSContext *cx, JitActivation *activation, IonBailoutIt
     SnapshotIterator snapIter(iter);
 
     RootedFunction callee(cx, iter.maybeCallee());
+    RootedScript scr(cx, iter.script());
     if (callee) {
         IonSpew(IonSpew_BaselineBailouts, "  Callee function (%s:%u)",
-                callee->existingScript()->filename(), callee->existingScript()->lineno());
+                scr->filename(), scr->lineno());
     } else {
         IonSpew(IonSpew_BaselineBailouts, "  No callee!");
     }
@@ -1278,7 +1310,6 @@ jit::BailoutIonToBaseline(JSContext *cx, JitActivation *activation, IonBailoutIt
     RootedScript caller(cx);
     jsbytecode *callerPC = nullptr;
     RootedFunction fun(cx, callee);
-    RootedScript scr(cx, iter.script());
     AutoValueVector startFrameFormals(cx);
 
     while (true) {
@@ -1316,7 +1347,7 @@ jit::BailoutIonToBaseline(JSContext *cx, JitActivation *activation, IonBailoutIt
         caller = scr;
         callerPC = callPC;
         fun = nextCallee;
-        scr = fun->existingScript();
+        scr = fun->existingScriptForInlinedFunction();
         snapIter.nextFrame();
 
         frameNo++;
@@ -1330,12 +1361,9 @@ jit::BailoutIonToBaseline(JSContext *cx, JitActivation *activation, IonBailoutIt
         mozilla::PodCopy(argv, startFrameFormals.begin(), startFrameFormals.length());
     }
 
-    // Take the reconstructed baseline stack so it doesn't get freed when builder destructs.
-    BaselineBailoutInfo *info = builder.takeBuffer();
-    info->numFrames = frameNo + 1;
-
     // Do stack check.
     bool overRecursed = false;
+    BaselineBailoutInfo *info = builder.info();
     uint8_t *newsp = info->incomingStack - (info->copyStackTop - info->copyStackBottom);
 #ifdef JS_ARM_SIMULATOR
     if (Simulator::Current()->overRecursed(uintptr_t(newsp)))
@@ -1348,6 +1376,9 @@ jit::BailoutIonToBaseline(JSContext *cx, JitActivation *activation, IonBailoutIt
         return BAILOUT_RETURN_OVERRECURSED;
     }
 
+    // Take the reconstructed baseline stack so it doesn't get freed when builder destructs.
+    info = builder.takeBuffer();
+    info->numFrames = frameNo + 1;
     info->bailoutKind = bailoutKind;
     *bailoutInfo = info;
     return BAILOUT_RETURN_OK;
@@ -1406,7 +1437,7 @@ jit::FinishBailoutToBaseline(BaselineBailoutInfo *bailoutInfo)
 {
     // The caller pushes R0 and R1 on the stack without rooting them.
     // Since GC here is very unlikely just suppress it.
-    JSContext *cx = GetIonContext()->cx;
+    JSContext *cx = GetJSContextFromJitCode();
     js::gc::AutoSuppressGC suppressGC(cx);
 
     IonSpew(IonSpew_BaselineBailouts, "  Done restoring frames");

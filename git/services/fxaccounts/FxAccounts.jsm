@@ -26,6 +26,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "jwcrypto",
 
 // All properties exposed by the public FxAccounts API.
 let publicProperties = [
+  "getAccountsClient",
   "getAccountsSignInURI",
   "getAccountsSignUpURI",
   "getAssertion",
@@ -68,22 +69,22 @@ AccountState.prototype = {
   cert: null,
   keyPair: null,
   signedInUser: null,
-  whenVerifiedPromise: null,
-  whenKeysReadyPromise: null,
+  whenVerifiedDeferred: null,
+  whenKeysReadyDeferred: null,
 
   get isCurrent() this.fxaInternal && this.fxaInternal.currentAccountState === this,
 
   abort: function() {
-    if (this.whenVerifiedPromise) {
-      this.whenVerifiedPromise.reject(
+    if (this.whenVerifiedDeferred) {
+      this.whenVerifiedDeferred.reject(
         new Error("Verification aborted; Another user signing in"));
-      this.whenVerifiedPromise = null;
+      this.whenVerifiedDeferred = null;
     }
 
-    if (this.whenKeysReadyPromise) {
-      this.whenKeysReadyPromise.reject(
+    if (this.whenKeysReadyDeferred) {
+      this.whenKeysReadyDeferred.reject(
         new Error("Verification aborted; Another user signing in"));
-      this.whenKeysReadyPromise = null;
+      this.whenKeysReadyDeferred = null;
     }
     this.cert = null;
     this.keyPair = null;
@@ -285,6 +286,10 @@ FxAccountsInternal.prototype = {
     return this.fxAccountsClient.now();
   },
 
+  getAccountsClient: function() {
+    return this.fxAccountsClient;
+  },
+
   /**
    * Return clock offset in milliseconds, as reported by the fxAccountsClient.
    * This can be overridden for testing.
@@ -336,6 +341,8 @@ FxAccountsInternal.prototype = {
    *          kA: An encryption key from the FxA server
    *          kB: An encryption key derived from the user's FxA password
    *          verified: email verification status
+   *          authAt: The time (seconds since epoch) that this record was
+   *                  authenticated
    *        }
    *        or null if no user is signed in.
    */
@@ -362,10 +369,14 @@ FxAccountsInternal.prototype = {
    *        The credentials object obtained by logging in or creating
    *        an account on the FxA server:
    *        {
+   *          authAt: The time (seconds since epoch) that this record was
+   *                  authenticated
    *          email: The users email address
-   *          uid: The user's unique id
+   *          keyFetchToken: a keyFetchToken which has not yet been used
    *          sessionToken: Session for the FxA server
-   *          keyFetchToken: an unused keyFetchToken
+   *          uid: The user's unique id
+   *          unwrapBKey: used to unwrap kB, derived locally from the
+   *                      password (not revealed to the FxA server)
    *          verified: true/false
    *        }
    * @return Promise
@@ -501,16 +512,22 @@ FxAccountsInternal.prototype = {
       if (data.kA && data.kB) {
         return data;
       }
-      if (!currentState.whenKeysReadyPromise) {
-        currentState.whenKeysReadyPromise = Promise.defer();
+      if (!currentState.whenKeysReadyDeferred) {
+        currentState.whenKeysReadyDeferred = Promise.defer();
         this.fetchAndUnwrapKeys(data.keyFetchToken).then(
           data => {
-            currentState.whenKeysReadyPromise.resolve(data);
+            if (!data.kA || !data.kB) {
+              currentState.whenKeysReadyDeferred.reject(
+                new Error("user data missing kA or kB")
+              );
+              return;
+            }
+            currentState.whenKeysReadyDeferred.resolve(data);
           },
-          err => currentState.whenKeysReadyPromise.reject(err)
+          err => currentState.whenKeysReadyDeferred.reject(err)
         );
       }
-      return currentState.whenKeysReadyPromise.promise;
+      return currentState.whenKeysReadyDeferred.promise;
     }).then(result => currentState.resolve(result));
    },
 
@@ -628,11 +645,11 @@ FxAccountsInternal.prototype = {
       log.debug("already verified");
       return currentState.resolve(data);
     }
-    if (!currentState.whenVerifiedPromise) {
+    if (!currentState.whenVerifiedDeferred) {
       log.debug("whenVerified promise starts polling for verified email");
       this.pollEmailStatus(currentState, data.sessionToken, "start");
     }
-    return currentState.whenVerifiedPromise.promise.then(
+    return currentState.whenVerifiedDeferred.promise.then(
       result => currentState.resolve(result)
     );
   },
@@ -650,8 +667,8 @@ FxAccountsInternal.prototype = {
       // if the user requested the verification email to be resent while we
       // were already polling for receipt of an earlier email.
       this.pollTimeRemaining = this.POLL_SESSION;
-      if (!currentState.whenVerifiedPromise) {
-        currentState.whenVerifiedPromise = Promise.defer();
+      if (!currentState.whenVerifiedDeferred) {
+        currentState.whenVerifiedDeferred = Promise.defer();
       }
     }
 
@@ -668,9 +685,9 @@ FxAccountsInternal.prototype = {
             })
             .then((data) => {
               // Now that the user is verified, we can proceed to fetch keys
-              if (currentState.whenVerifiedPromise) {
-                currentState.whenVerifiedPromise.resolve(data);
-                delete currentState.whenVerifiedPromise;
+              if (currentState.whenVerifiedDeferred) {
+                currentState.whenVerifiedDeferred.resolve(data);
+                delete currentState.whenVerifiedDeferred;
               }
             });
         } else {
@@ -682,11 +699,11 @@ FxAccountsInternal.prototype = {
               this.pollEmailStatus(currentState, sessionToken, "timer")}, this.POLL_STEP);
             log.debug("started timer " + this.currentTimer);
           } else {
-            if (currentState.whenVerifiedPromise) {
-              currentState.whenVerifiedPromise.reject(
+            if (currentState.whenVerifiedDeferred) {
+              currentState.whenVerifiedDeferred.reject(
                 new Error("User email verification timed out.")
               );
-              delete currentState.whenVerifiedPromise;
+              delete currentState.whenVerifiedDeferred;
             }
           }
         }

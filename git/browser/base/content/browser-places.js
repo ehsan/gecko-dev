@@ -1322,7 +1322,7 @@ let BookmarkingUI = {
       return;
     }
 
-    this._pendingStmt = PlacesUtils.asyncGetBookmarkIds(this._uri, function (aItemIds, aURI) {
+    this._pendingStmt = PlacesUtils.asyncGetBookmarkIds(this._uri, (aItemIds, aURI) => {
       // Safety check that the bookmarked URI equals the tracked one.
       if (!aURI.equals(this._uri)) {
         Components.utils.reportError("BookmarkingUI did not receive current URI");
@@ -1349,7 +1349,7 @@ let BookmarkingUI = {
       }
 
       delete this._pendingStmt;
-    }, this);
+    });
   },
 
   _updateStar: function BUI__updateStar() {
@@ -1400,7 +1400,7 @@ let BookmarkingUI = {
       let widthDiff = referenceRect.width - rectToPosition.width;
       return [(leftDiff + .5 * widthDiff) + "px", (topDiff + .5 * heightDiff) + "px"];
     }
- 
+
     if (this._notificationTimeout) {
       clearTimeout(this._notificationTimeout);
     }
@@ -1447,8 +1447,8 @@ let BookmarkingUI = {
 
     this._notificationTimeout = setTimeout( () => {
       this.notifier.removeAttribute("notification");
-      this.button.removeAttribute("notification");
       this.dropmarkerNotifier.removeAttribute("notification");
+      this.button.removeAttribute("notification");
 
       this.dropmarkerNotifier.style.transform = '';
       this.notifier.style.transform = '';

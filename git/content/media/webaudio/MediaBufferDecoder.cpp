@@ -141,8 +141,10 @@ private:
   void Cleanup()
   {
     MOZ_ASSERT(NS_IsMainThread());
-    mBufferDecoder = nullptr;
+    // MediaDecoderReader expects that BufferDecoder is alive.
+    // Destruct MediaDecoderReader first.
     mDecoderReader = nullptr;
+    mBufferDecoder = nullptr;
   }
 
 private:
@@ -267,8 +269,6 @@ MediaDecodeTask::Decode()
   // bakend support.
   mDecoderReader->SetIgnoreAudioOutputFormat();
 
-  mDecoderReader->OnDecodeThreadStart();
-
   MediaInfo mediaInfo;
   nsAutoPtr<MetadataTags> tags;
   nsresult rv = mDecoderReader->ReadMetadata(&mediaInfo, getter_Transfers(tags));
@@ -286,8 +286,6 @@ MediaDecodeTask::Decode()
     // consume all of the buffer
     continue;
   }
-
-  mDecoderReader->OnDecodeThreadFinish();
 
   MediaQueue<AudioData>& audioQueue = mDecoderReader->AudioQueue();
   uint32_t frameCount = audioQueue.FrameCount();
@@ -518,24 +516,12 @@ bool
 MediaBufferDecoder::EnsureThreadPoolInitialized()
 {
   if (!mThreadPool) {
-    mThreadPool = do_CreateInstance(NS_THREADPOOL_CONTRACTID);
+    mThreadPool = SharedThreadPool::Get(NS_LITERAL_CSTRING("MediaBufferDecoder"));
     if (!mThreadPool) {
       return false;
     }
-    mThreadPool->SetName(NS_LITERAL_CSTRING("MediaBufferDecoder"));
   }
   return true;
-}
-
-void
-MediaBufferDecoder::Shutdown() {
-  if (mThreadPool) {
-    // Setting threadLimit to 0 causes threads to exit when all events have
-    // been run, like nsIThreadPool::Shutdown(), but doesn't run a nested event
-    // loop nor wait until this has happened.
-    mThreadPool->SetThreadLimit(0);
-    mThreadPool = nullptr;
-  }
 }
 
 WebAudioDecodeJob::WebAudioDecodeJob(const nsACString& aContentType,

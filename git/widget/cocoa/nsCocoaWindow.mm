@@ -5,12 +5,13 @@
 
 #include "nsCocoaWindow.h"
 
+#include "NativeKeyBindings.h"
+#include "TextInputHandler.h"
 #include "nsObjCExceptions.h"
 #include "nsCOMPtr.h"
 #include "nsWidgetsCID.h"
 #include "nsIRollupListener.h"
 #include "nsChildView.h"
-#include "TextInputHandler.h"
 #include "nsWindowMap.h"
 #include "nsAppShell.h"
 #include "nsIAppShellService.h"
@@ -1726,8 +1727,7 @@ nsCocoaWindow::ReportMoveEvent()
   UpdateBounds();
 
   // Dispatch the move event to Gecko
-  if (mWidgetListener)
-    mWidgetListener->WindowMoved(this, mBounds.x, mBounds.y);
+  NotifyWindowMoved(mBounds.x, mBounds.y);
 
   mInReportMoveEvent = false;
 
@@ -2125,9 +2125,9 @@ bool nsCocoaWindow::ShouldFocusPlugin()
 }
 
 NS_IMETHODIMP
-nsCocoaWindow::NotifyIME(NotificationToIME aNotification)
+nsCocoaWindow::NotifyIME(const IMENotification& aIMENotification)
 {
-  switch (aNotification) {
+  switch (aIMENotification.mMessage) {
     case NOTIFY_IME_OF_FOCUS:
       if (mInputContext.IsPasswordEditor()) {
         TextInputHandler::EnableSecureEventInput();
@@ -2163,6 +2163,17 @@ nsCocoaWindow::SetInputContext(const InputContext& aContext,
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
+
+NS_IMETHODIMP_(bool)
+nsCocoaWindow::ExecuteNativeKeyBinding(NativeKeyBindingsType aType,
+                                       const WidgetKeyboardEvent& aEvent,
+                                       DoCommandCallback aCallback,
+                                       void* aCallbackData)
+{
+  NativeKeyBindings* keyBindings = NativeKeyBindings::GetInstance(aType);
+  return keyBindings->Execute(aEvent, aCallback, aCallbackData);
+}
+
 
 @implementation WindowDelegate
 

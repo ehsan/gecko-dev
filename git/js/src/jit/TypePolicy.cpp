@@ -235,15 +235,16 @@ ComparePolicy::adjustInputs(TempAllocator &alloc, MInstruction *def)
                 (compare->compareType() == MCompare::Compare_Int32MaybeCoerceLHS && i == 0) ||
                 (compare->compareType() == MCompare::Compare_Int32MaybeCoerceRHS && i == 1))
             {
-                convert = MacroAssembler::IntConversion_Any;
+                convert = MacroAssembler::IntConversion_NumbersOrBoolsOnly;
             }
             if (convert == MacroAssembler::IntConversion_NumbersOnly) {
                 if (in->type() != MIRType_Int32 && in->type() != MIRType_Value)
                     in = boxAt(alloc, def, in);
             } else {
-                if (in->type() == MIRType_Undefined ||
-                    in->type() == MIRType_String ||
-                    in->type() == MIRType_Object)
+                MOZ_ASSERT(convert == MacroAssembler::IntConversion_NumbersOrBoolsOnly);
+                if (in->type() != MIRType_Int32 &&
+                    in->type() != MIRType_Boolean &&
+                    in->type() != MIRType_Value)
                 {
                     in = boxAt(alloc, def, in);
                 }
@@ -733,22 +734,22 @@ StoreTypedArrayPolicy::adjustValueInput(TempAllocator &alloc, MInstruction *ins,
               value->type() == MIRType_Value);
 
     switch (arrayType) {
-      case ScalarTypeRepresentation::TYPE_INT8:
-      case ScalarTypeRepresentation::TYPE_UINT8:
-      case ScalarTypeRepresentation::TYPE_INT16:
-      case ScalarTypeRepresentation::TYPE_UINT16:
-      case ScalarTypeRepresentation::TYPE_INT32:
-      case ScalarTypeRepresentation::TYPE_UINT32:
+      case ScalarTypeDescr::TYPE_INT8:
+      case ScalarTypeDescr::TYPE_UINT8:
+      case ScalarTypeDescr::TYPE_INT16:
+      case ScalarTypeDescr::TYPE_UINT16:
+      case ScalarTypeDescr::TYPE_INT32:
+      case ScalarTypeDescr::TYPE_UINT32:
         if (value->type() != MIRType_Int32) {
             value = MTruncateToInt32::New(alloc, value);
             ins->block()->insertBefore(ins, value->toInstruction());
         }
         break;
-      case ScalarTypeRepresentation::TYPE_UINT8_CLAMPED:
+      case ScalarTypeDescr::TYPE_UINT8_CLAMPED:
         // IonBuilder should have inserted ClampToUint8.
         JS_ASSERT(value->type() == MIRType_Int32);
         break;
-      case ScalarTypeRepresentation::TYPE_FLOAT32:
+      case ScalarTypeDescr::TYPE_FLOAT32:
         if (LIRGenerator::allowFloat32Optimizations()) {
             if (value->type() != MIRType_Float32) {
                 value = MToFloat32::New(alloc, value);
@@ -758,7 +759,7 @@ StoreTypedArrayPolicy::adjustValueInput(TempAllocator &alloc, MInstruction *ins,
         }
         // Fallthrough: if the LIRGenerator cannot directly store Float32, it will expect the
         // stored value to be a double.
-      case ScalarTypeRepresentation::TYPE_FLOAT64:
+      case ScalarTypeDescr::TYPE_FLOAT64:
         if (value->type() != MIRType_Double) {
             value = MToDouble::New(alloc, value);
             ins->block()->insertBefore(ins, value->toInstruction());

@@ -106,14 +106,31 @@ let gSyncUI = {
     try {
       firstSync = Services.prefs.getCharPref("services.sync.firstSync");
     } catch (e) { }
+
     return Weave.Status.checkSetup() == Weave.CLIENT_NOT_CONFIGURED ||
            firstSync == "notReady";
   },
 
+  _loginFailed: function () {
+    return Weave.Status.login == Weave.LOGIN_FAILED_LOGIN_REJECTED;
+  },
+
   updateUI: function SUI_updateUI() {
     let needsSetup = this._needsSetup();
-    document.getElementById("sync-setup-state").hidden = !needsSetup;
-    document.getElementById("sync-syncnow-state").hidden = needsSetup;
+    let loginFailed = this._loginFailed();
+
+    // Start off with a clean slate
+    document.getElementById("sync-reauth-state").hidden = true;
+    document.getElementById("sync-setup-state").hidden = true;
+    document.getElementById("sync-syncnow-state").hidden = true;
+
+    if (loginFailed) {
+      document.getElementById("sync-reauth-state").hidden = false;
+    } else if (needsSetup) {
+      document.getElementById("sync-setup-state").hidden = false;
+    } else {
+      document.getElementById("sync-syncnow-state").hidden = false;
+    }
 
     if (!gBrowser)
       return;
@@ -352,6 +369,9 @@ let gSyncUI = {
     openPreferences("paneSync");
   },
 
+  openSignInAgainPage: function () {
+    switchToTabHavingURI("about:accounts?action=reauth", true);
+  },
 
   // Helpers
   _updateLastSyncTime: function SUI__updateLastSyncTime() {

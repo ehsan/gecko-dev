@@ -262,29 +262,25 @@ namespace js {
         js::proxy_HasInstance,   /* hasInstance */                                      \
         constructOp,             /* construct   */                                      \
         js::proxy_Trace,         /* trace       */                                      \
+        JS_NULL_CLASS_SPEC,                                                             \
         ext,                                                                            \
         {                                                                               \
             js::proxy_LookupGeneric,                                                    \
             js::proxy_LookupProperty,                                                   \
             js::proxy_LookupElement,                                                    \
-            js::proxy_LookupSpecial,                                                    \
             js::proxy_DefineGeneric,                                                    \
             js::proxy_DefineProperty,                                                   \
             js::proxy_DefineElement,                                                    \
-            js::proxy_DefineSpecial,                                                    \
             js::proxy_GetGeneric,                                                       \
             js::proxy_GetProperty,                                                      \
             js::proxy_GetElement,                                                       \
-            js::proxy_GetSpecial,                                                       \
             js::proxy_SetGeneric,                                                       \
             js::proxy_SetProperty,                                                      \
             js::proxy_SetElement,                                                       \
-            js::proxy_SetSpecial,                                                       \
             js::proxy_GetGenericAttributes,                                             \
             js::proxy_SetGenericAttributes,                                             \
             js::proxy_DeleteProperty,                                                   \
             js::proxy_DeleteElement,                                                    \
-            js::proxy_DeleteSpecial,                                                    \
             js::proxy_Watch, js::proxy_Unwatch,                                         \
             js::proxy_Slice,                                                            \
             nullptr,             /* enumerate       */                                  \
@@ -317,9 +313,6 @@ extern JS_FRIEND_API(bool)
 proxy_LookupElement(JSContext *cx, JS::HandleObject obj, uint32_t index, JS::MutableHandleObject objp,
                     JS::MutableHandle<Shape*> propp);
 extern JS_FRIEND_API(bool)
-proxy_LookupSpecial(JSContext *cx, JS::HandleObject obj, HandleSpecialId sid,
-                    JS::MutableHandleObject objp, JS::MutableHandle<Shape*> propp);
-extern JS_FRIEND_API(bool)
 proxy_DefineGeneric(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::HandleValue value,
                     JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs);
 extern JS_FRIEND_API(bool)
@@ -330,10 +323,6 @@ extern JS_FRIEND_API(bool)
 proxy_DefineElement(JSContext *cx, JS::HandleObject obj, uint32_t index, JS::HandleValue value,
                     JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs);
 extern JS_FRIEND_API(bool)
-proxy_DefineSpecial(JSContext *cx, JS::HandleObject obj, HandleSpecialId sid,
-                    JS::HandleValue value, JSPropertyOp getter, JSStrictPropertyOp setter,
-                    unsigned attrs);
-extern JS_FRIEND_API(bool)
 proxy_GetGeneric(JSContext *cx, JS::HandleObject obj, JS::HandleObject receiver, JS::HandleId id,
                  JS::MutableHandleValue vp);
 extern JS_FRIEND_API(bool)
@@ -342,9 +331,6 @@ proxy_GetProperty(JSContext *cx, JS::HandleObject obj, JS::HandleObject receiver
 extern JS_FRIEND_API(bool)
 proxy_GetElement(JSContext *cx, JS::HandleObject obj, JS::HandleObject receiver, uint32_t index,
                  JS::MutableHandleValue vp);
-extern JS_FRIEND_API(bool)
-proxy_GetSpecial(JSContext *cx, JS::HandleObject obj, JS::HandleObject receiver,
-                 HandleSpecialId sid, JS::MutableHandleValue vp);
 extern JS_FRIEND_API(bool)
 proxy_SetGeneric(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
                  JS::MutableHandleValue bp, bool strict);
@@ -355,9 +341,6 @@ extern JS_FRIEND_API(bool)
 proxy_SetElement(JSContext *cx, JS::HandleObject obj, uint32_t index, JS::MutableHandleValue vp,
                  bool strict);
 extern JS_FRIEND_API(bool)
-proxy_SetSpecial(JSContext *cx, JS::HandleObject obj, HandleSpecialId sid,
-                 JS::MutableHandleValue vp, bool strict);
-extern JS_FRIEND_API(bool)
 proxy_GetGenericAttributes(JSContext *cx, JS::HandleObject obj, JS::HandleId id, unsigned *attrsp);
 extern JS_FRIEND_API(bool)
 proxy_SetGenericAttributes(JSContext *cx, JS::HandleObject obj, JS::HandleId id, unsigned *attrsp);
@@ -366,8 +349,6 @@ proxy_DeleteProperty(JSContext *cx, JS::HandleObject obj, JS::Handle<PropertyNam
                      bool *succeeded);
 extern JS_FRIEND_API(bool)
 proxy_DeleteElement(JSContext *cx, JS::HandleObject obj, uint32_t index, bool *succeeded);
-extern JS_FRIEND_API(bool)
-proxy_DeleteSpecial(JSContext *cx, JS::HandleObject obj, HandleSpecialId sid, bool *succeeded);
 
 extern JS_FRIEND_API(void)
 proxy_Trace(JSTracer *trc, JSObject *obj);
@@ -550,7 +531,7 @@ struct TypeObject {
 };
 
 struct BaseShape {
-    const js::Class *clasp;
+    const js::Class *clasp_;
     JSObject *parent;
     JSObject *_1;
     JSCompartment *compartment;
@@ -659,6 +640,11 @@ GetObjectParentMaybeScope(JSObject *obj);
 
 JS_FRIEND_API(JSObject *)
 GetGlobalForObjectCrossCompartment(JSObject *obj);
+
+// Sidestep the activeContext checking implicitly performed in
+// JS_SetPendingException.
+JS_FRIEND_API(void)
+SetPendingExceptionCrossContext(JSContext *cx, JS::HandleValue v);
 
 JS_FRIEND_API(void)
 AssertSameCompartment(JSContext *cx, JSObject *obj);
@@ -1347,18 +1333,6 @@ extern JS_FRIEND_API(uint32_t)
 JS_GetArrayBufferByteLength(JSObject *obj);
 
 /*
- * Return a pointer to an array buffer's data. The buffer is still owned by the
- * array buffer object, and should not be modified on another thread. The
- * returned pointer is stable across GCs.
- *
- * |obj| must have passed a JS_IsArrayBufferObject test, or somehow be known
- * that it would pass such a test: it is an ArrayBuffer or a wrapper of an
- * ArrayBuffer, and the unwrapping will succeed.
- */
-extern JS_FRIEND_API(uint8_t *)
-JS_GetArrayBufferData(JSObject *obj);
-
-/*
  * Return the number of elements in a typed array.
  *
  * |obj| must have passed a JS_IsTypedArrayObject/JS_Is*Array test, or somehow
@@ -1406,13 +1380,17 @@ JS_GetArrayBufferViewByteLength(JSObject *obj);
 /*
  * Return a pointer to the start of the data referenced by a typed array. The
  * data is still owned by the typed array, and should not be modified on
- * another thread.
+ * another thread. Furthermore, the pointer can become invalid on GC (if the
+ * data is small and fits inside the array's GC header), so callers must take
+ * care not to hold on across anything that could GC.
  *
  * |obj| must have passed a JS_Is*Array test, or somehow be known that it would
  * pass such a test: it is a typed array or a wrapper of a typed array, and the
  * unwrapping will succeed.
  */
 
+extern JS_FRIEND_API(uint8_t *)
+JS_GetArrayBufferData(JSObject *obj);
 extern JS_FRIEND_API(int8_t *)
 JS_GetInt8ArrayData(JSObject *obj);
 extern JS_FRIEND_API(uint8_t *)
@@ -1431,6 +1409,13 @@ extern JS_FRIEND_API(float *)
 JS_GetFloat32ArrayData(JSObject *obj);
 extern JS_FRIEND_API(double *)
 JS_GetFloat64ArrayData(JSObject *obj);
+
+/*
+ * Stable versions of the above functions where the buffer remains valid as long
+ * as the object is live.
+ */
+extern JS_FRIEND_API(uint8_t *)
+JS_GetStableArrayBufferData(JSContext *cx, JSObject *obj);
 
 /*
  * Same as above, but for any kind of ArrayBufferView. Prefer the type-specific
@@ -1951,6 +1936,21 @@ typedef JSContext*
 JS_FRIEND_API(void)
 SetDefaultJSContextCallback(JSRuntime *rt, DefaultJSContextCallback cb);
 
+/*
+ * To help embedders enforce their invariants, we allow them to specify in
+ * advance which JSContext should be passed to JSAPI calls. If this is set
+ * to a non-null value, the assertSameCompartment machinery does double-
+ * duty (in debug builds) to verify that it matches the cx being used.
+ */
+#ifdef DEBUG
+JS_FRIEND_API(void)
+Debug_SetActiveJSContext(JSRuntime *rt, JSContext *cx);
+#else
+inline void
+Debug_SetActiveJSContext(JSRuntime *rt, JSContext *cx) {};
+#endif
+
+
 enum CTypesActivityType {
     CTYPES_CALL_BEGIN,
     CTYPES_CALL_END,
@@ -1989,13 +1989,6 @@ class JS_FRIEND_API(AutoCTypesActivityCallback) {
         }
     }
 };
-
-#ifdef JS_DEBUG
-extern JS_FRIEND_API(void)
-assertEnteredPolicy(JSContext *cx, JSObject *obj, jsid id);
-#else
-inline void assertEnteredPolicy(JSContext *cx, JSObject *obj, jsid id) {};
-#endif
 
 typedef bool
 (* ObjectMetadataCallback)(JSContext *cx, JSObject **pmetadata);
