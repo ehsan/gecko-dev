@@ -2895,25 +2895,7 @@ class MUrsh : public MShiftInstruction
 
     void infer(BaselineInspector *inspector, jsbytecode *pc);
 
-    bool canOverflow() {
-        // solution is only negative when lhs < 0 and rhs & 0x1f == 0
-        MDefinition *lhs = getOperand(0);
-        MDefinition *rhs = getOperand(1);
-
-        if (lhs->isConstant()) {
-            Value lhsv = lhs->toConstant()->value();
-            if (lhsv.isInt32() && lhsv.toInt32() >= 0)
-                return false;
-        }
-
-        if (rhs->isConstant()) {
-            Value rhsv = rhs->toConstant()->value();
-            if (rhsv.isInt32() && rhsv.toInt32() % 32 != 0)
-                return false;
-        }
-
-        return canOverflow_;
-    }
+    bool canOverflow();
 
     bool fallible() {
         return canOverflow();
@@ -4278,6 +4260,45 @@ class MConvertElementsToDoubles
         // property is ensured by chaining this instruction with the elements
         // themselves, in the same manner as MBoundsCheck.
         return AliasSet::None();
+    }
+};
+
+// If |elements| has the CONVERT_DOUBLE_ELEMENTS flag, convert value to
+// double. Else return the original value.
+class MMaybeToDoubleElement
+  : public MBinaryInstruction,
+    public IntPolicy<1>
+{
+    MMaybeToDoubleElement(MDefinition *elements, MDefinition *value)
+      : MBinaryInstruction(elements, value)
+    {
+        JS_ASSERT(elements->type() == MIRType_Elements);
+        setMovable();
+        setResultType(MIRType_Value);
+    }
+
+  public:
+    INSTRUCTION_HEADER(MaybeToDoubleElement)
+
+    static MMaybeToDoubleElement *New(MDefinition *elements, MDefinition *value) {
+        return new MMaybeToDoubleElement(elements, value);
+    }
+
+    TypePolicy *typePolicy() {
+        return this;
+    }
+
+    MDefinition *elements() const {
+        return getOperand(0);
+    }
+    MDefinition *value() const {
+        return getOperand(1);
+    }
+    bool congruentTo(MDefinition *const &ins) const {
+        return congruentIfOperandsEqual(ins);
+    }
+    AliasSet getAliasSet() const {
+        return AliasSet::Load(AliasSet::ObjectFields);
     }
 };
 

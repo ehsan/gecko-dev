@@ -1431,6 +1431,12 @@ toolbar[iconsize="small"] #bookmarks-menu-button[starred],
   background-color: Window;
 }
 
+.browserContainer > findbar {
+  background-color: -moz-dialog;
+  color: -moz-DialogText;
+  text-shadow: none;
+}
+
 /* Tabstrip */
 
 %include ../shared/tabs.inc.css
