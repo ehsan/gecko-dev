@@ -11,79 +11,64 @@ this.EXPORTED_SYMBOLS = [
 
 const {utils: Cu} = Components;
 
-Cu.import("resource://gre/modules/commonjs/promise/core.js");
-Cu.import("resource://gre/modules/Metrics.jsm");
-Cu.import("resource://gre/modules/Task.jsm");
+Cu.import("resource://gre/modules/services/metrics/dataprovider.jsm");
 
 this.DummyMeasurement = function DummyMeasurement(name="DummyMeasurement") {
-  this.name = name;
-
-  Metrics.Measurement.call(this);
+  MetricsMeasurement.call(this, name, 2);
 }
-
 DummyMeasurement.prototype = {
-  __proto__: Metrics.Measurement.prototype,
+  __proto__: MetricsMeasurement.prototype,
 
-  version: 1,
+  fields: {
+    "string": {
+      type: "TYPE_STRING",
+    },
 
-  configureStorage: function () {
-    let self = this;
-    return Task.spawn(function configureStorage() {
-      yield self.registerStorageField("daily-counter", self.storage.FIELD_DAILY_COUNTER);
-      yield self.registerStorageField("daily-discrete-numeric", self.storage.FIELD_DAILY_DISCRETE_NUMERIC);
-      yield self.registerStorageField("daily-discrete-text", self.storage.FIELD_DAILY_DISCRETE_TEXT);
-      yield self.registerStorageField("daily-last-numeric", self.storage.FIELD_DAILY_LAST_NUMERIC);
-      yield self.registerStorageField("daily-last-text", self.storage.FIELD_DAILY_LAST_TEXT);
-      yield self.registerStorageField("last-numeric", self.storage.FIELD_LAST_NUMERIC);
-      yield self.registerStorageField("last-text", self.storage.FIELD_LAST_TEXT);
-    });
+    "uint32": {
+      type: "TYPE_UINT32",
+      optional: true,
+    },
   },
 };
 
 
 this.DummyProvider = function DummyProvider(name="DummyProvider") {
-  this.name = name;
-
-  this.measurementTypes = [DummyMeasurement];
-
-  Metrics.Provider.call(this);
+  MetricsProvider.call(this, name);
 
   this.constantMeasurementName = "DummyMeasurement";
   this.collectConstantCount = 0;
-  this.throwDuringCollectConstantData = null;
+  this.throwDuringCollectConstantMeasurements = null;
   this.throwDuringConstantPopulate = null;
-
-  this.havePushedMeasurements = true;
 }
-
 DummyProvider.prototype = {
-  __proto__: Metrics.Provider.prototype,
+  __proto__: MetricsProvider.prototype,
 
-  collectConstantData: function () {
+  collectConstantMeasurements: function collectConstantMeasurements() {
     this.collectConstantCount++;
 
-    if (this.throwDuringCollectConstantData) {
-      throw new Error(this.throwDuringCollectConstantData);
+    let result = this.createResult();
+    result.expectMeasurement(this.constantMeasurementName);
+
+    result.populate = this._populateConstantResult.bind(this);
+
+    if (this.throwDuringCollectConstantMeasurements) {
+      throw new Error(this.throwDuringCollectConstantMeasurements);
     }
 
-    return this.enqueueStorageOperation(function doStorage() {
-      if (this.throwDuringConstantPopulate) {
-        throw new Error(this.throwDuringConstantPopulate);
-      }
-
-      let m = this.getMeasurement("DummyMeasurement", 1);
-      let now = new Date();
-      m.incrementDailyCounter("daily-counter", now);
-      m.addDailyDiscreteNumeric("daily-discrete-numeric", 1, now);
-      m.addDailyDiscreteNumeric("daily-discrete-numeric", 2, now);
-      m.addDailyDiscreteText("daily-discrete-text", "foo", now);
-      m.addDailyDiscreteText("daily-discrete-text", "bar", now);
-      m.setDailyLastNumeric("daily-last-numeric", 3, now);
-      m.setDailyLastText("daily-last-text", "biz", now);
-      m.setLastNumeric("last-numeric", 4, now);
-      return m.setLastText("last-text", "bazfoo", now);
-    }.bind(this));
+    return result;
   },
 
-};
+  _populateConstantResult: function _populateConstantResult(result) {
+    if (this.throwDuringConstantPopulate) {
+      throw new Error(this.throwDuringConstantPopulate);
+    }
 
+    this._log.debug("Populating constant measurement in DummyProvider.");
+    result.addMeasurement(new DummyMeasurement(this.constantMeasurementName));
+
+    result.setValue(this.constantMeasurementName, "string", "foo");
+    result.setValue(this.constantMeasurementName, "uint32", 24);
+
+    result.finish();
+  },
+};

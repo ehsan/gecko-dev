@@ -10,46 +10,25 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://services-common/preferences.js");
 
 
+const INITIAL_STARTUP_DELAY_MSEC = 10 * 1000;
 const BRANCH = "healthreport.";
-const DEFAULT_LOAD_DELAY_MSEC = 10 * 1000;
+const JS_PROVIDERS_CATEGORY = "healthreport-js-provider";
+
 
 /**
  * The Firefox Health Report XPCOM service.
  *
- * External consumers will be interested in the "reporter" property of this
- * service. This property is a `HealthReporter` instance that powers the
- * service. The property may be null if the Health Report service is not
- * enabled.
+ * This instantiates an instance of HealthReporter (assuming it is enabled)
+ * and starts it upon application startup.
  *
- * EXAMPLE USAGE
- * =============
- *
- * let reporter = Cc["@mozilla.org/healthreport/service;1"]
- *                  .getService(Ci.nsISupports)
- *                  .wrappedJSObject
- *                  .reporter;
- *
- * if (reporter.haveRemoteData) {
- *   // ...
- * }
- *
- * IMPLEMENTATION NOTES
- * ====================
- *
- * In order to not adversely impact application start time, the `HealthReporter`
- * instance is not initialized until a few seconds after "final-ui-startup."
- * The exact delay is configurable via preferences so it can be adjusted with
- * a hotfix extension if the default value is ever problematic.
- *
- * Shutdown of the `HealthReporter` instance is handled completely within the
- * instance (it registers observers on initialization). See the notes on that
- * type for more.
+ * One can obtain a reference to the underlying HealthReporter instance by
+ * accessing .reporter. If this property is null, the reporter isn't running
+ * yet or has been disabled.
  */
 this.HealthReportService = function HealthReportService() {
   this.wrappedJSObject = this;
 
-  this._prefs = new Preferences(BRANCH);
-
+  this.prefs = new Preferences(BRANCH);
   this._reporter = null;
 }
 
@@ -61,7 +40,7 @@ HealthReportService.prototype = {
 
   observe: function observe(subject, topic, data) {
     // If the background service is disabled, don't do anything.
-    if (!this._prefs.get("service.enabled", true)) {
+    if (!this.prefs.get("serviceEnabled", true)) {
       return;
     }
 
@@ -75,9 +54,7 @@ HealthReportService.prototype = {
 
       case "final-ui-startup":
         os.removeObserver(this, "final-ui-startup");
-
-        let delayInterval = this._prefs.get("service.loadDelayMsec") ||
-                            DEFAULT_LOAD_DELAY_MSEC;
+        os.addObserver(this, "quit-application", true);
 
         // Delay service loading a little more so things have an opportunity
         // to cool down first.
@@ -89,21 +66,25 @@ HealthReportService.prototype = {
             let reporter = this.reporter;
             delete this.timer;
           }.bind(this),
-        }, delayInterval, this.timer.TYPE_ONE_SHOT);
+        }, INITIAL_STARTUP_DELAY_MSEC, this.timer.TYPE_ONE_SHOT);
 
+        break;
+
+      case "quit-application-granted":
+        if (this.reporter) {
+          this.reporter.stop();
+        }
+
+        os.removeObserver(this, "quit-application");
         break;
     }
   },
 
   /**
    * The HealthReporter instance associated with this service.
-   *
-   * If the service is disabled, this will return null.
-   *
-   * The obtained instance may not be fully initialized.
    */
   get reporter() {
-    if (!this._prefs.get("service.enabled", true)) {
+    if (!this.prefs.get("serviceEnabled", true)) {
       return null;
     }
 
@@ -111,19 +92,18 @@ HealthReportService.prototype = {
       return this._reporter;
     }
 
-    let ns = {};
     // Lazy import so application startup isn't adversely affected.
-    Cu.import("resource://gre/modules/Task.jsm", ns);
-    Cu.import("resource://gre/modules/services/healthreport/healthreporter.jsm", ns);
+    let ns = {};
     Cu.import("resource://services-common/log4moz.js", ns);
+    Cu.import("resource://gre/modules/services/healthreport/healthreporter.jsm", ns);
 
     // How many times will we rewrite this code before rolling it up into a
     // generic module? See also bug 451283.
     const LOGGERS = [
+      "Metrics",
       "Services.HealthReport",
       "Services.Metrics",
       "Services.BagheeraClient",
-      "Sqlite.Connection.healthreport",
     ];
 
     let prefs = new Preferences(BRANCH + "logging.");
@@ -138,8 +118,9 @@ HealthReportService.prototype = {
       }
     }
 
-    // The reporter initializes in the background.
     this._reporter = new ns.HealthReporter(BRANCH);
+    this._reporter.registerProvidersFromCategoryManager(JS_PROVIDERS_CATEGORY);
+    this._reporter.start();
 
     return this._reporter;
   },

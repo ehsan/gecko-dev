@@ -8,33 +8,24 @@ this.EXPORTED_SYMBOLS = ["HealthReporter"];
 
 const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
-Cu.import("resource://services-common/async.js");
 Cu.import("resource://services-common/bagheeraclient.js");
 Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-common/observers.js");
 Cu.import("resource://services-common/preferences.js");
 Cu.import("resource://services-common/utils.js");
 Cu.import("resource://gre/modules/commonjs/promise/core.js");
-Cu.import("resource://gre/modules/Metrics.jsm");
 Cu.import("resource://gre/modules/osfile.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/Task.jsm");
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/services/healthreport/policy.jsm");
+Cu.import("resource://gre/modules/services/metrics/collector.jsm");
 
 
 // Oldest year to allow in date preferences. This module was implemented in
 // 2012 and no dates older than that should be encountered.
 const OLDEST_ALLOWED_YEAR = 2012;
 
-const DAYS_IN_PAYLOAD = 180;
-const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
-
-const DEFAULT_DATABASE_NAME = "healthreport.sqlite";
-
 
 /**
- * Coordinates collection and submission of health report metrics.
+ * Coordinates collection and submission of metrics.
  *
  * This is the main type for Firefox Health Report. It glues all the
  * lower-level components (such as collection and submission) together.
@@ -48,49 +39,22 @@ const DEFAULT_DATABASE_NAME = "healthreport.sqlite";
  * this type and *the* Firefox Health Report (e.g. the policy). This could
  * be abstracted if needed.
  *
- * IMPLEMENTATION NOTES
- * ====================
- *
- * Initialization and shutdown are somewhat complicated and worth explaining
- * in extra detail.
- *
- * The complexity is driven by the requirements of SQLite connection management.
- * Once you have a SQLite connection, it isn't enough to just let the
- * application shut down. If there is an open connection or if there are
- * outstanding SQL statements come XPCOM shutdown time, Storage will assert.
- * On debug builds you will crash. On release builds you will get a shutdown
- * hang. This must be avoided!
- *
- * During initialization, the second we create a SQLite connection (via
- * Metrics.Storage) we register observers for application shutdown. The
- * "quit-application" notification initiates our shutdown procedure. The
- * subsequent "profile-do-change" notification ensures it has completed.
- *
- * The handler for "profile-do-change" may result in event loop spinning. This
- * is because of race conditions between our shutdown code and application
- * shutdown.
- *
- * All of our shutdown routines are async. There is the potential that these
- * async functions will not complete before XPCOM shutdown. If they don't
- * finish in time, we could get assertions in Storage. Our solution is to
- * initiate storage early in the shutdown cycle ("quit-application").
- * Hopefully all the async operations have completed by the time we reach
- * "profile-do-change." If so, great. If not, we spin the event loop until
- * they have completed, avoiding potential race conditions.
- *
  * @param branch
  *        (string) The preferences branch to use for state storage. The value
  *        must end with a period (.).
  */
-function HealthReporter(branch) {
+this.HealthReporter = function HealthReporter(branch) {
   if (!branch.endsWith(".")) {
-    throw new Error("Branch must end with a period (.): " + branch);
+    throw new Error("Branch argument must end with a period (.): " + branch);
   }
 
   this._log = Log4Moz.repository.getLogger("Services.HealthReport.HealthReporter");
-  this._log.info("Initializing health reporter instance against " + branch);
 
   this._prefs = new Preferences(branch);
+
+  let policyBranch = new Preferences(branch + "policy.");
+  this._policy = new HealthReportPolicy(policyBranch, this);
+  this._collector = new MetricsCollector();
 
   if (!this.serverURI) {
     throw new Error("No server URI defined. Did you forget to define the pref?");
@@ -99,42 +63,9 @@ function HealthReporter(branch) {
   if (!this.serverNamespace) {
     throw new Error("No server namespace defined. Did you forget a pref?");
   }
-
-  this._dbName = this._prefs.get("dbName") || DEFAULT_DATABASE_NAME;
-
-  let policyBranch = new Preferences(branch + "policy.");
-  this._policy = new HealthReportPolicy(policyBranch, this);
-
-  this._storage = null;
-  this._storageInProgress = false;
-  this._collector = null;
-  this._collectorInProgress = false;
-  this._initialized = false;
-  this._initializeHadError = false;
-  this._initializedDeferred = Promise.defer();
-  this._shutdownRequested = false;
-  this._shutdownInitiated = false;
-  this._shutdownComplete = false;
-  this._shutdownCompleteCallback = null;
-
-  this._ensureDirectoryExists(this._stateDir)
-      .then(this._onStateDirCreated.bind(this),
-            this._onInitError.bind(this));
-
 }
 
-HealthReporter.prototype = Object.freeze({
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver]),
-
-  /**
-   * Whether the service is fully initialized and running.
-   *
-   * If this is false, it is not safe to call most functions.
-   */
-  get initialized() {
-    return this._initialized;
-  },
-
+HealthReporter.prototype = {
   /**
    * When we last successfully submitted data to the server.
    *
@@ -215,268 +146,48 @@ HealthReporter.prototype = Object.freeze({
    *
    * @return bool
    */
-  haveRemoteData: function () {
+  haveRemoteData: function haveRemoteData() {
     return !!this.lastSubmitID;
   },
 
-  //----------------------------------------------------
-  // SERVICE CONTROL FUNCTIONS
-  //
-  // You shouldn't need to call any of these externally.
-  //----------------------------------------------------
-
-  _onInitError: function (error) {
-    this._log.error("Error during initialization: " +
-                    CommonUtils.exceptionStr(error));
-    this._initializeHadError = true;
-    this._initiateShutdown();
-    this._initializedDeferred.reject(error);
-
-    // FUTURE consider poisoning prototype's functions so calls fail with a
-    // useful error message.
-  },
-
-  _onStateDirCreated: function () {
-    // As soon as we have could storage, we need to register cleanup or
-    // else bad things happen on shutdown.
-    Services.obs.addObserver(this, "quit-application", false);
-    Services.obs.addObserver(this, "profile-before-change", false);
-
-    this._storageInProgress = true;
-    Metrics.Storage(this._dbName).then(this._onStorageCreated.bind(this),
-                                       this._onInitError.bind(this));
-  },
-
-  // Called when storage has been opened.
-  _onStorageCreated: function (storage) {
-    this._log.info("Storage initialized.");
-    this._storage = storage;
-    this._storageInProgress = false;
-
-    if (this._shutdownRequested) {
-      this._initiateShutdown();
-      return;
-    }
-
-    Task.spawn(this._initializeCollector.bind(this))
-        .then(this._onCollectorInitialized.bind(this),
-              this._onInitError.bind(this));
-  },
-
-  _initializeCollector: function () {
-    if (this._collector) {
-      throw new Error("Collector has already been initialized.");
-    }
-
-    this._log.info("Initializing collector.");
-    this._collector = new Metrics.Collector(this._storage);
-    this._collectorInProgress = true;
-
-    let catString = this._prefs.get("service.providerCategories") || "";
-    if (catString.length) {
-      for (let category of catString.split(",")) {
-        yield this.registerProvidersFromCategoryManager(category);
-      }
-    }
-  },
-
-  _onCollectorInitialized: function () {
-    this._log.debug("Collector initialized.");
-    this._collectorInProgress = false;
-
-    if (this._shutdownRequested) {
-      this._initiateShutdown();
-      return;
-    }
-
-    this._policy.startPolling();
-    this._log.info("HealthReporter started.");
-    this._initialized = true;
-    Services.obs.addObserver(this, "idle-daily", false);
-    this._initializedDeferred.resolve(this);
-  },
-
-  // nsIObserver to handle shutdown.
-  observe: function (subject, topic, data) {
-    switch (topic) {
-      case "quit-application":
-        Services.obs.removeObserver(this, "quit-application");
-        this._initiateShutdown();
-        break;
-
-      case "profile-before-change":
-        Services.obs.removeObserver(this, "profile-before-change");
-        this._waitForShutdown();
-        break;
-
-      case "idle-daily":
-        this._performDailyMaintenance();
-        break;
-    }
-  },
-
-  _initiateShutdown: function () {
-    // Ensure we only begin the main shutdown sequence once.
-    if (this._shutdownInitiated) {
-      this._log.warn("Shutdown has already been initiated. No-op.");
-      return;
-    }
-
-    this._log.info("Request to shut down.");
-
-    this._initialized = false;
-    this._shutdownRequested = true;
-
-    // Safe to call multiple times.
-    this._policy.stopPolling();
-
-    if (this._collectorInProgress) {
-      this._log.warn("Collector is in progress of initializing. Waiting to finish.");
-      return;
-    }
-
-    // If storage is in the process of initializing, we need to wait for it
-    // to finish before continuing. The initialization process will call us
-    // again once storage has initialized.
-    if (this._storageInProgress) {
-      this._log.warn("Storage is in progress of initializing. Waiting to finish.");
-      return;
-    }
-
-    this._log.warn("Initiating main shutdown procedure.");
-
-    // Everything from here must only be performed once or else race conditions
-    // could occur.
-    this._shutdownInitiated = true;
-
-    if (this._initialized) {
-      Services.obs.removeObserver(this, "idle-daily");
-    }
-
-    // If we have collectors, we need to shut down providers.
-    if (this._collector) {
-      let onShutdown = this._onCollectorShutdown.bind(this);
-      Task.spawn(this._shutdownCollector.bind(this))
-          .then(onShutdown, onShutdown);
-      return;
-    }
-
-    this._log.warn("Don't have collector. Proceeding to storage shutdown.");
-    this._shutdownStorage();
-  },
-
-  _shutdownCollector: function () {
-    this._log.info("Shutting down collector.");
-    for (let provider of this._collector.providers) {
-      try {
-        yield provider.shutdown();
-      } catch (ex) {
-        this._log.warn("Error when shutting down provider: " +
-                       CommonUtils.exceptionStr(ex));
-      }
-    }
-  },
-
-  _onCollectorShutdown: function () {
-    this._log.info("Collector shut down.");
-    this._collector = null;
-    this._shutdownStorage();
-  },
-
-  _shutdownStorage: function () {
-    if (!this._storage) {
-      this._onShutdownComplete();
-    }
-
-    this._log.info("Shutting down storage.");
-    let onClose = this._onStorageClose.bind(this);
-    this._storage.close().then(onClose, onClose);
-  },
-
-  _onStorageClose: function (error) {
-    this._log.info("Storage has been closed.");
-
-    if (error) {
-      this._log.warn("Error when closing storage: " +
-                     CommonUtils.exceptionStr(error));
-    }
-
-    this._storage = null;
-    this._onShutdownComplete();
-  },
-
-  _onShutdownComplete: function () {
-    this._log.warn("Shutdown complete.");
-    this._shutdownComplete = true;
-
-    if (this._shutdownCompleteCallback) {
-      this._shutdownCompleteCallback();
-    }
-  },
-
-  _waitForShutdown: function () {
-    if (this._shutdownComplete) {
-      return;
-    }
-
-    this._shutdownCompleteCallback = Async.makeSpinningCallback();
-    this._shutdownCompleteCallback.wait();
-    this._shutdownCompleteCallback = null;
-  },
-
   /**
-   * Convenience method to shut down the instance.
+   * Perform post-construction initialization and start background activity.
    *
-   * This should *not* be called outside of tests.
+   * If this isn't called, no data upload will occur.
+   *
+   * This returns a promise that will be fulfilled when all initialization
+   * activity is completed. It is not safe for this instance to perform
+   * additional actions until this promise has been resolved.
    */
-  _shutdown: function () {
-    this._initiateShutdown();
-    this._waitForShutdown();
+  start: function start() {
+    let onExists = function onExists() {
+      this._policy.startPolling();
+      this._log.info("HealthReporter started.");
+
+      return Promise.resolve();
+    }.bind(this);
+
+    return this._ensureDirectoryExists(this._stateDir)
+               .then(onExists);
   },
 
   /**
-   * Return a promise that is resolved once the service has been initialized.
+   * Stop background functionality.
    */
-  onInit: function () {
-    if (this._initializeHadError) {
-      throw new Error("Service failed to initialize.");
-    }
-
-    if (this._initialized) {
-      return Promise.resolve(this);
-    }
-
-    return this._initializedDeferred.promise;
+  stop: function stop() {
+    this._policy.stopPolling();
   },
-
-  _performDailyMaintenance: function () {
-    this._log.info("Request to perform daily maintenance.");
-
-    if (!this._initialized) {
-      return;
-    }
-
-    let now = new Date();
-    let cutoff = new Date(now.getTime() - MILLISECONDS_PER_DAY * (DAYS_IN_PAYLOAD - 1));
-
-    // The operation is enqueued and put in a transaction by the storage module.
-    this._storage.pruneDataBefore(cutoff);
-  },
-
-  //--------------------
-  // Provider Management
-  //--------------------
 
   /**
-   * Register a `Metrics.Provider` with this instance.
+   * Register a `MetricsProvider` with this instance.
    *
    * This needs to be called or no data will be collected. See also
    * registerProvidersFromCategoryManager`.
    *
    * @param provider
-   *        (Metrics.Provider) The provider to register for collection.
+   *        (MetricsProvider) The provider to register for collection.
    */
-  registerProvider: function (provider) {
+  registerProvider: function registerProvider(provider) {
     return this._collector.registerProvider(provider);
   },
 
@@ -487,7 +198,7 @@ HealthReporter.prototype = Object.freeze({
    * providers.
    *
    * Category entries are essentially JS modules and the name of the symbol
-   * within that module that is a `Metrics.Provider` instance.
+   * within that module that is a `MetricsProvider` instance.
    *
    * The category entry name is the name of the JS type for the provider. The
    * value is the resource:// URI to import which makes this type available.
@@ -502,18 +213,18 @@ HealthReporter.prototype = Object.freeze({
    *
    * Then to load them:
    *
-   *   let reporter = getHealthReporter("healthreport.");
+   *   let reporter = new HealthReporter("healthreport.");
    *   reporter.registerProvidersFromCategoryManager("healthreport-js-provider");
    *
    * @param category
    *        (string) Name of category to query and load from.
    */
-  registerProvidersFromCategoryManager: function (category) {
-    this._log.info("Registering providers from category: " + category);
+  registerProvidersFromCategoryManager:
+    function registerProvidersFromCategoryManager(category) {
+
     let cm = Cc["@mozilla.org/categorymanager;1"]
                .getService(Ci.nsICategoryManager);
 
-    let promises = [];
     let enumerator = cm.enumerateCategory(category);
     while (enumerator.hasMoreElements()) {
       let entry = enumerator.getNext()
@@ -529,26 +240,20 @@ HealthReporter.prototype = Object.freeze({
         Cu.import(uri, ns);
 
         let provider = new ns[entry]();
-        promises.push(this.registerProvider(provider));
+        this.registerProvider(provider);
       } catch (ex) {
         this._log.warn("Error registering provider from category manager: " +
                        entry + "; " + CommonUtils.exceptionStr(ex));
         continue;
       }
     }
-
-    return Task.spawn(function wait() {
-      for (let promise of promises) {
-        yield promise;
-      }
-    });
   },
 
   /**
    * Collect all measurements for all registered providers.
    */
-  collectMeasurements: function () {
-    return this._collector.collectConstantData();
+  collectMeasurements: function collectMeasurements() {
+    return this._collector.collectConstantMeasurements();
   },
 
   /**
@@ -559,7 +264,7 @@ HealthReporter.prototype = Object.freeze({
    * @param reason
    *        (string) Why data submission is being disabled.
    */
-  recordPolicyRejection: function (reason) {
+  recordPolicyRejection: function recordPolicyRejection(reason) {
     this._policy.recordUserRejection(reason);
   },
 
@@ -571,7 +276,7 @@ HealthReporter.prototype = Object.freeze({
    * @param reason
    *        (string) Why data submission is being enabled.
    */
-  recordPolicyAcceptance: function (reason) {
+  recordPolicyAcceptance: function recordPolicyAcceptance(reason) {
     this._policy.recordUserAcceptance(reason);
   },
 
@@ -601,7 +306,7 @@ HealthReporter.prototype = Object.freeze({
    * callers should poll haveRemoteData() to determine when remote data is
    * deleted.
    */
-  requestDeleteRemoteData: function (reason) {
+  requestDeleteRemoteData: function requestDeleteRemoteData(reason) {
     if (!this.lastSubmitID) {
       return;
     }
@@ -609,110 +314,26 @@ HealthReporter.prototype = Object.freeze({
     return this._policy.deleteRemoteData(reason);
   },
 
-  getJSONPayload: function () {
-    return Task.spawn(this._getJSONPayload.bind(this, this._now()));
-  },
-
-  _getJSONPayload: function (now) {
-    let pingDateString = this._formatDate(now);
-    this._log.info("Producing JSON payload for " + pingDateString);
-
+  getJSONPayload: function getJSONPayload() {
     let o = {
       version: 1,
-      thisPingDate: pingDateString,
-      data: {last: {}, days: {}},
+      thisPingDate: this._formatDate(this._now()),
+      providers: {},
     };
-
-    let outputDataDays = o.data.days;
-
-    // We need to be careful that data in errors does not leak potentially
-    // private information.
-    // FUTURE ask Privacy if we can put exception stacks in here.
-    let errors = [];
 
     let lastPingDate = this.lastPingDate;
     if (lastPingDate.getTime() > 0) {
       o.lastPingDate = this._formatDate(lastPingDate);
     }
 
-    for (let provider of this._collector.providers) {
-      let providerName = provider.name;
-
-      let providerEntry = {
-        measurements: {},
-      };
-
-      for (let [measurementKey, measurement] of provider.measurements) {
-        let name = providerName + "." + measurement.name + "." + measurement.version;
-
-        let serializer;
-        try {
-          serializer = measurement.serializer(measurement.SERIALIZE_JSON);
-        } catch (ex) {
-          this._log.warn("Error obtaining serializer for measurement: " + name +
-                         ": " + CommonUtils.exceptionStr(ex));
-          errors.push("Could not obtain serializer: " + name);
-          continue;
-        }
-
-        let data;
-        try {
-          data = yield this._storage.getMeasurementValues(measurement.id);
-        } catch (ex) {
-          this._log.warn("Error obtaining data for measurement: " +
-                         name + ": " + CommonUtils.exceptionStr(ex));
-          errors.push("Could not obtain data: " + name);
-          continue;
-        }
-
-        if (data.singular.size) {
-          try {
-            o.data.last[name] = serializer.singular(data.singular);
-          } catch (ex) {
-            this._log.warn("Error serializing data: " + CommonUtils.exceptionStr(ex));
-            errors.push("Error serializing singular: " + name);
-            continue;
-          }
-        }
-
-        let dataDays = data.days;
-        for (let i = 0; i < DAYS_IN_PAYLOAD; i++) {
-          let date = new Date(now.getTime() - i * MILLISECONDS_PER_DAY);
-          if (!dataDays.hasDay(date)) {
-            continue;
-          }
-          let dateFormatted = this._formatDate(date);
-
-          try {
-            let serialized = serializer.daily(dataDays.getDay(date));
-            if (!serialized) {
-              continue;
-            }
-
-            if (!(dateFormatted in outputDataDays)) {
-              outputDataDays[dateFormatted] = {};
-            }
-
-            outputDataDays[dateFormatted][name] = serialized;
-          } catch (ex) {
-            this._log.warn("Error populating data for day: " +
-                           CommonUtils.exceptionStr(ex));
-            errors.push("Could not serialize day: " + name +
-                        " ( " + dateFormatted + ")");
-            continue;
-          }
-        }
-      }
+    for (let [name, provider] of this._collector.collectionResults) {
+      o.providers[name] = provider;
     }
 
-    if (errors.length) {
-      o.errors = errors;
-    }
-
-    throw new Task.Result(JSON.stringify(o));
+    return JSON.stringify(o);
   },
 
-  _onBagheeraResult: function (request, isDelete, result) {
+  _onBagheeraResult: function _onBagheeraResult(request, isDelete, result) {
     this._log.debug("Received Bagheera result.");
 
     let promise = Promise.resolve(null);
@@ -741,34 +362,36 @@ HealthReporter.prototype = Object.freeze({
     return promise;
   },
 
-  _onSubmitDataRequestFailure: function (error) {
+  _onSubmitDataRequestFailure: function _onSubmitDataRequestFailure(error) {
     this._log.error("Error processing request to submit data: " +
                     CommonUtils.exceptionStr(error));
   },
 
-  _formatDate: function (date) {
+  _formatDate: function _formatDate(date) {
     // Why, oh, why doesn't JS have a strftime() equivalent?
     return date.toISOString().substr(0, 10);
   },
 
 
-  _uploadData: function (request) {
+  _uploadData: function _uploadData(request) {
     let id = CommonUtils.generateUUID();
 
     this._log.info("Uploading data to server: " + this.serverURI + " " +
                    this.serverNamespace + ":" + id);
     let client = new BagheeraClient(this.serverURI);
 
-    return Task.spawn(function doUpload() {
-      let payload = yield this.getJSONPayload();
-      yield this._saveLastPayload(payload);
-      let result = yield client.uploadJSON(this.serverNamespace, id, payload,
-                                           this.lastSubmitID);
-      yield this._onBagheeraResult(request, false, result);
-    }.bind(this));
+    let payload = this.getJSONPayload();
+
+    return this._saveLastPayload(payload)
+               .then(client.uploadJSON.bind(client,
+                                            this.serverNamespace,
+                                            id,
+                                            payload,
+                                            this.lastSubmitID))
+               .then(this._onBagheeraResult.bind(this, request, false));
   },
 
-  _deleteRemoteData: function (request) {
+  _deleteRemoteData: function _deleteRemoteData(request) {
     if (!this.lastSubmitID) {
       this._log.info("Received request to delete remote data but no data stored.");
       request.onNoDataAvailable();
@@ -796,7 +419,7 @@ HealthReporter.prototype = Object.freeze({
     return OS.Path.join(profD, "healthreport");
   },
 
-  _ensureDirectoryExists: function (path) {
+  _ensureDirectoryExists: function _ensureDirectoryExists(path) {
     let deferred = Promise.defer();
 
     OS.File.makeDir(path).then(
@@ -820,7 +443,7 @@ HealthReporter.prototype = Object.freeze({
     return OS.Path.join(this._stateDir, "lastpayload.json");
   },
 
-  _saveLastPayload: function (payload) {
+  _saveLastPayload: function _saveLastPayload(payload) {
     let path = this._lastPayloadPath;
     let pathTmp = path + ".tmp";
 
@@ -839,7 +462,7 @@ HealthReporter.prototype = Object.freeze({
    *
    * @return Promise<object>
    */
-  getLastPayload: function () {
+  getLastPayload: function getLoadPayload() {
     let path = this._lastPayloadPath;
 
     return OS.File.read(path).then(
@@ -863,24 +486,26 @@ HealthReporter.prototype = Object.freeze({
   // HealthReportPolicy listeners
   //-----------------------------
 
-  onRequestDataUpload: function (request) {
+  onRequestDataUpload: function onRequestDataSubmission(request) {
     this.collectMeasurements()
         .then(this._uploadData.bind(this, request),
               this._onSubmitDataRequestFailure.bind(this));
   },
 
-  onNotifyDataPolicy: function (request) {
+  onNotifyDataPolicy: function onNotifyDataPolicy(request) {
     // This isn't very loosely coupled. We may want to have this call
     // registered listeners instead.
     Observers.notify("healthreport:notify-data-policy:request", request);
   },
 
-  onRequestRemoteDelete: function (request) {
+  onRequestRemoteDelete: function onRequestRemoteDelete(request) {
     this._deleteRemoteData(request);
   },
 
   //------------------------------------
   // End of HealthReportPolicy listeners
   //------------------------------------
-});
+};
+
+Object.freeze(HealthReporter.prototype);
 

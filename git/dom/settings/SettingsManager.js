@@ -111,11 +111,6 @@ SettingsLock.prototype = {
                 }
               };
             }
-            checkKeyRequest.onerror = function(event) {
-              if (!request.error) {
-                Services.DOMRequest.fireError(request, checkKeyRequest.error.name)
-              }
-            };
           }
           break;
         case "get":

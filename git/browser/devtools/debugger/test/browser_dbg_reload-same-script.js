@@ -32,8 +32,6 @@ function test()
     gView = gDebugger.DebuggerView;
     resumed = true;
 
-    gDebugger.addEventListener("Debugger:SourceShown", onScriptShown);
-
     startTest();
   });
 
@@ -57,11 +55,13 @@ function test()
     testScriptShown();
   }
 
+  window.addEventListener("Debugger:SourceShown", onScriptShown);
+
   function startTest()
   {
     if (expectedScriptShown && resumed && !testStarted) {
-      gDebugger.removeEventListener("Debugger:SourceShown", onScriptShown);
-      gDebugger.addEventListener("Debugger:SourceShown", onUlteriorScriptShown);
+      window.removeEventListener("Debugger:SourceShown", onScriptShown);
+      window.addEventListener("Debugger:SourceShown", onUlteriorScriptShown);
       testStarted = true;
       Services.tm.currentThread.dispatch({ run: performTest }, 0);
     }
@@ -70,7 +70,7 @@ function test()
   function finishTest()
   {
     if (expectedScriptShown && resumed && testStarted) {
-      gDebugger.removeEventListener("Debugger:SourceShown", onUlteriorScriptShown);
+      window.removeEventListener("Debugger:SourceShown", onUlteriorScriptShown);
       closeDebuggerAndFinish();
     }
   }

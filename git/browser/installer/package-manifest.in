@@ -473,6 +473,9 @@
 @BINPATH@/components/HealthReportComponents.manifest
 @BINPATH@/components/HealthReportService.js
 #endif
+#ifdef MOZ_SERVICES_NOTIFICATIONS
+@BINPATH@/components/NotificationsComponents.manifest
+#endif
 #ifdef MOZ_SERVICES_SYNC
 @BINPATH@/components/SyncComponents.manifest
 @BINPATH@/components/Weave.js
@@ -592,6 +595,9 @@
 #endif
 #ifdef MOZ_SERVICES_SYNC
 @BINPATH@/defaults/pref/services-sync.js
+#endif
+#ifdef MOZ_SERVICES_HEALTHREPORT
+@BINPATH@/defaults/pref/healthreport-prefs.js
 #endif
 
 ; [Layout Engine Resources]
