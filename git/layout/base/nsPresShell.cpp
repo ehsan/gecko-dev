@@ -1237,7 +1237,7 @@ public:
   PresShell* mShell;
 };
 
-class NS_STACK_CLASS nsPresShellEventCB : public nsDispatchingCallback
+class nsPresShellEventCB : public nsDispatchingCallback
 {
 public:
   nsPresShellEventCB(PresShell* aPresShell) : mPresShell(aPresShell) {}
@@ -3415,13 +3415,6 @@ PresShell::RecreateFramesFor(nsIContent* aContent)
   InvalidateAccessibleSubtree(aContent);
 #endif
   return rv;
-}
-
-void
-nsIPresShell::PostRecreateFramesFor(nsIContent* aContent)
-{
-  FrameConstructor()->PostRestyleEvent(aContent, eReStyle_Self,
-          nsChangeHint_ReconstructFrame);
 }
 
 NS_IMETHODIMP

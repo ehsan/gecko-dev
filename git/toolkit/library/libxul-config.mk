@@ -347,3 +347,7 @@ endif
 ifdef GC_LEAK_DETECTOR
 EXTRA_DSO_LIBS += boehm
 endif
+
+ifdef NS_TRACE_MALLOC
+STATIC_LIBS += tracemalloc
+endif

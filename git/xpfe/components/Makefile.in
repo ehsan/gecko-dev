@@ -88,11 +88,9 @@ DIRS += \
         related \
         autocomplete \
         $(NULL)
-        
-ifdef SUITE_USING_XPFE_DM
+ifneq ($(MOZ_BUILD_APP),camino)
 DIRS += download-manager
 endif
-
 ifndef MOZ_XUL_APP
 DIRS += startup
 endif

@@ -91,7 +91,6 @@ CPPSRCS		= \
 		nsPluginModule.cpp \
 		nsPluginInstancePeer.cpp \
 		nsJSNPRuntime.cpp \
-		nsJVMAuthTools.cpp \
 		$(NULL)
 
 ifeq ($(OS_ARCH), BeOS)

@@ -165,14 +165,9 @@ typedef struct JSPropertyTreeEntry {
 } JSPropertyTreeEntry;
 
 /*
- * Private type used to enumerate properties of a native JS object.
+ * Forward declaration for opaque JSRuntime.nativeIteratorStates.
  */
-struct JSNativeEnumerator {
-    jsint               next_index;     /* index into jsid array */
-    JSIdArray           *ida;           /* all property ids in enumeration */
-    JSNativeEnumerator  *next;          /* double-linked list support */
-    JSNativeEnumerator  **prevp;
-};
+typedef struct JSNativeIteratorState JSNativeIteratorState;
 
 typedef struct JSSetSlotRequest JSSetSlotRequest;
 
@@ -385,9 +380,9 @@ struct JSRuntime {
 
     /*
      * A helper list for the GC, so it can mark native iterator states. See
-     * js_TraceNativeEnumerators for details.
+     * js_TraceNativeIteratorStates for details.
      */
-    JSNativeEnumerator  *nativeEnumerators;
+    JSNativeIteratorState *nativeIteratorStates;
 
 #ifndef JS_THREADSAFE
     /*

@@ -328,7 +328,7 @@ private:
   nsSSLThread *mSSLThread;
   nsCertVerificationThread *mCertVerificationThread;
   nsNSSHttpInterface mHttpForNSS;
-  nsRefPtr<nsClientAuthRememberService> mClientAuthRememberService;
+  nsClientAuthRememberService mClientAuthRememberService;
 
   static PRStatus PR_CALLBACK IdentityInfoInit(void);
   PRCallOnceType mIdentityInfoCallOnce;

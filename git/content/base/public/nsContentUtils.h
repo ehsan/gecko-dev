@@ -1379,7 +1379,7 @@ private:
   nsContentUtils::DropJSObjects(NS_CYCLE_COLLECTION_UPCAST(obj, clazz))
 
 
-class NS_STACK_CLASS nsCxPusher
+class nsCxPusher
 {
 public:
   nsCxPusher();
