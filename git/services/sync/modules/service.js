@@ -51,12 +51,6 @@ Cu.import("resource://weave/engines.js");
 Cu.import("resource://weave/dav.js");
 Cu.import("resource://weave/identity.js");
 Cu.import("resource://weave/async.js");
-Cu.import("resource://weave/engines/cookies.js");
-Cu.import("resource://weave/engines/bookmarks.js");
-Cu.import("resource://weave/engines/history.js");
-Cu.import("resource://weave/engines/passwords.js");
-Cu.import("resource://weave/engines/forms.js");
-Cu.import("resource://weave/engines/tabs.js");
 
 Function.prototype.async = Async.sugar;
 
@@ -99,7 +93,6 @@ function WeaveSvc() {
   Engines.register(new CookieEngine());
   Engines.register(new PasswordEngine());
   Engines.register(new FormEngine());
-  Engines.register(new TabEngine());
 
   // Other misc startup
   Utils.prefs.addObserver("", this, false);
@@ -522,6 +515,8 @@ WeaveSvc.prototype = {
       yield;
     } catch(e) {
       this._log.error(Utils.exceptionStr(e));
+      if (e.trace)
+        this._log.trace(Utils.stackTrace(e.trace));
     }
   },
 
