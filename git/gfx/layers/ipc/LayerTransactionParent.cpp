@@ -178,17 +178,15 @@ LayerTransactionParent::Destroy()
 bool
 LayerTransactionParent::RecvUpdateNoSwap(const InfallibleTArray<Edit>& cset,
                                          const TargetConfig& targetConfig,
-                                         const bool& isFirstPaint,
-                                         const bool& scheduleComposite)
+                                         const bool& isFirstPaint)
 {
-  return RecvUpdate(cset, targetConfig, isFirstPaint, scheduleComposite, nullptr);
+  return RecvUpdate(cset, targetConfig, isFirstPaint, nullptr);
 }
 
 bool
 LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
                                    const TargetConfig& targetConfig,
                                    const bool& isFirstPaint,
-                                   const bool& scheduleComposite,
                                    InfallibleTArray<EditReply>* reply)
 {
   profiler_tracing("Paint", "Composite", TRACING_INTERVAL_START);
@@ -452,7 +450,7 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
   // other's buffer contents.
   LayerManagerComposite::PlatformSyncBeforeReplyUpdate();
 
-  mShadowLayersManager->ShadowLayersUpdated(this, targetConfig, isFirstPaint, scheduleComposite);
+  mShadowLayersManager->ShadowLayersUpdated(this, targetConfig, isFirstPaint);
 
 #ifdef COMPOSITOR_PERFORMANCE_WARNING
   int compositeTime = (int)(mozilla::TimeStamp::Now() - updateStart).ToMilliseconds();

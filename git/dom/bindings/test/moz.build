@@ -26,11 +26,6 @@ PREPROCESSED_TEST_WEBIDL_FILES += [
     'TestJSImplGen.webidl',
 ]
 
-WEBIDL_EXAMPLE_INTERFACES += [
-    'TestExampleInterface',
-    'TestExampleProxyInterface',
-]
-
 LOCAL_INCLUDES += [
     '/dom/bindings',
     '/js/xpconnect/src',

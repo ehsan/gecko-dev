@@ -146,17 +146,23 @@ class WebIDLCodegenManager(LoggingMixin):
         'UnionTypes.cpp',
     }
 
+    # Example interfaces to build along with the tree. Other example
+    # interfaces will need to be generated manually.
+    BUILD_EXAMPLE_INTERFACES = {
+        'TestExampleInterface',
+        'TestExampleProxyInterface',
+    }
+
     def __init__(self, config_path, inputs, exported_header_dir,
         codegen_dir, state_path, cache_dir=None, make_deps_path=None,
         make_deps_target=None):
         """Create an instance that manages WebIDLs in the build system.
 
         config_path refers to a WebIDL config file (e.g. Bindings.conf).
-        inputs is a 4-tuple describing the input .webidl files and how to
+        inputs is a 3-tuple describing the input .webidl files and how to
         process them. Members are:
             (set(.webidl files), set(basenames of exported files),
-                set(basenames of generated events files),
-                set(example interface names))
+                set(basenames of generated events files))
 
         exported_header_dir and codegen_dir are directories where generated
         files will be written to.
@@ -169,13 +175,12 @@ class WebIDLCodegenManager(LoggingMixin):
         """
         self.populate_logger()
 
-        input_paths, exported_stems, generated_events_stems, example_interfaces = inputs
+        input_paths, exported_stems, generated_events_stems = inputs
 
         self._config_path = config_path
         self._input_paths = set(input_paths)
         self._exported_stems = set(exported_stems)
         self._generated_events_stems = set(generated_events_stems)
-        self._example_interfaces = set(example_interfaces)
         self._exported_header_dir = exported_header_dir
         self._codegen_dir = codegen_dir
         self._state_path = state_path
@@ -278,7 +283,7 @@ class WebIDLCodegenManager(LoggingMixin):
             )
 
         # Process some special interfaces required for testing.
-        for interface in self._example_interfaces:
+        for interface in self.BUILD_EXAMPLE_INTERFACES:
             written = self.generate_example_files(interface)
             result.created |= written[0]
             result.updated |= written[1]
@@ -441,7 +446,7 @@ class WebIDLCodegenManager(LoggingMixin):
             stem, binding_stem, is_event, header_dir, files = self._binding_info(p)
             paths |= {f for f in files if f}
 
-        for interface in self._example_interfaces:
+        for interface in self.BUILD_EXAMPLE_INTERFACES:
             for p in self._example_paths(interface):
                 paths.add(p)
 
@@ -528,7 +533,7 @@ def create_build_system_manager(topsrcdir, topobjdir, dist_dir):
         files = json.load(fh)
 
     inputs = (files['webidls'], files['exported_stems'],
-        files['generated_events_stems'], files['example_interfaces'])
+        files['generated_events_stems'])
 
     cache_dir = os.path.join(obj_dir, '_cache')
     try:

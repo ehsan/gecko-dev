@@ -4,15 +4,26 @@
 
 package org.mozilla.gecko.sync.stage;
 
+import org.mozilla.gecko.sync.CryptoRecord;
 import org.mozilla.gecko.sync.delegates.ClientsDataDelegate;
 import org.mozilla.gecko.sync.repositories.RecordFactory;
 import org.mozilla.gecko.sync.repositories.Repository;
 import org.mozilla.gecko.sync.repositories.android.FennecTabsRepository;
-import org.mozilla.gecko.sync.repositories.domain.TabsRecordFactory;
+import org.mozilla.gecko.sync.repositories.domain.Record;
+import org.mozilla.gecko.sync.repositories.domain.TabsRecord;
 import org.mozilla.gecko.sync.repositories.domain.VersionConstants;
 
 public class FennecTabsServerSyncStage extends ServerSyncStage {
   private static final String COLLECTION = "tabs";
+
+  public class FennecTabsRecordFactory extends RecordFactory {
+    @Override
+    public Record createRecord(Record record) {
+      TabsRecord r = new TabsRecord();
+      r.initFromEnvelope((CryptoRecord) record);
+      return r;
+    }
+  }
 
   @Override
   protected String getCollection() {
@@ -37,6 +48,6 @@ public class FennecTabsServerSyncStage extends ServerSyncStage {
 
   @Override
   protected RecordFactory getRecordFactory() {
-    return new TabsRecordFactory();
+    return new FennecTabsRecordFactory();
   }
 }

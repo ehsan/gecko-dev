@@ -24,7 +24,6 @@ from .data import (
     GeneratedEventWebIDLFile,
     GeneratedInclude,
     GeneratedWebIDLFile,
-    ExampleWebIDLInterface,
     HeaderFileSubstitution,
     HostProgram,
     HostSimpleProgram,
@@ -322,7 +321,6 @@ class TreeMetadataEmitter(LoggingMixin):
             ('PREPROCESSED_WEBIDL_FILES', PreprocessedWebIDLFile),
             ('TEST_WEBIDL_FILES', TestWebIDLFile),
             ('WEBIDL_FILES', WebIDLFile),
-            ('WEBIDL_EXAMPLE_INTERFACES', ExampleWebIDLInterface),
         ]
         for sandbox_var, klass in simple_lists:
             for name in sandbox.get(sandbox_var, []):

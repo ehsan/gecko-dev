@@ -41,9 +41,10 @@ public class TestClientsStage extends AndroidSyncTestCase {
     final ClientsDataDelegate delegate = new MockClientsDataDelegate();
 
     final GlobalSession session = new GlobalSession(
+        null,
         TEST_USERNAME, new BasicAuthHeaderProvider(TEST_USERNAME, TEST_PASSWORD), null,
         new KeyBundle(TEST_USERNAME, TEST_SYNC_KEY),
-        callback, context, null, delegate, callback);
+        callback, context, null, delegate);
 
     SyncClientsEngineStage stage = new SyncClientsEngineStage() {
 

@@ -1135,7 +1135,6 @@ class RecursiveMakeBackend(CommonBackend):
             webidls=sorted(all_inputs),
             generated_events_stems=sorted(generated_events_stems),
             exported_stems=sorted(exported_stems),
-            example_interfaces=sorted(webidls.example_interfaces),
         )
 
         file_lists = mozpath.join(bindings_dir, 'file-lists.json')
