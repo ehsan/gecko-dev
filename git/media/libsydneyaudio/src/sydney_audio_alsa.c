@@ -57,21 +57,6 @@ struct sa_stream {
 
 /*
  * -----------------------------------------------------------------------------
- *  Error Handler to prevent output to stderr
- *  ----------------------------------------------------------------------------
- */
-static void
-quiet_error_handler(const char* file,
-                    int         line,
-                    const char* function,
-                    int         err,
-                    const char* format,
-                    ...)
-{
-}
-
-/*
- * -----------------------------------------------------------------------------
  * Startup and shutdown functions
  * -----------------------------------------------------------------------------
  */
@@ -130,9 +115,6 @@ sa_stream_open(sa_stream_t *s) {
   if (s->output_unit != NULL) {
     return SA_ERROR_INVALID;
   }
-
-  /* Turn off debug output to stderr */
-  snd_lib_error_set_handler(quiet_error_handler);
 
   if (snd_pcm_open(&s->output_unit, 
                    "default", 
