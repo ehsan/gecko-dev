@@ -425,7 +425,7 @@ class MercurialSetupWizard(object):
         print(msg)
 
         while True:
-            response = raw_input().decode('utf-8')
+            response = raw_input()
 
             if response:
                 return response

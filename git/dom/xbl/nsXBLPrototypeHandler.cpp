@@ -370,12 +370,10 @@ nsXBLPrototypeHandler::EnsureEventHandler(AutoJSAPI& jsapi, nsIAtom* aName,
   JSAutoCompartment ac(cx, scopeObject);
   JS::CompileOptions options(cx);
   options.setFileAndLine(bindingURI.get(), mLineNumber)
-         .setVersion(JSVERSION_LATEST)
-         .setDefineOnScope(false);
+         .setVersion(JSVERSION_LATEST);
 
   JS::Rooted<JSObject*> handlerFun(cx);
-  JS::AutoObjectVector emptyVector(cx);
-  nsresult rv = nsJSUtils::CompileFunction(jsapi, emptyVector, options,
+  nsresult rv = nsJSUtils::CompileFunction(jsapi, JS::NullPtr(), options,
                                            nsAtomCString(aName), argCount,
                                            argNames, handlerText,
                                            handlerFun.address());

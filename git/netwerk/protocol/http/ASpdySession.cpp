@@ -147,11 +147,8 @@ SpdyPushCache::RegisterPushedStreamSpdy3(nsCString key,
 {
   LOG3(("SpdyPushCache::RegisterPushedStreamSpdy3 %s 0x%X\n",
         key.get(), stream->StreamID()));
-  if(mHashSpdy3.Get(key)) {
-    LOG3(("SpdyPushCache::RegisterPushedStreamSpdy3 %s 0x%X duplicate key\n",
-          key.get(), stream->StreamID()));
+  if(mHashSpdy3.Get(key))
     return false;
-  }
   mHashSpdy3.Put(key, stream);
   return true;
 }
@@ -173,11 +170,8 @@ SpdyPushCache::RegisterPushedStreamSpdy31(nsCString key,
 {
   LOG3(("SpdyPushCache::RegisterPushedStreamSpdy31 %s 0x%X\n",
         key.get(), stream->StreamID()));
-  if(mHashSpdy31.Get(key)) {
-    LOG3(("SpdyPushCache::RegisterPushedStreamSpdy31 %s 0x%X duplicate key\n",
-          key.get(), stream->StreamID()));
+  if(mHashSpdy31.Get(key))
     return false;
-  }
   mHashSpdy31.Put(key, stream);
   return true;
 }
@@ -199,11 +193,8 @@ SpdyPushCache::RegisterPushedStreamHttp2(nsCString key,
 {
   LOG3(("SpdyPushCache::RegisterPushedStreamHttp2 %s 0x%X\n",
         key.get(), stream->StreamID()));
-  if(mHashHttp2.Get(key)) {
-    LOG3(("SpdyPushCache::RegisterPushedStreamHttp2 %s 0x%X duplicate key\n",
-          key.get(), stream->StreamID()));
+  if(mHashHttp2.Get(key))
     return false;
-  }
   mHashHttp2.Put(key, stream);
   return true;
 }

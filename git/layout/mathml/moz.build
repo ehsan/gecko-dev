@@ -45,7 +45,7 @@ LOCAL_INCLUDES += [
     '../style',
     '../tables',
     '../xul',
-    '/dom/base',
+    '/content/base/src',
     '/dom/mathml',
 ]
 

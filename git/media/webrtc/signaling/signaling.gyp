@@ -57,7 +57,7 @@
         './src/sipcc/core/sdp',
         '../../../xpcom/base',
         '../../../dom/base',
-        '../../../dom/media',
+        '../../../content/media',
         '../../../media/mtransport',
         '../trunk',
         '../trunk/webrtc',
@@ -220,7 +220,7 @@
           'include_dirs': [
             # hack on hack to re-add it after SrtpFlow removes it
             '../../webrtc/trunk/webrtc',
-            '../../../dom/media/omx',
+            '../../../content/media/omx',
             '../../../gfx/layers/client',
           ],
           'cflags_mozilla': [

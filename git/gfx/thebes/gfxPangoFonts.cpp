@@ -665,8 +665,7 @@ public:
                   const gfxFontStyle *aFontStyle);
 
 #ifdef USE_SKIA
-    virtual mozilla::TemporaryRef<mozilla::gfx::GlyphRenderingOptions>
-        GetGlyphRenderingOptions(const TextRunDrawParams* aRunParams = nullptr) MOZ_OVERRIDE;
+    virtual mozilla::TemporaryRef<mozilla::gfx::GlyphRenderingOptions> GetGlyphRenderingOptions();
 #endif
 
     // return a cloned font resized and offset to simulate sub/superscript glyphs
@@ -2143,7 +2142,7 @@ ApplyGdkScreenFontOptions(FcPattern *aPattern)
 
 #ifdef USE_SKIA
 mozilla::TemporaryRef<mozilla::gfx::GlyphRenderingOptions>
-gfxFcFont::GetGlyphRenderingOptions(const TextRunDrawParams* aRunParams)
+gfxFcFont::GetGlyphRenderingOptions()
 {
   cairo_scaled_font_t *scaled_font = CairoScaledFont();
   cairo_font_options_t *options = cairo_font_options_create();

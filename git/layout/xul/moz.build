@@ -98,5 +98,5 @@ LOCAL_INCLUDES += [
     '../base',
     '../generic',
     '../style',
-    '/dom/base',
+    '/content/base/src',
 ]

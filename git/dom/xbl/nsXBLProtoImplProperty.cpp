@@ -192,12 +192,10 @@ nsXBLProtoImplProperty::CompileMember(AutoJSAPI& jsapi, const nsCString& aClassS
       JSAutoCompartment ac(cx, aClassObject);
       JS::CompileOptions options(cx);
       options.setFileAndLine(functionUri.get(), getterText->GetLineNumber())
-             .setVersion(JSVERSION_LATEST)
-             .setDefineOnScope(false);
+             .setVersion(JSVERSION_LATEST);
       nsCString name = NS_LITERAL_CSTRING("get_") + NS_ConvertUTF16toUTF8(mName);
       JS::Rooted<JSObject*> getterObject(cx);
-      JS::AutoObjectVector emptyVector(cx);
-      rv = nsJSUtils::CompileFunction(jsapi, emptyVector, options, name, 0,
+      rv = nsJSUtils::CompileFunction(jsapi, JS::NullPtr(), options, name, 0,
                                       nullptr, getter, getterObject.address());
 
       delete getterText;
@@ -239,12 +237,10 @@ nsXBLProtoImplProperty::CompileMember(AutoJSAPI& jsapi, const nsCString& aClassS
       JSAutoCompartment ac(cx, aClassObject);
       JS::CompileOptions options(cx);
       options.setFileAndLine(functionUri.get(), setterText->GetLineNumber())
-             .setVersion(JSVERSION_LATEST)
-             .setDefineOnScope(false);
+             .setVersion(JSVERSION_LATEST);
       nsCString name = NS_LITERAL_CSTRING("set_") + NS_ConvertUTF16toUTF8(mName);
       JS::Rooted<JSObject*> setterObject(cx);
-      JS::AutoObjectVector emptyVector(cx);
-      rv = nsJSUtils::CompileFunction(jsapi, emptyVector, options, name, 1,
+      rv = nsJSUtils::CompileFunction(jsapi, JS::NullPtr(), options, name, 1,
                                       gPropertyArgs, setter,
                                       setterObject.address());
 

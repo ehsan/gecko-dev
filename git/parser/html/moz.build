@@ -97,7 +97,7 @@ FINAL_LIBRARY = 'xul'
 # DEFINES['ENABLE_VOID_MENUITEM'] = True
 
 LOCAL_INCLUDES += [
-    '/dom/base',
+    '../../content/base/src',
 ]
 
 FAIL_ON_WARNINGS = True

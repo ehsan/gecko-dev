@@ -28,24 +28,20 @@ namespace mozilla {
 class JSGCThingParticipant: public nsCycleCollectionParticipant
 {
 public:
-  NS_IMETHOD_(void) Root(void*)
+  NS_IMETHOD_(void) Root(void* aPtr)
   {
-    MOZ_ASSERT(false, "Don't call Root on GC things");
   }
 
-  NS_IMETHOD_(void) Unlink(void*)
+  NS_IMETHOD_(void) Unlink(void* aPtr)
   {
-    MOZ_ASSERT(false, "Don't call Unlink on GC things, as they may be dead");
   }
 
-  NS_IMETHOD_(void) Unroot(void*)
+  NS_IMETHOD_(void) Unroot(void* aPtr)
   {
-    MOZ_ASSERT(false, "Don't call Unroot on GC things, as they may be dead");
   }
 
   NS_IMETHOD_(void) DeleteCycleCollectable(void* aPtr)
   {
-    MOZ_ASSERT(false, "Can't directly delete a cycle collectable GC thing");
   }
 
   NS_IMETHOD Traverse(void* aPtr, nsCycleCollectionTraversalCallback& aCb);
@@ -58,24 +54,20 @@ public:
   {
   }
 
-  NS_IMETHOD_(void) Root(void*)
+  NS_IMETHOD_(void) Root(void* aPtr)
   {
-    MOZ_ASSERT(false, "Don't call Root on GC things");
   }
 
-  NS_IMETHOD_(void) Unlink(void*)
+  NS_IMETHOD_(void) Unlink(void* aPtr)
   {
-    MOZ_ASSERT(false, "Don't call Unlink on GC things, as they may be dead");
   }
 
-  NS_IMETHOD_(void) Unroot(void*)
+  NS_IMETHOD_(void) Unroot(void* aPtr)
   {
-    MOZ_ASSERT(false, "Don't call Unroot on GC things, as they may be dead");
   }
 
-  NS_IMETHOD_(void) DeleteCycleCollectable(void*)
+  NS_IMETHOD_(void) DeleteCycleCollectable(void* aPtr)
   {
-    MOZ_ASSERT(false, "Can't directly delete a cycle collectable GC thing");
   }
 
   NS_IMETHOD Traverse(void* aPtr, nsCycleCollectionTraversalCallback& aCb);

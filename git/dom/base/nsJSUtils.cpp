@@ -124,7 +124,7 @@ nsJSUtils::ReportPendingException(JSContext *aContext)
 
 nsresult
 nsJSUtils::CompileFunction(AutoJSAPI& jsapi,
-                           JS::AutoObjectVector& aScopeChain,
+                           JS::Handle<JSObject*> aTarget,
                            JS::CompileOptions& aOptions,
                            const nsACString& aName,
                            uint32_t aArgCount,
@@ -135,20 +135,19 @@ nsJSUtils::CompileFunction(AutoJSAPI& jsapi,
   MOZ_ASSERT(jsapi.OwnsErrorReporting());
   JSContext* cx = jsapi.cx();
   MOZ_ASSERT(js::GetEnterCompartmentDepth(cx) > 0);
-  MOZ_ASSERT_IF(aScopeChain.length() != 0,
-                js::IsObjectInContextCompartment(aScopeChain[0], cx));
+  MOZ_ASSERT_IF(aTarget, js::IsObjectInContextCompartment(aTarget, cx));
   MOZ_ASSERT_IF(aOptions.versionSet, aOptions.version != JSVERSION_UNKNOWN);
   mozilla::DebugOnly<nsIScriptContext*> ctx = GetScriptContextFromJSContext(cx);
   MOZ_ASSERT_IF(ctx, ctx->IsContextInitialized());
 
   // Do the junk Gecko is supposed to do before calling into JSAPI.
-  for (size_t i = 0; i < aScopeChain.length(); ++i) {
-    JS::ExposeObjectToActiveJS(aScopeChain[i]);
+  if (aTarget) {
+    JS::ExposeObjectToActiveJS(aTarget);
   }
 
   // Compile.
   JS::Rooted<JSFunction*> fun(cx);
-  if (!JS::CompileFunction(cx, aScopeChain, aOptions,
+  if (!JS::CompileFunction(cx, aTarget, aOptions,
                            PromiseFlatCString(aName).get(),
                            aArgCount, aArgArray,
                            PromiseFlatString(aBody).get(),

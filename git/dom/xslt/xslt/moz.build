@@ -55,7 +55,7 @@ LOCAL_INCLUDES += [
     '../base',
     '../xml',
     '../xpath',
-    '/dom/base',
+    '/content/base/src',
 ]
 
 FINAL_LIBRARY = 'xul'

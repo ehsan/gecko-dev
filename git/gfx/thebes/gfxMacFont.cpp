@@ -419,15 +419,6 @@ gfxMacFont::GetScaledFont(DrawTarget *aTarget)
   return mAzureScaledFont;
 }
 
-TemporaryRef<mozilla::gfx::GlyphRenderingOptions>
-gfxMacFont::GetGlyphRenderingOptions(const TextRunDrawParams* aRunParams)
-{
-    if (aRunParams) {
-        return mozilla::gfx::Factory::CreateCGGlyphRenderingOptions(aRunParams->fontSmoothingBGColor);
-    }
-    return nullptr;
-}
-
 void
 gfxMacFont::AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
                                    FontCacheSizes* aSizes) const

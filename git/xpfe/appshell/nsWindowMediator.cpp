@@ -53,7 +53,8 @@ nsWindowMediator::GetDOMWindow(nsIXULWindow* inWindow,
 
 nsWindowMediator::nsWindowMediator() :
   mEnumeratorList(), mOldestWindow(nullptr), mTopmostWindow(nullptr),
-  mTimeStamp(0), mSortingZOrder(false), mReady(false)
+  mTimeStamp(0), mSortingZOrder(false), mReady(false),
+  mListLock("nsWindowMediator.mListLock")
 {
 }
 
@@ -78,7 +79,6 @@ nsresult nsWindowMediator::Init()
 
 NS_IMETHODIMP nsWindowMediator::RegisterWindow(nsIXULWindow* inWindow)
 {
-  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   NS_ENSURE_STATE(mReady);
 
   if (GetInfoFor(inWindow)) {
@@ -96,6 +96,7 @@ NS_IMETHODIMP nsWindowMediator::RegisterWindow(nsIXULWindow* inWindow)
   WindowTitleData winData = { inWindow, nullptr };
   mListeners.EnumerateForwards(notifyOpenWindow, &winData);
   
+  MutexAutoLock lock(mListLock);
   if (mOldestWindow)
     windowInfo->InsertAfter(mOldestWindow->mOlder, nullptr);
   else
@@ -107,8 +108,8 @@ NS_IMETHODIMP nsWindowMediator::RegisterWindow(nsIXULWindow* inWindow)
 NS_IMETHODIMP
 nsWindowMediator::UnregisterWindow(nsIXULWindow* inWindow)
 {
-  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   NS_ENSURE_STATE(mReady);
+  MutexAutoLock lock(mListLock);
   nsWindowInfo *info = GetInfoFor(inWindow);
   if (info)
     return UnregisterWindow(info);
@@ -191,10 +192,9 @@ nsWindowMediator::GetInfoFor(nsIWidget *aWindow)
 NS_IMETHODIMP
 nsWindowMediator::GetEnumerator(const char16_t* inType, nsISimpleEnumerator** outEnumerator)
 {
-  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   NS_ENSURE_ARG_POINTER(outEnumerator);
   NS_ENSURE_STATE(mReady);
-
+  MutexAutoLock lock(mListLock);
   nsAppShellWindowEnumerator *enumerator = new nsASDOMWindowEarlyToLateEnumerator(inType, *this);
   if (enumerator)
     return enumerator->QueryInterface(NS_GET_IID(nsISimpleEnumerator) , (void**)outEnumerator);
@@ -205,10 +205,9 @@ nsWindowMediator::GetEnumerator(const char16_t* inType, nsISimpleEnumerator** ou
 NS_IMETHODIMP
 nsWindowMediator::GetXULWindowEnumerator(const char16_t* inType, nsISimpleEnumerator** outEnumerator)
 {
-  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   NS_ENSURE_ARG_POINTER(outEnumerator);
   NS_ENSURE_STATE(mReady);
-
+  MutexAutoLock lock(mListLock);
   nsAppShellWindowEnumerator *enumerator = new nsASXULWindowEarlyToLateEnumerator(inType, *this);
   if (enumerator)
     return enumerator->QueryInterface(NS_GET_IID(nsISimpleEnumerator) , (void**)outEnumerator);
@@ -221,10 +220,9 @@ nsWindowMediator::GetZOrderDOMWindowEnumerator(
             const char16_t *aWindowType, bool aFrontToBack,
             nsISimpleEnumerator **_retval)
 {
-  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   NS_ENSURE_ARG_POINTER(_retval);
   NS_ENSURE_STATE(mReady);
-
+  MutexAutoLock lock(mListLock);
   nsAppShellWindowEnumerator *enumerator;
   if (aFrontToBack)
     enumerator = new nsASDOMWindowFrontToBackEnumerator(aWindowType, *this);
@@ -241,10 +239,9 @@ nsWindowMediator::GetZOrderXULWindowEnumerator(
             const char16_t *aWindowType, bool aFrontToBack,
             nsISimpleEnumerator **_retval)
 {
-  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   NS_ENSURE_ARG_POINTER(_retval);
   NS_ENSURE_STATE(mReady);
-
+  MutexAutoLock lock(mListLock);
   nsAppShellWindowEnumerator *enumerator;
   if (aFrontToBack)
     enumerator = new nsASXULWindowFrontToBackEnumerator(aWindowType, *this);
@@ -273,7 +270,6 @@ nsWindowMediator::RemoveEnumerator(nsAppShellWindowEnumerator * inEnumerator)
 NS_IMETHODIMP
 nsWindowMediator::GetMostRecentWindow(const char16_t* inType, nsIDOMWindow** outWindow)
 {
-  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   NS_ENSURE_ARG_POINTER(outWindow);
   *outWindow = nullptr;
   if (!mReady)
@@ -281,7 +277,10 @@ nsWindowMediator::GetMostRecentWindow(const char16_t* inType, nsIDOMWindow** out
 
   // Find the most window with the highest time stamp that matches
   // the requested type
+
+  MutexAutoLock lock(mListLock);
   nsWindowInfo *info = MostRecentWindowInfo(inType);
+
   if (info && info->mWindow) {
     nsCOMPtr<nsIDOMWindow> DOMWindow;
     if (NS_SUCCEEDED(GetDOMWindow(info->mWindow, DOMWindow))) {  
@@ -357,8 +356,8 @@ nsWindowMediator::GetCurrentInnerWindowWithId(uint64_t aWindowID,
 NS_IMETHODIMP
 nsWindowMediator::UpdateWindowTimeStamp(nsIXULWindow* inWindow)
 {
-  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   NS_ENSURE_STATE(mReady);
+  MutexAutoLock lock(mListLock);
   nsWindowInfo *info = GetInfoFor(inWindow);
   if (info) {
     // increment the window's time stamp
@@ -372,8 +371,8 @@ NS_IMETHODIMP
 nsWindowMediator::UpdateWindowTitle(nsIXULWindow* inWindow,
                                     const char16_t* inTitle)
 {
-  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   NS_ENSURE_STATE(mReady);
+  MutexAutoLock lock(mListLock);
   if (GetInfoFor(inWindow)) {
     WindowTitleData winData = { inWindow, inTitle };
     mListeners.EnumerateForwards(notifyWindowTitleChange, &winData);
@@ -397,7 +396,6 @@ nsWindowMediator::CalculateZPosition(
                 nsIWidget     **outBelow,
                 bool           *outAltered)
 {
-  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   NS_ENSURE_ARG_POINTER(outBelow);
   NS_ENSURE_STATE(mReady);
 
@@ -427,6 +425,8 @@ nsWindowMediator::CalculateZPosition(
 
   uint32_t inZ;
   GetZLevel(inWindow, &inZ);
+
+  MutexAutoLock lock(mListLock);
 
   if (inPosition == nsIWindowMediator::zLevelBelow) {
     // locate inBelow. use topmost if it can't be found or isn't in the
@@ -526,7 +526,6 @@ nsWindowMediator::SetZPosition(
                 uint32_t      inPosition,
                 nsIXULWindow *inBelow)
 {
-  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   nsWindowInfo *inInfo,
                *belowInfo;
 
@@ -541,6 +540,7 @@ nsWindowMediator::SetZPosition(
     return NS_OK;
 
   NS_ENSURE_STATE(mReady);
+  MutexAutoLock lock(mListLock);
 
   /* Locate inWindow and unlink it from the z-order list.
      It's important we look for it in the age list, not the z-order list.
@@ -597,8 +597,8 @@ nsWindowMediator::GetZLevel(nsIXULWindow *aWindow, uint32_t *_retval)
 NS_IMETHODIMP
 nsWindowMediator::SetZLevel(nsIXULWindow *aWindow, uint32_t aZLevel)
 {
-  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   NS_ENSURE_STATE(mReady);
+  MutexAutoLock lock(mListLock);
 
   nsWindowInfo *info = GetInfoFor(aWindow);
   NS_ASSERTION(info, "setting z level of unregistered window");
@@ -622,7 +622,7 @@ nsWindowMediator::SetZLevel(nsIXULWindow *aWindow, uint32_t aZLevel)
    has been changed, so one window is potentially out of place. Such a sort
    is most efficiently done in a particular direction. Use this one
    if a window's z level has just been reduced, so the sort is most efficiently
-   done front to back.
+   done front to back. Assumes caller has locked mListLock.
      Note it's hardly worth going to all the trouble to write two versions
    of this method except that if we choose the inefficient sorting direction,
    on slow systems windows could visibly bubble around the window that
@@ -777,9 +777,19 @@ nsWindowMediator::Observe(nsISupports* aSubject,
                           const char16_t* aData)
 {
   if (!strcmp(aTopic, "xpcom-shutdown") && mReady) {
-    MOZ_RELEASE_ASSERT(NS_IsMainThread());
-    while (mOldestWindow)
-      UnregisterWindow(mOldestWindow);
+    // Unregistering a window may cause its destructor to run, causing it to
+    // call into the window mediator, try to acquire mListLock, and deadlock.
+    // Our solution is to hold strong refs to all windows until we release
+    // mListLock.
+    nsTArray<nsCOMPtr<nsIXULWindow> > windows;
+
+    {
+      MutexAutoLock lock(mListLock);
+      while (mOldestWindow) {
+        windows.AppendElement(mOldestWindow->mWindow);
+        UnregisterWindow(mOldestWindow);
+      }
+    }
     mReady = false;
   }
   return NS_OK;

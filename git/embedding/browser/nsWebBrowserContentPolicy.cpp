@@ -42,7 +42,7 @@ nsWebBrowserContentPolicy::ShouldLoad(uint32_t          contentType,
     if (!shell) {
         return NS_OK;
     }
-
+    
     nsresult rv;
     bool allowed = true;
 
@@ -60,7 +60,6 @@ nsWebBrowserContentPolicy::ShouldLoad(uint32_t          contentType,
         break;
 #endif
       case nsIContentPolicy::TYPE_IMAGE:
-      case nsIContentPolicy::TYPE_IMAGESET:
         rv = shell->GetAllowImages(&allowed);
         break;
       default:

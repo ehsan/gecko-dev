@@ -31,11 +31,8 @@ public:
   virtual ~Http2PushedStream() {}
 
   bool GetPushComplete();
-
-  // The consumer stream is the synthetic pull stream hooked up to this push
-  virtual Http2Stream *GetConsumerStream() MOZ_OVERRIDE { return mConsumerStream; };
-
-  void SetConsumerStream(Http2Stream *aStream);
+  Http2Stream *GetConsumerStream() { return mConsumerStream; };
+  void SetConsumerStream(Http2Stream *aStream) { mConsumerStream = aStream; }
   bool GetHashKey(nsCString &key);
 
   // override of Http2Stream
@@ -45,20 +42,15 @@ public:
   nsILoadGroupConnectionInfo *LoadGroupConnectionInfo() { return mLoadGroupCI; };
   void ConnectPushedStream(Http2Stream *consumer);
 
-  bool TryOnPush();
-
-  virtual bool DeferCleanup(nsresult status) MOZ_OVERRIDE;
+  bool DeferCleanupOnSuccess() { return mDeferCleanupOnSuccess; }
   void SetDeferCleanupOnSuccess(bool val) { mDeferCleanupOnSuccess = val; }
 
   bool IsOrphaned(TimeStamp now);
-  void OnPushFailed() { mDeferCleanupOnPush = false; mOnPushFailed = true; }
 
   nsresult GetBufferedData(char *buf, uint32_t count, uint32_t *countWritten);
 
   // overload of Http2Stream
   virtual bool HasSink() { return !!mConsumerStream; }
-
-  nsCString &GetRequestString() { return mRequestString; }
 
 private:
 
@@ -67,8 +59,6 @@ private:
 
   nsCOMPtr<nsILoadGroupConnectionInfo> mLoadGroupCI;
 
-  nsAHttpTransaction *mAssociatedTransaction;
-
   Http2PushTransactionBuffer *mBufferedPush;
   mozilla::TimeStamp mLastRead;
 
@@ -76,17 +66,6 @@ private:
   nsresult mStatus;
   bool mPushCompleted; // server push FIN received
   bool mDeferCleanupOnSuccess;
-
-  // mDeferCleanupOnPush prevents Http2Session::CleanupStream() from
-  // destroying the push stream on an error code during the period between
-  // when we need to do OnPush() on another thread and the time it takes
-  // for that event to create a synthetic pull stream attached to this
-  // object. That synthetic pull will become mConsuemerStream.
-  // Ths is essentially a delete protecting reference.
-  bool mDeferCleanupOnPush;
-  bool mOnPushFailed;
-  nsCString mRequestString;
-
 };
 
 class Http2PushTransactionBuffer MOZ_FINAL : public nsAHttpTransaction

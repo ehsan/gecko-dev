@@ -601,7 +601,7 @@ gfxDWriteFont::GetGlyphWidth(gfxContext *aCtx, uint16_t aGID)
 }
 
 TemporaryRef<GlyphRenderingOptions>
-gfxDWriteFont::GetGlyphRenderingOptions(const TextRunDrawParams* aRunParams)
+gfxDWriteFont::GetGlyphRenderingOptions()
 {
   if (UsingClearType()) {
     return Factory::CreateDWriteGlyphRenderingOptions(

@@ -14,7 +14,6 @@
 namespace mozilla {
 namespace layers {
 
-class AsyncPanZoomController;
 class OverscrollHandoffChain;
 
 /**
@@ -24,17 +23,11 @@ class OverscrollHandoffChain;
 class InputBlockState
 {
 public:
-  static const uint64_t NO_BLOCK_ID = 0;
+  explicit InputBlockState(const nsRefPtr<const OverscrollHandoffChain>& aOverscrollHandoffChain);
 
-  explicit InputBlockState(const nsRefPtr<AsyncPanZoomController>& aTargetApzc);
-
-  const nsRefPtr<AsyncPanZoomController>& GetTargetApzc() const;
   const nsRefPtr<const OverscrollHandoffChain>& GetOverscrollHandoffChain() const;
-  uint64_t GetBlockId() const;
 private:
-  nsRefPtr<AsyncPanZoomController> mTargetApzc;
   nsRefPtr<const OverscrollHandoffChain> mOverscrollHandoffChain;
-  const uint64_t mBlockId;
 };
 
 /**
@@ -73,7 +66,7 @@ class TouchBlockState : public InputBlockState
 public:
   typedef uint32_t TouchBehaviorFlags;
 
-  explicit TouchBlockState(const nsRefPtr<AsyncPanZoomController>& aTargetApzc);
+  explicit TouchBlockState(const nsRefPtr<const OverscrollHandoffChain>& aOverscrollHandoffChain);
 
   /**
    * Record whether or not content cancelled this block of events.

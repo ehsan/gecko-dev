@@ -515,7 +515,7 @@ frontend::CompileLazyFunction(JSContext *cx, Handle<LazyScript*> lazy, const cha
 static bool
 CompileFunctionBody(JSContext *cx, MutableHandleFunction fun, const ReadOnlyCompileOptions &options,
                     const AutoNameVector &formals, SourceBufferHolder &srcBuf,
-                    HandleObject enclosingScope, GeneratorKind generatorKind)
+                    GeneratorKind generatorKind)
 {
     js::TraceLogger *logger = js::TraceLoggerForMainThread(cx->runtime());
     uint32_t logId = js::TraceLogCreateTextId(logger, options);
@@ -611,7 +611,7 @@ CompileFunctionBody(JSContext *cx, MutableHandleFunction fun, const ReadOnlyComp
     if (fn->pn_funbox->function()->isInterpreted()) {
         MOZ_ASSERT(fun == fn->pn_funbox->function());
 
-        Rooted<JSScript*> script(cx, JSScript::Create(cx, enclosingScope, false, options,
+        Rooted<JSScript*> script(cx, JSScript::Create(cx, js::NullPtr(), false, options,
                                                       /* staticLevel = */ 0, sourceObject,
                                                       /* sourceStart = */ 0, srcBuf.length()));
         if (!script)
@@ -650,11 +650,9 @@ CompileFunctionBody(JSContext *cx, MutableHandleFunction fun, const ReadOnlyComp
 bool
 frontend::CompileFunctionBody(JSContext *cx, MutableHandleFunction fun,
                               const ReadOnlyCompileOptions &options,
-                              const AutoNameVector &formals, JS::SourceBufferHolder &srcBuf,
-                              HandleObject enclosingStaticScope)
+                              const AutoNameVector &formals, JS::SourceBufferHolder &srcBuf)
 {
-    return CompileFunctionBody(cx, fun, options, formals, srcBuf,
-                               enclosingStaticScope, NotGenerator);
+    return CompileFunctionBody(cx, fun, options, formals, srcBuf, NotGenerator);
 }
 
 bool
@@ -662,5 +660,5 @@ frontend::CompileStarGeneratorBody(JSContext *cx, MutableHandleFunction fun,
                                    const ReadOnlyCompileOptions &options, const AutoNameVector &formals,
                                    JS::SourceBufferHolder &srcBuf)
 {
-    return CompileFunctionBody(cx, fun, options, formals, srcBuf, NullPtr(), StarGenerator);
+    return CompileFunctionBody(cx, fun, options, formals, srcBuf, StarGenerator);
 }

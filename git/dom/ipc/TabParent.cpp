@@ -644,11 +644,10 @@ void TabParent::HandleSingleTap(const CSSPoint& aPoint,
 
 void TabParent::HandleLongTap(const CSSPoint& aPoint,
                               int32_t aModifiers,
-                              const ScrollableLayerGuid &aGuid,
-                              uint64_t aInputBlockId)
+                              const ScrollableLayerGuid &aGuid)
 {
   if (!mIsDestroyed) {
-    unused << SendHandleLongTap(aPoint, aGuid, aInputBlockId);
+    unused << SendHandleLongTap(aPoint, aGuid);
   }
 }
 
@@ -878,7 +877,7 @@ bool TabParent::SendRealMouseEvent(WidgetMouseEvent& event)
   if (mIsDestroyed) {
     return false;
   }
-  nsEventStatus status = MaybeForwardEventToRenderFrame(event, nullptr, nullptr);
+  nsEventStatus status = MaybeForwardEventToRenderFrame(event, nullptr);
   if (status == nsEventStatus_eConsumeNoDefault ||
       !MapEventCoordinatesForChildProcess(&event)) {
     return false;
@@ -914,13 +913,13 @@ bool TabParent::SendHandleSingleTap(const CSSPoint& aPoint, const ScrollableLaye
   return PBrowserParent::SendHandleSingleTap(AdjustTapToChildWidget(aPoint), aGuid);
 }
 
-bool TabParent::SendHandleLongTap(const CSSPoint& aPoint, const ScrollableLayerGuid& aGuid, const uint64_t& aInputBlockId)
+bool TabParent::SendHandleLongTap(const CSSPoint& aPoint, const ScrollableLayerGuid& aGuid)
 {
   if (mIsDestroyed) {
     return false;
   }
 
-  return PBrowserParent::SendHandleLongTap(AdjustTapToChildWidget(aPoint), aGuid, aInputBlockId);
+  return PBrowserParent::SendHandleLongTap(AdjustTapToChildWidget(aPoint), aGuid);
 }
 
 bool TabParent::SendHandleLongTapUp(const CSSPoint& aPoint, const ScrollableLayerGuid& aGuid)
@@ -946,7 +945,7 @@ bool TabParent::SendMouseWheelEvent(WidgetWheelEvent& event)
   if (mIsDestroyed) {
     return false;
   }
-  nsEventStatus status = MaybeForwardEventToRenderFrame(event, nullptr, nullptr);
+  nsEventStatus status = MaybeForwardEventToRenderFrame(event, nullptr);
   if (status == nsEventStatus_eConsumeNoDefault ||
       !MapEventCoordinatesForChildProcess(&event)) {
     return false;
@@ -1000,7 +999,7 @@ bool TabParent::SendRealKeyEvent(WidgetKeyboardEvent& event)
   if (mIsDestroyed) {
     return false;
   }
-  MaybeForwardEventToRenderFrame(event, nullptr, nullptr);
+  MaybeForwardEventToRenderFrame(event, nullptr);
   if (!MapEventCoordinatesForChildProcess(&event)) {
     return false;
   }
@@ -1068,8 +1067,7 @@ bool TabParent::SendRealTouchEvent(WidgetTouchEvent& event)
   }
 
   ScrollableLayerGuid guid;
-  uint64_t blockId;
-  nsEventStatus status = MaybeForwardEventToRenderFrame(event, &guid, &blockId);
+  nsEventStatus status = MaybeForwardEventToRenderFrame(event, &guid);
 
   if (status == nsEventStatus_eConsumeNoDefault || mIsDestroyed) {
     return false;
@@ -1078,8 +1076,8 @@ bool TabParent::SendRealTouchEvent(WidgetTouchEvent& event)
   MapEventCoordinatesForChildProcess(mChildProcessOffsetAtTouchStart, &event);
 
   return (event.message == NS_TOUCH_MOVE) ?
-    PBrowserParent::SendRealTouchMoveEvent(event, guid, blockId) :
-    PBrowserParent::SendRealTouchEvent(event, guid, blockId);
+    PBrowserParent::SendRealTouchMoveEvent(event, guid) :
+    PBrowserParent::SendRealTouchEvent(event, guid);
 }
 
 /*static*/ TabParent*
@@ -2012,11 +2010,10 @@ TabParent::UseAsyncPanZoom()
 
 nsEventStatus
 TabParent::MaybeForwardEventToRenderFrame(WidgetInputEvent& aEvent,
-                                          ScrollableLayerGuid* aOutTargetGuid,
-                                          uint64_t* aOutInputBlockId)
+                                          ScrollableLayerGuid* aOutTargetGuid)
 {
   if (RenderFrameParent* rfp = GetRenderFrame()) {
-    return rfp->NotifyInputEvent(aEvent, aOutTargetGuid, aOutInputBlockId);
+    return rfp->NotifyInputEvent(aEvent, aOutTargetGuid);
   }
   return nsEventStatus_eIgnore;
 }
@@ -2070,11 +2067,10 @@ TabParent::RecvUpdateZoomConstraints(const uint32_t& aPresShellId,
 
 bool
 TabParent::RecvContentReceivedTouch(const ScrollableLayerGuid& aGuid,
-                                    const uint64_t& aInputBlockId,
                                     const bool& aPreventDefault)
 {
   if (RenderFrameParent* rfp = GetRenderFrame()) {
-    rfp->ContentReceivedTouch(aGuid, aInputBlockId, aPreventDefault);
+    rfp->ContentReceivedTouch(aGuid, aPreventDefault);
   }
   return true;
 }

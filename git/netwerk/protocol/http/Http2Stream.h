@@ -47,15 +47,9 @@ public:
 
   virtual nsresult ReadSegments(nsAHttpSegmentReader *,  uint32_t, uint32_t *);
   virtual nsresult WriteSegments(nsAHttpSegmentWriter *, uint32_t, uint32_t *);
-  virtual bool DeferCleanup(nsresult status) { return false; }
-
-  // The consumer stream is the synthetic pull stream hooked up to this stream
-  // http2PushedStream overrides it
-  virtual Http2Stream *GetConsumerStream() { return nullptr; };
+  virtual bool DeferCleanupOnSuccess() { return false; }
 
   const nsAFlatCString &Origin() const { return mOrigin; }
-  const nsAFlatCString &Host() const { return mHeaderHost; }
-  const nsAFlatCString &Path() const { return mHeaderPath; }
 
   bool RequestBlockedOnRead()
   {
@@ -130,8 +124,6 @@ public:
   virtual bool HasSink() { return true; }
 
   virtual ~Http2Stream();
-
-  Http2Session *Session() { return mSession; }
 
 protected:
   static void CreatePushHashKey(const nsCString &scheme,
