@@ -271,7 +271,7 @@ ComputeThis(JSContext *cx, Value *argv)
 {
     JS_ASSERT(!argv[-1].isNull());
     if (!argv[-1].isObject())
-        return !!js_PrimitiveToObject(cx, &argv[-1]);
+        return js_PrimitiveToObject(cx, &argv[-1]);
 
     Value thisv = argv[-1];
     JSObject *thisp = &thisv.asObject();
@@ -385,15 +385,18 @@ NoSuchMethod(JSContext *cx, uintN argc, Value *vp, uint32 flags)
 
 namespace js {
 
-const Value::MaskType PrimitiveValue::Masks[PrimitiveValue::THISP_ARRAY_SIZE] = {
-    0,                                                          /* 000 */
-    JSVAL_STRING_MASK,                                          /* 001 */
-    JSVAL_NUMBER_MASK,                                          /* 010 */
-    JSVAL_NUMBER_MASK | JSVAL_STRING_MASK,                      /* 011 */
-    JSVAL_BOOLEAN_MASK,                                         /* 100 */
-    JSVAL_BOOLEAN_MASK | JSVAL_STRING_MASK,                     /* 101 */
-    JSVAL_BOOLEAN_MASK | JSVAL_NUMBER_MASK,                     /* 110 */
-    JSVAL_BOOLEAN_MASK | JSVAL_NUMBER_MASK | JSVAL_STRING_MASK  /* 111 */
+static const uint32 FAKE_NUMBER_MASK = JSVAL_MASK32_INT32 |
+                                       PrimitiveValue::DOUBLE_MASK;
+
+const uint32 PrimitiveValue::Masks[PrimitiveValue::THISP_ARRAY_SIZE] = {
+    0,                                                             /* 000 */
+    JSVAL_MASK32_STRING,                                           /* 001 */
+    FAKE_NUMBER_MASK,                                              /* 010 */
+    FAKE_NUMBER_MASK | JSVAL_MASK32_STRING,                        /* 011 */
+    JSVAL_MASK32_BOOLEAN,                                          /* 100 */
+    JSVAL_MASK32_BOOLEAN | JSVAL_MASK32_STRING,                    /* 101 */
+    JSVAL_MASK32_BOOLEAN | FAKE_NUMBER_MASK,                       /* 110 */
+    JSVAL_MASK32_BOOLEAN | FAKE_NUMBER_MASK | JSVAL_MASK32_STRING  /* 111 */
 };
 
 /*
@@ -426,7 +429,7 @@ Invoke(JSContext *cx, const InvokeArgsGuard &args, uintN flags)
     if (clasp != &js_FunctionClass) {
 #if JS_HAS_NO_SUCH_METHOD
         if (clasp == &js_NoSuchMethodClass)
-            return !!NoSuchMethod(cx, argc, vp, flags);
+            return NoSuchMethod(cx, argc, vp, flags);
 #endif
 
         /* Function is inlined, all other classes use object ops. */
@@ -512,7 +515,7 @@ Invoke(JSContext *cx, const InvokeArgsGuard &args, uintN flags)
         if (ok && !alreadyThrowing)
             ASSERT_NOT_THROWING(cx);
 #endif
-        return !!ok;
+        return ok;
     }
 
     /* Calculate slot usage. */
@@ -638,7 +641,7 @@ Invoke(JSContext *cx, const InvokeArgsGuard &args, uintN flags)
 
     fp->putActivationObjects(cx);
     *vp = fp->rval;
-    return !!ok;
+    return ok;
 }
 
 JS_REQUIRES_STACK JS_FRIEND_API(bool)
@@ -726,8 +729,9 @@ Execute(JSContext *cx, JSObject *chain, JSScript *script,
         return false;
     JSStackFrame *fp = frame.getFrame();
 
-    /* Initialize fixed slots. */
-    PodZero(fp->slots(), script->nfixed);
+    /* Initialize fixed slots (GVAR ops expecte NULL). */
+    SetValueRangeToNull(fp->slots(), script->nfixed);
+
 #if JS_HAS_SHARP_VARS
     JS_STATIC_ASSERT(SHARP_NSLOTS == 2);
     if (script->hasSharps) {
@@ -820,7 +824,7 @@ Execute(JSContext *cx, JSObject *chain, JSScript *script,
             hook(cx, fp, JS_FALSE, &ok, hookData);
     }
 
-    return !!ok;
+    return ok;
 }
 
 bool
@@ -934,10 +938,10 @@ CheckRedeclaration(JSContext *cx, JSObject *obj, jsid id, uintN attrs,
     name = js_ValueToPrintableString(cx, IdToValue(id));
     if (!name)
         return JS_FALSE;
-    return !!JS_ReportErrorFlagsAndNumber(cx, report,
-                                          js_GetErrorMessage, NULL,
-                                          JSMSG_REDECLARED_VAR,
-                                          type, name);
+    return JS_ReportErrorFlagsAndNumber(cx, report,
+                                        js_GetErrorMessage, NULL,
+                                        JSMSG_REDECLARED_VAR,
+                                        type, name);
 }
 
 static JS_ALWAYS_INLINE bool
@@ -950,36 +954,34 @@ EqualObjects(JSContext *cx, JSObject *lobj, JSObject *robj)
 bool
 StrictlyEqual(JSContext *cx, const Value &lval, const Value &rval)
 {
-    JS_STATIC_ASSERT(JSVAL_NULL_MASK == 0);
-
-    Value::MaskType lmask = lval.mask, rmask = rval.mask;
-    Value::MaskType maskor = lmask | rmask;
-
+    uint32 lmask = lval.data.s.mask32;
+    uint32 rmask = rval.data.s.mask32;
     if (lmask == rmask) {
-        if (Value::isSingleton(lmask))
-            return true;
-        if (lmask == JSVAL_INT32_MASK)
-            return lval.data.i32 == rval.data.i32;
-        if (lmask == JSVAL_DOUBLE_MASK)
-            return JSDOUBLE_COMPARE(lval.data.dbl, ==, rval.data.dbl, JS_FALSE);
-        if (lmask == JSVAL_STRING_MASK)
-            return !!js_EqualStrings(lval.data.str, rval.data.str);
-        if (lmask & JSVAL_OBJECT_MASK)
-            return EqualObjects(cx, lval.data.obj, rval.data.obj);
-        JS_ASSERT(lmask == JSVAL_BOOLEAN_MASK);
-        return lval.data.boo == rval.data.boo;
+        if (lmask == JSVAL_MASK32_STRING)
+            return js_EqualStrings(lval.data.s.payload.str, rval.data.s.payload.str);
+        if (Value::isObjectMask(lmask))
+            return EqualObjects(cx, lval.data.s.payload.obj, rval.data.s.payload.obj);
+        if (Value::isDoubleMask(lmask))
+            return JSDOUBLE_COMPARE(lval.data.asDouble, ==, rval.data.asDouble, JS_FALSE);
+        JS_ASSERT(lmask == JSVAL_MASK32_NULL ||
+                  lmask == JSVAL_MASK32_UNDEFINED ||
+                  lmask == JSVAL_MASK32_INT32 ||
+                  lmask == JSVAL_MASK32_FUNOBJ ||
+                  lmask == JSVAL_MASK32_NONFUNOBJ ||
+                  lmask == JSVAL_MASK32_BOOLEAN);
+        return lval.data.s.payload.u32 == rval.data.s.payload.u32;
     }
 
-    /* Watch out for null */
-
-    if (maskor == JSVAL_NUMBER_MASK) {
-        double ld = lmask == JSVAL_DOUBLE_MASK ? lval.data.dbl : lval.data.i32;
-        double rd = rmask == JSVAL_DOUBLE_MASK ? rval.data.dbl : rval.data.i32;
+    if (Value::isNumberMask(lmask) && Value::isNumberMask(rmask)) {
+        double ld = lmask == JSVAL_MASK32_INT32 ? lval.data.s.payload.i32
+                                                : lval.data.asDouble;
+        double rd = rmask == JSVAL_MASK32_INT32 ? rval.data.s.payload.i32
+                                                : rval.data.asDouble;
         return JSDOUBLE_COMPARE(ld, ==, rd, JS_FALSE);
     }
 
-    if (maskor == JSVAL_OBJECT_MASK)
-        return EqualObjects(cx, lval.data.obj, rval.data.obj);
+    if (Value::isObjectMask(lmask) && Value::isObjectMask(rmask))
+        return EqualObjects(cx, lval.data.s.payload.obj, rval.data.s.payload.obj);
 
     return false;
 }
@@ -1128,7 +1130,7 @@ BoxedWordToValue(jsboxedword w)
         return ObjectOrNullTag(JSBOXEDWORD_TO_OBJECT(w));
     if (JSBOXEDWORD_IS_VOID(w))
         return UndefinedTag();
-    return BooleanTag(!!JSBOXEDWORD_TO_BOOLEAN(w));
+    return BooleanTag(JSBOXEDWORD_TO_BOOLEAN(w));
 }
 
 bool
@@ -1754,20 +1756,6 @@ namespace reprmeter {
 #define PUSH_HOLE()              regs.sp++->setMagic(JS_ARRAY_HOLE)
 #define POP_COPY_TO(v)           v = *--regs.sp
 
-/*
- * Push the jsdouble d using sp from the lexical environment. Try to convert d
- * to a jsint that fits in a jsval, otherwise GC-alloc space for it and push a
- * reference.
- */
-#define STORE_NUMBER(cx, n, d)                                                \
-    JS_BEGIN_MACRO                                                            \
-        int32_t i_;                                                           \
-        if (JSDOUBLE_IS_INT32(d, i_))                                         \
-            regs.sp[n].setInt32(i_);                                          \
-        else                                                                  \
-            regs.sp[n].setDouble(d);                                          \
-    JS_END_MACRO
-
 #define POP_BOOLEAN(cx, vp, b)                                                \
     JS_BEGIN_MACRO                                                            \
         vp = &regs.sp[-1];                                                    \
@@ -1776,7 +1764,7 @@ namespace reprmeter {
         } else if (vp->isBoolean()) {                                         \
             b = vp->asBoolean();                                              \
         } else {                                                              \
-            b = !!js_ValueToBoolean(*vp);                                     \
+            b = js_ValueToBoolean(*vp);                                       \
         }                                                                     \
         regs.sp--;                                                            \
     JS_END_MACRO
@@ -2033,7 +2021,7 @@ IteratorNext(JSContext *cx, JSObject *iterobj, Value *rval)
         return true;
     }
   slow_path:
-    return !!js_IteratorNext(cx, iterobj, rval);
+    return js_IteratorNext(cx, iterobj, rval);
 }
 
 
@@ -2379,11 +2367,14 @@ Interpret(JSContext *cx)
      * "op" correctly in all other cases.
      */
     JSOp op;
-    jsint len;
-    len = 0;
-#if JS_THREADED_INTERP
-    DO_NEXT_OP(len);
+#ifdef JS_THREADED_INTERP
+    {
+        jsint len = 0;
+        DO_NEXT_OP(len);
+    }
 #else
+    /* 'len' needs to be live for the non-threaded interpreter loop. */
+    jsint len = 0;
     DO_NEXT_OP(len);
 #endif
 
@@ -2554,8 +2545,10 @@ Interpret(JSContext *cx)
                  * until it is pushed to the stack via [exception] in the
                  * catch block.
                  */
-                len = 0;
-                DO_NEXT_OP(len);
+                {
+                    jsint len = 0;
+                    DO_NEXT_OP(len);
+                }
 
               case JSTRY_FINALLY:
                 /*
@@ -2565,8 +2558,10 @@ Interpret(JSContext *cx)
                 PUSH_BOOLEAN(true);
                 PUSH_COPY(cx->exception);
                 cx->throwing = JS_FALSE;
-                len = 0;
-                DO_NEXT_OP(len);
+                {
+                    jsint len = 0;
+                    DO_NEXT_OP(len);
+                }
 
               case JSTRY_ITER: {
                 /* This is similar to JSOP_ENDITER in the interpreter loop. */

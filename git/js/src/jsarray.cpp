@@ -453,7 +453,7 @@ GetArrayElement(JSContext *cx, JSObject *obj, jsdouble index, JSBool *hole,
 {
     JS_ASSERT(index >= 0);
     if (obj->isDenseArray() && index < obj->getDenseArrayCapacity() &&
-        !(*vp = obj->getDenseArrayElement(uint32(index))).isMagic(JS_ARRAY_HOLE)) {
+        !(*vp = obj->getDenseArrayElement(index)).isMagic(JS_ARRAY_HOLE)) {
         *hole = JS_FALSE;
         return JS_TRUE;
     }
@@ -1644,7 +1644,7 @@ array_reverse(JSContext *cx, uintN argc, Value *vp)
             return false;
         }
     }
-    vp->setObject(*obj);
+    JS_ASSERT(obj == &vp->asObject());
     return true;
 }
 
@@ -1727,7 +1727,6 @@ js_MergeSort(void *src, size_t nel, size_t elsize,
     size_t i, j, lo, hi, run;
     int cmp_result;
 
-    JS_ASSERT_IF(JS_SORTING_VALUES, elsize == sizeof(Value));
     bool isValue = elemType == JS_SORTING_VALUES;
 
     /* Avoid memcpy overhead for word-sized and word-aligned elements. */
@@ -1988,7 +1987,7 @@ array_sort(JSContext *cx, uintN argc, Value *vp)
          * the root set covered by tvr.count.
          */
         Value *mergesort_tmp = vec + newlen;
-        PodZero(mergesort_tmp, newlen);
+        MakeValueRangeGCSafe(mergesort_tmp, newlen);
         tvr.changeLength(newlen * 2);
 
         /* Here len == 2 * (newlen + undefs + number_of_holes). */
@@ -2051,13 +2050,13 @@ array_sort(JSContext *cx, uintN argc, Value *vp)
                     return false;
                 }
                 mergesort_tmp = vec + 2 * newlen;
-                PodZero(mergesort_tmp, 2 * newlen);
+                MakeValueRangeGCSafe(mergesort_tmp, 2 * newlen);
                 tvr.changeArray(vec, newlen * 4);
                 elemsize = 2 * sizeof(Value);
             }
             if (!js_MergeSort(vec, size_t(newlen), elemsize,
                               sort_compare_strings, cx, mergesort_tmp,
-                              JS_SORTING_GENERIC)) {
+                              JS_SORTING_VALUES)) {
                 return false;
             }
             if (!allStrings) {

@@ -338,7 +338,7 @@ class CallStack
     bool inContext() const {
         JS_ASSERT(!!cx == !!initialFrame);
         JS_ASSERT_IF(!initialFrame, !suspendedFrame && !suspendedRegsAndSaved.flag());
-        return !!cx;
+        return cx;
     }
 
     bool isActive() const {
@@ -349,7 +349,7 @@ class CallStack
     bool isSuspended() const {
         JS_ASSERT_IF(!suspendedFrame, !suspendedRegsAndSaved.flag());
         JS_ASSERT_IF(suspendedFrame, inContext());
-        return !!suspendedFrame;
+        return suspendedFrame;
     }
 
     /* Substate of suspended, queryable in any state. */
@@ -1795,7 +1795,7 @@ struct JSContext
     /* Return whether this context has an active callstack. */
     bool hasActiveCallStack() const {
         assertCallStacksInSync();
-        return !!fp;
+        return fp;
     }
 
     /* Assuming there is an active callstack, return it. */
@@ -3076,9 +3076,21 @@ class AutoBoxedWordVector : private AutoGCRooter
 };
 
 static JS_ALWAYS_INLINE void
-SetValueRangeToUndefined(Value *vec, Value *end)
+MakeValueRangeGCSafe(Value *vec, uintN len)
 {
-    for (Value *v = vec; v != end; ++v)
+    PodZero(vec, len);
+}
+
+static JS_ALWAYS_INLINE void
+MakeValueRangeGCSafe(Value *beg, Value *end)
+{
+    PodZero(beg, end - beg);
+}
+
+static JS_ALWAYS_INLINE void
+SetValueRangeToUndefined(Value *beg, Value *end)
+{
+    for (Value *v = beg; v != end; ++v)
         v->setUndefined();
 }
 
@@ -3086,6 +3098,19 @@ static JS_ALWAYS_INLINE void
 SetValueRangeToUndefined(Value *vec, uintN len)
 {
     return SetValueRangeToUndefined(vec, vec + len);
+}
+
+static JS_ALWAYS_INLINE void
+SetValueRangeToNull(Value *beg, Value *end)
+{
+    for (Value *v = beg; v != end; ++v)
+        v->setNull();
+}
+
+static JS_ALWAYS_INLINE void
+SetValueRangeToNull(Value *vec, uintN len)
+{
+    return SetValueRangeToNull(vec, vec + len);
 }
 
 } /* namespace js */

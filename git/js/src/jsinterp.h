@@ -199,10 +199,10 @@ struct JSStackFrame
 
     inline JSObject *getThisObject(JSContext *cx);
 
-    bool isGenerator() const { return !!(flags & JSFRAME_GENERATOR); }
+    bool isGenerator() const { return flags & JSFRAME_GENERATOR; }
     bool isFloatingGenerator() const {
         JS_ASSERT_IF(flags & JSFRAME_FLOATING_GENERATOR, isGenerator());
-        return !!(flags & JSFRAME_FLOATING_GENERATOR);
+        return flags & JSFRAME_FLOATING_GENERATOR;
     }
 };
 
@@ -280,11 +280,15 @@ class PrimitiveValue
         JS_STATIC_ASSERT(THISP_MASK == THISP_ARRAY_SIZE - 1);
     }
 
-    static const Value::MaskType Masks[THISP_ARRAY_SIZE];
+    static const uint32 Masks[THISP_ARRAY_SIZE];
 
   public:
+    static const uint32 DOUBLE_MASK = 0x8000;
+
     static bool test(JSFunction *fun, const Value &v) {
-        return !!(Masks[(fun->flags >> THISP_SHIFT) & THISP_MASK] & v.mask);
+        uint32 mask = Masks[(fun->flags >> THISP_SHIFT) & THISP_MASK];
+        return (((mask & DOUBLE_MASK) != 0) & v.isDouble()) |
+               ((mask & v.data.s.mask32) > JSVAL_MASK32_CLEAR);
     }
 };
 

@@ -100,9 +100,6 @@
 
 using namespace js;
 
-/* Assumed by IS_SAME_JSVAL */
-JS_STATIC_ASSERT(sizeof(JSBool) == sizeof(int32));
-
 #ifdef HAVE_VA_LIST_AS_ARRAY
 #define JS_ADDRESSOF_VA_LIST(ap) ((va_list *)(ap))
 #else
@@ -115,13 +112,6 @@ JS_STATIC_ASSERT(sizeof(JSBool) == sizeof(int32));
 #else
 #define CHECK_REQUEST(cx)       ((void)0)
 #endif
-
-JS_PUBLIC_DATA(jsval) JSVAL_NULL  = { JSVAL_NULL_MASK,      JS_PADDING_INIT_VALUE() { NULL } };
-JS_PUBLIC_DATA(jsval) JSVAL_ZERO  = { JSVAL_INT32_MASK,     JS_PADDING_INIT_VALUE() { 0 } };
-JS_PUBLIC_DATA(jsval) JSVAL_ONE   = { JSVAL_INT32_MASK,     JS_PADDING_INIT_VALUE() { 1 } };
-JS_PUBLIC_DATA(jsval) JSVAL_FALSE = { JSVAL_BOOLEAN_MASK,   JS_PADDING_INIT_VALUE() { false } };
-JS_PUBLIC_DATA(jsval) JSVAL_TRUE  = { JSVAL_BOOLEAN_MASK,   JS_PADDING_INIT_VALUE() { true } };
-JS_PUBLIC_DATA(jsval) JSVAL_VOID  = { JSVAL_UNDEFINED_MASK, JS_PADDING_INIT_VALUE() };
 
 JS_PUBLIC_API(int64)
 JS_Now()
@@ -405,7 +395,7 @@ JS_ValueToObject(JSContext *cx, jsval v, JSObject **objp)
 {
     CHECK_REQUEST(cx);
     Value objv;
-    bool ok = !!js_ValueToObjectOrNull(cx, Valueify(v), &objv);
+    bool ok = js_ValueToObjectOrNull(cx, Valueify(v), &objv);
     *objp = objv.asObjectOrNull();
     return ok;
 }
@@ -450,7 +440,7 @@ JS_ValueToNumber(JSContext *cx, jsval v, jsdouble *dp)
 JS_PUBLIC_API(JSBool)
 JS_DoubleIsInt32(jsdouble d, jsint *ip)
 {
-    return JSDOUBLE_IS_INT32(d, *(int32_t *)ip);
+    return JSDOUBLE_IS_INT32(d, *ip);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -2681,7 +2671,7 @@ JS_PUBLIC_API(JSBool)
 JS_SetParent(JSContext *cx, JSObject *obj, JSObject *parent)
 {
     CHECK_REQUEST(cx);
-    JS_ASSERT((!parent || !parent->isFunction()) &&
+    JS_ASSERT(!parent->isFunction() &&
               "Functions may not be set as the parents of objects.");
     return js_SetProtoOrParent(cx, obj, JSSLOT_PARENT, parent, JS_FALSE);
 }

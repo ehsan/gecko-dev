@@ -296,6 +296,7 @@ BEGIN_CASE(JSOP_STOP)
                     DO_OP();
                 }
             }
+            jsint len;
             if (*(regs.pc + JSOP_CALL_LENGTH) == JSOP_TRACE ||
                 *(regs.pc + JSOP_CALL_LENGTH) == JSOP_NOP) {
                 JS_STATIC_ASSERT(JSOP_TRACE_LENGTH == JSOP_NOP_LENGTH);
@@ -317,7 +318,7 @@ BEGIN_CASE(JSOP_DEFAULT)
     /* FALL THROUGH */
 BEGIN_CASE(JSOP_GOTO)
 {
-    len = GET_JUMP_OFFSET(regs.pc);
+    jsint len = GET_JUMP_OFFSET(regs.pc);
     BRANCH(len);
 }
 END_CASE(JSOP_GOTO)
@@ -328,7 +329,7 @@ BEGIN_CASE(JSOP_IFEQ)
     Value *_;
     POP_BOOLEAN(cx, _, cond);
     if (cond == false) {
-        len = GET_JUMP_OFFSET(regs.pc);
+        jsint len = GET_JUMP_OFFSET(regs.pc);
         BRANCH(len);
     }
 }
@@ -340,7 +341,7 @@ BEGIN_CASE(JSOP_IFNE)
     Value *_;
     POP_BOOLEAN(cx, _, cond);
     if (cond != false) {
-        len = GET_JUMP_OFFSET(regs.pc);
+        jsint len = GET_JUMP_OFFSET(regs.pc);
         BRANCH(len);
     }
 }
@@ -352,7 +353,7 @@ BEGIN_CASE(JSOP_OR)
     Value *vp;
     POP_BOOLEAN(cx, vp, cond);
     if (cond == true) {
-        len = GET_JUMP_OFFSET(regs.pc);
+        jsint len = GET_JUMP_OFFSET(regs.pc);
         PUSH_COPY(*vp);
         DO_NEXT_OP(len);
     }
@@ -365,7 +366,7 @@ BEGIN_CASE(JSOP_AND)
     Value *vp;
     POP_BOOLEAN(cx, vp, cond);
     if (cond == false) {
-        len = GET_JUMP_OFFSET(regs.pc);
+        jsint len = GET_JUMP_OFFSET(regs.pc);
         PUSH_COPY(*vp);
         DO_NEXT_OP(len);
     }
@@ -377,7 +378,7 @@ BEGIN_CASE(JSOP_DEFAULTX)
     /* FALL THROUGH */
 BEGIN_CASE(JSOP_GOTOX)
 {
-    len = GET_JUMPX_OFFSET(regs.pc);
+    jsint len = GET_JUMPX_OFFSET(regs.pc);
     BRANCH(len);
 }
 END_CASE(JSOP_GOTOX);
@@ -388,7 +389,7 @@ BEGIN_CASE(JSOP_IFEQX)
     Value *_;
     POP_BOOLEAN(cx, _, cond);
     if (cond == false) {
-        len = GET_JUMPX_OFFSET(regs.pc);
+        jsint len = GET_JUMPX_OFFSET(regs.pc);
         BRANCH(len);
     }
 }
@@ -400,7 +401,7 @@ BEGIN_CASE(JSOP_IFNEX)
     Value *_;
     POP_BOOLEAN(cx, _, cond);
     if (cond != false) {
-        len = GET_JUMPX_OFFSET(regs.pc);
+        jsint len = GET_JUMPX_OFFSET(regs.pc);
         BRANCH(len);
     }
 }
@@ -412,7 +413,7 @@ BEGIN_CASE(JSOP_ORX)
     Value *vp;
     POP_BOOLEAN(cx, vp, cond);
     if (cond == true) {
-        len = GET_JUMPX_OFFSET(regs.pc);
+        jsint len = GET_JUMPX_OFFSET(regs.pc);
         PUSH_COPY(*vp);
         DO_NEXT_OP(len);
     }
@@ -425,7 +426,7 @@ BEGIN_CASE(JSOP_ANDX)
     Value *vp;
     POP_BOOLEAN(cx, vp, cond);
     if (cond == JS_FALSE) {
-        len = GET_JUMPX_OFFSET(regs.pc);
+        jsint len = GET_JUMPX_OFFSET(regs.pc);
         PUSH_COPY(*vp);
         DO_NEXT_OP(len);
     }
@@ -458,10 +459,10 @@ END_CASE(JSOP_ANDX)
             regs.sp -= spdec;                                                 \
             if (cond == (diff_ != 0)) {                                       \
                 ++regs.pc;                                                    \
-                len = GET_JUMP_OFFSET(regs.pc);                         \
+                jsint len = GET_JUMP_OFFSET(regs.pc);                         \
                 BRANCH(len);                                                  \
             }                                                                 \
-            len = 1 + JSOP_IFEQ_LENGTH;                                 \
+            jsint len = 1 + JSOP_IFEQ_LENGTH;                                 \
             DO_NEXT_OP(len);                                                  \
         }                                                                     \
     JS_END_MACRO
@@ -518,7 +519,7 @@ END_CASE(JSOP_MOREITER)
 BEGIN_CASE(JSOP_ENDITER)
 {
     JS_ASSERT(regs.sp - 1 >= fp->base());
-    bool ok = !!js_CloseIterator(cx, regs.sp[-1]);
+    bool ok = js_CloseIterator(cx, regs.sp[-1]);
     regs.sp--;
     if (!ok)
         goto error;
@@ -816,11 +817,11 @@ END_CASE(JSOP_BITAND)
  */
 #if JS_HAS_XML_SUPPORT
 #define XML_EQUALITY_OP(OP)                                                   \
-    if ((lmask == JSVAL_NONFUNOBJ_MASK && lref.asObject().isXML()) ||         \
-        (rmask == JSVAL_NONFUNOBJ_MASK && rref.asObject().isXML())) {         \
+    if ((lmask == JSVAL_MASK32_NONFUNOBJ && lref.asObject().isXML()) ||       \
+        (rmask == JSVAL_MASK32_NONFUNOBJ && rref.asObject().isXML())) {       \
         if (!js_TestXMLEquality(cx, lref, rref, &cond))                       \
             goto error;                                                       \
-        cond = cond OP JS_TRUE;                                               \
+        cond = cond OP true;                                                  \
     } else
 
 #define EXTENDED_EQUALITY_OP(OP)                                              \
@@ -828,7 +829,7 @@ END_CASE(JSOP_BITAND)
         ((ExtendedClass *)clasp)->equality) {                                 \
         if (!((ExtendedClass *)clasp)->equality(cx, l, &rref, &cond))         \
             goto error;                                                       \
-        cond = cond OP JS_TRUE;                                               \
+        cond = cond OP true;                                                  \
     } else
 #else
 #define XML_EQUALITY_OP(OP)             /* nothing */
@@ -842,56 +843,48 @@ END_CASE(JSOP_BITAND)
         JSBool cond;                                                          \
         Value &rref = regs.sp[-1];                                            \
         Value &lref = regs.sp[-2];                                            \
-        Value::MaskType rmask = rref.mask;                                    \
-        Value::MaskType lmask = lref.mask;                                    \
-        Value::MaskType maskxor;                                              \
+        uint32 rmask = rref.data.s.mask32;                                    \
+        uint32 lmask = lref.data.s.mask32;                                    \
         XML_EQUALITY_OP(OP)                                                   \
-        if ((maskxor = lmask ^ rmask) == 0) {                                 \
-            if (Value::isSingleton(lmask)) {                                  \
-                cond = true OP true;                                          \
-            } else if (lmask == JSVAL_INT32_MASK) {                           \
-                cond = lref.asInt32() OP rref.asInt32();                      \
-            } else if (lmask == JSVAL_DOUBLE_MASK) {                          \
-                double l = lref.asDouble(), r = rref.asDouble();              \
-                cond = JSDOUBLE_COMPARE(l, OP, r, IFNAN);                     \
-            } else if (lmask & JSVAL_OBJECT_MASK) {                           \
+        if (lmask == rmask ||                                                 \
+            (Value::isObjectMask(lmask) && Value::isObjectMask(rmask))) {     \
+            if (lmask == JSVAL_MASK32_STRING) {                               \
+                JSString *l = lref.asString(), *r = rref.asString();          \
+                cond = js_EqualStrings(l, r) OP true;                         \
+            } else if (Value::isObjectMask(lmask)) {                          \
                 JSObject *l = &lref.asObject(), *r = &rref.asObject();        \
                 EXTENDED_EQUALITY_OP(OP)                                      \
                 cond = l OP r;                                                \
-            } else if (lmask == JSVAL_STRING_MASK) {                          \
-                JSString *l = lref.asString(), *r = rref.asString();          \
-                cond = js_EqualStrings(l, r) OP JS_TRUE;                      \
+            } else if (JS_UNLIKELY(Value::isDoubleMask(lmask))) {             \
+                double l = lref.asDouble(), r = rref.asDouble();              \
+                cond = JSDOUBLE_COMPARE(l, OP, r, IFNAN);                     \
             } else {                                                          \
-                cond = lref.asBoolean() OP rref.asBoolean();                  \
+                cond = lref.data.s.payload.u32 OP rref.data.s.payload.u32;    \
             }                                                                 \
+        } else if (Value::isDoubleMask(lmask) && Value::isDoubleMask(rmask)) { \
+            double l = lref.asDouble(), r = rref.asDouble();                  \
+            cond = JSDOUBLE_COMPARE(l, OP, r, IFNAN);                         \
         } else {                                                              \
-            JS_ASSERT(maskxor == (lmask | rmask));                            \
-            Value::MaskType maskor = maskxor;                                 \
-            if (lmask == Value::NullMask || rmask == Value::NullMask) {       \
-                cond = maskxor OP JSVAL_UNDEFINED_MASK;                       \
-            } else if (maskor & JSVAL_UNDEFINED_MASK) {                       \
-                cond = true OP false;                                         \
-            } else if (maskor == JSVAL_OBJECT_MASK) {                         \
+            if (Value::isNullOrUndefinedMask(lmask)) {                        \
+                cond = Value::isNullOrUndefinedMask(rmask) OP true;           \
+            } else if (Value::isNullOrUndefinedMask(rmask)) {                 \
                 cond = true OP false;                                         \
             } else {                                                          \
-                if (maskor & JSVAL_OBJECT_MASK) {                             \
-                    if (lmask & JSVAL_OBJECT_MASK) {                          \
-                        JSObject &obj = lref.asObject();                      \
-                        if (!obj.defaultValue(cx, JSTYPE_VOID, &lref))        \
-                            goto error;                                       \
-                        lmask = lref.mask;                                    \
-                    }                                                         \
-                    if (rmask & JSVAL_OBJECT_MASK) {                          \
-                        JSObject &obj = rref.asObject();                      \
-                        if (!obj.defaultValue(cx, JSTYPE_VOID, &rref))        \
-                            goto error;                                       \
-                        rmask = rref.mask;                                    \
-                    }                                                         \
-                    maskor = lmask | rmask;                                   \
+                if (Value::isObjectMask(lmask)) {                             \
+                    JSObject &obj = lref.asObject();                          \
+                    if (!obj.defaultValue(cx, JSTYPE_VOID, &lref))            \
+                        goto error;                                           \
+                    lmask = lref.data.s.mask32;                               \
                 }                                                             \
-                if (maskor == JSVAL_STRING_MASK) {                            \
+                if (Value::isObjectMask(rmask)) {                             \
+                    JSObject &obj = rref.asObject();                          \
+                    if (!obj.defaultValue(cx, JSTYPE_VOID, &rref))            \
+                        goto error;                                           \
+                    rmask = rref.data.s.mask32;                               \
+                }                                                             \
+                if (lmask == JSVAL_MASK32_STRING && rmask == JSVAL_MASK32_STRING) { \
                     JSString *l = lref.asString(), *r = rref.asString();      \
-                    cond = js_EqualStrings(l, r) OP JS_TRUE;                  \
+                    cond = js_EqualStrings(l, r) OP true;                     \
                 } else {                                                      \
                     double l, r;                                              \
                     if (!ValueToNumber(cx, lref, &l) ||                       \
@@ -949,7 +942,7 @@ BEGIN_CASE(JSOP_CASE)
     STRICT_EQUALITY_OP(==, cond);
     if (cond) {
         regs.sp--;
-        len = GET_JUMP_OFFSET(regs.pc);
+        jsint len = GET_JUMP_OFFSET(regs.pc);
         BRANCH(len);
     }
 }
@@ -961,7 +954,7 @@ BEGIN_CASE(JSOP_CASEX)
     STRICT_EQUALITY_OP(==, cond);
     if (cond) {
         regs.sp--;
-        len = GET_JUMPX_OFFSET(regs.pc);
+        jsint len = GET_JUMPX_OFFSET(regs.pc);
         BRANCH(len);
     }
 }
@@ -974,30 +967,30 @@ END_CASE(JSOP_CASEX)
         /* Depends on the value representation */                             \
         Value &rref = regs.sp[-1];                                            \
         Value &lref = regs.sp[-2];                                            \
-        JSValueMaskType rmask = rref.mask;                                    \
-        JSValueMaskType lmask = lref.mask;                                    \
-        JSValueMaskType maskand = lmask & rmask;                              \
+        uint32 rmask = rref.data.s.mask32;                                    \
+        uint32 lmask = lref.data.s.mask32;                                    \
+        uint32 maskand = lmask & rmask;                                       \
         bool cond;                                                            \
         /* Optimize for two int-tagged operands (typical loop control). */    \
-        if (maskand == JSVAL_INT32_MASK) {                                    \
+        if (maskand == JSVAL_MASK32_INT32) {                                  \
             cond = lref.asInt32() OP rref.asInt32();                          \
         } else {                                                              \
-            if ((lmask | rmask) & JSVAL_OBJECT_MASK) {                        \
-                if (lmask & JSVAL_OBJECT_MASK) {                              \
+            if (Value::isObjectMask(lmask | rmask)) {                         \
+                if (Value::isObjectMask(lmask)) {                             \
                     JSObject &obj = lref.asObject();                          \
                     if (!obj.defaultValue(cx, JSTYPE_NUMBER, &lref))          \
                         goto error;                                           \
-                    lmask = lref.mask;                                        \
+                    lmask = lref.data.s.mask32;                               \
                 }                                                             \
-                if (rmask & JSVAL_OBJECT_MASK) {                              \
+                if (Value::isObjectMask(rmask)) {                             \
                     JSObject &obj = rref.asObject();                          \
                     if (!obj.defaultValue(cx, JSTYPE_NUMBER, &rref))          \
                         goto error;                                           \
-                    rmask = rref.mask;                                        \
+                    rmask = rref.data.s.mask32;                               \
                 }                                                             \
                 maskand = lmask & rmask;                                      \
             }                                                                 \
-            if (maskand == JSVAL_STRING_MASK) {                               \
+            if (maskand == JSVAL_MASK32_STRING) {                             \
                 JSString *l = lref.asString(), *r = rref.asString();          \
                 cond = js_CompareStrings(l, r) OP 0;                          \
             } else {                                                          \
@@ -1075,10 +1068,10 @@ BEGIN_CASE(JSOP_ADD)
     /* Depends on the value representation */
     Value &rref = regs.sp[-1];
     Value &lref = regs.sp[-2];
-    Value::MaskType rmask = rref.mask;
-    Value::MaskType lmask = lref.mask;
+    uint32 rmask = rref.data.s.mask32;
+    uint32 lmask = lref.data.s.mask32;
 
-    if ((lmask & rmask) == JSVAL_INT32_MASK) {
+    if ((lmask & rmask) == JSVAL_MASK32_INT32) {
         int32_t l = lref.asInt32(), r = rref.asInt32();
         int32_t sum = l + r;
         regs.sp--;
@@ -1088,8 +1081,8 @@ BEGIN_CASE(JSOP_ADD)
             regs.sp[-1].setInt32(sum);
     } else
 #if JS_HAS_XML_SUPPORT
-    if (lmask == JSVAL_NONFUNOBJ_MASK && lref.asObject().isXML() &&
-        rmask == JSVAL_NONFUNOBJ_MASK && rref.asObject().isXML()) {
+    if (lmask == JSVAL_MASK32_NONFUNOBJ && lref.asObject().isXML() &&
+        rmask == JSVAL_MASK32_NONFUNOBJ && rref.asObject().isXML()) {
         Value rval;
         if (!js_ConcatenateXML(cx, &lref.asObject(), &rref.asObject(), &rval))
             goto error;
@@ -1098,22 +1091,22 @@ BEGIN_CASE(JSOP_ADD)
     } else
 #endif
     {
-        if (lmask & JSVAL_OBJECT_MASK) {
+        if (Value::isObjectMask(lmask)) {
             if (!lref.asObject().defaultValue(cx, JSTYPE_VOID, &lref))
                 goto error;
-            lmask = lref.mask;
+            lmask = lref.data.s.mask32;
         }
-        if (rmask & JSVAL_OBJECT_MASK) {
+        if (Value::isObjectMask(rmask)) {
             if (!rref.asObject().defaultValue(cx, JSTYPE_VOID, &rref))
                 goto error;
-            rmask = rref.mask;
+            rmask = rref.data.s.mask32;
         }
-        if ((lmask | rmask) & JSVAL_STRING_MASK) {
+        if (lmask == JSVAL_MASK32_STRING || rmask == JSVAL_MASK32_STRING) {
             JSString *str1, *str2;
             if (lmask == rmask) {
                 str1 = lref.asString();
                 str2 = rref.asString();
-            } else if (lmask == JSVAL_STRING_MASK) {
+            } else if (lmask == JSVAL_MASK32_STRING) {
                 str1 = lref.asString();
                 str2 = js_ValueToString(cx, rref);
                 if (!str2)
@@ -1135,7 +1128,7 @@ BEGIN_CASE(JSOP_ADD)
                 goto error;
             l += r;
             regs.sp--;
-            STORE_NUMBER(cx, -1, l);
+            regs.sp[-1].setNumber(l);
         }
     }
 }
@@ -1179,7 +1172,7 @@ END_CASE(JSOP_CONCATN)
         }                                                                     \
         double d = d1 OP d2;                                                  \
         regs.sp--;                                                            \
-        STORE_NUMBER(cx, -1, d);                                              \
+        regs.sp[-1].setNumber(d);                                             \
     JS_END_MACRO
 
 BEGIN_CASE(JSOP_SUB)
@@ -1217,7 +1210,7 @@ BEGIN_CASE(JSOP_DIV)
         regs.sp[-1] = *vp;
     } else {
         d1 /= d2;
-        STORE_NUMBER(cx, -1, d1);
+        regs.sp[-1].setNumber(d1);
     }
 }
 END_CASE(JSOP_DIV)
@@ -1420,7 +1413,7 @@ BEGIN_CASE(JSOP_NAMEDEC)
                     tmp = inc;
                 rref.asInt32Ref() = inc;
                 PUSH_INT32(tmp);
-                len = JSOP_INCNAME_LENGTH;
+                jsint len = JSOP_INCNAME_LENGTH;
                 DO_NEXT_OP(len);
             }
         }
@@ -1489,7 +1482,7 @@ do_incop:
         regs.sp[-1 - cs->nuses] = regs.sp[-1];
         regs.sp -= cs->nuses;
     }
-    len = cs->length;
+    jsint len = cs->length;
     DO_NEXT_OP(len);
 }
 }
@@ -1509,9 +1502,7 @@ BEGIN_CASE(JSOP_ARGINC)
     incr =  1; incr2 =  0;
 
   do_arg_incop:
-    // If we initialize in the declaration, MSVC complains that the labels skip init.
-    uint32 slot;
-    slot = GET_ARGNO(regs.pc);
+    uint32 slot = GET_ARGNO(regs.pc);
     JS_ASSERT(slot < fp->fun->nargs);
     METER_SLOT_OP(op, slot);
     vp = fp->argv + slot;
@@ -1550,7 +1541,7 @@ BEGIN_CASE(JSOP_LOCALINC)
         if (!js_DoIncDec(cx, &js_CodeSpec[op], &regs.sp[-1], vp))
             goto error;
     }
-    len = JSOP_INCARG_LENGTH;
+    jsint len = JSOP_INCARG_LENGTH;
     JS_ASSERT(len == js_CodeSpec[op].length);
     DO_NEXT_OP(len);
 }
@@ -1606,7 +1597,7 @@ BEGIN_CASE(JSOP_GVARINC)
         if (!js_DoIncDec(cx, &js_CodeSpec[op], &regs.sp[-1], &rref))
             goto error;
     }
-    len = JSOP_INCGVAR_LENGTH;  /* all gvar incops are same length */
+    jsint len = JSOP_INCGVAR_LENGTH;  /* all gvar incops are same length */
     JS_ASSERT(len == js_CodeSpec[op].length);
     DO_NEXT_OP(len);
 }
@@ -1669,54 +1660,52 @@ BEGIN_CASE(JSOP_GETXPROP)
     VALUE_TO_OBJECT(cx, vp, obj);
 
   do_getprop_with_obj:
-    {
-        Value rval;
-        do {
-            /*
-             * We do not impose the method read barrier if in an imacro,
-             * assuming any property gets it does (e.g., for 'toString'
-             * from JSOP_NEW) will not be leaked to the calling script.
-             */
-            JSObject *aobj = js_GetProtoIfDenseArray(obj);
+    Value rval;
+    do {
+        /*
+         * We do not impose the method read barrier if in an imacro,
+         * assuming any property gets it does (e.g., for 'toString'
+         * from JSOP_NEW) will not be leaked to the calling script.
+         */
+        JSObject *aobj = js_GetProtoIfDenseArray(obj);
 
-            PropertyCacheEntry *entry;
-            JSObject *obj2;
-            JSAtom *atom;
-            JS_PROPERTY_CACHE(cx).test(cx, regs.pc, aobj, obj2, entry, atom);
-            if (!atom) {
-                ASSERT_VALID_PROPERTY_CACHE_HIT(i, aobj, obj2, entry);
-                if (entry->vword.isFunObj()) {
-                    rval.setFunObj(entry->vword.toFunObj());
-                } else if (entry->vword.isSlot()) {
-                    uint32 slot = entry->vword.toSlot();
-                    JS_ASSERT(slot < obj2->scope()->freeslot);
-                    rval = obj2->lockedGetSlot(slot);
-                } else {
-                    JS_ASSERT(entry->vword.isSprop());
-                    JSScopeProperty *sprop = entry->vword.toSprop();
-                    NATIVE_GET(cx, obj, obj2, sprop,
-                               fp->imacpc ? JSGET_NO_METHOD_BARRIER : JSGET_METHOD_BARRIER,
-                               &rval);
-                }
-                break;
+        PropertyCacheEntry *entry;
+        JSObject *obj2;
+        JSAtom *atom;
+        JS_PROPERTY_CACHE(cx).test(cx, regs.pc, aobj, obj2, entry, atom);
+        if (!atom) {
+            ASSERT_VALID_PROPERTY_CACHE_HIT(i, aobj, obj2, entry);
+            if (entry->vword.isFunObj()) {
+                rval.setFunObj(entry->vword.toFunObj());
+            } else if (entry->vword.isSlot()) {
+                uint32 slot = entry->vword.toSlot();
+                JS_ASSERT(slot < obj2->scope()->freeslot);
+                rval = obj2->lockedGetSlot(slot);
+            } else {
+                JS_ASSERT(entry->vword.isSprop());
+                JSScopeProperty *sprop = entry->vword.toSprop();
+                NATIVE_GET(cx, obj, obj2, sprop,
+                           fp->imacpc ? JSGET_NO_METHOD_BARRIER : JSGET_METHOD_BARRIER,
+                           &rval);
             }
+            break;
+        }
 
-            jsid id = ATOM_TO_JSID(atom);
-            if (JS_LIKELY(aobj->map->ops->getProperty == js_GetProperty)
-                ? !js_GetPropertyHelper(cx, obj, id,
-                                        fp->imacpc
-                                        ? JSGET_CACHE_RESULT | JSGET_NO_METHOD_BARRIER
-                                        : JSGET_CACHE_RESULT | JSGET_METHOD_BARRIER,
-                                        &rval)
-                : !obj->getProperty(cx, id, &rval)) {
-                goto error;
-            }
-        } while (0);
+        jsid id = ATOM_TO_JSID(atom);
+        if (JS_LIKELY(aobj->map->ops->getProperty == js_GetProperty)
+            ? !js_GetPropertyHelper(cx, obj, id,
+                                    fp->imacpc
+                                    ? JSGET_CACHE_RESULT | JSGET_NO_METHOD_BARRIER
+                                    : JSGET_CACHE_RESULT | JSGET_METHOD_BARRIER,
+                                    &rval)
+            : !obj->getProperty(cx, id, &rval)) {
+            goto error;
+        }
+    } while (0);
 
-        regs.sp[-1] = rval;
-        JS_ASSERT(JSOP_GETPROP_LENGTH + i == js_CodeSpec[op].length);
-        len = JSOP_GETPROP_LENGTH + i;
-    }
+    regs.sp[-1] = rval;
+    JS_ASSERT(JSOP_GETPROP_LENGTH + i == js_CodeSpec[op].length);
+    jsint len = JSOP_GETPROP_LENGTH + i;
 END_VARLEN_CASE
 
 BEGIN_CASE(JSOP_LENGTH)
@@ -1783,7 +1772,7 @@ BEGIN_CASE(JSOP_CALLPROP)
         if (entry->vword.isFunObj()) {
             regs.sp[-1].setFunObj(entry->vword.toFunObj());
             PUSH_COPY(lval);
-            goto end_callprop;
+            goto end_callprop_with_funobj;
         } else if (entry->vword.isSlot()) {
             uint32 slot = entry->vword.toSlot();
             JS_ASSERT(slot < obj2->scope()->freeslot);
@@ -1846,6 +1835,7 @@ BEGIN_CASE(JSOP_CALLPROP)
             goto error;
     }
 #endif
+  end_callprop_with_funobj:;
 }
 END_CASE(JSOP_CALLPROP)
 
@@ -2076,8 +2066,7 @@ BEGIN_CASE(JSOP_GETELEM)
                 goto error;
             regs.sp--;
             regs.sp[-1].setString(str);
-            len = JSOP_GETELEM_LENGTH;
-            DO_NEXT_OP(len);
+            DO_NEXT_OP(JSOP_GETELEM_LENGTH);
         }
     }
 
@@ -2150,7 +2139,7 @@ BEGIN_CASE(JSOP_CALLELEM)
     FETCH_OBJECT(cx, -2, obj);
 
     /* Save the mask so that we don't need to query it later. */
-    Value::MaskType objmask = regs.sp[-2].mask;
+    uint32 objmask = regs.sp[-2].data.s.mask32;
 
     /* Fetch index and convert it to id suitable for use with obj. */
     jsid id;
@@ -2169,8 +2158,8 @@ BEGIN_CASE(JSOP_CALLELEM)
     } else
 #endif
     {
-        regs.sp[-1].mask = objmask;
-        regs.sp[-1].data.obj = obj;
+        regs.sp[-1].data.s.mask32 = objmask;
+        regs.sp[-1].data.s.payload.obj = obj;
     }
 }
 END_CASE(JSOP_CALLELEM)
@@ -2222,6 +2211,7 @@ END_CASE(JSOP_ENUMELEM)
     JSObject *obj;
     uintN flags;
     uintN argc;
+    Value lval;
     Value *vp;
 
 BEGIN_CASE(JSOP_NEW)
@@ -2279,8 +2269,9 @@ BEGIN_CASE(JSOP_APPLY)
     argc = GET_ARGC(regs.pc);
     vp = regs.sp - (argc + 2);
 
-    if (vp->isFunObj()) {
-        obj = &vp->asFunObj();
+    lval = *vp;
+    if (lval.isFunObj()) {
+        obj = &lval.asFunObj();
         fun = GET_FUNCTION_PRIVATE(cx, obj);
 
         /* Clear frame flags since this is not a constructor call. */
@@ -2410,12 +2401,12 @@ BEGIN_CASE(JSOP_APPLY)
         }
 
         if (fun->flags & JSFUN_FAST_NATIVE) {
-            DTrace::enterJSFun(cx, NULL, fun, fp, argc, vp + 2, vp);
+            DTrace::enterJSFun(cx, NULL, fun, fp, argc, vp + 2, &lval);
 
             JS_ASSERT(fun->u.n.extra == 0);
             JS_ASSERT(vp[1].isObjectOrNull() || PrimitiveValue::test(fun, vp[1]));
             JSBool ok = ((FastNative) fun->u.n.native)(cx, argc, vp);
-            DTrace::exitJSFun(cx, NULL, fun, *vp, vp);
+            DTrace::exitJSFun(cx, NULL, fun, *vp, &lval);
             regs.sp = vp + 1;
             if (!ok)
                 goto error;
@@ -2490,7 +2481,7 @@ BEGIN_CASE(JSOP_CALLNAME)
         JSOp op2 = js_GetOpcode(cx, script, regs.pc + JSOP_NAME_LENGTH);
         if (op2 == JSOP_TYPEOF) {
             PUSH_UNDEFINED();
-            len = JSOP_NAME_LENGTH;
+            jsint len = JSOP_NAME_LENGTH;
             DO_NEXT_OP(len);
         }
         atomNotDefined = atom;
@@ -2623,6 +2614,7 @@ BEGIN_CASE(JSOP_TRUE)
 END_CASE(JSOP_TRUE)
 
 {
+    jsint len;
 BEGIN_CASE(JSOP_TABLESWITCH)
 {
     jsbytecode *pc2 = regs.pc;
@@ -2661,6 +2653,7 @@ END_VARLEN_CASE
 }
 
 {
+    jsint len;
 BEGIN_CASE(JSOP_TABLESWITCHX)
 {
     jsbytecode *pc2 = regs.pc;
@@ -2699,6 +2692,7 @@ END_VARLEN_CASE
 }
 
 {
+    jsint len;
 BEGIN_CASE(JSOP_LOOKUPSWITCHX)
 {
     jsint off;
@@ -3579,7 +3573,7 @@ BEGIN_CASE(JSOP_SETTER)
         JS_ASSERT(js_CodeSpec[op2].ndefs == js_CodeSpec[op2].nuses + 1);
         regs.sp[-1] = rval;
     }
-    len = js_CodeSpec[op2].length;
+    jsint len = js_CodeSpec[op2].length;
     DO_NEXT_OP(len);
 }
 
@@ -3589,7 +3583,7 @@ END_CASE(JSOP_HOLE)
 
 BEGIN_CASE(JSOP_NEWARRAY)
 {
-    len = GET_UINT16(regs.pc);
+    jsint len = GET_UINT16(regs.pc);
     cx->assertValidStackDepth(len);
     JSObject *obj = js_NewArrayObject(cx, len, regs.sp - len, JS_TRUE);
     if (!obj)
@@ -3877,7 +3871,7 @@ BEGIN_CASE(JSOP_GOSUB)
     PUSH_BOOLEAN(false);
     jsint i = (regs.pc - script->main) + JSOP_GOSUB_LENGTH;
     PUSH_INT32(i);
-    len = GET_JUMP_OFFSET(regs.pc);
+    jsint len = GET_JUMP_OFFSET(regs.pc);
 END_VARLEN_CASE
 }
 
@@ -3885,7 +3879,7 @@ END_VARLEN_CASE
 BEGIN_CASE(JSOP_GOSUBX)
     PUSH_BOOLEAN(false);
     jsint i = (regs.pc - script->main) + JSOP_GOSUBX_LENGTH;
-    len = GET_JUMPX_OFFSET(regs.pc);
+    jsint len = GET_JUMPX_OFFSET(regs.pc);
     PUSH_INT32(i);
 END_VARLEN_CASE
 }
@@ -3909,7 +3903,7 @@ BEGIN_CASE(JSOP_RETSUB)
         goto error;
     }
     JS_ASSERT(rval.isInt32());
-    len = rval.asInt32();
+    jsint len = rval.asInt32();
     regs.pc = script->main;
 END_VARLEN_CASE
 }
@@ -3959,7 +3953,7 @@ BEGIN_CASE(JSOP_IFPRIMTOP)
      */
     JS_ASSERT(regs.sp > fp->base());
     if (regs.sp[-1].isPrimitive()) {
-        len = GET_JUMP_OFFSET(regs.pc);
+        jsint len = GET_JUMP_OFFSET(regs.pc);
         BRANCH(len);
     }
 END_CASE(JSOP_IFPRIMTOP)
@@ -4194,7 +4188,7 @@ BEGIN_CASE(JSOP_FILTER)
      * state.
      */
     PUSH_HOLE();
-    len = GET_JUMP_OFFSET(regs.pc);
+    jsint len = GET_JUMP_OFFSET(regs.pc);
     JS_ASSERT(len > 0);
 END_VARLEN_CASE
 }
@@ -4217,7 +4211,7 @@ BEGIN_CASE(JSOP_ENDFILTER)
         if (!js_EnterWith(cx, -2))
             goto error;
         regs.sp--;
-        len = GET_JUMP_OFFSET(regs.pc);
+        jsint len = GET_JUMP_OFFSET(regs.pc);
         JS_ASSERT(len < 0);
         BRANCH(len);
     }
