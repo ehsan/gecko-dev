@@ -37,32 +37,38 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsIDOMHTMLElement.idl"
+#include "domstubs.idl"
 
-/**
- * The nsIDOMHTMLTextAreaElement interface is the interface to a
- * [X]HTML textarea element.
- *
- * This interface is trying to follow the DOM Level 2 HTML specification:
- * http://www.w3.org/TR/DOM-Level-2-HTML/
- *
- * with changes from the work-in-progress WHATWG HTML specification:
- * http://www.whatwg.org/specs/web-apps/current-work/
- */
+interface nsIControllers;
+interface nsIDOMValidityState;
 
-[scriptable, uuid(905edd3e-c0b3-4d54-8a2c-0eaab6ccb3cf)]
-interface nsIDOMHTMLTextAreaElement : nsIDOMHTMLElement
+[scriptable, uuid(df5dc23d-cf90-443e-bf56-cd3af021ebc7)]
+interface nsIDOMNSHTMLTextAreaElement : nsISupports
 {
-  // Modified in DOM Level 2:
-           attribute DOMString             defaultValue;
-  readonly attribute nsIDOMHTMLFormElement form;
-           attribute unsigned long         cols;
-           attribute boolean               disabled;
-           attribute DOMString             name;
-           attribute boolean               readOnly;
-           attribute unsigned long         rows;
-           attribute long                  tabIndex;
-  readonly attribute DOMString             type;
-           attribute DOMString             value;
-  void                      select();
+           attribute boolean          autofocus;
+  readonly attribute nsIControllers   controllers;
+
+  readonly attribute long    textLength;
+  attribute long             selectionStart;
+  attribute long             selectionEnd;
+  attribute long             maxLength;
+  attribute DOMString        placeholder;
+  attribute boolean          required;
+
+  /**
+   * Reflects the wrap content attribute. Possible values are "soft, "hard" and
+   * "off". "soft" is the default.
+   */
+  [Null(Stringify)] attribute DOMString wrap;
+
+  // The following lines are parte of the constraint validation API, see:
+  // http://www.whatwg.org/specs/web-apps/current-work/#the-constraint-validation-api
+  readonly attribute boolean          willValidate;
+  readonly attribute nsIDOMValidityState validity;
+  readonly attribute DOMString        validationMessage;
+  boolean checkValidity();
+  void setCustomValidity(in DOMString error);
+
+  void                       setSelectionRange(in long selectionStart,
+                                               in long selectionEnd);
 };

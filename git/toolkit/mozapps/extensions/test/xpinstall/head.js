@@ -27,6 +27,7 @@ function extractChromeRoot(path) {
 }
 
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
+Components.utils.import("resource://gre/modules/Services.jsm");
 
 /**
  * This is a test harness designed to handle responding to UI during the process
