@@ -222,7 +222,7 @@ window.Group = function(listOfEls, options) {
       self.adjustTitleSize();
       
     self.save();
-  }
+  };
   
   this.$title
     .css({backgroundRepeat: 'no-repeat'})
@@ -276,7 +276,7 @@ window.Group = function(listOfEls, options) {
     
   // ___ Stack Expander
   this.$expander = iQ("<img/>")
-    .attr('src', 'chrome://tabcandy/content/img/app/stack-expander.png')
+    .attr('src', 'chrome://tabcandy/content/img/stack-expander.png')
     .addClass("stackExpander")
     .appendTo($container)
     .hide(); 
@@ -461,11 +461,6 @@ window.Group.prototype = iQ.extend(new Item(), new Subscribable(), {
       Utils.trace('Group.setBounds: rect is not a real rectangle!', rect);
       return;
     }
-    
-    
-    rect.width = Math.max( 110, rect.width );
-    rect.height = Math.max( 125, rect.height);
-
     
     var titleHeight = this.$titlebar.height();
     
