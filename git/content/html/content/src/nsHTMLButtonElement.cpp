@@ -62,7 +62,7 @@
 #include "nsLayoutErrors.h"
 #include "nsFocusManager.h"
 #include "nsHTMLFormElement.h"
-#include "nsIConstraintValidation.h"
+#include "nsConstraintValidation.h"
 
 #define NS_IN_SUBMIT_CLICK      (1 << 0)
 #define NS_OUTER_ACTIVATE_EVENT (1 << 1)
@@ -79,7 +79,7 @@ static const nsAttrValue::EnumTable* kButtonDefaultType = &kButtonTypeTable[2];
 
 class nsHTMLButtonElement : public nsGenericHTMLFormElement,
                             public nsIDOMHTMLButtonElement,
-                            public nsIConstraintValidation
+                            public nsConstraintValidation
 {
 public:
   nsHTMLButtonElement(already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -133,8 +133,8 @@ public:
   virtual void DoneCreatingElement();
   virtual nsXPCClassInfo* GetClassInfo();
 
-  // nsIConstraintValidation
-  PRBool IsBarredFromConstraintValidation() const;
+  // nsConstraintValidation
+  PRBool IsBarredFromConstraintValidation();
 
 protected:
   virtual PRBool AcceptAutofocus() const
@@ -183,15 +183,14 @@ DOMCI_NODE_DATA(HTMLButtonElement, nsHTMLButtonElement)
 
 // QueryInterface implementation for nsHTMLButtonElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLButtonElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLButtonElement,
-                                   nsIDOMHTMLButtonElement,
-                                   nsIConstraintValidation)
+  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLButtonElement,
+                                   nsIDOMHTMLButtonElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLButtonElement,
                                                nsGenericHTMLFormElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLButtonElement)
 
-// nsIConstraintValidation
-NS_IMPL_NSICONSTRAINTVALIDATION_EXCEPT_SETCUSTOMVALIDITY(nsHTMLButtonElement)
+// nsConstraintValidation
+NS_IMPL_NSCONSTRAINTVALIDATION(nsHTMLButtonElement)
 
 // nsIDOMHTMLButtonElement
 
@@ -612,19 +611,9 @@ nsresult
 nsHTMLButtonElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                   const nsAString* aValue, PRBool aNotify)
 {
-  if (aNameSpaceID == kNameSpaceID_None &&
-      aName == nsGkAtoms::type) {
-    if (!aValue) {
-      mType = kButtonDefaultType->value;
-    }
-
-    if (aNotify) {
-      nsIDocument* doc = GetCurrentDoc();
-      if (doc) {
-        doc->ContentStatesChanged(this, nsnull,
-                                  NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID);
-      }
-    }
+  if (!aValue && aNameSpaceID == kNameSpaceID_None &&
+    aName == nsGkAtoms::type) {
+    mType = kButtonDefaultType->value;
   }
 
   return nsGenericHTMLFormElement::AfterSetAttr(aNameSpaceID, aName,
@@ -662,33 +651,13 @@ nsHTMLButtonElement::RestoreState(nsPresState* aState)
 PRInt32
 nsHTMLButtonElement::IntrinsicState() const
 {
-  PRInt32 state = nsGenericHTMLFormElement::IntrinsicState();
-
-  if (IsCandidateForConstraintValidation()) {
-    state |= IsValid() ? NS_EVENT_STATE_VALID : NS_EVENT_STATE_INVALID;
-  }
-
-  return state | NS_EVENT_STATE_OPTIONAL;
+  return NS_EVENT_STATE_OPTIONAL | nsGenericHTMLFormElement::IntrinsicState();
 }
 
-// nsIConstraintValidation
-
-NS_IMETHODIMP
-nsHTMLButtonElement::SetCustomValidity(const nsAString& aError)
-{
-  nsIConstraintValidation::SetCustomValidity(aError);
-
-  nsIDocument* doc = GetCurrentDoc();
-  if (doc) {
-    doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_INVALID |
-                                            NS_EVENT_STATE_VALID);
-  }
-
-  return NS_OK;
-}
+// nsConstraintValidation
 
 PRBool
-nsHTMLButtonElement::IsBarredFromConstraintValidation() const
+nsHTMLButtonElement::IsBarredFromConstraintValidation()
 {
   return (mType == NS_FORM_BUTTON_BUTTON ||
           mType == NS_FORM_BUTTON_RESET);

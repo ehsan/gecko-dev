@@ -44,21 +44,18 @@
 class nsMIMEInfoAndroid : public nsIMIMEInfo
 {
 public:
-  static PRBool
-  GetMimeInfoForMimeType(const nsACString& aMimeType, 
-                         nsMIMEInfoAndroid** aMimeInfo);
-  static PRBool
-  GetMimeInfoForFileExt(const nsACString& aFileExt, 
-                        nsMIMEInfoAndroid** aMimeInfo);
-  static nsresult 
-  GetMimeInfoForProtocol(const nsACString &aScheme, PRBool *found,
-                         nsIHandlerInfo **info);
+  static already_AddRefed<nsIMIMEInfo> GetMimeInfoForMimeType(const nsACString& aMimeType);
+  static already_AddRefed<nsIMIMEInfo> GetMimeInfoForFileExt(const nsACString& aFileExt);
+  static nsresult GetMimeInfoForProtocol(const nsACString &aScheme,
+                                         PRBool *found,
+                                         nsIHandlerInfo **info);
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIMIMEINFO
   NS_DECL_NSIHANDLERINFO
-
+private:
   nsMIMEInfoAndroid(const nsACString& aMIMEType);
+  virtual ~nsMIMEInfoAndroid();
 
 protected:
   virtual NS_HIDDEN_(nsresult) LaunchDefaultWithFile(nsIFile* aFile);
@@ -81,6 +78,7 @@ protected:
     nsMIMEInfoAndroid* mOuter;
     
   };
+  SystemChooser mSystemChooser;
 };
 
 #endif /* nsMIMEInfoAndroid_h */

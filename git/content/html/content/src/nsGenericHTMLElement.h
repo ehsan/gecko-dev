@@ -829,8 +829,6 @@ public:
 
           PRBool IsLabelableControl() const;
 
-          PRBool IsSubmittableControl() const;
-
   // nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
