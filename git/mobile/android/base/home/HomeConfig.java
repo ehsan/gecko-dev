@@ -22,9 +22,8 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedList;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 public final class HomeConfig {
     /**
@@ -768,8 +767,7 @@ public final class HomeConfig {
      */
     public static class Editor implements Iterable<PanelConfig> {
         private final HomeConfig mHomeConfig;
-        private final Map<String, PanelConfig> mConfigMap;
-        private final List<String> mConfigOrder;
+        private final HashMap<String, PanelConfig> mConfigMap;
         private final Thread mOriginalThread;
 
         private PanelConfig mDefaultPanel;
@@ -778,8 +776,7 @@ public final class HomeConfig {
         private Editor(HomeConfig homeConfig, State configState) {
             mHomeConfig = homeConfig;
             mOriginalThread = Thread.currentThread();
-            mConfigMap = new HashMap<String, PanelConfig>();
-            mConfigOrder = new LinkedList<String>();
+            mConfigMap = new LinkedHashMap<String, PanelConfig>();
             mEnabledCount = 0;
 
             initFromState(configState);
@@ -787,11 +784,11 @@ public final class HomeConfig {
 
         /**
          * Initialize the initial state of the editor from the given
-         * {@sode State}. A HashMap is used to represent the list of
-         * panels as it provides fast access, and a LinkedList is used to
-         * keep track of order. We keep a reference to the default panel
-         * and the number of enabled panels to avoid iterating through the
-         * map every time we need those.
+         * {@sode State}. A LinkedHashMap is used to represent the list of
+         * panels as it provides fast access to specific panels from IDs
+         * while also being order-aware. We keep a reference to the
+         * default panel and the number of enabled panels to avoid iterating
+         * through the map every time we need those.
          *
          * @param configState The source State to load the editor from.
          */
@@ -811,9 +808,7 @@ public final class HomeConfig {
                     }
                 }
 
-                final String panelId = panelConfig.getId();
-                mConfigOrder.add(panelId);
-                mConfigMap.put(panelId, panelCopy);
+                mConfigMap.put(panelConfig.getId(), panelCopy);
             }
 
             // We should always have a defined default panel if there's
@@ -853,21 +848,10 @@ public final class HomeConfig {
             mDefaultPanel = null;
         }
 
-        /**
-         * Makes an ordered list of PanelConfigs that can be references
-         * or deep copied objects.
-         *
-         * @param deepCopy true to make deep-copied objects
-         * @return ordered List of PanelConfigs
-         */
-        private List<PanelConfig> makeOrderedCopy(boolean deepCopy) {
-            final List<PanelConfig> copiedList = new ArrayList<PanelConfig>(mConfigOrder.size());
-            for (String panelId : mConfigOrder) {
-                PanelConfig panelConfig = mConfigMap.get(panelId);
-                if (deepCopy) {
-                    panelConfig = new PanelConfig(panelConfig);
-                }
-                copiedList.add(panelConfig);
+        private List<PanelConfig> makeDeepCopy() {
+            List<PanelConfig> copiedList = new ArrayList<PanelConfig>();
+            for (PanelConfig panelConfig : mConfigMap.values()) {
+                copiedList.add(new PanelConfig(panelConfig));
             }
 
             return copiedList;
@@ -971,7 +955,6 @@ public final class HomeConfig {
             final String id = panelConfig.getId();
             if (!mConfigMap.containsKey(id)) {
                 mConfigMap.put(id, panelConfig);
-                mConfigOrder.add(id);
 
                 mEnabledCount++;
                 if (mEnabledCount == 1 || panelConfig.isDefault()) {
@@ -1002,7 +985,6 @@ public final class HomeConfig {
             }
 
             mConfigMap.remove(panelId);
-            mConfigOrder.remove(panelId);
 
             if (!panelConfig.isDisabled()) {
                 mEnabledCount--;
@@ -1012,25 +994,6 @@ public final class HomeConfig {
                 findNewDefault();
             }
 
-            return true;
-        }
-
-        /**
-         * Moves panel associated with panelId to the specified position.
-         *
-         * @param panelId Id of panel
-         * @param destIndex Destination position
-         * @return true if move succeeded
-         */
-        public boolean moveTo(String panelId, int destIndex) {
-            ThreadUtils.assertOnThread(mOriginalThread);
-
-            if (!mConfigOrder.contains(panelId)) {
-                return false;
-            }
-
-            mConfigOrder.remove(panelId);
-            mConfigOrder.add(destIndex, panelId);
             return true;
         }
 
@@ -1075,7 +1038,7 @@ public final class HomeConfig {
             // We're about to save the current state in the background thread
             // so we should use a deep copy of the PanelConfig instances to
             // avoid saving corrupted state.
-            final State newConfigState = new State(mHomeConfig, makeOrderedCopy(true));
+            final State newConfigState = new State(mHomeConfig, makeDeepCopy());
 
             ThreadUtils.getBackgroundHandler().post(new Runnable() {
                 @Override
@@ -1096,7 +1059,8 @@ public final class HomeConfig {
         public State commit() {
             ThreadUtils.assertOnThread(mOriginalThread);
 
-            final State newConfigState = new State(mHomeConfig, makeOrderedCopy(false));
+            final State newConfigState =
+                    new State(mHomeConfig, new ArrayList<PanelConfig>(mConfigMap.values()));
 
             // This is a synchronous blocking operation, hence no
             // need to deep copy the current PanelConfig instances.
@@ -1109,35 +1073,11 @@ public final class HomeConfig {
             return mConfigMap.isEmpty();
         }
 
-        private class EditorIterator implements Iterator<PanelConfig> {
-            private final Iterator<String> mOrderIterator;
-
-            public EditorIterator() {
-                mOrderIterator = mConfigOrder.iterator();
-            }
-
-            @Override
-            public boolean hasNext() {
-                return mOrderIterator.hasNext();
-            }
-
-            @Override
-            public PanelConfig next() {
-                final String panelId = mOrderIterator.next();
-                return mConfigMap.get(panelId);
-            }
-
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException("Can't 'remove' from on Editor iterator.");
-            }
-        }
-
         @Override
         public Iterator<PanelConfig> iterator() {
             ThreadUtils.assertOnThread(mOriginalThread);
 
-            return new EditorIterator();
+            return mConfigMap.values().iterator();
         }
     }
 

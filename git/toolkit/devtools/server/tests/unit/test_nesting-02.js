@@ -5,6 +5,7 @@
 // Test that we can nest event loops and then automatically exit nested event
 // loops when requested.
 
+const { defer } = devtools.require("sdk/core/promise");
 var gClient;
 var gThreadActor;
 
@@ -25,7 +26,7 @@ function run_test() {
 
 function test_nesting() {
   const thread = gThreadActor;
-  const { resolve, reject, promise: p } = promise.defer();
+  const { resolve, reject, promise } = defer();
 
   // The following things should happen (in order):
   // 1. In the new event loop (created by synchronize)
@@ -67,7 +68,7 @@ function test_nesting() {
     eventLoop.enter();
   });
 
-  do_check_eq(thread.synchronize(p), true);
+  do_check_eq(thread.synchronize(promise), true);
 
   // Should be on the fourth step
   do_check_eq(++currentStep, 4);

@@ -1518,10 +1518,8 @@ MediaManager::GetUserMediaDevices(nsPIDOMWindow* aWindow,
   nsCOMPtr<nsIDOMGetUserMediaErrorCallback> onError(aOnError);
   char* loopbackAudioDevice = nullptr;
   char* loopbackVideoDevice = nullptr;
-
-#ifdef DEBUG
   nsresult rv;
-
+#ifdef DEBUG
   // Check if the preference for using loopback devices is enabled.
   nsCOMPtr<nsIPrefService> prefs = do_GetService("@mozilla.org/preferences-service;1", &rv);
   if (NS_SUCCEEDED(rv)) {
@@ -1538,7 +1536,12 @@ MediaManager::GetUserMediaDevices(nsPIDOMWindow* aWindow,
     (aInnerWindowID ? aInnerWindowID : aWindow->WindowID()),
     loopbackAudioDevice, loopbackVideoDevice);
 
-  mMediaThread->Dispatch(gUMDRunnable, NS_DISPATCH_NORMAL);
+  nsCOMPtr<nsIThread> deviceThread;
+  rv = NS_NewThread(getter_AddRefs(deviceThread));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+
+  deviceThread->Dispatch(gUMDRunnable, NS_DISPATCH_NORMAL);
   return NS_OK;
 }
 

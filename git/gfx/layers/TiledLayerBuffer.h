@@ -19,10 +19,6 @@
 #include "nsRegion.h"                   // for nsIntRegion
 #include "nsTArray.h"                   // for nsTArray
 
-#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
-#include <ui/Fence.h>
-#endif
-
 namespace mozilla {
 namespace layers {
 
@@ -210,14 +206,6 @@ public:
    * returns that region. If it is not, an empty region will be returned.
    */
   virtual const nsIntRegion& GetValidLowPrecisionRegion() const = 0;
-
-#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
-  /**
-   * Store a fence that will signal when the current buffer is no longer being read.
-   * Similar to android's GLConsumer::setReleaseFence()
-   */
-  virtual void SetReleaseFence(const android::sp<android::Fence>& aReleaseFence) = 0;
-#endif
 };
 
 // Normal integer division truncates towards zero,

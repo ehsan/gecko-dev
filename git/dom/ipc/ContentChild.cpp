@@ -379,7 +379,6 @@ ContentChild::ContentChild()
 #ifdef ANDROID
    ,mScreenSize(0, 0)
 #endif
-   , mCanOverrideProcessName(true)
 {
     // This process is a content process, so it's clearly running in
     // multiprocess mode!
@@ -453,25 +452,21 @@ ContentChild::InitProcessAttributes()
 
 #ifdef MOZ_NUWA_PROCESS
     if (IsNuwaProcess()) {
-        SetProcessName(NS_LITERAL_STRING("(Nuwa)"), false);
+        SetProcessName(NS_LITERAL_STRING("(Nuwa)"));
         return;
     }
 #endif
     if (mIsForApp && !mIsForBrowser) {
-        SetProcessName(NS_LITERAL_STRING("(Preallocated app)"), false);
+        SetProcessName(NS_LITERAL_STRING("(Preallocated app)"));
     } else {
-        SetProcessName(NS_LITERAL_STRING("Browser"), false);
+        SetProcessName(NS_LITERAL_STRING("Browser"));
     }
 
 }
 
 void
-ContentChild::SetProcessName(const nsAString& aName, bool aDontOverride)
+ContentChild::SetProcessName(const nsAString& aName)
 {
-    if (!mCanOverrideProcessName) {
-        return;
-    }
-
     char* name;
     if ((name = PR_GetEnv("MOZ_DEBUG_APP_PROCESS")) &&
         aName.EqualsASCII(name)) {
@@ -489,10 +484,6 @@ ContentChild::SetProcessName(const nsAString& aName, bool aDontOverride)
 
     mProcessName = aName;
     mozilla::ipc::SetThisProcessName(NS_LossyConvertUTF16toASCII(aName).get());
-
-    if (aDontOverride) {
-        mCanOverrideProcessName = false;
-    }
 }
 
 void
@@ -1725,7 +1716,7 @@ public:
 
         // In the new process.
         ContentChild* child = ContentChild::GetSingleton();
-        child->SetProcessName(NS_LITERAL_STRING("(Preallocated app)"), false);
+        child->SetProcessName(NS_LITERAL_STRING("(Preallocated app)"));
         mozilla::ipc::Transport* transport = child->GetTransport();
         int fd = transport->GetFileDescriptor();
         transport->ResetFileDescriptor(fd);

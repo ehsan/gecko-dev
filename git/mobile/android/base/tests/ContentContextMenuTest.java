@@ -29,10 +29,7 @@ abstract class ContentContextMenuTest extends PixelTest {
 
     protected void verifyContextMenuItems(String[] items) {
         // Test that the menu items are displayed
-        if (!mSolo.searchText(items[0])) {
-            openWebContentContextMenu(items[0]); // Open the context menu if it is not already
-        }
-
+        openWebContentContextMenu(items[0]);
         for (String option:items) {
             mAsserter.ok(mSolo.searchText(option), "Checking that the option: " + option + " is available", "The option is available");
         }
@@ -48,24 +45,6 @@ abstract class ContentContextMenuTest extends PixelTest {
         tabEventExpecter.unregisterListener();
         verifyTabCount(expectedTabCount);
     }
-
-    protected void verifyTabs(String[] items) {
-        if (!mSolo.searchText(items[0])) {
-            openWebContentContextMenu(items[0]);
-        }
-
-        for (String option:items) {
-            mAsserter.ok(mSolo.searchText(option), "Checking that the option: " + option + " is available", "The option is available");
-        }
-    }
-
-    protected void switchTabs(String tab) {
-        if (!mSolo.searchText(tab)) {
-            openWebContentContextMenu(tab);
-        }
-        mSolo.clickOnText(tab);
-    }
-
 
     protected void verifyCopyOption(String copyOption, final String copiedText) {
         if (!mSolo.searchText(copyOption)) {
@@ -86,12 +65,10 @@ abstract class ContentContextMenuTest extends PixelTest {
 
 
     protected void verifyShareOption(String shareOption, String pageTitle) {
-        waitForText(pageTitle); // Even if this fails, it won't assert
-        if (!mSolo.searchText(shareOption)) {
-            openWebContentContextMenu(shareOption); // Open the context menu if it is not already
-        }
+        waitForText(pageTitle);
+        openWebContentContextMenu(shareOption);
         mSolo.clickOnText(shareOption);
-        mAsserter.ok(waitForText(shareOption), "Checking that the share pop-up is displayed", "The pop-up has been displayed");
+        mAsserter.ok(waitForText("Share via"), "Checking that the share pop-up is displayed", "The pop-up has been displayed");
 
         // Close the Share Link option menu and wait for the page to be focused again
         mActions.sendSpecialKey(Actions.SpecialKey.BACK);
@@ -99,9 +76,7 @@ abstract class ContentContextMenuTest extends PixelTest {
     }
 
     protected void verifyBookmarkLinkOption(String bookmarkOption, String link) {
-        if (!mSolo.searchText(bookmarkOption)) {
-            openWebContentContextMenu(bookmarkOption); // Open the context menu if it is not already
-        }
+        openWebContentContextMenu(bookmarkOption);
         mSolo.clickOnText(bookmarkOption);
         mAsserter.ok(waitForText("Bookmark added"), "Waiting for the Bookmark added toaster notification", "The notification has been displayed");
         mAsserter.ok(mDatabaseHelper.isBookmark(link), "Checking if the link has been added as a bookmark", "The link has been bookmarked");

@@ -6,6 +6,7 @@
  */
 let protocol = devtools.require("devtools/server/protocol");
 let {method, RetVal, Arg, Option} = protocol;
+let {defer, resolve} = devtools.require("sdk/core/promise");
 let events = devtools.require("sdk/event/core");
 let {LongStringActor} = devtools.require("devtools/server/actors/string");
 
@@ -144,7 +145,7 @@ function run_test()
       // That reference should be removed now.
       expectRootChildren(0);
     }).then(() => {
-      let deferred = promise.defer();
+      let deferred = defer();
       rootClient.once("string-event", (str) => {
         trace.expectSend({"type":"emitShortString","to":"<actorid>"});
         trace.expectReceive({"type":"string-event","str":"abc","from":"<actorid>"});
@@ -164,7 +165,7 @@ function run_test()
       // Will generate no packets
       return strfront.release();
     }).then(() => {
-      let deferred = promise.defer();
+      let deferred = defer();
       rootClient.once("string-event", (str) => {
         trace.expectSend({"type":"emitLongString","to":"<actorid>"});
         trace.expectReceive({"type":"string-event","str":{"type":"longString","actor":"<actorid>","length":16,"initial":"abcde"},"from":"<actorid>"});
