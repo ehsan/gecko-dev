@@ -1279,11 +1279,9 @@ class nsCycleCollector : public nsIMemoryReporter
 
   JSPurpleBuffer* mJSPurpleBuffer;
 
-private:
-  virtual ~nsCycleCollector();
-
 public:
   nsCycleCollector();
+  virtual ~nsCycleCollector();
 
   void RegisterJSRuntime(CycleCollectedJSRuntime* aJSRuntime);
   void ForgetJSRuntime();
@@ -1713,11 +1711,6 @@ NS_IMPL_ISUPPORTS(nsCycleCollectorLogSinkToFile, nsICycleCollectorLogSink)
 
 class nsCycleCollectorLogger MOZ_FINAL : public nsICycleCollectorListener
 {
-  ~nsCycleCollectorLogger()
-  {
-    ClearDescribers();
-  }
-
 public:
   nsCycleCollectorLogger()
     : mLogSink(nsCycleCollector_createLogSink())
@@ -1726,6 +1719,11 @@ public:
     , mWantAfterProcessing(false)
     , mCCLog(nullptr)
   {
+  }
+
+  ~nsCycleCollectorLogger()
+  {
+    ClearDescribers();
   }
 
   NS_DECL_ISUPPORTS
@@ -2517,13 +2515,6 @@ private:
 // removed.
 class JSPurpleBuffer
 {
-  ~JSPurpleBuffer()
-  {
-    MOZ_ASSERT(mValues.IsEmpty());
-    MOZ_ASSERT(mObjects.IsEmpty());
-    MOZ_ASSERT(mTenuredObjects.IsEmpty());
-  }
-
 public:
   JSPurpleBuffer(JSPurpleBuffer*& aReferenceToThis)
     : mReferenceToThis(aReferenceToThis)
@@ -2531,6 +2522,13 @@ public:
     mReferenceToThis = this;
     NS_ADDREF_THIS();
     mozilla::HoldJSObjects(this);
+  }
+
+  ~JSPurpleBuffer()
+  {
+    MOZ_ASSERT(mValues.IsEmpty());
+    MOZ_ASSERT(mObjects.IsEmpty());
+    MOZ_ASSERT(mTenuredObjects.IsEmpty());
   }
 
   void Destroy()

@@ -208,20 +208,18 @@ class LModPowTwoI : public LInstructionHelper<1, 1, 0>
     }
 };
 
-class LModMaskI : public LInstructionHelper<1, 1, 2>
+class LModMaskI : public LInstructionHelper<1, 1, 1>
 {
     const int32_t shift_;
 
   public:
     LIR_HEADER(ModMaskI);
 
-    LModMaskI(const LAllocation &lhs, const LDefinition &temp0, const LDefinition &temp1,
-              int32_t shift)
+    LModMaskI(const LAllocation &lhs, const LDefinition &temp1, int32_t shift)
       : shift_(shift)
     {
         setOperand(0, lhs);
-        setTemp(0, temp0);
-        setTemp(1, temp1);
+        setTemp(0, temp1);
     }
 
     int32_t shift() const {

@@ -62,6 +62,7 @@
 #include "libui/EventHub.h"
 #include "libui/InputReader.h"
 #include "libui/InputDispatcher.h"
+#include "cutils/properties.h"
 
 #ifdef MOZ_NUWA_PROCESS
 #include "ipc/Nuwa.h"
@@ -1051,7 +1052,9 @@ nsAppShell::Exit()
 void
 nsAppShell::InitInputDevices()
 {
-    sDevInputAudioJack = hal::IsHeadphoneEventFromInputDev();
+    char value[PROPERTY_VALUE_MAX];
+    property_get("ro.moz.devinputjack", value, "0");
+    sDevInputAudioJack = !strcmp(value, "1");
     sHeadphoneState = AKEY_STATE_UNKNOWN;
     sMicrophoneState = AKEY_STATE_UNKNOWN;
 

@@ -30,10 +30,5 @@ NotifySwitchStateFromInputDevice(SwitchDevice aDevice, SwitchState aState)
 {
 }
 
-bool IsHeadphoneEventFromInputDev()
-{
-  return false;
-}
-
 } // namespace hal_impl
 } // namespace mozilla

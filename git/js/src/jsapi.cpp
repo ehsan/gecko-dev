@@ -4482,6 +4482,29 @@ JS::OwningCompileOptions::setIntroducerFilename(JSContext *cx, const char *s)
     return true;
 }
 
+bool
+JS::OwningCompileOptions::wrap(JSContext *cx, JSCompartment *compartment)
+{
+    if (!compartment->wrap(cx, &elementRoot))
+        return false;
+    if (elementAttributeNameRoot) {
+        if (!compartment->wrap(cx, elementAttributeNameRoot.address()))
+            return false;
+    }
+
+    // There is no equivalent of cross-compartment wrappers for scripts. If
+    // the introduction script would be in a different compartment from the
+    // compiled code, we would be creating a cross-compartment script
+    // reference, which would be bogus. In that case, just don't bother to
+    // retain the introduction script.
+    if (introductionScriptRoot) {
+        if (introductionScriptRoot->compartment() != compartment)
+            introductionScriptRoot = nullptr;
+    }
+
+    return true;
+}
+
 JS::CompileOptions::CompileOptions(JSContext *cx, JSVersion version)
     : ReadOnlyCompileOptions(), elementRoot(cx), elementAttributeNameRoot(cx),
       introductionScriptRoot(cx)
@@ -4494,6 +4517,29 @@ JS::CompileOptions::CompileOptions(JSContext *cx, JSVersion version)
     extraWarningsOption = cx->options().extraWarnings();
     werrorOption = cx->options().werror();
     asmJSOption = cx->runtime()->options().asmJS();
+}
+
+bool
+JS::CompileOptions::wrap(JSContext *cx, JSCompartment *compartment)
+{
+    if (!compartment->wrap(cx, &elementRoot))
+        return false;
+    if (elementAttributeNameRoot) {
+        if (!compartment->wrap(cx, elementAttributeNameRoot.address()))
+            return false;
+    }
+
+    // There is no equivalent of cross-compartment wrappers for scripts. If
+    // the introduction script would be in a different compartment from the
+    // compiled code, we would be creating a cross-compartment script
+    // reference, which would be bogus. In that case, just don't bother to
+    // retain the introduction script.
+    if (introductionScriptRoot) {
+        if (introductionScriptRoot->compartment() != compartment)
+            introductionScriptRoot = nullptr;
+    }
+
+    return true;
 }
 
 bool
@@ -5321,12 +5367,6 @@ JS_GetStringLength(JSString *str)
     return str->length();
 }
 
-JS_PUBLIC_API(bool)
-JS_StringHasLatin1Chars(JSString *str)
-{
-    return str->hasLatin1Chars();
-}
-
 JS_PUBLIC_API(const jschar *)
 JS_GetStringCharsZ(JSContext *cx, JSString *str)
 {
@@ -5363,36 +5403,6 @@ JS_GetStringCharsAndLength(JSContext *cx, JSString *str, size_t *plength)
         return nullptr;
     *plength = linear->length();
     return linear->chars();
-}
-
-JS_PUBLIC_API(const JS::Latin1Char *)
-JS_GetLatin1StringCharsAndLength(JSContext *cx, const JS::AutoCheckCannotGC &nogc, JSString *str,
-                                 size_t *plength)
-{
-    JS_ASSERT(plength);
-    AssertHeapIsIdleOrStringIsFlat(cx, str);
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, str);
-    JSLinearString *linear = str->ensureLinear(cx);
-    if (!linear)
-        return nullptr;
-    *plength = linear->length();
-    return linear->latin1Chars(nogc);
-}
-
-JS_PUBLIC_API(const jschar *)
-JS_GetTwoByteStringCharsAndLength(JSContext *cx, const JS::AutoCheckCannotGC &nogc, JSString *str,
-                                  size_t *plength)
-{
-    JS_ASSERT(plength);
-    AssertHeapIsIdleOrStringIsFlat(cx, str);
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, str);
-    JSLinearString *linear = str->ensureLinear(cx);
-    if (!linear)
-        return nullptr;
-    *plength = linear->length();
-    return linear->twoByteChars(nogc);
 }
 
 JS_PUBLIC_API(const jschar *)
@@ -5580,7 +5590,8 @@ JS_GetStringEncodingLength(JSContext *cx, JSString *str)
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
 
-    if (!str->ensureLinear(cx))
+    const jschar *chars = str->getChars(cx);
+    if (!chars)
         return size_t(-1);
     return str->length();
 }
@@ -5597,21 +5608,10 @@ JS_EncodeStringToBuffer(JSContext *cx, JSString *str, char *buffer, size_t lengt
      * error.
      */
     size_t writtenLength = length;
-    JSLinearString *linear = str->ensureLinear(cx);
-    if (!linear)
-         return size_t(-1);
-
-    bool res;
-    if (linear->hasLatin1Chars()) {
-        JS::AutoCheckCannotGC nogc;
-        res = DeflateStringToBuffer(nullptr, linear->latin1Chars(nogc), linear->length(), buffer,
-                                    &writtenLength);
-    } else {
-        JS::AutoCheckCannotGC nogc;
-        res = DeflateStringToBuffer(nullptr, linear->twoByteChars(nogc), linear->length(), buffer,
-                                    &writtenLength);
-    }
-    if (res) {
+    const jschar *chars = str->getChars(nullptr);
+    if (!chars)
+        return size_t(-1);
+    if (DeflateStringToBuffer(nullptr, chars, str->length(), buffer, &writtenLength)) {
         JS_ASSERT(writtenLength <= length);
         return writtenLength;
     }
@@ -5670,12 +5670,12 @@ JS_Stringify(JSContext *cx, MutableHandleValue vp, HandleObject replacer,
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, replacer, space);
     StringBuffer sb(cx);
-    if (!sb.ensureTwoByteChars())
-        return false;
     if (!js_Stringify(cx, vp, replacer, space, sb))
         return false;
-    if (sb.empty() && !sb.append(cx->names().null))
-        return false;
+    if (sb.empty()) {
+        HandlePropertyName null = cx->names().null;
+        return callback(null->chars(), null->length(), data);
+    }
     return callback(sb.rawTwoByteBegin(), sb.length(), data);
 }
 

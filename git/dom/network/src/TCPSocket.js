@@ -437,10 +437,6 @@ TCPSocket.prototype = {
     that._inputStreamPump = new InputStreamPump(that._socketInputStream, -1, -1, 0, 0, false);
     that._inputStreamPump.asyncRead(that, null);
 
-    // Grab host/port from SocketTransport.
-    that._host = transport.host;
-    that._port = transport.port;
-
     return that;
   },
 
@@ -452,8 +448,6 @@ TCPSocket.prototype = {
     that._readyState = kOPEN;
     socketChild.setSocketAndWindow(that, windowObject);
     that._socketBridge = socketChild;
-    that._host = socketChild.host;
-    that._port = socketChild.port;
 
     return that;
   },

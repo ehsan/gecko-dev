@@ -3587,6 +3587,10 @@ class JS_FRIEND_API(ReadOnlyCompileOptions)
     uint32_t introductionOffset;
     bool hasIntroductionInfo;
 
+    // Wrap any compilation option values that need it as appropriate for
+    // use from |compartment|.
+    virtual bool wrap(JSContext *cx, JSCompartment *compartment) = 0;
+
   private:
     static JSObject * const nullObjectPtr;
     void operator=(const ReadOnlyCompileOptions &) MOZ_DELETE;
@@ -3681,6 +3685,8 @@ class JS_FRIEND_API(OwningCompileOptions) : public ReadOnlyCompileOptions
         return true;
     }
 
+    virtual bool wrap(JSContext *cx, JSCompartment *compartment) MOZ_OVERRIDE;
+
   private:
     void operator=(const CompileOptions &rhs) MOZ_DELETE;
 };
@@ -3763,6 +3769,8 @@ class MOZ_STACK_CLASS JS_FRIEND_API(CompileOptions) : public ReadOnlyCompileOpti
         hasIntroductionInfo = true;
         return *this;
     }
+
+    virtual bool wrap(JSContext *cx, JSCompartment *compartment) MOZ_OVERRIDE;
 
   private:
     void operator=(const CompileOptions &rhs) MOZ_DELETE;
@@ -4166,20 +4174,8 @@ JS_FileEscapedString(FILE *fp, JSString *str, char quote);
 extern JS_PUBLIC_API(size_t)
 JS_GetStringLength(JSString *str);
 
-/* Returns true iff the string's characters are stored as Latin1. */
-extern JS_PUBLIC_API(bool)
-JS_StringHasLatin1Chars(JSString *str);
-
 extern JS_PUBLIC_API(const jschar *)
 JS_GetStringCharsAndLength(JSContext *cx, JSString *str, size_t *length);
-
-extern JS_PUBLIC_API(const JS::Latin1Char *)
-JS_GetLatin1StringCharsAndLength(JSContext *cx, const JS::AutoCheckCannotGC &nogc, JSString *str,
-                                 size_t *length);
-
-extern JS_PUBLIC_API(const jschar *)
-JS_GetTwoByteStringCharsAndLength(JSContext *cx, const JS::AutoCheckCannotGC &nogc, JSString *str,
-                                  size_t *length);
 
 extern JS_PUBLIC_API(const jschar *)
 JS_GetInternedStringChars(JSString *str);

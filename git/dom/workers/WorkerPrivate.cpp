@@ -47,7 +47,6 @@
 #include "mozilla/dom/MessageEvent.h"
 #include "mozilla/dom/MessageEventBinding.h"
 #include "mozilla/dom/MessagePortList.h"
-#include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/dom/WorkerBinding.h"
 #include "mozilla/Preferences.h"
 #include "nsAlgorithm.h"
@@ -219,10 +218,17 @@ private:
 struct WindowAction
 {
   nsPIDOMWindow* mWindow;
+  JSContext* mJSContext;
   bool mDefaultAction;
 
+  WindowAction(nsPIDOMWindow* aWindow, JSContext* aJSContext)
+  : mWindow(aWindow), mJSContext(aJSContext), mDefaultAction(true)
+  {
+    MOZ_ASSERT(aJSContext);
+  }
+
   WindowAction(nsPIDOMWindow* aWindow)
-  : mWindow(aWindow), mDefaultAction(true)
+  : mWindow(aWindow), mJSContext(nullptr), mDefaultAction(true)
   { }
 
   bool
@@ -1837,11 +1843,14 @@ class WorkerPrivateParent<Derived>::SynchronizeAndResumeRunnable MOZ_FINAL
 
   WorkerPrivate* mWorkerPrivate;
   nsCOMPtr<nsPIDOMWindow> mWindow;
+  nsCOMPtr<nsIScriptContext> mScriptContext;
 
 public:
   SynchronizeAndResumeRunnable(WorkerPrivate* aWorkerPrivate,
-                               nsPIDOMWindow* aWindow)
-  : mWorkerPrivate(aWorkerPrivate), mWindow(aWindow)
+                               nsPIDOMWindow* aWindow,
+                               nsIScriptContext* aScriptContext)
+  : mWorkerPrivate(aWorkerPrivate), mWindow(aWindow),
+    mScriptContext(aScriptContext)
   {
     AssertIsOnMainThread();
     MOZ_ASSERT(aWorkerPrivate);
@@ -1859,11 +1868,9 @@ private:
     AssertIsOnMainThread();
 
     if (mWorkerPrivate) {
-      AutoJSAPI jsapi;
-      if (NS_WARN_IF(!jsapi.InitWithLegacyErrorReporting(mWindow))) {
-        return NS_OK;
-      }
-      JSContext* cx = jsapi.cx();
+      AutoPushJSContext cx(mScriptContext ?
+                           mScriptContext->GetNativeContext() :
+                           nsContentUtils::GetSafeJSContext());
 
       if (!mWorkerPrivate->Resume(cx, mWindow)) {
         JS_ReportPendingException(cx);
@@ -1882,6 +1889,7 @@ private:
 
     mWorkerPrivate = nullptr;
     mWindow = nullptr;
+    mScriptContext = nullptr;
   }
 };
 
@@ -2601,7 +2609,8 @@ template <class Derived>
 bool
 WorkerPrivateParent<Derived>::SynchronizeAndResume(
                                                JSContext* aCx,
-                                               nsPIDOMWindow* aWindow)
+                                               nsPIDOMWindow* aWindow,
+                                               nsIScriptContext* aScriptContext)
 {
   AssertIsOnMainThread();
   MOZ_ASSERT(!GetParent());
@@ -2614,7 +2623,8 @@ WorkerPrivateParent<Derived>::SynchronizeAndResume(
   // the messages.
 
   nsRefPtr<SynchronizeAndResumeRunnable> runnable =
-    new SynchronizeAndResumeRunnable(ParentAsWorkerPrivate(), aWindow);
+    new SynchronizeAndResumeRunnable(ParentAsWorkerPrivate(), aWindow,
+                                     aScriptContext);
   if (NS_FAILED(NS_DispatchToCurrentThread(runnable))) {
     JS_ReportError(aCx, "Failed to dispatch to current thread!");
     return false;
@@ -2814,11 +2824,16 @@ WorkerPrivateParent<Derived>::DispatchMessageEventToMessagePort(
     return true;
   }
 
-  AutoJSAPI jsapi;
-  if (NS_WARN_IF(!jsapi.InitWithLegacyErrorReporting(port->GetParentObject()))) {
-    return false;
-  }
-  JSContext* cx = jsapi.cx();
+  nsCOMPtr<nsIScriptGlobalObject> sgo;
+  port->GetParentObject(getter_AddRefs(sgo));
+  MOZ_ASSERT(sgo, "Should never happen if IsClosed() returned false!");
+  MOZ_ASSERT(sgo->GetGlobalJSObject());
+
+  nsCOMPtr<nsIScriptContext> scx = sgo->GetContext();
+  MOZ_ASSERT_IF(scx, scx->GetNativeContext());
+
+  AutoPushJSContext cx(scx ? scx->GetNativeContext() : aCx);
+  JSAutoCompartment(cx, sgo->GetGlobalJSObject());
 
   JS::Rooted<JS::Value> data(cx);
   if (!buffer.read(cx, &data, WorkerStructuredCloneCallbacks(true))) {
@@ -3134,6 +3149,14 @@ WorkerPrivateParent<Derived>::BroadcastErrorToSharedWorkers(
     // May be null.
     nsPIDOMWindow* window = sharedWorker->GetOwner();
 
+    size_t actionsIndex = windowActions.LastIndexOf(WindowAction(window));
+
+    AutoJSAPI jsapi;
+    if (NS_WARN_IF(!jsapi.InitWithLegacyErrorReporting(sharedWorker->GetOwner()))) {
+      continue;
+    }
+    JSContext* cx = jsapi.cx();
+
     RootedDictionary<ErrorEventInit> errorInit(aCx);
     errorInit.mBubbles = false;
     errorInit.mCancelable = true;
@@ -3146,7 +3169,8 @@ WorkerPrivateParent<Derived>::BroadcastErrorToSharedWorkers(
       ErrorEvent::Constructor(sharedWorker, NS_LITERAL_STRING("error"),
                               errorInit);
     if (!errorEvent) {
-      ThrowAndReport(window, NS_ERROR_UNEXPECTED);
+      Throw(cx, NS_ERROR_UNEXPECTED);
+      JS_ReportPendingException(cx);
       continue;
     }
 
@@ -3155,7 +3179,8 @@ WorkerPrivateParent<Derived>::BroadcastErrorToSharedWorkers(
     bool defaultActionEnabled;
     nsresult rv = sharedWorker->DispatchEvent(errorEvent, &defaultActionEnabled);
     if (NS_FAILED(rv)) {
-      ThrowAndReport(window, rv);
+      Throw(cx, rv);
+      JS_ReportPendingException(cx);
       continue;
     }
 
@@ -3163,15 +3188,12 @@ WorkerPrivateParent<Derived>::BroadcastErrorToSharedWorkers(
       // Add the owning window to our list so that we will fire an error event
       // at it later.
       if (!windowActions.Contains(window)) {
-        windowActions.AppendElement(WindowAction(window));
+        windowActions.AppendElement(WindowAction(window, cx));
       }
-    } else {
-      size_t actionsIndex = windowActions.LastIndexOf(WindowAction(window));
-      if (actionsIndex != windowActions.NoIndex) {
-        // Any listener that calls preventDefault() will prevent the window from
-        // receiving the error event.
-        windowActions[actionsIndex].mDefaultAction = false;
-      }
+    } else if (actionsIndex != windowActions.NoIndex) {
+      // Any listener that calls preventDefault() will prevent the window from
+      // receiving the error event.
+      windowActions[actionsIndex].mDefaultAction = false;
     }
   }
 
@@ -3192,6 +3214,10 @@ WorkerPrivateParent<Derived>::BroadcastErrorToSharedWorkers(
       continue;
     }
 
+    JSContext* cx = windowAction.mJSContext;
+
+    AutoCxPusher autoPush(cx);
+
     nsCOMPtr<nsIScriptGlobalObject> sgo =
       do_QueryInterface(windowAction.mWindow);
     MOZ_ASSERT(sgo);
@@ -3207,7 +3233,8 @@ WorkerPrivateParent<Derived>::BroadcastErrorToSharedWorkers(
     nsEventStatus status = nsEventStatus_eIgnore;
     rv = sgo->HandleScriptError(init, &status);
     if (NS_FAILED(rv)) {
-      ThrowAndReport(windowAction.mWindow, rv);
+      Throw(cx, rv);
+      JS_ReportPendingException(cx);
       continue;
     }
 

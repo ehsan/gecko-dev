@@ -700,7 +700,7 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
             CompileOptions options(cx);
             options.setOriginPrincipals(xdr->originPrincipals());
             ss->initFromOptions(cx, options);
-            sourceObject = ScriptSourceObject::create(cx, ss);
+            sourceObject = ScriptSourceObject::create(cx, ss, options);
             if (!sourceObject)
                 return false;
         } else {
@@ -1241,26 +1241,66 @@ JSScript::destroyScriptCounts(FreeOp *fop)
 }
 
 void
+ScriptSourceObject::setSource(ScriptSource *source)
+{
+    if (source)
+        source->incref();
+    if (this->source())
+        this->source()->decref();
+    setReservedSlot(SOURCE_SLOT, PrivateValue(source));
+}
+
+JSObject *
+ScriptSourceObject::element() const
+{
+    return getReservedSlot(ELEMENT_SLOT).toObjectOrNull();
+}
+
+void
+ScriptSourceObject::initElement(HandleObject element)
+{
+    JS_ASSERT(getReservedSlot(ELEMENT_SLOT).isNull());
+    setReservedSlot(ELEMENT_SLOT, ObjectOrNullValue(element));
+}
+
+const Value &
+ScriptSourceObject::elementAttributeName() const
+{
+    const Value &prop = getReservedSlot(ELEMENT_PROPERTY_SLOT);
+    JS_ASSERT(prop.isUndefined() || prop.isString());
+    return prop;
+}
+
+void
+ScriptSourceObject::initIntroductionScript(JSScript *script)
+{
+    JS_ASSERT(!getReservedSlot(INTRODUCTION_SCRIPT_SLOT).toPrivate());
+
+    // There is no equivalent of cross-compartment wrappers for scripts. If
+    // the introduction script would be in a different compartment from the
+    // compiled code, we would be creating a cross-compartment script
+    // reference, which would be bogus. In that case, just don't bother to
+    // retain the introduction script.
+    if (script && script->compartment() == compartment())
+        setReservedSlot(INTRODUCTION_SCRIPT_SLOT, PrivateValue(script));
+}
+
+void
 ScriptSourceObject::trace(JSTracer *trc, JSObject *obj)
 {
     ScriptSourceObject *sso = static_cast<ScriptSourceObject *>(obj);
 
-    // Don't trip over the poison 'not yet initialized' values.
-    if (!sso->getReservedSlot(INTRODUCTION_SCRIPT_SLOT).isMagic(JS_GENERIC_MAGIC)) {
-        JSScript *script = sso->introductionScript();
-        if (script) {
-            MarkScriptUnbarriered(trc, &script, "ScriptSourceObject introductionScript");
-            sso->setReservedSlot(INTRODUCTION_SCRIPT_SLOT, PrivateValue(script));
-        }
+    if (JSScript *script = sso->introductionScript()) {
+        MarkScriptUnbarriered(trc, &script, "ScriptSourceObject introductionScript");
+        sso->setReservedSlot(INTRODUCTION_SCRIPT_SLOT, PrivateValue(script));
     }
 }
 
 void
 ScriptSourceObject::finalize(FreeOp *fop, JSObject *obj)
 {
-    ScriptSourceObject *sso = &obj->as<ScriptSourceObject>();
-    sso->source()->decref();
-    sso->setReservedSlot(SOURCE_SLOT, PrivateValue(nullptr));
+    // ScriptSource::setSource automatically takes care of the refcount
+    obj->as<ScriptSourceObject>().setSource(nullptr);
 }
 
 const Class ScriptSourceObject::class_ = {
@@ -1282,59 +1322,26 @@ const Class ScriptSourceObject::class_ = {
 };
 
 ScriptSourceObject *
-ScriptSourceObject::create(ExclusiveContext *cx, ScriptSource *source)
+ScriptSourceObject::create(ExclusiveContext *cx, ScriptSource *source,
+                           const ReadOnlyCompileOptions &options)
 {
     RootedObject object(cx, NewObjectWithGivenProto(cx, &class_, nullptr, cx->global()));
     if (!object)
         return nullptr;
     RootedScriptSource sourceObject(cx, &object->as<ScriptSourceObject>());
 
-    source->incref();    // The matching decref is in ScriptSourceObject::finalize.
-    sourceObject->initReservedSlot(SOURCE_SLOT, PrivateValue(source));
+    source->incref();
+    sourceObject->initSlot(SOURCE_SLOT, PrivateValue(source));
+    sourceObject->initSlot(ELEMENT_SLOT, ObjectOrNullValue(options.element()));
+    if (options.elementAttributeName())
+        sourceObject->initSlot(ELEMENT_PROPERTY_SLOT, StringValue(options.elementAttributeName()));
+    else
+        sourceObject->initSlot(ELEMENT_PROPERTY_SLOT, UndefinedValue());
 
-    // The remaining slots should eventually be populated by a call to
-    // initFromOptions. Poison them until that point.
-    sourceObject->initReservedSlot(ELEMENT_SLOT, MagicValue(JS_GENERIC_MAGIC));
-    sourceObject->initReservedSlot(ELEMENT_PROPERTY_SLOT, MagicValue(JS_GENERIC_MAGIC));
-    sourceObject->initReservedSlot(INTRODUCTION_SCRIPT_SLOT, MagicValue(JS_GENERIC_MAGIC));
+    sourceObject->initSlot(INTRODUCTION_SCRIPT_SLOT, PrivateValue(nullptr));
+    sourceObject->initIntroductionScript(options.introductionScript());
 
     return sourceObject;
-}
-
-/* static */ bool
-ScriptSourceObject::initFromOptions(JSContext *cx, HandleScriptSource source,
-                                    const ReadOnlyCompileOptions &options)
-{
-    assertSameCompartment(cx, source);
-
-    RootedValue element(cx, ObjectOrNullValue(options.element()));
-    if (!cx->compartment()->wrap(cx, &element))
-        return false;
-    source->setReservedSlot(ELEMENT_SLOT, element);
-
-    RootedValue elementAttributeName(cx);
-    if (options.elementAttributeName())
-        elementAttributeName = StringValue(options.elementAttributeName());
-    else
-        elementAttributeName = UndefinedValue();
-    if (!cx->compartment()->wrap(cx, &elementAttributeName))
-        return false;
-    source->setReservedSlot(ELEMENT_PROPERTY_SLOT, elementAttributeName);
-
-    // There is no equivalent of cross-compartment wrappers for scripts. If the
-    // introduction script and ScriptSourceObject are in different compartments,
-    // we would be creating a cross-compartment script reference, which is
-    // forbidden. In that case, simply don't bother to retain the introduction
-    // script.
-    if (options.introductionScript() &&
-        options.introductionScript()->compartment() == cx->compartment())
-    {
-        source->setReservedSlot(INTRODUCTION_SCRIPT_SLOT, PrivateValue(options.introductionScript()));
-    } else {
-        source->setReservedSlot(INTRODUCTION_SCRIPT_SLOT, UndefinedValue());
-    }
-
-    return true;
 }
 
 /* static */ bool
