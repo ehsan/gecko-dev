@@ -2,6 +2,12 @@
 // http://creativecommons.org/publicdomain/zero/1.0/
 
 function serviceWorkerTestExec(testFile) {
+  var isB2G = !navigator.userAgent.contains("Android") &&
+              /Mobile|Tablet/.test(navigator.userAgent);
+  if (isB2G) {
+    // B2G doesn't support running service workers for now due to bug 1137683.
+    return Promise.resolve();
+  }
   return new Promise(function(resolve, reject) {
     function setupSW(registration) {
       var worker = registration.waiting ||
