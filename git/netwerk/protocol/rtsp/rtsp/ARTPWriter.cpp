@@ -32,9 +32,6 @@
 #include <utils/ByteOrder.h>
 
 #include "mozilla/NullPtr.h"
-#include "NetworkActivityMonitor.h"
-
-using namespace mozilla::net;
 
 #define PT      97
 #define PT_STR  "97"
@@ -63,8 +60,6 @@ ARTPWriter::ARTPWriter(int fd)
     if (!mSocket) {
         TRESPASS();
     }
-
-    NetworkActivityMonitor::AttachIOLayer(mSocket);
 
     mRTPAddr.inet.family = PR_AF_INET;
 

@@ -61,6 +61,11 @@ public class RemoteTabsContainer extends GeckoSwipeRefreshLayout
     }
 
     @Override
+    public ViewGroup getLayout() {
+        return this;
+    }
+
+    @Override
     public void setTabsPanel(TabsPanel panel) {
         list.setTabsPanel(panel);
     }

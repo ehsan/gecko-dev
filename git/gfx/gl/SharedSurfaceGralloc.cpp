@@ -152,9 +152,3 @@ SharedSurface_Gralloc::WaitSync()
 {
     return true;
 }
-
-void
-SharedSurface_Gralloc::WaitForBufferOwnership()
-{
-    mTextureClient->WaitReleaseFence();
-}
