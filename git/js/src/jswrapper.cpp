@@ -793,28 +793,25 @@ SecurityWrapper<Base>::SecurityWrapper(unsigned flags)
 
 template <class Base>
 bool
-SecurityWrapper<Base>::enter(JSContext *cx, JSObject *wrapper, jsid id,
-                             Wrapper::Action act, bool *bp)
-{
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_UNWRAP_DENIED);
-    *bp = false;
-    return false;
-}
-
- template <class Base>
- bool
 SecurityWrapper<Base>::nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl impl,
                                   CallArgs args)
 {
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_UNWRAP_DENIED);
-    return false;
+    /*
+     * Let this through until compartment-per-global lets us have stronger
+     * invariants wrt document.domain (bug 714547).
+     */
+    return Base::nativeCall(cx, test, impl, args);
 }
 
 template <class Base>
 bool
 SecurityWrapper<Base>::objectClassIs(JSObject *obj, ESClassValue classValue, JSContext *cx)
 {
-    return false;
+    /*
+     * Let this through until compartment-per-global lets us have stronger
+     * invariants wrt document.domain (bug 714547).
+     */
+    return Base::objectClassIs(obj, classValue, cx);
 }
 
 template <class Base>
