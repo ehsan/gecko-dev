@@ -110,7 +110,9 @@ OrientedImage::GetFrame(uint32_t aWhichFrame,
   // Create a surface to draw into.
   mozilla::RefPtr<mozilla::gfx::DrawTarget> target;
   target = gfxPlatform::GetPlatform()->
-    CreateOffscreenContentDrawTarget(gfx::IntSize(width, height), surfaceFormat);
+    CreateOffscreenCanvasDrawTarget(gfx::IntSize(width, height), surfaceFormat);
+  nsRefPtr<gfxASurface> surface = gfxPlatform::GetPlatform()->
+    GetThebesSurfaceForDrawTarget(target);
 
   // Create our drawable.
   nsRefPtr<gfxASurface> innerSurface =
@@ -120,14 +122,11 @@ OrientedImage::GetFrame(uint32_t aWhichFrame,
     new gfxSurfaceDrawable(innerSurface, gfxIntSize(width, height));
 
   // Draw.
-  nsRefPtr<gfxContext> ctx = new gfxContext(target);
+  nsRefPtr<gfxContext> ctx = new gfxContext(surface);
   gfxRect imageRect(0, 0, width, height);
   gfxUtils::DrawPixelSnapped(ctx, drawable, OrientationMatrix(nsIntSize(width, height)),
                              imageRect, imageRect, imageRect, imageRect,
                              imageFormat, GraphicsFilter::FILTER_FAST);
-  
-  nsRefPtr<gfxASurface> surface = gfxPlatform::GetPlatform()->
-    GetThebesSurfaceForDrawTarget(target);
 
   return surface.forget();
 }

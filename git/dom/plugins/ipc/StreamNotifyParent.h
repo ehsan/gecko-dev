@@ -35,7 +35,7 @@ public:
   }
 
 private:
-  bool RecvRedirectNotifyResponse(const bool& allow) MOZ_OVERRIDE;
+  bool RecvRedirectNotifyResponse(const bool& allow);
 
   bool* mDestructionFlag;
 };

@@ -278,8 +278,9 @@ nsSecureBrowserUIImpl::MapInternalToExternalState(uint32_t* aState, lockIconStat
   if (!docShell)
     return NS_OK;
 
+  int32_t docShellType;
   // For content docShell's, the mixed content security state is set on the root docShell.
-  if (docShell->ItemType() == nsIDocShellTreeItem::typeContent) {
+  if (NS_SUCCEEDED(docShell->GetItemType(&docShellType)) && docShellType == nsIDocShellTreeItem::typeContent) {
     nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem(do_QueryInterface(docShell));
     nsCOMPtr<nsIDocShellTreeItem> sameTypeRoot;
     docShellTreeItem->GetSameTypeRootTreeItem(getter_AddRefs(sameTypeRoot));

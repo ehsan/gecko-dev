@@ -150,7 +150,8 @@ PrintDocTree(nsIDocShellTreeItem* aParentItem, int aLevel)
   int32_t childWebshellCount;
   aParentItem->GetChildCount(&childWebshellCount);
   nsCOMPtr<nsIDocShell> parentAsDocShell(do_QueryInterface(aParentItem));
-  int32_t type = aParentItem->ItemType();
+  int32_t type;
+  aParentItem->GetItemType(&type);
   nsCOMPtr<nsIPresShell> presShell = parentAsDocShell->GetPresShell();
   nsRefPtr<nsPresContext> presContext;
   parentAsDocShell->GetPresContext(getter_AddRefs(presContext));
@@ -1342,7 +1343,10 @@ nsEventStateManager::GetAccessModifierMaskFor(nsISupports* aDocShell)
   if (!treeItem)
     return -1; // invalid modifier
 
-  switch (treeItem->ItemType()) {
+  int32_t itemType;
+  treeItem->GetItemType(&itemType);
+  switch (itemType) {
+
   case nsIDocShellTreeItem::typeChrome:
     return Prefs::ChromeAccessModifierMask();
 

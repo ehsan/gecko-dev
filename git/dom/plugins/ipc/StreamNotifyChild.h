@@ -37,7 +37,7 @@ public:
 private:
   virtual bool Recv__delete__(const NPReason& reason) MOZ_OVERRIDE;
 
-  bool RecvRedirectNotify(const nsCString& url, const int32_t& status) MOZ_OVERRIDE;
+  bool RecvRedirectNotify(const nsCString& url, const int32_t& status);
 
   /**
    * If a stream is created for this this URLNotify, we associate the objects

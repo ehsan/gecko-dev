@@ -416,7 +416,9 @@ nsCoreUtils::IsContentDocument(nsIDocument *aDocument)
   nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem = aDocument->GetDocShell();
   NS_ASSERTION(docShellTreeItem, "No document shell tree item for document!");
 
-  return (docShellTreeItem->ItemType() == nsIDocShellTreeItem::typeContent);
+  int32_t contentType;
+  docShellTreeItem->GetItemType(&contentType);
+  return (contentType == nsIDocShellTreeItem::typeContent);
 }
 
 bool
