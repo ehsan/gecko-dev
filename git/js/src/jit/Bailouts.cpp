@@ -76,8 +76,6 @@ jit::Bailout(BailoutStack *sp, BaselineBailoutInfo **bailoutInfo)
 
     // We don't have an exit frame.
     cx->mainThread().jitTop = nullptr;
-    gc::AutoSuppressGC suppress(cx);
-
     JitActivationIterator jitActivations(cx->runtime());
     IonBailoutIterator iter(jitActivations, sp);
     JitActivation *activation = jitActivations->asJit();
@@ -112,8 +110,6 @@ jit::InvalidationBailout(InvalidationBailoutStack *sp, size_t *frameSizeOut,
 
     // We don't have an exit frame.
     cx->mainThread().jitTop = nullptr;
-    gc::AutoSuppressGC suppress(cx);
-
     JitActivationIterator jitActivations(cx->runtime());
     IonBailoutIterator iter(jitActivations, sp);
     JitActivation *activation = jitActivations->asJit();
@@ -182,8 +178,6 @@ jit::ExceptionHandlerBailout(JSContext *cx, const InlineFrameIterator &frame,
     MOZ_ASSERT_IF(!excInfo.propagatingIonExceptionForDebugMode(), cx->isExceptionPending());
 
     cx->mainThread().jitTop = nullptr;
-    gc::AutoSuppressGC suppress(cx);
-
     JitActivationIterator jitActivations(cx->runtime());
     IonBailoutIterator iter(jitActivations, frame.frame());
     JitActivation *activation = jitActivations->asJit();

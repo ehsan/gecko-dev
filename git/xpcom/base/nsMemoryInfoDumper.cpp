@@ -667,7 +667,7 @@ nsMemoryInfoDumper::DumpMemoryInfoToTempDir(const nsAString& aIdentifier,
 nsresult
 nsMemoryInfoDumper::DumpDMD(const nsAString& aIdentifier)
 {
-  if (!dmd::IsRunning()) {
+  if (!dmd::IsEnabled()) {
     return NS_OK;
   }
 

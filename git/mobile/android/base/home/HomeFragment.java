@@ -6,13 +6,11 @@
 package org.mozilla.gecko.home;
 
 import org.mozilla.gecko.EditBookmarkDialog;
-import org.mozilla.gecko.GeckoApp;
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
 import org.mozilla.gecko.GeckoProfile;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.ReaderModeUtils;
-import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.Telemetry;
 import org.mozilla.gecko.TelemetryContract;
@@ -23,7 +21,6 @@ import org.mozilla.gecko.home.TopSitesGridView.TopSitesGridContextMenuInfo;
 import org.mozilla.gecko.util.Clipboard;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.UiAsyncTask;
-import org.mozilla.gecko.widget.ButtonToast;
 
 import android.content.ContentResolver;
 import android.content.Context;
@@ -179,10 +176,8 @@ abstract class HomeFragment extends Fragment {
             }
 
             int flags = Tabs.LOADURL_NEW_TAB | Tabs.LOADURL_BACKGROUND;
-            final boolean isPrivate = (item.getItemId() == R.id.home_open_private_tab);
-            if (isPrivate) {
+            if (item.getItemId() == R.id.home_open_private_tab)
                 flags |= Tabs.LOADURL_PRIVATE;
-            }
 
             Telemetry.sendUIEvent(TelemetryContract.Event.LOAD_URL, TelemetryContract.Method.CONTEXT_MENU);
 
@@ -190,26 +185,8 @@ abstract class HomeFragment extends Fragment {
 
             // Some pinned site items have "user-entered" urls. URLs entered in the PinSiteDialog are wrapped in
             // a special URI until we can get a valid URL. If the url is a user-entered url, decode the URL before loading it.
-            final Tab newTab = Tabs.getInstance().loadUrl(decodeUserEnteredUrl(url), flags);
-            final int newTabId = newTab.getId(); // We don't want to hold a reference to the Tab.
-
-            final String message = isPrivate ?
-                    getResources().getString(R.string.new_private_tab_opened) :
-                    getResources().getString(R.string.new_tab_opened);
-            final GeckoApp geckoApp = (GeckoApp) context;
-            geckoApp.getButtonToast().show(false,
-                    message,
-                    null,
-                    R.drawable.select_opened_tab,
-                    new ButtonToast.ToastListener() {
-                        @Override
-                        public void onButtonClicked() {
-                            Tabs.getInstance().selectTab(newTabId);
-                        }
-
-                        @Override
-                        public void onToastHidden(ButtonToast.ReasonHidden reason) { }
-                    });
+            Tabs.getInstance().loadUrl(decodeUserEnteredUrl(url), flags);
+            Toast.makeText(context, R.string.new_tab_opened, Toast.LENGTH_SHORT).show();
             return true;
         }
 

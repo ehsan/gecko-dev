@@ -319,7 +319,7 @@ static void ApzcPinchWithPinchInput(AsyncPanZoomController* aApzc,
                                             10.0,
                                             0));
   EXPECT_EQ(actualStatus, expectedStatus);
-  aApzc->HandleGestureEvent(PinchGestureInput(PinchGestureInput::PINCHGESTURE_END,
+  actualStatus = aApzc->HandleGestureEvent(PinchGestureInput(PinchGestureInput::PINCHGESTURE_END,
                                             0,
                                             ScreenPoint(aFocusX, aFocusY),
                                             // note: negative values here tell APZC
@@ -327,6 +327,7 @@ static void ApzcPinchWithPinchInput(AsyncPanZoomController* aApzc,
                                             -1.0,
                                             -1.0,
                                             0));
+  EXPECT_EQ(actualStatus, expectedStatus);
 }
 
 static void ApzcPinchWithTouchMoveInput(AsyncPanZoomController* aApzc,
@@ -370,7 +371,8 @@ static void ApzcPinchWithTouchMoveInput(AsyncPanZoomController* aApzc,
   MultiTouchInput mtiEnd = MultiTouchInput(MultiTouchInput::MULTITOUCH_END, 0, 0);
   mtiEnd.mTouches.AppendElement(SingleTouchData(inputId, ScreenIntPoint(aFocusX - pinchLengthScaled, aFocusY), ScreenSize(0, 0), 0, 0));
   mtiEnd.mTouches.AppendElement(SingleTouchData(inputId + 1, ScreenIntPoint(aFocusX + pinchLengthScaled, aFocusY), ScreenSize(0, 0), 0, 0));
-  aApzc->ReceiveInputEvent(mtiEnd);
+  actualStatus = aApzc->ReceiveInputEvent(mtiEnd);
+  EXPECT_EQ(actualStatus, expectedStatus);
   inputId += 2;
 }
 
@@ -825,7 +827,7 @@ TEST_F(AsyncPanZoomControllerTester, ShortPress) {
 
   int time = 0;
   nsEventStatus status = ApzcTap(apzc, 10, 10, time, 100, mcc.get());
-  EXPECT_EQ(nsEventStatus_eIgnore, status);
+  EXPECT_EQ(nsEventStatus_eConsumeNoDefault, status);
 
   // This verifies that the single tap notification is sent after the
   // touchdown is fully processed. The ordering here is important.
@@ -849,7 +851,7 @@ TEST_F(AsyncPanZoomControllerTester, MediumPress) {
 
   int time = 0;
   nsEventStatus status = ApzcTap(apzc, 10, 10, time, 400, mcc.get());
-  EXPECT_EQ(nsEventStatus_eIgnore, status);
+  EXPECT_EQ(nsEventStatus_eConsumeNoDefault, status);
 
   // This verifies that the single tap notification is sent after the
   // touchdown is fully processed. The ordering here is important.

@@ -14,6 +14,8 @@
 
 #include "mozilla/Array.h"
 
+#include "jsinfer.h"
+
 #include "jit/CompilerRoot.h"
 #include "jit/FixedList.h"
 #include "jit/InlineList.h"
@@ -35,7 +37,7 @@ class BaselineInspector;
 class ValueNumberData;
 class Range;
 
-static inline
+static const inline
 MIRType MIRTypeFromValue(const js::Value &vp)
 {
     if (vp.isDouble())
@@ -1072,7 +1074,7 @@ class MConstant : public MNullaryInstruction
     const js::Value *vp() const {
         return &value_;
     }
-    bool valueToBoolean() const {
+    const bool valueToBoolean() const {
         // A hack to avoid this wordy pattern everywhere in the JIT.
         return ToBoolean(HandleValue::fromMarkedLocation(&value_));
     }
@@ -8577,13 +8579,13 @@ class MSetDOMProperty
   public:
     INSTRUCTION_HEADER(SetDOMProperty)
 
-    static MSetDOMProperty *New(TempAllocator &alloc, JSJitSetterOp func, MDefinition *obj,
+    static MSetDOMProperty *New(TempAllocator &alloc, const JSJitSetterOp func, MDefinition *obj,
                                 MDefinition *val)
     {
         return new(alloc) MSetDOMProperty(func, obj, val);
     }
 
-    JSJitSetterOp fun() const {
+    const JSJitSetterOp fun() {
         return func_;
     }
 
@@ -8650,7 +8652,7 @@ class MGetDOMProperty
         return new(alloc) MGetDOMProperty(info, obj, guard);
     }
 
-    JSJitGetterOp fun() const {
+    const JSJitGetterOp fun() {
         return info_->getter;
     }
     bool isInfallible() const {
