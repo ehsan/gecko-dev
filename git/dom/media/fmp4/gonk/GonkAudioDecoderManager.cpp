@@ -205,8 +205,12 @@ GonkAudioDecoderManager::Output(int64_t aStreamOffset,
 
 void GonkAudioDecoderManager::ReleaseAudioBuffer() {
   if (mAudioBuffer) {
-    mDecoder->ReleaseMediaBuffer(mAudioBuffer);
+    sp<MetaData> metaData = mAudioBuffer->meta_data();
+    int32_t index;
+    metaData->findInt32(android::MediaCodecProxy::kKeyBufferIndex, &index);
+    mAudioBuffer->release();
     mAudioBuffer = nullptr;
+    mDecoder->releaseOutputBuffer(index);
   }
 }
 

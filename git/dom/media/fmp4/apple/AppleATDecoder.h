@@ -49,20 +49,12 @@ private:
   MediaDataDecoderCallback* mCallback;
   AudioConverterRef mConverter;
   AudioFileStreamID mStream;
-  // Timestamp of the next audio frame going to be output by the decoder.
-  CheckedInt<Microseconds> mCurrentAudioTimestamp;
-  // Estimated timestamp of the next compressed audio packet to be supplied by
-  // the MP4 demuxer.
-  CheckedInt<Microseconds> mNextAudioTimestamp;
+  Microseconds mCurrentAudioTimestamp;
   int64_t mSamplePosition;
-  // Compressed data size that has been processed by the decoder since the last
-  // output.
-  int64_t mSizeDecoded;
+  bool mHaveOutput;
+  bool mFlushed;
   AudioStreamBasicDescription mOutputFormat;
   AudioFileTypeID mFileType;
-  // Array containing the queued decoded audio frames, about to be output.
-  nsTArray<AudioDataValue> mOutputData;
-  OSStatus mLastError;
 
   void SetupDecoder();
   void SubmitSample(nsAutoPtr<mp4_demuxer::MP4Sample> aSample);

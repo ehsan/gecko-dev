@@ -10,11 +10,10 @@
 #include <string.h>
 
 #include "mozilla/Types.h"
-#include "mozilla/UniquePtr.h"
 
 namespace mozilla {
 
-class JSONWriteFunc;
+class JSONWriter;
 
 namespace dmd {
 
@@ -122,7 +121,7 @@ ClearReports();
 //   }
 // }
 MOZ_EXPORT void
-AnalyzeReports(mozilla::UniquePtr<mozilla::JSONWriteFunc>);
+AnalyzeReports(mozilla::JSONWriter& aWriter);
 
 struct Sizes
 {

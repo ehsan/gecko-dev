@@ -608,7 +608,7 @@ public:
    * The frame's writing-mode, used for logical layout computations.
    */
   mozilla::WritingMode GetWritingMode() const {
-    return mozilla::WritingMode(StyleContext());
+    return mozilla::WritingMode(StyleVisibility());
   }
 
   /**
@@ -743,15 +743,6 @@ public:
    * simply be adjusted directly (e.g., using SetPosition()).
    */
   void MovePositionBy(const nsPoint& aTranslation);
-
-  /**
-   * As above, using a logical-point delta in a given writing mode.
-   */
-  void MovePositionBy(mozilla::WritingMode aWritingMode,
-                      const mozilla::LogicalPoint& aTranslation)
-  {
-    MovePositionBy(aTranslation.GetPhysicalPoint(aWritingMode, 0));
-  }
 
   /**
    * Return frame's position without relative positioning

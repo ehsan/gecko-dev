@@ -8734,15 +8734,16 @@ FileManager::Invalidate()
   {
   public:
     static PLDHashOperator
-    ClearDBRefs(const uint64_t& aKey, FileInfo*& aValue, void* aUserArg)
+    CopyToTArray(const uint64_t& aKey, FileInfo* aValue, void* aUserArg)
     {
       MOZ_ASSERT(aValue);
 
-      if (aValue->LockedClearDBRefs()) {
-        return PL_DHASH_NEXT;
-      }
+      auto* array = static_cast<FallibleTArray<FileInfo*>*>(aUserArg);
+      MOZ_ASSERT(array);
 
-      return PL_DHASH_REMOVE;
+      MOZ_ALWAYS_TRUE(array->AppendElement(aValue));
+
+      return PL_DHASH_NEXT;
     }
   };
 
@@ -8751,12 +8752,26 @@ FileManager::Invalidate()
     return NS_ERROR_UNEXPECTED;
   }
 
-  MutexAutoLock lock(IndexedDatabaseManager::FileMutex());
+  FallibleTArray<FileInfo*> fileInfos;
+  {
+    MutexAutoLock lock(IndexedDatabaseManager::FileMutex());
 
-  MOZ_ASSERT(!mInvalidated);
-  mInvalidated = true;
+    MOZ_ASSERT(!mInvalidated);
+    mInvalidated = true;
 
-  mFileInfos.Enumerate(Helper::ClearDBRefs, nullptr);
+    if (NS_WARN_IF(!fileInfos.SetCapacity(mFileInfos.Count()))) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+
+    mFileInfos.EnumerateRead(Helper::CopyToTArray, &fileInfos);
+  }
+
+  for (uint32_t count = fileInfos.Length(), index = 0; index < count; index++) {
+    FileInfo* fileInfo = fileInfos[index];
+    MOZ_ASSERT(fileInfo);
+
+    fileInfo->ClearDBRefs();
+  }
 
   return NS_OK;
 }

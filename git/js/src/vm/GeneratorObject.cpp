@@ -70,11 +70,13 @@ GeneratorObject::suspend(JSContext *cx, HandleObject obj, AbstractFramePtr frame
     if (*pc == JSOP_YIELD && genObj->isClosing()) {
         MOZ_ASSERT(genObj->is<LegacyGeneratorObject>());
         RootedValue val(cx, ObjectValue(*frame.callee()));
-        js_ReportValueError(cx, JSMSG_BAD_GENERATOR_YIELD, JSDVG_IGNORE_STACK, val, NullPtr());
+        js_ReportValueError(cx, JSMSG_BAD_GENERATOR_YIELD, JSDVG_SEARCH_STACK, val, NullPtr());
         return false;
     }
 
     uint32_t yieldIndex = GET_UINT24(pc);
+    MOZ_ASSERT((*pc == JSOP_INITIALYIELD) == (yieldIndex == 0)); // isNewborn() relies on this.
+
     genObj->setYieldIndex(yieldIndex);
     genObj->setScopeChain(*frame.scopeChain());
 
@@ -105,18 +107,14 @@ GeneratorObject::finalSuspend(JSContext *cx, HandleObject obj)
 }
 
 bool
-js::GeneratorThrowOrClose(JSContext *cx, HandleObject obj, HandleValue arg, uint32_t resumeKind)
+js::GeneratorThrow(JSContext *cx, HandleObject obj, HandleValue arg)
 {
     GeneratorObject *genObj = &obj->as<GeneratorObject>();
-    if (resumeKind == GeneratorObject::THROW) {
-        cx->setPendingException(arg);
+    cx->setPendingException(arg);
+    if (genObj->isNewborn())
+        genObj->setClosed();
+    else
         genObj->setRunning();
-    } else {
-        MOZ_ASSERT(resumeKind == GeneratorObject::CLOSE);
-        MOZ_ASSERT(genObj->is<LegacyGeneratorObject>());
-        cx->setPendingException(MagicValue(JS_GENERATOR_CLOSING));
-        genObj->setClosing();
-    }
     return false;
 }
 
@@ -162,8 +160,13 @@ GeneratorObject::resume(JSContext *cx, InterpreterActivation &activation,
         return true;
 
       case THROW:
+        return GeneratorThrow(cx, genObj, arg);
+
       case CLOSE:
-        return GeneratorThrowOrClose(cx, genObj, arg, resumeKind);
+        MOZ_ASSERT(genObj->is<LegacyGeneratorObject>());
+        cx->setPendingException(MagicValue(JS_GENERATOR_CLOSING));
+        genObj->setClosing();
+        return false;
 
       default:
         MOZ_CRASH("bad resumeKind");
@@ -178,6 +181,11 @@ LegacyGeneratorObject::close(JSContext *cx, HandleObject obj)
     // Avoid calling back into JS unless it is necessary.
      if (genObj->isClosed())
         return true;
+
+    if (genObj->isNewborn()) {
+        genObj->setClosed();
+        return true;
+    }
 
     RootedValue rval(cx);
 

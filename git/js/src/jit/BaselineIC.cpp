@@ -8675,10 +8675,6 @@ TryAttachCallStub(JSContext *cx, ICCall_Fallback *stub, HandleScript script, jsb
 
     RootedObject obj(cx, &callee.toObject());
     if (!obj->is<JSFunction>()) {
-        // Try to attach a stub for a call/construct hook on the object.
-        // Ignore proxies, which are special cased by callHook/constructHook.
-        if (obj->is<ProxyObject>())
-            return true;
         if (JSNative hook = constructing ? obj->constructHook() : obj->callHook()) {
             if (op != JSOP_FUNAPPLY && !isSpread && !useNewType) {
                 RootedObject templateObject(cx);
@@ -8688,8 +8684,7 @@ TryAttachCallStub(JSContext *cx, ICCall_Fallback *stub, HandleScript script, jsb
 
                 JitSpew(JitSpew_BaselineIC, "  Generating Call_ClassHook stub");
                 ICCall_ClassHook::Compiler compiler(cx, stub->fallbackMonitorStub()->firstMonitorStub(),
-                                                    obj->getClass(), hook, templateObject,
-                                                    script->pcToOffset(pc), constructing);
+                                                    obj->getClass(), hook, templateObject, constructing);
                 ICStub *newStub = compiler.getStub(compiler.getStubSpace(script));
                 if (!newStub)
                     return false;
@@ -9943,7 +9938,7 @@ ICCall_ClassHook::Compiler::generateStubCode(MacroAssembler &masm)
 
     // If needed, update SPS Profiler frame entry.  At this point, BaselineTailCallReg
     // and scratch can be clobbered.
-    emitProfilingUpdate(masm, BaselineTailCallReg, scratch, ICCall_ClassHook::offsetOfPCOffset());
+    emitProfilingUpdate(masm, BaselineTailCallReg, scratch, ICCall_Native::offsetOfPCOffset());
 
     // Execute call.
     masm.setupUnalignedABICall(3, scratch);
@@ -11317,13 +11312,11 @@ ICCall_Native::Clone(JSContext *cx, ICStubSpace *space, ICStub *firstMonitorStub
 }
 
 ICCall_ClassHook::ICCall_ClassHook(JitCode *stubCode, ICStub *firstMonitorStub,
-                                   const Class *clasp, Native native,
-                                   HandleObject templateObject, uint32_t pcOffset)
+                                   const Class *clasp, Native native, HandleObject templateObject)
   : ICMonitoredStub(ICStub::Call_ClassHook, stubCode, firstMonitorStub),
     clasp_(clasp),
     native_(JS_FUNC_TO_DATA_PTR(void *, native)),
-    templateObject_(templateObject),
-    pcOffset_(pcOffset)
+    templateObject_(templateObject)
 {
 #if defined(JS_ARM_SIMULATOR) || defined(JS_MIPS_SIMULATOR)
     // The simulator requires VM calls to be redirected to a special swi
@@ -11339,7 +11332,7 @@ ICCall_ClassHook::Clone(JSContext *cx, ICStubSpace *space, ICStub *firstMonitorS
 {
     RootedObject templateObject(cx, other.templateObject_);
     ICCall_ClassHook *res = New(space, other.jitCode(), firstMonitorStub,
-                                other.clasp(), nullptr, templateObject, other.pcOffset_);
+                                other.clasp(), nullptr, templateObject);
     if (res)
         res->native_ = other.native();
     return res;

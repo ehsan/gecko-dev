@@ -119,7 +119,8 @@ RunTests()
   //---------
 
   // AnalyzeReports 1.  Zero for everything.
-  AnalyzeReports(Move(f1));
+  JSONWriter writer1(Move(f1));
+  AnalyzeReports(writer1);
 
   //---------
 
@@ -245,7 +246,8 @@ RunTests()
 //UseItOrLoseIt(z, seven);
 
   // AnalyzeReports 2.
-  AnalyzeReports(Move(f2));
+  JSONWriter writer2(Move(f2));
+  AnalyzeReports(writer2);
 
   //---------
 
@@ -261,7 +263,8 @@ RunTests()
 //free(z);
 
   // AnalyzeReports 3.
-  AnalyzeReports(Move(f3));
+  JSONWriter writer3(Move(f3));
+  AnalyzeReports(writer3);
 
   //---------
 
@@ -320,7 +323,8 @@ RunTests()
   // bytes of allocation overall, which is 64 less than the real value 1,488.
 
   // AnalyzeReports 4.
-  AnalyzeReports(Move(f4));
+  JSONWriter writer4(Move(f4));
+  AnalyzeReports(writer4);
 }
 
 int main()

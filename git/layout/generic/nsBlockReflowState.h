@@ -203,8 +203,6 @@ public:
     mozilla::WritingMode wm = mReflowState.GetWritingMode();
     return mContentArea.Size(wm).ConvertTo(aWM, wm);
   }
-
-  // Physical width. Use only for physical <-> logical coordinate conversion.
   nscoord mContainerWidth;
 
   // Continuation out-of-flow float frames that need to move to our

@@ -245,9 +245,9 @@ public:
    * function simply delegates to that one, so that non-layers code
    * never needs to include AsyncPanZoomController.h
    */
-  static const ScreenMargin CalculatePendingDisplayPort(
+  static const LayerMargin CalculatePendingDisplayPort(
     const FrameMetrics& aFrameMetrics,
-    const ParentLayerPoint& aVelocity,
+    const ScreenPoint& aVelocity,
     double aEstimatedPaintDuration);
 
   /**
@@ -327,8 +327,8 @@ public:
    *       a fling, use DispatchFling().
    */
   bool DispatchScroll(AsyncPanZoomController* aApzc,
-                      ParentLayerPoint aStartPoint,
-                      ParentLayerPoint aEndPoint,
+                      ScreenPoint aStartPoint,
+                      ScreenPoint aEndPoint,
                       OverscrollHandoffState& aOverscrollHandoffState);
 
   /**
@@ -353,7 +353,7 @@ public:
    * the excess fling itself by going into an overscroll fling.
    */
   bool DispatchFling(AsyncPanZoomController* aApzc,
-                     ParentLayerPoint aVelocity,
+                     ScreenPoint aVelocity,
                      nsRefPtr<const OverscrollHandoffChain> aOverscrollHandoffChain,
                      bool aHandoff);
 

@@ -1072,6 +1072,7 @@ DisableFMRadio() {
 
 void
 FMRadioSeek(const FMRadioSeekDirection& aDirection) {
+  AssertMainThread();
   PROXY_IF_SANDBOXED(FMRadioSeek(aDirection));
 }
 
@@ -1083,6 +1084,7 @@ GetFMRadioSettings(FMRadioSettings* aInfo) {
 
 void
 SetFMRadioFrequency(const uint32_t aFrequency) {
+  AssertMainThread();
   PROXY_IF_SANDBOXED(SetFMRadioFrequency(aFrequency));
 }
 

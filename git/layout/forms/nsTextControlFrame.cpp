@@ -519,8 +519,7 @@ nsTextControlFrame::Reflow(nsPresContext*   aPresContext,
                                         inflation);
   // now adjust for our borders and padding
   aDesiredSize.SetBlockStartAscent(
-    nsLayoutUtils::GetCenteredFontBaseline(fontMet, lineHeight,
-                                           wm.IsLineInverted()) +
+    nsLayoutUtils::GetCenteredFontBaseline(fontMet, lineHeight) +
     aReflowState.ComputedLogicalBorderPadding().BStart(wm));
 
   // overflow handling

@@ -3579,7 +3579,6 @@ XULDocument::ExecuteScript(nsXULPrototypeScript *aScript)
     // We're about to run script via JS::CloneAndExecuteScript, so we need an
     // AutoEntryScript. This is Gecko specific and not in any spec.
     AutoEntryScript aes(mScriptGlobalObject);
-    aes.TakeOwnershipOfErrorReporting();
     JSContext* cx = aes.cx();
     JS::Rooted<JSObject*> baseGlobal(cx, JS::CurrentGlobalOrNull(cx));
     NS_ENSURE_TRUE(nsContentUtils::GetSecurityManager()->ScriptAllowed(baseGlobal), NS_OK);
@@ -3593,9 +3592,10 @@ XULDocument::ExecuteScript(nsXULPrototypeScript *aScript)
     JSAutoCompartment ac(cx, global);
 
     // The script is in the compilation scope. Clone it into the target scope
-    // and execute it. On failure, ~AutoScriptEntry will handle exceptions, so
-    // there is no need to manually check the return value.
-    JS::CloneAndExecuteScript(cx, global, scriptObject);
+    // and execute it.
+    if (!JS::CloneAndExecuteScript(cx, global, scriptObject)) {
+        nsJSUtils::ReportPendingException(cx);
+    }
 
     return NS_OK;
 }

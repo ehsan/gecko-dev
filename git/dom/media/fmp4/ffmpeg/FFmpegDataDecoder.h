@@ -10,7 +10,6 @@
 #include "PlatformDecoderModule.h"
 #include "FFmpegLibs.h"
 #include "mozilla/Vector.h"
-#include "mozilla/StaticMutex.h"
 
 namespace mozilla
 {
@@ -45,7 +44,6 @@ protected:
 
 private:
   static bool sFFmpegInitDone;
-  static StaticMutex sMonitor;
 
   AVCodecID mCodecID;
 };

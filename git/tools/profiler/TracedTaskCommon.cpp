@@ -162,10 +162,10 @@ CreateTracedTask(Task* aTask)
  * CreateFakeTracedTask() returns a FakeTracedTask tracking the event which is
  * not dispatched from its parent task directly, such as timer events.
  */
-already_AddRefed<FakeTracedTask>
+FakeTracedTask*
 CreateFakeTracedTask(int* aVptr)
 {
-  nsRefPtr<FakeTracedTask> task(new FakeTracedTask(aVptr));
+  nsAutoPtr<FakeTracedTask> task(new FakeTracedTask(aVptr));
   return task.forget();
 }
 
