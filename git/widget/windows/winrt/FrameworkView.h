@@ -7,7 +7,6 @@
 
 #include "nsGUIEvent.h"
 #include "MetroWidget.h"
-#include "MetroInput.h"
 #include "gfxWindowsPlatform.h"
 #include "gfxD2DSurface.h"
 #include "nsDataHashtable.h"
@@ -177,6 +176,7 @@ private:
   EventRegistrationToken mPrintManager;
 
 private:
+  nsRefPtr<gfxD2DSurface> mD2DWindowSurface;
   nsIntRect mWindowBounds; // in device-pixel coordinates
   float mDPI;
   bool mShuttingDown;

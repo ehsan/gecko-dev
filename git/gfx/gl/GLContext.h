@@ -153,7 +153,6 @@ public:
         RendererSGX530,
         RendererSGX540,
         RendererTegra,
-        RendererAndroidEmulator,
         RendererOther
     };
 

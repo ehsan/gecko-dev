@@ -147,6 +147,8 @@ public:
   HRESULT OnRightTapped(IGestureRecognizer* aSender,
                         IRightTappedEventArgs* aArgs);
 
+  // Used by MetroWidget GeckoContentController callbacks
+  void HandleDoubleTap(const mozilla::LayoutDeviceIntPoint& aPoint);
   void HandleSingleTap(const mozilla::LayoutDeviceIntPoint& aPoint);
   void HandleLongTap(const mozilla::LayoutDeviceIntPoint& aPoint);
 

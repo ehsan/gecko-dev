@@ -107,7 +107,6 @@ MetroApp::ShutdownXPCOM()
 void
 MetroApp::CoreExit()
 {
-  LogFunction();
   HRESULT hr;
   ComPtr<ICoreApplicationExit> coreExit;
   HStringReference className(RuntimeClass_Windows_ApplicationModel_Core_CoreApplication);
