@@ -101,8 +101,6 @@ LayerManagerComposite::ClearCachedResources(Layer* aSubtree)
  */
 LayerManagerComposite::LayerManagerComposite(Compositor* aCompositor)
 : mCompositor(aCompositor)
-, mInTransaction(false)
-, mIsCompositorReady(false)
 {
   MOZ_ASSERT(aCompositor);
 }
@@ -147,13 +145,6 @@ void
 LayerManagerComposite::BeginTransaction()
 {
   mInTransaction = true;
-  
-  if (!mCompositor->Ready()) {
-    return;
-  }
-  
-  mIsCompositorReady = true;
-
   if (Compositor::GetBackend() == LAYERS_BASIC) {
     mClonedLayerTreeProperties = LayerProperties::CloneFrom(GetRoot());
   }
@@ -163,10 +154,6 @@ void
 LayerManagerComposite::BeginTransactionWithDrawTarget(DrawTarget* aTarget)
 {
   mInTransaction = true;
-  
-  if (!mCompositor->Ready()) {
-    return;
-  }
 
 #ifdef MOZ_LAYERS_HAVE_LOG
   MOZ_LAYERS_LOG(("[----- BeginTransaction"));
@@ -178,7 +165,6 @@ LayerManagerComposite::BeginTransactionWithDrawTarget(DrawTarget* aTarget)
     return;
   }
 
-  mIsCompositorReady = true;
   mCompositor->SetTargetContext(aTarget);
 }
 
@@ -188,7 +174,6 @@ LayerManagerComposite::EndEmptyTransaction(EndTransactionFlags aFlags)
   NS_ASSERTION(mInTransaction, "Didn't call BeginTransaction?");
   if (!mRoot) {
     mInTransaction = false;
-    mIsCompositorReady = false;
     return false;
   }
 
@@ -203,11 +188,6 @@ LayerManagerComposite::EndTransaction(DrawThebesLayerCallback aCallback,
 {
   NS_ASSERTION(mInTransaction, "Didn't call BeginTransaction?");
   mInTransaction = false;
-
-  if (!mIsCompositorReady) {
-    return;
-  }
-  mIsCompositorReady = false;
 
 #ifdef MOZ_LAYERS_HAVE_LOG
   MOZ_LAYERS_LOG(("  ----- (beginning paint)"));

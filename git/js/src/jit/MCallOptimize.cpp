@@ -251,9 +251,7 @@ IonBuilder::inlineArray(CallInfo &callInfo)
     if (conversion == types::TemporaryTypeSet::AlwaysConvertToDoubles)
         templateObject->setShouldConvertDoubleElements();
 
-    MNewArray *ins = MNewArray::New(alloc(), initLength, templateObject,
-                                    templateObject->type()->initialHeap(constraints()),
-                                    allocating);
+    MNewArray *ins = MNewArray::New(alloc(), initLength, templateObject, allocating);
     current->add(ins);
     current->push(ins);
 
@@ -500,8 +498,7 @@ IonBuilder::inlineArrayConcat(CallInfo &callInfo)
 
     callInfo.unwrapArgs();
 
-    MArrayConcat *ins = MArrayConcat::New(alloc(), callInfo.thisArg(), callInfo.getArg(0), templateObj,
-                                          templateObj->type()->initialHeap(constraints()));
+    MArrayConcat *ins = MArrayConcat::New(alloc(), callInfo.thisArg(), callInfo.getArg(0), templateObj);
     current->add(ins);
     current->push(ins);
 

@@ -1408,15 +1408,12 @@ class MNewArray : public MNullaryInstruction
     uint32_t count_;
     // Template for the created object.
     CompilerRootObject templateObject_;
-    gc::InitialHeap initialHeap_;
     // Allocate space at initialization or not
     AllocatingBehaviour allocating_;
 
-    MNewArray(uint32_t count, JSObject *templateObject, gc::InitialHeap initialHeap,
-              AllocatingBehaviour allocating)
+    MNewArray(uint32_t count, JSObject *templateObject, AllocatingBehaviour allocating)
       : count_(count),
         templateObject_(templateObject),
-        initialHeap_(initialHeap),
         allocating_(allocating)
     {
         setResultType(MIRType_Object);
@@ -1427,9 +1424,9 @@ class MNewArray : public MNullaryInstruction
     INSTRUCTION_HEADER(NewArray)
 
     static MNewArray *New(TempAllocator &alloc, uint32_t count, JSObject *templateObject,
-                          gc::InitialHeap initialHeap, AllocatingBehaviour allocating)
+                          AllocatingBehaviour allocating)
     {
-        return new(alloc) MNewArray(count, templateObject, initialHeap, allocating);
+        return new(alloc) MNewArray(count, templateObject, allocating);
     }
 
     uint32_t count() const {
@@ -1438,10 +1435,6 @@ class MNewArray : public MNullaryInstruction
 
     JSObject *templateObject() const {
         return templateObject_;
-    }
-
-    gc::InitialHeap initialHeap() const {
-        return initialHeap_;
     }
 
     bool isAllocating() const {
@@ -1466,13 +1459,10 @@ class MNewArray : public MNullaryInstruction
 class MNewObject : public MNullaryInstruction
 {
     CompilerRootObject templateObject_;
-    gc::InitialHeap initialHeap_;
     bool templateObjectIsClassPrototype_;
 
-    MNewObject(JSObject *templateObject, gc::InitialHeap initialHeap,
-               bool templateObjectIsClassPrototype)
+    MNewObject(JSObject *templateObject, bool templateObjectIsClassPrototype)
       : templateObject_(templateObject),
-        initialHeap_(initialHeap),
         templateObjectIsClassPrototype_(templateObjectIsClassPrototype)
     {
         JS_ASSERT_IF(templateObjectIsClassPrototype, !shouldUseVM());
@@ -1483,10 +1473,10 @@ class MNewObject : public MNullaryInstruction
   public:
     INSTRUCTION_HEADER(NewObject)
 
-    static MNewObject *New(TempAllocator &alloc, JSObject *templateObject, gc::InitialHeap initialHeap,
+    static MNewObject *New(TempAllocator &alloc, JSObject *templateObject,
                            bool templateObjectIsClassPrototype)
     {
-        return new(alloc) MNewObject(templateObject, initialHeap, templateObjectIsClassPrototype);
+        return new(alloc) MNewObject(templateObject, templateObjectIsClassPrototype);
     }
 
     // Returns true if the code generator should call through to the
@@ -1499,10 +1489,6 @@ class MNewObject : public MNullaryInstruction
 
     JSObject *templateObject() const {
         return templateObject_;
-    }
-
-    gc::InitialHeap initialHeap() const {
-        return initialHeap_;
     }
 };
 
@@ -2487,11 +2473,9 @@ class MCreateThisWithTemplate
 {
     // Template for |this|, provided by TI
     CompilerRootObject templateObject_;
-    gc::InitialHeap initialHeap_;
 
-    MCreateThisWithTemplate(JSObject *templateObject, gc::InitialHeap initialHeap)
-      : templateObject_(templateObject),
-        initialHeap_(initialHeap)
+    MCreateThisWithTemplate(JSObject *templateObject)
+      : templateObject_(templateObject)
     {
         setResultType(MIRType_Object);
         setResultTypeSet(MakeSingletonTypeSet(templateObject));
@@ -2499,18 +2483,12 @@ class MCreateThisWithTemplate
 
   public:
     INSTRUCTION_HEADER(CreateThisWithTemplate);
-    static MCreateThisWithTemplate *New(TempAllocator &alloc, JSObject *templateObject,
-                                        gc::InitialHeap initialHeap)
+    static MCreateThisWithTemplate *New(TempAllocator &alloc, JSObject *templateObject)
     {
-        return new(alloc) MCreateThisWithTemplate(templateObject, initialHeap);
+        return new(alloc) MCreateThisWithTemplate(templateObject);
     }
-
     JSObject *templateObject() const {
         return templateObject_;
-    }
-
-    gc::InitialHeap initialHeap() const {
-        return initialHeap_;
     }
 
     // Although creation of |this| modifies global state, it is safely repeatable.
@@ -5825,12 +5803,10 @@ class MArrayConcat
     public MixPolicy<ObjectPolicy<0>, ObjectPolicy<1> >
 {
     CompilerRootObject templateObj_;
-    gc::InitialHeap initialHeap_;
 
-    MArrayConcat(MDefinition *lhs, MDefinition *rhs, JSObject *templateObj, gc::InitialHeap initialHeap)
+    MArrayConcat(MDefinition *lhs, MDefinition *rhs, JSObject *templateObj)
       : MBinaryInstruction(lhs, rhs),
-        templateObj_(templateObj),
-        initialHeap_(initialHeap)
+        templateObj_(templateObj)
     {
         setResultType(MIRType_Object);
         setResultTypeSet(MakeSingletonTypeSet(templateObj));
@@ -5840,19 +5816,14 @@ class MArrayConcat
     INSTRUCTION_HEADER(ArrayConcat)
 
     static MArrayConcat *New(TempAllocator &alloc, MDefinition *lhs, MDefinition *rhs,
-                             JSObject *templateObj, gc::InitialHeap initialHeap)
+                             JSObject *templateObj)
     {
-        return new(alloc) MArrayConcat(lhs, rhs, templateObj, initialHeap);
+        return new(alloc) MArrayConcat(lhs, rhs, templateObj);
     }
 
     JSObject *templateObj() const {
         return templateObj_;
     }
-
-    gc::InitialHeap initialHeap() const {
-        return initialHeap_;
-    }
-
     TypePolicy *typePolicy() {
         return this;
     }
@@ -8534,11 +8505,21 @@ class MPostWriteBarrier
         setGuard();
     }
 
+    MPostWriteBarrier(MDefinition *obj)
+      : MBinaryInstruction(obj, nullptr), hasValue_(false)
+    {
+        setGuard();
+    }
+
   public:
     INSTRUCTION_HEADER(PostWriteBarrier)
 
     static MPostWriteBarrier *New(TempAllocator &alloc, MDefinition *obj, MDefinition *value) {
         return new(alloc) MPostWriteBarrier(obj, value);
+    }
+
+    static MPostWriteBarrier *New(TempAllocator &alloc, MDefinition *obj) {
+        return new(alloc) MPostWriteBarrier(obj);
     }
 
     TypePolicy *typePolicy() {

@@ -615,9 +615,9 @@ class GeckoInputConnection
                 outAttrs.inputType |= InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS;
             else if (mIMEModeHint.equalsIgnoreCase("titlecase"))
                 outAttrs.inputType |= InputType.TYPE_TEXT_FLAG_CAP_WORDS;
-            else if (!mIMEModeHint.equalsIgnoreCase("lowercase"))
+            else if (mIMEModeHint.equalsIgnoreCase("autocapitalized"))
                 outAttrs.inputType |= InputType.TYPE_TEXT_FLAG_CAP_SENTENCES;
-            // auto-capitalized mode is the default
+            // lowercase mode is the default
         }
 
         if (mIMEActionHint.equalsIgnoreCase("go"))
