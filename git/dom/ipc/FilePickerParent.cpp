@@ -133,33 +133,26 @@ FilePickerParent::Done(int16_t aResult)
 {
   mResult = aResult;
 
-  if (mResult != nsIFilePicker::returnOK) {
-    unused << Send__delete__(this, void_t(), mResult);
-    return;
-  }
-
   nsCOMArray<nsIDOMFile> domfiles;
+
   if (mMode == nsIFilePicker::modeOpenMultiple) {
     nsCOMPtr<nsISimpleEnumerator> iter;
     NS_ENSURE_SUCCESS_VOID(mFilePicker->GetFiles(getter_AddRefs(iter)));
 
     nsCOMPtr<nsISupports> supports;
+    nsCOMPtr<nsIFile> file;
     bool loop = true;
     while (NS_SUCCEEDED(iter->HasMoreElements(&loop)) && loop) {
       iter->GetNext(getter_AddRefs(supports));
-      if (supports) {
-        nsCOMPtr<nsIFile> file = do_QueryInterface(supports);
-        nsCOMPtr<nsIDOMFile> domfile = new nsDOMFileFile(file);
-        domfiles.AppendElement(domfile);
-      }
+      file = do_QueryInterface(supports);
+      nsCOMPtr<nsIDOMFile> domfile = new nsDOMFileFile(file);
+      domfiles.AppendElement(domfile);
     }
   } else {
     nsCOMPtr<nsIFile> file;
     mFilePicker->GetFile(getter_AddRefs(file));
-    if (file) {
-      nsCOMPtr<nsIDOMFile> domfile = new nsDOMFileFile(file);
-      domfiles.AppendElement(domfile);
-    }
+    nsCOMPtr<nsIDOMFile> domfile = new nsDOMFileFile(file);
+    domfiles.AppendElement(domfile);
   }
 
   MOZ_ASSERT(!mRunnable);

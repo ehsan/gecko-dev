@@ -245,7 +245,6 @@ pref("media.peerconnection.enabled", true);
 pref("media.peerconnection.video.enabled", true);
 pref("media.navigator.video.max_fs", 1200); // 640x480 == 1200mb
 pref("media.navigator.video.max_fr", 30);
-pref("media.peerconnection.video.h264_enabled", false);
 #else
 pref("media.navigator.video.default_width",640);
 pref("media.navigator.video.default_height",480);
@@ -785,11 +784,6 @@ pref("javascript.options.ion",              true);
 pref("javascript.options.asmjs",            true);
 pref("javascript.options.parallel_parsing", true);
 pref("javascript.options.ion.parallel_compilation", true);
-// This preference instructs the JS engine to discard the
-// source of any privileged JS after compilation. This saves
-// memory, but makes things like Function.prototype.toSource()
-// fail.
-pref("javascript.options.discardSystemSource", false);
 // This preference limits the memory usage of javascript.
 // If you want to change these values for your device,
 // please find Bug 417052 comment 17 and Bug 456721

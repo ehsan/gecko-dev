@@ -78,7 +78,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Attr)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(Attr)
-  Element* ownerElement = tmp->GetElement();
+  Element* ownerElement = tmp->GetContentInternal();
   if (tmp->IsBlack()) {
     if (ownerElement) {
       // The attribute owns the element via attribute map so we can
@@ -129,14 +129,10 @@ Attr::SetMap(nsDOMAttributeMap *aMap)
   mAttrMap = aMap;
 }
 
-Element*
-Attr::GetElement() const
+nsIContent*
+Attr::GetContent() const
 {
-  if (!mAttrMap) {
-    return nullptr;
-  }
-  nsIContent* content = mAttrMap->GetContent();
-  return content ? content->AsElement() : nullptr;
+  return GetContentInternal();
 }
 
 nsresult
@@ -186,10 +182,10 @@ Attr::GetNameAtom(nsIContent* aContent)
 NS_IMETHODIMP
 Attr::GetValue(nsAString& aValue)
 {
-  Element* element = GetElement();
-  if (element) {
-    nsCOMPtr<nsIAtom> nameAtom = GetNameAtom(element);
-    element->GetAttr(mNodeInfo->NamespaceID(), nameAtom, aValue);
+  nsIContent* content = GetContentInternal();
+  if (content) {
+    nsCOMPtr<nsIAtom> nameAtom = GetNameAtom(content);
+    content->GetAttr(mNodeInfo->NamespaceID(), nameAtom, aValue);
   }
   else {
     aValue = mValue;
@@ -201,14 +197,14 @@ Attr::GetValue(nsAString& aValue)
 void
 Attr::SetValue(const nsAString& aValue, ErrorResult& aRv)
 {
-  Element* element = GetElement();
-  if (!element) {
+  nsIContent* content = GetContentInternal();
+  if (!content) {
     mValue = aValue;
     return;
   }
 
-  nsCOMPtr<nsIAtom> nameAtom = GetNameAtom(element);
-  aRv = element->SetAttr(mNodeInfo->NamespaceID(),
+  nsCOMPtr<nsIAtom> nameAtom = GetNameAtom(content);
+  aRv = content->SetAttr(mNodeInfo->NamespaceID(),
                          nameAtom,
                          mNodeInfo->GetPrefixAtom(),
                          aValue,
@@ -242,7 +238,7 @@ Element*
 Attr::GetOwnerElement(ErrorResult& aRv)
 {
   OwnerDoc()->WarnOnceAbout(nsIDocument::eOwnerElement);
-  return GetElement();
+  return GetContentInternal();
 }
 
 NS_IMETHODIMP
@@ -251,9 +247,9 @@ Attr::GetOwnerElement(nsIDOMElement** aOwnerElement)
   NS_ENSURE_ARG_POINTER(aOwnerElement);
   OwnerDoc()->WarnOnceAbout(nsIDocument::eOwnerElement);
 
-  Element* element = GetElement();
-  if (element) {
-    return CallQueryInterface(element, aOwnerElement);
+  nsIContent* content = GetContentInternal();
+  if (content) {
+    return CallQueryInterface(content, aOwnerElement);
   }
 
   *aOwnerElement = nullptr;
@@ -297,7 +293,7 @@ Attr::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 already_AddRefed<nsIURI>
 Attr::GetBaseURI(bool aTryUseXHRDocBaseURI) const
 {
-  Element* parent = GetElement();
+  nsINode *parent = GetContentInternal();
 
   return parent ? parent->GetBaseURI(aTryUseXHRDocBaseURI) : nullptr;
 }
@@ -322,14 +318,16 @@ Attr::SetTextContentInternal(const nsAString& aTextContent,
 NS_IMETHODIMP
 Attr::GetIsId(bool* aReturn)
 {
-  Element* element = GetElement();
-  if (!element) {
+  nsIContent* content = GetContentInternal();
+  if (!content)
+  {
     *aReturn = false;
     return NS_OK;
   }
 
-  nsIAtom* idAtom = element->GetIDAttributeName();
-  if (!idAtom) {
+  nsIAtom* idAtom = content->GetIDAttributeName();
+  if (!idAtom)
+  {
     *aReturn = false;
     return NS_OK;
   }
@@ -404,6 +402,12 @@ JSObject*
 Attr::WrapObject(JSContext* aCx)
 {
   return AttrBinding::Wrap(aCx, this);
+}
+
+Element*
+Attr::GetContentInternal() const
+{
+  return mAttrMap ? mAttrMap->GetContent() : nullptr;
 }
 
 } // namespace dom

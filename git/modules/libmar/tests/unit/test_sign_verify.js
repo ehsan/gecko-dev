@@ -25,7 +25,7 @@ function run_test() {
     if (certs.length == 1 && useShortHandCmdLine) {
       args.push("-n", certs[0]);
     } else {
-      for (var i = 0; i < certs.length; i++) {
+      for (i = 0; i < certs.length; i++) {
         args.push("-n" + i, certs[i]);
       }
     }
@@ -150,18 +150,10 @@ function run_test() {
     // Setup the command line arguments to create the MAR.
     // Windows & Mac vs. Linux/... have different command line for verification
     // since on Windows we verify with CryptoAPI, on Mac with Security
-    // Transforms or CDSA/CSSM and on all other platforms we verify with NSS. So
-    // on Windows and Mac we use an exported DER file and on other platforms we
-    // use the NSS config db.
-    if (isWindows || isOSX) {
-      if (certs.length == 1 && useShortHandCmdLine) {
-        args.push("-D", "data/" + certs[0] + ".der");
-      } else {
-        for (var i = 0; i < certs.length; i++) {
-          args.push("-D" + i, "data/" + certs[i] + ".der");
-        }
-      }
-    } else {
+    // Transforms or NSS and on all other platforms we verify with NSS. So on
+    // Windows and Mac we use an exported DER file and on other platforms we use
+    // the NSS config db.
+    if (!isWindows) {
       let NSSConfigDir = do_get_file("data");
       args = ["-d", NSSConfigDir.path];
       if (certs.length == 1 && useShortHandCmdLine) {
@@ -169,6 +161,15 @@ function run_test() {
       } else {
         for (var i = 0; i < certs.length; i++) {
           args.push("-n" + i, certs[i]);
+        }
+      }
+    }
+    if (isWindows || isOSX) {
+      if (certs.length == 1 && useShortHandCmdLine) {
+        args.push("-D", "data/" + certs[0] + ".der");
+      } else {
+        for (var i = 0; i < certs.length; i++) {
+          args.push("-D" + i, "data/" + certs[i] + ".der");
         }
       }
     }

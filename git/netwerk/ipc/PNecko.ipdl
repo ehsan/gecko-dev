@@ -22,7 +22,6 @@ include protocol PBlob; //FIXME: bug #792908
 include protocol PFileDescriptorSet;
 
 include protocol PRtspController;
-include protocol PRtspChannel;
 include URIParams;
 include InputStreamParams;
 include NeckoChannelParams;
@@ -48,7 +47,6 @@ sync protocol PNecko
   manages PDNSRequest;
   manages PRemoteOpenFile;
   manages PRtspController;
-  manages PRtspChannel;
   manages PChannelDiverter;
 
 parent:
@@ -73,7 +71,6 @@ parent:
   HTMLDNSPrefetch(nsString hostname, uint16_t flags);
   CancelHTMLDNSPrefetch(nsString hostname, uint16_t flags, nsresult reason);
   PRtspController();
-  PRtspChannel(RtspChannelConnectArgs args);
   PChannelDiverter(ChannelDiverterArgs channel);
 
 both:

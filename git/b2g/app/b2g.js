@@ -49,7 +49,7 @@ pref("network.protocol-handler.warn-external.vnd.youtube", false);
 // By default, all protocol handlers are exposed. This means that the browser
 // will response to openURL commands for all URL types. It will also try to open
 // link clicks inside the browser before failing over to the system handlers.
-pref("network.protocol-handler.expose.rtsp", true);
+pref("network.protocol-handler.expose.rtsp", false);
 
 /* http prefs */
 pref("network.http.pipelining", true);
@@ -600,12 +600,6 @@ pref("dom.forms.color", false);
 
 // Turns on gralloc-based direct texturing for Gonk
 pref("gfx.gralloc.enabled", false);
-
-// This preference instructs the JS engine to discard the
-// source of any privileged JS after compilation. This saves
-// memory, but makes things like Function.prototype.toSource()
-// fail.
-pref("javascript.options.discardSystemSource", true);
 
 // XXXX REMOVE FOR PRODUCTION. Turns on GC and CC logging
 pref("javascript.options.mem.log", false);

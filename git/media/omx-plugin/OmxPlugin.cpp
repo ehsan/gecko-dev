@@ -938,7 +938,7 @@ class ReadOptions : public MediaSource::ReadOptions
 {
   // HTC have their own version of ReadOptions with extra fields. If we don't
   // have this here, HTCOMXCodec will corrupt our stack.
-  uint32_t sadface[16];
+  uint32_t sadface[4];
 };
 
 bool OmxDecoder::ReadVideo(VideoFrame *aFrame, int64_t aSeekTimeUs,

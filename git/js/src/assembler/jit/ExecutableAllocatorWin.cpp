@@ -116,10 +116,8 @@ ExecutablePool::toggleAllCodeAsAccessible(bool accessible)
     size_t size = m_freePtr - begin;
 
     if (size) {
-        // N.B. DEP is not on automatically in Windows XP, so be sure to use
-        // PAGE_NOACCESS instead of PAGE_READWRITE when making inaccessible.
         DWORD oldProtect;
-        int flags = accessible ? PAGE_EXECUTE_READWRITE : PAGE_NOACCESS;
+        int flags = accessible ? PAGE_EXECUTE_READWRITE : PAGE_READWRITE;
         if (!VirtualProtect(begin, size, flags, &oldProtect))
             MOZ_CRASH();
     }

@@ -63,8 +63,6 @@ def setup_logging(suite, args, defaults):
     prefix = "log_"
     found = False
     found_stdout_logger = False
-    if not hasattr(args, 'iteritems'):
-        args = vars(args)
     for name, values in args.iteritems():
         if name.startswith(prefix) and values is not None:
             for value in values:

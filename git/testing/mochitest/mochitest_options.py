@@ -409,13 +409,6 @@ class MochitestOptions(optparse.OptionParser):
            "dest": "quiet",
            "help": "Do not print test log lines unless a failure occurs."
          }],
-        [["--pidfile"],
-        { "action": "store",
-          "type": "string",
-          "dest": "pidFile",
-          "help": "name of the pidfile to generate",
-          "default": "",
-        }],
     ]
 
     def __init__(self, **kwargs):
@@ -675,6 +668,13 @@ class B2GOptions(MochitestOptions):
           "dest": "sslPort",
           "help": "ip address where the remote web server is hosted at",
           "default": None,
+        }],
+        [["--pidfile"],
+        { "action": "store",
+          "type": "string",
+          "dest": "pidFile",
+          "help": "name of the pidfile to generate",
+          "default": "",
         }],
         [["--gecko-path"],
         { "action": "store",

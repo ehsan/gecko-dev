@@ -7,7 +7,6 @@
 
 include protocol PHttpChannel;
 include protocol PFTPChannel;
-include protocol PRtspChannel;
 include URIParams;
 include InputStreamParams;
 
@@ -88,16 +87,6 @@ union ChannelDiverterArgs
 {
   PHttpChannel;
   PFTPChannel;
-};
-
-//-----------------------------------------------------------------------------
-// RTSP IPDL structs
-//-----------------------------------------------------------------------------
-
-struct RtspChannelConnectArgs
-{
-  URIParams uri;
-  uint32_t channelId;
 };
 
 } // namespace ipc
