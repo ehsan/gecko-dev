@@ -12,7 +12,6 @@
 // This API will not work for OS X 10.10, see Gestalt.h.
 
 #include "nsCocoaFeatures.h"
-#include "nsCocoaUtils.h"
 #include "nsDebug.h"
 #include "nsObjCExceptions.h"
 
@@ -51,10 +50,6 @@ static void GetSystemVersion(int &major, int &minor, int &bugfix)
 nsCocoaFeatures::InitializeVersionNumbers()
 {
     NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-    // Provide an autorelease pool to avoid leaking Cocoa objects,
-    // as this gets called before the main autorelease pool is in place.
-    nsAutoreleasePool localPool;
 
     int major, minor, bugfix;
     GetSystemVersion(major, minor, bugfix);

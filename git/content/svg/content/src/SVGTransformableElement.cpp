@@ -109,7 +109,7 @@ SVGTransformableElement::PrependLocalTransformsTo(const gfxMatrix &aMatrix,
   // any transformations from the |transform| attribute. So since we're
   // PRE-multiplying, we need to apply the animateMotion transform *first*.
   if (mAnimateMotionTransform) {
-    result.PreMultiply(ThebesMatrix(*mAnimateMotionTransform));
+    result.PreMultiply(*mAnimateMotionTransform);
   }
 
   if (mTransforms) {
@@ -119,20 +119,20 @@ SVGTransformableElement::PrependLocalTransformsTo(const gfxMatrix &aMatrix,
   return result;
 }
 
-const gfx::Matrix*
+const gfxMatrix*
 SVGTransformableElement::GetAnimateMotionTransform() const
 {
   return mAnimateMotionTransform.get();
 }
 
 void
-SVGTransformableElement::SetAnimateMotionTransform(const gfx::Matrix* aMatrix)
+SVGTransformableElement::SetAnimateMotionTransform(const gfxMatrix* aMatrix)
 {
   if ((!aMatrix && !mAnimateMotionTransform) ||
       (aMatrix && mAnimateMotionTransform && *aMatrix == *mAnimateMotionTransform)) {
     return;
   }
-  mAnimateMotionTransform = aMatrix ? new gfx::Matrix(*aMatrix) : nullptr;
+  mAnimateMotionTransform = aMatrix ? new gfxMatrix(*aMatrix) : nullptr;
   DidAnimateTransformList();
   nsIFrame* frame = GetPrimaryFrame();
   if (frame) {
