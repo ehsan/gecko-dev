@@ -136,12 +136,6 @@ MediaCodecProxy::requestResource()
 }
 
 void
-MediaCodecProxy::RequestMediaResources()
-{
-  requestResource();
-}
-
-void
 MediaCodecProxy::cancelResource()
 {
   if (mResourceHandler == nullptr) {
@@ -578,6 +572,7 @@ status_t MediaCodecProxy::Output(MediaBuffer** aBuffer, int64_t aTimeoutUs)
   status_t err = dequeueOutputBuffer(&index, &offset, &size,
                                       &timeUs, &flags, aTimeoutUs);
   if (err != OK) {
+    ALOG("Output returned %d", err);
     return err;
   }
 
@@ -603,10 +598,9 @@ status_t MediaCodecProxy::Output(MediaBuffer** aBuffer, int64_t aTimeoutUs)
 
 bool MediaCodecProxy::IsWaitingResources()
 {
-  if (mResourceHandler.get()) {
-    return mResourceHandler->IsWaitingResource();
-  }
-  return false;
+  // Write Lock for mCodec
+  RWLock::AutoWLock awl(mCodecLock);
+  return mCodec == nullptr;
 }
 
 bool MediaCodecProxy::IsDormantNeeded()

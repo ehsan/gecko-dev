@@ -475,12 +475,6 @@ GonkVideoDecoderManager::Flush()
 }
 
 void
-GonkVideoDecoderManager::AllocateMediaResources()
-{
-  mDecoder->RequestMediaResources();
-}
-
-void
 GonkVideoDecoderManager::codecReserved()
 {
   sp<AMessage> format = new AMessage;

@@ -204,14 +204,6 @@ private:
 };
 #endif
 
-void MP4Reader::RequestCodecResource() {
-#ifdef MOZ_GONK_MEDIACODEC
-  if(mVideo.mDecoder) {
-    mVideo.mDecoder->AllocateMediaResources();
-  }
-#endif
-}
-
 bool MP4Reader::IsWaitingOnCodecResource() {
 #ifdef MOZ_GONK_MEDIACODEC
   return mVideo.mDecoder && mVideo.mDecoder->IsWaitingMediaResources();
@@ -279,14 +271,6 @@ MP4Reader::IsSupportedVideoMimeType(const char* aMimeType)
           !strcmp(aMimeType, "video/avc") ||
           !strcmp(aMimeType, "video/x-vnd.on2.vp6")) &&
          mPlatform->SupportsVideoMimeType(aMimeType);
-}
-
-void
-MP4Reader::PreReadMetadata()
-{
-  if (mPlatform) {
-    RequestCodecResource();
-  }
 }
 
 nsresult
@@ -745,7 +729,6 @@ MP4Reader::Flush(TrackType aTrack)
       data.RejectPromise(CANCELED, __func__);
     }
     data.mDiscontinuity = true;
-    data.mUpdateScheduled = false;
   }
   if (aTrack == kVideo) {
     mQueuedVideoSample = nullptr;

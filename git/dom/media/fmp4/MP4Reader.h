@@ -45,11 +45,6 @@ public:
   virtual bool HasAudio() MOZ_OVERRIDE;
   virtual bool HasVideo() MOZ_OVERRIDE;
 
-  // PreReadMetadata() is called by MediaDecoderStateMachine::DecodeMetadata()
-  // before checking hardware resource. In Gonk, it requests hardware codec so
-  // MediaDecoderStateMachine could go to DORMANT state if the hardware codec is
-  // not available.
-  virtual void PreReadMetadata() MOZ_OVERRIDE;
   virtual nsresult ReadMetadata(MediaInfo* aInfo,
                                 MetadataTags** aTags) MOZ_OVERRIDE;
 
@@ -112,7 +107,6 @@ private:
   bool IsSupportedAudioMimeType(const char* aMimeType);
   bool IsSupportedVideoMimeType(const char* aMimeType);
   void NotifyResourcesStatusChanged();
-  void RequestCodecResource();
   bool IsWaitingOnCodecResource();
   virtual bool IsWaitingOnCDMResource() MOZ_OVERRIDE;
 
