@@ -73,7 +73,6 @@
 
 #include "nsGUIEvent.h"
 #include "nsAsyncDOMEvent.h"
-#include "nsIDOMNodeFilter.h"
 
 #include "nsIDOMStyleSheet.h"
 #include "nsDOMAttribute.h"
@@ -5025,14 +5024,10 @@ NS_IMETHODIMP
 nsDocument::CreateNodeIterator(nsIDOMNode *aRoot,
                                PRUint32 aWhatToShow,
                                nsIDOMNodeFilter *aFilter,
-                               PRUint8 aOptionalArgc,
+                               bool aEntityReferenceExpansion,
                                nsIDOMNodeIterator **_retval)
 {
   *_retval = nsnull;
-
-  if (!aOptionalArgc) {
-    aWhatToShow = nsIDOMNodeFilter::SHOW_ALL;
-  }
 
   if (!aRoot)
     return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
@@ -5047,26 +5042,23 @@ nsDocument::CreateNodeIterator(nsIDOMNode *aRoot,
 
   nsNodeIterator *iterator = new nsNodeIterator(root,
                                                 aWhatToShow,
-                                                aFilter);
+                                                aFilter,
+                                                aEntityReferenceExpansion);
   NS_ENSURE_TRUE(iterator, NS_ERROR_OUT_OF_MEMORY);
 
   NS_ADDREF(*_retval = iterator);
 
-  return NS_OK;
+  return NS_OK; 
 }
 
 NS_IMETHODIMP
 nsDocument::CreateTreeWalker(nsIDOMNode *aRoot,
                              PRUint32 aWhatToShow,
                              nsIDOMNodeFilter *aFilter,
-                             PRUint8 aOptionalArgc,
+                             bool aEntityReferenceExpansion,
                              nsIDOMTreeWalker **_retval)
 {
   *_retval = nsnull;
-
-  if (!aOptionalArgc) {
-    aWhatToShow = nsIDOMNodeFilter::SHOW_ALL;
-  }
 
   if (!aRoot)
     return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
@@ -5081,7 +5073,8 @@ nsDocument::CreateTreeWalker(nsIDOMNode *aRoot,
 
   nsTreeWalker* walker = new nsTreeWalker(root,
                                           aWhatToShow,
-                                          aFilter);
+                                          aFilter,
+                                          aEntityReferenceExpansion);
   NS_ENSURE_TRUE(walker, NS_ERROR_OUT_OF_MEMORY);
 
   NS_ADDREF(*_retval = walker);

@@ -54,13 +54,15 @@ class nsTraversal
 public:
     nsTraversal(nsINode *aRoot,
                 PRUint32 aWhatToShow,
-                nsIDOMNodeFilter *aFilter);
+                nsIDOMNodeFilter *aFilter,
+                bool aExpandEntityReferences);
     virtual ~nsTraversal();
 
 protected:
     nsCOMPtr<nsINode> mRoot;
     PRUint32 mWhatToShow;
     nsCOMPtr<nsIDOMNodeFilter> mFilter;
+    bool mExpandEntityReferences;
     bool mInAcceptNode;
 
     /*

@@ -2272,7 +2272,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     newInnerWindow->mChromeEventHandler = mChromeEventHandler;
   }
 
-  mContext->GC(js::gcreason::SET_NEW_DOCUMENT);
+  mContext->GC();
   mContext->DidInitializeContext();
 
   if (newInnerWindow && !newInnerWindow->mHasNotifiedGlobalCreated && mDoc) {
@@ -2429,7 +2429,7 @@ nsGlobalWindow::SetDocShell(nsIDocShell* aDocShell)
     }
 
     if (mContext) {
-      mContext->GC(js::gcreason::SET_DOC_SHELL);
+      mContext->GC();
       mContext->FinalizeContext();
       mContext = nsnull;
     }

@@ -106,10 +106,9 @@ struct nsCycleCollectionJSRuntime : public nsCycleCollectionLanguageRuntime
     virtual bool NeedCollect() = 0;
 
     /**
-     * Runs the JavaScript GC. |reason| is a gcreason::Reason from jsfriendapi.h.
-     * |kind| is a nsGCType from nsIXPConnect.idl.
+     * Runs the JavaScript GC.
      */
-    virtual void Collect(PRUint32 reason, PRUint32 kind) = 0;
+    virtual void Collect(bool shrinkingGC = false) = 0;
 };
 
 #ifdef DEBUG
