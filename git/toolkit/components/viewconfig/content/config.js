@@ -195,6 +195,9 @@ var gPrefListener =
     if (topic != "nsPref:changed")
       return;
 
+    if (/^capability\./.test(prefName)) // avoid displaying "private" preferences
+      return;
+
     var arrayIndex = gPrefArray.length;
     var viewIndex = arrayIndex;
     var selectedIndex = view.selection.currentIndex;
@@ -345,7 +348,14 @@ function onConfigLoad()
 // Unhide the warning message
 function ShowPrefs()
 {
-  gPrefBranch.getChildList("").forEach(fetchPref);
+  var prefArray = gPrefBranch.getChildList("");
+
+  prefArray.forEach(function (prefName) {
+    if (/^capability\./.test(prefName)) // avoid displaying "private" preferences
+      return;
+
+    fetchPref(prefName, gPrefArray.length);
+  });
 
   var descending = document.getElementsByAttribute("sortDirection", "descending");
   if (descending.item(0)) {

@@ -6,6 +6,7 @@
 const {classes: Cc, interfaces: Ci, manager: Cm, utils: Cu} = Components;
 Cu.import("resource://gre/modules/Services.jsm");
 
+const PRIVATE_PREF_PREFIX = "capability.";   // Tag to prevent exposing private preferences
 const INITIAL_PAGE_DELAY = 500;   // Initial pause on program start for scroll alignment
 const PREFS_BUFFER_MAX = 100;   // Max prefs buffer size for getPrefsBuffer()
 const PAGE_SCROLL_TRIGGER = 200;     // Triggers additional getPrefsBuffer() on user scroll-to-bottom
@@ -82,6 +83,12 @@ var NewPrefDialog = {
     this._positiveButton.textContent = gStringBundle.GetStringFromName("newPref.createButton");
     this._positiveButton.setAttribute("disabled", true);
     if (aPrefName == "") {
+      return;
+    }
+
+    // Prevent addition of new "private" preferences
+    if (aPrefName.startsWith(PRIVATE_PREF_PREFIX)) {
+      this._positiveButton.textContent = gStringBundle.GetStringFromName("newPref.privateButton");
       return;
     }
 
@@ -199,7 +206,10 @@ var AboutConfig = {
     this._prefsContainer = document.getElementById("prefs-container");
     this._loadingContainer = document.getElementById("loading-container");
 
-    let list = Services.prefs.getChildList("");
+    let list = Services.prefs.getChildList("", {}).filter(function(aElement) {
+      // Prevent display of "private" preferences
+      return !aElement.startsWith(PRIVATE_PREF_PREFIX);
+    });
     this._list = list.sort().map( function AC_getMapPref(aPref) {
       return new Pref(aPref);
     }, this);
@@ -451,8 +461,8 @@ var AboutConfig = {
   observe: function AC_observe(aSubject, aTopic, aPrefName) {
     let pref = new Pref(aPrefName);
 
-    // Ignore uninteresting changes, and avoid "private" preferences
-    if (aTopic != "nsPref:changed") {
+    // Ignore uninteresting preference changes, and external changes to "private" preferences
+    if ((aTopic != "nsPref:changed") || pref.name.startsWith(PRIVATE_PREF_PREFIX)) {
       return;
     }
 

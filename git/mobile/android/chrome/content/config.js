@@ -86,6 +86,12 @@ var NewPrefDialog = {
       return;
     }
 
+    // Avoid "private" preferences
+    if (/^capability\./.test(aPrefName)) {
+      this._positiveButton.textContent = "Private";
+      return;
+    }
+
     // If item already in list, it's being changed, else added
     let item = document.querySelector(".pref-item[name=" + aPrefName.quote() + "]");
     if (item) {
@@ -201,7 +207,10 @@ var AboutConfig = {
     this._prefsContainer = document.getElementById("prefs-container");
     this._loadingContainer = document.getElementById("loading-container");
 
-    let list = Services.prefs.getChildList("");
+    let list = Services.prefs.getChildList("", {}).filter(function(aElement) {
+      // Avoid "private" preferences
+      return !(/^capability\./.test(aElement));
+    });
     this._list = list.sort().map( function AC_getMapPref(aPref) {
       return new Pref(aPref);
     }, this);
@@ -455,7 +464,7 @@ var AboutConfig = {
     let pref = new Pref(aPrefName);
 
     // Ignore uninteresting changes, and avoid "private" preferences
-    if (aTopic != "nsPref:changed") {
+    if ((aTopic != "nsPref:changed") || /^capability\./.test(pref.name)) {
       return;
     }
 
