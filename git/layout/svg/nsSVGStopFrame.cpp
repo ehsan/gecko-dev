@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // Keep in (case-insensitive) order:
-#include "nsContainerFrame.h"
 #include "nsFrame.h"
 #include "nsGkAtoms.h"
 #include "nsStyleContext.h"
@@ -98,10 +97,7 @@ nsSVGStopFrame::AttributeChanged(int32_t         aNameSpaceID,
 {
   if (aNameSpaceID == kNameSpaceID_None &&
       aAttribute == nsGkAtoms::offset) {
-    MOZ_ASSERT(GetParent()->GetType() == nsGkAtoms::svgLinearGradientFrame ||
-               GetParent()->GetType() == nsGkAtoms::svgRadialGradientFrame,
-               "Observers observe the gradient, so that's what we must invalidate");
-    nsSVGEffects::InvalidateDirectRenderingObservers(GetParent());
+    nsSVGEffects::InvalidateRenderingObservers(this);
   }
 
   return nsSVGStopFrameBase::AttributeChanged(aNameSpaceID,

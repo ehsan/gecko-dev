@@ -4745,7 +4745,7 @@ static bool
 DebuggerFrame_getGenerator(JSContext *cx, unsigned argc, Value *vp)
 {
     THIS_FRAME(cx, argc, vp, "get generator", args, thisobj, frame);
-    args.rval().setBoolean(frame.script()->isGenerator());
+    args.rval().setBoolean(frame.isGeneratorFrame());
     return true;
 }
 

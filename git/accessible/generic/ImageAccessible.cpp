@@ -181,18 +181,13 @@ already_AddRefed<nsIURI>
 ImageAccessible::GetLongDescURI() const
 {
   if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::longdesc)) {
-    // To check if longdesc contains an invalid url.
-    nsAutoString longdesc;
-    mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::longdesc, longdesc);
-    if (longdesc.FindChar(' ') != -1 || longdesc.FindChar('\t') != -1 ||
-        longdesc.FindChar('\r') != -1 || longdesc.FindChar('\n') != -1) {
-      return nullptr;
+    nsGenericHTMLElement* element =
+      nsGenericHTMLElement::FromContent(mContent);
+    if (element) {
+      nsCOMPtr<nsIURI> uri;
+      element->GetURIAttr(nsGkAtoms::longdesc, nullptr, getter_AddRefs(uri));
+      return uri.forget();
     }
-    nsCOMPtr<nsIURI> baseURI = mContent->GetBaseURI();
-    nsCOMPtr<nsIURI> uri;
-    nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(uri), longdesc,
-                                              mContent->OwnerDoc(), baseURI);
-    return uri.forget();
   }
 
   DocAccessible* document = Document();

@@ -22,8 +22,6 @@ const GONK_TELEPHONYSERVICE_CONTRACTID =
   "@mozilla.org/telephony/gonktelephonyservice;1";
 const GONK_TELEPHONYSERVICE_CID =
   Components.ID("{67d26434-d063-4d28-9f48-5b3189788155}");
-const MOBILECALLFORWARDINGOPTIONS_CID =
-  Components.ID("{79b5988b-9436-48d8-a652-88fa033f146c}");
 
 const NS_XPCOM_SHUTDOWN_OBSERVER_ID = "xpcom-shutdown";
 
@@ -118,28 +116,32 @@ XPCOMUtils.defineLazyGetter(this, "gPhoneNumberUtils", function() {
   return ns.PhoneNumberUtils;
 });
 
-function MobileCallForwardingOptions(aOptions) {
-  for (let key in aOptions) {
-    this[key] = aOptions[key];
-  }
+function MMIResult(aMmiServiceCode, aOptions) {
+  this.serviceCode = aMmiServiceCode;
+  this.statusMessage = aOptions.statusMessage;
+  this.additionalInformation = aOptions.additionalInformation;
 }
-MobileCallForwardingOptions.prototype = {
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIMobileCallForwardingOptions]),
-  classID: MOBILECALLFORWARDINGOPTIONS_CID,
-  classInfo: XPCOMUtils.generateCI({
-    classID:          MOBILECALLFORWARDINGOPTIONS_CID,
-    classDescription: "MobileCallForwardingOptions",
-    interfaces:       [Ci.nsIMobileCallForwardingOptions]
-  }),
+MMIResult.prototype = {
+  __exposedProps__ : {serviceCode: 'r',
+                      statusMessage: 'r',
+                      additionalInformation: 'r'},
+};
 
-  // nsIMobileForwardingOptions
-
-  active: false,
-  action: Ci.nsIMobileConnection.CALL_FORWARD_ACTION_UNKNOWN,
-  reason: Ci.nsIMobileConnection.CALL_FORWARD_REASON_UNKNOWN,
-  number: null,
-  timeSeconds: -1,
-  serviceClass: Ci.nsIMobileConnection.ICC_SERVICE_CLASS_NONE
+function CallForwardingOptions(aOptions) {
+  this.active = aOptions.active;
+  this.action = aOptions.action;
+  this.reason = aOptions.reason;
+  this.number = aOptions.number;
+  this.timeSeconds = aOptions.timeSeconds;
+  this.serviceClass = aOptions.serviceClass;
+}
+CallForwardingOptions.prototype = {
+  __exposedProps__ : {active: 'r',
+                      action: 'r',
+                      reason: 'r',
+                      number: 'r',
+                      timeSeconds: 'r',
+                      serviceClass: 'r'},
 };
 
 function TelephonyService() {
@@ -336,7 +338,7 @@ TelephonyService.prototype = {
   },
 
   _rulesToCallForwardingOptions: function(aRules) {
-    return aRules.map(rule => new MobileCallForwardingOptions(rule));
+    return aRules.map(rule => new CallForwardingOptions(rule));
   },
 
   _updateDebugFlag: function() {
@@ -714,36 +716,13 @@ TelephonyService.prototype = {
         }
 
         if (response.additionalInformation != null) {
-          let callForwardingOptions =
+          response.additionalInformation =
             this._rulesToCallForwardingOptions(response.additionalInformation);
-          aCallback.notifyDialMMISuccessWithCallForwardingOptions(
-            response.statusMessage, callForwardingOptions.length, callForwardingOptions);
-          return;
         }
       }
 
-      // No additional information
-      if (response.additionalInformation == undefined) {
-        aCallback.notifyDialMMISuccess(response.statusMessage);
-        return;
-      }
-
-      // Additional information is an integer.
-      if (!isNaN(parseInt(response.additionalInformation, 10))) {
-        aCallback.notifyDialMMISuccessWithInteger(
-          response.statusMessage, response.additionalInformation);
-        return;
-      }
-
-      // Additional information is an array of strings.
-      let array = response.additionalInformation;
-      if (Array.isArray(array) && array.length > 0 && typeof array[0] === "string") {
-        aCallback.notifyDialMMISuccessWithStrings(response.statusMessage,
-                                                  array.length, array);
-        return;
-      }
-
-      aCallback.notifyDialMMISuccess(response.statusMessage);
+      let result = new MMIResult(mmiServiceCode, response);
+      aCallback.notifyDialMMISuccess(result);
     });
   },
 

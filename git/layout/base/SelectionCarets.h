@@ -7,7 +7,6 @@
 #ifndef SelectionCarets_h__
 #define SelectionCarets_h__
 
-#include "nsIReflowObserver.h"
 #include "nsIScrollObserver.h"
 #include "nsISelectionListener.h"
 #include "nsWeakPtr.h"
@@ -49,8 +48,7 @@ class Selection;
  *          UX spec, when selection contains only one characters, the image of
  *          caret becomes tilt.
  */
-class SelectionCarets MOZ_FINAL : public nsIReflowObserver,
-                                  public nsISelectionListener,
+class SelectionCarets MOZ_FINAL : public nsISelectionListener,
                                   public nsIScrollObserver,
                                   public nsSupportsWeakReference
 {
@@ -67,7 +65,6 @@ public:
   explicit SelectionCarets(nsIPresShell *aPresShell);
 
   NS_DECL_ISUPPORTS
-  NS_DECL_NSIREFLOWOBSERVER
   NS_DECL_NSISELECTIONLISTENER
 
   // nsIScrollObserver
@@ -77,8 +74,10 @@ public:
   virtual void AsyncPanZoomStarted(const mozilla::CSSIntPoint aScrollPos) MOZ_OVERRIDE;
   virtual void AsyncPanZoomStopped(const mozilla::CSSIntPoint aScrollPos) MOZ_OVERRIDE;
 
-  void Init();
-  void Terminate();
+  void Terminate()
+  {
+    mPresShell = nullptr;
+  }
 
   nsEventStatus HandleEvent(WidgetEvent* aEvent);
 

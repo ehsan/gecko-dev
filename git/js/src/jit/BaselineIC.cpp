@@ -8826,11 +8826,10 @@ CopyArray(JSContext *cx, HandleArrayObject obj, MutableHandleValue result)
     if (!type)
         return false;
 
-    RootedArrayObject newObj(cx, NewDenseFullyAllocatedArray(cx, length, nullptr, TenuredObject));
+    RootedArrayObject newObj(cx, NewDenseArray(cx, length, type, NewArray_FullyAllocating));
     if (!newObj)
         return false;
 
-    newObj->setType(type);
     newObj->setDenseInitializedLength(length);
     newObj->initDenseElements(0, obj->getDenseElements(), length);
     result.setObject(*newObj);

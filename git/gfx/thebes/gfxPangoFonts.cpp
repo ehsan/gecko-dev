@@ -1311,13 +1311,13 @@ gfxPangoFontGroup::GetBaseFont()
 }
 
 gfxFont*
-gfxPangoFontGroup::GetFirstValidFont(uint32_t aCh)
+gfxPangoFontGroup::GetFirstValidFont()
 {
     return GetFontAt(0);
 }
 
 gfxFont *
-gfxPangoFontGroup::GetFontAt(int32_t i, uint32_t aCh)
+gfxPangoFontGroup::GetFontAt(int32_t i)
 {
     // If it turns out to be hard for all clients that cache font
     // groups to call UpdateUserFonts at appropriate times, we could

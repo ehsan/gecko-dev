@@ -200,8 +200,6 @@ class LIRGenerator : public LIRGeneratorSpecific
     bool visitBoundsCheckLower(MBoundsCheckLower *ins);
     bool visitLoadElement(MLoadElement *ins);
     bool visitLoadElementHole(MLoadElementHole *ins);
-    bool visitLoadUnboxedObjectOrNull(MLoadUnboxedObjectOrNull *ins);
-    bool visitLoadUnboxedString(MLoadUnboxedString *ins);
     bool visitStoreElement(MStoreElement *ins);
     bool visitStoreElementHole(MStoreElementHole *ins);
     bool visitStoreUnboxedObjectOrNull(MStoreUnboxedObjectOrNull *ins);

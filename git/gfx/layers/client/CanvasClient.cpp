@@ -374,7 +374,8 @@ CanvasClientSharedSurface::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
   MOZ_ASSERT(newTex);
 
   // Add the new TexClient.
-  MOZ_ALWAYS_TRUE( AddTextureClient(newTex) );
+  MOZ_ALWAYS_TRUE( newTex->InitIPDLActor(forwarder) );
+  MOZ_ASSERT(newTex->GetIPDLActor());
 
   // Remove the old TexClient.
   if (mFrontTex) {

@@ -212,20 +212,15 @@ gfxFontCache::~gfxFontCache()
 bool
 gfxFontCache::HashEntry::KeyEquals(const KeyTypePointer aKey) const
 {
-    const gfxCharacterMap* fontUnicodeRangeMap = mFont->GetUnicodeRangeMap();
     return aKey->mFontEntry == mFont->GetFontEntry() &&
-           aKey->mStyle->Equals(*mFont->GetStyle()) &&
-           ((!aKey->mUnicodeRangeMap && !fontUnicodeRangeMap) ||
-            (aKey->mUnicodeRangeMap && fontUnicodeRangeMap &&
-             aKey->mUnicodeRangeMap->Equals(fontUnicodeRangeMap)));
+           aKey->mStyle->Equals(*mFont->GetStyle());
 }
 
 already_AddRefed<gfxFont>
-gfxFontCache::Lookup(const gfxFontEntry* aFontEntry,
-                     const gfxFontStyle* aStyle,
-                     const gfxCharacterMap* aUnicodeRangeMap)
+gfxFontCache::Lookup(const gfxFontEntry *aFontEntry,
+                     const gfxFontStyle *aStyle)
 {
-    Key key(aFontEntry, aStyle, aUnicodeRangeMap);
+    Key key(aFontEntry, aStyle);
     HashEntry *entry = mFonts.GetEntry(key);
 
     Telemetry::Accumulate(Telemetry::FONT_CACHE_HIT, entry != nullptr);
@@ -239,8 +234,7 @@ gfxFontCache::Lookup(const gfxFontEntry* aFontEntry,
 void
 gfxFontCache::AddNew(gfxFont *aFont)
 {
-    Key key(aFont->GetFontEntry(), aFont->GetStyle(),
-            aFont->GetUnicodeRangeMap());
+    Key key(aFont->GetFontEntry(), aFont->GetStyle());
     HashEntry *entry = mFonts.PutEntry(key);
     if (!entry)
         return;
@@ -285,8 +279,7 @@ gfxFontCache::NotifyExpired(gfxFont *aFont)
 void
 gfxFontCache::DestroyFont(gfxFont *aFont)
 {
-    Key key(aFont->GetFontEntry(), aFont->GetStyle(),
-            aFont->GetUnicodeRangeMap());
+    Key key(aFont->GetFontEntry(), aFont->GetStyle());
     HashEntry *entry = mFonts.GetEntry(key);
     if (entry && entry->mFont == aFont) {
         mFonts.RemoveEntry(key);
@@ -3005,7 +2998,7 @@ gfxFont::GetSmallCapsFont()
     style.variantCaps = NS_FONT_VARIANT_CAPS_NORMAL;
     gfxFontEntry* fe = GetFontEntry();
     bool needsBold = style.weight >= 600 && !fe->IsBold();
-    return fe->FindOrMakeFont(&style, needsBold, mUnicodeRangeMap);
+    return fe->FindOrMakeFont(&style, needsBold);
 }
 
 already_AddRefed<gfxFont>
@@ -3015,7 +3008,7 @@ gfxFont::GetSubSuperscriptFont(int32_t aAppUnitsPerDevPixel)
     style.AdjustForSubSuperscript(aAppUnitsPerDevPixel);
     gfxFontEntry* fe = GetFontEntry();
     bool needsBold = style.weight >= 600 && !fe->IsBold();
-    return fe->FindOrMakeFont(&style, needsBold, mUnicodeRangeMap);
+    return fe->FindOrMakeFont(&style, needsBold);
 }
 
 gfxGlyphExtents *

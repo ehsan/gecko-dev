@@ -2307,12 +2307,7 @@ nsDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
   }
   mInUnlinkOrDeletion = oldVal;
 
-  if (!mMasterDocument) {
-    // "When creating an import, use the registry of the master document."
-    // Note: at this point the mMasterDocument is already set for imports
-    // (and only for imports)
-    mRegistry = nullptr;
-  }
+  mRegistry = nullptr;
 
   // Reset our stylesheets
   ResetStylesheetsToURI(aURI);

@@ -102,22 +102,20 @@ public:
     Push(new ResourceItem(aData, aLength));
   }
 
-  // Tries to evict at least aSizeToEvict from the queue up until
-  // aOffset. Returns amount evicted.
-  uint32_t Evict(uint64_t aOffset, uint32_t aSizeToEvict) {
+  // Evict data in queue if the total queue size is greater than
+  // aThreshold past the offset. Returns amount evicted.
+  uint32_t Evict(uint64_t aOffset, uint32_t aThreshold) {
     uint32_t evicted = 0;
-    while (ResourceItem* item = ResourceAt(0)) {
+    while (GetLength() - mOffset > aThreshold) {
+      ResourceItem* item = ResourceAt(0);
       if (item->mData.Length() + mOffset > aOffset) {
         break;
       }
       mOffset += item->mData.Length();
       evicted += item->mData.Length();
       SBR_DEBUGV("ResourceQueue(%p)::Evict(%llu, %u) removed chunk length=%u",
-                 this, aOffset, aSizeToEvict, item->mData.Length());
+                 this, aOffset, aThreshold, item->mData.Length());
       delete PopFront();
-      if (aSizeToEvict && evicted >= aSizeToEvict) {
-        break;
-      }
     }
     return evicted;
   }

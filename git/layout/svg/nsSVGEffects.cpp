@@ -228,9 +228,7 @@ nsSVGRenderingObserverProperty::DoUpdate()
   if (frame && frame->IsFrameOfType(nsIFrame::eSVG)) {
     // Changes should propagate out to things that might be observing
     // the referencing frame or its ancestors.
-    nsLayoutUtils::PostRestyleEvent(
-      frame->GetContent()->AsElement(), nsRestyleHint(0),
-      nsChangeHint_InvalidateRenderingObservers);
+    nsSVGEffects::InvalidateRenderingObservers(frame);
   }
 }
 
@@ -318,15 +316,15 @@ nsSVGFilterProperty::DoUpdate()
   if (!frame)
     return;
 
-  // Repaint asynchronously in case the filter frame is being torn down
-  nsChangeHint changeHint =
-    nsChangeHint(nsChangeHint_RepaintFrame);
-
   if (frame && frame->IsFrameOfType(nsIFrame::eSVG)) {
     // Changes should propagate out to things that might be observing
     // the referencing frame or its ancestors.
-    NS_UpdateHint(changeHint, nsChangeHint_InvalidateRenderingObservers);
+    nsSVGEffects::InvalidateRenderingObservers(frame);
   }
+
+  // Repaint asynchronously in case the filter frame is being torn down
+  nsChangeHint changeHint =
+    nsChangeHint(nsChangeHint_RepaintFrame);
 
   // Don't need to request UpdateOverflow if we're being reflowed.
   if (!(frame->GetStateBits() & NS_FRAME_IN_REFLOW)) {
@@ -353,9 +351,9 @@ nsSVGMarkerProperty::DoUpdate()
 
   // Don't need to request ReflowFrame if we're being reflowed.
   if (!(frame->GetStateBits() & NS_FRAME_IN_REFLOW)) {
-    NS_UpdateHint(changeHint, nsChangeHint_InvalidateRenderingObservers);
     // XXXjwatt: We need to unify SVG into standard reflow so we can just use
     // nsChangeHint_NeedReflow | nsChangeHint_NeedDirtyReflow here.
+    nsSVGEffects::InvalidateRenderingObservers(frame);
     // XXXSDL KILL THIS!!!
     nsSVGUtils::ScheduleReflowSVG(frame);
   }
@@ -425,9 +423,7 @@ nsSVGPaintingProperty::DoUpdate()
     return;
 
   if (frame->GetStateBits() & NS_FRAME_SVG_LAYOUT) {
-    nsLayoutUtils::PostRestyleEvent(
-      frame->GetContent()->AsElement(), nsRestyleHint(0),
-      nsChangeHint_InvalidateRenderingObservers);
+    nsSVGEffects::InvalidateRenderingObservers(frame);
     frame->InvalidateFrameSubtree();
   } else {
     InvalidateAllContinuations(frame);

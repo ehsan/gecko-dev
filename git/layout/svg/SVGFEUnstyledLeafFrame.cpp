@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // Keep in (case-insensitive) order:
-#include "nsContainerFrame.h"
 #include "nsFrame.h"
 #include "nsGkAtoms.h"
 #include "nsSVGEffects.h"
@@ -27,8 +26,8 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
   virtual void BuildDisplayList(nsDisplayListBuilder* aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE {}
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists) MOZ_OVERRIDE {}
 
   virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
   {
@@ -80,9 +79,7 @@ SVGFEUnstyledLeafFrame::AttributeChanged(int32_t  aNameSpaceID,
 {
   SVGFEUnstyledElement *element = static_cast<SVGFEUnstyledElement*>(mContent);
   if (element->AttributeAffectsRendering(aNameSpaceID, aAttribute)) {
-    MOZ_ASSERT(GetParent()->GetParent()->GetType() == nsGkAtoms::svgFilterFrame,
-               "Observers observe the filter, so that's what we must invalidate");
-    nsSVGEffects::InvalidateDirectRenderingObservers(GetParent()->GetParent());
+    nsSVGEffects::InvalidateRenderingObservers(this);
   }
 
   return SVGFEUnstyledLeafFrameBase::AttributeChanged(aNameSpaceID,

@@ -5,13 +5,14 @@
 // Test basic pretty printing functionality. Would be an xpcshell test, except
 // for bug 921252.
 
-let gTab, gPanel, gClient, gThreadClient, gSource;
+let gTab, gDebuggee, gPanel, gClient, gThreadClient, gSource;
 
 const TAB_URL = EXAMPLE_URL + "doc_pretty-print-2.html";
 
 function test() {
-  initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
+  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
     gTab = aTab;
+    gDebuggee = aDebuggee;
     gPanel = aPanel;
     gClient = gPanel.panelWin.gClient;
     gThreadClient = gPanel.panelWin.DebuggerController.activeThread;
@@ -51,5 +52,5 @@ function testUgly({ error, source }) {
 }
 
 registerCleanupFunction(function() {
-  gTab = gPanel = gClient = gThreadClient = gSource = null;
+  gTab = gDebuggee = gPanel = gClient = gThreadClient = gSource = null;
 });

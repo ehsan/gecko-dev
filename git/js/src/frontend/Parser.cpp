@@ -4577,7 +4577,6 @@ Parser<FullParseHandler>::forStatement()
                 pn1 = variables(PNK_VAR);
             } else if (tt == TOK_LET || tt == TOK_CONST) {
                 handler.disableSyntaxParser();
-                bool constDecl = tt == TOK_CONST;
                 tokenStream.consumeKnownToken(tt);
                 if (!tokenStream.peekToken(&tt))
                     return null();
@@ -4588,7 +4587,7 @@ Parser<FullParseHandler>::forStatement()
                     blockObj = StaticBlockObject::create(context);
                     if (!blockObj)
                         return null();
-                    pn1 = variables(constDecl ? PNK_CONST : PNK_LET, nullptr, blockObj,
+                    pn1 = variables(tt == TOK_CONST ? PNK_CONST: PNK_LET, nullptr, blockObj,
                                     DontHoistVars);
                 }
             } else {

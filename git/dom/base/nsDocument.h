@@ -1304,9 +1304,7 @@ public:
 
   virtual void SetMasterDocument(nsIDocument* master)
   {
-    MOZ_ASSERT(master);
     mMasterDocument = master;
-    UseRegistryFromDocument(mMasterDocument);
   }
 
   virtual bool IsMasterDocument()
