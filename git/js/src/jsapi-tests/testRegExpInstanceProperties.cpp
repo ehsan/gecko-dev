@@ -10,10 +10,9 @@
 
 #include "jscompartment.h"
 #include "jsgc.h"
+#include "jsscope.h"
 
-#include "vm/Shape.h"
-
-#include "vm/Shape-inl.h"
+#include "jsscopeinlines.h"
 
 BEGIN_TEST(testRegExpInstanceProperties)
 {

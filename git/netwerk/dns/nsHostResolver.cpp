@@ -980,14 +980,10 @@ nsHostResolver::ThreadFunc(void *arg)
 
         TimeStamp startTime = TimeStamp::Now();
 
-        // We need to remove IPv4 records manually
-        // because PR_GetAddrInfoByName doesn't support PR_AF_INET6.
-        bool disableIPv4 = rec->af == PR_AF_INET6;
-        uint16_t af = disableIPv4 ? PR_AF_UNSPEC : rec->af;
-        prai = PR_GetAddrInfoByName(rec->host, af, flags);
+        prai = PR_GetAddrInfoByName(rec->host, rec->af, flags);
 #if defined(RES_RETRY_ON_FAILURE)
         if (!prai && rs.Reset())
-            prai = PR_GetAddrInfoByName(rec->host, af, flags);
+            prai = PR_GetAddrInfoByName(rec->host, rec->af, flags);
 #endif
 
         TimeDuration elapsed = TimeStamp::Now() - startTime;
@@ -997,14 +993,9 @@ nsHostResolver::ThreadFunc(void *arg)
         nsresult status;
         AddrInfo *ai = nullptr;
         if (prai) {
-            ai = new AddrInfo(rec->host, prai, disableIPv4);
+            ai = new AddrInfo(rec->host, prai);
             PR_FreeAddrInfo(prai);
-            if (ai->mAddresses.isEmpty()) {
-                delete ai;
-                ai = nullptr;
-            }
-        }
-        if (ai) {
+
             status = NS_OK;
 
             Telemetry::Accumulate(!rec->addr_info_gencnt ?

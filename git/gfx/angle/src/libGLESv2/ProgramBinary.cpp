@@ -49,10 +49,7 @@ Uniform::~Uniform()
 
 bool Uniform::isArray()
 {
-    size_t dot = _name.find_last_of('.');
-    if (dot == std::string::npos) dot = -1;
-
-    return _name.compare(dot + 1, dot + 4, "ar_") == 0;
+    return _name.compare(0, 3, "ar_") == 0;
 }
 
 UniformLocation::UniformLocation(const std::string &_name, unsigned int element, unsigned int index) 
@@ -111,8 +108,15 @@ ProgramBinary::~ProgramBinary()
         mVertexExecutable->Release();
     }
 
-    delete mConstantTablePS;
-    delete mConstantTableVS;
+    if (mConstantTablePS)
+    {
+        mConstantTablePS->Release();
+    }
+
+    if (mConstantTableVS)
+    {
+        mConstantTableVS->Release();
+    }
 
     while (!mUniforms.empty())
     {
@@ -177,11 +181,6 @@ GLint ProgramBinary::getUsedSamplerRange(SamplerType type)
         UNREACHABLE();
         return 0;
     }
-}
-
-bool ProgramBinary::usesPointSize() const
-{
-    return mUsesPointSize;
 }
 
 // Returns the index of the texture image unit (0-19) corresponding to a Direct3D 9 sampler
@@ -1037,14 +1036,14 @@ void ProgramBinary::applyUniforms()
 }
 
 // Compiles the HLSL code of the attached shaders into executable binaries
-ID3D10Blob *ProgramBinary::compileToBinary(InfoLog &infoLog, const char *hlsl, const char *profile, D3DConstantTable **constantTable)
+ID3D10Blob *ProgramBinary::compileToBinary(InfoLog &infoLog, const char *hlsl, const char *profile, ID3DXConstantTable **constantTable)
 {
     if (!hlsl)
     {
         return NULL;
     }
 
-    HRESULT result = S_OK;
+    DWORD result;
     UINT flags = 0;
     std::string sourceText;
     if (perfActive())
@@ -1066,73 +1065,47 @@ ID3D10Blob *ProgramBinary::compileToBinary(InfoLog &infoLog, const char *hlsl, c
         sourceText = hlsl;
     }
 
-    // Sometimes D3DCompile will fail with the default compilation flags for complicated shaders when it would otherwise pass with alternative options.
-    // Try the default flags first and if compilation fails, try some alternatives. 
-    const static UINT extraFlags[] =
+    ID3D10Blob *binary = NULL;
+    ID3D10Blob *errorMessage = NULL;
+    result = D3DCompile(hlsl, strlen(hlsl), g_fakepath, NULL, NULL, "main", profile, flags, 0, &binary, &errorMessage);
+
+    if (errorMessage)
     {
-        0,
-        D3DCOMPILE_AVOID_FLOW_CONTROL,
-        D3DCOMPILE_PREFER_FLOW_CONTROL
-    };
+        const char *message = (const char*)errorMessage->GetBufferPointer();
 
-    const static char * const extraFlagNames[] =
-    {
-        "default",
-        "avoid flow control",
-        "prefer flow control"
-    };
+        infoLog.appendSanitized(message);
+        TRACE("\n%s", hlsl);
+        TRACE("\n%s", message);
 
-    for (int i = 0; i < sizeof(extraFlags) / sizeof(UINT); ++i)
-    {
-        ID3D10Blob *errorMessage = NULL;
-        ID3D10Blob *binary = NULL;
-        result = getDisplay()->compileShaderSource(hlsl, g_fakepath, profile, flags | extraFlags[i], &binary, &errorMessage);
-        if (errorMessage)
-        {
-            const char *message = (const char*)errorMessage->GetBufferPointer();
-
-            infoLog.appendSanitized(message);
-            TRACE("\n%s", hlsl);
-            TRACE("\n%s", message);
-
-            errorMessage->Release();
-            errorMessage = NULL;
-        }
-
-        if (SUCCEEDED(result))
-        {
-            D3DConstantTable *table = new D3DConstantTable(binary->GetBufferPointer(), binary->GetBufferSize());
-            if (table->error())
-            {
-                delete table;
-                binary->Release();
-                return NULL;
-            }
-
-            *constantTable = table;
-    
-            return binary;
-        }
-        else
-        {
-            if (result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY)
-            {
-                return error(GL_OUT_OF_MEMORY, (ID3D10Blob*) NULL);
-            }
-
-            infoLog.append("Warning: D3D shader compilation failed with ");
-            infoLog.append(extraFlagNames[i]);
-            infoLog.append(" flags.");
-            if (i + 1 < sizeof(extraFlagNames) / sizeof(char*))
-            {
-                infoLog.append(" Retrying with ");
-                infoLog.append(extraFlagNames[i + 1]);
-                infoLog.append(".\n");
-            }
-        }
+        errorMessage->Release();
+        errorMessage = NULL;
     }
 
-    return NULL;
+    if (FAILED(result))
+    {
+        if (result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY)
+        {
+            error(GL_OUT_OF_MEMORY);
+        }
+
+        return NULL;
+    }
+
+    result = D3DXGetShaderConstantTable(static_cast<const DWORD*>(binary->GetBufferPointer()), constantTable);
+
+    if (FAILED(result))
+    {
+        if (result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY)
+        {
+            error(GL_OUT_OF_MEMORY);
+        }
+
+        binary->Release();
+
+        return NULL;
+    }
+
+    return binary;
 }
 
 // Packs varyings into generic varying registers, using the algorithm from [OpenGL ES Shading Language 1.00 rev. 17] appendix A section 7 page 111
@@ -1357,8 +1330,7 @@ bool ProgramBinary::linkVaryings(InfoLog &infoLog, std::string& pixelHLSL, std::
         }
     }
 
-    mUsesPointSize = vertexShader->mUsesPointSize;
-    std::string varyingSemantic = (mUsesPointSize && sm3) ? "COLOR" : "TEXCOORD";
+    std::string varyingSemantic = (vertexShader->mUsesPointSize && sm3 ? "COLOR" : "TEXCOORD");
 
     vertexHLSL += "struct VS_INPUT\n"
                    "{\n";
@@ -1608,14 +1580,7 @@ bool ProgramBinary::linkVaryings(InfoLog &infoLog, std::string& pixelHLSL, std::
                         pixelHLSL += "[" + str(j) + "]";
                     }
 
-                    switch (VariableColumnCount(varying->type))
-                    {
-                      case 1: pixelHLSL += " = input.v" + n + ".x;\n";   break;
-                      case 2: pixelHLSL += " = input.v" + n + ".xy;\n";  break;
-                      case 3: pixelHLSL += " = input.v" + n + ".xyz;\n"; break;
-                      case 4: pixelHLSL += " = input.v" + n + ";\n";     break;
-                      default: UNREACHABLE();
-                    }
+                    pixelHLSL += " = input.v" + n + ";\n";
                 }
             }
         }
@@ -1685,7 +1650,6 @@ bool ProgramBinary::load(InfoLog &infoLog, const void *binary, GLsizei length)
 
     stream.read(&mUsedVertexSamplerRange);
     stream.read(&mUsedPixelSamplerRange);
-    stream.read(&mUsesPointSize);
 
     unsigned int size;
     stream.read(&size);
@@ -1814,7 +1778,6 @@ bool ProgramBinary::save(void* binary, GLsizei bufSize, GLsizei *length)
 
     stream.write(mUsedVertexSamplerRange);
     stream.write(mUsedPixelSamplerRange);
-    stream.write(mUsesPointSize);
 
     stream.write(mUniforms.size());
     for (unsigned int i = 0; i < mUniforms.size(); ++i)
@@ -2067,13 +2030,22 @@ bool ProgramBinary::linkAttributes(InfoLog &infoLog, const AttributeBindings &at
     return true;
 }
 
-bool ProgramBinary::linkUniforms(InfoLog &infoLog, GLenum shader, D3DConstantTable *constantTable)
+bool ProgramBinary::linkUniforms(InfoLog &infoLog, GLenum shader, ID3DXConstantTable *constantTable)
 {
-    for (unsigned int constantIndex = 0; constantIndex < constantTable->constants(); constantIndex++)
-    {
-        const D3DConstant *constant = constantTable->getConstant(constantIndex);
+    D3DXCONSTANTTABLE_DESC constantTableDescription;
 
-        if (!defineUniform(infoLog, shader, constant))
+    constantTable->GetDesc(&constantTableDescription);
+
+    for (unsigned int constantIndex = 0; constantIndex < constantTableDescription.Constants; constantIndex++)
+    {
+        D3DXHANDLE constantHandle = constantTable->GetConstant(0, constantIndex);
+
+        D3DXCONSTANT_DESC constantDescription;
+        UINT descriptionCount = 1;
+        HRESULT result = constantTable->GetConstantDesc(constantHandle, &constantDescription, &descriptionCount);
+        ASSERT(SUCCEEDED(result));
+
+        if (!defineUniform(infoLog, shader, constantHandle, constantDescription))
         {
             return false;
         }
@@ -2084,23 +2056,23 @@ bool ProgramBinary::linkUniforms(InfoLog &infoLog, GLenum shader, D3DConstantTab
 
 // Adds the description of a constant found in the binary shader to the list of uniforms
 // Returns true if succesful (uniform not already defined)
-bool ProgramBinary::defineUniform(InfoLog &infoLog, GLenum shader, const D3DConstant *constant, std::string name)
+bool ProgramBinary::defineUniform(InfoLog &infoLog, GLenum shader, const D3DXHANDLE &constantHandle, const D3DXCONSTANT_DESC &constantDescription, std::string name)
 {
-    if (constant->registerSet == D3DConstant::RS_SAMPLER)
+    if (constantDescription.RegisterSet == D3DXRS_SAMPLER)
     {
-        for (unsigned int i = 0; i < constant->registerCount; i++)
+        for (unsigned int i = 0; i < constantDescription.RegisterCount; i++)
         {
-            const D3DConstant *psConstant = mConstantTablePS->getConstantByName(constant->name.c_str());
-            const D3DConstant *vsConstant = mConstantTableVS->getConstantByName(constant->name.c_str());
+            D3DXHANDLE psConstant = mConstantTablePS->GetConstantByName(NULL, constantDescription.Name);
+            D3DXHANDLE vsConstant = mConstantTableVS->GetConstantByName(NULL, constantDescription.Name);
 
             if (psConstant)
             {
-                unsigned int samplerIndex = psConstant->registerIndex + i;
+                unsigned int samplerIndex = mConstantTablePS->GetSamplerIndex(psConstant) + i;
 
                 if (samplerIndex < MAX_TEXTURE_IMAGE_UNITS)
                 {
                     mSamplersPS[samplerIndex].active = true;
-                    mSamplersPS[samplerIndex].textureType = (constant->type == D3DConstant::PT_SAMPLERCUBE) ? TEXTURE_CUBE : TEXTURE_2D;
+                    mSamplersPS[samplerIndex].textureType = (constantDescription.Type == D3DXPT_SAMPLERCUBE) ? TEXTURE_CUBE : TEXTURE_2D;
                     mSamplersPS[samplerIndex].logicalTextureUnit = 0;
                     mUsedPixelSamplerRange = std::max(samplerIndex + 1, mUsedPixelSamplerRange);
                 }
@@ -2113,12 +2085,12 @@ bool ProgramBinary::defineUniform(InfoLog &infoLog, GLenum shader, const D3DCons
             
             if (vsConstant)
             {
-                unsigned int samplerIndex = vsConstant->registerIndex + i;
+                unsigned int samplerIndex = mConstantTableVS->GetSamplerIndex(vsConstant) + i;
 
                 if (samplerIndex < getContext()->getMaximumVertexTextureImageUnits())
                 {
                     mSamplersVS[samplerIndex].active = true;
-                    mSamplersVS[samplerIndex].textureType = (constant->type == D3DConstant::PT_SAMPLERCUBE) ? TEXTURE_CUBE : TEXTURE_2D;
+                    mSamplersVS[samplerIndex].textureType = (constantDescription.Type == D3DXPT_SAMPLERCUBE) ? TEXTURE_CUBE : TEXTURE_2D;
                     mSamplersVS[samplerIndex].logicalTextureUnit = 0;
                     mUsedVertexSamplerRange = std::max(samplerIndex + 1, mUsedVertexSamplerRange);
                 }
@@ -2131,19 +2103,27 @@ bool ProgramBinary::defineUniform(InfoLog &infoLog, GLenum shader, const D3DCons
         }
     }
 
-    switch(constant->typeClass)
+    switch(constantDescription.Class)
     {
-      case D3DConstant::CLASS_STRUCT:
+      case D3DXPC_STRUCT:
         {
-            for (unsigned int arrayIndex = 0; arrayIndex < constant->elements; arrayIndex++)
+            for (unsigned int arrayIndex = 0; arrayIndex < constantDescription.Elements; arrayIndex++)
             {
-                for (unsigned int field = 0; field < constant->structMembers[arrayIndex].size(); field++)
+                D3DXHANDLE elementHandle = mConstantTablePS->GetConstantElement(constantHandle, arrayIndex);
+
+                for (unsigned int field = 0; field < constantDescription.StructMembers; field++)
                 {
-                    const D3DConstant *fieldConstant = constant->structMembers[arrayIndex][field];
+                    D3DXHANDLE fieldHandle = mConstantTablePS->GetConstant(elementHandle, field);
 
-                    std::string structIndex = (constant->elements > 1) ? ("[" + str(arrayIndex) + "]") : "";
+                    D3DXCONSTANT_DESC fieldDescription;
+                    UINT descriptionCount = 1;
 
-                    if (!defineUniform(infoLog, shader, fieldConstant, name + constant->name + structIndex + "."))
+                    HRESULT result = mConstantTablePS->GetConstantDesc(fieldHandle, &fieldDescription, &descriptionCount);
+                    ASSERT(SUCCEEDED(result));
+
+                    std::string structIndex = (constantDescription.Elements > 1) ? ("[" + str(arrayIndex) + "]") : "";
+
+                    if (!defineUniform(infoLog, shader, fieldHandle, fieldDescription, name + constantDescription.Name + structIndex + "."))
                     {
                         return false;
                     }
@@ -2152,20 +2132,20 @@ bool ProgramBinary::defineUniform(InfoLog &infoLog, GLenum shader, const D3DCons
 
             return true;
         }
-      case D3DConstant::CLASS_SCALAR:
-      case D3DConstant::CLASS_VECTOR:
-      case D3DConstant::CLASS_MATRIX_COLUMNS:
-      case D3DConstant::CLASS_OBJECT:
-        return defineUniform(shader, constant, name + constant->name);
+      case D3DXPC_SCALAR:
+      case D3DXPC_VECTOR:
+      case D3DXPC_MATRIX_COLUMNS:
+      case D3DXPC_OBJECT:
+        return defineUniform(shader, constantDescription, name + constantDescription.Name);
       default:
         UNREACHABLE();
         return false;
     }
 }
 
-bool ProgramBinary::defineUniform(GLenum shader, const D3DConstant *constant, const std::string &_name)
+bool ProgramBinary::defineUniform(GLenum shader, const D3DXCONSTANT_DESC &constantDescription, const std::string &_name)
 {
-    Uniform *uniform = createUniform(constant, _name);
+    Uniform *uniform = createUniform(constantDescription, _name);
 
     if(!uniform)
     {
@@ -2182,8 +2162,8 @@ bool ProgramBinary::defineUniform(GLenum shader, const D3DConstant *constant, co
         uniform = mUniforms[mUniformIndex[location].index];
     }
 
-    if (shader == GL_FRAGMENT_SHADER) uniform->ps.set(constant);
-    if (shader == GL_VERTEX_SHADER)   uniform->vs.set(constant);
+    if (shader == GL_FRAGMENT_SHADER) uniform->ps.set(constantDescription);
+    if (shader == GL_VERTEX_SHADER)   uniform->vs.set(constantDescription);
 
     if (location >= 0)
     {
@@ -2201,53 +2181,53 @@ bool ProgramBinary::defineUniform(GLenum shader, const D3DConstant *constant, co
     return true;
 }
 
-Uniform *ProgramBinary::createUniform(const D3DConstant *constant, const std::string &_name)
+Uniform *ProgramBinary::createUniform(const D3DXCONSTANT_DESC &constantDescription, const std::string &_name)
 {
-    if (constant->rows == 1)   // Vectors and scalars
+    if (constantDescription.Rows == 1)   // Vectors and scalars
     {
-        switch (constant->type)
+        switch (constantDescription.Type)
         {
-          case D3DConstant::PT_SAMPLER2D:
-            switch (constant->columns)
+          case D3DXPT_SAMPLER2D:
+            switch (constantDescription.Columns)
             {
-              case 1: return new Uniform(GL_SAMPLER_2D, _name, constant->elements);
+              case 1: return new Uniform(GL_SAMPLER_2D, _name, constantDescription.Elements);
               default: UNREACHABLE();
             }
             break;
-          case D3DConstant::PT_SAMPLERCUBE:
-            switch (constant->columns)
+          case D3DXPT_SAMPLERCUBE:
+            switch (constantDescription.Columns)
             {
-              case 1: return new Uniform(GL_SAMPLER_CUBE, _name, constant->elements);
+              case 1: return new Uniform(GL_SAMPLER_CUBE, _name, constantDescription.Elements);
               default: UNREACHABLE();
             }
             break;
-          case D3DConstant::PT_BOOL:
-            switch (constant->columns)
+          case D3DXPT_BOOL:
+            switch (constantDescription.Columns)
             {
-              case 1: return new Uniform(GL_BOOL, _name, constant->elements);
-              case 2: return new Uniform(GL_BOOL_VEC2, _name, constant->elements);
-              case 3: return new Uniform(GL_BOOL_VEC3, _name, constant->elements);
-              case 4: return new Uniform(GL_BOOL_VEC4, _name, constant->elements);
+              case 1: return new Uniform(GL_BOOL, _name, constantDescription.Elements);
+              case 2: return new Uniform(GL_BOOL_VEC2, _name, constantDescription.Elements);
+              case 3: return new Uniform(GL_BOOL_VEC3, _name, constantDescription.Elements);
+              case 4: return new Uniform(GL_BOOL_VEC4, _name, constantDescription.Elements);
               default: UNREACHABLE();
             }
             break;
-          case D3DConstant::PT_INT:
-            switch (constant->columns)
+          case D3DXPT_INT:
+            switch (constantDescription.Columns)
             {
-              case 1: return new Uniform(GL_INT, _name, constant->elements);
-              case 2: return new Uniform(GL_INT_VEC2, _name, constant->elements);
-              case 3: return new Uniform(GL_INT_VEC3, _name, constant->elements);
-              case 4: return new Uniform(GL_INT_VEC4, _name, constant->elements);
+              case 1: return new Uniform(GL_INT, _name, constantDescription.Elements);
+              case 2: return new Uniform(GL_INT_VEC2, _name, constantDescription.Elements);
+              case 3: return new Uniform(GL_INT_VEC3, _name, constantDescription.Elements);
+              case 4: return new Uniform(GL_INT_VEC4, _name, constantDescription.Elements);
               default: UNREACHABLE();
             }
             break;
-          case D3DConstant::PT_FLOAT:
-            switch (constant->columns)
+          case D3DXPT_FLOAT:
+            switch (constantDescription.Columns)
             {
-              case 1: return new Uniform(GL_FLOAT, _name, constant->elements);
-              case 2: return new Uniform(GL_FLOAT_VEC2, _name, constant->elements);
-              case 3: return new Uniform(GL_FLOAT_VEC3, _name, constant->elements);
-              case 4: return new Uniform(GL_FLOAT_VEC4, _name, constant->elements);
+              case 1: return new Uniform(GL_FLOAT, _name, constantDescription.Elements);
+              case 2: return new Uniform(GL_FLOAT_VEC2, _name, constantDescription.Elements);
+              case 3: return new Uniform(GL_FLOAT_VEC3, _name, constantDescription.Elements);
+              case 4: return new Uniform(GL_FLOAT_VEC4, _name, constantDescription.Elements);
               default: UNREACHABLE();
             }
             break;
@@ -2255,16 +2235,16 @@ Uniform *ProgramBinary::createUniform(const D3DConstant *constant, const std::st
             UNREACHABLE();
         }
     }
-    else if (constant->rows == constant->columns)  // Square matrices
+    else if (constantDescription.Rows == constantDescription.Columns)  // Square matrices
     {
-        switch (constant->type)
+        switch (constantDescription.Type)
         {
-          case D3DConstant::PT_FLOAT:
-            switch (constant->rows)
+          case D3DXPT_FLOAT:
+            switch (constantDescription.Rows)
             {
-              case 2: return new Uniform(GL_FLOAT_MAT2, _name, constant->elements);
-              case 3: return new Uniform(GL_FLOAT_MAT3, _name, constant->elements);
-              case 4: return new Uniform(GL_FLOAT_MAT4, _name, constant->elements);
+              case 2: return new Uniform(GL_FLOAT_MAT2, _name, constantDescription.Elements);
+              case 3: return new Uniform(GL_FLOAT_MAT3, _name, constantDescription.Elements);
+              case 4: return new Uniform(GL_FLOAT_MAT4, _name, constantDescription.Elements);
               default: UNREACHABLE();
             }
             break;
@@ -2386,11 +2366,11 @@ bool ProgramBinary::applyUniformnfv(Uniform *targetUniform, const GLfloat *v)
 bool ProgramBinary::applyUniform1iv(Uniform *targetUniform, GLsizei count, const GLint *v)
 {
     ASSERT(count <= D3D9_MAX_FLOAT_CONSTANTS);
-    Vector4 vector[D3D9_MAX_FLOAT_CONSTANTS];
+    D3DXVECTOR4 vector[D3D9_MAX_FLOAT_CONSTANTS];
 
     for (int i = 0; i < count; i++)
     {
-        vector[i] = Vector4((float)v[i], 0, 0, 0);
+        vector[i] = D3DXVECTOR4((float)v[i], 0, 0, 0);
     }
 
     if (targetUniform->ps.registerCount)
@@ -2447,11 +2427,11 @@ bool ProgramBinary::applyUniform1iv(Uniform *targetUniform, GLsizei count, const
 bool ProgramBinary::applyUniform2iv(Uniform *targetUniform, GLsizei count, const GLint *v)
 {
     ASSERT(count <= D3D9_MAX_FLOAT_CONSTANTS);
-    Vector4 vector[D3D9_MAX_FLOAT_CONSTANTS];
+    D3DXVECTOR4 vector[D3D9_MAX_FLOAT_CONSTANTS];
 
     for (int i = 0; i < count; i++)
     {
-        vector[i] = Vector4((float)v[0], (float)v[1], 0, 0);
+        vector[i] = D3DXVECTOR4((float)v[0], (float)v[1], 0, 0);
 
         v += 2;
     }
@@ -2464,11 +2444,11 @@ bool ProgramBinary::applyUniform2iv(Uniform *targetUniform, GLsizei count, const
 bool ProgramBinary::applyUniform3iv(Uniform *targetUniform, GLsizei count, const GLint *v)
 {
     ASSERT(count <= D3D9_MAX_FLOAT_CONSTANTS);
-    Vector4 vector[D3D9_MAX_FLOAT_CONSTANTS];
+    D3DXVECTOR4 vector[D3D9_MAX_FLOAT_CONSTANTS];
 
     for (int i = 0; i < count; i++)
     {
-        vector[i] = Vector4((float)v[0], (float)v[1], (float)v[2], 0);
+        vector[i] = D3DXVECTOR4((float)v[0], (float)v[1], (float)v[2], 0);
 
         v += 3;
     }
@@ -2481,11 +2461,11 @@ bool ProgramBinary::applyUniform3iv(Uniform *targetUniform, GLsizei count, const
 bool ProgramBinary::applyUniform4iv(Uniform *targetUniform, GLsizei count, const GLint *v)
 {
     ASSERT(count <= D3D9_MAX_FLOAT_CONSTANTS);
-    Vector4 vector[D3D9_MAX_FLOAT_CONSTANTS];
+    D3DXVECTOR4 vector[D3D9_MAX_FLOAT_CONSTANTS];
 
     for (int i = 0; i < count; i++)
     {
-        vector[i] = Vector4((float)v[0], (float)v[1], (float)v[2], (float)v[3]);
+        vector[i] = D3DXVECTOR4((float)v[0], (float)v[1], (float)v[2], (float)v[3]);
 
         v += 4;
     }
@@ -2495,7 +2475,7 @@ bool ProgramBinary::applyUniform4iv(Uniform *targetUniform, GLsizei count, const
     return true;
 }
 
-void ProgramBinary::applyUniformniv(Uniform *targetUniform, GLsizei count, const Vector4 *vector)
+void ProgramBinary::applyUniformniv(Uniform *targetUniform, GLsizei count, const D3DXVECTOR4 *vector)
 {
     if (targetUniform->ps.registerCount)
     {

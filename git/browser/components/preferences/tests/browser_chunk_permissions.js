@@ -28,28 +28,27 @@ const TEST_PERMS = {
 function test() {
   waitForExplicitFinish();
   registerCleanupFunction(cleanUp);
-  setup(function() {
-    runNextTest();
-  });
+  setup();
+  runNextTest();
 }
 
-function setup(aCallback) {
+function setup() {
   // add test history visit
-  addVisits(TEST_URI_1, function() {
-    // set permissions ourselves to avoid problems with different defaults
-    // from test harness configuration
-    for (let type in TEST_PERMS) {
-      if (type == "password") {
-        Services.logins.setLoginSavingEnabled(TEST_URI_2.prePath, true);
-      } else {
-        // set permissions on a site without history visits to test enumerateServices
-        Services.perms.add(TEST_URI_2, type, TEST_PERMS[type]);
-      }
-    }
+  PlacesUtils.history.addVisit(TEST_URI_1, Date.now() * 1000, null,
+    Ci.nsINavHistoryService.TRANSITION_LINK, false, 0);
 
-    Services.perms.add(TEST_URI_3, "popup", TEST_PERMS["popup"]);
-    aCallback();
-  });
+  // set permissions ourselves to avoid problems with different defaults
+  // from test harness configuration
+  for (let type in TEST_PERMS) {
+    if (type == "password") {
+      Services.logins.setLoginSavingEnabled(TEST_URI_2.prePath, true);
+    } else {
+      // set permissions on a site without history visits to test enumerateServices
+      Services.perms.add(TEST_URI_2, type, TEST_PERMS[type]);
+    }
+  }
+
+  Services.perms.add(TEST_URI_3, "popup", TEST_PERMS["popup"]);
 }
 
 function cleanUp() {

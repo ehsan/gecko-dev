@@ -27,8 +27,7 @@ typedef std::vector<TVariableInfo> TVariableInfoList;
 class CollectAttribsUniforms : public TIntermTraverser {
 public:
     CollectAttribsUniforms(TVariableInfoList& attribs,
-                           TVariableInfoList& uniforms,
-                           ShHashFunction64 hashFunction);
+                           TVariableInfoList& uniforms);
 
     virtual void visitSymbol(TIntermSymbol*);
     virtual void visitConstantUnion(TIntermConstantUnion*);
@@ -42,8 +41,6 @@ public:
 private:
     TVariableInfoList& mAttribs;
     TVariableInfoList& mUniforms;
-
-    ShHashFunction64 mHashFunction;
 };
 
 #endif  // COMPILER_VARIABLE_INFO_H_

@@ -31,13 +31,11 @@ from mozpack.chrome.manifest import (
 from mozpack.errors import errors
 from mozpack.packager.unpack import UnpackFinder
 from createprecomplete import generate_precomplete
-from argparse import ArgumentParser
-import buildconfig
 
 # Set of files or directories not listed in a chrome.manifest but that are
 # localized.
 NON_CHROME = set([
-    '**/crashreporter*.ini',
+    'crashreporter*.ini',
     'searchplugins',
     'dictionaries',
     'hyphenation',
@@ -49,7 +47,7 @@ NON_CHROME = set([
 ])
 
 
-def repack(source, l10n, non_resources=[]):
+def repack(source, l10n):
     finder = UnpackFinder(source)
     l10n_finder = UnpackFinder(l10n)
     copier = FileCopier()
@@ -59,8 +57,7 @@ def repack(source, l10n, non_resources=[]):
         formatter = JarFormatter(copier, optimize=finder.optimizedjars)
     elif finder.kind == 'omni':
         formatter = OmniJarFormatter(copier, finder.omnijar,
-                                     optimize=finder.optimizedjars,
-                                     non_resources=non_resources)
+                                     optimize=finder.optimizedjars)
 
     # Read all manifest entries from the packaged directory.
     manifests = dict((p, m) for p, m in finder.find('**/*.manifest')
@@ -127,26 +124,17 @@ def repack(source, l10n, non_resources=[]):
             # Remove localized manifest entries.
             for e in [e for e in f if e.localized]:
                 f.remove(e)
-        # If the path is one that needs a locale replacement, use the
-        # corresponding file from the langpack.
-        path = None
         if p in paths:
             path = paths[p]
-            if not path:
-                continue
-        else:
-            base = mozpack.path.basedir(p, paths.keys())
-            if base:
-                subpath = mozpack.path.relpath(p, base)
-                path = mozpack.path.normpath(mozpack.path.join(paths[base],
-                                                               subpath))
-        if path:
-            files = [f for p, f in l10n_finder.find(path)]
-            if not len(files):
-                if base not in NON_CHROME:
-                    errors.error("Missing file: %s" % os.path.join(l10n, path))
-            else:
-                packager.add(path, files[0])
+            if path:
+                # If the path is one that needs a locale replacement, use the
+                # corresponding file from the langpack.
+                files = [f for p, f in l10n_finder.find(path)]
+                if not len(files):
+                    if base not in NON_CHROME:
+                        errors.error("Missing file: %s" % os.path.join(l10n, path))
+                else:
+                    packager.add(path, files[0])
         else:
             packager.add(p, f)
 
@@ -186,19 +174,12 @@ def repack(source, l10n, non_resources=[]):
 
 
 def main():
-    parser = ArgumentParser()
-    parser.add_argument('build',
-                        help='Directory containing the build to repack')
-    parser.add_argument('l10n',
-                        help='Directory containing the staged langpack')
-    parser.add_argument('--non-resource', nargs='+', metavar='PATTERN',
-                        default=[],
-                        help='Extra files not to be considered as resources')
-    args = parser.parse_args()
+    if len(sys.argv) != 3:
+        print >>sys.stderr, "Usage: %s directory l10n-directory" % \
+                            os.path.basename(sys.argv[0])
+        sys.exit(1)
 
-    buildconfig.substs['USE_ELF_HACK'] = False
-    buildconfig.substs['PKG_SKIP_STRIP'] = True
-    repack(args.build, args.l10n, args.non_resource)
+    repack(sys.argv[1], sys.argv[2])
 
 if __name__ == "__main__":
     main()

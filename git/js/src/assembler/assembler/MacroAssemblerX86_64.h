@@ -368,12 +368,6 @@ public:
         return DataLabel32(this);
     }
 
-    void move32(RegisterID src, RegisterID dest)
-    {
-        // upper 32bit will be 0
-        m_assembler.movl_rr(src, dest);
-    }
-
     void movePtrToDouble(RegisterID src, FPRegisterID dest)
     {
         m_assembler.movq_rr(src, dest);

@@ -10,13 +10,11 @@
 #include "jscntxt.h"
 #include "jsgc.h"
 #include "jspropertytree.h"
-
-#include "vm/Shape.h"
+#include "jsscope.h"
 
 #include "jsgcinlines.h"
 #include "jsobjinlines.h"
-
-#include "vm/Shape-inl.h"
+#include "jsscopeinlines.h"
 
 using namespace js;
 
@@ -267,7 +265,7 @@ Shape::dump(JSContext *cx, FILE *fp) const
             str = JSID_TO_ATOM(propid);
         } else {
             JS_ASSERT(JSID_IS_OBJECT(propid));
-            JSString *s = ToStringSlow<CanGC>(cx, IdToValue(propid));
+            JSString *s = ToStringSlow(cx, IdToValue(propid));
             fputs("object ", fp);
             str = s ? s->ensureLinear(cx) : NULL;
         }

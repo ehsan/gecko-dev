@@ -38,7 +38,6 @@ CPPSRCS		= \
 EXPORTS   = \
   nsBindingManager.h \
   nsXBLBinding.h \
-  nsXBLService.h \
   $(NULL)
 
 include $(topsrcdir)/config/config.mk

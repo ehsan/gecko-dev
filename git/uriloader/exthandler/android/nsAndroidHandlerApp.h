@@ -25,9 +25,9 @@ public:
 private:
     nsString mName;
     nsString mDescription;
-    nsString mPackageName;
-    nsString mClassName;
     nsCString mMimeType;
+    nsString mClassName;
+    nsString mPackageName;
     nsString mAction;
 };
 #endif

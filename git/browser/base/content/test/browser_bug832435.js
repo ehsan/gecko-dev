@@ -11,13 +11,9 @@ function test() {
     gURLBar.removeEventListener("focus", onFocus);
     ok(true, "Invoked onfocus handler");
     EventUtils.synthesizeKey("VK_RETURN", { shiftKey: true });
-
-    // javscript: URIs are evaluated async.
-    SimpleTest.executeSoon(function() {
-      ok(true, "Evaluated without crashing");
-      finish();
-    });
+    ok(true, "Evaluated without crashing");
+    finish();
   });
-  gURLBar.inputField.value = "javascript: var foo = '11111111'; ";
+  gURLBar.inputField.value = "javascript: document.body.innerHTML = '11111111'); ";
   gURLBar.focus();
 }

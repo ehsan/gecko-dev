@@ -12,7 +12,7 @@ function test() {
     Cu.import("resource://gre/modules/DownloadLastDir.jsm", {}).DownloadLastDir;
   let MockFilePicker = SpecialPowers.MockFilePicker;
 
-  MockFilePicker.init(window);
+  MockFilePicker.init();
   MockFilePicker.returnValue = Ci.nsIFilePicker.returnOK;
 
   let validateFileNameToRestore = validateFileName;

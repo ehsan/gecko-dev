@@ -8,7 +8,6 @@
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/TabChild.h"
 #include "mozilla/ipc/URIUtils.h"
-#include "mozilla/net/NeckoCommon.h"
 
 #include "nsIApplicationCacheContainer.h"
 #include "nsIApplicationCacheChannel.h"
@@ -32,8 +31,6 @@
 #include "nsIAsyncVerifyRedirectCallback.h"
 
 using namespace mozilla::ipc;
-using namespace mozilla::net;
-using mozilla::dom::TabChild;
 
 #if defined(PR_LOGGING)
 //
@@ -409,11 +406,8 @@ OfflineCacheUpdateChild::Schedule()
     item->GetTreeOwner(getter_AddRefs(owner));
 
     nsCOMPtr<nsITabChild> tabchild = do_GetInterface(owner);
-    // because owner implements nsITabChild, we can assume that it is
-    // the one and only TabChild.
-    TabChild* child = tabchild ? static_cast<TabChild*>(tabchild.get()) : nullptr;
-
-    if (MissingRequiredTabChild(child, "offlinecacheupdate")) {
+    if (!tabchild) {
+      NS_WARNING("tab is null");
       return NS_ERROR_FAILURE;
     }
 
@@ -421,6 +415,10 @@ OfflineCacheUpdateChild::Schedule()
     SerializeURI(mManifestURI, manifestURI);
     SerializeURI(mDocumentURI, documentURI);
 
+    // because owner implements nsITabChild, we can assume that it is
+    // the one and only TabChild.
+    mozilla::dom::TabChild* child = static_cast<mozilla::dom::TabChild*>(tabchild.get());
+    
     nsCOMPtr<nsIObserverService> observerService =
       mozilla::services::GetObserverService();
     if (observerService) {

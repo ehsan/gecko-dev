@@ -844,7 +844,7 @@ ParallelArrayObject::DebugOptions::init(JSContext *cx, const Value &v)
     if (!JSObject::getGeneric(cx, obj, obj, id, &propv))
         return false;
 
-    propStr = ToString<CanGC>(cx, propv);
+    propStr = ToString(cx, propv);
     if (!propStr)
         return false;
 
@@ -861,7 +861,7 @@ ParallelArrayObject::DebugOptions::init(JSContext *cx, const Value &v)
     if (!JSObject::getGeneric(cx, obj, obj, id, &propv))
         return false;
 
-    propStr = ToString<CanGC>(cx, propv);
+    propStr = ToString(cx, propv);
     if (!propStr)
         return false;
 
@@ -1832,7 +1832,7 @@ ParallelArrayObject::getGeneric(JSContext *cx, HandleObject obj, HandleObject re
     if (ValueIsSpecial(obj, &idval, &sid, cx))
         return getSpecial(cx, obj, receiver, sid, vp);
 
-    JSAtom *atom = ToAtom<CanGC>(cx, idval);
+    JSAtom *atom = ToAtom(cx, idval);
     if (!atom)
         return false;
 

@@ -41,6 +41,9 @@ JS_FindCompilationScope(JSContext *cx, JSRawObject obj);
 extern JS_FRIEND_API(JSFunction *)
 JS_GetObjectFunction(JSRawObject obj);
 
+extern JS_FRIEND_API(JSObject *)
+JS_GetGlobalForFrame(JSStackFrame *fp);
+
 extern JS_FRIEND_API(JSBool)
 JS_SplicePrototype(JSContext *cx, JSObject *obj, JSObject *proto);
 
@@ -569,7 +572,7 @@ IsObjectInContextCompartment(RawObject obj, const JSContext *cx);
 inline uintptr_t
 GetNativeStackLimit(const JSRuntime *rt)
 {
-    return PerThreadDataFriendFields::getMainThread(rt)->nativeStackLimit;
+    return RuntimeFriendFields::get(rt)->nativeStackLimit;
 }
 
 /*

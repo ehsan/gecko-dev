@@ -16,6 +16,7 @@
 #include "mozilla/dom/TabParent.h"
 #include "mozilla/dom/network/TCPSocketParent.h"
 #include "mozilla/ipc/URIUtils.h"
+#include "mozilla/Preferences.h"
 #include "mozilla/LoadContext.h"
 #include "nsPrintfCString.h"
 #include "nsHTMLDNSPrefetch.h"
@@ -30,10 +31,15 @@ using IPC::SerializedLoadContext;
 namespace mozilla {
 namespace net {
 
+static bool gDisableIPCSecurity = false;
+static const char kPrefDisableIPCSecurity[] = "network.disable.ipc.security";
+
 // C++ file contents
 NeckoParent::NeckoParent()
 {
-  if (UsingNeckoIPCSecurity()) {
+  Preferences::AddBoolVarCache(&gDisableIPCSecurity, kPrefDisableIPCSecurity);
+
+  if (!gDisableIPCSecurity) {
     // cache values for core/packaged apps basepaths
     nsAutoString corePath, webPath;
     nsCOMPtr<nsIAppsService> appsService = do_GetService(APPS_SERVICE_CONTRACTID);
@@ -70,7 +76,7 @@ NeckoParent::GetValidatedAppInfo(const SerializedLoadContext& aSerialized,
                                  uint32_t* aAppId,
                                  bool* aInBrowserElement)
 {
-  if (UsingNeckoIPCSecurity()) {
+  if (!gDisableIPCSecurity) {
     if (!aBrowser) {
       return "missing required PBrowser argument";
     }
@@ -96,7 +102,7 @@ NeckoParent::GetValidatedAppInfo(const SerializedLoadContext& aSerialized,
       if (tabParent->HasOwnApp()) {
         return "TabParent reports NECKO_NO_APP_ID but also is an app";
       }
-      if (UsingNeckoIPCSecurity() && tabParent->IsBrowserElement()) {
+      if (!gDisableIPCSecurity && tabParent->IsBrowserElement()) {
         // <iframe mozbrowser> which doesn't have an <iframe mozapp> above it.
         // This is not supported now, and we'll need to do a code audit to make
         // sure we can handle it (i.e don't short-circuit using separate
@@ -107,8 +113,8 @@ NeckoParent::GetValidatedAppInfo(const SerializedLoadContext& aSerialized,
   } else {
     // Only trust appId/inBrowser from child-side loadcontext if we're in
     // testing mode: allows xpcshell tests to masquerade as apps
-    MOZ_ASSERT(!UsingNeckoIPCSecurity());
-    if (UsingNeckoIPCSecurity()) {
+    MOZ_ASSERT(gDisableIPCSecurity);
+    if (!gDisableIPCSecurity) {
       return "internal error";
     }
     if (aSerialized.IsNotNull()) {
@@ -139,7 +145,7 @@ NeckoParent::CreateChannelLoadContext(PBrowserParent* aBrowser,
     topFrameElement = tabParent->GetOwnerElement();
   }
 
-  // if !UsingNeckoIPCSecurity(), we may not have a LoadContext to set. This is
+  // if gDisableIPCSecurity, we may not have a LoadContext to set. This is
   // the common case for most xpcshell tests.
   if (aSerialized.IsNotNull()) {
     aResult = new LoadContext(aSerialized, topFrameElement, appId, inBrowser);
@@ -304,7 +310,7 @@ NeckoParent::AllocPRemoteOpenFile(const URIParams& aURI,
   }
 
   // security checks
-  if (UsingNeckoIPCSecurity()) {
+  if (!gDisableIPCSecurity) {
     if (!aBrowser) {
       printf_stderr("NeckoParent::AllocPRemoteOpenFile: "
                     "FATAL error: missing TabParent: KILLING CHILD PROCESS\n");

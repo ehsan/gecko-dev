@@ -262,8 +262,8 @@ PeerConnection.prototype = {
       throw new Error("RTCPeerConnection constructor already called");
     }
     if (!rtcConfig) {
-      // TODO(jib@mozilla.com): Hardcoded Mozilla server. Final? Bug 807494
-      rtcConfig = { "iceServers": [{ url: "stun:23.21.150.121" }] };
+      // TODO(jib@mozilla.com): Hardcoded server pending Mozilla one. Bug 807494
+      rtcConfig = [{ url: "stun:23.21.150.121" }];
     }
     this._mustValidateRTCConfiguration(rtcConfig,
         "RTCPeerConnection constructor passed invalid RTCConfiguration");
@@ -330,8 +330,8 @@ PeerConnection.prototype = {
   /**
    * An RTCConfiguration looks like this:
    *
-   * { "iceServers": [ { url:"stun:23.21.150.121" },
-   *                   { url:"turn:user@turn.example.org", credential:"mypass"} ] }
+   *   [ { url:"stun:23.21.150.121" },
+   *     { url:"turn:user@turn.example.org", credential:"myPassword"} ]
    *
    * We check for basic structure and well-formed stun/turn urls, but not
    * validity of servers themselves, before passing along to C++.
@@ -355,21 +355,18 @@ PeerConnection.prototype = {
     }
     function mustValidateServer(server) {
       let url = nicerNewURI(server.url, errorMsg);
-      if (!(url.scheme in { stun:1, stuns:1, turn:1, turns:1 })) {
+      if (!(url.scheme in { stun:1, stuns:1, turn:1 })) {
         throw new Error (errorMsg + " - improper scheme: " + url.scheme);
       }
       if (server.credential && isObject(server.credential)) {
         throw new Error (errorMsg + " - invalid credential");
       }
     }
-    if (!isObject(rtcConfig)) {
+    if (!isArray(rtcConfig)) {
       throw new Error (errorMsg);
     }
-    if (!isArray(rtcConfig.iceServers)) {
-      throw new Error (errorMsg + " - iceServers [] property not present");
-    }
-    for (let i=0; i < rtcConfig.iceServers.length; i++) {
-      mustValidateServer (rtcConfig.iceServers[i], errorMsg);
+    for (let i=0; i < rtcConfig.length; i++) {
+      mustValidateServer (rtcConfig[i], errorMsg);
     }
   },
 
@@ -435,40 +432,15 @@ PeerConnection.prototype = {
     });
   },
 
-  _createAnswer: function(onSuccess, onError, constraints, provisional) {
-    this._onCreateAnswerSuccess = onSuccess;
-    this._onCreateAnswerFailure = onError;
-
+  createAnswer: function(onSuccess, onError, constraints, provisional) {
     if (!this.remoteDescription) {
-      this._observer.onCreateAnswerError(3); // PC_INVALID_REMOTE_SDP
-      /*
-        This needs to be matched to spec -- see bug 834270. The final
-        code will be of the form:
-
-      this._observer.onCreateAnswerError(ci.IPeerConnection.kInvalidState,
-                                         "setRemoteDescription not called");
-      */
-      return;
+      throw new Error("setRemoteDescription not called");
     }
 
     if (this.remoteDescription.type != "offer") {
-      this._observer.onCreateAnswerError(3); // PC_INVALID_REMOTE_SDP
-      /*
-        This needs to be matched to spec -- see bug 834270. The final
-        code will be of the form:
-
-      this._observer.onCreateAnswerError(ci.IPeerConnection.kInvalidState,
-                                         "No outstanding offer");
-      */
-      return;
+      throw new Error("No outstanding offer");
     }
 
-    // TODO: Implement provisional answer.
-
-    this._pc.createAnswer(constraints);
-  },
-
-  createAnswer: function(onSuccess, onError, constraints, provisional) {
     if (!constraints) {
       constraints = {};
     }
@@ -477,13 +449,17 @@ PeerConnection.prototype = {
       throw new Error("createAnswer passed invalid constraints");
     }
 
+    this._onCreateAnswerSuccess = onSuccess;
+    this._onCreateAnswerFailure = onError;
+
     if (!provisional) {
       provisional = false;
     }
 
+    // TODO: Implement provisional answer.
     this._queueOrRun({
-      func: this._createAnswer,
-      args: [onSuccess, onError, constraints, provisional],
+      func: this._pc.createAnswer,
+      args: [constraints],
       wait: true
     });
   },
@@ -791,11 +767,13 @@ PeerConnectionObserver.prototype = {
         break;
       case Ci.IPeerConnection.kIceChecking:
         iceCb("checking");
+        this._dompc._executeNext();
         break;
       case Ci.IPeerConnection.kIceConnected:
         // ICE gathering complete.
         iceCb("connected");
         iceGatherCb("complete");
+        this._dompc._executeNext();
         break;
       case Ci.IPeerConnection.kIceFailed:
         iceCb("failed");
@@ -815,6 +793,7 @@ PeerConnectionObserver.prototype = {
         });
       } catch(e) {}
     }
+    this._dompc._executeNext();
   },
 
   onRemoveStream: function(stream, type) {
@@ -826,6 +805,7 @@ PeerConnectionObserver.prototype = {
         });
       } catch(e) {}
     }
+    this._dompc._executeNext();
   },
 
   foundIceCandidate: function(cand) {
@@ -837,6 +817,7 @@ PeerConnectionObserver.prototype = {
         });
       } catch(e) {}
     }
+    this._dompc._executeNext();
   },
 
   notifyDataChannel: function(channel) {
@@ -845,6 +826,7 @@ PeerConnectionObserver.prototype = {
         this._dompc.ondatachannel.onCallback(channel);
       } catch(e) {}
     }
+    this._dompc._executeNext();
   },
 
   notifyConnection: function() {
@@ -853,6 +835,7 @@ PeerConnectionObserver.prototype = {
         this._dompc.onconnection.onCallback();
       } catch(e) {}
     }
+    this._dompc._executeNext();
   },
 
   notifyClosedConnection: function() {
@@ -861,6 +844,7 @@ PeerConnectionObserver.prototype = {
         this._dompc.onclosedconnection.onCallback();
       } catch(e) {}
     }
+    this._dompc._executeNext();
   }
 };
 

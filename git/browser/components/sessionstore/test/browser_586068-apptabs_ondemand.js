@@ -5,11 +5,11 @@
 const PREF_RESTORE_ON_DEMAND = "browser.sessionstore.restore_on_demand";
 const PREF_RESTORE_PINNED_TABS_ON_DEMAND = "browser.sessionstore.restore_pinned_tabs_on_demand";
 
-function test() {
-  TestRunner.run();
-}
+let stateBackup = ss.getBrowserState();
 
-function runTests() {
+function test() {
+  waitForExplicitFinish();
+
   Services.prefs.setBoolPref(PREF_RESTORE_ON_DEMAND, true);
   Services.prefs.setBoolPref(PREF_RESTORE_PINNED_TABS_ON_DEMAND, true);
 
@@ -43,8 +43,10 @@ function runTests() {
     is(aRestored, 0, "no tabs have been restored, yet");
 
     gProgressListener.unsetCallback();
-    executeSoon(next);
+    executeSoon(function () {
+      waitForBrowserState(JSON.parse(stateBackup), finish);
+    });
   });
 
-  yield ss.setBrowserState(JSON.stringify(state));
+  ss.setBrowserState(JSON.stringify(state));
 }

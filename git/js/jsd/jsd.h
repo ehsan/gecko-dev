@@ -210,8 +210,7 @@ struct JSDStackFrameInfo
     JSDThreadState*     jsdthreadstate;
     JSDScript*          jsdscript;
     uintptr_t           pc;
-    bool                isConstructing;
-    JSAbstractFramePtr  frame;
+    JSStackFrame*       fp;
 };
 
 #define GOT_PROTO   ((short) (1 << 0))
@@ -348,7 +347,7 @@ extern JSDScript*
 jsd_FindOrCreateJSDScript(JSDContext    *jsdc,
                           JSContext     *cx,
                           JSScript      *script,
-                          JSAbstractFramePtr frame);
+                          JSStackFrame  *fp);
 
 extern JSDProfileData*
 jsd_GetScriptProfileData(JSDContext* jsdc, JSDScript *script);
@@ -979,12 +978,12 @@ jsd_GetPropertyFlags(JSDContext* jsdc, JSDProperty* jsdprop);
 /* Stepping Functions */
 
 extern void *
-jsd_FunctionCallHook(JSContext *cx, JSAbstractFramePtr frame, bool isConstructing,
-                     JSBool before, JSBool *ok, void *closure);
+jsd_FunctionCallHook(JSContext *cx, JSStackFrame *fp, JSBool before,
+                     JSBool *ok, void *closure);
 
 extern void *
-jsd_TopLevelCallHook(JSContext *cx, JSAbstractFramePtr frame, bool isConstructing,
-                     JSBool before, JSBool *ok, void *closure);
+jsd_TopLevelCallHook(JSContext *cx, JSStackFrame *fp, JSBool before,
+                     JSBool *ok, void *closure);
 
 /**************************************************/
 /* Object Functions */
@@ -1000,7 +999,7 @@ jsd_DestroyObjects(JSDContext* jsdc);
 
 extern void
 jsd_Constructing(JSDContext* jsdc, JSContext *cx, JSObject *obj,
-                 JSAbstractFramePtr frame);
+                 JSStackFrame *fp);
 
 extern JSDObject*
 jsd_IterateObjects(JSDContext* jsdc, JSDObject** iterp);

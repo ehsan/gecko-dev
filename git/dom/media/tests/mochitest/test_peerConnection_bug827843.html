@@ -29,8 +29,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=827843
   var pcRemote;
 
   var test_data = {
-    pcLocal: [],
-    pcRemote: []
+    pcLocal: { audio: [], video: []},
+    pcRemote: { audio: [], video: []}
   };
 
   runTest(function () {
@@ -42,17 +42,21 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=827843
     pcRemote = new mozRTCPeerConnection();
 
     pcLocal.onaddstream = function (aObj) {
-      test_data.pcLocal.push(aObj.stream);
+      test_data.pcLocal[aObj.type].push(aObj.stream);
 
-      audioPCRemote.mozSrcObject = aObj.stream;
-      audioPCRemote.play();
+      if (aObj.type === "audio") {
+        audioPCRemote.mozSrcObject = aObj.stream;
+        audioPCRemote.play();
+      }
     };
 
     pcRemote.onaddstream = function (aObj) {
-      test_data.pcRemote.push(aObj.stream);
+      test_data.pcRemote[aObj.type].push(aObj.stream);
 
-      audioPCLocal.mozSrcObject = aObj.stream;
-      audioPCLocal.play();
+      if (aObj.type === "audio") {
+        audioPCLocal.mozSrcObject = aObj.stream;
+        audioPCLocal.play();
+      }
     };
 
     navigator.mozGetUserMedia({audio: true, fake: true}, function onSuccess(aLocalInputStream) {

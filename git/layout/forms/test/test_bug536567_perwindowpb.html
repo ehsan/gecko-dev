@@ -25,7 +25,7 @@ const Cm = Components.manager;
 Cu.import("resource://gre/modules/Services.jsm");
 
 var MockFilePicker = SpecialPowers.MockFilePicker;
-MockFilePicker.init(window);
+MockFilePicker.init();
 
 var tmpDir = Services.dirsvc.get("TmpD", Ci.nsILocalFile);
 var homeDir = Services.dirsvc.get("Desk", Ci.nsILocalFile);
@@ -151,11 +151,9 @@ function testOnWindow(aIsPrivate, aCallback) {
       }
       win.removeEventListener("DOMContentLoaded", onInnerLoad, true);
       win.gBrowser.selectedBrowser.focus();
-      SimpleTest.info("DOMContentLoaded's window: " + win.location + " vs. " + window.location);
-      win.setTimeout(function() { aCallback(win); }, 0);
+      SimpleTest.executeSoon(function() { aCallback(win); });
     }, true);
-    SimpleTest.info("load's window: " + win.location + " vs. " + window.location);
-    win.setTimeout(function() { win.gBrowser.loadURI(contentPage); }, 0);
+    SimpleTest.executeSoon(function() { win.gBrowser.loadURI(contentPage); });
   }, true);
 }
 
@@ -174,10 +172,10 @@ MockFilePicker.showCallback = function(filepicker) {
     is(returned, test[1], 'test ' + testIndex);
   }
 
-  filepicker.window.setTimeout(function() {
+  SimpleTest.executeSoon(function() {
     testIndex++;
     runTest();
-  }, 0);
+  });
 };
 
 window.onload = function() {
@@ -197,7 +195,7 @@ window.onload = function() {
         selectedBrowser.contentDocument.getElementById("content");
 
       content = normalWindowIframe;
-      selectedBrowser.contentWindow.setTimeout(runTest, 0);
+      setTimeout(runTest, 0);
     });
   });
 };

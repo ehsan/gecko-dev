@@ -13,13 +13,12 @@
 static int callCount[2] = {0, 0};
 
 static void *
-callCountHook(JSContext *cx, JSAbstractFramePtr frame, bool isConstructing, JSBool before,
-              JSBool *ok, void *closure)
+callCountHook(JSContext *cx, JSStackFrame *fp, JSBool before, JSBool *ok, void *closure)
 {
     callCount[before]++;
 
     jsval thisv;
-    frame.getThisValue(cx, &thisv); // assert if fp is incomplete
+    JS_GetFrameThis(cx, fp, &thisv);  // assert if fp is incomplete
 
     return cx;  // any non-null value causes the hook to be called again after
 }
@@ -39,13 +38,12 @@ BEGIN_TEST(testDebugger_bug519719)
 END_TEST(testDebugger_bug519719)
 
 static void *
-nonStrictThisHook(JSContext *cx, JSAbstractFramePtr frame, bool isConstructing, JSBool before,
-                  JSBool *ok, void *closure)
+nonStrictThisHook(JSContext *cx, JSStackFrame *fp, JSBool before, JSBool *ok, void *closure)
 {
     if (before) {
         bool *allWrapped = (bool *) closure;
         js::RootedValue thisv(cx);
-        frame.getThisValue(cx, thisv.address());
+        JS_GetFrameThis(cx, fp, thisv.address());
         *allWrapped = *allWrapped && !JSVAL_IS_PRIMITIVE(thisv);
     }
     return NULL;
@@ -78,13 +76,12 @@ BEGIN_TEST(testDebugger_getThisNonStrict)
 END_TEST(testDebugger_getThisNonStrict)
 
 static void *
-strictThisHook(JSContext *cx, JSAbstractFramePtr frame, bool isConstructing, JSBool before,
-               JSBool *ok, void *closure)
+strictThisHook(JSContext *cx, JSStackFrame *fp, JSBool before, JSBool *ok, void *closure)
 {
     if (before) {
         bool *anyWrapped = (bool *) closure;
         js::RootedValue thisv(cx);
-        frame.getThisValue(cx, thisv.address());
+        JS_GetFrameThis(cx, fp, thisv.address());
         *anyWrapped = *anyWrapped || !JSVAL_IS_PRIMITIVE(thisv);
     }
     return NULL;

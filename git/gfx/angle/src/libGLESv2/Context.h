@@ -80,8 +80,8 @@ enum
     MAX_FRAGMENT_UNIFORM_VECTORS_SM3 = 224 - 3,
     MAX_DRAW_BUFFERS = 1,
 
-    GL_BGRA4_ANGLEX = 0x6ABC,
-    GL_BGR5_A1_ANGLEX = 0x6ABD
+    IMPLEMENTATION_COLOR_READ_FORMAT = GL_BGRA_EXT,
+    IMPLEMENTATION_COLOR_READ_TYPE = GL_UNSIGNED_BYTE
 };
 
 enum QueryType
@@ -510,8 +510,6 @@ class Context
     bool supportsInstancing() const;
     bool supportsTextureFilterAnisotropy() const;
 
-    bool getCurrentReadFormatType(GLenum *format, GLenum *type);
-
     float getTextureMaxAnisotropy() const;
 
     void blitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, 
@@ -540,7 +538,7 @@ class Context
 
     Texture *getIncompleteTexture(TextureType type);
 
-    bool skipDraw(GLenum drawMode);
+    bool cullSkipsDraw(GLenum drawMode);
     bool isTriangleMode(GLenum drawMode);
 
     void initExtensionString();

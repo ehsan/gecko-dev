@@ -37,7 +37,6 @@ EXTRA_COMPONENTS = \
         FormAutoComplete.js \
         LoginManagerPrompter.js \
         BlocklistPrompt.js \
-        NSSDialogService.js \
         $(NULL)
 
 include $(topsrcdir)/config/rules.mk

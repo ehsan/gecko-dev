@@ -21,7 +21,7 @@ enum {
  * that are suitable targets, to account for inaccurate pointing devices.
  */
 nsIFrame*
-FindFrameTargetedByInputEvent(const nsGUIEvent *aEvent,
+FindFrameTargetedByInputEvent(nsEventStructType aEventStructType,
                               nsIFrame* aRootFrame,
                               const nsPoint& aPointRelativeToRootFrame,
                               uint32_t aFlags = 0);

@@ -4,11 +4,11 @@
 
 const PREF_RESTORE_ON_DEMAND = "browser.sessionstore.restore_on_demand";
 
-function test() {
-  TestRunner.run();
-}
+let stateBackup = ss.getBrowserState();
 
-function runTests() {
+function test() {
+  waitForExplicitFinish();
+
   Services.prefs.setBoolPref(PREF_RESTORE_ON_DEMAND, true);
   registerCleanupFunction(function () {
     Services.prefs.clearUserPref(PREF_RESTORE_ON_DEMAND);
@@ -58,9 +58,11 @@ function runTests() {
       window.gBrowser.selectTabAtIndex(tabOrder[loadCount]);
     } else {
       gProgressListener.unsetCallback();
-      executeSoon(next);
+      executeSoon(function () {
+        waitForBrowserState(JSON.parse(stateBackup), finish);
+      });
     }
   });
 
-  yield ss.setBrowserState(JSON.stringify(state));
+  ss.setBrowserState(JSON.stringify(state));
 }

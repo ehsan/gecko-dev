@@ -7,14 +7,12 @@
 
 #include "mozilla/DebugOnly.h"
 
-#include "jsnum.h"
-
 #include "CodeGenerator-x86.h"
+#include "ion/shared/CodeGenerator-shared-inl.h"
 #include "ion/MIR.h"
 #include "ion/MIRGraph.h"
-#include "ion/shared/CodeGenerator-shared-inl.h"
-#include "vm/Shape.h"
-
+#include "jsnum.h"
+#include "jsscope.h"
 #include "jsscriptinlines.h"
 
 using namespace js;

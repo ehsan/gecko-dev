@@ -556,7 +556,6 @@ PKIX_ProcessingParams_Create(
 
         params->useAIAForCertFetching = PKIX_FALSE;
         params->qualifyTargetCert = PKIX_TRUE;
-        params->useOnlyTrustAnchors = PKIX_TRUE;
 
         *pParams = params;
         params = NULL;
@@ -685,44 +684,6 @@ PKIX_ProcessingParams_GetTrustAnchors(
         *pAnchors = params->trustAnchors;
 
 cleanup:
-        PKIX_RETURN(PROCESSINGPARAMS);
-}
-
-/**
- * FUNCTION: PKIX_ProcessingParams_SetUseOnlyTrustAnchors
- * (see comments in pkix_params.h)
- */
-PKIX_Error *
-PKIX_ProcessingParams_GetUseOnlyTrustAnchors(
-        PKIX_ProcessingParams *params,
-        PKIX_Boolean *pUseOnlyTrustAnchors,
-        void *plContext)
-{
-        PKIX_ENTER(PROCESSINGPARAMS,
-                   "PKIX_ProcessingParams_SetUseTrustAnchorsOnly");
-        PKIX_NULLCHECK_TWO(params, pUseOnlyTrustAnchors);
-
-        *pUseOnlyTrustAnchors = params->useOnlyTrustAnchors;
-
-        PKIX_RETURN(PROCESSINGPARAMS);
-}
-
-/**
- * FUNCTION: PKIX_ProcessingParams_SetUseOnlyTrustAnchors
- * (see comments in pkix_params.h)
- */
-PKIX_Error *
-PKIX_ProcessingParams_SetUseOnlyTrustAnchors(
-        PKIX_ProcessingParams *params,
-        PKIX_Boolean useOnlyTrustAnchors,
-        void *plContext)
-{
-        PKIX_ENTER(PROCESSINGPARAMS,
-                   "PKIX_ProcessingParams_SetUseTrustAnchorsOnly");
-        PKIX_NULLCHECK_ONE(params);
-
-        params->useOnlyTrustAnchors = useOnlyTrustAnchors;
-
         PKIX_RETURN(PROCESSINGPARAMS);
 }
 

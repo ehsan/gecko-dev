@@ -133,25 +133,15 @@ private:
       nsRefPtr<DeviceStorageFile> mFile;
   };
 
-  class FreeSpaceFileEvent : public CancelableRunnable
+  class StatFileEvent : public CancelableRunnable
   {
     public:
-      FreeSpaceFileEvent(DeviceStorageRequestParent* aParent, DeviceStorageFile* aFile);
-      virtual ~FreeSpaceFileEvent();
+      StatFileEvent(DeviceStorageRequestParent* aParent, DeviceStorageFile* aFile);
+      virtual ~StatFileEvent();
       virtual nsresult CancelableRun();
      private:
        nsRefPtr<DeviceStorageFile> mFile;
-  };
-
-  class UsedSpaceFileEvent : public CancelableRunnable
-  {
-    public:
-      UsedSpaceFileEvent(DeviceStorageRequestParent* aParent, DeviceStorageFile* aFile);
-      virtual ~UsedSpaceFileEvent();
-      virtual nsresult CancelableRun();
-     private:
-       nsRefPtr<DeviceStorageFile> mFile;
-  };
+   };
 
   class ReadFileEvent : public CancelableRunnable
   {
@@ -186,35 +176,17 @@ private:
       nsString mPath;
   };
 
- class PostFreeSpaceResultEvent : public CancelableRunnable
+  class PostStatResultEvent : public CancelableRunnable
  {
     public:
-      PostFreeSpaceResultEvent(DeviceStorageRequestParent* aParent,
-                               int64_t aFreeSpace);
-      virtual ~PostFreeSpaceResultEvent();
+      PostStatResultEvent(DeviceStorageRequestParent* aParent,
+                          int64_t aFreeBytes,
+                          int64_t aTotalBytes);
+      virtual ~PostStatResultEvent();
       virtual nsresult CancelableRun();
     private:
-      int64_t mFreeSpace;
- };
-
- class PostUsedSpaceResultEvent : public CancelableRunnable
- {
-    public:
-      PostUsedSpaceResultEvent(DeviceStorageRequestParent* aParent,
-                               int64_t aUsedSpace);
-      virtual ~PostUsedSpaceResultEvent();
-      virtual nsresult CancelableRun();
-    private:
-      int64_t mUsedSpace;
- };
-
- class PostAvailableResultEvent : public CancelableRunnable
- {
-    public:
-      PostAvailableResultEvent(DeviceStorageRequestParent* aParent);
-      virtual ~PostAvailableResultEvent();
-      virtual nsresult CancelableRun();
- };
+      int64_t mFreeBytes, mTotalBytes;
+   };
 
 protected:
   bool AddRunnable(CancelableRunnable* aRunnable) {

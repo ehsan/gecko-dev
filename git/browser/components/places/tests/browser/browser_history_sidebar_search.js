@@ -17,6 +17,16 @@ function uri(spec) {
 
 var sidebar = document.getElementById("sidebar");
 
+function add_visit(aURI, aDate) {
+  var visitId = hs.addVisit(aURI,
+                            aDate,
+                            null, // no referrer
+                            hs.TRANSITION_TYPED, // user typed in URL bar
+                            false, // not redirect
+                            0);
+  return visitId;
+}
+
 // Visited pages listed by descending visit date.
 var pages = [
   "http://sidebar.mozilla.org/a",
@@ -37,15 +47,9 @@ function test() {
 function continue_test() {
   // Add some visited page.
   var time = Date.now();
-  var pagesLength = pages.length;
-  var places = [];
-  for (var i = 0; i < pagesLength; i++) {
-    places.push({uri: uri(pages[i]), visitDate: (time - i) * 1000,
-                 transition: hs.TRANSITION_TYPED});
+  for (var i = 0; i < pages.length; i++) {
+    add_visit(uri(pages[i]), (time - i) * 1000);
   }
-  addVisits(places, window, function() {
-    toggleSidebar("viewHistorySidebar", true);
-  });
 
   sidebar.addEventListener("load", function() {
     sidebar.removeEventListener("load", arguments.callee, true);
@@ -67,6 +71,7 @@ function continue_test() {
       waitForClearHistory(finish);
     });
   }, true);
+  toggleSidebar("viewHistorySidebar", true);
 }
 
 function check_sidebar_tree_order(aExpectedRows) {

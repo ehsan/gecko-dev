@@ -10,7 +10,6 @@
 #include "IonMacroAssembler.h"
 #include "gc/Root.h"
 #include "Bailouts.h"
-#include "vm/ForkJoin.h"
 
 using namespace js;
 using namespace js::ion;
@@ -322,7 +321,7 @@ MacroAssembler::newGCThing(const Register &result,
     // If a FreeSpan is replaced, its members are updated in the freeLists table,
     // which the code below always re-reads.
     gc::FreeSpan *list = const_cast<gc::FreeSpan *>
-                         (compartment->allocator.arenas.getFreeList(allocKind));
+                         (compartment->arenas.getFreeList(allocKind));
     loadPtr(AbsoluteAddress(&list->first), result);
     branchPtr(Assembler::BelowOrEqual, AbsoluteAddress(&list->last), result, fail);
 

@@ -429,7 +429,6 @@ pk11_mergeSecretKey(PK11SlotInfo *targetSlot, PK11SlotInfo *sourceSlot,
     SECItem *sourceOutput = NULL;
     SECItem *targetOutput = NULL;
     SECItem *param = NULL;
-    int blockSize;
     SECItem input;
     CK_OBJECT_HANDLE targetKeyID;
     CK_FLAGS flags;
@@ -492,12 +491,11 @@ pk11_mergeSecretKey(PK11SlotInfo *targetSlot, PK11SlotInfo *sourceSlot,
 
     /* set up the input test */
     input.data = (unsigned char *)testString;
-    blockSize = PK11_GetBlockSize(cryptoMechType, NULL);
-    if (blockSize < 0) {
+    input.len = PK11_GetBlockSize(cryptoMechType, NULL);
+    if (input.len < 0) {
 	rv = SECFailure;
 	goto done;
     }
-    input.len = blockSize;
     if (input.len == 0) {
 	input.len = sizeof (testString);
     }

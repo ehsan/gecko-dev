@@ -6,11 +6,8 @@
 
 #include "compiler/OutputGLSL.h"
 
-TOutputGLSL::TOutputGLSL(TInfoSinkBase& objSink,
-                         ShHashFunction64 hashFunction,
-                         NameMap& nameMap,
-                         TSymbolTable& symbolTable)
-    : TOutputGLSLBase(objSink, hashFunction, nameMap, symbolTable)
+TOutputGLSL::TOutputGLSL(TInfoSinkBase& objSink)
+    : TOutputGLSLBase(objSink)
 {
 }
 

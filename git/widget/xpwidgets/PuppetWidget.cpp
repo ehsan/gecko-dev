@@ -263,6 +263,8 @@ PuppetWidget::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
 
   aStatus = nsEventStatus_eIgnore;
 
+  NS_ABORT_IF_FALSE(mAttachedWidgetListener, "No listener!");
+
   if (event->message == NS_COMPOSITION_START) {
     mIMEComposing = true;
   }
@@ -286,9 +288,7 @@ PuppetWidget::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
     break;
   }
 
-  if (mAttachedWidgetListener) {
-    aStatus = mAttachedWidgetListener->HandleEvent(event, mUseAttachedEvents);
-  }
+  aStatus = mAttachedWidgetListener->HandleEvent(event, mUseAttachedEvents);
 
   if (event->message == NS_COMPOSITION_END) {
     mIMEComposing = false;

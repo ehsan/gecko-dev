@@ -3231,17 +3231,16 @@ class LIteratorMore : public LInstructionHelper<1, 1, 1>
     }
 };
 
-class LIteratorEnd : public LInstructionHelper<0, 1, 3>
+class LIteratorEnd : public LInstructionHelper<0, 1, 2>
 {
   public:
     LIR_HEADER(IteratorEnd)
 
     LIteratorEnd(const LAllocation &iterator, const LDefinition &temp1,
-                 const LDefinition &temp2, const LDefinition &temp3) {
+                 const LDefinition &temp2) {
         setOperand(0, iterator);
         setTemp(0, temp1);
         setTemp(1, temp2);
-        setTemp(2, temp3);
     }
     const LAllocation *object() {
         return getOperand(0);
@@ -3251,9 +3250,6 @@ class LIteratorEnd : public LInstructionHelper<0, 1, 3>
     }
     const LDefinition *temp2() {
         return getTemp(1);
-    }
-    const LDefinition *temp3() {
-        return getTemp(2);
     }
     MIteratorEnd *mir() const {
         return mir_->toIteratorEnd();

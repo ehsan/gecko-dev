@@ -119,7 +119,6 @@ CSRCS = \
 	$(ECL_SRCS) \
 	$(STUBS_SRCS) \
 	$(LOWHASH_SRCS) \
-	$(EXTRA_SRCS) \
 	$(NULL)
 
 ALL_CSRCS := $(CSRCS)

@@ -851,7 +851,6 @@ this.DOMApplicationRegistry = {
   },
 
   _writeFile: function ss_writeFile(aFile, aData, aCallbak) {
-    debug("Saving " + aFile.path);
     // Initialize the file output stream.
     let ostream = FileUtils.openSafeFileOutputStream(aFile);
 
@@ -898,13 +897,9 @@ this.DOMApplicationRegistry = {
 
     if (download.cacheUpdate) {
       // Cancel hosted app download.
-      app.isCanceling = true;
       try {
         download.cacheUpdate.cancel();
-      } catch (e) {
-        delete app.isCanceling;
-        debug (e);
-      }
+      } catch (e) { debug (e); }
     } else if (download.channel) {
       // Cancel packaged app download.
       app.isCanceling = true;
@@ -950,12 +945,8 @@ this.DOMApplicationRegistry = {
     app.retryingDownload = !isUpdate;
 
     // We need to get the update manifest here, not the webapp manifest.
-    // If this is an update, the update manifest is staged.
     let file = FileUtils.getFile(DIRECTORY_NAME,
-                                 ["webapps", id,
-                                  isUpdate ? "staged-update.webapp"
-                                           : "update.webapp"],
-                                 true);
+                                 ["webapps", id, "update.webapp"], true);
 
     if (!file.exists()) {
       // This is a hosted app, let's check if it has an appcache
@@ -1017,7 +1008,8 @@ this.DOMApplicationRegistry = {
             DOMApplicationRegistry.broadcastMessage("Webapps:PackageEvent",
                                                     { type: "downloaded",
                                                       manifestURL: aManifestURL,
-                                                      app: app });
+                                                      app: app,
+                                                      manifest: aManifest });
             if (app.installState == "pending") {
               // We restarted a failed download, apply it automatically.
               DOMApplicationRegistry.applyDownload(aManifestURL);
@@ -1051,16 +1043,6 @@ this.DOMApplicationRegistry = {
     appFile.moveTo(dir, "application.zip");
     manFile.moveTo(dir, "manifest.webapp");
 
-    // Move the staged update manifest to a non staged one.
-    let staged = dir.clone();
-    staged.append("staged-update.webapp");
-
-    // If we are applying after a restarted download, we have no
-    // staged update manifest.
-    if (staged.exists()) {
-      staged.moveTo(dir, "update.webapp");
-    }
-
     try {
       tmpDir.remove(true);
     } catch(e) { }
@@ -1078,15 +1060,6 @@ this.DOMApplicationRegistry = {
       app.downloadSize = 0;
       app.installState = "installed";
       app.readyToApplyDownload = false;
-
-      // Update the staged properties.
-      if (app.staged) {
-        for (let prop in app.staged) {
-          app[prop] = app.staged[prop];
-        }
-        delete app.staged;
-      }
-
       delete app.retryingDownload;
 
       DOMApplicationRegistry._saveApps(function() {
@@ -1247,7 +1220,7 @@ this.DOMApplicationRegistry = {
       // Store the new update manifest.
       let dir = FileUtils.getDir(DIRECTORY_NAME, ["webapps", id], true, true);
       let manFile = dir.clone();
-      manFile.append("staged-update.webapp");
+      manFile.append("update.webapp");
       this._writeFile(manFile, JSON.stringify(aManifest), function() { });
 
       let manifest = new ManifestHelper(aManifest, app.manifestURL);
@@ -1431,7 +1404,6 @@ this.DOMApplicationRegistry = {
     xhr.addEventListener("load", (function() {
       debug("Got http status=" + xhr.status + " for " + aData.manifestURL);
       let oldHash = app.manifestHash;
-      let isPackage = app.origin.startsWith("app://");
 
       if (xhr.status == 200) {
         let manifest = xhr.response;
@@ -1449,19 +1421,12 @@ this.DOMApplicationRegistry = {
         } else {
           let hash = this.computeManifestHash(manifest);
           debug("Manifest hash = " + hash);
-          if (isPackage) {
-            if (!app.staged) {
-              app.staged = { };
-            }
-            app.staged.manifestHash = hash;
-            app.staged.etag = xhr.getResponseHeader("Etag");
-          } else {
-            app.manifestHash = hash;
-            app.etag = xhr.getResponseHeader("Etag");
-          }
+          app.manifestHash = hash;
 
+          app.etag = xhr.getResponseHeader("Etag");
+          debug("at update got app etag=" + app.etag);
           app.lastCheckedUpdate = Date.now();
-          if (isPackage) {
+          if (app.origin.startsWith("app://")) {
             if (oldHash != hash) {
               updatePackagedApp.call(this, manifest);
             } else {
@@ -1486,7 +1451,7 @@ this.DOMApplicationRegistry = {
         }
       } else if (xhr.status == 304) {
         // The manifest has not changed.
-        if (isPackage) {
+        if (app.origin.startsWith("app://")) {
           // If the app is a packaged app, we just send a 'downloadapplied'
           // or downloadavailable event.
           app.lastCheckedUpdate = Date.now();
@@ -1635,8 +1600,7 @@ this.DOMApplicationRegistry = {
     // Disallow reinstalls from the same manifest URL for now.
     // See https://bugzilla.mozilla.org/show_bug.cgi?id=821288
     if (this.getAppLocalIdByManifestURL(app.manifestURL) !==
-        Ci.nsIScriptSecurityManager.NO_APP_ID ||
-        this._appId(app.origin) !== null) {
+        Ci.nsIScriptSecurityManager.NO_APP_ID) {
       sendError("REINSTALL_FORBIDDEN");
       return;
     }
@@ -1976,23 +1940,10 @@ this.DOMApplicationRegistry = {
 
       let download = AppDownloadManager.get(aApp.manifestURL);
       app.downloading = false;
-
-      // To prevent repeated prompts, wait for the next checkForUpdates to
-      // try a new download.
-      app.downloadAvailable = false;
-
-      // If there were not enough storage to download the package we
+      // If there were not enough storage to download the packaged app we
       // won't have a record of the download details, so we just set the
-      // installState to 'pending' at first download and to 'installed' when
-      // updating.
-      app.installState = download ? download.previousState
-                                  : aIsUpdate ? "installed"
-                                  : "pending";
-
-      if (app.staged) {
-        delete app.staged;
-      }
-
+      // installState to 'pending'.
+      app.installState = download ? download.previousState : "pending";
       self.broadcastMessage("Webapps:PackageEvent",
                             { type: "error",
                               manifestURL:  aApp.manifestURL,
@@ -2087,9 +2038,17 @@ this.DOMApplicationRegistry = {
                        .createInstance(Ci.nsISimpleStreamListener);
       listener.init(bufferedOutputStream, {
         onStartRequest: function(aRequest, aContext) {
-          // Nothing to do there anymore.
+          // early check for ETag header
+          try {
+            requestChannel.getResponseHeader("Etag");
+          } catch (e) {
+            // in https://bugzilla.mozilla.org/show_bug.cgi?id=825218
+            // we might do something cleaner to have a proper user error
+            debug("We found no ETag Header, canceling the request");
+            requestChannel.cancel(Cr.NS_BINDING_ABORTED);
+            AppDownloadManager.remove(aApp.manifestURL);
+          }
         },
-
         onStopRequest: function(aRequest, aContext, aStatusCode) {
           debug("onStopRequest " + aStatusCode);
           bufferedOutputStream.close();
@@ -2222,21 +2181,17 @@ this.DOMApplicationRegistry = {
                   throw "INVALID_SECURITY_LEVEL";
                 }
                 app.appStatus = AppsUtils.getAppManifestStatus(manifest);
-
+                app.packageHash = aHash;
                 // Save the new Etag for the package.
-                if (aIsUpdate) {
-                  if (!app.staged) {
-                    app.staged = { };
-                  }
-                  app.staged.packageEtag =
-                    requestChannel.getResponseHeader("Etag");
-                  app.staged.packageHash = aHash;
-                  app.staged.appStatus =
-                    AppsUtils.getAppManifestStatus(manifest);
-                } else {
+                try {
                   app.packageEtag = requestChannel.getResponseHeader("Etag");
-                  app.packageHash = aHash;
-                  app.appStatus = AppsUtils.getAppManifestStatus(manifest);
+                  debug("Package etag=" + app.packageEtag);
+                } catch (e) {
+                  // in https://bugzilla.mozilla.org/show_bug.cgi?id=825218
+                  // we'll fail gracefully in this case
+                  // for now, just going on
+                  app.packageEtag = null;
+                  debug("Can't find an etag, this should not happen");
                 }
 
                 if (aOnSuccess) {
@@ -2289,21 +2244,14 @@ this.DOMApplicationRegistry = {
   },
 
   uninstall: function(aData, aMm) {
-    debug("uninstall " + aData.origin);
     for (let id in this.webapps) {
       let app = this.webapps[id];
       if (app.origin != aData.origin) {
         continue;
       }
 
-      dump("-- webapps.js uninstall " + app.manifestURL + "\n");
-
       if (!app.removable)
         return;
-
-      // Check if we are downloading something for this app, and cancel the
-      // download if needed.
-      this.cancelDownload(app.manifestURL);
 
       // Clean up the deprecated manifest cache if needed.
       if (id in this._manifestCache) {
@@ -2766,16 +2714,9 @@ AppcacheObserver.prototype = {
 
     let setError = function appObs_setError(aError) {
       debug("Offlinecache setError to " + aError);
-      // If we are canceling the download, we already send a DOWNLOAD_CANCELED
-      // error.
-      if (!app.isCanceling) {
-        DOMApplicationRegistry.broadcastMessage("Webapps:OfflineCache",
-                                                { manifest: app.manifestURL,
-                                                  error: aError });
-      } else {
-        delete app.isCanceling;
-      }
-
+      DOMApplicationRegistry.broadcastMessage("Webapps:OfflineCache",
+                                              { manifest: app.manifestURL,
+                                                error: aError });
       app.downloading = false;
       app.downloadAvailable = false;
       mustSave = true;
@@ -2784,13 +2725,11 @@ AppcacheObserver.prototype = {
     switch (aState) {
       case Ci.nsIOfflineCacheUpdateObserver.STATE_ERROR:
         aUpdate.removeObserver(this);
-        AppDownloadManager.remove(app.manifestURL);
         setError("APP_CACHE_DOWNLOAD_ERROR");
         break;
       case Ci.nsIOfflineCacheUpdateObserver.STATE_NOUPDATE:
       case Ci.nsIOfflineCacheUpdateObserver.STATE_FINISHED:
         aUpdate.removeObserver(this);
-        AppDownloadManager.remove(app.manifestURL);
         setStatus("installed", aUpdate.byteProgress);
         break;
       case Ci.nsIOfflineCacheUpdateObserver.STATE_DOWNLOADING:
