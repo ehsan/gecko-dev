@@ -3534,19 +3534,11 @@ void
 js_PurgeScopeChainHelper(JSContext *cx, JSObject *obj, jsid id)
 {
     JS_ASSERT(OBJ_IS_DELEGATE(cx, obj));
-    PurgeProtoChain(cx, OBJ_GET_PROTO(cx, obj), id);
 
-    /*
-     * We must purge the scope chain only for Call objects as they are the only
-     * kind of cacheable non-global object that can gain properties after outer
-     * properties with the same names have been cached or traced. Call objects
-     * may gain such properties via eval introducing new vars; see bug 490364.
-     */
-    if (STOBJ_GET_CLASS(obj) == &js_CallClass) {
-        while ((obj = OBJ_GET_PARENT(cx, obj)) != NULL) {
-            if (PurgeProtoChain(cx, obj, id))
-                break;
-        }
+    PurgeProtoChain(cx, OBJ_GET_PROTO(cx, obj), id);
+    while ((obj = OBJ_GET_PARENT(cx, obj)) != NULL) {
+        if (PurgeProtoChain(cx, obj, id))
+            return;
     }
 }
 
@@ -3634,14 +3626,13 @@ JSBool
 js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, jsval value,
                         JSPropertyOp getter, JSPropertyOp setter, uintN attrs,
                         uintN flags, intN shortid, JSProperty **propp,
-                        uintN defineHow /* = 0 */)
+                        JSBool cacheResult /* = JS_FALSE */)
 {
     JSClass *clasp;
     JSScope *scope;
     JSScopeProperty *sprop;
     bool added;
 
-    JS_ASSERT((defineHow & ~(JSDNP_CACHE_RESULT | JSDNP_DONT_PURGE)) == 0);
     js_LeaveTraceIfGlobalObject(cx, obj);
 
     /* Convert string indices to integers if appropriate. */
@@ -3694,12 +3685,11 @@ js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, jsval value,
 #endif /* JS_HAS_GETTER_SETTER */
 
     /*
-     * Purge the property cache of any properties named by id that are about
-     * to be shadowed in obj's scope chain unless it is known a priori that it
-     * is not possible. We do this before locking obj to avoid nesting locks.
+     * Purge the property cache of any properties named by id that are about to
+     * be shadowed in obj's scope chain. We do this before locking obj to avoid
+     * nesting locks.
      */
-    if (!(defineHow & JSDNP_DONT_PURGE))
-        js_PurgeScopeChain(cx, obj, id);
+    js_PurgeScopeChain(cx, obj, id);
 
     /*
      * Check whether a readonly property or setter is being defined on a known
@@ -3746,7 +3736,7 @@ js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, jsval value,
                         js_RemoveScopeProperty(cx, scope, id);
                         goto error);
 
-    if (defineHow & JSDNP_CACHE_RESULT) {
+    if (cacheResult) {
         JS_ASSERT_NOT_ON_TRACE(cx);
         JSPropCacheEntry *entry;
         entry = js_FillPropertyCache(cx, obj, 0, 0, obj, sprop, added);
@@ -4396,9 +4386,6 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, JSBool cacheResult,
     JSPropertyOp getter, setter;
     bool added;
 
-    if (cacheResult)
-        JS_ASSERT_NOT_ON_TRACE(cx);
-
     /* Convert string indices to integers if appropriate. */
     CHECK_FOR_STRING_INDEX(id);
 
@@ -4496,6 +4483,7 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, JSBool cacheResult,
             /* Don't clone a shared prototype property. */
             if (attrs & JSPROP_SHARED) {
                 if (cacheResult) {
+                    JS_ASSERT_NOT_ON_TRACE(cx);
                     JSPropCacheEntry *entry;
                     entry = js_FillPropertyCache(cx, obj, 0, protoIndex, pobj, sprop, false);
                     TRACE_2(SetPropHit, entry, sprop);
@@ -4579,6 +4567,7 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, JSBool cacheResult,
     }
 
     if (cacheResult) {
+        JS_ASSERT_NOT_ON_TRACE(cx);
         JSPropCacheEntry *entry;
         entry = js_FillPropertyCache(cx, obj, 0, 0, obj, sprop, added);
         TRACE_2(SetPropHit, entry, sprop);

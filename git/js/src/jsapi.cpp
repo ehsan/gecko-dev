@@ -707,12 +707,6 @@ JS_GetTypeName(JSContext *cx, JSType type)
     return JS_TYPE_STR(type);
 }
 
-JS_PUBLIC_API(JSBool)
-JS_StrictlyEqual(JSContext *cx, jsval v1, jsval v2)
-{
-    return js_StrictlyEqual(cx, v1, v2);
-}
-
 /************************************************************************/
 
 /*

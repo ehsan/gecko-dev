@@ -2125,8 +2125,7 @@ JSCompiler::setFunctionKinds(JSFunctionBox *funbox, uint16& tcflags)
                              * lexdep's level to find the afunbox whose
                              * body contains the lexdep definition.
                              */
-                            if (afunbox->level + 1U == lexdepLevel ||
-                                (lexdepLevel == 0 && lexdep->isLet())) {
+                            if (afunbox->level + 1U == lexdepLevel) {
                                 afunbox->tcflags |= TCF_FUN_HEAVYWEIGHT;
                                 break;
                             }

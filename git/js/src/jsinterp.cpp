@@ -6430,7 +6430,7 @@ js_Interpret(JSContext *cx)
                       ? js_SetPropertyHelper(cx, obj, id, true, &rval)
                       : js_DefineNativeProperty(cx, obj, id, rval, NULL, NULL,
                                                 JSPROP_ENUMERATE, 0, 0, NULL,
-                                                JSDNP_CACHE_RESULT)))
+                                                true)))
                     goto error;
             } while (0);
 

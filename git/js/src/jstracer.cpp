@@ -117,7 +117,7 @@ static const char tagChar[]  = "OIDISIBI";
 /* Attempt recording this many times before blacklisting permanently. */
 #define BL_ATTEMPTS 2
 
-/* Skip this many hits before attempting recording again, after an aborted attempt. */
+/* Skip this many future hits before allowing recording again after blacklisting. */
 #define BL_BACKOFF 32
 
 /* Number of times we wait to exit on a side exit before we try to extend the tree. */
@@ -5844,13 +5844,7 @@ TraceRecorder::incElem(jsint incr, bool pre)
     jsval* vp;
     LIns* v_ins;
     LIns* addr_ins;
-
-    if (!JSVAL_IS_OBJECT(l) || !JSVAL_IS_INT(r) ||
-        !guardDenseArray(JSVAL_TO_OBJECT(l), get(&l))) {
-        return JSRS_STOP;
-    }
-
-    CHECK_STATUS(denseArrayElement(l, r, vp, v_ins, addr_ins));
+    CHECK_STATUS(elem(l, r, vp, v_ins, addr_ins));
     if (!addr_ins) // if we read a hole, abort
         return JSRS_STOP;
     CHECK_STATUS(inc(*vp, v_ins, incr, pre));
@@ -8165,16 +8159,17 @@ TraceRecorder::record_JSOP_GETELEM()
         return call_imacro(call ? callelem_imacros.callprop : getelem_imacros.getprop);
     }
 
-    if (!guardDenseArray(obj, obj_ins, BRANCH_EXIT)) {
+    // Invalid dense array index or not a dense array.
+    if (JSVAL_TO_INT(idx) < 0 || !OBJ_IS_DENSE_ARRAY(cx, obj)) {
         CHECK_STATUS(guardNotGlobalObject(obj, obj_ins));
 
         return call_imacro(call ? callelem_imacros.callelem : getelem_imacros.getelem);
     }
 
-    // Fast path for dense arrays accessed with a integer index.
+    // Fast path for dense arrays accessed with a non-negative integer index.
     jsval* vp;
     LIns* addr_ins;
-    CHECK_STATUS(denseArrayElement(lval, idx, vp, v_ins, addr_ins));
+    CHECK_STATUS(elem(lval, idx, vp, v_ins, addr_ins));
     set(&lval, v_ins);
     if (call)
         set(&idx, obj_ins);
@@ -8932,15 +8927,20 @@ TraceRecorder::prop(JSObject* obj, LIns* obj_ins, uint32& slot, LIns*& v_ins)
 }
 
 JS_REQUIRES_STACK JSRecordingStatus
-TraceRecorder::denseArrayElement(jsval& oval, jsval& ival, jsval*& vp, LIns*& v_ins,
-                                 LIns*& addr_ins)
+TraceRecorder::elem(jsval& oval, jsval& ival, jsval*& vp, LIns*& v_ins, LIns*& addr_ins)
 {
-    JS_ASSERT(JSVAL_IS_OBJECT(oval) && JSVAL_IS_INT(ival));
+    /* no guards for type checks, trace specialized this already */
+    if (JSVAL_IS_PRIMITIVE(oval) || !JSVAL_IS_INT(ival))
+        return JSRS_STOP;
 
     JSObject* obj = JSVAL_TO_OBJECT(oval);
     LIns* obj_ins = get(&oval);
     jsint idx = JSVAL_TO_INT(ival);
     LIns* idx_ins = makeNumberInt32(get(&ival));
+
+    /* make sure the object is actually a dense array */
+    if (!guardDenseArray(obj, obj_ins))
+        return JSRS_STOP;
 
     VMSideExit* exit = snapshot(BRANCH_EXIT);
 
