@@ -260,20 +260,20 @@ ContentHostBase::Dump(FILE* aFile,
   if (!aFile) {
     aFile = stderr;
   }
-  fprintf_stderr(aFile, "<ul>");
+  fprintf(aFile, "<ul>");
   if (mDeprecatedTextureHost) {
-    fprintf_stderr(aFile, "%s", aPrefix);
-    fprintf_stderr(aFile, "<li> <a href=");
+    fprintf(aFile, "%s", aPrefix);
+    fprintf(aFile, "<li> <a href=");
     DumpDeprecatedTextureHost(aFile, mDeprecatedTextureHost);
-    fprintf_stderr(aFile, "> Front buffer </a></li> ");
+    fprintf(aFile, "> Front buffer </a></li> ");
   }
   if (mDeprecatedTextureHostOnWhite) {
-    fprintf_stderr(aFile, "%s", aPrefix);
-    fprintf_stderr(aFile, "<li> <a href=");
+    fprintf(aFile, "%s", aPrefix);
+    fprintf(aFile, "<li> <a href=");
     DumpDeprecatedTextureHost(aFile, mDeprecatedTextureHostOnWhite);
-    fprintf_stderr(aFile, "> Front buffer on white </a> </li> ");
+    fprintf(aFile, "> Front buffer on white </a> </li> ");
   }
-  fprintf_stderr(aFile, "</ul>");
+  fprintf(aFile, "</ul>");
 }
 
 #endif
@@ -816,20 +816,20 @@ ContentHostDoubleBuffered::Dump(FILE* aFile,
   if (!aFile) {
     aFile = stderr;
   }
-  fprintf_stderr(aFile, "<ul>");
+  fprintf(aFile, "<ul>");
   if (mBackHost) {
-    fprintf_stderr(aFile, "%s", aPrefix);
-    fprintf_stderr(aFile, "<li> <a href=");
+    fprintf(aFile, "%s", aPrefix);
+    fprintf(aFile, "<li> <a href=");
     DumpDeprecatedTextureHost(aFile, mBackHost);
-    fprintf_stderr(aFile, " >Back buffer</a></li>");
+    fprintf(aFile, " >Back buffer</a></li>");
   }
   if (mBackHostOnWhite) {
-    fprintf_stderr(aFile, "%s", aPrefix);
-    fprintf_stderr(aFile, "<li> <a href=");
+    fprintf(aFile, "%s", aPrefix);
+    fprintf(aFile, "<li> <a href=");
     DumpDeprecatedTextureHost(aFile, mBackHostOnWhite);
-    fprintf_stderr(aFile, " >Back buffer on white</a> </li>");
+    fprintf(aFile, " >Back buffer on white</a> </li>");
   }
-  fprintf_stderr(aFile, "</ul>");
+  fprintf(aFile, "</ul>");
 }
 #endif
 

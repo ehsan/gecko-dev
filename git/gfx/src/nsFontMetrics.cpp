@@ -96,8 +96,7 @@ nsFontMetrics::~nsFontMetrics()
 nsresult
 nsFontMetrics::Init(const nsFont& aFont, nsIAtom* aLanguage,
                     nsDeviceContext *aContext,
-                    gfxUserFontSet *aUserFontSet,
-                    gfxTextPerfMetrics *aTextPerf)
+                    gfxUserFontSet *aUserFontSet)
 {
     NS_ABORT_IF_FALSE(mP2A == 0, "already initialized");
 
@@ -120,7 +119,6 @@ nsFontMetrics::Init(const nsFont& aFont, nsIAtom* aLanguage,
 
     mFontGroup = gfxPlatform::GetPlatform()->
         CreateFontGroup(aFont.name, &style, aUserFontSet);
-    mFontGroup->SetTextPerfMetrics(aTextPerf);
     if (mFontGroup->FontListLength() < 1)
         return NS_ERROR_UNEXPECTED;
 

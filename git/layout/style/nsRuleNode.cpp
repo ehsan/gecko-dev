@@ -221,11 +221,10 @@ GetMetricsFor(nsPresContext* aPresContext,
   if (aUseUserFontSet) {
     fs = aPresContext->GetUserFontSet();
   }
-  gfxTextPerfMetrics *tp = aPresContext->GetTextPerfMetrics();
   nsRefPtr<nsFontMetrics> fm;
   aPresContext->DeviceContext()->GetMetricsFor(font,
                                                aStyleFont->mLanguage,
-                                               fs, tp, *getter_AddRefs(fm));
+                                               fs, *getter_AddRefs(fm));
   return fm.forget();
 }
 

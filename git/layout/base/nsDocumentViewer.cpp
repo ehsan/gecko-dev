@@ -1025,7 +1025,6 @@ nsDocumentViewer::LoadComplete(nsresult aStatus)
     // mPresShell could have been removed now, see bug 378682/421432
     if (mPresShell) {
       mPresShell->ScrollToAnchor();
-      mPresShell->LoadComplete();
     }
   }
 

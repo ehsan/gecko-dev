@@ -2234,7 +2234,7 @@ nsDisplayThemedBackground::~nsDisplayThemedBackground()
 void
 nsDisplayThemedBackground::WriteDebugInfo(FILE *aOutput)
 {
-  fprintf_stderr(aOutput, "(themed, appearance:%d) ", mAppearance);
+  fprintf(aOutput, "(themed, appearance:%d) ", mAppearance);
 }
 #endif
 
@@ -4713,32 +4713,32 @@ nsDisplaySVGEffects::PrintEffects(FILE* aOutput)
   bool isOK = true;
   nsSVGClipPathFrame *clipPathFrame = effectProperties.GetClipPathFrame(&isOK);
   bool first = true;
-  fprintf_stderr(aOutput, " effects=(");
+  fprintf(aOutput, " effects=(");
   if (mFrame->StyleDisplay()->mOpacity != 1.0f) {
     first = false;
-    fprintf_stderr(aOutput, "opacity(%f)", mFrame->StyleDisplay()->mOpacity);
+    fprintf(aOutput, "opacity(%f)", mFrame->StyleDisplay()->mOpacity);
   }
   if (clipPathFrame) {
     if (!first) {
-      fprintf_stderr(aOutput, ", ");
+      fprintf(aOutput, ", ");
     }
-    fprintf_stderr(aOutput, "clip(%s)", clipPathFrame->IsTrivial() ? "trivial" : "non-trivial");
+    fprintf(aOutput, "clip(%s)", clipPathFrame->IsTrivial() ? "trivial" : "non-trivial");
     first = false;
   }
   if (effectProperties.GetFilterFrame(&isOK)) {
     if (!first) {
-      fprintf_stderr(aOutput, ", ");
+      fprintf(aOutput, ", ");
     }
-    fprintf_stderr(aOutput, "filter");
+    fprintf(aOutput, "filter");
     first = false;
   }
   if (effectProperties.GetMaskFrame(&isOK)) {
     if (!first) {
-      fprintf_stderr(aOutput, ", ");
+      fprintf(aOutput, ", ");
     }
-    fprintf_stderr(aOutput, "mask");
+    fprintf(aOutput, "mask");
   }
-  fprintf_stderr(aOutput, ")");
+  fprintf(aOutput, ")");
 }
 #endif
 

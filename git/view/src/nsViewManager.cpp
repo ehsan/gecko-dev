@@ -309,7 +309,7 @@ void nsViewManager::Refresh(nsView *aView, const nsIntRegion& aRegion)
 #ifdef DEBUG_roc
     nsRect viewRect = aView->GetDimensions();
     nsRect damageRect = damageRegion.GetBounds();
-    printf_stderr("XXX Damage rectangle (%d,%d,%d,%d) does not intersect the widget's view (%d,%d,%d,%d)!\n",
+    printf("XXX Damage rectangle (%d,%d,%d,%d) does not intersect the widget's view (%d,%d,%d,%d)!\n",
            damageRect.x, damageRect.y, damageRect.width, damageRect.height,
            viewRect.x, viewRect.y, viewRect.width, viewRect.height);
 #endif
@@ -337,7 +337,7 @@ void nsViewManager::Refresh(nsView *aView, const nsIntRegion& aRegion)
     if (mPresShell) {
 #ifdef MOZ_DUMP_PAINTING
       if (nsLayoutUtils::InvalidationDebuggingIsEnabled()) {
-        printf_stderr("--COMPOSITE-- %p\n", mPresShell);
+        printf("--COMPOSITE-- %p\n", mPresShell);
       }
 #endif
       uint32_t paintFlags = nsIPresShell::PAINT_COMPOSITE;
@@ -350,7 +350,7 @@ void nsViewManager::Refresh(nsView *aView, const nsIntRegion& aRegion)
       }
 #ifdef MOZ_DUMP_PAINTING
       if (nsLayoutUtils::InvalidationDebuggingIsEnabled()) {
-        printf_stderr("--ENDCOMPOSITE--\n");
+        printf("--ENDCOMPOSITE--\n");
       }
 #endif
       mozilla::StartupTimeline::RecordOnce(mozilla::StartupTimeline::FIRST_PAINT);
@@ -411,7 +411,7 @@ void nsViewManager::ProcessPendingUpdatesForView(nsView* aView,
 
 #ifdef MOZ_DUMP_PAINTING
       if (nsLayoutUtils::InvalidationDebuggingIsEnabled()) {
-        printf_stderr("---- PAINT START ----PresShell(%p), nsView(%p), nsIWidget(%p)\n", mPresShell, aView, widget);
+        printf("---- PAINT START ----PresShell(%p), nsView(%p), nsIWidget(%p)\n", mPresShell, aView, widget);
       }
 #endif
       nsAutoScriptBlocker scriptBlocker;
@@ -421,7 +421,7 @@ void nsViewManager::ProcessPendingUpdatesForView(nsView* aView,
                         nsIPresShell::PAINT_LAYERS);
 #ifdef MOZ_DUMP_PAINTING
       if (nsLayoutUtils::InvalidationDebuggingIsEnabled()) {
-        printf_stderr("---- PAINT END ----\n");
+        printf("---- PAINT END ----\n");
       }
 #endif
 

@@ -2017,8 +2017,6 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
         new (aBuilder) nsDisplayBlendContainer(aBuilder, this, &resultList));
   }
 
-  CreateOwnLayerIfNeeded(aBuilder, &resultList);
-
   aList->AppendToTop(&resultList);
 }
 
@@ -8056,9 +8054,7 @@ void
 nsIFrame::CreateOwnLayerIfNeeded(nsDisplayListBuilder* aBuilder, 
                                  nsDisplayList* aList)
 {
-  if (GetContent() &&
-      GetContent()->IsXUL() &&
-      GetContent()->HasAttr(kNameSpaceID_None, nsGkAtoms::layer)) {
+  if (GetContent()->HasAttr(kNameSpaceID_None, nsGkAtoms::layer)) {
     aList->AppendNewToTop(new (aBuilder) 
         nsDisplayOwnLayer(aBuilder, this, aList));
   }
