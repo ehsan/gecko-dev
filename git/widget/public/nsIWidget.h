@@ -44,7 +44,7 @@
 #include "nsRect.h"
 #include "nsPoint.h"
 #include "nsRegion.h"
-#include "nsStringGlue.h"
+#include "nsString.h"
 
 #include "prthread.h"
 #include "nsEvent.h"

@@ -491,25 +491,17 @@ nsAccDocManager::CreateDocOrRootAccessible(nsIDocument *aDocument)
 // nsAccDocManager static
 
 PLDHashOperator
-nsAccDocManager::GetFirstEntryInDocCache(const nsIDocument* aKey,
-                                         nsDocAccessible* aDocAccessible,
-                                         void* aUserArg)
+nsAccDocManager::ClearDocCacheEntry(const nsIDocument* aKey,
+                                    nsRefPtr<nsDocAccessible>& aDocAccessible,
+                                    void* aUserArg)
 {
   NS_ASSERTION(aDocAccessible,
-               "No doc accessible for the object in doc accessible cache!");
-  *reinterpret_cast<nsDocAccessible**>(aUserArg) = aDocAccessible;
+               "Calling ClearDocCacheEntry with a NULL pointer!");
 
-  return PL_DHASH_STOP;
-}
+  if (aDocAccessible)
+    aDocAccessible->Shutdown();
 
-void
-nsAccDocManager::ClearDocCache()
-{
-  nsDocAccessible* docAcc = nsnull;
-  while (mDocAccessibleCache.EnumerateRead(GetFirstEntryInDocCache, static_cast<void*>(&docAcc))) {
-    if (docAcc)
-      docAcc->Shutdown();
-  }
+  return PL_DHASH_REMOVE;
 }
 
 PLDHashOperator

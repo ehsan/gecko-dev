@@ -36,15 +36,13 @@ Shader::Shader(ResourceManager *manager, GLuint handle) : mHandle(handle), mReso
         {
             ShBuiltInResources resources;
             ShInitBuiltInResources(&resources);
-            Context *context = getContext();            
-
             resources.MaxVertexAttribs = MAX_VERTEX_ATTRIBS;
             resources.MaxVertexUniformVectors = MAX_VERTEX_UNIFORM_VECTORS;
-            resources.MaxVaryingVectors = context->getMaximumVaryingVectors();
+            resources.MaxVaryingVectors = MAX_VARYING_VECTORS;
             resources.MaxVertexTextureImageUnits = MAX_VERTEX_TEXTURE_IMAGE_UNITS;
             resources.MaxCombinedTextureImageUnits = MAX_COMBINED_TEXTURE_IMAGE_UNITS;
             resources.MaxTextureImageUnits = MAX_TEXTURE_IMAGE_UNITS;
-            resources.MaxFragmentUniformVectors = context->getMaximumFragmentUniformVectors();
+            resources.MaxFragmentUniformVectors = MAX_FRAGMENT_UNIFORM_VECTORS;
             resources.MaxDrawBuffers = MAX_DRAW_BUFFERS;
             resources.OES_standard_derivatives = 1;
 

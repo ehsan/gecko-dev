@@ -866,7 +866,6 @@ private:
   // on the line, or null if there was no previous leaf frame.
   nsIFrame*                     mCommonAncestorWithLastFrame;
   // mMaxTextLength is an upper bound on the size of the text in all mapped frames
-  // The value PR_UINT32_MAX represents overflow; text will be discarded
   PRUint32                      mMaxTextLength;
   PRPackedBool                  mDoubleByteText;
   PRPackedBool                  mBidiEnabled;
@@ -1295,11 +1294,8 @@ void BuildTextRunsScanner::FlushFrames(PRBool aFlushLineBreaks, PRBool aSuppress
       }
     } else {
       nsAutoTArray<PRUint8,BIG_TEXT_NODE_SIZE> buffer;
-      PRUint32 bufferSize = mMaxTextLength*(mDoubleByteText ? 2 : 1);
-      if (bufferSize < mMaxTextLength || bufferSize == PR_UINT32_MAX ||
-          !buffer.AppendElements(bufferSize)) {
+      if (!buffer.AppendElements(mMaxTextLength*(mDoubleByteText ? 2 : 1)))
         return;
-      }
       textRun = BuildTextRunForFrames(buffer.Elements());
     }
   }
@@ -1343,14 +1339,8 @@ void BuildTextRunsScanner::FlushLineBreaks(gfxTextRun* aTrailingTextRun)
 
 void BuildTextRunsScanner::AccumulateRunInfo(nsTextFrame* aFrame)
 {
-  if (mMaxTextLength != PR_UINT32_MAX) {
-    NS_ASSERTION(mMaxTextLength < PR_UINT32_MAX - aFrame->GetContentLength(), "integer overflow");
-    if (mMaxTextLength >= PR_UINT32_MAX - aFrame->GetContentLength()) {
-      mMaxTextLength = PR_UINT32_MAX;
-    } else {
-      mMaxTextLength += aFrame->GetContentLength();
-    }
-  }
+  NS_ASSERTION(mMaxTextLength <= mMaxTextLength + aFrame->GetContentLength(), "integer overflow");
+  mMaxTextLength += aFrame->GetContentLength();
   mDoubleByteText |= aFrame->GetContent()->GetText()->Is2b();
   mLastFrame = aFrame;
   mCommonAncestorWithLastFrame = aFrame->GetParent();

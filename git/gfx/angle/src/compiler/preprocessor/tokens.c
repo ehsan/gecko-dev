@@ -52,7 +52,6 @@ NVIDIA HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "compiler/debug.h"
 #include "compiler/preprocessor/slglobals.h"
-#include "compiler/util.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////// Preprocessor and Token Recorder and Playback: ////////////////////////
@@ -225,7 +224,8 @@ void RecordToken(TokenStream *pTok, int token, yystypepp * yylvalpp)
     case CPP_INTCONSTANT:
          str=yylvalpp->symbol_name;
          while (*str){
-            lAddByte(pTok, (unsigned char) *str++);
+            lAddByte(pTok,(unsigned char) *str);
+            *str++;
          }
          lAddByte(pTok, 0);
          break;
@@ -276,7 +276,8 @@ int ReadToken(TokenStream *pTok, yystypepp * yylvalpp)
                      ch == '_')
             {
                 if (len < MAX_SYMBOL_NAME_LEN) {
-                    symbol_name[len++] = ch;
+                    symbol_name[len] = ch;
+                    len++;
                     ch = lReadByte(pTok);
                 }
             }
@@ -290,7 +291,7 @@ int ReadToken(TokenStream *pTok, yystypepp * yylvalpp)
             while ((ch = lReadByte(pTok)) != 0)
                 if (len < MAX_STRING_LEN)
                     string_val[len++] = ch;
-            string_val[len] = '\0';
+            string_val[len] = 0;
             yylvalpp->sc_ident = LookUpAddString(atable, string_val);
             break;
         case CPP_FLOATCONSTANT:
@@ -299,14 +300,15 @@ int ReadToken(TokenStream *pTok, yystypepp * yylvalpp)
             while ((ch >= '0' && ch <= '9')||(ch=='e'||ch=='E'||ch=='.')||(ch=='+'||ch=='-'))
             {
                 if (len < MAX_SYMBOL_NAME_LEN) {
-                    symbol_name[len++] = ch;
+                    symbol_name[len] = ch;
+                    len++;
                     ch = lReadByte(pTok);
                 }
             }
             symbol_name[len] = '\0';
             assert(ch == '\0');
             strcpy(yylvalpp->symbol_name,symbol_name);
-            yylvalpp->sc_fval=(float)atof_dot(yylvalpp->symbol_name);
+            yylvalpp->sc_fval=(float)atof(yylvalpp->symbol_name);
             break;
         case CPP_INTCONSTANT:
             len = 0;
@@ -314,7 +316,8 @@ int ReadToken(TokenStream *pTok, yystypepp * yylvalpp)
             while ((ch >= '0' && ch <= '9'))
             {
                 if (len < MAX_SYMBOL_NAME_LEN) {
-                    symbol_name[len++] = ch;
+                    symbol_name[len] = ch;
+                    len++;
                     ch = lReadByte(pTok);
                 }
             }

@@ -113,9 +113,8 @@ class GeckoSurfaceView
                      mSoftwareBuffer.capacity() < (width * height * 2) ||
                      mWidth != width || mHeight != height)
                 mSoftwareBuffer = ByteBuffer.allocateDirect(width * height * 2);
-            boolean doSyncDraw = mDrawMode == DRAW_2D &&
-                mSoftwareBuffer != null &&
-                GeckoApp.checkLaunchState(GeckoApp.LaunchState.GeckoRunning);
+            boolean doSyncDraw = GeckoAppShell.sGeckoRunning && m2DMode &&
+                                 mSoftwareBuffer != null;
             mSyncDraw = doSyncDraw;
 
             mFormat = format;
@@ -132,8 +131,6 @@ class GeckoSurfaceView
                 GeckoAppShell.scheduleRedraw();
 
             if (!doSyncDraw) {
-                if (mDrawMode == DRAW_GLES_2)
-                    return;
                 Canvas c = holder.lockCanvas();
                 c.drawARGB(255, 255, 255, 255);
                 holder.unlockCanvasAndPost(c);
@@ -168,7 +165,7 @@ class GeckoSurfaceView
     }
 
     public ByteBuffer getSoftwareDrawBuffer() {
-        mDrawMode = DRAW_2D;
+        m2DMode = true;
         return mSoftwareBuffer;
     }
 
@@ -178,7 +175,6 @@ class GeckoSurfaceView
 
     public static final int DRAW_ERROR = 0;
     public static final int DRAW_GLES_2 = 1;
-    public static final int DRAW_2D = 2;
 
     public int beginDrawing() {
         if (mInDrawing) {
@@ -206,7 +202,6 @@ class GeckoSurfaceView
         }
 
         mInDrawing = true;
-        mDrawMode = DRAW_GLES_2;
         return DRAW_GLES_2;
     }
 
@@ -297,7 +292,7 @@ class GeckoSurfaceView
     @Override
     public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
         outAttrs.inputType = InputType.TYPE_CLASS_TEXT;
-        outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE;
+        outAttrs.imeOptions = EditorInfo.IME_ACTION_GO;
         mKeyListener = TextKeyListener.getInstance();
 
         if (mIMEState == IME_STATE_PASSWORD)
@@ -391,7 +386,7 @@ class GeckoSurfaceView
     boolean mSyncDraw;
 
     // True if gecko requests a buffer
-    int mDrawMode;
+    boolean m2DMode;
 
     // let's not change stuff around while we're in the middle of
     // starting drawing, ending drawing, or changing surface

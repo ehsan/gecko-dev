@@ -46,7 +46,7 @@ NS_IMPL_ISUPPORTS1(nsHapticFeedback, nsIHapticFeedback)
 NS_IMETHODIMP
 nsHapticFeedback::PerformSimpleAction(PRInt32 aType)
 {
-#if (MOZ_PLATFORM_MAEMO == 5)
+#ifdef MOZ_PLATFORM_MAEMO
     DBusError err;
     dbus_error_init(&err);
 

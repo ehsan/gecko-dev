@@ -522,7 +522,7 @@ DeviceManagerD3D9::VerifyReadyForRendering()
     mSwapChains[i]->Reset();
   }
 
-  mVB = nsnull;
+  mVB->Release();
   
   D3DPRESENT_PARAMETERS pp;
   memset(&pp, 0, sizeof(D3DPRESENT_PARAMETERS));

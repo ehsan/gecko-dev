@@ -5,8 +5,6 @@
 /* Application in use complete MAR file patch apply failure test */
 
 const TEST_ID = "0160";
-// Time to wait for the test helper process to start before continuing the test
-const TEST_HELPER_TIMEOUT = 1000;
 
 // The files are in the same order as they are applied from the mar
 const TEST_FILES = [
@@ -72,7 +70,7 @@ function run_test() {
 
   // Give the lock file process time to lock the file before updating otherwise
   // this test can fail intermittently on Windows debug builds.
-  do_timeout(TEST_HELPER_TIMEOUT, testUpdate);
+  do_timeout(100, testUpdate);
 }
 
 function end_test() {

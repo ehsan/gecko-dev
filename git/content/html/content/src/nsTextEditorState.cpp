@@ -1713,12 +1713,8 @@ nsTextEditorState::SetValue(const nsAString& aValue, PRBool aUserInput)
       mBoundFrame->SetFireChangeEventState(PR_TRUE);
     }
 
-#ifdef DEBUG
-    if (IsSingleLineTextControl()) {
-      NS_ASSERTION(mEditorInitialized || mInitializing,
-                   "We should never try to use the editor if we're not initialized unless we're being initialized");
-    }
-#endif
+    NS_ASSERTION(mEditorInitialized || mInitializing,
+      "We should never try to use the editor if we're not initialized unless we're being initialized");
 
     nsAutoString currentValue;
     if (!mEditorInitialized && IsSingleLineTextControl()) {

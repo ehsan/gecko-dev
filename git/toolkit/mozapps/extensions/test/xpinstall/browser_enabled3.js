@@ -1,7 +1,6 @@
 // ----------------------------------------------------------------------------
 // Test whether an InstallTrigger.install call fails when xpinstall is disabled
 function test() {
-  Harness.installDisabledCallback = install_disabled;
   Harness.installBlockedCallback = allow_blocked;
   Harness.installConfirmCallback = confirm_install;
   Harness.setup();
@@ -18,10 +17,6 @@ function test() {
     executeSoon(page_loaded);
   }, true);
   gBrowser.loadURI(TESTROOT + "installtrigger.html?" + triggers);
-}
-
-function install_disabled(installInfo) {
-  ok(true, "Saw installation disabled");
 }
 
 function allow_blocked(installInfo) {

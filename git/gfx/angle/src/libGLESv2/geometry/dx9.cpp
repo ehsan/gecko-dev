@@ -516,12 +516,7 @@ void *Dx9BackEnd::Dx9VertexBuffer::map()
 {
     void *mapPtr;
 
-    HRESULT hr = mVertexBuffer->Lock(0, 0, &mapPtr, 0);
-    if (FAILED(hr))
-    {
-        ERR(" Lock failed with error 0x%08x", hr);
-        return NULL;
-    }
+    mVertexBuffer->Lock(0, 0, &mapPtr, 0);
 
     return mapPtr;
 }
@@ -542,12 +537,7 @@ void *Dx9BackEnd::Dx9VertexBuffer::streamingMap(std::size_t offset, std::size_t 
 {
     void *mapPtr;
 
-    HRESULT hr = mVertexBuffer->Lock(offset, size, &mapPtr, D3DLOCK_NOOVERWRITE);
-    if (FAILED(hr))
-    {
-        ERR(" Lock failed with error 0x%08x", hr);
-        return NULL;
-    }
+    mVertexBuffer->Lock(offset, size, &mapPtr, D3DLOCK_NOOVERWRITE);
 
     return mapPtr;
 }
@@ -568,12 +558,7 @@ void *Dx9BackEnd::Dx9VertexBufferZeroStrideWorkaround::streamingMap(std::size_t 
 {
     void *mapPtr;
 
-    HRESULT hr = getBuffer()->Lock(offset, size, &mapPtr, 0);
-    if (FAILED(hr))
-    {
-        ERR(" Lock failed with error 0x%08x", hr);
-        return NULL;
-    }
+    getBuffer()->Lock(offset, size, &mapPtr, 0);
 
     return mapPtr;
 }
@@ -607,12 +592,7 @@ void *Dx9BackEnd::Dx9IndexBuffer::map()
 {
     void *mapPtr;
 
-    HRESULT hr = mIndexBuffer->Lock(0, 0, &mapPtr, 0);
-    if (FAILED(hr))
-    {
-        ERR(" Lock failed with error 0x%08x", hr);
-        return NULL;
-    }
+    mIndexBuffer->Lock(0, 0, &mapPtr, 0);
 
     return mapPtr;
 }
@@ -633,12 +613,7 @@ void *Dx9BackEnd::Dx9IndexBuffer::streamingMap(std::size_t offset, std::size_t s
 {
     void *mapPtr;
 
-    HRESULT hr = mIndexBuffer->Lock(offset, size, &mapPtr, D3DLOCK_NOOVERWRITE);
-    if (FAILED(hr))
-    {
-        ERR(" Lock failed with error 0x%08x", hr);
-        return NULL;
-    }
+    mIndexBuffer->Lock(offset, size, &mapPtr, D3DLOCK_NOOVERWRITE);
 
     return mapPtr;
 }

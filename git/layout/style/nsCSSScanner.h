@@ -148,6 +148,7 @@ class nsCSSScanner {
   static PRBool InitGlobals();
   static void ReleaseGlobals();
 
+#ifdef  MOZ_SVG
   // Set whether or not we are processing SVG
   void SetSVGMode(PRBool aSVGMode) {
     NS_ASSERTION(aSVGMode == PR_TRUE || aSVGMode == PR_FALSE,
@@ -158,6 +159,7 @@ class nsCSSScanner {
     return mSVGMode;
   }
 
+#endif
 #ifdef CSS_REPORT_PARSE_ERRORS
   void AddToError(const nsSubstring& aErrorText);
   void OutputError();
@@ -236,8 +238,10 @@ protected:
   nsresult mLowLevelError;
 
   PRUint32 mLineNumber;
+#ifdef MOZ_SVG
   // True if we are in SVG mode; false in "normal" CSS
   PRPackedBool mSVGMode;
+#endif
 #ifdef CSS_REPORT_PARSE_ERRORS
   nsXPIDLCString mFileName;
   nsCOMPtr<nsIURI> mURI;  // Cached so we know to not refetch mFileName

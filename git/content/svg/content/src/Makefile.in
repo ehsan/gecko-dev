@@ -50,11 +50,8 @@ LIBXUL_LIBRARY	= 1
 
 CPPSRCS		= \
 		DOMSVGAnimatedLengthList.cpp \
-		DOMSVGAnimatedNumberList.cpp \
 		DOMSVGLength.cpp \
 		DOMSVGLengthList.cpp \
-		DOMSVGNumber.cpp \
-		DOMSVGNumberList.cpp \
 		DOMSVGPathSeg.cpp \
 		DOMSVGPathSegList.cpp \
 		nsDOMSVGZoomEvent.cpp \
@@ -62,6 +59,7 @@ CPPSRCS		= \
 		nsSVGAElement.cpp \
 		nsSVGAltGlyphElement.cpp \
 		nsSVGAngle.cpp \
+		nsSVGAnimatedNumberList.cpp \
 		nsSVGAnimatedTransformList.cpp \
 		nsSVGBoolean.cpp \
 		nsSVGCircleElement.cpp \
@@ -88,7 +86,9 @@ CPPSRCS		= \
 		nsSVGMaskElement.cpp \
 		nsSVGMatrix.cpp \
 		nsSVGMetadataElement.cpp \
+		nsSVGNumber.cpp \
 		nsSVGNumber2.cpp \
+		nsSVGNumberList.cpp \
 		nsSVGPathDataParser.cpp \
 		nsSVGPathElement.cpp \
 		nsSVGPathGeometryElement.cpp \
@@ -123,11 +123,9 @@ CPPSRCS		= \
 		nsSVGValue.cpp \
 		nsSVGViewBox.cpp \
 		SVGAnimatedLengthList.cpp \
-		SVGAnimatedNumberList.cpp \
 		SVGAnimatedPathSegList.cpp \
 		SVGLength.cpp \
 		SVGLengthList.cpp \
-		SVGNumberList.cpp \
 		SVGPathData.cpp \
 		SVGPathSegUtils.cpp \
 		$(NULL)
@@ -146,7 +144,6 @@ CPPSRCS += nsSVGAnimateElement.cpp \
            SVGMotionSMILAttr.cpp \
            SVGMotionSMILAnimationFunction.cpp \
            SVGMotionSMILPathUtils.cpp \
-           SVGNumberListSMILType.cpp \
            SVGOrientSMILType.cpp \
            SVGPathSegListSMILType.cpp \
            SVGViewBoxSMILType.cpp \
@@ -163,6 +160,7 @@ EXPORTS =  			\
 	nsISVGValueObserver.h      \
 	nsISVGValueUtils.h         \
 	nsSVGFeatures.h            \
+	nsSVGNumber.h              \
 	nsSVGRect.h                \
 	nsSVGPoint.h               \
 	nsSVGMatrix.h              \

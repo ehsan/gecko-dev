@@ -4,7 +4,6 @@ ar
 be
 bg
 bn-BD
-bn-IN
 br
 ca
 cs
@@ -16,7 +15,6 @@ en-US
 en-ZA
 eo
 es-AR
-es-CL
 es-ES
 et
 eu
@@ -27,7 +25,6 @@ ga-IE
 gd
 gu-IN
 he
-hr
 hu
 hy-AM
 id
@@ -35,14 +32,12 @@ is
 it
 ja linux win32
 ja-JP-mac osx
-kn
 ko
 ku
 lg
 lt
 lv
 mk
-ml
 nb-NO
 nl
 nn-NO
@@ -57,12 +52,9 @@ ro
 ru
 si
 sk
-sl
 son
 sq
 sv-SE
-ta-LK
-te
 th
 tr
 uk

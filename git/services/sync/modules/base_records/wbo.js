@@ -19,7 +19,6 @@
  *
  * Contributor(s):
  *  Dan Mills <thunder@mozilla.com>
- *  Richard Newman <rnewman@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -46,14 +45,29 @@ Cu.import("resource://services-sync/log4moz.js");
 Cu.import("resource://services-sync/resource.js");
 Cu.import("resource://services-sync/util.js");
 
-function WBORecord(collection, id) {
+function WBORecord(uri) {
+  if (uri == null)
+    throw "WBOs must have a URI!";
+
   this.data = {};
   this.payload = {};
-  this.collection = collection;      // Optional.
-  this.id = id;                      // Optional.
+  this.uri = uri;
 }
 WBORecord.prototype = {
   _logName: "Record.WBO",
+
+  // NOTE: baseUri must have a trailing slash, or baseUri.resolve() will omit
+  //       the collection name
+  get uri() {
+    return Utils.makeURL(this.baseUri.resolve(encodeURI(this.id)));
+  },
+  set uri(value) {
+    if (typeof(value) != "string")
+      value = value.spec;
+    let parts = value.split('/');
+    this.id = parts.pop();
+    this.baseUri = Utils.makeURI(parts.join('/') + '/');
+  },
 
   get sortindex() {
     if (this.data.sortindex)
@@ -61,36 +75,14 @@ WBORecord.prototype = {
     return 0;
   },
 
-  // Get thyself from your URI, then deserialize.
-  // Set thine 'response' field.
-  fetch: function fetch(uri) {
-    let r = new Resource(uri).get();
-    if (r.success) {
-      this.deserialize(r);   // Warning! Muffles exceptions!
-    }
-    this.response = r;
-    return this;
-  },
-  
-  upload: function upload(uri) {
-    return new Resource(uri).put(this);
-  },
-  
-  // Take a base URI string, with trailing slash, and return the URI of this
-  // WBO based on collection and ID.
-  uri: function(base) {
-    if (this.collection && this.id)
-      return Utils.makeURL(base + this.collection + "/" + this.id);
-    return null;
-  },
-  
   deserialize: function deserialize(json) {
     this.data = json.constructor.toString() == String ? JSON.parse(json) : json;
 
     try {
       // The payload is likely to be JSON, but if not, keep it as a string
       this.payload = JSON.parse(this.payload);
-    } catch(ex) {}
+    }
+    catch(ex) {}
   },
 
   toJSON: function toJSON() {
@@ -136,7 +128,8 @@ RecordManager.prototype = {
       record.deserialize(this.response);
 
       return this.set(url, record);
-    } catch(ex) {
+    }
+    catch(ex) {
       this._log.debug("Failed to import record: " + Utils.exceptionStr(ex));
       return null;
     }
@@ -150,12 +143,12 @@ RecordManager.prototype = {
     return this.import(url);
   },
 
-  set: function RecordMgr_set(url, record) {
+  set: function RegordMgr_set(url, record) {
     let spec = url.spec ? url.spec : url;
     return this._records[spec] = record;
   },
 
-  contains: function RecordMgr_contains(url) {
+  contains: function RegordMgr_contains(url) {
     if ((url.spec || url) in this._records)
       return true;
     return false;
@@ -165,7 +158,7 @@ RecordManager.prototype = {
     this._records = {};
   },
 
-  del: function RecordMgr_del(url) {
+  del: function RegordMgr_del(url) {
     delete this._records[url];
   }
 };

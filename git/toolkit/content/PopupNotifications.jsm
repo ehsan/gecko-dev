@@ -402,8 +402,7 @@ PopupNotifications.prototype = {
       return;
 
     // Make sure the identity popup hangs in the correct direction.
-    var position = (this.window.getComputedStyle(this.panel, "").direction == "rtl") ?
-      "bottomcenter topright" : "bottomcenter topleft";
+    var position = (this.window.getComputedStyle(this.panel, "").direction == "rtl") ? "after_end" : "after_start";
 
     this._currentAnchorElement = anchorElement;
 

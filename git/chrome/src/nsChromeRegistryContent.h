@@ -88,7 +88,6 @@ class nsChromeRegistryContent : public nsChromeRegistry
   void RegisterResource(const ResourceMapping& aResource);
   void RegisterOverride(const OverrideMapping& aOverride);
 
-  NS_OVERRIDE void UpdateSelectedLocale();
   NS_OVERRIDE nsIURI* GetBaseURIFromPackage(const nsCString& aPackage,
                                  const nsCString& aProvider,
                                  const nsCString& aPath);
