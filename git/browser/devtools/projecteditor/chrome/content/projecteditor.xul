@@ -46,12 +46,18 @@
         <menuitem id="menu_cut"/>
         <menuitem id="menu_copy"/>
         <menuitem id="menu_paste"/>
+        <menuseparator/>
+        <menuitem id="menu_selectAll"/>
+        <menuseparator/>
+        <menuitem id="menu_find"/>
+        <menuitem id="menu_findAgain"/>
       </menupopup>
     </menu>
   </menubar>
 
+
   <popupset>
-    <menupopup id="context-menu-popup">
+    <menupopup id="directory-menu-popup">
     </menupopup>
   </popupset>
 

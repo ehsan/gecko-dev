@@ -821,7 +821,6 @@ class CSPReportSenderRunnable MOZ_FINAL : public nsRunnable
     CSPReportSenderRunnable(nsISupports* aBlockedContentSource,
                             nsIURI* aOriginalURI,
                             uint32_t aViolatedPolicyIndex,
-                            bool aReportOnlyFlag,
                             const nsAString& aViolatedDirective,
                             const nsAString& aObserverSubject,
                             const nsAString& aSourceFile,
@@ -832,7 +831,6 @@ class CSPReportSenderRunnable MOZ_FINAL : public nsRunnable
       : mBlockedContentSource(aBlockedContentSource)
       , mOriginalURI(aOriginalURI)
       , mViolatedPolicyIndex(aViolatedPolicyIndex)
-      , mReportOnlyFlag(aReportOnlyFlag)
       , mViolatedDirective(aViolatedDirective)
       , mSourceFile(aSourceFile)
       , mScriptSample(aScriptSample)
@@ -889,9 +887,7 @@ class CSPReportSenderRunnable MOZ_FINAL : public nsRunnable
         nsString blockedDataChar16 = NS_ConvertUTF8toUTF16(blockedDataStr);
         const char16_t* params[] = { mViolatedDirective.get(),
                                      blockedDataChar16.get() };
-
-        CSP_LogLocalizedStr(mReportOnlyFlag ? NS_LITERAL_STRING("CSPROViolationWithURI").get() :
-                                              NS_LITERAL_STRING("CSPViolationWithURI").get(),
+        CSP_LogLocalizedStr(NS_LITERAL_STRING("CSPViolationWithURI").get(),
                             params, ArrayLength(params),
                             mSourceFile, mScriptSample, mLineNum, 0,
                             nsIScriptError::errorFlag, "CSP", mInnerWindowID);
@@ -903,7 +899,6 @@ class CSPReportSenderRunnable MOZ_FINAL : public nsRunnable
     nsCOMPtr<nsISupports>   mBlockedContentSource;
     nsCOMPtr<nsIURI>        mOriginalURI;
     uint32_t                mViolatedPolicyIndex;
-    bool                    mReportOnlyFlag;
     nsString                mViolatedDirective;
     nsCOMPtr<nsISupports>   mObserverSubject;
     nsString                mSourceFile;
@@ -948,12 +943,9 @@ nsCSPContext::AsyncReportViolation(nsISupports* aBlockedContentSource,
                                    const nsAString& aScriptSample,
                                    uint32_t aLineNum)
 {
-  NS_ENSURE_ARG_MAX(aViolatedPolicyIndex, mPolicies.Length() - 1);
-
   NS_DispatchToMainThread(new CSPReportSenderRunnable(aBlockedContentSource,
                                                       aOriginalURI,
                                                       aViolatedPolicyIndex,
-                                                      mPolicies[aViolatedPolicyIndex]->getReportOnlyFlag(),
                                                       aViolatedDirective,
                                                       aObserverSubject,
                                                       aSourceFile,

@@ -37,7 +37,7 @@ let test = asyncTest(function*() {
     let defer = promise.defer();
 
     let resource = container.resource;
-    let popup = projecteditor.contextMenuPopup;
+    let popup = projecteditor.document.getElementById("directory-menu-popup");
     info ("Going to attempt deletion for: " + resource.path)
 
     onPopupShow(popup).then(function () {

@@ -40,8 +40,8 @@ extern void EnsureLogInitialized();
 
 nsClipboard::nsClipboard() : nsBaseClipboard()
 {
-  mCachedClipboard = -1;
-  mChangeCount = 0;
+  mChangeCountGeneral = 0;
+  mChangeCountFind = 0;
 
   EnsureLogInitialized();
 }
@@ -113,8 +113,11 @@ nsClipboard::SetNativeClipboardData(int32_t aWhichClipboard)
     }
   }
 
-  mCachedClipboard = aWhichClipboard;
-  mChangeCount = [cocoaPasteboard changeCount];
+  if (aWhichClipboard == kFindClipboard) {
+    mChangeCountFind = [cocoaPasteboard changeCount];
+  } else {
+    mChangeCountGeneral = [cocoaPasteboard changeCount];
+  }
 
   mIgnoreEmptyNotification = false;
 
@@ -278,10 +281,10 @@ nsClipboard::GetNativeClipboardData(nsITransferable* aTransferable, int32_t aWhi
   uint32_t flavorCount;
   flavorList->Count(&flavorCount);
 
+  int changeCount = (aWhichClipboard == kFindClipboard) ? mChangeCountFind : mChangeCountGeneral;
   // If we were the last ones to put something on the pasteboard, then just use the cached
   // transferable. Otherwise clear it because it isn't relevant any more.
-  if (mCachedClipboard == aWhichClipboard &&
-      mChangeCount == [cocoaPasteboard changeCount]) {
+  if (changeCount == [cocoaPasteboard changeCount]) {
     if (mTransferable) {
       for (uint32_t i = 0; i < flavorCount; i++) {
         nsCOMPtr<nsISupports> genericFlavor;

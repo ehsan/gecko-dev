@@ -38,8 +38,13 @@ protected:
   NS_IMETHOD GetNativeClipboardData(nsITransferable * aTransferable, int32_t aWhichClipboard);
   
 private:
-  int32_t mCachedClipboard;
-  int32_t mChangeCount; // Set to the native change count after any modification of the clipboard.
+  // This is always set to the native change count after any modification of the
+  // general clipboard.
+  int mChangeCountGeneral;
+  // This is always set to the native change count after any modification of the
+  // find clipboard.
+  int mChangeCountFind;
+
 };
 
 #endif // nsClipboard_h_

@@ -15,33 +15,29 @@ var SavePlugin = Class({
 
   init: function(host) {
 
-    this.host.addCommand(this, {
-      id: "cmd-save",
-      key: getLocalizedString("projecteditor.save.commandkey"),
-      modifiers: "accel"
-    });
-    this.host.addCommand(this, {
+    this.host.addCommand({
       id: "cmd-saveas",
       key: getLocalizedString("projecteditor.save.commandkey"),
       modifiers: "accel shift"
     });
-    this.host.createMenuItem({
-      parent: this.host.fileMenuPopup,
-      label: getLocalizedString("projecteditor.saveLabel"),
-      command: "cmd-save",
-      key: "key_cmd-save"
+    this.host.addCommand({
+      id: "cmd-save",
+      key: getLocalizedString("projecteditor.save.commandkey"),
+      modifiers: "accel"
     });
-    this.host.createMenuItem({
-      parent: this.host.fileMenuPopup,
-      label: getLocalizedString("projecteditor.saveAsLabel"),
-      command: "cmd-saveas",
-      key: "key_cmd-saveas"
-    });
-  },
 
-  isCommandEnabled: function(cmd) {
-    let currentEditor = this.host.currentEditor;
-    return currentEditor.isEditable;
+    // Wait until we can add things into the app manager menu
+    // this.host.createMenuItem({
+    //   parent: "#file-menu-popup",
+    //   label: "Save",
+    //   command: "cmd-save",
+    //   key: "key-save"
+    // });
+    // this.host.createMenuItem({
+    //   parent: "#file-menu-popup",
+    //   label: "Save As",
+    //   command: "cmd-saveas",
+    // });
   },
 
   onCommand: function(cmd) {
