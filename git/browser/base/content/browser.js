@@ -3530,9 +3530,7 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
     SetClickAndHoldHandlers();
 #endif
 
-  // XXX Shouldn't have to do this, but I do
-  if (!gCustomizeSheet)
-    window.focus();
+  window.content.focus();
 }
 
 function BrowserToolboxCustomizeChange() {
@@ -4247,14 +4245,12 @@ var XULBrowserWindow = {
 
   // Properties used to cache security state used to update the UI
   _state: null,
-  _tooltipText: null,
   _hostChanged: false, // onLocationChange will flip this bit
 
   onSecurityChange: function (aWebProgress, aRequest, aState) {
     // Don't need to do anything if the data we use to update the UI hasn't
     // changed
     if (this._state == aState &&
-        this._tooltipText == gBrowser.securityUI.tooltipText &&
         !this._hostChanged) {
 #ifdef DEBUG
       try {
@@ -4280,7 +4276,6 @@ var XULBrowserWindow = {
 #endif
 
     this._hostChanged = false;
-    this._tooltipText = gBrowser.securityUI.tooltipText
 
     // aState is defined as a bitmask that may be extended in the future.
     // We filter out any unknown bits before testing for known values.
@@ -4440,19 +4435,26 @@ var CombinedStopReload = {
     if (!this._initialized)
       return;
 
+    this.reload.removeAttribute("displaystop");
+
     if (!aDelay || this._stopClicked) {
       this._stopClicked = false;
       this._cancelTransition();
-      this.reload.removeAttribute("displaystop");
+      this.reload.disabled = XULBrowserWindow.reloadCommand
+                                             .getAttribute("disabled") == "true";
       return;
     }
 
     if (this._timer)
       return;
 
+    // Temporarily disable the reload button to prevent the user from
+    // accidentally reloading the page when intending to click the stop button
+    this.reload.disabled = true;
     this._timer = setTimeout(function (self) {
       self._timer = 0;
-      self.reload.removeAttribute("displaystop");
+      self.reload.disabled = XULBrowserWindow.reloadCommand
+                                             .getAttribute("disabled") == "true";
     }, 650, this);
   },
 
@@ -5871,6 +5873,11 @@ var IndexedDBPromptHelper = {
 
 function WindowIsClosing()
 {
+  if (TabView.isVisible()) {
+    TabView.hide();
+    return false;
+  }
+
   var reallyClose = closeWindow(false, warnAboutClosingWindow);
   if (!reallyClose)
     return false;
@@ -7903,6 +7910,9 @@ var TabContextMenu = {
     let unpinnedTabs = gBrowser.visibleTabs.length - gBrowser._numPinnedTabs;
     document.getElementById("context_closeOtherTabs").disabled = unpinnedTabs <= 1;
     document.getElementById("context_closeOtherTabs").hidden = this.contextTab.pinned;
+
+    // Disable "Move to Group" if it's a pinned tab.
+    document.getElementById("context_tabViewMenu").disabled = this.contextTab.pinned;
   }
 };
 
