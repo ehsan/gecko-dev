@@ -238,7 +238,7 @@ static void Shutdown();
 #include "StreamingProtocolService.h"
 
 #include "mozilla/dom/telephony/TelephonyFactory.h"
-#include "nsITelephonyService.h"
+#include "nsITelephonyProvider.h"
 
 #ifdef MOZ_WIDGET_GONK
 #include "GonkGPSGeolocationProvider.h"
@@ -360,8 +360,8 @@ NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsVolumeService,
 #endif
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsIMediaManagerService,
                                          MediaManager::GetInstance)
-NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsITelephonyService,
-                                         TelephonyFactory::CreateTelephonyService)
+NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsITelephonyProvider,
+                                         TelephonyFactory::CreateTelephonyProvider)
 
 //-----------------------------------------------------------------------------
 
@@ -800,7 +800,7 @@ NS_DEFINE_NAMED_CID(NS_SYNTHVOICEREGISTRY_CID);
 #ifdef ACCESSIBILITY
 NS_DEFINE_NAMED_CID(NS_ACCESSIBILITY_SERVICE_CID);
 #endif
-NS_DEFINE_NAMED_CID(TELEPHONY_SERVICE_CID);
+NS_DEFINE_NAMED_CID(TELEPHONY_PROVIDER_CID);
 
 NS_DEFINE_NAMED_CID(GECKO_MEDIA_PLUGIN_SERVICE_CID);
 
@@ -1088,7 +1088,7 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
 #ifdef ACCESSIBILITY
   { &kNS_ACCESSIBILITY_SERVICE_CID, false, nullptr, CreateA11yService },
 #endif
-  { &kTELEPHONY_SERVICE_CID, false, nullptr, nsITelephonyServiceConstructor },
+  { &kTELEPHONY_PROVIDER_CID, false, nullptr, nsITelephonyProviderConstructor },
   { nullptr }
 };
 
@@ -1245,7 +1245,7 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { "@mozilla.org/accessibilityService;1", &kNS_ACCESSIBILITY_SERVICE_CID },
   { "@mozilla.org/accessibleRetrieval;1", &kNS_ACCESSIBILITY_SERVICE_CID },
 #endif
-  { TELEPHONY_SERVICE_CONTRACTID, &kTELEPHONY_SERVICE_CID },
+  { TELEPHONY_PROVIDER_CONTRACTID, &kTELEPHONY_PROVIDER_CID },
   { "@mozilla.org/gecko-media-plugin-service;1",  &kGECKO_MEDIA_PLUGIN_SERVICE_CID },
   { nullptr }
 };

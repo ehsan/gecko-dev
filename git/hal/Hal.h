@@ -124,17 +124,7 @@ bool GetScreenEnabled();
  *
  * Note that it may take a few seconds for the screen to turn on or off.
  */
-void SetScreenEnabled(bool aEnabled);
-
-/**
- * Determine whether the device's keypad/button backlight is currently enabled.
- */
-bool GetKeyLightEnabled();
-
-/**
- * Enable or disable the device's keypad/button backlight.
- */
-void SetKeyLightEnabled(bool aEnabled);
+void SetScreenEnabled(bool enabled);
 
 /**
  * Get the brightness of the device's screen's backlight, on a scale from 0
@@ -155,7 +145,7 @@ double GetScreenBrightness();
  * followed by GetScreenBrightness(), the value returned by
  * GetScreenBrightness() may not be exactly x.
  */
-void SetScreenBrightness(double aBrightness);
+void SetScreenBrightness(double brightness);
 
 /**
  * Determine whether the device is allowed to sleep.
@@ -166,7 +156,7 @@ bool GetCpuSleepAllowed();
  * Set whether the device is allowed to suspend automatically after
  * the screen is disabled.
  */
-void SetCpuSleepAllowed(bool aAllowed);
+void SetCpuSleepAllowed(bool allowed);
 
 /**
  * Set the value of a light to a particular color, with a specific flash pattern.

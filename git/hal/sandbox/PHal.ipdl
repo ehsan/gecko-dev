@@ -127,16 +127,13 @@ parent:
       returns (NetworkInformation aNetworkInfo);
 
     sync GetScreenEnabled() returns (bool enabled);
-    SetScreenEnabled(bool aEnabled);
-
-    sync GetKeyLightEnabled() returns (bool enabled);
-    SetKeyLightEnabled(bool aEnabled);
+    SetScreenEnabled(bool enabled);
 
     sync GetCpuSleepAllowed() returns (bool allowed);
-    SetCpuSleepAllowed(bool aAllowed);
+    SetCpuSleepAllowed(bool allowed);
 
     sync GetScreenBrightness() returns (double brightness);
-    SetScreenBrightness(double aBrightness);
+    SetScreenBrightness(double brightness);
 
     AdjustSystemClock(int64_t aDeltaMilliseconds);
     SetTimezone(nsCString aTimezoneSpec);
