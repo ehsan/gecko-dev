@@ -72,6 +72,7 @@
 #include "jsstaticcheck.h"
 #include "jsvector.h"
 
+#include "jsinterpinlines.h"
 #include "jsobjinlines.h"
 #include "jsscriptinlines.h"
 #include "jscntxtinlines.h"
@@ -310,7 +311,7 @@ js_DumpPC(JSContext *cx)
     void *mark = JS_ARENA_MARK(&cx->tempPool);
     Sprinter sprinter;
     INIT_SPRINTER(cx, &sprinter, &cx->tempPool, 0);
-    JSBool ok = js_DisassembleAtPC(cx, cx->fp()->script(), true, cx->regs().pc, &sprinter);
+    JSBool ok = js_DisassembleAtPC(cx, cx->fp()->script(), true, cx->regs->pc, &sprinter);
     fprintf(stdout, "%s", sprinter.base);
     JS_ARENA_RELEASE(&cx->tempPool, mark);
     return ok;
@@ -2052,7 +2053,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
         token = CodeToken[op];
 
         if (pc + oplen == jp->dvgfence) {
-            StackFrame *fp;
+            JSStackFrame *fp;
             uint32 format, mode, type;
 
             /*
@@ -2914,7 +2915,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                      * object that's not a constructor, causing us to be
                      * called with an intervening frame on the stack.
                      */
-                    StackFrame *fp = js_GetTopStackFrame(cx);
+                    JSStackFrame *fp = js_GetTopStackFrame(cx);
                     if (fp) {
                         while (!fp->isEvalFrame())
                             fp = fp->prev();
@@ -5087,7 +5088,7 @@ char *
 js_DecompileValueGenerator(JSContext *cx, intN spindex, jsval v_in,
                            JSString *fallback)
 {
-    StackFrame *fp;
+    JSStackFrame *fp;
     JSScript *script;
     jsbytecode *pc;
 
@@ -5099,12 +5100,12 @@ js_DecompileValueGenerator(JSContext *cx, intN spindex, jsval v_in,
 
     LeaveTrace(cx);
     
-    if (!cx->running() || !cx->fp()->isScriptFrame())
+    if (!cx->regs || !cx->regs->fp || !cx->regs->fp->isScriptFrame())
         goto do_fallback;
 
-    fp = cx->fp();
+    fp = cx->regs->fp;
     script = fp->script();
-    pc = fp->hasImacropc() ? fp->imacropc() : cx->regs().pc;
+    pc = fp->hasImacropc() ? fp->imacropc() : cx->regs->pc;
     JS_ASSERT(script->code <= pc && pc < script->code + script->length);
 
     if (pc < script->main)
@@ -5138,7 +5139,7 @@ js_DecompileValueGenerator(JSContext *cx, intN spindex, jsval v_in,
              * it that caused exception, see bug 328664.
              */
             Value *stackBase = fp->base();
-            Value *sp = cx->regs().sp;
+            Value *sp = cx->regs->sp;
             do {
                 if (sp == stackBase) {
                     pcdepth = -1;
@@ -5166,10 +5167,11 @@ js_DecompileValueGenerator(JSContext *cx, intN spindex, jsval v_in,
     }
 
     {
-        jsbytecode* basepc = cx->regs().pc;
+        jsbytecode* basepc = cx->regs->pc;
         jsbytecode* savedImacropc = fp->maybeImacropc();
         if (savedImacropc) {
-            cx->regs().pc = savedImacropc;
+            JS_ASSERT(cx->hasfp());
+            cx->regs->pc = savedImacropc;
             fp->clearImacropc();
         }
 
@@ -5184,7 +5186,8 @@ js_DecompileValueGenerator(JSContext *cx, intN spindex, jsval v_in,
             name = DecompileExpression(cx, script, fp->maybeFun(), pc);
 
         if (savedImacropc) {
-            cx->regs().pc = basepc;
+            JS_ASSERT(cx->hasfp());
+            cx->regs->pc = basepc;
             fp->setImacropc(savedImacropc);
         }
 
@@ -5464,7 +5467,7 @@ ReconstructImacroPCStack(JSContext *cx, JSScript *script,
      * Begin with a recursive call back to ReconstructPCStack to pick up
      * the state-of-the-world at the *start* of the imacro.
      */
-    StackFrame *fp = js_GetScriptedCaller(cx, NULL);
+    JSStackFrame *fp = js_GetScriptedCaller(cx, NULL);
     JS_ASSERT(fp->hasImacropc());
     intN pcdepth = ReconstructPCStack(cx, script, fp->imacropc(), pcstack);
     if (pcdepth < 0)

@@ -49,7 +49,6 @@
 #include "FilteringWrapper.h"
 #include "WrapperFactory.h"
 
-#include "jsfriendapi.h"
 #include "jsstr.h"
 
 namespace xpc {
@@ -241,13 +240,13 @@ AccessCheck::documentDomainMakesSameOrigin(JSContext *cx, JSObject *obj)
     JSStackFrame *fp = nsnull;
     JS_FrameIterator(cx, &fp);
     if (fp) {
-        while (!JS_IsScriptFrame(cx, fp)) {
+        while (fp->isDummyFrame()) {
             if (!JS_FrameIterator(cx, &fp))
                 break;
         }
 
         if (fp)
-            scope = JS_GetFrameScopeChainRaw(fp);
+            scope = &fp->scopeChain();
     }
 
     if (!scope)

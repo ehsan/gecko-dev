@@ -718,18 +718,20 @@ const gchar *
 getDescriptionCB(AtkObject *aAtkObj)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(aAtkObj);
-    if (!accWrap || accWrap->IsDefunct())
+    if (!accWrap) {
         return nsnull;
+    }
 
     /* nsIAccessible is responsible for the non-NULL description */
     nsAutoString uniDesc;
-    accWrap->Description(uniDesc);
+    nsresult rv = accWrap->GetDescription(uniDesc);
+    NS_ENSURE_SUCCESS(rv, nsnull);
 
     NS_ConvertUTF8toUTF16 objDesc(aAtkObj->description);
-    if (!uniDesc.Equals(objDesc))
+    if (!uniDesc.Equals(objDesc)) {
         atk_object_set_description(aAtkObj,
                                    NS_ConvertUTF16toUTF8(uniDesc).get());
-
+    }
     return aAtkObj->description;
 }
 

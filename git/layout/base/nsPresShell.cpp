@@ -1646,15 +1646,14 @@ NS_NewPresShell(nsIPresShell** aInstancePtrResult)
 nsTHashtable<PresShell::PresShellPtrKey> *nsIPresShell::sLiveShells = 0;
 
 NS_MEMORY_REPORTER_IMPLEMENT(LayoutPresShell,
-                             "heap-used/layout/all",
-                             "Memory used by layout PresShell, PresContext, "
-                             "and other related areas.",
+                             "layout/all",
+                             "Memory in use by layout PresShell, PresContext, and other related areas.",
                              PresShell::SizeOfLayoutMemoryReporter,
                              nsnull)
 
 NS_MEMORY_REPORTER_IMPLEMENT(LayoutBidi,
-                             "heap-used/layout/bidi",
-                             "Memory used by layout Bidi processor.",
+                             "layout/bidi",
+                             "Memory in use by layout Bidi processor.",
                              PresShell::SizeOfBidiMemoryReporter,
                              nsnull)
 
@@ -8831,7 +8830,7 @@ void ReflowCountMgr::PaintCount(const char*     aName,
       nscoord x = 0, y = fm->MaxAscent();
       nscoord width, height = fm->MaxHeight();
       aRenderingContext->SetTextRunRTL(PR_FALSE);
-      width = aRenderingContext->GetWidth(buf);
+      aRenderingContext->GetWidth((char*)buf, width);
 
       PRUint32 color;
       PRUint32 color2;

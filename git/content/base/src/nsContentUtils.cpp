@@ -3933,7 +3933,7 @@ nsContentUtils::CreateContextualFragment(nsINode* aContextNode,
     nsString& tagName = *tagStack.AppendElement();
     NS_ENSURE_TRUE(&tagName, NS_ERROR_OUT_OF_MEMORY);
 
-    tagName = content->NodeInfo()->QualifiedName();
+    content->NodeInfo()->GetQualifiedName(tagName);
 
     // see if we need to add xmlns declarations
     PRUint32 count = content->GetAttrCount();

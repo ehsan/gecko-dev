@@ -596,10 +596,13 @@ let Content = {
       }
 
       case "Browser:CanCaptureMouse": {
-        sendAsyncMessage("Browser:CanCaptureMouse:Return", {
-          contentMightCaptureMouse: content.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils).mayHaveTouchEventListeners,
-          messageId: json.messageId
-        });
+        let json = {
+          contentCanCaptureMouse: content.QueryInterface(Ci.nsIInterfaceRequestor)
+                                      .getInterface(Ci.nsIDOMWindowUtils)
+                                      .mayHaveTouchEventListeners,
+          messageId: aMessage.json.messageId
+        };
+        sendAsyncMessage("Browser:CanCaptureMouse:Return", json);
         break;
       }
     }
@@ -1211,7 +1214,6 @@ var TouchEventHandler = {
   },
 
   receiveMessage: function(aMessage) {
-    let json = aMessage.json;
     if (Util.isParentProcess())
       return;
 
@@ -1224,33 +1226,31 @@ var TouchEventHandler = {
       return;
     }
 
-    let type;
+    let json = aMessage.json;
+    let cancelled = false;
+
     switch (aMessage.name) {
       case "Browser:MouseDown":
         this.isCancellable = true;
         this.element = elementFromPoint(json.x, json.y);
-        type = "touchstart";
+        cancelled = !this.sendEvent("touchstart", json, this.element);
         break;
 
       case "Browser:MouseUp":
         this.isCancellable = false;
-        type = "touchend";
+        if (this.element)
+          this.sendEvent("touchend", json, this.element);
+        this.element = null;
         break;
 
       case "Browser:MouseMove":
-        type = "touchmove";
+        if (this.element)
+          cancelled = !this.sendEvent("touchmove", json, this.element);
         break;
     }
 
-    if (!this.element)
-      return;
-    let cancelled = !this.sendEvent(type, json, this.element);
-    if (type == "touchend")
-      this.element = null;
-
     if (this.isCancellable) {
       sendAsyncMessage("Browser:CaptureEvents", { messageId: json.messageId,
-                                                  type: type,
                                                   contentMightCaptureMouse: true,
                                                   click: cancelled && aMessage.name == "Browser:MouseDown",
                                                   panning: cancelled });

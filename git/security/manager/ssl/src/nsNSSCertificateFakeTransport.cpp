@@ -284,7 +284,7 @@ nsNSSCertificateFakeTransport::VerifyForUsage(PRUint32 usage, PRUint32 *verifica
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetUsagesArray(PRBool localOnly,
+nsNSSCertificateFakeTransport::GetUsagesArray(PRBool ignoreOcsp,
                                  PRUint32 *_verified,
                                  PRUint32 *_count,
                                  PRUnichar ***_usages)
@@ -301,7 +301,7 @@ nsNSSCertificateFakeTransport::RequestUsagesArrayAsync(nsICertVerificationListen
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetUsagesString(PRBool localOnly,
+nsNSSCertificateFakeTransport::GetUsagesString(PRBool ignoreOcsp,
                                   PRUint32   *_verified,
                                   nsAString &_usages)
 {

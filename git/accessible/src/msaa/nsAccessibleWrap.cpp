@@ -333,11 +333,11 @@ __try {
   *pszDescription = NULL;
 
   nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
-  if (!xpAccessible || xpAccessible->IsDefunct())
+  if (!xpAccessible)
     return E_FAIL;
 
   nsAutoString description;
-  xpAccessible->Description(description);
+  xpAccessible->GetDescription(description);
 
   *pszDescription = ::SysAllocStringLen(description.get(),
                                         description.Length());

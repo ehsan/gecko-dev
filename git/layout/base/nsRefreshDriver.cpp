@@ -126,22 +126,14 @@ nsRefreshDriver::AdvanceTimeAndRefresh(PRInt64 aMilliseconds)
   mTestControllingRefreshes = true;
   mMostRecentRefreshEpochTime += aMilliseconds * 1000;
   mMostRecentRefresh += TimeDuration::FromMilliseconds(aMilliseconds);
-  nsCxPusher pusher;
-  if (pusher.PushNull()) {
-    Notify(nsnull);
-    pusher.Pop();
-  }
+  Notify(nsnull);
 }
 
 void
 nsRefreshDriver::RestoreNormalRefresh()
 {
   mTestControllingRefreshes = false;
-  nsCxPusher pusher;
-  if (pusher.PushNull()) {
-    Notify(nsnull); // will call UpdateMostRecentRefresh()
-    pusher.Pop();
-  }
+  Notify(nsnull); // will call UpdateMostRecentRefresh()
 }
 
 TimeStamp
@@ -287,8 +279,6 @@ nsRefreshDriver::Notify(nsITimer *aTimer)
 {
   NS_PRECONDITION(!mFrozen, "Why are we notified while frozen?");
   NS_PRECONDITION(mPresContext, "Why are we notified after disconnection?");
-  NS_PRECONDITION(!nsContentUtils::GetCurrentJSContext(),
-                  "Shouldn't have a JSContext on the stack");
 
   if (mTestControllingRefreshes && aTimer) {
     // Ignore real refreshes from our timer (but honor the others).

@@ -47,7 +47,6 @@ namespace gc {
 
 template <typename T> struct Arena;
 struct ArenaBitmap;
-struct ArenaHeader;
 struct MarkingDelay;
 struct Chunk;
 struct FreeCell;
@@ -65,8 +64,7 @@ struct Cell {
     static const size_t CellSize = size_t(1) << CellShift;
     static const size_t CellMask = CellSize - 1;
 
-    inline uintptr_t address() const;
-    inline ArenaHeader *arenaHeader() const;
+    inline Arena<Cell> *arena() const;
     inline Chunk *chunk() const;
     inline ArenaBitmap *bitmap() const;
     JS_ALWAYS_INLINE size_t cellIndex() const;
@@ -84,12 +82,9 @@ struct Cell {
     JS_ALWAYS_INLINE const js::gc::FreeCell *asFreeCell() const {
         return reinterpret_cast<const FreeCell *>(this);
     }
-
-#ifdef DEBUG
-    inline bool isAligned() const;
-#endif
 };
 
+/* FreeCell has always size 8 */
 struct FreeCell : Cell {
     union {
         FreeCell *link;
@@ -97,7 +92,7 @@ struct FreeCell : Cell {
     };
 };
 
-JS_STATIC_ASSERT(sizeof(FreeCell) == Cell::CellSize);
+JS_STATIC_ASSERT(sizeof(FreeCell) == 8);
 
 } /* namespace gc */
 } /* namespace js */

@@ -1145,7 +1145,9 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   addAppTab: function GroupItem_addAppTab(xulTab, options) {
     let self = this;
 
-    let iconUrl = GroupItems.getAppTabFavIconUrl(xulTab);
+    // add the icon
+    let iconUrl = gFavIconService.getFaviconImageForPage(
+                    xulTab.linkedBrowser.currentURI).spec;
     let $appTab = iQ("<img>")
       .addClass("appTabIcon")
       .attr("src", iconUrl)
@@ -2009,7 +2011,8 @@ let GroupItems = {
     if (xulTab.ownerDocument.defaultView != gWindow || !xulTab.pinned)
       return;
 
-    let iconUrl = this.getAppTabFavIconUrl(xulTab);
+    let iconUrl = gFavIconService.getFaviconImageForPage(
+                    xulTab.linkedBrowser.currentURI).spec;
     this.groupItems.forEach(function(groupItem) {
       iQ(".appTabIcon", groupItem.$appTabTray).each(function(icon) {
         let $icon = iQ(icon);
@@ -2021,21 +2024,7 @@ let GroupItems = {
         return false;
       });
     });
-  },
-
-  // ----------
-  // Function: getAppTabFavIconUrl
-  // Gets the fav icon url for app tab.
-  getAppTabFavIconUrl: function GroupItems__getAppTabFavIconUrl(xulTab) {
-    let iconUrl;
-
-    if (UI.shouldLoadFavIcon(xulTab.linkedBrowser))
-      iconUrl = UI.getFavIconUrlForTab(xulTab);
-    else
-      iconUrl = Utils.defaultFaviconURL;
-
-    return iconUrl;
-  },
+  },  
 
   // ----------
   // Function: addAppTab

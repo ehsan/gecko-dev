@@ -46,7 +46,6 @@
 #define PL_ARENA_CONST_ALIGN_MASK (sizeof(void*)-1)
 #include "plarena.h"
 
-#include "mozilla/Util.h"
 #include "nsCOMPtr.h"
 #include "nsLineLayout.h"
 #include "nsBlockFrame.h"
@@ -67,6 +66,7 @@
 #include "nsLayoutUtils.h"
 #include "nsTextFrame.h"
 #include "nsCSSRendering.h"
+#include "jstl.h"
 
 #ifdef DEBUG
 #undef  NOISY_HORIZONTAL_ALIGN
@@ -83,8 +83,6 @@
 #undef  NOISY_TRIM
 #undef  REALLY_NOISY_TRIM
 #endif
-
-using namespace mozilla;
 
 //----------------------------------------------------------------------
 
@@ -788,7 +786,7 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
   nscoord availableSpaceOnLine = psd->mRightEdge - psd->mX;
 
   // Setup reflow state for reflowing the frame
-  Maybe<nsHTMLReflowState> reflowStateHolder;
+  js::LazilyConstructed<nsHTMLReflowState> reflowStateHolder;
   if (!isText) {
     reflowStateHolder.construct(mPresContext, *psd->mReflowState,
                                 aFrame, availSize);

@@ -46,6 +46,8 @@
 #include "base/basictypes.h"
 
 #include "jsapi.h"
+#include "jscntxt.h"
+#include "jsdbgapi.h"
 #include "jsprf.h"
 
 #include "xpcpublic.h"
@@ -404,14 +406,13 @@ GC(JSContext *cx,
    jsval *vp)
 {
     JSRuntime *rt;
-    uint32 preBytes, postBytes;
+    uint32 preBytes;
 
-    rt = JS_GetRuntime(cx);
-    preBytes = JS_GetGCParameter(rt, JSGC_BYTES);
+    rt = cx->runtime;
+    preBytes = rt->gcBytes;
     JS_GC(cx);
-    postBytes = JS_GetGCParameter(rt, JSGC_BYTES);
     fprintf(stdout, "before %lu, after %lu, break %08lx\n",
-           (unsigned long)preBytes, (unsigned long)postBytes,
+           (unsigned long)preBytes, (unsigned long)rt->gcBytes,
 #ifdef XP_UNIX
            (unsigned long)sbrk(0)
 #else
