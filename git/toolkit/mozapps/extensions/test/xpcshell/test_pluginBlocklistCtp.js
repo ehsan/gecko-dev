@@ -74,7 +74,8 @@ function test_basic() {
 }
 
 function get_test_plugin() {
-  for (var plugin of gPluginHost.getPluginTags()) {
+  var pluginHost = Components.classes["@mozilla.org/plugin/host;1"].getService(Components.interfaces.nsIPluginHost);
+  for (var plugin of pluginHost.getPluginTags()) {
     if (plugin.name == "Test Plug-in")
       return plugin;
   }
@@ -161,7 +162,7 @@ function run_test() {
   Services.prefs.setCharPref("extensions.blocklist.url", "http://localhost:4444/data/test_pluginBlocklistCtp.xml");
   startupManager();
 
-  gPluginHost = Components.classes["@mozilla.org/plugin/host;1"].getService(Components.interfaces.nsIPluginHost2);
+  gPluginHost = Components.classes["@mozilla.org/plugin/host;1"].getService(Components.interfaces.nsIPluginHost);
   gBlocklistService = Components.classes["@mozilla.org/extensions/blocklist;1"].getService(Components.interfaces.nsIBlocklistService);
   gNotifier = Components.classes["@mozilla.org/extensions/blocklist;1"].getService(Components.interfaces.nsITimerCallback);
   Services.obs.addObserver(observer, "blocklist-updated", false);
