@@ -858,6 +858,16 @@ nsXULAppInfo::WriteMinidumpForException(void* aExceptionInfo)
   return NS_ERROR_NOT_IMPLEMENTED;
 #endif
 }
+
+NS_IMETHODIMP
+nsXULAppInfo::AppendObjCExceptionInfoToAppNotes(void* aException)
+{
+#ifdef XP_MACOSX
+  return CrashReporter::AppendObjCExceptionInfoToAppNotes(aException);
+#else
+  return NS_ERROR_NOT_IMPLEMENTED;
+#endif
+}
 #endif
 
 static const nsXULAppInfo kAppInfo;

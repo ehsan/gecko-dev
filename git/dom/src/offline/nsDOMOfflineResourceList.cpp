@@ -338,7 +338,11 @@ nsDOMOfflineResourceList::Add(const nsAString& aURI)
     do_CreateInstance(NS_OFFLINECACHEUPDATE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = update->Init(PR_TRUE, mManifestURI, mDocumentURI);
+  nsCAutoString clientID;
+  rv = appCache->GetClientID(clientID);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = update->InitPartial(mManifestURI, clientID, mDocumentURI);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = update->AddDynamicURI(requestedURI);
@@ -1068,8 +1072,8 @@ nsDOMOfflineResourceList::CacheKeys()
     return NS_ERROR_DOM_INVALID_STATE_ERR;
   }
 
-  nsresult rv = appCache->GatherEntries(nsIApplicationCache::ITEM_DYNAMIC,
-                                        &mCachedKeysCount, &mCachedKeys);
+  return appCache->GatherEntries(nsIApplicationCache::ITEM_DYNAMIC,
+                                 &mCachedKeysCount, &mCachedKeys);
 }
 
 void

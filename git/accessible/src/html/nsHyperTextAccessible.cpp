@@ -735,6 +735,30 @@ nsHyperTextAccessible::HypertextOffsetsToDOMRange(PRInt32 aStartHTOffset,
   NS_ENSURE_ARG_POINTER(aEndOffset);
   *aEndOffset = -1;
 
+  // If the given offsets are 0 and associated editor is empty then return
+  // collapsed range with editor root element as range container.
+  if (aStartHTOffset == 0 && aEndHTOffset == 0) {
+    nsCOMPtr<nsIEditor> editor;
+    GetAssociatedEditor(getter_AddRefs(editor));
+    if (editor) {
+      PRBool isEmpty = PR_FALSE;
+      editor->GetDocumentIsEmpty(&isEmpty);
+      if (isEmpty) {
+        nsCOMPtr<nsIDOMElement> editorRootElm;
+        editor->GetRootElement(getter_AddRefs(editorRootElm));
+
+        nsCOMPtr<nsIDOMNode> editorRoot(do_QueryInterface(editorRootElm));
+        if (editorRoot) {
+          *aStartOffset = *aEndOffset = 0;
+          NS_ADDREF(*aStartNode = editorRoot);
+          NS_ADDREF(*aEndNode = editorRoot);
+
+          return NS_OK;
+        }
+      }
+    }
+  }
+
   nsCOMPtr<nsIAccessible> startAcc, endAcc;
   PRInt32 startOffset = aStartHTOffset, endOffset = aEndHTOffset;
   nsIFrame *startFrame = nsnull, *endFrame = nsnull;
@@ -1186,6 +1210,18 @@ nsHyperTextAccessible::GetDefaultTextAttributes(nsIPersistentProperties **aAttri
     if (textAttr.get(name, value))
       attributes->SetStringProperty(name, value, oldValue);
   }
+
+  nsIFrame *sourceFrame = nsAccUtils::GetFrameFor(element);
+  if (sourceFrame) {
+    nsBackgroundTextAttr backgroundTextAttr(sourceFrame, nsnull);
+
+    nsAutoString value;
+    if (backgroundTextAttr.get(value)) {
+      nsAccUtils::SetAccAttr(attributes,
+                             nsAccessibilityAtoms::backgroundColor, value);
+    }
+  }
+
   return NS_OK;
 }
 
@@ -2297,6 +2333,25 @@ nsHyperTextAccessible::GetCSSTextAttributes(PRBool aIncludeDefAttrs,
     nsresult rv = GetRangeForTextAttr(aSourceNode, &textAttr,
                                       aStartHTOffset, aEndHTOffset);
     NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  nsIFrame *sourceFrame = nsAccUtils::GetFrameFor(sourceElm);
+  if (sourceFrame) {
+    nsIFrame *rootFrame = nsnull;
+
+    if (!aIncludeDefAttrs)
+      rootFrame = nsAccUtils::GetFrameFor(rootElm);
+
+    nsBackgroundTextAttr backgroundTextAttr(sourceFrame, rootFrame);
+    nsAutoString value;
+    if (backgroundTextAttr.get(value)) {
+      nsAccUtils::SetAccAttr(aAttributes,
+                             nsAccessibilityAtoms::backgroundColor, value);
+    }
+
+    nsresult rv = GetRangeForTextAttr(aSourceNode, &backgroundTextAttr,
+                                      aStartHTOffset, aEndHTOffset);
+    return rv;
   }
 
   return NS_OK;
