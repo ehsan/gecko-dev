@@ -1708,7 +1708,8 @@ NS_IMETHODIMP nsDocAccessible::FlushPendingEvents()
         // Fire reorder event if it's unconditional (see InvalidateCacheSubtree
         // method) or if changed node (that is the reason of this reorder event)
         // is accessible or has accessible children.
-        nsCOMPtr<nsAccReorderEvent> reorderEvent = do_QueryInterface(accessibleEvent);
+        nsAccReorderEvent* reorderEvent = nsnull;
+        CallQueryInterface(accessibleEvent, &reorderEvent);
         if (reorderEvent->IsUnconditionalEvent() ||
             reorderEvent->HasAccessibleInReasonSubtree()) {
           nsAccEvent::PrepareForEvent(accessibleEvent);
@@ -2079,7 +2080,7 @@ NS_IMETHODIMP nsDocAccessible::InvalidateCacheSubtree(nsIContent *aChild,
   nsCOMPtr<nsIAccessibleEvent> reorderEvent =
     new nsAccReorderEvent(containerAccessible, isAsynch,
                           isUnconditionalEvent,
-                          aChild ? childNode.get() : nsnull);
+                          aChild ? childNode : nsnull);
   NS_ENSURE_TRUE(reorderEvent, NS_ERROR_OUT_OF_MEMORY);
 
   FireDelayedAccessibleEvent(reorderEvent);

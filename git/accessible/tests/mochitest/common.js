@@ -18,9 +18,6 @@ const nsIAccessibleRelation = Components.interfaces.nsIAccessibleRelation;
 const nsIAccessNode = Components.interfaces.nsIAccessNode;
 const nsIAccessible = Components.interfaces.nsIAccessible;
 
-const nsIAccessibleCoordinateType =
-      Components.interfaces.nsIAccessibleCoordinateType;
-
 const nsIAccessibleDocument = Components.interfaces.nsIAccessibleDocument;
 
 const nsIAccessibleText = Components.interfaces.nsIAccessibleText;
@@ -55,7 +52,6 @@ const ROLE_DOCUMENT = nsIAccessibleRole.ROLE_DOCUMENT;
 const ROLE_ENTRY = nsIAccessibleRole.ROLE_ENTRY;
 const ROLE_FLAT_EQUATION = nsIAccessibleRole.ROLE_FLAT_EQUATION;
 const ROLE_FORM = nsIAccessibleRole.ROLE_FORM;
-const ROLE_GRAPHIC = nsIAccessibleRole.ROLE_GRAPHIC;
 const ROLE_GRID_CELL = nsIAccessibleRole.ROLE_GRID_CELL;
 const ROLE_HEADING = nsIAccessibleRole.ROLE_HEADING;
 const ROLE_LABEL = nsIAccessibleRole.ROLE_LABEL;
