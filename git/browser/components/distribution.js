@@ -227,6 +227,7 @@ DistributionCustomizer.prototype = {
         break;
       }
     }
+    return this._checkCustomizationComplete();
   },
 
   _customizationsApplied: false,
