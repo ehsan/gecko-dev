@@ -77,7 +77,7 @@ function testFocus()
       // If not, we'll wait here until we time out.
       waitForEditorFocus(brace.parentNode, function onNewEditor(aEditor) {
         aEditor.input.blur();
-        finishUp();
+        finishTest();
       });
       EventUtils.sendKey("return");
     });
@@ -89,8 +89,6 @@ function testFocus()
 
 function finishUp()
 {
-  InspectorUI.hideSidebar();
-  InspectorUI.closeInspectorUI();
   doc = stylePanel = null;
   gBrowser.removeCurrentTab();
   finish();

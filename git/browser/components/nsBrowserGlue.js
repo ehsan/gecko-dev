@@ -1243,7 +1243,13 @@ BrowserGlue.prototype = {
       // Need to migrate only if toolbar is customized and the element is not found.
       if (currentset &&
           currentset.indexOf("bookmarks-menu-button-container") == -1) {
-        currentset += ",bookmarks-menu-button-container";
+        if (currentset.indexOf("fullscreenflex") != -1) {
+          currentset = currentset.replace(/(^|,)fullscreenflex($|,)/,
+                                          "$1bookmarks-menu-button-container,fullscreenflex$2")
+        }
+        else {
+          currentset += ",bookmarks-menu-button-container";
+        }
         this._setPersist(toolbarResource, currentsetResource, currentset);
       }
     }
