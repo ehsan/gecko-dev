@@ -713,8 +713,7 @@ TEST(AsyncPanZoomController, MediumPress) {
   apzc->Destroy();
 }
 
-void
-DoLongPressTest(bool aShouldUseTouchAction, uint32_t aBehavior) {
+TEST(AsyncPanZoomController, LongPress) {
   nsRefPtr<MockContentControllerDelayed> mcc = new MockContentControllerDelayed();
   nsRefPtr<TestAPZCTreeManager> tm = new TestAPZCTreeManager();
   nsRefPtr<TestAsyncPanZoomController> apzc = new TestAsyncPanZoomController(
@@ -723,11 +722,6 @@ DoLongPressTest(bool aShouldUseTouchAction, uint32_t aBehavior) {
   apzc->SetFrameMetrics(TestFrameMetrics());
   apzc->NotifyLayersUpdated(TestFrameMetrics(), true);
   apzc->UpdateZoomConstraints(ZoomConstraints(false, CSSToScreenScale(1.0), CSSToScreenScale(1.0)));
-
-  nsTArray<uint32_t> values;
-  values.AppendElement(aBehavior);
-  apzc->SetTouchActionEnabled(aShouldUseTouchAction);
-  apzc->SetAllowedTouchBehavior(values);
 
   int time = 0;
 
@@ -844,17 +838,6 @@ TEST(AsyncPanZoomController, LongPressPreventDefault) {
 
   apzc->Destroy();
 }
-
-TEST(AsyncPanZoomController, LongPress) {
-  DoLongPressTest(false, mozilla::layers::AllowedTouchBehavior::NONE);
-}
-
-TEST(AsyncPanZoomController, LongPressPanAndZoom) {
-  DoLongPressTest(true, mozilla::layers::AllowedTouchBehavior::HORIZONTAL_PAN
-                      | mozilla::layers::AllowedTouchBehavior::VERTICAL_PAN
-                      | mozilla::layers::AllowedTouchBehavior::ZOOM);
-}
-
 
 // Layer tree for HitTesting1
 static already_AddRefed<mozilla::layers::Layer>

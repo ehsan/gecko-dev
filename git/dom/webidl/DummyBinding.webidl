@@ -8,7 +8,6 @@
 // aren't actually referenced anywhere in IDL yet but are used in C++.
 
 interface DummyInterface {
-  void lifecycleCallbacks(optional LifecycleCallbacks arg);
 };
 
 interface DummyInterfaceWorkers {
