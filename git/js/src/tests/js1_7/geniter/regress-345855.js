@@ -20,7 +20,7 @@ function test()
   printBugNumber(BUGNUMBER);
   printStatus (summary);
  
-  expect = "SyntaxError";
+  expect = 'SyntaxError: syntax error';
   try
   {
     eval('(function() {x = 12 + yield;})');
@@ -28,11 +28,11 @@ function test()
   }
   catch(ex)
   {
-    actual = ex.name;
+    actual = ex + '';
   }
   reportCompare(expect, actual, summary + ': function() {x = 12 + yield;}');
 
-  expect = "SyntaxError";
+  expect = 'SyntaxError: syntax error';
   try
   {
     eval('(function() {x = 12 + yield 42})');
@@ -40,7 +40,7 @@ function test()
   }
   catch(ex)
   {
-    actual = ex.name;
+    actual = ex + '';
   }
   reportCompare(expect, actual, summary + ': function() {x = 12 + yield 42}');
 

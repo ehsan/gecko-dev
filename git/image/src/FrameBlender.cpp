@@ -526,7 +526,7 @@ FrameBlender::DrawFrameTo(const uint8_t *aSrcData, const nsIntRect& aSrcRect,
                              0, 0,
                              0, 0,
                              aSrcRect.x, aSrcRect.y,
-                             aSrcRect.width, aSrcRect.height);
+                             aDstRect.width, aDstRect.height);
 
     pixman_image_unref(src);
     pixman_image_unref(dst);

@@ -4295,7 +4295,7 @@ IonBuilder::inlineCalls(CallInfo &callInfo, AutoObjectVector &targets,
         if (maybeCache) {
             JS_ASSERT(callInfo.thisArg() == maybeCache->object());
             types::StackTypeSet *targetThisTypes =
-                maybeCache->propTable()->buildTypeSetForFunction(original);
+                maybeCache->propTable()->buildTypeSetForFunction(target);
             if (!targetThisTypes)
                 return false;
             maybeCache->object()->setResultTypeSet(targetThisTypes);

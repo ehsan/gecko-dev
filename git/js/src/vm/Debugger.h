@@ -548,7 +548,7 @@ class BreakpointSite {
   private:
     JSCList breakpoints;  /* cyclic list of all js::Breakpoints at this instruction */
     size_t enabledCount;  /* number of breakpoints in the list that are enabled */
-    JSTrapHandler trapHandler;  /* trap state */
+    JSTrapHandler trapHandler;  /* jsdbgapi trap state */
     HeapValue trapClosure;
 
     void recompile(FreeOp *fop);

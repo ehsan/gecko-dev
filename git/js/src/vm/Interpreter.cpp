@@ -21,6 +21,7 @@
 #include "jsatom.h"
 #include "jsautooplen.h"
 #include "jscntxt.h"
+#include "jsdbgapi.h"
 #include "jsfun.h"
 #include "jsgc.h"
 #include "jsiter.h"
@@ -38,7 +39,6 @@
 #include "builtin/Eval.h"
 #include "jit/BaselineJIT.h"
 #include "jit/Ion.h"
-#include "js/OldDebugAPI.h"
 #include "vm/Debugger.h"
 #include "vm/Shape.h"
 

@@ -289,6 +289,7 @@ add_task(function test_asyncClose_succeeds_with_finalized_async_statement()
   stmt.executeAsync();
   stmt.finalize();
 
+  let deferred = Promise.defer();
   yield asyncClose(getOpenedDatabase());
   // Reset gDBConn so that later tests will get a new connection object.
   gDBConn = null;
@@ -358,7 +359,7 @@ function standardAsyncTest(promisedDB, name, shouldInit = false) {
   }
 
   // Generate a name to insert and fetch back
-  name = "worker bee " + Math.random() + " (" + name + ")";
+  let name = "worker bee " + Math.random() + " (" + name + ")";
 
   let stmt = adb.createAsyncStatement("INSERT INTO test (name) VALUES (:name)");
   stmt.params.name = name;

@@ -346,7 +346,10 @@ DeprecatedTextureHostShmemD3D11::UpdateImpl(const SurfaceDescriptor& aImage,
     initData.pSysMem = surf->Data();
     initData.SysMemPitch = surf->Stride();
 
-    mDevice->CreateTexture2D(&desc, &initData, byRef(mTextures[0]));
+    HRESULT hr = mDevice->CreateTexture2D(&desc, &initData, byRef(mTextures[0]));
+    if (FAILED(hr)) {
+      printf("FAILED to create texture\n");
+    }
     mIsTiled = false;
   } else {
     mIsTiled = true;

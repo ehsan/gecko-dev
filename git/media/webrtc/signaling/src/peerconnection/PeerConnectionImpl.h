@@ -29,7 +29,6 @@
 #include "PeerConnectionMedia.h"
 
 #ifdef MOZILLA_INTERNAL_API
-#include "mozilla/TimeStamp.h"
 #include "mozilla/net/DataChannel.h"
 #include "VideoUtils.h"
 #include "VideoSegment.h"
@@ -282,11 +281,6 @@ public:
   // Sets the RTC Signaling State
   void SetSignalingState_m(SignalingState aSignalingState);
 
-#ifdef MOZILLA_INTERNAL_API
-  // Set start time for Telemetry
-  void setStartTime();
-#endif
-
 private:
   PeerConnectionImpl(const PeerConnectionImpl&rhs);
   PeerConnectionImpl& operator=(PeerConnectionImpl);
@@ -371,11 +365,6 @@ private:
 #endif
 
   nsRefPtr<PeerConnectionMedia> mMedia;
-
-#ifdef MOZILLA_INTERNAL_API
-  // Start time of call used for Telemetry
-  mozilla::TimeStamp mStartTime;
-#endif
 
   // Temporary: used to prevent multiple audio streams or multiple video streams
   // in a single PC. This is tied up in the IETF discussion around proper

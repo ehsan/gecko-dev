@@ -20,7 +20,6 @@
 #include "jsdIDebuggerService.h"
 #endif
 #include "nsDOMClassInfoID.h"
-#include "mozilla/Maybe.h"
 
 using namespace mozilla::dom;
 using mozilla::AutoSafeJSContext;
