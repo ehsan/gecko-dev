@@ -679,13 +679,13 @@ nsSVGPatternFrame::ConstructCTM(const nsSVGViewBox& aViewBox,
     return gfxMatrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0); // singular
   }
 
-  Matrix tm = SVGContentUtils::GetViewBoxTransform(
+  gfxMatrix tm = SVGContentUtils::GetViewBoxTransform(
     viewportWidth, viewportHeight,
     viewBoxRect.x, viewBoxRect.y,
     viewBoxRect.width, viewBoxRect.height,
     GetPreserveAspectRatio());
 
-  return ThebesMatrix(tm) * tCTM;
+  return tm * tCTM;
 }
 
 //----------------------------------------------------------------------

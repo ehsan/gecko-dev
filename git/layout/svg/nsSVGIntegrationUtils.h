@@ -82,7 +82,7 @@ public:
    * frame's continuations' border boxes, converted to SVG user units (equal to
    * CSS px units), as required by the SVG code.
    */
-  static mozilla::gfx::Size
+  static gfxSize
   GetSVGCoordContextForNonSVGFrame(nsIFrame* aNonSVGFrame);
 
   /**

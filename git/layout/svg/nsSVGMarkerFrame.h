@@ -94,7 +94,7 @@ public:
                      nsSVGMark *aMark,
                      float aStrokeWidth);
 
-  SVGBBox GetMarkBBoxContribution(const Matrix &aToBBoxUserspace,
+  SVGBBox GetMarkBBoxContribution(const gfxMatrix &aToBBoxUserspace,
                                   uint32_t aFlags,
                                   nsSVGPathGeometryFrame *aMarkedFrame,
                                   const nsSVGMark *aMark,

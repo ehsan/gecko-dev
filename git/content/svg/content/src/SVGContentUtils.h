@@ -28,10 +28,6 @@ namespace dom {
 class Element;
 class SVGSVGElement;
 } // namespace dom
-
-namespace gfx {
-class Matrix;
-} // namespace gfx
 } // namespace mozilla
 
 inline bool
@@ -127,13 +123,13 @@ public:
 
   /* Generate a viewbox to viewport tranformation matrix */
 
-  static mozilla::gfx::Matrix
+  static gfxMatrix
   GetViewBoxTransform(float aViewportWidth, float aViewportHeight,
                       float aViewboxX, float aViewboxY,
                       float aViewboxWidth, float aViewboxHeight,
                       const SVGAnimatedPreserveAspectRatio &aPreserveAspectRatio);
 
-  static mozilla::gfx::Matrix
+  static gfxMatrix
   GetViewBoxTransform(float aViewportWidth, float aViewportHeight,
                       float aViewboxX, float aViewboxY,
                       float aViewboxWidth, float aViewboxHeight,

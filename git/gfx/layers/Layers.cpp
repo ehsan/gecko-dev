@@ -1261,12 +1261,6 @@ Layer::PrintInfo(nsACString& aTo, const char* aPrefix)
   } else {
     aTo += " [not visible]";
   }
-  if (!mEventRegions.mHitRegion.IsEmpty()) {
-    AppendToString(aTo, mEventRegions.mHitRegion, " [hitregion=", "]");
-  }
-  if (!mEventRegions.mDispatchToContentHitRegion.IsEmpty()) {
-    AppendToString(aTo, mEventRegions.mDispatchToContentHitRegion, " [dispatchtocontentregion=", "]");
-  }
   if (1.0 != mOpacity) {
     aTo.AppendPrintf(" [opacity=%g]", mOpacity);
   }

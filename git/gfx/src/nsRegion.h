@@ -59,13 +59,6 @@ public:
     return IsEqual(aRgn);
   }
 
-  void Swap(nsRegion* aOther)
-  {
-    pixman_region32_t tmp = mImpl;
-    mImpl = aOther->mImpl;
-    aOther->mImpl = tmp;
-  }
-
   static
   nsresult InitStatic()
   {
@@ -363,11 +356,6 @@ public:
   bool operator==(const nsIntRegion& aRgn) const
   {
     return IsEqual(aRgn);
-  }
-
-  void Swap(nsIntRegion* aOther)
-  {
-    mImpl.Swap(&aOther->mImpl);
   }
 
   nsIntRegion& And  (const nsIntRegion& aRgn1,   const nsIntRegion& aRgn2)

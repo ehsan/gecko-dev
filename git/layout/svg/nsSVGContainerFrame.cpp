@@ -220,8 +220,8 @@ nsSVGDisplayContainerFrame::RemoveFrame(ChildListID aListID,
 }
 
 bool
-nsSVGDisplayContainerFrame::IsSVGTransformed(gfx::Matrix *aOwnTransform,
-                                             gfx::Matrix *aFromParentTransform) const
+nsSVGDisplayContainerFrame::IsSVGTransformed(gfxMatrix *aOwnTransform,
+                                             gfxMatrix *aFromParentTransform) const
 {
   bool foundTransform = false;
 
@@ -240,8 +240,8 @@ nsSVGDisplayContainerFrame::IsSVGTransformed(gfx::Matrix *aOwnTransform,
     if ((transformList && transformList->HasTransform()) ||
         content->GetAnimateMotionTransform()) {
       if (aOwnTransform) {
-        *aOwnTransform = gfx::ToMatrix(content->PrependLocalTransformsTo(gfxMatrix(),
-                                    nsSVGElement::eUserSpaceToParent));
+        *aOwnTransform = content->PrependLocalTransformsTo(gfxMatrix(),
+                                    nsSVGElement::eUserSpaceToParent);
       }
       foundTransform = true;
     }
@@ -392,7 +392,7 @@ nsSVGDisplayContainerFrame::NotifySVGChanged(uint32_t aFlags)
 
 SVGBBox
 nsSVGDisplayContainerFrame::GetBBoxContribution(
-  const Matrix &aToBBoxUserspace,
+  const gfxMatrix &aToBBoxUserspace,
   uint32_t aFlags)
 {
   SVGBBox bboxUnion;
@@ -401,15 +401,15 @@ nsSVGDisplayContainerFrame::GetBBoxContribution(
   while (kid) {
     nsISVGChildFrame* svgKid = do_QueryFrame(kid);
     if (svgKid) {
-      gfxMatrix transform = gfx::ThebesMatrix(aToBBoxUserspace);
+      gfxMatrix transform = aToBBoxUserspace;
       nsIContent *content = kid->GetContent();
       if (content->IsSVG()) {
         transform = static_cast<nsSVGElement*>(content)->
-                      PrependLocalTransformsTo(transform);
+                      PrependLocalTransformsTo(aToBBoxUserspace);
       }
       // We need to include zero width/height vertical/horizontal lines, so we have
       // to use UnionEdges.
-      bboxUnion.UnionEdges(svgKid->GetBBoxContribution(gfx::ToMatrix(transform), aFlags));
+      bboxUnion.UnionEdges(svgKid->GetBBoxContribution(transform, aFlags));
     }
     kid = kid->GetNextSibling();
   }

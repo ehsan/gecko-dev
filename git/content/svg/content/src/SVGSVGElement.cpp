@@ -42,8 +42,6 @@
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT_CHECK_PARSER(SVG)
 
-using namespace mozilla::gfx;
-
 namespace mozilla {
 namespace dom {
 
@@ -641,7 +639,7 @@ ComputeSynthesizedViewBoxDimension(const nsSVGLength2& aLength,
 //----------------------------------------------------------------------
 // public helpers:
 
-gfx::Matrix
+gfxMatrix
 SVGSVGElement::GetViewBoxTransform() const
 {
   float viewportWidth, viewportHeight;
@@ -655,14 +653,14 @@ SVGSVGElement::GetViewBoxTransform() const
   }
 
   if (viewportWidth <= 0.0f || viewportHeight <= 0.0f) {
-    return gfx::Matrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0); // singular
+    return gfxMatrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0); // singular
   }
 
   nsSVGViewBoxRect viewBox =
     GetViewBoxWithSynthesis(viewportWidth, viewportHeight);
 
   if (viewBox.width <= 0.0f || viewBox.height <= 0.0f) {
-    return gfx::Matrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0); // singular
+    return gfxMatrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0); // singular
   }
 
   return SVGContentUtils::GetViewBoxTransform(viewportWidth, viewportHeight,
@@ -967,21 +965,21 @@ SVGSVGElement::PrependLocalTransformsTo(const gfxMatrix &aMatrix,
     const_cast<SVGSVGElement*>(this)->GetAnimatedLengthValues(&x, &y, nullptr);
     if (aWhich == eAllTransforms) {
       // the common case
-      return ThebesMatrix(GetViewBoxTransform()) * gfxMatrix().Translate(gfxPoint(x, y)) * fromUserSpace;
+      return GetViewBoxTransform() * gfxMatrix().Translate(gfxPoint(x, y)) * fromUserSpace;
     }
     NS_ABORT_IF_FALSE(aWhich == eChildToUserSpace, "Unknown TransformTypes");
-    return ThebesMatrix(GetViewBoxTransform()) * gfxMatrix().Translate(gfxPoint(x, y));
+    return GetViewBoxTransform() * gfxMatrix().Translate(gfxPoint(x, y));
   }
 
   if (IsRoot()) {
     gfxMatrix zoomPanTM;
     zoomPanTM.Translate(gfxPoint(mCurrentTranslate.GetX(), mCurrentTranslate.GetY()));
     zoomPanTM.Scale(mCurrentScale, mCurrentScale);
-    return ThebesMatrix(GetViewBoxTransform()) * zoomPanTM * fromUserSpace;
+    return GetViewBoxTransform() * zoomPanTM * fromUserSpace;
   }
 
   // outer-<svg>, but inline in some other content:
-  return ThebesMatrix(GetViewBoxTransform()) * fromUserSpace;
+  return GetViewBoxTransform() * fromUserSpace;
 }
 
 /* virtual */ bool

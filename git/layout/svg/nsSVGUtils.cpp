@@ -763,11 +763,11 @@ nsSVGUtils::PaintFrameWithEffects(nsRenderingContext *aContext,
     int32_t appUnitsPerDevPx = aFrame->PresContext()->AppUnitsPerDevPixel();
     gfxMatrix tm = GetCanvasTM(aFrame, nsISVGChildFrame::FOR_PAINTING, aTransformRoot);
     if (aFrame->IsFrameOfType(nsIFrame::eSVG | nsIFrame::eSVGContainer)) {
-      gfx::Matrix childrenOnlyTM;
+      gfxMatrix childrenOnlyTM;
       if (static_cast<nsSVGContainerFrame*>(aFrame)->
             HasChildrenOnlyTransform(&childrenOnlyTM)) {
         // Undo the children-only transform:
-        tm = ThebesMatrix(childrenOnlyTM).Invert() * tm;
+        tm = childrenOnlyTM.Invert() * tm;
       }
     }
     nsIntRect bounds = TransformFrameRectToOuterSVG(overflowRect,
@@ -1033,17 +1033,17 @@ nsSVGUtils::ConvertToSurfaceSize(const gfxSize& aSize,
 }
 
 bool
-nsSVGUtils::HitTestRect(const gfx::Matrix &aMatrix,
+nsSVGUtils::HitTestRect(const gfxMatrix &aMatrix,
                         float aRX, float aRY, float aRWidth, float aRHeight,
                         float aX, float aY)
 {
-  gfx::Rect rect(aRX, aRY, aRWidth, aRHeight);
+  gfxRect rect(aRX, aRY, aRWidth, aRHeight);
   if (rect.IsEmpty() || aMatrix.IsSingular()) {
     return false;
   }
-  gfx::Matrix toRectSpace = aMatrix;
+  gfxMatrix toRectSpace = aMatrix;
   toRectSpace.Invert();
-  gfx::Point p = toRectSpace * gfx::Point(aX, aY);
+  gfxPoint p = toRectSpace.Transform(gfxPoint(aX, aY));
   return rect.x <= p.x && p.x <= rect.XMost() &&
          rect.y <= p.y && p.y <= rect.YMost();
 }
@@ -1197,7 +1197,7 @@ nsSVGUtils::GetBBox(nsIFrame *aFrame, uint32_t aFlags)
       matrix = element->PrependLocalTransformsTo(matrix,
                           nsSVGElement::eChildToUserSpace);
     }
-    return svg->GetBBoxContribution(ToMatrix(matrix), aFlags).ToThebesRect();
+    return svg->GetBBoxContribution(matrix, aFlags).ToThebesRect();
   }
   return nsSVGIntegrationUtils::GetSVGBBoxForNonSVGFrame(aFrame);
 }
@@ -1806,7 +1806,7 @@ nsSVGUtils::GetSVGGlyphExtents(Element* aElement,
                   PrependLocalTransformsTo(aSVGToAppSpace);
   }
 
-  *aResult = svgFrame->GetBBoxContribution(gfx::ToMatrix(transform),
+  *aResult = svgFrame->GetBBoxContribution(transform,
     nsSVGUtils::eBBoxIncludeFill | nsSVGUtils::eBBoxIncludeFillGeometry |
     nsSVGUtils::eBBoxIncludeStroke | nsSVGUtils::eBBoxIncludeStrokeGeometry |
     nsSVGUtils::eBBoxIncludeMarkers).ToThebesRect();

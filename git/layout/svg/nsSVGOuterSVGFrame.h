@@ -7,6 +7,7 @@
 #define __NS_SVGOUTERSVGFRAME_H__
 
 #include "mozilla/Attributes.h"
+#include "gfxMatrix.h"
 #include "nsISVGSVGFrame.h"
 #include "nsSVGContainerFrame.h"
 #include "nsRegion.h"
@@ -97,8 +98,8 @@ public:
     return GetFirstPrincipalChild()->GetContentInsertionFrame();
   }
 
-  virtual bool IsSVGTransformed(Matrix *aOwnTransform,
-                                Matrix *aFromParentTransform) const MOZ_OVERRIDE {
+  virtual bool IsSVGTransformed(gfxMatrix *aOwnTransform,
+                                gfxMatrix *aFromParentTransform) const MOZ_OVERRIDE {
     // Our anonymous wrapper performs the transforms. We simply
     // return whether we are transformed here but don't apply the transforms
     // themselves.
@@ -113,7 +114,7 @@ public:
                       const nsIntRect *aDirtyRect,
                       nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE;
 
-  virtual SVGBBox GetBBoxContribution(const Matrix &aToBBoxUserspace,
+  virtual SVGBBox GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
                                       uint32_t aFlags) MOZ_OVERRIDE;
 
   // nsSVGContainerFrame methods:
@@ -132,7 +133,7 @@ public:
   void RegisterForeignObject(nsSVGForeignObjectFrame* aFrame);
   void UnregisterForeignObject(nsSVGForeignObjectFrame* aFrame);
 
-  virtual bool HasChildrenOnlyTransform(Matrix *aTransform) const MOZ_OVERRIDE {
+  virtual bool HasChildrenOnlyTransform(gfxMatrix *aTransform) const MOZ_OVERRIDE {
     // Our anonymous wrapper child must claim our children-only transforms as
     // its own so that our real children (the frames it wraps) are transformed
     // by them, and we must pretend we don't have any children-only transforms
@@ -270,7 +271,7 @@ public:
     return static_cast<nsSVGOuterSVGFrame*>(mParent)->GetCanvasTM(aFor, aTransformRoot);
   }
 
-  virtual bool HasChildrenOnlyTransform(Matrix *aTransform) const MOZ_OVERRIDE;
+  virtual bool HasChildrenOnlyTransform(gfxMatrix *aTransform) const MOZ_OVERRIDE;
 };
 
 #endif

@@ -15,7 +15,6 @@
 #include "nsSVGPathGeometryFrame.h"
 
 using namespace mozilla::dom;
-using namespace mozilla::gfx;
 
 nsIFrame*
 NS_NewSVGMarkerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -86,11 +85,11 @@ nsSVGMarkerFrame::GetCanvasTM(uint32_t aFor, nsIFrame* aTransformRoot)
   gfxMatrix markedTM = mMarkedFrame->GetCanvasTM(aFor, aTransformRoot);
   mInUse2 = false;
 
-  Matrix markerTM = content->GetMarkerTransform(mStrokeWidth, mX, mY,
-                                                mAutoAngle, mIsStart);
-  Matrix viewBoxTM = content->GetViewBoxTransform();
+  gfxMatrix markerTM = content->GetMarkerTransform(mStrokeWidth, mX, mY,
+                                                   mAutoAngle, mIsStart);
+  gfxMatrix viewBoxTM = content->GetViewBoxTransform();
 
-  return ThebesMatrix(viewBoxTM * markerTM) * markedTM;
+  return viewBoxTM * markerTM * markedTM;
 }
 
 static nsIFrame*
@@ -154,7 +153,7 @@ nsSVGMarkerFrame::PaintMark(nsRenderingContext *aContext,
 }
 
 SVGBBox
-nsSVGMarkerFrame::GetMarkBBoxContribution(const Matrix &aToBBoxUserspace,
+nsSVGMarkerFrame::GetMarkBBoxContribution(const gfxMatrix &aToBBoxUserspace,
                                           uint32_t aFlags,
                                           nsSVGPathGeometryFrame *aMarkedFrame,
                                           const nsSVGMark *aMark,
@@ -184,11 +183,11 @@ nsSVGMarkerFrame::GetMarkBBoxContribution(const Matrix &aToBBoxUserspace,
   mAutoAngle = aMark->angle;
   mIsStart = aMark->type == nsSVGMark::eStart;
 
-  Matrix markerTM =
+  gfxMatrix markerTM =
     content->GetMarkerTransform(mStrokeWidth, mX, mY, mAutoAngle, mIsStart);
-  Matrix viewBoxTM = content->GetViewBoxTransform();
+  gfxMatrix viewBoxTM = content->GetViewBoxTransform();
 
-  Matrix tm = viewBoxTM * markerTM * aToBBoxUserspace;
+  gfxMatrix tm = viewBoxTM * markerTM * aToBBoxUserspace;
 
   nsISVGChildFrame* child = do_QueryFrame(GetAnonymousChildFrame(this));
   // When we're being called to obtain the invalidation area, we need to

@@ -6,6 +6,7 @@
 #ifndef mozilla_dom_SVGMarkerElement_h
 #define mozilla_dom_SVGMarkerElement_h
 
+#include "gfxMatrix.h"
 #include "nsSVGAngle.h"
 #include "nsSVGEnum.h"
 #include "nsSVGLength2.h"
@@ -120,11 +121,11 @@ public:
   virtual bool HasValidDimensions() const MOZ_OVERRIDE;
 
   // public helpers
-  gfx::Matrix GetMarkerTransform(float aStrokeWidth,
-                                 float aX, float aY, float aAutoAngle,
-                                 bool aIsStart);
+  gfxMatrix GetMarkerTransform(float aStrokeWidth,
+                               float aX, float aY, float aAutoAngle,
+                               bool aIsStart);
   nsSVGViewBoxRect GetViewBoxRect();
-  gfx::Matrix GetViewBoxTransform();
+  gfxMatrix GetViewBoxTransform();
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 
@@ -180,7 +181,7 @@ protected:
   nsSVGOrientType                        mOrientType;
 
   SVGSVGElement                         *mCoordCtx;
-  nsAutoPtr<gfx::Matrix>                 mViewBoxToViewportTransform;
+  nsAutoPtr<gfxMatrix>                   mViewBoxToViewportTransform;
 };
 
 } // namespace dom

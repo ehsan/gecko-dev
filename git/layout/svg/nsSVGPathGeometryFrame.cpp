@@ -22,7 +22,6 @@
 #include "SVGGraphicsElement.h"
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 
 //----------------------------------------------------------------------
 // Implementation
@@ -145,8 +144,8 @@ nsSVGPathGeometryFrame::GetType() const
 }
 
 bool
-nsSVGPathGeometryFrame::IsSVGTransformed(gfx::Matrix *aOwnTransform,
-                                         gfx::Matrix *aFromParentTransform) const
+nsSVGPathGeometryFrame::IsSVGTransformed(gfxMatrix *aOwnTransform,
+                                         gfxMatrix *aFromParentTransform) const
 {
   bool foundTransform = false;
 
@@ -164,8 +163,8 @@ nsSVGPathGeometryFrame::IsSVGTransformed(gfx::Matrix *aOwnTransform,
   if ((transformList && transformList->HasTransform()) ||
       content->GetAnimateMotionTransform()) {
     if (aOwnTransform) {
-      *aOwnTransform = gfx::ToMatrix(content->PrependLocalTransformsTo(gfxMatrix(),
-                                  nsSVGElement::eUserSpaceToParent));
+      *aOwnTransform = content->PrependLocalTransformsTo(gfxMatrix(),
+                                  nsSVGElement::eUserSpaceToParent);
     }
     foundTransform = true;
   }
@@ -249,7 +248,7 @@ nsSVGPathGeometryFrame::GetFrameForPoint(const nsPoint &aPoint)
   nsRefPtr<gfxContext> tmpCtx =
     new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
 
-  GeneratePath(tmpCtx, ToMatrix(canvasTM));
+  GeneratePath(tmpCtx, canvasTM);
   gfxPoint userSpacePoint =
     tmpCtx->DeviceToUser(gfxPoint(PresContext()->AppUnitsToGfxUnits(aPoint.x),
                                   PresContext()->AppUnitsToGfxUnits(aPoint.y)));
@@ -326,7 +325,7 @@ nsSVGPathGeometryFrame::ReflowSVG()
   gfxSize scaleFactors = GetCanvasTM(FOR_OUTERSVG_TM).ScaleFactors(true);
   bool applyScaling = fabs(scaleFactors.width) >= 1e-6 &&
                       fabs(scaleFactors.height) >= 1e-6;
-  gfx::Matrix scaling;
+  gfxMatrix scaling;
   if (applyScaling) {
     scaling.Scale(scaleFactors.width, scaleFactors.height);
   }
@@ -399,7 +398,7 @@ nsSVGPathGeometryFrame::NotifySVGChanged(uint32_t aFlags)
 }
 
 SVGBBox
-nsSVGPathGeometryFrame::GetBBoxContribution(const Matrix &aToBBoxUserspace,
+nsSVGPathGeometryFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
                                             uint32_t aFlags)
 {
   SVGBBox bbox;
@@ -456,7 +455,7 @@ nsSVGPathGeometryFrame::GetBBoxContribution(const Matrix &aToBBoxUserspace,
     }
     bbox.UnionEdges(nsSVGUtils::PathExtentsToMaxStrokeExtents(pathExtents,
                                                               this,
-                                                              ThebesMatrix(aToBBoxUserspace)));
+                                                              aToBBoxUserspace));
   }
 
   // Account for markers:
@@ -608,7 +607,7 @@ nsSVGPathGeometryFrame::Render(nsRenderingContext *aContext,
       autoSaveRestore.SetContext(gfx);
     }
 
-    GeneratePath(gfx, ToMatrix(GetCanvasTM(FOR_PAINTING, aTransformRoot)));
+    GeneratePath(gfx, GetCanvasTM(FOR_PAINTING, aTransformRoot));
 
     // We used to call gfx->Restore() here, since for the
     // SVGAutoRenderState::CLIP case it is important to leave the fill rule
@@ -637,7 +636,7 @@ nsSVGPathGeometryFrame::Render(nsRenderingContext *aContext,
 
   gfxContextAutoSaveRestore autoSaveRestore(gfx);
 
-  GeneratePath(gfx, ToMatrix(GetCanvasTM(FOR_PAINTING, aTransformRoot)));
+  GeneratePath(gfx, GetCanvasTM(FOR_PAINTING, aTransformRoot));
 
   gfxTextContextPaint *contextPaint =
     (gfxTextContextPaint*)aContext->GetUserData(&gfxTextContextPaint::sUserDataKey);
@@ -657,7 +656,7 @@ nsSVGPathGeometryFrame::Render(nsRenderingContext *aContext,
 
 void
 nsSVGPathGeometryFrame::GeneratePath(gfxContext* aContext,
-                                     const Matrix &aTransform)
+                                     const gfxMatrix &aTransform)
 {
   if (aTransform.IsSingular()) {
     aContext->IdentityMatrix();
@@ -665,7 +664,7 @@ nsSVGPathGeometryFrame::GeneratePath(gfxContext* aContext,
     return;
   }
 
-  aContext->MultiplyAndNudgeToIntegers(ThebesMatrix(aTransform));
+  aContext->MultiplyAndNudgeToIntegers(aTransform);
 
   // Hack to let SVGPathData::ConstructPath know if we have square caps:
   const nsStyleSVG* style = StyleSVG();

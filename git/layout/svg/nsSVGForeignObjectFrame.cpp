@@ -8,6 +8,7 @@
 
 // Keep others in (case-insensitive) order:
 #include "gfxContext.h"
+#include "gfxMatrix.h"
 #include "nsGkAtoms.h"
 #include "nsINameSpaceManager.h"
 #include "nsLayoutUtils.h"
@@ -164,8 +165,8 @@ nsSVGForeignObjectFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 bool
-nsSVGForeignObjectFrame::IsSVGTransformed(Matrix *aOwnTransform,
-                                          Matrix *aFromParentTransform) const
+nsSVGForeignObjectFrame::IsSVGTransformed(gfxMatrix *aOwnTransform,
+                                          gfxMatrix *aFromParentTransform) const
 {
   bool foundTransform = false;
 
@@ -183,8 +184,8 @@ nsSVGForeignObjectFrame::IsSVGTransformed(Matrix *aOwnTransform,
   if ((transformList && transformList->HasTransform()) ||
       content->GetAnimateMotionTransform()) {
     if (aOwnTransform) {
-      *aOwnTransform = gfx::ToMatrix(content->PrependLocalTransformsTo(gfxMatrix(),
-                                  nsSVGElement::eUserSpaceToParent));
+      *aOwnTransform = content->PrependLocalTransformsTo(gfxMatrix(),
+                                  nsSVGElement::eUserSpaceToParent);
     }
     foundTransform = true;
   }
@@ -464,7 +465,7 @@ nsSVGForeignObjectFrame::NotifySVGChanged(uint32_t aFlags)
 }
 
 SVGBBox
-nsSVGForeignObjectFrame::GetBBoxContribution(const Matrix &aToBBoxUserspace,
+nsSVGForeignObjectFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
                                              uint32_t aFlags)
 {
   SVGForeignObjectElement *content =
@@ -480,7 +481,7 @@ nsSVGForeignObjectFrame::GetBBoxContribution(const Matrix &aToBBoxUserspace,
     // XXX ReportToConsole
     return SVGBBox();
   }
-  return aToBBoxUserspace.TransformBounds(gfx::Rect(0.0, 0.0, w, h));
+  return aToBBoxUserspace.TransformBounds(gfxRect(0.0, 0.0, w, h));
 }
 
 //----------------------------------------------------------------------

@@ -474,7 +474,6 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
     Mode aMode, bool aBuildCaret)
     : mReferenceFrame(aReferenceFrame),
       mIgnoreScrollFrame(nullptr),
-      mLayerEventRegions(nullptr),
       mCurrentTableItem(nullptr),
       mFinalTransparentRegion(nullptr),
       mCachedOffsetFrame(aReferenceFrame),
@@ -497,8 +496,7 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
       mIsPaintingToWindow(false),
       mIsCompositingCheap(false),
       mContainsPluginItem(false),
-      mContainsBlendMode(false),
-      mAncestorHasTouchEventHandler(false)
+      mContainsBlendMode(false)
 {
   MOZ_COUNT_CTOR(nsDisplayListBuilder);
   PL_InitArenaPool(&mPool, "displayListArena", 1024,
@@ -2501,40 +2499,6 @@ nsDisplayEventReceiver::HitTest(nsDisplayListBuilder* aBuilder,
 }
 
 void
-nsDisplayLayerEventRegions::AddFrame(nsDisplayListBuilder* aBuilder,
-                                     nsIFrame* aFrame)
-{
-  NS_ASSERTION(aBuilder->FindReferenceFrameFor(aFrame) == aBuilder->FindReferenceFrameFor(mFrame),
-               "Reference frame mismatch");
-  uint8_t pointerEvents = aFrame->StyleVisibility()->mPointerEvents;
-  if (pointerEvents == NS_STYLE_POINTER_EVENTS_NONE) {
-    return;
-  }
-  // XXX handle other pointerEvents values for SVG
-  // XXX Do something clever here for the common case where the border box
-  // is obviously entirely inside mHitRegion.
-  nsRect borderBox(aBuilder->ToReferenceFrame(aFrame), aFrame->GetSize());
-  const DisplayItemClip* clip = aBuilder->ClipState().GetCurrentCombinedClip(aBuilder);
-  bool borderBoxHasRoundedCorners =
-    nsLayoutUtils::HasNonZeroCorner(aFrame->StyleBorder()->mBorderRadius);
-  if (clip) {
-    borderBox = clip->ApplyNonRoundedIntersection(borderBox);
-    if (clip->GetRoundedRectCount() > 0) {
-      borderBoxHasRoundedCorners = true;
-    }
-  }
-  if (borderBoxHasRoundedCorners ||
-      (aFrame->GetStateBits() & NS_FRAME_SVG_LAYOUT)) {
-    mMaybeHitRegion.Or(mMaybeHitRegion, borderBox);
-  } else {
-    mHitRegion.Or(mHitRegion, borderBox);
-  }
-  if (aBuilder->GetAncestorHasTouchEventHandler()) {
-    mDispatchToContentHitRegion.Or(mDispatchToContentHitRegion, borderBox);
-  }
-}
-
-void
 nsDisplayCaret::Paint(nsDisplayListBuilder* aBuilder,
                       nsRenderingContext* aCtx) {
   // Note: Because we exist, we know that the caret is visible, so we don't
@@ -4138,7 +4102,7 @@ nsDisplayTransform::GetResultingTransformMatrixInternal(const FrameTransformProp
   gfx3DMatrix result;
   // Call IsSVGTransformed() regardless of the value of
   // disp->mSpecifiedTransform, since we still need any transformFromSVGParent.
-  mozilla::gfx::Matrix svgTransform, transformFromSVGParent;
+  gfxMatrix svgTransform, transformFromSVGParent;
   bool hasSVGTransforms =
     frame && frame->IsSVGTransformed(&svgTransform, &transformFromSVGParent);
   /* Transformed frames always have a transform, or are preserving 3d (and might still have perspective!) */
@@ -4151,18 +4115,18 @@ nsDisplayTransform::GetResultingTransformMatrixInternal(const FrameTransformProp
     // Correct the translation components for zoom:
     float pixelsPerCSSPx = frame->PresContext()->AppUnitsPerCSSPixel() /
                              aAppUnitsPerPixel;
-    svgTransform._31 *= pixelsPerCSSPx;
-    svgTransform._32 *= pixelsPerCSSPx;
-    result = gfx3DMatrix::From2D(ThebesMatrix(svgTransform));
+    svgTransform.x0 *= pixelsPerCSSPx;
+    svgTransform.y0 *= pixelsPerCSSPx;
+    result = gfx3DMatrix::From2D(svgTransform);
   }
 
   if (hasSVGTransforms && !transformFromSVGParent.IsIdentity()) {
     // Correct the translation components for zoom:
     float pixelsPerCSSPx = frame->PresContext()->AppUnitsPerCSSPixel() /
                              aAppUnitsPerPixel;
-    transformFromSVGParent._31 *= pixelsPerCSSPx;
-    transformFromSVGParent._32 *= pixelsPerCSSPx;
-    result = result * gfx3DMatrix::From2D(ThebesMatrix(transformFromSVGParent));
+    transformFromSVGParent.x0 *= pixelsPerCSSPx;
+    transformFromSVGParent.y0 *= pixelsPerCSSPx;
+    result = result * gfx3DMatrix::From2D(transformFromSVGParent);
   }
 
   if (aProperties.mChildPerspective > 0.0) {

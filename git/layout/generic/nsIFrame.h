@@ -93,10 +93,6 @@ namespace mozilla {
 namespace layers {
 class Layer;
 }
-
-namespace gfx {
-class Matrix;
-}
 }
 
 /**
@@ -618,7 +614,6 @@ public:
   typedef mozilla::layout::FrameChildListIDs ChildListIDs;
   typedef mozilla::layout::FrameChildListIterator ChildListIterator;
   typedef mozilla::layout::FrameChildListArrayIterator ChildListArrayIterator;
-  typedef mozilla::gfx::Matrix Matrix;
 
   NS_DECL_QUERYFRAME_TARGET(nsIFrame)
 
@@ -1342,8 +1337,8 @@ public:
    * is non-null and the frame has an SVG parent with children-only transforms,
    * then aFromParentTransforms will be set to these transforms.
    */
-  virtual bool IsSVGTransformed(Matrix *aOwnTransforms = nullptr,
-                                Matrix *aFromParentTransforms = nullptr) const;
+  virtual bool IsSVGTransformed(gfxMatrix *aOwnTransforms = nullptr,
+                                gfxMatrix *aFromParentTransforms = nullptr) const;
 
   /**
    * Returns whether this frame will attempt to preserve the 3d transforms of its
