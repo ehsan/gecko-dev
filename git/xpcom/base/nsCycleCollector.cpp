@@ -1100,9 +1100,13 @@ struct nsCycleCollector
 #ifdef DEBUG_CC
     nsCycleCollectorStats mStats;
     FILE *mPtrLog;
+    PointerSet mExpectedGarbage;
 
     bool LogPurpleAddition(void* aObject, nsCycleCollectionParticipant *cp);
     void LogPurpleRemoval(void* aObject);
+
+    void ShouldBeFreed(nsISupports *n);
+    void WasFreed(nsISupports *n);
 #endif
 };
 
@@ -2541,6 +2545,9 @@ nsCycleCollector::nsCycleCollector() :
     mPurpleBuf(mParams)
 #endif
 {
+#ifdef DEBUG_CC
+    mExpectedGarbage.Init();
+#endif
 }
 
 
@@ -3091,6 +3098,24 @@ nsCycleCollector::Shutdown()
     mParams.mDoNothing = true;
 }
 
+#ifdef DEBUG_CC
+void
+nsCycleCollector::ShouldBeFreed(nsISupports *n)
+{
+    if (n) {
+        mExpectedGarbage.PutEntry(n);
+    }
+}
+
+void
+nsCycleCollector::WasFreed(nsISupports *n)
+{
+    if (n) {
+        mExpectedGarbage.RemoveEntry(n);
+    }
+}
+#endif
+
 void
 nsCycleCollector::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                       size_t *aObjectSize,
@@ -3115,7 +3140,7 @@ nsCycleCollector::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
     // - mResults: because it's tiny and only contains scalars.
     // - mJSRuntime: because it's non-owning and measured by JS reporters.
     // - mParams: because it only contains scalars.
-    // - mStats, mPtrLog: because they're DEBUG_CC-only.
+    // - mStats, mPtrLog, mExpectedGarbage: because they're DEBUG_CC-only.
 }
 
 
@@ -3157,6 +3182,26 @@ nsCycleCollector_suspectedCount()
 {
     return sCollector ? sCollector->SuspectedCount() : 0;
 }
+
+#ifdef DEBUG
+void
+nsCycleCollector_DEBUG_shouldBeFreed(nsISupports *n)
+{
+#ifdef DEBUG_CC
+    if (sCollector)
+        sCollector->ShouldBeFreed(n);
+#endif
+}
+
+void
+nsCycleCollector_DEBUG_wasFreed(nsISupports *n)
+{
+#ifdef DEBUG_CC
+    if (sCollector)
+        sCollector->WasFreed(n);
+#endif
+}
+#endif
 
 class nsCycleCollectorRunner : public nsRunnable
 {
