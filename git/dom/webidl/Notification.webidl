@@ -27,22 +27,22 @@ interface Notification : EventTarget {
 
   attribute EventHandler onclose;
 
-  [Pure]
+  [Constant]
   readonly attribute DOMString title;
 
-  [Pure]
+  [Constant]
   readonly attribute NotificationDirection dir;
 
-  [Pure]
+  [Constant]
   readonly attribute DOMString? lang;
 
-  [Pure]
+  [Constant]
   readonly attribute DOMString? body;
 
   [Constant]
   readonly attribute DOMString? tag;
 
-  [Pure]
+  [Constant]
   readonly attribute DOMString? icon;
 
   void close();

@@ -1451,10 +1451,10 @@ endif
 endif
 
 libs realchrome:: $(CHROME_DEPS) $(FINAL_TARGET)/chrome
-	$(call py_action,jar_maker,\
+	$(PYTHON) $(MOZILLA_DIR)/config/JarMaker.py \
 	  $(QUIET) -j $(FINAL_TARGET)/chrome \
 	  $(MAKE_JARS_FLAGS) $(XULPPFLAGS) $(DEFINES) $(ACDEFINES) \
-	  $(JAR_MANIFEST))
+	  $(JAR_MANIFEST)
 
 endif
 endif

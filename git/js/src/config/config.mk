@@ -352,6 +352,7 @@ DEFINES += -DSTATIC_EXPORTABLE_JS_API
 endif
 endif
 
+# Flags passed to JarMaker.py
 MAKE_JARS_FLAGS = \
 	-t $(topsrcdir) \
 	-f $(MOZ_CHROME_FILE_FORMAT) \

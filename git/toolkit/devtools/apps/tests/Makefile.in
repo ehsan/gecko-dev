@@ -7,6 +7,7 @@ ifneq (android,$(MOZ_WIDGET_TOOLKIT))
 MOCHITEST_FILES = \
     test_webapps_actor.html \
     debugger-protocol-helper.js \
+    data/ \
     redirect.sjs \
     $(NULL)
 

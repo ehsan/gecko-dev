@@ -328,8 +328,7 @@
                            label="{}"
                            tooltiptext="&debuggerUI.sources.prettyPrint;"
                            class="devtools-toolbarbutton devtools-monospace"
-                           command="prettyPrintCommand"
-                           hidden="true"/>
+                           command="prettyPrintCommand"/>
           </toolbar>
         </vbox>
         <splitter class="devtools-side-splitter"/>
