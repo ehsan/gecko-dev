@@ -2664,7 +2664,6 @@ alpha*-*-osf*)
                        ,
                        [LDFLAGS=$_SAVE_LDFLAGS])
        fi
-       WARNINGS_AS_ERRORS='-Werror'
        MOZ_OPTIMIZE_FLAGS="-xO4"
        MKSHLIB='$(CXX) $(CXXFLAGS) $(DSO_PIC_FLAGS) $(DSO_LDOPTS) -h $@ -o $@'
        MKCSHLIB='$(CC) $(CFLAGS) $(DSO_PIC_FLAGS) $(DSO_LDOPTS) -h $@ -o $@'
@@ -2714,6 +2713,7 @@ alpha*-*-osf*)
        MKSHLIB_UNFORCE_ALL='-Wl,-z -Wl,defaultextract'
        ASFLAGS="$ASFLAGS -fPIC"
        DSO_LDOPTS='-shared'
+       WARNINGS_AS_ERRORS='-Werror'
        _WARNINGS_CFLAGS=''
        _WARNINGS_CXXFLAGS=''
        if test "$OS_RELEASE" = "5.3"; then
@@ -3386,7 +3386,16 @@ case $target in
 esac
 
 dnl Performance measurement headers.
-AC_CHECK_HEADER(linux/perf_event.h, HAVE_LINUX_PERF_EVENT_H=1)
+AC_CHECK_HEADER(linux/perf_event.h,
+    [AC_CACHE_CHECK(for perf_event_open system call,ac_cv_perf_event_open,
+        [AC_TRY_COMPILE([#include <sys/syscall.h>],[return sizeof(__NR_perf_event_open);],
+        ac_cv_perf_event_open=yes,
+        ac_cv_perf_event_open=no)])])
+if test "$ac_cv_perf_event_open" = "yes"; then
+    HAVE_LINUX_PERF_EVENT_H=1
+else
+    HAVE_LINUX_PERF_EVENT_H=
+fi
 AC_SUBST(HAVE_LINUX_PERF_EVENT_H)
 
 dnl Checks for libraries.
