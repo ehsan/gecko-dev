@@ -57,12 +57,6 @@ PeriodicWave::SizeOfExcludingThisIfNotShared(MallocSizeOf aMallocSizeOf) const
   return amount;
 }
 
-size_t
-PeriodicWave::SizeOfIncludingThisIfNotShared(MallocSizeOf aMallocSizeOf) const
-{
-  return aMallocSizeOf(this) + SizeOfExcludingThisIfNotShared(aMallocSizeOf);
-}
-
 JSObject*
 PeriodicWave::WrapObject(JSContext* aCx)
 {

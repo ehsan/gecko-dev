@@ -1063,7 +1063,8 @@
                     tabcontainer="tabbrowser-tabs"
                     contentcontextmenu="contentAreaContextMenu"
                     autocompletepopup="PopupAutoComplete"
-                    selectpopup="ContentSelectDropdown"/>
+                    selectpopup="ContentSelectDropdown"
+                    onclick="contentAreaClick(event, false);"/>
         <chatbar id="pinnedchats" layer="true" mousethrough="always" hidden="true"/>
       </vbox>
       <splitter id="social-sidebar-splitter"

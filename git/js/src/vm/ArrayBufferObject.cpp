@@ -1030,7 +1030,7 @@ JS_NeuterArrayBuffer(JSContext *cx, HandleObject obj,
     }
 
     void *newData;
-    if (changeData == ChangeData && buffer->hasStealableContents()) {
+    if (changeData == ChangeData) {
         newData = AllocateArrayBufferContents(cx, buffer->byteLength());
         if (!newData)
             return false;
