@@ -343,7 +343,7 @@ MAKEFILES_plugin="
   modules/plugin/base/public/Makefile
   modules/plugin/samples/simple/Makefile
   modules/plugin/samples/SanePlugin/Makefile
-  modules/plugin/default/unix/Makefile
+  modules/plugin/samples/default/unix/Makefile
   modules/plugin/tools/sdk/Makefile
   modules/plugin/tools/sdk/samples/Makefile
   modules/plugin/tools/sdk/samples/common/Makefile
@@ -400,6 +400,7 @@ MAKEFILES_netwerk="
   netwerk/streamconv/test/Makefile
   netwerk/test/Makefile
   netwerk/testserver/Makefile
+  netwerk/resources/Makefile
   netwerk/locales/Makefile
   netwerk/system/Makefile
   netwerk/system/win32/Makefile
@@ -457,6 +458,13 @@ MAKEFILES_chrome="
   chrome/Makefile
   chrome/public/Makefile
   chrome/src/Makefile
+  embedding/minimo/chromelite/Makefile
+  rdf/chrome/Makefile
+  rdf/chrome/public/Makefile
+  rdf/chrome/build/Makefile
+  rdf/chrome/src/Makefile
+  rdf/chrome/tools/Makefile
+  rdf/chrome/tools/chromereg/Makefile
 "
 
 MAKEFILES_view="
@@ -582,16 +590,35 @@ MAKEFILES_xpfe="
   xpfe/components/related/Makefile
   xpfe/components/related/src/Makefile
   xpfe/components/related/public/Makefile
+  xpfe/components/startup/Makefile
+  xpfe/components/startup/public/Makefile
+  xpfe/components/startup/src/Makefile
   xpfe/components/autocomplete/Makefile
   xpfe/components/autocomplete/public/Makefile
   xpfe/components/autocomplete/src/Makefile
   xpfe/components/winhooks/Makefile
   xpfe/components/windowds/Makefile
   xpfe/components/build/Makefile
+  xpfe/components/xremote/Makefile
+  xpfe/components/xremote/public/Makefile
+  xpfe/components/xremote/src/Makefile
   xpfe/appshell/Makefile
   xpfe/appshell/src/Makefile
   xpfe/appshell/public/Makefile
   xpfe/bootstrap/appleevents/Makefile
+  xpfe/global/Makefile
+  xpfe/global/buildconfig.html
+  xpfe/global/resources/Makefile
+  xpfe/global/resources/content/Makefile
+  xpfe/global/resources/content/os2/Makefile
+  xpfe/global/resources/content/unix/Makefile
+  xpfe/global/resources/locale/Makefile
+  xpfe/global/resources/locale/en-US/Makefile
+  xpfe/global/resources/locale/en-US/mac/Makefile
+  xpfe/global/resources/locale/en-US/os2/Makefile
+  xpfe/global/resources/locale/en-US/unix/Makefile
+  xpfe/global/resources/locale/en-US/win/Makefile
+  xpfe/communicator/Makefile
   extensions/spellcheck/Makefile
   extensions/spellcheck/hunspell/Makefile
   extensions/spellcheck/idl/Makefile
@@ -607,6 +634,7 @@ MAKEFILES_embedding="
   embedding/browser/activex/src/control/Makefile
   embedding/browser/activex/src/control_kicker/Makefile
   embedding/browser/build/Makefile
+  embedding/browser/chrome/Makefile
   embedding/browser/webBrowser/Makefile
   embedding/browser/gtk/Makefile
   embedding/browser/gtk/src/Makefile
@@ -888,6 +916,7 @@ if test -n "$MOZ_PSM"; then
     security/manager/boot/public/Makefile
     security/manager/ssl/Makefile
     security/manager/ssl/src/Makefile
+    security/manager/ssl/resources/Makefile
     security/manager/ssl/public/Makefile
     security/manager/pki/Makefile
     security/manager/pki/resources/Makefile

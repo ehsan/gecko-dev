@@ -566,7 +566,7 @@ js_CompileScript(JSContext *cx, JSObject *obj, JSPrincipals *principals,
     void *sbrk(ptrdiff_t), *before = sbrk(0);
 #endif
 
-    JS_ASSERT(!(tcflags & ~(TCF_COMPILE_N_GO | TCF_NO_SCRIPT_RVAL | TCF_STATIC_DEPTH_MASK)));
+    JS_ASSERT(!(tcflags & ~(TCF_COMPILE_N_GO | TCF_NO_SCRIPT_RVAL)));
 
     if (!js_InitParseContext(cx, &pc, principals, chars, length, file,
                              filename, lineno)) {
@@ -591,8 +591,7 @@ js_CompileScript(JSContext *cx, JSObject *obj, JSPrincipals *principals,
                          pc.tokenStream.lineno);
 
     /* From this point the control must flow via the label out. */
-    cg.treeContext.flags |= (uint16) tcflags;
-    cg.staticDepth = TCF_GET_STATIC_DEPTH(tcflags);
+    cg.treeContext.flags |= tcflags;
 
     /*
      * Inline Statements() to emit as we go to save space.
@@ -1994,14 +1993,6 @@ CheckDestructuring(JSContext *cx, BindData *data,
                                     JSREPORT_ERROR, JSMSG_ARRAY_COMP_LEFTSIDE);
         return JS_FALSE;
     }
-
-#if JS_HAS_DESTRUCTURING_SHORTHAND
-    if (right && (right->pn_extra & PNX_SHORTHAND)) {
-        js_ReportCompileErrorNumber(cx, TS(tc->parseContext), right,
-                                    JSREPORT_ERROR, JSMSG_BAD_OBJECT_INIT);
-        return JS_FALSE;
-    }
-#endif
 
     fpvd.table.ops = NULL;
     lhs = left->pn_head;
@@ -4507,32 +4498,18 @@ MemberExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
             pn2->pn_pos.begin = pn->pn_pos.begin;
             pn2->pn_pos.end = CURRENT_TOKEN(ts).pos.end;
 
-            /*
-             * Optimize o['p'] to o.p by rewriting pn2, but avoid rewriting
-             * o['0'] to use JSOP_GETPROP, to keep fast indexing disjoint in
-             * the interpreter from fast property access. However, if the
-             * bracketed string is a uint32, we rewrite pn3 to be a number
-             * instead of a string.
-             */
-            do {
-                if (pn3->pn_type == TOK_STRING) {
-                    jsuint index;
-
-                    if (!js_IdIsIndex(ATOM_TO_JSID(pn3->pn_atom), &index)) {
-                        pn2->pn_type = TOK_DOT;
-                        pn2->pn_op = JSOP_GETPROP;
-                        pn2->pn_arity = PN_NAME;
-                        pn2->pn_expr = pn;
-                        pn2->pn_atom = pn3->pn_atom;
-                        break;
-                    }
-                    pn3->pn_type = TOK_NUMBER;
-                    pn3->pn_dval = index;
-                }
+            /* Optimize o['p'] to o.p by rewriting pn2. */
+            if (pn3->pn_type == TOK_STRING) {
+                pn2->pn_type = TOK_DOT;
+                pn2->pn_op = JSOP_GETPROP;
+                pn2->pn_arity = PN_NAME;
+                pn2->pn_expr = pn;
+                pn2->pn_atom = pn3->pn_atom;
+            } else {
                 pn2->pn_op = JSOP_GETELEM;
                 pn2->pn_left = pn;
                 pn2->pn_right = pn3;
-            } while (0);
+            }
         } else if (allowCallSyntax && tt == TOK_LP) {
             pn2 = NewParseNode(cx, ts, PN_LIST, tc);
             if (!pn2)

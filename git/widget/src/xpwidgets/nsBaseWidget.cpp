@@ -95,6 +95,7 @@ nsBaseWidget::nsBaseWidget()
 , mEventCallback(nsnull)
 , mContext(nsnull)
 , mToolkit(nsnull)
+, mMouseListener(nsnull)
 , mEventListener(nsnull)
 , mCursor(eCursor_standard)
 , mWindowType(eWindowType_child)
@@ -262,6 +263,7 @@ NS_METHOD nsBaseWidget::Destroy()
     parent->RemoveChild(this);
   }
   // disconnect listeners.
+  NS_IF_RELEASE(mMouseListener);
   NS_IF_RELEASE(mEventListener);
 
   return NS_OK;
@@ -704,12 +706,25 @@ NS_METHOD nsBaseWidget::SetBorderStyle(nsBorderStyle aBorderStyle)
 
 
 /**
-* Sets the event listener for a widget
+* Processes a mouse pressed event
+*
+**/
+NS_METHOD nsBaseWidget::AddMouseListener(nsIMouseListener * aListener)
+{
+  NS_PRECONDITION(mMouseListener == nsnull, "Null mouse listener");
+  NS_IF_RELEASE(mMouseListener);
+  NS_ADDREF(aListener);
+  mMouseListener = aListener;
+  return NS_OK;
+}
+
+/**
+* Processes a mouse pressed event
 *
 **/
 NS_METHOD nsBaseWidget::AddEventListener(nsIEventListener * aListener)
 {
-  NS_PRECONDITION(mEventListener == nsnull, "Null event listener");
+  NS_PRECONDITION(mEventListener == nsnull, "Null mouse listener");
   NS_IF_RELEASE(mEventListener);
   NS_ADDREF(aListener);
   mEventListener = aListener;

@@ -394,12 +394,11 @@ namespace avmplus
         static AvmConfiguration config;
         static GC* gc;
         static String* k_str[];
-        static bool sse2_available;
 
         static inline bool
         use_sse2()
         {
-            return sse2_available;
+            return true;
         }
 
         static inline bool

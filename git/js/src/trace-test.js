@@ -835,45 +835,18 @@ function stringSplitIntoArrayTest()
 stringSplitIntoArrayTest.expected="a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b";
 test(stringSplitIntoArrayTest);
 
-function forVarInWith() {
-    function foo() ({notk:42});
-    function bar() ({p:1, q:2, r:3, s:4, t:5});
-    var o = foo();
-    var a = [];
-    with (o) {
-        for (var k in bar())
-            a[a.length] = k;
+function innerLoopIntOuterDouble() {
+    var n = 10000, i=0, j=0, count=0, limit=0;
+    for (i = 1; i <= n; ++i) {
+	limit = i * 1;
+	for (j = 0; j < limit; ++j) {
+	    ++count;
+	}
     }
-    return a.join("");
+    return "" + count;
 }
-forVarInWith.expected = "pqrst";
-test(forVarInWith);
-
-function inObjectTest() {
-    var o = {p: 1, q: 2, r: 3, s: 4, t: 5};
-    var r = 0;
-    for (var i in o) {
-        if (!(i in o))
-            break;
-        if ((i + i) in o)
-            break;
-        ++r;
-    }
-    return r;
-}
-inObjectTest.expected = 5;
-test(inObjectTest);
-
-function inArrayTest() {
-    var a = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-    for (var i = 0; i < a.length; i++) {
-        if (!(i in a))
-            break;
-    }
-    return i;
-}
-inArrayTest.expected = 10;
-test(inArrayTest);
+innerLoopIntOuterDouble.expected="50005000";
+test(innerLoopIntOuterDouble);
 
 /* Keep these at the end so that we can see the summary after the trace-debug spew. */
 print("\npassed:", passes.length && passes.join(","));

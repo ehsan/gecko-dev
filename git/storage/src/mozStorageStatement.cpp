@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: sw=4 ts=4 sts=4 expandtab
+ * vim: sw=4 ts=4 sts=4
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -87,11 +87,7 @@ protected:
  ** mozStorageStatement
  **/
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(
-    mozStorageStatement
-,   mozIStorageStatement
-,   mozIStorageValueArray
-)
+NS_IMPL_ISUPPORTS2(mozStorageStatement, mozIStorageStatement, mozIStorageValueArray)
 
 mozStorageStatement::mozStorageStatement()
     : mDBConnection (nsnull), mDBStatement(nsnull), mColumnNames(nsnull), mExecuting(PR_FALSE)
@@ -113,18 +109,25 @@ mozStorageStatement::Initialize(mozStorageConnection *aDBConnection,
     sqlite3 *db = aDBConnection->GetNativeConnection();
     NS_ENSURE_TRUE(db != nsnull, NS_ERROR_NULL_POINTER);
 
+    int nRetries = 0;
     int srv;
-    // We pass Length() + 1 to sqlite because it checks if the sql string it is
-    // given contains '\0' at the specified length.  If it does contain '\0', it
-    // will not copy the string.
-    srv = sqlite3_prepare_v2(db, PromiseFlatCString(aSQLStatement).get(),
-                             aSQLStatement.Length() + 1, &mDBStatement, NULL);
-    if (srv != SQLITE_OK) {
+    while (nRetries < 2) {
+        srv = sqlite3_prepare_v2(db, nsPromiseFlatCString(aSQLStatement).get(),
+                                 aSQLStatement.Length(), &mDBStatement, NULL);
+        if ((srv == SQLITE_SCHEMA && nRetries != 0) ||
+            (srv != SQLITE_SCHEMA && srv != SQLITE_OK))
+        {
 #ifdef PR_LOGGING
-        PR_LOG(gStorageLog, PR_LOG_ERROR, ("Sqlite statement prepare error: %d '%s'", srv, sqlite3_errmsg(db)));
-        PR_LOG(gStorageLog, PR_LOG_ERROR, ("Statement was: '%s'", nsPromiseFlatCString(aSQLStatement).get()));
+            PR_LOG(gStorageLog, PR_LOG_ERROR, ("Sqlite statement prepare error: %d '%s'", srv, sqlite3_errmsg(db)));
+            PR_LOG(gStorageLog, PR_LOG_ERROR, ("Statement was: '%s'", nsPromiseFlatCString(aSQLStatement).get()));
 #endif
-        return NS_ERROR_FAILURE;
+            return NS_ERROR_FAILURE;
+        }
+
+        if (srv == SQLITE_OK)
+            break;
+
+        nRetries++;
     }
 
     mDBConnection = aDBConnection;
@@ -171,6 +174,12 @@ mozStorageStatement::Initialize(mozStorageConnection *aDBConnection,
         e = end;
     }
 #endif
+
+    // doing a sqlite3_prepare sets up the execution engine
+    // for that statement; doing a create_function after that
+    // results in badness, because there's a selected statement.
+    // use this hack to clear it out -- this may be a bug.
+    sqlite3_exec (db, "", 0, 0, 0);
 
     return NS_OK;
 }

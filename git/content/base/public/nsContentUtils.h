@@ -101,7 +101,6 @@ struct JSRuntime;
 class nsICaseConversion;
 class nsIUGenCategory;
 class nsIWidget;
-class nsIDragSession;
 class nsPIDOMWindow;
 #ifdef MOZ_XTF
 class nsIXTFService;
@@ -806,6 +805,11 @@ public:
   static PRBool IsChromeDoc(nsIDocument *aDocument);
 
   /**
+   * Notify XPConnect if an exception is pending on aCx.
+   */
+  static void NotifyXPCIfExceptionPending(JSContext *aCx);
+
+  /**
    * Release *aSupportsPtr when the shutdown notification is received
    */
   static nsresult ReleasePtrOnShutdown(nsISupports** aSupportsPtr) {
@@ -1215,11 +1219,6 @@ public:
   static void HidePopupsInDocument(nsIDocument* aDocument);
 
   /**
-   * Retrieve the current drag session, or null if no drag is currently occuring
-   */
-  static already_AddRefed<nsIDragSession> GetDragSession();
-
-  /**
    * Return true if aURI is a local file URI (i.e. file://).
    */
   static PRBool URIIsLocalFile(nsIURI *aURI);
@@ -1244,11 +1243,6 @@ public:
    * Check whether an application should be allowed to use offline APIs.
    */
   static PRBool OfflineAppAllowed(nsIURI *aURI);
-
-  /**
-   * Check whether an application should be allowed to use offline APIs.
-   */
-  static PRBool OfflineAppAllowed(nsIPrincipal *aPrincipal);
 
   /**
    * Increases the count of blockers preventing scripts from running.

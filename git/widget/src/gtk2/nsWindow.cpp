@@ -523,21 +523,6 @@ nsWindow::Destroy(void)
         mDragMotionTimerID = 0;
     }
 
-    if (mDrawingarea) {
-        g_object_set_data(G_OBJECT(mDrawingarea->clip_window),
-                          "nsWindow", NULL);
-        g_object_set_data(G_OBJECT(mDrawingarea->inner_window),
-                          "nsWindow", NULL);
-
-        g_object_set_data(G_OBJECT(mDrawingarea->clip_window),
-                          "mozdrawingarea", NULL);
-        g_object_set_data(G_OBJECT(mDrawingarea->inner_window),
-                          "mozdrawingarea", NULL);
-
-        g_object_unref(mDrawingarea);
-        mDrawingarea = nsnull;
-    }
-
     if (mShell) {
         gtk_widget_destroy(mShell);
         mShell = nsnull;
@@ -546,6 +531,11 @@ nsWindow::Destroy(void)
     else if (mContainer) {
         gtk_widget_destroy(GTK_WIDGET(mContainer));
         mContainer = nsnull;
+    }
+
+    if (mDrawingarea) {
+        g_object_unref(mDrawingarea);
+        mDrawingarea = nsnull;
     }
 
     OnDestroy();
@@ -569,18 +559,6 @@ nsWindow::SetParent(nsIWidget *aNewParent)
     NS_ASSERTION(newParentWindow, "Parent widget has a null native window handle");
 
     if (!mShell && mDrawingarea) {
-#ifdef DEBUG
-        if (!mContainer) {
-            // Check that the new Parent window has the same MozContainer
-            gpointer old_container;
-            gdk_window_get_user_data(mDrawingarea->inner_window,
-                                     &old_container);
-            gpointer new_container;
-            gdk_window_get_user_data(newParentWindow, &new_container);
-            NS_ASSERTION(old_container == new_container,
-                         "FIXME: Wrong MozContainer on MozDrawingarea");
-        }
-#endif
         moz_drawingarea_reparent(mDrawingarea, newParentWindow);
     } else {
         NS_NOTREACHED("nsWindow::SetParent - reparenting a non-child window");
@@ -853,7 +831,8 @@ nsWindow::SetFocus(PRBool aRaise)
     if (!mDrawingarea)
         return NS_ERROR_FAILURE;
 
-    GtkWidget *owningWidget = GetMozContainerWidget();
+    GtkWidget *owningWidget =
+        get_gtk_widget_for_gdk_window(mDrawingarea->inner_window);
     if (!owningWidget)
         return NS_ERROR_FAILURE;
 
@@ -978,8 +957,9 @@ nsWindow::SetCursor(nsCursor aCursor)
     // if we're not the toplevel window pass up the cursor request to
     // the toplevel window to handle it.
     if (!mContainer && mDrawingarea) {
-        nsWindow *window;
-        GetContainerWindow(&window);
+        GtkWidget *widget =
+            get_gtk_widget_for_gdk_window(mDrawingarea->inner_window);
+        nsWindow *window = get_window_for_gtk_widget(widget);
         return window->SetCursor(aCursor);
     }
 
@@ -1059,8 +1039,9 @@ nsWindow::SetCursor(imgIContainer* aCursor,
     // if we're not the toplevel window pass up the cursor request to
     // the toplevel window to handle it.
     if (!mContainer && mDrawingarea) {
-        nsWindow *window;
-        GetContainerWindow(&window);
+        GtkWidget *widget =
+            get_gtk_widget_for_gdk_window(mDrawingarea->inner_window);
+        nsWindow *window = get_window_for_gtk_widget(widget);
         return window->SetCursor(aCursor, aHotspotX, aHotspotY);
     }
 
@@ -1541,7 +1522,8 @@ nsWindow::CaptureMouse(PRBool aCapture)
     if (!mDrawingarea)
         return NS_OK;
 
-    GtkWidget *widget = GetMozContainerWidget();
+    GtkWidget *widget =
+        get_gtk_widget_for_gdk_window(mDrawingarea->inner_window);
 
     if (aCapture) {
         gtk_grab_add(widget);
@@ -1563,7 +1545,8 @@ nsWindow::CaptureRollupEvents(nsIRollupListener *aListener,
     if (!mDrawingarea)
         return NS_OK;
 
-    GtkWidget *widget = GetMozContainerWidget();
+    GtkWidget *widget =
+        get_gtk_widget_for_gdk_window(mDrawingarea->inner_window);
 
     LOG(("CaptureRollupEvents %p\n", (void *)this));
 
@@ -1624,9 +1607,8 @@ nsWindow::LoseFocus(void)
     LOGFOCUS(("  widget lost focus [%p]\n", (void *)this));
 }
 
-#if 0
 #ifdef DEBUG
-// Paint flashing code (disabled for cairo - see below)
+// Paint flashing code
 
 #define CAPS_LOCK_IS_ON \
 (gdk_keyboard_get_modifiers() & GDK_LOCK_MASK)
@@ -1696,7 +1678,6 @@ gdk_window_flash(GdkWindow *    aGdkWindow,
 }
 #endif /* MOZ_X11 */
 #endif // DEBUG
-#endif
 
 gboolean
 nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
@@ -2939,7 +2920,8 @@ nsWindow::OnDragMotionEvent(GtkWidget *aWidget,
 
     dragService->FireDragEventAtSource(NS_DRAGDROP_DRAG);
 
-    nsDragEvent event(PR_TRUE, NS_DRAGDROP_OVER, innerMostWidget);
+    nsMouseEvent event(PR_TRUE, NS_DRAGDROP_OVER, innerMostWidget,
+                       nsMouseEvent::eReal);
 
     InitDragEvent(event);
 
@@ -3047,7 +3029,8 @@ nsWindow::OnDragDropEvent(GtkWidget *aWidget,
     // re-validate the drag target and then we do the drop.  The events
     // look the same except for the type.
 
-    nsDragEvent event(PR_TRUE, NS_DRAGDROP_OVER, innerMostWidget);
+    nsMouseEvent event(PR_TRUE, NS_DRAGDROP_OVER, innerMostWidget,
+                       nsMouseEvent::eReal);
 
     InitDragEvent(event);
 
@@ -3065,11 +3048,11 @@ nsWindow::OnDragDropEvent(GtkWidget *aWidget,
     // only protects innerMostWidget from being deleted, it does NOT protect
     // against nsView::~nsView() calling Destroy() on it, bug 378670.
     if (!innerMostWidget->mIsDestroyed) {
-        nsDragEvent event(PR_TRUE, NS_DRAGDROP_DROP, innerMostWidget);
+        event.message = NS_DRAGDROP_DROP;
+        event.widget = innerMostWidget;
         event.refPoint.x = retx;
         event.refPoint.y = rety;
 
-        nsEventStatus status = nsEventStatus_eIgnore;
         innerMostWidget->DispatchEvent(&event, status);
     }
 
@@ -3118,7 +3101,7 @@ nsWindow::OnDragLeave(void)
 {
     LOG(("nsWindow::OnDragLeave(%p)\n", this));
 
-    nsDragEvent event(PR_TRUE, NS_DRAGDROP_EXIT, this);
+    nsMouseEvent event(PR_TRUE, NS_DRAGDROP_EXIT, this, nsMouseEvent::eReal);
 
     nsEventStatus status;
     DispatchEvent(&event, status);
@@ -3158,7 +3141,7 @@ nsWindow::OnDragEnter(nscoord aX, nscoord aY)
         dragService->StartDragSession();
     }
 
-    nsDragEvent event(PR_TRUE, NS_DRAGDROP_ENTER, this);
+    nsMouseEvent event(PR_TRUE, NS_DRAGDROP_ENTER, this, nsMouseEvent::eReal);
 
     event.refPoint.x = aX;
     event.refPoint.y = aY;
@@ -4161,20 +4144,12 @@ nsWindow::GetToplevelWidget(GtkWidget **aWidget)
     if (!mDrawingarea)
         return;
 
-    GtkWidget *widget = GetMozContainerWidget();
+    GtkWidget *widget =
+        get_gtk_widget_for_gdk_window(mDrawingarea->inner_window);
     if (!widget)
         return;
 
     *aWidget = gtk_widget_get_toplevel(widget);
-}
-
-GtkWidget *
-nsWindow::GetMozContainerWidget()
-{
-    GtkWidget *owningWidget =
-        get_gtk_widget_for_gdk_window(mDrawingarea->inner_window);
-    NS_ASSERTION(IS_MOZ_CONTAINER(owningWidget), "Lost our MozContainer");
-    return owningWidget;
 }
 
 void
@@ -4183,10 +4158,10 @@ nsWindow::GetContainerWindow(nsWindow **aWindow)
     if (!mDrawingarea)
         return;
 
-    GtkWidget *owningWidget = GetMozContainerWidget();
+    GtkWidget *owningWidget =
+        get_gtk_widget_for_gdk_window(mDrawingarea->inner_window);
 
     *aWindow = get_window_for_gtk_widget(owningWidget);
-    NS_ASSERTION(*aWindow, "Lost our Container Window");
 }
 
 void
@@ -5153,7 +5128,7 @@ theme_changed_cb (GtkSettings *settings, GParamSpec *pspec, nsWindow *data)
 // These are all of our drag and drop operations
 
 void
-nsWindow::InitDragEvent(nsDragEvent &aEvent)
+nsWindow::InitDragEvent(nsMouseEvent &aEvent)
 {
     // set the keyboard modifiers
     gint x, y;
@@ -5170,7 +5145,7 @@ nsWindow::InitDragEvent(nsDragEvent &aEvent)
 // and what the source is offering.
 
 void
-nsWindow::UpdateDragStatus(nsDragEvent   &aEvent,
+nsWindow::UpdateDragStatus(nsMouseEvent   &aEvent,
                            GdkDragContext *aDragContext,
                            nsIDragService *aDragService)
 {

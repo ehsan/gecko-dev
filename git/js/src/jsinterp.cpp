@@ -3127,23 +3127,6 @@ js_Interpret(JSContext *cx)
         }                                                                     \
     JS_END_MACRO
 
-#define TRY_BRANCH_AFTER_COND(cond,spdec)                                     \
-    JS_BEGIN_MACRO                                                            \
-        uintN diff_;                                                          \
-        JS_ASSERT(js_CodeSpec[op].length == 1);                               \
-        diff_ = (uintN) regs.pc[1] - (uintN) JSOP_IFEQ;                       \
-        if (diff_ <= 1) {                                                     \
-            regs.sp -= spdec;                                                 \
-            if (cond == (diff_ != 0)) {                                       \
-                ++regs.pc;                                                    \
-                len = GET_JUMP_OFFSET(regs.pc);                               \
-                BRANCH(len);                                                  \
-            }                                                                 \
-            len = 1 + JSOP_IFEQ_LENGTH;                                       \
-            DO_NEXT_OP(len);                                                  \
-        }                                                                     \
-    JS_END_MACRO
-
           BEGIN_CASE(JSOP_IN)
             rval = FETCH_OPND(-1);
             if (JSVAL_IS_PRIMITIVE(rval)) {
@@ -3154,12 +3137,10 @@ js_Interpret(JSContext *cx)
             FETCH_ELEMENT_ID(obj, -2, id);
             if (!OBJ_LOOKUP_PROPERTY(cx, obj, id, &obj2, &prop))
                 goto error;
-            cond = prop != NULL;
+            regs.sp--;
+            STORE_OPND(-1, BOOLEAN_TO_JSVAL(prop != NULL));
             if (prop)
                 OBJ_DROP_PROPERTY(cx, obj2, prop);
-            TRY_BRANCH_AFTER_COND(cond, 2);
-            regs.sp--;
-            STORE_OPND(-1, BOOLEAN_TO_JSVAL(cond));
           END_CASE(JSOP_IN)
 
           BEGIN_CASE(JSOP_ITER)
@@ -3502,6 +3483,23 @@ js_Interpret(JSContext *cx)
           BEGIN_CASE(JSOP_BITAND)
             BITWISE_OP(&);
           END_CASE(JSOP_BITAND)
+
+#define TRY_BRANCH_AFTER_COND(cond,spdec)                                     \
+    JS_BEGIN_MACRO                                                            \
+        uintN diff_;                                                          \
+        JS_ASSERT(js_CodeSpec[op].length == 1);                               \
+        diff_ = (uintN) regs.pc[1] - (uintN) JSOP_IFEQ;                       \
+        if (diff_ <= 1) {                                                     \
+            regs.sp -= spdec;                                                 \
+            if (cond == (diff_ != 0)) {                                       \
+                ++regs.pc;                                                    \
+                len = GET_JUMP_OFFSET(regs.pc);                               \
+                BRANCH(len);                                                  \
+            }                                                                 \
+            len = 1 + JSOP_IFEQ_LENGTH;                                       \
+            DO_NEXT_OP(len);                                                  \
+        }                                                                     \
+    JS_END_MACRO
 
 #define RELATIONAL_OP(OP)                                                     \
     JS_BEGIN_MACRO                                                            \
@@ -4444,6 +4442,7 @@ js_Interpret(JSContext *cx)
                             JS_ASSERT(PCVAL_IS_SPROP(entry->vword));
                             sprop = PCVAL_TO_SPROP(entry->vword);
                             JS_ASSERT(!(sprop->attrs & JSPROP_READONLY));
+                            JS_ASSERT(!(sprop->attrs & JSPROP_SHARED));
                             JS_ASSERT(!SCOPE_IS_SEALED(OBJ_SCOPE(obj)));
 
                             if (scope->object == obj) {
@@ -5752,7 +5751,30 @@ js_Interpret(JSContext *cx)
                                              ? JS_EXTENSION (JSPropertyOp) obj
                                              : JS_PropertyStub,
                                              attrs,
-                                             NULL);
+                                             &prop);
+
+                    /*
+                     * Try to optimize a property we either just created, or
+                     * found directly in the global object, that is permanent,
+                     * has a slot, and has stub getter and setter, into a
+                     * "fast global" accessed by the JSOP_*GVAR opcodes.
+                     */
+                    if (ok && index < script->nfixed) {
+                        JS_ASSERT(OBJ_IS_NATIVE(obj));
+                        sprop = (JSScopeProperty *) prop;
+                        if (SPROP_HAS_VALID_SLOT(sprop, OBJ_SCOPE(obj)) &&
+                            SPROP_HAS_STUB_GETTER(sprop) &&
+                            SPROP_HAS_STUB_SETTER(sprop)) {
+                            /*
+                             * Fast globals use fp->slots to map the global
+                             * name's atom index to the permanent fp->varobj
+                             * slot number, tagged as a jsval. The atom index
+                             * for the global's name literal is identical to
+                             * its fp->slots index.
+                             */
+                            fp->slots[index] = INT_TO_JSVAL(sprop->slot);
+                        }
+                    }
                 }
             }
 
@@ -6287,7 +6309,6 @@ js_Interpret(JSContext *cx)
           END_VARLEN_CASE
 
           BEGIN_CASE(JSOP_RETSUB)
-            /* Pop [exception or hole, retsub pc-index]. */
             rval = POP();
             lval = POP();
             JS_ASSERT(JSVAL_IS_BOOLEAN(lval));

@@ -1361,12 +1361,10 @@ JS_InitStandardClasses(JSContext *cx, JSObject *obj)
            js_InitDateClass(cx, obj);
 }
 
-#define CLASP(name)                 (&js_##name##Class)
-#define EXT_CLASP(name)             (&js_##name##Class.base)
+#define CLASP(name)                 ((JSClass *)&js_##name##Class)
 #define EAGER_ATOM(name)            ATOM_OFFSET(name), NULL
 #define EAGER_CLASS_ATOM(name)      CLASS_ATOM_OFFSET(name), NULL
 #define EAGER_ATOM_AND_CLASP(name)  EAGER_CLASS_ATOM(name), CLASP(name)
-#define EAGER_ATOM_AND_EXT_CLASP(name) EAGER_CLASS_ATOM(name), EXT_CLASP(name)
 #define LAZY_ATOM(name)             ATOM_OFFSET(lazy.name), js_##name##_str
 
 typedef struct JSStdName {
@@ -1417,8 +1415,8 @@ static JSStdName standard_class_atoms[] = {
 #endif
 #if JS_HAS_XML_SUPPORT
     {js_InitXMLClass,                   EAGER_ATOM_AND_CLASP(XML)},
-    {js_InitNamespaceClass,             EAGER_ATOM_AND_EXT_CLASP(Namespace)},
-    {js_InitQNameClass,                 EAGER_ATOM_AND_EXT_CLASP(QName)},
+    {js_InitNamespaceClass,             EAGER_ATOM_AND_CLASP(Namespace)},
+    {js_InitQNameClass,                 EAGER_ATOM_AND_CLASP(QName)},
 #endif
 #if JS_HAS_FILE_OBJECT
     {js_InitFileClass,                  EAGER_ATOM_AND_CLASP(File)},
@@ -2097,6 +2095,14 @@ JS_PrintTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc,
         break;
 
 #if JS_HAS_XML_SUPPORT
+      case JSTRACE_NAMESPACE:
+        name = "namespace";
+        break;
+
+      case JSTRACE_QNAME:
+        name = "qname";
+        break;
+
       case JSTRACE_XML:
         name = "xml";
         break;
@@ -2158,6 +2164,48 @@ JS_PrintTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc,
             break;
 
 #if JS_HAS_XML_SUPPORT
+          case JSTRACE_NAMESPACE:
+          {
+            JSXMLNamespace *ns = (JSXMLNamespace *)thing;
+
+            if (ns->prefix) {
+                n = js_PutEscapedString(buf, bufsize, ns->prefix, 0);
+                buf += n;
+                bufsize -= n;
+            }
+            if (bufsize > 2) {
+                *buf++ = ':';
+                bufsize--;
+                js_PutEscapedString(buf, bufsize, ns->uri, 0);
+            }
+            break;
+          }
+
+          case JSTRACE_QNAME:
+          {
+            JSXMLQName *qn = (JSXMLQName *)thing;
+
+            if (qn->prefix) {
+                n = js_PutEscapedString(buf, bufsize, qn->prefix, 0);
+                buf += n;
+                bufsize -= n;
+            }
+            if (bufsize > 2) {
+                *buf++ = '(';
+                bufsize--;
+                n = js_PutEscapedString(buf, bufsize, qn->uri, 0);
+                buf += n;
+                bufsize -= n;
+                if (bufsize > 3) {
+                    *buf++ = ')';
+                    *buf++ = ':';
+                    bufsize -= 2;
+                    js_PutEscapedString(buf, bufsize, qn->localName, 0);
+                }
+            }
+            break;
+          }
+
           case JSTRACE_XML:
           {
             extern const char *js_xml_class_str[];
@@ -4303,7 +4351,6 @@ JS_ObjectIsFunction(JSContext *cx, JSObject *obj)
     return OBJ_GET_CLASS(cx, obj) == &js_FunctionClass;
 }
 
-JS_BEGIN_EXTERN_C
 JS_STATIC_DLL_CALLBACK(JSBool)
 js_generic_fast_native_method_dispatcher(JSContext *cx, uintN argc, jsval *vp)
 {
@@ -4414,7 +4461,6 @@ js_generic_native_method_dispatcher(JSContext *cx, JSObject *obj,
 
     return fs->call(cx, JSVAL_TO_OBJECT(argv[-1]), argc, argv, rval);
 }
-JS_END_EXTERN_C
 
 JS_PUBLIC_API(JSBool)
 JS_DefineFunctions(JSContext *cx, JSObject *obj, JSFunctionSpec *fs)
@@ -5003,10 +5049,8 @@ JS_EvaluateUCScriptForPrincipals(JSContext *cx, JSObject *obj,
                               ? TCF_COMPILE_N_GO | TCF_NO_SCRIPT_RVAL
                               : TCF_COMPILE_N_GO,
                               chars, length, NULL, filename, lineno);
-    if (!script) {
-        LAST_FRAME_CHECKS(cx, script);
+    if (!script)
         return JS_FALSE;
-    }
     ok = js_Execute(cx, obj, script, NULL, 0, rval);
     LAST_FRAME_CHECKS(cx, ok);
     JS_DestroyScript(cx, script);

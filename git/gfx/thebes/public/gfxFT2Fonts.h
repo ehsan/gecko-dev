@@ -53,11 +53,13 @@ typedef struct FT_FaceRec_* FT_Face;
  * and character map info.
  */
 class FontEntry;
-class FontFamily : public gfxFontFamily
+class FontFamily
 {
 public:
+    THEBES_INLINE_DECL_REFCOUNTING(FontFamily)
+
     FontFamily(const nsAString& aName) :
-        gfxFontFamily(aName) { }
+        mName(aName) { }
 
     FontEntry *FindFontEntry(const gfxFontStyle& aFontStyle);
 
@@ -66,17 +68,14 @@ public:
     nsString mName;
 };
 
-class FontEntry : public gfxFontEntry
+class FontEntry
 {
 public:
-    FontEntry(const nsAString& aFaceName) :
-        gfxFontEntry(aFaceName)
-    {
-        mFontFace = nsnull;
-        mFTFontIndex = 0;
-        mUnicodeFont = PR_FALSE;
-        mSymbolFont = PR_FALSE;
-    }
+    THEBES_INLINE_DECL_REFCOUNTING(FontEntry)
+
+    FontEntry(const nsString& aFaceName) : 
+        mFontFace(nsnull), mFaceName(aFaceName), mFTFontIndex(0), mUnicodeFont(PR_FALSE), mSymbolFont(PR_FALSE)
+    { }
 
     FontEntry(const FontEntry& aFontEntry);
     ~FontEntry();
@@ -93,8 +92,14 @@ public:
     nsCString mFilename;
     PRUint8 mFTFontIndex;
 
+    PRPackedBool mUnicodeFont : 1;
+    PRPackedBool mSymbolFont  : 1;
     PRPackedBool mTrueType    : 1;
     PRPackedBool mIsType1     : 1;
+    PRPackedBool mItalic      : 1;
+    PRUint16 mWeight;
+
+    gfxSparseBitSet mCharacterMap;
 };
 
 
@@ -114,7 +119,7 @@ public: // new functions
     virtual nsString GetUniqueName();
     virtual PRUint32 GetSpaceGlyph();
 
-    FontEntry *GetFontEntry();
+    FontEntry *GetFontEntry() { return mFontEntry; }
 private:
     cairo_scaled_font_t *mScaledFont;
 
@@ -123,6 +128,8 @@ private:
     PRBool mHasMetrics;
     Metrics mMetrics;
     gfxFloat mAdjustedSize;
+
+    nsRefPtr<FontEntry> mFontEntry;
 };
 
 class THEBES_API gfxFT2FontGroup : public gfxFontGroup {

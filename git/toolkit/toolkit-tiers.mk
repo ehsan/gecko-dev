@@ -189,7 +189,17 @@ endif
 # "toolkit" was.
 #
 
-tier_toolkit_dirs += chrome profile
+ifdef MOZ_XUL_APP
+tier_toolkit_dirs += chrome
+else
+ifdef MOZ_XUL
+tier_toolkit_dirs += rdf/chrome
+else
+tier_toolkit_dirs += embedding/minimo/chromelite
+endif
+endif
+
+tier_toolkit_dirs += profile
 
 # This must preceed xpfe
 ifdef MOZ_JPROF
@@ -205,6 +215,10 @@ tier_toolkit_dirs	+= \
 	toolkit/components \
 	$(NULL)
 
+ifndef MOZ_XUL_APP
+tier_toolkit_dirs += themes
+endif
+
 ifdef MOZ_ENABLE_XREMOTE
 tier_toolkit_dirs += widget/src/xremoteclient
 endif
@@ -213,7 +227,9 @@ ifdef MOZ_SPELLCHECK
 tier_toolkit_dirs	+= extensions/spellcheck
 endif
 
+ifdef MOZ_XUL_APP
 tier_toolkit_dirs	+= toolkit
+endif
 
 ifdef MOZ_XPINSTALL
 tier_toolkit_dirs     +=  xpinstall
@@ -235,13 +251,17 @@ tier_toolkit_dirs += extensions/java/xpcom/src
 endif
 
 ifndef BUILD_STATIC_LIBS
+ifdef MOZ_XUL_APP
 ifneq (,$(MOZ_ENABLE_GTK2))
 tier_toolkit_dirs += embedding/browser/gtk
 endif
 endif
+endif
 
+ifdef MOZ_XUL_APP
 ifndef BUILD_STATIC_LIBS
 tier_toolkit_dirs += toolkit/library
+endif
 endif
 
 ifdef MOZ_ENABLE_LIBXUL

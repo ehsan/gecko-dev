@@ -42,7 +42,7 @@ srcdir		= @srcdir@
 VPATH		= @srcdir@
 
 MODULE		= pipnss
-DIRS		= src public
+DIRS		= resources src public
 
 XPCSHELL_TESTS  = tests
 

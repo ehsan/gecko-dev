@@ -144,7 +144,7 @@ public:
   RuleProcessorData* mParentData;
 
 protected:
-  nsString *mLanguage; // NULL means we haven't found out the language yet
+  nsAutoString *mLanguage; // NULL means we haven't found out the language yet
 
   // This node's index for :nth-child(), :nth-last-child(),
   // :nth-of-type(), :nth-last-of-type().  If -2, needs to be computed.

@@ -235,7 +235,6 @@
 #include "nsIDOMKeyEvent.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsIDOMMouseScrollEvent.h"
-#include "nsIDOMDragEvent.h"
 #include "nsIDOMCommandEvent.h"
 #include "nsIDOMPopupBlockedEvent.h"
 #include "nsIDOMBeforeUnloadEvent.h"
@@ -450,9 +449,6 @@
 #include "nsIDOMStorageEvent.h"
 #include "nsIDOMToString.h"
 
-// Drag and drop
-#include "nsIDOMDataTransfer.h"
-
 // Offline includes
 #include "nsIDOMLoadStatusList.h"
 #include "nsIDOMLoadStatus.h"
@@ -656,8 +652,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(MouseEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(MouseScrollEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(DragEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(KeyboardEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
@@ -1287,11 +1281,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
   // DOM Traversal NodeIterator class  
   NS_DEFINE_CLASSINFO_DATA(NodeIterator, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-
-  // data transfer for drag and drop
-  NS_DEFINE_CLASSINFO_DATA(DataTransfer, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-
 };
 
 // Objects that shuld be constructable through |new Name();|
@@ -2130,11 +2119,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(MouseScrollEvent, nsIDOMMouseScrollEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMouseScrollEvent)
-    DOM_CLASSINFO_UI_EVENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(DragEvent, nsIDOMDragEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMDragEvent)
     DOM_CLASSINFO_UI_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
@@ -3509,7 +3493,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLAudioElement)
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
-
 #endif
   DOM_CLASSINFO_MAP_BEGIN(ProgressEvent, nsIDOMProgressEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMProgressEvent)
@@ -3520,11 +3503,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIXMLHttpRequestEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIXMLHttpRequestUpload)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(DataTransfer, nsIDOMDataTransfer)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMDataTransfer)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSDataTransfer)
   DOM_CLASSINFO_MAP_END
 
 #ifdef NS_DEBUG
@@ -3845,8 +3823,7 @@ nsDOMClassInfo::PostCreate(nsIXPConnectWrappedNative *wrapper,
   // be calling nsWindowSH::GlobalResolve directly.
   JSObject *global = ::JS_GetGlobalForObject(cx, obj);
   jsval val;
-  if (!::JS_LookupPropertyWithFlags(cx, global, mData->mName,
-                                    JSRESOLVE_CLASSNAME, &val)) {
+  if (!::JS_LookupProperty(cx, global, mData->mName, &val)) {
     return NS_ERROR_UNEXPECTED;
   }
 
@@ -4080,25 +4057,6 @@ nsDOMClassInfo::InnerObject(nsIXPConnectWrappedNative *wrapper, JSContext * cx,
   NS_WARNING("nsDOMClassInfo::InnerObject Don't call me!");
 
   return NS_ERROR_UNEXPECTED;
-}
-
-NS_IMETHODIMP
-nsDOMClassInfo::PostCreatePrototype(JSContext * cx, JSObject * proto)
-{
-  PRUint32 flags = (mData->mScriptableFlags & DONT_ENUM_STATIC_PROPS)
-                   ? 0
-                   : JSPROP_ENUMERATE;
-
-  PRUint32 count = 0;
-  while (mData->mInterfaces[count]) {
-    count++;
-  }
-
-  if (!sXPConnect->DefineDOMQuickStubs(cx, proto, flags,
-                                       count, mData->mInterfaces)) {
-    JS_ClearPendingException(cx);
-  }
-  return NS_OK;
 }
 
 // static
@@ -8214,8 +8172,6 @@ nsHTMLDocumentSH::DocumentAllGetProperty(JSContext *cx, JSObject *obj,
       }
 
       *vp = INT_TO_JSVAL(length);
-
-      return JS_TRUE;
     } else if (id != sTags_id) {
       // For all other strings, look for an element by id or name.
 
@@ -8229,7 +8185,7 @@ nsHTMLDocumentSH::DocumentAllGetProperty(JSContext *cx, JSObject *obj,
         return JS_FALSE;
       }
     }
-  } else if (JSVAL_IS_INT(id) && JSVAL_TO_INT(id) >= 0) {
+  } else if (JSVAL_TO_INT(id) >= 0) {
     // Map document.all[n] (where n is a number) to the n:th item in
     // the document.all node list.
 

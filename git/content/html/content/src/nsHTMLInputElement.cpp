@@ -1997,25 +1997,23 @@ nsHTMLInputElement::ParseAttribute(PRInt32 aNamespaceID,
         newType = NS_FORM_INPUT_TEXT;
       }
 
-      if (newType != mType) {
-        // Make sure to do the check for newType being NS_FORM_INPUT_FILE and
-        // the corresponding SetValueInternal() call _before_ we set mType.
-        // That way the logic in SetValueInternal() will work right (that logic
-        // makes assumptions about our frame based on mType, but we won't have
-        // had time to recreate frames yet -- that happens later in the
-        // SetAttr() process).
-        if (newType == NS_FORM_INPUT_FILE) {
-          // These calls aren't strictly needed any more since we'll never
-          // confuse values and filenames. However they're there for backwards
-          // compat.
-          SetFileName(EmptyString());
-          SetValueInternal(EmptyString(), nsnull, PR_FALSE);
-        } else if (mType == NS_FORM_INPUT_FILE) {
-          SetFileName(EmptyString());
-        }
-
-        mType = newType;
+      // Make sure to do the check for newType being NS_FORM_INPUT_FILE and the
+      // corresponding SetValueInternal() call _before_ we set mType.  That way
+      // the logic in SetValueInternal() will work right (that logic makes
+      // assumptions about our frame based on mType, but we won't have had time
+      // to recreate frames yet -- that happens later in the SetAttr()
+      // process).
+      if (newType == NS_FORM_INPUT_FILE) {
+        // These calls aren't strictly needed any more since we'll never
+        // confuse values and filenames. However they're there for backwards
+        // compat.
+        SetFileName(EmptyString());
+        SetValueInternal(EmptyString(), nsnull, PR_FALSE);
+      } else if (mType == NS_FORM_INPUT_FILE) {
+        SetFileName(EmptyString());
       }
+
+      mType = newType;
 
       return success;
     }

@@ -664,8 +664,7 @@ protected:
   enum MatchType {
     MATCH_ANYWHERE,
     MATCH_BOUNDARY_ANYWHERE,
-    MATCH_BOUNDARY,
-    MATCH_BEGINNING
+    MATCH_BOUNDARY
   };
 
   nsresult InitAutoComplete();

@@ -47,7 +47,7 @@
 
 interface nsIDOMElement;
 
-[scriptable, uuid(9a1ff4e0-5e31-46af-b393-2cbab8093442)]
+[scriptable, uuid(ee6500aa-fd51-4b89-801f-d4fbf2663beb)]
 interface nsIDOMWindowUtils : nsISupports {
 
   /**
@@ -168,17 +168,11 @@ interface nsIDOMWindowUtils : nsISupports {
    * @param aKeyCode key code
    * @param aCharCode character code
    * @param aModifiers modifiers pressed, using constants defined in nsIDOMNSEvent
-   * @param aPreventDefault if true, preventDefault() the event before dispatch
-   *
-   * @return false if the event had preventDefault() called on it,
-   *               true otherwise.  In other words, true if and only if the
-   *               default action was taken.
    */
-  boolean sendKeyEvent(in AString aType,
-                       in long aKeyCode,
-                       in long aCharCode,
-                       in long aModifiers,
-                       [optional] in boolean aPreventDefault);
+  void sendKeyEvent(in AString aType,
+                    in long aKeyCode,
+                    in long aCharCode,
+                    in long aModifiers);
 
   /**
    * See nsIWidget::SynthesizeNativeKeyEvent
@@ -233,10 +227,4 @@ interface nsIDOMWindowUtils : nsISupports {
    * privileges in non-debug builds. Available to all callers in debug builds.
    */
   void garbageCollect();
-
-  /**
-   * Force processing of any queued paints
-   */
-
-  void processUpdates();
 };

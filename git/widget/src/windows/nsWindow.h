@@ -50,6 +50,7 @@
 
 #include "nsIWidget.h"
 
+#include "nsIMouseListener.h"
 #include "nsIEventListener.h"
 #include "nsString.h"
 
@@ -106,13 +107,6 @@ const LPCSTR kClassNameContent        = "MozillaContentWindowClass";
 const LPCSTR kClassNameContentFrame   = "MozillaContentFrameWindowClass";
 const LPCSTR kClassNameGeneral        = "MozillaWindowClass";
 const LPCSTR kClassNameDialog         = "MozillaDialogClass";
-
-typedef enum
-{
-    TRI_UNKNOWN = -1,
-    TRI_FALSE = 0,
-    TRI_TRUE = 1
-} TriStateBool;
 
 /**
  * Native WIN32 window wrapper.
@@ -422,7 +416,7 @@ protected:
   // For describing composing frame
   static RECT*      sIMECompCharPos;
 
-  static TriStateBool sCanQuit;
+  static PRBool     sIsInEndSession;
 
   nsSize        mLastSize;
   static        nsWindow* gCurrentWindow;

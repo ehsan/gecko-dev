@@ -1147,10 +1147,8 @@ js_ComputeFilename(JSContext *cx, JSStackFrame *caller,
 {
     uint32 flags;
 
-    JS_ASSERT(principals || !cx->runtime->findObjectPrincipals);
     flags = JS_GetScriptFilenameFlags(caller->script);
     if ((flags & JSFILENAME_PROTECTED) &&
-        principals &&
         strcmp(principals->codebase, "[System Principal]")) {
         *linenop = 0;
         return principals->codebase;
@@ -1318,15 +1316,14 @@ js_obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
         fp->flags |= JSFRAME_EVAL;
     } while ((fp = fp->down) != caller);
 
-    script = js_CompileScript(cx, scopeobj, principals,
-                              TCF_COMPILE_N_GO |
-                              TCF_PUT_STATIC_DEPTH(caller->script->staticDepth + 1),
+    script = js_CompileScript(cx, scopeobj, principals, TCF_COMPILE_N_GO,
                               JSSTRING_CHARS(str), JSSTRING_LENGTH(str),
                               NULL, file, line);
     if (!script) {
         ok = JS_FALSE;
         goto out;
     }
+    script->staticDepth = caller->script->staticDepth + 1;
 
     if (argc < 2) {
         /* Execute using caller's new scope object (might be a Call object). */

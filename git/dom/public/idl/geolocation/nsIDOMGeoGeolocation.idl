@@ -47,12 +47,12 @@ interface nsIDOMGeoGeolocation : nsISupports
   readonly attribute nsIDOMGeoPosition lastPosition;
 
   void getCurrentPosition(in nsIDOMGeoPositionCallback successCallback,
-                          [optional] in nsIDOMGeoPositionErrorCallback errorCallback,
-                          [optional] in nsIDOMGeoPositionOptions options);
+                          in nsIDOMGeoPositionErrorCallback errorCallback,
+                          in nsIDOMGeoPositionOptions options);
 
   unsigned short watchPosition(in nsIDOMGeoPositionCallback successCallback,
-                               [optional] in nsIDOMGeoPositionErrorCallback errorCallback,
-                               [optional] in nsIDOMGeoPositionOptions options);
+                               in nsIDOMGeoPositionErrorCallback errorCallback,
+                               in nsIDOMGeoPositionOptions options);
 
   void clearWatch(in unsigned short watchId);
 };

@@ -1522,6 +1522,7 @@ mozJSComponentLoader::ImportInto(const nsACString & aLocation,
                 JSContext *callercx;
                 cc->GetJSContext(&callercx);
                 JS_SetPendingException(callercx, exception);
+                cc->SetExceptionWasThrown(PR_TRUE);
                 return NS_OK;
             }
 
@@ -1630,7 +1631,7 @@ mozJSComponentLoader::ReportOnCaller(nsAXPCNativeCallContext *cc,
     char* buf = JS_vsmprintf(format, ap);
     JS_ReportError(callerContext, buf);
     JS_smprintf_free(buf);
-    return NS_OK;
+    return cc->SetExceptionWasThrown(PR_TRUE);
 }
 
 NS_IMETHODIMP

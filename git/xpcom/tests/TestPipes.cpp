@@ -95,8 +95,10 @@ public:
             }
 
             if (gTrace) {
+                printf("read:  ");
                 buf[count] = '\0';
-                printf("read: %s\n", buf);
+                printf(buf);
+                printf("\n");
             }
             mCount += count;
         }
@@ -193,14 +195,9 @@ public:
             if (count == 0) {
                 break;
             }
-
-            if (gTrace) {
-                // For next |printf()| call and possible others elsewhere.
-                buf[count] = '\0';
-
+            buf[count] = '\0';
+            if (gTrace)
                 printf("read %d bytes: %s\n", count, buf);
-            }
-
             Received(count);
             total += count;
         }
@@ -218,17 +215,14 @@ public:
         mon.Notify();
     }
 
-    PRUint32 WaitForReceipt(const PRUint32 aWriteCount) {
+    PRUint32 WaitForReceipt() {
         nsAutoCMonitor mon(this);
         PRUint32 result = mReceived;
-
-        while (result < aWriteCount) {
+        while (result == 0) {
             mon.Wait();
-
-            NS_ASSERTION(mReceived > result, "failed to receive");
+            NS_ASSERTION(mReceived >= 0, "failed to receive");
             result = mReceived;
         }
-
         mReceived = 0;
         return result;
     }
@@ -275,7 +269,7 @@ TestShortWrites(nsIInputStream* in, nsIOutputStream* out)
         //printf("calling Flush\n");
         out->Flush();
         //printf("calling WaitForReceipt\n");
-        const PRUint32 received = receiver->WaitForReceipt(writeCount);
+        PRUint32 received = receiver->WaitForReceipt();
         NS_ASSERTION(received == writeCount, "received wrong amount");
     }
     rv = out->Close();
@@ -301,6 +295,7 @@ public:
         nsresult rv;
         PRUint32 count;
         while (PR_TRUE) {
+            nsAutoCMonitor mon(this);
             rv = mOut->WriteFrom(mIn, ~0U, &count);
             if (NS_FAILED(rv)) {
                 printf("Write failed\n");

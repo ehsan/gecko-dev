@@ -2400,8 +2400,9 @@ XPCWrappedNative::CallMethod(XPCCallContext& ccx,
         ThrowBadResult(invokeResult, ccx);
         goto done;
     }
-    else if(JS_IsExceptionPending(ccx))
+    else if(ccx.GetExceptionWasThrown())
     {
+        // the native callee claims to have already set a JSException
         goto done;
     }
 

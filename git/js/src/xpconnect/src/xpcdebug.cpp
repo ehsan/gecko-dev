@@ -39,6 +39,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "xpcprivate.h"
+#if defined(DEBUG_xpc_hacker) || defined(DEBUG)
 
 #ifdef TAB
 #undef TAB
@@ -479,3 +480,4 @@ xpc_DumpJSObject(JSObject* obj)
 
     return JS_TRUE;
 }
+#endif

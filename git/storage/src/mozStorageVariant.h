@@ -235,7 +235,7 @@ struct variant_text_traits<nsString>
   static inline nsresult asUTF8String(const nsString &aValue,
                                       nsACString &_result)
   {
-    CopyUTF16toUTF8(aValue, _result);
+    _result = NS_ConvertUTF16toUTF8(aValue);
     return NS_OK;
   }
   static inline nsresult asString(const nsString &aValue,
@@ -263,8 +263,8 @@ struct variant_storage_traits<PRUint8[]>
   static inline StorageType storage_conversion(ConstructorType aBlob)
   {
     nsTArray<PRUint8> data(aBlob.second);
-    (void)data.AppendElements(static_cast<const PRUint8 *>(aBlob.first),
-                              aBlob.second);
+    for (int i = 0; i < aBlob.second; i++)
+      data.InsertElementAt(i, static_cast<const PRUint8 *>(aBlob.first)[i]);
     return data;
   }
 };
@@ -276,8 +276,12 @@ struct variant_blob_traits<PRUint8[]>
                                  void **_result)
   {
     // Copy the array
-    *_result = nsMemory::Clone(aData.Elements(), aData.Length() * sizeof(PRUint8));
+    *_result = NS_Alloc(sizeof(PRUint8) * aData.Length());
     NS_ENSURE_TRUE(*_result, NS_ERROR_OUT_OF_MEMORY);
+
+    PRUint8 *result = static_cast<PRUint8 *>(*_result);
+    for (PRUint32 i = 0; i < aData.Length(); i++)
+      result[i] = aData[i];
 
     // Set type and size
     *_type = nsIDataType::VTYPE_UINT8;

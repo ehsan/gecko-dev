@@ -56,11 +56,6 @@ var tabPreviews = {
     this._selectedTab = null;
   },
   get: function (aTab) {
-    if (aTab.__thumbnail_lastURI &&
-        aTab.__thumbnail_lastURI != aTab.linkedBrowser.currentURI.spec) {
-      aTab.__thumbnail = null;
-      aTab.__thumbnail_lastURI = null;
-    }
     return aTab.__thumbnail || this.capture(aTab, !aTab.hasAttribute("busy"));
   },
   capture: function (aTab, aStore) {
@@ -75,10 +70,8 @@ var tabPreviews = {
     ctx.drawWindow(win, win.scrollX, win.scrollY,
                    win.innerWidth, win.innerWidth * this.aspectRatio, "rgb(255,255,255)");
     var data = thumbnail.toDataURL("image/jpeg", "quality=60");
-    if (aStore) {
+    if (aStore)
       aTab.__thumbnail = data;
-      aTab.__thumbnail_lastURI = aTab.linkedBrowser.currentURI.spec;
-    }
     return data;
   },
   handleEvent: function (event) {

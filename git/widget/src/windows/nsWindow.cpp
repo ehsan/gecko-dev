@@ -80,7 +80,6 @@
 #include <process.h>
 #include "nsUnicharUtils.h"
 #include "prlog.h"
-#include "nsISupportsPrimitives.h"
 
 #ifdef WINCE
 #include "aygshell.h"
@@ -159,7 +158,7 @@
 PRLogModuleInfo* sWindowsLog = nsnull;
 #endif
 
-static const PRUnichar kMozHeapDumpMessageString[] = L"MOZ_HeapDump";
+static const char kMozHeapDumpMessageString[] = "MOZ_HeapDump";
 
 #define kWindowPositionSlop 20
 
@@ -258,10 +257,6 @@ PRInt32 GetWindowsVersion()
   return version;
 }
 
-
-// Pick some random timer ID.  Is there a better way?
-#define NS_FLASH_TIMER_ID 0x011231984
-
 static NS_DEFINE_CID(kCClipboardCID,       NS_CLIPBOARD_CID);
 static NS_DEFINE_IID(kRenderingContextCID, NS_RENDERING_CONTEXT_CID);
 
@@ -298,7 +293,7 @@ long       nsWindow::sIMECursorPosition        = 0;
 
 RECT*      nsWindow::sIMECompCharPos           = nsnull;
 
-TriStateBool nsWindow::sCanQuit = TRI_UNKNOWN;
+PRBool nsWindow::sIsInEndSession = PR_FALSE;
 
 BOOL nsWindow::sIsRegistered       = FALSE;
 BOOL nsWindow::sIsPopupClassRegistered = FALSE;
@@ -428,119 +423,6 @@ static PRBool is_vk_down(int vk)
 //#define GET_KEYSTATE_LPARAM(lParam)   GET_FLAGS_LPARAM(lParam)
 
 #endif  // #ifndef APPCOMMAND_BROWSER_BACKWARD
-
-/* This object maintains a correlation between attention timers and the
-   windows to which they belong. It's lighter than a hashtable (expected usage
-   is really just one at a time) and allows nsWindow::GetNSWindowPtr
-   to remain private. */
-class nsAttentionTimerMonitor {
-public:
-  nsAttentionTimerMonitor() : mHeadTimer(0) { }
-  ~nsAttentionTimerMonitor() {
-    TimerInfo *current, *next;
-    for (current = mHeadTimer; current; current = next) {
-      next = current->next;
-      delete current;
-    }
-  }
-  void AddTimer(HWND timerWindow, HWND flashWindow, PRInt32 maxFlashCount, UINT timerID) {
-    TimerInfo *info;
-    PRBool    newInfo = PR_FALSE;
-    info = FindInfo(timerWindow);
-    if (!info) {
-      info = new TimerInfo;
-      newInfo = PR_TRUE;
-    }
-    if (info) {
-      info->timerWindow = timerWindow;
-      info->flashWindow = flashWindow;
-      info->maxFlashCount = maxFlashCount;
-      info->flashCount = 0;
-      info->timerID = timerID;
-      info->hasFlashed = PR_FALSE;
-      info->next = 0;
-      if (newInfo)
-        AppendTimer(info);
-    }
-  }
-  HWND GetFlashWindowFor(HWND timerWindow) {
-    TimerInfo *info = FindInfo(timerWindow);
-    return info ? info->flashWindow : 0;
-  }
-  PRInt32 GetMaxFlashCount(HWND timerWindow) {
-    TimerInfo *info = FindInfo(timerWindow);
-    return info ? info->maxFlashCount : -1;
-  }
-  PRInt32 GetFlashCount(HWND timerWindow) {
-    TimerInfo *info = FindInfo(timerWindow);
-    return info ? info->flashCount : -1;
-  }
-  void IncrementFlashCount(HWND timerWindow) {
-    TimerInfo *info = FindInfo(timerWindow);
-    ++(info->flashCount);
-  }
-  void KillTimer(HWND timerWindow) {
-    TimerInfo *info = FindInfo(timerWindow);
-    if (info) {
-      // make sure it's unflashed and kill the timer
-
-      if (info->hasFlashed)
-        ::FlashWindow(info->flashWindow, FALSE);
-
-      ::KillTimer(info->timerWindow, info->timerID);
-      RemoveTimer(info);
-      delete info;
-    }
-  }
-  void SetFlashed(HWND timerWindow) {
-    TimerInfo *info = FindInfo(timerWindow);
-    if (info)
-      info->hasFlashed = PR_TRUE;
-  }
-
-private:
-  struct TimerInfo {
-    HWND       timerWindow,
-               flashWindow;
-    UINT       timerID;
-    PRInt32    maxFlashCount;
-    PRInt32    flashCount;
-    PRBool     hasFlashed;
-    TimerInfo *next;
-  };
-  TimerInfo *FindInfo(HWND timerWindow) {
-    TimerInfo *scan;
-    for (scan = mHeadTimer; scan; scan = scan->next)
-      if (scan->timerWindow == timerWindow)
-        break;
-    return scan;
-  }
-  void AppendTimer(TimerInfo *info) {
-    if (!mHeadTimer)
-      mHeadTimer = info;
-    else {
-      TimerInfo *scan, *last;
-      for (scan = mHeadTimer; scan; scan = scan->next)
-        last = scan;
-      last->next = info;
-    }
-  }
-  void RemoveTimer(TimerInfo *info) {
-    TimerInfo *scan, *last = 0;
-    for (scan = mHeadTimer; scan && scan != info; scan = scan->next)
-      last = scan;
-    if (scan) {
-      if (last)
-        last->next = scan->next;
-      else
-        mHeadTimer = scan->next;
-    }
-  }
-
-  TimerInfo *mHeadTimer;
-};
-
-static nsAttentionTimerMonitor *gAttentionTimerMonitor = 0;
 
 HWND nsWindow::GetTopLevelHWND(HWND aWnd, PRBool aStopOnFirstTopLevel)
 {
@@ -679,7 +561,7 @@ nsWindow::nsWindow() : nsBaseWidget()
 
     // Heap dump
 #ifndef WINCE
-    nsWindow::uWM_HEAP_DUMP = ::RegisterWindowMessageW(kMozHeapDumpMessageString);
+    nsWindow::uWM_HEAP_DUMP = ::RegisterWindowMessage(kMozHeapDumpMessageString);
 #endif
   }
 
@@ -1097,26 +979,26 @@ nsWindow::EventIsInsideWindow(UINT Msg, nsWindow* aWindow)
   return (PRBool) PtInRect(&r, mp);
 }
 
-static PRUnichar sPropName[40] = L"";
-static PRUnichar* GetNSWindowPropName() {
+static char sPropName[40] = "";
+static char* GetNSWindowPropName() {
   if (!*sPropName)
   {
-    _snwprintf(sPropName, 39, L"MozillansIWidgetPtr%p", _getpid());
+    _snprintf(sPropName, 39, "MozillansIWidgetPtr%p", _getpid());
     sPropName[39] = '\0';
   }
   return sPropName;
 }
 
 nsWindow * nsWindow::GetNSWindowPtr(HWND aWnd) {
-  return (nsWindow *) ::GetPropW(aWnd, GetNSWindowPropName());
+  return (nsWindow *) ::GetPropA(aWnd, GetNSWindowPropName());
 }
 
 BOOL nsWindow::SetNSWindowPtr(HWND aWnd, nsWindow * ptr) {
   if (ptr == NULL) {
-    ::RemovePropW(aWnd, GetNSWindowPropName());
+    ::RemovePropA(aWnd, GetNSWindowPropName());
     return TRUE;
   } else {
-    return ::SetPropW(aWnd, GetNSWindowPropName(), (HANDLE)ptr);
+    return ::SetPropA(aWnd, GetNSWindowPropName(), (HANDLE)ptr);
   }
 }
 
@@ -1182,6 +1064,9 @@ LRESULT CALLBACK nsWindow::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 //
 LRESULT CALLBACK nsWindow::DefaultWindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+  if (msg == WM_ENDSESSION && wParam == TRUE)
+    nsWindow::sIsInEndSession = PR_TRUE;
+
   //XXX nsWindow::DefaultWindowProc still ever required?
   return ::DefWindowProcW(hWnd, msg, wParam, lParam);
 }
@@ -1431,8 +1316,6 @@ NS_METHOD nsWindow::Destroy()
   if (mWnd) {
     // prevent the widget from causing additional events
     mEventCallback = nsnull;
-    if (gAttentionTimerMonitor)
-      gAttentionTimerMonitor->KillTimer(mWnd);
 
     // if IME is disabled, restore it.
     if (mOldIMC) {
@@ -1457,7 +1340,11 @@ NS_METHOD nsWindow::Destroy()
     }
 #endif
 
-    VERIFY(::DestroyWindow(mWnd));
+    // bug 333907: During WM_*ENDSESSION, closing all windows
+    // will cause immediate termination of the process. This
+    // avoids closing windows during WM_ENDSESSION for a cleaner exit.
+    if (!sIsInEndSession)
+      VERIFY(::DestroyWindow(mWnd));
 
     mWnd = NULL;
     //our windows can be subclassed by
@@ -1655,7 +1542,8 @@ NS_METHOD nsWindow::Show(PRBool bState)
       }
     } else {
       if (mWindowType != eWindowType_dialog) {
-        ::ShowWindow(mWnd, SW_HIDE);
+        if (!sIsInEndSession)
+          ::ShowWindow(mWnd, SW_HIDE);
       } else {
         ::SetWindowPos(mWnd, 0, 0, 0, 0, 0, SWP_HIDEWINDOW | SWP_NOSIZE | SWP_NOMOVE |
                        SWP_NOZORDER | SWP_NOACTIVATE);
@@ -1759,7 +1647,7 @@ NS_IMETHODIMP nsWindow::SetSizeMode(PRInt32 aMode) {
 
           // Play the minimize sound while we're here, since that is also
           // forgotten when we use SW_SHOWMINIMIZED.
-          ::PlaySoundW(L"Minimize", nsnull, SND_ALIAS | SND_NODEFAULT | SND_ASYNC);
+          ::PlaySound("Minimize", nsnull, SND_ALIAS | SND_NODEFAULT | SND_ASYNC);
         }
 #endif
         break;
@@ -4137,51 +4025,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT 
     }
     break;
 
-    // WM_QUERYENDSESSION must be handled by all windows.
-    // Otherwise Windows thinks the window can just be killed at will.
-    case WM_QUERYENDSESSION:
-      if (sCanQuit == TRI_UNKNOWN)
-      {
-        // Ask if it's ok to quit, and store the answer until we
-        // get WM_ENDSESSION signaling the round is complete.
-        nsCOMPtr<nsIObserverService> obsServ =
-          do_GetService("@mozilla.org/observer-service;1");
-        nsCOMPtr<nsISupportsPRBool> cancelQuit =
-          do_CreateInstance(NS_SUPPORTS_PRBOOL_CONTRACTID);
-        cancelQuit->SetData(PR_FALSE);
-        obsServ->NotifyObservers(cancelQuit, "quit-application-requested", nsnull);
-
-        PRBool abortQuit;
-        cancelQuit->GetData(&abortQuit);
-        sCanQuit = abortQuit ? TRI_FALSE : TRI_TRUE;
-      }
-      *aRetValue = sCanQuit ? TRUE : FALSE;
-      result = PR_TRUE;
-      break;
-
-    case WM_ENDSESSION:
-      if (wParam == TRUE && sCanQuit == TRI_TRUE)
-      {
-        // Let's fake a shutdown sequence without actually closing windows etc.
-        // to avoid Windows killing us in the middle. A proper shutdown would
-        // require having a chance to pump some messages. Unfortunately
-        // Windows won't let us do that. Bug 212316.
-        nsCOMPtr<nsIObserverService> obsServ =
-          do_GetService("@mozilla.org/observer-service;1");
-        NS_NAMED_LITERAL_STRING(context, "shutdown-persist");
-        obsServ->NotifyObservers(nsnull, "quit-application-granted", nsnull);
-        obsServ->NotifyObservers(nsnull, "quit-application-forced", nsnull);
-        obsServ->NotifyObservers(nsnull, "quit-application", nsnull);
-        obsServ->NotifyObservers(nsnull, "profile-change-net-teardown", context.get());
-        obsServ->NotifyObservers(nsnull, "profile-change-teardown", context.get());
-        obsServ->NotifyObservers(nsnull, "profile-before-change", context.get());
-        // Then a controlled but very quick exit.
-        _exit(0);
-      }
-      sCanQuit = TRI_UNKNOWN;
-      result = PR_TRUE;
-      break;
-    
 #ifndef WINCE
     case WM_DISPLAYCHANGE:
       DispatchStandardEvent(NS_DISPLAYCHANGED);
@@ -5435,7 +5278,7 @@ LPCWSTR nsWindow::WindowPopupClassW()
   return className;
 }
 
-LPCTSTR nsWindow::WindowClass()
+LPCSTR nsWindow::WindowClass()
 {
   // Call into the wide version to make sure things get
   // registered properly.
@@ -5443,9 +5286,7 @@ LPCTSTR nsWindow::WindowClass()
 
   // XXX: The class name used here must be kept in sync with
   //      the classname used in WindowClassW();
-#ifdef UNICODE
-	return classNameW;
-#else
+
   if (classNameW == kWClassNameHidden) {
     return kClassNameHidden;
   }
@@ -5462,21 +5303,17 @@ LPCTSTR nsWindow::WindowClass()
     return kClassNameContentFrame;
   }
   return kClassNameGeneral;
-#endif
 }
 
-LPCTSTR nsWindow::WindowPopupClass()
+LPCSTR nsWindow::WindowPopupClass()
 {
   // Call into the wide version to make sure things get
   // registered properly.
-#ifdef UNICODE
-  return WindowPopupClassW();
-#else
+  WindowPopupClassW();
 
   // XXX: The class name used here must be kept in sync with
   //      the classname used in WindowPopupClassW();
   return "MozillaDropShadowWindowClass";
-#endif
 }
 
 //-------------------------------------------------------------------------
@@ -5981,7 +5818,7 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
 {
   PRBool result = PR_FALSE;
 
-  if (!mEventCallback) {
+  if (nsnull == mEventCallback && nsnull == mMouseListener) {
     return result;
   }
 
@@ -6189,6 +6026,31 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
     return result;
   }
 
+  if (nsnull != mMouseListener) {
+    switch (aEventType) {
+      case NS_MOUSE_MOVE:
+      {
+        result = ConvertStatus(mMouseListener->MouseMoved(event));
+        nsRect rect;
+        GetBounds(rect);
+        if (rect.Contains(event.refPoint)) {
+          if (gCurrentWindow == NULL || gCurrentWindow != this) {
+            gCurrentWindow = this;
+          }
+        }
+      }
+      break;
+
+      case NS_MOUSE_BUTTON_DOWN:
+        result = ConvertStatus(mMouseListener->MousePressed(event));
+        break;
+
+      case NS_MOUSE_BUTTON_UP:
+        result = ConvertStatus(mMouseListener->MouseReleased(event));
+        result = ConvertStatus(mMouseListener->MouseClicked(event));
+        break;
+    } // switch
+  }
   return result;
 }
 
@@ -6301,7 +6163,7 @@ PRBool ChildWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam, LPARA
 {
   PRBool result = PR_FALSE;
 
-  if (nsnull == mEventCallback) {
+  if (nsnull == mEventCallback && nsnull == mMouseListener) {
     return result;
   }
 
@@ -7490,38 +7352,6 @@ void nsWindow::GetCompositionWindowPos(HIMC hIMC, PRUint32 aEventType, COMPOSITI
   cpForm->rcArea.bottom = cpForm->ptCurrentPos.y + event.theReply.mCursorPosition.height;
 }
 
-// This function is called on a timer to do the flashing.  It simply toggles the flash
-// status until the window comes to the foreground.
-static VOID CALLBACK nsGetAttentionTimerFunc(HWND hwnd, UINT uMsg, UINT idEvent, DWORD dwTime)
-{
-  // flash the window until we're in the foreground.
-  if (::GetForegroundWindow() != hwnd)
-  {
-    // flash the outermost owner
-    HWND flashwnd = gAttentionTimerMonitor->GetFlashWindowFor(hwnd);
-
-    PRInt32 maxFlashCount = gAttentionTimerMonitor->GetMaxFlashCount(hwnd);
-    PRInt32 flashCount = gAttentionTimerMonitor->GetFlashCount(hwnd);
-    if (maxFlashCount > 0) {
-      // We have a max flash count, if we haven't met it yet, flash again.
-      if (flashCount < maxFlashCount) {
-        ::FlashWindow(flashwnd, TRUE);
-        gAttentionTimerMonitor->IncrementFlashCount(hwnd);
-      }
-      else
-        gAttentionTimerMonitor->KillTimer(hwnd);
-    }
-    else {
-      // The caller didn't specify a flash count.
-      ::FlashWindow(flashwnd, TRUE);
-    }
-
-    gAttentionTimerMonitor->SetFlashed(hwnd);
-  }
-  else
-    gAttentionTimerMonitor->KillTimer(hwnd);
-}
-
 // Draw user's attention to this window until it comes to foreground.
 NS_IMETHODIMP
 nsWindow::GetAttention(PRInt32 aCycleCount)
@@ -7530,28 +7360,24 @@ nsWindow::GetAttention(PRInt32 aCycleCount)
   if (!mWnd)
     return NS_ERROR_NOT_INITIALIZED;
 
-  // Don't flash if the flash count is 0.
-  if (aCycleCount == 0)
+  // Don't flash if the flash count is 0 or if the 
+  // top level window is already active.
+  if (aCycleCount == 0 || ::GetForegroundWindow() == GetTopLevelHWND(mWnd))
     return NS_OK;
 
-  // timer is on the parentmost window; window to flash is its ownermost
-  HWND timerwnd = GetTopLevelHWND(mWnd);
-  HWND flashwnd = timerwnd;
-  HWND nextwnd;
-  while ((nextwnd = ::GetWindow(flashwnd, GW_OWNER)) != 0)
-    flashwnd = nextwnd;
+  DWORD defaultCycleCount = 0;
+  ::SystemParametersInfo(SPI_GETFOREGROUNDFLASHCOUNT, 0, &defaultCycleCount, 0);
+  HWND flashWnd = mWnd;
+  while (HWND ownerWnd = ::GetWindow(flashWnd, GW_OWNER))
+    flashWnd = ownerWnd;
 
-  // If window is in foreground, no notification is necessary.
-  if (::GetForegroundWindow() != timerwnd) {
-    // kick off a timer that does single flash until the window comes to the foreground
-    if (!gAttentionTimerMonitor)
-      gAttentionTimerMonitor = new nsAttentionTimerMonitor;
-    if (gAttentionTimerMonitor) {
-      gAttentionTimerMonitor->AddTimer(timerwnd, flashwnd, aCycleCount, NS_FLASH_TIMER_ID);
-      ::SetTimer(timerwnd, NS_FLASH_TIMER_ID, GetCaretBlinkTime(), (TIMERPROC)nsGetAttentionTimerFunc);
-    }
-  }
-
+  FLASHWINFO flashInfo;
+  ZeroMemory(&flashInfo, sizeof(FLASHWINFO));
+  flashInfo.cbSize = sizeof(FLASHWINFO);
+  flashInfo.hwnd = flashWnd;
+  flashInfo.dwFlags = FLASHW_ALL;
+  flashInfo.uCount = aCycleCount > 0 ? aCycleCount : defaultCycleCount;
+  ::FlashWindowEx(&flashInfo);
   return NS_OK;
 }
 
@@ -7970,7 +7796,7 @@ STDMETHODIMP_(LRESULT) nsWindow::LresultFromObject(REFIID riid, WPARAM wParam, L
 {
   // open the dll dynamically
   if (!gmAccLib)
-    gmAccLib =::LoadLibraryW(L"OLEACC.DLL");
+    gmAccLib =::LoadLibrary("OLEACC.DLL");
 
   if (gmAccLib) {
     if (!gmLresultFromObject)

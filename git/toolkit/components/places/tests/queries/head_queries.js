@@ -213,11 +213,9 @@ function populateDB(aArray) {
       if (qdata.isFavicon) {
         // Not planning on doing deep testing of favIcon service so these two
         // calls should be sufficient to get favicons into the database
-        try {
-          faviconsvc.setFaviconData(uri(qdata.faviconURI), qdata.favicon,
-                                    qdata.faviconLen, qdata.faviconMimeType,
-                                    qdata.faviconExpiration);
-        } catch (ex) {}
+        faviconsvc.setFaviconData(uri(qdata.faviconURI), qdata.favicon,
+                                  qdata.faviconLen, qdata.faviconMimeType,
+                                  qdata.faviconExpiration);
         faviconsvc.setFaviconUrlForPage(uri(qdata.uri), uri(qdata.faviconURI));
       }
 

@@ -56,6 +56,7 @@
 #include "nsIWidget.h"
 #include "nsIAppShell.h"
 
+#include "nsIMouseListener.h"
 #include "nsIEventListener.h"
 #include "nsString.h"
 #include "nsIDragService.h"
@@ -309,6 +310,7 @@ public:
   static  PRBool          ConvertStatus(nsEventStatus aStatus)
                           { return aStatus == nsEventStatus_eConsumeNoDefault; }
   NS_IMETHOD              DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus);
+  virtual PRBool          DispatchMouseEvent(nsMouseEvent &aEvent);
 
   NS_IMETHOD              Update();
 

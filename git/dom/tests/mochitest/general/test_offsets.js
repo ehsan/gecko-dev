@@ -184,10 +184,9 @@ function checkCoords(element, type, left, top, width, height, testname)
 
 function gcs(element, prop)
 {
-  var propVal = (element instanceof SVGElement && (prop == "width" || prop == "height")) ?
-                   element.getAttribute(prop) : getComputedStyle(element, "")[prop];
-  if (propVal == "auto")
-    propVal = 0;
-  var propValFloat = parseFloat(propVal);
-  return (isNaN(propValFloat) ? propVal : Math.round(propValFloat));
+  var prop = getComputedStyle(element, "")[prop];
+  if (prop == "auto")
+    prop = 0;
+  var propFloat = parseFloat(prop);
+  return (isNaN(propFloat) ? prop : Math.round(propFloat));
 }

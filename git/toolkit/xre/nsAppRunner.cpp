@@ -858,16 +858,6 @@ nsXULAppInfo::WriteMinidumpForException(void* aExceptionInfo)
   return NS_ERROR_NOT_IMPLEMENTED;
 #endif
 }
-
-NS_IMETHODIMP
-nsXULAppInfo::AppendObjCExceptionInfoToAppNotes(void* aException)
-{
-#ifdef XP_MACOSX
-  return CrashReporter::AppendObjCExceptionInfoToAppNotes(aException);
-#else
-  return NS_ERROR_NOT_IMPLEMENTED;
-#endif
-}
 #endif
 
 static const nsXULAppInfo kAppInfo;
@@ -1172,16 +1162,17 @@ DumpHelp()
 #endif
 #ifdef XP_UNIX
   printf("\t--g-fatal-warnings\t\tMake all warnings fatal\n"
-         "\n%s options\n", gAppData->name);
+         "\nMozilla options\n");
 #endif
 
-  printf("\t-h or -help\t\tPrint this message.\n"
+  printf("\t-height <value>\t\tSet height of startup window to <value>.\n"
+         "\t-h or -help\t\tPrint this message.\n"
+         "\t-width <value>\t\tSet width of startup window to <value>.\n"
          "\t-v or -version\t\tPrint %s version.\n"
          "\t-P <profile>\t\tStart with <profile>.\n"
-         "\t-migration\t\tStart with migration wizard.\n"
          "\t-ProfileManager\t\tStart with ProfileManager.\n"
          "\t-no-remote\t\tOpen new instance, not a new window in running instance.\n"
-         "\t-UILocale <locale>\tStart with <locale> resources as UI Locale.\n"
+         "\t-UILocale <locale>\t\tStart with <locale> resources as UI Locale.\n"
          "\t-safe-mode\t\tDisables extensions and themes for this session.\n", gAppData->name);
 
 #if defined(XP_WIN) || defined(XP_OS2)

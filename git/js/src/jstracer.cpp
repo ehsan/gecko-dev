@@ -117,7 +117,6 @@ static avmplus::AvmCore* core = &s_core;
 /* We really need a better way to configure the JIT. Shaver, where is my fancy JIT object? */
 static bool nesting_enabled = true;
 static bool oracle_enabled = true;
-static bool did_we_check_sse2 = false;
 
 #ifdef DEBUG
 static bool verbose_debug = getenv("TRACEMONKEY") && strstr(getenv("TRACEMONKEY"), "verbose");
@@ -514,7 +513,8 @@ public:
                 vp = &fp->argv[-1];                                           \
                 { code; }                                                     \
                 SET_VPNAME("argv");                                           \
-                vp = &fp->argv[0]; vpstop = &fp->argv[fp->fun->nargs];        \
+                unsigned nargs = JS_MAX(fp->fun->nargs, fp->argc);            \
+                vp = &fp->argv[0]; vpstop = &fp->argv[nargs];                 \
                 while (vp < vpstop) { code; ++vp; INC_VPNUM(); }              \
             }                                                                 \
             SET_VPNAME("vars");                                               \
@@ -568,8 +568,8 @@ public:
 
 /* Calculate the total number of native frame slots we need from this frame
    all the way back to the entry frame, including the current stack usage. */
-unsigned
-js_NativeStackSlots(JSContext *cx, unsigned callDepth)
+static unsigned
+nativeStackSlots(JSContext *cx, unsigned callDepth)
 {
     JSStackFrame* fp = cx->fp;
     unsigned slots = 0;
@@ -584,7 +584,8 @@ js_NativeStackSlots(JSContext *cx, unsigned callDepth)
             slots += fp->script->nfixed;
         if (callDepth-- == 0) {
             if (fp->callee) {
-                slots += 2/*callee,this*/ + fp->fun->nargs;
+                unsigned nargs = JS_MAX(fp->fun->nargs, fp->argc);
+                slots += 2/*callee,this*/ + nargs;
             }
 #if defined _DEBUG
             unsigned int m = 0;
@@ -599,7 +600,7 @@ js_NativeStackSlots(JSContext *cx, unsigned callDepth)
         if (missing > 0)
             slots += missing;
     }
-    JS_NOT_REACHED("js_NativeStackSlots");
+    JS_NOT_REACHED("nativeStackSlots");
 }
 
 /* Capture the type map for the selected slots of the global object. */
@@ -623,7 +624,7 @@ TypeMap::captureGlobalTypes(JSContext* cx, SlotList& slots)
 void
 TypeMap::captureStackTypes(JSContext* cx, unsigned callDepth)
 {
-    setLength(js_NativeStackSlots(cx, callDepth));
+    setLength(nativeStackSlots(cx, callDepth));
     uint8* map = data();
     uint8* m = map;
     FORALL_SLOTS_IN_PENDING_FRAMES(cx, callDepth,
@@ -803,9 +804,10 @@ done:
         fp = *fsp;
         if (fp->callee) {
             if (fsp == fstack) {
-                if (size_t(p - &fp->argv[-2]) < size_t(2/*callee,this*/ + fp->fun->nargs))
+                unsigned nargs = JS_MAX(fp->fun->nargs, fp->argc);
+                if (size_t(p - &fp->argv[-2]) < 2/*callee,this*/ + nargs)
                     RETURN(offset + size_t(p - &fp->argv[-2]) * sizeof(double));
-                offset += (2/*callee,this*/ + fp->fun->nargs) * sizeof(double);
+                offset += (2/*callee,this*/ + nargs) * sizeof(double);
             }
             if (size_t(p - &fp->slots[0]) < fp->script->nfixed)
                 RETURN(offset + size_t(p - &fp->slots[0]) * sizeof(double));
@@ -1278,6 +1280,9 @@ struct FrameInfo {
     };
 };
 
+static void
+js_TrashTree(JSContext* cx, Fragment* f);
+
 /* Promote slots if necessary to match the called tree' type map and report error if thats
    impossible. */
 bool
@@ -1287,23 +1292,36 @@ TraceRecorder::adjustCallerTypes(Fragment* f)
     uint8* m = tm->globalTypeMap->data();
     uint16* gslots = traceMonitor->globalSlots->data();
     unsigned ngslots = traceMonitor->globalSlots->length();
+    JSScript* script = ((TreeInfo*)f->vmprivate)->script;
+    uint8* map = ((TreeInfo*)f->vmprivate)->stackTypeMap.data();
+    bool ok = true;
     FORALL_GLOBAL_SLOTS(cx, ngslots, gslots, 
         LIns* i = get(vp);
         bool isPromote = isPromoteInt(i);
         if (isPromote && *m == JSVAL_DOUBLE) 
             lir->insStorei(get(vp), gp_ins, nativeGlobalOffset(vp));
+        else if (!isPromote && *m == JSVAL_INT) {
+            oracle.markGlobalSlotUndemotable(script, nativeGlobalOffset(vp)/sizeof(double));
+            ok = false;
+        }
         ++m;
     );
-    m = ((TreeInfo*)f->vmprivate)->stackTypeMap.data();
+    m = map;
     FORALL_SLOTS_IN_PENDING_FRAMES(cx, 0,
         LIns* i = get(vp);
         bool isPromote = isPromoteInt(i);
         if (isPromote && *m == JSVAL_DOUBLE) 
             lir->insStorei(get(vp), lirbuf->sp, 
                            -treeInfo->nativeStackBase + nativeStackOffset(vp));
+        else if (!isPromote && *m == JSVAL_INT) {
+            oracle.markStackSlotUndemotable(script, (jsbytecode*)f->ip, unsigned(m - map));
+            ok = false;
+        }
         ++m;
     );
-    return true;
+    if (!ok)
+        js_TrashTree(cx, f);
+    return ok;
 }
 
 /* Find a peer fragment that we can call, considering our current type distribution. */
@@ -1320,7 +1338,7 @@ TraceRecorder::snapshot(ExitType exitType)
     if (exitType == BRANCH_EXIT && js_IsLoopExit(cx, fp->script, fp->regs->pc))
         exitType = LOOP_EXIT;
     /* Generate the entry map and stash it in the trace. */
-    unsigned stackSlots = js_NativeStackSlots(cx, callDepth);
+    unsigned stackSlots = nativeStackSlots(cx, callDepth);
     /* It's sufficient to track the native stack use here since all stores above the
        stack watermark defined by guards are killed. */
     trackNativeStackUse(stackSlots + 1);
@@ -1407,9 +1425,6 @@ TraceRecorder::checkType(jsval& v, uint8 t, bool& unstable)
 #endif
     return JSVAL_TAG(v) == t;
 }
-
-static void
-js_TrashTree(JSContext* cx, Fragment* f);
 
 /* Make sure that the current values in the given stack frame and all stack frames
    up and including entryFrame are type-compatible with the entry map. */
@@ -1791,11 +1806,12 @@ js_RecordTree(JSContext* cx, JSTraceMonitor* tm, Fragment* f)
 
     /* determine the native frame layout at the entry point */
     unsigned entryNativeStackSlots = ti->stackTypeMap.length();
-    JS_ASSERT(entryNativeStackSlots == js_NativeStackSlots(cx, 0/*callDepth*/));
+    JS_ASSERT(entryNativeStackSlots == nativeStackSlots(cx, 0/*callDepth*/));
     ti->nativeStackBase = (entryNativeStackSlots -
             (cx->fp->regs->sp - StackBase(cx->fp))) * sizeof(double);
     ti->maxNativeStackSlots = entryNativeStackSlots;
     ti->maxCallDepth = 0;
+    ti->script = cx->fp->script;
 
     /* recording primary trace */
     return js_StartRecorder(cx, NULL, f, ti,
@@ -2165,49 +2181,15 @@ js_AbortRecording(JSContext* cx, jsbytecode* abortpc, const char* reason)
     }
 }
 
-#if defined NANOJIT_IA32
-static bool
-js_CheckForSSE2()
-{
-    int features = 0;
-#if defined _MSC_VER
-    __asm
-    {
-        pushad
-        mov eax, 1
-        cpuid
-        mov features, edx
-        popad
-    }
-#elif defined __GNUC__
-    asm("pusha\n"
-        "mov $0x01, %%eax\n"
-        "cpuid\n"
-        "mov %%edx, %0\n"
-        "popa\n"
-        : "=m" (features)
-        : /* We have no inputs */
-        : /* We don't clobber anything */
-       );
-#endif
-    return (features & (1<<26)) != 0;
-}
-#endif
-
 extern void
 js_InitJIT(JSTraceMonitor *tm)
 {
-#if defined NANOJIT_IA32
-    if (!did_we_check_sse2) {
-        avmplus::AvmCore::sse2_available = js_CheckForSSE2();
-        did_we_check_sse2 = true;
-    }
-#endif
     if (!tm->fragmento) {
         JS_ASSERT(!tm->globalSlots && !tm->globalTypeMap);
         Fragmento* fragmento = new (&gc) Fragmento(core, 24);
         verbose_only(fragmento->labels = new (&gc) LabelMap(core, NULL);)
         fragmento->assm()->setCallTable(builtins);
+        fragmento->pageFree(fragmento->pageAlloc()); // FIXME: prime page cache
         tm->fragmento = fragmento;
         tm->globalSlots = new (&gc) SlotList();
         tm->globalTypeMap = new (&gc) TypeMap();
@@ -2346,17 +2328,15 @@ TraceRecorder::activeCallOrGlobalSlot(JSObject* obj, jsval*& vp)
             JSScopeProperty* sprop = (JSScopeProperty*) prop;
             uintN slot = sprop->shortid;
 
-            vp = NULL;
             if (sprop->getter == js_GetCallArg) {
                 JS_ASSERT(slot < cfp->fun->nargs);
                 vp = &cfp->argv[slot];
-            } else if (sprop->getter == js_GetCallVar) {
+            } else {
+                JS_ASSERT(sprop->getter == js_GetCallVar);
                 JS_ASSERT(slot < cfp->script->nslots);
                 vp = &cfp->slots[slot];
             }
             OBJ_DROP_PROPERTY(cx, obj2, prop);
-            if (!vp)
-                ABORT_TRACE("dynamic property of Call object");
             return true;
         }
     }
@@ -2420,9 +2400,7 @@ TraceRecorder::ifop()
         jsdouble d = asNumber(v);
         jsdpun u;
         u.d = 0;
-        guard(d == 0 || JSDOUBLE_IS_NaN(d),
-              lir->ins2(LIR_feq, get(&v), lir->insImmq(u.u64)),
-              BRANCH_EXIT);
+        guard((d == 0 || JSDOUBLE_IS_NaN(d)), lir->ins2(LIR_feq, get(&v), lir->insImmq(u.u64)), BRANCH_EXIT);
     } else if (JSVAL_IS_STRING(v)) {
         guard(JSSTRING_LENGTH(JSVAL_TO_STRING(v)) == 0,
               lir->ins_eq0(lir->ins2(LIR_piand,
@@ -2699,9 +2677,8 @@ TraceRecorder::map_is_native(JSObjectMap* map, LIns* map_ins, LIns*& ops_ins, si
 bool
 TraceRecorder::test_property_cache(JSObject* obj, LIns* obj_ins, JSObject*& obj2, jsuword& pcval)
 {
-    // Mimic the interpreter's special case for dense arrays by skipping up one
-    // hop along the proto chain when accessing a named (not indexed) property,
-    // typically to find Array.prototype methods.
+    // Mimic JSOP_CALLPROP's special case to skip up from a dense array to find
+    // Array.prototype methods.
     JSObject* aobj = obj;
     if (OBJ_IS_DENSE_ARRAY(cx, obj)) {
         aobj = OBJ_GET_PROTO(cx, obj);
@@ -2736,88 +2713,103 @@ TraceRecorder::test_property_cache(JSObject* obj, LIns* obj_ins, JSObject*& obj2
     JSAtom* atom;
     JSPropCacheEntry* entry;
     PROPERTY_CACHE_TEST(cx, cx->fp->regs->pc, aobj, obj2, entry, atom);
-    if (atom) {
-        // Miss: pre-fill the cache for the interpreter, as well as for our needs.
-        // FIXME: 452357 - correctly propagate exceptions into the interpreter from
-        // js_FindPropertyHelper, js_LookupPropertyWithFlags, and elsewhere.
-        jsid id = ATOM_TO_JSID(atom);
-        JSProperty* prop;
-        if (JOF_OPMODE(*cx->fp->regs->pc) == JOF_NAME) {
-            JS_ASSERT(aobj == obj);
-            if (js_FindPropertyHelper(cx, id, &obj, &obj2, &prop, &entry) < 0)
-                ABORT_TRACE("failed to find name");
-        } else {
-            int protoIndex = js_LookupPropertyWithFlags(cx, aobj, id, 0, &obj2, &prop);
-            if (protoIndex < 0)
-                ABORT_TRACE("failed to lookup property");
-
-            if (prop) {
-                js_FillPropertyCache(cx, aobj, OBJ_SCOPE(aobj)->shape, 0, protoIndex, obj2,
-                                     (JSScopeProperty*) prop, &entry);
-            }
-        }
-
-        if (!prop) {
-            // Propagate obj from js_FindPropertyHelper to record_JSOP_BINDNAME
-            // via our obj2 out-parameter.
-            obj2 = obj;
-            pcval = PCVAL_NULL;
-            return true;
-        }
-
-        OBJ_DROP_PROPERTY(cx, obj2, prop);
-        if (!entry)
-            ABORT_TRACE("failed to fill property cache");
+    if (!atom) {
+        pcval = entry->vword;
+        return true;
     }
 
-#ifdef JS_THREADSAFE
-    // There's a potential race in any JS_THREADSAFE embedding that's nuts
-    // enough to share mutable objects on the scope or proto chain, but we
-    // don't care about such insane embeddings. Anyway, the (scope, proto)
-    // entry->vcap coordinates must reach obj2 from aobj at this point.
-    JS_ASSERT(cx->requestDepth);
-#endif
+    // FIXME: suppressed exceptions from js_FindPropertyHelper and js_LookupPropertyWithFlags
+    JSProperty* prop;
+    JSScopeProperty* sprop;
+    jsid id = ATOM_TO_JSID(atom);
+    if (JOF_OPMODE(*cx->fp->regs->pc) == JOF_NAME) {
+        JS_ASSERT(aobj == obj);
+        if (js_FindPropertyHelper(cx, id, &obj, &obj2, &prop, &entry) < 0)
+            ABORT_TRACE("failed to find name");
+    } else {
+        int protoIndex = js_LookupPropertyWithFlags(cx, aobj, id, 0, &obj2, &prop);
+        if (protoIndex < 0)
+            ABORT_TRACE("failed to lookup property");
 
-    // Emit guard(s), common code for both hit and miss cases.
-    // Check for first-level cache hit and guard on kshape if possible.
-    // Otherwise guard on key object exact match.
+        if (prop) {
+            sprop = (JSScopeProperty*) prop;
+            js_FillPropertyCache(cx, aobj, OBJ_SCOPE(aobj)->shape, 0, protoIndex, obj2, sprop,
+                                 &entry);
+        }
+    }
+
+    if (!prop) {
+        // Propagate obj from js_FindPropertyHelper to record_JSOP_BINDNAME
+        // via our obj2 out-parameter.
+        obj2 = obj;
+        pcval = PCVAL_NULL;
+        return true;
+    }
+
+    if (!entry) {
+        OBJ_DROP_PROPERTY(cx, obj2, prop);
+        ABORT_TRACE("failed to fill property cache");
+    }
+
     if (PCVCAP_TAG(entry->vcap) <= 1) {
         if (aobj != globalObj) {
             LIns* shape_ins = addName(lir->insLoad(LIR_ld, map_ins, offsetof(JSScope, shape)),
                                       "shape");
-            guard(true, addName(lir->ins2i(LIR_eq, shape_ins, entry->kshape), "guard(kshape)"),
+            guard(true, addName(lir->ins2i(LIR_eq, shape_ins, entry->kshape), "guard(shape)"),
                   MISMATCH_EXIT);
         }
     } else {
-        JS_ASSERT(entry->kpc == (jsbytecode*) atoms[GET_INDEX(cx->fp->regs->pc)]);
+        JS_ASSERT(entry->kpc == (jsbytecode*) atom);
         JS_ASSERT(entry->kshape == jsuword(aobj));
-        if (aobj != globalObj) {
-            guard(true, addName(lir->ins2i(LIR_eq, obj_ins, entry->kshape), "guard(kobj)"),
-                  MISMATCH_EXIT);
-        }
     }
 
-    // For any hit that goes up the scope and or proto chains, we will need to
-    // guard on the shape of the object containing the property.
     if (PCVCAP_TAG(entry->vcap) >= 1) {
-        jsuword vcap = entry->vcap;
-        uint32 vshape = PCVCAP_SHAPE(vcap);
-        JS_ASSERT(OBJ_SCOPE(obj2)->shape == vshape);
+        JS_ASSERT(OBJ_SCOPE(obj2)->shape == PCVCAP_SHAPE(entry->vcap));
 
-        LIns* obj2_ins = INS_CONSTPTR(obj2);
+        LIns* obj2_ins = stobj_get_fslot(obj_ins, JSSLOT_PROTO);
         map_ins = lir->insLoad(LIR_ldp, obj2_ins, (int)offsetof(JSObject, map));
-        if (!map_is_native(obj2->map, map_ins, ops_ins))
+        LIns* ops_ins;
+        if (!map_is_native(obj2->map, map_ins, ops_ins)) {
+            OBJ_DROP_PROPERTY(cx, obj2, prop);
             return false;
+        }
 
-        LIns* shape_ins = addName(lir->insLoad(LIR_ld, map_ins, offsetof(JSScope, shape)),
-                                  "shape");
+        LIns* shape_ins = addName(lir->insLoad(LIR_ld, map_ins, offsetof(JSScope, shape)), "shape");
         guard(true,
-              addName(lir->ins2i(LIR_eq, shape_ins, vshape), "guard(vshape)"),
+              addName(lir->ins2i(LIR_eq, shape_ins, PCVCAP_SHAPE(entry->vcap)),
+                      "guard(vcap_shape)"),
               MISMATCH_EXIT);
     }
 
-    pcval = entry->vword;
-    return true;
+    sprop = (JSScopeProperty*) prop;
+    JSScope* scope = OBJ_SCOPE(obj2);
+
+    jsval v;
+
+    if (format & JOF_CALLOP) {
+        if (SPROP_HAS_STUB_GETTER(sprop) && SPROP_HAS_VALID_SLOT(sprop, scope) &&
+            VALUE_IS_FUNCTION(cx, (v = STOBJ_GET_SLOT(obj2, sprop->slot))) &&
+            SCOPE_IS_BRANDED(scope)) {
+            /* Call op, "pure" sprop, function value, branded scope: cache method. */
+            pcval = JSVAL_OBJECT_TO_PCVAL(v);
+            OBJ_DROP_PROPERTY(cx, obj2, prop);
+            return true;
+        }
+
+        OBJ_DROP_PROPERTY(cx, obj2, prop);
+        ABORT_TRACE("can't fast method value for call op");
+    }
+
+    if ((((format & JOF_SET) && SPROP_HAS_STUB_SETTER(sprop)) ||
+         SPROP_HAS_STUB_GETTER(sprop)) &&
+        SPROP_HAS_VALID_SLOT(sprop, scope)) {
+        /* Stub accessor of appropriate form and valid slot: cache slot. */
+        pcval = SLOT_TO_PCVAL(sprop->slot);
+        OBJ_DROP_PROPERTY(cx, obj2, prop);
+        return true;
+    }
+
+    ABORT_TRACE("no cacheable property found");
 }
 
 bool
@@ -3064,7 +3056,7 @@ TraceRecorder::clearFrameSlotsFromCache()
     jsval* vpstop;
     if (fp->callee) {
         vp = &fp->argv[-2];
-        vpstop = &fp->argv[fp->fun->nargs];
+        vpstop = &fp->argv[JS_MAX(fp->fun->nargs,fp->argc)];
         while (vp < vpstop)
             nativeFrameTracker.set(vp++, (LIns*)0);
     }
@@ -3784,7 +3776,7 @@ TraceRecorder::record_JSOP_SETPROP()
     JSObject* obj = JSVAL_TO_OBJECT(l);
 
     if (obj->map->ops->setProperty != js_SetProperty)
-        ABORT_TRACE("non-native JSObjectOps::setProperty");
+        ABORT_TRACE("non-native setProperty");
 
     LIns* obj_ins = get(&l);
 
@@ -4044,9 +4036,6 @@ js_math_random(JSContext* cx, uintN argc, jsval* vp);
 JSBool
 js_math_floor(JSContext* cx, uintN argc, jsval* vp);
 
-JSBool
-js_num_toString(JSContext *cx, uintN argc, jsval *vp);
-
 bool
 TraceRecorder::record_JSOP_CALL()
 {
@@ -4094,7 +4083,6 @@ TraceRecorder::record_JSOP_CALL()
         { js_math_random,              F_Math_random,          "R",    "",    INFALLIBLE,  NULL },
         { js_num_parseInt,             F_ParseInt,             "C",   "s",    INFALLIBLE,  NULL },
         { js_num_parseFloat,           F_ParseFloat,           "C",   "s",    INFALLIBLE,  NULL },
-        { js_num_toString,             F_NumberToString,       "TC",   "",    FAIL_NULL,   NULL },
         { js_obj_hasOwnProperty,       F_Object_p_hasOwnProperty,
                                                                "TC",  "s",    FAIL_VOID,   NULL },
         { js_obj_propertyIsEnumerable, F_Object_p_propertyIsEnumerable,
@@ -4250,9 +4238,6 @@ TraceRecorder::record_JSOP_CALL()
     /* Didn't find it. */
     ABORT_TRACE("unknown native");
 }
-
-JSBool
-js_num_toString(JSContext *cx, uintN argc, jsval *vp);
 
 bool
 TraceRecorder::name(jsval*& vp)
@@ -4883,82 +4868,7 @@ TraceRecorder::record_JSOP_THROW()
 bool
 TraceRecorder::record_JSOP_IN()
 {
-    jsval& rval = stackval(-1);
-    if (JSVAL_IS_PRIMITIVE(rval))
-        ABORT_TRACE("JSOP_IN on non-object right operand");
-
-    jsval& lval = stackval(-2);
-    if (!JSVAL_IS_PRIMITIVE(lval))
-        ABORT_TRACE("JSOP_IN on E4X QName left operand");
-
-    jsid id;
-    if (JSVAL_IS_INT(lval)) {
-        id = INT_JSVAL_TO_JSID(lval);
-    } else {
-        if (!js_ValueToStringId(cx, lval, &id))
-            ABORT_TRACE("OOM under js_ValueToStringId in JSOP_IN");
-        lval = ID_TO_VALUE(id);
-    }
-
-    // Expect what we see at trace recording time (hit or miss) to be the same
-    // when executing the trace. Use a builtin helper for named properties, as
-    // forInLoop does. First, handle indexes in dense arrays as a special case.
-    JSObject* obj = JSVAL_TO_OBJECT(rval);
-    LIns* obj_ins = get(&rval);
-
-    bool cond;
-    LIns* x;
-    do {
-        if (guardDenseArray(obj, obj_ins)) {
-            if (JSVAL_IS_INT(lval)) {
-                jsint idx = JSVAL_TO_INT(lval);
-                LIns* idx_ins = f2i(get(&lval));
-                LIns* dslots_ins = lir->insLoad(LIR_ldp, obj_ins, offsetof(JSObject, dslots));
-                if (!guardDenseArrayIndex(obj, idx, obj_ins, dslots_ins, idx_ins))
-                    ABORT_TRACE("dense array index out of bounds");
-
-                cond = obj->dslots[idx] != JSVAL_HOLE;
-                x = lir->ins_eq0(lir->ins2(LIR_eq,
-                                           lir->insLoad(LIR_ldp, dslots_ins, idx * sizeof(jsval)),
-                                           INS_CONST(JSVAL_HOLE)));
-                break;
-            }
-
-            // Not an index id, but a dense array -- go up to the proto. */
-            obj = STOBJ_GET_PROTO(obj);
-            obj_ins = stobj_get_fslot(obj_ins, JSSLOT_PROTO);
-        } else {
-            if (JSVAL_IS_INT(id))
-                ABORT_TRACE("INT in OBJ where OBJ is not a dense array");
-        }
-
-        JSObject* obj2;
-        JSProperty* prop;
-        if (!OBJ_LOOKUP_PROPERTY(cx, obj, id, &obj2, &prop))
-            ABORT_TRACE("OBJ_LOOKUP_PROPERTY failed in JSOP_IN");
-
-        cond = prop != NULL;
-        if (prop)
-            OBJ_DROP_PROPERTY(cx, obj2, prop);
-
-        LIns* args[] = { get(&lval), obj_ins, cx_ins };
-        x = lir->insCall(F_HasNamedProperty, args);
-        guard(false, lir->ins2i(LIR_eq, x, 2), OOM_EXIT);
-        x = lir->ins2i(LIR_eq, x, 1);
-    } while (0);
-
-    /* The interpreter fuses comparisons and the following branch,
-       so we have to do that here as well. */
-    if (cx->fp->regs->pc[1] == JSOP_IFEQ || cx->fp->regs->pc[1] == JSOP_IFNE)
-        guard(cond, x, BRANCH_EXIT);
-
-    /* We update the stack after the guard. This is safe since
-       the guard bails out at the comparison and the interpreter
-       will this re-execute the comparison. This way the
-       value of the condition doesn't have to be calculated and
-       saved on the stack in most cases. */
-    set(&lval, x);
-    return true;
+    return false;
 }
 
 bool

@@ -158,7 +158,8 @@ function getContentAreaFrameCount()
     saveFrameItem.removeAttribute("hidden");
 }
 
-function UpdateBackForwardCommands(aWebNavigation) {
+function UpdateBackForwardCommands(aWebNavigation)
+{
   var backBroadcaster = document.getElementById("Browser:Back");
   var forwardBroadcaster = document.getElementById("Browser:Forward");
 
@@ -1081,9 +1082,7 @@ function delayedStartup()
   gBrowser.addEventListener("command", BrowserOnCommand, false);
 
   tabPreviews.init();
-  if ((!gPrefService.prefHasUserValue("browser.ctrlTab.disallowForScreenReaders") ||
-       !gPrefService.getBoolPref("browser.ctrlTab.disallowForScreenReaders")) &&
-       gPrefService.getBoolPref("browser.ctrlTab.mostRecentlyUsed"))
+  if (gPrefService.getBoolPref("browser.ctrlTab.mostRecentlyUsed"))
     ctrlTab.init();
 
   // Delayed initialization of the livemarks update timer.
@@ -1186,9 +1185,9 @@ function BrowserShutdown()
 function nonBrowserWindowStartup()
 {
   // Disable inappropriate commands / submenus
-  var disabledItems = ['Browser:SavePage',
-                       'Browser:SendLink', 'cmd_pageSetup', 'cmd_print', 'cmd_find', 'cmd_findAgain',
-                       'viewToolbarsMenu', 'cmd_toggleTaskbar', 'viewSidebarMenuMenu', 'Browser:Reload',
+  var disabledItems = ['Browser:SavePage', 'Browser:SendLink',
+                       'cmd_pageSetup', 'cmd_print', 'cmd_find', 'cmd_findAgain', 'viewToolbarsMenu',
+                       'cmd_toggleTaskbar', 'viewSidebarMenuMenu', 'Browser:Reload', 'Browser:ReloadSkipCache',
                        'viewFullZoomMenu', 'pageStyleMenu', 'charsetMenu', 'View:PageSource', 'View:FullScreen',
                        'viewHistorySidebar', 'Browser:AddBookmarkAs', 'View:PageInfo', 'Tasks:InspectPage'];
   var element;
@@ -1311,6 +1310,23 @@ SanitizeListener.prototype =
   }
 }
 
+function BrowserNumberTabSelection(event, index)
+{
+  // [Ctrl]+[9] always selects the last tab
+  if (index == 8)
+    index = gBrowser.tabContainer.childNodes.length - 1;
+  else if (index >= gBrowser.tabContainer.childNodes.length)
+    return;
+
+  var oldTab = gBrowser.selectedTab;
+  var newTab = gBrowser.tabContainer.childNodes[index];
+  if (newTab != oldTab)
+    gBrowser.selectedTab = newTab;
+
+  event.preventDefault();
+  event.stopPropagation();
+}
+
 function gotoHistoryIndex(aEvent)
 {
   var index = aEvent.target.getAttribute("index");
@@ -1342,8 +1358,9 @@ function gotoHistoryIndex(aEvent)
   }
 }
 
-function BrowserForward(aEvent) {
-  var where = whereToOpenLink(aEvent, false, true);
+function BrowserForward(aEvent, aIgnoreAlt)
+{
+  var where = whereToOpenLink(aEvent, false, aIgnoreAlt);
 
   if (where == "current") {
     try {
@@ -1361,8 +1378,9 @@ function BrowserForward(aEvent) {
   }
 }
 
-function BrowserBack(aEvent) {
-  var where = whereToOpenLink(aEvent, false, true);
+function BrowserBack(aEvent, aIgnoreAlt)
+{
+  var where = whereToOpenLink(aEvent, false, aIgnoreAlt);
 
   if (where == "current") {
     try {
@@ -1414,34 +1432,17 @@ function BrowserStop()
   }
 }
 
-function BrowserReloadOrDuplicate(aEvent) {
-  var backgroundTabModifier = aEvent.button == 1 ||
-#ifdef XP_MACOSX
-    aEvent.metaKey;
-#else
-    aEvent.ctrlKey;
-#endif
-  if (aEvent.shiftKey && !backgroundTabModifier) {
-    BrowserReloadSkipCache();
-    return;
-  }
-
-  var where = whereToOpenLink(aEvent, false, true);
-  if (where == "current")
-    BrowserReload();
-  else
-    openUILinkIn(getWebNavigation().currentURI.spec, where);
-}
-
-function BrowserReload() {
+function BrowserReload()
+{
   const reloadFlags = nsIWebNavigation.LOAD_FLAGS_NONE;
-  BrowserReloadWithFlags(reloadFlags);
+  return BrowserReloadWithFlags(reloadFlags);
 }
 
-function BrowserReloadSkipCache() {
+function BrowserReloadSkipCache()
+{
   // Bypass proxy and cache.
   const reloadFlags = nsIWebNavigation.LOAD_FLAGS_BYPASS_PROXY | nsIWebNavigation.LOAD_FLAGS_BYPASS_CACHE;
-  BrowserReloadWithFlags(reloadFlags);
+  return BrowserReloadWithFlags(reloadFlags);
 }
 
 function BrowserHome()
@@ -1450,17 +1451,22 @@ function BrowserHome()
   loadOneOrMoreURIs(homePage);
 }
 
-function BrowserGoHome(aEvent) {
+function BrowserGoHome(aEvent)
+{
   if (aEvent && "button" in aEvent &&
       aEvent.button == 2) // right-click: do nothing
     return;
 
   var homePage = gHomeButton.getHomePage();
-  var where = whereToOpenLink(aEvent, false, true);
+  var where = whereToOpenLink(aEvent);
   var urls;
 
   // openUILinkIn in utilityOverlay.js doesn't handle loading multiple pages
   switch (where) {
+  case "save":
+    urls = homePage.split("|");
+    saveURL(urls[0], null, null, true);  // only save the first page
+    break;
   case "current":
     loadOneOrMoreURIs(homePage);
     break;
@@ -2361,7 +2367,8 @@ function getWebNavigation()
   }
 }
 
-function BrowserReloadWithFlags(reloadFlags) {
+function BrowserReloadWithFlags(reloadFlags)
+{
   /* First, we'll try to use the session history object to reload so
    * that framesets are handled properly. If we're in a special
    * window (such as view-source) that has no session history, fall
@@ -3210,7 +3217,8 @@ function BrowserCustomizeToolbar()
 #endif
 }
 
-function BrowserToolboxCustomizeDone(aToolboxChanged) {
+function BrowserToolboxCustomizeDone(aToolboxChanged)
+{
 #ifdef TOOLBAR_CUSTOMIZATION_SHEET
   document.getElementById("customizeToolbarSheetIFrame").hidden = true;
   document.getElementById("customizeToolbarSheetPopup").hidePopup();
@@ -3267,17 +3275,6 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
   if (reloadButton) {
     reloadButton.disabled =
       document.getElementById("Browser:Reload").getAttribute("disabled") == "true";
-  }
-  //bug 440702: the back and forward buttons also suffer from bug 309953.
-  var backButton = document.getElementById("back-button");
-  if (backButton) {
-    backButton.disabled =
-      document.getElementById("Browser:Back").getAttribute("disabled") == "true";
-  }
-  var forwardButton = document.getElementById("forward-button");
-  if (forwardButton) {
-    forwardButton.disabled =
-      document.getElementById("Browser:Forward").getAttribute("disabled") == "true";
   }
 
 #ifdef XP_MACOSX
@@ -3705,14 +3702,15 @@ nsBrowserStatusHandler.prototype =
 
   init : function()
   {
-    this.throbberElement = document.getElementById("navigator-throbber");
-    this.statusMeter     = document.getElementById("statusbar-icon");
-    this.stopCommand     = document.getElementById("Browser:Stop");
-    this.reloadCommand   = document.getElementById("Browser:Reload");
-    this.statusTextField = document.getElementById("statusbar-display");
-    this.securityButton  = document.getElementById("security-button");
-    this.urlBar          = document.getElementById("urlbar");
-    this.isImage         = document.getElementById("isImage");
+    this.throbberElement        = document.getElementById("navigator-throbber");
+    this.statusMeter            = document.getElementById("statusbar-icon");
+    this.stopCommand            = document.getElementById("Browser:Stop");
+    this.reloadCommand          = document.getElementById("Browser:Reload");
+    this.reloadSkipCacheCommand = document.getElementById("Browser:ReloadSkipCache");
+    this.statusTextField        = document.getElementById("statusbar-display");
+    this.securityButton         = document.getElementById("security-button");
+    this.urlBar                 = document.getElementById("urlbar");
+    this.isImage                = document.getElementById("isImage");
 
     // Initialize the security button's state and tooltip text.  Remember to reset
     // _hostChanged, otherwise onSecurityChange will short circuit.
@@ -3724,15 +3722,16 @@ nsBrowserStatusHandler.prototype =
   destroy : function()
   {
     // XXXjag to avoid leaks :-/, see bug 60729
-    this.throbberElement = null;
-    this.statusMeter     = null;
-    this.stopCommand     = null;
-    this.reloadCommand   = null;
-    this.statusTextField = null;
-    this.securityButton  = null;
-    this.urlBar          = null;
-    this.statusText      = null;
-    this.lastURI         = null;
+    this.throbberElement        = null;
+    this.statusMeter            = null;
+    this.stopCommand            = null;
+    this.reloadCommand          = null;
+    this.reloadSkipCacheCommand = null;
+    this.statusTextField        = null;
+    this.securityButton         = null;
+    this.urlBar                 = null;
+    this.statusText             = null;
+    this.lastURI                = null;
   },
 
   setJSStatus : function(status)
@@ -3977,8 +3976,10 @@ nsBrowserStatusHandler.prototype =
            location == "") {  // Second condition is for new tabs, otherwise
                               // reload function is enabled until tab is refreshed.
         this.reloadCommand.setAttribute("disabled", "true");
+        this.reloadSkipCacheCommand.setAttribute("disabled", "true");
       } else {
         this.reloadCommand.removeAttribute("disabled");
+        this.reloadSkipCacheCommand.removeAttribute("disabled");
       }
 
       if (!gBrowser.mTabbedMode && aWebProgress.isLoadingDocument)
@@ -4180,7 +4181,7 @@ nsBrowserStatusHandler.prototype =
       // e.g. about:blank. The _state for these pages means we won't need these
       // properties anyways, though.
     }
-    gIdentityHandler.checkIdentity(this._state, locationObj);
+    getIdentityHandler().checkIdentity(this._state, locationObj);
   },
 
   // simulate all change notifications after switching tabs
@@ -4397,7 +4398,11 @@ nsBrowserAccess.prototype =
 
   isTabContentWindow : function(aWindow)
   {
-    return gBrowser.browsers.some(function (browser) browser.contentWindow == aWindow);
+    var browsers = gBrowser.browsers;
+    for (var ctr = 0; ctr < browsers.length; ctr++)
+      if (browsers.item(ctr).contentWindow == aWindow)
+        return true;
+    return false;
   }
 }
 
@@ -5403,8 +5408,14 @@ var OfflineApps = {
   // XXX: duplicated in preferences/advanced.js
   _getOfflineAppUsage: function (host)
   {
-    // XXX Bug 442810: include offline cache usage.
-    var usage = 0;
+    var cacheService = Components.classes["@mozilla.org/network/cache-service;1"].
+                       getService(Components.interfaces.nsICacheService);
+    var cacheSession = cacheService.createSession("HTTP-offline",
+                                                  Components.interfaces.nsICache.STORE_OFFLINE,
+                                                  true).
+                       QueryInterface(Components.interfaces.nsIOfflineCacheSession);
+    var usage = cacheSession.getDomainUsage(host);
+
     var storageManager = Components.classes["@mozilla.org/dom/storagemanager;1"].
                          getService(Components.interfaces.nsIDOMStorageManager);
     usage += storageManager.getUsage(host);
@@ -6248,9 +6259,26 @@ BookmarkAllTabsHandler.prototype = {
 };
 
 /**
- * Utility object to handle manipulations of the identity indicators in the UI
+ * Utility class to handle manipulations of the identity indicators in the UI
  */
-var gIdentityHandler = {
+function IdentityHandler() {
+  this._stringBundle = document.getElementById("bundle_browser");
+  this._staticStrings = {};
+  this._staticStrings[this.IDENTITY_MODE_DOMAIN_VERIFIED] = {
+    encryption_label: this._stringBundle.getString("identity.encrypted")  
+  };
+  this._staticStrings[this.IDENTITY_MODE_IDENTIFIED] = {
+    encryption_label: this._stringBundle.getString("identity.encrypted")
+  };
+  this._staticStrings[this.IDENTITY_MODE_UNKNOWN] = {
+    encryption_label: this._stringBundle.getString("identity.unencrypted")  
+  };
+
+  this._cacheElements();
+}
+
+IdentityHandler.prototype = {
+
   // Mode strings used to control CSS display
   IDENTITY_MODE_IDENTIFIED       : "verifiedIdentity", // High-quality identity information
   IDENTITY_MODE_DOMAIN_VERIFIED  : "verifiedDomain",   // Minimal SSL CA-signed domain verification
@@ -6260,76 +6288,18 @@ var gIdentityHandler = {
   _lastStatus : null,
   _lastLocation : null,
 
-  // smart getters
-  get _stringBundle () {
-    delete this._stringBundle;
-    return this._stringBundle = document.getElementById("bundle_browser");
-  },
-  get _staticStrings () {
-    delete this._staticStrings;
-    this._staticStrings = {};
-    this._staticStrings[this.IDENTITY_MODE_DOMAIN_VERIFIED] = {
-      encryption_label: this._stringBundle.getString("identity.encrypted")
-    };
-    this._staticStrings[this.IDENTITY_MODE_IDENTIFIED] = {
-      encryption_label: this._stringBundle.getString("identity.encrypted")
-    };
-    this._staticStrings[this.IDENTITY_MODE_UNKNOWN] = {
-      encryption_label: this._stringBundle.getString("identity.unencrypted")
-    };
-    return this._staticStrings;
-  },
-  get _identityPopup () {
-    delete this._identityPopup;
-    return this._identityPopup = document.getElementById("identity-popup");
-  },
-  get _identityBox () {
-    delete this._identityBox;
-    return this._identityBox = document.getElementById("identity-box");
-  },
-  get _identityPopupContentBox () {
-    delete this._identityPopupContentBox;
-    return this._identityPopupContentBox =
-      document.getElementById("identity-popup-content-box");
-  },
-  get _identityPopupContentHost () {
-    delete this._identityPopupContentHost;
-    return this._identityPopupContentHost =
-      document.getElementById("identity-popup-content-host");
-  },
-  get _identityPopupContentOwner () {
-    delete this._identityPopupContentOwner;
-    return this._identityPopupContentOwner =
-      document.getElementById("identity-popup-content-owner");
-  },
-  get _identityPopupContentSupp () {
-    delete this._identityPopupContentSupp;
-    return this._identityPopupContentSupp =
-      document.getElementById("identity-popup-content-supplemental");
-  },
-  get _identityPopupContentVerif () {
-    delete this._identityPopupContentVerif;
-    return this._identityPopupContentVerif =
-      document.getElementById("identity-popup-content-verifier");
-  },
-  get _identityPopupEncLabel () {
-    delete this._identityPopupEncLabel;
-    return this._identityPopupEncLabel =
-      document.getElementById("identity-popup-encryption-label");
-  },
-  get _identityIconLabel () {
-    delete this._identityIconLabel;
-    return this._identityIconLabel = document.getElementById("identity-icon-label");
-  },
-
   /**
-   * Rebuild cache of the elements that may or may not exist depending
-   * on whether there's a location bar.
+   * Build out a cache of the elements that we need frequently.
    */
   _cacheElements : function() {
-    delete this._identityBox;
-    delete this._identityIconLabel;
+    this._identityPopup = document.getElementById("identity-popup");
     this._identityBox = document.getElementById("identity-box");
+    this._identityPopupContentBox = document.getElementById("identity-popup-content-box");
+    this._identityPopupContentHost = document.getElementById("identity-popup-content-host");
+    this._identityPopupContentOwner = document.getElementById("identity-popup-content-owner");
+    this._identityPopupContentSupp = document.getElementById("identity-popup-content-supplemental");
+    this._identityPopupContentVerif = document.getElementById("identity-popup-content-verifier");
+    this._identityPopupEncLabel = document.getElementById("identity-popup-encryption-label");
     this._identityIconLabel = document.getElementById("identity-icon-label");
   },
 
@@ -6603,6 +6573,18 @@ var gIdentityHandler = {
     this._identityPopup.openPopup(this._identityBox, position);
   }
 };
+
+var gIdentityHandler; 
+
+/**
+ * Returns the singleton instance of the identity handler class.  Should always be
+ * used instead of referencing the global variable directly or creating new instances
+ */
+function getIdentityHandler() {
+  if (!gIdentityHandler)
+    gIdentityHandler = new IdentityHandler();
+  return gIdentityHandler;    
+}
 
 let DownloadMonitorPanel = {
   //////////////////////////////////////////////////////////////////////////////

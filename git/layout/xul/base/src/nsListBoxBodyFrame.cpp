@@ -269,8 +269,26 @@ nsListBoxBodyFrame::Destroy()
   }
 
   // Make sure we tell our listbox's box object we're being destroyed.
-  if (mBoxObject) {
-    mBoxObject->ClearCachedValues();
+  for (nsIFrame *a = mParent; a; a = a->GetParent()) {
+    nsIContent *content = a->GetContent();
+    nsIDocument *doc;
+
+    if (content &&
+        content->NodeInfo()->Equals(nsGkAtoms::listbox, kNameSpaceID_XUL) &&
+        (doc = content->GetDocument())) {
+      nsCOMPtr<nsIDOMElement> e(do_QueryInterface(content));
+      nsCOMPtr<nsIDOMNSDocument> nsdoc(do_QueryInterface(doc));
+
+      nsCOMPtr<nsIBoxObject> box;
+      nsdoc->GetBoxObjectFor(e, getter_AddRefs(box));
+
+      nsCOMPtr<nsPIBoxObject> piBox = do_QueryInterface(box);
+      if (piBox) {
+        piBox->ClearCachedValues();
+      }
+
+      break;
+    }
   }
 
   nsBoxFrame::Destroy();

@@ -65,7 +65,6 @@
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
 #include "nsRecentBadCerts.h"
-#include "nsISSLCertErrorDialog.h"
 
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
@@ -1393,33 +1392,12 @@ nsHandleInvalidCertError(nsNSSSocketInfo *socketInfo,
       rv = NS_ERROR_NOT_AVAILABLE;
     }
     else {
-      nsISSLCertErrorDialog *dialogs = nsnull;
-      rv = getNSSDialogs((void**)&dialogs, 
-        NS_GET_IID(nsISSLCertErrorDialog), 
-        NS_SSLCERTERRORDIALOG_CONTRACTID);
-  
-      if (NS_SUCCEEDED(rv)) {
-        nsPSMUITracker tracker;
-        if (tracker.isUIForbidden()) {
-          rv = NS_ERROR_NOT_AVAILABLE;
-        }
-        else {
-          nsCOMPtr<nsISSLStatus> status;
-          socketInfo->GetSSLStatus(getter_AddRefs(status));
-
-          nsString empty;
-
-          rv = dialogs->ShowCertError(nsnull, status, ix509, 
-                                      formattedString, 
-                                      empty, host, port);
-        }
-  
-        NS_RELEASE(dialogs);
-      }
+      rv = displayAlert(formattedString, socketInfo);
     }
   }
   return rv;
 }
+
 
 static PRStatus PR_CALLBACK
 nsSSLIOLayerConnect(PRFileDesc* fd, const PRNetAddr* addr,
