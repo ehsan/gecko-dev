@@ -31,7 +31,8 @@
 #include "base/message_loop.h"
 
 #include "BluetoothCommon.h"
-#include "BluetoothHfpManagerBase.h"
+#include "BluetoothProfileManagerBase.h"
+#include "BluetoothHfpManager.h"
 
 #include "nsJSUtils.h"
 #include "nsCxPusher.h"
@@ -229,8 +230,8 @@ AudioManager::HandleBluetoothStatusChanged(nsISupports* aSubject,
 #ifdef MOZ_B2G_BT
   bool status;
   if (!strcmp(aTopic, BLUETOOTH_SCO_STATUS_CHANGED_ID)) {
-    BluetoothHfpManagerBase* hfp =
-      static_cast<BluetoothHfpManagerBase*>(aSubject);
+    BluetoothHfpManager* hfp =
+      static_cast<BluetoothHfpManager*>(aSubject);
     status = hfp->IsScoConnected();
   } else {
     BluetoothProfileManagerBase* profile =

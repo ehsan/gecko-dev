@@ -12,13 +12,9 @@
  */
 
 #include "builtin/SIMD.h"
-
 #include "jsapi.h"
 #include "jsfriendapi.h"
-
 #include "builtin/TypedObject.h"
-#include "js/Value.h"
-
 #include "jsobjinlines.h"
 
 using namespace js;
@@ -52,7 +48,7 @@ struct Float32x4 {
         *out = v.toNumber();
     }
     static void setReturn(CallArgs &args, float value) {
-        args.rval().setDouble(JS::CanonicalizeNaN(value));
+        args.rval().setDouble(value);
     }
 };
 

@@ -13,6 +13,7 @@
 
 // http://www.whatwg.org/specs/web-apps/current-work/#the-a-element
 interface HTMLAnchorElement : HTMLElement {
+  stringifier;
            [SetterThrows]
            attribute DOMString target;
            [SetterThrows]

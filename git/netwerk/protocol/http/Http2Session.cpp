@@ -896,10 +896,7 @@ Http2Session::CleanupStream(Http2Stream *aStream, nsresult aResult,
 {
   MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
   LOG3(("Http2Session::CleanupStream %p %p 0x%X %X\n",
-        this, aStream, aStream ? aStream->StreamID() : 0, aResult));
-  if (!aStream) {
-    return;
-  }
+        this, aStream, aStream->StreamID(), aResult));
 
   Http2PushedStream *pushSource = nullptr;
 

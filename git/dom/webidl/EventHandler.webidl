@@ -10,17 +10,17 @@
  * Opera Software ASA. You are granted a license to use, reproduce
  * and create derivative works of this document.
  */
-[TreatNonObjectAsNull]
+[TreatNonCallableAsNull]
 callback EventHandlerNonNull = any (Event event);
 typedef EventHandlerNonNull? EventHandler;
 
-[TreatNonObjectAsNull]
+[TreatNonCallableAsNull]
 // https://www.w3.org/Bugs/Public/show_bug.cgi?id=23489
 //callback OnBeforeUnloadEventHandlerNonNull = DOMString (Event event);
 callback OnBeforeUnloadEventHandlerNonNull = DOMString? (Event event);
 typedef OnBeforeUnloadEventHandlerNonNull? OnBeforeUnloadEventHandler;
 
-[TreatNonObjectAsNull]
+[TreatNonCallableAsNull]
 callback OnErrorEventHandlerNonNull = boolean ((Event or DOMString) event, optional DOMString source, optional unsigned long lineno, optional unsigned long column);
 typedef OnErrorEventHandlerNonNull? OnErrorEventHandler;
 
