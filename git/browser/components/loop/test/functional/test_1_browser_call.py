@@ -1,15 +1,8 @@
-try:
-    from by import By
-    from errors import NoSuchElementException, StaleElementException
-    # noinspection PyUnresolvedReferences
-    from wait import Wait
-    from marionette_test import MarionetteTestCase
-except ImportError:
-    from marionette_driver.by import By
-    from marionette_driver.errors import NoSuchElementException, StaleElementException
-    # noinspection PyUnresolvedReferences
-    from marionette_driver import Wait
-    from marionette import MarionetteTestCase
+from marionette_driver.by import By
+from marionette_driver.errors import NoSuchElementException, StaleElementException
+# noinspection PyUnresolvedReferences
+from marionette_driver import Wait
+from marionette import MarionetteTestCase
 
 import os
 import sys
