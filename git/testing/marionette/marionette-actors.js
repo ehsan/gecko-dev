@@ -1201,12 +1201,13 @@ MarionetteDriverActor.prototype = {
   _emu_cb_id: 0,
   _emu_cbs: null,
   runEmulatorCmd: function runEmulatorCmd(cmd, callback) {
-    if (callback) {
-      if (!this._emu_cbs) {
-        this._emu_cbs = {};
-      }
-      this._emu_cbs[this._emu_cb_id] = callback;
+    if (typeof callback != "function") {
+      throw "Need to provide callback function!";
     }
+    if (!this._emu_cbs) {
+      this._emu_cbs = {};
+    }
+    this._emu_cbs[this._emu_cb_id] = callback;
     this.sendToClient({emulator_cmd: cmd, id: this._emu_cb_id});
     this._emu_cb_id += 1;
   },
@@ -1217,15 +1218,12 @@ MarionetteDriverActor.prototype = {
       return;
     }
 
-    if (!this._emu_cbs) {
+    if (!this._emu_cbs || !this._emu_cbs[message.id]) {
       return;
     }
 
     let cb = this._emu_cbs[message.id];
     delete this._emu_cbs[message.id];
-    if (!cb) {
-      return;
-    }
     try {
       cb(message.result);
     }
