@@ -2,7 +2,6 @@
 // See https://bugzilla.mozilla.org/show_bug.cgi?id=372486
 
 Cu.import("resource://testing-common/httpd.js");
-Cu.import("resource://gre/modules/Services.jsm");
 
 const NS_ERROR_IN_PROGRESS = 0x804b000f;
 const NS_ERROR_ALREADY_OPENED = 0x804b0049;
@@ -24,26 +23,14 @@ var httpserv = null;
 function makeChan(url) {
   var ios = Cc["@mozilla.org/network/io-service;1"]
               .getService(Ci.nsIIOService);
-  return chan = ios.newChannel2(url,
-                                null,
-                                null,
-                                null,      // aLoadingNode
-                                Services.scriptSecurityManager.getSystemPrincipal(),
-                                null,      // aTriggeringPrincipal
-                                Ci.nsILoadInfo.SEC_NORMAL,
-                                Ci.nsIContentPolicy.TYPE_OTHER)
+  return chan = ios.newChannel(url, null, null)
                    .QueryInterface(Ci.nsIChannel);
 }
 
 function new_file_channel(file) {
   var ios = Cc["@mozilla.org/network/io-service;1"]
               .getService(Ci.nsIIOService);
-  return ios.newChannelFromURI2(ios.newFileURI(file),
-                                null,      // aLoadingNode
-                                Services.scriptSecurityManager.getSystemPrincipal(),
-                                null,      // aTriggeringPrincipal
-                                Ci.nsILoadInfo.SEC_NORMAL,
-                                Ci.nsIContentPolicy.TYPE_OTHER);
+  return ios.newChannelFromURI(ios.newFileURI(file));
 }
 
 

@@ -2021,13 +2021,18 @@ class MSimdShift : public MBinaryInstruction
     ALLOW_CLONE(MSimdShift)
 };
 
-class MSimdSelect : public MTernaryInstruction
+class MSimdTernaryBitwise : public MTernaryInstruction
 {
-    bool isElementWise_;
+  public:
+    enum Operation {
+        select
+    };
 
-    MSimdSelect(MDefinition *mask, MDefinition *lhs, MDefinition *rhs, MIRType type,
-                bool isElementWise)
-      : MTernaryInstruction(mask, lhs, rhs), isElementWise_(isElementWise)
+  private:
+    Operation operation_;
+
+    MSimdTernaryBitwise(MDefinition *mask, MDefinition *lhs, MDefinition *rhs, Operation op, MIRType type)
+      : MTernaryInstruction(mask, lhs, rhs), operation_(op)
     {
         MOZ_ASSERT(IsSimdType(type));
         MOZ_ASSERT(mask->type() == MIRType_Int32x4);
@@ -2038,32 +2043,20 @@ class MSimdSelect : public MTernaryInstruction
     }
 
   public:
-    INSTRUCTION_HEADER(SimdSelect);
-    static MSimdSelect *NewAsmJS(TempAllocator &alloc, MDefinition *mask, MDefinition *lhs,
-                                 MDefinition *rhs, MIRType t, bool isElementWise)
+    INSTRUCTION_HEADER(SimdTernaryBitwise);
+    static MSimdTernaryBitwise *NewAsmJS(TempAllocator &alloc, MDefinition *mask, MDefinition *lhs,
+                                         MDefinition *rhs, Operation op, MIRType t)
     {
-        return new(alloc) MSimdSelect(mask, lhs, rhs, t, isElementWise);
-    }
-
-    MDefinition *mask() const {
-        return getOperand(0);
+        return new(alloc) MSimdTernaryBitwise(mask, lhs, rhs, op, t);
     }
 
     AliasSet getAliasSet() const {
         return AliasSet::None();
     }
 
-    bool isElementWise() const {
-        return isElementWise_;
-    }
+    Operation operation() const { return operation_; }
 
-    bool congruentTo(const MDefinition *ins) const {
-        if (!congruentIfOperandsEqual(ins))
-            return false;
-        return isElementWise_ == ins->toSimdSelect()->isElementWise();
-    }
-
-    ALLOW_CLONE(MSimdSelect)
+    ALLOW_CLONE(MSimdTernaryBitwise)
 };
 
 // Deep clone a constant JSObject.

@@ -765,7 +765,7 @@ public class BrowserApp extends GeckoApp
         final boolean inGuestSession = GeckoProfile.get(this).inGuestMode();
         if (enableGuestSession != inGuestSession) {
             doRestart(getIntent());
-            GeckoAppShell.gracefulExit();
+            GeckoAppShell.systemExit();
             return;
         }
 
@@ -3010,7 +3010,7 @@ public class BrowserApp extends GeckoApp
                         }
 
                         doRestart(args);
-                        GeckoAppShell.gracefulExit();
+                        GeckoAppShell.systemExit();
                     }
                 } catch(JSONException ex) {
                     Log.e(LOGTAG, "Exception reading guest mode prompt result", ex);

@@ -19,7 +19,6 @@
 //  for each. None of the handlers should see a Range-header.
 
 Cu.import("resource://testing-common/httpd.js");
-Cu.import("resource://gre/modules/Services.jsm");
 
 var httpserver = null;
 
@@ -37,14 +36,7 @@ var port = null; // set in run_test
 function make_channel(url, callback, ctx) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
             getService(Ci.nsIIOService);
-  var chan = ios.newChannel2(url,
-                             "",
-                             null,
-                             null,      // aLoadingNode
-                             Services.scriptSecurityManager.getSystemPrincipal(),
-                             null,      // aTriggeringPrincipal
-                             Ci.nsILoadInfo.SEC_NORMAL,
-                             Ci.nsIContentPolicy.TYPE_OTHER);
+  var chan = ios.newChannel(url, "", null);
   return chan.QueryInterface(Ci.nsIHttpChannel);
 }
 

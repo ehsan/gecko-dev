@@ -1,5 +1,3 @@
-Cu.import("resource://gre/modules/Services.jsm");
-
 function run_test() {
   var ioServ = Components.classes["@mozilla.org/network/io-service;1"]
                          .getService(Components.interfaces.nsIIOService);
@@ -9,19 +7,9 @@ function run_test() {
   var about1 = ioServ.newURI("about:blank", null, null);
   var about2 = ioServ.newURI("about:blank", null, base);
 
-  var chan1 = ioServ.newChannelFromURI2(about1,
-                                        null,      // aLoadingNode
-                                        Services.scriptSecurityManager.getSystemPrincipal(),
-                                        null,      // aTriggeringPrincipal
-                                        Ci.nsILoadInfo.SEC_NORMAL,
-                                        Ci.nsIContentPolicy.TYPE_OTHER)
+  var chan1 = ioServ.newChannelFromURI(about1)
                     .QueryInterface(Components.interfaces.nsIPropertyBag2);
-  var chan2 = ioServ.newChannelFromURI2(about2,
-                                        null,      // aLoadingNode
-                                        Services.scriptSecurityManager.getSystemPrincipal(),
-                                        null,      // aTriggeringPrincipal
-                                        Ci.nsILoadInfo.SEC_NORMAL,
-                                        Ci.nsIContentPolicy.TYPE_OTHER)
+  var chan2 = ioServ.newChannelFromURI(about2)
                     .QueryInterface(Components.interfaces.nsIPropertyBag2);
 
   var haveProp = false;

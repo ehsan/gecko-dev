@@ -27,11 +27,7 @@ public:
   {
     MOZ_COUNT_CTOR(ProxyAccessible);
   }
-  ~ProxyAccessible()
-  {
-    MOZ_COUNT_DTOR(ProxyAccessible);
-    MOZ_ASSERT(!mWrapper);
-  }
+  ~ProxyAccessible() { MOZ_COUNT_DTOR(ProxyAccessible); }
 
   void AddChildAt(uint32_t aIdx, ProxyAccessible* aChild)
   { mChildren.InsertElementAt(aIdx, aChild); }
