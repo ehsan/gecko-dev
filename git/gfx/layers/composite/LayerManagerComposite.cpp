@@ -601,14 +601,14 @@ LayerManagerComposite::Render()
     composer2D = mCompositor->GetWidget()->GetComposer2D();
   }
 
-  if (!mTarget && composer2D && composer2D->TryRender(mRoot, mGeometryChanged)) {
+  if (!mTarget && composer2D && composer2D->TryRender(mRoot, mWorldMatrix, mGeometryChanged)) {
     if (mFPS) {
       double fps = mFPS->mCompositionFps.AddFrameAndGetFps(TimeStamp::Now());
       if (gfxPrefs::LayersDrawFPS()) {
         printf_stderr("HWComposer: FPS is %g\n", fps);
       }
     }
-    mCompositor->EndFrameForExternalComposition(Matrix());
+    mCompositor->EndFrameForExternalComposition(mWorldMatrix);
     // Reset the invalid region as compositing is done
     mInvalidRegion.SetEmpty();
     mLastFrameMissedHWC = false;
@@ -643,11 +643,12 @@ LayerManagerComposite::Render()
 
   if (mRoot->GetClipRect()) {
     clipRect = *mRoot->GetClipRect();
+    WorldTransformRect(clipRect);
     Rect rect(clipRect.x, clipRect.y, clipRect.width, clipRect.height);
-    mCompositor->BeginFrame(invalid, &rect, bounds, nullptr, &actualBounds);
+    mCompositor->BeginFrame(invalid, &rect, mWorldMatrix, bounds, nullptr, &actualBounds);
   } else {
     gfx::Rect rect;
-    mCompositor->BeginFrame(invalid, nullptr, bounds, &rect, &actualBounds);
+    mCompositor->BeginFrame(invalid, nullptr, mWorldMatrix, bounds, &rect, &actualBounds);
     clipRect = nsIntRect(rect.x, rect.y, rect.width, rect.height);
   }
 
@@ -707,6 +708,31 @@ LayerManagerComposite::Render()
   mCompositor->GetWidget()->PostRender(this);
 
   RecordFrame();
+}
+
+void
+LayerManagerComposite::SetWorldTransform(const gfx::Matrix& aMatrix)
+{
+  NS_ASSERTION(aMatrix.PreservesAxisAlignedRectangles(),
+               "SetWorldTransform only accepts matrices that satisfy PreservesAxisAlignedRectangles");
+  NS_ASSERTION(!aMatrix.HasNonIntegerScale(),
+               "SetWorldTransform only accepts matrices with integer scale");
+
+  mWorldMatrix = aMatrix;
+}
+
+gfx::Matrix&
+LayerManagerComposite::GetWorldTransform(void)
+{
+  return mWorldMatrix;
+}
+
+void
+LayerManagerComposite::WorldTransformRect(nsIntRect& aRect)
+{
+  gfx::Rect grect(aRect.x, aRect.y, aRect.width, aRect.height);
+  grect = mWorldMatrix.TransformBounds(grect);
+  aRect.SetRect(grect.X(), grect.Y(), grect.Width(), grect.Height());
 }
 
 static void

@@ -43,7 +43,6 @@ class OutOfLineLoadTypedArray;
 class OutOfLineNewGCThingPar;
 class OutOfLineUpdateCache;
 class OutOfLineCallPostWriteBarrier;
-class OutOfLineIsCallable;
 
 class CodeGenerator : public CodeGeneratorSpecific
 {
@@ -297,7 +296,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitCallDOMNative(LCallDOMNative *lir);
     bool visitCallGetIntrinsicValue(LCallGetIntrinsicValue *lir);
     bool visitIsCallable(LIsCallable *lir);
-    bool visitOutOfLineIsCallable(OutOfLineIsCallable *ool);
     bool visitIsObject(LIsObject *lir);
     bool visitHaveSameClass(LHaveSameClass *lir);
     bool visitHasClass(LHasClass *lir);

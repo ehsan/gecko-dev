@@ -91,9 +91,7 @@
 #include "nsSHistory.h"
 #include "nsDocShellEditorData.h"
 #include "GeckoProfiler.h"
-#ifdef MOZ_ENABLE_PROFILER_SPS
 #include "ProfilerMarkers.h"
-#endif
 
 // Helper Classes
 #include "nsError.h"
@@ -2802,7 +2800,6 @@ unsigned long nsDocShell::gProfileTimelineRecordingsCount = 0;
 NS_IMETHODIMP
 nsDocShell::SetRecordProfileTimelineMarkers(bool aValue)
 {
-#ifdef MOZ_ENABLE_PROFILER_SPS
   bool currentValue;
   GetRecordProfileTimelineMarkers(&currentValue);
   if (currentValue != aValue) {
@@ -2817,9 +2814,6 @@ nsDocShell::SetRecordProfileTimelineMarkers(bool aValue)
   }
 
   return NS_OK;
-#else
-  return NS_ERROR_FAILURE;
-#endif
 }
 
 NS_IMETHODIMP
@@ -2833,7 +2827,6 @@ nsresult
 nsDocShell::PopProfileTimelineMarkers(JSContext* aCx,
                           JS::MutableHandle<JS::Value> aProfileTimelineMarkers)
 {
-#ifdef MOZ_ENABLE_PROFILER_SPS
   // Looping over all markers gathered so far at the docShell level, whenever a
   // START marker is found, look for the corresponding END marker and build a
   // {name,start,end} JS object.
@@ -2888,9 +2881,6 @@ nsDocShell::PopProfileTimelineMarkers(JSContext* aCx,
   ClearProfileTimelineMarkers();
 
   return NS_OK;
-#else
-  return NS_ERROR_FAILURE;
-#endif
 }
 
 float
@@ -2903,7 +2893,6 @@ void
 nsDocShell::AddProfileTimelineMarker(const char* aName,
                                      TracingMetadata aMetaData)
 {
-#ifdef MOZ_ENABLE_PROFILER_SPS
   if (!mProfileTimelineStartTime.IsNull()) {
     float delta = GetProfileTimelineDelta();
     ProfilerMarkerTracing* payload = new ProfilerMarkerTracing("Timeline",
@@ -2911,7 +2900,6 @@ nsDocShell::AddProfileTimelineMarker(const char* aName,
     mProfileTimelineMarkers.AppendElement(
       new InternalProfileTimelineMarker(aName, payload, delta));
   }
-#endif
 }
 
 void
@@ -2919,7 +2907,6 @@ nsDocShell::AddProfileTimelineMarker(const char* aName,
                                      ProfilerBacktrace* aCause,
                                      TracingMetadata aMetaData)
 {
-#ifdef MOZ_ENABLE_PROFILER_SPS
   if (!mProfileTimelineStartTime.IsNull()) {
     float delta = GetProfileTimelineDelta();
     ProfilerMarkerTracing* payload = new ProfilerMarkerTracing("Timeline",
@@ -2928,19 +2915,16 @@ nsDocShell::AddProfileTimelineMarker(const char* aName,
     mProfileTimelineMarkers.AppendElement(
       new InternalProfileTimelineMarker(aName, payload, delta));
   }
-#endif
 }
 
 void
 nsDocShell::ClearProfileTimelineMarkers()
 {
-#ifdef MOZ_ENABLE_PROFILER_SPS
   for (uint32_t i = 0; i < mProfileTimelineMarkers.Length(); ++i) {
     delete mProfileTimelineMarkers[i]->mPayload;
     mProfileTimelineMarkers[i]->mPayload = nullptr;
   }
   mProfileTimelineMarkers.Clear();
-#endif
 }
 
 nsIDOMStorageManager*

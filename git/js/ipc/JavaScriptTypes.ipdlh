@@ -101,7 +101,8 @@ struct PPropertyDescriptor
     //
     //  0 - NULL
     //  1 - Default getter or setter.
-    //  2 - Unknown
+    //  2 - js_GetterOnlyPropertyStub (setter only)
+    //  3 - Unknown
     GetterSetter getter;
     GetterSetter setter;
 };

@@ -3031,11 +3031,11 @@ nsDisplayBoxShadowInner::Paint(nsDisplayListBuilder* aBuilder,
     js::ProfileEntry::Category::GRAPHICS);
 
   for (uint32_t i = 0; i < rects.Length(); ++i) {
-    aCtx->ThebesContext()->Save();
+    aCtx->PushState();
     aCtx->IntersectClip(rects[i]);
     nsCSSRendering::PaintBoxShadowInner(presContext, *aCtx, mFrame,
                                         borderRect, rects[i]);
-    aCtx->ThebesContext()->Restore();
+    aCtx->PopState();
   }
 }
 

@@ -499,8 +499,7 @@ struct SizeConstraints {
 // IMEMessage is shared by IMEStateManager and TextComposition.
 // Update values in GeckoEditable.java if you make changes here.
 // XXX Negative values are used in Android...
-typedef int8_t IMEMessageType;
-enum IMEMessage MOZ_ENUM_TYPE(IMEMessageType)
+enum IMEMessage MOZ_ENUM_TYPE(int8_t)
 {
   // XXX We should replace NOTIFY_IME_OF_CURSOR_POS_CHANGED with
   //     NOTIFY_IME_OF_SELECTION_CHANGE later.
@@ -529,10 +528,6 @@ enum IMEMessage MOZ_ENUM_TYPE(IMEMessageType)
 
 struct IMENotification
 {
-  IMENotification()
-    : mMessage(static_cast<IMEMessage>(-1))
-  {}
-
   MOZ_IMPLICIT IMENotification(IMEMessage aMessage)
     : mMessage(aMessage)
   {
@@ -654,6 +649,9 @@ struct IMENotification
         return false;
     }
   }
+
+private:
+  IMENotification();
 };
 
 } // namespace widget

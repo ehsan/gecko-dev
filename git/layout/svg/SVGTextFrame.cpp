@@ -3147,9 +3147,9 @@ nsDisplaySVGText::Paint(nsDisplayListBuilder* aBuilder,
   gfxMatrix tm = nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(mFrame) *
                    gfxMatrix::Translation(devPixelOffset);
 
-  aCtx->ThebesContext()->Save();
+  aCtx->PushState();
   static_cast<SVGTextFrame*>(mFrame)->PaintSVG(aCtx, tm);
-  aCtx->ThebesContext()->Restore();
+  aCtx->PopState();
 }
 
 // ---------------------------------------------------------------------

@@ -11,7 +11,6 @@ import org.mozilla.gecko.BrowserLocaleManager;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.tabs.TabsPanel.CloseAllPanelView;
-import org.mozilla.gecko.tabs.TabsPanel.TabsLayout;
 
 import android.content.Context;
 import android.util.AttributeSet;
@@ -27,16 +26,16 @@ import android.widget.FrameLayout;
  */
 class PrivateTabsPanel extends FrameLayout implements CloseAllPanelView {
     private TabsPanel tabsPanel;
-    private TabsLayout tabsLayout;
+    private TabsTray tabsTray;
 
     public PrivateTabsPanel(Context context, AttributeSet attrs) {
         super(context, attrs);
 
         LayoutInflater.from(context).inflate(R.layout.private_tabs_panel, this);
-        tabsLayout = (TabsLayout) findViewById(R.id.private_tabs_tray);
+        tabsTray = (TabsTray) findViewById(R.id.private_tabs_tray);
 
         final View emptyView = findViewById(R.id.private_tabs_empty);
-        tabsLayout.setEmptyView(emptyView);
+        tabsTray.setEmptyView(emptyView);
 
         final View learnMore = findViewById(R.id.private_tabs_learn_more);
         learnMore.setOnClickListener(new OnClickListener() {
@@ -56,28 +55,28 @@ class PrivateTabsPanel extends FrameLayout implements CloseAllPanelView {
     @Override
     public void setTabsPanel(TabsPanel panel) {
         tabsPanel = panel;
-        tabsLayout.setTabsPanel(panel);
+        tabsTray.setTabsPanel(panel);
     }
 
     @Override
     public void show() {
-        tabsLayout.show();
+        tabsTray.show();
         setVisibility(View.VISIBLE);
     }
 
     @Override
     public void hide() {
         setVisibility(View.GONE);
-        tabsLayout.hide();
+        tabsTray.hide();
     }
 
     @Override
     public boolean shouldExpand() {
-        return tabsLayout.shouldExpand();
+        return tabsTray.shouldExpand();
     }
 
     @Override
     public void closeAll() {
-        tabsLayout.closeAll();
+        tabsTray.closeAll();
     }
 }

@@ -373,11 +373,11 @@ nsPageFrame::DrawHeaderFooter(nsRenderingContext& aRenderingContext,
     }
 
     // set up new clip and draw the text
-    aRenderingContext.ThebesContext()->Save();
+    aRenderingContext.PushState();
     aRenderingContext.SetColor(NS_RGB(0,0,0));
     aRenderingContext.IntersectClip(aRect);
     nsLayoutUtils::DrawString(this, &aRenderingContext, str.get(), str.Length(), nsPoint(x, y + aAscent));
-    aRenderingContext.ThebesContext()->Restore();
+    aRenderingContext.PopState();
   }
 }
 

@@ -1657,7 +1657,7 @@ DebugScopeObject::getMaybeSentinelValue(JSContext *cx, HandleId id, MutableHandl
 bool
 js_IsDebugScopeSlow(ProxyObject *proxy)
 {
-    JS_ASSERT(proxy->hasClass(&ProxyObject::class_));
+    JS_ASSERT(proxy->hasClass(&ProxyObject::uncallableClass_));
     return proxy->handler() == &DebugScopeProxy::singleton;
 }
 

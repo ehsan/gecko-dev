@@ -1280,7 +1280,7 @@ nsEventStatus AsyncPanZoomController::OnTouchEnd(const MultiTouchInput& aEvent) 
     // Make a local copy of the tree manager pointer and check that it's not
     // null before calling DispatchFling(). This is necessary because Destroy(),
     // which nulls out mTreeManager, could be called concurrently.
-    if (APZCTreeManager* treeManagerLocal = GetApzcTreeManager()) {
+    if (APZCTreeManager* treeManagerLocal = mTreeManager) {
       treeManagerLocal->DispatchFling(this,
                                       flingVelocity,
                                       CurrentTouchBlock()->GetOverscrollHandoffChain(),
@@ -1452,7 +1452,8 @@ nsEventStatus AsyncPanZoomController::OnScaleEnd(const PinchGestureInput& aEvent
 bool
 AsyncPanZoomController::ConvertToGecko(const ScreenPoint& aPoint, CSSPoint* aOut)
 {
-  if (APZCTreeManager* treeManagerLocal = GetApzcTreeManager()) {
+  APZCTreeManager* treeManagerLocal = mTreeManager;
+  if (treeManagerLocal) {
     Matrix4x4 transformToGecko = treeManagerLocal->GetApzcToGeckoTransform(this);
     Point result = transformToGecko * Point(aPoint.x, aPoint.y);
     // NOTE: This isn't *quite* LayoutDevicePoint, we just don't have a name
@@ -1708,7 +1709,7 @@ static void TransformVector(const Matrix4x4& aTransform,
 
 void AsyncPanZoomController::ToGlobalScreenCoordinates(ScreenPoint* aVector,
                                                        const ScreenPoint& aAnchor) const {
-  if (APZCTreeManager* treeManagerLocal = GetApzcTreeManager()) {
+  if (APZCTreeManager* treeManagerLocal = mTreeManager) {
     Matrix4x4 transform = treeManagerLocal->GetScreenToApzcTransform(this);
     transform.Invert();
     TransformVector(transform, aVector, aAnchor);
@@ -1717,7 +1718,7 @@ void AsyncPanZoomController::ToGlobalScreenCoordinates(ScreenPoint* aVector,
 
 void AsyncPanZoomController::ToLocalScreenCoordinates(ScreenPoint* aVector,
                                                       const ScreenPoint& aAnchor) const {
-  if (APZCTreeManager* treeManagerLocal = GetApzcTreeManager()) {
+  if (APZCTreeManager* treeManagerLocal = mTreeManager) {
     Matrix4x4 transform = treeManagerLocal->GetScreenToApzcTransform(this);
     TransformVector(transform, aVector, aAnchor);
   }
@@ -1963,15 +1964,15 @@ bool AsyncPanZoomController::OverscrollBy(const CSSPoint& aOverscroll) {
 }
 
 nsRefPtr<const OverscrollHandoffChain> AsyncPanZoomController::BuildOverscrollHandoffChain() {
-  if (APZCTreeManager* treeManagerLocal = GetApzcTreeManager()) {
+  if (APZCTreeManager* treeManagerLocal = mTreeManager) {
     return treeManagerLocal->BuildOverscrollHandoffChain(this);
+  } else {
+    // This APZC IsDestroyed(). To avoid callers having to special-case this
+    // scenario, just build a 1-element chain containing ourselves.
+    OverscrollHandoffChain* result = new OverscrollHandoffChain;
+    result->Add(this);
+    return result;
   }
-
-  // This APZC IsDestroyed(). To avoid callers having to special-case this
-  // scenario, just build a 1-element chain containing ourselves.
-  OverscrollHandoffChain* result = new OverscrollHandoffChain;
-  result->Add(this);
-  return result;
 }
 
 void AsyncPanZoomController::AcceptFling(const ScreenPoint& aVelocity,
@@ -2000,13 +2001,13 @@ bool AsyncPanZoomController::AttemptFling(ScreenPoint aVelocity,
                 false /* do not allow overscroll */);
     return true;
   }
-
+  
   return false;
 }
 
 void AsyncPanZoomController::HandleFlingOverscroll(const ScreenPoint& aVelocity,
                                                    const nsRefPtr<const OverscrollHandoffChain>& aOverscrollHandoffChain) {
-  APZCTreeManager* treeManagerLocal = GetApzcTreeManager();
+  APZCTreeManager* treeManagerLocal = mTreeManager;
   if (!(treeManagerLocal && treeManagerLocal->DispatchFling(this,
                                                             aVelocity,
                                                             aOverscrollHandoffChain,
@@ -2055,7 +2056,7 @@ bool AsyncPanZoomController::CallDispatchScroll(const ScreenPoint& aStartPoint,
   // Make a local copy of the tree manager pointer and check if it's not
   // null before calling DispatchScroll(). This is necessary because
   // Destroy(), which nulls out mTreeManager, could be called concurrently.
-  APZCTreeManager* treeManagerLocal = GetApzcTreeManager();
+  APZCTreeManager* treeManagerLocal = mTreeManager;
   return treeManagerLocal
       && treeManagerLocal->DispatchScroll(this, aStartPoint, aEndPoint,
                                           aOverscrollHandoffChain,
@@ -2722,11 +2723,6 @@ void AsyncPanZoomController::NotifyLayersUpdated(const FrameMetrics& aLayerMetri
 const FrameMetrics& AsyncPanZoomController::GetFrameMetrics() const {
   mMonitor.AssertCurrentThreadIn();
   return mFrameMetrics;
-}
-
-APZCTreeManager* AsyncPanZoomController::GetApzcTreeManager() const {
-  mMonitor.AssertNotCurrentThreadIn();
-  return mTreeManager;
 }
 
 void AsyncPanZoomController::ZoomToRect(CSSRect aRect) {

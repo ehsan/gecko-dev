@@ -1319,69 +1319,58 @@ bool imgLoader::PutIntoCache(nsIURI *key, imgCacheEntry *entry)
   return true;
 }
 
-bool imgLoader::SetHasNoProxies(imgRequest *aRequest, imgCacheEntry *aEntry)
+bool imgLoader::SetHasNoProxies(ImageURL *key, imgCacheEntry *entry)
 {
-  nsRefPtr<ImageURL> uri;
-  aRequest->GetURI(getter_AddRefs(uri));
-
 #if defined(PR_LOGGING)
   nsAutoCString spec;
-  uri->GetSpec(spec);
+  key->GetSpec(spec);
 
   LOG_STATIC_FUNC_WITH_PARAM(GetImgLog(), "imgLoader::SetHasNoProxies", "uri", spec.get());
 #endif
 
-  aEntry->SetHasNoProxies(true);
-
-  if (aEntry->Evicted())
+  if (entry->Evicted())
     return false;
 
-  imgCacheQueue &queue = GetCacheQueue(uri);
+  imgCacheQueue &queue = GetCacheQueue(key);
 
   nsresult addrv = NS_OK;
 
   if (mCacheTracker)
-    addrv = mCacheTracker->AddObject(aEntry);
+    addrv = mCacheTracker->AddObject(entry);
 
   if (NS_SUCCEEDED(addrv)) {
-    queue.Push(aEntry);
+    queue.Push(entry);
+    entry->SetHasNoProxies(true);
   }
 
-  imgCacheTable &cache = GetCache(uri);
+  imgCacheTable &cache = GetCache(key);
   CheckCacheLimits(cache, queue);
 
   return true;
 }
 
-bool imgLoader::SetHasProxies(imgRequest *aRequest)
+bool imgLoader::SetHasProxies(ImageURL *key)
 {
   VerifyCacheSizes();
 
-  nsRefPtr<ImageURL> uri;
-  aRequest->GetURI(getter_AddRefs(uri));
-
-  imgCacheTable &cache = GetCache(uri);
+  imgCacheTable &cache = GetCache(key);
 
   nsAutoCString spec;
-  uri->GetSpec(spec);
+  key->GetSpec(spec);
 
   LOG_STATIC_FUNC_WITH_PARAM(GetImgLog(), "imgLoader::SetHasProxies", "uri", spec.get());
 
   nsRefPtr<imgCacheEntry> entry;
-  if (cache.Get(spec, getter_AddRefs(entry)) && entry) {
-    // Make sure the cache entry is for the right request
-    nsRefPtr<imgRequest> entryRequest = entry->GetRequest();
-    if (entryRequest == aRequest && entry->HasNoProxies()) {
-      imgCacheQueue &queue = GetCacheQueue(uri);
-      queue.Remove(entry);
+  if (cache.Get(spec, getter_AddRefs(entry)) && entry && entry->HasNoProxies()) {
+    imgCacheQueue &queue = GetCacheQueue(key);
+    queue.Remove(entry);
 
-      if (mCacheTracker)
-        mCacheTracker->RemoveObject(entry);
+    if (mCacheTracker)
+      mCacheTracker->RemoveObject(entry);
 
-      entry->SetHasNoProxies(false);
+    entry->SetHasNoProxies(false);
 
-      return true;
-    }
+    return true;
   }
 
   return false;

@@ -58,6 +58,7 @@
 #include "nsIDOMEventListener.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsIDOMNodeList.h"
+#include "nsIDOMUserDataHandler.h"
 #include "nsIEditor.h"
 #include "nsIEditorIMESupport.h"
 #include "nsILinkHandler.h"
@@ -736,7 +737,8 @@ SetUserDataProperty(uint16_t aCategory, nsINode *aNode, nsIAtom *aKey,
 }
 
 nsresult
-nsINode::SetUserData(const nsAString &aKey, nsIVariant *aData, nsIVariant **aResult)
+nsINode::SetUserData(const nsAString &aKey, nsIVariant *aData,
+                     nsIDOMUserDataHandler *aHandler, nsIVariant **aResult)
 {
   OwnerDoc()->WarnOnceAbout(nsIDocument::eGetSetUserData);
   *aResult = nullptr;
@@ -758,13 +760,31 @@ nsINode::SetUserData(const nsAString &aKey, nsIVariant *aData, nsIVariant **aRes
 
   // Take over ownership of the old data from the property table.
   nsCOMPtr<nsIVariant> oldData = dont_AddRef(static_cast<nsIVariant*>(data));
+
+  if (aData && aHandler) {
+    nsCOMPtr<nsIDOMUserDataHandler> oldHandler;
+    rv = SetUserDataProperty(DOM_USER_DATA_HANDLER, this, key, aHandler,
+                             getter_AddRefs(oldHandler));
+    if (NS_FAILED(rv)) {
+      // We failed to set the handler, remove the data.
+      DeleteProperty(DOM_USER_DATA, key);
+
+      return rv;
+    }
+  }
+  else {
+    DeleteProperty(DOM_USER_DATA_HANDLER, key);
+  }
+
   oldData.swap(*aResult);
+
   return NS_OK;
 }
 
 void
 nsINode::SetUserData(JSContext* aCx, const nsAString& aKey,
                      JS::Handle<JS::Value> aData,
+                     nsIDOMUserDataHandler* aHandler,
                      JS::MutableHandle<JS::Value> aRetval,
                      ErrorResult& aError)
 {
@@ -775,7 +795,7 @@ nsINode::SetUserData(JSContext* aCx, const nsAString& aKey,
   }
 
   nsCOMPtr<nsIVariant> oldData;
-  aError = SetUserData(aKey, data, getter_AddRefs(oldData));
+  aError = SetUserData(aKey, data, aHandler, getter_AddRefs(oldData));
   if (aError.Failed()) {
     return;
   }
@@ -2694,8 +2714,12 @@ nsINode::WrapObject(JSContext *aCx)
 already_AddRefed<nsINode>
 nsINode::CloneNode(bool aDeep, ErrorResult& aError)
 {
+  bool callUserDataHandlers = NodeType() != nsIDOMNode::DOCUMENT_NODE ||
+                              !static_cast<nsIDocument*>(this)->CreatingStaticClone();
+
   nsCOMPtr<nsINode> result;
-  aError = nsNodeUtils::CloneNodeImpl(this, aDeep, getter_AddRefs(result));
+  aError = nsNodeUtils::CloneNodeImpl(this, aDeep, callUserDataHandlers,
+                                      getter_AddRefs(result));
   return result.forget();
 }
 
