@@ -125,6 +125,7 @@
 #include "nsAutoJSValHolder.h"
 
 #include "MainThreadUtils.h"
+#include "nsIJSEngineTelemetryStats.h"
 
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
@@ -268,7 +269,8 @@ AddToCCKind(JSGCTraceKind kind)
 class nsXPConnect : public nsIXPConnect,
                     public nsIThreadObserver,
                     public nsSupportsWeakReference,
-                    public nsIJSRuntimeService
+                    public nsIJSRuntimeService,
+                    public nsIJSEngineTelemetryStats
 {
 public:
     // all the interface method declarations...
@@ -276,6 +278,7 @@ public:
     NS_DECL_NSIXPCONNECT
     NS_DECL_NSITHREADOBSERVER
     NS_DECL_NSIJSRUNTIMESERVICE
+    NS_DECL_NSIJSENGINETELEMETRYSTATS
 
     // non-interface implementation
 public:

@@ -37,18 +37,6 @@ public:
   {
   }
 
-  virtual WidgetEvent* Duplicate() const MOZ_OVERRIDE
-  {
-    MOZ_ASSERT(eventStructType == NS_SCRIPT_ERROR_EVENT,
-               "Duplicate() must be overridden by sub class");
-    InternalScriptErrorEvent* result =
-      new InternalScriptErrorEvent(false, message);
-    result->AssignScriptErrorEventData(*this, true);
-    result->mFlags = mFlags;
-    return result;
-  }
-
-
   int32_t           lineNr;
   const char16_t*  errorMsg;
   const char16_t*  fileName;
@@ -94,18 +82,6 @@ public:
   {
   }
 
-  virtual WidgetEvent* Duplicate() const MOZ_OVERRIDE
-  {
-    MOZ_ASSERT(eventStructType == NS_SCROLLPORT_EVENT,
-               "Duplicate() must be overridden by sub class");
-    // Not copying widget, it is a weak reference.
-    InternalScrollPortEvent* result =
-      new InternalScrollPortEvent(false, message, nullptr);
-    result->AssignScrollPortEventData(*this, true);
-    result->mFlags = mFlags;
-    return result;
-  }
-
   orientType orient;
 
   void AssignScrollPortEventData(const InternalScrollPortEvent& aEvent,
@@ -133,18 +109,6 @@ public:
                           nsIWidget* aWidget) :
     WidgetGUIEvent(aIsTrusted, aMessage, aWidget, NS_SCROLLAREA_EVENT)
   {
-  }
-
-  virtual WidgetEvent* Duplicate() const MOZ_OVERRIDE
-  {
-    MOZ_ASSERT(eventStructType == NS_SCROLLAREA_EVENT,
-               "Duplicate() must be overridden by sub class");
-    // Not copying widget, it is a weak reference.
-    InternalScrollAreaEvent* result =
-      new InternalScrollAreaEvent(false, message, nullptr);
-    result->AssignScrollAreaEventData(*this, true);
-    result->mFlags = mFlags;
-    return result;
   }
 
   nsRect mArea;
@@ -176,16 +140,6 @@ public:
   {
   }
 
-  virtual WidgetEvent* Duplicate() const MOZ_OVERRIDE
-  {
-    MOZ_ASSERT(eventStructType == NS_FORM_EVENT,
-               "Duplicate() must be overridden by sub class");
-    InternalFormEvent* result = new InternalFormEvent(false, message);
-    result->AssignFormEventData(*this, true);
-    result->mFlags = mFlags;
-    return result;
-  }
-
   nsIContent *originator;
 
   void AssignFormEventData(const InternalFormEvent& aEvent, bool aCopyTargets)
@@ -213,16 +167,6 @@ public:
   {
   }
 
-  virtual WidgetEvent* Duplicate() const MOZ_OVERRIDE
-  {
-    MOZ_ASSERT(eventStructType == NS_CLIPBOARD_EVENT,
-               "Duplicate() must be overridden by sub class");
-    InternalClipboardEvent* result = new InternalClipboardEvent(false, message);
-    result->AssignClipboardEventData(*this, true);
-    result->mFlags = mFlags;
-    return result;
-  }
-
   nsCOMPtr<nsIDOMDataTransfer> clipboardData;
 
   void AssignClipboardEventData(const InternalClipboardEvent& aEvent,
@@ -247,16 +191,6 @@ public:
     InternalUIEvent(aIsTrusted, aMessage, NS_FOCUS_EVENT, 0),
     fromRaise(false), isRefocus(false)
   {
-  }
-
-  virtual WidgetEvent* Duplicate() const MOZ_OVERRIDE
-  {
-    MOZ_ASSERT(eventStructType == NS_FOCUS_EVENT,
-               "Duplicate() must be overridden by sub class");
-    InternalFocusEvent* result = new InternalFocusEvent(false, message);
-    result->AssignFocusEventData(*this, true);
-    result->mFlags = mFlags;
-    return result;
   }
 
   /// The possible related target
@@ -297,18 +231,6 @@ public:
     mFlags.mCancelable = false;
   }
 
-  virtual WidgetEvent* Duplicate() const MOZ_OVERRIDE
-  {
-    MOZ_ASSERT(eventStructType == NS_TRANSITION_EVENT,
-               "Duplicate() must be overridden by sub class");
-    InternalTransitionEvent* result =
-      new InternalTransitionEvent(false, message, propertyName,
-                                  elapsedTime, pseudoElement);
-    result->AssignTransitionEventData(*this, true);
-    result->mFlags = mFlags;
-    return result;
-  }
-
   nsString propertyName;
   float elapsedTime;
   nsString pseudoElement;
@@ -343,18 +265,6 @@ public:
     pseudoElement(aPseudoElement)
   {
     mFlags.mCancelable = false;
-  }
-
-  virtual WidgetEvent* Duplicate() const MOZ_OVERRIDE
-  {
-    MOZ_ASSERT(eventStructType == NS_ANIMATION_EVENT,
-               "Duplicate() must be overridden by sub class");
-    InternalAnimationEvent* result =
-      new InternalAnimationEvent(false, message, animationName,
-                                 elapsedTime, pseudoElement);
-    result->AssignAnimationEventData(*this, true);
-    result->mFlags = mFlags;
-    return result;
   }
 
   nsString animationName;

@@ -335,12 +335,12 @@ nsFrameList::UnhookFrameFromSiblings(nsIFrame* aFrame)
 void
 nsFrameList::List(FILE* out) const
 {
-  fprintf_stderr(out, "<\n");
+  fputs("<\n", out);
   for (nsIFrame* frame = mFirstChild; frame;
        frame = frame->GetNextSibling()) {
-    frame->List(out, "  ");
+    frame->List(out, 1);
   }
-  fprintf_stderr(out, ">\n");
+  fputs(">\n", out);
 }
 #endif
 

@@ -8503,22 +8503,21 @@ nsTextFrame::GetFrameName(nsAString& aResult) const
 }
 
 void
-nsTextFrame::List(FILE* out, const char* aPrefix, uint32_t aFlags) const
+nsTextFrame::List(FILE* out, int32_t aIndent, uint32_t aFlags) const
 {
-  nsCString str;
-  ListGeneric(str, aPrefix, aFlags);
+  ListGeneric(out, aIndent, aFlags);
 
-  str += nsPrintfCString(" [run=%p]", static_cast<void*>(mTextRun));
+  fprintf(out, " [run=%p]", static_cast<void*>(mTextRun));
 
   // Output the first/last content offset and prev/next in flow info
   bool isComplete = uint32_t(GetContentEnd()) == GetContent()->TextLength();
-  str += nsPrintfCString("[%d,%d,%c] ", GetContentOffset(), GetContentLength(),
+  fprintf(out, "[%d,%d,%c] ", GetContentOffset(), GetContentLength(),
           isComplete ? 'T':'F');
   
   if (IsSelected()) {
-    str += " SELECTED";
+    fprintf(out, " SELECTED");
   }
-  fprintf_stderr(out, "%s\n", str.get());
+  fputs("\n", out);
 }
 #endif
 
