@@ -119,6 +119,11 @@
 #define NS_FRAME_UTIL_CID \
  { 0xa6cf90d5, 0x15b3, 0x11d2,{0x93, 0x2e, 0x00, 0x80, 0x5f, 0x8a, 0xdd, 0x32}}
 
+// {1C3F4572-FF54-4e7f-994C-6F9C8A4B85FF}
+#define NS_SOUNDPLAYER_CID \
+{ 0x1c3f4572, 0xff54, 0x4e7f, \
+  { 0x99, 0x4c, 0x6f, 0x9c, 0x8a, 0x4b, 0x85, 0xff } }
+
 
 // XXX This should really be factored into a style-specific DLL so
 // that all the HTML, generic layout, and style stuff isn't munged
@@ -300,6 +305,13 @@
  {0x91, 0x78, 0x1a, 0x71, 0xff, 0x11, 0xb5, 0x5f} }
 #define NS_SYNCLOADDOMSERVICE_CONTRACTID            \
 "@mozilla.org/content/syncload-dom-service;1"
+
+#define NS_EVENTLISTENERSERVICE_CID                 \
+ { /* baa34652-f1f1-4185-b224-244ee82a413a */       \
+   0xbaa34652, 0xf1f1, 0x4185,                      \
+  {0xb2, 0x24, 0x24, 0x4e, 0xe8, 0x2a, 0x41, 0x3a } }
+#define NS_EVENTLISTENERSERVICE_CONTRACTID \
+  "@mozilla.org/eventlistenerservice;1"
 
 // {f96f5ec9-755b-447e-b1f3-717d1a84bb41}
 #define NS_PLUGINDOCUMENT_CID \
