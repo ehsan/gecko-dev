@@ -444,8 +444,6 @@ parent:
                                     bool aElementHidden);
 
     async AudioChannelChangedNotification();
-    async AudioChannelChangeDefVolChannel(AudioChannelType aType,
-                                          bool aHidden);
 
     async FilePathUpdateNotify(nsString aType,
                                nsString aStorageName,

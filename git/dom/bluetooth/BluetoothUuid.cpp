@@ -6,21 +6,16 @@
 
 #include "BluetoothUuid.h"
 
-#include "BluetoothA2dpManager.h"
-#include "BluetoothHfpManager.h"
-#include "BluetoothHidManager.h"
-#include "BluetoothOppManager.h"
-
 USING_BLUETOOTH_NAMESPACE
 
 void
-BluetoothUuidHelper::GetString(BluetoothServiceClass aServiceClass,
+BluetoothUuidHelper::GetString(BluetoothServiceClass aServiceClassUuid,
                                nsAString& aRetUuidStr)
 {
   aRetUuidStr.Truncate();
 
   aRetUuidStr.AppendLiteral("0000");
-  aRetUuidStr.AppendInt(aServiceClass, 16);
+  aRetUuidStr.AppendInt(aServiceClassUuid, 16);
   aRetUuidStr.AppendLiteral("-0000-1000-8000-00805F9B34FB");
 }
 
@@ -46,10 +41,10 @@ BluetoothUuidHelper::GetBluetoothServiceClass(const nsAString& aUuidStr)
 }
 
 BluetoothServiceClass
-BluetoothUuidHelper::GetBluetoothServiceClass(uint16_t aServiceUuid)
+BluetoothUuidHelper::GetBluetoothServiceClass(uint16_t aProfileId)
 {
   BluetoothServiceClass retValue = BluetoothServiceClass::UNKNOWN;
-  switch (aServiceUuid) {
+  switch (aProfileId) {
     case BluetoothServiceClass::A2DP:
     case BluetoothServiceClass::HANDSFREE:
     case BluetoothServiceClass::HANDSFREE_AG:
@@ -57,32 +52,7 @@ BluetoothUuidHelper::GetBluetoothServiceClass(uint16_t aServiceUuid)
     case BluetoothServiceClass::HEADSET_AG:
     case BluetoothServiceClass::HID:
     case BluetoothServiceClass::OBJECT_PUSH:
-      retValue = (BluetoothServiceClass)aServiceUuid;
+      retValue = (BluetoothServiceClass)aProfileId;
   }
   return retValue;
-}
-
-BluetoothProfileManagerBase*
-BluetoothUuidHelper::GetBluetoothProfileManager(uint16_t aServiceUuid)
-{
-  BluetoothProfileManagerBase* profile;
-  BluetoothServiceClass serviceClass = GetBluetoothServiceClass(aServiceUuid);
-  switch (serviceClass) {
-    case BluetoothServiceClass::HANDSFREE:
-    case BluetoothServiceClass::HEADSET:
-      profile = BluetoothHfpManager::Get();
-      break;
-    case BluetoothServiceClass::HID:
-      profile = BluetoothHidManager::Get();
-      break;
-    case BluetoothServiceClass::A2DP:
-      profile = BluetoothA2dpManager::Get();
-      break;
-    case BluetoothServiceClass::OBJECT_PUSH:
-      profile = BluetoothOppManager::Get();
-      break;
-    default:
-      profile = nullptr;
-  }
-  return profile;
 }

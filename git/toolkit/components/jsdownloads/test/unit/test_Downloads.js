@@ -99,23 +99,42 @@ add_task(function test_simpleDownload_string_arguments()
 });
 
 /**
- * Tests that the getList function returns the same list when called multiple
- * times with the same argument, but returns different lists when called with
- * different arguments.  More detailed tests are implemented separately for the
- * DownloadList module.
+ * Tests that the getPublicDownloadList function returns the same list when
+ * called multiple times.  More detailed tests are implemented separately for
+ * the DownloadList module.
  */
-add_task(function test_getList()
+add_task(function test_getPublicDownloadList()
 {
-  let publicListOne = yield Downloads.getList(Downloads.PUBLIC);
-  let privateListOne = yield Downloads.getList(Downloads.PRIVATE);
+  let downloadListOne = yield Downloads.getPublicDownloadList();
+  let downloadListTwo = yield Downloads.getPublicDownloadList();
 
-  let publicListTwo = yield Downloads.getList(Downloads.PUBLIC);
-  let privateListTwo = yield Downloads.getList(Downloads.PRIVATE);
+  do_check_eq(downloadListOne, downloadListTwo);
+});
 
-  do_check_eq(publicListOne, publicListTwo);
-  do_check_eq(privateListOne, privateListTwo);
+/**
+ * Tests that the getPrivateDownloadList function returns the same list when
+ * called multiple times.  More detailed tests are implemented separately for
+ * the DownloadList module.
+ */
+add_task(function test_getPrivateDownloadList()
+{
+  let downloadListOne = yield Downloads.getPrivateDownloadList();
+  let downloadListTwo = yield Downloads.getPrivateDownloadList();
 
-  do_check_neq(publicListOne, privateListOne);
+  do_check_eq(downloadListOne, downloadListTwo);
+});
+
+/**
+ * Tests that the getPublicDownloadList and getPrivateDownloadList function
+ * and returns the different list.  More detailed tests are implemented
+ * separately for the DownloadList module.
+ */
+add_task(function test_public_and_private_lists_differ()
+{
+  let publicDownloadList = yield Downloads.getPublicDownloadList();
+  let privateDownloadList = yield Downloads.getPrivateDownloadList();
+
+  do_check_neq(publicDownloadList, privateDownloadList);
 });
 
 /**

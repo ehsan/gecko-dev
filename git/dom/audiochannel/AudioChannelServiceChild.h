@@ -38,8 +38,6 @@ public:
    */
   virtual bool GetMuted(AudioChannelAgent* aAgent, bool aMozHidden);
 
-  virtual void SetDefaultVolumeControlChannel(AudioChannelType aType, bool aHidden);
-
 protected:
   AudioChannelServiceChild();
   virtual ~AudioChannelServiceChild();

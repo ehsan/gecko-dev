@@ -716,9 +716,6 @@ var CustomEventManager = {
                            manifestURL: detail.manifestURL,
                            selectedApps: detail.peers }));
         break;
-      case 'inputmethod-update-layouts':
-        KeyboardHelper.handleEvent(detail);
-        break;
     }
   }
 }
@@ -1071,14 +1068,6 @@ let RemoteDebugger = {
   }
 }
 
-let KeyboardHelper = {
-  handleEvent: function keyboard_handleEvent(aMessage) {
-    let data = aMessage.data;
-
-    Keyboard.setLayouts(data.layouts);
-  }
-};
-
 // This is the backend for Gaia's screenshot feature.  Gaia requests a
 // screenshot by sending a mozContentEvent with detail.type set to
 // 'take-screenshot'.  Then we take a screenshot and send a
@@ -1214,15 +1203,6 @@ window.addEventListener('ContentStart', function update_onContentStart() {
       channel: aData
     });
 }, "audio-channel-changed", false);
-})();
-
-(function defaultVolumeChannelChangedTracker() {
-  Services.obs.addObserver(function(aSubject, aTopic, aData) {
-    shell.sendChromeEvent({
-      type: 'default-volume-channel-changed',
-      channel: aData
-    });
-}, "default-volume-channel-changed", false);
 })();
 
 (function visibleAudioChannelChangedTracker() {

@@ -76,9 +76,7 @@ FENNEC_JAVA_FILES = \
   DoorHanger.java \
   DoorHangerPopup.java \
   EditBookmarkDialog.java \
-  favicons/Favicons.java \
-  favicons/LoadFaviconTask.java \
-  favicons/OnFaviconLoadedListener.java \
+  Favicons.java \
   FilePickerResultHandler.java \
   FilePickerResultHandlerSync.java \
   FindInPageBar.java \
