@@ -67,6 +67,7 @@
 #include "nsIPresShell.h"
 #include "nsITimer.h"
 #include "nsTArray.h"
+#include "nsIDOMText.h"
 #include "nsIDocument.h"
 #include "nsCSSPseudoElements.h"
 #include "nsCSSFrameConstructor.h"

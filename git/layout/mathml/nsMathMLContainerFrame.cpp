@@ -51,6 +51,7 @@
 #include "nsINameSpaceManager.h"
 #include "nsRenderingContext.h"
 
+#include "nsIDOMText.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsFrameManager.h"
 #include "nsStyleChangeList.h"

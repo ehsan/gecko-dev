@@ -43,7 +43,6 @@
 #include "nsIDocument.h"
 #include "nsIPresShell.h"
 #include "mozilla/dom/Element.h"
-#include "nsContentUtils.h"
 
 using namespace mozilla::dom;
 

@@ -52,7 +52,6 @@
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIDOMHTMLLegendElement.h"
 #include "nsIDOMHTMLTextAreaElement.h"
-#include "nsIDOMNodeList.h"
 #include "nsIEditor.h"
 #include "nsIFrame.h"
 #include "nsINameSpaceManager.h"

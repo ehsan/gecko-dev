@@ -56,6 +56,7 @@
 #include "nsIURI.h"
 #include "nsIDOMHTMLTextAreaElement.h"
 #include "nsIDOMHTMLInputElement.h"
+#include "nsIDOMText.h"
 #include "nsFocusManager.h"
 #include "nsEventListenerManager.h"
 #include "nsIDOMEventTarget.h"

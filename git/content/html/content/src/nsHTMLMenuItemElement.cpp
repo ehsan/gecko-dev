@@ -37,7 +37,6 @@
 #include "nsGUIEvent.h"
 #include "nsEventDispatcher.h"
 #include "nsHTMLMenuItemElement.h"
-#include "nsContentUtils.h"
 
 using namespace mozilla::dom;
 
@@ -219,8 +218,13 @@ nsHTMLMenuItemElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 {
   *aResult = nsnull;
   nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  nsRefPtr<nsHTMLMenuItemElement> it =
-    new nsHTMLMenuItemElement(ni.forget(), NOT_FROM_PARSER);
+  nsHTMLMenuItemElement *it = new nsHTMLMenuItemElement(ni.forget(),
+                                                        NOT_FROM_PARSER);
+  if (!it) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  nsCOMPtr<nsINode> kungFuDeathGrip = it;
   nsresult rv = CopyInnerTo(it);
   if (NS_SUCCEEDED(rv)) {
     switch (mType) {
@@ -235,7 +239,7 @@ nsHTMLMenuItemElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
         break;
     }
 
-    it.forget(aResult);
+    kungFuDeathGrip.swap(*aResult);
   }
 
   return rv;

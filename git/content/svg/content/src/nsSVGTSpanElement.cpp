@@ -40,7 +40,6 @@
 #include "nsIDOMSVGTSpanElement.h"
 #include "nsSVGSVGElement.h"
 #include "nsSVGTextPositioningElement.h"
-#include "nsContentUtils.h"
 
 typedef nsSVGTextPositioningElement nsSVGTSpanElementBase;
 

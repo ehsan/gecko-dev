@@ -48,8 +48,6 @@
  * https://bugzilla.mozilla.org/show_bug.cgi?id=653934
  */
 
-"use strict";
-
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
@@ -58,7 +56,6 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
 Cu.import("resource:///modules/PropertyPanel.jsm");
-Cu.import("resource:///modules/source-editor.jsm");
 
 const SCRATCHPAD_CONTEXT_CONTENT = 1;
 const SCRATCHPAD_CONTEXT_BROWSER = 2;
@@ -66,6 +63,9 @@ const SCRATCHPAD_WINDOW_URL = "chrome://browser/content/scratchpad.xul";
 const SCRATCHPAD_L10N = "chrome://browser/locale/scratchpad.properties";
 const SCRATCHPAD_WINDOW_FEATURES = "chrome,titlebar,toolbar,centerscreen,resizable,dialog=no";
 const DEVTOOLS_CHROME_ENABLED = "devtools.chrome.enabled";
+
+const PREF_TABSIZE = "devtools.editor.tabsize";
+const PREF_EXPANDTAB = "devtools.editor.expandtab";
 
 /**
  * The scratchpad object handles the Scratchpad window functionality.
@@ -84,52 +84,24 @@ var Scratchpad = {
   executionContext: SCRATCHPAD_CONTEXT_CONTENT,
 
   /**
+   * Retrieve the xul:textbox DOM element. This element holds the source code
+   * the user writes and executes.
+   */
+  get textbox() document.getElementById("scratchpad-textbox"),
+
+  /**
    * Retrieve the xul:statusbarpanel DOM element. The status bar tells the
    * current code execution context.
    */
   get statusbarStatus() document.getElementById("scratchpad-status"),
 
   /**
-   * Get the selected text from the editor.
-   *
-   * @return string
-   *         The selected text.
+   * Get the selected text from the textbox.
    */
-  get selectedText() this.editor.getSelectedText(),
-
-  /**
-   * Get the editor content, in the given range. If no range is given you get
-   * the entire editor content.
-   *
-   * @param number [aStart=0]
-   *        Optional, start from the given offset.
-   * @param number [aEnd=content char count]
-   *        Optional, end offset for the text you want. If this parameter is not
-   *        given, then the text returned goes until the end of the editor
-   *        content.
-   * @return string
-   *         The text in the given range.
-   */
-  getText: function SP_getText(aStart, aEnd)
+  get selectedText()
   {
-    return this.editor.getText(aStart, aEnd);
-  },
-
-  /**
-   * Replace text in the source editor with the given text, in the given range.
-   *
-   * @param string aText
-   *        The text you want to put into the editor.
-   * @param number [aStart=0]
-   *        Optional, the start offset, zero based, from where you want to start
-   *        replacing text in the editor.
-   * @param number [aEnd=char count]
-   *        Optional, the end offset, zero based, where you want to stop
-   *        replacing text in the editor.
-   */
-  setText: function SP_setText(aText, aStart, aEnd)
-  {
-    this.editor.setText(aText, aStart, aEnd);
+    return this.textbox.value.substring(this.textbox.selectionStart,
+                                        this.textbox.selectionEnd);
   },
 
   /**
@@ -150,6 +122,11 @@ var Scratchpad = {
   {
     let recentWin = this.browserWindow;
     return recentWin ? recentWin.gBrowser : null;
+  },
+
+  insertIntro: function SP_insertIntro()
+  {
+    this.textbox.value = this.strings.GetStringFromName("scratchpadIntro");
   },
 
   /**
@@ -220,15 +197,15 @@ var Scratchpad = {
   },
 
   /**
-   * Drop the editor selection.
+   * Drop the textbox selection.
    */
   deselect: function SP_deselect()
   {
-    this.editor.dropSelection();
+    this.textbox.selectionEnd = this.textbox.selectionStart;
   },
 
   /**
-   * Select a specific range in the Scratchpad editor.
+   * Select a specific range in the Scratchpad xul:textbox.
    *
    * @param number aStart
    *        Selection range start.
@@ -237,19 +214,8 @@ var Scratchpad = {
    */
   selectRange: function SP_selectRange(aStart, aEnd)
   {
-    this.editor.setSelection(aStart, aEnd);
-  },
-
-  /**
-   * Get the current selection range.
-   *
-   * @return object
-   *         An object with two properties, start and end, that give the
-   *         selection range (zero based offsets).
-   */
-  getSelectionRange: function SP_getSelection()
-  {
-    return this.editor.getSelection();
+    this.textbox.selectionStart = aStart;
+    this.textbox.selectionEnd = aEnd;
   },
 
   /**
@@ -327,19 +293,19 @@ var Scratchpad = {
   },
 
   /**
-   * Execute the selected text (if any) or the entire editor content in the
+   * Execute the selected text (if any) or the entire textbox content in the
    * current context.
    */
   run: function SP_run()
   {
-    let selection = this.selectedText || this.getText();
+    let selection = this.selectedText || this.textbox.value;
     let result = this.evalForContext(selection);
     this.deselect();
     return [selection, result];
   },
 
   /**
-   * Execute the selected text (if any) or the entire editor content in the
+   * Execute the selected text (if any) or the entire textbox content in the
    * current context. The resulting object is opened up in the Property Panel
    * for inspection.
    */
@@ -353,29 +319,34 @@ var Scratchpad = {
   },
 
   /**
-   * Execute the selected text (if any) or the entire editor content in the
-   * current context. The evaluation result is inserted into the editor after
-   * the selected text, or at the end of the editor content if there is no
+   * Execute the selected text (if any) or the entire textbox content in the
+   * current context. The evaluation result is inserted into the textbox after
+   * the selected text, or at the end of the textbox value if there is no
    * selected text.
    */
   display: function SP_display()
   {
-    let selection = this.getSelectionRange();
-    let insertionPoint = selection.start != selection.end ?
-                         selection.end : // after selected text
-                         this.editor.getCharCount(); // after text end
+    let selectionStart = this.textbox.selectionStart;
+    let selectionEnd = this.textbox.selectionEnd;
+    if (selectionStart == selectionEnd) {
+      selectionEnd = this.textbox.value.length;
+    }
 
-    let [selectedText, result] = this.run();
+    let [selection, result] = this.run();
     if (!result) {
       return;
     }
 
+    let firstPiece = this.textbox.value.slice(0, selectionEnd);
+    let lastPiece = this.textbox.value.
+                    slice(selectionEnd, this.textbox.value.length);
+
     let newComment = "/*\n" + result.toString() + "\n*/";
 
-    this.setText(newComment, insertionPoint, insertionPoint);
+    this.textbox.value = firstPiece + newComment + lastPiece;
 
-    // Select the new comment.
-    this.selectRange(insertionPoint, insertionPoint + newComment.length);
+    // Select the added comment.
+    this.selectRange(firstPiece.length, firstPiece.length + newComment.length);
   },
 
   /**
@@ -471,12 +442,12 @@ var Scratchpad = {
     let fs = Cc["@mozilla.org/network/file-output-stream;1"].
              createInstance(Ci.nsIFileOutputStream);
     let modeFlags = 0x02 | 0x08 | 0x20;
-    fs.init(aFile, modeFlags, 420 /* 0644 */, fs.DEFER_OPEN);
+    fs.init(aFile, modeFlags, 0644, fs.DEFER_OPEN);
 
     let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
                     createInstance(Ci.nsIScriptableUnicodeConverter);
     converter.charset = "UTF-8";
-    let input = converter.convertToInputStream(this.getText());
+    let input = converter.convertToInputStream(this.textbox.value);
 
     let self = this;
     NetUtil.asyncCopy(input, fs, function(aStatus) {
@@ -517,7 +488,7 @@ var Scratchpad = {
       if (Components.isSuccessCode(aStatus)) {
         content = NetUtil.readInputStreamToString(aInputStream,
                                                   aInputStream.available());
-        self.setText(content);
+        self.textbox.value = content;
       }
       else if (!aSilentError) {
         window.alert(self.strings.GetStringFromName("openFile.failed"));
@@ -569,7 +540,7 @@ var Scratchpad = {
     fp.defaultString = "scratchpad.js";
     if (fp.show() != Ci.nsIFilePicker.returnCancel) {
       document.title = this.filename = fp.file.path;
-      this.exportToFile(fp.file, true);
+      this.exportToFile(fp.file);
     }
   },
 
@@ -644,17 +615,10 @@ var Scratchpad = {
   },
 
   /**
-   * The Scratchpad window DOMContentLoaded event handler. This method
-   * initializes the Scratchpad window and source editor.
-   *
-   * @param nsIDOMEvent aEvent
+   * The Scratchpad window DOMContentLoaded event handler.
    */
-  onLoad: function SP_onLoad(aEvent)
+  onLoad: function SP_onLoad()
   {
-    if (aEvent.target != document) {
-      return;
-    }
-
     let chromeContextMenu = document.getElementById("sp-menu-browser");
     let errorConsoleMenu = document.getElementById("sp-menu-errorConsole");
     let errorConsoleCommand = document.getElementById("sp-cmd-errorConsole");
@@ -668,107 +632,55 @@ var Scratchpad = {
       chromeContextCommand.removeAttribute("disabled");
     }
 
-    this.editor = new SourceEditor();
+    let tabsize = Services.prefs.getIntPref(PREF_TABSIZE);
+    if (tabsize < 1) {
+      // tabsize is invalid, clear back to the default value.
+      Services.prefs.clearUserPref(PREF_TABSIZE);
+      tabsize = Services.prefs.getIntPref(PREF_TABSIZE);
+    }
 
-    let config = {
-      mode: SourceEditor.MODES.JAVASCRIPT,
-      showLineNumbers: true,
-      placeholderText: this.strings.GetStringFromName("scratchpadIntro"),
-    };
+    let expandtab = Services.prefs.getBoolPref(PREF_EXPANDTAB);
+    this._tabCharacter = expandtab ? (new Array(tabsize + 1)).join(" ") : "\t";
+    this.textbox.style.MozTabSize = tabsize;
 
-    let editorPlaceholder = document.getElementById("scratchpad-editor");
-    this.editor.init(editorPlaceholder, config, this.onEditorLoad.bind(this));
+    // Force LTR direction (otherwise the textbox inherits the locale direction)
+    this.textbox.style.direction = "ltr";
+
+    this.insertIntro();
+
+    // Make the Tab key work.
+    this.textbox.addEventListener("keypress", this.onKeypress.bind(this), false);
+
+    this.textbox.focus();
   },
 
   /**
-   * The load event handler for the source editor. This method does post-load
-   * editor initialization.
+   * The textbox keypress event handler which allows users to indent code using
+   * the Tab key.
+   *
+   * @param nsIDOMEvent aEvent
    */
-  onEditorLoad: function SP_onEditorLoad()
+  onKeypress: function SP_onKeypress(aEvent)
   {
-    this.editor.addEventListener(SourceEditor.EVENTS.CONTEXT_MENU,
-                                 this.onContextMenu);
-    this.editor.focus();
-    this.editor.setCaretOffset(this.editor.getCharCount());
+    if (aEvent.keyCode == aEvent.DOM_VK_TAB) {
+      this.insertTextAtCaret(this._tabCharacter);
+      aEvent.preventDefault();
+    }
   },
 
   /**
    * Insert text at the current caret location.
    *
    * @param string aText
-   *        The text you want to insert.
    */
   insertTextAtCaret: function SP_insertTextAtCaret(aText)
   {
-    let caretOffset = this.editor.getCaretOffset();
-    this.setText(aText, caretOffset, caretOffset);
-    this.editor.setCaretOffset(caretOffset + aText.length);
-  },
+    let firstPiece = this.textbox.value.substring(0, this.textbox.selectionStart);
+    let lastPiece = this.textbox.value.substring(this.textbox.selectionEnd);
+    this.textbox.value = firstPiece + aText + lastPiece;
 
-  /**
-   * The contextmenu event handler for the source editor. This method opens the
-   * Scratchpad context menu popup at the pointer location.
-   *
-   * @param object aEvent
-   *        An event object coming from the SourceEditor. This object needs to
-   *        hold the screenX and screenY properties.
-   */
-  onContextMenu: function SP_onContextMenu(aEvent)
-  {
-    let menu = document.getElementById("scratchpad-text-popup");
-    if (menu.state == "closed") {
-      menu.openPopupAtScreen(aEvent.screenX, aEvent.screenY, true);
-    }
-  },
-
-  /**
-   * The popupshowing event handler for the Edit menu. This method updates the
-   * enabled/disabled state of the Undo and Redo commands, based on the editor
-   * state such that the menu items render correctly for the user when the menu
-   * shows.
-   */
-  onEditPopupShowing: function SP_onEditPopupShowing()
-  {
-    let undo = document.getElementById("sp-cmd-undo");
-    undo.setAttribute("disabled", !this.editor.canUndo());
-
-    let redo = document.getElementById("sp-cmd-redo");
-    redo.setAttribute("disabled", !this.editor.canRedo());
-  },
-
-  /**
-   * Undo the last action of the user.
-   */
-  undo: function SP_undo()
-  {
-    this.editor.undo();
-  },
-
-  /**
-   * Redo the previously undone action.
-   */
-  redo: function SP_redo()
-  {
-    this.editor.redo();
-  },
-
-  /**
-   * The Scratchpad window unload event handler. This method unloads/destroys
-   * the source editor.
-   *
-   * @param nsIDOMEvent aEvent
-   */
-  onUnload: function SP_onUnload(aEvent)
-  {
-    if (aEvent.target != document) {
-      return;
-    }
-
-    this.resetContext();
-    this.editor.removeEventListener(SourceEditor.EVENTS.CONTEXT_MENU,
-                                    this.onContextMenu);
-    this.editor.destroy();
-    this.editor = null;
+    let newCaretPosition = firstPiece.length + aText.length;
+    this.selectRange(newCaretPosition, newCaretPosition);
   },
 };
 
@@ -777,4 +689,4 @@ XPCOMUtils.defineLazyGetter(Scratchpad, "strings", function () {
 });
 
 addEventListener("DOMContentLoaded", Scratchpad.onLoad.bind(Scratchpad), false);
-addEventListener("unload", Scratchpad.onUnload.bind(Scratchpad), false);
+

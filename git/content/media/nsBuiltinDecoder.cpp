@@ -48,7 +48,6 @@
 #include "nsBuiltinDecoder.h"
 #include "nsBuiltinDecoderStateMachine.h"
 #include "nsTimeRanges.h"
-#include "nsContentUtils.h"
 
 using namespace mozilla;
 

@@ -47,6 +47,7 @@
 #include "nsStyleConsts.h"
 #include "nsIFormControl.h"
 #include "nsIForm.h"
+#include "nsIDOMText.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMHTMLCollection.h"
 #include "nsISelectControlFrame.h"

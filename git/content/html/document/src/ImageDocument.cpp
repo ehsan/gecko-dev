@@ -73,7 +73,6 @@
 #include "nsIDocShellTreeItem.h"
 #include "nsThreadUtils.h"
 #include "nsIScrollableFrame.h"
-#include "nsContentUtils.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/Preferences.h"
 

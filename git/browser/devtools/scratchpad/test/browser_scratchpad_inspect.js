@@ -27,7 +27,8 @@ function runTests()
 
   let sp = gScratchpadWindow.Scratchpad;
 
-  sp.setText("document");
+  ok(sp.textbox, "textbox exists");
+  sp.textbox.value = "document";
 
   sp.inspect();
 

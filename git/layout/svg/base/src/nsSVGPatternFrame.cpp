@@ -36,10 +36,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsSVGPatternFrame.h"
-
 #include "nsGkAtoms.h"
 #include "nsIDOMSVGAnimatedRect.h"
+#include "nsIDOMSVGAnimTransformList.h"
 #include "nsSVGTransformList.h"
 #include "nsStyleContext.h"
 #include "nsINameSpaceManager.h"
@@ -51,12 +50,12 @@
 #include "nsSVGOuterSVGFrame.h"
 #include "nsSVGPatternElement.h"
 #include "nsSVGGeometryFrame.h"
+#include "nsSVGPatternFrame.h"
 #include "nsSVGAnimatedTransformList.h"
 #include "gfxContext.h"
 #include "gfxPlatform.h"
 #include "gfxPattern.h"
 #include "gfxMatrix.h"
-#include "nsContentUtils.h"
 
 using namespace mozilla;
 
@@ -337,7 +336,7 @@ nsSVGPatternFrame::PaintPattern(gfxASurface** surface,
   }
 
   // caller now owns the surface
-  tmpSurface.forget(surface);
+  tmpSurface.swap(*surface);
   return NS_OK;
 }
 
