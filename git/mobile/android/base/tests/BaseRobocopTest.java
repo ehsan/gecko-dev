@@ -71,6 +71,7 @@ public abstract class BaseRobocopTest extends ActivityInstrumentationTestCase2<A
     protected Driver mDriver;
     protected Actions mActions;
 
+    protected Activity mActivity;
     protected String mProfile;
 
     protected abstract Intent createActivityIntent();
@@ -139,12 +140,12 @@ public abstract class BaseRobocopTest extends ActivityInstrumentationTestCase2<A
         // Start the activity.
         final Intent intent = createActivityIntent();
         setActivityIntent(intent);
+        mActivity = getActivity();
 
         // Set up Robotium.solo and Driver objects
-        Activity tempActivity = getActivity();
-        mSolo = new Solo(getInstrumentation(), tempActivity);
-        mDriver = new FennecNativeDriver(tempActivity, mSolo, mRootPath);
-        mActions = new FennecNativeActions(tempActivity, mSolo, getInstrumentation(), mAsserter);
+        mSolo = new Solo(getInstrumentation(), mActivity);
+        mDriver = new FennecNativeDriver(mActivity, mSolo, mRootPath);
+        mActions = new FennecNativeActions(mActivity, mSolo, getInstrumentation(), mAsserter);
     }
 
     /**

@@ -265,9 +265,6 @@ let OverviewView = {
    * Called when a new recording is selected.
    */
   _onRecordingSelected: function (_, recording) {
-    if (!recording) {
-      return;
-    }
     this.markersOverview.dropSelection();
     this._checkSelection(recording);
 
