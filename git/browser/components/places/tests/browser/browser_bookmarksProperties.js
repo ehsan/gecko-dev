@@ -127,7 +127,7 @@ gTests.push({
        PlacesUtils.bookmarks.getItemTitle(PlacesUtils.unfiledBookmarksFolderId),
        "Node title is correct");
     // Blur the field and ensure root's name has not been changed.
-    this.window.gEditItemOverlay.onNamePickerBlur();
+    this.window.gEditItemOverlay.onNamePickerChange();
     is(namepicker.value,
        PlacesUtils.bookmarks.getItemTitle(PlacesUtils.unfiledBookmarksFolderId),
        "Root title is correct");

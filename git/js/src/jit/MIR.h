@@ -2731,7 +2731,7 @@ class MUnbox : public MUnaryInstruction, public BoxInputsPolicy
             kind = Bailout_NonObjectInput;
             break;
           default:
-            MOZ_CRASH("Given MIRType cannot be unboxed.");
+            MOZ_ASSUME_UNREACHABLE("Given MIRType cannot be unboxed.");
         }
 
         return new(alloc) MUnbox(ins, type, mode, kind);
@@ -4569,7 +4569,7 @@ class MDiv : public MBinaryArithInstruction
     void analyzeEdgeCasesBackward();
 
     double getIdentity() {
-        MOZ_CRASH("not used");
+        MOZ_ASSUME_UNREACHABLE("not used");
     }
 
     bool canBeNegativeZero() const {
@@ -4663,7 +4663,7 @@ class MMod : public MBinaryArithInstruction
     MDefinition *foldsTo(TempAllocator &alloc);
 
     double getIdentity() {
-        MOZ_CRASH("not used");
+        MOZ_ASSUME_UNREACHABLE("not used");
     }
 
     bool canBeNegativeDividend() const {
@@ -4850,15 +4850,18 @@ class MFromCharCode
 };
 
 class MStringSplit
-  : public MTernaryInstruction,
+  : public MBinaryInstruction,
     public MixPolicy<StringPolicy<0>, StringPolicy<1> >
 {
+    types::TypeObject *typeObject_;
+
     MStringSplit(types::CompilerConstraintList *constraints, MDefinition *string, MDefinition *sep,
-                 MConstant *templateObject)
-      : MTernaryInstruction(string, sep, templateObject)
+                 JSObject *templateObject)
+      : MBinaryInstruction(string, sep),
+        typeObject_(templateObject->type())
     {
         setResultType(MIRType_Object);
-        setResultTypeSet(templateObject->resultTypeSet());
+        setResultTypeSet(MakeSingletonTypeSet(constraints, templateObject));
     }
 
   public:
@@ -4866,21 +4869,18 @@ class MStringSplit
 
     static MStringSplit *New(TempAllocator &alloc, types::CompilerConstraintList *constraints,
                              MDefinition *string, MDefinition *sep,
-                             MConstant *templateObject)
+                             JSObject *templateObject)
     {
         return new(alloc) MStringSplit(constraints, string, sep, templateObject);
+    }
+    types::TypeObject *typeObject() const {
+        return typeObject_;
     }
     MDefinition *string() const {
         return getOperand(0);
     }
     MDefinition *separator() const {
         return getOperand(1);
-    }
-    JSObject *templateObject() const {
-        return &getOperand(2)->toConstant()->value().toObject();
-    }
-    types::TypeObject *typeObject() const {
-        return templateObject()->type();
     }
     TypePolicy *typePolicy() {
         return this;
@@ -4892,10 +4892,6 @@ class MStringSplit
         // Although this instruction returns a new array, we don't have to mark
         // it as store instruction, see also MNewArray.
         return AliasSet::None();
-    }
-    bool writeRecoverData(CompactBufferWriter &writer) const;
-    bool canRecoverOnBailout() const {
-        return true;
     }
 };
 

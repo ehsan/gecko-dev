@@ -264,16 +264,10 @@ nsSVGGradientFrame::GetPaintServerPattern(nsIFrame *aSource,
 
   // revert the vector effect transform so that the gradient appears unchanged
   if (aFillOrStroke == &nsStyleSVG::mStroke) {
-    gfxMatrix nonScalingStrokeTM = nsSVGUtils::GetStrokeTransform(aSource);
-    if (!nonScalingStrokeTM.Invert()) {
-      return nullptr;
-    }
-    patternMatrix *= nonScalingStrokeTM;
+    patternMatrix.Multiply(nsSVGUtils::GetStrokeTransform(aSource).Invert());
   }
 
-  if (!patternMatrix.Invert()) {
-    return nullptr;
-  }
+  patternMatrix.Invert();
 
   nsRefPtr<gfxPattern> gradient = CreateGradient();
   if (!gradient || gradient->CairoStatus())

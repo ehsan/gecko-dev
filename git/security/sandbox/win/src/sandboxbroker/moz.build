@@ -5,6 +5,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 LIBRARY_NAME = 'sandboxbroker'
+EXPORT_LIBRARY = True
 
 SOURCES += [
     'sandboxBroker.cpp',

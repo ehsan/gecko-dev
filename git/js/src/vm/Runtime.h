@@ -1283,7 +1283,7 @@ struct JSRuntime : public JS::shadow::Runtime,
     JSRuntime(JSRuntime *parentRuntime);
     ~JSRuntime();
 
-    bool init(uint32_t maxbytes, uint32_t maxNurseryBytes);
+    bool init(uint32_t maxbytes);
 
     JSRuntime *thisFromCtor() { return this; }
 

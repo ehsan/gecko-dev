@@ -45,18 +45,13 @@ class BasicLayerManager :
     public LayerManager
 {
 public:
-  enum BasicLayerManagerType {
-    BLM_WIDGET,
-    BLM_OFFSCREEN,
-    BLM_INACTIVE
-  };
   /**
    * Construct a BasicLayerManager which will have no default
    * target context. SetDefaultTarget or BeginTransactionWithTarget
    * must be called for any rendering to happen. ThebesLayers will not
    * be retained.
    */
-  BasicLayerManager(BasicLayerManagerType aType);
+  BasicLayerManager();
   /**
    * Construct a BasicLayerManager which will have no default
    * target context. SetDefaultTarget or BeginTransactionWithTarget
@@ -94,7 +89,6 @@ public:
   void ClearRetainerWidget() { mWidget = nullptr; }
 
   virtual bool IsWidgetLayerManager() { return mWidget != nullptr; }
-  virtual bool IsInactiveLayerManager() { return mType == BLM_INACTIVE; }
 
   virtual void BeginTransaction();
   virtual void BeginTransactionWithTarget(gfxContext* aTarget);
@@ -189,7 +183,6 @@ protected:
   nsRefPtr<ImageFactory> mFactory;
 
   BufferMode mDoubleBuffering;
-  BasicLayerManagerType mType;
   bool mUsingDefaultTarget;
   bool mTransactionIncomplete;
   bool mCompositorMightResample;

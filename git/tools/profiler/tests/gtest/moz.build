@@ -11,6 +11,8 @@ if CONFIG['OS_TARGET'] in ('Android', 'Linux'):
         'LulTest.cpp',
     ]
 
+EXPORT_LIBRARY = True
+
 LOCAL_INCLUDES += [
     '/tools/profiler',
 ]

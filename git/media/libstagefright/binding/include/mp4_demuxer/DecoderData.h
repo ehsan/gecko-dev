@@ -80,7 +80,6 @@ public:
   MP4Sample();
   ~MP4Sample();
   void Update();
-  void Pad(size_t aPaddingBytes);
 
   stagefright::MediaBuffer* mMediaBuffer;
 

@@ -21,7 +21,7 @@
 
 namespace stagefright {
 
-class SampleTable;
+struct SampleTable;
 
 struct SampleIterator {
     SampleIterator(SampleTable *table);

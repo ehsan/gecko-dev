@@ -45,7 +45,7 @@ public:
     }
 
     if (!type.EqualsASCII("versionchange")) {
-      MOZ_ASSERT_UNREACHABLE("Expected a versionchange event");
+      MOZ_ASSUME_UNREACHABLE("This should not happen");
       return NS_ERROR_FAILURE;
     }
 

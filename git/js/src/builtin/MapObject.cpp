@@ -21,12 +21,11 @@
 
 using namespace js;
 
-using mozilla::ArrayLength;
+using mozilla::NumberEqualsInt32;
 using mozilla::Forward;
 using mozilla::IsNaN;
 using mozilla::Move;
-using mozilla::NumberEqualsInt32;
-
+using mozilla::ArrayLength;
 using JS::DoubleNaNValue;
 using JS::ForOfIterator;
 

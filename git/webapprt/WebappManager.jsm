@@ -79,9 +79,9 @@ this.WebappManager = {
       }
 
       DOMApplicationRegistry.confirmInstall(data, localDir,
-        Task.async(function*(aApp, aManifest, aZipPath) {
-          yield nativeApp.install(aApp, aManifest, aZipPath);
-        })
+        function (aApp, aManifest, aZipPath) {
+          nativeApp.install(aApp, aManifest, aZipPath);
+        }
       );
     } else {
       DOMApplicationRegistry.denyInstall(data);

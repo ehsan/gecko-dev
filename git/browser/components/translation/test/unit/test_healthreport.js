@@ -232,11 +232,6 @@ add_task(function* test_show_original() {
   yield test_simple_counter("recordShowOriginalContent", "showOriginalContent");  
 });
 
-add_task(function* test_show_original() {
-  yield test_simple_counter("recordAutoRejectedTranslationOffer",
-                            "autoRejectedTranslationOffer");
-});
-
 add_task(function* test_collect_daily() {
   let storage = yield Metrics.Storage("translation");
   let provider = new TranslationProvider();
@@ -296,8 +291,6 @@ add_task(function* test_healthreporter_json() {
 
     yield provider.recordDeniedTranslationOffer();
 
-    yield provider.recordAutoRejectedTranslationOffer();
-
     yield provider.recordShowOriginalContent();
 
     yield reporter.collectMeasurements();
@@ -336,9 +329,6 @@ add_task(function* test_healthreporter_json() {
     Assert.ok("deniedTranslationOffer" in translations);
     Assert.equal(translations["deniedTranslationOffer"], 1);
 
-    Assert.ok("autoRejectedTranslationOffer" in translations);
-    Assert.equal(translations["autoRejectedTranslationOffer"], 1);
-
     Assert.ok("showOriginalContent" in translations);
     Assert.equal(translations["showOriginalContent"], 1);
   } finally {
@@ -367,8 +357,6 @@ add_task(function* test_healthreporter_json2() {
 
     yield provider.recordDeniedTranslationOffer();
 
-    yield provider.recordAutoRejectedTranslationOffer();
-
     yield provider.recordShowOriginalContent();
 
     yield reporter.collectMeasurements();
@@ -390,7 +378,6 @@ add_task(function* test_healthreporter_json2() {
     Assert.ok(!("detectedLanguageChangedBefore" in translations));
     Assert.ok(!("detectedLanguageChangedAfter" in translations));
     Assert.ok(!("deniedTranslationOffer" in translations));
-    Assert.ok(!("autoRejectedTranslationOffer" in translations));
     Assert.ok(!("showOriginalContent" in translations));
   } finally {
     reporter._shutdown();

@@ -197,9 +197,8 @@ main()
                 "expected-data size should be the same as the actual hash "
                 "size");
 
-  for (size_t i = 0; i < SHA1Sum::kHashSize; i++) {
+  for (size_t i = 0; i < SHA1Sum::HashSize; i++)
     MOZ_RELEASE_ASSERT(hash[i] == expected[i]);
-  }
 
   return 0;
 }

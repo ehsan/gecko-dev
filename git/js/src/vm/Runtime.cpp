@@ -257,7 +257,7 @@ JitSupportsFloatingPoint()
 }
 
 bool
-JSRuntime::init(uint32_t maxbytes, uint32_t maxNurseryBytes)
+JSRuntime::init(uint32_t maxbytes)
 {
 #ifdef JS_THREADSAFE
     ownerThread_ = PR_GetCurrentThread();
@@ -279,7 +279,7 @@ JSRuntime::init(uint32_t maxbytes, uint32_t maxNurseryBytes)
     if (!threadPool.init())
         return false;
 
-    if (!gc.init(maxbytes, maxNurseryBytes))
+    if (!gc.init(maxbytes))
         return false;
 
     const char *size = getenv("JSGC_MARK_STACK_LIMIT");

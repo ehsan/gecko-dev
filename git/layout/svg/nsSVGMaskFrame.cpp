@@ -9,6 +9,7 @@
 // Keep others in (case-insensitive) order:
 #include "gfx2DGlue.h"
 #include "gfxContext.h"
+#include "gfxImageSurface.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/RefPtr.h"
 #include "nsRenderingContext.h"
@@ -222,6 +223,12 @@ nsSVGMaskFrame::GetMaskForMaskedFrame(gfxContext* aContext,
     return nullptr;
   }
 
+  // We would like to use gfxImageSurface::SetDeviceOffset() to position
+  // 'image'. However, we need to set the same matrix on the temporary context
+  // and pattern that we create below as is currently set on 'gfx'.
+  // Unfortunately, any device offset set by SetDeviceOffset() is affected by
+  // the transform passed to the SetMatrix() calls, so to avoid that we account
+  // for the device offset in the transform rather than use SetDeviceOffset().
   gfxMatrix maskSurfaceMatrix =
     aContext->CurrentMatrix() * gfxMatrix().Translate(-maskSurfaceRect.TopLeft());
 
@@ -270,7 +277,8 @@ nsSVGMaskFrame::GetMaskForMaskedFrame(gfxContext* aContext,
   maskSurface->Unmap();
 
   // Moz2D transforms in the opposite direction to Thebes
-  if (!maskSurfaceMatrix.Invert()) {
+  maskSurfaceMatrix.Invert();
+  if (maskSurfaceMatrix.IsSingular()) {
     return nullptr;
   }
   nsRefPtr<gfxPattern> retval =

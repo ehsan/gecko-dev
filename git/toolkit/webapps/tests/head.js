@@ -82,30 +82,6 @@ function dirContainsOnly(dir, expectedFiles) {
   });
 }
 
-let dirSize = Task.async(function*(aDir) {
-  let iterator = new OS.File.DirectoryIterator(aDir);
-
-  let entries;
-  try {
-    entries = yield iterator.nextBatch();
-  } finally {
-    iterator.close();
-  }
-
-  let size = 0;
-
-  for each (let entry in entries) {
-    if (entry.isDir) {
-      size += yield dirSize(entry.path);
-    } else {
-      let stat = yield OS.File.stat(entry.path);
-      size += stat.size;
-    }
-  }
-
-  return size;
-});
-
 function wait(time) {
   let deferred = Promise.defer();
 
@@ -146,11 +122,9 @@ function TestAppInfo(aApp, aIsPackaged) {
 
   this.isPackaged = aIsPackaged;
 
-  this.uniqueName = WebappOSUtils.getUniqueName(aApp);
-
   if (LINUX) {
     this.installPath = OS.Path.join(OS.Constants.Path.homeDir,
-                                    "." + this.uniqueName);
+                                    "." + WebappOSUtils.getUniqueName(aApp));
     this.exePath = OS.Path.join(this.installPath, "webapprt-stub");
 
     this.iconFile = OS.Path.join(this.installPath, "icon.png");
@@ -163,7 +137,7 @@ function TestAppInfo(aApp, aIsPackaged) {
     }
 
     let desktopINI = OS.Path.join(xdg_data_home, "applications",
-                                  "owa-" + this.uniqueName + ".desktop");
+                                  "owa-" + WebappOSUtils.getUniqueName(aApp) + ".desktop");
 
     this.installedFiles = [
       OS.Path.join(this.installPath, "webapp.json"),
@@ -191,18 +165,16 @@ function TestAppInfo(aApp, aIsPackaged) {
       this.updatedFiles.push(appZipPath);
     }
 
-    this.profileRoot = this.installPath;
-    this.cacheRoot = OS.Path.join(OS.Constants.Path.homeDir, ".cache",
-                                  this.uniqueName);
+    this.profilesIni = OS.Path.join(this.installPath, "profiles.ini");
 
     this.cleanup = Task.async(function*() {
       if (this.appProcess && this.appProcess.isRunning) {
         this.appProcess.kill();
       }
 
-      yield OS.File.removeDir(this.cacheRoot, { ignoreAbsent: true });
-
-      yield OS.File.removeDir(this.profileRoot, { ignoreAbsent: true });
+      if (this.profileDir) {
+        yield OS.File.removeDir(this.profileDir.parent.path, { ignoreAbsent: true });
+      }
 
       yield OS.File.removeDir(this.installPath, { ignoreAbsent: true });
 
@@ -210,7 +182,7 @@ function TestAppInfo(aApp, aIsPackaged) {
     });
   } else if (WIN) {
     this.installPath = OS.Path.join(OS.Constants.Path.winAppDataDir,
-                                    this.uniqueName);
+                                    WebappOSUtils.getUniqueName(aApp));
     this.exePath = OS.Path.join(this.installPath, aApp.name + ".exe");
 
     this.iconFile = OS.Path.join(this.installPath, "chrome", "icons", "default", "default.ico");
@@ -256,9 +228,7 @@ function TestAppInfo(aApp, aIsPackaged) {
       this.updatedFiles.push(appZipPath);
     }
 
-    this.profileRoot = this.installPath;
-    this.cacheRoot = OS.Path.join(Services.dirsvc.get("LocalAppData", Ci.nsIFile).path,
-                                  this.uniqueName);
+    this.profilesIni = OS.Path.join(this.installPath, "profiles.ini");
 
     this.cleanup = Task.async(function*() {
       if (this.appProcess && this.appProcess.isRunning) {
@@ -272,8 +242,8 @@ function TestAppInfo(aApp, aIsPackaged) {
         uninstallKey.open(uninstallKey.ROOT_KEY_CURRENT_USER,
                           "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
                           uninstallKey.ACCESS_WRITE);
-        if (uninstallKey.hasChild(this.uniqueName)) {
-          uninstallKey.removeChild(this.uniqueName);
+        if (uninstallKey.hasChild(WebappOSUtils.getUniqueName(aApp))) {
+          uninstallKey.removeChild(WebappOSUtils.getUniqueName(aApp));
         }
       } catch (e) {
       } finally {
@@ -285,9 +255,9 @@ function TestAppInfo(aApp, aIsPackaged) {
       let removed = false;
       do {
         try {
-          yield OS.File.removeDir(this.cacheRoot, { ignoreAbsent: true });
-
-          yield OS.File.removeDir(this.profileRoot, { ignoreAbsent: true });
+          if (this.profileDir) {
+            yield OS.File.removeDir(this.profileDir.parent.parent.path, { ignoreAbsent: true });
+          }
 
           yield OS.File.removeDir(this.installPath, { ignoreAbsent: true });
 
@@ -314,7 +284,7 @@ function TestAppInfo(aApp, aIsPackaged) {
 
     let appProfileDir = OS.Path.join(OS.Constants.Path.macUserLibDir,
                                      "Application Support",
-                                     this.uniqueName);
+                                     WebappOSUtils.getUniqueName(aApp));
 
     this.installedFiles = [
       OS.Path.join(this.installPath, "Contents", "Info.plist"),
@@ -343,18 +313,16 @@ function TestAppInfo(aApp, aIsPackaged) {
       this.updatedFiles.push(appZipPath);
     }
 
-    this.profileRoot = appProfileDir;
-    this.cacheRoot = OS.Path.join(OS.Constants.Path.macUserLibDir, "Caches",
-                                  this.uniqueName);
+    this.profilesIni = OS.Path.join(appProfileDir, "profiles.ini");
 
     this.cleanup = Task.async(function*() {
       if (this.appProcess && this.appProcess.isRunning) {
         this.appProcess.kill();
       }
 
-      yield OS.File.removeDir(this.cacheRoot, { ignoreAbsent: true });
-
-      yield OS.File.removeDir(this.profileRoot, { ignoreAbsent: true });
+      if (this.profileDir) {
+        yield OS.File.removeDir(this.profileDir.parent.path, { ignoreAbsent: true });
+      }
 
       if (this.trashDir) {
         yield OS.File.removeDir(this.trashDir, { ignoreAbsent: true });
@@ -365,53 +333,6 @@ function TestAppInfo(aApp, aIsPackaged) {
       yield OS.File.removeDir(appProfileDir, { ignoreAbsent: true });
     });
   }
-
-  this.profilesIni = OS.Path.join(this.profileRoot, "profiles.ini");
-
-  let profileDir;
-
-  Object.defineProperty(this, "profileDir", {
-    get: function() {
-      if (!profileDir && this.profileRelPath) {
-        return getFile.apply(null, [this.profileRoot].concat(this.profileRelPath.split("/")));
-      }
-
-      return profileDir;
-    },
-    set: function(aVal) {
-      profileDir = aVal;
-    },
-  });
-
-  Object.defineProperty(this, "cacheDir", {
-    get: function() {
-      if (!this.profileRelPath) {
-        return null;
-      }
-
-      return getFile.apply(null, [this.cacheRoot].concat(this.profileRelPath.split("/")));
-    },
-  });
-
-  Object.defineProperty(this, "profileRelPath", {
-    get: function() {
-      // If the profileDir was set by someone else, use its leafName
-      // as the profile name.
-      if (profileDir) {
-        return profileDir.leafName;
-      }
-
-      // Otherwise, read profiles.ini to get the profile directory
-      try {
-        let iniParser = Cc["@mozilla.org/xpcom/ini-processor-factory;1"].
-                        getService(Ci.nsIINIParserFactory).
-                        createINIParser(getFile(this.profilesIni));
-        return iniParser.getString("Profile0", "Path");
-      } catch (e) {
-        return null;
-      }
-    }
-  });
 }
 
 function buildAppPackage(aManifest, aIconFile) {

@@ -119,12 +119,11 @@ SVGMatrix::Multiply(SVGMatrix& aMatrix)
 already_AddRefed<SVGMatrix>
 SVGMatrix::Inverse(ErrorResult& rv)
 {
-  gfxMatrix mat = GetMatrix();
-  if (!mat.Invert()) {
+  if (GetMatrix().IsSingular()) {
     rv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return nullptr;
   }
-  nsRefPtr<SVGMatrix> matrix = new SVGMatrix(mat);
+  nsRefPtr<SVGMatrix> matrix = new SVGMatrix(gfxMatrix(GetMatrix()).Invert());
   return matrix.forget();
 }
 

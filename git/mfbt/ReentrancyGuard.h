@@ -18,38 +18,38 @@ namespace mozilla {
 /* Useful for implementing containers that assert non-reentrancy */
 class ReentrancyGuard
 {
-  MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 #ifdef DEBUG
-  bool& mEntered;
+    bool& entered;
 #endif
 
-public:
-  template<class T>
+  public:
+    template<class T>
 #ifdef DEBUG
-  ReentrancyGuard(T& aObj
-                  MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-    : mEntered(aObj.mEntered)
+    ReentrancyGuard(T& obj
+                    MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+      : entered(obj.entered)
 #else
-  ReentrancyGuard(T&
-                  MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    ReentrancyGuard(T&
+                    MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
 #endif
-  {
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+    {
+      MOZ_GUARD_OBJECT_NOTIFIER_INIT;
 #ifdef DEBUG
-    MOZ_ASSERT(!mEntered);
-    mEntered = true;
+      MOZ_ASSERT(!entered);
+      entered = true;
 #endif
-  }
-  ~ReentrancyGuard()
-  {
+    }
+    ~ReentrancyGuard()
+    {
 #ifdef DEBUG
-    mEntered = false;
+      entered = false;
 #endif
-  }
+    }
 
-private:
-  ReentrancyGuard(const ReentrancyGuard&) MOZ_DELETE;
-  void operator=(const ReentrancyGuard&) MOZ_DELETE;
+  private:
+    ReentrancyGuard(const ReentrancyGuard&) MOZ_DELETE;
+    void operator=(const ReentrancyGuard&) MOZ_DELETE;
 };
 
 } // namespace mozilla

@@ -47,19 +47,6 @@ protected:
   }
 };
 
-class TouchActionEnabledTester : public AsyncPanZoomControllerTester {
-protected:
-  virtual void SetUp() {
-    AsyncPanZoomControllerTester::SetUp();
-    gfxPrefs::SetTouchActionEnabled(true);
-  }
-
-  virtual void TearDown() {
-    gfxPrefs::SetTouchActionEnabled(false);
-    AsyncPanZoomControllerTester::TearDown();
-  }
-};
-
 class MockContentController : public GeckoContentController {
 public:
   MOCK_METHOD1(RequestContentRepaint, void(const FrameMetrics&));
@@ -159,6 +146,15 @@ public:
                              GestureBehavior aBehavior = DEFAULT_GESTURES)
     : AsyncPanZoomController(aLayersId, aTreeManager, aMcc, aBehavior)
   {}
+
+  // Since touch-action-enabled property is global - setting it for each test
+  // separately isn't safe from the concurrency point of view. To make tests
+  // run concurrent and independent from each other we have a member variable
+  // mTouchActionEnabled for each apzc and setter defined here.
+  void SetTouchActionEnabled(const bool touchActionEnabled) {
+    ReentrantMonitorAutoEnter lock(mMonitor);
+    mTouchActionPropertyEnabled = touchActionEnabled;
+  }
 
   void SetFrameMetrics(const FrameMetrics& metrics) {
     ReentrantMonitorAutoEnter lock(mMonitor);
@@ -284,7 +280,7 @@ void ApzcPan(AsyncPanZoomController* apzc,
 }
 
 static
-void DoPanTest(bool aShouldTriggerScroll, uint32_t aBehavior)
+void DoPanTest(bool aShouldTriggerScroll, bool aShouldUseTouchAction, uint32_t aBehavior)
 {
   TimeStamp testStartTime = TimeStamp::Now();
   AsyncPanZoomController::SetFrameTime(testStartTime);
@@ -293,6 +289,7 @@ void DoPanTest(bool aShouldTriggerScroll, uint32_t aBehavior)
   nsRefPtr<TestAPZCTreeManager> tm = new TestAPZCTreeManager();
   nsRefPtr<TestAsyncPanZoomController> apzc = new TestAsyncPanZoomController(0, mcc, tm);
 
+  apzc->SetTouchActionEnabled(aShouldUseTouchAction);
   apzc->SetFrameMetrics(TestFrameMetrics());
   apzc->NotifyLayersUpdated(TestFrameMetrics(), true);
 
@@ -454,6 +451,12 @@ void DoPinchTest(bool aUseGestureRecognizer, bool aShouldTriggerPinch,
     EXPECT_CALL(*mcc, RequestContentRepaint(_)).Times(0);
   }
 
+  if (aAllowedTouchBehaviors) {
+    apzc->SetTouchActionEnabled(true);
+  } else {
+    apzc->SetTouchActionEnabled(false);
+  }
+
   int touchInputId = 0;
   if (aUseGestureRecognizer) {
     ApzcPinchWithTouchMoveInput(apzc, 250, 300, 1.25, touchInputId, aShouldTriggerPinch, aAllowedTouchBehaviors);
@@ -548,21 +551,21 @@ TEST_F(AsyncPanZoomControllerTester, Pinch_DefaultGestures_NoTouchAction) {
   DoPinchTest(false, true);
 }
 
-TEST_F(TouchActionEnabledTester, Pinch_DefaultGestures_TouchActionNone) {
+TEST_F(AsyncPanZoomControllerTester, Pinch_DefaultGestures_TouchActionNone) {
   nsTArray<uint32_t> behaviors;
   behaviors.AppendElement(mozilla::layers::AllowedTouchBehavior::NONE);
   behaviors.AppendElement(mozilla::layers::AllowedTouchBehavior::NONE);
   DoPinchTest(false, false, &behaviors);
 }
 
-TEST_F(TouchActionEnabledTester, Pinch_DefaultGestures_TouchActionZoom) {
+TEST_F(AsyncPanZoomControllerTester, Pinch_DefaultGestures_TouchActionZoom) {
   nsTArray<uint32_t> behaviors;
   behaviors.AppendElement(mozilla::layers::AllowedTouchBehavior::PINCH_ZOOM);
   behaviors.AppendElement(mozilla::layers::AllowedTouchBehavior::PINCH_ZOOM);
   DoPinchTest(false, true, &behaviors);
 }
 
-TEST_F(TouchActionEnabledTester, Pinch_DefaultGestures_TouchActionNotAllowZoom) {
+TEST_F(AsyncPanZoomControllerTester, Pinch_DefaultGestures_TouchActionNotAllowZoom) {
   nsTArray<uint32_t> behaviors;
   behaviors.AppendElement(mozilla::layers::AllowedTouchBehavior::VERTICAL_PAN);
   behaviors.AppendElement(mozilla::layers::AllowedTouchBehavior::PINCH_ZOOM);
@@ -573,21 +576,21 @@ TEST_F(AsyncPanZoomControllerTester, Pinch_UseGestureDetector_NoTouchAction) {
   DoPinchTest(true, true);
 }
 
-TEST_F(TouchActionEnabledTester, Pinch_UseGestureDetector_TouchActionNone) {
+TEST_F(AsyncPanZoomControllerTester, Pinch_UseGestureDetector_TouchActionNone) {
   nsTArray<uint32_t> behaviors;
   behaviors.AppendElement(mozilla::layers::AllowedTouchBehavior::NONE);
   behaviors.AppendElement(mozilla::layers::AllowedTouchBehavior::NONE);
   DoPinchTest(true, false, &behaviors);
 }
 
-TEST_F(TouchActionEnabledTester, Pinch_UseGestureDetector_TouchActionZoom) {
+TEST_F(AsyncPanZoomControllerTester, Pinch_UseGestureDetector_TouchActionZoom) {
   nsTArray<uint32_t> behaviors;
   behaviors.AppendElement(mozilla::layers::AllowedTouchBehavior::PINCH_ZOOM);
   behaviors.AppendElement(mozilla::layers::AllowedTouchBehavior::PINCH_ZOOM);
   DoPinchTest(true, true, &behaviors);
 }
 
-TEST_F(TouchActionEnabledTester, Pinch_UseGestureDetector_TouchActionNotAllowZoom) {
+TEST_F(AsyncPanZoomControllerTester, Pinch_UseGestureDetector_TouchActionNotAllowZoom) {
   nsTArray<uint32_t> behaviors;
   behaviors.AppendElement(mozilla::layers::AllowedTouchBehavior::VERTICAL_PAN);
   behaviors.AppendElement(mozilla::layers::AllowedTouchBehavior::PINCH_ZOOM);
@@ -742,7 +745,7 @@ TEST_F(AsyncPanZoomControllerTester, ComplexTransform) {
 }
 
 TEST_F(AsyncPanZoomControllerTester, Pan) {
-  DoPanTest(true, mozilla::layers::AllowedTouchBehavior::NONE);
+  DoPanTest(true, false, mozilla::layers::AllowedTouchBehavior::NONE);
 }
 
 // In the each of the following 4 pan tests we are performing two pan gestures: vertical pan from top
@@ -750,24 +753,24 @@ TEST_F(AsyncPanZoomControllerTester, Pan) {
 // According to the pointer-events/touch-action spec AUTO and PAN_Y touch-action values allow vertical
 // scrolling while NONE and PAN_X forbid it. The first parameter of DoPanTest method specifies this
 // behavior.
-TEST_F(TouchActionEnabledTester, PanWithTouchActionAuto) {
-  DoPanTest(true, mozilla::layers::AllowedTouchBehavior::HORIZONTAL_PAN
-                  | mozilla::layers::AllowedTouchBehavior::VERTICAL_PAN);
+TEST_F(AsyncPanZoomControllerTester, PanWithTouchActionAuto) {
+  DoPanTest(true, true,
+            mozilla::layers::AllowedTouchBehavior::HORIZONTAL_PAN | mozilla::layers::AllowedTouchBehavior::VERTICAL_PAN);
 }
 
-TEST_F(TouchActionEnabledTester, PanWithTouchActionNone) {
-  DoPanTest(false, 0);
+TEST_F(AsyncPanZoomControllerTester, PanWithTouchActionNone) {
+  DoPanTest(false, true, 0);
 }
 
-TEST_F(TouchActionEnabledTester, PanWithTouchActionPanX) {
-  DoPanTest(false, mozilla::layers::AllowedTouchBehavior::HORIZONTAL_PAN);
+TEST_F(AsyncPanZoomControllerTester, PanWithTouchActionPanX) {
+  DoPanTest(false, true, mozilla::layers::AllowedTouchBehavior::HORIZONTAL_PAN);
 }
 
-TEST_F(TouchActionEnabledTester, PanWithTouchActionPanY) {
-  DoPanTest(true, mozilla::layers::AllowedTouchBehavior::VERTICAL_PAN);
+TEST_F(AsyncPanZoomControllerTester, PanWithTouchActionPanY) {
+  DoPanTest(true, true, mozilla::layers::AllowedTouchBehavior::VERTICAL_PAN);
 }
 
-TEST_F(TouchActionEnabledTester, PanWithPreventDefault) {
+TEST_F(AsyncPanZoomControllerTester, PanWithPreventDefault) {
   TimeStamp testStartTime = TimeStamp::Now();
   AsyncPanZoomController::SetFrameTime(testStartTime);
 
@@ -790,6 +793,7 @@ TEST_F(TouchActionEnabledTester, PanWithPreventDefault) {
   // Pan down
   nsTArray<uint32_t> allowedTouchBehaviors;
   allowedTouchBehaviors.AppendElement(mozilla::layers::AllowedTouchBehavior::VERTICAL_PAN);
+  apzc->SetTouchActionEnabled(true);
   ApzcPan(apzc, tm, time, touchStart, touchEnd, true, true, &allowedTouchBehaviors);
 
   // Send the signal that content has handled and preventDefaulted the touch
@@ -1038,7 +1042,7 @@ TEST_F(AsyncPanZoomControllerTester, MediumPress) {
 }
 
 void
-DoLongPressTest(uint32_t aBehavior) {
+DoLongPressTest(bool aShouldUseTouchAction, uint32_t aBehavior) {
   nsRefPtr<MockContentControllerDelayed> mcc = new MockContentControllerDelayed();
   nsRefPtr<TestAPZCTreeManager> tm = new TestAPZCTreeManager();
   nsRefPtr<TestAsyncPanZoomController> apzc = new TestAsyncPanZoomController(
@@ -1047,6 +1051,8 @@ DoLongPressTest(uint32_t aBehavior) {
   apzc->SetFrameMetrics(TestFrameMetrics());
   apzc->NotifyLayersUpdated(TestFrameMetrics(), true);
   apzc->UpdateZoomConstraints(ZoomConstraints(false, false, CSSToScreenScale(1.0), CSSToScreenScale(1.0)));
+
+  apzc->SetTouchActionEnabled(aShouldUseTouchAction);
 
   int time = 0;
 
@@ -1106,7 +1112,7 @@ DoLongPressTest(uint32_t aBehavior) {
 }
 
 void
-DoLongPressPreventDefaultTest(uint32_t aBehavior) {
+DoLongPressPreventDefaultTest(bool aShouldUseTouchAction, uint32_t aBehavior) {
   // We have to initialize both an integer time and TimeStamp time because
   // TimeStamp doesn't have any ToXXX() functions for converting back to
   // primitives.
@@ -1122,6 +1128,8 @@ DoLongPressPreventDefaultTest(uint32_t aBehavior) {
   apzc->SetFrameMetrics(TestFrameMetrics());
   apzc->NotifyLayersUpdated(TestFrameMetrics(), true);
   apzc->UpdateZoomConstraints(ZoomConstraints(false, false, CSSToScreenScale(1.0), CSSToScreenScale(1.0)));
+
+  apzc->SetTouchActionEnabled(aShouldUseTouchAction);
 
   EXPECT_CALL(*mcc, SendAsyncScrollDOMEvent(_,_,_)).Times(0);
   EXPECT_CALL(*mcc, RequestContentRepaint(_)).Times(0);
@@ -1192,23 +1200,23 @@ DoLongPressPreventDefaultTest(uint32_t aBehavior) {
 }
 
 TEST_F(AsyncPanZoomControllerTester, LongPress) {
-  DoLongPressTest(mozilla::layers::AllowedTouchBehavior::NONE);
+  DoLongPressTest(false, mozilla::layers::AllowedTouchBehavior::NONE);
 }
 
-TEST_F(TouchActionEnabledTester, LongPressWithTouchAction) {
-  DoLongPressTest(mozilla::layers::AllowedTouchBehavior::HORIZONTAL_PAN
-                  | mozilla::layers::AllowedTouchBehavior::VERTICAL_PAN
-                  | mozilla::layers::AllowedTouchBehavior::PINCH_ZOOM);
+TEST_F(AsyncPanZoomControllerTester, LongPressWithTouchAction) {
+  DoLongPressTest(true, mozilla::layers::AllowedTouchBehavior::HORIZONTAL_PAN
+                      | mozilla::layers::AllowedTouchBehavior::VERTICAL_PAN
+                      | mozilla::layers::AllowedTouchBehavior::PINCH_ZOOM);
 }
 
 TEST_F(AsyncPanZoomControllerTester, LongPressPreventDefault) {
-  DoLongPressPreventDefaultTest(mozilla::layers::AllowedTouchBehavior::NONE);
+  DoLongPressPreventDefaultTest(false, mozilla::layers::AllowedTouchBehavior::NONE);
 }
 
-TEST_F(TouchActionEnabledTester, LongPressPreventDefaultWithTouchAction) {
-  DoLongPressPreventDefaultTest(mozilla::layers::AllowedTouchBehavior::HORIZONTAL_PAN
-                                | mozilla::layers::AllowedTouchBehavior::VERTICAL_PAN
-                                | mozilla::layers::AllowedTouchBehavior::PINCH_ZOOM);
+TEST_F(AsyncPanZoomControllerTester, LongPressPreventDefaultWithTouchAction) {
+  DoLongPressPreventDefaultTest(true, mozilla::layers::AllowedTouchBehavior::HORIZONTAL_PAN
+                                    | mozilla::layers::AllowedTouchBehavior::VERTICAL_PAN
+                                    | mozilla::layers::AllowedTouchBehavior::PINCH_ZOOM);
 }
 
 // Layer tree for HitTesting1

@@ -53,13 +53,15 @@ public:
     /**
      * Post-multiplies m onto the matrix.
      */
-    const gfxMatrix& operator *= (const gfxMatrix& m);
+    const gfxMatrix& operator *= (const gfxMatrix& m) {
+        return Multiply(m);
+    }
 
     /**
      * Multiplies *this with m and returns the result.
      */
     gfxMatrix operator * (const gfxMatrix& m) const {
-        return gfxMatrix(*this) *= m;
+        return gfxMatrix(*this).Multiply(m);
     }
 
     /* Returns true if the other matrix is fuzzy-equal to this matrix.
@@ -96,7 +98,7 @@ public:
      * XXX should this do something with the return value of
      * cairo_matrix_invert?
      */
-    bool Invert();
+    const gfxMatrix& Invert();
 
     /**
      * Check if matrix is singular (no inverse exists).
@@ -126,29 +128,21 @@ public:
      */
     const gfxMatrix& Rotate(gfxFloat radians);
 
+     /**
+      * Multiplies the current matrix with m.
+      * This is a post-multiplication, i.e. the transformations of m are
+      * applied _after_ the existing transformations.
+      *
+      * XXX is that difference (compared to Rotate etc) a good thing?
+      */
+    const gfxMatrix& Multiply(const gfxMatrix& m);
+
     /**
      * Multiplies the current matrix with m.
      * This is a pre-multiplication, i.e. the transformations of m are
      * applied _before_ the existing transformations.
      */
     const gfxMatrix& PreMultiply(const gfxMatrix& m);
-
-    static gfxMatrix Translation(gfxFloat aX, gfxFloat aY)
-    {
-        return gfxMatrix(1.0, 0.0, 0.0, 1.0, aX, aY);
-    }
-
-    static gfxMatrix Translation(gfxPoint aPoint)
-    {
-        return Translation(aPoint.x, aPoint.y);
-    }
-
-    static gfxMatrix Rotation(gfxFloat aAngle);
-
-    static gfxMatrix Scaling(gfxFloat aX, gfxFloat aY)
-    {
-        return gfxMatrix(aX, 0.0, 0.0, aY, 0.0, 0.0);
-    }
 
     /**
      * Transforms a point according to this matrix.

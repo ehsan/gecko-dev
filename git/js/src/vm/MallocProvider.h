@@ -39,7 +39,6 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/Likely.h"
-#include "mozilla/UniquePtr.h"
 
 #include "js/Utility.h"
 
@@ -107,14 +106,7 @@ struct MallocProvider
     }
 
     template <class T>
-    mozilla::UniquePtr<T[], JS::FreePolicy>
-    make_pod_array(size_t numElems) {
-        return mozilla::UniquePtr<T[], JS::FreePolicy>(pod_malloc<T>(numElems));
-    }
-
-    template <class T>
-    T *
-    pod_calloc(size_t numElems, JSCompartment *comp = nullptr, JSContext *cx = nullptr) {
+    T *pod_calloc(size_t numElems, JSCompartment *comp = nullptr, JSContext *cx = nullptr) {
         if (numElems & mozilla::tl::MulOverflowMask<sizeof(T)>::value) {
             Client *client = static_cast<Client *>(this);
             client->reportAllocationOverflow();
