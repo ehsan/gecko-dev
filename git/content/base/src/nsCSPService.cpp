@@ -53,8 +53,6 @@
 #include "nsIWritablePropertyBag2.h"
 #include "nsNetError.h"
 #include "nsChannelProperties.h"
-#include "nsIAsyncVerifyRedirectCallback.h"
-#include "nsAsyncRedirectVerifyHelper.h"
 
 /* Keeps track of whether or not CSP is enabled */
 PRBool CSPService::sCSPEnabled = PR_TRUE;
@@ -205,13 +203,10 @@ CSPService::ShouldProcess(PRUint32         aContentType,
 
 /* nsIChannelEventSink implementation */
 NS_IMETHODIMP
-CSPService::AsyncOnChannelRedirect(nsIChannel *oldChannel,
-                                   nsIChannel *newChannel,
-                                   PRUint32 flags,
-                                   nsIAsyncVerifyRedirectCallback *callback)
+CSPService::OnChannelRedirect(nsIChannel *oldChannel,
+                              nsIChannel *newChannel,
+                              PRUint32   flags)
 {
-  nsAsyncRedirectAutoCallback autoCallback(callback);
-
   // get the Content Security Policy and load type from the property bag
   nsCOMPtr<nsISupports> policyContainer;
   nsCOMPtr<nsIPropertyBag2> props(do_QueryInterface(oldChannel));
@@ -262,22 +257,19 @@ CSPService::AsyncOnChannelRedirect(nsIChannel *oldChannel,
     nsCAutoString newUriSpec("None");
     newUri->GetSpec(newUriSpec);
     PR_LOG(gCspPRLog, PR_LOG_DEBUG,
-           ("CSPService::AsyncOnChannelRedirect called for %s",
-            newUriSpec.get()));
+           ("CSPService::OnChannelRedirect called for %s", newUriSpec.get()));
   }
   if (aDecision == 1)
     PR_LOG(gCspPRLog, PR_LOG_DEBUG,
-           ("CSPService::AsyncOnChannelRedirect ALLOWING request."));
+           ("CSPService::OnChannelRedirect ALLOWING request."));
   else
     PR_LOG(gCspPRLog, PR_LOG_DEBUG,
-           ("CSPService::AsyncOnChannelRedirect CANCELLING request."));
+           ("CSPService::OnChannelRedirect CANCELLING request."));
 #endif
 
   // if ShouldLoad doesn't accept the load, cancel the request
-  if (aDecision != 1) {
-    autoCallback.DontCallback();
+  if (aDecision != 1)
     return NS_BINDING_FAILED;
-  }
 
   // the redirect is permitted, so propagate the Content Security Policy
   // and load type to the redirecting channel

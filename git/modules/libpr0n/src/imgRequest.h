@@ -62,7 +62,6 @@
 #include "ImageErrors.h"
 #include "imgIRequest.h"
 #include "imgContainer.h"
-#include "nsIAsyncVerifyRedirectCallback.h"
 
 class imgCacheValidator;
 
@@ -75,8 +74,7 @@ class imgRequest : public imgIDecoderObserver,
                    public nsIStreamListener,
                    public nsSupportsWeakReference,
                    public nsIChannelEventSink,
-                   public nsIInterfaceRequestor,
-                   public nsIAsyncVerifyRedirectCallback
+                   public nsIInterfaceRequestor
 {
 public:
   imgRequest();
@@ -184,7 +182,6 @@ public:
   NS_DECL_NSIREQUESTOBSERVER
   NS_DECL_NSICHANNELEVENTSINK
   NS_DECL_NSIINTERFACEREQUESTOR
-  NS_DECL_NSIASYNCVERIFYREDIRECTCALLBACK
 
 private:
   friend class imgMemoryReporter;
@@ -214,8 +211,7 @@ private:
 
   imgCacheValidator *mValidator;
   nsCategoryCache<nsIContentSniffer> mImageSniffers;
-  nsCOMPtr<nsIAsyncVerifyRedirectCallback> mRedirectCallback;
-  nsCOMPtr<nsIChannel> mNewRedirectChannel;
+
   // Sometimes consumers want to do things before the image is ready. Let them,
   // and apply the action when the image becomes available.
   PRPackedBool mDecodeRequested : 1;

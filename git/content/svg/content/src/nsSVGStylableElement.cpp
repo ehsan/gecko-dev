@@ -97,13 +97,7 @@ nsSVGStylableElement::GetClassName(nsIDOMSVGAnimatedString** aClassName)
 NS_IMETHODIMP
 nsSVGStylableElement::GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
 {
-  nsresult rv;
-  *aStyle = GetStyle(&rv);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-  NS_ADDREF(*aStyle);
-  return NS_OK;
+  return nsSVGStylableElementBase::GetStyle(aStyle);
 }
 
 /* nsIDOMCSSValue getPresentationAttribute (in DOMString name); */

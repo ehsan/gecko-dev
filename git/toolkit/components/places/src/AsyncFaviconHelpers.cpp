@@ -49,7 +49,6 @@
 #include "nsNavHistory.h"
 #include "nsNavBookmarks.h"
 #include "nsFaviconService.h"
-#include "nsIAsyncVerifyRedirectCallback.h"
 
 #include "nsCycleCollectionParticipant.h"
 
@@ -759,13 +758,11 @@ FetchNetworkIconStep::GetInterface(const nsIID& uuid,
 
 
 NS_IMETHODIMP
-FetchNetworkIconStep::AsyncOnChannelRedirect(nsIChannel* oldChannel,
-                                             nsIChannel* newChannel,
-                                             PRUint32 flags,
-                                             nsIAsyncVerifyRedirectCallback *cb)
+FetchNetworkIconStep::OnChannelRedirect(nsIChannel* oldChannel,
+                                        nsIChannel* newChannel,
+                                        PRUint32 flags)
 {
   mChannel = newChannel;
-  cb->OnRedirectVerifyCallback(NS_OK);
   return NS_OK;
 }
 
