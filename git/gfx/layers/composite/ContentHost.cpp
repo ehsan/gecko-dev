@@ -371,7 +371,6 @@ ContentHostDoubleBuffered::EnsureTextureHost(TextureIdentifier aTextureId,
   }
   if (aTextureId == TextureOnWhiteBack) {
     mBackHostOnWhite = newHost;
-    return;
   }
 
   NS_ERROR("Bad texture identifier");

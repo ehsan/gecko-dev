@@ -84,6 +84,7 @@ const char XPC_XPCONNECT_CONTRACTID[]     = "@mozilla.org/js/xpc/XPConnect;1";
 nsXPConnect::nsXPConnect()
     :   mRuntime(nullptr),
         mDefaultSecurityManager(nullptr),
+        mDefaultSecurityManagerFlags(0),
         mShuttingDown(false),
         mEventDepth(0)
 {
@@ -1379,13 +1380,15 @@ nsXPConnect::RescueOrphansInScope(JSContext *aJSContext, JSObject *aScopeArg)
     return NS_OK;
 }
 
-/* void setDefaultSecurityManager (in nsIXPCSecurityManager aManager); */
+/* void setDefaultSecurityManager (in nsIXPCSecurityManager aManager, in uint16_t flags); */
 NS_IMETHODIMP
-nsXPConnect::SetDefaultSecurityManager(nsIXPCSecurityManager *aManager)
+nsXPConnect::SetDefaultSecurityManager(nsIXPCSecurityManager *aManager,
+                                       uint16_t flags)
 {
     NS_IF_ADDREF(aManager);
     NS_IF_RELEASE(mDefaultSecurityManager);
     mDefaultSecurityManager = aManager;
+    mDefaultSecurityManagerFlags = flags;
 
     nsCOMPtr<nsIScriptSecurityManager> ssm =
         do_QueryInterface(mDefaultSecurityManager);
@@ -1593,6 +1596,7 @@ nsXPConnect::DebugDump(int16_t depth)
         XPC_LOG_ALWAYS(("gSelf @ %x", gSelf));
         XPC_LOG_ALWAYS(("gOnceAliveNowDead is %d", (int)gOnceAliveNowDead));
         XPC_LOG_ALWAYS(("mDefaultSecurityManager @ %x", mDefaultSecurityManager));
+        XPC_LOG_ALWAYS(("mDefaultSecurityManagerFlags of %x", mDefaultSecurityManagerFlags));
         if (mRuntime) {
             if (depth)
                 mRuntime->DebugDump(depth);

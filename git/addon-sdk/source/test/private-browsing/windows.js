@@ -4,11 +4,10 @@
 'use strict';
 
 const { pb, pbUtils } = require('./helper');
-const { onFocus, openDialog, open } = require('sdk/window/utils');
-const { open: openPromise, close, focus, promise } = require('sdk/window/helpers');
+const { openDialog, open } = require('sdk/window/utils');
+const { promise, close } = require('sdk/window/helpers');
 const { isPrivate } = require('sdk/private-browsing');
 const { browserWindows: windows } = require('sdk/windows');
-const { defer } = require('sdk/core/promise');
 
 // test openDialog() from window/utils with private option
 // test isActive state in pwpb case
@@ -54,7 +53,7 @@ exports.testPerWindowPrivateBrowsingGetter = function(assert, done) {
   });
 }
 
-exports.testIsPrivateOnWindowOpen = function(assert, done) {
+exports.testIsPrivateOnWindowOn = function(assert, done) {
   windows.open({
     isPrivate: true,
     onOpen: function(window) {
@@ -63,33 +62,6 @@ exports.testIsPrivateOnWindowOpen = function(assert, done) {
       window.close(done);
     }
   });
-}
-
-exports.testIsPrivateOnWindowOpenFromPrivate = function(assert, done) {
-    // open a private window
-    openPromise(null, {
-      features: {
-        private: true,
-        chrome: true,
-        titlebar: true,
-        toolbar: true
-      }
-    }).then(focus).then(function(window) {
-      let { promise, resolve } = defer();
-
-      assert.equal(isPrivate(window), true, 'the only open window is private');
-
-      windows.open({
-        url: 'about:blank',
-        onOpen: function(w) {
-          assert.equal(isPrivate(w), false, 'new test window is not private');
-          w.close(function() resolve(window));
-        }
-      });
-
-      return promise;
-    }).then(close).
-       then(done, assert.fail);
 }
 
 exports.testIsPrivateOnWindowOff = function(assert, done) {

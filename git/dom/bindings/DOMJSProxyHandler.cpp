@@ -35,8 +35,8 @@ DefineStaticJSVals(JSContext* cx)
 
 int HandlerFamily;
 
-js::DOMProxyShadowsResult
-DOMProxyShadows(JSContext* cx, JSHandleObject proxy, JSHandleId id)
+js::ListBaseShadowsResult
+DOMListShadows(JSContext* cx, JSHandleObject proxy, JSHandleId id)
 {
   JS::Value v = js::GetProxyExtra(proxy, JSPROXYSLOT_EXPANDO);
   if (v.isObject()) {
@@ -59,15 +59,15 @@ DOMProxyShadows(JSContext* cx, JSHandleObject proxy, JSHandleId id)
 }
 
 // Store the information for the specialized ICs.
-struct SetDOMProxyInformation
+struct SetListBaseInformation
 {
-  SetDOMProxyInformation() {
-    js::SetDOMProxyInformation((void*) &HandlerFamily,
-                               js::JSSLOT_PROXY_EXTRA + JSPROXYSLOT_EXPANDO, DOMProxyShadows);
+  SetListBaseInformation() {
+    js::SetListBaseInformation((void*) &HandlerFamily,
+                               js::JSSLOT_PROXY_EXTRA + JSPROXYSLOT_EXPANDO, DOMListShadows);
   }
 };
 
-SetDOMProxyInformation gSetDOMProxyInformation;
+SetListBaseInformation gSetListBaseInformation;
 
 // static
 JSObject*

@@ -21,7 +21,7 @@ CMSRCS = \
   HTTPMultipartUpload.m \
   $(NULL)
 
-DISABLED_CMMSRCS = \
+CMMSRCS = \
   MachIPC.mm \
   $(NULL)
 

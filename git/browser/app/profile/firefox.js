@@ -393,11 +393,7 @@ pref("browser.link.open_newwindow.override.external", -1);
 // 2: don't divert window.open with features
 pref("browser.link.open_newwindow.restriction", 2);
 
-// If true, this pref causes windows opened by window.open to be forced into new
-// tabs (rather than potentially opening separate windows, depending on
-// window.open arguments) when the browser is in fullscreen mode.
-// We set this differently on Mac because the fullscreen implementation there is
-// different.
+// Disable opening a new window via window.open if browser is in fullscreen mode
 #ifdef XP_MACOSX
 pref("browser.link.open_newwindow.disabled_in_fullscreen", true);
 #else

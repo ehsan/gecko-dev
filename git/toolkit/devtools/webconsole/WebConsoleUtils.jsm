@@ -945,7 +945,9 @@ ConsoleServiceListener.prototype =
       }
     }
 
-    this.listener.onConsoleServiceMessage(aMessage);
+    if (aMessage.message) {
+      this.listener.onConsoleServiceMessage(aMessage);
+    }
   },
 
   /**

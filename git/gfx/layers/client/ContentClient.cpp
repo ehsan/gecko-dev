@@ -45,12 +45,10 @@ ContentClient::CreateContentClient(CompositableForwarder* aForwarder)
     return new ContentClientDoubleBuffered(aForwarder);
   }
 #ifdef XP_MACOSX
-  if (aForwarder->GetCompositorBackendType() == LAYERS_OPENGL) {
-    return new ContentClientIncremental(aForwarder);
-  }
-#endif
+  return new ContentClientIncremental(aForwarder);
+#else
   return new ContentClientSingleBuffered(aForwarder);
-
+#endif
 }
 
 ContentClientBasic::ContentClientBasic(CompositableForwarder* aForwarder,

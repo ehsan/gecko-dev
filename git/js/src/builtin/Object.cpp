@@ -10,7 +10,7 @@
 #include "jsobj.h"
 
 #include "builtin/Object.h"
-#include "frontend/BytecodeCompiler.h"
+#include "frontend/Parser.h"
 #include "vm/StringBuffer.h"
 
 #include "jsfuninlines.h"

@@ -7,8 +7,6 @@
 #ifndef jsobjinlines_h___
 #define jsobjinlines_h___
 
-#include "jsobj.h"
-
 #include "jsapi.h"
 #include "jsarray.h"
 #include "jsbool.h"
@@ -17,13 +15,14 @@
 #include "jsiter.h"
 #include "jslock.h"
 #include "jsnum.h"
+#include "jsobj.h"
+#include "jsprobes.h"
 #include "jspropertytree.h"
 #include "jsproxy.h"
 #include "jsstr.h"
 #include "jstypedarray.h"
 #include "jswrapper.h"
 
-#include "builtin/Module.h"
 #include "gc/Barrier.h"
 #include "gc/Marking.h"
 #include "js/MemoryMetrics.h"
@@ -33,7 +32,6 @@
 #include "vm/GlobalObject.h"
 #include "vm/Shape.h"
 #include "vm/NumberObject.h"
-#include "vm/Probes.h"
 #include "vm/RegExpStatics.h"
 #include "vm/StringObject.h"
 
@@ -42,7 +40,10 @@
 #include "jsfuninlines.h"
 #include "jsgcinlines.h"
 #include "jsinferinlines.h"
+#include "jsscriptinlines.h"
+
 #include "gc/Barrier-inl.h"
+
 #include "vm/ObjectImpl-inl.h"
 #include "vm/Shape-inl.h"
 #include "vm/String-inl.h"
@@ -920,20 +921,6 @@ JSObject::asString()
     return *static_cast<js::StringObject *>(this);
 }
 
-inline js::ScriptSourceObject &
-JSObject::asScriptSource()
-{
-    JS_ASSERT(isScriptSource());
-    return *static_cast<js::ScriptSourceObject *>(this);
-}
-
-inline js::Module &
-JSObject::asModule()
-{
-    JS_ASSERT(isModule());
-    return *static_cast<js::Module *>(this);
-}
-
 inline bool
 JSObject::isDebugScope() const
 {
@@ -1109,10 +1096,6 @@ JSObject::hasShapeTable() const
 JSObject::lookupGeneric(JSContext *cx, js::HandleObject obj, js::HandleId id,
                         js::MutableHandleObject objp, js::MutableHandleShape propp)
 {
-    /* NB: The logic of lookupGeneric is implicitly reflected in IonBuilder.cpp's
-     *     |CanEffectlesslyCallLookupGenericOnObject| logic.
-     *     If this changes, please remember to update the logic there as well.
-     */
     js::LookupGenericOp op = obj->getOps()->lookupGeneric;
     if (op)
         return op(cx, obj, id, objp, propp);
@@ -1287,6 +1270,12 @@ JSObject::getSpecialAttributes(JSContext *cx, js::HandleObject obj,
 {
     JS::RootedId id(cx, SPECIALID_TO_JSID(sid));
     return getGenericAttributes(cx, obj, id, attrsp);
+}
+
+inline bool
+js::ObjectImpl::isProxy() const
+{
+    return js::IsProxy(const_cast<JSObject*>(this->asObjectPtr()));
 }
 
 inline bool

@@ -43,8 +43,3 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gtk2':
         CPP_SOURCES += [
             'crashreporter_linux.cpp',
         ]
-
-if CONFIG['OS_ARCH'] == 'Darwin':
-    CMMSRCS += [
-        'crashreporter_osx.mm',
-    ]

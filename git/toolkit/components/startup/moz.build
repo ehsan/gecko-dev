@@ -30,9 +30,8 @@ elif CONFIG['OS_ARCH'] == 'WINNT':
         'nsUserInfoWin.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
-    CMMSRCS += [
-        'nsUserInfoMac.mm',
-    ]
+    # TODO: CMMSRCS go here
+    pass
 else:
     CPP_SOURCES += [
         'nsUserInfoUnix.cpp',

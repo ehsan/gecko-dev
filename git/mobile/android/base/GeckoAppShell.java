@@ -287,8 +287,12 @@ public class GeckoAppShell
         // run gecko -- it will spawn its own thread
         GeckoAppShell.nativeInit();
 
+        // Tell Gecko where the target byte buffer is for rendering
+        if (getGeckoInterface() != null)
+           sLayerView  = getGeckoInterface().getLayerView();
         if (sLayerView != null)
             GeckoAppShell.setLayerClient(sLayerView.getLayerClient());
+
 
         // First argument is the .apk path
         String combinedArgs = apkPath + " -greomni " + apkPath;
@@ -2044,6 +2048,7 @@ public class GeckoAppShell
 
     public interface GeckoInterface {
         public GeckoProfile getProfile();
+        public LayerView getLayerView();
         public PromptService getPromptService();
         public Activity getActivity();
         public String getDefaultUAString();

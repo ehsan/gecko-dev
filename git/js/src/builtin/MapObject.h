@@ -127,7 +127,6 @@ class MapObject : public JSObject {
 
 class SetObject : public JSObject {
   public:
-    enum IteratorKind { Values, Entries };
     static JSObject *initClass(JSContext *cx, JSObject *obj);
     static Class class_;
   private:
@@ -141,8 +140,6 @@ class SetObject : public JSObject {
 
     static bool is(const Value &v);
 
-    static bool iterator_impl(JSContext *cx, CallArgs args, IteratorKind kind);
-
     static bool size_impl(JSContext *cx, CallArgs args);
     static JSBool size(JSContext *cx, unsigned argc, Value *vp);
     static bool has_impl(JSContext *cx, CallArgs args);
@@ -151,10 +148,8 @@ class SetObject : public JSObject {
     static JSBool add(JSContext *cx, unsigned argc, Value *vp);
     static bool delete_impl(JSContext *cx, CallArgs args);
     static JSBool delete_(JSContext *cx, unsigned argc, Value *vp);
-    static bool values_impl(JSContext *cx, CallArgs args);
-    static JSBool values(JSContext *cx, unsigned argc, Value *vp);
-    static bool entries_impl(JSContext *cx, CallArgs args);
-    static JSBool entries(JSContext *cx, unsigned argc, Value *vp);
+    static bool iterator_impl(JSContext *cx, CallArgs args);
+    static JSBool iterator(JSContext *cx, unsigned argc, Value *vp);
     static bool clear_impl(JSContext *cx, CallArgs args);
     static JSBool clear(JSContext *cx, unsigned argc, Value *vp);
 };

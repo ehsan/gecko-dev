@@ -42,10 +42,7 @@ class nsIURI;
 class nsPIDOMWindow;
 class nsITimer;
 class nsIXPCScriptNotify;
-
-namespace JS {
-class RuntimeStats;
-}
+namespace JS { struct RuntimeStats; }
 
 BEGIN_WORKERS_NAMESPACE
 
@@ -112,7 +109,7 @@ protected:
 
   void NotifyScriptExecutedIfNeeded() const;
 
-public:
+private:
   NS_DECL_NSIRUNNABLE
 };
 
@@ -277,11 +274,12 @@ private:
   // Only used for top level workers.
   nsTArray<nsRefPtr<WorkerRunnable> > mQueuedRunnables;
 
-  // Protected by mMutex.
-  JSSettings mJSSettings;
-
   uint64_t mBusyCount;
   Status mParentStatus;
+  uint32_t mJSContextOptions;
+  uint32_t mJSRuntimeHeapSize;
+  uint32_t mJSWorkerAllocationThreshold;
+  uint8_t mGCZeal;
   bool mJSObjectRooted;
   bool mParentSuspended;
   bool mIsChromeWorker;
@@ -350,11 +348,8 @@ public:
   bool
   Suspend(JSContext* aCx);
 
-  void
-  Resume(JSContext* aCx);
-
   bool
-  SynchronizeAndResume(nsIScriptContext* aCx);
+  Resume(JSContext* aCx);
 
   virtual void
   _trace(JSTracer* aTrc) MOZ_OVERRIDE;
@@ -396,20 +391,15 @@ public:
   GetInnerWindowId();
 
   void
-  UpdateJSContextOptions(JSContext* aCx, uint32_t aChromeOptions,
-                         uint32_t aContentOptions);
+  UpdateJSContextOptions(JSContext* aCx, uint32_t aOptions);
 
   void
-  UpdateJSWorkerMemoryParameter(JSContext* aCx, JSGCParamKey key,
-                                uint32_t value);
+  UpdateJSWorkerMemoryParameter(JSContext* aCx, JSGCParamKey key, uint32_t value);
 
 #ifdef JS_GC_ZEAL
   void
-  UpdateGCZeal(JSContext* aCx, uint8_t aGCZeal, uint32_t aFrequency);
+  UpdateGCZeal(JSContext* aCx, uint8_t aGCZeal);
 #endif
-
-  void
-  UpdateJITHardening(JSContext* aCx, bool aJITHardening);
 
   void
   GarbageCollect(JSContext* aCx, bool aShrinking);
@@ -587,12 +577,31 @@ public:
     return mLocationInfo;
   }
 
-  void
-  CopyJSSettings(JSSettings& aSettings)
+  uint32_t
+  GetJSContextOptions() const
   {
-    mozilla::MutexAutoLock lock(mMutex);
-    aSettings = mJSSettings;
+    return mJSContextOptions;
   }
+
+  uint32_t
+  GetJSRuntimeHeapSize() const
+  {
+    return mJSRuntimeHeapSize;
+  }
+
+  uint32_t
+  GetJSWorkerAllocationThreshold() const
+  {
+    return mJSWorkerAllocationThreshold;
+  }
+
+#ifdef JS_GC_ZEAL
+  uint8_t
+  GetGCZeal() const
+  {
+    return mGCZeal;
+  }
+#endif
 
   bool
   IsChromeWorker() const
@@ -806,8 +815,7 @@ public:
   }
 
   void
-  UpdateJSContextOptionsInternal(JSContext* aCx, uint32_t aContentOptions,
-                                 uint32_t aChromeOptions);
+  UpdateJSContextOptionsInternal(JSContext* aCx, uint32_t aOptions);
 
   void
   UpdateJSWorkerMemoryParameterInternal(JSContext* aCx, JSGCParamKey key, uint32_t aValue);
@@ -832,11 +840,8 @@ public:
 
 #ifdef JS_GC_ZEAL
   void
-  UpdateGCZealInternal(JSContext* aCx, uint8_t aGCZeal, uint32_t aFrequency);
+  UpdateGCZealInternal(JSContext* aCx, uint8_t aGCZeal);
 #endif
-
-  void
-  UpdateJITHardeningInternal(JSContext* aCx, bool aJITHardening);
 
   void
   GarbageCollectInternal(JSContext* aCx, bool aShrinking,

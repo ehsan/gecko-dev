@@ -1041,6 +1041,8 @@ const JSFunctionSpec MapObject::methods[] = {
     JS_FN("delete", delete_, 1, 0),
     JS_FN("keys", keys, 0, 0),
     JS_FN("values", values, 0, 0),
+    JS_FN("entries", entries, 0, 0),
+    JS_FN("iterator", entries, 0, 0),
     JS_FN("clear", clear, 0, 0),
     JS_FS_END
 };
@@ -1069,20 +1071,7 @@ JSObject *
 MapObject::initClass(JSContext *cx, JSObject *obj)
 {
     Rooted<GlobalObject*> global(cx, &obj->asGlobal());
-    RootedObject proto(cx,
-        InitClass(cx, global, &class_, JSProto_Map, construct, properties, methods));
-    if (proto) {
-        // Define the "entries" method.
-        JSFunction *fun = JS_DefineFunction(cx, proto, "entries", entries, 0, 0);
-        if (!fun)
-            return NULL;
-
-        // Define its alias.
-        RootedValue funval(cx, ObjectValue(*fun));
-        if (!JS_DefineProperty(cx, proto, "iterator", funval, NULL, NULL, 0))
-            return NULL;
-    }
-    return proto;
+    return InitClass(cx, global, &class_, JSProto_Map, construct, properties, methods);
 }
 
 template <class Range>
@@ -1433,16 +1422,14 @@ js_InitMapClass(JSContext *cx, HandleObject obj)
 class js::SetIteratorObject : public JSObject
 {
   public:
-    enum { TargetSlot, KindSlot, RangeSlot, SlotCount };
+    enum { TargetSlot, RangeSlot, SlotCount };
     static const JSFunctionSpec methods[];
-    static SetIteratorObject *create(JSContext *cx, HandleObject setobj, ValueSet *data,
-                                     SetObject::IteratorKind kind);
+    static SetIteratorObject *create(JSContext *cx, HandleObject setobj, ValueSet *data);
     static void finalize(FreeOp *fop, JSObject *obj);
 
   private:
     static inline bool is(const Value &v);
     inline ValueSet::Range *range();
-    inline SetObject::IteratorKind kind() const;
     static bool next_impl(JSContext *cx, CallArgs args);
     static JSBool next(JSContext *cx, unsigned argc, Value *vp);
 };
@@ -1479,14 +1466,6 @@ SetIteratorObject::range()
     return static_cast<ValueSet::Range *>(getSlot(RangeSlot).toPrivate());
 }
 
-inline SetObject::IteratorKind
-SetIteratorObject::kind() const
-{
-    int32_t i = getSlot(KindSlot).toInt32();
-    JS_ASSERT(i == SetObject::Values || i == SetObject::Entries);
-    return SetObject::IteratorKind(i);
-}
-
 bool
 GlobalObject::initSetIteratorProto(JSContext *cx, Handle<GlobalObject*> global)
 {
@@ -1504,8 +1483,7 @@ GlobalObject::initSetIteratorProto(JSContext *cx, Handle<GlobalObject*> global)
 }
 
 SetIteratorObject *
-SetIteratorObject::create(JSContext *cx, HandleObject setobj, ValueSet *data,
-                          SetObject::IteratorKind kind)
+SetIteratorObject::create(JSContext *cx, HandleObject setobj, ValueSet *data)
 {
     Rooted<GlobalObject *> global(cx, &setobj->global());
     Rooted<JSObject*> proto(cx, global->getOrCreateSetIteratorPrototype(cx));
@@ -1522,7 +1500,6 @@ SetIteratorObject::create(JSContext *cx, HandleObject setobj, ValueSet *data,
         return NULL;
     }
     iterobj->setSlot(TargetSlot, ObjectValue(*setobj));
-    iterobj->setSlot(KindSlot, Int32Value(int32_t(kind)));
     iterobj->setSlot(RangeSlot, PrivateValue(range));
     return static_cast<SetIteratorObject *>(iterobj);
 }
@@ -1552,23 +1529,7 @@ SetIteratorObject::next_impl(JSContext *cx, CallArgs args)
         return js_ThrowStopIteration(cx);
     }
 
-    switch (thisobj.kind()) {
-      case SetObject::Values:
-        args.rval().set(range->front().get());
-        break;
-
-      case SetObject::Entries: {
-        Value pair[2] = { range->front().get(), range->front().get() };
-        AutoValueArray root(cx, pair, 2);
-
-        JSObject *pairobj = NewDenseCopiedArray(cx, 2, pair);
-        if (!pairobj)
-          return false;
-        args.rval().setObject(*pairobj);
-        break;
-      }
-    }
-
+    args.rval().set(range->front().get());
     range->popFront();
     return true;
 }
@@ -1618,7 +1579,7 @@ const JSFunctionSpec SetObject::methods[] = {
     JS_FN("has", has, 1, 0),
     JS_FN("add", add, 1, 0),
     JS_FN("delete", delete_, 1, 0),
-    JS_FN("entries", entries, 0, 0),
+    JS_FN("iterator", iterator, 0, 0),
     JS_FN("clear", clear, 0, 0),
     JS_FS_END
 };
@@ -1627,22 +1588,7 @@ JSObject *
 SetObject::initClass(JSContext *cx, JSObject *obj)
 {
     Rooted<GlobalObject*> global(cx, &obj->asGlobal());
-    RootedObject proto(cx,
-        InitClass(cx, global, &class_, JSProto_Set, construct, properties, methods));
-    if (proto) {
-        // Define the "values" method.
-        JSFunction *fun = JS_DefineFunction(cx, proto, "values", values, 0, 0);
-        if (!fun)
-            return NULL;
-
-        // Define its aliases.
-        RootedValue funval(cx, ObjectValue(*fun));
-        if (!JS_DefineProperty(cx, proto, "keys", funval, NULL, NULL, 0))
-            return NULL;
-        if (!JS_DefineProperty(cx, proto, "iterator", funval, NULL, NULL, 0))
-            return NULL;
-    }
-    return proto;
+    return InitClass(cx, global, &class_, JSProto_Set, construct, properties, methods);
 }
 
 void
@@ -1797,41 +1743,22 @@ SetObject::delete_(JSContext *cx, unsigned argc, Value *vp)
 }
 
 bool
-SetObject::iterator_impl(JSContext *cx, CallArgs args, IteratorKind kind)
+SetObject::iterator_impl(JSContext *cx, CallArgs args)
 {
     Rooted<SetObject*> setobj(cx, &args.thisv().toObject().asSet());
     ValueSet &set = *setobj->getData();
-    Rooted<JSObject*> iterobj(cx, SetIteratorObject::create(cx, setobj, &set, kind));
+    Rooted<JSObject*> iterobj(cx, SetIteratorObject::create(cx, setobj, &set));
     if (!iterobj)
         return false;
     args.rval().setObject(*iterobj);
     return true;
 }
 
-bool
-SetObject::values_impl(JSContext *cx, CallArgs args)
-{
-    return iterator_impl(cx, args, Values);
-}
-
 JSBool
-SetObject::values(JSContext *cx, unsigned argc, Value *vp)
+SetObject::iterator(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, values_impl, args);
-}
-
-bool
-SetObject::entries_impl(JSContext *cx, CallArgs args)
-{
-    return iterator_impl(cx, args, Entries);
-}
-
-JSBool
-SetObject::entries(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, entries_impl, args);
+    return CallNonGenericMethod(cx, is, iterator_impl, args);
 }
 
 bool

@@ -859,10 +859,10 @@ NukeCrossCompartmentWrappers(JSContext* cx,
                              const CompartmentFilter& targetFilter,
                              NukeReferencesToWindow nukeReferencesToWindow);
 
-/* Specify information about DOMProxy proxies in the DOM, for use by ICs. */
+/* Specify information about ListBase proxies in the DOM, for use by ICs. */
 
 /*
- * The DOMProxyShadowsCheck function will be called to check if the property for
+ * The ListBaseShadowsCheck function will be called to check if the property for
  * id should be gotten from the prototype, or if there is an own property that
  * shadows it.
  * If DoesntShadow is returned then the slot at listBaseExpandoSlot should
@@ -885,21 +885,21 @@ struct ExpandoAndGeneration {
   uint32_t generation;
 };
 
-typedef enum DOMProxyShadowsResult {
+typedef enum ListBaseShadowsResult {
   ShadowCheckFailed,
   Shadows,
   DoesntShadow,
   DoesntShadowUnique
-} DOMProxyShadowsResult;
-typedef DOMProxyShadowsResult
-(* DOMProxyShadowsCheck)(JSContext* cx, JSHandleObject object, JSHandleId id);
+} ListBaseShadowsResult;
+typedef ListBaseShadowsResult
+(* ListBaseShadowsCheck)(JSContext* cx, JSHandleObject object, JSHandleId id);
 JS_FRIEND_API(void)
-SetDOMProxyInformation(void *domProxyHandlerFamily, uint32_t domProxyExpandoSlot,
-                       DOMProxyShadowsCheck domProxyShadowsCheck);
+SetListBaseInformation(void *listBaseHandlerFamily, uint32_t listBaseExpandoSlot,
+                       ListBaseShadowsCheck listBaseShadowsCheck);
 
-void *GetDOMProxyHandlerFamily();
-uint32_t GetDOMProxyExpandoSlot();
-DOMProxyShadowsCheck GetDOMProxyShadowsCheck();
+void *GetListBaseHandlerFamily();
+uint32_t GetListBaseExpandoSlot();
+ListBaseShadowsCheck GetListBaseShadowsCheck();
 
 } /* namespace js */
 

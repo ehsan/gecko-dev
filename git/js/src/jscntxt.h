@@ -1528,7 +1528,7 @@ struct JSContext : js::ContextFriendFields,
     unsigned            options_;            /* see jsapi.h for JSOPTION_* */
 
   public:
-    int32_t             reportGranularity;  /* see vm/Probes.h */
+    int32_t             reportGranularity;  /* see jsprobes.h */
 
     js::AutoResolving   *resolvingList;
 
