@@ -1694,10 +1694,8 @@ static PLDHashOperator EnumerateEntries(const nsACString& key,
                                         nsCString entry,
                                         void* userData)
 {
-  if (!entry.IsEmpty()) {
-    crashReporterAPIData->Append(key + NS_LITERAL_CSTRING("=") + entry +
-                                 NS_LITERAL_CSTRING("\n"));
-  }
+  crashReporterAPIData->Append(key + NS_LITERAL_CSTRING("=") + entry +
+                               NS_LITERAL_CSTRING("\n"));
   return PL_DHASH_NEXT;
 }
 
@@ -1797,11 +1795,6 @@ nsresult AnnotateCrashReport(const nsACString& key, const nsACString& data)
                                            crashReporterAPIData);
 
   return NS_OK;
-}
-
-nsresult RemoveCrashReportAnnotation(const nsACString& key)
-{
-  return AnnotateCrashReport(key, NS_LITERAL_CSTRING(""));
 }
 
 nsresult SetGarbageCollecting(bool collecting)

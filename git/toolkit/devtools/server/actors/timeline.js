@@ -116,15 +116,7 @@ let TimelineActor = exports.TimelineActor = protocol.ActorClass({
    * @return {Array}
    */
   get docShells() {
-    let originalDocShell;
-
-    if (this.tabActor.isRootActor) {
-      originalDocShell = this.tabActor.docShell;
-    } else {
-      originalDocShell = this.tabActor.originalDocShell;
-    }
-
-    let docShellsEnum = originalDocShell.getDocShellEnumerator(
+    let docShellsEnum = this.tabActor.originalDocShell.getDocShellEnumerator(
       Ci.nsIDocShellTreeItem.typeAll,
       Ci.nsIDocShell.ENUMERATE_FORWARDS
     );

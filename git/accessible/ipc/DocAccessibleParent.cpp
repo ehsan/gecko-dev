@@ -43,12 +43,10 @@ DocAccessibleParent::RecvShowEvent(const ShowEventData& aData)
 
   uint32_t consumed = AddSubtree(parent, aData.NewTree(), 0, newChildIdx);
   MOZ_ASSERT(consumed == aData.NewTree().Length());
-#ifdef DEBUG
   for (uint32_t i = 0; i < consumed; i++) {
     uint64_t id = aData.NewTree()[i].ID();
     MOZ_ASSERT(mAccessibles.GetEntry(id));
   }
-#endif
 
   return consumed;
 }
@@ -71,7 +69,7 @@ DocAccessibleParent::AddSubtree(ProxyAccessible* aParent,
 
   auto role = static_cast<a11y::role>(newChild.Role());
   ProxyAccessible* newProxy =
-    new ProxyAccessible(newChild.ID(), aParent, this, role);
+    new ProxyAccessible(newChild.ID(), aParent, this, role, newChild.Name());
   aParent->AddChildAt(aIdxInParent, newProxy);
   mAccessibles.PutEntry(newChild.ID())->mProxy = newProxy;
   ProxyCreated(newProxy);

@@ -3,11 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "gfxFont.h"
-
 #include "mozilla/BinarySearch.h"
 #include "mozilla/DebugOnly.h"
-#include "mozilla/gfx/2D.h"
 #include "mozilla/MathAlgorithms.h"
 
 #include "prlog.h"
@@ -15,6 +12,7 @@
 #include "nsExpirationTracker.h"
 #include "nsITimer.h"
 
+#include "gfxFont.h"
 #include "gfxGlyphExtents.h"
 #include "gfxPlatform.h"
 #include "gfxTextRun.h"
@@ -658,8 +656,8 @@ gfxShapedText::SetMissingGlyph(uint32_t aIndex, uint32_t aChar, gfxFont *aFont)
     } else {
         gfxFloat width =
             std::max(aFont->GetMetrics(gfxFont::eHorizontal).aveCharWidth,
-                     gfxFloat(gfxFontMissingGlyphs::GetDesiredMinWidth(aChar,
-                                mAppUnitsPerDevUnit)));
+                     gfxFontMissingGlyphs::GetDesiredMinWidth(aChar,
+                         mAppUnitsPerDevUnit));
         details->mAdvance = uint32_t(width * mAppUnitsPerDevUnit);
     }
     details->mXOffset = 0;
@@ -1799,16 +1797,16 @@ gfxFont::DrawGlyphs(gfxShapedText            *aShapedText,
                                     glyphX -= advance;
                                 }
                             }
-                            Point pt(Float(ToDeviceUnits(glyphX, aRunParams.devPerApp)),
-                                     Float(ToDeviceUnits(glyphY, aRunParams.devPerApp)));
-                            Float advanceDevUnits =
-                                Float(ToDeviceUnits(advance, aRunParams.devPerApp));
-                            Float height = GetMetrics(eHorizontal).maxAscent;
-                            Rect glyphRect = aFontParams.isVerticalFont ?
-                                Rect(pt.x - height / 2, pt.y,
-                                     height, advanceDevUnits) :
-                                Rect(pt.x, pt.y - height,
-                                     advanceDevUnits, height);
+                            gfxPoint pt(ToDeviceUnits(glyphX, aRunParams.devPerApp),
+                                        ToDeviceUnits(glyphY, aRunParams.devPerApp));
+                            gfxFloat advanceDevUnits =
+                                ToDeviceUnits(advance, aRunParams.devPerApp);
+                            gfxFloat height = GetMetrics(eHorizontal).maxAscent;
+                            gfxRect glyphRect = aFontParams.isVerticalFont ?
+                                gfxRect(pt.x - height / 2, pt.y,
+                                        height, advanceDevUnits) :
+                                gfxRect(pt.x, pt.y - height,
+                                        advanceDevUnits, height);
 
                             // If there's a fake-italic skew in effect as part
                             // of the drawTarget's transform, we need to remove
@@ -1821,8 +1819,7 @@ gfxFont::DrawGlyphs(gfxShapedText            *aShapedText,
                             }
 
                             gfxFontMissingGlyphs::DrawMissingGlyph(
-                                details->mGlyphID, glyphRect, *aRunParams.dt,
-                                PatternFromState(aRunParams.context),
+                                aRunParams.context, glyphRect, details->mGlyphID,
                                 aShapedText->GetAppUnitsPerDevUnit());
 
                             // Restore the matrix, if we modified it before
