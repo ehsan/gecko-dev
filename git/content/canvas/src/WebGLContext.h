@@ -266,7 +266,7 @@ protected:
 
     nsresult TexImageElementBase(nsIDOMHTMLElement *imageOrCanvas,
                                  gfxImageSurface **imageOut,
-                                 PRBool flipY, PRBool premultiplyAlpha);
+                                 bool flipY, bool premultiplyAlpha);
 
     GLuint mActiveTexture;
 
@@ -353,7 +353,7 @@ public:
     PRBool Deleted() { return mDeleted; }
     GLuint GLName() { return mName; }
 
-    void Set(nsIWebGLArray *na) {
+    void Set(nsICanvasArray *na) {
         mGLType = na->NativeType();
         mElementSize = na->NativeElementSize();
         mCount = na->NativeCount();

@@ -71,7 +71,7 @@ namespace mozilla {
 // Array types
 //
 [scriptable, uuid(34b6cf8e-47da-458e-ab42-0451a3533ee5)]
-interface nsIWebGLArrayBuffer : nsISupports
+interface nsICanvasArrayBuffer : nsISupports
 {
   readonly attribute unsigned long byteLength;
 
@@ -81,9 +81,9 @@ interface nsIWebGLArrayBuffer : nsISupports
 };
 
 [scriptable, uuid(84ba4e98-8173-7c10-dca0-b5ba7809fcf3)]
-interface nsIWebGLArray : nsISupports
+interface nsICanvasArray : nsISupports
 {
-  readonly attribute nsIWebGLArrayBuffer buffer;
+  readonly attribute nsICanvasArrayBuffer buffer;
   readonly attribute unsigned long byteOffset;
   readonly attribute unsigned long byteLength;
   readonly attribute unsigned long length;
@@ -91,7 +91,7 @@ interface nsIWebGLArray : nsISupports
   // XXX kill this.
   unsigned long alignedSizeInBytes();
 
-  nsIWebGLArray slice(in unsigned long offset, in unsigned long length);
+  nsICanvasArray slice(in unsigned long offset, in unsigned long length);
 
   [noscript, notxpcom] unsigned long nativeType();
   [noscript, notxpcom] voidPtr nativePointer();
@@ -101,7 +101,7 @@ interface nsIWebGLArray : nsISupports
 };
 
 [scriptable, Uuid(0f6d0e7b-bcfc-9305-6a1d-a9653b5e8c80)]
-interface nsIWebGLFloatArray : nsIWebGLArray
+interface nsICanvasFloatArray : nsICanvasArray
 {
   [IndexGetter] float get(in unsigned long index);
   //[IndexSetter] void set(in unsigned long index, in float value);
@@ -111,17 +111,17 @@ interface nsIWebGLFloatArray : nsIWebGLArray
 };
 
 [scriptable, uuid(b29db7cf-fa58-435f-8d45-611cc50979ad)]
-interface nsIWebGLByteArray : nsIWebGLArray
+interface nsICanvasByteArray : nsICanvasArray
 {
   [IndexGetter] long get(in unsigned long index);
   //[IndexSetter] void set(in unsigned long index, in long value);
-  //void set(in nsIWebGLByteArray array, [Optional] in unsigned long offset);
+  //void set(in nsICanvasByteArray array, [Optional] in unsigned long offset);
   //void set(in sequence<long> array, [Optional] in unsigned long offset);
   void set();
 };
 
 [scriptable, uuid(3daa67fa-e743-2cbd-a212-805c2fc520cc)]
-interface nsIWebGLUnsignedByteArray : nsIWebGLArray
+interface nsICanvasUnsignedByteArray : nsICanvasArray
 {
   [IndexGetter] unsigned long get(in unsigned long index);
   //[IndexSetter] void set(in unsigned long index, in unsigned long value);
@@ -131,7 +131,7 @@ interface nsIWebGLUnsignedByteArray : nsIWebGLArray
 };
 
 [scriptable, uuid(a8a982e3-3977-7364-f012-c497a5ab7681)]
-interface nsIWebGLShortArray : nsIWebGLArray
+interface nsICanvasShortArray : nsICanvasArray
 {
   [IndexGetter] long get(in unsigned long index);
   //[IndexSetter] void set(in unsigned long index, in long value);
@@ -141,7 +141,7 @@ interface nsIWebGLShortArray : nsIWebGLArray
 };
 
 [scriptable, uuid(8b9c67cc-c7be-a062-84b0-76a910a5c1e6)]
-interface nsIWebGLUnsignedShortArray : nsIWebGLArray
+interface nsICanvasUnsignedShortArray : nsICanvasArray
 {
   [IndexGetter] unsigned long get(in unsigned long index);
   //[IndexSetter] void set(in unsigned long index, in unsigned long value);
@@ -151,7 +151,7 @@ interface nsIWebGLUnsignedShortArray : nsIWebGLArray
 };
 
 [scriptable, uuid(b9b2e861-3a28-4311-993c-799e4f77dcba)]
-interface nsIWebGLIntArray : nsIWebGLArray
+interface nsICanvasIntArray : nsICanvasArray
 {
   [IndexGetter] long get(in unsigned long index);
   //[IndexSetter] void set(in unsigned long index, in long value);
@@ -161,7 +161,7 @@ interface nsIWebGLIntArray : nsIWebGLArray
 };
 
 [scriptable, uuid(0d6ee3f8-71b6-460d-b05a-d579cc55edbe)]
-interface nsIWebGLUnsignedIntArray : nsIWebGLArray
+interface nsICanvasUnsignedIntArray : nsICanvasArray
 {
   [IndexGetter] unsigned long get(in unsigned long index);
   //[IndexSetter] void set(in unsigned long index, in unsigned long value);
@@ -231,13 +231,13 @@ interface nsICanvasRenderingContextWebGL : nsISupports
   //  ARRAY CONSTRUCTORS
   //
 
-  nsIWebGLFloatArray createFloatArray();
-  nsIWebGLByteArray createByteArray();
-  nsIWebGLUnsignedByteArray createUnsignedByteArray();
-  nsIWebGLShortArray createShortArray();
-  nsIWebGLUnsignedShortArray createUnsignedShortArray();
-  nsIWebGLIntArray createIntArray();
-  nsIWebGLUnsignedIntArray createUnsignedIntArray();
+  nsICanvasFloatArray createFloatArray();
+  nsICanvasByteArray createByteArray();
+  nsICanvasUnsignedByteArray createUnsignedByteArray();
+  nsICanvasShortArray createShortArray();
+  nsICanvasUnsignedShortArray createUnsignedShortArray();
+  nsICanvasIntArray createIntArray();
+  nsICanvasUnsignedIntArray createUnsignedIntArray();
 
   //
   //  CONSTANTS
@@ -357,10 +357,6 @@ interface nsICanvasRenderingContextWebGL : nsISupports
   const unsigned long SAMPLE_COVERAGE                = 0x80A0;
 
   /* ErrorCode */
-%{C++
-/* Avoid conflict with WinAPI */
-#undef NO_ERROR
-%}
   const unsigned long NO_ERROR                       = 0;
   const unsigned long INVALID_ENUM                   = 0x0500;
   const unsigned long INVALID_VALUE                  = 0x0501;
@@ -696,12 +692,12 @@ interface nsICanvasRenderingContextWebGL : nsISupports
 
   // Modified: void glBufferData (GLenum target, GLsizeiptr size, const void* data, GLenum usage);
   // void bufferData (in GLenum target, in GLsizei size, in GLenum usage);
-  // void bufferData (in GLenum target, in nsIWebGLArray data, in GLenum usage);
-  // void bufferData (in GLenum target, in nsIWebGLArrayBuffer data, in GLenum usage);
+  // void bufferData (in GLenum target, in nsICanvasArray data, in GLenum usage);
+  // void bufferData (in GLenum target, in nsICanvasArrayBuffer data, in GLenum usage);
   void bufferData (in GLenum target);
 
   // Modified: void glBufferSubData (GLenum target, GLintptr offset, GLsizeiptr size, const void* data);
-  // void bufferSubData (in GLenum target, in GLsizeiptr offset, in nsIWebGLArray data);
+  // void bufferSubData (in GLenum target, in GLsizeiptr offset, in nsICanvasArray data);
   // void bufferSubData (in GLenum target, in GLsizeiptr offset, in CanvasArrayBuffer data);
   void bufferSubData (in GLenum target, in GLsizeiptr offset);
 
@@ -889,7 +885,7 @@ interface nsICanvasRenderingContextWebGL : nsISupports
 
   void texSubImage2D ();
 
-  // Modified: All the glUniform*v forms below are modified by replacing 'count' and 'v' with a nsIWebGLArray
+  // Modified: All the glUniform*v forms below are modified by replacing 'count' and 'v' with a nsICanvasArray
   void uniform1f (in GLint location, in GLfloat x);
   void uniform1i (in GLint location, in GLint x);
   void uniform2f (in GLint location, in GLfloat x, in GLfloat y);
@@ -899,19 +895,19 @@ interface nsICanvasRenderingContextWebGL : nsISupports
   void uniform4f (in GLint location, in GLfloat x, in GLfloat y, in GLfloat z, in GLfloat w);
   void uniform4i (in GLint location, in GLint x, in GLint y, in GLint z, in GLint w);
 
-  void uniform1fv (in GLint location, in nsIWebGLArray v);
-  void uniform1iv (in GLint location, in nsIWebGLArray v);
-  void uniform2fv (in GLint location, in nsIWebGLArray v);
-  void uniform2iv (in GLint location, in nsIWebGLArray v);
-  void uniform3fv (in GLint location, in nsIWebGLArray v);
-  void uniform3iv (in GLint location, in nsIWebGLArray v);
-  void uniform4fv (in GLint location, in nsIWebGLArray v);
-  void uniform4iv (in GLint location, in nsIWebGLArray v);
+  void uniform1fv (in GLint location, in nsICanvasArray v);
+  void uniform1iv (in GLint location, in nsICanvasArray v);
+  void uniform2fv (in GLint location, in nsICanvasArray v);
+  void uniform2iv (in GLint location, in nsICanvasArray v);
+  void uniform3fv (in GLint location, in nsICanvasArray v);
+  void uniform3iv (in GLint location, in nsICanvasArray v);
+  void uniform4fv (in GLint location, in nsICanvasArray v);
+  void uniform4iv (in GLint location, in nsICanvasArray v);
 
-  // Modified. These are modified by replacing 'count' and 'value' with a nsIWebGLArray
-  void uniformMatrix2fv (in GLint location, in GLboolean transpose, in nsIWebGLArray value);
-  void uniformMatrix3fv (in GLint location, in GLboolean transpose, in nsIWebGLArray value);
-  void uniformMatrix4fv (in GLint location, in GLboolean transpose, in nsIWebGLArray value);
+  // Modified. These are modified by replacing 'count' and 'value' with a nsICanvasArray
+  void uniformMatrix2fv (in GLint location, in GLboolean transpose, in nsICanvasArray value);
+  void uniformMatrix3fv (in GLint location, in GLboolean transpose, in nsICanvasArray value);
+  void uniformMatrix4fv (in GLint location, in GLboolean transpose, in nsICanvasArray value);
 
   // Added API using top entry from the passed nsIWebGLMatrixStack
   //ZZ void glUniformMatrix (in GLint location, in GLboolean transpose, in nsIWebGLMatrixStack value);
@@ -919,16 +915,16 @@ interface nsICanvasRenderingContextWebGL : nsISupports
   void useProgram (in nsIWebGLProgram program);
   void validateProgram (in nsIWebGLProgram program);
 
-  // Modified: All the glVertexAttrib*v forms below are modified by replacing 'values' with a nsIWebGLArray
+  // Modified: All the glVertexAttrib*v forms below are modified by replacing 'values' with a nsICanvasArray
   void vertexAttrib1f (in GLuint indx, in GLfloat x);
   void vertexAttrib2f (in GLuint indx, in GLfloat x, in GLfloat y);
   void vertexAttrib3f (in GLuint indx, in GLfloat x, in GLfloat y, in GLfloat z);
   void vertexAttrib4f (in GLuint indx, in GLfloat x, in GLfloat y, in GLfloat z, in GLfloat w);
 
-  void vertexAttrib1fv (in GLuint indx, in nsIWebGLArray values);
-  void vertexAttrib2fv (in GLuint indx, in nsIWebGLArray values);
-  void vertexAttrib3fv (in GLuint indx, in nsIWebGLArray values);
-  void vertexAttrib4fv (in GLuint indx, in nsIWebGLArray values);
+  void vertexAttrib1fv (in GLuint indx, in nsICanvasArray values);
+  void vertexAttrib2fv (in GLuint indx, in nsICanvasArray values);
+  void vertexAttrib3fv (in GLuint indx, in nsICanvasArray values);
+  void vertexAttrib4fv (in GLuint indx, in nsICanvasArray values);
 
   // TBD
   //void glVertexAttribPointer (in GLuint indx, GLint size, GLenum type, GLboolean normalized, 

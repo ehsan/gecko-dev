@@ -170,9 +170,7 @@
 #define CC_RUNTIME_ABORT_IF_FALSE(_expr, _msg)                                \
   PR_BEGIN_MACRO                                                              \
     if (!(_expr)) {                                                           \
-      NS_ERROR(_msg);                                                         \
-      int *foo = (int*)nsnull;                                                \
-      *foo = 42;                                                              \
+      NS_DebugBreak(NS_DEBUG_ABORT, _msg, #_expr, __FILE__, __LINE__);        \
     }                                                                         \
   PR_END_MACRO
 
