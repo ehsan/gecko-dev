@@ -1840,11 +1840,6 @@ bool TraceRecorder::guardDenseArrayIndexWithinBounds(JSObject* obj, jsint idx,
     return true;
 }
 
-bool TraceRecorder::leaveFrame()
-{
-    return (callDepth--) > 0;
-}
-
 bool TraceRecorder::record_JSOP_INTERRUPT()
 {
     return false;
@@ -1870,10 +1865,11 @@ bool TraceRecorder::record_JSOP_LEAVEWITH()
 }
 bool TraceRecorder::record_JSOP_RETURN()
 {
+    if (callDepth <= 0)
+        return false;
     // this only works if we have a contiguous stack, which CALL enforces
     set(&cx->fp->argv[-2], stack(-1));
-    if (!leaveFrame()) // must not decrement callDepth until after the set 
-        return false;
+    --callDepth; // must not decrement callDepth until after the set 
     atoms = cx->fp->down->script->atomMap.vector;
     return true;
 }
@@ -3131,7 +3127,7 @@ bool TraceRecorder::record_JSOP_CALLELEM()
 
 bool TraceRecorder::record_JSOP_STOP()
 {
-    return leaveFrame();
+    return (callDepth-- > 0);
 }
 
 bool TraceRecorder::record_JSOP_GETXPROP()
