@@ -254,10 +254,6 @@ float Axis::GetVelocity() {
   return mAxisLocked ? 0 : mVelocity;
 }
 
-void Axis::SetVelocity(float aVelocity) {
-  mVelocity = aVelocity;
-}
-
 float Axis::GetCompositionEnd() {
   return GetOrigin() + GetCompositionLength();
 }

@@ -41,11 +41,9 @@ public:
         GLenum mAttachmentPoint;
         GLenum mTexImageTarget;
         GLint mTexImageLevel;
-        mutable bool mNeedsFinalize;
 
         Attachment(GLenum aAttachmentPoint = LOCAL_GL_COLOR_ATTACHMENT0)
             : mAttachmentPoint(aAttachmentPoint)
-            , mNeedsFinalize(false)
         {}
 
         bool IsDefined() const {
@@ -58,8 +56,10 @@ public:
         bool IsReadableFloat() const;
 
         void SetTexImage(WebGLTexture* tex, GLenum target, GLint level);
-        void SetRenderbuffer(WebGLRenderbuffer* rb);
-
+        void SetRenderbuffer(WebGLRenderbuffer* rb) {
+            mTexturePtr = nullptr;
+            mRenderbufferPtr = rb;
+        }
         const WebGLTexture* Texture() const {
             return mTexturePtr;
         }
@@ -92,7 +92,7 @@ public:
         bool HasImage() const;
         bool IsComplete() const;
 
-        void FinalizeAttachment(gl::GLContext* gl, GLenum attachmentLoc) const;
+        void FinalizeAttachment(GLenum attachmentLoc) const;
     };
 
     void Delete();

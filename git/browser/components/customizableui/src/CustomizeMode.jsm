@@ -337,7 +337,6 @@ CustomizeMode.prototype = {
 
     this.document.removeEventListener("keypress", this);
     this.window.PanelUI.menuButton.removeEventListener("mousedown", this);
-    this.window.PanelUI.menuButton.open = false;
 
     this.window.PanelUI.beginBatchUpdate();
 
@@ -426,6 +425,7 @@ CustomizeMode.prototype = {
       CustomizableUI.dispatchToolboxEvent("customizationending", {}, window);
 
       window.PanelUI.setMainView(window.PanelUI.mainView);
+      window.PanelUI.menuButton.open = false;
       window.PanelUI.menuButton.disabled = false;
 
       let customizeButton = document.getElementById("PanelUI-customize");
@@ -666,7 +666,7 @@ CustomizeMode.prototype = {
   //       while still getting rid of the need for overlays.
   makePaletteItem: function(aWidget, aPlace) {
     let widgetNode = aWidget.forWindow(this.window).node;
-    let wrapper = this.createOrUpdateWrapper(widgetNode, aPlace);
+    let wrapper = this.createWrapper(widgetNode, aPlace);
     wrapper.appendChild(widgetNode);
     return wrapper;
   },
@@ -728,8 +728,7 @@ CustomizeMode.prototype = {
     if (!this.isCustomizableItem(aNode)) {
       return aNode;
     }
-    let wrapper = this.createOrUpdateWrapper(aNode, aPlace);
-
+    let wrapper = this.createWrapper(aNode, aPlace);
     // It's possible that this toolbar node is "mid-flight" and doesn't have
     // a parent, in which case we skip replacing it. This can happen if a
     // toolbar item has been dragged into the palette. In that case, we tell
@@ -742,19 +741,13 @@ CustomizeMode.prototype = {
     return wrapper;
   },
 
-  createOrUpdateWrapper: function(aNode, aPlace, aIsUpdate) {
-    let wrapper;
-    if (aIsUpdate && aNode.parentNode && aNode.parentNode.localName == "toolbarpaletteitem") {
-      wrapper = aNode.parentNode;
-      aPlace = wrapper.getAttribute("place");
-    } else {
-      wrapper = this.document.createElement("toolbarpaletteitem");
-      // "place" is used by toolkit to add the toolbarpaletteitem-palette
-      // binding to a toolbarpaletteitem, which gives it a label node for when
-      // it's sitting in the palette.
-      wrapper.setAttribute("place", aPlace);
-    }
+  createWrapper: function(aNode, aPlace) {
+    let wrapper = this.document.createElement("toolbarpaletteitem");
 
+    // "place" is used by toolkit to add the toolbarpaletteitem-palette
+    // binding to a toolbarpaletteitem, which gives it a label node for when
+    // it's sitting in the palette.
+    wrapper.setAttribute("place", aPlace);
 
     // Ensure the wrapped item doesn't look like it's in any special state, and
     // can't be interactved with when in the customization palette.
@@ -809,11 +802,8 @@ CustomizeMode.prototype = {
       aNode.removeAttribute(contextMenuAttrName);
     }
 
-    // Only add listeners for newly created wrappers:
-    if (!aIsUpdate) {
-      wrapper.addEventListener("mousedown", this);
-      wrapper.addEventListener("mouseup", this);
-    }
+    wrapper.addEventListener("mousedown", this);
+    wrapper.addEventListener("mouseup", this);
 
     return wrapper;
   },
@@ -1354,8 +1344,6 @@ CustomizeMode.prototype = {
     if (dragOverItem != this._dragOverItem || dragValue != dragOverItem.getAttribute("dragover")) {
       if (dragOverItem != targetArea.customizationTarget) {
         this._setDragActive(dragOverItem, dragValue, draggedItemId, targetIsToolbar);
-      } else if (targetIsToolbar) {
-        this._updateToolbarCustomizationOutline(this.window, targetArea);
       }
       this._dragOverItem = dragOverItem;
     }
@@ -1755,7 +1743,10 @@ CustomizeMode.prototype = {
     if (targetArea != currentArea) {
       this.unwrapToolbarItem(aDraggedItem.parentNode);
       // Put the item back into its previous position.
-      currentParent.insertBefore(aDraggedItem, currentSibling);
+      if (currentSibling)
+        currentParent.insertBefore(aDraggedItem, currentSibling);
+      else
+        currentParent.appendChild(aDraggedItem);
       // restore the areaType
       if (areaType) {
         if (currentType === false)
@@ -1763,7 +1754,6 @@ CustomizeMode.prototype = {
         else
           aDraggedItem.setAttribute(kAreaType, currentType);
       }
-      this.createOrUpdateWrapper(aDraggedItem, null, true);
       CustomizableUI.onWidgetDrag(aDraggedItem.id);
     } else {
       aDraggedItem.parentNode.hidden = true;

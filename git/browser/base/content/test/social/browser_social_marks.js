@@ -57,14 +57,14 @@ function test() {
 
   let toolbar = document.getElementById("nav-bar");
   let currentsetAtStart = toolbar.currentSet;
-  runSocialTestWithProvider(manifest, function (finishcb) {
+  runSocialTestWithProvider(manifest, function () {
     runSocialTests(tests, undefined, undefined, function () {
       Services.prefs.clearUserPref("social.remote-install.enabled");
       // just in case the tests failed, clear these here as well
       Services.prefs.clearUserPref("social.whitelist");
       ok(CustomizableUI.inDefaultState, "Should be in the default state when we finish");
       CustomizableUI.reset();
-      finishcb();
+      finish();
     });
   });
 }

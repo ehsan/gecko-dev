@@ -312,13 +312,6 @@ static bool IsCloseToVertical(float aAngle, float aThreshold)
   return (fabs(aAngle - (M_PI / 2)) < aThreshold);
 }
 
-template <typename Units>
-static bool IsZero(const gfx::PointTyped<Units>& aPoint)
-{
-  return FuzzyEqualsMultiplicative(aPoint.x, 0.0f)
-      && FuzzyEqualsMultiplicative(aPoint.y, 0.0f);
-}
-
 static inline void LogRendertraceRect(const ScrollableLayerGuid& aGuid, const char* aDesc, const char* aColor, const CSSRect& aRect)
 {
 #ifdef APZC_ENABLE_RENDERTRACE
@@ -346,9 +339,10 @@ GetFrameTime() {
 
 class FlingAnimation: public AsyncPanZoomAnimation {
 public:
-  FlingAnimation(AsyncPanZoomController& aApzc)
+  FlingAnimation(AxisX& aX, AxisY& aY)
     : AsyncPanZoomAnimation(TimeDuration::FromMilliseconds(gFlingRepaintInterval))
-    , mApzc(aApzc)
+    , mX(aX)
+    , mY(aY)
   {}
   /**
    * Advances a fling by an interpolated amount based on the passed in |aDelta|.
@@ -360,7 +354,8 @@ public:
                       const TimeDuration& aDelta);
 
 private:
-  AsyncPanZoomController& mApzc;
+  AxisX& mX;
+  AxisY& mY;
 };
 
 class ZoomAnimation: public AsyncPanZoomAnimation {
@@ -755,9 +750,8 @@ nsEventStatus AsyncPanZoomController::OnTouchEnd(const MultiTouchInput& aEvent) 
   case PANNING_LOCKED_Y:
     {
       // Make a local copy of the tree manager pointer and check if it's not
-      // null before calling FlushRepaintsForOverscrollHandoffChain().
-      // This is necessary because Destroy(), which nulls out mTreeManager,
-      // could be called concurrently.
+      // null before calling HandleOverscroll(). This is necessary because
+      // Destroy(), which nulls out mTreeManager, could be called concurrently.
       APZCTreeManager* treeManagerLocal = mTreeManager;
       if (treeManagerLocal) {
         if (!treeManagerLocal->FlushRepaintsForOverscrollHandoffChain()) {
@@ -770,7 +764,7 @@ nsEventStatus AsyncPanZoomController::OnTouchEnd(const MultiTouchInput& aEvent) 
     mX.EndTouch();
     mY.EndTouch();
     SetState(FLING);
-    StartAnimation(new FlingAnimation(*this));
+    StartAnimation(new FlingAnimation(mX, mY));
     return nsEventStatus_eConsumeNoDefault;
 
   case PINCHING:
@@ -1158,18 +1152,18 @@ void AsyncPanZoomController::AttemptScroll(const ScreenPoint& aStartPoint,
     CSSToScreenScale zoom = mFrameMetrics.mZoom;
 
     // Inversely scale the offset by the resolution (when you're zoomed further in,
-    // the same swipe should move you a shorter distance).
+    // a larger swipe should move you a shorter distance).
     CSSPoint cssDisplacement = displacement / zoom;
 
     CSSPoint cssOverscroll;
-    CSSPoint allowedDisplacement(mX.AdjustDisplacement(cssDisplacement.x,
-                                                       cssOverscroll.x),
-                                 mY.AdjustDisplacement(cssDisplacement.y,
-                                                       cssOverscroll.y));
+    gfx::Point scrollOffset(mX.AdjustDisplacement(cssDisplacement.x,
+                                                  cssOverscroll.x),
+                            mY.AdjustDisplacement(cssDisplacement.y,
+                                                  cssOverscroll.y));
     overscroll = cssOverscroll * zoom;
 
-    if (!IsZero(allowedDisplacement)) {
-      ScrollBy(allowedDisplacement);
+    if (fabs(scrollOffset.x) > EPSILON || fabs(scrollOffset.y) > EPSILON) {
+      ScrollBy(CSSPoint::FromUnknownPoint(scrollOffset));
       ScheduleComposite();
 
       TimeDuration timePaintDelta = mPaintThrottler.TimeSinceLastRequest(GetFrameTime());
@@ -1180,26 +1174,17 @@ void AsyncPanZoomController::AttemptScroll(const ScreenPoint& aStartPoint,
     }
   }
 
-  if (!IsZero(overscroll)) {
+  if (fabs(overscroll.x) > EPSILON || fabs(overscroll.y) > EPSILON) {
     // "+ overscroll" rather than "- overscroll" because "overscroll" is what's
     // left of "displacement", and "displacement" is "start - end".
     CallDispatchScroll(aEndPoint + overscroll, aEndPoint, aOverscrollHandoffChainIndex + 1);
   }
 }
 
-void AsyncPanZoomController::TakeOverFling(ScreenPoint aVelocity) {
-  // We may have a pre-existing velocity for whatever reason (for example,
-  // a previously handed off fling). We don't want to clobber that.
-  mX.SetVelocity(mX.GetVelocity() + aVelocity.x);
-  mY.SetVelocity(mY.GetVelocity() + aVelocity.y);
-  SetState(FLING);
-  StartAnimation(new FlingAnimation(*this));
-}
-
 void AsyncPanZoomController::CallDispatchScroll(const ScreenPoint& aStartPoint, const ScreenPoint& aEndPoint,
                                                 uint32_t aOverscrollHandoffChainIndex) {
   // Make a local copy of the tree manager pointer and check if it's not
-  // null before calling DispatchScroll(). This is necessary because
+  // null before calling HandleOverscroll(). This is necessary because
   // Destroy(), which nulls out mTreeManager, could be called concurrently.
   APZCTreeManager* treeManagerLocal = mTreeManager;
   if (treeManagerLocal) {
@@ -1255,76 +1240,24 @@ ScreenIntPoint& AsyncPanZoomController::GetFirstTouchScreenPoint(const MultiTouc
 
 bool FlingAnimation::Sample(FrameMetrics& aFrameMetrics,
                             const TimeDuration& aDelta) {
-
-  // If the fling is handed off to our APZC from a child, on the first call to
-  // Sample() aDelta might be negative because it's computed as the sample time
-  // from SampleContentTransformForFrame() minus our APZC's mLastSampleTime
-  // which is the time the child handed off the fling from its call to
-  // SampleContentTransformForFrame() with the same sample time. If we allow
-  // the negative aDelta to be processed, it will yield a displacement in the
-  // direction opposite to the fling, which can cause us to overscroll and
-  // hand off the fling to _our_ parent, which effectively kills the fling.
-  if (aDelta.ToMilliseconds() <= 0) {
-    return true;
-  }
-
-  bool shouldContinueFlingX = mApzc.mX.FlingApplyFrictionOrCancel(aDelta),
-       shouldContinueFlingY = mApzc.mY.FlingApplyFrictionOrCancel(aDelta);
+  bool shouldContinueFlingX = mX.FlingApplyFrictionOrCancel(aDelta),
+       shouldContinueFlingY = mY.FlingApplyFrictionOrCancel(aDelta);
   // If we shouldn't continue the fling, let's just stop and repaint.
   if (!shouldContinueFlingX && !shouldContinueFlingY) {
     return false;
   }
 
-  // AdjustDisplacement() zeroes out the Axis velocity if we're in overscroll.
-  // Since we need to hand off the velocity to the tree manager in such a case,
-  // we save it here. Would be ScreenVector instead of ScreenPoint if we had
-  // vector classes.
-  ScreenPoint velocity(mApzc.mX.GetVelocity(), mApzc.mY.GetVelocity());
-
-  ScreenPoint offset = velocity * aDelta.ToMilliseconds();
+  CSSPoint overscroll; // overscroll is ignored for flings
+  ScreenPoint offset(aDelta.ToMilliseconds() * mX.GetVelocity(),
+                     aDelta.ToMilliseconds() * mY.GetVelocity());
 
   // Inversely scale the offset by the resolution (when you're zoomed further in,
-  // the same swipe should move you a shorter distance).
+  // a larger swipe should move you a shorter distance).
   CSSPoint cssOffset = offset / aFrameMetrics.mZoom;
-  CSSPoint overscroll;
-  aFrameMetrics.mScrollOffset += CSSPoint(
-    mApzc.mX.AdjustDisplacement(cssOffset.x, overscroll.x),
-    mApzc.mY.AdjustDisplacement(cssOffset.y, overscroll.y)
-  );
-
-  // If the fling has caused us to reach the end of our scroll range, hand
-  // off the fling to the next APZC in the overscroll handoff chain.
-  if (!IsZero(overscroll)) {
-    // We may have reached the end of the scroll range along one axis but
-    // not the other. In such a case we only want to hand off the relevant
-    // component of the fling.
-    if (FuzzyEqualsMultiplicative(overscroll.x, 0.0f)) {
-      velocity.x = 0;
-    } else if (FuzzyEqualsMultiplicative(overscroll.y, 0.0f)) {
-      velocity.y = 0;
-    }
-
-    // To hand off the fling, we call APZCTreeManager::HandleFlingOverscroll()
-    // which starts a new fling in the next APZC in the handoff chain with
-    // the same velocity. For simplicity, the actual overscroll of the current
-    // sample is discarded rather than being handed off. The compositor should
-    // sample animations sufficiently frequently that this is not noticeable.
-
-    // Make a local copy of the tree manager pointer and check if it's not
-    // null before calling HandleFlingOverscroll(). This is necessary because
-    // Destroy(), which nulls out mTreeManager, could be called concurrently.
-    APZCTreeManager* treeManagerLocal = mApzc.mTreeManager;
-    if (treeManagerLocal) {
-      // APZC is holding mMonitor, so directly calling HandleFlingOverscroll()
-      // (which acquires the tree lock) would violate the lock ordering. Instead
-      // we schedule HandleFlingOverscroll() to be called after mMonitor is
-      // released.
-      mDeferredTasks.append(NewRunnableMethod(treeManagerLocal,
-                                              &APZCTreeManager::HandOffFling,
-                                              &mApzc,
-                                              velocity));
-    }
-  }
+  aFrameMetrics.mScrollOffset += CSSPoint::FromUnknownPoint(gfx::Point(
+    mX.AdjustDisplacement(cssOffset.x, overscroll.x),
+    mY.AdjustDisplacement(cssOffset.y, overscroll.y)
+  ));
 
   return true;
 }
@@ -1600,12 +1533,6 @@ bool AsyncPanZoomController::SampleContentTransformForFrame(const TimeStamp& aSa
               ParentLayerSize(mFrameMetrics.mCompositionBounds.Size()) / mFrameMetrics.GetZoomToParent()));
 
     mCurrentAsyncScrollOffset = mFrameMetrics.mScrollOffset;
-  }
-
-  // Execute tasks queued up by mAnimation's Sample() (called by
-  // UpdateAnimation()) for execution after mMonitor has been released.
-  if (mAnimation) {
-    mAnimation->ExecuteDeferredTasks();
   }
 
   // Cancel the mAsyncScrollTimeoutTask because we will fire a

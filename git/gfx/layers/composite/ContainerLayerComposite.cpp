@@ -31,7 +31,6 @@
 #include "nsRect.h"                     // for nsIntRect
 #include "nsRegion.h"                   // for nsIntRegion
 #include "nsTArray.h"                   // for nsAutoTArray
-#include "TextRenderer.h"               // for TextRenderer
 #include <vector>
 
 namespace mozilla {
@@ -119,32 +118,6 @@ static gfx::Point GetScrollData(Layer* aLayer) {
 
   gfx::Point origin;
   return origin;
-}
-
-static void DrawLayerInfo(const nsIntRect& aClipRect,
-                          LayerManagerComposite* aManager,
-                          Layer* aLayer)
-{
-
-  if (aLayer->GetType() == Layer::LayerType::TYPE_CONTAINER) {
-    // XXX - should figure out a way to render this, but for now this
-    // is hard to do, since it will often get superimposed over the first
-    // child of the layer, which is bad.
-    return;
-  }
-
-  nsAutoCString layerInfo;
-  aLayer->PrintInfo(layerInfo, "");
-
-  nsIntRegion visibleRegion = aLayer->GetVisibleRegion();
-
-  uint32_t maxWidth = std::min<uint32_t>(visibleRegion.GetBounds().width, 500);
-
-  nsIntPoint topLeft = visibleRegion.GetBounds().TopLeft();
-  aManager->GetTextRenderer()->RenderText(layerInfo.get(), gfx::IntPoint(topLeft.x, topLeft.y),
-                                          aLayer->GetEffectiveTransform(), 16,
-                                          maxWidth);
-
 }
 
 static LayerVelocityUserData* GetVelocityData(Layer* aLayer) {
@@ -387,10 +360,6 @@ ContainerRender(ContainerT* aContainer,
 
     if (gfxPrefs::LayersScrollGraph()) {
       DrawVelGraph(clipRect, aManager, layerToRender->GetLayer());
-    }
-
-    if (gfxPrefs::DrawLayerInfo()) {
-      DrawLayerInfo(clipRect, aManager, layerToRender->GetLayer());
     }
     // invariant: our GL context should be current here, I don't think we can
     // assert it though
