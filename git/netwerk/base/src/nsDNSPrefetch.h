@@ -37,7 +37,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsDNSPrefetch_h___
-#define nsDNSPrefetch_h___
 
 #include "nsCOMPtr.h"
 #include "nsString.h"

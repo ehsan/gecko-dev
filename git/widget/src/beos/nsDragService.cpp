@@ -45,6 +45,7 @@
 #include "nsITransferable.h"
 #include "nsIServiceManager.h"
 #include "nsISupportsPrimitives.h"
+#include "nsVoidArray.h"
 #include "nsXPIDLString.h"
 #include "nsPrimitiveHelpers.h"
 #include "nsWidgetsCID.h"

@@ -121,27 +121,18 @@ $lprog = shift;
 }
 
 sub print_end {
-($lprog, $exit_status, $exit_signal, $exit_core) = @_;
+$lprog = shift;
+$lstatus = shift;
 
-    if (($exit_status == 0) && ($exit_signal == 0) && ($exit_core == 0)) {
+    if ($lstatus == 0) {
         $str_status = "Passed";
     } else {
         $str_status = "FAILED";
     }
-    if ($exit_signal != 0) {
-    	$str_signal = " - signal $exit_signal";
-    } else {
-    	$str_signal = "";
-    }
-    if ($exit_core != 0) {
-    	$str_core = " - core dumped";
-    } else {
-    	$str_core = "";
-    }
     $now = getTime;
     # Full output
     print "\nEND TEST: $lprog ($now)\n";
-    print "TEST STATUS: $lprog = $str_status (exit status " . $exit_status . $str_signal . $str_core . ")\n";
+    print "TEST STATUS: $lprog = $str_status (errno $lstatus)\n";
     print "--------------------------------------------------\n\n";
     # Summary output
     print OF "\t\t\t$str_status\n";
@@ -156,9 +147,6 @@ $lprog = shift; # command to run
     setsid or die "setsid failed: $!";
     # Start test program    
     exec("./$lprog");
-    # We should not be here unless exec failed.
-    print "Faild to exec $lprog";
-    exit 1 << 8;
 }   
 
 sub ux_wait_timeout {
@@ -183,7 +171,7 @@ $ltimeout = shift; # timeout
                 $ltimeout--;
             } else {
                 # Child has ended
-                $lstatus = $?;
+                $lstatus = $? % 256;
                 # Exit the wait loop and don't kill
                 $ltimeout = -1;
             }
@@ -195,7 +183,7 @@ $ltimeout = shift; # timeout
         print "Timeout ! Kill child process $lpid\n";
         # Kill the child process and group
         kill(-9,$lpid);
-        $lstatus = 9;
+        $lstatus = 1;
     }
     
     return $lstatus;
@@ -213,11 +201,7 @@ $prog = shift;  # Program to test
     } else {
         # we are in the parent process
         $status = ux_wait_timeout($child_pid,$timeout);
-        # See Perlvar for documentation of $?
-        # exit status = $status >> 8
-        # exit signal = $status & 127 (no signal = 0)
-        # core dump = $status & 128 (no core = 0)
-        print_end($prog, $status >> 8, $status & 127, $status & 128);
+        print_end($prog, $status);
     }
 
     return $status;
@@ -262,13 +246,12 @@ $prog = shift;  # Program to test
     if ( $retwait == 0) {
         # the prog didn't finish after the timeout: kill
         $ProcessObj->Kill($status);
-        print "Timeout ! Process killed with exit status $status\n";
+        print "Timeout ! Process killed with error code $status\n";
     } else {
-        # the prog finished before the timeout: get exit status
+        # the prog finished before the timeout: get exit code
         $ProcessObj->GetExitCode($status);
     }
-    # There is no signal, no core on Windows
-    print_end($prog, $status, 0, 0);
+    print_end($prog,$status);
 
     return $status
 }
@@ -390,6 +373,7 @@ $prog = shift;  # Program to test
 open_log;
 
 foreach $current_prog (@progs) {
+#   print "Current_prog=$current_prog\n";
     if ($osname =~ $WINOS) {
         win_test_prog($current_prog);
     } else {

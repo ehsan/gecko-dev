@@ -71,7 +71,6 @@ REQUIRES	= xpcom \
 		  unicharutil \
 		  appshell \
 		  util \
-		  uriloader \
 		  $(NULL)
 
 CPPSRCS		= nsXULControllers.cpp

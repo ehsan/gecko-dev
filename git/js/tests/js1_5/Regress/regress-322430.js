@@ -46,7 +46,7 @@ printBugNumber(BUGNUMBER);
 printStatus (summary);
 
 options('strict');
-options('werror');
+options('werrror');
 
 expect = 'No Warning';
 

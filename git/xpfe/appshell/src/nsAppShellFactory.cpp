@@ -50,8 +50,7 @@
 #include "nsAppShellCID.h"
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsAppShellService)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsAbout)
-NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsWindowMediator, Init)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsWindowMediator)
 
 static const nsModuleComponentInfo gAppShellModuleInfo[] =
 {
@@ -68,7 +67,7 @@ static const nsModuleComponentInfo gAppShellModuleInfo[] =
   { "kAboutModuleCID",
     NS_ABOUT_CID,
     NS_ABOUT_MODULE_CONTRACTID_PREFIX,
-    nsAboutConstructor,
+    nsAbout::Create,
   }
 };
 

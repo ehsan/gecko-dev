@@ -50,19 +50,31 @@ toolbox {
 
 /* ::::: toolbar & menubar ::::: */
 
-toolbar {
+toolbar,
+toolbarpalette {
   min-width: 1px;
   min-height: 20px !important;
-  -moz-appearance: toolbar;
+  color: #000000;
+  border-top: 1px solid rgba(255,255,255,0.45);
+  border-bottom: 1px solid rgba(0,0,0,0.35);
+  background-color: #9E9E9E;
 }
 
 menubar {
-  -moz-appearance: dialog; /* For content menubars, "toolbar" is too dark, so we use "dialog". */
+  -moz-appearance: toolbar;
   min-width: 1px;
 }
 
 .toolbar-holder {
-  min-width: 1px;
+ min-width: 1px;
+}  
+
+toolbar[mode="icons"] .toolbarbutton-text {
+  display: none;
+}
+
+toolbar[mode="text"] .toolbarbutton-icon {
+  display: none;
 }
 
 /* ::::: toolbarseparator ::::: */
@@ -103,18 +115,21 @@ toolbarpaletteitem[type="spacer"] {
 .toolbarpaletteitem-box[type="spacer"] {
   border: 1px solid #A3A3A3;
   background: url("chrome://global/skin/10pct_transparent_grey.png") repeat;
-  width: 32px;
+  height: 32px !important;
+  width: 32px !important;
   margin-top: 18px;
 }
 
 .toolbarpaletteitem-box[type="spring"] {
   border: 1px solid #A3A3A3;
   background: url("chrome://global/skin/toolbar/spring.gif") #FFFFFF no-repeat;
-  width: 32px;
+  height: 32px !important;
+  width: 32px !important;
   margin-top: 18px;
 }
 
 .toolbarpaletteitem-box[type="spring"][place="toolbar"] {
+  border: 1px solid #A3A3A3;
   background: url("chrome://global/skin/10pct_transparent_grey.png") repeat;
 }
 
@@ -131,7 +146,8 @@ toolbarpaletteitem[type="spacer"] {
 .toolbarpaletteitem-box[type="spacer"][place="palette"],
 .toolbarpaletteitem-box[type="spring"][place="palette"] {
   margin-bottom: 2px;
-  height: 32px;
+  width: 50px;
+  height: 50px;
 }
 
 /* ..... drag and drop feedback ..... */

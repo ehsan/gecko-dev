@@ -331,7 +331,9 @@ nsHTMLSelectListAccessible::GetStateInternal(PRUint32 *aState,
 {
   nsresult rv = nsHTMLSelectableAccessible::GetStateInternal(aState,
                                                              aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode)
+    return NS_OK;
 
   nsCOMPtr<nsIDOMHTMLSelectElement> select (do_QueryInterface(mDOMNode));
   if (select) {
@@ -360,7 +362,7 @@ NS_IMETHODIMP nsHTMLSelectListAccessible::GetRole(PRUint32 *aRole)
   if (nsAccUtils::Role(mParent) == nsIAccessibleRole::ROLE_COMBOBOX)
     *aRole = nsIAccessibleRole::ROLE_COMBOBOX_LIST;
   else
-    *aRole = nsIAccessibleRole::ROLE_LISTBOX;
+    *aRole = nsIAccessibleRole::ROLE_LIST;
 
   return NS_OK;
 }
@@ -526,8 +528,7 @@ nsHTMLSelectOptionAccessible::GetNameInternal(nsAString& aName)
 
   if (text->IsNodeOfType(nsINode::eTEXT)) {
     nsAutoString txtValue;
-    nsresult rv = nsTextEquivUtils::
-      AppendTextEquivFromTextContent(text, &txtValue);
+    nsresult rv = AppendFlatStringFromContentNode(text, &txtValue);
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Temp var (txtValue) needed until CompressWhitespace built for nsAString
@@ -612,7 +613,9 @@ nsHTMLSelectOptionAccessible::GetStateInternal(PRUint32 *aState,
   // Upcall to nsAccessible, but skip nsHyperTextAccessible impl
   // because we don't want EXT_STATE_EDITABLE or EXT_STATE_SELECTABLE_TEXT
   nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode)
+    return NS_OK;
 
   PRUint32 selectState, selectExtState;
   nsCOMPtr<nsIContent> selectContent = GetSelectState(&selectState,
@@ -744,12 +747,14 @@ NS_IMETHODIMP nsHTMLSelectOptionAccessible::DoAction(PRUint8 index)
       return NS_ERROR_FAILURE;
 
     nsIFrame *selectFrame = presShell->GetPrimaryFrameFor(selectContent);
-    nsIComboboxControlFrame *comboBoxFrame = do_QueryFrame(selectFrame);
+    nsIComboboxControlFrame *comboBoxFrame = nsnull;
+    CallQueryInterface(selectFrame, &comboBoxFrame);
     if (comboBoxFrame) {
       nsIFrame *listFrame = comboBoxFrame->GetDropDown();
       if (comboBoxFrame->IsDroppedDown() && listFrame) {
         // use this list control frame to roll up the list
-        nsIListControlFrame *listControlFrame = do_QueryFrame(listFrame);
+        nsIListControlFrame *listControlFrame = nsnull;
+        listFrame->QueryInterface(NS_GET_IID(nsIListControlFrame), (void**)&listControlFrame);
         if (listControlFrame) {
           PRInt32 newIndex = 0;
           option->GetIndex(&newIndex);
@@ -796,7 +801,8 @@ nsresult nsHTMLSelectOptionAccessible::GetFocusedOptionNode(nsIDOMNode *aListNod
   nsresult rv = selectElement->GetOptions(getter_AddRefs(options));
   
   if (NS_SUCCEEDED(rv)) {
-    nsIListControlFrame *listFrame = do_QueryFrame(frame);
+    nsIListControlFrame *listFrame = nsnull;
+    frame->QueryInterface(NS_GET_IID(nsIListControlFrame), (void**)&listFrame);
     if (listFrame) {
       // Get what's focused in listbox by asking frame for "selected item". 
       // Can't use dom interface for this, because it will always return the first selected item
@@ -916,7 +922,7 @@ nsHTMLSelectOptGroupAccessible::GetStateInternal(PRUint32 *aState,
 {
   nsresult rv = nsHTMLSelectOptionAccessible::GetStateInternal(aState,
                                                                aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   *aState &= ~(nsIAccessibleStates::STATE_FOCUSABLE |
                nsIAccessibleStates::STATE_SELECTABLE);
@@ -1014,7 +1020,8 @@ void nsHTMLComboboxAccessible::CacheChildren()
     if (!frame) {
       return;
     }
-    nsIComboboxControlFrame *comboFrame = do_QueryFrame(frame);
+    nsIComboboxControlFrame *comboFrame = nsnull;
+    frame->QueryInterface(NS_GET_IID(nsIComboboxControlFrame), (void**)&comboFrame);
     if (!comboFrame) {
       return;
     }
@@ -1070,10 +1077,16 @@ nsHTMLComboboxAccessible::GetStateInternal(PRUint32 *aState,
 {
   // Get focus status from base class
   nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode)
+    return NS_OK;
 
   nsIFrame *frame = GetBoundsFrame();
-  nsIComboboxControlFrame *comboFrame = do_QueryFrame(frame);
+  nsIComboboxControlFrame *comboFrame = nsnull;
+  if (frame) {
+    frame->QueryInterface(NS_GET_IID(nsIComboboxControlFrame), (void**)&comboFrame);
+  }
+
   if (comboFrame && comboFrame->IsDroppedDown()) {
     *aState |= nsIAccessibleStates::STATE_EXPANDED;
   }
@@ -1153,7 +1166,8 @@ NS_IMETHODIMP nsHTMLComboboxAccessible::DoAction(PRUint8 aIndex)
   if (!frame) {
     return NS_ERROR_FAILURE;
   }
-  nsIComboboxControlFrame *comboFrame = do_QueryFrame(frame);
+  nsIComboboxControlFrame *comboFrame = nsnull;
+  frame->QueryInterface(NS_GET_IID(nsIComboboxControlFrame), (void**)&comboFrame);
   if (!comboFrame) {
     return NS_ERROR_FAILURE;
   }
@@ -1178,7 +1192,8 @@ NS_IMETHODIMP nsHTMLComboboxAccessible::GetActionName(PRUint8 aIndex, nsAString&
   if (!frame) {
     return NS_ERROR_FAILURE;
   }
-  nsIComboboxControlFrame *comboFrame = do_QueryFrame(frame);
+  nsIComboboxControlFrame *comboFrame = nsnull;
+  frame->QueryInterface(NS_GET_IID(nsIComboboxControlFrame), (void**)&comboFrame);
   if (!comboFrame) {
     return NS_ERROR_FAILURE;
   }
@@ -1383,7 +1398,9 @@ nsHTMLComboboxButtonAccessible::GetStateInternal(PRUint32 *aState,
 {
   // Get focus status from base class
   nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode)
+    return NS_OK;
 
   nsIFrame *boundsFrame = GetBoundsFrame();
   nsIComboboxControlFrame* comboFrame = nsnull;
@@ -1419,7 +1436,8 @@ nsHTMLComboboxListAccessible::GetFrame()
   nsIFrame* frame = nsHTMLSelectListAccessible::GetFrame();
 
   if (frame) {
-    nsIComboboxControlFrame* comboBox = do_QueryFrame(frame);
+    nsIComboboxControlFrame* comboBox;
+    CallQueryInterface(frame, &comboBox);
     if (comboBox) {
       return comboBox->GetDropDown();
     }
@@ -1441,10 +1459,15 @@ nsHTMLComboboxListAccessible::GetStateInternal(PRUint32 *aState,
 {
   // Get focus status from base class
   nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode)
+    return NS_OK;
 
   nsIFrame *boundsFrame = GetBoundsFrame();
-  nsIComboboxControlFrame* comboFrame = do_QueryFrame(boundsFrame);
+  nsIComboboxControlFrame* comboFrame = nsnull;
+  if (boundsFrame)
+    boundsFrame->QueryInterface(NS_GET_IID(nsIComboboxControlFrame), (void**)&comboFrame);
+
   if (comboFrame && comboFrame->IsDroppedDown())
     *aState |= nsIAccessibleStates::STATE_FLOATING;
   else

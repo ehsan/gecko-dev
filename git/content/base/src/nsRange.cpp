@@ -234,13 +234,8 @@ nsRange::~nsRange()
  * nsISupports
  ******************************************************/
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsRange)
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsRange)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsRange)
-
 // QueryInterface implementation for nsRange
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsRange)
+NS_INTERFACE_MAP_BEGIN(nsRange)
   NS_INTERFACE_MAP_ENTRY(nsIDOMRange)
   NS_INTERFACE_MAP_ENTRY(nsIRange)
   NS_INTERFACE_MAP_ENTRY(nsIDOMNSRange)
@@ -249,15 +244,8 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsRange)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(Range)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsRange)
-  tmp->Reset();
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsRange)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mStartParent)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mEndParent)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRoot)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+NS_IMPL_ADDREF(nsRange)
+NS_IMPL_RELEASE(nsRange)
 
 /******************************************************
  * nsIMutationObserver implementation
@@ -338,6 +326,17 @@ nsRange::ContentRemoved(nsIDocument* aDocument,
     mEndParent = container;
     mEndOffset = aIndexInContainer;
   }
+}
+
+void
+nsRange::NodeWillBeDestroyed(const nsINode* aNode)
+{
+  NS_ASSERTION(mIsPositioned, "shouldn't be notified if not positioned");
+
+  // No need to detach, but reset positions so that the endpoints don't
+  // end up disconnected from each other.
+  // An alternative solution would be to make mRoot a strong pointer.
+  DoSetRange(nsnull, 0, nsnull, 0, nsnull);
 }
 
 void
@@ -1305,7 +1304,7 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
           rv = charData->GetLength(&dataLength);
           NS_ENSURE_SUCCESS(rv, rv);
 
-          if (dataLength >= (PRUint32)startOffset)
+          if (dataLength > (PRUint32)startOffset)
           {
             nsCOMPtr<nsIDOMCharacterData> cutNode;
             rv = SplitDataNode(charData, startOffset, dataLength,
@@ -1321,7 +1320,7 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
       {
         // Delete or extract everything before endOffset.
 
-        if (endOffset >= 0)
+        if (endOffset > 0)
         {
           nsCOMPtr<nsIDOMCharacterData> cutNode;
           /* The Range spec clearly states clones get cut and original nodes

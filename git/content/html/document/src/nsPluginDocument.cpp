@@ -71,13 +71,10 @@ public:
   const nsCString& GetType() const { return mMimeType; }
   nsIContent*      GetPluginContent() { return mPluginContent; }
 
-  void AllowNormalInstantiation() {
+  void SkippedInstantiation() {
     mWillHandleInstantiation = PR_FALSE;
   }
 
-  void StartLayout() { nsMediaDocument::StartLayout(); }
-
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsPluginDocument, nsMediaDocument)
 protected:
   nsresult CreateSyntheticPluginDocument();
 
@@ -93,35 +90,22 @@ protected:
 
 class nsPluginStreamListener : public nsMediaDocumentStreamListener
 {
-public:
-  nsPluginStreamListener(nsPluginDocument* doc) :
-    nsMediaDocumentStreamListener(doc),  mPluginDoc(doc) {}
-  NS_IMETHOD OnStartRequest(nsIRequest* request, nsISupports *ctxt);
-private:
-  nsresult SetupPlugin();
-
-  nsRefPtr<nsPluginDocument> mPluginDoc;
+  public:
+    nsPluginStreamListener(nsPluginDocument* doc) :
+       nsMediaDocumentStreamListener(doc),  mPluginDoc(doc) {}
+    NS_IMETHOD OnStartRequest(nsIRequest* request, nsISupports *ctxt);
+  private:
+    nsRefPtr<nsPluginDocument> mPluginDoc;
 };
 
 
 NS_IMETHODIMP
 nsPluginStreamListener::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
 {
-  // Have to set up our plugin stuff before we call OnStartRequest, so
-  // that the plugin listener can get that call.
-  nsresult rv = SetupPlugin();
-
-  NS_ASSERTION(NS_FAILED(rv) || mNextStream,
-               "We should have a listener by now");
-  nsresult rv2 = nsMediaDocumentStreamListener::OnStartRequest(request, ctxt);
-  return NS_SUCCEEDED(rv) ? rv2 : rv;
-}
-
-nsresult
-nsPluginStreamListener::SetupPlugin()
-{
-  NS_ENSURE_TRUE(mDocument, NS_ERROR_FAILURE);
-  mPluginDoc->StartLayout();
+  nsresult rv = nsMediaDocumentStreamListener::OnStartRequest(request, ctxt);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
 
   nsCOMPtr<nsIContent> embed = mPluginDoc->GetPluginContent();
 
@@ -129,7 +113,7 @@ nsPluginStreamListener::SetupPlugin()
   nsIPresShell* shell = mDocument->GetPrimaryShell();
   if (!shell) {
     // Can't instantiate w/o a shell
-    mPluginDoc->AllowNormalInstantiation();
+    mPluginDoc->SkippedInstantiation();
     return NS_BINDING_ABORTED;
   }
 
@@ -140,27 +124,25 @@ nsPluginStreamListener::SetupPlugin()
 
   nsIFrame* frame = shell->GetPrimaryFrameFor(embed);
   if (!frame) {
-    mPluginDoc->AllowNormalInstantiation();
-    return NS_OK;
+    mPluginDoc->SkippedInstantiation();
+    return rv;
   }
 
-  nsIObjectFrame* objFrame = do_QueryFrame(frame);
+  nsIObjectFrame* objFrame;
+  CallQueryInterface(frame, &objFrame);
   if (!objFrame) {
-    mPluginDoc->AllowNormalInstantiation();
+    mPluginDoc->SkippedInstantiation();
     return NS_ERROR_UNEXPECTED;
   }
 
-  nsresult rv = objFrame->Instantiate(mPluginDoc->GetType().get(),
-                                      mDocument->nsIDocument::GetDocumentURI());
+  rv = objFrame->Instantiate(mPluginDoc->GetType().get(),
+                             mDocument->nsIDocument::GetDocumentURI());
   if (NS_FAILED(rv)) {
     return rv;
   }
 
-  // Now that we're done, allow normal instantiation in the future
-  // (say if there's a reframe of this entire presentation).
-  mPluginDoc->AllowNormalInstantiation();
-
-  return NS_OK;
+  NS_ASSERTION(mNextStream, "We should have a listener by now");
+  return mNextStream->OnStartRequest(request, ctxt);
 }
 
 
@@ -176,16 +158,8 @@ nsPluginDocument::~nsPluginDocument()
 {
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsPluginDocument)
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsPluginDocument, nsMediaDocument)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPluginContent)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsPluginDocument, nsMediaDocument)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mPluginContent)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
+// XXXbz shouldn't this participate in cycle collection?  It's got
+// mPluginContent!
 NS_IMPL_ISUPPORTS_INHERITED1(nsPluginDocument, nsMediaDocument,
                              nsIPluginDocument)
 
@@ -341,7 +315,9 @@ nsPluginDocument::Print()
   nsIFrame* frame = shell->GetPrimaryFrameFor(mPluginContent);
   NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
 
-  nsIObjectFrame* objectFrame = do_QueryFrame(frame);
+  nsIObjectFrame* objectFrame = nsnull;
+  CallQueryInterface(frame, &objectFrame);
+
   if (objectFrame) {
     nsCOMPtr<nsIPluginInstance> pi;
     objectFrame->GetPluginInstance(*getter_AddRefs(pi));

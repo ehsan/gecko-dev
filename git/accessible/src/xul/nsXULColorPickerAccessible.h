@@ -52,6 +52,7 @@ public:
   NS_IMETHOD GetValue(nsAString& _retval);
 
   // nsAccessible
+  virtual nsresult GetNameInternal(nsAString& aName);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 

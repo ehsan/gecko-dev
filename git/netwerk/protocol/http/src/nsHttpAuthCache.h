@@ -42,8 +42,7 @@
 
 #include "nsHttp.h"
 #include "nsError.h"
-#include "nsTArray.h"
-#include "nsAutoPtr.h"
+#include "nsVoidArray.h"
 #include "nsAString.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
@@ -156,7 +155,6 @@ private:
 
     friend class nsHttpAuthNode;
     friend class nsHttpAuthCache;
-    friend class nsAutoPtr<nsHttpAuthEntry>; // needs to call the destructor
 };
 
 //-----------------------------------------------------------------------------
@@ -186,10 +184,10 @@ private:
 
     void ClearAuthEntry(const char *realm);
 
-    PRUint32 EntryCount() { return mList.Length(); }
+    PRUint32 EntryCount() { return (PRUint32) mList.Count(); }
 
 private:
-    nsTArray<nsAutoPtr<nsHttpAuthEntry> > mList;
+    nsVoidArray mList; // list of nsHttpAuthEntry objects
 
     friend class nsHttpAuthCache;
 };

@@ -402,7 +402,7 @@ class nsFastLoadFileReader
 };
 
 NS_COM nsresult
-NS_NewFastLoadFileReader(nsIObjectInputStream* *aResult NS_OUTPARAM,
+NS_NewFastLoadFileReader(nsIObjectInputStream* *aResult,
                          nsIInputStream* aSrcStream);
 
 /**
@@ -526,7 +526,7 @@ class nsFastLoadFileWriter
 };
 
 NS_COM nsresult
-NS_NewFastLoadFileWriter(nsIObjectOutputStream* *aResult NS_OUTPARAM,
+NS_NewFastLoadFileWriter(nsIObjectOutputStream* *aResult,
                          nsIOutputStream* aDestStream,
                          nsIFastLoadFileIO* aFileIO);
 
@@ -577,7 +577,7 @@ class nsFastLoadFileUpdater
 };
 
 NS_COM nsresult
-NS_NewFastLoadFileUpdater(nsIObjectOutputStream* *aResult NS_OUTPARAM,
+NS_NewFastLoadFileUpdater(nsIObjectOutputStream* *aResult,
                           nsIOutputStream* aOutputStream,
                           nsIObjectInputStream* aReaderAsStream);
 

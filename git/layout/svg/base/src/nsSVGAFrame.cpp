@@ -53,18 +53,13 @@ typedef nsSVGTSpanFrame nsSVGAFrameBase;
 class nsSVGAFrame : public nsSVGAFrameBase
 {
   friend nsIFrame*
-  NS_NewSVGAFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+  NS_NewSVGAFrame(nsIPresShell* aPresShell, nsIContent* aContent,
+                  nsStyleContext* aContext);
 protected:
   nsSVGAFrame(nsStyleContext* aContext) :
     nsSVGAFrameBase(aContext) {}
 
 public:
-#ifdef DEBUG
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
-#endif
-
   // nsIFrame:
   NS_IMETHOD  AttributeChanged(PRInt32         aNameSpaceID,
                                nsIAtom*        aAttribute,
@@ -97,27 +92,20 @@ private:
 // Implementation
 
 nsIFrame*
-NS_NewSVGAFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_NewSVGAFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext)
 {
+  nsCOMPtr<nsIDOMSVGAElement> elem = do_QueryInterface(aContent);
+  if (!elem) {
+    NS_ERROR("Trying to construct an SVGAFrame for a "
+             "content element that doesn't support the right interfaces");
+    return nsnull;
+  }
+
   return new (aPresShell) nsSVGAFrame(aContext);
 }
 
 //----------------------------------------------------------------------
 // nsIFrame methods
-#ifdef DEBUG
-NS_IMETHODIMP
-nsSVGAFrame::Init(nsIContent* aContent,
-                  nsIFrame* aParent,
-                  nsIFrame* aPrevInFlow)
-{
-  nsCOMPtr<nsIDOMSVGAElement> elem = do_QueryInterface(aContent);
-  NS_ASSERTION(elem,
-               "Trying to construct an SVGAFrame for a "
-               "content element that doesn't support the right interfaces");
-
-  return nsSVGAFrameBase::Init(aContent, aParent, aPrevInFlow);
-}
-#endif /* DEBUG */
 
 NS_IMETHODIMP
 nsSVGAFrame::AttributeChanged(PRInt32         aNameSpaceID,

@@ -107,7 +107,6 @@ root_window_event_filter(GdkXEvent *aGdkXEvent, GdkEvent *aGdkEvent,
 
 nsScreenManagerGtk :: nsScreenManagerGtk ( )
   : mXineramalib(nsnull)
-  , mXineramaIsActive(PR_FALSE)
   , mRootWindow(nsnull)
 {
   // nothing else to do. I guess we could cache a bunch of information
@@ -124,16 +123,14 @@ nsScreenManagerGtk :: ~nsScreenManagerGtk()
     mRootWindow = nsnull;
   }
 
-  /* XineramaIsActive() registers a callback function close_display()
-   * in X, which is to be called in XCloseDisplay(). This is the case
-   * if Xinerama is active, even if only with one screen.
-   *
-   * We can't unload libXinerama.so.1 here because this will make
-   * the address of close_display() registered in X to be invalid and
-   * it will crash when XCloseDisplay() is called later. */
-#ifdef MOZ_X11
-  if (mXineramalib && mXineramalib != SCREEN_MANAGER_LIBRARY_LOAD_FAILED &&
-      !mXineramaIsActive) {
+/* On Solaris, XineramaIsActive() registers a callback function close_display() 
+ * in X, which is to be called in XCloseDisplay().
+ *
+ * We can't unload libXinerama.so.1 here because this will make
+ * the address of close_display() registered in X to be invalid and
+ * it will crash when XCloseDisplay() is called later. */
+#if defined (MOZ_X11) && !defined (SOLARIS)
+  if (mXineramalib && mXineramalib != SCREEN_MANAGER_LIBRARY_LOAD_FAILED) {
     PR_UnloadLibrary(mXineramalib);
   }
 #endif
@@ -197,12 +194,8 @@ nsScreenManagerGtk :: Init()
     if (_XnrmIsActive && _XnrmQueryScreens &&
         _XnrmIsActive(GDK_DISPLAY())) {
       screenInfo = _XnrmQueryScreens(GDK_DISPLAY(), &numScreens);
-
-      // remember for the destructor, if we are really working with Xinerama
-      mXineramaIsActive = numScreens > 0;
     }
   }
-
   // screenInfo == NULL if either Xinerama couldn't be loaded or
   // isn't running on the current display
   if (!screenInfo || numScreens == 1) {
@@ -264,7 +257,7 @@ nsScreenManagerGtk :: Init()
 // Returns the screen that contains the rectangle. If the rect overlaps
 // multiple screens, it picks the screen with the greatest area of intersection.
 //
-// The coordinates are in pixels (not app units) and in screen coordinates.
+// The coordinates are in pixels (not twips) and in screen coordinates.
 //
 NS_IMETHODIMP
 nsScreenManagerGtk :: ScreenForRect ( PRInt32 aX, PRInt32 aY,
@@ -286,13 +279,13 @@ nsScreenManagerGtk :: ScreenForRect ( PRInt32 aX, PRInt32 aY,
     // walk the list of screens and find the one that has the most
     // surface area.
     PRUint32 area = 0;
-    nsIntRect windowRect(aX, aY, aWidth, aHeight);
+    nsRect   windowRect(aX, aY, aWidth, aHeight);
     for (PRInt32 i = 0, i_end = mCachedScreenArray.Count(); i < i_end; ++i) {
       PRInt32  x, y, width, height;
       x = y = width = height = 0;
       mCachedScreenArray[i]->GetRect(&x, &y, &width, &height);
       // calculate the surface area
-      nsIntRect screenRect(x, y, width, height);
+      nsRect screenRect(x, y, width, height);
       screenRect.IntersectRect(screenRect, windowRect);
       PRUint32 tempArea = screenRect.width * screenRect.height;
       if (tempArea >= area) {

@@ -202,8 +202,8 @@ public:
   nsSpeculativeScriptThread()
     : mLock(nsAutoLock::DestroyLock),
       mCVar(PR_DestroyCondVar),
-      mKeepParsing(PR_FALSE),
-      mCurrentlyParsing(PR_FALSE),
+      mKeepParsing(0),
+      mCurrentlyParsing(0),
       mNumURIs(0),
       mNumConsumed(0),
       mContext(nsnull),
@@ -272,8 +272,8 @@ private:
   Holder<PRLock> mLock;
   Holder<PRCondVar> mCVar;
 
-  volatile PRBool mKeepParsing;
-  volatile PRBool mCurrentlyParsing;
+  volatile PRUint32 mKeepParsing;
+  volatile PRUint32 mCurrentlyParsing;
   nsRefPtr<nsHTMLTokenizer> mTokenizer;
   nsAutoPtr<nsScanner> mScanner;
 
@@ -398,7 +398,7 @@ nsSpeculativeScriptThread::Run()
   {
     nsAutoLock al(mLock.get());
 
-    mCurrentlyParsing = PR_FALSE;
+    mCurrentlyParsing = 0;
     PR_NotifyCondVar(mCVar.get());
   }
   return NS_OK;
@@ -489,11 +489,10 @@ nsSpeculativeScriptThread::StartParsing(nsParser *aParser)
   if (!mScanner) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
-  mScanner->SetIncremental(PR_TRUE);
 
   mDocument.swap(doc);
-  mKeepParsing = PR_TRUE;
-  mCurrentlyParsing = PR_TRUE;
+  mKeepParsing = 1;
+  mCurrentlyParsing = 1;
   mContext = context;
   return aParser->ThreadPool()->Dispatch(this, NS_DISPATCH_NORMAL);
 }
@@ -511,7 +510,7 @@ nsSpeculativeScriptThread::StopParsing(PRBool /*aFromDocWrite*/)
   {
     nsAutoLock al(mLock.get());
 
-    mKeepParsing = PR_FALSE;
+    mKeepParsing = 0;
     if (mCurrentlyParsing) {
       PR_WaitCondVar(mCVar.get(), PR_INTERVAL_NO_TIMEOUT);
       NS_ASSERTION(!mCurrentlyParsing, "Didn't actually stop parsing?");
@@ -553,7 +552,7 @@ nsSpeculativeScriptThread::ProcessToken(CToken *aToken)
         nsAutoString src;
         nsAutoString elementType;
         nsAutoString charset;
-        PrefetchType ptype = SCRIPT;
+        PrefetchType ptype;
 
         switch (tag) {
 #if 0 // TODO Support stylesheet and image preloading.
@@ -589,11 +588,9 @@ nsSpeculativeScriptThread::ProcessToken(CToken *aToken)
 
           case eHTMLTag_style:
             ptype = STYLESHEET;
-            /* FALL THROUGH */
           case eHTMLTag_img:
             if (tag == eHTMLTag_img)
               ptype = IMAGE;
-            /* FALL THROUGH */
 #endif
           case eHTMLTag_script:
             if (tag == eHTMLTag_script)
@@ -797,7 +794,6 @@ nsParser::Initialize(PRBool aConstructor)
     // nsCOMPtrs
     mObserver = nsnull;
     mParserFilter = nsnull;
-    mUnusedInput.Truncate();
   }
 
   mContinueEvent = nsnull;
@@ -809,7 +805,6 @@ nsParser::Initialize(PRBool aConstructor)
   mFlags = NS_PARSER_FLAG_OBSERVERS_ENABLED |
            NS_PARSER_FLAG_PARSER_ENABLED |
            NS_PARSER_FLAG_CAN_TOKENIZE;
-  mScriptsExecuting = 0;
 
   MOZ_TIMER_DEBUGLOG(("Reset: Parse Time: nsParser::nsParser(), this=%p\n", this));
   MOZ_TIMER_RESET(mParseTime);
@@ -1528,11 +1523,7 @@ nsParser::DidBuildModel(nsresult anErrorCode)
 
   if (IsComplete()) {
     if (mParserContext && !mParserContext->mPrevContext) {
-      // Let sink know if we're about to end load because we've been terminated.
-      // In that case we don't want it to run deferred scripts.
-      PRBool terminated = mInternalState == NS_ERROR_HTMLPARSER_STOPPARSING;
-      if (mParserContext->mDTD && mSink &&
-          mSink->ReadyToCallDidBuildModel(terminated)) {
+      if (mParserContext->mDTD) {
         result = mParserContext->mDTD->DidBuildModel(anErrorCode,PR_TRUE,this,mSink);
       }
 
@@ -1711,13 +1702,6 @@ nsParser::ContinueParsing()
 NS_IMETHODIMP
 nsParser::ContinueInterruptedParsing()
 {
-  // If there are scripts executing, then the content sink is jumping the gun
-  // (probably due to a synchronous XMLHttpRequest) and will re-enable us
-  // later, see bug 460706.
-  if (mScriptsExecuting) {
-    return NS_OK;
-  }
-
   // If the stream has already finished, there's a good chance
   // that we might start closing things down when the parser
   // is reenabled. To make sure that we're not deleted across
@@ -1799,8 +1783,7 @@ nsParser::IsComplete()
 }
 
 
-void nsParser::HandleParserContinueEvent(nsParserContinueEvent *ev)
-{
+void nsParser::HandleParserContinueEvent(nsParserContinueEvent *ev) {
   // Ignore any revoked continue events...
   if (mContinueEvent != ev)
     return;
@@ -1808,21 +1791,7 @@ void nsParser::HandleParserContinueEvent(nsParserContinueEvent *ev)
   mFlags &= ~NS_PARSER_FLAG_PENDING_CONTINUE_EVENT;
   mContinueEvent = nsnull;
 
-  NS_ASSERTION(mScriptsExecuting == 0, "Interrupted in the middle of a script?");
   ContinueInterruptedParsing();
-}
-
-void
-nsParser::ScriptExecuting()
-{
-  ++mScriptsExecuting;
-}
-
-void
-nsParser::ScriptDidExecute()
-{
-  NS_ASSERTION(mScriptsExecuting > 0, "Too many calls to ScriptDidExecute");
-  --mScriptsExecuting;
 }
 
 nsresult
@@ -2099,12 +2068,6 @@ nsParser::ParseFragment(const nsAString& aSourceBuffer,
     return result;
   }
 
-  if (!mSink) {
-    // Parse must have failed in the XML case and so the sink was killed.
-    NS_ASSERTION(aXMLMode, "Unexpected!");
-    return NS_ERROR_HTMLPARSER_STOPPARSING;
-  }
-
   nsCOMPtr<nsIFragmentContentSink> fragSink = do_QueryInterface(mSink);
   NS_ASSERTION(fragSink, "ParseFragment requires a fragment content sink");
 
@@ -2228,6 +2191,7 @@ nsParser::ResumeParse(PRBool allowIteration, PRBool aIsFinalChunk,
     NS_ASSERTION(!mSpeculativeScriptThread || !mSpeculativeScriptThread->Parsing(),
                  "Bad races happening, expect to crash!");
 
+    CParserContext *originalContext = mParserContext;
     result = WillBuildModel(mParserContext->mScanner->GetFilename());
     if (NS_FAILED(result)) {
       mFlags &= ~NS_PARSER_FLAG_CAN_TOKENIZE;
@@ -2276,9 +2240,13 @@ nsParser::ResumeParse(PRBool allowIteration, PRBool aIsFinalChunk,
             mParserContext->mDTD->WillInterruptParse(mSink);
           }
 
-          if (mFlags & NS_PARSER_FLAG_PARSER_ENABLED) {
-            // If we were blocked by a recursive invocation, don't re-block.
-            BlockParser();
+          BlockParser();
+
+          // If our context has changed, then someone did a document.write of
+          // an asynchronous script that blocked a sub context. Since *that*
+          // block already might have started a speculative parse, we don't
+          // have to.
+          if (mParserContext == originalContext) {
             SpeculativelyParse();
           }
           return NS_OK;
@@ -2434,10 +2402,8 @@ nsParser::OnStartRequest(nsIRequest *request, nsISupports* aContext)
 }
 
 
-#define UTF16_BOM "UTF-16"
 #define UTF16_BE "UTF-16BE"
 #define UTF16_LE "UTF-16LE"
-#define UCS4_BOM "UTF-32"
 #define UCS4_BE "UTF-32BE"
 #define UCS4_LE "UTF-32LE"
 #define UCS4_2143 "X-ISO-10646-UCS-4-2143"
@@ -2475,7 +2441,7 @@ DetectByteOrderMark(const unsigned char* aBytes, PRInt32 aLen,
         // 00 00
         if((0xFE==aBytes[2]) && (0xFF==aBytes[3])) {
            // 00 00 FE FF UCS-4, big-endian machine (1234 order)
-           oCharset.Assign(UCS4_BOM);
+           oCharset.Assign(UCS4_BE);
         } else if((0x00==aBytes[2]) && (0x3C==aBytes[3])) {
            // 00 00 00 3C UCS-4, big-endian machine (1234 order)
            oCharset.Assign(UCS4_BE);
@@ -2606,7 +2572,7 @@ DetectByteOrderMark(const unsigned char* aBytes, PRInt32 aLen,
           oCharset.Assign(UCS4_3412);
         } else {
           // FE FF UTF-16, big-endian 
-          oCharset.Assign(UTF16_BOM); 
+          oCharset.Assign(UTF16_BE); 
         }
         oCharsetSource= kCharsetFromByteOrderMark;
      }
@@ -2615,11 +2581,11 @@ DetectByteOrderMark(const unsigned char* aBytes, PRInt32 aLen,
      if(0xFE==aBytes[1]) {
         if(0x00==aBytes[2] && 0x00==aBytes[3]) 
          // FF FE 00 00  UTF-32, little-endian
-           oCharset.Assign(UCS4_BOM); 
+           oCharset.Assign(UCS4_LE); 
         else
         // FF FE
         // UTF-16, little-endian 
-           oCharset.Assign(UTF16_BOM); 
+           oCharset.Assign(UTF16_LE); 
         oCharsetSource= kCharsetFromByteOrderMark;
      }
    break;
@@ -2814,7 +2780,6 @@ ParserWriteFunc(nsIInputStream* in,
            (!preferred.EqualsLiteral("UTF-16") &&
             !preferred.EqualsLiteral("UTF-16BE") &&
             !preferred.EqualsLiteral("UTF-16LE") &&
-            !preferred.EqualsLiteral("UTF-32") &&
             !preferred.EqualsLiteral("UTF-32BE") &&
             !preferred.EqualsLiteral("UTF-32LE")))) {
         guess = preferred;
@@ -2902,8 +2867,7 @@ nsParser::OnDataAvailable(nsIRequest *request, nsISupports* aContext,
 
     // Don't bother to start parsing until we've seen some
     // non-whitespace data
-    if (mScriptsExecuting == 0 &&
-        theContext->mScanner->FirstNonWhitespacePosition() >= 0) {
+    if (theContext->mScanner->FirstNonWhitespacePosition() >= 0) {
       if (mSink) {
         mSink->WillParse();
       }
@@ -2930,6 +2894,14 @@ nsParser::OnStopRequest(nsIRequest *request, nsISupports* aContext,
     mSpeculativeScriptThread->StopParsing(PR_FALSE);
   }
 
+  if (eOnStart == mParserContext->mStreamListenerState) {
+    // If you're here, then OnDataAvailable() never got called.  Prior
+    // to necko, we never dealt with this case, but the problem may
+    // have existed.  Everybody can live with an empty input stream, so
+    // just resume parsing.
+    rv = ResumeParse(PR_TRUE, PR_TRUE);
+  }
+
   CParserContext *pc = mParserContext;
   while (pc) {
     if (pc->mRequest == request) {
@@ -2946,7 +2918,7 @@ nsParser::OnStopRequest(nsIRequest *request, nsISupports* aContext,
   if (mParserFilter)
     mParserFilter->Finish();
 
-  if (mScriptsExecuting == 0 && NS_SUCCEEDED(rv)) {
+  if (NS_SUCCEEDED(rv)) {
     if (mSink) {
       mSink->WillParse();
     }
@@ -3039,8 +3011,6 @@ nsresult nsParser::Tokenize(PRBool aIsFinalChunk)
 
     mParserContext->mNumConsumed = 0;
 
-    PRBool killSink = PR_FALSE;
-
     WillTokenize(aIsFinalChunk);
     while (NS_SUCCEEDED(result)) {
       mParserContext->mNumConsumed += mParserContext->mScanner->Mark();
@@ -3052,7 +3022,6 @@ nsresult nsParser::Tokenize(PRBool aIsFinalChunk)
           break;
         }
         if (NS_ERROR_HTMLPARSER_STOPPARSING == result) {
-          killSink = PR_TRUE;
           result = Terminate();
           break;
         }
@@ -3068,10 +3037,6 @@ nsresult nsParser::Tokenize(PRBool aIsFinalChunk)
     DidTokenize(aIsFinalChunk);
 
     MOZ_TIMER_STOP(mTokenizeTime);
-
-    if (killSink) {
-      mSink = nsnull;
-    }
   } else {
     result = mInternalState = NS_ERROR_HTMLPARSER_BADTOKENIZER;
   }

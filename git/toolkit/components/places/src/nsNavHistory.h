@@ -78,6 +78,7 @@
 #include "nsITreeView.h"
 #endif
 #include "nsString.h"
+#include "nsVoidArray.h"
 #include "nsWeakReference.h"
 #include "nsTArray.h"
 #include "nsINavBookmarksService.h"
@@ -121,7 +122,6 @@
 #define PRIVATEBROWSING_NOTINITED (PRBool(0xffffffff))
 
 #define PLACES_INIT_COMPLETE_EVENT_TOPIC "places-init-complete"
-#define PLACES_DB_LOCKED_EVENT_TOPIC "places-database-locked"
 
 struct AutoCompleteIntermediateResult;
 class AutoCompleteResultComparator;
@@ -348,20 +348,25 @@ public:
 
   // Import-friendly version of AddVisit.
   // This method adds a page to history along with a single last visit.
+  // It is an error to call this method if aURI might already be in history.
+  // The given aVisitCount should include the given last-visit date.
   // aLastVisitDate can be -1 if there is no last visit date to record.
   //
-  // This is only for use by the import of history.dat on first-run of Places,
-  // which currently occurs if no places.sqlite file previously exists.
-  nsresult AddPageWithVisits(nsIURI *aURI,
-                             const nsString &aTitle,
-                             PRInt32 aVisitCount,
-                             PRInt32 aTransitionType,
-                             PRTime aFirstVisitDate,
-                             PRTime aLastVisitDate);
+  // NOTE: This will *replace* existing records for a given URI, creating a
+  // new place id, and breaking all existing relationships with for that
+  // id, eg: bookmarks, annotations, tags, etc. This is only for use by
+  // the import of history.dat on first-run of Places, which currently occurs
+  // if no places.sqlite file previously exists.
+  nsresult AddPageWithVisit(nsIURI *aURI,
+                            const nsString &aTitle,
+                            PRBool aHidden, PRBool aTyped,
+                            PRInt32 aVisitCount,
+                            PRInt32 aLastVisitTransition,
+                            PRTime aLastVisitDate);
 
   // Checks the database for any duplicate URLs.  If any are found,
   // all but the first are removed.  This must be called after using
-  // AddPageWithVisits, to ensure that the database is in a consistent state.
+  // AddPageWithVisit, to ensure that the database is in a consistent state.
   nsresult RemoveDuplicateURIs();
 
   // sets the schema version in the database to match SCHEMA_VERSION
@@ -466,6 +471,7 @@ protected:
   nsCOMPtr<mozIStorageStatement> mDBVisitsForFrecency;
   nsCOMPtr<mozIStorageStatement> mDBUpdateFrecencyAndHidden;
   nsCOMPtr<mozIStorageStatement> mDBGetPlaceVisitStats;
+  nsCOMPtr<mozIStorageStatement> mDBGetBookmarkParentsForPlace;
   nsCOMPtr<mozIStorageStatement> mDBFullVisitCount;
   mozIStorageStatement *GetDBInvalidFrecencies();
   nsCOMPtr<mozIStorageStatement> mDBInvalidFrecencies;
@@ -488,8 +494,17 @@ protected:
    * database.  All migration is done inside a transaction that is rolled back
    * if any error occurs.  Upon initialization, history is imported, and some
    * preferences that are used are set.
+   *
+   * @param aMadeChanges [out]
+   *        Returns a constant indicating what occurred:
+   *        DB_MIGRATION_NONE
+   *          No migration occurred.
+   *        DB_MIGRATION_CREATED
+   *          The database did not exist in the past, and was created.
+   *        DB_MIGRATION_UPDATED
+   *          The database was migrated to a new version.
    */
-  nsresult InitDB();
+  nsresult InitDB(PRInt16 *aMadeChanges);
   nsresult InitTempTables();
   nsresult InitViews();
   nsresult InitFunctions();
@@ -499,6 +514,7 @@ protected:
   nsresult MigrateV6Up(mozIStorageConnection *aDBConn);
   nsresult MigrateV7Up(mozIStorageConnection *aDBConn);
   nsresult MigrateV8Up(mozIStorageConnection *aDBConn);
+  nsresult EnsureCurrentSchema(mozIStorageConnection* aDBConn, PRBool *aMadeChanges);
 
   nsresult RemovePagesInternal(const nsCString& aPlaceIdsQueryString);
 
@@ -670,10 +686,8 @@ protected:
   static const PRInt32 kAutoCompleteIndex_BookmarkTitle;
   static const PRInt32 kAutoCompleteIndex_Tags;
   static const PRInt32 kAutoCompleteIndex_VisitCount;
-  static const PRInt32 kAutoCompleteIndex_Typed;
   nsCOMPtr<mozIStorageStatement> mDBCurrentQuery; //  kAutoCompleteIndex_* results
   nsCOMPtr<mozIStorageStatement> mDBAutoCompleteQuery; //  kAutoCompleteIndex_* results
-  nsCOMPtr<mozIStorageStatement> mDBAutoCompleteTypedQuery; //  kAutoCompleteIndex_* results
   mozIStorageStatement* GetDBAutoCompleteHistoryQuery();
   nsCOMPtr<mozIStorageStatement> mDBAutoCompleteHistoryQuery; //  kAutoCompleteIndex_* results
   mozIStorageStatement* GetDBAutoCompleteStarQuery();
@@ -697,10 +711,21 @@ protected:
     MATCH_BEGINNING
   };
 
+  /**
+   * Determine which sources (if any) of data to search for the autocomplete
+   */
+  enum SearchSource {
+    SEARCH_NONE,
+    SEARCH_HISTORY,
+    SEARCH_BOOKMARK,
+    SEARCH_BOTH
+  };
+
   nsresult InitAutoComplete();
   nsresult CreateAutoCompleteQueries();
-  PRBool mAutoCompleteEnabled;
+  PRBool mAutoCompleteOnlyTyped;
   MatchType mAutoCompleteMatchBehavior;
+  SearchSource mAutoCompleteSearchSources;
   PRBool mAutoCompleteFilterJavascript;
   PRInt32 mAutoCompleteMaxResults;
   nsString mAutoCompleteRestrictHistory;
@@ -708,26 +733,21 @@ protected:
   nsString mAutoCompleteRestrictTag;
   nsString mAutoCompleteMatchTitle;
   nsString mAutoCompleteMatchUrl;
-  nsString mAutoCompleteRestrictTyped;
   PRInt32 mAutoCompleteSearchChunkSize;
   PRInt32 mAutoCompleteSearchTimeout;
   nsCOMPtr<nsITimer> mAutoCompleteTimer;
 
-  static const PRInt32 kAutoCompleteBehaviorHistory;
-  static const PRInt32 kAutoCompleteBehaviorBookmark;
-  static const PRInt32 kAutoCompleteBehaviorTag;
-  static const PRInt32 kAutoCompleteBehaviorTitle;
-  static const PRInt32 kAutoCompleteBehaviorUrl;
-  static const PRInt32 kAutoCompleteBehaviorTyped;
-
-  PRInt32 mAutoCompleteDefaultBehavior; // kAutoCompleteBehavior* bitmap
-  PRInt32 mAutoCompleteCurrentBehavior; // kAutoCompleteBehavior* bitmap
+  PRBool mRestrictHistory;
+  PRBool mRestrictBookmark;
+  PRBool mRestrictTag;
+  PRBool mMatchTitle;
+  PRBool mMatchUrl;
 
   // Original search string for case-sensitive usage
   nsString mOrigSearchString;
   // Search string and tokens for case-insensitive matching
   nsString mCurrentSearchString;
-  nsTArray<nsString> mCurrentSearchTokens;
+  nsStringArray mCurrentSearchTokens;
   void GenerateSearchTokens();
   void AddSearchToken(nsAutoString &aToken);
   void ProcessTokensForSpecialSearch();
@@ -825,7 +845,7 @@ protected:
 
   PRBool mInPrivateBrowsing;
 
-  PRUint16 mDatabaseStatus;
+  PRBool mDatabaseStatus;
 };
 
 /**

@@ -281,7 +281,7 @@ NS_IMETHODIMP
 nsNativeThemeQt::GetWidgetBorder(nsIDeviceContext* aContext,
                                  nsIFrame* aFrame,
                                  PRUint8 aWidgetType,
-                                 nsIntMargin* aResult)
+                                 nsMargin* aResult)
 {
     (*aResult).top = (*aResult).bottom = (*aResult).left = (*aResult).right = 0;
 
@@ -303,7 +303,7 @@ nsNativeThemeQt::GetWidgetBorder(nsIDeviceContext* aContext,
 PRBool
 nsNativeThemeQt::GetWidgetPadding(nsIDeviceContext* ,
                                   nsIFrame*, PRUint8 aWidgetType,
-                                  nsIntMargin* aResult)
+                                  nsMargin* aResult)
 {
     // XXX: Where to get padding values, framewidth?
     if (aWidgetType == NS_THEME_TEXTFIELD ||
@@ -319,7 +319,7 @@ nsNativeThemeQt::GetWidgetPadding(nsIDeviceContext* ,
 NS_IMETHODIMP
 nsNativeThemeQt::GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                       PRUint8 aWidgetType,
-                                      nsIntSize* aResult, PRBool* aIsOverridable)
+                                      nsSize* aResult, PRBool* aIsOverridable)
 {
     (*aResult).width = (*aResult).height = 0;
     *aIsOverridable = PR_TRUE;
@@ -561,12 +561,6 @@ PRBool
 nsNativeThemeQt::ThemeNeedsComboboxDropmarker()
 {
     return PR_TRUE;
-}
-
-nsTransparencyMode
-nsNativeThemeQt::GetWidgetTransparency(PRUint8 aWidgetType)
-{
-  return eTransparencyOpaque;
 }
 
 void

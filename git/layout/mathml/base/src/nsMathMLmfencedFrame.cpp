@@ -272,8 +272,7 @@ nsMathMLmfencedFrame::doReflow(nsPresContext*          aPresContext,
   PRInt32 i;
   nsCOMPtr<nsIFontMetrics> fm;
   const nsStyleFont* font = aForFrame->GetStyleFont();
-  aReflowState.rendContext->SetFont(font->mFont, nsnull,
-                                    aPresContext->GetUserFontSet());
+  aReflowState.rendContext->SetFont(font->mFont, nsnull);
   aReflowState.rendContext->GetFontMetrics(*getter_AddRefs(fm));
   nscoord axisHeight, em;
   GetAxisHeight(*aReflowState.rendContext, fm, axisHeight);
@@ -351,7 +350,8 @@ nsMathMLmfencedFrame::doReflow(nsPresContext*          aPresContext,
                                        stretchDir, containerSize);
     childFrame = firstChild;
     while (childFrame) {
-      nsIMathMLFrame* mathmlChild = do_QueryFrame(childFrame);
+      nsIMathMLFrame* mathmlChild;
+      childFrame->QueryInterface(NS_GET_IID(nsIMathMLFrame), (void**)&mathmlChild);
       if (mathmlChild) {
         nsHTMLReflowMetrics childDesiredSize;
         // retrieve the metrics that was stored at the previous pass

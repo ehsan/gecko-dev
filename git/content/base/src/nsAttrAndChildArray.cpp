@@ -146,11 +146,9 @@ nsAttrAndChildArray::GetSafeChildAt(PRUint32 aPos) const
 }
 
 nsIContent * const *
-nsAttrAndChildArray::GetChildArray(PRUint32* aChildCount) const
+nsAttrAndChildArray::GetChildArray() const
 {
-  *aChildCount = ChildCount();
-  
-  if (!*aChildCount) {
+  if (!mImpl) {
     return nsnull;
   }
   

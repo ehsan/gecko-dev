@@ -155,15 +155,15 @@ private:
     PRBool                  mHaveProfile;
     
     PRBool                  mDiskCacheEnabled;
-    PRInt32                 mDiskCacheCapacity; // in kilobytes
+    PRInt32                 mDiskCacheCapacity;
     nsCOMPtr<nsILocalFile>  mDiskCacheParentDirectory;
 
     PRBool                  mOfflineCacheEnabled;
-    PRInt32                 mOfflineCacheCapacity; // in kilobytes
+    PRInt32                 mOfflineCacheCapacity;
     nsCOMPtr<nsILocalFile>  mOfflineCacheParentDirectory;
     
     PRBool                  mMemoryCacheEnabled;
-    PRInt32                 mMemoryCacheCapacity; // in kilobytes
+    PRInt32                 mMemoryCacheCapacity;
 
     PRBool                  mInPrivateBrowsing;
 };
@@ -2023,13 +2023,13 @@ nsCacheService::DeactivateAndClearEntry(PLDHashTable *    table,
 void
 nsCacheService::DoomActiveEntries()
 {
-    nsAutoTArray<nsCacheEntry*, 8> array;
+    nsAutoVoidArray array;
 
     mActiveEntries.VisitEntries(RemoveActiveEntry, &array);
 
-    PRUint32 count = array.Length();
+    PRUint32 count = array.Count();
     for (PRUint32 i=0; i < count; ++i)
-        DoomEntry_Internal(array[i]);
+        DoomEntry_Internal((nsCacheEntry *) array[i]);
 }
 
 
@@ -2042,7 +2042,7 @@ nsCacheService::RemoveActiveEntry(PLDHashTable *    table,
     nsCacheEntry * entry = ((nsCacheEntryHashTableEntry *)hdr)->cacheEntry;
     NS_ASSERTION(entry, "### active entry = nsnull!");
 
-    nsTArray<nsCacheEntry*> * array = (nsTArray<nsCacheEntry*> *) arg;
+    nsVoidArray * array = (nsVoidArray *) arg;
     NS_ASSERTION(array, "### array = nsnull!");
     array->AppendElement(entry);
 

@@ -51,9 +51,9 @@
 #include "nsIStyleSheetLinkingElement.h"
 #include "nsIStyleSheet.h"
 #include "nsIURI.h"
-#include "nsTArray.h"
 
 class nsIDocument;
+class nsStringArray;
 
 class nsStyleLinkElement : public nsIDOMLinkStyle,
                            public nsIStyleSheetLinkingElement
@@ -80,7 +80,7 @@ public:
   virtual void OverrideBaseURI(nsIURI* aNewBaseURI);
   virtual void SetLineNumber(PRUint32 aLineNumber);
 
-  static void ParseLinkTypes(const nsAString& aTypes, nsTArray<nsString>& aResult);
+  static void ParseLinkTypes(const nsAString& aTypes, nsStringArray& aResult);
 
 protected:
   /**
@@ -101,8 +101,6 @@ protected:
                                  nsAString& aMedia,
                                  PRBool* aIsAlternate) = 0;
 
-  nsIStyleSheet* GetStyleSheet() { return mStyleSheet; }
-
 private:
   /**
    * @param aOldDocument should be non-null only if we're updating because we
@@ -118,8 +116,8 @@ private:
                               PRBool* aIsAlternate,
                               PRBool aForceUpdate);
 
-  nsCOMPtr<nsIStyleSheet> mStyleSheet;
 protected:
+  nsCOMPtr<nsIStyleSheet> mStyleSheet;
   PRPackedBool mDontLoadStyle;
   PRPackedBool mUpdatesEnabled;
   PRUint32 mLineNumber;

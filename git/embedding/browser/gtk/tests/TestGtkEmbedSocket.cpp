@@ -38,7 +38,6 @@
 #include <gtk/gtk.h>
 #include <gdk/gdkx.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -57,8 +56,8 @@ main(int argc, char **argv)
 
   toplevel_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 
-  g_signal_connect(GTK_OBJECT(toplevel_window), "destroy",
-                   G_CALLBACK(exit), NULL);
+  gtk_signal_connect(GTK_OBJECT(toplevel_window), "destroy",
+		     (GtkSignalFunc) gtk_exit, NULL);
 
   vbox = gtk_vbox_new(FALSE, 0);
   gtk_container_add(GTK_CONTAINER(toplevel_window), vbox);
@@ -69,8 +68,8 @@ main(int argc, char **argv)
   gtk_box_pack_start(GTK_BOX(vbox), button, FALSE, FALSE, 0);
   gtk_widget_show(button);
 
-  g_signal_connect(GTK_OBJECT(button), "clicked",
-                   G_CALLBACK(insert_mozilla), NULL);
+  gtk_signal_connect(GTK_OBJECT(button), "clicked",
+		     GTK_SIGNAL_FUNC(insert_mozilla), NULL);
 
   gtk_widget_show(toplevel_window);
 

@@ -55,8 +55,7 @@ class nsINodeInfo;
   { 0x80, 0x3f, 0xeb, 0x90, 0xfe, 0xe0, 0x7a, 0xe9 } }
 
 nsresult
-NS_NewSVGSVGElement(nsIContent **aResult, nsINodeInfo *aNodeInfo,
-                    PRBool aFromParser);
+NS_NewSVGSVGElement(nsIContent **aResult, nsINodeInfo *aNodeInfo);
 
 typedef nsSVGGraphicElement nsSVGUseElementBase;
 
@@ -100,7 +99,7 @@ public:
 
   // nsSVGElement specializations:
   virtual void DidChangeLength(PRUint8 aAttrEnum, PRBool aDoSetAttr);
-  virtual void DidChangeString(PRUint8 aAttrEnum);
+  virtual void DidChangeString(PRUint8 aAttrEnum, PRBool aDoSetAttr);
 
   // nsIContent interface
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;

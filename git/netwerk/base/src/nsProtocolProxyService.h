@@ -42,7 +42,7 @@
 #include "nsString.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsIPrefBranch.h"
 #include "nsIProtocolProxyService2.h"
 #include "nsIProtocolProxyFilter.h"
@@ -290,6 +290,8 @@ protected:
      */
     NS_HIDDEN_(PRBool) CanUseProxy(nsIURI *uri, PRInt32 defaultPort);
 
+    static PRBool CleanupFilterArray(void *aElement, void *aData);
+
 public:
     // The Sun Forte compiler and others implement older versions of the
     // C++ standard's rules on access and nested classes.  These structs
@@ -350,7 +352,7 @@ protected:
     };
 
     // Holds an array of HostInfo objects
-    nsTArray<nsAutoPtr<HostInfo> > mHostFiltersArray;
+    nsVoidArray                  mHostFiltersArray;
 
     // Points to the start of a sorted by position, singly linked list
     // of FilterLink objects.

@@ -37,6 +37,7 @@
 #define nsMacCursor_h_
 
 #import <Cocoa/Cocoa.h>
+#import <Carbon/Carbon.h>
 
 /*! @class      nsMacCursor
     @abstract   Represents a native Mac cursor.
@@ -51,6 +52,14 @@
   @protected
   int mFrameCounter;    
 }
+
+/*! @method     cursorWithThemeCursor:
+    @abstract   Create a cursor by specifying a Carbon Apperance Manager <code>ThemeCursor</code> constant.
+    @discussion Creates a cursor representing the given Appearance Manager built in cursor.
+    @param      aCursor the <code>ThemeCursor</code> to use
+    @result     an autoreleased instance of <code>nsMacCursor</code> representing the given <code>ThemeCursor</code>
+ */
++ (nsMacCursor *) cursorWithThemeCursor: (ThemeCursor) aCursor;
 
 /*! @method     cursorWithCursor:
     @abstract   Create a cursor by specifying a Cocoa <code>NSCursor</code>.
@@ -82,14 +91,18 @@
  */
 + (nsMacCursor *) cursorWithFrames: (NSArray *) aCursorFrames;
 
-/*! @method     cocoaCursorWithImageNamed:hotSpot:
-    @abstract   Create a Cocoa NSCursor object with a Gecko image resource name and a hotspot point.
-    @discussion Create a Cocoa NSCursor object with a Gecko image resource name and a hotspot point.
-    @param      imageName the name of the gecko image resource, "tiff" extension is assumed, do not append.
-    @param      aPoint the point within the cursor to use as the hotspot
-    @result     an autoreleased instance of <code>nsMacCursor</code> that will animate the given cursor frames
+/*! @method     cursorWithResources:lastFrame:
+    @abstract   Create an animated cursor by specifying a range of <code>CURS</code> resources to load and animate.
+    @discussion Creates a cursor that will animate by cycling through the given range of cursor resource ids. Each
+                resource in the range must be the next frame in the animation.
+                <p>To create a static cursor, simply pass the same resource id for both parameters.</p>
+                <p>The frames are loaded from the compiled version of the resource file nsMacWidget.r.</p>
+    @param      aFirstFrame the resource id for the first frame of the animation. Must be 128 or greated
+    @param      aLastFrame the resource id for the last frame of the animation. Must be 128 or greater, and greater than
+                or equal to <code>aFirstFrame</code>
+    @result     an autoreleased instance of <code>nsMacCursor</code> that will animate the given cursor resources
  */
-+ (NSCursor *) cocoaCursorWithImageNamed: (NSString *) imageName hotSpot: (NSPoint) aPoint;
++ (nsMacCursor *) cursorWithResources: (int) aFirstFrame lastFrame: (int) aLastFrame;
 
 /*! @method     set
     @abstract   Set the cursor.

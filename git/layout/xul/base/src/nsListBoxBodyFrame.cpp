@@ -172,8 +172,9 @@ NS_IMPL_ISUPPORTS1(nsListScrollSmoother, nsITimerCallback)
 
 nsListBoxBodyFrame::nsListBoxBodyFrame(nsIPresShell* aPresShell,
                                        nsStyleContext* aContext,
+                                       PRBool aIsRoot,
                                        nsIBoxLayout* aLayoutManager)
-  : nsBoxFrame(aPresShell, aContext, PR_FALSE, aLayoutManager),
+  : nsBoxFrame(aPresShell, aContext, aIsRoot, aLayoutManager),
     mRowCount(-1),
     mRowHeight(0),
     mRowHeightWasSet(PR_FALSE),
@@ -205,10 +206,32 @@ nsListBoxBodyFrame::~nsListBoxBodyFrame()
 
 }
 
-NS_QUERYFRAME_HEAD(nsListBoxBodyFrame)
-  NS_QUERYFRAME_ENTRY(nsIScrollbarMediator)
-  NS_QUERYFRAME_ENTRY(nsListBoxBodyFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsBoxFrame)
+////////// nsISupports /////////////////
+
+NS_IMETHODIMP_(nsrefcnt) 
+nsListBoxBodyFrame::AddRef(void)
+{
+  return 2;
+}
+
+NS_IMETHODIMP_(nsrefcnt)
+nsListBoxBodyFrame::Release(void)
+{
+  return 1;
+}
+
+//
+// QueryInterface
+//
+NS_INTERFACE_MAP_BEGIN(nsListBoxBodyFrame)
+  NS_INTERFACE_MAP_ENTRY(nsIScrollbarMediator)
+  if (aIID.Equals(NS_GET_IID(nsListBoxBodyFrame))) {
+    *aInstancePtr = this;
+    return NS_OK;
+  }
+  else
+NS_INTERFACE_MAP_END_INHERITING(nsBoxFrame)
+
 
 ////////// nsIFrame /////////////////
 
@@ -225,7 +248,8 @@ nsListBoxBodyFrame::Init(nsIContent*     aContent,
     scrollableView->SetScrollProperties(NS_SCROLL_PROPERTY_ALWAYS_BLIT);
     nsIBox* verticalScrollbar = scrollFrame->GetScrollbarBox(PR_TRUE);
     if (verticalScrollbar) {
-      nsIScrollbarFrame* scrollbarFrame = do_QueryFrame(verticalScrollbar);
+      nsIScrollbarFrame* scrollbarFrame = nsnull;
+      CallQueryInterface(verticalScrollbar, &scrollbarFrame);
       scrollbarFrame->SetScrollbarMediatorContent(GetContent());
     }
   }
@@ -357,7 +381,7 @@ nsListBoxBodyFrame::GetPrefSize(nsBoxLayoutState& aBoxLayoutState)
 ///////////// nsIScrollbarMediator ///////////////
 
 NS_IMETHODIMP
-nsListBoxBodyFrame::PositionChanged(nsIScrollbarFrame* aScrollbar, PRInt32 aOldIndex, PRInt32& aNewIndex)
+nsListBoxBodyFrame::PositionChanged(nsISupports* aScrollbar, PRInt32 aOldIndex, PRInt32& aNewIndex)
 { 
   if (mScrolling || mRowHeight == 0)
     return NS_OK;
@@ -409,7 +433,7 @@ nsListBoxBodyFrame::PositionChanged(nsIScrollbarFrame* aScrollbar, PRInt32 aOldI
 }
 
 NS_IMETHODIMP
-nsListBoxBodyFrame::VisibilityChanged(PRBool aVisible)
+nsListBoxBodyFrame::VisibilityChanged(nsISupports* aScrollbar, PRBool aVisible)
 {
   if (mRowHeight == 0)
     return NS_OK;
@@ -427,7 +451,7 @@ nsListBoxBodyFrame::VisibilityChanged(PRBool aVisible)
 }
 
 NS_IMETHODIMP
-nsListBoxBodyFrame::ScrollbarButtonPressed(nsIScrollbarFrame* aScrollbar, PRInt32 aOldIndex, PRInt32 aNewIndex)
+nsListBoxBodyFrame::ScrollbarButtonPressed(nsISupports* aScrollbar, PRInt32 aOldIndex, PRInt32 aNewIndex)
 {
   if (aOldIndex == aNewIndex)
     return NS_OK;
@@ -448,7 +472,6 @@ nsListBoxBodyFrame::ScrollbarButtonPressed(nsIScrollbarFrame* aScrollbar, PRInt3
 PRBool
 nsListBoxBodyFrame::ReflowFinished()
 {
-  nsAutoScriptBlocker scriptBlocker;
   // now create or destroy any rows as needed
   CreateRows();
 
@@ -1007,12 +1030,6 @@ nsListBoxBodyFrame::GetLastFrame()
   return mFrames.LastChild();
 }
 
-PRBool
-nsListBoxBodyFrame::SupportsOrdinalsInChildren()
-{
-  return PR_FALSE;
-}
-
 ////////// lazy row creation and destruction
 
 void
@@ -1496,15 +1513,10 @@ nsListBoxBodyFrame::RemoveChildFrame(nsBoxLayoutState &aState,
 
 // Creation Routines ///////////////////////////////////////////////////////////////////////
 
-already_AddRefed<nsIBoxLayout> NS_NewListBoxLayout();
-
 nsIFrame*
-NS_NewListBoxBodyFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_NewListBoxBodyFrame(nsIPresShell* aPresShell, nsStyleContext* aContext,
+                       PRBool aIsRoot, nsIBoxLayout* aLayoutManager)
 {
-  nsCOMPtr<nsIBoxLayout> layout = NS_NewListBoxLayout();
-  if (!layout) {
-    return nsnull;
-  }
-
-  return new (aPresShell) nsListBoxBodyFrame(aPresShell, aContext, layout);
+  return 
+    new (aPresShell) nsListBoxBodyFrame(aPresShell, aContext, aIsRoot, aLayoutManager);
 }

@@ -44,6 +44,7 @@
 #include "nsScriptLoader.h"
 #include "nsIDOMCharacterData.h"
 #include "nsParserUtils.h"
+#include "nsIMIMEHeaderParam.h"
 #include "nsICharsetConverterManager.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsIContent.h"
@@ -68,8 +69,6 @@
 #include "nsContentErrors.h"
 #include "nsIParser.h"
 #include "nsThreadUtils.h"
-#include "nsIChannelClassifier.h"
-#include "nsDocShellCID.h"
 
 //////////////////////////////////////////////////////////////
 // Per-request data structure
@@ -125,9 +124,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS0(nsScriptLoadRequest)
 nsScriptLoader::nsScriptLoader(nsIDocument *aDocument)
   : mDocument(aDocument),
     mBlockerCount(0),
-    mEnabled(PR_TRUE),
-    mDeferEnabled(PR_FALSE),
-    mUnblockOnloadWhenDoneProcessing(PR_FALSE)
+    mEnabled(PR_TRUE)
 {
 }
 
@@ -268,21 +265,7 @@ nsScriptLoader::StartLoad(nsScriptLoadRequest *aRequest, const nsAString &aType)
   rv = NS_NewStreamLoader(getter_AddRefs(loader), this);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = channel->AsyncOpen(loader, aRequest);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Check the load against the URI classifier
-  nsCOMPtr<nsIChannelClassifier> classifier =
-    do_CreateInstance(NS_CHANNELCLASSIFIER_CONTRACTID);
-  if (classifier) {
-    rv = classifier->Start(channel, PR_TRUE);
-    if (NS_FAILED(rv)) {
-      channel->Cancel(rv);
-      return rv;
-    }
-  }
-
-  return NS_OK;
+  return channel->AsyncOpen(loader, aRequest);
 }
 
 PRBool
@@ -348,10 +331,16 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
   // If type exists, it trumps the deprecated 'language='
   aElement->GetScriptType(type);
   if (!type.IsEmpty()) {
-    nsContentTypeParser parser(type);
+    nsCOMPtr<nsIMIMEHeaderParam> mimeHdrParser =
+      do_GetService("@mozilla.org/network/mime-hdrparam;1");
+    NS_ENSURE_TRUE(mimeHdrParser, NS_ERROR_FAILURE);
+
+    NS_ConvertUTF16toUTF8 typeAndParams(type);
 
     nsAutoString mimeType;
-    rv = parser.GetType(mimeType);
+    rv = mimeHdrParser->GetParameter(typeAndParams, nsnull,
+                                     EmptyCString(), PR_FALSE, nsnull,
+                                     mimeType);
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Javascript keeps the fast path, optimized for most-likely type
@@ -390,7 +379,9 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
     if (typeID != nsIProgrammingLanguage::UNKNOWN) {
       // Get the version string, and ensure the language supports it.
       nsAutoString versionName;
-      rv = parser.GetParameter("version", versionName);
+      rv = mimeHdrParser->GetParameter(typeAndParams, "version",
+                                       EmptyCString(), PR_FALSE, nsnull,
+                                       versionName);
       if (NS_FAILED(rv)) {
         // no version attribute - version remains 0.
         if (rv != NS_ERROR_INVALID_ARG)
@@ -413,7 +404,10 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
     // Some js specifics yet to be abstracted.
     if (typeID == nsIProgrammingLanguage::JAVASCRIPT) {
       nsAutoString value;
-      rv = parser.GetParameter("e4x", value);
+
+      rv = mimeHdrParser->GetParameter(typeAndParams, "e4x",
+                                       EmptyCString(), PR_FALSE, nsnull,
+                                       value);
       if (NS_FAILED(rv)) {
         if (rv != NS_ERROR_INVALID_ARG)
           return rv;
@@ -729,15 +723,6 @@ nsScriptLoader::ProcessPendingRequests()
     mPendingChildLoaders.RemoveElementAt(0);
     child->RemoveExecuteBlocker();
   }
-
-  if (mUnblockOnloadWhenDoneProcessing && mDocument &&
-      !GetFirstPendingRequest()) {
-    // No more pending scripts; time to unblock onload.
-    // OK to unblock onload synchronously here, since callers must be
-    // prepared for the world changing anyway.
-    mUnblockOnloadWhenDoneProcessing = PR_FALSE;
-    mDocument->UnblockOnload(PR_TRUE);
-  }
 }
 
 PRBool
@@ -781,14 +766,14 @@ DetectByteOrderMark(const unsigned char* aBytes, PRInt32 aLen, nsCString& oChars
     if (0xFF == aBytes[1]) {
       // FE FF
       // UTF-16, big-endian
-      oCharset.Assign("UTF-16");
+      oCharset.Assign("UTF-16BE");
     }
     break;
   case 0xFF:
     if (0xFE == aBytes[1]) {
       // FF FE
       // UTF-16, little-endian
-      oCharset.Assign("UTF-16");
+      oCharset.Assign("UTF-16LE");
     }
     break;
   }
@@ -1013,21 +998,11 @@ nsScriptLoader::ShouldExecuteScript(nsIDocument* aDocument,
 }
 
 void
-nsScriptLoader::EndDeferringScripts(PRBool aKillDeferred)
+nsScriptLoader::EndDeferringScripts()
 {
-  if (mDeferEnabled) {
-    // Have to check because we apparently get EndDeferringScripts
-    // without BeginDeferringScripts in some cases
-    mUnblockOnloadWhenDoneProcessing = PR_TRUE;
-  }
   mDeferEnabled = PR_FALSE;
   for (PRUint32 i = 0; i < (PRUint32)mRequests.Count(); ++i) {
-    if (aKillDeferred && mRequests[i]->mDefer) {
-      mRequests.RemoveObjectAt(i--);
-    }
-    else {
-      mRequests[i]->mDefer = PR_FALSE;
-    }
+    mRequests[i]->mDefer = PR_FALSE;
   }
 
   ProcessPendingRequests();

@@ -87,6 +87,8 @@ var gContextMenu = null;
 
 var gChromeState = null; // chrome state before we went into print preview
 
+var gSanitizeListener = null;
+
 var gAutoHideTabbarPrefListener = null;
 var gBookmarkAllTabsHandler = null;
 
@@ -331,12 +333,12 @@ const gPopupBlockerObserver = {
 
     if (!gBrowser.pageReport) {
       // Hide the popup blocker statusbar button
-      this._reportButton.hidden = true;
+      this._reportButton.removeAttribute("blocked");
 
       return;
     }
 
-    this._reportButton.hidden = false;
+    this._reportButton.setAttribute("blocked", true);
 
     // Only show the notification again if we've not already shown it. Since
     // notifications are per-browser, we don't need to worry about re-adding
@@ -692,9 +694,8 @@ let gGestureSupport = {
   },
 
   /**
-   * Dispatch events based on the type of mouse gesture event. For now, make
-   * sure to stop propagation of every gesture event so that web content cannot
-   * receive gesture events.
+   * Dispatch events based on the type of mouse gesture event.
+   * For now, make sure to stop propagation of every gesture event
    *
    * @param aEvent
    *        The gesture event to handle
@@ -702,73 +703,36 @@ let gGestureSupport = {
   handleEvent: function GS_handleEvent(aEvent) {
     aEvent.stopPropagation();
 
-    // Create a preference object with some defaults
-    let def = function(aThreshold, aLatched)
-      ({ threshold: aThreshold, latched: !!aLatched });
-
     switch (aEvent.type) {
       case "MozSwipeGesture":
         return this.onSwipe(aEvent);
       case "MozMagnifyGestureStart":
-        return this._setupGesture(aEvent, "pinch", def(150, 1), "out", "in");
       case "MozRotateGestureStart":
-        return this._setupGesture(aEvent, "twist", def(25, 0), "right", "left");
+        return this.onStart(aEvent);
       case "MozMagnifyGestureUpdate":
+        return this._handleUpdate(aEvent, 100, "pinch.out", "pinch.in");
       case "MozRotateGestureUpdate":
-        return this._doUpdate(aEvent);
+        return this._handleUpdate(aEvent, 22.5, "twist.right", "twist.left");
     }
   },
 
   /**
-   * Called at the start of "pinch" and "twist" gestures to setup all of the
-   * information needed to process the gesture
+   * Convert a gesture and pressed keys into the corresponding command action.
+   * The preference must have "shift" before "alt" before "ctrl" before "meta"
+   * with each separated by periods.
    *
-   * @param aEvent
-   *        The continual motion start event to handle
-   * @param aGesture
-   *        Name of the gesture to handle
-   * @param aPref
-   *        Preference object with the names of preferences and defaults
-   * @param aInc
-   *        Command to trigger for increasing motion (without gesture name)
-   * @param aDec
-   *        Command to trigger for decreasing motion (without gesture name)
+   * @param aGestureKeys
+   *        An array that has the gesture type as the first element and
+   *        additional elements for each key pressed
+   * @return Id of the command to execute
    */
-  _setupGesture: function GS__setupGesture(aEvent, aGesture, aPref, aInc, aDec) {
-    // Try to load user-set values from preferences
-    for (let [pref, def] in Iterator(aPref))
-      aPref[pref] = this._getPref(aGesture + "." + pref, def);
-
-    // Keep track of the total deltas and latching behavior
-    let offset = 0;
-    let latchDir = aEvent.delta > 0 ? 1 : -1;
-    let isLatched = false;
-
-    // Create the update function here to capture closure state
-    this._doUpdate = function GS__doUpdate(aEvent) {
-      // Update the offset with new event data
-      offset += aEvent.delta;
-
-      // Check if the cumulative deltas exceed the threshold
-      if (Math.abs(offset) > aPref["threshold"]) {
-        // Trigger the action if we don't care about latching; otherwise, make
-        // sure either we're not latched and going the same direction of the
-        // initial motion; or we're latched and going the opposite way
-        let sameDir = (latchDir ^ offset) >= 0;
-        if (!aPref["latched"] || (isLatched ^ sameDir)) {
-          this._doAction(aEvent, [aGesture, offset > 0 ? aInc : aDec]);
-
-          // We must be getting latched or leaving it, so just toggle
-          isLatched = !isLatched;
-        }
-
-        // Reset motion counter to prepare for more of the same gesture
-        offset = 0;
-      }
-    };
-
-    // The start event also contains deltas, so handle an update right away
-    this._doUpdate(aEvent);
+  _getCommand: function GS__getCommand(aGestureKeys) {
+    const gestureBranch = "browser.gesture."
+    try {
+      return gPrefService.getCharPref(gestureBranch + aGestureKeys.join("."));
+    }
+    // No preference is set, so don't give a command
+    catch (e) {}
   },
 
   /**
@@ -798,9 +762,7 @@ let gGestureSupport = {
    * @param aEvent
    *        The original gesture event to convert into a fake click event
    * @param aGesture
-   *        Array of gesture name parts (to be joined by periods)
-   * @return Name of the command found for the event's keys and gesture. If no
-   *         command is found, no value is returned (undefined).
+   *        Name of the gesture
    */
   _doAction: function GS__doAction(aEvent, aGesture) {
     // Create a fake event that pretends the gesture is a button click
@@ -813,32 +775,25 @@ let gGestureSupport = {
     let keyCombos = [];
     const keys = ["shift", "alt", "ctrl", "meta"];
     for each (let key in keys)
-      if (aEvent[key + "Key"])
+      if (aEvent[key + "Key"]) 
         keyCombos.push(key);
 
     try {
       // Try each combination of key presses in decreasing order for commands
       for (let subCombo in this._power(keyCombos)) {
-        // Convert a gesture and pressed keys into the corresponding command
-        // action where the preference has the gesture before "shift" before
-        // "alt" before "ctrl" before "meta" all separated by periods
-        let command = this._getPref(aGesture.concat(subCombo).join("."));
-
+        let command = this._getCommand([aGesture].concat(subCombo));
         // Do the command if we found one to do
         if (command) {
           let node = document.getElementById(command);
           // Use the command element if it exists
-          if (node && node.hasAttribute("oncommand")) {
+          if (node && node.hasAttribute("oncommand"))
             // XXX: Use node.oncommand(event) once bug 246720 is fixed
-            if (node.getAttribute("disabled") != "true")
+            return node.getAttribute("disabled") == "true" ? true :
               new Function("event", node.getAttribute("oncommand")).
-                call(node, fakeEvent);
-          }
-          // Otherwise it should be a "standard" command
-          else
-            goDoCommand(command);
+              call(node, fakeEvent);
 
-          return command;
+          // Otherwise it should be a "standard" command
+          return goDoCommand(command);
         }
       }
     }
@@ -847,49 +802,59 @@ let gGestureSupport = {
   },
 
   /**
-   * Convert continual motion events into an action if it exceeds a threshold
-   * in a given direction. This function will be set by _setupGesture to
-   * capture state that needs to be shared across multiple gesture updates.
-   *
-   * @param aEvent
-   *        The continual motion update event to handle
-   */
-  _doUpdate: function(aEvent) {},
-
-  /**
    * Convert the swipe gesture into a browser action based on the direction
    *
    * @param aEvent
    *        The swipe event to handle
    */
   onSwipe: function GS_onSwipe(aEvent) {
-    // Figure out which one (and only one) direction was triggered 
-    for each (let dir in ["UP", "RIGHT", "DOWN", "LEFT"])
-      if (aEvent.direction == aEvent["DIRECTION_" + dir])
-        return this._doAction(aEvent, ["swipe", dir.toLowerCase()]);
+    switch (aEvent.direction) {
+      case SimpleGestureEvent.DIRECTION_LEFT:
+        return this._doAction(aEvent, "swipe.left");
+      case SimpleGestureEvent.DIRECTION_RIGHT:
+        return this._doAction(aEvent, "swipe.right");
+      case SimpleGestureEvent.DIRECTION_UP:
+        return this._doAction(aEvent, "swipe.up");
+      case SimpleGestureEvent.DIRECTION_DOWN:
+        return this._doAction(aEvent, "swipe.down");
+    }
+  },
+
+  // Keep track of offsets for continual motion events, e.g., zoom and rotate
+  _lastOffset: 0,
+
+  /**
+   * Handle the beginning of a continual motion event
+   *
+   * @param aEvent
+   *        The continual motion event
+   */
+  onStart: function GS_onStart(aEvent) {
+    this._lastOffset = 0;
   },
 
   /**
-   * Get a gesture preference or use a default if it doesn't exist
+   * Helper function to determine if a continual motion event has passed some
+   * threshold and should trigger some action. If the action is triggered, the
+   * tracking of the motion is reset as if a new motion has started.
    *
-   * @param aPref
-   *        Name of the preference to load under the gesture branch
-   * @param aDef
-   *        Default value if the preference doesn't exist
+   * @param aEvent
+   *        The continual motion event to handle
+   * @param aThreshold
+   *        Minimum positive/negative difference before the action is triggered
+   * @param aInc
+   *        Name of the gesture for increasing motion
+   * @param aDec
+   *        Name of the gesture for decreasing motion
    */
-  _getPref: function GS__getPref(aPref, aDef) {
-    // Preferences branch under which all gestures preferences are stored
-    const branch = "browser.gesture.";
+  _handleUpdate: function GS__handleUpdate(aEvent, aThreshold, aInc, aDec) {
+    // Update the offset with new event data
+    this._lastOffset += aEvent.delta;
 
-    try {
-      // Determine what type of data to load based on default value's type
-      let type = typeof aDef;
-      let getFunc = "get" + (type == "boolean" ? "Bool" : 
-                             type == "number" ? "Int" : "Char") + "Pref";
-      return gPrefService[getFunc](branch + aPref);
-    }
-    catch (e) {
-      return aDef;
+    // Do the gesture action when we pass the threshold and then reset motion
+    if (Math.abs(this._lastOffset) > aThreshold) {
+      this._doAction(aEvent, this._lastOffset > 0 ? aInc : aDec);
+      this.onStart(aEvent);
     }
   },
 };
@@ -947,7 +912,6 @@ function BrowserStartup() {
     else if (window.arguments.length >= 3) {
       loadURI(uriToLoad, window.arguments[2], window.arguments[3] || null,
               window.arguments[4] || false);
-      content.focus();
     }
     // Note: loadOneOrMoreURIs *must not* be called if window.arguments.length >= 3.
     // Such callers expect that window.arguments[0] is handled as a single URI.
@@ -1143,11 +1107,7 @@ function prepareForStartup() {
   gBrowser.browsers[0].removeAttribute("disablehistory");
 
   // enable global history
-  try {
-    gBrowser.docShell.QueryInterface(Components.interfaces.nsIDocShellHistory).useGlobalHistory = true;
-  } catch(ex) {
-    Components.utils.reportError("Places database may be locked: " + ex);
-  }
+  gBrowser.docShell.QueryInterface(Components.interfaces.nsIDocShellHistory).useGlobalHistory = true;
 
   // hook up UI through progress listener
   gBrowser.addProgressListener(window.XULBrowserWindow, Components.interfaces.nsIWebProgress.NOTIFY_ALL);
@@ -1155,10 +1115,6 @@ function prepareForStartup() {
 
   // setup our common DOMLinkAdded listener
   gBrowser.addEventListener("DOMLinkAdded", DOMLinkHandler, false);
-
-  // setup our MozApplicationManifest listener
-  gBrowser.addEventListener("MozApplicationManifest",
-                            OfflineApps, false);
 
   // setup simple gestures support
   gGestureSupport.init(true);
@@ -1203,7 +1159,7 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   gNavToolbox.customizeChange = BrowserToolboxCustomizeChange;
 
   // Set up Sanitize Item
-  initializeSanitizer();
+  gSanitizeListener = new SanitizeListener();
 
   // Enable/Disable auto-hide tabbar
   gAutoHideTabbarPrefListener = new AutoHideTabbarPrefListener();
@@ -1279,6 +1235,25 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
     Components.utils.reportError("Failed to init content pref service:\n" + ex);
   }
 
+#ifdef XP_WIN
+  // For Vista, flip the default download folder pref once from Desktop to Downloads
+  // on new profiles.
+  try {
+    var sysInfo = Cc["@mozilla.org/system-info;1"].
+                  getService(Ci.nsIPropertyBag2);
+    if (parseFloat(sysInfo.getProperty("version")) >= 6 &&
+        !gPrefService.getPrefType("browser.download.dir") &&
+        gPrefService.getIntPref("browser.download.folderList") == 0) {
+      var dnldMgr = Cc["@mozilla.org/download-manager;1"]
+                              .getService(Ci.nsIDownloadManager);
+      gPrefService.setCharPref("browser.download.dir", 
+        dnldMgr.defaultDownloadsDirectory.path);
+      gPrefService.setIntPref("browser.download.folderList", 1);
+    }
+  } catch (ex) {
+  }
+#endif
+
   // initialize the session-restore service (in case it's not already running)
   if (document.documentElement.getAttribute("windowtype") == "navigator:browser") {
     try {
@@ -1300,7 +1275,9 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   gBrowser.addEventListener("command", BrowserOnCommand, false);
 
   tabPreviews.init();
+#ifdef USE_TAB_PREVIEWS
   ctrlTab.init();
+#endif
 
   // Initialize the microsummary service by retrieving it, prompting its factory
   // to create its singleton, whose constructor initializes the service.
@@ -1333,11 +1310,6 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
     DownloadMonitorPanel.init();
   }, 10000);
 
-  // Delayed initialization of PlacesDBUtils.
-  // This component checks for database coherence once per day, on
-  // an idle timer, taking corrective actions where needed.
-  setTimeout(function() PlacesUtils.startPlacesDBUtils(), 15000);
-
 #ifndef XP_MACOSX
   updateEditUIVisibility();
   let placesContext = document.getElementById("placesContext");
@@ -1352,8 +1324,9 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
 function BrowserShutdown()
 {
   tabPreviews.uninit();
+#ifdef USE_TAB_PREVIEWS
   ctrlTab.uninit();
-
+#endif
   gGestureSupport.init(false);
 
   try {
@@ -1383,6 +1356,9 @@ function BrowserShutdown()
   } catch (ex) {
     Components.utils.reportError(ex);
   }
+
+  if (gSanitizeListener)
+    gSanitizeListener.shutdown();
 
   BrowserOffline.uninit();
   OfflineApps.uninit();
@@ -1463,17 +1439,15 @@ function nonBrowserWindowDelayedStartup()
   BrowserOffline.init();
   
   // Set up Sanitize Item
-  initializeSanitizer();
-
-  // initialize the private browsing UI
-  gPrivateBrowsingUI.init();
+  gSanitizeListener = new SanitizeListener();
 }
 
 function nonBrowserWindowShutdown()
 {
-  BrowserOffline.uninit();
+  if (gSanitizeListener)
+    gSanitizeListener.shutdown();
 
-  gPrivateBrowsingUI.uninit();
+  BrowserOffline.uninit();
 }
 #endif
 
@@ -1508,18 +1482,43 @@ AutoHideTabbarPrefListener.prototype =
   }
 }
 
-function initializeSanitizer()
+function SanitizeListener()
 {
-  // Always use the label with ellipsis
-  var label = gNavigatorBundle.getString("sanitizeWithPromptLabel2");
-  document.getElementById("sanitizeItem").setAttribute("label", label);
+  gPrefService.addObserver(this.promptDomain, this, false);
 
-  const kDidSanitizeDomain = "privacy.sanitize.didShutdownSanitize";
-  if (gPrefService.prefHasUserValue(kDidSanitizeDomain)) {
-    gPrefService.clearUserPref(kDidSanitizeDomain);
+  this._defaultLabel = document.getElementById("sanitizeItem")
+                               .getAttribute("label");
+  this._updateSanitizeItem();
+
+  if (gPrefService.prefHasUserValue(this.didSanitizeDomain)) {
+    gPrefService.clearUserPref(this.didSanitizeDomain);
     // We need to persist this preference change, since we want to
     // check it at next app start even if the browser exits abruptly
     gPrefService.QueryInterface(Ci.nsIPrefService).savePrefFile(null);
+  }
+}
+
+SanitizeListener.prototype =
+{
+  promptDomain      : "privacy.sanitize.promptOnSanitize",
+  didSanitizeDomain : "privacy.sanitize.didShutdownSanitize",
+
+  observe: function (aSubject, aTopic, aPrefName)
+  {
+    this._updateSanitizeItem();
+  },
+
+  shutdown: function ()
+  {
+    gPrefService.removeObserver(this.promptDomain, this);
+  },
+
+  _updateSanitizeItem: function ()
+  {
+    var label = gPrefService.getBoolPref(this.promptDomain) ?
+        gNavigatorBundle.getString("sanitizeWithPromptLabel2") : 
+        this._defaultLabel;
+    document.getElementById("sanitizeItem").setAttribute("label", label);
   }
 }
 
@@ -1707,16 +1706,23 @@ function loadOneOrMoreURIs(aURIString)
   }
 }
 
-function openLocation() {
-  if (window.fullScreen)
-    FullScreen.mouseoverToggle(true);
-
+function focusAndSelectUrlBar()
+{
   if (gURLBar && isElementVisible(gURLBar) && !gURLBar.readOnly) {
     gURLBar.focus();
     gURLBar.select();
-    return;
+    return true;
   }
+  return false;
+}
 
+function openLocation()
+{
+  if (window.fullScreen)
+    FullScreen.mouseoverToggle(true);
+
+  if (focusAndSelectUrlBar())
+    return;
 #ifdef XP_MACOSX
   if (window.location.href != getBrowserURL()) {
     var win = getTopWin();
@@ -1937,7 +1943,7 @@ function readFromClipboard()
     var clipboard = Components.classes["@mozilla.org/widget/clipboard;1"]
                               .getService(Components.interfaces.nsIClipboard);
 
-    // Create transferable that will transfer the text.
+    // Create tranferable that will transfer the text.
     var trans = Components.classes["@mozilla.org/widget/transferable;1"]
                           .createInstance(Components.interfaces.nsITransferable);
 
@@ -2108,10 +2114,9 @@ function losslessDecodeURI(aURI) {
                          encodeURIComponent);
     } catch (e) {}
 
-  // Encode invisible characters (soft hyphen, zero-width space, BOM,
-  // line and paragraph separator, word joiner, invisible times,
-  // invisible separator, object replacement character) (bug 452979)
-  value = value.replace(/[\v\x0c\x1c\x1d\x1e\x1f\u00ad\u200b\ufeff\u2028\u2029\u2060\u2062\u2063\ufffc]/g,
+  // Encode invisible characters (invisible control characters, soft hyphen,
+  // zero-width space, BOM, line separator, paragraph separator) (bug 452979)
+  value = value.replace(/[\v\x0c\x1c\x1d\x1e\x1f\u00ad\u200b\ufeff\u2028\u2029]/g,
                         encodeURIComponent);
 
   // Encode bidirectional formatting characters.
@@ -2265,7 +2270,7 @@ function BrowserOnCommand(event) {
     // Exception…" or "Get me out of here!" button
     if (/^about:certerror/.test(errorDoc.documentURI)) {
       if (ot == errorDoc.getElementById('exceptionDialogButton')) {
-        var params = { exceptionAdded : false, handlePrivateBrowsing : true };
+        var params = { exceptionAdded : false };
         
         try {
           switch (gPrefService.getIntPref("browser.ssl_override_behavior")) {
@@ -2365,11 +2370,6 @@ function BrowserOnCommand(event) {
           notificationBox.PRIORITY_CRITICAL_HIGH,
           buttons
         );
-      }
-    }
-    else if (/^about:privatebrowsing/.test(errorDoc.documentURI)) {
-      if (ot == errorDoc.getElementById("startPrivateBrowsing")) {
-        gPrivateBrowsingUI.toggleMode();
       }
     }
 }
@@ -2690,47 +2690,19 @@ var bookmarksButtonObserver = {
   }
 }
 
-var newTabButtonObserver = {
-  onDragOver: function(aEvent, aFlavour, aDragSession) {
-    var statusTextFld = document.getElementById("statusbar-display");
-    statusTextFld.label = gNavigatorBundle.getString("droponnewtabbutton");
-    return true;
-  },
-  onDragExit: function (aEvent, aDragSession) {
-    var statusTextFld = document.getElementById("statusbar-display");
-    statusTextFld.label = "";
-  },
-  onDrop: function (aEvent, aXferData, aDragSession) {
-    var xferData = aXferData.data.split("\n");
-    var draggedText = xferData[0] || xferData[1];
-    var postData = {};
-    var url = getShortcutOrURI(draggedText, postData);
-    if (url) {
-      nsDragAndDrop.dragDropSecurityCheck(aEvent, aDragSession, url);
-      // allow third-party services to fixup this URL
-      openNewTabWith(url, null, postData.value, aEvent, true);
-    }
-  },
-  getSupportedFlavours: function () {
-    var flavourSet = new FlavourSet();
-    flavourSet.appendFlavour("text/unicode");
-    flavourSet.appendFlavour("text/x-moz-url");
-    flavourSet.appendFlavour("application/x-moz-file", "nsIFile");
-    return flavourSet;
-  }
-}
-
 var newWindowButtonObserver = {
   onDragOver: function(aEvent, aFlavour, aDragSession)
     {
       var statusTextFld = document.getElementById("statusbar-display");
       statusTextFld.label = gNavigatorBundle.getString("droponnewwindowbutton");
+      aEvent.target.setAttribute("dragover", "true");
       return true;
     },
   onDragExit: function (aEvent, aDragSession)
     {
       var statusTextFld = document.getElementById("statusbar-display");
       statusTextFld.label = "";
+      aEvent.target.removeAttribute("dragover");
     },
   onDrop: function (aEvent, aXferData, aDragSession)
     {
@@ -2908,9 +2880,6 @@ const BrowserSearch = {
       return;
 
     var browser = gBrowser.getBrowserForDocument(targetDoc);
-    // ignore search engines from subframes (see bug 479408)
-    if (!browser)
-      return;
 
     // Check to see whether we've already added an engine with this title
     if (browser.engines) {
@@ -2922,8 +2891,8 @@ const BrowserSearch = {
     // Use documentURIObject in the check for shouldLoadFavIcon so that we
     // do the right thing with about:-style error pages.  Bug 453442
     var iconURL = null;
-    if (gBrowser.shouldLoadFavIcon(targetDoc.documentURIObject))
-      iconURL = targetDoc.documentURIObject.prePath + "/favicon.ico";
+    if (gBrowser.shouldLoadFavIcon(browser.contentDocument.documentURIObject))
+      iconURL = browser.currentURI.prePath + "/favicon.ico";
 
     var hidden = false;
     // If this engine (identified by title) is already in the list, add it
@@ -3215,8 +3184,6 @@ function OpenBrowserWindow()
   return win;
 }
 
-// Returns a reference to the window in which the toolbar
-// customization document is loaded.
 function BrowserCustomizeToolbar()
 {
   // Disable the toolbar context menu items
@@ -3249,13 +3216,11 @@ function BrowserCustomizeToolbar()
   var sheetWidth = sheetFrame.style.width.match(/([0-9]+)px/)[1];
   document.getElementById("customizeToolbarSheetPopup")
           .openPopup(gNavToolbox, "after_start", (window.innerWidth - sheetWidth) / 2, 0);
-
-  return sheetFrame.contentWindow;
 #else
-  return window.openDialog(customizeURL,
-                           "CustomizeToolbar",
-                           "chrome,titlebar,toolbar,resizable,dependent",
-                           gNavToolbox);
+  window.openDialog(customizeURL,
+                    "CustomizeToolbar",
+                    "chrome,titlebar,toolbar,resizable,dependent",
+                    gNavToolbox);
 #endif
 }
 
@@ -3312,6 +3277,25 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
     menubar.childNodes[i].setAttribute("disabled", false);
   var cmd = document.getElementById("cmd_CustomizeToolbars");
   cmd.removeAttribute("disabled");
+
+  // XXXmano bug 287105: wallpaper to bug 309953,
+  // the reload button isn't in sync with the reload command.
+  var reloadButton = document.getElementById("reload-button");
+  if (reloadButton) {
+    reloadButton.disabled =
+      document.getElementById("Browser:Reload").getAttribute("disabled") == "true";
+  }
+  //bug 440702: the back and forward buttons also suffer from bug 309953.
+  var backButton = document.getElementById("back-button");
+  if (backButton) {
+    backButton.disabled =
+      document.getElementById("Browser:Back").getAttribute("disabled") == "true";
+  }
+  var forwardButton = document.getElementById("forward-button");
+  if (forwardButton) {
+    forwardButton.disabled =
+      document.getElementById("Browser:Forward").getAttribute("disabled") == "true";
+  }
 
 #ifdef XP_MACOSX
   // make sure to re-enable click-and-hold
@@ -3880,6 +3864,10 @@ var XULBrowserWindow = {
             this.endDocumentLoad(aRequest, aStatus);
           if (!gBrowser.mTabbedMode && !gBrowser.mCurrentBrowser.mIconURL)
             gBrowser.useDefaultIcon(gBrowser.mCurrentTab);
+
+          if (Components.isSuccessCode(aStatus) &&
+              content.document.documentElement.getAttribute("manifest"))
+            OfflineApps.offlineAppRequested(content);
         }
       }
 
@@ -4026,6 +4014,8 @@ var XULBrowserWindow = {
         // Update starring UI
         PlacesStarButton.updateState();
       }
+
+      FullZoom.onLocationChange(aLocationURI);
     }
     UpdateBackForwardCommands(gBrowser.webNavigation);
 
@@ -4161,8 +4151,6 @@ var XULBrowserWindow = {
 
   // simulate all change notifications after switching tabs
   onUpdateCurrentBrowser: function (aStateFlags, aStatus, aMessage, aTotalProgress) {
-    if (FullZoom.updateBackgroundTabs)
-      FullZoom.onLocationChange(gBrowser.currentURI);
     var nsIWebProgressListener = Components.interfaces.nsIWebProgressListener;
     var loadingDone = aStateFlags & nsIWebProgressListener.STATE_STOP;
     // use a pseudo-object instead of a (potentially non-existing) channel for getting
@@ -4227,9 +4215,6 @@ var TabsProgressListener = {
   },
 
   onLocationChange: function (aBrowser, aWebProgress, aRequest, aLocationURI) {
-    // Filter out any sub-frame loads
-    if (aBrowser.contentWindow == aWebProgress.DOMWindow)
-      FullZoom.onLocationChange(aLocationURI, aBrowser);
   },
   
   onStatusChange: function (aBrowser, aWebProgress, aRequest, aStatus, aMessage) {
@@ -4328,17 +4313,7 @@ nsBrowserAccess.prototype =
         newWindow = openDialog(getBrowserURL(), "_blank", "all,dialog=no", url, null, null, null);
         break;
       case Ci.nsIBrowserDOMWindow.OPEN_NEWTAB :
-        let win, needToFocusWin;
-
-        // try the current window.  if we're in a popup, fall back on the most recent browser window
-        if (!window.document.documentElement.getAttribute("chromehidden"))
-          win = window;
-        else {
-          var browserGlue = Cc[GLUE_CID].getService(Ci.nsIBrowserGlue);
-          win = browserGlue.getMostRecentBrowserWindow();
-          needToFocusWin = true;
-        }
-
+        var win = this._getMostRecentBrowserWindow();
         if (!win) {
           // we couldn't find a suitable window, a new one needs to be opened.
           return null;
@@ -4361,7 +4336,7 @@ nsBrowserAccess.prototype =
                      .getInterface(Ci.nsIWebNavigation)
                      .loadURI(aURI.spec, loadflags, referrer, null, null);
           }
-          if (needToFocusWin || (!loadInBackground && isExternal))
+          if (!loadInBackground && isExternal)
             newWindow.focus();
         } catch(e) {
         }
@@ -4396,6 +4371,55 @@ nsBrowserAccess.prototype =
         }
     }
     return newWindow;
+  },
+
+#ifdef XP_UNIX
+#ifndef XP_MACOSX
+#define BROKEN_WM_Z_ORDER
+#endif
+#endif
+#ifdef XP_OS2
+#define BROKEN_WM_Z_ORDER
+#endif
+
+  // this returns the most recent non-popup browser window
+  _getMostRecentBrowserWindow : function ()
+  {
+    if (!window.document.documentElement.getAttribute("chromehidden"))
+      return window;
+ 
+    var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+                       .getService(Components.interfaces.nsIWindowMediator);
+ 
+#ifdef BROKEN_WM_Z_ORDER
+    var win = wm.getMostRecentWindow("navigator:browser", true);
+ 
+    // if we're lucky, this isn't a popup, and we can just return this
+    if (win && win.document.documentElement.getAttribute("chromehidden")) {
+      win = null;
+      var windowList = wm.getEnumerator("navigator:browser", true);
+      // this is oldest to newest, so this gets a bit ugly
+      while (windowList.hasMoreElements()) {
+        var nextWin = windowList.getNext();
+        if (!nextWin.document.documentElement.getAttribute("chromehidden"))
+          win = nextWin;
+      }
+    }
+#else
+    var windowList = wm.getZOrderDOMWindowEnumerator("navigator:browser", true);
+    if (!windowList.hasMoreElements())
+      return null;
+ 
+    var win = windowList.getNext();
+    while (win.document.documentElement.getAttribute("chromehidden")) {
+      if (!windowList.hasMoreElements()) 
+        return null;
+ 
+      win = windowList.getNext();
+    }
+#endif
+
+    return win;
   },
 
   isTabContentWindow : function(aWindow)
@@ -4909,31 +4933,7 @@ function middleMousePaste(event)
 var contentAreaDNDObserver = {
   onDrop: function (aEvent, aXferData, aDragSession)
     {
-      if (aEvent.getPreventDefault())
-        return;
-
-      var dragType = aXferData.flavour.contentType;
-      var dragData = aXferData.data;
-      if (dragType == TAB_DROP_TYPE) {
-        // If the tab was dragged from some other tab bar, its own dragend
-        // handler will take care of detaching the tab
-        if (dragData instanceof XULElement && dragData.localName == "tab" &&
-            dragData.ownerDocument.defaultView == window) {
-          // Detach only if the mouse pointer was released a little
-          // bit down in the content area (to be precise, by half the height
-          // of a tab)
-          if (aEvent.screenY > gBrowser.mPanelContainer.boxObject.screenY +
-                               dragData.boxObject.height / 2) {
-            gBrowser.replaceTabWithWindow(dragData);
-            aEvent.dataTransfer.dropEffect = "move";
-            return;
-          }
-        }
-        aEvent.dataTransfer.dropEffect = "none";
-        return;
-      }
-
-      var url = transferUtils.retrieveURLFromData(dragData, dragType);
+      var url = transferUtils.retrieveURLFromData(aXferData.data, aXferData.flavour.contentType);
 
       // valid urls don't contain spaces ' '; if we have a space it
       // isn't a valid url, or if it's a javascript: or data: url,
@@ -4963,9 +4963,8 @@ var contentAreaDNDObserver = {
   getSupportedFlavours: function ()
     {
       var flavourSet = new FlavourSet();
-      flavourSet.appendFlavour(TAB_DROP_TYPE);
       flavourSet.appendFlavour("text/x-moz-url");
-      flavourSet.appendFlavour("text/plain");
+      flavourSet.appendFlavour("text/unicode");
       flavourSet.appendFlavour("application/x-moz-file", "nsIFile");
       return flavourSet;
     }
@@ -5336,12 +5335,6 @@ var OfflineApps = {
     obs.removeObserver(this, "offline-cache-update-completed");
   },
 
-  handleEvent: function(event) {
-    if (event.type == "MozApplicationManifest") {
-      this.offlineAppRequested(event.originalTarget.defaultView);
-    }
-  },
-
   /////////////////////////////////////////////////////////////////////////////
   // OfflineApps Implementation Methods
 
@@ -5368,7 +5361,6 @@ var OfflineApps = {
   },
 
   _getManifestURI: function(aWindow) {
-    if (!aWindow.document.documentElement) return null;
     var attr = aWindow.document.documentElement.getAttribute("manifest");
     if (!attr) return null;
 
@@ -5438,25 +5430,10 @@ var OfflineApps = {
   },
 
   // XXX: duplicated in preferences/advanced.js
-  _getOfflineAppUsage: function (host, groups)
+  _getOfflineAppUsage: function (host)
   {
-    var cacheService = Components.classes["@mozilla.org/network/application-cache-service;1"].
-                       getService(Components.interfaces.nsIApplicationCacheService);
-    if (!groups) {
-      groups = cacheService.getGroups({});
-    }
-    var ios = Components.classes["@mozilla.org/network/io-service;1"].
-              getService(Components.interfaces.nsIIOService);
-
+    // XXX Bug 442810: include offline cache usage.
     var usage = 0;
-    for (var i = 0; i < groups.length; i++) {
-      var uri = ios.newURI(groups[i], null, null);
-      if (uri.asciiHost == host) {
-        var cache = cacheService.getActiveCache(groups[i]);
-        usage += cache.usage;
-      }
-    }
-
     var storageManager = Components.classes["@mozilla.org/dom/storagemanager;1"].
                          getService(Components.interfaces.nsIDOMStorageManager);
     usage += storageManager.getUsage(host);
@@ -5490,7 +5467,7 @@ var OfflineApps = {
     var browser = this._getBrowserForContentWindow(browserWindow,
                                                    aContentWindow);
 
-    var currentURI = aContentWindow.document.documentURIObject;
+    var currentURI = browser.webNavigation.currentURI;
     var pm = Cc["@mozilla.org/permissionmanager;1"].
              getService(Ci.nsIPermissionManager);
 
@@ -5508,32 +5485,19 @@ var OfflineApps = {
       // this pref isn't set by default, ignore failures
     }
 
-    var host = currentURI.asciiHost;
     var notificationBox = gBrowser.getNotificationBox(browser);
-    var notificationID = "offline-app-requested-" + host;
-    var notification = notificationBox.getNotificationWithValue(notificationID);
-
-    if (notification) {
-      notification.documents.push(aContentWindow.document);
-    } else {
+    var notification = notificationBox.getNotificationWithValue("offline-app-requested");
+    if (!notification) {
       var bundle_browser = document.getElementById("bundle_browser");
 
       var buttons = [{
         label: bundle_browser.getString("offlineApps.allow"),
         accessKey: bundle_browser.getString("offlineApps.allowAccessKey"),
-        callback: function() {
-          for (var i = 0; i < notification.documents.length; i++) {
-            OfflineApps.allowSite(notification.documents[i]);
-          }
-        }
+        callback: function() { OfflineApps.allowSite(); }
       },{
         label: bundle_browser.getString("offlineApps.never"),
         accessKey: bundle_browser.getString("offlineApps.neverAccessKey"),
-        callback: function() {
-          for (var i = 0; i < notification.documents.length; i++) {
-            OfflineApps.disallowSite(notification.documents[i]);
-          }
-        }
+        callback: function() { OfflineApps.disallowSite(); }
       },{
         label: bundle_browser.getString("offlineApps.notNow"),
         accessKey: bundle_browser.getString("offlineApps.notNowAccessKey"),
@@ -5542,55 +5506,51 @@ var OfflineApps = {
 
       const priority = notificationBox.PRIORITY_INFO_LOW;
       var message = bundle_browser.getFormattedString("offlineApps.available",
-                                                      [ host ]);
-      notification =
-        notificationBox.appendNotification(message, notificationID,
-                                           "chrome://browser/skin/Info.png",
-                                           priority, buttons);
-      notification.documents = [ aContentWindow.document ];
+                                                      [ currentURI.host ]);
+      notificationBox.appendNotification(message, "offline-app-requested",
+                                         "chrome://browser/skin/Info.png",
+                                         priority, buttons);
     }
   },
 
-  allowSite: function(aDocument) {
+  allowSite: function() {
+    var currentURI = gBrowser.selectedBrowser.webNavigation.currentURI;
     var pm = Cc["@mozilla.org/permissionmanager;1"].
              getService(Ci.nsIPermissionManager);
-    pm.add(aDocument.documentURIObject, "offline-app",
-           Ci.nsIPermissionManager.ALLOW_ACTION);
+    pm.add(currentURI, "offline-app", Ci.nsIPermissionManager.ALLOW_ACTION);
 
-    // When a site is enabled while loading, manifest resources will
-    // start fetching immediately.  This one time we need to do it
-    // ourselves.
-    this._startFetching(aDocument);
+    // When a site is enabled while loading, <link rel="offline-resource">
+    // resources will start fetching immediately.  This one time we need to
+    // do it ourselves.
+    this._startFetching();
   },
 
-  disallowSite: function(aDocument) {
+  disallowSite: function() {
+    var currentURI = gBrowser.selectedBrowser.webNavigation.currentURI;
     var pm = Cc["@mozilla.org/permissionmanager;1"].
              getService(Ci.nsIPermissionManager);
-    pm.add(aDocument.documentURIObject, "offline-app",
-           Ci.nsIPermissionManager.DENY_ACTION);
+    pm.add(currentURI, "offline-app", Ci.nsIPermissionManager.DENY_ACTION);
   },
 
   manage: function() {
     openAdvancedPreferences("networkTab");
   },
 
-  _startFetching: function(aDocument) {
-    if (!aDocument.documentElement)
-      return;
-
-    var manifest = aDocument.documentElement.getAttribute("manifest");
+  _startFetching: function() {
+    var manifest = content.document.documentElement.getAttribute("manifest");
     if (!manifest)
       return;
 
     var ios = Cc["@mozilla.org/network/io-service;1"].
               getService(Ci.nsIIOService);
 
-    var manifestURI = ios.newURI(manifest, aDocument.characterSet,
-                                 aDocument.documentURIObject);
+    var contentURI = ios.newURI(content.location.href, null, null);
+    var manifestURI = ios.newURI(manifest, content.document.characterSet,
+                                 contentURI);
 
     var updateService = Cc["@mozilla.org/offlinecacheupdate-service;1"].
                         getService(Ci.nsIOfflineCacheUpdateService);
-    updateService.scheduleUpdate(manifestURI, aDocument.documentURIObject);
+    updateService.scheduleUpdate(manifestURI, contentURI);
   },
 
   /////////////////////////////////////////////////////////////////////////////
@@ -5629,14 +5589,7 @@ function WindowIsClosing()
 {
   var cn = gBrowser.tabContainer.childNodes;
   var numtabs = cn.length;
-  var reallyClose = 
-    closeWindow(false,
-                function () {
-                  return gBrowser.warnAboutClosingTabs(true);
-                });
-
-  if (!reallyClose)
-    return false;
+  var reallyClose = true;
 
   for (var i = 0; reallyClose && i < numtabs; ++i) {
     var ds = gBrowser.getBrowserForTab(cn[i]).docShell;
@@ -5645,7 +5598,16 @@ function WindowIsClosing()
       reallyClose = false;
   }
 
-  return reallyClose;
+  if (!reallyClose)
+    return false;
+
+  // closeWindow takes a second optional function argument to open up a
+  // window closing warning dialog if we're not quitting. (Quitting opens
+  // up another dialog so we don't need to.)
+  return closeWindow(false,
+    function () {
+      return gBrowser.warnAboutClosingTabs(true);
+    });
 }
 
 var MailIntegration = {
@@ -6102,15 +6064,20 @@ var FeedHandler = {
     var feeds = gBrowser.mCurrentBrowser.feeds;
     if (!feeds || feeds.length == 0) {
       if (feedButton) {
-        feedButton.collapsed = true;
+        feedButton.removeAttribute("feeds");
         feedButton.removeAttribute("feed");
+        feedButton.setAttribute("tooltiptext", 
+                                gNavigatorBundle.getString("feedNoFeeds"));
       }
       this._feedMenuitem.setAttribute("disabled", "true");
       this._feedMenupopup.setAttribute("hidden", "true");
       this._feedMenuitem.removeAttribute("hidden");
     } else {
-      if (feedButton)
-        feedButton.collapsed = false;
+      if (feedButton) {
+        feedButton.setAttribute("feeds", "true");
+        feedButton.setAttribute("tooltiptext", 
+                                gNavigatorBundle.getString("feedHasFeedsNew"));
+      }
       
       if (feeds.length > 1) {
         this._feedMenuitem.setAttribute("hidden", "true");
@@ -6134,7 +6101,7 @@ var FeedHandler = {
       // find which tab this is for, and set the attribute on the browser
       var browserForLink = gBrowser.getBrowserForDocument(targetDoc);
       if (!browserForLink) {
-        // ignore feeds loaded in subframes (see bug 305472)
+        // ??? this really shouldn't happen..
         return;
       }
 
@@ -6144,10 +6111,13 @@ var FeedHandler = {
 
       feeds.push(feed);
       browserForLink.feeds = feeds;
-      if (browserForLink == gBrowser.mCurrentBrowser) {
+      if (browserForLink == gBrowser || browserForLink == gBrowser.mCurrentBrowser) {
         var feedButton = document.getElementById("feed-button");
-        if (feedButton)
-          feedButton.collapsed = false;
+        if (feedButton) {
+          feedButton.setAttribute("feeds", "true");
+          feedButton.setAttribute("tooltiptext", 
+                                  gNavigatorBundle.getString("feedHasFeedsNew"));
+        }
       }
     }
   }
@@ -6200,13 +6170,8 @@ HistoryMenu.populateUndoSubmenu = function PHM_populateUndoSubmenu() {
   for (var i = 0; i < undoItems.length; i++) {
     var m = document.createElement("menuitem");
     m.setAttribute("label", undoItems[i].title);
-    if (undoItems[i].image) {
-      let iconURL = undoItems[i].image;
-      // don't initiate a connection just to fetch a favicon (see bug 467828)
-      if (/^https?:/.test(iconURL))
-        iconURL = "moz-anno:favicon:" + iconURL;
-      m.setAttribute("image", iconURL);
-    }
+    if (undoItems[i].image)
+      m.setAttribute("image", undoItems[i].image);
     m.setAttribute("class", "menuitem-iconic bookmark-item");
     m.setAttribute("value", i);
     m.setAttribute("oncommand", "undoCloseTab(" + i + ");");
@@ -6868,14 +6833,7 @@ let gPrivateBrowsingUI = {
     var brandBundle = bundleService.createBundle("chrome://branding/locale/brand.properties");
 
     var appName = brandBundle.GetStringFromName("brandShortName");
-# On Mac, use the header as the title.
-#ifdef XP_MACOSX
-    var dialogTitle = pbBundle.GetStringFromName("privateBrowsingMessageHeader");
-    var header = "";
-#else
     var dialogTitle = pbBundle.GetStringFromName("privateBrowsingDialogTitle");
-    var header = pbBundle.GetStringFromName("privateBrowsingMessageHeader") + "\n\n";
-#endif
     var message = pbBundle.formatStringFromName("privateBrowsingMessage", [appName], 1);
 
     var promptService = Cc["@mozilla.org/embedcomp/prompt-service;1"].
@@ -6891,7 +6849,7 @@ let gPrivateBrowsingUI = {
     var neverAskText = pbBundle.GetStringFromName("privateBrowsingNeverAsk");
 
     var result;
-    var choice = promptService.confirmEx(null, dialogTitle, header + message,
+    var choice = promptService.confirmEx(null, dialogTitle, message,
                                flags, button0Title, button1Title, null,
                                neverAskText, neverAsk);
 
@@ -6910,28 +6868,29 @@ let gPrivateBrowsingUI = {
   },
 
   onEnterPrivateBrowsing: function PBUI_onEnterPrivateBrowsing() {
-    this._setPBMenuTitle("stop");
-
-    document.getElementById("menu_import").setAttribute("disabled", "true");
-    
-    // Disable the Clear Recent History... menu item when in PB mode
-    // temporary fix until bug 463607 is fixed
-    document.getElementById("Tools:Sanitize").setAttribute("disabled", "true");
+    let pbMenuItem = document.getElementById("privateBrowsingItem");
+    if (pbMenuItem)
+      pbMenuItem.setAttribute("checked", "true");
 
     this._privateBrowsingAutoStarted = this._privateBrowsingService.autoStarted;
 
     if (!this._privateBrowsingAutoStarted) {
       // Adjust the window's title
       let docElement = document.documentElement;
+#ifdef XP_MACOSX // see bug 411929 comment 38 for the reason behind this
+      docElement.setAttribute("titlemodifier",
+        docElement.getAttribute("titlemodifier_privatebrowsing"));
+      docElement.setAttribute("titledefault", "");
+#else
       docElement.setAttribute("title",
         docElement.getAttribute("title_privatebrowsing"));
       docElement.setAttribute("titlemodifier",
         docElement.getAttribute("titlemodifier_privatebrowsing"));
+#endif
       docElement.setAttribute("browsingmode", "private");
     }
     else {
       // Disable the menu item in auto-start mode
-      let pbMenuItem = document.getElementById("privateBrowsingItem");
       if (pbMenuItem)
         pbMenuItem.setAttribute("disabled", "true");
       document.getElementById("Tools:PrivateBrowsing")
@@ -6943,36 +6902,29 @@ let gPrivateBrowsingUI = {
     if (BrowserSearch.searchBar)
       BrowserSearch.searchBar.textbox.reset();
 
-    document.getElementById("menu_import").removeAttribute("disabled");
+    gFindBar.getElement("findbar-textbox").reset();
 
-    // Re-enable the Clear Recent History... menu item on exit of PB mode
-    // temporary fix until bug 463607 is fixed
-    document.getElementById("Tools:Sanitize").removeAttribute("disabled");
-
-    if (gFindBar)
-      gFindBar.getElement("findbar-textbox").reset();
-
-    this._setPBMenuTitle("start");
+    let pbMenuItem = document.getElementById("privateBrowsingItem");
+    if (pbMenuItem)
+      pbMenuItem.removeAttribute("checked");
 
     if (!this._privateBrowsingAutoStarted) {
       // Adjust the window's title
       let docElement = document.documentElement;
+#ifdef XP_MACOSX // see bug 411929 comment 38 for the reason behind this
+      docElement.setAttribute("titlemodifier", "");
+      docElement.setAttribute("titledefault",
+        docElement.getAttribute("titlemodifier_normal"));
+#else
       docElement.setAttribute("title",
         docElement.getAttribute("title_normal"));
       docElement.setAttribute("titlemodifier",
         docElement.getAttribute("titlemodifier_normal"));
+#endif
       docElement.setAttribute("browsingmode", "normal");
     }
     else
       this._privateBrowsingAutoStarted = false;
-  },
-
-  _setPBMenuTitle: function PBUI__setPBMenuTitle(aMode) {
-    let pbMenuItem = document.getElementById("privateBrowsingItem");
-    if (pbMenuItem) {
-      pbMenuItem.setAttribute("label", pbMenuItem.getAttribute(aMode + "label"));
-      pbMenuItem.setAttribute("accesskey", pbMenuItem.getAttribute(aMode + "accesskey"));
-    }
   },
 
   toggleMode: function PBUI_toggleMode() {

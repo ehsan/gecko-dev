@@ -48,7 +48,6 @@
 #include "nsDeque.h"
 #include "nsIFileURL.h"
 #include "nsIPrefBranch2.h"
-#include "nsXPCOMCIDInternal.h"
 
 /**
  * Code overview

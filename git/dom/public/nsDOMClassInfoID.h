@@ -243,11 +243,6 @@ enum nsDOMClassInfoID {
 
   // SVG element classes
   eDOMClassInfo_SVGAElement_id,
-#ifdef MOZ_SMIL
-  eDOMClassInfo_SVGAnimateElement_id,
-  eDOMClassInfo_SVGAnimateTransformElement_id,
-  eDOMClassInfo_SVGSetElement_id,
-#endif // MOZ_SMIL
   eDOMClassInfo_SVGCircleElement_id,
   eDOMClassInfo_SVGClipPathElement_id,
   eDOMClassInfo_SVGDefsElement_id,
@@ -433,7 +428,6 @@ enum nsDOMClassInfoID {
   // Geolocation
   eDOMClassInfo_GeoGeolocation_id,
   eDOMClassInfo_GeoPosition_id,
-  eDOMClassInfo_GeoPositionCoords_id,
   eDOMClassInfo_GeoPositionError_id,
 
   // @font-face in CSS
@@ -441,11 +435,12 @@ enum nsDOMClassInfoID {
   eDOMClassInfo_CSSFontFaceStyleDecl_id,
 
   // WhatWG Video Element
+#if defined(MOZ_MEDIA)
   eDOMClassInfo_HTMLVideoElement_id,
   eDOMClassInfo_HTMLSourceElement_id,
   eDOMClassInfo_HTMLMediaError_id,
   eDOMClassInfo_HTMLAudioElement_id,
-
+#endif
   eDOMClassInfo_ProgressEvent_id,
 
   eDOMClassInfo_XMLHttpRequestUpload_id,
@@ -475,8 +470,6 @@ enum nsDOMClassInfoID {
 
 class nsIClassInfo;
 
-#ifdef _IMPL_NS_LAYOUT
-
 extern nsIClassInfo*
 NS_GetDOMClassInfoInstance(nsDOMClassInfoID aID);
 
@@ -488,11 +481,5 @@ NS_GetDOMClassInfoInstance(nsDOMClassInfoID aID);
       return NS_ERROR_OUT_OF_MEMORY;                                          \
     }                                                                         \
   } else
-
-#else
-
-// See nsIDOMClassInfo.h
-
-#endif // _IMPL_NS_LAYOUT
 
 #endif // nsDOMClassInfoID_h__

@@ -30,43 +30,36 @@ function obs () {
 obs.prototype = {
   observe: function obs_observe (theSubject, theTopic, theData)
   {
-    this.timeToFinish = true;
     try{
       this.window.netscape.security
           .PrivilegeManager.enablePrivilege("UniversalXPConnect");
       var ir = theSubject.QueryInterface(this.window.Components.interfaces
                                              .nsIChannel).notificationCallbacks;
-      if (!ir) {
-        this.timeToFinish = false;
+      if (!(ir instanceof this.window.Components.interfaces.nsIDOMDocument)) {
         return;
       }
-      this.window.ok(true, "No exception thrown");
 
       this.window.is(ir instanceof
                        this.window.Components.interfaces.nsIInterfaceRequestor,
                      true, "Must be an interface requestor");
 
-      if (ir instanceof this.window.Components.interfaces.nsIClassInfo) {
-        var count = {};
-        var interfaces = ir.
-                     QueryInterface(this.window.Components
-                                        .interfaces.nsIClassInfo).
-                     getInterfaces(count).
-                     map(function(id) {
-                                return this.window.Components
-                                                  .interfacesByID[id].toString();
-                         });
-        this.window.isnot(interfaces.indexOf("nsIInterfaceRequestor"), -1,
-                          "Must have interface requestor classinfo");
-      }
+      var count = {};
+      var interfaces = ir.
+                   QueryInterface(this.window.Components
+                                      .interfaces.nsIClassInfo).
+                   getInterfaces(count).
+                   map(function(id) {
+                              return this.window.Components
+                                                .interfacesByID[id].toString();
+                       });
+      this.window.isnot(interfaces.indexOf("nsIInterfaceRequestor"), -1,
+                        "Must have interface requestor classinfo");
     } catch(ex) {
       this.window.is(true, false, "Exception thrown " + ex);
     } finally {
-      if (this.timeToFinish) {
-        this.remove();
-        this.window.SimpleTest.finish();
-        this.window = null;
-      }
+      this.remove();
+      this.window.SimpleTest.finish();
+      this.window = null;
     }
   },
 

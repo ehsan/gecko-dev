@@ -22,6 +22,18 @@
 
 /** Test for computation of CSS 'inherit' **/
 
+var gBrokenInherit = {
+  // Not implemented in nsRuleNode
+  "-moz-border-bottom-colors": true,
+  "-moz-border-left-colors": true,
+  "-moz-border-right-colors": true,
+  "-moz-border-top-colors": true,
+};
+
+function xfail_inherit(property, matching_initial) {
+  return property in gBrokenInherit;
+}
+
 // elements without a frame
 var gNParent = document.getElementById("nparent");
 var gNChild = document.getElementById("nchild");
@@ -74,19 +86,23 @@ function test_property(property)
     gNChild.className="allother";
     var inherit_initial_computed_n = get_computed_value_node(gNChild, property);
     var inherit_initial_computed_f = get_computed_value_node(gFChild, property);
-    is(inherit_initial_computed_n, initial_computed_n,
+    (xfail_inherit(property, true) ? todo_is : is)(
+       inherit_initial_computed_n, initial_computed_n,
        "inherit should cause inheritance of initial value for '" +
        property + "'");
-    is(inherit_initial_computed_f, initial_computed_f,
+    (xfail_inherit(property, true) ? todo_is : is)(
+       inherit_initial_computed_f, initial_computed_f,
        "inherit should cause inheritance of initial value for '" +
        property + "'");
     gParentRuleTop.style.setProperty(property, info.other_values[0], "");
     var inherit_other_computed_n = get_computed_value_node(gNChild, property);
     var inherit_other_computed_f = get_computed_value_node(gFChild, property);
-    is(inherit_other_computed_n, other_computed_n,
+    (xfail_inherit(property, false) ? todo_is : is)(
+       inherit_other_computed_n, other_computed_n,
        "inherit should cause inheritance of other value for '" +
        property + "'");
-    is(inherit_other_computed_f, other_computed_f,
+    (xfail_inherit(property, false) ? todo_is : is)(
+       inherit_other_computed_f, other_computed_f,
        "inherit should cause inheritance of other value for '" +
        property + "'");
     gParentRuleTop.style.removeProperty(property);
@@ -109,20 +125,24 @@ function test_property(property)
     gChildRule2.style.setProperty(property, "inherit", "");
     var inherit_other_computed_n = get_computed_value_node(gNChild, property);
     var inherit_other_computed_f = get_computed_value_node(gFChild, property);
-    is(inherit_other_computed_n, other_computed_n,
+    (xfail_inherit(property, false) ? todo_is : is)(
+       inherit_other_computed_n, other_computed_n,
        "inherit should cause inheritance of other value for '" +
        property + "'");
-    is(inherit_other_computed_f, other_computed_f,
+    (xfail_inherit(property, false) ? todo_is : is)(
+       inherit_other_computed_f, other_computed_f,
        "inherit should cause inheritance of other value for '" +
        property + "'");
     gParentRuleTop.style.removeProperty(property);
     gChildRule1.style.setProperty(property, info.other_values[0], "");
     var inherit_initial_computed_n = get_computed_value_node(gNChild, property);
     var inherit_initial_computed_f = get_computed_value_node(gFChild, property);
-    is(inherit_initial_computed_n, initial_computed_n,
+    (xfail_inherit(property, true) ? todo_is : is)(
+       inherit_initial_computed_n, initial_computed_n,
        "inherit should cause inheritance of initial value for '" +
        property + "'");
-    is(inherit_initial_computed_f, initial_computed_f,
+    (xfail_inherit(property, true) ? todo_is : is)(
+       inherit_initial_computed_f, initial_computed_f,
        "inherit should cause inheritance of initial value for '" +
        property + "'");
     gParentRuleTop.style.removeProperty(property);

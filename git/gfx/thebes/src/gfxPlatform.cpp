@@ -60,7 +60,6 @@
 
 #include "nsIPref.h"
 #include "nsServiceManagerUtils.h"
-#include "nsTArray.h"
 
 #include "nsWeakReference.h"
 
@@ -224,16 +223,6 @@ gfxPlatform::Init()
     if (prefs)
         prefs->AddObserver(CMForceSRGBPrefName, gPlatform->overrideObserver, PR_TRUE);
 
-    /* By default, LCMS calls exit() on error, which isn't what we want. If
-       cms is enabled, change the error functionality. */
-    if (GetCMSMode() != eCMSMode_Off) {
-#ifdef DEBUG
-        cmsErrorAction(LCMS_ERROR_SHOW);
-#else
-        cmsErrorAction(LCMS_ERROR_IGNORE);
-#endif
-    }
-
     return NS_OK;
 }
 
@@ -305,7 +294,7 @@ gfxPlatform::OptimizeImage(gfxImageSurface *aSurface,
 nsresult
 gfxPlatform::GetFontList(const nsACString& aLangGroup,
                          const nsACString& aGenericFamily,
-                         nsTArray<nsString>& aListOfFonts)
+                         nsStringArray& aListOfFonts)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -580,6 +569,12 @@ cmsHPROFILE
 gfxPlatform::GetCMSOutputProfile()
 {
     if (!gCMSOutputProfile) {
+        /* Default lcms error action is to abort on error - change */
+#ifdef DEBUG_tor
+        cmsErrorAction(LCMS_ERROR_SHOW);
+#else
+        cmsErrorAction(LCMS_ERROR_IGNORE);
+#endif
 
         nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
         if (prefs) {
@@ -603,6 +598,10 @@ gfxPlatform::GetCMSOutputProfile()
                                         getter_Copies(fname));
                 if (NS_SUCCEEDED(rv) && !fname.IsEmpty()) {
                     gCMSOutputProfile = cmsOpenProfileFromFile(fname, "r");
+                    if (gCMSOutputProfile)
+                        fprintf(stderr,
+                                "ICM profile read from %s successfully\n",
+                                fname.get());
                 }
             }
         }
@@ -610,15 +609,6 @@ gfxPlatform::GetCMSOutputProfile()
         if (!gCMSOutputProfile) {
             gCMSOutputProfile =
                 gfxPlatform::GetPlatform()->GetPlatformCMSOutputProfile();
-        }
-
-        /* Determine if the profile looks bogus. If so, close the profile
-         * and use sRGB instead. See bug 460629, */
-        if (gCMSOutputProfile && cmsProfileIsBogus(gCMSOutputProfile)) {
-            NS_ASSERTION(gCMSOutputProfile != GetCMSsRGBProfile(),
-                         "Builtin sRGB profile tagged as bogus!!!");
-            cmsCloseProfile(gCMSOutputProfile);
-            gCMSOutputProfile = nsnull;
         }
 
         if (!gCMSOutputProfile) {
@@ -643,7 +633,7 @@ gfxPlatform::GetCMSsRGBProfile()
 
         /* Precache the Fixed-point Interpolations for sRGB as an input
            profile. See bug 444661 for details. */
-        cmsPrecacheProfile(gCMSsRGBProfile, CMS_PRECACHE_LI8F_FORWARD);
+        cmsPrecacheProfile(gCMSsRGBProfile, CMS_PRECACHE_LI16F_FORWARD);
     }
     return gCMSsRGBProfile;
 }

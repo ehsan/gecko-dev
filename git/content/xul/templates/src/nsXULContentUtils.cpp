@@ -94,6 +94,7 @@ static NS_DEFINE_CID(kRDFServiceCID,        NS_RDFSERVICE_CID);
 
 //------------------------------------------------------------------------
 
+nsrefcnt nsXULContentUtils::gRefCnt;
 nsIRDFService* nsXULContentUtils::gRDF;
 nsIDateTimeFormat* nsXULContentUtils::gFormat;
 nsICollation *nsXULContentUtils::gCollation;
@@ -111,10 +112,11 @@ nsICollation *nsXULContentUtils::gCollation;
 nsresult
 nsXULContentUtils::Init()
 {
-    nsresult rv = CallGetService(kRDFServiceCID, &gRDF);
-    if (NS_FAILED(rv)) {
-        return rv;
-    }
+    if (gRefCnt++ == 0) {
+        nsresult rv = CallGetService(kRDFServiceCID, &gRDF);
+        if (NS_FAILED(rv)) {
+            return rv;
+        }
 
 #define XUL_RESOURCE(ident, uri)                              \
   PR_BEGIN_MACRO                                              \
@@ -132,9 +134,10 @@ nsXULContentUtils::Init()
 #undef XUL_RESOURCE
 #undef XUL_LITERAL
 
-    rv = CallCreateInstance(NS_DATETIMEFORMAT_CONTRACTID, &gFormat);
-    if (NS_FAILED(rv)) {
-        return rv;
+        rv = CallCreateInstance(NS_DATETIMEFORMAT_CONTRACTID, &gFormat);
+        if (NS_FAILED(rv)) {
+            return rv;
+        }
     }
 
     return NS_OK;
@@ -144,7 +147,8 @@ nsXULContentUtils::Init()
 nsresult
 nsXULContentUtils::Finish()
 {
-    NS_IF_RELEASE(gRDF);
+    if (--gRefCnt == 0) {
+        NS_IF_RELEASE(gRDF);
 
 #define XUL_RESOURCE(ident, uri) NS_IF_RELEASE(ident)
 #define XUL_LITERAL(ident, val) NS_IF_RELEASE(ident)
@@ -152,8 +156,9 @@ nsXULContentUtils::Finish()
 #undef XUL_RESOURCE
 #undef XUL_LITERAL
 
-    NS_IF_RELEASE(gFormat);
-    NS_IF_RELEASE(gCollation);
+        NS_IF_RELEASE(gFormat);
+        NS_IF_RELEASE(gCollation);
+    }
 
     return NS_OK;
 }

@@ -296,8 +296,6 @@ parse_product (IfParser *g, const char *cp, long *valp)
 
       case '/':
 	DO (cp = parse_product (g, cp + 1, &rightval));
-	if (rightval == 0)
-	  return CALLFUNC(g, handle_error) (g, cp, "0");
 	*valp = (*valp / rightval);
 	break;
 

@@ -176,6 +176,8 @@ public:
   NS_IMETHOD ForceUpdate();
  
   NS_IMETHOD IsPainting(PRBool& aIsPainting);
+  NS_IMETHOD SetDefaultBackgroundColor(nscolor aColor);
+  NS_IMETHOD GetDefaultBackgroundColor(nscolor* aColor);
   NS_IMETHOD GetLastUserEventTime(PRUint32& aTime);
   void ProcessInvalidateEvent();
   static PRUint32 gLastUserEventTime;
@@ -191,7 +193,7 @@ public:
    *                        otherwise it returns an enum indicating why not
    */
   NS_IMETHOD GetRectVisibility(nsIView *aView, const nsRect &aRect, 
-                               nscoord aMinTwips,
+                               PRUint16 aMinTwips, 
                                nsRectVisibility *aRectVisibility);
 
   NS_IMETHOD SynthesizeMouseMove(PRBool aFromScroll);
@@ -260,6 +262,10 @@ private:
 
   void Refresh(nsView *aView, nsIRenderingContext *aContext,
                nsIRegion *region, PRUint32 aUpdateFlags);
+  /**
+   * Refresh aView (which must be non-null) with our default background color
+   */
+  void DefaultRefresh(nsView* aView, nsIRenderingContext *aContext, const nsRect* aRect);
   void RenderViews(nsView *aRootView, nsIRenderingContext& aRC,
                    const nsRegion& aRegion);
 
@@ -285,7 +291,7 @@ private:
    * system of the widget attached to aWidgetView, which should be an ancestor
    * of aView.
    */
-  nsIntRect ViewToWidget(nsView *aView, nsView* aWidgetView, const nsRect &aRect) const;
+  void ViewToWidget(nsView *aView, nsView* aWidgetView, nsRect &aRect) const;
 
   /**
    * Transforms a rectangle from specified view's coordinate system to
@@ -410,6 +416,11 @@ public: // NOT in nsIViewManager, so private to the view module
 
   nsresult CreateRegion(nsIRegion* *result);
 
+  // return the sum of all view offsets from aView right up to the
+  // root of this view hierarchy (the view with no parent, which might
+  // not be in this view manager).
+  static nsPoint ComputeViewOffset(const nsView *aView);
+
   PRBool IsRefreshEnabled() { return RootViewManager()->mRefreshEnabled; }
 
   nsIViewObserver* GetViewObserver() { return mObserver; }
@@ -421,7 +432,8 @@ private:
   nsIDeviceContext  *mContext;
   nsIViewObserver   *mObserver;
   nsIScrollableView *mRootScrollable;
-  nsIntPoint        mMouseLocation; // device units, relative to mRootView
+  nscolor           mDefaultBackgroundColor;
+  nsPoint           mMouseLocation; // device units, relative to mRootView
 
   // The size for a resize that we delayed until the root view becomes
   // visible again.

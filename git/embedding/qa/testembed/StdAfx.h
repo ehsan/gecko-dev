@@ -61,6 +61,7 @@
 #include "nsCOMPtr.h"
 #include "nsNetUtil.h"
 #include "nsString.h"
+#include "nsVoidArray.h"
 #include "nsCWebBrowser.h"
 #include "nsXPIDLString.h"
 #include "nsWidgetsCID.h"

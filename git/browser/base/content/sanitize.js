@@ -23,7 +23,6 @@
 #   Ben Goodger <ben@mozilla.org>
 #   Giorgio Maone <g.maone@informaction.com>
 #   Johnathan Nightingale <johnath@mozilla.com>
-#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -223,8 +222,10 @@ Sanitizer.prototype = {
         var windows = windowManager.getEnumerator("navigator:browser");
         while (windows.hasMoreElements()) {
           var searchBar = windows.getNext().document.getElementById("searchbar");
-          if (searchBar)
-            searchBar.textbox.reset();
+          if (searchBar) {
+            searchBar.value = "";
+            searchBar.textbox.editor.transactionManager.clear();
+          }
         }
 
         var formHistory = Components.classes["@mozilla.org/satchel/form-history;1"]
@@ -327,39 +328,10 @@ Sanitizer.prototype = {
                             .getService(Components.interfaces.nsISecretDecoderRing);
         sdr.logoutAndTeardown();
 
-        // clear FTP and plain HTTP auth sessions
-        var os = Components.classes["@mozilla.org/observer-service;1"]
-                           .getService(Components.interfaces.nsIObserverService);
-        os.notifyObservers(null, "net:clear-active-logins", null);
-      },
-      
-      get canClear()
-      {
-        return true;
-      }
-    },
-    
-    siteSettings: {
-      clear: function ()
-      {
-        // Clear site-specific permissions like "Allow this site to open popups"
-        var pm = Components.classes["@mozilla.org/permissionmanager;1"]
-                          .getService(Components.interfaces.nsIPermissionManager);
-        pm.removeAll();
-        
-        // Clear site-specific settings like page-zoom level
-        var cps = Components.classes["@mozilla.org/content-pref/service;1"]
-                           .getService(Components.interfaces.nsIContentPrefService);
-        cps.removeGroupedPrefs();
-        
-        // Clear "Never remember passwords for this site", which is not handled by
-        // the permission manager
-        var pwmgr = Components.classes["@mozilla.org/login-manager;1"]
-                   .getService(Components.interfaces.nsILoginManager);
-        var hosts = pwmgr.getAllDisabledHosts({})
-        for each (var host in hosts) {
-          pwmgr.setLoginSavingEnabled(host, true);
-        }
+        // clear plain HTTP auth sessions
+        var authMgr = Components.classes['@mozilla.org/network/http-auth-manager;1']
+                                .getService(Components.interfaces.nsIHttpAuthManager);
+        authMgr.clearAll();
       },
       
       get canClear()
@@ -374,6 +346,7 @@ Sanitizer.prototype = {
 
 // "Static" members
 Sanitizer.prefDomain          = "privacy.sanitize.";
+Sanitizer.prefPrompt          = "promptOnSanitize";
 Sanitizer.prefShutdown        = "sanitizeOnShutdown";
 Sanitizer.prefDidShutdown     = "didShutdownSanitize";
 
@@ -439,7 +412,7 @@ Sanitizer.showUI = function(aParentWindow)
 #endif
                 "chrome://browser/content/sanitize.xul",
                 "Sanitize",
-                "chrome,titlebar,dialog,centerscreen,modal",
+                "chrome,titlebar,centerscreen,modal",
                 null);
 };
 
@@ -447,12 +420,17 @@ Sanitizer.showUI = function(aParentWindow)
  * Deletes privacy sensitive data in a batch, optionally showing the 
  * sanitize UI, according to user preferences
  *
- * @returns  null (displayed UI, which should handle errors)
+ * @returns  null if everything's fine (no error or displayed UI,  which
+ *           should handle errors);  
+ *           an object in the form { itemName: error, ... } on (partial) failure
  */
 Sanitizer.sanitize = function(aParentWindow) 
 {
-  Sanitizer.showUI(aParentWindow);
-  return null;
+  if (Sanitizer.prefs.getBoolPref(Sanitizer.prefPrompt)) {
+    Sanitizer.showUI(aParentWindow);
+    return null;
+  }
+  return new Sanitizer().sanitize();
 };
 
 Sanitizer.onStartup = function() 
@@ -474,7 +452,7 @@ Sanitizer._checkAndSanitize = function()
   if (prefs.getBoolPref(Sanitizer.prefShutdown) && 
       !prefs.prefHasUserValue(Sanitizer.prefDidShutdown)) {
     // this is a shutdown or a startup after an unclean exit
-    new Sanitizer().sanitize() || // sanitize() returns null on full success
+    Sanitizer.sanitize(null) || // sanitize() returns null on full success
       prefs.setBoolPref(Sanitizer.prefDidShutdown, true);
   }
 };

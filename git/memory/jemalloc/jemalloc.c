@@ -174,7 +174,7 @@
     * XXX OS X over-commits, so we should probably use mmap() instead of
     * vm_allocate(), so that MALLOC_PAGEFILE works.
     */
-#define MALLOC_PAGEFILE
+//#  define MALLOC_PAGEFILE
 #endif
 
 #ifdef MALLOC_PAGEFILE
@@ -342,10 +342,6 @@ __FBSDID("$FreeBSD: head/lib/libc/stdlib/malloc.c 180599 2008-07-18 19:35:44Z ja
 
 #ifdef MOZ_MEMORY_DARWIN
 static const bool __isthreaded = true;
-#endif
-
-#if defined(MOZ_MEMORY_SOLARIS) && defined(MAP_ALIGN) && !defined(JEMALLOC_NEVER_USES_MAP_ALIGN)
-#define JEMALLOC_USES_MAP_ALIGN	 /* Required on Solaris 10. Might improve performance elsewhere. */
 #endif
 
 #define __DECONST(type, var) ((type)(uintptr_t)(const void *)(var))
@@ -1166,7 +1162,7 @@ static size_t	opt_chunk_2pow = CHUNK_2POW_DEFAULT;
 static int	opt_reserve_min_lshift = 0;
 static int	opt_reserve_range_lshift = 0;
 #ifdef MALLOC_PAGEFILE
-static bool	opt_pagefile = false;
+static bool	opt_pagefile = true;
 #endif
 #ifdef MALLOC_UTRACE
 static bool	opt_utrace = false;
@@ -2164,34 +2160,6 @@ pages_copy(void *dest, const void *src, size_t n)
 	    (vm_address_t)dest);
 }
 #else /* MOZ_MEMORY_DARWIN */
-#ifdef JEMALLOC_USES_MAP_ALIGN
-static void *
-pages_map_align(size_t size, int pfd)
-{
-	void *ret;
-
-	/*
-	 * We don't use MAP_FIXED here, because it can cause the *replacement*
-	 * of existing mappings, and we only want to create new mappings.
-	 */
-#ifdef MALLOC_PAGEFILE
-	if (pfd != -1) {
-		ret = mmap((void *)chunksize, size, PROT_READ | PROT_WRITE, MAP_PRIVATE |
-		    MAP_NOSYNC | MAP_ALIGN, pfd, 0);
-	} else
-#endif
-	       {
-		ret = mmap((void *)chunksize, size, PROT_READ | PROT_WRITE, MAP_PRIVATE |
-		    MAP_NOSYNC | MAP_ALIGN | MAP_ANON, -1, 0);
-	}
-	assert(ret != NULL);
-
-	if (ret == MAP_FAILED)
-		ret = NULL;
-	return (ret);
-}
-#endif
-
 static void *
 pages_map(void *addr, size_t size, int pfd)
 {
@@ -2362,9 +2330,7 @@ static void *
 chunk_alloc_mmap(size_t size, bool pagefile)
 {
 	void *ret;
-#ifndef JEMALLOC_USES_MAP_ALIGN
 	size_t offset;
-#endif
 	int pfd;
 
 #ifdef MALLOC_PAGEFILE
@@ -2386,9 +2352,6 @@ chunk_alloc_mmap(size_t size, bool pagefile)
 	 * since it reduces the number of page files.
 	 */
 
-#ifdef JEMALLOC_USES_MAP_ALIGN
-	ret = pages_map_align(size, pfd);
-#else
 	ret = pages_map(NULL, size, pfd);
 	if (ret == NULL)
 		goto RETURN;
@@ -2427,7 +2390,6 @@ chunk_alloc_mmap(size_t size, bool pagefile)
 	}
 
 RETURN:
-#endif
 #ifdef MALLOC_PAGEFILE
 	if (pfd != -1)
 		pagefile_close(pfd);
@@ -2570,9 +2532,7 @@ chunk_recycle_reserve(size_t size, bool zero)
 				do {
 					seq = reserve_notify(RESERVE_CND_LOW,
 					    size, seq);
-					if (seq == 0)
-						goto MALLOC_OUT;
-				} while (reserve_cur < reserve_min);
+				} while (reserve_cur < reserve_min && seq != 0);
 			} else {
 				extent_node_t *node;
 
@@ -2584,13 +2544,11 @@ chunk_recycle_reserve(size_t size, bool zero)
 					do {
 						seq = reserve_notify(
 						    RESERVE_CND_LOW, size, seq);
-						if (seq == 0)
-							goto MALLOC_OUT;
-					} while (reserve_cur < reserve_min);
+					} while (reserve_cur < reserve_min &&
+					    seq != 0);
 				}
 			}
 		}
-MALLOC_OUT:
 		malloc_mutex_unlock(&reserve_mtx);
 
 #ifdef MALLOC_DECOMMIT
@@ -5788,15 +5746,6 @@ MALLOC_OUT:
 	}
 	arena_maxclass = chunksize - (arena_chunk_header_npages <<
 	    pagesize_2pow);
-
-#ifdef JEMALLOC_USES_MAP_ALIGN
-	/*
-	 * When using MAP_ALIGN, the alignment parameter must be a power of two
-	 * multiple of the system pagesize, or mmap will fail.
-	 */
-	assert((chunksize % pagesize) == 0);
-	assert((1 << (ffs(chunksize / pagesize) - 1)) == (chunksize/pagesize));
-#endif
 
 	UTRACE(0, 0, 0);
 

@@ -108,7 +108,7 @@ function saveURL(aURL, aFileName, aFilePickerTitleKey, aShouldBypassCache,
                  aSkipPrompt, aReferrer)
 {
   internalSave(aURL, null, aFileName, null, null, aShouldBypassCache,
-               aFilePickerTitleKey, null, aReferrer, aSkipPrompt, null);
+               aFilePickerTitleKey, null, aReferrer, aSkipPrompt);
 }
 
 // Just like saveURL, but will get some info off the image before
@@ -139,8 +139,7 @@ function saveImageURL(aURL, aFileName, aFilePickerTitleKey, aShouldBypassCache,
     }
   }
   internalSave(aURL, null, aFileName, contentDisposition, contentType,
-               aShouldBypassCache, aFilePickerTitleKey, null, aReferrer,
-               aSkipPrompt, null);
+               aShouldBypassCache, aFilePickerTitleKey, null, aReferrer, aSkipPrompt);
 }
 
 function saveFrameDocument()
@@ -156,32 +155,20 @@ function saveDocument(aDocument, aSkipPrompt)
     throw "Must have a document when calling saveDocument";
 
   // We want to use cached data because the document is currently visible.
-  var ifreq =
-    aDocument.defaultView
-             .QueryInterface(Components.interfaces.nsIInterfaceRequestor);
-
   var contentDisposition = null;
   try {
     contentDisposition =
-      ifreq.getInterface(Components.interfaces.nsIDOMWindowUtils)
-           .getDocumentMetadata("content-disposition");
+      aDocument.defaultView
+               .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+               .getInterface(Components.interfaces.nsIDOMWindowUtils)
+               .getDocumentMetadata("content-disposition");
   } catch (ex) {
     // Failure to get a content-disposition is ok
   }
-
-  var cacheKey = null;
-  try {
-    cacheKey =
-      ifreq.getInterface(Components.interfaces.nsIWebNavigation)
-           .QueryInterface(Components.interfaces.nsIWebPageDescriptor);
-  } catch (ex) {
-    // We might not find it in the cache.  Oh, well.
-  }
-
   internalSave(aDocument.location.href, aDocument, null, contentDisposition,
                aDocument.contentType, false, null, null,
                aDocument.referrer ? makeURI(aDocument.referrer) : null,
-               aSkipPrompt, cacheKey);
+               aSkipPrompt);
 }
 
 function DownloadListener(win, transfer) {
@@ -265,19 +252,13 @@ const kSaveAsType_Text     = 2; // Save document, converting to plain text.
  * @param aSkipPrompt [optional]
  *        If set to true, we will attempt to save the file to the
  *        default downloads folder without prompting.
- * @param aCacheKey [optional]
- *        If set will be passed to saveURI.  See nsIWebBrowserPersist for
- *        allowed values.
  */
 function internalSave(aURL, aDocument, aDefaultFileName, aContentDisposition,
                       aContentType, aShouldBypassCache, aFilePickerTitleKey,
-                      aChosenData, aReferrer, aSkipPrompt, aCacheKey)
+                      aChosenData, aReferrer, aSkipPrompt)
 {
   if (aSkipPrompt == undefined)
     aSkipPrompt = false;
-
-  if (aCacheKey == undefined)
-    aCacheKey = null;
 
   // Note: aDocument == null when this code is used by save-link-as...
   var saveMode = GetSaveModeForContentType(aContentType);
@@ -395,7 +376,7 @@ function internalSave(aURL, aDocument, aDefaultFileName, aContentDisposition,
             persistArgs.target, "", null, null, null, persist);
     persist.progressListener = new DownloadListener(window, tr);
     persist.saveURI((aChosenData ? aChosenData.uri : source),
-                    aCacheKey, aReferrer, persistArgs.postData, null,
+                    null, aReferrer, persistArgs.postData, null,
                     persistArgs.target);
   }
 }
@@ -476,8 +457,6 @@ function initFileInfo(aFI, aURL, aURLCharset, aDocument,
   }
 }
 
-Components.utils.import("resource://gre/modules/DownloadLastDir.jsm");
-
 function getTargetFile(aFpP, /* optional */ aSkipPrompt)
 {
   const prefSvcContractID = "@mozilla.org/preferences-service;1";
@@ -486,15 +465,6 @@ function getTargetFile(aFpP, /* optional */ aSkipPrompt)
                         .getService(prefSvcIID).getBranch("browser.download.");
 
   const nsILocalFile = Components.interfaces.nsILocalFile;
-
-  var inPrivateBrowsing = false;
-  try {
-    var pbs = Components.classes["@mozilla.org/privatebrowsing;1"]
-                        .getService(Components.interfaces.nsIPrivateBrowsingService);
-    inPrivateBrowsing = pbs.privateBrowsingEnabled;
-  }
-  catch (e) {
-  }
 
   // For information on download folder preferences, see
   // mozilla/browser/components/preferences/main.js
@@ -509,8 +479,6 @@ function getTargetFile(aFpP, /* optional */ aSkipPrompt)
                           .getService(Components.interfaces.nsIDownloadManager);
   try {                          
     var lastDir = prefs.getComplexValue("lastDir", nsILocalFile);
-    if (inPrivateBrowsing && gDownloadLastDir.path)
-      lastDir = gDownloadLastDir.path;
     if ((!aSkipPrompt || !useDownloadDir) && lastDir.exists())
       dir = lastDir;
     else
@@ -553,12 +521,20 @@ function getTargetFile(aFpP, /* optional */ aSkipPrompt)
     if (fp.show() == Components.interfaces.nsIFilePicker.returnCancel || !fp.file)
       return false;
 
-    // Do not store the last save directory as a pref inside the private browsing mode
-    var directory = fp.file.parent.QueryInterface(nsILocalFile);
-    if (inPrivateBrowsing)
-      gDownloadLastDir.path = directory;
-    else
+    // Do not remember the last save directory inside the private browsing mode
+    var persistLastDir = true;
+    try {
+      var pbs = Components.classes["@mozilla.org/privatebrowsing;1"]
+                          .getService(Components.interfaces.nsIPrivateBrowsingService);
+      if (pbs.privateBrowsingEnabled)
+        persistLastDir = false;
+    }
+    catch (e) {
+    }
+    if (persistLastDir) {
+      var directory = fp.file.parent.QueryInterface(nsILocalFile);
       prefs.setComplexValue("lastDir", nsILocalFile, directory);
+    }
 
     fp.file.leafName = validateFileName(fp.file.leafName);
     aFpP.saveAsType = fp.filterIndex;

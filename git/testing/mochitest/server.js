@@ -41,14 +41,6 @@
 // and because they're constants it's not safe to redefine them.  Scope leakage
 // sucks.
 
-// Disable automatic network detection, so tests work correctly when
-// not connected to a network.
-let (ios = Cc["@mozilla.org/network/io-service;1"]
-           .getService(Ci.nsIIOService2)) {
-  ios.manageOfflineStatus = false;
-  ios.offline = false;
-}
-
 const SERVER_PORT = 8888;
 var server; // for use in the shutdown handler, if necessary
 
@@ -134,7 +126,15 @@ var serverBasePath;
 //
 function runServer()
 {
-  serverBasePath = __LOCATION__.parent;
+  serverBasePath = Cc["@mozilla.org/file/local;1"]
+                     .createInstance(Ci.nsILocalFile);
+  var procDir = Cc["@mozilla.org/file/directory_service;1"]
+                  .getService(Ci.nsIProperties).get("CurProcD", Ci.nsIFile);
+  serverBasePath.initWithPath(procDir.parent.parent.path);
+  serverBasePath.append("_tests");
+  serverBasePath.append("testing");
+  serverBasePath.append("mochitest");
+
   server = createMochitestServer(serverBasePath);
   server.start(SERVER_PORT);
 
@@ -185,7 +185,6 @@ function createMochitestServer(serverBasePath)
   server.registerDirectory("/", serverBasePath);
   server.registerPathHandler("/server/shutdown", serverShutdown);
   server.registerContentType("sjs", "sjs"); // .sjs == CGI-like functionality
-  server.registerContentType("jar", "application/x-jar");
   server.setIndexHandler(defaultDirHandler);
 
   processLocations(server);

@@ -117,11 +117,6 @@ public:
   nsresult CloseDatabase();
   nsresult GetDatabaseFile(nsIFile** aFile);
 
-  nsresult dbMigrate();
-  nsresult dbCleanup();
-  nsresult MigrateToVersion1();
-  PRBool   dbAreExpectedColumnsPresent();
-
   nsresult CreateTable();
   nsresult CreateStatements();
 

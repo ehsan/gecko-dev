@@ -88,9 +88,8 @@ const NC_TITLE = RDF.GetResource(NC + "title");
 const NC_BASE = RDF.GetResource(NC + "base");
 const NC_DEFAULTTOPIC = RDF.GetResource(NC + "defaulttopic");
 
-var RDFContainer =
-   Components.classes["@mozilla.org/rdf/container;1"]
-             .createInstance(Components.interfaces.nsIRDFContainer);
+const RDFContainer = Components.classes["@mozilla.org/rdf/container;1"]
+    .getService(Components.interfaces.nsIRDFContainer);
 const CONSOLE_SERVICE = Components.classes['@mozilla.org/consoleservice;1']
     .getService(Components.interfaces.nsIConsoleService);
 

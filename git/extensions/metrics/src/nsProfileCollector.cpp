@@ -59,7 +59,6 @@
 #include "nsILivemarkService.h"
 #include "nsILocaleService.h"
 #include "nsToolkitCompsCID.h"
-#include "nsXPCOMCIDInternal.h"
 
 // We need to suppress inclusion of nsString.h
 #define nsString_h___

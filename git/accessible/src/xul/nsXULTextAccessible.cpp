@@ -72,7 +72,7 @@ nsXULTextAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
   nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
                                                             aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Labels and description have read only state
   // They are not focusable or selectable
@@ -81,16 +81,19 @@ nsXULTextAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 }
 
 NS_IMETHODIMP
-nsXULTextAccessible::GetRelationByType(PRUint32 aRelationType,
-                                       nsIAccessibleRelation **aRelation)
+nsXULTextAccessible::GetAccessibleRelated(PRUint32 aRelationType,
+                                          nsIAccessible **aRelated)
 {
   nsresult rv =
-    nsHyperTextAccessibleWrap::GetRelationByType(aRelationType, aRelation);
+    nsHyperTextAccessibleWrap::GetAccessibleRelated(aRelationType, aRelated);
   NS_ENSURE_SUCCESS(rv, rv);
+  if (*aRelated) {
+    return NS_OK;
+  }
 
   nsIContent *content = nsCoreUtils::GetRoleContent(mDOMNode);
   if (!content)
-    return NS_OK;
+    return NS_ERROR_FAILURE;
 
   if (aRelationType == nsIAccessibleRelation::RELATION_LABEL_FOR) {
     // Caption is the label for groupbox
@@ -99,8 +102,7 @@ nsXULTextAccessible::GetRelationByType(PRUint32 aRelationType,
       nsCOMPtr<nsIAccessible> parentAccessible;
       GetParent(getter_AddRefs(parentAccessible));
       if (nsAccUtils::Role(parentAccessible) == nsIAccessibleRole::ROLE_GROUPING)
-        return nsRelUtils::
-          AddTarget(aRelationType, aRelation, parentAccessible);
+        parentAccessible.swap(*aRelated);
     }
   }
 
@@ -116,11 +118,17 @@ nsLeafAccessible(aDomNode, aShell)
 }
 
 nsresult
+nsXULTooltipAccessible::GetNameInternal(nsAString& aName)
+{
+  return GetXULName(aName, PR_TRUE);
+}
+
+nsresult
 nsXULTooltipAccessible::GetStateInternal(PRUint32 *aState,
                                          PRUint32 *aExtraState)
 {
   nsresult rv = nsLeafAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   *aState &= ~nsIAccessibleStates::STATE_FOCUSABLE;
   *aState |= nsIAccessibleStates::STATE_READONLY;
@@ -165,15 +173,12 @@ nsXULLinkAccessible::GetValue(nsAString& aValue)
 nsresult
 nsXULLinkAccessible::GetNameInternal(nsAString& aName)
 {
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
-
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
   content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::value, aName);
   if (!aName.IsEmpty())
     return NS_OK;
 
-  return nsTextEquivUtils::GetNameFromSubtree(this, aName);
+  return AppendFlatStringFromSubtree(content, &aName);
 }
 
 NS_IMETHODIMP
@@ -191,7 +196,7 @@ nsXULLinkAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
   nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
                                                             aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   *aState |= nsIAccessibleStates::STATE_LINKED;
   return NS_OK;

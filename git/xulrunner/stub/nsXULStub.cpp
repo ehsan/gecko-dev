@@ -260,14 +260,8 @@ main(int argc, char **argv)
            "%sxulrunner" XPCOM_FILE_PATH_SEPARATOR XPCOM_DLL,
            iniPath);
 
-#ifdef WINCE
-  wchar_t wideGreDir[MAX_PATH];
-  MultiByteToWideChar(CP_ACP, 0, greDir, -1, wideGreDir, MAX_PATH);
-  DWORD fileAttrs = GetFileAttributesW(wideGreDir);
-  greFound = fileAttrs != INVALID_FILE_ATTRIBUTES;
-#else
   greFound = (access(greDir, R_OK) == 0);
-#endif
+
   strncpy(lastSlash, "application.ini", sizeof(iniPath) - (lastSlash - iniPath));
 
 #endif
@@ -331,7 +325,6 @@ main(int argc, char **argv)
   DosSetExtLIBPATH(tmpPath, BEGIN_LIBPATH);
 #endif
 
-#ifndef WINCE
   rv = XPCOMGlueStartup(greDir);
   if (NS_FAILED(rv)) {
     Output(PR_TRUE, "Couldn't load XPCOM.\n");
@@ -388,35 +381,6 @@ main(int argc, char **argv)
   NS_LogTerm();
 
   XPCOMGlueShutdown();
-#else
-  // LoadLibraryExW doesn't take the LOAD_WITH_ALTERED_SEARCH_PATH flag, caling
-  // xulrunner.exe from the gre dir sets the library search path correctly.
-  STARTUPINFO si;
-  PROCESS_INFORMATION pi;
-  ZeroMemory(&si, sizeof(si));
-  ZeroMemory(&pi, sizeof(si));
-  si.cb = sizeof(si);
-  wchar_t xrPath[MAX_PATH];
-  MultiByteToWideChar(CP_ACP, 0, greDir, -1, xrPath, MAX_PATH);
-  wchar_t* wLastSlash = wcsrchr(xrPath, PATH_SEPARATOR_CHAR);
-  if (wLastSlash) {
-    *wLastSlash = L'\0';
-  }
-  wcscat(xrPath, L"\\xulrunner.exe");
-  
-  wchar_t wideIniPath[MAX_PATH+2];
-  swprintf(wideIniPath, L"\"%S\"", iniPath);
-  
-  CreateProcessW(xrPath, wideIniPath, NULL, NULL, FALSE, 0, NULL, NULL, 
-                 &si, &pi); 
-  WaitForSingleObject(pi.hProcess, INFINITE);
-  DWORD retval = 0;
-  if (!GetExitCodeProcess(pi.hProcess, &retval))
-    printf("failed to get exit code, error = %d\n", retval = GetLastError());
-  
-  // Close process and thread handles.
-  CloseHandle(pi.hProcess);
-  CloseHandle(pi.hThread);
-#endif
+
   return retval;
 }

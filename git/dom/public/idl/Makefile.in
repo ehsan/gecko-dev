@@ -67,9 +67,5 @@ ifdef MOZ_SVG
 DIRS += svg
 endif
 
-ifdef MOZ_SMIL
-DIRS += smil
-endif
-
 include $(topsrcdir)/config/rules.mk
 

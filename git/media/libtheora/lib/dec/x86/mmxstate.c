@@ -6,12 +6,12 @@
  * IN 'COPYING'. PLEASE READ THESE TERMS BEFORE DISTRIBUTING.       *
  *                                                                  *
  * THE Theora SOURCE CODE IS COPYRIGHT (C) 2002-2007                *
- * by the Xiph.Org Foundation and contributors http://www.xiph.org/ *
+ * by the Xiph.Org Foundation http://www.xiph.org/                  *
  *                                                                  *
  ********************************************************************
 
   function:
-    last mod: $Id: mmxstate.c 15400 2008-10-15 12:10:58Z tterribe $
+    last mod: $Id: mmxstate.c 14385 2008-01-09 19:53:18Z giles $
 
  ********************************************************************/
 
@@ -19,7 +19,6 @@
   Originally written by Rudolf Marek.*/
 #include "x86int.h"
 #include "../../internal.h"
-#include <stddef.h>
 
 #if defined(USE_ASM)
 
@@ -183,9 +182,9 @@ void oc_state_frag_copy_mmx(const oc_theora_state *_state,const int *_fragis,
   const int *fragi;
   const int *fragi_end;
   int        dst_framei;
-  ptrdiff_t  dst_ystride;
+  long       dst_ystride;
   int        src_framei;
-  ptrdiff_t  src_ystride;
+  long       src_ystride;
   dst_framei=_state->ref_frame_idx[_dst_frame];
   src_framei=_state->ref_frame_idx[_src_frame];
   dst_ystride=_state->ref_frame_bufs[dst_framei][_pli].stride;
@@ -195,14 +194,14 @@ void oc_state_frag_copy_mmx(const oc_theora_state *_state,const int *_fragis,
     oc_fragment   *frag;
     unsigned char *dst;
     unsigned char *src;
-    ptrdiff_t      s;
+    long           esi;
     frag=_state->frags+*fragi;
     dst=frag->buffer[dst_framei];
     src=frag->buffer[src_framei];
     __asm__ __volatile__(
       /*src+0*src_ystride*/
       "movq (%[src]),%%mm0\n\t"
-      /*s=src_ystride*3*/
+      /*esi=src_ystride*3*/
       "lea (%[src_ystride],%[src_ystride],2),%[s]\n\t"
       /*src+1*src_ystride*/
       "movq (%[src],%[src_ystride]),%%mm1\n\t"
@@ -212,7 +211,7 @@ void oc_state_frag_copy_mmx(const oc_theora_state *_state,const int *_fragis,
       "movq (%[src],%[s]),%%mm3\n\t"
       /*dst+0*dst_ystride*/
       "movq %%mm0,(%[dst])\n\t"
-      /*s=dst_ystride*3*/
+      /*esi=dst_ystride*3*/
       "lea (%[dst_ystride],%[dst_ystride],2),%[s]\n\t"
       /*dst+1*dst_ystride*/
       "movq %%mm1,(%[dst],%[dst_ystride])\n\t"
@@ -226,7 +225,7 @@ void oc_state_frag_copy_mmx(const oc_theora_state *_state,const int *_fragis,
       "lea (%[dst],%[dst_ystride],4),%[dst]\n\t"
       /*src+0*src_ystride*/
       "movq (%[src]),%%mm0\n\t"
-      /*s=src_ystride*3*/
+      /*esi=src_ystride*3*/
       "lea (%[src_ystride],%[src_ystride],2),%[s]\n\t"
       /*src+1*src_ystride*/
       "movq (%[src],%[src_ystride]),%%mm1\n\t"
@@ -236,7 +235,7 @@ void oc_state_frag_copy_mmx(const oc_theora_state *_state,const int *_fragis,
       "movq (%[src],%[s]),%%mm3\n\t"
       /*dst+0*dst_ystride*/
       "movq %%mm0,(%[dst])\n\t"
-      /*s=dst_ystride*3*/
+      /*esi=dst_ystride*3*/
       "lea (%[dst_ystride],%[dst_ystride],2),%[s]\n\t"
       /*dst+1*dst_ystride*/
       "movq %%mm1,(%[dst],%[dst_ystride])\n\t"
@@ -244,7 +243,7 @@ void oc_state_frag_copy_mmx(const oc_theora_state *_state,const int *_fragis,
       "movq %%mm2,(%[dst],%[dst_ystride],2)\n\t"
       /*dst+3*dst_ystride*/
       "movq %%mm3,(%[dst],%[s])\n\t"
-      :[s]"=&r"(s)
+      :[s]"=&S"(esi)
       :[dst]"r"(dst),[src]"r"(src),[dst_ystride]"r"(dst_ystride),
        [src_ystride]"r"(src_ystride)
       :"memory"
@@ -256,12 +255,12 @@ void oc_state_frag_copy_mmx(const oc_theora_state *_state,const int *_fragis,
 
 static void loop_filter_v(unsigned char *_pix,int _ystride,
  const ogg_int16_t *_ll){
-  ptrdiff_t s;
+  long esi;
   _pix-=_ystride*2;
   __asm__ __volatile__(
     /*mm0=0*/
     "pxor %%mm0,%%mm0\n\t"
-    /*s=_ystride*3*/
+    /*esi=_ystride*3*/
     "lea (%[ystride],%[ystride],2),%[s]\n\t"
     /*mm7=_pix[0...8]*/
     "movq (%[pix]),%%mm7\n\t"
@@ -428,8 +427,8 @@ static void loop_filter_v(unsigned char *_pix,int _ystride,
     /*Write it back out.*/
     "movq %%mm4,(%[pix],%[ystride])\n\t"
     "movq %%mm1,(%[pix],%[ystride],2)\n\t"
-    :[s]"=&r"(s)
-    :[pix]"r"(_pix),[ystride]"r"((ptrdiff_t)_ystride),[ll]"r"(_ll)
+    :[s]"=&S"(esi)
+    :[pix]"r"(_pix),[ystride]"r"((long)_ystride),[ll]"r"(_ll)
     :"memory"
   );
 }
@@ -438,16 +437,14 @@ static void loop_filter_v(unsigned char *_pix,int _ystride,
   Data are striped p0 p1 p2 p3 ... p0 p1 p2 p3 ..., so in order to load all
    four p0's to one register we must transpose the values in four mmx regs.
   When half is done we repeat this for the rest.*/
-static void loop_filter_h4(unsigned char *_pix,ptrdiff_t _ystride,
+static void loop_filter_h4(unsigned char *_pix,long _ystride,
  const ogg_int16_t *_ll){
-  ptrdiff_t s;
-  /*d doesn't technically need to be 64-bit on x86-64, but making it so will
-     help avoid partial register stalls.*/
-  ptrdiff_t d;
+  long esi;
+  long edi;
   __asm__ __volatile__(
     /*x x x x 3 2 1 0*/
     "movd (%[pix]),%%mm0\n\t"
-    /*s=_ystride*3*/
+    /*esi=_ystride*3*/
     "lea (%[ystride],%[ystride],2),%[s]\n\t"
     /*x x x x 7 6 5 4*/
     "movd (%[pix],%[ystride]),%%mm1\n\t"
@@ -560,19 +557,19 @@ static void loop_filter_h4(unsigned char *_pix,ptrdiff_t _ystride,
     "packuswb %%mm7,%%mm4\n\t"
     /*mm5=E D A 9 6 5 2 1*/
     "punpcklbw %%mm4,%%mm5\n\t"
-    /*d=6 5 2 1*/
-    "movd %%mm5,%[d]\n\t"
-    "movw %w[d],1(%[pix])\n\t"
+    /*edi=6 5 2 1*/
+    "movd %%mm5,%%edi\n\t"
+    "movw %%di,1(%[pix])\n\t"
     /*Why is there such a big stall here?*/
     "psrlq $32,%%mm5\n\t"
-    "shr $16,%[d]\n\t"
-    "movw %w[d],1(%[pix],%[ystride])\n\t"
-    /*d=E D A 9*/
-    "movd %%mm5,%[d]\n\t"
-    "movw %w[d],1(%[pix],%[ystride],2)\n\t"
-    "shr $16,%[d]\n\t"
-    "movw %w[d],1(%[pix],%[s])\n\t"
-    :[s]"=&r"(s),[d]"=&r"(d),
+    "shrl $16,%%edi\n\t"
+    "movw %%di,1(%[pix],%[ystride])\n\t"
+    /*edi=E D A 9*/
+    "movd %%mm5,%%edi\n\t"
+    "movw %%di,1(%[pix],%[ystride],2)\n\t"
+    "shrl $16,%%edi\n\t"
+    "movw %%di,1(%[pix],%[s])\n\t"
+    :[s]"=&S"(esi),[d]"=&D"(edi),
      [pix]"+r"(_pix),[ystride]"+r"(_ystride),[ll]"+r"(_ll)
     :
     :"memory"

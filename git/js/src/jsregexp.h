@@ -131,14 +131,15 @@ extern JSBool
 js_ExecuteRegExp(JSContext *cx, JSRegExp *re, JSString *str, size_t *indexp,
                  JSBool test, jsval *rval);
 
-extern void
-js_InitRegExpStatics(JSContext *cx);
+/*
+ * These two add and remove GC roots, respectively, so their calls must be
+ * well-ordered.
+ */
+extern JSBool
+js_InitRegExpStatics(JSContext *cx, JSRegExpStatics *res);
 
 extern void
-js_TraceRegExpStatics(JSTracer *trc, JSContext *acx);
-
-extern void
-js_FreeRegExpStatics(JSContext *cx);
+js_FreeRegExpStatics(JSContext *cx, JSRegExpStatics *res);
 
 #define VALUE_IS_REGEXP(cx, v)                                                \
     (JSVAL_IS_OBJECT(v) && JSVAL_TO_OBJECT(v) &&                              \

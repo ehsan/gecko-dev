@@ -76,7 +76,7 @@ usage: bisect.sh -p product -b branch -e extra\\
     variable            description
     ===============     ============================================================
     -p bisect_product     one of js, firefox
-    -b bisect_branches    one of branches 1.8.0, 1.8.1, 1.9.0, 1.9.1, 1.9.2
+    -b bisect_branches    one of branches 1.8.0, 1.8.1, 1.9.0, 1.9.1
     -e bisect_extra       optional. extra qualifier to pick build tree and mozconfig.
     -T bisect_buildtype   one of build types opt debug
     -t bisect_test        Test to be bisected.
@@ -88,9 +88,9 @@ usage: bisect.sh -p product -b branch -e extra\\
                           bisect_string can contain any extended regular expressions 
                           supported by egrep.
     -G bisect_good        For branches 1.8.0, 1.8.1, 1.9.0, date test passed
-                          For branch 1.9.1 and later, revision test passed
+                          For branch 1.9.1, revision test passed
     -B bisect_bad         For branches, 1.8.0, 1.8.1, 1.9.0 date test failed
-                          For branch 1.9.1 and later, revision test failed. 
+                          For branch 1.9.1, revision test failed. 
 
        If the good revision (test passed) occurred  prior to the bad revision 
        (test failed), the script will search for the first bad revision which 
@@ -99,12 +99,7 @@ usage: bisect.sh -p product -b branch -e extra\\
        If the bad revision (test failed) occurred prior to the good revision 
        (test passed), the script will search for the first good revision which 
        fixed the failing test.
-
-    -D By default, clobber builds will be used. For mercurial based builds
-       on branch 1.9.1 and later, you may specify -D to use depends builds.
-       This may achieve significant speed advantages by eliminating the need
-       to perform clobber builds for each bisection.
-
+    
     -J javascriptoptions  optional. Set JavaScript options:
          -Z n Set gczeal to n. Currently, only valid for 
               debug builds of Gecko 1.8.1.15, 1.9.0 and later.
@@ -117,7 +112,7 @@ EOF
 
 verbose=0
 
-while getopts "p:b:T:e:t:S:G:B:J:D" optname;
+while getopts "p:b:T:e:t:S:G:B:J:" optname;
 do
     case $optname in
         p) bisect_product=$OPTARG;;
@@ -130,7 +125,6 @@ do
         G) bisect_good="$OPTARG";;
         B) bisect_bad="$OPTARG";;
         J) javascriptoptions=$OPTARG;;
-        D) bisect_depends=1;;
     esac
 done
 
@@ -267,7 +261,7 @@ EOF
         while true; do
 
             if (( $seconds_index_start+1 >= $seconds_index_stop )); then
-                echo "*** date `perl -e 'print scalar localtime $ARGV[0];' ${seconds_array[$seconds_index_stop]}` found ***"
+                echo "*** date `date -r ${seconds_array[$seconds_index_stop]}` found ***"
                 break;
             fi
 
@@ -279,7 +273,7 @@ EOF
             let seconds_index_middle="($seconds_index_start + $seconds_index_stop)/2"
             let seconds_middle="${seconds_array[$seconds_index_middle]}"
 
-            bisect_middle="`perl -e 'print scalar localtime $ARGV[0];' $seconds_middle`"
+            bisect_middle="`date -r $seconds_middle`"
             export MOZ_CO_DATE="$bisect_middle"
             echo "testing $MOZ_CO_DATE"
 
@@ -314,7 +308,7 @@ EOF
         done
         ;;
 
-    1.9.1|1.9.2)
+    1.9.1)
         #
         # binary search using mercurial
         #
@@ -362,9 +356,7 @@ EOF
         fi
 
         echo "checking that the test fails in the bad revision $localbad:$bisect_bad"
-        if [[ -z "$bisect_depends" ]]; then
-            eval $TEST_DIR/bin/builder.sh -p $bisect_product -b $bisect_branch $bisect_extraflag -T $bisect_buildtype -B "clobber" > /dev/null
-        fi
+        eval $TEST_DIR/bin/builder.sh -p $bisect_product -b $bisect_branch $bisect_extraflag -T $bisect_buildtype -B "clobber" > /dev/null
         hg -R $REPO update -C -r $bisect_bad
         bisect_log=`eval $TEST_JSDIR/runtests.sh -p $bisect_product -b $bisect_branch $bisect_extraflag -T $bisect_buildtype -I $bisect_test -B "build" -c -t -X /dev/null 2>&1 | grep '_js.log $' | sed 's|log: \([^ ]*\) |\1|'`
         if [[ -z "$bisect_log" ]]; then
@@ -383,9 +375,7 @@ EOF
         fi
         
         echo "checking that the test passes in the good revision $localgood:$bisect_good"
-        if [[ -z "$bisect_depends" ]]; then
-            eval $TEST_DIR/bin/builder.sh -p $bisect_product -b $bisect_branch $bisect_extraflag -T $bisect_buildtype -B "clobber" > /dev/null
-        fi
+        eval $TEST_DIR/bin/builder.sh -p $bisect_product -b $bisect_branch $bisect_extraflag -T $bisect_buildtype -B "clobber" > /dev/null
         hg -R $REPO update -C -r $bisect_good
         bisect_log=`eval $TEST_JSDIR/runtests.sh -p $bisect_product -b $bisect_branch $bisect_extraflag -T $bisect_buildtype -I $bisect_test -B "build" -c -t -X /dev/null 2>&1 | grep '_js.log $' | sed 's|log: \([^ ]*\) |\1|'`
         if [[ -z "$bisect_log" ]]; then
@@ -412,24 +402,10 @@ EOF
             unset result
 
             # clobber before setting new changeset.
-            if [[ -z "$bisect_depends" ]]; then
-                eval $TEST_DIR/bin/builder.sh -p $bisect_product -b $bisect_branch $bisect_extraflag -T $bisect_buildtype -B "clobber" > /dev/null
-            fi
-
-            # remove extraneous in-tree changes
-            # nsprpub/configure I'm looking at you!
-            hg -R $REPO update -C
+            eval $TEST_DIR/bin/builder.sh -p $bisect_product -b $bisect_branch $bisect_extraflag -T $bisect_buildtype -B "clobber" > /dev/null
 
             hg -R $REPO bisect
-            # save the revision id so we can update to it discarding local
-            # changes in the working directory.
-            rev=`hg -R $REPO id -i`
-
             bisect_log=`eval $TEST_JSDIR/runtests.sh -p $bisect_product -b $bisect_branch $bisect_extraflag -T $bisect_buildtype -I $bisect_test -B "build" -c -t -X /dev/null 2>&1 | grep '_js.log $' | sed 's|log: \([^ ]*\) |\1|'`
-            # remove extraneous in-tree changes
-            # nsprpub/configure I'm looking at you!
-            hg -R $REPO update -C -r $rev
-
             if [[ -z "$bisect_log" ]]; then
                 echo "test $bisect_test not run. Skipping changeset"
                 hg -R $REPO bisect --skip
@@ -439,32 +415,20 @@ EOF
                     # the result is considered good when the test does not appear in the failure log
                     if egrep -q "$bisect_test.*$bisect_string" ${bisect_log}-results-failures.log; then 
                         echo "test failure $bisect_test.*$bisect_string found, marking revision bad"
-                        if ! result=`hg -R $REPO bisect --bad 2>&1`; then
-                            echo "bisect bad failed"
-                            error "$result"
-                        fi
+                        result=`hg -R $REPO bisect --bad 2>&1`
                     else 
                         echo "test failure $bisect_test.*$bisect_string not found, marking revision good"
-                        if ! result=`hg -R $REPO bisect --good 2>&1`; then
-                            echo "bisect good failed"
-                            error "$result"
-                        fi
+                        result=`hg -R $REPO bisect --good 2>&1`
                     fi
                 else
                     # searching for a fix
                     # the result is considered good when the test does appear in the failure log
                     if egrep -q "$bisect_test.*$bisect_string" ${bisect_log}-results-failures.log; then 
                         echo "test failure $bisect_test.*$bisect_string found, marking revision good"
-                        if ! result=`hg -R $REPO bisect --good 2>&1`; then
-                            echo "bisect good failed"
-                            error "$result"
-                        fi
+                        result=`hg -R $REPO bisect --good 2>&1`
                     else 
                         echo "test failure $bisect_test.*$bisect_string not found, marking revision bad"
-                        if ! result=`hg -R $REPO bisect --bad 2>&1`; then
-                            echo "bisect bad failed"
-                            error "$result"
-                        fi
+                        result=`hg -R $REPO bisect --bad 2>&1`
                     fi
                 fi
             fi

@@ -43,6 +43,7 @@
  */
 #if JS_HAS_FILE_OBJECT
 
+#include "jsstddef.h"
 #include "jsfile.h"
 
 /* ----------------- Platform-specific includes and defines ----------------- */
@@ -61,7 +62,6 @@
 #   include <stdio.h>
 #   include <stdlib.h>
 #   include <unistd.h>
-#   include <limits.h>
 #   define FILESEPARATOR        '/'
 #   define FILESEPARATOR2       '\0'
 #   define CURRENT_DIR          "/"
@@ -105,11 +105,7 @@
 #define utfstring               "binary"
 #define unicodestring           "unicode"
 
-#ifdef PATH_MAX
-#define MAX_PATH_LENGTH         PATH_MAX
-#else
 #define MAX_PATH_LENGTH         1024
-#endif
 #define MODE_SIZE               256
 #define NUMBER_SIZE             32
 #define MAX_LINE_LENGTH         256
@@ -308,7 +304,7 @@ js_fileBaseName(JSContext *cx, const char *pathname)
 
     index = strlen(pathname)-1;
 
-    /* Chop off trailing separators. */
+    /* Chop off trailing seperators. */
     while (index > 0 && (pathname[index]==FILESEPARATOR ||
                          pathname[index]==FILESEPARATOR2)) {
         --index;
@@ -2185,7 +2181,7 @@ file_constructor(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     JSString *str;
     JSFile   *file;
 
-    if (!JS_IsConstructing(cx)) {
+    if (!(cx->fp->flags & JSFRAME_CONSTRUCTING)) {
         /* Replace obj with a new File object. */
         obj = JS_NewObject(cx, &js_FileClass, NULL, NULL);
         if (!obj)

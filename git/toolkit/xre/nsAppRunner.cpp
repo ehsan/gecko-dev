@@ -123,7 +123,6 @@
 #include "nsReadableUtils.h"
 #include "nsStaticComponents.h"
 #include "nsXPCOM.h"
-#include "nsXPCOMCIDInternal.h"
 #include "nsXPIDLString.h"
 #include "nsXPFEComponentsCID.h"
 #include "nsVersionComparator.h"
@@ -150,10 +149,8 @@
 #endif //XP_BEOS
 
 #ifdef XP_WIN
-#ifndef WINCE
 #include <process.h>
 #include <shlobj.h>
-#endif
 #include "nsThreadUtils.h"
 #endif
 
@@ -607,6 +604,8 @@ public:
 #endif
 #ifdef XP_WIN
   NS_DECL_NSIWINAPPHELPER
+private:
+  nsresult LaunchAppHelperWithArgs(int aArgc, char **aArgv);
 #endif
 };
 
@@ -729,14 +728,75 @@ nsXULAppInfo::GetXPCOMABI(nsACString& aResult)
 #endif
 }
 
-NS_IMETHODIMP
-nsXULAppInfo::GetWidgetToolkit(nsACString& aResult)
+#ifdef XP_WIN
+nsresult 
+nsXULAppInfo::LaunchAppHelperWithArgs(int aArgc, char **aArgv)
 {
-  aResult.AssignLiteral(MOZ_WIDGET_TOOLKIT);
-  return NS_OK;
+  nsresult rv;
+  nsCOMPtr<nsIProperties> directoryService = 
+    do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsILocalFile> appHelper;
+  rv = directoryService->Get(NS_XPCOM_CURRENT_PROCESS_DIR, NS_GET_IID(nsILocalFile), getter_AddRefs(appHelper));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = appHelper->AppendNative(NS_LITERAL_CSTRING("uninstall"));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = appHelper->AppendNative(NS_LITERAL_CSTRING("helper.exe"));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsAutoString appHelperPath;
+  rv = appHelper->GetPath(appHelperPath);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!WinLaunchChild(appHelperPath.get(), aArgc, aArgv, 1))
+    return NS_ERROR_FAILURE;
+  else
+    return NS_OK;
 }
 
-#ifdef XP_WIN
+NS_IMETHODIMP
+nsXULAppInfo::PostUpdate(nsILocalFile *aLogFile)
+{
+  nsresult rv;
+  int upgradeArgc = aLogFile ? 3 : 2;
+  char **upgradeArgv = (char**) malloc(sizeof(char*) * (upgradeArgc + 1));
+
+  if (!upgradeArgv)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  upgradeArgv[0] = "argv0ignoredbywinlaunchchild";
+  upgradeArgv[1] = "/postupdate";
+
+  char *pathArg = nsnull;
+
+  if (aLogFile) {
+    nsCAutoString logFilePath;
+    rv = aLogFile->GetNativePath(logFilePath);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    pathArg = PR_smprintf("/uninstalllog=%s", logFilePath.get());
+    if (!pathArg)
+      return NS_ERROR_OUT_OF_MEMORY;
+
+    upgradeArgv[2] = pathArg;
+    upgradeArgv[3] = nsnull;
+  }
+  else {
+    upgradeArgv[2] = nsnull;
+  }
+
+  rv = LaunchAppHelperWithArgs(upgradeArgc, upgradeArgv);
+  
+  if (pathArg)
+    PR_smprintf_free(pathArg);
+
+  free(upgradeArgv);
+  return rv;
+}
+
 // Matches the enum in WinNT.h for the Vista SDK but renamed so that we can
 // safely build with the Vista SDK and without it.
 typedef enum 
@@ -900,12 +960,6 @@ static nsModuleComponentInfo kComponents[] =
     "nsXULAppInfo",
     APPINFO_CID,
     XULAPPINFO_SERVICE_CONTRACTID,
-    AppInfoConstructor
-  },
-  {
-    "nsXULAppInfo",
-    APPINFO_CID,
-    XULRUNTIME_SERVICE_CONTRACTID,
     AppInfoConstructor
   }
 #ifdef MOZ_CRASHREPORTER
@@ -1354,16 +1408,12 @@ XRE_GetBinaryPath(const char* argv0, nsILocalFile* *aResult)
   // 4) give up
 
 // #ifdef __linux__
-// Commented out because it used to not work because it used to not deal
-// with readlink not null-terminating the buffer.
 #if 0
   int r = readlink("/proc/self/exe", exePath, MAXPATHLEN);
 
-  if (r > 0 && r < MAXPATHLEN) {
-    exePath[r] = '\0';
-    if (stat(exePath, &fileStat) == 0) {
-      rv = NS_OK;
-    }
+  // apparently, /proc/self/exe can sometimes return weird data... check it
+  if (r > 0 && r < MAXPATHLEN && stat(exePath, &fileStat) == 0) {
+    rv = NS_OK;
   }
 
 #endif
@@ -1425,7 +1475,7 @@ XRE_GetBinaryPath(const char* argv0, nsILocalFile* *aResult)
   if (NS_FAILED(rv))
     return rv;
 
-#else
+#elif
 #error Oops, you need platform-specific code here
 #endif
 
@@ -1437,7 +1487,6 @@ XRE_GetBinaryPath(const char* argv0, nsILocalFile* *aResult)
 
 #ifdef XP_WIN
 #include "nsWindowsRestart.cpp"
-#include <shellapi.h>
 #endif
 
 #if defined(XP_OS2) && (__KLIBC__ == 0 && __KLIBC_MINOR__ >= 6) // broken kLibc
@@ -1545,7 +1594,6 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
   PR_SetEnv("MOZ_LAUNCHED_CHILD=1");
 
 #if defined(XP_MACOSX)
-  SetupMacCommandLine(gRestartArgc, gRestartArgv);
   LaunchChildMac(gRestartArgc, gRestartArgv);
 #else
   nsCOMPtr<nsILocalFile> lf;
@@ -1559,7 +1607,7 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
   if (NS_FAILED(rv))
     return rv;
 
-  if (!WinLaunchChild(exePath.get(), gRestartArgc, gRestartArgv))
+  if (!WinLaunchChild(exePath.get(), gRestartArgc, gRestartArgv, 0))
     return NS_ERROR_FAILURE;
 
 #else
@@ -2486,15 +2534,10 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       PR_SetEnv(expr);
     // We intentionally leak |expr| here since it is required by PR_SetEnv.
   }
-
-  // Suppress atk-bridge init at startup, it works after GNOME 2.24.2
-  PR_SetEnv("NO_AT_BRIDGE=1");
 #endif
 
-#ifndef WINCE
   // Unbuffer stdout, needed for tinderbox tests.
   setbuf(stdout, 0);
-#endif
 
 #if defined(FREEBSD)
   // Disable all SIGFPE's on FreeBSD, as it has non-IEEE-conformant fp
@@ -2898,7 +2941,8 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       _gtk_window_set_auto_startup_notification(PR_FALSE);
     }
 
-    gtk_widget_set_default_colormap(gdk_rgb_get_colormap());
+    gtk_widget_set_default_visual(gdk_rgb_get_visual());
+    gtk_widget_set_default_colormap(gdk_rgb_get_cmap());
 #endif /* MOZ_WIDGET_GTK2 */
 
     // Call the code to install our handler

@@ -1523,7 +1523,10 @@ var gFinishedPage = {
    * in the wizard after an update has been downloaded.
    */
   onExtra1: function() {
-    // XXXrstrong - reminding the user to restart is broken (see bug 464835)
+    var updatePrompt = CoC["@mozilla.org/updates/update-prompt;1"].
+                       createInstance(CoI.nsIUpdatePrompt);
+    // XXXrstrong - showUpdateDownloaded is broken (see bug 462568)
+    updatePrompt.showUpdateDownloaded(gUpdates.update, true);
     gUpdates.wiz.cancel();
   }
 };

@@ -41,7 +41,7 @@
 #include "plugbase.h"
 #include "action.h"
 #include "log.h"
-#include "logfile.h"
+#include "logFile.h"
 
 class CLogger
 {

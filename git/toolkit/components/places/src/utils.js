@@ -49,14 +49,10 @@ var Ci = Components.interfaces;
 var Cc = Components.classes;
 var Cr = Components.results;
 
-const EXCLUDE_FROM_BACKUP_ANNO = "places/excludeFromBackup";
 const POST_DATA_ANNO = "bookmarkProperties/POSTData";
 const READ_ONLY_ANNO = "placesInternal/READ_ONLY";
 const LMANNO_FEEDURI = "livemark/feedURI";
 const LMANNO_SITEURI = "livemark/siteURI";
-const LMANNO_EXPIRATION = "livemark/expiration";
-const LMANNO_LOADFAILED = "livemark/loadfailed";
-const LMANNO_LOADING = "livemark/loading";
 
 #ifdef XP_MACOSX
 // On Mac OSX, the transferable system converts "\r\n" to "\n\n", where we
@@ -729,15 +725,10 @@ var PlacesUtils = {
    *        Array of objects, each containing the following properties:
    *        name, flags, expires, type, mimeType (only used for binary
    *        annotations) value.
-   *        If the value for an annotation is not set it will be removed.
    */
   setAnnotationsForURI: function PU_setAnnotationsForURI(aURI, aAnnos) {
     var annosvc = this.annotations;
     aAnnos.forEach(function(anno) {
-      if (!anno.value) {
-        annosvc.removePageAnnotation(aURI, anno.name);
-        return;
-      }
       var flags = ("flags" in anno) ? anno.flags : 0;
       var expires = ("expires" in anno) ?
         anno.expires : Ci.nsIAnnotationService.EXPIRE_NEVER;
@@ -759,16 +750,10 @@ var PlacesUtils = {
    *        Array of objects, each containing the following properties:
    *        name, flags, expires, type, mimeType (only used for binary
    *        annotations) value.
-   *        If the value for an annotation is not set it will be removed.
    */
   setAnnotationsForItem: function PU_setAnnotationsForItem(aItemId, aAnnos) {
     var annosvc = this.annotations;
-
     aAnnos.forEach(function(anno) {
-      if (!anno.value) {
-        annosvc.removeItemAnnotation(aItemId, anno.name);
-        return;
-      }
       var flags = ("flags" in anno) ? anno.flags : 0;
       var expires = ("expires" in anno) ?
         anno.expires : Ci.nsIAnnotationService.EXPIRE_NEVER;
@@ -1007,43 +992,47 @@ var PlacesUtils = {
    *
    * @param aFile
    *        nsIFile of bookmarks in JSON format to be restored.
+   * @param aExcludeItems
+   *        Array of root item ids (ie: children of the places root)
+   *        to not delete when restoring.
    */
   restoreBookmarksFromJSONFile:
-  function PU_restoreBookmarksFromJSONFile(aFile) {
+  function PU_restoreBookmarksFromJSONFile(aFile, aExcludeItems) {
     // open file stream
     var stream = Cc["@mozilla.org/network/file-input-stream;1"].
                  createInstance(Ci.nsIFileInputStream);
     stream.init(aFile, 0x01, 0, 0);
     var converted = Cc["@mozilla.org/intl/converter-input-stream;1"].
                     createInstance(Ci.nsIConverterInputStream);
-    converted.init(stream, "UTF-8", 8192,
+    converted.init(stream, "UTF-8", 1024,
                    Ci.nsIConverterInputStream.DEFAULT_REPLACEMENT_CHARACTER);
 
     // read in contents
     var str = {};
     var jsonStr = "";
-    while (converted.readString(8192, str) != 0)
+    while (converted.readString(4096, str) != 0)
       jsonStr += str.value;
     converted.close();
 
     if (jsonStr.length == 0)
       return; // empty file
 
-    this.restoreBookmarksFromJSONString(jsonStr, true);
+    this.restoreBookmarksFromJSONString(jsonStr, true, aExcludeItems);
   },
 
   /**
    * Import bookmarks from a JSON string.
-   * Note: any item annotated with "places/excludeFromBackup" won't be removed
-   *       before executing the restore.
    * 
    * @param aString
    *        JSON string of serialized bookmark data.
    * @param aReplace
    *        Boolean if true, replace existing bookmarks, else merge.
+   * @param aExcludeItems
+   *        Array of root item ids (ie: children of the places root)
+   *        to not delete when restoring.
    */
   restoreBookmarksFromJSONString:
-  function PU_restoreBookmarksFromJSONString(aString, aReplace) {
+  function PU_restoreBookmarksFromJSONString(aString, aReplace, aExcludeItems) {
     // convert string to JSON
     var nodes = this.unwrapNodes(aString, this.TYPE_X_MOZ_PLACE_CONTAINER);
 
@@ -1062,12 +1051,9 @@ var PlacesUtils = {
       nodes: nodes[0].children,
       runBatched: function restore_runBatched() {
         if (aReplace) {
-          // Get roots excluded from the backup, we will not remove them
-          // before restoring.
-          var excludeItems = this._utils.annotations
-                                 .getItemsWithAnnotation(EXCLUDE_FROM_BACKUP_ANNO, {});
+          var excludeItems = aExcludeItems || [];
           // delete existing children of the root node, excepting:
-          // 1. special folders: delete the child nodes
+          // 1. special folders: delete the child nodes 
           // 2. tags folder: untag via the tagging api
           var query = this._utils.history.getNewQuery();
           query.setFolders([this._utils.placesRootId], 1);
@@ -1101,7 +1087,7 @@ var PlacesUtils = {
                   // automatically, but this does not work if they contain some
                   // not-uri node, so we remove them manually.
                   // XXX this is a temporary workaround until we implement
-                  // preventive database maintenance in bug 431558.
+                  // preventive database maintainance in bug 431558.
                   bogusTagContainer = true;
                 }
                 for (let j in tagURIs)
@@ -1147,10 +1133,7 @@ var PlacesUtils = {
             node.children.forEach(function(child) {
               var index = child.index;
               var [folders, searches] = this.importJSONNode(child, container, index);
-              for (var i = 0; i < folders.length; i++) {
-                if (folders[i])
-                  folderIdMap[i] = folders[i];
-              }
+              folderIdMap = folderIdMap.concat(folders);
               searchIds = searchIds.concat(searches);
             }, this);
           }
@@ -1193,7 +1176,6 @@ var PlacesUtils = {
     switch (aData.type) {
       case this.TYPE_X_MOZ_PLACE_CONTAINER:
         if (aContainer == PlacesUtils.bookmarks.tagsFolder) {
-          // node is a tag
           if (aData.children) {
             aData.children.forEach(function(aChild) {
               try {
@@ -1210,41 +1192,30 @@ var PlacesUtils = {
           var feedURI = null;
           var siteURI = null;
           aData.annos = aData.annos.filter(function(aAnno) {
-            switch (aAnno.name) {
-              case LMANNO_FEEDURI:
-                feedURI = this._uri(aAnno.value);
-                return false;
-              case LMANNO_SITEURI:
-                siteURI = this._uri(aAnno.value);
-                return false;
-              case LMANNO_EXPIRATION:
-              case LMANNO_LOADING:
-              case LMANNO_LOADFAILED:
-                return false;
-              default:
-                return true;
+            if (aAnno.name == LMANNO_FEEDURI) {
+              feedURI = this._uri(aAnno.value);
+              return false;
             }
+            else if (aAnno.name == LMANNO_SITEURI) {
+              siteURI = this._uri(aAnno.value);
+              return false;
+            }
+            return true;
           }, this);
 
-          if (feedURI) {
-            id = this.livemarks.createLivemarkFolderOnly(aContainer,
-                                                         aData.title,
-                                                         siteURI, feedURI,
-                                                         aIndex);
-          }
+          if (feedURI)
+            id = this.livemarks.createLivemark(aContainer, aData.title, siteURI, feedURI, aIndex);
         }
         else {
           id = this.bookmarks.createFolder(aContainer, aData.title, aIndex);
-          folderIdMap[aData.id] = id;
+          folderIdMap.push([aData.id, id]);
           // process children
           if (aData.children) {
-            aData.children.forEach(function(aChild, aIndex) {
-              var [folders, searches] = this.importJSONNode(aChild, id, aIndex);
-              for (var i = 0; i < folders.length; i++) {
-                if (folders[i])
-                  folderIdMap[i] = folders[i];
-              }
+            aData.children.every(function(aChild, aIndex) {
+              var [folderIds, searches] = this.importJSONNode(aChild, id, aIndex);
+              folderIdMap = folderIdMap.concat(folderIds);
               searchIds = searchIds.concat(searches);
+              return true;
             }, this);
           }
         }
@@ -1260,23 +1231,20 @@ var PlacesUtils = {
         }
         if (aData.charset)
           this.history.setCharsetForURI(this._uri(aData.uri), aData.charset);
-        if (aData.uri.substr(0, 6) == "place:")
+        if (aData.uri.match(/^place:/))
           searchIds.push(id);
         break;
       case this.TYPE_X_MOZ_PLACE_SEPARATOR:
         id = this.bookmarks.insertSeparator(aContainer, aIndex);
         break;
       default:
-        // Unknown node type
     }
 
-    // set generic properties, valid for all nodes
+    // set generic properties
     if (id != -1) {
-      if (aData.dateAdded)
-        this.bookmarks.setItemDateAdded(id, aData.dateAdded);
-      if (aData.lastModified)
-        this.bookmarks.setItemLastModified(id, aData.lastModified);
-      if (aData.annos && aData.annos.length)
+      this.bookmarks.setItemDateAdded(id, aData.dateAdded);
+      this.bookmarks.setItemLastModified(id, aData.lastModified);
+      if (aData.annos)
         this.setAnnotationsForItem(id, aData.annos);
     }
 
@@ -1295,10 +1263,28 @@ var PlacesUtils = {
    *          returns the input URI unchanged.
    */
   _fixupQuery: function PU__fixupQuery(aQueryURI, aFolderIdMap) {
-    function convert(str, p1, offset, s) {
-      return "folder=" + aFolderIdMap[p1];
-    }
-    var stringURI = aQueryURI.spec.replace(/folder=([0-9]+)/g, convert);
+    var queries = {};
+    var options = {};
+    this.history.queryStringToQueries(aQueryURI.spec, queries, {}, options);
+
+    var fixedQueries = [];
+    queries.value.forEach(function(aQuery) {
+      var folders = aQuery.getFolders({});
+
+      var newFolders = [];
+      aFolderIdMap.forEach(function(aMapping) {
+        if (folders.indexOf(aMapping[0]) != -1)
+          newFolders.push(aMapping[1]);
+      });
+
+      if (newFolders.length)
+        aQuery.setFolders(newFolders, newFolders.length);
+      fixedQueries.push(aQuery);
+    });
+
+    var stringURI = this.history.queriesToQueryString(fixedQueries,
+                                                      fixedQueries.length,
+                                                      options.value);
     return this._uri(stringURI);
   },
 
@@ -1530,16 +1516,9 @@ var PlacesUtils = {
   },
 
   /**
-   * backupBookmarksToFile()
-   *
    * Serializes bookmarks using JSON, and writes to the supplied file.
-   * Note: any item that should not be backed up must be annotated with
-   *       "places/excludeFromBackup".
-   *
-   * @param aFile
-   *        nsIFile where to save JSON backup.
    */
-  backupBookmarksToFile: function PU_backupBookmarksToFile(aFile) {
+  backupBookmarksToFile: function PU_backupBookmarksToFile(aFile, aExcludeItems) {
     if (aFile.exists() && !aFile.isWritable())
       return; // XXX
 
@@ -1561,10 +1540,6 @@ var PlacesUtils = {
       }
     };
 
-    // Get itemIds to be exluded from the backup
-    var excludeItems = this.annotations
-                           .getItemsWithAnnotation(EXCLUDE_FROM_BACKUP_ANNO, {});
-
     // query places root
     var options = this.history.getNewQueryOptions();
     options.expandQueries = false;
@@ -1574,7 +1549,7 @@ var PlacesUtils = {
     result.root.containerOpen = true;
     // serialize as JSON, write to stream
     this.serializeNodeAsJSONToOutputStream(result.root, streamProxy,
-                                           false, false, excludeItems);
+                                           false, false, aExcludeItems);
     result.root.containerOpen = false;
 
     // close converter and stream
@@ -1587,8 +1562,6 @@ var PlacesUtils = {
    *
    * Creates a dated backup once a day in <profile>/bookmarkbackups.
    * Stores the bookmarks using JSON.
-   * Note: any item that should not be backed up must be annotated with
-   *       "places/excludeFromBackup".
    *
    * @param int aNumberOfBackups - the maximum number of backups to keep
    *
@@ -1623,7 +1596,7 @@ var PlacesUtils = {
       // old backups with a localized name (bug 445704).
       var localizedFilename = this.getFormattedString("bookmarksArchiveFilename", [date]);
       var localizedFilenamePrefix = localizedFilename.substr(0, localizedFilename.indexOf("-"));
-      var rx = new RegExp("^(bookmarks|" + localizedFilenamePrefix + ")-.+\.(json|html)");
+      var rx = new RegExp("^(bookmarks|" + localizedFilenamePrefix + ")-.+\.json");
 
       var entries = bookmarksBackupDir.directoryEntries;
       while (entries.hasMoreElements()) {
@@ -1705,13 +1678,5 @@ var PlacesUtils = {
     var backupFile = bookmarksBackupDir.clone();
     backupFile.append(filename);
     return backupFile;
-  },
-
-  /**
-   * Starts the database coherence check and executes update tasks on a timer,
-   * this method is called by browser.js in delayed startup.
-   */
-  startPlacesDBUtils: function PU_startPlacesDBUtils() {
-    Components.utils.import("resource://gre/modules/PlacesDBUtils.jsm");
   }
 };

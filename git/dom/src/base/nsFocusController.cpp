@@ -143,10 +143,6 @@ nsFocusController::GetFocusedWindow(nsIDOMWindowInternal** aWindow)
 NS_IMETHODIMP
 nsFocusController::SetFocusedElement(nsIDOMElement* aElement)
 {
-  if (aElement) {
-    nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
-    NS_ENSURE_ARG(content);
-  }
   if (mCurrentElement) 
     mPreviousElement = mCurrentElement;
   else if (aElement) 
@@ -298,7 +294,6 @@ nsFocusController::MoveFocus(PRBool aForward, nsIDOMElement* aElt)
   nsCOMPtr<nsIContent> content;
   if (aElt) {
     content = do_QueryInterface(aElt);
-    NS_ENSURE_ARG(content);
     doc = content->GetDocument();
   }
   else {
@@ -618,10 +613,6 @@ nsFocusController::SetPopupNode(nsIDOMNode* aNode)
   printf("dr :: nsFocusController::SetPopupNode\n");
 #endif
 
-  if (aNode) {
-    nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-    NS_ENSURE_ARG(node);
-  }
   mPopupNode = aNode;
   return NS_OK;
 }

@@ -49,7 +49,6 @@
 #include "nsILookAndFeel.h"
 #include "nsThemeConstants.h"
 #include "nsIComponentManager.h"
-#include "nsIDOMNSHTMLInputElement.h"
 
 nsNativeTheme::nsNativeTheme()
 {
@@ -154,31 +153,6 @@ nsNativeTheme::GetCheckedOrSelected(nsIFrame* aFrame, PRBool aCheckSelected)
 }
 
 PRBool
-nsNativeTheme::GetIndeterminate(nsIFrame* aFrame)
-{
-  if (!aFrame)
-    return PR_FALSE;
-
-  nsIContent* content = aFrame->GetContent();
-
-  if (content->IsNodeOfType(nsINode::eXUL)) {
-    // For a XUL checkbox or radio button, the state of the parent determines
-    // the state
-    return CheckBooleanAttr(aFrame->GetParent(), nsWidgetAtoms::indeterminate);
-  }
-
-  // Check for an HTML input element
-  nsCOMPtr<nsIDOMNSHTMLInputElement> inputElt = do_QueryInterface(content);
-  if (inputElt) {
-    PRBool indeterminate;
-    inputElt->GetIndeterminate(&indeterminate);
-    return indeterminate;
-  }
-
-  return PR_FALSE;
-}
-
-PRBool
 nsNativeTheme::IsWidgetStyled(nsPresContext* aPresContext, nsIFrame* aFrame,
                               PRUint8 aWidgetType)
 {
@@ -193,12 +167,6 @@ nsNativeTheme::IsWidgetStyled(nsPresContext* aPresContext, nsIFrame* aFrame,
          aPresContext->HasAuthorSpecifiedRules(aFrame,
                                                NS_AUTHOR_SPECIFIED_BORDER |
                                                NS_AUTHOR_SPECIFIED_BACKGROUND);
-}
-
-PRBool
-nsNativeTheme::IsFrameRTL(nsIFrame* aFrame)
-{
-  return aFrame && aFrame->GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL;
 }
 
 // scrollbar button:
@@ -244,34 +212,6 @@ nsNativeTheme::GetTreeSortDirection(nsIFrame* aFrame)
   return eTreeSortDirection_Natural;
 }
 
-PRBool
-nsNativeTheme::IsLastTreeHeaderCell(nsIFrame* aFrame)
-{
-  if (!aFrame)
-    return PR_FALSE;
-
-  // A tree column picker is always the last header cell.
-  if (aFrame->GetContent()->Tag() == nsWidgetAtoms::treecolpicker)
-    return PR_TRUE;
-
-  // Find the parent tree.
-  nsIContent* parent = aFrame->GetContent()->GetParent();
-  while (parent && parent->Tag() != nsWidgetAtoms::tree) {
-    parent = parent->GetParent();
-  }
-
-  // If the column picker is visible, this can't be the last column.
-  if (parent && !parent->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::hidecolumnpicker,
-                                     NS_LITERAL_STRING("true"), eCaseMatters))
-    return PR_FALSE;
-
-  while ((aFrame = aFrame->GetNextSibling())) {
-    if (aFrame->GetRect().width > 0)
-      return PR_FALSE;
-  }
-  return PR_TRUE;
-}
-
 // tab:
 PRBool
 nsNativeTheme::IsBottomTab(nsIFrame* aFrame)
@@ -290,13 +230,7 @@ nsNativeTheme::IsFirstTab(nsIFrame* aFrame)
   if (!aFrame)
     return PR_FALSE;
 
-  nsIFrame* first = aFrame->GetParent()->GetFirstChild(nsnull);
-  while (first) {
-    if (first->GetRect().width > 0 && first->GetContent()->Tag() == nsWidgetAtoms::tab)
-      return (first == aFrame);
-    first = first->GetNextSibling();
-  }
-  return PR_FALSE;
+  return aFrame->GetContent()->HasAttr(kNameSpaceID_None, nsWidgetAtoms::firsttab);
 }
 
 PRBool
@@ -305,11 +239,7 @@ nsNativeTheme::IsLastTab(nsIFrame* aFrame)
   if (!aFrame)
     return PR_FALSE;
 
-  while ((aFrame = aFrame->GetNextSibling())) {
-    if (aFrame->GetRect().width > 0 && aFrame->GetContent()->Tag() == nsWidgetAtoms::tab)
-      return PR_FALSE;
-  }
-  return PR_TRUE;
+  return aFrame->GetContent()->HasAttr(kNameSpaceID_None, nsWidgetAtoms::lasttab);
 }
 
 PRBool
@@ -323,34 +253,6 @@ nsNativeTheme::IsHorizontal(nsIFrame* aFrame)
                                             eCaseMatters);
 }
 
-PRBool
-nsNativeTheme::IsNextToSelectedTab(nsIFrame* aFrame, PRInt32 aOffset)
-{
-  if (!aFrame)
-    return PR_FALSE;
-
-  if (aOffset == 0)
-    return IsSelectedTab(aFrame);
-
-  PRInt32 thisTabIndex = -1, selectedTabIndex = -1;
-
-  nsIFrame* currentTab = aFrame->GetParent()->GetFirstChild(NULL);
-  for (PRInt32 i = 0; currentTab; currentTab = currentTab->GetNextSibling()) {
-    if (currentTab->GetRect().width == 0)
-      continue;
-    if (aFrame == currentTab)
-      thisTabIndex = i;
-    if (IsSelectedTab(currentTab))
-      selectedTabIndex = i;
-    ++i;
-  }
-
-  if (thisTabIndex == -1 || selectedTabIndex == -1)
-    return PR_FALSE;
-
-  return (thisTabIndex - selectedTabIndex == aOffset);
-}
-
 // progressbar:
 PRBool
 nsNativeTheme::IsIndeterminateProgress(nsIFrame* aFrame)
@@ -361,31 +263,4 @@ nsNativeTheme::IsIndeterminateProgress(nsIFrame* aFrame)
   return aFrame->GetContent()->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::mode,
                                            NS_LITERAL_STRING("undetermined"),
                                            eCaseMatters);
-}
-
-// menupopup:
-PRBool
-nsNativeTheme::IsSubmenu(nsIFrame* aFrame, PRBool* aLeftOfParent)
-{
-  if (!aFrame)
-    return PR_FALSE;
-
-  nsIContent* parentContent = aFrame->GetContent()->GetParent();
-  if (!parentContent || parentContent->Tag() != nsWidgetAtoms::menu)
-    return PR_FALSE;
-
-  nsIFrame* parent = aFrame;
-  while ((parent = parent->GetParent())) {
-    if (parent->GetContent() == parentContent) {
-      if (aLeftOfParent) {
-        nsIntRect selfBounds, parentBounds;
-        aFrame->GetWindow()->GetScreenBounds(selfBounds);
-        parent->GetWindow()->GetScreenBounds(parentBounds);
-        *aLeftOfParent = selfBounds.x < parentBounds.x;
-      }
-      return PR_TRUE;
-    }
-  }
-
-  return PR_FALSE;
 }

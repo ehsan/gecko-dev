@@ -59,32 +59,20 @@ function run_test()
   if (destFile.exists())
     destFile.remove(false);
 
-  var bakFile = profileDir.clone();
-  bakFile.append("formhistory.sqlite.corrupt");
-  if (bakFile.exists())
-    bakFile.remove(false);
-
   testfile.copyTo(profileDir, "formhistory.sqlite");
-  do_check_eq(999, getDBVersion(testfile));
 
-  // ===== 1 =====
-  testnum++;
-  // Open the DB, ensure that a backup of the corrupt DB is made.
-  do_check_false(bakFile.exists());
   var fh = Cc["@mozilla.org/satchel/form-history;1"].
            getService(Ci.nsIFormHistory2);
-  do_check_true(bakFile.exists());
-  bakFile.remove(false);
 
-  // ===== 2 =====
+
+  // ===== 1 =====
   testnum++;
   // File should be empty
   do_check_false(fh.hasEntries);
   do_check_false(fh.entryExists("name-A", "value-A"));
-  // check for current schema.
-  do_check_eq(CURRENT_SCHEMA, fh.DBConnection.schemaVersion);
 
-  // ===== 3 =====
+
+  // ===== 2 =====
   testnum++;
   // Try adding an entry
   fh.addEntry("name-A", "value-A");
@@ -92,7 +80,7 @@ function run_test()
   do_check_true(fh.entryExists("name-A", "value-A"));
 
 
-  // ===== 4 =====
+  // ===== 3 =====
   testnum++;
   // Try removing an entry
   fh.removeEntry("name-A", "value-A");

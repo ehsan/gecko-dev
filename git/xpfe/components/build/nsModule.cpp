@@ -45,10 +45,19 @@
 #include "nsRDFCID.h"
 #endif
 
+#ifdef MOZ_SUITE
+#include "nsRelatedLinksHandlerImpl.h"
+#include "nsDocShellCID.h"
 #ifdef SUITE_USING_XPFE_DM
 #include "nsDownloadManager.h"
 #include "nsDownloadProxy.h"
 #endif
+
+#if !defined(MOZ_PLACES)
+#include "nsGlobalHistory.h"
+#endif
+
+#endif // MOZ_SUITE
 
 #if !defined(MOZ_MACBROWSER)
 #include "nsBrowserStatusFilter.h"
@@ -56,6 +65,15 @@
 #endif
 #include "nsCURILoader.h"
 #include "nsXPFEComponentsCID.h"
+
+#if !defined(MOZ_PLACES)
+// {9491C382-E3C4-11D2-BDBE-0050040A9B44}
+#define NS_GLOBALHISTORY_CID \
+{ 0x9491c382, 0xe3c4, 0x11d2, { 0xbd, 0xbe, 0x0, 0x50, 0x4, 0xa, 0x9b, 0x44} }
+
+#define NS_GLOBALHISTORY_DATASOURCE_CONTRACTID \
+    "@mozilla.org/rdf/datasource;1?name=history"
+#endif
 
 #ifdef MOZ_RDF
 // Factory constructors
@@ -68,10 +86,18 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsBrowserStatusFilter)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsBrowserInstance)
 #endif
 
+#ifdef MOZ_SUITE
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(RelatedLinksHandlerImpl, Init)
 #ifdef SUITE_USING_XPFE_DM
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsDownloadManager, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDownloadProxy)
 #endif
+
+#if !defined(MOZ_PLACES)
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsGlobalHistory, Init)
+#endif
+
+#endif // MOZ_SUITE
 
 static NS_METHOD
 RegisterProc(nsIComponentManager *aCompMgr,
@@ -117,12 +143,26 @@ static const nsModuleComponentInfo components[] = {
       nsHTTPIndexConstructor },
 #endif
 
+#ifdef MOZ_SUITE
 #ifdef SUITE_USING_XPFE_DM
     { "Download Manager", NS_DOWNLOADMANAGER_CID, NS_DOWNLOADMANAGER_CONTRACTID,
       nsDownloadManagerConstructor },
     { "Download", NS_DOWNLOAD_CID, NS_TRANSFER_CONTRACTID,
       nsDownloadProxyConstructor },
 #endif
+    { "Related Links Handler", NS_RELATEDLINKSHANDLER_CID, NS_RELATEDLINKSHANDLER_CONTRACTID,
+       RelatedLinksHandlerImplConstructor},
+
+#if !defined(MOZ_PLACES)
+    { "Global History", NS_GLOBALHISTORY_CID, NS_GLOBALHISTORY2_CONTRACTID,
+      nsGlobalHistoryConstructor },
+    { "Global History", NS_GLOBALHISTORY_CID, NS_GLOBALHISTORY_DATASOURCE_CONTRACTID,
+      nsGlobalHistoryConstructor },
+    { "Global History", NS_GLOBALHISTORY_CID, NS_GLOBALHISTORY_AUTOCOMPLETE_CONTRACTID,
+      nsGlobalHistoryConstructor },
+#endif
+
+#endif // MOZ_SUITE
 
 #if !defined(MOZ_MACBROWSER)
     { NS_BROWSERSTATUSFILTER_CLASSNAME,

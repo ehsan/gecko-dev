@@ -326,10 +326,6 @@
 				RelativePath=".\minidump_generator.h"
 				>
 			</File>
-			<File
-				RelativePath="..\..\..\common\windows\string_utils-inl.h"
-				>
-			</File>
 		</Filter>
 		<Filter
 			Name="Resource Files"

@@ -52,7 +52,7 @@
 #include "nsInlineFrame.h"
 #include "nsStyleConsts.h"
 #include "nsHTMLContainerFrame.h"
-#include "nsFloatManager.h"
+#include "nsSpaceManager.h"
 #include "nsStyleContext.h"
 #include "nsPresContext.h"
 #include "nsIFontMetrics.h"
@@ -93,11 +93,11 @@
 #define PLACED_RIGHT 0x2
 
 nsLineLayout::nsLineLayout(nsPresContext* aPresContext,
-                           nsFloatManager* aFloatManager,
+                           nsSpaceManager* aSpaceManager,
                            const nsHTMLReflowState* aOuterReflowState,
                            const nsLineList::iterator* aLine)
   : mPresContext(aPresContext),
-    mFloatManager(aFloatManager),
+    mSpaceManager(aSpaceManager),
     mBlockReflowState(aOuterReflowState),
     mLastOptionalBreakContent(nsnull),
     mForceBreakContent(nsnull),
@@ -108,9 +108,9 @@ nsLineLayout::nsLineLayout(nsPresContext* aPresContext,
     mMinLineHeight(0),
     mTextIndent(0)
 {
-  NS_ASSERTION(aFloatManager || aOuterReflowState->frame->GetType() ==
+  NS_ASSERTION(aSpaceManager || aOuterReflowState->frame->GetType() ==
                                   nsGkAtoms::letterFrame,
-               "float manager should be present");
+               "space manager should be present");
   MOZ_COUNT_CTOR(nsLineLayout);
 
   // Stash away some style data that we need
@@ -789,6 +789,7 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
   pfd->mFrame = aFrame;
   pfd->mMargin = reflowState.mComputedMargin;
   pfd->mBorderPadding = reflowState.mComputedBorderPadding;
+  pfd->mFrameType = reflowState.mFrameType;
   pfd->SetFlag(PFD_RELATIVEPOS,
                (reflowState.mStyleDisplay->mPosition == NS_STYLE_POSITION_RELATIVE));
   if (pfd->GetFlag(PFD_RELATIVEPOS)) {
@@ -840,7 +841,7 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
 #endif
   nscoord tx = x - psd->mReflowState->mComputedBorderPadding.left;
   nscoord ty = y - psd->mReflowState->mComputedBorderPadding.top;
-  mFloatManager->Translate(tx, ty);
+  mSpaceManager->Translate(tx, ty);
 
   nsIAtom* frameType = aFrame->GetType();
   PRInt32 savedOptionalBreakOffset;
@@ -948,7 +949,7 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
     }
   }
 
-  mFloatManager->Translate(-tx, -ty);
+  mSpaceManager->Translate(-tx, -ty);
 
   NS_ASSERTION(metrics.width>=0, "bad width");
   NS_ASSERTION(metrics.height>=0,"bad height");
@@ -1006,7 +1007,7 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
         // parent is not this because we are executing pullup code)
         nsHTMLContainerFrame* parent = static_cast<nsHTMLContainerFrame*>
                                                   (kidNextInFlow->GetParent());
-        parent->DeleteNextInFlowChild(mPresContext, kidNextInFlow, PR_TRUE);
+        parent->DeleteNextInFlowChild(mPresContext, kidNextInFlow);
       }
     }
 
@@ -1333,6 +1334,7 @@ nsLineLayout::AddBulletFrame(nsIFrame* aFrame,
     pfd->mFrame = aFrame;
     pfd->mMargin.SizeTo(0, 0, 0, 0);
     pfd->mBorderPadding.SizeTo(0, 0, 0, 0);
+    pfd->mFrameType = NS_FRAME_REPLACED(NS_CSS_FRAME_TYPE_INLINE);
     pfd->mFlags = 0;  // all flags default to false
     pfd->SetFlag(PFD_ISBULLET, PR_TRUE);
     if (aMetrics.ascent == nsHTMLReflowMetrics::ASK_FOR_BASELINE)
@@ -1378,6 +1380,7 @@ nsLineLayout::VerticalAlignLine()
   // Synthesize a PerFrameData for the block frame
   PerFrameData rootPFD;
   rootPFD.mFrame = mBlockReflowState->frame;
+  rootPFD.mFrameType = mBlockReflowState->mFrameType;
   rootPFD.mAscent = 0;
   mRootSpan->mFrame = &rootPFD;
 
@@ -1520,8 +1523,8 @@ nsLineLayout::PlaceTopBottomFrames(PerSpanData* psd,
   }
 }
 
-#define VERTICAL_ALIGN_FRAMES_NO_MINIMUM nscoord_MAX
-#define VERTICAL_ALIGN_FRAMES_NO_MAXIMUM nscoord_MIN
+#define VERTICAL_ALIGN_FRAMES_NO_MINIMUM 32767
+#define VERTICAL_ALIGN_FRAMES_NO_MAXIMUM -32768
 
 // Vertically place frames within a given span. Note: this doesn't
 // place top/bottom aligned frames as those have to wait until the
@@ -2458,15 +2461,6 @@ nsLineLayout::HorizontalAlignFrames(nsRect& aLineBounds,
       case NS_STYLE_TEXT_ALIGN_MOZ_RIGHT:
         dx = remainingWidth;
         break;
-
-      case NS_STYLE_TEXT_ALIGN_END:
-        if (NS_STYLE_DIRECTION_LTR == psd->mDirection) {
-          // Do what we do for ALIGN_RIGHT
-          dx = remainingWidth;
-          break;
-        }
-        // Fall through to align left case for end alignment
-        // used when the direction is right-to-left.
 
       case NS_STYLE_TEXT_ALIGN_LEFT:
       case NS_STYLE_TEXT_ALIGN_MOZ_LEFT:

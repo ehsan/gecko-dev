@@ -52,10 +52,16 @@ NS_NewSVGRect(nsIDOMSVGRect** result,
 nsresult
 NS_NewSVGRect(nsIDOMSVGRect** result, const gfxRect& rect);
 
+nsresult
+NS_NewSVGReadonlyRect(nsIDOMSVGRect** result,
+                      float x=0.0f, float y=0.0f,
+                      float width=0.0f, float height=0.0f);
+
 ////////////////////////////////////////////////////////////////////////
 // nsSVGRect class
 
-class nsSVGRect : public nsIDOMSVGRect
+class nsSVGRect : public nsIDOMSVGRect,
+                  public nsSVGValue
 {
 public:
   nsSVGRect(float x=0.0f, float y=0.0f, float w=0.0f, float h=0.0f);
@@ -65,6 +71,12 @@ public:
 
   // nsIDOMSVGRect interface:
   NS_DECL_NSIDOMSVGRECT
+
+  // nsISVGValue interface:
+  NS_IMETHOD SetValueString(const nsAString& aValue);
+  NS_IMETHOD GetValueString(nsAString& aValue);
+
+  void Clear();
 
 protected:
   float mX, mY, mWidth, mHeight;

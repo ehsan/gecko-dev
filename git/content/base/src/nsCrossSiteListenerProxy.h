@@ -35,9 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsCrossSiteListenerProxy_h__
-#define nsCrossSiteListenerProxy_h__
-
 #include "nsIStreamListener.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsCOMPtr.h"
@@ -80,7 +77,7 @@ public:
 
 private:
   nsresult UpdateChannel(nsIChannel* aChannel);
-  nsresult CheckRequestApproved(nsIRequest* aRequest, PRBool aIsRedirect);
+  nsresult CheckRequestApproved(nsIRequest* aRequest);
 
   nsCOMPtr<nsIStreamListener> mOuterListener;
   nsCOMPtr<nsIPrincipal> mRequestingPrincipal;
@@ -92,5 +89,3 @@ private:
   nsCString mPreflightMethod;
   nsTArray<nsCString> mPreflightHeaders;
 };
-
-#endif

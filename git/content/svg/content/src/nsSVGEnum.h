@@ -83,8 +83,7 @@ private:
 
   struct DOMAnimatedEnum : public nsIDOMSVGAnimatedEnumeration
   {
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-    NS_DECL_CYCLE_COLLECTION_CLASS(DOMAnimatedEnum)
+    NS_DECL_ISUPPORTS
 
     DOMAnimatedEnum(nsSVGEnum* aVal, nsSVGElement *aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement) {}

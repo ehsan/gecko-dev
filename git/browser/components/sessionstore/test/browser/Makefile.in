@@ -58,8 +58,6 @@ _BROWSER_TEST_FILES = \
 	browser_393716.js \
 	browser_408470.js \
 	browser_408470_sample.html \
-	browser_447951.js \
-	browser_447951_sample.html \
 	browser_448741.js \
 	browser_454908.js \
 	browser_454908_sample.html \
@@ -67,14 +65,6 @@ _BROWSER_TEST_FILES = \
 	browser_456342_sample.xhtml \
 	browser_463206.js \
 	browser_463206_sample.html \
-	browser_464199.js \
-	browser_465215.js \
-	browser_465223.js \
-	browser_466937.js \
-	browser_466937_sample.html \
-	browser_476161.js \
-	browser_476161_sample.html \
-	browser_477657.js \
 	$(NULL)
 
 libs:: $(_BROWSER_TEST_FILES)

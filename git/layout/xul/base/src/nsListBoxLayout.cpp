@@ -49,7 +49,8 @@
 #include "nsGkAtoms.h"
 #include "nsContentUtils.h"
 
-nsListBoxLayout::nsListBoxLayout() : nsGridRowGroupLayout()
+nsListBoxLayout::nsListBoxLayout(nsIPresShell* aPresShell)
+  : nsGridRowGroupLayout(aPresShell)
 {
 }
 
@@ -261,9 +262,10 @@ nsListBoxLayout::LayoutInternal(nsIBox* aBox, nsBoxLayoutState& aState)
 
 // Creation Routines ///////////////////////////////////////////////////////////////////////
 
-already_AddRefed<nsIBoxLayout> NS_NewListBoxLayout()
+nsresult
+NS_NewListBoxLayout( nsIPresShell* aPresShell, nsCOMPtr<nsIBoxLayout>& aNewLayout)
 {
-  nsIBoxLayout* layout = new nsListBoxLayout();
-  NS_IF_ADDREF(layout);
-  return layout;
+  aNewLayout = new nsListBoxLayout(aPresShell);
+
+  return NS_OK;
 } 

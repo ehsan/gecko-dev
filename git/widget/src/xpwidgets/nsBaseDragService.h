@@ -103,7 +103,7 @@ protected:
   nsresult DrawDrag(nsIDOMNode* aDOMNode,
                     nsIScriptableRegion* aRegion,
                     PRInt32 aScreenX, PRInt32 aScreenY,
-                    nsIntRect* aScreenDragRect,
+                    nsRect* aScreenDragRect,
                     gfxASurface** aSurface,
                     nsPresContext **aPresContext);
 
@@ -115,7 +115,7 @@ protected:
                             nsIImageLoadingContent* aImageLoader,
                             nsICanvasElement* aCanvas,
                             PRInt32 aScreenX, PRInt32 aScreenY,
-                            nsIntRect* aScreenDragRect,
+                            nsRect* aScreenDragRect,
                             gfxASurface** aSurface);
 
   /**
@@ -129,8 +129,6 @@ protected:
   PRPackedBool mDoingDrag;
   // true if mImage should be used to set a drag image
   PRPackedBool mHasImage;
-  // true if the user cancelled the drag operation
-  PRPackedBool mUserCancelled;
 
   PRUint32 mDragAction;
   nsSize mTargetSize;

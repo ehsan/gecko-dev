@@ -61,7 +61,6 @@ public:
   // Helper methods, used also by nsDragService
   static NSDictionary* PasteboardDictFromTransferable(nsITransferable *aTransferable);
   static PRBool IsStringType(const nsCString& aMIMEType, const NSString** aPasteboardType);
-  static NSString* WrapHtmlForSystemPasteboard(NSString* aString);
 
 protected:
 

@@ -151,7 +151,6 @@ public:
     eColor__moz_mac_menushadow,				//colour used to do shadows on menu items
     eColor__moz_mac_menutextdisable,                    // color used to display text for disabled menu items
     eColor__moz_mac_menutextselect,			//colour used to display text while mouse is over a menu item
-    eColor__moz_mac_disabledtoolbartext,                    // text color of disabled text on toolbars
 
   	//all of the accent colours
   	eColor__moz_mac_accentlightesthighlight,
@@ -173,11 +172,7 @@ public:
     // Hyperlink color extracted from the system, not affected by the browser.anchor_color user pref.
     // There is no OS-specified safe background color for this text, 
     // but it is used regularly within Windows and the Gnome DE on Dialog and Window colors.
-    eColor__moz_nativehyperlinktext,
-
-    // Combo box widgets
-    eColor__moz_comboboxtext,
-    eColor__moz_combobox,
+    eColor__moz_nativehyperlinktext,		
 
     // keep this one last, please
     eColor_LAST_COLOR

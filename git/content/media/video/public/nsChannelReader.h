@@ -67,11 +67,17 @@ public:
   // request to return an error. Call on main thread only.
   void Cancel();
 
-  // Suspend any downloads that are in progress.
-  void Suspend();
+  // Return the number of bytes buffered from the file. This can safely
+  // be read without blocking.
+  PRUint32 Available();
 
-  // Resume any downloads that have been suspended.
-  void Resume();
+  // Return average number of bytes per second that the 
+  // download of the media resource is achieving.
+  float DownloadRate();
+
+  // Return average number of bytes per second that the 
+  // playback of the media resource is achieving.
+  float PlaybackRate();
 
   nsIPrincipal* GetCurrentPrincipal();
   
@@ -84,6 +90,7 @@ public:
   
 public:
   nsMediaStream mStream;
+  unsigned long mCurrentPosition;
 };
 
 #endif

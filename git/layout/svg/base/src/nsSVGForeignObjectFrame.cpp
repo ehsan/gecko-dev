@@ -41,6 +41,7 @@
 #include "nsIDOMSVGForeignObjectElem.h"
 #include "nsIDOMSVGMatrix.h"
 #include "nsIDOMSVGSVGElement.h"
+#include "nsSpaceManager.h"
 #include "nsSVGOuterSVGFrame.h"
 #include "nsRegion.h"
 #include "nsGkAtoms.h"
@@ -60,8 +61,15 @@
 
 nsIFrame*
 NS_NewSVGForeignObjectFrame(nsIPresShell   *aPresShell,
+                            nsIContent     *aContent,
                             nsStyleContext *aContext)
 {
+  nsCOMPtr<nsIDOMSVGForeignObjectElement> foreignObject = do_QueryInterface(aContent);
+  if (!foreignObject) {
+    NS_ERROR("Can't create frame! Content is not an SVG foreignObject!");
+    return nsnull;
+  }
+
   return new (aPresShell) nsSVGForeignObjectFrame(aContext);
 }
 
@@ -74,22 +82,20 @@ nsSVGForeignObjectFrame::nsSVGForeignObjectFrame(nsStyleContext* aContext)
 }
 
 //----------------------------------------------------------------------
-// nsIFrame methods
+// nsISupports methods
 
-NS_QUERYFRAME_HEAD(nsSVGForeignObjectFrame)
-  NS_QUERYFRAME_ENTRY(nsISVGChildFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsSVGForeignObjectFrameBase)
+NS_INTERFACE_MAP_BEGIN(nsSVGForeignObjectFrame)
+  NS_INTERFACE_MAP_ENTRY(nsISVGChildFrame)
+NS_INTERFACE_MAP_END_INHERITING(nsSVGForeignObjectFrameBase)
+
+//----------------------------------------------------------------------
+// nsIFrame methods
 
 NS_IMETHODIMP
 nsSVGForeignObjectFrame::Init(nsIContent* aContent,
                               nsIFrame*   aParent,
                               nsIFrame*   aPrevInFlow)
 {
-#ifdef DEBUG
-  nsCOMPtr<nsIDOMSVGForeignObjectElement> foreignObject = do_QueryInterface(aContent);
-  NS_ASSERTION(foreignObject, "Content is not an SVG foreignObject!");
-#endif
-
   nsresult rv = nsSVGForeignObjectFrameBase::Init(aContent, aParent, aPrevInFlow);
   AddStateBits(NS_STATE_SVG_PROPAGATE_TRANSFORM | 
                (aParent->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD));
@@ -257,18 +263,6 @@ nsSVGForeignObjectFrame::PaintSVG(nsSVGRenderState *aContext,
   if (!ctx || matrix.IsSingular()) {
     NS_WARNING("Can't render foreignObject element!");
     return NS_ERROR_FAILURE;
-  }
-
-  /* Check if we need to draw anything. */
-  if (aDirtyRect) {
-    gfxRect extent = matrix.TransformBounds(
-                       gfxRect(kid->GetRect().x, kid->GetRect().y, 
-                               kid->GetRect().width, kid->GetRect().height));
-    extent.RoundOut();
-    nsIntRect rect;
-    if (NS_SUCCEEDED(nsSVGUtils::GfxRectToIntRect(extent, &rect)) &&
-        !aDirtyRect->Intersects(rect))
-      return NS_OK;
   }
 
   gfxContext *gfx = aContext->GetGfxContext();
@@ -685,7 +679,8 @@ nsSVGForeignObjectFrame::InvalidateDirtyRect(nsSVGOuterSVGFrame* aOuter,
 
   nsPresContext* presContext = PresContext();
   nsCOMPtr<nsIDOMSVGMatrix> tm = GetTMIncludingOffset();
-  nsIntRect r = nsRect::ToOutsidePixels(aRect, presContext->AppUnitsPerDevPixel());
+  nsIntRect r = aRect;
+  r.ScaleRoundOut(1.0f / presContext->AppUnitsPerDevPixel());
   float x = r.x, y = r.y, w = r.width, h = r.height;
   nsRect rect = GetTransformedRegion(x, y, w, h, tm, presContext);
 

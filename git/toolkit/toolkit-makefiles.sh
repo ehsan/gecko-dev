@@ -352,10 +352,6 @@ MAKEFILES_plugin="
   modules/plugin/sdk/samples/winless/windows/Makefile
 "
 
-MAKEFILES_freetype2="
-  modules/freetype2/Makefile
-"
-
 MAKEFILES_netwerk="
   netwerk/Makefile
   netwerk/base/Makefile
@@ -494,6 +490,7 @@ MAKEFILES_widget="
   widget/src/os2/Makefile
   widget/src/windows/Makefile
   widget/src/xpwidgets/Makefile
+  widget/src/support/Makefile
 "
 
 MAKEFILES_xpcom="
@@ -577,7 +574,13 @@ MAKEFILES_xpfe="
   xpfe/components/find/Makefile
   xpfe/components/find/public/Makefile
   xpfe/components/find/src/Makefile
+  xpfe/components/history/Makefile
+  xpfe/components/history/src/Makefile
+  xpfe/components/history/public/Makefile
   xpfe/components/intl/Makefile
+  xpfe/components/related/Makefile
+  xpfe/components/related/src/Makefile
+  xpfe/components/related/public/Makefile
   xpfe/components/autocomplete/Makefile
   xpfe/components/autocomplete/public/Makefile
   xpfe/components/autocomplete/src/Makefile
@@ -756,12 +759,6 @@ MAKEFILES_libmar="
   modules/libmar/tool/Makefile
 "
 
-MAKEFILES_lcms="
-  modules/lcms/Makefile
-  modules/lcms/include/Makefile
-  modules/lcms/src/Makefile
-"
-
 add_makefiles "
   $MAKEFILES_db
   $MAKEFILES_dom
@@ -804,7 +801,6 @@ add_makefiles "
   $MAKEFILES_accessible
   $MAKEFILES_zlib
   $MAKEFILES_libmar
-  $MAKEFILES_lcms
 "
 
 #
@@ -841,6 +837,14 @@ if [ "$MOZ_TREE_CAIRO" ] ; then
   "
 fi
 
+if [ ! "$MOZ_NATIVE_LCMS" ] ; then
+  add_makefiles "
+    modules/lcms/Makefile
+    modules/lcms/include/Makefile
+    modules/lcms/src/Makefile
+  "
+fi
+
 if [ "$MOZ_UNIVERSALCHARDET" ] ; then
   add_makefiles "
     extensions/universalchardet/Makefile
@@ -871,6 +875,42 @@ if test -n "$MOZ_PSM"; then
     security/manager/pki/src/Makefile
     security/manager/pki/public/Makefile
     security/manager/locales/Makefile
+  "
+fi
+
+if test -n "$MOZ_IPCD"; then
+  add_makefiles "
+    ipc/ipcd/Makefile
+    ipc/ipcd/daemon/public/Makefile
+    ipc/ipcd/daemon/src/Makefile
+    ipc/ipcd/client/public/Makefile
+    ipc/ipcd/client/src/Makefile
+    ipc/ipcd/shared/src/Makefile
+    ipc/ipcd/test/Makefile
+    ipc/ipcd/test/module/Makefile
+    ipc/ipcd/extensions/Makefile
+    ipc/ipcd/extensions/lock/Makefile
+    ipc/ipcd/extensions/lock/public/Makefile
+    ipc/ipcd/extensions/lock/src/Makefile
+    ipc/ipcd/extensions/lock/src/module/Makefile
+    ipc/ipcd/util/Makefile
+    ipc/ipcd/util/public/Makefile
+    ipc/ipcd/util/src/Makefile
+  "
+fi
+
+if test -n "$MOZ_PROFILESHARING"; then
+  add_makefiles "
+    ipc/ipcd/extensions/transmngr/Makefile
+    ipc/ipcd/extensions/transmngr/public/Makefile
+    ipc/ipcd/extensions/transmngr/src/Makefile
+    ipc/ipcd/extensions/transmngr/build/Makefile
+    ipc/ipcd/extensions/transmngr/test/Makefile
+    ipc/ipcd/extensions/transmngr/common/Makefile
+    ipc/ipcd/extensions/transmngr/module/Makefile
+    embedding/components/profilesharingsetup/Makefile
+    embedding/components/profilesharingsetup/public/Makefile
+    embedding/components/profilesharingsetup/src/Makefile
   "
 fi
 
@@ -997,13 +1037,6 @@ if [ "$MOZ_SVG" ]; then
   "
 fi
 
-# smil
-if [ "$MOZ_SMIL" ]; then
-    MAKEFILES_content="$MAKEFILES_content
-	content/smil/Makefile
-"
-fi
-
 if [ "$MOZ_XTF" ]; then
   add_makefiles "
     content/xtf/Makefile
@@ -1071,7 +1104,6 @@ if [ "$MOZ_MEDIA" ]; then
    content/media/video/Makefile
    content/media/video/public/Makefile
    content/media/video/src/Makefile
-   content/media/video/test/Makefile
  "
 fi
 
@@ -1089,11 +1121,5 @@ fi
 if [ "$MOZ_SYDNEYAUDIO" ]; then
  add_makefiles "
    $MAKEFILES_libsydneyaudio
- "
-fi
-
-if [ "$MOZ_TREE_FREETYPE" ]; then
- add_makefiles "
-   $MAKEFILES_freetype2
  "
 fi

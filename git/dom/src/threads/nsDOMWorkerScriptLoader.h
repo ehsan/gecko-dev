@@ -102,12 +102,10 @@ public:
   nsDOMWorkerScriptLoader(nsDOMWorker* aWorker);
 
   nsresult LoadScripts(JSContext* aCx,
-                       const nsTArray<nsString>& aURLs,
-                       PRBool aForWorker);
+                       const nsTArray<nsString>& aURLs);
 
   nsresult LoadScript(JSContext* aCx,
-                      const nsString& aURL,
-                      PRBool aForWorker);
+                      const nsString& aURL);
 
   virtual void Cancel();
 
@@ -218,7 +216,6 @@ private:
   nsTArray<ScriptLoaderRunnable*> mPendingRunnables;
 
   PRPackedBool mCanceled;
-  PRPackedBool mForWorker;
 };
 
 #endif /* __NSDOMWORKERSCRIPTLOADER_H__ */

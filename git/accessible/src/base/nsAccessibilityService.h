@@ -89,11 +89,12 @@ private:
    * Return presentation shell, DOM node for the given frame.
    *
    * @param aFrame - the given frame
+   * @param aRealFrame [out] - the given frame casted to nsIFrame
    * @param aShell [out] - presentation shell for DOM node associated with the
    *                 given frame
    * @param aContent [out] - DOM node associated with the given frame
    */
-  nsresult GetInfo(nsIFrame *aFrame,
+  nsresult GetInfo(nsISupports *aFrame, nsIFrame **aRealFrame,
                    nsIWeakReference **aShell,
                    nsIDOMNode **aContent);
 
@@ -269,8 +270,7 @@ static const char kRoleNames[][20] = {
   "listbox option",      //ROLE_OPTION
   "listbox rich option", //ROLE_RICH_OPTION
   "listbox",             //ROLE_LISTBOX
-  "flat equation",       //ROLE_FLAT_EQUATION  
-  "gridcell"             //ROLE_GRID_CELL
+  "flat equation"        //ROLE_FLAT_EQUATION  
 };
 
 /**

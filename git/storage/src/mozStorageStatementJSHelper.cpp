@@ -56,9 +56,8 @@ static
 JSBool
 stepFunc(JSContext *aCtx, PRUint32, jsval *_vp)
 {
-  nsCOMPtr<nsIXPConnect> xpc(mozStorageService::XPConnect());
   nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
-  nsresult rv = xpc->GetWrappedNativeOfJSObject(
+  nsresult rv = mozStorageService::XPConnect()->GetWrappedNativeOfJSObject(
     aCtx, JS_THIS_OBJECT(aCtx, _vp), getter_AddRefs(wrapper)
   );
   if (NS_FAILED(rv)) {
@@ -110,8 +109,7 @@ mozStorageStatementJSHelper::getRow(mozStorageStatement *aStatement,
       new mozStorageStatementRow(aStatement);
     NS_ENSURE_TRUE(row, NS_ERROR_OUT_OF_MEMORY);
 
-    nsCOMPtr<nsIXPConnect> xpc(mozStorageService::XPConnect());
-    rv = xpc->WrapNative(
+    rv = mozStorageService::XPConnect()->WrapNative(
       aCtx,
       ::JS_GetGlobalForObject(aCtx, aScopeObj),
       row,
@@ -146,8 +144,7 @@ mozStorageStatementJSHelper::getParams(mozStorageStatement *aStatement,
       new mozStorageStatementParams(aStatement);
     NS_ENSURE_TRUE(params, NS_ERROR_OUT_OF_MEMORY);
 
-    nsCOMPtr<nsIXPConnect> xpc(mozStorageService::XPConnect());
-    rv = xpc->WrapNative(
+    rv = mozStorageService::XPConnect()->WrapNative(
       aCtx,
       ::JS_GetGlobalForObject(aCtx, aScopeObj),
       params,

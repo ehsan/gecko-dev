@@ -344,26 +344,20 @@ nsContentSink::ScriptAvailable(nsresult aResult,
                                PRInt32 aLineNo)
 {
   PRUint32 count = mScriptElements.Count();
-  if (mParser && NS_SUCCEEDED(aResult)) {
-    // Only notify the parser about scripts that are actually going to run.
-    mParser->ScriptExecuting();
+
+  if (count == 0) {
+    return NS_OK;
   }
 
   // aElement will not be in mScriptElements if a <script> was added
   // using the DOM during loading, or if the script was inline and thus
   // never blocked.
-  NS_ASSERTION(count == 0 ||
-               mScriptElements.IndexOf(aElement) == PRInt32(count - 1) ||
-               mScriptElements.IndexOf(aElement) == -1,
+  NS_ASSERTION(mScriptElements.IndexOf(aElement) == count - 1 ||
+               mScriptElements.IndexOf(aElement) == PRUint32(-1),
                "script found at unexpected position");
 
   // Check if this is the element we were waiting for
-  if (count == 0 || aElement != mScriptElements[count - 1]) {
-    if (mDidGetReadyToCallDidBuildModelCall &&
-        !mScriptLoader->HasPendingOrCurrentScripts() &&
-        mParser && mParser->IsParserEnabled()) {
-      ContinueInterruptedParsingAsync();
-    }
+  if (aElement != mScriptElements[count - 1]) {
     return NS_OK;
   }
 
@@ -401,18 +395,13 @@ nsContentSink::ScriptEvaluated(nsresult aResult,
                                nsIScriptElement *aElement,
                                PRBool aIsInline)
 {
-  if (mParser) {
-    mParser->ScriptDidExecute();
-  }
-
   // Check if this is the element we were waiting for
   PRInt32 count = mScriptElements.Count();
-  if (count == 0 || aElement != mScriptElements[count - 1]) {
-    if (mDidGetReadyToCallDidBuildModelCall &&
-        !mScriptLoader->HasPendingOrCurrentScripts() &&
-        mParser && mParser->IsParserEnabled()) {
-      ContinueInterruptedParsingAsync();
-    }
+  if (count == 0) {
+    return NS_OK;
+  }
+  
+  if (aElement != mScriptElements[count - 1]) {
     return NS_OK;
   }
 
@@ -726,25 +715,25 @@ nsContentSink::ProcessLink(nsIContent* aElement,
                            const nsSubstring& aMedia)
 {
   // XXX seems overkill to generate this string array
-  nsTArray<nsString> linkTypes;
+  nsStringArray linkTypes;
   nsStyleLinkElement::ParseLinkTypes(aRel, linkTypes);
 
-  PRBool hasPrefetch = linkTypes.Contains(NS_LITERAL_STRING("prefetch"));
+  PRBool hasPrefetch = (linkTypes.IndexOf(NS_LITERAL_STRING("prefetch")) != -1);
   // prefetch href if relation is "next" or "prefetch"
-  if (hasPrefetch || linkTypes.Contains(NS_LITERAL_STRING("next"))) {
+  if (hasPrefetch || linkTypes.IndexOf(NS_LITERAL_STRING("next")) != -1) {
     PrefetchHref(aHref, aElement, hasPrefetch);
   }
 
-  if ((!aHref.IsEmpty()) && linkTypes.Contains(NS_LITERAL_STRING("dns-prefetch"))) {
+  if ((!aHref.IsEmpty()) && linkTypes.IndexOf(NS_LITERAL_STRING("dns-prefetch")) != -1) {
     PrefetchDNS(aHref);
   }
 
   // is it a stylesheet link?
-  if (!linkTypes.Contains(NS_LITERAL_STRING("stylesheet"))) {
+  if (linkTypes.IndexOf(NS_LITERAL_STRING("stylesheet")) == -1) {
     return NS_OK;
   }
 
-  PRBool isAlternate = linkTypes.Contains(NS_LITERAL_STRING("alternate"));
+  PRBool isAlternate = linkTypes.IndexOf(NS_LITERAL_STRING("alternate")) != -1;
   return ProcessStyleLink(aElement, aHref, isAlternate, aTitle, aType,
                           aMedia);
 }
@@ -880,9 +869,10 @@ nsContentSink::PrefetchDNS(const nsAString &aHref)
   }
   else
     nsGenericHTMLElement::GetHostnameFromHrefString(aHref, hostname);
-
-  if (nsHTMLDNSPrefetch::IsAllowed(mDocument)) {
-    nsHTMLDNSPrefetch::PrefetchLow(hostname);
+      
+  nsRefPtr<nsHTMLDNSPrefetch> prefetch = new nsHTMLDNSPrefetch(hostname, mDocument);
+  if (prefetch) {
+    prefetch->PrefetchLow();
   }
 }
 
@@ -1077,22 +1067,6 @@ nsContentSink::ProcessOfflineManifest(nsIContent *aElement)
     return;
   }
 
-  {
-    nsCAutoString spec;
-    if (mDocument->GetDocumentURI()) {
-      mDocument->GetDocumentURI()->GetSpec(spec);
-    }
-    nsCAutoString group;
-    if (applicationCache) {
-      applicationCache->GetGroupID(group);
-    }
-    nsCOMPtr<nsIApplicationCacheContainer> container =
-      do_QueryInterface(mDocument);
-    printf("(Bug 471227) Processing manifest for document >%p< (%s) which was "
-           "loaded from app cache %p (%s)\n",
-           container.get(), spec.get(), applicationCache.get(), group.get());
-  }
-
   CacheSelectionAction action = CACHE_SELECTION_NONE;
   nsCOMPtr<nsIURI> manifestURI;
 
@@ -1115,7 +1089,6 @@ nsContentSink::ProcessOfflineManifest(nsIContent *aElement)
     else {
       // Only continue if the document has permission to use offline APIs.
       if (!nsContentUtils::OfflineAppAllowed(mDocument->NodePrincipal())) {
-        printf("(Bug 471227) No permission.\n");
         return;
       }
 
@@ -1148,10 +1121,8 @@ nsContentSink::ProcessOfflineManifest(nsIContent *aElement)
   switch (action)
   {
   case CACHE_SELECTION_NONE:
-    printf("(Bug 471227) Taking no action.\n");
     break;
   case CACHE_SELECTION_UPDATE: {
-    printf("(Bug 471227) Scheduling an update.\n");
     nsCOMPtr<nsIOfflineCacheUpdateService> updateService =
       do_GetService(NS_OFFLINECACHEUPDATESERVICE_CONTRACTID);
 
@@ -1162,7 +1133,6 @@ nsContentSink::ProcessOfflineManifest(nsIContent *aElement)
     break;
   }
   case CACHE_SELECTION_RELOAD: {
-    printf("(Bug 471227) Reloading.\n");
     // This situation occurs only for toplevel documents, see bottom
     // of SelectDocAppCache method.
     nsCOMPtr<nsIWebNavigation> webNav = do_QueryInterface(mDocShell);
@@ -1293,7 +1263,9 @@ nsContentSink::StartLayout(PRBool aIgnorePendingSheets)
     // docshell in the iframe, and the content sink's call to OpenBody().
     // (Bug 153815)
 
-    if (shell->DidInitialReflow()) {
+    PRBool didInitialReflow = PR_FALSE;
+    shell->GetDidInitialReflow(&didInitialReflow);
+    if (didInitialReflow) {
       // XXX: The assumption here is that if something already
       // called InitialReflow() on this shell, it also did some of
       // the setup below, so we do nothing and just move on to the
@@ -1760,6 +1732,14 @@ nsContentSink::WillBuildModelImpl()
 }
 
 void
+nsContentSink::ContinueInterruptedParsing()
+{
+  if (mParser) {
+    mParser->ContinueInterruptedParsing();
+  }
+}
+
+void
 nsContentSink::ContinueInterruptedParsingIfEnabled()
 {
   if (mParser && mParser->IsParserEnabled()) {
@@ -1774,26 +1754,6 @@ nsContentSink::ContinueInterruptedParsingAsync()
     &nsContentSink::ContinueInterruptedParsingIfEnabled);
 
   NS_DispatchToCurrentThread(ev);
-}
-
-PRBool
-nsContentSink::ReadyToCallDidBuildModelImpl(PRBool aTerminated)
-{
-  if (!mDidGetReadyToCallDidBuildModelCall) {
-    if (mDocument && !aTerminated) {
-      mDocument->SetReadyStateInternal(nsIDocument::READYSTATE_INTERACTIVE);
-    }
-
-    if (mScriptLoader) {
-      mScriptLoader->EndDeferringScripts(aTerminated);
-    }
-  }
-
-  mDidGetReadyToCallDidBuildModelCall = PR_TRUE;
-  
-  // If we're terminated we always want to call DidBuildModel.
-  return aTerminated || !mScriptLoader ||
-         !mScriptLoader->HasPendingOrCurrentScripts();
 }
 
 // URIs: action, href, src, longdesc, usemap, cite

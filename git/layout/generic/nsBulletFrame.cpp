@@ -72,12 +72,12 @@ public:
   // imgIDecoderObserver (override nsStubImageDecoderObserver)
   NS_IMETHOD OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
   NS_IMETHOD OnDataAvailable(imgIRequest *aRequest, gfxIImageFrame *aFrame,
-                             const nsIntRect *aRect);
+                             const nsRect *aRect);
   NS_IMETHOD OnStopDecode(imgIRequest *aRequest, nsresult status,
                           const PRUnichar *statusArg);
   // imgIContainerObserver (override nsStubImageDecoderObserver)
   NS_IMETHOD FrameChanged(imgIContainer *aContainer, gfxIImageFrame *newframe,
-                          nsIntRect *dirtyRect);
+                          nsRect * dirtyRect);
 
   void SetFrame(nsBulletFrame *frame) { mFrame = frame; }
 
@@ -840,6 +840,10 @@ static PRBool HebrewToText(PRInt32 ordinal, nsString& result)
 
 static PRBool ArmenianToText(PRInt32 ordinal, nsString& result)
 {
+  // XXXbz this system goes out to a lot further than 9999... we should fix
+  // that.  This algorithm seems broken in general.  There's this business of
+  // "7000" being special and then there's the combining accent we're supposed
+  // to be using...
   if (ordinal < 1 || ordinal > 9999) { // zero or reach the limit of Armenian numbering system
     DecimalToText(ordinal, result);
     return PR_FALSE;
@@ -1458,7 +1462,7 @@ NS_IMETHODIMP nsBulletFrame::OnStartContainer(imgIRequest *aRequest,
 
 NS_IMETHODIMP nsBulletFrame::OnDataAvailable(imgIRequest *aRequest,
                                              gfxIImageFrame *aFrame,
-                                             const nsIntRect *aRect)
+                                             const nsRect *aRect)
 {
   // The image has changed.
   // Invalidate the entire content area. Maybe it's not optimal but it's simple and
@@ -1489,7 +1493,7 @@ NS_IMETHODIMP nsBulletFrame::OnStopDecode(imgIRequest *aRequest,
 
 NS_IMETHODIMP nsBulletFrame::FrameChanged(imgIContainer *aContainer,
                                           gfxIImageFrame *aNewFrame,
-                                          nsIntRect *aDirtyRect)
+                                          nsRect *aDirtyRect)
 {
   // Invalidate the entire content area. Maybe it's not optimal but it's simple and
   // always correct.
@@ -1547,7 +1551,7 @@ NS_IMETHODIMP nsBulletListener::OnStartContainer(imgIRequest *aRequest,
 
 NS_IMETHODIMP nsBulletListener::OnDataAvailable(imgIRequest *aRequest,
                                                 gfxIImageFrame *aFrame,
-                                                const nsIntRect *aRect)
+                                                const nsRect *aRect)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
@@ -1567,7 +1571,7 @@ NS_IMETHODIMP nsBulletListener::OnStopDecode(imgIRequest *aRequest,
 
 NS_IMETHODIMP nsBulletListener::FrameChanged(imgIContainer *aContainer,
                                              gfxIImageFrame *newframe,
-                                             nsIntRect *dirtyRect)
+                                             nsRect * dirtyRect)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
