@@ -21,7 +21,8 @@
  * Contributor(s):
  *   David Dahl <ddahl@mozilla.com>
  *   Patrick Walton <pcwalton@mozilla.com>
-
+ *   Rob Campbell <rcampbell@mozilla.com>
+ *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
  * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
@@ -97,6 +98,25 @@
 
 .webconsole-msg-url {
   margin: 0 6px;
+}
+
+/* Repeated messages */
+.webconsole-msg-repeat {
+  margin: 2px 0;
+  padding-left: 4px;
+  padding-right: 4px;
+  width: 1em;
+  color: white;
+  background-color: red;
+  border-radius: 40px;
+  font: message-box;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* TODO move this and other functional rules to content - bug 635359 */
+.webconsole-msg-repeat[value="1"] {
+  display: none;
 }
 
 .webconsole-location {
@@ -280,21 +300,22 @@
 }
 
 .webconsole-close-button {
-  list-style-image: url("chrome://global/skin/icons/closetab.png");
+  list-style-image: url("chrome://global/skin/icons/close.png");
   margin-top: 0;
   margin-bottom: 0;
   -moz-margin-start: 3px;
   -moz-margin-end: -14px;
   min-width: 0;
   -moz-appearance: none;
+  -moz-image-region: rect(0, 16px, 16px, 0);
 }
 
 .webconsole-close-button:hover {
-  list-style-image: url("chrome://global/skin/icons/closetab-hover.png");
+  -moz-image-region: rect(0, 32px, 16px, 16px);
 }
 
 .webconsole-close-button:hover:active {
-  list-style-image: url("chrome://global/skin/icons/closetab-active.png");
+  -moz-image-region: rect(0, 48px, 16px, 32px);
 }
 
 /* JSTerm Styles */

@@ -188,7 +188,7 @@ stubs::SetName(VMFrame &f, JSAtom *origAtom)
 
                     PCMETER(cache->pchits++);
                     PCMETER(cache->setpchits++);
-                    NATIVE_SET(cx, obj, shape, entry, &rval);
+                    NATIVE_SET(cx, obj, shape, entry, strict, &rval);
                     break;
                 }
             } else {
@@ -319,6 +319,16 @@ stubs::SetGlobalName(VMFrame &f, JSAtom *atom)
 template void JS_FASTCALL stubs::SetGlobalName<true>(VMFrame &f, JSAtom *atom);
 template void JS_FASTCALL stubs::SetGlobalName<false>(VMFrame &f, JSAtom *atom);
 
+static inline void
+PushImplicitThis(VMFrame &f, JSObject *obj, Value &rval)
+{
+    Value thisv;
+
+    if (!ComputeImplicitThis(f.cx, obj, rval, &thisv))
+        return;
+    *f.regs.sp++ = thisv;
+}
+
 static JSObject *
 NameOp(VMFrame &f, JSObject *obj, bool callname = false)
 {
@@ -333,87 +343,53 @@ NameOp(VMFrame &f, JSObject *obj, bool callname = false)
     JS_PROPERTY_CACHE(cx).test(cx, f.regs.pc, obj, obj2, entry, atom);
     if (!atom) {
         if (entry->vword.isFunObj()) {
-            f.regs.sp++;
-            f.regs.sp[-1].setObject(entry->vword.toFunObj());
+            rval.setObject(entry->vword.toFunObj());
         } else if (entry->vword.isSlot()) {
             uintN slot = entry->vword.toSlot();
-            f.regs.sp++;
-            f.regs.sp[-1] = obj2->nativeGetSlot(slot);
+            rval = obj2->nativeGetSlot(slot);
         } else {
             JS_ASSERT(entry->vword.isShape());
             shape = entry->vword.toShape();
             NATIVE_GET(cx, obj, obj2, shape, JSGET_METHOD_BARRIER, &rval, return NULL);
-            f.regs.sp++;
-            f.regs.sp[-1] = rval;
         }
 
-        /*
-         * Push results, the same as below, but with a prop$ hit there
-         * is no need to test for the unusual and uncacheable case where
-         * the caller determines |this|.
-         */
-#if DEBUG
-        Class *clasp;
-        JS_ASSERT(!obj->getParent() ||
-                  (clasp = obj->getClass()) == &js_CallClass ||
-                  clasp == &js_BlockClass ||
-                  clasp == &js_DeclEnvClass);
-#endif
-        if (callname) {
-            f.regs.sp++;
-            f.regs.sp[-1].setUndefined();
-        }
-        return obj;
-    }
-
-    jsid id;
-    id = ATOM_TO_JSID(atom);
-    JSProperty *prop;
-    if (!js_FindPropertyHelper(cx, id, true, &obj, &obj2, &prop))
-        return NULL;
-    if (!prop) {
-        /* Kludge to allow (typeof foo == "undefined") tests. */
-        JSOp op2 = js_GetOpcode(cx, f.fp()->script(), f.regs.pc + JSOP_NAME_LENGTH);
-        if (op2 == JSOP_TYPEOF) {
-            f.regs.sp++;
-            f.regs.sp[-1].setUndefined();
-            return obj;
-        }
-        ReportAtomNotDefined(cx, atom);
-        return NULL;
-    }
-
-    /* Take the slow path if prop was not found in a native object. */
-    if (!obj->isNative() || !obj2->isNative()) {
-        if (!obj->getProperty(cx, id, &rval))
-            return NULL;
+        JS_ASSERT(obj->isGlobal() || IsCacheableNonGlobalScope(obj));
     } else {
-        shape = (Shape *)prop;
-        JSObject *normalized = obj;
-        if (normalized->getClass() == &js_WithClass && !shape->hasDefaultGetter())
-            normalized = js_UnwrapWithObject(cx, normalized);
-        NATIVE_GET(cx, normalized, obj2, shape, JSGET_METHOD_BARRIER, &rval, return NULL);
-    }
+        jsid id;
+        id = ATOM_TO_JSID(atom);
+        JSProperty *prop;
+        if (!js_FindPropertyHelper(cx, id, true, &obj, &obj2, &prop))
+            return NULL;
+        if (!prop) {
+            /* Kludge to allow (typeof foo == "undefined") tests. */
+            JSOp op2 = js_GetOpcode(cx, f.fp()->script(), f.regs.pc + JSOP_NAME_LENGTH);
+            if (op2 == JSOP_TYPEOF) {
+                f.regs.sp++;
+                f.regs.sp[-1].setUndefined();
+                return obj;
+            }
+            ReportAtomNotDefined(cx, atom);
+            return NULL;
+        }
 
-    f.regs.sp++;
-    f.regs.sp[-1] = rval;
-    if (callname) {
-        Class *clasp;
-        JSObject *thisp = obj;
-        if (!thisp->getParent() ||
-            (clasp = thisp->getClass()) == &js_CallClass ||
-            clasp == &js_BlockClass ||
-            clasp == &js_DeclEnvClass) {
-            f.regs.sp++;
-            f.regs.sp[-1].setUndefined();
-        } else {
-            thisp = thisp->thisObject(cx);
-            if (!thisp)
+        /* Take the slow path if prop was not found in a native object. */
+        if (!obj->isNative() || !obj2->isNative()) {
+            if (!obj->getProperty(cx, id, &rval))
                 return NULL;
-            f.regs.sp++;
-            f.regs.sp[-1].setObject(*thisp);
+        } else {
+            shape = (Shape *)prop;
+            JSObject *normalized = obj;
+            if (normalized->getClass() == &js_WithClass && !shape->hasDefaultGetter())
+                normalized = js_UnwrapWithObject(cx, normalized);
+            NATIVE_GET(cx, normalized, obj2, shape, JSGET_METHOD_BARRIER, &rval, return NULL);
         }
     }
+
+    *f.regs.sp++ = rval;
+
+    if (callname)
+        PushImplicitThis(f, obj, rval);
+
     return obj;
 }
 
@@ -609,6 +585,17 @@ stubs::CallName(VMFrame &f)
         THROW();
 }
 
+/*
+ * Push the implicit this value, with the assumption that the callee
+ * (which is on top of the stack) was read as a property from the
+ * global object.
+ */
+void JS_FASTCALL
+stubs::PushImplicitThisForGlobal(VMFrame &f)
+{
+    return PushImplicitThis(f, f.fp()->scopeChain().getGlobal(), f.regs.sp[-1]);
+}
+
 void JS_FASTCALL
 stubs::BitOr(VMFrame &f)
 {
@@ -772,7 +759,7 @@ stubs::DefFun(VMFrame &f, JSFunction *fun)
     do {
         /* Steps 5d, 5f. */
         if (!prop || pobj != parent) {
-            if (!parent->defineProperty(cx, id, rval, PropertyStub, PropertyStub, attrs))
+            if (!parent->defineProperty(cx, id, rval, PropertyStub, StrictPropertyStub, attrs))
                 THROW();
             break;
         }
@@ -782,7 +769,7 @@ stubs::DefFun(VMFrame &f, JSFunction *fun)
         Shape *shape = reinterpret_cast<Shape *>(prop);
         if (parent->isGlobal()) {
             if (shape->configurable()) {
-                if (!parent->defineProperty(cx, id, rval, PropertyStub, PropertyStub, attrs))
+                if (!parent->defineProperty(cx, id, rval, PropertyStub, StrictPropertyStub, attrs))
                     THROW();
                 break;
             }
@@ -1337,13 +1324,6 @@ stubs::InitElem(VMFrame &f, uint32 last)
     jsid id;
     const Value &idval = regs.sp[-2];
     if (!FetchElementId(f, obj, idval, id, &regs.sp[-2]))
-        THROW();
-
-    /*
-     * Check for property redeclaration strict warning (we may be in an object
-     * initialiser, not an array initialiser).
-     */
-    if (!CheckRedeclaration(cx, obj, id, JSPROP_INITIALIZER, NULL, NULL))
         THROW();
 
     /*
@@ -2128,8 +2108,6 @@ InitPropOrMethod(VMFrame &f, JSAtom *atom, JSOp op)
         /* Get the immediate property name into id. */
         jsid id = ATOM_TO_JSID(atom);
 
-        /* No need to check for duplicate property; the compiler already did. */
-
         uintN defineHow = (op == JSOP_INITMETHOD)
                           ? JSDNP_CACHE_RESULT | JSDNP_SET_METHOD
                           : JSDNP_CACHE_RESULT;
@@ -2589,34 +2567,38 @@ stubs::DefVarOrConst(VMFrame &f, JSAtom *atom)
     uintN attrs = JSPROP_ENUMERATE;
     if (!fp->isEvalFrame())
         attrs |= JSPROP_PERMANENT;
-    if (JSOp(*f.regs.pc) == JSOP_DEFCONST)
-        attrs |= JSPROP_READONLY;
 
     /* Lookup id in order to check for redeclaration problems. */
     jsid id = ATOM_TO_JSID(atom);
-    JSProperty *prop = NULL;
-    JSObject *obj2;
-
+    bool shouldDefine;
     if (JSOp(*f.regs.pc) == JSOP_DEFVAR) {
         /*
          * Redundant declaration of a |var|, even one for a non-writable
          * property like |undefined| in ES5, does nothing.
          */
+        JSProperty *prop;
+        JSObject *obj2;
         if (!obj->lookupProperty(cx, id, &obj2, &prop))
             THROW();
+        shouldDefine = (!prop || obj2 != obj);
     } else {
-        if (!CheckRedeclaration(cx, obj, id, attrs, &obj2, &prop))
+        JS_ASSERT(JSOp(*f.regs.pc) == JSOP_DEFCONST);
+        attrs |= JSPROP_READONLY;
+        if (!CheckRedeclaration(cx, obj, id, attrs))
             THROW();
+
+        /*
+         * As attrs includes readonly, CheckRedeclaration can succeed only
+         * if prop does not exist.
+         */
+        shouldDefine = true;
     }
 
     /* Bind a variable only if it's not yet defined. */
-    if (!prop) {
-        if (!js_DefineNativeProperty(cx, obj, id, UndefinedValue(), PropertyStub, PropertyStub,
-                                     attrs, 0, 0, &prop)) {
-            THROW();
-        }
-        JS_ASSERT(prop);
-        obj2 = obj;
+    if (shouldDefine && 
+        !js_DefineNativeProperty(cx, obj, id, UndefinedValue(), PropertyStub, StrictPropertyStub,
+                                     attrs, 0, 0, NULL)) {
+        THROW();
     }
 }
 
@@ -2629,7 +2611,7 @@ stubs::SetConst(VMFrame &f, JSAtom *atom)
     JSObject *obj = &fp->varobj(cx);
     const Value &ref = f.regs.sp[-1];
     if (!obj->defineProperty(cx, ATOM_TO_JSID(atom), ref,
-                             PropertyStub, PropertyStub,
+                             PropertyStub, StrictPropertyStub,
                              JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_READONLY)) {
         THROW();
     }

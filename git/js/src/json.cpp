@@ -100,10 +100,10 @@ struct JSONParser
 Class js_JSONClass = {
     js_JSON_str,
     JSCLASS_HAS_CACHED_PROTO(JSProto_JSON),
-    PropertyStub,   /* addProperty */
-    PropertyStub,   /* delProperty */
-    PropertyStub,   /* getProperty */
-    PropertyStub,   /* setProperty */
+    PropertyStub,        /* addProperty */
+    PropertyStub,        /* delProperty */
+    PropertyStub,        /* getProperty */
+    StrictPropertyStub,  /* setProperty */
     EnumerateStub,
     ResolveStub,
     ConvertStub
@@ -406,6 +406,7 @@ JO(JSContext *cx, Value *vp, StringifyContext *scx)
         if (!s)
             return JS_FALSE;
 
+        JS::Anchor<JSString *> anchor(s);
         size_t length = s->length();
         const jschar *chars = s->getChars(cx);
         if (!chars)
@@ -1259,7 +1260,7 @@ js_InitJSONClass(JSContext *cx, JSObject *obj)
     if (!JSON)
         return NULL;
     if (!JS_DefineProperty(cx, obj, js_JSON_str, OBJECT_TO_JSVAL(JSON),
-                           JS_PropertyStub, JS_PropertyStub, 0))
+                           JS_PropertyStub, JS_StrictPropertyStub, 0))
         return NULL;
 
     if (!JS_DefineFunctions(cx, JSON, json_static_methods))

@@ -110,6 +110,7 @@ PluginModuleChild::PluginModuleChild() :
     mQuirks(QUIRKS_NOT_INITIALIZED),
     mShutdownFunc(0),
     mInitializeFunc(0)
+  , mPluginFilename("")
 #if defined(OS_WIN) || defined(OS_MACOSX)
   , mGetEntryPointsFunc(0)
 #elif defined(MOZ_WIDGET_GTK2)
@@ -137,14 +138,9 @@ PluginModuleChild::~PluginModuleChild()
     if (mLibrary) {
         PR_UnloadLibrary(mLibrary);
     }
-#ifdef MOZ_WIDGET_QT
-    nsQAppInstance::Release();
-    if (sGtkLib) {
-        PR_UnloadLibrary(sGtkLib);
-        sGtkLib = nsnull;
-        s_gtk_init = nsnull;
-    }
-#endif
+
+    DeinitGraphics();
+
     gInstance = nsnull;
 }
 
@@ -188,10 +184,9 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
     if (!InitGraphics())
         return false;
 
-    nsCString filename;
-    filename = aPluginFilename.c_str();
+    mPluginFilename = aPluginFilename.c_str();
     nsCOMPtr<nsILocalFile> pluginFile;
-    NS_NewNativeLocalFile(filename,
+    NS_NewNativeLocalFile(mPluginFilename,
                           PR_TRUE,
                           getter_AddRefs(pluginFile));
 
@@ -557,6 +552,26 @@ PluginModuleChild::InitGraphics()
 #endif
 
     return true;
+}
+
+void
+PluginModuleChild::DeinitGraphics()
+{
+#ifdef MOZ_WIDGET_QT
+    nsQAppInstance::Release();
+    if (sGtkLib) {
+        PR_UnloadLibrary(sGtkLib);
+        sGtkLib = nsnull;
+        s_gtk_init = nsnull;
+    }
+#endif
+
+#if defined(MOZ_X11) && defined(NS_FREE_PERMANENT_DATA)
+    // We free some data off of XDisplay close hooks, ensure they're
+    // run.  Closing the display is pretty scary, so we only do it to
+    // silence leak checkers.
+    XCloseDisplay(DefaultXDisplay());
+#endif
 }
 
 bool
@@ -1861,7 +1876,13 @@ PluginModuleChild::InitQuirksModes(const nsCString& aMimeType)
         mQuirks |= QUIRK_FLASH_THROTTLE_WMUSER_EVENTS; 
         mQuirks |= QUIRK_FLASH_HOOK_SETLONGPTR;
         mQuirks |= QUIRK_FLASH_HOOK_GETWINDOWINFO;
-        mQuirks |= QUIRK_FLASH_MASK_CLEARTYPE_SETTINGS;
+        mQuirks |= QUIRK_FLASH_FIXUP_MOUSE_CAPTURE;
+    }
+
+    // QuickTime plugin usually loaded with audio/mpeg mimetype
+    NS_NAMED_LITERAL_CSTRING(quicktime, "npqtplugin");
+    if (FindInReadable(quicktime, mPluginFilename)) {
+      mQuirks |= QUIRK_QUICKTIME_AVOID_SETWINDOW;
     }
 #endif
 }

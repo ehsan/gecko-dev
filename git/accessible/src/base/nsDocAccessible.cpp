@@ -113,6 +113,10 @@ nsDocAccessible::
   mAccessibleCache.Init(kDefaultCacheSize);
   mNodeToAccessibleMap.Init(kDefaultCacheSize);
 
+  // If this is a XUL Document, it should not implement nsHyperText
+  if (mDocument && mDocument->IsXUL())
+    mFlags &= ~eHyperTextAccessible;
+
   // For GTK+ native window, we do nothing here.
   if (!mDocument)
     return;
@@ -170,11 +174,10 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDocAccessible)
     // However at some point we may push <body> to implement the interfaces and
     // return nsDocAccessible to inherit from nsAccessibleWrap.
 
-    if (mDocument && mDocument->IsXUL())
-      status = nsAccessible::QueryInterface(aIID, (void**)&foundInterface);
-    else
-      status = nsHyperTextAccessible::QueryInterface(aIID,
-                                                     (void**)&foundInterface);
+    status = IsHyperText() ? 
+      nsHyperTextAccessible::QueryInterface(aIID,
+                                            (void**)&foundInterface) :
+      nsAccessible::QueryInterface(aIID, (void**)&foundInterface);
   } else {
     NS_ADDREF(foundInterface);
     status = NS_OK;
@@ -678,7 +681,7 @@ nsDocAccessible::Shutdown()
 }
 
 nsIFrame*
-nsDocAccessible::GetFrame()
+nsDocAccessible::GetFrame() const
 {
   nsCOMPtr<nsIPresShell> shell(do_QueryReferent(mWeakShell));
 
@@ -944,6 +947,8 @@ nsDocAccessible::AttributeWillChange(nsIDocument *aDocument,
     nsAccessible* accessible = GetAccessible(aElement);
     if (accessible)
       RemoveDependentIDsFor(accessible, aAttribute);
+    else if (aElement == mContent)
+      RemoveDependentIDsFor(this, aAttribute);
   }
 }
 
@@ -967,8 +972,12 @@ nsDocAccessible::AttributeChanged(nsIDocument *aDocument,
   // Note: we don't bail if all the content hasn't finished loading because
   // these attributes are changing for a loaded part of the content.
   nsAccessible* accessible = GetAccessible(aElement);
-  if (!accessible && (mContent != aElement))
-    return;
+  if (!accessible) {
+    if (mContent != aElement)
+      return;
+
+    accessible = this;
+  }
 
   // Fire accessible events iff there's an accessible, otherwise we consider
   // the accessible state wasn't changed, i.e. its state is initial state.
@@ -1383,9 +1392,6 @@ nsDocAccessible::UnbindFromDocument(nsAccessible* aAccessible)
       mNodeToAccessibleMap.Get(aAccessible->GetNode()) == aAccessible)
     mNodeToAccessibleMap.Remove(aAccessible->GetNode());
 
-  if (!aAccessible->IsDefunct())
-    RemoveDependentIDsFor(aAccessible);
-
   void* uniqueID = aAccessible->UniqueID();
 
   NS_ASSERTION(!aAccessible->IsDefunct(), "Shutdown the shutdown accessible!");
@@ -1462,11 +1468,12 @@ nsDocAccessible::NotifyOfCachingEnd(nsAccessible* aAccessible)
     // invalidation list.
     for (PRUint32 idx = 0; idx < mInvalidationList.Length(); idx++) {
       nsIContent* content = mInvalidationList[idx];
-      nsAccessible* container = GetContainerAccessible(content);
-
-      // Make sure we keep children updated. While we're inside of caching loop
-      // then we must exist it with cached children.
-      container->UpdateChildren();
+      if (!HasAccessible(content)) {
+        // Make sure we keep children updated. While we're inside of caching
+        // loop then we must exist it with cached children.
+        nsAccessible* container = GetContainerAccessible(content);
+        container->UpdateChildren();
+      }
     }
     mInvalidationList.Clear();
 
@@ -1938,12 +1945,12 @@ nsDocAccessible::CacheChildrenInSubtree(nsAccessible* aRoot)
 void
 nsDocAccessible::UncacheChildrenInSubtree(nsAccessible* aRoot)
 {
+  if (aRoot->IsElement())
+    RemoveDependentIDsFor(aRoot);
+
   PRUint32 count = aRoot->GetCachedChildCount();
   for (PRUint32 idx = 0; idx < count; idx++)
     UncacheChildrenInSubtree(aRoot->GetCachedChildAt(idx));
-
-  if (aRoot->IsTextLeaf())
-    mNotificationController->CancelTextUpdate(aRoot->GetContent());
 
   if (aRoot->IsPrimaryForNode() &&
       mNodeToAccessibleMap.Get(aRoot->GetNode()) == aRoot)

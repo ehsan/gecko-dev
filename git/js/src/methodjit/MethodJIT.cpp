@@ -50,6 +50,7 @@
 #include "jsscope.h"
 
 #include "jsgcinlines.h"
+#include "jsinterpinlines.h"
 
 using namespace js;
 using namespace js::mjit;
@@ -765,13 +766,23 @@ mjit::EnterMethodJIT(JSContext *cx, JSStackFrame *fp, void *code, Value *stackLi
 static inline JSBool
 CheckStackAndEnterMethodJIT(JSContext *cx, JSStackFrame *fp, void *code)
 {
-    JS_CHECK_RECURSION(cx, return JS_FALSE;);
+    bool ok;
+    Value *stackLimit;
 
-    Value *stackLimit = cx->stack().getStackLimit(cx);
+    JS_CHECK_RECURSION(cx, goto error;);
+
+    stackLimit = cx->stack().getStackLimit(cx);
     if (!stackLimit)
-        return false;
+        goto error;
 
-    return EnterMethodJIT(cx, fp, code, stackLimit);
+    ok = EnterMethodJIT(cx, fp, code, stackLimit);
+    JS_ASSERT_IF(!fp->isYielding() && !(fp->isEvalFrame() && !fp->script()->strictModeCode),
+                 !fp->hasCallObj() && !fp->hasArgsObj());
+    return ok;
+
+  error:
+    js::PutOwnedActivationObjects(cx, fp);
+    return false;
 }
 
 JSBool
@@ -814,16 +825,24 @@ JITScript::nmapSectionLimit() const
 }
 
 #ifdef JS_MONOIC
-ic::MICInfo *
-JITScript::mics() const
+ic::GetGlobalNameIC *
+JITScript::getGlobalNames() const
 {
-    return (ic::MICInfo *)nmapSectionLimit();
+    return (ic::GetGlobalNameIC *)nmapSectionLimit();
+}
+
+ic::SetGlobalNameIC *
+JITScript::setGlobalNames() const
+{
+    return (ic::SetGlobalNameIC *)((char *)nmapSectionLimit() +
+            sizeof(ic::GetGlobalNameIC) * nGetGlobalNames);
 }
 
 ic::CallICInfo *
 JITScript::callICs() const
 {
-    return (ic::CallICInfo *)((char *)mics() + sizeof(ic::MICInfo) * nMICs);
+    return (ic::CallICInfo *)((char *)setGlobalNames() +
+            sizeof(ic::SetGlobalNameIC) * nSetGlobalNames);
 }
 
 ic::EqualityICInfo *
@@ -937,7 +956,8 @@ mjit::JITScript::scriptDataSize()
     return sizeof(JITScript) +
         sizeof(NativeMapEntry) * nNmapPairs +
 #if defined JS_MONOIC
-        sizeof(ic::MICInfo) * nMICs +
+        sizeof(ic::GetGlobalNameIC) * nGetGlobalNames +
+        sizeof(ic::SetGlobalNameIC) * nSetGlobalNames +
         sizeof(ic::CallICInfo) * nCallICs +
         sizeof(ic::EqualityICInfo) * nEqualityICs +
         sizeof(ic::TraceICInfo) * nTraceICs +

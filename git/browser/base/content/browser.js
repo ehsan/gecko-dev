@@ -115,7 +115,6 @@ var gFindBarInitialized = false;
 XPCOMUtils.defineLazyGetter(window, "gFindBar", function() {
   let XULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
   let findbar = document.createElementNS(XULNS, "findbar");
-  findbar.setAttribute("browserid", "content");
   findbar.id = "FindToolbar";
 
   let browserBottomBox = document.getElementById("browser-bottombox");
@@ -123,6 +122,7 @@ XPCOMUtils.defineLazyGetter(window, "gFindBar", function() {
 
   // Force a style flush to ensure that our binding is attached.
   findbar.clientTop;
+  findbar.browser = gBrowser;
   window.gFindBarInitialized = true;
   return findbar;
 });
@@ -799,6 +799,11 @@ const gXPInstallObserver = {
       messageString = messageString.replace("#1", installInfo.installs[0].name);
       messageString = messageString.replace("#2", installInfo.installs.length);
       messageString = messageString.replace("#3", brandShortName);
+
+      // Remove notificaion on dismissal, since it's possible to cancel the
+      // install through the addons manager UI, making the "restart" prompt
+      // irrelevant.
+      options.removeOnDismissal = true;
 
       PopupNotifications.show(browser, notificationID, messageString, anchorID,
                               action, null, options);
@@ -3981,11 +3986,11 @@ var FullScreen = {
             els[i].setAttribute("iconsize", "small");
           }
 
-          // Give the main nav bar the fullscreen context menu, otherwise remove it
-          // to prevent breakage
+          // Give the main nav bar and the tab bar the fullscreen context menu,
+          // otherwise remove context menu to prevent breakage
           els[i].setAttribute("saved-context",
                               els[i].getAttribute("context"));
-          if (els[i].id == "nav-bar")
+          if (els[i].id == "nav-bar" || els[i].id == "TabsToolbar")
             els[i].setAttribute("context", "autohide-context");
           else
             els[i].removeAttribute("context");
@@ -4157,16 +4162,23 @@ var XULBrowserWindow = {
   },
 
   updateStatusField: function () {
-    var text = this.overLink;
-    if (!text && this._busyUI)
-      text = this.status;
-    if (!text)
-      text = this.jsStatus || this.jsDefaultStatus || this.defaultStatus;
+    var text, type, types = ["overLink"];
+    if (this._busyUI)
+      types.push("status");
+    types.push("jsStatus", "jsDefaultStatus", "defaultStatus");
+    for (let i = 0; !text && i < types.length; i++) {
+      type = types[i];
+      text = this[type];
+    }
 
     // check the current value so we don't trigger an attribute change
     // and cause needless (slow!) UI updates
     if (this.statusText != text) {
-      this.statusTextField.label = text;
+      let field = this.statusTextField;
+      field.setAttribute("previoustype", field.getAttribute("type"));
+      field.setAttribute("type", type);
+      field.label = text;
+      field.setAttribute("crop", type == "overLink" ? "center" : "end");
       this.statusText = text;
     }
   },
@@ -4425,21 +4437,18 @@ var XULBrowserWindow = {
         else
           elt.removeAttribute("disabled");
       });
+
+      if (gFindBarInitialized) {
+        if (gFindBar.findMode != gFindBar.FIND_NORMAL) {
+          // Close the Find toolbar if we're in old-style TAF mode
+          gFindBar.close();
+        }
+
+        // fix bug 253793 - turn off highlight when page changes
+        gFindBar.getElement("highlight").checked = false;
+      }
     }
     UpdateBackForwardCommands(gBrowser.webNavigation);
-
-    if (gFindBarInitialized) {
-      if (gFindBar.findMode != gFindBar.FIND_NORMAL) {
-        // Close the Find toolbar if we're in old-style TAF mode
-        gFindBar.close();
-      }
-
-      // XXXmano new-findbar, do something useful once it lands.
-      // Of course, this is especially wrong with bfcache on...
-
-      // fix bug 253793 - turn off highlight when page changes
-      gFindBar.getElement("highlight").checked = false;      
-    }
 
     // See bug 358202, when tabs are switched during a drag operation,
     // timers don't fire on windows (bug 203573)
@@ -6437,10 +6446,45 @@ var MailIntegration = {
 };
 
 function BrowserOpenAddonsMgr(aView) {
-  switchToTabHavingURI("about:addons", true, function(browser) {
-    if (aView)
-      browser.contentWindow.wrappedJSObject.loadView(aView);
-  });
+  if (aView) {
+    let emWindow;
+    let browserWindow;
+
+    function receivePong(aSubject, aTopic, aData) {
+      let browserWin = aSubject.QueryInterface(Ci.nsIInterfaceRequestor)
+                               .getInterface(Ci.nsIWebNavigation)
+                               .QueryInterface(Ci.nsIDocShellTreeItem)
+                               .rootTreeItem
+                               .QueryInterface(Ci.nsIInterfaceRequestor)
+                               .getInterface(Ci.nsIDOMWindow);
+      if (!emWindow || browserWin == window /* favor the current window */) {
+        emWindow = aSubject;
+        browserWindow = browserWin;
+      }
+    }
+    Services.obs.addObserver(receivePong, "EM-pong", false);
+    Services.obs.notifyObservers(null, "EM-ping", "");
+    Services.obs.removeObserver(receivePong, "EM-pong");
+
+    if (emWindow) {
+      emWindow.loadView(aView);
+      browserWindow.gBrowser.selectedTab =
+        browserWindow.gBrowser._getTabForContentWindow(emWindow);
+      emWindow.focus();
+      return;
+    }
+  }
+
+  var newLoad = !switchToTabHavingURI("about:addons", true);
+
+  if (aView) {
+    // This must be a new load, else the ping/pong would have
+    // found the window above.
+    Services.obs.addObserver(function (aSubject, aTopic, aData) {
+      Services.obs.removeObserver(arguments.callee, aTopic);
+      aSubject.loadView(aView);
+    }, "EM-loaded", false);
+  }
 }
 
 function AddKeywordForSearchField() {
@@ -8359,15 +8403,13 @@ var LightWeightThemeWebInstaller = {
  * @param aURI
  *        URI to search for
  * @param aOpenNew
- *        True to open a new tab and switch to it, if no existing tab is found
- * @param A callback to call when the tab is open, the tab's browser will be
- *        passed as an argument
- * @return True if a tab was switched to (or opened), false otherwise
+ *        True to open a new tab and switch to it, if no existing tab is found.
+ *        If no suitable window is found, a new one will be opened.
+ * @return True if an existing tab was found, false otherwise
  */
-function switchToTabHavingURI(aURI, aOpenNew, aCallback) {
+function switchToTabHavingURI(aURI, aOpenNew) {
+  // This will switch to the tab in aWindow having aURI, if present.
   function switchIfURIInWindow(aWindow) {
-    if (!("gBrowser" in aWindow))
-      return false;
     let browsers = aWindow.gBrowser.browsers;
     for (let i = 0; i < browsers.length; i++) {
       let browser = browsers[i];
@@ -8375,8 +8417,6 @@ function switchToTabHavingURI(aURI, aOpenNew, aCallback) {
         // Focus the matching window & tab
         aWindow.focus();
         aWindow.gBrowser.tabContainer.selectedIndex = i;
-        if (aCallback)
-          aCallback(browser);
         return true;
       }
     }
@@ -8385,10 +8425,12 @@ function switchToTabHavingURI(aURI, aOpenNew, aCallback) {
 
   // This can be passed either nsIURI or a string.
   if (!(aURI instanceof Ci.nsIURI))
-    aURI = makeURI(aURI);
+    aURI = Services.io.newURI(aURI, null, null);
+
+  let isBrowserWindow = !!window.gBrowser;
 
   // Prioritise this window.
-  if (switchIfURIInWindow(window))
+  if (isBrowserWindow && switchIfURIInWindow(window))
     return true;
 
   let winEnum = Services.wm.getEnumerator("navigator:browser");
@@ -8404,20 +8446,10 @@ function switchToTabHavingURI(aURI, aOpenNew, aCallback) {
 
   // No opened tab has that url.
   if (aOpenNew) {
-    if (isTabEmpty(gBrowser.selectedTab))
+    if (isBrowserWindow && isTabEmpty(gBrowser.selectedTab))
       gBrowser.selectedBrowser.loadURI(aURI.spec);
     else
-      gBrowser.selectedTab = gBrowser.addTab(aURI.spec);
-    if (aCallback) {
-      let browser = gBrowser.selectedBrowser;
-      browser.addEventListener("pageshow", function(event) {
-        if (event.target.location.href != aURI.spec)
-          return;
-        browser.removeEventListener("pageshow", arguments.callee, true);
-        aCallback(browser);
-      }, true);
-    }
-    return true;
+      openUILinkIn(aURI.spec, "tab");
   }
 
   return false;
@@ -8468,7 +8500,7 @@ var TabContextMenu = {
 
     // Hide "Move to Group" if it's a pinned tab.
     document.getElementById("context_tabViewMenu").hidden =
-      (this.contextTab.pinned || !TabView.firstRunExperienced);
+      (this.contextTab.pinned || !TabView.firstUseExperienced);
   }
 };
 
@@ -8565,9 +8597,13 @@ let AddonsMgrListener = {
     this.lastAddonBarCount = this.getAddonBarItemCount();
   },
   onUninstalled: function(aAddon) {
-    if (this.lastAddonBarCount > 0 && this.getAddonBarItemCount() == 0)
+    if (this.getAddonBarItemCount() == 0)
       setToolbarVisibility(this.addonBar, false);
-  }
+  },
+  onEnabling: function(aAddon) this.onInstalling(),
+  onEnabled: function(aAddon) this.onInstalled(),
+  onDisabling: function(aAddon) this.onUninstalling(),
+  onDisabled: function(aAddon) this.onUninstalled(),
 };
 
 function toggleAddonBar() {

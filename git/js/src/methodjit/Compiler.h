@@ -67,30 +67,38 @@ class Compiler : public BaseCompiler
     };
 
 #if defined JS_MONOIC
-    struct MICGenInfo {
-        MICGenInfo(ic::MICInfo::Kind kind) : kind(kind)
-        { }
-        Label entry;
-        Label stubEntry;
+    struct GlobalNameICInfo {
+        Label fastPathStart;
+        Call slowPathCall;
         DataLabel32 shape;
         DataLabelPtr addrLabel;
+        bool usePropertyCache;
+
+        void copyTo(ic::GlobalNameIC &to, JSC::LinkBuffer &full, JSC::LinkBuffer &stub) {
+            to.fastPathStart = full.locationOf(fastPathStart);
+
+            int offset = full.locationOf(shape) - to.fastPathStart;
+            to.shapeOffset = offset;
+            JS_ASSERT(to.shapeOffset == offset);
+
+            to.slowPathCall = stub.locationOf(slowPathCall);
+            to.usePropertyCache = usePropertyCache;
+        }
+    };
+
+    struct GetGlobalNameICInfo : public GlobalNameICInfo {
         Label load;
+    };
+
+    struct SetGlobalNameICInfo : public GlobalNameICInfo {
+        Label slowPathStart;
+        Label fastPathRejoin;
         DataLabel32 store;
-        Call call;
-        ic::MICInfo::Kind kind;
-        jsbytecode *jumpTarget;
-        Jump traceHint;
-        MaybeJump slowTraceHint;
-        union {
-            struct {
-                bool typeConst;
-                bool dataConst;
-                bool usePropertyCache;
-            } name;
-            struct {
-                uint32 pcOffs;
-            } tracer;
-        } u;
+        Jump shapeGuardJump;
+        ValueRemat vr;
+        RegisterID objReg;
+        RegisterID shapeReg;
+        bool objConst;
     };
 
     struct EqualityGenInfo {
@@ -332,7 +340,8 @@ class Compiler : public BaseCompiler
     FrameState frame;
     js::Vector<BranchPatch, 64, CompilerAllocPolicy> branchPatches;
 #if defined JS_MONOIC
-    js::Vector<MICGenInfo, 64, CompilerAllocPolicy> mics;
+    js::Vector<GetGlobalNameICInfo, 16, CompilerAllocPolicy> getGlobalNames;
+    js::Vector<SetGlobalNameICInfo, 16, CompilerAllocPolicy> setGlobalNames;
     js::Vector<CallGenInfo, 64, CompilerAllocPolicy> callICs;
     js::Vector<EqualityGenInfo, 64, CompilerAllocPolicy> equalityICs;
     js::Vector<TraceGenInfo, 64, CompilerAllocPolicy> traceICs;
@@ -404,7 +413,7 @@ class Compiler : public BaseCompiler
     void passICAddress(BaseICInfo *ic);
 #endif
 #ifdef JS_MONOIC
-    void passMICAddress(MICGenInfo &mic);
+    void passMICAddress(GlobalNameICInfo &mic);
 #endif
     bool constructThis();
 
@@ -437,6 +446,7 @@ class Compiler : public BaseCompiler
     void jsop_eleminc(JSOp op, VoidStub);
     void jsop_getgname(uint32 index);
     void jsop_getgname_slow(uint32 index);
+    void jsop_callgname_epilogue();
     void jsop_setgname(JSAtom *atom, bool usePropertyCache);
     void jsop_setgname_slow(JSAtom *atom, bool usePropertyCache);
     void jsop_bindgname();

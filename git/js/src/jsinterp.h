@@ -840,6 +840,9 @@ bool GetPrimitiveThis(JSContext *cx, Value *vp, T *v);
 inline void
 PutActivationObjects(JSContext *cx, JSStackFrame *fp);
 
+inline void
+PutOwnedActivationObjects(JSContext *cx, JSStackFrame *fp);
+
 /*
  * For a call's vp (which necessarily includes callee at vp[0] and the original
  * specified |this| at vp[1]), convert null/undefined |this| into the global
@@ -997,11 +1000,8 @@ Interpret(JSContext *cx, JSStackFrame *stopFp, uintN inlineCallCount = 0, JSInte
 extern JS_REQUIRES_STACK bool
 RunScript(JSContext *cx, JSScript *script, JSStackFrame *fp);
 
-#define JSPROP_INITIALIZER 0x100   /* NB: Not a valid property attribute. */
-
 extern bool
-CheckRedeclaration(JSContext *cx, JSObject *obj, jsid id, uintN attrs,
-                   JSObject **objp, JSProperty **propp);
+CheckRedeclaration(JSContext *cx, JSObject *obj, jsid id, uintN attrs);
 
 extern bool
 StrictlyEqual(JSContext *cx, const Value &lval, const Value &rval, JSBool *equal);

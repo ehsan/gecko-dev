@@ -26,7 +26,7 @@
         <spacer flex="1"/>
         <hbox pack="center">
             <vbox anonid="mainContainer" class="mainContainer">
-                <grid anonid="topContainer" class="topContainer" flex="1">
+                <grid class="topContainer" flex="1">
                     <columns>
                         <column/>
                         <column flex="1"/>
@@ -34,7 +34,7 @@
 
                     <rows>
                         <vbox anonid="infoContainer" align="center" pack="center" flex="1">
-                            <description anonid="info.title" hidden="true"/>
+                            <description anonid="info.title" class="info.title" hidden="true" />
                             <description anonid="info.body" class="info.body"/>
                         </vbox>
 
@@ -64,7 +64,7 @@
                     <button anonid="button0" label="&okButton.label;"/>
 #else
                     <button anonid="button3" hidden="true"/>
-                    <spacer anonid="buttonSpacer" flex="1" hidden="true"/>
+                    <spacer anonid="buttonSpacer" flex="1"/>
                     <button anonid="button0" label="&okButton.label;"/>
                     <button anonid="button2" hidden="true"/>
                     <button anonid="button1" label="&cancelButton.label;"/>
@@ -159,6 +159,13 @@
                 this.Dialog = new tmp.CommonDialog(args, this.ui);
                 this.Dialog.onLoad(null);
 
+                // Display the tabprompt title that shows the prompt origin when
+                // the prompt origin is not the same as that of the top window.
+                let topPrincipal = this.args.domWindow.top.document.nodePrincipal;
+                let promptPrincipal = this.args.domWindow.document.nodePrincipal;
+                if (!topPrincipal.equals(promptPrincipal))
+                  this.ui.infoTitle.removeAttribute("hidden");
+
                 // TODO: should unhide buttonSpacer on Windows when there are 4 buttons.
                 //       Better yet, just drop support for 4-button dialogs. (bug 609510)
 
@@ -220,7 +227,6 @@
                     return document.getAnonymousElementByAttribute(self, "anonid", anonid);
                 }
                 let main = getElement("mainContainer");
-                let top  = getElement("topContainer");
                 let info = getElement("infoContainer");
                 let body = this.ui.infoBody;
 
@@ -230,9 +236,9 @@
                 if (!this.minHeight)
                   this.minHeight = parseInt(window.getComputedStyle(main).minHeight);
                 let maxWidth = Math.max(Math.floor(availWidth * 0.6), this.minWidth) +
-                               top.clientWidth - main.clientWidth;
+                               info.clientWidth - main.clientWidth;
                 let maxHeight = Math.max(Math.floor(availHeight * 0.6), this.minHeight) +
-                                top.clientHeight - main.clientHeight;
+                                info.clientHeight - main.clientHeight;
                 body.style.maxWidth = maxWidth + "px";
                 info.style.overflow = info.style.width = info.style.height = "";
 

@@ -69,7 +69,7 @@
 // catching up with the download. Having this margin make the
 // nsMediaDecoder::CanPlayThrough() calculation more stable in the case of
 // fluctuating bitrates.
-#define CAN_PLAY_THROUGH_MARGIN 20
+#define CAN_PLAY_THROUGH_MARGIN 10
 
 nsMediaDecoder::nsMediaDecoder() :
   mElement(0),
@@ -80,6 +80,7 @@ nsMediaDecoder::nsMediaDecoder() :
   mFrameBufferLength(0),
   mPinnedForSeek(PR_FALSE),
   mSizeChanged(PR_FALSE),
+  mImageContainerSizeChanged(PR_FALSE),
   mShuttingDown(PR_FALSE)
 {
   MOZ_COUNT_CTOR(nsMediaDecoder);
@@ -138,9 +139,15 @@ void nsMediaDecoder::Invalidate()
     return;
 
   nsIFrame* frame = mElement->GetPrimaryFrame();
+  PRBool invalidateFrame = PR_FALSE;
 
   {
     nsAutoLock lock(mVideoUpdateLock);
+
+    // Get mImageContainerSizeChanged while holding the lock.
+    invalidateFrame = mImageContainerSizeChanged;
+    mImageContainerSizeChanged = PR_FALSE;
+
     if (mSizeChanged) {
       nsIntSize scaledSize(mRGBWidth, mRGBHeight);
       // Apply the aspect ratio to produce the intrinsic size we report
@@ -169,8 +176,11 @@ void nsMediaDecoder::Invalidate()
 
   if (frame) {
     nsRect contentRect = frame->GetContentRect() - frame->GetPosition();
-    // Only the layer needs to be updated here
-    frame->InvalidateLayer(contentRect, nsDisplayItem::TYPE_VIDEO);
+    if (invalidateFrame) {
+      frame->Invalidate(contentRect);
+    } else {
+      frame->InvalidateLayer(contentRect, nsDisplayItem::TYPE_VIDEO);
+    }
   }
 
 #ifdef MOZ_SVG
@@ -257,7 +267,12 @@ void nsMediaDecoder::SetVideoData(const gfxIntSize& aSize,
     mSizeChanged = PR_TRUE;
   }
   if (mImageContainer && aImage) {
+    gfxIntSize oldFrameSize = mImageContainer->GetCurrentSize();
     mImageContainer->SetCurrentImage(aImage);
+    gfxIntSize newFrameSize = mImageContainer->GetCurrentSize();
+    if (oldFrameSize != newFrameSize) {
+      mImageContainerSizeChanged = PR_TRUE;
+    }
   }
 }
 
@@ -281,11 +296,6 @@ void nsMediaDecoder::UnpinForSeek()
   stream->Unpin();
 }
 
-// Number of bytes to add to the download size when we're computing
-// when the download will finish --- a safety margin in case bandwidth
-// or other conditions are worse than expected
-static const PRInt32 gDownloadSizeSafetyMargin = 1000000;
-
 PRBool nsMediaDecoder::CanPlayThrough()
 {
   Statistics stats = GetStatistics();
@@ -294,9 +304,8 @@ PRBool nsMediaDecoder::CanPlayThrough()
   }
   PRInt64 bytesToDownload = stats.mTotalBytes - stats.mDownloadPosition;
   PRInt64 bytesToPlayback = stats.mTotalBytes - stats.mPlaybackPosition;
-  double timeToDownload =
-    (bytesToDownload + gDownloadSizeSafetyMargin)/stats.mDownloadRate;
-  double timeToPlay = bytesToPlayback/stats.mPlaybackRate;
+  double timeToDownload = bytesToDownload / stats.mDownloadRate;
+  double timeToPlay = bytesToPlayback / stats.mPlaybackRate;
 
   if (timeToDownload > timeToPlay) {
     // Estimated time to download is greater than the estimated time to play.

@@ -449,7 +449,7 @@ struct JS_FRIEND_API(JSCompartment) {
 
     bool init();
 
-    /* Mark cross-compartment pointers. */
+    /* Mark cross-compartment wrappers. */
     void markCrossCompartment(JSTracer *trc);
 
     /* Mark this compartment's local roots. */
@@ -460,6 +460,7 @@ struct JS_FRIEND_API(JSCompartment) {
     bool wrap(JSContext *cx, JSObject **objp);
     bool wrapId(JSContext *cx, jsid *idp);
     bool wrap(JSContext *cx, js::PropertyOp *op);
+    bool wrap(JSContext *cx, js::StrictPropertyOp *op);
     bool wrap(JSContext *cx, js::PropertyDescriptor *desc);
     bool wrap(JSContext *cx, js::AutoIdVector &props);
 
@@ -481,6 +482,14 @@ struct JS_FRIEND_API(JSCompartment) {
 
     bool                         marked;
     
+    typedef js::HashMap<jsbytecode*,
+                        size_t,
+                        js::DefaultHasher<jsbytecode*>,
+                        js::SystemAllocPolicy> BackEdgeMap;
+
+    BackEdgeMap                  backEdgeTable;
+
+    JSCompartment *thisForCtor() { return this; }
   public:
     js::MathCache *getMathCache(JSContext *cx) {
         return mathCache ? mathCache : allocMathCache(cx);
@@ -488,6 +497,9 @@ struct JS_FRIEND_API(JSCompartment) {
 
     bool isMarked() { return marked; }
     void clearMark() { marked = false; }
+
+    size_t backEdgeCount(jsbytecode *pc) const;
+    size_t incBackEdgeCount(jsbytecode *pc);
 };
 
 #define JS_SCRIPTS_TO_GC(cx)    ((cx)->compartment->scriptsToGC)

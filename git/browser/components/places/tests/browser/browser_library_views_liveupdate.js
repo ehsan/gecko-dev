@@ -39,9 +39,6 @@
  * Tests Library Left pane view for liveupdate.
  */
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-
 var gLibrary = null;
 
 function test() {
@@ -204,7 +201,8 @@ var bookmarksObserver = {
   },
 
   // nsINavBookmarkObserver
-  onItemAdded: function PSB_onItemAdded(aItemId, aFolderId, aIndex, aURI) {
+  onItemAdded: function PSB_onItemAdded(aItemId, aFolderId, aIndex, aItemType,
+                                        aURI) {
     var node = null;
     var index = null;
     [node, index] = getNodeForTreeItem(aItemId, gLibrary.PlacesOrganizer._places);
