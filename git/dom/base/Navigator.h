@@ -15,7 +15,6 @@
 #include "nsINavigatorBattery.h"
 #include "nsIDOMNavigatorSms.h"
 #include "nsIDOMNavigatorNetwork.h"
-#include "nsIObserver.h"
 #ifdef MOZ_AUDIO_CHANNEL_MANAGER
 #include "nsINavigatorAudioChannelManager.h"
 #endif
@@ -97,7 +96,6 @@ class Navigator : public nsIDOMNavigator
                 , public nsIDOMNavigatorDesktopNotification
                 , public nsINavigatorBattery
                 , public nsIDOMMozNavigatorSms
-                , public nsIObserver
 #ifdef MOZ_MEDIA_NAVIGATOR
                 , public nsINavigatorUserMedia
                 , public nsIDOMNavigatorUserMedia
@@ -134,7 +132,6 @@ public:
   NS_DECL_NSIDOMNAVIGATORDESKTOPNOTIFICATION
   NS_DECL_NSINAVIGATORBATTERY
   NS_DECL_NSIDOMMOZNAVIGATORSMS
-  NS_DECL_NSIOBSERVER
 #ifdef MOZ_MEDIA_NAVIGATOR
   NS_DECL_NSINAVIGATORUSERMEDIA
   NS_DECL_NSIDOMNAVIGATORUSERMEDIA

@@ -1414,13 +1414,12 @@ BookmarksTracker.prototype = {
     this._add(folder, parentGuid);
   },
 
-  onItemRemoved: function (itemId, parentId, index, type, uri,
-                           guid, parentGuid) {
-    if (this._ignore(itemId, parentId, guid)) {
+  onItemRemoved: function BMT_onItemRemoved(itemId, parentId, index, type, uri,
+                                            guid, parentGuid) {
+    if (this._ignore(itemId, parentId, guid))
       return;
-    }
 
-    this._log.trace("onItemRemoved: " + itemId);
+    this._log.trace("onBeforeItemRemoved: " + itemId);
     this._add(itemId, guid);
     this._add(parentId, parentGuid);
   },
@@ -1510,6 +1509,6 @@ BookmarksTracker.prototype = {
 
   onBeginUpdateBatch: function () {},
   onEndUpdateBatch: function () {},
-  onItemVisited: function () {},
   onBeforeItemRemoved: function () {},
+  onItemVisited: function () {}
 };

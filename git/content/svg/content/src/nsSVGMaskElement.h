@@ -6,6 +6,7 @@
 #ifndef __NS_SVGMASKELEMENT_H__
 #define __NS_SVGMASKELEMENT_H__
 
+#include "DOMSVGTests.h"
 #include "nsIDOMSVGMaskElement.h"
 #include "nsIDOMSVGUnitTypes.h"
 #include "nsSVGEnum.h"
@@ -18,6 +19,7 @@ typedef nsSVGElement nsSVGMaskElementBase;
 
 class nsSVGMaskElement : public nsSVGMaskElementBase,
                          public nsIDOMSVGMaskElement,
+                         public DOMSVGTests,
                          public nsIDOMSVGUnitTypes
 {
   friend class nsSVGMaskFrame;

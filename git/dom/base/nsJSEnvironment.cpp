@@ -2533,7 +2533,7 @@ namespace dmd {
 // how to use DMD.
 
 static JSBool
-ReportAndDump(JSContext *cx, unsigned argc, jsval *vp)
+MaybeReportAndDump(JSContext *cx, unsigned argc, jsval *vp, bool report)
 {
   JSString *str = JS_ValueToString(cx, argc ? JS_ARGV(cx, vp)[0] : JSVAL_VOID);
   if (!str)
@@ -2549,9 +2549,10 @@ ReportAndDump(JSContext *cx, unsigned argc, jsval *vp)
     return JS_FALSE;
   }
 
-  dmd::ClearReports();
-  fprintf(stderr, "DMD: running reporters...\n");
-  dmd::RunReporters();
+  if (report) {
+    fprintf(stderr, "DMD: running reporters...\n");
+    dmd::RunReporters();
+  }
   dmd::Writer writer(FpWrite, fp);
   dmd::Dump(writer);
 
@@ -2561,11 +2562,25 @@ ReportAndDump(JSContext *cx, unsigned argc, jsval *vp)
   return JS_TRUE;
 }
 
+static JSBool
+ReportAndDump(JSContext *cx, unsigned argc, jsval *vp)
+{
+  return MaybeReportAndDump(cx, argc, vp, /* report = */ true);
+}
+
+static JSBool
+Dump(JSContext *cx, unsigned argc, jsval *vp)
+{
+  return MaybeReportAndDump(cx, argc, vp, /* report = */ false);
+}
+
+
 } // namespace dmd
 } // namespace mozilla
 
 static JSFunctionSpec DMDFunctions[] = {
     JS_FS("DMDReportAndDump", dmd::ReportAndDump, 1, 0),
+    JS_FS("DMDDump",          dmd::Dump,          1, 0),
     JS_FS_END
 };
 

@@ -611,15 +611,15 @@ GetNativePropertyHooks(JSContext *cx, JSObject *obj, DOMObjectType& type)
 
 bool
 XrayResolveOwnProperty(JSContext* cx, JSObject* wrapper, JSObject* obj, jsid id,
-                       JSPropertyDescriptor* desc, unsigned flags)
+                       bool set, JSPropertyDescriptor* desc)
 {
   DOMObjectType type;
   const NativePropertyHooks *nativePropertyHooks =
     GetNativePropertyHooks(cx, obj, type);
 
   return type != eInstance || !nativePropertyHooks->mResolveOwnProperty ||
-         nativePropertyHooks->mResolveOwnProperty(cx, wrapper, obj, id, desc,
-                                                  flags);
+         nativePropertyHooks->mResolveOwnProperty(cx, wrapper, obj, id, set,
+                                                  desc);
 }
 
 static bool

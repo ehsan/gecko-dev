@@ -536,11 +536,6 @@ pref("mousewheel.with_shift.action", 1);
 // acceleration is the best modifier for zoom-in/out.  However, we should keep
 // the control key setting for backward compatibility.
 pref("mousewheel.with_meta.action", 3); // command key on Mac
-// Disable control-/meta-modified horizontal mousewheel events, since
-// those are used on Mac as part of modified swipe gestures (e.g.
-// Left swipe+Cmd = go back in a new tab).
-pref("mousewheel.with_control.action.override_x", 0);
-pref("mousewheel.with_meta.action.override_x", 0);
 #else
 pref("mousewheel.with_alt.action", 1);
 pref("mousewheel.with_shift.action", 2);
@@ -856,10 +851,6 @@ pref("breakpad.reportURL", "http://crash-stats.mozilla.com/report/index/");
 // Override submission of plugin hang reports to a different processing server
 pref("toolkit.crashreporter.pluginHangSubmitURL",
      "https://hang-reports.mozilla.org/submit");
-
-// URL for "Learn More" for Crash Reporter
-pref("toolkit.crashreporter.infoURL",
-     "http://www.mozilla.com/legal/privacy/firefox.html#crash-reporter");
 
 // base URL for web-based support pages
 pref("app.support.baseURL", "http://support.mozilla.org/1/firefox/%VERSION%/%OS%/%LOCALE%/");

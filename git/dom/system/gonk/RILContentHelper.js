@@ -884,9 +884,7 @@ RILContentHelper.prototype = {
       case "RIL:IccInfoChanged":
         this.updateICCInfo(msg.json, this.iccInfo);
         if (this.iccInfo.mcc) {
-          try {
-            Services.prefs.setIntPref("ril.lastKnownMcc", this.iccInfo.mcc);
-          } catch (e) {}
+          Services.prefs.setIntPref("ril.lastKnownMcc", this.iccInfo.mcc);
         }
         Services.obs.notifyObservers(null, kIccInfoChangedTopic, null);
         break;

@@ -39,8 +39,8 @@
     _(ApplyArgsGeneric)             \
     _(StackArgT)                    \
     _(StackArgV)                    \
-    _(CreateThis)                   \
-    _(CreateThisWithProto)          \
+    _(CreateThisV)                  \
+    _(CreateThisO)                  \
     _(CreateThisWithTemplate)       \
     _(ReturnFromCtor)               \
     _(BitNotI)                      \

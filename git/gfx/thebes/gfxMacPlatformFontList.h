@@ -27,7 +27,7 @@ public:
     friend class gfxMacPlatformFontList;
 
     MacOSFontEntry(const nsAString& aPostscriptName, int32_t aWeight,
-                   bool aIsStandardFace = false);
+                   gfxFontFamily *aFamily, bool aIsStandardFace = false);
 
     // for use with data fonts
     MacOSFontEntry(const nsAString& aPostscriptName, CGFontRef aFontRef,

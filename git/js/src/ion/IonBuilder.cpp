@@ -2376,8 +2376,6 @@ IonBuilder::processCondSwitchCase(CFGState &state)
         MDefinition *caseOperand = current->pop();
         MDefinition *switchOperand = current->peek(-1);
         MCompare *cmpResult = MCompare::New(switchOperand, caseOperand, JSOP_STRICTEQ);
-        TypeOracle::BinaryTypes b = oracle->binaryTypes(script(), pc);
-        cmpResult->infer(b, cx);
         JS_ASSERT(!cmpResult->isEffectful());
         current->add(cmpResult);
         current->end(MTest::New(cmpResult, bodyBlock, caseBlock));
@@ -3577,6 +3575,15 @@ IonBuilder::createCallObject(MDefinition *callee, MDefinition *scope)
 }
 
 MDefinition *
+IonBuilder::createThisNative()
+{
+    // Native constructors build the new Object themselves.
+    MConstant *magic = MConstant::New(MagicValue(JS_IS_CONSTRUCTING));
+    current->add(magic);
+    return magic;
+}
+
+MDefinition *
 IonBuilder::createThisScripted(MDefinition *callee)
 {
     // Get callee.prototype.
@@ -3603,7 +3610,7 @@ IonBuilder::createThisScripted(MDefinition *callee)
     current->add(getProto);
 
     // Create this from prototype
-    MCreateThisWithProto *createThis = MCreateThisWithProto::New(callee, getProto);
+    MCreateThis *createThis = MCreateThis::New(callee, getProto);
     current->add(createThis);
 
     return createThis;
@@ -3626,13 +3633,8 @@ IonBuilder::getSingletonPrototype(JSFunction *target)
 }
 
 MDefinition *
-IonBuilder::createThisScriptedSingleton(HandleFunction target, MDefinition *callee)
+IonBuilder::createThisScriptedSingleton(HandleFunction target, HandleObject proto, MDefinition *callee)
 {
-    // Get the singleton prototype (if exists)
-    RootedObject proto(cx, getSingletonPrototype(target));
-    if (!proto)
-        return NULL;
-
     // Generate an inline path to create a new |this| object with
     // the given singleton prototype.
     types::TypeObject *type = proto->getNewType(cx, target);
@@ -3659,28 +3661,36 @@ MDefinition *
 IonBuilder::createThis(HandleFunction target, MDefinition *callee)
 {
     // Create this for unknown target
-    if (!target) {
-        MCreateThis *createThis = MCreateThis::New(callee);
-        current->add(createThis);
-        return createThis;
-    }
+    if (!target)
+        return createThisScripted(callee);
 
-    // Native constructors build the new Object themselves.
+    // Create this for native function
     if (target->isNative()) {
         if (!target->isNativeConstructor())
             return NULL;
-
-        MConstant *magic = MConstant::New(MagicValue(JS_IS_CONSTRUCTING));
-        current->add(magic);
-        return magic;
+        return createThisNative();
     }
 
-    // Try baking in the prototype.
-    MDefinition *createThis = createThisScriptedSingleton(target, callee);
-    if (createThis)
-        return createThis;
+    // Create this with known prototype.
+    RootedObject proto(cx, getSingletonPrototype(target));
 
-    return createThisScripted(callee);
+    // Try baking in the prototype.
+    if (proto) {
+        MDefinition *createThis = createThisScriptedSingleton(target, proto, callee);
+        if (createThis)
+            return createThis;
+    }
+
+    MDefinition *createThis = createThisScripted(callee);
+    if (!createThis)
+        return NULL;
+
+    // The native function case is already handled upfront.
+    // Here we can safely remove the native check for MCreateThis.
+    JS_ASSERT(createThis->isCreateThis());
+    createThis->toCreateThis()->removeNativeCheck();
+
+    return createThis;
 }
 
 bool

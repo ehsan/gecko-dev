@@ -11,26 +11,24 @@ this.EXPORTED_SYMBOLS = [
 
 const {utils: Cu, classes: Cc, interfaces: Ci} = Components;
 
-const DEFAULT_PROFILE_MEASUREMENT_NAME = "age";
+const DEFAULT_PROFILE_MEASUREMENT_NAME = "org.mozilla.profile";
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 const REQUIRED_UINT32_TYPE = {type: "TYPE_UINT32"};
 
 Cu.import("resource://gre/modules/commonjs/promise/core.js");
-Cu.import("resource://gre/modules/Metrics.jsm");
 Cu.import("resource://gre/modules/osfile.jsm")
-Cu.import("resource://gre/modules/Task.jsm");
+Cu.import("resource://gre/modules/services/metrics/dataprovider.jsm");
 Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-common/utils.js");
 
 // Profile creation time access.
 // This is separate from the provider to simplify testing and enable extraction
 // to a shared location in the future.
-function ProfileCreationTimeAccessor(profile, log) {
+function ProfileCreationTimeAccessor(profile) {
   this.profilePath = profile || OS.Constants.Path.profileDir;
   if (!this.profilePath) {
     throw new Error("No profile directory.");
   }
-  this._log = log || {"debug": function (s) { dump(s + "\n"); }};
 }
 ProfileCreationTimeAccessor.prototype = {
   /**
@@ -117,34 +115,31 @@ ProfileCreationTimeAccessor.prototype = {
    * and returning its creation timestamp.
    */
   getOldestProfileTimestamp: function () {
-    let self = this;
     let oldest = Date.now() + 1000;
     let iterator = new OS.File.DirectoryIterator(this.profilePath);
-    self._log.debug("Iterating over profile " + this.profilePath);
+dump("Iterating over profile " + this.profilePath);
     if (!iterator) {
       throw new Error("Unable to fetch oldest profile entry: no profile iterator.");
     }
 
     function onEntry(entry) {
-      function onStatSuccess(info) {
-        // OS.File doesn't seem to be behaving. See Bug 827148.
-        // Let's do the best we can. This whole function is defensive.
-        let date = info.winBirthDate || info.macBirthDate;
-        if (!date || !date.getTime()) {
-          // OS.File will only return file creation times of any kind on Mac
-          // and Windows, where birthTime is defined.
-          // That means we're unable to function on Linux, so we use mtime
-          // instead.
-          self._log.debug("No birth date. Using mtime.");
-          date = info.lastModificationDate;
+      if ("winLastWriteDate" in entry) {
+        // Under Windows, additional information allow us to sort files immediately
+        // without having to perform additional I/O.
+        let timestamp = entry.winCreationDate.getTime();
+        if (timestamp < oldest) {
+          oldest = timestamp;
         }
+        return;
+      }
 
-        if (date) {
-          let timestamp = date.getTime();
-          self._log.debug("Using date: " + entry.path + " = " + date);
-          if (timestamp < oldest) {
-            oldest = timestamp;
-          }
+      // Under other OSes, we need to call OS.File.stat.
+      function onStatSuccess(info) {
+        let date = info.creationDate;
+        let timestamp = date.getTime();
+        dump("CREATION DATE: " + entry.path + " = " + date);
+        if (timestamp < oldest) {
+          oldest = timestamp;
         }
       }
       return OS.File.stat(entry.path)
@@ -170,18 +165,15 @@ ProfileCreationTimeAccessor.prototype = {
 /**
  * Measurements pertaining to the user's profile.
  */
-function ProfileMetadataMeasurement() {
-  Metrics.Measurement.call(this);
+function ProfileMetadataMeasurement(name=DEFAULT_PROFILE_MEASUREMENT_NAME) {
+  MetricsMeasurement.call(this, name, 1);
 }
 ProfileMetadataMeasurement.prototype = {
-  __proto__: Metrics.Measurement.prototype,
+  __proto__: MetricsMeasurement.prototype,
 
-  name: DEFAULT_PROFILE_MEASUREMENT_NAME,
-  version: 1,
-
-  configureStorage: function () {
+  fields: {
     // Profile creation date. Number of days since Unix epoch.
-    return this.registerStorageField("profileCreation", this.storage.FIELD_LAST_NUMERIC);
+    "profileCreation": REQUIRED_UINT32_TYPE,
   },
 };
 
@@ -196,35 +188,41 @@ function truncate(msec) {
 }
 
 /**
- * A Metrics.Provider for profile metadata, such as profile creation time.
+ * A MetricsProvider for profile metadata, such as profile creation time.
  */
-function ProfileMetadataProvider() {
-  Metrics.Provider.call(this);
+function ProfileMetadataProvider(name="ProfileMetadataProvider") {
+  MetricsProvider.call(this, name);
 }
 ProfileMetadataProvider.prototype = {
-  __proto__: Metrics.Provider.prototype,
-
-  name: "org.mozilla.profile",
-
-  measurementTypes: [ProfileMetadataMeasurement],
+  __proto__: MetricsProvider.prototype,
 
   getProfileCreationDays: function () {
-    let accessor = new ProfileCreationTimeAccessor(null, this._log);
+    let accessor = new ProfileCreationTimeAccessor();
 
     return accessor.created
                    .then(truncate);
   },
 
-  collectConstantData: function () {
-    let m = this.getMeasurement(DEFAULT_PROFILE_MEASUREMENT_NAME, 1);
+  collectConstantMeasurements: function () {
+    let result = this.createResult();
+    result.expectMeasurement("org.mozilla.profile");
+    result.populate = this._populateConstants.bind(this);
+    return result;
+  },
 
-    return Task.spawn(function collectConstant() {
-      let createdDays = yield this.getProfileCreationDays();
-
-      yield this.enqueueStorageOperation(function storeDays() {
-        return m.setLastNumeric("profileCreation", createdDays);
-      });
-    }.bind(this));
+  _populateConstants: function (result) {
+    let name = DEFAULT_PROFILE_MEASUREMENT_NAME;
+    result.addMeasurement(new ProfileMetadataMeasurement(name));
+    function onSuccess(days) {
+      result.setValue(name, "profileCreation", days);
+      result.finish();
+    }
+    function onFailure(ex) {
+      result.addError(ex);
+      result.finish();
+    }
+    return this.getProfileCreationDays()
+               .then(onSuccess, onFailure);
   },
 };
 

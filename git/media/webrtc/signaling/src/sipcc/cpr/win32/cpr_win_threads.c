@@ -210,20 +210,6 @@ cprCreateThread(const char* name,
 
 
 /*
- * cprJoinThread
- *
- * wait for thread termination
- */
-void cprJoinThread(cprThread_t thread)
-{
-    cpr_thread_t *cprThreadPtr;
-
-    cprThreadPtr = (cpr_thread_t *) thread;
-    MOZ_ASSERT(cprThreadPtr);
-    WaitForSingleObject(cprThreadPtr->u.handlePtr, INFINITE);
-}
-
-/*
  * cprDestroyThread
  *
  * Destroys the thread passed in.
@@ -247,6 +233,7 @@ cprDestroyThread(cprThread_t thread)
          */
         if (cprThreadPtr->threadId == GetCurrentThreadId()) {
             CPR_INFO("%s: Destroying Thread %d", __FUNCTION__, cprThreadPtr->threadId);
+            cpr_free(cprThreadPtr);
             ExitThread(0);
             return CPR_SUCCESS;
         }
@@ -254,13 +241,11 @@ cprDestroyThread(cprThread_t thread)
         CPR_ERROR("%s: Thread attempted to destroy another thread, not itself.",
             __FUNCTION__);
         MOZ_ASSERT(PR_FALSE);
-        errno = EINVAL;
         return CPR_FAILURE;
     }
 
     CPR_ERROR("%s - NULL pointer passed in.", __FUNCTION__);
     MOZ_ASSERT(PR_FALSE);
-    errno = EINVAL;
     return CPR_FAILURE;
 };
 

@@ -30,7 +30,7 @@ using namespace mozilla;
   reinterpret_cast<void*>((_cont)->mStringBits & NS_ATTRVALUE_POINTERVALUE_MASK)
 
 bool
-MiscContainer::GetString(nsAString& aString) const
+MiscContainer::GetString(nsDependentString& aString) const
 {
   void* ptr = MISC_STR_PTR(this);
 
@@ -46,7 +46,8 @@ MiscContainer::GetString(nsAString& aString) const
       return false;
     }
 
-    buffer->ToString(buffer->StorageSize() / sizeof(PRUnichar) - 1, aString);
+    aString.Rebind(reinterpret_cast<PRUnichar*>(buffer->Data()),
+                   buffer->StorageSize() / sizeof(PRUnichar) - 1);
     return true;
   }
 
@@ -55,7 +56,7 @@ MiscContainer::GetString(nsAString& aString) const
     return false;
   }
 
-  atom->ToString(aString);
+  aString.Rebind(atom->GetUTF16String(), atom->GetLength());
   return true;
 }
 
@@ -74,7 +75,7 @@ MiscContainer::Cache()
     return;
   }
 
-  nsString str;
+  nsDependentString str;
   bool gotString = GetString(str);
   if (!gotString) {
     return;
@@ -106,7 +107,7 @@ MiscContainer::Evict()
   nsHTMLCSSStyleSheet* sheet = rule->GetHTMLCSSStyleSheet();
   MOZ_ASSERT(sheet);
 
-  nsString str;
+  nsDependentString str;
   DebugOnly<bool> gotString = GetString(str);
   MOZ_ASSERT(gotString);
 
@@ -577,7 +578,9 @@ nsAttrValue::ToString(nsAString& aResult) const
   if (BaseType() == eOtherBase) {
     cont = GetMiscContainer();
 
-    if (cont->GetString(aResult)) {
+    nsDependentString str;
+    if (cont->GetString(str)) {
+      aResult = str;
       return;
     }
   }

@@ -24,11 +24,7 @@ using namespace mozilla;
 using namespace mozilla::dom;
 
 // XXX nav4 has type= start= (same as OL/UL)
-namespace mozilla {
-namespace dom {
 extern nsAttrValue::EnumTable kListTypeTable[];
-} // namespace mozilla
-} // namespace dom
 
 class nsHTMLSharedElement : public nsGenericHTMLElement,
                             public nsIDOMHTMLParamElement,
@@ -244,7 +240,7 @@ nsHTMLSharedElement::ParseAttribute(int32_t aNamespaceID,
   if (aNamespaceID == kNameSpaceID_None &&
       mNodeInfo->Equals(nsGkAtoms::dir)) {
     if (aAttribute == nsGkAtoms::type) {
-      return aResult.ParseEnumValue(aValue, mozilla::dom::kListTypeTable, false);
+      return aResult.ParseEnumValue(aValue, kListTypeTable, false);
     }
     if (aAttribute == nsGkAtoms::start) {
       return aResult.ParseIntWithBounds(aValue, 1);

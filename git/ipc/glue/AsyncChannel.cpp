@@ -570,8 +570,10 @@ AsyncChannel::Clear()
 static void
 PrintErrorMessage(bool isChild, const char* channelName, const char* msg)
 {
-    printf_stderr("\n###!!! [%s][%s] Error: %s\n\n",
-                  isChild ? "Child" : "Parent", channelName, msg);
+    if (LoggingEnabled()) {
+        printf_stderr("\n###!!! [%s][%s] Error: %s\n\n",
+                      isChild ? "Child" : "Parent", channelName, msg);
+    }
 }
 
 bool

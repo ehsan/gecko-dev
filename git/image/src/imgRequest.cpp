@@ -767,8 +767,7 @@ imgRequest::OnDataAvailable(nsIRequest *aRequest, nsISupports *ctxt,
       // Now we can create a new image to hold the data. If we don't have a decoder
       // for this mimetype we'll find out about it here.
       mImage = ImageFactory::CreateImage(aRequest, mStatusTracker, mContentType,
-                                         mURI, mIsMultiPartChannel,
-                                         static_cast<uint32_t>(mInnerWindowId));
+                                         mURI, mIsMultiPartChannel, mInnerWindowId);
 
       // Release our copy of the status tracker since the image owns it now.
       mStatusTracker = nullptr;

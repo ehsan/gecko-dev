@@ -65,7 +65,7 @@ class nsIStyleRule;
 class nsIStyleSheet;
 class nsIURI;
 class nsIVariant;
-class nsViewManager;
+class nsIViewManager;
 class nsPresContext;
 class nsRange;
 class nsScriptLoader;
@@ -90,7 +90,6 @@ class DocumentType;
 class DOMImplementation;
 class Element;
 class Link;
-class UndoManager;
 template<typename> class Sequence;
 } // namespace dom
 } // namespace mozilla
@@ -478,7 +477,7 @@ public:
    * presshell if the presshell should observe document mutations.
    */
   virtual nsresult CreateShell(nsPresContext* aContext,
-                               nsViewManager* aViewManager,
+                               nsIViewManager* aViewManager,
                                nsStyleSet* aStyleSet,
                                nsIPresShell** aInstancePtrResult) = 0;
   virtual void DeleteShell() = 0;
@@ -1647,8 +1646,6 @@ public:
    * @return the element associated with |aId|
    */
   virtual Element* LookupImageElement(const nsAString& aElementId) = 0;
-
-  virtual already_AddRefed<mozilla::dom::UndoManager> GetUndoManager() = 0;
 
   nsresult ScheduleFrameRequestCallback(nsIFrameRequestCallback* aCallback,
                                         int32_t *aHandle);

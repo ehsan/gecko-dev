@@ -1329,11 +1329,13 @@ nsPlaintextEditor::PasteAsQuotation(int32_t aSelectionType)
   nsCOMPtr<nsIClipboard> clipboard(do_GetService("@mozilla.org/widget/clipboard;1", &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Get the nsITransferable interface for getting the data from the clipboard
-  nsCOMPtr<nsITransferable> trans;
-  rv = PrepareTransferable(getter_AddRefs(trans));
+  // Create generic Transferable for getting the data
+  nsCOMPtr<nsITransferable> trans = do_CreateInstance("@mozilla.org/widget/transferable;1", &rv);
   if (NS_SUCCEEDED(rv) && trans)
   {
+    // We only handle plaintext pastes here
+    trans->AddDataFlavor(kUnicodeMime);
+
     // Get the Data from the clipboard
     clipboard->GetData(trans, aSelectionType);
 
@@ -1355,8 +1357,7 @@ nsPlaintextEditor::PasteAsQuotation(int32_t aSelectionType)
 #ifdef DEBUG_clipboard
     printf("Got flavor [%s]\n", flav);
 #endif
-    if (0 == nsCRT::strcmp(flav, kUnicodeMime) ||
-        0 == nsCRT::strcmp(flav, kMozTextInternal))
+    if (0 == nsCRT::strcmp(flav, kUnicodeMime))
     {
       nsCOMPtr<nsISupportsString> textDataObj ( do_QueryInterface(genericDataObj) );
       if (textDataObj && len > 0)

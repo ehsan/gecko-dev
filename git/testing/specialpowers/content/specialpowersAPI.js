@@ -90,7 +90,13 @@ function unwrapIfWrapped(x) {
 };
 
 function isXrayWrapper(x) {
-  return Cu.isXrayWrapper(x);
+  try {
+    return /XrayWrapper/.exec(x.toString());
+  } catch(e) {
+    // The toString() implementation could theoretically throw. But it never
+    // throws for Xray, so we can just assume non-xray in that case.
+    return false;
+  }
 }
 
 function callGetOwnPropertyDescriptor(obj, name) {
@@ -711,14 +717,6 @@ SpecialPowersAPI.prototype = {
         this.clearUserPref(pref.name);
       }
     }
-  },
-
-  // Disables the app install prompt for the duration of this test. There is
-  // no need to re-enable the prompt at the end of the test.
-  //
-  // The provided callback is invoked once the prompt is disabled.
-  autoConfirmAppInstall: function(cb) {
-    this.pushPrefEnv({set: [['dom.mozApps.auto_confirm_install', true]]}, cb);
   },
 
   addObserver: function(obs, notification, weak) {

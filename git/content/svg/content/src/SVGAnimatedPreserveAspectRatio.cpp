@@ -283,7 +283,7 @@ SVGAnimatedPreserveAspectRatio::SetAnimValue(uint64_t aPackedValue,
 
 nsresult
 SVGAnimatedPreserveAspectRatio::ToDOMAnimatedPreserveAspectRatio(
-  DOMSVGAnimatedPreserveAspectRatio **aResult,
+  nsISupports **aResult,
   nsSVGElement *aSVGElement)
 {
   nsRefPtr<DOMSVGAnimatedPreserveAspectRatio> domAnimatedPAspectRatio =

@@ -26,11 +26,9 @@ class nsXPCClassInfo;
 class nsDOMMediaStream : public nsIDOMMediaStream
 {
   friend class nsDOMLocalMediaStream;
+  typedef mozilla::MediaStream MediaStream;
 
 public:
-  typedef mozilla::MediaStream MediaStream;
-  typedef mozilla::MediaStreamGraph MediaStreamGraph;
-
   nsDOMMediaStream() : mStream(nullptr), mHintContents(0) {}
   virtual ~nsDOMMediaStream();
 
@@ -72,22 +70,9 @@ public:
   /**
    * Create an nsDOMMediaStream whose underlying stream is a TrackUnionStream.
    */
-  static already_AddRefed<nsDOMMediaStream> CreateTrackUnionStream(uint32_t aHintContents = 0);
+  static already_AddRefed<nsDOMMediaStream> CreateTrackUnionStream();
 
 protected:
-  void InitSourceStream(uint32_t aHintContents)
-  {
-    SetHintContents(aHintContents);
-    MediaStreamGraph* gm = MediaStreamGraph::GetInstance();
-    mStream = gm->CreateSourceStream(this);
-  }
-  void InitTrackUnionStream(uint32_t aHintContents)
-  {
-    SetHintContents(aHintContents);
-    MediaStreamGraph* gm = MediaStreamGraph::GetInstance();
-    mStream = gm->CreateTrackUnionStream(this);
-  }
-
   // MediaStream is owned by the graph, but we tell it when to die, and it won't
   // die until we let it.
   MediaStream* mStream;
@@ -121,7 +106,7 @@ public:
   /**
    * Create an nsDOMLocalMediaStream whose underlying stream is a TrackUnionStream.
    */
-  static already_AddRefed<nsDOMLocalMediaStream> CreateTrackUnionStream(uint32_t aHintContents = 0);
+  static already_AddRefed<nsDOMLocalMediaStream> CreateTrackUnionStream();
 };
 
 #endif /* NSDOMMEDIASTREAM_H_ */

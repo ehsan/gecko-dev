@@ -30,7 +30,6 @@ EXPORTS		= \
 EXPORTS_NAMESPACES = mozilla/dom
 
 EXPORTS_mozilla/dom = \
-		HTMLAnchorElement.h \
 		HTMLBodyElement.h \
 		HTMLDataListElement.h \
 		HTMLDivElement.h \
@@ -39,22 +38,8 @@ EXPORTS_mozilla/dom = \
 		HTMLHeadingElement.h \
 		HTMLImageElement.h \
 		HTMLLabelElement.h \
-		HTMLLIElement.h \
-		HTMLParagraphElement.h \
-		HTMLPreElement.h \
-		HTMLScriptElement.h \
-		HTMLSharedListElement.h \
-		HTMLSpanElement.h \
-		HTMLTableCaptionElement.h \
-		HTMLTableCellElement.h \
-		HTMLTableColElement.h \
-		HTMLTableElement.h \
-		HTMLTableRowElement.h \
-		HTMLTableSectionElement.h \
 		HTMLTitleElement.h \
-		HTMLUnknownElement.h \
-		UndoManager.h \
-		$(NULL)
+		HTMLUnknownElement.h
 
 CPPSRCS		= \
 		HTMLPropertiesCollection.cpp \
@@ -65,12 +50,12 @@ CPPSRCS		= \
 		nsFormSubmission.cpp \
 		nsTextEditorState.cpp \
 		HTMLElement.cpp \
-		HTMLAnchorElement.cpp \
+		nsHTMLAnchorElement.cpp \
 		nsHTMLAreaElement.cpp \
 		nsHTMLBRElement.cpp \
 		HTMLBodyElement.cpp \
 		nsHTMLButtonElement.cpp \
-		HTMLCanvasElement.cpp \
+		nsHTMLCanvasElement.cpp \
 		HTMLDataListElement.cpp \
 		HTMLDivElement.cpp \
 		nsHTMLFieldSetElement.cpp \
@@ -83,7 +68,7 @@ CPPSRCS		= \
 		nsHTMLIFrameElement.cpp \
 		HTMLImageElement.cpp \
 		nsHTMLInputElement.cpp \
-		HTMLLIElement.cpp \
+		nsHTMLLIElement.cpp \
 		HTMLLabelElement.cpp \
 		nsHTMLLegendElement.cpp \
 		nsHTMLLinkElement.cpp \
@@ -94,25 +79,25 @@ CPPSRCS		= \
 		nsHTMLMeterElement.cpp \
 		nsHTMLModElement.cpp \
 		nsHTMLObjectElement.cpp \
+		nsHTMLOListElement.cpp \
 		nsHTMLSharedObjectElement.cpp \
 		nsHTMLOptionElement.cpp \
 		nsHTMLOptGroupElement.cpp \
 		nsHTMLOutputElement.cpp \
-		HTMLParagraphElement.cpp \
-		HTMLPreElement.cpp \
+		nsHTMLParagraphElement.cpp \
+		nsHTMLPreElement.cpp \
 		nsHTMLProgressElement.cpp \
-		HTMLScriptElement.cpp \
+		nsHTMLScriptElement.cpp \
 		nsHTMLSelectElement.cpp \
 		nsHTMLSharedElement.cpp \
-		HTMLSpanElement.cpp \
-		HTMLSharedListElement.cpp \
+		nsHTMLSpanElement.cpp \
 		nsHTMLStyleElement.cpp \
-		HTMLTableElement.cpp \
-		HTMLTableCaptionElement.cpp \
-		HTMLTableCellElement.cpp \
-		HTMLTableColElement.cpp \
-		HTMLTableRowElement.cpp \
-		HTMLTableSectionElement.cpp \
+		nsHTMLTableElement.cpp \
+		nsHTMLTableCaptionElement.cpp \
+		nsHTMLTableCellElement.cpp \
+		nsHTMLTableColElement.cpp \
+		nsHTMLTableRowElement.cpp \
+		nsHTMLTableSectionElement.cpp \
 		nsHTMLTextAreaElement.cpp \
 		HTMLTitleElement.cpp \
 		HTMLUnknownElement.cpp \
@@ -120,7 +105,6 @@ CPPSRCS		= \
 		nsIConstraintValidation.cpp \
 		nsRadioVisitor.cpp \
 		nsDOMStringMap.cpp \
-		UndoManager.cpp \
 		$(NULL)
 
 ifdef MOZ_MEDIA

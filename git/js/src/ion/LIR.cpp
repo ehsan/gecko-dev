@@ -212,7 +212,6 @@ PrintDefinition(FILE *fp, const LDefinition &def)
     fprintf(fp, "]");
 }
 
-#ifdef DEBUG
 static void
 PrintUse(char *buf, size_t size, const LUse *use)
 {
@@ -232,6 +231,7 @@ PrintUse(char *buf, size_t size, const LUse *use)
     }
 }
 
+#ifdef DEBUG
 const char *
 LAllocation::toString() const
 {

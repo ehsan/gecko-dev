@@ -28,7 +28,7 @@
 #include "nsIDOMHTMLTableCellElement.h"
 #include "nsIDOMHTMLTableElement.h"
 #include "nsIDOMHTMLTableRowElement.h"
-#include "nsIDOMHTMLTableSectionElement.h"
+#include "nsIDOMHTMLTableSectionElem.h"
 #include "nsIDocument.h"
 #include "nsIMutableArray.h"
 #include "nsIPresShell.h"

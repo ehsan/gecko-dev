@@ -3143,16 +3143,15 @@ XPC_WN_Helper_SetProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBo
 
 bool
 xpc::SandboxProxyHandler::getPropertyDescriptor(JSContext *cx, JSObject *proxy,
-                                                jsid id_,
-                                                PropertyDescriptor *desc,
-                                                unsigned flags)
+                                                jsid id_, bool set,
+                                                PropertyDescriptor *desc)
 {
     js::RootedObject obj(cx, wrappedObject(proxy));
     js::RootedId id(cx, id_);
 
     MOZ_ASSERT(js::GetObjectCompartment(obj) == js::GetObjectCompartment(proxy));
     if (!JS_GetPropertyDescriptorById(cx, obj, id,
-                                      flags, desc))
+                                      (set ? JSRESOLVE_ASSIGNING : 0), desc))
         return false;
 
     if (!desc->obj)
@@ -3192,11 +3191,10 @@ xpc::SandboxProxyHandler::getPropertyDescriptor(JSContext *cx, JSObject *proxy,
 bool
 xpc::SandboxProxyHandler::getOwnPropertyDescriptor(JSContext *cx,
                                                    JSObject *proxy,
-                                                   jsid id,
-                                                   PropertyDescriptor *desc,
-                                                   unsigned flags)
+                                                   jsid id, bool set,
+                                                   PropertyDescriptor *desc)
 {
-    if (!getPropertyDescriptor(cx, proxy, id, desc, flags))
+    if (!getPropertyDescriptor(cx, proxy, id, set, desc))
         return false;
 
     if (desc->obj != wrappedObject(proxy))
@@ -4513,14 +4511,6 @@ nsXPCComponents_Utils::NukeSandbox(const JS::Value &obj, JSContext *cx)
     NukeCrossCompartmentWrappers(cx, AllCompartments(),
                                  SingleCompartment(GetObjectCompartment(sb)),
                                  NukeWindowReferences);
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsXPCComponents_Utils::IsXrayWrapper(const JS::Value &obj, bool* aRetval)
-{
-    *aRetval =
-        obj.isObject() && xpc::WrapperFactory::IsXrayWrapper(&obj.toObject());
     return NS_OK;
 }
 

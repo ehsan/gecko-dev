@@ -13,7 +13,6 @@
 #include "mozilla/Services.h"
 #include "mozilla/HalTypes.h"
 #include "mozilla/TimeStamp.h"
-#include "AudioChannelService.h"
 #include "prlog.h"
 #include "nsWeakPtr.h"
 #include "nsXULAppAPI.h"
@@ -81,11 +80,6 @@ GetPPMLog()
 ProcessPriority
 GetBackgroundPriority()
 {
-  AudioChannelService* service = AudioChannelService::GetAudioChannelService();
-  if (service->ContentChannelIsActive()) {
-    return PROCESS_PRIORITY_BACKGROUND_PERCEIVABLE;
-  }
-
   bool isHomescreen = false;
 
   ContentChild* contentChild = ContentChild::GetSingleton();
@@ -105,17 +99,6 @@ GetBackgroundPriority()
   return isHomescreen ?
          PROCESS_PRIORITY_BACKGROUND_HOMESCREEN :
          PROCESS_PRIORITY_BACKGROUND;
-}
-
-/**
- * Determine if the priority is a backround priority.
- */
-bool
-IsBackgroundPriority(ProcessPriority aPriority)
-{
-  return (aPriority == PROCESS_PRIORITY_BACKGROUND ||
-          aPriority == PROCESS_PRIORITY_BACKGROUND_HOMESCREEN ||
-          aPriority == PROCESS_PRIORITY_BACKGROUND_PERCEIVABLE);
 }
 
 /**
@@ -152,7 +135,6 @@ public:
 
 private:
   void SetPriority(ProcessPriority aPriority);
-  void OnAudioChannelAgentChanged();
   void OnContentDocumentGlobalCreated(nsISupports* aOuterWindow);
   void OnInnerWindowDestroyed();
   void OnGracePeriodTimerFired();
@@ -188,7 +170,6 @@ ProcessPriorityManager::Init()
   nsCOMPtr<nsIObserverService> os = services::GetObserverService();
   os->AddObserver(this, "content-document-global-created", /* ownsWeak = */ false);
   os->AddObserver(this, "inner-window-destroyed", /* ownsWeak = */ false);
-  os->AddObserver(this, "audio-channel-agent-changed", /* ownsWeak = */ false);
 
   SetPriority(PROCESS_PRIORITY_FOREGROUND);
 }
@@ -205,8 +186,6 @@ ProcessPriorityManager::Observe(
     OnInnerWindowDestroyed();
   } else if (!strcmp(aTopic, "timer-callback")) {
     OnGracePeriodTimerFired();
-  } else if (!strcmp(aTopic, "audio-channel-agent-changed")) {
-    OnAudioChannelAgentChanged();
   } else {
     MOZ_ASSERT(false);
   }
@@ -220,14 +199,6 @@ ProcessPriorityManager::HandleEvent(
   LOG("Got visibilitychange.");
   RecomputeNumVisibleWindows();
   return NS_OK;
-}
-
-void
-ProcessPriorityManager::OnAudioChannelAgentChanged()
-{
-  if (IsBackgroundPriority(mProcessPriority)) {
-    SetPriority(GetBackgroundPriority());
-  }
 }
 
 void
@@ -326,7 +297,8 @@ ProcessPriorityManager::SetPriority(ProcessPriority aPriority)
     return;
   }
 
-  if (IsBackgroundPriority(aPriority)) {
+  if (aPriority == PROCESS_PRIORITY_BACKGROUND ||
+      aPriority == PROCESS_PRIORITY_BACKGROUND_HOMESCREEN) {
     // If this is a foreground --> background transition, give ourselves a
     // grace period before informing hal.
     uint32_t gracePeriodMS = Preferences::GetUint("dom.ipc.processPriorityManager.gracePeriodMS", 1000);
@@ -373,7 +345,8 @@ ProcessPriorityManager::OnGracePeriodTimerFired()
   // mProcessPriority should already be one of the BACKGROUND values: We set it
   // in SetPriority(BACKGROUND), and we canceled this timer if there was an
   // intervening SetPriority(FOREGROUND) call.
-  MOZ_ASSERT(IsBackgroundPriority(mProcessPriority));
+  MOZ_ASSERT(mProcessPriority == PROCESS_PRIORITY_BACKGROUND ||
+             mProcessPriority == PROCESS_PRIORITY_BACKGROUND_HOMESCREEN);
 
   mGracePeriodTimer = nullptr;
   hal::SetProcessPriority(getpid(), mProcessPriority);
