@@ -118,7 +118,8 @@ class ProcessHandlerMixin(object):
                     self.returncode = subprocess.Popen._internal_poll(self)
 
             self._cleanup()
-            return self.returncode
+
+        return self.returncode
 
         def wait(self):
             """ Popen.wait
@@ -401,8 +402,7 @@ falling back to not using job objects for managing child processes"""
                             raise WinError(rc)
 
                     self._cleanup()
-
-                return self.returncode
+                    return self.returncode
 
             def _cleanup_job_io_port(self):
                 """ Do the job and IO port cleanup separately because there are
