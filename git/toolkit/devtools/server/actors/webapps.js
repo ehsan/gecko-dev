@@ -165,12 +165,12 @@ WebappsActor.prototype = {
     reg.webapps[aId] = aApp;
     reg.updatePermissionsForApp(aId);
 
-    reg._readManifests([{ id: aId }]).then((aResult) => {
+    reg._readManifests([{ id: aId }], function(aResult) {
       let manifest = aResult[0].manifest;
       aApp.name = manifest.name;
       reg.updateAppHandlers(null, manifest, aApp);
 
-      reg._saveApps().then(() => {
+      reg._saveApps(function() {
         aApp.manifest = manifest;
 
         // Needed to evict manifest cache on content side
@@ -264,8 +264,17 @@ WebappsActor.prototype = {
       if (aManifest) {
         return promise.resolve(aManifest);
       } else {
-        let manFile = OS.Path.join(aDir.path, "manifest.webapp");
-        return AppsUtils.loadJSONAsync(manFile);
+        let deferred = promise.defer();
+        let manFile = aDir.clone();
+        manFile.append("manifest.webapp");
+        DOMApplicationRegistry._loadJSONAsync(manFile, function(aManifest) {
+          if (!aManifest) {
+            deferred.reject("Error parsing manifest.webapp.");
+          } else {
+            deferred.resolve(aManifest);
+          }
+        });
+        return deferred.promise;
       }
     }
     function checkSideloading(aManifest) {
@@ -276,10 +285,13 @@ WebappsActor.prototype = {
       // The destination directory for this app.
       let installDir = DOMApplicationRegistry._getAppDir(aId);
       if (aManifest) {
-        let manFile = OS.Path.join(installDir.path, "manifest.webapp");
-        return DOMApplicationRegistry._writeFile(manFile, JSON.stringify(aManifest)).then(() => {
-          return aAppType;
+        let deferred = promise.defer();
+        let manFile = installDir.clone();
+        manFile.append("manifest.webapp");
+        DOMApplicationRegistry._writeFile(manFile, JSON.stringify(aManifest), function () {
+          deferred.resolve(aAppType);
         });
+        return deferred.promise;
       } else {
         let manFile = aDir.clone();
         manFile.append("manifest.webapp");
@@ -292,16 +304,21 @@ WebappsActor.prototype = {
         return { metadata: aMetadata, appType: aAppType };
       }
       // Read the origin and manifest url from metadata.json
-      let metaFile = OS.Path.join(aDir.path, "metadata.json");
-      return AppsUtils.loadJSONAsync(metaFile).then((aMetadata) => {
+      let deferred = promise.defer();
+      let metaFile = aDir.clone();
+      metaFile.append("metadata.json");
+      DOMApplicationRegistry._loadJSONAsync(metaFile, function(aMetadata) {
         if (!aMetadata) {
-          throw("Error parsing metadata.json.");
+          deferred.reject("Error parsing metadata.json.");
+          return;
         }
         if (!aMetadata.origin) {
-          throw("Missing 'origin' property in metadata.json");
+          deferred.reject("Missing 'origin' property in metadata.json");
+          return;
         }
-        return { metadata: aMetadata, appType: aAppType };
+        deferred.resolve({ metadata: aMetadata, appType: aAppType });
       });
+      return deferred.promise;
     }
     let runnable = {
       run: function run() {
@@ -628,7 +645,7 @@ WebappsActor.prototype = {
     let reg = DOMApplicationRegistry;
     let id = reg._appIdForManifestURL(aManifestURL);
 
-    reg._readManifests([{ id: id }]).then((aResults) => {
+    reg._readManifests([{ id: id }], function (aResults) {
       deferred.resolve(aResults[0].manifest);
     });
 

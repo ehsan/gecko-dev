@@ -205,7 +205,6 @@ CacheFileHandles::ClearEntry(PLDHashTable *table,
 
 nsresult
 CacheFileHandles::GetHandle(const SHA1Sum::Hash *aHash,
-                            bool aReturnDoomed,
                             CacheFileHandle **_retval)
 {
   MOZ_ASSERT(mInitialized);
@@ -228,15 +227,11 @@ CacheFileHandles::GetHandle(const SHA1Sum::Hash *aHash,
   if (handle->IsDoomed()) {
     LOG(("CacheFileHandles::GetHandle() hash=%08x%08x%08x%08x%08x "
          "found doomed handle %p, entry %p", LOGSHA1(aHash), handle, entry));
-
-    // If the consumer doesn't want doomed handles, exit with NOT_AVAIL.
-    if (!aReturnDoomed)
-      return NS_ERROR_NOT_AVAILABLE;
-  } else {
-    LOG(("CacheFileHandles::GetHandle() hash=%08x%08x%08x%08x%08x "
-         "found handle %p, entry %p", LOGSHA1(aHash), handle, entry));
+    return NS_ERROR_NOT_AVAILABLE;
   }
 
+  LOG(("CacheFileHandles::GetHandle() hash=%08x%08x%08x%08x%08x "
+       "found handle %p, entry %p", LOGSHA1(aHash), handle, entry));
   NS_ADDREF(*_retval = handle);
   return NS_OK;
 }
@@ -1044,7 +1039,7 @@ CacheFileIOManager::OpenFileInternal(const SHA1Sum::Hash *aHash,
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsRefPtr<CacheFileHandle> handle;
-  mHandles.GetHandle(aHash, false, getter_AddRefs(handle));
+  mHandles.GetHandle(aHash, getter_AddRefs(handle));
 
   if (aFlags == CREATE_NEW) {
     if (handle) {
@@ -1297,8 +1292,8 @@ CacheFileIOManager::DoomFile(CacheFileHandle *aHandle,
 
   nsRefPtr<DoomFileEvent> ev = new DoomFileEvent(aHandle, aCallback);
   rv = ioMan->mIOThread->Dispatch(ev, aHandle->IsPriority()
-    ? CacheIOThread::OPEN_PRIORITY
-    : CacheIOThread::OPEN);
+    ? CacheIOThread::DOOM_PRIORITY
+    : CacheIOThread::DOOM);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -1360,7 +1355,7 @@ CacheFileIOManager::DoomFileByKey(const nsACString &aKey,
     return NS_ERROR_NOT_INITIALIZED;
 
   nsRefPtr<DoomFileByKeyEvent> ev = new DoomFileByKeyEvent(aKey, aCallback);
-  rv = ioMan->mIOThread->Dispatch(ev, CacheIOThread::OPEN);
+  rv = ioMan->mIOThread->Dispatch(ev, nsIEventTarget::DISPATCH_NORMAL);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -1379,7 +1374,7 @@ CacheFileIOManager::DoomFileByKeyInternal(const SHA1Sum::Hash *aHash)
 
   // Find active handle
   nsRefPtr<CacheFileHandle> handle;
-  mHandles.GetHandle(aHash, true, getter_AddRefs(handle));
+  mHandles.GetHandle(aHash, getter_AddRefs(handle));
 
   if (handle) {
     if (handle->IsDoomed())

@@ -240,6 +240,11 @@ menulist {
   border: 0 none;
 }
 
+.option-command.selected {
+  background-color: #ff8000;
+  color: white;
+}
+
 .option-command.optgroup {
   font-weight: bold;
   font-style: italic;

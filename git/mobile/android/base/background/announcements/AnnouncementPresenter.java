@@ -34,7 +34,6 @@ public class AnnouncementPresenter {
    * @param uri
    *        The URL to open when the notification is tapped.
    */
-  @SuppressWarnings("deprecation")
   public static void displayAnnouncement(final Context context,
                                          final int notificationID,
                                          final String title,

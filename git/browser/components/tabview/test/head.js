@@ -348,7 +348,9 @@ function newWindowWithState(state, callback) {
       win = ss.undoCloseWindow(0);
 
       whenWindowLoaded(win, function () {
-        afterAllTabsLoaded(check, win);
+        whenWindowStateReady(win, function () {
+          afterAllTabsLoaded(check, win);
+        });
       });
 
       whenDelayedStartupFinished(win, check);
