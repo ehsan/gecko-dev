@@ -130,9 +130,7 @@ class RemoteAutomation(Automation):
         dm = None
         def __init__(self, dm, cmd, stdout = None, stderr = None, env = None, cwd = '.'):
             self.dm = dm
-            self.proc = dm.launchProcess(cmd, stdout, cwd, env, True)
-            if (self.proc is None):
-              raise Exception("unable to launch process")
+            self.proc = dm.launchProcess(cmd, stdout, cwd, env)
             exepath = cmd[0]
             name = exepath.split('/')[-1]
             self.procName = name

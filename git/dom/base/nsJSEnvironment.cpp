@@ -148,8 +148,6 @@ static PRLogModuleInfo* gJSDiagnostics;
 static nsITimer *sGCTimer;
 static nsITimer *sCCTimer;
 
-static bool sGCHasRun;
-
 // The number of currently pending document loads. This count isn't
 // guaranteed to always reflect reality and can't easily as we don't
 // have an easy place to know when a load ends or is interrupted in
@@ -3394,8 +3392,8 @@ nsJSContext::MaybePokeCC()
 void
 nsJSContext::PokeCC()
 {
-  if (sCCTimer || !sGCHasRun) {
-    // There's already a timer for GC'ing, or GC hasn't run yet, just return.
+  if (sCCTimer) {
+    // There's already a timer for GC'ing, just return
     return;
   }
 
@@ -3479,7 +3477,6 @@ DOMGCCallback(JSContext *cx, JSGCStatus status)
     } else {
       // If this was a full GC, poke the CC to run soon.
       if (!cx->runtime->gcTriggerCompartment) {
-        sGCHasRun = true;
         nsJSContext::PokeCC();
       }
     }
@@ -3592,7 +3589,6 @@ nsJSRuntime::Startup()
 {
   // initialize all our statics, so that we can restart XPCOM
   sGCTimer = sCCTimer = nsnull;
-  sGCHasRun = false;
   sPendingLoadCount = 0;
   sLoadingInProgress = PR_FALSE;
   sPostGCEventsToConsole = PR_FALSE;

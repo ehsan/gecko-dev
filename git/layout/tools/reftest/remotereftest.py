@@ -257,19 +257,6 @@ class RemoteReftest(RefTest):
         remoteXrePath = options.xrePath
         remoteUtilityPath = options.utilityPath
         localAutomation = Automation()
-        localAutomation.IS_WIN32 = False
-        localAutomation.IS_LINUX = False
-        localAutomation.IS_MAC = False
-        localAutomation.UNIXISH = False
-        hostos = sys.platform
-        if (hostos == 'mac' or  hostos == 'darwin'):
-          localAutomation.IS_MAC = True
-        elif (hostos == 'linux' or hostos == 'linux2'):
-          localAutomation.IS_LINUX = True
-          localAutomation.UNIXISH = True
-        elif (hostos == 'win32' or hostos == 'win64'):
-          localAutomation.BIN_SUFFIX = ".exe"
-          localAutomation.IS_WIN32 = True
 
         paths = [options.xrePath, localAutomation.DIST_BIN, self.automation._product, os.path.join('..', self.automation._product)]
         options.xrePath = self.findPath(paths)
@@ -338,8 +325,8 @@ class RemoteReftest(RefTest):
         RefTest.cleanup(self, profileDir)
 
 def main():
-    dm_none = DeviceManager(None, None)
-    automation = RemoteAutomation(dm_none)
+    dm = DeviceManager(None, None)
+    automation = RemoteAutomation(dm)
     parser = RemoteOptions(automation)
     options, args = parser.parse_args()
 
@@ -359,13 +346,6 @@ def main():
         print "ERROR: Invalid options specified, use --help for a list of valid options"
         sys.exit(1)
 
-    parts = dm.getInfo('screen')['screen'][0].split()
-    width = int(parts[0].split(':')[1])
-    height = int(parts[1].split(':')[1])
-    if (width < 1050 or height < 1050):
-        print "ERROR: Invalid screen resolution %sx%s, please adjust to 1366x1050 or higher" % (width, height)
-        sys.exit(1)
-
     automation.setAppName(options.app)
     automation.setRemoteProfile(options.remoteProfile)
     automation.setRemoteLog(options.remoteLogFile)
@@ -381,10 +361,6 @@ def main():
     manifest = args[0]
     if os.path.exists(args[0]):
         manifest = "http://" + str(options.remoteWebServer) + ":" + str(options.httpPort) + "/" + args[0]
-
-    procName = options.app.split('/')[-1]
-    if (dm.processExist(procName)):
-      dm.killProcess(procName)
 
 #an example manifest name to use on the cli
 #    manifest = "http://" + options.remoteWebServer + "/reftests/layout/reftests/reftest-sanity/reftest.list"

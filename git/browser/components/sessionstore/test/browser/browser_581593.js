@@ -35,10 +35,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+Cu.import("resource://gre/modules/Services.jsm");
 let ss = Cc["@mozilla.org/browser/sessionstore;1"].
          getService(Ci.nsISessionStore);
 
 let stateBackup = ss.getBrowserState();
+
 
 function test() {
   /** Test for bug 581593 **/
@@ -85,3 +87,4 @@ function cleanup() {
   ss.setBrowserState(stateBackup);
   executeSoon(finish);
 }
+

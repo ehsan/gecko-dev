@@ -78,7 +78,7 @@ nsMIMEInfoAndroid::GetMimeInfoForMimeType(const nsACString& aMimeType,
   // the mime type for now and let the system deal with it
   if (!bridge){
     info.forget(aMimeInfo);
-    return PR_FALSE;
+    return PR_TRUE;
   }
 
   nsIHandlerApp* systemDefault = nsnull;
@@ -107,7 +107,6 @@ nsMIMEInfoAndroid::GetMimeInfoForFileExt(const nsACString& aFileExt,
   if (mozilla::AndroidBridge::Bridge())
     mozilla::AndroidBridge::Bridge()->
       GetMimeTypeFromExtensions(aFileExt, mimeType);
-
   return GetMimeInfoForMimeType(mimeType, aMimeInfo);
 }
 

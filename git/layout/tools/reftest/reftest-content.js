@@ -231,41 +231,6 @@ function setupPrintMode() {
    docShell.contentViewer.setPageMode(true, ps);
 }
 
-function setupDisplayport(contentRootElement) {
-    if (!contentRootElement) {
-        return;
-    }
-
-    function attrOrDefault(attr, def) {
-        return contentRootElement.hasAttribute(attr) ?
-            contentRootElement.getAttribute(attr) : def;
-    }
-
-    var vw = attrOrDefault("reftest-viewport-w", 0);
-    var vh = attrOrDefault("reftest-viewport-h", 0);
-    if (vw !== 0 || vh !== 0) {
-        LogInfo("Setting viewport to <w="+ vw +", h="+ vh +">");
-        windowUtils().setCSSViewport(vw, vh);
-    }
-
-    // XXX support displayPortX/Y when needed
-    var dpw = attrOrDefault("reftest-displayport-w", 0);
-    var dph = attrOrDefault("reftest-displayport-h", 0);
-    if (dpw !== 0 || dph !== 0) {
-        LogInfo("Setting displayport to <x=0, y=0, w="+ dpw +", h="+ dph +">");
-        windowUtils().setDisplayPort(0, 0, dpw, dph);
-    }
-
-    // XXX support resolution when needed
-
-    // XXX support viewconfig when needed
-}
-
-function resetDisplayport() {
-    // XXX currently the displayport configuration lives on the
-    // presshell and so is "reset" on nav when we get a new presshell.
-}
-
 function shouldWaitForExplicitPaintWaiters() {
     return gExplicitPendingPaintCount > 0;
 }
@@ -505,7 +470,6 @@ function OnDocumentLoad(event)
 
     var contentRootElement = currentDoc ? currentDoc.documentElement : null;
     setupZoom(contentRootElement);
-    setupDisplayport(contentRootElement);
     var inPrintMode = false;
 
     function AfterOnLoadScripts() {
@@ -550,6 +514,28 @@ function OnDocumentLoad(event)
         gFailureReason = "timed out waiting for test to complete (waiting for onload scripts to complete)";
         LogInfo("OnDocumentLoad triggering AfterOnLoadScripts");
         setTimeout(function () { setTimeout(AfterOnLoadScripts, 0); }, 0);
+    }
+}
+
+function UpdateCurrentCanvasForEvent(event)
+{
+    if (!gCurrentCanvas)
+        return;
+
+    var ctx = gCurrentCanvas.getContext("2d");
+    var rectList = event.clientRects;
+    for (var i = 0; i < rectList.length; ++i) {
+        var r = rectList[i];
+        // Set left/top/right/bottom to pixel boundaries
+        var left = Math.floor(r.left);
+        var top = Math.floor(r.top);
+        var right = Math.ceil(r.right);
+        var bottom = Math.ceil(r.bottom);
+
+        ctx.save();
+        ctx.translate(left, top);
+        DoDrawWindow(ctx, left, top, right - left, bottom - top);
+        ctx.restore();
     }
 }
 
@@ -650,19 +636,9 @@ function LogInfo(str)
     sendAsyncMessage("reftest:Log", { type: "info", msg: str });
 }
 
-const SYNC_DEFAULT = 0x0;
-const SYNC_ALLOW_DISABLE = 0x1;
 var gDummyCanvas = null;
-function SynchronizeForSnapshot(flags)
+function SynchronizeForSnapshot()
 {
-    if (flags & SYNC_ALLOW_DISABLE) {
-        var docElt = content.document.documentElement;
-        if (docElt && docElt.hasAttribute("reftest-no-sync-layers")) {
-            LogInfo("Test file chose to skip SynchronizeForSnapshot");
-            return;
-        }
-    }
-
     if (gDummyCanvas == null) {
         gDummyCanvas = content.document.createElementNS(XHTML_NS, "canvas");
         gDummyCanvas.setAttribute("width", 1);
@@ -689,8 +665,8 @@ function RegisterMessageListeners()
         function (m) { RecvLoadTest(m.json.type, m.json.uri, m.json.timeout); }
     );
     addMessageListener(
-        "reftest:ResetRenderingState",
-        function (m) { RecvResetRenderingState(); }
+        "reftest:ResetZoom",
+        function (m) { RecvResetZoom(); }
     );
 }
 
@@ -710,10 +686,9 @@ function RecvLoadScriptTest(uri, timeout)
     StartTestURI(TYPE_SCRIPT, uri, timeout);
 }
 
-function RecvResetRenderingState()
+function RecvResetZoom()
 {
     resetZoom();
-    resetDisplayport();
 }
 
 function SendAssertionCount(numAssertions)
@@ -746,7 +721,7 @@ function SendInitCanvasWithSnapshot()
     // NB: this is a test-harness optimization only, it must not
     // affect the validity of the tests.
     if (gBrowserIsRemote) {
-        SynchronizeForSnapshot(SYNC_DEFAULT);
+        SynchronizeForSnapshot();
     }
 
     // For in-process browser, we have to make a synchronous request
@@ -800,7 +775,7 @@ function SendUpdateCanvasForEvent(event)
     if (!gBrowserIsRemote) {
         sendSyncMessage("reftest:UpdateCanvasForInvalidation", { rects: rects });
     } else {
-        SynchronizeForSnapshot(SYNC_ALLOW_DISABLE);
+        SynchronizeForSnapshot();
         sendAsyncMessage("reftest:UpdateCanvasForInvalidation", { rects: rects });
     }
 }

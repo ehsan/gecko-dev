@@ -80,10 +80,6 @@ class WebGLContextBoundObject;
 
 enum FakeBlackStatus { DoNotNeedFakeBlack, DoNeedFakeBlack, DontKnowIfNeedFakeBlack };
 
-struct VertexAttrib0Status {
-    enum { Default, EmulatedUninitializedArray, EmulatedInitializedArray };
-};
-
 struct WebGLTexelFormat {
     enum { Generic, Auto, RGBA8, RGB8, RGBX8, BGRA8, BGR8, BGRX8, RGBA5551, RGBA4444, RGB565, R8, RA8, A8 };
 };
@@ -361,7 +357,6 @@ public:
     nsresult ErrorInvalidEnumInfo(const char *info, PRUint32 enumvalue) {
         return ErrorInvalidEnum("%s: invalid enum value 0x%x", info, enumvalue);
     }
-    nsresult ErrorOutOfMemory(const char *fmt = 0, ...);
 
     WebGLTexture *activeBoundTextureForTarget(WebGLenum target) {
         return target == LOCAL_GL_TEXTURE_2D ? mBound2DTextures[mActiveTexture]
@@ -376,7 +371,6 @@ public:
     // all context resources to be lost.
     PRUint32 Generation() { return mGeneration.value(); }
 
-protected:
     void SetDontKnowIfNeedFakeBlack() {
         mFakeBlackStatus = DontKnowIfNeedFakeBlack;
     }
@@ -385,11 +379,11 @@ protected:
     void BindFakeBlackTextures();
     void UnbindFakeBlackTextures();
 
-    int WhatDoesVertexAttrib0Need();
+    PRBool NeedFakeVertexAttrib0();
     void DoFakeVertexAttrib0(WebGLuint vertexCount);
     void UndoFakeVertexAttrib0();
-    void InvalidateFakeVertexAttrib0();
 
+protected:
     nsCOMPtr<nsIDOMHTMLCanvasElement> mCanvasElement;
     nsHTMLCanvasElement *HTMLCanvasElement() {
         return static_cast<nsHTMLCanvasElement*>(mCanvasElement.get());
@@ -440,7 +434,6 @@ protected:
     PRBool ValidateTexFormatAndType(WebGLenum format, WebGLenum type,
                                       PRUint32 *texelSize, const char *info);
     PRBool ValidateDrawModeEnum(WebGLenum mode, const char *info);
-    PRBool ValidateAttribIndex(WebGLuint index, const char *info);
 
     void Invalidate();
     void DestroyResourcesAndContext();
@@ -516,9 +509,6 @@ protected:
                                 PRBool *isNull = 0,
                                 PRBool *isDeleted = 0);
 
-    PRInt32 MaxTextureSizeForTarget(WebGLenum target) const {
-        return target == LOCAL_GL_TEXTURE_2D ? mGLMaxTextureSize : mGLMaxCubeMapTextureSize;
-    }
 
     // the buffers bound to the current program's attribs
     nsTArray<WebGLVertexAttribData> mAttribBuffers;
@@ -560,10 +550,7 @@ protected:
     PRBool mBlackTexturesAreInitialized;
 
     WebGLfloat mVertexAttrib0Vector[4];
-    WebGLfloat mFakeVertexAttrib0BufferObjectVector[4];
-    size_t mFakeVertexAttrib0BufferObjectSize;
-    GLuint mFakeVertexAttrib0BufferObject;
-    int mFakeVertexAttrib0BufferStatus;
+    nsAutoArrayPtr<WebGLfloat> mFakeVertexAttrib0Array;
 
     WebGLint mStencilRef;
     WebGLuint mStencilValueMask, mStencilWriteMask;
@@ -712,25 +699,19 @@ public:
 
     // element array buffers are the only buffers for which we need to keep a copy of the data.
     // this method assumes that the byte length has previously been set by calling SetByteLength.
-    PRBool CopyDataIfElementArray(const void* data) {
+    void CopyDataIfElementArray(const void* data) {
         if (mTarget == LOCAL_GL_ELEMENT_ARRAY_BUFFER) {
             mData = realloc(mData, mByteLength);
-            if (!mData)
-                return PR_FALSE;
             memcpy(mData, data, mByteLength);
         }
-        return PR_TRUE;
     }
 
     // same comments as for CopyElementArrayData
-    PRBool ZeroDataIfElementArray() {
+    void ZeroDataIfElementArray() {
         if (mTarget == LOCAL_GL_ELEMENT_ARRAY_BUFFER) {
             mData = realloc(mData, mByteLength);
-            if (!mData)
-                return PR_FALSE;
             memset(mData, 0, mByteLength);
         }
-        return PR_TRUE;
     }
 
     // same comments as for CopyElementArrayData
@@ -890,16 +871,6 @@ public:
         return const_cast<WebGLTexture*>(this)->ImageInfoAt(level, face);
     }
 
-    PRBool HasImageInfoAt(size_t level, size_t face) const {
-        return level <= mMaxLevelWithCustomImages &&
-               face < mFacesCount &&
-               ImageInfoAt(level, 0).mIsDefined;
-    }
-
-    static size_t FaceForTarget(WebGLenum target) {
-        return target == LOCAL_GL_TEXTURE_2D ? 0 : target - LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X;
-    }
-
 protected:
 
     WebGLenum mTarget;
@@ -990,12 +961,14 @@ public:
 
     void SetImageInfo(WebGLenum aTarget, WebGLint aLevel,
                       WebGLsizei aWidth, WebGLsizei aHeight,
-                      WebGLenum aFormat = 0, WebGLenum aType = 0)
-    {
-        if ( (aTarget == LOCAL_GL_TEXTURE_2D) != (mTarget == LOCAL_GL_TEXTURE_2D) )
-            return;
-
-        size_t face = FaceForTarget(aTarget);
+                      WebGLenum aFormat = 0, WebGLenum aType = 0) {
+        size_t face = 0;
+        if (aTarget == LOCAL_GL_TEXTURE_2D) {
+            if (mTarget != LOCAL_GL_TEXTURE_2D) return;
+        } else {
+            if (mTarget == LOCAL_GL_TEXTURE_2D) return;
+            face = aTarget - LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X;
+        }
 
         EnsureMaxLevelWithCustomImagesAtLeast(aLevel);
 

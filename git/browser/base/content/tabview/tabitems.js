@@ -328,55 +328,46 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     Utils.assertThrow(!this._reconnected, "shouldn't already be reconnected");
     Utils.assertThrow(this.tab, "should have a xul:tab");
 
-    let tabData = null;
-    let self = this;
-    let imageDataCb = function(imageData) {
-      Utils.assertThrow(tabData, "tabData");
-      
-      tabData.imageData = imageData;
-
-      let currentUrl = self.tab.linkedBrowser.currentURI.spec;
-      // If we have a cached image, then show it if the loaded URL matches
-      // what the cache is from, OR the loaded URL is blank, which means
-      // that the page hasn't loaded yet.
-      if (tabData.imageData &&
-          (tabData.url == currentUrl || currentUrl == 'about:blank')) {
-        self.showCachedData(tabData);
-      }
-    };
-    // getTabData returns the sessionstore contents, but passes
-    // a callback to run when the thumbnail is finally loaded.
-    tabData = Storage.getTabData(this.tab, imageDataCb);
+    let tabData = Storage.getTabData(this.tab);
     if (tabData && TabItems.storageSanity(tabData)) {
-      if (self.parent)
-        self.parent.remove(self, {immediately: true});
+      if (this.parent)
+        this.parent.remove(this, {immediately: true});
 
-      self.setBounds(tabData.bounds, true);
+      this.setBounds(tabData.bounds, true);
 
       if (Utils.isPoint(tabData.userSize))
-        self.userSize = new Point(tabData.userSize);
+        this.userSize = new Point(tabData.userSize);
 
       if (tabData.groupID) {
         var groupItem = GroupItems.groupItem(tabData.groupID);
         if (groupItem) {
-          groupItem.add(self, {immediately: true});
+          groupItem.add(this, {immediately: true});
 
-          // if it matches the selected tab or no active tab and the browser
+          // if it matches the selected tab or no active tab and the browser 
           // tab is hidden, the active group item would be set.
-          if (self.tab == gBrowser.selectedTab ||
-              (!GroupItems.getActiveGroupItem() && !self.tab.hidden))
-            GroupItems.setActiveGroupItem(self.parent);
+          if (this.tab == gBrowser.selectedTab || 
+              (!GroupItems.getActiveGroupItem() && !this.tab.hidden))
+            GroupItems.setActiveGroupItem(this.parent);
         }
       }
+
+      let currentUrl = this.tab.linkedBrowser.currentURI.spec;
+
+      // If we have a cached image, then show it if the loaded URL matches
+      // what the cache is from, OR the loaded URL is blank, which means
+      // that the page hasn't loaded yet.
+      if (tabData.imageData && (tabData.url == currentUrl ||
+        currentUrl == 'about:blank'))
+        this.showCachedData(tabData);
     } else {
       // create tab by double click is handled in UI_init().
       if (!TabItems.creatingNewOrphanTab)
-        GroupItems.newTab(self, {immediately: true});
+        GroupItems.newTab(this, {immediately: true});
     }
 
-    self._reconnected = true;
-    self.save();
-    self._sendToSubscribers("reconnected");
+    this._reconnected = true;  
+    this.save();
+    this._sendToSubscribers("reconnected");
   },
   
   // ----------
@@ -541,24 +532,8 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // Function: close
   // Closes this item (actually closes the tab associated with it, which automatically
   // closes the item.
-  // Parameters:
-  //   groupClose - true if this method is called by group close action.
   // Returns true if this tab is removed.
-  close: function TabItem_close(groupClose) {
-    // When the last tab is closed, put a new tab into closing tab's group. If
-    // closing tab doesn't belong to a group and no empty group, create a new 
-    // one for the new tab.
-    if (!groupClose && gBrowser.tabs.length == 1) {
-      if (this.tab._tabViewTabItem.parent) {
-        group = this.tab._tabViewTabItem.parent;
-      } else {
-        let emptyGroups = GroupItems.groupItems.filter(function (groupItem) {
-          return (!groupItem.getChildren().length);
-        });
-        group = (emptyGroups.length ? emptyGroups[0] : GroupItems.newGroup());
-      }
-      group.newTab();
-    }
+  close: function TabItem_close() {
     // when "TabClose" event is fired, the browser tab is about to close and our 
     // item "close" is fired before the browser tab actually get closed. 
     // Therefore, we need "tabRemoved" event below.
@@ -644,7 +619,8 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       GroupItems.setActiveOrphanTab(this);
     }
 
-    TabItems._update(this.tab, {force: true});
+    this.shouldHideCachedData = true;
+    TabItems._update(this.tab);
 
     // Zoom in!
     let tab = this.tab;
@@ -712,14 +688,10 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         complete();
     };
 
-    TabItems._update(this.tab, {force: true});
+    this.shouldHideCachedData = true;
+    TabItems._update(this.tab);
 
     $tab.addClass("front");
-
-    // If we're in a stacked group, make sure we become the
-    // topChild now so that we show the zoom animation correctly.
-    if (this.parent && this.parent.isStacked())
-      this.parent.setTopChild(this);
 
     let animateZoom = gPrefBranch.getBoolPref("animate_zoom");
     if (animateZoom) {
@@ -957,14 +929,7 @@ let TabItems = {
   // ----------
   // Function: _update
   // Takes in a xul:tab.
-  //
-  // Parameters:
-  //   tab - a xul tab to update
-  //   options - an object with additional parameters, see below
-  //
-  // Possible options:
-  //   force - true to always update the tab item even if it's incomplete
-  _update: function TabItems__update(tab, options) {
+  _update: function TabItems__update(tab) {
     try {
       if (this._pauseUpdateForTest)
         return;
@@ -1012,7 +977,7 @@ let TabItems = {
       }
 
       // ___ Make sure the tab is complete and ready for updating.
-      if (!this.isComplete(tab) && (!options || !options.force)) {
+      if (!this.isComplete(tab)) {
         // If it's incomplete, stick it on the end of the queue
         this._tabsWaitingForUpdate.push(tab);
         return;

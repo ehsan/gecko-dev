@@ -2089,6 +2089,7 @@ var PlacesUtils = {
     return stmt.executeAsync({
       _itemIds: [],
       handleResult: function(aResultSet) {
+        let row, haveMatches = false;
         for (let row; (row = aResultSet.getNextRow());) {
           this._itemIds.push(row.getResultByIndex(0));
         }

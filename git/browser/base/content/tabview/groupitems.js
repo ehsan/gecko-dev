@@ -742,10 +742,6 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     this.$undoContainer = null;
     this.droppable(true);
 
-    GroupItems.setActiveGroupItem(this);
-    if (this._activeTab)
-      UI.setActiveTab(this._activeTab);
-
     iQ(this.container).show().animate({
       "-moz-transform": "scale(1)",
       "opacity": 1
@@ -810,7 +806,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     toClose.forEach(function(child) {
       child.removeSubscriber(self, "close");
 
-      let removed = child.close(true);
+      let removed = child.close();
       if (removed) {
         shouldRemoveTabItems.push(child);
       } else {
@@ -1098,7 +1094,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       let closed = options.dontClose ? false : this.closeIfEmpty();
       if (closed)
         this._makeClosestTabActive();
-      else if (!options.dontArrange)
+      else if (!options.dontArrage)
         this.arrange({animate: !options.immediately});
 
       this._sendToSubscribers("childRemoved",{ groupItemId: this.id, item: item });
@@ -1130,6 +1126,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       let $icon = iQ(icon);
       if ($icon.data("xulTab") == event.target) {
         $icon.attr("src", Utils.defaultFaviconURL);
+        return true;
       }
     });
   },
@@ -1319,6 +1316,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         {hideTitle:true});
      }
 
+
     // x is the left margin that the stack will have, within the content area (bb)
     // y is the vertical margin
     var x = (bb.width - size.x) / 2;
@@ -1327,20 +1325,16 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
     var self = this;
     var children = [];
-
-    // ensure this.topChild is the first item in childrenToArrange
-    let topChildPos = childrenToArrange.indexOf(this.topChild);
-    if (topChildPos > 0) {
-      childrenToArrange.splice(topChildPos, 1);
-      childrenToArrange.unshift(this.topChild);
-    }
-
     childrenToArrange.forEach(function GroupItem__stackArrange_order(child) {
       // Children are still considered stacked even if they're hidden later.
       child.addClass("stacked");
       child.isStacked = true;
       if (numInPile-- > 0) {
-        children.push(child);
+        child.setHidden(false);
+        if (child == self.topChild)
+          children.unshift(child);
+        else
+          children.push(child);
       } else {
         child.setHidden(true);
       }
@@ -1353,9 +1347,8 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
       // Force a recalculation of height because we've changed how the title
       // is shown.
-      child.setBounds(box, !animate || child.getHidden(), {force:true});
+      child.setBounds(box, !animate, {force:true});
       child.setRotation((UI.rtl ? -1 : 1) * angleAccum);
-      child.setHidden(false);
       angleAccum += angleDelta;
     });
 

@@ -681,7 +681,7 @@ nsDocAccessible::Shutdown()
 }
 
 nsIFrame*
-nsDocAccessible::GetFrame() const
+nsDocAccessible::GetFrame()
 {
   nsCOMPtr<nsIPresShell> shell(do_QueryReferent(mWeakShell));
 
@@ -947,8 +947,6 @@ nsDocAccessible::AttributeWillChange(nsIDocument *aDocument,
     nsAccessible* accessible = GetAccessible(aElement);
     if (accessible)
       RemoveDependentIDsFor(accessible, aAttribute);
-    else if (aElement == mContent)
-      RemoveDependentIDsFor(this, aAttribute);
   }
 }
 
@@ -972,12 +970,8 @@ nsDocAccessible::AttributeChanged(nsIDocument *aDocument,
   // Note: we don't bail if all the content hasn't finished loading because
   // these attributes are changing for a loaded part of the content.
   nsAccessible* accessible = GetAccessible(aElement);
-  if (!accessible) {
-    if (mContent != aElement)
-      return;
-
-    accessible = this;
-  }
+  if (!accessible && (mContent != aElement))
+    return;
 
   // Fire accessible events iff there's an accessible, otherwise we consider
   // the accessible state wasn't changed, i.e. its state is initial state.

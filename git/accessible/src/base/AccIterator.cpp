@@ -104,8 +104,7 @@ AccIterator::IteratorState::IteratorState(nsAccessible *aParent,
 RelatedAccIterator::
   RelatedAccIterator(nsDocAccessible* aDocument, nsIContent* aDependentContent,
                      nsIAtom* aRelAttr) :
-  mDocument(aDocument), mRelAttr(aRelAttr), mProviders(nsnull),
-  mBindingParent(nsnull), mIndex(0)
+  mRelAttr(aRelAttr), mProviders(nsnull), mBindingParent(nsnull), mIndex(0)
 {
   mBindingParent = aDependentContent->GetBindingParent();
   nsIAtom* IDAttr = mBindingParent ?
@@ -113,7 +112,7 @@ RelatedAccIterator::
 
   nsAutoString id;
   if (aDependentContent->GetAttr(kNameSpaceID_None, IDAttr, id))
-    mProviders = mDocument->mDependentIDsHash.Get(id);
+    mProviders = aDocument->mDependentIDsHash.Get(id);
 }
 
 nsAccessible*
@@ -130,14 +129,9 @@ RelatedAccIterator::Next()
     if (provider->mRelAttr == mRelAttr &&
         (!mBindingParent ||
          mBindingParent == provider->mContent->GetBindingParent())) {
-      nsAccessible* related = mDocument->GetAccessible(provider->mContent);
+      nsAccessible* related = GetAccService()->GetAccessible(provider->mContent);
       if (related)
         return related;
-
-      // If the document content is pointed by relation then return the document
-      // itself.
-      if (provider->mContent == mDocument->GetContent())
-        return mDocument;
     }
   }
 

@@ -102,8 +102,7 @@ function test() {
     gBrowser.loadOneTab('http://mochi.test:8888/', {inBackground: true});
 
     afterAllTabsLoaded(function () {
-      // Valid choices for 'where' are window|tabshifted|tab
-      duplicateTabIn(gBrowser.selectedTab, 'tab');
+      duplicateTabIn(gBrowser.selectedTab, 'current');
 
       afterAllTabsLoaded(function () {
         assertNumberOfVisibleTabs(3);

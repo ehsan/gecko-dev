@@ -567,16 +567,13 @@ ThebesLayerD3D9::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode,
     const nsIntRect *iterRect;
     while ((iterRect = iter.Next())) {
       RECT rect;
-      rect.left = NS_MAX<LONG>(0, LONG(floor((iterRect->x - bounds.x) * xres)));
-      rect.top = NS_MAX<LONG>(0, LONG(floor((iterRect->y - bounds.y) * yres)));
-      rect.right = NS_MIN<LONG>(scaledSize.width,
-                                LONG(ceil((iterRect->XMost() - bounds.x) * xres)));
-      rect.bottom = NS_MIN<LONG>(scaledSize.height,
-                                 LONG(ceil((iterRect->YMost() - bounds.y) * yres)));
-
+      rect.left = UINT(floor((iterRect->x - bounds.x) * xres));
+      rect.top = UINT(floor((iterRect->y - bounds.y) * yres));
+      rect.right = rect.left +  UINT(ceil(iterRect->width * xres));
+      rect.bottom = rect.top +  UINT(ceil(iterRect->height * yres));
       POINT point;
-      point.x = NS_MAX<LONG>(0, LONG(floor((iterRect->x - visibleRect.x) * xres)));
-      point.y = NS_MAX<LONG>(0, LONG(floor((iterRect->y - visibleRect.y) * yres)));
+      point.x =  UINT(floor((iterRect->x - visibleRect.x) * xres));
+      point.y =  UINT(floor((iterRect->y - visibleRect.y) * yres));
       device()->UpdateSurface(srcSurface, &rect, dstSurface, &point);
     }
   }

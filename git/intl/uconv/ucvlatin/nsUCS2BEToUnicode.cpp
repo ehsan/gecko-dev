@@ -63,13 +63,16 @@ UTF16ConvertToUnicode(PRUint8& aState, PRUint8& aOddByte,
 
   switch(aState) {
     case STATE_FOUND_BOM:
-      NS_ASSERTION(*aSrcLength > 1, "buffer too short");
+      if (*aSrcLength < 2)
+        return NS_ERROR_ILLEGAL_INPUT;
       src+=2;
       aState = STATE_NORMAL;
       break;
 
     case STATE_FIRST_CALL: // first time called
-      NS_ASSERTION(*aSrcLength > 1, "buffer too short");
+      if (*aSrcLength < 2)
+        return NS_ERROR_ILLEGAL_INPUT;
+
       // Eliminate BOM (0xFEFF). Note that different endian case is taken care
       // of in |Convert| of LE and BE converters. Here, we only have to
       // deal with the same endian case. That is, 0xFFFE (byte-swapped BOM) is
@@ -219,18 +222,14 @@ NS_IMETHODIMP
 nsUTF16BEToUnicode::Convert(const char * aSrc, PRInt32 * aSrcLength,
                             PRUnichar * aDest, PRInt32 * aDestLength)
 {
-    if(STATE_FIRST_CALL == mState && *aSrcLength < 2)
-    {
-      *aSrcLength=0;
-      *aDestLength=0;
-      return NS_ERROR_ILLEGAL_INPUT;
-    }
 #ifdef IS_LITTLE_ENDIAN
     // Remove the BOM if we're little-endian. The 'same endian' case with the
     // leading BOM will be taken care of by |UTF16ConvertToUnicode|.
     if(STATE_FIRST_CALL == mState) // Called for the first time.
     {
       mState = STATE_NORMAL;
+      if (*aSrcLength < 2)
+        return NS_ERROR_ILLEGAL_INPUT;
       if(0xFFFE == *((PRUnichar*)aSrc)) {
         // eliminate BOM (on LE machines, BE BOM is 0xFFFE)
         mState = STATE_FOUND_BOM;
@@ -258,18 +257,14 @@ NS_IMETHODIMP
 nsUTF16LEToUnicode::Convert(const char * aSrc, PRInt32 * aSrcLength,
                             PRUnichar * aDest, PRInt32 * aDestLength)
 {
-    if(STATE_FIRST_CALL == mState && *aSrcLength < 2)
-    {
-      *aSrcLength=0;
-      *aDestLength=0;
-      return NS_ERROR_ILLEGAL_INPUT;
-    }
 #ifdef IS_BIG_ENDIAN
     // Remove the BOM if we're big-endian. The 'same endian' case with the
     // leading BOM will be taken care of by |UTF16ConvertToUnicode|.
     if(STATE_FIRST_CALL == mState) // first time called
     {
       mState = STATE_NORMAL;
+      if (*aSrcLength < 2)
+        return NS_ERROR_ILLEGAL_INPUT;
       if(0xFFFE == *((PRUnichar*)aSrc)) {
         // eliminate BOM (on BE machines, LE BOM is 0xFFFE)
         mState = STATE_FOUND_BOM;
@@ -305,15 +300,12 @@ NS_IMETHODIMP
 nsUTF16ToUnicode::Convert(const char * aSrc, PRInt32 * aSrcLength,
                           PRUnichar * aDest, PRInt32 * aDestLength)
 {
-    if(STATE_FIRST_CALL == mState && *aSrcLength < 2)
-    {
-      *aSrcLength=0;
-      *aDestLength=0;
-      return NS_ERROR_ILLEGAL_INPUT;
-    }
     if(STATE_FIRST_CALL == mState) // first time called
     {
       mState = STATE_NORMAL;
+      if (*aSrcLength < 2)
+        return NS_ERROR_ILLEGAL_INPUT;
+
       // check if BOM (0xFEFF) is at the beginning, remove it if found, and
       // set mEndian accordingly.
       if(0xFF == PRUint8(aSrc[0]) && 0xFE == PRUint8(aSrc[1])) {

@@ -327,8 +327,7 @@ GDIFontEntry::FillLogFont(LOGFONTW *aLogFont, PRBool aItalic,
     aLogFont->lfQuality        = (aUseCleartype ? CLEARTYPE_QUALITY : DEFAULT_QUALITY);
 }
 
-#define MISSING_GLYPH 0x1F // glyph index returned for missing characters
-                           // on WinXP with .fon fonts, but not Type1 (.pfb)
+#define MISSING_GLYPH 0x1F
 
 PRBool 
 GDIFontEntry::TestCharacterMap(PRUint32 aCh)
@@ -377,8 +376,8 @@ GDIFontEntry::TestCharacterMap(PRUint32 aCh)
             DWORD ret = GetGlyphIndicesW(dc, str, 1, 
                                          glyph, GGI_MARK_NONEXISTING_GLYPHS);
             if (ret != GDI_ERROR
-                && glyph[0] != 0xFFFF
-                && (IsType1() || glyph[0] != MISSING_GLYPH))
+                && glyph[0] != 0xFFFF 
+                && glyph[0] != MISSING_GLYPH)
             {
                 hasGlyph = PR_TRUE;
             }

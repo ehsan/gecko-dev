@@ -20,35 +20,34 @@
           src="../events.js"></script>
 
   <script type="application/javascript">
-    function testRelated(aRelAttr, aHostRelation, aDependentRelation,
-                         aHostID, aHostNodeID, aDependent1ID, aDependent2ID)
+    function testRelated(aRelAttr, aHostRelation, aDependentRelation)
     {
       // no attribute
-      testRelation(aDependent1ID, aDependentRelation, null);
-      testRelation(aDependent2ID, aDependentRelation, null);
+      testRelation("dependent1", aDependentRelation, null);
+      testRelation("dependent2", aDependentRelation, null);
       if (aHostRelation)
-        testRelation(aHostID, aHostRelation, null);
+        testRelation("host", aHostRelation, null);
 
       // set attribute
-      getNode(aHostNodeID).setAttribute(aRelAttr, aDependent1ID);
-      testRelation(aDependent1ID, aDependentRelation, aHostID);
-      testRelation(aDependent2ID, aDependentRelation, null);
+      getNode("host").setAttribute(aRelAttr, "dependent1");
+      testRelation("dependent1", aDependentRelation, "host");
+      testRelation("dependent2", aDependentRelation, null);
       if (aHostRelation)
-        testRelation(aHostID, aHostRelation, aDependent1ID);
+        testRelation("host", aHostRelation, "dependent1");
 
       // change attribute
-      getNode(aHostNodeID).setAttribute(aRelAttr, aDependent2ID);
-      testRelation(aDependent1ID, aDependentRelation, null);
-      testRelation(aDependent2ID, aDependentRelation, aHostID);
+      getNode("host").setAttribute(aRelAttr, "dependent2");
+      testRelation("dependent1", aDependentRelation, null);
+      testRelation("dependent2", aDependentRelation, "host");
       if (aHostRelation)
-        testRelation(aHostID, aHostRelation, aDependent2ID);
+        testRelation("host", aHostRelation, "dependent2");
 
       // remove attribute
-      getNode(aHostNodeID).removeAttribute(aRelAttr);
-      testRelation(aDependent1ID, aDependentRelation, null);
-      testRelation(aDependent2ID, aDependentRelation, null);
+      getNode("host").removeAttribute(aRelAttr);
+      testRelation("dependent1", aDependentRelation, null);
+      testRelation("dependent2", aDependentRelation, null);
       if (aHostRelation)
-        testRelation(aHostID, aHostRelation, null);
+        testRelation("host", aHostRelation, null);
     }
 
     function insertRelated(aHostRelAttr, aDependentID, aInsertHostFirst,
@@ -132,30 +131,13 @@
     function doTest()
     {
       // Relation updates on ARIA attribute changes.
-      testRelated("aria-labelledby",
-                  RELATION_LABELLED_BY, RELATION_LABEL_FOR,
-                  "host", "host", "dependent1", "dependent2");
-
+      testRelated("aria-labelledby", RELATION_LABELLED_BY, RELATION_LABEL_FOR);
       testRelated("aria-describedby",
-                  RELATION_DESCRIBED_BY, RELATION_DESCRIPTION_FOR,
-                  "host", "host", "dependent1", "dependent2");
-
-      testRelated("aria-owns",
-                  null, RELATION_NODE_CHILD_OF,
-                  "host", "host", "dependent1", "dependent2");
-
+                  RELATION_DESCRIBED_BY, RELATION_DESCRIPTION_FOR);
+      testRelated("aria-owns", null, RELATION_NODE_CHILD_OF);
       testRelated("aria-controls",
-                  RELATION_CONTROLLER_FOR, RELATION_CONTROLLED_BY,
-                  "host", "host", "dependent1", "dependent2");
-
-      testRelated("aria-flowto",
-                  RELATION_FLOWS_TO, RELATION_FLOWS_FROM,
-                  "host", "host", "dependent1", "dependent2");
-
-      // Document relation updates on ARIA attribute change.
-      testRelated("aria-labelledby",
-                  RELATION_LABELLED_BY, RELATION_LABEL_FOR,
-                  document, "body", "dependent1", "dependent2");
+                  RELATION_CONTROLLER_FOR, RELATION_CONTROLLED_BY);
+      testRelated("aria-flowto", RELATION_FLOWS_TO, RELATION_FLOWS_FROM);
 
       // Insert related accessibles into tree.
       gQueue = new eventQueue();
@@ -201,7 +183,7 @@
 
 </head>
 
-<body id="body">
+<body>
 
   <a target="_blank"
      href="https://bugzilla.mozilla.org/show_bug.cgi?id=573469"
@@ -212,11 +194,6 @@
      href="https://bugzilla.mozilla.org/show_bug.cgi?id=631068"
      title="Accessible recreation breaks relations">
     Mozilla Bug 631068
-  </a>
-  <a target="_blank"
-     href="https://bugzilla.mozilla.org/show_bug.cgi?id=635346"
-     title="Allow relations for document defined on document content">
-    Mozilla Bug 635346
   </a>
   <br>
   <p id="display"></p>
