@@ -7,7 +7,7 @@
 #include "jit/BytecodeAnalysis.h"
 
 #include "jsopcode.h"
-#include "jit/JitSpewer.h"
+#include "jit/IonSpewer.h"
 #include "jsopcodeinlines.h"
 
 using namespace js;
@@ -57,7 +57,7 @@ BytecodeAnalysis::init(TempAllocator &alloc, GSNCache &gsn)
         JSOp op = JSOp(*pc);
         unsigned offset = script_->pcToOffset(pc);
 
-        JitSpew(JitSpew_BaselineOp, "Analyzing op @ %d (end=%d): %s",
+        IonSpew(IonSpew_BaselineOp, "Analyzing op @ %d (end=%d): %s",
                 int(script_->pcToOffset(pc)), int(script_->length()), js_CodeName[op]);
 
         // If this bytecode info has not yet been initialized, it's not reachable.

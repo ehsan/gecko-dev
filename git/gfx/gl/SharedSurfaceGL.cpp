@@ -5,11 +5,11 @@
 
 #include "SharedSurfaceGL.h"
 
-#include "GLBlitHelper.h"
 #include "GLContext.h"
-#include "GLReadTexImageHelper.h"
-#include "mozilla/gfx/2D.h"
+#include "GLBlitHelper.h"
 #include "ScopedGLHelpers.h"
+#include "mozilla/gfx/2D.h"
+#include "GLReadTexImageHelper.h"
 
 namespace mozilla {
 namespace gl {
@@ -70,7 +70,6 @@ SharedSurface_Basic::SharedSurface_Basic(GLContext* gl,
                     hasAlpha)
     , mTex(tex)
     , mFB(0)
-    , mIsDataCurrent(false)
 {
     mGL->MakeCurrent();
     mGL->fGenFramebuffers(1, &mFB);
@@ -116,51 +115,6 @@ SharedSurface_Basic::Fence()
     mGL->MakeCurrent();
     ScopedBindFramebuffer autoFB(mGL, mFB);
     ReadPixelsIntoDataSurface(mGL, mData);
-    mIsDataCurrent = true;
-}
-
-bool
-SharedSurface_Basic::WaitSync()
-{
-    MOZ_ASSERT(mIsDataCurrent);
-    return true;
-}
-
-bool
-SharedSurface_Basic::PollSync()
-{
-    MOZ_ASSERT(mIsDataCurrent);
-    return true;
-}
-
-void
-SharedSurface_Basic::Fence_ContentThread_Impl()
-{
-    mIsDataCurrent = false;
-}
-
-bool
-SharedSurface_Basic::WaitSync_ContentThread_Impl()
-{
-    if (!mIsDataCurrent) {
-        mGL->MakeCurrent();
-        ScopedBindFramebuffer autoFB(mGL, mFB);
-        ReadPixelsIntoDataSurface(mGL, mData);
-        mIsDataCurrent = true;
-    }
-    return true;
-}
-
-bool
-SharedSurface_Basic::PollSync_ContentThread_Impl()
-{
-    if (!mIsDataCurrent) {
-        mGL->MakeCurrent();
-        ScopedBindFramebuffer autoFB(mGL, mFB);
-        ReadPixelsIntoDataSurface(mGL, mData);
-        mIsDataCurrent = true;
-    }
-    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////

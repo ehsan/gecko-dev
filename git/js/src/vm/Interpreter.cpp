@@ -2879,7 +2879,7 @@ CASE(JSOP_SETALIASEDVAR)
 
     // Avoid computing the name if no type updates are needed, as this may be
     // expensive on scopes with large numbers of variables.
-    PropertyName *name = obj.hasSingletonType()
+    PropertyName *name = (obj.hasSingletonType() && !obj.hasLazyType())
                          ? ScopeCoordinateName(cx->runtime()->scopeCoordinateNameCache, script, REGS.pc)
                          : nullptr;
 

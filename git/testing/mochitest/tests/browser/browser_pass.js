@@ -1,5 +1,4 @@
 function test() {
-  SimpleTest.requestCompleteLog();
   ok(true, "pass ok");
   is(true, true, "pass is");
   isnot(false, true, "pass isnot");

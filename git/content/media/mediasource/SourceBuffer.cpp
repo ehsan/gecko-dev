@@ -61,17 +61,6 @@ public:
     return false;
   }
 
-  virtual bool IsMediaSegmentPresent(const uint8_t* aData, uint32_t aLength)
-  {
-    MSE_DEBUG("ContainerParser(%p)::IsMediaSegmentPresent aLength=%u [%x%x%x%x]",
-              this, aLength,
-              aLength > 0 ? aData[0] : 0,
-              aLength > 1 ? aData[1] : 0,
-              aLength > 2 ? aData[2] : 0,
-              aLength > 3 ? aData[3] : 0);
-    return false;
-  }
-
   virtual bool ParseStartAndEndTimestamps(const uint8_t* aData, uint32_t aLength,
                                           double& aStart, double& aEnd)
   {
@@ -93,7 +82,7 @@ protected:
 class WebMContainerParser : public ContainerParser {
 public:
   WebMContainerParser()
-    : mParser(0), mOffset(0)
+    : mTimecodeScale(0)
   {}
 
   bool IsInitSegmentPresent(const uint8_t* aData, uint32_t aLength)
@@ -116,48 +105,28 @@ public:
     return false;
   }
 
-  bool IsMediaSegmentPresent(const uint8_t* aData, uint32_t aLength)
-  {
-    ContainerParser::IsMediaSegmentPresent(aData, aLength);
-    // XXX: This is overly primitive, needs to collect data as it's appended
-    // to the SB and handle, rather than assuming everything is present in a
-    // single aData segment.
-    // 0x1a45dfa3 // EBML
-    // ...
-    // DocType == "webm"
-    // ...
-    // 0x18538067 // Segment (must be "unknown" size)
-    // 0x1549a966 // -> Segment Info
-    // 0x1654ae6b // -> One or more Tracks
-    if (aLength >= 4 &&
-        aData[0] == 0x1f && aData[1] == 0x43 && aData[2] == 0xb6 && aData[3] == 0x75) {
-      return true;
-    }
-    return false;
-  }
-
   virtual bool ParseStartAndEndTimestamps(const uint8_t* aData, uint32_t aLength,
                                           double& aStart, double& aEnd)
   {
-    bool initSegment = IsInitSegmentPresent(aData, aLength);
-    if (initSegment) {
-      mOffset = 0;
-      mParser = WebMBufferedParser(0);
-      mOverlappedMapping.Clear();
+    // XXX: This is overly primitive, needs to collect data as it's appended
+    // to the SB and handle, rather than assuming everything is present in a
+    // single aData segment.
+
+    WebMBufferedParser parser(0);
+    if (mTimecodeScale != 0) {
+      parser.SetTimecodeScale(mTimecodeScale);
     }
 
-    // XXX if it only adds new mappings, overlapped but not available
-    // (e.g. overlap < 0) frames are "lost" from the reported mappings here.
     nsTArray<WebMTimeDataOffset> mapping;
-    mapping.AppendElements(mOverlappedMapping);
-    mOverlappedMapping.Clear();
     ReentrantMonitor dummy("dummy");
-    mParser.Append(aData, aLength, mapping, dummy);
+    parser.Append(aData, aLength, mapping, dummy);
+
+    mTimecodeScale = parser.GetTimecodeScale();
 
     // XXX This is a bit of a hack.  Assume if there are no timecodes
     // present and it's an init segment that it's _just_ an init segment.
     // We should be more precise.
-    if (initSegment) {
+    if (IsInitSegmentPresent(aData, aLength)) {
       uint32_t length = aLength;
       if (!mapping.IsEmpty()) {
         length = mapping[0].mSyncOffset;
@@ -168,40 +137,23 @@ public:
 
       mInitData.ReplaceElementsAt(0, mInitData.Length(), aData, length);
     }
-    mOffset += aLength;
 
     if (mapping.IsEmpty()) {
       return false;
     }
 
-    // Exclude frames that we don't enough data to cover the end of.
-    uint32_t endIdx = mapping.Length() - 1;
-    while (mOffset < mapping[endIdx].mEndOffset && endIdx > 0) {
-      endIdx -= 1;
-    }
-
-    if (endIdx == 0) {
-      return false;
-    }
-
     static const double NS_PER_S = 1e9;
     aStart = mapping[0].mTimecode / NS_PER_S;
-    aEnd = mapping[endIdx].mTimecode / NS_PER_S;
-    aEnd += (mapping[endIdx].mTimecode - mapping[endIdx - 1].mTimecode) / NS_PER_S;
+    aEnd = mapping.LastElement().mTimecode / NS_PER_S;
 
-    MSE_DEBUG("WebMContainerParser(%p)::ParseStartAndEndTimestamps: [%f, %f] [fso=%lld, leo=%lld, l=%u endIdx=%u]",
-              this, aStart, aEnd, mapping[0].mSyncOffset, mapping[endIdx].mEndOffset, mapping.Length(), endIdx);
-
-    mapping.RemoveElementsAt(0, endIdx + 1);
-    mOverlappedMapping.AppendElements(mapping);
+    MSE_DEBUG("WebMContainerParser(%p)::ParseStartAndEndTimestamps: [%f, %f] [fso=%lld, leo=%lld]",
+              this, aStart, aEnd, mapping[0].mSyncOffset, mapping.LastElement().mEndOffset);
 
     return true;
   }
 
 private:
-  WebMBufferedParser mParser;
-  nsTArray<WebMTimeDataOffset> mOverlappedMapping;
-  int64_t mOffset;
+  uint32_t mTimecodeScale;
 };
 
 class MP4ContainerParser : public ContainerParser {
@@ -633,8 +585,7 @@ SourceBuffer::AppendData(const uint8_t* aData, uint32_t aLength, ErrorResult& aR
   }
   double start, end;
   if (mParser->ParseStartAndEndTimestamps(aData, aLength, start, end)) {
-    if (mParser->IsMediaSegmentPresent(aData, aLength) &&
-        (start < mLastParsedTimestamp || start - mLastParsedTimestamp > 0.1)) {
+    if (start <= mLastParsedTimestamp || mLastParsedTimestamp - start > 0.1) {
       MSE_DEBUG("SourceBuffer(%p)::AppendData: Data (%f, %f) overlaps %f.",
                 this, start, end, mLastParsedTimestamp);
 

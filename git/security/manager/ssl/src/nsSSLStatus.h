@@ -14,7 +14,7 @@
 #include "nsISerializable.h"
 #include "nsIClassInfo.h"
 
-class nsSSLStatus MOZ_FINAL
+class nsSSLStatus
   : public nsISSLStatus
   , public nsISerializable
   , public nsIClassInfo

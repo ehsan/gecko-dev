@@ -53,6 +53,9 @@ const gUnnamedProcessStr = "Main Process";
 
 let gIsDiff = false;
 
+const gAnalyzeReportsFile = "reports.dmd";
+const gAnalyzeHeapFile    = "heap.dmd";
+
 //---------------------------------------------------------------------------
 
 // Forward slashes in URLs in paths are represented with backslashes to avoid
@@ -296,8 +299,10 @@ function onLoad()
                             "collection log.\n" +
                             "WARNING: These logs may be large (>1GB).";
 
-  const DMDEnabledDesc = "Analyze memory reports coverage and save the " +
-                         "output to the temp directory.\n";
+  const AnalyzeReportsDesc = "Analyze memory reports coverage and save the " +
+                             "output to '" + gAnalyzeReportsFile + "'.\n";
+  const AnalyzeHeapDesc = "Analyze heap usage and save the output to '" +
+                          gAnalyzeHeapFile + "'.\n";
   const DMDDisabledDesc = "DMD is not running. Please re-start with $DMD and " +
                           "the other relevant environment variables set " +
                           "appropriately.";
@@ -359,13 +364,20 @@ function onLoad()
   if (gMgr.isDMDEnabled) {
     let row5 = appendElement(ops, "div", "opsRow");
 
-    appendElementWithText(row5, "div", "opsRowLabel", "Save DMD output");
+    appendElementWithText(row5, "div", "opsRowLabel", "DMD operations");
     let enableButtons = gMgr.isDMDRunning;
 
-    let dmdButton =
-      appendButton(row5, enableButtons ? DMDEnabledDesc : DMDDisabledDesc,
-                   doDMD, "Save");
-    dmdButton.disabled = !enableButtons;
+    let analyzeReportsButton =
+      appendButton(row5,
+                   enableButtons ? AnalyzeReportsDesc : DMDDisabledDesc,
+                   doAnalyzeReports, "Analyze reports");
+    analyzeReportsButton.disabled = !enableButtons;
+
+    let analyzeHeapButton =
+      appendButton(row5,
+                   enableButtons ? AnalyzeHeapDesc : DMDDisabledDesc,
+                   doAnalyzeHeap, "Analyze heap");
+    analyzeHeapButton.disabled = !enableButtons;
   }
 
   // Generate the main div, where content ("section" divs) will go.  It's
@@ -446,19 +458,24 @@ function saveGCLogAndVerboseCCLog()
   dumpGCLogAndCCLog(true);
 }
 
-function doDMD()
+function doAnalyzeReports()
 {
-  updateMainAndFooter("Saving memory reports and DMD output...", HIDE_FOOTER);
+  updateMainAndFooter('Saving DMD output...', HIDE_FOOTER);
   try {
-    let dumper = Cc["@mozilla.org/memory-info-dumper;1"]
-                   .getService(Ci.nsIMemoryInfoDumper);
-
-    dumper.dumpMemoryInfoToTempDir(/* identifier = */ "",
-                                   gAnonymize.checked,
-                                   /* minimize = */ false);
-    updateMainAndFooter("Saved memory reports and DMD reports analysis " +
-                        "to the temp directory",
+    let x = DMDAnalyzeReports(gAnalyzeReportsFile);
+    updateMainAndFooter('Saved DMD output to ' + gAnalyzeReportsFile,
                         HIDE_FOOTER);
+  } catch (ex) {
+    updateMainAndFooter(ex.toString(), HIDE_FOOTER);
+  }
+}
+
+function doAnalyzeHeap()
+{
+  updateMainAndFooter('Saving DMD output...', HIDE_FOOTER);
+  try {
+    let x = DMDAnalyzeHeap(gAnalyzeHeapFile);
+    updateMainAndFooter('Saved DMD output to ' + gAnalyzeHeapFile, HIDE_FOOTER);
   } catch (ex) {
     updateMainAndFooter(ex.toString(), HIDE_FOOTER);
   }
@@ -1978,9 +1995,11 @@ function saveReportsToFile()
   let fpFinish = function(file) {
     let dumper = Cc["@mozilla.org/memory-info-dumper;1"]
                    .getService(Ci.nsIMemoryInfoDumper);
+
     let finishDumping = () => {
-      updateMainAndFooter("Saved memory reports to " + file.path, HIDE_FOOTER);
+      updateMainAndFooter("Saved reports to " + file.path, HIDE_FOOTER);
     }
+
     dumper.dumpMemoryReportsToNamedFile(file.path, finishDumping, null,
                                         gAnonymize.checked);
   }

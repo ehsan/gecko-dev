@@ -177,5 +177,5 @@ def js
 end
 
 def ft
-  call $arg0->DumpFrameTree()
+  call nsFrame::DumpFrameTree($arg0)
 end

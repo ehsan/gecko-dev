@@ -143,7 +143,7 @@ class nsGIOInputStream MOZ_FINAL : public nsIInputStream
     NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSIINPUTSTREAM
 
-    explicit nsGIOInputStream(const nsCString &uriSpec)
+    nsGIOInputStream(const nsCString &uriSpec)
       : mSpec(uriSpec)
       , mChannel(nullptr)
       , mHandle(nullptr)

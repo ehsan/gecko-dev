@@ -43,7 +43,7 @@ public:
    NS_DECL_NSIWINDOWPROVIDER
 
 protected:
-   explicit nsContentTreeOwner(bool fPrimary);
+   nsContentTreeOwner(bool fPrimary);
    virtual ~nsContentTreeOwner();
 
    void XULWindow(nsXULWindow* aXULWindow);

@@ -67,7 +67,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitCloneLiteral(LCloneLiteral *lir);
     bool visitParameter(LParameter *lir);
     bool visitCallee(LCallee *lir);
-    bool visitIsConstructing(LIsConstructing *lir);
     bool visitStart(LStart *lir);
     bool visitReturn(LReturn *ret);
     bool visitDefVar(LDefVar *lir);

@@ -576,29 +576,8 @@ ServiceWorkerManager::Register(const nsAString& aScope,
 
   nsCOMPtr<nsIURI> documentURI = doc->GetBaseURI();
 
-  bool httpsNeeded = true;
-
   // FIXME(nsm): Bug 1003991. Disable check when devtools are open.
-  if (Preferences::GetBool("dom.serviceWorkers.testing.enabled")) {
-    httpsNeeded = false;
-  }
-
-  // No https needed for localhost.
-  if (httpsNeeded) {
-    nsAutoCString host;
-    result = documentURI->GetHost(host);
-    if (NS_WARN_IF(result.Failed())) {
-      return result.ErrorCode();
-    }
-
-    if (host.Equals("127.0.0.1") ||
-        host.Equals("localhost") ||
-        host.Equals("::1")) {
-      httpsNeeded = false;
-    }
-  }
-
-  if (httpsNeeded) {
+  if (!Preferences::GetBool("dom.serviceWorkers.testing.enabled")) {
     bool isHttps;
     result = documentURI->SchemeIs("https", &isHttps);
     if (result.Failed() || !isHttps) {
@@ -1947,50 +1926,20 @@ ServiceWorkerManager::FireEventOnServiceWorkerRegistrations(
 }
 
 /*
- * This is used for installing, waiting and active.
+ * This is used for installing, waiting and active, and uses the registration
+ * most specifically matching the current scope.
  */
 NS_IMETHODIMP
-ServiceWorkerManager::GetServiceWorkerForScope(nsIDOMWindow* aWindow,
-                                               const nsAString& aScope,
-                                               WhichServiceWorker aWhichWorker,
-                                               nsISupports** aServiceWorker)
+ServiceWorkerManager::GetServiceWorkerForWindow(nsIDOMWindow* aWindow,
+                                                WhichServiceWorker aWhichWorker,
+                                                nsISupports** aServiceWorker)
 {
-  AssertIsOnMainThread();
-
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aWindow);
-  if (!window) {
-    return NS_ERROR_FAILURE;
-  }
-
-  nsCOMPtr<nsIDocument> doc = window->GetExtantDoc();
-  MOZ_ASSERT(doc);
-
-  ///////////////////////////////////////////
-  // Security check
-  nsCString scope = NS_ConvertUTF16toUTF8(aScope);
-  nsCOMPtr<nsIURI> scopeURI;
-  // We pass nullptr as the base URI since scopes obtained from
-  // ServiceWorkerRegistrations MUST be fully qualified URIs.
-  nsresult rv = NS_NewURI(getter_AddRefs(scopeURI), scope, nullptr, nullptr);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
-
-  nsCOMPtr<nsIPrincipal> documentPrincipal = doc->NodePrincipal();
-  rv = documentPrincipal->CheckMayLoad(scopeURI, true /* report */,
-                                       false /* allowIfInheritsPrinciple */);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
-  ////////////////////////////////////////////
-
-  nsRefPtr<ServiceWorkerDomainInfo> domainInfo = GetDomainInfo(scope);
-  if (!domainInfo) {
-    return NS_ERROR_FAILURE;
-  }
+  MOZ_ASSERT(window);
 
   nsRefPtr<ServiceWorkerRegistrationInfo> registration =
-    domainInfo->GetRegistration(scope);
+    GetServiceWorkerRegistrationInfo(window);
+
   if (!registration) {
     return NS_ERROR_FAILURE;
   }
@@ -2011,10 +1960,10 @@ ServiceWorkerManager::GetServiceWorkerForScope(nsIDOMWindow* aWindow,
   }
 
   nsRefPtr<ServiceWorker> serviceWorker;
-  rv = CreateServiceWorkerForWindow(window,
-                                    info->GetScriptSpec(),
-                                    registration->mScope,
-                                    getter_AddRefs(serviceWorker));
+  nsresult rv = CreateServiceWorkerForWindow(window,
+                                             info->GetScriptSpec(),
+                                             registration->mScope,
+                                             getter_AddRefs(serviceWorker));
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
@@ -2066,32 +2015,25 @@ ServiceWorkerManager::GetDocumentController(nsIDOMWindow* aWindow, nsISupports**
 
 NS_IMETHODIMP
 ServiceWorkerManager::GetInstalling(nsIDOMWindow* aWindow,
-                                    const nsAString& aScope,
                                     nsISupports** aServiceWorker)
 {
-  return GetServiceWorkerForScope(aWindow, aScope,
-                                  WhichServiceWorker::INSTALLING_WORKER,
-                                  aServiceWorker);
+  return GetServiceWorkerForWindow(aWindow, WhichServiceWorker::INSTALLING_WORKER,
+                                   aServiceWorker);
 }
 
 NS_IMETHODIMP
 ServiceWorkerManager::GetWaiting(nsIDOMWindow* aWindow,
-                                 const nsAString& aScope,
                                  nsISupports** aServiceWorker)
 {
-  return GetServiceWorkerForScope(aWindow, aScope,
-                                  WhichServiceWorker::WAITING_WORKER,
-                                  aServiceWorker);
+  return GetServiceWorkerForWindow(aWindow, WhichServiceWorker::WAITING_WORKER,
+                                   aServiceWorker);
 }
 
 NS_IMETHODIMP
-ServiceWorkerManager::GetActive(nsIDOMWindow* aWindow,
-                                const nsAString& aScope,
-                                nsISupports** aServiceWorker)
+ServiceWorkerManager::GetActive(nsIDOMWindow* aWindow, nsISupports** aServiceWorker)
 {
-  return GetServiceWorkerForScope(aWindow, aScope,
-                                  WhichServiceWorker::ACTIVE_WORKER,
-                                  aServiceWorker);
+  return GetServiceWorkerForWindow(aWindow, WhichServiceWorker::ACTIVE_WORKER,
+                                   aServiceWorker);
 }
 
 NS_IMETHODIMP

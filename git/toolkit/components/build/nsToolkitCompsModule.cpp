@@ -38,12 +38,6 @@
 #include "mozilla/NativeOSFileInternals.h"
 #include "mozilla/AddonPathService.h"
 
-#if defined(XP_WIN)
-#include "NativeFileWatcherWin.h"
-#else
-#include "NativeFileWatcherNotSupported.h"
-#endif // (XP_WIN)
-
 using namespace mozilla;
 
 /////////////////////////////////////////////////////////////////////////////
@@ -100,7 +94,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsUpdateProcessor)
 #endif
 NS_GENERIC_FACTORY_CONSTRUCTOR(FinalizationWitnessService)
 NS_GENERIC_FACTORY_CONSTRUCTOR(NativeOSFileInternalsService)
-NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(NativeFileWatcherService, Init)
 
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(AddonPathService, AddonPathService::GetInstance)
 
@@ -130,7 +123,6 @@ NS_DEFINE_NAMED_CID(NS_UPDATEPROCESSOR_CID);
 NS_DEFINE_NAMED_CID(FINALIZATIONWITNESSSERVICE_CID);
 NS_DEFINE_NAMED_CID(NATIVE_OSFILE_INTERNALS_SERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_ADDON_PATH_SERVICE_CID);
-NS_DEFINE_NAMED_CID(NATIVE_FILEWATCHER_SERVICE_CID);
 
 static const Module::CIDEntry kToolkitCIDs[] = {
   { &kNS_TOOLKIT_APPSTARTUP_CID, false, nullptr, nsAppStartupConstructor },
@@ -159,7 +151,6 @@ static const Module::CIDEntry kToolkitCIDs[] = {
   { &kFINALIZATIONWITNESSSERVICE_CID, false, nullptr, FinalizationWitnessServiceConstructor },
   { &kNATIVE_OSFILE_INTERNALS_SERVICE_CID, false, nullptr, NativeOSFileInternalsServiceConstructor },
   { &kNS_ADDON_PATH_SERVICE_CID, false, nullptr, AddonPathServiceConstructor },
-  { &kNATIVE_FILEWATCHER_SERVICE_CID, false, nullptr, NativeFileWatcherServiceConstructor },
   { nullptr }
 };
 
@@ -191,7 +182,6 @@ static const Module::ContractIDEntry kToolkitContracts[] = {
   { FINALIZATIONWITNESSSERVICE_CONTRACTID, &kFINALIZATIONWITNESSSERVICE_CID },
   { NATIVE_OSFILE_INTERNALS_SERVICE_CONTRACTID, &kNATIVE_OSFILE_INTERNALS_SERVICE_CID },
   { NS_ADDONPATHSERVICE_CONTRACTID, &kNS_ADDON_PATH_SERVICE_CID },
-  { NATIVE_FILEWATCHER_SERVICE_CONTRACTID, &kNATIVE_FILEWATCHER_SERVICE_CID },
   { nullptr }
 };
 

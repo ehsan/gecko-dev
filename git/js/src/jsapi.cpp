@@ -6214,37 +6214,37 @@ JS_SetGlobalJitCompilerOption(JSRuntime *rt, JSJitCompilerOption opt, uint32_t v
       case JSJITCOMPILER_ION_ENABLE:
         if (value == 1) {
             JS::RuntimeOptionsRef(rt).setIon(true);
-            JitSpew(js::jit::JitSpew_Scripts, "Enable ion");
+            IonSpew(js::jit::IonSpew_Scripts, "Enable ion");
         } else if (value == 0) {
             JS::RuntimeOptionsRef(rt).setIon(false);
-            JitSpew(js::jit::JitSpew_Scripts, "Disable ion");
+            IonSpew(js::jit::IonSpew_Scripts, "Disable ion");
         }
         break;
       case JSJITCOMPILER_BASELINE_ENABLE:
         if (value == 1) {
             JS::RuntimeOptionsRef(rt).setBaseline(true);
-            JitSpew(js::jit::JitSpew_BaselineScripts, "Enable baseline");
+            IonSpew(js::jit::IonSpew_BaselineScripts, "Enable baseline");
         } else if (value == 0) {
             JS::RuntimeOptionsRef(rt).setBaseline(false);
-            JitSpew(js::jit::JitSpew_BaselineScripts, "Disable baseline");
+            IonSpew(js::jit::IonSpew_BaselineScripts, "Disable baseline");
         }
         break;
       case JSJITCOMPILER_OFFTHREAD_COMPILATION_ENABLE:
         if (value == 1) {
             rt->setOffthreadIonCompilationEnabled(true);
-            JitSpew(js::jit::JitSpew_Scripts, "Enable offthread compilation");
+            IonSpew(js::jit::IonSpew_Scripts, "Enable offthread compilation");
         } else if (value == 0) {
             rt->setOffthreadIonCompilationEnabled(false);
-            JitSpew(js::jit::JitSpew_Scripts, "Disable offthread compilation");
+            IonSpew(js::jit::IonSpew_Scripts, "Disable offthread compilation");
         }
         break;
       case JSJITCOMPILER_SIGNALS_ENABLE:
         if (value == 1) {
             rt->setCanUseSignalHandlers(true);
-            JitSpew(js::jit::JitSpew_Scripts, "Enable signals");
+            IonSpew(js::jit::IonSpew_Scripts, "Enable signals");
         } else if (value == 0) {
             rt->setCanUseSignalHandlers(false);
-            JitSpew(js::jit::JitSpew_Scripts, "Disable signals");
+            IonSpew(js::jit::IonSpew_Scripts, "Disable signals");
         }
         break;
       default:

@@ -33,7 +33,6 @@
     _(CloneLiteral)                 \
     _(Parameter)                    \
     _(Callee)                       \
-    _(IsConstructing)               \
     _(TableSwitch)                  \
     _(TableSwitchV)                 \
     _(Goto)                         \

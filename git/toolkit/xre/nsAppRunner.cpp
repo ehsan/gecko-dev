@@ -1330,7 +1330,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIFACTORY
 
-  explicit nsSingletonFactory(nsISupports* aSingleton);
+  nsSingletonFactory(nsISupports* aSingleton);
 
 private:
   ~nsSingletonFactory() { }

@@ -589,7 +589,7 @@ template <typename VREG, bool forLSRA>
 bool
 LiveRangeAllocator<VREG, forLSRA>::buildLivenessInfo()
 {
-    JitSpew(JitSpew_RegAlloc, "Beginning liveness analysis");
+    IonSpew(IonSpew_RegAlloc, "Beginning liveness analysis");
 
     if (!init())
         return false;
@@ -939,9 +939,9 @@ LiveRangeAllocator<VREG, forLSRA>::buildLivenessInfo()
         }
     }
 
-    JitSpew(JitSpew_RegAlloc, "Liveness analysis complete");
+    IonSpew(IonSpew_RegAlloc, "Liveness analysis complete");
 
-    if (JitSpewEnabled(JitSpew_RegAlloc)) {
+    if (IonSpewEnabled(IonSpew_RegAlloc)) {
         dumpInstructions();
 
         fprintf(stderr, "Live ranges by virtual register:\n");
@@ -1017,7 +1017,6 @@ LiveInterval::rangesToString() const
 #endif
 }
 
-#ifdef DEBUG
 static bool
 IsHintInteresting(const Requirement &requirement, const Requirement &hint)
 {
@@ -1033,7 +1032,6 @@ IsHintInteresting(const Requirement &requirement, const Requirement &hint)
 
     return merge.kind() != requirement.kind();
 }
-#endif
 
 const char *
 LiveInterval::toString() const

@@ -735,8 +735,7 @@ class SetPropertyIC : public RepatchIonCache
                           void *returnAddr);
 
     bool attachAddSlot(JSContext *cx, HandleScript outerScript, IonScript *ion,
-                       HandleObject obj, HandleShape oldShape, HandleTypeObject oldType,
-                       bool checkTypeset);
+                       HandleObject obj, HandleShape oldShape, bool checkTypeset);
 
     bool attachGenericProxy(JSContext *cx, HandleScript outerScript, IonScript *ion,
                             void *returnAddr);
@@ -1252,8 +1251,8 @@ class SetPropertyParIC : public ParallelIonCache
 
     bool attachSetSlot(LockedJSContext &cx, IonScript *ion, HandleObject obj, HandleShape shape,
                        bool checkTypeset);
-    bool attachAddSlot(LockedJSContext &cx, IonScript *ion, HandleObject obj,
-                       HandleShape oldShape, HandleTypeObject oldType, bool checkTypeset);
+    bool attachAddSlot(LockedJSContext &cx, IonScript *ion, HandleObject obj, HandleShape oldShape,
+                       bool checkTypeset);
 
     static bool update(ForkJoinContext *cx, size_t cacheIndex, HandleObject obj,
                        HandleValue value);

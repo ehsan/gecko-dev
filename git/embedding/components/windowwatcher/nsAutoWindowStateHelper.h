@@ -19,7 +19,7 @@ class nsPIDOMWindow;
 class nsAutoWindowStateHelper
 {
 public:
-  explicit nsAutoWindowStateHelper(nsPIDOMWindow *aWindow);
+  nsAutoWindowStateHelper(nsPIDOMWindow *aWindow);
   ~nsAutoWindowStateHelper();
 
   bool DefaultEnabled()

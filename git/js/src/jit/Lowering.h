@@ -67,7 +67,6 @@ class LIRGenerator : public LIRGeneratorSpecific
     bool visitCloneLiteral(MCloneLiteral *ins);
     bool visitParameter(MParameter *param);
     bool visitCallee(MCallee *callee);
-    bool visitIsConstructing(MIsConstructing *ins);
     bool visitGoto(MGoto *ins);
     bool visitTableSwitch(MTableSwitch *tableswitch);
     bool visitNewArray(MNewArray *ins);

@@ -26,10 +26,10 @@
 #include "jit/IonAnalysis.h"
 #include "jit/IonBuilder.h"
 #include "jit/IonOptimizationLevels.h"
+#include "jit/IonSpewer.h"
 #include "jit/JitcodeMap.h"
 #include "jit/JitCommon.h"
 #include "jit/JitCompartment.h"
-#include "jit/JitSpewer.h"
 #include "jit/LICM.h"
 #include "jit/LinearScan.h"
 #include "jit/LIR.h"
@@ -209,18 +209,18 @@ JitRuntime::initialize(JSContext *cx)
     if (!functionWrappers_ || !functionWrappers_->init())
         return false;
 
-    JitSpew(JitSpew_Codegen, "# Emitting exception tail stub");
+    IonSpew(IonSpew_Codegen, "# Emitting exception tail stub");
     exceptionTail_ = generateExceptionTailStub(cx);
     if (!exceptionTail_)
         return false;
 
-    JitSpew(JitSpew_Codegen, "# Emitting bailout tail stub");
+    IonSpew(IonSpew_Codegen, "# Emitting bailout tail stub");
     bailoutTail_ = generateBailoutTailStub(cx);
     if (!bailoutTail_)
         return false;
 
     if (cx->runtime()->jitSupportsFloatingPoint) {
-        JitSpew(JitSpew_Codegen, "# Emitting bailout tables");
+        IonSpew(IonSpew_Codegen, "# Emitting bailout tables");
 
         // Initialize some Ion-only stubs that require floating-point support.
         if (!bailoutTables_.reserve(FrameSizeClass::ClassLimit().classId()))
@@ -236,68 +236,68 @@ JitRuntime::initialize(JSContext *cx)
                 return false;
         }
 
-        JitSpew(JitSpew_Codegen, "# Emitting bailout handler");
+        IonSpew(IonSpew_Codegen, "# Emitting bailout handler");
         bailoutHandler_ = generateBailoutHandler(cx, SequentialExecution);
         if (!bailoutHandler_)
             return false;
 
-        JitSpew(JitSpew_Codegen, "# Emitting parallel bailout handler");
+        IonSpew(IonSpew_Codegen, "# Emitting parallel bailout handler");
         parallelBailoutHandler_ = generateBailoutHandler(cx, ParallelExecution);
         if (!parallelBailoutHandler_)
             return false;
 
-        JitSpew(JitSpew_Codegen, "# Emitting invalidator");
+        IonSpew(IonSpew_Codegen, "# Emitting invalidator");
         invalidator_ = generateInvalidator(cx);
         if (!invalidator_)
             return false;
     }
 
-    JitSpew(JitSpew_Codegen, "# Emitting sequential arguments rectifier");
+    IonSpew(IonSpew_Codegen, "# Emitting sequential arguments rectifier");
     argumentsRectifier_ = generateArgumentsRectifier(cx, SequentialExecution, &argumentsRectifierReturnAddr_);
     if (!argumentsRectifier_)
         return false;
 
-    JitSpew(JitSpew_Codegen, "# Emitting parallel arguments rectifier");
+    IonSpew(IonSpew_Codegen, "# Emitting parallel arguments rectifier");
     parallelArgumentsRectifier_ = generateArgumentsRectifier(cx, ParallelExecution, nullptr);
     if (!parallelArgumentsRectifier_)
         return false;
 
-    JitSpew(JitSpew_Codegen, "# Emitting EnterJIT sequence");
+    IonSpew(IonSpew_Codegen, "# Emitting EnterJIT sequence");
     enterJIT_ = generateEnterJIT(cx, EnterJitOptimized);
     if (!enterJIT_)
         return false;
 
-    JitSpew(JitSpew_Codegen, "# Emitting EnterBaselineJIT sequence");
+    IonSpew(IonSpew_Codegen, "# Emitting EnterBaselineJIT sequence");
     enterBaselineJIT_ = generateEnterJIT(cx, EnterJitBaseline);
     if (!enterBaselineJIT_)
         return false;
 
-    JitSpew(JitSpew_Codegen, "# Emitting Pre Barrier for Value");
+    IonSpew(IonSpew_Codegen, "# Emitting Pre Barrier for Value");
     valuePreBarrier_ = generatePreBarrier(cx, MIRType_Value);
     if (!valuePreBarrier_)
         return false;
 
-    JitSpew(JitSpew_Codegen, "# Emitting Pre Barrier for Shape");
+    IonSpew(IonSpew_Codegen, "# Emitting Pre Barrier for Shape");
     shapePreBarrier_ = generatePreBarrier(cx, MIRType_Shape);
     if (!shapePreBarrier_)
         return false;
 
-    JitSpew(JitSpew_Codegen, "# Emitting Pre Barrier for TypeObject");
+    IonSpew(IonSpew_Codegen, "# Emitting Pre Barrier for TypeObject");
     typeObjectPreBarrier_ = generatePreBarrier(cx, MIRType_TypeObject);
     if (!typeObjectPreBarrier_)
         return false;
 
-    JitSpew(JitSpew_Codegen, "# Emitting malloc stub");
+    IonSpew(IonSpew_Codegen, "# Emitting malloc stub");
     mallocStub_ = generateMallocStub(cx);
     if (!mallocStub_)
         return false;
 
-    JitSpew(JitSpew_Codegen, "# Emitting free stub");
+    IonSpew(IonSpew_Codegen, "# Emitting free stub");
     freeStub_ = generateFreeStub(cx);
     if (!freeStub_)
         return false;
 
-    JitSpew(JitSpew_Codegen, "# Emitting VM function wrappers");
+    IonSpew(IonSpew_Codegen, "# Emitting VM function wrappers");
     for (VMFunction *fun = VMFunction::functions; fun; fun = fun->next) {
         if (!generateVMWrapper(cx, *fun))
             return false;
@@ -327,7 +327,7 @@ bool
 JitRuntime::ensureForkJoinGetSliceStubExists(JSContext *cx)
 {
     if (!forkJoinGetSliceStub_) {
-        JitSpew(JitSpew_Codegen, "# Emitting ForkJoinGetSlice stub");
+        IonSpew(IonSpew_Codegen, "# Emitting ForkJoinGetSlice stub");
         AutoLockForExclusiveAccess lock(cx);
         AutoCompartment ac(cx, cx->runtime()->atomsCompartment());
         forkJoinGetSliceStub_ = generateForkJoinGetSliceStub(cx);
@@ -1180,7 +1180,7 @@ IonScript::getOsiIndex(uint32_t disp) const
 const OsiIndex *
 IonScript::getOsiIndex(uint8_t *retAddr) const
 {
-    JitSpew(JitSpew_Invalidate, "IonScript %p has method %p raw %p", (void *) this, (void *)
+    IonSpew(IonSpew_Invalidate, "IonScript %p has method %p raw %p", (void *) this, (void *)
             method(), method()->raw());
 
     JS_ASSERT(containsCodeAddress(retAddr));
@@ -1964,31 +1964,19 @@ IonCompile(JSContext *cx, JSScript *script,
     bool succeeded = builder->build();
     builder->clearForBackEnd();
 
-    if (!succeeded) {
-        AbortReason reason = builder->abortReason();
-        if (reason == AbortReason_NewScriptProperties) {
-            // Some type was accessed which needs the new script properties
-            // analysis to be performed. Do this now and we will try to build
-            // again shortly.
-            const MIRGenerator::TypeObjectVector &types = builder->abortedNewScriptPropertiesTypes();
-            for (size_t i = 0; i < types.length(); i++) {
-                if (!types[i]->newScript()->maybeAnalyze(cx, types[i], nullptr, /* force = */ true))
-                    return AbortReason_Alloc;
-            }
-        }
-        return reason;
-    }
+    if (!succeeded)
+        return builder->abortReason();
 
     // If possible, compile the script off thread.
     if (OffThreadCompilationAvailable(cx)) {
         if (!recompile)
             SetIonScript(builderScript, executionMode, ION_COMPILING_SCRIPT);
 
-        JitSpew(JitSpew_Logs, "Can't log script %s:%d. (Compiled on background thread.)",
+        IonSpew(IonSpew_Logs, "Can't log script %s:%d. (Compiled on background thread.)",
                               builderScript->filename(), builderScript->lineno());
 
         if (!StartOffThreadIonCompile(cx, builder)) {
-            JitSpew(JitSpew_Abort, "Unable to start off-thread ion compilation.");
+            IonSpew(IonSpew_Abort, "Unable to start off-thread ion compilation.");
             return AbortReason_Alloc;
         }
 
@@ -2001,7 +1989,7 @@ IonCompile(JSContext *cx, JSScript *script,
 
     ScopedJSDeletePtr<CodeGenerator> codegen(CompileBackEnd(builder));
     if (!codegen) {
-        JitSpew(JitSpew_Abort, "Failed during back-end compilation.");
+        IonSpew(IonSpew_Abort, "Failed during back-end compilation.");
         return AbortReason_Disable;
     }
 
@@ -2019,12 +2007,12 @@ CheckFrame(BaselineFrame *frame)
     // This check is to not overrun the stack.
     if (frame->isFunctionFrame()) {
         if (TooManyActualArguments(frame->numActualArgs())) {
-            JitSpew(JitSpew_Abort, "too many actual args");
+            IonSpew(IonSpew_Abort, "too many actual args");
             return false;
         }
 
         if (TooManyFormalArguments(frame->numFormalArgs())) {
-            JitSpew(JitSpew_Abort, "too many args");
+            IonSpew(IonSpew_Abort, "too many args");
             return false;
         }
     }
@@ -2039,7 +2027,7 @@ CheckScript(JSContext *cx, JSScript *script, bool osr)
         // Eval frames are not yet supported. Supporting this will require new
         // logic in pushBailoutFrame to deal with linking prev.
         // Additionally, JSOP_DEFVAR support will require baking in isEvalFrame().
-        JitSpew(JitSpew_Abort, "eval script");
+        IonSpew(IonSpew_Abort, "eval script");
         return false;
     }
 
@@ -2047,7 +2035,7 @@ CheckScript(JSContext *cx, JSScript *script, bool osr)
         // Support non-CNG functions but not other scripts. For global scripts,
         // IonBuilder currently uses the global object as scope chain, this is
         // not valid for non-CNG code.
-        JitSpew(JitSpew_Abort, "not compile-and-go");
+        IonSpew(IonSpew_Abort, "not compile-and-go");
         return false;
     }
 
@@ -2066,7 +2054,7 @@ CheckScriptSize(JSContext *cx, JSScript* script)
         numLocalsAndArgs > MAX_MAIN_THREAD_LOCALS_AND_ARGS)
     {
         if (!OffThreadCompilationAvailable(cx)) {
-            JitSpew(JitSpew_Abort, "Script too large (%u bytes) (%u locals/args)",
+            IonSpew(IonSpew_Abort, "Script too large (%u bytes) (%u locals/args)",
                     script->length(), numLocalsAndArgs);
             return Method_CantCompile;
         }
@@ -2109,18 +2097,18 @@ Compile(JSContext *cx, HandleScript script, BaselineFrame *osrFrame, jsbytecode 
         return Method_Skipped;
 
     if (cx->compartment()->debugMode()) {
-        JitSpew(JitSpew_Abort, "debugging");
+        IonSpew(IonSpew_Abort, "debugging");
         return Method_CantCompile;
     }
 
     if (!CheckScript(cx, script, bool(osrPc))) {
-        JitSpew(JitSpew_Abort, "Aborted compilation of %s:%d", script->filename(), script->lineno());
+        IonSpew(IonSpew_Abort, "Aborted compilation of %s:%d", script->filename(), script->lineno());
         return Method_CantCompile;
     }
 
     MethodStatus status = CheckScriptSize(cx, script);
     if (status != Method_Compiled) {
-        JitSpew(JitSpew_Abort, "Aborted compilation of %s:%d", script->filename(), script->lineno());
+        IonSpew(IonSpew_Abort, "Aborted compilation of %s:%d", script->filename(), script->lineno());
         return status;
     }
 
@@ -2268,13 +2256,13 @@ jit::CanEnter(JSContext *cx, RunState &state)
         InvokeState &invoke = *state.asInvoke();
 
         if (TooManyActualArguments(invoke.args().length())) {
-            JitSpew(JitSpew_Abort, "too many actual args");
+            IonSpew(IonSpew_Abort, "too many actual args");
             ForbidCompilation(cx, script);
             return Method_CantCompile;
         }
 
         if (TooManyFormalArguments(invoke.args().callee().as<JSFunction>().nargs())) {
-            JitSpew(JitSpew_Abort, "too many args");
+            IonSpew(IonSpew_Abort, "too many args");
             ForbidCompilation(cx, script);
             return Method_CantCompile;
         }
@@ -2282,7 +2270,7 @@ jit::CanEnter(JSContext *cx, RunState &state)
         if (!state.maybeCreateThisForConstructor(cx))
             return Method_Skipped;
     } else if (state.isGenerator()) {
-        JitSpew(JitSpew_Abort, "generator frame");
+        IonSpew(IonSpew_Abort, "generator frame");
         ForbidCompilation(cx, script);
         return Method_CantCompile;
     }
@@ -2440,7 +2428,7 @@ EnterIon(JSContext *cx, EnterJitData &data)
     data.result.setInt32(data.numActualArgs);
     {
         AssertCompartmentUnchanged pcc(cx);
-        JitActivation activation(cx);
+        JitActivation activation(cx, data.constructing);
 
         CALL_GENERATED_CODE(enter, data.jitcode, data.maxArgc, data.maxArgv, /* osrFrame = */nullptr, data.calleeToken,
                             /* scopeChain = */ nullptr, 0, data.result.address());
@@ -2471,7 +2459,7 @@ jit::SetEnterJitData(JSContext *cx, EnterJitData &data, RunState &state, AutoVal
         data.numActualArgs = args.length();
         data.maxArgc = Max(args.length(), numFormals) + 1;
         data.scopeChain = nullptr;
-        data.calleeToken = CalleeToToken(&args.callee().as<JSFunction>(), data.constructing);
+        data.calleeToken = CalleeToToken(&args.callee().as<JSFunction>());
 
         if (data.numActualArgs >= numFormals) {
             data.maxArgv = args.base() + 1;
@@ -2504,7 +2492,7 @@ jit::SetEnterJitData(JSContext *cx, EnterJitData &data, RunState &state, AutoVal
         {
             ScriptFrameIter iter(cx);
             if (iter.isFunctionFrame())
-                data.calleeToken = CalleeToToken(iter.callee(), /* constructing = */ false);
+                data.calleeToken = CalleeToToken(iter.callee());
         }
     }
 
@@ -2543,10 +2531,10 @@ jit::FastInvoke(JSContext *cx, HandleFunction fun, CallArgs &args)
     JS_ASSERT(jit::IsIonEnabled(cx));
     JS_ASSERT(!ion->bailoutExpected());
 
-    JitActivation activation(cx);
+    JitActivation activation(cx, /* firstFrameIsConstructing = */false);
 
     EnterJitCode enter = cx->runtime()->jitRuntime()->enterIon();
-    void *calleeToken = CalleeToToken(fun, /* constructing = */ false);
+    void *calleeToken = CalleeToToken(fun);
 
     RootedValue result(cx, Int32Value(args.length()));
     JS_ASSERT(args.length() >= fun->nargs());
@@ -2565,7 +2553,7 @@ jit::FastInvoke(JSContext *cx, HandleFunction fun, CallArgs &args)
 static void
 InvalidateActivation(FreeOp *fop, uint8_t *jitTop, bool invalidateAll)
 {
-    JitSpew(JitSpew_Invalidate, "BEGIN invalidating activation");
+    IonSpew(IonSpew_Invalidate, "BEGIN invalidating activation");
 
     size_t frameno = 1;
 
@@ -2575,32 +2563,32 @@ InvalidateActivation(FreeOp *fop, uint8_t *jitTop, bool invalidateAll)
 #ifdef DEBUG
         switch (it.type()) {
           case JitFrame_Exit:
-            JitSpew(JitSpew_Invalidate, "#%d exit frame @ %p", frameno, it.fp());
+            IonSpew(IonSpew_Invalidate, "#%d exit frame @ %p", frameno, it.fp());
             break;
           case JitFrame_BaselineJS:
           case JitFrame_IonJS:
           {
             JS_ASSERT(it.isScripted());
             const char *type = it.isIonJS() ? "Optimized" : "Baseline";
-            JitSpew(JitSpew_Invalidate, "#%d %s JS frame @ %p, %s:%d (fun: %p, script: %p, pc %p)",
+            IonSpew(IonSpew_Invalidate, "#%d %s JS frame @ %p, %s:%d (fun: %p, script: %p, pc %p)",
                     frameno, type, it.fp(), it.script()->filename(), it.script()->lineno(),
                     it.maybeCallee(), (JSScript *)it.script(), it.returnAddressToFp());
             break;
           }
           case JitFrame_BaselineStub:
-            JitSpew(JitSpew_Invalidate, "#%d baseline stub frame @ %p", frameno, it.fp());
+            IonSpew(IonSpew_Invalidate, "#%d baseline stub frame @ %p", frameno, it.fp());
             break;
           case JitFrame_Rectifier:
-            JitSpew(JitSpew_Invalidate, "#%d rectifier frame @ %p", frameno, it.fp());
+            IonSpew(IonSpew_Invalidate, "#%d rectifier frame @ %p", frameno, it.fp());
             break;
           case JitFrame_Unwound_IonJS:
           case JitFrame_Unwound_BaselineStub:
             MOZ_CRASH("invalid");
           case JitFrame_Unwound_Rectifier:
-            JitSpew(JitSpew_Invalidate, "#%d unwound rectifier frame @ %p", frameno, it.fp());
+            IonSpew(IonSpew_Invalidate, "#%d unwound rectifier frame @ %p", frameno, it.fp());
             break;
           case JitFrame_Entry:
-            JitSpew(JitSpew_Invalidate, "#%d entry frame @ %p", frameno, it.fp());
+            IonSpew(IonSpew_Invalidate, "#%d entry frame @ %p", frameno, it.fp());
             break;
         }
 #endif
@@ -2680,12 +2668,12 @@ InvalidateActivation(FreeOp *fop, uint8_t *jitTop, bool invalidateAll)
         CodeLocationLabel osiPatchPoint = SafepointReader::InvalidationPatchPoint(ionScript, si);
         CodeLocationLabel invalidateEpilogue(ionCode, CodeOffsetLabel(ionScript->invalidateEpilogueOffset()));
 
-        JitSpew(JitSpew_Invalidate, "   ! Invalidate ionScript %p (ref %u) -> patching osipoint %p",
+        IonSpew(IonSpew_Invalidate, "   ! Invalidate ionScript %p (ref %u) -> patching osipoint %p",
                 ionScript, ionScript->refcount(), (void *) osiPatchPoint.raw());
         Assembler::PatchWrite_NearCall(osiPatchPoint, invalidateEpilogue);
     }
 
-    JitSpew(JitSpew_Invalidate, "END invalidating activation");
+    IonSpew(IonSpew_Invalidate, "END invalidating activation");
 }
 
 void
@@ -2705,7 +2693,7 @@ jit::InvalidateAll(FreeOp *fop, Zone *zone)
 
     for (JitActivationIterator iter(fop->runtime()); !iter.done(); ++iter) {
         if (iter->compartment()->zone() == zone) {
-            JitSpew(JitSpew_Invalidate, "Invalidating all frames for GC");
+            IonSpew(IonSpew_Invalidate, "Invalidating all frames for GC");
             InvalidateActivation(fop, iter.jitTop(), true);
         }
     }
@@ -2717,7 +2705,7 @@ jit::Invalidate(types::TypeZone &types, FreeOp *fop,
                 const Vector<types::RecompileInfo> &invalid, bool resetUses,
                 bool cancelOffThread)
 {
-    JitSpew(JitSpew_Invalidate, "Start invalidation.");
+    IonSpew(IonSpew_Invalidate, "Start invalidation.");
 
     // Add an invalidation reference to all invalidated IonScripts to indicate
     // to the traversal which frames have been invalidated.
@@ -2733,7 +2721,7 @@ jit::Invalidate(types::TypeZone &types, FreeOp *fop,
         if (!co.ion())
             continue;
 
-        JitSpew(JitSpew_Invalidate, " Invalidate %s:%u, IonScript %p",
+        IonSpew(IonSpew_Invalidate, " Invalidate %s:%u, IonScript %p",
                 co.script()->filename(), co.script()->lineno(), co.ion());
 
         // Keep the ion script alive during the invalidation and flag this
@@ -2744,7 +2732,7 @@ jit::Invalidate(types::TypeZone &types, FreeOp *fop,
     }
 
     if (!numInvalidations) {
-        JitSpew(JitSpew_Invalidate, " No IonScript invalidation.");
+        IonSpew(IonSpew_Invalidate, " No IonScript invalidation.");
         return;
     }
 
@@ -2911,7 +2899,7 @@ jit::ForbidCompilation(JSContext *cx, JSScript *script)
 void
 jit::ForbidCompilation(JSContext *cx, JSScript *script, ExecutionMode mode)
 {
-    JitSpew(JitSpew_Abort, "Disabling Ion mode %d compilation of script %s:%d",
+    IonSpew(IonSpew_Abort, "Disabling Ion mode %d compilation of script %s:%d",
             mode, script->filename(), script->lineno());
 
     CancelOffThreadIonCompile(cx->compartment(), script);
@@ -2971,7 +2959,7 @@ AutoFlushICache::setRange(uintptr_t start, size_t len)
     AutoFlushICache *afc = TlsPerThreadData.get()->PerThreadData::autoFlushICache();
     JS_ASSERT(afc);
     JS_ASSERT(!afc->start_);
-    JitSpewCont(JitSpew_CacheFlush, "(%x %x):", start, len);
+    IonSpewCont(IonSpew_CacheFlush, "(%x %x):", start, len);
 
     uintptr_t stop = start + len;
     afc->start_ = start;
@@ -3004,7 +2992,7 @@ AutoFlushICache::flush(uintptr_t start, size_t len)
     PerThreadData *pt = TlsPerThreadData.get();
     AutoFlushICache *afc = pt ? pt->PerThreadData::autoFlushICache() : nullptr;
     if (!afc) {
-        JitSpewCont(JitSpew_CacheFlush, "#");
+        IonSpewCont(IonSpew_CacheFlush, "#");
         ExecutableAllocator::cacheFlush((void*)start, len);
         JS_ASSERT(len <= 16);
         return;
@@ -3013,11 +3001,11 @@ AutoFlushICache::flush(uintptr_t start, size_t len)
     uintptr_t stop = start + len;
     if (start >= afc->start_ && stop <= afc->stop_) {
         // Update is within the pending flush range, so defer to the end of the context.
-        JitSpewCont(JitSpew_CacheFlush, afc->inhibit_ ? "-" : "=");
+        IonSpewCont(IonSpew_CacheFlush, afc->inhibit_ ? "-" : "=");
         return;
     }
 
-    JitSpewCont(JitSpew_CacheFlush, afc->inhibit_ ? "x" : "*");
+    IonSpewCont(IonSpew_CacheFlush, afc->inhibit_ ? "x" : "*");
     ExecutableAllocator::cacheFlush((void *)start, len);
 #endif
 }
@@ -3031,7 +3019,7 @@ AutoFlushICache::setInhibit()
     AutoFlushICache *afc = TlsPerThreadData.get()->PerThreadData::autoFlushICache();
     JS_ASSERT(afc);
     JS_ASSERT(afc->start_);
-    JitSpewCont(JitSpew_CacheFlush, "I");
+    IonSpewCont(IonSpew_CacheFlush, "I");
     afc->inhibit_ = true;
 #endif
 }
@@ -3065,9 +3053,9 @@ AutoFlushICache::AutoFlushICache(const char *nonce, bool inhibit)
     PerThreadData *pt = TlsPerThreadData.get();
     AutoFlushICache *afc = pt->PerThreadData::autoFlushICache();
     if (afc)
-        JitSpew(JitSpew_CacheFlush, "<%s,%s%s ", nonce, afc->name_, inhibit ? " I" : "");
+        IonSpew(IonSpew_CacheFlush, "<%s,%s%s ", nonce, afc->name_, inhibit ? " I" : "");
     else
-        JitSpewCont(JitSpew_CacheFlush, "<%s%s ", nonce, inhibit ? " I" : "");
+        IonSpewCont(IonSpew_CacheFlush, "<%s%s ", nonce, inhibit ? " I" : "");
 
     prev_ = afc;
     pt->PerThreadData::setAutoFlushICache(this);
@@ -3083,8 +3071,8 @@ AutoFlushICache::~AutoFlushICache()
     if (!inhibit_ && start_)
         ExecutableAllocator::cacheFlush((void *)start_, size_t(stop_ - start_));
 
-    JitSpewCont(JitSpew_CacheFlush, "%s%s>", name_, start_ ? "" : " U");
-    JitSpewFin(JitSpew_CacheFlush);
+    IonSpewCont(IonSpew_CacheFlush, "%s%s>", name_, start_ ? "" : " U");
+    IonSpewFin(IonSpew_CacheFlush);
     pt->PerThreadData::setAutoFlushICache(prev_);
 #endif
 }
@@ -3203,7 +3191,7 @@ AutoDebugModeInvalidation::~AutoDebugModeInvalidation()
         JSCompartment *comp = iter->compartment();
         if (comp_ == comp || zone_ == comp->zone()) {
             IonContext ictx(CompileRuntime::get(rt));
-            JitSpew(JitSpew_Invalidate, "Invalidating frames for debug mode toggle");
+            IonSpew(IonSpew_Invalidate, "Invalidating frames for debug mode toggle");
             InvalidateActivation(fop, iter.jitTop(), true);
         }
     }

@@ -936,7 +936,6 @@ ChannelMediaResource::RecreateChannel()
                               loadGroup,
                               nullptr,
                               loadFlags);
-  NS_ENSURE_SUCCESS(rv, rv);
 
   // We have cached the Content-Type, which should not change. Give a hint to
   // the channel to avoid a sniffing failure, which would be expected because we
@@ -1035,7 +1034,8 @@ ChannelMediaResource::CacheClientSeek(int64_t aOffset, bool aResume)
   }
 
   nsresult rv = RecreateChannel();
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv))
+    return rv;
 
   return OpenChannel(nullptr);
 }
