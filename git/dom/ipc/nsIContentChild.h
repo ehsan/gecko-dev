@@ -9,7 +9,6 @@
 
 #include "nsISupports.h"
 #include "nsTArrayForwardDeclare.h"
-#include "mozilla/dom/CPOWManagerGetter.h"
 
 #define NS_ICONTENTCHILD_IID                                    \
   { 0x4eed2e73, 0x94ba, 0x48a8,                                 \
@@ -26,6 +25,7 @@ namespace mozilla {
 
 namespace jsipc {
 class PJavaScriptChild;
+class JavaScriptChild;
 class CpowEntry;
 } // jsipc
 
@@ -39,7 +39,6 @@ class PBlobChild;
 class PBrowserChild;
 
 class nsIContentChild : public nsISupports
-                      , public CPOWManagerGetter
 {
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ICONTENTCHILD_IID)
@@ -57,6 +56,7 @@ public:
                           const uint64_t& aID,
                           const bool& aIsForApp,
                           const bool& aIsForBrowser) = 0;
+  virtual jsipc::JavaScriptChild* GetCPOWManager() = 0;
 protected:
   virtual jsipc::PJavaScriptChild* AllocPJavaScriptChild();
   virtual bool DeallocPJavaScriptChild(jsipc::PJavaScriptChild*);

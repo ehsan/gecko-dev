@@ -8,8 +8,6 @@
 #define mozilla_dom_Headers_h
 
 #include "mozilla/dom/HeadersBinding.h"
-#include "mozilla/dom/UnionTypes.h"
-
 #include "nsClassHashtable.h"
 #include "nsWrapperCache.h"
 
@@ -44,7 +42,7 @@ private:
     nsCString mValue;
   };
 
-  nsCOMPtr<nsISupports> mOwner;
+  nsRefPtr<nsISupports> mOwner;
   HeadersGuardEnum mGuard;
   nsTArray<Entry> mList;
 
@@ -56,18 +54,11 @@ public:
     SetIsDOMBinding();
   }
 
-  explicit Headers(const Headers& aOther);
-
   static bool PrefEnabled(JSContext* cx, JSObject* obj);
 
   static already_AddRefed<Headers>
   Constructor(const GlobalObject& aGlobal,
               const Optional<HeadersOrByteStringSequenceSequenceOrByteStringMozMap>& aInit,
-              ErrorResult& aRv);
-
-  static already_AddRefed<Headers>
-  Constructor(const GlobalObject& aGlobal,
-              const OwningHeadersOrByteStringSequenceSequenceOrByteStringMozMap& aInit,
               ErrorResult& aRv);
 
   void Append(const nsACString& aName, const nsACString& aValue,
@@ -79,8 +70,6 @@ public:
   bool Has(const nsACString& aName, ErrorResult& aRv) const;
   void Set(const nsACString& aName, const nsACString& aValue, ErrorResult& aRv);
 
-  void Clear();
-
   // ChromeOnly
   HeadersGuardEnum Guard() const { return mGuard; }
   void SetGuard(HeadersGuardEnum aGuard, ErrorResult& aRv);
@@ -88,13 +77,8 @@ public:
   virtual JSObject* WrapObject(JSContext* aCx);
   nsISupports* GetParentObject() const { return mOwner; }
 
-  void Fill(const Headers& aInit, ErrorResult& aRv);
 private:
-  // Since Headers is also an nsISupports, the above constructor can
-  // accidentally be invoked as new Headers(Headers*[, implied None guard]) when
-  // the intention is to use the copy constructor. Explicitly disallow it.
-  Headers(Headers* aOther) MOZ_DELETE;
-
+  Headers(const Headers& aOther) MOZ_DELETE;
   virtual ~Headers();
 
   static bool IsSimpleHeader(const nsACString& aName,
@@ -119,6 +103,7 @@ private:
            IsForbiddenResponseHeader(aName);
   }
 
+  void Fill(const Headers& aInit, ErrorResult& aRv);
   void Fill(const Sequence<Sequence<nsCString>>& aInit, ErrorResult& aRv);
   void Fill(const MozMap<nsCString>& aInit, ErrorResult& aRv);
 };

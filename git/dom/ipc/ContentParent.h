@@ -45,7 +45,7 @@ class TestShellParent;
 } // namespace ipc
 
 namespace jsipc {
-class JavaScriptShared;
+class JavaScriptParent;
 class PJavaScriptParent;
 }
 
@@ -177,7 +177,7 @@ public:
     TestShellParent* CreateTestShell();
     bool DestroyTestShell(TestShellParent* aTestShell);
     TestShellParent* GetTestShellSingleton();
-    jsipc::JavaScriptShared* GetCPOWManager() MOZ_OVERRIDE;
+    jsipc::JavaScriptParent *GetCPOWManager();
 
     void ReportChildAlreadyBlocked();
     bool RequestRunToCompletion();

@@ -290,10 +290,6 @@ public:
       static_cast<T *>(this)->munmap(get(), GetLength());
   }
 
-  void release()
-  {
-    MemoryRange::Assign(MAP_FAILED, 0);
-  }
 };
 
 struct MappedPtr: public GenericMappedPtr<MappedPtr>

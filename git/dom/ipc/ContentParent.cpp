@@ -1777,7 +1777,7 @@ ContentParent::NotifyTabDestroyed(PBrowserParent* aTab,
     }
 }
 
-jsipc::JavaScriptShared*
+jsipc::JavaScriptParent*
 ContentParent::GetCPOWManager()
 {
     if (ManagedPJavaScriptParent().Length()) {
