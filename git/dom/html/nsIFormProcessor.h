@@ -25,10 +25,13 @@ class nsIDOMHTMLElement;
 
 #define NS_FORMPROCESSOR_CONTRACTID "@mozilla.org/layout/form-processor;1"
 
-// bf8b1986-8800-424b-b1e5-7a2ca8b9e76c
+// 6d4ea1aa-a6b2-43bd-a19d-3f0f26750df3
 #define NS_IFORMPROCESSOR_IID      \
-{ 0xbf8b1986, 0x8800, 0x424b, \
-  { 0xb1, 0xe5, 0x7a, 0x2c, 0xa8, 0xb9, 0xe7, 0x6c } }
+{ 0x6d4ea1aa, 0xa6b2, 0x43bd, \
+ { 0xa1, 0x9d, 0x3f, 0x0f, 0x26, 0x75, 0x0d, 0xf3 } }
+
+
+
 
 // XXX:In the future, we should examine combining this interface with nsIFormSubmitObserver.
 // nsIFormSubmitObserver could have a before, during, and after form submission methods.
@@ -52,19 +55,9 @@ public:
    *                   On exit it contains the value which will actually be submitted for aName.
    *                   
    */
-  virtual nsresult ProcessValue(nsIDOMHTMLElement* aElement,
-                                const nsAString& aName,
-                                nsAString& aValue) = 0;
-
-  /**
-   * The same as above, but with the element unpacked so that this can be
-   * called as the result of an IPC message.
-   */
-  virtual nsresult ProcessValueIPC(const nsAString& aOldValue,
-                                   const nsAString& aKeyType,
-                                   const nsAString& aChallenge,
-                                   const nsAString& aKeyParams,
-                                   nsAString& newValue) = 0;
+  NS_IMETHOD ProcessValue(nsIDOMHTMLElement *aElement, 
+                          const nsAString& aName,
+                          nsAString& aValue) = 0;
 
   /* Provide content for a form element. This method provides a mechanism to provide 
    * content which comes from a source other than the document (i.e. a local database)
@@ -75,9 +68,9 @@ public:
    *                      the form element contains non-standard content.
    */
 
-  virtual nsresult ProvideContent(const nsAString& aFormType,
-                                  nsTArray<nsString>& aContent,
-                                  nsAString& aAttribute) = 0;
+  NS_IMETHOD ProvideContent(const nsAString& aFormType, 
+                            nsTArray<nsString>& aContent,
+                            nsAString& aAttribute) = 0;
 
 };
 

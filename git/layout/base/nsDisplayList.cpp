@@ -2958,9 +2958,6 @@ nsDisplayLayerEventRegions::AddFrame(nsDisplayListBuilder* aBuilder,
   if (pointerEvents == NS_STYLE_POINTER_EVENTS_NONE) {
     return;
   }
-  if (!aFrame->StyleVisibility()->IsVisible()) {
-    return;
-  }
   // XXX handle other pointerEvents values for SVG
   // XXX Do something clever here for the common case where the border box
   // is obviously entirely inside mHitRegion.

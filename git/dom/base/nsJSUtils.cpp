@@ -337,7 +337,7 @@ nsJSUtils::GetScopeChainForElement(JSContext* aCx,
 {
   for (nsINode* cur = aElement; cur; cur = cur->GetScopeChainParent()) {
     JS::RootedValue val(aCx);
-    if (!GetOrCreateDOMReflector(aCx, cur, &val)) {
+    if (!WrapNewBindingObject(aCx, cur, &val)) {
       return false;
     }
 

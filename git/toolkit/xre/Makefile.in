@@ -47,6 +47,5 @@ platform.ini: FORCE
 
 GARBAGE += platform.ini
 
-# Moving this out of libs breaks packaging.
 libs:: platform.ini
 	$(INSTALL) $^ $(DIST)/bin

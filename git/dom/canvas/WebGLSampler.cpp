@@ -3,17 +3,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "WebGLContext.h"
 #include "WebGLSampler.h"
 
 #include "GLContext.h"
+
 #include "mozilla/dom/WebGL2RenderingContextBinding.h"
-#include "WebGLContext.h"
 
-namespace mozilla {
+using namespace mozilla;
 
-WebGLSampler::WebGLSampler(WebGLContext* webgl, GLuint sampler)
+WebGLSampler::WebGLSampler(WebGLContext* context, GLuint sampler)
     : WebGLBindableName<GLenum>(sampler),
-      WebGLContextBoundObject(webgl)
+      WebGLContextBoundObject(context)
 {
     mContext->mSamplers.insertBack(this);
 }
@@ -48,5 +49,3 @@ WebGLSampler::WrapObject(JSContext* cx)
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_0(WebGLSampler)
 NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(WebGLSampler, AddRef)
 NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(WebGLSampler, Release)
-
-} // namespace mozilla

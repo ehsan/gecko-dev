@@ -20,8 +20,7 @@ ShrinkCallback(nsITimer *aTimer, void *aClosure)
   static_cast<TextureClientPool*>(aClosure)->ShrinkToMinimumSize();
 }
 
-TextureClientPool::TextureClientPool(gfx::SurfaceFormat aFormat,
-                                     gfx::IntSize aSize,
+TextureClientPool::TextureClientPool(gfx::SurfaceFormat aFormat, gfx::IntSize aSize,
                                      uint32_t aMaxTextureClients,
                                      uint32_t aShrinkTimeoutMsec,
                                      ISurfaceAllocator *aAllocator)
@@ -43,35 +42,6 @@ TextureClientPool::~TextureClientPool()
   mTimer->Cancel();
 }
 
-#ifdef GFX_DEBUG_TRACK_CLIENTS_IN_POOL
-static bool TestClientPool(const char* what,
-                           TextureClient* aClient,
-                           TextureClientPool* aPool)
-{
-  TextureClientPool* actual = aClient->mPoolTracker;
-  bool ok = (actual == aPool);
-  if (ok) {
-    ok = (aClient->GetFormat() == aPool->GetFormat());
-  }
-
-  if (!ok) {
-    if (actual) {
-      gfxCriticalError() << "Pool error(" << what << "): "
-                   << aPool << "-" << aPool->GetFormat() << ", "
-                   << actual << "-" << actual->GetFormat() << ", "
-                   << aClient->GetFormat();
-      MOZ_CRASH("Crashing with actual");
-    } else {
-      gfxCriticalError() << "Pool error(" << what << "): "
-                   << aPool << "-" << aPool->GetFormat() << ", nullptr, "
-                   << aClient->GetFormat();
-      MOZ_CRASH("Crashing without actual");
-    }
-  }
-  return ok;
-}
-#endif
-
 TemporaryRef<TextureClient>
 TextureClientPool::GetTextureClient()
 {
@@ -81,10 +51,6 @@ TextureClientPool::GetTextureClient()
     mOutstandingClients++;
     textureClient = mTextureClients.top();
     mTextureClients.pop();
-#ifdef GFX_DEBUG_TRACK_CLIENTS_IN_POOL
-    DebugOnly<bool> ok = TestClientPool("fetch", textureClient, this);
-    MOZ_ASSERT(ok);
-#endif
     return textureClient;
   }
 
@@ -104,9 +70,6 @@ TextureClientPool::GetTextureClient()
   }
 
   mOutstandingClients++;
-#ifdef GFX_DEBUG_TRACK_CLIENTS_IN_POOL
-  textureClient->mPoolTracker = this;
-#endif
   return textureClient;
 }
 
@@ -116,10 +79,6 @@ TextureClientPool::ReturnTextureClient(TextureClient *aClient)
   if (!aClient) {
     return;
   }
-#ifdef GFX_DEBUG_TRACK_CLIENTS_IN_POOL
-  DebugOnly<bool> ok = TestClientPool("return", aClient, this);
-  MOZ_ASSERT(ok);
-#endif
   // Add the client to the pool:
   MOZ_ASSERT(mOutstandingClients > mTextureClientsDeferred.size());
   mOutstandingClients--;
@@ -142,10 +101,6 @@ TextureClientPool::ReturnTextureClientDeferred(TextureClient *aClient)
   if (!aClient) {
     return;
   }
-#ifdef GFX_DEBUG_TRACK_CLIENTS_IN_POOL
-  DebugOnly<bool> ok = TestClientPool("defer", aClient, this);
-  MOZ_ASSERT(ok);
-#endif
   mTextureClientsDeferred.push(aClient);
   ShrinkToMaximumSize();
 }

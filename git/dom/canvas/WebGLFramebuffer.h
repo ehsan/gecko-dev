@@ -3,21 +3,22 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef WEBGL_FRAMEBUFFER_H_
-#define WEBGL_FRAMEBUFFER_H_
+#ifndef WEBGLFRAMEBUFFER_H_
+#define WEBGLFRAMEBUFFER_H_
 
-#include "mozilla/LinkedList.h"
-#include "nsWrapperCache.h"
 #include "WebGLBindableName.h"
 #include "WebGLObjectModel.h"
 #include "WebGLStrongTypes.h"
 
+#include "nsWrapperCache.h"
+
+#include "mozilla/LinkedList.h"
+
 namespace mozilla {
 
 class WebGLFramebufferAttachable;
-class WebGLRenderbuffer;
 class WebGLTexture;
-
+class WebGLRenderbuffer;
 namespace gl {
     class GLContext;
 }
@@ -33,7 +34,7 @@ class WebGLFramebuffer MOZ_FINAL
 public:
     MOZ_DECLARE_REFCOUNTED_TYPENAME(WebGLFramebuffer)
 
-    explicit WebGLFramebuffer(WebGLContext* webgl, GLuint fbo);
+    explicit WebGLFramebuffer(WebGLContext* context, GLuint fbo);
 
     struct Attachment
     {
@@ -45,7 +46,7 @@ public:
         GLint mTexImageLevel;
         mutable bool mNeedsFinalize;
 
-        explicit Attachment(FBAttachment attachmentPoint = LOCAL_GL_COLOR_ATTACHMENT0);
+        explicit Attachment(FBAttachment aAttachmentPoint = LOCAL_GL_COLOR_ATTACHMENT0);
         ~Attachment();
 
         bool IsDefined() const;
@@ -89,17 +90,18 @@ public:
         bool HasImage() const;
         bool IsComplete() const;
 
-        void FinalizeAttachment(gl::GLContext* gl,
-                                FBAttachment attachmentLoc) const;
+        void FinalizeAttachment(gl::GLContext* gl, FBAttachment attachmentLoc) const;
     };
 
     void Delete();
 
-    void FramebufferRenderbuffer(FBAttachment attachment, RBTarget rbtarget,
-                                 WebGLRenderbuffer* rb);
+    void FramebufferRenderbuffer(FBAttachment attachment,
+                                 RBTarget rbtarget,
+                                 WebGLRenderbuffer* wrb);
 
     void FramebufferTexture2D(FBAttachment attachment,
-                              TexImageTarget texImageTarget, WebGLTexture* tex,
+                              TexImageTarget texImageTarget,
+                              WebGLTexture* wtex,
                               GLint level);
 
 private:
@@ -114,9 +116,7 @@ public:
     bool AllImageRectsMatch() const;
     FBStatus PrecheckFramebufferStatus() const;
     FBStatus CheckFramebufferStatus() const;
-
-    GLenum
-    GetFormatForAttachment(const WebGLFramebuffer::Attachment& attachment) const;
+    GLenum GetFormatForAttachment(const WebGLFramebuffer::Attachment& attachment) const;
 
     bool HasDepthStencilConflict() const {
         return int(mDepthAttachment.IsDefined()) +
@@ -167,8 +167,7 @@ public:
 
     bool CheckAndInitializeAttachments();
 
-    bool CheckColorAttachmentNumber(FBAttachment attachment,
-                                    const char* funcName) const;
+    bool CheckColorAttachmentNumber(FBAttachment attachment, const char* functionName) const;
 
     void EnsureColorAttachments(size_t colorAttachmentId);
 
@@ -184,11 +183,11 @@ private:
     // we only store pointers to attached renderbuffers, not to attached textures, because
     // we will only need to initialize renderbuffers. Textures are already initialized.
     nsTArray<Attachment> mColorAttachments;
-    Attachment mDepthAttachment;
-    Attachment mStencilAttachment;
-    Attachment mDepthStencilAttachment;
+    Attachment mDepthAttachment,
+               mStencilAttachment,
+               mDepthStencilAttachment;
 };
 
 } // namespace mozilla
 
-#endif // WEBGL_FRAMEBUFFER_H_
+#endif

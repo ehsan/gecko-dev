@@ -1014,7 +1014,7 @@ nsXMLHttpRequest::GetResponse(JSContext* aCx,
       return;
     }
 
-    GetOrCreateDOMReflector(aCx, mResponseBlob, aResponse);
+    WrapNewBindingObject(aCx, mResponseBlob, aResponse);
     return;
   }
   case XML_HTTP_RESPONSE_TYPE_DOCUMENT:

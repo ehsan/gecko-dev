@@ -432,9 +432,8 @@ protected:
         } else {
           return;
         }
-      } else if (origBytes[nBytes] == 0x40 ||
-                 origBytes[nBytes] == 0x41) {
-        // Plain REX or REX.B
+      } else if (origBytes[nBytes] == 0x41) {
+        // REX.B
         nBytes++;
 
         if ((origBytes[nBytes] & 0xf0) == 0x50) {

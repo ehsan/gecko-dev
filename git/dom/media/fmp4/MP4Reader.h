@@ -26,7 +26,7 @@ typedef std::deque<mp4_demuxer::MP4Sample*> MP4SampleQueue;
 
 class MP4Stream;
 
-class MP4Reader MOZ_FINAL : public MediaDecoderReader
+class MP4Reader : public MediaDecoderReader
 {
   typedef mp4_demuxer::TrackType TrackType;
 
@@ -56,6 +56,9 @@ public:
                     int64_t aCurrentTime) MOZ_OVERRIDE;
 
   virtual bool IsMediaSeekable() MOZ_OVERRIDE;
+
+  virtual void NotifyDataArrived(const char* aBuffer, uint32_t aLength,
+                                 int64_t aOffset) MOZ_OVERRIDE;
 
   virtual int64_t GetEvictionOffset(double aTime) MOZ_OVERRIDE;
 

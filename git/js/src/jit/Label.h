@@ -83,7 +83,7 @@ class Label : public LabelBase
         // The assertion below doesn't hold if an error occurred.
         if (OOM_counter > OOM_maxAllocations)
             return;
-        if (JitContext *context = MaybeGetJitContext()) {
+        if (IonContext *context = MaybeGetIonContext()) {
             if (context->runtime->hadOutOfMemory())
                 return;
         }

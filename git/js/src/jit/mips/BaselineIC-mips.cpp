@@ -10,7 +10,7 @@
 #include "jit/BaselineHelpers.h"
 #include "jit/BaselineIC.h"
 #include "jit/BaselineJIT.h"
-#include "jit/Linker.h"
+#include "jit/IonLinker.h"
 
 #include "jsboolinlines.h"
 

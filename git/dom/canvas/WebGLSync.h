@@ -3,12 +3,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef WEBGL_SYNC_H_
-#define WEBGL_SYNC_H_
+#ifndef WEBGLSYNC_H_
+#define WEBGLSYNC_H_
+
+#include "WebGLObjectModel.h"
+
+#include "nsWrapperCache.h"
 
 #include "mozilla/LinkedList.h"
-#include "nsWrapperCache.h"
-#include "WebGLObjectModel.h"
 
 namespace mozilla {
 
@@ -21,20 +23,24 @@ class WebGLSync MOZ_FINAL
     friend class WebGL2Context;
 
 public:
-    explicit WebGLSync(WebGLContext* webgl);
+
+    explicit WebGLSync(WebGLContext* aContext);
 
     void Delete();
     WebGLContext* GetParentObject() const;
 
+    // -------------------------------------------------------------------------
+    // IMPLEMENT NS
     virtual JSObject* WrapObject(JSContext* cx) MOZ_OVERRIDE;
 
     NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(WebGLSync)
     NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(WebGLSync)
 
 private:
+
     ~WebGLSync();
 };
 
 } // namespace mozilla
 
-#endif // WEBGL_SYNC_H_
+#endif // !WEBGLSYNC_H_

@@ -88,8 +88,7 @@ nsGonkCameraControl::StartImpl(const Configuration* aInitialConfig)
 
   nsresult rv = StartInternal(aInitialConfig);
   if (NS_WARN_IF(NS_FAILED(rv))) {
-    OnHardwareStateChange(CameraControlListener::kHardwareOpenFailed,
-                          NS_ERROR_NOT_AVAILABLE);
+    OnHardwareStateChange(CameraControlListener::kHardwareOpenFailed);
   }
   return rv;
 }
@@ -130,12 +129,12 @@ nsGonkCameraControl::StartInternal(const Configuration* aInitialConfig)
     rv = SetConfigurationInternal(*aInitialConfig);
     if (NS_WARN_IF(NS_FAILED(rv))) {
       // The initial configuration failed, close up the hardware
-      StopInternal();
+      StopImpl();
       return rv;
     }
   }
 
-  OnHardwareStateChange(CameraControlListener::kHardwareOpen, NS_OK);
+  OnHardwareStateChange(CameraControlListener::kHardwareOpen);
   if (aInitialConfig) {
     return StartPreviewImpl();
   }
@@ -1154,9 +1153,7 @@ nsGonkCameraControl::StopRecordingImpl()
   ReentrantMonitorAutoEnter mon(mRecorderMonitor);
 
   // nothing to do if we have no mRecorder
-  if (!mRecorder) {
-    return NS_OK;
-  }
+  NS_ENSURE_TRUE(mRecorder, NS_OK);
 
   mRecorder->stop();
   mRecorder = nullptr;
@@ -1494,8 +1491,8 @@ nsGonkCameraControl::SelectVideoAndPreviewSize(const Configuration& aConfig, con
   // preview size to the closest size smaller than the preferred size,
   // preferably with the same aspect ratio as the requested video size.
 
-  SizeIndex bestSizeMatch = 0; // initializers to keep warnings away
-  SizeIndex bestSizeMatchWithAspectRatio = 0;
+  SizeIndex bestSizeMatch;
+  SizeIndex bestSizeMatchWithAspectRatio;
   bool foundSizeMatch = false;
   bool foundSizeMatchWithAspectRatio = false;
 
@@ -1829,7 +1826,7 @@ nsGonkCameraControl::SetupRecording(int aFd, int aRotation,
 }
 
 nsresult
-nsGonkCameraControl::StopInternal()
+nsGonkCameraControl::StopImpl()
 {
   DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
 
@@ -1837,7 +1834,7 @@ nsGonkCameraControl::StopInternal()
   StopRecordingImpl();
 
   // stop the preview
-  nsresult rv = StopPreviewImpl();
+  StopPreviewImpl();
 
   // release the hardware handle
   if (mCameraHw.get()){
@@ -1845,22 +1842,8 @@ nsGonkCameraControl::StopInternal()
      mCameraHw.clear();
   }
 
-  return rv;
-}
-
-nsresult
-nsGonkCameraControl::StopImpl()
-{
-  DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
-
-  nsresult rv = StopInternal();
-  if (rv != NS_ERROR_NOT_INITIALIZED) {
-    rv = NS_OK;
-  }
-  if (NS_SUCCEEDED(rv)) {
-    OnHardwareStateChange(CameraControlListener::kHardwareClosed, NS_OK);
-  }
-  return rv;
+  OnHardwareStateChange(CameraControlListener::kHardwareClosed);
+  return NS_OK;
 }
 
 nsresult
@@ -1963,8 +1946,8 @@ nsGonkCameraControl::OnSystemError(CameraControlListener::SystemContext aWhere,
                                    nsresult aError)
 {
   if (aWhere == CameraControlListener::kSystemService) {
-    StopInternal();
-    OnHardwareStateChange(CameraControlListener::kHardwareClosed, NS_ERROR_FAILURE);
+    OnPreviewStateChange(CameraControlListener::kPreviewStopped);
+    OnHardwareStateChange(CameraControlListener::kHardwareClosed);
   }
 
   CameraControlImpl::OnSystemError(aWhere, aError);
@@ -2019,6 +2002,12 @@ void
 OnShutter(nsGonkCameraControl* gc)
 {
   gc->OnShutter();
+}
+
+void
+OnClosed(nsGonkCameraControl* gc)
+{
+  gc->OnClosed();
 }
 
 void

@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef WEBGL_CONTEXT_UTILS_H_
-#define WEBGL_CONTEXT_UTILS_H_
+#ifndef WEBGLCONTEXTUTILS_H_
+#define WEBGLCONTEXTUTILS_H_
 
 #include "WebGLContext.h"
 #include "WebGLStrongTypes.h"
@@ -16,13 +16,12 @@ namespace mozilla {
 bool IsGLDepthFormat(TexInternalFormat webGLFormat);
 bool IsGLDepthStencilFormat(TexInternalFormat webGLFormat);
 bool FormatHasAlpha(TexInternalFormat webGLFormat);
-
 void
 DriverFormatsFromEffectiveInternalFormat(gl::GLContext* gl,
                                          TexInternalFormat internalformat,
-                                         GLenum* const out_driverInternalFormat,
-                                         GLenum* const out_driverFormat,
-                                         GLenum* const out_driverType);
+                                         GLenum* out_driverInternalFormat,
+                                         GLenum* out_driverFormat,
+                                         GLenum* out_driverType);
 TexInternalFormat
 EffectiveInternalFormatFromInternalFormatAndType(TexInternalFormat internalformat,
                                                  TexType type);
@@ -31,14 +30,14 @@ EffectiveInternalFormatFromUnsizedInternalFormatAndType(TexInternalFormat intern
                                                         TexType type);
 void
 UnsizedInternalFormatAndTypeFromEffectiveInternalFormat(TexInternalFormat effectiveinternalformat,
-                                                        TexInternalFormat* const out_internalformat,
-                                                        TexType* const out_type);
-TexType TypeFromInternalFormat(TexInternalFormat internalformat);
-
+                                                        TexInternalFormat* out_internalformat,
+                                                        TexType* out_type);
+TexType
+TypeFromInternalFormat(TexInternalFormat internalformat);
 TexInternalFormat
 UnsizedInternalFormatFromInternalFormat(TexInternalFormat internalformat);
-
-size_t GetBitsPerTexel(TexInternalFormat effectiveinternalformat);
+size_t
+GetBitsPerTexel(TexInternalFormat effectiveinternalformat);
 
 // For use with the different texture calls, i.e.
 //   TexImage2D, CopyTex[Sub]Image2D, ...
@@ -69,9 +68,9 @@ struct GLComponents
 
     GLComponents()
         : mComponents(0)
-    {}
+    { }
 
-    explicit GLComponents(TexInternalFormat format);
+    explicit GLComponents(TexInternalFormat aFormat);
 
     // Returns true iff other has all (or more) of
     // the components present in this GLComponents
@@ -80,17 +79,16 @@ struct GLComponents
 
 template <typename WebGLObjectType>
 JS::Value
-WebGLContext::WebGLObjectAsJSValue(JSContext* cx, const WebGLObjectType* object,
-                                   ErrorResult& rv) const
+WebGLContext::WebGLObjectAsJSValue(JSContext *cx, const WebGLObjectType *object, ErrorResult& rv) const
 {
-    if (!object)
+    if (!object) {
         return JS::NullValue();
-
+    }
     MOZ_ASSERT(this == object->Context());
     JS::Rooted<JS::Value> v(cx);
     JS::Rooted<JSObject*> wrapper(cx, GetWrapper());
     JSAutoCompartment ac(cx, wrapper);
-    if (!dom::GetOrCreateDOMReflector(cx, const_cast<WebGLObjectType*>(object), &v)) {
+    if (!dom::WrapNewBindingObject(cx, const_cast<WebGLObjectType*>(object), &v)) {
         rv.Throw(NS_ERROR_FAILURE);
         return JS::NullValue();
     }
@@ -99,14 +97,12 @@ WebGLContext::WebGLObjectAsJSValue(JSContext* cx, const WebGLObjectType* object,
 
 template <typename WebGLObjectType>
 JSObject*
-WebGLContext::WebGLObjectAsJSObject(JSContext* cx,
-                                    const WebGLObjectType* object,
-                                    ErrorResult& rv) const
+WebGLContext::WebGLObjectAsJSObject(JSContext *cx, const WebGLObjectType *object, ErrorResult& rv) const
 {
     JS::Value v = WebGLObjectAsJSValue(cx, object, rv);
-    if (v.isNull())
+    if (v.isNull()) {
         return nullptr;
-
+    }
     return &v.toObject();
 }
 
@@ -114,8 +110,9 @@ WebGLContext::WebGLObjectAsJSObject(JSContext* cx,
  * Return the displayable name for the texture function that is the
  * source for validation.
  */
-const char* InfoFrom(WebGLTexImageFunc func, WebGLTexDimensions dims);
+const char*
+InfoFrom(WebGLTexImageFunc func, WebGLTexDimensions dims);
 
 } // namespace mozilla
 
-#endif // WEBGL_CONTEXT_UTILS_H_
+#endif // WEBGLCONTEXTUTILS_H_

@@ -5,38 +5,38 @@
 
 #include "WebGLVertexArray.h"
 
-#include "GLContext.h"
-#include "mozilla/dom/WebGLRenderingContextBinding.h"
-#include "WebGLBuffer.h"
 #include "WebGLContext.h"
+#include "WebGLBuffer.h"
 #include "WebGLVertexArrayGL.h"
 #include "WebGLVertexArrayFake.h"
+#include "mozilla/dom/WebGLRenderingContextBinding.h"
+#include "GLContext.h"
 
-namespace mozilla {
+using namespace mozilla;
 
 JSObject*
-WebGLVertexArray::WrapObject(JSContext* cx)
-{
+WebGLVertexArray::WrapObject(JSContext *cx) {
     return dom::WebGLVertexArrayBinding::Wrap(cx, this);
 }
 
-WebGLVertexArray::WebGLVertexArray(WebGLContext* webgl)
+WebGLVertexArray::WebGLVertexArray(WebGLContext* context)
     : WebGLBindable<VAOBinding>()
-    , WebGLContextBoundObject(webgl)
+    , WebGLContextBoundObject(context)
     , mGLName(0)
 {
-    mContext->mVertexArrays.insertBack(this);
+    context->mVertexArrays.insertBack(this);
 }
 
 WebGLVertexArray*
-WebGLVertexArray::Create(WebGLContext* webgl)
+WebGLVertexArray::Create(WebGLContext* context)
 {
     WebGLVertexArray* array;
-    if (webgl->gl->IsSupported(gl::GLFeature::vertex_array_object)) {
-        array = new WebGLVertexArrayGL(webgl);
+    if (context->gl->IsSupported(gl::GLFeature::vertex_array_object)) {
+        array = new WebGLVertexArrayGL(context);
     } else {
-        array = new WebGLVertexArrayFake(webgl);
+        array = new WebGLVertexArrayFake(context);
     }
+
     return array;
 }
 
@@ -61,10 +61,8 @@ WebGLVertexArray::EnsureAttrib(GLuint index)
 }
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(WebGLVertexArray,
-                                      mAttribs,
-                                      mElementArrayBuffer)
+  mAttribs,
+  mElementArrayBuffer)
 
 NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(WebGLVertexArray, AddRef)
 NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(WebGLVertexArray, Release)
-
-} // namespace mozilla

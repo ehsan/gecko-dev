@@ -10,8 +10,8 @@
 #include "frontend/BytecodeCompiler.h"
 #include "jit/arm/Simulator-arm.h"
 #include "jit/BaselineIC.h"
+#include "jit/IonFrames.h"
 #include "jit/JitCompartment.h"
-#include "jit/JitFrames.h"
 #include "jit/mips/Simulator-mips.h"
 #include "vm/ArrayObject.h"
 #include "vm/Debugger.h"
@@ -21,7 +21,7 @@
 #include "jsinferinlines.h"
 
 #include "jit/BaselineFrame-inl.h"
-#include "jit/JitFrames-inl.h"
+#include "jit/IonFrames-inl.h"
 #include "vm/Debugger-inl.h"
 #include "vm/Interpreter-inl.h"
 #include "vm/NativeObject-inl.h"
@@ -40,7 +40,7 @@ namespace jit {
 AutoDetectInvalidation::AutoDetectInvalidation(JSContext *cx, MutableHandleValue rval,
                                                IonScript *ionScript)
   : cx_(cx),
-    ionScript_(ionScript ? ionScript : GetTopJitJSScript(cx)->ionScript()),
+    ionScript_(ionScript ? ionScript : GetTopIonJSScript(cx)->ionScript()),
     rval_(rval),
     disabled_(false)
 { }
@@ -507,8 +507,7 @@ SetProperty(JSContext *cx, HandleObject obj, HandlePropertyName name, HandleValu
     if (MOZ_LIKELY(!obj->getOps()->setProperty)) {
         return baseops::SetPropertyHelper<SequentialExecution>(
             cx, obj.as<NativeObject>(), obj.as<NativeObject>(), id,
-            (op == JSOP_SETNAME || op == JSOP_STRICTSETNAME ||
-             op == JSOP_SETGNAME || op == JSOP_STRICTSETGNAME)
+            (op == JSOP_SETNAME || op == JSOP_SETGNAME)
             ? baseops::Unqualified
             : baseops::Qualified,
             &v,
@@ -823,7 +822,7 @@ DebugEpilogue(JSContext *cx, BaselineFrame *frame, jsbytecode *pc, bool ok)
         // Pop this frame by updating jitTop, so that the exception handling
         // code will start at the previous frame.
 
-        JitFrameLayout *prefix = frame->framePrefix();
+        IonJSFrameLayout *prefix = frame->framePrefix();
         EnsureExitFrame(prefix);
         cx->mainThread().jitTop = (uint8_t *)prefix;
     }

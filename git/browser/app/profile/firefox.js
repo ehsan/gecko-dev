@@ -323,7 +323,7 @@ pref("browser.urlbar.autoFill", true);
 pref("browser.urlbar.autoFill.typed", true);
 
 // Use the new unifiedComplete component
-pref("browser.urlbar.unifiedcomplete", false);
+pref("browser.urlbar.unifiedcomplete", true);
 
 // 0: Match anywhere (e.g., middle of words)
 // 1: Match on word boundaries and then try matching anywhere
@@ -1742,11 +1742,7 @@ pref("ui.key.menuAccessKeyFocuses", true);
 #endif
 
 // Encrypted media extensions.
-#ifdef RELEASE_BUILD
 pref("media.eme.enabled", false);
-#else
-pref("media.eme.enabled", true);
-#endif
 
 // GMPInstallManager prefs
 

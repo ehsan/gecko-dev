@@ -29,7 +29,7 @@ class WebGLContextLossHandler
 public:
     NS_INLINE_DECL_REFCOUNTING(WebGLContextLossHandler)
 
-    explicit WebGLContextLossHandler(WebGLContext* webgl);
+    explicit WebGLContextLossHandler(WebGLContext* aWebgl);
 
     void RunTimer();
     void DisableTimer();

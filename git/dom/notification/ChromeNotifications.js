@@ -54,11 +54,6 @@ ChromeNotifications.prototype = {
       } catch(e) {
         behavior = undefined;
       }
-
-      if (behavior && behavior.showOnlyOnce === true) {
-        return;
-      }
-
       appNotifier.showAppNotification(
         notification.icon,
         notification.title,

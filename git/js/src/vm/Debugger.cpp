@@ -1821,7 +1821,7 @@ Debugger::updateExecutionObservabilityOfFrames(JSContext *cx, const ExecutionObs
     AutoSuppressProfilerSampling suppressProfilerSampling(cx);
 
     {
-        jit::JitContext jctx(cx, nullptr);
+        jit::IonContext ictx(cx, nullptr);
         if (!jit::RecompileOnStackBaselineScriptsForDebugMode(cx, obs, observing)) {
             js_ReportOutOfMemory(cx);
             return false;
@@ -5079,7 +5079,7 @@ UpdateFrameIterPc(FrameIter &iter)
         //
         // We walk the stack to assert that it doesn't need updating.
         jit::RematerializedFrame *frame = iter.abstractFramePtr().asRematerializedFrame();
-        jit::JitFrameLayout *jsFrame = (jit::JitFrameLayout *)frame->top();
+        jit::IonJSFrameLayout *jsFrame = (jit::IonJSFrameLayout *)frame->top();
         jit::JitActivation *activation = iter.activation()->asJit();
 
         ActivationIterator activationIter(activation->cx()->perThreadData);
@@ -5629,8 +5629,7 @@ js::EvaluateInEnv(JSContext *cx, Handle<Env*> env, HandleValue thisv, AbstractFr
            .setNoScriptRval(false)
            .setFileAndLine(filename, lineno)
            .setCanLazilyParse(false)
-           .setIntroductionType("debugger eval")
-           .maybeMakeStrictMode(frame ? frame.script()->strict() : false);
+           .setIntroductionType("debugger eval");
     RootedScript callerScript(cx, frame ? frame.script() : nullptr);
     SourceBufferHolder srcBuf(chars.start().get(), chars.length(), SourceBufferHolder::NoOwnership);
     RootedScript script(cx, frontend::CompileScript(cx, &cx->tempLifoAlloc(), env, callerScript,

@@ -1211,12 +1211,6 @@
         "url": "/dom/nodes/ChildNode-remove.js"
       },
       {
-        "url": "/dom/nodes/Comment-Text-constructor.js"
-      },
-      {
-        "url": "/dom/nodes/DOMImplementation-createHTMLDocument.js"
-      },
-      {
         "url": "/dom/nodes/Document-contentType/resources/blob.txt"
       },
       {
@@ -1242,9 +1236,6 @@
       },
       {
         "url": "/dom/nodes/Document-contentType/support/contenttype_setter.py"
-      },
-      {
-        "url": "/dom/nodes/Document-createComment-createTextNode.js"
       },
       {
         "url": "/dom/nodes/Document-createElement-namespace-tests/bare_mathml.xml"
@@ -1368,9 +1359,6 @@
       },
       {
         "url": "/dom/traversal/unfinished/TODO"
-      },
-      {
-        "url": "/encoding/resources/single-byte-raw.py"
       },
       {
         "url": "/eventsource/README.md"
@@ -2862,12 +2850,6 @@
       },
       {
         "url": "/resource-timing/test_resource_timing.js"
-      },
-      {
-        "url": "/selectors-api/tests/submissions/Opera/Element-matches.js"
-      },
-      {
-        "url": "/selectors-api/tests/submissions/Opera/ParentNode-find-findAll.js"
       },
       {
         "url": "/selectors-api/tests/submissions/Opera/level2-lib.js"
@@ -9162,9 +9144,6 @@
         "url": "/DOMEvents/event-phases-order.html"
       },
       {
-        "url": "/DOMEvents/init-event-while-dispatching.html"
-      },
-      {
         "url": "/DOMEvents/tests/approved/DOM.event.flow.html"
       },
       {
@@ -9195,7 +9174,13 @@
         "url": "/DOMEvents/tests/approved/Propagation.path.target.removed.html"
       },
       {
+        "url": "/DOMEvents/tests/approved/addEventListener.optional.useCapture.html"
+      },
+      {
         "url": "/DOMEvents/tests/approved/dispatchEvent.click.checkbox.html"
+      },
+      {
+        "url": "/DOMEvents/tests/approved/dispatchEvent.return.value.html"
       },
       {
         "url": "/DOMEvents/tests/approved/domnodeinserted.html"
@@ -9240,6 +9225,9 @@
         "url": "/DOMEvents/tests/submissions/Microsoft/converted/Propagation.path.target.removed.html"
       },
       {
+        "url": "/DOMEvents/tests/submissions/Microsoft/converted/addEventListener.optional.useCapture.html"
+      },
+      {
         "url": "/DOMEvents/tests/submissions/Microsoft/converted/dispatchEvent.DISPATCH_REQUEST_ERR.html"
       },
       {
@@ -9250,6 +9238,9 @@
       },
       {
         "url": "/DOMEvents/tests/submissions/Microsoft/converted/dispatchEvent.click.checkbox.html"
+      },
+      {
+        "url": "/DOMEvents/tests/submissions/Microsoft/converted/dispatchEvent.return.value.html"
       },
       {
         "url": "/DOMEvents/tests/submissions/Microsoft/converted/domnodeinserted.html"
@@ -10347,13 +10338,7 @@
         "url": "/XMLHttpRequest/send-data-blob.htm"
       },
       {
-        "url": "/XMLHttpRequest/send-data-es-object.htm"
-      },
-      {
         "url": "/XMLHttpRequest/send-data-formdata.htm"
-      },
-      {
-        "url": "/XMLHttpRequest/send-data-unexpected-tostring.htm"
       },
       {
         "url": "/XMLHttpRequest/send-entity-body-basic.htm"
@@ -10860,9 +10845,6 @@
         "url": "/dom/events/Event-defaultPrevented.html"
       },
       {
-        "url": "/dom/events/Event-dispatch-omitted-capture.html"
-      },
-      {
         "url": "/dom/events/Event-initEvent.html"
       },
       {
@@ -10876,9 +10858,6 @@
       },
       {
         "url": "/dom/events/EventTarget-addEventListener.html"
-      },
-      {
-        "url": "/dom/events/EventTarget-dispatchEvent-returnvalue.html"
       },
       {
         "url": "/dom/events/EventTarget-dispatchEvent.html"
@@ -11011,9 +10990,6 @@
       },
       {
         "url": "/dom/nodes/Document-createProcessingInstruction.xhtml"
-      },
-      {
-        "url": "/dom/nodes/Document-createTextNode.html"
       },
       {
         "url": "/dom/nodes/Document-createTreeWalker.html"
@@ -11265,9 +11241,6 @@
         "url": "/dom/nodes/ProcessingInstruction-literal-2.xhtml"
       },
       {
-        "url": "/dom/nodes/Text-constructor.html"
-      },
-      {
         "url": "/dom/nodes/attributes.html"
       },
       {
@@ -11404,21 +11377,6 @@
       },
       {
         "url": "/domxpath/evaluator-constructor.html"
-      },
-      {
-        "url": "/encoding/gb18030-encoder.html"
-      },
-      {
-        "url": "/encoding/gbk-encoder.html"
-      },
-      {
-        "url": "/encoding/iso-2022-jp-decoder.html"
-      },
-      {
-        "url": "/encoding/iso-2022-jp-encoder.html"
-      },
-      {
-        "url": "/encoding/single-byte-decoder.html"
       },
       {
         "url": "/eventsource/dedicated-worker/eventsource-close.htm"
@@ -15087,10 +15045,7 @@
         "url": "/resource-timing/test_resource_timing.html"
       },
       {
-        "url": "/selectors-api/tests/submissions/Opera/Element-matches.html"
-      },
-      {
-        "url": "/selectors-api/tests/submissions/Opera/ParentNode-find-findAll.html"
+        "url": "/selectors-api/tests/submissions/Opera/level2-baseline.html"
       },
       {
         "url": "/selectors/attribute-selectors/attribute-case/cssom.html"
@@ -15580,9 +15535,6 @@
       },
       {
         "url": "/vibration/api-is-present.html"
-      },
-      {
-        "url": "/vibration/idl.html"
       },
       {
         "url": "/vibration/invalid-values.html"
@@ -17694,6 +17646,6 @@
     "deleted": [],
     "items": {}
   },
-  "rev": "fdbdabd4c8adb385e19f541cd03f1832b1aea468",
+  "rev": "9840b559b10e05f659932a835c11832db9e01c42",
   "url_base": "/"
 }

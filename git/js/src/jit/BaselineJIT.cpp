@@ -22,7 +22,7 @@
 #include "jsopcodeinlines.h"
 #include "jsscriptinlines.h"
 
-#include "jit/JitFrames-inl.h"
+#include "jit/IonFrames-inl.h"
 #include "vm/Stack-inl.h"
 
 using namespace js;
@@ -78,7 +78,7 @@ CheckFrame(InterpreterFrame *fp)
     return true;
 }
 
-static JitExecStatus
+static IonExecStatus
 EnterBaseline(JSContext *cx, EnterJitData &data)
 {
     if (data.osrFrame) {
@@ -86,9 +86,9 @@ EnterBaseline(JSContext *cx, EnterJitData &data)
         uint8_t spDummy;
         uint32_t extra = BaselineFrame::Size() + (data.osrNumStackValues * sizeof(Value));
         uint8_t *checkSp = (&spDummy) - extra;
-        JS_CHECK_RECURSION_WITH_SP(cx, checkSp, return JitExec_Aborted);
+        JS_CHECK_RECURSION_WITH_SP(cx, checkSp, return IonExec_Aborted);
     } else {
-        JS_CHECK_RECURSION(cx, return JitExec_Aborted);
+        JS_CHECK_RECURSION(cx, return IonExec_Aborted);
     }
 
     MOZ_ASSERT(jit::IsBaselineEnabled(cx));
@@ -125,10 +125,10 @@ EnterBaseline(JSContext *cx, EnterJitData &data)
     cx->runtime()->getJitRuntime(cx)->freeOsrTempData();
 
     MOZ_ASSERT_IF(data.result.isMagic(), data.result.isMagic(JS_ION_ERROR));
-    return data.result.isMagic() ? JitExec_Error : JitExec_Ok;
+    return data.result.isMagic() ? IonExec_Error : IonExec_Ok;
 }
 
-JitExecStatus
+IonExecStatus
 jit::EnterBaselineMethod(JSContext *cx, RunState &state)
 {
     BaselineScript *baseline = state.script()->baselineScript();
@@ -138,17 +138,17 @@ jit::EnterBaselineMethod(JSContext *cx, RunState &state)
 
     AutoValueVector vals(cx);
     if (!SetEnterJitData(cx, data, state, vals))
-        return JitExec_Error;
+        return IonExec_Error;
 
-    JitExecStatus status = EnterBaseline(cx, data);
-    if (status != JitExec_Ok)
+    IonExecStatus status = EnterBaseline(cx, data);
+    if (status != IonExec_Ok)
         return status;
 
     state.setReturnValue(data.result);
-    return JitExec_Ok;
+    return IonExec_Ok;
 }
 
-JitExecStatus
+IonExecStatus
 jit::EnterBaselineAtBranch(JSContext *cx, InterpreterFrame *fp, jsbytecode *pc)
 {
     MOZ_ASSERT(JSOp(*pc) == JSOP_LOOPENTRY);
@@ -196,12 +196,12 @@ jit::EnterBaselineAtBranch(JSContext *cx, InterpreterFrame *fp, jsbytecode *pc)
     TraceLogStopEvent(logger, TraceLogger::Interpreter);
     TraceLogStartEvent(logger, TraceLogger::Baseline);
 
-    JitExecStatus status = EnterBaseline(cx, data);
-    if (status != JitExec_Ok)
+    IonExecStatus status = EnterBaseline(cx, data);
+    if (status != IonExec_Ok)
         return status;
 
     fp->setReturnValue(data.result);
-    return JitExec_Ok;
+    return IonExec_Ok;
 }
 
 MethodStatus
@@ -218,7 +218,7 @@ jit::BaselineCompile(JSContext *cx, JSScript *script, bool forceDebugInstrumenta
     if (!temp)
         return Method_Error;
 
-    JitContext jctx(cx, temp);
+    IonContext ictx(cx, temp);
 
     BaselineCompiler compiler(cx, *temp, script);
     if (!compiler.init())
@@ -554,14 +554,16 @@ BaselineScript::returnAddressForIC(const ICEntry &ent)
     return method()->raw() + ent.returnOffset().offset();
 }
 
-static inline
-size_t ComputeBinarySearchMid(BaselineScript *baseline, uint32_t pcOffset)
+ICEntry &
+BaselineScript::icEntryFromPCOffset(uint32_t pcOffset)
 {
+    // Multiple IC entries can have the same PC offset, but this method only looks for
+    // those which have isForOp() set.
     size_t bottom = 0;
-    size_t top = baseline->numICEntries();
+    size_t top = numICEntries();
     size_t mid = bottom + (top - bottom) / 2;
     while (mid < top) {
-        ICEntry &midEntry = baseline->icEntry(mid);
+        ICEntry &midEntry = icEntry(mid);
         if (midEntry.pcOffset() < pcOffset)
             bottom = mid + 1;
         else if (midEntry.pcOffset() > pcOffset)
@@ -570,29 +572,6 @@ size_t ComputeBinarySearchMid(BaselineScript *baseline, uint32_t pcOffset)
             break;
         mid = bottom + (top - bottom) / 2;
     }
-    return mid;
-}
-
-ICEntry &
-BaselineScript::anyKindICEntryFromPCOffset(uint32_t pcOffset)
-{
-    size_t mid = ComputeBinarySearchMid(this, pcOffset);
-
-    // Return any IC entry with a matching PC offset.
-    for (size_t i = mid; i < numICEntries() && icEntry(i).pcOffset() == pcOffset; i--)
-            return icEntry(i);
-    for (size_t i = mid+1; i < numICEntries() && icEntry(i).pcOffset() == pcOffset; i++)
-        return icEntry(i);
-    MOZ_CRASH("Invalid PC offset for IC entry.");
-}
-
-ICEntry &
-BaselineScript::icEntryFromPCOffset(uint32_t pcOffset)
-{
-    // Multiple IC entries can have the same PC offset, but this method only looks for
-    // those which have isForOp() set.
-    size_t mid = ComputeBinarySearchMid(this, pcOffset);
-
     // Found an IC entry with a matching PC offset.  Search backward, and then
     // forward from this IC entry, looking for one with the same PC offset which
     // has isForOp() set.
@@ -714,7 +693,7 @@ BaselineScript::copyPCMappingIndexEntries(const PCMappingIndexEntry *entries)
 }
 
 uint8_t *
-BaselineScript::maybeNativeCodeForPC(JSScript *script, jsbytecode *pc, PCMappingSlotInfo *slotInfo)
+BaselineScript::nativeCodeForPC(JSScript *script, jsbytecode *pc, PCMappingSlotInfo *slotInfo)
 {
     MOZ_ASSERT_IF(script->hasBaselineScript(), script->baselineScript() == this);
 
@@ -742,7 +721,7 @@ BaselineScript::maybeNativeCodeForPC(JSScript *script, jsbytecode *pc, PCMapping
     MOZ_ASSERT(script->containsPC(curPC));
     MOZ_ASSERT(curPC <= pc);
 
-    while (reader.more()) {
+    while (true) {
         // If the high bit is set, the native offset relative to the
         // previous pc != 0 and comes next.
         uint8_t b = reader.readByte();
@@ -757,8 +736,6 @@ BaselineScript::maybeNativeCodeForPC(JSScript *script, jsbytecode *pc, PCMapping
 
         curPC += GetBytecodeLength(curPC);
     }
-
-    return nullptr;
 }
 
 jsbytecode *
@@ -815,8 +792,6 @@ BaselineScript::pcForNativeOffset(JSScript *script, uint32_t nativeOffset, bool 
     if (!isReturn && (curNativeOffset > nativeOffset))
         return script->code();
 
-    mozilla::DebugOnly<uint32_t> lastNativeOffset = curNativeOffset;
-    jsbytecode *lastPC = curPC;
     while (true) {
         // If the high bit is set, the native offset relative to the
         // previous pc != 0 and comes next.
@@ -824,28 +799,15 @@ BaselineScript::pcForNativeOffset(JSScript *script, uint32_t nativeOffset, bool 
         if (b & 0x80)
             curNativeOffset += reader.readUnsigned();
 
-        // Return the last PC that matched nativeOffset. Some bytecode
-        // generate no native code (e.g., constant-pushing bytecode like
-        // JSOP_INT8), and so their entries share the same nativeOffset as the
-        // next op that does generate code. Trying to find an entry for a
-        // return address is impossible for bytecodes that generate no code
-        // since calling this method requires VM reentry, so assert an exact
-        // match.
-        if (curNativeOffset > nativeOffset) {
-            MOZ_ASSERT_IF(isReturn, lastNativeOffset == nativeOffset);
-            return lastPC;
-        }
+        if (isReturn ? (nativeOffset == curNativeOffset) : (nativeOffset <= curNativeOffset))
+            return curPC;
 
         // If this is a raw native lookup (not jsop return addresses), then
         // the native address may lie in-between the last delta-entry in
         // a pcMappingIndexEntry, and the next pcMappingIndexEntry.
-        if (!reader.more()) {
-            MOZ_ASSERT_IF(isReturn, curNativeOffset == nativeOffset);
+        if (!isReturn && !reader.more())
             return curPC;
-        }
 
-        lastNativeOffset = curNativeOffset;
-        lastPC = curPC;
         curPC += GetBytecodeLength(curPC);
     }
 }

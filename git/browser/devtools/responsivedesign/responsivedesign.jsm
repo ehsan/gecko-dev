@@ -482,11 +482,11 @@ ResponsiveUI.prototype = {
     sleepButton.className = "devtools-responsiveui-sleep-button";
     sleepButton.setAttribute("top", 0);
     sleepButton.setAttribute("right", 0);
-    sleepButton.addEventListener("mousedown", () => {
-      SystemAppProxy.dispatchKeyboardEvent("keydown", {key: "Power"});
+    sleepButton.addEventListener("mousedown", function() {
+      SystemAppProxy.dispatchEvent({type: "sleep-button-press"});
     });
-    sleepButton.addEventListener("mouseup", () => {
-      SystemAppProxy.dispatchKeyboardEvent("keyup", {key: "Power"});
+    sleepButton.addEventListener("mouseup", function() {
+      SystemAppProxy.dispatchEvent({type: "sleep-button-release"});
     });
     this.stack.appendChild(sleepButton);
 
@@ -497,20 +497,20 @@ ResponsiveUI.prototype = {
 
     let volumeUp = this.chromeDoc.createElement("button");
     volumeUp.className = "devtools-responsiveui-volume-up-button";
-    volumeUp.addEventListener("mousedown", () => {
-      SystemAppProxy.dispatchKeyboardEvent("keydown", {key: "VolumeUp"});
+    volumeUp.addEventListener("mousedown", function() {
+      SystemAppProxy.dispatchEvent({type: "volume-up-button-press"});
     });
-    volumeUp.addEventListener("mouseup", () => {
-      SystemAppProxy.dispatchKeyboardEvent("keyup", {key: "VolumeUp"});
+    volumeUp.addEventListener("mouseup", function() {
+      SystemAppProxy.dispatchEvent({type: "volume-up-button-release"});
     });
 
     let volumeDown = this.chromeDoc.createElement("button");
     volumeDown.className = "devtools-responsiveui-volume-down-button";
-    volumeDown.addEventListener("mousedown", () => {
-      SystemAppProxy.dispatchKeyboardEvent("keydown", {key: "VolumeDown"});
+    volumeDown.addEventListener("mousedown", function() {
+      SystemAppProxy.dispatchEvent({type: "volume-down-button-press"});
     });
-    volumeDown.addEventListener("mouseup", () => {
-      SystemAppProxy.dispatchKeyboardEvent("keyup", {key: "VolumeDown"});
+    volumeDown.addEventListener("mouseup", function() {
+      SystemAppProxy.dispatchEvent({type: "volume-down-button-release"});
     });
 
     volumeButtons.appendChild(volumeUp);
@@ -524,11 +524,11 @@ ResponsiveUI.prototype = {
 
     let homeButton = this.chromeDoc.createElement("toolbarbutton");
     homeButton.className = "devtools-responsiveui-toolbarbutton devtools-responsiveui-home-button";
-    homeButton.addEventListener("mousedown", () => {
-      SystemAppProxy.dispatchKeyboardEvent("keydown", {key: "Home"});
+    homeButton.addEventListener("mousedown", function() {
+      SystemAppProxy.dispatchEvent({type: "home-button-press"});
     });
-    homeButton.addEventListener("mouseup", () => {
-      SystemAppProxy.dispatchKeyboardEvent("keyup", {key: "Home"});
+    homeButton.addEventListener("mouseup", function() {
+      SystemAppProxy.dispatchEvent({type: "home-button-release"});
     });
     bottomToolbar.appendChild(homeButton);
     this.bottomToolbar = bottomToolbar;

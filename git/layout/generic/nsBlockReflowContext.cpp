@@ -352,8 +352,7 @@ nsBlockReflowContext::PlaceBlock(const nsHTMLReflowState&  aReflowState,
   WritingMode parentWM = mMetrics.GetWritingMode();
   if (NS_FRAME_IS_COMPLETE(aReflowStatus)) {
     aBEndMarginResult = mMetrics.mCarriedOutBEndMargin;
-    aBEndMarginResult.Include(aReflowState.ComputedLogicalMargin().
-      ConvertTo(parentWM, wm).BEnd(parentWM));
+    aBEndMarginResult.Include(aReflowState.ComputedLogicalMargin().BEnd(wm));
   } else {
     // The used bottom-margin is set to zero above a break.
     aBEndMarginResult.Zero();

@@ -116,24 +116,16 @@ public:
   bool IsDefaultPrevented() const;
 
   /**
-   * Sets a flag that indicates this input block occurred while the APZ was
-   * in a state of fast motion. This affects gestures that may be produced
-   * from input events in this block.
+   * Set a flag that disables setting the single-tap flag on this block.
    */
-  void SetDuringFastMotion();
+  void DisallowSingleTap();
   /**
-   * @return true iff SetDuringFastMotion was called on this block.
-   */
-  bool IsDuringFastMotion() const;
-  /**
-   * Set the single-tap-occurred flag that indicates that this touch block
-   * triggered a single tap event.
-   * @return true if the flag was set. This may not happen if, for example,
-   *         SetDuringFastMotion was previously called.
+   * Set a flag that indicates that this touch block triggered a single tap event.
+   * @return true iff DisallowSingleTap was not previously called.
    */
   bool SetSingleTapOccurred();
   /**
-   * @return true iff the single-tap-occurred flag is set on this block.
+   * @return true iff SetSingleTapOccurred was previously called on this block.
    */
   bool SingleTapOccurred() const;
 
@@ -179,7 +171,7 @@ private:
   bool mPreventDefault;
   bool mContentResponded;
   bool mContentResponseTimerExpired;
-  bool mDuringFastMotion;
+  bool mSingleTapDisallowed;
   bool mSingleTapOccurred;
   nsTArray<MultiTouchInput> mEvents;
 };

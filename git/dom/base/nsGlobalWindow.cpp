@@ -7912,7 +7912,7 @@ PostMessageReadStructuredClone(JSContext* cx,
       JS::Rooted<JS::Value> val(cx);
       {
         nsRefPtr<File> blob = new File(scInfo->window, blobImpl);
-        if (!GetOrCreateDOMReflector(cx, blob, &val)) {
+        if (!WrapNewBindingObject(cx, blob, &val)) {
           return nullptr;
         }
       }
@@ -11071,10 +11071,6 @@ nsGlobalWindow::ShowSlowScriptDialog()
   nsresult rv;
   AutoJSContext cx;
 
-  if (Preferences::GetBool("dom.always_stop_slow_scripts")) {
-    return KillSlowScript;
-  }
-
   // If it isn't safe to run script, then it isn't safe to bring up the prompt
   // (since that spins the event loop). In that (rare) case, we just kill the
   // script and report a warning.
@@ -14034,7 +14030,7 @@ nsGlobalWindow::GetConsole(JSContext* aCx,
     return rv.ErrorCode();
   }
 
-  if (!GetOrCreateDOMReflector(aCx, console, aConsole)) {
+  if (!WrapNewBindingObject(aCx, console, aConsole)) {
     return NS_ERROR_FAILURE;
   }
 

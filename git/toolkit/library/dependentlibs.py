@@ -17,7 +17,6 @@ from mozpack.executables import (
     ELF,
     MACHO,
 )
-from buildconfig import substs
 
 TOOLCHAIN_PREFIX = ''
 
@@ -72,7 +71,7 @@ def dependentlibs_readelf(lib):
 
 def dependentlibs_otool(lib):
     '''Returns the list of dependencies declared in the given MACH-O dylib'''
-    proc = subprocess.Popen([substs['OTOOL'], '-l', lib], stdout = subprocess.PIPE)
+    proc = subprocess.Popen(['otool', '-l', lib], stdout = subprocess.PIPE)
     deps= []
     cmd = None
     for line in proc.stdout:
