@@ -537,7 +537,7 @@ PRMJ_DSTOffset(JSInt64 local_time)
 #ifndef HAVE_LOCALTIME_R
     ptm = localtime(&local);
     if(!ptm){
-        return 0;
+        return JSLL_ZERO;
     }
     tm = *ptm;
 #else

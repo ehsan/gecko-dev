@@ -41,7 +41,7 @@
  * in which case no updates will be called.  The constructor also takes a
  * boolean that can be set to false to prevent notifications.
  */
-class NS_STACK_CLASS mozAutoDocUpdate
+class mozAutoDocUpdate
 {
 public:
   mozAutoDocUpdate(nsIDocument* aDocument, nsUpdateType aUpdateType,
@@ -84,35 +84,3 @@ private:
 #define MOZ_AUTO_DOC_UPDATE(doc,type,notify) \
   mozAutoDocUpdate MOZ_AUTO_DOC_UPDATE_PASTE(_autoDocUpdater_, __LINE__) \
   (doc,type,notify)
-
-
-/**
- * Creates an update batch only under certain conditions.
- * Use this rather than mozAutoDocUpdate when you expect inner updates
- * to notify but you don't always want to spec cycles creating a batch.
- * This is needed to avoid having this batch always create a blocker,
- * but then have inner mozAutoDocUpdate call the last EndUpdate before.
- * we remove that blocker. See bug 423269.
- */
-class NS_STACK_CLASS mozAutoDocConditionalContentUpdateBatch
-{
-public:
-  mozAutoDocConditionalContentUpdateBatch(nsIDocument* aDocument,
-                                          PRBool aNotify) :
-    mDocument(aNotify ? aDocument : nsnull)
-  {
-    if (mDocument) {
-      mDocument->BeginUpdate(UPDATE_CONTENT_MODEL);
-    }
-  }
-
-  ~mozAutoDocConditionalContentUpdateBatch()
-  {
-    if (mDocument) {
-      mDocument->EndUpdate(UPDATE_CONTENT_MODEL);
-    }
-  }
-
-private:
-  nsCOMPtr<nsIDocument> mDocument;
-};

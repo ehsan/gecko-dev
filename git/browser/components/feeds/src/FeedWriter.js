@@ -394,12 +394,8 @@ FeedWriter.prototype = {
    */
   _setTitleText: function FW__setTitleText(container) {
     if (container.title) {
-      var title = container.title.plainText();
-      this._setContentText(TITLE_ID, title);
-      this._contentSandbox.document = this._document;
-      this._contentSandbox.title = title;
-      var codeStr = "document.title = title;"
-      Cu.evalInSandbox(codeStr, this._contentSandbox);
+      this._setContentText(TITLE_ID, container.title.plainText());
+      this._document.title = container.title.plainText();
     }
 
     var feed = container.QueryInterface(Ci.nsIFeed);
@@ -428,21 +424,19 @@ FeedWriter.prototype = {
                                                [parts.getPropertyAsAString("title")]);
       this._contentSandbox.feedTitleLink = feedTitleLink;
       this._contentSandbox.titleText = titleText;
-      this._contentSandbox.feedTitleText = this._document.getElementById("feedTitleText");
-      this._contentSandbox.titleImageWidth = parseInt(parts.getPropertyAsAString("width")) + 15;
-
-      // Fix the margin on the main title, so that the image doesn't run over
-      // the underline
-      var codeStr = "feedTitleLink.setAttribute('title', titleText); " +
-                    "feedTitleText.style.marginRight = titleImageWidth + 'px';";
+      var codeStr = "feedTitleLink.setAttribute('title', titleText);";
       Cu.evalInSandbox(codeStr, this._contentSandbox);
       this._contentSandbox.feedTitleLink = null;
       this._contentSandbox.titleText = null;
-      this._contentSandbox.feedTitleText = null;
-      this._contentSandbox.titleImageWidth = null;
 
       this._safeSetURIAttribute(feedTitleLink, "href", 
                                 parts.getPropertyAsAString("link"));
+
+      // Fix the margin on the main title, so that the image doesn't run over
+      // the underline
+      var feedTitleText = this._document.getElementById("feedTitleText");
+      var titleImageWidth = parseInt(parts.getPropertyAsAString("width")) + 15;
+      feedTitleText.style.marginRight = titleImageWidth + "px";
     }
     catch (e) {
       LOG("Failed to set Title Image (this is benign): " + e);
@@ -965,6 +959,7 @@ FeedWriter.prototype = {
 
       default:
         codeStr = "header.className = 'feedBackground'; ";
+        header.className = "feedBackground";
     }
 
 

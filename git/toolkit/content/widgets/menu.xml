@@ -20,6 +20,8 @@
       <property name="accessibleType" readonly="true">
         <getter>
           <![CDATA[
+            if (this.localName == "menuseparator")
+              return Components.interfaces.nsIAccessibleProvider.XULMenuSeparator;
             return Components.interfaces.nsIAccessibleProvider.XULMenuitem;
           ]]>
         </getter>
@@ -269,18 +271,6 @@
     </content>
   </binding>  
   
-  <binding id="menuseparator"
-           extends="chrome://global/content/bindings/menu.xml#menuitem-base">
-    <implementation>
-      <!-- nsIAccessibleProvider -->
-      <property name="accessibleType" readonly="true">
-        <getter>
-          <![CDATA[
-            return Components.interfaces.nsIAccessibleProvider.XULMenuSeparator;
-          ]]>
-        </getter>
-      </property>
-    </implementation>
-  </binding>
+  <binding id="menuseparator" extends="chrome://global/content/bindings/menu.xml#menuitem-base"/>
 
 </bindings>

@@ -71,7 +71,8 @@ struct JSFunction {
     union {
         struct {
             uint16      extra;  /* number of arg slots for local GC roots */
-            uint16      spare;  /* reserved for future use */
+            uint16      minargs;/* minimum number of specified arguments, used
+                                   only when calling fast native */
             JSNative    native; /* native method pointer or null */
             JSClass     *clasp; /* if non-null, constructor for this class */
         } n;
@@ -99,7 +100,7 @@ struct JSFunction {
                               ? (JSFastNative) (fun)->u.n.native              \
                               : NULL)
 #define FUN_MINARGS(fun)     (((fun)->flags & JSFUN_FAST_NATIVE)              \
-                              ? 0                                             \
+                              ? (fun)->u.n.minargs                            \
                               : (fun)->nargs)
 
 extern JSClass js_ArgumentsClass;
@@ -237,7 +238,7 @@ js_LookupLocal(JSContext *cx, JSFunction *fun, JSAtom *atom, uintN *indexp);
  * corresponds to the const declaration.
  */
 extern jsuword *
-js_GetLocalNameArray(JSContext *cx, JSFunction *fun, struct JSArenaPool *pool);
+js_GetLocalNameArray(JSContext *cx, JSFunction *fun, JSArenaPool *pool);
 
 #define JS_LOCAL_NAME_TO_ATOM(nameWord)                                       \
     ((JSAtom *) ((nameWord) & ~(jsuword) 1))

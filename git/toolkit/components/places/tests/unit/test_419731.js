@@ -66,9 +66,6 @@ try {
 
 // main
 function run_test() {
-  // TODO bug 442778 - re-enable test once PR_Now() issue is resolved
-  return;
-
   var uri1 = uri("http://foo.bar/");
 
   // create 2 bookmarks
@@ -86,9 +83,9 @@ function run_test() {
   var result = histsvc.executeQuery(query, options);
   var tagRoot = result.root;
   tagRoot.containerOpen = true;
-  var tagNode = tagRoot.getChild(0)
-                       .QueryInterface(Ci.nsINavHistoryContainerResultNode);
-  var tagItemId = tagNode.itemId;
+  var tag1node = tagRoot.getChild(0)
+                        .QueryInterface(Ci.nsINavHistoryContainerResultNode);
+  var tag1itemId = tag1node.itemId;
   tagRoot.containerOpen = false;
 
   // change bookmark 1 title
@@ -98,9 +95,8 @@ function run_test() {
   options = histsvc.getNewQueryOptions();
   options.queryType = Ci.nsINavHistoryQueryOptions.QUERY_TYPE_BOOKMARKS;
   options.resultType = options.RESULTS_AS_TAG_CONTENTS;
-
+  options.includeHidden = true;
   query = histsvc.getNewQuery();
-  query.setFolders([tagItemId], 1);
   result = histsvc.executeQuery(query, options);
   var root = result.root;
 
@@ -118,16 +114,15 @@ function run_test() {
   options = histsvc.getNewQueryOptions();
   options.queryType = Ci.nsINavHistoryQueryOptions.QUERY_TYPE_BOOKMARKS;
   options.resultType = options.RESULTS_AS_TAG_CONTENTS;
-
+  options.includeHidden = true;
   query = histsvc.getNewQuery();
-  query.setFolders([tagItemId], 1);
   result = histsvc.executeQuery(query, options);
   root = result.root;
 
   root.containerOpen = true;
   cc = root.childCount;
   do_check_eq(cc, 1);
-  node = root.getChild(0);
+  var node = root.getChild(0);
   do_check_eq(node.title, "new title 2");
   root.containerOpen = false;
 }

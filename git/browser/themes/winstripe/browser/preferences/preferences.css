@@ -41,7 +41,6 @@
 /* Global Styles */
 #BrowserPreferences radio[pane] {
   list-style-image: url("chrome://browser/skin/preferences/Options.png"); 
-  padding: 5px 3px 1px;
 }
 
 radio[pane=paneMain] {
@@ -130,11 +129,11 @@ filefield {
   margin: 1px;
 }
 
-.fileFieldContentBox[disabled="true"] {
+filefield[disabled="true"] .fileFieldContentBox {
   opacity: 0.5;
 }
 
-.fileFieldIcon[disabled="true"] {
+filefield[disabled="true"] .fileFieldIcon {
   opacity: 0.2;
 }
 

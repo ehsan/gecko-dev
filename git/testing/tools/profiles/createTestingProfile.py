@@ -23,9 +23,7 @@ userPrefs = {
     'dom.disable_window_move_resize': 'false',
     'layout.fire_onload_after_image_background_loads': 'true',
     'javascript.options.showInConsole': 'true',
-    'privacy.popups.firstTime': 'false',
-    'layout.debug.enable_data_xbl': 'true',
-    'browser.EULA.override': 'true'
+    'privacy.popups.firstTime': 'false'
 }
 
 def usage():
@@ -104,4 +102,3 @@ def main(argv):
 
 if __name__ == "__main__":
     main(sys.argv[1:])
-

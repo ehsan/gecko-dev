@@ -152,8 +152,6 @@
 #include "nsEventDispatcher.h"
 #include "nsPresShellIterator.h"
 #include "mozAutoDocUpdate.h"
-#include "nsIDOMXULCommandEvent.h"
-#include "nsIDOMNSEvent.h"
 
 /**
  * Three bits are used for XUL Element's lazy state.
@@ -166,6 +164,8 @@
 
 #define XUL_ELEMENT_CONTAINER_CONTENTS_BUILT \
   (nsXULElement::eContainerContentsBuilt << XUL_ELEMENT_LAZY_STATE_OFFSET)
+
+class nsIDocShell;
 
 // Global object maintenance
 nsICSSParser* nsXULPrototypeElement::sCSSParser = nsnull;
@@ -542,10 +542,9 @@ nsXULElement::GetEventListenerManagerForAttr(nsIEventListenerManager** aManager,
     if (!doc)
         return NS_ERROR_UNEXPECTED; // XXX
 
-    nsPIDOMWindow *window;
     nsIContent *root = doc->GetRootContent();
-    if ((!root || root == this) && !mNodeInfo->Equals(nsGkAtoms::overlay) &&
-        (window = doc->GetInnerWindow()) && window->IsInnerWindow()) {
+    if ((!root || root == this) && !mNodeInfo->Equals(nsGkAtoms::overlay)) {
+        nsPIDOMWindow *window = doc->GetInnerWindow();
 
         nsCOMPtr<nsPIDOMEventTarget> piTarget = do_QueryInterface(window);
         if (!piTarget)
@@ -945,16 +944,6 @@ nsXULElement::GetChildAt(PRUint32 aIndex) const
     return mAttrsAndChildren.GetSafeChildAt(aIndex);
 }
 
-nsIContent * const *
-nsXULElement::GetChildArray() const
-{
-    if (NS_FAILED(EnsureContentsGenerated())) {
-        return nsnull;
-    }
-
-    return mAttrsAndChildren.GetChildArray();
-}
-
 PRInt32
 nsXULElement::IndexOf(nsINode* aPossibleChild) const
 {
@@ -1084,7 +1073,6 @@ nsXULElement::UnregisterAccessKey(const nsAString& aOldValue)
             if (mNodeInfo->Equals(nsGkAtoms::label)) {
                 // For anonymous labels the unregistering must
                 // occur on the binding parent control.
-                // XXXldb: And what if the binding parent is null?
                 content = GetBindingParent();
             }
 
@@ -1155,10 +1143,9 @@ nsXULElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
             HideWindowChrome(aValue && NS_LITERAL_STRING("true").Equals(*aValue));
         }
 
-        // (in)activetitlebarcolor is settable on any root node (windows, dialogs, etc)
+        // titlebarcolor is settable on any root node (windows, dialogs, etc)
         nsIDocument *document = GetCurrentDoc();
-        if ((aName == nsGkAtoms::activetitlebarcolor ||
-             aName == nsGkAtoms::inactivetitlebarcolor) &&
+        if (aName == nsGkAtoms::titlebarcolor &&
             document && document->GetRootContent() == this) {
 
             nscolor color = NS_RGBA(0, 0, 0, 0);
@@ -1166,7 +1153,7 @@ nsXULElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
             attrValue.ParseColor(*aValue, document);
             attrValue.GetColorValue(color);
 
-            SetTitlebarColor(color, aName == nsGkAtoms::activetitlebarcolor);
+            SetTitlebarColor(color);
         }
 
         if (aName == nsGkAtoms::src && document) {
@@ -1409,11 +1396,10 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
             HideWindowChrome(PR_FALSE);
         }
 
-        if ((aName == nsGkAtoms::activetitlebarcolor ||
-             aName == nsGkAtoms::inactivetitlebarcolor) &&
+        if (aName == nsGkAtoms::titlebarcolor &&
             doc && doc->GetRootContent() == this) {
             // Use 0, 0, 0, 0 as the "none" color.
-            SetTitlebarColor(NS_RGBA(0, 0, 0, 0), aName == nsGkAtoms::activetitlebarcolor);
+            SetTitlebarColor(NS_RGBA(0, 0, 0, 0));
         }
 
         // If the accesskey attribute is removed, unregister it here
@@ -1452,18 +1438,20 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
     if (hasMutationListeners) {
         mozAutoRemovableBlockerRemover blockerRemover;
 
-        nsMutationEvent mutation(PR_TRUE, NS_MUTATION_ATTRMODIFIED);
+        if (nsContentUtils::IsSafeToRunScript()) {
+            nsMutationEvent mutation(PR_TRUE, NS_MUTATION_ATTRMODIFIED);
 
-        mutation.mRelatedNode = attrNode;
-        mutation.mAttrName = aName;
+            mutation.mRelatedNode = attrNode;
+            mutation.mAttrName = aName;
 
-        if (!oldValue.IsEmpty())
-          mutation.mPrevAttrValue = do_GetAtom(oldValue);
-        mutation.mAttrChange = nsIDOMMutationEvent::REMOVAL;
+            if (!oldValue.IsEmpty())
+              mutation.mPrevAttrValue = do_GetAtom(oldValue);
+            mutation.mAttrChange = nsIDOMMutationEvent::REMOVAL;
 
-        mozAutoSubtreeModified subtree(GetOwnerDoc(), this);
-        nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this),
-                                    nsnull, &mutation);
+            mozAutoSubtreeModified subtree(GetOwnerDoc(), this);
+            nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this),
+                                        nsnull, &mutation);
+        }
     }
 
     return NS_OK;
@@ -1659,22 +1647,6 @@ nsXULElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
                                                    EmptyString(),
                                                    &aVisitor.mDOMEvent);
                 }
-
-                nsCOMPtr<nsIDOMNSEvent> nsevent =
-                    do_QueryInterface(aVisitor.mDOMEvent);
-                while (nsevent) {
-                    nsCOMPtr<nsIDOMEventTarget> oTarget;
-                    nsevent->GetOriginalTarget(getter_AddRefs(oTarget));
-                    NS_ENSURE_STATE(!SameCOMIdentity(oTarget, commandContent));
-                    nsCOMPtr<nsIDOMEvent> tmp;
-                    nsCOMPtr<nsIDOMXULCommandEvent> commandEvent =
-                        do_QueryInterface(nsevent);
-                    if (commandEvent) {
-                        commandEvent->GetSourceEvent(getter_AddRefs(tmp));
-                    }
-                    nsevent = do_QueryInterface(tmp);
-                }
-
                 event.sourceEvent = aVisitor.mDOMEvent;
 
                 nsEventStatus status = nsEventStatus_eIgnore;
@@ -2116,36 +2088,6 @@ nsXULElement::GetFrameLoader(nsIFrameLoader **aFrameLoader)
     return NS_OK;
 }
 
-nsresult
-nsXULElement::SwapFrameLoaders(nsIFrameLoaderOwner* aOtherOwner)
-{
-    nsCOMPtr<nsIContent> otherContent(do_QueryInterface(aOtherOwner));
-    NS_ENSURE_TRUE(otherContent, NS_ERROR_NOT_IMPLEMENTED);
-
-    nsXULElement* otherEl = FromContent(otherContent);
-    NS_ENSURE_TRUE(otherEl, NS_ERROR_NOT_IMPLEMENTED);
-
-    if (otherEl == this) {
-        // nothing to do
-        return NS_OK;
-    }
-
-    nsXULSlots *ourSlots = static_cast<nsXULSlots*>(GetExistingDOMSlots());
-    nsXULSlots *otherSlots =
-        static_cast<nsXULSlots*>(otherEl->GetExistingDOMSlots());
-    if (!ourSlots || !ourSlots->mFrameLoader ||
-        !otherSlots || !otherSlots->mFrameLoader) {
-        // Can't handle swapping when there is nothing to swap... yet.
-        return NS_ERROR_NOT_IMPLEMENTED;
-    }
-
-    return
-        ourSlots->mFrameLoader->SwapWithOtherLoader(otherSlots->mFrameLoader,
-                                                    ourSlots->mFrameLoader,
-                                                    otherSlots->mFrameLoader);
-}
-
-
 NS_IMETHODIMP
 nsXULElement::GetParentTree(nsIDOMXULMultiSelectControlElement** aTreeElement)
 {
@@ -2513,7 +2455,7 @@ nsXULElement::HideWindowChrome(PRBool aShouldHide)
 }
 
 void
-nsXULElement::SetTitlebarColor(nscolor aColor, PRBool aActive)
+nsXULElement::SetTitlebarColor(nscolor aColor)
 {
     nsIDocument* doc = GetCurrentDoc();
     if (!doc || doc->GetRootContent() != this) {
@@ -2528,7 +2470,7 @@ nsXULElement::SetTitlebarColor(nscolor aColor, PRBool aActive)
             nsCOMPtr<nsIWidget> mainWidget;
             baseWindow->GetMainWidget(getter_AddRefs(mainWidget));
             if (mainWidget) {
-                mainWidget->SetWindowTitlebarColor(aColor, aActive);
+                mainWidget->SetWindowTitlebarColor(aColor);
             }
         }
     }

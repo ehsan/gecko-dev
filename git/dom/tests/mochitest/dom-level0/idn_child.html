@@ -56,7 +56,7 @@ function receiveMessage(evt)
       break;
   }
 
-  evt.source.postMessage(message, evt.origin);
+  evt.source.postMessage(message);
 }
 
 function idnTest(newDomain)
@@ -91,7 +91,7 @@ function punycodeTest(newDomain)
   return errors;
 }
 
-window.addEventListener("message", receiveMessage, false);
+document.addEventListener("message", receiveMessage, false);
 window.addEventListener("load", run, false);
   </script>
 </head>

@@ -55,12 +55,12 @@ radio {
 }
 
 .radio-label-box {
-  -moz-margin-start: 0px;
+  margin-left: 0px;
   padding: 0px;
 }
 
 .radio-icon {
-  -moz-margin-end: 2px;
+  margin-right: 2px;
 }
 
 .radio-label {

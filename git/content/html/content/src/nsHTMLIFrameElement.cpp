@@ -36,11 +36,6 @@
  * ***** END LICENSE BLOCK ***** */
 #include "nsIDOMHTMLIFrameElement.h"
 #include "nsGenericHTMLElement.h"
-#include "nsIDOMDocument.h"
-#ifdef MOZ_SVG
-#include "nsIDOMGetSVGDocument.h"
-#include "nsIDOMSVGDocument.h"
-#endif
 #include "nsGkAtoms.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
@@ -52,9 +47,6 @@
 
 class nsHTMLIFrameElement : public nsGenericHTMLFrameElement,
                             public nsIDOMHTMLIFrameElement
-#ifdef MOZ_SVG
-                            , public nsIDOMGetSVGDocument
-#endif
 {
 public:
   nsHTMLIFrameElement(nsINodeInfo *aNodeInfo);
@@ -74,11 +66,6 @@ public:
 
   // nsIDOMHTMLIFrameElement
   NS_DECL_NSIDOMHTMLIFRAMEELEMENT
-
-#ifdef MOZ_SVG
-  // nsIDOMGetSVGDocument
-  NS_DECL_NSIDOMGETSVGDOCUMENT
-#endif
 
   // nsIContent
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
@@ -111,12 +98,7 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLIFrameElement,nsGenericElement)
 // QueryInterface implementation for nsHTMLIFrameElement
 NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLIFrameElement,
                                      nsGenericHTMLFrameElement)
-  NS_INTERFACE_TABLE_BEGIN
-    NS_INTERFACE_TABLE_ENTRY(nsHTMLIFrameElement, nsIDOMHTMLIFrameElement)
-#ifdef MOZ_SVG
-    NS_INTERFACE_TABLE_ENTRY(nsHTMLIFrameElement, nsIDOMGetSVGDocument)
-#endif
-  NS_INTERFACE_TABLE_END
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLIFrameElement, nsIDOMHTMLIFrameElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLIFrameElement)
 
 
@@ -139,14 +121,6 @@ nsHTMLIFrameElement::GetContentDocument(nsIDOMDocument** aContentDocument)
 {
   return nsGenericHTMLFrameElement::GetContentDocument(aContentDocument);
 }
-
-#ifdef MOZ_SVG
-NS_IMETHODIMP
-nsHTMLIFrameElement::GetSVGDocument(nsIDOMDocument **aResult)
-{
-  return GetContentDocument(aResult);
-}
-#endif
 
 PRBool
 nsHTMLIFrameElement::ParseAttribute(PRInt32 aNamespaceID,

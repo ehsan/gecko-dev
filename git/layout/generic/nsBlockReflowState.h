@@ -94,12 +94,10 @@ public:
    */
   PRBool InitFloat(nsLineLayout&       aLineLayout,
                    nsPlaceholderFrame* aPlaceholderFrame,
-                   nscoord             aAvailableWidth,
                    nsReflowStatus&     aReflowStatus);
   PRBool AddFloat(nsLineLayout&       aLineLayout,
                   nsPlaceholderFrame* aPlaceholderFrame,
                   PRBool              aInitialReflow,
-                  nscoord             aAvailableWidth,
                   nsReflowStatus&     aReflowStatus);
   PRBool CanPlaceFloat(const nsSize& aFloatSize, PRUint8 aFloats, PRBool aForceFit);
   PRBool FlowAndPlaceFloat(nsFloatCache*   aFloatCache,
@@ -110,9 +108,9 @@ public:
 
   // Returns the first coordinate >= aY that clears the
   // floats indicated by aBreakType and has enough width between floats
-  // (or no floats remaining) to accomodate aReplacedBlock.
+  // (or no floats remaining) to accomodate aReplacedWidth.
   nscoord ClearFloats(nscoord aY, PRUint8 aBreakType,
-                      nsIFrame *aReplacedBlock = nsnull);
+    nsBlockFrame::ReplacedElementWidthToClear *aReplacedWidth = nsnull);
 
   PRBool IsAdjacentWithTop() const {
     return mY ==
@@ -142,19 +140,18 @@ public:
   // Reconstruct the previous bottom margin that goes above |aLine|.
   void ReconstructMarginAbove(nsLineList::iterator aLine);
 
-  // Caller must have called GetAvailableSpace for the correct position
-  // (which need not be the current mY).  Callers need only pass
-  // aReplacedWidth for outer table frames.
+  // Caller must have called GetAvailableSpace for the current mY
   void ComputeReplacedBlockOffsetsForFloats(nsIFrame* aFrame,
                                             nscoord& aLeftResult,
                                             nscoord& aRightResult,
-                                       nsBlockFrame::ReplacedElementWidthToClear
-                                                      *aReplacedWidth = nsnull);
+                                        nsBlockFrame::ReplacedElementWidthToClear
+                                                       *aReplacedWidth = nsnull);
 
   // Caller must have called GetAvailableSpace for the current mY
   void ComputeBlockAvailSpace(nsIFrame* aFrame,
                               const nsStyleDisplay* aDisplay,
-                              PRBool aBlockAvoidsFloats,
+                              nsBlockFrame::ReplacedElementWidthToClear
+                                                               *aReplacedWidth,
                               nsRect& aResult);
 
 protected:

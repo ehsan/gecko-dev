@@ -342,9 +342,8 @@ function addException() {
   
   var permanentCheckbox = document.getElementById("permanent");
 
-  var uri = getURI();
   overrideService.rememberValidityOverride(
-    uri.asciiHost, uri.port,
+    getURI().hostPort,
     gCert,
     flags,
     !permanentCheckbox.checked);

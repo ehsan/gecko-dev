@@ -40,7 +40,6 @@
 
 #include "nsISupports.h"
 
-class nsIDOMWindow;
 class nsIPrintSettings;
 
 /*
@@ -68,7 +67,6 @@ public:
 
   /**
    * Show the print dialog.
-   * @param aParent   A DOM window the dialog will be parented to.
    * @param aSettings On entry, this contains initial settings for the
    *                  print dialog. On return, if the print operation should
    *                  proceed then this contains settings for the print
@@ -77,19 +75,17 @@ public:
    * @return NS_ERROR_ABORT if the user indicated not to proceed
    * @return a suitable error for failures to show the print dialog.
    */
-  NS_IMETHOD Show(nsIDOMWindow *aParent, nsIPrintSettings *aSettings) = 0;
+  NS_IMETHOD Show(nsIPrintSettings *aSettings) = 0;
 
   /**
-   * Show the page setup dialog. Note that there is no way to tell whether the
-   * user clicked OK or Cancel on the dialog.
-   * @param aParent   A DOM window the dialog will be parented to.
+   * Show the page setup dialog. Note that there is no way to tell whether the user clicked OK or Cancel on the
+   * dialog.
    * @param aSettings On entry, this contains initial settings for the
-   *                  page setup dialog. On return, this contains new default
-   *                  page setup options.
+   *                  page setup dialog. On return, this contains new default page setup options.
    * @return NS_OK if everything is OK.
    * @return a suitable error for failures to show the page setup dialog.
    */
-  NS_IMETHOD ShowPageSetup(nsIDOMWindow *aParent, nsIPrintSettings *aSettings) = 0;
+  NS_IMETHOD ShowPageSetup(nsIPrintSettings *aSettings) = 0;
 
 };
 

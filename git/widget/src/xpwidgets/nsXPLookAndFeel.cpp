@@ -143,8 +143,6 @@ nsLookAndFeelFloatPref nsXPLookAndFeel::sFloatPrefs[] =
     PR_FALSE, nsLookAndFeelTypeFloat, 0 },
   { "ui.IMEUnderlineRelativeSize", eMetricFloat_IMEUnderlineRelativeSize,
     PR_FALSE, nsLookAndFeelTypeFloat, 0 },
-  { "ui.caretAspectRatio", eMetricFloat_CaretAspectRatio, PR_FALSE,
-    nsLookAndFeelTypeFloat, 0 },
 };
 
 
@@ -170,7 +168,6 @@ const char nsXPLookAndFeel::sColorPrefs[][38] =
   "ui.textSelectForeground",
   "ui.textSelectBackgroundDisabled",
   "ui.textSelectBackgroundAttention",
-  "ui.textHighlightBackground",
   "ui.IMERawInputBackground",
   "ui.IMERawInputForeground",
   "ui.IMERawInputUnderline",
@@ -217,17 +214,8 @@ const char nsXPLookAndFeel::sColorPrefs[][38] =
   "ui.-moz-dialog",
   "ui.-moz-dialogtext",
   "ui.-moz-dragtargetzone",
-  "ui.-moz-cellhighlight",
-  "ui.-moz_cellhighlighttext",
   "ui.-moz-html-cellhighlight",
   "ui.-moz-html-cellhighlighttext",
-  "ui.-moz-buttonhoverface",
-  "ui.-moz_buttonhovertext",
-  "ui.-moz_menuhover",
-  "ui.-moz_menuhovertext",
-  "ui.-moz_menubarhovertext",
-  "ui.-moz_eventreerow",
-  "ui.-moz_oddtreerow",
   "ui.-moz-mac-focusring",
   "ui.-moz-mac-menuselect",
   "ui.-moz-mac-menushadow",
@@ -239,12 +227,7 @@ const char nsXPLookAndFeel::sColorPrefs[][38] =
   "ui.-moz-mac-accentlightshadow",
   "ui.-moz-mac-accentregularshadow",
   "ui.-moz-mac-accentdarkshadow",
-  "ui.-moz-mac-accentdarkestshadow",
-  "ui.-moz-mac-alternateprimaryhighlight",
-  "ui.-moz-mac-secondaryhighlight",
-  "ui.-moz-win-mediatext",
-  "ui.-moz-win-communicationstext",
-  "ui.-moz-nativehyperlinktext"
+  "ui.-moz-mac-accentdarkestshadow"
 };
 
 PRInt32 nsXPLookAndFeel::sCachedColors[nsILookAndFeel::eColor_LAST_COLOR] = {0};
@@ -586,15 +569,8 @@ nsXPLookAndFeel::GetColor(const nsColorID aID, nscolor &aColor)
     return NS_OK;
   }
 
-  if (aID == eColor_TextHighlightBackground) {
-    // This makes the matched text stand out when findbar highlighting is on
-    // Used with nsISelectionController::SELECTION_FIND
-    aColor = NS_RGB(0xf0, 0xe0, 0x20);
-    return NS_OK;
-  }
-
   if (NS_SUCCEEDED(NativeGetColor(aID, aColor))) {
-    if ((gfxPlatform::GetCMSMode() == eCMSMode_All) && !IsSpecialColor(aID, aColor)) {
+    if (gfxPlatform::IsCMSEnabled() && !IsSpecialColor(aID, aColor)) {
       cmsHTRANSFORM transform = gfxPlatform::GetCMSInverseRGBTransform();
       if (transform) {
         PRUint8 color[3];

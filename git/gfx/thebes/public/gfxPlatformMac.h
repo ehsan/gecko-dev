@@ -42,9 +42,6 @@
 #include "nsTArray.h"
 #include "gfxPlatform.h"
 
-#define MAC_OS_X_VERSION_10_4_HEX 0x00001040
-#define MAC_OS_X_VERSION_10_5_HEX 0x00001050
-
 class THEBES_API gfxPlatformMac : public gfxPlatform {
 public:
     gfxPlatformMac();
@@ -56,8 +53,8 @@ public:
     already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
                                                          gfxASurface::gfxImageFormat imageFormat);
 
-    already_AddRefed<gfxASurface> OptimizeImage(gfxImageSurface *aSurface,
-                                                gfxASurface::gfxImageFormat format);
+    already_AddRefed<gfxASurface> gfxPlatformMac::OptimizeImage(gfxImageSurface *aSurface,
+                                                                gfxASurface::gfxImageFormat format);
 
     nsresult ResolveFontName(const nsAString& aFontName,
                              FontResolverCallback aCallback,
@@ -76,25 +73,13 @@ public:
     // in some situations, need to make decisions about ambiguous characters, may need to look at multiple pref langs
     void GetLangPrefs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, eFontPrefLang aCharLang, eFontPrefLang aPageLang);
     
-    // Returns the OS X version as returned from Gestalt(gestaltSystemVersion, ...)
-    // Ex: Mac OS X 10.4.x ==> 0x104x 
-    PRInt32 OSXVersion();
-
-    // lower threshold on font anti-aliasing
-    PRUint32 GetAntiAliasingThreshold() { return mFontAntiAliasingThreshold; }
-    
 private:
-    void AppendCJKPrefLangs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, 
-                            eFontPrefLang aCharLang, eFontPrefLang aPageLang);
+    void gfxPlatformMac::AppendCJKPrefLangs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, 
+                                            eFontPrefLang aCharLang, eFontPrefLang aPageLang);
                                                
     virtual cmsHPROFILE GetPlatformCMSOutputProfile();
     
-    // read in the pref value for the lower threshold on font anti-aliasing
-    static PRUint32 ReadAntiAliasingThreshold();    
-    
     nsTArray<PRUint32> mCJKPrefLangs;
-    PRInt32 mOSXVersion;
-    PRUint32 mFontAntiAliasingThreshold;
 };
 
 #endif /* GFX_PLATFORM_MAC_H */

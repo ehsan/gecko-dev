@@ -2,16 +2,6 @@
   -moz-binding: url("chrome://global/skin/globalBindings.xml#unifiedWindow");
 }
 
-#extensionsManager:not([active="true"]) > #topStackBar > #viewGroup {
-  background-image: url("chrome://global/skin/toolbar/toolbar-background-inactive.png");
-  background-color: #cfcfcf;
-  border-bottom: 1px solid rgba(0,0,0,0.35);
-}
-
-#extensionsManager:not([active="true"]) > #topStackBar > #viewGroup > .radiogroupWrapper {
-  opacity: 0.7;
-}
-
 #extensionsBox {
   padding: 0;
   min-width:1px;
@@ -109,8 +99,7 @@ richlistitem[selected="true"]:not([opType]) .descriptionCrop {
 }
 
 #themeSplitter {
-  -moz-border-start: 2px solid;
-  -moz-border-right-colors: #383E48 #57606F;
+  border-left: 2px solid;
   -moz-border-left-colors: #383E48 #57606F;
   width: 4px;
   background-image: none;
@@ -350,6 +339,46 @@ vbox[typeName="status"][type="header-recommended"] {
   border-bottom: 1px solid #878787;
 }
 
+#searchbox {
+  -moz-appearance: none;
+  border: 3px solid;
+  -moz-border-top-colors: #5F5F5F #CFCFCF -moz-Field;
+  -moz-border-bottom-colors: #9F9F9F #EEE -moz-Field;
+  -moz-border-right-colors: #7F7F7F #EEE -moz-Field;
+  -moz-border-left-colors: #7F7F7F #EFEFEF -moz-Field;
+  -moz-border-radius: 11px;
+  -moz-background-clip: border !important;
+  padding: 0 8px;
+}
+
+#searchbox[focused="true"] {
+  outline: 2px solid #4A8BC7;
+  outline-offset: -2px;
+  -moz-outline-radius: 11px;
+}
+
+
+.searchbox-search, .searchbox-cancel {
+  list-style-image: url(chrome://mozapps/skin/extensions/searchIcons.png);
+  -moz-appearance: none;
+  cursor: default;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+}
+
+.searchbox-search {
+  -moz-image-region: rect(0px 16px 16px 0px);
+}
+
+.searchbox-cancel {
+  -moz-image-region: rect(0px 32px 16px 16px);
+}
+
 #progressBox {
   padding: 5px 5px 5px 5px;
 }
@@ -375,7 +404,7 @@ vbox[typeName="status"][type="header-recommended"] {
 
 .radiogroupWrapper {
   border: 1px solid #404040;
-  border-bottom-width: 2px;
+  border-bottom: 2px solid;
   -moz-border-bottom-colors: #C2C2C2 #404040;
   -moz-border-radius: 4px;
   -moz-border-radius-bottomright: 5px;
@@ -390,11 +419,11 @@ vbox[typeName="status"][type="header-recommended"] {
   margin: 0;
   -moz-appearance: none !important;
   font: menu;
-  -moz-border-start: 1px solid #404040;
+  border-left: 1px solid #404040;
 }
 
 #viewGroup radio:first-child {
-  -moz-border-start: none;
+  border-left: none;
 }
 
 

@@ -228,13 +228,7 @@ public:
                        PRInt32 aXPos, PRInt32 aYPos,
                        PRBool aAttributesOverride);
 
-  /**
-   * @param aIsContextMenu if true, then the popup is
-   * positioned at a slight offset from aXPos/aYPos to ensure the
-   * (presumed) mouse position is not over the menu.
-   */
-  void InitializePopupAtScreen(PRInt32 aXPos, PRInt32 aYPos,
-                               PRBool aIsContextMenu);
+  void InitializePopupAtScreen(PRInt32 aXPos, PRInt32 aYPos);
 
   void InitializePopupWithAnchorAlign(nsIContent* aAnchorContent,
                                       nsAString& aAnchor,
@@ -333,8 +327,6 @@ protected:
 
   PRPackedBool mIsOpenChanged; // true if the open state changed since the last layout
   PRPackedBool mIsContextMenu; // true for context menus
-  // true if we need to offset the popup to ensure it's not under the mouse
-  PRPackedBool mAdjustOffsetForContextMenu;
   PRPackedBool mGeneratedChildren; // true if the contents have been created
 
   PRPackedBool mMenuCanOverlapOSBar;    // can we appear over the taskbar/menubar?

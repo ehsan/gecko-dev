@@ -75,7 +75,9 @@
 #include "prprf.h"
 #include "prrng.h"
 #include "bzlib.h"
+#ifndef MOZILLA_1_8_BRANCH
 #include "nsIClassInfoImpl.h"
+#endif
 #include "nsIDocShellTreeItem.h"
 #include "nsDocShellCID.h"
 #include "nsMemory.h"

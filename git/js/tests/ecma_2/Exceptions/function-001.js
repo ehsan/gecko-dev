@@ -66,14 +66,14 @@ var BUGNUMBER="10278";
 startTest();
 writeHeaderToLog( SECTION + " "+ TITLE);
 
-var result = "pass";
+var result = "fail";
 var exception = "no exception thrown";
 
 try {
   eval("function f(){}function g(){}");
 } catch ( e ) {
-  result = "fail";
-  exception = e.toString();
+  result = "pass"
+    exception = e.toString();
 }
 
 new TestCase(

@@ -19,7 +19,6 @@ REQUIRES = docshell \
            uriloader \
            xpcom \
            pipnss \
-           sqlite3 \
            $(ZLIB_REQUIRES) \
            $(NULL)
 
@@ -32,7 +31,6 @@ CPPSRCS = \
 
 LOCAL_INCLUDES = \
                  -I$(srcdir)/../../build \
-                 $(SQLITE_CFLAGS) \
                  $(NULL)
 
 

@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 sw=2 et tw=78: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -507,7 +506,7 @@ nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
 
   nsCOMPtr<nsIContent> content;
   rv = NS_NewElement(getter_AddRefs(content), aNodeInfo->NamespaceID(),
-                     aNodeInfo, PR_TRUE);
+                     aNodeInfo);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aNodeInfo->Equals(nsGkAtoms::script, kNameSpaceID_XHTML)
@@ -517,9 +516,7 @@ nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
     ) {
     nsCOMPtr<nsIScriptElement> sele = do_QueryInterface(content);
     sele->SetScriptLineNumber(aLineNumber);
-    if (aNodeInfo->Equals(nsGkAtoms::script, kNameSpaceID_SVG)) {
-      sele->WillCallDoneAddingChildren();
-    }
+    sele->WillCallDoneAddingChildren();
     mConstrainSize = PR_FALSE;
   }
 
@@ -589,17 +586,13 @@ nsXMLContentSink::CloseElement(nsIContent* aContent)
   if ((nodeInfo->NamespaceID() == kNameSpaceID_XHTML &&
        (nodeInfo->NameAtom() == nsGkAtoms::select ||
         nodeInfo->NameAtom() == nsGkAtoms::textarea ||
-#ifdef MOZ_MEDIA
-        nodeInfo->NameAtom() == nsGkAtoms::video ||
-        nodeInfo->NameAtom() == nsGkAtoms::audio ||
-#endif
         nodeInfo->NameAtom() == nsGkAtoms::object ||
         nodeInfo->NameAtom() == nsGkAtoms::applet))
 #ifdef MOZ_XTF
       || nodeInfo->NamespaceID() > kNameSpaceID_LastBuiltin
 #endif
       ) {
-    aContent->DoneAddingChildren(HaveNotifiedForCurrentContent());
+    aContent->DoneAddingChildren(PR_FALSE);
   }
   
   if (IsMonolithicContainer(nodeInfo)) {
@@ -711,30 +704,23 @@ nsXMLContentSink::AddContentAsLeaf(nsIContent *aContent)
 nsresult
 nsXMLContentSink::LoadXSLStyleSheet(nsIURI* aUrl)
 {
-  nsCOMPtr<nsIDocumentTransformer> processor =
+  mXSLTProcessor =
     do_CreateInstance("@mozilla.org/document-transformer;1?type=xslt");
-  if (!processor) {
+  if (!mXSLTProcessor) {
     // No XSLT processor available, continue normal document loading
     return NS_OK;
   }
 
-  processor->Init(mDocument->NodePrincipal());
-  processor->SetTransformObserver(this);
+  mXSLTProcessor->Init(mDocument->NodePrincipal());
+  mXSLTProcessor->SetTransformObserver(this);
 
   nsCOMPtr<nsILoadGroup> loadGroup = mDocument->GetDocumentLoadGroup();
   if (!loadGroup) {
+    mXSLTProcessor = nsnull;
     return NS_ERROR_FAILURE;
   }
 
-  if (NS_SUCCEEDED(processor->LoadStyleSheet(aUrl, loadGroup))) {
-    mXSLTProcessor.swap(processor);
-  }
-
-  // Intentionally ignore errors here, we should continue loading the
-  // XML document whether we're able to load the XSLT stylesheet or
-  // not.
-
-  return NS_OK;
+  return mXSLTProcessor->LoadStyleSheet(aUrl, loadGroup);
 }
 
 nsresult
@@ -914,18 +900,6 @@ nsXMLContentSink::PopContent()
   }
 
   mContentStack.RemoveElementAt(count - 1);
-}
-
-PRBool
-nsXMLContentSink::HaveNotifiedForCurrentContent() const
-{
-  PRUint32 stackLength = mContentStack.Length();
-  if (stackLength) {
-    const StackNode& stackNode = mContentStack[stackLength - 1];
-    nsIContent* parent = stackNode.mContent;
-    return stackNode.mNumFlushed == parent->GetChildCount();
-  }
-  return PR_TRUE;
 }
 
 void
@@ -1160,8 +1134,7 @@ nsXMLContentSink::HandleEndElement(const PRUnichar *aName,
   DidAddContent();
 
 #ifdef MOZ_SVG
-  if (mDocument &&
-      content->GetNameSpaceID() == kNameSpaceID_SVG &&
+  if (content->GetNameSpaceID() == kNameSpaceID_SVG &&
       content->HasAttr(kNameSpaceID_None, nsGkAtoms::onload)) {
     FlushTags();
 
@@ -1393,33 +1366,6 @@ nsXMLContentSink::ParsePIData(const nsString &aData, nsString &aHref,
   nsParserUtils::GetQuotedAttributeValue(aData, nsGkAtoms::alternate, alternate);
 
   aIsAlternate = alternate.EqualsLiteral("yes");
-}
-
-/*
- * Extends nsContentSink::ProcessMETATag to grab the 'viewport' meta tag. This
- * information is ignored by the generic content sink because it only stores
- * http-equiv meta tags. We need it in the XMLContentSink for XHTML documents.
- *
- * Initially implemented for bug #436083
- */
-nsresult
-nsXMLContentSink::ProcessMETATag(nsIContent *aContent) {
-
-  /* Call the superclass method. */
-  nsContentSink::ProcessMETATag(aContent);
-
-  nsresult rv = NS_OK;
-
-  /* Look for the viewport meta tag. If we find it, process it and put the
-   * data into the document header. */
-  if (aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name,
-                            nsGkAtoms::viewport, eIgnoreCase)) {
-    nsAutoString value;
-    aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::content, value);
-    rv = nsContentUtils::ProcessViewportInfo(mDocument, value);
-  }
-
-  return rv;
 }
 
 NS_IMETHODIMP

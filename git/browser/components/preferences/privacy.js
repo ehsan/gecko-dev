@@ -96,8 +96,7 @@ var gPrivacyPane = {
     var checkbox = document.getElementById("rememberHistoryDays");
 
     // handle mirror non-existence or mirror/pref unsync
-    if (mirror.value === null || mirror.value != pref.value || 
-        (mirror.value == pref.value && mirror.value == 0) )
+    if (mirror.value === null || mirror.value != pref.value)
       mirror.value = pref.value ? pref.value : pref.defaultValue;
 
     checkbox.checked = (pref.value > 0);

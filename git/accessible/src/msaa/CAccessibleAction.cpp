@@ -120,7 +120,7 @@ __try {
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
-  if (description.IsEmpty())
+  if (description.IsVoid())
     return S_FALSE;
 
   *aDescription = ::SysAllocStringLen(description.get(),

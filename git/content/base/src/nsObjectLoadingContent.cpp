@@ -670,12 +670,6 @@ nsObjectLoadingContent::GetFrameLoader(nsIFrameLoader** aFrameLoader)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsObjectLoadingContent::SwapFrameLoaders(nsIFrameLoaderOwner* aOtherLoader)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
 // nsIObjectLoadingContent
 NS_IMETHODIMP
 nsObjectLoadingContent::GetActualType(nsACString& aType)
@@ -768,26 +762,14 @@ nsObjectLoadingContent::HasNewFrame(nsIObjectFrame* aFrame)
 {
   LOG(("OBJLC [%p]: Got frame %p (mInstantiating=%i)\n", this, aFrame,
        mInstantiating));
-
-  // "revoke" any existing instantiate event as it likely has out of
-  // date data (frame pointer etc).
-  mPendingInstantiateEvent = nsnull;
-
-  nsCOMPtr<nsIPluginInstance> instance;
-  aFrame->GetPluginInstance(*getter_AddRefs(instance));
-
-  if (instance) {
-    // The frame already has a plugin instance, that means the plugin
-    // has already been instantiated.
-
-    return NS_OK;
-  }
-
-  if (!mInstantiating && mType == eType_Plugin) {
+  if (!mInstantiating && aFrame && mType == eType_Plugin) {
     // Asynchronously call Instantiate
     // This can go away once plugin loading moves to content
     // This must be done asynchronously to ensure that the frame is correctly
     // initialized (has a view etc)
+
+    // "revoke" any existing instantiate event.
+    mPendingInstantiateEvent = nsnull;
 
     // When in a plugin document, the document will take care of calling
     // instantiate
@@ -1093,8 +1075,11 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
 
   nsCAutoString overrideType;
   if ((caps & eOverrideServerType) &&
-      ((!aTypeHint.IsEmpty() && IsSupportedPlugin(aTypeHint)) ||
+      (!aTypeHint.IsEmpty() ||
        (aURI && IsPluginEnabledByExtension(aURI, overrideType)))) {
+    NS_ASSERTION(aTypeHint.IsEmpty() ^ overrideType.IsEmpty(),
+                 "Exactly one of aTypeHint and overrideType should be empty!");
+
     ObjectType newType;
     if (overrideType.IsEmpty()) {
       newType = GetTypeOfContent(aTypeHint);
@@ -1220,8 +1205,8 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
     rv = NS_ERROR_NOT_AVAILABLE;
 
     // We should only notify the UI if there is at least a type to go on for
-    // finding a plugin to use, unless it's a supported image or document type.
-    if (!aTypeHint.IsEmpty() && GetTypeOfContent(aTypeHint) == eType_Null) {
+    // finding a plugin to use.
+    if (!aTypeHint.IsEmpty()) {
       UpdateFallbackState(thisContent, fallback, aTypeHint);
     }
 
@@ -1668,26 +1653,12 @@ nsObjectLoadingContent::TryInstantiate(const nsACString& aMIMEType,
     LOG(("OBJLC [%p]: No frame yet\n", this));
     return NS_OK; // Not a failure to have no frame
   }
-
-  nsCOMPtr<nsIPluginInstance> instance;
-  nsresult rv = frame->GetPluginInstance(*getter_AddRefs(instance));
-
-  if (!instance) {
-    // The frame has no plugin instance yet. If the frame hasn't been
-    // reflown yet, do nothing as once the reflow happens we'll end up
-    // instantiating the plugin with the correct size n' all (which
-    // isn't known until we've done the first reflow). But if the
-    // frame does have a plugin instance already, be sure to
-    // re-instantiate the plugin as its source or whatnot might have
-    // chanced since it was instantiated.
-    nsIFrame* iframe;
-    CallQueryInterface(frame, &iframe);
-    if (iframe->GetStateBits() & NS_FRAME_FIRST_REFLOW) {
-      LOG(("OBJLC [%p]: Frame hasn't been reflown yet\n", this));
-      return NS_OK; // Not a failure to have no frame
-    }
+  nsIFrame* iframe;
+  CallQueryInterface(frame, &iframe);
+  if (iframe->GetStateBits() & NS_FRAME_FIRST_REFLOW) {
+    LOG(("OBJLC [%p]: Frame hasn't been reflown yet\n", this));
+    return NS_OK; // Not a failure to have no frame
   }
-
   return Instantiate(frame, aMIMEType, aURI);
 }
 
@@ -1697,15 +1668,6 @@ nsObjectLoadingContent::Instantiate(nsIObjectFrame* aFrame,
                                     nsIURI* aURI)
 {
   NS_ASSERTION(aFrame, "Must have a frame here");
-
-  // We're instantiating now, invalidate any pending async instantiate
-  // calls.
-  mPendingInstantiateEvent = nsnull;
-
-  // Mark that we're instantiating now so that we don't end up
-  // re-entering instantiation code.
-  PRBool oldInstantiatingValue = mInstantiating;
-  mInstantiating = PR_TRUE;
 
   nsCString typeToUse(aMIMEType);
   if (typeToUse.IsEmpty() && aURI) {
@@ -1728,11 +1690,7 @@ nsObjectLoadingContent::Instantiate(nsIObjectFrame* aFrame,
   NS_ASSERTION(aURI || !typeToUse.IsEmpty(), "Need a URI or a type");
   LOG(("OBJLC [%p]: Calling [%p]->Instantiate(<%s>, %p)\n", this, aFrame,
        typeToUse.get(), aURI));
-  nsresult rv = aFrame->Instantiate(typeToUse.get(), aURI);
-
-  mInstantiating = oldInstantiatingValue;
-
-  return rv;
+  return aFrame->Instantiate(typeToUse.get(), aURI);
 }
 
 nsresult

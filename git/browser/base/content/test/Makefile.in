@@ -49,8 +49,7 @@ _TEST_FILES =	test_feed_discovery.html \
 		bug395533-data.txt \
 		$(NULL)
 
-# browser_bug423833.js disabled temporarily since it's unreliable: bug 428712
-# browser_sanitize-download-history.js disabled temporarily since it's unreliable: bug 432425
+# browser_bug423833.js disabled temporarily since it's unreliable
 _BROWSER_FILES = browser_bug321000.js \
                  browser_bug405137.js \
                  browser_bug409481.js \
@@ -59,15 +58,7 @@ _BROWSER_FILES = browser_bug321000.js \
                  autodiscovery.html \
                  moz.png \
                  browser_getshortcutoruri.js \
-                 browser_page_style_menu.js \
-                 page_style_sample.html \
-                 browser_ctrlTab.js \
     $(NULL)
-
-ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
-_BROWSER_FILES += browser_customize.js \
-    $(NULL)
-endif
 
 # disable tests on linux for now..
 ifneq ($(OS_ARCH),Linux)

@@ -210,8 +210,6 @@ public:
   NS_IMETHOD IsEnabled(PRInt32 aTag, PRBool* aReturn);
   NS_IMETHOD_(PRBool) IsFormOnStack();
 
-  virtual nsresult ProcessMETATag(nsIContent* aContent);
-
 #ifdef DEBUG
   // nsIDebugDumpContent
   NS_IMETHOD DumpContentModel();
@@ -570,8 +568,7 @@ HTMLContentSink::CreateContentObject(const nsIParserNode& aNode,
 }
 
 nsresult
-NS_NewHTMLElement(nsIContent** aResult, nsINodeInfo *aNodeInfo,
-                  PRBool aFromParser)
+NS_NewHTMLElement(nsIContent** aResult, nsINodeInfo *aNodeInfo)
 {
   *aResult = nsnull;
 
@@ -593,7 +590,7 @@ NS_NewHTMLElement(nsIContent** aResult, nsINodeInfo *aNodeInfo,
   
   *aResult = CreateHTMLElement(parserService->
                                  HTMLCaseSensitiveAtomTagToId(name),
-                               aNodeInfo, aFromParser).get();
+                               aNodeInfo, PR_FALSE).get();
   return *aResult ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
@@ -1002,10 +999,6 @@ SinkContext::CloseContainer(const nsHTMLTag aTag, PRBool aMalformed)
 
     break;
 
-#ifdef MOZ_MEDIA
-  case eHTMLTag_video:
-  case eHTMLTag_audio:
-#endif
   case eHTMLTag_select:
   case eHTMLTag_textarea:
   case eHTMLTag_object:
@@ -2702,13 +2695,10 @@ HTMLContentSink::AddDocTypeDecl(const nsIParserNode& aNode)
       return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    // Indicate that there is no internal subset (not just an empty one)
-    nsAutoString voidString;
-    voidString.SetIsVoid(PR_TRUE);
     rv = NS_NewDOMDocumentType(getter_AddRefs(docType),
                                mDocument->NodeInfoManager(), nsnull,
                                nameAtom, nsnull, nsnull, publicId, systemId,
-                               voidString);
+                               EmptyString());
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (oldDocType) {
@@ -2945,7 +2935,7 @@ HTMLContentSink::ProcessLINKTag(const nsIParserNode& aNode)
     mNodeInfoManager->GetNodeInfo(nsGkAtoms::link, nsnull, kNameSpaceID_None,
                                   getter_AddRefs(nodeInfo));
 
-    result = NS_NewHTMLElement(getter_AddRefs(element), nodeInfo, PR_FALSE);
+    result = NS_NewHTMLElement(getter_AddRefs(element), nodeInfo);
     NS_ENSURE_SUCCESS(result, result);
 
     nsCOMPtr<nsIStyleSheetLinkingElement> ssle(do_QueryInterface(element));
@@ -2999,33 +2989,6 @@ HTMLContentSink::ProcessLINKTag(const nsIParserNode& aNode)
   }
 
   return result;
-}
-
-/* 
- * Extends nsContentSink::ProcessMETATag to grab the 'viewport' meta tag. This
- * information is ignored by the generic content sink because it only stores
- * http-equiv meta tags.
- *
- * Initially implemented for bug #436083
- */
-nsresult
-HTMLContentSink::ProcessMETATag(nsIContent *aContent) {
-
-  /* Call the superclass method. */
-  nsContentSink::ProcessMETATag(aContent);
-
-  nsresult rv = NS_OK;
-
-  /* Look for the viewport meta tag. If we find it, process it and put the
-   * data into the document header. */
-  if (aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name,
-                            nsGkAtoms::viewport, eIgnoreCase)) {
-    nsAutoString value;
-    aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::content, value);
-    rv = nsContentUtils::ProcessViewportInfo(mDocument, value);
-  }
-
-  return rv;
 }
 
 #ifdef DEBUG

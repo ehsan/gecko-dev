@@ -1,5 +1,5 @@
 af
-ar
+ar linux win32
 be
 ca
 cs
@@ -16,7 +16,7 @@ fr
 fy-NL
 ga-IE
 gu-IN linux win32
-he
+he linux win32
 hu
 id
 it
@@ -37,9 +37,7 @@ pt-BR
 pt-PT
 ro
 ru
-si
 sk
-sl
 sq
 sr
 sv-SE

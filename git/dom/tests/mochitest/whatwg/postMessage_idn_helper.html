@@ -13,23 +13,21 @@
         response += " wrong-sender-origin(" + evt.origin + ")";
       if (evt.data !== "idn-message")
         response += " wrong-data(" + evt.data + ")";
-      if (evt.lastEventId !== "")
-        response += " wrong-lastEventId(" + evt.lastEventId + ")";
       if (evt.source !== window.parent)
         response += " wrong-source";
-      if (evt.target !== window)
+      if (evt.target !== document)
         response += " wrong-target";
       if (evt.type !== "message")
         response += " wrong-type(" + evt.type + ")";
 
-      evt.source.postMessage(response, evt.origin);
+      evt.source.postMessage(response);
     }
-    window.addEventListener("message", receiveMessage, false);
+    document.addEventListener("message", receiveMessage, false);
 
     function setup()
     {
       var target = document.getElementById("location");
-      target.textContent = location.hostname + ":" + (location.port || 80);
+      target.textContent = document.domain;
     }
 
     window.addEventListener("load", setup, false);

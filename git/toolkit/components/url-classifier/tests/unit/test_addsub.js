@@ -335,28 +335,6 @@ function testExpireLists() {
   doTest([addUpdate, subUpdate, expireUpdate], assertions);
 }
 
-// Test a duplicate add chunk.
-function testDuplicateAddChunks() {
-  var addUrls1 = [ "foo.com/a" ];
-  var addUrls2 = [ "bar.com/b" ];
-  var update = buildPhishingUpdate(
-        [
-          { "chunkNum" : 1,
-            "urls" : addUrls1
-          },
-          { "chunkNum" : 1,
-            "urls" : addUrls2
-          }]);
-
-  var assertions = {
-    "tableData" : "test-phish-simple;a:1",
-    "urlsExist" : addUrls1,
-    "urlsDontExist" : addUrls2
-  };
-
-  doTest([update], assertions);
-}
-
 function run_test()
 {
   runTests([
@@ -372,7 +350,6 @@ function run_test()
     testSubPartiallyMatches2,
     testSubsDifferentChunks,
     testExpireLists,
-    testDuplicateAddChunks
   ]);
 }
 

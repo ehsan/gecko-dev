@@ -293,16 +293,6 @@ nsIWidget* nsBaseWidget::GetParent(void)
 
 //-------------------------------------------------------------------------
 //
-// Get this nsBaseWidget's top (non-sheet) parent (if it's a sheet)
-//
-//-------------------------------------------------------------------------
-nsIWidget* nsBaseWidget::GetSheetWindowParent(void)
-{
-  return nsnull;
-}
-
-//-------------------------------------------------------------------------
-//
 // Add a child to the list of children
 //
 //-------------------------------------------------------------------------
@@ -544,11 +534,13 @@ NS_IMETHODIMP nsBaseWidget::SetWindowType(nsWindowType aWindowType)
 //
 //-------------------------------------------------------------------------
 
-void nsBaseWidget::SetTransparencyMode(nsTransparencyMode aMode) {
+NS_IMETHODIMP nsBaseWidget::SetHasTransparentBackground(PRBool aTransparent) {
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-nsTransparencyMode nsBaseWidget::GetTransparencyMode() {
-  return eTransparencyOpaque;
+NS_IMETHODIMP nsBaseWidget::GetHasTransparentBackground(PRBool& aTransparent) {
+  aTransparent = PR_FALSE;
+  return NS_OK;
 }
 
 //-------------------------------------------------------------------------
@@ -855,15 +847,9 @@ nsBaseWidget::EndSecureKeyboardInput()
 }
 
 NS_IMETHODIMP
-nsBaseWidget::SetWindowTitlebarColor(nscolor aColor, PRBool aActive)
+nsBaseWidget::SetWindowTitlebarColor(nscolor aColor)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-PRBool
-nsBaseWidget::ShowsResizeIndicator(nsIntRect* aResizerRect)
-{
-  return PR_FALSE;
 }
 
 

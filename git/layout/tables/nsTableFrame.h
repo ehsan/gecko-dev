@@ -79,7 +79,8 @@ public:
   nsDisplayTableItem(nsIFrame* aFrame) : nsDisplayItem(aFrame),
       mPartHasFixedBackground(PR_FALSE) {}
 
-  virtual PRBool IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* aBuilder);
+  virtual PRBool IsVaryingRelativeToFrame(nsDisplayListBuilder* aBuilder,
+                                          nsIFrame* aAncestorFrame);
   // With collapsed borders, parts of the collapsed border can extend outside
   // the table part frames, so allow this display element to blow out to our
   // overflow rect. This is also useful for row frames that have spanning
@@ -371,12 +372,6 @@ public:
   NS_IMETHOD GetParentStyleContextFrame(nsPresContext* aPresContext,
                                         nsIFrame**      aProviderFrame,
                                         PRBool*         aIsChild);
-
-  virtual PRBool IsFrameOfType(PRUint32 aFlags) const
-  {
-    return nsHTMLContainerFrame::IsFrameOfType(aFlags &
-      ~nsIFrame::eExcludesIgnorableWhitespace);
-  }
 
   /**
    * Get the "type" of the frame

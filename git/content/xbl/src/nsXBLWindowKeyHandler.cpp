@@ -220,13 +220,11 @@ BuildHandlerChain(nsIContent* aContent, nsXBLPrototypeHandler** aResult)
       // Check whether the key element has empty value at key/char attribute.
       // Such element is used by localizers for alternative shortcut key
       // definition on the locale. See bug 426501.
-      nsAutoString valKey, valCharCode, valKeyCode;
+      nsAutoString valKey, valChar;
       PRBool attrExists =
-        key->GetAttr(kNameSpaceID_None, nsGkAtoms::key, valKey) ||
-        key->GetAttr(kNameSpaceID_None, nsGkAtoms::charcode, valCharCode) ||
-        key->GetAttr(kNameSpaceID_None, nsGkAtoms::keycode, valKeyCode);
-      if (attrExists &&
-          valKey.IsEmpty() && valCharCode.IsEmpty() && valKeyCode.IsEmpty())
+               key->GetAttr(kNameSpaceID_None, nsGkAtoms::key, valKey) ||
+               key->GetAttr(kNameSpaceID_None, nsGkAtoms::charcode, valChar);
+      if (attrExists && valKey.IsEmpty() && valChar.IsEmpty())
         continue;
 
       nsXBLPrototypeHandler* handler = new nsXBLPrototypeHandler(key);
@@ -354,13 +352,6 @@ nsXBLWindowKeyHandler::WalkHandlers(nsIDOMEvent* aKeyEvent, nsIAtom* aEventType)
       if (prevent)
         return NS_OK; // Handled by the user bindings. Our work here is done.
     }
-  }
-
-  nsCOMPtr<nsIContent> content = do_QueryInterface(el);
-  // skip keysets that are disabled
-  if (content && content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::disabled,
-                                      nsGkAtoms::_true, eCaseMatters)) {
-    return NS_OK;
   }
 
   WalkHandlersInternal(aKeyEvent, aEventType, mHandler);

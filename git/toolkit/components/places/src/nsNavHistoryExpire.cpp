@@ -245,8 +245,6 @@ nsNavHistoryExpire::ClearHistory()
   mozIStorageConnection* connection = mHistory->GetStorageConnection();
   NS_ENSURE_TRUE(connection, NS_ERROR_OUT_OF_MEMORY);
 
-  mozStorageTransaction transaction(connection, PR_FALSE);
-
   // reset frecency for all items that will _not_ be deleted
   // Note, we set frecency to -visit_count since we use that value in our
   // idle query to figure out which places to recalcuate frecency first.
@@ -291,9 +289,6 @@ nsNavHistoryExpire::ClearHistory()
   rv = mHistory->FixInvalidFrecenciesForExcludedPlaces();
   if (NS_FAILED(rv))
     NS_WARNING("failed to fix invalid frecencies");
-
-  rv = transaction.Commit();
-  NS_ENSURE_SUCCESS(rv, rv);
 
   // XXX todo
   // forcibly call the "on idle" timer here to do a little work
@@ -976,7 +971,7 @@ nsNavHistoryExpire::ExpireAnnotationsParanoid(mozIStorageConnection* aConnection
 
 // nsNavHistoryExpire::ExpireInputHistoryParanoid
 //
-//    Deletes dangling input history, decay potentially unused entries
+//    Deletes dangling input history
 
 nsresult
 nsNavHistoryExpire::ExpireInputHistoryParanoid(mozIStorageConnection* aConnection)
@@ -987,13 +982,6 @@ nsNavHistoryExpire::ExpireInputHistoryParanoid(mozIStorageConnection* aConnectio
     "(SELECT i.place_id FROM moz_inputhistory i "
       "LEFT OUTER JOIN moz_places h ON i.place_id = h.id "
       "WHERE h.id IS NULL)"));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Decay potentially unused entries (e.g. those that are at 1) to allow
-  // better chances for new entries that will start at 1
-  rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-    "UPDATE moz_inputhistory "
-    "SET use_count = use_count * .9"));
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;

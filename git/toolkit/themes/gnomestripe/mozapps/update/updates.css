@@ -6,7 +6,7 @@
 }
 
 link {
-  color: -moz-nativehyperlinktext;
+  color: blue;
   border: 1px solid transparent;
   margin-top: 1px;
   margin-bottom: 4px;
@@ -48,10 +48,10 @@ license {
   margin-top: 3px;
 }
 .licenseLoadingThrobber[state="loading"] {
-  list-style-image: url("chrome://global/skin/icons/loading_16.png");
+  list-style-image: url("chrome://global/skin/throbber/Throbber-small.gif");
 }
 .licenseLoadingThrobber[state="error"] {
-  list-style-image: url("moz-icon://stock/gtk-dialog-error?size=menu");
+  list-style-image: url("chrome://global/skin/icons/notfound.png");
 }
 
 /**
@@ -80,7 +80,7 @@ wizard[currentpageid="updatesfound"] .wizard-button[dlgtype="next"] > .button-bo
 }
 
 #alertImage {
-  list-style-image: url("moz-icon://stock/gtk-dialog-warning?size=dnd");
+  list-style-image: url("chrome://global/skin/icons/Warning.png");
   margin-right: 5px;
 }
 
@@ -105,17 +105,17 @@ wizard[currentpageid="updatesfound"] .wizard-button[dlgtype="next"] > .button-bo
 }
 #downloadThrobber {
   margin: 5px 3px 0px 5px;
-  list-style-image: url("chrome://global/skin/icons/notloading_16.png");
+  list-style-image: url("chrome://global/skin/throbber/Throbber-small.png");
 }
 #downloadThrobber[state="loading"] {
-  list-style-image: url("chrome://global/skin/icons/loading_16.png");
+  list-style-image: url("chrome://global/skin/throbber/Throbber-small.gif");
 }
 #downloadStatusLine {
   -moz-box-align: start;
 }
 
 #verificationFailedIcon {
-  list-style-image: url("moz-icon://stock/gtk-dialog-warning?size=menu");
+  list-style-image: url("chrome://global/skin/icons/notfound.png");
   margin: 5px 3px 0px 5px;
 }
 

@@ -252,8 +252,7 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
     case eColor_windowtext:
       aColor = NS_RGB(0x00, 0x00, 0x00);
       break;
-    case eColor__moz_eventreerow:
-    case eColor__moz_oddtreerow:
+    // CSS3 candidates
     case eColor__moz_field: 
       // normal widget background
       aColor = NS_RGB(0xff, 0xff, 0xff);
@@ -421,7 +420,6 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     case eMetric_TreeScrollLinesMax:
       aMetric = 3;
       break;
-    case eMetric_DWMCompositor:
     case eMetric_WindowsDefaultTheme:
       aMetric = 0;
       res = NS_ERROR_NOT_IMPLEMENTED;

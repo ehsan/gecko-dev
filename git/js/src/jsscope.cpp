@@ -490,7 +490,7 @@ typedef struct FreeNode {
             FREENODE(FREENODE(sprop)->next)->prevp = FREENODE(sprop)->prevp;  \
     JS_END_MACRO
 
-/* NB: Called with rt->gcLock held. */
+/* NB: Called with the runtime lock held. */
 static JSScopeProperty *
 NewScopeProperty(JSRuntime *rt)
 {
@@ -551,7 +551,7 @@ DestroyPropTreeKidsChunk(JSRuntime *rt, PropTreeKidsChunk *chunk)
     free(chunk);
 }
 
-/* NB: Called with rt->gcLock held. */
+/* NB: Called with the runtime lock held. */
 static JSBool
 InsertPropertyTreeChild(JSRuntime *rt, JSScopeProperty *parent,
                         JSScopeProperty *child, PropTreeKidsChunk *sweptChunk)
@@ -686,7 +686,7 @@ InsertPropertyTreeChild(JSRuntime *rt, JSScopeProperty *parent,
     return JS_TRUE;
 }
 
-/* NB: Called with rt->gcLock held. */
+/* NB: Called with the runtime lock held. */
 static PropTreeKidsChunk *
 RemovePropertyTreeChild(JSRuntime *rt, JSScopeProperty *child)
 {
@@ -792,12 +792,9 @@ HashChunks(PropTreeKidsChunk *chunk, uintN n)
 }
 
 /*
- * Called without cx->runtime->gcLock held. This function acquires that lock
- * only when inserting a new child.  Thus there may be races to find or add a
- * node that result in duplicates.  We expect such races to be rare!
- *
- * We use rt->gcLock, not rt->rtLock, to allow the GC potentially to nest here
- * under js_GenerateShape.
+ * Called *without* the runtime lock held, this function acquires that lock
+ * only when inserting a new child.  Thus there may be races to find or add
+ * a node that result in duplicates.  We expect such races to be rare!
  */
 static JSScopeProperty *
 GetPropertyTreeChild(JSContext *cx, JSScopeProperty *parent,
@@ -812,7 +809,7 @@ GetPropertyTreeChild(JSContext *cx, JSScopeProperty *parent,
 
     rt = cx->runtime;
     if (!parent) {
-        JS_LOCK_GC(rt);
+        JS_LOCK_RUNTIME(rt);
 
         table = &rt->propertyTreeHash;
         entry = (JSPropertyTreeEntry *)
@@ -826,11 +823,11 @@ GetPropertyTreeChild(JSContext *cx, JSScopeProperty *parent,
     } else {
         /*
          * Because chunks are appended at the end and never deleted except by
-         * the GC, we can search without taking the runtime's GC lock.  We may
-         * miss a matching sprop added by another thread, and make a duplicate
-         * one, but that is an unlikely, therefore small, cost.  The property
-         * tree has extremely low fan-out below its root in popular embeddings
-         * with real-world workloads.
+         * the GC, we can search without taking the runtime lock.  We may miss
+         * a matching sprop added by another thread, and make a duplicate one,
+         * but that is an unlikely, therefore small, cost.  The property tree
+         * has extremely low fan-out below its root in popular embeddings with
+         * real-world workloads.
          *
          * Patterns such as defining closures that capture a constructor's
          * environment as getters or setters on the new object that is passed
@@ -845,12 +842,12 @@ GetPropertyTreeChild(JSContext *cx, JSScopeProperty *parent,
 
                 table = chunk->table;
                 if (table) {
-                    JS_LOCK_GC(rt);
+                    JS_LOCK_RUNTIME(rt);
                     entry = (JSPropertyTreeEntry *)
                             JS_DHashTableOperate(table, child, JS_DHASH_LOOKUP);
                     sprop = entry->child;
                     if (sprop) {
-                        JS_UNLOCK_GC(rt);
+                        JS_UNLOCK_RUNTIME(rt);
                         return sprop;
                     }
                     goto locked_not_found;
@@ -866,7 +863,7 @@ GetPropertyTreeChild(JSContext *cx, JSScopeProperty *parent,
                                 chunk = KIDS_TO_CHUNK(parent->kids);
                                 if (!chunk->table) {
                                     table = HashChunks(chunk, n);
-                                    JS_LOCK_GC(rt);
+                                    JS_LOCK_RUNTIME(rt);
                                     if (!table)
                                         goto out_of_memory;
                                     if (chunk->table)
@@ -891,7 +888,7 @@ GetPropertyTreeChild(JSContext *cx, JSScopeProperty *parent,
         }
 
     not_found:
-        JS_LOCK_GC(rt);
+        JS_LOCK_RUNTIME(rt);
     }
 
 locked_not_found:
@@ -907,7 +904,7 @@ locked_not_found:
     sprop->flags = child->flags;
     sprop->shortid = child->shortid;
     sprop->parent = sprop->kids = NULL;
-    sprop->shape = js_GenerateShape(cx, JS_TRUE);
+    sprop->shape = js_GenerateShape(cx);
 
     if (!parent) {
         entry->child = sprop;
@@ -917,11 +914,11 @@ locked_not_found:
     }
 
 out:
-    JS_UNLOCK_GC(rt);
+    JS_UNLOCK_RUNTIME(rt);
     return sprop;
 
 out_of_memory:
-    JS_UNLOCK_GC(rt);
+    JS_UNLOCK_RUNTIME(rt);
     JS_ReportOutOfMemory(cx);
     return NULL;
 }

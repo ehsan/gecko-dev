@@ -73,9 +73,6 @@
 
 #include "nsIXPConnect.h"
 
-#include "nsIObserverService.h"
-#include <prinrval.h>
-
 #if defined(XP_MACOSX)
 #include <Resources.h>
 #endif
@@ -181,11 +178,17 @@ PR_BEGIN_EXTERN_C
   static void* NP_CALLBACK
   _memalloc (uint32 size);
 
-  // Deprecated entry points for the old Java plugin.
-  static void* NP_CALLBACK /* OJI type: JRIEnv* */
+#ifdef OJI
+  static JRIEnv* NP_CALLBACK
   _getJavaEnv(void);
-  static void* NP_CALLBACK /* OJI type: jref */
+
+#if 1
+
+  static jref NP_CALLBACK
   _getJavaPeer(NPP npp);
+
+#endif
+#endif /* OJI */
 
 PR_END_EXTERN_C
 
@@ -235,23 +238,6 @@ _FP2TV(void *fp)
 #define FP2TV(f) (f)
 
 #endif /* XP_MACOSX && __POWERPC__ */
-
-// This function sends a notification using the observer service to any object
-// registered to listen to the "experimental-notify-plugin-call" subject.
-// Each "experimental-notify-plugin-call" notification carries with it the run
-// time value in milliseconds that the call took to execute.
-void NS_NotifyPluginCall(PRIntervalTime startTime) 
-{
-  PRIntervalTime endTime = PR_IntervalNow() - startTime;
-  nsCOMPtr<nsIObserverService> notifyUIService =
-    do_GetService("@mozilla.org/observer-service;1");
-  float runTimeInSeconds = float(endTime) / PR_TicksPerSecond();
-  nsAutoString runTimeString;
-  runTimeString.AppendFloat(runTimeInSeconds);
-  const PRUnichar* runTime = runTimeString.get();
-  notifyUIService->NotifyObservers(nsnull, "experimental-notify-plugin-call",
-                                   runTime);
-}
 
 ////////////////////////////////////////////////////////////////////////
 // Globals
@@ -306,11 +292,13 @@ ns4xPlugin::CheckClassInitialized(void)
   CALLBACKS.reloadplugins =
     NewNPN_ReloadPluginsProc(FP2TV(_reloadplugins));
 
-  // Deprecated API callbacks.
+#ifdef OJI
   CALLBACKS.getJavaEnv =
     NewNPN_GetJavaEnvProc(FP2TV(_getJavaEnv));
+
   CALLBACKS.getJavaPeer =
     NewNPN_GetJavaPeerProc(FP2TV(_getJavaPeer));
+#endif
 
   CALLBACKS.geturlnotify =
     NewNPN_GetURLNotifyProc(FP2TV(_geturlnotify));
@@ -2027,26 +2015,6 @@ _construct(NPP npp, NPObject* npobj, const NPVariant *args,
   return npobj->_class->construct(npobj, args, argCount, result);
 }
 
-#ifdef MOZ_MEMORY_WINDOWS
-extern "C" size_t malloc_usable_size(const void *ptr);
-
-BOOL
-InHeap(HANDLE hHeap, LPVOID lpMem)
-{
-  BOOL success = FALSE;
-  PROCESS_HEAP_ENTRY he;
-  he.lpData = NULL;
-  while (HeapWalk(hHeap, &he) != 0) {
-    if (he.lpData == lpMem) {
-      success = TRUE;
-      break;
-    }
-  }
-  HeapUnlock(hHeap);
-  return success;
-}
-#endif
-
 void NP_CALLBACK
 _releasevariantvalue(NPVariant* variant)
 {
@@ -2064,28 +2032,9 @@ _releasevariantvalue(NPVariant* variant)
     {
       const NPString *s = &NPVARIANT_TO_STRING(*variant);
 
-      if (s->utf8characters) {
-#ifdef MOZ_MEMORY_WINDOWS
-        if (malloc_usable_size((void *)s->utf8characters) != 0) {
-          PR_Free((void *)s->utf8characters);
-        } else {
-          void *p = (void *)s->utf8characters;
-          DWORD nheaps = 0;
-          nsAutoTArray<HANDLE, 50> heaps;
-          nheaps = GetProcessHeaps(0, heaps.Elements());
-          heaps.AppendElements(nheaps);
-          GetProcessHeaps(nheaps, heaps.Elements());
-          for (DWORD i = 0; i < nheaps; i++) {
-            if (InHeap(heaps[i], p)) {
-              HeapFree(heaps[i], 0, p);
-              break;
-            }
-          }
-        }
-#else
+      if (s->utf8characters)
         PR_Free((void *)s->utf8characters);
-#endif
-      }
+
       break;
     }
   case NPVariantType_Object:
@@ -2188,13 +2137,9 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
 #ifdef MOZ_WIDGET_GTK2
     if (npp) {
       ns4xPluginInstance *inst = (ns4xPluginInstance *) npp->ndata;
-      PRBool windowless = PR_FALSE;
-      inst->GetValue(nsPluginInstanceVariable_WindowlessBool, &windowless);
-      NPBool needXEmbed = PR_FALSE;
-      if (!windowless) {
-        inst->GetValue((nsPluginInstanceVariable)NPPVpluginNeedsXEmbed, &needXEmbed);
-      }
-      if (windowless || needXEmbed) {
+      NPBool rtv = PR_FALSE;
+      inst->GetValue((nsPluginInstanceVariable)NPPVpluginNeedsXEmbed, &rtv);
+      if (rtv) {
         (*(Display **)result) = GDK_DISPLAY();
         return NPERR_NO_ERROR;
       }
@@ -2271,9 +2216,8 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
     if (NS_SUCCEEDED(res)) {
       *(nsIServiceManager**)result = sm;
       return NPERR_NO_ERROR;
-    } else {
+    } else
       return NPERR_GENERIC_ERROR;
-    }
   }
 
   case NPNVDOMElement: {
@@ -2379,8 +2323,7 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
   }
 #endif
 
-  default:
-    return NPERR_GENERIC_ERROR;
+  default : return NPERR_GENERIC_ERROR;
   }
 }
 
@@ -2453,17 +2396,13 @@ _setvalue(NPP npp, NPPVariable variable, void *result)
         }
         return NS_SUCCEEDED(rv) ? NPERR_NO_ERROR : NPERR_GENERIC_ERROR;
       }
+      break;
 
     case NPPVpluginKeepLibraryInMemory: {
       NPBool bCached = (result != nsnull);
       return inst->SetCached(bCached);
     }
-
-    case NPPVpluginWantsAllNetworkStreams: {
-      PRBool bWantsAllNetworkStreams = (result != nsnull);
-      return inst->SetWantsAllNetworkStreams(bWantsAllNetworkStreams);
-    }
-
+      
 #ifdef XP_MACOSX
     case NPPVpluginDrawingModel: {
       if (inst) {
@@ -2522,13 +2461,14 @@ _requestread(NPStream *pstream, NPByteRange *rangeList)
 }
 
 ////////////////////////////////////////////////////////////////////////
-// Deprecated, only stubbed out
-void* NP_CALLBACK /* OJI type: JRIEnv* */
+#ifdef OJI
+JRIEnv* NP_CALLBACK
 _getJavaEnv(void)
 {
   NPN_PLUGIN_LOG(PLUGIN_LOG_NORMAL, ("NPN_GetJavaEnv\n"));
   return NULL;
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////
 const char * NP_CALLBACK
@@ -2564,14 +2504,16 @@ _memalloc (uint32 size)
   return nsMemory::Alloc(size);
 }
 
+#ifdef OJI
 ////////////////////////////////////////////////////////////////////////
-// Deprecated, only stubbed out
-void* NP_CALLBACK /* OJI type: jref */
+jref NP_CALLBACK
 _getJavaPeer(NPP npp)
 {
   NPN_PLUGIN_LOG(PLUGIN_LOG_NORMAL, ("NPN_GetJavaPeer: npp=%p\n", (void*)npp));
   return NULL;
 }
+
+#endif /* OJI */
 
 void NP_CALLBACK
 _pushpopupsenabledstate(NPP npp, NPBool enabled)

@@ -114,14 +114,13 @@ EncodeString(nsIUnicodeEncoder *encoder, const nsAFlatString &str, nsACString &r
         goto end;
     }
     p[maxlen] = 0;
-    result.Assign(p);
+    result = p;
 
-    len = sizeof(buf) - 1;
-    rv = encoder->Finish(buf, &len);
+    rv = encoder->Finish(p, &len);
     if (NS_FAILED(rv))
         goto end;
-    buf[len] = 0;
-    result.Append(buf);
+    p[len] = 0;
+    result += p;
 
 end:
     encoder->Reset();
@@ -713,10 +712,6 @@ nsStandardURL::ParseURL(const char *spec, PRInt32 specLen)
                                      &mHost.mPos, &mHost.mLen,
                                      &mPort);
         if (NS_FAILED(rv)) return rv;
-
-        // Don't allow mPort to be set to this URI's default port
-        if (mPort == mDefaultPort)
-            mPort = -1;
 
         mUsername.mPos += mAuthority.mPos;
         mPassword.mPos += mAuthority.mPos;
@@ -1508,9 +1503,14 @@ nsStandardURL::Equals(nsIURI *unknownOther, PRBool *result)
     NS_ENSURE_ARG_POINTER(unknownOther);
     NS_PRECONDITION(result, "null pointer");
 
-    nsRefPtr<nsStandardURL> other;
+    nsRefPtr<nsStandardURL> otherPtr;
     nsresult rv = unknownOther->QueryInterface(kThisImplCID,
-                                               getter_AddRefs(other));
+                                               getter_AddRefs(otherPtr));
+
+    // Hack around issue with MSVC++ not allowing the nsDerivedSafe to access
+    // the private members and not doing the implicit conversion to a raw
+    // pointer.
+    nsStandardURL* other = otherPtr;
     if (NS_FAILED(rv)) {
         *result = PR_FALSE;
         return NS_OK;
@@ -1568,7 +1568,7 @@ nsStandardURL::Equals(nsIURI *unknownOther, PRBool *result)
         rv = other->EnsureFile();
         if (NS_FAILED(rv)) {
             LOG(("nsStandardURL::Equals [other=%p spec=%s] other failed to ensure file",
-                 other.get(), other->mSpec.get()));
+                other, other->mSpec.get()));
             return rv;
         }
         NS_ASSERTION(other->mFile, "EnsureFile() lied!");
@@ -2163,7 +2163,7 @@ nsStandardURL::SetQuery(const nsACString &input)
     if (shift) {
         mQuery.mLen = queryLen;
         mPath.mLen += shift;
-        ShiftFromRef(shift);
+        ShiftFromRef(queryLen - mQuery.mLen);
     }
     return NS_OK;
 }
@@ -2203,7 +2203,6 @@ nsStandardURL::SetRef(const nsACString &input)
     
     if (mRef.mLen < 0) {
         mSpec.Append('#');
-        ++mPath.mLen;  // Include the # in the path.
         mRef.mPos = mSpec.Length();
         mRef.mLen = 0;
     }

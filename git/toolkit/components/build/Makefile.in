@@ -82,7 +82,6 @@ REQUIRES = 	\
 		feeds \
 		storage \
 		pipnss \
-		places \
 		$(NULL)
 
 ifdef ALERTS_SERVICE
@@ -92,8 +91,6 @@ endif
 EXPORTS = nsToolkitCompsCID.h
 
 CPPSRCS = nsToolkitCompsModule.cpp
-
-include $(topsrcdir)/config/config.mk
 
 LOCAL_INCLUDES = \
 	-I$(srcdir)/../downloads/src \
@@ -123,7 +120,8 @@ REQUIRES += parentalcontrols
 endif
 endif
 
-ifndef SUITE_USING_XPFE_DM
+ifndef MOZ_SUITE
+# XXX Suite isn't ready to build this just yet
 ifdef MOZ_RDF
 SHARED_LIBRARY_LIBS += ../downloads/src/$(LIB_PREFIX)download_s.$(LIB_SUFFIX)
 endif

@@ -47,8 +47,7 @@ LoginManagerStorage_legacy.prototype = {
     classDescription  : "LoginManagerStorage_legacy",
     contractID : "@mozilla.org/login-manager/storage/legacy;1",
     classID : Components.ID("{e09e4ca6-276b-4bb4-8b71-0635a3a2a007}"),
-    QueryInterface : XPCOMUtils.generateQI([Ci.nsILoginManagerStorage,
-                                    Ci.nsILoginManagerIEMigrationHelper]),
+    QueryInterface : XPCOMUtils.generateQI([Ci.nsILoginManagerStorage]),
 
     __logService : null, // Console logging service, used for debugging.
     get _logService() {
@@ -82,14 +81,6 @@ LoginManagerStorage_legacy.prototype = {
             this.__profileDir = dirService.get("ProfD", Ci.nsIFile);
         }
         return this.__profileDir;
-    },
-
-    __nsLoginInfo: null,  // Constructor for nsILoginInfo implementation
-    get _nsLoginInfo() {
-        if (!this.__nsLoginInfo)
-            this.__nsLoginInfo = new Components.Constructor(
-                "@mozilla.org/login-manager/loginInfo;1", Ci.nsILoginInfo);
-        return this.__nsLoginInfo;
     },
 
     _prefBranch : null,  // Preferences service
@@ -205,15 +196,18 @@ LoginManagerStorage_legacy.prototype = {
         // Throws if there are bogus values.
         this._checkLoginValues(login);
 
-        // Clone the input. This ensures changes made by the caller to the
-        // login (after calling addLogin) do no change the login we have.
-        // Also, we rely on using login.wrappedJSObject, but can't rely on the
-        // thing provided by the caller to support that.
-        var clone = new this._nsLoginInfo();
-        clone.init(login.hostname, login.formSubmitURL, login.httpRealm,
-                   login.username,      login.password,
-                   login.usernameField, login.passwordField);
-        login = clone;
+        // We rely on using login.wrappedJSObject. addLogin is the
+        // only entry point where we might get a nsLoginInfo object
+        // that wasn't created by us (and so might not be a JS
+        // implementation being wrapped)
+        if (!login.wrappedJSObject) {
+            var clone = Cc["@mozilla.org/login-manager/loginInfo;1"].
+                        createInstance(Ci.nsILoginInfo);
+            clone.init(login.hostname, login.formSubmitURL, login.httpRealm,
+                       login.username,      login.password,
+                       login.usernameField, login.passwordField);
+            login = clone;
+        }
 
         var key = login.hostname;
 
@@ -320,9 +314,6 @@ LoginManagerStorage_legacy.prototype = {
 
         // decrypt entries for caller.
         [result, userCanceled] = this._decryptLogins(result);
-
-        if (userCanceled)
-            throw "User canceled Master Password entry";
 
         count.value = result.length; // needed for XPCOM
         return result;
@@ -518,14 +509,6 @@ LoginManagerStorage_legacy.prototype = {
         if (badCharacterPresent(aLogin, "\0"))
             throw "login values can't contain nulls";
 
-        // In theory these nulls should just be rolled up into the encrypted
-        // values, but nsISecretDecoderRing doesn't use nsStrings, so the
-        // nulls cause truncation. Check for them here just to avoid
-        // unexpected round-trip surprises.
-        if (aLogin.username.indexOf("\0") != -1 ||
-            aLogin.password.indexOf("\0") != -1)
-            throw "login values can't contain nulls";
-
         // Newlines are invalid for any field stored as plaintext.
         if (badCharacterPresent(aLogin, "\r") ||
             badCharacterPresent(aLogin, "\n"))
@@ -668,12 +651,13 @@ LoginManagerStorage_legacy.prototype = {
 
                 aLogin.hostname = "http://" + host + ":" + port;
 
-                var extraLogin = new this._nsLoginInfo();
+                var extraLogin = Cc["@mozilla.org/login-manager/loginInfo;1"].
+                                 createInstance(Ci.nsILoginInfo);
                 extraLogin.init("https://" + host + ":" + port,
                                 null, aLogin.httpRealm,
-                                aLogin.username, aLogin.password, "", "");
-                // We don't have decrypted values, unless we're importing from IE,
-                // so clone the encrypted bits into the new entry.
+                                null, null, "", "");
+                // We don't have decrypted values, so clone the encrypted
+                // bits into the new entry.
                 extraLogin.wrappedJSObject.encryptedPassword = 
                     aLogin.wrappedJSObject.encryptedPassword;
                 extraLogin.wrappedJSObject.encryptedUsername = 
@@ -829,9 +813,10 @@ LoginManagerStorage_legacy.prototype = {
 
         this.log("Reading passwords from " + this._signonsFile.path);
 
-        // If it doesn't exist, just bail out.
+        // If it doesn't exist, just create an empty file and bail out.
         if (!this._signonsFile.exists()) {
-            this.log("No existing signons file found.");
+            this.log("Creating new signons file...");
+            this._writeFile();
             return;
         }
 
@@ -848,6 +833,8 @@ LoginManagerStorage_legacy.prototype = {
                         FILLER : 8 };
         var parseState = STATE.HEADER;
 
+        var nsLoginInfo = new Components.Constructor(
+                "@mozilla.org/login-manager/loginInfo;1", Ci.nsILoginInfo);
         var processEntry = false;
 
         do {
@@ -917,7 +904,7 @@ LoginManagerStorage_legacy.prototype = {
                         break;
                     }
 
-                    var entry = new this._nsLoginInfo();
+                    var entry = new nsLoginInfo();
                     entry.hostname  = hostname;
                     entry.httpRealm = httpRealm;
 
@@ -1167,58 +1154,57 @@ LoginManagerStorage_legacy.prototype = {
         var result = [], userCanceled = false;
 
         for each (var login in logins) {
-            var decryptedUsername, decryptedPassword;
+            var username, password;
 
-            [decryptedUsername, userCanceled] =
+            [username, userCanceled] =
                 this._decrypt(login.wrappedJSObject.encryptedUsername);
 
             if (userCanceled)
                 break;
 
-            [decryptedPassword, userCanceled] =
+            [password, userCanceled] =
                 this._decrypt(login.wrappedJSObject.encryptedPassword);
 
             // Probably can't hit this case, but for completeness...
             if (userCanceled)
                 break;
 
-            // If decryption failed (corrupt entry?) skip it. Note that we
-            // allow password-only logins, so decryptedUsername can be "".
-            if (decryptedUsername == null || !decryptedPassword)
+            // If decryption failed (corrupt entry?) skip it.
+            // Note that we allow password-only logins, so username con be "".
+            if (username == null || !password)
                 continue;
 
-            // Return copies to the caller. Prevents callers from modifying
-            // our internal stoage, and helps avoid keeping decrypted data in
-            // memory (although this is fuzzy, because of GC issues).
-            var clone = new this._nsLoginInfo();
-            clone.init(login.hostname, login.formSubmitURL, login.httpRealm,
-                       decryptedUsername, decryptedPassword,
-                       login.usernameField, login.passwordField);
+            // We could set the decrypted values on a copy of the object, to
+            // try to prevent the decrypted values from sitting around in
+            // memory if they're not needed. But thanks to GC that's happening
+            // anyway, so meh.
+            login.username = username;
+            login.password = password;
 
-            // Old mime64-obscured entries should be opportunistically
-            // reencrypted in the new format.
-            var recrypted;
+            // Old mime64-obscured entries need to be reencrypted in the new
+            // format.
             if (login.wrappedJSObject.encryptedUsername &&
                 login.wrappedJSObject.encryptedUsername.charAt(0) == '~') {
-                  [recrypted, userCanceled] = this._encrypt(decryptedUsername);
+                  [username, userCanceled] = this._encrypt(login.username);
 
                   if (userCanceled)
                     break;
 
-                  login.wrappedJSObject.encryptedUsername = recrypted;
+                  login.wrappedJSObject.encryptedUsername = username;
             }
 
             if (login.wrappedJSObject.encryptedPassword &&
                 login.wrappedJSObject.encryptedPassword.charAt(0) == '~') {
-                  [recrypted, userCanceled] = this._encrypt(decryptedPassword);
+
+                  [password, userCanceled] = this._encrypt(login.password);
 
                   if (userCanceled)
                     break;
 
-                  login.wrappedJSObject.encryptedPassword = recrypted;
+                  login.wrappedJSObject.encryptedPassword = password;
             }
 
-            result.push(clone);
+            result.push(login);
         }
 
         return [result, userCanceled];
@@ -1307,89 +1293,6 @@ LoginManagerStorage_legacy.prototype = {
         return [plainText, userCanceled];
     },
 
-
-
-
-    /* ================== nsILoginManagerIEMigratorHelper ================== */
-
-
-
-
-    _migrationLoginManager : null,
-
-    /*
-     * migrateAndAddLogin
-     *
-     * Given a login with IE6-formatted fields, migrates it to the new format
-     * and adds it to the login manager.
-     *
-     * Experimentally derived format of IE6 logins, see:
-     *     https://bugzilla.mozilla.org/attachment.cgi?id=319346
-     *
-     * HTTP AUTH:
-     * - hostname is always "example.com:123"
-     *   * "example.com", "http://example.com", "http://example.com:80" all
-     *     end up as just "example.com:80"
-     *   * Entering "example.com:80" in the URL bar isn't recognized as a
-     *     valid URL by IE6.
-     *   * "https://example.com" is saved as "example.com:443"
-     *   * "https://example.com:666" is saved as "example.com:666". Thus, for
-     *     non-standard ports we don't know the right scheme, so create both.
-     *
-     * - an empty or missing "realm" in the WWW-Authenticate reply is stored
-     *   as just an empty string by IE6.
-     *
-     * - IE6 will store logins where one or both (!) of the username/password
-     *   is left blank. We don't support logins without a password, so these
-     *   logins won't be added [addLogin() will throw].
-     *
-     * - IE6 won't recognize a URL with and embedded username/password (eg
-     *   http://user@example.com, http://user:pass@example.com), so these
-     *   shouldn't be encountered.
-     *
-     * - Our migration code doesn't extract non-HTTP logins (eg, FTP). So
-     *   they shouldn't be encountered here. (Verified by saving FTP logins
-     *   in IE and then importing in Firefox.)
-     *
-     *
-     * FORM LOGINS:
-     * - hostname is "http://site.com" or "https://site.com".
-     *   * scheme always included
-     *   * default port not included
-     * - port numbers, even for non-standard posts, are never present!
-     *   unfortunately, this means logins will only work on the default
-     *   port, because we don't know what the original was (or even that
-     *   it wasn't originally stored for the original port).
-     * - Logins are stored without a field name by IE, but we look one up
-     *   in the migrator for the username. The password field name will
-     *   always be empty-string.
-     */
-    migrateAndAddLogin : function (aLogin) {
-        // Initialize outself on the first call
-        if (!this._migrationLoginManager) {
-            // Connect to the correct preferences branch.
-            this._prefBranch = Cc["@mozilla.org/preferences-service;1"].
-                               getService(Ci.nsIPrefService);
-            this._prefBranch = this._prefBranch.getBranch("signon.");
-            this._prefBranch.QueryInterface(Ci.nsIPrefBranch2);
-
-            this._debug = this._prefBranch.getBoolPref("debug");
-
-            this._migrationLoginManager = Cc["@mozilla.org/login-manager;1"].
-                                          getService(Ci.nsILoginManager);
-        }
-
-        this.log("Migrating login for " + aLogin.hostname);
-
-        // The IE login is in the same format as the old password
-        // manager entries, so just reuse that code.
-        var logins = this._upgrade_entry_to_2E(aLogin);
-
-        // Add logins via the login manager (and not this.addLogin),
-        // lest an alternative storage module be in use.
-        for each (var login in logins)
-            this._migrationLoginManager.addLogin(login);
-    }
 }; // end of nsLoginManagerStorage_legacy implementation
 
 var component = [LoginManagerStorage_legacy];

@@ -80,15 +80,15 @@ menuitem.spell-suggestion {
 }
 
 .menu-text {
-  -moz-padding-start: 1.45em !important;
+  -moz-padding-start: 1.28em !important;
   -moz-appearance: menuitemtext;
 }
 
 .menu-text,
 .menu-iconic-text {
   font-weight: inherit;
-  -moz-margin-start: 2px !important;
-  -moz-padding-end: 2px;
+  padding-left: 2px;
+  padding-right: 2px;
 }
 
 .menu-description {
@@ -106,7 +106,7 @@ menuitem.spell-suggestion {
 
 .menu-iconic-left,
 .menu-right {
-  min-width:  1.45em;
+  min-width:  1.28em;
   min-height: 1.21em;
 }
 
@@ -117,14 +117,9 @@ menuitem.spell-suggestion {
 
 menu.menu-iconic > .menu-iconic-left,
 menuitem.menuitem-iconic > .menu-iconic-left {
-  -moz-appearance: menuimage;
-}
-
-menu.menu-iconic > .menu-iconic-left > .menu-iconic-icon,
-menuitem.menuitem-iconic > .menu-iconic-left > .menu-iconic-icon {
-  /* reduce icon-text crowding */
+  /* there's only space for 15px - make room for one more */
   -moz-margin-start: -1px;
-  -moz-margin-end: 1px;
+  -moz-appearance: menuimage;
 }
 
 /* ..... menu arrow box ..... */
@@ -230,14 +225,6 @@ menuitem[type="radio"] {
 }
 menuitem[type="radio"] > .menu-iconic-left {
   -moz-appearance: menuradio;
-}
-
-menuitem[type="checkbox"] > .menu-iconic-left > .menu-iconic-icon,
-menuitem[checked="true"] > .menu-iconic-left > .menu-iconic-icon,
-menuitem[type="radio"] > .menu-iconic-left > .menu-iconic-icon {
-  /* prevent .menu-iconic-icon from enforcing a minimal height of 16px (see bug 411064)
-     XXXzeniko apply that .menu-iconic-icon rule only for children of .menu-iconic */
-  display: none;
 }
 
 /* ::::: menuseparator ::::: */

@@ -285,7 +285,7 @@ nsresult nsIconChannel::MakeInputStream(nsIInputStream** _retval, PRBool nonBloc
   
   PRBool fileExists = PR_FALSE;
  
-  nsCAutoString filePath(fileExt);
+  nsCAutoString filePath;
   if (localFile)
   {
     rv = localFile->Normalize();

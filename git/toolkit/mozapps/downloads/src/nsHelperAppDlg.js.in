@@ -55,7 +55,6 @@
  */
 
 const PREF_BD_USEDOWNLOADDIR = "browser.download.useDownloadDir";
-const nsITimer = Components.interfaces.nsITimer;
 
 /* ctor
  */
@@ -92,9 +91,9 @@ nsUnknownContentTypeDialog.prototype = {
       this.mContext  = aContext;
 
       const nsITimer = Components.interfaces.nsITimer;
-      this._showTimer = Components.classes["@mozilla.org/timer;1"]
-                                  .createInstance(nsITimer);
-      this._showTimer.initWithCallback(this, 0, nsITimer.TYPE_ONE_SHOT);
+      this._timer = Components.classes["@mozilla.org/timer;1"]
+                              .createInstance(nsITimer);
+      this._timer.initWithCallback(this, 0, nsITimer.TYPE_ONE_SHOT);
     },
 
     // When opening from new tab, if tab closes while dialog is opening,
@@ -440,19 +439,14 @@ nsUnknownContentTypeDialog.prototype = {
                                     this.mLauncher.targetFileIsExecutable);
       if (shouldntRememberChoice && !this.openWithDefaultOK()) {
         // hide featured choice 
-        this.dialogElement("normalBox").collapsed = true;
+        this.mDialog.document.getElementById("normalBox").collapsed = "true";
         // show basic choice 
-        this.dialogElement("basicBox").collapsed = false;
-        // change button labels and icons; use "save" icon for the accept
-        // button since it's the only action possible
-        let acceptButton = this.mDialog.document.documentElement
-                               .getButton("accept");
-        acceptButton.label = this.dialogElement("strings")
-                                 .getString("unknownAccept.label");
-        acceptButton.setAttribute("icon", "save");
+        this.mDialog.document.getElementById("basicBox").collapsed = "false";
+        // change button labels
+        this.mDialog.document.documentElement.getButton("accept").label = this.dialogElement("strings").getString("unknownAccept.label");
         this.mDialog.document.documentElement.getButton("cancel").label = this.dialogElement("strings").getString("unknownCancel.label");
         // hide other handler
-        this.dialogElement("openHandler").collapsed = true;
+        this.mDialog.document.getElementById("openHandler").collapsed = "true";
         // set save as the selected option
         this.dialogElement("mode").selectedItem = this.dialogElement("save");
       }
@@ -503,33 +497,27 @@ nsUnknownContentTypeDialog.prototype = {
       this.mDialog.setTimeout("dialog.postShowCallback()", 0);
       
       this.mDialog.document.documentElement.getButton("accept").disabled = true;
-      this._showTimer = Components.classes["@mozilla.org/timer;1"]
-                                  .createInstance(nsITimer);
-      this._showTimer.initWithCallback(this, 250, nsITimer.TYPE_ONE_SHOT);
+      const nsITimer = Components.interfaces.nsITimer;
+      this._timer = Components.classes["@mozilla.org/timer;1"]
+                              .createInstance(nsITimer);
+      this._timer.initWithCallback(this, 250, nsITimer.TYPE_ONE_SHOT);
     },
 
+    _timer: null,
     notify: function (aTimer) {
-      if (aTimer == this._showTimer) {
-        if (!this.mDialog) {
-          this.reallyShow();
-        } else {
-          // The user may have already canceled the dialog.
-          try {
-            if (!this._blurred) {
-              this.mDialog.document.documentElement.getButton("accept").disabled = false;
-            }
-          } catch (ex) {}
-          this._delayExpired = true;
-        }
-        // The timer won't release us, so we have to release it.
-        this._showTimer = null;
+      if (!this.mDialog) {
+        this.reallyShow();
+      } else {
+        // The user may have already canceled the dialog.
+        try {
+          if (!this._blurred) {
+            this.mDialog.document.documentElement.getButton("accept").disabled = false;
+          }
+        } catch (ex) {}
+        this._delayExpired = true;
       }
-      else if (aTimer == this._saveToDiskTimer) {
-        // Since saveToDisk may open a file picker and therefore block this routine,
-        // we should only call it once the dialog is closed.
-        this.mLauncher.saveToDisk(null, false);
-        this._saveToDiskTimer = null;
-      }
+      // The timer won't release us, so we have to release it.
+      this._timer = null;
     },
 
     postShowCallback: function () {
@@ -906,13 +894,12 @@ nsUnknownContentTypeDialog.prototype = {
 
           this.mLauncher.saveToDisk(targetFile, false);
 #endif
-
-          // see @notify
-          // we cannot use opener's setTimeout, see bug 420405
-          this._saveToDiskTimer = Components.classes["@mozilla.org/timer;1"]
-                                            .createInstance(nsITimer);
-          this._saveToDiskTimer.initWithCallback(this, 0,
-                                                 nsITimer.TYPE_ONE_SHOT);
+          // Since saveToDisk may open a file picker and therefore block this routine,
+          // we should only call it once the dialog is closed.
+          var _delayedSaveToDisk = function(aSelf) {
+            aSelf.mLauncher.saveToDisk(null, false);
+          }
+          this.mDialog.opener.setTimeout(_delayedSaveToDisk, 0, this);
         }
         else
           this.mLauncher.launchWithApplication(null, false);

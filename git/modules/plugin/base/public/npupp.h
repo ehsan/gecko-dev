@@ -59,6 +59,9 @@
 
 #include "npruntime.h"
 
+#include "jri.h"
+
+
 /******************************************************************************************
    plug-in function table macros
  	        for each function in and out of the plugin API we define
@@ -291,20 +294,14 @@ typedef void (* NP_LOADDS NPN_ReloadPluginsUPP)(NPBool reloadPages);
 		(*(FUNC))((ARG1))	
 
 /* NPN_GetJavaEnv */
-// The return type of this used to be JRIEnv*. Use void* now to
-// maintain binary compatibility but eliminate the dependency on Java
-// types.
-typedef void* (* NP_LOADDS NPN_GetJavaEnvUPP)(void);
+typedef JRIEnv* (* NP_LOADDS NPN_GetJavaEnvUPP)(void);
 #define NewNPN_GetJavaEnvProc(FUNC)		\
 		((NPN_GetJavaEnvUPP) (FUNC))
 #define CallNPN_GetJavaEnvProc(FUNC)		\
 		(*(FUNC))()	
 
 /* NPN_GetJavaPeer */
-// The return type of this used to be jref, which was a pointer to a
-// Java thing. Use void* now to maintain binary compatibility but
-// eliminate the dependency on Java types.
-typedef void* (* NP_LOADDS NPN_GetJavaPeerUPP)(NPP instance);
+typedef jref (* NP_LOADDS NPN_GetJavaPeerUPP)(NPP instance);
 #define NewNPN_GetJavaPeerProc(FUNC)		\
 		((NPN_GetJavaPeerUPP) (FUNC))
 #define CallNPN_GetJavaPeerProc(FUNC, ARG1)		\
@@ -521,10 +518,7 @@ typedef struct _NPPluginFuncs {
     NPP_PrintUPP print;
     NPP_HandleEventUPP event;
     NPP_URLNotifyUPP urlnotify;
-    // The type of this used to be JRIGlobalRef, which was a void *.
-    // Use void * here directly now that we don't expose any Java
-    // specific things in the plugin API.
-    void* javaClass;
+    JRIGlobalRef javaClass;
     NPP_GetValueUPP getvalue;
     NPP_SetValueUPP setvalue;
 } NPPluginFuncs;
@@ -707,7 +701,6 @@ extern "C" {
 
 /* plugin meta member functions */
 
-NP_EXPORT(char*)   NP_GetPluginVersion(void);
 NP_EXPORT(char*)   NP_GetMIMEDescription(void);
 NP_EXPORT(NPError) NP_Initialize(NPNetscapeFuncs*, NPPluginFuncs*);
 NP_EXPORT(NPError) NP_Shutdown(void);

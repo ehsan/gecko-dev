@@ -72,9 +72,7 @@ protected:
     static nscolor sButtonOuterLightBorder;
     static nscolor sButtonInnerDarkBorder;
     static nscolor sOddCellBackground;
-    static nscolor sNativeHyperLinkText;
     static PRUnichar sInvisibleCharacter;
-    static float   sCaretRatio;
 
     static void InitLookAndFeel();
     void InitWidget() {

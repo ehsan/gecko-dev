@@ -130,11 +130,13 @@ def send_to_csv(csv_dir, results):
 def post_chunk(results_server, results_link, id, filename):
   tmpf = open(filename, "r")
   file_data = tmpf.read()
-  try:
-    ret = post_file.post_multipart(results_server, results_link, [("key", "value")], [("filename", filename, file_data)])
-  except:
-    print "FAIL: error in post data"
-    sys.exit(0)
+  while True:
+    try:
+      ret = post_file.post_multipart(results_server, results_link, [("key", "value")], [("filename", filename, file_data)])
+    except IOError:
+      print "FAIL: IOError on sending data to the graph server"
+    else:
+      break
   links = process_Request(ret)
   utils.debug(id + ": sent results")
   return links
@@ -283,7 +285,7 @@ def test_file(filename):
        results_link = yaml_config[item]
   if (results_link != results_server != ''):
     if not post_file.link_exists(results_server, results_link):
-      sys.exit(0)
+      exit(0)
   browser_config = {'preferences'  : yaml_config['preferences'],
                     'extensions'   : yaml_config['extensions'],
                     'firefox'      : yaml_config['firefox'],

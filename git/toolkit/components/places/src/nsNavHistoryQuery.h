@@ -59,7 +59,11 @@ public:
   nsNavHistoryQuery();
   // note: we use a copy constructor in Clone(), the default is good enough
 
+#ifdef MOZILLA_1_8_BRANCH
+  NS_DEFINE_STATIC_IID_ACCESSOR(NS_NAVHISTORYQUERY_IID)
+#else
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_NAVHISTORYQUERY_IID)
+#endif
   NS_DECL_ISUPPORTS
   NS_DECL_NSINAVHISTORYQUERY
 
@@ -101,7 +105,9 @@ protected:
   nsTArray<PRInt64> mFolders;
 };
 
+#ifndef MOZILLA_1_8_BRANCH
 NS_DEFINE_STATIC_IID_ACCESSOR(nsNavHistoryQuery, NS_NAVHISTORYQUERY_IID)
+#endif
 
 // nsNavHistoryQueryOptions
 
@@ -122,7 +128,11 @@ public:
                                mQueryType(nsINavHistoryQueryOptions::QUERY_TYPE_HISTORY)
   { }
 
+#ifdef MOZILLA_1_8_BRANCH
+  NS_DEFINE_STATIC_IID_ACCESSOR(NS_NAVHISTORYQUERYOPTIONS_IID)
+#else
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_NAVHISTORYQUERYOPTIONS_IID)
+#endif
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSINAVHISTORYQUERYOPTIONS
@@ -163,7 +173,9 @@ private:
   PRUint16 mQueryType;
 };
 
+#ifndef MOZILLA_1_8_BRANCH
 NS_DEFINE_STATIC_IID_ACCESSOR(nsNavHistoryQueryOptions, NS_NAVHISTORYQUERYOPTIONS_IID)
+#endif
 
 #endif // nsNavHistoryQuery_h_
 

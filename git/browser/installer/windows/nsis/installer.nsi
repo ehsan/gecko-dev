@@ -48,12 +48,11 @@ SetDatablockOptimize on
 SetCompress off
 CRCCheck on
 
-RequestExecutionLevel user
-
 !addplugindir ./
 
 ; empty files - except for the comment line - for generating custom pages.
 !system 'echo ; > options.ini'
+!system 'echo ; > components.ini'
 !system 'echo ; > shortcuts.ini'
 !system 'echo ; > summary.ini'
 
@@ -71,11 +70,21 @@ Var AddDesktopSC
 ; The following includes are provided by NSIS.
 !include FileFunc.nsh
 !include LogicLib.nsh
-!include MUI.nsh
 !include TextFunc.nsh
 !include WinMessages.nsh
-!include WinVer.nsh
 !include WordFunc.nsh
+!include MUI.nsh
+
+; WinVer.nsh was added in the same release that RequestExecutionLevel so check
+; if ___WINVER__NSH___ is defined to determine if RequestExecutionLevel is
+; available.
+!include /NONFATAL WinVer.nsh
+!ifdef ___WINVER__NSH___
+  RequestExecutionLevel user
+!else
+  !warning "Installer will be created without Vista compatibility.$\n            \
+            Upgrade your NSIS installation to at least version 2.22 to resolve."
+!endif
 
 !insertmacro GetOptions
 !insertmacro GetParameters
@@ -96,7 +105,6 @@ Var AddDesktopSC
 !include version.nsh
 
 VIAddVersionKey "FileDescription" "${BrandShortName} Installer"
-VIAddVersionKey "OriginalFilename" "setup.exe"
 
 ; Must be inserted before other macros that use logging
 !insertmacro _LoggingCommon
@@ -138,6 +146,7 @@ InstallDir "$PROGRAMFILES\${BrandFullName}\"
 ShowInstDetails nevershow
 
 ReserveFile options.ini
+ReserveFile components.ini
 ReserveFile shortcuts.ini
 ReserveFile summary.ini
 
@@ -173,6 +182,9 @@ ReserveFile summary.ini
 
 ; Custom Options Page
 Page custom preOptions leaveOptions
+
+; Custom Components Page
+Page custom preComponents leaveComponents
 
 ; Select Install Directory Page
 !define MUI_PAGE_CUSTOMFUNCTION_PRE preDirectory
@@ -231,6 +243,17 @@ Section "-InstallStartCleanup"
     Sleep 5000
     ${DeleteFile} "$INSTDIR\${FileMainEXE}"
     ClearErrors
+  ${EndIf}
+
+  ${If} $InstallType == ${INSTALLTYPE_CUSTOM}
+    ; Custom installs.
+    ; If DOMi is installed and this install includes DOMi remove it from
+    ; the installation directory. This will remove it if the user deselected
+    ; DOMi on the components page.
+    ${If} ${FileExists} "$INSTDIR\extensions\inspector@mozilla.org"
+    ${AndIf} ${FileExists} "$EXEDIR\optional\extensions\inspector@mozilla.org"
+      RmDir /r "$INSTDIR\extensions\inspector@mozilla.org"
+    ${EndIf}
   ${EndIf}
 
   ; Remove the updates directory for Vista and above
@@ -333,7 +356,6 @@ Section "-Application" APP_IDX
   SetShellVarContext current  ; Set SHCTX to HKCU
   ${RegCleanMain} "Software\Mozilla"
   ${RegCleanUninstall}
-  ${UpdateProtocolHandlers}
 
   ClearErrors
   WriteRegStr HKLM "Software\Mozilla\InstallerTest" "InstallerTest" "Test"
@@ -345,7 +367,6 @@ Section "-Application" APP_IDX
     StrCpy $TmpVal "HKLM" ; used primarily for logging
     ${RegCleanMain} "Software\Mozilla"
     ${RegCleanUninstall}
-    ${UpdateProtocolHandlers}
 
     ReadRegStr $0 HKLM "Software\mozilla.org\Mozilla" "CurrentVersion"
     ${If} "$0" != "${GREVersion}"
@@ -371,6 +392,7 @@ Section "-Application" APP_IDX
   ${WriteRegDWORD2} $TmpVal "$0" "Create Start Menu Shortcut" $AddStartMenuSC 0
 
   ${FixClassKeys}
+  ${UpdateProtocolHandlers}
 
   ; On install always add the FirefoxHTML and FirefoxURL keys.
   ; An empty string is used for the 5th param because FirefoxHTML is not a
@@ -445,19 +467,33 @@ Section "-Application" APP_IDX
   !insertmacro MUI_STARTMENU_WRITE_END
 SectionEnd
 
+Section /o "Developer Tools" DOMI_IDX
+  ${If} ${FileExists} "$EXEDIR\optional\extensions\inspector@mozilla.org"
+    SetDetailsPrint both
+    DetailPrint $(STATUS_INSTALL_OPTIONAL)
+    SetDetailsPrint none
+
+    ${RemoveDir} "$INSTDIR\extensions\inspector@mozilla.org"
+    ClearErrors
+    ${LogHeader} "Installing Developer Tools"
+    ${CopyFilesFromDir} "$EXEDIR\optional\extensions\inspector@mozilla.org" \
+                        "$INSTDIR\extensions\inspector@mozilla.org" \
+                        "$(ERROR_CREATE_DIRECTORY_PREFIX)" \
+                        "$(ERROR_CREATE_DIRECTORY_SUFFIX)"
+  ${EndIf}
+SectionEnd
+
 ; Cleanup operations to perform at the end of the installation.
 Section "-InstallEndCleanup"
   SetDetailsPrint both
   DetailPrint "$(STATUS_CLEANUP)"
   SetDetailsPrint none
 
-  ${Unless} ${Silent}
-    ${MUI_INSTALLOPTIONS_READ} $0 "options.ini" "Field 6" "State"
-    ${If} "$0" == "1"
-      ${LogHeader} "Setting as the default browser"
-      ${SetAsDefaultAppUser}
-    ${EndIf}
-  ${EndUnless}
+  ${MUI_INSTALLOPTIONS_READ} $0 "options.ini" "Field 6" "State"
+  ${If} "$0" == "1"
+    ${LogHeader} "Setting as the default browser"
+    ${SetAsDefaultAppUser}
+  ${EndIf}
 
   ${LogHeader} "Updating Uninstall Log With Previous Uninstall Log"
 
@@ -634,6 +670,23 @@ Function leaveOptions
   ${EndIf}
 FunctionEnd
 
+Function preComponents
+  ${CheckCustomCommon}
+  ; If DOMi isn't available skip the components page
+  ${Unless} ${FileExists} "$EXEDIR\optional\extensions\inspector@mozilla.org"
+    Abort
+  ${EndUnless}
+  !insertmacro MUI_HEADER_TEXT "$(OPTIONAL_COMPONENTS_TITLE)" "$(OPTIONAL_COMPONENTS_SUBTITLE)"
+  !insertmacro MUI_INSTALLOPTIONS_DISPLAY "components.ini"
+FunctionEnd
+
+Function leaveComponents
+  ${MUI_INSTALLOPTIONS_READ} $R0 "components.ini" "Field 2" "State"
+  ; State will be 1 for checked and 0 for unchecked so we can use that to set
+  ; the section flags for installation.
+  SectionSetFlags ${DOMI_IDX} $R0
+FunctionEnd
+
 Function preDirectory
   ${PreDirectoryCommon}
 FunctionEnd
@@ -686,6 +739,11 @@ Function preSummary
 FunctionEnd
 
 Function leaveSummary
+  ${If} $InstallType != ${INSTALLTYPE_CUSTOM}
+    ; Set DOMi to be installed
+    SectionSetFlags ${DOMI_IDX} 1
+  ${EndIf}
+
   ; Try to delete the app executable and if we can't delete it try to find the
   ; app's message window and prompt the user to close the app. This allows
   ; running an instance that is located in another directory. If for whatever
@@ -715,9 +773,11 @@ Function .onInit
   ${InstallOnInitCommon} "$(WARN_UNSUPPORTED_MSG)"
 
   !insertmacro MUI_INSTALLOPTIONS_EXTRACT "options.ini"
+  !insertmacro MUI_INSTALLOPTIONS_EXTRACT "components.ini"
   !insertmacro MUI_INSTALLOPTIONS_EXTRACT "shortcuts.ini"
   !insertmacro MUI_INSTALLOPTIONS_EXTRACT "summary.ini"
   !insertmacro createBasicCustomSetAsDefaultOptionsINI
+  !insertmacro createComponentsINI
   !insertmacro createShortcutsINI
 
   ; There must always be nonlocalized and localized directories.
@@ -725,6 +785,15 @@ Function .onInit
   ${GetSize} "$EXEDIR\localized\" "/S=0K" $R6 $R7 $R8
   IntOp $R8 $R5 + $R6
   SectionSetSize ${APP_IDX} $R8
+
+  ${If} ${FileExists} "$EXEDIR\optional\extensions\inspector@mozilla.org"
+    ; Set the section size for DOMi.
+    ${GetSize} "$EXEDIR\optional\extensions\inspector@mozilla.org" "/S=0K" $0 $8 $9
+    SectionSetSize ${DOMI_IDX} $0
+  ${Else}
+    ; Hide DOMi in the components page if it isn't available.
+    SectionSetText ${DOMI_IDX} ""
+  ${EndIf}
 
   ; Initialize $hHeaderBitmap to prevent redundant changing of the bitmap if
   ; the user clicks the back button

@@ -188,7 +188,7 @@ nsHTMLEditor::CreateAnonymousElement(const nsAString & aTag, nsIDOMNode *  aPare
 
     // establish parenthood of the element
     newContent->SetNativeAnonymous();
-    res = newContent->BindToTree(doc, parentContent, parentContent, PR_TRUE);
+    res = newContent->BindToTree(doc, parentContent, newContent, PR_TRUE);
     if (NS_FAILED(res)) {
       newContent->UnbindFromTree();
       return res;
@@ -433,7 +433,7 @@ nsHTMLEditor::GetPositionAndDimensions(nsIDOMElement * aElement,
 
     nsCOMPtr<nsIDOMViewCSS> viewCSS;
     res = mHTMLCSSUtils->GetDefaultViewCSS(aElement, getter_AddRefs(viewCSS));
-    if (!viewCSS) return NS_ERROR_FAILURE;
+    if (NS_FAILED(res)) return res;
 
     nsCOMPtr<nsIDOMCSSStyleDeclaration> cssDecl;
     // Get the all the computed css styles attached to the element node

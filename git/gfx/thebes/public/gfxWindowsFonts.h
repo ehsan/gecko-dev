@@ -21,7 +21,6 @@
  * Contributor(s):
  *   Stuart Parmenter <stuart@mozilla.com>
  *   Masayuki Nakano <masayuki@d-toybox.com>
- *   John Daggett <jdaggett@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -54,36 +53,18 @@
 
 
 /**
- * List of different types of fonts we support on Windows.
- * These can generally be lumped in to 3 categories where we have to
- * do special things:  Really old fonts bitmap and vector fonts (device
- * and raster), Type 1 fonts, and TrueType/OpenType fonts.
- * 
- * This list is sorted in order from least prefered to most prefered.
- * We prefer Type1 fonts over OpenType fonts to avoid falling back to
- * things like Arial (opentype) when you ask for Helvetica (type1)
- **/
-enum gfxWindowsFontType {
-    GFX_FONT_TYPE_UNKNOWN = 0,
-    GFX_FONT_TYPE_DEVICE,
-    GFX_FONT_TYPE_RASTER,
-    GFX_FONT_TYPE_TRUETYPE,
-    GFX_FONT_TYPE_PS_OPENTYPE,
-    GFX_FONT_TYPE_TT_OPENTYPE,
-    GFX_FONT_TYPE_TYPE1
-};
-
-/**
  * FontFamily is a class that describes one of the fonts on the users system.  It holds
  * each FontEntry (maps more directly to a font face) which holds font type, charset info
  * and character map info.
  */
 class FontEntry;
-class FontFamily : public gfxFontFamily
+class FontFamily
 {
 public:
+    THEBES_INLINE_DECL_REFCOUNTING(FontFamily)
+
     FontFamily(const nsAString& aName) :
-        gfxFontFamily(aName), mHasStyles(PR_FALSE), mIsBadUnderlineFont(PR_FALSE) { }
+        mName(aName), mHasStyles(PR_FALSE), mIsBadUnderlineFont(PR_FALSE) { }
 
     FontEntry *FindFontEntry(const gfxFontStyle& aFontStyle);
 
@@ -96,56 +77,54 @@ private:
                                             const NEWTEXTMETRICEXW *nmetrics,
                                             DWORD fontType, LPARAM data);
 
-protected:
-    PRBool FindWeightsForStyle(gfxFontEntry* aFontsForWeights[], const gfxFontStyle& aFontStyle);
-
 public:
     nsTArray<nsRefPtr<FontEntry> > mVariations;
+    nsString mName;
     PRPackedBool mIsBadUnderlineFont;
 
 private:
     PRBool mHasStyles;
 };
 
-class FontEntry : public gfxFontEntry
+class FontEntry
 {
 public:
+    THEBES_INLINE_DECL_REFCOUNTING(FontEntry)
+
     FontEntry(const nsString& aFaceName) : 
-        gfxFontEntry(aFaceName), mFontType(GFX_FONT_TYPE_UNKNOWN),
+        mFaceName(aFaceName), mUnicodeFont(PR_FALSE), mSymbolFont(PR_FALSE),
+        mTrueType(PR_FALSE), mIsType1(PR_FALSE),
         mIsBadUnderlineFont(PR_FALSE), mForceGDI(PR_FALSE), mUnknownCMAP(PR_FALSE),
         mCharset(0), mUnicodeRanges(0)
     {
-        mUnicodeFont = PR_FALSE;
-        mSymbolFont = PR_FALSE;
     }
 
     FontEntry(const FontEntry& aFontEntry) :
-        gfxFontEntry(aFontEntry),
+        mFaceName(aFontEntry.mFaceName),
         mWindowsFamily(aFontEntry.mWindowsFamily),
         mWindowsPitch(aFontEntry.mWindowsPitch),
-        mFontType(aFontEntry.mFontType),
+        mUnicodeFont(aFontEntry.mUnicodeFont),
+        mSymbolFont(aFontEntry.mSymbolFont),
+        mTrueType(aFontEntry.mTrueType),
+        mIsType1(aFontEntry.mIsType1),
         mIsBadUnderlineFont(aFontEntry.mIsBadUnderlineFont),
         mForceGDI(aFontEntry.mForceGDI),
         mUnknownCMAP(aFontEntry.mUnknownCMAP),
+        mItalic(aFontEntry.mItalic),
+        mWeight(aFontEntry.mWeight),
         mCharset(aFontEntry.mCharset),
-        mUnicodeRanges(aFontEntry.mUnicodeRanges)
+        mUnicodeRanges(aFontEntry.mUnicodeRanges),
+        mCharacterMap(aFontEntry.mCharacterMap)
     {
-
     }
 
-    PRBool IsType1() const {
-        return (mFontType == GFX_FONT_TYPE_TYPE1);
-    }
-
-    PRBool IsTrueType() const {
-        return (mFontType == GFX_FONT_TYPE_TRUETYPE ||
-                mFontType == GFX_FONT_TYPE_PS_OPENTYPE ||
-                mFontType == GFX_FONT_TYPE_TT_OPENTYPE);
+    const nsString& GetName() const {
+        return mFaceName;
     }
 
     PRBool IsCrappyFont() const {
         /* return if it is a bitmap not a unicode font */
-        return (!mUnicodeFont || mSymbolFont || IsType1());
+        return (!mUnicodeFont || mSymbolFont || mIsType1);
     }
 
     PRBool MatchesGenericFamily(const nsACString& aGeneric) const {
@@ -235,18 +214,25 @@ public:
     // whether this font family is in "bad" underline offset blacklist.
     PRBool IsBadUnderlineFont() { return mIsBadUnderlineFont != 0; }
 
-    PRBool TestCharacterMap(PRUint32 aCh);
+    nsString mFaceName;
 
     PRUint8 mWindowsFamily;
     PRUint8 mWindowsPitch;
 
-    gfxWindowsFontType mFontType;
+    PRPackedBool mUnicodeFont : 1;
+    PRPackedBool mSymbolFont  : 1;
+    PRPackedBool mTrueType    : 1;
+    PRPackedBool mIsType1     : 1;
     PRPackedBool mIsBadUnderlineFont : 1;
     PRPackedBool mForceGDI    : 1;
     PRPackedBool mUnknownCMAP : 1;
+    PRPackedBool mItalic      : 1;
+    PRUint16 mWeight;
 
     std::bitset<256> mCharset;
     std::bitset<128> mUnicodeRanges;
+
+    gfxSparseBitSet mCharacterMap;
 };
 
 /**********************************************************************
@@ -257,7 +243,7 @@ public:
 
 class gfxWindowsFont : public gfxFont {
 public:
-    gfxWindowsFont(FontEntry *aFontEntry, const gfxFontStyle *aFontStyle);
+    gfxWindowsFont(const nsAString& aName, const gfxFontStyle *aFontStyle, FontEntry *aFontEntry);
     virtual ~gfxWindowsFont();
 
     virtual const gfxFont::Metrics& GetMetrics();
@@ -279,11 +265,7 @@ public:
         return mSpaceGlyph;
     };
 
-    PRBool IsValid() { GetMetrics(); return mIsValid; }
-    FontEntry *GetFontEntry();
-
-    static already_AddRefed<gfxWindowsFont>
-    GetOrMakeFont(FontEntry *aFontEntry, const gfxFontStyle *aStyle);
+    FontEntry *GetFontEntry() { return mFontEntry; }
 
 protected:
     HFONT MakeHFONT();
@@ -305,6 +287,8 @@ private:
 
     LOGFONTW mLogFont;
 
+    nsRefPtr<FontEntry> mFontEntry;
+    
     virtual PRBool SetupCairoFont(gfxContext *aContext);
 };
 
@@ -349,27 +333,16 @@ public:
                                const nsCString& aLangGroup,
                                nsTArray<nsRefPtr<FontEntry> > *list);
 
-
 protected:
     void InitTextRunGDI(gfxContext *aContext, gfxTextRun *aRun, const char *aString, PRUint32 aLength);
     void InitTextRunGDI(gfxContext *aContext, gfxTextRun *aRun, const PRUnichar *aString, PRUint32 aLength);
 
     void InitTextRunUniscribe(gfxContext *aContext, gfxTextRun *aRun, const PRUnichar *aString, PRUint32 aLength);
 
-    already_AddRefed<gfxFont> WhichPrefFontSupportsChar(PRUint32 aCh);
-    already_AddRefed<gfxFont> WhichSystemFontSupportsChar(PRUint32 aCh);
-
-    already_AddRefed<gfxWindowsFont> WhichFontSupportsChar(const nsTArray<nsRefPtr<FontEntry> >& fonts, PRUint32 ch);
-    void GetPrefFonts(const char *aLangGroup, nsTArray<nsRefPtr<FontEntry> >& array);
-    void GetCJKPrefFonts(nsTArray<nsRefPtr<FontEntry> >& array);
-
 private:
 
     nsCString mGenericFamily;
     nsTArray<nsRefPtr<FontEntry> > mFontEntries;
-
-    const char *mItemLangGroup;  // used by pref-lang handling code
-
 };
 
 #endif /* GFX_WINDOWSFONTS_H */

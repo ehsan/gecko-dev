@@ -44,6 +44,13 @@
 
 nsPluginThread * thePluginThread = NULL;
 
+jref NPP_GetJavaClass ()
+{
+  dbgOut1("wrapper: NPP_GetJavaClass");
+  jref rv = (jref)thePluginThread->callNPP(action_npp_get_java_class);
+  return NULL;
+}
+
 NPError NPP_New(NPMIMEType aType,
                 NPP aInstance,
                 uint16 aMode,

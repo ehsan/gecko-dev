@@ -139,7 +139,8 @@ nsBlockReflowState::nsBlockReflowState(const nsHTMLReflowState& aReflowState,
   mPrevChild = nsnull;
   mCurrentLine = aFrame->end_lines();
 
-  mMinLineHeight = nsHTMLReflowState::CalcLineHeight(aReflowState.frame);
+  mMinLineHeight = nsHTMLReflowState::CalcLineHeight(aReflowState.rendContext,
+                                                     aReflowState.frame);
 
   // Calculate mOutsideBulletX
   GetAvailableSpace();
@@ -253,7 +254,9 @@ nsBlockReflowState::ComputeReplacedBlockOffsetsForFloats(nsIFrame* aFrame,
 void
 nsBlockReflowState::ComputeBlockAvailSpace(nsIFrame* aFrame,
                                            const nsStyleDisplay* aDisplay,
-                                           PRBool aBlockAvoidsFloats,
+                                           nsBlockFrame::
+                                             ReplacedElementWidthToClear
+                                                               *aReplacedWidth,
                                            nsRect& aResult)
 {
 #ifdef REALLY_NOISY_REFLOW
@@ -282,10 +285,9 @@ nsBlockReflowState::ComputeBlockAvailSpace(nsIFrame* aFrame,
   // nsBlockFrame::WidthToClearPastFloats would need to use the
   // shrink-wrap formula, max(MIN_WIDTH, min(avail width, PREF_WIDTH))
   // rather than just using MIN_WIDTH.
-  NS_ASSERTION(nsBlockFrame::BlockCanIntersectFloats(aFrame) == 
-                 !aBlockAvoidsFloats,
+  NS_ASSERTION(nsBlockFrame::BlockCanIntersectFloats(aFrame) == !aReplacedWidth,
                "unexpected replaced width");
-  if (!aBlockAvoidsFloats) {
+  if (!aReplacedWidth) {
     if (mBand.GetFloatCount()) {
       // Use the float-edge property to determine how the child block
       // will interact with the float.
@@ -298,6 +300,42 @@ nsBlockReflowState::ComputeBlockAvailSpace(nsIFrame* aFrame,
           aResult.x = borderPadding.left;
           aResult.width = mContentArea.width;
           break;
+        case NS_STYLE_FLOAT_EDGE_BORDER: 
+        case NS_STYLE_FLOAT_EDGE_PADDING:
+          {
+            // The child block's border should be placed adjacent to,
+            // but not overlap the float(s).
+            nsMargin m(0, 0, 0, 0);
+            const nsStyleMargin* styleMargin = aFrame->GetStyleMargin();
+            styleMargin->GetMargin(m); // XXX percentage margins
+            if (NS_STYLE_FLOAT_EDGE_PADDING == borderStyle->mFloatEdge) {
+              // Add in border too
+              m += borderStyle->GetBorder();
+            }
+
+            // determine left edge
+            if (mBand.GetLeftFloatCount()) {
+              aResult.x = mAvailSpaceRect.x + borderPadding.left - m.left;
+            }
+            else {
+              aResult.x = borderPadding.left;
+            }
+
+            // determine width
+            if (mBand.GetRightFloatCount()) {
+              if (mBand.GetLeftFloatCount()) {
+                aResult.width = mAvailSpaceRect.width + m.left + m.right;
+              }
+              else {
+                aResult.width = mAvailSpaceRect.width + m.right;
+              }
+            }
+            else {
+              aResult.width = mAvailSpaceRect.width + m.left;
+            }
+          }
+          break;
+
         case NS_STYLE_FLOAT_EDGE_MARGIN:
           {
             // The child block's margins should be placed adjacent to,
@@ -317,16 +355,9 @@ nsBlockReflowState::ComputeBlockAvailSpace(nsIFrame* aFrame,
     }
   }
   else {
-    nsBlockFrame::ReplacedElementWidthToClear replacedWidthStruct;
-    nsBlockFrame::ReplacedElementWidthToClear *replacedWidth = nsnull;
-    if (aFrame->GetType() == nsGkAtoms::tableOuterFrame) {
-      replacedWidth = &replacedWidthStruct;
-      replacedWidthStruct = nsBlockFrame::WidthToClearPastFloats(*this, aFrame);
-    }
-
     nscoord leftOffset, rightOffset;
     ComputeReplacedBlockOffsetsForFloats(aFrame, leftOffset, rightOffset,
-                                         replacedWidth);
+                                         aReplacedWidth);
     aResult.x = borderPadding.left + leftOffset;
     aResult.width = mContentArea.width - leftOffset - rightOffset;
   }
@@ -443,7 +474,8 @@ nsBlockReflowState::RecoverFloats(nsLineList::iterator aLine,
       fc = fc->Next();
     }
   } else if (aLine->IsBlock()) {
-    nsBlockFrame *kid = nsLayoutUtils::GetAsBlock(aLine->mFirstChild);
+    nsBlockFrame *kid = nsnull;
+    aLine->mFirstChild->QueryInterface(kBlockFrameCID, (void**)&kid);
     // don't recover any state inside a block that has its own space
     // manager (we don't currently have any blocks like this, though,
     // thanks to our use of extra frames for 'overflow')
@@ -531,7 +563,6 @@ nsBlockReflowState::IsImpactedByFloat() const
 PRBool
 nsBlockReflowState::InitFloat(nsLineLayout&       aLineLayout,
                               nsPlaceholderFrame* aPlaceholder,
-                              nscoord             aAvailableWidth,
                               nsReflowStatus&     aReflowStatus)
 {
   // Set the geometric parent of the float
@@ -540,8 +571,7 @@ nsBlockReflowState::InitFloat(nsLineLayout&       aLineLayout,
 
   // Then add the float to the current line and place it when
   // appropriate
-  return AddFloat(aLineLayout, aPlaceholder, PR_TRUE,
-                  aAvailableWidth, aReflowStatus);
+  return AddFloat(aLineLayout, aPlaceholder, PR_TRUE, aReflowStatus);
 }
 
 // This is called by the line layout's AddFloat method when a
@@ -558,7 +588,6 @@ PRBool
 nsBlockReflowState::AddFloat(nsLineLayout&       aLineLayout,
                              nsPlaceholderFrame* aPlaceholder,
                              PRBool              aInitialReflow,
-                             nscoord             aAvailableWidth,
                              nsReflowStatus&     aReflowStatus)
 {
   NS_PRECONDITION(mBlock->end_lines() != mCurrentLine, "null ptr");
@@ -572,12 +601,7 @@ nsBlockReflowState::AddFloat(nsLineLayout&       aLineLayout,
 
   // Now place the float immediately if possible. Otherwise stash it
   // away in mPendingFloats and place it later.
-  // If one or more floats has already been pushed to the next line,
-  // don't let this one go on the current line, since that would violate
-  // float ordering.
-  if (mBelowCurrentLineFloats.IsEmpty() &&
-      (aLineLayout.LineIsEmpty() ||
-       mBlock->ComputeFloatWidth(*this, aPlaceholder) <= aAvailableWidth)) {
+  if (aLineLayout.CanPlaceFloatNow()) {
     // Because we are in the middle of reflowing a placeholder frame
     // within a line (and possibly nested in an inline frame or two
     // that's a child of our block) we need to restore the space
@@ -600,9 +624,10 @@ nsBlockReflowState::AddFloat(nsLineLayout&       aLineLayout,
     if (forceFit || (placed && !NS_FRAME_IS_TRUNCATED(aReflowStatus))) {
       // Pass on updated available space to the current inline reflow engine
       GetAvailableSpace(mY, forceFit);
-      nsRect availSpace(nsPoint(mAvailSpaceRect.x + BorderPadding().left, mY),
-                        mAvailSpaceRect.Size());
-      aLineLayout.UpdateBand(availSpace, isLeftFloat,
+      aLineLayout.UpdateBand(mAvailSpaceRect.x + BorderPadding().left, mY,
+                             mAvailSpaceRect.width,
+                             mAvailSpaceRect.height,
+                             isLeftFloat,
                              aPlaceholder->GetOutOfFlowFrame());
       
       // Record this float in the current-line list
@@ -636,9 +661,10 @@ nsBlockReflowState::AddFloat(nsLineLayout&       aLineLayout,
     // This float will be placed after the line is done (it is a
     // below-current-line float).
     mBelowCurrentLineFloats.Append(fc);
-    if (aPlaceholder->GetNextInFlow()) {
+    if (mReflowState.availableHeight != NS_UNCONSTRAINEDSIZE ||
+        aPlaceholder->GetNextInFlow()) {
       // If the float might not be complete, mark it incomplete now to
-      // prevent its next-in-flow placeholders being torn down. We will destroy any
+      // prevent the placeholders being torn down. We will destroy any
       // placeholders later if PlaceBelowCurrentLineFloats finds the
       // float is complete.
       // Note that we could have unconstrained height and yet have
@@ -987,7 +1013,13 @@ nsBlockReflowState::FlowAndPlaceFloat(nsFloatCache*   aFloatCache,
                  borderPadding.top + floatMargin.top + floatY);
 
   // If float is relatively positioned, factor that in as well
-  origin += floatFrame->GetRelativeOffset(floatDisplay);
+  if (NS_STYLE_POSITION_RELATIVE == floatDisplay->mPosition) {
+    nsPoint *offsets = static_cast<nsPoint*>
+                                  (floatFrame->GetProperty(nsGkAtoms::computedOffsetProperty));
+    if (offsets) {
+      origin += *offsets;
+    }
+  }
 
   // Position the float and make sure and views are properly
   // positioned. We need to explicitly position its child views as
@@ -1073,7 +1105,7 @@ nsBlockReflowState::PlaceBelowCurrentLineFloats(nsFloatCacheFreeList& aList, PRB
 
 nscoord
 nsBlockReflowState::ClearFloats(nscoord aY, PRUint8 aBreakType,
-                                nsIFrame *aReplacedBlock)
+                     nsBlockFrame::ReplacedElementWidthToClear *aReplacedWidth)
 {
 #ifdef DEBUG
   if (nsBlockFrame::gNoisyReflow) {
@@ -1096,17 +1128,15 @@ nsBlockReflowState::ClearFloats(nscoord aY, PRUint8 aBreakType,
     newY = bp.top + mSpaceManager->ClearFloats(newY - bp.top, aBreakType);
   }
 
-  if (aReplacedBlock) {
+  if (aReplacedWidth) {
     for (;;) {
       GetAvailableSpace(newY, PR_FALSE);
-      nsBlockFrame::ReplacedElementWidthToClear replacedWidth =
-        nsBlockFrame::WidthToClearPastFloats(*this, aReplacedBlock);
       if (mBand.GetFloatCount() == 0 ||
-          PR_MAX(mAvailSpaceRect.x, replacedWidth.marginLeft) +
-            replacedWidth.borderBoxWidth +
+          PR_MAX(mAvailSpaceRect.x, aReplacedWidth->marginLeft) +
+            aReplacedWidth->borderBoxWidth +
             PR_MAX(mContentArea.width -
                      PR_MIN(mContentArea.width, mAvailSpaceRect.XMost()),
-                   replacedWidth.marginRight) <=
+                   aReplacedWidth->marginRight) <=
           mContentArea.width) {
         break;
       }

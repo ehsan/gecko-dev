@@ -38,6 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#define jsinvoke_cpp___
+#define js_invoke_c__
 
 #include "jsinterp.cpp"

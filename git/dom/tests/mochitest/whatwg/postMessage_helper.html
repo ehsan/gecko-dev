@@ -8,16 +8,12 @@
 
     function setup()
     {
-      var target = $("domain");
-      target.textContent = location.hostname + ":" + (location.port || 80);
+      $("domain").textContent = location.hostname + ":" + (location.port || 80);
     }
 
     function receiveMessage(evt)
     {
       var response = evt.data + "-response";
-
-      if (evt.lastEventId !== "")
-        response += " wrong-lastEventId(" + evt.lastEventId + ")";
 
       if (evt.source !== window.parent)
       {
@@ -26,11 +22,8 @@
         response += " location(" + window.location.href + ")";
       }
 
-      if (isMozilla)
-      {
-        if (evt.isTrusted !== false)
-          response += " unexpected-trusted";
-      }
+      if (isMozilla && evt.isTrusted)
+        response += " unexpected-trusted";
 
       if (evt.type != "message")
         response += " wrong-type(" + evt.type + ")";
@@ -47,7 +40,7 @@
       else
       {
         response += " unexpected-message-to(" + window.location.href + ")";
-        window.parent.postMessage(response, "http://localhost:8888");
+        window.parent.postMessage(response);
         return;
       }
     }
@@ -75,7 +68,7 @@
       }
       finally
       {
-        source.postMessage(response, evt.origin);
+        source.postMessage(response);
       }
     }
 
@@ -97,11 +90,11 @@
       if (!threw || privateVariable !== undefined)
         response += " accessed-source!!!";
 
-      source.postMessage(response, evt.origin);
+      source.postMessage(response);
     }
 
     window.addEventListener("load", setup, false);
-    window.addEventListener("message", receiveMessage, false);
+    document.addEventListener("message", receiveMessage, false);
   </script>
 </head>
 <body>

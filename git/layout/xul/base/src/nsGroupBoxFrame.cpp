@@ -151,7 +151,7 @@ nsGroupBoxFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
   PRIntn skipSides = 0;
   const nsStyleBorder* borderStyleData = GetStyleBorder();
   const nsStylePadding* paddingStyleData = GetStylePadding();
-  const nsMargin& border = borderStyleData->GetActualBorder();
+  const nsMargin& border = borderStyleData->GetBorder();
   nscoord yoff = 0;
   nsPresContext* presContext = PresContext();
 
@@ -190,8 +190,7 @@ nsGroupBoxFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, *borderStyleData,
-                                mStyleContext, skipSides);
+                                aDirtyRect, rect, *borderStyleData, mStyleContext, skipSides);
 
     aRenderingContext.PopState();
 
@@ -205,8 +204,7 @@ nsGroupBoxFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, *borderStyleData,
-                                mStyleContext, skipSides);
+                                aDirtyRect, rect, *borderStyleData, mStyleContext, skipSides);
 
     aRenderingContext.PopState();
 
@@ -221,8 +219,7 @@ nsGroupBoxFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, *borderStyleData,
-                                mStyleContext, skipSides);
+                                aDirtyRect, rect, *borderStyleData, mStyleContext, skipSides);
 
     aRenderingContext.PopState();
     

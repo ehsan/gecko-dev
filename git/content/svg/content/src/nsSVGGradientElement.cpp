@@ -41,6 +41,7 @@
 #include "nsIDOMSVGAnimatedEnum.h"
 #include "nsIDOMSVGURIReference.h"
 #include "nsIDOMSVGGradientElement.h"
+#include "nsSVGAnimatedString.h"
 #include "nsCOMPtr.h"
 #include "nsSVGStylableElement.h"
 #include "nsGkAtoms.h"
@@ -65,11 +66,6 @@ nsSVGElement::EnumInfo nsSVGGradientElement::sEnumInfo[2] =
     sSpreadMethodMap,
     nsIDOMSVGGradientElement::SVG_SPREADMETHOD_PAD
   }
-};
-
-nsSVGElement::StringInfo nsSVGGradientElement::sStringInfo[1] =
-{
-  { &nsGkAtoms::href, kNameSpaceID_XLink }
 };
 
 //----------------------------------------------------------------------
@@ -111,24 +107,24 @@ nsSVGGradientElement::Init()
     NS_ENSURE_SUCCESS(rv,rv);
   }
 
+  // nsIDOMSVGURIReference properties
+
+  // DOM property: href , #IMPLIED attrib: xlink:href
+  {
+    rv = NS_NewSVGAnimatedString(getter_AddRefs(mHref));
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = AddMappedSVGValue(nsGkAtoms::href, mHref, kNameSpaceID_XLink);
+    NS_ENSURE_SUCCESS(rv,rv);
+  }
+
   return NS_OK;
 }
-
-//----------------------------------------------------------------------
-// nsSVGElement methods
 
 nsSVGElement::EnumAttributesInfo
 nsSVGGradientElement::GetEnumInfo()
 {
   return EnumAttributesInfo(mEnumAttributes, sEnumInfo,
                             NS_ARRAY_LENGTH(sEnumInfo));
-}
-
-nsSVGElement::StringAttributesInfo
-nsSVGGradientElement::GetStringInfo()
-{
-  return StringAttributesInfo(mStringAttributes, sStringInfo,
-                              NS_ARRAY_LENGTH(sStringInfo));
 }
 
 //----------------------------------------------------------------------
@@ -161,7 +157,9 @@ NS_IMETHODIMP nsSVGGradientElement::GetSpreadMethod(nsIDOMSVGAnimatedEnumeration
 NS_IMETHODIMP
 nsSVGGradientElement::GetHref(nsIDOMSVGAnimatedString * *aHref)
 {
-  return mStringAttributes[HREF].ToDOMAnimatedString(aHref, this);
+  *aHref = mHref;
+  NS_IF_ADDREF(*aHref);
+  return NS_OK;
 }
 
 //----------------------------------------------------------------------

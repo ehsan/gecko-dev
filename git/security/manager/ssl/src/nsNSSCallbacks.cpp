@@ -87,7 +87,7 @@ public:
 
   NS_IMETHOD Run();
 
-  nsNSSHttpRequestSession *mRequestSession;
+  nsNSSHttpRequestSession *mRequestSession; // no ownership
   
   nsCOMPtr<nsHTTPListener> mListener;
   PRBool mResponsibleForDoneSignal;
@@ -102,8 +102,6 @@ nsHTTPDownloadEvent::~nsHTTPDownloadEvent()
 {
   if (mResponsibleForDoneSignal && mListener)
     mListener->send_done_signal();
-
-  mRequestSession->Release();
 }
 
 NS_IMETHODIMP
@@ -327,21 +325,6 @@ SECStatus nsNSSHttpRequestSession::trySendAndReceiveFcn(PRPollDesc **pPollDesc,
   return result_sec_status;
 }
 
-void
-nsNSSHttpRequestSession::AddRef()
-{
-  PR_AtomicIncrement(&mRefCount);
-}
-
-void
-nsNSSHttpRequestSession::Release()
-{
-  PRInt32 newRefCount = PR_AtomicDecrement(&mRefCount);
-  if (!newRefCount) {
-    delete this;
-  }
-}
-
 SECStatus
 nsNSSHttpRequestSession::internal_send_receive_attempt(PRBool &retryable_error,
                                                        PRPollDesc **pPollDesc,
@@ -381,7 +364,6 @@ nsNSSHttpRequestSession::internal_send_receive_attempt(PRBool &retryable_error,
     return SECFailure;
 
   event->mListener = mListener;
-  this->AddRef();
   event->mRequestSession = this;
 
   nsresult rv = NS_DispatchToMainThread(event);
@@ -507,13 +489,12 @@ SECStatus nsNSSHttpRequestSession::cancelFcn()
 
 SECStatus nsNSSHttpRequestSession::freeFcn()
 {
-  Release();
+  delete this;
   return SECSuccess;
 }
 
 nsNSSHttpRequestSession::nsNSSHttpRequestSession()
-: mRefCount(1),
-  mHasPostData(PR_FALSE),
+: mHasPostData(PR_FALSE),
   mTimeoutInterval(0),
   mListener(new nsHTTPListener)
 {
@@ -724,10 +705,10 @@ ShowProtectedAuthPrompt(PK11SlotInfo* slot, nsIInterfaceRequestor *ir)
           switch (rv)
           {
               case SECSuccess:
-                  protAuthRetVal = ToNewCString(nsDependentCString(PK11_PW_AUTHENTICATED));
+                  protAuthRetVal = PK11_PW_AUTHENTICATED;
                   break;
               case SECWouldBlock:
-                  protAuthRetVal = ToNewCString(nsDependentCString(PK11_PW_RETRY));
+                  protAuthRetVal = PK11_PW_RETRY;
                   break;
               default:
                   protAuthRetVal = nsnull;

@@ -45,6 +45,8 @@
 
 #include "nsObjCExceptions.h"
 #include "prmem.h"
+#include "nsIMenu.h"
+#include "nsIMenuItem.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
 #include "nsINameSpaceManager.h"
@@ -62,7 +64,6 @@
 #include "imgIRequest.h"
 #include "gfxIImageFrame.h"
 #include "nsIImage.h"
-#include "nsMenuItemX.h"
 
 static const PRUint32 kIconWidth = 16;
 static const PRUint32 kIconHeight = 16;
@@ -82,11 +83,15 @@ PRAllocCGFree(void* aInfo, const void* aData, size_t aSize) {
 
 NS_IMPL_ISUPPORTS2(nsMenuItemIconX, imgIContainerObserver, imgIDecoderObserver)
 
-nsMenuItemIconX::nsMenuItemIconX(nsMenuObjectX* aMenuItem,
-                                 nsIContent*    aContent,
-                                 NSMenuItem*    aNativeMenuItem)
+nsMenuItemIconX::nsMenuItemIconX(nsISupports* aMenuItem,
+                               nsIMenu*     aMenu,
+                               nsIContent*  aContent,
+                               NSMenuItem* aNativeMenuItem)
 : mContent(aContent)
-, mMenuObject(aMenuItem)
+, mMenuItem(aMenuItem)
+, mMenu(aMenu)
+, mMenuRef(NULL)
+, mMenuItemIndex(0)
 , mLoadedIcon(PR_FALSE)
 , mSetIcon(PR_FALSE)
 , mNativeMenuItem(aNativeMenuItem)
@@ -107,6 +112,18 @@ nsMenuItemIconX::SetupIcon()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
+  nsresult rv;
+  if (!mMenuRef || !mMenuItemIndex) {
+    // These values are initialized here instead of in the constructor
+    // because they depend on the parent menu, mMenu, having inserted
+    // this object into its array of children.  That can only happen after
+    // the object is constructed.
+    rv = mMenu->GetMenuRefAndItemIndexForMenuItem(mMenuItem,
+                                                  (void**)&mMenuRef,
+                                                  &mMenuItemIndex);
+    if (NS_FAILED(rv)) return rv;
+  }
+
   // Still don't have one, then something is wrong, get out of here.
   if (!mNativeMenuItem) {
     NS_ERROR("No native menu item\n");
@@ -114,7 +131,7 @@ nsMenuItemIconX::SetupIcon()
   }
 
   nsCOMPtr<nsIURI> iconURI;
-  nsresult rv = GetIconURI(getter_AddRefs(iconURI));
+  rv = GetIconURI(getter_AddRefs(iconURI));
   if (NS_FAILED(rv)) {
     // There is no icon for this menu item. An icon might have been set
     // earlier.  Clear it.
@@ -138,14 +155,15 @@ nsMenuItemIconX::GetIconURI(nsIURI** aIconURI)
   // The downside is that it's possible to get a menu item marked with a
   // native checkmark and a checkmark for an icon.  Head off that possibility
   // by pretending that no icon exists if this is a checkable menu item.
-  if (mMenuObject->MenuObjectType() == eMenuItemObjectType) {
-    nsMenuItemX* menuItem = static_cast<nsMenuItemX*>(mMenuObject);
-    if (menuItem->GetMenuItemType() != eRegularMenuItemType)
+  nsCOMPtr<nsIMenuItem> menuItem = do_QueryInterface(mMenuItem);
+  if (menuItem) {
+    nsIMenuItem::EMenuItemType menuItemType;
+    menuItem->GetMenuItemType(&menuItemType);
+    if (menuItemType != nsIMenuItem::eRegular)
       return NS_ERROR_FAILURE;
   }
 
-  if (!mContent)
-    return NS_ERROR_FAILURE;
+  if (!mContent) return NS_ERROR_FAILURE;
 
   // First, look at the content node's "image" attribute.
   nsAutoString imageURIString;
@@ -261,9 +279,93 @@ nsMenuItemIconX::LoadIcon(nsIURI* aIconURI)
                          nsnull, getter_AddRefs(mIconRequest));
   if (NS_FAILED(rv)) return rv;
 
+  // The icon will be picked up in OnStopFrame, which may be called after
+  // LoadImage returns.  If the load is to be synchronous, ensure that
+  // it completes now.
+
+  if (ShouldLoadSync(aIconURI)) {
+    // If there are any failures at this point, just return NS_OK and let
+    // the image load asynchronously to completion.
+
+    nsCOMPtr<nsIThread> thread = NS_GetCurrentThread();
+    if (!thread) return NS_OK;
+
+    rv = NS_OK;
+    while (!mLoadedIcon && mIconRequest && NS_SUCCEEDED(rv)) {
+      PRBool processed;
+      rv = thread->ProcessNextEvent(PR_TRUE, &processed);
+      if (NS_SUCCEEDED(rv) && !processed)
+        rv = NS_ERROR_UNEXPECTED;
+    }
+  }
+
   return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+}
+
+
+PRBool
+nsMenuItemIconX::ShouldLoadSync(nsIURI* aURI)
+{
+#if 0 // bug 338225
+  // Older menu managers are unable to cope with menu item icons changing
+  // while a menu is open in tracking.  On Panther (10.3), the updated icon
+  // will not be displayed and highlighting of menu items in the affected
+  // menu will be incorrect until menu tracking ends and the menu is
+  // reopened.  On Jaguar (10.2), the updated icon will not be displayed
+  // until the menu item is selected or deselected.  Tiger (10.4) does
+  // not have these problems.
+  //
+  // Because icons are set in an imgIDecoderObserver notification, it's
+  // possible and even likely that some icons will not be set until after the
+  // menu is open.  On systems where this is known to cause trouble,
+  // LoadIcon is made to set the icon on the menu item synchronously when
+  // the source of the icon is local, as determined by the URI scheme.
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_4
+  return PR_FALSE;
+#else
+  static PRBool sNeedsSync;
+
+  static PRBool sInitialized;
+  if (!sInitialized) {
+    sInitialized = PR_TRUE;
+    sNeedsSync = (nsToolkit::OSXVersion() < MAC_OS_X_VERSION_10_4_HEX);
+  }
+
+  if (sNeedsSync) {
+    PRBool isLocalScheme;
+    if (NS_SUCCEEDED(aURI->SchemeIs("chrome", &isLocalScheme)) &&
+        isLocalScheme)
+      return PR_TRUE;
+    if (NS_SUCCEEDED(aURI->SchemeIs("data", &isLocalScheme)) &&
+        isLocalScheme)
+      return PR_TRUE;
+    if (NS_SUCCEEDED(aURI->SchemeIs("moz-anno", &isLocalScheme)) &&
+        isLocalScheme)
+      return PR_TRUE;
+  }
+
+  return PR_FALSE;
+#endif
+#else // bug 338225
+  // Bug 338225 prevents any Gecko events from being processed while
+  // MenuSelect is tracking the menu.  Bug 346108 (duplicate) applies
+  // specifically to this issue.  Make the load synchronous on any OS
+  // release if it's coming from a local scheme as a workaround.
+  PRBool isLocalScheme;
+  if (NS_SUCCEEDED(aURI->SchemeIs("chrome", &isLocalScheme)) &&
+      isLocalScheme)
+    return PR_TRUE;
+  if (NS_SUCCEEDED(aURI->SchemeIs("data", &isLocalScheme)) &&
+      isLocalScheme)
+    return PR_TRUE;
+  if (NS_SUCCEEDED(aURI->SchemeIs("moz-anno", &isLocalScheme)) &&
+      isLocalScheme)
+    return PR_TRUE;
+
+  return PR_FALSE;
+#endif // bug 338225
 }
 
 

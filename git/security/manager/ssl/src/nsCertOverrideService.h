@@ -58,8 +58,7 @@ public:
                       ob_Time_error=4 };
 
   nsCertOverride()
-  :mPort(-1)
-  ,mOverrideBits(ob_None)
+  :mOverrideBits(ob_None)
   {
   }
 
@@ -70,8 +69,7 @@ public:
 
   nsCertOverride &operator=(const nsCertOverride &other)
   {
-    mAsciiHost = other.mAsciiHost;
-    mPort = other.mPort;
+    mHostWithPortUTF8 = other.mHostWithPortUTF8;
     mIsTemporary = other.mIsTemporary;
     mFingerprintAlgOID = other.mFingerprintAlgOID;
     mFingerprint = other.mFingerprint;
@@ -80,8 +78,7 @@ public:
     return *this;
   }
 
-  nsCString mAsciiHost;
-  PRInt32 mPort;
+  nsCString mHostWithPortUTF8;
   PRBool mIsTemporary; // true: session only, false: stored on disk
   nsCString mFingerprint;
   nsCString mFingerprintAlgOID;
@@ -109,7 +106,6 @@ class nsCertOverrideEntry : public PLDHashEntryHdr
     nsCertOverrideEntry(const nsCertOverrideEntry& toCopy)
     {
       mSettings = toCopy.mSettings;
-      mHostWithPort = toCopy.mHostWithPort;
     }
 
     ~nsCertOverrideEntry()
@@ -146,15 +142,14 @@ class nsCertOverrideEntry : public PLDHashEntryHdr
     enum { ALLOW_MEMMOVE = PR_FALSE };
 
     // get methods
-    inline const nsCString &HostWithPort() const { return mHostWithPort; }
+    inline const nsCString &HostWithPort() const { return mSettings.mHostWithPortUTF8; }
 
     inline KeyTypePointer HostWithPortPtr() const
     {
-      return mHostWithPort.get();
+      return mSettings.mHostWithPortUTF8.get();
     }
 
     nsCertOverride mSettings;
-    nsCString mHostWithPort;
 };
 
 class nsCertOverrideService : public nsICertOverrideService
@@ -181,11 +176,6 @@ public:
                                   CertOverrideEnumerator enumerator,
                                   void *aUserData);
 
-    // Concates host name and the port number. If the port number is -1 then
-    // port 443 is automatically used. This method ensures there is always a port
-    // number separated with colon.
-    static void GetHostWithPort(const nsACString & aHostName, PRInt32 aPort, nsACString& _retval);
-
 protected:
     PRMonitor *monitor;
     nsCOMPtr<nsIFile> mSettingsFile;
@@ -197,7 +187,7 @@ protected:
     void RemoveAllFromMemory();
     nsresult Read();
     nsresult Write();
-    nsresult AddEntryToList(const nsACString &host, PRInt32 port,
+    nsresult AddEntryToList(const nsACString &hostWithPortUTF8,
                             const PRBool aIsTemporary,
                             const nsACString &algo_oid, 
                             const nsACString &fingerprint,

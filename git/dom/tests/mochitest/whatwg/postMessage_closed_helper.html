@@ -5,17 +5,17 @@
   <script type="application/javascript">
 function receiveMessage(evt)
 {
-  evt.source.postMessage("FAIL", "*");
+  evt.source.postMessage("FAIL");
 }
 
-window.addEventListener("message", receiveMessage, false);
+document.addEventListener("message", receiveMessage, false);
 
 function setup()
 {
   var query = location.search.substring(1);
 
   if (query == "opener")
-    window.opener.postMessage("message", "http://localhost:8888");
+    window.opener.postMessage("message");
 }
 
 window.addEventListener("load", setup, false);

@@ -522,26 +522,6 @@ void MatrixShaperXFORM(_LPcmsTRANSFORM p,
        }
 }
 
-static
-void MatrixShaperXFORMFloat(_LPcmsTRANSFORM p,
-                            LPVOID in,
-                            LPVOID out, unsigned int Size)
-{
-       register LPBYTE input, output;
-       register unsigned int i;
-
-
-       input  = (LPBYTE) in;
-       output = (LPBYTE) out;
-
-       for (i=0; i < Size; i++)
-       {
-       cmsEvalMatShaperFloat(p -> SmeltMatShaper, input, output);
-       input += 3;
-       output += 3;
-       }
-}
-
 
 // Using Named color input table
 
@@ -797,7 +777,6 @@ LCMSBOOL cmsBuildSmeltMatShaper(_LPcmsTRANSFORM p)
 {
        MAT3 From, To, ToInv, Transfer;
        LPGAMMATABLE In[3], InverseOut[3];
-       LPLCMSPRECACHE InPrecache, OutPrecache;
        
         
        if (!cmsReadICCMatrixRGB2XYZ(&From, p -> InputProfile))
@@ -812,54 +791,31 @@ LCMSBOOL cmsBuildSmeltMatShaper(_LPcmsTRANSFORM p)
        if (MAT3inverse(&To, &ToInv) < 0)
                         return FALSE;
 
-        // Multiply
+       // Multiply
         MAT3per(&Transfer, &ToInv, &From); 
-
-        // Check for the relevant precaches
-        if (p -> dwOriginalFlags & cmsFLAGS_FLOATSHAPER) {
-               InPrecache = ((LPLCMSICCPROFILE)p->InputProfile)->Precache[CMS_PRECACHE_LI16F_FORWARD];
-               OutPrecache = ((LPLCMSICCPROFILE)p->OutputProfile)->Precache[CMS_PRECACHE_LI168_REVERSE];
-        }
-        else {
-               InPrecache = ((LPLCMSICCPROFILE)p->InputProfile)->Precache[CMS_PRECACHE_LI16W_FORWARD];
-               OutPrecache = ((LPLCMSICCPROFILE)p->OutputProfile)->Precache[CMS_PRECACHE_LI1616_REVERSE];
-        }
     
-        // If the input interpolations aren't already cached, read gamma curves
-        if (InPrecache == NULL) {
-               In[0] = cmsReadICCGamma(p -> InputProfile, icSigRedTRCTag);
-               In[1] = cmsReadICCGamma(p -> InputProfile, icSigGreenTRCTag);
-               In[2] = cmsReadICCGamma(p -> InputProfile, icSigBlueTRCTag);
+            
+        // Read gamma curves
 
-              if (!In[0] || !In[1] || !In[2])
+        In[0] = cmsReadICCGamma(p -> InputProfile, icSigRedTRCTag);
+        In[1] = cmsReadICCGamma(p -> InputProfile, icSigGreenTRCTag);
+        In[2] = cmsReadICCGamma(p -> InputProfile, icSigBlueTRCTag);
+
+        if (!In[0] || !In[1] || !In[2])
                      return FALSE;
-        }
-        else
-              In[0] = In[1] = In[2] = NULL;
             
 
-        // If the output interpolations aren't already cached, read reverse
-        // gamma curves
-        if (OutPrecache == NULL) {
-              InverseOut[0] = cmsReadICCGammaReversed(p -> OutputProfile, icSigRedTRCTag);
-              InverseOut[1] = cmsReadICCGammaReversed(p -> OutputProfile, icSigGreenTRCTag);
-              InverseOut[2] = cmsReadICCGammaReversed(p -> OutputProfile, icSigBlueTRCTag);
+        InverseOut[0] = cmsReadICCGammaReversed(p -> OutputProfile, icSigRedTRCTag);
+        InverseOut[1] = cmsReadICCGammaReversed(p -> OutputProfile, icSigGreenTRCTag);
+        InverseOut[2] = cmsReadICCGammaReversed(p -> OutputProfile, icSigBlueTRCTag);
 
-              if (!InverseOut[0] || !InverseOut[1] || !InverseOut[2]) {
-                     cmsFreeGammaTriple(In); 
+		if (!InverseOut[0] || !InverseOut[1] || !InverseOut[2]) {
+				     cmsFreeGammaTriple(In); 
                      return FALSE;
-              }
-        }
-        else
-              InverseOut[0] = InverseOut[1] = InverseOut[2] = NULL;
+		}
 
-        p -> SmeltMatShaper = cmsAllocMatShaper2(&Transfer, In, InPrecache,
-                                                 InverseOut, OutPrecache,
-                                                 MATSHAPER_ALLSMELTED |
-                                                 ((p -> dwOriginalFlags & cmsFLAGS_FLOATSHAPER)
-                                                  ? MATSHAPER_FLOATMAT : 0));
+        p -> SmeltMatShaper = cmsAllocMatShaper2(&Transfer, In, InverseOut, MATSHAPER_ALLSMELTED);
 
-        // These don't free if the pointers were already NULL
         cmsFreeGammaTriple(In);
         cmsFreeGammaTriple(InverseOut);
         
@@ -1297,7 +1253,7 @@ _LPcmsTRANSFORM PickTransformRoutine(_LPcmsTRANSFORM p,
                        !(p -> dwOriginalFlags & cmsFLAGS_BLACKPOINTCOMPENSATION)) {
 
                           // Yes... try to smelt matrix-shapers
-                          p -> xform = (p -> dwOriginalFlags & cmsFLAGS_FLOATSHAPER) ? MatrixShaperXFORMFloat : MatrixShaperXFORM;
+                          p -> xform = MatrixShaperXFORM;
                           p -> dwOriginalFlags |= cmsFLAGS_NOTPRECALC;
 
                           if (!cmsBuildSmeltMatShaper(p))
@@ -1407,6 +1363,7 @@ cmsHTRANSFORM LCMSEXPORT cmsCreateProofingTransform(cmsHPROFILE InputProfile,
        p -> dwOriginalFlags = dwFlags;
 
        p -> lInputV4Lab     = p ->lOutputV4Lab = FALSE;
+
 
        p -> FromInput = _cmsIdentifyInputFormat(p, InputFormat);
        p -> ToOutput  = _cmsIdentifyOutputFormat(p, OutputFormat);

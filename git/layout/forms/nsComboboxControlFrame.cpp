@@ -1049,7 +1049,7 @@ nsComboboxControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
                      getter_AddRefs(nodeInfo));
 
   // create button which drops the list down
-  NS_NewHTMLElement(getter_AddRefs(mButtonContent), nodeInfo, PR_FALSE);
+  NS_NewHTMLElement(getter_AddRefs(mButtonContent), nodeInfo);
   if (!mButtonContent)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -1399,13 +1399,7 @@ nsComboboxControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 void nsComboboxControlFrame::PaintFocus(nsIRenderingContext& aRenderingContext,
-                                        nsPoint aPt)
-{
-  /* Do we need to do anything? */
-  if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::disabled) ||
-      mFocused != this)
-    return;
-
+                                        nsPoint aPt) {
   aRenderingContext.PushState();
   nsRect clipRect = mDisplayFrame->GetRect() + aPt;
   aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
@@ -1416,12 +1410,16 @@ void nsComboboxControlFrame::PaintFocus(nsIRenderingContext& aRenderingContext,
 
   /////////////////////
   // draw focus
-
-  aRenderingContext.SetLineStyle(nsLineStyle_kDotted);
-  aRenderingContext.SetColor(GetStyleColor()->mColor);
-
+  // XXX This is only temporary
+  if (!mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::disabled) &&
+      mFocused == this) {
+    aRenderingContext.SetLineStyle(nsLineStyle_kDotted);
+    aRenderingContext.SetColor(GetStyleColor()->mColor);
+  } else {
+    aRenderingContext.SetColor(GetStyleBackground()->mBackgroundColor);
+    aRenderingContext.SetLineStyle(nsLineStyle_kSolid);
+  }
   //aRenderingContext.DrawRect(clipRect);
-
   nscoord onePixel = nsPresContext::CSSPixelsToAppUnits(1);
   clipRect.width -= onePixel;
   clipRect.height -= onePixel;

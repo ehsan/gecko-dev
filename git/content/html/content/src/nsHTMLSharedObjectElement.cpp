@@ -301,10 +301,7 @@ nsHTMLSharedObjectElement::IsHTMLFocusable(PRBool *aIsFocusable,
     if (aTabIndex) {
       GetTabIndex(aTabIndex);
     }
-
-    *aIsFocusable = PR_TRUE;
-
-    // Let the plugin decide, so override.
+  
     return PR_TRUE;
   }
 
@@ -338,7 +335,7 @@ NS_IMPL_STRING_ATTR(nsHTMLSharedObjectElement, Width, width)
 
 #ifdef MOZ_SVG
 NS_IMETHODIMP
-nsHTMLSharedObjectElement::GetSVGDocument(nsIDOMDocument **aResult)
+nsHTMLSharedObjectElement::GetSVGDocument(nsIDOMSVGDocument **aResult)
 {
   NS_ENSURE_ARG_POINTER(aResult);
 

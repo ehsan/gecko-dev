@@ -449,8 +449,6 @@ nsScriptNameSpaceManager::RegisterInterface(const char* aIfName,
   return NS_OK;
 }
 
-#define GLOBALNAME_HASHTABLE_INITIAL_SIZE	1024
-
 nsresult
 nsScriptNameSpaceManager::Init()
 {
@@ -467,8 +465,7 @@ nsScriptNameSpaceManager::Init()
   };
 
   mIsInitialized = PL_DHashTableInit(&mGlobalNames, &hash_table_ops, nsnull,
-                                     sizeof(GlobalNameMapEntry), 
-                                     GLOBALNAME_HASHTABLE_INITIAL_SIZE);
+                                     sizeof(GlobalNameMapEntry), 128);
   NS_ENSURE_TRUE(mIsInitialized, NS_ERROR_OUT_OF_MEMORY);
 
   nsresult rv = NS_OK;

@@ -126,8 +126,6 @@ protected:
 
   void UpdateTitleAndCharset();
 
-  nsresult ScrollImageTo(PRInt32 aX, PRInt32 aY, PRBool restoreImage);
-
   float GetRatio() {
     return PR_MIN((float)mVisibleWidth / mImageWidth,
                   (float)mVisibleHeight / mImageHeight);
@@ -152,14 +150,13 @@ protected:
   // can be false when this is true
   PRPackedBool                  mShouldResize;
   PRPackedBool                  mFirstResize;
-  // mObservingImageLoader is true while the observer is set.
-  PRPackedBool                  mObservingImageLoader;
 };
 
 ImageListener::ImageListener(nsImageDocument* aDocument)
   : nsMediaDocumentStreamListener(aDocument)
 {
 }
+
 
 ImageListener::~ImageListener()
 {
@@ -213,7 +210,6 @@ ImageListener::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
   NS_ENSURE_TRUE(imageLoader, NS_ERROR_UNEXPECTED);
 
   imageLoader->AddObserver(imgDoc);
-  imgDoc->mObservingImageLoader = PR_TRUE;
   imageLoader->LoadImageWithChannel(channel, getter_AddRefs(mNextStream));
 
   return nsMediaDocumentStreamListener::OnStartRequest(request, ctxt);
@@ -229,7 +225,6 @@ ImageListener::OnStopRequest(nsIRequest* request, nsISupports *ctxt,
   
   nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(imgDoc->mImageContent);
   if (imageLoader) {
-    imgDoc->mObservingImageLoader = PR_FALSE;
     imageLoader->RemoveObserver(imgDoc);
   }
 
@@ -337,11 +332,9 @@ nsImageDocument::Destroy()
     target->RemoveEventListener(NS_LITERAL_STRING("click"), this, PR_FALSE);
 
     // Break reference cycle with mImageContent, if we have one
-    if (mObservingImageLoader) {
-      nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mImageContent);
-      if (imageLoader) {
-        imageLoader->RemoveObserver(this);
-      }
+    nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mImageContent);
+    if (imageLoader) {
+      imageLoader->RemoveObserver(this);
     }
 
     mImageContent = nsnull;
@@ -432,10 +425,6 @@ nsImageDocument::ShrinkToFit()
   image->SetWidth(PR_MAX(1, NSToCoordFloor(GetRatio() * mImageWidth)));
   image->SetHeight(PR_MAX(1, NSToCoordFloor(GetRatio() * mImageHeight)));
   
-  // The view might have been scrolled when zooming in, scroll back to the
-  // origin now that we're showing a shrunk-to-window version.
-  (void) ScrollImageTo(0, 0, PR_FALSE);
-
   imageContent->SetAttr(kNameSpaceID_None, nsGkAtoms::style,
                         NS_LITERAL_STRING("cursor: -moz-zoom-in"), PR_TRUE);
   
@@ -449,18 +438,10 @@ nsImageDocument::ShrinkToFit()
 NS_IMETHODIMP
 nsImageDocument::RestoreImageTo(PRInt32 aX, PRInt32 aY)
 {
-  return ScrollImageTo(aX, aY, PR_TRUE);
-}
-
-nsresult
-nsImageDocument::ScrollImageTo(PRInt32 aX, PRInt32 aY, PRBool restoreImage)
-{
   float ratio = GetRatio();
 
-  if (restoreImage) {
-    RestoreImage();
-    FlushPendingNotifications(Flush_Layout);
-  }
+  RestoreImage();
+  FlushPendingNotifications(Flush_Layout);
 
   nsIPresShell *shell = GetPrimaryShell();
   if (!shell)
@@ -576,13 +557,9 @@ nsImageDocument::HandleEvent(nsIDOMEvent* aEvent)
   else if (eventType.EqualsLiteral("keypress")) {
     nsCOMPtr<nsIDOMKeyEvent> keyEvent = do_QueryInterface(aEvent);
     PRUint32 charCode;
-    PRBool ctrlKey, metaKey, altKey;
     keyEvent->GetCharCode(&charCode);
-    keyEvent->GetCtrlKey(&ctrlKey);
-    keyEvent->GetMetaKey(&metaKey);
-    keyEvent->GetAltKey(&altKey);
     // plus key
-    if (charCode == 0x2B && !ctrlKey && !metaKey && !altKey) {
+    if (charCode == 0x2B) {
       mShouldResize = PR_FALSE;
       if (mImageIsResized) {
         SetZoomLevel(1.0);
@@ -590,7 +567,7 @@ nsImageDocument::HandleEvent(nsIDOMEvent* aEvent)
       }
     }
     // minus key
-    else if (charCode == 0x2D && !ctrlKey && !metaKey && !altKey) {
+    else if (charCode == 0x2D) {
       mShouldResize = PR_TRUE;
       if (mImageIsOverflowing) {
         SetZoomLevel(1.0);
@@ -671,7 +648,7 @@ nsImageDocument::CheckOverflowing(PRBool changeState)
     nsMargin m;
     if (styleContext->GetStyleMargin()->GetMargin(m))
       visibleArea.Deflate(m);
-    m = styleContext->GetStyleBorder()->GetActualBorder();
+    m = styleContext->GetStyleBorder()->GetBorder();
     visibleArea.Deflate(m);
     if (styleContext->GetStylePadding()->GetPadding(m))
       visibleArea.Deflate(m);

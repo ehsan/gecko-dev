@@ -92,7 +92,6 @@ typedef struct JSArgumentFormatMap  JSArgumentFormatMap;
 typedef struct JSCodeGenerator      JSCodeGenerator;
 typedef struct JSGCThing            JSGCThing;
 typedef struct JSGenerator          JSGenerator;
-typedef struct JSNativeEnumerator   JSNativeEnumerator;
 typedef struct JSParseContext       JSParseContext;
 typedef struct JSParsedObjectBox    JSParsedObjectBox;
 typedef struct JSParseNode          JSParseNode;

@@ -204,8 +204,6 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
     case eColor_windowtext:
       idx = SYSCLR_WINDOWTEXT;
       break;
-    case eColor__moz_eventreerow:
-    case eColor__moz_oddtreerow:
     case eColor__moz_field:
       idx = SYSCLR_ENTRYFIELD;
       break;
@@ -366,7 +364,6 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     case eMetric_TreeScrollLinesMax:
         aMetric = 3;
         break;
-    case eMetric_DWMCompositor:
     case eMetric_WindowsDefaultTheme:
         aMetric = 0;
         res = NS_ERROR_NOT_IMPLEMENTED;

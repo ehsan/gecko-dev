@@ -214,8 +214,9 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
 		aColor = PH_TO_NS_RGB(Pg_BLACK);
 		break;
 
-	  case eColor__moz_eventreerow:
-	  case eColor__moz_oddtreerow:
+	  // from the CSS3 working draft (not yet finalized)
+	  // http://www.w3.org/tr/2000/wd-css3-userint-20000216.html#color
+
 	  case eColor__moz_field:
 		aColor = PH_TO_NS_RGB(Pg_WHITE);
 		break;
@@ -363,7 +364,6 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
   case eMetric_TreeScrollLinesMax:
     aMetric = 3;
     break;
-  case eMetric_DWMCompositor:
   case eMetric_WindowsDefaultTheme:
     aMetric = 0;
     res = NS_ERROR_NOT_IMPLEMENTED;

@@ -106,8 +106,6 @@ nsXULTemplateResultStorage::GetType(nsAString& aType)
 NS_IMETHODIMP
 nsXULTemplateResultStorage::GetBindingFor(nsIAtom* aVar, nsAString& aValue)
 {
-    NS_ENSURE_ARG_POINTER(aVar);
-
     aValue.Truncate();
     if (!mResultSet) {
         return NS_OK;
@@ -128,8 +126,6 @@ nsXULTemplateResultStorage::GetBindingFor(nsIAtom* aVar, nsAString& aValue)
 NS_IMETHODIMP
 nsXULTemplateResultStorage::GetBindingObjectFor(nsIAtom* aVar, nsISupports** aValue)
 {
-    NS_ENSURE_ARG_POINTER(aVar);
-
     if (mResultSet) {
         PRInt32 idx = mResultSet->GetColumnIndex(aVar);
         if (idx >= 0) {

@@ -72,13 +72,6 @@ nsDOMMessageEvent::GetOrigin(nsAString& aOrigin)
 }
 
 NS_IMETHODIMP
-nsDOMMessageEvent::GetLastEventId(nsAString& aLastEventId)
-{
-  aLastEventId = mLastEventId;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsDOMMessageEvent::GetSource(nsIDOMWindow** aSource)
 {
   NS_IF_ADDREF(*aSource = mSource);
@@ -91,7 +84,6 @@ nsDOMMessageEvent::InitMessageEvent(const nsAString& aType,
                                     PRBool aCancelable,
                                     const nsAString& aData,
                                     const nsAString& aOrigin,
-                                    const nsAString& aLastEventId,
                                     nsIDOMWindow* aSource)
 {
   nsresult rv = nsDOMEvent::InitEvent(aType, aCanBubble, aCancelable);
@@ -99,7 +91,6 @@ nsDOMMessageEvent::InitMessageEvent(const nsAString& aType,
 
   mData = aData;
   mOrigin = aOrigin;
-  mLastEventId = aLastEventId;
   mSource = aSource;
 
   return NS_OK;
@@ -112,7 +103,6 @@ nsDOMMessageEvent::InitMessageEventNS(const nsAString& aNamespaceURI,
                                       PRBool aCancelable,
                                       const nsAString& aData,
                                       const nsAString& aOrigin,
-                                      const nsAString& aLastEventId,
                                       nsIDOMWindow* aSource)
 {
   return NS_ERROR_NOT_IMPLEMENTED;

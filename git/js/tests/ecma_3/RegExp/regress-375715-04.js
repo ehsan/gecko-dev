@@ -52,16 +52,8 @@ function test()
   enterFunc ('test');
   printBugNumber(BUGNUMBER);
   printStatus (summary);
-
-  try
-  {
-    expect = 'SyntaxError: invalid range in character class';
-    (new RegExp("[\xDF-\xC7]]", "i")).exec("");
-  }
-  catch(ex)
-  {
-    actual = ex + '';
-  }
+ 
+  (new RegExp("[\xDF-\xC7]]", "i")).exec("");
   reportCompare(expect, actual, summary + '(new RegExp("[\xDF-\xC7]]", "i")).exec("")');
 
   exitFunc ('test');

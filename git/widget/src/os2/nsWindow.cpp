@@ -44,6 +44,8 @@
 
 #include "nsWindow.h"
 #include "nsIAppShell.h"
+#include "nsIFontMetrics.h"
+#include "nsFont.h"
 #include "nsGUIEvent.h"
 #include "nsIRenderingContext.h"
 #include "nsIDeviceContext.h"
@@ -218,6 +220,7 @@ nsWindow::nsWindow() : nsBaseWidget()
     mWindowState        = nsWindowState_ePrecreate;
     mWindowType         = eWindowType_child;
     mBorderStyle        = eBorderStyle_default;
+    mFont               = nsnull;
     mOS2Toolkit         = nsnull;
     mIsScrollBar         = FALSE;
     mInSetFocus         = FALSE;
@@ -1615,6 +1618,73 @@ void nsWindow::GetNonClientBounds(nsRect &aRect)
 
 //-------------------------------------------------------------------------
 //
+// Get this component font
+//
+//-------------------------------------------------------------------------
+nsIFontMetrics *nsWindow::GetFont(void)
+{
+   nsIFontMetrics *metrics = nsnull;
+
+   if( mToolkit)
+   {
+      char fontNameSize[FACESIZE+5]; // FACESIZE + decimal + up to three digits for font size + null terminator
+      char fontName[FACESIZE];
+      int  ptSize;
+   
+      WinQueryPresParam( mWnd, PP_FONTNAMESIZE, 0, 0, FACESIZE+5, fontNameSize, 0);
+   
+      // FACESIZE = 32, hence the 31 here
+      if( 2 == sscanf( fontNameSize, "%d.%31s", &ptSize, fontName))
+      {
+         nscoord appSize = NSToCoordRound(float(ptSize) * mContext->AppUnitsPerInch() / 72);
+   
+         nsFont font( fontName, NS_FONT_STYLE_NORMAL, NS_FONT_VARIANT_NORMAL,
+                      NS_FONT_WEIGHT_NORMAL, 0 /*decoration*/, appSize);
+   
+         mContext->GetMetricsFor( font, metrics);
+      }
+   }
+
+   return metrics;
+}
+
+//-------------------------------------------------------------------------
+//
+// Set this component font
+//
+//-------------------------------------------------------------------------
+NS_METHOD nsWindow::SetFont(const nsFont &aFont)
+{
+   if( mToolkit) // called from print-routine (XXX check)
+   {
+      // jump through hoops to convert the size in the font (in app units)
+      // into points. 
+      int points = aFont.size * 72 / mContext->AppUnitsPerInch();
+
+      nsAutoCharBuffer fontname;
+      PRInt32 fontnameLength;
+      WideCharToMultiByte(0, aFont.name.get(), aFont.name.Length(),
+                          fontname, fontnameLength);
+
+      char *buffer = new char[fontnameLength + 6];
+      if (buffer) {
+        sprintf(buffer, "%d.%s", points, fontname.Elements());
+        ::WinSetPresParam(mWnd, PP_FONTNAMESIZE,
+                          strlen(buffer) + 1, buffer);
+        delete [] buffer;
+      }
+   }
+
+   if( !mFont)
+      mFont = new nsFont( aFont);
+   else
+      *mFont = aFont;
+
+   return NS_OK;
+}
+
+//-------------------------------------------------------------------------
+//
 // Set this component cursor
 //
 //-------------------------------------------------------------------------
@@ -2230,21 +2300,6 @@ BOOL nsWindow::NotifyForeignChildWindows(HWND aWnd)
 
 //-------------------------------------------------------------------------
 //
-// Force a resize of child windows after a scroll to reset hover positions.
-//
-//-------------------------------------------------------------------------
-void nsWindow::ScrollChildWindows(PRInt32 aX, PRInt32 aY)
-{
-  nsIWidget *child = GetFirstChild();
-  while (child) {
-    nsRect rect;
-    child->GetBounds(rect);
-    child->Resize(rect.x + aX, rect.y + aY, rect.width, rect.height, PR_FALSE);
-    child = child->GetNextSibling();
-  }
-}
-//-------------------------------------------------------------------------
-//
 // Scroll the bits of a window
 //
 //-------------------------------------------------------------------------
@@ -2259,20 +2314,19 @@ NS_METHOD nsWindow::Scroll(PRInt32 aDx, PRInt32 aDy, nsRect *aClipRect)
     rcl.yBottom = aClipRect->y + aClipRect->height;
     rcl.xRight = rcl.xLeft + aClipRect->width;
     rcl.yTop = rcl.yBottom + aClipRect->height;
-    NS2PM(rcl);
+    NS2PM( rcl);
     // this rect is inex
   }
 
-  // this prevents screen corruption while scrolling during a
-  // Moz-originated drag - during a native drag, the screen
-  // isn't updated until the drag ends. so there's no corruption
+    // this prevents screen corruption while scrolling during a
+    // Moz-originated drag - during a native drag, the screen
+    // isn't updated until the drag ends. so there's no corruption
   HPS hps = 0;
   CheckDragStatus(ACTION_SCROLL, &hps);
 
   NotifyForeignChildWindows(mWnd);
-  WinScrollWindow(mWnd, aDx, -aDy, aClipRect ? &rcl : 0, 0, 0,
-                  0, SW_SCROLLCHILDREN | SW_INVALIDATERGN);
-  ScrollChildWindows(aDx, aDy);
+  WinScrollWindow( mWnd, aDx, -aDy, aClipRect ? &rcl : 0, 0, 0,
+                   0, SW_SCROLLCHILDREN | SW_INVALIDATERGN);
   Update();
 
   if (hps)
@@ -2769,14 +2823,10 @@ PRBool nsWindow::ProcessMessage( ULONG msg, MPARAM mp1, MPARAM mp2, MRESULT &rc)
           break;
 
         case WM_BUTTON3DOWN:
-          if (!mIsScrollBar)
-            WinSetCapture( HWND_DESKTOP, mWnd);
           result = DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, mp1, mp2, PR_FALSE,
                                       nsMouseEvent::eMiddleButton);
           break;
         case WM_BUTTON3UP:
-          if (!mIsScrollBar)
-            WinSetCapture( HWND_DESKTOP, 0); // release
           result = DispatchMouseEvent(NS_MOUSE_BUTTON_UP, mp1, mp2, PR_FALSE,
                                       nsMouseEvent::eMiddleButton);
           break;
@@ -3010,6 +3060,9 @@ void nsWindow::OnDestroy()
 
    // release references to context, toolkit, appshell, children
    nsBaseWidget::OnDestroy();
+
+   // kill font
+   delete mFont;
 
    // dispatching of the event may cause the reference count to drop to 0
    // and result in this object being deleted. To avoid that, add a
@@ -3600,9 +3653,9 @@ nsWindow::GetLastInputEventTime(PRUint32& aTime)
    ULONG ulStatus = WinQueryQueueStatus(HWND_DESKTOP);
 
    // If there is pending input then return the current time.
-   if (ulStatus & (QS_KEY | QS_MOUSE)) {
+   if (ulStatus && (QS_KEY | QS_MOUSE | QS_MOUSEBUTTON | QS_MOUSEMOVE)) {
      gLastInputEventTime = PR_IntervalToMicroseconds(PR_IntervalNow());
-   }
+   } 
 
    aTime = gLastInputEventTime;
 

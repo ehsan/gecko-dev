@@ -46,7 +46,7 @@ interface nsIPluginInstanceOwner;
 
 [ptr] native nsPluginNativeWindowPtr(nsPluginNativeWindow);
 
-[uuid(673811fb-83d6-4b8f-b1a9-bb3a9033f256)]
+[uuid(42338435-a38f-4901-97b9-d7cba643d28d)]
 interface nsPIPluginHost : nsISupports
 {
  /**
@@ -103,13 +103,4 @@ interface nsPIPluginHost : nsISupports
    * be non-null, if not, it will be null.
    */
   [noscript] void instantiateDummyJavaPlugin(in nsIPluginInstanceOwner aOwner);
-
- /**
-  * Get the plugin name for the plugin instance.
-  * @param aInstance the plugin instance object
-  * @param aPluginName returns a pointer to a shared readonly string value,
-  *        it's only valid for the lifetime of the plugin instance - you must
-  *        copy the string value if you need it longer than that.
-  */
-  [noscript] void getPluginName(in nsIPluginInstance aInstance, [shared] out string aPluginName);
 };

@@ -105,8 +105,7 @@ enum nsCSSTokenType {
 
 struct nsCSSToken {
   nsCSSTokenType  mType;
-  PRPackedBool    mIntegerValid; // for number and dimension
-  PRPackedBool    mHasSign; // for number, percentage, and dimension
+  PRPackedBool    mIntegerValid;
   nsAutoString    mIdent;
   float           mNumber;
   PRInt32         mInteger;
@@ -147,18 +146,6 @@ class nsCSSScanner {
   static PRBool InitGlobals();
   static void ReleaseGlobals();
 
-#ifdef  MOZ_SVG
-  // Set whether or not we are processing SVG
-  void SetSVGMode(PRBool aSVGMode) {
-    NS_ASSERTION(aSVGMode == PR_TRUE || aSVGMode == PR_FALSE,
-                 "bad PRBool value");
-    mSVGMode = aSVGMode;
-  }
-  PRBool IsSVGMode() const {
-    return mSVGMode;
-  }
-
-#endif
 #ifdef CSS_REPORT_PARSE_ERRORS
   NS_HIDDEN_(void) AddToError(const nsSubstring& aErrorText);
   NS_HIDDEN_(void) OutputError();
@@ -169,10 +156,8 @@ class nsCSSScanner {
   NS_HIDDEN_(void) ReportUnexpectedParams(const char* aMessage,
                                           const PRUnichar **aParams,
                                           PRUint32 aParamsLength);
-  // aLookingFor is a plain string, not a format string
+  // aMessage must take no parameters
   NS_HIDDEN_(void) ReportUnexpectedEOF(const char* aLookingFor);
-  // aLookingFor is a single character
-  NS_HIDDEN_(void) ReportUnexpectedEOF(PRUnichar aLookingFor);
   // aMessage must take 1 parameter (for the string representation of the
   // unexpected token)
   NS_HIDDEN_(void) ReportUnexpectedToken(nsCSSToken& tok,
@@ -192,12 +177,6 @@ class nsCSSScanner {
 
   // Get the next token that may be a string or unquoted URL or whitespace
   PRBool NextURL(nsresult& aErrorCode, nsCSSToken& aTokenResult);
-
-  // It's really ugly that we have to expose this, but it's the easiest
-  // way to do :nth-child() parsing sanely.  (In particular, in
-  // :nth-child(2n-1), "2n-1" is a dimension, and we need to push the
-  // "-1" back so we can read it again as a number.)
-  void Pushback(PRUnichar aChar);
 
   static inline PRBool
   IsIdentStart(PRInt32 aChar)
@@ -233,6 +212,7 @@ protected:
   PRBool EnsureData(nsresult& aErrorCode);
   PRInt32 Read(nsresult& aErrorCode);
   PRInt32 Peek(nsresult& aErrorCode);
+  void Pushback(PRUnichar aChar);
   PRBool LookAhead(nsresult& aErrorCode, PRUnichar aChar);
   PRBool EatWhiteSpace(nsresult& aErrorCode);
   PRBool EatNewline(nsresult& aErrorCode);
@@ -265,10 +245,6 @@ protected:
   PRUnichar mLocalPushback[4];
 
   PRUint32 mLineNumber;
-#ifdef MOZ_SVG
-  // True if we are in SVG mode; false in "normal" CSS
-  PRPackedBool mSVGMode;
-#endif
 #ifdef CSS_REPORT_PARSE_ERRORS
   nsXPIDLCString mFileName;
   nsCOMPtr<nsIURI> mURI;  // Cached so we know to not refetch mFileName

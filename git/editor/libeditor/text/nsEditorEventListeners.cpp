@@ -529,7 +529,7 @@ nsTextEditorDragListener::DragEnter(nsIDOMEvent* aDragEvent)
 
   if (!mCaret)
   {
-    NS_NewCaret(getter_AddRefs(mCaret));
+    mCaret = do_CreateInstance("@mozilla.org/layout/caret;1");
     if (mCaret)
     {
       mCaret->Init(presShell);
@@ -557,18 +557,6 @@ nsTextEditorDragListener::DragOver(nsIDOMEvent* aDragEvent)
   dragService->GetCurrentSession(getter_AddRefs(dragSession));
   if (!dragSession) return NS_ERROR_FAILURE;
 
-  nsCOMPtr<nsIDOMNode> parent;
-  nsCOMPtr<nsIDOMNSUIEvent> nsuiEvent = do_QueryInterface(aDragEvent);
-  if (nsuiEvent) {
-    nsuiEvent->GetRangeParent(getter_AddRefs(parent));
-    nsCOMPtr<nsIContent> dropParent = do_QueryInterface(parent);
-    if (!dropParent)
-      return NS_ERROR_FAILURE;
-
-    if (!dropParent->IsEditable())
-      return NS_OK;
-  }
-
   PRBool canDrop = CanDrop(aDragEvent);
   if (canDrop)
   {
@@ -586,19 +574,28 @@ nsTextEditorDragListener::DragOver(nsIDOMEvent* aDragEvent)
     
   if (canDrop)
   {
-    if (mCaret && nsuiEvent)
+    if (mCaret)
     {
-      PRInt32 offset = 0;
-      rv = nsuiEvent->GetRangeOffset(&offset);
-      if (NS_FAILED(rv)) return rv;
+      nsCOMPtr<nsIDOMNSUIEvent> nsuiEvent (do_QueryInterface(aDragEvent));
+      if (nsuiEvent)
+      {
+        nsCOMPtr<nsIDOMNode> parent;
+        rv = nsuiEvent->GetRangeParent(getter_AddRefs(parent));
+        if (NS_FAILED(rv)) return rv;
+        if (!parent) return NS_ERROR_FAILURE;
 
-      // to avoid flicker, we could track the node and offset to see if we moved
-      if (mCaretDrawn)
-        mCaret->EraseCaret();
-      
-      //mCaret->SetCaretVisible(PR_TRUE);   // make sure it's visible
-      mCaret->DrawAtPosition(parent, offset);
-      mCaretDrawn = PR_TRUE;
+        PRInt32 offset = 0;
+        rv = nsuiEvent->GetRangeOffset(&offset);
+        if (NS_FAILED(rv)) return rv;
+
+        // to avoid flicker, we could track the node and offset to see if we moved
+        if (mCaretDrawn)
+          mCaret->EraseCaret();
+        
+        //mCaret->SetCaretVisible(PR_TRUE);   // make sure it's visible
+        mCaret->DrawAtPosition(parent, offset);
+        mCaretDrawn = PR_TRUE;
+      }
     }
   }
   else
@@ -653,18 +650,6 @@ nsTextEditorDragListener::DragDrop(nsIDOMEvent* aMouseEvent)
 
   if (!mEditor)
     return NS_ERROR_FAILURE;
-
-  nsCOMPtr<nsIDOMNSUIEvent> nsuiEvent = do_QueryInterface(aMouseEvent);
-  if (nsuiEvent) {
-    nsCOMPtr<nsIDOMNode> parent;
-    nsuiEvent->GetRangeParent(getter_AddRefs(parent));
-    nsCOMPtr<nsIContent> dropParent = do_QueryInterface(parent);
-    if (!dropParent)
-      return NS_ERROR_FAILURE;
-
-    if (!dropParent->IsEditable())
-      return NS_OK;
-  }
 
   PRBool canDrop = CanDrop(aMouseEvent);
   if (!canDrop)
@@ -868,6 +853,43 @@ nsTextEditorCompositionListener::HandleEndComposition(nsIDOMEvent* aCompositionE
    printf("nsTextEditorCompositionListener::HandleEndComposition\n");
 #endif
    return mEditor->EndComposition();
+}
+
+
+nsresult
+nsTextEditorCompositionListener::HandleQueryReconversion(nsIDOMEvent* aReconversionEvent)
+{
+#ifdef DEBUG_IME
+  printf("nsTextEditorCompositionListener::HandleQueryReconversion\n");
+#endif
+  nsCOMPtr<nsIPrivateCompositionEvent> pCompositionEvent = do_QueryInterface(aReconversionEvent);
+  if (!pCompositionEvent)
+    return NS_ERROR_FAILURE;
+
+  nsReconversionEventReply* eventReply;
+  nsresult rv = pCompositionEvent->GetReconversionReply(&eventReply);
+  if (NS_FAILED(rv))
+    return rv;
+
+  return mEditor->GetReconversionString(eventReply);
+}
+
+nsresult
+nsTextEditorCompositionListener::HandleQueryCaretRect(nsIDOMEvent* aQueryCaretRectEvent)
+{
+#ifdef DEBUG_IME
+  printf("nsTextEditorCompositionListener::HandleQueryCaretRect\n");
+#endif
+  nsCOMPtr<nsIPrivateCompositionEvent> pCompositionEvent = do_QueryInterface(aQueryCaretRectEvent);
+  if (!pCompositionEvent)
+    return NS_ERROR_FAILURE;
+
+  nsQueryCaretRectEventReply* eventReply;
+  nsresult rv = pCompositionEvent->GetQueryCaretRectReply(&eventReply);
+  if (NS_FAILED(rv))
+    return rv;
+
+  return mEditor->GetQueryCaretRect(eventReply);
 }
 
 /*
@@ -1092,6 +1114,7 @@ nsTextEditorFocusListener::Focus(nsIDOMEvent* aEvent)
   // turn on selection and caret
   if (mEditor)
   {
+    nsCOMPtr<nsIEditorIMESupport> imeEditor = do_QueryInterface(mEditor);
     PRUint32 flags;
     mEditor->GetFlags(&flags);
     if (! (flags & nsIPlaintextEditor::eEditorDisabledMask))
@@ -1118,7 +1141,7 @@ nsTextEditorFocusListener::Focus(nsIDOMEvent* aEvent)
 
         nsCOMPtr<nsIPresShell> presShell = do_QueryReferent(mPresShell);
         if (presShell) {
-          nsRefPtr<nsCaret> caret;
+          nsCOMPtr<nsICaret> caret;
           presShell->GetCaret(getter_AddRefs(caret));
           if (caret) {
             caret->SetIgnoreUserModify(PR_FALSE);
@@ -1150,6 +1173,9 @@ nsTextEditorFocusListener::Focus(nsIDOMEvent* aEvent)
         }
       }
     }
+
+    if (imeEditor)
+      imeEditor->NotifyIMEOnFocus();
   }
   return NS_OK;
 }
@@ -1161,6 +1187,13 @@ nsTextEditorFocusListener::Blur(nsIDOMEvent* aEvent)
   // turn off selection and caret
   if (mEditor && mIsFocused)
   {
+    // when imeEditor exists, call ForceCompositionEnd() to tell
+    // the input focus is leaving first
+    nsCOMPtr<nsIEditorIMESupport> imeEditor = do_QueryInterface(mEditor);
+    if (imeEditor) {
+      imeEditor->NotifyIMEOnBlur();
+    }
+
     nsCOMPtr<nsIEditor>editor = do_QueryInterface(mEditor);
     if (editor)
     {
@@ -1180,7 +1213,7 @@ nsTextEditorFocusListener::Blur(nsIDOMEvent* aEvent)
 
         nsCOMPtr<nsIPresShell> presShell = do_QueryReferent(mPresShell);
         if (presShell) {
-          nsRefPtr<nsCaret> caret;
+          nsCOMPtr<nsICaret> caret;
           presShell->GetCaret(getter_AddRefs(caret));
           if (caret) {
             caret->SetIgnoreUserModify(PR_TRUE);

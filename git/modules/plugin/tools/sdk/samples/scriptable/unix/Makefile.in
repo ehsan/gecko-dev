@@ -45,7 +45,8 @@ include $(DEPTH)/config/autoconf.mk
 MODULE		= npSDKscriptable
 LIBRARY_NAME	= npSDKscriptable
 
-REQUIRES        = idl \
+REQUIRES        = java \
+                  idl \
                   xpcom \
                   nspr \
                   $(NULL)

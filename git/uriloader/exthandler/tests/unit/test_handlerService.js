@@ -51,12 +51,6 @@ function run_test() {
   const prefSvc = Cc["@mozilla.org/preferences-service;1"].
                   getService(Ci.nsIPrefService);
                   
-  const ioService = Cc["@mozilla.org/network/io-service;1"].
-                    getService(Ci.nsIIOService);
-
-  const env = Cc["@mozilla.org/process/environment;1"].
-              getService(Components.interfaces.nsIEnvironment);
-
   const rootPrefBranch = prefSvc.getBranch("");
   
   //**************************************************************************//
@@ -168,7 +162,7 @@ function run_test() {
   prefSvc.setBoolPref(kExternalWarningPrefPrefix + "mailto", false);
   protoInfo = protoSvc.getProtocolHandlerInfo("mailto");
   if (haveDefaultHandlersVersion)
-    do_check_eq(2, protoInfo.possibleApplicationHandlers.length);
+    do_check_eq(1, protoInfo.possibleApplicationHandlers.length);
   else
     do_check_eq(0, protoInfo.possibleApplicationHandlers.length);
   do_check_false(protoInfo.alwaysAskBeforeHandling);
@@ -177,7 +171,7 @@ function run_test() {
   prefSvc.setBoolPref(kExternalWarningPrefPrefix + "mailto", true);
   protoInfo = protoSvc.getProtocolHandlerInfo("mailto");
   if (haveDefaultHandlersVersion) {
-    do_check_eq(2, protoInfo.possibleApplicationHandlers.length);
+    do_check_eq(1, protoInfo.possibleApplicationHandlers.length);
     // alwaysAskBeforeHandling is expected to be false here, because although
     // the pref is true, the value in RDF is false. The injected mailto handler
     // carried over the default pref value, and so when we set the pref above
@@ -196,7 +190,7 @@ function run_test() {
     protoInfo.alwaysAskBeforeHandling = true;
     handlerSvc.store(protoInfo);
     protoInfo = protoSvc.getProtocolHandlerInfo("mailto");
-    do_check_eq(2, protoInfo.possibleApplicationHandlers.length);
+    do_check_eq(1, protoInfo.possibleApplicationHandlers.length);
     do_check_true(protoInfo.alwaysAskBeforeHandling);
   }
 
@@ -342,54 +336,4 @@ function run_test() {
 
   // FIXME: test round trip integrity for a protocol.
   // FIXME: test round trip integrity for a handler info with a web handler.
-
-  //**************************************************************************//
-  // getTypeFromExtension tests
-
-  // test non-existent extension
-  var lolType = handlerSvc.getTypeFromExtension("lolcat");
-  do_check_eq(lolType, "");
-
-
-  // add a handler for the extension
-  var lolHandler = mimeSvc.getFromTypeAndExtension("application/lolcat", null);
-
-  do_check_false(lolHandler.extensionExists("lolcat"));
-  lolHandler.preferredAction = Ci.nsIHandlerInfo.useHelperApp;
-  lolHandler.preferredApplicationHandler = localHandler;
-  lolHandler.alwaysAskBeforeHandling = false;
-
-  // store the handler
-  do_check_false(handlerSvc.exists(lolHandler));
-  handlerSvc.store(lolHandler);
-  do_check_true(handlerSvc.exists(lolHandler));
-
-  // Get a file:// string pointing to mimeTypes.rdf
-  var rdfFile = HandlerServiceTest._dirSvc.get("UMimTyp", Ci.nsIFile);
-  var fileHandler = ioService.getProtocolHandler("file").QueryInterface(Ci.nsIFileProtocolHandler);
-  var rdfFileURI = fileHandler.getURLSpecFromFile(rdfFile);
-
-  // Assign a file extenstion to the handler. handlerSvc.store() doesn't
-  // actually store any file extensions added with setFileExtensions(), you
-  // have to wade into RDF muck to do so.
-
-  // Based on toolkit/mozapps/downloads/content/helperApps.js :: addExtension()
-  var gRDF = Cc["@mozilla.org/rdf/rdf-service;1"].getService(Ci.nsIRDFService);
-  var mimeSource    = gRDF.GetUnicodeResource("urn:mimetype:application/lolcat");
-  var valueProperty = gRDF.GetUnicodeResource("http://home.netscape.com/NC-rdf#fileExtensions");
-  var mimeLiteral   = gRDF.GetLiteral("lolcat");
-
-  var DS = gRDF.GetDataSourceBlocking(rdfFileURI);
-  DS.Assert(mimeSource, valueProperty, mimeLiteral, true);
-
-
-  // test now-existent extension
-  lolType = handlerSvc.getTypeFromExtension("lolcat");
-  do_check_eq(lolType, "application/lolcat");
-
-  if (env.get("PERSONAL_MAILCAP")) {
-    handlerInfo = mimeSvc.getFromTypeAndExtension("text/plain", null);
-    do_check_eq(handlerInfo.preferredAction, Ci.nsIHandlerInfo.useSystemDefault);
-    do_check_eq(handlerInfo.defaultDescription, "sed");
-  }
 }

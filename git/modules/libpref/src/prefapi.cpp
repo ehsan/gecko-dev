@@ -192,14 +192,12 @@ static nsresult pref_DoCallback(const char* changed_pref);
 static nsresult pref_HashPref(const char *key, PrefValue value, PrefType type, PRBool defaultPref);
 static inline PrefHashEntry* pref_HashTableLookup(const void *key);
 
-#define PREF_HASHTABLE_INITIAL_SIZE	2048
 
 nsresult PREF_Init()
 {
     if (!gHashTable.ops) {
         if (!PL_DHashTableInit(&gHashTable, &pref_HashTableOps, nsnull,
-                               sizeof(PrefHashEntry),
-                               PREF_HASHTABLE_INITIAL_SIZE)) {
+                               sizeof(PrefHashEntry), 1024)) {
             gHashTable.ops = nsnull;
             return NS_ERROR_OUT_OF_MEMORY;
         }

@@ -57,21 +57,14 @@ function test() {
 
   var toolbarId = PlacesUtils.toolbarFolderId;
   var toolbarNode = PlacesUtils.getFolderContents(toolbarId).root;
-
-  var oldCount = toolbarNode.childCount;
-  var testRootId = PlacesUtils.bookmarks.createFolder(toolbarId, "test root", -1);
-  is(toolbarNode.childCount, oldCount+1, "confirm test root node is a container, and is empty");
-  var testRootNode = toolbarNode.getChild(toolbarNode.childCount-1);
-  testRootNode.QueryInterface(Ci.nsINavHistoryContainerResultNode);
-  testRootNode.containerOpen = true;
-  is(testRootNode.childCount, 0, "confirm test root node is a container, and is empty");
+  is(toolbarNode.childCount, 0, "confirm toolbar is empty");
 
   // create folder A, fill it, validate it's contents
-  var folderAId = PlacesUtils.bookmarks.createFolder(testRootId, "A", -1);
+  var folderAId = PlacesUtils.bookmarks.createFolder(toolbarId, "A", -1);
   populate(folderAId);
   var folderANode = PlacesUtils.getFolderContents(folderAId).root;
   validate(folderANode);
-  is(testRootNode.childCount, 1, "create test folder");
+  is(toolbarNode.childCount, 1, "create test folder");
 
   // copy it, using the front-end helper functions
   var serializedNode = PlacesUtils.wrapNode(folderANode, PlacesUtils.TYPE_X_MOZ_PLACE_CONTAINER);
@@ -80,26 +73,26 @@ function test() {
   ok(rawNode.type, "confirm json node");
   var transaction = PlacesUIUtils.makeTransaction(rawNode,
                                                   PlacesUtils.TYPE_X_MOZ_PLACE_CONTAINER,
-                                                  testRootId,
+                                                  toolbarId,
                                                   -1,
                                                   true);
   ok(transaction, "create transaction");
   PlacesUIUtils.ptm.doTransaction(transaction);
   // confirm copy
-  is(testRootNode.childCount, 2, "create test folder via copy");
+  is(toolbarNode.childCount, 2, "create test folder via copy");
 
   // validate the copy
-  var folderBNode = testRootNode.getChild(1);
+  var folderBNode = toolbarNode.getChild(1);
   validate(folderBNode);
 
   // undo the transaction, confirm the removal
   PlacesUIUtils.ptm.undoTransaction();
-  is(testRootNode.childCount, 1, "confirm undo removed the copied folder");
+  is(toolbarNode.childCount, 1, "confirm undo removed the copied folder");
 
   // redo the transaction
   PlacesUIUtils.ptm.redoTransaction();
-  is(testRootNode.childCount, 2, "confirm redo re-copied the folder");
-  folderBNode = testRootNode.getChild(1);
+  is(toolbarNode.childCount, 2, "confirm redo re-copied the folder");
+  folderBNode = toolbarNode.getChild(1);
   validate(folderBNode);
 
   // clean up

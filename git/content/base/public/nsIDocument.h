@@ -56,7 +56,7 @@
 class nsIContent;
 class nsPresContext;
 class nsIPresShell;
-class nsIDocShell;
+
 class nsIStreamListener;
 class nsIStreamObserver;
 class nsStyleSet;
@@ -97,8 +97,8 @@ class nsFrameLoader;
 
 // IID for the nsIDocument interface
 #define NS_IDOCUMENT_IID      \
-{ 0xc45a4a53, 0x0485, 0x43d5, \
-  { 0x85, 0x95, 0x9f, 0x0b, 0xf4, 0x0d, 0xe9, 0x34 } }
+{ 0xaa79d9ba, 0x73a3, 0x42af, \
+  { 0xad, 0xb0, 0x3a, 0x57, 0xe1, 0x8d, 0xa8, 0xa2 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -223,7 +223,9 @@ public:
   virtual void SetBaseTarget(const nsAString &aBaseTarget) = 0;
 
   /**
-   * Return a standard name for the document's character set.
+   * Return a standard name for the document's character set. This
+   * will trigger a startDocumentLoad if necessary to answer the
+   * question.
    */
   const nsCString& GetDocumentCharacterSet() const
   {
@@ -257,32 +259,6 @@ public:
    * Remove a charset observer.
    */
   virtual void RemoveCharSetObserver(nsIObserver* aObserver) = 0;
-
-  /**
-   * This gets fired when the element that an id refers to changes.
-   * This fires at difficult times. It is generally not safe to do anything
-   * which could modify the DOM in any way. Use
-   * nsContentUtils::AddScriptRunner.
-   * @return PR_TRUE to keep the callback in the callback set, PR_FALSE
-   * to remove it.
-   */
-  typedef PRBool (* IDTargetObserver)(nsIContent* aOldContent,
-                                      nsIContent* aNewContent, void* aData);
-
-  /**
-   * Add an IDTargetObserver for a specific ID. The IDTargetObserver
-   * will be fired whenever the content associated with the ID changes
-   * in the future. At most one (aObserver, aData) pair can be registered
-   * for each ID.
-   * @return the content currently associated with the ID.
-   */
-  virtual nsIContent* AddIDTargetObserver(nsIAtom* aID,
-                                          IDTargetObserver aObserver, void* aData) = 0;
-  /**
-   * Remove the (aObserver, aData) pair for a specific ID, if registered.
-   */
-  virtual void RemoveIDTargetObserver(nsIAtom* aID,
-                                      IDTargetObserver aObserver, void* aData) = 0;
 
   /**
    * Get the Content-Type of this document.
@@ -322,9 +298,9 @@ public:
    * it affects a frame model irreversibly, and plays even though
    * the document no longer contains bidi data.
    */
-  void SetBidiEnabled()
+  void SetBidiEnabled(PRBool aBidiEnabled)
   {
-    mBidiEnabled = PR_TRUE;
+    mBidiEnabled = aBidiEnabled;
   }
   
   /**
@@ -813,13 +789,7 @@ public:
    */
   virtual void Destroy() = 0;
 
-  /**
-   * Notify the document that its associated ContentViewer is no longer
-   * the current viewer for the docshell. The document might still
-   * be rendered in "zombie state" until the next document is ready.
-   * The document should save form control state.
-   */
-  virtual void RemovedFromDocShell() = 0;
+  virtual void SaveState() = 0;
   
   /**
    * Get the layout history state that should be used to save and restore state
@@ -988,10 +958,6 @@ public:
   // In case of failure, the caller must handle the error, for example by
   // finalizing frame loader asynchronously.
   virtual nsresult FinalizeFrameLoader(nsFrameLoader* aLoader) = 0;
-  // Removes the frame loader of aShell from the initialization list.
-  virtual void TryCancelFrameLoaderInitialization(nsIDocShell* aShell) = 0;
-  //  Returns true if the frame loader of aShell is in the finalization list.
-  virtual PRBool FrameLoaderScheduledToBeFinalized(nsIDocShell* aShell) = 0;
 protected:
   ~nsIDocument()
   {
@@ -1100,7 +1066,7 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocument, NS_IDOCUMENT_IID)
  * event is dispatched, if necessary, when the outermost mozAutoSubtreeModified
  * object is deleted.
  */
-class NS_STACK_CLASS mozAutoSubtreeModified
+class mozAutoSubtreeModified
 {
 public:
   /**

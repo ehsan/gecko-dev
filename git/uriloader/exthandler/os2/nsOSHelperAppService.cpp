@@ -1168,9 +1168,10 @@ nsresult nsOSHelperAppService::OSProtocolHandlerExists(const char * aProtocolSch
                                           szParamsFromINI, sizeof(szParamsFromINI));
   if (NS_SUCCEEDED(rv)) {
     *aHandlerExists = PR_TRUE;
+    return NS_OK;
   }
 
-  return NS_OK;
+  return NS_ERROR_FAILURE;
 }
 
 already_AddRefed<nsMIMEInfoOS2>
@@ -1461,7 +1462,7 @@ WpsMimeInfoFromExtension(const char *aFileExt, nsMIMEInfoOS2 *aMI)
     if (NS_FAILED(GetNLSString(NS_LITERAL_STRING("fileType").get(), fileType)))
       ustr.Assign(NS_LITERAL_STRING("%S file"));
     int pos = -1;
-    if ((pos = fileType.Find("%S")) > -1)
+    if ((pos = fileType.Find("%S")) > -1);
       fileType.Replace(pos, 2, ustr);
     aMI->SetDescription(fileType);
   }
@@ -1779,11 +1780,7 @@ nsresult GetApplicationAndParametersFromINI(const nsACString& aProtocol,
                           paramLength);
   }
   else {
-#ifdef DEBUG
-    // output by hand instead of NS_WARNING() to easily add the protocol
-    fprintf(stderr, "GetApplicationAndParametersFromINI(): unsupported protocol"
-            " scheme \"%s\"\n", nsPromiseFlatCString(aProtocol).get());
-#endif
+    NS_WARNING("GetApplicationAndParametersFromINI(): unsupported protocol scheme");
     return NS_ERROR_FAILURE;
   }
 

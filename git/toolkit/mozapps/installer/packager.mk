@@ -38,7 +38,7 @@
 #
 # ***** END LICENSE BLOCK *****
 
-include $(MOZILLA_DIR)/toolkit/mozapps/installer/package-name.mk
+include $(topsrcdir)/toolkit/mozapps/installer/package-name.mk
 
 # This is how we create the Unix binary packages we release to the public.
 # Currently the only format is tar.gz (TGZ), but it should be fairly easy
@@ -137,14 +137,14 @@ endif
 ifneq (,$(MOZ_PKG_MAC_EXTRA))
 PKG_DMG_FLAGS += $(MOZ_PKG_MAC_EXTRA)
 endif
-_ABS_MOZSRCDIR = $(shell cd $(MOZILLA_DIR) && pwd)
+_ABS_TOPSRCDIR = $(shell cd $(topsrcdir) && pwd)
 ifdef UNIVERSAL_BINARY
 STAGEPATH = universal/
 endif
 ifndef PKG_DMG_SOURCE
 PKG_DMG_SOURCE = $(STAGEPATH)$(MOZ_PKG_APPNAME)
 endif
-MAKE_PACKAGE	= $(_ABS_MOZSRCDIR)/build/package/mac_osx/pkg-dmg \
+MAKE_PACKAGE	= $(_ABS_TOPSRCDIR)/build/package/mac_osx/pkg-dmg \
   --source "$(PKG_DMG_SOURCE)" --target "$(PACKAGE)" \
   --volname "$(MOZ_APP_DISPLAYNAME)" $(PKG_DMG_FLAGS)
 UNMAKE_PACKAGE	= \
@@ -187,23 +187,20 @@ ifneq (1_,$(if $(CROSS_COMPILE),1,0)_$(UNIVERSAL_BINARY))
 ifdef MOZ_PSM
 SIGN_NSS		= @echo signing nss libraries;
 
-NSS_DLL_SUFFIX	= $(DLL_SUFFIX)
 ifdef UNIVERSAL_BINARY
 NATIVE_ARCH	= $(shell uname -p | sed -e s/powerpc/ppc/)
-NATIVE_DIST	= $(DIST:$(DEPTH)/%=$(DEPTH)/../$(NATIVE_ARCH)/%)
+NATIVE_DIST	= $(DIST)/../../$(NATIVE_ARCH)/dist
 SIGN_CMD	= $(NATIVE_DIST)/bin/run-mozilla.sh $(NATIVE_DIST)/bin/shlibsign -v -i
 else
 ifeq ($(OS_ARCH),OS2)
-# uppercase extension to get the correct output file from shlibsign
-NSS_DLL_SUFFIX	= .DLL
-SIGN_CMD	= $(MOZILLA_DIR)/toolkit/mozapps/installer/os2/sign.cmd $(DIST)
+SIGN_CMD	= $(topsrcdir)/toolkit/mozapps/installer/os2/sign.cmd $(DIST)
 else
 SIGN_CMD	= $(RUN_TEST_PROGRAM) $(DIST)/bin/shlibsign -v -i
 endif
 endif
 
-SOFTOKN		= $(DIST)/$(STAGEPATH)$(MOZ_PKG_APPNAME)$(_BINPATH)/$(DLL_PREFIX)softokn3$(NSS_DLL_SUFFIX)
-FREEBL		= $(DIST)/$(STAGEPATH)$(MOZ_PKG_APPNAME)$(_BINPATH)/$(DLL_PREFIX)freebl3$(NSS_DLL_SUFFIX)
+SOFTOKN		= $(DIST)/$(STAGEPATH)$(MOZ_PKG_APPNAME)$(_BINPATH)/$(DLL_PREFIX)softokn3$(DLL_SUFFIX)
+FREEBL		= $(DIST)/$(STAGEPATH)$(MOZ_PKG_APPNAME)$(_BINPATH)/$(DLL_PREFIX)freebl3$(DLL_SUFFIX)
 FREEBL_32FPU	= $(DIST)/$(STAGEPATH)$(MOZ_PKG_APPNAME)$(_BINPATH)/$(DLL_PREFIX)freebl_32fpu_3$(DLL_SUFFIX)
 FREEBL_32INT	= $(DIST)/$(STAGEPATH)$(MOZ_PKG_APPNAME)$(_BINPATH)/$(DLL_PREFIX)freebl_32int_3$(DLL_SUFFIX)
 FREEBL_32INT64	= $(DIST)/$(STAGEPATH)$(MOZ_PKG_APPNAME)$(_BINPATH)/$(DLL_PREFIX)freebl_32int64_3$(DLL_SUFFIX)
@@ -244,7 +241,6 @@ NO_PKG_FILES += \
 	res/samples \
 	res/throbber \
 	shlibsign* \
-	ssltunnel* \
 	winEmbed.exe \
 	os2Embed.exe \
 	chrome/chrome.rdf \
@@ -268,7 +264,7 @@ ifdef MOZ_PKG_REMOVALS
 MOZ_PKG_REMOVALS_GEN = removed-files
 
 $(MOZ_PKG_REMOVALS_GEN): $(MOZ_PKG_REMOVALS) Makefile Makefile.in
-	$(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py -Fsubstitution $(DEFINES) $(ACDEFINES) $(MOZ_PKG_REMOVALS) > $(MOZ_PKG_REMOVALS_GEN)
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py -Fsubstitution $(DEFINES) $(ACDEFINES) $(MOZ_PKG_REMOVALS) > $(MOZ_PKG_REMOVALS_GEN)
 endif
 
 GARBAGE		+= $(DIST)/$(PACKAGE) $(PACKAGE)
@@ -281,7 +277,7 @@ STRIP_FLAGS	= -g
 PLATFORM_EXCLUDE_LIST = ! -name "*.stub" ! -name "$(MOZ_PKG_APPNAME)-bin"
 endif
 ifeq ($(OS_ARCH),OS2)
-STRIP		= $(MOZILLA_DIR)/toolkit/mozapps/installer/os2/strip.cmd
+STRIP		= $(topsrcdir)/toolkit/mozapps/installer/os2/strip.cmd
 STRIP_FLAGS	=
 PLATFORM_EXCLUDE_LIST = ! -name "*.ico"
 endif
@@ -304,7 +300,7 @@ PKG_ARG = , "$(pkg)"
 
 # Define packager macro to work around make 3.81 backslash issue (bug #339933)
 define PACKAGER_COPY
-$(PERL) -I$(MOZILLA_DIR)/xpinstall/packager -e 'use Packager; \
+$(PERL) -I$(topsrcdir)/xpinstall/packager -e 'use Packager; \
        Packager::Copy($1,$2,$3,$4,$5,$6,$7);'
 endef
 
@@ -332,7 +328,7 @@ ifdef MOZ_OPTIONAL_PKG_LIST
 		"$(MOZ_PKG_MANIFEST)", "$(PKGCP_OS)", 1, 0, 1 \
 		$(foreach pkg,$(MOZ_OPTIONAL_PKG_LIST),$(PKG_ARG)) )
 endif
-	$(PERL) $(MOZILLA_DIR)/xpinstall/packager/xptlink.pl -s $(DIST) -d $(DIST)/xpt -f $(DEPTH)/installer-stage/nonlocalized/components -v -x "$(XPIDL_LINK)"
+	$(PERL) $(topsrcdir)/xpinstall/packager/xptlink.pl -s $(DIST) -d $(DIST)/xpt -f $(DEPTH)/installer-stage/nonlocalized/components -v -x "$(XPIDL_LINK)"
 
 stage-package: $(MOZ_PKG_MANIFEST) $(MOZ_PKG_REMOVALS_GEN)
 	@rm -rf $(DIST)/$(MOZ_PKG_APPNAME) $(DIST)/$(PKG_BASENAME).tar $(DIST)/$(PKG_BASENAME).dmg $@ $(EXCLUDE_LIST)
@@ -345,7 +341,7 @@ ifdef MOZ_PKG_MANIFEST
 	$(call PACKAGER_COPY, "$(DIST)",\
 		 "$(DIST)/$(MOZ_PKG_APPNAME)", \
 		"$(MOZ_PKG_MANIFEST)", "$(PKGCP_OS)", 1, 0, 1)
-	$(PERL) $(MOZILLA_DIR)/xpinstall/packager/xptlink.pl -s $(DIST) -d $(DIST)/xpt -f $(DIST)/$(MOZ_PKG_APPNAME)/components -v -x "$(XPIDL_LINK)"
+	$(PERL) $(topsrcdir)/xpinstall/packager/xptlink.pl -s $(DIST) -d $(DIST)/xpt -f $(DIST)/$(MOZ_PKG_APPNAME)/components -v -x "$(XPIDL_LINK)"
 else # !MOZ_PKG_MANIFEST
 ifeq ($(MOZ_PKG_FORMAT),DMG)
 # If UNIVERSAL_BINARY, the package will be made from an already-prepared

@@ -64,8 +64,6 @@ gfxPlatformMac::gfxPlatformMac()
     if (UseGlitz())
         glitz_agl_init();
 #endif
-    mOSXVersion = 0;
-    mFontAntiAliasingThreshold = ReadAntiAliasingThreshold();
 }
 
 already_AddRefed<gfxASurface>
@@ -213,21 +211,6 @@ gfxPlatformMac::UpdateFontList()
     return NS_OK;
 }
 
-PRInt32 
-gfxPlatformMac::OSXVersion()
-{
-    if (!mOSXVersion) {
-        // minor version is not accurate, use gestaltSystemVersionMajor, gestaltSystemVersionMinor, gestaltSystemVersionBugFix for these
-        OSErr err = ::Gestalt(gestaltSystemVersion, (long int*) &mOSXVersion);
-        if (err != noErr) {
-            //This should probably be changed when our minimum version changes
-            NS_ERROR("Couldn't determine OS X version, assuming 10.4");
-            mOSXVersion = MAC_OS_X_VERSION_10_4_HEX;
-        }
-    }
-    return mOSXVersion;
-}
-
 void 
 gfxPlatformMac::GetLangPrefs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, eFontPrefLang aCharLang, eFontPrefLang aPageLang)
 {
@@ -337,39 +320,6 @@ gfxPlatformMac::AppendCJKPrefLangs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, e
         
 }
 
-PRUint32
-gfxPlatformMac::ReadAntiAliasingThreshold()
-{
-    PRUint32 threshold = 0;  // default == no threshold
-    
-    // first read prefs flag to determine whether to use the setting or not
-    PRBool useAntiAliasingThreshold = PR_FALSE;
-    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-    if (prefs) {
-        PRBool enabled;
-        nsresult rv =
-            prefs->GetBoolPref("gfx.use_text_smoothing_setting", &enabled);
-        if (NS_SUCCEEDED(rv)) {
-            useAntiAliasingThreshold = enabled;
-        }
-    }
-    
-    // if the pref setting is disabled, return 0 which effectively disables this feature
-    if (!useAntiAliasingThreshold)
-        return threshold;
-        
-    // value set via Appearance pref panel, "Turn off text smoothing for font sizes xxx and smaller"
-    CFNumberRef prefValue = (CFNumberRef)CFPreferencesCopyAppValue(CFSTR("AppleAntiAliasingThreshold"), kCFPreferencesCurrentApplication);
-
-    if (prefValue) {
-        if (!CFNumberGetValue(prefValue, kCFNumberIntType, &threshold)) {
-            threshold = 0;
-        }
-        CFRelease(prefValue);
-    }
-
-    return threshold;
-}
 
 cmsHPROFILE
 gfxPlatformMac::GetPlatformCMSOutputProfile()

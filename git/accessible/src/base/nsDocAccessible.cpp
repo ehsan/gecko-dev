@@ -85,8 +85,7 @@ nsIAtom *nsDocAccessible::gLastFocusedFrameType = nsnull;
 //-----------------------------------------------------
 nsDocAccessible::nsDocAccessible(nsIDOMNode *aDOMNode, nsIWeakReference* aShell):
   nsHyperTextAccessibleWrap(aDOMNode, aShell), mWnd(nsnull),
-  mScrollPositionChangedTicks(0), mIsContentLoaded(PR_FALSE),
-  mIsLoadCompleteFired(PR_FALSE), mInFlushPendingEvents(PR_FALSE)
+  mScrollPositionChangedTicks(0), mIsContentLoaded(PR_FALSE), mIsLoadCompleteFired(PR_FALSE)
 {
   // For GTK+ native window, we do nothing here.
   if (!mDOMNode)
@@ -135,34 +134,7 @@ nsDocAccessible::~nsDocAccessible()
 {
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsDocAccessible. nsISupports
-
-PR_STATIC_CALLBACK(PLDHashOperator)
-ElementTraverser(const void *aKey, nsIAccessNode *aAccessNode,
-                 void *aUserArg)
-{
-  nsCycleCollectionTraversalCallback *cb = 
-    static_cast<nsCycleCollectionTraversalCallback*>(aUserArg);
-
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, aAccessNode);
-  cb->NoteXPCOMChild(aAccessNode);
-  return PL_DHASH_NEXT;
-}
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsDocAccessible)
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDocAccessible, nsAccessible)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mEventsToFire)
-  tmp->mAccessNodeCache.EnumerateRead(ElementTraverser, &cb); 
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDocAccessible, nsAccessible)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mEventsToFire)
-  tmp->ClearCache(tmp->mAccessNodeCache);
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDocAccessible)
+NS_INTERFACE_MAP_BEGIN(nsDocAccessible)
   NS_INTERFACE_MAP_ENTRY(nsIAccessibleDocument)
   NS_INTERFACE_MAP_ENTRY(nsPIAccessibleDocument)
   NS_INTERFACE_MAP_ENTRY(nsIDocumentObserver)
@@ -285,9 +257,6 @@ nsDocAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
     // which it should be if it is scrollable. A XUL document could be focusable.
     // See bug 376803.
     *aState |= nsIAccessibleStates::STATE_FOCUSABLE;
-    if (gLastFocusedNode == mDOMNode) {
-      *aState |= nsIAccessibleStates::STATE_FOCUSED;
-    }
   }
 
   if (!mIsContentLoaded) {
@@ -544,20 +513,8 @@ NS_IMETHODIMP nsDocAccessible::GetCachedAccessNode(void *aUniqueID, nsIAccessNod
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDocAccessible::CacheAccessNode(void *aUniqueID, nsIAccessNode *aAccessNode)
+NS_IMETHODIMP nsDocAccessible::CacheAccessNode(void *aUniqueID, nsIAccessNode *aAccessNode)
 {
-  // If there is an access node for the given unique ID then let's shutdown it.
-  // The unique ID may be presented in the cache if originally we created
-  // access node object and then we want to create accessible object when
-  // DOM node is changed.
-  nsCOMPtr<nsIAccessNode> accessNode;
-  GetCacheEntry(mAccessNodeCache, aUniqueID, getter_AddRefs(accessNode));
-  if (accessNode) {
-    nsCOMPtr<nsPIAccessNode> prAccessNode = do_QueryInterface(accessNode);
-    prAccessNode->Shutdown();
-  }
-
   PutCacheEntry(mAccessNodeCache, aUniqueID, aAccessNode);
   return NS_OK;
 }
@@ -629,10 +586,7 @@ NS_IMETHODIMP nsDocAccessible::Shutdown()
       mEventsToFire.Clear();
       // Make sure we release the kung fu death grip which is always
       // there when there are still events left to be fired
-      // If FlushPendingEvents() is in call stack,
-      // kung fu death grip will be released there.
-      if (!mInFlushPendingEvents)
-        NS_RELEASE_THIS();
+      NS_RELEASE_THIS();
     }
   }
 
@@ -900,18 +854,8 @@ NS_IMETHODIMP nsDocAccessible::FireDocLoadEvents(PRUint32 aEventType)
       }
     }
   }
-
   if (sameTypeRoot == treeItem) {
     // Not a frame or iframe
-    if (!isFinished) {
-      // Fire state change event to set STATE_BUSY when document is loading. For
-      // example, Window-Eyes expects to get it.
-      nsCOMPtr<nsIAccessibleStateChangeEvent> accEvent =
-        new nsAccStateChangeEvent(this, nsIAccessibleStates::STATE_BUSY,
-                                  PR_FALSE, PR_TRUE);
-      FireAccessibleEvent(accEvent);
-    }
-
     nsAccUtils::FireAccEvent(aEventType, this);
   }
   return NS_OK;
@@ -1548,7 +1492,6 @@ nsDocAccessible::FireDelayedAccessibleEvent(nsIAccessibleEvent *aEvent)
 
 NS_IMETHODIMP nsDocAccessible::FlushPendingEvents()
 {
-  mInFlushPendingEvents = PR_TRUE;
   PRUint32 length = mEventsToFire.Count();
   NS_ASSERTION(length, "How did we get here without events to fire?");
   nsCOMPtr<nsIPresShell> presShell = GetPresShell();
@@ -1572,8 +1515,8 @@ NS_IMETHODIMP nsDocAccessible::FlushPendingEvents()
     PRBool isFromUserInput = nsAccEvent::IsFromUserInput(accessibleEvent);
 
     if (domNode == gLastFocusedNode &&
-        (eventType == nsIAccessibleEvent::EVENT_ASYNCH_HIDE || 
-        eventType == nsIAccessibleEvent::EVENT_ASYNCH_SHOW)) {
+        eventType == nsIAccessibleEvent::EVENT_ASYNCH_HIDE || 
+        eventType == nsIAccessibleEvent::EVENT_ASYNCH_SHOW) {
       // If frame type didn't change for this event, then we don't actually need to invalidate
       // However, we only keep track of the old frame type for the focus, where it's very
       // important not to destroy and recreate the accessible for minor style changes,
@@ -1597,25 +1540,16 @@ NS_IMETHODIMP nsDocAccessible::FlushPendingEvents()
 
     if (eventType == nsIAccessibleEvent::EVENT_DOM_CREATE || 
         eventType == nsIAccessibleEvent::EVENT_ASYNCH_SHOW) {
-
       nsCOMPtr<nsIAccessible> containerAccessible;
-      if (accessible)
-        accessible->GetParent(getter_AddRefs(containerAccessible));
-
-      if (!containerAccessible) {
-        GetAccessibleInParentChain(domNode, PR_TRUE,
-                                   getter_AddRefs(containerAccessible));
-        if (!containerAccessible)
-          containerAccessible = this;
-      }
-
       if (eventType == nsIAccessibleEvent::EVENT_ASYNCH_SHOW) {
-        // For asynch show, delayed invalidatation of parent's children
-        nsCOMPtr<nsPIAccessible> privateContainerAccessible =
-          do_QueryInterface(containerAccessible);
-        if (privateContainerAccessible)
-          privateContainerAccessible->InvalidateChildren();
-
+        if (accessible) {
+          // For asynch show, delayed invalidatation of parent's children
+          accessible->GetParent(getter_AddRefs(containerAccessible));
+          nsCOMPtr<nsPIAccessible> privateContainerAccessible =
+            do_QueryInterface(containerAccessible);
+          if (privateContainerAccessible)
+            privateContainerAccessible->InvalidateChildren();
+        }
         // Some show events in the subtree may have been removed to 
         // avoid firing redundant events. But, we still need to make sure any
         // accessibles parenting those shown nodes lose their child references.
@@ -1628,6 +1562,10 @@ NS_IMETHODIMP nsDocAccessible::FlushPendingEvents()
       // wait to fire this here, instead of in InvalidateCacheSubtree(), where we wouldn't be able to calculate
       // the offset, length and text for the text change.
       if (domNode && domNode != mDOMNode) {
+        if (!containerAccessible)
+          GetAccessibleInParentChain(domNode, PR_TRUE,
+                                     getter_AddRefs(containerAccessible));
+
         nsCOMPtr<nsIAccessibleTextChangeEvent> textChangeEvent =
           CreateTextChangeEventForNode(containerAccessible, domNode, accessible, PR_TRUE, PR_TRUE);
         if (textChangeEvent) {
@@ -1671,8 +1609,7 @@ NS_IMETHODIMP nsDocAccessible::FlushPendingEvents()
 #endif
           nsCOMPtr<nsIAccessibleCaretMoveEvent> caretMoveEvent =
             new nsAccCaretMoveEvent(accessible, caretOffset);
-          if (!caretMoveEvent)
-            break; // Out of memory, break out to release kung fu death grip
+          NS_ENSURE_TRUE(caretMoveEvent, NS_ERROR_OUT_OF_MEMORY);
 
           FireAccessibleEvent(caretMoveEvent);
 
@@ -1708,7 +1645,6 @@ NS_IMETHODIMP nsDocAccessible::FlushPendingEvents()
   // After a flood of events, reset so that user input flag is off
   nsAccEvent::ResetLastInputState();
 
-  mInFlushPendingEvents = PR_FALSE;
   return NS_OK;
 }
 
@@ -1789,8 +1725,9 @@ void nsDocAccessible::RefreshNodes(nsIDOMNode *aStartNode)
                                  getter_AddRefs(childAccessNode));
         childAccessNode->GetDOMNode(getter_AddRefs(possibleAnonNode));
         nsCOMPtr<nsIContent> iterContent = do_QueryInterface(possibleAnonNode);
-        if (iterContent && iterContent->IsInAnonymousSubtree()) {
-          // IsInAnonymousSubtree() check is a perf win -- make sure we don't
+        if (iterContent && (iterContent->IsNativeAnonymous() ||
+                            iterContent->GetBindingParent())) {
+          // GetBindingParent() check is a perf win -- make sure we don't
           // shut down the same subtree twice since we'll reach non-anon content via
           // DOM traversal later in this method
           RefreshNodes(possibleAnonNode);
@@ -2030,14 +1967,17 @@ NS_IMETHODIMP nsDocAccessible::InvalidateCacheSubtree(nsIContent *aChild,
 
   FireValueChangeForTextFields(containerAccessible);
 
-  if (childAccessible) {
-    // Fire an event so the MSAA clients know the children have changed. Also
-    // the event is used internally by MSAA part.
-    nsCOMPtr<nsIAccessibleEvent> reorderEvent =
-      new nsAccEvent(nsIAccessibleEvent::EVENT_REORDER, containerAccessible,
-                     isAsynch, nsAccEvent::eCoalesceFromSameSubtree);
-    NS_ENSURE_TRUE(reorderEvent, NS_ERROR_OUT_OF_MEMORY);
-    FireDelayedAccessibleEvent(reorderEvent);
+  if (!isShowing) {
+    // Fire an event so the assistive technology knows the children have changed
+    // This is only used by older MSAA clients. Newer ones should derive this
+    // from SHOW and HIDE so that they don't fetch extra objects
+    if (childAccessible) {
+      nsCOMPtr<nsIAccessibleEvent> reorderEvent =
+        new nsAccEvent(nsIAccessibleEvent::EVENT_REORDER, containerAccessible,
+                       isAsynch, nsAccEvent::eCoalesceFromSameSubtree);
+      NS_ENSURE_TRUE(reorderEvent, NS_ERROR_OUT_OF_MEMORY);
+      FireDelayedAccessibleEvent(reorderEvent);
+    }
   }
 
   return NS_OK;
@@ -2126,10 +2066,10 @@ nsDocAccessible::FireShowHideEvents(nsIDOMNode *aDOMNode, PRBool aAvoidOnThisNod
 
   // Could not find accessible to show hide yet, so fire on any
   // accessible descendants in this subtree
-  nsCOMPtr<nsINode> node(do_QueryInterface(aDOMNode));
-  PRUint32 count = node->GetChildCount();
+  nsCOMPtr<nsIContent> content(do_QueryInterface(aDOMNode));
+  PRUint32 count = content->GetChildCount();
   for (PRUint32 index = 0; index < count; index++) {
-    nsCOMPtr<nsIDOMNode> childNode = do_QueryInterface(node->GetChildAt(index));
+    nsCOMPtr<nsIDOMNode> childNode = do_QueryInterface(content->GetChildAt(index));
     nsresult rv = FireShowHideEvents(childNode, PR_FALSE, aEventType,
                                      aDelay, aForceIsFromUserInput);
     NS_ENSURE_SUCCESS(rv, rv);

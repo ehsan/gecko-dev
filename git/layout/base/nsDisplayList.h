@@ -50,9 +50,9 @@
 #include "nsPoint.h"
 #include "nsRect.h"
 #include "nsISelection.h"
-#include "nsCaret.h"
 #include "plarena.h"
 #include "nsLayoutUtils.h"
+#include "nsICaret.h"
 #include "nsTArray.h"
 
 #include <stdlib.h>
@@ -117,7 +117,7 @@ class nsDisplayTableItem;
  * available from the prescontext/presshell, but we copy them into the builder
  * for faster/more convenient access.
  */
-class NS_STACK_CLASS nsDisplayListBuilder {
+class nsDisplayListBuilder {
 public:
   /**
    * @param aReferenceFrame the frame at the root of the subtree; its origin
@@ -248,7 +248,7 @@ public:
   /**
    * Get the caret associated with the current presshell.
    */
-  nsCaret* GetCaret();
+  nsICaret* GetCaret();
   /**
    * Notify the display list builder that we're entering a presshell.
    * aReferenceFrame should be a frame in the new presshell and aDirtyRect
@@ -955,7 +955,7 @@ protected:
 MOZ_DECL_CTOR_COUNTER(nsDisplayCaret)
 class nsDisplayCaret : public nsDisplayItem {
 public:
-  nsDisplayCaret(nsIFrame* aCaretFrame, nsCaret *aCaret)
+  nsDisplayCaret(nsIFrame* aCaretFrame, nsICaret *aCaret)
     : nsDisplayItem(aCaretFrame), mCaret(aCaret) {
     MOZ_COUNT_CTOR(nsDisplayCaret);
   }
@@ -973,7 +973,7 @@ public:
       const nsRect& aDirtyRect);
   NS_DISPLAY_DECL_NAME("Caret")
 protected:
-  nsRefPtr<nsCaret> mCaret;
+  nsCOMPtr<nsICaret> mCaret;
 };
 
 /**
@@ -1023,26 +1023,6 @@ public:
 private:
     /* Used to cache mFrame->IsThemed() since it isn't a cheap call */
     PRPackedBool mIsThemed;
-};
-
-/**
- * The standard display item to paint the CSS box-shadow of a frame.
- */
-class nsDisplayBoxShadow : public nsDisplayItem {
-public:
-  nsDisplayBoxShadow(nsIFrame* aFrame) : nsDisplayItem(aFrame) {
-    MOZ_COUNT_CTOR(nsDisplayBoxShadow);
-  }
-#ifdef NS_BUILD_REFCNT_LOGGING
-  virtual ~nsDisplayBoxShadow() {
-    MOZ_COUNT_DTOR(nsDisplayBoxShadow);
-  }
-#endif
-
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
-     const nsRect& aDirtyRect);
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
-  NS_DISPLAY_DECL_NAME("BoxShadow")
 };
 
 /**
@@ -1210,15 +1190,8 @@ private:
  */
 class nsDisplayClip : public nsDisplayWrapList {
 public:
-  /**
-   * @param aFrame the frame that should be considered the underlying
-   * frame for this content, e.g. the frame whose z-index we have.
-   * @param aClippingFrame the frame that is inducing the clipping.
-   */
-  nsDisplayClip(nsIFrame* aFrame, nsIFrame* aClippingFrame, 
-                nsDisplayItem* aItem, const nsRect& aRect);
-  nsDisplayClip(nsIFrame* aFrame, nsIFrame* aClippingFrame,
-                nsDisplayList* aList, const nsRect& aRect);
+  nsDisplayClip(nsIFrame* aFrame, nsDisplayItem* aItem, const nsRect& aRect);
+  nsDisplayClip(nsIFrame* aFrame, nsDisplayList* aList, const nsRect& aRect);
 #ifdef NS_BUILD_REFCNT_LOGGING
   virtual ~nsDisplayClip();
 #endif
@@ -1234,18 +1207,12 @@ public:
   
   nsRect GetClipRect() { return mClip; }
   void SetClipRect(const nsRect& aRect) { mClip = aRect; }
-  nsIFrame* GetClippingFrame() { return mClippingFrame; }
 
   virtual nsDisplayWrapList* WrapWithClone(nsDisplayListBuilder* aBuilder,
                                            nsDisplayItem* aItem);
 
 private:
-  // The frame that is responsible for the clipping. This may be different
-  // from mFrame because mFrame represents the content that is being
-  // clipped, and for example may be used to obtain the z-index of the
-  // content.
-  nsIFrame* mClippingFrame;
-  nsRect    mClip;
+  nsRect mClip;
 };
 
 #endif /*NSDISPLAYLIST_H_*/

@@ -112,7 +112,7 @@ nsMIMEInfoMac::LoadUriInternal(nsIURI *aURI)
   nsresult rv = NS_ERROR_FAILURE;
   
   nsCAutoString uri;
-  aURI->GetAsciiSpec(uri);
+  aURI->GetSpec(uri);
   if (!uri.IsEmpty()) {
     nsCOMPtr<nsIInternetConfigService> icService = 
       do_GetService(NS_INTERNETCONFIGSERVICE_CONTRACTID);

@@ -127,12 +127,10 @@
             return;
           }
 
-          var rect = this._scrollbox.getBoundingClientRect();
-          var containerStart = rect.left;
-          var containerEnd = rect.right;
-          rect = element.getBoundingClientRect();
-          var elementStart = rect.left;
-          var elementEnd = rect.right;
+          var containerStart = this._scrollbox.boxObject.screenX;
+          var containerEnd = containerStart + this._scrollbox.boxObject.width;
+          var elementStart = element.boxObject.screenX;
+          var elementEnd = elementStart + element.boxObject.width;
           var amountToScroll;
 
           if (elementStart < containerStart) {
@@ -171,18 +169,8 @@
             round = Math.ceil;
           }
 
-          const FRAME_LENGTH = 60;
-
-          function processFrame(self, scrollAmounts, off) {
-            var distance = scrollAmounts.shift();
-
-            // Skip frames if we aren't getting the desired frame rate.
-            if (off > 0) {
-              for (var i = Math.round(off / FRAME_LENGTH); i > 0; i--)
-                distance += scrollAmounts.shift() || 0;
-            }
-
-            self.scrollBoxObject.scrollBy(distance, 0);
+          function processFrame(self, scrollAmounts) {
+            self.scrollBoxObject.scrollBy(scrollAmounts.shift(), 0);
             if (!scrollAmounts.length)
               self._stopSmoothScroll();
           }
@@ -192,7 +180,7 @@
           var scrollAmount, scrollAmounts = [];
           if (amountToScroll > 2 || amountToScroll < -2) {
             scrollAmount = round(amountToScroll * 0.2);
-            scrollAmounts.push(scrollAmount, scrollAmount, scrollAmount);
+            scrollAmounts.push (scrollAmount, scrollAmount, scrollAmount);
             amountToScroll -= 3 * scrollAmount;
           }
           while (this._isScrolling < 0 && amountToScroll < 0 ||
@@ -200,8 +188,8 @@
             amountToScroll -= (scrollAmount = round(amountToScroll * 0.5));
             scrollAmounts.push(scrollAmount);
           }
-          this._smoothScrollTimer = setInterval(processFrame, FRAME_LENGTH, this, scrollAmounts);
-          processFrame(this, scrollAmounts, 0);
+          this._smoothScrollTimer = setInterval(processFrame, 60, this, scrollAmounts);
+          processFrame(this, scrollAmounts);
         ]]></body>
       </method>
 
@@ -215,12 +203,13 @@
             return;
           }
 
-          var x;
+          var scrollBox = this.scrollBoxObject;
+          var edge = scrollBox.screenX;
           if (index > 0)
-            x = this._scrollbox.getBoundingClientRect().right + 1;
+            edge += scrollBox.width;
           else
-            x = this._scrollbox.getBoundingClientRect().left - 1;
-          var nextElement = this._elementFromPoint(x);
+            edge--;
+          var nextElement = this._elementFromPoint(edge);
           if (!nextElement)
             return;
 
@@ -259,10 +248,11 @@
           while (low <= high) {
             var mid = Math.floor((low + high) / 2);
             var element = elements[mid];
-            var rect = element.getBoundingClientRect();
-            if (rect.left > aX)
+            var bO = element.boxObject;
+            var x = bO.screenX;
+            if (x > aX)
               high = mid - 1; 
-            else if (rect.right < aX)
+            else if (x + bO.width < aX)
               low = mid + 1;
             else
               return element;
@@ -360,18 +350,7 @@
     </implementation>
 
     <handlers>
-      <handler event="DOMMouseScroll"><![CDATA[
-        // prevent horizontal scrolling from scrolling a vertical scrollbox
-        if (event.axis == event.HORIZONTAL_AXIS &&
-            this.getAttribute("orient") != "horizontal")
-          return;
-        // We allow vertical scrolling to scroll a horizontal scrollbox
-        // because many users have a vertical scroll wheel but no
-        // horizontal support.
-
-        this.scrollByIndex(event.detail);
-        event.stopPropagation();
-      ]]></handler>
+      <handler event="DOMMouseScroll" action="this.scrollByIndex(event.detail); event.stopPropagation();"/>
 
       <handler event="underflow"><![CDATA[
         // filter underflow events which were dispatched on nested scrollboxes
@@ -598,13 +577,13 @@
           if (aEvent.detail == 2) {
             // scroll by the width of the scrollbox; make sure that the next
             // partly-hidden element will become fully visible.
-            var rect = this._scrollbox.getBoundingClientRect();
-            var x;
+            var scrollBox = this.scrollBoxObject;
+            var edge = scrollBox.screenX;
             if (scrollLeft)
-              x = rect.left - (rect.right - rect.left);
+              edge -= scrollBox.width;
             else
-              x = rect.right + (rect.right - rect.left);
-            targetElement = this._elementFromPoint(x);
+              edge += scrollBox.width * 2;
+            targetElement = this._elementFromPoint(edge);
 
             if (targetElement)
               targetElement = scrollLeft ?

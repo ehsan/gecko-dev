@@ -82,6 +82,11 @@ ifdef ACCESSIBILITY
 REQUIRES	+= accessibility
 endif
 
+# Sun's Complex Text Layout support
+ifdef SUNCTL
+REQUIRES	+= ctl
+endif
+
 EXPORTS		= \
 		nsFrameList.h \
 		nsHTMLParts.h \
@@ -153,12 +158,6 @@ CPPSRCS		= \
 		nsTextRunTransformations.cpp \
 		nsViewportFrame.cpp \
 		$(NULL)
-
-ifdef MOZ_MEDIA
-CPPSRCS		+= \
-		nsVideoFrame.cpp \
-		$(NULL)
-endif
 
 ifdef IBMBIDI
 CPPSRCS		+= \

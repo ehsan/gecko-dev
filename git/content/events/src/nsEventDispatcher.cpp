@@ -79,7 +79,6 @@ public:
 
   PRBool IsValid()
   {
-    NS_WARN_IF_FALSE(!!(mTarget), "Event target is not valid!");
     return !!(mTarget);
   }
 
@@ -195,10 +194,6 @@ nsresult
 nsEventTargetChainItem::HandleEvent(nsEventChainPostVisitor& aVisitor,
                                     PRUint32 aFlags)
 {
-  mTarget->WillHandleEvent(aVisitor);
-  if (aVisitor.mEvent->flags & NS_EVENT_FLAG_STOP_DISPATCH) {
-    return NS_OK;
-  }
   if (!mManager) {
     mTarget->GetListenerManager(PR_FALSE, getter_AddRefs(mManager));
   }
@@ -377,6 +372,11 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
   NS_ASSERTION(aEvent, "Trying to dispatch without nsEvent!");
   NS_ENSURE_TRUE(!NS_IS_EVENT_IN_DISPATCH(aEvent),
                  NS_ERROR_ILLEGAL_VALUE);
+  // This is strange, but nsEvents are sometimes reused and they don't need
+  // re-initialization.
+  NS_ENSURE_TRUE(!(aDOMEvent &&
+                   (aEvent->flags & NS_EVENT_FLAG_STOP_DISPATCH_IMMEDIATELY)),
+                 NS_ERROR_ILLEGAL_VALUE);
 
 #ifdef DEBUG
   if (aDOMEvent) {
@@ -523,17 +523,12 @@ nsEventDispatcher::DispatchDOMEvent(nsISupports* aTarget,
       privEvt->GetInternalNSEvent(&innerEvent);
       NS_ENSURE_TRUE(innerEvent, NS_ERROR_ILLEGAL_VALUE);
 
-      PRBool dontResetTrusted = PR_FALSE;
-      if (innerEvent->flags & NS_EVENT_DISPATCHED) {
-        innerEvent->target = nsnull;
-        innerEvent->originalTarget = nsnull;
-      }
-      else {
-        nsCOMPtr<nsIDOMNSEvent> nsevent(do_QueryInterface(privEvt));
-        nsevent->GetIsTrusted(&dontResetTrusted);
-      }
+      PRBool trusted;
+      nsCOMPtr<nsIDOMNSEvent> nsevent(do_QueryInterface(privEvt));
 
-      if (!dontResetTrusted) {
+      nsevent->GetIsTrusted(&trusted);
+
+      if (!trusted) {
         //Check security state to determine if dispatcher is trusted
         privEvt->SetTrusted(nsContentUtils::IsCallerTrustedForWrite());
       }
@@ -563,6 +558,8 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
                                     static_cast<nsMutationEvent*>(aEvent));
     case NS_GUI_EVENT:
     case NS_COMPOSITION_EVENT:
+    case NS_RECONVERSION_EVENT:
+    case NS_QUERYCARETRECT_EVENT:
     case NS_SCROLLPORT_EVENT:
       return NS_NewDOMUIEvent(aDOMEvent, aPresContext,
                               static_cast<nsGUIEvent*>(aEvent));
@@ -570,11 +567,9 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
       return NS_NewDOMKeyboardEvent(aDOMEvent, aPresContext,
                                     static_cast<nsKeyEvent*>(aEvent));
     case NS_MOUSE_EVENT:
+    case NS_MOUSE_SCROLL_EVENT:
     case NS_POPUP_EVENT:
       return NS_NewDOMMouseEvent(aDOMEvent, aPresContext,
-                                 static_cast<nsInputEvent*>(aEvent));
-    case NS_MOUSE_SCROLL_EVENT:
-      return NS_NewDOMMouseScrollEvent(aDOMEvent, aPresContext,
                                  static_cast<nsInputEvent*>(aEvent));
     case NS_POPUPBLOCKED_EVENT:
       return NS_NewDOMPopupBlockedEvent(aDOMEvent, aPresContext,
@@ -618,10 +613,9 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
 
   if (aEventType.LowerCaseEqualsLiteral("mouseevent") ||
       aEventType.LowerCaseEqualsLiteral("mouseevents") ||
+      aEventType.LowerCaseEqualsLiteral("mousescrollevents") ||
       aEventType.LowerCaseEqualsLiteral("popupevents"))
     return NS_NewDOMMouseEvent(aDOMEvent, aPresContext, nsnull);
-  if (aEventType.LowerCaseEqualsLiteral("mousescrollevents"))
-    return NS_NewDOMMouseScrollEvent(aDOMEvent, aPresContext, nsnull);
   if (aEventType.LowerCaseEqualsLiteral("keyboardevent") ||
       aEventType.LowerCaseEqualsLiteral("keyevents"))
     return NS_NewDOMKeyboardEvent(aDOMEvent, aPresContext, nsnull);
@@ -659,8 +653,6 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
     return NS_NewDOMDataContainerEvent(aDOMEvent, aPresContext, nsnull);
   if (aEventType.LowerCaseEqualsLiteral("messageevent"))
     return NS_NewDOMMessageEvent(aDOMEvent, aPresContext, nsnull);
-  if (aEventType.LowerCaseEqualsLiteral("progressevent"))
-    return NS_NewDOMProgressEvent(aDOMEvent, aPresContext, nsnull);
 
   return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
 }

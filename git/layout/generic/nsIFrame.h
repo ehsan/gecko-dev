@@ -231,7 +231,12 @@ enum {
   // results when an inline has been split because of a nested block.
   NS_FRAME_IS_SPECIAL =                         0x00008000,
 
-  NS_FRAME_THIS_BIT_BELONGS_TO_ROC_DO_NOT_USE_OR_I_WILL_HUNT_YOU_DOWN = 0x00010000,
+  // If this bit is set, the frame doesn't allow ignorable whitespace as
+  // children. For example, the whitespace between <table>\n<tr>\n<td>
+  // will be excluded during the construction of children. 
+  // The bit is set when the frame is first created and remain
+  // unchanged during the life-time of the frame.
+  NS_FRAME_EXCLUDE_IGNORABLE_WHITESPACE =       0x00010000,
 
 #ifdef IBMBIDI
   // If this bit is set, the frame itself is a bidi continuation,
@@ -311,7 +316,7 @@ enum nsSpread {
  * frame. See nsContainerFrame.h for more information.
  * This bit is mutually exclusive with NS_FRAME_NOT_COMPLETE.
  * 
- * Please use the SET macro for handling
+ * Please use the SET and MERGE macros below for handling
  * NS_FRAME_NOT_COMPLETE and NS_FRAME_OVERFLOW_INCOMPLETE.
  *
  * NS_FRAME_REFLOW_NEXTINFLOW bit flag means that the next-in-flow is
@@ -353,6 +358,15 @@ typedef PRUint32 nsReflowStatus;
 #define NS_FRAME_SET_OVERFLOW_INCOMPLETE(status) \
   status = status & ~NS_FRAME_NOT_COMPLETE | NS_FRAME_OVERFLOW_INCOMPLETE
 
+// Combines two statuses and returns the most severe bits of the pair
+#define NS_FRAME_MERGE_INCOMPLETE(status1, status2)        \
+  ( (NS_FRAME_REFLOW_NEXTINFLOW & (status1 | status2))     \
+  | ( (NS_FRAME_NOT_COMPLETE & (status1 | status2))        \
+    ? NS_FRAME_NOT_COMPLETE                                \
+    : NS_FRAME_OVERFLOW_INCOMPLETE & (status1 | status2)   \
+    )                                                      \
+  )
+
 // This macro tests to see if an nsReflowStatus is an error value
 // or just a regular return value
 #define NS_IS_REFLOW_ERROR(_status) (PRInt32(_status) < 0)
@@ -373,9 +387,6 @@ typedef PRUint32 nsReflowStatus;
 
 // The type of break requested can be found in these bits.
 #define NS_INLINE_BREAK_TYPE_MASK    0xF000
-
-// Set when a break was induced by completion of a first-letter
-#define NS_INLINE_BREAK_FIRST_LETTER_COMPLETE 0x10000
 
 //----------------------------------------
 // Macros that use those bits
@@ -417,11 +428,6 @@ typedef PRUint32 nsReflowStatus;
   (0 != ((status) & NS_FRAME_TRUNCATED))
 #define NS_FRAME_SET_TRUNCATION(status, aReflowState, aMetrics) \
   aReflowState.SetTruncated(aMetrics, &status);
-
-// Merge the incompleteness, truncation and NS_FRAME_REFLOW_NEXTINFLOW
-// status from aSecondary into aPrimary.
-void NS_MergeReflowStatusInto(nsReflowStatus* aPrimary,
-                              nsReflowStatus aSecondary);
 
 //----------------------------------------------------------------------
 
@@ -698,11 +704,6 @@ public:
   void SetPosition(const nsPoint& aPt) { mRect.MoveTo(aPt); }
   void SetSize(const nsSize& aSize) { mRect.SizeTo(aSize); }
 
-  /**
-   * Return frame's computed offset due to relative positioning
-   */
-  nsPoint GetRelativeOffset(const nsStyleDisplay* aDisplay = nsnull) const;
-
   virtual nsPoint GetPositionOfChildIgnoringScrolling(nsIFrame* aChild)
   { return aChild->GetPosition(); }
   
@@ -943,7 +944,7 @@ public:
   // Note that the primary offset can be after the secondary offset; for places
   // that need the beginning and end of the object, the StartOffset and 
   // EndOffset helpers can be used.
-  struct NS_STACK_CLASS ContentOffsets {
+  struct ContentOffsets {
     nsCOMPtr<nsIContent> content;
     PRBool IsNull() { return !content; }
     PRInt32 offset;
@@ -976,7 +977,7 @@ public:
    * loaded image that should be preferred. If it is not possible to use it, or
    * if it is null, mCursor should be used.
    */
-  struct NS_STACK_CLASS Cursor {
+  struct Cursor {
     nsCOMPtr<imgIContainer> mContainer;
     PRInt32                 mCursor;
     PRBool                  mHaveHotspot;
@@ -1126,8 +1127,6 @@ public:
    *
    * It is not acceptable for a frame to mark itself dirty when this
    * method is called.
-   *
-   * This method must not return a negative value.
    */
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext) = 0;
 
@@ -1509,18 +1508,11 @@ public:
   virtual nsPoint GetOffsetToExternal(const nsIFrame* aOther) const;
 
   /**
-   * Get the screen rect of the frame in pixels.
+   * Get the screen rect of the frame.
    * @return the pixel rect of the frame in screen coordinates.
    */
   nsIntRect GetScreenRect() const;
   virtual nsIntRect GetScreenRectExternal() const;
-
-  /**
-   * Get the screen rect of the frame in app units.
-   * @return the app unit rect of the frame in screen coordinates.
-   */
-  nsRect GetScreenRectInAppUnits() const;
-  virtual nsRect GetScreenRectInAppUnitsExternal() const;
 
   /**
    * Returns the offset from this frame to the closest geometric parent that
@@ -1582,10 +1574,6 @@ public:
     eXULBox =                           1 << 7,
     eCanContainOverflowContainers =     1 << 8,
     eBlockFrame =                       1 << 9,
-    // If this bit is set, the frame doesn't allow ignorable whitespace as
-    // children. For example, the whitespace between <table>\n<tr>\n<td>
-    // will be excluded during the construction of children. 
-    eExcludesIgnorableWhitespace =      1 << 10,
 
     // These are to allow nsFrame::Init to assert that IsFrameOfType
     // implementations all call the base class method.  They are only
@@ -2153,12 +2141,6 @@ protected:
   void InvalidateRoot(const nsRect& aDamageRect,
                       nscoord aOffsetX, nscoord aOffsetY,
                       PRBool aImmediate);
-
-  /**
-   * Gets the overflow area for any properties that are common to all types of frames
-   * e.g. outlines.
-   */
-  nsRect GetAdditionalOverflow(const nsRect& aOverflowArea, const nsSize& aNewSize);
 
   /**
    * Can we stop inside this frame when we're skipping non-rendered whitespace?

@@ -47,7 +47,6 @@
 #include "nsSVGLength2.h"
 #include "nsStubMutationObserver.h"
 #include "nsSVGEnum.h"
-#include "nsSVGString.h"
 
 //--------------------- Patterns ------------------------
 
@@ -103,7 +102,6 @@ protected:
 
   virtual LengthAttributesInfo GetLengthInfo();
   virtual EnumAttributesInfo GetEnumInfo();
-  virtual StringAttributesInfo GetStringInfo();
 
   // nsIDOMSVGPatternElement values
   enum { X, Y, WIDTH, HEIGHT };
@@ -117,9 +115,7 @@ protected:
   nsCOMPtr<nsIDOMSVGAnimatedTransformList> mPatternTransform;
 
   // nsIDOMSVGURIReference properties
-  enum { HREF };
-  nsSVGString mStringAttributes[1];
-  static StringInfo sStringInfo[1];
+  nsCOMPtr<nsIDOMSVGAnimatedString> mHref;
 
   // nsIDOMSVGFitToViewbox properties
   nsCOMPtr<nsIDOMSVGAnimatedRect> mViewBox;

@@ -193,12 +193,6 @@ function wrapToolbarItems()
     if (isCustomizableToolbar(toolbar)) {
       for (var k = 0; k < toolbar.childNodes.length; ++k) {
         var item = toolbar.childNodes[k];
-
-#ifdef XP_MACOSX
-        if (item.firstChild && item.firstChild.localName == "menubar")
-          continue;
-#endif
-
         if (isToolbarItem(item)) {
           var nextSibling = item.nextSibling;
           
@@ -453,7 +447,6 @@ function cleanUpItemForPalette(aItem, aWrapper)
   aItem.removeAttribute("observes");
   aItem.removeAttribute("disabled");
   aItem.removeAttribute("type");
-  aItem.removeAttribute("width");
   
   if (aItem.localName == "toolbaritem" && aItem.firstChild) {
     aItem.firstChild.removeAttribute("observes");

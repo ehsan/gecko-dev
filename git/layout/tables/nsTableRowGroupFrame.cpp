@@ -287,7 +287,7 @@ nsTableRowGroupFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (!IsVisibleInSelection(aBuilder))
     return NS_OK;
 
-  PRBool isRoot = aBuilder->IsAtRootOfPseudoStackingContext() || IsScrolled();
+  PRBool isRoot = aBuilder->IsAtRootOfPseudoStackingContext();
   nsDisplayTableItem* item = nsnull;
   if (isRoot) {
     // This background is created regardless of whether this frame is
@@ -404,9 +404,8 @@ nsTableRowGroupFrame::ReflowChildren(nsPresContext*         aPresContext,
                          tableFrame->IsGeometryDirty();
   PRBool needToCalcRowHeights = reflowAllKids;
 
-  nsIFrame *prevKidFrame = nsnull;
-  for (nsIFrame* kidFrame = GetFirstFrame(); kidFrame;
-       prevKidFrame = kidFrame, kidFrame = kidFrame->GetNextSibling()) {
+  for (nsIFrame* kidFrame = mFrames.FirstChild(); kidFrame;
+       kidFrame = kidFrame->GetNextSibling()) {
     if (kidFrame->GetType() != nsGkAtoms::tableRowFrame) {
       // XXXldb nsCSSFrameConstructor needs to enforce this!
       NS_NOTREACHED("yikes, a non-row child");
@@ -442,11 +441,8 @@ nsTableRowGroupFrame::ReflowChildren(nsPresContext*         aPresContext,
       if (aReflowState.reflowState.mFlags.mHResize)
         kidReflowState.mFlags.mHResize = PR_TRUE;
      
-      NS_ASSERTION(kidFrame == GetFirstFrame() || prevKidFrame, 
-                   "If we're not on the first frame, we should have a "
-                   "previous sibling...");
-      // If prev row has nonzero YMost, then we can't be at the top of the page
-      if (prevKidFrame && prevKidFrame->GetRect().YMost() > 0) {
+      // If this isn't the first row, then we can't be at the top of the page
+      if (kidFrame != GetFirstFrame()) {
         kidReflowState.mFlags.mIsTopOfPage = PR_FALSE;
       }
 
@@ -1312,9 +1308,7 @@ nsTableRowGroupFrame::SplitRowGroup(nsPresContext*           aPresContext,
         break;
       }
     }
-    // after the 1st row that has a height, we can't be on top
-    // of the page anymore.
-    isTopOfPage = isTopOfPage && rowRect.YMost() == 0;
+    isTopOfPage = PR_FALSE; // after the 1st row, we can't be on top of the page any more.
   }
   return NS_OK;
 }
@@ -1413,9 +1407,6 @@ nsTableRowGroupFrame::AppendFrames(nsIAtom*        aListName,
   for (nsIFrame* rowFrame = aFrameList; rowFrame;
        rowFrame = rowFrame->GetNextSibling()) {
     if (nsGkAtoms::tableRowFrame == rowFrame->GetType()) {
-      NS_ASSERTION(NS_STYLE_DISPLAY_TABLE_ROW ==
-                     rowFrame->GetStyleDisplay()->mDisplay,
-                   "wrong display type on rowframe");      
       rows.AppendElement(rowFrame);
     }
   }
@@ -1459,9 +1450,6 @@ nsTableRowGroupFrame::InsertFrames(nsIAtom*        aListName,
   for (nsIFrame* rowFrame = aFrameList; rowFrame;
        rowFrame = rowFrame->GetNextSibling()) {
     if (nsGkAtoms::tableRowFrame == rowFrame->GetType()) {
-      NS_ASSERTION(NS_STYLE_DISPLAY_TABLE_ROW ==
-                     rowFrame->GetStyleDisplay()->mDisplay,
-                   "wrong display type on rowframe");      
       rows.AppendElement(rowFrame);
       if (!gotFirstRow) {
         ((nsTableRowFrame*)rowFrame)->SetFirstInserted(PR_TRUE);
@@ -1591,6 +1579,20 @@ nsIFrame*
 NS_NewTableRowGroupFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsTableRowGroupFrame(aContext);
+}
+
+NS_IMETHODIMP
+nsTableRowGroupFrame::Init(nsIContent*      aContent,
+                           nsIFrame*        aParent,
+                           nsIFrame*        aPrevInFlow)
+{
+  // Let the base class do its processing
+  nsresult rv = nsHTMLContainerFrame::Init(aContent, aParent, aPrevInFlow);
+
+  // record that children that are ignorable whitespace should be excluded 
+  mState |= NS_FRAME_EXCLUDE_IGNORABLE_WHITESPACE;
+
+  return rv;
 }
 
 #ifdef DEBUG

@@ -543,7 +543,6 @@ public:
     // nsINode
     virtual PRUint32 GetChildCount() const;
     virtual nsIContent *GetChildAt(PRUint32 aIndex) const;
-    virtual nsIContent * const * GetChildArray() const;
     virtual PRInt32 IndexOf(nsINode* aPossibleChild) const;
     virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
     virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
@@ -625,8 +624,8 @@ public:
 
     nsresult GetStyle(nsIDOMCSSStyleDeclaration** aStyle);
 
+    
     nsresult GetFrameLoader(nsIFrameLoader** aFrameLoader);
-    nsresult SwapFrameLoaders(nsIFrameLoaderOwner* aOtherOwner);
 
     virtual void RecompileScriptEventListeners();
 
@@ -664,7 +663,7 @@ protected:
        nsXULSlots(PtrBits aFlags);
        virtual ~nsXULSlots();
 
-       nsRefPtr<nsFrameLoader> mFrameLoader;
+       nsCOMPtr<nsIFrameLoader> mFrameLoader;
     };
 
     virtual nsINode::nsSlots* CreateSlots();
@@ -727,7 +726,7 @@ protected:
 
     nsresult HideWindowChrome(PRBool aShouldHide);
 
-    void SetTitlebarColor(nscolor aColor, PRBool aActive);
+    void SetTitlebarColor(nscolor aColor);
 
     const nsAttrName* InternalGetExistingAttrNameFromQName(const nsAString& aStr) const;
 

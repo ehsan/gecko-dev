@@ -379,7 +379,7 @@ nsThebesImage::LockImagePixels(PRBool aMaskPixels)
         gfxContext context(mImageSurface);
         context.SetOperator(gfxContext::OPERATOR_SOURCE);
         if (mSinglePixel)
-            context.SetDeviceColor(mSinglePixelColor);
+            context.SetColor(mSinglePixelColor);
         else
             context.SetSource(mOptSurface);
         context.Paint();
@@ -441,7 +441,7 @@ nsThebesImage::Draw(nsIRenderingContext &aContext,
         if (op == gfxContext::OPERATOR_OVER && mSinglePixelColor.a == 1.0)
             ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
 
-        ctx->SetDeviceColor(mSinglePixelColor);
+        ctx->SetColor(mSinglePixelColor);
         ctx->NewPath();
         ctx->Rectangle(aDestRect, PR_TRUE);
         ctx->Fill();
@@ -610,7 +610,7 @@ nsThebesImage::Draw(nsIRenderingContext &aContext,
     ctx->Fill();
 
     ctx->SetOperator(op);
-    ctx->SetDeviceColor(gfxRGBA(0,0,0,0));
+    ctx->SetColor(gfxRGBA(0,0,0,0));
 
     return NS_OK;
 }
@@ -640,7 +640,7 @@ nsThebesImage::ThebesDrawTile(gfxContext *thebesContext,
     gfxPoint tmpOffset = offset;
 
     if (mSinglePixel && !hasPadding) {
-        thebesContext->SetDeviceColor(mSinglePixelColor);
+        thebesContext->SetColor(mSinglePixelColor);
     } else {
         nsRefPtr<gfxASurface> surface;
         PRInt32 width, height;
@@ -664,7 +664,7 @@ nsThebesImage::ThebesDrawTile(gfxContext *thebesContext,
 
             gfxContext tmpContext(surface);
             if (mSinglePixel) {
-                tmpContext.SetDeviceColor(mSinglePixelColor);
+                tmpContext.SetColor(mSinglePixelColor);
             } else {
                 tmpContext.SetSource(ThebesSurface());
             }
@@ -802,7 +802,7 @@ nsThebesImage::ThebesDrawTile(gfxContext *thebesContext,
     thebesContext->Fill();
 
     thebesContext->SetOperator(op);
-    thebesContext->SetDeviceColor(gfxRGBA(0,0,0,0));
+    thebesContext->SetColor(gfxRGBA(0,0,0,0));
 
     return NS_OK;
 }

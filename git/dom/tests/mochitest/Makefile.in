@@ -49,14 +49,14 @@ DIRS	+= \
 	ajax \
 	bugs \
 	chrome \
-	general \
 	whatwg \
-	geolocation \
 	$(NULL)
 
-# dom-level2-html disabled due to failures on multiple platforms
-# (bug 427878)
-#	dom-level2-html \
+ifneq ($(MOZ_WIDGET_TOOLKIT),cocoa)
+DIRS	+= \
+	dom-level2-html \
+	$(NULL)
+endif
 
 include $(topsrcdir)/config/rules.mk
 

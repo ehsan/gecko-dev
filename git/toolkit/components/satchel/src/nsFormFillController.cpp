@@ -608,21 +608,15 @@ nsFormFillController::Focus(nsIDOMEvent* aEvent)
                                   
     nsAutoString autocomplete; 
     input->GetAttribute(NS_LITERAL_STRING("autocomplete"), autocomplete);
-
-    PRInt32 dummy;
-    PRBool isPwmgrInput = PR_FALSE;
-    if (mPwmgrInputs.Get(input, &dummy))
-        isPwmgrInput = PR_TRUE;
-
     if (type.LowerCaseEqualsLiteral("text") && !isReadOnly &&
-        (!autocomplete.LowerCaseEqualsLiteral("off") || isPwmgrInput)) {
+        !autocomplete.LowerCaseEqualsLiteral("off")) {
 
       nsCOMPtr<nsIDOMHTMLFormElement> form;
       input->GetForm(getter_AddRefs(form));
       if (form)
         form->GetAttribute(NS_LITERAL_STRING("autocomplete"), autocomplete);
 
-      if (!form || !autocomplete.LowerCaseEqualsLiteral("off") || isPwmgrInput)
+      if (!form || !autocomplete.LowerCaseEqualsLiteral("off"))
         StartControllingInput(input);
     }
     
@@ -754,6 +748,18 @@ nsFormFillController::HandleEndComposition(nsIDOMEvent* aCompositionEvent)
 
 NS_IMETHODIMP
 nsFormFillController::HandleQueryComposition(nsIDOMEvent* aCompositionEvent)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsFormFillController::HandleQueryReconversion(nsIDOMEvent* aCompositionEvent)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsFormFillController::HandleQueryCaretRect(nsIDOMEvent* aCompostionEvent)
 {
   return NS_OK;
 }

@@ -103,25 +103,6 @@ uninstall/uninst.exe
 uninstall/uninstall.exe
 components/myspell/en-US.dic
 components/myspell/en-US.aff
-searchplugins/centrum-cz.xml
-searchplugins/eBay-fy-NL.xml
-searchplugins/eBay-nl.xml
-searchplugins/eBay-zh-CN.xml
-searchplugins/eBay-zh-TW.xml
-searchplugins/filesearchru.xml
-searchplugins/goo.xml
-searchplugins/google-ar.xml
-searchplugins/grandiccionari.xml
-searchplugins/lingvo.yandex.ru.xml
-searchplugins/nana.xml
-searchplugins/netex.xml
-searchplugins/nosaltres.xml
-searchplugins/pbi-pl.xml
-searchplugins/taobao.xml
-searchplugins/wikipedia-zh.xml
-searchplugins/yahoo-jp-shopping.xml
-searchplugins/yahoo-ru.xml
-searchplugins/yahoo-zh-CN.xml
 searchplugins/DRAE.src
 searchplugins/DRAE.png
 searchplugins/DRAE.gif
@@ -601,7 +582,6 @@ components/websrvcs.xpt
 components/widget_mac.xpt
 components/xml-rpc.xpt
 components/xpcom_obsolete.xpt
-updater.app/Contents/MacOS/updater.ini
 init.d/README
 redo-prebinding.sh
 res/viewer.properties
@@ -611,10 +591,11 @@ res/bloatcycle.html
 #ifndef XP_MACOSX
 readme.txt
 chrome/icons/default/default.xpm
+libjemalloc.so
+#endif
+#endif
 dictionaries/PL.dic
 dictionaries/PL.aff
-#endif
-#endif
 #ifdef XP_WIN
 #ifdef MOZ_MEMORY
 Microsoft.VC80.CRT.manifest

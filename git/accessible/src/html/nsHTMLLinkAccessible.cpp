@@ -66,16 +66,7 @@ nsHTMLLinkAccessible::GetName(nsAString& aName)
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
-  nsresult rv = AppendFlatStringFromSubtree(content, &aName);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (aName.IsEmpty()) {
-    // Probably an image without alt or title inside, try to get the name on
-    // the link by usual way.
-    return GetHTMLName(aName, PR_FALSE);
-  }
-
-  return NS_OK;
+  return AppendFlatStringFromSubtree(content, &aName);
 }
 
 NS_IMETHODIMP
@@ -111,14 +102,9 @@ nsHTMLLinkAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 
   nsLinkState linkState;
   link->GetLinkState(linkState);
-  if (linkState == eLinkState_NotLink || linkState == eLinkState_Unknown) {
-    // This is a either named anchor (a link with also a name attribute) or
-    // it doesn't have any attributes. Check if 'click' event handler is
-    // registered, otherwise bail out.
-    PRBool isOnclick = nsAccUtils::HasListener(content,
-                                               NS_LITERAL_STRING("click"));
-    if (!isOnclick)
-      return NS_OK;
+  if (linkState == eLinkState_NotLink) {
+    // This is a named anchor, not a link with also a name attribute. bail out.
+    return NS_OK;
   }
 
   *aState |= nsIAccessibleStates::STATE_LINKED;
@@ -152,9 +138,6 @@ nsHTMLLinkAccessible::GetNumActions(PRUint8 *aNumActions)
 {
   NS_ENSURE_ARG_POINTER(aNumActions);
 
-  if (!IsLinked())
-    return nsHyperTextAccessible::GetNumActions(aNumActions);
-
   *aNumActions = 1;
   return NS_OK;
 }
@@ -162,12 +145,8 @@ nsHTMLLinkAccessible::GetNumActions(PRUint8 *aNumActions)
 NS_IMETHODIMP
 nsHTMLLinkAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
 {
-  aName.Truncate();
-
-  if (!IsLinked())
-    return nsHyperTextAccessible::GetActionName(aIndex, aName);
-
   // Action 0 (default action): Jump to link
+  aName.Truncate();
   if (aIndex != eAction_Jump)
     return NS_ERROR_INVALID_ARG;
 
@@ -178,9 +157,6 @@ nsHTMLLinkAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
 NS_IMETHODIMP
 nsHTMLLinkAccessible::DoAction(PRUint8 aIndex)
 {
-  if (!IsLinked())
-    return nsHyperTextAccessible::DoAction(aIndex);
-
   // Action 0 (default action): Jump to link
   if (aIndex != eAction_Jump)
     return NS_ERROR_INVALID_ARG;
@@ -208,21 +184,4 @@ nsHTMLLinkAccessible::GetURI(PRInt32 aIndex, nsIURI **aURI)
   NS_ENSURE_STATE(link);
 
   return link->GetHrefURI(aURI);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Protected members
-
-PRBool
-nsHTMLLinkAccessible::IsLinked()
-{
-  nsCOMPtr<nsILink> link(do_QueryInterface(mDOMNode));
-  if (!link)
-    return PR_FALSE;
-
-  nsLinkState linkState;
-  nsresult rv = link->GetLinkState(linkState);
-
-  return NS_SUCCEEDED(rv) && linkState != eLinkState_NotLink &&
-         linkState != eLinkState_Unknown;
 }

@@ -60,7 +60,6 @@ const LMANNO_FEEDURI = "livemark/feedURI";
 const LMANNO_SITEURI = "livemark/siteURI";
 const ORGANIZER_FOLDER_ANNO = "PlacesOrganizer/OrganizerFolder";
 const ORGANIZER_QUERY_ANNO = "PlacesOrganizer/OrganizerQuery";
-const ORGANIZER_LEFTPANE_VERSION = 4;
 
 #ifdef XP_MACOSX
 // On Mac OSX, the transferable system converts "\r\n" to "\n\n", where we
@@ -255,11 +254,10 @@ var PlacesUIUtils = {
         var txn = null;
         var node = aChildren[i];
 
-        // Make sure that items are given the correct index, this will be
-        // passed by the transaction manager to the backend for the insertion.
-        // Insertion behaves differently if index == DEFAULT_INDEX (append)
-        if (aIndex != PlacesUtils.bookmarks.DEFAULT_INDEX)
-          index = i;
+        // adjusted to make sure that items are given the correct index -
+        // transactions insert differently if index == -1
+        if (aIndex > -1)
+          index = aIndex + i;
 
         if (node.type == PlacesUtils.TYPE_X_MOZ_PLACE_CONTAINER) {
           if (node.livemark && node.annos) // node is a livemark
@@ -425,7 +423,7 @@ var PlacesUIUtils = {
    * @return true if any transaction has been performed.
    *
    * Notes:
-   *  - the location, description and "loadInSidebar" fields are
+   *  - the location, description and "load in sidebar" fields are
    *    visible only if there is no initial URI (aURI is null).
    *  - When aDefaultInsertionPoint is not set, the dialog defaults to the
    *    bookmarks root folder.
@@ -493,7 +491,7 @@ var PlacesUIUtils = {
     var info = {
       action: "add",
       type: "bookmark",
-      hiddenRows: ["location", "description", "loadInSidebar"]
+      hiddenRows: ["location", "description", "load in sidebar"]
     };
     if (aURI)
       info.uri = aURI;
@@ -640,19 +638,33 @@ var PlacesUIUtils = {
   },
 
   /**
-   * Opens the properties dialog for a given item identifier.
+   * Opens the bookmark properties panel for a given bookmark identifier.
    *
-   * @param aItemId
-   *        item identifier for which the properties are to be shown
-   * @param aType
-   *        item type, either "bookmark" or "folder"
+   * @param aId
+   *        bookmark identifier for which the properties are to be shown
    * @return true if any transaction has been performed.
    */
-  showItemProperties: function PU_showItemProperties(aItemId, aType) {
+  showBookmarkProperties: function PU_showBookmarkProperties(aId) {
     var info = {
       action: "edit",
-      type: aType,
-      itemId: aItemId
+      type: "bookmark",
+      bookmarkId: aId
+    };
+    return this._showBookmarkDialog(info);
+  },
+
+  /**
+   * Opens the folder properties panel for a given folder ID.
+   *
+   * @param aId
+   *        an integer representing the ID of the folder to edit
+   * @return true if any transaction has been performed.
+   */
+  showFolderProperties: function PU_showFolderProperties(aId) {
+    var info = {
+      action: "edit",
+      type: "folder",
+      folderId: aId
     };
     return this._showBookmarkDialog(info);
   },
@@ -1117,26 +1129,14 @@ var PlacesUIUtils = {
   get leftPaneFolderId() {
     var leftPaneRoot = -1;
     var allBookmarksId;
-    var items = PlacesUtils.annotations
-                           .getItemsWithAnnotation(ORGANIZER_FOLDER_ANNO, {});
-    if (items.length != 0 && items[0] != -1) {
+    var items = PlacesUtils.annotations.getItemsWithAnnotation(ORGANIZER_FOLDER_ANNO, {});
+    if (items.length != 0 && items[0] != -1)
       leftPaneRoot = items[0];
-      // check organizer left pane version
-      var version = PlacesUtils.annotations
-                               .getItemAnnotation(leftPaneRoot, ORGANIZER_FOLDER_ANNO);
-      if (version != ORGANIZER_LEFTPANE_VERSION) {
-        // If version is not valid we must rebuild the left pane.
-        PlacesUtils.bookmarks.removeFolder(leftPaneRoot);
-        leftPaneRoot = -1;
-      }
-    }
-
     if (leftPaneRoot != -1) {
       // Build the leftPaneQueries Map
       delete this.leftPaneQueries;
       this.leftPaneQueries = {};
-      var items = PlacesUtils.annotations
-                             .getItemsWithAnnotation(ORGANIZER_QUERY_ANNO, {});
+      var items = PlacesUtils.annotations.getItemsWithAnnotation(ORGANIZER_QUERY_ANNO, { });
       for (var i=0; i < items.length; i++) {
         var queryName = PlacesUtils.annotations
                                    .getItemAnnotation(items[i], ORGANIZER_QUERY_ANNO);
@@ -1155,8 +1155,6 @@ var PlacesUIUtils = {
 
         // Left Pane Root Folder
         leftPaneRoot = PlacesUtils.bookmarks.createFolder(PlacesUtils.placesRootId, "", -1);
-        // ensure immediate children can't be removed
-        PlacesUtils.bookmarks.setFolderReadonly(leftPaneRoot, true);
 
         // History Query
         let uri = PlacesUtils._uri("place:sort=4&");
@@ -1187,9 +1185,6 @@ var PlacesUIUtils = {
                                                   "AllBookmarks", 0, EXPIRE_NEVER);
         self.leftPaneQueries["AllBookmarks"] = itemId;
 
-        // disallow manipulating this folder within the organizer UI
-        PlacesUtils.bookmarks.setFolderReadonly(allBookmarksId, true);
-
         // All Bookmarks->Bookmarks Toolbar Query
         uri = PlacesUtils._uri("place:folder=TOOLBAR");
         itemId = PlacesUtils.bookmarks.insertBookmark(allBookmarksId, uri, -1, null);
@@ -1217,10 +1212,8 @@ var PlacesUIUtils = {
       }
     };
     PlacesUtils.bookmarks.runInBatchMode(callback, null);
-    PlacesUtils.annotations.setItemAnnotation(leftPaneRoot,
-                                              ORGANIZER_FOLDER_ANNO,
-                                              ORGANIZER_LEFTPANE_VERSION,
-                                              0, EXPIRE_NEVER);
+    PlacesUtils.annotations.setItemAnnotation(leftPaneRoot, ORGANIZER_FOLDER_ANNO,
+                                              true, 0, EXPIRE_NEVER);
     delete this.leftPaneFolderId;
     return this.leftPaneFolderId = leftPaneRoot;
   },

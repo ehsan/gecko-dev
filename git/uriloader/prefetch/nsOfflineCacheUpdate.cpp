@@ -1232,14 +1232,11 @@ nsOfflineCacheUpdate::GetStatus(PRUint16 *aStatus)
 {
     switch (mState) {
     case STATE_CHECKING :
-        *aStatus = nsIDOMOfflineResourceList::CHECKING;
-        return NS_OK;
+        return nsIDOMOfflineResourceList::CHECKING;
     case STATE_DOWNLOADING :
-        *aStatus = nsIDOMOfflineResourceList::DOWNLOADING;
-        return NS_OK;
+        return nsIDOMOfflineResourceList::DOWNLOADING;
     default :
-        *aStatus = nsIDOMOfflineResourceList::IDLE;
-        return NS_OK;
+        return nsIDOMOfflineResourceList::IDLE;
     }
 
     return NS_ERROR_FAILURE;

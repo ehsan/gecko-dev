@@ -84,22 +84,6 @@ typedef struct {
   wstring serverResponse;
 } SendThreadData;
 
-/*
- * Per http://msdn2.microsoft.com/en-us/library/ms645398(VS.85).aspx
- * "The DLGTEMPLATEEX structure is not defined in any standard header file.
- * The structure definition is provided here to explain the format of an
- * extended template for a dialog box.
-*/
-typedef struct {
-    WORD dlgVer;
-    WORD signature;
-    DWORD helpID;
-    DWORD exStyle;
-  // There's more to this struct, but it has weird variable-length
-  // members, and I only actually need to touch exStyle on an existing
-  // instance, so I've omitted the rest.
-} DLGTEMPLATEEX;
-
 static HANDLE               gThreadHandle;
 static SendThreadData       gSendData = { 0, };
 static vector<string>       gRestartArgs;
@@ -107,7 +91,6 @@ static map<wstring,wstring> gQueryParameters;
 static wstring              gCrashReporterKey(L"Software\\Mozilla\\Crash Reporter");
 static wstring              gURLParameter;
 static int                  gCheckboxPadding = 6;
-static bool                 gRTLlayout = false;
 
 // When vertically resizing the dialog, these items should move down
 static set<UINT> gAttachedBottom;
@@ -289,10 +272,6 @@ typedef  HRESULT (WINAPI*CloseThemeDataPtr)(HANDLE hTheme);
 typedef  HRESULT (WINAPI*GetThemePartSizePtr)(HANDLE hTheme, HDC hdc, int iPartId,
                                               int iStateId, RECT* prc, int ts,
                                               SIZE* psz);
-typedef HRESULT (WINAPI*GetThemeContentRectPtr)(HANDLE hTheme, HDC hdc, int iPartId,
-                                                int iStateId, const RECT* pRect,
-                                                RECT* pContentRect);
-
 
 static void GetThemeSizes(HWND hwnd)
 {
@@ -671,11 +650,9 @@ static LRESULT CALLBACK EditSubclassProc(HWND hwnd, UINT uMsg, WPARAM wParam,
     wchar_t* txt = (wchar_t*)GetProp(hwnd, L"PROP_GRAYTEXT");
     // Get the actual edit control rect
     CallWindowProc(super, hwnd, EM_GETRECT, 0, (LPARAM)&r);
-    UINT format = DT_EDITCONTROL | DT_NOPREFIX | DT_WORDBREAK | DT_INTERNAL;
-    if (gRTLlayout)
-      format |= DT_RIGHT;
     if (txt)
-      DrawText(hdc, txt, wcslen(txt), &r, format);
+      DrawText(hdc, txt, wcslen(txt), &r,
+               DT_EDITCONTROL | DT_NOPREFIX | DT_WORDBREAK | DT_INTERNAL);
     EndPaint(hwnd, &ps);
     return 0;
   }
@@ -735,7 +712,7 @@ static LRESULT CALLBACK EditSubclassProc(HWND hwnd, UINT uMsg, WPARAM wParam,
 
 // Resize a control to fit this text
 static int ResizeControl(HWND hwndButton, RECT& rect, wstring text,
-                         bool shiftLeft, int userDefinedPadding)
+                         bool shiftLeft, int extraPadding)
 {
   HDC hdc = GetDC(hwndButton);
   HFONT hfont = (HFONT)SendMessage(hwndButton, WM_GETFONT, 0, 0);
@@ -750,23 +727,12 @@ static int ResizeControl(HWND hwndButton, RECT& rect, wstring text,
   if (GetTextExtentPoint32(hdc, text.c_str(), text.length(), &size)
       // default text on the button
       && GetTextExtentPoint32(hdc, oldText, wcslen(oldText), &oldSize)) {
-    /*
-     Expand control widths to accomidate wider text strings. For most
-     controls (including buttons) the text padding is defined by the
-     dialog's rc file. Some controls (such as checkboxes) have padding
-     that extends to the end of the dialog, in which case we ignore the
-     rc padding and rely on a user defined value passed in through
-     userDefinedPadding.
-    */
-    int textIncrease = size.cx - oldSize.cx;
-    if (textIncrease < 0)
+    // We want the change in the text size, minus the existing empty 
+    // space on the control.
+    sizeDiff = (size.cx - oldSize.cx) -
+      ((rect.right - rect.left) - extraPadding - oldSize.cx);
+    if (sizeDiff <= 0)
       return 0;
-    int existingTextPadding;
-    if (userDefinedPadding == 0) 
-      existingTextPadding = (rect.right - rect.left) - oldSize.cx;
-    else 
-      existingTextPadding = userDefinedPadding;
-    sizeDiff = textIncrease + existingTextPadding;
 
     if (shiftLeft) {
       // shift left by the amount the button should grow
@@ -828,39 +794,6 @@ static void SubmitReportChecked(HWND hwndDlg)
                            != 0));
   SetDlgItemVisible(hwndDlg, IDC_PROGRESSTEXT, enabled);
 }
-
-static INT_PTR DialogBoxParamMaybeRTL(UINT idd, HWND hwndParent,
-                                      DLGPROC dlgProc, LPARAM param)
-{
-  INT_PTR rv = 0;
-  if (gRTLlayout) {
-    // We need to toggle the WS_EX_LAYOUTRTL style flag on the dialog
-    // template.
-    HRSRC hDialogRC = FindResource(NULL, MAKEINTRESOURCE(idd),
-                                   RT_DIALOG);
-    HGLOBAL  hDlgTemplate = LoadResource(NULL, hDialogRC);
-    DLGTEMPLATEEX* pDlgTemplate = (DLGTEMPLATEEX*)LockResource(hDlgTemplate);
-    unsigned long sizeDlg = SizeofResource(NULL, hDialogRC);
-    HGLOBAL hMyDlgTemplate = GlobalAlloc(GPTR, sizeDlg);
-     DLGTEMPLATEEX* pMyDlgTemplate =
-      (DLGTEMPLATEEX*)GlobalLock(hMyDlgTemplate);
-    memcpy(pMyDlgTemplate, pDlgTemplate, sizeDlg);
-
-    pMyDlgTemplate->exStyle |= WS_EX_LAYOUTRTL;
-
-    rv = DialogBoxIndirectParam(NULL, (LPCDLGTEMPLATE)pMyDlgTemplate,
-                                hwndParent, dlgProc, param);
-    GlobalUnlock(hMyDlgTemplate);
-    GlobalFree(hMyDlgTemplate);
-  }
-  else {
-    rv = DialogBoxParam(NULL, MAKEINTRESOURCE(idd), hwndParent,
-                        dlgProc, param);
-  }
-
-  return rv;
-}
-
 
 static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
                                              WPARAM wParam, LPARAM lParam)
@@ -1047,7 +980,6 @@ static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
     SendDlgItemMessage(hwndDlg, IDC_DESCRIPTIONTEXT, EM_SETCHARFORMAT,
                        SCF_SELECTION, (LPARAM)&fmt);
     SendDlgItemMessage(hwndDlg, IDC_DESCRIPTIONTEXT, EM_SETSEL, 0, 0);
-
     SendDlgItemMessage(hwndDlg, IDC_DESCRIPTIONTEXT,
                        EM_SETTARGETDEVICE, (WPARAM)NULL, 0);
 
@@ -1111,7 +1043,7 @@ static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
     if (HIWORD(wParam) == BN_CLICKED) {
       switch(LOWORD(wParam)) {
       case IDC_VIEWREPORTBUTTON:
-        DialogBoxParamMaybeRTL(IDD_VIEWREPORTDIALOG, hwndDlg,
+        DialogBoxParam(NULL, MAKEINTRESOURCE(IDD_VIEWREPORTDIALOG), hwndDlg,
                        (DLGPROC)ViewReportDialogProc, 0);
         break;
       case IDC_SUBMITREPORTCHECK:
@@ -1168,7 +1100,6 @@ static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
     // if the email edit control is clicked, enable it,
     // check the email checkbox, and focus the email edit control
     if (ChildWindowFromPoint(hwndDlg, p) == hwndEmail &&
-        IsWindowEnabled(GetDlgItem(hwndDlg, IDC_RESTARTBUTTON)) &&
         !IsWindowEnabled(hwndEmail) &&
         IsDlgButtonChecked(hwndDlg, IDC_SUBMITREPORTCHECK) != 0) {
       CheckDlgButton(hwndDlg, IDC_EMAILMECHECK, BST_CHECKED);
@@ -1303,12 +1234,8 @@ bool UIShowCrashUI(const string& dumpFile,
 
   gRestartArgs = restartArgs;
 
-  if (gStrings.find("isRTL") != gStrings.end() &&
-      gStrings["isRTL"] == "yes")
-    gRTLlayout = true;
-
-  return 1 == DialogBoxParamMaybeRTL(IDD_SENDDIALOG, NULL,
-                                     (DLGPROC)CrashReporterDialogProc, 0);
+  return DialogBoxParam(NULL, MAKEINTRESOURCE(IDD_SENDDIALOG), NULL,
+                        (DLGPROC)CrashReporterDialogProc, 0) == 1;
 }
 
 void UIError_impl(const string& message)

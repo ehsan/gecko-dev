@@ -94,14 +94,6 @@ const PREF_GETADDONS_MAXRESULTS             = "extensions.getAddons.maxResults";
 const URI_GENERIC_ICON_XPINSTALL      = "chrome://mozapps/skin/xpinstall/xpinstallItemGeneric.png";
 const URI_GENERIC_ICON_THEME          = "chrome://mozapps/skin/extensions/themeGeneric.png";
 
-#ifdef MOZ_WIDGET_GTK2
-const URI_NOTIFICATION_ICON_INFO      = "moz-icon://stock/gtk-dialog-info?size=menu";
-const URI_NOTIFICATION_ICON_WARNING   = "moz-icon://stock/gtk-dialog-warning?size=menu";
-#else
-const URI_NOTIFICATION_ICON_INFO      = "chrome://global/skin/icons/information-16.png";
-const URI_NOTIFICATION_ICON_WARNING   = "chrome://global/skin/icons/warning-16.png";
-#endif
-
 const RDFURI_ITEM_ROOT    = "urn:mozilla:item:root";
 const PREFIX_ITEM_URI     = "urn:mozilla:item:";
 const PREFIX_NS_EM        = "http://www.mozilla.org/2004/em-rdf#";
@@ -355,7 +347,7 @@ function showView(aView) {
                     [ ["statusMessage", "true", null] ] ];
       var displays = [ "richlistitem", "vbox" ];
       showCheckUpdatesAll = false;
-      document.getElementById("searchfield").disabled = isOffline("offlineSearchMsg");
+      document.getElementById("searchbox").disabled = isOffline("offlineSearchMsg");
       break;
     case "extensions":
       prefURL = PREF_EXTENSIONS_GETMOREEXTENSIONSURL;
@@ -643,9 +635,9 @@ function displaySearchThrobber(aKey) {
 
 // Clears the search box and updates the result list
 function resetSearch() {
-  var searchfield = document.getElementById("searchfield");
-  searchfield.value = "";
-  searchfield.focus();
+  var searchbox = document.getElementById("searchbox");
+  searchbox.value = "";
+  searchbox.focus();
   retrieveRepositoryAddons("");
 }
 
@@ -694,9 +686,13 @@ function displaySearchResults(addons, count, isRecommended) {
                      gRDF.GetLiteral("header-recommended"),
                      true);
 
-    // Locale sensitive sort
+    // Case insensitive sort
     function compare(a, b) {
-      return String.localeCompare(a.name, b.name);
+      if (a.name.toLowerCase() < b.name.toLowerCase())
+        return -1;
+      if (a.name.toLowerCase() > b.name.toLowerCase())
+        return 1;
+      return 0;
     }
     addons.sort(compare);
   }
@@ -794,8 +790,9 @@ function displaySearchResults(addons, count, isRecommended) {
                      gRDF.GetResource(PREFIX_NS_EM + "count"),
                      gRDF.GetIntLiteral(count),
                      true);
-    var searchfield = document.getElementById("searchfield");
-    url = gAddonRepository.getSearchURL(searchfield.value);
+    var searchbox = document.getElementById("searchbox");
+    // The value attribute will be the persisted value of the last search run
+    url = gAddonRepository.getSearchURL(searchbox.getAttribute("value"));
   }
   gSearchDS.Assert(labelNode,
                    gRDF.GetResource(PREFIX_NS_EM + "link"),
@@ -870,7 +867,7 @@ function initSearchDS() {
   var ioService = Components.classes["@mozilla.org/network/io-service;1"]
                             .getService(nsIIOService);
   if (!ioService.offline)
-    retrieveRepositoryAddons(document.getElementById("searchfield").value);
+    retrieveRepositoryAddons(document.getElementById("searchbox").value);
 }
 
 function initPluginsDS()
@@ -895,9 +892,13 @@ function rebuildPluginsDS()
 
   cleanDataSource(gPluginsDS, rootctr);
 
-  // Locale sensitive sort
+  // Case insensitive sort
   function compare(a, b) {
-    return String.localeCompare(a.name, b.name);
+    if (a.name.toLowerCase() < b.name.toLowerCase())
+      return -1;
+    if (a.name.toLowerCase() > b.name.toLowerCase())
+      return 1;
+    return 0;
   }
   plugins.sort(compare);
 
@@ -918,7 +919,6 @@ function rebuildPluginsDS()
         homepageURL = /<A\s+HREF=["']?([^>"'\s]*)/i.exec(plugin.description)[1];
 
       gPlugins[name][desc] = { filename    : plugin.filename,
-                               version     : plugin.version,
                                homepageURL : homepageURL,
                                disabled    : plugin.disabled,
                                blocklisted : plugin.blocklisted,
@@ -935,10 +935,6 @@ function rebuildPluginsDS()
       gPluginsDS.Assert(pluginNode,
                         gRDF.GetResource(PREFIX_NS_EM + "name"),
                         gRDF.GetLiteral(pluginName),
-                        true);
-      gPluginsDS.Assert(pluginNode,
-                        gRDF.GetResource(PREFIX_NS_EM + "version"),
-                        gRDF.GetLiteral(plugin.version),
                         true);
       gPluginsDS.Assert(pluginNode,
                         gRDF.GetResource(PREFIX_NS_EM + "addonID"),
@@ -1071,7 +1067,7 @@ function Startup()
     var buttonLabel = getExtensionString("enableButtonLabel");
     var buttonAccesskey = getExtensionString("enableButtonAccesskey");
     var notifyData = "addons-enable-compatibility";
-    showMessage(URI_NOTIFICATION_ICON_WARNING,
+    showMessage("chrome://mozapps/skin/extensions/question.png",
                 msgText, buttonLabel, buttonAccesskey,
                 true, notifyData);
   }
@@ -1087,13 +1083,13 @@ function Startup()
       var buttonLabel = getExtensionString("enableButtonLabel");
       var buttonAccesskey = getExtensionString("enableButtonAccesskey");
       var notifyData = "addons-enable-updatesecurity";
-      showMessage(URI_NOTIFICATION_ICON_WARNING,
+      showMessage("chrome://mozapps/skin/extensions/question.png",
                   msgText, buttonLabel, buttonAccesskey,
                   true, notifyData);
     }
   }
   if (gInSafeMode) {
-    showMessage(URI_NOTIFICATION_ICON_INFO,
+    showMessage("chrome://mozapps/skin/extensions/question.png",
                 getExtensionString("safeModeMsg"),
                 null, null, true, null);
   }
@@ -1117,7 +1113,7 @@ function Startup()
         document.getElementById("viewGroup").hidden = true;
         document.getElementById("extensionsView").setAttribute("norestart", "");
         showView("updates");
-        showMessage(URI_NOTIFICATION_ICON_INFO,
+        showMessage("chrome://mozapps/skin/extensions/question.png",
                     getExtensionString("newUpdatesAvailableMsg"),
                     null, null, true, null);
         document.title = getExtensionString("newUpdateWindowTitle", [getBrandShortName()]);
@@ -1126,8 +1122,8 @@ function Startup()
         gNewAddons = window.arguments[1].split(",");
         var installMsg = PluralForm.get(gNewAddons.length, getExtensionString("newAddonsNotificationMsg2"));
         installMsg = installMsg.replace("%S", gNewAddons.length);
-        showMessage(URI_NOTIFICATION_ICON_INFO,
-                    installMsg, null, null, true, null);
+        showMessage("chrome://mozapps/skin/extensions/question.png", installMsg,
+                    null, null, true, null);
         var extensionCount = 0;
         var themeCount = 0;
         var localeCount = 0;
@@ -1444,7 +1440,7 @@ UpdateCheckListener.prototype = {
     if (this._updateFound)
       showView("updates");
     else {
-      showMessage(URI_NOTIFICATION_ICON_INFO,
+      showMessage("chrome://mozapps/skin/extensions/question.png",
                   getExtensionString("noUpdatesMsg"),
                   null, null, true, "addons-no-updates");
       window.addEventListener("select", noUpdatesDismiss, true);
@@ -1960,9 +1956,9 @@ const gAddonsMsgObserver = {
       ioService.offline = false;
       // If no results have been retrieved start pulling some
       if (!gRetrievedResults)
-        retrieveRepositoryAddons(document.getElementById("searchfield").value);
+        retrieveRepositoryAddons(document.getElementById("searchbox").value);
       if (gView == "search")
-        document.getElementById("searchfield").disabled = false;
+        document.getElementById("searchbox").disabled = false;
       break;
     case "addons-message-dismiss":
       break;
@@ -2017,7 +2013,7 @@ function isXPInstallEnabled() {
   var buttonLabel = locked ? null : getExtensionString("enableButtonLabel");
   var buttonAccesskey = locked ? null : getExtensionString("enableButtonAccesskey");
   var notifyData = locked ? null : "addons-enable-xpinstall";
-  showMessage(URI_NOTIFICATION_ICON_WARNING,
+  showMessage("chrome://mozapps/skin/extensions/question.png",
               msgText, buttonLabel, buttonAccesskey,
               !locked, notifyData);
   return false;
@@ -2027,7 +2023,7 @@ function isOffline(messageKey) {
   var ioService = Components.classes["@mozilla.org/network/io-service;1"]
                             .getService(nsIIOService);
   if (ioService.offline) {
-    showMessage(URI_NOTIFICATION_ICON_WARNING,
+    showMessage("chrome://mozapps/skin/extensions/question.png",
                 getExtensionString(messageKey, [getBrandShortName()]),
                 getExtensionString("goOnlineButtonLabel"),
                 getExtensionString("goOnlineButtonAccesskey"),
@@ -2059,7 +2055,7 @@ function enableRestartButton() {
                                       getExtensionString("restartAccessKey"),
                                       "addons-restart-app") ];
     addonsMsg.appendNotification(message, "restart-app",
-                                 URI_NOTIFICATION_ICON_INFO,
+                                 "chrome://mozapps/skin/extensions/question.png",
                                  addonsMsg.PRIORITY_WARNING_HIGH, buttons);
   }
 }
@@ -2185,7 +2181,7 @@ function hideUpdateInfo()
 }
 
 function checkUpdatesAll() {
-  if (isOffline("offlineUpdateMsg2"))
+  if (isOffline("offlineUpdateMsg"))
     return;
 
   if (!isXPInstallEnabled())
@@ -2213,7 +2209,7 @@ function checkUpdatesAll() {
 }
 
 function installUpdatesAll() {
-  if (isOffline("offlineUpdateMsg2"))
+  if (isOffline("offlineUpdateMsg"))
     return;
 
   if (!isXPInstallEnabled())
@@ -2398,7 +2394,7 @@ var gExtensionsViewController = {
       return selectedItem.type != nsIUpdateItem.TYPE_THEME &&
              (selectedItem.isDisabled ||
              (!selectedItem.opType ||
-             selectedItem.opType == OP_NEEDS_DISABLE)) &&
+             selectedItem.opType == "needs-disable")) &&
              !selectedItem.isBlocklisted &&
              (!gCheckUpdateSecurity || selectedItem.providesUpdatesSecurely) &&
              (!gCheckCompat || selectedItem.isCompatible) &&
@@ -2562,7 +2558,7 @@ var gExtensionsViewController = {
 
     cmd_checkUpdate: function (aSelectedItem)
     {
-      if (isOffline("offlineUpdateMsg2"))
+      if (isOffline("offlineUpdateMsg"))
         return;
 
       if (!isXPInstallEnabled())
@@ -2578,7 +2574,7 @@ var gExtensionsViewController = {
 
     cmd_installUpdate: function (aSelectedItem)
     {
-      if (isOffline("offlineUpdateMsg2"))
+      if (isOffline("offlineUpdateMsg"))
         return;
 
       if (!isXPInstallEnabled())
@@ -2762,10 +2758,8 @@ function installSkin()
   // 1) Prompt the user for the location of the theme to install.
   var fp = Components.classes["@mozilla.org/filepicker;1"].createInstance(nsIFilePicker);
   fp.init(window, getExtensionString("installThemePickerTitle"), nsIFilePicker.modeOpen);
-  try {
-    fp.appendFilter(getExtensionString("themesFilter"), "*.jar");
-    fp.appendFilters(nsIFilePicker.filterAll);
-  } catch (e) { }
+  fp.appendFilter(getExtensionString("themesFilter"), "*.jar");
+  fp.appendFilters(nsIFilePicker.filterAll);
 
   var ret = fp.show();
   if (ret == nsIFilePicker.returnOK)
@@ -2782,10 +2776,8 @@ function installExtension()
 {
   var fp = Components.classes["@mozilla.org/filepicker;1"].createInstance(nsIFilePicker);
   fp.init(window, getExtensionString("installExtensionPickerTitle"), nsIFilePicker.modeOpen);
-  try {
-    fp.appendFilter(getExtensionString("extensionFilter"), "*.xpi");
-    fp.appendFilters(nsIFilePicker.filterAll);
-  } catch (e) { }
+  fp.appendFilter(getExtensionString("extensionFilter"), "*.xpi");
+  fp.appendFilters(nsIFilePicker.filterAll);
 
   var ret = fp.show();
   if (ret == nsIFilePicker.returnOK)

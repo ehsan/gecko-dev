@@ -92,9 +92,6 @@ nsHTMLTableCellAccessible::GetAttributesInternal(nsIPersistentProperties *aAttri
   NS_ENSURE_STATE(shell);
   
   nsIFrame *frame = shell->GetPrimaryFrameFor(content);
-  NS_ASSERTION(frame, "The frame cannot be obtaied for HTML table cell.");
-  NS_ENSURE_STATE(frame);
-
   nsITableCellLayout *cellLayout = nsnull;
   CallQueryInterface(frame, &cellLayout);
   NS_ENSURE_STATE(cellLayout);
@@ -124,7 +121,7 @@ nsHTMLTableCellAccessible::GetAttributesInternal(nsIPersistentProperties *aAttri
 
       nsAutoString stringIdx;
       stringIdx.AppendInt(idx);
-      nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::tableCellIndex,
+      nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::cellIndex,
                              stringIdx);
       return NS_OK;
     }
@@ -1171,13 +1168,11 @@ NS_IMETHODIMP nsHTMLTableAccessible::IsProbablyForLayout(PRBool *aIsProbablyForL
     nsIFrame *docFrame = docAccessNode->GetFrame();
     NS_ENSURE_TRUE(docFrame , NS_ERROR_FAILURE);
     nsSize docSize = docFrame->GetSize();
-    if (docSize.width > 0) {
-      PRInt32 percentageOfDocWidth = (100 * tableSize.width) / docSize.width;
-      if (percentageOfDocWidth > 95) {
-        // 3-4 columns, no borders, not a lot of rows, and 95% of the doc's width
-        // Probably for layout
-        RETURN_LAYOUT_ANSWER(PR_TRUE, "<=4 columns, width hardcoded in pixels and 95% of document width");
-      }
+    PRInt32 percentageOfDocWidth = (100 * tableSize.width) / docSize.width;
+    if (percentageOfDocWidth > 95) {
+      // 3-4 columns, no borders, not a lot of rows, and 95% of the doc's width
+      // Probably for layout
+      RETURN_LAYOUT_ANSWER(PR_TRUE, "<=4 columns, width hardcoded in pixels and 95% of document width");
     }
   }
 

@@ -260,11 +260,13 @@ HandlerService.prototype = {
       let protoInfo = protoSvc.getProtocolHandlerInfoFromOS(scheme, 
                                osDefaultHandlerFound);
       
-      if (this.exists(protoInfo))
+      try {
         this.fillHandlerInfo(protoInfo, null);
-      else
+      } catch (ex) {
+        // pick some sane defaults
         protoSvc.setProtocolHandlerDefaults(protoInfo, 
                                             osDefaultHandlerFound.value);
+      }
 
       // cache the possible handlers to avoid extra xpconnect traversals.      
       let possibleHandlers = protoInfo.possibleApplicationHandlers;
@@ -402,17 +404,8 @@ HandlerService.prototype = {
   },
 
   exists: function HS_exists(aHandlerInfo) {
-    var found;
-
-    try {
-      var typeID = this._getTypeID(this._getClass(aHandlerInfo), aHandlerInfo.type);
-      found = this._hasLiteralAssertion(typeID, NC_VALUE, aHandlerInfo.type);
-    } catch (e) {
-      // If the RDF threw (eg, corrupt file), treat as non-existent.
-      found = false;
-    }
-
-    return found;
+    var typeID = this._getTypeID(this._getClass(aHandlerInfo), aHandlerInfo.type);
+    return this._hasLiteralAssertion(typeID, NC_VALUE, aHandlerInfo.type);
   },
 
   remove: function HS_remove(aHandlerInfo) {
@@ -477,7 +470,7 @@ HandlerService.prototype = {
       return type;
     }
 
-    return "";
+    throw Cr.NS_ERROR_NOT_AVAILABLE;
   },
 
 
@@ -772,19 +765,11 @@ HandlerService.prototype = {
       this._setLiteral(aHandlerAppID, NC_PATH, aHandlerApp.executable.path);
       this._removeTarget(aHandlerAppID, NC_URI_TEMPLATE);
     }
-    else if(aHandlerApp instanceof Ci.nsIWebHandlerApp){
+    else {
       aHandlerApp.QueryInterface(Ci.nsIWebHandlerApp);
       this._setLiteral(aHandlerAppID, NC_URI_TEMPLATE, aHandlerApp.uriTemplate);
       this._removeTarget(aHandlerAppID, NC_PATH);
     }
-    else if(aHandlerApp instanceof Ci.nsIDBusHandlerApp){
-      aHandlerApp.QueryInterface(Ci.nsIDBusHandlerApp);
-      
-    }
-    else {
-	throw "unknown handler type";
-    }
-	
   },
 
   _storeAlwaysAsk: function HS__storeAlwaysAsk(aHandlerInfo) {
@@ -970,17 +955,11 @@ HandlerService.prototype = {
 
     if (aHandlerApp instanceof Ci.nsILocalHandlerApp)
       handlerAppID += "local:" + aHandlerApp.executable.path;
-    else if(aHandlerApp instanceof Ci.nsIWebHandlerApp){
+    else {
       aHandlerApp.QueryInterface(Ci.nsIWebHandlerApp);
       handlerAppID += "web:" + aHandlerApp.uriTemplate;
     }
-    else if(aHandlerApp instanceof Ci.nsIDBusHandlerApp){
-      aHandlerApp.QueryInterface(Ci.nsIDBusHandlerApp);
-      handlerAppID += "dbus:" + aHandlerApp.service + " " + aHandlerApp.method + " " + aHandlerApp.uriTemplate;
-    }else{
-	throw "unknown handler type";
-    }
-    
+
     return handlerAppID;
   },
 

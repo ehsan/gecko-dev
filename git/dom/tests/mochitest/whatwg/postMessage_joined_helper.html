@@ -9,34 +9,28 @@ http://sub1.test1.example.org/tests/dom/tests/mochitest/whatwg/postMessage_joine
   <script type="application/javascript">
     function receiveMessage(evt)
     {
-      var response, target, providedOrigin;
+      var response, target;
       var data = evt.data;
       if (data === "subframe-test-finished")
       {
         target = window.parent;
-        providedOrigin = "http://localhost:8888";
         response = "test-passed";
       }
       else if (data === "start-test")
       {
         target = window.frames.innermost;
-        providedOrigin = "http://example.org";
         response = "start-test";
       }
       else
       {
         target = window.parent;
-        providedOrigin = "http://localhost:8888";
         response = "not reached";
       }
-
-      if (evt.lastEventId !== "")
-        response += " wrong-lastEventId(" + evt.lastEventId + ")";
 
       if (evt.type !== "message")
         response += " wrong-type(" + evt.type + ")";
 
-      if (evt.target !== window)
+      if (evt.target !== document)
       {
         response += " wrong-target(" + evt.target + ")";
         response += " location(" + window.location.href + ")";
@@ -61,7 +55,7 @@ http://sub1.test1.example.org/tests/dom/tests/mochitest/whatwg/postMessage_joine
         response += " location(" + window.location.href + ")";
       }
 
-      target.postMessage(response, providedOrigin);
+      target.postMessage(response);
     }
 
     function setup()
@@ -75,7 +69,7 @@ http://sub1.test1.example.org/tests/dom/tests/mochitest/whatwg/postMessage_joine
       target.textContent = "Location: " + oldDomain +
                            ", effective domain: " + newDomain;
 
-      window.addEventListener("message", receiveMessage, false);
+      document.addEventListener("message", receiveMessage, false);
     }
 
     window.addEventListener("load", setup, false);

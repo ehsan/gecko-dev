@@ -51,10 +51,6 @@ ul {
   -moz-background-origin: content;
 }
 
-#errorPageContainer.certerror {
-  background-image: url("chrome://global/skin/icons/sslWarning.png");
-}
-
 body[dir="rtl"] #errorPageContainer {
   background-position: right 0;
 }
@@ -128,7 +124,7 @@ body[dir="rtl"] #brand {
 }
 
 :root.blacklist #errorPageContainer {
-  background-image: url("chrome://global/skin/icons/blacklist_64.png");
+  background-image: url("chrome://global/skin/icons/blacklist_large.png");
   background-color: #722;
 }
 

@@ -235,12 +235,6 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
   nsSize pageSize = aPresContext->GetPageSize();
 
   mPageData->mReflowSize = pageSize;
-  // If we're printing a selection, we need to reflow with
-  // unconstrained height, to make sure we'll get to the selection
-  // even if it's beyond the first page of content.
-  if (nsIPrintSettings::kRangeSelection == mPrintRangeType) {
-    mPageData->mReflowSize.height = NS_UNCONSTRAINEDSIZE;
-  }
   mPageData->mReflowMargin = mMargin;
 
   // Compute the size of each page and the x coordinate that each page will
@@ -604,7 +598,6 @@ nsSimplePageSequenceFrame::PrintNextPage()
     nsIFrame* conFrame = mCurrentPageFrame->GetFirstChild(nsnull);
     if (mSelectionHeight >= 0) {
       conFrame->SetPosition(conFrame->GetPosition() + nsPoint(0, -mYSelOffset));
-      nsContainerFrame::PositionChildViews(conFrame);
     }
 
     // cast the frame to be a page frame
@@ -652,7 +645,6 @@ nsSimplePageSequenceFrame::PrintNextPage()
         printedPageNum++;
         pf->SetPageNumInfo(printedPageNum, mTotalPages);
         conFrame->SetPosition(conFrame->GetPosition() + nsPoint(0, -height));
-        nsContainerFrame::PositionChildViews(conFrame);
 
         PR_PL(("***************** End Page (PrintNextPage) *****************\n"));
         rv = dc->EndPage();

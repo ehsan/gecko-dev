@@ -120,7 +120,6 @@
 #include "nsCDefaultURIFixup.h"
 #include "nsDocShellEnumerator.h"
 #include "nsSHistory.h"
-#include "nsDocShellEditorData.h"
 
 // Helper Classes
 #include "nsDOMError.h"
@@ -307,6 +306,7 @@ nsDocShell::nsDocShell():
     mDefaultScrollbarPref(Scrollbar_Auto, Scrollbar_Auto),
     mPreviousTransIndex(-1),
     mLoadedTransIndex(-1),
+    mEditorData(nsnull),
     mTreeOwner(nsnull),
     mChromeEventHandler(nsnull)
 #ifdef DEBUG
@@ -1011,9 +1011,12 @@ nsDocShell::FirePageHideNotification(PRBool aIsUnload)
                 kids[i]->FirePageHideNotification(aIsUnload);
             }
         }
-        // Now make sure our editor, if any, is detached before we go
-        // any farther.
-        DetachEditorFromWindow();
+    }
+
+    // Now make sure our editor, if any, is torn down before we go
+    // any farther.
+    if (mEditorData && aIsUnload) {
+        mEditorData->TearDownEditor();
     }
 
     return NS_OK;
@@ -1190,10 +1193,12 @@ nsDocShell::SetChromeEventHandler(nsIDOMEventTarget* aChromeEventHandler)
     // Weak reference. Don't addref.
     mChromeEventHandler = piTarget;
 
-    nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(mScriptGlobal));
-    if (win) {
-        win->SetChromeEventHandler(piTarget);
-    }
+    NS_ASSERTION(!mScriptGlobal,
+                 "SetChromeEventHandler() called after the script global "
+                 "object was created! This means that the script global "
+                 "object in this docshell won't get the right chrome event "
+                 "handler. You really don't want to see this assert, FIX "
+                 "YOUR CODE!");
 
     return NS_OK;
 }
@@ -2361,26 +2366,8 @@ nsDocShell::AddChild(nsIDocShellTreeItem * aChild)
     // XXX in that case docshell hierarchy and SH hierarchy won't match.
     {
         nsCOMPtr<nsIDocShell> childDocShell = do_QueryInterface(aChild);
-        if (childDocShell) {
-            // If there are frameloaders in the finalization list, reduce
-            // the offset so that the SH hierarchy is more likely to match the
-            // docshell hierarchy
-            nsCOMPtr<nsIDOMDocument> domDoc =
-              do_GetInterface(GetAsSupports(this));
-            nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
-            PRUint32 offset = mChildList.Count() - 1;
-            if (doc) {
-               PRUint32 oldChildCount = offset; // Current child count - 1
-               for (PRUint32 i = 0; i < oldChildCount; ++i) {
-                 nsCOMPtr<nsIDocShell> child = do_QueryInterface(ChildAt(i));
-                 if (doc->FrameLoaderScheduledToBeFinalized(child)) {
-                   --offset;
-                 }
-               }
-            }
-
-            childDocShell->SetChildOffset(offset);
-        }
+        if (childDocShell)
+            childDocShell->SetChildOffset(mChildList.Count() - 1);
     }
 
     /* Set the child's global history if the parent has one */
@@ -3031,12 +3018,6 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
         if (!messageStr.IsEmpty()) {
             if (errorClass == nsINSSErrorsService::ERROR_CLASS_BAD_CERT) {
                 error.AssignLiteral("nssBadCert");
-                PRBool expert = PR_FALSE;
-                mPrefs->GetBoolPref("browser.xul.error_pages.expert_bad_cert",
-                                    &expert);
-                if (expert) {
-                    cssClass.AssignLiteral("expertBadCert");
-                }
             } else {
                 error.AssignLiteral("nssFailure2");
             }
@@ -3371,7 +3352,6 @@ nsDocShell::Reload(PRUint32 aReloadFlags)
                           nsnull);        // No nsIRequest
     }
     
-
     return rv;
 }
 
@@ -3668,13 +3648,6 @@ nsDocShell::Destroy()
     // Fire unload event before we blow anything away.
     (void) FirePageHideNotification(PR_TRUE);
 
-    // Clear pointers to any detached nsEditorData that's lying
-    // around in shistory entries. Breaks cycle. See bug 430921.
-    if (mOSHE)
-      mOSHE->SetEditorData(nsnull);
-    if (mLSHE)
-      mLSHE->SetEditorData(nsnull);
-      
     // Note: mContentListener can be null if Init() failed and we're being
     // called from the destructor.
     if (mContentListener) {
@@ -3690,7 +3663,8 @@ nsDocShell::Destroy()
     // Stop any URLs that are currently being loaded...
     Stop(nsIWebNavigation::STOP_ALL);
 
-    mEditorData = nsnull;
+    delete mEditorData;
+    mEditorData = 0;
 
     mTransferableHookData = nsnull;
 
@@ -4882,13 +4856,8 @@ nsDocShell::Embed(nsIContentViewer * aContentViewer,
             SetBaseUrlForWyciwyg(aContentViewer);
     }
     // XXX What if SetupNewViewer fails?
-    if (mLSHE) {
-        // Restore the editing state, if it's stored in session history.
-        if (mLSHE->HasDetachedEditor()) {
-            ReattachEditorToWindow(mLSHE);
-        }
+    if (mLSHE)
         SetHistoryEntry(&mOSHE, mLSHE);
-    }
 
     PRBool updateHistory = PR_TRUE;
 
@@ -5334,62 +5303,6 @@ nsDocShell::CanSavePresentation(PRUint32 aLoadType,
     return PR_TRUE;
 }
 
-void
-nsDocShell::ReattachEditorToWindow(nsISHEntry *aSHEntry)
-{
-    NS_ASSERTION(!mEditorData,
-                 "Why reattach an editor when we already have one?");
-    NS_ASSERTION(aSHEntry && aSHEntry->HasDetachedEditor(),
-                 "Reattaching when there's not a detached editor.");
-
-    if (mEditorData || !aSHEntry)
-      return;
-
-    mEditorData = aSHEntry->ForgetEditorData();
-    if (mEditorData) {
-        nsresult res = mEditorData->ReattachToWindow(this);
-        NS_ASSERTION(NS_SUCCEEDED(res), "Failed to reattach editing session");
-    }
-}
-
-void
-nsDocShell::DetachEditorFromWindow(nsISHEntry *aSHEntry)
-{
-    if (!mEditorData)
-        return;
-
-    NS_ASSERTION(!aSHEntry || !aSHEntry->HasDetachedEditor(),
-                 "Detaching editor when it's already detached.");
-
-    nsresult res = mEditorData->DetachFromWindow();
-    NS_ASSERTION(NS_SUCCEEDED(res), "Failed to detach editor");
-
-    if (NS_SUCCEEDED(res)) {
-        // Make aSHEntry hold the owning ref to the editor data.
-        if (aSHEntry)
-            aSHEntry->SetEditorData(mEditorData.forget());
-        else
-            mEditorData = nsnull;
-    }
-
-#ifdef DEBUG
-    {
-        PRBool isEditable;
-        GetEditable(&isEditable);
-        NS_ASSERTION(!isEditable,
-                     "Window is still editable after detaching editor.");
-    }
-#endif // DEBUG
-
-}
-
-void
-nsDocShell::DetachEditorFromWindow()
-{
-    if (mOSHE)
-        DetachEditorFromWindow(mOSHE);
-}
-
 nsresult
 nsDocShell::CaptureState()
 {
@@ -5537,10 +5450,6 @@ nsDocShell::FinishRestore()
         if (child) {
             child->FinishRestore();
         }
-    }
-
-    if (mOSHE && mOSHE->HasDetachedEditor()) {
-      ReattachEditorToWindow(mOSHE);
     }
 
     if (mContentViewer) {
@@ -6714,21 +6623,21 @@ nsDocShell::InternalLoad(nsIURI * aURI,
     nsCOMPtr<nsISupports> owner(aOwner);
     //
     // Get an owner from the current document if necessary.  Note that we only
-    // do this for URIs that inherit a security context and local file URIs;
-    // in particular we do NOT do this for about:blank.  This way, random
-    // about:blank loads that have no owner (which basically means they were
-    // done by someone from chrome manually messing with our nsIWebNavigation
-    // or by C++ setting document.location) don't get a funky principal.  If
-    // callers want something interesting to happen with the about:blank
-    // principal in this case, they should pass an owner in.
+    // do this for URIs that inherit a security context; in particular we do
+    // NOT do this for about:blank.  This way, random about:blank loads that
+    // have no owner (which basically means they were done by someone from
+    // chrome manually messing with our nsIWebNavigation or by C++ setting
+    // document.location) don't get a funky principal.  If callers want
+    // something interesting to happen with the about:blank principal in this
+    // case, they should pass an owner in.
     //
     {
         PRBool inherits;
         // One more twist: Don't inherit the owner for external loads.
         if (aLoadType != LOAD_NORMAL_EXTERNAL && !owner &&
             (aFlags & INTERNAL_LOAD_FLAGS_INHERIT_OWNER) &&
-            ((NS_SUCCEEDED(URIInheritsSecurityContext(aURI, &inherits)) &&
-              inherits) || URIIsLocalFile(aURI))) {
+            NS_SUCCEEDED(URIInheritsSecurityContext(aURI, &inherits)) &&
+            inherits) {
 
             // Don't allow loads that would inherit our security context
             // if this document came from an unsafe channel.
@@ -6902,18 +6811,6 @@ nsDocShell::InternalLoad(nsIURI * aURI,
     rv = CheckLoadingPermissions();
     if (NS_FAILED(rv)) {
         return rv;
-    }
-
-    // If this docshell is owned by a frameloader, make sure to cancel
-    // possible frameloader initialization before loading a new page.
-    nsCOMPtr<nsIDocShellTreeItem> parent;
-    GetParent(getter_AddRefs(parent));
-    if (parent) {
-      nsCOMPtr<nsIDOMDocument> domDoc = do_GetInterface(parent);
-      nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
-      if (doc) {
-        doc->TryCancelFrameLoaderInitialization(this);
-      }
     }
 
     if (mFiredUnloadEvent) {
@@ -7148,7 +7045,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
     }
 
     mLoadType = aLoadType;
-
+    
     // mLSHE should be assigned to aSHEntry, only after Stop() has
     // been called. But when loading an error page, do not clear the
     // mLSHE for the real page.
@@ -7212,7 +7109,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
         nsCOMPtr<nsIChannel> chan(do_QueryInterface(req));
         DisplayLoadError(rv, aURI, nsnull, chan);
     }
-
+    
     return rv;
 }
 
@@ -8438,7 +8335,7 @@ nsDocShell::WalkHistoryEntries(nsISHEntry *aRootEntry,
 }
 
 // callback data for WalkHistoryEntries
-struct NS_STACK_CLASS CloneAndReplaceData
+struct CloneAndReplaceData
 {
     CloneAndReplaceData(PRUint32 aCloneID, nsISHEntry *aReplaceEntry,
                         nsISHEntry *aDestTreeParent)
@@ -8711,12 +8608,9 @@ nsDocShell::ShouldDiscardLayoutState(nsIHttpChannel * aChannel)
 NS_IMETHODIMP nsDocShell::GetEditor(nsIEditor * *aEditor)
 {
   NS_ENSURE_ARG_POINTER(aEditor);
-
-  if (!mEditorData) {
-    *aEditor = nsnull;
-    return NS_OK;
-  }
-
+  nsresult rv = EnsureEditorData();
+  if (NS_FAILED(rv)) return rv;
+  
   return mEditorData->GetEditor(aEditor);
 }
 
@@ -9022,13 +8916,10 @@ nsDocShell::EnsureScriptEnvironment()
 NS_IMETHODIMP
 nsDocShell::EnsureEditorData()
 {
-    PRBool openDocHasDetachedEditor = mOSHE && mOSHE->HasDetachedEditor();
-    if (!mEditorData && !mIsBeingDestroyed && !openDocHasDetachedEditor) {
-        // We shouldn't recreate the editor data if it already exists, or
-        // we're shutting down, or we already have a detached editor data
-        // stored in the session history. We should only have one editordata
-        // per docshell.
+    if (!mEditorData && !mIsBeingDestroyed)
+    {
         mEditorData = new nsDocShellEditorData(this);
+        if (!mEditorData) return NS_ERROR_OUT_OF_MEMORY;
     }
 
     return mEditorData ? NS_OK : NS_ERROR_NOT_AVAILABLE;

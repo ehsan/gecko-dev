@@ -50,48 +50,11 @@ nsApplicationAccessible::nsApplicationAccessible():
 {
 }
 
-////////////////////////////////////////////////////////////////////////////////
 // nsISupports
+NS_IMPL_ISUPPORTS_INHERITED0(nsApplicationAccessible,
+                             nsAccessible)
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsApplicationAccessible)
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsApplicationAccessible,
-                                                  nsAccessible)
-
-  nsCOMPtr<nsISimpleEnumerator> enumerator;
-  tmp->mChildren->Enumerate(getter_AddRefs(enumerator));
-
-  nsCOMPtr<nsIWeakReference> childWeakRef;
-  nsCOMPtr<nsIAccessible> accessible;
-
-  PRBool hasMoreElements;
-  while(NS_SUCCEEDED(enumerator->HasMoreElements(&hasMoreElements))
-        && hasMoreElements) {
-
-    enumerator->GetNext(getter_AddRefs(childWeakRef));
-    accessible = do_QueryReferent(childWeakRef);
-    if (accessible) {
-      NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, accessible);
-      cb.NoteXPCOMChild(accessible);
-    }
-  }
-  
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsApplicationAccessible,
-                                                nsAccessible)
-  tmp->mChildren->Clear();
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsApplicationAccessible)
-NS_INTERFACE_MAP_END_INHERITING(nsAccessible)
-
-NS_IMPL_ADDREF_INHERITED(nsApplicationAccessible, nsAccessible)
-NS_IMPL_RELEASE_INHERITED(nsApplicationAccessible, nsAccessible)
-
-////////////////////////////////////////////////////////////////////////////////
 // nsIAccessNode
-
 NS_IMETHODIMP
 nsApplicationAccessible::Init()
 {
@@ -125,6 +88,14 @@ nsApplicationAccessible::GetName(nsAString& aName)
   }
 
   aName.Assign(appName);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetDescription(nsAString& aDescription)
+{
+  GetName(aDescription);
+  aDescription.AppendLiteral(" Application Accessible");
   return NS_OK;
 }
 

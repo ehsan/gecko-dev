@@ -546,26 +546,10 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
                      PostCreate(wrapper, ccx, wrapper->GetFlatJSObject());
             if(NS_FAILED(rv))
             {
-                // PostCreate failed and that's Very Bad. We'll remove it from
-                // the map and mark it as invalid, but the PostCreate function
-                // may have handed the partially-constructed-and-now-invalid
-                // wrapper to someone before failing. Or, perhaps worse, the
-                // PostCreate call could have triggered code that reentered
-                // XPConnect and tried to wrap the same object. In that case
-                // *we* hand out the invalid wrapper since it is already in our
-                // map :(
-                NS_ERROR("PostCreate failed! This is known to cause "
-                         "inconsistent state for some class types and may even "
-                         "cause a crash in combination with a JS GC. Fix the "
-                         "failing PostCreate ASAP!");
-
                 {   // scoped lock
                     XPCAutoLock lock(mapLock);
                     map->Remove(wrapper);
                 }
-
-                // This would be a good place to tell the wrapper not to remove
-                // itself from the map when it dies... See bug 429442.
 
                 wrapper->Release();
                 return rv;
@@ -687,9 +671,6 @@ XPCWrappedNative::~XPCWrappedNative()
 
         // scoped lock
         XPCAutoLock lock(GetRuntime()->GetMapLock());
-
-        // Post-1.9 we should not remove this wrapper from the map if it is
-        // uninitialized.
         map->Remove(this);
     }
 
@@ -2007,10 +1988,7 @@ XPCWrappedNative::CallMethod(XPCCallContext& ccx,
         }
 
         nsISupports* qiresult = nsnull;
-        {
-            AutoJSSuspendNonMainThreadRequest req(ccx.GetJSContext());
-            invokeResult = callee->QueryInterface(*iid, (void**) &qiresult);
-        }
+        invokeResult = callee->QueryInterface(*iid, (void**) &qiresult);
 
         xpcc->SetLastResult(invokeResult);
 
@@ -2387,11 +2365,8 @@ XPCWrappedNative::CallMethod(XPCCallContext& ccx,
 
 
     // do the invoke
-    {
-        AutoJSSuspendNonMainThreadRequest req(ccx.GetJSContext());
-        invokeResult = NS_InvokeByIndex(callee, vtblIndex, paramCount,
-                                        dispatchParams);
-    }
+    invokeResult = NS_InvokeByIndex(callee, vtblIndex, paramCount,
+                                    dispatchParams);
 
     xpcc->SetLastResult(invokeResult);
 

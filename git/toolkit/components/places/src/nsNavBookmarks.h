@@ -203,7 +203,6 @@ private:
   nsCOMPtr<mozIStorageStatement> mDBGetRedirectDestinations;
   nsCOMPtr<mozIStorageStatement> mDBInsertBookmark;
   nsCOMPtr<mozIStorageStatement> mDBIsBookmarkedInDatabase;
-  nsCOMPtr<mozIStorageStatement> mDBGetLastBookmarkID;
   nsCOMPtr<mozIStorageStatement> mDBSetItemDateAdded;
   nsCOMPtr<mozIStorageStatement> mDBSetItemLastModified;
   nsCOMPtr<mozIStorageStatement> mDBSetItemIndex;

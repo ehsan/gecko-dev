@@ -194,7 +194,7 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   nimgr->GetNodeInfo(nsGkAtoms::hr, nsnull, kNameSpaceID_None,
                      getter_AddRefs(hrInfo));
 
-  NS_NewHTMLElement(getter_AddRefs(mPreHr), hrInfo, PR_FALSE);
+  NS_NewHTMLElement(getter_AddRefs(mPreHr), hrInfo);
   if (!mPreHr || !aElements.AppendElement(mPreHr))
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -213,7 +213,7 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   nimgr->GetNodeInfo(nsGkAtoms::input, nsnull, kNameSpaceID_None,
                      getter_AddRefs(inputInfo));
 
-  NS_NewHTMLElement(getter_AddRefs(mInputContent), inputInfo, PR_FALSE);
+  NS_NewHTMLElement(getter_AddRefs(mInputContent), inputInfo);
   if (!mInputContent)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -227,7 +227,7 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   mInputContent->AddEventListenerByIID(this, NS_GET_IID(nsIDOMKeyListener));
 
   // Create an hr
-  NS_NewHTMLElement(getter_AddRefs(mPostHr), hrInfo, PR_FALSE);
+  NS_NewHTMLElement(getter_AddRefs(mPostHr), hrInfo);
   if (!mPostHr || !aElements.AppendElement(mPostHr))
     return NS_ERROR_OUT_OF_MEMORY;
 

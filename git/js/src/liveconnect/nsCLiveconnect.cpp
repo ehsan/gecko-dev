@@ -107,7 +107,6 @@ private:
     nsCOMPtr<nsIJSContextStack> mContextStack;
     JSContext*                  mContext;
     JSStackFrame                mFrame;
-    JSFrameRegs                 mRegs;
     nsresult                    mPushResult;
 };
 
@@ -186,16 +185,11 @@ AutoPushJSContext::AutoPushJSContext(nsISupports* aSecuritySupports,
 
             if (fun)
             {
-                JSScript *script = JS_GetFunctionScript(cx, fun);
                 mFrame.fun = fun;
-                mFrame.script = script;
+                mFrame.script = JS_GetFunctionScript(cx, fun);
                 mFrame.callee = JS_GetFunctionObject(fun);
                 mFrame.scopeChain = JS_GetParent(cx, mFrame.callee);
                 mFrame.down = cx->fp;
-                mRegs.pc = script->code + script->length - 1;
-                JS_ASSERT(static_cast<JSOp>(*mRegs.pc) == JSOP_STOP);
-                mRegs.sp = NULL;
-                mFrame.regs = &mRegs;
                 cx->fp = &mFrame;
             }
             else

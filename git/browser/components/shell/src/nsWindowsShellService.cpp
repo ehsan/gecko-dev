@@ -66,13 +66,7 @@
 
 #include "windows.h"
 #include "shellapi.h"
-
-#ifdef _WIN32_WINNT
-#undef _WIN32_WINNT
-#endif
-#define _WIN32_WINNT 0x0600
-#define INITGUID
-#include <shlobj.h>
+#include "shlobj.h"
 
 #include <mbstring.h>
 
@@ -221,27 +215,77 @@ static SETTING gSettings[] = {
   { MAKE_KEY_NAME1("HTTPS", SOP),  "", VAL_OPEN, APP_PATH_SUBSTITUTION }
 };
 
-PRBool
-nsWindowsShellService::IsDefaultBrowserVista(PRBool* aIsDefaultBrowser)
+
+// Support for versions of shlobj.h that don't include the Vista API's
+#if !defined(IApplicationAssociationRegistration)
+
+typedef enum tagASSOCIATIONLEVEL {
+  AL_MACHINE,
+  AL_EFFECTIVE,
+  AL_USER
+} ASSOCIATIONLEVEL;
+
+typedef enum tagASSOCIATIONTYPE {
+  AT_FILEEXTENSION,
+  AT_URLPROTOCOL,
+  AT_STARTMENUCLIENT,
+  AT_MIMETYPE
+} ASSOCIATIONTYPE;
+
+MIDL_INTERFACE("4e530b0a-e611-4c77-a3ac-9031d022281b")
+IApplicationAssociationRegistration : public IUnknown
 {
-#if !defined(MOZ_DISABLE_VISTA_SDK_REQUIREMENTS)
+ public:
+  virtual HRESULT STDMETHODCALLTYPE QueryCurrentDefault(LPCWSTR pszQuery,
+                                                        ASSOCIATIONTYPE atQueryType,
+                                                        ASSOCIATIONLEVEL alQueryLevel,
+                                                        LPWSTR *ppszAssociation) = 0;
+  virtual HRESULT STDMETHODCALLTYPE QueryAppIsDefault(LPCWSTR pszQuery,
+                                                      ASSOCIATIONTYPE atQueryType,
+                                                      ASSOCIATIONLEVEL alQueryLevel,
+                                                      LPCWSTR pszAppRegistryName,
+                                                      BOOL *pfDefault) = 0;
+  virtual HRESULT STDMETHODCALLTYPE QueryAppIsDefaultAll(ASSOCIATIONLEVEL alQueryLevel,
+                                                         LPCWSTR pszAppRegistryName,
+                                                         BOOL *pfDefault) = 0;
+  virtual HRESULT STDMETHODCALLTYPE SetAppAsDefault(LPCWSTR pszAppRegistryName,
+                                                    LPCWSTR pszSet,
+                                                    ASSOCIATIONTYPE atSetType) = 0;
+  virtual HRESULT STDMETHODCALLTYPE SetAppAsDefaultAll(LPCWSTR pszAppRegistryName) = 0;
+  virtual HRESULT STDMETHODCALLTYPE ClearUserAssociations(void) = 0;
+};
+#endif
+
+static const CLSID CLSID_ApplicationAssociationReg = {0x591209C7,0x767B,0x42B2,{0x9F,0xBA,0x44,0xEE,0x46,0x15,0xF2,0xC7}};
+static const IID   IID_IApplicationAssociationReg  = {0x4e530b0a,0xe611,0x4c77,{0xa3,0xac,0x90,0x31,0xd0,0x22,0x28,0x1b}};
+
+
+PRBool
+nsWindowsShellService::IsDefaultBrowserVista(PRBool aStartupCheck, PRBool* aIsDefaultBrowser)
+{
   IApplicationAssociationRegistration* pAAR;
   
-  HRESULT hr = CoCreateInstance(CLSID_ApplicationAssociationRegistration,
+  HRESULT hr = CoCreateInstance(CLSID_ApplicationAssociationReg,
                                 NULL,
                                 CLSCTX_INPROC,
-                                IID_IApplicationAssociationRegistration,
+                                IID_IApplicationAssociationReg,
                                 (void**)&pAAR);
-
+  
   if (SUCCEEDED(hr)) {
     hr = pAAR->QueryAppIsDefaultAll(AL_EFFECTIVE,
                                     APP_REG_NAME,
                                     aIsDefaultBrowser);
-
+    
+    // If this is the first browser window, maintain internal state that we've
+    // checked this session (so that subsequent window opens don't show the 
+    // default browser dialog).
+    if (aStartupCheck)
+      mCheckedThisSession = PR_TRUE;
+    
     pAAR->Release();
     return PR_TRUE;
   }
-#endif  
+  
   return PR_FALSE;
 }
 
@@ -310,29 +354,26 @@ nsWindowsShellService::IsDefaultBrowser(PRBool aStartupCheck,
     ::ZeroMemory(currValue, sizeof(currValue));
     HKEY theKey;
     rv = OpenKeyForReading(HKEY_CLASSES_ROOT, key, &theKey);
-    if (NS_FAILED(rv)) {
-      *aIsDefaultBrowser = PR_FALSE;
-      return NS_OK;
-    }
-
-    DWORD len = sizeof currValue;
-    DWORD res = ::RegQueryValueExW(theKey, PromiseFlatString(value).get(),
-                                   NULL, NULL, (LPBYTE)currValue, &len);
-    // Close the key we opened.
-    ::RegCloseKey(theKey);
-    if (REG_FAILED(res) ||
-        !dataLongPath.Equals(currValue, CaseInsensitiveCompare) &&
-        !dataShortPath.Equals(currValue, CaseInsensitiveCompare)) {
-      // Key wasn't set, or was set to something other than our registry entry
-      *aIsDefaultBrowser = PR_FALSE;
-      return NS_OK;
+    if (NS_SUCCEEDED(rv)) {
+      DWORD len = sizeof currValue;
+      DWORD res = ::RegQueryValueExW(theKey, PromiseFlatString(value).get(),
+                                     NULL, NULL, (LPBYTE)currValue, &len);
+      // Close the key we opened.
+      ::RegCloseKey(theKey);
+      if (REG_FAILED(res) ||
+          !dataLongPath.Equals(currValue, CaseInsensitiveCompare) &&
+          !dataShortPath.Equals(currValue, CaseInsensitiveCompare)) {
+        // Key wasn't set, or was set to something else (something else became the default browser)
+        *aIsDefaultBrowser = PR_FALSE;
+        return NS_OK;
+      }
     }
   }
 
   // Only check if Firefox is the default browser on Vista if the previous
   // checks show that Firefox is the default browser.
-  if (*aIsDefaultBrowser)
-    IsDefaultBrowserVista(aIsDefaultBrowser);
+  if (aIsDefaultBrowser)
+    IsDefaultBrowserVista(aStartupCheck, aIsDefaultBrowser);
 
   return NS_OK;
 }
@@ -355,8 +396,8 @@ nsWindowsShellService::SetDefaultBrowser(PRBool aClaimAllTypes, PRBool aForAllUs
   rv = appHelper->AppendNative(NS_LITERAL_CSTRING("helper.exe"));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoString appHelperPath;
-  rv = appHelper->GetPath(appHelperPath);
+  nsCAutoString appHelperPath;
+  rv = appHelper->GetNativePath(appHelperPath);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aForAllUsers) {
@@ -365,11 +406,11 @@ nsWindowsShellService::SetDefaultBrowser(PRBool aClaimAllTypes, PRBool aForAllUs
     appHelperPath.AppendLiteral(" /SetAsDefaultAppUser");
   }
 
-  STARTUPINFOW si = {sizeof(si), 0};
+  STARTUPINFO si = {sizeof(si), 0};
   PROCESS_INFORMATION pi = {0};
 
-  BOOL ok = CreateProcessW(NULL, (LPWSTR)appHelperPath.get(), NULL, NULL,
-                           FALSE, 0, NULL, NULL, &si, &pi);
+  BOOL ok = CreateProcess(NULL, (LPSTR)appHelperPath.get(), NULL, NULL,
+                          FALSE, 0, NULL, NULL, &si, &pi);
 
   if (!ok)
     return NS_ERROR_FAILURE;
@@ -763,8 +804,8 @@ nsWindowsShellService::GetUnreadMailCount(PRUint32* aCount)
     if (REG_SUCCEEDED(res))
       *aCount = unreadCount;
 
-    // Close the key we opened.
-    ::RegCloseKey(accountKey);
+  // Close the key we opened.
+  ::RegCloseKey(accountKey);
   }
 
   return NS_OK;

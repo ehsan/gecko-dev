@@ -342,17 +342,9 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
       // For inactive list selection
       res = GetMacBrushColor(kThemeBrushSecondaryHighlightColor, aColor, NS_RGB(0x00,0x00,0x00));
       break;
-    case eColor__moz_eventreerow:
-      // Background color of even list rows. Note that Apple's row index is different from ours.
-      res = GetMacBrushColor(kThemeBrushListViewOddRowBackground, aColor, NS_RGB(0xFF,0xFF,0xFF));
-      break;
-    case eColor__moz_oddtreerow:
-      // Background color of odd list rows.
+    case eColor__moz_oddrowbackground:
+      // Background color of odd list rows. Note that Apple's row index is different from ours.
       res = GetMacBrushColor(kThemeBrushListViewEvenRowBackground, aColor, NS_RGB(0xF0,0xF0,0xF0));
-      break;
-    case eColor__moz_nativehyperlinktext:
-      // There appears to be no available system defined color. HARDCODING to the appropriate color.
-      aColor = NS_RGB(0x14,0x4F,0xAE);
       break;
     default:
       NS_WARNING("Someone asked nsILookAndFeel for a color I don't know about");
@@ -600,7 +592,6 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     case eMetric_TreeScrollLinesMax:
       aMetric = 3;
       break;
-    case eMetric_DWMCompositor:
     case eMetric_WindowsDefaultTheme:
       aMetric = 0;
       res = NS_ERROR_NOT_IMPLEMENTED;

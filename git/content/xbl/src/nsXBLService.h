@@ -88,7 +88,6 @@ class nsXBLService : public nsIXBLService,
 
   // Used by XUL key bindings and for window XBL.
   NS_IMETHOD AttachGlobalKeyHandler(nsPIDOMEventTarget* aTarget);
-  NS_IMETHOD DetachGlobalKeyHandler(nsPIDOMEventTarget* aTarget);
 
   NS_DECL_NSIOBSERVER
 
@@ -151,9 +150,6 @@ public:
   static JSCList  gClassLRUList;             // LRU list of cached classes.
   static PRUint32 gClassLRUListLength;       // Number of classes on LRU list.
   static PRUint32 gClassLRUListQuota;        // Quota on class LRU list.
-  static PRBool   gAllowDataURIs;            // Whether we should allow data
-                                             // urls in -moz-binding. Needed for
-                                             // testing.
 
   nsFixedSizeAllocator mPool;
 };

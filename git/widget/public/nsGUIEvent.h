@@ -57,7 +57,6 @@
 #include "nsWeakPtr.h"
 #include "nsIWidget.h"
 #include "nsTArray.h"
-#include "nsTraceRefcnt.h"
 
 class nsIRenderingContext;
 class nsIRegion;
@@ -85,6 +84,7 @@ class nsHashKey;
 #define NS_SCRIPT_ERROR_EVENT             12
 #define NS_TEXT_EVENT                     13
 #define NS_COMPOSITION_EVENT              14
+#define NS_RECONVERSION_EVENT             15
 #define NS_MOUSE_SCROLL_EVENT             16
 #define NS_SCROLLPORT_EVENT               18
 #define NS_MUTATION_EVENT                 19 // |nsMutationEvent| in content
@@ -96,6 +96,7 @@ class nsHashKey;
 #define NS_POPUPBLOCKED_EVENT             25
 #define NS_BEFORE_PAGE_UNLOAD_EVENT       26
 #define NS_UI_EVENT                       27
+#define NS_QUERYCARETRECT_EVENT           28
 #define NS_PAGETRANSITION_EVENT           29
 #ifdef MOZ_SVG
 #define NS_SVG_EVENT                      30
@@ -103,9 +104,6 @@ class nsHashKey;
 #endif // MOZ_SVG
 #define NS_XUL_COMMAND_EVENT              32
 #define NS_QUERY_CONTENT_EVENT            33
-#ifdef MOZ_MEDIA
-#define NS_MEDIA_EVENT                    34
-#endif // MOZ_MEDIA
 
 // These flags are sort of a mess. They're sort of shared between event
 // listener flags and event flags, but only some of them. You've been
@@ -121,8 +119,7 @@ class nsHashKey;
 #define NS_PRIV_EVENT_FLAG_SCRIPT         0x0080
 #define NS_EVENT_FLAG_NO_CONTENT_DISPATCH 0x0100
 #define NS_EVENT_FLAG_SYSTEM_EVENT        0x0200
-// Event has been dispatched at least once
-#define NS_EVENT_DISPATCHED               0x0400
+#define NS_EVENT_FLAG_STOP_DISPATCH_IMMEDIATELY 0x0400 // @see nsIDOM3Event::stopImmediatePropagation()
 #define NS_EVENT_FLAG_DISPATCHING         0x0800
 
 #define NS_PRIV_EVENT_UNTRUSTED_PERMITTED 0x8000
@@ -294,6 +291,10 @@ class nsHashKey;
 #define NS_COMPOSITION_END            (NS_COMPOSITION_EVENT_START + 1)
 #define NS_COMPOSITION_QUERY          (NS_COMPOSITION_EVENT_START + 2)
 
+// reconversion events
+#define NS_RECONVERSION_START         2300
+#define NS_RECONVERSION_QUERY         (NS_RECONVERSION_START)
+
 // text events
 #define NS_TEXT_START                 2400
 #define NS_TEXT_TEXT                  (NS_TEXT_START)
@@ -304,6 +305,10 @@ class nsHashKey;
 #define NS_UI_ACTIVATE             (NS_UI_EVENT_START)
 #define NS_UI_FOCUSIN              (NS_UI_EVENT_START + 1)
 #define NS_UI_FOCUSOUT             (NS_UI_EVENT_START + 2)
+
+// query caret rect events
+#define NS_QUERYCARETRECT_START    2600
+#define NS_QUERYCARETRECT          (NS_QUERYCARETRECT_START)
 
 // pagetransition events
 #define NS_PAGETRANSITION_START    2700
@@ -351,33 +356,6 @@ class nsHashKey;
 // relative position from the top level widget.
 #define NS_QUERY_CARET_RECT             (NS_QUERY_CONTENT_EVENT_START + 3)
 
-// Video events
-#ifdef MOZ_MEDIA
-#define NS_MEDIA_EVENT_START            3300
-#define NS_LOADSTART           (NS_MEDIA_EVENT_START)
-#define NS_PROGRESS            (NS_MEDIA_EVENT_START+1)
-#define NS_LOADEDMETADATA      (NS_MEDIA_EVENT_START+2)
-#define NS_LOADEDFIRSTFRAME    (NS_MEDIA_EVENT_START+3)
-#define NS_EMPTIED             (NS_MEDIA_EVENT_START+4)
-#define NS_STALLED             (NS_MEDIA_EVENT_START+5)
-#define NS_PLAY                (NS_MEDIA_EVENT_START+6)
-#define NS_PAUSE               (NS_MEDIA_EVENT_START+7)
-#define NS_WAITING             (NS_MEDIA_EVENT_START+8)
-#define NS_SEEKING             (NS_MEDIA_EVENT_START+9)
-#define NS_SEEKED              (NS_MEDIA_EVENT_START+10)
-#define NS_TIMEUPDATE          (NS_MEDIA_EVENT_START+11)
-#define NS_ENDED               (NS_MEDIA_EVENT_START+12)
-#define NS_DATAUNAVAILABLE     (NS_MEDIA_EVENT_START+13)
-#define NS_CANSHOWCURRENTFRAME (NS_MEDIA_EVENT_START+14)
-#define NS_CANPLAY             (NS_MEDIA_EVENT_START+15)
-#define NS_CANPLAYTHROUGH      (NS_MEDIA_EVENT_START+16)
-#define NS_RATECHANGE          (NS_MEDIA_EVENT_START+17)
-#define NS_DURATIONCHANGE      (NS_MEDIA_EVENT_START+18)
-#define NS_VOLUMECHANGE        (NS_MEDIA_EVENT_START+19)
-#define NS_MEDIA_ABORT         (NS_MEDIA_EVENT_START+20)
-#define NS_MEDIA_ERROR         (NS_MEDIA_EVENT_START+21)
-#endif // MOZ_MEDIA
-
 /**
  * Return status for event processors, nsEventStatus, is defined in
  * nsEvent.h.
@@ -416,7 +394,6 @@ protected:
       flags(isTrusted ? NS_EVENT_FLAG_TRUSTED : NS_EVENT_FLAG_NONE),
       userType(0)
   {
-    MOZ_COUNT_CTOR(nsEvent);
   }
 
 public:
@@ -428,12 +405,6 @@ public:
       flags(isTrusted ? NS_EVENT_FLAG_TRUSTED : NS_EVENT_FLAG_NONE),
       userType(0)
   {
-    MOZ_COUNT_CTOR(nsEvent);
-  }
-
-  ~nsEvent()
-  {
-    MOZ_COUNT_DTOR(nsEvent);
   }
 
   // See event struct types
@@ -780,13 +751,12 @@ typedef nsTextRange* nsTextRangeArray;
 struct nsTextEventReply
 {
   nsTextEventReply()
-    : mCursorIsCollapsed(PR_FALSE), mReferenceWidget(nsnull)
+    : mCursorIsCollapsed(PR_FALSE)
   {
   }
 
   nsRect mCursorPosition;
   PRBool mCursorIsCollapsed;
-  nsIWidget* mReferenceWidget;
 };
 
 typedef struct nsTextEventReply nsTextEventReply;
@@ -838,6 +808,48 @@ public:
   PRInt32               delta;
 };
 
+struct nsReconversionEventReply {
+  nsReconversionEventReply()
+    : mReconversionString(nsnull)
+  {
+  }
+
+  PRUnichar *mReconversionString;
+};
+
+class nsReconversionEvent : public nsInputEvent
+{
+public:
+  nsReconversionEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
+    : nsInputEvent(isTrusted, msg, w, NS_RECONVERSION_EVENT)
+  {
+  }
+
+  nsReconversionEventReply  theReply;
+};
+
+struct nsQueryCaretRectEventReply
+{
+  nsQueryCaretRectEventReply()
+    : mRectIsValid(PR_FALSE)
+  {
+  }
+
+  PRBool mRectIsValid;
+  nsRect mCaretRect;
+};
+
+class nsQueryCaretRectEvent : public nsInputEvent
+{
+public:
+  nsQueryCaretRectEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
+    : nsInputEvent(isTrusted, msg, w, NS_QUERYCARETRECT_EVENT)
+  {
+  }
+
+  nsQueryCaretRectEventReply theReply;
+};
+
 class nsQueryContentEvent : public nsGUIEvent
 {
 public:
@@ -879,8 +891,6 @@ public:
     PRUint32 mOffset;
     nsString mString;
     nsRect mRect; // Finally, the coordinates is system coordinates.
-    // The return widget has the caret. This is set at all query events.
-    nsIWidget* mFocusedWidget;
   } mReply;
 };
 
@@ -1073,6 +1083,8 @@ enum nsDragDropEventStatus {
        (((evnt)->message == NS_TEXT_TEXT) ||  \
         ((evnt)->message == NS_COMPOSITION_START) ||  \
         ((evnt)->message == NS_COMPOSITION_END) || \
+        ((evnt)->message == NS_RECONVERSION_QUERY) || \
+        ((evnt)->message == NS_QUERYCARETRECT) || \
         ((evnt)->message == NS_COMPOSITION_QUERY))
 
 #define NS_IS_FOCUS_EVENT(evnt) \
@@ -1103,7 +1115,7 @@ enum nsDragDropEventStatus {
   NS_ASSERTION(NS_IS_EVENT_IN_DISPATCH(event), \
                "Event never got marked for dispatch!"); \
   (event)->flags &= ~NS_EVENT_FLAG_DISPATCHING; \
-  (event)->flags |= NS_EVENT_DISPATCHED;
+  (event)->flags |= NS_EVENT_FLAG_STOP_DISPATCH_IMMEDIATELY;
 
 /*
  * Virtual key bindings for keyboard events.

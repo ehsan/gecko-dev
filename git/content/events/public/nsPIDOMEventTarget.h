@@ -48,12 +48,11 @@ class nsEventChainPostVisitor;
 class nsIEventListenerManager;
 class nsIDOMEventListener;
 class nsIDOMEventGroup;
-class nsIScriptContext;
 
-// 25982813-af2e-4ab6-b512-e6c6ada6d0ec
+// 360fa72e-c709-42cc-9285-1f755ec90376
 #define NS_PIDOMEVENTTARGET_IID \
-  { 0x25982813, 0xaf2e, 0x4ab6, \
-    { 0xb5, 0x12, 0xe6, 0xc6, 0xad, 0xa6, 0xd0, 0xec } }
+  { 0x44a6597b, 0x9fc3, 0x4a8d, \
+    { 0xb7, 0xa4, 0xd9, 0x00, 0x9a, 0xbf, 0x9d, 0x15 } }
 
 class nsPIDOMEventTarget : public nsISupports
 {
@@ -92,14 +91,6 @@ public:
    * @note Only nsEventDispatcher should call this method.
    */
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) = 0;
-
-  /**
-   * Called just before possible event handlers on this object will be called.
-   */
-  virtual nsresult WillHandleEvent(nsEventChainPostVisitor& aVisitor)
-  {
-    return NS_OK;
-  }
 
   /**
    * Called after the bubble phase of the system event group.
@@ -158,12 +149,6 @@ public:
    * Get the system event group.
    */
   virtual nsresult GetSystemEventGroup(nsIDOMEventGroup** aGroup) = 0;
-
-  /**
-   * Get the script context in which the event handlers should be run.
-   * May return null.
-   */
-  virtual nsresult GetContextForEventHandlers(nsIScriptContext** aContext) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsPIDOMEventTarget, NS_PIDOMEVENTTARGET_IID)

@@ -105,10 +105,6 @@ math_abs(JSContext *cx, uintN argc, jsval *vp)
 {
     jsdouble x, z;
 
-    if (argc == 0) {
-        *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
-        return JS_TRUE;
-    }
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
@@ -121,19 +117,9 @@ math_acos(JSContext *cx, uintN argc, jsval *vp)
 {
     jsdouble x, z;
 
-    if (argc == 0) {
-        *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
-        return JS_TRUE;
-    }
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-#if !JS_USE_FDLIBM_MATH && defined(SOLARIS) && defined(__GNUC__)
-    if (x < -1 || 1 < x) {
-        *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
-        return JS_TRUE;
-    }
-#endif
     z = fd_acos(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
@@ -143,19 +129,9 @@ math_asin(JSContext *cx, uintN argc, jsval *vp)
 {
     jsdouble x, z;
 
-    if (argc == 0) {
-        *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
-        return JS_TRUE;
-    }
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-#if !JS_USE_FDLIBM_MATH && defined(SOLARIS) && defined(__GNUC__)
-    if (x < -1 || 1 < x) {
-        *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
-        return JS_TRUE;
-    }
-#endif
     z = fd_asin(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
@@ -165,10 +141,6 @@ math_atan(JSContext *cx, uintN argc, jsval *vp)
 {
     jsdouble x, z;
 
-    if (argc == 0) {
-        *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
-        return JS_TRUE;
-    }
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
@@ -181,17 +153,13 @@ math_atan2(JSContext *cx, uintN argc, jsval *vp)
 {
     jsdouble x, y, z;
 
-    if (argc <= 1) {
-        *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
-        return JS_TRUE;
-    }
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
     y = js_ValueToNumber(cx, &vp[3]);
     if (JSVAL_IS_NULL(vp[3]))
         return JS_FALSE;
-#if defined(_MSC_VER)
+#if !JS_USE_FDLIBM_MATH && defined(_MSC_VER)
     /*
      * MSVC's atan2 does not yield the result demanded by ECMA when both x
      * and y are infinite.
@@ -206,19 +174,6 @@ math_atan2(JSContext *cx, uintN argc, jsval *vp)
         return js_NewDoubleInRootedValue(cx, z, vp);
     }
 #endif
-
-#if !JS_USE_FDLIBM_MATH && defined(SOLARIS) && defined(__GNUC__)
-    if (x == 0) {
-        if (JSDOUBLE_IS_NEGZERO(y)) {
-            z = fd_copysign(M_PI, x);
-            return js_NewDoubleInRootedValue(cx, z, vp);
-        }
-        if (y == 0) {
-            z = x;
-            return js_NewDoubleInRootedValue(cx, z, vp);
-        }
-    }
-#endif
     z = fd_atan2(x, y);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
@@ -228,10 +183,6 @@ math_ceil(JSContext *cx, uintN argc, jsval *vp)
 {
     jsdouble x, z;
 
-    if (argc == 0) {
-        *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
-        return JS_TRUE;
-    }
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
@@ -244,10 +195,6 @@ math_cos(JSContext *cx, uintN argc, jsval *vp)
 {
     jsdouble x, z;
 
-    if (argc == 0) {
-        *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
-        return JS_TRUE;
-    }
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
@@ -260,10 +207,6 @@ math_exp(JSContext *cx, uintN argc, jsval *vp)
 {
     jsdouble x, z;
 
-    if (argc == 0) {
-        *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
-        return JS_TRUE;
-    }
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
@@ -288,10 +231,6 @@ math_floor(JSContext *cx, uintN argc, jsval *vp)
 {
     jsdouble x, z;
 
-    if (argc == 0) {
-        *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
-        return JS_TRUE;
-    }
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
@@ -304,19 +243,9 @@ math_log(JSContext *cx, uintN argc, jsval *vp)
 {
     jsdouble x, z;
 
-    if (argc == 0) {
-        *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
-        return JS_TRUE;
-    }
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-#if !JS_USE_FDLIBM_MATH && defined(SOLARIS) && defined(__GNUC__)
-    if (x < 0) {
-        *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
-        return JS_TRUE;
-    }
-#endif
     z = fd_log(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
@@ -382,16 +311,13 @@ math_pow(JSContext *cx, uintN argc, jsval *vp)
 {
     jsdouble x, y, z;
 
-    if (argc <= 1) {
-        *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
-        return JS_TRUE;
-    }
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
     y = js_ValueToNumber(cx, &vp[3]);
     if (JSVAL_IS_NULL(vp[3]))
         return JS_FALSE;
+#if !JS_USE_FDLIBM_MATH
     /*
      * Because C99 and ECMA specify different behavior for pow(),
      * we need to wrap the libm call to make it ECMA compliant.
@@ -405,6 +331,7 @@ math_pow(JSContext *cx, uintN argc, jsval *vp)
         *vp = JSVAL_ONE;
         return JS_TRUE;
     }
+#endif
     z = fd_pow(x, y);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
@@ -516,10 +443,6 @@ math_round(JSContext *cx, uintN argc, jsval *vp)
 {
     jsdouble x, z;
 
-    if (argc == 0) {
-        *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
-        return JS_TRUE;
-    }
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
@@ -532,10 +455,6 @@ math_sin(JSContext *cx, uintN argc, jsval *vp)
 {
     jsdouble x, z;
 
-    if (argc == 0) {
-        *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
-        return JS_TRUE;
-    }
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
@@ -548,10 +467,6 @@ math_sqrt(JSContext *cx, uintN argc, jsval *vp)
 {
     jsdouble x, z;
 
-    if (argc == 0) {
-        *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
-        return JS_TRUE;
-    }
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
@@ -564,10 +479,6 @@ math_tan(JSContext *cx, uintN argc, jsval *vp)
 {
     jsdouble x, z;
 
-    if (argc == 0) {
-        *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
-        return JS_TRUE;
-    }
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
@@ -586,26 +497,26 @@ math_toSource(JSContext *cx, uintN argc, jsval *vp)
 
 static JSFunctionSpec math_static_methods[] = {
 #if JS_HAS_TOSOURCE
-    JS_FN(js_toSource_str,  math_toSource,      0, 0),
+    JS_FN(js_toSource_str,  math_toSource,      0, 0, 0),
 #endif
-    JS_FN("abs",            math_abs,           1, 0),
-    JS_FN("acos",           math_acos,          1, 0),
-    JS_FN("asin",           math_asin,          1, 0),
-    JS_FN("atan",           math_atan,          1, 0),
-    JS_FN("atan2",          math_atan2,         2, 0),
-    JS_FN("ceil",           math_ceil,          1, 0),
-    JS_FN("cos",            math_cos,           1, 0),
-    JS_FN("exp",            math_exp,           1, 0),
-    JS_FN("floor",          math_floor,         1, 0),
-    JS_FN("log",            math_log,           1, 0),
-    JS_FN("max",            math_max,           2, 0),
-    JS_FN("min",            math_min,           2, 0),
-    JS_FN("pow",            math_pow,           2, 0),
-    JS_FN("random",         math_random,        0, 0),
-    JS_FN("round",          math_round,         1, 0),
-    JS_FN("sin",            math_sin,           1, 0),
-    JS_FN("sqrt",           math_sqrt,          1, 0),
-    JS_FN("tan",            math_tan,           1, 0),
+    JS_FN("abs",            math_abs,           1, 1, 0),
+    JS_FN("acos",           math_acos,          1, 1, 0),
+    JS_FN("asin",           math_asin,          1, 1, 0),
+    JS_FN("atan",           math_atan,          1, 1, 0),
+    JS_FN("atan2",          math_atan2,         2, 2, 0),
+    JS_FN("ceil",           math_ceil,          1, 1, 0),
+    JS_FN("cos",            math_cos,           1, 1, 0),
+    JS_FN("exp",            math_exp,           1, 1, 0),
+    JS_FN("floor",          math_floor,         1, 1, 0),
+    JS_FN("log",            math_log,           1, 1, 0),
+    JS_FN("max",            math_max,           0, 2, 0),
+    JS_FN("min",            math_min,           0, 2, 0),
+    JS_FN("pow",            math_pow,           2, 2, 0),
+    JS_FN("random",         math_random,        0, 0, 0),
+    JS_FN("round",          math_round,         1, 1, 0),
+    JS_FN("sin",            math_sin,           1, 1, 0),
+    JS_FN("sqrt",           math_sqrt,          1, 1, 0),
+    JS_FN("tan",            math_tan,           1, 1, 0),
     JS_FS_END
 };
 

@@ -97,7 +97,7 @@ th:last-child {
   text-align: center;
 }
 
-th:hover > a {
+table[order] > thead > tr > th:hover {
   text-decoration: underline;
 }
 

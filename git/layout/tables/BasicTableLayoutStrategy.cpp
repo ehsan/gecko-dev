@@ -121,7 +121,7 @@ GetWidthInfo(nsIRenderingContext *aRenderingContext,
     // XXXldb Should we consider -moz-box-sizing?
 
     nsStyleUnit unit = aStylePos->mWidth.GetUnit();
-    if (unit == eStyleUnit_Coord) {
+    if (unit == eStyleUnit_Coord || unit == eStyleUnit_Chars) {
         hasSpecifiedWidth = PR_TRUE;
         nscoord w = nsLayoutUtils::ComputeWidthValue(aRenderingContext,
                       aFrame, 0, 0, 0, aStylePos->mWidth);
@@ -171,7 +171,8 @@ GetWidthInfo(nsIRenderingContext *aRenderingContext,
     unit = maxWidth.GetUnit();
     // XXX To really implement 'max-width' well, we'd need to store
     // it separately on the columns.
-    if (unit == eStyleUnit_Coord || unit == eStyleUnit_Enumerated) {
+    if (unit == eStyleUnit_Coord || unit == eStyleUnit_Chars ||
+        unit == eStyleUnit_Enumerated) {
         nscoord w =
             nsLayoutUtils::ComputeWidthValue(aRenderingContext, aFrame,
                                              0, 0, 0, maxWidth);
@@ -196,7 +197,8 @@ GetWidthInfo(nsIRenderingContext *aRenderingContext,
                                  eStyleUnit_Enumerated);
     }
     unit = minWidth.GetUnit();
-    if (unit == eStyleUnit_Coord || unit == eStyleUnit_Enumerated) {
+    if (unit == eStyleUnit_Coord || unit == eStyleUnit_Chars ||
+        unit == eStyleUnit_Enumerated) {
         nscoord w =
             nsLayoutUtils::ComputeWidthValue(aRenderingContext, aFrame,
                                              0, 0, 0, minWidth);
@@ -772,7 +774,8 @@ BasicTableLayoutStrategy::DistributeWidthToColumns(nscoord aWidth,
         float f;
     } basis; // the sum of the statistic over columns to divide it
     if (aWidth < guess_pref) {
-        if (aWidthType != BTLS_FINAL_WIDTH && aWidth <= guess_min) {
+        if ((aWidthType == BTLS_MIN_WIDTH  && aWidth <= guess_min) ||
+            (aWidthType == BTLS_PREF_WIDTH && aWidth <= guess_pref)) {
             // Return early -- we don't have any extra space to distribute.
             return;
         }

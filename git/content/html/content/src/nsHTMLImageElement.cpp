@@ -456,8 +456,6 @@ nsHTMLImageElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
       // Image map is not focusable itself, but flag as tabbable
       // so that image map areas get walked into.
       *aIsFocusable = PR_FALSE;
-
-      return PR_FALSE;
     }
   }
 

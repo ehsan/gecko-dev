@@ -44,8 +44,7 @@
 #include "nsCycleCollectionParticipant.h"
 
 /**
- * Implements the MessageEvent event, used for cross-document messaging and
- * server-sent events.
+ * Implements the MessageEvent event, used for cross-document messaging.
  *
  * See http://www.whatwg.org/specs/web-apps/current-work/#messageevent for
  * further details.
@@ -70,7 +69,6 @@ public:
 private:
   nsString mData;
   nsString mOrigin;
-  nsString mLastEventId;
   nsCOMPtr<nsIDOMWindow> mSource;
 };
 

@@ -93,8 +93,6 @@ public:
   virtual void SetWriteOnly();
   NS_IMETHOD InvalidateFrame ();
   NS_IMETHOD InvalidateFrameSubrect (const nsRect& damageRect);
-  virtual PRInt32 CountContexts();
-  virtual nsICanvasRenderingContextInternal *GetContextAtIndex (PRInt32 index);
 
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
   nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
@@ -118,8 +116,6 @@ public:
 
 protected:
   nsIntSize GetWidthHeight();
-  PRBool GetIsOpaque();
-
   nsresult UpdateContext();
   nsresult ToDataURLImpl(const nsAString& aMimeType,
                          const nsAString& aEncoderOptions,
@@ -193,15 +189,8 @@ nsHTMLCanvasElement::GetWidthHeight()
   return size;
 }
 
-PRBool
-nsHTMLCanvasElement::GetIsOpaque()
-{
-  return HasAttr(kNameSpaceID_None, nsGkAtoms::moz_opaque);
-}
-
 NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLCanvasElement, Width, width, DEFAULT_CANVAS_WIDTH)
 NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLCanvasElement, Height, height, DEFAULT_CANVAS_HEIGHT)
-NS_IMPL_BOOL_ATTR(nsHTMLCanvasElement, MozOpaque, moz_opaque)
 
 nsresult
 nsHTMLCanvasElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
@@ -211,7 +200,7 @@ nsHTMLCanvasElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   nsresult rv = nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue,
                                               aNotify);
   if (NS_SUCCEEDED(rv) && mCurrentContext &&
-      (aName == nsGkAtoms::width || aName == nsGkAtoms::height || aName == nsGkAtoms::moz_opaque))
+      (aName == nsGkAtoms::width || aName == nsGkAtoms::height))
   {
     rv = UpdateContext();
     NS_ENSURE_SUCCESS(rv, rv);
@@ -230,9 +219,6 @@ nsHTMLCanvasElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
       aAttribute == nsGkAtoms::height)
   {
     NS_UpdateHint(retval, NS_STYLE_HINT_REFLOW);
-  } else if (aAttribute == nsGkAtoms::moz_opaque)
-  {
-    NS_UpdateHint(retval, NS_STYLE_HINT_VISUAL);
   }
   return retval;
 }
@@ -500,7 +486,6 @@ nsHTMLCanvasElement::UpdateContext()
   nsresult rv = NS_OK;
   if (mCurrentContext) {
     nsIntSize sz = GetWidthHeight();
-    rv = mCurrentContext->SetIsOpaque(GetIsOpaque());
     rv = mCurrentContext->SetDimensions(sz.width, sz.height);
   }
 
@@ -567,22 +552,4 @@ nsHTMLCanvasElement::InvalidateFrameSubrect(const nsRect& damageRect)
   }
 
   return NS_OK;
-}
-
-PRInt32
-nsHTMLCanvasElement::CountContexts()
-{
-  if (mCurrentContext)
-    return 1;
-
-  return 0;
-}
-
-nsICanvasRenderingContextInternal *
-nsHTMLCanvasElement::GetContextAtIndex (PRInt32 index)
-{
-  if (mCurrentContext && index == 0)
-    return mCurrentContext.get();
-
-  return NULL;
 }

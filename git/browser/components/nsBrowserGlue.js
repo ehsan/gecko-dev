@@ -175,25 +175,14 @@ BrowserGlue.prototype = {
   // profile startup handler (contains profile initialization routines)
   _onProfileStartup: function() 
   {
-    // Check to see if the EULA must be shown on startup
-
-    // Global override for tinderbox machines
-    var prefBranch = Cc["@mozilla.org/preferences-service;1"].
-                     getService(Ci.nsIPrefBranch);
-    var mustDisplayEULA = true;
+    // check to see if the EULA must be shown on startup
     try {
-      mustDisplayEULA = !prefBranch.getBoolPref("browser.EULA.override");
-    } catch (e) {
-      // Pref might not exist
-    }
-
-    // Make sure it hasn't already been accepted
-    if (mustDisplayEULA) {
-      try {
-        var EULAVersion = prefBranch.getIntPref("browser.EULA.version");
-        mustDisplayEULA = !prefBranch.getBoolPref("browser.EULA." + EULAVersion + ".accepted");
-      } catch(ex) {
-      }
+      var mustDisplayEULA = true;
+      var prefBranch = Cc["@mozilla.org/preferences-service;1"].
+                       getService(Ci.nsIPrefBranch);
+      var EULAVersion = prefBranch.getIntPref("browser.EULA.version");
+      mustDisplayEULA = !prefBranch.getBoolPref("browser.EULA." + EULAVersion + ".accepted");
+    } catch(ex) {
     }
 
     if (mustDisplayEULA) {
@@ -268,7 +257,6 @@ BrowserGlue.prototype = {
 
     var wm = Cc["@mozilla.org/appshell/window-mediator;1"].
              getService(Ci.nsIWindowMediator);
-
     var windowcount = 0;
     var pagecount = 0;
     var browserEnum = wm.getEnumerator("navigator:browser");
@@ -295,10 +283,7 @@ BrowserGlue.prototype = {
       // browser.warnOnQuit is a hidden global boolean to override all quit prompts
       // browser.warnOnRestart specifically covers app-initiated restarts where we restart the app
       // browser.tabs.warnOnClose is the global "warn when closing multiple tabs" pref
-
-      var sessionWillBeSaved = prefBranch.getIntPref("browser.startup.page") == 3 ||
-                               prefBranch.getBoolPref("browser.sessionstore.resume_session_once");
-      if (sessionWillBeSaved || !prefBranch.getBoolPref("browser.warnOnQuit"))
+      if (prefBranch.getBoolPref("browser.warnOnQuit") == false)
         showPrompt = false;
       else if (aQuitType == "restart")
         showPrompt = prefBranch.getBoolPref("browser.warnOnRestart");
@@ -306,74 +291,75 @@ BrowserGlue.prototype = {
         showPrompt = prefBranch.getBoolPref("browser.tabs.warnOnClose");
     } catch (ex) {}
 
-    if (!showPrompt)
-      return false;
-
     var buttonChoice = 0;
-    var bundleService = Cc["@mozilla.org/intl/stringbundle;1"].
-                        getService(Ci.nsIStringBundleService);
-    var quitBundle = bundleService.createBundle("chrome://browser/locale/quitDialog.properties");
-    var brandBundle = bundleService.createBundle("chrome://branding/locale/brand.properties");
+    if (showPrompt) {
+      var bundleService = Cc["@mozilla.org/intl/stringbundle;1"].
+                          getService(Ci.nsIStringBundleService);
+      var quitBundle = bundleService.createBundle("chrome://browser/locale/quitDialog.properties");
+      var brandBundle = bundleService.createBundle("chrome://branding/locale/brand.properties");
 
-    var appName = brandBundle.GetStringFromName("brandShortName");
-    var quitDialogTitle = quitBundle.formatStringFromName(aQuitType + "DialogTitle",
-                                                            [appName], 1);
+      var appName = brandBundle.GetStringFromName("brandShortName");
+      var quitDialogTitle = quitBundle.formatStringFromName(aQuitType + "DialogTitle",
+                                                              [appName], 1);
 
-    var message;
-    if (aQuitType == "restart")
-      message = quitBundle.formatStringFromName("messageRestart",
-                                                [appName], 1);
-    else if (windowcount == 1)
-      message = quitBundle.formatStringFromName("messageNoWindows",
-                                                [appName], 1);
-    else
-      message = quitBundle.formatStringFromName("message",
-                                                [appName], 1);
+      var message;
+      if (aQuitType == "restart")
+        message = quitBundle.formatStringFromName("messageRestart",
+                                                  [appName], 1);
+      else if (windowcount == 1)
+        message = quitBundle.formatStringFromName("messageNoWindows",
+                                                  [appName], 1);
+      else
+        message = quitBundle.formatStringFromName("message",
+                                                  [appName], 1);
 
-    var promptService = Cc["@mozilla.org/embedcomp/prompt-service;1"].
-                        getService(Ci.nsIPromptService);
+      var promptService = Cc["@mozilla.org/embedcomp/prompt-service;1"].
+                          getService(Ci.nsIPromptService);
 
-    var flags = promptService.BUTTON_TITLE_IS_STRING * promptService.BUTTON_POS_0 +
-                promptService.BUTTON_TITLE_IS_STRING * promptService.BUTTON_POS_1 +
-                promptService.BUTTON_POS_0_DEFAULT;
+      var flags = promptService.BUTTON_TITLE_IS_STRING * promptService.BUTTON_POS_0 +
+                  promptService.BUTTON_TITLE_IS_STRING * promptService.BUTTON_POS_1 +
+                  promptService.BUTTON_POS_0_DEFAULT;
 
-    var neverAsk = {value:false};
-    var button0Title, button2Title;
-    var button1Title = quitBundle.GetStringFromName("cancelTitle");
-    var neverAskText = quitBundle.GetStringFromName("neverAsk");
+      var neverAsk = {value:false};
+      var button0Title, button2Title;
+      var button1Title = quitBundle.GetStringFromName("cancelTitle");
+      var neverAskText = quitBundle.GetStringFromName("neverAsk");
 
-    if (aQuitType == "restart")
-      button0Title = quitBundle.GetStringFromName("restartTitle");
-    else {
-      flags += promptService.BUTTON_TITLE_IS_STRING * promptService.BUTTON_POS_2;
-      button0Title = quitBundle.GetStringFromName("saveTitle");
-      button2Title = quitBundle.GetStringFromName("quitTitle");
-    }
-
-    buttonChoice = promptService.confirmEx(null, quitDialogTitle, message,
-                                 flags, button0Title, button1Title, button2Title,
-                                 neverAskText, neverAsk);
-
-    switch (buttonChoice) {
-    case 2: // Quit
-      if (neverAsk.value)
-        prefBranch.setBoolPref("browser.tabs.warnOnClose", false);
-      break;
-    case 1: // Cancel
-      aCancelQuit.QueryInterface(Ci.nsISupportsPRBool);
-      aCancelQuit.data = true;
-      break;
-    case 0: // Save & Quit
-      this._saveSession = true;
-      if (neverAsk.value) {
-        if (aQuitType == "restart")
-          prefBranch.setBoolPref("browser.warnOnRestart", false);
-        else {
-          // always save state when shutting down
-          prefBranch.setIntPref("browser.startup.page", 3);
-        }
+      if (aQuitType == "restart")
+        button0Title = quitBundle.GetStringFromName("restartTitle");
+      else {
+        flags += promptService.BUTTON_TITLE_IS_STRING * promptService.BUTTON_POS_2;
+        button0Title = quitBundle.GetStringFromName("saveTitle");
+        button2Title = quitBundle.GetStringFromName("quitTitle");
       }
-      break;
+
+      buttonChoice = promptService.confirmEx(null, quitDialogTitle, message,
+                                   flags, button0Title, button1Title, button2Title,
+                                   neverAskText, neverAsk);
+
+      switch (buttonChoice) {
+      case 2:
+        if (neverAsk.value)
+          prefBranch.setBoolPref("browser.tabs.warnOnClose", false);
+        break;
+      case 1:
+        aCancelQuit.QueryInterface(Ci.nsISupportsPRBool);
+        aCancelQuit.data = true;
+        break;
+      case 0:
+        this._saveSession = true;
+        if (neverAsk.value) {
+          if (aQuitType == "restart")
+            prefBranch.setBoolPref("browser.warnOnRestart", false);
+          else {
+            // don't prompt in the future
+            prefBranch.setBoolPref("browser.tabs.warnOnClose", false);
+            // always save state when shutting down
+            prefBranch.setIntPref("browser.startup.page", 3);
+          }
+        }
+        break;
+      }
     }
   },
 
@@ -467,26 +453,26 @@ BrowserGlue.prototype = {
         var dirService = Cc["@mozilla.org/file/directory_service;1"].
                          getService(Ci.nsIProperties);
 
-        var bookmarksFile = dirService.get("BMarks", Ci.nsILocalFile);
-        if (restoreDefaultBookmarks || !bookmarksFile.exists()) {
+        if (restoreDefaultBookmarks) {
           // get bookmarks.html file from default profile folder
-          bookmarksFile = dirService.get("profDef", Ci.nsILocalFile);
-          bookmarksFile.append("bookmarks.html");
+          var bookmarksFileName = "bookmarks.html";
+          var bookmarksFile = dirService.get("profDef", Ci.nsILocalFile);
+          bookmarksFile.append(bookmarksFileName);
         }
+        else
+          var bookmarksFile = dirService.get("BMarks", Ci.nsILocalFile);
 
         // import the file
         try {
           var importer = Cc["@mozilla.org/browser/places/import-export-service;1"].
                          getService(Ci.nsIPlacesImportExportService);
           importer.importHTMLFromFile(bookmarksFile, true /* overwrite existing */);
-        } catch (err) {
-          // Report the error, but ignore it.
-          Cu.reportError(err);
+        } finally {
+          prefBranch.setBoolPref("browser.places.importBookmarksHTML", false);
+          if (restoreDefaultBookmarks)
+            prefBranch.setBoolPref("browser.bookmarks.restore_default_bookmarks",
+                                   false);
         }
-        prefBranch.setBoolPref("browser.places.importBookmarksHTML", false);
-        if (restoreDefaultBookmarks)
-          prefBranch.setBoolPref("browser.bookmarks.restore_default_bookmarks",
-                                 false);
       }
     }
 
@@ -564,29 +550,13 @@ BrowserGlue.prototype = {
       this._dataSource = this._rdf.GetDataSource("rdf:local-store");
       this._dirty = false;
 
-      let currentsetResource = this._rdf.GetResource("currentset");
-      let toolbars = ["nav-bar", "toolbar-menubar", "PersonalToolbar"];
-      for (let i = 0; i < toolbars.length; i++) {
-        let toolbar = this._rdf.GetResource("chrome://browser/content/browser.xul#" + toolbars[i]);
-        let currentset = this._getPersist(toolbar, currentsetResource);
-        if (!currentset) {
-          // toolbar isn't customized
-          if (i == 0)
-            // new button is in the defaultset, nothing to migrate
-            break;
-          continue;
-        }
-        if (/(?:^|,)unified-back-forward-button(?:$|,)/.test(currentset))
-          // new button is already there, nothing to migrate
-          break;
-        if (/(?:^|,)back-button(?:$|,)/.test(currentset)) {
-          let newset = currentset.replace(/(^|,)back-button($|,)/,
-                                          "$1unified-back-forward-button,back-button$2")
-          this._setPersist(toolbar, currentsetResource, newset);
-          // done migrating
-          break;
-        }
-      }
+      var currentSet = this._rdf.GetResource("currentset");
+
+      // get an nsIRDFResource for the nav-bar item
+      var navBar = this._rdf.GetResource("chrome://browser/content/browser.xul#nav-bar");
+      var target = this._getPersist(navBar, currentSet);
+      if (target && !/(?:^|,)unified-back-forward-button(?:$|,)/.test(target))
+        this._setPersist(navBar, currentSet, "unified-back-forward-button," + target);
 
       // force the RDF to be saved
       if (this._dirty)

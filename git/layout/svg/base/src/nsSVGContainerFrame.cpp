@@ -98,11 +98,16 @@ nsSVGDisplayContainerFrame::Init(nsIContent* aContent,
                                  nsIFrame* aParent,
                                  nsIFrame* aPrevInFlow)
 {
-  if (!(GetStateBits() & NS_STATE_IS_OUTER_SVG)) {
-    AddStateBits(aParent->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD);
-  }
+  AddStateBits(aParent->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD);
   nsresult rv = nsSVGContainerFrameBase::Init(aContent, aParent, aPrevInFlow);
   return rv;
+}
+
+void
+nsSVGDisplayContainerFrame::Destroy()
+{
+  nsSVGUtils::StyleEffects(this);
+  nsSVGContainerFrame::Destroy();
 }
 
 NS_IMETHODIMP

@@ -21,13 +21,13 @@
 }
 
 /* hide the content and destroy the frame */
-[hidden="true"] {
+*[hidden="true"] {
   display: none;
 }
 
 /* hide the content, but don't destroy the frames */
-[collapsed="true"], 
-[moz-collapsed="true"] {
+*[collapsed="true"], 
+*[moz-collapsed="true"] {
   visibility: collapse;
 }
 
@@ -43,7 +43,8 @@ window[chromehidden~="status"] .chromeclass-status,
 window[chromehidden~="extrachrome"] .chromeclass-extrachrome,
 window[chromehidden~="location"] .chromeclass-location,
 window[chromehidden~="location"][chromehidden~="toolbar"] .chromeclass-toolbar,
-window[chromehidden~="toolbar"] .chromeclass-toolbar-additional {
+window[chromehidden~="toolbar"] .chromeclass-toolbar-additional
+{
   display: none;
 }
 
@@ -52,7 +53,8 @@ window[chromehidden~="toolbar"] .chromeclass-toolbar-additional {
    :: or URI elements
    ::::: */
 
-.uri-element {
+.uri-element
+{
   direction: ltr !important;
 }
 
@@ -216,6 +218,12 @@ toolbox {
   -moz-binding: url("chrome://global/content/bindings/toolbar.xml#toolbox");
   -moz-box-orient: vertical;
 }
+
+%ifdef XP_MACOSX
+toolbox[type="drag"] { 
+  -moz-binding: url("chrome://global/content/bindings/toolbar.xml#toolbox-drag");
+}
+%endif
   
 toolbar {
   -moz-binding: url("chrome://global/content/bindings/toolbar.xml#toolbar");
@@ -358,6 +366,40 @@ window[sizemode="maximized"] statusbarpanel.statusbar-resizerpanel {
 }
 %endif
 
+/********** floating popups **********/
+
+/*
+titlebar {
+  -moz-binding: url("chrome://global/content/bindings/popup.xml#titlebar");  
+}  
+
+resizer[resizerdirection="right"] {
+  -moz-binding: url("chrome://global/content/bindings/popup.xml#ew-resizer");
+}  
+
+resizer[resizerdirection="bottom"] {
+  -moz-binding: url("chrome://global/content/bindings/popup.xml#ns-resizer");
+}  
+
+resizer[resizerdirection="bottomright"] {
+  -moz-binding: url("chrome://global/content/bindings/popup.xml#diag-resizer");  
+}  
+
+floatingwindow {
+  -moz-binding: url("chrome://global/content/bindings/popup.xml#floater-normal");
+  -moz-box-orient: vertical;
+  display: none;
+  z-index: 2147483647; 
+}
+
+floatingwindow[docked="left"] {
+  -moz-binding: url("chrome://global/content/bindings/popup.xml#floater-dock-left");
+}
+
+button.popupClose {
+  -moz-binding: url("chrome://global/content/bindings/popup.xml#close-button") !important;
+}  
+*/
 /******** grid **********/
 
 grid {
@@ -545,11 +587,6 @@ treecol[hidden="true"] {
   overflow: hidden;
 }
 
-/* ::::: lines connecting cells ::::: */
-tree:not([treelines="true"]) > treechildren::-moz-tree-line {
-  visibility: hidden;
-}
-
 /********** deck & stack *********/
 
 deck {
@@ -604,11 +641,11 @@ progressmeter {
 /********** basic rule for anonymous content that needs to pass box properties through
  ********** to an insertion point parent that holds the real kids **************/
 
-.box-inherit {
-  -moz-box-orient: inherit;
-  -moz-box-pack: inherit;
-  -moz-box-align: inherit;
-  -moz-box-direction: inherit;
+ .box-inherit {
+   -moz-box-orient: inherit;
+   -moz-box-pack: inherit;
+   -moz-box-align: inherit;
+   -moz-box-direction: inherit;
 }
 
 /********** label **********/
@@ -664,10 +701,6 @@ html|*.textbox-textarea {
 
 textbox[type="timed"] {
   -moz-binding: url("chrome://global/content/bindings/textbox.xml#timed-textbox");
-}
-
-textbox[type="search"] {
-  -moz-binding: url("chrome://global/content/bindings/textbox.xml#search-textbox");
 }
 
 textbox[type="number"] {
@@ -913,7 +946,8 @@ autorepeatbutton {
 
 /********** statusbar **********/
 
-statusbar {
+statusbar 
+{
   -moz-binding: url("chrome://global/content/bindings/general.xml#statusbar");
 %ifdef XP_MACOSX
   padding-right: 14px;
@@ -1018,10 +1052,6 @@ prefpane > .content-box {
   overflow: hidden;
 }
 
-prefwindow[type="child"] > .paneDeckContainer {
-  overflow: -moz-hidden-unscrollable;
-}
-
 prefwindow[type="child"] > prefpane > .content-box {
   -moz-box-flex: 1;
   overflow: -moz-hidden-unscrollable;
@@ -1044,7 +1074,8 @@ radio[pane] {
   -moz-box-align: center;
 }
 
-prefwindow[chromehidden~="toolbar"] .chromeclass-toolbar {
+prefwindow[chromehidden~="toolbar"] .chromeclass-toolbar
+{
   display: none;
 }
 

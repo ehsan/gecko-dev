@@ -42,6 +42,7 @@
  * for shared application glue for the Communicator suite of applications
  **/
 
+var goPrefWindow = 0;
 var gBidiUI = false;
 
 function getBrowserURL()
@@ -203,34 +204,12 @@ function openUILinkIn( url, where, allowThirdPartyFixup, postData, referrerUrl )
     saveURL(url, null, null, true, null, referrerUrl);
     return;
   }
-  const Cc = Components.classes;
-  const Ci = Components.interfaces;
 
   var w = getTopWin();
 
   if (!w || where == "window") {
-    var sa = Cc["@mozilla.org/supports-array;1"].
-             createInstance(Ci.nsISupportsArray);
-
-    var wuri = Cc["@mozilla.org/supports-string;1"].
-               createInstance(Ci.nsISupportsString);
-    wuri.data = url;
-
-    sa.AppendElement(wuri);
-    sa.AppendElement(null);
-    sa.AppendElement(referrerUrl);
-    sa.AppendElement(postData);
-    sa.AppendElement(allowThirdPartyFixup);
-
-    var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
-             getService(Ci.nsIWindowWatcher);
-
-    ww.openWindow(w || window,
-                  getBrowserURL(),
-                  null,
-                  "chrome,dialog=no,all",
-                  sa);
-
+    openDialog(getBrowserURL(), "_blank", "chrome,all,dialog=no", url,
+               null, referrerUrl, postData, allowThirdPartyFixup);
     return;
   }
 

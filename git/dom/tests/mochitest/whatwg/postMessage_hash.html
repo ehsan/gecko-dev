@@ -16,13 +16,11 @@ function receiveMessage(evt)
     response += " wrong-source";
   if (evt.data !== "from-parent")
     response += " wrong-data(" + evt.data + ")";
-  if (evt.lastEventId !== "")
-    response += " wrong-lastEventId(" + evt.lastEventId + ")";
 
-  window.parent.postMessage(response, "http://localhost:8888");
+  window.parent.postMessage(response);
 }
 
-window.addEventListener("message", receiveMessage, false);
+document.addEventListener("message", receiveMessage, false);
   </script>
 </head>
 <body>

@@ -345,7 +345,7 @@ def create_partial_patches(patches):
     work_dir_root = None
     metadata = []
     try:
-        work_dir_root = tempfile.mkdtemp('-fastmode', 'tmp', os.getcwd())
+        work_dir_root = tempfile.mkdtemp()
         print "Building patches using work dir: %s" % (work_dir_root)
  
         # Iterate through every patch set in the patch file

@@ -181,13 +181,10 @@
 
   <popupset id="placesPopupset">
     <popup id="placesContext"/>
-    <popup id="placesColumnsContext"
-           onpopupshowing="ViewMenu.fillWithColumns(event, null, null, 'checkbox', null);"
-           oncommand="ViewMenu.showHideColumn(event.target); event.stopPropagation();"/>
   </popupset>
 
   <toolbox id="placesToolbox">
-    <toolbar class="chromeclass-toolbar" id="placesToolbar" align="center" chromedir="&locale.dir;">
+    <toolbar class="chromeclass-toolbar" id="placesToolbar" align="center">
       <toolbarbutton id="back-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
                      command="OrganizerCommand:Back"
                      tooltiptext="&backButton.tooltip;"
@@ -386,10 +383,9 @@
 
       <spacer flex="1"/>
 
-      <textbox id="searchFilter"
-               clickSelectsAll="true"
-               type="search"
+      <textbox id="searchFilter" style="width: 23em;" timeout="500" clickSelectsAll="true"
                oncommand="PlacesSearchBox.search(this.value);"
+               onreset="PlacesOrganizer.onPlaceSelected(false);"
                collection="bookmarks">
       </textbox>
     </toolbar>
@@ -402,7 +398,6 @@
           hidecolumnpicker="true" context="placesContext"
           onselect="PlacesOrganizer.onPlaceSelected(true);"
           onclick="PlacesOrganizer.onTreeClick(event);"
-          onfocus="PlacesOrganizer.onTreeFocus(event);"          
           seltype="single"
           persist="width"
           width="200"
@@ -453,8 +448,7 @@
 #endif
           </vbox>
           <vbox flex="1">
-            <tree id="placeContent" class="placesTree" context="placesContext"
-                  hidecolumnpicker="true"
+            <tree id="placeContent" class="placesTree" context="placesContext" 
                   flex="1" type="places"
                   flatList="true"
                   enableColumnDrag="true"
@@ -462,9 +456,8 @@
                   ondblclick="PlacesOrganizer.openSelectedNode(event);"
                   onopenflatcontainer="PlacesOrganizer.openFlatContainer(aContainer);"
                   onselect="PlacesOrganizer.onContentTreeSelect();"
-                  onfocus="PlacesOrganizer.onTreeFocus(event);"
                   onclick="PlacesOrganizer.onTreeClick(event);">
-              <treecols id="placeContentColumns" context="placesColumnsContext">
+              <treecols id="placeContentColumns">
                 <treecol label="&col.name.label;" id="placesContentTitle" anonid="title" flex="5" primary="true" ordinal="1" 
                          persist="width hidden ordinal sortActive sortDirection"/>
                 <splitter class="tree-splitter"/>
@@ -494,7 +487,7 @@
               </treecols>
               <treechildren flex="1"/>
             </tree>
-            <hbox id="infoPaneBox" style="height: 11em;">
+            <hbox id="infoPaneBox">
               <deck flex="1" id="detailsDeck">
                 <vbox id="itemsCountBox" align="center">
                   <spacer flex="3"/>
@@ -507,22 +500,7 @@
                 </vbox>
                 <vbox id="infoBox" minimal="true">
                   <vbox id="editBookmarkPanelContent"/>
-                  <spacer flex="1"/>
                   <hbox>
-#ifdef XP_WIN
-                    <button type="image" id="infoBoxExpander"
-                            class="expander-down"
-                            oncommand="PlacesOrganizer.toggleAdditionalInfoFields();"
-                            observes="paneElementsBroadcaster"/>
-                    <label id="infoBoxExpanderLabel"
-                           lesslabel="&detailsPane.less.label;"
-                           lessaccesskey="&detailsPane.less.accesskey;"
-                           morelabel="&detailsPane.more.label;"
-                           moreaccesskey="&detailsPane.more.accesskey;"
-                           value="&detailsPane.more.label;"
-                           accesskey="&detailsPane.more.accesskey;"
-                           control="infoBoxExpander"/>
-#else
                     <button type="image" id="infoBoxExpander"
                             lesslabel="&detailsPane.less.label;"
                             lessaccesskey="&detailsPane.less.accesskey;"
@@ -532,7 +510,6 @@
                             accesskey="&detailsPane.more.accesskey;"
                             oncommand="PlacesOrganizer.toggleAdditionalInfoFields();"
                             observes="paneElementsBroadcaster"/>
-#endif
                     <spacer flex="1"/>
                   </hbox>
                 </vbox>

@@ -11,26 +11,19 @@ http://example.org/tests/dom/tests/mochitest/whatwg/postMessage_joined_helper2.h
     {
       var response = "subframe-test-finished";
 
-      if (evt.origin !== "http://sub1.test1.example.org")
-      {
-        response += " wrong-origin(" + evt.origin + ")";
-        response += " location(" + window.location.href + ")";
-      }
-
       if (evt.data !== "start-test")
         response += " incorrect-subframe-data(" + evt.data + ")";
       if (evt.type !== "message")
         response += " wrong-type(" + evt.type + ")";
-      if (evt.target !== window)
+      if (evt.target !== document)
       {
         response += " wrong-target(" + evt.target + ")";
         response += " location(" + window.location.href + ")";
       }
 
-      if (isMozilla)
+      if (isMozilla && evt.isTrusted)
       {
-        if (evt.isTrusted !== false)
-          response += " unexpected-trusted-event";
+        response += " unexpected-trusted-event";
       }
 
       if (evt.source !== window.parent)
@@ -52,7 +45,13 @@ http://example.org/tests/dom/tests/mochitest/whatwg/postMessage_joined_helper2.h
       if (!passed)
         response += " expected-joined-domains";
 
-      window.parent.postMessage(response, "http://sub1.test1.example.org");
+      if (evt.origin !== "http://sub1.test1.example.org")
+      {
+        response += " wrong-origin(" + evt.origin + ")";
+        response += " location(" + window.location.href + ")";
+      }
+
+      window.parent.postMessage(response);
     }
     
     function setup()
@@ -66,7 +65,7 @@ http://example.org/tests/dom/tests/mochitest/whatwg/postMessage_joined_helper2.h
       target.textContent = "Location: " + oldDomain +
                            ", effective domain: " + newDomain;
 
-      window.addEventListener("message", receiveMessage, false);
+      document.addEventListener("message", receiveMessage, false);
     }
 
     window.addEventListener("load", setup, false);

@@ -266,30 +266,16 @@ nsCertOverrideService::Read()
       continue;
     }
 
-    const nsASingleFragmentCString &tmp = Substring(buffer, hostIndex, algoIndex - hostIndex - 1);
+    const nsASingleFragmentCString &host = Substring(buffer, hostIndex, algoIndex - hostIndex - 1);
     const nsASingleFragmentCString &algo_string = Substring(buffer, algoIndex, fingerprintIndex - algoIndex - 1);
     const nsASingleFragmentCString &fingerprint = Substring(buffer, fingerprintIndex, overrideBitsIndex - fingerprintIndex - 1);
     const nsASingleFragmentCString &bits_string = Substring(buffer, overrideBitsIndex, dbKeyIndex - overrideBitsIndex - 1);
     const nsASingleFragmentCString &db_key = Substring(buffer, dbKeyIndex, buffer.Length() - dbKeyIndex);
 
-    nsCAutoString host(tmp);
     nsCertOverride::OverrideBits bits;
     nsCertOverride::convertStringToBits(bits_string, bits);
 
-    PRInt32 port;
-    PRInt32 portIndex = host.RFindChar(':');
-    if (portIndex == kNotFound)
-      continue; // Ignore broken entries
-
-    PRInt32 portParseError;
-    nsCAutoString portString(Substring(host, portIndex+1));
-    port = portString.ToInteger(&portParseError);
-    if (portParseError)
-      continue; // Ignore broken entries
-
-    host.Truncate(portIndex);
-    
-    AddEntryToList(host, port, 
+    AddEntryToList(host, 
                    PR_FALSE, // not temporary
                    algo_string, fingerprint, bits, db_key);
   }
@@ -317,7 +303,7 @@ WriteEntryCallback(nsCertOverrideEntry *aEntry,
     nsCertOverride::convertBitsToString(settings.mOverrideBits, 
                                             bits_string);
 
-    rawStreamPtr->Write(aEntry->mHostWithPort.get(), aEntry->mHostWithPort.Length(), &rv);
+    rawStreamPtr->Write(settings.mHostWithPortUTF8.get(), settings.mHostWithPortUTF8.Length(), &rv);
     rawStreamPtr->Write(kTab, sizeof(kTab) - 1, &rv);
     rawStreamPtr->Write(settings.mFingerprintAlgOID.get(), 
                         settings.mFingerprintAlgOID.Length(), &rv);
@@ -466,15 +452,13 @@ GetCertFingerprintByDottedOidString(nsIX509Cert *aCert,
 }
 
 NS_IMETHODIMP
-nsCertOverrideService::RememberValidityOverride(const nsACString & aHostName, PRInt32 aPort, 
+nsCertOverrideService::RememberValidityOverride(const nsAString & aHostNameWithPort, 
                                                 nsIX509Cert *aCert,
                                                 PRUint32 aOverrideBits, 
                                                 PRBool aTemporary)
 {
   NS_ENSURE_ARG_POINTER(aCert);
-  if (aHostName.IsEmpty())
-    return NS_ERROR_INVALID_ARG;
-  if (aPort < -1)
+  if (aHostNameWithPort.IsEmpty())
     return NS_ERROR_INVALID_ARG;
 
   nsCOMPtr<nsIX509Cert2> cert2 = do_QueryInterface(aCert);
@@ -489,18 +473,26 @@ nsCertOverrideService::RememberValidityOverride(const nsACString & aHostName, PR
 
   nsCAutoString nickname;
   nickname = nsNSSCertificate::defaultServerNickname(nsscert);
-  if (!nickname.IsEmpty())
-  {
-    PK11SlotInfo *slot = PK11_GetInternalKeySlot();
-    if (!slot)
-      return NS_ERROR_FAILURE;
-  
-    SECStatus srv = PK11_ImportCert(slot, nsscert, CK_INVALID_HANDLE, 
-                                    const_cast<char*>(nickname.get()), PR_FALSE);
-    PK11_FreeSlot(slot);
-  
-    if (srv != SECSuccess)
-      return NS_ERROR_FAILURE;
+  if (nickname.IsEmpty())
+    return NS_ERROR_FAILURE;
+
+  PK11SlotInfo *slot = PK11_GetInternalKeySlot();
+  if (!slot)
+    return NS_ERROR_FAILURE;
+
+  SECStatus srv = PK11_ImportCert(slot, nsscert, CK_INVALID_HANDLE, 
+                                  const_cast<char*>(nickname.get()), PR_FALSE);
+  PK11_FreeSlot(slot);
+
+  if (srv != SECSuccess)
+    return NS_ERROR_FAILURE;
+
+  nsCString myHostPort;
+  myHostPort = NS_ConvertUTF16toUTF8(aHostNameWithPort);
+
+  PRInt32 find_colon = myHostPort.FindChar(':');
+  if (find_colon == -1) {
+    myHostPort.AppendLiteral(":443");
   }
 
   nsCAutoString fpStr;
@@ -526,7 +518,7 @@ nsCertOverrideService::RememberValidityOverride(const nsACString & aHostName, PR
 
   {
     nsAutoMonitor lock(monitor);
-    AddEntryToList(aHostName, aPort,
+    AddEntryToList(myHostPort,
                    aTemporary, 
                    mDottedOidForStoringNewHashes, fpStr, 
                    (nsCertOverride::OverrideBits)aOverrideBits, 
@@ -539,15 +531,13 @@ nsCertOverrideService::RememberValidityOverride(const nsACString & aHostName, PR
 }
 
 NS_IMETHODIMP
-nsCertOverrideService::HasMatchingOverride(const nsACString & aHostName, PRInt32 aPort,
+nsCertOverrideService::HasMatchingOverride(const nsAString & aHostNameWithPort, 
                                            nsIX509Cert *aCert, 
                                            PRUint32 *aOverrideBits,
                                            PRBool *aIsTemporary,
                                            PRBool *_retval)
 {
-  if (aHostName.IsEmpty())
-    return NS_ERROR_INVALID_ARG;
-  if (aPort < -1)
+  if (aHostNameWithPort.IsEmpty())
     return NS_ERROR_INVALID_ARG;
 
   NS_ENSURE_ARG_POINTER(aCert);
@@ -557,13 +547,12 @@ nsCertOverrideService::HasMatchingOverride(const nsACString & aHostName, PRInt32
   *_retval = PR_FALSE;
   *aOverrideBits = nsCertOverride::ob_None;
 
-  nsCAutoString hostPort;
-  GetHostWithPort(aHostName, aPort, hostPort);
+  NS_ConvertUTF16toUTF8 hp8(aHostNameWithPort);
   nsCertOverride settings;
 
   {
     nsAutoMonitor lock(monitor);
-    nsCertOverrideEntry *entry = mSettingsTable.GetEntry(hostPort.get());
+    nsCertOverrideEntry *entry = mSettingsTable.GetEntry(hp8.get());
   
     if (!entry)
       return NS_OK;
@@ -591,7 +580,7 @@ nsCertOverrideService::HasMatchingOverride(const nsACString & aHostName, PRInt32
 }
 
 NS_IMETHODIMP
-nsCertOverrideService::GetValidityOverride(const nsACString & aHostName, PRInt32 aPort,
+nsCertOverrideService::GetValidityOverride(const nsAString & aHostNameWithPort, 
                                            nsACString & aHashAlg, 
                                            nsACString & aFingerprint, 
                                            PRUint32 *aOverrideBits,
@@ -604,13 +593,12 @@ nsCertOverrideService::GetValidityOverride(const nsACString & aHostName, PRInt32
   *_found = PR_FALSE;
   *aOverrideBits = nsCertOverride::ob_None;
 
-  nsCAutoString hostPort;
-  GetHostWithPort(aHostName, aPort, hostPort);
+  NS_ConvertUTF16toUTF8 hp8(aHostNameWithPort);
   nsCertOverride settings;
 
   {
     nsAutoMonitor lock(monitor);
-    nsCertOverrideEntry *entry = mSettingsTable.GetEntry(hostPort.get());
+    nsCertOverrideEntry *entry = mSettingsTable.GetEntry(hp8.get());
   
     if (entry) {
       *_found = PR_TRUE;
@@ -629,30 +617,26 @@ nsCertOverrideService::GetValidityOverride(const nsACString & aHostName, PRInt32
 }
 
 nsresult
-nsCertOverrideService::AddEntryToList(const nsACString &aHostName, PRInt32 aPort,
+nsCertOverrideService::AddEntryToList(const nsACString &hostWithPortUTF8, 
                                       const PRBool aIsTemporary,
                                       const nsACString &fingerprintAlgOID, 
                                       const nsACString &fingerprint,
                                       nsCertOverride::OverrideBits ob,
                                       const nsACString &dbKey)
 {
-  nsCAutoString hostPort;
-  GetHostWithPort(aHostName, aPort, hostPort);
+  const nsPromiseFlatCString &flat = PromiseFlatCString(hostWithPortUTF8);
 
   {
     nsAutoMonitor lock(monitor);
-    nsCertOverrideEntry *entry = mSettingsTable.PutEntry(hostPort.get());
+    nsCertOverrideEntry *entry = mSettingsTable.PutEntry(flat.get());
 
     if (!entry) {
       NS_ERROR("can't insert a null entry!");
       return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    entry->mHostWithPort = hostPort;
-
     nsCertOverride &settings = entry->mSettings;
-    settings.mAsciiHost = aHostName;
-    settings.mPort = aPort;
+    settings.mHostWithPortUTF8 = hostWithPortUTF8;
     settings.mIsTemporary = aIsTemporary;
     settings.mFingerprintAlgOID = fingerprintAlgOID;
     settings.mFingerprint = fingerprint;
@@ -664,13 +648,12 @@ nsCertOverrideService::AddEntryToList(const nsACString &aHostName, PRInt32 aPort
 }
 
 NS_IMETHODIMP
-nsCertOverrideService::ClearValidityOverride(const nsACString & aHostName, PRInt32 aPort)
+nsCertOverrideService::ClearValidityOverride(const nsAString & aHostNameWithPort)
 {
-  nsCAutoString hostPort;
-  GetHostWithPort(aHostName, aPort, hostPort);
+  NS_ConvertUTF16toUTF8 hp8(aHostNameWithPort);
   {
     nsAutoMonitor lock(monitor);
-    mSettingsTable.RemoveEntry(hostPort.get());
+    mSettingsTable.RemoveEntry(hp8.get());
     Write();
   }
   SSL_ClearSessionCache();
@@ -869,16 +852,4 @@ nsCertOverrideService::EnumerateCertOverrides(nsIX509Cert *aCert,
     mSettingsTable.EnumerateEntries(EnumerateCertOverridesCallback, &capac);
   }
   return NS_OK;
-}
-
-void
-nsCertOverrideService::GetHostWithPort(const nsACString & aHostName, PRInt32 aPort, nsACString& _retval)
-{
-  nsCAutoString hostPort(aHostName);
-  if (aPort == -1)
-    aPort = 443;
-  hostPort.AppendLiteral(":");
-  hostPort.AppendInt(aPort);
-  
-  _retval.Assign(hostPort);
 }

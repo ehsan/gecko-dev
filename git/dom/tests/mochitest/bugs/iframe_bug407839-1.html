@@ -57,7 +57,7 @@ function run()
   catch (ex) {
   }
 
-  window.parent.postMessage(message, "http://localhost:8888");
+  window.parent.postMessage(message);
 }
 
 window.addEventListener("load", run, false);

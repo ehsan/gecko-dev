@@ -443,8 +443,7 @@ TableBackgroundPainter::PaintTable(nsTableFrame* aTableFrame,
     // group may not be a child of the table.
     mRowGroup.mRect.MoveTo(rg->GetOffsetTo(aTableFrame));
     if (mRowGroup.mRect.Intersects(mDirtyRect - mRenderPt)) {
-      nsresult rv = PaintRowGroup(rg,
-              rg->IsPseudoStackingContextFromStyle() || rg->IsScrolled());
+      nsresult rv = PaintRowGroup(rg, rg->IsPseudoStackingContextFromStyle());
       if (NS_FAILED(rv)) return rv;
     }
   }
@@ -614,9 +613,6 @@ TableBackgroundPainter::PaintCell(nsTableCellFrame* aCell,
 
   PRInt32 colIndex;
   aCell->GetColIndex(colIndex);
-  NS_ASSERTION(colIndex < mNumCols, "prevent array boundary violation");
-  if (mNumCols <= colIndex)
-    return NS_OK;
 
   //Paint column group background
   if (mCols && mCols[colIndex].mColGroup && mCols[colIndex].mColGroup->IsVisible()) {

@@ -331,9 +331,8 @@ nsXULTemplateQueryProcessorXML::GenerateResults(nsISupports* aDatasource,
         return NS_ERROR_INVALID_ARG;
 
     nsCOMPtr<nsIDOMNode> context;
-    if (aRef)
-      aRef->GetBindingObjectFor(xmlquery->GetMemberVariable(),
-                                getter_AddRefs(context));
+    aRef->GetBindingObjectFor(xmlquery->GetMemberVariable(),
+                              getter_AddRefs(context));
     if (!context)
         context = mRoot;
 
@@ -423,20 +422,16 @@ nsXULTemplateQueryProcessorXML::CompareResults(nsIXULTemplateResult* aLeft,
                                                PRInt32* aResult)
 {
     *aResult = 0;
-    if (!aVar)
-      return NS_OK;
 
     // XXXndeakin - bug 379745
     // it would be good for this to handle other types such as integers,
     // so that sorting can be optimized for different types.
 
     nsAutoString leftVal;
-    if (aLeft)
-      aLeft->GetBindingFor(aVar, leftVal);
+    aLeft->GetBindingFor(aVar, leftVal);
 
     nsAutoString rightVal;
-    if (aRight)
-      aRight->GetBindingFor(aVar, rightVal);
+    aRight->GetBindingFor(aVar, rightVal);
 
     // currently templates always sort case-insensitive
     *aResult = ::Compare(leftVal, rightVal,

@@ -167,15 +167,6 @@ nsCSSToken::AppendToString(nsString& aBuffer)
     case eCSSToken_Dashmatch:
       aBuffer.AppendLiteral("|=");
       break;
-    case eCSSToken_Beginsmatch:
-      aBuffer.AppendLiteral("^=");
-      break;
-    case eCSSToken_Endsmatch:
-      aBuffer.AppendLiteral("$=");
-      break;
-    case eCSSToken_Containsmatch:
-      aBuffer.AppendLiteral("*=");
-      break;
     case eCSSToken_Error:
       aBuffer.Append(mSymbol);
       aBuffer.Append(mIdent);
@@ -189,9 +180,6 @@ nsCSSToken::AppendToString(nsString& aBuffer)
 nsCSSScanner::nsCSSScanner()
   : mInputStream(nsnull)
   , mReadPointer(nsnull)
-#ifdef MOZ_SVG
-  , mSVGMode(PR_FALSE)
-#endif
 #ifdef CSS_REPORT_PARSE_ERRORS
   , mError(mErrorBuf, NS_ARRAY_LENGTH(mErrorBuf), 0)
 #endif
@@ -328,6 +316,13 @@ void nsCSSScanner::OutputError()
 {
   if (mError.IsEmpty()) return;
  
+#ifdef DEBUG
+  if (gReportErrors)
+    fprintf(stderr, "CSS Error (%s :%u.%u): %s\n",
+                    mFileName.get(), mErrorLineNumber, mErrorColNumber,
+                    NS_ConvertUTF16toUTF8(mError).get());
+#endif
+
   // Log it to the Error console
 
   if (InitGlobals() && gReportErrors) {
@@ -397,7 +392,7 @@ void nsCSSScanner::ReportUnexpectedParams(const char* aMessage,
   AddToError(str);
 }
 
-// aLookingFor is a plain string, not a format string
+// aMessage must take no parameters
 void nsCSSScanner::ReportUnexpectedEOF(const char* aLookingFor)
 {
   ENSURE_STRINGBUNDLE;
@@ -409,22 +404,6 @@ void nsCSSScanner::ReportUnexpectedEOF(const char* aLookingFor)
   const PRUnichar *params[] = {
     innerStr.get()
   };
-  nsXPIDLString str;
-  gStringBundle->FormatStringFromName(NS_LITERAL_STRING("PEUnexpEOF2").get(),
-                                      params, NS_ARRAY_LENGTH(params),
-                                      getter_Copies(str));
-  AddToError(str);
-}
-
-// aLookingFor is a single character
-void nsCSSScanner::ReportUnexpectedEOF(PRUnichar aLookingFor)
-{
-  ENSURE_STRINGBUNDLE;
-
-  const PRUnichar lookingForStr[] = {
-    PRUnichar('\''), aLookingFor, PRUnichar('\''), PRUnichar(0)
-  };
-  const PRUnichar *params[] = { lookingForStr };
   nsXPIDLString str;
   gStringBundle->FormatStringFromName(NS_LITERAL_STRING("PEUnexpEOF2").get(),
                                       params, NS_ARRAY_LENGTH(params),
@@ -646,12 +625,10 @@ PRBool nsCSSScanner::Next(nsresult& aErrorCode, nsCSSToken& aToken)
   // AT_KEYWORD
   if (ch == '@') {
     PRInt32 nextChar = Read(aErrorCode);
-    if (nextChar >= 0) {
-      PRInt32 followingChar = Peek(aErrorCode);
-      Pushback(nextChar);
-      if (StartsIdent(nextChar, followingChar))
-        return ParseAtKeyword(aErrorCode, ch, aToken);
-    }
+    PRInt32 followingChar = Peek(aErrorCode);
+    Pushback(nextChar);
+    if (StartsIdent(nextChar, followingChar))
+      return ParseAtKeyword(aErrorCode, ch, aToken);
   }
 
   // NUMBER or DIM
@@ -751,7 +728,7 @@ PRBool nsCSSScanner::Next(nsresult& aErrorCode, nsCSSToken& aToken)
         aToken.mType = eCSSToken_Containsmatch;
       }
       return PR_TRUE;
-    } else if (nextChar >= 0) {
+    } else {
       Pushback(nextChar);
     }
   }
@@ -1023,44 +1000,18 @@ PRBool nsCSSScanner::ParseNumber(nsresult& aErrorCode, PRInt32 c,
 {
   nsString& ident = aToken.mIdent;
   ident.SetLength(0);
-  PRBool gotDot = (c == '.');
-  aToken.mHasSign = (c == '+' || c == '-');
+  PRBool gotDot = (c == '.') ? PR_TRUE : PR_FALSE;
   if (c != '+') {
     ident.Append(PRUnichar(c));
   }
 
   // Gather up characters that make up the number
-  PRBool gotE = PR_FALSE;
   for (;;) {
     c = Read(aErrorCode);
     if (c < 0) break;
-    if (!gotDot  && !gotE && (c == '.') &&
+    if (!gotDot && (c == '.') &&
         IsDigit(Peek(aErrorCode))) {
       gotDot = PR_TRUE;
-#ifdef MOZ_SVG
-    } else if (!gotE && (c == 'e' || c == 'E')) {
-      if (!IsSVGMode()) {
-        break;
-      }
-      PRInt32 nextChar = Peek(aErrorCode);
-      PRInt32 sign = 0;
-      if (nextChar == '-' || nextChar == '+') {
-        sign = Read(aErrorCode);
-        nextChar = Peek(aErrorCode);
-      }
-      if (IsDigit(nextChar)) {
-        gotE = PR_TRUE;
-        if (sign) {
-          ident.Append(PRUnichar(c));
-          c = sign;
-        }
-      } else {
-        if (sign) {
-          Pushback(sign);
-        }
-        break;
-      }
-#endif
     } else if (!IsDigit(c)) {
       break;
     }
@@ -1072,18 +1023,11 @@ PRBool nsCSSScanner::ParseNumber(nsresult& aErrorCode, PRInt32 c,
   PRInt32 ec;
   float value = ident.ToFloat(&ec);
 
-  // Set mIntegerValid for all cases (except %, below) because we need
-  // it for the "2n" in :nth-child(2n).
-  aToken.mIntegerValid = PR_FALSE;
-  if (!gotDot && !gotE) {
-    aToken.mInteger = ident.ToInteger(&ec);
-    aToken.mIntegerValid = PR_TRUE;
-  }
-  ident.SetLength(0);
-
   // Look at character that terminated the number
+  aToken.mIntegerValid = PR_FALSE;
   if (c >= 0) {
     if (StartsIdent(c, Peek(aErrorCode))) {
+      ident.SetLength(0);
       if (!GatherIdent(aErrorCode, c, ident)) {
         return PR_FALSE;
       }
@@ -1091,11 +1035,23 @@ PRBool nsCSSScanner::ParseNumber(nsresult& aErrorCode, PRInt32 c,
     } else if ('%' == c) {
       type = eCSSToken_Percentage;
       value = value / 100.0f;
-      aToken.mIntegerValid = PR_FALSE;
+      ident.SetLength(0);
     } else {
       // Put back character that stopped numeric scan
       Pushback(c);
+      if (!gotDot) {
+        aToken.mInteger = ident.ToInteger(&ec);
+        aToken.mIntegerValid = PR_TRUE;
+      }
+      ident.SetLength(0);
     }
+  }
+  else {  // stream ended
+    if (!gotDot) {
+      aToken.mInteger = ident.ToInteger(&ec);
+      aToken.mIntegerValid = PR_TRUE;
+    }
+    ident.SetLength(0);
   }
   aToken.mNumber = value;
   aToken.mType = type;

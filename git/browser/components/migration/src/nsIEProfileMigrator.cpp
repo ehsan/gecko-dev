@@ -81,7 +81,7 @@
 #include "nsIGlobalHistory.h"
 #include "nsIRDFRemoteDataSource.h"
 #include "nsIURI.h"
-#include "nsILoginManagerIEMigrationHelper.h"
+#include "nsILoginManager.h"
 #include "nsILoginInfo.h"
 #include "nsIFormHistory.h"
 #include "nsIRDFService.h"
@@ -907,8 +907,7 @@ nsIEProfileMigrator::MigrateSiteAuthSignons(IPStore* aPStore)
 
   NS_ENSURE_ARG_POINTER(aPStore);
 
-  nsCOMPtr<nsILoginManagerIEMigrationHelper> pwmgr(
-    do_GetService("@mozilla.org/login-manager/storage/legacy;1"));
+  nsCOMPtr<nsILoginManager> pwmgr(do_GetService("@mozilla.org/login-manager;1"));
   if (!pwmgr)
     return NS_OK;
 
@@ -942,7 +941,7 @@ nsIEProfileMigrator::MigrateSiteAuthSignons(IPStore* aPStore)
           int idx;
           idx = host.FindChar('/');
           if (idx) {
-            realm.Assign(Substring(host, idx + 1));
+            realm.Assign(Substring(host, idx));
             host.Assign(Substring(host, 0, idx));
           }
           // XXX: username and password are always ASCII in IPStore?
@@ -959,10 +958,8 @@ nsIEProfileMigrator::MigrateSiteAuthSignons(IPStore* aPStore)
           aLogin->SetHttpRealm(realm);
           aLogin->SetUsername(NS_ConvertUTF8toUTF16((char *)data));
           aLogin->SetPassword(NS_ConvertUTF8toUTF16((char *)password));
-          aLogin->SetUsernameField(EmptyString());
-          aLogin->SetPasswordField(EmptyString());
 
-          pwmgr->MigrateAndAddLogin(aLogin);
+          pwmgr->AddLogin(aLogin);
         }
         ::CoTaskMemFree(data);
       }
@@ -1104,8 +1101,7 @@ nsIEProfileMigrator::ResolveAndMigrateSignons(IPStore* aPStore, nsVoidArray* aSi
 void
 nsIEProfileMigrator::EnumerateUsernames(const nsAString& aKey, PRUnichar* aData, unsigned long aCount, nsVoidArray* aSignonsFound)
 {
-  nsCOMPtr<nsILoginManagerIEMigrationHelper> pwmgr(
-    do_GetService("@mozilla.org/login-manager/storage/legacy;1"));
+  nsCOMPtr<nsILoginManager> pwmgr(do_GetService("@mozilla.org/login-manager;1"));
   if (!pwmgr)
     return;
 
@@ -1122,27 +1118,17 @@ nsIEProfileMigrator::EnumerateUsernames(const nsAString& aKey, PRUnichar* aData,
       if (curr.Equals(sd->user)) {
         // Bingo! Found a username in the saved data for this item. Now, add a Signon.
         nsDependentString usernameStr(sd->user), passStr(sd->pass);
-        nsAutoString realm(NS_ConvertUTF8toUTF16(sd->realm));
+        nsDependentCString realm(sd->realm);
 
         nsresult rv;
 
         nsCOMPtr<nsILoginInfo> aLogin (do_CreateInstance(NS_LOGININFO_CONTRACTID, &rv));
         NS_ENSURE_SUCCESS(rv, /* */);
 
-        // nsStringAPI doesn't let us create void strings, so we won't
-        // use Init() here.
-        // IE doesn't have the form submit URL, so set to empty-string,
-        // which the login manager uses as a wildcard value.
-        // IE doesn't store the password field name either, so just set it
-        // to an empty string.
-        aLogin->SetHostname(realm);
-        aLogin->SetFormSubmitURL(EmptyString());
-        aLogin->SetUsername(usernameStr);
-        aLogin->SetPassword(passStr);
-        aLogin->SetUsernameField(aKey);
-        aLogin->SetPasswordField(EmptyString());
+        // XXX Init() needs to treat EmptyString()s the same as void strings, disable for now
+        //aLogin->Init(realm, EmptyString(), nsnull, usernameStr, passStr, aKey, EmptyString());
 
-        pwmgr->MigrateAndAddLogin(aLogin);
+        pwmgr->AddLogin(aLogin);
       }
     }
 

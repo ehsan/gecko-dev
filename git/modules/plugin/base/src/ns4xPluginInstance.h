@@ -58,6 +58,9 @@
 #include "nsIPluginInstanceInternal.h"
 
 #include "npupp.h"
+#ifdef OJI
+#include "jri.h"
+#endif
 #include "prlink.h"  // for PRLibrary
 
 ////////////////////////////////////////////////////////////////////////
@@ -114,8 +117,6 @@ public:
     NPError SetWindowless(PRBool aWindowless);
 
     NPError SetTransparent(PRBool aTransparent);
-
-    NPError SetWantsAllNetworkStreams(PRBool aWantsAllNetworkStreams);
 
 #ifdef XP_MACOSX
     void SetDrawingModel(NPDrawingModel aModel);
@@ -189,7 +190,6 @@ protected:
     PRPackedBool  mStarted;
     PRPackedBool  mCached;
     PRPackedBool  mIsJavaPlugin;
-    PRPackedBool  mWantsAllNetworkStreams;
 
 public:
     // True while creating the plugin, or calling NPP_SetWindow() on

@@ -45,9 +45,7 @@
  */
 #include "jsprvtd.h"
 #include "jspubtd.h"
-#include "jsfun.h"
 #include "jsopcode.h"
-#include "jsscript.h"
 
 JS_BEGIN_EXTERN_C
 
@@ -68,7 +66,7 @@ typedef struct JSFrameRegs {
  */
 struct JSStackFrame {
     JSFrameRegs     *regs;
-    jsval           *slots;         /* variables, locals and operand stack */
+    jsval           *spbase;        /* operand stack base */
     JSObject        *callobj;       /* lazily created Call object */
     JSObject        *argsobj;       /* lazily created arguments object */
     JSObject        *varobj;        /* variables object, where vars go */
@@ -79,6 +77,8 @@ struct JSStackFrame {
     uintN           argc;           /* actual argument count */
     jsval           *argv;          /* base of argument stack slots */
     jsval           rval;           /* function return value */
+    uintN           nvars;          /* local variable count */
+    jsval           *vars;          /* base of variable stack slots */
     JSStackFrame    *down;          /* previous frame */
     void            *annotation;    /* used by Java security */
     JSObject        *scopeChain;    /* scope chain */
@@ -93,24 +93,6 @@ struct JSStackFrame {
 #endif
 };
 
-static JS_INLINE jsval *
-StackBase(JSStackFrame *fp)
-{
-    return fp->slots + fp->script->nfixed;
-}
-
-static JS_INLINE uintN
-GlobalVarCount(JSStackFrame *fp)
-{
-    uintN n;
-    
-    JS_ASSERT(!fp->fun);
-    n = fp->script->nfixed;
-    if (fp->script->regexpsOffset != 0)
-        n -= JS_SCRIPT_REGEXPS(fp->script)->length;
-    return n;
-}
-
 typedef struct JSInlineFrame {
     JSStackFrame    frame;          /* base struct */
     JSFrameRegs     callerRegs;     /* parent's frame registers */
@@ -121,7 +103,7 @@ typedef struct JSInlineFrame {
 
 /* JS stack frame flags. */
 #define JSFRAME_CONSTRUCTING   0x01 /* frame is for a constructor invocation */
-#define JSFRAME_COMPUTED_THIS  0x02 /* frame.thisp was computed already */
+#define JSFRAME_INTERNAL       0x02 /* internal call, not invoked by a script */
 #define JSFRAME_ASSIGNING      0x04 /* a complex (not simplex JOF_ASSIGNING) op
                                        is currently assigning to a property */
 #define JSFRAME_DEBUGGER       0x08 /* frame for JS_EvaluateInStackFrame */
@@ -132,6 +114,7 @@ typedef struct JSInlineFrame {
 #define JSFRAME_POP_BLOCKS    0x100 /* scope chain contains blocks to pop */
 #define JSFRAME_GENERATOR     0x200 /* frame belongs to generator-iterator */
 #define JSFRAME_ROOTED_ARGV   0x400 /* frame.argv is rooted by the caller */
+#define JSFRAME_COMPUTED_THIS 0x800 /* frame.thisp was computed already */
 
 #define JSFRAME_OVERRIDE_SHIFT 24   /* override bit-set params; see jsfun.c */
 #define JSFRAME_OVERRIDE_BITS  8
@@ -181,7 +164,7 @@ typedef struct JSInlineFrame {
 #define SHAPE_OVERFLOW_BIT      JS_BIT(32 - PCVCAP_TAGBITS)
 
 extern uint32
-js_GenerateShape(JSContext *cx, JSBool gcLocked);
+js_GenerateShape(JSContext *cx);
 
 struct JSPropCacheEntry {
     jsbytecode          *kpc;           /* pc if vcap tag is <= 1, else atom */
@@ -354,6 +337,12 @@ js_AllocStack(JSContext *cx, uintN nslots, void **markp);
 extern JS_FRIEND_API(void)
 js_FreeStack(JSContext *cx, void *mark);
 
+extern jsval *
+js_AllocRawStack(JSContext *cx, uintN nslots, void **markp);
+
+extern void
+js_FreeRawStack(JSContext *cx, void *mark);
+
 /*
  * Refresh and return fp->scopeChain.  It may be stale if block scopes are
  * active but not yet reflected by objects in the scope chain.  If a block
@@ -386,10 +375,28 @@ js_GetPrimitiveThis(JSContext *cx, jsval *vp, JSClass *clasp, jsval *thisvp);
 extern JSObject *
 js_ComputeThis(JSContext *cx, JSBool lazy, jsval *argv);
 
+/*
+ * ECMA requires "the global object", but in embeddings such as the browser,
+ * which have multiple top-level objects (windows, frames, etc. in the DOM),
+ * we prefer fun's parent.  An example that causes this code to run:
+ *
+ *   // in window w1
+ *   function f() { return this }
+ *   function g() { return f }
+ *
+ *   // in window w2
+ *   var h = w1.g()
+ *   alert(h() == w1)
+ *
+ * The alert should display "true".
+ */
+JSObject *
+js_ComputeGlobalThis(JSContext *cx, JSBool lazy, jsval *argv);
+
 extern const uint16 js_PrimitiveTestFlags[];
 
 #define PRIMITIVE_THIS_TEST(fun,thisv)                                        \
-    (JS_ASSERT(!JSVAL_IS_VOID(thisv)),                                        \
+    (JS_ASSERT(thisv != JSVAL_VOID),                                          \
      JSFUN_THISP_TEST(JSFUN_THISP_FLAGS((fun)->flags),                        \
                       js_PrimitiveTestFlags[JSVAL_TAG(thisv) - 1]))
 
@@ -419,6 +426,7 @@ js_Invoke(JSContext *cx, uintN argc, jsval *vp, uintN flags);
  * See jsfun.h for the latter four and flag renaming macros.
  */
 #define JSINVOKE_CONSTRUCT      JSFRAME_CONSTRUCTING
+#define JSINVOKE_INTERNAL       JSFRAME_INTERNAL
 #define JSINVOKE_ITERATOR       JSFRAME_ITERATOR
 
 /*
@@ -449,7 +457,7 @@ js_Execute(JSContext *cx, JSObject *chain, JSScript *script,
            JSStackFrame *down, uintN flags, jsval *result);
 
 extern JSBool
-js_InvokeConstructor(JSContext *cx, uintN argc, jsval *vp);
+js_InvokeConstructor(JSContext *cx, jsval *vp, uintN argc);
 
 extern JSBool
 js_Interpret(JSContext *cx);
@@ -462,54 +470,6 @@ js_CheckRedeclaration(JSContext *cx, JSObject *obj, jsid id, uintN attrs,
 
 extern JSBool
 js_StrictlyEqual(JSContext *cx, jsval lval, jsval rval);
-
-/*
- * JS_LONE_INTERPRET indicates that the compiler should see just the code for
- * the js_Interpret function when compiling jsinterp.cpp. The rest of the code
- * from the file should be visible only when compiling jsinvoke.cpp. It allows
- * platform builds to optimize selectively js_Interpret when the granularity
- * of the optimizations with the given compiler is a compilation unit.
- *
- * JS_STATIC_INTERPRET is the modifier for functions defined in jsinterp.cpp
- * that only js_Interpret calls. When JS_LONE_INTERPRET is true all such
- * functions are declared below.
- */
-#ifndef JS_LONE_INTERPRET
-# ifdef _MSC_VER
-#  define JS_LONE_INTERPRET 0
-# else
-#  define JS_LONE_INTERPRET 1
-# endif
-#endif
-
-#if !JS_LONE_INTERPRET
-# define JS_STATIC_INTERPRET    static
-#else
-# define JS_STATIC_INTERPRET
-
-extern jsval *
-js_AllocRawStack(JSContext *cx, uintN nslots, void **markp);
-
-extern void
-js_FreeRawStack(JSContext *cx, void *mark);
-
-/*
- * ECMA requires "the global object", but in embeddings such as the browser,
- * which have multiple top-level objects (windows, frames, etc. in the DOM),
- * we prefer fun's parent.  An example that causes this code to run:
- *
- *   // in window w1
- *   function f() { return this }
- *   function g() { return f }
- *
- *   // in window w2
- *   var h = w1.g()
- *   alert(h() == w1)
- *
- * The alert should display "true".
- */
-extern JSObject *
-js_ComputeGlobalThis(JSContext *cx, JSBool lazy, jsval *argv);
 
 extern JSBool
 js_EnterWith(JSContext *cx, jsint stackIndex);
@@ -535,6 +495,9 @@ extern JSBool
 js_InternNonIntElementId(JSContext *cx, JSObject *obj, jsval idval, jsid *idp);
 
 extern JSBool
+js_ImportProperty(JSContext *cx, JSObject *obj, jsid id);
+
+extern JSBool
 js_OnUnknownMethod(JSContext *cx, jsval *vp);
 
 /*
@@ -547,13 +510,6 @@ extern JSBool
 js_DoIncDec(JSContext *cx, const JSCodeSpec *cs, jsval *vp, jsval *vp2);
 
 /*
- * Opcode tracing helper. When len is not 0, cx->fp->regs->pc[-len] gives the
- * previous opcode.
- */
-extern void
-js_TraceOpcode(JSContext *cx, jsint len);
-
-/*
  * JS_OPMETER helper functions.
  */
 extern void
@@ -561,8 +517,6 @@ js_MeterOpcodePair(JSOp op1, JSOp op2);
 
 extern void
 js_MeterSlotOpcode(JSOp op, uint32 slot);
-
-#endif /* JS_LONE_INTERPRET */
 
 JS_END_EXTERN_C
 

@@ -61,7 +61,7 @@
 
 #define CMAP_TAG 0x70616d63
 
-const cairo_scaled_font_backend_t _cairo_win32_scaled_font_backend;
+const cairo_scaled_font_backend_t cairo_win32_scaled_font_backend;
 
 typedef struct {
     cairo_scaled_font_t base;
@@ -322,7 +322,7 @@ _win32_scaled_font_create (LOGFONTW                   *logfont,
 
     status = _cairo_scaled_font_init (&f->base, font_face,
 				      font_matrix, ctm, options,
-				      &_cairo_win32_scaled_font_backend);
+				      &cairo_win32_scaled_font_backend);
     if (status)
 	goto FAIL;
 
@@ -488,26 +488,6 @@ _cairo_win32_scaled_font_select_unscaled_font (cairo_scaled_font_t *scaled_font,
     SetMapMode (hdc, MM_TEXT);
 
     return CAIRO_STATUS_SUCCESS;
-}
-
-cairo_bool_t
-_cairo_win32_scaled_font_is_type1 (cairo_scaled_font_t *scaled_font)
-{
-    cairo_win32_scaled_font_t *win32_scaled_font;
-
-    win32_scaled_font = (cairo_win32_scaled_font_t *) scaled_font;
-
-    return win32_scaled_font->is_type1;
-}
-
-cairo_bool_t
-_cairo_win32_scaled_font_is_bitmap (cairo_scaled_font_t *scaled_font)
-{
-    cairo_win32_scaled_font_t *win32_scaled_font;
-
-    win32_scaled_font = (cairo_win32_scaled_font_t *) scaled_font;
-
-    return win32_scaled_font->is_bitmap;
 }
 
 static void
@@ -933,9 +913,9 @@ _cairo_win32_scaled_font_init_glyph_metrics (cairo_win32_scaled_font_t *scaled_f
 	cairo_win32_scaled_font_done_font (&scaled_font->base);
 
 	extents.x_bearing = 0;
-	extents.y_bearing = scaled_font->base.ctm.yy * (-font_extents.ascent / scaled_font->y_scale);
-	extents.width = width / (WIN32_FONT_LOGICAL_SCALE * scaled_font->x_scale);
-	extents.height = scaled_font->base.ctm.yy * (font_extents.ascent + font_extents.descent) / scaled_font->y_scale;
+	extents.y_bearing = -font_extents.ascent / scaled_font->y_scale;
+	extents.width = width / scaled_font->x_scale;
+	extents.height = (font_extents.ascent + font_extents.descent) / scaled_font->y_scale;
 	extents.x_advance = extents.width;
 	extents.y_advance = 0;
     } else if (scaled_font->preserve_axes && scaled_font->base.options.hint_style != CAIRO_HINT_METRICS_OFF) {
@@ -1320,8 +1300,7 @@ _cairo_win32_scaled_font_show_glyphs (void		       *abstract_font,
 				      unsigned int		width,
 				      unsigned int		height,
 				      cairo_glyph_t	       *glyphs,
-				      int                 	num_glyphs,
-				      int		       *remaining_glyphs)
+				      int                 	num_glyphs)
 {
     cairo_win32_scaled_font_t *scaled_font = abstract_font;
     cairo_win32_surface_t *surface = (cairo_win32_surface_t *)generic_surface;
@@ -1436,7 +1415,7 @@ _cairo_win32_scaled_font_load_truetype_table (void	       *abstract_font,
                                              unsigned long     *length)
 {
     HDC hdc;
-    cairo_status_t status;
+    cairo_status_t status = CAIRO_STATUS_SUCCESS;
 
     cairo_win32_scaled_font_t *scaled_font = abstract_font;
     hdc = _get_global_font_dc ();
@@ -1444,23 +1423,20 @@ _cairo_win32_scaled_font_load_truetype_table (void	       *abstract_font,
 	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
     tag = (tag&0x000000ff)<<24 | (tag&0x0000ff00)<<8 | (tag&0x00ff0000)>>8 | (tag&0xff000000)>>24;
-    status = cairo_win32_scaled_font_select_font (&scaled_font->base, hdc);
-    if (status)
-	return status;
+    status = _cairo_win32_scaled_font_select_unscaled_font (&scaled_font->base, hdc);
 
     *length = GetFontData (hdc, tag, offset, buffer, *length);
     if (*length == GDI_ERROR)
         status = CAIRO_INT_STATUS_UNSUPPORTED;
 
-    cairo_win32_scaled_font_done_font (&scaled_font->base);
+    _cairo_win32_scaled_font_done_unscaled_font (&scaled_font->base);
 
     return status;
 }
 
-static cairo_status_t
-_cairo_win32_scaled_font_index_to_ucs4 (void 		*abstract_font,
-					unsigned long    index,
-					uint32_t	*ucs4)
+static cairo_int_status_t
+_cairo_win32_scaled_font_map_glyphs_to_unicode (void *abstract_font,
+						cairo_scaled_font_subset_t *font_subset)
 {
     cairo_win32_scaled_font_t *scaled_font = abstract_font;
     GLYPHSET *glyph_set;
@@ -1468,7 +1444,7 @@ _cairo_win32_scaled_font_index_to_ucs4 (void 		*abstract_font,
     WORD *glyph_indices = NULL;
     HDC hdc = NULL;
     int res;
-    unsigned int i, j, num_glyphs;
+    unsigned int i, j, k, count, num_glyphs;
     cairo_status_t status = CAIRO_STATUS_SUCCESS;
 
     hdc = _get_global_font_dc ();
@@ -1482,36 +1458,37 @@ _cairo_win32_scaled_font_index_to_ucs4 (void 		*abstract_font,
     res = GetFontUnicodeRanges(hdc, NULL);
     if (res == 0) {
 	status = _cairo_win32_print_gdi_error (
-	    "_cairo_win32_scaled_font_index_to_ucs4:GetFontUnicodeRanges");
-	goto exit1;
+	    "_cairo_win32_scaled_font_map_glyphs_to_unicode:GetFontUnicodeRanges");
+	goto fail1;
     }
 
     glyph_set = malloc (res);
     if (glyph_set == NULL) {
 	status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
-	goto exit1;
+	goto fail1;
     }
 
     res = GetFontUnicodeRanges(hdc, glyph_set);
     if (res == 0) {
 	status = _cairo_win32_print_gdi_error (
-	    "_cairo_win32_scaled_font_index_to_ucs4:GetFontUnicodeRanges");
-	goto exit1;
+	    "_cairo_win32_scaled_font_map_glyphs_to_unicode:GetFontUnicodeRanges");
+	goto fail2;
     }
 
-    for (i = 0; i < glyph_set->cRanges; i++) {
+    count = font_subset->num_glyphs;
+    for (i = 0; i < glyph_set->cRanges && count > 0; i++) {
 	num_glyphs = glyph_set->ranges[i].cGlyphs;
 
 	utf16 = _cairo_malloc_ab (num_glyphs + 1, sizeof (uint16_t));
 	if (utf16 == NULL) {
 	    status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
-	    goto exit1;
+	    goto fail2;
 	}
 
 	glyph_indices = _cairo_malloc_ab (num_glyphs + 1, sizeof (WORD));
 	if (glyph_indices == NULL) {
 	    status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
-	    goto exit2;
+	    goto fail2;
 	}
 
 	for (j = 0; j < num_glyphs; j++)
@@ -1520,30 +1497,33 @@ _cairo_win32_scaled_font_index_to_ucs4 (void 		*abstract_font,
 
 	if (GetGlyphIndicesW (hdc, utf16, num_glyphs, glyph_indices, 0) == GDI_ERROR) {
 	    status = _cairo_win32_print_gdi_error (
-		"_cairo_win32_scaled_font_index_to_ucs4:GetGlyphIndicesW");
-	    goto exit2;
+		"_cairo_win32_scaled_font_map_glyphs_to_unicode:GetGlyphIndicesW");
+	    goto fail2;
 	}
 
 	for (j = 0; j < num_glyphs; j++) {
-	    if (glyph_indices[j] == index) {
-		*ucs4 = utf16[j];
-		goto exit2;
+	    for (k = 0; k < font_subset->num_glyphs; k++) {
+		if (font_subset->glyphs[k] == glyph_indices[j]) {
+		    font_subset->to_unicode[k] = utf16[j];
+		    count--;
+		    break;
+		}
 	    }
 	}
 
 	free (glyph_indices);
 	glyph_indices = NULL;
 	free (utf16);
-	utf16 = NULL;
+	utf16= NULL;
     }
 
-exit2:
+fail2:
     if (glyph_indices)
 	free (glyph_indices);
     if (utf16)
 	free (utf16);
     free (glyph_set);
-exit1:
+fail1:
     cairo_win32_scaled_font_done_font (&scaled_font->base);
 
     return status;
@@ -1775,7 +1755,7 @@ _cairo_win32_scaled_font_init_glyph_path (cairo_win32_scaled_font_t *scaled_font
     return status;
 }
 
-const cairo_scaled_font_backend_t _cairo_win32_scaled_font_backend = {
+const cairo_scaled_font_backend_t cairo_win32_scaled_font_backend = {
     CAIRO_FONT_TYPE_WIN32,
     _cairo_win32_scaled_font_create_toy,
     _cairo_win32_scaled_font_fini,
@@ -1784,7 +1764,7 @@ const cairo_scaled_font_backend_t _cairo_win32_scaled_font_backend = {
     NULL,			/* ucs4_to_index */
     _cairo_win32_scaled_font_show_glyphs,
     _cairo_win32_scaled_font_load_truetype_table,
-    _cairo_win32_scaled_font_index_to_ucs4,
+    _cairo_win32_scaled_font_map_glyphs_to_unicode,
 };
 
 /* #cairo_win32_font_face_t */
@@ -1939,12 +1919,6 @@ cairo_win32_font_face_create_for_hfont (HFONT font)
     return cairo_win32_font_face_create_for_logfontw_hfont (&logfont, font);
 }
 
-static cairo_bool_t
-_cairo_scaled_font_is_win32 (cairo_scaled_font_t *scaled_font)
-{
-    return scaled_font->backend == &_cairo_win32_scaled_font_backend;
-}
-
 /**
  * cairo_win32_scaled_font_select_font:
  * @scaled_font: A #cairo_scaled_font_t from the Win32 font backend. Such an
@@ -1977,10 +1951,6 @@ cairo_win32_scaled_font_select_font (cairo_scaled_font_t *scaled_font,
     HFONT hfont;
     HFONT old_hfont = NULL;
     int old_mode;
-
-    if (! _cairo_scaled_font_is_win32 (scaled_font)) {
-	return _cairo_error (CAIRO_STATUS_FONT_TYPE_MISMATCH);
-    }
 
     if (scaled_font->status)
 	return scaled_font->status;
@@ -2021,9 +1991,6 @@ cairo_win32_scaled_font_select_font (cairo_scaled_font_t *scaled_font,
 void
 cairo_win32_scaled_font_done_font (cairo_scaled_font_t *scaled_font)
 {
-    if (! _cairo_scaled_font_is_win32 (scaled_font)) {
-	_cairo_error_throw (CAIRO_STATUS_FONT_TYPE_MISMATCH);
-    }
 }
 
 /**
@@ -2041,10 +2008,6 @@ cairo_win32_scaled_font_done_font (cairo_scaled_font_t *scaled_font)
 double
 cairo_win32_scaled_font_get_metrics_factor (cairo_scaled_font_t *scaled_font)
 {
-    if (! _cairo_scaled_font_is_win32 (scaled_font)) {
-	_cairo_error_throw (CAIRO_STATUS_FONT_TYPE_MISMATCH);
-	return 1.;
-    }
     return 1. / ((cairo_win32_scaled_font_t *)scaled_font)->logical_scale;
 }
 
@@ -2063,11 +2026,6 @@ cairo_win32_scaled_font_get_logical_to_device (cairo_scaled_font_t *scaled_font,
 					       cairo_matrix_t *logical_to_device)
 {
     cairo_win32_scaled_font_t *win_font = (cairo_win32_scaled_font_t *)scaled_font;
-    if (! _cairo_scaled_font_is_win32 (scaled_font)) {
-	_cairo_error_throw (CAIRO_STATUS_FONT_TYPE_MISMATCH);
-	cairo_matrix_init_identity (logical_to_device);
-	return;
-    }
     *logical_to_device = win_font->logical_to_device;
 }
 
@@ -2086,10 +2044,5 @@ cairo_win32_scaled_font_get_device_to_logical (cairo_scaled_font_t *scaled_font,
 					       cairo_matrix_t *device_to_logical)
 {
     cairo_win32_scaled_font_t *win_font = (cairo_win32_scaled_font_t *)scaled_font;
-    if (! _cairo_scaled_font_is_win32 (scaled_font)) {
-	_cairo_error_throw (CAIRO_STATUS_FONT_TYPE_MISMATCH);
-	cairo_matrix_init_identity (device_to_logical);
-	return;
-    }
     *device_to_logical = win_font->device_to_logical;
 }

@@ -41,7 +41,6 @@
 #include "nsISupports.h"
 #include "nsColor.h"
 #include "nsCoord.h"
-#include "nsRect.h"
 
 #include "prthread.h"
 #include "nsEvent.h"
@@ -54,7 +53,9 @@ class   nsIFontMetrics;
 class   nsIRenderingContext;
 class   nsIDeviceContext;
 class   nsIRegion;
+struct  nsRect;
 struct  nsFont;
+class   nsIMenuBar;
 class   nsIEventListener;
 class   nsIRollupListener;
 class   nsGUIEvent;
@@ -94,10 +95,10 @@ typedef nsEventStatus (*PR_CALLBACK EVENT_CALLBACK)(nsGUIEvent *event);
 #define NS_NATIVE_PLUGIN_PORT_CG    101
 #endif
 
-// AE42543F-BF61-4164-96BA-AF8F4EDCEEAD
+// a6593177-ba36-400e-8812-a0d36b3af17b
 #define NS_IWIDGET_IID \
-{ 0xae42543f, 0xbf61, 0x4164, \
-  { 0x96, 0xba, 0xaf, 0x8f, 0x4e, 0xdc, 0xee, 0xad } }
+{ 0xa6593177, 0xba36, 0x400e, \
+  { 0x88, 0x12, 0xa0, 0xd3, 0x6b, 0x3a, 0xf1, 0x7b } }
 
 // Hide the native window systems real window type so as to avoid
 // including native window system types and APIs. This is necessary
@@ -228,12 +229,6 @@ enum nsTopLevelWidgetZPlacement { // for PlaceBehind()
   eZPlacementBottom = 0,  // bottom of the window stack
   eZPlacementBelow,       // just below another widget
   eZPlacementTop          // top of the window stack
-};
-
-enum nsTransparencyMode {
-  eTransparencyOpaque = 0,  // Fully opaque
-  eTransparencyTransparent, // Parts of the window may be transparent
-  eTransparencyGlass        // Transparent parts of the window have Vista AeroGlass effect applied
 };
 
 /**
@@ -383,16 +378,6 @@ class nsIWidget : public nsISupports {
      *
      */
     virtual nsIWidget* GetParent(void) = 0;
-
-    /**
-     * Return the top (non-sheet) parent of this Widget if it's a sheet,
-     * or nsnull if this isn't a sheet (or some other error occurred).
-     * Sheets are only supported on some platforms (currently only OS X).
-     *
-     * @return the top (non-sheet) parent widget or nsnull
-     *
-     */
-    virtual nsIWidget* GetSheetWindowParent(void) = 0;
 
     /**
      * Return the first child of this widget.  Will return null if
@@ -679,29 +664,33 @@ class nsIWidget : public nsISupports {
     NS_IMETHOD GetWindowType(nsWindowType& aWindowType) = 0;
 
     /**
-     * Set the transparency mode of the top-level window containing this widget.
+     * Set the translucency of the top-level window containing this widget.
      * So, e.g., if you call this on the widget for an IFRAME, the top level
      * browser window containing the IFRAME actually gets set. Be careful.
      *
      * This can fail if the platform doesn't support
-     * transparency/glass. By default widgets are not
+     * transparency/translucency. By default widgets are not
      * transparent.  This will also fail if the toplevel window is not
      * a Mozilla window, e.g., if the widget is in an embedded
      * context.
      *
-     * After transparency/glass has been enabled, the initial alpha channel
+     * After translucency has been enabled, the initial alpha channel
      * value for all pixels is 1, i.e., opaque.
      * If the window is resized then the alpha channel values for
      * all pixels are reset to 1.
      * Pixel RGB color values are already premultiplied with alpha channel values.
+     * @param aTransparent true if the window may have translucent
+     *   or transparent pixels
      */
-    virtual void SetTransparencyMode(nsTransparencyMode aMode) = 0;
+    NS_IMETHOD SetHasTransparentBackground(PRBool aTransparent) = 0;
 
     /**
-     * Get the transparency mode of the top-level window that contains this
+     * Get the translucency of the top-level window that contains this
      * widget.
+     * @param aTransparent true if the window may have translucent or
+     *   transparent pixels
      */
-    virtual nsTransparencyMode GetTransparencyMode() = 0;
+    NS_IMETHOD GetHasTransparentBackground(PRBool& aTransparent) = 0;
 
     /** 
      * Hide window chrome (borders, buttons) for this widget.
@@ -880,7 +869,7 @@ class nsIWidget : public nsISupports {
      * @param aMenuBar the menubar
      */
 
-    NS_IMETHOD SetMenuBar(void* aMenuBar) = 0;
+    NS_IMETHOD SetMenuBar(nsIMenuBar * aMenuBar) = 0;
 
     /**
      * Set the widget's MenuBar's visibility
@@ -1038,26 +1027,12 @@ class nsIWidget : public nsISupports {
      * Ignored on any platform that does not support it. Ignored by widgets that
      * do not represent windows.
      *
-     * @param aColor  The color to set the title bar background to. Alpha values 
-     *                other than fully transparent (0) are respected if possible  
-     *                on the platform. An alpha of 0 will cause the window to 
-     *                draw with the default style for the platform.
-     *
-     * @param aActive Whether the color should be applied to active or inactive
-     *                windows.
+     * @param aColor The color to set the title bar background to. Alpha values 
+     *               other than fully transparent (0) are respected if possible  
+     *               on the platform. An alpha of 0 will cause the window to 
+     *               draw with the default style for the platform.
      */
-    NS_IMETHOD SetWindowTitlebarColor(nscolor aColor, PRBool aActive) = 0;
-    
-    /*
-     * Determine whether the widget shows a resize widget. If it does,
-     * aResizerRect returns the resizer's rect.
-     *
-     * Returns false on any platform that does not support it.
-     *
-     * @param aResizerRect The resizer's rect in device pixels.
-     * @return Whether a resize widget is shown.
-     */
-    virtual PRBool ShowsResizeIndicator(nsIntRect* aResizerRect) = 0;
+    NS_IMETHOD SetWindowTitlebarColor(nscolor aColor) = 0;
 
     /**
      * Get the Thebes surface associated with this widget.
@@ -1073,149 +1048,6 @@ class nsIWidget : public nsISupports {
      * Begin a window resizing drag, based on the event passed in.
      */
     NS_IMETHOD BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical) = 0;
-
-    enum Modifiers {
-        CAPS_LOCK = 0x01, // when CapsLock is active
-        NUM_LOCK = 0x02, // when NumLock is active
-        SHIFT_L = 0x0100,
-        SHIFT_R = 0x0200,
-        CTRL_L = 0x0400,
-        CTRL_R = 0x0800,
-        ALT_L = 0x1000, // includes Option
-        ALT_R = 0x2000,
-        COMMAND = 0x4000,
-        HELP = 0x8000,
-        FUNCTION = 0x10000,
-        NUMERIC_KEY_PAD = 0x01000000 // when the key is coming from the keypad
-    };
-    /**
-     * Utility method intended for testing. Dispatches native key events
-     * to this widget to simulate the press and release of a key.
-     * @param aNativeKeyboardLayout a *platform-specific* constant.
-     * On Mac, this is the resource ID for a 'uchr' or 'kchr' resource.
-     * On Windows, it is converted to a hex string and passed to
-     * LoadKeyboardLayout, see
-     * http://msdn.microsoft.com/en-us/library/ms646305(VS.85).aspx
-     * @param aNativeKeyCode a *platform-specific* keycode.
-     * On Windows, this is the virtual key code.
-     * @param aModifiers some combination of the above 'Modifiers' flags;
-     * not all flags will apply to all platforms. Mac ignores the _R
-     * modifiers. Windows ignores COMMAND, NUMERIC_KEY_PAD, HELP and
-     * FUNCTION.
-     * @param aCharacters characters that the OS would decide to generate
-     * from the event. On Windows, this is the charCode passed by
-     * WM_CHAR.
-     * @param aUnmodifiedCharacters characters that the OS would decide
-     * to generate from the event if modifier keys (other than shift)
-     * were assumed inactive. Needed on Mac, ignored on Windows.
-     * @return NS_ERROR_NOT_AVAILABLE to indicate that the keyboard
-     * layout is not supported and the event was not fired
-     */
-    virtual nsresult SynthesizeNativeKeyEvent(PRInt32 aNativeKeyboardLayout,
-                                              PRInt32 aNativeKeyCode,
-                                              PRUint32 aModifierFlags,
-                                              const nsAString& aCharacters,
-                                              const nsAString& aUnmodifiedCharacters) = 0;
-
-    /**
-     * Activates a native menu item at the position specified by the index
-     * string. The index string is a string of positive integers separated
-     * by the "|" (pipe) character. The last integer in the string represents
-     * the item index in a submenu located using the integers prior to it.
-     *
-     * Example: 1|0|4
-     * In this string, the first integer represents the top-level submenu
-     * in the native menu bar. Since the integer is 1, it is the second submeu
-     * in the native menu bar. Within that, the first item (index 0) is a
-     * submenu, and we want to activate the 5th item within that submenu.
-     */
-    virtual nsresult ActivateNativeMenuItemAt(const nsAString& indexString) = 0;
-
-    /*
-     * Force Input Method Editor to commit the uncommited input
-     */
-    NS_IMETHOD ResetInputState()=0;
-
-    /*
-     * Following methods relates to IME 'Opened'/'Closed' state.
-     * 'Opened' means the user can input any character. I.e., users can input Japanese  
-     * and other characters. The user can change the state to 'Closed'.
-     * 'Closed' means the user can input ASCII characters only. This is the same as a
-     * non-IME environment. The user can change the state to 'Opened'.
-     * For more information is here.
-     * http://bugzilla.mozilla.org/show_bug.cgi?id=16940#c48
-     */
-
-    /*
-     * Set the state to 'Opened' or 'Closed'.
-     * If aState is TRUE, IME open state is set to 'Opened'.
-     * If aState is FALSE, set to 'Closed'.
-     */
-    NS_IMETHOD SetIMEOpenState(PRBool aState) = 0;
-
-    /*
-     * Get IME is 'Opened' or 'Closed'.
-     * If IME is 'Opened', aState is set PR_TRUE.
-     * If IME is 'Closed', aState is set PR_FALSE.
-     */
-    NS_IMETHOD GetIMEOpenState(PRBool* aState) = 0;
-
-    /*
-     * IME enabled states, the aState value of SetIMEEnabled/GetIMEEnabled
-     * should be one value of following values.
-     */
-    enum IMEStatus {
-      /*
-       * 'Disabled' means the user cannot use IME. So, the open state should be
-       * 'closed' during 'disabled'.
-       */
-      IME_STATUS_DISABLED = 0,
-      /*
-       * 'Enabled' means the user can use IME.
-       */
-      IME_STATUS_ENABLED = 1,
-      /*
-       * 'Password' state is a special case for the password editors.
-       * E.g., on mac, the password editors should disable the non-Roman
-       * keyboard layouts at getting focus. Thus, the password editor may have
-       * special rules on some platforms.
-       */
-      IME_STATUS_PASSWORD = 2
-    };
-
-    /*
-     * Set the state to 'Enabled' or 'Disabled' or 'Password'.
-     */
-    NS_IMETHOD SetIMEEnabled(PRUint32 aState) = 0;
-
-    /*
-     * Get IME is 'Enabled' or 'Disabled' or 'Password'.
-     */
-    NS_IMETHOD GetIMEEnabled(PRUint32* aState) = 0;
-
-    /*
-     * Destruct and don't commit the IME composition string.
-     */
-    NS_IMETHOD CancelIMEComposition() = 0;
-
-    /*
-     * Get toggled key states.
-     * aKeyCode should be NS_VK_CAPS_LOCK or  NS_VK_NUM_LOCK or
-     * NS_VK_SCROLL_LOCK.
-     * aLEDState is the result for current LED state of the key.
-     * If the LED is 'ON', it returns TRUE, otherwise, FALSE.
-     * If the platform doesn't support the LED state (or we cannot get the
-     * state), this method returns NS_ERROR_NOT_IMPLEMENTED.
-     */
-    NS_IMETHOD GetToggledKeyState(PRUint32 aKeyCode, PRBool* aLEDState) = 0;
-
-    /**
-     * This is used for native menu system testing. Calling this forces a full
-     * reload of the menu system, reloading all native menus and their items.
-     * This is important for testing because changes to the DOM can affect the
-     * native menu system lazily.
-     */
-    virtual nsresult ForceNativeMenuReload() = 0;
 
 protected:
     // keep the list of children.  We also keep track of our siblings.

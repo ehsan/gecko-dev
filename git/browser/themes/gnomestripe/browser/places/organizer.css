@@ -49,10 +49,6 @@
   color: -moz-DialogText;
 }
 
-#placesMenu > menu:hover:not(:active):not([open="true"]) {
-  color: -moz-buttonhovertext;
-}
-
 #placesMenu > menu > .menubar-right {
   -moz-appearance: toolbarbutton-dropdown;
   width: 12px;
@@ -62,6 +58,10 @@
 /* Root View */
 #placesView {
   background-color: Window;
+}
+
+#splitter {
+  min-width: 3px;
 }
 
 /* Place List, Place Content */
@@ -80,7 +80,32 @@
 }
 
 #infoPaneBox {
+  border-top: 1px solid ThreeDShadow;
   padding: 5px;
+}
+
+/* Search Bar */
+#searchbar {
+  margin: 6px -4px 0px 2px;
+}
+
+.textbox-input-closebutton {
+  -moz-appearance: none;
+  margin: 1px 2px 1px 1px;
+  min-width: 0;
+  background-color: transparent;
+  border: none;
+  padding: 0 !important;
+  list-style-image: url("moz-icon://stock/gtk-clear?size=menu");
+  width: 16px;
+  height: 16px;
+  cursor: default;
+}
+
+.textbox-input-closebutton > .button-box {
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 .small, .small[disabled="true"] {
@@ -95,6 +120,14 @@
 .small .button-box {
   padding: 0px;
   border: 0px;
+}
+
+#searchFilter {
+  padding: 0px;
+}
+
+#searchFilter .textbox-input-box {
+  padding: 2px 2px 3px 4px;
 }
 
 %ifdef PLACES_QUERY_BUILDER

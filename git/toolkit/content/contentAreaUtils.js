@@ -653,9 +653,17 @@ function getPostData()
 
 function getStringBundle()
 {
-  return Components.classes["@mozilla.org/intl/stringbundle;1"]
-                   .getService(Components.interfaces.nsIStringBundleService)
-                   .createBundle("chrome://global/locale/contentAreaCommands.properties");
+  const bundleURL = "chrome://global/locale/contentAreaCommands.properties";
+
+  const sbsContractID = "@mozilla.org/intl/stringbundle;1";
+  const sbsIID = Components.interfaces.nsIStringBundleService;
+  const sbs = Components.classes[sbsContractID].getService(sbsIID);
+
+  const lsContractID = "@mozilla.org/intl/nslocaleservice;1";
+  const lsIID = Components.interfaces.nsILocaleService;
+  const ls = Components.classes[lsContractID].getService(lsIID);
+  var appLocale = ls.getApplicationLocale();
+  return sbs.createBundle(bundleURL, appLocale);
 }
 
 function makeWebBrowserPersist()

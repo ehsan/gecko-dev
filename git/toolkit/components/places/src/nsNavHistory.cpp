@@ -44,7 +44,6 @@
 #include "nsNavHistory.h"
 #include "nsNavBookmarks.h"
 #include "nsAnnotationService.h"
-#include "nsPlacesTables.h"
 
 #include "nsIArray.h"
 #include "nsArrayEnumerator.h"
@@ -86,7 +85,6 @@
 #include "mozIStorageFunction.h"
 #include "mozStorageCID.h"
 #include "mozStorageHelper.h"
-#include "nsPlacesTriggers.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsIIdleService.h"
 #include "nsILivemarkService.h"
@@ -115,15 +113,10 @@
 #define PREF_BROWSER_HISTORY_EXPIRE_DAYS_MAX    "history_expire_days"
 #define PREF_BROWSER_HISTORY_EXPIRE_SITES       "history_expire_sites"
 #define PREF_AUTOCOMPLETE_ONLY_TYPED            "urlbar.matchOnlyTyped"
-#define PREF_AUTOCOMPLETE_MATCH_BEHAVIOR        "urlbar.matchBehavior"
+#define PREF_AUTOCOMPLETE_ON_WORD_BOUNDARY      "urlbar.matchOnWordBoundary"
 #define PREF_AUTOCOMPLETE_FILTER_JAVASCRIPT     "urlbar.filter.javascript"
 #define PREF_AUTOCOMPLETE_ENABLED               "urlbar.autocomplete.enabled"
 #define PREF_AUTOCOMPLETE_MAX_RICH_RESULTS      "urlbar.maxRichResults"
-#define PREF_AUTOCOMPLETE_RESTRICT_HISTORY      "urlbar.restrict.history"
-#define PREF_AUTOCOMPLETE_RESTRICT_BOOKMARK     "urlbar.restrict.bookmark"
-#define PREF_AUTOCOMPLETE_RESTRICT_TAG          "urlbar.restrict.tag"
-#define PREF_AUTOCOMPLETE_MATCH_TITLE           "urlbar.match.title"
-#define PREF_AUTOCOMPLETE_MATCH_URL             "urlbar.match.url"
 #define PREF_AUTOCOMPLETE_SEARCH_CHUNK_SIZE     "urlbar.search.chunkSize"
 #define PREF_AUTOCOMPLETE_SEARCH_TIMEOUT        "urlbar.search.timeout"
 #define PREF_DB_CACHE_PERCENTAGE                "history_cache_percentage"
@@ -230,7 +223,6 @@ NS_INTERFACE_MAP_BEGIN(nsNavHistory)
   NS_INTERFACE_MAP_ENTRY(nsIObserver)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY(nsICharsetResolver)
-  NS_INTERFACE_MAP_ENTRY(nsPIPlacesDatabase)
 #ifdef MOZ_XUL
   NS_INTERFACE_MAP_ENTRY(nsIAutoCompleteSearch)
   NS_INTERFACE_MAP_ENTRY(nsIAutoCompleteSimpleResultListener)
@@ -294,7 +286,6 @@ const PRInt32 nsNavHistory::kAutoCompleteIndex_FaviconURL = 2;
 const PRInt32 nsNavHistory::kAutoCompleteIndex_ParentId = 3;
 const PRInt32 nsNavHistory::kAutoCompleteIndex_BookmarkTitle = 4;
 const PRInt32 nsNavHistory::kAutoCompleteIndex_Tags = 5;
-const PRInt32 nsNavHistory::kAutoCompleteIndex_VisitCount = 6;
 
 static const char* gQuitApplicationMessage = "quit-application";
 static const char* gXpcomShutdown = "xpcom-shutdown";
@@ -338,20 +329,10 @@ nsNavHistory::nsNavHistory() : mBatchLevel(0),
                                mExpireNowTimer(nsnull),
                                mExpire(this),
                                mAutoCompleteOnlyTyped(PR_FALSE),
-                               mAutoCompleteMatchBehavior(MATCH_BOUNDARY_ANYWHERE),
+                               mAutoCompleteOnWordBoundary(PR_TRUE),
                                mAutoCompleteMaxResults(25),
-                               mAutoCompleteRestrictHistory(NS_LITERAL_STRING("^")),
-                               mAutoCompleteRestrictBookmark(NS_LITERAL_STRING("*")),
-                               mAutoCompleteRestrictTag(NS_LITERAL_STRING("+")),
-                               mAutoCompleteMatchTitle(NS_LITERAL_STRING("#")),
-                               mAutoCompleteMatchUrl(NS_LITERAL_STRING("@")),
                                mAutoCompleteSearchChunkSize(100),
                                mAutoCompleteSearchTimeout(100),
-                               mRestrictHistory(PR_FALSE),
-                               mRestrictBookmark(PR_FALSE),
-                               mRestrictTag(PR_FALSE),
-                               mMatchTitle(PR_FALSE),
-                               mMatchUrl(PR_FALSE),
                                mPreviousChunkOffset(-1),
                                mAutoCompleteFinishedSearch(PR_FALSE),
                                mExpireDaysMin(0),
@@ -412,6 +393,11 @@ nsNavHistory::Init()
     rv = InitDB(&migrationType);
   }
   NS_ENSURE_SUCCESS(rv, rv);
+
+#ifdef IN_MEMORY_LINKS
+  rv = InitMemDB();
+  NS_ENSURE_SUCCESS(rv, rv);
+#endif
 
 #ifdef MOZ_XUL
   rv = InitAutoComplete();
@@ -488,14 +474,9 @@ nsNavHistory::Init()
   nsCOMPtr<nsIPrefBranch2> pbi = do_QueryInterface(mPrefBranch);
   if (pbi) {
     pbi->AddObserver(PREF_AUTOCOMPLETE_ONLY_TYPED, this, PR_FALSE);
-    pbi->AddObserver(PREF_AUTOCOMPLETE_MATCH_BEHAVIOR, this, PR_FALSE);
+    pbi->AddObserver(PREF_AUTOCOMPLETE_ON_WORD_BOUNDARY, this, PR_FALSE);
     pbi->AddObserver(PREF_AUTOCOMPLETE_FILTER_JAVASCRIPT, this, PR_FALSE);
     pbi->AddObserver(PREF_AUTOCOMPLETE_MAX_RICH_RESULTS, this, PR_FALSE);
-    pbi->AddObserver(PREF_AUTOCOMPLETE_RESTRICT_HISTORY, this, PR_FALSE);
-    pbi->AddObserver(PREF_AUTOCOMPLETE_RESTRICT_BOOKMARK, this, PR_FALSE);
-    pbi->AddObserver(PREF_AUTOCOMPLETE_RESTRICT_TAG, this, PR_FALSE);
-    pbi->AddObserver(PREF_AUTOCOMPLETE_MATCH_TITLE, this, PR_FALSE);
-    pbi->AddObserver(PREF_AUTOCOMPLETE_MATCH_URL, this, PR_FALSE);
     pbi->AddObserver(PREF_AUTOCOMPLETE_SEARCH_CHUNK_SIZE, this, PR_FALSE);
     pbi->AddObserver(PREF_AUTOCOMPLETE_SEARCH_TIMEOUT, this, PR_FALSE);
     pbi->AddObserver(PREF_BROWSER_HISTORY_EXPIRE_DAYS_MAX, this, PR_FALSE);
@@ -585,7 +566,7 @@ nsNavHistory::InitDBFile(PRBool aForceInit)
   // open the database
   mDBService = do_GetService(MOZ_STORAGE_SERVICE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = mDBService->OpenUnsharedDatabase(mDBFile, getter_AddRefs(mDBConn));
+  rv = mDBService->OpenDatabase(mDBFile, getter_AddRefs(mDBConn));
   if (rv == NS_ERROR_FILE_CORRUPTED) {
     dbExists = PR_FALSE;
   
@@ -604,7 +585,7 @@ nsNavHistory::InitDBFile(PRBool aForceInit)
     NS_ENSURE_SUCCESS(rv, rv);
     rv = mDBFile->Append(DB_FILENAME);
     NS_ENSURE_SUCCESS(rv, rv);
-    rv = mDBService->OpenUnsharedDatabase(mDBFile, getter_AddRefs(mDBConn));
+    rv = mDBService->OpenDatabase(mDBFile, getter_AddRefs(mDBConn));
   }
   NS_ENSURE_SUCCESS(rv, rv);
   
@@ -635,7 +616,7 @@ nsNavHistory::InitDBFile(PRBool aForceInit)
 //
 
 
-#define PLACES_SCHEMA_VERSION 7
+#define PLACES_SCHEMA_VERSION 6
 
 nsresult
 nsNavHistory::InitDB(PRInt16 *aMadeChanges)
@@ -654,12 +635,6 @@ nsNavHistory::InitDB(PRInt16 *aMadeChanges)
   pageSizePragma.AppendInt(DEFAULT_DB_PAGE_SIZE);
   rv = mDBConn->ExecuteSimpleSQL(pageSizePragma);
   NS_ENSURE_SUCCESS(rv, rv);
-
-#ifdef IN_MEMORY_SQLITE_TEMP_STORE
-  rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-      "PRAGMA temp_store = MEMORY"));
-  NS_ENSURE_SUCCESS(rv, rv);
-#endif
 
   mozStorageTransaction transaction(mDBConn, PR_FALSE);
 
@@ -721,13 +696,7 @@ nsNavHistory::InitDB(PRInt16 *aMadeChanges)
         NS_ENSURE_SUCCESS(rv, rv);
       }
 
-      // Migrate historyvisits and bookmarks up to V7
-      if (DBSchemaVersion < 7) {
-        rv = MigrateV7Up(mDBConn);
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
-
-      // XXX Upgrades >V7 must add migration code here.
+      // XXX Upgrades >V6 must add migration code here.
 
     } else {
       // Downgrading
@@ -794,7 +763,16 @@ nsNavHistory::InitDB(PRInt16 *aMadeChanges)
   // moz_places
   if (!tableExists) {
     *aMadeChanges = DB_MIGRATION_CREATED;
-    rv = mDBConn->ExecuteSimpleSQL(CREATE_MOZ_PLACES);
+    rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING("CREATE TABLE moz_places ("
+        "id INTEGER PRIMARY KEY, "
+        "url LONGVARCHAR, "
+        "title LONGVARCHAR, "
+        "rev_host LONGVARCHAR, "
+        "visit_count INTEGER DEFAULT 0, "
+        "hidden INTEGER DEFAULT 0 NOT NULL, "
+        "typed INTEGER DEFAULT 0 NOT NULL, "
+        "favicon_id INTEGER, "
+        "frecency INTEGER DEFAULT -1 NOT NULL)"));
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
@@ -823,7 +801,13 @@ nsNavHistory::InitDB(PRInt16 *aMadeChanges)
   rv = mDBConn->TableExists(NS_LITERAL_CSTRING("moz_historyvisits"), &tableExists);
   NS_ENSURE_SUCCESS(rv, rv);
   if (! tableExists) {
-    rv = mDBConn->ExecuteSimpleSQL(CREATE_MOZ_HISTORYVISITS);
+    rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING("CREATE TABLE moz_historyvisits ("
+        "id INTEGER PRIMARY KEY, "
+        "from_visit INTEGER, "
+        "place_id INTEGER, "
+        "visit_date INTEGER, "
+        "visit_type INTEGER, "
+        "session INTEGER)"));
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
@@ -840,19 +824,17 @@ nsNavHistory::InitDB(PRInt16 *aMadeChanges)
     rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
         "CREATE INDEX moz_historyvisits_dateindex ON moz_historyvisits (visit_date)"));
     NS_ENSURE_SUCCESS(rv, rv);
-
-    // Create our triggers for this table
-    rv = mDBConn->ExecuteSimpleSQL(CREATE_VISIT_COUNT_INSERT_TRIGGER);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = mDBConn->ExecuteSimpleSQL(CREATE_VISIT_COUNT_DELETE_TRIGGER);
-    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   // moz_inputhistory
   rv = mDBConn->TableExists(NS_LITERAL_CSTRING("moz_inputhistory"), &tableExists);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!tableExists) {
-    rv = mDBConn->ExecuteSimpleSQL(CREATE_MOZ_INPUTHISTORY);
+    rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING("CREATE TABLE moz_inputhistory ("
+        "place_id INTEGER NOT NULL, "
+        "input LONGVARCHAR NOT NULL, "
+        "use_count INTEGER, "
+        "PRIMARY KEY (place_id, input))"));
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -865,6 +847,9 @@ nsNavHistory::InitDB(PRInt16 *aMadeChanges)
   rv = transaction.Commit();
   NS_ENSURE_SUCCESS(rv, rv);
 
+  rv = CreateTriggers();
+  NS_ENSURE_SUCCESS(rv, rv);
+
   // --- PUT SCHEMA-MODIFYING THINGS (like create table) ABOVE THIS LINE ---
 
   // DO NOT PUT ANY SCHEMA-MODIFYING THINGS HERE
@@ -874,6 +859,78 @@ nsNavHistory::InitDB(PRInt16 *aMadeChanges)
   rv = InitStatements();
   NS_ENSURE_SUCCESS(rv, rv);
 
+  return NS_OK;
+}
+
+// nsNavHistory::CreateTriggers
+//
+//  This creates our triggers
+//  When creating a trigger we must ensure that related records are correct
+//  and be sure that there are no other queries that could change the 
+//  triggered values, especially for counting triggers.
+//
+// NOTE: never create loops between triggers!
+
+nsresult
+nsNavHistory::CreateTriggers()
+{
+  // we are creating 2 triggers on moz_historyvisits to maintain
+  // moz_places.visit_count in sync with moz_historyvisits, for this
+  // to work we must ensure that all visit_count values are correct
+  // See bug 416313 for details
+  nsCOMPtr<mozIStorageStatement> detectVisitCountTrigger;
+  nsresult rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
+      "SELECT name FROM sqlite_master WHERE type = 'trigger' AND "
+      "name = 'moz_historyvisits_afterinsert_v1_trigger'"),
+    getter_AddRefs(detectVisitCountTrigger));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  PRBool hasTrigger;
+  rv = detectVisitCountTrigger->ExecuteStep(&hasTrigger);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = detectVisitCountTrigger->Reset();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!hasTrigger) {
+    mozStorageTransaction createTriggersTransaction(mDBConn, PR_FALSE);
+
+    // do a one-time reset of all the visit_count values
+    rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+      "UPDATE moz_places SET visit_count = "
+      "(SELECT count(*) FROM moz_historyvisits "
+      "WHERE place_id = moz_places.id AND visit_type NOT IN (0,4,7))"));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    // moz_historyvisits_afterinsert_v1_trigger
+    // increment visit_count by 1 for each inserted visit
+    // excluding invalid, embed, download visits
+    rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+      "CREATE TRIGGER IF NOT EXISTS moz_historyvisits_afterinsert_v1_trigger "
+      "AFTER INSERT ON moz_historyvisits FOR EACH ROW "
+      "WHEN NEW.visit_type NOT IN (0,4,7) "
+      "BEGIN "
+        "UPDATE moz_places SET visit_count = visit_count + 1 "
+        "WHERE moz_places.id = NEW.place_id; "
+      "END"));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    // moz_historyvisits_afterdelete_v1_trigger
+    // decrement visit_count by 1 for each deleted visit
+    // ensure that we can't become negative
+    rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+      "CREATE TRIGGER IF NOT EXISTS moz_historyvisits_afterdelete_v1_trigger "
+      "AFTER DELETE ON moz_historyvisits FOR EACH ROW "
+      "WHEN OLD.visit_type NOT IN (0,4,7) "
+      "BEGIN "
+        "UPDATE moz_places SET visit_count = visit_count - 1 "
+        "WHERE moz_places.id = OLD.place_id AND visit_count > 0; "
+      "END"));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = createTriggersTransaction.Commit();
+  }
+
+  NS_ENSURE_SUCCESS(rv, rv);
   return NS_OK;
 }
 
@@ -993,17 +1050,6 @@ nsNavHistory::InitStatements()
       "ORDER BY v.visit_date DESC "
       "LIMIT 1"),
     getter_AddRefs(mDBRecentVisitOfURL));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // mDBRecentVisitOfPlace
-  rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
-      "SELECT id "
-      "FROM moz_historyvisits "
-      "WHERE place_id = ?1 "
-      "AND visit_date = ?2 "
-      "AND session = ?3 "
-      "LIMIT 1"),
-    getter_AddRefs(mDBRecentVisitOfPlace));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // mDBInsertVisit
@@ -1269,8 +1315,6 @@ nsNavHistory::MigrateV3Up(mozIStorageConnection* aDBConn)
 nsresult
 nsNavHistory::MigrateV6Up(mozIStorageConnection* aDBConn) 
 {
-  mozStorageTransaction transaction(aDBConn, PR_FALSE);
-
   // if dateAdded & lastModified cols are already there, then a partial update occurred,
   // and so we should not attempt to add these cols.
   nsCOMPtr<mozIStorageStatement> statement;
@@ -1313,89 +1357,7 @@ nsNavHistory::MigrateV6Up(mozIStorageConnection* aDBConn)
     NS_LITERAL_CSTRING("DROP INDEX IF EXISTS moz_anno_attributes_nameindex"));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return transaction.Commit();
-}
-
-// nsNavHistory::MigrateV7Up
-nsresult
-nsNavHistory::MigrateV7Up(mozIStorageConnection* aDBConn) 
-{
-  mozStorageTransaction transaction(aDBConn, PR_FALSE);
-
-  // Create a statement to test for trigger creation
-  nsCOMPtr<mozIStorageStatement> triggerDetection;
-  nsresult rv = aDBConn->CreateStatement(NS_LITERAL_CSTRING(
-    "SELECT name "
-    "FROM sqlite_master "
-    "WHERE type = 'trigger' "
-    "AND name = ?"
-  ), getter_AddRefs(triggerDetection));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Check for existence
-  PRBool triggerExists;
-  rv = triggerDetection->BindUTF8StringParameter(
-    0, NS_LITERAL_CSTRING("moz_historyvisits_afterinsert_v1_trigger")
-  );
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = triggerDetection->ExecuteStep(&triggerExists);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = triggerDetection->Reset();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // We need to create two triggers on moz_historyvists to maintain the
-  // accuracy of moz_places.visit_count.  For this to work, we must ensure that
-  // all moz_places.visit_count values are correct.
-  // See bug 416313 for details.
-  if (!triggerExists) {
-    // First, we do a one-time reset of all the moz_places.visit_count values.
-    rv = aDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-      "UPDATE moz_places SET visit_count = "
-        "(SELECT count(*) FROM moz_historyvisits "
-         "WHERE place_id = moz_places.id "
-         "AND visit_type NOT IN (0, 4, 7))") /* invalid, EMBED, DOWNLOAD */
-    );
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    // Now we create our two triggers
-    rv = aDBConn->ExecuteSimpleSQL(CREATE_VISIT_COUNT_INSERT_TRIGGER);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = aDBConn->ExecuteSimpleSQL(CREATE_VISIT_COUNT_DELETE_TRIGGER);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  // Check for existence
-  rv = triggerDetection->BindUTF8StringParameter(
-    0, NS_LITERAL_CSTRING("moz_bookmarks_beforedelete_v1_trigger")
-  );
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = triggerDetection->ExecuteStep(&triggerExists);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = triggerDetection->Reset();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // We need to create one trigger on moz_bookmarks to remove unused keywords.
-  // See bug 421180 for details.
-  if (!triggerExists) {
-    // First, remove any existing dangling keywords
-    rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-      "DELETE FROM moz_keywords "
-      "WHERE id IN ("
-        "SELECT k.id "
-        "FROM moz_keywords k "
-        "LEFT OUTER JOIN moz_bookmarks b "
-        "ON b.keyword_id = k.id "
-        "WHERE b.id IS NULL"
-      ")")
-    );
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    // Now we create our trigger
-    rv = aDBConn->ExecuteSimpleSQL(CREATE_KEYWORD_VALIDITY_TRIGGER);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  return transaction.Commit();
+  return NS_OK;
 }
 
 nsresult
@@ -1614,6 +1576,64 @@ nsNavHistory::CleanUpOnQuit()
 }
 
 
+#ifdef IN_MEMORY_LINKS
+// nsNavHistory::InitMemDB
+//
+//    Should be called after InitDB
+
+nsresult
+nsNavHistory::InitMemDB()
+{
+  nsresult rv = mDBService->OpenSpecialDatabase("memory", getter_AddRefs(mMemDBConn));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // create our table and index
+  rv = mMemDBConn->ExecuteSimpleSQL(
+      NS_LITERAL_CSTRING("CREATE TABLE moz_memhistory (url LONGVARCHAR UNIQUE)"));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // In-memory links indexes
+  rv = mMemDBConn->ExecuteSimpleSQL(
+      NS_LITERAL_CSTRING("CREATE INDEX moz_memhistory_index ON moz_memhistory (url)"));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // prepackaged statements
+  rv = mMemDBConn->CreateStatement(
+      NS_LITERAL_CSTRING("SELECT url FROM moz_memhistory WHERE url = ?1"),
+      getter_AddRefs(mMemDBGetPage));
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = mMemDBConn->CreateStatement(
+      NS_LITERAL_CSTRING("INSERT OR IGNORE INTO moz_memhistory VALUES (?1)"),
+      getter_AddRefs(mMemDBAddPage));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // Copy the URLs over: sort by URL because the original table already has
+  // and index. We can therefor not spend time sorting the whole thing another
+  // time by inserting in order.
+  nsCOMPtr<mozIStorageStatement> selectStatement;
+  rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING("SELECT url FROM moz_places WHERE visit_count > 0 ORDER BY url"),
+                                getter_AddRefs(selectStatement));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  PRBool hasMore = PR_FALSE;
+  //rv = mMemDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING("BEGIN TRANSACTION"));
+  mozStorageTransaction transaction(mMemDBConn, PR_FALSE);
+  nsCString url;
+  while(NS_SUCCEEDED(rv = selectStatement->ExecuteStep(&hasMore)) && hasMore) {
+    rv = selectStatement->GetUTF8String(0, url);
+    if (NS_SUCCEEDED(rv) && ! url.IsEmpty()) {
+      rv = mMemDBAddPage->BindUTF8StringParameter(0, url);
+      if (NS_SUCCEEDED(rv))
+        mMemDBAddPage->Execute();
+    }
+  }
+  transaction.Commit();
+
+  return NS_OK;
+}
+#endif
+
+
 // nsNavHistory::GetUrlIdFor
 //
 //    Called by the bookmarks and annotation services, this function returns the
@@ -1728,17 +1748,8 @@ nsNavHistory::InternalAddNewPage(nsIURI* aURI,
 
   // If the caller wants the page ID, go get it
   if (aPageID) {
-    mozStorageStatementScoper scoper(mDBGetURLPageInfo);
-
-    rv = BindStatementURI(mDBGetURLPageInfo, 0, aURI);
+    rv = mDBConn->GetLastInsertRowID(aPageID);
     NS_ENSURE_SUCCESS(rv, rv);
-
-    PRBool hasResult = PR_FALSE;
-    rv = mDBGetURLPageInfo->ExecuteStep(&hasResult);
-    NS_ENSURE_SUCCESS(rv, rv);
-    NS_ASSERTION(hasResult, "hasResult is false but the call succeeded?");
-
-    *aPageID = mDBGetURLPageInfo->AsInt64(0);
   }
 
   return NS_OK;
@@ -1754,43 +1765,23 @@ nsNavHistory::InternalAddVisit(PRInt64 aPageID, PRInt64 aReferringVisit,
                                PRInt32 aTransitionType, PRInt64* visitID)
 {
   nsresult rv;
+  mozStorageStatementScoper scoper(mDBInsertVisit);
 
-  {
-    mozStorageStatementScoper scoper(mDBInsertVisit);
-  
-    rv = mDBInsertVisit->BindInt64Parameter(0, aReferringVisit);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = mDBInsertVisit->BindInt64Parameter(1, aPageID);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = mDBInsertVisit->BindInt64Parameter(2, aTime);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = mDBInsertVisit->BindInt32Parameter(3, aTransitionType);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = mDBInsertVisit->BindInt64Parameter(4, aSessionID);
-    NS_ENSURE_SUCCESS(rv, rv);
-  
-    rv = mDBInsertVisit->Execute();
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
+  rv = mDBInsertVisit->BindInt64Parameter(0, aReferringVisit);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = mDBInsertVisit->BindInt64Parameter(1, aPageID);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = mDBInsertVisit->BindInt64Parameter(2, aTime);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = mDBInsertVisit->BindInt32Parameter(3, aTransitionType);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = mDBInsertVisit->BindInt64Parameter(4, aSessionID);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  {
-    mozStorageStatementScoper scoper(mDBRecentVisitOfPlace);
+  rv = mDBInsertVisit->Execute();
+  NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = mDBRecentVisitOfPlace->BindInt64Parameter(0, aPageID);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = mDBRecentVisitOfPlace->BindInt64Parameter(1, aTime);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = mDBRecentVisitOfPlace->BindInt64Parameter(2, aSessionID);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    PRBool hasResult;
-    rv = mDBRecentVisitOfPlace->ExecuteStep(&hasResult);
-    NS_ENSURE_SUCCESS(rv, rv);
-    NS_ASSERTION(hasResult, "hasResult is false but the call succeeded?");
-
-    *visitID = mDBRecentVisitOfPlace->AsInt64(0);
-  }
-  return NS_OK;
+  return mDBConn->GetLastInsertRowID(visitID);
 }
 
 
@@ -1830,6 +1821,16 @@ nsNavHistory::FindLastVisit(nsIURI* aURI, PRInt64* aVisitID,
 
 PRBool nsNavHistory::IsURIStringVisited(const nsACString& aURIString)
 {
+#ifdef IN_MEMORY_LINKS
+  // check the memory DB
+  nsresult rv = mMemDBGetPage->BindUTF8StringParameter(0, aURIString);
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+  PRBool hasPage = PR_FALSE;
+  mMemDBGetPage->ExecuteStep(&hasPage);
+  mMemDBGetPage->Reset();
+  return hasPage;
+#else
+
 #ifdef LAZY_ADD
   // check the lazy list to see if this has recently been added
   for (PRUint32 i = 0; i < mLazyMessages.Length(); i ++) {
@@ -1849,6 +1850,7 @@ PRBool nsNavHistory::IsURIStringVisited(const nsACString& aURIString)
   rv = mDBIsPageVisited->ExecuteStep(&hasMore);
   NS_ENSURE_SUCCESS(rv, PR_FALSE);
   return hasMore;
+#endif
 }
 
 
@@ -1874,22 +1876,8 @@ nsNavHistory::LoadPrefs(PRBool aInitializing)
   PRBool oldCompleteOnlyTyped = mAutoCompleteOnlyTyped;
   mPrefBranch->GetBoolPref(PREF_AUTOCOMPLETE_ONLY_TYPED,
                            &mAutoCompleteOnlyTyped);
-
-  PRInt32 matchBehavior;
-  mPrefBranch->GetIntPref(PREF_AUTOCOMPLETE_MATCH_BEHAVIOR,
-                          &matchBehavior);
-  switch (matchBehavior) {
-    case 0:
-      mAutoCompleteMatchBehavior = MATCH_ANYWHERE;
-      break;
-    case 2:
-      mAutoCompleteMatchBehavior = MATCH_BOUNDARY;
-      break;
-    default:
-      mAutoCompleteMatchBehavior = MATCH_BOUNDARY_ANYWHERE;
-      break;
-  }
-
+  mPrefBranch->GetBoolPref(PREF_AUTOCOMPLETE_ON_WORD_BOUNDARY,
+                           &mAutoCompleteOnWordBoundary);
   mPrefBranch->GetBoolPref(PREF_AUTOCOMPLETE_FILTER_JAVASCRIPT,
                            &mAutoCompleteFilterJavascript);
   mPrefBranch->GetIntPref(PREF_AUTOCOMPLETE_MAX_RICH_RESULTS,
@@ -1898,23 +1886,6 @@ nsNavHistory::LoadPrefs(PRBool aInitializing)
                           &mAutoCompleteSearchChunkSize);
   mPrefBranch->GetIntPref(PREF_AUTOCOMPLETE_SEARCH_TIMEOUT,
                           &mAutoCompleteSearchTimeout);
-  nsXPIDLCString prefStr;
-  mPrefBranch->GetCharPref(PREF_AUTOCOMPLETE_RESTRICT_HISTORY,
-                           getter_Copies(prefStr));
-  mAutoCompleteRestrictHistory = NS_ConvertUTF8toUTF16(prefStr);
-  mPrefBranch->GetCharPref(PREF_AUTOCOMPLETE_RESTRICT_BOOKMARK,
-                           getter_Copies(prefStr));
-  mAutoCompleteRestrictBookmark = NS_ConvertUTF8toUTF16(prefStr);
-  mPrefBranch->GetCharPref(PREF_AUTOCOMPLETE_RESTRICT_TAG,
-                           getter_Copies(prefStr));
-  mAutoCompleteRestrictTag = NS_ConvertUTF8toUTF16(prefStr);
-  mPrefBranch->GetCharPref(PREF_AUTOCOMPLETE_MATCH_TITLE,
-                           getter_Copies(prefStr));
-  mAutoCompleteMatchTitle = NS_ConvertUTF8toUTF16(prefStr);
-  mPrefBranch->GetCharPref(PREF_AUTOCOMPLETE_MATCH_URL,
-                           getter_Copies(prefStr));
-  mAutoCompleteMatchUrl = NS_ConvertUTF8toUTF16(prefStr);
-
   if (!aInitializing && oldCompleteOnlyTyped != mAutoCompleteOnlyTyped) {
     // update the autocomplete statements if the option has changed.
     nsresult rv = CreateAutoCompleteQueries();
@@ -2418,11 +2389,9 @@ nsNavHistory::MarkPageAsFollowedBookmark(nsIURI* aURI)
 //    we are suppose to try all the things we know not to allow in and then if
 //    we don't bail go on and allow it in.
 
-NS_IMETHODIMP
+nsresult
 nsNavHistory::CanAddURI(nsIURI* aURI, PRBool* canAdd)
 {
-  NS_ENSURE_ARG_POINTER(aURI);
-
   nsCAutoString scheme;
   nsresult rv = aURI->GetScheme(scheme);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -2467,8 +2436,6 @@ nsNavHistory::AddVisit(nsIURI* aURI, PRTime aTime, nsIURI* aReferringURI,
                        PRInt32 aTransitionType, PRBool aIsRedirect,
                        PRInt64 aSessionID, PRInt64* aVisitID)
 {
-  NS_ENSURE_ARG_POINTER(aURI);
-
   // Filter out unwanted URIs, silently failing
   PRBool canAdd = PR_FALSE;
   nsresult rv = CanAddURI(aURI, &canAdd);
@@ -2477,6 +2444,13 @@ nsNavHistory::AddVisit(nsIURI* aURI, PRTime aTime, nsIURI* aReferringURI,
     *aVisitID = 0;
     return NS_OK;
   }
+
+  // in-memory version
+#ifdef IN_MEMORY_LINKS
+  rv = BindStatementURI(mMemDBAddPage, 0, aURI);
+  NS_ENSURE_SUCCESS(rv, rv);
+  mMemDBAddPage->Execute();
+#endif
 
   // This will prevent corruption since we have to do a two-phase add.
   // Generally this won't do anything because AddURI has its own transaction.
@@ -2529,7 +2503,8 @@ nsNavHistory::AddVisit(nsIURI* aURI, PRTime aTime, nsIURI* aReferringURI,
     // the history UI (sidebar, history menu, url bar autocomplete, etc)
     hidden = oldHiddenState;
     if (hidden && (!aIsRedirect || aTransitionType == TRANSITION_TYPED) &&
-        aTransitionType != TRANSITION_EMBED)
+        aTransitionType != TRANSITION_EMBED &&
+        aTransitionType != TRANSITION_DOWNLOAD)
       hidden = PR_FALSE; // unhide
 
     typed = oldTypedState || (aTransitionType == TRANSITION_TYPED);
@@ -2559,9 +2534,10 @@ nsNavHistory::AddVisit(nsIURI* aURI, PRTime aTime, nsIURI* aReferringURI,
     mDBGetPageVisitStats->Reset();
     scoper.Abandon();
 
-    // Hide only embedded links and redirects
+    // Hide only embedded links, redirects, and downloads
     // See the hidden computation code above for a little more explanation.
-    hidden = (aTransitionType == TRANSITION_EMBED || aIsRedirect);
+    hidden = (aTransitionType == TRANSITION_EMBED || aIsRedirect ||
+              aTransitionType == TRANSITION_DOWNLOAD);
 
     typed = (aTransitionType == TRANSITION_TYPED);
 
@@ -2955,14 +2931,10 @@ PlacesSQLQueryBuilder::SelectAsURI()
       break;
 
     case nsINavHistoryQueryOptions::QUERY_TYPE_BOOKMARKS:
-      // Don't initialize on var creation, that would give an error on compile
-      // because we are in the same scope of the switch clause and the var could
-      // not be initialized. Do an assignment rather than an initialization.
-      nsNavHistory* history;
-      history = nsNavHistory::GetHistoryService();
-      NS_ENSURE_STATE(history);
-
       if (mResultType == nsINavHistoryQueryOptions::RESULTS_AS_TAG_CONTENTS) {
+        nsNavHistory* history = nsNavHistory::GetHistoryService();
+        NS_ENSURE_STATE(history);
+
         // Order-by clause is hardcoded because we need to discard duplicates
         // in FilterResultSet. We will retain only the last modified item,
         // so we are ordering by place id and last modified to do a faster
@@ -2983,7 +2955,7 @@ PlacesSQLQueryBuilder::SelectAsURI()
                 "(SELECT b.fk FROM moz_bookmarks b WHERE b.type = 1 {ADDITIONAL_CONDITIONS}) "
               "AND NOT EXISTS "
                 "(SELECT id FROM moz_bookmarks WHERE id = b1.parent AND parent = ") +
-                nsPrintfCString("%lld", history->GetTagsFolder()) +
+                nsPrintfCString("%d", history->GetTagsFolder()) +
               NS_LITERAL_CSTRING(")) ORDER BY b2.fk DESC, b2.lastModified DESC");
       }
       else {
@@ -2993,12 +2965,8 @@ PlacesSQLQueryBuilder::SelectAsURI()
             SQL_STR_FRAGMENT_MAX_VISIT_DATE( "b.fk" )
             ", f.url, null, b.id, b.dateAdded, b.lastModified "
           "FROM moz_bookmarks b "
-          "JOIN moz_places h ON b.fk = h.id AND b.type = 1 "
-          "LEFT OUTER JOIN moz_favicons f ON h.favicon_id = f.id "
-          "WHERE NOT EXISTS "
-            "(SELECT id FROM moz_bookmarks WHERE id = b.parent AND parent = ") +
-            nsPrintfCString("%lld", history->GetTagsFolder()) +
-            NS_LITERAL_CSTRING(") {ADDITIONAL_CONDITIONS}");
+               "JOIN moz_places h ON b.fk = h.id AND b.type = 1 "
+               "LEFT OUTER JOIN moz_favicons f ON h.favicon_id = f.id ");
       }
       break;
 
@@ -3147,7 +3115,9 @@ PlacesSQLQueryBuilder::SelectAsSite()
   history->GetStringFromName(NS_LITERAL_STRING("localhost").get(), localFiles);
   mAddParams.Put(NS_LITERAL_CSTRING(":localhost"), localFiles);
 
-  // We want just sites, but from whole database.
+  // We want just sites, but from whole database - we omit join with visits, 
+  // it could happen, that we get later empty host, when we click on it, but 
+  // this should be much faster.
   if (mConditions.IsEmpty()) {
 
     mQueryString = nsPrintfCString(2048,
@@ -3157,7 +3127,6 @@ PlacesSQLQueryBuilder::SelectAsSite()
       "WHERE EXISTS(SELECT '*' "
                    "FROM moz_places "
                    "WHERE hidden <> 1 AND rev_host = '.' "
-                     "AND visit_count > 0 "
                      "AND url BETWEEN 'file://' AND 'file:/~') "
       "UNION ALL "
       "SELECT DISTINCT null, "
@@ -3166,8 +3135,7 @@ PlacesSQLQueryBuilder::SelectAsSite()
       "FROM (SELECT get_unreversed_host(rev_host) host "
             "FROM (SELECT DISTINCT rev_host "
                   "FROM moz_places "
-                  "WHERE hidden <> 1 AND rev_host <> '.' "
-                    "AND visit_count > 0 ) inner0 "
+                  "WHERE hidden <> 1 AND rev_host <> '.') inner0 "
             "ORDER BY 1 ASC) inner1",
       nsINavHistoryQueryOptions::RESULTS_AS_URI,
       nsINavHistoryQueryOptions::SORT_BY_TITLE_ASCENDING,
@@ -3185,7 +3153,6 @@ PlacesSQLQueryBuilder::SelectAsSite()
                    "FROM moz_places h  "
                         "JOIN moz_historyvisits v ON h.id = v.place_id "
                    "WHERE h.hidden <> 1 AND h.rev_host = '.' "
-                     "AND h.visit_count > 0 "
                      "AND h.url BETWEEN 'file://' AND 'file:/~' "
                      "AND v.visit_type NOT IN (0,4) {ADDITIONAL_CONDITIONS} ) "
       "UNION ALL "
@@ -3198,7 +3165,6 @@ PlacesSQLQueryBuilder::SelectAsSite()
                   "FROM moz_places h "
                        "JOIN moz_historyvisits v ON h.id = v.place_id "
                   "WHERE h.hidden <> 1 AND h.rev_host <> '.' "
-                    "AND h.visit_count > 0 "
                     "AND v.visit_type NOT IN (0,4) "
                     "{ADDITIONAL_CONDITIONS} ) inner0 "
             "ORDER BY 1 ASC) inner1",
@@ -4439,6 +4405,7 @@ nsNavHistory::GetPageTitle(nsIURI* aURI, nsAString& aTitle)
 }
 
 
+#ifndef MOZILLA_1_8_BRANCH
 // nsNavHistory::GetURIGeckoFlags
 //
 //    FIXME: should we try to use annotations for this stuff?
@@ -4459,6 +4426,7 @@ nsNavHistory::SetURIGeckoFlags(nsIURI* aURI, PRUint32 aFlags)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
+#endif
 
 // nsIGlobalHistory3 ***********************************************************
 
@@ -4652,15 +4620,6 @@ nsNavHistory::AddDownload(nsIURI* aSource, nsIURI* aReferrer,
                   0, &visitID);
 }
 
-// nsPIPlacesDatabase **********************************************************
-
-NS_IMETHODIMP
-nsNavHistory::GetDBConnection(mozIStorageConnection **_DBConnection)
-{
-  NS_ADDREF(*_DBConnection = mDBConn);
-  return NS_OK;
-}
-
 // nsIObserver *****************************************************************
 
 NS_IMETHODIMP
@@ -4846,6 +4805,8 @@ nsNavHistory::CommitLazyMessages()
       case LazyMessage::Type_Favicon: {
         nsFaviconService* faviconService = nsFaviconService::GetFaviconService();
         if (faviconService) {
+          nsCString spec;
+          message.uri->GetSpec(spec);
           faviconService->DoSetAndLoadFaviconForPage(message.uri,
                                                      message.favicon,
                                                      message.alwaysLoadFavicon);

@@ -75,7 +75,6 @@ public:
     eColor_TextSelectForeground,
     eColor_TextSelectBackgroundDisabled,
     eColor_TextSelectBackgroundAttention,
-    eColor_TextHighlightBackground,
 
     eColor_IMERawInputBackground,
     eColor_IMERawInputForeground,
@@ -137,10 +136,7 @@ public:
     eColor__moz_menuhover,                                   //used to menu item background, when mouse is over
     eColor__moz_menuhovertext,                               //used to menu item text, when mouse is over
     eColor__moz_menubarhovertext,                            //used to menu bar item text, when mouse is over
-    // On platforms where these colors are the same as
-    // -moz-field, use -moz-fieldtext as foreground color
-    eColor__moz_eventreerow,
-    eColor__moz_oddtreerow,
+    eColor__moz_oddrowbackground,                            //background color of odd list rows
 
     //colours needed by Mac Classic skin
     eColor__moz_mac_focusring,				//ring around text fields and lists
@@ -161,16 +157,7 @@ public:
     //new in 10.2
     eColor__moz_mac_alternateprimaryhighlight, //active list highlight
     eColor__moz_mac_secondaryhighlight,        //inactive light hightlight
-
-    // vista rebars
-    eColor__moz_win_mediatext,                     // media rebar text
-    eColor__moz_win_communicationstext,            // communications rebar text
-
-    // Hyperlink color extracted from the system, not affected by the browser.anchor_color user pref.
-    // There is no OS-specified safe background color for this text, 
-    // but it is used regularly within Windows and the Gnome DE on Dialog and Window colors.
-    eColor__moz_nativehyperlinktext,		
-
+  
     // keep this one last, please
     eColor_LAST_COLOR
   } nsColorID;
@@ -234,14 +221,6 @@ public:
      * should return NS_ERROR_NOT_IMPLEMENTED when queried for this metric.
      */
     eMetric_WindowsDefaultTheme,
-
-    /*
-     * A Boolean value to determine whether the DWM compositor is being used
-     *
-     * This metric is not used on non-Windows platforms. These platforms
-     * should return NS_ERROR_NOT_IMPLEMENTED when queried for this metric.
-     */
-    eMetric_DWMCompositor,
 
     /*
      * eMetric_AlertNotificationOrigin indicates from which corner of the
@@ -314,11 +293,7 @@ public:
     eMetricFloat_ListHorizontalInsidePadding,
     eMetricFloat_ButtonVerticalInsidePadding,
     eMetricFloat_ButtonHorizontalInsidePadding,
-    eMetricFloat_IMEUnderlineRelativeSize,
-
-    // The width/height ratio of the cursor. If used, the CaretWidth int metric
-    // should be added to the calculated caret width.
-    eMetricFloat_CaretAspectRatio
+    eMetricFloat_IMEUnderlineRelativeSize
   } nsMetricFloatID;
 
   NS_IMETHOD GetColor(const nsColorID aID, nscolor &aColor) = 0;

@@ -168,9 +168,7 @@ function goNext()
   gTestIndex++;
   gTestStepIndex = 0;
   if (gTestIndex < gPopupTests.length) {
-    var test = gPopupTests[gTestIndex];
-    // Set the location hash so it's easy to see which test is running
-    document.location.hash = test.testname;
+    var test = gPopupTests[gTestIndex]
 
     // skip the test if the condition returns false
     if ("condition" in test && !test.condition()) {

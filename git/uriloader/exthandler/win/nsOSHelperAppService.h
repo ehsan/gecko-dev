@@ -48,13 +48,9 @@
 #include "nsCOMPtr.h"
 #include <windows.h>
 
-#ifdef _WIN32_WINNT
-#undef _WIN32_WINNT
-#endif
-#define _WIN32_WINNT 0x0600
-#define INITGUID
-#include <shlobj.h>
-
+// Vista SDK application registration definitions for non-Vista SDK builds
+#include "IApplicationAssociationRegistration.h"
+ 
 class nsMIMEInfoWin;
 
 class nsOSHelperAppService : public nsExternalHelperAppService
@@ -93,9 +89,7 @@ protected:
   static PRBool typeFromExtEquals(const PRUnichar* aExt, const char *aType);
 
 private:
-#if !defined(MOZ_DISABLE_VISTA_SDK_REQUIREMENTS)
   IApplicationAssociationRegistration* mAppAssoc;
-#endif
 };
 
 #endif // nsOSHelperAppService_h__

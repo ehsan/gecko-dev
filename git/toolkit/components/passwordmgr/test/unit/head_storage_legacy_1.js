@@ -44,27 +44,20 @@ const LoginTest = {
    *
    */
   initStorage : function (storage, aInputPathName,  aInputFileName,
-                          aOutputPathName, aOutputFileName, aExpectedError,
-                          preserveOutputFile) {
+                          aOutputPathName, aOutputFileName, aExpectedError) {
     var err = null;
 
-    var inputFile = null;
-    if (aInputFileName) {
-        var inputFile  = Cc["@mozilla.org/file/local;1"].
-                         createInstance(Ci.nsILocalFile);
-        inputFile.initWithPath(aInputPathName);
-        inputFile.append(aInputFileName);
-    }
+    var inputFile  = Cc["@mozilla.org/file/local;1"]
+                            .createInstance(Ci.nsILocalFile);
+    inputFile.initWithPath(aInputPathName);
+    inputFile.append(aInputFileName);
 
     var outputFile = null;
     if (aOutputFileName) {
-        var outputFile = Cc["@mozilla.org/file/local;1"].
-                         createInstance(Ci.nsILocalFile);
+        var outputFile = Cc["@mozilla.org/file/local;1"]
+                                .createInstance(Ci.nsILocalFile);
         outputFile.initWithPath(aOutputPathName);
         outputFile.append(aOutputFileName);
-
-        if (!preserveOutputFile && outputFile.exists())
-            outputFile.remove(false);
     }
 
     try {
@@ -88,15 +81,15 @@ const LoginTest = {
   checkExpectedError : function (aExpectedError, aActualError) {
     if (aExpectedError) {
         if (!aActualError)
-            throw "Test didn't throw as expected (" + aExpectedError + ")";
+            throw "Storage didn't throw as expected (" + aExpectedError + ")";
 
         if (!aExpectedError.test(aActualError))
-            throw "Test threw (" + aActualError + "), not (" + aExpectedError;
+            throw "Storage threw (" + aActualError + "), not (" + aExpectedError;
 
         // We got the expected error, so make a note in the test log.
         dump("...that error was expected.\n\n");
     } else if (aActualError) {
-        throw "Test threw unexpected error: " + aActualError;
+        throw "Component threw unexpected error: " + aActualError;
     }
   },
 
@@ -165,23 +158,6 @@ const LoginTest = {
         lineCount++;
 
     return lineCount;
-  },
-
-  newMozStorage : function () {
-    var storage = Cc["@mozilla.org/login-manager/storage/mozStorage;1"].
-                  createInstance(Ci.nsILoginManagerStorage);
-    if (!storage)
-      throw "Couldn't create storage instance.";
-    return storage;
-  },
-
-  deleteFile : function (pathname, filename) {
-    var file = Cc["@mozilla.org/file/local;1"].
-    createInstance(Ci.nsILocalFile);
-    file.initWithPath(pathname);
-    file.append(filename);
-    if (file.exists())
-      file.remove(false);
   }
 
 };

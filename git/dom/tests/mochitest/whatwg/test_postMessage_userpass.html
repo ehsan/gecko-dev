@@ -28,16 +28,15 @@ function receiveMessage(evt)
 {
   is(evt.origin, "http://example.org", "wrong origin");
   is(evt.data, "child-message", "wrong data");
-  is(evt.lastEventId, "", "postMessage creates events with empty lastEventId");
   ok(evt.source === window.frames.userPassKid, "wrong source");
   SimpleTest.finish();
 }
 
-window.addEventListener("message", receiveMessage, false);
+document.addEventListener("message", receiveMessage, false);
 
 function sendMessage(evt)
 {
-  window.frames.userPassKid.postMessage("parent-message", "http://example.org");
+  window.frames.userPassKid.postMessage("parent-message");
 }
 
 window.addEventListener("load", sendMessage, false);

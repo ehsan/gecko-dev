@@ -76,8 +76,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsPrintSettingsGTK,
 nsPrintSettingsGTK::nsPrintSettingsGTK() :
   mPageSetup(NULL),
   mPrintSettings(NULL),
-  mGTKPrinter(NULL),
-  mPrintSelectionOnly(PR_FALSE)
+  mGTKPrinter(NULL)
 {
   // The aim here is to set up the objects enough that silent printing works well.
   // These will be replaced anyway if the print dialog is used.
@@ -418,20 +417,15 @@ nsPrintSettingsGTK::GetToFileName(PRUnichar * *aToFileName)
 
   // Convert to an nsIFile
   nsCOMPtr<nsIFile> file;
-  nsresult rv = NS_GetFileFromURLSpec(nsDependentCString(gtk_output_uri),
-                                      getter_AddRefs(file));
-  if (NS_FAILED(rv))
-    return rv;
+  NS_GetFileFromURLSpec(nsDependentCString(gtk_output_uri), getter_AddRefs(file));
 
   // Extract the path
   nsAutoString path;
-  rv = file->GetPath(path);
-  NS_ENSURE_SUCCESS(rv, rv);
+  file->GetPath(path);
 
   *aToFileName = ToNewUnicode(path);
   return NS_OK;
 }
-
 NS_IMETHODIMP
 nsPrintSettingsGTK::SetToFileName(const PRUnichar * aToFileName)
 {
@@ -448,14 +442,11 @@ nsPrintSettingsGTK::SetToFileName(const PRUnichar * aToFileName)
   }
 
   nsCOMPtr<nsILocalFile> file;
-  nsresult rv = NS_NewLocalFile(nsDependentString(aToFileName), PR_TRUE,
-                                getter_AddRefs(file));
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_NewLocalFile(nsDependentString(aToFileName), PR_TRUE, getter_AddRefs(file));
 
   // Convert the nsIFile to a URL
   nsCAutoString url;
-  rv = NS_GetURLSpecFromFile(file, url);
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_GetURLSpecFromFile(file, url);
 
   gtk_print_settings_set(mPrintSettings, GTK_PRINT_SETTINGS_OUTPUT_URI, url.get());
   mToFileName = aToFileName;

@@ -3,6 +3,10 @@
   -moz-binding: url("chrome://browser/content/places/places.xml#calendar");
 }
 
+#searchFilter {
+  -moz-binding: url("chrome://browser/content/places/places.xml#textbox-timed-arbitrary");
+}
+
 button.commandButton {
   -moz-binding: url("chrome://browser/content/places/places.xml#command-button");
 }
@@ -15,8 +19,12 @@ button.commandButton {
   width: 0px;
 }
 
-#searchFilter {
-  width: 23em;
+.textbox-input-closebutton {
+  display: none;
+}
+
+#searchFilter[filtered="true"] .textbox-input-closebutton {
+  display: -moz-box;
 }
 
 /* Edit Item Panel */

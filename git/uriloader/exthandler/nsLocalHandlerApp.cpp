@@ -99,7 +99,7 @@ nsLocalHandlerApp::LaunchWithURI(nsIURI *aURI,
 {
   // pass the entire URI to the handler.
   nsCAutoString spec;
-  aURI->GetAsciiSpec(spec);
+  aURI->GetSpec(spec);
   return LaunchWithIProcess(spec);
 }
 

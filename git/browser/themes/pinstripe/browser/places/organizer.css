@@ -4,24 +4,6 @@
   -moz-binding: url("chrome://global/skin/globalBindings.xml#unifiedWindow");
 }
 
-/* Inactive Window */
-
-#places:not([active="true"]) > #placesToolbox > #placesToolbar {
-  background-image: url("chrome://global/skin/toolbar/toolbar-background-inactive.png");
-  background-color: #cfcfcf;
-  border-bottom: 1px solid rgba(0,0,0,0.35);
-}
-
-#places:not([active="true"]) > #placesToolbox > #placesToolbar > toolbarbutton,
-#places:not([active="true"]) > #placesToolbox > #placesToolbar > #searchFilter {
-  opacity: 0.7;
-}
-
-#places:not([active="true"]) > #placesView > #placesList {
-  background-color: #e8e8e8;
-}
-
-
 /* Places Organizer Sidebars */
 
 #placesList {
@@ -33,20 +15,6 @@
 #placesList treechildren::-moz-tree-row {
   background-color: transparent;
   border-color: transparent;
-}
-
-#placesList treechildren::-moz-tree-row(selected) {  
-  background-color: #6f81a9;
-  background-image: url("chrome://browser/skin/places/selected-gradient.png");
-  background-repeat: repeat-x;
-  background-position: bottom left;
-  border-top: 1px solid #979797;
-}
-
-#placesList treechildren::-moz-tree-row(selected,focus) {  
-  background-image: url("chrome://browser/skin/places/selected-focused-gradient.png");
-  background-color: #8a8a8a !important;
-  border-top: 1px solid #91a0c0;
 }
 
 #placesList treechildren::-moz-tree-row(History),
@@ -68,16 +36,6 @@
   cursor: default;
 }
 
-#placesList treechildren::-moz-tree-separator {
-  border-top: 1px solid #505d6d;
-  margin: 0 10px;
-}
-
-#placesList treechildren::-moz-tree-cell-text(selected) {  
-  font-weight: bold !important;
-  color: #ffffff !important;
-}
-
 #placesToolbar {
   background-color: #999;
   border-bottom: 1px solid #404040;
@@ -93,20 +51,17 @@
 }
 
 #placesView > splitter {
-  -moz-border-start: none !important;
-  -moz-border-end: 1px solid #404040;
+  border-left: none !important;
+  border-right: 1px solid #404040;
   min-width: 1px;
   width: 1px;
   background-image: none !important;       
-}
-
-.toolbarbutton-1 {
-  list-style-image: url("chrome://browser/skin/places/back-forward.png");
-}
+} 
 
 /* back button */
 
 #back-button {
+  list-style-image: url("chrome://browser/skin/places/back-forward.png");
   -moz-image-region: rect(0px, 34px, 23px, 0px);
   -moz-margin-end: 0;
   -moz-padding-end: 0;
@@ -114,28 +69,14 @@
   border-right: none;
 }
 
-#back-button[chromedir="rtl"] {
-  -moz-image-region: rect(0px, 67px, 23px, 34px);
-}
-
 #back-button[disabled="true"] {
  -moz-image-region: rect(23px, 34px, 46px, 0px) !important;
-}
-
-#back-button[disabled="true"][chromedir="rtl"] {
- -moz-image-region: rect(23px, 67px, 46px, 34px) !important;
 }
 
 #back-button:hover:active,
 #back-button[buttondown="true"],
 #back-button[open="true"] {
   -moz-image-region: rect(46px, 34px, 69px, 0px);
-}
-
-#back-button:hover:active[chromedir="rtl"],
-#back-button[buttondown="true"][chromedir="rtl"],
-#back-button[open="true"][chromedir="rtl"] {
-  -moz-image-region: rect(46px, 67px, 69px, 34px);
 }
 
 #back-button > .toolbarbutton-text,
@@ -146,6 +87,7 @@
 /* forward button */
 
 #forward-button {
+  list-style-image: url("chrome://browser/skin/places/back-forward.png");
   -moz-image-region: rect(0px, 67px, 23px, 34px);
   -moz-margin-start: 0;
   -moz-margin-end: 8px;
@@ -154,16 +96,8 @@
   border-right: none;
 }
 
-#forward-button[chromedir="rtl"] {
-  -moz-image-region: rect(0px, 34px, 23px, 0px);
-}
-
 #forward-button[disabled="true"] {
-  -moz-image-region: rect(23px, 67px, 46px, 34px) !important;
-}
-
-#forward-button[disabled="true"][chromedir="rtl"] {
-  -moz-image-region: rect(23px, 34px, 46px, 0px) !important;
+ -moz-image-region: rect(23px, 67px, 46px, 34px) !important;
 }
 
 #forward-button:hover:active,
@@ -172,26 +106,13 @@
   -moz-image-region: rect(46px, 67px, 69px, 34px);
 }
 
-#forward-button:hover:active[chromedir="rtl"],
-#forward-button[buttondown="true"][chromedir="rtl"],
-#forward-button[open="true"][chromedir="rtl"] {
-  -moz-image-region: rect(46px, 34px, 69px, 0px);
-}
-
 #placesToolbar > toolbarbutton[type="menu"] {
   -moz-margin-start: 5px;
   -moz-padding-end: 10px;
-  background: url("chrome://browser/skin/places/menubutton-end.png") right center no-repeat;
+  background: url("chrome://browser/skin/places/menubutton-end.png") center right no-repeat;
 }
 #placesToolbar > toolbarbutton[type="menu"][open="true"] {
-  background: url("chrome://browser/skin/places/menubutton-end-pressed.png") right center no-repeat;
-}
-
-#placesToolbar[chromedir="rtl"] > toolbarbutton[type="menu"] {
-  background: url("chrome://browser/skin/places/menubutton-end-rtl.png") left center no-repeat;
-}
-#placesToolbar[chromedir="rtl"] > toolbarbutton[type="menu"][open="true"] {
-  background: url("chrome://browser/skin/places/menubutton-end-pressed-rtl.png") left center no-repeat;
+  background: url("chrome://browser/skin/places/menubutton-end-pressed.png") center right no-repeat;
 }
 
 #placesToolbar > toolbarbutton[type="menu"] > menupopup {
@@ -200,21 +121,12 @@
 }
 
 #placesToolbar > toolbarbutton[type="menu"] > .toolbarbutton-icon {
-  background: url("chrome://browser/skin/places/menubutton-start.png") left center no-repeat;
-  padding: 3px 0px 4px 0px;
-  -moz-padding-start: 10px;
-  -moz-padding-end: 4px;
+  background: url("chrome://browser/skin/places/menubutton-start.png") center left no-repeat;
+  padding: 3px 4px 4px 10px;
   height: 23px;
 }
 #placesToolbar > toolbarbutton[type="menu"][open="true"] > .toolbarbutton-icon {
-  background: url("chrome://browser/skin/places/menubutton-start-pressed.png") left center no-repeat;
-}
-
-#placesToolbar[chromedir="rtl"] > toolbarbutton[type="menu"] > .toolbarbutton-icon {
-  background: url("chrome://browser/skin/places/menubutton-start-rtl.png") right center no-repeat;
-}
-#placesToolbar[chromedir="rtl"] > toolbarbutton[type="menu"][open="true"] > .toolbarbutton-icon {
-  background: url("chrome://browser/skin/places/menubutton-start-pressed-rtl.png") right center no-repeat;
+  background: url("chrome://browser/skin/places/menubutton-start-pressed.png") center left no-repeat;
 }
 
 #placesToolbar > toolbarbutton[type="menu"] > .toolbarbutton-text {
@@ -245,6 +157,12 @@
 #placesView {
   border-top: 1px solid ThreeDDarkShadow;
   -moz-user-focus: ignore;
+}
+
+#splitter {
+  border: 0px;
+  width: 3px;
+  background-color: transparent;
 }
 
 /* Place List, Place Content */
@@ -300,6 +218,35 @@
   border-color: transparent;
 }
 
+/* Search Bar */
+#searchbar {
+  margin: 6px -4px 0px 2px;
+}
+
+.textbox-input-closebutton {
+  -moz-appearance: none;
+  margin: -2px 0;
+  -moz-margin-end: -2px;
+  min-width: 0;
+  background-color: transparent;
+  border: none;
+  padding: 0 !important;
+  list-style-image: url("chrome://global/skin/icons/closetab.png");
+  width: 16px;
+  height: 16px;
+  cursor: default;
+}
+
+.textbox-input-closebutton > .button-box {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.textbox-input-closebutton:hover:active {
+  list-style-image: url("chrome://global/skin/icons/closetab-active.png");
+}
+
 .small {
   font-size: x-small;
   min-width: 0px;
@@ -312,6 +259,31 @@
 .small .button-box {
   padding: 0px;
   border: 0px;
+}
+
+#searchFilter {
+  -moz-appearance: none;
+  border: 3px solid;
+  -moz-border-top-colors: #676767 #C5C5C5 -moz-Field;
+  -moz-border-bottom-colors: #C2C2C2 #A4A4A4 -moz-Field;
+  -moz-border-right-colors: #969696 #C5C5C5 -moz-Field;
+  -moz-border-left-colors: #969696 #C5C5C5 -moz-Field;
+  -moz-border-radius: 12px;
+  background: url("chrome://global/skin/icons/search-textbox.png") -moz-Field no-repeat 1px center;
+  -moz-background-clip: border !important;
+  padding: 0;
+  -moz-padding-start: 14px;
+}
+
+#searchFilter[focused="true"] {
+  outline: 2px solid #4F8EC9;
+  -moz-outline-radius: 12px;
+  -moz-outline-offset: -2px;
+}
+
+#searchFilter > .textbox-input-box {
+  padding: 2px;
+  border-left: 2px solid transparent;
 }
 
 .filterList {
