@@ -4180,8 +4180,8 @@ function testBug458838() {
 testBug458838.expected = 10;
 testBug458838.jitstats = {
   recorderStarted: 1,
-  recorderAborted: 1,
-  traceCompleted: 0
+  recorderAborted: 0,
+  traceCompleted: 1
 };
 test(testBug458838);
 
@@ -5081,6 +5081,137 @@ function testSlowNativeBail() {
     }
 }
 test(testSlowNativeBail);
+
+/* Test the proper operation of the left shift operator. This is especially
+ * important on ARM as an explicit mask is required at the native instruction
+ * level. */
+function testShiftLeft()
+{
+    var r = [];
+    var i = 0;
+    var j = 0;
+
+    var shifts = [0,1,7,8,15,16,23,24,31];
+
+    /* Samples from the simple shift range. */
+    for (i = 0; i < shifts.length; i++)
+        r[j++] = 1 << shifts[i];
+
+    /* Samples outside the normal shift range. */
+    for (i = 0; i < shifts.length; i++)
+        r[j++] = 1 << (shifts[i] + 32);
+
+    /* Samples far outside the normal shift range. */
+    for (i = 0; i < shifts.length; i++)
+        r[j++] = 1 << (shifts[i] + 224);
+    for (i = 0; i < shifts.length; i++)
+        r[j++] = 1 << (shifts[i] + 256);
+
+    return r.join(",");
+}
+testShiftLeft.expected =
+    "1,2,128,256,32768,65536,8388608,16777216,-2147483648,"+
+    "1,2,128,256,32768,65536,8388608,16777216,-2147483648,"+
+    "1,2,128,256,32768,65536,8388608,16777216,-2147483648,"+
+    "1,2,128,256,32768,65536,8388608,16777216,-2147483648";
+test(testShiftLeft);
+
+/* Test the proper operation of the logical right shift operator. This is
+ * especially important on ARM as an explicit mask is required at the native
+ * instruction level. */
+function testShiftRightLogical()
+{
+    var r = [];
+    var i = 0;
+    var j = 0;
+
+    var shifts = [0,1,7,8,15,16,23,24,31];
+
+    /* Samples from the simple shift range. */
+    for (i = 0; i < shifts.length; i++)
+        r[j++] = -2147483648 >>> shifts[i];
+
+    /* Samples outside the normal shift range. */
+    for (i = 0; i < shifts.length; i++)
+        r[j++] = -2147483648 >>> (shifts[i] + 32);
+
+    /* Samples far outside the normal shift range. */
+    for (i = 0; i < shifts.length; i++)
+        r[j++] = -2147483648 >>> (shifts[i] + 224);
+    for (i = 0; i < shifts.length; i++)
+        r[j++] = -2147483648 >>> (shifts[i] + 256);
+
+    return r.join(",");
+}
+/* Note: Arguments to the ">>>" operator are converted to unsigned 32-bit
+ * integers during evaluation. As a result, -2147483648 >>> 0 evaluates to the
+ * unsigned interpretation of the same value, which is 2147483648. */
+testShiftRightLogical.expected =
+    "2147483648,1073741824,16777216,8388608,65536,32768,256,128,1,"+
+    "2147483648,1073741824,16777216,8388608,65536,32768,256,128,1,"+
+    "2147483648,1073741824,16777216,8388608,65536,32768,256,128,1,"+
+    "2147483648,1073741824,16777216,8388608,65536,32768,256,128,1";
+test(testShiftRightLogical);
+
+/* Test the proper operation of the arithmetic right shift operator. This is
+ * especially important on ARM as an explicit mask is required at the native
+ * instruction level. */
+function testShiftRightArithmetic()
+{
+    var r = [];
+    var i = 0;
+    var j = 0;
+
+    var shifts = [0,1,7,8,15,16,23,24,31];
+
+    /* Samples from the simple shift range. */
+    for (i = 0; i < shifts.length; i++)
+        r[j++] = -2147483648 >> shifts[i];
+
+    /* Samples outside the normal shift range. */
+    for (i = 0; i < shifts.length; i++)
+        r[j++] = -2147483648 >> (shifts[i] + 32);
+
+    /* Samples far outside the normal shift range. */
+    for (i = 0; i < shifts.length; i++)
+        r[j++] = -2147483648 >> (shifts[i] + 224);
+    for (i = 0; i < shifts.length; i++)
+        r[j++] = -2147483648 >> (shifts[i] + 256);
+
+    return r.join(",");
+}
+testShiftRightArithmetic.expected =
+    "-2147483648,-1073741824,-16777216,-8388608,-65536,-32768,-256,-128,-1,"+
+    "-2147483648,-1073741824,-16777216,-8388608,-65536,-32768,-256,-128,-1,"+
+    "-2147483648,-1073741824,-16777216,-8388608,-65536,-32768,-256,-128,-1,"+
+    "-2147483648,-1073741824,-16777216,-8388608,-65536,-32768,-256,-128,-1";
+test(testShiftRightArithmetic);
+
+function testStringConstructorWithExtraArg() {
+    for (let i = 0; i < 5; ++i)
+        new String(new String(), 2);
+    return "ok";
+}
+testStringConstructorWithExtraArg.expected = "ok";
+test(testStringConstructorWithExtraArg);
+
+function testConstructorBail() {
+    for (let i = 0; i < 5; ++i) new Number(/x/);
+}
+test(testConstructorBail);
+
+function testNewArrayCount()
+{
+  var a = [];
+  for (var i = 0; i < 5; i++)
+    a = [0];
+  assertEq(a.__count__, 1);
+  for (var i = 0; i < 5; i++)
+    a = [0, , 2];
+  assertEq(a.__count__, 2);
+}
+test(testNewArrayCount);
+
 
 /*****************************************************************************
  *                                                                           *

@@ -41,10 +41,7 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMDocumentXBL.h"
 
-
-////////////////////////////////////////////////////////////////////////////////
 // nsXULSliderAccessible
-////////////////////////////////////////////////////////////////////////////////
 
 nsXULSliderAccessible::nsXULSliderAccessible(nsIDOMNode* aNode,
                                              nsIWeakReference* aShell) :
@@ -137,6 +134,37 @@ nsXULSliderAccessible::SetCurrentValue(double aValue)
 
 // Utils
 
+already_AddRefed<nsIContent>
+nsXULSliderAccessible::GetSliderNode()
+{
+  if (!mDOMNode)
+    return nsnull;
+
+  if (!mSliderNode) {
+    nsCOMPtr<nsIDOMDocument> document;
+    mDOMNode->GetOwnerDocument(getter_AddRefs(document));
+    if (!document)
+      return nsnull;
+
+    nsCOMPtr<nsIDOMDocumentXBL> xblDoc(do_QueryInterface(document));
+    if (!xblDoc)
+      return nsnull;
+
+    // XXX: we depend on anonymous content.
+    nsCOMPtr<nsIDOMElement> domElm(do_QueryInterface(mDOMNode));
+    if (!domElm)
+      return nsnull;
+
+    xblDoc->GetAnonymousElementByAttribute(domElm, NS_LITERAL_STRING("anonid"),
+                                           NS_LITERAL_STRING("slider"),
+                                           getter_AddRefs(mSliderNode));
+  }
+
+  nsIContent *sliderNode = nsnull;
+  nsresult rv = CallQueryInterface(mSliderNode, &sliderNode);
+  return NS_FAILED(rv) ? nsnull : sliderNode;
+}
+
 nsresult
 nsXULSliderAccessible::GetSliderAttr(nsIAtom *aName, nsAString& aValue)
 {
@@ -145,7 +173,9 @@ nsXULSliderAccessible::GetSliderAttr(nsIAtom *aName, nsAString& aValue)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsCOMPtr<nsIContent> sliderNode(do_QueryInterface(mDOMNode));
+  nsCOMPtr<nsIContent> sliderNode(GetSliderNode());
+  NS_ENSURE_STATE(sliderNode);
+
   sliderNode->GetAttr(kNameSpaceID_None, aName, aValue);
   return NS_OK;
 }
@@ -156,7 +186,9 @@ nsXULSliderAccessible::SetSliderAttr(nsIAtom *aName, const nsAString& aValue)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsCOMPtr<nsIContent> sliderNode(do_QueryInterface(mDOMNode));
+  nsCOMPtr<nsIContent> sliderNode(GetSliderNode());
+  NS_ENSURE_STATE(sliderNode);
+
   sliderNode->SetAttr(kNameSpaceID_None, aName, aValue, PR_TRUE);
   return NS_OK;
 }
@@ -193,15 +225,14 @@ nsXULSliderAccessible::SetSliderAttr(nsIAtom *aName, double aValue)
 }
 
 
-////////////////////////////////////////////////////////////////////////////////
 // nsXULThumbAccessible
-////////////////////////////////////////////////////////////////////////////////
 
 nsXULThumbAccessible::nsXULThumbAccessible(nsIDOMNode* aNode,
                                            nsIWeakReference* aShell) :
   nsAccessibleWrap(aNode, aShell) {}
 
-// nsAccessible
+// nsIAccessible
+
 nsresult
 nsXULThumbAccessible::GetRoleInternal(PRUint32 *aRole)
 {
