@@ -25,17 +25,15 @@ this.FxAccountsManager = {
 
   init: function() {
     Services.obs.addObserver(this, ONLOGOUT_NOTIFICATION, false);
-    Services.obs.addObserver(this, ON_FXA_UPDATE_NOTIFICATION, false);
   },
 
   observe: function(aSubject, aTopic, aData) {
-    // Both topics indicate our cache is invalid
-    this._activeSession = null;
-
-    if (aData == ONVERIFIED_NOTIFICATION) {
-      log.debug("FxAccountsManager: cache cleared, broadcasting: " + aData);
-      Services.obs.notifyObservers(null, aData, null);
+    if (aTopic !== ONLOGOUT_NOTIFICATION) {
+      return;
     }
+
+    // Remove the cached session if we get a logout notification.
+    this._activeSession = null;
   },
 
   // We don't really need to save fxAccounts instance but this way we allow

@@ -33,9 +33,6 @@ public:
                          WebrtcGlobalLoggingCallback& aLoggingCallback,
                          ErrorResult& aRv);
 
-  static void SetDebugLevel(const GlobalObject& aGlobal, int32_t aLevel);
-  static int32_t DebugLevel(const GlobalObject& aGlobal);
-
   static void StoreLongTermICEStatistics(sipcc::PeerConnectionImpl& aPc);
 
 private:
