@@ -58,6 +58,7 @@ using mozilla::DefaultXDisplay;
 #include "nsFocusManager.h"
 #include "nsIDOMDragEvent.h"
 #include "nsIScrollableFrame.h"
+#include "nsIImageLoadingContent.h"
 #include "nsIDocShell.h"
 
 #include "nsContentCID.h"
