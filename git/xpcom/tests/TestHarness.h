@@ -53,7 +53,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 
-static PRUint32 gFailCount = 0;
+static PRBool gFailCount;
 
 /**
  * Prints the given failure message and arguments using printf, prepending
