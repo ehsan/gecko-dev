@@ -6,21 +6,32 @@ package org.mozilla.gecko.menu;
 
 import org.mozilla.gecko.widget.GeckoActionProvider;
 
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.drawable.Drawable;
+import android.os.Build;
 import android.view.ActionProvider;
 import android.view.ContextMenu;
+import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.SubMenu;
 import android.view.View;
 
-public class GeckoMenuItem implements MenuItem {
+public class GeckoMenuItem implements MenuItem, View.OnClickListener {
     private static final String LOGTAG = "GeckoMenuItem";
 
-    // A View that can show a MenuItem should be able to initialize from 
-    // the properties of the MenuItem.
     public static interface Layout {
-        public void initialize(GeckoMenuItem item);
+        public void setId(int id);
+        public void setIcon(Drawable icon);
+        public void setIcon(int iconRes);
+        public void setTitle(CharSequence title);
+        public void setEnabled(boolean enabled);
+        public void setCheckable(boolean checkable);
+        public void setChecked(boolean checked);
+        public void setOnClickListener(View.OnClickListener listener);
+        public void setSubMenuIndicator(boolean hasSubMenu);
+        public void setVisibility(int visible);
+        public View getView();
     }
 
     public static interface OnShowAsActionChangedListener {
@@ -28,36 +39,48 @@ public class GeckoMenuItem implements MenuItem {
         public void onShowAsActionChanged(GeckoMenuItem item, boolean isActionItem);
     }
 
+    public static interface OnVisibilityChangedListener {
+        public void onVisibilityChanged(GeckoMenuItem item, boolean isVisible);
+    }
+
+    private Context mContext;
     private int mId;
     private int mOrder;
-    private View mActionView;
-    private boolean mActionItem = false;
+    private Layout mLayout;
+    private boolean mActionItem;
     private CharSequence mTitle;
     private CharSequence mTitleCondensed;
-    private boolean mCheckable = false;
-    private boolean mChecked = false;
-    private boolean mVisible = true;
-    private boolean mEnabled = true;
+    private boolean mCheckable;
+    private boolean mChecked;
+    private boolean mVisible;
+    private boolean mEnabled;
     private Drawable mIcon;
     private int mIconRes;
     private ActionProvider mActionProvider;
     private GeckoMenu mMenu;
     private GeckoSubMenu mSubMenu;
-    private MenuItem.OnMenuItemClickListener mMenuItemClickListener = null;
+    private MenuItem.OnMenuItemClickListener mMenuItemClickListener;
+    private OnVisibilityChangedListener mVisibilityChangedListener;
     private OnShowAsActionChangedListener mShowAsActionChangedListener;
 
-    public GeckoMenuItem(GeckoMenu menu, int id, int order, int titleRes) {
-        mMenu = menu;
+    public GeckoMenuItem(Context context, int id) {
+        mContext = context;
+        mLayout = new MenuItemDefault(context, null);
+        mLayout.setId(id);
+
         mId = id;
-        mOrder = order;
-        setTitle(titleRes);
+        mOrder = 0;
+        mActionItem = false;
+        mVisible = true;
+        mEnabled = true;
+        mCheckable = true;
+        mChecked = false;
+        mMenuItemClickListener = null;
     }
 
-    public GeckoMenuItem(GeckoMenu menu, int id, int order, CharSequence title) {
-        mMenu = menu;
-        mId = id;
+    public GeckoMenuItem(Context context, int id, int order) {
+        this(context, id);
         mOrder = order;
-        setTitle(title);
     }
 
     @Override
@@ -78,10 +101,12 @@ public class GeckoMenuItem implements MenuItem {
     @Override
     public View getActionView() {
         if (mActionProvider != null && mActionProvider instanceof GeckoActionProvider) {
-            return ((GeckoActionProvider) mActionProvider).getView();
+            final View view = ((GeckoActionProvider) mActionProvider).getView(this);
+            view.setOnClickListener(this);
+            return view;
         }
 
-        return mActionView;
+        return null;
     }
 
     @Override
@@ -98,7 +123,7 @@ public class GeckoMenuItem implements MenuItem {
     public Drawable getIcon() {
         if (mIcon == null) {
             if (mIconRes != 0)
-                return mMenu.getResources().getDrawable(mIconRes);
+                return mContext.getResources().getDrawable(mIconRes);
             else
                 return null;
         } else {
@@ -114,6 +139,17 @@ public class GeckoMenuItem implements MenuItem {
     @Override
     public int getItemId() {
         return mId;
+    }
+
+    public View getLayout() {
+        if (mActionProvider != null)
+            return getActionView();
+
+        return mLayout.getView();
+    }
+
+    public void setMenu(GeckoMenu menu) {
+        mMenu = menu;
     }
 
     @Override
@@ -152,10 +188,6 @@ public class GeckoMenuItem implements MenuItem {
             return mActionProvider.hasSubMenu();
 
         return (mSubMenu != null);
-    }
-
-    public boolean isActionItem() {
-        return mActionItem;
     }
 
     @Override
@@ -217,35 +249,35 @@ public class GeckoMenuItem implements MenuItem {
     @Override
     public MenuItem setCheckable(boolean checkable) {
         mCheckable = checkable;
-        mMenu.onItemChanged(this);
+        mLayout.setCheckable(checkable);
         return this;
     }
 
     @Override
     public MenuItem setChecked(boolean checked) {
         mChecked = checked;
-        mMenu.onItemChanged(this);
+        mLayout.setChecked(checked);
         return this;
     }
 
     @Override
     public MenuItem setEnabled(boolean enabled) {
         mEnabled = enabled;
-        mMenu.onItemChanged(this);
+        mLayout.setEnabled(enabled);
         return this;
     }
 
     @Override
     public MenuItem setIcon(Drawable icon) {
         mIcon = icon;
-        mMenu.onItemChanged(this);
+        mLayout.setIcon(icon);
         return this;
     }
 
     @Override
     public MenuItem setIcon(int iconRes) {
         mIconRes = iconRes;
-        mMenu.onItemChanged(this);
+        mLayout.setIcon(iconRes);
         return this;
     }
 
@@ -288,13 +320,28 @@ public class GeckoMenuItem implements MenuItem {
                 return;
 
             // Change the type to just an icon
-            MenuItemActionBar actionView = new MenuItemActionBar(mMenu.getContext(), null);
-            actionView.initialize(this);
-            mActionView = actionView;
-
-            mActionItem = (actionEnum > 0);
+            mLayout = new MenuItemActionBar(mContext, null);
+        } else {
+            // Change the type to default
+            mLayout = new MenuItemDefault(mContext, null);
         }
 
+        mActionItem = (actionEnum > 0);         
+
+        mLayout.setId(mId);
+        mLayout.setOnClickListener(this);
+
+        setTitle(mTitle);        
+        setVisible(mVisible);
+        setEnabled(mEnabled);
+        setCheckable(mCheckable);
+        setChecked(mChecked);
+
+        if (mIcon == null)
+            setIcon(mIconRes);
+        else
+            setIcon(mIcon);
+        
         mShowAsActionChangedListener.onShowAsActionChanged(this, mActionItem);
     }
 
@@ -305,20 +352,21 @@ public class GeckoMenuItem implements MenuItem {
 
     public MenuItem setSubMenu(GeckoSubMenu subMenu) {
         mSubMenu = subMenu;
+        mLayout.setSubMenuIndicator(mActionProvider == null && subMenu != null);
         return this;
     }
 
     @Override
     public MenuItem setTitle(CharSequence title) {
         mTitle = title;
-        mMenu.onItemChanged(this);
+        mLayout.setTitle(mTitle);
         return this;
     }
 
     @Override
     public MenuItem setTitle(int title) {
-        mTitle = mMenu.getResources().getString(title);
-        mMenu.onItemChanged(this);
+        mTitle = mContext.getResources().getString(title);
+        mLayout.setTitle(mTitle);
         return this;
     }
 
@@ -331,18 +379,30 @@ public class GeckoMenuItem implements MenuItem {
     @Override
     public MenuItem setVisible(boolean visible) {
         mVisible = visible;
-        mMenu.onItemChanged(this);
+        mLayout.setVisibility(visible ? View.VISIBLE : View.GONE);
+
+        if (mVisibilityChangedListener != null)
+            mVisibilityChangedListener.onVisibilityChanged(this, visible);
+
         return this;
     }
 
-    public boolean invoke() {
-        if (mMenuItemClickListener != null)
-            return mMenuItemClickListener.onMenuItemClick(this);
-        else
-            return false;
+    @Override
+    public void onClick(View view) {
+        // If there is a custom listener, pass it to parent menu, so that it can do default cleanups.
+        if (mMenuItemClickListener != null) {
+            if (mMenuItemClickListener instanceof GeckoMenu)
+                mMenuItemClickListener.onMenuItemClick(this);
+            else
+                mMenu.onCustomMenuItemClick(this, mMenuItemClickListener);
+        }
     }
 
     public void setOnShowAsActionChangedListener(OnShowAsActionChangedListener listener) {
         mShowAsActionChangedListener = listener;
+    }
+
+    public void setOnVisibilityChangedListener(OnVisibilityChangedListener listener) {
+        mVisibilityChangedListener = listener;
     }
 }

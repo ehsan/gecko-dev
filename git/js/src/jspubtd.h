@@ -270,20 +270,17 @@ template <> struct RootKind<JSScript *> : SpecificRootKind<JSScript *, THING_ROO
 template <> struct RootKind<jsid> : SpecificRootKind<jsid, THING_ROOT_ID> {};
 template <> struct RootKind<JS::Value> : SpecificRootKind<JS::Value, THING_ROOT_VALUE> {};
 
-struct ContextFriendFields
-{
-  protected:
-    JSRuntime *const    runtime_;
+struct ContextFriendFields {
+    JSRuntime *const    runtime;
 
     /* The current compartment. */
-    JSCompartment       *compartment_;
+    JSCompartment       *compartment;
 
     /* The current zone. */
     JS::Zone            *zone_;
 
-  public:
     explicit ContextFriendFields(JSRuntime *rt)
-      : runtime_(rt), compartment_(NULL), zone_(NULL)
+      : runtime(rt), compartment(NULL), zone_(NULL)
     { }
 
     static const ContextFriendFields *get(const JSContext *cx) {
@@ -313,10 +310,6 @@ struct ContextFriendFields
      */
     SkipRoot *skipGCRooters;
 #endif
-
-    friend JSRuntime *GetRuntime(const JSContext *cx);
-    friend JSCompartment *GetContextCompartment(const JSContext *cx);
-    friend JS::Zone *GetContextZone(const JSContext *cx);
 };
 
 class PerThreadData;

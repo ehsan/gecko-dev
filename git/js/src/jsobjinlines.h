@@ -740,13 +740,12 @@ JSObject::setDateUTCTime(const js::Value &time)
 /* static */ inline bool
 JSObject::setSingletonType(JSContext *cx, js::HandleObject obj)
 {
-    JS_ASSERT(!IsInsideNursery(cx->runtime(), obj.get()));
+    JS_ASSERT(!IsInsideNursery(cx->runtime, obj.get()));
 
     if (!cx->typeInferenceEnabled())
         return true;
 
-    js::types::TypeObject *type =
-        cx->compartment()->getLazyType(cx, obj->getClass(), obj->getTaggedProto());
+    js::types::TypeObject *type = cx->compartment->getLazyType(cx, obj->getClass(), obj->getTaggedProto());
     if (!type)
         return false;
 
@@ -757,10 +756,10 @@ JSObject::setSingletonType(JSContext *cx, js::HandleObject obj)
 inline js::types::TypeObject*
 JSObject::getType(JSContext *cx)
 {
-    JS_ASSERT(cx->compartment() == compartment());
+    JS_ASSERT(cx->compartment == compartment());
     if (hasLazyType()) {
         JS::RootedObject self(cx, this);
-        if (cx->compartment() != compartment())
+        if (cx->compartment != compartment())
             MOZ_CRASH();
         return makeLazyType(cx, self);
     }
@@ -771,9 +770,9 @@ JSObject::getType(JSContext *cx)
 JSObject::clearType(JSContext *cx, js::HandleObject obj)
 {
     JS_ASSERT(!obj->hasSingletonType());
-    JS_ASSERT(cx->compartment() == obj->compartment());
+    JS_ASSERT(cx->compartment == obj->compartment());
 
-    js::types::TypeObject *type = cx->compartment()->getNewType(cx, obj->getClass(), NULL);
+    js::types::TypeObject *type = cx->compartment->getNewType(cx, obj->getClass(), NULL);
     if (!type)
         return false;
 
@@ -978,7 +977,7 @@ JSObject::create(JSContext *cx, js::gc::AllocKind kind, js::gc::InitialHeap heap
     }
 
 #ifdef JSGC_GENERATIONAL
-    cx->runtime()->gcNursery.notifyInitialSlots(obj, slots);
+    cx->runtime->gcNursery.notifyInitialSlots(obj, slots);
 #endif
 
     obj->shape_.init(shape);
@@ -1804,11 +1803,9 @@ NewObjectMetadata(JSContext *cx)
 {
     // The metadata callback is invoked before each created object, except when
     // analysis is active as the callback may reenter JS.
-    if (JS_UNLIKELY((size_t)cx->compartment()->objectMetadataCallback) &&
-        !cx->compartment()->activeAnalysis)
-    {
+    if (JS_UNLIKELY((size_t)cx->compartment->objectMetadataCallback) && !cx->compartment->activeAnalysis) {
         gc::AutoSuppressGC suppress(cx);
-        return cx->compartment()->objectMetadataCallback(cx);
+        return cx->compartment->objectMetadataCallback(cx);
     }
     return NULL;
 }

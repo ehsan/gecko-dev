@@ -60,8 +60,19 @@ public class GeckoActionProvider extends ActionProvider {
         return view;
     }
 
-    public View getView() {
-        return onCreateActionView();
+    @Override
+    public View onCreateActionView(MenuItem item) {
+        MenuItemActionView view = (MenuItemActionView) onCreateActionView();
+        view.setId(item.getItemId());
+        view.setTitle(item.getTitle());
+        view.setIcon(item.getIcon());
+        view.setVisibility(item.isVisible() ? View.VISIBLE : View.GONE);
+        view.setEnabled(item.isEnabled());
+        return view;
+    }
+
+    public View getView(MenuItem item) {
+        return onCreateActionView(item);
     }
 
     @Override

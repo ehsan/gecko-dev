@@ -41,9 +41,7 @@ this.AccessFu = {
     }
 
     this._activatePref = new PrefCache(
-      'accessibility.accessfu.activate', this._enableOrDisable.bind(this));
-
-    this._enableOrDisable();
+      'accessibility.accessfu.activate', this._enableOrDisable.bind(this), true);
   },
 
   /**

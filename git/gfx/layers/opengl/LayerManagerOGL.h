@@ -212,7 +212,7 @@ public:
    * shaders are required to sample from the different
    * texture types.
    */
-  bool CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
+  void CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
                             GLuint aCurrentFrameBuffer,
                             GLuint *aFBO, GLuint *aTexture);
 

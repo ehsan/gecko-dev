@@ -7,13 +7,14 @@ package org.mozilla.gecko.menu;
 
 import org.mozilla.gecko.R;
 
-import android.annotation.TargetApi;
 import android.content.Context;
 import android.content.res.Resources;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.ImageButton;
 
@@ -24,17 +25,8 @@ public class MenuItemActionView extends LinearLayout
     private MenuItemDefault mMenuItem;
     private ImageButton mActionButton;
 
-    public MenuItemActionView(Context context) {
-        this(context, null);
-    }
-
     public MenuItemActionView(Context context, AttributeSet attrs) {
-        this(context, attrs, R.attr.menuItemActionViewStyle);
-    }
-
-    @TargetApi(11)
-    public MenuItemActionView(Context context, AttributeSet attrs, int defStyle) {
-        super(context, attrs, defStyle);
+        super(context, attrs);
 
         Resources res = context.getResources();
         int width = res.getDimensionPixelSize(R.dimen.menu_item_row_width);
@@ -42,30 +34,34 @@ public class MenuItemActionView extends LinearLayout
         setMinimumWidth(width);
         setMinimumHeight(height);
 
+        setShowDividers(SHOW_DIVIDER_MIDDLE);
+        setDividerDrawable(res.getDrawable(R.drawable.divider_vertical));
+        setDividerPadding((int) (8 * res.getDisplayMetrics().density));
+
         LayoutInflater.from(context).inflate(R.layout.menu_item_action_view, this);
         mMenuItem = (MenuItemDefault) findViewById(R.id.menu_item);
         mActionButton = (ImageButton) findViewById(R.id.action_button);
+
+        mMenuItem.setBackgroundResource(R.drawable.action_bar_button);
     }
 
     @Override
-    public void initialize(GeckoMenuItem item) {
-        if (item == null)
-            return;
-
-        setTitle(item.getTitle());
-        setIcon(item.getIcon());
-        setEnabled(item.isEnabled());
+    public View getView() {
+        return this;
     }
 
-    private void setIcon(Drawable icon) {
+    @Override
+    public void setIcon(Drawable icon) {
         mMenuItem.setIcon(icon);
     }
 
-    private void setIcon(int icon) {
+    @Override
+    public void setIcon(int icon) {
         mMenuItem.setIcon(icon);
     }
 
-    private void setTitle(CharSequence title) {
+    @Override
+    public void setTitle(CharSequence title) {
         mMenuItem.setTitle(title);
     }
 
@@ -80,8 +76,16 @@ public class MenuItemActionView extends LinearLayout
         }
     }
 
-    public void setMenuItemClickListener(View.OnClickListener listener) {
-        mMenuItem.setOnClickListener(listener);
+    @Override
+    public void setCheckable(boolean checkable) {
+    }
+
+    @Override
+    public void setChecked(boolean checked) {
+    }
+
+    @Override
+    public void setSubMenuIndicator(boolean hasSubMenu) {
     }
 
     public void setActionButtonClickListener(View.OnClickListener listener) {

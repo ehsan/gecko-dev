@@ -173,20 +173,6 @@ class LPointer : public LInstructionHelper<1, 0, 0>
     }
 };
 
-// Constant double.
-class LDouble : public LInstructionHelper<1, 0, 0>
-{
-    double d_;
-  public:
-    LIR_HEADER(Double);
-
-    LDouble(double d) : d_(d)
-    { }
-    double getDouble() const {
-        return d_;
-    }
-};
-
 // A constant Value.
 class LValue : public LInstructionHelper<BOX_PIECES, 0, 0>
 {
@@ -544,13 +530,18 @@ class LInitProp : public LCallInstructionHelper<0, 1 + BOX_PIECES, 0>
     }
 };
 
-class LCheckOverRecursed : public LInstructionHelper<0, 0, 0>
+class LCheckOverRecursed : public LInstructionHelper<0, 0, 1>
 {
   public:
     LIR_HEADER(CheckOverRecursed)
 
-    LCheckOverRecursed()
-    { }
+    LCheckOverRecursed(const LDefinition &limitreg) {
+        setTemp(0, limitreg);
+    }
+
+    const LAllocation *limitTemp() {
+        return getTemp(0)->output();
+    }
 };
 
 class LParCheckOverRecursed : public LInstructionHelper<0, 1, 1>

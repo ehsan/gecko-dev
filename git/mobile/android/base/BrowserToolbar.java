@@ -102,6 +102,8 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
     private boolean mShowSiteSecurity;
     private boolean mShowReader;
 
+    private static List<View> sActionItems;
+
     private boolean mAnimatingEntry;
 
     private AlphaAnimation mLockFadeIn;
@@ -133,6 +135,7 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
         // BrowserToolbar is attached to BrowserApp only.
         mActivity = activity;
 
+        sActionItems = new ArrayList<View>();
         Tabs.registerOnTabsChangedListener(this);
         mSwitchingTabs = true;
 
@@ -1111,11 +1114,20 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
     @Override
     public void addActionItem(View actionItem) {
         mActionItemBar.addView(actionItem);
+
+        if (!sActionItems.contains(actionItem))
+            sActionItems.add(actionItem);
     }
 
     @Override
-    public void removeActionItem(View actionItem) {
-        mActionItemBar.removeView(actionItem);
+    public void removeActionItem(int index) {
+        mActionItemBar.removeViewAt(index);
+        sActionItems.remove(index);
+    }
+
+    @Override
+    public int getActionItemsCount() {
+        return sActionItems.size();
     }
 
     public void show() {

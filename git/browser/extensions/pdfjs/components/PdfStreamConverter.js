@@ -198,7 +198,28 @@ function ChromeActions(domWindow, contentDispositionFilename) {
 
 ChromeActions.prototype = {
   isInPrivateBrowsing: function() {
-    return PrivateBrowsingUtils.isWindowPrivate(this.domWindow);
+    var docIsPrivate, privateBrowsing;
+    try {
+      docIsPrivate = PrivateBrowsingUtils.isWindowPrivate(this.domWindow);
+    } catch (x) {
+      // unable to use PrivateBrowsingUtils, e.g. FF15
+    }
+    if (typeof docIsPrivate === 'undefined') {
+      // per-window Private Browsing is not supported, trying global service
+      try {
+        privateBrowsing = Cc['@mozilla.org/privatebrowsing;1']
+                            .getService(Ci.nsIPrivateBrowsingService);
+        docIsPrivate = privateBrowsing.privateBrowsingEnabled;
+      } catch (x) {
+        // unable to get nsIPrivateBrowsingService (e.g. not Firefox)
+        docIsPrivate = false;
+      }
+    }
+    // caching the result
+    this.isInPrivateBrowsing = function isInPrivateBrowsingCached() {
+      return docIsPrivate;
+    };
+    return docIsPrivate;
   },
   download: function(data, sendResponse) {
     var self = this;
@@ -391,7 +412,7 @@ var RangedChromeActions = (function RangedChromeActionsClosure() {
 
     ChromeActions.call(this, domWindow, contentDispositionFilename);
 
-    this.pdfUrl = originalRequest.URI.spec;
+    this.pdfUrl = originalRequest.URI.resolve('');
     this.contentLength = originalRequest.contentLength;
 
     // Pass all the headers from the original request through

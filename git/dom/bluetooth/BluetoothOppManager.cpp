@@ -257,18 +257,10 @@ BluetoothOppManager::Connect(const nsAString& aDeviceAddress,
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  BluetoothService* bs = BluetoothService::Get();
-  if (!bs || sInShutdown) {
-    DispatchBluetoothReply(aRunnable, BluetoothValue(),
-                           NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
-    return;
-  }
+  NS_ENSURE_FALSE_VOID(mSocket);
 
-  if (mSocket) {
-    DispatchBluetoothReply(aRunnable, BluetoothValue(),
-                           NS_LITERAL_STRING(ERR_REACHED_CONNECTION_LIMIT));
-    return;
-  }
+  BluetoothService* bs = BluetoothService::Get();
+  NS_ENSURE_TRUE_VOID(bs);
 
   mNeedsUpdatingSdpRecords = true;
 

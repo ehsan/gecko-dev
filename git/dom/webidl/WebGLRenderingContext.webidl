@@ -836,8 +836,3 @@ interface WebGLExtensionStandardDerivatives {
 interface WebGLExtensionTextureFloat
 {
 };
-
-[NoInterfaceObject]
-interface WebGLExtensionTextureFloatLinear
-{
-};

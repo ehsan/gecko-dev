@@ -52,8 +52,6 @@ interface AudioContext : EventTarget {
     WaveShaperNode createWaveShaper();
     [Creator]
     PannerNode createPanner();
-    [Creator]
-    ConvolverNode createConvolver();
 
     [Creator, Throws]
     ChannelSplitterNode createChannelSplitter(optional unsigned long numberOfOutputs = 6);

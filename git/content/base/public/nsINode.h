@@ -1111,7 +1111,15 @@ public:
    * @return aResult the previously registered object for aKey on this node, if
    *                 any
    */
-  nsIVariant* GetUserData(const nsAString& aKey);
+  nsIVariant* GetUserData(const nsAString& aKey)
+  {
+    nsCOMPtr<nsIAtom> key = do_GetAtom(aKey);
+    if (!key) {
+      return nullptr;
+    }
+
+    return static_cast<nsIVariant*>(GetProperty(DOM_USER_DATA, key));
+  }
 
   nsresult GetUserData(const nsAString& aKey, nsIVariant** aResult)
   {

@@ -40,8 +40,7 @@ public:
     return mList.Length();
   }
 
-  // Time is in seconds.
-  void Update(double aTime);
+  void Update(double time);
 
   TextTrackCue* IndexedGetter(uint32_t aIndex, bool& aFound);
   TextTrackCue* GetCueById(const nsAString& aId);
