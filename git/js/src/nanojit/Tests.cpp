@@ -338,8 +338,8 @@ do_test(Test* test)
 {
     NIns *code;
     LIns *instr;
-	SideExit exit;
     Fragment *frag;
+    SideExit *pExit;
     Fragmento *frago;
     JIT_ENTRANCE jit;
     LirBuffer *lirbuf;
@@ -358,19 +358,21 @@ do_test(Test* test)
     state.f = NULL;
 
     /* Begin a dummy trace */
-	frago->labels = new (gc) LabelMap(core, NULL);
     frag = frago->getLoop(state);
     lirbuf = new (gc) LirBuffer(frago, NULL);
-	lirbuf->names = new (gc) LirNameMap(gc, NULL, frago->labels);
     frag->lirbuf = lirbuf;
     lirout = new LirBufWriter(lirbuf);
-	lirout->ins0(LIR_trace);
-    frag->param0 = lirout->insImm8(LIR_param, Assembler::argRegs[0], 0);
-    frag->param1 = lirout->insImm8(LIR_param, Assembler::argRegs[1], 0);
+    frag->param0 = lirout->ins2(LIR_param, Assembler::argRegs[0], 0);
+    frag->param1 = lirout->ins2(LIR_param, Assembler::argRegs[1], 0);
+    //:TODO:
+    //frag->param0 = lirout->insImm8(LIR_in, Assembler::argRegs[0]);
     test->Compile(lirout);
-    memset(&exit, 0, sizeof(exit));
-    exit.from = frag;
-	instr = lirout->insGuard(LIR_x, NULL, &exit);
+    instr = lirout->skip(sizeof(SideExit));
+    pExit = (SideExit *)instr->payload();
+    memset(pExit, 0, sizeof(pExit));
+    pExit->target = NULL;
+    pExit->from = frag;
+    lirout->ins2(LIR_x, NULL, instr);
     compile(frago->assm(), frag);
     code = frag->code();
     jit = (JIT_ENTRANCE)code;
