@@ -56,8 +56,6 @@ NS_NewPageContentFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsPageContentFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsPageContentFrame)
-
 /* virtual */ nsSize
 nsPageContentFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
                                 nsSize aCBSize, nscoord aAvailableWidth,

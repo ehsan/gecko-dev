@@ -529,7 +529,8 @@ CallWithoutStatics(JSContext *cx, JSObject *obj, jsval fval, uintN argc,
 {
   JSRegExpStatics statics;
   JSTempValueRooter tvr;
-  js_SaveAndClearRegExpStatics(cx, &statics, &tvr);
+  js_SaveRegExpStatics(cx, &statics, &tvr);
+  JS_ClearRegExpStatics(cx);
   JSStackFrame *fp = JS_SaveFrameChain(cx);
   uint32 options =
     JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_DONT_REPORT_UNCAUGHT);

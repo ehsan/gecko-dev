@@ -1605,14 +1605,7 @@ nsNSSComponent::InitializeNSS(PRBool showWarningBox)
 
     ConfigureInternalPKCS11Token();
 
-    // The NSS_INIT_NOROOTINIT flag turns off the loading of the root certs
-    // module by NSS_Initialize because we will load it in InstallLoadableRoots
-    // later.  It also allows us to work around a bug in the system NSS in
-    // Ubuntu 8.04, which loads any nonexistent "<configdir>/libnssckbi.so" as
-    // "/usr/lib/nss/libnssckbi.so".
-    PRUint32 init_flags = NSS_INIT_NOROOTINIT | NSS_INIT_OPTIMIZESPACE;
-    SECStatus init_rv = ::NSS_Initialize(profileStr.get(), "", "",
-                                         SECMOD_DB, init_flags);
+    SECStatus init_rv = ::NSS_InitReadWrite(profileStr.get());
 
     if (init_rv != SECSuccess) {
       PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("can not init NSS r/w in %s\n", profileStr.get()));
@@ -1625,9 +1618,7 @@ nsNSSComponent::InitializeNSS(PRBool showWarningBox)
       }
 
       // try to init r/o
-      init_flags |= NSS_INIT_READONLY;
-      init_rv = ::NSS_Initialize(profileStr.get(), "", "",
-                                 SECMOD_DB, init_flags);
+      init_rv = NSS_Init(profileStr.get());
 
       if (init_rv != SECSuccess) {
         PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("can not init in r/o either\n"));

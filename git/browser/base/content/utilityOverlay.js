@@ -227,11 +227,8 @@ function openUILinkIn( url, where, allowThirdPartyFixup, postData, referrerUrl )
     // fall through
   case "tab":
     let browser = w.getBrowser();
-    browser.loadOneTab(url, {
-                       referrerURI: referrerUrl,
-                       postData: postData,
-                       inBackground: loadInBackground,
-                       allowThirdPartyFixup: allowThirdPartyFixup});
+    browser.loadOneTab(url, referrerUrl, null, postData, loadInBackground,
+                       allowThirdPartyFixup || false);
     break;
   }
 
@@ -589,12 +586,8 @@ function openNewTabWith(aURL, aDocument, aPostData, aEvent,
   // open link in new tab
   var referrerURI = aDocument ? aDocument.documentURIObject : aReferrer;
   var browser = top.document.getElementById("content");
-  return browser.loadOneTab(aURL, {
-                            referrerURI: referrerURI,
-                            charset: originCharset,
-                            postData: aPostData,
-                            inBackground: loadInBackground,
-                            allowThirdPartyFixup: aAllowThirdPartyFixup});
+  return browser.loadOneTab(aURL, referrerURI, originCharset, aPostData,
+                            loadInBackground, aAllowThirdPartyFixup || false);
 }
 
 function openNewWindowWith(aURL, aDocument, aPostData, aAllowThirdPartyFixup,

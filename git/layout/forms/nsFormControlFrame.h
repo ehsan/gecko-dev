@@ -49,6 +49,7 @@
 class nsFormControlFrame : public nsLeafFrame,
                            public nsIFormControlFrame
 {
+
 public:
   /**
     * Main constructor
@@ -64,7 +65,6 @@ public:
   }
 
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
   /** 
     * Respond to a gui event

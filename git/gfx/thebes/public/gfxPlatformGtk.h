@@ -102,6 +102,7 @@ public:
      *
      */
     virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+                                           nsISupports *aLoader,
                                            const PRUint8 *aFontData,
                                            PRUint32 aLength);
 
@@ -116,9 +117,6 @@ public:
 #ifndef MOZ_PANGO
     FontFamily *FindFontFamily(const nsAString& aName);
     FontEntry *FindFontEntry(const nsAString& aFamilyName, const gfxFontStyle& aFontStyle);
-    already_AddRefed<gfxFont> FindFontForChar(PRUint32 aCh, gfxFont *aFont);
-    PRBool GetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<FontEntry> > *aFontEntryList);
-    void SetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<FontEntry> >& aFontEntryList);
 #endif
 
     static double DPI() {

@@ -4,7 +4,7 @@
 #include <errno.h>
 #include <cctype>
 
-#include "qcms.h"
+#include "lcms.h"
 
 using std::isspace;
 

@@ -382,7 +382,6 @@ imgFile = do_get_file(imgName);
 
 istream = getFileInputStream(imgFile);
 do_check_eq(istream.available(), 17759);
-var errsrc = "none";
 
 try {
   outParam = { value: null };
@@ -395,15 +394,12 @@ try {
       istream = imgTools.encodeImage(container, "image/png");
   } catch (e) {
       err = e;
-      errsrc = "encode";
   }
 } catch (e) {
   err = e;
-  errsrc = "decode";
 }
 
-do_check_eq(errsrc, "decode");
-checkExpectedError(/NS_ERROR_FAILURE/, err);
+checkExpectedError(/NS_ERROR_ILLEGAL_VALUE/, err);
 
 
 /* ========== end ========== */

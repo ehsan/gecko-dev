@@ -65,7 +65,6 @@ CPPSRCS		= \
 		nsHttpHandler.cpp \
 		nsHttpChannel.cpp \
 		nsHttpPipeline.cpp \
-		nsHttpActivityDistributor.cpp \
 		$(NULL)
 
 LOCAL_INCLUDES=-I$(srcdir)/../../../base/src -I$(topsrcdir)/xpcom/ds

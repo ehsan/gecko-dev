@@ -50,6 +50,7 @@
 #include "nsCOMPtr.h"
 #include "nsToolkit.h"
 #include "nsCRT.h"
+#include "nsplugindefs.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 
@@ -75,6 +76,8 @@
 #include "nsCocoaUtils.h"
 #include "nsMenuUtilsX.h"
 #include "nsMenuBarX.h"
+
+#include "npapi.h"
 
 #include "gfxContext.h"
 #include "gfxQuartzSurface.h"
@@ -106,173 +109,6 @@ extern "C" {
   CG_EXTERN void CGContextResetClip(CGContextRef);
 }
 
-#if defined(MAC_OS_X_VERSION_10_5) && (MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_5)
-#define LEOPARD_AND_LATER 1
-#endif
-
-#ifdef LEOPARD_AND_LATER
-
-/**
- * nsTISInputSource is a wrapper for the TISInputSourceRef.  If we get the
- * TISInputSourceRef from InputSourceID, we need to release the CFArray instance
- * which is returned by TISCreateInputSourceList.  However, when we release the
- * list, we cannot access the TISInputSourceRef.  So, it's not usable, and it
- * may cause the memory leak bugs.  nsTISInputSource automatically releases the
- * list when the instance is destroyed.
- */
-class nsTISInputSource
-{
-public:
-  nsTISInputSource()
-  {
-    mInputSourceList = nsnull;
-    Clear();
-  }
-
-  nsTISInputSource(const char* aID)
-  {
-    mInputSourceList = nsnull;
-    InitByInputSourceID(aID);
-  }
-
-  nsTISInputSource(SInt32 aLayoutID)
-  {
-    mInputSourceList = nsnull;
-    InitByLayoutID(aLayoutID);
-  }
-
-  nsTISInputSource(TISInputSourceRef aInputSource)
-  {
-    mInputSourceList = nsnull;
-    InitByTISInputSourceRef(aInputSource);
-  }
-
-  ~nsTISInputSource() { Clear(); }
-
-  void InitByInputSourceID(const char* aID)
-  {
-    Clear();
-    if (!aID)
-      return;
-
-    CFStringRef idstr = ::CFStringCreateWithCString(kCFAllocatorDefault, aID,
-                                                    kCFStringEncodingASCII);
-    const void* keys[] = { kTISPropertyInputSourceID };
-    const void* values[] = { idstr };
-    CFDictionaryRef filter =
-      ::CFDictionaryCreate(kCFAllocatorDefault, keys, values, 1, NULL, NULL);
-    NS_ASSERTION(filter, "failed to create the filter");
-    mInputSourceList = ::TISCreateInputSourceList(filter, true);
-    ::CFRelease(filter);
-    if (::CFArrayGetCount(mInputSourceList) > 0) {
-      mInputSource = static_cast<TISInputSourceRef>(
-        const_cast<void *>(::CFArrayGetValueAtIndex(mInputSourceList, 0)));
-    }
-    ::CFRelease(idstr);
-  }
-
-  void InitByLayoutID(SInt32 aLayoutID)
-  {
-    Clear();
-    switch (aLayoutID) {
-      case 0:
-        InitByInputSourceID("com.apple.keylayout.US");
-        break;
-      case -18944:
-        InitByInputSourceID("com.apple.keylayout.Greek");
-        break;
-      case 3:
-        InitByInputSourceID("com.apple.keylayout.German");
-        break;
-      case 224:
-        InitByInputSourceID("com.apple.keylayout.Swedish-Pro");
-        break;
-    }
-  }
-
-  void InitByCurrentKeyboardLayout()
-  {
-    Clear();
-    mInputSource = ::TISCopyCurrentKeyboardLayoutInputSource();
-  }
-
-  void InitByTISInputSourceRef(TISInputSourceRef aInputSource)
-  {
-    Clear();
-    mInputSource = aInputSource;
-  }
-
-  const UCKeyboardLayout* GetUCKeyboardLayout()
-  {
-    NS_ENSURE_TRUE(mInputSource, nsnull);
-    CFDataRef uchr = static_cast<CFDataRef>(
-      ::TISGetInputSourceProperty(mInputSource,
-                                  kTISPropertyUnicodeKeyLayoutData));
-
-    // We should be always able to get the layout here.
-    NS_ENSURE_TRUE(uchr, nsnull);
-    return reinterpret_cast<const UCKeyboardLayout*>(CFDataGetBytePtr(uchr));
-  }
-
-  PRBool IsASCIICapable()
-  {
-    NS_ENSURE_TRUE(mInputSource, nsnull);
-    CFBooleanRef isASCIICapable = static_cast<CFBooleanRef>(
-      ::TISGetInputSourceProperty(mInputSource,
-                                  kTISPropertyInputSourceIsASCIICapable));
-    return CFBooleanGetValue(isASCIICapable);
-  }
-
-  CFArrayRef GetLanguageList()
-  {
-    NS_ENSURE_TRUE(mInputSource, nsnull);
-    return static_cast<CFArrayRef>(
-      ::TISGetInputSourceProperty(mInputSource,
-                                  kTISPropertyInputSourceLanguages));
-  }
-
-  void GetLocalizedName(nsAString &aName)
-  {
-    NS_PRECONDITION(mInputSource, "mInputSource is null");
-    if (!mInputSource)
-      return;
-    CFStringRef name = static_cast<CFStringRef>(
-      ::TISGetInputSourceProperty(mInputSource, kTISPropertyLocalizedName));
-    GetStringForNSString((const NSString*)name, aName);    
-  }
-
-  void GetInputSourceID(nsAString &aID)
-  {
-    NS_PRECONDITION(mInputSource, "mInputSource is null");
-    if (!mInputSource)
-      return;
-    CFStringRef isid = static_cast<CFStringRef>(
-      ::TISGetInputSourceProperty(mInputSource, kTISPropertyInputSourceID));
-    GetStringForNSString((const NSString*)isid, aID);
-  }
-
-protected:
-  void Clear()
-  {
-    if (mInputSourceList) {
-      ::CFRelease(mInputSourceList);
-    }
-    mInputSourceList = nsnull;
-    mInputSource = nsnull;
-  }
-
-  void GetStringForNSString(const NSString *aSrc, nsAString& aDist)
-  {
-    aDist.SetLength([aSrc length]);
-    [aSrc getCharacters: aDist.BeginWriting()];
-  }
-
-  TISInputSourceRef mInputSource;
-  CFArrayRef mInputSourceList;
-};
-
-#else // LEOPARD_AND_LATER
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED <= MAC_OS_X_VERSION_10_4
 struct __TISInputSource;
 typedef __TISInputSource* TISInputSourceRef;
@@ -284,8 +120,6 @@ CFArrayRef (*Leopard_TISCreateInputSourceList)(CFDictionaryRef properties, Boole
 CFStringRef kOurTISPropertyUnicodeKeyLayoutData = NULL;
 CFStringRef kOurTISPropertyInputSourceID = NULL;
 CFStringRef kOurTISPropertyInputSourceLanguages = NULL;
-
-#endif // LEOPARD_AND_LATER
 
 // these are defined in nsCocoaWindow.mm
 extern PRBool gConsumeRollupEvent;
@@ -345,8 +179,10 @@ PRUint32 nsChildView::sLastInputEventCount = 0;
 
 - (void)setIsPluginView:(BOOL)aIsPlugin;
 - (BOOL)isPluginView;
-- (void)setPluginEventModel:(NPEventModel)eventModel;
-- (NPEventModel)pluginEventModel;
+- (void)setSendCarbonPluginEvents:(BOOL)sendCarbonEvents;
+- (BOOL)shouldSendCarbonPluginEvents;
+
+- (BOOL)childViewHasPlugin;
 
 - (BOOL)isRectObscuredBySubview:(NSRect)inRect;
 
@@ -637,22 +473,6 @@ FillTextRangeInTextEvent(nsTextEvent *aTextEvent, NSAttributedString* aString, N
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-#ifdef LEOPARD_AND_LATER
-
-static CFArrayRef CreateAllKeyboardLayoutList()
-{
-  const void* keys[] = { kTISPropertyInputSourceType };
-  const void* values[] = { kTISTypeKeyboardLayout };
-  CFDictionaryRef filter =
-    ::CFDictionaryCreate(kCFAllocatorDefault, keys, values, 1, NULL, NULL);
-  NS_ASSERTION(filter, "failed to create the filter");
-  CFArrayRef list = ::TISCreateInputSourceList(filter, true);
-  ::CFRelease(filter);
-  return list;
-}
-
-#endif // LEOPARD_AND_LATER
-
 #pragma mark -
 
 nsChildView::nsChildView() : nsBaseWidget()
@@ -661,6 +481,7 @@ nsChildView::nsChildView() : nsBaseWidget()
 , mParentWidget(nsnull)
 , mVisible(PR_FALSE)
 , mDrawing(PR_FALSE)
+, mLiveResizeInProgress(PR_FALSE)
 , mIsPluginView(PR_FALSE)
 , mPluginDrawing(PR_FALSE)
 , mPluginIsCG(PR_FALSE)
@@ -668,30 +489,6 @@ nsChildView::nsChildView() : nsBaseWidget()
 #ifdef PR_LOGGING
   if (!sCocoaLog) {
     sCocoaLog = PR_NewLogModule("nsCocoaWidgets");
-#ifdef LEOPARD_AND_LATER
-    CFArrayRef list = CreateAllKeyboardLayoutList();
-    PR_LOG(sCocoaLog, PR_LOG_ALWAYS, ("Keyboard layout configuration:"));
-    CFIndex idx = ::CFArrayGetCount(list);
-    nsTISInputSource tis;
-    for (CFIndex i = 0; i < idx; ++i) {
-      TISInputSourceRef inputSource = static_cast<TISInputSourceRef>(
-        const_cast<void *>(::CFArrayGetValueAtIndex(list, i)));
-      tis.InitByTISInputSourceRef(inputSource);
-      nsAutoString name;
-      tis.GetLocalizedName(name);
-      nsAutoString isid;
-      tis.GetInputSourceID(isid);
-      const UCKeyboardLayout* uchr = tis.GetUCKeyboardLayout();
-      PRBool isASCII = tis.IsASCIICapable();
-      PR_LOG(sCocoaLog, PR_LOG_ALWAYS,
-             ("  %s\t<%s>%s%s\n",
-              NS_ConvertUTF16toUTF8(name).get(),
-              NS_ConvertUTF16toUTF8(isid).get(),
-              isASCII ? "" : "\t(Isn't ASCII capable)",
-              uchr ? "" : "\t(uchr is NOT AVAILABLE)"));
-    }
-    ::CFRelease(list);
-#else
     CFIndex idx;
     KLGetKeyboardLayoutCount(&idx);
     PR_LOG(sCocoaLog, PR_LOG_ALWAYS, ("Keyboard layout configuration:"));
@@ -710,14 +507,12 @@ nsChildView::nsChildView() : nsBaseWidget()
         }
       }
     }
-#endif // LEOPARD_AND_LATER
   }
-#endif // PR_LOGGING
+#endif
 
   SetBackgroundColor(NS_RGB(255, 255, 255));
   SetForegroundColor(NS_RGB(0, 0, 0));
 
-#ifndef LEOPARD_AND_LATER
   if (nsToolkit::OnLeopardOrLater() && !Leopard_TISCopyCurrentKeyboardLayoutInputSource) {
     // This libary would already be open for LMGetKbdType (and probably other
     // symbols), so merely using RTLD_DEFAULT in dlsym would be sufficient,
@@ -735,7 +530,6 @@ nsChildView::nsChildView() : nsBaseWidget()
       kOurTISPropertyInputSourceLanguages = *static_cast<CFStringRef*>(dlsym(hitoolboxHandle, "kTISPropertyInputSourceLanguages"));
     }
   }
-#endif
 }
 
 nsChildView::~nsChildView()
@@ -823,6 +617,13 @@ nsresult nsChildView::StandardCreate(nsIWidget *aParent,
 
   // Hook it up in the NSView hierarchy.
   if (mParentView) {
+    NSWindow* window = [mParentView window];
+    if (!window &&
+        [mParentView respondsToSelector:@selector(nativeWindow)])
+      window = [mParentView nativeWindow];
+
+    [mView setNativeWindow:window];
+
     [mParentView addSubview:mView];
   }
 
@@ -889,7 +690,7 @@ void nsChildView::TearDownView()
 nsCocoaWindow*
 nsChildView::GetXULWindowWidget()
 {
-  id windowDelegate = [[mView window] delegate];
+  id windowDelegate = [[mView nativeWindow] delegate];
   if (windowDelegate && [windowDelegate isKindOfClass:[WindowDelegate class]]) {
     return [(WindowDelegate *)windowDelegate geckoWidget];
   }
@@ -974,7 +775,7 @@ void* nsChildView::GetNativeData(PRUint32 aDataType)
       break;
 
     case NS_NATIVE_WINDOW:
-      retVal = [mView window];
+      retVal = [mView nativeWindow];
       break;
 
     case NS_NATIVE_GRAPHIC:
@@ -1003,10 +804,7 @@ void* nsChildView::GetNativeData(PRUint32 aDataType)
         [(ChildView*)mView setIsPluginView:YES];
 
       UpdatePluginPort();
-      if (mPluginIsCG)
-        retVal = (void*)&mPluginCGContext;
-      else
-        retVal = (void*)&mPluginQDPort;
+      retVal = (void*)&mPluginPort;
       break;
     }
   }
@@ -1035,7 +833,7 @@ void nsChildView::SetTransparencyMode(nsTransparencyMode aMode)
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
   BOOL isTransparent = aMode == eTransparencyTransparent;
-  BOOL currentTransparency = ![[mView window] isOpaque];
+  BOOL currentTransparency = ![[mView nativeWindow] isOpaque];
   if (isTransparent != currentTransparency) {
     nsCocoaWindow *widget = GetXULWindowWidget();
     if (widget) {
@@ -1074,7 +872,7 @@ void nsChildView::HidePlugin()
   NS_ASSERTION(mIsPluginView, "HidePlugin called on non-plugin view");
 
   if (mPluginInstanceOwner && !mPluginIsCG) {
-    NPWindow* window;
+    nsPluginWindow* window;
     mPluginInstanceOwner->GetWindow(window);
     nsCOMPtr<nsIPluginInstance> instance;
     mPluginInstanceOwner->GetInstance(*getter_AddRefs(instance));
@@ -1092,10 +890,8 @@ void nsChildView::UpdatePluginPort()
 {
   NS_ASSERTION(mIsPluginView, "UpdatePluginPort called on non-plugin view");
 
-  NSWindow* cocoaWindow = [mView window];
-#if !defined(NP_NO_CARBON) || !defined(NP_NO_QUICKDRAW)
+  NSWindow* cocoaWindow = [mView nativeWindow];
   WindowRef carbonWindow = cocoaWindow ? (WindowRef)[cocoaWindow windowRef] : NULL;
-#endif
 
   if (mPluginIsCG) {
     // [NSGraphicsContext currentContext] is supposed to "return the
@@ -1105,27 +901,22 @@ void nsChildView::UpdatePluginPort()
     // (which "provides the graphics context associated with the window
     // for the current thread") seems always to return the "right"
     // graphics context.  See bug 500130.
-    mPluginCGContext.context = NULL;
-    mPluginCGContext.window = NULL;
-#ifndef NP_NO_CARBON
-    if ([(ChildView*)mView pluginEventModel] == NPEventModelCarbon) {
+    mPluginPort.cgPort.context = NULL;
+    mPluginPort.cgPort.window = NULL;
+    if ([(ChildView*)mView shouldSendCarbonPluginEvents]) {
       if (carbonWindow) {
-        mPluginCGContext.context = (CGContextRef)[[cocoaWindow graphicsContext] graphicsPort];
-        mPluginCGContext.window = carbonWindow;
+        mPluginPort.cgPort.context = (CGContextRef)[[cocoaWindow graphicsContext] graphicsPort];
+        mPluginPort.cgPort.window = carbonWindow;
       }
-    }
-#endif
-    if ([(ChildView*)mView pluginEventModel] == NPEventModelCocoa) {
+    } else {
       if (cocoaWindow) {
-        mPluginCGContext.context = (CGContextRef)[[cocoaWindow graphicsContext] graphicsPort];
-        mPluginCGContext.window = cocoaWindow;
+        mPluginPort.cgPort.context = (CGContextRef)[[cocoaWindow graphicsContext] graphicsPort];
+        mPluginPort.cgPort.window = cocoaWindow;
       }
     }
-  }
-#ifndef NP_NO_QUICKDRAW
-  else {
+  } else {
     if (carbonWindow) {
-      mPluginQDPort.port = ::GetWindowPort(carbonWindow);
+      mPluginPort.qdPort.port = ::GetWindowPort(carbonWindow);
 
       NSPoint viewOrigin = [mView convertPoint:NSZeroPoint toView:nil];
       NSRect frame = [[cocoaWindow contentView] frame];
@@ -1133,13 +924,12 @@ void nsChildView::UpdatePluginPort()
 
       // need to convert view's origin to window coordinates.
       // then, encode as "SetOrigin" ready values.
-      mPluginQDPort.portx = (PRInt32)-viewOrigin.x;
-      mPluginQDPort.porty = (PRInt32)-viewOrigin.y;
+      mPluginPort.qdPort.portx = (PRInt32)-viewOrigin.x;
+      mPluginPort.qdPort.porty = (PRInt32)-viewOrigin.y;
     } else {
-      mPluginQDPort.port = NULL;
+      mPluginPort.qdPort.port = NULL;
     }
   }
-#endif
 }
 
 static void HideChildPluginViews(NSView* aView)
@@ -1288,6 +1078,22 @@ NS_IMETHODIMP nsChildView::GetBounds(nsIntRect &aRect)
   return NS_OK;
 }
 
+NS_IMETHODIMP nsChildView::SetBounds(const nsIntRect &aRect)
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
+  nsresult rv = Inherited::SetBounds(aRect);
+  if (NS_SUCCEEDED(rv)) {
+    NSRect r;
+    GeckoRectToNSRect(aRect, r);
+    [mView setFrame:r];
+  }
+
+  return rv;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+}
+
 NS_IMETHODIMP nsChildView::ConstrainPosition(PRBool aAllowSlop,
                                              PRInt32 *aX, PRInt32 *aY)
 {
@@ -1389,8 +1195,7 @@ PRBool nsChildView::ShowsResizeIndicator(nsIntRect* aResizerRect)
   while ((superView = [topLevelView superview]))
     topLevelView = superView;
 
-  if (![[topLevelView window] showsResizeIndicator] ||
-      !([[topLevelView window] styleMask] & NSResizableWindowMask))
+  if (![[topLevelView window] showsResizeIndicator])
     return PR_FALSE;
 
   if (aResizerRect) {
@@ -1424,7 +1229,7 @@ NS_IMETHODIMP nsChildView::GetPluginClipRect(nsIntRect& outClipRect, nsIntPoint&
   NS_ASSERTION(mIsPluginView, "GetPluginClipRect must only be called on a plugin widget");
   if (!mIsPluginView) return NS_ERROR_FAILURE;
   
-  NSWindow* window = [mView window];
+  NSWindow* window = [mView nativeWindow];
   if (!window) return NS_ERROR_FAILURE;
   
   NSPoint viewOrigin = [mView convertPoint:NSZeroPoint toView:nil];
@@ -1454,7 +1259,7 @@ NS_IMETHODIMP nsChildView::GetPluginClipRect(nsIntRect& outClipRect, nsIntPoint&
 
     if (mClipRects) {
       nsIntRect clipBounds;
-      for (PRInt32 i = 0; i < mClipRectCount; ++i) {
+      for (PRUint32 i = 0; i < mClipRectCount; ++i) {
         clipBounds.UnionRect(clipBounds, mClipRects[i]);
       }
       outClipRect.IntersectRect(outClipRect, clipBounds - outOrigin);
@@ -1481,11 +1286,7 @@ NS_IMETHODIMP nsChildView::StartDrawPlugin()
   NS_ASSERTION(mIsPluginView, "StartDrawPlugin must only be called on a plugin widget");
   if (!mIsPluginView) return NS_ERROR_FAILURE;
 
-  // This code is necessary for both Quickdraw and CoreGraphics in 32-bit builds.
-  // See comments below about why. In 64-bit CoreGraphics mode we will not keep
-  // this region up to date, plugins should not depend on it.
-#ifndef __LP64__
-  NSWindow* window = [mView window];
+  NSWindow* window = [mView nativeWindow];
   if (!window)
     return NS_ERROR_FAILURE;
 
@@ -1513,7 +1314,7 @@ NS_IMETHODIMP nsChildView::StartDrawPlugin()
   // internally (see bug #420527 for details).
   CGrafPtr port = ::GetWindowPort(WindowRef([window windowRef]));
   if (!mPluginIsCG)
-    port = mPluginQDPort.port;
+    port = mPluginPort.qdPort.port;
 
   RgnHandle pluginRegion = ::NewRgn();
   if (pluginRegion) {
@@ -1549,7 +1350,6 @@ NS_IMETHODIMP nsChildView::StartDrawPlugin()
     if (portChanged)
       ::SetGWorld(oldPort, oldDevice);
   }
-#endif
 
   mPluginDrawing = PR_TRUE;
   return NS_OK;
@@ -1575,14 +1375,25 @@ NS_IMETHODIMP nsChildView::SetPluginInstanceOwner(nsIPluginInstanceOwner* aInsta
 
 NS_IMETHODIMP nsChildView::SetPluginEventModel(int inEventModel)
 {
-  [(ChildView*)mView setPluginEventModel:(NPEventModel)inEventModel];
+  [(ChildView*)mView setSendCarbonPluginEvents:(inEventModel != NPEventModelCocoa)];
   return NS_OK;
 }
 
 NS_IMETHODIMP nsChildView::GetPluginEventModel(int* outEventModel)
 {
-  *outEventModel = [(ChildView*)mView pluginEventModel];
+  *outEventModel = ([(ChildView*)mView shouldSendCarbonPluginEvents] ? NPEventModelCarbon : NPEventModelCocoa);
   return NS_OK;
+}
+
+void nsChildView::LiveResizeStarted()
+{
+  // XXX todo. Use this to disable Java async redraw during resize
+  mLiveResizeInProgress = PR_TRUE;
+}
+
+void nsChildView::LiveResizeEnded()
+{
+  mLiveResizeInProgress = PR_FALSE;
 }
 
 static NSString* ToNSString(const nsAString& aString)
@@ -1801,6 +1612,31 @@ static void blinkRgn(RgnHandle rgn)
 #endif
 
 // Invalidate this component's visible area
+NS_IMETHODIMP nsChildView::Invalidate(PRBool aIsSynchronous)
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
+  if (!mView || !mVisible)
+    return NS_OK;
+
+  if (aIsSynchronous) {
+    [mView display];
+  }
+  else if ([NSView focusView]) {
+    // if a view is focussed (i.e. being drawn), then postpone the invalidate so that we
+    // don't lose it.
+    [mView setNeedsPendingDisplay];
+  }
+  else {
+    [mView setNeedsDisplay:YES];
+  }
+
+  return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+}
+
+// Invalidate this component's visible area
 NS_IMETHODIMP nsChildView::Invalidate(const nsIntRect &aRect, PRBool aIsSynchronous)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -1828,10 +1664,28 @@ NS_IMETHODIMP nsChildView::Invalidate(const nsIntRect &aRect, PRBool aIsSynchron
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+// Validate the widget
+NS_IMETHODIMP nsChildView::Validate()
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
+  [mView setNeedsDisplay:NO];
+  return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+}
+
 inline PRUint16 COLOR8TOCOLOR16(PRUint8 color8)
 {
   // return (color8 == 0xFF ? 0xFFFF : (color8 << 8));
   return (color8 << 8) | color8;  /* (color8 * 257) == (color8 * 0x0101) */
+}
+
+// Dummy impl, meant to be overridden
+PRBool
+nsChildView::OnPaint(nsPaintEvent &event)
+{
+  return PR_TRUE;
 }
 
 // The OS manages repaints well enough on its own, so we don't have to
@@ -1946,6 +1800,10 @@ NS_IMETHODIMP nsChildView::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStat
   if (mEventCallback)
     aStatus = (*mEventCallback)(event);
 
+  // dispatch to event listener if event was not consumed
+  if (mEventListener && aStatus != nsEventStatus_eConsumeNoDefault)
+    aStatus = mEventListener->ProcessEvent(*event);
+
   return NS_OK;
 }
 
@@ -2001,7 +1859,7 @@ nsIntPoint nsChildView::WidgetToScreenOffset()
   temp = [mView convertPoint:temp toView:nil];  
   
   // 2. We turn the window-coord rect's origin into screen (still bottom-left) coords.
-  temp = [[mView window] convertBaseToScreen:temp];
+  temp = [[mView nativeWindow] convertBaseToScreen:temp];
   
   // 3. Since we're dealing in bottom-left coords, we need to make it top-left coords
   //    before we pass it back to Gecko.
@@ -2310,13 +2168,11 @@ NSEvent* gLastDragEvent = nil;
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
   if ((self = [super initWithFrame:inFrame])) {
+    mWindow = nil;
     mGeckoChild = inChild;
     mIsPluginView = NO;
-#ifndef NP_NO_CARBON
-    mPluginEventModel = NPEventModelCarbon;
-#else
-    mPluginEventModel = NPEventModelCocoa;
-#endif
+    mSendCarbonPluginEvents = YES;
+
     mCurKeyEvent = nil;
     mKeyDownHandled = PR_FALSE;
     mKeyPressHandled = NO;
@@ -2334,8 +2190,6 @@ NSEvent* gLastDragEvent = nil;
     mGestureState = eGestureState_None;
     mCumulativeMagnification = 0.0;
     mCumulativeRotation = 0.0;
-
-    [self setFocusRingType:NSFocusRingTypeNone];
   }
   
   // register for things we'll take from other applications
@@ -2386,11 +2240,9 @@ NSEvent* gLastDragEvent = nil;
 
   [super dealloc];    
 
-#ifndef NP_NO_QUICKDRAW
   // This sets the current port to _savePort.
   // todo: Only do if a Quickdraw plugin is present in the hierarchy!
   ::SetPort(NULL);
-#endif
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -2399,6 +2251,7 @@ NSEvent* gLastDragEvent = nil;
 {
   nsTSMManager::OnDestroyView(self);
   mGeckoChild = nsnull;
+  mWindow = nil;
 
   // Just in case we're destroyed abruptly and missed the draggingExited
   // or performDragOperation message.
@@ -2409,6 +2262,30 @@ NSEvent* gLastDragEvent = nil;
 - (nsIWidget*) widget
 {
   return static_cast<nsIWidget*>(mGeckoChild);
+}
+
+// mozView method, get the window that this view is associated with
+- (NSWindow*)nativeWindow
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
+  NSWindow* currWin = [self window];
+  if (currWin)
+     return currWin;
+  else
+     return mWindow;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
+}
+
+// mozView method, set the NSWindow that this view is associated with (even when
+// not in the view hierarchy).
+- (void)setNativeWindow:(NSWindow*)aWindow
+{
+  mWindow = aWindow;
+  if (aWindow && [self isPluginView] && mGeckoChild) {
+    mGeckoChild->UpdatePluginPort();
+  }
 }
 
 - (void)systemMetricsChanged
@@ -2500,14 +2377,30 @@ NSEvent* gLastDragEvent = nil;
   return mIsPluginView;
 }
 
-- (void)setPluginEventModel:(NPEventModel)eventModel
+- (void)setSendCarbonPluginEvents:(BOOL)sendCarbonEvents
 {
-  mPluginEventModel = eventModel;
+  mSendCarbonPluginEvents = sendCarbonEvents;
 }
 
-- (NPEventModel)pluginEventModel;
+- (BOOL)shouldSendCarbonPluginEvents
 {
-  return mPluginEventModel;
+  return mSendCarbonPluginEvents;
+}
+
+- (BOOL)childViewHasPlugin
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
+
+  NSArray* subviews = [self subviews];
+  for (unsigned int i = 0; i < [subviews count]; i ++) {
+    id subview = [subviews objectAtIndex:i];
+    if ([subview respondsToSelector:@selector(isPluginView)] && [subview isPluginView])
+      return YES;
+  }
+  
+  return NO;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
 }
 
 - (void)sendFocusEvent:(PRUint32)eventType
@@ -2540,13 +2433,43 @@ NSEvent* gLastDragEvent = nil;
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-- (void)viewDidMoveToWindow
+- (void)viewWillStartLiveResize
 {
-  if ([self window] && [self isPluginView] && mGeckoChild) {
-    mGeckoChild->UpdatePluginPort();
-  }
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  [super viewDidMoveToWindow];
+  if (mGeckoChild && mIsPluginView)
+    mGeckoChild->LiveResizeStarted();
+  
+  [super viewWillStartLiveResize];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
+}
+
+- (void)viewDidEndLiveResize
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  if (mGeckoChild && mIsPluginView)
+    mGeckoChild->LiveResizeEnded();
+
+  [super viewDidEndLiveResize];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
+}
+
+// Needed to deal with the consequences of calling [NSCell
+// drawWithFrame:inView:] with a ChildView object as the inView parameter
+// (this can happen in nsNativeThemeCocoa.mm):  drawWithFrame:inView:
+// expects an NSControl as its inView parameter, and may call [NSControl
+// currentEditor] on it.  But since a ChildView object (like an NSView object)
+// isn't a control, it doesn't have a "current editor", or a currentEditor
+// method.  So calling currentEditor on it will trigger a Objective-C
+// "unrecognized selector" exception.  To prevent this, ChildView needs its
+// own currentEditor method.  Since a ChildView object never has a "current
+// editor", it should always return nil.
+- (NSText*)currentEditor
+{
+  return nil;
 }
 
 - (void)scrollRect:(NSRect)aRect by:(NSSize)offset
@@ -2577,13 +2500,10 @@ NSEvent* gLastDragEvent = nil;
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-#ifndef NP_NO_QUICKDRAW
   // Set the current GrafPort to a "safe" port before calling [NSQuickDrawView lockFocus],
   // so that the NSQuickDrawView stashes a pointer to this known-good port internally.
   // It will set the port back to this port on destruction.
   ::SetPort(NULL);  // todo: only do if a Quickdraw plugin is present in the hierarchy!
-#endif
-
   [super lockFocus];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
@@ -2593,15 +2513,14 @@ NSEvent* gLastDragEvent = nil;
 static const PRInt32 sShadowInvalidationInterval = 100;
 - (void)maybeInvalidateShadow
 {
-  NSWindow* window = [self window];
-  if (!window || [window isOpaque] || ![window hasShadow])
+  if (!mWindow || [mWindow isOpaque] || ![mWindow hasShadow])
     return;
 
   PRIntervalTime now = PR_IntervalNow();
   PRInt32 elapsed = PR_IntervalToMilliseconds(now - mLastShadowInvalidation);
   if (!mLastShadowInvalidation ||
       elapsed >= sShadowInvalidationInterval) {
-    [window invalidateShadow];
+    [mWindow invalidateShadow];
     mLastShadowInvalidation = now;
     mNeedsShadowInvalidation = NO;
   } else if (!mNeedsShadowInvalidation) {
@@ -2614,9 +2533,9 @@ static const PRInt32 sShadowInvalidationInterval = 100;
 
 - (void)invalidateShadow
 {
-  if (![self window] || !mNeedsShadowInvalidation)
+  if (!mWindow || !mNeedsShadowInvalidation)
     return;
-  [[self window] invalidateShadow];
+  [mWindow invalidateShadow];
   mNeedsShadowInvalidation = NO;
 }
 
@@ -2667,7 +2586,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
   NSRectToGeckoRect(aRect, fullRect);
 
   const NSRect *rects;
-  NSInteger count, i;
+  int count, i;
   [self getRectsBeingDrawn:&rects count:&count];
   if (count < MAX_RECTS_IN_REGION) {
     for (i = 0; i < count; ++i) {
@@ -2797,11 +2716,11 @@ static const PRInt32 sShadowInvalidationInterval = 100;
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
-  // Don't bother if we've been destroyed:  [self window] will now be nil, which
+  // Don't bother if we've been destroyed:  mWindow will now be nil, which
   // makes all our work here pointless, and can even cause us to resend the
-  // event to ourselves in an infinte loop (since targetWindow == [self window] no
+  // event to ourselves in an infinte loop (since targetWindow == mWindow no
   // longer tests whether targetWindow is us).
-  if (!mGeckoChild || ![self window])
+  if (!mGeckoChild || !mWindow)
     return YES;
 
   // Find the window that the event is over.
@@ -2829,7 +2748,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
   // we don't return YES here.
   if (gRollupWidget) {
     NSWindow* rollupWindow = (NSWindow*)gRollupWidget->GetNativeData(NS_NATIVE_WINDOW);
-    if ([self window] == rollupWindow && [anEvent type] != NSMouseMoved)
+    if (mWindow == rollupWindow && [anEvent type] != NSMouseMoved)
       return YES;
 
     // If the event was not over any window, send it to the rollup window.
@@ -2839,7 +2758,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
 
   // If there's no window that's more appropriate than our window then just return
   // yes so we handle it. No need to redirect.
-  if (!targetWindow || targetWindow == [self window])
+  if (!targetWindow || targetWindow == mWindow)
     return YES;
 
   // Send the event to its new destination.
@@ -3204,9 +3123,9 @@ static const PRInt32 sShadowInvalidationInterval = 100;
   // Create event for use by plugins.
   // This is going to our child view so we don't need to look up the destination
   // event type.
-#ifndef NP_NO_CARBON
   EventRecord carbonEvent;
-  if (mPluginEventModel == NPEventModelCarbon) {
+  NPCocoaEvent cocoaEvent;
+  if (mSendCarbonPluginEvents) {
     carbonEvent.what = mouseDown;
     carbonEvent.message = 0;
     carbonEvent.when = ::TickCount();
@@ -3214,9 +3133,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
     carbonEvent.modifiers = ::GetCurrentEventKeyModifiers();
     geckoEvent.nativeMsg = &carbonEvent;
   }
-#endif
-  NPCocoaEvent cocoaEvent;
-  if (mPluginEventModel == NPEventModelCocoa) {
+  else {
     InitNPCocoaEvent(&cocoaEvent);
     NSPoint point = [self convertPoint:[theEvent locationInWindow] fromView:nil];
     cocoaEvent.type = NPCocoaEventMouseDown;
@@ -3258,9 +3175,9 @@ static const PRInt32 sShadowInvalidationInterval = 100;
   // Create event for use by plugins.
   // This is going to our child view so we don't need to look up the destination
   // event type.
-#ifndef NP_NO_CARBON
   EventRecord carbonEvent;
-  if (mPluginEventModel == NPEventModelCarbon) {
+  NPCocoaEvent cocoaEvent;
+  if (mSendCarbonPluginEvents) {
     carbonEvent.what = mouseUp;
     carbonEvent.message = 0;
     carbonEvent.when = ::TickCount();
@@ -3268,9 +3185,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
     carbonEvent.modifiers = ::GetCurrentEventKeyModifiers();
     geckoEvent.nativeMsg = &carbonEvent;
   }
-#endif
-  NPCocoaEvent cocoaEvent;
-  if (mPluginEventModel == NPEventModelCocoa) {
+  else {
     InitNPCocoaEvent(&cocoaEvent);
     NSPoint point = [self convertPoint:[theEvent locationInWindow] fromView:nil];
     cocoaEvent.type = NPCocoaEventMouseUp;
@@ -3320,8 +3235,8 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
   int eventModel;
   pluginWidget->GetPluginEventModel(&eventModel);
 
-#ifndef NP_NO_CARBON
   EventRecord carbonEvent;
+  NPCocoaEvent cocoaEvent;
   if (static_cast<NPEventModel>(eventModel) == NPEventModelCarbon) {
     carbonEvent.what = NPEventType_AdjustCursorEvent;
     carbonEvent.message = 0;
@@ -3330,9 +3245,7 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
     carbonEvent.modifiers = ::GetCurrentEventKeyModifiers();
     event.nativeMsg = &carbonEvent;
   }
-#endif
-  NPCocoaEvent cocoaEvent;
-  if (static_cast<NPEventModel>(eventModel) == NPEventModelCocoa) {
+  else {
     InitNPCocoaEvent(&cocoaEvent);
     cocoaEvent.type = ((msg == NS_MOUSE_ENTER) ? NPCocoaEventMouseEntered : NPCocoaEventMouseExited);
     cocoaEvent.data.mouse.modifierFlags = modifierFlags;
@@ -3350,10 +3263,11 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
   nsEventStatus status;
   widget->DispatchEvent(&event, status);
 
-  // After the cursor exits the window set it to a visible regular arrow cursor.
+  // After the cursor exits a view set it to a visible regular arrow cursor.
   // This lets us recover from plugins that mess with it.
-  if (msg == NS_MOUSE_EXIT && type == nsMouseEvent::eTopLevel) {
-    [[nsCursorManager sharedInstance] setCursor:eCursor_standard];
+  if (msg == NS_MOUSE_EXIT) {
+    [NSCursor unhide];
+    [[NSCursor arrowCursor] set];
   }
 
   return status;
@@ -3365,7 +3279,7 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  if (![self window])
+  if (!mWindow)
     return;
 
   // Work around an Apple bug that causes the OS to continue sending
@@ -3378,7 +3292,7 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
   if ([[self window] isMiniaturized])
     return;
 
-  NSPoint windowEventLocation = nsCocoaUtils::EventLocationForWindow(theEvent, [self window]);
+  NSPoint windowEventLocation = nsCocoaUtils::EventLocationForWindow(theEvent, mWindow);
   NSPoint viewEventLocation = [self convertPoint:windowEventLocation fromView:nil];
 
   // Installing a mouseMoved handler on the EventMonitor target (in
@@ -3409,7 +3323,7 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
   if (![self ensureCorrectMouseEventTarget:theEvent])
     return;
 
-  NSView* view = [[[self window] contentView] hitTest:windowEventLocation];
+  NSView* view = [[mWindow contentView] hitTest:windowEventLocation];
   if (view) {
     // we shouldn't handle this if the hit view is not us
     if (view != (NSView*)self) {
@@ -3474,9 +3388,9 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
   // Create event for use by plugins.
   // This is going to our child view so we don't need to look up the destination
   // event type.
-#ifndef NP_NO_CARBON
   EventRecord carbonEvent;
-  if (mPluginEventModel == NPEventModelCarbon) {
+  NPCocoaEvent cocoaEvent;
+  if (mSendCarbonPluginEvents) {
     carbonEvent.what = NPEventType_AdjustCursorEvent;
     carbonEvent.message = 0;
     carbonEvent.when = ::TickCount();
@@ -3484,9 +3398,7 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
     carbonEvent.modifiers = ::GetCurrentEventKeyModifiers();
     geckoEvent.nativeMsg = &carbonEvent;
   }
-#endif
-  NPCocoaEvent cocoaEvent;
-  if (mPluginEventModel == NPEventModelCocoa) {
+  else {
     InitNPCocoaEvent(&cocoaEvent);
     NSPoint point = [self convertPoint:[theEvent locationInWindow] fromView:nil];
     cocoaEvent.type = NPCocoaEventMouseMoved;
@@ -3523,9 +3435,9 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
   [self convertCocoaMouseEvent:theEvent toGeckoEvent:&geckoEvent];
 
   // create event for use by plugins
-#ifndef NP_NO_CARBON
   EventRecord carbonEvent;
-  if (mPluginEventModel == NPEventModelCarbon) {
+  NPCocoaEvent cocoaEvent;
+  if (mSendCarbonPluginEvents) {
     carbonEvent.what = nullEvent;
     carbonEvent.message = 0;
     carbonEvent.when = ::TickCount();
@@ -3533,9 +3445,7 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
     carbonEvent.modifiers = btnState | ::GetCurrentEventKeyModifiers();
     geckoEvent.nativeMsg = &carbonEvent;
   }
-#endif
-  NPCocoaEvent cocoaEvent;
-  if (mPluginEventModel == NPEventModelCocoa) {
+  else {
     InitNPCocoaEvent(&cocoaEvent);
     NSPoint point = [self convertPoint:[theEvent locationInWindow] fromView:nil];
     cocoaEvent.type = NPCocoaEventMouseDragged;
@@ -3582,9 +3492,9 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
   geckoEvent.clickCount = [theEvent clickCount];
 
   // create event for use by plugins
-#ifndef NP_NO_CARBON
   EventRecord carbonEvent;
-  if (mPluginEventModel == NPEventModelCarbon) {
+  NPCocoaEvent cocoaEvent;
+  if (mSendCarbonPluginEvents) {
     carbonEvent.what = mouseDown;
     carbonEvent.message = 0;
     carbonEvent.when = ::TickCount();
@@ -3592,9 +3502,7 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
     carbonEvent.modifiers = controlKey;  // fake a context menu click
     geckoEvent.nativeMsg = &carbonEvent;    
   }
-#endif
-  NPCocoaEvent cocoaEvent;
-  if (mPluginEventModel == NPEventModelCocoa) {
+  else {
     InitNPCocoaEvent(&cocoaEvent);
     NSPoint point = [self convertPoint:[theEvent locationInWindow] fromView:nil];
     cocoaEvent.type = NPCocoaEventMouseDown;
@@ -3635,9 +3543,9 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
   geckoEvent.clickCount = [theEvent clickCount];
 
   // create event for use by plugins
-#ifndef NP_NO_CARBON
   EventRecord carbonEvent;
-  if (mPluginEventModel == NPEventModelCarbon) {
+  NPCocoaEvent cocoaEvent;
+  if (mSendCarbonPluginEvents) {
     carbonEvent.what = mouseUp;
     carbonEvent.message = 0;
     carbonEvent.when = ::TickCount();
@@ -3645,9 +3553,7 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
     carbonEvent.modifiers = controlKey;  // fake a context menu click
     geckoEvent.nativeMsg = &carbonEvent;
   }
-#endif
-  NPCocoaEvent cocoaEvent;
-  if (mPluginEventModel == NPEventModelCocoa) {
+  else {
     InitNPCocoaEvent(&cocoaEvent);
     NSPoint point = [self convertPoint:[theEvent locationInWindow] fromView:nil];
     cocoaEvent.type = NPCocoaEventMouseUp;
@@ -3736,8 +3642,6 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
   mGeckoChild->DispatchWindowEvent(geckoEvent);
 }
 
-//XXXTODO handle scroll wheel events in 64-bit builds
-#ifndef __LP64__
 // Handle an NSScrollWheel event for a single axis only.
 -(void)scrollWheel:(NSEvent*)theEvent forAxis:(enum nsMouseScrollEvent::nsMouseScrollFlags)inAxis
 {
@@ -3887,7 +3791,6 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
-#endif
 
 -(NSMenu*)menuForEvent:(NSEvent*)theEvent
 {
@@ -4303,7 +4206,7 @@ static PRBool IsNormalCharInputtingEvent(const nsKeyEvent& aEvent)
   [self convertGenericCocoaEvent:aMouseEvent toGeckoEvent:outGeckoEvent];
 
   // convert point to view coordinate system
-  NSPoint locationInWindow = nsCocoaUtils::EventLocationForWindow(aMouseEvent, [self window]);
+  NSPoint locationInWindow = nsCocoaUtils::EventLocationForWindow(aMouseEvent, mWindow);
   NSPoint localPoint = [self convertPoint:locationInWindow fromView:nil];
   outGeckoEvent->refPoint.x = static_cast<nscoord>(localPoint.x);
   outGeckoEvent->refPoint.y = static_cast<nscoord>(localPoint.y);
@@ -4311,13 +4214,10 @@ static PRBool IsNormalCharInputtingEvent(const nsKeyEvent& aEvent)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-// #define DEBUG_KB 1
-
-#ifndef LEOPARD_AND_LATER
-
 #define CHARCODE_MASK_1 0x00FF0000
 #define CHARCODE_MASK_2 0x000000FF
 #define CHARCODE_MASK   0x00FF00FF
+//#define DEBUG_KB 1
 
 static PRUint32
 KeyTranslateToUnicode(Handle aHandle, UInt32 aKeyCode, UInt32 aModifiers,
@@ -4364,8 +4264,6 @@ KeyTranslateToUnicode(Handle aHandle, UInt32 aKeyCode, UInt32 aModifiers,
   return ch;
 }
 
-#endif // LEOPARD_AND_LATER
-
 static PRUint32
 UCKeyTranslateToUnicode(const UCKeyboardLayout* aHandle, UInt32 aKeyCode, UInt32 aModifiers,
                         UInt32 aKbType)
@@ -4401,30 +4299,24 @@ struct KeyTranslateData {
   KeyTranslateData() {
     mUchr.mLayout = nsnull;
     mUchr.mKbType = 0;
-#ifndef LEOPARD_AND_LATER
     mKchr.mHandle = nsnull;
     mKchr.mEncoding = nsnull;
-#endif
   }
 
-#ifndef LEOPARD_AND_LATER
   // The script of the layout determines the encoding of characters obtained
   // from kchr resources.
   SInt16 mScript;
   // The keyboard layout identifier
   SInt32 mLayoutID;
-#endif // LEOPARD_AND_LATER
 
   struct {
     const UCKeyboardLayout* mLayout;
     UInt32 mKbType;
   } mUchr;
-#ifndef LEOPARD_AND_LATER
   struct {
     Handle mHandle;
     TextEncoding mEncoding;
   } mKchr;
-#endif // LEOPARD_AND_LATER
 };
 
 static PRUint32
@@ -4435,16 +4327,12 @@ GetUniCharFromKeyTranslate(KeyTranslateData& aData,
     return UCKeyTranslateToUnicode(aData.mUchr.mLayout, aKeyCode, aModifiers,
                                    aData.mUchr.mKbType);
   }
-#ifndef LEOPARD_AND_LATER
   if (aData.mKchr.mHandle) {
     return KeyTranslateToUnicode(aData.mKchr.mHandle, aKeyCode, aModifiers,
                                  aData.mKchr.mEncoding);
   }
-#endif
   return 0;
 }
-
-#ifndef LEOPARD_AND_LATER
 
 static SInt32
 GetScriptFromKeyboardLayout(SInt32 aLayoutID)
@@ -4523,22 +4411,9 @@ GetKCHRData(KeyTranslateData &aKT)
     aKT.mKchr.mHandle = nsnull;
 }
 
-#endif // LEOPARD_AND_LATER
-
 static PRUint32
 GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
 {
-#ifdef LEOPARD_AND_LATER
-  static const UCKeyboardLayout* sUSLayout = nsnull;
-  if (!sUSLayout) {
-    nsTISInputSource tis("com.apple.keylayout.US");
-    sUSLayout = tis.GetUCKeyboardLayout();
-    NS_ENSURE_TRUE(sUSLayout, 0);
-  }
-
-  UInt32 kbType = 40; // ANSI, don't use actual layout
-  return UCKeyTranslateToUnicode(sUSLayout, aKeyCode, aModifiers, kbType);
-#else
   KeyboardLayoutRef kbRef = nsnull;
   OSStatus err = ::KLGetKeyboardLayoutWithIdentifier(kKLUSKeyboard, &kbRef);
   NS_ENSURE_TRUE(err == noErr && kbRef, 0);
@@ -4549,7 +4424,6 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
   UInt32 kbType = 40; // ANSI, don't use actual layout
   return UCKeyTranslateToUnicode(layout, aKeyCode,
                                  aModifiers, kbType);
-#endif // LEOPARD_AND_LATER
 }
 
 - (void) convertCocoaKeyEvent:(NSEvent*)aKeyEvent toGeckoEvent:(nsKeyEvent*)outGeckoEvent
@@ -4592,17 +4466,6 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
         outGeckoEvent->isAlt) {
       KeyTranslateData kt;
 
-      PRBool isRomanKeyboardLayout;
-#ifdef LEOPARD_AND_LATER
-      nsTISInputSource tis;
-      if (gOverrideKeyboardLayout.mOverrideEnabled) {
-        tis.InitByLayoutID(gOverrideKeyboardLayout.mKeyboardLayout);
-      } else {
-        tis.InitByCurrentKeyboardLayout();
-      }
-      kt.mUchr.mLayout = tis.GetUCKeyboardLayout();
-      isRomanKeyboardLayout = tis.IsASCIICapable();
-#else // LEOPARD_AND_LATER
       if (gOverrideKeyboardLayout.mOverrideEnabled) {
         kt.mLayoutID = gOverrideKeyboardLayout.mKeyboardLayout;
         kt.mScript = GetScriptFromKeyboardLayout(kt.mLayoutID);
@@ -4617,7 +4480,6 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
         kt.mScript = ::GetScriptManagerVariable(smKeyScript);
         kt.mLayoutID = ::GetScriptVariable(kt.mScript, smScriptKeys);
       }
-      isRomanKeyboardLayout = (kt.mScript == smRoman);
 
       PRBool isUchrKeyboardLayout = PR_FALSE;
       // GetResource('uchr', kt.mLayoutID) fails on OS X 10.5
@@ -4679,7 +4541,6 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
       if (!isUchrKeyboardLayout) {
         GetKCHRData(kt);
       }
-#endif // LEOPARD_AND_LATER
 
       // If a keyboard layout override is set, we also need to force the
       // keyboard type to something ANSI to avoid test failures on machines
@@ -4724,7 +4585,7 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
       PRBool isCmdSwitchLayout = uncmdedChar != cmdedChar;
       // Is the keyboard layout for Latin, but Cmd key switches the layout?
       // I.e., Dvorak-QWERTY
-      PRBool isDvorakQWERTY = isCmdSwitchLayout && isRomanKeyboardLayout;
+      PRBool isDvorakQWERTY = isCmdSwitchLayout && kt.mScript == smRoman;
 
       // If the current keyboard is not Dvorak-QWERTY or Cmd is not pressed,
       // we should append unshiftedChar and shiftedChar for handling the
@@ -5006,21 +4867,17 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
     // the input string.
         
     // create event for use by plugins
-#ifndef NP_NO_CARBON
     EventRecord carbonEvent;
-#endif
     if (mCurKeyEvent) {
       // XXX The ASCII characters inputting mode of egbridge (Japanese IME)
       // might send the keyDown event with wrong keyboard layout if other
       // keyboard layouts are already loaded. In that case, the native event
       // doesn't match to this gecko event...
-#ifndef NP_NO_CARBON
-      if (mPluginEventModel == NPEventModelCarbon) {
+      if (mSendCarbonPluginEvents) {
         ConvertCocoaKeyEventToCarbonEvent(mCurKeyEvent, carbonEvent);
         geckoEvent.nativeMsg = &carbonEvent;
-      } else
-#endif
-      {
+      }
+      else {
         geckoEvent.nativeMsg = NULL;
       }
       geckoEvent.isShift   = (nsCocoaUtils::GetCocoaEventModifierFlags(mCurKeyEvent) & NSShiftKeyMask) != 0;
@@ -5182,7 +5039,7 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
   return (mMarkedRange.location != NSNotFound) && (mMarkedRange.length != 0);
 }
 
-- (NSInteger) conversationIdentifier
+- (long) conversationIdentifier
 {
 #if DEBUG_IME
   NSLog(@"****in conversationIdentifier");
@@ -5330,7 +5187,7 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSMakeRect(0.0, 0.0, 0.0, 0.0));
 }
 
-- (NSUInteger)characterIndexForPoint:(NSPoint)thePoint
+- (unsigned int)characterIndexForPoint:(NSPoint)thePoint
 {
 #if DEBUG_IME
   NSLog(@"****in characterIndexForPoint");
@@ -5423,15 +5280,13 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
       [self convertCocoaKeyEvent:theEvent toGeckoEvent:&geckoEvent];
 
       // create event for use by plugins
-#ifndef NP_NO_CARBON
       EventRecord carbonEvent;
-      if (mPluginEventModel == NPEventModelCarbon) {
+      NPCocoaEvent cocoaEvent;
+      if (mSendCarbonPluginEvents) {
         ConvertCocoaKeyEventToCarbonEvent(theEvent, carbonEvent);
         geckoEvent.nativeMsg = &carbonEvent;
       }
-#endif
-      NPCocoaEvent cocoaEvent;
-      if (mPluginEventModel == NPEventModelCocoa) {
+      else {
         ConvertCocoaKeyEventToNPCocoaEvent(theEvent, cocoaEvent);
         geckoEvent.nativeMsg = &cocoaEvent;
       }
@@ -5478,14 +5333,12 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
         geckoEvent.flags |= NS_EVENT_FLAG_NO_DEFAULT;
 
       // create event for use by plugins
-#ifndef NP_NO_CARBON
       EventRecord carbonEvent;
-      if (mPluginEventModel == NPEventModelCarbon) {
+      if (mSendCarbonPluginEvents) {
         ConvertCocoaKeyEventToCarbonEvent(theEvent, carbonEvent);
         geckoEvent.nativeMsg = &carbonEvent;
-      } else
-#endif
-      {
+      }
+      else {
         geckoEvent.nativeMsg = NULL;
       }
 
@@ -5522,14 +5375,12 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
         geckoEvent.flags |= NS_EVENT_FLAG_NO_DEFAULT;
 
       // create event for use by plugins
-#ifndef NP_NO_CARBON
       EventRecord carbonEvent;
-      if (mPluginEventModel == NPEventModelCarbon) {
+      if (mSendCarbonPluginEvents) {
         ConvertCocoaKeyEventToCarbonEvent(theEvent, carbonEvent);
         geckoEvent.nativeMsg = &carbonEvent;
-      } else
-#endif
-      {
+      }
+      else {
         geckoEvent.nativeMsg = NULL;
       }
 
@@ -5609,14 +5460,12 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-#ifndef NP_NO_CARBON
   // If a plugin has the focus, we need to use an alternate method for
   // handling NSKeyDown and NSKeyUp events (otherwise Carbon-based IME won't
   // work in plugins like the Flash plugin).  The same strategy is used by the
   // WebKit.  See PluginKeyEventsHandler() and [ChildView processPluginKeyEvent:]
   // for more info.
-  if (mGeckoChild && mIsPluginView &&
-      (mPluginEventModel == NPEventModelCarbon)) {
+  if (mGeckoChild && mIsPluginView && mSendCarbonPluginEvents) {
     [self activatePluginTSMDoc];
     // We use the active TSM document to pass a pointer to ourselves (the
     // currently focused ChildView) to PluginKeyEventsHandler().  Because this
@@ -5629,7 +5478,6 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
     ::TSMRemoveDocumentProperty(mPluginTSMDoc, kFocusedChildViewTSMDocPropertyTag);
     return;
   }
-#endif
 
   [self processKeyDownEvent:theEvent keyEquiv:NO];
 
@@ -5659,46 +5507,44 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
   if (mIsPluginView) {
-    if (mPluginEventModel == NPEventModelCocoa) {
+    if (!mSendCarbonPluginEvents) {
       nsKeyEvent keyUpEvent(PR_TRUE, NS_KEY_UP, nsnull);
       [self convertCocoaKeyEvent:theEvent toGeckoEvent:&keyUpEvent];
       NPCocoaEvent pluginEvent;
       ConvertCocoaKeyEventToNPCocoaEvent(theEvent, pluginEvent);
       keyUpEvent.nativeMsg = &pluginEvent;
       mGeckoChild->DispatchWindowEvent(keyUpEvent);
+      return;
     }
-#ifndef NP_NO_CARBON
-    if (mPluginEventModel == NPEventModelCarbon) {
-      // I'm not sure the call to TSMProcessRawKeyEvent() is needed here (though
-      // WebKit makes one).
-      ::TSMProcessRawKeyEvent([theEvent _eventRef]);
-      
-      // Don't send a keyUp event if the corresponding keyDown event(s) is/are
-      // still being processed (idea borrowed from WebKit).
-      ChildView *keyDownTarget = nil;
-      OSStatus status = ::TSMGetDocumentProperty(mPluginTSMDoc, kFocusedChildViewTSMDocPropertyTag,
-                                                 sizeof(ChildView *), nil, &keyDownTarget);
-      if (status != noErr)
-        keyDownTarget = nil;
-      if (keyDownTarget == self)
-        return;
-      
-      // PluginKeyEventsHandler() never sends keyUp events to [ChildView
-      // processPluginKeyEvent:], so we need to send them to Gecko here.  (This
-      // means that when commiting text from IME, several keyDown events may be
-      // sent to Gecko (in processPluginKeyEvent) for one keyUp event here.
-      // But this is how the WebKit does it, and games expect a keyUp event to
-      // be sent when it actually happens (they need to be able to detect how
-      // long a key has been held down) -- which wouldn't be possible if we sent
-      // them from processPluginKeyEvent.)
-      nsKeyEvent keyUpEvent(PR_TRUE, NS_KEY_UP, nsnull);
-      [self convertCocoaKeyEvent:theEvent toGeckoEvent:&keyUpEvent];
-      EventRecord macKeyUpEvent;
-      ConvertCocoaKeyEventToCarbonEvent(theEvent, macKeyUpEvent);
-      keyUpEvent.nativeMsg = &macKeyUpEvent;
-      mGeckoChild->DispatchWindowEvent(keyUpEvent);      
-    }
-#endif
+
+    // I'm not sure the call to TSMProcessRawKeyEvent() is needed here (though
+    // WebKit makes one).
+    ::TSMProcessRawKeyEvent([theEvent _eventRef]);
+
+    // Don't send a keyUp event if the corresponding keyDown event(s) is/are
+    // still being processed (idea borrowed from WebKit).
+    ChildView *keyDownTarget = nil;
+    OSStatus status = ::TSMGetDocumentProperty(mPluginTSMDoc, kFocusedChildViewTSMDocPropertyTag,
+                                               sizeof(ChildView *), nil, &keyDownTarget);
+    if (status != noErr)
+      keyDownTarget = nil;
+    if (keyDownTarget == self)
+      return;
+
+    // PluginKeyEventsHandler() never sends keyUp events to [ChildView
+    // processPluginKeyEvent:], so we need to send them to Gecko here.  (This
+    // means that when commiting text from IME, several keyDown events may be
+    // sent to Gecko (in processPluginKeyEvent) for one keyUp event here.
+    // But this is how the WebKit does it, and games expect a keyUp event to
+    // be sent when it actually happens (they need to be able to detect how
+    // long a key has been held down) -- which wouldn't be possible if we sent
+    // them from processPluginKeyEvent.)
+    nsKeyEvent keyUpEvent(PR_TRUE, NS_KEY_UP, nsnull);
+    [self convertCocoaKeyEvent:theEvent toGeckoEvent:&keyUpEvent];
+    EventRecord macKeyUpEvent;
+    ConvertCocoaKeyEventToCarbonEvent(theEvent, macKeyUpEvent);
+    keyUpEvent.nativeMsg = &macKeyUpEvent;
+    mGeckoChild->DispatchWindowEvent(keyUpEvent);
     return;
   }
 
@@ -5935,15 +5781,13 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   [self convertCocoaKeyEvent:theEvent toGeckoEvent:&geckoEvent];
 
   // create event for use by plugins
-#ifndef NP_NO_CARBON
   EventRecord carbonEvent;
-  if (mPluginEventModel == NPEventModelCarbon) {
+  NPCocoaEvent cocoaEvent;
+  if (mSendCarbonPluginEvents) {
     ConvertCocoaKeyEventToCarbonEvent(theEvent, carbonEvent, message);
     geckoEvent.nativeMsg = &carbonEvent;
   }
-#endif
-  NPCocoaEvent cocoaEvent;
-  if (mPluginEventModel == NPEventModelCocoa) {
+  else {
     ConvertCocoaKeyEventToNPCocoaEvent(theEvent, cocoaEvent, message);
     geckoEvent.nativeMsg = &cocoaEvent;
   }
@@ -6216,7 +6060,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 
 // NSDraggingSource
 // this is just implemented so we comply with the NSDraggingSource informal protocol
-- (NSDragOperation)draggingSourceOperationMaskForLocal:(BOOL)isLocal
+- (unsigned int)draggingSourceOperationMaskForLocal:(BOOL)isLocal
 {
   return UINT_MAX;
 }
@@ -6225,7 +6069,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 // or a Findow folder window; the argument passed is a path to the drop location, to be used
 // in constructing a complete pathname for the file(s) we want to create as a result of
 // the drag.
-- (NSArray *)namesOfPromisedFilesDroppedAtDestination:(NSURL*)dropDestination
+- (NSArray *)namesOfPromisedFilesDroppedAtDestination:(id <NSDraggingInfo>)dropDestination
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
@@ -6555,11 +6399,6 @@ static const NSString* GetCurrentIMELanguage()
     }
   }
 
-#ifdef LEOPARD_AND_LATER
-  nsTISInputSource tis;
-  tis.InitByCurrentKeyboardLayout();
-  CFArrayRef langs = tis.GetLanguageList();
-#else
   NS_PRECONDITION(Leopard_TISCopyCurrentKeyboardInputSource,
     "Leopard_TISCopyCurrentKeyboardInputSource is not initialized");
   TISInputSourceRef inputSource = Leopard_TISCopyCurrentKeyboardInputSource();
@@ -6573,7 +6412,6 @@ static const NSString* GetCurrentIMELanguage()
   CFArrayRef langs = static_cast<CFArrayRef>(
     Leopard_TISGetInputSourceProperty(inputSource,
                                       kOurTISPropertyInputSourceLanguages));
-#endif // LEOPARD_AND_LATER
   return static_cast<const NSString*>(CFArrayGetValueAtIndex(langs, 0));
 }
 

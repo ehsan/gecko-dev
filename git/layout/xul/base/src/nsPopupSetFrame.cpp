@@ -67,8 +67,6 @@ NS_NewPopupSetFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsPopupSetFrame (aPresShell, aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsPopupSetFrame)
-
 NS_IMETHODIMP
 nsPopupSetFrame::Init(nsIContent*      aContent,
                       nsIFrame*        aParent,

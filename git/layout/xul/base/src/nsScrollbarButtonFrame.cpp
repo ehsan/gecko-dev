@@ -64,9 +64,7 @@ nsIFrame*
 NS_NewScrollbarButtonFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsScrollbarButtonFrame(aPresShell, aContext);
-}
-
-NS_IMPL_FRAMEARENA_HELPERS(nsScrollbarButtonFrame)
+} // NS_NewScrollBarButtonFrame
 
 NS_IMETHODIMP
 nsScrollbarButtonFrame::HandleEvent(nsPresContext* aPresContext, 

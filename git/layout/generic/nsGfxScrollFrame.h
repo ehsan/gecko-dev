@@ -251,7 +251,6 @@ public:
   friend nsIFrame* NS_NewHTMLScrollFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoot);
 
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
   // Called to set the child frames. We typically have three: the scroll area,
   // the vertical scrollbar, and the horizontal scrollbar.
@@ -308,6 +307,10 @@ public:
 
   virtual nsIFrame* GetContentInsertionFrame() {
     return mInner.GetScrolledFrame()->GetContentInsertionFrame();
+  }
+
+  virtual nsIView* GetMouseCapturer() const {
+    return mInner.GetScrolledFrame()->GetView();
   }
 
   virtual void InvalidateInternal(const nsRect& aDamageRect,
@@ -433,7 +436,6 @@ class nsXULScrollFrame : public nsBoxFrame,
                          public nsIStatefulFrame {
 public:
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
   friend nsIFrame* NS_NewXULScrollFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoot);
 
@@ -472,6 +474,10 @@ public:
 
   virtual nsIFrame* GetContentInsertionFrame() {
     return mInner.GetScrolledFrame()->GetContentInsertionFrame();
+  }
+
+  virtual nsIView* GetMouseCapturer() const {
+    return mInner.GetScrolledFrame()->GetView();
   }
 
   virtual void InvalidateInternal(const nsRect& aDamageRect,

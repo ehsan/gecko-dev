@@ -56,8 +56,6 @@ NS_NewSelectsAreaFrame(nsIPresShell* aShell, nsStyleContext* aContext, PRUint32 
   return it;
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsSelectsAreaFrame)
-
 //---------------------------------------------------------
 PRBool 
 nsSelectsAreaFrame::IsOptionElement(nsIContent* aContent)

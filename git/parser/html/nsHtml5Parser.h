@@ -40,6 +40,7 @@
 #define NS_HTML5_PARSER__
 
 #include "nsAutoPtr.h"
+#include "nsTimer.h"
 #include "nsIParser.h"
 #include "nsDeque.h"
 #include "nsIURL.h"

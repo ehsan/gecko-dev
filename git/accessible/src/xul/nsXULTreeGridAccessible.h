@@ -123,8 +123,7 @@ protected:
   { 0xa9, 0x32, 0x4c, 0x5c, 0xa5, 0xde, 0x5d, 0xff }  \
 }
 
-class nsXULTreeGridCellAccessible : public nsLeafAccessible,
-                                    public nsIAccessibleTableCell
+class nsXULTreeGridCellAccessible : public nsLeafAccessible
 {
 public:
   nsXULTreeGridCellAccessible(nsIDOMNode *aDOMNode, nsIWeakReference *aShell,
@@ -152,9 +151,6 @@ public:
   NS_IMETHOD GetNumActions(PRUint8 *aCount);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 aIndex);
-
-  // nsIAccessibleTableCell
-  NS_DECL_NSIACCESSIBLETABLECELL
 
   // nsAccessNode
   virtual PRBool IsDefunct();

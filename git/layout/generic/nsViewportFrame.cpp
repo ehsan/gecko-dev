@@ -53,8 +53,6 @@ NS_NewViewportFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) ViewportFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(ViewportFrame)
-
 NS_IMETHODIMP
 ViewportFrame::Init(nsIContent*      aContent,
                     nsIFrame*        aParent,

@@ -82,6 +82,7 @@
 #include "nsITokenizer.h"
 #include "nsHTMLTags.h"
 #include "nsDTDUtils.h"
+#include "nsTimer.h"
 #include "nsThreadUtils.h"
 #include "nsIContentSink.h"
 #include "nsIParserFilter.h"
@@ -487,6 +488,12 @@ protected:
       kIdleThreadLimit = 0,
       kIdleThreadTimeout = 50
     };
+
+public:  
+   
+    MOZ_TIMER_DECLARE(mParseTime)
+    MOZ_TIMER_DECLARE(mDTDTime)
+    MOZ_TIMER_DECLARE(mTokenizeTime)
 };
 
 #endif 

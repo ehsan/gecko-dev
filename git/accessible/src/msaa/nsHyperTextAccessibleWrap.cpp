@@ -95,10 +95,8 @@ nsHyperTextAccessibleWrap::GetModifiedText(PRBool aGetInsertedText,
   if (aGetInsertedText != isInserted)
     return NS_OK;
 
-  nsCOMPtr<nsIAccessibleEvent> event(do_QueryInterface(gTextEvent));
-
   nsCOMPtr<nsIAccessible> targetAcc;
-  event->GetAccessible(getter_AddRefs(targetAcc));
+  gTextEvent->GetAccessible(getter_AddRefs(targetAcc));
   if (targetAcc != this)
     return NS_OK;
 

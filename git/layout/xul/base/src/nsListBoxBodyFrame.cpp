@@ -1542,5 +1542,3 @@ NS_NewListBoxBodyFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 
   return new (aPresShell) nsListBoxBodyFrame(aPresShell, aContext, layout);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsListBoxBodyFrame)

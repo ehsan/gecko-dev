@@ -52,8 +52,6 @@
  */
 class nsBulletFrame : public nsFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   nsBulletFrame(nsStyleContext* aContext) : nsFrame(aContext) {}
   virtual ~nsBulletFrame();
 

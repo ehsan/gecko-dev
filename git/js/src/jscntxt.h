@@ -100,16 +100,8 @@ namespace nanojit {
 #ifdef DEBUG
     class LabelMap;
 #endif
-    extern "C++" {
-        template<typename K> class DefaultHash;
-        template<typename K, typename V, typename H> class HashMap;
-        template<typename T> class Seq;
-    }
+    extern "C++" { template<typename K, typename V, typename H> class HashMap; }
 }
-#if defined(JS_JIT_SPEW) || defined(DEBUG)
-struct FragPI;
-typedef nanojit::HashMap<uint32, FragPI, nanojit::DefaultHash<uint32> > FragStatsMap;
-#endif
 class TraceRecorder;
 class VMAllocator;
 extern "C++" { template<typename T> class Queue; }
@@ -199,18 +191,6 @@ struct JSTraceMonitor {
 
     /* Keep a list of recorders we need to abort on cache flush. */
     CLS(TraceRecorder)      abortStack;
-
-#ifdef DEBUG
-    /* Fields needed for fragment/guard profiling. */
-    CLS(nanojit::Seq<nanojit::Fragment*>) branches;
-    uint32                  lastFragID;
-    /*
-     * profAlloc has a lifetime which spans exactly from js_InitJIT to
-     * js_FinishJIT.
-     */
-    CLS(VMAllocator)        profAlloc;
-    CLS(FragStatsMap)       profTab;
-#endif
 
     /* Flush the JIT cache. */
     void flush();
@@ -414,11 +394,8 @@ struct JSRuntime {
     uint32              protoHazardShape;
 
     /* Garbage collector state, used by jsgc.c. */
-    jsuword             gcBase;
-    jsuword             gcCursor;
-    jsuword             gcLimit;
+    JSGCChunkInfo       *gcChunkList;
     JSGCArenaList       gcArenaList[GC_NUM_FREELISTS];
-    JSGCArenaInfo       *emptyArenas;
     JSGCDoubleArenaList gcDoubleArenaList;
     JSDHashTable        gcRootsHash;
     JSDHashTable        *gcLocksHash;
@@ -435,11 +412,6 @@ struct JSRuntime {
     size_t              gcTriggerBytes;
     volatile JSBool     gcIsNeeded;
     volatile JSBool     gcFlushCodeCaches;
-
-    inline bool IsGCThing(void *thing) {
-        JS_ASSERT((jsuword(thing) & JSVAL_TAGMASK) == 0);
-        return gcBase <= jsuword(thing) && jsuword(thing) < gcLimit;
-    }
 
     /*
      * NB: do not pack another flag here by claiming gcPadding unless the new

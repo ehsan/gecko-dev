@@ -158,9 +158,7 @@ nsIFrame*
 NS_NewImageBoxFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsImageBoxFrame (aPresShell, aContext);
-}
-
-NS_IMPL_FRAMEARENA_HELPERS(nsImageBoxFrame)
+} // NS_NewTitledButtonFrame
 
 NS_IMETHODIMP
 nsImageBoxFrame::AttributeChanged(PRInt32 aNameSpaceID,
@@ -245,7 +243,7 @@ void
 nsImageBoxFrame::UpdateImage()
 {
   if (mImageRequest) {
-    mImageRequest->CancelAndForgetObserver(NS_ERROR_FAILURE);
+    mImageRequest->Cancel(NS_ERROR_FAILURE);
     mImageRequest = nsnull;
   }
 
@@ -333,10 +331,7 @@ void nsDisplayXULImage::Paint(nsDisplayListBuilder* aBuilder,
      nsIRenderingContext* aCtx, const nsRect& aDirtyRect)
 {
   static_cast<nsImageBoxFrame*>(mFrame)->
-    PaintImage(*aCtx, aDirtyRect, aBuilder->ToReferenceFrame(mFrame),
-               aBuilder->ShouldSyncDecodeImages()
-                 ? (PRUint32) imgIContainer::FLAG_SYNC_DECODE
-                 : (PRUint32) imgIContainer::FLAG_NONE);
+    PaintImage(*aCtx, aDirtyRect, aBuilder->ToReferenceFrame(mFrame));
 }
 
 NS_IMETHODIMP
@@ -362,8 +357,7 @@ nsImageBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
 void
 nsImageBoxFrame::PaintImage(nsIRenderingContext& aRenderingContext,
-                            const nsRect& aDirtyRect, nsPoint aPt,
-                            PRUint32 aFlags)
+                            const nsRect& aDirtyRect, nsPoint aPt)
 {
   nsRect rect;
   GetClientRect(rect);
@@ -385,7 +379,7 @@ nsImageBoxFrame::PaintImage(nsIRenderingContext& aRenderingContext,
     PRBool hasSubRect = !mUseSrcAttr && (mSubRect.width > 0 || mSubRect.height > 0);
     nsLayoutUtils::DrawSingleImage(&aRenderingContext, imgCon,
         nsLayoutUtils::GetGraphicsFilterForFrame(this),
-        rect, dirty, aFlags, hasSubRect ? &mSubRect : nsnull);
+        rect, dirty, hasSubRect ? &mSubRect : nsnull);
   }
 }
 

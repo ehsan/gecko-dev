@@ -1161,7 +1161,7 @@ DocumentViewerImpl::PermitUnload(PRBool *aPermitUnload)
 
       // Limit the length of the text the page can inject into this
       // dialogue to 1024 characters.
-      PRInt32 len = NS_MIN(text.Length(), 1024U);
+      PRInt32 len = PR_MIN(text.Length(), 1024);
 
       nsAutoString msg;
       if (len == 0) {
@@ -3666,7 +3666,7 @@ DocumentViewerImpl::Print(nsIPrintSettings*       aPrintSettings,
 
   nsCOMPtr<nsIPresShell> presShell;
   docShell->GetPresShell(getter_AddRefs(presShell));
-  if (!presShell || !mDocument || !mDeviceContext) {
+  if (!presShell || !mDocument || !mDeviceContext || !mParentWidget) {
     PR_PL(("Can't Print without pres shell, document etc"));
     return NS_ERROR_FAILURE;
   }

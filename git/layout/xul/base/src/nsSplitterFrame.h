@@ -52,8 +52,6 @@ nsIFrame* NS_NewSplitterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext
 class nsSplitterFrame : public nsBoxFrame
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   nsSplitterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
   virtual void Destroy();
 
@@ -103,6 +101,8 @@ public:
                               const nsDisplayListSet& aLists);
 
   virtual void GetInitialOrientation(PRBool& aIsHorizontal); 
+
+  virtual nsIView* GetMouseCapturer() const { return GetView(); }
 
 private:
 

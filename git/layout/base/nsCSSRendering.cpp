@@ -91,10 +91,7 @@
  */
 class ImageRenderer {
 public:
-  enum {
-    FLAG_SYNC_DECODE_IMAGES = 0x01
-  };
-  ImageRenderer(nsIFrame* aForFrame, const nsStyleImage& aImage, PRUint32 aFlags);
+  ImageRenderer(nsIFrame* aForFrame, const nsStyleImage& aImage);
   ~ImageRenderer();
   /**
    * Populates member variables to get ready for rendering.
@@ -128,7 +125,6 @@ private:
   nsRefPtr<nsStyleGradient> mGradientData;
   PRBool                    mIsReady;
   nsSize                    mSize;
-  PRUint32                  mFlags;
 };
 
 // To avoid storing this data on nsInlineFrame (bloat) and to avoid
@@ -354,7 +350,6 @@ protected:
 static void PaintBackgroundLayer(nsPresContext* aPresContext,
                                  nsIRenderingContext& aRenderingContext,
                                  nsIFrame* aForFrame,
-                                 PRUint32 aFlags,
                                  const nsRect& aDirtyRect,
                                  const nsRect& aBorderArea,
                                  const nsRect& aBGClipRect,
@@ -521,7 +516,7 @@ ComputePixelRadii(const nscoord *aTwipsRadii,
     gfxFloat sum = radii[hc1] + radii[hc2];
     // avoid floating point division in the normal case
     if (length < sum)
-      f = NS_MIN(f, length/sum);
+      f = PR_MIN(f, length/sum);
   }
   if (f < 1.0) {
     NS_FOR_CSS_HALF_CORNERS(corner) {
@@ -1754,7 +1749,7 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
     // background-clip.
     currentBackgroundClip = aBackground.BottomLayer().mClip;
     isSolidBorder =
-      (aFlags & PAINTBG_WILL_PAINT_BORDER) && IsSolidBorder(aBorder);
+      (aFlags & PAINT_WILL_PAINT_BORDER) && IsSolidBorder(aBorder);
     if (isSolidBorder)
       currentBackgroundClip = NS_STYLE_BG_CLIP_PADDING;
     SetupBackgroundClip(ctx, currentBackgroundClip, aForFrame,
@@ -1815,7 +1810,7 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
         }
       }
       if (!dirtyRectGfx.IsEmpty()) {
-        PaintBackgroundLayer(aPresContext, aRenderingContext, aForFrame, aFlags,
+        PaintBackgroundLayer(aPresContext, aRenderingContext, aForFrame,
                              dirtyRect, aBorderArea, bgClipArea, aBackground,
                              layer);
       }
@@ -1846,7 +1841,6 @@ static void
 PaintBackgroundLayer(nsPresContext* aPresContext,
                      nsIRenderingContext& aRenderingContext,
                      nsIFrame* aForFrame,
-                     PRUint32 aFlags,
                      const nsRect& aDirtyRect, // intersected with aBGClipRect
                      const nsRect& aBorderArea,
                      const nsRect& aBGClipRect,
@@ -1908,10 +1902,7 @@ PaintBackgroundLayer(nsPresContext* aPresContext,
    *   background-repeat
    */
 
-  PRUint32 irFlags = 0;
-  if (aFlags & nsCSSRendering::PAINTBG_SYNC_DECODE_IMAGES)
-    irFlags |= ImageRenderer::FLAG_SYNC_DECODE_IMAGES;
-  ImageRenderer imageRenderer(aForFrame, aLayer.mImage, irFlags);
+  ImageRenderer imageRenderer(aForFrame, aLayer.mImage);
   if (!imageRenderer.PrepareImage()) {
     // There's no image or it's not ready to be painted.
     return;
@@ -2026,9 +2017,9 @@ PaintBackgroundLayer(nsPresContext* aPresContext,
       float scaleFitX = double(bgPositioningArea.width) / imageSize.width;
       float scaleFitY = double(bgPositioningArea.height) / imageSize.height;
       if (aLayer.mSize.mWidthType == nsStyleBackground::Size::eCover) {
-        scaleX = scaleY = NS_MAX(scaleFitX, scaleFitY);
+        scaleX = scaleY = PR_MAX(scaleFitX, scaleFitY);
       } else {
-        scaleX = scaleY = NS_MIN(scaleFitX, scaleFitY);
+        scaleX = scaleY = PR_MIN(scaleFitX, scaleFitY);
       }
       break;
     }
@@ -2056,8 +2047,8 @@ PaintBackgroundLayer(nsPresContext* aPresContext,
       break;
     }
   }
-  imageSize.width = NSCoordSaturatingNonnegativeMultiply(imageSize.width, scaleX);
-  imageSize.height = NSCoordSaturatingNonnegativeMultiply(imageSize.height, scaleY);
+  imageSize.width = NSCoordSaturatingMultiply(imageSize.width, scaleX);
+  imageSize.height = NSCoordSaturatingMultiply(imageSize.height, scaleY);
 
   // Compute the position of the background now that the background's size is
   // determined.
@@ -2113,7 +2104,7 @@ DrawBorderImage(nsPresContext*       aPresContext,
     if (req)
       req->GetImageStatus(&status);
 
-    NS_ASSERTION(req && (status & imgIRequest::STATUS_LOAD_COMPLETE),
+    NS_ASSERTION(req && (status & imgIRequest::STATUS_FRAME_COMPLETE),
                  "no image to draw");
   }
 #endif
@@ -2309,9 +2300,7 @@ DrawBorderImageComponent(nsIRenderingContext& aRenderingContext,
     return;
 
   nsCOMPtr<imgIContainer> subImage;
-  if (NS_FAILED(aImage->ExtractFrame(imgIContainer::FRAME_CURRENT, aSrc,
-                                     imgIContainer::FLAG_SYNC_DECODE,
-                                     getter_AddRefs(subImage))))
+  if (NS_FAILED(aImage->ExtractCurrentFrame(aSrc, getter_AddRefs(subImage))))
     return;
 
   gfxPattern::GraphicsFilter graphicsFilter =
@@ -2325,7 +2314,7 @@ DrawBorderImageComponent(nsIRenderingContext& aRenderingContext,
        aUnitSize.height == aFill.height)) {
     nsLayoutUtils::DrawSingleImage(&aRenderingContext, subImage,
                                    graphicsFilter,
-                                   aFill, aDirtyRect, imgIContainer::FLAG_NONE);
+                                   aFill, aDirtyRect);
     return;
   }
 
@@ -2370,8 +2359,7 @@ DrawBorderImageComponent(nsIRenderingContext& aRenderingContext,
   }
 
   nsLayoutUtils::DrawImage(&aRenderingContext, subImage, graphicsFilter,
-                           tile, aFill, tile.TopLeft(), aDirtyRect,
-                           imgIContainer::FLAG_NONE);
+                           tile, aFill, tile.TopLeft(), aDirtyRect);
 }
 
 // Begin table border-collapsing section
@@ -2551,7 +2539,7 @@ nsCSSRendering::DrawTableBorderSegment(nsIRenderingContext&     aContext,
       // make the min dash length for the ends 1/2 the dash length
       nscoord minDashLength = (NS_STYLE_BORDER_STYLE_DASHED == aBorderStyle) 
                               ? RoundFloatToPixel(((float)dashLength) / 2.0f, twipsPerPixel) : dashLength;
-      minDashLength = NS_MAX(minDashLength, twipsPerPixel);
+      minDashLength = PR_MAX(minDashLength, twipsPerPixel);
       nscoord numDashSpaces = 0;
       nscoord startDashLength = minDashLength;
       nscoord endDashLength   = minDashLength;
@@ -2763,7 +2751,7 @@ nsCSSRendering::PaintDecorationLine(gfxContext* aGfxContext,
     return;
   }
 
-  gfxFloat lineHeight = NS_MAX(NS_round(aLineSize.height), 1.0);
+  gfxFloat lineHeight = PR_MAX(NS_round(aLineSize.height), 1.0);
   PRBool contextIsSaved = PR_FALSE;
 
   gfxFloat oldLineWidth;
@@ -2902,7 +2890,7 @@ nsCSSRendering::PaintDecorationLine(gfxContext* aGfxContext,
       gfxPoint pt(rect.pos);
       gfxFloat rightMost = pt.x + rect.Width() + lineHeight;
       gfxFloat adv = rect.Height() - lineHeight;
-      gfxFloat flatLengthAtVertex = NS_MAX((lineHeight - 1.0) * 2.0, 1.0);
+      gfxFloat flatLengthAtVertex = PR_MAX((lineHeight - 1.0) * 2.0, 1.0);
 
       pt.x -= lineHeight;
       aGfxContext->MoveTo(pt); // 1
@@ -2983,12 +2971,12 @@ nsCSSRendering::GetTextDecorationRectInternal(const gfxPoint& aPt,
   r.size.width = NS_round(aLineSize.width);
 
   gfxFloat lineHeight = NS_round(aLineSize.height);
-  lineHeight = NS_MAX(lineHeight, 1.0);
+  lineHeight = PR_MAX(lineHeight, 1.0);
 
   gfxFloat ascent = NS_round(aAscent);
   gfxFloat descentLimit = NS_floor(aDescentLimit);
 
-  gfxFloat suggestedMaxRectHeight = NS_MAX(NS_MIN(ascent, descentLimit), 1.0);
+  gfxFloat suggestedMaxRectHeight = PR_MAX(PR_MIN(ascent, descentLimit), 1.0);
   r.size.height = lineHeight;
   if (aStyle == DECORATION_STYLE_DOUBLE) {
     /**
@@ -3007,13 +2995,13 @@ nsCSSRendering::GetTextDecorationRectInternal(const gfxPoint& aPt,
      * +-------------------------------------------+
      */
     gfxFloat gap = NS_round(lineHeight / 2.0);
-    gap = NS_MAX(gap, 1.0);
+    gap = PR_MAX(gap, 1.0);
     r.size.height = lineHeight * 2.0 + gap;
     if (canLiftUnderline) {
       if (r.Height() > suggestedMaxRectHeight) {
         // Don't shrink the line height, because the thickness has some meaning.
         // We can just shrink the gap at this time.
-        r.size.height = NS_MAX(suggestedMaxRectHeight, lineHeight * 2.0 + 1.0);
+        r.size.height = PR_MAX(suggestedMaxRectHeight, lineHeight * 2.0 + 1.0);
       }
     }
   } else if (aStyle == DECORATION_STYLE_WAVY) {
@@ -3037,7 +3025,7 @@ nsCSSRendering::GetTextDecorationRectInternal(const gfxPoint& aPt,
         // because the thickness has some meaning.  E.g., the 1px wavy line and
         // 2px wavy line can be used for different meaning in IME selections
         // at same time.
-        r.size.height = NS_MAX(suggestedMaxRectHeight, lineHeight * 2.0);
+        r.size.height = PR_MAX(suggestedMaxRectHeight, lineHeight * 2.0);
       }
     }
   }
@@ -3055,7 +3043,7 @@ nsCSSRendering::GetTextDecorationRectInternal(const gfxPoint& aPt,
           // far as possible.
           gfxFloat offsetBottomAligned = -descentLimit + r.Height();
           gfxFloat offsetTopAligned = 0.0;
-          offset = NS_MIN(offsetBottomAligned, offsetTopAligned);
+          offset = PR_MIN(offsetBottomAligned, offsetTopAligned);
         }
       }
       break;
@@ -3064,7 +3052,7 @@ nsCSSRendering::GetTextDecorationRectInternal(const gfxPoint& aPt,
       break;
     case NS_STYLE_TEXT_DECORATION_LINE_THROUGH: {
       gfxFloat extra = NS_floor(r.Height() / 2.0 + 0.5);
-      extra = NS_MAX(extra, lineHeight);
+      extra = PR_MAX(extra, lineHeight);
       offset = aOffset - lineHeight + extra;
       break;
     }
@@ -3079,8 +3067,7 @@ nsCSSRendering::GetTextDecorationRectInternal(const gfxPoint& aPt,
 // ImageRenderer
 // ------------------
 ImageRenderer::ImageRenderer(nsIFrame* aForFrame,
-                                       const nsStyleImage& aImage,
-                                       PRUint32 aFlags)
+                                       const nsStyleImage& aImage)
   : mForFrame(aForFrame)
   , mImage(aImage)
   , mType(aImage.GetType())
@@ -3088,7 +3075,6 @@ ImageRenderer::ImageRenderer(nsIFrame* aForFrame,
   , mGradientData(nsnull)
   , mIsReady(PR_FALSE)
   , mSize(0, 0)
-  , mFlags(aFlags)
 {
 }
 
@@ -3100,17 +3086,7 @@ PRBool
 ImageRenderer::PrepareImage()
 {
   if (mImage.IsEmpty() || !mImage.IsComplete()) {
-    // Make sure the image is actually decoding
-    mImage.RequestDecode();
-
     // We can not prepare the image for rendering if it is not fully loaded.
-    // 
-    // Special case: If we requested a sync decode and we have an image, push
-    // on through
-    nsCOMPtr<imgIContainer> img;
-    if (!((mFlags & FLAG_SYNC_DECODE_IMAGES) &&
-          (mType == eStyleImageType_Image) &&
-          (NS_SUCCEEDED(mImage.GetImageData()->GetImage(getter_AddRefs(img))) && img)))
     return PR_FALSE;
   }
 
@@ -3139,12 +3115,8 @@ ImageRenderer::PrepareImage()
           mImageContainer.swap(srcImage);
         } else {
           nsCOMPtr<imgIContainer> subImage;
-          PRUint32 aExtractFlags = (mFlags & FLAG_SYNC_DECODE_IMAGES)
-                                     ? (PRUint32) imgIContainer::FLAG_SYNC_DECODE
-                                     : (PRUint32) imgIContainer::FLAG_NONE;
-          nsresult rv = srcImage->ExtractFrame(imgIContainer::FRAME_CURRENT,
-                                               actualCropRect, aExtractFlags,
-                                               getter_AddRefs(subImage));
+          nsresult rv = srcImage->ExtractCurrentFrame(actualCropRect,
+                                                      getter_AddRefs(subImage));
           if (NS_FAILED(rv)) {
             NS_WARNING("The cropped image contains no pixels to draw; "
                        "maybe the crop rect is outside the image frame rect");
@@ -3216,15 +3188,10 @@ ImageRenderer::Draw(nsPresContext*       aPresContext,
 
   switch (mType) {
     case eStyleImageType_Image:
-    {
-      PRUint32 drawFlags = (mFlags & FLAG_SYNC_DECODE_IMAGES)
-                             ? (PRUint32) imgIContainer::FLAG_SYNC_DECODE
-                             : (PRUint32) imgIContainer::FLAG_NONE;
       nsLayoutUtils::DrawImage(&aRenderingContext, mImageContainer,
           nsLayoutUtils::GetGraphicsFilterForFrame(mForFrame),
-          aDest, aFill, aAnchor, aDirty, drawFlags);
+          aDest, aFill, aAnchor, aDirty);
       break;
-    }
     case eStyleImageType_Gradient:
       nsCSSRendering::PaintGradient(aPresContext, aRenderingContext,
           mGradientData, aDirty, aDest, aFill, aRepeat);

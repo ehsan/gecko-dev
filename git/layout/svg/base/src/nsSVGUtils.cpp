@@ -229,6 +229,19 @@ NS_SMILEnabled()
 }
 #endif // MOZ_SMIL
 
+static nsIFrame*
+GetFrameForContent(nsIContent* aContent)
+{
+  if (!aContent)
+    return nsnull;
+
+  nsIDocument *doc = aContent->GetCurrentDoc();
+  if (!doc)
+    return nsnull;
+
+  return nsGenericElement::GetPrimaryFrameFor(aContent, doc);
+}
+
 nsIContent*
 nsSVGUtils::GetParentElement(nsIContent *aContent)
 {
@@ -255,9 +268,6 @@ nsSVGUtils::GetParentElement(nsIContent *aContent)
 float
 nsSVGUtils::GetFontSize(nsIContent *aContent)
 {
-  if (!aContent)
-    return 1.0f;
-
   nsRefPtr<nsStyleContext> styleContext = 
     nsComputedDOMStyle::GetStyleContextForContentNoFlush(aContent, nsnull,
                                                          nsnull);
@@ -292,9 +302,6 @@ nsSVGUtils::GetFontSize(nsStyleContext *aStyleContext)
 float
 nsSVGUtils::GetFontXHeight(nsIContent *aContent)
 {
-  if (!aContent)
-    return 1.0f;
-
   nsRefPtr<nsStyleContext> styleContext = 
     nsComputedDOMStyle::GetStyleContextForContentNoFlush(aContent, nsnull,
                                                          nsnull);
@@ -520,21 +527,18 @@ nsSVGUtils::GetCTM(nsSVGElement *aElement, PRBool aScreenCTM)
 
   while (ancestor && ancestor->GetNameSpaceID() == kNameSpaceID_SVG &&
                      ancestor->Tag() != nsGkAtoms::foreignObject) {
-    // ignore unknown XML elements in the SVG namespace
-    if (ancestor->IsNodeOfType(nsINode::eSVG)) {
-      element = static_cast<nsSVGElement*>(ancestor);
-      matrix *= element->PrependLocalTransformTo(gfxMatrix()); // i.e. *A*ppend
-      if (!aScreenCTM && EstablishesViewport(element)) {
-        if (!element->NodeInfo()->Equals(nsGkAtoms::svg, kNameSpaceID_SVG) &&
-            !element->NodeInfo()->Equals(nsGkAtoms::symbol, kNameSpaceID_SVG)) {
-          NS_ERROR("New (SVG > 1.1) SVG viewport establishing element?");
-          return gfxMatrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0); // singular
-        }
-        // XXX spec seems to say x,y translation should be undone for IsInnerSVG
-        return matrix;
+    element = static_cast<nsSVGElement*>(ancestor);
+    matrix *= element->PrependLocalTransformTo(gfxMatrix()); // i.e. *A*ppend
+    if (!aScreenCTM && EstablishesViewport(element)) {
+      if (!element->NodeInfo()->Equals(nsGkAtoms::svg, kNameSpaceID_SVG) &&
+          !element->NodeInfo()->Equals(nsGkAtoms::symbol, kNameSpaceID_SVG)) {
+        NS_ERROR("New (SVG > 1.1) SVG viewport establishing element?");
+        return gfxMatrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0); // singular
       }
+      // XXX spec seems to say x,y translation should be undone for IsInnerSVG
+      return matrix;
     }
-    ancestor = GetParentElement(ancestor);      
+    ancestor = GetParentElement(element);      
   }
   if (!aScreenCTM) {
     // didn't find a nearestViewportElement
@@ -552,9 +556,9 @@ nsSVGUtils::GetCTM(nsSVGElement *aElement, PRBool aScreenCTM)
   // XXX this does not take into account CSS transform, or that the non-SVG
   // content that we've hit may itself be inside an SVG foreignObject higher up
   float x = 0.0f, y = 0.0f;
-  if (currentDoc && element->NodeInfo()->Equals(nsGkAtoms::svg, kNameSpaceID_SVG)) {
+  if (element->NodeInfo()->Equals(nsGkAtoms::svg, kNameSpaceID_SVG)) {
     nsIPresShell *presShell = currentDoc->GetPrimaryShell();
-    if (presShell) {
+    if (element && presShell) {
       nsPresContext *context = presShell->GetPresContext();
       if (context) {
         nsIFrame* frame = presShell->GetPrimaryFrameFor(element);
@@ -1216,9 +1220,9 @@ nsSVGUtils::ConvertToSurfaceSize(const gfxSize& aSize, PRBool *aResultOverflows)
 
   if (*aResultOverflows ||
       !gfxASurface::CheckSurfaceSize(surfaceSize)) {
-    surfaceSize.width = NS_MIN(NS_SVG_OFFSCREEN_MAX_DIMENSION,
+    surfaceSize.width = PR_MIN(NS_SVG_OFFSCREEN_MAX_DIMENSION,
                                surfaceSize.width);
-    surfaceSize.height = NS_MIN(NS_SVG_OFFSCREEN_MAX_DIMENSION,
+    surfaceSize.height = PR_MIN(NS_SVG_OFFSCREEN_MAX_DIMENSION,
                                 surfaceSize.height);
     *aResultOverflows = PR_TRUE;
   }

@@ -592,7 +592,8 @@ nsXULTreeAccessible::InvalidateCache(PRInt32 aRow, PRInt32 aCount)
         nsAccUtils::QueryAccessible(accessNode);
 
       nsCOMPtr<nsIAccessibleEvent> event =
-        new nsAccEvent(nsIAccessibleEvent::EVENT_HIDE, accessible, PR_FALSE);
+        new nsAccEvent(nsIAccessibleEvent::EVENT_DOM_DESTROY,
+                       accessible, PR_FALSE);
       FireAccessibleEvent(event);
 
       accessible->Shutdown();
@@ -705,7 +706,8 @@ nsXULTreeAccessible::TreeViewChanged()
   // AT because it should be expensive to fire destroy events for each tree item
   // in cache.
   nsCOMPtr<nsIAccessibleEvent> eventDestroy =
-    new nsAccEvent(nsIAccessibleEvent::EVENT_HIDE, this, PR_FALSE);
+    new nsAccEvent(nsIAccessibleEvent::EVENT_DOM_DESTROY,
+                   this, PR_FALSE);
   if (!eventDestroy)
     return;
 
@@ -716,7 +718,8 @@ nsXULTreeAccessible::TreeViewChanged()
   mTree->GetView(getter_AddRefs(mTreeView));
 
   nsCOMPtr<nsIAccessibleEvent> eventCreate =
-    new nsAccEvent(nsIAccessibleEvent::EVENT_SHOW, this, PR_FALSE);
+    new nsAccEvent(nsIAccessibleEvent::EVENT_DOM_CREATE,
+                   this, PR_FALSE);
   if (!eventCreate)
     return;
 
@@ -801,9 +804,9 @@ nsXULTreeItemAccessibleBase::GetNextSibling(nsIAccessible **aNextSibling)
     nsAccUtils::QueryAccessibleTree(mParent);
   NS_ENSURE_STATE(treeAcc);
 
-  PRInt32 rowCount = 0;
-  mTreeView->GetRowCount(&rowCount);
-  if (mRow + 1 >= rowCount)
+  PRInt32 rowsCount = 0;
+  mTreeView->GetRowCount(&rowsCount);
+  if (mRow + 1 >= rowsCount)
     return NS_OK;
 
   treeAcc->GetTreeItemAccessible(mRow + 1, aNextSibling);

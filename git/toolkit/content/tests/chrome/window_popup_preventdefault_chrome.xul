@@ -2,7 +2,8 @@
 <?xml-stylesheet href="chrome://global/skin" type="text/css"?>
 
 <window title="Popup Prevent Default Tests"
-        xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  onfocus="if (!gDone) { gDone = true; setTimeout(runTest, 0); }"
+  xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
   <title>Popup Prevent Default Tests</title>
 
@@ -13,6 +14,7 @@
 
 <script>
 
+var gDone = false;
 var gBlockShowing = true;
 var gBlockHiding = true;
 var gShownNotAllowed = true;
@@ -98,8 +100,6 @@ function popupHidden()
   window.opener.wrappedJSObject.SimpleTest.finish();
   window.close();
 }
-
-window.opener.wrappedJSObject.SimpleTest.waitForFocus(runTest, window);
 </script>
 
 <button id="menu" type="menu" label="Menu">

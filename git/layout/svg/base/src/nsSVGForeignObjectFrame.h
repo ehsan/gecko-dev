@@ -58,12 +58,11 @@ class nsSVGForeignObjectFrame : public nsSVGForeignObjectFrameBase,
   NS_NewSVGForeignObjectFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 protected:
   nsSVGForeignObjectFrame(nsStyleContext* aContext);
-
+  
 public:
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
-  // nsIFrame:
+  // nsIFrame:  
   NS_IMETHOD  Init(nsIContent* aContent,
                    nsIFrame*   aParent,
                    nsIFrame*   aPrevInFlow);

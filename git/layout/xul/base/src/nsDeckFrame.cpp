@@ -62,9 +62,7 @@ nsIFrame*
 NS_NewDeckFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsDeckFrame(aPresShell, aContext);
-}
-
-NS_IMPL_FRAMEARENA_HELPERS(nsDeckFrame)
+} // NS_NewDeckFrame
 
 
 nsDeckFrame::nsDeckFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)

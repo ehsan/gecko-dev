@@ -65,8 +65,7 @@ EXPORTS = \
   nsDocAccessibleWrap.h \
   nsRootAccessibleWrap.h \
   nsXULMenuAccessibleWrap.h \
-  nsXULListboxAccessibleWrap.h \
-  nsXULTreeGridAccessibleWrap.h \
+  nsXULTreeAccessibleWrap.h \
   nsHyperTextAccessibleWrap.h \
   nsHTMLImageAccessibleWrap.h \
   nsHTMLTableAccessibleWrap.h \

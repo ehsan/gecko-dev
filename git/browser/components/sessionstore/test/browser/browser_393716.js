@@ -7,7 +7,7 @@ function test() {
   }
   catch (ex) { }
   ok(ss, "SessionStore service is available");
-  let tabbrowser = gBrowser;
+  let tabbrowser = getBrowser();
   waitForExplicitFinish();
   
   /////////////////

@@ -60,8 +60,6 @@ nsIFrame* NS_NewMenuBarFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 class nsMenuBarFrame : public nsBoxFrame, public nsMenuParent
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   nsMenuBarFrame(nsIPresShell* aShell, nsStyleContext* aContext);
 
   // nsMenuParent interface

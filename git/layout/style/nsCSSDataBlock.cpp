@@ -557,6 +557,7 @@ nsCSSCompressedDataBlock::CreateEmptyBlock()
 
 nsCSSExpandedDataBlock::nsCSSExpandedDataBlock()
 {
+    ClearSets();
     AssertInitialState();
 }
 
@@ -567,15 +568,13 @@ nsCSSExpandedDataBlock::~nsCSSExpandedDataBlock()
 
 const nsCSSExpandedDataBlock::PropertyOffsetInfo
 nsCSSExpandedDataBlock::kOffsetTable[eCSSProperty_COUNT_no_shorthands] = {
-    #define CSS_PROP_BACKENDONLY(name_, id_, method_, flags_, datastruct_,     \
-                                 member_, type_, kwtable_)                     \
-        { offsetof(nsCSSExpandedDataBlock, m##datastruct_.member_),            \
-          size_t(-1),                                                          \
+    #define CSS_PROP_BACKENDONLY(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_) \
+        { offsetof(nsCSSExpandedDataBlock, m##datastruct_.member_),           \
+          size_t(-1),                                                         \
           size_t(-1) },
-    #define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, \
-                     kwtable_, stylestruct_, stylestructoffset_, animtype_)    \
-        { offsetof(nsCSSExpandedDataBlock, m##datastruct_.member_),            \
-          offsetof(nsRuleData, m##datastruct_##Data),                          \
+    #define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_) \
+        { offsetof(nsCSSExpandedDataBlock, m##datastruct_.member_),           \
+          offsetof(nsRuleData, m##datastruct_##Data),                         \
           offsetof(nsRuleData##datastruct_, member_) },
     #include "nsCSSPropList.h"
     #undef CSS_PROP
@@ -684,13 +683,14 @@ nsCSSExpandedDataBlock::ComputeSizeResult
 nsCSSExpandedDataBlock::ComputeSize()
 {
     ComputeSizeResult result = {0, 0};
-    for (PRUint32 iHigh = 0; iHigh < nsCSSPropertySet::kChunkCount; ++iHigh) {
-        if (!mPropertiesSet.HasPropertyInChunk(iHigh))
+    for (PRUint32 iHigh = 0; iHigh < NS_ARRAY_LENGTH(mPropertiesSet); ++iHigh) {
+        if (mPropertiesSet[iHigh] == 0)
             continue;
-        for (PRInt32 iLow = 0; iLow < nsCSSPropertySet::kBitsInChunk; ++iLow) {
-            if (!mPropertiesSet.HasPropertyAt(iHigh, iLow))
+        for (PRInt32 iLow = 0; iLow < kPropertiesSetChunkSize; ++iLow) {
+            if ((mPropertiesSet[iHigh] & (1 << iLow)) == 0)
                 continue;
-            nsCSSProperty iProp = nsCSSPropertySet::CSSPropertyAt(iHigh, iLow);
+            nsCSSProperty iProp =
+                nsCSSProperty(iHigh * kPropertiesSetChunkSize + iLow);
             NS_ASSERTION(0 <= iProp && iProp < eCSSProperty_COUNT_no_shorthands,
                          "out of range");
 #ifdef DEBUG
@@ -735,10 +735,10 @@ nsCSSExpandedDataBlock::ComputeSize()
                     increment = CDBPointerStorage_advance;
                 } break;
             }
-            if (mPropertiesImportant.HasPropertyAt(iHigh, iLow))
-                result.important += increment;
-            else
+            if ((mPropertiesImportant[iHigh] & (1 << iLow)) == 0)
                 result.normal += increment;
+            else
+                result.important += increment;
         }
     }
     return result;
@@ -779,18 +779,19 @@ nsCSSExpandedDataBlock::Compress(nsCSSCompressedDataBlock **aNormalBlock,
      * corresponding to the stored data in the expanded block, and then
      * clearing the data in the expanded block.
      */
-    for (PRUint32 iHigh = 0; iHigh < nsCSSPropertySet::kChunkCount; ++iHigh) {
-        if (!mPropertiesSet.HasPropertyInChunk(iHigh))
+    for (PRUint32 iHigh = 0; iHigh < NS_ARRAY_LENGTH(mPropertiesSet); ++iHigh) {
+        if (mPropertiesSet[iHigh] == 0)
             continue;
-        for (PRInt32 iLow = 0; iLow < nsCSSPropertySet::kBitsInChunk; ++iLow) {
-            if (!mPropertiesSet.HasPropertyAt(iHigh, iLow))
+        for (PRInt32 iLow = 0; iLow < kPropertiesSetChunkSize; ++iLow) {
+            if ((mPropertiesSet[iHigh] & (1 << iLow)) == 0)
                 continue;
-            nsCSSProperty iProp = nsCSSPropertySet::CSSPropertyAt(iHigh, iLow);
+            nsCSSProperty iProp =
+                nsCSSProperty(iHigh * kPropertiesSetChunkSize + iLow);
             NS_ASSERTION(0 <= iProp && iProp < eCSSProperty_COUNT_no_shorthands,
                          "out of range");
             void *prop = PropertyAt(iProp);
             PRBool important =
-                mPropertiesImportant.HasPropertyAt(iHigh, iLow);
+                (mPropertiesImportant[iHigh] & (1 << iLow)) != 0;
             char *&cursor = important ? cursor_important : cursor_normal;
             nsCSSCompressedDataBlock *result =
                 important ? result_important : result_normal;
@@ -867,13 +868,14 @@ nsCSSExpandedDataBlock::Compress(nsCSSCompressedDataBlock **aNormalBlock,
 void
 nsCSSExpandedDataBlock::Clear()
 {
-    for (PRUint32 iHigh = 0; iHigh < nsCSSPropertySet::kChunkCount; ++iHigh) {
-        if (!mPropertiesSet.HasPropertyInChunk(iHigh))
+    for (PRUint32 iHigh = 0; iHigh < NS_ARRAY_LENGTH(mPropertiesSet); ++iHigh) {
+        if (mPropertiesSet[iHigh] == 0)
             continue;
-        for (PRInt32 iLow = 0; iLow < nsCSSPropertySet::kBitsInChunk; ++iLow) {
-            if (!mPropertiesSet.HasPropertyAt(iHigh, iLow))
+        for (PRInt32 iLow = 0; iLow < kPropertiesSetChunkSize; ++iLow) {
+            if ((mPropertiesSet[iHigh] & (1 << iLow)) == 0)
                 continue;
-            nsCSSProperty iProp = nsCSSPropertySet::CSSPropertyAt(iHigh, iLow);
+            nsCSSProperty iProp =
+                nsCSSProperty(iHigh * kPropertiesSetChunkSize + iLow);
             ClearProperty(iProp);
         }
     }
@@ -931,10 +933,15 @@ nsCSSExpandedDataBlock::ClearProperty(nsCSSProperty aPropID)
 void
 nsCSSExpandedDataBlock::DoAssertInitialState()
 {
-    mPropertiesSet.AssertIsEmpty("not initial state");
-    mPropertiesImportant.AssertIsEmpty("not initial state");
+    PRUint32 i;
+    for (i = 0; i < NS_ARRAY_LENGTH(mPropertiesSet); ++i) {
+        NS_ASSERTION(mPropertiesSet[i] == 0, "not initial state");
+    }
+    for (i = 0; i < NS_ARRAY_LENGTH(mPropertiesImportant); ++i) {
+        NS_ASSERTION(mPropertiesImportant[i] == 0, "not initial state");
+    }
 
-    for (PRUint32 i = 0; i < eCSSProperty_COUNT_no_shorthands; ++i) {
+    for (i = 0; i < eCSSProperty_COUNT_no_shorthands; ++i) {
         void *prop = PropertyAt(nsCSSProperty(i));
         switch (nsCSSProps::kTypeTable[i]) {
             case eCSSType_Value: {

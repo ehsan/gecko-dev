@@ -58,9 +58,8 @@ public:
   NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetDy();
   
 public:
-  NS_DECL_QUERYFRAME_TARGET(nsSVGTextContainerFrame)
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
+  NS_DECLARE_FRAME_ACCESSOR(nsSVGTextContainerFrame)
 
   // nsIFrame
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,

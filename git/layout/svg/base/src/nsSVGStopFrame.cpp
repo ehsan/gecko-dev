@@ -56,8 +56,6 @@ protected:
   nsSVGStopFrame(nsStyleContext* aContext) : nsSVGStopFrameBase(aContext) {}
 
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   // nsIFrame interface:
 #ifdef DEBUG
   NS_IMETHOD Init(nsIContent*      aContent,
@@ -93,8 +91,6 @@ public:
 
 //----------------------------------------------------------------------
 // Implementation
-
-NS_IMPL_FRAMEARENA_HELPERS(nsSVGStopFrame)
 
 //----------------------------------------------------------------------
 // nsIFrame methods:

@@ -133,9 +133,7 @@ namespace nanojit
         // At start, should have some registers free and none active.
         NanoAssert(0 != _allocator.free);
         NanoAssert(0 == _allocator.countActive());
-#ifdef NANOJIT_IA32
         debug_only(_fpuStkDepth = 0; )
-#endif
     }
 
     Register Assembler::registerAlloc(RegisterMask allow)
@@ -176,8 +174,7 @@ namespace nanojit
         return i->isconst() || i->isconstq() || i->isop(LIR_alloc);
     }
 
-    void Assembler::codeAlloc(NIns *&start, NIns *&end, NIns *&eip
-                              verbose_only(, size_t &nBytes))
+    void Assembler::codeAlloc(NIns *&start, NIns *&end, NIns *&eip)
     {
         // save the block we just filled
         if (start)
@@ -185,7 +182,6 @@ namespace nanojit
 
         // CodeAlloc contract: allocations never fail
         _codeAlloc.alloc(start, end);
-        verbose_only( nBytes += (end - start) * sizeof(NIns); )
         NanoAssert(uintptr_t(end) - uintptr_t(start) >= (size_t)LARGEST_UNDERRUN_PROT);
         eip = end;
     }
@@ -579,9 +575,7 @@ namespace nanojit
         swapptrs();
         _inExit = true;
 
-#ifdef NANOJIT_IA32
         debug_only( _sv_fpuStkDepth = _fpuStkDepth; _fpuStkDepth = 0; )
-#endif
 
         nFragExit(guard);
 
@@ -618,9 +612,6 @@ namespace nanojit
 
     void Assembler::beginAssembly(Fragment *frag)
     {
-        verbose_only( codeBytes = 0; )
-        verbose_only( exitBytes = 0; )
-
         reset();
 
         NanoAssert(codeList == 0);
@@ -665,16 +656,6 @@ namespace nanojit
     {
         if (error()) return;
         _thisfrag = frag;
-
-        // check the fragment is starting out with a sane profiling state
-        verbose_only( NanoAssert(frag->nStaticExits == 0); )
-        verbose_only( NanoAssert(frag->nCodeBytes == 0); )
-        verbose_only( NanoAssert(frag->nExitBytes == 0); )
-        verbose_only( NanoAssert(frag->profCount == 0); )
-        verbose_only( if (_logc->lcbits & LC_FragProfile)
-                          NanoAssert(frag->profFragID > 0);
-                      else
-                          NanoAssert(frag->profFragID == 0); )
 
         // Used for debug printing, if needed
         verbose_only(
@@ -763,17 +744,11 @@ namespace nanojit
 
         // save used parts of current block on fragment's code list, free the rest
 #ifdef NANOJIT_ARM
-        // [codeStart, _nSlot) ... gap ... [_nIns, codeEnd)
         _codeAlloc.addRemainder(codeList, exitStart, exitEnd, _nExitSlot, _nExitIns);
         _codeAlloc.addRemainder(codeList, codeStart, codeEnd, _nSlot, _nIns);
-        verbose_only( exitBytes -= (_nExitIns - _nExitSlot) * sizeof(NIns); )
-        verbose_only( codeBytes -= (_nIns - _nSlot) * sizeof(NIns); )
 #else
-        // [codeStart ... gap ... [_nIns, codeEnd))
         _codeAlloc.addRemainder(codeList, exitStart, exitEnd, exitStart, _nExitIns);
         _codeAlloc.addRemainder(codeList, codeStart, codeEnd, codeStart, _nIns);
-        verbose_only( exitBytes -= (_nExitIns - exitStart) * sizeof(NIns); )
-        verbose_only( codeBytes -= (_nIns - codeStart) * sizeof(NIns); )
 #endif
 
         // at this point all our new code is in the d-cache and not the i-cache,
@@ -785,9 +760,7 @@ namespace nanojit
         frag->setCode(_nIns);
         // PERFM_NVPROF("code", CodeAlloc::size(codeList));
 
-#ifdef NANOJIT_IA32
         NanoAssertMsgf(_fpuStkDepth == 0,"_fpuStkDepth %d\n",_fpuStkDepth);
-#endif
 
         debug_only( pageValidate(); )
         NanoAssert(_branchStateMap.isEmpty());
@@ -869,8 +842,6 @@ namespace nanojit
 
     void Assembler::gen(LirFilter* reader)
     {
-        NanoAssert(_thisfrag->nStaticExits == 0);
-
         // trace must end with LIR_x, LIR_loop, LIR_[f]ret, LIR_xtbl, or LIR_[f]live
         NanoAssert(reader->pos()->isop(LIR_x) ||
                    reader->pos()->isop(LIR_ret) ||
@@ -1213,11 +1184,6 @@ namespace nanojit
                 {
                     countlir_label();
                     LabelState *label = _labels.get(ins);
-                    // add profiling inc, if necessary.
-                    verbose_only( if (_logc->lcbits & LC_FragProfile) {
-                        if (ins == _thisfrag->loopLabel)
-                            asm_inc_m32(& _thisfrag->profCount);
-                    })
                     if (!label) {
                         // label seen first, normal target of forward jump, save addr & allocator
                         _labels.add(ins, _nIns, _allocator);
@@ -1229,10 +1195,7 @@ namespace nanojit
                         intersectRegisterState(label->regs);
                         label->addr = _nIns;
                     }
-                    verbose_only( if (_logc->lcbits & LC_Assembly) { 
-                        outputAddr=true; asm_output("[%s]", 
-                        _thisfrag->lirbuf->names->formatRef(ins)); 
-                    })
+                    verbose_only( if (_logc->lcbits & LC_Assembly) { outputAddr=true; asm_output("[%s]", _thisfrag->lirbuf->names->formatRef(ins)); } )
                     break;
                 }
                 case LIR_xbarrier: {
@@ -1252,7 +1215,6 @@ namespace nanojit
                 case LIR_xt:
                 case LIR_xf:
                 {
-                    verbose_only( _thisfrag->nStaticExits++; )
                     countlir_xcc();
                     // we only support cmp with guard right now, also assume it is 'close' and only emit the branch
                     NIns* exit = asm_exit(ins); // does intersectRegisterState()
@@ -1262,7 +1224,6 @@ namespace nanojit
                 }
                 case LIR_x:
                 {
-                    verbose_only( _thisfrag->nStaticExits++; )
                     countlir_x();
                     // generate the side exit branch on the main trace.
                     NIns *exit = asm_exit(ins);
@@ -1340,7 +1301,7 @@ namespace nanojit
                     asm_call(ins);
                 }
             }
- 
+
 #ifdef NJ_VERBOSE
             // We have to do final LIR printing inside this loop.  If we do it
             // before this loop, we we end up printing a lot of dead LIR

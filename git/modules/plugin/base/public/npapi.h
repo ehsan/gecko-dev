@@ -445,11 +445,7 @@ typedef struct _NPPrint
   } print;
 } NPPrint;
 
-#ifdef XP_MACOSX
-#ifndef NP_NO_CARBON
-typedef EventRecord NPEvent;
-#endif
-#elif defined(XP_WIN)
+#if defined(XP_WIN)
 typedef struct _NPEvent
 {
   uint16_t event;
@@ -467,7 +463,7 @@ typedef struct _NPEvent
 typedef XEvent NPEvent;
 #else
 typedef void*  NPEvent;
-#endif
+#endif /* XP_MACOSX */
 
 #ifdef XP_MACOSX
 typedef void* NPRegion;

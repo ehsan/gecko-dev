@@ -50,7 +50,6 @@
 #include "nsIDOMAttr.h"
 #include "nsCOMArray.h"
 #include "nsPIDOMWindow.h"
-#include "nsDocument.h"
 #ifdef MOZ_XUL
 #include "nsXULElement.h"
 #endif
@@ -558,7 +557,6 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
                            nsnull;
 
   nsCOMPtr<nsINode> clone;
-  PRBool isDeepDocumentClone = PR_FALSE;
   if (aClone) {
     rv = aNode->Clone(nodeInfo, getter_AddRefs(clone));
     NS_ENSURE_SUCCESS(rv, rv);
@@ -573,7 +571,6 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
       NS_ENSURE_SUCCESS(rv, rv);
     }
     else if (aDeep && clone->IsNodeOfType(nsINode::eDOCUMENT)) {
-      isDeepDocumentClone = PR_TRUE;
       // After cloning the document itself, we want to clone the children into
       // the cloned document (somewhat like cloning and importing them into the
       // cloned document).
@@ -678,13 +675,6 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
                          aCx, aOldScope, aNewScope, aNodesWithProperties,
                          clone, getter_AddRefs(child));
       NS_ENSURE_SUCCESS(rv, rv);
-      if (isDeepDocumentClone) {
-        nsCOMPtr<nsIContent> content = do_QueryInterface(child);
-        if (content) {
-          static_cast<nsDocument*>(clone.get())->
-            RegisterNamedItems(content);
-        }
-      }
     }
   }
 

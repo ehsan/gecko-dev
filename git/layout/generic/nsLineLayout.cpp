@@ -867,6 +867,7 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
       pfd->SetFlag(PFD_SKIPWHENTRIMMINGWHITESPACE, PR_TRUE);
       nsIFrame* outOfFlowFrame = nsLayoutUtils::GetFloatFromPlaceholder(aFrame);
       if (outOfFlowFrame) {
+        nsPlaceholderFrame* placeholder = static_cast<nsPlaceholderFrame*>(aFrame);
         // Add mTrimmableWidth to the available width since if the line ends
         // here, the width of the inline content will be reduced by
         // mTrimmableWidth.
@@ -883,7 +884,7 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
           // We might as well allow zero-width floats to be placed, though.
           availableWidth = 0;
         }
-        placedFloat = AddFloat(outOfFlowFrame, availableWidth, aReflowStatus);
+        placedFloat = AddFloat(placeholder, availableWidth, aReflowStatus);
         NS_ASSERTION(!(outOfFlowFrame->GetType() == nsGkAtoms::letterFrame &&
                        GetFirstLetterStyleOK()),
                     "FirstLetterStyle set on line with floating first letter");
@@ -1332,14 +1333,8 @@ nsLineLayout::AddBulletFrame(nsIFrame* aFrame,
   NS_ASSERTION(mCurrentSpan == mRootSpan, "bad linelayout user");
   NS_ASSERTION(GetFlag(LL_GOTLINEBOX), "must have line box");
 
-
-  nsIFrame *blockFrame = mBlockReflowState->frame;
-  NS_ASSERTION(blockFrame->IsFrameOfType(nsIFrame::eBlockFrame),
-               "must be for block");
-  if (!static_cast<nsBlockFrame*>(blockFrame)->BulletIsEmpty()) {
-    SetFlag(LL_HASBULLET, PR_TRUE);
-    mLineBox->SetHasBullet();
-  }
+  SetFlag(LL_HASBULLET, PR_TRUE);
+  mLineBox->SetHasBullet();
 
   PerFrameData* pfd;
   nsresult rv = NewPerFrameData(&pfd);

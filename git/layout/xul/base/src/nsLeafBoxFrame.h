@@ -45,7 +45,6 @@ class nsAccessKeyInfo;
 class nsLeafBoxFrame : public nsLeafFrame
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
 
   friend nsIFrame* NS_NewLeafBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 

@@ -5,6 +5,8 @@
   XUL Widget Test for tabindex
   -->
 <window title="tabindex" width="500" height="600"
+        onload="window.focus();"
+        onfocus="if (!gDone) { gDone = true; runTests(); }"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
   <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>  
@@ -72,6 +74,8 @@
 <script>
 <![CDATA[
 
+var gDone = false;
+
 SimpleTest.waitForExplicitFinish();
 
 var gAdjustedTabFocusModel = false;
@@ -111,8 +115,6 @@ function runTests()
   is(gTestsOccurred, gTestCount, "test count");
   SimpleTest.finish();
 }
-
-SimpleTest.waitForFocus(runTests);
 
 ]]>
 

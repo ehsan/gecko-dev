@@ -80,14 +80,11 @@ protected:
   virtual ~nsSVGImageFrame();
 
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   // nsISVGChildFrame interface:
   NS_IMETHOD PaintSVG(nsSVGRenderState *aContext, const nsIntRect *aDirtyRect);
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
 
   // nsSVGPathGeometryFrame methods:
-  NS_IMETHOD UpdateCoveredRegion();
   virtual PRUint16 GetHittestMask();
 
   // nsIFrame interface:
@@ -130,8 +127,6 @@ NS_NewSVGImageFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsSVGImageFrame(aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsSVGImageFrame)
 
 nsSVGImageFrame::~nsSVGImageFrame()
 {
@@ -237,15 +232,9 @@ nsSVGImageFrame::PaintSVG(nsSVGRenderState *aContext,
       currentRequest->GetImage(getter_AddRefs(mImageContainer));
   }
 
-  // XXXbholley - I don't think huge images in SVGs are common enough to
-  // warrant worrying about the responsiveness impact of doing synchronous
-  // decodes. The extra code complexity of determinining when we want to
-  // force sync probably just isn't worth it, so always pass FLAG_SYNC_DECODE
   nsRefPtr<gfxASurface> currentFrame;
   if (mImageContainer)
-    mImageContainer->GetFrame(imgIContainer::FRAME_CURRENT,
-                              imgIContainer::FLAG_SYNC_DECODE,
-                              getter_AddRefs(currentFrame));
+    mImageContainer->GetCurrentFrame(getter_AddRefs(currentFrame));
 
   // We need to wrap the surface in a pattern to have somewhere to set the
   // graphics filter.
@@ -317,26 +306,7 @@ nsSVGImageFrame::GetType() const
 //----------------------------------------------------------------------
 // nsSVGPathGeometryFrame methods:
 
-// Lie about our fill/stroke so that covered region and hit detection work properly
-
-NS_IMETHODIMP
-nsSVGImageFrame::UpdateCoveredRegion()
-{
-  mRect.Empty();
-
-  gfxContext context(nsSVGUtils::GetThebesComputationalSurface());
-
-  GeneratePath(&context);
-  context.IdentityMatrix();
-
-  gfxRect extent = context.GetUserPathExtent();
-
-  if (!extent.IsEmpty()) {
-    mRect = nsSVGUtils::ToAppPixelRect(PresContext(), extent);
-  }
-
-  return NS_OK;
-}
+// Lie about our fill/stroke so that hit detection works properly
 
 PRUint16
 nsSVGImageFrame::GetHittestMask()

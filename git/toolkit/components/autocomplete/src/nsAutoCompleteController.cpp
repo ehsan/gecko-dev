@@ -557,9 +557,6 @@ nsAutoCompleteController::HandleDelete(PRBool *_retval)
   result->RemoveValueAt(rowIndex, PR_TRUE);
   --mRowCount;
 
-  // We removed it, so make sure we cancel the event that triggered this call.
-  *_retval = PR_TRUE;
-
   // Unselect the current item.
   popup->SetSelectedIndex(-1);
 
@@ -582,6 +579,9 @@ nsAutoCompleteController::HandleDelete(PRBool *_retval)
       nsAutoString value;
       if (NS_SUCCEEDED(GetResultValueAt(index, PR_TRUE, value))) {
         CompleteValue(value);
+      
+        // Make sure we cancel the event that triggered this call.
+        *_retval = PR_TRUE;
       }
     }
 

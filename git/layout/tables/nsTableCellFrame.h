@@ -72,9 +72,9 @@ class nsTableCellFrame : public nsHTMLContainerFrame,
                          public nsIPercentHeightObserver
 {
 public:
-  NS_DECL_QUERYFRAME_TARGET(nsTableCellFrame)
+
+  NS_DECLARE_FRAME_ACCESSOR(nsTableCellFrame)
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
   // default constructor supplied by the compiler
 
@@ -129,8 +129,7 @@ public:
                               const nsDisplayListSet& aLists);
                               
   void PaintCellBackground(nsIRenderingContext& aRenderingContext,
-                           const nsRect& aDirtyRect, nsPoint aPt,
-                           PRUint32 aFlags);
+                           const nsRect& aDirtyRect, nsPoint aPt);
 
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
@@ -227,8 +226,7 @@ public:
 
   virtual void PaintBackground(nsIRenderingContext& aRenderingContext,
                                const nsRect&        aDirtyRect,
-                               nsPoint              aPt,
-                               PRUint32             aFlags);
+                               nsPoint              aPt);
 
   void DecorateForSelection(nsIRenderingContext& aRenderingContext,
                             nsPoint              aPt);
@@ -304,7 +302,6 @@ inline void nsTableCellFrame::SetHasPctOverHeight(PRBool aValue)
 class nsBCTableCellFrame : public nsTableCellFrame
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
 
   nsBCTableCellFrame(nsStyleContext* aContext);
 
@@ -331,8 +328,7 @@ public:
 
   virtual void PaintBackground(nsIRenderingContext& aRenderingContext,
                                const nsRect&        aDirtyRect,
-                               nsPoint              aPt,
-                               PRUint32             aFlags);
+                               nsPoint              aPt);
 
 private:
   

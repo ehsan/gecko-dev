@@ -843,6 +843,11 @@ nsParser::Initialize(PRBool aConstructor)
   mFlags = NS_PARSER_FLAG_OBSERVERS_ENABLED |
            NS_PARSER_FLAG_PARSER_ENABLED |
            NS_PARSER_FLAG_CAN_TOKENIZE;
+
+  MOZ_TIMER_DEBUGLOG(("Reset: Parse Time: nsParser::nsParser(), this=%p\n", this));
+  MOZ_TIMER_RESET(mParseTime);
+  MOZ_TIMER_RESET(mDTDTime);
+  MOZ_TIMER_RESET(mTokenizeTime);
 }
 
 void
@@ -1838,6 +1843,8 @@ NS_IMETHODIMP_(void)
 nsParser::BlockParser()
 {
   mFlags &= ~NS_PARSER_FLAG_PARSER_ENABLED;
+  MOZ_TIMER_DEBUGLOG(("Stop: Parse Time: nsParser::BlockParser(), this=%p\n", this));
+  MOZ_TIMER_STOP(mParseTime);
 }
 
 /**
@@ -1851,6 +1858,8 @@ nsParser::UnblockParser()
 {
   if (!(mFlags & NS_PARSER_FLAG_PARSER_ENABLED)) {
     mFlags |= NS_PARSER_FLAG_PARSER_ENABLED;
+    MOZ_TIMER_DEBUGLOG(("Start: Parse Time: nsParser::UnblockParser(), this=%p\n", this));
+    MOZ_TIMER_START(mParseTime);
   } else {
     NS_WARNING("Trying to unblock an unblocked parser.");
   }
@@ -2289,6 +2298,9 @@ nsParser::ResumeParse(PRBool allowIteration, PRBool aIsFinalChunk,
 
   if ((mFlags & NS_PARSER_FLAG_PARSER_ENABLED) &&
       mInternalState != NS_ERROR_HTMLPARSER_STOPPARSING) {
+    MOZ_TIMER_DEBUGLOG(("Start: Parse Time: nsParser::ResumeParse(), this=%p\n", this));
+    MOZ_TIMER_START(mParseTime);
+
     NS_ASSERTION(!mSpeculativeScriptThread || !mSpeculativeScriptThread->Parsing(),
                  "Bad races happening, expect to crash!");
 
@@ -2363,6 +2375,19 @@ nsParser::ResumeParse(PRBool allowIteration, PRBool aIsFinalChunk,
             if (!mParserContext->mPrevContext) {
               if (mParserContext->mStreamListenerState == eOnStop) {
                 DidBuildModel(mStreamStatus);
+
+                MOZ_TIMER_DEBUGLOG(("Stop: Parse Time: nsParser::ResumeParse(), this=%p\n", this));
+                MOZ_TIMER_STOP(mParseTime);
+
+                MOZ_TIMER_LOG(("Parse Time (this=%p): ", this));
+                MOZ_TIMER_PRINT(mParseTime);
+
+                MOZ_TIMER_LOG(("DTD Time: "));
+                MOZ_TIMER_PRINT(mDTDTime);
+
+                MOZ_TIMER_LOG(("Tokenize Time: "));
+                MOZ_TIMER_PRINT(mTokenizeTime);
+
                 return NS_OK;
               }
             } else {
@@ -2395,6 +2420,9 @@ nsParser::ResumeParse(PRBool allowIteration, PRBool aIsFinalChunk,
     }
   }
 
+  MOZ_TIMER_DEBUGLOG(("Stop: Parse Time: nsParser::ResumeParse(), this=%p\n", this));
+  MOZ_TIMER_STOP(mParseTime);
+
   return (result == NS_ERROR_HTMLPARSER_INTERRUPTED) ? NS_OK : result;
 }
 
@@ -2414,6 +2442,7 @@ nsParser::BuildModel()
 
   if (NS_SUCCEEDED(result)) {
     if (mDTD) {
+      MOZ_TIMER_START(mDTDTime);
       // XXXbenjamn CanInterrupt() and !inDocWrite appear to be covariant.
       PRBool inDocWrite = !!mParserContext->mPrevContext;
       result = mDTD->BuildModel(theTokenizer,
@@ -2421,6 +2450,7 @@ nsParser::BuildModel()
                                 CanInterrupt() && !inDocWrite,
                                 !inDocWrite, // don't count lines in document.write
                                 &mCharset);
+      MOZ_TIMER_STOP(mDTDTime);
     }
   } else {
     mInternalState = result = NS_ERROR_HTMLPARSER_BADTOKENIZER;
@@ -3073,6 +3103,8 @@ nsresult nsParser::Tokenize(PRBool aIsFinalChunk)
 
     PRBool flushTokens = PR_FALSE;
 
+    MOZ_TIMER_START(mTokenizeTime);
+
     mParserContext->mNumConsumed = 0;
 
     PRBool killSink = PR_FALSE;
@@ -3102,6 +3134,8 @@ nsresult nsParser::Tokenize(PRBool aIsFinalChunk)
       }
     }
     DidTokenize(aIsFinalChunk);
+
+    MOZ_TIMER_STOP(mTokenizeTime);
 
     if (killSink) {
       mSink = nsnull;

@@ -245,7 +245,7 @@ gfxPlatform::Shutdown()
     nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (prefs)
         prefs->RemoveObserver(CMForceSRGBPrefName, gPlatform->overrideObserver);
-
+    
     delete gPlatform;
     gPlatform = nsnull;
 }
@@ -327,21 +327,6 @@ gfxPlatform::DownloadableFontsEnabled()
     return allowDownloadableFonts;
 }
 
-gfxFontEntry*
-gfxPlatform::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
-                              const PRUint8 *aFontData,
-                              PRUint32 aLength)
-{
-    // Default implementation does not handle activating downloaded fonts;
-    // just free the data and return.
-    // Platforms that support @font-face must override this,
-    // using the data to instantiate the font, and taking responsibility
-    // for freeing it when no longer required.
-    if (aFontData) {
-        NS_Free((void*)aFontData);
-    }
-    return nsnull;
-}
 
 static void
 AppendGenericFontFromPref(nsString& aFonts, const char *aLangGroup, const char *aGenericName)
@@ -643,7 +628,7 @@ gfxPlatform::GetCMSsRGBProfile()
 {
     if (!gCMSsRGBProfile) {
 
-        /* Create the profile using qcms. */
+        /* Create the profile using lcms. */
         gCMSsRGBProfile = qcms_profile_sRGB();
     }
     return gCMSsRGBProfile;

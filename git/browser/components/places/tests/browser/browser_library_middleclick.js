@@ -42,6 +42,8 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 
+var gPrefs = Cc["@mozilla.org/preferences-service;1"].
+             getService(Ci.nsIPrefBranch);
 const DISABLE_HISTORY_PREF = "browser.history_expire_days";
 
 var gLibrary = null;
@@ -63,7 +65,7 @@ var gTabsListener = {
     }
 
     var tab = aEvent.target;
-    is(tab.ownerDocument.defaultView, window,
+    is(tab.ownerDocument.defaultView.getBrowser(), gBrowser,
        "Tab has been opened in current browser window");
   },
 
@@ -262,7 +264,7 @@ function test() {
   gBrowser.addTabsProgressListener(gTabsListener);
 
   // Temporary disable history, so we won't record pages navigation.
-  gPrefService.setIntPref(DISABLE_HISTORY_PREF, 0);
+  gPrefs.setIntPref(DISABLE_HISTORY_PREF, 0);
 
   // Window watcher for Library window.
   var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
@@ -318,7 +320,7 @@ function runNextTest() {
     gBrowser.removeTabsProgressListener(gTabsListener);
 
     // Restore history.
-    gPrefService.clearUserPref(DISABLE_HISTORY_PREF);
+    gPrefs.setIntPref(DISABLE_HISTORY_PREF, 180);
 
     finish();
   }

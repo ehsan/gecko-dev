@@ -36,17 +36,16 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsIPrefService.h"
-#include "nsServiceManagerUtils.h"
-
-#include "nsGLPbuffer.h"
-#include "WebGLContext.h"
-
 #include <OpenGL/OpenGL.h>
 
-#include "gfxContext.h"
+#include "nsICanvasRenderingContextGL.h"
 
-using namespace mozilla;
+#include "nsIPrefService.h"
+
+#include "nsGLPbuffer.h"
+#include "nsCanvasRenderingContextGL.h"
+
+#include "gfxContext.h"
 
 static PRUint32 gActiveBuffers = 0;
 
@@ -58,7 +57,7 @@ nsGLPbufferCGL::nsGLPbufferCGL()
 }
 
 PRBool
-nsGLPbufferCGL::Init(WebGLContext *priv)
+nsGLPbufferCGL::Init(nsCanvasRenderingContextGLPrivate *priv)
 {
     mPriv = priv;
     nsresult rv;
@@ -109,12 +108,12 @@ nsGLPbufferCGL::Init(WebGLContext *priv)
     MakeContextCurrent();
 
     if (!mGLWrap.OpenLibrary("/System/Library/Frameworks/OpenGL.framework/Libraries/libGL.dylib")) {
-        LogMessage("Canvas 3D: Failed to open LibGL.dylib (tried system OpenGL.framework)");
+        LogMessage(NS_LITERAL_CSTRING("Canvas 3D: Failed to open LibGL.dylib (tried system OpenGL.framework)"));
         return PR_FALSE;
     }
 
     if (!mGLWrap.Init(GLES20Wrap::TRY_NATIVE_GL)) {
-        LogMessage("Canvas 3D: GLWrap init failed");
+        LogMessage(NS_LITERAL_CSTRING("Canvas 3D: GLWrap init failed"));
         return PR_FALSE;
     }
 
@@ -145,7 +144,7 @@ nsGLPbufferCGL::Resize(PRInt32 width, PRInt32 height)
         return PR_FALSE;
     }
 
-    err = CGLCreatePBuffer(width, height, LOCAL_GL_TEXTURE_RECTANGLE_EXT, LOCAL_GL_RGBA, 0, &mPbuffer);
+    err = CGLCreatePBuffer(width, height, GL_TEXTURE_RECTANGLE_EXT, GL_RGBA, 0, &mPbuffer);
     if (err) {
         fprintf (stderr, "CGLCreatePBuffer failed: %d\n", err);
         return PR_FALSE;
@@ -226,7 +225,7 @@ gfxASurface*
 nsGLPbufferCGL::ThebesSurface()
 {
     if (!mThebesSurface) {
-        mThebesSurface = new gfxImageSurface(gfxIntSize(mWidth, mHeight), gfxASurface::ImageFormatARGB32);
+        mThebesSurface = CanvasGLThebes::CreateImageSurface(gfxIntSize(mWidth, mHeight), gfxASurface::ImageFormatARGB32);
         if (mThebesSurface->CairoStatus() != 0) {
             fprintf (stderr, "image surface failed\n");
             return nsnull;
@@ -239,7 +238,7 @@ nsGLPbufferCGL::ThebesSurface()
 
     if (mImageNeedsUpdate) {
         MakeContextCurrent();
-        mGLWrap.fReadPixels (0, 0, mWidth, mHeight, LOCAL_GL_BGRA, LOCAL_GL_UNSIGNED_INT_8_8_8_8_REV, mThebesSurface->Data());
+        mGLWrap.fReadPixels (0, 0, mWidth, mHeight, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, mThebesSurface->Data());
 
         mQuartzSurface->Flush();
 

@@ -88,14 +88,13 @@
 #ifdef MOZ_XUL
 #include "nsXULAlertAccessible.h"
 #include "nsXULColorPickerAccessible.h"
-#include "nsXULComboboxAccessible.h"
 #include "nsXULFormControlAccessible.h"
-#include "nsXULListboxAccessibleWrap.h"
 #include "nsXULMenuAccessibleWrap.h"
+#include "nsXULSelectAccessible.h"
 #include "nsXULSliderAccessible.h"
 #include "nsXULTabAccessible.h"
 #include "nsXULTextAccessible.h"
-#include "nsXULTreeGridAccessibleWrap.h"
+#include "nsXULTreeAccessibleWrap.h"
 #endif
 
 // For native window support for object/embed/applet tags
@@ -568,6 +567,11 @@ nsAccessibilityService::CreateHTMLAccessibleByMarkup(nsIFrame *aFrame,
            tag == nsAccessibilityAtoms::h4 ||
            tag == nsAccessibilityAtoms::h5 ||
            tag == nsAccessibilityAtoms::h6 ||
+#ifndef MOZ_ACCESSIBILITY_ATK
+           tag == nsAccessibilityAtoms::tbody ||
+           tag == nsAccessibilityAtoms::tfoot ||
+           tag == nsAccessibilityAtoms::thead ||
+#endif
            tag == nsAccessibilityAtoms::q) {
     return CreateHyperTextAccessible(aFrame, aAccessible);
   }
@@ -576,7 +580,7 @@ nsAccessibilityService::CreateHTMLAccessibleByMarkup(nsIFrame *aFrame,
                                             nsIAccessibleRole::ROLE_ROW);
   }
   else if (nsCoreUtils::IsHTMLTableHeader(content)) {
-    *aAccessible = new nsHTMLTableHeaderCellAccessibleWrap(aNode, aWeakShell);
+    *aAccessible = new nsHTMLTableHeaderAccessible(aNode, aWeakShell);
   }
 
   NS_IF_ADDREF(*aAccessible);
@@ -833,8 +837,34 @@ nsAccessibilityService::CreateHTMLTableAccessible(nsIFrame *aFrame, nsIAccessibl
 }
 
 NS_IMETHODIMP
-nsAccessibilityService::CreateHTMLTableCellAccessible(nsIFrame *aFrame,
-                                                      nsIAccessible **aAccessible)
+nsAccessibilityService::CreateHTMLTableHeadAccessible(nsIDOMNode *aDOMNode, nsIAccessible **_retval)
+{
+#ifndef MOZ_ACCESSIBILITY_ATK
+  *_retval = nsnull;
+  return NS_ERROR_FAILURE;
+#else
+  NS_ENSURE_ARG_POINTER(aDOMNode);
+
+  nsresult rv = NS_OK;
+
+  nsCOMPtr<nsIWeakReference> weakShell;
+  rv = GetShellFromNode(aDOMNode, getter_AddRefs(weakShell));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsHTMLTableHeadAccessibleWrap* accTableHead =
+    new nsHTMLTableHeadAccessibleWrap(aDOMNode, weakShell);
+
+  NS_ENSURE_TRUE(accTableHead, NS_ERROR_OUT_OF_MEMORY);
+
+  *_retval = static_cast<nsIAccessible *>(accTableHead);
+  NS_IF_ADDREF(*_retval);
+
+  return rv;
+#endif
+}
+
+NS_IMETHODIMP
+nsAccessibilityService::CreateHTMLTableCellAccessible(nsIFrame *aFrame, nsIAccessible **_retval)
 {
   nsCOMPtr<nsIDOMNode> node;
   nsCOMPtr<nsIWeakReference> weakShell;
@@ -842,11 +872,11 @@ nsAccessibilityService::CreateHTMLTableCellAccessible(nsIFrame *aFrame,
   if (NS_FAILED(rv))
     return rv;
 
-  *aAccessible = new nsHTMLTableCellAccessibleWrap(node, weakShell);
-  if (!*aAccessible) 
+  *_retval = new nsHTMLTableCellAccessible(node, weakShell);
+  if (! *_retval) 
     return NS_ERROR_OUT_OF_MEMORY;
 
-  NS_ADDREF(*aAccessible);
+  NS_ADDREF(*_retval);
   return NS_OK;
 }
 
@@ -1494,7 +1524,7 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
       frameType == nsAccessibilityAtoms::tableRowGroupFrame ||
       frameType == nsAccessibilityAtoms::tableRowFrame;
 
-    if (partOfHTMLTable) {
+    if (!roleMapEntry && partOfHTMLTable) {
       // Table-related frames don't get table-related roles
       // unless they are inside a table, but they may still get generic
       // accessibles
@@ -1503,49 +1533,31 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
         nsIFrame *tableFrame = aPresShell->GetPrimaryFrameFor(tableContent);
         if (!tableFrame)
           continue;
-
         if (tableFrame->GetType() == nsAccessibilityAtoms::tableOuterFrame) {
           nsCOMPtr<nsIDOMNode> tableNode(do_QueryInterface(tableContent));
           nsCOMPtr<nsIAccessible> tableAccessible;
-          GetAccessibleInShell(tableNode, aPresShell,
-                               getter_AddRefs(tableAccessible));
-
-          if (tableAccessible) {
-            if (!roleMapEntry) {
-              PRUint32 role = nsAccUtils::Role(tableAccessible);
-              if (role != nsIAccessibleRole::ROLE_TABLE &&
-                  role != nsIAccessibleRole::ROLE_TREE_TABLE) {
-                // No ARIA role and not in table: override role. For example,
-                // <table role="label"><td>content</td></table>
-                roleMapEntry = &nsARIAMap::gEmptyRoleMap;
-              }
-            }
-
-            break;
-          }
-
+          GetAccessibleInShell(tableNode, aPresShell, getter_AddRefs(tableAccessible));
+          if (!tableAccessible && !content->IsFocusable()) {
 #ifdef DEBUG
-          nsRoleMapEntry *tableRoleMapEntry =
-            nsAccUtils::GetRoleMapEntry(tableNode);
-          NS_ASSERTION(tableRoleMapEntry &&
-                       !nsCRT::strcmp(tableRoleMapEntry->roleString, "presentation"),
-                       "No accessible for parent table and it didn't have role of presentation");
+            nsRoleMapEntry *tableRoleMapEntry =
+              nsAccUtils::GetRoleMapEntry(tableNode);
+            NS_ASSERTION(tableRoleMapEntry &&
+                         !nsCRT::strcmp(tableRoleMapEntry->roleString, "presentation"),
+                         "No accessible for parent table and it didn't have role of presentation");
 #endif
-
-          if (!roleMapEntry && !content->IsFocusable()) {
-            // Table-related descendants of presentation table are also
-            // presentation if they aren't focusable and have not explicit ARIA
-            // role (don't create accessibles for them unless they need to fire
-            // focus events).
+            // Table-related descendants of presentation table are also presentation
+            // Don't create accessibles for them unless they need to fire focus events
             return NS_OK;
           }
-
-          // otherwise create ARIA based accessible.
-          tryTagNameOrFrame = PR_FALSE;
+          if (tableAccessible &&
+              nsAccUtils::Role(tableAccessible) != nsIAccessibleRole::ROLE_TABLE) {
+            NS_ASSERTION(!roleMapEntry, "Should not be changing ARIA role, just overriding impl class role");
+            // Not in table: override role (roleMap entry was null).
+            roleMapEntry = &nsARIAMap::gEmptyRoleMap;
+          }
           break;
         }
-
-        if (tableContent->Tag() == nsAccessibilityAtoms::table) {
+        else if (tableContent->Tag() == nsAccessibilityAtoms::table) {
           // Stop before we are fooled by any additional table ancestors
           // This table cell frameis part of a separate ancestor table.
           tryTagNameOrFrame = PR_FALSE;
@@ -1570,7 +1582,7 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
         } else if (roleMapEntry->role == nsIAccessibleRole::ROLE_GRID_CELL ||
             roleMapEntry->role == nsIAccessibleRole::ROLE_ROWHEADER ||
             roleMapEntry->role == nsIAccessibleRole::ROLE_COLUMNHEADER) {
-          newAcc = new nsARIAGridCellAccessibleWrap(aNode, aWeakShell);
+          newAcc = new nsARIAGridCellAccessible(aNode, aWeakShell);
         }
       }
     }
@@ -1816,10 +1828,10 @@ nsresult nsAccessibilityService::GetAccessibleByType(nsIDOMNode *aNode,
       *aAccessible = new nsXULLinkAccessible(aNode, weakShell);
       break;
     case nsIAccessibleProvider::XULListbox:
-      *aAccessible = new nsXULListboxAccessibleWrap(aNode, weakShell);
+      *aAccessible = new nsXULListboxAccessible(aNode, weakShell);
       break;
     case nsIAccessibleProvider::XULListCell:
-      *aAccessible = new nsXULListCellAccessibleWrap(aNode, weakShell);
+      *aAccessible = new nsXULListCellAccessible(aNode, weakShell);
       break;
     case nsIAccessibleProvider::XULListHead:
       *aAccessible = new nsXULColumnsAccessible(aNode, weakShell);
@@ -1897,7 +1909,7 @@ nsresult nsAccessibilityService::GetAccessibleByType(nsIDOMNode *aNode,
     case nsIAccessibleProvider::XULTree:
       return GetAccessibleForXULTree(aNode, weakShell, aAccessible);
     case nsIAccessibleProvider::XULTreeColumns:
-      *aAccessible = new nsXULTreeColumnsAccessible(aNode, weakShell);
+      *aAccessible = new nsXULTreeColumnsAccessibleWrap(aNode, weakShell);
       break;
     case nsIAccessibleProvider::XULTreeColumnItem:
       *aAccessible = new nsXULColumnItemAccessible(aNode, weakShell);
@@ -2030,27 +2042,25 @@ NS_IMETHODIMP nsAccessibilityService::RemoveNativeRootAccessible(nsIAccessible *
 }
 
 // Called from layout when the frame tree owned by a node changes significantly
-NS_IMETHODIMP
-nsAccessibilityService::InvalidateSubtreeFor(nsIPresShell *aShell,
-                                             nsIContent *aChangeContent,
-                                             PRUint32 aChangeType)
+NS_IMETHODIMP nsAccessibilityService::InvalidateSubtreeFor(nsIPresShell *aShell,
+                                                           nsIContent *aChangeContent,
+                                                           PRUint32 aEvent)
 {
-  NS_ASSERTION(aChangeType == nsIAccessibilityService::FRAME_SIGNIFICANT_CHANGE ||
-               aChangeType == nsIAccessibilityService::FRAME_SHOW ||
-               aChangeType == nsIAccessibilityService::FRAME_HIDE ||
-               aChangeType == nsIAccessibilityService::NODE_SIGNIFICANT_CHANGE ||
-               aChangeType == nsIAccessibilityService::NODE_APPEND ||
-               aChangeType == nsIAccessibilityService::NODE_REMOVE,
+  NS_ASSERTION(aEvent == nsIAccessibleEvent::EVENT_ASYNCH_SIGNIFICANT_CHANGE ||
+               aEvent == nsIAccessibleEvent::EVENT_ASYNCH_SHOW ||
+               aEvent == nsIAccessibleEvent::EVENT_ASYNCH_HIDE ||
+               aEvent == nsIAccessibleEvent::EVENT_DOM_SIGNIFICANT_CHANGE ||
+               aEvent == nsIAccessibleEvent::EVENT_DOM_CREATE ||
+               aEvent == nsIAccessibleEvent::EVENT_DOM_DESTROY,
                "Incorrect aEvent passed in");
 
   NS_ENSURE_ARG_POINTER(aShell);
-
   nsCOMPtr<nsIAccessibleDocument> accessibleDoc =
     nsAccessNode::GetDocAccessibleFor(aShell->GetDocument());
   nsRefPtr<nsDocAccessible> docAcc =
     nsAccUtils::QueryAccessibleDocument(accessibleDoc);
   if (docAcc)
-    docAcc->InvalidateCacheSubtree(aChangeContent, aChangeType);
+    docAcc->InvalidateCacheSubtree(aChangeContent, aEvent);
 
   return NS_OK;
 }

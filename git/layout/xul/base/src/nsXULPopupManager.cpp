@@ -1018,12 +1018,7 @@ nsXULPopupManager::FirePopupShowingEvent(nsIContent* aPopup,
   //   all the globals people keep adding to nsIDOMXULDocument.
   nsEventStatus status = nsEventStatus_eIgnore;
   nsMouseEvent event(PR_TRUE, NS_XUL_POPUP_SHOWING, nsnull, nsMouseEvent::eReal);
-
-  // coordinates are relative to the root widget
-  nsPresContext* rootPresContext =
-    presShell->GetPresContext()->RootPresContext();
-  rootPresContext->PresShell()->GetViewManager()->GetRootWidget(getter_AddRefs(event.widget));
-
+  presShell->GetViewManager()->GetRootWidget(getter_AddRefs(event.widget));
   event.refPoint = mCachedMousePoint;
   nsEventDispatcher::Dispatch(aPopup, aPresContext, &event, nsnull, &status);
   mCachedMousePoint = nsIntPoint(0, 0);
@@ -2101,7 +2096,7 @@ nsXULMenuCommandEvent::Run()
     if (mCloseMenuMode != CloseMenuMode_None)
       menuFrame->SelectMenu(PR_FALSE);
 
-    nsAutoHandlingUserInputStatePusher userInpStatePusher(mUserInput, PR_FALSE);
+    nsAutoHandlingUserInputStatePusher userInpStatePusher(mUserInput);
     nsContentUtils::DispatchXULCommand(mMenu, mIsTrusted, nsnull, shell,
                                        mControl, mAlt, mShift, mMeta);
   }

@@ -22,7 +22,6 @@
  * Contributor(s):
  *   David Hyatt <hyatt@netscape.com> (Original Author)
  *   Christian Biesinger <cbiesinger@web.de>
- *   Bobby Holley <bobbyholley@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -49,6 +48,7 @@
 #include "nsIComponentManager.h"
 #include "imgIContainerObserver.h"
 
+#include "imgILoad.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
 
@@ -82,55 +82,45 @@ nsICODecoder::nsICODecoder()
   mColors = nsnull;
   mRow = nsnull;
   mHaveAlphaData = mDecodingAndMask = PR_FALSE;
-  mError = PR_FALSE;
 }
 
 nsICODecoder::~nsICODecoder()
 {
 }
 
-NS_IMETHODIMP nsICODecoder::Init(imgIContainer *aImage,
-                                 imgIDecoderObserver *aObserver,
-                                 PRUint32 aFlags)
-{
-  // Grab parameters
-  mImage = aImage;
-  mObserver = aObserver;
-  mFlags = aFlags;
+NS_IMETHODIMP nsICODecoder::Init(imgILoad *aLoad)
+{ 
+  mObserver = do_QueryInterface(aLoad);
+    
+  mImage = do_CreateInstance("@mozilla.org/image/container;2");
+  if (!mImage)
+    return NS_ERROR_OUT_OF_MEMORY;
 
-  // Fire OnStartDecode at init time to support bug 512435
-  if (!(mFlags & imgIDecoder::DECODER_FLAG_HEADERONLY) && mObserver)
-    mObserver->OnStartDecode(nsnull);
-
-  return NS_OK;
+  return aLoad->SetImage(mImage);
 }
 
-NS_IMETHODIMP nsICODecoder::Close(PRUint32 aFlags)
+NS_IMETHODIMP nsICODecoder::Close()
 {
-  nsresult rv = NS_OK;
+  // Tell the image that it's data has been updated 
+  nsIntRect r(0, 0, mDirEntry.mWidth, mDirEntry.mHeight);
+  nsresult rv = mImage->FrameUpdated(0, r);
+    
+  mImage->DecodingComplete();
 
-  // Send notifications if appropriate
-  if (!(mFlags & imgIDecoder::DECODER_FLAG_HEADERONLY) &&
-      !mError && !(aFlags & CLOSE_FLAG_DONTNOTIFY)) {
-    // Tell the image that it's data has been updated 
-    nsIntRect r(0, 0, mDirEntry.mWidth, mDirEntry.mHeight);
-    rv = mImage->FrameUpdated(0, r);
-
-
-    if (mObserver) {
-      mObserver->OnDataAvailable(nsnull, PR_TRUE, &r);
-      mObserver->OnStopFrame(nsnull, 0);
-    }
-    mImage->DecodingComplete();
-    if (mObserver) {
-      mObserver->OnStopContainer(nsnull, 0);
-      mObserver->OnStopDecode(nsnull, NS_OK, nsnull);
-    }
+  if (mObserver) {
+    mObserver->OnDataAvailable(nsnull, PR_TRUE, &r);
+    mObserver->OnStopFrame(nsnull, 0);
+    mObserver->OnStopContainer(nsnull, 0);
+    mObserver->OnStopDecode(nsnull, NS_OK, nsnull);
+    mObserver = nsnull;
   }
 
+  mImage = nsnull;
+ 
   mPos = 0;
 
   delete[] mColors;
+  mColors = nsnull;
 
   mCurLine = 0;
   mRowBytes = 0;
@@ -157,29 +147,13 @@ NS_METHOD nsICODecoder::ReadSegCb(nsIInputStream* aIn, void* aClosure,
                              const char* aFromRawSegment, PRUint32 aToOffset,
                              PRUint32 aCount, PRUint32 *aWriteCount) {
   nsICODecoder *decoder = reinterpret_cast<nsICODecoder*>(aClosure);
-
-  // Always read everything
   *aWriteCount = aCount;
-
-  // Process
-  nsresult rv = decoder->ProcessData(aFromRawSegment, aCount);
-
-  // rvs might not propagate correctly. Set a flag before returning.
-  if (NS_FAILED(rv))
-    decoder->mError = PR_TRUE;
-  return rv;
+  return decoder->ProcessData(aFromRawSegment, aCount);
 }
 
-NS_IMETHODIMP nsICODecoder::WriteFrom(nsIInputStream *aInStr, PRUint32 aCount)
+NS_IMETHODIMP nsICODecoder::WriteFrom(nsIInputStream *aInStr, PRUint32 aCount, PRUint32 *aRetval)
 {
-  // Decode, watching for errors
-  nsresult rv = NS_OK;
-  PRUint32 ignored;
-  if (!mError)
-    rv = aInStr->ReadSegments(ReadSegCb, this, aCount, &ignored);
-  if (mError || NS_FAILED(rv))
-    return NS_ERROR_FAILURE;
-  return NS_OK;
+  return aInStr->ReadSegments(ReadSegCb, this, aCount, aRetval);
 }
 
 nsresult nsICODecoder::ProcessData(const char* aBuffer, PRUint32 aCount) {
@@ -266,17 +240,10 @@ nsresult nsICODecoder::ProcessData(const char* aBuffer, PRUint32 aCount) {
   nsresult rv;
 
   if (mPos == mImageOffset + BITMAPINFOSIZE) {
+    rv = mObserver->OnStartDecode(nsnull);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     ProcessInfoHeader();
-    rv = mImage->SetSize(mDirEntry.mWidth, mDirEntry.mHeight);
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (mObserver) {
-      rv = mObserver->OnStartContainer(nsnull, mImage);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-    if (mFlags & imgIDecoder::DECODER_FLAG_HEADERONLY)
-      return NS_OK;
-
     if (mBIH.bpp <= 8) {
       switch (mBIH.bpp) {
         case 1:
@@ -297,6 +264,9 @@ nsresult nsICODecoder::ProcessData(const char* aBuffer, PRUint32 aCount) {
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
+    rv = mImage->Init(mDirEntry.mWidth, mDirEntry.mHeight, mObserver);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     if (mIsCursor) {
       nsCOMPtr<nsIProperties> props(do_QueryInterface(mImage));
       if (props) {
@@ -313,6 +283,9 @@ nsresult nsICODecoder::ProcessData(const char* aBuffer, PRUint32 aCount) {
       }
     }
 
+    rv = mObserver->OnStartContainer(nsnull, mImage);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     mCurLine = mDirEntry.mHeight;
     mRow = (PRUint8*)malloc((mDirEntry.mWidth * mBIH.bpp)/8 + 4);
     // +4 because the line is padded to a 4 bit boundary, but I don't want
@@ -326,10 +299,8 @@ nsresult nsICODecoder::ProcessData(const char* aBuffer, PRUint32 aCount) {
                              gfxASurface::ImageFormatARGB32, (PRUint8**)&mImageData, &imageLength);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    if (mObserver) {
-      mObserver->OnStartFrame(nsnull, 0);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
+    mObserver->OnStartFrame(nsnull, 0);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   if (mColors && (mPos >= mImageOffset + BITMAPINFOSIZE) && 

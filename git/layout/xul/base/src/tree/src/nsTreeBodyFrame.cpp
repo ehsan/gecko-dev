@@ -132,9 +132,8 @@ nsIFrame*
 NS_NewTreeBodyFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsTreeBodyFrame(aPresShell, aContext);
-}
+} // NS_NewTreeFrame
 
-NS_IMPL_FRAMEARENA_HELPERS(nsTreeBodyFrame)
 
 NS_QUERYFRAME_HEAD(nsTreeBodyFrame)
   NS_QUERYFRAME_ENTRY(nsICSSPseudoComparator)
@@ -448,7 +447,7 @@ nsTreeBodyFrame::ReflowFinished()
       mPageLength = mInnerBox.height / mRowHeight;
     }
 
-    PRInt32 lastPageTopRow = NS_MAX(0, mRowCount - mPageLength);
+    PRInt32 lastPageTopRow = PR_MAX(0, mRowCount - mPageLength);
     if (mTopRowIndex > lastPageTopRow)
       ScrollToRowInternal(parts, lastPageTopRow);
 
@@ -1921,7 +1920,7 @@ nsTreeBodyFrame::RowCountChanged(PRInt32 aIndex, PRInt32 aCount)
     else if (mTopRowIndex >= aIndex) {
       // This is a full-blown invalidate.
       if (mTopRowIndex + mPageLength > mRowCount - 1) {
-        mTopRowIndex = NS_MAX(0, mRowCount - 1 - mPageLength);
+        mTopRowIndex = PR_MAX(0, mRowCount - 1 - mPageLength);
       }
       needsInvalidation = PR_TRUE;
     }
@@ -1953,7 +1952,7 @@ nsTreeBodyFrame::EndUpdateBatch()
       mView->GetRowCount(&mRowCount);
       if (countBeforeUpdate != mRowCount) {
         if (mTopRowIndex + mPageLength > mRowCount - 1) {
-          mTopRowIndex = NS_MAX(0, mRowCount - 1 - mPageLength);
+          mTopRowIndex = PR_MAX(0, mRowCount - 1 - mPageLength);
         }
         FullScrollbarsUpdate(PR_FALSE);
       }
@@ -3399,7 +3398,7 @@ nsTreeBodyFrame::PaintTwisty(PRInt32              aRowIndex,
           
         // Paint the image.
         nsLayoutUtils::DrawSingleUnscaledImage(&aRenderingContext, image,
-            pt, aDirtyRect, imgIContainer::FLAG_NONE, &imageSize);
+            pt, aDirtyRect, &imageSize);
       }
     }
   }
@@ -3530,8 +3529,7 @@ nsTreeBodyFrame::PaintImage(PRInt32              aRowIndex,
 
     nsLayoutUtils::DrawImage(&aRenderingContext, image,
         nsLayoutUtils::GetGraphicsFilterForFrame(this),
-        wholeImageDest, destRect, destRect.TopLeft(), aDirtyRect,
-        imgIContainer::FLAG_NONE);
+        wholeImageDest, destRect, destRect.TopLeft(), aDirtyRect);
   }
 
   // Update the aRemainingWidth and aCurrX values.
@@ -3707,7 +3705,7 @@ nsTreeBodyFrame::PaintCheckbox(PRInt32              aRowIndex,
 
     // Paint the image.
     nsLayoutUtils::DrawSingleUnscaledImage(&aRenderingContext, image,
-        pt, aDirtyRect, imgIContainer::FLAG_NONE, &imageSize);
+        pt, aDirtyRect, &imageSize);
   }
 }
 
@@ -3772,8 +3770,7 @@ nsTreeBodyFrame::PaintProgressMeter(PRInt32              aRowIndex,
                   height*nsIDeviceContext::AppUnitsPerCSSPixel());
       nsLayoutUtils::DrawImage(&aRenderingContext, image,
           nsLayoutUtils::GetGraphicsFilterForFrame(this),
-          nsRect(meterRect.TopLeft(), size), meterRect, meterRect.TopLeft(),
-          aDirtyRect, imgIContainer::FLAG_NONE);
+          nsRect(meterRect.TopLeft(), size), meterRect, meterRect.TopLeft(), aDirtyRect);
     } else {
       aRenderingContext.FillRect(meterRect);
     }
@@ -3793,8 +3790,7 @@ nsTreeBodyFrame::PaintProgressMeter(PRInt32              aRowIndex,
                   height*nsIDeviceContext::AppUnitsPerCSSPixel());
       nsLayoutUtils::DrawImage(&aRenderingContext, image,
           nsLayoutUtils::GetGraphicsFilterForFrame(this),
-          nsRect(meterRect.TopLeft(), size), meterRect, meterRect.TopLeft(),
-          aDirtyRect, imgIContainer::FLAG_NONE);
+          nsRect(meterRect.TopLeft(), size), meterRect, meterRect.TopLeft(), aDirtyRect);
     }
   }
 }
@@ -3916,8 +3912,7 @@ nsTreeBodyFrame::PaintBackgroundLayer(nsStyleContext*      aStyleContext,
   
   nsCSSRendering::PaintBackgroundWithSC(aPresContext, aRenderingContext,
                                         this, aDirtyRect, aRect,
-                                        *myColor, *myBorder,
-                                        nsCSSRendering::PAINTBG_SYNC_DECODE_IMAGES);
+                                        *myColor, *myBorder, 0);
 
   nsCSSRendering::PaintBorder(aPresContext, aRenderingContext, this,
                               aDirtyRect, aRect, *myBorder, mStyleContext);
@@ -4356,8 +4351,8 @@ nsTreeBodyFrame::OffsetForHorzScroll(nsRect& rect, PRBool clip)
     return PR_FALSE;
 
   if (clip) {
-    nscoord leftEdge = NS_MAX(rect.x, mInnerBox.x);
-    nscoord rightEdge = NS_MIN(rect.XMost(), mInnerBox.XMost());
+    nscoord leftEdge = PR_MAX(rect.x, mInnerBox.x);
+    nscoord rightEdge = PR_MIN(rect.XMost(), mInnerBox.XMost());
     rect.x = leftEdge;
     rect.width = rightEdge - leftEdge;
 
