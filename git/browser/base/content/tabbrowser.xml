@@ -950,7 +950,7 @@
                 crop = "center";
 
               } else // Still no title?  Fall back to our untitled string.
-                title = this.mStringBundle.getString("tabs.emptyTabTitle");
+                title = this.mStringBundle.getString("tabs.untitled");
             }
 
             aTab.label = title;
@@ -1134,7 +1134,7 @@
             var blank = !aURI || (aURI == "about:blank");
 
             if (blank)
-              t.setAttribute("label", this.mStringBundle.getString("tabs.emptyTabTitle"));
+              t.setAttribute("label", this.mStringBundle.getString("tabs.untitled"));
             else
               t.setAttribute("label", aURI);
 
@@ -2477,7 +2477,7 @@
 
           var tab = this.firstChild;
           tab.setAttribute("label",
-                           this.tabbrowser.mStringBundle.getString("tabs.emptyTabTitle"));
+                           this.tabbrowser.mStringBundle.getString("tabs.untitled"));
           tab.minWidth = this.mTabMinWidth;
           tab.maxWidth = this.mTabMaxWidth;
           tab.width = 0;

@@ -210,17 +210,26 @@ public:
   NS_DECL_NSIWORKERMESSAGEEVENT
   NS_DECL_NSICLASSINFO_GETINTERFACES
 
-  nsDOMWorkerMessageEvent() : mDataValWasReparented(PR_FALSE) { }
+  nsDOMWorkerMessageEvent()
+  : mIsJSON(PR_FALSE), mIsPrimitive(PR_FALSE), mHaveCachedJSVal(PR_FALSE),
+    mHaveAttemptedConversion(PR_FALSE) { }
 
-  nsresult SetJSVal(JSContext* aCx,
-                    jsval aData);
+  nsresult SetJSONData(JSContext* aCx,
+                       jsval aData,
+                       PRBool aIsJSON,
+                       PRBool aIsPrimitive);
 
 protected:
   nsString mOrigin;
   nsCOMPtr<nsISupports> mSource;
 
   nsAutoJSValHolder mDataVal;
-  PRBool mDataValWasReparented;
+  nsAutoJSValHolder mCachedJSVal;
+
+  PRPackedBool mIsJSON;
+  PRPackedBool mIsPrimitive;
+  PRPackedBool mHaveCachedJSVal;
+  PRPackedBool mHaveAttemptedConversion;
 };
 
 class nsDOMWorkerProgressEvent : public nsDOMWorkerEvent,

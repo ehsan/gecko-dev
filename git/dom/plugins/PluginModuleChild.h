@@ -184,14 +184,14 @@ private:
     nsCString mUserAgent;
 
     // we get this from the plugin
-    NP_PLUGINSHUTDOWN mShutdownFunc;
-#ifdef OS_LINUX
+#ifdef OS_POSIX
     NP_PLUGINUNIXINIT mInitializeFunc;
-#elif defined(OS_WIN) || defined(OS_MACOSX)
+#elif OS_WIN
     NP_PLUGININIT mInitializeFunc;
     NP_GETENTRYPOINTS mGetEntryPointsFunc;
 #endif
 
+    NP_PLUGINSHUTDOWN mShutdownFunc;
     NPPluginFuncs mFunctions;
     NPSavedData mSavedData;
 

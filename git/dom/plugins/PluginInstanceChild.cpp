@@ -432,7 +432,9 @@ PluginInstanceChild::AnswerNPP_SetValue_NPNVprivateModeBool(const bool& value,
         return true;
     }
 
-    NPBool v = value;
+    // Use `long` instead of NPBool because Flash and other plugins read
+    // this as a word-size value instead of the 1-byte NPBool that it is.
+    long v = value;
     *result = mPluginIface->setvalue(GetNPP(), NPNVprivateModeBool, &v);
     return true;
 }
@@ -450,13 +452,8 @@ PluginInstanceChild::AnswerNPP_HandleEvent(const NPRemoteEvent& event,
                           event.event.xgraphicsexpose.drawable));
 #endif
 
-#ifdef OS_MACOSX
-    // Mac OS X does not define an NPEvent structure. It defines more specific types.
-    NPCocoaEvent evcopy = event.event;
-#else
     // Make a copy since we may modify values.
     NPEvent evcopy = event.event;
-#endif
 
 #ifdef OS_WIN
     // Painting for win32. SharedSurfacePaint handles everything.
@@ -613,13 +610,7 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
     }
 
 #elif defined(OS_MACOSX)
-
-    mWindow.x = aWindow.x;
-    mWindow.y = aWindow.y;
-    mWindow.width = aWindow.width;
-    mWindow.height = aWindow.height;
-    mWindow.clipRect = aWindow.clipRect;
-    mWindow.type = aWindow.type;
+#  warning This is only a stub implementation IMPLEMENT ME
 
 #else
 #  error Implement me for your OS

@@ -70,7 +70,6 @@ CPPSRCS		= \
 		TestBlockingProcess.cpp \
 		TestQuickReturn.cpp \
 		TestArguments.cpp \
-		TestUnicodeArguments.cpp \
 		$(NULL)
 
 SIMPLE_PROGRAMS	:= $(CPPSRCS:.cpp=$(BIN_SUFFIX))

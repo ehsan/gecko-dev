@@ -135,12 +135,5 @@ nsHTMLAudioElement::Initialize(nsISupports* aOwner, JSContext* aContext,
     return NS_ERROR_FAILURE;
 
   nsDependentJSString str(jsstr);
-  rv = SetAttr(kNameSpaceID_None, nsGkAtoms::src, str, PR_TRUE);
-  if (NS_FAILED(rv))
-    return rv;
-
-  // We have been specified with a src URL. Begin a load.
-  QueueSelectResourceTask();
-
-  return NS_OK;
+  return SetAttr(kNameSpaceID_None, nsGkAtoms::src, str, PR_TRUE);
 }

@@ -1575,7 +1575,7 @@ nsresult nsOggDecodeStateMachine::Run()
           if (mPlaying) {
             PausePlayback();
           }
-          mon.Wait();
+          mon.Wait(PR_MillisecondsToInterval(PRInt64(mCallbackPeriod*500)));
           if (mState != DECODER_STATE_DECODING)
             break;
           QueueDecodedFrames();

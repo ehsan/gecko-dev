@@ -41,7 +41,6 @@ const Ci = Components.interfaces;
 const Cr = Components.results;
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-Components.utils.import("resource://gre/modules/Services.jsm");
 
 /*
  * LoginManagerPromptFactory
@@ -52,7 +51,9 @@ Components.utils.import("resource://gre/modules/Services.jsm");
  * [embedding/components/windowwatcher/src/nsPrompt.cpp]
  */
 function LoginManagerPromptFactory() {
-    Services.obs.addObserver(this, "quit-application-granted", true);
+    var observerService = Cc["@mozilla.org/observer-service;1"].
+                          getService(Ci.nsIObserverService);
+    observerService.addObserver(this, "quit-application-granted", true);
 }
 
 LoginManagerPromptFactory.prototype = {
@@ -65,6 +66,22 @@ LoginManagerPromptFactory.prototype = {
     _debug : false,
     _asyncPrompts : {},
     _asyncPromptInProgress : false,
+
+    __logService : null, // Console logging service, used for debugging.
+    get _logService() {
+        if (!this.__logService)
+            this.__logService = Cc["@mozilla.org/consoleservice;1"].
+                                getService(Ci.nsIConsoleService);
+        return this.__logService;
+    },
+
+    __threadManager: null,
+    get _threadManager() {
+        if (!this.__threadManager)
+            this.__threadManager = Cc["@mozilla.org/thread-manager;1"].
+                                   getService(Ci.nsIThreadManager);
+        return this.__threadManager;
+    },
 
     observe : function (subject, topic, data) {
         if (topic == "quit-application-granted") {
@@ -84,7 +101,8 @@ LoginManagerPromptFactory.prototype = {
     },
 
     getPrompt : function (aWindow, aIID) {
-        var prefBranch = Services.prefs.getBranch("signon.");
+        var prefBranch = Cc["@mozilla.org/preferences-service;1"].
+                         getService(Ci.nsIPrefService).getBranch("signon.");
         this._debug = prefBranch.getBoolPref("debug");
 
         var prompt = new LoginManagerPrompter().QueryInterface(aIID);
@@ -146,7 +164,7 @@ LoginManagerPromptFactory.prototype = {
             }
         }
 
-        Services.tm.mainThread.dispatch(runnable, Ci.nsIThread.DISPATCH_NORMAL);
+        this._threadManager.mainThread.dispatch(runnable, Ci.nsIThread.DISPATCH_NORMAL);
         this.log("_doAsyncPrompt:run dispatched");
     },
 
@@ -155,7 +173,7 @@ LoginManagerPromptFactory.prototype = {
             return;
 
         dump("Pwmgr PromptFactory: " + message + "\n");
-        Services.console.logStringMessage("Pwmgr PrompFactory: " + message);
+        this._logService.logStringMessage("Pwmgr PrompFactory: " + message);
     }
 }; // end of LoginManagerPromptFactory implementation
 
@@ -203,6 +221,14 @@ LoginManagerPrompter.prototype = {
         return this.__pwmgr;
     },
 
+    __logService : null, // Console logging service, used for debugging.
+    get _logService() {
+        if (!this.__logService)
+            this.__logService = Cc["@mozilla.org/consoleservice;1"].
+                                getService(Ci.nsIConsoleService);
+        return this.__logService;
+    },
+
     __promptService : null, // Prompt service for user interaction
     get _promptService() {
         if (!this.__promptService)
@@ -243,13 +269,24 @@ LoginManagerPrompter.prototype = {
     },
 
 
+    __ioService: null, // IO service for string -> nsIURI conversion
+    get _ioService() {
+        if (!this.__ioService)
+            this.__ioService = Cc["@mozilla.org/network/io-service;1"].
+                               getService(Ci.nsIIOService);
+        return this.__ioService;
+    },
+
+
     __ellipsis : null,
     get _ellipsis() {
         if (!this.__ellipsis) {
             this.__ellipsis = "\u2026";
             try {
-                this.__ellipsis = Services.prefs.getComplexValue(
-                                    "intl.ellipsis", Ci.nsIPrefLocalizedString).data;
+                var prefSvc = Cc["@mozilla.org/preferences-service;1"].
+                              getService(Ci.nsIPrefBranch);
+                this.__ellipsis = prefSvc.getComplexValue("intl.ellipsis",
+                                      Ci.nsIPrefLocalizedString).data;
             } catch (e) { }
         }
         return this.__ellipsis;
@@ -279,7 +316,7 @@ LoginManagerPrompter.prototype = {
             return;
 
         dump("Pwmgr Prompter: " + message + "\n");
-        Services.console.logStringMessage("Pwmgr Prompter: " + message);
+        this._logService.logStringMessage("Pwmgr Prompter: " + message);
     },
 
 
@@ -498,7 +535,7 @@ LoginManagerPrompter.prototype = {
         if (httpRealm.test(aRealmString))
             return [null, null, null];
 
-        var uri = Services.io.newURI(aRealmString, null, null);
+        var uri = this._ioService.newURI(aRealmString, null, null);
         var pathname = "";
 
         if (uri.path != "/")
@@ -696,7 +733,8 @@ LoginManagerPrompter.prototype = {
         this._window = aWindow;
         this._factory = aFactory || null;
 
-        var prefBranch = Services.prefs.getBranch("signon.");
+        var prefBranch = Cc["@mozilla.org/preferences-service;1"].
+                         getService(Ci.nsIPrefService).getBranch("signon.");
         this._debug = prefBranch.getBoolPref("debug");
         this.log("===== initialized =====");
     },
@@ -1201,7 +1239,7 @@ LoginManagerPrompter.prototype = {
         if (aURI instanceof Ci.nsIURI) {
             uri = aURI;
         } else {
-            uri = Services.io.newURI(aURI, null, null);
+            uri = this._ioService.newURI(aURI, null, null);
         }
         var scheme = uri.scheme;
 
@@ -1211,7 +1249,7 @@ LoginManagerPrompter.prototype = {
         // it's not the default. (We never want "http://foo.com:80")
         port = uri.port;
         if (port != -1) {
-            var handler = Services.io.getProtocolHandler(scheme);
+            var handler = this._ioService.getProtocolHandler(scheme);
             if (port != handler.defaultPort)
                 hostname += ":" + port;
         }
@@ -1235,7 +1273,7 @@ LoginManagerPrompter.prototype = {
         var idnService = Cc["@mozilla.org/network/idn-service;1"].
                          getService(Ci.nsIIDNService);
         try {
-            var uri = Services.io.newURI(aURIString, null, null);
+            var uri = this._ioService.newURI(aURIString, null, null);
             var baseDomain = eTLDService.getBaseDomain(uri);
             displayHost = idnService.convertToDisplayIDN(baseDomain, {});
         } catch (e) {
