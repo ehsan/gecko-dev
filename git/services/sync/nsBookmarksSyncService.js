@@ -11,7 +11,7 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Bookmarks Sync.
+ * The Original Code is Places.
  *
  * The Initial Developer of the Original Code is Mozilla.
  * Portions created by the Initial Developer are Copyright (C) 2007
@@ -85,25 +85,6 @@ BookmarksSyncService.prototype = {
     return this.__os;
   },
 
-  __console: null,
-  get _console() {
-    if (!this.__console)
-      this.__console = Cc["@mozilla.org/consoleservice;1"]
-        .getService(Ci.nsIConsoleService);
-    return this.__console;
-  },
-
-  __dirSvc: null,
-  get _dirSvc() {
-    if (!this.__dirSvc)
-      this.__dirSvc = Cc["@mozilla.org/file/directory_service;1"].
-        getService(Ci.nsIProperties);
-    return this.__dirSvc;
-  },
-
-  // File output stream to a log file
-  _log: null,
-
   // Timer object for yielding to the main loop
   _timer: null,
 
@@ -120,7 +101,6 @@ BookmarksSyncService.prototype = {
   },
 
   _init: function BSS__init() {
-    this._initLog();
     let serverURL = 'https://dotmoz.mozilla.org/';
     try {
       let branch = Cc["@mozilla.org/preferences-service;1"].
@@ -128,31 +108,9 @@ BookmarksSyncService.prototype = {
       serverURL = branch.getCharPref("browser.places.sync.serverURL");
     }
     catch (ex) { /* use defaults */ }
-    this.notice("Bookmarks login server: " + serverURL);
+    LOG("Bookmarks login server: " + serverURL);
     this._dav = new DAVCollection(serverURL);
     this._readSnapshot();
-  },
-
-  _initLog: function BSS__initLog() {
-    let dirSvc = Cc["@mozilla.org/file/directory_service;1"].
-    getService(Ci.nsIProperties);
-
-    let file = dirSvc.get("ProfD", Ci.nsIFile);
-    file.append("bm-sync.log");
-    file.QueryInterface(Ci.nsILocalFile);
-
-    if (file.exists())
-      file.remove(false);
-    file.create(file.NORMAL_FILE_TYPE, PERMS_FILE);
-
-    this._log = Cc["@mozilla.org/network/file-output-stream;1"]
-      .createInstance(Ci.nsIFileOutputStream);
-    let flags = MODE_WRONLY | MODE_CREATE | MODE_APPEND;
-    this._log.init(file, flags, PERMS_FILE, 0);
-
-    let str = "Bookmarks Sync Log\n------------------\n\n";
-    this._log.write(str, str.length);
-    this._log.flush();
   },
 
   _saveSnapshot: function BSS__saveSnapshot() {
@@ -174,6 +132,7 @@ BookmarksSyncService.prototype = {
     let out = {version: this._snapshotVersion, snapshot: this._snapshot};
     out = uneval(out);
     fos.write(out, out.length);
+    fos.flush();
     fos.close();
   },
 
@@ -262,7 +221,7 @@ BookmarksSyncService.prototype = {
   },
 
   _nodeParentsInt: function BSS__nodeParentsInt(guid, tree, parents) {
-    if (tree[guid] && tree[guid].parentGuid == null)
+    if (!tree[guid] || tree[guid].parentGuid == null)
       return parents;
     parents.push(tree[guid].parentGuid);
     return this._nodeParentsInt(tree[guid].parentGuid, tree, parents);
@@ -354,7 +313,7 @@ BookmarksSyncService.prototype = {
         return true;
       return false;
     default:
-      this.notice("_commandLike: Unknown item type: " + uneval(a));
+      LOG("_commandLike: Unknown item type: " + uneval(a));
       return false;
     }
   },
@@ -479,12 +438,12 @@ BookmarksSyncService.prototype = {
     // shutdown protocol
     let cookie = yield;
     if (cookie != "generator shutdown")
-      this.notice("_reconcile: Error: generator not properly shut down.")
+      LOG("_reconcile: Error: generator not properly shut down.")
   },
 
   _applyCommandsToObj: function BSS__applyCommandsToObj(commands, obj) {
     for (let i = 0; i < commands.length; i++) {
-      this.notice("Applying cmd to obj: " + uneval(commands[i]));
+      LOG("Applying cmd to obj: " + uneval(commands[i]));
       switch (commands[i].action) {
       case "create":
         obj[commands[i].guid] = eval(uneval(commands[i].data));
@@ -506,7 +465,7 @@ BookmarksSyncService.prototype = {
   _applyCommands: function BSS__applyCommands(commandList) {
     for (var i = 0; i < commandList.length; i++) {
       var command = commandList[i];
-      this.notice("Processing command: " + uneval(command));
+      LOG("Processing command: " + uneval(command));
       switch (command["action"]) {
       case "create":
         this._createCommand(command);
@@ -518,7 +477,7 @@ BookmarksSyncService.prototype = {
         this._editCommand(command);
         break;
       default:
-        this.notice("unknown action in command: " + command["action"]);
+        LOG("unknown action in command: " + command["action"]);
         break;
       }
     }
@@ -529,11 +488,11 @@ BookmarksSyncService.prototype = {
     let parentId = this._bms.getItemIdForGUID(command.data.parentGuid);
 
     if (parentId <= 0) {
-      this.notice("Warning: creating node with unknown parent -> reparenting to root");
+      LOG("Warning: creating node with unknown parent -> reparenting to root");
       parentId = this._bms.bookmarksRoot;
     }
 
-    this.notice(" -> creating item");
+    LOG(" -> creating item");
 
     switch (command.data.type) {
     case 0:
@@ -551,7 +510,7 @@ BookmarksSyncService.prototype = {
       newId = this._bms.insertSeparator(parentId, command.data.index);
       break;
     default:
-      this.notice("_createCommand: Unknown item type: " + command.data.type);
+      LOG("_createCommand: Unknown item type: " + command.data.type);
       break;
     }
     if (newId)
@@ -565,19 +524,19 @@ BookmarksSyncService.prototype = {
     switch (type) {
     case this._bms.TYPE_BOOKMARK:
       // FIXME: check it's an actual bookmark?
-      this.notice("  -> removing bookmark " + command.guid);
+      LOG("  -> removing bookmark " + command.guid);
       this._bms.removeItem(itemId);
       break;
     case this._bms.TYPE_FOLDER:
-      this.notice("  -> removing folder " + command.guid);
+      LOG("  -> removing folder " + command.guid);
       this._bms.removeFolder(itemId);
       break;
     case this._bms.TYPE_SEPARATOR:
-      this.notice("  -> removing separator " + command.guid);
+      LOG("  -> removing separator " + command.guid);
       this._bms.removeItem(itemId);
       break;
     default:
-      this.notice("removeCommand: Unknown item type: " + type);
+      LOG("removeCommand: Unknown item type: " + type);
       break;
     }
   },
@@ -585,7 +544,7 @@ BookmarksSyncService.prototype = {
   _editCommand: function BSS__editCommand(command) {
     var itemId = this._bms.getItemIdForGUID(command.guid);
     if (itemId == -1) {
-      this.notice("Warning: item for guid " + command.guid + " not found.  Skipping.");
+      LOG("Warning: item for guid " + command.guid + " not found.  Skipping.");
       return;
     }
 
@@ -598,7 +557,7 @@ BookmarksSyncService.prototype = {
         if (existing == -1)
           this._bms.setItemGUID(itemId, command.data.guid);
         else
-          this.notice("Warning: can't change guid " + command.guid +
+          LOG("Warning: can't change guid " + command.guid +
               " to " + command.data.guid + ": guid already exists.");
         break;
       case "title":
@@ -616,7 +575,7 @@ BookmarksSyncService.prototype = {
           itemId, this._bms.getItemIdForGUID(command.data.parentGuid), -1);
         break;
       default:
-        this.notice("Warning: Can't change item property: " + key);
+        LOG("Warning: Can't change item property: " + key);
         break;
       }
     }
@@ -628,57 +587,6 @@ BookmarksSyncService.prototype = {
     var query = this._hsvc.getNewQuery();
     query.setFolders([folder], 1);
     return this._hsvc.executeQuery(query, this._hsvc.getNewQueryOptions()).root;
-  },
-
-  // FIXME: these print functions need some love...
-  _mungeJSON: function BSS__mungeJSON(json) {
-    json.replace(":{type", ":\n\t{type");
-    json.replace(", ", ",\n\t");
-    return json;
-  },
-
-  _printNodes: function BSS__printNodes(nodes) {
-    let nodeList = [];
-    for (let guid in nodes) {
-      switch (nodes[guid].type) {
-      case 0:
-        nodeList.push(nodes[guid].parentGuid + " b " + guid + "\n\t" +
-                      nodes[guid].title + nodes[guid].uri);
-        break;
-      case 6:
-        nodeList.push(nodes[guid].parentGuid + " f " + guid + "\n\t" +
-                      nodes[guid].title);
-        break;
-      case 7:
-        nodeList.push(nodes[guid].parentGuid + " s " + guid);
-        break;
-      default:
-        nodeList.push("error: unknown item type!\n" + uneval(nodes[guid]));
-        break;
-      }
-    }
-    nodeList.sort();
-    return nodeList.join("\n");
-  },
-
-  _printCommands: function BSS__printCommands(commands) {
-    let ret = [];
-    for (let i = 0; i < commands.length; i++) {
-      switch (commands[i].action) {
-      case "create":
-        ret.push("create");
-        break;
-      case "edit":
-        ret.push();
-        break;
-      case "remove":
-        ret.push();
-        break;
-      default:
-        ret.push("error: unknown command action!\n" + uneval(commands[i]));
-        break;
-      }
-    }
   },
 
   // 1) Fetch server deltas
@@ -694,7 +602,7 @@ BookmarksSyncService.prototype = {
     var handlers = this._handlersForGenerator(generator);
 
     this._os.notifyObservers(null, "bookmarks-sync:start", "");
-    this.notice("Beginning sync");
+    LOG("Beginning sync");
 
     try {
       //this._dav.lock(handlers);
@@ -703,7 +611,7 @@ BookmarksSyncService.prototype = {
 
       var localBookmarks = this._getBookmarks();
       var localJson = this._wrapNode(localBookmarks);
-      this.notice("local json:\n" + this._mungeJSON(uneval(localJson)));
+      LOG("local json: " + uneval(localJson));
 
       // 1) Fetch server deltas
       let gsd_gen = this._getServerData(handlers['complete'], localJson);
@@ -711,34 +619,34 @@ BookmarksSyncService.prototype = {
       gsd_gen.send(gsd_gen);
       let server = yield;
 
-      this.notice("server: " + uneval(server));
+      LOG("server: " + uneval(server));
       if (server['status'] == 2) {
         this._os.notifyObservers(null, "bookmarks-sync:end", "");
-        this.notice("Sync complete");
+        LOG("Sync complete");
         return;
       } else if (server['status'] != 0 && server['status'] != 1) {
         this._os.notifyObservers(null, "bookmarks-sync:end", "");
-        this.notice("Sync error");
+        LOG("Sync error");
         return;
       }
 
-      this.notice("Local snapshot version: " + this._snapshotVersion);
-      this.notice("Latest server version: " + server['version']);
+      LOG("Local snapshot version: " + this._snapshotVersion);
+      LOG("Latest server version: " + server['version']);
 
       // 2) Generate local deltas from snapshot -> current client status
 
-      this.notice("Generating local updates");
+      LOG("Generating local updates");
       var localUpdates = this._detectUpdates(this._snapshot, localJson);
-      this.notice("updates: " + uneval(localUpdates));
+      LOG("updates: " + uneval(localUpdates));
       if (!(server['status'] == 1 || localUpdates.length > 0)) {
         this._os.notifyObservers(null, "bookmarks-sync:end", "");
-        this.notice("Sync complete (1): no changes needed on client or server");
+        LOG("Sync complete (1): no changes needed on client or server");
         return;
       }
 	  
       // 3) Reconcile client/server deltas and generate new deltas for them.
 
-      this.notice("Reconciling updates");
+      LOG("Reconciling updates");
       let callback = function(retval) { continueGenerator(generator, retval); };
       let rec_gen = this._reconcile(callback, [localUpdates, server.updates]);
       rec_gen.next(); // must initialize before sending
@@ -762,15 +670,15 @@ BookmarksSyncService.prototype = {
       if (ret.conflicts && ret.conflicts[1])
         serverConflicts = ret.conflicts[1];
 
-      this.notice("Changes for client: " + uneval(clientChanges));
-      this.notice("Changes for server: " + uneval(serverChanges));
-      this.notice("Client conflicts: " + uneval(clientConflicts));
-      this.notice("Server conflicts: " + uneval(serverConflicts));
+      LOG("Changes for client: " + uneval(clientChanges));
+      LOG("Changes for server: " + uneval(serverChanges));
+      LOG("Client conflicts: " + uneval(clientConflicts));
+      LOG("Server conflicts: " + uneval(serverConflicts));
 
       if (!(clientChanges.length || serverChanges.length ||
             clientConflicts.length || serverConflicts.length)) {
         this._os.notifyObservers(null, "bookmarks-sync:end", "");
-        this.notice("Sync complete (2): no changes needed on client or server");
+        LOG("Sync complete (2): no changes needed on client or server");
         this._snapshot = this._wrapNode(localBookmarks);
         this._snapshotVersion = server['version'];
         this._saveSnapshot();
@@ -778,12 +686,12 @@ BookmarksSyncService.prototype = {
       }
 
       if (clientConflicts.length || serverConflicts.length) {
-        this.notice("\nWARNING: Conflicts found, but we don't resolve conflicts yet!\n");
+        LOG("\nWARNING: Conflicts found, but we don't resolve conflicts yet!\n");
       }
 
       // 3.1) Apply server changes to local store
       if (clientChanges.length) {
-        this.notice("Applying changes locally");
+        LOG("Applying changes locally");
         // Note that we need to need to apply client changes to the
         // current tree, not the saved snapshot
         this._snapshot = this._applyCommandsToObj(clientChanges,
@@ -798,7 +706,7 @@ BookmarksSyncService.prototype = {
 
       // 3.2) Append server delta to the delta file and upload
       if (serverChanges.length) {
-        this.notice("Uploading changes to server");
+        LOG("Uploading changes to server");
         this._snapshot = this._wrapNode(localBookmarks);
         this._snapshotVersion = server['version'] + 1;
         server['deltas'][this._snapshotVersion] = serverChanges;
@@ -806,15 +714,15 @@ BookmarksSyncService.prototype = {
         data = yield;
 
         if (data.target.status >= 200 || data.target.status < 300) {
-          this.notice("Successfully updated deltas on server");
+          LOG("Successfully updated deltas on server");
           this._saveSnapshot();
         } else {
           // FIXME: revert snapshot here?
-          this.notice("Error: could not update deltas on server");
+          LOG("Error: could not update deltas on server");
         }
       }
       this._os.notifyObservers(null, "bookmarks-sync:end", "");
-      this.notice("Sync complete");
+      LOG("Sync complete");
     } finally {
       //this._dav.unlock(handlers);
       //data = yield;
@@ -844,27 +752,27 @@ BookmarksSyncService.prototype = {
 
     var ret = {status: -1, version: -1, deltas: null, updates: null};
 
-    this.notice("Getting bookmarks delta from server");
+    LOG("Getting bookmarks delta from server");
     this._dav.GET("bookmarks.delta", handlers);
     var data = yield;
 
     switch (data.target.status) {
     case 200:
-      this.notice("Got bookmarks delta from server");
+      LOG("Got bookmarks delta from server");
 
       ret.deltas = eval(data.target.responseText);
       var tmp = eval(uneval(this._snapshot)); // fixme hack hack hack
 
       // FIXME: debug here for conditional below...
-      this.notice("[sync bowels] local version: " + this._snapshotVersion);
+      LOG("[sync bowels] local version: " + this._snapshotVersion);
       for (var z in ret.deltas) {
-        this.notice("[sync bowels] remote version: " + z);
+        LOG("[sync bowels] remote version: " + z);
       }
-      this.notice("foo: " + uneval(ret.deltas[this._snapshotVersion + 1]));
+      LOG("foo: " + uneval(ret.deltas[this._snapshotVersion + 1]));
       if (ret.deltas[this._snapshotVersion + 1])
-        this.notice("-> is true");
+        LOG("-> is true");
       else
-        this.notice("-> is false");
+        LOG("-> is false");
 
       if (ret.deltas[this._snapshotVersion + 1]) {
         // Merge the matching deltas into one, find highest version
@@ -876,22 +784,22 @@ BookmarksSyncService.prototype = {
             ret.version = v;
         }
         keys = keys.sort();
-        this.notice("TMP: " + uneval(tmp));
+        LOG("TMP: " + uneval(tmp));
         for (var i = 0; i < keys.length; i++) {
           tmp = this._applyCommandsToObj(ret.deltas[keys[i]], tmp);
-          this.notice("TMP: " + uneval(tmp));
+          LOG("TMP: " + uneval(tmp));
         }
         ret.status = 1;
         ret["updates"] = this._detectUpdates(this._snapshot, tmp);
 
       } else if (ret.deltas[this._snapshotVersion]) {
-        this.notice("No changes from server");
+        LOG("No changes from server");
         ret.status = 0;
         ret.version = this._snapshotVersion;
         ret.updates = [];
 
       } else {
-        this.notice("Server delta can't update from our snapshot version, getting full file");
+        LOG("Server delta can't update from our snapshot version, getting full file");
         // generate updates from full local->remote snapshot diff
         let gsdf_gen = this._getServerUpdatesFull(handlers['complete'],
                                                   localJson);
@@ -901,7 +809,7 @@ BookmarksSyncService.prototype = {
         if (data.status == 2) {
           // we have a delta file but no snapshot on the server.  bad.
           // fixme?
-          this.notice("Error: Delta file on server, but snapshot file missing.  " +
+          LOG("Error: Delta file on server, but snapshot file missing.  " +
               "New snapshot uploaded, may be inconsistent with deltas!");
         }
 
@@ -932,7 +840,7 @@ BookmarksSyncService.prototype = {
       }
       break;
     case 404:
-      this.notice("Server has no delta file.  Getting full bookmarks file from server");
+      LOG("Server has no delta file.  Getting full bookmarks file from server");
       // generate updates from full local->remote snapshot diff
       let gsdf_gen = this._getServerUpdatesFull(handlers['complete'], localJson);
       gsdf_gen.next(); // must initialize before sending
@@ -941,7 +849,7 @@ BookmarksSyncService.prototype = {
       ret.deltas = {};
       break;
     default:
-      this.notice("Could not get bookmarks.delta: unknown HTTP status code " + data.target.status);
+      LOG("Could not get bookmarks.delta: unknown HTTP status code " + data.target.status);
       break;
     }
     this._generatorDone(onComplete, ret)
@@ -958,14 +866,14 @@ BookmarksSyncService.prototype = {
 
     switch (data.target.status) {
     case 200:
-      this.notice("Got full bookmarks file from server");
+      LOG("Got full bookmarks file from server");
       var tmp = eval(data.target.responseText);
       ret.status = 1;
       ret.updates = this._detectUpdates(this._snapshot, tmp.snapshot);
       ret.version = tmp.version;
       break;
     case 404:
-      this.notice("No bookmarks on server.  Starting initial sync to server");
+      LOG("No bookmarks on server.  Starting initial sync to server");
 
       this._snapshot = localJson;
       this._snapshotVersion = 1;
@@ -973,14 +881,14 @@ BookmarksSyncService.prototype = {
       data = yield;
 
       if (data.target.status >= 200 || data.target.status < 300) {
-        this.notice("Initial sync to server successful");
+        LOG("Initial sync to server successful");
         ret.status = 2;
       } else {
-        this.notice("Initial sync to server failed");
+        LOG("Initial sync to server failed");
       }
       break;
     default:
-      this.notice("Could not get bookmarks.json: unknown HTTP status code " + data.target.status);
+      LOG("Could not get bookmarks.json: unknown HTTP status code " + data.target.status);
       break;
     }
     this._generatorDone(onComplete, ret);
@@ -988,7 +896,7 @@ BookmarksSyncService.prototype = {
 
   _handlersForGenerator: function BSS__handlersForGenerator(generator) {
     var h = {load: bind2(this, function(data) { continueGenerator(generator, data); }),
-             error: bind2(this, function(data) { this.notice("Request failed: " + uneval(data)); })};
+             error: bind2(this, function(data) { LOG("Request failed: " + uneval(data)); })};
     h['complete'] = h['load'];
     return h;
   },
@@ -1014,7 +922,7 @@ BookmarksSyncService.prototype = {
   },
 
   _onLogin: function BSS__onLogin(event) {
-    this.notice("Bookmarks sync server: " + this._dav.baseURL);
+    LOG("Bookmarks sync server: " + this._dav.baseURL);
     this._os.notifyObservers(null, "bookmarks-sync:login", "");
   },
 
@@ -1049,20 +957,6 @@ BookmarksSyncService.prototype = {
   logout: function BSS_logout() {
     this._dav.logout();
     this._os.notifyObservers(null, "bookmarks-sync:logout", "");
-  },
-
-  log: function BSS_log(line) {
-  },
-
-  notice: function BSS_notice(line) {
-    let fullLine = line + "\n";
-    dump(fullLine);
-    this._console.logStringMessage(line);
-    this._log.write(fullLine, fullLine.length);
-    this._log.flush();
-  },
-
-  error: function BSS_error(line) {
   }
 };
 
@@ -1078,14 +972,23 @@ function makeURI(uriString) {
   return ioservice.newURI(uriString, null, null);
 }
 
+function LOG(aText) {
+  dump(aText + "\n");
+  var consoleService = Cc["@mozilla.org/consoleservice;1"].
+                       getService(Ci.nsIConsoleService);
+  consoleService.logStringMessage(aText);
+}
+
 function bind2(object, method) {
   return function innerBind() { return method.apply(object, arguments); }
 }
 
+
+
 function continueGenerator(generator, data) {
   try { generator.send(data); }
   catch (e) {
-    //notice("continueGenerator exception! - " + e);
+    LOG("continueGenerator exception! - " + e);
     if (e instanceof StopIteration)
       generator = null;
     else
@@ -1215,9 +1118,9 @@ DAVCollection.prototype = {
       let lm = Cc["@mozilla.org/login-manager;1"].getService(Ci.nsILoginManager);
       let logins = lm.findLogins({}, uri.hostPort, null,
                                  'Use your ldap username/password - dotmoz');
-      //notice("Found " + logins.length + " logins");
+      LOG("Found " + logins.length + " logins");
 
-      for (let i = 0; i < logins.length; i++) {
+          for (let i = 0; i < logins.length; i++) {
         if (logins[i].username == username) {
           password = logins[i].password;
           break;
@@ -1242,7 +1145,7 @@ DAVCollection.prototype = {
   },
 
   _onLogin: function DC__onLogin(event) {
-    //notice("logged in (" + event.target.status + "):\n" +
+    //LOG("logged in (" + event.target.status + "):\n" +
     //    event.target.responseText + "\n");
 
     if (this._authProvider._authFailed || event.target.status >= 400) {
@@ -1251,22 +1154,38 @@ DAVCollection.prototype = {
     }
 
     // fixme: hacktastic
-    let hello = /Hello (.+)@mozilla.com/.exec(event.target.responseText)
-    if (hello) {
-      this._currentUserPath = hello[1];	
-      this._currentUser = this._currentUserPath + "@mozilla.com";
-      this._baseURL = "http://dotmoz.mozilla.org/~" +
-        this._currentUserPath + "/";
-    }
+//    let hello = /Hello (.+)@mozilla.com/.exec(event.target.responseText)
+//    let hello = /Index of/.exec(event.target.responseText)
+//    if (hello) {
+//      this._currentUserPath = hello[1];	
+//      this._currentUser = this._currentUserPath + "@mozilla.com";
+//      this._baseURL = "http://dotmoz.mozilla.org/~" +
+//        this._currentUserPath + "/";
+//    }
 
+      // XXX we need to refine some server response codes
+      let branch = Cc["@mozilla.org/preferences-service;1"].
+        getService(Ci.nsIPrefBranch);
+      this._currentUser = branch.getCharPref("browser.places.sync.username");
+
+      // XXX
+      let path = this._currentUser.split("@");
+      this._currentUserPath = path[0];
+
+LOG("currentUser: "+this._currentUser);
+LOG("currentUSerPath: "+this._currentUserPath);
+
+      let serverURL = branch.getCharPref("browser.places.sync.serverURL");
+      this._baseURL = serverURL + this._currentUserPath + "/";
+    
     this._loggedIn = true;
 
     if (this._loginHandlers && this._loginHandlers.load)
       this._loginHandlers.load(event);
   },
   _onLoginError: function DC__onLoginError(event) {
-    //notice("login failed (" + event.target.status + "):\n" +
-    //    event.target.responseText + "\n");
+    LOG("login failed (" + event.target.status + "):\n" +
+        event.target.responseText + "\n");
 
     this._loggedIn = false;
 
@@ -1301,25 +1220,25 @@ DAVCollection.prototype = {
   },
 
   _onLock: function DC__onLock(event) {
-    //notice("acquired lock (" + event.target.status + "):\n" + event.target.responseText + "\n");
+    LOG("acquired lock (" + event.target.status + "):\n" + event.target.responseText + "\n");
     this._token = "woo";
     if (this._lockHandlers && this._lockHandlers.load)
       this._lockHandlers.load(event);
   },
   _onLockError: function DC__onLockError(event) {
-    //notice("lock failed (" + event.target.status + "):\n" + event.target.responseText + "\n");
+    LOG("lock failed (" + event.target.status + "):\n" + event.target.responseText + "\n");
     if (this._lockHandlers && this._lockHandlers.error)
       this._lockHandlers.error(event);
   },
 
   _onUnlock: function DC__onUnlock(event) {
-    //notice("removed lock (" + event.target.status + "):\n" + event.target.responseText + "\n");
+    LOG("removed lock (" + event.target.status + "):\n" + event.target.responseText + "\n");
     this._token = null;
     if (this._lockHandlers && this._lockHandlers.load)
       this._lockHandlers.load(event);
   },
   _onUnlockError: function DC__onUnlockError(event) {
-    //notice("unlock failed (" + event.target.status + "):\n" + event.target.responseText + "\n");
+    LOG("unlock failed (" + event.target.status + "):\n" + event.target.responseText + "\n");
     if (this._lockHandlers && this._lockHandlers.error)
       this._lockHandlers.error(event);
   }
