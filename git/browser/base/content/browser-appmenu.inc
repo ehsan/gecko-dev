@@ -179,8 +179,7 @@
         <menupopup id="appmenu_webDeveloper_popup">
           <menuitem id="appmenu_webConsole"
                     label="&webConsoleCmd.label;"
-                    type="checkbox"
-                    command="Tools:WebConsole"
+                    oncommand="HUDConsoleUI.toggleHUD();"
                     key="key_webConsole"/>
           <menuitem id="appmenu_pageInspect"
                     hidden="true"
@@ -341,13 +340,6 @@
                       key="key_sanitize"
                       command="Tools:Sanitize"/>
             <menuseparator class="hide-if-empty-places-result"/>
-#ifdef MOZ_SERVICES_SYNC
-            <menuitem id="appmenu_sync-tabs"
-                      class="syncTabsMenuItem"
-                      label="&syncTabsMenu.label;"
-                      oncommand="BrowserOpenSyncTabs();"
-                      disabled="true"/>
-#endif
             <menuitem id="appmenu_restoreLastSession"
                       class="restoreLastSession"
                       label="&historyRestoreLastSession.label;"

@@ -742,12 +742,12 @@ AllDescendantsOfType(nsIDocShellTreeItem* aParentItem, PRInt32 aType)
 class NS_STACK_CLASS AutoResetInShow {
   private:
     nsFrameLoader* mFrameLoader;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
   public:
-    AutoResetInShow(nsFrameLoader* aFrameLoader MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    AutoResetInShow(nsFrameLoader* aFrameLoader MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
       : mFrameLoader(aFrameLoader)
     {
-      MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+      MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
     }
     ~AutoResetInShow() { mFrameLoader->mInShow = false; }
 };

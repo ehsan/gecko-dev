@@ -60,7 +60,7 @@ static JSDStackFrameInfo*
 _addNewFrame(JSDContext*        jsdc,
              JSDThreadState*    jsdthreadstate,
              JSScript*          script,
-             uintptr_t          pc,
+             jsuword            pc,
              JSStackFrame*      fp)
 {
     JSDStackFrameInfo* jsdframe;
@@ -125,7 +125,7 @@ jsd_NewThreadState(JSDContext* jsdc, JSContext *cx )
     while( NULL != (fp = JS_FrameIterator(cx, &iter)) )
     {
         JSScript* script = JS_GetFrameScript(cx, fp);
-        uintptr_t  pc = (uintptr_t) JS_GetFramePC(cx, fp);
+        jsuword  pc = (jsuword) JS_GetFramePC(cx, fp);
         jsval dummyThis;
 
         /*
@@ -270,12 +270,12 @@ jsd_GetScriptForStackFrame(JSDContext* jsdc,
     return jsdscript;
 }
 
-uintptr_t
+jsuword
 jsd_GetPCForStackFrame(JSDContext* jsdc, 
                        JSDThreadState* jsdthreadstate,
                        JSDStackFrameInfo* jsdframe)
 {
-    uintptr_t pc = 0;
+    jsuword pc = 0;
 
     JSD_LOCK_THREADSTATES(jsdc);
 

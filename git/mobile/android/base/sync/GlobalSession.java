@@ -71,21 +71,14 @@ import org.mozilla.gecko.sync.stage.GlobalSyncStage;
 import org.mozilla.gecko.sync.stage.GlobalSyncStage.Stage;
 import org.mozilla.gecko.sync.stage.NoSuchStageException;
 
-import ch.boye.httpclientandroidlib.HttpResponse;
-
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
 
-public class GlobalSession implements CredentialsSource, PrefsSource {
-  private static final String LOG_TAG = "GlobalSession";
-
+public class GlobalSession implements CredentialsSource {
   public static final String API_VERSION   = "1.1";
   public static final long STORAGE_VERSION = 5;
-
-  private static final String HEADER_RETRY_AFTER     = "retry-after";
-  private static final String HEADER_X_WEAVE_BACKOFF = "x-weave-backoff";
+  private static final String LOG_TAG = "GlobalSession";
 
   public SyncConfiguration config = null;
 
@@ -146,7 +139,6 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
                        String serverURL,
                        String username,
                        String password,
-                       String prefsPath,
                        KeyBundle syncKeyBundle,
                        GlobalSessionCallback callback,
                        Context context,
@@ -174,16 +166,16 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
       throw new SyncConfigurationException();
     }
 
-    this.callback        = callback;
-    this.context         = context;
-
-    config = new SyncConfiguration(prefsPath, this);
+    // TODO: use persisted.
+    config = new SyncConfiguration();
     config.userAPI       = userAPI;
     config.serverURL     = serverURI;
     config.username      = username;
     config.password      = password;
     config.syncKeyBundle = syncKeyBundle;
-    // clusterURL and syncID are set through `persisted`, or fetched from the server.
+
+    this.callback        = callback;
+    this.context         = context;
 
     // TODO: populate saved configurations. We'll amend these after processing meta/global.
     this.synchronizerConfigurations = new SynchronizerConfigurations(persisted);
@@ -258,15 +250,6 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
     return config.syncID;
   }
 
-  /*
-   * PrefsSource methods.
-   */
-  @Override
-  public SharedPreferences getPrefs(String name, int mode) {
-    return this.getContext().getSharedPreferences(name, mode);
-  }
-
-  @Override
   public Context getContext() {
     return this.context;
   }
@@ -296,10 +279,7 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
    */
   protected void restart() throws AlreadySyncingException {
     this.currentState = GlobalSyncStage.Stage.idle;
-    if (callback.shouldBackOff()) {
-      this.callback.handleAborted(this, "Told to back off.");
-      return;
-    }
+    // TODO: respect backoff.
     this.start();
   }
 
@@ -317,32 +297,9 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
     // TODO: handling of 50x (backoff), 401 (node reassignment or auth error).
     // Fall back to aborting.
     Log.w(LOG_TAG, "Aborting sync due to HTTP " + response.getStatusCode());
-    this.interpretHTTPFailure(response.httpResponse());
     this.abort(new HTTPFailureException(response), reason);
   }
 
-  /**
-   * Perform appropriate backoff etc. extraction.
-   */
-  public void interpretHTTPFailure(HttpResponse response) {
-    // TODO: handle permanent rejection.
-    long retryAfter = 0;
-    long weaveBackoff = 0;
-    if (response.containsHeader(HEADER_RETRY_AFTER)) {
-      // Handles non-decimals just fine.
-      String headerValue = response.getFirstHeader(HEADER_RETRY_AFTER).getValue();
-      retryAfter = Utils.decimalSecondsToMilliseconds(headerValue);
-    }
-    if (response.containsHeader(HEADER_X_WEAVE_BACKOFF)) {
-      // Handles non-decimals just fine.
-      String headerValue = response.getFirstHeader(HEADER_X_WEAVE_BACKOFF).getValue();
-      weaveBackoff = Utils.decimalSecondsToMilliseconds(headerValue);
-    }
-    long backoff = Math.max(retryAfter, weaveBackoff);
-    if (backoff > 0) {
-      callback.requestBackoff(backoff);
-    }
-  }
 
 
   public void fetchMetaGlobal(MetaGlobalDelegate callback) throws URISyntaxException {
@@ -362,7 +319,7 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
   public void uploadKeys(CryptoRecord keysRecord,
                          final KeyUploadDelegate keyUploadDelegate) {
     SyncStorageRecordRequest request;
-    final GlobalSession self = this;
+    final GlobalSession globalSession = this;
     try {
       request = new SyncStorageRecordRequest(this.config.keysURI());
     } catch (URISyntaxException e) {
@@ -384,7 +341,6 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
 
       @Override
       public void handleRequestFailure(SyncStorageResponse response) {
-        self.interpretHTTPFailure(response.httpResponse());
         keyUploadDelegate.onKeyUploadFailed(new HTTPFailureException(response));
       }
 
@@ -395,7 +351,7 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
 
       @Override
       public String credentials() {
-        return self.credentials();
+        return globalSession.credentials();
       }
     };
 
@@ -444,7 +400,6 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
       config.syncID = remoteSyncID;
       // TODO TODO TODO
     }
-    config.persistToPrefs();
     advance();
   }
 
@@ -467,7 +422,6 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
       @Override
       public void onFreshStart() {
         try {
-          globalSession.config.persistToPrefs();
           globalSession.restart();
         } catch (Exception e) {
           Log.w(LOG_TAG, "Got exception when restarting sync after freshStart.", e);
@@ -492,7 +446,6 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
       public void onWiped(long timestamp) {
         session.resetClient();
         session.config.collectionKeys.clear();      // TODO: make sure we clear our keys timestamp.
-        session.config.persistToPrefs();
 
         MetaGlobal mg = new MetaGlobal(metaURL, credentials);
         mg.setSyncID(newSyncID);
@@ -505,7 +458,7 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
         mg.upload(new MetaGlobalDelegate() {
 
           @Override
-          public void handleSuccess(MetaGlobal global, SyncStorageResponse response) {
+          public void handleSuccess(MetaGlobal global) {
             session.config.metaGlobal = global;
             Log.i(LOG_TAG, "New meta/global uploaded with sync ID " + newSyncID);
 
@@ -534,7 +487,7 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
           }
 
           @Override
-          public void handleMissing(MetaGlobal global, SyncStorageResponse response) {
+          public void handleMissing(MetaGlobal global) {
             // Shouldn't happen.
             Log.w(LOG_TAG, "Got 'missing' response uploading new meta/global.");
             freshStartDelegate.onFreshStartFailed(new Exception("meta/global missing"));
@@ -544,7 +497,6 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
           public void handleFailure(SyncStorageResponse response) {
             // TODO: respect backoffs etc.
             Log.w(LOG_TAG, "Got failure " + response.getStatusCode() + " uploading new meta/global.");
-            session.interpretHTTPFailure(response.httpResponse());
             freshStartDelegate.onFreshStartFailed(new HTTPFailureException(response));
           }
 
@@ -560,20 +512,20 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
             return new MetaGlobalDelegate() {
 
               @Override
-              public void handleSuccess(final MetaGlobal global, final SyncStorageResponse response) {
+              public void handleSuccess(final MetaGlobal global) {
                 ThreadPool.run(new Runnable() {
                   @Override
                   public void run() {
-                    self.handleSuccess(global, response);
+                    self.handleSuccess(global);
                   }});
               }
 
               @Override
-              public void handleMissing(final MetaGlobal global, final SyncStorageResponse response) {
+              public void handleMissing(final MetaGlobal global) {
                 ThreadPool.run(new Runnable() {
                   @Override
                   public void run() {
-                    self.handleMissing(global, response);
+                    self.handleMissing(global);
                   }});
               }
 
@@ -615,8 +567,6 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
 
   private void wipeServer(final CredentialsSource credentials, final WipeServerDelegate wipeDelegate) {
     SyncStorageRequest request;
-    final GlobalSession self = this;
-
     try {
       request = new SyncStorageRequest(config.storageURL(false));
     } catch (URISyntaxException ex) {
@@ -640,8 +590,7 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
       @Override
       public void handleRequestFailure(SyncStorageResponse response) {
         Log.w(LOG_TAG, "Got request failure " + response.getStatusCode() + " in wipeServer.");
-        // Process HTTP failures here to pick up backoffs, etc.
-        self.interpretHTTPFailure(response.httpResponse());
+        // TODO: process HTTP failures here to pick up backoffs etc.
         wipeDelegate.onWipeFailed(new HTTPFailureException(response));
       }
 
@@ -659,13 +608,8 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
     request.delete();
   }
 
-  /**
-   * Reset our state. Clear our sync ID, reset each engine, drop any
-   * cached records.
-   */
   private void resetClient() {
-    // TODO: futz with config?!
-    // TODO: engines?!
+    // TODO Auto-generated method stub
 
   }
 

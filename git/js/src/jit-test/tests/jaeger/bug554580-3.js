@@ -1,4 +1,4 @@
-// |jit-test| error: TypeError
+// |jit-test| error: SyntaxError
 Function("\n\
   for (a = 0; a < 3; a++) {\n\
     if (a == 0) {} else {\n\

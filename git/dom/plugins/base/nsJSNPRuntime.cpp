@@ -38,7 +38,8 @@
 
 #include "base/basictypes.h"
 
-#include "jsapi.h"
+// FIXME(bug 332648): Give me a real API please!
+#include "jscntxt.h"
 #include "jsfriendapi.h"
 
 #include "nsIInterfaceRequestorUtils.h"
@@ -711,7 +712,7 @@ doInvoke(NPObject *npobj, NPIdentifier method, const NPVariant *args,
   JSBool ok;
 
   {
-    JS::AutoArrayRooter tvr(cx, 0, jsargs);
+    js::AutoArrayRooter tvr(cx, 0, jsargs);
 
     // Convert args
     for (PRUint32 i = 0; i < argCount; ++i) {
@@ -868,7 +869,7 @@ nsJSObjWrapper::NP_SetProperty(NPObject *npobj, NPIdentifier id,
     return false;
 
   jsval v = NPVariantToJSVal(npp, cx, value);
-  JS::AutoValueRooter tvr(cx, v);
+  js::AutoValueRooter tvr(cx, v);
 
   NS_ASSERTION(NPIdentifierIsInt(id) || NPIdentifierIsString(id),
                "id must be either string or int!\n");
@@ -964,21 +965,25 @@ nsJSObjWrapper::NP_Enumerate(NPObject *npobj, NPIdentifier **idarray,
   if (!ac.enter(cx, npjsobj->mJSObj))
     return false;
 
-  JS::AutoIdArray ida(cx, JS_Enumerate(cx, npjsobj->mJSObj));
+  JSIdArray *ida = ::JS_Enumerate(cx, npjsobj->mJSObj);
   if (!ida) {
     return false;
   }
 
-  *count = ida.length();
+  *count = ida->length;
   *idarray = (NPIdentifier *)PR_Malloc(*count * sizeof(NPIdentifier));
   if (!*idarray) {
     ThrowJSException(cx, "Memory allocation failed for NPIdentifier!");
+
+    ::JS_DestroyIdArray(cx, ida);
+
     return false;
   }
 
   for (PRUint32 i = 0; i < *count; i++) {
     jsval v;
-    if (!JS_IdToValue(cx, ida[i], &v)) {
+    if (!::JS_IdToValue(cx, ida->vector[i], &v)) {
+      ::JS_DestroyIdArray(cx, ida);
       PR_Free(*idarray);
       return false;
     }
@@ -987,8 +992,10 @@ nsJSObjWrapper::NP_Enumerate(NPObject *npobj, NPIdentifier **idarray,
     if (JSVAL_IS_STRING(v)) {
       JSString *str = JS_InternJSString(cx, JSVAL_TO_STRING(v));
       if (!str) {
-        PR_Free(*idarray);
-        return false;
+          ::JS_DestroyIdArray(cx, ida);
+          PR_Free(*idarray);
+
+          return false;
       }
       id = StringToNPIdentifier(cx, str);
     } else {
@@ -999,6 +1006,8 @@ nsJSObjWrapper::NP_Enumerate(NPObject *npobj, NPIdentifier **idarray,
 
     (*idarray)[i] = id;
   }
+
+  ::JS_DestroyIdArray(cx, ida);
 
   return true;
 }

@@ -82,7 +82,7 @@
 @BINPATH@/AndroidManifest.xml
 @BINPATH@/resources.arsc
 @BINPATH@/classes.dex
-@BINPATH@/@DLL_PREFIX@mozglue@DLL_SUFFIX@
+@BINPATH@/@DLL_PREFIX@mozutils@DLL_SUFFIX@
 @BINPATH@/res/drawable
 @BINPATH@/res/drawable-hdpi
 @BINPATH@/res/layout
@@ -163,7 +163,6 @@
 @BINPATH@/components/dom_json.xpt
 @BINPATH@/components/dom_range.xpt
 @BINPATH@/components/dom_sidebar.xpt
-@BINPATH@/components/dom_sms.xpt
 @BINPATH@/components/dom_storage.xpt
 @BINPATH@/components/dom_stylesheets.xpt
 @BINPATH@/components/dom_threads.xpt
@@ -402,7 +401,7 @@
 @BINPATH@/components/nsWifiWorker.manifest
 #endif
 #ifdef XP_MACOSX
-@BINPATH@/components/libalerts.dylib
+@BINPATH@/components/libalerts_s.dylib
 #endif
 #ifdef MOZ_ENABLE_DBUS
 @BINPATH@/components/@DLL_PREFIX@dbusservice@DLL_SUFFIX@

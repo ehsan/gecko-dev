@@ -180,7 +180,7 @@
 #include "nsAutoPtr.h"
 #include "nsContentUtils.h"
 #include "nsCSSProps.h"
-#include "nsBlobProtocolHandler.h"
+#include "nsFileDataProtocolHandler.h"
 #include "nsIDOMFile.h"
 #include "nsIDOMFileList.h"
 #include "nsIURIFixup.h"
@@ -687,7 +687,7 @@ nsDOMMozURLProperty::RevokeObjectURL(const nsAString& aURL)
   }
 
   nsIPrincipal* principal =
-    nsBlobProtocolHandler::GetFileDataEntryPrincipal(asciiurl);
+    nsFileDataProtocolHandler::GetFileDataEntryPrincipal(asciiurl);
   bool subsumes;
   if (principal && winPrincipal &&
       NS_SUCCEEDED(winPrincipal->Subsumes(principal, &subsumes)) &&
@@ -695,7 +695,7 @@ nsDOMMozURLProperty::RevokeObjectURL(const nsAString& aURL)
     if (mWindow->mDoc) {
       mWindow->mDoc->UnregisterFileDataUri(asciiurl);
     }
-    nsBlobProtocolHandler::RemoveFileDataEntry(asciiurl);
+    nsFileDataProtocolHandler::RemoveFileDataEntry(asciiurl);
   }
 
   return NS_OK;
@@ -1404,9 +1404,8 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsGlobalWindow)
 
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGlobalWindow)
-  if ((tmp->mDoc && nsCCUncollectableMarker::InGeneration(
-                      cb, tmp->mDoc->GetMarkedCCGeneration())) ||
-      (nsCCUncollectableMarker::sGeneration && tmp->IsBlack())) {
+  if (tmp->mDoc && nsCCUncollectableMarker::InGeneration(
+                     cb, tmp->mDoc->GetMarkedCCGeneration())) {
     return NS_SUCCESS_INTERRUPTED_TRAVERSE;
   }
 
@@ -6030,7 +6029,7 @@ PostMessageReadStructuredClone(JSContext* cx,
   }
 
   const JSStructuredCloneCallbacks* runtimeCallbacks =
-    js::GetContextStructuredCloneCallbacks(cx);
+    cx->runtime->structuredCloneCallbacks;
 
   if (runtimeCallbacks) {
     return runtimeCallbacks->read(cx, reader, tag, data, nsnull);
@@ -6070,7 +6069,7 @@ PostMessageWriteStructuredClone(JSContext* cx,
   }
 
   const JSStructuredCloneCallbacks* runtimeCallbacks =
-    js::GetContextStructuredCloneCallbacks(cx);
+    cx->runtime->structuredCloneCallbacks;
 
   if (runtimeCallbacks) {
     return runtimeCallbacks->write(cx, writer, obj, nsnull);
@@ -9180,8 +9179,6 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
   // the logic in ResetTimersForNonBackgroundWindow will need to change.
   mTimeoutInsertionPoint = &dummy_timeout;
 
-  Telemetry::AutoCounter<Telemetry::DOM_TIMERS_FIRED_PER_NATIVE_TIMEOUT> timeoutsRan;
-
   for (timeout = FirstTimeout();
        timeout != &dummy_timeout && !IsFrozen();
        timeout = nextTimeout) {
@@ -9233,7 +9230,6 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
     nsTimeout *last_running_timeout = mRunningTimeout;
     mRunningTimeout = timeout;
     timeout->mRunning = true;
-    ++timeoutsRan;
 
     // Push this timeout's popup control state, which should only be
     // eabled the first time a timeout fires that was created while

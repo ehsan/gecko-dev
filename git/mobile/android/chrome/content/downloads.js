@@ -140,20 +140,16 @@ var Downloads = {
     } else if (aTopic == "dl-done") {
       msgKey = "alertDownloadsDone";
 
-      // In order to get the fileSize to be correct for "Save as PDF", we need
-      // let the local file be safely written before accessing it.
-      setTimeout(function() {
-        let message = {
-          gecko: {
-            type: "Downloads:Done",
-            displayName: download.displayName,
-            path: download.targetFile.path,
-            size: download.targetFile.fileSize,
-            mimeType: download.MIMEInfo ? download.MIMEInfo.type : ""
-          }
-        };
-        sendMessageToJava(message);
-      }, 0);
+      let message = {
+        gecko: {
+          type: "Downloads:Done",
+          displayName: download.displayName,
+          path: download.targetFile.path,
+          size: download.size,
+          mimeType: download.MIMEInfo ? download.MIMEInfo.type : ""
+        }
+      };
+      sendMessageToJava(message);
     }
 
     if (msgKey)

@@ -58,8 +58,6 @@
 #include "dombindings.h"
 #include "nsWrapperCacheInlines.h"
 
-#include "jsapi.h"
-#include "jsfriendapi.h"
 #include "jstypedarray.h"
 
 using namespace mozilla;
@@ -1136,7 +1134,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
 
             flat = locationWrapper;
         } else if (wrapper->NeedsSOW() &&
-                   !xpc::AccessCheck::isChrome(js::GetContextCompartment(cx))) {
+                   !xpc::AccessCheck::isChrome(cx->compartment)) {
             JSObject *sowWrapper = wrapper->GetWrapper();
             if (!sowWrapper) {
                 sowWrapper = xpc::WrapperFactory::WrapSOWObject(cx, flat);
@@ -1342,7 +1340,7 @@ public:
 
 private:
     JSContext * const mContext;
-    JS::AutoValueRooter tvr;
+    js::AutoValueRooter tvr;
 };
 
 // static

@@ -60,8 +60,7 @@ struct SurfaceDescriptorX11 {
 
   SurfaceDescriptorX11(gfxXlibSurface* aSurf);
 
-  SurfaceDescriptorX11(Drawable aDrawable, XID aFormatID,
-                       const gfxIntSize& aSize);
+  SurfaceDescriptorX11(const int aXid, const int aXrenderPictID, const gfxIntSize& aSize);
 
   // Default copy ctor and operator= are OK
 
@@ -77,8 +76,8 @@ struct SurfaceDescriptorX11 {
   already_AddRefed<gfxXlibSurface> OpenForeign() const;
 
   Drawable mId;
-  XID mFormat; // either a PictFormat or VisualID
   gfxIntSize mSize;
+  PictFormat mFormat;
 };
 
 } // namespace layers

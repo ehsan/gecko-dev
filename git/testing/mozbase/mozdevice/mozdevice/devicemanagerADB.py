@@ -571,7 +571,7 @@ class DeviceManagerADB(DeviceManager):
     # Check to see if adb itself can be executed.
     try:
       self.runCmd(["version"])
-    except:
+    except Exception as (ex):
       print "unable to execute ADB: ensure Android SDK is installed and adb is in your $PATH"
     
   def isCpAvailable(self):

@@ -47,7 +47,6 @@
 
 #include <string.h>
 
-#include "jsapi.h"
 #include "jsfriendapi.h"
 #include "jsprvtd.h"
 #include "jsatom.h"
@@ -199,7 +198,7 @@ struct ThreadData {
     DtoaState           *dtoaState;
 
     /* Base address of the native stack for the current thread. */
-    uintptr_t           *nativeStackBase;
+    jsuword             *nativeStackBase;
 
     /* List of currently pending operations on proxies. */
     PendingProxyOperation *pendingProxyOperation;
@@ -337,8 +336,12 @@ typedef struct JSPropertyTreeEntry {
     js::Shape           *child;
 } JSPropertyTreeEntry;
 
+typedef void
+(* JSActivityCallback)(void *arg, JSBool active);
+
 namespace js {
 
+typedef Vector<JSCompartment *, 0, SystemAllocPolicy> CompartmentVector;
 typedef Vector<ScriptOpcodeCountsPair, 0, SystemAllocPolicy> ScriptOpcodeCountsVector;
 
 }
@@ -374,7 +377,18 @@ struct JSRuntime
     /* Compartment create/destroy callback. */
     JSCompartmentCallback compartmentCallback;
 
-    js::ActivityCallback  activityCallback;
+    /*
+     * Sets a callback that is run whenever the runtime goes idle - the
+     * last active request ceases - and begins activity - when it was
+     * idle and a request begins. Note: The callback is called under the
+     * GC lock.
+     */
+    void setActivityCallback(JSActivityCallback cb, void *arg) {
+        activityCallback = cb;
+        activityCallbackArg = arg;
+    }
+
+    JSActivityCallback    activityCallback;
     void                 *activityCallbackArg;
 
     /* Garbage collector state, used by jsgc.c. */
@@ -419,8 +433,8 @@ struct JSRuntime
     int64_t             gcNextFullGCTime;
     int64_t             gcJitReleaseTime;
     JSGCMode            gcMode;
-    volatile uintptr_t  gcBarrierFailed;
-    volatile uintptr_t  gcIsNeeded;
+    volatile jsuword    gcBarrierFailed;
+    volatile jsuword    gcIsNeeded;
     js::WeakMapBase     *gcWeakMapList;
     js::gcstats::Statistics gcStats;
 
@@ -780,6 +794,7 @@ extern const JSDebugHooks js_NullDebugHooks;  /* defined in jsdbgapi.cpp */
 
 namespace js {
 
+class AutoGCRooter;
 template <typename T> class Root;
 class CheckRoot;
 
@@ -831,6 +846,15 @@ VersionShouldParseXML(JSVersion version)
     return VersionHasXML(version) || VersionNumber(version) >= JSVERSION_1_6;
 }
 
+static inline void
+VersionSetXML(JSVersion *version, bool enable)
+{
+    if (enable)
+        *version = JSVersion(uint32_t(*version) | VersionFlags::HAS_XML);
+    else
+        *version = JSVersion(uint32_t(*version) & ~VersionFlags::HAS_XML);
+}
+
 static inline JSVersion
 VersionExtractFlags(JSVersion version)
 {
@@ -860,7 +884,8 @@ VersionFlagsToOptions(JSVersion version)
 static inline JSVersion
 OptionFlagsToVersion(uintN options, JSVersion version)
 {
-    return VersionSetXML(version, OptionsHasXML(options));
+    VersionSetXML(&version, OptionsHasXML(options));
+    return version;
 }
 
 static inline bool
@@ -912,7 +937,7 @@ struct JSContext
     JSPackedBool        generatingError;
 
     /* Limit pointer for checking native stack consumption during recursion. */
-    uintptr_t           stackLimit;
+    jsuword             stackLimit;
 
     /* Data shared by threads in an address space. */
     JSRuntime *const    runtime;
@@ -1285,6 +1310,33 @@ struct JSContext
 
 namespace js {
 
+#ifdef JS_THREADSAFE
+# define JS_THREAD_ID(cx)       ((cx)->thread() ? (cx)->thread()->id : 0)
+#endif
+
+#if defined JS_THREADSAFE && defined DEBUG
+
+class AutoCheckRequestDepth {
+    JSContext *cx;
+  public:
+    AutoCheckRequestDepth(JSContext *cx) : cx(cx) { cx->thread()->checkRequestDepth++; }
+
+    ~AutoCheckRequestDepth() {
+        JS_ASSERT(cx->thread()->checkRequestDepth != 0);
+        cx->thread()->checkRequestDepth--;
+    }
+};
+
+# define CHECK_REQUEST(cx)                                                    \
+    JS_ASSERT((cx)->thread());                                                \
+    JS_ASSERT((cx)->thread()->data.requestDepth || (cx)->thread() == (cx)->runtime->gcThread); \
+    JS_ASSERT(cx->runtime->onOwnerThread());                                  \
+    AutoCheckRequestDepth _autoCheckRequestDepth(cx);
+
+#else
+# define CHECK_REQUEST(cx)          ((void) 0)
+#endif
+
 struct AutoResolving {
   public:
     enum Kind {
@@ -1319,6 +1371,64 @@ struct AutoResolving {
     Kind                const kind;
     AutoResolving       *const link;
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+};
+
+class AutoGCRooter {
+  public:
+    AutoGCRooter(JSContext *cx, ptrdiff_t tag)
+      : down(cx->autoGCRooters), tag(tag), context(cx)
+    {
+        JS_ASSERT(this != cx->autoGCRooters);
+        CHECK_REQUEST(cx);
+        cx->autoGCRooters = this;
+    }
+
+    ~AutoGCRooter() {
+        JS_ASSERT(this == context->autoGCRooters);
+        CHECK_REQUEST(context);
+        context->autoGCRooters = down;
+    }
+
+    /* Implemented in jsgc.cpp. */
+    inline void trace(JSTracer *trc);
+    void traceAll(JSTracer *trc);
+
+  protected:
+    AutoGCRooter * const down;
+
+    /*
+     * Discriminates actual subclass of this being used.  If non-negative, the
+     * subclass roots an array of values of the length stored in this field.
+     * If negative, meaning is indicated by the corresponding value in the enum
+     * below.  Any other negative value indicates some deeper problem such as
+     * memory corruption.
+     */
+    ptrdiff_t tag;
+
+    JSContext * const context;
+
+    enum {
+        JSVAL =        -1, /* js::AutoValueRooter */
+        VALARRAY =     -2, /* js::AutoValueArrayRooter */
+        PARSER =       -3, /* js::Parser */
+        SHAPEVECTOR =  -4, /* js::AutoShapeVector */
+        ENUMERATOR =   -5, /* js::AutoEnumStateRooter */
+        IDARRAY =      -6, /* js::AutoIdArray */
+        DESCRIPTORS =  -7, /* js::AutoPropDescArrayRooter */
+        NAMESPACES =   -8, /* js::AutoNamespaceArray */
+        XML =          -9, /* js::AutoXMLRooter */
+        OBJECT =      -10, /* js::AutoObjectRooter */
+        ID =          -11, /* js::AutoIdRooter */
+        VALVECTOR =   -12, /* js::AutoValueVector */
+        DESCRIPTOR =  -13, /* js::AutoPropertyDescriptorRooter */
+        STRING =      -14, /* js::AutoStringRooter */
+        IDVECTOR =    -15, /* js::AutoIdVector */
+        OBJVECTOR =   -16  /* js::AutoObjectVector */
+    };
+
+  private:
+    AutoGCRooter(AutoGCRooter &ida) MOZ_DELETE;
+    void operator=(AutoGCRooter &ida) MOZ_DELETE;
 };
 
 /*
@@ -1572,6 +1682,245 @@ typedef RootedVar<JSAtom*>            RootedVarAtom;
 typedef RootedVar<jsid>               RootedVarId;
 typedef RootedVar<Value>              RootedVarValue;
 
+/* FIXME(bug 332648): Move this into a public header. */
+class AutoValueRooter : private AutoGCRooter
+{
+  public:
+    explicit AutoValueRooter(JSContext *cx
+                             JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : AutoGCRooter(cx, JSVAL), val(js::NullValue())
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+
+    AutoValueRooter(JSContext *cx, const Value &v
+                    JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : AutoGCRooter(cx, JSVAL), val(v)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+
+    /*
+     * If you are looking for Object* overloads, use AutoObjectRooter instead;
+     * rooting Object*s as a js::Value requires discerning whether or not it is
+     * a function object. Also, AutoObjectRooter is smaller.
+     */
+
+    void set(Value v) {
+        JS_ASSERT(tag == JSVAL);
+        val = v;
+    }
+
+    const Value &value() const {
+        JS_ASSERT(tag == JSVAL);
+        return val;
+    }
+
+    Value *addr() {
+        JS_ASSERT(tag == JSVAL);
+        return &val;
+    }
+
+    const jsval &jsval_value() const {
+        JS_ASSERT(tag == JSVAL);
+        return val;
+    }
+
+    jsval *jsval_addr() {
+        JS_ASSERT(tag == JSVAL);
+        return &val;
+    }
+
+    friend void AutoGCRooter::trace(JSTracer *trc);
+    friend void MarkRuntime(JSTracer *trc);
+
+  private:
+    Value val;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+};
+
+class AutoObjectRooter : private AutoGCRooter {
+  public:
+    AutoObjectRooter(JSContext *cx, JSObject *obj = NULL
+                     JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : AutoGCRooter(cx, OBJECT), obj(obj)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+
+    void setObject(JSObject *obj) {
+        this->obj = obj;
+    }
+
+    JSObject * object() const {
+        return obj;
+    }
+
+    JSObject ** addr() {
+        return &obj;
+    }
+
+    friend void AutoGCRooter::trace(JSTracer *trc);
+    friend void MarkRuntime(JSTracer *trc);
+
+  private:
+    JSObject *obj;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+};
+
+class AutoStringRooter : private AutoGCRooter {
+  public:
+    AutoStringRooter(JSContext *cx, JSString *str = NULL
+                     JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : AutoGCRooter(cx, STRING), str(str)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+
+    void setString(JSString *str) {
+        this->str = str;
+    }
+
+    JSString * string() const {
+        return str;
+    }
+
+    JSString ** addr() {
+        return &str;
+    }
+
+    friend void AutoGCRooter::trace(JSTracer *trc);
+
+  private:
+    JSString *str;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+};
+
+class AutoArrayRooter : private AutoGCRooter {
+  public:
+    AutoArrayRooter(JSContext *cx, size_t len, Value *vec
+                    JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : AutoGCRooter(cx, len), array(vec)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_ASSERT(tag >= 0);
+    }
+
+    void changeLength(size_t newLength) {
+        tag = ptrdiff_t(newLength);
+        JS_ASSERT(tag >= 0);
+    }
+
+    void changeArray(Value *newArray, size_t newLength) {
+        changeLength(newLength);
+        array = newArray;
+    }
+
+    Value *array;
+
+    friend void AutoGCRooter::trace(JSTracer *trc);
+
+  private:
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+};
+
+class AutoIdRooter : private AutoGCRooter
+{
+  public:
+    explicit AutoIdRooter(JSContext *cx, jsid id = INT_TO_JSID(0)
+                          JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : AutoGCRooter(cx, ID), id_(id)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+
+    jsid id() {
+        return id_;
+    }
+
+    jsid * addr() {
+        return &id_;
+    }
+
+    friend void AutoGCRooter::trace(JSTracer *trc);
+    friend void MarkRuntime(JSTracer *trc);
+
+  private:
+    jsid id_;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+};
+
+class AutoIdArray : private AutoGCRooter {
+  public:
+    AutoIdArray(JSContext *cx, JSIdArray *ida JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : AutoGCRooter(cx, IDARRAY), idArray(ida)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+    ~AutoIdArray() {
+        if (idArray)
+            JS_DestroyIdArray(context, idArray);
+    }
+    bool operator!() {
+        return idArray == NULL;
+    }
+    jsid operator[](size_t i) const {
+        JS_ASSERT(idArray);
+        JS_ASSERT(i < size_t(idArray->length));
+        return idArray->vector[i];
+    }
+    size_t length() const {
+         return idArray->length;
+    }
+
+    friend void AutoGCRooter::trace(JSTracer *trc);
+
+    JSIdArray *steal() {
+        JSIdArray *copy = idArray;
+        idArray = NULL;
+        return copy;
+    }
+
+  protected:
+    inline void trace(JSTracer *trc);
+
+  private:
+    JSIdArray * idArray;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+
+    AutoIdArray(AutoIdArray &ida) MOZ_DELETE;
+    void operator=(AutoIdArray &ida) MOZ_DELETE;
+};
+
+/* The auto-root for enumeration object and its state. */
+class AutoEnumStateRooter : private AutoGCRooter
+{
+  public:
+    AutoEnumStateRooter(JSContext *cx, JSObject *obj
+                        JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : AutoGCRooter(cx, ENUMERATOR), obj(obj), stateValue()
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_ASSERT(obj);
+    }
+
+    ~AutoEnumStateRooter();
+
+    friend void AutoGCRooter::trace(JSTracer *trc);
+
+    const Value &state() const { return stateValue; }
+    Value *addr() { return &stateValue; }
+
+  protected:
+    void trace(JSTracer *trc);
+
+    JSObject * const obj;
+
+  private:
+    Value stateValue;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+};
+
 #ifdef JS_HAS_XML_SUPPORT
 class AutoXMLRooter : private AutoGCRooter {
   public:
@@ -1584,13 +1933,45 @@ class AutoXMLRooter : private AutoGCRooter {
     }
 
     friend void AutoGCRooter::trace(JSTracer *trc);
-    friend void JS::MarkRuntime(JSTracer *trc);
+    friend void MarkRuntime(JSTracer *trc);
 
   private:
     JSXML * const xml;
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 #endif /* JS_HAS_XML_SUPPORT */
+
+class AutoLockGC {
+  public:
+    explicit AutoLockGC(JSRuntime *rt = NULL
+                        JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : runtime(rt)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+        if (rt)
+            JS_LOCK_GC(rt);
+    }
+
+    bool locked() const {
+        return !!runtime;
+    }
+
+    void lock(JSRuntime *rt) {
+        JS_ASSERT(rt);
+        JS_ASSERT(!runtime);
+        runtime = rt;
+        JS_LOCK_GC(rt);
+    }
+
+    ~AutoLockGC() {
+        if (runtime)
+            JS_UNLOCK_GC(runtime);
+    }
+
+  private:
+    JSRuntime *runtime;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+};
 
 class AutoUnlockGC {
   private:
@@ -1858,6 +2239,21 @@ js_ContextIterator(JSRuntime *rt, JSBool unlocked, JSContext **iterp);
 extern JS_FRIEND_API(JSContext *)
 js_NextActiveContext(JSRuntime *, JSContext *);
 
+/*
+ * Report an exception, which is currently realized as a printf-style format
+ * string and its arguments.
+ */
+typedef enum JSErrNum {
+#define MSG_DEF(name, number, count, exception, format) \
+    name = number,
+#include "js.msg"
+#undef MSG_DEF
+    JSErr_Limit
+} JSErrNum;
+
+extern JS_FRIEND_API(const JSErrorFormatString *)
+js_GetErrorMessage(void *userRef, const char *locale, const uintN errorNumber);
+
 #ifdef va_start
 extern JSBool
 js_ReportErrorVA(JSContext *cx, uintN flags, const char *format, va_list ap);
@@ -1877,8 +2273,22 @@ js_ExpandErrorArguments(JSContext *cx, JSErrorCallback callback,
 extern void
 js_ReportOutOfMemory(JSContext *cx);
 
+/* JS_CHECK_RECURSION is used outside JS, so JS_FRIEND_API. */
+JS_FRIEND_API(void)
+js_ReportOverRecursed(JSContext *maybecx);
+
 extern JS_FRIEND_API(void)
 js_ReportAllocationOverflow(JSContext *cx);
+
+#define JS_CHECK_RECURSION(cx, onerror)                                       \
+    JS_BEGIN_MACRO                                                            \
+        int stackDummy_;                                                      \
+                                                                              \
+        if (!JS_CHECK_STACK_SIZE(cx->stackLimit, &stackDummy_)) {             \
+            js_ReportOverRecursed(cx);                                        \
+            onerror;                                                          \
+        }                                                                     \
+    JS_END_MACRO
 
 /*
  * Report an exception using a previously composed JSErrorReport.
@@ -1954,7 +2364,7 @@ namespace js {
 
 /* These must be called with GC lock taken. */
 
-void
+JS_FRIEND_API(void)
 TriggerOperationCallback(JSContext *cx);
 
 void
@@ -2059,12 +2469,110 @@ SetValueRangeToNull(Value *vec, size_t len)
     SetValueRangeToNull(vec, vec + len);
 }
 
+template<class T>
+class AutoVectorRooter : protected AutoGCRooter
+{
+  public:
+    explicit AutoVectorRooter(JSContext *cx, ptrdiff_t tag
+                              JS_GUARD_OBJECT_NOTIFIER_PARAM)
+        : AutoGCRooter(cx, tag), vector(cx)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+
+    size_t length() const { return vector.length(); }
+
+    bool append(const T &v) { return vector.append(v); }
+
+    /* For use when space has already been reserved. */
+    void infallibleAppend(const T &v) { vector.infallibleAppend(v); }
+
+    void popBack() { vector.popBack(); }
+    T popCopy() { return vector.popCopy(); }
+
+    bool growBy(size_t inc) {
+        size_t oldLength = vector.length();
+        if (!vector.growByUninitialized(inc))
+            return false;
+        MakeRangeGCSafe(vector.begin() + oldLength, vector.end());
+        return true;
+    }
+
+    bool resize(size_t newLength) {
+        size_t oldLength = vector.length();
+        if (newLength <= oldLength) {
+            vector.shrinkBy(oldLength - newLength);
+            return true;
+        }
+        if (!vector.growByUninitialized(newLength - oldLength))
+            return false;
+        MakeRangeGCSafe(vector.begin() + oldLength, vector.end());
+        return true;
+    }
+
+    void clear() { vector.clear(); }
+
+    bool reserve(size_t newLength) {
+        return vector.reserve(newLength);
+    }
+
+    T &operator[](size_t i) { return vector[i]; }
+    const T &operator[](size_t i) const { return vector[i]; }
+
+    const T *begin() const { return vector.begin(); }
+    T *begin() { return vector.begin(); }
+
+    const T *end() const { return vector.end(); }
+    T *end() { return vector.end(); }
+
+    const T &back() const { return vector.back(); }
+
+    friend void AutoGCRooter::trace(JSTracer *trc);
+
+  private:
+    typedef Vector<T, 8> VectorImpl;
+    VectorImpl vector;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+};
+
+class AutoValueVector : public AutoVectorRooter<Value>
+{
+  public:
+    explicit AutoValueVector(JSContext *cx
+                             JS_GUARD_OBJECT_NOTIFIER_PARAM)
+        : AutoVectorRooter<Value>(cx, VALVECTOR)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+
+    const jsval *jsval_begin() const { return begin(); }
+    jsval *jsval_begin() { return begin(); }
+
+    const jsval *jsval_end() const { return end(); }
+    jsval *jsval_end() { return end(); }
+
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+};
+
 class AutoObjectVector : public AutoVectorRooter<JSObject *>
 {
   public:
     explicit AutoObjectVector(JSContext *cx
                               JS_GUARD_OBJECT_NOTIFIER_PARAM)
         : AutoVectorRooter<JSObject *>(cx, OBJVECTOR)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+};
+
+class AutoIdVector : public AutoVectorRooter<jsid>
+{
+  public:
+    explicit AutoIdVector(JSContext *cx
+                          JS_GUARD_OBJECT_NOTIFIER_PARAM)
+        : AutoVectorRooter<jsid>(cx, IDVECTOR)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
     }

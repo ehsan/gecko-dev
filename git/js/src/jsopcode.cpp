@@ -145,6 +145,17 @@ Dup(const char *chars, DupBuffer *cb)
     return cb->append(chars, strlen(chars) + 1);
 }
 
+static ptrdiff_t
+GetJumpOffset(jsbytecode *pc, jsbytecode *pc2)
+{
+    uint32_t type;
+
+    type = JOF_OPTYPE(*pc);
+    if (JOF_TYPE_IS_EXTENDED_JUMP(type))
+        return GET_JUMPX_OFFSET(pc2);
+    return GET_JUMP_OFFSET(pc2);
+}
+
 uintN
 js_GetIndexFromBytecode(JSScript *script, jsbytecode *pc, ptrdiff_t pcoff)
 {
@@ -174,27 +185,37 @@ js_GetIndexFromBytecode(JSScript *script, jsbytecode *pc, ptrdiff_t pcoff)
 size_t
 js_GetVariableBytecodeLength(jsbytecode *pc)
 {
-    uintN ncases;
+    uintN jmplen, ncases;
     jsint low, high;
 
     JSOp op = JSOp(*pc);
     JS_ASSERT(js_CodeSpec[op].length == -1);
     switch (op) {
+      case JSOP_TABLESWITCHX:
+        jmplen = JUMPX_OFFSET_LEN;
+        goto do_table;
       case JSOP_TABLESWITCH:
+        jmplen = JUMP_OFFSET_LEN;
+      do_table:
         /* Structure: default-jump case-low case-high case1-jump ... */
-        pc += JUMP_OFFSET_LEN;
+        pc += jmplen;
         low = GET_JUMP_OFFSET(pc);
         pc += JUMP_OFFSET_LEN;
         high = GET_JUMP_OFFSET(pc);
         ncases = (uintN)(high - low + 1);
-        return 1 + 3 * JUMP_OFFSET_LEN + ncases * JUMP_OFFSET_LEN;
+        return 1 + jmplen + INDEX_LEN + INDEX_LEN + ncases * jmplen;
 
+      case JSOP_LOOKUPSWITCHX:
+        jmplen = JUMPX_OFFSET_LEN;
+        goto do_lookup;
       default:
-        /* Structure: default-jump case-count (case1-value case1-jump) ... */
         JS_ASSERT(op == JSOP_LOOKUPSWITCH);
-        pc += JUMP_OFFSET_LEN;
+        jmplen = JUMP_OFFSET_LEN;
+      do_lookup:
+        /* Structure: default-jump case-count (case1-value case1-jump) ... */
+        pc += jmplen;
         ncases = GET_UINT16(pc);
-        return 1 + JUMP_OFFSET_LEN + INDEX_LEN + ncases * (INDEX_LEN + JUMP_OFFSET_LEN);
+        return 1 + jmplen + INDEX_LEN + ncases * (INDEX_LEN + jmplen);
     }
 }
 
@@ -564,8 +585,9 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
           }
         break;
 
-      case JOF_JUMP: {
-        ptrdiff_t off = GET_JUMP_OFFSET(pc);
+      case JOF_JUMP:
+      case JOF_JUMPX: {
+        ptrdiff_t off = GetJumpOffset(pc, pc);
         Sprint(sp, " %u (%+d)", loc + (intN) off, (intN) off);
         break;
       }
@@ -606,39 +628,47 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
       }
 
       case JOF_TABLESWITCH:
+      case JOF_TABLESWITCHX:
       {
+        jsbytecode *pc2;
         jsint i, low, high;
 
-        ptrdiff_t off = GET_JUMP_OFFSET(pc);
-        jsbytecode *pc2 = pc + JUMP_OFFSET_LEN;
+        ptrdiff_t jmplen = (type == JOF_TABLESWITCH) ? JUMP_OFFSET_LEN : JUMPX_OFFSET_LEN;
+        pc2 = pc;
+        ptrdiff_t off = GetJumpOffset(pc, pc2);
+        pc2 += jmplen;
         low = GET_JUMP_OFFSET(pc2);
         pc2 += JUMP_OFFSET_LEN;
         high = GET_JUMP_OFFSET(pc2);
         pc2 += JUMP_OFFSET_LEN;
         Sprint(sp, " defaultOffset %d low %d high %d", intN(off), low, high);
         for (i = low; i <= high; i++) {
-            off = GET_JUMP_OFFSET(pc2);
+            off = GetJumpOffset(pc, pc2);
             Sprint(sp, "\n\t%d: %d", i, intN(off));
-            pc2 += JUMP_OFFSET_LEN;
+            pc2 += jmplen;
         }
         len = 1 + pc2 - pc;
         break;
       }
 
       case JOF_LOOKUPSWITCH:
+      case JOF_LOOKUPSWITCHX:
       {
+        jsbytecode *pc2;
         jsatomid npairs;
 
-        ptrdiff_t off = GET_JUMP_OFFSET(pc);
-        jsbytecode *pc2 = pc + JUMP_OFFSET_LEN;
+        ptrdiff_t jmplen = (type == JOF_LOOKUPSWITCH) ? JUMP_OFFSET_LEN : JUMPX_OFFSET_LEN;
+        pc2 = pc;
+        ptrdiff_t off = GetJumpOffset(pc, pc2);
+        pc2 += jmplen;
         npairs = GET_UINT16(pc2);
         pc2 += UINT16_LEN;
         Sprint(sp, " offset %d npairs %u", intN(off), uintN(npairs));
         while (npairs) {
             uint16_t constIndex = GET_INDEX(pc2);
             pc2 += INDEX_LEN;
-            off = GET_JUMP_OFFSET(pc2);
-            pc2 += JUMP_OFFSET_LEN;
+            off = GetJumpOffset(pc, pc2);
+            pc2 += jmplen;
 
             JSAutoByteString bytes;
             if (!ToDisassemblySource(cx, script->getConst(constIndex), &bytes))
@@ -2356,10 +2386,10 @@ SprintNormalFor(JSContext *cx, JSPrinter *jp, SprintStack *ss, const char *initP
      */
     jsbytecode *pc2 = pc;
     if (cond != tail) {
-        LOCAL_ASSERT(*pc == JSOP_GOTO);
-        pc2 += JSOP_GOTO_LENGTH;
+        LOCAL_ASSERT(*pc == JSOP_GOTO || *pc == JSOP_GOTOX);
+        pc2 += (*pc == JSOP_GOTO) ? JSOP_GOTO_LENGTH : JSOP_GOTOX_LENGTH;
     }
-    LOCAL_ASSERT(tail + GET_JUMP_OFFSET(pc + tail) == pc2 - pc);
+    LOCAL_ASSERT(tail + GetJumpOffset(pc+tail, pc+tail) == pc2 - pc);
 
     if (cond != tail) {
         /* Decompile the loop condition. */
@@ -2435,15 +2465,6 @@ InitSprintStack(JSContext *cx, SprintStack *ss, JSPrinter *jp, uintN depth)
     ss->inGenExp = JS_FALSE;
     ss->printer = jp;
     return JS_TRUE;
-}
-
-template <typename T>
-void
-Swap(T &a, T &b)
-{
-    T tmp = a;
-    a = b;
-    b = tmp;
 }
 
 /*
@@ -2793,7 +2814,8 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                     /* Second instruction (TRACE) contains offset to JSOP_IFNE */
                     sn = js_GetSrcNote(jp->script, pc);
                     tail = js_GetSrcNoteOffset(sn, 0);
-                    LOCAL_ASSERT(pc[tail] == JSOP_IFNE);
+                    LOCAL_ASSERT(pc[tail] == JSOP_IFNE ||
+                                 pc[tail] == JSOP_IFNEX);
                     js_printf(jp, "\tdo {\n");
                     jp->indent += 4;
                     DECOMPILE_CODE(pc, tail);
@@ -2849,6 +2871,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                 break;
 
               case JSOP_LABEL:
+              case JSOP_LABELX:
                 sn = js_GetSrcNote(jp->script, pc);
                 todo = -2;
                 switch (sn ? SN_TYPE(sn) : SRC_NULL) {
@@ -2915,10 +2938,11 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                 break;
 
               case JSOP_GOSUB:
+              case JSOP_GOSUBX:
                 /*
-                 * JSOP_GOSUB has no effect on the decompiler's string stack
-                 * because the next op in bytecode order finds the stack
-                 * balanced by a JSOP_RETSUB executed elsewhere.
+                 * JSOP_GOSUB and GOSUBX have no effect on the decompiler's
+                 * string stack because the next op in bytecode order finds
+                 * the stack balanced by a JSOP_RETSUB executed elsewhere.
                  */
                 todo = -2;
                 break;
@@ -3243,7 +3267,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                             return NULL;
                         js_printf(jp, "%s", POP_STR());
                         pc += len;
-                        LOCAL_ASSERT(*pc == JSOP_IFEQ);
+                        LOCAL_ASSERT(*pc == JSOP_IFEQ || *pc == JSOP_IFEQX);
                         pc += js_CodeSpec[*pc].length;
                     }
 
@@ -3433,12 +3457,12 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                 LOCAL_ASSERT(js_GetSrcNote(jp->script, pc) == NULL);
                 LOCAL_ASSERT(ss->top - 1 == blockObj.stackDepth() + blockObj.slotCount());
                 jsbytecode *nextpc = pc + JSOP_ENTERLET1_LENGTH;
-                if (*nextpc == JSOP_GOTO) {
+                if (*nextpc == JSOP_GOTO || *nextpc == JSOP_GOTOX) {
                     LOCAL_ASSERT(SN_TYPE(js_GetSrcNote(jp->script, nextpc)) == SRC_FOR_IN);
                 } else {
                     LOCAL_ASSERT(*nextpc == JSOP_CONDSWITCH ||
-                                 *nextpc == JSOP_TABLESWITCH ||
-                                 *nextpc == JSOP_LOOKUPSWITCH);
+                                 *nextpc == JSOP_TABLESWITCH || *nextpc == JSOP_TABLESWITCHX ||
+                                 *nextpc == JSOP_LOOKUPSWITCH || *nextpc == JSOP_LOOKUPSWITCHX);
                 }
 
                 DupBuffer rhs(cx);
@@ -3748,6 +3772,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                 break;
 
               case JSOP_GOTO:
+              case JSOP_GOTOX:
                 sn = js_GetSrcNote(jp->script, pc);
                 switch (sn ? SN_TYPE(sn) : SRC_NULL) {
                   case SRC_FOR_IN:
@@ -3779,7 +3804,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                      * JSOP_MOREITER or JSOP_IFNE, though we do quick asserts
                      * to check that they are there.
                      */
-                    cond = GET_JUMP_OFFSET(pc);
+                    cond = GetJumpOffset(pc, pc);
                     next = js_GetSrcNoteOffset(sn, 0);
                     tail = js_GetSrcNoteOffset(sn, 1);
                     JS_ASSERT(pc[next] == JSOP_POP);
@@ -3837,12 +3862,12 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                     }
 
                     pc += tail;
-                    LOCAL_ASSERT(*pc == JSOP_IFNE);
+                    LOCAL_ASSERT(*pc == JSOP_IFNE || *pc == JSOP_IFNEX);
                     len = js_CodeSpec[*pc].length;
                     break;
 
                   case SRC_WHILE:
-                    cond = GET_JUMP_OFFSET(pc);
+                    cond = GetJumpOffset(pc, pc);
                     tail = js_GetSrcNoteOffset(sn, 0);
                     DECOMPILE_CODE(pc + cond, tail - cond);
                     js_printf(jp, "\twhile (");
@@ -3854,7 +3879,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                     jp->indent -= 4;
                     js_printf(jp, "\t}\n");
                     pc += tail;
-                    LOCAL_ASSERT(*pc == JSOP_IFNE);
+                    LOCAL_ASSERT(*pc == JSOP_IFNE || *pc == JSOP_IFNEX);
                     len = js_CodeSpec[*pc].length;
                     todo = -2;
                     break;
@@ -3892,11 +3917,12 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                 break;
 
               case JSOP_IFEQ:
+              case JSOP_IFEQX:
               {
                 JSBool elseif = JS_FALSE;
 
               if_again:
-                len = GET_JUMP_OFFSET(pc);
+                len = GetJumpOffset(pc, pc);
                 sn = js_GetSrcNote(jp->script, pc);
 
                 switch (sn ? SN_TYPE(sn) : SRC_NULL) {
@@ -3924,9 +3950,9 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                         DECOMPILE_CODE(pc + oplen, tail - oplen);
                         jp->indent -= 4;
                         pc += tail;
-                        LOCAL_ASSERT(*pc == JSOP_GOTO);
+                        LOCAL_ASSERT(*pc == JSOP_GOTO || *pc == JSOP_GOTOX);
                         oplen = js_CodeSpec[*pc].length;
-                        len = GET_JUMP_OFFSET(pc);
+                        len = GetJumpOffset(pc, pc);
                         js_printf(jp, "\t} else");
 
                         /*
@@ -3966,9 +3992,9 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                     lval = PopStrDupe(ss, op, &lvalpc);
                     pushpc = pc;
                     pc += len;
-                    LOCAL_ASSERT(*pc == JSOP_GOTO);
+                    LOCAL_ASSERT(*pc == JSOP_GOTO || *pc == JSOP_GOTOX);
                     oplen = js_CodeSpec[*pc].length;
-                    len = GET_JUMP_OFFSET(pc);
+                    len = GetJumpOffset(pc, pc);
                     DECOMPILE_CODE(pc + oplen, len - oplen);
                     rval = PopStrDupe(ss, op, &rvalpc);
                     todo = ss->sprinter.offset;
@@ -3986,16 +4012,18 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
               }
 
               case JSOP_IFNE:
+              case JSOP_IFNEX:
                 LOCAL_ASSERT(0);
                 break;
 
               case JSOP_OR:
+              case JSOP_ORX:
                 xval = "||";
 
               do_logical_connective:
                 /* Top of stack is the first clause in a disjunction (||). */
                 lval = PopStrDupe(ss, op, &lvalpc);
-                done = pc + GET_JUMP_OFFSET(pc);
+                done = pc + GetJumpOffset(pc, pc);
                 pushpc = pc;
                 pc += len;
                 JS_ASSERT(*pc == JSOP_POP);
@@ -4019,6 +4047,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                 break;
 
               case JSOP_AND:
+              case JSOP_ANDX:
                 xval = "&&";
                 goto do_logical_connective;
 
@@ -4179,13 +4208,6 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                 todo = SprintCString(&ss->sprinter, rval);
                 break;
 
-              case JSOP_SWAP:
-                Swap(ss->offsets[ss->top-1], ss->offsets[ss->top-2]);
-                Swap(ss->opcodes[ss->top-1], ss->opcodes[ss->top-2]);
-                Swap(ss->bytecodes[ss->top-1], ss->bytecodes[ss->top-2]);
-                todo = -2;
-                break;
-
               case JSOP_SETARG:
                 atom = GetArgOrVarAtom(jp, GET_ARGNO(pc));
                 LOCAL_ASSERT(atom);
@@ -4267,8 +4289,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                                        op == JSOP_EVAL ||
                                        op == JSOP_FUNCALL ||
                                        op == JSOP_FUNAPPLY ||
-                                       op == JSOP_CALLPROP ||
-                                       op == JSOP_CALLELEM))
+                                       (js_CodeSpec[op].format & JOF_CALLOP)))
                                      ? JSOP_NAME
                                      : saveop,
                                      &lvalpc);
@@ -4809,16 +4830,19 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                 goto sprint_string;
 
               case JSOP_TABLESWITCH:
+              case JSOP_TABLESWITCHX:
               {
-                ptrdiff_t off, off2;
+                ptrdiff_t jmplen, off, off2;
                 jsint j, n, low, high;
                 TableEntry *table, *tmp;
 
                 sn = js_GetSrcNote(jp->script, pc);
                 LOCAL_ASSERT(sn && SN_TYPE(sn) == SRC_SWITCH);
                 len = js_GetSrcNoteOffset(sn, 0);
-                off = GET_JUMP_OFFSET(pc);
-                pc2 = pc + JUMP_OFFSET_LEN;
+                jmplen = (op == JSOP_TABLESWITCH) ? JUMP_OFFSET_LEN : JUMPX_OFFSET_LEN;
+                pc2 = pc;
+                off = GetJumpOffset(pc, pc2);
+                pc2 += jmplen;
                 low = GET_JUMP_OFFSET(pc2);
                 pc2 += JUMP_OFFSET_LEN;
                 high = GET_JUMP_OFFSET(pc2);
@@ -4836,7 +4860,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                         return NULL;
                     for (i = j = 0; i < n; i++) {
                         table[j].label = NULL;
-                        off2 = GET_JUMP_OFFSET(pc2);
+                        off2 = GetJumpOffset(pc, pc2);
                         if (off2) {
                             sn = js_GetSrcNote(jp->script, pc2);
                             if (sn) {
@@ -4848,7 +4872,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                             table[j].order = j;
                             j++;
                         }
-                        pc2 += JUMP_OFFSET_LEN;
+                        pc2 += jmplen;
                     }
                     tmp = (TableEntry *)
                           cx->malloc_((size_t)j * sizeof *table);
@@ -4871,16 +4895,20 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
               }
 
               case JSOP_LOOKUPSWITCH:
+              case JSOP_LOOKUPSWITCHX:
               {
-                ptrdiff_t off, off2;
+                ptrdiff_t jmplen, off, off2;
                 jsatomid npairs, k;
                 TableEntry *table;
 
                 sn = js_GetSrcNote(jp->script, pc);
                 LOCAL_ASSERT(sn && SN_TYPE(sn) == SRC_SWITCH);
                 len = js_GetSrcNoteOffset(sn, 0);
-                off = GET_JUMP_OFFSET(pc);
-                pc2 = pc + JUMP_OFFSET_LEN;
+                jmplen = (op == JSOP_LOOKUPSWITCH) ? JUMP_OFFSET_LEN
+                                                   : JUMPX_OFFSET_LEN;
+                pc2 = pc;
+                off = GetJumpOffset(pc, pc2);
+                pc2 += jmplen;
                 npairs = GET_UINT16(pc2);
                 pc2 += UINT16_LEN;
 
@@ -4898,8 +4926,8 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                     }
                     uint16_t constIndex = GET_INDEX(pc2);
                     pc2 += INDEX_LEN;
-                    off2 = GET_JUMP_OFFSET(pc2);
-                    pc2 += JUMP_OFFSET_LEN;
+                    off2 = GetJumpOffset(pc, pc2);
+                    pc2 += jmplen;
                     table[k].key = jp->script->getConst(constIndex);
                     table[k].offset = off2;
                 }
@@ -4932,8 +4960,9 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                 off2 = off;
                 for (ncases = 0; off2 != 0; ncases++) {
                     pc2 += off2;
-                    LOCAL_ASSERT(*pc2 == JSOP_CASE || *pc2 == JSOP_DEFAULT);
-                    if (*pc2 == JSOP_DEFAULT) {
+                    LOCAL_ASSERT(*pc2 == JSOP_CASE || *pc2 == JSOP_DEFAULT ||
+                                 *pc2 == JSOP_CASEX || *pc2 == JSOP_DEFAULTX);
+                    if (*pc2 == JSOP_DEFAULT || *pc2 == JSOP_DEFAULTX) {
                         /* End of cases, but count default as a case. */
                         off2 = 0;
                     } else {
@@ -4956,11 +4985,12 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                 off2 = off;
                 for (i = 0; i < ncases; i++) {
                     pc2 += off2;
-                    LOCAL_ASSERT(*pc2 == JSOP_CASE || *pc2 == JSOP_DEFAULT);
+                    LOCAL_ASSERT(*pc2 == JSOP_CASE || *pc2 == JSOP_DEFAULT ||
+                                 *pc2 == JSOP_CASEX || *pc2 == JSOP_DEFAULTX);
                     caseOff = pc2 - pc;
                     table[i].key = INT_TO_JSVAL((jsint) caseOff);
-                    table[i].offset = caseOff + GET_JUMP_OFFSET(pc2);
-                    if (*pc2 == JSOP_CASE) {
+                    table[i].offset = caseOff + GetJumpOffset(pc2, pc2);
+                    if (*pc2 == JSOP_CASE || *pc2 == JSOP_CASEX) {
                         sn = js_GetSrcNote(jp->script, pc2);
                         LOCAL_ASSERT(sn && SN_TYPE(sn) == SRC_PCDELTA);
                         off2 = js_GetSrcNoteOffset(sn, 0);
@@ -4974,7 +5004,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                  */
                 off = JSVAL_TO_INT(table[ncases-1].key);
                 pc2 = pc + off;
-                off += GET_JUMP_OFFSET(pc2);
+                off += GetJumpOffset(pc2, pc2);
 
                 ok = DecompileSwitch(ss, table, (uintN)ncases, pc, len, off,
                                      JS_TRUE);
@@ -4986,6 +5016,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
               }
 
               case JSOP_CASE:
+              case JSOP_CASEX:
               {
                 lval = PopStr(ss, op, &lvalpc);
                 if (!lval)
@@ -5346,7 +5377,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                 CopyDecompiledTextForDecomposedOp(jp, pc);
         }
 
-        if (op == JSOP_CALLXMLNAME) {
+        if (cs->format & JOF_CALLOP) {
             todo = Sprint(&ss->sprinter, "");
             if (todo < 0 || !PushOff(ss, todo, saveop))
                 return NULL;
@@ -5731,7 +5762,8 @@ DecompileExpression(JSContext *cx, JSScript *script, JSFunction *fun,
     JSOp op = (JSOp) *pc;
 
     /* None of these stack-writing ops generates novel values. */
-    JS_ASSERT(op != JSOP_CASE && op != JSOP_DUP && op != JSOP_DUP2);
+    JS_ASSERT(op != JSOP_CASE && op != JSOP_CASEX &&
+              op != JSOP_DUP && op != JSOP_DUP2);
 
     /*
      * |this| could convert to a very long object initialiser, so cite it by
@@ -5776,16 +5808,6 @@ DecompileExpression(JSContext *cx, JSScript *script, JSFunction *fun,
       }
       default:;
     }
-
-    /*
-     * Include the trailing SWAP when decompiling CALLPROP or CALLELEM ops,
-     * so that the result is the entire access rather than the lvalue.
-     */
-    if (op == JSOP_CALLPROP || op == JSOP_CALLELEM) {
-        JS_ASSERT(*end == JSOP_SWAP);
-        end += JSOP_SWAP_LENGTH;
-    }
-
     ptrdiff_t len = end - begin;
     if (len <= 0)
         return FAILED_EXPRESSION_DECOMPILER;
@@ -5854,6 +5876,7 @@ SimulateOp(JSContext *cx, JSScript *script, JSOp op, const JSCodeSpec *cs,
         break;
 
       case JSOP_CASE:
+      case JSOP_CASEX:
         /* Keep the switch value. */
         JS_ASSERT(ndefs == 1);
         break;
@@ -5917,9 +5940,9 @@ ReconstructPCStack(JSContext *cx, JSScript *script, jsbytecode *target,
         /*
          * A (C ? T : E) expression requires skipping either T (if target is in
          * E) or both T and E (if target is after the whole expression) before
-         * adjusting pcdepth based on the JSOP_IFEQ at pc that tests condition
-         * C. We know that the stack depth can't change from what it was with
-         * C on top of stack.
+         * adjusting pcdepth based on the JSOP_IFEQ or JSOP_IFEQX at pc that
+         * tests condition C.  We know that the stack depth can't change from
+         * what it was with C on top of stack.
          */
         jssrcnote *sn = js_GetSrcNote(script, pc);
         if (sn && SN_TYPE(sn) == SRC_COND) {
@@ -5927,11 +5950,11 @@ ReconstructPCStack(JSContext *cx, JSScript *script, jsbytecode *target,
             if (pc + jmpoff < target) {
                 pc += jmpoff;
                 op = JSOp(*pc);
-                JS_ASSERT(op == JSOP_GOTO);
+                JS_ASSERT(op == JSOP_GOTO || op == JSOP_GOTOX);
                 cs = &js_CodeSpec[op];
                 oplen = cs->length;
                 JS_ASSERT(oplen > 0);
-                ptrdiff_t jmplen = GET_JUMP_OFFSET(pc);
+                ptrdiff_t jmplen = GetJumpOffset(pc, pc);
                 if (pc + jmplen < target) {
                     oplen = (uintN) jmplen;
                     continue;

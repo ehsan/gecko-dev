@@ -41,7 +41,6 @@ import android.content.ContentResolver;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.Bitmap;
-import android.os.AsyncTask;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.graphics.Bitmap;
@@ -57,9 +56,9 @@ import java.util.List;
 import org.mozilla.gecko.db.BrowserDB;
 
 public class Tab {
+    public static enum AgentMode { MOBILE, DESKTOP };
     private static final String LOGTAG = "GeckoTab";
-    private static final int kThumbnailWidth = 120;
-    private static final int kThumbnailHeight = 80;
+    private static final int kThumbnailSize = 96;
 
     static int sMinDim = 0;
     static float sDensity = 1;
@@ -78,7 +77,7 @@ public class Tab {
     private boolean mBookmark;
     private HashMap<String, DoorHanger> mDoorHangers;
     private long mFaviconLoadId;
-    private CheckBookmarkTask mCheckBookmarkTask;
+    private AgentMode mAgentMode = AgentMode.MOBILE;
     private String mDocumentURI;
     private String mContentType;
 
@@ -153,13 +152,13 @@ public class Tab {
                 if (sMinDim == 0) {
                     DisplayMetrics metrics = new DisplayMetrics();
                     GeckoApp.mAppContext.getWindowManager().getDefaultDisplay().getMetrics(metrics);
-                    sMinDim = Math.min(metrics.widthPixels / 3, metrics.heightPixels / 2);
+                    sMinDim = Math.min(metrics.widthPixels, metrics.heightPixels);
                     sDensity = metrics.density;
                 }
                 if (b != null) {
                     try {
-                        Bitmap cropped = Bitmap.createBitmap(b, 0, 0, sMinDim * 3, sMinDim * 2);
-                        Bitmap bitmap = Bitmap.createScaledBitmap(cropped, (int) (kThumbnailWidth * sDensity), (int) (kThumbnailHeight * sDensity), false);
+                        Bitmap cropped = Bitmap.createBitmap(b, 0, 0, sMinDim, sMinDim);
+                        Bitmap bitmap = Bitmap.createScaledBitmap(cropped, kThumbnailSize, kThumbnailSize, false);
                         saveThumbnailToDB(new BitmapDrawable(bitmap));
                         b.recycle();
 
@@ -276,15 +275,7 @@ public class Tab {
     }
 
     private void updateBookmark() {
-        GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
-            public void run() {
-                if (mCheckBookmarkTask != null)
-                    mCheckBookmarkTask.cancel(false);
-
-                mCheckBookmarkTask = new CheckBookmarkTask(getURL());
-                mCheckBookmarkTask.execute();
-            }
-        });
+        new CheckBookmarkTask().execute();
     }
 
     public void addBookmark() {
@@ -404,38 +395,16 @@ public class Tab {
         }
     }
 
-    private class CheckBookmarkTask extends AsyncTask<Void, Void, Boolean> {
-        private final String mUrl;
-
-        public CheckBookmarkTask(String url) {
-            mUrl = url;
-        }
-
+    private class CheckBookmarkTask extends GeckoAsyncTask<Void, Void, Boolean> {
         @Override
         protected Boolean doInBackground(Void... unused) {
             ContentResolver resolver = Tabs.getInstance().getContentResolver();
-            return BrowserDB.isBookmark(resolver, mUrl);
+            return BrowserDB.isBookmark(resolver, getURL());
         }
 
         @Override
-        protected void onCancelled() {
-            mCheckBookmarkTask = null;
-        }
-
-        @Override
-        protected void onPostExecute(final Boolean isBookmark) {
-            mCheckBookmarkTask = null;
-
-            GeckoApp.mAppContext.runOnUiThread(new Runnable() {
-                public void run() {
-                    // Ignore this task if it's not about the current
-                    // tab URL anymore.
-                    if (!mUrl.equals(getURL()))
-                        return;
-
-                    setBookmark(isBookmark.booleanValue());
-                }
-            });
+        protected void onPostExecute(Boolean isBookmark) {
+            setBookmark(isBookmark.booleanValue());
         }
     }
 
@@ -474,5 +443,13 @@ public class Tab {
         protected void onPostExecute(Void unused) {
             setBookmark(false);
         }
+    }
+
+    public void setAgentMode(AgentMode agentMode) {
+        mAgentMode = agentMode;
+    }
+
+    public AgentMode getAgentMode() {
+        return mAgentMode;
     }
 }

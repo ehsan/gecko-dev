@@ -42,11 +42,8 @@
 #include "nsAccUtils.h"
 #include "nsRoleMap.h"
 #include "nsString.h"
-#include "Role.h"
 
 #include "nsIDOMDOMStringList.h"
-
-using namespace mozilla::a11y;
 
 void
 actionInterfaceInitCB(AtkActionIface *aIface)
@@ -122,9 +119,11 @@ getKeyBindingCB(AtkAction *aAction, gint aActionIndex)
     keyBinding.AppendToString(keyBindingsStr, KeyBinding::eAtkFormat);
 
     nsAccessible* parent = acc->Parent();
-    roles::Role role = parent ? parent->Role() : roles::NOTHING;
-    if (role == roles::PARENT_MENUITEM || role == roles::MENUITEM ||
-        role == roles::RADIO_MENU_ITEM || role == roles::CHECK_MENU_ITEM) {
+    PRUint32 role = parent ? parent->Role() : 0;
+    if (role == nsIAccessibleRole::ROLE_PARENT_MENUITEM ||
+        role == nsIAccessibleRole::ROLE_MENUITEM ||
+        role == nsIAccessibleRole::ROLE_RADIO_MENU_ITEM ||
+        role == nsIAccessibleRole::ROLE_CHECK_MENU_ITEM) {
       // It is submenu, expose keyboard shortcuts from menu hierarchy like
       // "s;<Alt>f:s"
       nsAutoString keysInHierarchyStr = keyBindingsStr;
@@ -137,7 +136,8 @@ getKeyBindingCB(AtkAction *aAction, gint aActionIndex)
 
           keysInHierarchyStr.Insert(str, 0);
         }
-      } while ((parent = parent->Parent()) && parent->Role() != roles::MENUBAR);
+      } while ((parent = parent->Parent()) &&
+               parent->Role() != nsIAccessibleRole::ROLE_MENUBAR);
 
       keyBindingsStr.Append(';');
       keyBindingsStr.Append(keysInHierarchyStr);

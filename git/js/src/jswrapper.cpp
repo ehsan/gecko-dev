@@ -859,22 +859,20 @@ bool
 SecurityWrapper<Base>::nativeCall(JSContext *cx, JSObject *wrapper, Class *clasp, Native native,
                                   CallArgs args)
 {
-    /*
-     * Let this through until compartment-per-global lets us have stronger
-     * invariants wrt document.domain (bug 714547).
-     */
-    return Base::nativeCall(cx, wrapper, clasp, native, args);
+    /* Let ProxyHandler report the error. */
+    DebugOnly<bool> ret = ProxyHandler::nativeCall(cx, wrapper, clasp, native, args);
+    JS_ASSERT(!ret);
+    return false;
 }
 
 template <class Base>
 bool
 SecurityWrapper<Base>::objectClassIs(JSObject *obj, ESClassValue classValue, JSContext *cx)
 {
-    /*
-     * Let this through until compartment-per-global lets us have stronger
-     * invariants wrt document.domain (bug 714547).
-     */
-    return Base::objectClassIs(obj, classValue, cx);
+    /* Let ProxyHandler say 'no'. */
+    bool ret = ProxyHandler::objectClassIs(obj, classValue, cx);
+    JS_ASSERT(!ret && !cx->isExceptionPending());
+    return ret;
 }
 
 template class js::SecurityWrapper<Wrapper>;

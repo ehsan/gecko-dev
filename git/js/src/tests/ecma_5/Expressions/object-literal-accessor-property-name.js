@@ -3,9 +3,10 @@
 
 var gTestfile = 'object-literal-accessor-property-name.js';
 //-----------------------------------------------------------------------------
-var BUGNUMBER = 715682;
+var BUGNUMBER = 536472;
 var summary =
-  "Permit numbers and strings containing numbers as accessor property names";
+  'ES5: { get x(v) { } } and { set x(v, v2) { } } should be syntax errors';
+
 print(BUGNUMBER + ": " + summary);
 
 //-----------------------------------------------------------------------------

@@ -236,7 +236,9 @@ nsTableCellFrame::AttributeChanged(PRInt32         aNameSpaceID,
   }
   // let the table frame decide what to do
   nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
-  tableFrame->AttributeChangedFor(this, mContent, aAttribute);
+  if (tableFrame) {
+    tableFrame->AttributeChangedFor(this, mContent, aAttribute);
+  }
   return NS_OK;
 }
 
@@ -247,6 +249,7 @@ nsTableCellFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
     return;
 
   nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
+
   if (tableFrame->IsBorderCollapse() &&
       tableFrame->BCRecalcNeeded(aOldStyleContext, GetStyleContext())) {
     PRInt32 colIndex, rowIndex;
@@ -440,6 +443,7 @@ nsTableCellFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   DO_GLOBAL_REFLOW_COUNT_DSP("nsTableCellFrame");
   nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
+
   PRInt32 emptyCellStyle = GetContentEmpty() && !tableFrame->IsBorderCollapse() ?
                               GetStyleTableBorder()->mEmptyCells
                               : NS_STYLE_TABLE_EMPTY_CELLS_SHOW;
@@ -820,6 +824,11 @@ NS_METHOD nsTableCellFrame::Reflow(nsPresContext*           aPresContext,
   aStatus = NS_FRAME_COMPLETE;
   nsSize availSize(aReflowState.availableWidth, aReflowState.availableHeight);
 
+  /* It's the 'border-collapse' on the table that matters */
+  nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
+  if (!tableFrame)
+    ABORT1(NS_ERROR_NULL_POINTER);
+
   nsMargin borderPadding = aReflowState.mComputedPadding;
   nsMargin border;
   GetBorderWidth(border);
@@ -845,7 +854,6 @@ NS_METHOD nsTableCellFrame::Reflow(nsPresContext*           aPresContext,
   SetPriorAvailWidth(aReflowState.availableWidth);
   nsIFrame* firstKid = mFrames.FirstChild();
   NS_ASSERTION(firstKid, "Frame construction error, a table cell always has an inner cell frame");
-  nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
 
   if (aReflowState.mFlags.mSpecialHeightReflow) {
     const_cast<nsHTMLReflowState&>(aReflowState).SetComputedHeight(mRect.height - topInset - bottomInset);

@@ -648,12 +648,8 @@
   -moz-margin-start: 0;
 }
 
-#detail-icon-container {
-  width: 64px;
-  -moz-margin-end: 10px;
-}
-
 #detail-icon {
+  -moz-margin-end: 10px;
   max-width: 64px;
   max-height: 64px;
 }

@@ -985,7 +985,7 @@ function Focus()
     }
 
     var fm = CC["@mozilla.org/focus-manager;1"].getService(CI.nsIFocusManager);
-    fm.focusedWindow = gContainingWindow;
+    fm.activeWindow = gContainingWindow;
     try {
         var dock = CC["@mozilla.org/widget/macdocksupport;1"].getService(CI.nsIMacDockSupport);
         dock.activateApplication(true);

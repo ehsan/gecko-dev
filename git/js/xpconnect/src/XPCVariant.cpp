@@ -43,8 +43,6 @@
 #include "xpcprivate.h"
 #include "XPCWrapper.h"
 
-#include "jsfriendapi.h"
-
 NS_IMPL_CYCLE_COLLECTION_CLASS(XPCVariant)
 
 NS_IMPL_CLASSINFO(XPCVariant, NULL, 0, XPCVARIANT_CID)

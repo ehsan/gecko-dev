@@ -96,6 +96,8 @@ using mozilla::DefaultXDisplay;
 #include "nsIScrollableFrame.h"
 
 #include "nsContentCID.h"
+static NS_DEFINE_CID(kRangeCID, NS_RANGE_CID);
+
 #include "nsWidgetsCID.h"
 static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
@@ -621,7 +623,8 @@ NS_IMETHODIMP nsPluginInstanceOwner::InvalidateRect(NPRect *invalidRect)
   if (mWidget) {
     mWidget->Invalidate(nsIntRect(invalidRect->left, invalidRect->top,
                                   invalidRect->right - invalidRect->left,
-                                  invalidRect->bottom - invalidRect->top));
+                                  invalidRect->bottom - invalidRect->top),
+                        false);
     return NS_OK;
   }
 #endif
@@ -653,6 +656,12 @@ NS_IMETHODIMP nsPluginInstanceOwner::InvalidateRegion(NPRegion invalidRegion)
 
 NS_IMETHODIMP nsPluginInstanceOwner::ForceRedraw()
 {
+  NS_ENSURE_TRUE(mObjectFrame, NS_ERROR_NULL_POINTER);
+  nsIView* view = mObjectFrame->GetView();
+  if (view) {
+    return view->GetViewManager()->Composite();
+  }
+
   return NS_OK;
 }
 
@@ -824,7 +833,10 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetTagText(const char* *result)
     if (NS_FAILED(rv))
       return rv;
 
-    nsRefPtr<nsRange> range = new nsRange();
+    nsCOMPtr<nsIDOMRange> range(do_CreateInstance(kRangeCID,&rv));
+    if (NS_FAILED(rv))
+      return rv;
+
     rv = range->SelectNode(node);
     if (NS_FAILED(rv))
       return rv;

@@ -60,7 +60,7 @@
 #include "nsNetCID.h"
 #include "nsNetUtil.h"
 #include "nsIUUIDGenerator.h"
-#include "nsBlobProtocolHandler.h"
+#include "nsFileDataProtocolHandler.h"
 #include "nsStringStream.h"
 #include "CheckedInt.h"
 #include "nsJSUtils.h"
@@ -288,10 +288,10 @@ nsDOMFileBase::GetInternalUrl(nsIPrincipal* aPrincipal, nsAString& aURL)
   char chars[NSID_LENGTH];
   id.ToProvidedString(chars);
     
-  nsCString url = NS_LITERAL_CSTRING(BLOBURI_SCHEME ":") +
+  nsCString url = NS_LITERAL_CSTRING(FILEDATA_SCHEME ":") +
     Substring(chars + 1, chars + NSID_LENGTH - 2);
 
-  nsBlobProtocolHandler::AddFileDataEntry(url, this,
+  nsFileDataProtocolHandler::AddFileDataEntry(url, this,
                                               aPrincipal);
 
   CopyASCIItoUTF16(url, aURL);
@@ -659,8 +659,8 @@ nsDOMFileError::GetCode(PRUint16* aCode)
 
 nsDOMFileInternalUrlHolder::nsDOMFileInternalUrlHolder(nsIDOMBlob* aFile,
                                                        nsIPrincipal* aPrincipal
-                                                       MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL) {
-  MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+                                                       MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL) {
+  MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
   aFile->GetInternalUrl(aPrincipal, mUrl);
 }
  
@@ -668,6 +668,6 @@ nsDOMFileInternalUrlHolder::~nsDOMFileInternalUrlHolder() {
   if (!mUrl.IsEmpty()) {
     nsCAutoString narrowUrl;
     CopyUTF16toUTF8(mUrl, narrowUrl);
-    nsBlobProtocolHandler::RemoveFileDataEntry(narrowUrl);
+    nsFileDataProtocolHandler::RemoveFileDataEntry(narrowUrl);
   }
 }

@@ -622,15 +622,7 @@ public class AwesomeBarTabs extends TabHost {
         mAllPagesCursorAdapter.setFilterQueryProvider(new FilterQueryProvider() {
             public Cursor runQuery(CharSequence constraint) {
                 ContentResolver resolver = mContext.getContentResolver();
-                long start = new Date().getTime();
-
-                Cursor c = BrowserDB.filter(resolver, constraint, MAX_RESULTS);
-                c.getCount(); // ensure the query runs at least once
-
-                long end = new Date().getTime();
-                Log.i(LOGTAG, "Got cursor in " + (end - start) + "ms");
-
-                return c;
+                return BrowserDB.filter(resolver, constraint, MAX_RESULTS);
             }
         });
 

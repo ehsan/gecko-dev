@@ -78,6 +78,9 @@
 #include "nsThreadManager.h"
 #include "nsThreadPool.h"
 
+#include "nsIProxyObjectManager.h"
+#include "nsProxyEventPrivate.h"  // access to the impl of nsProxyObjectManager for the generic factory registration.
+
 #include "xptinfo.h"
 #include "nsIInterfaceInfoManager.h"
 #include "xptiprivate.h"
@@ -137,7 +140,6 @@ extern nsresult nsStringInputStreamConstructor(nsISupports *, REFNSIID, void **)
 #include "mozilla/FunctionTimer.h"
 #include "mozilla/Omnijar.h"
 #include "mozilla/HangMonitor.h"
-#include "mozilla/Telemetry.h"
 
 #include "nsChromeRegistry.h"
 #include "nsChromeProtocolHandler.h"
@@ -270,6 +272,7 @@ NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsChromeRegistry,
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsChromeProtocolHandler)
 
 #define NS_PERSISTENTPROPERTIES_CID NS_IPERSISTENTPROPERTIES_CID /* sigh */
+#define NS_XPCOMPROXY_CID NS_PROXYEVENT_MANAGER_CID
 
 static already_AddRefed<nsIFactory>
 CreateINIParserFactory(const mozilla::Module& module,
@@ -533,8 +536,6 @@ NS_InitXPCOM2(nsIServiceManager* *result,
 
     mozilla::HangMonitor::Startup();
 
-    mozilla::Telemetry::Init();
-
     return NS_OK;
 }
 
@@ -661,6 +662,8 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
         nsComponentManagerImpl::gComponentManager->FreeServices();
     }
 
+    nsProxyObjectManager::Shutdown();
+
     // Release the directory service
     NS_IF_RELEASE(nsDirectoryService::gService);
 
@@ -716,6 +719,8 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
     }
     nsComponentManagerImpl::gComponentManager = nsnull;
     nsCategoryManager::Destroy();
+
+    ShutdownSpecialSystemDirectory();
 
     NS_PurgeAtomTable();
 

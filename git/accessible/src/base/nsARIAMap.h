@@ -40,7 +40,6 @@
 #ifndef _nsARIAMap_H_
 #define _nsARIAMap_H_
 
-#include "mozilla/a11y/Role.h"
 #include "prtypes.h"
 
 class nsIAtom;
@@ -274,7 +273,7 @@ struct nsRoleMapEntry
   const char *roleString;
   
   // Role mapping rule: maps to this nsIAccessibleRole
-  mozilla::a11y::role role;
+  PRUint32 role;
   
   // Role rule: whether to use mapped role or native semantics
   bool roleRule;

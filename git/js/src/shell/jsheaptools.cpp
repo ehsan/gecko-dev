@@ -171,7 +171,7 @@ class HeapReverser : public JSTracer {
 
     /* Construct a HeapReverser for |context|'s heap. */
     HeapReverser(JSContext *cx) : map(cx), roots(cx), rooter(cx, 0, NULL), work(cx), parent(NULL) {
-        JS_TracerInit(this, cx, traverseEdgeWithThis);
+        JS_TRACER_INIT(this, cx, traverseEdgeWithThis);
     }
 
     bool init() { return map.init(); }

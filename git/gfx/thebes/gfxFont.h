@@ -732,10 +732,6 @@ public:
         AgeAllGenerations();
     }
 
-    void FlushShapedWordCaches() {
-        mFonts.EnumerateEntries(ClearCachedWordsForFont, nsnull);
-    }
-
 protected:
     void DestroyFont(gfxFont *aFont);
 
@@ -771,7 +767,6 @@ protected:
 
     nsTHashtable<HashEntry> mFonts;
 
-    static PLDHashOperator ClearCachedWordsForFont(HashEntry* aHashEntry, void*);
     static PLDHashOperator AgeCachedWordsForFont(HashEntry* aHashEntry, void*);
     static void WordCacheExpirationTimerCallback(nsITimer* aTimer, void* aCache);
     nsCOMPtr<nsITimer>      mWordCacheExpirationTimer;
@@ -1133,8 +1128,6 @@ public:
     const nsString& GetName() const { return mFontEntry->Name(); }
     const gfxFontStyle *GetStyle() const { return &mStyle; }
 
-    cairo_scaled_font_t* GetCairoScaledFont() { return mScaledFont; }
-
     virtual gfxFont* CopyWithAntialiasOption(AntialiasOption anAAOption) {
         // platforms where this actually matters should override
         return nsnull;
@@ -1407,13 +1400,6 @@ public:
     void AgeCachedWords() {
         if (mWordCache.IsInitialized()) {
             (void)mWordCache.EnumerateEntries(AgeCacheEntry, this);
-        }
-    }
-
-    // Discard all cached word records; called on memory-pressure notification.
-    void ClearCachedWords() {
-        if (mWordCache.IsInitialized()) {
-            mWordCache.Clear();
         }
     }
 

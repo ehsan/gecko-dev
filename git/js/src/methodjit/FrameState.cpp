@@ -1498,11 +1498,10 @@ FrameState::syncAndKill(Registers kill, Uses uses, Uses ignore)
         if (!fe || deadEntry(fe, ignore.nuses))
             continue;
 
-        JS_ASSERT(fe->isTracked());
+        JS_ASSERT(fe->isTracked() && !fe->isType(JSVAL_TYPE_DOUBLE));
 
         if (regstate(reg).type() == RematInfo::DATA) {
-            JS_ASSERT_IF(reg.isFPReg(), fe->data.fpreg() == reg.fpreg());
-            JS_ASSERT_IF(!reg.isFPReg(), fe->data.reg() == reg.reg());
+            JS_ASSERT(fe->data.reg() == reg.reg());
             JS_ASSERT(fe->data.synced());
             fe->data.setMemory();
         } else {

@@ -98,7 +98,7 @@ _interpreterTrace(JSDContext* jsdc, JSContext *cx, JSStackFrame *fp,
         printf("%s this: ", JS_IsConstructorFrame(cx, fp) ? "constructing":"");
 
         if (JS_GetFrameThis(cx, fp, &thisVal))
-            printf("0x%0llx", (uintptr_t) thisVal);
+            printf("0x%0llx", (JSUword) thisVal);
         else
             puts("<unavailable>");
     }

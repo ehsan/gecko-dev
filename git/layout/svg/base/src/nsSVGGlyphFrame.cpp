@@ -137,16 +137,8 @@ public:
    * We are scaling the glyphs up/down to the size we want so we need to
    * inverse scale the outline widths of those glyphs so they are invariant
    */
-  void SetLineWidthAndDashesForDrawing(gfxContext *aContext) {
+  void SetLineWidthForDrawing(gfxContext *aContext) {
     aContext->SetLineWidth(aContext->CurrentLineWidth() / mDrawScale);
-    AutoFallibleTArray<gfxFloat, 10> dashes;
-    gfxFloat dashOffset;
-    if (aContext->CurrentDash(dashes, &dashOffset)) {
-      for (PRUint32 i = 0; i <  dashes.Length(); i++) {
-        dashes[i] /= mDrawScale;
-      }
-      aContext->SetDash(dashes.Elements(), dashes.Length(), dashOffset / mDrawScale);
-    }
   }
 
   /**
@@ -472,9 +464,11 @@ nsSVGGlyphFrame::UpdateCoveredRegion()
     return NS_OK;
   }
 
+  mPropagateTransform = false;
   CharacterIterator iter(this, true);
   iter.SetInitialMatrix(tmpCtx);
   AddBoundingBoxesToPath(&iter, tmpCtx);
+  mPropagateTransform = true;
   tmpCtx->IdentityMatrix();
 
   // Be careful when replacing the following logic to get the fill and stroke
@@ -554,7 +548,7 @@ void
 nsSVGGlyphFrame::AddCharactersToPath(CharacterIterator *aIter,
                                      gfxContext *aContext)
 {
-  aIter->SetLineWidthAndDashesForDrawing(aContext);
+  aIter->SetLineWidthForDrawing(aContext);
   if (aIter->SetupForDirectTextRunDrawing(aContext)) {
     mTextRun->DrawToPath(aContext, gfxPoint(0, 0), 0,
                          mTextRun->GetLength(), nsnull, nsnull);
@@ -1468,10 +1462,23 @@ nsSVGGlyphFrame::NotifyGlyphMetricsChange()
     containerFrame->NotifyGlyphMetricsChange();
 }
 
+bool
+nsSVGGlyphFrame::GetGlobalTransform(gfxMatrix *aMatrix)
+{
+  if (!mPropagateTransform) {
+    aMatrix->Reset();
+    return true;
+  }
+
+  *aMatrix = GetCanvasTM();
+  return !aMatrix->IsSingular();
+}
+
 void
 nsSVGGlyphFrame::SetupGlobalTransform(gfxContext *aContext)
 {
-  gfxMatrix matrix = GetCanvasTM();
+  gfxMatrix matrix;
+  GetGlobalTransform(&matrix);
   if (!matrix.IsSingular()) {
     aContext->Multiply(matrix);
   }
@@ -1550,8 +1557,7 @@ nsSVGGlyphFrame::EnsureTextRun(float *aDrawScale, float *aMetricsScale,
     gfxMatrix m;
     if (aForceGlobalTransform ||
         !(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
-      m = GetCanvasTM();
-      if (m.IsSingular())
+      if (!GetGlobalTransform(&m))
         return false;
     }
 

@@ -38,8 +38,6 @@
 
 package org.mozilla.gecko.sync.repositories.delegates;
 
-import java.util.concurrent.ExecutorService;
-
 import org.mozilla.gecko.sync.repositories.domain.Record;
 
 public interface RepositorySessionFetchRecordsDelegate {
@@ -60,6 +58,4 @@ public interface RepositorySessionFetchRecordsDelegate {
   // Shorthand for calling onFetchedRecord for each record in turn, then
   // calling onFetchCompleted.
   public void onFetchSucceeded(Record[] records, long end);
-
-  public RepositorySessionFetchRecordsDelegate deferredFetchDelegate(ExecutorService executor);
 }

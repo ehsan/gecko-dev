@@ -42,8 +42,6 @@
 
 /* The "Components" xpcom objects for JavaScript. */
 
-#include "mozilla/unused.h"
-
 #include "xpcprivate.h"
 #include "nsReadableUtils.h"
 #include "xpcIJSModuleLoader.h"
@@ -61,7 +59,6 @@
 #include "jsgc.h"
 #include "jsfriendapi.h"
 
-using namespace mozilla;
 using namespace js;
 /***************************************************************************/
 // stuff used by all
@@ -3009,7 +3006,7 @@ xpc_CreateSandboxObject(JSContext * cx, jsval * vp, nsISupports *prinOrSop, JSOb
                                 wantXrays, &sandbox, &compartment);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    JS::AutoObjectRooter tvr(cx, sandbox);
+    js::AutoObjectRooter tvr(cx, sandbox);
 
     {
         JSAutoEnterCompartment ac;
@@ -3447,7 +3444,7 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
     XPCPerThreadData *data = XPCPerThreadData::GetData(cx);
     XPCJSContextStack *stack = nsnull;
     if (data && (stack = data->GetJSContextStack())) {
-        if (!stack->Push(sandcx->GetJSContext())) {
+        if (NS_FAILED(stack->Push(sandcx->GetJSContext()))) {
             JS_ReportError(cx,
                            "Unable to initialize XPConnect with the sandbox context");
             JSPRINCIPALS_DROP(cx, jsPrincipals);
@@ -3470,8 +3467,9 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
         JSString *str = nsnull;
 
         if (!ac.enter(sandcx->GetJSContext(), sandbox)) {
-            if (stack)
-                unused << stack->Pop();
+            if (stack) {
+                stack->Pop(nsnull);
+            }
             return NS_ERROR_FAILURE;
         }
 
@@ -3547,8 +3545,9 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
         }
     }
 
-    if (stack)
-        unused << stack->Pop();
+    if (stack) {
+        stack->Pop(nsnull);
+    }
 
     JSPRINCIPALS_DROP(cx, jsPrincipals);
 
@@ -3756,7 +3755,7 @@ nsXPCComponents_Utils::MakeObjectPropsNormal(const jsval &vobj, JSContext *cx)
     if (!ac.enter(cx, obj))
         return NS_ERROR_FAILURE;
 
-    JS::AutoIdArray ida(cx, JS_Enumerate(cx, obj));
+    js::AutoIdArray ida(cx, JS_Enumerate(cx, obj));
     if (!ida)
         return NS_ERROR_FAILURE;
 

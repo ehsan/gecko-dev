@@ -200,9 +200,6 @@
 #include "imgIEncoder.h"
 #include "gfxPlatform.h"
 
-/* for NS_MEMORY_REPORTER_IMPLEMENT */
-#include "nsIMemoryReporter.h"
-
 #include "mozilla/FunctionTimer.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Telemetry.h"
@@ -226,6 +223,12 @@
 #endif
 
 #define ANCHOR_SCROLL_FLAGS (SCROLL_OVERFLOW_HIDDEN | SCROLL_NO_PARENT_FRAMES)
+
+#include "nsContentCID.h"
+static NS_DEFINE_IID(kRangeCID,     NS_RANGE_CID);
+
+/* for NS_MEMORY_REPORTER_IMPLEMENT */
+#include "nsIMemoryReporter.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -254,14 +257,14 @@ static void ColorToString(nscolor aColor, nsAutoString &aString);
 
 // RangePaintInfo is used to paint ranges to offscreen buffers
 struct RangePaintInfo {
-  nsRefPtr<nsRange> mRange;
+  nsCOMPtr<nsIRange> mRange;
   nsDisplayListBuilder mBuilder;
   nsDisplayList mList;
 
   // offset of builder's reference frame to the root frame
   nsPoint mRootOffset;
 
-  RangePaintInfo(nsRange* aRange, nsIFrame* aFrame)
+  RangePaintInfo(nsIRange* aRange, nsIFrame* aFrame)
     : mRange(aRange), mBuilder(aFrame, nsDisplayListBuilder::PAINTING, false)
   {
     MOZ_COUNT_CTOR(RangePaintInfo);
@@ -1253,8 +1256,6 @@ PresShell::Destroy()
   // before we destroy the frame manager, since apparently frame destruction
   // sometimes spins the event queue when plug-ins are involved(!).
   rd->RemoveLayoutFlushObserver(this);
-  rd->RevokeViewManagerFlush();
-
   mResizeEvent.Revoke();
   if (mAsyncResizeTimerIsActive) {
     mAsyncResizeEventTimer->Cancel();
@@ -2115,6 +2116,8 @@ PresShell::ResizeReflowIgnoreOverride(nscoord aWidth, nscoord aHeight)
 
   if (!GetPresContext()->SupressingResizeReflow())
   {
+    nsIViewManager::UpdateViewBatch batch(mViewManager);
+
     // Have to make sure that the content notifications are flushed before we
     // start messing with the frame model; otherwise we can get content doubling.
     mDocument->FlushPendingNotifications(Flush_ContentAndNotify);
@@ -2137,7 +2140,6 @@ PresShell::ResizeReflowIgnoreOverride(nscoord aWidth, nscoord aHeight)
 
         // Kick off a top-down reflow
         AUTO_LAYOUT_PHASE_ENTRY_POINT(GetPresContext(), Reflow);
-        nsIViewManager::AutoDisableRefresh refreshBlocker(mViewManager);
 
         mDirtyRoots.RemoveElement(rootFrame);
         DoReflow(rootFrame, true);
@@ -2145,6 +2147,8 @@ PresShell::ResizeReflowIgnoreOverride(nscoord aWidth, nscoord aHeight)
 
       DidDoReflow(true);
     }
+
+    batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
   }
 
   rootFrame = FrameManager()->GetRootFrame();
@@ -2467,6 +2471,17 @@ PresShell::ScrollLine(bool aForward)
     scrollFrame->ScrollBy(nsIntPoint(0, aForward ? lineCount : -lineCount),
                           nsIScrollableFrame::LINES,
                           nsIScrollableFrame::SMOOTH);
+      
+//NEW FOR LINES    
+    // force the update to happen now, otherwise multiple scrolls can
+    // occur before the update is processed. (bug #7354)
+
+  // I'd use Composite here, but it doesn't always work.
+    // vm->Composite();
+    nsIViewManager* viewManager = GetViewManager();
+    if (viewManager) {
+      viewManager->ForceUpdate();
+    }
   }
   return NS_OK;
 }
@@ -2480,6 +2495,16 @@ PresShell::ScrollCharacter(bool aRight)
     scrollFrame->ScrollBy(nsIntPoint(aRight ? 1 : -1, 0),
                           nsIScrollableFrame::LINES,
                           nsIScrollableFrame::SMOOTH);
+//NEW FOR LINES    
+    // force the update to happen now, otherwise multiple scrolls can
+    // occur before the update is processed. (bug #7354)
+
+  // I'd use Composite here, but it doesn't always work.
+    // vm->Composite();
+    nsIViewManager* viewManager = GetViewManager();
+    if (viewManager) {
+      viewManager->ForceUpdate();
+    }
   }
   return NS_OK;
 }
@@ -2957,6 +2982,7 @@ PresShell::RecreateFramesFor(nsIContent* aContent)
   // to keep the number of entrypoints down.
 
   NS_ASSERTION(mViewManager, "Should have view manager");
+  nsIViewManager::UpdateViewBatch batch(mViewManager);
 
   // Have to make sure that the content notifications are flushed before we
   // start messing with the frame model; otherwise we can get content doubling.
@@ -2972,6 +2998,7 @@ PresShell::RecreateFramesFor(nsIContent* aContent)
   nsresult rv = mFrameConstructor->ProcessRestyledFrames(changeList);
   --mChangeNestCount;
   
+  batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
   return rv;
 }
 
@@ -3129,34 +3156,37 @@ PresShell::GoToAnchor(const nsAString& aAnchorName, bool aScroll)
     // Even if select anchor pref is false, we must still move the
     // caret there. That way tabbing will start from the new
     // location
-    nsRefPtr<nsIDOMRange> jumpToRange = new nsRange();
-    while (content && content->GetFirstChild()) {
-      content = content->GetFirstChild();
-    }
-    nsCOMPtr<nsIDOMNode> node(do_QueryInterface(content));
-    NS_ASSERTION(node, "No nsIDOMNode for descendant of anchor");
-    jumpToRange->SelectNodeContents(node);
-    // Select the anchor
-    nsISelection* sel = mSelection->
-      GetSelection(nsISelectionController::SELECTION_NORMAL);
-    if (sel) {
-      sel->RemoveAllRanges();
-      sel->AddRange(jumpToRange);
-      if (!selectAnchor) {
-        // Use a caret (collapsed selection) at the start of the anchor
-        sel->CollapseToStart();
+    nsCOMPtr<nsIDOMRange> jumpToRange = do_CreateInstance(kRangeCID);
+    if (jumpToRange) {
+      while (content && content->GetChildCount() > 0) {
+        content = content->GetChildAt(0);
       }
+      nsCOMPtr<nsIDOMNode> node(do_QueryInterface(content));
+      NS_ASSERTION(node, "No nsIDOMNode for descendant of anchor");
+      jumpToRange->SelectNodeContents(node);
     }
-    // Selection is at anchor.
-    // Now focus the document itself if focus is on an element within it.
-    nsPIDOMWindow *win = mDocument->GetWindow();
+    if (jumpToRange) {
+      // Select the anchor
+      nsISelection* sel = mSelection->
+        GetSelection(nsISelectionController::SELECTION_NORMAL);
+      if (sel) {
+        sel->RemoveAllRanges();
+        sel->AddRange(jumpToRange);
+        if (!selectAnchor) {
+          // Use a caret (collapsed selection) at the start of the anchor
+          sel->CollapseToStart();
+        }
+      }
+      // Selection is at anchor.
+      // Now focus the document itself if focus is on an element within it.
+      nsPIDOMWindow *win = mDocument->GetWindow();
 
-    nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-    if (fm && win) {
-      nsCOMPtr<nsIDOMWindow> focusedWindow;
-      fm->GetFocusedWindow(getter_AddRefs(focusedWindow));
-      if (SameCOMIdentity(win, focusedWindow)) {
-        fm->ClearFocus(focusedWindow);
+      nsIFocusManager* fm = nsFocusManager::GetFocusManager();
+      if (fm && win) {
+        nsCOMPtr<nsIDOMWindow> focusedWindow;
+        fm->GetFocusedWindow(getter_AddRefs(focusedWindow));
+        if (SameCOMIdentity(win, focusedWindow))
+          fm->ClearFocus(focusedWindow);
       }
     }
   } else {
@@ -3610,18 +3640,6 @@ nsresult PresShell::GetLinkLocation(nsIDOMNode* aNode, nsAString& aLocationStrin
 }
 
 void
-PresShell::ScheduleViewManagerFlush()
-{
-  nsPresContext* presContext = GetPresContext();
-  if (presContext) {
-    presContext->RefreshDriver()->ScheduleViewManagerFlush();
-  }
-  if (mDocument) {
-    mDocument->SetNeedLayoutFlush();
-  }
-}
-
-void
 PresShell::DispatchSynthMouseMove(nsGUIEvent *aEvent,
                                   bool aFlushOnHoverChange)
 {
@@ -3991,7 +4009,7 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
   }
 
   NS_ASSERTION(!isSafeToFlush || mViewManager, "Must have view manager");
-  // Make sure the view manager stays alive.
+  // Make sure the view manager stays alive while batching view updates.
   nsCOMPtr<nsIViewManager> viewManagerDeathGrip = mViewManager;
   if (isSafeToFlush && mViewManager) {
     // Processing pending notifications can kill us, and some callers only
@@ -4004,6 +4022,11 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
         return;
       }
     }
+
+    // Style reresolves not in conjunction with reflows can't cause
+    // painting or geometry changes, so don't bother with view update
+    // batching if we only have style reresolve
+    nsIViewManager::UpdateViewBatch batch(mViewManager);
 
     // We need to make sure external resource documents are flushed too (for
     // example, svg filters that reference a filter in an external document
@@ -4097,11 +4120,15 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
       if (rootPresContext) {
         rootPresContext->UpdatePluginGeometry();
       }
-
-      if (!mIsDestroying) {
-        mViewManager->UpdateWidgetGeometry();
-      }
     }
+
+    PRUint32 updateFlags = NS_VMREFRESH_NO_SYNC;
+    if (aType >= Flush_Display) {
+      // Flushing paints, so perform the invalidates and drawing
+      // immediately
+      updateFlags = NS_VMREFRESH_IMMEDIATE;
+    }
+    batch.EndUpdateViewBatch(updateFlags);
   }
 }
 
@@ -4604,7 +4631,7 @@ PresShell::RenderDocument(const nsRect& aRect, PRUint32 aFlags,
 nsRect
 PresShell::ClipListToRange(nsDisplayListBuilder *aBuilder,
                            nsDisplayList* aList,
-                           nsRange* aRange)
+                           nsIRange* aRange)
 {
   NS_TIME_FUNCTION_WITH_DOCURL;
 
@@ -4716,7 +4743,9 @@ PresShell::CreateRangePaintInfo(nsIDOMRange* aRange,
 
   RangePaintInfo* info = nsnull;
 
-  nsRange* range = static_cast<nsRange*>(aRange);
+  nsCOMPtr<nsIRange> range = do_QueryInterface(aRange);
+  if (!range)
+    return nsnull;
 
   nsIFrame* ancestorFrame;
   nsIFrame* rootFrame = GetRootFrame();
@@ -4933,7 +4962,8 @@ PresShell::RenderNode(nsIDOMNode* aNode,
   if (!node->IsInDoc())
     return nsnull;
   
-  nsRefPtr<nsRange> range = new nsRange();
+  nsCOMPtr<nsIDOMRange> range;
+  NS_NewRange(getter_AddRefs(range));
   if (NS_FAILED(range->SelectNode(aNode)))
     return nsnull;
 
@@ -5225,8 +5255,7 @@ void PresShell::SynthesizeMouseMove(bool aFromScroll)
     nsRefPtr<nsSynthMouseMoveEvent> ev =
         new nsSynthMouseMoveEvent(this, aFromScroll);
 
-    if (!GetPresContext()->RefreshDriver()->AddRefreshObserver(ev,
-                                                               Flush_Display)) {
+    if (NS_FAILED(NS_DispatchToCurrentThread(ev))) {
       NS_WARNING("failed to dispatch nsSynthMouseMoveEvent");
       return;
     }
@@ -7377,7 +7406,7 @@ PresShell::DoVerifyReflow()
     // First synchronously render what we have so far so that we can
     // see it.
     nsIView* rootView = mViewManager->GetRootView();
-    mViewManager->InvalidateView(rootView);
+    mViewManager->UpdateView(rootView, NS_VMREFRESH_IMMEDIATE);
 
     FlushPendingNotifications(Flush_Layout);
     mInVerifyReflow = true;
@@ -7424,7 +7453,6 @@ PresShell::ProcessReflowCommands(bool aInterruptible)
       nsAutoScriptBlocker scriptBlocker;
       WillDoReflow();
       AUTO_LAYOUT_PHASE_ENTRY_POINT(GetPresContext(), Reflow);
-      nsIViewManager::AutoDisableRefresh refreshBlocker(mViewManager);
 
       do {
         // Send an incremental reflow notification to the target frame.
@@ -7487,10 +7515,9 @@ PresShell::ProcessReflowCommands(bool aInterruptible)
     UnsuppressAndInvalidate();
   }
 
-  if (mDocument->GetRootElement()) {
-    Telemetry::ID id = (mDocument->GetRootElement()->IsXUL()
-                        ? Telemetry::XUL_REFLOW_MS : Telemetry::HTML_REFLOW_MS);
-    Telemetry::AccumulateTimeDelta(id, timerStart);
+  if (mDocument->GetRootElement() && mDocument->GetRootElement()->IsXUL()) {
+    mozilla::Telemetry::AccumulateTimeDelta(Telemetry::XUL_REFLOW_MS,
+                                            timerStart);
   }
 
   return !interrupted;
@@ -7573,6 +7600,7 @@ PresShell::Observe(nsISupports* aSubject,
     // at interesting times during startup.
     if (rootFrame) {
       NS_ASSERTION(mViewManager, "View manager must exist");
+      nsIViewManager::UpdateViewBatch batch(mViewManager);
 
       nsWeakFrame weakRoot(rootFrame);
       // Have to make sure that the content notifications are flushed before we
@@ -7597,6 +7625,7 @@ PresShell::Observe(nsISupports* aSubject,
           --mChangeNestCount;
         }
       }
+      batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
     }
     return NS_OK;
   }

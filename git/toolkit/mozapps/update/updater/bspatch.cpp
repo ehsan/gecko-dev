@@ -103,15 +103,18 @@ MBS_ApplyPatch(const MBSPatchHeader *header, FILE* patchFile,
   size_t r = header->cblen + header->difflen + header->extralen;
   unsigned char *wb = buf;
   while (r) {
-    const size_t count = (r > SSIZE_MAX) ? SSIZE_MAX : r;
-    size_t c = fread(wb, 1, count, patchFile);
-    if (c != count) {
+    size_t c = fread(wb, 1, (r > SSIZE_MAX) ? SSIZE_MAX : r, patchFile);
+    if (c < 0) {
       rv = READ_ERROR;
       goto end;
     }
 
     r -= c;
-    wb += c;
+
+    if (c == 0 && r) {
+      rv = UNEXPECTED_ERROR;
+      goto end;
+    }
   }
 
   {

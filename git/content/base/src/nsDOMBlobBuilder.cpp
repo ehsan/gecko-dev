@@ -46,7 +46,9 @@
 #include "nsContentUtils.h"
 #include "CheckedInt.h"
 
-#include "mozilla/StdInt.h"
+// XXXkhuey shamelessly stolen from VideoUtils.h.  We should patch NSPR.
+#define PR_INT64_MAX (~((PRInt64)(1) << 63))
+#define PR_INT64_MIN (-PR_INT64_MAX - 1)
 
 using namespace mozilla;
 
@@ -57,7 +59,7 @@ public:
   nsDOMMultipartFile(nsTArray<nsCOMPtr<nsIDOMBlob> > aBlobs,
                      const nsAString& aName,
                      const nsAString& aContentType)
-    : nsDOMFileBase(aName, aContentType, UINT64_MAX),
+    : nsDOMFileBase(aName, aContentType, PR_UINT64_MAX),
       mBlobs(aBlobs)
   {
   }
@@ -65,7 +67,7 @@ public:
   // Create as a blob
   nsDOMMultipartFile(nsTArray<nsCOMPtr<nsIDOMBlob> > aBlobs,
                      const nsAString& aContentType)
-    : nsDOMFileBase(aContentType, UINT64_MAX),
+    : nsDOMFileBase(aContentType, PR_UINT64_MAX),
       mBlobs(aBlobs)
   {
   }
@@ -83,7 +85,7 @@ protected:
 NS_IMETHODIMP
 nsDOMMultipartFile::GetSize(PRUint64* aLength)
 {
-  if (mLength == UINT64_MAX) {
+  if (mLength == PR_UINT64_MAX) {
     CheckedUint64 length = 0;
   
     PRUint32 i;

@@ -501,9 +501,9 @@ nsHTMLCanvasElement::GetContext(const nsAString& aContextId,
         contextProps = do_CreateInstance("@mozilla.org/hash-property-bag;1");
 
         JSObject *opts = JSVAL_TO_OBJECT(aContextOptions);
-        JS::AutoIdArray props(cx, JS_Enumerate(cx, opts));
-        for (size_t i = 0; !!props && i < props.length(); ++i) {
-          jsid propid = props[i];
+        JSIdArray *props = JS_Enumerate(cx, opts);
+        for (int i = 0; props && i < JS_IdArrayLength(cx, props); ++i) {
+          jsid propid = JS_IdArrayGet(cx, props, i);
           jsval propname, propval;
           if (!JS_IdToValue(cx, propid, &propname) ||
               !JS_GetPropertyById(cx, opts, propid, &propval)) {
@@ -513,12 +513,13 @@ nsHTMLCanvasElement::GetContext(const nsAString& aContextId,
           JSString *propnameString = JS_ValueToString(cx, propname);
           nsDependentJSString pstr;
           if (!propnameString || !pstr.init(cx, propnameString)) {
+            JS_DestroyIdArray(cx, props);
             mCurrentContext = nsnull;
             return NS_ERROR_FAILURE;
           }
 
           if (JSVAL_IS_BOOLEAN(propval)) {
-            contextProps->SetPropertyAsBool(pstr, JSVAL_TO_BOOLEAN(propval));
+            contextProps->SetPropertyAsBool(pstr, propval == JSVAL_TRUE ? true : false);
           } else if (JSVAL_IS_INT(propval)) {
             contextProps->SetPropertyAsInt32(pstr, JSVAL_TO_INT(propval));
           } else if (JSVAL_IS_DOUBLE(propval)) {
@@ -527,6 +528,7 @@ nsHTMLCanvasElement::GetContext(const nsAString& aContextId,
             JSString *propvalString = JS_ValueToString(cx, propval);
             nsDependentJSString vstr;
             if (!propvalString || !vstr.init(cx, propvalString)) {
+              JS_DestroyIdArray(cx, props);
               mCurrentContext = nsnull;
               return NS_ERROR_FAILURE;
             }
@@ -534,6 +536,7 @@ nsHTMLCanvasElement::GetContext(const nsAString& aContextId,
             contextProps->SetPropertyAsAString(pstr, vstr);
           }
         }
+        JS_DestroyIdArray(cx, props);
       }
     }
 

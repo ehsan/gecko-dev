@@ -43,7 +43,6 @@
 #include "base/message_loop.h"
 
 #include "mozilla/ipc/RPCChannel.h"
-#include "gfxipc/ShadowLayerUtils.h"
 
 #include "npapi.h"
 #include "npruntime.h"
@@ -66,8 +65,6 @@ using mac_plugin_interposing::NSCursorInfo;
 
 namespace mozilla {
 namespace plugins {
-
-using layers::SurfaceDescriptorX11;
 
 enum ScriptableObjectType
 {

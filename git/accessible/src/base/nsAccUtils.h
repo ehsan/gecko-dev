@@ -41,6 +41,7 @@
 
 #include "nsIAccessible.h"
 #include "nsIAccessNode.h"
+#include "nsIAccessibleDocument.h"
 #include "nsIAccessibleRole.h"
 #include "nsIAccessibleText.h"
 #include "nsIAccessibleTable.h"

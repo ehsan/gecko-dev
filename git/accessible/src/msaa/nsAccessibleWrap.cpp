@@ -43,11 +43,11 @@
 #include "nsCoreUtils.h"
 #include "nsWinUtils.h"
 #include "Relation.h"
-#include "Role.h"
 #include "States.h"
 
 #include "ia2AccessibleRelation.h"
 
+#include "nsIAccessibleDocument.h"
 #include "nsIAccessibleEvent.h"
 #include "nsIAccessibleRelation.h"
 #include "nsIAccessibleWin32Object.h"
@@ -91,14 +91,12 @@ static const PRInt32 kIEnumVariantDisconnected = -1;
 // nsAccessibleWrap
 ////////////////////////////////////////////////////////////////////////////////
 
-ITypeInfo* nsAccessibleWrap::gTypeInfo = NULL;
-
 //-----------------------------------------------------
 // construction
 //-----------------------------------------------------
 nsAccessibleWrap::
   nsAccessibleWrap(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsAccessible(aContent, aShell), mEnumVARIANTPosition(0)
+  nsAccessible(aContent, aShell), mEnumVARIANTPosition(0), mTypeInfo(NULL)
 {
 }
 
@@ -107,6 +105,8 @@ nsAccessibleWrap::
 //-----------------------------------------------------
 nsAccessibleWrap::~nsAccessibleWrap()
 {
+  if (mTypeInfo)
+    mTypeInfo->Release();
 }
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsAccessibleWrap, nsAccessible);
@@ -377,17 +377,17 @@ __try {
                "Does not support nsIAccessibleText when it should");
 #endif
 
-  roles::Role role = xpAccessible->Role();
-  PRUint32 msaaRole = gWindowsRoleMap[role].msaaRole;
-  NS_ASSERTION(gWindowsRoleMap[roles::LAST_ENTRY].msaaRole == ROLE_WINDOWS_LAST_ENTRY,
+  PRUint32 xpRole = xpAccessible->Role();
+  PRUint32 msaaRole = gWindowsRoleMap[xpRole].msaaRole;
+  NS_ASSERTION(gWindowsRoleMap[nsIAccessibleRole::ROLE_LAST_ENTRY].msaaRole == ROLE_WINDOWS_LAST_ENTRY,
                "MSAA role map skewed");
 
   // Special case, if there is a ROLE_ROW inside of a ROLE_TREE_TABLE, then call the MSAA role
   // a ROLE_OUTLINEITEM for consistency and compatibility.
   // We need this because ARIA has a role of "row" for both grid and treegrid
-  if (role == roles::ROW) {
+  if (xpRole == nsIAccessibleRole::ROLE_ROW) {
     nsAccessible* xpParent = Parent();
-    if (xpParent && xpParent->Role() == roles::TREE_TABLE)
+    if (xpParent && xpParent->Role() == nsIAccessibleRole::ROLE_TREE_TABLE)
       msaaRole = ROLE_SYSTEM_OUTLINEITEM;
   }
   
@@ -1153,17 +1153,17 @@ __try {
   if (IsDefunct())
     return E_FAIL;
 
-  NS_ASSERTION(gWindowsRoleMap[roles::LAST_ENTRY].ia2Role == ROLE_WINDOWS_LAST_ENTRY,
+  NS_ASSERTION(gWindowsRoleMap[nsIAccessibleRole::ROLE_LAST_ENTRY].ia2Role == ROLE_WINDOWS_LAST_ENTRY,
                "MSAA role map skewed");
 
-  roles::Role role = Role();
-  *aRole = gWindowsRoleMap[role].ia2Role;
+  PRUint32 xpRole = Role();
+  *aRole = gWindowsRoleMap[xpRole].ia2Role;
 
   // Special case, if there is a ROLE_ROW inside of a ROLE_TREE_TABLE, then call
   // the IA2 role a ROLE_OUTLINEITEM.
-  if (role == roles::ROW) {
+  if (xpRole == nsIAccessibleRole::ROLE_ROW) {
     nsAccessible* xpParent = Parent();
-    if (xpParent && xpParent->Role() == roles::TREE_TABLE)
+    if (xpParent && xpParent->Role() == nsIAccessibleRole::ROLE_TREE_TABLE)
       *aRole = ROLE_SYSTEM_OUTLINEITEM;
   }
 
@@ -1595,7 +1595,7 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
   // JAWS announces collapsed combobox navigation based on focus events.
   if (Compatibility::IsJAWS()) {
     if (eventType == nsIAccessibleEvent::EVENT_SELECTION &&
-      accessible->Role() == roles::COMBOBOX_OPTION) {
+      accessible->Role() == nsIAccessibleRole::ROLE_COMBOBOX_OPTION) {
       NotifyWinEvent(EVENT_OBJECT_FOCUS, hWnd, OBJID_CLIENT, childID);
     }
   }
@@ -1774,7 +1774,7 @@ nsAccessibleWrap::GetXPAccessibleFor(const VARIANT& aVarChild)
       return AsDoc()->GetAccessibleByUniqueIDInSubtree(uniqueID);
 
     // ARIA document.
-    if (ARIARole() == roles::DOCUMENT) {
+    if (ARIARole() == nsIAccessibleRole::ROLE_DOCUMENT) {
       nsDocAccessible* document = GetDocAccessible();
       nsAccessible* child =
         document->GetAccessibleByUniqueIDInSubtree(uniqueID);
@@ -1835,19 +1835,19 @@ void nsAccessibleWrap::UpdateSystemCaret()
 ITypeInfo*
 nsAccessibleWrap::GetTI(LCID lcid)
 {
-  if (gTypeInfo)
-    return gTypeInfo;
+  if (mTypeInfo)
+    return mTypeInfo;
 
   ITypeLib *typeLib = NULL;
   HRESULT hr = LoadRegTypeLib(LIBID_Accessibility, 1, 0, lcid, &typeLib);
   if (FAILED(hr))
     return NULL;
 
-  hr = typeLib->GetTypeInfoOfGuid(IID_IAccessible, &gTypeInfo);
+  hr = typeLib->GetTypeInfoOfGuid(IID_IAccessible, &mTypeInfo);
   typeLib->Release();
 
   if (FAILED(hr))
     return NULL;
 
-  return gTypeInfo;
+  return mTypeInfo;
 }

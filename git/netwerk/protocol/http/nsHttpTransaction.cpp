@@ -297,7 +297,8 @@ nsHttpTransaction::Init(PRUint8 caps,
                      getter_AddRefs(mPipeOut),
                      true, true,
                      nsIOService::gDefaultSegmentSize,
-                     nsIOService::gDefaultSegmentCount);
+                     nsIOService::gDefaultSegmentCount,
+                     nsIOService::gBufferCache);
     if (NS_FAILED(rv)) return rv;
 
     NS_ADDREF(*responseBody = mPipeIn);

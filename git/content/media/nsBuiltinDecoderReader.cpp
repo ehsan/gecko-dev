@@ -43,10 +43,8 @@
 #include "nsBuiltinDecoder.h"
 #include "nsBuiltinDecoderReader.h"
 #include "nsBuiltinDecoderStateMachine.h"
-#include "VideoUtils.h"
-
 #include "mozilla/mozalloc.h"
-#include "mozilla/StdInt.h"
+#include "VideoUtils.h"
 
 using namespace mozilla;
 using mozilla::layers::ImageContainer;
@@ -218,8 +216,8 @@ VideoData* nsBuiltinDecoderReader::FindStartTime(PRInt64& aOutStartTime)
 
   // Extract the start times of the bitstreams in order to calculate
   // the duration.
-  PRInt64 videoStartTime = INT64_MAX;
-  PRInt64 audioStartTime = INT64_MAX;
+  PRInt64 videoStartTime = PR_INT64_MAX;
+  PRInt64 audioStartTime = PR_INT64_MAX;
   VideoData* videoData = nsnull;
 
   if (HasVideo()) {
@@ -238,7 +236,7 @@ VideoData* nsBuiltinDecoderReader::FindStartTime(PRInt64& aOutStartTime)
   }
 
   PRInt64 startTime = NS_MIN(videoStartTime, audioStartTime);
-  if (startTime != INT64_MAX) {
+  if (startTime != PR_INT64_MAX) {
     aOutStartTime = startTime;
   }
 

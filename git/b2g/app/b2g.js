@@ -46,9 +46,6 @@ pref("browser.homescreenURL", "file:///system/home/homescreen.html");
 pref("browser.homescreenURL", "file:///data/local/homescreen.html,file:///system/home/homescreen.html");
 #endif
 
-// URL for the dialer application.
-pref("dom.telephony.app.phone.url", "http://localhost:6666/apps/dialer/dialer.html");
-
 // Device pixel to CSS px ratio, in percent. Set to -1 to calculate based on display density.
 pref("browser.viewport.scaleRatio", -1);
 
@@ -394,17 +391,5 @@ pref("layers.acceleration.force-enabled", true);
 pref("dom.screenEnabledProperty.enabled", true);
 pref("dom.screenBrightnessProperty.enabled", true);
 
-// Temporary permission hack for WebSMS
-pref("dom.sms.enabled", true);
-pref("dom.sms.whitelist", "file://,http://localhost:6666");
 // Ignore X-Frame-Options headers.
 pref("b2g.ignoreXFrameOptions", true);
-
-// "Preview" landing of bug 710563, which is bogged down in analysis
-// of talos regression.  This is a needed change for higher-framerate
-// CSS animations, and incidentally works around an apparent bug in
-// our handling of requestAnimationFrame() listeners, which are
-// supposed to enable this REPEATING_PRECISE_CAN_SKIP behavior.  The
-// secondary bug isn't really worth investigating since it's obseleted
-// by bug 710563.
-pref("layout.frame_rate.precise", true);

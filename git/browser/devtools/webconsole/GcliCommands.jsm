@@ -85,18 +85,6 @@ gcli.addCommand({
 
 
 /**
- * 'console close' command
- */
-gcli.addCommand({
-  name: "console close",
-  description: gcli.lookup("consolecloseDesc"),
-  exec: function(args, context) {
-    let tab = HUDService.getHudReferenceById(context.environment.hudId).tab;
-    HUDService.deactivateHUDForContext(tab);
-  }
-});
-
-/**
  * 'inspect' command
  */
 gcli.addCommand({

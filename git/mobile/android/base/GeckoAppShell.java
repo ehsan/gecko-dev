@@ -132,9 +132,7 @@ public class GeckoAppShell
     public static native void loadLibs(String apkName, boolean shouldExtract);
     public static native void onChangeNetworkLinkStatus(String status);
     public static native void reportJavaCrash(String stack);
-    public static void notifyUriVisited(String uri) {
-        sendEventToGecko(new GeckoEvent(GeckoEvent.VISTITED, uri));
-    }
+    public static native void notifyUriVisited(String uri);
 
     public static native void processNextNativeEvent();
 
@@ -419,7 +417,7 @@ public class GeckoAppShell
         }
     }
 
-    public static void runGecko(String apkPath, String args, String url, boolean restoreSession) {
+    public static void runGecko(String apkPath, String args, String url) {
         // run gecko -- it will spawn its own thread
         GeckoAppShell.nativeInit();
 
@@ -444,8 +442,6 @@ public class GeckoAppShell
             combinedArgs += " " + args;
         if (url != null)
             combinedArgs += " -remote " + url;
-        if (restoreSession)
-            combinedArgs += " -restoresession";
 
         GeckoApp.mAppContext.runOnUiThread(new Runnable() {
                 public void run() {
@@ -573,8 +569,9 @@ public class GeckoAppShell
                         GeckoApp.mAppContext.getSystemService(Context.LOCATION_SERVICE);
 
                     if (enable) {
-                        Criteria criteria = new Criteria();
-                        String provider = lm.getBestProvider(criteria, true);
+                        Criteria crit = new Criteria();
+                        crit.setAccuracy(Criteria.ACCURACY_FINE);
+                        String provider = lm.getBestProvider(crit, true);
                         if (provider == null)
                             return;
 

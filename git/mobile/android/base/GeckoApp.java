@@ -102,7 +102,6 @@ abstract public class GeckoApp
     public static final String SAVED_STATE_TITLE    = "title";
     public static final String SAVED_STATE_VIEWPORT = "viewport";
     public static final String SAVED_STATE_SCREEN   = "screen";
-    public static final String SAVED_STATE_SESSION  = "session";
 
     private LinearLayout mMainLayout;
     private RelativeLayout mGeckoLayout;
@@ -142,7 +141,6 @@ abstract public class GeckoApp
     public String mLastViewport;
     public byte[] mLastScreen;
     public int mOwnActivityDepth = 0;
-    private boolean mRestoreSession = false;
 
     private Vector<View> mPluginViews = new Vector<View>();
 
@@ -438,6 +436,7 @@ abstract public class GeckoApp
         MenuItem bookmark = aMenu.findItem(R.id.bookmark);
         MenuItem forward = aMenu.findItem(R.id.forward);
         MenuItem share = aMenu.findItem(R.id.share);
+        MenuItem agentMode = aMenu.findItem(R.id.agent_mode);
         MenuItem saveAsPDF = aMenu.findItem(R.id.save_as_pdf);
         MenuItem downloads = aMenu.findItem(R.id.downloads);
 
@@ -446,6 +445,7 @@ abstract public class GeckoApp
             forward.setEnabled(false);
             share.setEnabled(false);
             saveAsPDF.setEnabled(false);
+            agentMode.setEnabled(false);
             return true;
         }
         
@@ -462,11 +462,12 @@ abstract public class GeckoApp
 
         forward.setEnabled(tab.canDoForward());
 
-        // Disable share menuitem for about:, chrome: and file: URIs
+        // Disable share and agentMode menuitems for about:, chrome: and file: URIs
         String scheme = Uri.parse(tab.getURL()).getScheme();
         boolean enabled = !(scheme.equals("about") || scheme.equals("chrome") ||
                             scheme.equals("file"));
         share.setEnabled(enabled);
+        agentMode.setEnabled(enabled);
 
         // Disable save as PDF for about:home and xul pages
         saveAsPDF.setEnabled(!(tab.getURL().equals("about:home") ||
@@ -538,6 +539,19 @@ abstract public class GeckoApp
                 intent = new Intent(DownloadManager.ACTION_VIEW_DOWNLOADS);
                 startActivity(intent);
                 return true;
+            case R.id.agent_mode:
+                Tab selectedTab = Tabs.getInstance().getSelectedTab();
+                if (selectedTab == null)
+                    return true;
+                JSONObject args = new JSONObject();
+                try {
+                    args.put("agent", selectedTab.getAgentMode() == Tab.AgentMode.MOBILE ? "desktop" : "mobile");
+                    args.put("tabId", selectedTab.getId());
+                } catch (JSONException e) {
+                    Log.e(LOGTAG, "error building json arguments");
+                }
+                GeckoAppShell.sendEventToGecko(new GeckoEvent("AgentMode:Change", args.toString()));
+                return true;
             default:
                 return super.onOptionsItemSelected(item);
         }
@@ -561,7 +575,6 @@ abstract public class GeckoApp
         outState.putString(SAVED_STATE_TITLE, mLastTitle);
         outState.putString(SAVED_STATE_VIEWPORT, mLastViewport);
         outState.putByteArray(SAVED_STATE_SCREEN, mLastScreen);
-        outState.putBoolean(SAVED_STATE_SESSION, true);
     }
 
     public class SessionSnapshotRunnable implements Runnable {
@@ -593,33 +606,24 @@ abstract public class GeckoApp
                 mLastUri = lastHistoryEntry.mUri;
                 mLastTitle = lastHistoryEntry.mTitle;
                 Bitmap bitmap = mSoftwareLayerClient.getBitmap();
-
                 if (bitmap != null) {
                     ByteArrayOutputStream bos = new ByteArrayOutputStream();
                     bitmap.compress(Bitmap.CompressFormat.PNG, 0, bos);
-                    processThumbnail(tab, bitmap, bos.toByteArray());
+                    mLastScreen = bos.toByteArray();
+
+                    // Make a thumbnail for the given tab, if it's still selected
+                    // NOTE: bitmap is recycled in updateThumbnail
+                    if (tab == mThumbnailTab) {
+                        if (mThumbnailTab.getURL().equals("about:home"))
+                            mThumbnailTab.updateThumbnail(null);
+                        else
+                            mThumbnailTab.updateThumbnail(bitmap);
+                    }
                 } else {
                     mLastScreen = null;
-                    GeckoAppShell.sendEventToGecko(
-                        new GeckoEvent("Tab:Screenshot", 
-                                       "{\"width\": \"" + mSoftwareLayerClient.getWidth() + "\", " +
-                                       "\"height\": \"" + mSoftwareLayerClient.getHeight() + "\", " +
-                                       "\"tabID\": \"" + tab.getId() + "\" }"));
                 }
             }
         }
-    }
-    
-    void processThumbnail(Tab thumbnailTab, Bitmap bitmap, byte[] compressed) {
-        if (Tabs.getInstance().isSelectedTab(thumbnailTab))
-            mLastScreen = compressed;
-        if (thumbnailTab.getURL().equals("about:home")) {
-            thumbnailTab.updateThumbnail(null);
-            return;
-        }
-        if (bitmap == null)
-            bitmap = BitmapFactory.decodeByteArray(compressed, 0, compressed.length);
-        thumbnailTab.updateThumbnail(bitmap);
     }
 
     private void maybeCancelFaviconLoad(Tab tab) {
@@ -907,10 +911,6 @@ abstract public class GeckoApp
                 Log.i(LOGTAG, "Destroyed a tab");
                 int tabId = message.getInt("tabID");
                 handleCloseTab(tabId);
-            } else if (event.equals("Tab:ScreenshotData")) {
-                int tabId = message.getInt("tabID");
-                Tab tab = Tabs.getInstance().getTab(tabId);
-                processThumbnail(tab, null, Base64.decode(message.getString("data").substring(22), Base64.DEFAULT));
             } else if (event.equals("Tab:Selected")) {
                 int tabId = message.getInt("tabID");
                 Log.i(LOGTAG, "Switched to tab: " + tabId);
@@ -955,14 +955,20 @@ abstract public class GeckoApp
                     final double zoom = message.getDouble("zoom");
                     mMainHandler.post(new Runnable() {
                         public void run() {
-                            // Don't show autocomplete popup when using fullscreen VKB
-                            InputMethodManager imm =
-                                (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-                            if (!imm.isFullscreenMode())
-                                mAutoCompletePopup.show(suggestions, rect, zoom);
+                            mAutoCompletePopup.show(suggestions, rect, zoom);
                         }
                     });
                 }
+            } else if (event.equals("AgentMode:Changed")) {
+                Tab.AgentMode agentMode = message.getString("agentMode").equals("mobile") ? Tab.AgentMode.MOBILE : Tab.AgentMode.DESKTOP;
+                int tabId = message.getInt("tabId");
+                Tab tab = Tabs.getInstance().getTab(tabId);
+                if (tab == null)
+                    return;
+
+                tab.setAgentMode(agentMode);
+                if (tab == Tabs.getInstance().getSelectedTab())
+                    updateAgentModeMenuItem(tab, agentMode);
             } else if (event.equals("Permissions:Data")) {
                 String host = message.getString("host");
                 JSONArray permissions = message.getJSONArray("permissions");
@@ -1015,6 +1021,20 @@ abstract public class GeckoApp
             if (mAboutHomeContent != null)
                 mAboutHomeContent.setVisibility(mShow ? View.VISIBLE : View.GONE);
         }
+    }
+
+    void updateAgentModeMenuItem(final Tab tab, final Tab.AgentMode agentMode) {
+        if (sMenu == null)
+            return;
+
+        mMainHandler.post(new Runnable() {
+            public void run() {
+                if (Tabs.getInstance().isSelectedTab(tab)) {
+                    int strId = agentMode == Tab.AgentMode.MOBILE ? R.string.agent_request_desktop : R.string.agent_request_mobile;
+                    sMenu.findItem(R.id.agent_mode).setTitle(getString(strId));
+                }
+            }
+        });
     }
 
     /**
@@ -1155,6 +1175,8 @@ abstract public class GeckoApp
             showAboutHome();
         else
             hideAboutHome();
+
+        updateAgentModeMenuItem(tab, tab.getAgentMode());
 
         mMainHandler.post(new Runnable() { 
             public void run() {
@@ -1395,7 +1417,7 @@ abstract public class GeckoApp
             enableStrictMode();
         }
 
-        System.loadLibrary("mozglue");
+        System.loadLibrary("mozutils");
         mMainHandler = new Handler();
         Log.w(LOGTAG, "zerdatime " + new Date().getTime() + " - onCreate");
         if (savedInstanceState != null) {
@@ -1403,7 +1425,6 @@ abstract public class GeckoApp
             mLastTitle = savedInstanceState.getString(SAVED_STATE_TITLE);
             mLastViewport = savedInstanceState.getString(SAVED_STATE_VIEWPORT);
             mLastScreen = savedInstanceState.getByteArray(SAVED_STATE_SCREEN);
-            mRestoreSession = savedInstanceState.getBoolean(SAVED_STATE_SESSION);
         }
 
         Intent intent = getIntent();
@@ -1439,7 +1460,7 @@ abstract public class GeckoApp
 
         prefetchDNS(intent.getData());
 
-        sGeckoThread = new GeckoThread(intent, mLastUri, mRestoreSession);
+        sGeckoThread = new GeckoThread(intent, mLastUri, mLastTitle);
         if (!ACTION_DEBUG.equals(intent.getAction()) &&
             checkAndSetLaunchState(LaunchState.Launching, LaunchState.Launched))
             sGeckoThread.start();
@@ -1460,8 +1481,6 @@ abstract public class GeckoApp
         } else {
             mBrowserToolbar = (BrowserToolbar) findViewById(R.id.browser_toolbar);
         }
-
-        mBrowserToolbar.setTitle(mLastTitle);
 
         mFavicons = new Favicons(this);
 
@@ -1549,7 +1568,6 @@ abstract public class GeckoApp
         GeckoAppShell.registerGeckoEventListener("Tab:Added", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("Tab:Closed", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("Tab:Selected", GeckoApp.mAppContext);
-        GeckoAppShell.registerGeckoEventListener("Tab:ScreenshotData", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("Doorhanger:Add", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("Doorhanger:Remove", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("Menu:Add", GeckoApp.mAppContext);
@@ -1558,6 +1576,7 @@ abstract public class GeckoApp
         GeckoAppShell.registerGeckoEventListener("Toast:Show", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("ToggleChrome:Hide", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("ToggleChrome:Show", GeckoApp.mAppContext);
+        GeckoAppShell.registerGeckoEventListener("AgentMode:Changed", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("FormAssist:AutoComplete", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("Permissions:Data", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("Downloads:Done", GeckoApp.mAppContext);
@@ -1786,7 +1805,6 @@ abstract public class GeckoApp
         GeckoAppShell.unregisterGeckoEventListener("Tab:Added", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("Tab:Closed", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("Tab:Selected", GeckoApp.mAppContext);
-        GeckoAppShell.unregisterGeckoEventListener("Tab:ScreenshotData", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("Doorhanger:Add", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("Menu:Add", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("Menu:Remove", GeckoApp.mAppContext);
@@ -1794,6 +1812,7 @@ abstract public class GeckoApp
         GeckoAppShell.unregisterGeckoEventListener("Toast:Show", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("ToggleChrome:Hide", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("ToggleChrome:Show", GeckoApp.mAppContext);
+        GeckoAppShell.unregisterGeckoEventListener("AgentMode:Changed", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("FormAssist:AutoComplete", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("Permissions:Data", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("Downloads:Done", GeckoApp.mAppContext);

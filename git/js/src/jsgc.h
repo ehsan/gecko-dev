@@ -71,9 +71,9 @@ extern "C" void
 js_TraceXML(JSTracer *trc, JSXML* thing);
 
 #if JS_STACK_GROWTH_DIRECTION > 0
-# define JS_CHECK_STACK_SIZE(limit, lval)  ((uintptr_t)(lval) < limit)
+# define JS_CHECK_STACK_SIZE(limit, lval)  ((jsuword)(lval) < limit)
 #else
-# define JS_CHECK_STACK_SIZE(limit, lval)  ((uintptr_t)(lval) > limit)
+# define JS_CHECK_STACK_SIZE(limit, lval)  ((jsuword)(lval) > limit)
 #endif
 
 namespace js {
@@ -91,15 +91,7 @@ struct Arena;
  */
 const size_t MAX_BACKGROUND_FINALIZE_KINDS = FINALIZE_LIMIT - FINALIZE_OBJECT_LIMIT / 2;
 
-/*
- * Default pagesize is 8192 on Solaris SPARC.
- * Do not use JS_CPU_SPARC here, this header is used outside JS.
- */ 
-#if defined(SOLARIS) && (defined(__sparc) || defined(__sparcv9))
-const size_t ArenaShift = 13;
-#else
 const size_t ArenaShift = 12;
-#endif
 const size_t ArenaSize = size_t(1) << ArenaShift;
 const size_t ArenaMask = ArenaSize - 1;
 
@@ -1318,6 +1310,9 @@ struct WrapperHasher
 
 typedef HashMap<Value, Value, WrapperHasher, SystemAllocPolicy> WrapperMap;
 
+class AutoValueVector;
+class AutoIdVector;
+
 } /* namespace js */
 
 #ifdef DEBUG
@@ -1375,9 +1370,12 @@ extern void
 js_TraceStackFrame(JSTracer *trc, js::StackFrame *fp);
 
 extern bool
-js_IsAddressableGCThing(JSRuntime *rt, uintptr_t w, js::gc::AllocKind *thingKind, void **thing);
+js_IsAddressableGCThing(JSRuntime *rt, jsuword w, js::gc::AllocKind *thingKind, void **thing);
 
 namespace js {
+
+extern void
+MarkRuntime(JSTracer *trc);
 
 extern void
 TraceRuntime(JSTracer *trc);
@@ -1578,13 +1576,13 @@ struct GCChunkHasher {
      * ratio.
      */
     static HashNumber hash(gc::Chunk *chunk) {
-        JS_ASSERT(!(uintptr_t(chunk) & gc::ChunkMask));
-        return HashNumber(uintptr_t(chunk) >> gc::ChunkShift);
+        JS_ASSERT(!(jsuword(chunk) & gc::ChunkMask));
+        return HashNumber(jsuword(chunk) >> gc::ChunkShift);
     }
 
     static bool match(gc::Chunk *k, gc::Chunk *l) {
-        JS_ASSERT(!(uintptr_t(k) & gc::ChunkMask));
-        JS_ASSERT(!(uintptr_t(l) & gc::ChunkMask));
+        JS_ASSERT(!(jsuword(k) & gc::ChunkMask));
+        JS_ASSERT(!(jsuword(l) & gc::ChunkMask));
         return k == l;
     }
 };
@@ -1597,11 +1595,11 @@ struct ConservativeGCThreadData {
      * The GC scans conservatively between ThreadData::nativeStackBase and
      * nativeStackTop unless the latter is NULL.
      */
-    uintptr_t           *nativeStackTop;
+    jsuword             *nativeStackTop;
 
     union {
         jmp_buf         jmpbuf;
-        uintptr_t       words[JS_HOWMANY(sizeof(jmp_buf), sizeof(uintptr_t))];
+        jsuword         words[JS_HOWMANY(sizeof(jmp_buf), sizeof(jsuword))];
     } registerSnapshot;
 
     /*

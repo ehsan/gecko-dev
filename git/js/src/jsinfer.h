@@ -67,12 +67,12 @@ struct TypeObjectKey {
  */
 class Type
 {
-    uintptr_t data;
-    Type(uintptr_t data) : data(data) {}
+    jsuword data;
+    Type(jsuword data) : data(data) {}
 
   public:
 
-    uintptr_t raw() const { return data; }
+    jsuword raw() const { return data; }
 
     bool isPrimitive() const {
         return data < JSVAL_TYPE_OBJECT;
@@ -80,7 +80,7 @@ class Type
 
     bool isPrimitive(JSValueType type) const {
         JS_ASSERT(type < JSVAL_TYPE_OBJECT);
-        return (uintptr_t) type == data;
+        return (jsuword) type == data;
     }
 
     JSValueType primitive() const {
@@ -1061,7 +1061,7 @@ class TypeScript
     bool hasScope() { return size_t(global.get()) != GLOBAL_MISSING_SCOPE; }
 
     /* Array of type type sets for variables and JOF_TYPESET ops. */
-    TypeSet *typeArray() { return (TypeSet *) (uintptr_t(this) + sizeof(TypeScript)); }
+    TypeSet *typeArray() { return (TypeSet *) (jsuword(this) + sizeof(TypeScript)); }
 
     static inline unsigned NumTypeSets(JSScript *script);
 

@@ -57,6 +57,7 @@
 #include "nsIController.h"
 #include "nsIControllers.h"
 #include "nsIDOMDOMImplementation.h"
+#include "nsIDOMRange.h"
 #include "nsIDocument.h"
 #include "nsIDocumentEncoder.h"
 #include "nsIFactory.h"
@@ -114,7 +115,7 @@
 #include "nsDOMException.h"
 #include "nsDOMFileReader.h"
 #include "nsFormData.h"
-#include "nsBlobProtocolHandler.h"
+#include "nsFileDataProtocolHandler.h"
 #include "nsGlobalWindowCommands.h"
 #include "nsIControllerCommandTable.h"
 #include "nsJSProtocolHandler.h"
@@ -128,14 +129,10 @@
 using mozilla::dom::indexedDB::IndexedDatabaseManager;
 
 #ifdef MOZ_B2G_RIL
-#include "SystemWorkerManager.h"
-using mozilla::dom::telephony::SystemWorkerManager;
-#define SYSTEMWORKERMANAGER_CID \
-  {0xd53b6524, 0x6ac3, 0x42b0, {0xae, 0xca, 0x62, 0xb3, 0xc4, 0xe5, 0x2b, 0x04}}
-#define SYSTEMWORKERMANAGER_CONTRACTID \
-  "@mozilla.org/telephony/system-worker-manager;1"
+#include "RadioManager.h"
+using mozilla::dom::telephony::RadioManager;
+#include "nsITelephone.h"
 #endif
-
 #ifdef MOZ_WIDGET_GONK
 #include "AudioManager.h"
 using mozilla::dom::telephony::AudioManager;
@@ -274,7 +271,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsEventSource)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsWebSocket)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsDOMFileReader, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsFormData)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsBlobProtocolHandler)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsFileDataProtocolHandler)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDOMParser)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsDOMStorageManager,
                                          nsDOMStorageManager::GetInstance)
@@ -282,8 +279,29 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsChannelPolicy)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(IndexedDatabaseManager,
                                          IndexedDatabaseManager::FactoryCreate)
 #ifdef MOZ_B2G_RIL
-NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(SystemWorkerManager,
-                                         SystemWorkerManager::FactoryCreate)
+NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(RadioManager, RadioManager::FactoryCreate)
+
+// The 'RadioManager' class controls the lifetime of the nsITelephonyWorker
+// object which is also an nsITelephone, so we don't want to register it
+// as a global service on app-startup. Instead, we'll (ab)use createInstance()
+// to always return the one singleton that 'RadioManager' holds on to.
+static nsresult
+RadioInterfaceConstructor(nsISupports *aOuter, REFNSIID aIID, void **aResult)
+{
+  if (NULL != aOuter) {
+    return NS_ERROR_NO_AGGREGATION;
+  }
+
+  nsCOMPtr<nsITelephone> inst = RadioManager::GetTelephone();
+  if (NULL == inst) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  *aResult = inst.get();
+  inst.forget();
+
+  return NS_OK;
+}
 #endif
 
 #ifdef MOZ_WIDGET_GONK
@@ -423,6 +441,7 @@ nsresult NS_CreateFrameTraversal(nsIFrameTraversal** aResult);
 
 nsresult NS_NewDomSelection(nsISelection** aResult);
 nsresult NS_NewContentViewer(nsIContentViewer** aResult);
+nsresult NS_NewRange(nsIDOMRange** aResult);
 nsresult NS_NewRangeUtils(nsIRangeUtils** aResult);
 nsresult NS_NewContentIterator(nsIContentIterator** aResult);
 nsresult NS_NewPreContentIterator(nsIContentIterator** aResult);
@@ -491,6 +510,7 @@ MAKE_CTOR(CreateXMLDocument,              nsIDocument,                 NS_NewXML
 MAKE_CTOR(CreateSVGDocument,              nsIDocument,                 NS_NewSVGDocument)
 MAKE_CTOR(CreateImageDocument,            nsIDocument,                 NS_NewImageDocument)
 MAKE_CTOR(CreateDOMSelection,             nsISelection,                NS_NewDomSelection)
+MAKE_CTOR(CreateRange,                    nsIDOMRange,                 NS_NewRange)
 MAKE_CTOR(CreateRangeUtils,               nsIRangeUtils,               NS_NewRangeUtils)
 MAKE_CTOR(CreateContentIterator,          nsIContentIterator,          NS_NewContentIterator)
 MAKE_CTOR(CreatePreContentIterator,       nsIContentIterator,          NS_NewPreContentIterator)
@@ -684,6 +704,7 @@ NS_DEFINE_NAMED_CID(NS_XMLDOCUMENT_CID);
 NS_DEFINE_NAMED_CID(NS_SVGDOCUMENT_CID);
 NS_DEFINE_NAMED_CID(NS_IMAGEDOCUMENT_CID);
 NS_DEFINE_NAMED_CID(NS_DOMSELECTION_CID);
+NS_DEFINE_NAMED_CID(NS_RANGE_CID);
 NS_DEFINE_NAMED_CID(NS_RANGEUTILS_CID);
 NS_DEFINE_NAMED_CID(NS_CONTENTITERATOR_CID);
 NS_DEFINE_NAMED_CID(NS_PRECONTENTITERATOR_CID);
@@ -738,7 +759,7 @@ NS_DEFINE_NAMED_CID(TRANSFORMIIX_NODESET_CID);
 NS_DEFINE_NAMED_CID(NS_XMLSERIALIZER_CID);
 NS_DEFINE_NAMED_CID(NS_FILEREADER_CID);
 NS_DEFINE_NAMED_CID(NS_FORMDATA_CID);
-NS_DEFINE_NAMED_CID(NS_BLOBPROTOCOLHANDLER_CID);
+NS_DEFINE_NAMED_CID(NS_FILEDATAPROTOCOLHANDLER_CID);
 NS_DEFINE_NAMED_CID(NS_XMLHTTPREQUEST_CID);
 NS_DEFINE_NAMED_CID(NS_EVENTSOURCE_CID);
 NS_DEFINE_NAMED_CID(NS_WEBSOCKET_CID);
@@ -750,7 +771,8 @@ NS_DEFINE_NAMED_CID(NS_DOMJSON_CID);
 NS_DEFINE_NAMED_CID(NS_TEXTEDITOR_CID);
 NS_DEFINE_NAMED_CID(INDEXEDDB_MANAGER_CID);
 #ifdef MOZ_B2G_RIL
-NS_DEFINE_NAMED_CID(SYSTEMWORKERMANAGER_CID);
+NS_DEFINE_NAMED_CID(TELEPHONYRADIO_CID);
+NS_DEFINE_NAMED_CID(TELEPHONYRADIOINTERFACE_CID);
 #endif
 #ifdef MOZ_WIDGET_GONK
 NS_DEFINE_NAMED_CID(NS_AUDIOMANAGER_CID);
@@ -955,6 +977,7 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kNS_SVGDOCUMENT_CID, false, NULL, CreateSVGDocument },
   { &kNS_IMAGEDOCUMENT_CID, false, NULL, CreateImageDocument },
   { &kNS_DOMSELECTION_CID, false, NULL, CreateDOMSelection },
+  { &kNS_RANGE_CID, false, NULL, CreateRange },
   { &kNS_RANGEUTILS_CID, false, NULL, CreateRangeUtils },
   { &kNS_CONTENTITERATOR_CID, false, NULL, CreateContentIterator },
   { &kNS_PRECONTENTITERATOR_CID, false, NULL, CreatePreContentIterator },
@@ -1009,7 +1032,7 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kNS_XMLSERIALIZER_CID, false, NULL, nsDOMSerializerConstructor },
   { &kNS_FILEREADER_CID, false, NULL, nsDOMFileReaderConstructor },
   { &kNS_FORMDATA_CID, false, NULL, nsFormDataConstructor },
-  { &kNS_BLOBPROTOCOLHANDLER_CID, false, NULL, nsBlobProtocolHandlerConstructor },
+  { &kNS_FILEDATAPROTOCOLHANDLER_CID, false, NULL, nsFileDataProtocolHandlerConstructor },
   { &kNS_XMLHTTPREQUEST_CID, false, NULL, nsXMLHttpRequestConstructor },
   { &kNS_EVENTSOURCE_CID, false, NULL, nsEventSourceConstructor },
   { &kNS_WEBSOCKET_CID, false, NULL, nsWebSocketConstructor },
@@ -1021,7 +1044,8 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kNS_TEXTEDITOR_CID, false, NULL, nsPlaintextEditorConstructor },
   { &kINDEXEDDB_MANAGER_CID, false, NULL, IndexedDatabaseManagerConstructor },
 #ifdef MOZ_B2G_RIL
-  { &kSYSTEMWORKERMANAGER_CID, true, NULL, SystemWorkerManagerConstructor },
+  { &kTELEPHONYRADIO_CID, true, NULL, RadioManagerConstructor },
+  { &kTELEPHONYRADIOINTERFACE_CID, true, NULL, RadioInterfaceConstructor },
 #endif
 #ifdef MOZ_WIDGET_GONK
   { &kNS_AUDIOMANAGER_CID, true, NULL, AudioManagerConstructor },
@@ -1089,6 +1113,7 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { "@mozilla.org/xml/xml-document;1", &kNS_XMLDOCUMENT_CID },
   { "@mozilla.org/svg/svg-document;1", &kNS_SVGDOCUMENT_CID },
   { "@mozilla.org/content/dom-selection;1", &kNS_DOMSELECTION_CID },
+  { "@mozilla.org/content/range;1", &kNS_RANGE_CID },
   { "@mozilla.org/content/range-utils;1", &kNS_RANGEUTILS_CID },
   { "@mozilla.org/content/post-content-iterator;1", &kNS_CONTENTITERATOR_CID },
   { "@mozilla.org/content/pre-content-iterator;1", &kNS_PRECONTENTITERATOR_CID },
@@ -1145,7 +1170,7 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { NS_XMLSERIALIZER_CONTRACTID, &kNS_XMLSERIALIZER_CID },
   { NS_FILEREADER_CONTRACTID, &kNS_FILEREADER_CID },
   { NS_FORMDATA_CONTRACTID, &kNS_FORMDATA_CID },
-  { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX BLOBURI_SCHEME, &kNS_BLOBPROTOCOLHANDLER_CID },
+  { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX FILEDATA_SCHEME, &kNS_FILEDATAPROTOCOLHANDLER_CID },
   { NS_XMLHTTPREQUEST_CONTRACTID, &kNS_XMLHTTPREQUEST_CID },
   { NS_EVENTSOURCE_CONTRACTID, &kNS_EVENTSOURCE_CID },
   { NS_WEBSOCKET_CONTRACTID, &kNS_WEBSOCKET_CID },
@@ -1157,7 +1182,8 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { "@mozilla.org/editor/texteditor;1", &kNS_TEXTEDITOR_CID },
   { INDEXEDDB_MANAGER_CONTRACTID, &kINDEXEDDB_MANAGER_CID },
 #ifdef MOZ_B2G_RIL  
-  { SYSTEMWORKERMANAGER_CONTRACTID, &kSYSTEMWORKERMANAGER_CID },
+  { TELEPHONYRADIO_CONTRACTID, &kTELEPHONYRADIO_CID },
+  { TELEPHONYRADIOINTERFACE_CONTRACTID, &kTELEPHONYRADIOINTERFACE_CID },
 #endif
 #ifdef MOZ_WIDGET_GONK
   { NS_AUDIOMANAGER_CONTRACTID, &kNS_AUDIOMANAGER_CID },
@@ -1219,8 +1245,11 @@ static const mozilla::Module::CategoryEntry kLayoutCategories[] = {
   { JAVASCRIPT_GLOBAL_STATIC_NAMESET_CATEGORY, "PrivilegeManager", NS_SECURITYNAMESET_CONTRACTID },
   { "app-startup", "Script Security Manager", "service," NS_SCRIPTSECURITYMANAGER_CONTRACTID },
   CONTENTDLF_CATEGORIES
+
+  // This probably should be "app-startup" but we want our testing extension to
+  // be able to override the contractid so we wait until "profile-after-change"
 #ifdef MOZ_B2G_RIL
-  { "profile-after-change", "Telephony System Worker Manager", SYSTEMWORKERMANAGER_CONTRACTID },
+  { "profile-after-change", "Telephony Radio", TELEPHONYRADIO_CONTRACTID },
 #endif
   { NULL }
 };

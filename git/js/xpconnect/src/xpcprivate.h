@@ -57,6 +57,7 @@
 #include "jsdhash.h"
 #include "jsprf.h"
 #include "prprf.h"
+#include "jscntxt.h"
 #include "jsdbgapi.h"
 #include "jsfriendapi.h"
 #include "jsgc.h"
@@ -369,10 +370,10 @@ public:
     static void     DestroyLock(XPCLock* lock)
                         {delete lock;}
 
-    XPCAutoLock(XPCLock* lock MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    XPCAutoLock(XPCLock* lock MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
         : mLock(lock)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
         if (mLock)
             mLock->Enter();
     }
@@ -386,7 +387,7 @@ public:
 
 private:
     XPCLock*  mLock;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     // Not meant to be implemented. This makes it a compiler error to
     // construct or assign an XPCAutoLock object incorrectly.
@@ -408,10 +409,10 @@ private:
 
 class NS_STACK_CLASS XPCAutoUnlock {
 public:
-    XPCAutoUnlock(XPCLock* lock MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    XPCAutoUnlock(XPCLock* lock MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
         : mLock(lock)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
         if (mLock) {
             mLock->Exit();
         }
@@ -425,7 +426,7 @@ public:
 
 private:
     XPCLock*  mLock;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     // Not meant to be implemented. This makes it a compiler error to
     // construct or assign an XPCAutoUnlock object incorrectly.
@@ -597,13 +598,6 @@ private:
     PRUint16                 mDefaultSecurityManagerFlags;
     JSBool                   mShuttingDown;
     JSBool                   mNeedGCBeforeCC;
-
-    // nsIThreadInternal doesn't remember which observers it called
-    // OnProcessNextEvent on when it gets around to calling AfterProcessNextEvent.
-    // So if XPConnect gets initialized mid-event (which can happen), we'll get
-    // an 'after' notification without getting an 'on' notification. If we don't
-    // watch out for this, we'll do an unmatched |pop| on the context stack.
-    PRUint16                   mEventDepth;
 #ifdef DEBUG_CC
     PLDHashTable             mJSRoots;
 #endif
@@ -865,8 +859,8 @@ class XPCContext
 public:
     static XPCContext* GetXPCContext(JSContext* aJSContext)
         {
-            NS_ASSERTION(JS_GetSecondContextPrivate(aJSContext), "should already have XPCContext");
-            return static_cast<XPCContext *>(JS_GetSecondContextPrivate(aJSContext));
+            NS_ASSERTION(aJSContext->data2, "should already have XPCContext");
+            return static_cast<XPCContext *>(aJSContext->data2);
         }
 
     XPCJSRuntime* GetRuntime() const {return mRuntime;}
@@ -2401,13 +2395,13 @@ public:
     inline void TraceJS(JSTracer* trc) {}
     inline void AutoTrace(JSTracer* trc) {}
 
-    void Mark()       {mJSObject = (JSObject*)(intptr_t(mJSObject) | 1);}
-    void Unmark()     {mJSObject = (JSObject*)(intptr_t(mJSObject) & ~1);}
-    bool IsMarked() const {return !!(intptr_t(mJSObject) & 1);}
+    void Mark()       {mJSObject = (JSObject*)(((jsword)mJSObject) | 1);}
+    void Unmark()     {mJSObject = (JSObject*)(((jsword)mJSObject) & ~1);}
+    JSBool IsMarked() const {return (JSBool)(((jsword)mJSObject) & 1);}
 
 private:
-    XPCWrappedNativeTearOff(const XPCWrappedNativeTearOff& r) MOZ_DELETE;
-    XPCWrappedNativeTearOff& operator= (const XPCWrappedNativeTearOff& r) MOZ_DELETE;
+    XPCWrappedNativeTearOff(const XPCWrappedNativeTearOff& r); // not implemented
+    XPCWrappedNativeTearOff& operator= (const XPCWrappedNativeTearOff& r); // not implemented
 
 private:
     XPCNativeInterface* mInterface;
@@ -2476,10 +2470,10 @@ public:
     JSBool
     IsValid() const {return nsnull != mFlatJSObject;}
 
-#define XPC_SCOPE_WORD(s)   (intptr_t(s))
-#define XPC_SCOPE_MASK      (intptr_t(0x3))
-#define XPC_SCOPE_TAG       (intptr_t(0x1))
-#define XPC_WRAPPER_EXPIRED (intptr_t(0x2))
+#define XPC_SCOPE_WORD(s)   ((jsword)(s))
+#define XPC_SCOPE_MASK      ((jsword)0x3)
+#define XPC_SCOPE_TAG       ((jsword)0x1)
+#define XPC_WRAPPER_EXPIRED ((jsword)0x2)
 
     static inline JSBool
     IsTaggedScope(XPCWrappedNativeScope* s)
@@ -3589,36 +3583,21 @@ struct XPCJSContextInfo {
 class XPCJSContextStack
 {
 public:
-    XPCJSContextStack()
-      : mSafeJSContext(NULL)
-      , mOwnSafeJSContext(NULL)
-    { }
+    NS_DECL_NSIJSCONTEXTSTACK
+    NS_DECL_NSITHREADJSCONTEXTSTACK
 
+    XPCJSContextStack();
     virtual ~XPCJSContextStack();
 
-    uint32_t Count()
-    {
-        return mStack.Length();
-    }
-
-    JSContext *Peek()
-    {
-        return mStack.IsEmpty() ? NULL : mStack[mStack.Length() - 1].cx;
-    }
-
-    JSContext *Pop();
-    bool Push(JSContext *cx);
-    JSContext *GetSafeJSContext();
-
 #ifdef DEBUG
-    bool DEBUG_StackHasJSContext(JSContext *cx);
+    JSBool DEBUG_StackHasJSContext(JSContext*  aJSContext);
 #endif
 
-    const InfallibleTArray<XPCJSContextInfo>* GetStack()
+    const nsTArray<XPCJSContextInfo>* GetStack()
     { return &mStack; }
 
 private:
-    AutoInfallibleTArray<XPCJSContextInfo, 16> mStack;
+    nsAutoTArray<XPCJSContextInfo, 16> mStack;
     JSContext*  mSafeJSContext;
     JSContext*  mOwnSafeJSContext;
 };
@@ -3636,7 +3615,7 @@ public:
     NS_DECL_NSIJSCONTEXTSTACKITERATOR
 
 private:
-    const InfallibleTArray<XPCJSContextInfo> *mStack;
+    const nsTArray<XPCJSContextInfo> *mStack;
     PRUint32 mPosition;
 };
 
@@ -3651,16 +3630,10 @@ public:
     // Get the instance of this object for the current thread
     static inline XPCPerThreadData* GetData(JSContext *cx)
     {
-        // Do a release-mode assert that we're not doing anything significant in
-        // XPConnect off the main thread. If you're an extension developer hitting
-        // this, you need to change your code. See bug 716167.
-        if (!NS_LIKELY(NS_IsMainThread() || NS_IsCycleCollectorThread()))
-            JS_Assert("NS_IsMainThread()", __FILE__, __LINE__);
-
         if (cx) {
-            NS_ASSERTION(js::GetContextThread(cx), "Uh, JS context w/o a thread?");
+            NS_ASSERTION(cx->thread(), "Uh, JS context w/o a thread?");
 
-            if (js::GetContextThread(cx) == sMainJSThread)
+            if (cx->thread() == sMainJSThread)
                 return sMainThreadData;
         } else if (sMainThreadData && sMainThreadData->mThread == PR_GetCurrentThread()) {
             return sMainThreadData;
@@ -3763,7 +3736,7 @@ public:
         {sMainJSThread = nsnull; sMainThreadData = nsnull;}
 
     static bool IsMainThread(JSContext *cx)
-        { return js::GetContextThread(cx) == sMainJSThread; }
+        { return cx->thread() == sMainJSThread; }
 
 private:
     XPCPerThreadData();
@@ -3934,11 +3907,11 @@ class NS_STACK_CLASS AutoJSErrorAndExceptionEater
 {
 public:
     AutoJSErrorAndExceptionEater(JSContext* aCX
-                                 MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                                 MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
         : mCX(aCX),
           mOldErrorReporter(JS_SetErrorReporter(mCX, nsnull)),
           mOldExceptionState(JS_SaveExceptionState(mCX)) {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
     }
     ~AutoJSErrorAndExceptionEater()
     {
@@ -3949,7 +3922,7 @@ private:
     JSContext*        mCX;
     JSErrorReporter   mOldErrorReporter;
     JSExceptionState* mOldExceptionState;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 /******************************************************************************
@@ -3963,10 +3936,10 @@ public:
      * Saves the JSContext as well as initializing our state
      * @param cx The JSContext, this can be null, we don't do anything then
      */
-    AutoScriptEvaluate(JSContext * cx MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    AutoScriptEvaluate(JSContext * cx MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
          : mJSContext(cx), mState(0), mErrorReporterSet(false),
            mEvaluated(false), mContextHasThread(0) {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     /**
@@ -3986,9 +3959,9 @@ private:
     JSExceptionState* mState;
     bool mErrorReporterSet;
     bool mEvaluated;
-    intptr_t mContextHasThread;
+    jsword mContextHasThread;
     JSAutoEnterCompartment mEnterCompartment;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     // No copying or assignment allowed
     AutoScriptEvaluate(const AutoScriptEvaluate &) MOZ_DELETE;
@@ -4000,11 +3973,11 @@ class NS_STACK_CLASS AutoResolveName
 {
 public:
     AutoResolveName(XPCCallContext& ccx, jsid name
-                    MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                    MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
         : mTLS(ccx.GetThreadData()),
           mOld(mTLS->SetResolveName(name)),
           mCheck(name) {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
     }
     ~AutoResolveName()
         {
@@ -4019,7 +3992,7 @@ private:
     XPCPerThreadData* mTLS;
     jsid mOld;
     jsid mCheck;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 /***************************************************************************/

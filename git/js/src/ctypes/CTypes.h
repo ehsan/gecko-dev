@@ -332,7 +332,7 @@ struct ClosureInfo
   void* errResult;       // Result that will be returned if the closure throws
   ffi_closure* closure;  // The C closure itself
 #ifdef DEBUG
-  intptr_t cxThread;     // The thread on which the context may be used
+  jsword cxThread;       // The thread on which the context may be used
 #endif
 
   // Anything conditionally freed in the destructor should be initialized to

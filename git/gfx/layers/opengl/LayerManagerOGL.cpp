@@ -120,10 +120,6 @@ LayerManagerOGL::CleanupResources()
   if (!mGLContext)
     return;
 
-  if (mRoot) {
-    RootLayer()->CleanupResources();
-  }
-
   nsRefPtr<GLContext> ctx = mGLContext->GetSharedContext();
   if (!ctx) {
     ctx = mGLContext;
@@ -321,12 +317,6 @@ LayerManagerOGL::Initialize(nsRefPtr<GLContext> aContext)
      */
     if (!mGLContext->IsExtensionSupported(gl::GLContext::ARB_texture_rectangle))
       return false;
-  }
-
-  // If we're double-buffered, we don't need this fbo anymore.
-  if (mGLContext->IsDoubleBuffered()) {
-    mGLContext->fDeleteFramebuffers(1, &mBackBufferFBO);
-    mBackBufferFBO = 0;
   }
 
   // back to default framebuffer, to avoid confusion

@@ -156,6 +156,12 @@ JSCompartment::sizeOfMjitCode() const
     return method + unused;
 }
 
+JS_PUBLIC_API(size_t)
+JS::SizeOfCompartmentMjitCode(const JSCompartment *c)
+{
+    return c->sizeOfMjitCode();
+}
+
 #endif
 
 bool

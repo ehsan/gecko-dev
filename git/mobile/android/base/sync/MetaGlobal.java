@@ -56,7 +56,8 @@ public class MetaGlobal implements SyncStorageRequestDelegate {
   public boolean isModified;
   protected boolean isNew;
 
-  // Fetched object.
+  // Fetched objects.
+  protected SyncStorageResponse response;
   private CryptoRecord record;
 
   // Fields.
@@ -76,8 +77,12 @@ public class MetaGlobal implements SyncStorageRequestDelegate {
   }
 
   public void fetch(MetaGlobalDelegate callback) {
-    this.callback = callback;
-    this.doFetch();
+    if (this.response == null) {
+      this.callback = callback;
+      this.doFetch();
+      return;
+    }
+    callback.deferred().handleSuccess(this);
   }
 
   private void doFetch() {
@@ -89,6 +94,10 @@ public class MetaGlobal implements SyncStorageRequestDelegate {
     } catch (URISyntaxException e) {
       callback.handleError(e);
     }
+  }
+
+  public SyncStorageResponse getResponse() {
+    return this.response;
   }
 
   public void upload(MetaGlobalDelegate callback) {
@@ -116,6 +125,7 @@ public class MetaGlobal implements SyncStorageRequestDelegate {
   }
 
   private void unpack(SyncStorageResponse response) throws IllegalStateException, IOException, ParseException, NonObjectJSONException {
+    this.response = response;
     this.setRecord(response.jsonObjectBody());
     Log.i(LOG_TAG, "meta/global is " + record.payload.toJSONString());
     this.isModified = false;
@@ -170,7 +180,7 @@ public class MetaGlobal implements SyncStorageRequestDelegate {
 
   private void handleUploadSuccess(SyncStorageResponse response) {
     this.isModified = false;
-    this.callback.handleSuccess(this, response);
+    this.callback.handleSuccess(this);
     this.callback = null;
   }
 
@@ -178,7 +188,7 @@ public class MetaGlobal implements SyncStorageRequestDelegate {
     if (response.wasSuccessful()) {
       try {
         this.unpack(response);
-        this.callback.handleSuccess(this, response);
+        this.callback.handleSuccess(this);
         this.callback = null;
       } catch (Exception e) {
         this.callback.handleError(e);
@@ -192,7 +202,8 @@ public class MetaGlobal implements SyncStorageRequestDelegate {
 
   public void handleRequestFailure(SyncStorageResponse response) {
     if (response.getStatusCode() == 404) {
-      this.callback.handleMissing(this, response);
+      this.response = response;
+      this.callback.handleMissing(this);
       this.callback = null;
       return;
     }

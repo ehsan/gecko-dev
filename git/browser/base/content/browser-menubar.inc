@@ -533,11 +533,10 @@
                     accesskey="&webDeveloperMenu.accesskey;">
                 <menupopup id="menuWebDeveloperPopup">
                   <menuitem id="webConsole"
-                            type="checkbox"
                             label="&webConsoleCmd.label;"
                             accesskey="&webConsoleCmd.accesskey;"
                             key="key_webConsole"
-                            command="Tools:WebConsole"/>
+                            oncommand="HUDConsoleUI.toggleHUD();"/>
                   <menuitem id="menu_pageinspect"
                             type="checkbox"
                             hidden="true"

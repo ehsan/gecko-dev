@@ -173,7 +173,9 @@ public:
     NS_IMETHOD         SetCursor(nsCursor aCursor);
     NS_IMETHOD         SetCursor(imgIContainer* aCursor,
                                  PRUint32 aHotspotX, PRUint32 aHotspotY);
-    NS_IMETHOD         Invalidate(const nsIntRect &aRect);
+    NS_IMETHOD         Invalidate(const nsIntRect &aRect,
+                                  bool             aIsSynchronous);
+    NS_IMETHOD         Update();
     virtual void*      GetNativeData(PRUint32 aDataType);
     NS_IMETHOD         SetTitle(const nsAString& aTitle);
     NS_IMETHOD         SetIcon(const nsAString& aIconSpec);
@@ -341,6 +343,9 @@ public:
 #endif
     NS_IMETHOD         ReparentNativeWidget(nsIWidget* aNewParent);
 
+#ifdef ACCESSIBILITY
+    static bool        sAccessibilityEnabled;
+#endif
 protected:
     // Helper for SetParent and ReparentNativeWidget.
     void ReparentNativeWidgetInternal(nsIWidget* aNewParent,

@@ -58,9 +58,7 @@
 
 static int gDummyCounter;
 
-// Not inlining this function avoids the compiler making optimizations
-// that end up corrupting stack traces.
-MOZ_NEVER_INLINE static void
+static void
 TouchBadMemory()
 {
     // XXX this should use the frame poisoning code

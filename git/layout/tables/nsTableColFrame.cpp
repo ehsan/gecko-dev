@@ -90,11 +90,13 @@ nsTableColFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
     return;
      
   nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
+    
   if (tableFrame->IsBorderCollapse() &&
       tableFrame->BCRecalcNeeded(aOldStyleContext, GetStyleContext())) {
     nsRect damageArea = nsRect(GetColIndex(), 0, 1, tableFrame->GetRowCount());
     tableFrame->AddBCDamageArea(damageArea);
   }
+  return;
 }
 
 void nsTableColFrame::SetContinuousBCBorderWidth(PRUint8     aForSide,
@@ -128,7 +130,9 @@ NS_METHOD nsTableColFrame::Reflow(nsPresContext*          aPresContext,
   bool collapseCol = (NS_STYLE_VISIBILITY_COLLAPSE == colVis->mVisible);
   if (collapseCol) {
     nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
-    tableFrame->SetNeedToCollapse(true);
+    if (tableFrame)  {
+      tableFrame->SetNeedToCollapse(true);
+    }    
   }
   aStatus = NS_FRAME_COMPLETE;
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);

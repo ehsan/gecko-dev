@@ -55,10 +55,6 @@
 #include <pthread.h>
 #include <wchar.h>
 
-#ifdef MOZ_ANDROID_HISTORY
-#include "nsAndroidHistory.h"
-#endif
-
 #ifdef MOZ_LOGGING
 #define FORCE_PR_LOG
 #include "prlog.h"
@@ -446,13 +442,6 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
             gLastSizeChange = new AndroidGeckoEvent(curEvent);
         }
         nsWindow::OnGlobalAndroidEvent(curEvent);
-        break;
-    }
-
-    case AndroidGeckoEvent::VISITED: {
-#ifdef MOZ_ANDROID_HISTORY
-        nsAndroidHistory::NotifyURIVisited(nsString(curEvent->Characters()));
-#endif
         break;
     }
 

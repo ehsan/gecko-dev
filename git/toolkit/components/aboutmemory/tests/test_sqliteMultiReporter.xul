@@ -50,6 +50,7 @@
   // we explicitly check something.
   ok(true);
 
+  SimpleTest.finish();
   ]]>
   </script>
 </window>

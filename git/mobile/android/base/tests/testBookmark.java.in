@@ -13,8 +13,10 @@ public class testBookmark extends BaseTest {
         mActions.sendSpecialKey(Actions.SpecialKey.DOWN);
         hitEnterAndWait();
 
+        verifyUrl(URL);
+
         //Click the Top item in the history list.
-        clickOnAwesomeBar();
+        getInstrumentation().waitForIdleSync();
         mActions.sendSpecialKey(Actions.SpecialKey.RIGHT);
         mActions.sendSpecialKey(Actions.SpecialKey.RIGHT);
         getInstrumentation().waitForIdleSync();

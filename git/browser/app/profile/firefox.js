@@ -83,7 +83,7 @@ pref("extensions.update.autoUpdateDefault", true);
 
 pref("extensions.hotfix.id", "firefox-hotfix@mozilla.org");
 pref("extensions.hotfix.cert.checkAttributes", true);
-pref("extensions.hotfix.certs.1.sha1Fingerprint", "F1:DB:F9:6A:7B:B8:04:FA:48:3C:16:95:C7:2F:17:C6:5B:C2:9F:45");
+pref("extensions.hotfix.certs.1.sha1Fingerprint", "foo");
 
 // Disable add-ons installed into the shared user and shared system areas by
 // default. This does not include the application directory. See the SCOPE
@@ -237,7 +237,7 @@ pref("keyword.URL", "");
 pref("general.useragent.locale", "@AB_CD@");
 pref("general.skins.selectedSkin", "classic/1.0");
 
-pref("general.smoothScroll", true);
+pref("general.smoothScroll", false);
 #ifdef UNIX_BUT_NOT_MAC
 pref("general.autoScroll", false);
 #else
@@ -872,7 +872,7 @@ pref("browser.zoom.updateBackgroundTabs", true);
 pref("breakpad.reportURL", "http://crash-stats.mozilla.com/report/index/");
 
 // base URL for web-based support pages
-pref("app.support.baseURL", "http://support.mozilla.org/1/firefox/%VERSION%/%OS%/%LOCALE%/");
+pref("app.support.baseURL", "http://support.mozilla.com/1/firefox/%VERSION%/%OS%/%LOCALE%/");
 
 // Name of alternate about: page for certificate errors (when undefined, defaults to about:neterror)
 pref("security.alternate_certificate_error_page", "certerror");
@@ -1033,6 +1033,9 @@ pref("devtools.styleinspector.enabled", true);
 // Enable the Tilt inspector
 pref("devtools.tilt.enabled", true);
 
+// Enable the Tilt inspector even if WebGL capabilities are not detected
+pref("devtools.tilt.force-enabled", false);
+
 // Enable the rules view
 pref("devtools.ruleview.enabled", true);
 
@@ -1046,7 +1049,7 @@ pref("devtools.styleeditor.enabled", true);
 pref("devtools.chrome.enabled", false);
 
 // Disable the GCLI enhanced command line.
-pref("devtools.gcli.enable", true);
+pref("devtools.gcli.enable", false);
 
 // The last Web Console height. This is initially 0 which means that the Web
 // Console will use the default height next time it shows.

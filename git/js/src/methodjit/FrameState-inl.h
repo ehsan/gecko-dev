@@ -1282,7 +1282,7 @@ FrameState::getCallee()
 }
 
 inline void
-FrameState::unpinKilledReg(AnyRegisterID reg)
+FrameState::unpinKilledReg(RegisterID reg)
 {
     regstate(reg).unpinUnsafe();
     freeRegs.putReg(reg);

@@ -39,8 +39,7 @@
 #include "mozilla/Util.h"
 
 #include "jsapi.h"
-#include "jsatom.h"
-#include "jsfriendapi.h"
+#include "jscntxt.h"  /* for error messages */
 #include "nsCOMPtr.h"
 #include "xpcprivate.h"
 #include "XPCInlines.h"
@@ -192,7 +191,7 @@ GeneratePropertyOp(JSContext *cx, JSObject *obj, jsid id, uintN argc, Op pop)
 
     JSObject *funobj = JS_GetFunctionObject(fun);
 
-    JS::AutoObjectRooter tvr(cx, funobj);
+    js::AutoObjectRooter tvr(cx, funobj);
 
     // Unfortunately, we cannot guarantee that Op is aligned. Use a
     // second object to work around this.
@@ -217,7 +216,7 @@ ReifyPropertyOps(JSContext *cx, JSObject *obj, jsid id, uintN orig_attrs,
 {
     // Generate both getter and setter and stash them in the prototype.
     jsval roots[2] = { JSVAL_NULL, JSVAL_NULL };
-    JS::AutoArrayRooter tvr(cx, ArrayLength(roots), roots);
+    js::AutoArrayRooter tvr(cx, ArrayLength(roots), roots);
 
     uintN attrs = JSPROP_SHARED | (orig_attrs & JSPROP_ENUMERATE);
     JSObject *getterobj;
@@ -389,10 +388,7 @@ SharedDefineSetter(JSContext *cx, uintN argc, jsval *vp)
 JSBool
 xpc_qsDefineQuickStubs(JSContext *cx, JSObject *proto, uintN flags,
                        PRUint32 ifacec, const nsIID **interfaces,
-                       PRUint32 tableSize, const xpc_qsHashEntry *table,
-                       const xpc_qsPropertySpec *propspecs,
-                       const xpc_qsFunctionSpec *funcspecs,
-                       const char *stringTable)
+                       PRUint32 tableSize, const xpc_qsHashEntry *table)
 {
     /*
      * Walk interfaces in reverse order to behave like XPConnect when a
@@ -411,26 +407,26 @@ xpc_qsDefineQuickStubs(JSContext *cx, JSObject *proto, uintN flags,
         if (entry) {
             for (;;) {
                 // Define quick stubs for attributes.
-                const xpc_qsPropertySpec *ps = propspecs + entry->prop_index;
-                const xpc_qsPropertySpec *ps_end = ps + entry->n_props;
-                for ( ; ps < ps_end; ++ps) {
-                    definedProperty = true;
-                    if (!JS_DefineProperty(cx, proto,
-                                           stringTable + ps->name_index,
-                                           JSVAL_VOID, ps->getter, ps->setter,
-                                           flags | JSPROP_SHARED)) 
-                        return false;
+                const xpc_qsPropertySpec *ps = entry->properties;
+                if (ps) {
+                    for (; ps->name; ps++) {
+                        definedProperty = true;
+                        if (!JS_DefineProperty(cx, proto, ps->name, JSVAL_VOID,
+                                               ps->getter, ps->setter,
+                                               flags | JSPROP_SHARED))
+                            return false;
+                    }
                 }
 
                 // Define quick stubs for methods.
-                const xpc_qsFunctionSpec *fs = funcspecs + entry->func_index;
-                const xpc_qsFunctionSpec *fs_end = fs + entry->n_funcs;
-                for ( ; fs < fs_end; ++fs) {
-                    if (!JS_DefineFunction(cx, proto,
-                                           stringTable + fs->name_index,
-                                           reinterpret_cast<JSNative>(fs->native),
-                                           fs->arity, flags))
-                        return false;
+                const xpc_qsFunctionSpec *fs = entry->functions;
+                if (fs) {
+                    for (; fs->name; fs++) {
+                        if (!JS_DefineFunction(cx, proto, fs->name,
+                                               reinterpret_cast<JSNative>(fs->native),
+                                               fs->arity, flags))
+                            return false;
+                    }
                 }
 
                 // Next.
@@ -1129,7 +1125,9 @@ xpc_qsAssertContextOK(JSContext *cx)
     XPCPerThreadData *thread = XPCPerThreadData::GetData(cx);
     XPCJSContextStack* stack = thread->GetJSContextStack();
 
-    JSContext *topJSContext = stack->Peek();
+    JSContext* topJSContext = nsnull;
+    nsresult rv = stack->Peek(&topJSContext);
+    NS_ASSERTION(NS_SUCCEEDED(rv), "XPCJSContextStack::Peek failed");
 
     // This is what we're actually trying to assert here.
     NS_ASSERTION(cx == topJSContext, "wrong context on XPCJSContextStack!");

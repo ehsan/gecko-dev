@@ -44,7 +44,6 @@
 #include "nsCoreUtils.h"
 #include "nsDocAccessible.h"
 #include "Relation.h"
-#include "Role.h"
 #include "States.h"
 
 // NOTE: alphabetically ordered
@@ -115,10 +114,10 @@ nsXULButtonAccessible::DoAction(PRUint8 aIndex)
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULButtonAccessible: nsAccessible
 
-role
+PRUint32
 nsXULButtonAccessible::NativeRole()
 {
-  return roles::PUSHBUTTON;
+  return nsIAccessibleRole::ROLE_PUSHBUTTON;
 }
 
 PRUint64
@@ -236,13 +235,13 @@ nsXULButtonAccessible::CacheChildren()
 
   nsAccessible* child = nsnull;
   while ((child = walker.NextChild())) {
-    roles::Role role = child->Role();
+    PRUint32 role = child->Role();
 
-    if (role == roles::MENUPOPUP) {
+    if (role == nsIAccessibleRole::ROLE_MENUPOPUP) {
       // Get an accessible for menupopup or panel elements.
       menupopup = child;
 
-    } else if (isMenuButton && role == roles::PUSHBUTTON) {
+    } else if (isMenuButton && role == nsIAccessibleRole::ROLE_PUSHBUTTON) {
       // Button type="menu-button" contains a real button. Get an accessible
       // for it. Ignore dropmarker button which is placed as a last child.
       button = child;
@@ -345,10 +344,10 @@ NS_IMETHODIMP nsXULDropmarkerAccessible::DoAction(PRUint8 index)
   return NS_ERROR_INVALID_ARG;
 }
 
-role
+PRUint32
 nsXULDropmarkerAccessible::NativeRole()
 {
-  return roles::PUSHBUTTON;
+  return nsIAccessibleRole::ROLE_PUSHBUTTON;
 }
 
 PRUint64
@@ -367,10 +366,10 @@ nsXULCheckboxAccessible::
 {
 }
 
-role
+PRUint32
 nsXULCheckboxAccessible::NativeRole()
 {
-  return roles::CHECKBUTTON;
+  return nsIAccessibleRole::ROLE_CHECKBUTTON;
 }
 
 PRUint8
@@ -447,10 +446,10 @@ nsXULGroupboxAccessible::
 {
 }
 
-role
+PRUint32
 nsXULGroupboxAccessible::NativeRole()
 {
-  return roles::GROUPING;
+  return nsIAccessibleRole::ROLE_GROUPING;
 }
 
 nsresult
@@ -478,7 +477,7 @@ nsXULGroupboxAccessible::RelationByType(PRUint32 aType)
   PRInt32 childCount = GetChildCount();
   for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
     nsAccessible *childAcc = GetChildAt(childIdx);
-    if (childAcc->Role() == roles::LABEL) {
+    if (childAcc->Role() == nsIAccessibleRole::ROLE_LABEL) {
       // Ensure that it's our label
       Relation reverseRel =
         childAcc->RelationByType(nsIAccessibleRelation::RELATION_LABEL_FOR);
@@ -559,14 +558,14 @@ nsXULRadioButtonAccessible::ContainerWidget() const
 
 nsXULRadioGroupAccessible::
   nsXULRadioGroupAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  XULSelectControlAccessible(aContent, aShell)
+  nsXULSelectableAccessible(aContent, aShell)
 { 
 }
 
-role
+PRUint32
 nsXULRadioGroupAccessible::NativeRole()
 {
-  return roles::GROUPING;
+  return nsIAccessibleRole::ROLE_GROUPING;
 }
 
 PRUint64
@@ -610,10 +609,10 @@ nsXULStatusBarAccessible::
 {
 }
 
-role
+PRUint32
 nsXULStatusBarAccessible::NativeRole()
 {
-  return roles::STATUSBAR;
+  return nsIAccessibleRole::ROLE_STATUSBAR;
 }
 
 
@@ -685,10 +684,10 @@ nsXULToolbarAccessible::
 {
 }
 
-role
+PRUint32
 nsXULToolbarAccessible::NativeRole()
 {
-  return roles::TOOLBAR;
+  return nsIAccessibleRole::ROLE_TOOLBAR;
 }
 
 nsresult
@@ -715,10 +714,10 @@ nsXULToolbarSeparatorAccessible::
 {
 }
 
-role
+PRUint32
 nsXULToolbarSeparatorAccessible::NativeRole()
 {
-  return roles::SEPARATOR;
+  return nsIAccessibleRole::ROLE_SEPARATOR;
 }
 
 PRUint64
@@ -802,14 +801,13 @@ nsXULTextFieldAccessible::NativeState()
   return state;
 }
 
-role
+PRUint32
 nsXULTextFieldAccessible::NativeRole()
 {
   if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
                             nsGkAtoms::password, eIgnoreCase))
-    return roles::PASSWORD_TEXT;
-  
-  return roles::ENTRY;
+    return nsIAccessibleRole::ROLE_PASSWORD_TEXT;
+  return nsIAccessibleRole::ROLE_ENTRY;
 }
 
 /**

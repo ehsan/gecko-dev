@@ -1478,15 +1478,24 @@ nsBlockFrame::ComputeOverflowAreas(const nsHTMLReflowState& aReflowState,
       areas.UnionAllWith(mBullet->GetRect());
     }
 
-    // Factor in the bottom edge of the children.  Child frames will be added
-    // to the overflow area as we iterate through the lines, but their margins
-    // won't, so we need to account for bottom margins here.
+    // Factor in the bottom edge of the children. Child frames
+    // will be added to the overflow area as we iterate through the lines,
+    // but their margins won't, so we need to account for bottom margins
+    // here. If we're a scrolled block then we also need to account
+    // for the scrollframe's padding, which is logically below the
+    // bottom margins of the children.
+    nscoord bottomEdgeOfContents = aBottomEdgeOfChildren;
+    if (GetStyleContext()->GetPseudo() == nsCSSAnonBoxes::scrolledContent) {
+      // We're a scrolled frame; the scrollframe's padding should be added
+      // to the bottom edge of the children
+      bottomEdgeOfContents += aReflowState.mComputedPadding.bottom;
+    }
     // REVIEW: For now, we do this for both visual and scrollable area,
     // although when we make scrollable overflow area not be a subset of
     // visual, we can change this.
     NS_FOR_FRAME_OVERFLOW_TYPES(otype) {
       nsRect& o = areas.Overflow(otype);
-      o.height = NS_MAX(o.YMost(), aBottomEdgeOfChildren) - o.y;
+      o.height = NS_MAX(o.YMost(), bottomEdgeOfContents) - o.y;
     }
   }
 #ifdef NOISY_COMBINED_AREA
@@ -4098,15 +4107,16 @@ nsBlockFrame::SplitLine(nsBlockReflowState& aState,
 }
 
 bool
-nsBlockFrame::IsLastLine(nsBlockReflowState& aState,
-                         line_iterator aLine)
+nsBlockFrame::ShouldJustifyLine(nsBlockReflowState& aState,
+                                line_iterator aLine)
 {
   while (++aLine != end_lines()) {
     // There is another line
     if (0 != aLine->GetChildCount()) {
-      // If the next line is a block line then this line is the last in a
+      // If the next line is a block line then we must not justify
+      // this line because it means that this line is the last in a
       // group of inline lines.
-      return aLine->IsBlock();
+      return !aLine->IsBlock();
     }
     // The next line is empty, try the next one
   }
@@ -4121,13 +4131,13 @@ nsBlockFrame::IsLastLine(nsBlockReflowState& aState,
          ++line)
     {
       if (0 != line->GetChildCount())
-        return line->IsBlock();
+        return !line->IsBlock();
     }
     nextInFlow = (nsBlockFrame*) nextInFlow->GetNextInFlow();
   }
 
   // This is the last line - so don't allow justification
-  return true;
+  return false;
 }
 
 bool
@@ -4212,19 +4222,10 @@ nsBlockFrame::PlaceLine(nsBlockReflowState& aState,
   // inline frames "shrink-wrap" around their children (therefore
   // there is no extra horizontal space).
   const nsStyleText* styleText = GetStyleText();
-
-  /**
-   * text-align-last defaults to the same value as text-align when
-   * text-align-last is set to auto (unless when text-align is set to justify),
-   * so in that case we don't need to set isLastLine.
-   *
-   * In other words, isLastLine really means isLastLineAndWeCare.
-   */
-  bool isLastLine = ((NS_STYLE_TEXT_ALIGN_AUTO != styleText->mTextAlignLast ||
-                            NS_STYLE_TEXT_ALIGN_JUSTIFY == styleText->mTextAlign) &&
-                       (aLineLayout.GetLineEndsInBR() ||
-                        IsLastLine(aState, aLine)));
-  aLineLayout.HorizontalAlignFrames(aLine->mBounds, isLastLine);
+  bool allowJustify = NS_STYLE_TEXT_ALIGN_JUSTIFY == styleText->mTextAlign &&
+                        !aLineLayout.GetLineEndsInBR() &&
+                        ShouldJustifyLine(aState, aLine);
+  aLineLayout.HorizontalAlignFrames(aLine->mBounds, allowJustify);
   // XXX: not only bidi: right alignment can be broken after
   // RelativePositionFrames!!!
   // XXXldb Is something here considering relatively positioned frames at

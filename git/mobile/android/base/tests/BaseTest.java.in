@@ -51,16 +51,15 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
         mSolo = new Solo(getInstrumentation());
         mDriver = new FennecNativeDriver(mActivity, mSolo);
         mActions = new FennecNativeActions(mActivity, mSolo, getInstrumentation());
+        mDriver.setLogFile((String)config.get("logfile"));
 
         mAsserter = new FennecNativeAssert();
         mAsserter.setLogFile((String)config.get("logfile"));
-        mAsserter.setTestName(this.getClass().getName());
     }
 
     @Override
     public void tearDown() throws Exception {
         try {
-            mAsserter.finalize();
             mSolo.finalize();
         } catch (Throwable e) {
             e.printStackTrace();
@@ -73,20 +72,15 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
         Instrumentation inst = getInstrumentation();
         Instrumentation.ActivityMonitor monitor = inst.addMonitor((String)null, null, false);
         element.click();
-        Activity activity = inst.waitForMonitor(monitor);
-        getInstrumentation().waitForIdleSync();
-        return activity;
-    }
-
-    protected final Activity clickOnAwesomeBar() {
-        Element awesomebar = mDriver.findElement(mActivity, "awesome_bar");
-        return getActivityFromClick(awesomebar);
+        return inst.waitForMonitor(monitor);
     }
 
     protected final void enterUrl(String url) {
         mActions.expectGeckoEvent("Gecko:Ready").blockForEvent();
+        Element awesomebar = mDriver.findElement(mActivity, "awesome_bar");
+        Activity awesomeBarActivity = getActivityFromClick(awesomebar);
+        getInstrumentation().waitForIdleSync();
 
-        Activity awesomeBarActivity = clickOnAwesomeBar();
         Element urlbar = mDriver.findElement(awesomeBarActivity, "awesomebar_text");
         mActions.sendKeys(url);
         mAsserter.is(urlbar.getText(), url, "Awesomebar URL typed properly");
@@ -105,7 +99,10 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
     }
 
     protected final void verifyUrl(String url) {
-        Activity awesomeBarActivity = clickOnAwesomeBar();
+        Element awesomebar = mDriver.findElement(mActivity, "awesome_bar");
+        Activity awesomeBarActivity = getActivityFromClick(awesomebar);
+        getInstrumentation().waitForIdleSync();
+
         Element urlbar = mDriver.findElement(awesomeBarActivity, "awesomebar_text");
         mAsserter.is(urlbar.getText(), url, "Awesomebar URL stayed the same");
     }

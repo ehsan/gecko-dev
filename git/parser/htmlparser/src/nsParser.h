@@ -84,6 +84,7 @@
 #include "nsDTDUtils.h"
 #include "nsThreadUtils.h"
 #include "nsIContentSink.h"
+#include "nsIParserFilter.h"
 #include "nsCOMArray.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsWeakReference.h"
@@ -92,6 +93,7 @@ class nsICharsetConverterManager;
 class nsICharsetAlias;
 class nsIDTD;
 class nsScanner;
+class nsSpeculativeScriptThread;
 class nsIThreadPool;
 
 #ifdef _MSC_VER
@@ -174,6 +176,9 @@ class nsParser : public nsIParser,
          aCharset = mCharset;
          aSource = mCharsetSource;
     }
+
+
+    NS_IMETHOD_(void) SetParserFilter(nsIParserFilter* aFilter);
 
     /**
      * Cause parser to parse input from given URL 
@@ -379,6 +384,10 @@ class nsParser : public nsIParser,
       Initialize();
     }
 
+    nsIThreadPool* ThreadPool() {
+      return sSpeculativeThreadPool;
+    }
+
     bool IsScriptExecuting() {
       return mSink && mSink->IsScriptExecuting();
     }
@@ -407,6 +416,8 @@ class nsParser : public nsIParser,
      * @return
      */
     nsresult DidBuildModel(nsresult anErrorCode);
+
+    void SpeculativelyParse();
 
 private:
 
@@ -458,7 +469,9 @@ protected:
     nsCOMPtr<nsIRequestObserver> mObserver;
     nsCOMPtr<nsIContentSink>     mSink;
     nsIRunnable*                 mContinueEvent;  // weak ref
+    nsRefPtr<nsSpeculativeScriptThread> mSpeculativeScriptThread;
    
+    nsCOMPtr<nsIParserFilter> mParserFilter;
     nsTokenAllocator          mTokenAllocator;
     
     eParserCommands     mCommand;
@@ -476,6 +489,13 @@ protected:
 
     static nsICharsetAlias*            sCharsetAliasService;
     static nsICharsetConverterManager* sCharsetConverterManager;
+    static nsIThreadPool*              sSpeculativeThreadPool;
+
+    enum {
+      kSpeculativeThreadLimit = 15,
+      kIdleThreadLimit = 0,
+      kIdleThreadTimeout = 50
+    };
 };
 
 #endif 

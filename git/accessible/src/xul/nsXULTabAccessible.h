@@ -42,7 +42,6 @@
 // NOTE: alphabetically ordered
 #include "nsBaseWidgetAccessible.h"
 #include "nsXULMenuAccessible.h"
-#include "XULSelectControlAccessible.h"
 
 /**
  * An individual tab, xul:tab element.
@@ -61,7 +60,7 @@ public:
   // nsAccessible
   virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
                                           PRInt32 *aSetSize);
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
   virtual Relation RelationByType(PRUint32 aType);
 
@@ -73,7 +72,7 @@ public:
 /**
  * A container of tab objects, xul:tabs element.
  */
-class nsXULTabsAccessible : public XULSelectControlAccessible
+class nsXULTabsAccessible : public nsXULSelectableAccessible
 {
 public:
   nsXULTabsAccessible(nsIContent *aContent, nsIWeakReference *aShell);
@@ -83,7 +82,7 @@ public:
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
 
   // ActionAccessible
   virtual PRUint8 ActionCount();
@@ -99,7 +98,7 @@ public:
   nsXULTabpanelsAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
 };
 
 
@@ -119,7 +118,7 @@ public:
   nsXULTabpanelAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual Relation RelationByType(PRUint32 aType);
 };
 

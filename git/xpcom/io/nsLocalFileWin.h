@@ -133,6 +133,7 @@ private:
 
     static ILCreateFromPathWPtr sILCreateFromPathW;
     static SHOpenFolderAndSelectItemsPtr sSHOpenFolderAndSelectItems;
+    static PRLibrary *sLibShell;
 };
 
 #endif

@@ -271,7 +271,7 @@ Tilt.prototype = {
   get enabled()
   {
     return (TiltVisualizer.Prefs.enabled &&
-           (TiltGL.isWebGLForceEnabled() || TiltGL.isWebGLSupported()));
+           (TiltVisualizer.Prefs.forceEnabled || TiltGL.isWebGLSupported()));
   },
 
   /**

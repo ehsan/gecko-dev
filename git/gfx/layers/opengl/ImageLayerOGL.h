@@ -180,7 +180,6 @@ public:
 
   virtual void RenderLayer(int aPreviousFrameBuffer,
                            const nsIntPoint& aOffset);
-  virtual void CleanupResources() {}
 };
 
 class THEBES_API PlanarYCbCrImageOGL : public PlanarYCbCrImage
@@ -266,8 +265,6 @@ public:
 
   virtual void RenderLayer(int aPreviousFrameBuffer,
                            const nsIntPoint& aOffset);
-
-  virtual void CleanupResources();
 
 private:
   bool Init(const SharedImage& aFront);

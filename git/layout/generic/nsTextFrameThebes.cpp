@@ -1383,7 +1383,7 @@ void BuildTextRunsScanner::FlushFrames(bool aFlushLineBreaks, bool aSuppressTrai
         mNextRunContextInfo |= nsTextFrameUtils::INCOMING_ARABICCHAR;
       }
     } else {
-      AutoFallibleTArray<PRUint8,BIG_TEXT_NODE_SIZE> buffer;
+      nsAutoTArray<PRUint8,BIG_TEXT_NODE_SIZE> buffer;
       PRUint32 bufferSize = mMaxTextLength*(mDoubleByteText ? 2 : 1);
       if (bufferSize < mMaxTextLength || bufferSize == PR_UINT32_MAX ||
           !buffer.AppendElements(bufferSize)) {
@@ -1765,8 +1765,7 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
   PRUint32 nextBreakIndex = 0;
   nsTextFrame* nextBreakBeforeFrame = GetNextBreakBeforeFrame(&nextBreakIndex);
   bool enabledJustification = mLineContainer &&
-    (mLineContainer->GetStyleText()->mTextAlign == NS_STYLE_TEXT_ALIGN_JUSTIFY ||
-     mLineContainer->GetStyleText()->mTextAlignLast == NS_STYLE_TEXT_ALIGN_JUSTIFY);
+    mLineContainer->GetStyleText()->mTextAlign == NS_STYLE_TEXT_ALIGN_JUSTIFY;
 
   PRUint32 i;
   const nsStyleText* textStyle = nsnull;
@@ -1825,12 +1824,12 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
       if (mDoubleByteText) {
         // Need to expand the text. First transform it into a temporary buffer,
         // then expand.
-        AutoFallibleTArray<PRUint8,BIG_TEXT_NODE_SIZE> tempBuf;
-        PRUint8* bufStart = tempBuf.AppendElements(contentLength);
-        if (!bufStart) {
+        nsAutoTArray<PRUint8,BIG_TEXT_NODE_SIZE> tempBuf;
+        if (!tempBuf.AppendElements(contentLength)) {
           DestroyUserData(userDataToDestroy);
           return nsnull;
         }
+        PRUint8* bufStart = tempBuf.Elements();
         PRUint8* end = nsTextFrameUtils::TransformText(
             reinterpret_cast<const PRUint8*>(frag->Get1b()) + contentStart, contentLength,
             bufStart, compression, &mNextRunContextInfo, &builder, &analysisFlags);
@@ -2029,13 +2028,11 @@ BuildTextRunsScanner::SetupLineBreakerContext(gfxTextRun *aTextRun)
 {
   AutoFallibleTArray<PRUint8,BIG_TEXT_NODE_SIZE> buffer;
   PRUint32 bufferSize = mMaxTextLength*(mDoubleByteText ? 2 : 1);
-  if (bufferSize < mMaxTextLength || bufferSize == PR_UINT32_MAX) {
+  if (bufferSize < mMaxTextLength || bufferSize == PR_UINT32_MAX ||
+      !buffer.AppendElements(bufferSize)) {
     return false;
   }
-  void *textPtr = buffer.AppendElements(bufferSize);
-  if (!textPtr) {
-    return false;
-  }
+  void *textPtr = buffer.Elements();
 
   gfxSkipCharsBuilder builder;
 
@@ -2108,11 +2105,11 @@ BuildTextRunsScanner::SetupLineBreakerContext(gfxTextRun *aTextRun)
         // Need to expand the text. First transform it into a temporary buffer,
         // then expand.
         AutoFallibleTArray<PRUint8,BIG_TEXT_NODE_SIZE> tempBuf;
-        PRUint8* bufStart = tempBuf.AppendElements(contentLength);
-        if (!bufStart) {
+        if (!tempBuf.AppendElements(contentLength)) {
           DestroyUserData(userDataToDestroy);
           return false;
         }
+        PRUint8* bufStart = tempBuf.Elements();
         PRUint8* end = nsTextFrameUtils::TransformText(
             reinterpret_cast<const PRUint8*>(frag->Get1b()) + contentStart, contentLength,
             bufStart, compression, &mNextRunContextInfo, &builder, &analysisFlags);
@@ -5100,12 +5097,10 @@ nsTextFrame::PaintTextWithSelectionColors(gfxContext* aCtx,
     const nsCharClipDisplayItem::ClipEdges& aClipEdges)
 {
   // Figure out which selections control the colors to use for each character.
-  AutoFallibleTArray<SelectionDetails*,BIG_TEXT_NODE_SIZE> prevailingSelectionsBuffer;
-  SelectionDetails** prevailingSelections =
-    prevailingSelectionsBuffer.AppendElements(aContentLength);
-  if (!prevailingSelections) {
+  nsAutoTArray<SelectionDetails*,BIG_TEXT_NODE_SIZE> prevailingSelectionsBuffer;
+  if (!prevailingSelectionsBuffer.AppendElements(aContentLength))
     return false;
-  }
+  SelectionDetails** prevailingSelections = prevailingSelectionsBuffer.Elements();
 
   SelectionType allTypes = 0;
   for (PRUint32 i = 0; i < aContentLength; ++i) {
@@ -5225,12 +5220,10 @@ nsTextFrame::PaintTextSelectionDecorations(gfxContext* aCtx,
     return;
 
   // Figure out which characters will be decorated for this selection.
-  AutoFallibleTArray<SelectionDetails*, BIG_TEXT_NODE_SIZE> selectedCharsBuffer;
-  SelectionDetails** selectedChars =
-    selectedCharsBuffer.AppendElements(aContentLength);
-  if (!selectedChars) {
+  nsAutoTArray<SelectionDetails*, BIG_TEXT_NODE_SIZE> selectedCharsBuffer;
+  if (!selectedCharsBuffer.AppendElements(aContentLength))
     return;
-  }
+  SelectionDetails** selectedChars = selectedCharsBuffer.Elements();
   for (PRUint32 i = 0; i < aContentLength; ++i) {
     selectedChars[i] = nsnull;
   }
@@ -5929,6 +5922,15 @@ nsTextFrame::SetSelectedRange(PRUint32 aStart, PRUint32 aEnd, bool aSelected,
   if (aStart == aEnd)
     return;
 
+  if (aType == nsISelectionController::SELECTION_NORMAL) {
+    // check whether style allows selection
+    bool selectable;
+    IsSelectable(&selectable, nsnull);
+    if (!selectable) {
+      return;
+    }
+  }
+
   nsTextFrame* f = this;
   while (f && f->GetContentEnd() <= PRInt32(aStart)) {
     f = static_cast<nsTextFrame*>(f->GetNextContinuation());
@@ -6606,7 +6608,7 @@ nsTextFrame::AddInlineMinWidthForFlow(nsRenderingContext *aRenderingContext,
   PRUint32 start =
     FindStartAfterSkippingWhitespace(&provider, aData, textStyle, &iter, flowEndInTextRun);
 
-  AutoFallibleTArray<bool,BIG_TEXT_NODE_SIZE> hyphBuffer;
+  nsAutoTArray<bool,BIG_TEXT_NODE_SIZE> hyphBuffer;
   bool *hyphBreakBefore = nsnull;
   if (hyphenating) {
     hyphBreakBefore = hyphBuffer.AppendElements(flowEndInTextRun - start);
@@ -7672,8 +7674,7 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
 
   // Compute space and letter counts for justification, if required
   if (!textStyle->WhiteSpaceIsSignificant() &&
-      (lineContainer->GetStyleText()->mTextAlign == NS_STYLE_TEXT_ALIGN_JUSTIFY ||
-       lineContainer->GetStyleText()->mTextAlignLast == NS_STYLE_TEXT_ALIGN_JUSTIFY)) {
+      lineContainer->GetStyleText()->mTextAlign == NS_STYLE_TEXT_ALIGN_JUSTIFY) {
     AddStateBits(TEXT_JUSTIFICATION_ENABLED);    // This will include a space for trailing whitespace, if any is present.
     // This is corrected for in nsLineLayout::TrimWhiteSpaceIn.
     PRInt32 numJustifiableCharacters =

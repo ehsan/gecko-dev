@@ -49,8 +49,6 @@
 #include "AccessCheck.h"
 #include "nsJSUtils.h"
 
-#include "jsapi.h"
-
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsXPCWrappedJSClass, nsIXPCWrappedJSClass)
 
 // the value of this variable is never used - we use its address as a sentinel
@@ -64,7 +62,7 @@ bool AutoScriptEvaluate::StartEvaluating(JSObject *scope, JSErrorReporter errorR
         return true;
 
     mEvaluated = true;
-    if (!JS_GetErrorReporter(mJSContext)) {
+    if (!mJSContext->errorReporter) {
         JS_SetErrorReporter(mJSContext, errorReporter);
         mErrorReporterSet = true;
     }
@@ -405,49 +403,60 @@ nsXPCWrappedJSClass::BuildPropertyEnumerator(XPCCallContext& ccx,
                                              nsISimpleEnumerator** aEnumerate)
 {
     JSContext* cx = ccx.GetJSContext();
+    nsresult retval = NS_ERROR_FAILURE;
+    JSIdArray* idArray = nsnull;
+    int i;
 
+    // Saved state must be restored, all exits through 'out'...
     AutoScriptEvaluate scriptEval(cx);
     if (!scriptEval.StartEvaluating(aJSObj))
         return NS_ERROR_FAILURE;
 
-    JS::AutoIdArray idArray(cx, JS_Enumerate(cx, aJSObj));
+    idArray = JS_Enumerate(cx, aJSObj);
     if (!idArray)
-        return NS_ERROR_FAILURE;
+        return retval;
 
-    nsCOMArray<nsIProperty> propertyArray(idArray.length());
-    for (size_t i = 0; i < idArray.length(); i++) {
-        jsid idName = idArray[i];
-
+    nsCOMArray<nsIProperty> propertyArray(idArray->length);
+    for (i = 0; i < idArray->length; i++) {
         nsCOMPtr<nsIVariant> value;
+        jsid idName = idArray->vector[i];
         nsresult rv;
+
         if (!GetNamedPropertyAsVariantRaw(ccx, aJSObj, idName,
                                           getter_AddRefs(value), &rv)) {
             if (NS_FAILED(rv))
-                return rv;
-            return NS_ERROR_FAILURE;
+                retval = rv;
+            goto out;
         }
 
         jsval jsvalName;
         if (!JS_IdToValue(cx, idName, &jsvalName))
-            return NS_ERROR_FAILURE;
+            goto out;
 
         JSString* name = JS_ValueToString(cx, jsvalName);
         if (!name)
-            return NS_ERROR_FAILURE;
+            goto out;
 
         size_t length;
         const jschar *chars = JS_GetStringCharsAndLength(cx, name, &length);
         if (!chars)
-            return NS_ERROR_FAILURE;
+            goto out;
 
         nsCOMPtr<nsIProperty> property =
             new xpcProperty(chars, (PRUint32) length, value);
+        if (!property)
+            goto out;
 
         if (!propertyArray.AppendObject(property))
-            return NS_ERROR_FAILURE;
+            goto out;
     }
 
-    return NS_NewArrayEnumerator(aEnumerate, propertyArray);
+    retval = NS_NewArrayEnumerator(aEnumerate, propertyArray);
+
+out:
+    JS_DestroyIdArray(cx, idArray);
+
+    return retval;
 }
 
 /***************************************************************************/
@@ -525,8 +534,9 @@ GetContextFromObject(JSObject *obj)
     // Don't stomp over a running context.
     XPCJSContextStack* stack =
         XPCPerThreadData::GetData(nsnull)->GetJSContextStack();
+    JSContext* topJSContext;
 
-    if (stack && stack->Peek())
+    if (stack && NS_SUCCEEDED(stack->Peek(&topJSContext)) && topJSContext)
         return nsnull;
 
     // In order to get a context, we need a context.
@@ -543,7 +553,7 @@ GetContextFromObject(JSObject *obj)
 
     if (xpcc) {
         JSContext *cx = xpcc->GetJSContext();
-        if (JS_GetContextThread(cx) == JS_GetCurrentThread())
+        if (cx->thread()->id == js_CurrentThreadId())
             return cx;
     }
 
@@ -1057,7 +1067,7 @@ nsXPCWrappedJSClass::CheckForException(XPCCallContext & ccx,
             // Try to use the error reporter set on the context to handle this
             // error if it came from a JS exception.
             if (reportable && is_js_exception &&
-                JS_GetErrorReporter(cx) != xpcWrappedJSErrorReporter) {
+                cx->errorReporter != xpcWrappedJSErrorReporter) {
                 reportable = !JS_ReportPendingException(cx);
             }
 
@@ -1173,14 +1183,20 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16_t methodIndex,
     jsval* sp = nsnull;
     jsval* argv = nsnull;
     uint8_t i;
+    uint8_t argc=0;
+    uint8_t paramCount=0;
     nsresult retval = NS_ERROR_FAILURE;
     nsresult pending_result = NS_OK;
     JSBool success;
     JSBool readyToDoTheCall = false;
     nsID  param_iid;
+    JSObject* obj;
     const char* name = info->name;
     jsval fval;
     JSBool foundDependentParam;
+    XPCContext* xpcc;
+    JSContext* cx;
+    JSObject* thisObj;
 
     // Make sure not to set the callee on ccx until after we've gone through
     // the whole nsIXPCFunctionThisTranslator bit.  That code uses ccx to
@@ -1191,14 +1207,13 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16_t methodIndex,
     if (!ccx.IsValid())
         return retval;
 
-    XPCContext *xpcc = ccx.GetXPCContext();
-    JSContext *cx = ccx.GetJSContext();
+    xpcc = ccx.GetXPCContext();
+    cx = ccx.GetJSContext();
 
     if (!cx || !xpcc || !IsReflectable(methodIndex))
         return NS_ERROR_FAILURE;
 
-    JSObject *obj = wrapper->GetJSObject();
-    JSObject *thisObj = obj;
+    obj = thisObj = wrapper->GetJSObject();
 
     JSAutoEnterCompartment ac;
     if (!ac.enter(cx, obj))
@@ -1206,13 +1221,13 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16_t methodIndex,
 
     ccx.SetScopeForNewJSObjects(obj);
 
-    JS::AutoValueVector args(cx);
+    js::AutoValueVector args(cx);
     AutoScriptEvaluate scriptEval(cx);
     ContextPrincipalGuard principalGuard(ccx);
 
     // XXX ASSUMES that retval is last arg. The xpidl compiler ensures this.
-    uint8_t paramCount = info->num_args;
-    uint8_t argc = paramCount -
+    paramCount = info->num_args;
+    argc = paramCount -
         (paramCount && XPT_PD_IS_RETVAL(info->params[paramCount-1].flags) ? 1 : 0);
 
     if (!scriptEval.StartEvaluating(obj, xpcWrappedJSErrorReporter))
@@ -1348,7 +1363,7 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16_t methodIndex,
         goto pre_call_clean_up;
     }
 
-    argv = args.begin();
+    argv = args.jsval_begin();
     sp = argv;
 
     // build the args

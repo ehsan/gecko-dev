@@ -2108,25 +2108,42 @@ nsTextServicesDocument::GetDocumentContentRootNode(nsIDOMNode **aNode)
 nsresult
 nsTextServicesDocument::CreateDocumentContentRange(nsIDOMRange **aRange)
 {
-  *aRange = NULL;
+  nsresult result;
 
-  nsCOMPtr<nsIDOMNode> node;
-  nsresult rv = GetDocumentContentRootNode(getter_AddRefs(node));
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_TRUE(aRange, NS_ERROR_NULL_POINTER);
+
+  *aRange = 0;
+
+  nsCOMPtr<nsIDOMNode>node;
+
+  result = GetDocumentContentRootNode(getter_AddRefs(node));
+
+  NS_ENSURE_SUCCESS(result, result);
+
   NS_ENSURE_TRUE(node, NS_ERROR_NULL_POINTER);
 
-  nsRefPtr<nsRange> range = new nsRange();
+  result = CallCreateInstance("@mozilla.org/content/range;1", aRange);
+  NS_ENSURE_SUCCESS(result, result);
 
-  rv = range->SelectNodeContents(node);
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_TRUE(*aRange, NS_ERROR_NULL_POINTER);
 
-  range.forget(aRange);
+  result = (*aRange)->SelectNodeContents(node);
+
+  if (NS_FAILED(result))
+  {
+    NS_RELEASE((*aRange));
+    *aRange = 0;
+    return result;
+  }
+
   return NS_OK;
 }
 
 nsresult
 nsTextServicesDocument::CreateDocumentContentRootToNodeOffsetRange(nsIDOMNode *aParent, PRInt32 aOffset, bool aToStart, nsIDOMRange **aRange)
 {
+  nsresult result;
+
   NS_ENSURE_TRUE(aParent && aRange, NS_ERROR_NULL_POINTER);
 
   *aRange = 0;
@@ -2137,47 +2154,71 @@ nsTextServicesDocument::CreateDocumentContentRootToNodeOffsetRange(nsIDOMNode *a
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIDOMNode> bodyNode; 
-  nsresult rv = GetDocumentContentRootNode(getter_AddRefs(bodyNode));
-  NS_ENSURE_SUCCESS(rv, rv);
+
+  result = GetDocumentContentRootNode(getter_AddRefs(bodyNode));
+
+  NS_ENSURE_SUCCESS(result, result);
+
   NS_ENSURE_TRUE(bodyNode, NS_ERROR_NULL_POINTER);
 
   nsCOMPtr<nsIDOMNode> startNode;
   nsCOMPtr<nsIDOMNode> endNode;
   PRInt32 startOffset, endOffset;
 
-  if (aToStart) {
+  if (aToStart)
+  {
     // The range should begin at the start of the document
     // and extend up until (aParent, aOffset).
 
     startNode   = bodyNode;
     startOffset = 0;
-    endNode     = aParent;
+    endNode     = do_QueryInterface(aParent);
     endOffset   = aOffset;
-  } else {
+  }
+  else
+  {
     // The range should begin at (aParent, aOffset) and
     // extend to the end of the document.
 
     nsCOMPtr<nsIDOMNodeList> nodeList;
     PRUint32 nodeListLength;
 
-    startNode   = aParent;
+    startNode   = do_QueryInterface(aParent);
     startOffset = aOffset;
     endNode     = bodyNode;
     endOffset   = 0;
 
-    rv = bodyNode->GetChildNodes(getter_AddRefs(nodeList));
-    NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
+    result = bodyNode->GetChildNodes(getter_AddRefs(nodeList));
 
-    if (nodeList) {
-      rv = nodeList->GetLength(&nodeListLength);
-      NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
+    NS_ENSURE_SUCCESS(result, NS_ERROR_FAILURE);
+
+    if (nodeList)
+    {
+      result = nodeList->GetLength(&nodeListLength);
+
+      NS_ENSURE_SUCCESS(result, NS_ERROR_FAILURE);
 
       endOffset = (PRInt32)nodeListLength;
     }
   }
 
-  return nsRange::CreateRange(startNode, startOffset, endNode, endOffset,
-                              aRange);
+  result = CallCreateInstance("@mozilla.org/content/range;1", aRange);
+  NS_ENSURE_SUCCESS(result, result);
+
+  NS_ENSURE_TRUE(*aRange, NS_ERROR_NULL_POINTER);
+
+  result = (*aRange)->SetStart(startNode, startOffset);
+
+  if (NS_SUCCEEDED(result))
+    result = (*aRange)->SetEnd(endNode, endOffset);
+
+  if (NS_FAILED(result))
+  {
+    NS_RELEASE((*aRange));
+    *aRange = 0;
+  }
+
+  return result;
 }
 
 nsresult
@@ -2401,7 +2442,10 @@ bool
 nsTextServicesDocument::IsTextNode(nsIContent *aContent)
 {
   NS_ENSURE_TRUE(aContent, false);
-  return nsIDOMNode::TEXT_NODE == aContent->NodeType();
+
+  nsCOMPtr<nsIDOMNode> node = do_QueryInterface(aContent);
+
+  return IsTextNode(node);
 }
 
 bool
@@ -2409,8 +2453,13 @@ nsTextServicesDocument::IsTextNode(nsIDOMNode *aNode)
 {
   NS_ENSURE_TRUE(aNode, false);
 
-  nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
-  return IsTextNode(content);
+  PRUint16 type;
+
+  nsresult result = aNode->GetNodeType(&type);
+
+  NS_ENSURE_SUCCESS(result, false);
+
+  return nsIDOMNode::TEXT_NODE == type;
 }
 
 nsresult
@@ -3216,11 +3265,11 @@ nsTextServicesDocument::ComparePoints(nsIDOMNode* aParent1, PRInt32 aOffset1,
                                       nsIDOMNode* aParent2, PRInt32 aOffset2,
                                       PRInt32 *aResult)
 {
-  *aResult = 0;
-
+  nsresult result;
+  
   if (!sRangeHelper) {
-    nsresult result = CallGetService("@mozilla.org/content/range-utils;1",
-                                     &sRangeHelper);
+    result = CallGetService("@mozilla.org/content/range-utils;1",
+                            &sRangeHelper);
     NS_ENSURE_TRUE(sRangeHelper, result);
   }
 
@@ -3265,8 +3314,25 @@ nsTextServicesDocument::CreateRange(nsIDOMNode *aStartParent, PRInt32 aStartOffs
                                     nsIDOMNode *aEndParent, PRInt32 aEndOffset,
                                     nsIDOMRange **aRange)
 {
-  return nsRange::CreateRange(aStartParent, aStartOffset, aEndParent,
-                              aEndOffset, aRange);
+  nsresult result;
+
+  result = CallCreateInstance("@mozilla.org/content/range;1", aRange);
+  NS_ENSURE_SUCCESS(result, result);
+
+  NS_ENSURE_TRUE(*aRange, NS_ERROR_NULL_POINTER);
+
+  result = (*aRange)->SetStart(aStartParent, aStartOffset);
+
+  if (NS_SUCCEEDED(result))
+    result = (*aRange)->SetEnd(aEndParent, aEndOffset);
+
+  if (NS_FAILED(result))
+  {
+    NS_RELEASE((*aRange));
+    *aRange = 0;
+  }
+
+  return result;
 }
 
 nsresult
@@ -3278,8 +3344,12 @@ nsTextServicesDocument::FirstTextNode(nsIContentIterator *aIterator,
 
   aIterator->First();
 
-  while (!aIterator->IsDone()) {
-    if (aIterator->GetCurrentNode()->NodeType() == nsIDOMNode::TEXT_NODE) {
+  while (!aIterator->IsDone())
+  {
+    nsCOMPtr<nsIContent> content = do_QueryInterface(aIterator->GetCurrentNode());
+
+    if (IsTextNode(content))
+    {
       if (aIteratorStatus)
         *aIteratorStatus = nsTextServicesDocument::eValid;
       break;
@@ -3300,8 +3370,12 @@ nsTextServicesDocument::LastTextNode(nsIContentIterator *aIterator,
 
   aIterator->Last();
 
-  while (!aIterator->IsDone()) {
-    if (aIterator->GetCurrentNode()->NodeType() == nsIDOMNode::TEXT_NODE) {
+  while (!aIterator->IsDone())
+  {
+    nsCOMPtr<nsIContent> content = do_QueryInterface(aIterator->GetCurrentNode());
+
+    if (IsTextNode(content))
+    {
       if (aIteratorStatus)
         *aIteratorStatus = nsTextServicesDocument::eValid;
       break;
@@ -3445,7 +3519,7 @@ nsTextServicesDocument::GetFirstTextNodeInPrevBlock(nsIContent **aContent)
   if (!mIterator->IsDone())
   {
     nsCOMPtr<nsIContent> current = do_QueryInterface(mIterator->GetCurrentNode());
-    current.forget(aContent);
+    current.swap(*aContent);
   }
 
   // Restore the iterator:
@@ -3479,7 +3553,7 @@ nsTextServicesDocument::GetFirstTextNodeInNextBlock(nsIContent **aContent)
   if (!mIterator->IsDone())
   {
     nsCOMPtr<nsIContent> current = do_QueryInterface(mIterator->GetCurrentNode());
-    current.forget(aContent);
+    current.swap(*aContent);
   }
 
   // Restore the iterator:
@@ -3557,6 +3631,9 @@ nsTextServicesDocument::CreateOffsetTable(nsTArray<OffsetEntry*> *aOffsetTable,
           // Add an entry for this text node into the offset table:
 
           OffsetEntry *entry = new OffsetEntry(node, offset, str.Length());
+
+          NS_ENSURE_TRUE(entry, NS_ERROR_OUT_OF_MEMORY);
+
           aOffsetTable->AppendElement(entry);
 
           // If one or both of the endpoints of the iteration range
@@ -3700,6 +3777,8 @@ nsTextServicesDocument::SplitOffsetEntry(PRInt32 aTableIndex, PRInt32 aNewEntryL
   OffsetEntry *newEntry = new OffsetEntry(entry->mNode,
                                           entry->mStrOffset + oldLength,
                                           aNewEntryLength);
+
+  NS_ENSURE_TRUE(newEntry, NS_ERROR_OUT_OF_MEMORY);
 
   if (!mOffsetTable.InsertElementAt(aTableIndex + 1, newEntry))
   {

@@ -43,8 +43,6 @@
 #include "jswrapper.h"
 #include "jsweakmap.h"
 
-#include "mozilla/GuardObjects.h"
-
 #include "jsobjinlines.h"
 
 using namespace js;
@@ -196,12 +194,6 @@ JS_FRIEND_API(bool)
 js::IsSystemCompartment(const JSCompartment *c)
 {
     return c->isSystemCompartment;
-}
-
-JS_FRIEND_API(bool)
-js::IsAtomsCompartmentFor(const JSContext *cx, const JSCompartment *c)
-{
-    return c == cx->runtime->atomsCompartment;
 }
 
 JS_FRIEND_API(bool)
@@ -441,7 +433,7 @@ void
 js::DumpHeapComplete(JSContext *cx, FILE *fp)
 {
     JSDumpHeapTracer dtrc(cx, fp);
-    JS_TracerInit(&dtrc, cx, DumpHeapPushIfNew);
+    JS_TRACER_INIT(&dtrc, cx, DumpHeapPushIfNew);
     if (!dtrc.visited.init(10000))
         return;
 
@@ -466,151 +458,3 @@ js::DumpHeapComplete(JSContext *cx, FILE *fp)
 }
 
 #endif
-
-namespace js {
-
-/* static */ void
-AutoLockGC::LockGC(JSRuntime *rt)
-{
-    JS_ASSERT(rt);
-    JS_LOCK_GC(rt);
-}
-
-/* static */ void
-AutoLockGC::UnlockGC(JSRuntime *rt)
-{
-    JS_ASSERT(rt);
-    JS_UNLOCK_GC(rt);
-}
-
-void
-AutoLockGC::lock(JSRuntime *rt)
-{
-    JS_ASSERT(rt);
-    JS_ASSERT(!runtime);
-    runtime = rt;
-    JS_LOCK_GC(rt);
-}
-
-JS_FRIEND_API(const JSStructuredCloneCallbacks *)
-GetContextStructuredCloneCallbacks(JSContext *cx)
-{
-    return cx->runtime->structuredCloneCallbacks;
-}
-
-JS_FRIEND_API(JSVersion)
-VersionSetXML(JSVersion version, bool enable)
-{
-    return enable ? JSVersion(uint32_t(version) | VersionFlags::HAS_XML)
-                  : JSVersion(uint32_t(version) & ~VersionFlags::HAS_XML);
-}
-
-JS_FRIEND_API(bool)
-CanCallContextDebugHandler(JSContext *cx)
-{
-    return cx->debugHooks && cx->debugHooks->debuggerHandler;
-}
-
-JS_FRIEND_API(JSTrapStatus)
-CallContextDebugHandler(JSContext *cx, JSScript *script, jsbytecode *bc, Value *rval)
-{
-    if (!CanCallContextDebugHandler(cx))
-        return JSTRAP_RETURN;
-
-    return cx->debugHooks->debuggerHandler(cx, script, bc, rval,
-                                           cx->debugHooks->debuggerHandlerData);
-}
-
-#ifdef JS_THREADSAFE
-JSThread *
-GetContextThread(const JSContext *cx)
-{
-    return cx->thread();
-}
-
-JS_FRIEND_API(unsigned)
-GetContextOutstandingRequests(const JSContext *cx)
-{
-    return cx->outstandingRequests;
-}
-
-JS_FRIEND_API(PRLock *)
-GetRuntimeGCLock(const JSRuntime *rt)
-{
-    return rt->gcLock;
-}
-
-AutoSkipConservativeScan::AutoSkipConservativeScan(JSContext *cx
-                                                   MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
-  : context(cx)
-{
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-
-    ThreadData &threadData = context->thread()->data;
-    JS_ASSERT(threadData.requestDepth >= 1);
-    JS_ASSERT(!threadData.conservativeGC.requestThreshold);
-    if (threadData.requestDepth == 1)
-        threadData.conservativeGC.requestThreshold = 1;
-}
-
-AutoSkipConservativeScan::~AutoSkipConservativeScan()
-{
-    ThreadData &threadData = context->thread()->data;
-    if (threadData.requestDepth == 1)
-        threadData.conservativeGC.requestThreshold = 0;
-}
-#endif
-
-JS_FRIEND_API(JSCompartment *)
-GetContextCompartment(const JSContext *cx)
-{
-    return cx->compartment;
-}
-
-JS_FRIEND_API(bool)
-HasUnrootedGlobal(const JSContext *cx)
-{
-    return cx->hasRunOption(JSOPTION_UNROOTED_GLOBAL);
-}
-
-JS_FRIEND_API(void)
-SetActivityCallback(JSRuntime *rt, ActivityCallback cb, void *arg)
-{
-    rt->activityCallback = cb;
-    rt->activityCallbackArg = arg;
-}
-
-JS_FRIEND_API(bool)
-IsContextRunningJS(JSContext *cx)
-{
-    return !cx->stack.empty();
-}
-
-JS_FRIEND_API(void)
-TriggerOperationCallbacksForActiveContexts(JSRuntime *rt)
-{
-    JSContext* cx = NULL;
-    while ((cx = js_NextActiveContext(rt, cx))) {
-        TriggerOperationCallback(cx);
-    }
-}
-
-JS_FRIEND_API(const CompartmentVector&)
-GetRuntimeCompartments(JSRuntime *rt)
-{
-    return rt->compartments;
-}
-
-JS_FRIEND_API(uintptr_t)
-GetContextStackLimit(const JSContext *cx)
-{
-    return cx->stackLimit;
-}
-
-JS_FRIEND_API(size_t)
-SizeOfJSContext()
-{
-    return sizeof(JSContext);
-}
-
-} // namespace js

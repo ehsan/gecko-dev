@@ -189,19 +189,6 @@ const RADIO_STATE_RUIM_LOCKED_OR_ABSENT = 7;
 const RADIO_STATE_NV_NOT_READY = 8;
 const RADIO_STATE_NV_READY = 9;
 
-const CARD_STATE_ABSENT = 0;
-const CARD_STATE_PRESENT = 1;
-const CARD_STATE_ERROR = 2;
-
-const CARD_APP_STATE_UNKNOWN = 0;
-const CARD_APP_STATE_DETECTED = 1;
-const CARD_APP_STATE_PIN = 2; // If PIN1 or UPin is required.
-const CARD_APP_STATE_PUK = 3; // If PUK1 or Puk for UPin is required.
-const CARD_APP_STATE_SUBSCRIPTION_PERSO = 4; // perso_substate should be looked
-                                             // at when app_state is assigned
-                                             // to this value.
-const CARD_APP_STATE_READY = 5;
-
 const CARD_MAX_APPS = 8;
 
 const CALL_STATE_ACTIVE = 0;
@@ -237,6 +224,26 @@ const DOM_CARDSTATE_PUK_REQUIRED   = "puk_required";
 const DOM_CARDSTATE_NETWORK_LOCKED = "network_locked";
 const DOM_CARDSTATE_NOT_READY      = "not_ready";
 const DOM_CARDSTATE_READY          = "ready";
+
+const DOM_CALL_READYSTATE_DIALING        = "dialing";
+const DOM_CALL_READYSTATE_RINGING        = "ringing";
+const DOM_CALL_READYSTATE_BUSY           = "busy";
+const DOM_CALL_READYSTATE_CONNECTING     = "connecting";
+const DOM_CALL_READYSTATE_CONNECTED      = "connected";
+const DOM_CALL_READYSTATE_DISCONNECTING  = "disconnecting";
+const DOM_CALL_READYSTATE_DISCONNECTED   = "disconnected";
+const DOM_CALL_READYSTATE_INCOMING       = "incoming";
+const DOM_CALL_READYSTATE_HOLDING        = "holding";
+const DOM_CALL_READYSTATE_HELD           = "held";
+
+const RIL_TO_DOM_CALL_STATE = [
+  DOM_CALL_READYSTATE_CONNECTED, // CALL_READYSTATE_ACTIVE
+  DOM_CALL_READYSTATE_HELD,      // CALL_READYSTATE_HOLDING
+  DOM_CALL_READYSTATE_DIALING,   // CALL_READYSTATE_DIALING
+  DOM_CALL_READYSTATE_RINGING,   // CALL_READYSTATE_ALERTING
+  DOM_CALL_READYSTATE_INCOMING,  // CALL_READYSTATE_INCOMING
+  DOM_CALL_READYSTATE_HELD       // CALL_READYSTATE_WAITING (XXX is this right?)
+];
 
 
 /**
@@ -406,7 +413,3 @@ const PDU_ALPHABET_7BIT_DEFAULT = [
   "\xfc",   // LATIN SMALL LETTER U WITH DIAERESIS
   "\xe0"    // LATIN SMALL LETTER A WITH GRAVE
 ];
-
-
-// Allow this file to be imported via Components.utils.import().
-const EXPORTED_SYMBOLS = Object.keys(this);

@@ -60,11 +60,6 @@ HistogramCount
 };
 
 /**
- * Initialize the Telemetry service on the main thread at startup.
- */
-void Init();
-
-/**
  * Adds sample to a histogram defined in TelemetryHistograms.h
  *
  * @param id - histogram id
@@ -89,10 +84,10 @@ base::Histogram* GetHistogramById(ID id);
 template<ID id>
 class AutoTimer {
 public:
-  AutoTimer(TimeStamp aStart = TimeStamp::Now() MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+  AutoTimer(TimeStamp aStart = TimeStamp::Now() MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
      : start(aStart)
   {
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+    MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
   }
 
   ~AutoTimer() {
@@ -101,35 +96,7 @@ public:
 
 private:
   const TimeStamp start;
-  MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
-};
-
-template<ID id>
-class AutoCounter {
-public:
-  AutoCounter(PRUint32 counterStart = 0 MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-    : counter(counterStart)
-  {
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-  }
-
-  ~AutoCounter() {
-    Accumulate(id, counter);
-  }
-
-  // Prefix increment only, to encourage good habits.
-  void operator++() {
-    ++counter;
-  }
-
-  // Chaining doesn't make any sense, don't return anything.
-  void operator+=(int increment) {
-    counter += increment;
-  }
-
-private:
-  PRUint32 counter;
-  MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+  MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 /**

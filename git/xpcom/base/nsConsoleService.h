@@ -46,8 +46,7 @@
 #include "mozilla/Mutex.h"
 
 #include "nsCOMPtr.h"
-#include "nsInterfaceHashtable.h"
-#include "nsHashKeys.h"
+#include "nsHashtable.h"
 
 #include "nsIConsoleService.h"
 
@@ -60,20 +59,12 @@ public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSICONSOLESERVICE
 
-    void SetIsDelivering() {
-        MOZ_ASSERT(NS_IsMainThread());
-        MOZ_ASSERT(!mDeliveringMessage);
-        mDeliveringMessage = true;
-    }
-
-    void SetDoneDelivering() {
-        MOZ_ASSERT(NS_IsMainThread());
-        MOZ_ASSERT(mDeliveringMessage);
-        mDeliveringMessage = false;
-    }
-
 private:
     ~nsConsoleService();
+
+    // build (or find) a proxy for the listener
+    nsresult GetProxyForListener(nsIConsoleListener* aListener,
+                                 nsIConsoleListener** aProxy);
 
     // Circular buffer of saved messages
     nsIConsoleMessage **mMessages;
@@ -87,13 +78,12 @@ private:
     // Is the buffer full? (Has mCurrent wrapped around at least once?)
     bool mFull;
 
-    // Are we currently delivering a console message on the main thread? If
-    // so, we suppress incoming messages on the main thread only, to avoid
-    // infinite repitition.
-    bool mDeliveringMessage;
-
     // Listeners to notify whenever a new message is logged.
-    nsInterfaceHashtable<nsISupportsHashKey, nsIConsoleListener> mListeners;
+    nsSupportsHashtable mListeners;
+
+    // Current listener being notified of a logged error - to prevent
+    // stack overflows.
+    bool mListening;
 
     // To serialize interesting methods.
     mozilla::Mutex mLock;

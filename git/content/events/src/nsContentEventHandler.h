@@ -44,7 +44,7 @@
 #include "nsCOMPtr.h"
 
 #include "nsISelection.h"
-#include "nsRange.h"
+#include "nsIRange.h"
 #include "nsIContent.h"
 #include "nsIDOMTreeWalker.h"
 
@@ -93,7 +93,7 @@ protected:
   nsPresContext* mPresContext;
   nsCOMPtr<nsIPresShell> mPresShell;
   nsCOMPtr<nsISelection> mSelection;
-  nsRefPtr<nsRange> mFirstSelectedRange;
+  nsCOMPtr<nsIRange> mFirstSelectedRange;
   nsCOMPtr<nsIContent> mRootContent;
 
   nsresult Init(nsQueryContentEvent* aEvent);
@@ -112,19 +112,19 @@ public:
                                            PRInt32 aNodeOffset,
                                            PRUint32* aOffset);
   static nsresult GetFlatTextOffsetOfRange(nsIContent* aRootContent,
-                                           nsRange* aRange,
+                                           nsIRange* aRange,
                                            PRUint32* aOffset);
 protected:
   // Make the DOM range from the offset of FlatText and the text length.
   // If aExpandToClusterBoundaries is true, the start offset and the end one are
   // expanded to nearest cluster boundaries.
-  nsresult SetRangeFromFlatTextOffset(nsRange* aRange,
+  nsresult SetRangeFromFlatTextOffset(nsIRange* aRange,
                                       PRUint32 aNativeOffset,
                                       PRUint32 aNativeLength,
                                       bool aExpandToClusterBoundaries);
   // Find the first textframe for the range, and get the start offset in
   // the frame.
-  nsresult GetStartFrameAndOffset(nsRange* aRange,
+  nsresult GetStartFrameAndOffset(nsIRange* aRange,
                                   nsIFrame** aFrame,
                                   PRInt32* aOffsetInFrame);
   // Convert the frame relative offset to the root view relative offset.

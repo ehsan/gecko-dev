@@ -92,7 +92,7 @@
 #include "nsFrameManager.h"
 #include "nsFrameSelection.h"
 #ifdef DEBUG
-#include "nsRange.h"
+#include "nsIRange.h"
 #endif
 
 #include "nsBindingManager.h"
@@ -155,7 +155,6 @@
 #include "nsWrapperCacheInlines.h"
 
 #include "xpcpublic.h"
-#include "xpcprivate.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -4273,21 +4272,15 @@ static const char* kNSURIs[] = {
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGenericElement)
   if (NS_UNLIKELY(cb.WantDebugInfo())) {
-    char name[512];
+    char name[72];
     PRUint32 nsid = tmp->GetNameSpaceID();
     nsAtomCString localName(tmp->NodeInfo()->NameAtom());
-    nsCAutoString uri;
-    if (tmp->OwnerDoc()->GetDocumentURI()) {
-      tmp->OwnerDoc()->GetDocumentURI()->GetSpec(uri);
-    }
-
     if (nsid < ArrayLength(kNSURIs)) {
-      PR_snprintf(name, sizeof(name), "nsGenericElement%s %s %s", kNSURIs[nsid],
-                  localName.get(), uri.get());
+      PR_snprintf(name, sizeof(name), "nsGenericElement%s %s", kNSURIs[nsid],
+                  localName.get());
     }
     else {
-      PR_snprintf(name, sizeof(name), "nsGenericElement %s %s",
-                  localName.get(), uri.get());
+      PR_snprintf(name, sizeof(name), "nsGenericElement %s", localName.get());
     }
     cb.DescribeRefCountedNode(tmp->mRefCnt.get(), sizeof(nsGenericElement),
                               name);
@@ -4981,8 +4974,8 @@ nsGenericElement::List(FILE* out, PRInt32 aIndent,
   fprintf(out, " state=[%llx]", State().GetInternalValue());
   fprintf(out, " flags=[%08x]", static_cast<unsigned int>(GetFlags()));
   if (IsCommonAncestorForRangeInSelection()) {
-    nsRange::RangeHashTable* ranges =
-      static_cast<nsRange::RangeHashTable*>(GetProperty(nsGkAtoms::range));
+    nsIRange::RangeHashTable* ranges =
+      static_cast<nsIRange::RangeHashTable*>(GetProperty(nsGkAtoms::range));
     fprintf(out, " ranges:%d", ranges ? ranges->Count() : 0);
   }
   fprintf(out, " primaryframe=%p", static_cast<void*>(GetPrimaryFrame()));

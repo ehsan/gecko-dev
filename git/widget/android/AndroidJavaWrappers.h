@@ -533,7 +533,6 @@ public:
         BROADCAST = 19,
         VIEWPORT = 20,
         TILE_SIZE = 21,
-        VISITED = 22,
         dummy_java_enum_list_end
     };
 

@@ -152,12 +152,6 @@ public class Favicons {
 
             db.replace(TABLE_NAME, null, values);
         }
-
-
-        public void clearFavicons() {
-            SQLiteDatabase db = mDbHelper.getWritableDatabase();
-            db.delete(TABLE_NAME, null, null);
-        }
     }
 
     public Favicons(Context context) {
@@ -203,10 +197,6 @@ public class Favicons {
 
         LoadFaviconTask task = mLoadTasks.get(taskId);
         return task.cancel(false);
-    }
-
-    public void clearFavicons() {
-        mDbHelper.clearFavicons();
     }
 
     public void close() {
