@@ -221,6 +221,7 @@ protected:
   bool mGoingToDispatchAllMessages;
   bool mWithCredentials;
   bool mWaitingForOnStopRequest;
+  bool mInterrupted;
 
   // used while reading the input streams
   nsCOMPtr<nsIUnicodeDecoder> mUnicodeDecoder;

@@ -7,12 +7,13 @@
 
 const TAB_URL = EXAMPLE_URL + "doc_editor-mode.html";
 
-let gTab, gPanel, gDebugger;
+let gTab, gDebuggee, gPanel, gDebugger;
 let gSearchBox;
 
 function test() {
-  initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
+  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
     gTab = aTab;
+    gDebuggee = aDebuggee;
     gPanel = aPanel;
     gDebugger = gPanel.panelWin;
     gSearchBox = gDebugger.DebuggerView.Filtering._searchbox;
@@ -110,6 +111,7 @@ function pressKeyToHide(aKey) {
 
 registerCleanupFunction(function() {
   gTab = null;
+  gDebuggee = null;
   gPanel = null;
   gDebugger = null;
   gSearchBox = null;

@@ -65,7 +65,6 @@ public:
     , mViewport(0, 0, 0, 0)
     , mExtraResolution(1)
     , mBackgroundColor(0, 0, 0, 0)
-    , mLineScrollAmount(0, 0)
   {
   }
 
@@ -96,8 +95,7 @@ public:
            mUpdateScrollOffset == aOther.mUpdateScrollOffset &&
            mExtraResolution == aOther.mExtraResolution &&
            mBackgroundColor == aOther.mBackgroundColor &&
-           mDoSmoothScroll == aOther.mDoSmoothScroll &&
-           mLineScrollAmount == aOther.mLineScrollAmount;
+           mDoSmoothScroll == aOther.mDoSmoothScroll;
   }
   bool operator!=(const FrameMetrics& aOther) const
   {
@@ -516,16 +514,6 @@ public:
     mMayHaveTouchListeners = aMayHaveTouchListeners;
   }
 
-  const LayoutDeviceIntSize& GetLineScrollAmount() const
-  {
-    return mLineScrollAmount;
-  }
-
-  void SetLineScrollAmount(const LayoutDeviceIntSize& size)
-  {
-    mLineScrollAmount = size;
-  }
-
 private:
   // New fields from now on should be made private and old fields should
   // be refactored to be private.
@@ -617,9 +605,6 @@ private:
   // This is empty unless this is a scrollable layer and the
   // apz.printtree pref is turned on.
   nsCString mContentDescription;
-
-  // The value of GetLineScrollAmount(), for scroll frames.
-  LayoutDeviceIntSize mLineScrollAmount;
 };
 
 /**

@@ -2,26 +2,22 @@ var zlibpool = exports,
     spdy = require('../spdy');
 
 //
-// ### function Pool (compression)
-// #### @compression {Boolean} whether to enable compression
+// ### function Pool ()
 // Zlib streams pool
 //
-function Pool(compression) {
-  this.compression = compression;
+function Pool() {
   this.pool = {
     'spdy/2': [],
-    'spdy/3': [],
-    'spdy/3.1': []
+    'spdy/3': []
   };
 }
 
 //
-// ### function create (compression)
-// #### @compression {Boolean} whether to enable compression
+// ### function create ()
 // Returns instance of Pool
 //
-zlibpool.create = function create(compression) {
-  return new Pool(compression);
+zlibpool.create = function create() {
+  return new Pool();
 };
 
 var x = 0;
@@ -37,7 +33,7 @@ Pool.prototype.get = function get(version, callback) {
 
     return {
       version: version,
-      deflate: spdy.utils.createDeflate(id, this.compression),
+      deflate: spdy.utils.createDeflate(id),
       inflate: spdy.utils.createInflate(id)
     };
   }
@@ -55,7 +51,8 @@ Pool.prototype.put = function put(pair) {
   spdy.utils.resetZlibStream(pair.deflate, done);
 
   function done() {
-    if (--waiting === 0)
+    if (--waiting === 0) {
       self.pool[pair.version].push(pair);
+    }
   }
 };

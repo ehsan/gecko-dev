@@ -7,7 +7,6 @@
 #include "mozilla/dom/Promise.h"
 
 #include "jsfriendapi.h"
-#include "js/Debug.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/DOMError.h"
 #include "mozilla/dom/OwningNonNull.h"
@@ -325,8 +324,8 @@ Promise::CreateWrapper(ErrorResult& aRv)
   }
   JSContext* cx = jsapi.cx();
 
-  JS::Rooted<JS::Value> wrapper(cx);
-  if (!WrapNewBindingObject(cx, this, &wrapper)) {
+  JS::Rooted<JS::Value> ignored(cx);
+  if (!WrapNewBindingObject(cx, this, &ignored)) {
     JS_ClearPendingException(cx);
     aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
     return;
@@ -340,9 +339,6 @@ Promise::CreateWrapper(ErrorResult& aRv)
     aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
     return;
   }
-
-  JS::RootedObject obj(cx, &wrapper.toObject());
-  JS::dbg::onNewPromise(cx, obj);
 }
 
 void
@@ -1117,19 +1113,19 @@ Promise::RejectInternal(JSContext* aCx,
 }
 
 void
-Promise::Settle(JS::Handle<JS::Value> aValue, PromiseState aState)
+Promise::MaybeSettle(JS::Handle<JS::Value> aValue,
+                     PromiseState aState)
 {
-  mSettlementTimestamp = TimeStamp::Now();
+  // Promise.all() or Promise.race() implementations will repeatedly call
+  // Resolve/RejectInternal rather than using the Maybe... forms. Stop SetState
+  // from asserting.
+  if (mState != Pending) {
+    return;
+  }
+
   SetResult(aValue);
   SetState(aState);
-
-  AutoJSAPI jsapi;
-  jsapi.Init();
-  JSContext* cx = jsapi.cx();
-  JS::RootedObject wrapper(cx, GetWrapper());
-  MOZ_ASSERT(wrapper); // We preserved it
-  JSAutoCompartment ac(cx, wrapper);
-  JS::dbg::onPromiseSettled(cx, wrapper);
+  mSettlementTimestamp = TimeStamp::Now();
 
   // If the Promise was rejected, and there is no reject handler already setup,
   // watch for thread shutdown.
@@ -1151,20 +1147,6 @@ Promise::Settle(JS::Handle<JS::Value> aValue, PromiseState aState)
   }
 
   EnqueueCallbackTasks();
-}
-
-void
-Promise::MaybeSettle(JS::Handle<JS::Value> aValue,
-                     PromiseState aState)
-{
-  // Promise.all() or Promise.race() implementations will repeatedly call
-  // Resolve/RejectInternal rather than using the Maybe... forms. Stop SetState
-  // from asserting.
-  if (mState != Pending) {
-    return;
-  }
-
-  Settle(aValue, aState);
 }
 
 void

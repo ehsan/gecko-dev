@@ -530,9 +530,7 @@ function writeFile(certNameToSKD, certSKDToName,
   // Compute used pins from both Chrome's and our pinsets, so we can output
   // them later.
   let usedFingerprints = {};
-  let mozillaPins = {};
   gStaticPins.pinsets.forEach(function(pinset) {
-    mozillaPins[pinset.name] = true;
     // We aren't guaranteed to have sha1_hashes in our own JSON.
     if (pinset.sha1_hashes) {
       pinset.sha1_hashes.forEach(function(name) {
@@ -575,12 +573,7 @@ function writeFile(certNameToSKD, certSKDToName,
   });
   writeString("/* Chrome static pinsets */\n");
   for (let key in chromeImportedPinsets) {
-    if (mozillaPins[key]) {
-      dump("Skipping duplicate pinset " + key + "\n");
-    } else {
-      dump("Writing pinset " + key + "\n");
-      writeFullPinset(certNameToSKD, certSKDToName, chromeImportedPinsets[key]);
-    }
+    writeFullPinset(certNameToSKD, certSKDToName, chromeImportedPinsets[key]);
   }
 
   // Write the domainlist entries.

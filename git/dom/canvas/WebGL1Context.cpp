@@ -4,48 +4,47 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "WebGL1Context.h"
-
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
+
 #include "mozilla/Telemetry.h"
 
-namespace mozilla {
+using namespace mozilla;
 
-/*static*/ WebGL1Context*
-WebGL1Context::Create()
-{
-    return new WebGL1Context();
-}
+// -----------------------------------------------------------------------------
+// CONSTRUCTOR & DESTRUCTOR
 
 WebGL1Context::WebGL1Context()
     : WebGLContext()
 {
+
 }
 
 WebGL1Context::~WebGL1Context()
 {
+
 }
 
-////////////////////////////////////////
-// nsWrapperCache
+
+// -----------------------------------------------------------------------------
+// IMPLEMENT nsWrapperCache
 
 JSObject*
-WebGL1Context::WrapObject(JSContext* cx)
+WebGL1Context::WrapObject(JSContext *cx)
 {
     return dom::WebGLRenderingContextBinding::Wrap(cx, this);
 }
 
-} // namespace mozilla
 
-////////////////////////////////////////
-// nsIDOMWebGLRenderingContext
+// -----------------------------------------------------------------------------
+// INSTANCING nsIDOMWebGLRenderingContext
 
 nsresult
-NS_NewCanvasRenderingContextWebGL(nsIDOMWebGLRenderingContext** out_result)
+NS_NewCanvasRenderingContextWebGL(nsIDOMWebGLRenderingContext** aResult)
 {
-    mozilla::Telemetry::Accumulate(mozilla::Telemetry::CANVAS_WEBGL_USED, 1);
+    Telemetry::Accumulate(Telemetry::CANVAS_WEBGL_USED, 1);
+    nsIDOMWebGLRenderingContext* ctx = new WebGL1Context();
 
-    nsIDOMWebGLRenderingContext* ctx = mozilla::WebGL1Context::Create();
-
-    NS_ADDREF(*out_result = ctx);
+    NS_ADDREF(*aResult = ctx);
     return NS_OK;
 }
+

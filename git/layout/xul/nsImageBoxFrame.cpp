@@ -602,18 +602,16 @@ nsImageBoxFrame::GetFrameName(nsAString& aResult) const
 #endif
 
 nsresult
-nsImageBoxFrame::Notify(imgIRequest* aRequest,
-                        int32_t aType,
-                        const nsIntRect* aData)
+nsImageBoxFrame::Notify(imgIRequest *aRequest, int32_t aType, const nsIntRect* aData)
 {
   if (aType == imgINotificationObserver::SIZE_AVAILABLE) {
     nsCOMPtr<imgIContainer> image;
     aRequest->GetImage(getter_AddRefs(image));
-    return OnSizeAvailable(aRequest, image);
+    return OnStartContainer(aRequest, image);
   }
 
   if (aType == imgINotificationObserver::DECODE_COMPLETE) {
-    return OnDecodeComplete(aRequest);
+    return OnStopDecode(aRequest);
   }
 
   if (aType == imgINotificationObserver::LOAD_COMPLETE) {
@@ -621,7 +619,7 @@ nsImageBoxFrame::Notify(imgIRequest* aRequest,
     aRequest->GetImageStatus(&imgStatus);
     nsresult status =
         imgStatus & imgIRequest::STATUS_ERROR ? NS_ERROR_FAILURE : NS_OK;
-    return OnLoadComplete(aRequest, status);
+    return OnStopRequest(aRequest, status);
   }
 
   if (aType == imgINotificationObserver::IS_ANIMATED) {
@@ -629,25 +627,25 @@ nsImageBoxFrame::Notify(imgIRequest* aRequest,
   }
 
   if (aType == imgINotificationObserver::FRAME_UPDATE) {
-    return OnFrameUpdate(aRequest);
+    return FrameChanged(aRequest);
   }
 
   return NS_OK;
 }
 
-nsresult
-nsImageBoxFrame::OnSizeAvailable(imgIRequest* aRequest, imgIContainer* aImage)
+nsresult nsImageBoxFrame::OnStartContainer(imgIRequest *request,
+                                           imgIContainer *image)
 {
-  NS_ENSURE_ARG_POINTER(aImage);
+  NS_ENSURE_ARG_POINTER(image);
 
   // Ensure the animation (if any) is started. Note: There is no
   // corresponding call to Decrement for this. This Increment will be
   // 'cleaned up' by the Request when it is destroyed, but only then.
-  aRequest->IncrementAnimationConsumers();
+  request->IncrementAnimationConsumers();
 
   nscoord w, h;
-  aImage->GetWidth(&w);
-  aImage->GetHeight(&h);
+  image->GetWidth(&w);
+  image->GetHeight(&h);
 
   mIntrinsicSize.SizeTo(nsPresContext::CSSPixelsToAppUnits(w),
                         nsPresContext::CSSPixelsToAppUnits(h));
@@ -660,14 +658,13 @@ nsImageBoxFrame::OnSizeAvailable(imgIRequest* aRequest, imgIContainer* aImage)
   return NS_OK;
 }
 
-nsresult
-nsImageBoxFrame::OnDecodeComplete(imgIRequest* aRequest)
+nsresult nsImageBoxFrame::OnStopDecode(imgIRequest *request)
 {
   if (mFireEventOnDecode) {
     mFireEventOnDecode = false;
 
     uint32_t reqStatus;
-    aRequest->GetImageStatus(&reqStatus);
+    request->GetImageStatus(&reqStatus);
     if (!(reqStatus & imgIRequest::STATUS_ERROR)) {
       FireImageDOMEvent(mContent, NS_LOAD);
     } else {
@@ -685,11 +682,11 @@ nsImageBoxFrame::OnDecodeComplete(imgIRequest* aRequest)
   return NS_OK;
 }
 
-nsresult
-nsImageBoxFrame::OnLoadComplete(imgIRequest* aRequest, nsresult aStatus)
+nsresult nsImageBoxFrame::OnStopRequest(imgIRequest *request,
+                                        nsresult aStatus)
 {
   uint32_t reqStatus;
-  aRequest->GetImageStatus(&reqStatus);
+  request->GetImageStatus(&reqStatus);
 
   // We want to give the decoder a chance to find errors. If we haven't found
   // an error yet and we've already started decoding, we must only fire these
@@ -714,8 +711,7 @@ nsImageBoxFrame::OnLoadComplete(imgIRequest* aRequest, nsresult aStatus)
   return NS_OK;
 }
 
-nsresult
-nsImageBoxFrame::OnImageIsAnimated(imgIRequest* aRequest)
+nsresult nsImageBoxFrame::OnImageIsAnimated(imgIRequest *aRequest)
 {
   // Register with our refresh driver, if we're animated.
   nsLayoutUtils::RegisterImageRequest(PresContext(), aRequest,
@@ -724,8 +720,7 @@ nsImageBoxFrame::OnImageIsAnimated(imgIRequest* aRequest)
   return NS_OK;
 }
 
-nsresult
-nsImageBoxFrame::OnFrameUpdate(imgIRequest* aRequest)
+nsresult nsImageBoxFrame::FrameChanged(imgIRequest *aRequest)
 {
   if ((0 == mRect.width) || (0 == mRect.height)) {
     return NS_OK;

@@ -4539,7 +4539,8 @@ ICGetElem_Dense::Compiler::generateStubCode(MacroAssembler &masm)
     masm.branch32(Assembler::BelowOrEqual, initLength, key, &failure);
 
     // Hole check and load value.
-    BaseObjectElementIndex element(scratchReg, key);
+    JS_STATIC_ASSERT(sizeof(Value) == 8);
+    BaseIndex element(scratchReg, key, TimesEight);
     masm.branchTestMagic(Assembler::Equal, element, &failure);
 
     // Check if __noSuchMethod__ should be called.
@@ -4709,9 +4710,10 @@ ICGetElem_Arguments::Compiler::generateStubCode(MacroAssembler &masm)
         masm.branch32(Assembler::AboveOrEqual, idx, scratch, &failure);
 
         // Load argval
+        JS_STATIC_ASSERT(sizeof(Value) == 8);
         masm.movePtr(BaselineFrameReg, scratch);
         masm.addPtr(Imm32(BaselineFrame::offsetOfArg(0)), scratch);
-        BaseValueIndex element(scratch, idx);
+        BaseIndex element(scratch, idx, TimesEight);
         masm.loadValue(element, R0);
 
         // Enter type monitor IC to type-check result.
@@ -4785,7 +4787,7 @@ ICGetElem_Arguments::Compiler::generateStubCode(MacroAssembler &masm)
     regs.add(scratchReg);
     regs.add(tempReg);
     ValueOperand tempVal = regs.takeAnyValue();
-    masm.loadValue(BaseValueIndex(argData, idxReg), tempVal);
+    masm.loadValue(BaseIndex(argData, idxReg, ScaleFromElemWidth(sizeof(Value))), tempVal);
 
     // Makesure that this is not a FORWARD_TO_CALL_SLOT magic value.
     masm.branchTestMagic(Assembler::Equal, tempVal, &failureReconstructInputs);
@@ -9265,7 +9267,8 @@ ICCallStubCompiler::pushCallerArguments(MacroAssembler &masm, GeneralRegisterSet
     masm.loadPtr(Address(BaselineFrameReg, 0), startReg);
     masm.loadPtr(Address(startReg, BaselineFrame::offsetOfNumActualArgs()), endReg);
     masm.addPtr(Imm32(BaselineFrame::offsetOfArg(0)), startReg);
-    masm.lshiftPtr(Imm32(ValueShift), endReg);
+    JS_STATIC_ASSERT(sizeof(Value) == 8);
+    masm.lshiftPtr(Imm32(3), endReg);
     masm.addPtr(startReg, endReg);
 
     // Copying pre-decrements endReg by 8 until startReg is reached
@@ -9291,7 +9294,8 @@ ICCallStubCompiler::pushArrayArguments(MacroAssembler &masm, Address arrayVal,
     masm.extractObject(arrayVal, startReg);
     masm.loadPtr(Address(startReg, NativeObject::offsetOfElements()), startReg);
     masm.load32(Address(startReg, ObjectElements::offsetOfInitializedLength()), endReg);
-    masm.lshiftPtr(Imm32(ValueShift), endReg);
+    JS_STATIC_ASSERT(sizeof(Value) == 8);
+    masm.lshiftPtr(Imm32(3), endReg);
     masm.addPtr(startReg, endReg);
 
     // Copying pre-decrements endReg by 8 until startReg is reached
@@ -9450,7 +9454,8 @@ ICCallScriptedCompiler::generateStubCode(MacroAssembler &masm)
     if (isSpread_) {
         masm.loadValue(Address(BaselineStackReg, 2 * sizeof(Value) + ICStackValueOffset), R1);
     } else {
-        BaseValueIndex calleeSlot(BaselineStackReg, argcReg, ICStackValueOffset + sizeof(Value));
+        BaseIndex calleeSlot(BaselineStackReg, argcReg, TimesEight,
+                             ICStackValueOffset + sizeof(Value));
         masm.loadValue(calleeSlot, R1);
     }
     regs.take(R1);
@@ -9510,8 +9515,8 @@ ICCallScriptedCompiler::generateStubCode(MacroAssembler &masm)
             masm.loadValue(Address(BaselineStackReg,
                                    2 * sizeof(Value) + STUB_FRAME_SIZE + sizeof(size_t)), R1);
         } else {
-            BaseValueIndex calleeSlot2(BaselineStackReg, argcReg,
-                                       sizeof(Value) + STUB_FRAME_SIZE + sizeof(size_t));
+            BaseIndex calleeSlot2(BaselineStackReg, argcReg, TimesEight,
+                                  sizeof(Value) + STUB_FRAME_SIZE + sizeof(size_t));
             masm.loadValue(calleeSlot2, R1);
         }
         masm.push(masm.extractObject(R1, ExtractTemp0));
@@ -9543,7 +9548,7 @@ ICCallScriptedCompiler::generateStubCode(MacroAssembler &masm)
         if (isSpread_) {
             masm.storeValue(R0, Address(BaselineStackReg, sizeof(Value) + STUB_FRAME_SIZE));
         } else {
-            BaseValueIndex thisSlot(BaselineStackReg, argcReg, STUB_FRAME_SIZE);
+            BaseIndex thisSlot(BaselineStackReg, argcReg, TimesEight, STUB_FRAME_SIZE);
             masm.storeValue(R0, thisSlot);
         }
 
@@ -9559,7 +9564,8 @@ ICCallScriptedCompiler::generateStubCode(MacroAssembler &masm)
         if (isSpread_) {
             masm.loadValue(Address(BaselineStackReg, 2 * sizeof(Value) + STUB_FRAME_SIZE), R0);
         } else {
-            BaseValueIndex calleeSlot3(BaselineStackReg, argcReg, sizeof(Value) + STUB_FRAME_SIZE);
+            BaseIndex calleeSlot3(BaselineStackReg, argcReg, TimesEight,
+                                  sizeof(Value) + STUB_FRAME_SIZE);
             masm.loadValue(calleeSlot3, R0);
         }
         callee = masm.extractObject(R0, ExtractTemp0);
@@ -9658,8 +9664,8 @@ ICCallScriptedCompiler::generateStubCode(MacroAssembler &masm)
             masm.add32(Imm32(1), scratchReg);
         else
             masm.lshiftPtr(Imm32(1), scratchReg);
-        BaseValueIndex reloadThisSlot(BaselineStackReg, scratchReg,
-                                      STUB_FRAME_SIZE + sizeof(Value) + 3 * sizeof(size_t));
+        BaseIndex reloadThisSlot(BaselineStackReg, scratchReg, TimesEight,
+                                 STUB_FRAME_SIZE + sizeof(Value) + 3*sizeof(size_t));
         masm.loadValue(reloadThisSlot, JSReturnOperand);
 #ifdef DEBUG
         masm.branchTestObject(Assembler::Equal, JSReturnOperand, &skipThisReplace);
@@ -9837,7 +9843,7 @@ ICCall_Native::Compiler::generateStubCode(MacroAssembler &masm)
     if (isSpread_) {
         masm.loadValue(Address(BaselineStackReg, ICStackValueOffset + 2 * sizeof(Value)), R1);
     } else {
-        BaseValueIndex calleeSlot(BaselineStackReg, argcReg, ICStackValueOffset + sizeof(Value));
+        BaseIndex calleeSlot(BaselineStackReg, argcReg, TimesEight, ICStackValueOffset + sizeof(Value));
         masm.loadValue(calleeSlot, R1);
     }
     regs.take(R1);
@@ -9939,7 +9945,7 @@ ICCall_ClassHook::Compiler::generateStubCode(MacroAssembler &masm)
     regs.takeUnchecked(BaselineTailCallReg);
 
     // Load the callee in R1.
-    BaseValueIndex calleeSlot(BaselineStackReg, argcReg, ICStackValueOffset + sizeof(Value));
+    BaseIndex calleeSlot(BaselineStackReg, argcReg, TimesEight, ICStackValueOffset + sizeof(Value));
     masm.loadValue(calleeSlot, R1);
     regs.take(R1);
 
@@ -10243,7 +10249,7 @@ ICCall_ScriptedFunCall::Compiler::generateStubCode(MacroAssembler &masm)
 
     // Load the callee in R1.
     // Stack Layout: [ ..., CalleeVal, ThisVal, Arg0Val, ..., ArgNVal, +ICStackValueOffset+ ]
-    BaseValueIndex calleeSlot(BaselineStackReg, argcReg, ICStackValueOffset + sizeof(Value));
+    BaseIndex calleeSlot(BaselineStackReg, argcReg, TimesEight, ICStackValueOffset + sizeof(Value));
     masm.loadValue(calleeSlot, R1);
     regs.take(R1);
 

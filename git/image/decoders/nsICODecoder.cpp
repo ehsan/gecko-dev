@@ -83,8 +83,7 @@ nsICODecoder::FinishInternal()
   if (mContainedDecoder) {
     mContainedDecoder->FinishSharedDecoder();
     mDecodeDone = mContainedDecoder->GetDecodeDone();
-    mProgress |= mContainedDecoder->TakeProgress();
-    mInvalidRect.Union(mContainedDecoder->TakeInvalidRect());
+    mProgress |= mContainedDecoder->GetProgress();
   }
 }
 
@@ -543,8 +542,6 @@ nsICODecoder::WriteInternal(const char* aBuffer, uint32_t aCount,
           return;
         }
 
-        uint8_t sawTransparency = 0;
-
         while (mCurLine > 0 && aCount > 0) {
           uint32_t toCopy = std::min(rowSize - mRowBytes, aCount);
           if (toCopy) {
@@ -570,7 +567,6 @@ nsICODecoder::WriteInternal(const char* aBuffer, uint32_t aCount,
             uint8_t* p_end = mRow + rowSize;
             while (p < p_end) {
               uint8_t idx = *p++;
-              sawTransparency |= idx;
               for (uint8_t bit = 0x80; bit && decoded<decoded_end; bit >>= 1) {
                 // Clear pixel completely for transparency.
                 if (idx & bit) {
@@ -580,12 +576,6 @@ nsICODecoder::WriteInternal(const char* aBuffer, uint32_t aCount,
               }
             }
           }
-        }
-
-        // If any bits are set in sawTransparency, then we know at least one
-        // pixel was transparent.
-        if (sawTransparency) {
-            PostHasTransparency();
         }
       }
     }
@@ -597,8 +587,7 @@ nsICODecoder::WriteToContainedDecoder(const char* aBuffer, uint32_t aCount,
                                       DecodeStrategy aStrategy)
 {
   mContainedDecoder->Write(aBuffer, aCount, aStrategy);
-  mProgress |= mContainedDecoder->TakeProgress();
-  mInvalidRect.Union(mContainedDecoder->TakeInvalidRect());
+  mProgress |= mContainedDecoder->GetProgress();
   if (mContainedDecoder->HasDataError()) {
     mDataError = mContainedDecoder->HasDataError();
   }
@@ -643,8 +632,7 @@ nsICODecoder::AllocateFrame()
   if (mContainedDecoder) {
     nsresult rv = mContainedDecoder->AllocateFrame();
     mCurrentFrame = mContainedDecoder->GetCurrentFrame();
-    mProgress |= mContainedDecoder->TakeProgress();
-    mInvalidRect.Union(mContainedDecoder->TakeInvalidRect());
+    mProgress |= mContainedDecoder->GetProgress();
     return rv;
   }
 

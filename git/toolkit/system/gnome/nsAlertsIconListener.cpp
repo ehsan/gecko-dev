@@ -108,18 +108,18 @@ NS_IMETHODIMP
 nsAlertsIconListener::Notify(imgIRequest *aRequest, int32_t aType, const nsIntRect* aData)
 {
   if (aType == imgINotificationObserver::LOAD_COMPLETE) {
-    return OnLoadComplete(aRequest);
+    return OnStopRequest(aRequest);
   }
 
   if (aType == imgINotificationObserver::FRAME_COMPLETE) {
-    return OnFrameComplete(aRequest);
+    return OnStopFrame(aRequest);
   }
 
   return NS_OK;
 }
 
 nsresult
-nsAlertsIconListener::OnLoadComplete(imgIRequest* aRequest)
+nsAlertsIconListener::OnStopRequest(imgIRequest* aRequest)
 {
   NS_ASSERTION(mIconRequest == aRequest, "aRequest does not match!");
 
@@ -139,7 +139,7 @@ nsAlertsIconListener::OnLoadComplete(imgIRequest* aRequest)
 }
 
 nsresult
-nsAlertsIconListener::OnFrameComplete(imgIRequest* aRequest)
+nsAlertsIconListener::OnStopFrame(imgIRequest* aRequest)
 {
   NS_ASSERTION(mIconRequest == aRequest, "aRequest does not match!");
 

@@ -52,7 +52,7 @@ public:
   void Destroy();
 
 protected:
-  nsresult OnFrameComplete(imgIRequest* aRequest);
+  nsresult OnStopFrame(imgIRequest* aRequest);
 
   nsCOMPtr<nsIContent>      mContent;
   nsRefPtr<imgRequestProxy> mIconRequest;

@@ -192,23 +192,17 @@ CheckMarkedThing(JSTracer *trc, T **thingp)
     if (ThingIsPermanentAtom(thing))
         return;
 
-    Zone *zone = thing->zoneFromAnyThread();
-    JSRuntime *rt = trc->runtime();
-
-#ifdef JSGC_COMPACTING
-    MOZ_ASSERT_IF(!MovingTracer::IsMovingTracer(trc), CurrentThreadCanAccessZone(zone));
-    MOZ_ASSERT_IF(!MovingTracer::IsMovingTracer(trc), CurrentThreadCanAccessRuntime(rt));
-#else
-    MOZ_ASSERT(CurrentThreadCanAccessZone(zone));
-    MOZ_ASSERT(CurrentThreadCanAccessRuntime(rt));
-#endif
-
-    MOZ_ASSERT(zone->runtimeFromAnyThread() == trc->runtime());
+    MOZ_ASSERT(thing->zone());
+    MOZ_ASSERT(thing->zone()->runtimeFromMainThread() == trc->runtime());
     MOZ_ASSERT(trc->hasTracingDetails());
+
+    DebugOnly<JSRuntime *> rt = trc->runtime();
 
     bool isGcMarkingTracer = IS_GC_MARKING_TRACER(trc);
 
-    MOZ_ASSERT_IF(zone->requireGCTracer(), isGcMarkingTracer);
+    MOZ_ASSERT(CurrentThreadCanAccessRuntime(rt));
+
+    MOZ_ASSERT_IF(thing->zone()->requireGCTracer(), isGcMarkingTracer);
 
     MOZ_ASSERT(thing->isAligned());
 
@@ -217,12 +211,14 @@ CheckMarkedThing(JSTracer *trc, T **thingp)
     if (isGcMarkingTracer) {
         GCMarker *gcMarker = static_cast<GCMarker *>(trc);
         MOZ_ASSERT_IF(gcMarker->shouldCheckCompartments(),
-                      zone->isCollecting() || rt->isAtomsZone(zone));
+                      thing->zone()->isCollecting() || rt->isAtomsZone(thing->zone()));
 
         MOZ_ASSERT_IF(gcMarker->getMarkColor() == GRAY,
-                      !zone->isGCMarkingBlack() || rt->isAtomsZone(zone));
+                      !thing->zone()->isGCMarkingBlack() || rt->isAtomsZone(thing->zone()));
 
-        MOZ_ASSERT(!(zone->isGCSweeping() || zone->isGCFinished() || zone->isGCCompacting()));
+        MOZ_ASSERT(!(thing->zone()->isGCSweeping() ||
+                     thing->zone()->isGCFinished() ||
+                     thing->zone()->isGCCompacting()));
     }
 
     /*

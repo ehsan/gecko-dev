@@ -7686,9 +7686,7 @@ GenerateEntry(ModuleCompiler &m, unsigned exportIndex)
           case ABIArg::GPR:
             masm.load32(src, iter->gpr());
             break;
-          case ABIArg::FPU: {
-            static_assert(sizeof(AsmJSModule::EntryArg) >= jit::Simd128DataSize,
-                          "EntryArg must be big enough to store SIMD values");
+          case ABIArg::FPU:
             switch (type) {
               case MIRType_Int32x4:
                 masm.loadUnalignedInt32x4(src, iter->fpu());
@@ -7707,7 +7705,6 @@ GenerateEntry(ModuleCompiler &m, unsigned exportIndex)
                 break;
             }
             break;
-          }
           case ABIArg::Stack:
             switch (type) {
               case MIRType_Int32:

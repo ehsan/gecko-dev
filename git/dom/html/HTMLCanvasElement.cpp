@@ -34,7 +34,6 @@
 #include "nsNetUtil.h"
 #include "nsStreamUtils.h"
 #include "ActiveLayerTracker.h"
-#include "WebGL1Context.h"
 #include "WebGL2Context.h"
 
 using namespace mozilla::layers;
@@ -649,71 +648,71 @@ HTMLCanvasElement::MozGetAsFileImpl(const nsAString& aName,
   return NS_OK;
 }
 
-static bool
-GetCanvasContextType(const nsAString& str, CanvasContextType* const out_type)
+nsresult
+HTMLCanvasElement::GetContextHelper(const nsAString& aContextId,
+                                    nsICanvasRenderingContextInternal **aContext)
 {
-  if (str.EqualsLiteral("2d")) {
-    *out_type = CanvasContextType::Canvas2D;
-    return true;
+  NS_ENSURE_ARG(aContext);
+
+  if (aContextId.EqualsLiteral("2d")) {
+    Telemetry::Accumulate(Telemetry::CANVAS_2D_USED, 1);
+    nsRefPtr<CanvasRenderingContext2D> ctx =
+      new CanvasRenderingContext2D();
+
+    ctx->SetCanvasElement(this);
+    ctx.forget(aContext);
+    return NS_OK;
   }
 
-  if (str.EqualsLiteral("experimental-webgl")) {
-    *out_type = CanvasContextType::WebGL1;
-    return true;
+  if (WebGL2Context::IsSupported() &&
+      aContextId.EqualsLiteral("experimental-webgl2"))
+  {
+    Telemetry::Accumulate(Telemetry::CANVAS_WEBGL_USED, 1);
+    nsRefPtr<WebGL2Context> ctx = WebGL2Context::Create();
+
+    if (ctx == nullptr) {
+      return NS_ERROR_NOT_IMPLEMENTED;
+    }
+
+    ctx->SetCanvasElement(this);
+    ctx.forget(aContext);
+    return NS_OK;
   }
 
-#ifdef MOZ_WEBGL_CONFORMANT
-  if (str.EqualsLiteral("webgl")) {
-    /* WebGL 1.0, $2.1 "Context Creation":
-     *   If the user agent supports both the webgl and experimental-webgl
-     *   canvas context types, they shall be treated as aliases.
-     */
-    *out_type = CanvasContextType::WebGL1;
-    return true;
-  }
-#endif
+  NS_ConvertUTF16toUTF8 ctxId(aContextId);
 
-  if (WebGL2Context::IsSupported()) {
-    if (str.EqualsLiteral("experimental-webgl2")) {
-      *out_type = CanvasContextType::WebGL2;
-      return true;
+  // check that ctxId is clamped to A-Za-z0-9_-
+  for (uint32_t i = 0; i < ctxId.Length(); i++) {
+    if ((ctxId[i] < 'A' || ctxId[i] > 'Z') &&
+        (ctxId[i] < 'a' || ctxId[i] > 'z') &&
+        (ctxId[i] < '0' || ctxId[i] > '9') &&
+        (ctxId[i] != '-') &&
+        (ctxId[i] != '_'))
+    {
+      // XXX ERRMSG we need to report an error to developers here! (bug 329026)
+      return NS_OK;
     }
   }
 
-  return false;
-}
+  nsCString ctxString("@mozilla.org/content/canvas-rendering-context;1?id=");
+  ctxString.Append(ctxId);
 
-static already_AddRefed<nsICanvasRenderingContextInternal>
-CreateContextForCanvas(CanvasContextType contextType, HTMLCanvasElement* canvas)
-{
-  nsRefPtr<nsICanvasRenderingContextInternal> ret;
-
-  switch (contextType) {
-  case CanvasContextType::Canvas2D:
-    Telemetry::Accumulate(Telemetry::CANVAS_2D_USED, 1);
-    ret = new CanvasRenderingContext2D();
-    break;
-
-  case CanvasContextType::WebGL1:
-    Telemetry::Accumulate(Telemetry::CANVAS_WEBGL_USED, 1);
-
-    ret = WebGL1Context::Create();
-    if (!ret)
-      return nullptr;
-    break;
-
-  case CanvasContextType::WebGL2:
-    Telemetry::Accumulate(Telemetry::CANVAS_WEBGL_USED, 1);
-
-    ret = WebGL2Context::Create();
-    if (!ret)
-      return nullptr;
-    break;
+  nsresult rv;
+  nsCOMPtr<nsICanvasRenderingContextInternal> ctx =
+    do_CreateInstance(ctxString.get(), &rv);
+  if (rv == NS_ERROR_OUT_OF_MEMORY) {
+    *aContext = nullptr;
+    return NS_ERROR_OUT_OF_MEMORY;
   }
-  MOZ_ASSERT(ret);
+  if (NS_FAILED(rv)) {
+    *aContext = nullptr;
+    // XXX ERRMSG we need to report an error to developers here! (bug 329026)
+    return NS_OK;
+  }
 
-  ret->SetCanvasElement(canvas);
-  return ret.forget();
+  ctx->SetCanvasElement(this);
+  ctx.forget(aContext);
+  return NS_OK;
 }
 
 nsresult
@@ -721,8 +720,16 @@ HTMLCanvasElement::GetContext(const nsAString& aContextId,
                               nsISupports** aContext)
 {
   ErrorResult rv;
-  *aContext = GetContext(nullptr, aContextId, JS::NullHandleValue, rv).take();
+  *aContext =
+    GetContext(nullptr, aContextId, JS::NullHandleValue, rv).take();
   return rv.ErrorCode();
+}
+
+static bool
+IsContextIdWebGL(const nsAString& str)
+{
+  return str.EqualsLiteral("webgl") ||
+         str.EqualsLiteral("experimental-webgl");
 }
 
 already_AddRefed<nsISupports>
@@ -731,39 +738,47 @@ HTMLCanvasElement::GetContext(JSContext* aCx,
                               JS::Handle<JS::Value> aContextOptions,
                               ErrorResult& rv)
 {
-  CanvasContextType contextType;
-  if (!GetCanvasContextType(aContextId, &contextType))
-    return nullptr;
-
-  if (!mCurrentContext) {
-    // This canvas doesn't have a context yet.
-
-    nsRefPtr<nsICanvasRenderingContextInternal> context;
-    context = CreateContextForCanvas(contextType, this);
-    if (!context)
-      return nullptr;
-
-    // Ensure that the context participates in CC.  Note that returning a
-    // CC participant from QI doesn't addref.
-    nsXPCOMCycleCollectionParticipant* cp = nullptr;
-    CallQueryInterface(context, &cp);
-    if (!cp) {
-      rv.Throw(NS_ERROR_FAILURE);
+  if (mCurrentContextId.IsEmpty()) {
+    rv = GetContextHelper(aContextId, getter_AddRefs(mCurrentContext));
+    if (rv.Failed() || !mCurrentContext) {
       return nullptr;
     }
 
-    mCurrentContext = context.forget();
-    mCurrentContextType = contextType;
+    // Ensure that the context participates in CC.  Note that returning a
+    // CC participant from QI doesn't addref.
+    nsXPCOMCycleCollectionParticipant *cp = nullptr;
+    CallQueryInterface(mCurrentContext, &cp);
+    if (!cp) {
+      mCurrentContext = nullptr;
+      rv.Throw(NS_ERROR_FAILURE);
+      return nullptr;
+    }
 
     rv = UpdateContext(aCx, aContextOptions);
     if (rv.Failed()) {
       rv = NS_OK; // See bug 645792
       return nullptr;
     }
-  } else {
-    // We already have a context of some type.
-    if (contextType != mCurrentContextType)
-      return nullptr;
+    mCurrentContextId.Assign(aContextId);
+  }
+
+  if (!mCurrentContextId.Equals(aContextId)) {
+    if (IsContextIdWebGL(aContextId) &&
+        IsContextIdWebGL(mCurrentContextId))
+    {
+      // Warn when we get a request for a webgl context with an id that differs
+      // from the id it was created with.
+      nsCString creationId = NS_LossyConvertUTF16toASCII(mCurrentContextId);
+      nsCString requestId = NS_LossyConvertUTF16toASCII(aContextId);
+      JS_ReportWarning(aCx, "WebGL: Retrieving a WebGL context from a canvas "
+                            "via a request id ('%s') different from the id used "
+                            "to create the context ('%s') is not allowed.",
+                            requestId.get(),
+                            creationId.get());
+    }
+    
+    //XXX eventually allow for more than one active context on a given canvas
+    return nullptr;
   }
 
   nsCOMPtr<nsICanvasRenderingContextInternal> context = mCurrentContext;
@@ -783,28 +798,22 @@ HTMLCanvasElement::MozGetIPCContext(const nsAString& aContextId,
   if (!aContextId.EqualsLiteral("2d"))
     return NS_ERROR_INVALID_ARG;
 
-  CanvasContextType contextType = CanvasContextType::Canvas2D;
-
-  if (!mCurrentContext) {
-    // This canvas doesn't have a context yet.
-
-    nsRefPtr<nsICanvasRenderingContextInternal> context;
-    context = CreateContextForCanvas(contextType, this);
-    if (!context) {
-      *aContext = nullptr;
+  if (mCurrentContextId.IsEmpty()) {
+    nsresult rv = GetContextHelper(aContextId, getter_AddRefs(mCurrentContext));
+    NS_ENSURE_SUCCESS(rv, rv);
+    if (!mCurrentContext) {
       return NS_OK;
     }
 
-    mCurrentContext = context;
     mCurrentContext->SetIsIPC(true);
-    mCurrentContextType = contextType;
 
-    nsresult rv = UpdateContext(nullptr, JS::NullHandleValue);
+    rv = UpdateContext(nullptr, JS::NullHandleValue);
     NS_ENSURE_SUCCESS(rv, rv);
-  } else {
-    // We already have a context of some type.
-    if (contextType != mCurrentContextType)
-      return NS_ERROR_INVALID_ARG;
+
+    mCurrentContextId.Assign(aContextId);
+  } else if (!mCurrentContextId.Equals(aContextId)) {
+    //XXX eventually allow for more than one active context on a given canvas
+    return NS_ERROR_INVALID_ARG;
   }
 
   NS_ADDREF (*aContext = mCurrentContext);
@@ -822,18 +831,21 @@ HTMLCanvasElement::UpdateContext(JSContext* aCx, JS::Handle<JS::Value> aNewConte
   nsresult rv = mCurrentContext->SetIsOpaque(HasAttr(kNameSpaceID_None, nsGkAtoms::moz_opaque));
   if (NS_FAILED(rv)) {
     mCurrentContext = nullptr;
+    mCurrentContextId.Truncate();
     return rv;
   }
 
   rv = mCurrentContext->SetContextOptions(aCx, aNewContextOptions);
   if (NS_FAILED(rv)) {
     mCurrentContext = nullptr;
+    mCurrentContextId.Truncate();
     return rv;
   }
 
   rv = mCurrentContext->SetDimensions(sz.width, sz.height);
   if (NS_FAILED(rv)) {
     mCurrentContext = nullptr;
+    mCurrentContextId.Truncate();
     return rv;
   }
 

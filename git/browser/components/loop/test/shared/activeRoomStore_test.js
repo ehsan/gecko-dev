@@ -21,12 +21,10 @@ describe("loop.store.ActiveRoomStore", function () {
 
     fakeMozLoop = {
       rooms: {
-        get: sinon.stub(),
-        join: sinon.stub(),
-        refreshMembership: sinon.stub(),
-        leave: sinon.stub(),
-        on: sinon.stub(),
-        off: sinon.stub()
+        get: sandbox.stub(),
+        join: sandbox.stub(),
+        refreshMembership: sandbox.stub(),
+        leave: sandbox.stub()
       }
     };
 
@@ -163,7 +161,7 @@ describe("loop.store.ActiveRoomStore", function () {
           to.have.property('roomState', ROOM_STATES.GATHER);
       });
 
-    it("should dispatch an SetupRoomInfo action if the get is successful",
+    it("should dispatch an UpdateRoomInfo action if the get is successful",
       function() {
         store.setupWindowData(new sharedActions.SetupWindowData({
           windowId: "42",
@@ -173,7 +171,7 @@ describe("loop.store.ActiveRoomStore", function () {
 
         sinon.assert.calledTwice(dispatcher.dispatch);
         sinon.assert.calledWithExactly(dispatcher.dispatch,
-          new sharedActions.SetupRoomInfo(_.extend({
+          new sharedActions.UpdateRoomInfo(_.extend({
             roomToken: fakeToken
           }, fakeRoomData)));
       });
@@ -235,7 +233,7 @@ describe("loop.store.ActiveRoomStore", function () {
     });
   });
 
-  describe("#setupRoomInfo", function() {
+  describe("#updateRoomInfo", function() {
     var fakeRoomInfo;
 
     beforeEach(function() {
@@ -248,31 +246,9 @@ describe("loop.store.ActiveRoomStore", function () {
     });
 
     it("should set the state to READY", function() {
-      store.setupRoomInfo(new sharedActions.SetupRoomInfo(fakeRoomInfo));
+      store.updateRoomInfo(new sharedActions.UpdateRoomInfo(fakeRoomInfo));
 
       expect(store._storeState.roomState).eql(ROOM_STATES.READY);
-    });
-
-    it("should save the room information", function() {
-      store.setupRoomInfo(new sharedActions.SetupRoomInfo(fakeRoomInfo));
-
-      var state = store.getStoreState();
-      expect(state.roomName).eql(fakeRoomInfo.roomName);
-      expect(state.roomOwner).eql(fakeRoomInfo.roomOwner);
-      expect(state.roomToken).eql(fakeRoomInfo.roomToken);
-      expect(state.roomUrl).eql(fakeRoomInfo.roomUrl);
-    });
-  });
-
-  describe("#updateRoomInfo", function() {
-    var fakeRoomInfo;
-
-    beforeEach(function() {
-      fakeRoomInfo = {
-        roomName: "Its a room",
-        roomOwner: "Me",
-        roomUrl: "http://invalid"
-      };
     });
 
     it("should save the room information", function() {
@@ -281,6 +257,7 @@ describe("loop.store.ActiveRoomStore", function () {
       var state = store.getStoreState();
       expect(state.roomName).eql(fakeRoomInfo.roomName);
       expect(state.roomOwner).eql(fakeRoomInfo.roomOwner);
+      expect(state.roomToken).eql(fakeRoomInfo.roomToken);
       expect(state.roomUrl).eql(fakeRoomInfo.roomUrl);
     });
   });
@@ -617,35 +594,6 @@ describe("loop.store.ActiveRoomStore", function () {
       store.leaveRoom();
 
       expect(store._storeState.roomState).eql(ROOM_STATES.READY);
-    });
-  });
-
-  describe("Events", function() {
-    describe("update:{roomToken}", function() {
-      beforeEach(function() {
-        store.setupRoomInfo(new sharedActions.SetupRoomInfo({
-          roomName: "Its a room",
-          roomOwner: "Me",
-          roomToken: "fakeToken",
-          roomUrl: "http://invalid"
-        }));
-      });
-
-      it("should dispatch an UpdateRoomInfo action", function() {
-        sinon.assert.calledOnce(fakeMozLoop.rooms.on);
-
-        var fakeRoomData = {
-          roomName: "fakeName",
-          roomOwner: "you",
-          roomUrl: "original"
-        };
-
-        fakeMozLoop.rooms.on.callArgWith(1, "update", fakeRoomData);
-
-        sinon.assert.calledOnce(dispatcher.dispatch);
-        sinon.assert.calledWithExactly(dispatcher.dispatch,
-          new sharedActions.UpdateRoomInfo(fakeRoomData));
-      });
     });
   });
 });

@@ -1711,11 +1711,6 @@ class Mochitest(MochitestUtilsMixin):
 
     self.setTestRoot(options)
 
-    # Until we have all green, this only runs on bc* jobs (not dt* jobs)
-    # skipping on e10s jobs as we have a few extra failures
-    if options.browserChrome and not options.subsuite and not options.e10s:
-      options.runByDir = True
-
     if not options.runByDir:
       return self.runMochitests(options, onLaunch)
 

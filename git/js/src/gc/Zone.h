@@ -192,17 +192,10 @@ struct Zone : public JS::shadow::Zone,
             return needsIncrementalBarrier();
     }
 
-    bool isCollectingFromAnyThread() const {
-        if (runtimeFromAnyThread()->isHeapCollecting())
-            return gcState_ != NoGC;
-        else
-            return needsIncrementalBarrier();
-    }
-
     // If this returns true, all object tracing must be done with a GC marking
     // tracer.
     bool requireGCTracer() const {
-        JSRuntime *rt = runtimeFromAnyThread();
+        JSRuntime *rt = runtimeFromMainThread();
         return rt->isHeapMajorCollecting() && !rt->isHeapCompacting() && gcState_ != NoGC;
     }
 

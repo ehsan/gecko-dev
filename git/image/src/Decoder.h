@@ -80,18 +80,6 @@ public:
     return invalidRect;
   }
 
-  /**
-   * Gets the progress changes accumulated by the decoder so far, and clears
-   * them. This means that each call to TakeProgress() returns only the changes
-   * accumulated since the last call to TakeProgress().
-   */
-  Progress TakeProgress()
-  {
-    Progress progress = mProgress;
-    mProgress = NoProgress;
-    return progress;
-  }
-
   // We're not COM-y, so we don't get refcounts by default
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(Decoder)
 
@@ -110,6 +98,8 @@ public:
   }
 
   size_t BytesDecoded() const { return mBytesDecoded; }
+
+  Progress GetProgress() const { return mProgress; }
 
   // The number of frames we have, including anything in-progress. Thus, this
   // is only 0 if we haven't begun any frames.
@@ -198,9 +188,6 @@ protected:
                 int32_t aHeight,
                 Orientation aOrientation = Orientation());
 
-  // Called by decoders if they determine that the image has transparency.
-  void PostHasTransparency();
-
   // Called by decoders when they begin a frame. Informs the image, sends
   // notifications, and does internal book-keeping.
   void PostFrameStart();
@@ -240,7 +227,6 @@ protected:
   RasterImage &mImage;
   nsRefPtr<imgFrame> mCurrentFrame;
   ImageMetadata mImageMetadata;
-  nsIntRect mInvalidRect; // Tracks an invalidation region in the current frame.
   Progress mProgress;
 
   uint8_t* mImageData;       // Pointer to image data in either Cairo or 8bit format
@@ -255,6 +241,8 @@ protected:
 
 private:
   uint32_t mFrameCount; // Number of frames, including anything in-progress
+
+  nsIntRect mInvalidRect; // Tracks an invalidation region in the current frame.
 
   nsresult mFailCode;
 

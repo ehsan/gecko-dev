@@ -289,11 +289,11 @@ nsImageFrame::Init(nsIContent*       aContent,
   if (p)
     p->AdjustPriority(-1);
 
-  // If we already have an image container, OnSizeAvailable won't be called.
+  // If we already have an image container, OnStartContainer won't be called
   if (currentRequest) {
     nsCOMPtr<imgIContainer> image;
     currentRequest->GetImage(getter_AddRefs(image));
-    OnSizeAvailable(currentRequest, image);
+    OnStartContainer(currentRequest, image);
   }
 }
 
@@ -535,18 +535,16 @@ nsImageFrame::ShouldCreateImageFrameFor(Element* aElement,
 }
 
 nsresult
-nsImageFrame::Notify(imgIRequest* aRequest,
-                     int32_t aType,
-                     const nsIntRect* aRect)
+nsImageFrame::Notify(imgIRequest* aRequest, int32_t aType, const nsIntRect* aData)
 {
   if (aType == imgINotificationObserver::SIZE_AVAILABLE) {
     nsCOMPtr<imgIContainer> image;
     aRequest->GetImage(getter_AddRefs(image));
-    return OnSizeAvailable(aRequest, image);
+    return OnStartContainer(aRequest, image);
   }
 
   if (aType == imgINotificationObserver::FRAME_UPDATE) {
-    return OnFrameUpdate(aRequest, aRect);
+    return OnDataAvailable(aRequest, aData);
   }
 
   if (aType == imgINotificationObserver::FRAME_COMPLETE) {
@@ -558,7 +556,7 @@ nsImageFrame::Notify(imgIRequest* aRequest,
     aRequest->GetImageStatus(&imgStatus);
     nsresult status =
         imgStatus & imgIRequest::STATUS_ERROR ? NS_ERROR_FAILURE : NS_OK;
-    return OnLoadComplete(aRequest, status);
+    return OnStopRequest(aRequest, status);
   }
 
   return NS_OK;
@@ -577,7 +575,7 @@ SizeIsAvailable(imgIRequest* aRequest)
 }
 
 nsresult
-nsImageFrame::OnSizeAvailable(imgIRequest* aRequest, imgIContainer* aImage)
+nsImageFrame::OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage)
 {
   if (!aImage) return NS_ERROR_INVALID_ARG;
 
@@ -630,7 +628,8 @@ nsImageFrame::OnSizeAvailable(imgIRequest* aRequest, imgIContainer* aImage)
 }
 
 nsresult
-nsImageFrame::OnFrameUpdate(imgIRequest* aRequest, const nsIntRect* aRect)
+nsImageFrame::OnDataAvailable(imgIRequest *aRequest,
+                              const nsIntRect *aRect)
 {
   if (mFirstFrameComplete) {
     nsCOMPtr<imgIContainer> container;
@@ -638,8 +637,9 @@ nsImageFrame::OnFrameUpdate(imgIRequest* aRequest, const nsIntRect* aRect)
     return FrameChanged(aRequest, container);
   }
 
-  // XXX do we need to make sure that the reflow from the OnSizeAvailable has
-  // been processed before we start calling invalidate?
+  // XXX do we need to make sure that the reflow from the
+  // OnStartContainer has been processed before we start calling
+  // invalidate?
 
   NS_ENSURE_ARG_POINTER(aRect);
 
@@ -674,7 +674,8 @@ nsImageFrame::OnFrameUpdate(imgIRequest* aRequest, const nsIntRect* aRect)
 }
 
 nsresult
-nsImageFrame::OnLoadComplete(imgIRequest* aRequest, nsresult aStatus)
+nsImageFrame::OnStopRequest(imgIRequest *aRequest,
+                            nsresult aStatus)
 {
   // Check what request type we're dealing with
   nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);

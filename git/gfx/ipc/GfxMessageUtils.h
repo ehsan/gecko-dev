@@ -394,10 +394,10 @@ struct ParamTraits<nsIntPoint>
   }
 };
 
-template<typename T>
-struct ParamTraits<mozilla::gfx::IntSizeTyped<T> >
+template<>
+struct ParamTraits<mozilla::gfx::IntSize>
 {
-  typedef mozilla::gfx::IntSizeTyped<T> paramType;
+  typedef mozilla::gfx::IntSize paramType;
 
   static void Write(Message* msg, const paramType& param)
   {
@@ -756,7 +756,6 @@ struct ParamTraits<mozilla::layers::FrameMetrics>
     WriteParam(aMsg, aParam.mBackgroundColor);
     WriteParam(aMsg, aParam.mDoSmoothScroll);
     WriteParam(aMsg, aParam.mSmoothScrollOffset);
-    WriteParam(aMsg, aParam.GetLineScrollAmount());
     WriteParam(aMsg, aParam.GetContentDescription());
   }
 
@@ -798,7 +797,6 @@ struct ParamTraits<mozilla::layers::FrameMetrics>
             ReadParam(aMsg, aIter, &aResult->mBackgroundColor) &&
             ReadParam(aMsg, aIter, &aResult->mDoSmoothScroll) &&
             ReadParam(aMsg, aIter, &aResult->mSmoothScrollOffset) &&
-            ReadParam(aMsg, aIter, &aResult->mLineScrollAmount) &&
             ReadContentDescription(aMsg, aIter, aResult));
   }
 };

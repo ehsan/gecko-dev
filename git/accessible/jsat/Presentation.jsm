@@ -451,18 +451,6 @@ AndroidPresenter.prototype.liveRegion =
       UtteranceGenerator.genForLiveRegion(aContext, aIsHide, aModifiedText));
   };
 
-AndroidPresenter.prototype.noMove =
-  function AndroidPresenter_noMove(aMoveMethod) {
-    return {
-      type: this.type,
-      details: [
-      { eventType: this.ANDROID_VIEW_ACCESSIBILITY_FOCUSED,
-        exitView: aMoveMethod,
-        text: ['']
-      }]
-    };
-  };
-
 /**
  * A B2G presenter for Gaia.
  */

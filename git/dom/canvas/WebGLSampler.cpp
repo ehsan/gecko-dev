@@ -12,36 +12,33 @@
 
 using namespace mozilla;
 
-WebGLSampler::WebGLSampler(WebGLContext* context, GLuint sampler)
-    : WebGLBindableName<GLenum>(sampler),
+WebGLSampler::WebGLSampler(WebGLContext* context)
+    : WebGLBindableName<GLenum>(0),
       WebGLContextBoundObject(context)
 {
-    mContext->mSamplers.insertBack(this);
+    MOZ_CRASH("Not Implemented.");
 }
 
 WebGLSampler::~WebGLSampler()
-{
-    DeleteOnce();
-}
+{}
 
 void
 WebGLSampler::Delete()
 {
-    mContext->MakeContextCurrent();
-    mContext->gl->fDeleteSamplers(1, &mGLName);
-
-    removeFrom(mContext->mSamplers);
+    MOZ_CRASH("Not Implemented.");
 }
 
 WebGLContext*
 WebGLSampler::GetParentObject() const
 {
-    return Context();
+    MOZ_CRASH("Not Implemented.");
+    return nullptr;
 }
 
 JSObject*
 WebGLSampler::WrapObject(JSContext* cx)
 {
+    MOZ_CRASH("Not Implemented.");
     return dom::WebGLSamplerBinding::Wrap(cx, this);
 }
 
