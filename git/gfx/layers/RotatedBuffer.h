@@ -229,7 +229,7 @@ public:
       : mRegionToDraw()
       , mRegionToInvalidate()
       , mMode(SurfaceMode::SURFACE_NONE)
-      , mClip(DrawRegionClip::NONE)
+      , mClip(DrawRegionClip::CLIP_NONE)
       , mContentType(gfxContentType::SENTINEL)
       , mDidSelfCopy(false)
     {}

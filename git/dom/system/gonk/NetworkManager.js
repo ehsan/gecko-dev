@@ -482,7 +482,7 @@ NetworkManager.prototype = {
       return Promise.reject("Invalid network interface.");
     }
 
-    return this.resolveHostname(network, host)
+    return this.resolveHostname(host)
       .then((ipAddresses) => this._updateRoutes(true,
                                                 ipAddresses,
                                                 network.name,
@@ -494,7 +494,7 @@ NetworkManager.prototype = {
       return Promise.reject("Invalid network interface.");
     }
 
-    return this.resolveHostname(network, host)
+    return this.resolveHostname(host)
       .then((ipAddresses) => this._updateRoutes(false,
                                                 ipAddresses,
                                                 network.name,
@@ -594,7 +594,7 @@ NetworkManager.prototype = {
       // The override was just set, so reconfigure the network.
       if (this.active != this._overriddenActive) {
         this.active = this._overriddenActive;
-        this._setDefaultRouteAndDNS(this.active, oldActive);
+        gNetworkService.setDefaultRouteAndDNS(this.active, oldActive);
         Services.obs.notifyObservers(this.active, TOPIC_ACTIVE_CHANGED, null);
       }
       return;
@@ -605,7 +605,7 @@ NetworkManager.prototype = {
         this.active.state == Ci.nsINetworkInterface.NETWORK_STATE_CONNECTED &&
         this.active.type == this._preferredNetworkType) {
       debug("Active network is already our preferred type.");
-      this._setDefaultRouteAndDNS(this.active, oldActive);
+      gNetworkService.setDefaultRouteAndDNS(this.active, oldActive);
       return;
     }
 
@@ -641,10 +641,10 @@ NetworkManager.prototype = {
       }
       // Don't set default route on secondary APN
       if (this.isNetworkTypeSecondaryMobile(this.active.type)) {
-        gNetworkService.setDNS(this.active, function() {});
+        gNetworkService.setDNS(this.active);
       } else {
 #endif // MOZ_B2G_RIL
-        this._setDefaultRouteAndDNS(this.active, oldActive);
+        gNetworkService.setDefaultRouteAndDNS(this.active, oldActive);
 #ifdef MOZ_B2G_RIL
       }
 #endif
@@ -659,7 +659,7 @@ NetworkManager.prototype = {
     }
   },
 
-  resolveHostname: function(network, hostname) {
+  resolveHostname: function(hostname) {
     // Sanity check for null, undefined and empty string... etc.
     if (!hostname) {
       return Promise.reject(new Error("hostname is empty: " + hostname));
@@ -694,18 +694,8 @@ NetworkManager.prototype = {
       deferred.resolve(retval);
     };
 
-    // Bug 1058282 - Explicitly request ipv4 to get around 8.8.8.8 probe at
-    // http://androidxref.com/4.3_r2.1/xref/bionic/libc/netbsd/net/getaddrinfo.c#1923
-    //
-    // Whenever MMS connection is the only network interface, there is no
-    // default route so that any ip probe will fail.
-    let flags = 0;
-    if (network.type === Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_MMS) {
-      flags |= Ci.nsIDNSService.RESOLVE_DISABLE_IPV6;
-    }
-
     // TODO: Bug 992772 - Resolve the hostname with specified networkInterface.
-    gDNSService.asyncResolve(hostname, flags, onLookupComplete, Services.tm.mainThread);
+    gDNSService.asyncResolve(hostname, 0, onLookupComplete, Services.tm.mainThread);
 
     return deferred.promise;
   },
@@ -1307,15 +1297,7 @@ NetworkManager.prototype = {
     this.wantConnectionEvent = null;
 
     callback.call(this);
-  },
-
-  _setDefaultRouteAndDNS: function(network, oldInterface) {
-    gNetworkService.setDefaultRoute(network, oldInterface, function(success) {
-      gNetworkService.setDNS(network, function(result) {
-        gNetworkService.setNetworkProxy(network);
-      });
-    });
-  },
+  }
 };
 
 let CaptivePortalDetectionHelper = (function() {

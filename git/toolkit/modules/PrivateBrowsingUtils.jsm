@@ -34,15 +34,7 @@ this.PrivateBrowsingUtils = {
   },
 
   isBrowserPrivate: function(aBrowser) {
-    let chromeWin = aBrowser.ownerDocument.defaultView;
-    if (chromeWin.gMultiProcessBrowser) {
-      // In e10s we have to look at the chrome window's private
-      // browsing status since the only alternative is to check the
-      // content window, which is in another process.
-      return this.isWindowPrivate(chromeWin);
-    } else {
-      return this.privacyContextFromWindow(aBrowser.contentWindow).usePrivateBrowsing;
-    }
+    return this.isWindowPrivate(aBrowser.ownerDocument.defaultView);
   },
 
   privacyContextFromWindow: function pbu_privacyContextFromWindow(aWindow) {
