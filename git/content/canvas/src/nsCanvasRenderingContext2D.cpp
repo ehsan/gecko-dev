@@ -113,7 +113,7 @@
 #include <algorithm>
 
 #include "jsapi.h"
-#include "jsfriendapi.h"
+#include "jstypedarray.h"
 
 #include "mozilla/Assertions.h"
 #include "mozilla/dom/ContentParent.h"
@@ -3935,12 +3935,13 @@ nsCanvasRenderingContext2D::GetImageDataArray(JSContext* aCx,
         return NS_ERROR_DOM_SYNTAX_ERR;
     }
 
-    JSObject* darray = JS_NewUint8ClampedArray(aCx, len.value());
+    JSObject* darray =
+      js_CreateTypedArray(aCx, js::TypedArray::TYPE_UINT8_CLAMPED, len.value());
     if (!darray) {
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    uint8_t* data = JS_GetUint8ClampedArrayData(darray, aCx);
+    uint8_t* data = static_cast<uint8_t*>(JS_GetTypedArrayData(darray));
 
     /* Copy the surface contents to the buffer */
     nsRefPtr<gfxImageSurface> tmpsurf =

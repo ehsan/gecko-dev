@@ -630,8 +630,7 @@ abstract public class GeckoApp
     }
 
     void handleLocationChange(final int tabId, final String uri,
-                              final String documentURI, final String contentType,
-                              final boolean sameDocument) {
+                              final String documentURI, final String contentType) {
         final Tab tab = Tabs.getInstance().getTab(tabId);
         if (tab == null)
             return;
@@ -643,10 +642,19 @@ abstract public class GeckoApp
                 hideAboutHome();
         }
         
+        String oldBaseURI = tab.getURL();
         tab.updateURL(uri);
         tab.setDocumentURI(documentURI);
+        tab.setContentType(contentType);
 
-        if (sameDocument) {
+        String baseURI = uri;
+        if (baseURI.indexOf('#') != -1)
+            baseURI = uri.substring(0, uri.indexOf('#'));
+
+        if (oldBaseURI != null && oldBaseURI.indexOf('#') != -1)
+            oldBaseURI = oldBaseURI.substring(0, oldBaseURI.indexOf('#'));
+        
+        if (baseURI.equals(oldBaseURI)) {
             mMainHandler.post(new Runnable() {
                 public void run() {
                     if (Tabs.getInstance().isSelectedTab(tab)) {
@@ -657,13 +665,11 @@ abstract public class GeckoApp
             return;
         }
 
-        tab.setContentType(contentType);
         tab.updateFavicon(null);
         tab.updateFaviconURL(null);
         tab.updateSecurityMode("unknown");
         tab.removeTransientDoorHangers();
         tab.setHasTouchListeners(false);
-        tab.setCheckerboardColor(Color.WHITE);
 
         maybeCancelFaviconLoad(tab);
 
@@ -823,20 +829,14 @@ abstract public class GeckoApp
                 final String title = message.getString("title");
                 final String backgroundColor = message.getString("bgColor");
                 handleContentLoaded(tabId, uri, title);
-                Tab tab = Tabs.getInstance().getTab(tabId);
-                if (backgroundColor != null) {
-                    tab.setCheckerboardColor(backgroundColor);
-                } else {
-                    // Default to white if no color is given
-                    tab.setCheckerboardColor(Color.WHITE);
+                if (getLayerController() != null) {
+                    if (backgroundColor != null) {
+                        getLayerController().setCheckerboardColor(backgroundColor);
+                    } else {
+                        // Default to black if no color is given
+                        getLayerController().setCheckerboardColor(0);
+                    }
                 }
-
-                // Sync up the LayerController and the tab if the tab's
-                // currently displayed.
-                if (getLayerController() != null && Tabs.getInstance().isSelectedTab(tab)) {
-                    getLayerController().setCheckerboardColor(tab.getCheckerboardColor());
-                }
-
                 Log.i(LOGTAG, "URI - " + uri + ", title - " + title);
             } else if (event.equals("DOMTitleChanged")) {
                 final int tabId = message.getInt("tabID");
@@ -861,9 +861,8 @@ abstract public class GeckoApp
                 final String uri = message.getString("uri");
                 final String documentURI = message.getString("documentURI");
                 final String contentType = message.getString("contentType");
-                final boolean sameDocument = message.getBoolean("sameDocument");
                 Log.i(LOGTAG, "URI - " + uri);
-                handleLocationChange(tabId, uri, documentURI, contentType, sameDocument);
+                handleLocationChange(tabId, uri, documentURI, contentType);
             } else if (event.equals("Content:SecurityChange")) {
                 final int tabId = message.getInt("tabID");
                 final String mode = message.getString("mode");
@@ -871,7 +870,6 @@ abstract public class GeckoApp
                 handleSecurityChange(tabId, mode);
             } else if (event.equals("Content:StateChange")) {
                 final int tabId = message.getInt("tabID");
-                final String uri = message.getString("uri");
                 final boolean success = message.getBoolean("success");
                 int state = message.getInt("state");
                 Log.i(LOGTAG, "State - " + state);
@@ -879,7 +877,7 @@ abstract public class GeckoApp
                     if ((state & GeckoAppShell.WPL_STATE_START) != 0) {
                         Log.i(LOGTAG, "Got a document start");
                         final boolean showProgress = message.getBoolean("showProgress");
-                        handleDocumentStart(tabId, showProgress, uri);
+                        handleDocumentStart(tabId, showProgress);
                     } else if ((state & GeckoAppShell.WPL_STATE_STOP) != 0) {
                         Log.i(LOGTAG, "Got a document stop");
                         handleDocumentStop(tabId, success);
@@ -1185,12 +1183,11 @@ abstract public class GeckoApp
         });
     }
 
-    void handleDocumentStart(int tabId, final boolean showProgress, String uri) {
+    void handleDocumentStart(int tabId, final boolean showProgress) {
         final Tab tab = Tabs.getInstance().getTab(tabId);
         if (tab == null)
             return;
 
-        tab.updateURL(uri);
         tab.setState(Tab.STATE_LOADING);
         tab.updateSecurityMode("unknown");
 
@@ -1198,7 +1195,7 @@ abstract public class GeckoApp
             public void run() {
                 if (Tabs.getInstance().isSelectedTab(tab)) {
                     mBrowserToolbar.setSecurityMode(tab.getSecurityMode());
-                    if (showProgress && tab.getState() == Tab.STATE_LOADING)
+                    if (showProgress)
                         mBrowserToolbar.setProgressVisibility(true);
                 }
                 Tabs.getInstance().notifyListeners(tab, Tabs.TabEvents.START);
@@ -1642,9 +1639,7 @@ abstract public class GeckoApp
         }
 
         mRestoreSession |= getProfile().shouldRestoreSession();
-
-        boolean isExternalURL = passedUri != null && !passedUri.equals("about:home");
-        if (!isExternalURL) {
+        if (passedUri == null || passedUri.equals("about:home")) {
             // show about:home if we aren't restoring previous session
             if (!mRestoreSession) {
                 mBrowserToolbar.updateTabCount(1);
@@ -1653,8 +1648,6 @@ abstract public class GeckoApp
         } else {
             mBrowserToolbar.updateTabCount(1);
         }
-
-        mBrowserToolbar.setProgressVisibility(isExternalURL || mRestoreSession);
 
         // Start migrating as early as possible, can do this in
         // parallel with Gecko load.
@@ -2159,8 +2152,7 @@ abstract public class GeckoApp
         Log.i(LOGTAG, "application paused");
         GeckoAppShell.sendEventToGecko(GeckoEvent.createPauseEvent(true));
 
-        if (mConnectivityReceiver != null)
-            mConnectivityReceiver.unregisterFor(mAppContext);
+        mConnectivityReceiver.unregisterFor(mAppContext);
         GeckoNetworkManager.getInstance().stop();
         GeckoScreenOrientationListener.getInstance().stop();
     }
@@ -2171,8 +2163,7 @@ abstract public class GeckoApp
         if (checkLaunchState(LaunchState.GeckoRunning))
             GeckoAppShell.sendEventToGecko(GeckoEvent.createResumeEvent(true));
 
-        if (mConnectivityReceiver != null)
-            mConnectivityReceiver.registerFor(mAppContext);
+        mConnectivityReceiver.registerFor(mAppContext);
         GeckoNetworkManager.getInstance().start();
         GeckoScreenOrientationListener.getInstance().start();
     }

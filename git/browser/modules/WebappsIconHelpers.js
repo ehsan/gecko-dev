@@ -105,7 +105,5 @@ function getIconForApp(aShell, callback) {
 function onIconDownloaded(aShell, aMimeType, aStatusCode, aIcon, aCallback) {
   if (Components.isSuccessCode(aStatusCode)) {
     aShell.processIcon(aMimeType, aIcon, aCallback);
-  } else {
-    aCallback.call(aShell);
   }
 }

@@ -273,9 +273,7 @@ public class BrowserToolbar {
         } else {
             mProgressSpinner.stop();
             setStopVisibility(false);
-            Tab selectedTab = Tabs.getInstance().getSelectedTab();
-            if (selectedTab != null)
-                setFavicon(selectedTab.getFavicon());
+            setFavicon(Tabs.getInstance().getSelectedTab().getFavicon());
             Log.i(LOGTAG, "zerdatime " + SystemClock.uptimeMillis() + " - Throbber stop");
         }
     }

@@ -75,7 +75,7 @@ for the Unicode Character Database (UCD) for Unicode 6.1.0.
  */
 
 #include "mozilla/StandardInteger.h"
-#include "harfbuzz/hb.h"
+#include "harfbuzz/hb-common.h"
 
 static const PRUint32 sScriptCodeToTag[] = {
   HB_TAG('Z','y','y','y'),

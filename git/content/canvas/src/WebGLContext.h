@@ -59,7 +59,6 @@
 #include "nsIJSNativeInitializer.h"
 #include "nsContentUtils.h"
 #include "nsWrapperCache.h"
-#include "nsIObserver.h"
 
 #include "GLContextProvider.h"
 #include "Layers.h"
@@ -104,9 +103,8 @@ class WebGLFramebuffer;
 class WebGLRenderbuffer;
 class WebGLUniformLocation;
 class WebGLExtension;
-class WebGLContext;
 struct WebGLVertexAttribData;
-class WebGLMemoryPressureObserver;
+
 class WebGLRectangleObject;
 class WebGLContextBoundObject;
 
@@ -528,7 +526,6 @@ class WebGLContext :
     friend class WebGLMemoryMultiReporterWrapper;
     friend class WebGLExtensionLoseContext;
     friend class WebGLContextUserData;
-    friend class WebGLMemoryPressureObserver;
 
 public:
     WebGLContext();
@@ -642,27 +639,39 @@ public:
         return mMinCapability;
     }
 
-    void SetupContextLossTimer() {
+    // See the comment over WebGLContext::Notify() for more information on this.
+    bool ShouldEnableRobustnessTimer() {
+        return mHasRobustness ||
+               IsExtensionEnabled(WebGL_MOZ_WEBGL_lose_context) ||
+               (gl != nsnull && gl->GetContextType() == gl::GLContext::ContextTypeEGL);
+    }
+
+    // Sets up the GL_ARB_robustness timer if it isn't already, so that if the
+    // driver gets restarted, the context may get reset with it.
+    void SetupRobustnessTimer() {
+        if (!ShouldEnableRobustnessTimer())
+            return;
+
         // If the timer was already running, don't restart it here. Instead,
         // wait until the previous call is done, then fire it one more time.
         // This is an optimization to prevent unnecessary cross-communication
         // between threads.
-        if (mContextLossTimerRunning) {
-            mDrawSinceContextLossTimerSet = true;
+        if (mRobustnessTimerRunning) {
+            mDrawSinceRobustnessTimerSet = true;
             return;
         }
         
         mContextRestorer->InitWithCallback(static_cast<nsITimerCallback*>(this),
                                            PR_MillisecondsToInterval(1000),
                                            nsITimer::TYPE_ONE_SHOT);
-        mContextLossTimerRunning = true;
-        mDrawSinceContextLossTimerSet = false;
+        mRobustnessTimerRunning = true;
+        mDrawSinceRobustnessTimerSet = false;
     }
 
-    void TerminateContextLossTimer() {
-        if (mContextLossTimerRunning) {
+    void TerminateRobustnessTimer() {
+        if (mRobustnessTimerRunning) {
             mContextRestorer->Cancel();
-            mContextLossTimerRunning = false;
+            mRobustnessTimerRunning = false;
         }
     }
 
@@ -691,11 +700,11 @@ protected:
     }
 
     nsresult BufferData_size(WebGLenum target, WebGLsizei size, WebGLenum usage);
-    nsresult BufferData_buf(WebGLenum target, JSObject* data, WebGLenum usage, JSContext *cx);
-    nsresult BufferData_array(WebGLenum target, JSObject* data, WebGLenum usage, JSContext *cx);
+    nsresult BufferData_buf(WebGLenum target, JSObject* data, WebGLenum usage);
+    nsresult BufferData_array(WebGLenum target, JSObject* data, WebGLenum usage);
 
-    nsresult BufferSubData_buf(WebGLenum target, PRInt32 offset, JSObject* data, JSContext *cx);
-    nsresult BufferSubData_array(WebGLenum target, PRInt32 offset, JSObject* data, JSContext *cx);
+    nsresult BufferSubData_buf(WebGLenum target, PRInt32 offset, JSObject* data);
+    nsresult BufferSubData_array(WebGLenum target, PRInt32 offset, JSObject* data);
 
     nsCOMPtr<nsIDOMHTMLCanvasElement> mCanvasElement;
 
@@ -946,10 +955,11 @@ protected:
 
     nsCOMPtr<nsITimer> mContextRestorer;
     bool mAllowRestore;
-    bool mContextLossTimerRunning;
-    bool mDrawSinceContextLossTimerSet;
+    bool mRobustnessTimerRunning;
+    bool mDrawSinceRobustnessTimerSet;
     ContextStatus mContextStatus;
     bool mContextLostErrorSet;
+    bool mContextLostDueToTest;
 
 #ifdef XP_MACOSX
     // see bug 713305. This RAII helper guarantees that we're on the discrete GPU, during its lifetime
@@ -960,7 +970,6 @@ protected:
     ForceDiscreteGPUHelperCGL mForceDiscreteGPUHelper;
 #endif
 
-    nsRefPtr<WebGLMemoryPressureObserver> mMemoryPressureObserver;
 
 public:
     // console logging helpers
@@ -2877,21 +2886,6 @@ class WebGLMemoryMultiReporterWrapper
     static PRInt64 GetContextCount() {
         return Contexts().Length();
     }
-};
-
-class WebGLMemoryPressureObserver MOZ_FINAL
-    : public nsIObserver
-{
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
-
-  WebGLMemoryPressureObserver(WebGLContext *context)
-    : mContext(context)
-  {}
-
-private:
-  WebGLContext *mContext;
 };
 
 }

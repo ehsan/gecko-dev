@@ -162,9 +162,9 @@ public:
     AndroidViewTransform() {}
     AndroidViewTransform(jobject jobj) { Init(jobj); }
 
-    float GetX(JNIEnv *env);
-    float GetY(JNIEnv *env);
-    float GetScale(JNIEnv *env);
+    float GetX();
+    float GetY();
+    float GetScale();
 
 private:
     static jclass jViewTransformClass;

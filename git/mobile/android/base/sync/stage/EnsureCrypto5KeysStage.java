@@ -23,20 +23,16 @@ import org.mozilla.gecko.sync.net.SyncStorageRecordRequest;
 import org.mozilla.gecko.sync.net.SyncStorageRequestDelegate;
 import org.mozilla.gecko.sync.net.SyncStorageResponse;
 
-public class EnsureCrypto5KeysStage
-extends AbstractNonRepositorySyncStage
-implements SyncStorageRequestDelegate, KeyUploadDelegate {
-
-  public EnsureCrypto5KeysStage(GlobalSession session) {
-    super(session);
-  }
-
+public class EnsureCrypto5KeysStage implements GlobalSyncStage, SyncStorageRequestDelegate, KeyUploadDelegate {
   private static final String LOG_TAG = "EnsureC5KeysStage";
   private static final String CRYPTO_COLLECTION = "crypto";
+  protected GlobalSession session;
   protected boolean retrying = false;
 
   @Override
-  public void execute() throws NoSuchStageException {
+  public void execute(GlobalSession session) throws NoSuchStageException {
+    this.session = session;
+
     InfoCollections infoCollections = session.config.infoCollections;
     if (infoCollections == null) {
       session.abort(null, "No info/collections set in EnsureCrypto5KeysStage.");
@@ -165,7 +161,7 @@ implements SyncStorageRequestDelegate, KeyUploadDelegate {
     Logger.debug(LOG_TAG, "New keys uploaded. Starting stage again to fetch them.");
     try {
       retrying = true;
-      this.execute();
+      this.execute(this.session);
     } catch (NoSuchStageException e) {
       session.abort(e, "No such stage.");
     }

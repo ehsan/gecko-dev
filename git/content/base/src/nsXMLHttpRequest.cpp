@@ -99,11 +99,11 @@
 #include "nsChannelPolicy.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsAsyncRedirectVerifyHelper.h"
+#include "jstypedarray.h"
 #include "nsStringBuffer.h"
 #include "nsDOMFile.h"
 #include "nsIFileChannel.h"
 #include "mozilla/Telemetry.h"
-#include "jsfriendapi.h"
 #include "sampler.h"
 #include "mozilla/dom/bindings/XMLHttpRequestBinding.h"
 #include "nsIDOMFormData.h"
@@ -2511,15 +2511,15 @@ nsXMLHttpRequest::ChangeStateToDone()
 }
 
 NS_IMETHODIMP
-nsXMLHttpRequest::SendAsBinary(const nsAString &aBody, JSContext *aCx)
+nsXMLHttpRequest::SendAsBinary(const nsAString &aBody)
 {
   nsresult rv = NS_OK;
-  SendAsBinary(aCx, aBody, rv);
+  SendAsBinary(aBody, rv);
   return rv;
 }
 
 void
-nsXMLHttpRequest::SendAsBinary(JSContext *aCx, const nsAString &aBody, nsresult& aRv)
+nsXMLHttpRequest::SendAsBinary(const nsAString &aBody, nsresult& aRv)
 {
   char *data = static_cast<char*>(NS_Alloc(aBody.Length() + 1));
   if (!data) {
@@ -2556,7 +2556,7 @@ nsXMLHttpRequest::SendAsBinary(JSContext *aCx, const nsAString &aBody, nsresult&
     return;
   }
 
-  aRv = Send(variant, aCx);
+  aRv = Send(variant);
 }
 
 static nsresult
@@ -2627,15 +2627,15 @@ GetRequestBody(nsIXHRSendable* aSendable, nsIInputStream** aResult,
 }
 
 static nsresult
-GetRequestBody(JSObject* aArrayBuffer, JSContext *aCx, nsIInputStream** aResult,
+GetRequestBody(JSObject* aArrayBuffer, nsIInputStream** aResult,
                nsACString& aContentType, nsACString& aCharset)
 {
-  NS_ASSERTION(JS_IsArrayBufferObject(aArrayBuffer, aCx), "Not an ArrayBuffer!");
+  NS_ASSERTION(js_IsArrayBuffer(aArrayBuffer), "Not an ArrayBuffer!");
   aContentType.SetIsVoid(true);
   aCharset.Truncate();
 
-  PRInt32 length = JS_GetArrayBufferByteLength(aArrayBuffer, aCx);
-  char* data = reinterpret_cast<char*>(JS_GetArrayBufferData(aArrayBuffer, aCx));
+  PRInt32 length = JS_GetArrayBufferByteLength(aArrayBuffer);
+  char* data = reinterpret_cast<char*>(JS_GetArrayBufferData(aArrayBuffer));
 
   nsCOMPtr<nsIInputStream> stream;
   nsresult rv = NS_NewByteInputStream(getter_AddRefs(stream), data, length,
@@ -2648,7 +2648,7 @@ GetRequestBody(JSObject* aArrayBuffer, JSContext *aCx, nsIInputStream** aResult,
 }
 
 static nsresult
-GetRequestBody(nsIVariant* aBody, JSContext *aCx, nsIInputStream** aResult,
+GetRequestBody(nsIVariant* aBody, nsIInputStream** aResult,
                nsACString& aContentType, nsACString& aCharset)
 {
   *aResult = nsnull;
@@ -2699,8 +2699,8 @@ GetRequestBody(nsIVariant* aBody, JSContext *aCx, nsIInputStream** aResult,
     nsresult rv = aBody->GetAsJSVal(&realVal);
     if (NS_SUCCEEDED(rv) && !JSVAL_IS_PRIMITIVE(realVal) &&
         (obj = JSVAL_TO_OBJECT(realVal)) &&
-        (JS_IsArrayBufferObject(obj, aCx))) {
-      return GetRequestBody(obj, aCx, aResult, aContentType, aCharset);
+        (js_IsArrayBuffer(obj))) {
+      return GetRequestBody(obj, aResult, aContentType, aCharset);
     }
   }
   else if (dataType == nsIDataType::VTYPE_VOID ||
@@ -2725,13 +2725,13 @@ GetRequestBody(nsIVariant* aBody, JSContext *aCx, nsIInputStream** aResult,
 
 /* static */
 nsresult
-nsXMLHttpRequest::GetRequestBody(nsIVariant* aVariant, JSContext *aCx,
+nsXMLHttpRequest::GetRequestBody(nsIVariant* aVariant,
                                  const Nullable<RequestBody>& aBody,
                                  nsIInputStream** aResult,
                                  nsACString& aContentType, nsACString& aCharset)
 {
   if (aVariant) {
-    return ::GetRequestBody(aVariant, aCx, aResult, aContentType, aCharset);
+    return ::GetRequestBody(aVariant, aResult, aContentType, aCharset);
   }
 
   const RequestBody& body = aBody.Value();
@@ -2739,7 +2739,7 @@ nsXMLHttpRequest::GetRequestBody(nsIVariant* aVariant, JSContext *aCx,
   switch (body.GetType()) {
     case nsXMLHttpRequest::RequestBody::ArrayBuffer:
     {
-      return ::GetRequestBody(value.mArrayBuffer, aCx, aResult, aContentType, aCharset);
+      return ::GetRequestBody(value.mArrayBuffer, aResult, aContentType, aCharset);
     }
     case nsXMLHttpRequest::RequestBody::Blob:
     {
@@ -2782,13 +2782,13 @@ nsXMLHttpRequest::GetRequestBody(nsIVariant* aVariant, JSContext *aCx,
 
 /* void send (in nsIVariant aBody); */
 NS_IMETHODIMP
-nsXMLHttpRequest::Send(nsIVariant *aBody, JSContext *aCx)
+nsXMLHttpRequest::Send(nsIVariant *aBody)
 {
-  return Send(aCx, aBody, Nullable<RequestBody>());
+  return Send(aBody, Nullable<RequestBody>());
 }
 
 nsresult
-nsXMLHttpRequest::Send(JSContext *aCx, nsIVariant* aVariant, const Nullable<RequestBody>& aBody)
+nsXMLHttpRequest::Send(nsIVariant* aVariant, const Nullable<RequestBody>& aBody)
 {
   NS_ENSURE_TRUE(mPrincipal, NS_ERROR_NOT_INITIALIZED);
 
@@ -2912,7 +2912,7 @@ nsXMLHttpRequest::Send(JSContext *aCx, nsIVariant* aVariant, const Nullable<Requ
     nsCAutoString defaultContentType;
     nsCOMPtr<nsIInputStream> postDataStream;
 
-    rv = GetRequestBody(aVariant, aCx, aBody, getter_AddRefs(postDataStream),
+    rv = GetRequestBody(aVariant, aBody, getter_AddRefs(postDataStream),
                         defaultContentType, charset);
     NS_ENSURE_SUCCESS(rv, rv);
 

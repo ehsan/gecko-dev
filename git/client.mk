@@ -198,9 +198,6 @@ build_all_dep: alldep
 build_all_depend: alldep
 clobber clobber_all: clean
 
-# helper target for mobile
-build_and_deploy: build package install
-
 # Do everything from scratch
 everything: clean build
 

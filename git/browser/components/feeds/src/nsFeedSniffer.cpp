@@ -313,22 +313,20 @@ nsFeedSniffer::GetMIMETypeFromContent(nsIRequest* request,
   nsresult rv = ConvertEncodedData(request, data, length);
   if (NS_FAILED(rv))
     return rv;
-
-  // We cap the number of bytes to scan at MAX_BYTES to prevent picking up 
-  // false positives by accidentally reading document content, e.g. a "how to
-  // make a feed" page.
-  const char* testData;
-  if (mDecodedData.IsEmpty()) {
-    testData = (const char*)data;
-    length = NS_MIN(length, MAX_BYTES);
-  } else {
-    testData = mDecodedData.get();
-    length = NS_MIN(mDecodedData.Length(), MAX_BYTES);
-  }
+  
+  const char* testData = 
+    mDecodedData.IsEmpty() ? (const char*)data : mDecodedData.get();
 
   // The strategy here is based on that described in:
   // http://blogs.msdn.com/rssteam/articles/PublishersGuide.aspx
   // for interoperarbility purposes.
+
+  // We cap the number of bytes to scan at MAX_BYTES to prevent picking up 
+  // false positives by accidentally reading document content, e.g. a "how to
+  // make a feed" page.
+  if (!mDecodedData.IsEmpty()) {
+    length = NS_MIN(mDecodedData.Length(), MAX_BYTES);
+  }
 
   // Thus begins the actual sniffing.
   nsDependentCSubstring dataString((const char*)testData, length);
