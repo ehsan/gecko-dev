@@ -14,21 +14,20 @@ XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
                                   "nsIMessageSender");
 
 function paymentSuccess(aRequestId) {
-  return function(aResult) {
-    closePaymentWindow(aRequestId, function() {
-      cpmm.sendAsyncMessage("Payment:Success", { requestId: aRequestId,
-                                                 result: aResult });
-    });
-  };
+  return paymentCallback(aRequestId, "Payment:Success");
 }
 
 function paymentFailed(aRequestId) {
-  return function(aErrorMsg) {
-    closePaymentWindow(aRequestId, function() {
-      cpmm.sendAsyncMessage("Payment:Failed", { requestId: aRequestId,
-                                                errorMsg: aErrorMsg });
-    });
-  };
+  return paymentCallback(aRequestId, "Payment:Failed");
+}
+
+function paymentCallback(aRequestId, aMsg) {
+  return function(aResult) {
+          closePaymentWindow(aRequestId, function() {
+            cpmm.sendAsyncMessage(aMsg, { result: aResult,
+                                          requestId: aRequestId });
+          });
+        };
 }
 
 let payments = {};
