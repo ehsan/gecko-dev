@@ -231,14 +231,14 @@ private:
   nsCOMPtr<nsISupports> mValue;
 };
 
-static void
+PR_STATIC_CALLBACK(void)
 ClearObjectEntry(PLDHashTable* table, PLDHashEntryHdr *entry)
 {
   ObjectEntry* objEntry = static_cast<ObjectEntry*>(entry);
   objEntry->~ObjectEntry();
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 InitObjectEntry(PLDHashTable* table, PLDHashEntryHdr* entry, const void* key)
 {
   new (entry) ObjectEntry;
@@ -448,8 +448,8 @@ nsBindingManager::~nsBindingManager(void)
 }
 
 PLDHashOperator
-RemoveInsertionParentCB(PLDHashTable* aTable, PLDHashEntryHdr* aEntry,
-                        PRUint32 aNumber, void* aArg)
+PR_CALLBACK RemoveInsertionParentCB(PLDHashTable* aTable, PLDHashEntryHdr* aEntry,
+                                  PRUint32 aNumber, void* aArg)
 {
   return (static_cast<ObjectEntry*>(aEntry)->GetValue() ==
           static_cast<nsISupports*>(aArg)) ? PL_DHASH_REMOVE : PL_DHASH_NEXT;
@@ -1018,7 +1018,7 @@ struct BindingTableReadClosure
   nsBindingList          mBindings;
 };
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 AccumulateBindingsToDetach(nsISupports *aKey, nsXBLBinding *aBinding,
                            void* aClosure)
  {
@@ -1109,7 +1109,7 @@ nsBindingManager::RemoveLoadingDocListener(nsIURI* aURL)
   }
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 MarkForDeath(nsISupports *aKey, nsXBLBinding *aBinding, void* aClosure)
 {
   if (aBinding->MarkedForDeath())
@@ -1299,7 +1299,7 @@ nsBindingManager::WalkRules(nsIStyleRuleProcessor::EnumFunc aFunc,
 
 typedef nsTHashtable<nsVoidPtrHashKey> RuleProcessorSet;
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 EnumRuleProcessors(nsISupports *aKey, nsXBLBinding *aBinding, void* aClosure)
 {
   RuleProcessorSet *set = static_cast<RuleProcessorSet*>(aClosure);
@@ -1321,7 +1321,7 @@ struct MediumFeaturesChangedData {
   PRBool *mRulesChanged;
 };
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 EnumMediumFeaturesChanged(nsVoidPtrHashKey *aKey, void* aClosure)
 {
   nsIStyleRuleProcessor *ruleProcessor =

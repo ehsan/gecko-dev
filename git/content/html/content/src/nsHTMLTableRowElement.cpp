@@ -229,7 +229,7 @@ nsHTMLTableRowElement::GetSectionRowIndex(PRInt32* aValue)
   return NS_OK;
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 IsCell(nsIContent *aContent, PRInt32 aNamespaceID,
        nsIAtom* aAtom, void *aData)
 {

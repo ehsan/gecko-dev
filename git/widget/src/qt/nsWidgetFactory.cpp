@@ -179,7 +179,7 @@ static const nsModuleComponentInfo components[] =
 
 };
 
-static void
+PR_STATIC_CALLBACK(void)
 nsWidgetQtModuleDtor(nsIModule *aSelf)
 {
     nsSound::Shutdown();

@@ -152,7 +152,7 @@ protected:
   void PopContent();
   PRBool HaveNotifiedForCurrentContent() const;
 
-  void ProcessBASETag(nsIContent* aContent);
+  nsresult ProcessBASETag(nsIContent* aContent);
 
   nsresult FlushTags();
 

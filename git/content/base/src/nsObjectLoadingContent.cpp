@@ -798,11 +798,7 @@ nsObjectLoadingContent::HasNewFrame(nsIObjectFrame* aFrame)
     // instantiate
     nsCOMPtr<nsIPluginDocument> pDoc (do_QueryInterface(GetOurDocument()));
     if (pDoc) {
-      PRBool willHandleInstantiation;
-      pDoc->GetWillHandleInstantiation(&willHandleInstantiation);
-      if (willHandleInstantiation) {
-        return NS_OK;
-      }
+      return NS_OK;
     }
 
     nsCOMPtr<nsIRunnable> event =

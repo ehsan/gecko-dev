@@ -48,7 +48,6 @@
 #include "nsNodeInfoManager.h"
 #include "nsVoidArray.h"
 #include "nsWeakPtr.h"
-#include "nsXULElement.h"
 
 class nsIDocument;
 class nsIScriptSecurityManager;
@@ -144,12 +143,11 @@ protected:
     class ContextStack {
     protected:
         struct Entry {
-            nsRefPtr<nsXULPrototypeNode> mNode;
+            nsXULPrototypeNode* mNode;
             // a LOT of nodes have children; preallocate for 8
-            nsPrototypeArray    mChildren;
+            nsAutoVoidArray     mChildren;
             State               mState;
             Entry*              mNext;
-            Entry() : mChildren(8) {}
         };
 
         Entry* mTop;
@@ -164,8 +162,8 @@ protected:
         nsresult Push(nsXULPrototypeNode* aNode, State aState);
         nsresult Pop(State* aState);
 
-        nsresult GetTopNode(nsRefPtr<nsXULPrototypeNode>& aNode);
-        nsresult GetTopChildren(nsPrototypeArray** aChildren);
+        nsresult GetTopNode(nsXULPrototypeNode** aNode);
+        nsresult GetTopChildren(nsVoidArray** aChildren);
         nsresult GetTopNodeScriptType(PRUint32 *aScriptType);
 
         void Clear();

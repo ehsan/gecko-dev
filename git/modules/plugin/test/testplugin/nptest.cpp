@@ -36,7 +36,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "npapi.h"
-#include "npfunctions.h"
+#include "npupp.h"
 
 #if defined(XP_UNIX)
 

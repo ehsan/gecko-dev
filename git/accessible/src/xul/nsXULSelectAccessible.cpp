@@ -107,9 +107,11 @@ nsXULColumnItemAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
   return NS_OK;
 }
 
-nsresult
-nsXULColumnItemAccessible::GetNameInternal(nsAString& aName)
+NS_IMETHODIMP
+nsXULColumnItemAccessible::GetName(nsAString& aName)
 {
+  aName.Truncate();
+
   return GetXULName(aName);
 }
 
@@ -857,9 +859,14 @@ nsXULListitemAccessible::GetListAccessible()
   * If there is a Listcell as a child ( not anonymous ) use it, otherwise
   *   default to getting the name from GetXULName
   */
-nsresult
-nsXULListitemAccessible::GetNameInternal(nsAString& aName)
+NS_IMETHODIMP
+nsXULListitemAccessible::GetName(nsAString& aName)
 {
+  aName.Truncate();
+
+  if (!mDOMNode)
+    return NS_ERROR_FAILURE;
+
   nsCOMPtr<nsIDOMNode> child;
   if (NS_SUCCEEDED(mDOMNode->GetFirstChild(getter_AddRefs(child)))) {
     nsCOMPtr<nsIDOMElement> childElement (do_QueryInterface(child));

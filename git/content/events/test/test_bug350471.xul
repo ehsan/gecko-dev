@@ -115,7 +115,7 @@ function testEventDispatching() {
   
     // expectedEvents should be empty now. If it's not, print errors.
     expectedEvents.forEach(function(e) {
-      ok(false, "Didn't receive expected event: " + JSON.parse(e));
+      ok(false, "Didn't receive expected event: " + JSON.toString(e));
     });
   };
   let i = 0;
@@ -213,6 +213,7 @@ function testDefaultHandling() {
 
 function runTests() {
   netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  Components.utils.import("resource://gre/modules/JSON.jsm");
 
   testEventDispatching();
 

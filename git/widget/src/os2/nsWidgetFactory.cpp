@@ -200,7 +200,7 @@ static const nsModuleComponentInfo components[] =
     nsIdleServiceOS2Constructor },
 };
 
-static void
+PR_STATIC_CALLBACK(void)
 nsWidgetOS2ModuleDtor(nsIModule *self)
 {
   nsWindow::ReleaseGlobals();

@@ -178,7 +178,7 @@ nsSimpleProperty::GetValue(nsIVariant* *aValue)
 
 // end nsSimpleProperty
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 PropertyHashToArrayFunc (const nsAString &aKey,
                          nsIVariant* aData,
                          void *userArg)

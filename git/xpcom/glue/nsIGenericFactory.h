@@ -260,7 +260,7 @@ struct nsModuleComponentInfo {
  *         NS_ERROR*    Method failure which will result in module not being 
  *                      loaded. 
  **/
-typedef nsresult (*nsModuleConstructorProc) (nsIModule *self);
+typedef nsresult (PR_CALLBACK *nsModuleConstructorProc) (nsIModule *self);
 
 
 /** 
@@ -270,7 +270,7 @@ typedef nsresult (*nsModuleConstructorProc) (nsIModule *self);
  * @param self module which is being destroyed.
  * 
  **/
-typedef void (*nsModuleDestructorProc) (nsIModule *self);
+typedef void (PR_CALLBACK *nsModuleDestructorProc) (nsIModule *self);
 
 /**
  * nsModuleInfo

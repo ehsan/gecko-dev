@@ -99,7 +99,7 @@ static void RandomSleep(PRUint32 fromMS, PRUint32 toMS)
 
 static ipcILockService *gLockService;
 
-static void TestThread(void *arg)
+PR_STATIC_CALLBACK(void) TestThread(void *arg)
 {
   const char *lockName = (const char *) arg;
 

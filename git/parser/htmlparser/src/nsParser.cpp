@@ -206,13 +206,10 @@ public:
       mCurrentlyParsing(0),
       mNumURIs(0),
       mNumConsumed(0),
-      mContext(nsnull),
       mTerminated(PR_FALSE) {
   }
 
   ~nsSpeculativeScriptThread() {
-    NS_ASSERTION(NS_IsMainThread() || !mDocument,
-                 "Destroying the document on the wrong thread");
   }
 
   NS_DECL_ISUPPORTS
@@ -373,10 +370,8 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(nsSpeculativeScriptThread, nsIRunnable)
 NS_IMETHODIMP
 nsSpeculativeScriptThread::Run()
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Speculative parsing on the main thread?");
-
-  mNumConsumed = 0;
-
+  nsScannerIterator start;
+  mScanner->CurrentPosition(start);
   mTokenizer->WillTokenize(PR_FALSE, &mTokenAllocator);
   while (mKeepParsing) {
     PRBool flushTokens = PR_FALSE;
@@ -384,8 +379,6 @@ nsSpeculativeScriptThread::Run()
     if (rv == kEOF) {
       break;
     }
-
-    mNumConsumed += mScanner->Mark();
 
     // TODO Don't pop the tokens.
     CToken *token;
@@ -396,6 +389,11 @@ nsSpeculativeScriptThread::Run()
   mTokenizer->DidTokenize(PR_FALSE);
 
   nsAutoLock al(mLock.get());
+
+  nsScannerIterator end;
+  mScanner->CurrentPosition(end);
+
+  mNumConsumed = Distance(start, end);
 
   mCurrentlyParsing = 0;
   PR_NotifyCondVar(mCVar.get());
@@ -446,9 +444,6 @@ nsSpeculativeScriptThread::StartParsing(nsParser *aParser)
     }
     mTokenizer->CopyState(context->mTokenizer);
     context->mScanner->CopyUnusedData(toScan);
-    if (toScan.IsEmpty()) {
-      return NS_OK;
-    }
   } else if (context == mContext) {
     // Don't parse the same part of the document twice.
     nsScannerIterator end;
@@ -515,16 +510,9 @@ nsSpeculativeScriptThread::StopParsing(PRBool aFromDocWrite)
     }
   }
 
-  // The thread is now idle.
-  if (mTerminated) {
-    // If we're terminated, then we need to ensure that we release our document
-    // and tokenizer here on the main thread so that our last reference to them
-    // isn't our alter-ego rescheduled on another thread.
-    mDocument = nsnull;
-    mTokenizer = nsnull;
-    mScanner = nsnull;
-  } else if (mNumURIs) {
-    // Note: Don't do this if we're terminated.
+  // The thread is now idle. It is now safe to touch mContext on the main
+  // thread.
+  if (!mTerminated && mNumURIs) {
     nsPreloadURIs::PreloadURIs(mURIs, this);
     mNumURIs = 0;
     mURIs.Clear();
@@ -1538,7 +1526,6 @@ nsParser::DidBuildModel(nsresult anErrorCode)
 void
 nsParser::SpeculativelyParse()
 {
-#if 0 // Disable temporarily to see if this is the cause of the bustage.
   if (mParserContext->mParserCommand == eViewNormal &&
       !mParserContext->mMimeType.EqualsLiteral("text/html")) {
     return;
@@ -1555,7 +1542,6 @@ nsParser::SpeculativelyParse()
   if (NS_FAILED(rv)) {
     mSpeculativeScriptThread = nsnull;
   }
-#endif
 }
 
 /**
@@ -2187,10 +2173,10 @@ nsParser::ResumeParse(PRBool allowIteration, PRBool aIsFinalChunk,
     MOZ_TIMER_DEBUGLOG(("Start: Parse Time: nsParser::ResumeParse(), this=%p\n", this));
     MOZ_TIMER_START(mParseTime);
 
-    NS_ASSERTION(!mSpeculativeScriptThread || !mSpeculativeScriptThread->Parsing(),
-                 "Bad races happening, expect to crash!");
+    if (mSpeculativeScriptThread) {
+      mSpeculativeScriptThread->StopParsing(PR_FALSE);
+    }
 
-    CParserContext *originalContext = mParserContext;
     result = WillBuildModel(mParserContext->mScanner->GetFilename());
     if (NS_FAILED(result)) {
       mFlags &= ~NS_PARSER_FLAG_CAN_TOKENIZE;
@@ -2240,14 +2226,7 @@ nsParser::ResumeParse(PRBool allowIteration, PRBool aIsFinalChunk,
           }
 
           BlockParser();
-
-          // If our context has changed, then someone did a document.write of
-          // an asynchronous script that blocked a sub context. Since *that*
-          // block already might have started a speculative parse, we don't
-          // have to.
-          if (mParserContext == originalContext) {
-            SpeculativelyParse();
-          }
+          SpeculativelyParse();
           return NS_OK;
         }
         if (NS_ERROR_HTMLPARSER_STOPPARSING == result) {

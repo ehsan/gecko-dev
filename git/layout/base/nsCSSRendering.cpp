@@ -273,7 +273,7 @@ static void DrawBorderImageSide(gfxContext *aThebesContext,
                                 nsIDeviceContext* aDeviceContext,
                                 imgIContainer* aImage,
                                 gfxRect& aDestRect,
-                                gfxSize aInterSize,
+                                gfxSize& aInterSize,
                                 gfxRect& aSourceRect,
                                 PRUint8 aHFillType,
                                 PRUint8 aVFillType);
@@ -1477,7 +1477,8 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
   // We have a background image
 
   // Lookup the image
-  imgIRequest *req = aColor.mBackgroundImage;
+  imgIRequest *req = aPresContext->LoadImage(aColor.mBackgroundImage,
+                                             aForFrame);
 
   PRUint32 status = imgIRequest::STATUS_ERROR;
   if (req)
@@ -1915,7 +1916,7 @@ DrawBorderImage(nsPresContext* aPresContext,
     borderImageSplit[NS_SIDE_BOTTOM] = aBorderStyle.mBorderImageSplit.GetBottom();
     borderImageSplit[NS_SIDE_LEFT] = aBorderStyle.mBorderImageSplit.GetLeft();
 
-    imgIRequest *req = aBorderStyle.GetBorderImage();
+    imgIRequest *req = aPresContext->LoadBorderImage(aBorderStyle.GetBorderImage(), aForFrame);
 
     nsCOMPtr<imgIContainer> image;
     req->GetImage(getter_AddRefs(image));
@@ -1975,8 +1976,7 @@ DrawBorderImage(nsPresContext* aPresContext,
     clipRect.pos.y = dc->AppUnitsToGfxUnits(outerRect.y);
     clipRect.size.width = dc->AppUnitsToGfxUnits(outerRect.width);
     clipRect.size.height = dc->AppUnitsToGfxUnits(outerRect.height);
-    if (thebesCtx->UserToDevicePixelSnapped(clipRect))
-      clipRect = thebesCtx->DeviceToUser(clipRect);
+    thebesCtx->UserToDevicePixelSnapped(clipRect);
 
     thebesCtx->Save();
     thebesCtx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
@@ -2158,7 +2158,7 @@ DrawBorderImageSide(gfxContext *aThebesContext,
                     nsIDeviceContext* aDeviceContext,
                     imgIContainer* aImage,
                     gfxRect& aDestRect,
-                    gfxSize aInterSize, // non-ref to allow aliasing
+                    gfxSize& aInterSize,
                     gfxRect& aSourceRect,
                     PRUint8 aHFillType,
                     PRUint8 aVFillType)
@@ -2172,10 +2172,8 @@ DrawBorderImageSide(gfxContext *aThebesContext,
                            (PRInt32)aSourceRect.size.height);
 
   // where the actual border ends up being rendered
-  if (aThebesContext->UserToDevicePixelSnapped(aDestRect))
-    aDestRect = aThebesContext->DeviceToUser(aDestRect);
-  if (aThebesContext->UserToDevicePixelSnapped(aSourceRect))
-    aSourceRect = aThebesContext->DeviceToUser(aSourceRect);
+  aThebesContext->UserToDevicePixelSnapped(aDestRect);
+  aThebesContext->UserToDevicePixelSnapped(aSourceRect);
 
   if (aDestRect.size.height < 1.0 ||
      aDestRect.size.width < 1.0)

@@ -52,7 +52,6 @@ class nsIAtom;
 class nsIWidget;
 struct nsPoint;
 struct EventTypeData;
-class nsEventTargetChainItem;
 
 typedef struct {
   nsRefPtr<nsIDOMEventListener> mListener;
@@ -114,7 +113,7 @@ public:
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
                          nsEvent* aEvent, 
                          nsIDOMEvent** aDOMEvent,
-                         nsPIDOMEventTarget* aCurrentTarget,
+                         nsISupports* aCurrentTarget,
                          PRUint32 aFlags,
                          nsEventStatus* aEventStatus);
 
@@ -203,9 +202,6 @@ protected:
 
   static PRUint32                           mInstanceCount;
   static jsval                              sAddListenerID;
-
-  friend class nsEventTargetChainItem;
-  static PRUint32                           sCreatedCount;
 };
 
 #endif // nsEventListenerManager_h__

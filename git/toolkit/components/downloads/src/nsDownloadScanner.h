@@ -19,9 +19,8 @@
 
 #include "nsAutoPtr.h"
 #include "nsThreadUtils.h"
+#include "nsDownloadManager.h"
 #include "nsTArray.h"
-#include "nsIObserver.h"
-#include "nsIURI.h"
 
 enum AVScanState
 {
@@ -41,16 +40,12 @@ enum AVCheckPolicyState
   AVPOLICY_BLOCKED
 };
 
+
 // See nsDownloadScanner.cpp for declaration and definition
 class nsDownloadScannerWatchdog;
-class nsDownload;
 
-class nsDownloadScanner : public nsIObserver
+class nsDownloadScanner
 {
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
-
 public:
   nsDownloadScanner();
   ~nsDownloadScanner();
@@ -59,12 +54,11 @@ public:
   AVCheckPolicyState CheckPolicy(nsIURI *aSource, nsIURI *aTarget);
 
 private:
-  PRBool mOAVExists;
-  PRBool mAESExists;
-  PRBool mUseAttachmentExecute;
+  PRBool mHaveAVScanner;
+  PRBool mHaveAttachmentExecute;
   nsTArray<CLSID> mScanCLSID;
   PRBool IsAESAvailable();
-  PRBool EnumerateOAVProviders();
+  PRInt32 ListCLSID();
 
   nsAutoPtr<nsDownloadScannerWatchdog> mWatchdog;
 

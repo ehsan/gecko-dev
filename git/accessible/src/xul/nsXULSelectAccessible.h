@@ -71,14 +71,12 @@ public:
 
   // nsIAccessible
   NS_IMETHOD GetRole(PRUint32 *aRole);
+  NS_IMETHOD GetName(nsAString& aName);
   NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
 
   NS_IMETHOD GetNumActions(PRUint8 *aNumActions);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 aIndex);
-
-  // nsAccessible
-  virtual nsresult GetNameInternal(nsAString& aName);
 
   enum { eAction_Click = 0 };
 };
@@ -137,7 +135,8 @@ public:
   nsXULListitemAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
   virtual ~nsXULListitemAccessible() {}
 
-  // nsIAccessible
+  /* ----- nsIAccessible ----- */
+  NS_IMETHOD GetName(nsAString& _retval);
   NS_IMETHOD GetRole(PRUint32 *_retval);
   NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
   NS_IMETHOD GetActionName(PRUint8 index, nsAString& aName);
@@ -145,8 +144,6 @@ public:
   NS_IMETHOD GetDescription(nsAString& aDesc) { return nsAccessibleWrap::GetDescription(aDesc); }
   NS_IMETHOD GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChildren);
 
-  // nsAccessible
-  virtual nsresult GetNameInternal(nsAString& aName);
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
 
 protected:

@@ -87,8 +87,6 @@ class nsICSSStyleRule;
 class nsIObjectInputStream;
 class nsIObjectOutputStream;
 class nsIScriptGlobalObjectOwner;
-class nsXULPrototypeNode;
-typedef nsTArray<nsRefPtr<nsXULPrototypeNode> > nsPrototypeArray;
 
 static NS_DEFINE_CID(kCSSParserCID, NS_CSSPARSER_CID);
 
@@ -228,13 +226,13 @@ public:
      * those prototypes no longer remember their children to allow them
      * to be constructed.
      */
-    virtual void ReleaseSubtree() { }
+    virtual void ReleaseSubtree() { Release(); }
 
     NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(nsXULPrototypeNode)
 
 protected:
     nsXULPrototypeNode(Type aType)
-        : mType(aType) {}
+        : mType(aType), mRefCnt(1) {}
 };
 
 class nsXULPrototypeElement : public nsXULPrototypeNode
@@ -242,6 +240,8 @@ class nsXULPrototypeElement : public nsXULPrototypeNode
 public:
     nsXULPrototypeElement()
         : nsXULPrototypeNode(eType_Element),
+          mNumChildren(0),
+          mChildren(nsnull),
           mNumAttributes(0),
           mAttributes(nsnull),
           mHasIdAttribute(PR_FALSE),
@@ -250,12 +250,15 @@ public:
           mHoldsScriptObject(PR_FALSE),
           mScriptTypeID(nsIProgrammingLanguage::UNKNOWN)
     {
+        NS_LOG_ADDREF(this, 1, ClassName(), ClassSize());
     }
 
     virtual ~nsXULPrototypeElement()
     {
         UnlinkJSObjects();
         Unlink();
+        NS_ASSERTION(!mChildren && mNumChildren == 0,
+                     "ReleaseSubtree not called");
     }
 
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -265,12 +268,17 @@ public:
 
     virtual void ReleaseSubtree()
     {
-        for (PRInt32 i = mChildren.Length() - 1; i >= 0; i--) {
-            if (mChildren[i].get())
-                mChildren[i]->ReleaseSubtree();
+      if (mChildren) {
+        for (PRInt32 i = mNumChildren-1; i >= 0; i--) {
+          if (mChildren[i])
+            mChildren[i]->ReleaseSubtree();
         }
-        mChildren.Clear();
-        nsXULPrototypeNode::ReleaseSubtree();
+        mNumChildren = 0;
+        delete[] mChildren;
+        mChildren = nsnull;
+      }
+
+      nsXULPrototypeNode::ReleaseSubtree();
     }
 
     virtual nsresult Serialize(nsIObjectOutputStream* aStream,
@@ -286,7 +294,8 @@ public:
     void UnlinkJSObjects();
     void Unlink();
 
-    nsPrototypeArray         mChildren;
+    PRUint32                 mNumChildren;
+    nsXULPrototypeNode**     mChildren;           // [OWNER]
 
     nsCOMPtr<nsINodeInfo>    mNodeInfo;           // [OWNER]
 
@@ -407,6 +416,7 @@ public:
     nsXULPrototypeText()
         : nsXULPrototypeNode(eType_Text)
     {
+        NS_LOG_ADDREF(this, 1, ClassName(), ClassSize());
     }
 
     virtual ~nsXULPrototypeText()
@@ -435,6 +445,7 @@ public:
     nsXULPrototypePI()
         : nsXULPrototypeNode(eType_PI)
     {
+        NS_LOG_ADDREF(this, 1, ClassName(), ClassSize());
     }
 
     virtual ~nsXULPrototypePI()

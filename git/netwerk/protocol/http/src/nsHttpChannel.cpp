@@ -867,7 +867,6 @@ nsHttpChannel::ProcessResponse()
         }
         // these can normally be cached
         rv = ProcessNormal();
-        MaybeInvalidateCacheEntryForSubsequentGet();
         break;
     case 206:
         if (mCachedContentIsPartial) // an internal byte range request...
@@ -884,7 +883,6 @@ nsHttpChannel::ProcessResponse()
     case 305: // disabled as a security measure (see bug 187996).
 #endif
         // don't store the response body for redirects
-        MaybeInvalidateCacheEntryForSubsequentGet();
         rv = ProcessRedirection(httpStatus);
         if (NS_SUCCEEDED(rv)) {
             InitCacheEntry();
@@ -919,7 +917,6 @@ nsHttpChannel::ProcessResponse()
         break;
     default:
         rv = ProcessNormal();
-        MaybeInvalidateCacheEntryForSubsequentGet();
         break;
     }
 
@@ -1517,10 +1514,14 @@ nsHttpChannel::OpenCacheEntry(PRBool offline, PRBool *delayed)
         return NS_OK;
     }
 
-    GenerateCacheKey(mPostID, cacheKey);
+    GenerateCacheKey(cacheKey);
 
     // Get a cache session with appropriate storage policy
-    nsCacheStoragePolicy storagePolicy = DetermineStoragePolicy();
+    nsCacheStoragePolicy storagePolicy;
+    if (mLoadFlags & INHIBIT_PERSISTENT_CACHING)
+        storagePolicy = nsICache::STORE_IN_MEMORY;
+    else
+        storagePolicy = nsICache::STORE_ANYWHERE; // allow on disk
 
     // Set the desired cache access mode accordingly...
     nsCacheAccessMode accessRequested;
@@ -1712,7 +1713,7 @@ nsHttpChannel::OpenOfflineCacheEntryForWriting()
     }
 
     nsCAutoString cacheKey;
-    GenerateCacheKey(mPostID, cacheKey);
+    GenerateCacheKey(cacheKey);
 
     NS_ENSURE_TRUE(!mOfflineCacheClientID.IsEmpty(),
                    NS_ERROR_NOT_AVAILABLE);
@@ -1747,7 +1748,7 @@ nsHttpChannel::OpenOfflineCacheEntryForWriting()
 }
 
 nsresult
-nsHttpChannel::GenerateCacheKey(PRUint32 postID, nsACString &cacheKey)
+nsHttpChannel::GenerateCacheKey(nsACString &cacheKey)
 {
     cacheKey.Truncate();
 
@@ -1755,9 +1756,9 @@ nsHttpChannel::GenerateCacheKey(PRUint32 postID, nsACString &cacheKey)
       cacheKey.AssignLiteral("anon&");
     }
 
-    if (postID) {
+    if (mPostID) {
         char buf[32];
-        PR_snprintf(buf, sizeof(buf), "id=%x&", postID);
+        PR_snprintf(buf, sizeof(buf), "id=%x&", mPostID);
         cacheKey.Append(buf);
     }
 
@@ -2262,7 +2263,7 @@ nsHttpChannel::CloseOfflineCacheEntry()
             do_GetService(NS_APPLICATIONCACHESERVICE_CONTRACTID);
         if (appCacheService) {
             nsCAutoString cacheKey;
-            GenerateCacheKey(mPostID, cacheKey);
+            GenerateCacheKey(cacheKey);
             appCacheService->CacheOpportunistically(mApplicationCache,
                                                     cacheKey);
         }
@@ -2529,7 +2530,7 @@ nsHttpChannel::ClearBogusContentEncodingIfNeeded()
 // nsHttpChannel <redirect>
 //-----------------------------------------------------------------------------
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 CopyProperties(const nsAString& aKey, nsIVariant *aData, void *aClosure)
 {
     nsIWritablePropertyBag* bag = static_cast<nsIWritablePropertyBag*>
@@ -5413,62 +5414,3 @@ nsHttpChannel::SetNewListener(nsIStreamListener *aListener, nsIStreamListener **
     mListener = aListener;
     return NS_OK;
 }
-
-void
-nsHttpChannel::MaybeInvalidateCacheEntryForSubsequentGet()
-{
-    // See RFC 2616 section 5.1.1. These are considered valid
-    // methods which DO NOT invalidate cache-entries for the
-    // referred resource. POST, PUT and DELETE as well as any
-    // other method not listed here will potentially invalidate
-    // any cached copy of the resource
-    if (mRequestHead.Method() == nsHttp::Options ||
-       mRequestHead.Method() == nsHttp::Get ||
-       mRequestHead.Method() == nsHttp::Head ||
-       mRequestHead.Method() == nsHttp::Trace ||
-       mRequestHead.Method() == nsHttp::Connect)
-        return;
-        
-    // NOTE:
-    // Following comments 24,32 and 33 in bug #327765, we only care about
-    // the cache in the protocol-handler.
-    // The logic below deviates from the original logic in OpenCacheEntry on
-    // one point by using only READ_ONLY access-policy. I think this is safe.
-    LOG(("MaybeInvalidateCacheEntryForSubsequentGet [this=%x]\n", this));
-
-    nsCAutoString tmpCacheKey;
-    // passing 0 in first param gives the cache-key for a GET to my resource
-    GenerateCacheKey(0, tmpCacheKey);
-
-    // Now, find the session holding the cache-entry
-    nsCOMPtr<nsICacheSession> session;
-    nsCacheStoragePolicy storagePolicy = DetermineStoragePolicy();
-
-    nsresult rv;
-    rv = gHttpHandler->GetCacheSession(storagePolicy,
-                                       getter_AddRefs(session));
-
-    if (NS_FAILED(rv)) return;
-
-    // Finally, find the actual cache-entry
-    nsCOMPtr<nsICacheEntryDescriptor> tmpCacheEntry;
-    rv = session->OpenCacheEntry(tmpCacheKey, nsICache::ACCESS_READ,
-                                 PR_FALSE,
-                                 getter_AddRefs(tmpCacheEntry));
-    
-    // If entry was found, set its expiration-time = 0
-    if(NS_SUCCEEDED(rv)) {
-       tmpCacheEntry->SetExpirationTime(0);
-    }
-}
-
-nsCacheStoragePolicy
-nsHttpChannel::DetermineStoragePolicy()
-{
-    nsCacheStoragePolicy policy = nsICache::STORE_ANYWHERE;
-    if (mLoadFlags & INHIBIT_PERSISTENT_CACHING)
-        policy = nsICache::STORE_IN_MEMORY;
-
-    return policy;
-}
-

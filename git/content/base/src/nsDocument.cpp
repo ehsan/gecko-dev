@@ -157,22 +157,10 @@ static NS_DEFINE_CID(kDOMEventGroupCID, NS_DOMEVENTGROUP_CID);
 #include "nsCycleCollector.h"
 #include "nsCCUncollectableMarker.h"
 #include "nsIContentPolicy.h"
-#include "nsContentPolicyUtils.h"
-#include "nsICategoryManager.h"
-#include "nsIDocumentLoaderFactory.h"
-#include "nsIContentViewer.h"
-#include "nsIXMLContentSink.h"
-#include "nsIChannelEventSink.h"
-#include "nsContentErrors.h"
-#include "nsIXULDocument.h"
-#include "nsIProgressEventSink.h"
-#include "nsISecurityEventSink.h"
-#include "nsIPrompt.h"
 
 #include "nsFrameLoader.h"
 
 #include "mozAutoDocUpdate.h"
-
 
 #ifdef MOZ_LOGGING
 // so we can get logging even in release builds
@@ -271,7 +259,7 @@ nsUint32ToContentHashEntry::InitHashSet(HashSet** aSet)
   return NS_OK;
 }
 
-static PLDHashOperator
+static PLDHashOperator PR_CALLBACK
 nsUint32ToContentHashEntryVisitorCallback(nsISupportsHashKey* aEntry,
                                           void* aClosure)
 {
@@ -395,7 +383,7 @@ struct FireChangeArgs {
   nsIContent* mTo;
 };
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 FireChangeEnumerator(nsIdentifierMapEntry::ChangeCallbackEntry *aEntry, void *aArg)
 {
   FireChangeArgs* args = static_cast<FireChangeArgs*>(aArg);
@@ -731,433 +719,6 @@ nsOnloadBlocker::SetLoadFlags(nsLoadFlags aLoadFlags)
 }
 
 // ==================================================================
-
-nsExternalResourceMap::nsExternalResourceMap()
-  : mHaveShutDown(PR_FALSE)
-{
-  mMap.Init();
-  mPendingLoads.Init();
-}
-
-nsIDocument*
-nsExternalResourceMap::RequestResource(nsIURI* aURI,
-                                       nsINode* aRequestingNode,
-                                       nsDocument* aDisplayDocument,
-                                       ExternalResourceLoad** aPendingLoad)
-{
-  // If we ever start allowing non-same-origin loads here, we might need to do
-  // something interesting with aRequestingPrincipal even for the hashtable
-  // gets.
-  NS_PRECONDITION(aURI, "Must have a URI");
-  NS_PRECONDITION(aRequestingNode, "Must have a node");
-  *aPendingLoad = nsnull;
-  if (mHaveShutDown) {
-    return nsnull;
-  }
-  
-  // First, make sure we strip the ref from aURI.
-  nsCOMPtr<nsIURI> clone;
-  aURI->Clone(getter_AddRefs(clone));
-  if (!clone) {
-    return nsnull;
-  }
-  nsCOMPtr<nsIURL> url(do_QueryInterface(clone));
-  if (url) {
-    url->SetRef(EmptyCString());
-  }
-  
-  ExternalResource* resource;
-  mMap.Get(clone, &resource);
-  if (resource) {
-    return resource->mDocument;
-  }
-
-  nsRefPtr<PendingLoad> load;
-  mPendingLoads.Get(clone, getter_AddRefs(load));
-  if (load) {
-    NS_ADDREF(*aPendingLoad = load);
-    return nsnull;
-  }
-
-  load = new PendingLoad(aDisplayDocument);
-  if (!load) {
-    return nsnull;
-  }
-
-  if (!mPendingLoads.Put(clone, load)) {
-    return nsnull;
-  }
-
-  if (NS_FAILED(load->StartLoad(clone, aRequestingNode))) {
-    // Make sure we don't thrash things by trying this load again, since
-    // chances are it failed for good reasons (security check, etc).
-    AddExternalResource(clone, nsnull, nsnull, aDisplayDocument);
-  } else {
-    NS_ADDREF(*aPendingLoad = load);
-  }
-
-  return nsnull;
-}
-
-struct
-nsExternalResourceEnumArgs
-{
-  nsIDocument::nsSubDocEnumFunc callback;
-  void *data;
-};
-
-PR_STATIC_CALLBACK(PLDHashOperator)
-ExternalResourceEnumerator(nsIURI* aKey,
-                           nsExternalResourceMap::ExternalResource* aData,
-                           void* aClosure)
-{
-  nsExternalResourceEnumArgs* args =
-    static_cast<nsExternalResourceEnumArgs*>(aClosure);
-  PRBool next = args->callback(aData->mDocument, args->data);
-  return next ? PL_DHASH_NEXT : PL_DHASH_STOP;
-}
-
-void
-nsExternalResourceMap::EnumerateResources(nsIDocument::nsSubDocEnumFunc aCallback,
-                                          void* aData)
-{
-  nsExternalResourceEnumArgs args = { aCallback, aData };
-  mMap.EnumerateRead(ExternalResourceEnumerator, &args);
-}
-
-PR_STATIC_CALLBACK(PLDHashOperator)
-ExternalResourceTraverser(nsIURI* aKey,
-                          nsExternalResourceMap::ExternalResource* aData,
-                          void* aClosure)
-{
-  nsCycleCollectionTraversalCallback *cb = 
-    static_cast<nsCycleCollectionTraversalCallback*>(aClosure);
-
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb,
-                                     "mExternalResourceMap.mMap entry"
-                                     "->mDocument");
-  cb->NoteXPCOMChild(aData->mDocument);
-
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb,
-                                     "mExternalResourceMap.mMap entry"
-                                     "->mViewer");
-  cb->NoteXPCOMChild(aData->mViewer);
-
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb,
-                                     "mExternalResourceMap.mMap entry"
-                                     "->mLoadGroup");
-  cb->NoteXPCOMChild(aData->mLoadGroup);
-
-  return PL_DHASH_NEXT;
-}
-
-void
-nsExternalResourceMap::Traverse(nsCycleCollectionTraversalCallback* aCallback) const
-{
-  // mPendingLoads will get cleared out as the requests complete, so
-  // no need to worry about those here.
-  mMap.EnumerateRead(ExternalResourceTraverser, aCallback);
-}
-
-nsresult
-nsExternalResourceMap::AddExternalResource(nsIURI* aURI,
-                                           nsIDocumentViewer* aViewer,
-                                           nsILoadGroup* aLoadGroup,
-                                           nsIDocument* aDisplayDocument)
-{
-  NS_PRECONDITION(aURI, "Unexpected call");
-  NS_PRECONDITION((aViewer && aLoadGroup) || (!aViewer && !aLoadGroup),
-                  "Must have both or neither");
-  
-  nsRefPtr<PendingLoad> load;
-  mPendingLoads.Get(aURI, getter_AddRefs(load));
-  mPendingLoads.Remove(aURI);
-
-  nsresult rv = NS_OK;
-  
-  nsCOMPtr<nsIDocument> doc;
-  if (aViewer) {
-    aViewer->GetDocument(getter_AddRefs(doc));
-    NS_ASSERTION(doc, "Must have a document");
-
-    nsCOMPtr<nsIXULDocument> xulDoc = do_QueryInterface(doc);
-    if (xulDoc) {
-      // We don't handle XUL stuff here yet.
-      rv = NS_ERROR_NOT_AVAILABLE;
-    } else {
-      doc->SetDisplayDocument(aDisplayDocument);
-
-      rv = aViewer->Init(nsnull, nsRect(0, 0, 0, 0));
-      if (NS_SUCCEEDED(rv)) {
-        rv = aViewer->Open(nsnull, nsnull);
-      }
-    }
-    
-    if (NS_FAILED(rv)) {
-      doc = nsnull;
-      aViewer = nsnull;
-      aLoadGroup = nsnull;
-    }
-  }
-
-  ExternalResource* newResource = new ExternalResource();
-  if (newResource && !mMap.Put(aURI, newResource)) {
-    delete newResource;
-    newResource = nsnull;
-    if (NS_SUCCEEDED(rv)) {
-      rv = NS_ERROR_OUT_OF_MEMORY;
-    }
-  }
-
-  if (newResource) {
-    newResource->mDocument = doc;
-    newResource->mViewer = aViewer;
-    newResource->mLoadGroup = aLoadGroup;
-  }
-
-  const nsTArray< nsCOMPtr<nsIObserver> > & obs = load->Observers();
-  for (PRUint32 i = 0; i < obs.Length(); ++i) {
-    obs[i]->Observe(doc, "external-resource-document-created", nsnull);
-  }
-
-  return rv;
-}
-
-NS_IMPL_ISUPPORTS2(nsExternalResourceMap::PendingLoad,
-                   nsIStreamListener,
-                   nsIRequestObserver)
-
-NS_IMETHODIMP
-nsExternalResourceMap::PendingLoad::OnStartRequest(nsIRequest *aRequest,
-                                                   nsISupports *aContext)
-{
-  nsExternalResourceMap& map = mDisplayDocument->ExternalResourceMap();
-  if (map.HaveShutDown()) {
-    return NS_BINDING_ABORTED;
-  }
-
-  nsCOMPtr<nsIDocumentViewer> viewer;
-  nsCOMPtr<nsILoadGroup> loadGroup;
-  nsresult rv = SetupViewer(aRequest, getter_AddRefs(viewer),
-                            getter_AddRefs(loadGroup));
-
-  // Make sure to do this no matter what
-  nsresult rv2 = map.AddExternalResource(mURI, viewer, loadGroup,
-                                         mDisplayDocument);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-  if (NS_FAILED(rv2)) {
-    mTargetListener = nsnull;
-    return rv2;
-  }
-  
-  return mTargetListener->OnStartRequest(aRequest, aContext);
-}
-
-nsresult
-nsExternalResourceMap::PendingLoad::SetupViewer(nsIRequest* aRequest,
-                                                nsIDocumentViewer** aViewer,
-                                                nsILoadGroup** aLoadGroup)
-{
-  NS_PRECONDITION(!mTargetListener, "Unexpected call to OnStartRequest");
-  *aViewer = nsnull;
-  *aLoadGroup = nsnull;
-  
-  nsCOMPtr<nsIChannel> chan(do_QueryInterface(aRequest));
-  NS_ENSURE_TRUE(chan, NS_ERROR_UNEXPECTED);
-
-  nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(aRequest));
-  if (httpChannel) {
-    PRBool requestSucceeded;
-    if (NS_FAILED(httpChannel->GetRequestSucceeded(&requestSucceeded)) ||
-        !requestSucceeded) {
-      // Bail out on this load, since it looks like we have an HTTP error page
-      return NS_BINDING_ABORTED;
-    }
-  }
- 
-  nsCAutoString type;
-  chan->GetContentType(type);
-
-  nsCOMPtr<nsILoadGroup> loadGroup;
-  chan->GetLoadGroup(getter_AddRefs(loadGroup));
-
-  // Give this document its own loadgroup
-  nsCOMPtr<nsILoadGroup> newLoadGroup =
-        do_CreateInstance(NS_LOADGROUP_CONTRACTID);
-  NS_ENSURE_TRUE(newLoadGroup, NS_ERROR_OUT_OF_MEMORY);
-  newLoadGroup->SetLoadGroup(loadGroup);
-
-  nsCOMPtr<nsIInterfaceRequestor> callbacks;
-  loadGroup->GetNotificationCallbacks(getter_AddRefs(callbacks));
-
-  nsCOMPtr<nsIInterfaceRequestor> newCallbacks =
-    new LoadgroupCallbacks(callbacks);
-  newLoadGroup->SetNotificationCallbacks(newCallbacks);
-
-  // This is some serious hackery cribbed from docshell
-  nsCOMPtr<nsICategoryManager> catMan =
-    do_GetService(NS_CATEGORYMANAGER_CONTRACTID);
-  NS_ENSURE_TRUE(catMan, NS_ERROR_NOT_AVAILABLE);
-  nsXPIDLCString contractId;
-  nsresult rv = catMan->GetCategoryEntry("Gecko-Content-Viewers", type.get(),
-                                         getter_Copies(contractId));
-  NS_ENSURE_SUCCESS(rv, rv);
-  nsCOMPtr<nsIDocumentLoaderFactory> docLoaderFactory =
-    do_GetService(contractId);
-  NS_ENSURE_TRUE(docLoaderFactory, NS_ERROR_NOT_AVAILABLE);
-
-  nsCOMPtr<nsIContentViewer> viewer;
-  nsCOMPtr<nsIStreamListener> listener;
-  rv = docLoaderFactory->CreateInstance("external-resource", chan, newLoadGroup,
-                                        type.get(), nsnull, nsnull,
-                                        getter_AddRefs(listener),
-                                        getter_AddRefs(viewer));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIDocumentViewer> docViewer = do_QueryInterface(viewer);
-  NS_ENSURE_TRUE(docViewer, NS_ERROR_UNEXPECTED);
-
-  nsCOMPtr<nsIParser> parser = do_QueryInterface(listener);
-  if (!parser) {
-    /// We don't want to deal with the various fake documents yet
-    return NS_ERROR_NOT_IMPLEMENTED;
-  }
-
-  // We can't handle HTML and other weird things here yet.
-  nsIContentSink* sink = parser->GetContentSink();
-  nsCOMPtr<nsIXMLContentSink> xmlSink = do_QueryInterface(sink);
-  if (!xmlSink) {
-    return NS_ERROR_NOT_IMPLEMENTED;
-  }
-
-  listener.swap(mTargetListener);
-  docViewer.swap(*aViewer);
-  newLoadGroup.swap(*aLoadGroup);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsExternalResourceMap::PendingLoad::OnDataAvailable(nsIRequest* aRequest,
-                                                    nsISupports* aContext,
-                                                    nsIInputStream* aStream,
-                                                    PRUint32 aOffset,
-                                                    PRUint32 aCount)
-{
-  NS_PRECONDITION(mTargetListener, "Shouldn't be getting called!");
-  if (mDisplayDocument->ExternalResourceMap().HaveShutDown()) {
-    return NS_BINDING_ABORTED;
-  }
-  return mTargetListener->OnDataAvailable(aRequest, aContext, aStream, aOffset,
-                                          aCount);
-}
-
-NS_IMETHODIMP
-nsExternalResourceMap::PendingLoad::OnStopRequest(nsIRequest* aRequest,
-                                                  nsISupports* aContext,
-                                                  nsresult aStatus)
-{
-  // mTargetListener might be null if SetupViewer or AddExternalResource failed
-  if (mTargetListener) {
-    nsCOMPtr<nsIStreamListener> listener;
-    mTargetListener.swap(listener);
-    return listener->OnStopRequest(aRequest, aContext, aStatus);
-  }
-
-  return NS_OK;
-}
-
-nsresult
-nsExternalResourceMap::PendingLoad::StartLoad(nsIURI* aURI,
-                                              nsINode* aRequestingNode)
-{
-  NS_PRECONDITION(aURI, "Must have a URI");
-  NS_PRECONDITION(aRequestingNode, "Must have a node");
-
-  // Time to start a load.  First, the security checks.
-
-  nsIPrincipal* requestingPrincipal = aRequestingNode->NodePrincipal();
-
-  nsresult rv = nsContentUtils::GetSecurityManager()->
-    CheckLoadURIWithPrincipal(requestingPrincipal, aURI,
-                              nsIScriptSecurityManager::STANDARD);
-  NS_ENSURE_SUCCESS(rv, rv);
-  
-  rv = requestingPrincipal->CheckMayLoad(aURI, PR_TRUE);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRInt16 shouldLoad = nsIContentPolicy::ACCEPT;
-  rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_OTHER,
-                                 aURI,
-                                 requestingPrincipal,
-                                 aRequestingNode,
-                                 EmptyCString(), //mime guess
-                                 nsnull,         //extra
-                                 &shouldLoad,
-                                 nsContentUtils::GetContentPolicy(),
-                                 nsContentUtils::GetSecurityManager());
-  if (NS_FAILED(rv)) return rv;
-  if (NS_CP_REJECTED(shouldLoad)) {
-    // Disallowed by content policy
-    return NS_ERROR_CONTENT_BLOCKED;
-  }
-
-  nsIDocument* doc = aRequestingNode->GetOwnerDoc();
-  if (!doc) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
-  nsCOMPtr<nsILoadGroup> loadGroup = doc->GetDocumentLoadGroup();
-  nsCOMPtr<nsIChannel> channel;
-  rv = NS_NewChannel(getter_AddRefs(channel), aURI, nsnull, loadGroup);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  mURI = aURI;
-
-  nsCOMPtr<nsIInterfaceRequestor> req = nsContentUtils::GetSameOriginChecker();
-  NS_ENSURE_TRUE(req, NS_ERROR_OUT_OF_MEMORY);
-
-  channel->SetNotificationCallbacks(req);
-  return channel->AsyncOpen(this, nsnull);
-}
-
-NS_IMPL_ISUPPORTS1(nsExternalResourceMap::LoadgroupCallbacks,
-                   nsIInterfaceRequestor)
-
-NS_IMETHODIMP
-nsExternalResourceMap::LoadgroupCallbacks::GetInterface(const nsIID & aIID,
-                                                        void **aSink)
-{
-#define IID_IS(_i) aIID.Equals(NS_GET_IID(_i))
-  if (mCallbacks &&
-      (IID_IS(nsIProgressEventSink) ||
-       IID_IS(nsIChannelEventSink) ||
-       IID_IS(nsISecurityEventSink) ||
-       IID_IS(nsIPrompt) ||
-       IID_IS(nsIAuthPrompt) ||
-       IID_IS(nsIAuthPrompt2) ||
-       IID_IS(nsIApplicationCacheContainer) ||
-       // XXXbz evil hack for cookies for now
-       IID_IS(nsIDOMWindow) ||
-       IID_IS(nsIDocShellTreeItem))) {
-    return mCallbacks->GetInterface(aIID, aSink);
-  }
-#undef IID_IS
-
-  *aSink = nsnull;
-  return NS_NOINTERFACE;
-}
-
-nsExternalResourceMap::ExternalResource::~ExternalResource()
-{
-  if (mViewer) {
-    mViewer->Close(nsnull);
-    mViewer->Destroy();
-  }
-}
-
-// ==================================================================
 // =
 // ==================================================================
 
@@ -1452,7 +1013,7 @@ nsDocument::nsDocument(const char* aContentType)
   SetDOMStringToNull(mLastStyleSheetSet);
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 ClearAllBoxObjects(const void* aKey, nsPIBoxObject* aBoxObject, void* aUserArg)
 {
   if (aBoxObject) {
@@ -1616,7 +1177,7 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS_WITH_DESTROY(nsDocument,
                                                         nsNodeUtils::LastRelease(this))
 
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 SubDocTraverser(PLDHashTable *table, PLDHashEntryHdr *hdr, PRUint32 number,
                 void *arg)
 {
@@ -1632,9 +1193,8 @@ SubDocTraverser(PLDHashTable *table, PLDHashEntryHdr *hdr, PRUint32 number,
   return PL_DHASH_NEXT;
 }
 
-static PLDHashOperator
-RadioGroupsTraverser(const nsAString& aKey, nsRadioGroupStruct* aData,
-                     void* aClosure)
+PR_STATIC_CALLBACK(PLDHashOperator)
+RadioGroupsTraverser(const nsAString& aKey, nsAutoPtr<nsRadioGroupStruct>& aData, void* aClosure)
 {
   nsCycleCollectionTraversalCallback *cb = 
     static_cast<nsCycleCollectionTraversalCallback*>(aClosure);
@@ -1653,7 +1213,7 @@ RadioGroupsTraverser(const nsAString& aKey, nsRadioGroupStruct* aData,
   return PL_DHASH_NEXT;
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 BoxObjectTraverser(const void* key, nsPIBoxObject* boxObject, void* userArg)
 {
   nsCycleCollectionTraversalCallback *cb = 
@@ -1676,7 +1236,7 @@ public:
   }
 };
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 LinkMapTraverser(nsUint32ToContentHashEntry* aEntry, void* userArg)
 {
   LinkMapTraversalVisitor visitor;
@@ -1685,7 +1245,7 @@ LinkMapTraverser(nsUint32ToContentHashEntry* aEntry, void* userArg)
   return PL_DHASH_NEXT;
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 IdentifierMapEntryTraverse(nsIdentifierMapEntry *aEntry, void *aArg)
 {
   nsCycleCollectionTraversalCallback *cb =
@@ -1700,8 +1260,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDocument)
   }
 
   tmp->mIdentifierMap.EnumerateEntries(IdentifierMapEntryTraverse, &cb);
-
-  tmp->mExternalResourceMap.Traverse(&cb);
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mNodeInfo)
 
@@ -1718,7 +1276,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDocument)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mNodeInfoManager,
                                                   nsNodeInfoManager)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mSecurityInfo)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDisplayDocument)
 
   // Traverse all nsDocument nsCOMPtrs.
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mParser)
@@ -1727,7 +1284,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDocument)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDOMStyleSheets)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mScriptLoader)
 
-  tmp->mRadioGroups.EnumerateRead(RadioGroupsTraverser, &cb);
+  tmp->mRadioGroups.Enumerate(RadioGroupsTraverser, &cb);
 
   // The boxobject for an element will only exist as long as it's in the
   // document, so we'll traverse the table here instead of from the element.
@@ -1769,9 +1326,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
   // from the doc.
   tmp->DestroyLinkMap();
 
-  // Clear out our external resources
-  tmp->mExternalResourceMap.Shutdown();
-
   nsAutoScriptBlocker scriptBlocker;
 
   // Unlink the mChildren nsAttrAndChildArray.
@@ -1782,7 +1336,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
   }
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCachedRootContent)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDisplayDocument)
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK_USERDATA
 
@@ -2158,9 +1711,6 @@ nsDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
 
     // styles
     CSSLoader()->SetEnabled(PR_FALSE); // Do not load/process styles when loading as data
-  } else if (nsCRT::strcmp("external-resource", aCommand) == 0) {
-    // Allow CSS, but not scripts
-    ScriptLoader()->SetEnabled(PR_FALSE);
   }
 
   mMayStartLayout = PR_FALSE;
@@ -2971,7 +2521,7 @@ nsDocument::GetPrimaryShell() const
   return mShellsAreHidden ? nsnull : mPresShells.SafeElementAt(0, nsnull);
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 SubDocClearEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
 {
   SubDocMapEntry *e = static_cast<SubDocMapEntry *>(entry);
@@ -2983,7 +2533,7 @@ SubDocClearEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
   }
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 SubDocInitEntry(PLDHashTable *table, PLDHashEntryHdr *entry, const void *key)
 {
   SubDocMapEntry *e =
@@ -3082,7 +2632,7 @@ nsDocument::GetSubDocumentFor(nsIContent *aContent) const
   return nsnull;
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 FindContentEnumerator(PLDHashTable *table, PLDHashEntryHdr *hdr,
                       PRUint32 number, void *arg)
 {
@@ -3873,7 +3423,8 @@ nsDocument::DispatchContentLoadedEvents()
         // the ancestor document if we used the normal event
         // dispatching code.
 
-        nsEvent* innerEvent = privateEvent->GetInternalNSEvent();
+        nsEvent* innerEvent;
+        privateEvent->GetInternalNSEvent(&innerEvent);
         if (innerEvent) {
           nsEventStatus status = nsEventStatus_eIgnore;
 
@@ -5152,29 +4703,6 @@ nsDocument::FrameLoaderScheduledToBeFinalized(nsIDocShell* aShell)
   return PR_FALSE;
 }
 
-nsIDocument*
-nsDocument::RequestExternalResource(nsIURI* aURI,
-                                    nsINode* aRequestingNode,
-                                    ExternalResourceLoad** aPendingLoad)
-{
-  NS_PRECONDITION(aURI, "Must have a URI");
-  NS_PRECONDITION(aRequestingNode, "Must have a node");
-  if (mDisplayDocument) {
-    return mDisplayDocument->RequestExternalResource(aURI,
-                                                     aRequestingNode,
-                                                     aPendingLoad);
-  }
-
-  return mExternalResourceMap.RequestResource(aURI, aRequestingNode,
-                                              this, aPendingLoad);
-}
-
-void
-nsDocument::EnumerateExternalResources(nsSubDocEnumFunc aCallback, void* aData)
-{
-  mExternalResourceMap.EnumerateResources(aCallback, aData);
-}
-
 struct DirTable {
   const char* mName;
   PRUint8     mValue;
@@ -5707,7 +5235,7 @@ nsDocument::SetDocumentURI(const nsAString& aDocumentURI)
 
 static void BlastSubtreeToPieces(nsINode *aNode);
 
-PLDHashOperator
+PLDHashOperator PR_CALLBACK
 BlastFunc(nsAttrHashKey::KeyType aKey, nsIDOMNode *aData, void* aUserArg)
 {
   nsCOMPtr<nsIAttribute> *attr =
@@ -5995,8 +5523,7 @@ nsDocument::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 
   // Load events must not propagate to |window| object, see bug 335251.
   if (aVisitor.mEvent->message != NS_LOAD) {
-    nsCOMPtr<nsPIDOMEventTarget> parentTarget = do_QueryInterface(GetWindow());
-    aVisitor.mParentTarget = parentTarget;
+    aVisitor.mParentTarget = GetWindow();
   }
   return NS_OK;
 }
@@ -6333,20 +5860,20 @@ PRBool
 nsDocument::IsScriptEnabled()
 {
   nsCOMPtr<nsIScriptSecurityManager> sm(do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID));
-  NS_ENSURE_TRUE(sm, PR_FALSE);
+  NS_ENSURE_TRUE(sm, PR_TRUE);
 
   nsIScriptGlobalObject* globalObject = GetScriptGlobalObject();
-  NS_ENSURE_TRUE(globalObject, PR_FALSE);
+  NS_ENSURE_TRUE(globalObject, PR_TRUE);
 
   nsIScriptContext *scriptContext = globalObject->GetContext();
-  NS_ENSURE_TRUE(scriptContext, PR_FALSE);
+  NS_ENSURE_TRUE(scriptContext, PR_TRUE);
 
   JSContext* cx = (JSContext *) scriptContext->GetNativeContext();
-  NS_ENSURE_TRUE(cx, PR_FALSE);
+  NS_ENSURE_TRUE(cx, PR_TRUE);
 
   PRBool enabled;
   nsresult rv = sm->CanExecuteScripts(cx, NodePrincipal(), &enabled);
-  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+  NS_ENSURE_SUCCESS(rv, PR_TRUE);
   return enabled;
 }
 
@@ -6756,7 +6283,7 @@ struct SubDocEnumArgs
   void *data;
 };
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 SubDocHashEnum(PLDHashTable *table, PLDHashEntryHdr *hdr,
                PRUint32 number, void *arg)
 {
@@ -6778,7 +6305,7 @@ nsDocument::EnumerateSubDocuments(nsSubDocEnumFunc aCallback, void *aData)
   }
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 CanCacheSubDocument(PLDHashTable *table, PLDHashEntryHdr *hdr,
                     PRUint32 number, void *arg)
 {
@@ -6869,11 +6396,6 @@ nsDocument::Destroy()
 
   nsContentList::OnDocumentDestroy(this);
 
-  // Shut down our external resource map.  We might not need this for
-  // leak-fixing if we fix DocumentViewerImpl to do cycle-collection, but
-  // tearing down all those frame trees right now is the right thing to do.
-  mExternalResourceMap.Shutdown();
-
   // XXX We really should let cycle collection do this, but that currently still
   //     leaks (see https://bugzilla.mozilla.org/show_bug.cgi?id=406684).
   //     When we start relying on cycle collection again we should remove the
@@ -6915,11 +6437,6 @@ nsDocument::GetLayoutHistoryState() const
 void
 nsDocument::BlockOnload()
 {
-  if (mDisplayDocument) {
-    mDisplayDocument->BlockOnload();
-    return;
-  }
-  
   // If mScriptGlobalObject is null, we shouldn't be messing with the loadgroup
   // -- it's not ours.
   if (mOnloadBlockCount == 0 && mScriptGlobalObject) {
@@ -6934,11 +6451,6 @@ nsDocument::BlockOnload()
 void
 nsDocument::UnblockOnload(PRBool aFireSync)
 {
-  if (mDisplayDocument) {
-    mDisplayDocument->UnblockOnload(aFireSync);
-    return;
-  }
-
   if (mOnloadBlockCount == 0) {
     NS_NOTREACHED("More UnblockOnload() calls than BlockOnload() calls; dropping call");
     return;
@@ -6986,14 +6498,12 @@ nsDocument::PostUnblockOnloadEvent()
 void
 nsDocument::DoUnblockOnload()
 {
-  NS_PRECONDITION(!mDisplayDocument,
-                  "Shouldn't get here for resource document");
-  NS_PRECONDITION(mOnloadBlockCount != 0,
-                  "Shouldn't have a count of zero here, since we stabilized in "
-                  "PostUnblockOnloadEvent");
+  NS_ASSERTION(mOnloadBlockCount != 0,
+               "Shouldn't have a count of zero here, since we stabilized in "
+               "PostUnblockOnloadEvent");
   
   --mOnloadBlockCount;
-
+  
   if (mOnloadBlockCount != 0) {
     // We blocked again after the last unblock.  Nothing to do here.  We'll
     // post a new event when we unblock again.

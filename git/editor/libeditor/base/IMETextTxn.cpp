@@ -268,7 +268,9 @@ NS_IMETHODIMP IMETextTxn::CollapseTextSelection(void)
     PRUint16      textRangeListLength,selectionStart,selectionEnd,
                   textRangeType;
     
-    textRangeListLength = mRangeList->GetLength();
+    result = mRangeList->GetLength(&textRangeListLength);
+    if(NS_FAILED(result))
+        return result;
     nsCOMPtr<nsISelection> selection;
     result = selCon->GetSelection(nsISelectionController::SELECTION_NORMAL, getter_AddRefs(selection));
     if(NS_SUCCEEDED(result))
@@ -293,9 +295,9 @@ NS_IMETHODIMP IMETextTxn::CollapseTextSelection(void)
         PRBool setCaret=PR_FALSE;
         for(i=0;i<textRangeListLength;i++)
         {
-          textRange = mRangeList->Item(i);
-          NS_ASSERTION(textRange, "cannot get item");
-          if(!textRange)
+          result = mRangeList->Item(i, getter_AddRefs(textRange));
+          NS_ASSERTION(NS_SUCCEEDED(result), "cannot get item");
+          if(NS_FAILED(result))
                break;
 
           result = textRange->GetRangeType(&textRangeType);

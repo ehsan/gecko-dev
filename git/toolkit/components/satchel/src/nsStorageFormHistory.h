@@ -146,7 +146,7 @@ public:
 
 private:
   // Enumerator callback to add a single row to the FormHistory.
-  static PLDHashOperator
+  static PLDHashOperator PR_CALLBACK
   AddToFormHistoryCB(const nsCSubstring &aRowID,
                      const nsTArray<nsCString> *aValues,
                      void *aData);

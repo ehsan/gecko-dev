@@ -739,7 +739,9 @@ XPCWrapper::NativeToString(JSContext *cx, XPCWrappedNative *wrappedNative,
 {
   // Check whether toString was overridden in any object along
   // the wrapped native's object's prototype chain.
-  XPCJSRuntime *rt = nsXPConnect::GetRuntimeInstance();
+  XPCJSRuntime *rt = nsXPConnect::GetRuntime();
+  if (!rt)
+    return JS_FALSE;
 
   jsid id = rt->GetStringID(XPCJSRuntime::IDX_TO_STRING);
   jsval idAsVal;

@@ -186,21 +186,21 @@ private:
     void SetApplyConversionIfNeeded(nsIChannel *aChannel);
 
     // Hash table enumerators
-    static PRBool EnumPersistURIs(
+    static PRBool PR_CALLBACK EnumPersistURIs(
         nsHashKey *aKey, void *aData, void* closure);
-    static PRBool EnumCleanupURIMap(
+    static PRBool PR_CALLBACK EnumCleanupURIMap(
         nsHashKey *aKey, void *aData, void* closure);
-    static PRBool EnumCleanupOutputMap(
+    static PRBool PR_CALLBACK EnumCleanupOutputMap(
         nsHashKey *aKey, void *aData, void* closure);
-    static PRBool EnumCleanupUploadList(
+    static PRBool PR_CALLBACK EnumCleanupUploadList(
         nsHashKey *aKey, void *aData, void* closure);
-    static PRBool EnumCalcProgress(
+    static PRBool PR_CALLBACK EnumCalcProgress(
         nsHashKey *aKey, void *aData, void* closure);
-    static PRBool EnumCalcUploadProgress(
+    static PRBool PR_CALLBACK EnumCalcUploadProgress(
         nsHashKey *aKey, void *aData, void* closure);
-    static PRBool EnumFixRedirect(
+    static PRBool PR_CALLBACK EnumFixRedirect(
         nsHashKey *aKey, void *aData, void* closure);
-    static PRBool EnumCountURIsToPersist(
+    static PRBool PR_CALLBACK EnumCountURIsToPersist(
         nsHashKey *aKey, void *aData, void* closure);
 
     nsCOMPtr<nsIURI>          mCurrentDataPath;

@@ -572,9 +572,8 @@ MapToCCMapExt(PRUint32* aBmpPlaneMap, PRUint32** aOtherPlaneMaps, PRUint32 aOthe
   for (i = 0; i < aOtherPlaneNum; i++) {
     if (aOtherPlaneMaps[i]) {
       otherPlaneObj[i] = new nsCompressedCharMap();
-      NS_ASSERTION(otherPlaneObj[i],
-                   "unable to create new nsCompressedCharMap");
-      if(otherPlaneObj[i]) {
+      NS_ASSERTION(otherPlaneObj, "unable to create new nsCompressedCharMap");
+      if(otherPlaneObj) {
         otherPlaneObj[i]->SetChars(aOtherPlaneMaps[i]);
         totalSize += otherPlaneObj[i]->GetSize();
       }

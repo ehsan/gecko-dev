@@ -300,14 +300,14 @@ PR_IMPLEMENT(PRUint64) PR_GetPhysicalMemorySize(void)
 #elif defined(DARWIN)
 
     struct host_basic_info hInfo;
-    mach_msg_type_number_t count = HOST_BASIC_INFO_COUNT;
+    mach_msg_type_number_t count;
 
     int result = host_info(mach_host_self(),
                            HOST_BASIC_INFO,
                            (host_info_t) &hInfo,
                            &count);
     if (result == KERN_SUCCESS)
-        bytes = hInfo.max_mem;
+        bytes = hInfo.memory_size;
 
 #elif defined(WIN32)
 

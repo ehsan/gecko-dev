@@ -75,7 +75,7 @@ typedef PRInt16 DownloadType;
 class nsDownload;
 
 #if defined(XP_WIN) && !defined(__MINGW32__)
-#include "nsDownloadScanner.h"
+class nsDownloadScanner;
 #endif
 
 class nsDownloadManager : public nsIDownloadManager,
@@ -93,7 +93,11 @@ public:
   static nsDownloadManager *GetSingleton();
 
   virtual ~nsDownloadManager();
-  nsDownloadManager() {};
+#if defined(XP_WIN) && !defined(__MINGW32__)
+  nsDownloadManager() : mScanner(nsnull) { };
+private:
+  nsDownloadScanner *mScanner;
+#endif
 
 protected:
   nsresult InitDB(PRBool *aDoImport);
@@ -237,12 +241,6 @@ protected:
    * @return value of user-set pref for active download behavior
    */
   enum QuitBehavior GetQuitBehavior();
-
-  // Virus scanner for windows
-#if defined(XP_WIN) && !defined(__MINGW32__)
-private:
-  nsRefPtr<nsDownloadScanner> mScanner;
-#endif
 
 private:
   nsCOMArray<nsIDownloadProgressListener> mListeners;

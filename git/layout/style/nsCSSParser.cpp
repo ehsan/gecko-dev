@@ -286,10 +286,9 @@ protected:
   PRBool ParseCharsetRule(RuleAppendFunc aAppendFunc, void* aProcessData);
   PRBool ParseImportRule(RuleAppendFunc aAppendFunc, void* aProcessData);
   PRBool GatherURL(nsString& aURL);
+  // Callers must clear or throw out aMedia if GatherMedia returns false.
   PRBool GatherMedia(nsMediaList* aMedia,
                      PRUnichar aStopSymbol);
-  PRBool ParseMediaQuery(PRUnichar aStopSymbol, nsMediaQuery **aQuery,
-                         PRBool *aParsedSomething, PRBool *aHitStop);
   PRBool ParseMediaQueryExpression(nsMediaQuery* aQuery);
   PRBool ProcessImport(const nsString& aURLSpec,
                        nsMediaList* aMedia,
@@ -593,12 +592,12 @@ protected:
 #endif
 };
 
-static void AppendRuleToArray(nsICSSRule* aRule, void* aArray)
+PR_STATIC_CALLBACK(void) AppendRuleToArray(nsICSSRule* aRule, void* aArray)
 {
   static_cast<nsCOMArray<nsICSSRule>*>(aArray)->AppendObject(aRule);
 }
 
-static void AppendRuleToSheet(nsICSSRule* aRule, void* aParser)
+PR_STATIC_CALLBACK(void) AppendRuleToSheet(nsICSSRule* aRule, void* aParser)
 {
   CSSParserImpl* parser = (CSSParserImpl*) aParser;
   parser->AppendRule(aRule);
@@ -1465,152 +1464,131 @@ CSSParserImpl::GatherURL(nsString& aURL)
   return PR_FALSE;
 }
 
-PRBool
-CSSParserImpl::ParseMediaQuery(PRUnichar aStopSymbol,
-                               nsMediaQuery **aQuery,
-                               PRBool *aParsedSomething,
-                               PRBool *aHitStop)
-{
-  *aQuery = nsnull;
-  *aParsedSomething = PR_FALSE;
-  *aHitStop = PR_FALSE;
-
-  // "If the comma-separated list is the empty list it is assumed to
-  // specify the media query 'all'."  (css3-mediaqueries, section
-  // "Media Queries")
-  if (!GetToken(PR_TRUE)) {
-    *aHitStop = PR_TRUE;
-    // expected termination by EOF
-    if (aStopSymbol == PRUnichar(0))
-      return PR_TRUE;
-
-    // unexpected termination by EOF
-    REPORT_UNEXPECTED_EOF(PEGatherMediaEOF);
-    return PR_TRUE;
-  }
-
-  if (eCSSToken_Symbol == mToken.mType &&
-      mToken.mSymbol == aStopSymbol) {
-    *aHitStop = PR_TRUE;
-    UngetToken();
-    return PR_TRUE;
-  }
-  UngetToken();
-
-  *aParsedSomething = PR_TRUE;
-
-  nsAutoPtr<nsMediaQuery> query(new nsMediaQuery);
-  if (!query) {
-    mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
-    return PR_FALSE;
-  }
-
-  if (ExpectSymbol('(', PR_TRUE)) {
-    // we got an expression without a media type
-    UngetToken(); // so ParseMediaQueryExpression can handle it
-    query->SetType(nsGkAtoms::all);
-    query->SetTypeOmitted();
-    // Just parse the first expression here.
-    if (!ParseMediaQueryExpression(query)) {
-      OUTPUT_ERROR();
-      query->SetHadUnknownExpression();
-    }
-  } else {
-    nsCOMPtr<nsIAtom> mediaType;
-    PRBool gotNotOrOnly = PR_FALSE;
-    for (;;) {
-      if (!GetToken(PR_TRUE)) {
-        REPORT_UNEXPECTED_EOF(PEGatherMediaEOF);
-        return PR_FALSE;
-      }
-      if (eCSSToken_Ident != mToken.mType) {
-        REPORT_UNEXPECTED_TOKEN(PEGatherMediaNotIdent);
-        UngetToken();
-        return PR_FALSE;
-      }
-      // case insensitive from CSS - must be lower cased
-      ToLowerCase(mToken.mIdent);
-      mediaType = do_GetAtom(mToken.mIdent);
-      if (gotNotOrOnly ||
-          (mediaType != nsGkAtoms::_not && mediaType != nsGkAtoms::only))
-        break;
-      gotNotOrOnly = PR_TRUE;
-      if (mediaType == nsGkAtoms::_not)
-        query->SetNegated();
-      else
-        query->SetHasOnly();
-    }
-    query->SetType(mediaType);
-  }
-
-  for (;;) {
-    if (!GetToken(PR_TRUE)) {
-      *aHitStop = PR_TRUE;
-      // expected termination by EOF
-      if (aStopSymbol == PRUnichar(0))
-        break;
-
-      // unexpected termination by EOF
-      REPORT_UNEXPECTED_EOF(PEGatherMediaEOF);
-      break;
-    }
-
-    if (eCSSToken_Symbol == mToken.mType &&
-        mToken.mSymbol == aStopSymbol) {
-      *aHitStop = PR_TRUE;
-      UngetToken();
-      break;
-    }
-    if (eCSSToken_Symbol == mToken.mType && mToken.mSymbol == ',') {
-      // Done with the expressions for this query
-      break;
-    }
-    if (eCSSToken_Ident != mToken.mType ||
-        !mToken.mIdent.LowerCaseEqualsLiteral("and")) {
-      REPORT_UNEXPECTED_TOKEN(PEGatherMediaNotComma);
-      UngetToken();
-      return PR_FALSE;
-    }
-    if (!ParseMediaQueryExpression(query)) {
-      OUTPUT_ERROR();
-      query->SetHadUnknownExpression();
-    }
-  }
-  *aQuery = query.forget();
-  return PR_TRUE;
-}
-
-// Returns false only when there is a low-level error in the scanner
-// (out-of-memory).
+// Callers must clear or throw out aMedia if GatherMedia returns false.
 PRBool
 CSSParserImpl::GatherMedia(nsMediaList* aMedia,
                            PRUnichar aStopSymbol)
 {
+  // "If the comma-separated list is the empty list it is assumed to
+  // specify the media query 'all'."  (css3-mediaqueries, section
+  // "Media Queries")
+  if (!GetToken(PR_TRUE)) {
+    // expected termination by EOF
+    if (aStopSymbol == PRUnichar(0))
+      return PR_TRUE;
+
+    // unexpected termination by EOF; if we were looking for a
+    // semicolon, return true anyway, for the same reason this is
+    // done by ExpectSymbol().
+    REPORT_UNEXPECTED_EOF(PEGatherMediaEOF);
+    return aStopSymbol == PRUnichar(';');
+  }
+
+  if (eCSSToken_Symbol == mToken.mType &&
+      mToken.mSymbol == aStopSymbol) {
+    UngetToken();
+    return PR_TRUE;
+  }
+  UngetToken();
+  aMedia->SetNonEmpty();
+
   for (;;) {
-    nsAutoPtr<nsMediaQuery> query;
-    PRBool parsedSomething, hitStop;
-    if (!ParseMediaQuery(aStopSymbol, getter_Transfers(query),
-                         &parsedSomething, &hitStop)) {
-      if (NS_FAILED(mScanner.GetLowLevelError())) {
+    // We want to still have |query| after we transfer ownership from
+    // |queryHolder| to |aMedia|.
+    nsMediaQuery *query;
+    {
+      nsAutoPtr<nsMediaQuery> queryHolder(new nsMediaQuery);
+      if (!queryHolder) {
+        mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
         return PR_FALSE;
       }
-      SkipUntil(',');
-    }
-    if (parsedSomething) {
-      aMedia->SetNonEmpty();
-    }
-    if (query) {
-      nsresult rv = aMedia->AppendQuery(query);
+      query = queryHolder;
+
+      // In terms of error handling, it doesn't really matter when we
+      // append this, since aMedia's contents get dropped entirely
+      // whenever there is an error.
+      nsresult rv = aMedia->AppendQuery(queryHolder);
       if (NS_FAILED(rv)) {
         mScanner.SetLowLevelError(rv);
         return PR_FALSE;
       }
+      NS_ASSERTION(!queryHolder, "ownership should have been transferred");
     }
-    if (hitStop) {
-      break;
+
+    if (ExpectSymbol('(', PR_TRUE)) {
+      // we got an expression without a media type
+      UngetToken(); // so ParseMediaQueryExpression can handle it
+      query->SetType(nsGkAtoms::all);
+      query->SetTypeOmitted();
+      // Just parse the first expression here.
+      if (!ParseMediaQueryExpression(query)) {
+        OUTPUT_ERROR();
+        query->SetHadUnknownExpression();
+      }
+    } else {
+      nsCOMPtr<nsIAtom> mediaType;
+      PRBool gotNotOrOnly = PR_FALSE;
+      for (;;) {
+        if (!GetToken(PR_TRUE)) {
+          REPORT_UNEXPECTED_EOF(PEGatherMediaEOF);
+          return PR_FALSE;
+        }
+        if (eCSSToken_Ident != mToken.mType) {
+          REPORT_UNEXPECTED_TOKEN(PEGatherMediaNotIdent);
+          UngetToken();
+          return PR_FALSE;
+        }
+        // case insensitive from CSS - must be lower cased
+        ToLowerCase(mToken.mIdent);
+        mediaType = do_GetAtom(mToken.mIdent);
+        if (gotNotOrOnly ||
+            (mediaType != nsGkAtoms::_not && mediaType != nsGkAtoms::only))
+          break;
+        gotNotOrOnly = PR_TRUE;
+        if (mediaType == nsGkAtoms::_not)
+          query->SetNegated();
+        else
+          query->SetHasOnly();
+      }
+      query->SetType(mediaType);
+    }
+
+    for (;;) {
+      if (!GetToken(PR_TRUE)) {
+        // expected termination by EOF
+        if (aStopSymbol == PRUnichar(0))
+          return PR_TRUE;
+
+        // unexpected termination by EOF; if we were looking for a
+        // semicolon, return true anyway, for the same reason this is
+        // done by ExpectSymbol().
+        REPORT_UNEXPECTED_EOF(PEGatherMediaEOF);
+        return aStopSymbol == PRUnichar(';');
+      }
+
+      if (eCSSToken_Symbol == mToken.mType &&
+          mToken.mSymbol == aStopSymbol) {
+        UngetToken();
+        return PR_TRUE;
+      }
+      if (eCSSToken_Symbol == mToken.mType && mToken.mSymbol == ',') {
+        // Done with the expressions for this query
+        break;
+      }
+      if (eCSSToken_Ident != mToken.mType ||
+          !mToken.mIdent.LowerCaseEqualsLiteral("and")) {
+        REPORT_UNEXPECTED_TOKEN(PEGatherMediaNotComma);
+        UngetToken();
+        return PR_FALSE;
+      }
+      if (!ParseMediaQueryExpression(query)) {
+        OUTPUT_ERROR();
+        query->SetHadUnknownExpression();
+      }
     }
   }
-  return PR_TRUE;
+  NS_NOTREACHED("unreachable code");
+  return PR_FALSE; // keep the compiler happy
 }
 
 PRBool
@@ -5807,14 +5785,11 @@ CSSParserImpl::ParseBackground()
   mTempData.mColor.mBackPosition.mYValue.SetPercentValue(0.0f);
   mTempData.SetPropertyBit(eCSSProperty_background_position);
   // including the ones that we can't set from the shorthand.
-  mTempData.mColor.mBackClip.SetIntValue(NS_STYLE_BG_CLIP_BORDER,
-                                         eCSSUnit_Enumerated);
+  mTempData.mColor.mBackClip.SetInitialValue();
   mTempData.SetPropertyBit(eCSSProperty__moz_background_clip);
-  mTempData.mColor.mBackOrigin.SetIntValue(NS_STYLE_BG_ORIGIN_PADDING,
-                                           eCSSUnit_Enumerated);
+  mTempData.mColor.mBackOrigin.SetInitialValue();
   mTempData.SetPropertyBit(eCSSProperty__moz_background_origin);
-  mTempData.mColor.mBackInlinePolicy.SetIntValue(
-    NS_STYLE_BG_INLINE_POLICY_CONTINUOUS, eCSSUnit_Enumerated);
+  mTempData.mColor.mBackInlinePolicy.SetInitialValue();
   mTempData.SetPropertyBit(eCSSProperty__moz_background_inline_policy);
 
   // XXX If ParseSingleValueProperty were table-driven (bug 376079) and

@@ -47,14 +47,13 @@ class nsIScriptContext;
 class nsIDOMEventTarget;
 class nsIDOMEventGroup;
 class nsIAtom;
-class nsPIDOMEventTarget;
 
 /*
  * Event listener manager interface.
  */
 #define NS_IEVENTLISTENERMANAGER_IID \
-{ 0x0cdf1660, 0x3ac1, 0x4b84, \
-  { 0xa9, 0x35, 0xc0, 0xc0, 0xe5, 0x5d, 0x73, 0xca } }
+{ 0x0056ac6b, 0xc25b, 0x4fbb, \
+  { 0x92, 0x98, 0x8d, 0xce, 0x53, 0x6e } }
 
 
 class nsIEventListenerManager : public nsISupports {
@@ -139,7 +138,7 @@ public:
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext,
                          nsEvent* aEvent,
                          nsIDOMEvent** aDOMEvent,
-                         nsPIDOMEventTarget* aCurrentTarget,
+                         nsISupports* aCurrentTarget,
                          PRUint32 aFlags,
                          nsEventStatus* aEventStatus) = 0;
 

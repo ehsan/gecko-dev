@@ -290,7 +290,7 @@ PLHashTable* nsHTMLTags::gTagAtomTable;
 
 
 // PRUnichar* -> id hash
-static PLHashNumber
+PR_STATIC_CALLBACK(PLHashNumber)
 HTMLTagsHashCodeUCPtr(const void *key)
 {
   const PRUnichar *str = (const PRUnichar *)key;
@@ -298,7 +298,7 @@ HTMLTagsHashCodeUCPtr(const void *key)
   return nsCRT::HashCode(str);
 }
 
-static PRIntn
+PR_STATIC_CALLBACK(PRIntn)
 HTMLTagsKeyCompareUCPtr(const void *key1, const void *key2)
 {
   const PRUnichar *str1 = (const PRUnichar *)key1;
@@ -308,7 +308,7 @@ HTMLTagsKeyCompareUCPtr(const void *key1, const void *key2)
 }
 
 // nsIAtom* -> id hash
-static PLHashNumber
+PR_STATIC_CALLBACK(PLHashNumber)
 HTMLTagsHashCodeAtom(const void *key)
 {
   return NS_PTR_TO_INT32(key) >> 2;

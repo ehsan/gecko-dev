@@ -556,6 +556,14 @@ endif # MOZ_OPTIMIZE == 1
 endif # MOZ_OPTIMIZE
 endif # CROSS_COMPILE
 
+ifeq ($(MOZ_OS2_TOOLS),VACPP)
+ifdef USE_STATIC_LIBS
+RTL_FLAGS += -Gd-
+else # !USE_STATIC_LIBS
+RTL_FLAGS += -Gd+
+endif
+endif
+
 
 ifeq ($(OS_ARCH)_$(GNU_CC),WINNT_)
 #// Currently, unless USE_STATIC_LIBS is defined, the multithreaded
@@ -607,11 +615,13 @@ endif
 # put on the link line for binaries, and should
 # we link statically or dynamic?  Assuming dynamic for now.
 
+ifneq ($(MOZ_OS2_TOOLS),VACPP)
 ifneq (WINNT_,$(OS_ARCH)_$(GNU_CC))
 ifneq (,$(filter-out WINCE,$(OS_ARCH)))
 LIBS_DIR	= -L$(DIST)/bin -L$(DIST)/lib
 ifdef LIBXUL_SDK
 LIBS_DIR	+= -L$(LIBXUL_SDK)/bin -L$(LIBXUL_SDK)/lib
+endif
 endif
 endif
 endif
@@ -661,6 +671,10 @@ endif
 endif
 
 ifeq ($(OS_ARCH),Darwin)
+ifdef USE_PREBINDING
+export LD_PREBIND=1
+export LD_SEG_ADDR_TABLE=$(shell cd $(topsrcdir); pwd)/config/prebind-address-table
+endif # USE_PREBINDING
 ifdef NEXT_ROOT
 export NEXT_ROOT
 PBBUILD = NEXT_ROOT= $(PBBUILD_BIN)
@@ -702,7 +716,7 @@ endif
 # Set link flags according to whether we want a console.
 ifdef MOZ_WINCONSOLE
 ifeq ($(MOZ_WINCONSOLE),1)
-ifeq ($(OS_ARCH),OS2)
+ifeq ($(MOZ_OS2_TOOLS),EMX)
 BIN_FLAGS	+= -Zlinker -PM:VIO
 endif
 ifeq ($(OS_ARCH),WINNT)
@@ -713,7 +727,10 @@ WIN32_EXE_LDFLAGS	+= -SUBSYSTEM:CONSOLE
 endif
 endif
 else # MOZ_WINCONSOLE
-ifeq ($(OS_ARCH),OS2)
+ifeq ($(MOZ_OS2_TOOLS),VACPP)
+LDFLAGS += -PM:PM
+endif
+ifeq ($(MOZ_OS2_TOOLS),EMX)
 BIN_FLAGS	+= -Zlinker -PM:PM
 endif
 ifeq ($(OS_ARCH),WINNT)

@@ -101,6 +101,7 @@ public:
 //
 
 class CSSRuleListImpl;
+static PRBool CascadeSheetRulesInto(nsICSSStyleSheet* aSheet, void* aData);
 struct ChildSheetListBuilder;
 
 class nsCSSStyleSheet : public nsICSSStyleSheet, 
@@ -223,7 +224,7 @@ protected:
   nsAutoVoidArray*      mRuleProcessors;
 
   friend class nsMediaList;
-  friend class nsCSSRuleProcessor;
+  friend PRBool CascadeSheetRulesInto(nsICSSStyleSheet* aSheet, void* aData);
   friend nsresult NS_NewCSSStyleSheet(nsICSSStyleSheet** aInstancePtrResult);
   friend struct ChildSheetListBuilder;
 };

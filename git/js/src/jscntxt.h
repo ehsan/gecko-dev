@@ -338,7 +338,7 @@ struct JSRuntime {
     JSCList             trapList;
     JSCList             watchPointList;
 
-    /* Client opaque pointers */
+    /* Client opaque pointer */
     void                *data;
 
 #ifdef JS_THREADSAFE
@@ -860,9 +860,8 @@ struct JSContext {
     /* Interpreter activation count. */
     uintN               interpLevel;
 
-    /* Client opaque pointers. */
+    /* Client opaque pointer */
     void                *data;
-    void                *data2;
 
     /* GC and thread-safe state. */
     JSStackFrame        *dormantFrameChain; /* dormant stack frame to scan */

@@ -310,8 +310,6 @@ private:
     nsresult CloseContainersTo(eHTMLTags aTag, PRBool aClosedByStartTag);
     nsresult CloseContainersTo(PRInt32 anIndex, eHTMLTags aTag,
                                PRBool aClosedByStartTag);
-    nsresult CloseResidualStyleTags(const eHTMLTags aTag,
-                                    PRBool aClosedByStartTag);
 
     /**
      * Causes leaf to be added to sink at current vector pos.
