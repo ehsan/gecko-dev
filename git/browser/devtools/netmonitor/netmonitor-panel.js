@@ -6,7 +6,7 @@
 "use strict";
 
 const { Cc, Ci, Cu, Cr } = require("chrome");
-const { Promise: promise } = Cu.import("resource://gre/modules/Promise.jsm", {});
+const promise = require("sdk/core/promise");
 const EventEmitter = require("devtools/shared/event-emitter");
 
 function NetMonitorPanel(iframeWindow, toolbox) {

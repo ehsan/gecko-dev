@@ -7,7 +7,7 @@
 
 const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
-const DBG_XUL = "chrome://browser/content/devtools/framework/toolbox-process-window.xul";
+const DBG_XUL = "chrome://browser/content/devtools/debugger.xul";
 const CHROME_DEBUGGER_PROFILE_NAME = "-chrome-debugger";
 
 Cu.import("resource://gre/modules/Services.jsm");
@@ -17,17 +17,17 @@ Cu.import("resource://gre/modules/devtools/Loader.jsm");
 let require = devtools.require;
 let Telemetry = require("devtools/shared/telemetry");
 
-this.EXPORTED_SYMBOLS = ["BrowserToolboxProcess"];
+this.EXPORTED_SYMBOLS = ["BrowserDebuggerProcess"];
 
 /**
- * Constructor for creating a process that will hold a chrome toolbox.
+ * Constructor for creating a process that will hold a chrome debugger.
  *
  * @param function aOnClose [optional]
  *        A function called when the process stops running.
  * @param function aOnRun [optional]
  *        A function called when the process starts running.
  */
-this.BrowserToolboxProcess = function BrowserToolboxProcess(aOnClose, aOnRun) {
+this.BrowserDebuggerProcess = function BrowserDebuggerProcess(aOnClose, aOnRun) {
   this._closeCallback = aOnClose;
   this._runCallback = aOnRun;
   this._telemetry = new Telemetry();
@@ -38,19 +38,19 @@ this.BrowserToolboxProcess = function BrowserToolboxProcess(aOnClose, aOnRun) {
 };
 
 /**
- * Initializes and starts a chrome toolbox process.
+ * Initializes and starts a chrome debugger process.
  * @return object
  */
-BrowserToolboxProcess.init = function(aOnClose, aOnRun) {
-  return new BrowserToolboxProcess(aOnClose, aOnRun);
+BrowserDebuggerProcess.init = function(aOnClose, aOnRun) {
+  return new BrowserDebuggerProcess(aOnClose, aOnRun);
 };
 
-BrowserToolboxProcess.prototype = {
+BrowserDebuggerProcess.prototype = {
   /**
    * Initializes the debugger server.
    */
   _initServer: function() {
-    dumpn("Initializing the chrome toolbox server.");
+    dumpn("Initializing the chrome debugger server.");
 
     if (!this.loader) {
       // Create a separate loader instance, so that we can be sure to receive a
@@ -71,7 +71,7 @@ BrowserToolboxProcess.prototype = {
 
     this.debuggerServer.openListener(Prefs.chromeDebuggingPort);
 
-    dumpn("Finished initializing the chrome toolbox server.");
+    dumpn("Finished initializing the chrome debugger server.");
     dumpn("Started listening on port: " + Prefs.chromeDebuggingPort);
   },
 
@@ -79,7 +79,7 @@ BrowserToolboxProcess.prototype = {
    * Initializes a profile for the remote debugger process.
    */
   _initProfile: function() {
-    dumpn("Initializing the chrome toolbox user profile.");
+    dumpn("Initializing the chrome debugger user profile.");
 
     let profileService = Cc["@mozilla.org/toolkit/profile-service;1"]
       .createInstance(Ci.nsIToolkitProfileService);
@@ -88,7 +88,7 @@ BrowserToolboxProcess.prototype = {
     try {
       // Attempt to get the required chrome debugging profile name string.
       profileName = profileService.selectedProfile.name + CHROME_DEBUGGER_PROFILE_NAME;
-      dumpn("Using chrome toolbox profile name: " + profileName);
+      dumpn("Using chrome debugger profile name: " + profileName);
     } catch (e) {
       // Requested profile string could not be retrieved.
       profileName = CHROME_DEBUGGER_PROFILE_NAME;
@@ -101,7 +101,7 @@ BrowserToolboxProcess.prototype = {
     try {
       // Attempt to get the required chrome debugging profile toolkit object.
       profileObject = profileService.getProfileByName(profileName);
-      dumpn("Using chrome toolbox profile object: " + profileObject);
+      dumpn("Using chrome debugger profile object: " + profileObject);
 
       // The profile exists but the corresponding folder may have been deleted.
       var enumerator = Services.dirsvc.get("ProfD", Ci.nsIFile).parent.directoryEntries;
@@ -115,7 +115,7 @@ BrowserToolboxProcess.prototype = {
       }
       // Requested profile was found but the folder was deleted. Cleanup needed.
       profileObject.remove(true);
-      dumpn("The already existing chrome toolbox profile was invalid.");
+      dumpn("The already existing chrome debugger profile was invalid.");
     } catch (e) {
       // Requested profile object was not found.
       let msg = "Creating a profile failed. " + e.name + ": " + e.message;
@@ -127,7 +127,7 @@ BrowserToolboxProcess.prototype = {
     this._dbgProfile = profileService.createProfile(null, profileName);
     profileService.flush();
 
-    dumpn("Finished creating the chrome toolbox user profile.");
+    dumpn("Finished creating the chrome debugger user profile.");
     dumpn("Flushed profile service with: " + profileName);
   },
 
@@ -145,7 +145,7 @@ BrowserToolboxProcess.prototype = {
 
     this._telemetry.toolOpened("jsbrowserdebugger");
 
-    dumpn("Chrome toolbox is now running...");
+    dumpn("Chrome debugger is now running...");
     if (typeof this._runCallback == "function") {
       this._runCallback.call({}, this);
     }
@@ -164,7 +164,7 @@ BrowserToolboxProcess.prototype = {
     this._telemetry.toolClosed("jsbrowserdebugger");
     this.debuggerServer.destroy();
 
-    dumpn("Chrome toolbox is now closed...");
+    dumpn("Chrome debugger is now closed...");
     if (typeof this._closeCallback == "function") {
       this._closeCallback.call({}, this);
     }

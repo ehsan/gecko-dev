@@ -32,7 +32,6 @@ VideoFrame::TakeFrom(VideoFrame* aFrame)
 {
   mImage = aFrame->mImage.forget();
   mIntrinsicSize = aFrame->mIntrinsicSize;
-  mForceBlack = aFrame->GetForceBlack();
 }
 
 VideoChunk::VideoChunk()
