@@ -2759,11 +2759,9 @@ public:
      * @param pErr [out] relevant error code, if any.
      */
     static JSBool NativeInterface2JSObject(XPCCallContext& ccx,
-                                           jsval* d,
                                            nsIXPConnectJSObjectHolder** dest,
                                            nsISupports* src,
                                            const nsID* iid,
-                                           XPCNativeInterface* Interface,
                                            JSObject* scope,
                                            PRBool allowNativeWrapper,
                                            PRBool isGlobal,

@@ -103,14 +103,7 @@ interface nsIAccessible : nsISupports
   readonly attribute long indexInParent;
 
   /**
-   * Accessible name -- the main text equivalent for this node. The name is
-   * specified by ARIA or by native markup. Example of ARIA markup is
-   * aria-labelledby attribute placed on element of this accessible. Example
-   * of native markup is HTML label linked with HTML element of this accessible.
-   *
-   * Value can be string or null. A null value indicates that AT may attempt to
-   * compute the name. Any string value, including the empty string, should be
-   * considered author-intentional, and respected.
+   * Accessible name -- the main text equivalent for this node
    */
   attribute AString name;
 

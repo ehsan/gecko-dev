@@ -98,7 +98,6 @@ function cleanUp()
     "places.sqlite",
     "cookies.sqlite",
     "signons.sqlite",
-    "permissions.sqlite"
   ];
 
   for (let i = 0; i < files.length; i++) {
