@@ -1743,10 +1743,10 @@ nsImageFrame::List(FILE* out, PRInt32 aIndent) const
 }
 #endif
 
-int
+PRIntn
 nsImageFrame::GetSkipSides() const
 {
-  int skip = 0;
+  PRIntn skip = 0;
   if (nullptr != GetPrevInFlow()) {
     skip |= 1 << NS_SIDE_TOP;
   }

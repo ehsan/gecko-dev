@@ -812,7 +812,7 @@ imgCacheQueue imgLoader::sCacheQueue;
 imgLoader::imgCacheTable imgLoader::sChromeCache;
 imgCacheQueue imgLoader::sChromeCacheQueue;
 
-double imgLoader::sCacheTimeWeight;
+PRFloat64 imgLoader::sCacheTimeWeight;
 PRUint32 imgLoader::sCacheMaxSize;
 
 NS_IMPL_ISUPPORTS5(imgLoader, imgILoader, nsIContentSniffer, imgICache, nsISupportsWeakReference, nsIObserver)

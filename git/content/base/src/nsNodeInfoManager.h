@@ -116,9 +116,9 @@ protected:
   void SetDocumentPrincipal(nsIPrincipal *aPrincipal);
 
 private:
-  static int NodeInfoInnerKeyCompare(const void *key1, const void *key2);
+  static PRIntn NodeInfoInnerKeyCompare(const void *key1, const void *key2);
   static PLHashNumber GetNodeInfoInnerHashValue(const void *key);
-  static int DropNodeInfoDocument(PLHashEntry *he, int hashIndex,
+  static PRIntn DropNodeInfoDocument(PLHashEntry *he, PRIntn hashIndex,
                                      void *arg);
 
   PLHashTable *mNodeInfoHash;

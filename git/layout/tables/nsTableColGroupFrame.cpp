@@ -333,10 +333,10 @@ nsTableColGroupFrame::RemoveFrame(ChildListID     aListID,
   return NS_OK;
 }
 
-int
+PRIntn
 nsTableColGroupFrame::GetSkipSides() const
 {
-  int skip = 0;
+  PRIntn skip = 0;
   if (nullptr != GetPrevInFlow()) {
     skip |= 1 << NS_SIDE_TOP;
   }

@@ -18,8 +18,8 @@ from devicemanager import DeviceManager, NetworkTools
 from mozprocess import ProcessHandlerMixin
 
 
-class StdOutProc(ProcessHandlerMixin):
-    """Process handler for b2g which puts all output in a Queue.
+class LogcatProc(ProcessHandlerMixin):
+    """Process handler for logcat which puts all output in a Queue.
     """
 
     def __init__(self, cmd, queue, **kwargs):
@@ -75,20 +75,6 @@ class B2GRemoteAutomation(Automation):
         # We always hide the results table in B2G; it's much slower if we don't.
         env['MOZ_HIDE_RESULTS_TABLE'] = '1'
         return env
-
-    def waitForNet(self): 
-        active = False
-        time_out = 0
-        while not active and time_out < 40:
-            data = self._devicemanager.runCmd(['shell', '/system/bin/netcfg']).stdout.readlines()
-            data.pop(0)
-            for line in data:
-                if (re.search(r'UP\s+(?:[0-9]{1,3}\.){3}[0-9]{1,3}', line)):
-                    active = True
-                    break
-            time_out += 1
-            time.sleep(1)
-        return active
 
     def checkForCrashes(self, directory, symbolsPath):
         # XXX: This will have to be updated after crash reporting on b2g
@@ -174,11 +160,7 @@ class B2GRemoteAutomation(Automation):
         serial, status = self.getDeviceStatus()
 
         # reboot!
-        self._devicemanager.runCmd(['shell', '/system/bin/reboot'])
-
-        # The above command can return while adb still thinks the device is
-        # connected, so wait a little bit for it to disconnect from adb.
-        time.sleep(10)
+        self._devicemanager.checkCmd(['reboot'])
 
         # wait for device to come back to previous status
         print 'waiting for device to come back online after reboot'
@@ -201,26 +183,21 @@ class B2GRemoteAutomation(Automation):
         # to pass env variables into the B2G process, but this doesn't 
         # seem to matter.
 
+        instance = self.B2GInstance(self._devicemanager)
+
         # reboot device so it starts up with the mochitest profile
         # XXX:  We could potentially use 'stop b2g' + 'start b2g' to achieve
         # a similar effect; will see which is more stable while attempting
         # to bring up the continuous integration.
-        if not self._is_emulator:
+        if self._is_emulator:
+            self.restartB2G()
+        else:
             self.rebootDevice()
-            time.sleep(5)
-            #wait for wlan to come up 
-            if not self.waitForNet():
-                raise Exception("network did not come up, please configure the network" + 
-                                " prior to running before running the automation framework")
 
-        # stop b2g
-        self._devicemanager.runCmd(['shell', 'stop', 'b2g'])
-        time.sleep(5)
-
-        # relaunch b2g inside b2g instance
-        instance = self.B2GInstance(self._devicemanager)
-
-        time.sleep(5)
+        # Infrequently, gecko comes up before networking does, so wait a little
+        # bit to give the network time to become available.
+        # XXX:  need a more robust mechanism for this
+        time.sleep(40)
 
         # Set up port forwarding again for Marionette, since any that
         # existed previously got wiped out by the reboot.
@@ -228,8 +205,6 @@ class B2GRemoteAutomation(Automation):
             self._devicemanager.checkCmd(['forward',
                                           'tcp:%s' % self.marionette.port,
                                           'tcp:%s' % self.marionette.port])
-
-        time.sleep(5)
 
         # start a marionette session
         session = self.marionette.start_session()
@@ -253,29 +228,26 @@ class B2GRemoteAutomation(Automation):
 
         def __init__(self, dm):
             self.dm = dm
-            self.stdout_proc = None
+            self.logcat_proc = None
             self.queue = Queue.Queue()
 
-            # Launch b2g in a separate thread, and dump all output lines
+            # Launch logcat in a separate thread, and dump all output lines
             # into a queue.  The lines in this queue are
             # retrieved and returned by accessing the stdout property of
             # this class.
             cmd = [self.dm.adbPath]
             if self.dm.deviceSerial:
                 cmd.extend(['-s', self.dm.deviceSerial])
-            cmd.append('shell')
-            cmd.append('/system/bin/b2g.sh')
-            proc = threading.Thread(target=self._save_stdout_proc, args=(cmd, self.queue))
+            cmd.append('logcat')
+            proc = threading.Thread(target=self._save_logcat_proc, args=(cmd, self.queue))
             proc.daemon = True
             proc.start()
 
-        def _save_stdout_proc(self, cmd, queue):
-            self.stdout_proc = StdOutProc(cmd, queue)
-            self.stdout_proc.run()
-            if hasattr(self.stdout_proc, 'processOutput'):
-                self.stdout_proc.processOutput()
-            self.stdout_proc.waitForFinish(timeout=10)
-            self.stdout_proc = None
+        def _save_logcat_proc(self, cmd, queue):
+            self.logcat_proc = LogcatProc(cmd, queue)
+            self.logcat_proc.run()
+            self.logcat_proc.waitForFinish()
+            self.logcat_proc = None
 
         @property
         def pid(self):
@@ -285,7 +257,7 @@ class B2GRemoteAutomation(Automation):
         @property
         def stdout(self):
             # Return any lines in the queue used by the
-            # b2g process handler.
+            # logcat process handler.
             lines = []
             while True:
                 try:

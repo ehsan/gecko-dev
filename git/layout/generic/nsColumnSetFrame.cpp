@@ -84,7 +84,7 @@ protected:
   nscoord        mLastBalanceHeight;
   nsReflowStatus mLastFrameStatus;
 
-  virtual int GetSkipSides() const;
+  virtual PRIntn GetSkipSides() const;
 
   /**
    * These are the parameters that control the layout of columns.
@@ -1124,7 +1124,7 @@ nsColumnSetFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   return NS_OK;
 }
 
-int
+PRIntn
 nsColumnSetFrame::GetSkipSides() const
 {
   return 0;

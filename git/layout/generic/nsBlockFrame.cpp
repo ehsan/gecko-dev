@@ -207,7 +207,7 @@ RecordReflowStatus(bool aChildIsBlock, nsReflowStatus aFrameReflowStatus)
 
   // 0: child-is-block
   // 1: child-is-inline
-  int index = 0;
+  PRIntn index = 0;
   if (!aChildIsBlock) index |= 1;
 
   // Compute new status
@@ -6098,13 +6098,13 @@ nsBlockFrame::RecoverFloatsFor(nsIFrame*       aFrame,
 //////////////////////////////////////////////////////////////////////
 // Painting, event handling
 
-int
+PRIntn
 nsBlockFrame::GetSkipSides() const
 {
   if (IS_TRUE_OVERFLOW_CONTAINER(this))
     return (1 << NS_SIDE_TOP) | (1 << NS_SIDE_BOTTOM);
 
-  int skip = 0;
+  PRIntn skip = 0;
   if (GetPrevInFlow()) {
     skip |= 1 << NS_SIDE_TOP;
   }

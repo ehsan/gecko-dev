@@ -3070,14 +3070,6 @@ nsGlobalWindow::GetTopImpl(nsIDOMWindow** aTop, bool aScriptable)
   return NS_OK;
 }
 
-// Map window._content to window.content for backwards compatibility, this
-// should spit out an message on the JS console.
-NS_IMETHODIMP
-nsGlobalWindow::GetContentForCompat(nsIDOMWindow** aContent)
-{
-  return GetContent(aContent);
-}
-
 NS_IMETHODIMP
 nsGlobalWindow::GetContent(nsIDOMWindow** aContent)
 {
@@ -3122,7 +3114,7 @@ nsGlobalWindow::GetContent(nsIDOMWindow** aContent)
   }
 
   nsCOMPtr<nsIDOMWindow> domWindow(do_GetInterface(primaryContent));
-  domWindow.forget(aContent);
+  NS_IF_ADDREF(*aContent = domWindow);
 
   return NS_OK;
 }
