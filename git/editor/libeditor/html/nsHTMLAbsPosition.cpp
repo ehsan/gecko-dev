@@ -58,13 +58,13 @@
 
 #include "nsIDOMEventTarget.h"
 
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
+#include "nsIServiceManager.h"
+
 #include "nsIDOMCSSValue.h"
 #include "nsIDOMCSSPrimitiveValue.h"
 #include "nsIDOMRGBColor.h"
-
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 #define  BLACK_BG_RGB_TRIGGER 0xd0
 
@@ -411,7 +411,7 @@ nsHTMLEditor::GrabberClicked()
     mMouseMotionListenerP = new ResizerMouseMotionListener(this);
     if (!mMouseMotionListenerP) {return NS_ERROR_NULL_POINTER;}
 
-    nsCOMPtr<nsIDOMEventTarget> piTarget = GetDOMEventTarget();
+    nsCOMPtr<nsPIDOMEventTarget> piTarget = GetPIDOMEventTarget();
     NS_ENSURE_TRUE(piTarget, NS_ERROR_FAILURE);
 
     res = piTarget->AddEventListenerByIID(mMouseMotionListenerP,
@@ -441,7 +441,7 @@ nsHTMLEditor::EndMoving()
 
     mPositioningShadow = nsnull;
   }
-  nsCOMPtr<nsIDOMEventTarget> piTarget = GetDOMEventTarget();
+  nsCOMPtr<nsPIDOMEventTarget> piTarget = GetPIDOMEventTarget();
 
   if (piTarget && mMouseMotionListenerP) {
 #ifdef DEBUG
@@ -502,8 +502,15 @@ void
 nsHTMLEditor::AddPositioningOffset(PRInt32 & aX, PRInt32 & aY)
 {
   // Get the positioning offset
-  PRInt32 positioningOffset =
-    Preferences::GetInt("editor.positioning.offset", 0);
+  nsresult res;
+  nsCOMPtr<nsIPrefBranch> prefBranch =
+    do_GetService(NS_PREFSERVICE_CONTRACTID, &res);
+  PRInt32 positioningOffset = 0;
+  if (NS_SUCCEEDED(res) && prefBranch) {
+    res = prefBranch->GetIntPref("editor.positioning.offset", &positioningOffset);
+    if (NS_FAILED(res)) // paranoia
+      positioningOffset = 0;
+  }
 
   aX += positioningOffset;
   aY += positioningOffset;

@@ -50,7 +50,6 @@ Cu.import("resource://services-sync/engines/clients.js");
 Cu.import("resource://services-sync/record.js");
 Cu.import("resource://services-sync/resource.js");
 Cu.import("resource://services-sync/util.js");
-Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/ext/Preferences.js");
 
 // It is safer to inspect the private browsing preferences rather than
@@ -66,7 +65,7 @@ function TabSetRecord(collection, id) {
 }
 TabSetRecord.prototype = {
   __proto__: CryptoWrapper.prototype,
-  _logName: "Sync.Record.Tabs",
+  _logName: "Record.Tabs",
   ttl: TABS_TTL
 };
 
@@ -356,6 +355,6 @@ TabTracker.prototype = {
 
     // Only increase the score by whole numbers, so use random for partial score
     if (Math.random() < chance)
-      this.score += SCORE_INCREMENT_SMALL;
+      this.score++;
   },
 }

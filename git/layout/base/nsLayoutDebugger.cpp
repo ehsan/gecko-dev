@@ -213,7 +213,7 @@ void
 nsFrame::PrintDisplayList(nsDisplayListBuilder* aBuilder,
                           const nsDisplayList& aList)
 {
-  PrintDisplayListTo(aBuilder, aList, 0, stdout);
+  PrintDisplayListTo(aBuilder, aList, 0, stderr);
 }
 
 #endif

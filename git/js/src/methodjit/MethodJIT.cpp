@@ -57,7 +57,7 @@ using namespace js::mjit;
 
 
 js::mjit::CompilerAllocPolicy::CompilerAllocPolicy(JSContext *cx, Compiler &compiler)
-: TempAllocPolicy(cx),
+: ContextAllocPolicy(cx),
   oomFlag(&compiler.oomInVector)
 {
 }

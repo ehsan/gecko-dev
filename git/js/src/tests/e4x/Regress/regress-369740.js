@@ -51,12 +51,12 @@ TEST(1, expect, actual);
 var x = <xml/>;
 x.function::toString = function(){return "moo"};
 actual = x + '';
-expect = '';
+expect = 'moo';
 TEST(2, expect, actual);
 
 x = <><a/><b/></>;
 
-expect = "<a/>\n<b/>";
+expect = 'test';
 try
 {
     with (x) {

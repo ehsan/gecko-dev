@@ -48,7 +48,7 @@
 class nsIAtom;
 class nsIDOMEvent;
 class nsIContent;
-class nsEventListenerManager;
+class nsIEventListenerManager;
 class nsIURI;
 class nsRuleWalker;
 class nsAttrValue;
@@ -928,6 +928,12 @@ public:
   nsresult LookupNamespaceURI(const nsAString& aNamespacePrefix,
                               nsAString& aNamespaceURI) const;
 
+  nsIAtom* LookupPrefix(const nsAString& aNamespaceURI);
+
+  PRBool IsEqual(nsIContent *aOther);
+
+  virtual PRBool IsEqualNode(nsINode* aOther);
+
   /**
    * If this content has independent selection, e.g., if this is input field
    * or textarea, this return TRUE.  Otherwise, false.
@@ -943,8 +949,6 @@ public:
 
   // Overloaded from nsINode
   virtual already_AddRefed<nsIURI> GetBaseURI() const;
-
-  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
 protected:
   /**

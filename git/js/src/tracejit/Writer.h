@@ -40,6 +40,7 @@
 #ifndef tracejit_Writer_h___
 #define tracejit_Writer_h___
 
+#include "jsiter.h"
 #include "jsstr.h"
 #include "jstypedarray.h"
 #include "nanojit.h"
@@ -597,9 +598,22 @@ class Writer
                              ACCSET_TARRAY_DATA);
     }
 
-    inline nj::LIns *ldpIterCursor(nj::LIns *iter) const;
-    inline nj::LIns *ldpIterEnd(nj::LIns *iter) const;
-    inline nj::LIns *stpIterCursor(nj::LIns *cursor, nj::LIns *iter) const;
+    nj::LIns *ldpIterCursor(nj::LIns *iter) const {
+        return name(lir->insLoad(nj::LIR_ldp, iter, offsetof(NativeIterator, props_cursor),
+                                 ACCSET_ITER),
+                    "cursor");
+    }
+
+    nj::LIns *ldpIterEnd(nj::LIns *iter) const {
+        return name(lir->insLoad(nj::LIR_ldp, iter, offsetof(NativeIterator, props_end),
+                                 ACCSET_ITER),
+                    "end");
+    }
+
+    nj::LIns *stpIterCursor(nj::LIns *cursor, nj::LIns *iter) const {
+        return lir->insStore(nj::LIR_stp, cursor, iter, offsetof(NativeIterator, props_cursor),
+                             ACCSET_ITER);
+    }
 
     nj::LIns *ldpStringLengthAndFlags(nj::LIns *str) const {
         return name(lir->insLoad(nj::LIR_ldp, str, JSString::offsetOfLengthAndFlags(),

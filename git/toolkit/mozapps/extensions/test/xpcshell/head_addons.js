@@ -19,8 +19,6 @@ var gInternalManager = null;
 var gAppInfo = null;
 var gAddonsList;
 
-var TEST_UNPACKED = false;
-
 function createAppInfo(id, name, version, platformVersion) {
   gAppInfo = {
     // nsIXULAppInfo
@@ -163,7 +161,7 @@ function do_get_addon_root_uri(aProfileDir, aId) {
 }
 
 function do_get_expected_addon_name(aId) {
-  if (TEST_UNPACKED)
+  if (Services.prefs.getBoolPref("extensions.alwaysUnpack"))
     return aId;
   return aId + ".xpi";
 }
@@ -571,7 +569,7 @@ function writeInstallRDFForExtension(aData, aDir, aId, aExtraFile) {
 
   var dir = aDir.clone();
 
-  if (TEST_UNPACKED) {
+  if (Services.prefs.getBoolPref("extensions.alwaysUnpack")) {
     dir.append(id);
     writeInstallRDFToDir(aData, dir, aExtraFile);
     return dir;
@@ -1105,7 +1103,6 @@ do_register_cleanup(function() {
   while (entry = dirEntries.nextFile) {
     do_throw("Found unexpected file in temporary directory: " + entry.leafName);
   }
-  dirEntries.close();
 
   var testDir = gProfD.clone();
   testDir.append("extensions");

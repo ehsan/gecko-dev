@@ -32,8 +32,10 @@ function HTML_TAG(aTagName, aImplClass) {
   allTags.push(aTagName);
   classInfos[aTagName] = aImplClass;
   interfaces[aTagName] =
-    [ "nsIDOMNSElement",
+    [ "nsIDOM3Node",
+      "nsIDOMNSElement",
       "nsIDOMEventTarget",
+      "nsIDOMNSEventTarget",
       "nsIDOMNSHTMLElement",
       "nsIDOMElementCSSInlineStyle",
       "nsIDOMNodeSelector" ];
@@ -43,6 +45,7 @@ function HTML_TAG(aTagName, aImplClass) {
   interfacesNonClassinfo[aTagName] =
     [ "nsIDOMNode",
       "nsIDOMElement",
+      "nsIDOM3EventTarget",
       "nsISupportsWeakReference" ];
 
   var interfaceName = "nsIDOM" + getClassName(aTagName);

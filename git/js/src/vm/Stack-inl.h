@@ -106,7 +106,6 @@ StackFrame::resetCallFrame(JSScript *script)
     /* Undo changes to frame made during execution; see also initCallFrame */
 
     putActivationObjects();
-    markActivationObjectsAsPut();
 
     if (flags_ & UNDERFLOW_ARGS)
         SetValueRangeToUndefined(formalArgs() + numActualArgs(), formalArgsEnd());

@@ -72,7 +72,6 @@
 #include "nsIPrivateBrowsingService.h"
 #include "nsNetCID.h"
 #include <math.h>  // for log()
-#include "mozilla/Util.h" // for DebugOnly
 #include "mozilla/Services.h"
 
 #include "mozilla/FunctionTimer.h"
@@ -1819,7 +1818,7 @@ nsCacheService::EnsureEntryHasDevice(nsCacheEntry * entry)
             if (predictedDataSize != -1 &&
                 entry->StoragePolicy() != nsICache::STORE_ON_DISK_AS_FILE &&
                 mDiskDevice->EntryIsTooBig(predictedDataSize)) {
-                DebugOnly<nsresult> rv = nsCacheService::DoomEntry(entry);
+                nsresult rv = nsCacheService::DoomEntry(entry);
                 NS_ASSERTION(NS_SUCCEEDED(rv),"DoomEntry() failed.");
                 return nsnull;
             }
@@ -1842,7 +1841,7 @@ nsCacheService::EnsureEntryHasDevice(nsCacheEntry * entry)
             // Bypass the cache if Content-Length says entry will be too big
             if (predictedDataSize != -1 &&
                 mMemoryDevice->EntryIsTooBig(predictedDataSize)) {
-                DebugOnly<nsresult> rv = nsCacheService::DoomEntry(entry);
+                nsresult rv = nsCacheService::DoomEntry(entry);
                 NS_ASSERTION(NS_SUCCEEDED(rv),"DoomEntry() failed.");
                 return nsnull;
             }

@@ -105,6 +105,8 @@ struct OpCreateThebesBuffer {
   PLayer layer;
   OptionalThebesBuffer initialFront;
   nsIntRegion frontValidRegion;
+  float xResolution;
+  float yResolution;
 };
 struct OpDestroyThebesFrontBuffer { PLayer layer; };
 
@@ -139,6 +141,8 @@ struct CommonLayerAttributes {
 
 struct ThebesLayerAttributes {
   nsIntRegion validRegion;
+  float xResolution;
+  float yResolution;
 };
 struct ContainerLayerAttributes{ FrameMetrics metrics; };
 struct ColorLayerAttributes    { gfxRGBA color; };
@@ -226,6 +230,8 @@ struct OpThebesBufferSwap {
   PLayer layer;
   ThebesBuffer newBackBuffer;
   nsIntRegion newValidRegion;
+  float newXResolution;
+  float newYResolution;
   // If the parent took the child's old back buffer and returned its
   // old front buffer, |readOnlyFrontBuffer| may (if non-null) contain
   // the child's old back buffer (parent's new front buffer).  This

@@ -50,6 +50,7 @@
 #include "nsIObserverService.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMNode.h"
+#include "nsIDOM3Node.h"
 #include "nsIDOMNodeList.h"
 #include "nsTArray.h"
 #include "mozilla/Preferences.h"
@@ -216,8 +217,12 @@ RemovePrefForDriverVersion()
 static bool
 BlacklistNodeToTextValue(nsIDOMNode *aBlacklistNode, nsAString& aValue)
 {
+  nsCOMPtr<nsIDOM3Node> dom3 = do_QueryInterface(aBlacklistNode);
+  if (!dom3)
+    return false;
+
   nsAutoString value;
-  if (NS_FAILED(aBlacklistNode->GetTextContent(value)))
+  if (NS_FAILED(dom3->GetTextContent(value)))
     return false;
 
   value.Trim(" \t\r\n");
@@ -665,7 +670,7 @@ NS_IMETHODIMP GfxInfoBase::GetFailures(PRUint32 *failureCount NS_OUTPARAM, char 
 
     /* copy over the failure messages into the array we just allocated */
     for (PRUint32 i = 0; i < *failureCount; i++) {
-      nsCString& flattenedFailureMessage(mFailures[i]);
+      nsPromiseFlatCString flattenedFailureMessage(mFailures[i]);
       (*failures)[i] = (char*)nsMemory::Clone(flattenedFailureMessage.get(), flattenedFailureMessage.Length() + 1);
 
       if (!(*failures)[i]) {

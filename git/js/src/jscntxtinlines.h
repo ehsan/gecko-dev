@@ -317,10 +317,7 @@ CallJSNativeConstructor(JSContext *cx, js::Native native, const CallArgs &args)
      * (new Object(Object)) returns the callee.
      */
     extern JSBool proxy_Construct(JSContext *, uintN, Value *);
-    extern JSBool callable_Construct(JSContext *, uintN, Value *);
-    JS_ASSERT_IF(native != proxy_Construct &&
-                 native != callable_Construct &&
-                 native != js::CallOrConstructBoundFunction &&
+    JS_ASSERT_IF(native != proxy_Construct && native != js::CallOrConstructBoundFunction &&
                  (!callee.isFunction() || callee.getFunctionPrivate()->u.n.clasp != &js_ObjectClass),
                  !args.rval().isPrimitive() && callee != args.rval().toObject());
 
@@ -384,6 +381,17 @@ LeaveTraceIfArgumentsObject(JSContext *cx, JSObject *obj)
 {
     if (obj->isArguments())
         LeaveTrace(cx);
+}
+
+static JS_INLINE JSBool
+CanLeaveTrace(JSContext *cx)
+{
+    JS_ASSERT(JS_ON_TRACE(cx));
+#ifdef JS_TRACER
+    return JS_TRACE_MONITOR_ON_TRACE(cx)->bailExit != NULL;
+#else
+    return JS_FALSE;
+#endif
 }
 
 }  /* namespace js */

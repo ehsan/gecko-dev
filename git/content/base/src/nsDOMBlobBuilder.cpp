@@ -234,7 +234,7 @@ protected:
   nsresult AppendVoidPtr(void* aData, PRUint32 aLength);
   nsresult AppendString(JSString* aString, JSContext* aCx);
   nsresult AppendBlob(nsIDOMBlob* aBlob);
-  nsresult AppendArrayBuffer(JSObject* aBuffer);
+  nsresult AppendArrayBuffer(js::ArrayBuffer* aBuffer);
 
   bool ExpandBufferSize(PRUint64 aSize)
   {
@@ -332,9 +332,9 @@ nsDOMBlobBuilder::AppendBlob(nsIDOMBlob* aBlob)
 }
 
 nsresult
-nsDOMBlobBuilder::AppendArrayBuffer(JSObject* aBuffer)
+nsDOMBlobBuilder::AppendArrayBuffer(js::ArrayBuffer* aBuffer)
 {
-  return AppendVoidPtr(JS_GetArrayBufferData(aBuffer), JS_GetArrayBufferByteLength(aBuffer));
+  return AppendVoidPtr(aBuffer->data, aBuffer->byteLength);
 }
 
 /* nsIDOMBlob getBlob ([optional] in DOMString contentType); */
@@ -379,7 +379,7 @@ nsDOMBlobBuilder::Append(const jsval& aData, JSContext* aCx)
 
     // Is it an array buffer?
     if (js_IsArrayBuffer(obj)) {
-      JSObject* buffer = js::ArrayBuffer::getArrayBuffer(obj);
+      js::ArrayBuffer* buffer = js::ArrayBuffer::fromJSObject(obj);
       if (buffer)
         return AppendArrayBuffer(buffer);
     }

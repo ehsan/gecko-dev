@@ -1035,7 +1035,7 @@ PRInt64 nsBuiltinDecoderStateMachine::GetUndecodedData() const
     NS_ENSURE_SUCCESS(res, 0);
 
     if (start <= currentTime && end >= currentTime) {
-      return static_cast<PRInt64>((end - currentTime) * USECS_PER_S);
+      return static_cast<PRInt64>((end - currentTime) * 1000);
     }
   }
   return 0;
@@ -1077,8 +1077,12 @@ nsresult nsBuiltinDecoderStateMachine::Run()
 
         VideoData* videoData = FindStartTime();
         if (videoData) {
-          ReentrantMonitorAutoExit exitMon(mDecoder->GetReentrantMonitor());
-          RenderVideoFrame(videoData, TimeStamp::Now());
+          nsIntSize display = mInfo.mDisplay;
+          float aspect = mInfo.mPixelAspectRatio;
+          {
+            ReentrantMonitorAutoExit exitMon(mDecoder->GetReentrantMonitor());
+            RenderVideoFrame(videoData, TimeStamp::Now(), display, aspect);
+          }
         }
 
         // Start the decode threads, so that we can pre buffer the streams.
@@ -1201,9 +1205,11 @@ nsresult nsBuiltinDecoderStateMachine::Run()
               if (video) {
                 NS_ASSERTION(video->mTime <= seekTime && seekTime <= video->mEndTime,
                              "Seek target should lie inside the first frame after seek");
+                nsIntSize display = mInfo.mDisplay;
+                float aspect = mInfo.mPixelAspectRatio;
                 {
                   ReentrantMonitorAutoExit exitMon(mDecoder->GetReentrantMonitor());
-                  RenderVideoFrame(video, TimeStamp::Now());
+                  RenderVideoFrame(video, TimeStamp::Now(), display, aspect);
                 }
                 mReader->mVideoQueue.PopFront();
                 nsCOMPtr<nsIRunnable> event =
@@ -1360,7 +1366,9 @@ nsresult nsBuiltinDecoderStateMachine::Run()
 }
 
 void nsBuiltinDecoderStateMachine::RenderVideoFrame(VideoData* aData,
-                                                    TimeStamp aTarget)
+                                                    TimeStamp aTarget,
+                                                    nsIntSize aDisplaySize,
+                                                    float aAspectRatio)
 {
   NS_ASSERTION(IsCurrentThread(mDecoder->mStateMachineThread), "Should be on state machine thread.");
   mDecoder->GetReentrantMonitor().AssertNotCurrentThreadIn();
@@ -1371,7 +1379,8 @@ void nsBuiltinDecoderStateMachine::RenderVideoFrame(VideoData* aData,
 
   nsRefPtr<Image> image = aData->mImage;
   if (image) {
-    mDecoder->SetVideoData(aData->mDisplay, image, aTarget);
+    mDecoder->SetVideoData(gfxIntSize(aDisplaySize.width, aDisplaySize.height),
+                           aAspectRatio, image, aTarget);
   }
 }
 
@@ -1481,10 +1490,14 @@ void nsBuiltinDecoderStateMachine::AdvanceFrame()
                            UsecsToDuration(currentFrame->mTime - mStartTime);
       NS_ASSERTION(currentFrame->mTime >= mStartTime, "Should have positive frame time");
       {
-        ReentrantMonitorAutoExit exitMon(mDecoder->GetReentrantMonitor());
-        // If we have video, we want to increment the clock in steps of the frame
-        // duration.
-        RenderVideoFrame(currentFrame, presTime);
+        nsIntSize display = mInfo.mDisplay;
+        float aspect = mInfo.mPixelAspectRatio;
+        {
+          ReentrantMonitorAutoExit exitMon(mDecoder->GetReentrantMonitor());
+          // If we have video, we want to increment the clock in steps of the frame
+          // duration.
+          RenderVideoFrame(currentFrame, presTime, display, aspect);
+        }
       }
       mDecoder->GetFrameStatistics().NotifyPresentedFrame();
       PRInt64 now = DurationToUsecs(TimeStamp::Now() - mPlayStartTime) + mPlayDuration;

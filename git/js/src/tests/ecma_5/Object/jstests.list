@@ -45,4 +45,3 @@ script preventExtensions-idempotent.js
 script isPrototypeOf.js
 script propertyIsEnumerable.js
 script toLocaleString.js
-script gOPD-vs-prototype-accessor.js

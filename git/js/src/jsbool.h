@@ -45,6 +45,7 @@
 
 #include "jsapi.h"
 #include "jsobj.h"
+#include "jsstr.h"
 
 extern js::Class js_BooleanClass;
 
