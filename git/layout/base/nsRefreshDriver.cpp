@@ -47,7 +47,6 @@
 #include "RestyleManager.h"
 #include "Layers.h"
 #include "imgIContainer.h"
-#include "nsIFrameRequestCallback.h"
 
 using namespace mozilla;
 using namespace mozilla::widget;

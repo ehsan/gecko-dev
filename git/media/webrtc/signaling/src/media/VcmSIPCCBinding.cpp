@@ -223,11 +223,6 @@ nsIThread* VcmSIPCCBinding::getMainThread()
   return gMainThread;
 }
 
-nsIEventTarget* VcmSIPCCBinding::getSTSThread()
-{
-  return gSTSThread;
-}
-
 void VcmSIPCCBinding::connectCandidateSignal(
     NrIceMediaStream *stream)
 {
@@ -480,27 +475,38 @@ void vcmRxAllocPort(cc_mcapid_t mcap_id,
 
 
 /**
- *  Gets the ICE objects for a stream.
+ *  Gets the ICE parameters for a stream. Called "alloc" for style consistency
  *
  *  @param[in]  mcap_id - Media Capability ID
  *  @param[in]  group_id - group identifier to which stream belongs.
  *  @param[in]  stream_id - stream identifier
  *  @param[in]  call_handle  - call identifier
  *  @param[in]  peerconnection - the peerconnection in use
- *  @param[in]  level - the m-line index (1-based)
- *  @param[out] ctx - the NrIceCtx
- *  @param[out] stream - the NrIceStream
+ *  @param[out] default_addrp - the ICE default addr
+ *  @param[out] port_allocatedp - the ICE default port
+ *  @param[out] candidatesp - the ICE candidate array
+ *  @param[out] candidate_ctp length of the array
+ *
+ *  @return 0 for success; VCM_ERROR for failure
+ *
  */
-
-static short vcmGetIceStream_m(cc_mcapid_t mcap_id,
-                               cc_groupid_t group_id,
-                               cc_streamid_t stream_id,
-                               cc_call_handle_t  call_handle,
-                               const char *peerconnection,
-                               uint16_t level,
-                               mozilla::RefPtr<NrIceCtx> *ctx,
-                               mozilla::RefPtr<NrIceMediaStream> *stream)
+static short vcmRxAllocICE_m(cc_mcapid_t mcap_id,
+                             cc_groupid_t group_id,
+                             cc_streamid_t stream_id,
+                             cc_call_handle_t  call_handle,
+                             const char *peerconnection,
+                             uint16_t level,
+                             char **default_addrp, /* Out */
+                             int *default_portp, /* Out */
+                             char ***candidatesp, /* Out */
+                             int *candidate_ctp /* Out */
+)
 {
+  *default_addrp = NULL;
+  *default_portp = -1;
+  *candidatesp = NULL;
+  *candidate_ctp = 0;
+
   CSFLogDebug( logTag, "%s: group_id=%d stream_id=%d call_handle=%d PC = %s",
     __FUNCTION__, group_id, stream_id, call_handle, peerconnection);
 
@@ -510,56 +516,13 @@ static short vcmGetIceStream_m(cc_mcapid_t mcap_id,
   sipcc::PeerConnectionWrapper pc(peerconnection);
   ENSURE_PC(pc, VCM_ERROR);
 
-  *ctx = pc.impl()->media()->ice_ctx();
-  MOZ_ASSERT(*ctx);
-  if (!*ctx)
-    return VCM_ERROR;
-
   CSFLogDebug( logTag, "%s: Getting stream %d", __FUNCTION__, level);
-  *stream = pc.impl()->media()->ice_media_stream(level-1);
-  MOZ_ASSERT(*stream);
-  if (!*stream) {
+  mozilla::RefPtr<NrIceMediaStream> stream = pc.impl()->media()->
+    ice_media_stream(level-1);
+  MOZ_ASSERT(stream);
+  if (!stream) {
     return VCM_ERROR;
   }
-
-  return 0;
-}
-
-/**
- *  Gets the ICE parameters for a stream. Called "alloc" for style consistency
- *  @param[in]  ctx_in - the ICE ctx
- *  @param[in]  stream_in - the ICE stream
- *  @param[in]  call_handle  - call identifier
- *  @param[in]  stream_id - stream identifier
- *  @param[in]  level - the m-line index (1-based)
- *  @param[out] default_addrp - the ICE default addr
- *  @param[out] port_allocatedp - the ICE default port
- *  @param[out] candidatesp - the ICE candidate array
- *  @param[out] candidate_ctp length of the array
- *
- *  @return 0 for success; VCM_ERROR for failure
- *
- */
-static short vcmRxAllocICE_s(TemporaryRef<NrIceCtx> ctx_in,
-			     TemporaryRef<NrIceMediaStream> stream_in,
-                             cc_call_handle_t  call_handle,
-                             cc_streamid_t stream_id,
-                             uint16_t level,
-                             char **default_addrp, /* Out */
-                             int *default_portp, /* Out */
-                             char ***candidatesp, /* Out */
-                             int *candidate_ctp /* Out */
-)
-{
-  // Make a concrete reference to ctx_in and stream_in so we
-  // can use the pointers (TemporaryRef is not dereferencable).
-  RefPtr<NrIceCtx> ctx(ctx_in);
-  RefPtr<NrIceMediaStream> stream(stream_in);
-
-  *default_addrp = NULL;
-  *default_portp = -1;
-  *candidatesp = NULL;
-  *candidate_ctp = 0;
 
   // Set the opaque so we can correlate events.
   stream->SetOpaque(new VcmIceOpaque(stream_id, call_handle, level));
@@ -606,12 +569,12 @@ static short vcmRxAllocICE_s(TemporaryRef<NrIceCtx> ctx_in,
 /**
  *  Gets the ICE parameters for a stream. Called "alloc" for style consistency
  *
- *  @param[in]  mcap_id  - media cap id
+ *  This is a thunk to vcmRxAllocICE_m
+ *
  *  @param[in]  group_id - group identifier to which stream belongs.
  *  @param[in]  stream_id - stream identifier
  *  @param[in]  call_handle  - call identifier
  *  @param[in]  peerconnection - the peerconnection in use
- *  @param[in]  level - the m-line index (1-based)
  *  @param[out] default_addrp - the ICE default addr
  *  @param[out] port_allocatedp - the ICE default port
  *  @param[out] candidatesp - the ICE candidate array
@@ -633,44 +596,19 @@ short vcmRxAllocICE(cc_mcapid_t mcap_id,
                    )
 {
   int ret;
-
-  mozilla::RefPtr<NrIceCtx> ctx;
-  mozilla::RefPtr<NrIceMediaStream> stream;
-
-  // First, get a strong ref to the ICE context and stream from the
-  // main thread.
-  mozilla::SyncRunnable::DispatchToThread(
-      VcmSIPCCBinding::getMainThread(),
-      WrapRunnableNMRet(&vcmGetIceStream_m,
+  mozilla::SyncRunnable::DispatchToThread(VcmSIPCCBinding::getMainThread(),
+      WrapRunnableNMRet(&vcmRxAllocICE_m,
                         mcap_id,
                         group_id,
                         stream_id,
                         call_handle,
                         peerconnection,
                         level,
-                        &ctx,
-                        &stream,
-                        &ret));
-  if (ret)
-    return ret;
-
-  // Now get the ICE parameters from the STS thread.
-  // We .forget() the strong refs so that they can be
-  // released on the STS thread.
-  mozilla::SyncRunnable::DispatchToThread(
-      VcmSIPCCBinding::getSTSThread(),
-                        WrapRunnableNMRet(&vcmRxAllocICE_s,
-                        ctx.forget(),
-                        stream.forget(),
-                        call_handle,
-                        stream_id,
-                        level,
                         default_addrp,
                         default_portp,
                         candidatesp,
                         candidate_ctp,
                         &ret));
-
   return ret;
 }
 

@@ -63,7 +63,6 @@ namespace CSF
 
 	static void setMainThread(nsIThread *thread);
 	static nsIThread *getMainThread();
-	static nsIEventTarget *getSTSThread();
 
 	static void setSTSThread(nsIEventTarget *thread);
 

@@ -708,8 +708,6 @@ public:
     void CopyAsDataURL();
 #endif
 
-    static mozilla::gfx::UserDataKey sDontUseAsSourceKey;
-
 private:
   friend class GeneralPattern;
   friend struct GlyphBufferAzure;

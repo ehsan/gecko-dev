@@ -335,7 +335,7 @@ public:
       return;
     }
 
-    mRetval = new URLProxy(new mozilla::dom::URL(url));
+    mRetval = new URLProxy(new mozilla::dom::URL(nullptr, url));
   }
 
   URLProxy*

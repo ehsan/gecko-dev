@@ -213,7 +213,7 @@ CompositableClient::CreateBufferTextureClient(gfx::SurfaceFormat aFormat)
   return CreateBufferTextureClient(aFormat, TEXTURE_FLAGS_DEFAULT);
 }
 
-bool
+void
 CompositableClient::AddTextureClient(TextureClient* aClient)
 {
   ++mNextTextureID;
@@ -222,7 +222,7 @@ CompositableClient::AddTextureClient(TextureClient* aClient)
     ++mNextTextureID;
   }
   aClient->SetID(mNextTextureID);
-  return mForwarder->AddTexture(this, aClient);
+  mForwarder->AddTexture(this, aClient);
 }
 
 void

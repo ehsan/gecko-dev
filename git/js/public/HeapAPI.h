@@ -7,8 +7,6 @@
 #ifndef js_HeapAPI_h
 #define js_HeapAPI_h
 
-#include <limits.h>
-
 #include "jspubtd.h"
 
 #include "js/Utility.h"
@@ -136,9 +134,8 @@ GetGCThingMarkWordAndMask(const void *thing, uint32_t color,
     size_t bit = (addr & js::gc::ChunkMask) / js::gc::CellSize + color;
     JS_ASSERT(bit < js::gc::ChunkMarkBitmapBits);
     uintptr_t *bitmap = GetGCThingMarkBitmap(thing);
-    const uintptr_t nbits = sizeof(*bitmap) * CHAR_BIT;
-    *maskp = uintptr_t(1) << (bit % nbits);
-    *wordp = &bitmap[bit / nbits];
+    *maskp = uintptr_t(1) << (bit % JS_BITS_PER_WORD);
+    *wordp = &bitmap[bit / JS_BITS_PER_WORD];
 }
 
 static JS_ALWAYS_INLINE JS::shadow::ArenaHeader *

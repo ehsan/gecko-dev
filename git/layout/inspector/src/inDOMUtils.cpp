@@ -592,10 +592,9 @@ inDOMUtils::GetCSSValuesForProperty(const nsAString& aProperty,
       GetOtherValuesForProperty(propertyParserVariant, array);
     }
   }
-  // All CSS properties take initial, inherit and unset.
+  // All CSS properties take initial and inherit.
   InsertNoDuplicates(array, NS_LITERAL_STRING("initial"));
   InsertNoDuplicates(array, NS_LITERAL_STRING("inherit"));
-  InsertNoDuplicates(array, NS_LITERAL_STRING("unset"));
 
   *aLength = array.Length();
   PRUnichar** ret =

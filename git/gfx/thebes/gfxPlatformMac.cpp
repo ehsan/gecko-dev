@@ -440,25 +440,81 @@ gfxPlatformMac::SupportsOffMainThreadCompositing()
 qcms_profile *
 gfxPlatformMac::GetPlatformCMSOutputProfile()
 {
-    CGColorSpaceRef cspace = ::CGDisplayCopyColorSpace(::CGMainDisplayID());
-    if (!cspace) {
-        cspace = ::CGColorSpaceCreateDeviceRGB();
-    }
-    if (!cspace) {
+    qcms_profile *profile = nullptr;
+    CMProfileRef cmProfile;
+    CMProfileLocation *location;
+    UInt32 locationSize;
+
+    /* There a number of different ways that we could try to get a color
+       profile to use.  On 10.5 all of these methods seem to give the same
+       results. On 10.6, the results are different and the following method,
+       using CGMainDisplayID() seems to best match what we are looking for.
+       Currently, both Google Chrome and Qt4 use a similar method.
+
+       CMTypes.h describes CMDisplayIDType:
+       "Data type for ColorSync DisplayID reference
+        On 8 & 9 this is a AVIDType
+	On X this is a CGSDisplayID"
+
+       CGMainDisplayID gives us a CGDirectDisplayID which presumeably
+       corresponds directly to a CGSDisplayID */
+    CGDirectDisplayID displayID = CGMainDisplayID();
+
+    CMError err = CMGetProfileByAVID(static_cast<CMDisplayIDType>(displayID), &cmProfile);
+    if (err != noErr)
         return nullptr;
-    }
 
-    CFDataRef iccp = ::CGColorSpaceCopyICCProfile(cspace);
-
-    ::CFRelease(cspace);
-
-    if (!iccp) {
+    // get the size of location
+    err = NCMGetProfileLocation(cmProfile, nullptr, &locationSize);
+    if (err != noErr)
         return nullptr;
+
+    // allocate enough room for location
+    location = static_cast<CMProfileLocation*>(malloc(locationSize));
+    if (!location)
+        goto fail_close;
+
+    err = NCMGetProfileLocation(cmProfile, location, &locationSize);
+    if (err != noErr)
+        goto fail_location;
+
+    switch (location->locType) {
+#ifndef __LP64__
+    case cmFileBasedProfile: {
+        FSRef fsRef;
+        if (!FSpMakeFSRef(&location->u.fileLoc.spec, &fsRef)) {
+            char path[512];
+            if (!FSRefMakePath(&fsRef, reinterpret_cast<UInt8*>(path), sizeof(path))) {
+                profile = qcms_profile_from_path(path);
+#ifdef DEBUG_tor
+                if (profile)
+                    fprintf(stderr,
+                            "ICM profile read from %s fileLoc successfully\n", path);
+#endif
+            }
+        }
+        break;
+    }
+#endif
+    case cmPathBasedProfile:
+        profile = qcms_profile_from_path(location->u.pathLoc.path);
+#ifdef DEBUG_tor
+        if (profile)
+            fprintf(stderr,
+                    "ICM profile read from %s pathLoc successfully\n",
+                    device.u.pathLoc.path);
+#endif
+        break;
+    default:
+#ifdef DEBUG_tor
+        fprintf(stderr, "Unhandled ColorSync profile location\n");
+#endif
+        break;
     }
 
-    qcms_profile* profile = qcms_profile_from_memory(::CFDataGetBytePtr(iccp), static_cast<size_t>(::CFDataGetLength(iccp)));
-
-    ::CFRelease(iccp);
-
+fail_location:
+    free(location);
+fail_close:
+    CMCloseProfile(cmProfile);
     return profile;
 }

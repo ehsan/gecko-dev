@@ -148,10 +148,7 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer,
       RemoveTextureClient(mFrontBuffer);
     }
     mFrontBuffer = texture;
-    if (!AddTextureClient(texture)) {
-      mFrontBuffer = nullptr;
-      return false;
-    }
+    AddTextureClient(texture);
     GetForwarder()->UpdatedTexture(this, texture, nullptr);
     GetForwarder()->UseTexture(this, texture);
   } else if (image->GetFormat() == PLANAR_YCBCR) {
@@ -185,10 +182,7 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer,
     mFrontBuffer->Unlock();
 
     if (bufferCreated) {
-      if (!AddTextureClient(mFrontBuffer)) {
-        mFrontBuffer = nullptr;
-        return false;
-      }
+      AddTextureClient(mFrontBuffer);
     }
 
     if (status) {
@@ -212,11 +206,8 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer,
     RefPtr<SharedTextureClientOGL> buffer = new SharedTextureClientOGL(mTextureFlags);
     buffer->InitWith(data->mHandle, size, data->mShareType, data->mInverted);
     mFrontBuffer = buffer;
-    if (!AddTextureClient(mFrontBuffer)) {
-      mFrontBuffer = nullptr;
-      return false;
-    }
 
+    AddTextureClient(mFrontBuffer);
     GetForwarder()->UseTexture(this, mFrontBuffer);
   } else {
     nsRefPtr<gfxASurface> surface = image->GetAsSurface();
@@ -249,10 +240,7 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer,
     mFrontBuffer->Unlock();
 
     if (bufferCreated) {
-      if (!AddTextureClient(mFrontBuffer)) {
-        mFrontBuffer = nullptr;
-        return false;
-      }
+      AddTextureClient(mFrontBuffer);
     }
 
     if (status) {
@@ -280,11 +268,11 @@ ImageClientBuffered::UpdateImage(ImageContainer* aContainer,
   return ImageClientSingle::UpdateImage(aContainer, aContentFlags);
 }
 
-bool
+void
 ImageClientSingle::AddTextureClient(TextureClient* aTexture)
 {
   MOZ_ASSERT((mTextureFlags & aTexture->GetFlags()) == mTextureFlags);
-  return CompositableClient::AddTextureClient(aTexture);
+  CompositableClient::AddTextureClient(aTexture);
 }
 
 TemporaryRef<BufferTextureClient>

@@ -943,7 +943,7 @@ PeerConnectionObserver.prototype = {
         {
             candidate: candidate,
             sdpMid: mid,
-            sdpMLineIndex: level - 1
+            sdpMLineIndex: level
         }
     ));
   },

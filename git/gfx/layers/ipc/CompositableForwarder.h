@@ -153,7 +153,7 @@ public:
    * Tell the compositor side to create a TextureHost that corresponds to
    * aClient.
    */
-  virtual bool AddTexture(CompositableClient* aCompositable,
+  virtual void AddTexture(CompositableClient* aCompositable,
                           TextureClient* aClient) = 0;
 
   /**
