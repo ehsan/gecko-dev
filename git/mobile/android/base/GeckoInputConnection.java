@@ -43,7 +43,7 @@ import android.view.inputmethod.InputMethodManager;
 import java.util.Timer;
 import java.util.TimerTask;
 
-public class GeckoInputConnection
+class GeckoInputConnection
     extends BaseInputConnection
     implements TextWatcher, InputConnectionHandler {
 
@@ -523,7 +523,13 @@ public class GeckoInputConnection
 
         if (imm != null && imm.isFullscreenMode()) {
             View v = getView();
-            imm.updateSelection(v, start, end, -1, -1);
+            if (hasCompositionString()) {
+                Span span = getComposingSpan();
+                imm.updateSelection(v, start, end, span.start, span.end);
+            } else {
+                imm.updateSelection(v, start, end, -1, -1);
+            }
+
         }
     }
 

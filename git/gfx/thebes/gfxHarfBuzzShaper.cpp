@@ -645,13 +645,15 @@ HBGetHKerning(hb_font_t *font, void *font_data,
  */
 
 static hb_codepoint_t
-HBGetMirroring(hb_unicode_funcs_t *ufuncs, hb_codepoint_t aCh, void *user_data)
+HBGetMirroring(hb_unicode_funcs_t *ufuncs, hb_codepoint_t aCh,
+               void *user_data)
 {
     return GetMirroredChar(aCh);
 }
 
 static hb_unicode_general_category_t
-HBGetGeneralCategory(hb_unicode_funcs_t *ufuncs, hb_codepoint_t aCh, void *user_data)
+HBGetGeneralCategory(hb_unicode_funcs_t *ufuncs, hb_codepoint_t aCh,
+                     void *user_data)
 {
     return hb_unicode_general_category_t(GetGeneralCategory(aCh));
 }
@@ -659,18 +661,19 @@ HBGetGeneralCategory(hb_unicode_funcs_t *ufuncs, hb_codepoint_t aCh, void *user_
 static hb_script_t
 HBGetScript(hb_unicode_funcs_t *ufuncs, hb_codepoint_t aCh, void *user_data)
 {
-    return hb_script_t(GetScriptTagForCode
-        (GetScriptCode(aCh)));
+    return hb_script_t(GetScriptTagForCode(GetScriptCode(aCh)));
 }
 
-static unsigned int
-HBGetCombiningClass(hb_unicode_funcs_t *ufuncs, hb_codepoint_t aCh, void *user_data)
+static hb_unicode_combining_class_t
+HBGetCombiningClass(hb_unicode_funcs_t *ufuncs, hb_codepoint_t aCh,
+                    void *user_data)
 {
-    return GetCombiningClass(aCh);
+    return hb_unicode_combining_class_t(GetCombiningClass(aCh));
 }
 
 static unsigned int
-HBGetEastAsianWidth(hb_unicode_funcs_t *ufuncs, hb_codepoint_t aCh, void *user_data)
+HBGetEastAsianWidth(hb_unicode_funcs_t *ufuncs, hb_codepoint_t aCh,
+                    void *user_data)
 {
     return GetEastAsianWidth(aCh);
 }
@@ -1191,14 +1194,12 @@ gfxHarfBuzzShaper::SetGlyphsFromRun(gfxContext *aContext,
             // in our clump; if not, we have a discontinuous range, and should extend it
             // unless we've reached the end of the text
             bool allGlyphsAreWithinCluster = true;
-            PRInt32 prevGlyphCharIndex = charStart - 1;
             for (PRInt32 i = glyphStart; i < glyphEnd; ++i) {
                 PRInt32 glyphCharIndex = ginfo[i].cluster;
                 if (glyphCharIndex < charStart || glyphCharIndex >= charEnd) {
                     allGlyphsAreWithinCluster = false;
                     break;
                 }
-                prevGlyphCharIndex = glyphCharIndex;
             }
             if (allGlyphsAreWithinCluster) {
                 break;

@@ -7,6 +7,7 @@ DEPTH		= @DEPTH@
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
+FAIL_ON_WARNINGS := 1
 
 include $(DEPTH)/config/autoconf.mk
 
@@ -63,6 +64,7 @@ EXPORTS = \
   nsPIWindowRoot.h \
   nsFocusManager.h \
   nsWrapperCache.h \
+  nsWrapperCacheInlines.h \
   nsContentPermissionHelper.h \
   nsStructuredCloneContainer.h \
   nsWindowMemoryReporter.h \
