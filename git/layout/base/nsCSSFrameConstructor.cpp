@@ -1059,8 +1059,8 @@ nsFrameConstructorState::PushAbsoluteContainingBlock(nsContainerFrame* aNewAbsol
    * we're a transformed element.
    */
   mFixedPosIsAbsPos = aPositionedFrame &&
-    (aPositionedFrame->StylePosition()->HasTransform(aPositionedFrame) ||
-     aPositionedFrame->StylePosition()->HasPerspectiveStyle());
+      (aPositionedFrame->StyleDisplay()->HasTransform(aPositionedFrame) ||
+       aPositionedFrame->StyleDisplay()->HasPerspectiveStyle());
 
   if (aNewAbsoluteContainingBlock) {
     aNewAbsoluteContainingBlock->MarkAsAbsoluteContainingBlock();
@@ -2598,7 +2598,8 @@ nsCSSFrameConstructor::ConstructDocElementFrame(Element*                 aDocEle
     newFrame = frameItems.FirstChild();
     NS_ASSERTION(frameItems.OnlyChild(), "multiple root element frames");
   } else {
-    MOZ_ASSERT(display->mDisplay == NS_STYLE_DISPLAY_BLOCK,
+    MOZ_ASSERT(display->mDisplay == NS_STYLE_DISPLAY_BLOCK ||
+               display->mDisplay == NS_STYLE_DISPLAY_CONTENTS,
                "Unhandled display type for root element");
     contentFrame = NS_NewBlockFormattingContext(mPresShell, styleContext);
     nsFrameItems frameItems;
@@ -3471,6 +3472,8 @@ nsCSSFrameConstructor::FindHTMLData(Element* aElement,
   if (aTag == nsGkAtoms::legend &&
       (!aParentFrame ||
        !IsFrameForFieldSet(aParentFrame, aParentFrame->GetType()) ||
+       !aElement->GetParent() ||
+       !aElement->GetParent()->IsHTMLElement(nsGkAtoms::fieldset) ||
        aStyleContext->StyleDisplay()->IsFloatingStyle() ||
        aStyleContext->StyleDisplay()->IsAbsolutelyPositionedStyle())) {
     // <legend> is only special inside fieldset, check both the frame tree
@@ -3788,9 +3791,7 @@ nsCSSFrameConstructor::ConstructFrameFromItemInternal(FrameConstructionItem& aIt
 
     // If we need to create a block formatting context to wrap our
     // kids, do it now.
-    const nsStylePosition* position = styleContext->StylePosition();
     const nsStyleDisplay* maybeAbsoluteContainingBlockDisplay = display;
-    const nsStylePosition* maybeAbsoluteContainingBlockPosition = position;
     nsIFrame* maybeAbsoluteContainingBlock = newFrame;
     nsIFrame* possiblyLeafFrame = newFrame;
     if (bits & FCDATA_CREATE_BLOCK_WRAPPER_FOR_ALL_KIDS) {
@@ -3816,7 +3817,6 @@ nsCSSFrameConstructor::ConstructFrameFromItemInternal(FrameConstructionItem& aIt
       const nsStyleDisplay* blockDisplay = blockContext->StyleDisplay();
       if (blockDisplay->IsPositioned(blockFrame)) {
         maybeAbsoluteContainingBlockDisplay = blockDisplay;
-        maybeAbsoluteContainingBlockPosition = blockContext->StylePosition();
         maybeAbsoluteContainingBlock = blockFrame;
       }
 
@@ -3857,9 +3857,9 @@ nsCSSFrameConstructor::ConstructFrameFromItemInternal(FrameConstructionItem& aIt
         // make the inner the containing block.
         if ((maybeAbsoluteContainingBlockDisplay->IsAbsolutelyPositionedStyle() ||
              maybeAbsoluteContainingBlockDisplay->IsRelativelyPositionedStyle() ||
-             (maybeAbsoluteContainingBlockPosition->HasTransformStyle() &&
+             (maybeAbsoluteContainingBlockDisplay->HasTransformStyle() &&
               cb->IsFrameOfType(nsIFrame::eSupportsCSSTransforms)) ||
-             maybeAbsoluteContainingBlockPosition->HasPerspectiveStyle()) &&
+             maybeAbsoluteContainingBlockDisplay->HasPerspectiveStyle()) &&
             !cb->IsSVGText()) {
           nsContainerFrame* cf = static_cast<nsContainerFrame*>(cb);
           aState.PushAbsoluteContainingBlock(cf, cf, absoluteSaveState);
@@ -5182,17 +5182,6 @@ nsCSSFrameConstructor::FindSVGData(Element* aElement,
     return &sContainerData;
   }
 
-  // Ensure that a stop frame is a child of a gradient and that gradients
-  // can only have stop children.
-  bool parentIsGradient = aParentFrame &&
-    (aParentFrame->GetType() == nsGkAtoms::svgLinearGradientFrame ||
-     aParentFrame->GetType() == nsGkAtoms::svgRadialGradientFrame);
-  bool stop = (aTag == nsGkAtoms::stop);
-  if ((parentIsGradient && !stop) ||
-      (!parentIsGradient && stop)) {
-    return &sSuppressData;
-  }
-
   // Prevent bad frame types being children of filters or parents of filter
   // primitives.  If aParentFrame is null, we know that the frame that will
   // be created will be an nsInlineFrame, so it can never be a filter.
@@ -5986,8 +5975,8 @@ nsCSSFrameConstructor::GetAbsoluteContainingBlock(nsIFrame* aFrame,
     // not transformed, skip it.
     if (!frame->IsPositioned() ||
         (aType == FIXED_POS &&
-         !frame->StylePosition()->HasTransform(frame) &&
-         !frame->StylePosition()->HasPerspectiveStyle())) {
+         !frame->StyleDisplay()->HasTransform(frame) &&
+         !frame->StyleDisplay()->HasPerspectiveStyle())) {
       continue;
     }
     nsIFrame* absPosCBCandidate = frame;
@@ -6583,12 +6572,7 @@ nsCSSFrameConstructor::GetInsertionPrevSibling(InsertionPoint* aInsertion,
         // the container would be inserted.  This is needed when inserting
         // into nested display:contents nodes.
         nsIContent* child = aInsertion->mContainer;
-        nsIContent* parent = child->GetParent();
-        aInsertion->mParentFrame =
-          ::GetAdjustedParentFrame(aInsertion->mParentFrame,
-                                   aInsertion->mParentFrame->GetType(),
-                                   parent);
-        InsertionPoint fakeInsertion(aInsertion->mParentFrame, parent);
+        InsertionPoint fakeInsertion(aInsertion->mParentFrame, child->GetParent());
         nsIFrame* result = GetInsertionPrevSibling(&fakeInsertion, child, aIsAppend,
                                                    aIsRangeInsertSafe, nullptr, nullptr);
         MOZ_ASSERT(aInsertion->mParentFrame == fakeInsertion.mParentFrame);
@@ -8929,10 +8913,8 @@ nsCSSFrameConstructor::GetInsertionPoint(nsIContent* aContainer,
   InsertionPoint insertion(GetContentInsertionFrameFor(insertionElement),
                            insertionElement);
 
-  // Fieldset frames have multiple normal flow child frame lists so handle it
-  // the same as if it had multiple content insertion points.
-  if (insertion.mParentFrame &&
-      insertion.mParentFrame->GetType() == nsGkAtoms::fieldSetFrame) {
+  // Fieldsets have multiple insertion points.
+  if (insertionElement->IsHTMLElement(nsGkAtoms::fieldset)) {
     insertion.mMultiple = true;
   }
 

@@ -209,7 +209,6 @@ SandboxFilterImplContent::Build() {
   Deny(EACCES, SOCKETCALL(socket, SOCKET));
   Allow(SYSCALL(open));
   Allow(SYSCALL(readlink)); /* Workaround for bug 964455 */
-  Allow(SYSCALL(readlinkat)); /* Workaround for bug 964455 */
   Allow(SYSCALL(prctl));
   Allow(SYSCALL(access));
   Allow(SYSCALL(unlink));

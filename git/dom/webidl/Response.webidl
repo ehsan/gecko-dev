@@ -8,7 +8,8 @@
  */
 
 [Constructor(optional BodyInit body, optional ResponseInit init),
- Exposed=(Window,Worker)]
+ Exposed=(Window,Worker),
+ Func="mozilla::dom::Headers::PrefEnabled"]
 interface Response {
   [NewObject] static Response error();
   [Throws,

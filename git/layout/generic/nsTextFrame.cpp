@@ -8672,7 +8672,7 @@ nsTextFrame::TrimTrailingWhiteSpace(nsRenderingContext* aRC)
 }
 
 nsOverflowAreas
-nsTextFrame::RecomputeOverflow(nsIFrame* aBlockFrame)
+nsTextFrame::RecomputeOverflow(const nsHTMLReflowState& aBlockReflowState)
 {
   nsRect bounds(nsPoint(0, 0), GetSize());
   nsOverflowAreas result(bounds, bounds);
@@ -8701,7 +8701,8 @@ nsTextFrame::RecomputeOverflow(nsIFrame* aBlockFrame)
   }
   nsRect &vis = result.VisualOverflow();
   vis.UnionRect(vis, boundingBox);
-  UnionAdditionalOverflow(PresContext(), aBlockFrame, provider, &vis, true);
+  UnionAdditionalOverflow(PresContext(), aBlockReflowState.frame, provider,
+                          &vis, true);
   return result;
 }
 
@@ -8996,9 +8997,18 @@ nsTextFrame::HasAnyNoncollapsedCharacters()
 bool
 nsTextFrame::UpdateOverflow()
 {
+  const nsRect rect(nsPoint(0, 0), GetSize());
+  nsOverflowAreas overflowAreas(rect, rect);
+
   if (GetStateBits() & NS_FRAME_FIRST_REFLOW) {
     return false;
   }
+  gfxSkipCharsIterator iter = EnsureTextRun(nsTextFrame::eInflated);
+  if (!mTextRun) {
+    return false;
+  }
+  PropertyProvider provider(this, iter, nsTextFrame::eInflated);
+  provider.InitializeForDisplay(true);
 
   nsIFrame* decorationsBlock;
   if (IsFloatingFirstLetterChild()) {
@@ -9020,8 +9030,8 @@ nsTextFrame::UpdateOverflow()
     }
   }
 
-  nsOverflowAreas overflowAreas = RecomputeOverflow(decorationsBlock);
-
+  UnionAdditionalOverflow(PresContext(), decorationsBlock, provider,
+                          &overflowAreas.VisualOverflow(), true);
   return FinishAndStoreOverflow(overflowAreas, GetSize());
 }
 

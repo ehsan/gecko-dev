@@ -109,7 +109,7 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "FileReaderSync",
 // IMPORTANT: Do not change this list without review from a DOM peer!
-    "Headers",
+    { name: "Headers", pref: "dom.fetch.enabled" },
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "IDBCursor",
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -140,10 +140,6 @@ var interfaceNamesInGlobalScope =
     "Performance",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "Promise",
-// IMPORTANT: Do not change this list without review from a DOM peer!
-    "Request",
-// IMPORTANT: Do not change this list without review from a DOM peer!
-    "Response",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "TextDecoder",
 // IMPORTANT: Do not change this list without review from a DOM peer!

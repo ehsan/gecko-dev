@@ -5,7 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "InterfaceInitFuncs.h"
-#include "mozilla/a11y/PDocAccessible.h"
+
 #include "Accessible-inl.h"
 #include "HyperTextAccessible-inl.h"
 #include "nsMai.h"
@@ -21,65 +21,6 @@ using namespace mozilla;
 using namespace mozilla::a11y;
 
 static const char* sAtkTextAttrNames[ATK_TEXT_ATTR_LAST_DEFINED];
-
-void
-ConvertTextAttributeToAtkAttribute(const nsACString& aName,
-                                   const nsAString& aValue,
-                                   AtkAttributeSet** aAttributeSet)
-{
-  // Handle attributes where atk has its own name.
-  const char* atkName = nullptr;
-  nsAutoString atkValue;
-  if (aName.EqualsLiteral("color")) {
-    // The format of the atk attribute is r,g,b and the gecko one is
-    // rgb(r,g,b).
-    atkValue = Substring(aValue, 5, aValue.Length() - 1);
-    atkName = sAtkTextAttrNames[ATK_TEXT_ATTR_FG_COLOR];
-  } else if (aName.EqualsLiteral("background-color")) {
-    // The format of the atk attribute is r,g,b and the gecko one is
-    // rgb(r,g,b).
-    atkValue = Substring(aValue, 5, aValue.Length() - 1);
-    atkName = sAtkTextAttrNames[ATK_TEXT_ATTR_BG_COLOR];
-  } else if (aName.EqualsLiteral("font-family")) {
-    atkValue = aValue;
-    atkName = sAtkTextAttrNames[ATK_TEXT_ATTR_FAMILY_NAME];
-  } else if (aName.EqualsLiteral("font-size")) {
-    // ATK wants the number of pixels without px at the end.
-    atkValue = StringHead(aValue, aValue.Length() - 2);
-    atkName = sAtkTextAttrNames[ATK_TEXT_ATTR_SIZE];
-  } else if (aName.EqualsLiteral("font-weight")) {
-    atkValue = aValue;
-    atkName = sAtkTextAttrNames[ATK_TEXT_ATTR_WEIGHT];
-  } else if (aName.EqualsLiteral("invalid")) {
-    atkValue = aValue;
-    atkName = sAtkTextAttrNames[ATK_TEXT_ATTR_INVALID];
-  }
-
-  if (atkName) {
-    AtkAttribute* objAttr =
-      static_cast<AtkAttribute*>(g_malloc(sizeof(AtkAttribute)));
-    objAttr->name = g_strdup(atkName);
-    objAttr->value = g_strdup(NS_ConvertUTF16toUTF8(atkValue).get());
-    *aAttributeSet = g_slist_prepend(*aAttributeSet, objAttr);
-  }
-}
-
-static AtkAttributeSet*
-ConvertToAtkTextAttributeSet(nsTArray<Attribute>& aAttributes)
-{
-  AtkAttributeSet* objAttributeSet = nullptr;
-  for (size_t i = 0; i < aAttributes.Length(); ++i) {
-    AtkAttribute* objAttr = (AtkAttribute *)g_malloc(sizeof(AtkAttribute));
-    objAttr->name = g_strdup(aAttributes[i].Name().get());
-    objAttr->value =
-      g_strdup(NS_ConvertUTF16toUTF8(aAttributes[i].Value()).get());
-    objAttributeSet = g_slist_prepend(objAttributeSet, objAttr);
-    ConvertTextAttributeToAtkAttribute(aAttributes[i].Name(),
-                                       aAttributes[i].Value(),
-                                       &objAttributeSet);
-  }
-  return objAttributeSet;
-}
 
 static AtkAttributeSet*
 ConvertToAtkTextAttributeSet(nsIPersistentProperties* aAttributes)
@@ -114,7 +55,40 @@ ConvertToAtkTextAttributeSet(nsIPersistentProperties* aAttributes)
     objAttr->value = g_strdup(NS_ConvertUTF16toUTF8(value).get());
     objAttributeSet = g_slist_prepend(objAttributeSet, objAttr);
 
-    ConvertTextAttributeToAtkAttribute(name, value, &objAttributeSet);
+    // Handle attributes where atk has its own name.
+    const char* atkName = nullptr;
+    nsAutoString atkValue;
+    if (name.EqualsLiteral("color")) {
+      // The format of the atk attribute is r,g,b and the gecko one is
+      // rgb(r,g,b).
+      atkValue = Substring(value, 5, value.Length() - 1);
+      atkName = sAtkTextAttrNames[ATK_TEXT_ATTR_FG_COLOR];
+    } else if (name.EqualsLiteral("background-color")) {
+      // The format of the atk attribute is r,g,b and the gecko one is
+      // rgb(r,g,b).
+      atkValue = Substring(value, 5, value.Length() - 1);
+      atkName = sAtkTextAttrNames[ATK_TEXT_ATTR_BG_COLOR];
+    } else if (name.EqualsLiteral("font-family")) {
+      atkValue = value;
+      atkName = sAtkTextAttrNames[ATK_TEXT_ATTR_FAMILY_NAME];
+    } else if (name.EqualsLiteral("font-size")) {
+      // ATK wants the number of pixels without px at the end.
+      atkValue = StringHead(value, value.Length() - 2);
+      atkName = sAtkTextAttrNames[ATK_TEXT_ATTR_SIZE];
+    } else if (name.EqualsLiteral("font-weight")) {
+      atkValue = value;
+      atkName = sAtkTextAttrNames[ATK_TEXT_ATTR_WEIGHT];
+    } else if (name.EqualsLiteral("invalid")) {
+      atkValue = value;
+      atkName = sAtkTextAttrNames[ATK_TEXT_ATTR_INVALID];
+    }
+
+    if (atkName) {
+      objAttr = static_cast<AtkAttribute*>(g_malloc(sizeof(AtkAttribute)));
+      objAttr->name = g_strdup(atkName);
+      objAttr->value = g_strdup(NS_ConvertUTF16toUTF8(atkValue).get());
+      objAttributeSet = g_slist_prepend(objAttributeSet, objAttr);
+    }
   }
 
   // libatk-adaptor will free it
@@ -209,21 +183,15 @@ static gunichar
 getCharacterAtOffsetCB(AtkText* aText, gint aOffset)
 {
   AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aText));
-  if (accWrap) {
-    HyperTextAccessible* text = accWrap->AsHyperText();
-    if (!text || !text->IsTextRole()) {
-      return 0;
-    }
+  if (!accWrap)
+    return 0;
 
-    // char16_t is unsigned short in Mozilla, gnuichar is guint32 in glib.
-    return static_cast<gunichar>(text->CharAt(aOffset));
-  }
+  HyperTextAccessible* text = accWrap->AsHyperText();
+  if (!text || !text->IsTextRole())
+    return 0;
 
-  if (ProxyAccessible* proxy = GetProxy(ATK_OBJECT(aText))) {
-    return static_cast<gunichar>(proxy->CharAt(aOffset));
-  }
-
-  return 0;
+  // char16_t is unsigned short in Mozilla, gnuichar is guint32 in glib.
+  return static_cast<gunichar>(text->CharAt(aOffset));
 }
 
 static gchar*
@@ -255,20 +223,14 @@ static gint
 getCaretOffsetCB(AtkText *aText)
 {
   AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aText));
-  if (accWrap) {
-    HyperTextAccessible* text = accWrap->AsHyperText();
-    if (!text || !text->IsTextRole()) {
-      return 0;
-    }
+  if (!accWrap)
+    return 0;
 
-    return static_cast<gint>(text->CaretOffset());
-  }
+  HyperTextAccessible* text = accWrap->AsHyperText();
+  if (!text || !text->IsTextRole())
+    return 0;
 
-  if (ProxyAccessible* proxy = GetProxy(ATK_OBJECT(aText))) {
-    return static_cast<gint>(proxy->CaretOffset());
-  }
-
-  return 0;
+  return static_cast<gint>(text->CaretOffset());
 }
 
 static AtkAttributeSet*
@@ -278,58 +240,38 @@ getRunAttributesCB(AtkText *aText, gint aOffset,
 {
   *aStartOffset = -1;
   *aEndOffset = -1;
-  int32_t startOffset = 0, endOffset = 0;
 
   AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aText));
-  if (accWrap) {
-    HyperTextAccessible* text = accWrap->AsHyperText();
-    if (!text || !text->IsTextRole()) {
-      return nullptr;
-    }
-
-    nsCOMPtr<nsIPersistentProperties> attributes =
-      text->TextAttributes(false, aOffset, &startOffset, &endOffset);
-
-    *aStartOffset = startOffset;
-    *aEndOffset = endOffset;
-
-    return ConvertToAtkTextAttributeSet(attributes);
-  }
-
-  ProxyAccessible* proxy = GetProxy(ATK_OBJECT(aText));
-  if (!proxy) {
+  if (!accWrap)
     return nullptr;
-  }
 
-  nsAutoTArray<Attribute, 10> attrs;
-  proxy->TextAttributes(false, aOffset, &attrs, &startOffset, &endOffset);
+  HyperTextAccessible* text = accWrap->AsHyperText();
+  if (!text || !text->IsTextRole())
+    return nullptr;
+
+  int32_t startOffset = 0, endOffset = 0;
+  nsCOMPtr<nsIPersistentProperties> attributes =
+    text->TextAttributes(false, aOffset, &startOffset, &endOffset);
+
   *aStartOffset = startOffset;
   *aEndOffset = endOffset;
-  return ConvertToAtkTextAttributeSet(attrs);
+
+  return ConvertToAtkTextAttributeSet(attributes);
 }
 
 static AtkAttributeSet*
 getDefaultAttributesCB(AtkText *aText)
 {
   AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aText));
-  if (accWrap) {
-    HyperTextAccessible* text = accWrap->AsHyperText();
-    if (!text || !text->IsTextRole()) {
-      return nullptr;
-    }
-
-    nsCOMPtr<nsIPersistentProperties> attributes = text->DefaultTextAttributes();
-    return ConvertToAtkTextAttributeSet(attributes);
-  }
-
-  ProxyAccessible* proxy = GetProxy(ATK_OBJECT(aText));
-  if (!proxy) {
+  if (!accWrap)
     return nullptr;
-  }
 
-  nsAutoTArray<Attribute, 10> attrs;
-  proxy->DefaultTextAttributes(&attrs);
-  return ConvertToAtkTextAttributeSet(attrs);
+  HyperTextAccessible* text = accWrap->AsHyperText();
+  if (!text || !text->IsTextRole())
+    return nullptr;
+
+  nsCOMPtr<nsIPersistentProperties> attributes = text->DefaultTextAttributes();
+  return ConvertToAtkTextAttributeSet(attributes);
 }
 
 static void
@@ -338,32 +280,21 @@ getCharacterExtentsCB(AtkText *aText, gint aOffset,
                       gint *aWidth, gint *aHeight,
                       AtkCoordType aCoords)
 {
-  if(!aX || !aY || !aWidth || !aHeight) {
-    return;
-  }
-
-  nsIntRect rect;
-  uint32_t geckoCoordType;
-  if (aCoords == ATK_XY_SCREEN) {
-    geckoCoordType = nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE;
-  } else {
-    geckoCoordType = nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE;
-  }
-
   AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aText));
-  if (accWrap) {
-    HyperTextAccessible* text = accWrap->AsHyperText();
-    if (!text || !text->IsTextRole()) {
-      return;
-    }
-
-    rect = text->CharBounds(aOffset, geckoCoordType);
-  } else if (ProxyAccessible* proxy = GetProxy(ATK_OBJECT(aText))) {
-    rect = proxy->CharBounds(aOffset, geckoCoordType);
-  } else {
+  if(!accWrap || !aX || !aY || !aWidth || !aHeight)
     return;
-  }
 
+  HyperTextAccessible* text = accWrap->AsHyperText();
+  if (!text || !text->IsTextRole())
+    return;
+
+    uint32_t geckoCoordType;
+    if (aCoords == ATK_XY_SCREEN)
+        geckoCoordType = nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE;
+    else
+        geckoCoordType = nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE;
+
+  nsIntRect rect = text->CharBounds(aOffset, geckoCoordType);
   *aX = rect.x;
   *aY = rect.y;
   *aWidth = rect.width;
@@ -374,32 +305,21 @@ static void
 getRangeExtentsCB(AtkText *aText, gint aStartOffset, gint aEndOffset,
                   AtkCoordType aCoords, AtkTextRectangle *aRect)
 {
-  if (!aRect) {
-    return;
-  }
-
-  nsIntRect rect;
-  uint32_t geckoCoordType;
-  if (aCoords == ATK_XY_SCREEN) {
-    geckoCoordType = nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE;
-  } else {
-    geckoCoordType = nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE;
-  }
-
   AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aText));
-  if(accWrap) {
-    HyperTextAccessible* text = accWrap->AsHyperText();
-    if (!text || !text->IsTextRole()) {
-      return;
-    }
-
-    rect = text->TextBounds(aStartOffset, aEndOffset, geckoCoordType);
-  } else if (ProxyAccessible* proxy = GetProxy(ATK_OBJECT(aText))) {
-    rect = proxy->TextBounds(aStartOffset, aEndOffset, geckoCoordType);
-  } else {
+  if(!accWrap || !aRect)
     return;
-  }
 
+  HyperTextAccessible* text = accWrap->AsHyperText();
+  if (!text || !text->IsTextRole())
+    return;
+
+    uint32_t geckoCoordType;
+    if (aCoords == ATK_XY_SCREEN)
+        geckoCoordType = nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE;
+    else
+        geckoCoordType = nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE;
+
+  nsIntRect rect = text->TextBounds(aStartOffset, aEndOffset, geckoCoordType);
   aRect->x = rect.x;
   aRect->y = rect.y;
   aRect->width = rect.width;
@@ -429,28 +349,18 @@ getOffsetAtPointCB(AtkText *aText,
                    AtkCoordType aCoords)
 {
   AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aText));
-  if (accWrap) {
-    HyperTextAccessible* text = accWrap->AsHyperText();
-    if (!text || !text->IsTextRole()) {
-      return -1;
-    }
+  if (!accWrap)
+    return -1;
 
-    return static_cast<gint>(
-      text->OffsetAtPoint(aX, aY,
-                          (aCoords == ATK_XY_SCREEN ?
-                           nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE :
-                           nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE)));
-  }
+  HyperTextAccessible* text = accWrap->AsHyperText();
+  if (!text || !text->IsTextRole())
+    return -1;
 
-  if (ProxyAccessible* proxy = GetProxy(ATK_OBJECT(aText))) {
-    return static_cast<gint>(
-      proxy->OffsetAtPoint(aX, aY,
-                           (aCoords == ATK_XY_SCREEN ?
-                            nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE :
-                            nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE)));
-  }
-
-  return -1;
+  return static_cast<gint>(
+    text->OffsetAtPoint(aX, aY,
+                        (aCoords == ATK_XY_SCREEN ?
+                         nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE :
+                         nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE)));
 }
 
 static gint
@@ -545,23 +455,15 @@ static gboolean
 setCaretOffsetCB(AtkText *aText, gint aOffset)
 {
   AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aText));
-  if (accWrap) {
-    HyperTextAccessible* text = accWrap->AsHyperText();
-    if (!text || !text->IsTextRole() || !text->IsValidOffset(aOffset)) {
-      return FALSE;
-    }
+  if (!accWrap)
+    return FALSE;
 
-    text->SetCaretOffset(aOffset);
-    return TRUE;
-  }
+  HyperTextAccessible* text = accWrap->AsHyperText();
+  if (!text || !text->IsTextRole() || !text->IsValidOffset(aOffset))
+    return FALSE;
 
-  if (ProxyAccessible* proxy = GetProxy(ATK_OBJECT(aText))) {
-    if (proxy->SetCaretOffset(aOffset)) {
-      return TRUE;
-    }
-  }
-
-  return FALSE;
+  text->SetCaretOffset(aOffset);
+  return TRUE;
 }
 }
 
