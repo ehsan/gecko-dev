@@ -1388,7 +1388,7 @@ CharacterIterator::GetPositionData()
   if (!mPositions.IsEmpty())
     return mPositions[mCurrentChar];
 
-  gfxFloat advance = mCurrentAdvance * mMetricsScale;
+  gfxFloat advance = mCurrentAdvance/nsSVGGlyphFrame::GetTextRunUnitsFactor();
   CharacterPosition cp =
     { mSource->mPosition + gfxPoint(advance, 0), 0, PR_TRUE };
   return cp;
