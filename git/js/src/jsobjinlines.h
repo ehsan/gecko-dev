@@ -81,11 +81,6 @@ JSObject::setSlotMT(JSContext *cx, uintN slot, jsval value)
 #endif
 }
 
-inline void JSObject::staticAssertArrayLengthIsInPrivateSlot()
-{
-    JS_STATIC_ASSERT(JSSLOT_ARRAY_LENGTH == JSSLOT_PRIVATE);
-}
-
 inline uint32
 JSObject::getArrayLength() const
 {
