@@ -432,7 +432,8 @@ nsThread::PutEvent(nsIRunnable *event, nsNestedEventTarget *target)
       NS_WARNING("An event was posted to a thread that will never run it (rejected)");
       return NS_ERROR_UNEXPECTED;
     }
-    queue->PutEvent(event);
+    if (!queue->PutEvent(event))
+      return NS_ERROR_OUT_OF_MEMORY;
   }
 
   nsCOMPtr<nsIThreadObserver> obs = GetObserver();

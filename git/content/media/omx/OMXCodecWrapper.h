@@ -277,6 +277,12 @@ public:
 #endif
 
   /**
+   * Get current AVC codec config blob. The output format depends on the
+   * aBlobFormat argument given when Configure() was called.
+   */
+  nsresult GetCodecConfig(nsTArray<uint8_t>* aOutputBuf);
+
+  /**
    * Ask codec to generate an instantaneous decoding refresh (IDR) frame
    * (defined in ISO/IEC 14496-10).
    */
@@ -307,6 +313,7 @@ private:
     , mWidth(0)
     , mHeight(0)
     , mBlobFormat(BlobFormat::AVC_MP4)
+    , mHasConfigBlob(false)
   {}
 
   // For creator function to access hidden constructor.
@@ -315,6 +322,7 @@ private:
   int mWidth;
   int mHeight;
   BlobFormat mBlobFormat;
+  bool mHasConfigBlob;
 };
 
 } // namespace android

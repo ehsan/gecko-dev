@@ -22,7 +22,7 @@
 #include "nsFocusManager.h"
 #include "nsIDOMRange.h"
 #include "nsIEditingSession.h"
-#include "nsContainerFrame.h"
+#include "nsIFrame.h"
 #include "nsFrameSelection.h"
 #include "nsILineIterator.h"
 #include "nsIInterfaceRequestorUtils.h"
@@ -1257,7 +1257,7 @@ HyperTextAccessible::CaretLineNumber()
     if (hyperTextContent == caretFrame->GetContent()) {
       return lineNumber; // Must be in a single line hyper text, there is no line iterator
     }
-    nsContainerFrame *parentFrame = caretFrame->GetParent();
+    nsIFrame *parentFrame = caretFrame->GetParent();
     if (!parentFrame)
       break;
 

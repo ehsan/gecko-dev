@@ -101,7 +101,8 @@ nsAbsoluteContainingBlock::RemoveFrame(nsIFrame*       aDelegatingFrame,
   NS_ASSERTION(mChildListID == aListID, "unexpected child list");
   nsIFrame* nif = aOldFrame->GetNextInFlow();
   if (nif) {
-    nif->GetParent()->DeleteNextInFlowChild(nif, false);
+    static_cast<nsContainerFrame*>(nif->GetParent())
+      ->DeleteNextInFlowChild(nif, false);
   }
 
   mAbsoluteFrames.DestroyFrame(aOldFrame);
@@ -153,7 +154,8 @@ nsAbsoluteContainingBlock::Reflow(nsContainerFrame*        aDelegatingFrame,
         // Delete any continuations
         if (nextFrame) {
           nsOverflowContinuationTracker::AutoFinish fini(&tracker, kidFrame);
-          nextFrame->GetParent()->DeleteNextInFlowChild(nextFrame, true);
+          static_cast<nsContainerFrame*>(nextFrame->GetParent())
+            ->DeleteNextInFlowChild(nextFrame, true);
         }
       }
     }

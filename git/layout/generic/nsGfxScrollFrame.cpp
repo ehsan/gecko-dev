@@ -65,7 +65,7 @@ using namespace mozilla::layout;
 
 //----------nsHTMLScrollFrame-------------------------------------------
 
-nsHTMLScrollFrame*
+nsIFrame*
 NS_NewHTMLScrollFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, bool aIsRoot)
 {
   return new (aPresShell) nsHTMLScrollFrame(aPresShell, aContext, aIsRoot);
@@ -899,7 +899,7 @@ NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
 
 //----------nsXULScrollFrame-------------------------------------------
 
-nsXULScrollFrame*
+nsIFrame*
 NS_NewXULScrollFrame(nsIPresShell* aPresShell, nsStyleContext* aContext,
                      bool aIsRoot, bool aClipAllDescendants)
 {

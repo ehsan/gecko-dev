@@ -54,7 +54,7 @@ public:
     Assign(str);
   }
 
-  MOZ_IMPLICIT nsTString_CharT( const substring_tuple_type& tuple )
+  nsTString_CharT( const substring_tuple_type& tuple )
     : substring_type()
   {
     Assign(tuple);
@@ -524,7 +524,7 @@ public:
     Assign(str);
   }
 
-  MOZ_IMPLICIT nsTAutoString_CharT( const substring_tuple_type& tuple )
+  nsTAutoString_CharT( const substring_tuple_type& tuple )
     : fixed_string_type(mStorage, kDefaultStorageSize, 0)
   {
     Assign(tuple);
@@ -655,7 +655,7 @@ class MOZ_STACK_CLASS nsTGetterCopies_CharT
 public:
   typedef CharT char_type;
 
-  explicit nsTGetterCopies_CharT(nsTSubstring_CharT& str)
+  nsTGetterCopies_CharT(nsTSubstring_CharT& str)
     : mString(str), mData(nullptr) {}
 
   ~nsTGetterCopies_CharT()

@@ -36,7 +36,6 @@
 #include "nsFrameManager.h"
 #include "GeckoProfiler.h"
 #include "nsIStatefulFrame.h"
-#include "nsContainerFrame.h"
 
   #ifdef DEBUG
     //#define DEBUG_UNDISPLAYED_MAP
@@ -349,9 +348,9 @@ nsFrameManager::ClearAllUndisplayedContentIn(nsIContent* aParentContent)
 
 //----------------------------------------------------------------------
 nsresult
-nsFrameManager::AppendFrames(nsContainerFrame* aParentFrame,
-                             ChildListID       aListID,
-                             nsFrameList&      aFrameList)
+nsFrameManager::AppendFrames(nsIFrame*       aParentFrame,
+                             ChildListID     aListID,
+                             nsFrameList&    aFrameList)
 {
   if (aParentFrame->IsAbsoluteContainer() &&
       aListID == aParentFrame->GetAbsoluteListID()) {
@@ -363,10 +362,10 @@ nsFrameManager::AppendFrames(nsContainerFrame* aParentFrame,
 }
 
 nsresult
-nsFrameManager::InsertFrames(nsContainerFrame* aParentFrame,
-                             ChildListID       aListID,
-                             nsIFrame*         aPrevFrame,
-                             nsFrameList&      aFrameList)
+nsFrameManager::InsertFrames(nsIFrame*       aParentFrame,
+                             ChildListID     aListID,
+                             nsIFrame*       aPrevFrame,
+                             nsFrameList&    aFrameList)
 {
   NS_PRECONDITION(!aPrevFrame || (!aPrevFrame->GetNextContinuation()
                   || (((aPrevFrame->GetNextContinuation()->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER))
@@ -405,7 +404,7 @@ nsFrameManager::RemoveFrame(ChildListID     aListID,
                  GetPlaceholderFrameFor(aOldFrame)),
                "Must call RemoveFrame on placeholder for out-of-flows.");
   nsresult rv = NS_OK;
-  nsContainerFrame* parentFrame = aOldFrame->GetParent();
+  nsIFrame* parentFrame = aOldFrame->GetParent();
   if (parentFrame->IsAbsoluteContainer() &&
       aListID == parentFrame->GetAbsoluteListID()) {
     parentFrame->GetAbsoluteContainingBlock()->

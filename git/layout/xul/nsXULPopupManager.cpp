@@ -1761,10 +1761,7 @@ nsXULPopupManager::UpdateMenuItems(nsIContent* aPopup)
   for (nsCOMPtr<nsIContent> grandChild = aPopup->GetFirstChild();
        grandChild;
        grandChild = grandChild->GetNextSibling()) {
-    if (grandChild->IsXUL(nsGkAtoms::menugroup)) {
-      grandChild = grandChild->GetFirstChild();
-    }
-    if (grandChild->IsXUL(nsGkAtoms::menuitem)) {
+    if (grandChild->NodeInfo()->Equals(nsGkAtoms::menuitem, kNameSpaceID_XUL)) {
       // See if we have a command attribute.
       nsAutoString command;
       grandChild->GetAttr(kNameSpaceID_None, nsGkAtoms::command, command);
@@ -1796,10 +1793,6 @@ nsXULPopupManager::UpdateMenuItems(nsIContent* aPopup)
             grandChild->SetAttr(kNameSpaceID_None, nsGkAtoms::hidden, commandValue, true);
         }
       }
-    }
-    if (!grandChild->GetNextSibling() &&
-        grandChild->GetParent()->IsXUL(nsGkAtoms::menugroup)) {
-      grandChild = grandChild->GetParent();
     }
   }
 }
@@ -2151,39 +2144,28 @@ nsXULPopupManager::HandleKeyboardEventWithKeyCode(
 }
 
 nsMenuFrame*
-nsXULPopupManager::GetNextMenuItem(nsContainerFrame* aParent,
+nsXULPopupManager::GetNextMenuItem(nsIFrame* aParent,
                                    nsMenuFrame* aStart,
                                    bool aIsPopup)
 {
   nsPresContext* presContext = aParent->PresContext();
-  nsContainerFrame* immediateParent = presContext->PresShell()->
+  nsIFrame* immediateParent = presContext->PresShell()->
     FrameConstructor()->GetInsertionPoint(aParent->GetContent(), nullptr);
   if (!immediateParent)
     immediateParent = aParent;
 
   nsIFrame* currFrame = nullptr;
-  if (aStart) {
-    if (aStart->GetNextSibling())
-      currFrame = aStart->GetNextSibling();
-    else if (aStart->GetParent()->GetContent()->IsXUL(nsGkAtoms::menugroup))
-      currFrame = aStart->GetParent()->GetNextSibling();
-  }
-  else
+  if (aStart)
+    currFrame = aStart->GetNextSibling();
+  else 
     currFrame = immediateParent->GetFirstPrincipalChild();
-
+  
   while (currFrame) {
     // See if it's a menu item.
-    nsIContent* currFrameContent = currFrame->GetContent();
-    if (IsValidMenuItem(presContext, currFrameContent, aIsPopup)) {
+    if (IsValidMenuItem(presContext, currFrame->GetContent(), aIsPopup)) {
       return do_QueryFrame(currFrame);
     }
-    if (currFrameContent->IsXUL(nsGkAtoms::menugroup))
-      currFrame = currFrame->GetFirstPrincipalChild();
-    else if (!currFrame->GetNextSibling() &&
-             currFrame->GetParent()->GetContent()->IsXUL(nsGkAtoms::menugroup))
-      currFrame = currFrame->GetParent()->GetNextSibling();
-    else
-      currFrame = currFrame->GetNextSibling();
+    currFrame = currFrame->GetNextSibling();
   }
 
   currFrame = immediateParent->GetFirstPrincipalChild();
@@ -2191,17 +2173,11 @@ nsXULPopupManager::GetNextMenuItem(nsContainerFrame* aParent,
   // Still don't have anything. Try cycling from the beginning.
   while (currFrame && currFrame != aStart) {
     // See if it's a menu item.
-    nsIContent* currFrameContent = currFrame->GetContent();
-    if (IsValidMenuItem(presContext, currFrameContent, aIsPopup)) {
+    if (IsValidMenuItem(presContext, currFrame->GetContent(), aIsPopup)) {
       return do_QueryFrame(currFrame);
     }
-    if (currFrameContent->IsXUL(nsGkAtoms::menugroup))
-      currFrame = currFrame->GetFirstPrincipalChild();
-    else if (!currFrame->GetNextSibling() &&
-             currFrame->GetParent()->GetContent()->IsXUL(nsGkAtoms::menugroup))
-      currFrame = currFrame->GetParent()->GetNextSibling();
-    else
-      currFrame = currFrame->GetNextSibling();
+
+    currFrame = currFrame->GetNextSibling();
   }
 
   // No luck. Just return our start value.
@@ -2209,12 +2185,12 @@ nsXULPopupManager::GetNextMenuItem(nsContainerFrame* aParent,
 }
 
 nsMenuFrame*
-nsXULPopupManager::GetPreviousMenuItem(nsContainerFrame* aParent,
+nsXULPopupManager::GetPreviousMenuItem(nsIFrame* aParent,
                                        nsMenuFrame* aStart,
                                        bool aIsPopup)
 {
   nsPresContext* presContext = aParent->PresContext();
-  nsContainerFrame* immediateParent = presContext->PresShell()->
+  nsIFrame* immediateParent = presContext->PresShell()->
     FrameConstructor()->GetInsertionPoint(aParent->GetContent(), nullptr);
   if (!immediateParent)
     immediateParent = aParent;
@@ -2222,30 +2198,17 @@ nsXULPopupManager::GetPreviousMenuItem(nsContainerFrame* aParent,
   const nsFrameList& frames(immediateParent->PrincipalChildList());
 
   nsIFrame* currFrame = nullptr;
-  if (aStart) {
-    if (aStart->GetPrevSibling())
-      currFrame = aStart->GetPrevSibling();
-    else if (aStart->GetParent()->GetContent()->IsXUL(nsGkAtoms::menugroup))
-      currFrame = aStart->GetParent()->GetPrevSibling();
-  }
+  if (aStart)
+    currFrame = aStart->GetPrevSibling();
   else
     currFrame = frames.LastChild();
 
   while (currFrame) {
     // See if it's a menu item.
-    nsIContent* currFrameContent = currFrame->GetContent();
-    if (IsValidMenuItem(presContext, currFrameContent, aIsPopup)) {
+    if (IsValidMenuItem(presContext, currFrame->GetContent(), aIsPopup)) {
       return do_QueryFrame(currFrame);
     }
-    if (currFrameContent->IsXUL(nsGkAtoms::menugroup)) {
-      const nsFrameList& menugroupFrames(currFrame->PrincipalChildList());
-      currFrame = menugroupFrames.LastChild();
-    }
-    else if (!currFrame->GetPrevSibling() &&
-             currFrame->GetParent()->GetContent()->IsXUL(nsGkAtoms::menugroup))
-      currFrame = currFrame->GetParent()->GetPrevSibling();
-    else
-      currFrame = currFrame->GetPrevSibling();
+    currFrame = currFrame->GetPrevSibling();
   }
 
   currFrame = frames.LastChild();
@@ -2253,19 +2216,11 @@ nsXULPopupManager::GetPreviousMenuItem(nsContainerFrame* aParent,
   // Still don't have anything. Try cycling from the end.
   while (currFrame && currFrame != aStart) {
     // See if it's a menu item.
-    nsIContent* currFrameContent = currFrame->GetContent();
-    if (IsValidMenuItem(presContext, currFrameContent, aIsPopup)) {
+    if (IsValidMenuItem(presContext, currFrame->GetContent(), aIsPopup)) {
       return do_QueryFrame(currFrame);
     }
-    if (currFrameContent->IsXUL(nsGkAtoms::menugroup)) {
-      const nsFrameList& menugroupFrames(currFrame->PrincipalChildList());
-      currFrame = menugroupFrames.LastChild();
-    }
-    else if (!currFrame->GetPrevSibling() &&
-             currFrame->GetParent()->GetContent()->IsXUL(nsGkAtoms::menugroup))
-      currFrame = currFrame->GetParent()->GetPrevSibling();
-    else
-      currFrame = currFrame->GetPrevSibling();
+
+    currFrame = currFrame->GetPrevSibling();
   }
 
   // No luck. Just return our start value.

@@ -75,7 +75,7 @@ private:
 };
 
 //---------------------------------------------------------
-nsContainerFrame*
+nsIFrame*
 NS_NewListControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   nsListControlFrame* it =
@@ -596,7 +596,7 @@ nsListControlFrame::ShouldPropagateComputedHeightToScrolledContent() const
 }
 
 //---------------------------------------------------------
-nsContainerFrame*
+nsIFrame*
 nsListControlFrame::GetContentInsertionFrame() {
   return GetOptionsContainer()->GetContentInsertionFrame();
 }
@@ -923,9 +923,9 @@ nsListControlFrame::SetInitialChildList(ChildListID    aListID,
 
 //---------------------------------------------------------
 void
-nsListControlFrame::Init(nsIContent*       aContent,
-                         nsContainerFrame* aParent,
-                         nsIFrame*         aPrevInFlow)
+nsListControlFrame::Init(nsIContent*     aContent,
+                         nsIFrame*       aParent,
+                         nsIFrame*       aPrevInFlow)
 {
   nsHTMLScrollFrame::Init(aContent, aParent, aPrevInFlow);
 

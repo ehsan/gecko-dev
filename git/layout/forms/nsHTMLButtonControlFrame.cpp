@@ -19,7 +19,7 @@
 
 using namespace mozilla;
 
-nsContainerFrame*
+nsIFrame*
 NS_NewHTMLButtonControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsHTMLButtonControlFrame(aContext);
@@ -44,9 +44,10 @@ nsHTMLButtonControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
 }
 
 void
-nsHTMLButtonControlFrame::Init(nsIContent*       aContent,
-                               nsContainerFrame* aParent,
-                               nsIFrame*         aPrevInFlow)
+nsHTMLButtonControlFrame::Init(
+              nsIContent*      aContent,
+              nsIFrame*        aParent,
+              nsIFrame*        aPrevInFlow)
 {
   nsContainerFrame::Init(aContent, aParent, aPrevInFlow);
   mRenderer.SetFrame(this, PresContext());

@@ -69,13 +69,6 @@ TranslationUI.prototype = {
   STATE_ERROR: 3,
 
   translate: function(aFrom, aTo) {
-    if (aFrom == aTo ||
-        (this.state == this.STATE_TRANSLATED &&
-         this.translatedFrom == aFrom && this.translatedTo == aTo)) {
-      // Nothing to do.
-      return;
-    }
-
     this.state = this.STATE_TRANSLATING;
     this.translatedFrom = aFrom;
     this.translatedTo = aTo;
@@ -134,7 +127,7 @@ TranslationUI.prototype = {
     this.browser.messageManager.sendAsyncMessage("Translation:ShowTranslation");
   },
 
-  get notificationBox() this.browser.ownerGlobal.gBrowser.getNotificationBox(this.browser),
+  get notificationBox() this.browser.ownerGlobal.gBrowser.getNotificationBox(),
 
   showTranslationInfoBar: function() {
     let notificationBox = this.notificationBox;

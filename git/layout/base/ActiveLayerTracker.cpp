@@ -5,7 +5,7 @@
 #include "ActiveLayerTracker.h"
 
 #include "nsExpirationTracker.h"
-#include "nsContainerFrame.h"
+#include "nsIFrame.h"
 #include "nsIContent.h"
 #include "nsRefreshDriver.h"
 #include "nsPIDOMWindow.h"
