@@ -172,7 +172,7 @@ nsresult
 nsDOMUIEvent::InitFromCtor(const nsAString& aType,
                            JSContext* aCx, jsval* aVal)
 {
-  mozilla::idl::UIEventInit d;
+  mozilla::dom::UIEventInit d;
   nsresult rv = d.Init(aCx, aVal);
   NS_ENSURE_SUCCESS(rv, rv);
   return InitUIEvent(aType, d.bubbles, d.cancelable, d.view, d.detail);

@@ -73,7 +73,7 @@ public:
   }
 
 private:
-  mozilla::idl::DOMFileMetadataParameters mConfig;
+  DOMFileMetadataParameters mConfig;
 
   uint64_t mSize;
   int64_t mLastModified;

@@ -476,7 +476,7 @@ SmsRequest::NotifyThreadList(const jsval& aThreadList, JSContext* aCx)
 
         MOZ_ASSERT(arrayEntry.isObject());
 
-        mozilla::idl::SmsThreadListItem item;
+        SmsThreadListItem item;
         nsresult rv = item.Init(aCx, &arrayEntry);
         NS_ENSURE_SUCCESS(rv, rv);
 

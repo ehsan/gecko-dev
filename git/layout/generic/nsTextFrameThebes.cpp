@@ -5,8 +5,6 @@
 
 /* rendering object for textual content of elements */
 
-#include "nsTextFrame.h"
-
 #include <cmath> // for std::abs(float/double)
 #include <cstdlib> // for std::abs(int/long)
 
@@ -15,7 +13,6 @@
 #include "mozilla/Likely.h"
 
 #include "nsCOMPtr.h"
-#include "nsBlockFrame.h"
 #include "nsHTMLParts.h"
 #include "nsCRT.h"
 #include "nsSplittableFrame.h"
@@ -47,6 +44,7 @@
 #include "nsFrameManager.h"
 #include "nsTextFrameTextRunCache.h"
 #include "nsExpirationTracker.h"
+#include "nsTextFrame.h"
 #include "nsUnicodeProperties.h"
 #include "nsUnicharUtilCIID.h"
 

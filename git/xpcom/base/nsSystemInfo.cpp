@@ -12,10 +12,6 @@
 #include "mozilla/SSE.h"
 #include "mozilla/arm.h"
 
-#ifdef XP_WIN
-#include <windows.h>
-#endif
-
 #ifdef MOZ_WIDGET_GTK
 #include <gtk/gtk.h>
 #endif
@@ -105,16 +101,6 @@ nsSystemInfo::Init()
                                cpuPropItems[i].propfun());
         NS_ENSURE_SUCCESS(rv, rv);
     }
-
-#ifdef XP_WIN
-    BOOL isWow64;
-    BOOL gotWow64Value = IsWow64Process(GetCurrentProcess(), &isWow64);
-    NS_WARN_IF_FALSE(gotWow64Value, "IsWow64Process failed");
-    if (gotWow64Value) {
-      rv = SetPropertyAsBool(NS_LITERAL_STRING("isWow64"), !!isWow64);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-#endif
 
 #ifdef MOZ_WIDGET_GTK2
     // This must be done here because NSPR can only separate OS's when compiled, not libraries.

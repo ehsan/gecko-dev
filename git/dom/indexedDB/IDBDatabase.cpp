@@ -505,7 +505,7 @@ IDBDatabase::CreateObjectStore(const nsAString& aName,
 
   DatabaseInfo* databaseInfo = transaction->DBInfo();
 
-  mozilla::idl::IDBObjectStoreParameters params;
+  mozilla::dom::IDBObjectStoreParameters params;
   KeyPath keyPath(0);
 
   nsresult rv;

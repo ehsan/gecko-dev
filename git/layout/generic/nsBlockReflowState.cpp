@@ -6,11 +6,10 @@
 
 /* state used in reflow of block frames */
 
-#include "nsBlockReflowState.h"
-
 #include "mozilla/DebugOnly.h"
 
 #include "nsBlockReflowContext.h"
+#include "nsBlockReflowState.h"
 #include "nsBlockFrame.h"
 #include "nsLineLayout.h"
 #include "nsPresContext.h"
@@ -353,14 +352,6 @@ nsBlockReflowState::SetupPushedFloatList()
     mPushedFloats = mBlock->EnsurePushedFloats();
     SetFlag(BRS_PROPTABLE_FLOATCLIST, true);
   }
-}
-
-void
-nsBlockReflowState::AppendPushedFloat(nsIFrame* aFloatCont)
-{
-  SetupPushedFloatList();
-  aFloatCont->AddStateBits(NS_FRAME_IS_PUSHED_FLOAT);
-  mPushedFloats->AppendFrame(mBlock, aFloatCont);
 }
 
 /**

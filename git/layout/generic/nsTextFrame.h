@@ -173,7 +173,7 @@ public:
   
   virtual bool IsEmpty();
   virtual bool IsSelfEmpty() { return IsEmpty(); }
-  virtual nscoord GetBaseline() const MOZ_OVERRIDE;
+  virtual nscoord GetBaseline() const;
   
   /**
    * @return true if this text frame ends with a newline character.  It
