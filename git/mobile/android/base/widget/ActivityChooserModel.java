@@ -309,7 +309,7 @@ public class ActivityChooserModel extends DataSetObservable {
      * full and the file is rewritten. This is necessary since we need to
      * purge old records that are outside of the sliding window of past choices.
      */
-    private boolean mReadShareHistoryCalled;
+    private boolean mReadShareHistoryCalled = false;
 
     /**
      * Flag whether the choice records have changed. In general many clients can
@@ -322,7 +322,7 @@ public class ActivityChooserModel extends DataSetObservable {
     /**
      * Flag whether to reload the activities for the current intent.
      */
-    private boolean mReloadActivities;
+    private boolean mReloadActivities = false;
 
     /**
      * Policy for controlling how the model handles chosen activities.

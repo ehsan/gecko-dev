@@ -8,7 +8,7 @@ import android.util.SparseArray;
 
 public final class ActivityResultHandlerMap {
     private SparseArray<ActivityResultHandler> mMap = new SparseArray<ActivityResultHandler>();
-    private int mCounter;
+    private int mCounter = 0;
 
     public synchronized int put(ActivityResultHandler handler) {
         mMap.put(mCounter, handler);

@@ -61,11 +61,11 @@ public class GeckoNetworkManager extends BroadcastReceiver {
     private final IntentFilter mNetworkFilter = new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION);
 
     // Whether the manager should be listening to Network Information changes.
-    private boolean mShouldBeListening;
+    private boolean mShouldBeListening = false;
 
     // Whether the manager should notify Gecko that a change in Network
     // Information happened.
-    private boolean mShouldNotify;
+    private boolean mShouldNotify = false;
 
     // The application context used for registering receivers, so
     // we can unregister them again later.

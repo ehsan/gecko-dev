@@ -847,37 +847,6 @@ struct interface_traits<BluetoothA2dpInterface>
   }
 };
 
-typedef
-  BluetoothInterfaceRunnable0<BluetoothA2dpResultHandler, void>
-  BluetoothA2dpResultRunnable;
-
-typedef
-  BluetoothInterfaceRunnable1<BluetoothA2dpResultHandler, void, bt_status_t>
-  BluetoothA2dpErrorRunnable;
-
-static nsresult
-DispatchBluetoothA2dpResult(
-  BluetoothA2dpResultHandler* aRes,
-  void (BluetoothA2dpResultHandler::*aMethod)(),
-  bt_status_t aStatus)
-{
-  MOZ_ASSERT(aRes);
-
-  nsRunnable* runnable;
-
-  if (aStatus == BT_STATUS_SUCCESS) {
-    runnable = new BluetoothA2dpResultRunnable(aRes, aMethod);
-  } else {
-    runnable = new BluetoothA2dpErrorRunnable(aRes,
-      &BluetoothA2dpResultHandler::OnError, aStatus);
-  }
-  nsresult rv = NS_DispatchToMainThread(runnable);
-  if (NS_FAILED(rv)) {
-    BT_WARNING("NS_DispatchToMainThread failed: %X", rv);
-  }
-  return rv;
-}
-
 BluetoothA2dpInterface::BluetoothA2dpInterface(
   const btav_interface_t* aInterface)
 : mInterface(aInterface)
@@ -888,51 +857,28 @@ BluetoothA2dpInterface::BluetoothA2dpInterface(
 BluetoothA2dpInterface::~BluetoothA2dpInterface()
 { }
 
-void
-BluetoothA2dpInterface::Init(btav_callbacks_t* aCallbacks,
-                             BluetoothA2dpResultHandler* aRes)
+bt_status_t
+BluetoothA2dpInterface::Init(btav_callbacks_t* aCallbacks)
 {
-  bt_status_t status = mInterface->init(aCallbacks);
-
-  if (aRes) {
-    DispatchBluetoothA2dpResult(aRes, &BluetoothA2dpResultHandler::Init,
-                                status);
-  }
+  return mInterface->init(aCallbacks);
 }
 
 void
-BluetoothA2dpInterface::Cleanup(BluetoothA2dpResultHandler* aRes)
+BluetoothA2dpInterface::Cleanup()
 {
   mInterface->cleanup();
-
-  if (aRes) {
-    DispatchBluetoothA2dpResult(aRes, &BluetoothA2dpResultHandler::Cleanup,
-                                BT_STATUS_SUCCESS);
-  }
 }
 
-void
-BluetoothA2dpInterface::Connect(bt_bdaddr_t *aBdAddr,
-                                BluetoothA2dpResultHandler* aRes)
+bt_status_t
+BluetoothA2dpInterface::Connect(bt_bdaddr_t *aBdAddr)
 {
-  bt_status_t status = mInterface->connect(aBdAddr);
-
-  if (aRes) {
-    DispatchBluetoothA2dpResult(aRes, &BluetoothA2dpResultHandler::Connect,
-                                status);
-  }
+  return mInterface->connect(aBdAddr);
 }
 
-void
-BluetoothA2dpInterface::Disconnect(bt_bdaddr_t *aBdAddr,
-                                   BluetoothA2dpResultHandler* aRes)
+bt_status_t
+BluetoothA2dpInterface::Disconnect(bt_bdaddr_t *aBdAddr)
 {
-  bt_status_t status = mInterface->disconnect(aBdAddr);
-
-  if (aRes) {
-    DispatchBluetoothA2dpResult(aRes, &BluetoothA2dpResultHandler::Disconnect,
-                                status);
-  }
+  return mInterface->disconnect(aBdAddr);
 }
 
 //
@@ -951,37 +897,6 @@ struct interface_traits<BluetoothAvrcpInterface>
   }
 };
 
-typedef
-  BluetoothInterfaceRunnable0<BluetoothAvrcpResultHandler, void>
-  BluetoothAvrcpResultRunnable;
-
-typedef
-  BluetoothInterfaceRunnable1<BluetoothAvrcpResultHandler, void, bt_status_t>
-  BluetoothAvrcpErrorRunnable;
-
-static nsresult
-DispatchBluetoothAvrcpResult(
-  BluetoothAvrcpResultHandler* aRes,
-  void (BluetoothAvrcpResultHandler::*aMethod)(),
-  bt_status_t aStatus)
-{
-  MOZ_ASSERT(aRes);
-
-  nsRunnable* runnable;
-
-  if (aStatus == BT_STATUS_SUCCESS) {
-    runnable = new BluetoothAvrcpResultRunnable(aRes, aMethod);
-  } else {
-    runnable = new BluetoothAvrcpErrorRunnable(aRes,
-      &BluetoothAvrcpResultHandler::OnError, aStatus);
-  }
-  nsresult rv = NS_DispatchToMainThread(runnable);
-  if (NS_FAILED(rv)) {
-    BT_WARNING("NS_DispatchToMainThread failed: %X", rv);
-  }
-  return rv;
-}
-
 BluetoothAvrcpInterface::BluetoothAvrcpInterface(
   const btrc_interface_t* aInterface)
 : mInterface(aInterface)
@@ -992,157 +907,86 @@ BluetoothAvrcpInterface::BluetoothAvrcpInterface(
 BluetoothAvrcpInterface::~BluetoothAvrcpInterface()
 { }
 
-void
-BluetoothAvrcpInterface::Init(btrc_callbacks_t* aCallbacks,
-                              BluetoothAvrcpResultHandler* aRes)
+bt_status_t
+BluetoothAvrcpInterface::Init(btrc_callbacks_t* aCallbacks)
 {
-  bt_status_t status = mInterface->init(aCallbacks);
-
-  if (aRes) {
-    DispatchBluetoothAvrcpResult(aRes, &BluetoothAvrcpResultHandler::Init,
-                                 status);
-  }
+  return mInterface->init(aCallbacks);
 }
 
 void
-BluetoothAvrcpInterface::Cleanup(BluetoothAvrcpResultHandler* aRes)
+BluetoothAvrcpInterface::Cleanup()
 {
   mInterface->cleanup();
-
-  if (aRes) {
-    DispatchBluetoothAvrcpResult(aRes, &BluetoothAvrcpResultHandler::Cleanup,
-                                 BT_STATUS_SUCCESS);
-  }
 }
 
-void
+bt_status_t
 BluetoothAvrcpInterface::GetPlayStatusRsp(btrc_play_status_t aPlayStatus,
-                                          uint32_t aSongLen, uint32_t aSongPos,
-                                          BluetoothAvrcpResultHandler* aRes)
+                                          uint32_t aSongLen, uint32_t aSongPos)
 {
-  bt_status_t status = mInterface->get_play_status_rsp(aPlayStatus, aSongLen,
-                                                       aSongPos);
-  if (aRes) {
-    DispatchBluetoothAvrcpResult(
-      aRes, &BluetoothAvrcpResultHandler::GetPlayStatusRsp, status);
-  }
+  return mInterface->get_play_status_rsp(aPlayStatus, aSongLen, aSongPos);
 }
 
-void
-BluetoothAvrcpInterface::ListPlayerAppAttrRsp(
-  int aNumAttr, btrc_player_attr_t* aPAttrs,
-  BluetoothAvrcpResultHandler* aRes)
+bt_status_t
+BluetoothAvrcpInterface::ListPlayerAppAttrRsp(int aNumAttr,
+                                              btrc_player_attr_t* aPAttrs)
 {
-  bt_status_t status = mInterface->list_player_app_attr_rsp(aNumAttr, aPAttrs);
-
-  if (aRes) {
-    DispatchBluetoothAvrcpResult(
-      aRes, &BluetoothAvrcpResultHandler::ListPlayerAppAttrRsp, status);
-  }
+  return mInterface->list_player_app_attr_rsp(aNumAttr, aPAttrs);
 }
 
-void
-BluetoothAvrcpInterface::ListPlayerAppValueRsp(
-  int aNumVal, uint8_t* aPVals, BluetoothAvrcpResultHandler* aRes)
+bt_status_t
+BluetoothAvrcpInterface::ListPlayerAppValueRsp(int aNumVal, uint8_t* aPVals)
 {
-  bt_status_t status = mInterface->list_player_app_value_rsp(aNumVal, aPVals);
-
-  if (aRes) {
-    DispatchBluetoothAvrcpResult(
-      aRes, &BluetoothAvrcpResultHandler::ListPlayerAppValueRsp, status);
-  }
+  return mInterface->list_player_app_value_rsp(aNumVal, aPVals);
 }
 
-void
-BluetoothAvrcpInterface::GetPlayerAppValueRsp(
-  btrc_player_settings_t* aPVals, BluetoothAvrcpResultHandler* aRes)
+bt_status_t
+BluetoothAvrcpInterface::GetPlayerAppValueRsp(btrc_player_settings_t* aPVals)
 {
-  bt_status_t status = mInterface->get_player_app_value_rsp(aPVals);
-
-  if (aRes) {
-    DispatchBluetoothAvrcpResult(
-      aRes, &BluetoothAvrcpResultHandler::GetPlayerAppValueRsp, status);
-  }
+  return mInterface->get_player_app_value_rsp(aPVals);
 }
 
-void
-BluetoothAvrcpInterface::GetPlayerAppAttrTextRsp(
-  int aNumAttr, btrc_player_setting_text_t* aPAttrs,
-  BluetoothAvrcpResultHandler* aRes)
+bt_status_t
+BluetoothAvrcpInterface::GetPlayerAppAttrTextRsp(int aNumAttr,
+  btrc_player_setting_text_t* aPAttrs)
 {
-  bt_status_t status = mInterface->get_player_app_attr_text_rsp(aNumAttr,
-                                                                aPAttrs);
-  if (aRes) {
-    DispatchBluetoothAvrcpResult(
-      aRes, &BluetoothAvrcpResultHandler::GetPlayerAppAttrTextRsp, status);
-  }
+  return mInterface->get_player_app_attr_text_rsp(aNumAttr, aPAttrs);
 }
 
-void
-BluetoothAvrcpInterface::GetPlayerAppValueTextRsp(
-  int aNumVal, btrc_player_setting_text_t* aPVals,
-  BluetoothAvrcpResultHandler* aRes)
+bt_status_t
+BluetoothAvrcpInterface::GetPlayerAppValueTextRsp(int aNumVal,
+  btrc_player_setting_text_t* aPVals)
 {
-  bt_status_t status = mInterface->get_player_app_value_text_rsp(aNumVal,
-                                                                 aPVals);
-  if (aRes) {
-    DispatchBluetoothAvrcpResult(
-      aRes, &BluetoothAvrcpResultHandler::GetPlayerAppValueTextRsp, status);
-  }
+  return mInterface->get_player_app_value_text_rsp(aNumVal, aPVals);
 }
 
-void
-BluetoothAvrcpInterface::GetElementAttrRsp(
-  uint8_t aNumAttr, btrc_element_attr_val_t* aPAttrs,
-  BluetoothAvrcpResultHandler* aRes)
+bt_status_t
+BluetoothAvrcpInterface::GetElementAttrRsp(uint8_t aNumAttr,
+                                           btrc_element_attr_val_t* aPAttrs)
 {
-  bt_status_t status = mInterface->get_element_attr_rsp(aNumAttr, aPAttrs);
-
-  if (aRes) {
-    DispatchBluetoothAvrcpResult(
-      aRes, &BluetoothAvrcpResultHandler::GetElementAttrRsp, status);
-  }
+  return mInterface->get_element_attr_rsp(aNumAttr, aPAttrs);
 }
 
-void
-BluetoothAvrcpInterface::SetPlayerAppValueRsp(
-  btrc_status_t aRspStatus, BluetoothAvrcpResultHandler* aRes)
+bt_status_t
+BluetoothAvrcpInterface::SetPlayerAppValueRsp(btrc_status_t aRspStatus)
 {
-  bt_status_t status = mInterface->set_player_app_value_rsp(aRspStatus);
-
-  if (aRes) {
-    DispatchBluetoothAvrcpResult(
-      aRes, &BluetoothAvrcpResultHandler::SetPlayerAppValueRsp, status);
-  }
+  return mInterface->set_player_app_value_rsp(aRspStatus);
 }
 
-void
-BluetoothAvrcpInterface::RegisterNotificationRsp(
-  btrc_event_id_t aEventId, btrc_notification_type_t aType,
-  btrc_register_notification_t* aPParam, BluetoothAvrcpResultHandler* aRes)
+bt_status_t
+BluetoothAvrcpInterface::RegisterNotificationRsp(btrc_event_id_t aEventId,
+  btrc_notification_type_t aType, btrc_register_notification_t* aPParam)
 {
-  bt_status_t status = mInterface->register_notification_rsp(aEventId, aType,
-                                                             aPParam);
-  if (aRes) {
-    DispatchBluetoothAvrcpResult(
-      aRes, &BluetoothAvrcpResultHandler::RegisterNotificationRsp, status);
-  }
+  return mInterface->register_notification_rsp(aEventId, aType, aPParam);
 }
 
-void
-BluetoothAvrcpInterface::SetVolume(uint8_t aVolume,
-                                   BluetoothAvrcpResultHandler* aRes)
+bt_status_t
+BluetoothAvrcpInterface::SetVolume(uint8_t aVolume)
 {
 #if ANDROID_VERSION >= 19
-  bt_status_t status = mInterface->set_volume(aVolume);
+  return mInterface->set_volume(aVolume);
 #else
-  bt_status_t status = BT_STATUS_UNSUPPORTED;
+  return BT_STATUS_UNSUPPORTED;
 #endif
-
-  if (aRes) {
-    DispatchBluetoothAvrcpResult(
-      aRes, &BluetoothAvrcpResultHandler::SetVolume, status);
-  }
 }
 #endif // ANDROID_VERSION >= 18
 

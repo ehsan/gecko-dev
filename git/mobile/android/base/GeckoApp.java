@@ -186,14 +186,14 @@ public abstract class GeckoApp
     private HashMap<String, PowerManager.WakeLock> mWakeLocks = new HashMap<String, PowerManager.WakeLock>();
 
     protected boolean mShouldRestore;
-    protected boolean mInitialized;
+    protected boolean mInitialized = false;
     private Telemetry.Timer mJavaUiStartupTimer;
     private Telemetry.Timer mGeckoReadyStartupTimer;
 
     private String mPrivateBrowsingSession;
 
-    private volatile HealthRecorder mHealthRecorder;
-    private volatile Locale mLastLocale;
+    private volatile HealthRecorder mHealthRecorder = null;
+    private volatile Locale mLastLocale = null;
 
     private EventListener mWebappEventListener;
 

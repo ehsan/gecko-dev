@@ -10,7 +10,7 @@ import android.support.v4.app.FragmentActivity;
 
 public class GeckoActivity extends FragmentActivity implements GeckoActivityStatus {
     // has this activity recently started another Gecko activity?
-    private boolean mGeckoActivityOpened;
+    private boolean mGeckoActivityOpened = false;
 
     /**
      * Display any resources that show strings or encompass locale-specific

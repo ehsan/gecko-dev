@@ -57,7 +57,7 @@ class HomeConfigPrefsBackend implements HomeConfigBackend {
     private ReloadBroadcastReceiver mReloadBroadcastReceiver;
     private OnReloadListener mReloadListener;
 
-    private static boolean sMigrationDone;
+    private static boolean sMigrationDone = false;
 
     public HomeConfigPrefsBackend(Context context) {
         mContext = context;

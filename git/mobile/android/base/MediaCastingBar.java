@@ -27,7 +27,7 @@ public class MediaCastingBar extends RelativeLayout implements View.OnClickListe
     private ImageButton mMediaPause;
     private ImageButton mMediaStop;
 
-    private boolean mInflated;
+    private boolean mInflated = false;
 
     public MediaCastingBar(Context context, AttributeSet attrs) {
         super(context, attrs);
