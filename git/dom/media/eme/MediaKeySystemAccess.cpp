@@ -122,7 +122,7 @@ MediaKeySystemStatus
 MediaKeySystemAccess::GetKeySystemStatus(const nsAString& aKeySystem,
                                          int32_t aMinCdmVersion)
 {
-  MOZ_ASSERT(Preferences::GetBool("media.eme.enabled", false));
+  MOZ_ASSERT(Preferences::GetBool("media.eme.enabled", false));  
   nsCOMPtr<mozIGeckoMediaPluginService> mps =
     do_GetService("@mozilla.org/gecko-media-plugin-service;1");
   if (NS_WARN_IF(!mps)) {

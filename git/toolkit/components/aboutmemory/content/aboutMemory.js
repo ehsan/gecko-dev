@@ -49,9 +49,6 @@ XPCOMUtils.defineLazyGetter(this, "nsGzipConverter",
 let gMgr = Cc["@mozilla.org/memory-reporter-manager;1"]
              .getService(Ci.nsIMemoryReporterManager);
 
-const gPageName = 'about:memory';
-document.title = gPageName;
-
 const gUnnamedProcessStr = "Main Process";
 
 let gIsDiff = false;
@@ -136,17 +133,12 @@ let gVerbose;
 // The "anonymize" checkbox.
 let gAnonymize;
 
-// Values for the |aFooterAction| argument to updateTitleMainAndFooter.
+// Values for the second argument to updateMainAndFooter.
 let HIDE_FOOTER = 0;
 let SHOW_FOOTER = 1;
 
-function updateTitleMainAndFooter(aTitleNote, aMsg, aFooterAction, aClassName)
+function updateMainAndFooter(aMsg, aFooterAction, aClassName)
 {
-  document.title = gPageName;
-  if (aTitleNote) {
-    document.title += " (" + aTitleNote + ")";
-  }
-
   // Clear gMain by replacing it with an empty node.
   let tmp = gMain.cloneNode(false);
   gMain.parentNode.replaceChild(tmp, gMain);
@@ -171,14 +163,9 @@ function updateTitleMainAndFooter(aTitleNote, aMsg, aFooterAction, aClassName)
   switch (aFooterAction) {
    case HIDE_FOOTER:   gFooter.classList.add('hidden');    break;
    case SHOW_FOOTER:   gFooter.classList.remove('hidden'); break;
-   default: assertInput(false, "bad footer action in updateTitleMainAndFooter");
+   default: assertInput(false, "bad footer action in updateMainAndFooter");
   }
   return msgElement;
-}
-
-function updateMainAndFooter(aMsg, aFooterAction, aClassName)
-{
-  return updateTitleMainAndFooter("", aMsg, aFooterAction, aClassName);
 }
 
 function appendTextNode(aP, aText)
@@ -290,6 +277,7 @@ function onLoad()
   const LdDesc = "Load memory reports from file and show.";
   const DfDesc = "Load memory report data from two files and show the " +
                  "difference.";
+  const RdDesc = "Read memory reports from the clipboard and show.";
 
   const SvDesc = "Save memory reports to file.";
 
@@ -333,6 +321,8 @@ function onLoad()
   appendButton(row1, LdDesc, () => fileInput1.click(), "Load" + kEllipsis);
   appendButton(row1, DfDesc, () => fileInput2.click(),
                "Load and diff" + kEllipsis);
+  appendButton(row1, RdDesc, updateAboutMemoryFromClipboard,
+               "Read from clipboard");
 
   let row2 = appendElement(ops, "div", "opsRow");
 
@@ -517,7 +507,7 @@ function updateAboutMemoryFromReporters()
       }
 
       let displayReportsAndFooter = function() {
-        updateTitleMainAndFooter("live measurement", "", SHOW_FOOTER);
+        updateMainAndFooter("", SHOW_FOOTER);
         aDisplayReports();
       }
 
@@ -623,12 +613,10 @@ function updateAboutMemoryFromJSONString(aStr)
  *
  * @param aFilename
  *        The name of the file being read from.
- * @param aTitleNote
- *        A description to put in the page title upon completion.
  * @param aFn
  *        The function to call and pass the read string to upon completion.
  */
-function loadMemoryReportsFromFile(aFilename, aTitleNote, aFn)
+function loadMemoryReportsFromFile(aFilename, aFn)
 {
   updateMainAndFooter("Loading...", HIDE_FOOTER);
 
@@ -637,8 +625,7 @@ function loadMemoryReportsFromFile(aFilename, aTitleNote, aFn)
     reader.onerror = () => { throw "FileReader.onerror"; };
     reader.onabort = () => { throw "FileReader.onabort"; };
     reader.onload = (aEvent) => {
-      // Clear "Loading..." from above.
-      updateTitleMainAndFooter(aTitleNote, "", SHOW_FOOTER);
+      updateMainAndFooter("", SHOW_FOOTER);  // Clear "Loading..." from above.
       aFn(aEvent.target.result);
     };
 
@@ -670,12 +657,7 @@ function loadMemoryReportsFromFile(aFilename, aTitleNote, aFn)
     }, null);
 
     let file = new nsFile(aFilename);
-    let fileChan = Services.io.newChannelFromURI2(Services.io.newFileURI(file),
-                                                  null,      // aLoadingNode
-                                                  Services.scriptSecurityManager.getSystemPrincipal(),
-                                                  null,      // aTriggeringPrincipal
-                                                  Ci.nsILoadInfo.SEC_NORMAL,
-                                                  Ci.nsIContentPolicy.TYPE_OTHER);
+    let fileChan = Services.io.newChannelFromURI(Services.io.newFileURI(file));
     fileChan.asyncOpen(converter, null);
 
   } catch (ex) {
@@ -693,7 +675,7 @@ function loadMemoryReportsFromFile(aFilename, aTitleNote, aFn)
  */
 function updateAboutMemoryFromFile(aFilename)
 {
-  loadMemoryReportsFromFile(aFilename, /* title note */ aFilename,
+  loadMemoryReportsFromFile(aFilename,
                             updateAboutMemoryFromJSONString);
 }
 
@@ -708,9 +690,8 @@ function updateAboutMemoryFromFile(aFilename)
  */
 function updateAboutMemoryFromTwoFiles(aFilename1, aFilename2)
 {
-  let titleNote = "diff of " + aFilename1 + " and " + aFilename2;
-  loadMemoryReportsFromFile(aFilename1, titleNote, function(aStr1) {
-    loadMemoryReportsFromFile(aFilename2, titleNote, function(aStr2) {
+  loadMemoryReportsFromFile(aFilename1, function(aStr1) {
+    loadMemoryReportsFromFile(aFilename2, function(aStr2) {
       try {
         let obj1 = parseAndUnwrapIfCrashDump(aStr1);
         let obj2 = parseAndUnwrapIfCrashDump(aStr2);
@@ -722,6 +703,36 @@ function updateAboutMemoryFromTwoFiles(aFilename1, aFilename2)
       }
     });
   });
+}
+
+/**
+ * Like updateAboutMemoryFromFile(), but gets its data from the clipboard
+ * instead of a file.
+ */
+function updateAboutMemoryFromClipboard()
+{
+  // Get the clipboard's contents.
+  let transferable = Cc["@mozilla.org/widget/transferable;1"]
+                       .createInstance(Ci.nsITransferable);
+  let loadContext = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                          .getInterface(Ci.nsIWebNavigation)
+                          .QueryInterface(Ci.nsILoadContext);
+  transferable.init(loadContext);
+  transferable.addDataFlavor('text/unicode');
+  Services.clipboard.getData(transferable, Ci.nsIClipboard.kGlobalClipboard);
+
+  var cbData = {};
+  try {
+    transferable.getTransferData('text/unicode', cbData,
+                                 /* out dataLen (ignored) */ {});
+    let cbString = cbData.value.QueryInterface(Ci.nsISupportsString).data;
+
+    // Success!  Now use the string to generate about:memory.
+    updateAboutMemoryFromJSONString(cbString);
+
+  } catch (ex) {
+    handleException(ex);
+  }
 }
 
 //---------------------------------------------------------------------------

@@ -23,7 +23,6 @@ class nsHttpTransaction;
 class nsHttpPipeline;
 class nsHttpRequestHead;
 class nsHttpConnectionInfo;
-class NullHttpTransaction;
 class SpdyConnectTransaction;
 
 //----------------------------------------------------------------------------
@@ -56,7 +55,7 @@ public:
 
     // called to report socket status (see nsITransportEventSink)
     virtual void OnTransportStatus(nsITransport* transport,
-                                   nsresult status, int64_t progress) = 0;
+                                   nsresult status, uint64_t progress) = 0;
 
     // called to check the transaction status.
     virtual bool     IsDone() = 0;
@@ -120,7 +119,7 @@ public:
 
     // Occasionally the abstract interface has to give way to base implementations
     // to respect differences between spdy, pipelines, etc..
-    // These Query* (and IsNullTransaction()) functions provide a way to do
+    // These Query* (and IsNUllTransaction()) functions provide a way to do
     // that without using xpcom or rtti. Any calling code that can't deal with
     // a null response from one of them probably shouldn't be using nsAHttpTransaction
 
@@ -133,7 +132,6 @@ public:
     // A null transaction is expected to return BASE_STREAM_CLOSED on all of
     // its IO functions all the time.
     virtual bool IsNullTransaction() { return false; }
-    virtual NullHttpTransaction *QueryNullTransaction() { return nullptr; }
 
     // If we used rtti this would be the result of doing
     // dynamic_cast<nsHttpTransaction *>(this).. i.e. it can be nullptr for
@@ -200,7 +198,7 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsAHttpTransaction, NS_AHTTPTRANSACTION_IID)
     nsAHttpConnection *Connection() MOZ_OVERRIDE; \
     void GetSecurityCallbacks(nsIInterfaceRequestor **) MOZ_OVERRIDE;       \
     void OnTransportStatus(nsITransport* transport, \
-                           nsresult status, int64_t progress) MOZ_OVERRIDE; \
+                           nsresult status, uint64_t progress) MOZ_OVERRIDE; \
     bool     IsDone() MOZ_OVERRIDE; \
     nsresult Status() MOZ_OVERRIDE; \
     uint32_t Caps() MOZ_OVERRIDE;   \

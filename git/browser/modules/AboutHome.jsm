@@ -27,9 +27,7 @@ const SNIPPETS_URL_PREF = "browser.aboutHomeSnippets.updateUrl";
 const STARTPAGE_VERSION = 4;
 
 this.AboutHomeUtils = {
-  get snippetsVersion() {
-    return STARTPAGE_VERSION;
-  },
+  get snippetsVersion() STARTPAGE_VERSION,
 
   /*
    * showKnowYourRights - Determines if the user should be shown the
@@ -198,9 +196,7 @@ let AboutHome = {
 #endif
           // Trigger a search through nsISearchEngine.getSubmission()
           let submission = engine.getSubmission(data.searchTerms, null, "homepage");
-          let where = data.useNewTab ? "tab" : "current";
-          window.openUILinkIn(submission.uri.spec, where, false,
-                              submission.postData);
+          window.loadURI(submission.uri.spec, null, submission.postData);
 
           // Used for testing
           let mm = aMessage.target.messageManager;

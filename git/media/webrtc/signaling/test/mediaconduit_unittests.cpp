@@ -528,6 +528,7 @@ class TransportConduitTest : public ::testing::Test
     mozilla::SyncRunnable::DispatchToThread(gMainThread,
                                             WrapRunnableNMRet(
                                                 &mozilla::AudioSessionConduit::Create,
+                                                nullptr,
                                                 &mAudioSession));
     if( !mAudioSession )
       ASSERT_NE(mAudioSession, (void*)nullptr);
@@ -535,6 +536,7 @@ class TransportConduitTest : public ::testing::Test
     mozilla::SyncRunnable::DispatchToThread(gMainThread,
                                             WrapRunnableNMRet(
                                                 &mozilla::AudioSessionConduit::Create,
+                                                nullptr,
                                                 &mAudioSession2));
     if( !mAudioSession2 )
       ASSERT_NE(mAudioSession2, (void*)nullptr);
@@ -545,9 +547,9 @@ class TransportConduitTest : public ::testing::Test
     mAudioTransport = xport;
 
     // attach the transport to audio-conduit
-    err = mAudioSession->SetTransmitterTransport(mAudioTransport);
+    err = mAudioSession->AttachTransport(mAudioTransport);
     ASSERT_EQ(mozilla::kMediaConduitNoError, err);
-    err = mAudioSession2->SetReceiverTransport(mAudioTransport);
+    err = mAudioSession2->AttachTransport(mAudioTransport);
     ASSERT_EQ(mozilla::kMediaConduitNoError, err);
 
     //configure send and recv codecs on the audio-conduit
@@ -592,6 +594,7 @@ class TransportConduitTest : public ::testing::Test
     mozilla::SyncRunnable::DispatchToThread(gMainThread,
                                             WrapRunnableNMRet(
                                                 &mozilla::VideoSessionConduit::Create,
+                                                nullptr,
                                                 &mVideoSession));
     if( !mVideoSession )
       ASSERT_NE(mVideoSession, (void*)nullptr);
@@ -600,6 +603,7 @@ class TransportConduitTest : public ::testing::Test
     mozilla::SyncRunnable::DispatchToThread(gMainThread,
                                             WrapRunnableNMRet(
                                                 &mozilla::VideoSessionConduit::Create,
+                                                nullptr,
                                                 &mVideoSession2));
     if( !mVideoSession2 )
       ASSERT_NE(mVideoSession2,(void*)nullptr);
@@ -619,9 +623,9 @@ class TransportConduitTest : public ::testing::Test
     // attach the transport and renderer to video-conduit
     err = mVideoSession2->AttachRenderer(mVideoRenderer);
     ASSERT_EQ(mozilla::kMediaConduitNoError, err);
-    err = mVideoSession->SetTransmitterTransport(mVideoTransport);
+    err = mVideoSession->AttachTransport(mVideoTransport);
     ASSERT_EQ(mozilla::kMediaConduitNoError, err);
-    err = mVideoSession2->SetReceiverTransport(mVideoTransport);
+    err = mVideoSession2->AttachTransport(mVideoTransport);
     ASSERT_EQ(mozilla::kMediaConduitNoError, err);
 
     //configure send and recv codecs on theconduit
@@ -690,6 +694,7 @@ class TransportConduitTest : public ::testing::Test
     mozilla::SyncRunnable::DispatchToThread(gMainThread,
                                             WrapRunnableNMRet(
                                                 &mozilla::VideoSessionConduit::Create,
+                                                nullptr,
                                                 &videoSession));
     if( !videoSession )
       ASSERT_NE(videoSession, (void*)nullptr);
@@ -801,6 +806,7 @@ class TransportConduitTest : public ::testing::Test
     mozilla::SyncRunnable::DispatchToThread(gMainThread,
                                             WrapRunnableNMRet(
                                                 &mozilla::VideoSessionConduit::Create,
+                                                nullptr,
                                                 &mVideoSession));
     if( !mVideoSession )
       ASSERT_NE(mVideoSession, (void*)nullptr);

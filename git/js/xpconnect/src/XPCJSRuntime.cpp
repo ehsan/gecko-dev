@@ -40,7 +40,6 @@
 #include "mozilla/dom/WindowBinding.h"
 #include "mozilla/Atomics.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/ProcessHangMonitor.h"
 #include "AccessCheck.h"
 #include "nsGlobalWindow.h"
 #include "nsAboutProtocolUtils.h"
@@ -1113,7 +1112,6 @@ class Watchdog
 #include "ipc/Nuwa.h"
 #endif
 
-#define PREF_MAX_SCRIPT_RUN_TIME_CHILD "dom.max_child_script_run_time"
 #define PREF_MAX_SCRIPT_RUN_TIME_CONTENT "dom.max_script_run_time"
 #define PREF_MAX_SCRIPT_RUN_TIME_CHROME "dom.max_chrome_script_run_time"
 
@@ -1136,7 +1134,6 @@ class WatchdogManager : public nsIObserver
         mozilla::Preferences::AddStrongObserver(this, "dom.use_watchdog");
         mozilla::Preferences::AddStrongObserver(this, PREF_MAX_SCRIPT_RUN_TIME_CONTENT);
         mozilla::Preferences::AddStrongObserver(this, PREF_MAX_SCRIPT_RUN_TIME_CHROME);
-        mozilla::Preferences::AddStrongObserver(this, PREF_MAX_SCRIPT_RUN_TIME_CHILD);
     }
 
   protected:
@@ -1150,13 +1147,12 @@ class WatchdogManager : public nsIObserver
         mozilla::Preferences::RemoveObserver(this, "dom.use_watchdog");
         mozilla::Preferences::RemoveObserver(this, PREF_MAX_SCRIPT_RUN_TIME_CONTENT);
         mozilla::Preferences::RemoveObserver(this, PREF_MAX_SCRIPT_RUN_TIME_CHROME);
-        mozilla::Preferences::RemoveObserver(this, PREF_MAX_SCRIPT_RUN_TIME_CHILD);
     }
 
   public:
 
     NS_IMETHOD Observe(nsISupports* aSubject, const char* aTopic,
-                       const char16_t* aData) MOZ_OVERRIDE
+                       const char16_t* aData)
     {
         RefreshWatchdog();
         return NS_OK;
@@ -1228,10 +1224,7 @@ class WatchdogManager : public nsIObserver
             int32_t chromeTime = Preferences::GetInt(PREF_MAX_SCRIPT_RUN_TIME_CHROME, 20);
             if (chromeTime <= 0)
                 chromeTime = INT32_MAX;
-            int32_t childTime = Preferences::GetInt(PREF_MAX_SCRIPT_RUN_TIME_CHILD, 3);
-            if (childTime <= 0)
-                childTime = INT32_MAX;
-            mWatchdog->SetMinScriptRunTimeSeconds(std::min(std::min(contentTime, chromeTime), childTime));
+            mWatchdog->SetMinScriptRunTimeSeconds(std::min(contentTime, chromeTime));
         }
     }
 
@@ -1307,18 +1300,7 @@ WatchdogMain(void *arg)
         // Don't request an interrupt callback unless the current script has
         // been running long enough that we might show the slow script dialog.
         // Triggering the callback from off the main thread can be expensive.
-
-        // We want to avoid showing the slow script dialog if the user's laptop
-        // goes to sleep in the middle of running a script. To ensure this, we
-        // invoke the interrupt callback after only half the timeout has
-        // elapsed. The callback simply records the fact that it was called in
-        // the mSlowScriptSecondHalf flag. Then we wait another (timeout/2)
-        // seconds and invoke the callback again. This time around it sees
-        // mSlowScriptSecondHalf is set and so it shows the slow script
-        // dialog. If the computer is put to sleep during one of the (timeout/2)
-        // periods, the script still has the other (timeout/2) seconds to
-        // finish.
-        PRTime usecs = self->MinScriptRunTimeSeconds() * PR_USEC_PER_SEC / 2;
+        PRTime usecs = self->MinScriptRunTimeSeconds() * PR_USEC_PER_SEC;
         if (manager->IsRuntimeActive() &&
             manager->TimeSinceLastRuntimeStateChange() >= usecs)
         {
@@ -1359,10 +1341,6 @@ XPCJSRuntime::DefaultJSContextCallback(JSRuntime *rt)
 void
 XPCJSRuntime::ActivityCallback(void *arg, bool active)
 {
-    if (!active) {
-        ProcessHangMonitor::ClearHang();
-    }
-
     XPCJSRuntime* self = static_cast<XPCJSRuntime*>(arg);
     self->mWatchdogManager->RecordRuntimeActivity(active);
 }
@@ -1389,12 +1367,10 @@ XPCJSRuntime::InterruptCallback(JSContext *cx)
 {
     XPCJSRuntime *self = XPCJSRuntime::Get();
 
-    // Normally we record mSlowScriptCheckpoint when we start to process an
-    // event. However, we can run JS outside of event handlers. This code takes
-    // care of that case.
+    // If this is the first time the interrupt callback has fired since we last
+    // returned to the event loop, mark the checkpoint.
     if (self->mSlowScriptCheckpoint.IsNull()) {
         self->mSlowScriptCheckpoint = TimeStamp::NowLoRes();
-        self->mSlowScriptSecondHalf = false;
         return true;
     }
 
@@ -1403,30 +1379,18 @@ XPCJSRuntime::InterruptCallback(JSContext *cx)
     if (!nsContentUtils::IsInitialized())
         return true;
 
-    bool contentProcess = XRE_GetProcessType() == GeckoProcessType_Content;
-
     // This is at least the second interrupt callback we've received since
     // returning to the event loop. See how long it's been, and what the limit
     // is.
     TimeDuration duration = TimeStamp::NowLoRes() - self->mSlowScriptCheckpoint;
     bool chrome = nsContentUtils::IsCallerChrome();
-    const char *prefName = contentProcess ? PREF_MAX_SCRIPT_RUN_TIME_CHILD
-                                 : chrome ? PREF_MAX_SCRIPT_RUN_TIME_CHROME
-                                          : PREF_MAX_SCRIPT_RUN_TIME_CONTENT;
+    const char *prefName = chrome ? PREF_MAX_SCRIPT_RUN_TIME_CHROME
+                                  : PREF_MAX_SCRIPT_RUN_TIME_CONTENT;
     int32_t limit = Preferences::GetInt(prefName, chrome ? 20 : 10);
 
     // If there's no limit, or we're within the limit, let it go.
-    if (limit == 0 || duration.ToSeconds() < limit / 2.0)
+    if (limit == 0 || duration.ToSeconds() < limit)
         return true;
-
-    // In order to guard against time changes or laptops going to sleep, we
-    // don't trigger the slow script warning until (limit/2) seconds have
-    // elapsed twice.
-    if (!self->mSlowScriptSecondHalf) {
-        self->mSlowScriptCheckpoint = TimeStamp::NowLoRes();
-        self->mSlowScriptSecondHalf = true;
-        return true;
-    }
 
     //
     // This has gone on long enough! Time to take action. ;-)
@@ -1459,9 +1423,7 @@ XPCJSRuntime::InterruptCallback(JSContext *cx)
 
     // The user chose to continue the script. Reset the timer, and disable this
     // machinery with a pref of the user opted out of future slow-script dialogs.
-    if (response != nsGlobalWindow::ContinueSlowScriptAndKeepNotifying)
-        self->mSlowScriptCheckpoint = TimeStamp::NowLoRes();
-
+    self->mSlowScriptCheckpoint = TimeStamp::NowLoRes();
     if (response == nsGlobalWindow::AlwaysContinueSlowScript)
         Preferences::SetInt(prefName, 0);
 
@@ -1792,7 +1754,7 @@ class JSMainRuntimeTemporaryPeakReporter MOZ_FINAL : public nsIMemoryReporter
     NS_DECL_ISUPPORTS
 
     NS_IMETHOD CollectReports(nsIHandleReportCallback* aHandleReport,
-                              nsISupports* aData, bool aAnonymize) MOZ_OVERRIDE
+                              nsISupports* aData, bool aAnonymize)
     {
         return MOZ_COLLECT_REPORT("js-main-runtime-temporary-peak",
             KIND_OTHER, UNITS_BYTES,
@@ -1887,19 +1849,6 @@ NS_IMPL_ISUPPORTS(JSMainRuntimeTemporaryPeakReporter, nsIMemoryReporter)
         rtTotal += amount;                                                    \
     } while (0)
 
-// Report GC thing bytes.
-#define MREPORT_BYTES(_path, _kind, _amount, _desc)                           \
-    do {                                                                      \
-        size_t amount = _amount;  /* evaluate _amount only once */            \
-        nsresult rv;                                                          \
-        rv = cb->Callback(EmptyCString(), _path,                              \
-                          nsIMemoryReporter::_kind,                           \
-                          nsIMemoryReporter::UNITS_BYTES, amount,             \
-                          NS_LITERAL_CSTRING(_desc), closure);                \
-        NS_ENSURE_SUCCESS(rv, rv);                                            \
-        gcThingTotal += amount;                                               \
-    } while (0)
-
 MOZ_DEFINE_MALLOC_SIZE_OF(JSMallocSizeOf)
 
 namespace xpc {
@@ -1926,8 +1875,8 @@ ReportZoneStats(const JS::ZoneStats &zStats,
         "Bookkeeping information and alignment padding within GC arenas.");
 
     ZCREPORT_GC_BYTES(pathPrefix + NS_LITERAL_CSTRING("unused-gc-things"),
-        zStats.unusedGCThings.totalSize(),
-        "Unused GC thing cells within non-empty arenas.");
+        zStats.unusedGCThings,
+        "Empty GC thing cells within non-empty arenas.");
 
     ZCREPORT_GC_BYTES(pathPrefix + NS_LITERAL_CSTRING("lazy-scripts/gc-heap"),
         zStats.lazyScriptsGCHeap,
@@ -1941,13 +1890,13 @@ ReportZoneStats(const JS::ZoneStats &zStats,
         zStats.jitCodesGCHeap,
         "References to executable code pools used by the JITs.");
 
-    ZCREPORT_GC_BYTES(pathPrefix + NS_LITERAL_CSTRING("object-groups/gc-heap"),
-        zStats.objectGroupsGCHeap,
-        "Classification and type inference information about objects.");
+    ZCREPORT_GC_BYTES(pathPrefix + NS_LITERAL_CSTRING("type-objects/gc-heap"),
+        zStats.typeObjectsGCHeap,
+        "Type inference information about objects.");
 
-    ZCREPORT_BYTES(pathPrefix + NS_LITERAL_CSTRING("object-groups/malloc-heap"),
-        zStats.objectGroupsMallocHeap,
-        "Object group addenda.");
+    ZCREPORT_BYTES(pathPrefix + NS_LITERAL_CSTRING("type-objects/malloc-heap"),
+        zStats.typeObjectsMallocHeap,
+        "Type object addenda.");
 
     ZCREPORT_BYTES(pathPrefix + NS_LITERAL_CSTRING("type-pool"),
         zStats.typePool,
@@ -2643,7 +2592,7 @@ class JSMainRuntimeCompartmentsReporter MOZ_FINAL : public nsIMemoryReporter
     }
 
     NS_IMETHOD CollectReports(nsIMemoryReporterCallback *cb,
-                              nsISupports *closure, bool anonymize) MOZ_OVERRIDE
+                              nsISupports *closure, bool anonymize)
     {
         // First we collect the compartment paths.  Then we report them.  Doing
         // the two steps interleaved is a bad idea, because calling |cb|
@@ -2939,41 +2888,9 @@ JSReporter::CollectReports(WindowPaths *windowPaths,
         KIND_OTHER, rtStats.gcHeapUnusedArenas,
         "The same as 'explicit/js-non-window/gc-heap/unused-arenas'.");
 
-    REPORT_BYTES(NS_LITERAL_CSTRING("js-main-runtime-gc-heap-committed/unused/gc-things/objects"),
-        KIND_OTHER, rtStats.zTotals.unusedGCThings.object,
-        "Unused object cells within non-empty arenas.");
-
-    REPORT_BYTES(NS_LITERAL_CSTRING("js-main-runtime-gc-heap-committed/unused/gc-things/strings"),
-        KIND_OTHER, rtStats.zTotals.unusedGCThings.string,
-        "Unused string cells within non-empty arenas.");
-
-    REPORT_BYTES(NS_LITERAL_CSTRING("js-main-runtime-gc-heap-committed/unused/gc-things/symbols"),
-        KIND_OTHER, rtStats.zTotals.unusedGCThings.symbol,
-        "Unused symbol cells within non-empty arenas.");
-
-    REPORT_BYTES(NS_LITERAL_CSTRING("js-main-runtime-gc-heap-committed/unused/gc-things/shapes"),
-        KIND_OTHER, rtStats.zTotals.unusedGCThings.shape,
-        "Unused shape cells within non-empty arenas.");
-
-    REPORT_BYTES(NS_LITERAL_CSTRING("js-main-runtime-gc-heap-committed/unused/gc-things/base-shapes"),
-        KIND_OTHER, rtStats.zTotals.unusedGCThings.baseShape,
-        "Unused base shape cells within non-empty arenas.");
-
-    REPORT_BYTES(NS_LITERAL_CSTRING("js-main-runtime-gc-heap-committed/unused/gc-things/object-groups"),
-        KIND_OTHER, rtStats.zTotals.unusedGCThings.objectGroup,
-        "Unused object group cells within non-empty arenas.");
-
-    REPORT_BYTES(NS_LITERAL_CSTRING("js-main-runtime-gc-heap-committed/unused/gc-things/scripts"),
-        KIND_OTHER, rtStats.zTotals.unusedGCThings.script,
-        "Unused script cells within non-empty arenas.");
-
-    REPORT_BYTES(NS_LITERAL_CSTRING("js-main-runtime-gc-heap-committed/unused/gc-things/lazy-scripts"),
-        KIND_OTHER, rtStats.zTotals.unusedGCThings.lazyScript,
-        "Unused lazy script cells within non-empty arenas.");
-
-    REPORT_BYTES(NS_LITERAL_CSTRING("js-main-runtime-gc-heap-committed/unused/gc-things/jitcode"),
-        KIND_OTHER, rtStats.zTotals.unusedGCThings.jitcode,
-        "Unused jitcode cells within non-empty arenas.");
+    REPORT_BYTES(NS_LITERAL_CSTRING("js-main-runtime-gc-heap-committed/unused/gc-things"),
+        KIND_OTHER, rtStats.zTotals.unusedGCThings,
+        "The same as 'js-main-runtime/zones/unused-gc-things'.");
 
     REPORT_BYTES(NS_LITERAL_CSTRING("js-main-runtime-gc-heap-committed/used/chunk-admin"),
         KIND_OTHER, rtStats.gcHeapChunkAdmin,
@@ -2983,46 +2900,9 @@ JSReporter::CollectReports(WindowPaths *windowPaths,
         KIND_OTHER, rtStats.zTotals.gcHeapArenaAdmin,
         "The same as 'js-main-runtime/zones/gc-heap-arena-admin'.");
 
-    size_t gcThingTotal = 0;
-
-    MREPORT_BYTES(NS_LITERAL_CSTRING("js-main-runtime-gc-heap-committed/used/gc-things/objects"),
-        KIND_OTHER, rtStats.cTotals.classInfo.objectsGCHeap,
-        "Used object cells.");
-
-    MREPORT_BYTES(NS_LITERAL_CSTRING("js-main-runtime-gc-heap-committed/used/gc-things/strings"),
-        KIND_OTHER, rtStats.zTotals.stringInfo.sizeOfLiveGCThings(),
-        "Used string cells.");
-
-    MREPORT_BYTES(NS_LITERAL_CSTRING("js-main-runtime-gc-heap-committed/used/gc-things/symbols"),
-        KIND_OTHER, rtStats.zTotals.symbolsGCHeap,
-        "Used symbol cells.");
-
-    MREPORT_BYTES(NS_LITERAL_CSTRING("js-main-runtime-gc-heap-committed/used/gc-things/shapes"),
-        KIND_OTHER,
-        rtStats.cTotals.classInfo.shapesGCHeapTree + rtStats.cTotals.classInfo.shapesGCHeapDict,
-        "Used shape cells.");
-
-    MREPORT_BYTES(NS_LITERAL_CSTRING("js-main-runtime-gc-heap-committed/used/gc-things/base-shapes"),
-        KIND_OTHER, rtStats.cTotals.classInfo.shapesGCHeapBase,
-        "Used base shape cells.");
-
-    MREPORT_BYTES(NS_LITERAL_CSTRING("js-main-runtime-gc-heap-committed/used/gc-things/object-groups"),
-        KIND_OTHER, rtStats.zTotals.objectGroupsGCHeap,
-        "Used object group cells.");
-
-    MREPORT_BYTES(NS_LITERAL_CSTRING("js-main-runtime-gc-heap-committed/used/gc-things/scripts"),
-        KIND_OTHER, rtStats.cTotals.scriptsGCHeap,
-        "Used script cells.");
-
-    MREPORT_BYTES(NS_LITERAL_CSTRING("js-main-runtime-gc-heap-committed/used/gc-things/lazy-scripts"),
-        KIND_OTHER, rtStats.zTotals.lazyScriptsGCHeap,
-        "Used lazy script cells.");
-
-    MREPORT_BYTES(NS_LITERAL_CSTRING("js-main-runtime-gc-heap-committed/used/gc-things/jitcode"),
-        KIND_OTHER, rtStats.zTotals.jitCodesGCHeap,
-        "Used jitcode cells.");
-
-    MOZ_ASSERT(gcThingTotal == rtStats.gcHeapGCThings);
+    REPORT_BYTES(NS_LITERAL_CSTRING("js-main-runtime-gc-heap-committed/used/gc-things"),
+        KIND_OTHER, rtStats.gcHeapGCThings,
+        "GC things: objects, strings, scripts, etc.");
 
     // Report xpconnect.
 
@@ -3070,6 +2950,14 @@ JSSizeOfTab(JSObject *objArg, size_t *jsObjectsSize, size_t *jsStringsSize,
 }
 
 } // namespace xpc
+
+#ifdef MOZ_CRASHREPORTER
+static bool
+DiagnosticMemoryCallback(void *ptr, size_t size)
+{
+    return CrashReporter::RegisterAppMemory(ptr, size) == NS_OK;
+}
+#endif
 
 static void
 AccumulateTelemetryCallback(int id, uint32_t sample, const char *key)
@@ -3121,6 +3009,7 @@ AccumulateTelemetryCallback(int id, uint32_t sample, const char *key)
         Telemetry::Accumulate(Telemetry::GC_SCC_SWEEP_MAX_PAUSE_MS, sample);
         break;
       case JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT:
+        MOZ_ASSERT(sample <= 5);
         Telemetry::Accumulate(Telemetry::JS_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT, sample);
         break;
       case JS_TELEMETRY_ADDON_EXCEPTIONS:
@@ -3291,8 +3180,7 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
    mUnprivilegedJunkScope(this->Runtime(), nullptr),
    mPrivilegedJunkScope(this->Runtime(), nullptr),
    mCompilationScope(this->Runtime(), nullptr),
-   mAsyncSnowWhiteFreer(new AsyncFreeSnowWhite()),
-   mSlowScriptSecondHalf(false)
+   mAsyncSnowWhiteFreer(new AsyncFreeSnowWhite())
 {
     // these jsids filled in later when we have a JSContext to work with.
     mStrIDs[0] = JSID_VOID;
@@ -3397,6 +3285,9 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
     JS_AddWeakPointerCallback(runtime, WeakPointerCallback, this);
     JS_SetWrapObjectCallbacks(runtime, &WrapObjectCallbacks);
     js::SetPreserveWrapperCallback(runtime, PreserveWrapper);
+#ifdef MOZ_CRASHREPORTER
+    JS_EnumerateDiagnosticMemoryRegions(DiagnosticMemoryCallback);
+#endif
 #ifdef MOZ_ENABLE_PROFILER_SPS
     if (PseudoStack *stack = mozilla_get_pseudo_stack())
         stack->sampleRuntime(runtime);

@@ -368,6 +368,7 @@ bool CacheEntry::Load(bool aTruncate, bool aPriority)
 
   bool directLoad = aTruncate || !mUseDisk;
   if (directLoad) {
+    mFileStatus = NS_OK;
     // mLoadStart will be used to calculate telemetry of life-time of this entry.
     // Low resulution is then enough.
     mLoadStart = TimeStamp::NowLoRes();
@@ -396,7 +397,6 @@ bool CacheEntry::Load(bool aTruncate, bool aPriority)
 
   if (directLoad) {
     // Just fake the load has already been done as "new".
-    mFileStatus = NS_OK;
     mState = EMPTY;
   }
 
@@ -610,8 +610,7 @@ bool CacheEntry::InvokeCallbacks(bool aReadOnly)
       // returns RECHECK_AFTER_WRITE_FINISHED.  If we would stop the loop, other
       // readers or potential writers would be unnecessarily kept from being
       // invoked.
-      size_t pos = std::min(mCallbacks.Length(), static_cast<size_t>(i));
-      mCallbacks.InsertElementAt(pos, callback);
+      mCallbacks.InsertElementAt(i, callback);
       ++i;
     }
   }

@@ -37,6 +37,7 @@
 
 using namespace js;
 using namespace js::gc;
+using namespace js::types;
 
 using mozilla::ArrayLength;
 using mozilla::PodArrayZero;
@@ -426,7 +427,7 @@ exn_toSource(JSContext *cx, unsigned argc, Value *vp)
 
     RootedValue nameVal(cx);
     RootedString name(cx);
-    if (!GetProperty(cx, obj, obj, cx->names().name, &nameVal) ||
+    if (!JSObject::getProperty(cx, obj, obj, cx->names().name, &nameVal) ||
         !(name = ToString<CanGC>(cx, nameVal)))
     {
         return false;
@@ -434,7 +435,7 @@ exn_toSource(JSContext *cx, unsigned argc, Value *vp)
 
     RootedValue messageVal(cx);
     RootedString message(cx);
-    if (!GetProperty(cx, obj, obj, cx->names().message, &messageVal) ||
+    if (!JSObject::getProperty(cx, obj, obj, cx->names().message, &messageVal) ||
         !(message = ValueToSource(cx, messageVal)))
     {
         return false;
@@ -442,7 +443,7 @@ exn_toSource(JSContext *cx, unsigned argc, Value *vp)
 
     RootedValue filenameVal(cx);
     RootedString filename(cx);
-    if (!GetProperty(cx, obj, obj, cx->names().fileName, &filenameVal) ||
+    if (!JSObject::getProperty(cx, obj, obj, cx->names().fileName, &filenameVal) ||
         !(filename = ValueToSource(cx, filenameVal)))
     {
         return false;
@@ -450,7 +451,7 @@ exn_toSource(JSContext *cx, unsigned argc, Value *vp)
 
     RootedValue linenoVal(cx);
     uint32_t lineno;
-    if (!GetProperty(cx, obj, obj, cx->names().lineNumber, &linenoVal) ||
+    if (!JSObject::getProperty(cx, obj, obj, cx->names().lineNumber, &linenoVal) ||
         !ToUint32(cx, linenoVal, &lineno))
     {
         return false;
@@ -507,7 +508,7 @@ ErrorObject::createProto(JSContext *cx, JSProtoKey key)
     // instance properties.
     RootedPropertyName name(cx, ClassName(key, cx));
     RootedValue nameValue(cx, StringValue(name));
-    if (!DefineProperty(cx, err, cx->names().name, nameValue, nullptr, nullptr, 0))
+    if (!JSObject::defineProperty(cx, err, cx->names().name, nameValue, nullptr, nullptr, 0))
         return nullptr;
 
     return errorProto;
@@ -853,11 +854,7 @@ ErrorReport::init(JSContext *cx, HandleValue exn)
         //
         // but without the reporting bits.  Instead it just puts all
         // the stuff we care about in our ownedReport and message_.
-        if (!populateUncaughtExceptionReport(cx, message_)) {
-            // Just give up.  We're out of memory or something; not much we can
-            // do here.
-            return false;
-        }
+        populateUncaughtExceptionReport(cx, message_);
     } else {
         /* Flag the error as an exception. */
         reportp->flags |= JSREPORT_EXCEPTION;
@@ -866,17 +863,16 @@ ErrorReport::init(JSContext *cx, HandleValue exn)
     return true;
 }
 
-bool
+void
 ErrorReport::populateUncaughtExceptionReport(JSContext *cx, ...)
 {
     va_list ap;
     va_start(ap, cx);
-    bool ok = populateUncaughtExceptionReportVA(cx, ap);
+    populateUncaughtExceptionReportVA(cx, ap);
     va_end(ap);
-    return ok;
 }
 
-bool
+void
 ErrorReport::populateUncaughtExceptionReportVA(JSContext *cx, va_list ap)
 {
     new (&ownedReport) JSErrorReport();
@@ -895,13 +891,12 @@ ErrorReport::populateUncaughtExceptionReportVA(JSContext *cx, va_list ap)
     if (!js_ExpandErrorArguments(cx, js_GetErrorMessage, nullptr,
                                  JSMSG_UNCAUGHT_EXCEPTION, &ownedMessage,
                                  &ownedReport, ArgumentsAreASCII, ap)) {
-        return false;
+        return;
     }
 
     reportp = &ownedReport;
     message_ = ownedMessage;
     ownsMessageAndReport = true;
-    return true;
 }
 
 JSObject *

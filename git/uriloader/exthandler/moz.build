@@ -126,7 +126,7 @@ FINAL_LIBRARY = 'xul'
 LOCAL_INCLUDES += [
     '/dom/base',
     '/dom/ipc',
-    '/netwerk/base',
+    '/netwerk/base/src',
     '/netwerk/protocol/http',
 ]
 

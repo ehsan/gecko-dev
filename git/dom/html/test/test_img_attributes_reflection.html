@@ -24,10 +24,7 @@ reflectURL({
   attribute: "src",
 })
 
-reflectString({
-  element: document.createElement("img"),
-  attribute: "srcset",
-})
+todo("srcset" in document.createElement("img"), "Should implement srcset")
 
 reflectLimitedEnumerated({
   element: document.createElement("img"),

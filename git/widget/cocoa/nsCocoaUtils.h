@@ -12,7 +12,6 @@
 #include "imgIContainer.h"
 #include "npapi.h"
 #include "nsTArray.h"
-#include "Units.h"
 
 // This must be the last include:
 #include "nsObjCExceptions.h"
@@ -175,8 +174,7 @@ public:
   }
 
   static NSPoint
-  DevPixelsToCocoaPoints(const mozilla::LayoutDeviceIntPoint& aPt,
-                         CGFloat aBackingScale)
+  DevPixelsToCocoaPoints(const nsIntPoint& aPt, CGFloat aBackingScale)
   {
     return NSMakePoint((CGFloat)aPt.x / aBackingScale,
                        (CGFloat)aPt.y / aBackingScale);

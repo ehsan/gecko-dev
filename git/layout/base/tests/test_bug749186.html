@@ -17,15 +17,25 @@ browser.
        SimpleTest.finish();
      }
 
+     function setEmPerLineTo0() {
+       SpecialPowers.setIntPref("font.size.inflation.emPerLine", 0);
+       setTimeout(endTest, 100);
+     }
+
      function removeBoldStyle() {
        document.getElementById('b').removeAttribute('style');
-       SpecialPowers.pushPrefEnv({'set': [['font.size.inflation.emPerLine', 0]]},endTest);
+       setTimeout(setEmPerLineTo0, 100);
+     }
+
+     function setEmPerLineTo8() {
+       SpecialPowers.setIntPref("font.size.inflation.emPerLine", 8);
+       setTimeout(removeBoldStyle, 100);
      }
 
      function startTest() {
        SimpleTest.waitForExplicitFinish();
        SimpleTest.requestFlakyTimeout("untriaged");
-       SpecialPowers.pushPrefEnv({'set': [['font.size.inflation.emPerLine', 8]]},removeBoldStyle);
+       setTimeout(setEmPerLineTo8, 100);
      }
 
      startTest();

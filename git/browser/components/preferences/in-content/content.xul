@@ -40,7 +40,7 @@
 </hbox>
 
 <groupbox id="drmGroup" data-category="paneContent" hidden="true">
-  <caption><label>&drmContent.label;</label></caption>
+  <caption><label>DRM content</label></caption>
   <grid id="contentGrid2">
     <columns>
       <column flex="1"/>
@@ -50,10 +50,10 @@
       <row id="playDRMContentRow">
         <vbox align="start">
           <checkbox id="playDRMContent" preference="media.eme.enabled"
-                    label="&playDRMContent.label;" accesskey="&playDRMContent.accesskey;"/>
+                    label="Play DRM content" accesskey="P"/>
         </vbox>
         <hbox pack="end" align="center">
-          <label id="playDRMContentLink" class="text-link" value="&playDRMContent.learnMore.label;"/>
+          <label id="playDRMContentLink" class="text-link" value="Learn more"/>
         </hbox>
       </row>
     </rows>

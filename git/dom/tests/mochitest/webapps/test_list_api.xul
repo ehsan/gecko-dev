@@ -20,9 +20,7 @@
 
 var props = {
   checkInstalled: "function",
-  getAdditionalLanguages: "function",
   getInstalled: "function",
-  getLocalizationResource: "function",
   getSelf: "function",
   install: "function",
   installPackage: "function",
@@ -42,7 +40,6 @@ var mgmtProps = {
   dispatchEvent: "function",
   getEventHandler: "function",
   getAll: "function",
-  getIcon: "function",
   getNotInstalled: "function",
   uninstall: "function",
   oninstall: "object",

@@ -8,7 +8,8 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "testing/gtest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
+#include "webrtc/common.h"
 #include "webrtc/common_types.h"
 #include "webrtc/modules/audio_coding/codecs/pcm16b/include/pcm16b.h"
 #include "webrtc/modules/audio_coding/main/interface/audio_coding_module.h"
@@ -21,9 +22,11 @@
 
 namespace webrtc {
 
-class TargetDelayTest : public ::testing::Test {
- protected:
-  TargetDelayTest() : acm_(AudioCodingModule::Create(0)) {}
+
+class TargetDelayTest {
+ public:
+  explicit TargetDelayTest(const Config& config)
+      : acm_(config.Get<AudioCodingModuleFactory>().Create(0)) {}
 
   ~TargetDelayTest() {}
 
@@ -199,24 +202,65 @@ class TargetDelayTest : public ::testing::Test {
   uint8_t payload_[kPayloadLenBytes];
 };
 
-TEST_F(TargetDelayTest, DISABLED_ON_ANDROID(OutOfRangeInput)) {
-  OutOfRangeInput();
+
+namespace {
+
+TargetDelayTest* CreateLegacy() {
+  Config config;
+  UseLegacyAcm(&config);
+  TargetDelayTest* test = new TargetDelayTest(config);
+  test->SetUp();
+  return test;
 }
 
-TEST_F(TargetDelayTest, DISABLED_ON_ANDROID(NoTargetDelayBufferSizeChanges)) {
-  NoTargetDelayBufferSizeChanges();
+TargetDelayTest* CreateNew() {
+  Config config;
+  UseNewAcm(&config);
+  TargetDelayTest* test = new TargetDelayTest(config);
+  test->SetUp();
+  return test;
 }
 
-TEST_F(TargetDelayTest, DISABLED_ON_ANDROID(WithTargetDelayBufferNotChanging)) {
-  WithTargetDelayBufferNotChanging();
+}  // namespace
+
+TEST(TargetDelayTest, DISABLED_ON_ANDROID(OutOfRangeInput)) {
+  scoped_ptr<TargetDelayTest> test(CreateLegacy());
+  test->OutOfRangeInput();
+
+  test.reset(CreateNew());
+  test->OutOfRangeInput();
 }
 
-TEST_F(TargetDelayTest, DISABLED_ON_ANDROID(RequiredDelayAtCorrectRange)) {
-  RequiredDelayAtCorrectRange();
+TEST(TargetDelayTest, DISABLED_ON_ANDROID(NoTargetDelayBufferSizeChanges)) {
+  scoped_ptr<TargetDelayTest> test(CreateLegacy());
+  test->NoTargetDelayBufferSizeChanges();
+
+  test.reset(CreateNew());
+  test->NoTargetDelayBufferSizeChanges();
 }
 
-TEST_F(TargetDelayTest, DISABLED_ON_ANDROID(TargetDelayBufferMinMax)) {
-  TargetDelayBufferMinMax();
+TEST(TargetDelayTest, DISABLED_ON_ANDROID(WithTargetDelayBufferNotChanging)) {
+  scoped_ptr<TargetDelayTest> test(CreateLegacy());
+  test->WithTargetDelayBufferNotChanging();
+
+  test.reset(CreateNew());
+  test->WithTargetDelayBufferNotChanging();
+}
+
+TEST(TargetDelayTest, DISABLED_ON_ANDROID(RequiredDelayAtCorrectRange)) {
+  scoped_ptr<TargetDelayTest> test(CreateLegacy());
+  test->RequiredDelayAtCorrectRange();
+
+  test.reset(CreateNew());
+  test->RequiredDelayAtCorrectRange();
+}
+
+TEST(TargetDelayTest, DISABLED_ON_ANDROID(TargetDelayBufferMinMax)) {
+  scoped_ptr<TargetDelayTest> test(CreateLegacy());
+  test->TargetDelayBufferMinMax();
+
+  test.reset(CreateNew());
+  test->TargetDelayBufferMinMax();
 }
 
 }  // namespace webrtc

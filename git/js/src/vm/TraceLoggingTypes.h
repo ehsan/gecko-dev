@@ -44,6 +44,7 @@
     _(PhiAnalysis)                                    \
     _(MakeLoopsContiguous)                            \
     _(ApplyTypes)                                     \
+    _(ParallelSafetyAnalysis)                         \
     _(AliasAnalysis)                                  \
     _(GVN)                                            \
     _(LICM)                                           \

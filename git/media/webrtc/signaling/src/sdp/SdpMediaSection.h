@@ -90,7 +90,6 @@ public:
 
   virtual void AddCodec(const std::string& pt, const std::string& name,
                         uint32_t clockrate, uint16_t channels) = 0;
-  virtual void ClearCodecs() = 0;
 
   virtual void AddDataChannel(const std::string& pt, const std::string& name,
                               uint16_t streams) = 0;
@@ -99,53 +98,6 @@ public:
   GetLevel() const
   {
     return mLevel;
-  }
-
-  inline bool
-  IsReceiving() const
-  {
-    return GetDirectionAttribute().mValue & SdpDirectionAttribute::kRecvFlag;
-  }
-
-  inline bool
-  IsSending() const
-  {
-    return GetDirectionAttribute().mValue & SdpDirectionAttribute::kSendFlag;
-  }
-
-  inline void
-  SetReceiving(bool receiving)
-  {
-    auto direction = GetDirectionAttribute().mValue;
-    if (direction & SdpDirectionAttribute::kSendFlag) {
-      SetDirection(receiving ?
-                   SdpDirectionAttribute::kSendrecv :
-                   SdpDirectionAttribute::kSendonly);
-    } else {
-      SetDirection(receiving ?
-                   SdpDirectionAttribute::kRecvonly :
-                   SdpDirectionAttribute::kInactive);
-    }
-  }
-
-  inline void
-  SetSending(bool sending)
-  {
-    auto direction = GetDirectionAttribute().mValue;
-    if (direction & SdpDirectionAttribute::kRecvFlag) {
-      SetDirection(sending ?
-                   SdpDirectionAttribute::kSendrecv :
-                   SdpDirectionAttribute::kRecvonly);
-    } else {
-      SetDirection(sending ?
-                   SdpDirectionAttribute::kSendonly :
-                   SdpDirectionAttribute::kInactive);
-    }
-  }
-
-  inline void SetDirection(SdpDirectionAttribute::Direction direction)
-  {
-    GetAttributeList().SetAttribute(new SdpDirectionAttribute(direction));
   }
 
 private:

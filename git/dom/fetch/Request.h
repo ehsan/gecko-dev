@@ -6,7 +6,6 @@
 #ifndef mozilla_dom_Request_h
 #define mozilla_dom_Request_h
 
-#include "nsIContentPolicy.h"
 #include "nsISupportsImpl.h"
 #include "nsWrapperCache.h"
 
@@ -27,8 +26,8 @@ class Promise;
 class RequestOrUSVString;
 
 class Request MOZ_FINAL : public nsISupports
-                        , public FetchBody<Request>
                         , public nsWrapperCache
+                        , public FetchBody<Request>
 {
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(Request)
@@ -57,9 +56,6 @@ public:
   RequestMode
   Mode() const
   {
-    if (mRequest->mMode == RequestMode::Cors_with_forced_preflight) {
-      return RequestMode::Cors;
-    }
     return mRequest->mMode;
   }
 
@@ -69,29 +65,16 @@ public:
     return mRequest->mCredentialsMode;
   }
 
-  RequestCache
-  Cache() const
-  {
-    return mRequest->GetCacheMode();
-  }
-
-  RequestContext
-  Context() const
-  {
-    return mContext;
-  }
-
-  // [ChromeOnly]
   void
-  SetContext(RequestContext aContext)
+  GetReferrer(DOMString& aReferrer) const
   {
-    mContext = aContext;
-  }
+    if (mRequest->ReferrerIsNone()) {
+      aReferrer.AsAString() = EmptyString();
+      return;
+    }
 
-  void
-  GetReferrer(nsAString& aReferrer) const
-  {
-    mRequest->GetReferrer(aReferrer);
+    // FIXME(nsm): Spec doesn't say what to do if referrer is client.
+    aReferrer.AsAString() = NS_ConvertUTF8toUTF16(mRequest->mReferrerURL);
   }
 
   InternalHeaders*
@@ -115,7 +98,7 @@ public:
   }
 
   already_AddRefed<Request>
-  Clone(ErrorResult& aRv) const;
+  Clone() const;
 
   already_AddRefed<InternalRequest>
   GetInternalRequest();
@@ -126,7 +109,6 @@ private:
   nsRefPtr<InternalRequest> mRequest;
   // Lazily created.
   nsRefPtr<Headers> mHeaders;
-  RequestContext mContext;
 };
 
 } // namespace dom

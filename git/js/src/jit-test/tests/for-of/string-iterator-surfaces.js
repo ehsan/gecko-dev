@@ -47,28 +47,29 @@ function assertBuiltinFunction(o, name, arity) {
 
 
 // String.prototype[@@iterator] is a built-in function
-assertBuiltinFunction(String.prototype, Symbol.iterator, 0);
+assertBuiltinFunction(String.prototype, std_iterator, 0);
 
 // Test StringIterator.prototype surface
-var iter = ""[Symbol.iterator]();
+var iter = ""[std_iterator]();
 var iterProto = Object.getPrototypeOf(iter);
 
 // StringIterator.prototype inherits from Object.prototype
 assertEq(Object.getPrototypeOf(iterProto), Object.prototype);
 
-// Own properties for StringIterator.prototype: "next"
-arraysEqual(Object.getOwnPropertyNames(iterProto).sort(), ["next"]);
-assertEq(iterProto.hasOwnProperty(Symbol.iterator), true);
+// Own properties for StringIterator.prototype: "next" and @@iterator
+arraysEqual(Object.getOwnPropertyNames(iterProto).sort(),
+            JS_HAS_SYMBOLS ? ["next"] : ["@@iterator", "next"]);
+assertEq(iterProto.hasOwnProperty(std_iterator), true);
 
 // StringIterator.prototype[@@iterator] is a built-in function
-assertBuiltinFunction(iterProto, Symbol.iterator, 0);
+assertBuiltinFunction(iterProto, std_iterator, 0);
 
 // StringIterator.prototype.next is a built-in function
 assertBuiltinFunction(iterProto, "next", 0);
 
 // StringIterator.prototype[@@iterator] is generic and returns |this|
 for (var v of [void 0, null, true, false, "", 0, 1, {}, [], iter, iterProto]) {
-    assertEq(iterProto[Symbol.iterator].call(v), v);
+    assertEq(iterProto[std_iterator].call(v), v);
 }
 
 // StringIterator.prototype.next is not generic

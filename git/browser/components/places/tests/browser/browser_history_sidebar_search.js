@@ -31,7 +31,7 @@ function test() {
   waitForExplicitFinish();
 
   // Cleanup.
-  PlacesTestUtils.clearHistory().then(continue_test);
+  waitForClearHistory(continue_test);
 }
 
 function continue_test() {
@@ -43,8 +43,8 @@ function continue_test() {
     places.push({uri: uri(pages[i]), visitDate: (time - i) * 1000,
                  transition: hs.TRANSITION_TYPED});
   }
-  PlacesTestUtils.addVisits(places).then(() => {
-    SidebarUI.show("viewHistorySidebar");
+  addVisits(places, window, function() {
+    toggleSidebar("viewHistorySidebar", true);
   });
 
   sidebar.addEventListener("load", function() {
@@ -63,8 +63,8 @@ function continue_test() {
       check_sidebar_tree_order(pages.length);
 
       // Cleanup.
-      SidebarUI.hide();
-      PlacesTestUtils.clearHistory().then(finish);
+      toggleSidebar("viewHistorySidebar", false);
+      waitForClearHistory(finish);
     });
   }, true);
 }

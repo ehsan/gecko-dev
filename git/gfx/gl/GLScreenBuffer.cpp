@@ -421,12 +421,6 @@ GLScreenBuffer::Attach(SharedSurface* surf, const gfx::IntSize& size)
     // Check that we're all set up.
     MOZ_ASSERT(SharedSurf() == surf);
 
-    // Update the ReadBuffer mode.
-    if (mGL->IsSupported(gl::GLFeature::read_buffer)) {
-        BindFB(0);
-        mRead->SetReadBuffer(mUserReadBufferMode);
-    }
-
     return true;
 }
 
@@ -444,6 +438,10 @@ GLScreenBuffer::Swap(const gfx::IntSize& size)
     mFront = mBack;
     mBack = newBack;
 
+    // Fence before copying.
+    if (mFront) {
+        mFront->Surf()->ProducerRelease();
+    }
     if (mBack) {
         mBack->Surf()->ProducerAcquire();
     }
@@ -454,24 +452,7 @@ GLScreenBuffer::Swap(const gfx::IntSize& size)
     {
         auto src  = mFront->Surf();
         auto dest = mBack->Surf();
-
-        //uint32_t srcPixel = ReadPixel(src);
-        //uint32_t destPixel = ReadPixel(dest);
-        //printf_stderr("Before: src: 0x%08x, dest: 0x%08x\n", srcPixel, destPixel);
-
         SharedSurface::ProdCopy(src, dest, mFactory.get());
-
-        //srcPixel = ReadPixel(src);
-        //destPixel = ReadPixel(dest);
-        //printf_stderr("After: src: 0x%08x, dest: 0x%08x\n", srcPixel, destPixel);
-    }
-
-    // XXX: We would prefer to fence earlier on platforms that don't need
-    // the full ProducerAcquire/ProducerRelease semantics, so that the fence
-    // doesn't include the copy operation. Unfortunately, the current API
-    // doesn't expose a good way to do that.
-    if (mFront) {
-        mFront->Surf()->ProducerRelease();
     }
 
     return true;
@@ -528,13 +509,40 @@ GLScreenBuffer::CreateRead(SharedSurface* surf)
 }
 
 void
-GLScreenBuffer::SetReadBuffer(GLenum mode)
+GLScreenBuffer::Readback(SharedSurface* src, gfx::DataSourceSurface* dest)
 {
-    MOZ_ASSERT(mGL->IsSupported(gl::GLFeature::read_buffer));
-    MOZ_ASSERT(GetReadFB() == 0);
+  MOZ_ASSERT(src && dest);
+  MOZ_ASSERT(dest->GetSize() == src->mSize);
+  MOZ_ASSERT(dest->GetFormat() == (src->mHasAlpha ? SurfaceFormat::B8G8R8A8
+                                                  : SurfaceFormat::B8G8R8X8));
 
-    mUserReadBufferMode = mode;
-    mRead->SetReadBuffer(mUserReadBufferMode);
+  mGL->MakeCurrent();
+
+  bool needsSwap = src != SharedSurf();
+  if (needsSwap) {
+      SharedSurf()->UnlockProd();
+      src->LockProd();
+  }
+
+  {
+      // Even though we're reading. We're doing it on
+      // the producer side. So we call ProducerAcquire
+      // instead of ConsumerAcquire.
+      src->ProducerAcquire();
+
+      UniquePtr<ReadBuffer> buffer = CreateRead(src);
+      MOZ_ASSERT(buffer);
+
+      ScopedBindFramebuffer autoFB(mGL, buffer->mFB);
+      ReadPixelsIntoDataSurface(mGL, dest);
+
+      src->ProducerRelease();
+  }
+
+  if (needsSwap) {
+      src->UnlockProd();
+      SharedSurf()->LockProd();
+  }
 }
 
 bool
@@ -612,11 +620,7 @@ DrawBuffer::Create(GLContext* const gl,
     gl->fGenFramebuffers(1, &fb);
     gl->AttachBuffersToFB(0, colorMSRB, depthRB, stencilRB, fb);
 
-    GLsizei samples = formats.samples;
-    if (!samples)
-        samples = 1;
-
-    UniquePtr<DrawBuffer> ret( new DrawBuffer(gl, size, samples, fb, colorMSRB,
+    UniquePtr<DrawBuffer> ret( new DrawBuffer(gl, size, fb, colorMSRB,
                                               depthRB, stencilRB) );
 
     GLenum err = localError.GetError();
@@ -656,6 +660,7 @@ ReadBuffer::Create(GLContext* gl,
 
     if (surf->mAttachType == AttachmentType::Screen) {
         // Don't need anything. Our read buffer will be the 'screen'.
+
         return UniquePtr<ReadBuffer>( new ReadBuffer(gl, 0, 0, 0,
                                                      surf) );
     }
@@ -757,32 +762,6 @@ const gfx::IntSize&
 ReadBuffer::Size() const
 {
     return mSurf->mSize;
-}
-
-void
-ReadBuffer::SetReadBuffer(GLenum userMode) const
-{
-    if (!mGL->IsSupported(GLFeature::read_buffer))
-        return;
-
-    GLenum internalMode;
-
-    switch (userMode) {
-    case LOCAL_GL_BACK:
-        internalMode = (mFB == 0) ? LOCAL_GL_BACK
-                                  : LOCAL_GL_COLOR_ATTACHMENT0;
-        break;
-
-    case LOCAL_GL_NONE:
-        internalMode = LOCAL_GL_NONE;
-        break;
-
-    default:
-        MOZ_CRASH("Bad value.");
-    }
-
-    mGL->MakeCurrent();
-    mGL->fReadBuffer(internalMode);
 }
 
 } /* namespace gl */

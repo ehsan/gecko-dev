@@ -185,24 +185,12 @@ let kSpecialIds = {
     return null;
   },
 
-  get menu() {
-    return PlacesUtils.bookmarksMenuFolderId;
-  },
-  get places() {
-    return PlacesUtils.placesRootId;
-  },
-  get tags() {
-    return PlacesUtils.tagsFolderId;
-  },
-  get toolbar() {
-    return PlacesUtils.toolbarFolderId;
-  },
-  get unfiled() {
-    return PlacesUtils.unfiledBookmarksFolderId;
-  },
-  get mobile() {
-    return this.findMobileRoot(true);
-  },
+  get menu()    PlacesUtils.bookmarksMenuFolderId,
+  get places()  PlacesUtils.placesRootId,
+  get tags()    PlacesUtils.tagsFolderId,
+  get toolbar() PlacesUtils.toolbarFolderId,
+  get unfiled() PlacesUtils.unfiledBookmarksFolderId,
+  get mobile()  this.findMobileRoot(true),
 };
 
 this.BookmarksEngine = function BookmarksEngine(service) {
@@ -1283,7 +1271,7 @@ BookmarksStore.prototype = {
     }
 
     // Filter out any null/undefined/empty tags.
-    tags = tags.filter(t => t);
+    tags = tags.filter(function(t) t);
 
     // Temporarily tag a dummy URI to preserve tag ids when untagging.
     let dummyURI = Utils.makeURI("about:weave#BStore_tagURI");
@@ -1457,9 +1445,9 @@ BookmarksTracker.prototype = {
   },
 
   _ensureMobileQuery: function _ensureMobileQuery() {
-    let find = val =>
+    let find = function (val)
       PlacesUtils.annotations.getItemsWithAnnotation(ORGANIZERQUERY_ANNO, {}).filter(
-        id => PlacesUtils.annotations.getItemAnnotation(id, ORGANIZERQUERY_ANNO) == val
+        function (id) PlacesUtils.annotations.getItemAnnotation(id, ORGANIZERQUERY_ANNO) == val
       );
 
     // Don't continue if the Library isn't ready

@@ -834,9 +834,8 @@ GLContextGLX::~GLContextGLX()
     bool success =
 #endif
     mGLX->xMakeCurrent(mDisplay, None, nullptr);
-    MOZ_ASSERT(success,
-               "glXMakeCurrent failed to release GL context before we call "
-               "glXDestroyContext!");
+    NS_ABORT_IF_FALSE(success,
+        "glXMakeCurrent failed to release GL context before we call glXDestroyContext!");
 
     mGLX->xDestroyContext(mDisplay, mContext);
 
@@ -1126,8 +1125,7 @@ CreateOffscreenPixmapContext(const gfxIntSize& size)
     }
 
     MOZ_ASSERT(numConfigs > 0,
-               "glXChooseFBConfig() failed to match our requested format and "
-               "violated its spec!");
+               "glXChooseFBConfig() failed to match our requested format and violated its spec!");
 
     int visid = None;
     int chosenIndex = 0;
@@ -1215,7 +1213,7 @@ DONE_CREATING_PIXMAP:
 }
 
 already_AddRefed<GLContext>
-GLContextProviderGLX::CreateHeadless(bool)
+GLContextProviderGLX::CreateHeadless()
 {
     gfxIntSize dummySize = gfxIntSize(16, 16);
     nsRefPtr<GLContext> glContext = CreateOffscreenPixmapContext(dummySize);
@@ -1227,10 +1225,9 @@ GLContextProviderGLX::CreateHeadless(bool)
 
 already_AddRefed<GLContext>
 GLContextProviderGLX::CreateOffscreen(const gfxIntSize& size,
-                                      const SurfaceCaps& caps,
-                                      bool requireCompatProfile)
+                                      const SurfaceCaps& caps)
 {
-    nsRefPtr<GLContext> glContext = CreateHeadless(requireCompatProfile);
+    nsRefPtr<GLContext> glContext = CreateHeadless();
     if (!glContext)
         return nullptr;
 

@@ -13,11 +13,6 @@
 #include "nsIContentPolicy.h"
 #include "nsIInputStream.h"
 #include "nsISupportsImpl.h"
-#ifdef DEBUG
-#include "nsIURLParser.h"
-#include "nsNetCID.h"
-#include "nsServiceManagerUtils.h"
-#endif
 
 class nsIDocument;
 class nsPIDOMWindow;
@@ -28,14 +23,28 @@ namespace dom {
 class FetchBodyStream;
 class Request;
 
-#define kFETCH_CLIENT_REFERRER_STR "about:client"
-
 class InternalRequest MOZ_FINAL
 {
   friend class Request;
 
 public:
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(InternalRequest)
+
+  enum ContextFrameType
+  {
+    FRAMETYPE_AUXILIARY = 0,
+    FRAMETYPE_TOP_LEVEL,
+    FRAMETYPE_NESTED,
+    FRAMETYPE_NONE,
+  };
+
+  // Since referrer type can be none, client or a URL.
+  enum ReferrerType
+  {
+    REFERRER_NONE = 0,
+    REFERRER_CLIENT,
+    REFERRER_URL,
+  };
 
   enum ResponseTainting
   {
@@ -47,13 +56,15 @@ public:
   explicit InternalRequest()
     : mMethod("GET")
     , mHeaders(new InternalHeaders(HeadersGuardEnum::None))
-    , mReferrer(NS_LITERAL_STRING(kFETCH_CLIENT_REFERRER_STR))
+    , mContextFrameType(FRAMETYPE_NONE)
+    , mReferrerType(REFERRER_CLIENT)
     , mMode(RequestMode::No_cors)
     , mCredentialsMode(RequestCredentials::Omit)
     , mResponseTainting(RESPONSETAINT_BASIC)
-    , mCacheMode(RequestCache::Default)
+    , mRedirectCount(0)
     , mAuthenticationFlag(false)
     , mForceOriginHeader(false)
+    , mManualRedirect(false)
     , mPreserveContentCodings(false)
       // FIXME(nsm): This should be false by default, but will lead to the
       // algorithm never loading data: URLs right now. See Bug 1018872 about
@@ -67,7 +78,32 @@ public:
   {
   }
 
-  already_AddRefed<InternalRequest> Clone();
+  explicit InternalRequest(const InternalRequest& aOther)
+    : mMethod(aOther.mMethod)
+    , mURL(aOther.mURL)
+    , mHeaders(aOther.mHeaders)
+    , mBodyStream(aOther.mBodyStream)
+    , mContext(aOther.mContext)
+    , mOrigin(aOther.mOrigin)
+    , mContextFrameType(aOther.mContextFrameType)
+    , mReferrerType(aOther.mReferrerType)
+    , mReferrerURL(aOther.mReferrerURL)
+    , mMode(aOther.mMode)
+    , mCredentialsMode(aOther.mCredentialsMode)
+    , mResponseTainting(aOther.mResponseTainting)
+    , mRedirectCount(aOther.mRedirectCount)
+    , mAuthenticationFlag(aOther.mAuthenticationFlag)
+    , mForceOriginHeader(aOther.mForceOriginHeader)
+    , mManualRedirect(aOther.mManualRedirect)
+    , mPreserveContentCodings(aOther.mPreserveContentCodings)
+    , mSameOriginDataURL(aOther.mSameOriginDataURL)
+    , mSandboxedStorageAreaURLs(aOther.mSandboxedStorageAreaURLs)
+    , mSkipServiceWorker(aOther.mSkipServiceWorker)
+    , mSynchronous(aOther.mSynchronous)
+    , mUnsafeRequest(aOther.mUnsafeRequest)
+    , mUseURLCredentials(aOther.mUseURLCredentials)
+  {
+  }
 
   void
   GetMethod(nsCString& aMethod) const
@@ -95,69 +131,38 @@ public:
     aURL.Assign(mURL);
   }
 
-  void
-  SetURL(const nsACString& aURL)
+  bool
+  ReferrerIsNone() const
   {
-    mURL.Assign(aURL);
-  }
-
-  void
-  GetReferrer(nsAString& aReferrer) const
-  {
-    aReferrer.Assign(mReferrer);
-  }
-
-  void
-  SetReferrer(const nsAString& aReferrer)
-  {
-#ifdef DEBUG
-    bool validReferrer = false;
-    if (aReferrer.IsEmpty() ||
-        aReferrer.EqualsLiteral(kFETCH_CLIENT_REFERRER_STR)) {
-      validReferrer = true;
-    } else {
-      nsCOMPtr<nsIURLParser> parser = do_GetService(NS_STDURLPARSER_CONTRACTID);
-      if (!parser) {
-        NS_WARNING("Could not get parser to validate URL!");
-      } else {
-        uint32_t schemePos;
-        int32_t schemeLen;
-        uint32_t authorityPos;
-        int32_t authorityLen;
-        uint32_t pathPos;
-        int32_t pathLen;
-
-        NS_ConvertUTF16toUTF8 ref(aReferrer);
-        nsresult rv = parser->ParseURL(ref.get(), ref.Length(),
-                                       &schemePos, &schemeLen,
-                                       &authorityPos, &authorityLen,
-                                       &pathPos, &pathLen);
-        if (NS_FAILED(rv)) {
-          NS_WARNING("Invalid referrer URL!");
-        } else if (schemeLen < 0 || authorityLen < 0) {
-          NS_WARNING("Invalid referrer URL!");
-        } else {
-          validReferrer = true;
-        }
-      }
-    }
-
-    MOZ_ASSERT(validReferrer);
-#endif
-
-    mReferrer.Assign(aReferrer);
+    return mReferrerType == REFERRER_NONE;
   }
 
   bool
-  SkipServiceWorker() const
+  ReferrerIsURL() const
   {
-    return mSkipServiceWorker;
+    return mReferrerType == REFERRER_URL;
+  }
+
+  bool
+  ReferrerIsClient() const
+  {
+    return mReferrerType == REFERRER_CLIENT;
+  }
+
+  nsCString
+  ReferrerAsURL() const
+  {
+    MOZ_ASSERT(ReferrerIsURL());
+    return mReferrerURL;
   }
 
   void
-  SetSkipServiceWorker()
+  SetReferrer(const nsACString& aReferrer)
   {
-    mSkipServiceWorker = true;
+    // May be removed later.
+    MOZ_ASSERT(!ReferrerIsNone());
+    mReferrerType = REFERRER_URL;
+    mReferrerURL.Assign(aReferrer);
   }
 
   bool
@@ -178,12 +183,6 @@ public:
     mMode = aMode;
   }
 
-  RequestCredentials
-  GetCredentialsMode() const
-  {
-    return mCredentialsMode;
-  }
-
   void
   SetCredentialsMode(RequestCredentials aCredentialsMode)
   {
@@ -202,28 +201,16 @@ public:
     mResponseTainting = aTainting;
   }
 
-  RequestCache
-  GetCacheMode() const
-  {
-    return mCacheMode;
-  }
-
   nsContentPolicyType
-  ContentPolicyType() const
+  GetContext() const
   {
-    return mContentPolicyType;
+    return mContext;
   }
 
   bool
   UnsafeRequest() const
   {
     return mUnsafeRequest;
-  }
-
-  void
-  SetUnsafeRequest()
-  {
-    mUnsafeRequest = true;
   }
 
   InternalHeaders*
@@ -238,6 +225,12 @@ public:
     return mForceOriginHeader;
   }
 
+  void
+  GetOrigin(nsCString& aOrigin) const
+  {
+    aOrigin.Assign(mOrigin);
+  }
+
   bool
   SameOriginDataURL() const
   {
@@ -245,16 +238,8 @@ public:
   }
 
   void
-  UnsetSameOriginDataURL()
-  {
-    mSameOriginDataURL = false;
-  }
-
-  void
   SetBody(nsIInputStream* aStream)
   {
-    // A request's body may not be reset once set.
-    MOZ_ASSERT(!mBodyStream);
     mBodyStream = aStream;
   }
 
@@ -272,10 +257,13 @@ public:
   GetRequestConstructorCopy(nsIGlobalObject* aGlobal, ErrorResult& aRv) const;
 
 private:
-  // Does not copy mBodyStream.  Use fallible Clone() for complete copy.
-  explicit InternalRequest(const InternalRequest& aOther);
-
   ~InternalRequest();
+
+  void
+  SetURL(const nsACString& aURL)
+  {
+    mURL.Assign(aURL);
+  }
 
   nsCString mMethod;
   nsCString mURL;
@@ -284,20 +272,25 @@ private:
 
   // nsContentPolicyType does not cover the complete set defined in the spec,
   // but it is a good start.
-  nsContentPolicyType mContentPolicyType;
+  nsContentPolicyType mContext;
 
-  // Empty string: no-referrer
-  // "about:client": client (default)
-  // URL: an URL
-  nsString mReferrer;
+  nsCString mOrigin;
+
+  ContextFrameType mContextFrameType;
+  ReferrerType mReferrerType;
+
+  // When mReferrerType is REFERRER_URL.
+  nsCString mReferrerURL;
 
   RequestMode mMode;
   RequestCredentials mCredentialsMode;
   ResponseTainting mResponseTainting;
-  RequestCache mCacheMode;
+
+  uint32_t mRedirectCount;
 
   bool mAuthenticationFlag;
   bool mForceOriginHeader;
+  bool mManualRedirect;
   bool mPreserveContentCodings;
   bool mSameOriginDataURL;
   bool mSandboxedStorageAreaURLs;

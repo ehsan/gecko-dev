@@ -7,6 +7,5 @@ MARIONETTE_HEAD_JS = 'head.js';
 
 gTestSuite.startTetheringTest(function() {
   return gTestSuite.ensureWifiEnabled(false)
-    .then(() => gTestSuite.setWifiTetheringEnabled(true))
-    .then(() => gTestSuite.setWifiTetheringEnabled(false));
+    .then(() => gTestSuite.setWifiTetheringEnabled(true));
 });

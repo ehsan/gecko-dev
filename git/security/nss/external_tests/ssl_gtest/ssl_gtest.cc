@@ -2,8 +2,6 @@
 #include "nss.h"
 #include "ssl.h"
 
-#include <cstdlib>
-
 #include "test_io.h"
 
 #define GTEST_HAS_RTTI 0
@@ -15,10 +13,6 @@ int main(int argc, char **argv) {
   // Start the tests
   ::testing::InitGoogleTest(&argc, argv);
   g_working_dir_path = ".";
-
-  char* workdir = getenv("NSS_GTEST_WORKDIR");
-  if (workdir)
-    g_working_dir_path = workdir;
 
   for (int i = 0; i < argc; i++) {
     if (!strcmp(argv[i], "-d")) {

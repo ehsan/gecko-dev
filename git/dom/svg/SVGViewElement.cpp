@@ -59,7 +59,7 @@ SVGViewElement::SetZoomAndPan(uint16_t aZoomAndPan, ErrorResult& rv)
     return;
   }
 
-  rv.ThrowRangeError(MSG_INVALID_ZOOMANDPAN_VALUE_ERROR);
+  rv.Throw(NS_ERROR_RANGE_ERR);
 }
 
 //----------------------------------------------------------------------
@@ -73,7 +73,9 @@ SVGViewElement::ViewBox()
 already_AddRefed<DOMSVGAnimatedPreserveAspectRatio>
 SVGViewElement::PreserveAspectRatio()
 {
-  return mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(this);
+  nsRefPtr<DOMSVGAnimatedPreserveAspectRatio> ratio;
+  mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(getter_AddRefs(ratio), this);
+  return ratio.forget();
 }
 
 //----------------------------------------------------------------------

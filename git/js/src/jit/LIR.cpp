@@ -110,9 +110,7 @@ LBlock::init(TempAllocator &alloc)
             if (!inputs)
                 return false;
 
-            // MSVC 2015 cannot handle "new (&phis_[phiIndex++])"
-            void *addr = &phis_[phiIndex++];
-            LPhi *lphi = new (addr) LPhi(phi, inputs);
+            LPhi *lphi = new (&phis_[phiIndex++]) LPhi(phi, inputs);
             lphi->setBlock(this);
         }
     }

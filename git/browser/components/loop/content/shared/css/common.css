@@ -263,12 +263,6 @@ p {
   border: 1px solid #fbeed5;
 }
 
-.alert-success {
-  background: #5BC0A4;
-  border: 1px solid #5BC0A4;
-  color: #fff;
-}
-
 .notificationContainer > .details-error {
   background: #fbebeb;
   color: #d74345
@@ -393,8 +387,7 @@ p {
 .info-panel h4 {
   color: #aaa;
   text-align: center;
-  font-weight: 500;
-  font-size: 1.2em;
+  font-weight: 300;
   margin: 0;
 }
 

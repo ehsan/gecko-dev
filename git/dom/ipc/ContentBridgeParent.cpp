@@ -6,9 +6,10 @@
 
 #include "mozilla/dom/ContentBridgeParent.h"
 #include "mozilla/dom/TabParent.h"
-#include "mozilla/jsipc/CrossProcessObjectWrappers.h"
+#include "JavaScriptParent.h"
 #include "nsXULAppAPI.h"
 
+using namespace base;
 using namespace mozilla::ipc;
 using namespace mozilla::jsipc;
 
@@ -61,22 +62,20 @@ ContentBridgeParent::DeferredDestroy()
 bool
 ContentBridgeParent::RecvSyncMessage(const nsString& aMsg,
                                      const ClonedMessageData& aData,
-                                     InfallibleTArray<jsipc::CpowEntry>&& aCpows,
+                                     const InfallibleTArray<jsipc::CpowEntry>& aCpows,
                                      const IPC::Principal& aPrincipal,
                                      InfallibleTArray<nsString>* aRetvals)
 {
-  return nsIContentParent::RecvSyncMessage(aMsg, aData, Move(aCpows),
-                                           aPrincipal, aRetvals);
+  return nsIContentParent::RecvSyncMessage(aMsg, aData, aCpows, aPrincipal, aRetvals);
 }
 
 bool
 ContentBridgeParent::RecvAsyncMessage(const nsString& aMsg,
                                       const ClonedMessageData& aData,
-                                      InfallibleTArray<jsipc::CpowEntry>&& aCpows,
+                                      const InfallibleTArray<jsipc::CpowEntry>& aCpows,
                                       const IPC::Principal& aPrincipal)
 {
-  return nsIContentParent::RecvAsyncMessage(aMsg, aData, Move(aCpows),
-                                            aPrincipal);
+  return nsIContentParent::RecvAsyncMessage(aMsg, aData, aCpows, aPrincipal);
 }
 
 PBlobParent*
@@ -153,13 +152,14 @@ ContentBridgeParent::DeallocPBrowserParent(PBrowserParent* aParent)
 // This implementation is identical to ContentParent::GetCPOWManager but we can't
 // move it to nsIContentParent because it calls ManagedPJavaScriptParent() which
 // only exists in PContentParent and PContentBridgeParent.
-jsipc::CPOWManager*
+jsipc::JavaScriptShared*
 ContentBridgeParent::GetCPOWManager()
 {
   if (ManagedPJavaScriptParent().Length()) {
-    return CPOWManagerFor(ManagedPJavaScriptParent()[0]);
+    return static_cast<JavaScriptParent*>(ManagedPJavaScriptParent()[0]);
   }
-  return CPOWManagerFor(SendPJavaScriptConstructor());
+  JavaScriptParent* actor = static_cast<JavaScriptParent*>(SendPJavaScriptConstructor());
+  return actor;
 }
 
 } // namespace dom

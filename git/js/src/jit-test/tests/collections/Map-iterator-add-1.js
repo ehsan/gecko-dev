@@ -1,6 +1,6 @@
 // map.iterator() is live: entries added during iteration are visited.
 
-var map = new Map();
+var map = Map();
 function force(k) {
     if (!map.has(k) && k >= 0)
         map.set(k, k - 1);

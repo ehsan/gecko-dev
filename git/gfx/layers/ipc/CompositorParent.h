@@ -105,7 +105,6 @@ public:
   void SetNeedsComposite(bool aSchedule);
   bool NeedsComposite();
   void CancelCurrentCompositeTask();
-  void Destroy();
 
 private:
   virtual ~CompositorVsyncObserver();
@@ -115,7 +114,6 @@ private:
   void ObserveVsync();
   void UnobserveVsync();
   void DispatchTouchEvents(TimeStamp aVsyncTimestamp);
-  void CancelCurrentSetNeedsCompositeTask();
 
   bool mNeedsComposite;
   bool mIsObservingVsync;
@@ -125,9 +123,6 @@ private:
 
   mozilla::Monitor mCurrentCompositeTaskMonitor;
   CancelableTask* mCurrentCompositeTask;
-
-  mozilla::Monitor mSetNeedsCompositeMonitor;
-  CancelableTask* mSetNeedsCompositeTask;
 };
 
 class CompositorParent MOZ_FINAL : public PCompositorParent,
@@ -173,7 +168,6 @@ public:
   virtual void ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
                                    const uint64_t& aTransactionId,
                                    const TargetConfig& aTargetConfig,
-                                   const InfallibleTArray<PluginWindowData>& aPlugins,
                                    bool aIsFirstPaint,
                                    bool aScheduleComposite,
                                    uint32_t aPaintSequenceNumber,
@@ -195,8 +189,6 @@ public:
    */
   void ForceIsFirstPaint();
   void Destroy();
-
-  static void SetShadowProperties(Layer* aLayer);
 
   void NotifyChildCreated(const uint64_t& aChild);
 
@@ -291,7 +283,6 @@ public:
 
   struct LayerTreeState {
     LayerTreeState();
-    ~LayerTreeState();
     nsRefPtr<Layer> mRoot;
     nsRefPtr<GeckoContentController> mController;
     CompositorParent* mParent;
@@ -303,8 +294,6 @@ public:
     TargetConfig mTargetConfig;
     APZTestData mApzTestData;
     LayerTransactionParent* mLayerTree;
-    nsTArray<PluginWindowData> mPluginData;
-    bool mUpdatedPluginDataAvailable;
   };
 
   /**

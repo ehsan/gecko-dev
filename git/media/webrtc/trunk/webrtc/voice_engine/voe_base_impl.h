@@ -55,6 +55,16 @@ public:
 
     virtual int StopSend(int channel);
 
+    virtual int SetNetEQPlayoutMode(int channel, NetEqModes mode);
+
+    virtual int GetNetEQPlayoutMode(int channel, NetEqModes& mode);
+
+    virtual int SetOnHoldStatus(int channel,
+                                bool enable,
+                                OnHoldModes mode = kHoldSendAndPlay);
+
+    virtual int GetOnHoldStatus(int channel, bool& enabled, OnHoldModes& mode);
+
     virtual int GetVersion(char version[1024]);
 
     virtual int LastError();
@@ -70,7 +80,7 @@ public:
                                 uint32_t samplesPerSec,
                                 uint32_t totalDelayMS,
                                 int32_t clockDrift,
-                                uint32_t micLevel,
+                                uint32_t currentMicLevel,
                                 bool keyPressed,
                                 uint32_t& newMicLevel);
 
@@ -79,9 +89,7 @@ public:
                                      uint8_t nChannels,
                                      uint32_t samplesPerSec,
                                      void* audioSamples,
-                                     uint32_t& nSamplesOut,
-                                     int64_t* elapsed_time_ms,
-                                     int64_t* ntp_time_ms);
+                                     uint32_t& nSamplesOut);
 
     virtual int OnDataAvailable(const int voe_channels[],
                                 int number_of_voe_channels,
@@ -90,23 +98,13 @@ public:
                                 int number_of_channels,
                                 int number_of_frames,
                                 int audio_delay_milliseconds,
-                                int volume,
+                                int current_volume,
                                 bool key_pressed,
                                 bool need_audio_processing);
 
     virtual void OnData(int voe_channel, const void* audio_data,
                         int bits_per_sample, int sample_rate,
                         int number_of_channels, int number_of_frames);
-
-    virtual void PushCaptureData(int voe_channel, const void* audio_data,
-                                 int bits_per_sample, int sample_rate,
-                                 int number_of_channels, int number_of_frames);
-
-    virtual void PullRenderData(int bits_per_sample, int sample_rate,
-                                int number_of_channels, int number_of_frames,
-                                void* audio_data,
-                                int64_t* elapsed_time_ms,
-                                int64_t* ntp_time_ms);
 
     // AudioDeviceObserver
     virtual void OnErrorIsReported(ErrorCode error);
@@ -137,15 +135,10 @@ private:
                                    uint32_t number_of_frames,
                                    uint32_t audio_delay_milliseconds,
                                    int32_t clock_drift,
-                                   uint32_t volume,
+                                   uint32_t current_volume,
                                    bool key_pressed);
 
-    void GetPlayoutData(int sample_rate, int number_of_channels,
-                        int number_of_frames, bool feed_data_to_apm,
-                        void* audio_data,
-                        int64_t* elapsed_time_ms,
-                        int64_t* ntp_time_ms);
-
+    int32_t AddBuildInfo(char* str) const;
     int32_t AddVoEVersion(char* str) const;
 
     // Initialize channel by setting Engine Information then initializing
@@ -161,6 +154,8 @@ private:
     CriticalSectionWrapper& _callbackCritSect;
 
     bool _voiceEngineObserver;
+    uint32_t _oldVoEMicLevel;
+    uint32_t _oldMicLevel;
     AudioFrame _audioFrame;
     voe::SharedData* _shared;
 };

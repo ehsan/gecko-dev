@@ -11,6 +11,7 @@
 
 #include "jscompartment.h"
 #include "jsgc.h"
+#include "jsinfer.h"
 #include "jsutil.h"
 #include "prmjtime.h"
 
@@ -23,7 +24,6 @@
 #include "vm/ScopeObject.h"
 #endif
 #include "vm/TypedArrayObject.h"
-#include "vm/TypeInference.h"
 
 #include "jsgcinlines.h"
 
@@ -164,10 +164,10 @@ js::Nursery::verifyFinalizerList()
         if (overlay->isForwarded())
             obj = static_cast<JSObject *>(overlay->forwardingAddress());
         MOZ_ASSERT(obj);
-        MOZ_ASSERT(obj->group());
-        MOZ_ASSERT(obj->group()->clasp());
-        MOZ_ASSERT(obj->group()->clasp()->finalize);
-        MOZ_ASSERT(obj->group()->clasp()->flags & JSCLASS_FINALIZE_FROM_NURSERY);
+        MOZ_ASSERT(obj->type());
+        MOZ_ASSERT(obj->type()->clasp());
+        MOZ_ASSERT(obj->type()->clasp()->finalize);
+        MOZ_ASSERT(obj->type()->clasp()->flags & JSCLASS_FINALIZE_FROM_NURSERY);
     }
 #endif // DEBUG
 }
@@ -420,12 +420,6 @@ GetObjectAllocKindForCopy(const Nursery &nursery, JSObject *obj)
     // Proxies have finalizers and are not nursery allocated.
     MOZ_ASSERT(!IsProxy(obj));
 
-    // Unboxed plain objects are sized according to the data they store.
-    if (obj->is<UnboxedPlainObject>()) {
-        size_t nbytes = obj->as<UnboxedPlainObject>().layout().size();
-        return GetGCObjectKindForBytes(UnboxedPlainObject::offsetOfData() + nbytes);
-    }
-
     // Inlined typed objects are followed by their data, so make sure we copy
     // it all over to the new object.
     if (obj->is<InlineTypedObject>()) {
@@ -441,7 +435,7 @@ GetObjectAllocKindForCopy(const Nursery &nursery, JSObject *obj)
     if (obj->is<OutlineTypedObject>())
         return FINALIZE_OBJECT0;
 
-    // All nursery allocatable non-native objects are handled above.
+    // The only non-native objects in existence are proxies and typed objects.
     MOZ_ASSERT(obj->isNative());
 
     AllocKind kind = GetGCObjectFixedSlotsKind(obj->as<NativeObject>().numFixedSlots());
@@ -454,11 +448,12 @@ GetObjectAllocKindForCopy(const Nursery &nursery, JSObject *obj)
 MOZ_ALWAYS_INLINE TenuredCell *
 js::Nursery::allocateFromTenured(Zone *zone, AllocKind thingKind)
 {
-    TenuredCell *t = zone->arenas.allocateFromFreeList(thingKind, Arena::thingSize(thingKind));
+    TenuredCell *t =
+        zone->allocator.arenas.allocateFromFreeList(thingKind, Arena::thingSize(thingKind));
     if (t)
         return t;
-    zone->arenas.checkEmptyFreeList(thingKind);
-    return zone->arenas.allocateFromArena(zone, thingKind);
+    zone->allocator.arenas.checkEmptyFreeList(thingKind);
+    return zone->allocator.arenas.allocateFromArena(zone, thingKind);
 }
 
 void
@@ -533,15 +528,15 @@ js::Nursery::forwardBufferPointer(HeapSlot **pSlotsElems)
     MOZ_ASSERT(IsWriteableAddress(*pSlotsElems));
 }
 
-// Structure for counting how many times objects in a particular group have
-// been tenured during a minor collection.
+// Structure for counting how many times objects of a particular type have been
+// tenured during a minor collection.
 struct TenureCount
 {
-    ObjectGroup *group;
+    types::TypeObject *type;
     int count;
 };
 
-// Keep rough track of how many times we tenure objects in particular groups
+// Keep rough track of how many times we tenure objects of particular types
 // during minor collections, using a fixed size hash for efficiency at the cost
 // of potential collisions.
 struct Nursery::TenureCountCache
@@ -550,8 +545,8 @@ struct Nursery::TenureCountCache
 
     TenureCountCache() { PodZero(this); }
 
-    TenureCount &findEntry(ObjectGroup *group) {
-        return entries[PointerHasher<ObjectGroup *, 3>::hash(group) % ArrayLength(entries)];
+    TenureCount &findEntry(types::TypeObject *type) {
+        return entries[PointerHasher<types::TypeObject *, 3>::hash(type) % ArrayLength(entries)];
     }
 };
 
@@ -562,11 +557,11 @@ js::Nursery::collectToFixedPoint(MinorCollectionTracer *trc, TenureCountCache &t
         JSObject *obj = static_cast<JSObject*>(p->forwardingAddress());
         traceObject(trc, obj);
 
-        TenureCount &entry = tenureCounts.findEntry(obj->group());
-        if (entry.group == obj->group()) {
+        TenureCount &entry = tenureCounts.findEntry(obj->type());
+        if (entry.type == obj->type()) {
             entry.count++;
-        } else if (!entry.group) {
-            entry.group = obj->group();
+        } else if (!entry.type) {
+            entry.type = obj->type();
             entry.count = 1;
         }
     }
@@ -765,7 +760,7 @@ js::Nursery::MinorGCCallback(JSTracer *jstrc, void **thingp, JSGCTraceKind kind)
 #define TIME_TOTAL(name) (timstampEnd_##name - timstampStart_##name)
 
 void
-js::Nursery::collect(JSRuntime *rt, JS::gcreason::Reason reason, ObjectGroupList *pretenureGroups)
+js::Nursery::collect(JSRuntime *rt, JS::gcreason::Reason reason, TypeObjectList *pretenureTypes)
 {
     if (rt->mainThread.suppressGC)
         return;
@@ -865,7 +860,7 @@ js::Nursery::collect(JSRuntime *rt, JS::gcreason::Reason reason, ObjectGroupList
 
     // Update any slot or element pointers whose destination has been tenured.
     TIME_START(updateJitActivations);
-    js::jit::UpdateJitActivationsForMinorGC(rt, &trc);
+    js::jit::UpdateJitActivationsForMinorGC(&rt->mainThread, &trc);
     forwardedBuffers.finish();
     TIME_END(updateJitActivations);
 
@@ -897,14 +892,14 @@ js::Nursery::collect(JSRuntime *rt, JS::gcreason::Reason reason, ObjectGroupList
 
     // If we are promoting the nursery, or exhausted the store buffer with
     // pointers to nursery things, which will force a collection well before
-    // the nursery is full, look for object groups that are getting promoted
+    // the nursery is full, look for object types that are getting promoted
     // excessively and try to pretenure them.
     TIME_START(pretenure);
-    if (pretenureGroups && (promotionRate > 0.8 || reason == JS::gcreason::FULL_STORE_BUFFER)) {
+    if (pretenureTypes && (promotionRate > 0.8 || reason == JS::gcreason::FULL_STORE_BUFFER)) {
         for (size_t i = 0; i < ArrayLength(tenureCounts.entries); i++) {
             const TenureCount &entry = tenureCounts.entries[i];
             if (entry.count >= 3000)
-                pretenureGroups->append(entry.group); // ignore alloc failure
+                pretenureTypes->append(entry.type); // ignore alloc failure
         }
     }
     TIME_END(pretenure);

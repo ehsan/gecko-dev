@@ -63,23 +63,20 @@ let AboutReaderListener = {
 
         // Reader mode is disabled until proven enabled.
         this._savedArticle = null;
-        sendAsyncMessage("Reader:UpdateReaderButton", { isArticle: false });
+        sendAsyncMessage("Reader:UpdateIsArticle", { isArticle: false });
 
         ReaderMode.parseDocument(content.document).then(article => {
-          // Do nothing if there is no article, or if the content window has been destroyed.
-          if (article === null || content === null) {
-            return;
-          }
-
           // The loaded page may have changed while we were parsing the document.
           // Make sure we've got the current one.
-          let url = Services.io.newURI(content.document.documentURI, null, null).spec;
-          if (article.url !== url) {
+          let currentURL = Services.io.newURI(content.document.documentURI, null, null).specIgnoringRef;
+
+          // Do nothing if there's no article or the page in this tab has changed.
+          if (article == null || (article.url != currentURL)) {
             return;
           }
 
           this._savedArticle = article;
-          sendAsyncMessage("Reader:UpdateReaderButton", { isArticle: true });
+          sendAsyncMessage("Reader:UpdateIsArticle", { isArticle: true });
 
         }).catch(e => Cu.reportError("Error parsing document: " + e));
         break;

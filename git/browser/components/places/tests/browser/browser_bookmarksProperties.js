@@ -79,7 +79,7 @@ gTests.push({
   finish: function() {
     // Close window, toggle sidebar and goto next test.
     this.window.document.documentElement.cancelDialog();
-    SidebarUI.hide();
+    toggleSidebar(this.sidebar, false);
     runNextTest();
   },
 
@@ -138,7 +138,7 @@ gTests.push({
 
   finish: function() {
     this.window.document.documentElement.cancelDialog();
-    SidebarUI.hide();
+    toggleSidebar(this.sidebar, false);
     runNextTest();
   },
 
@@ -232,7 +232,7 @@ gTests.push({
   },
 
   finish: function() {
-    SidebarUI.hide();
+    toggleSidebar(this.sidebar, false);
     runNextTest();
   },
 
@@ -291,7 +291,7 @@ gTests.push({
 
   finish: function() {
     // Window is already closed.
-    SidebarUI.hide();
+    toggleSidebar(this.sidebar, false);
     runNextTest();
   },
 
@@ -390,7 +390,7 @@ gTests.push({
   },
 
   finish: function() {
-    SidebarUI.hide();
+    toggleSidebar(this.sidebar, false);
     runNextTest();
   },
 
@@ -418,10 +418,11 @@ gTests.push({
 
   setup: function(aCallback) {
     // Add a visit.
-    PlacesTestUtils.addVisits(
+    addVisits(
       {uri: PlacesUtils._uri(TEST_URL),
-        transition: PlacesUtils.history.TRANSITION_TYPED}
-      ).then(aCallback);
+        transition: PlacesUtils.history.TRANSITION_TYPED},
+      window,
+      aCallback);
   },
 
   selectNode: function(tree) {
@@ -468,12 +469,13 @@ gTests.push({
   },
 
   finish: function() {
-    SidebarUI.hide();
+    toggleSidebar(this.sidebar, false);
     runNextTest();
   },
 
   cleanup: function() {
-    return PlacesTestUtils.clearHistory();
+    var bh = PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory);
+    bh.removeAllPages();
   }
 });
 
@@ -496,11 +498,10 @@ function test() {
 function runNextTest() {
   // Cleanup from previous test.
   if (gCurrentTest) {
-    Promise.resolve(gCurrentTest.cleanup()).then(() => {
-      info("End of test: " + gCurrentTest.desc);
-      gCurrentTest = null;
-      waitForAsyncUpdates(runNextTest);
-    });
+    gCurrentTest.cleanup();
+    info("End of test: " + gCurrentTest.desc);
+    gCurrentTest = null;
+    waitForAsyncUpdates(runNextTest);
     return;
   }
 
@@ -529,7 +530,7 @@ function execute_test_in_sidebar() {
       // Need to executeSoon since the tree is initialized on sidebar load.
       executeSoon(open_properties_dialog);
     }, true);
-    SidebarUI.show(gCurrentTest.sidebar);
+    toggleSidebar(gCurrentTest.sidebar, true);
 }
 
 function open_properties_dialog() {

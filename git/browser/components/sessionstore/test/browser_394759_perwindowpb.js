@@ -84,7 +84,9 @@ function promiseBlankState() {
 }
 
 add_task(function* init() {
-  forgetClosedWindows();
+  while (ss.getClosedWindowCount() > 0) {
+    ss.forgetClosedWindow(0);
+  }
   while (ss.getClosedTabCount(window) > 0) {
     ss.forgetClosedTab(window, 0);
   }

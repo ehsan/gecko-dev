@@ -103,7 +103,7 @@ public:
   nsIFrame* GetLegend() const;
 
 protected:
-  mozilla::LogicalRect mLegendRect;
+  nsRect    mLegendRect;
   nscoord   mLegendSpace;
 };
 

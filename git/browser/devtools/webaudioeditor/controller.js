@@ -15,9 +15,7 @@ function startupWebAudioEditor() {
   return all([
     WebAudioEditorController.initialize(),
     ContextView.initialize(),
-    InspectorView.initialize(),
-    PropertiesView.initialize(),
-    AutomationView.initialize()
+    InspectorView.initialize()
   ]);
 }
 
@@ -29,8 +27,6 @@ function shutdownWebAudioEditor() {
     WebAudioEditorController.destroy(),
     ContextView.destroy(),
     InspectorView.destroy(),
-    PropertiesView.destroy(),
-    AutomationView.destroy()
   ]);
 }
 
@@ -41,7 +37,7 @@ let WebAudioEditorController = {
   /**
    * Listen for events emitted by the current tab target.
    */
-  initialize: Task.async(function* () {
+  initialize: function() {
     telemetry.toolOpened("webaudioeditor");
     this._onTabNavigated = this._onTabNavigated.bind(this);
     this._onThemeChange = this._onThemeChange.bind(this);
@@ -60,10 +56,7 @@ let WebAudioEditorController = {
     // the graph's marker styling, since we can't do this
     // with CSS
     gDevTools.on("pref-changed", this._onThemeChange);
-
-    // Store the AudioNode definitions from the WebAudioFront
-    AUDIO_NODE_DEFINITION = yield gFront.getDefinition();
-  }),
+  },
 
   /**
    * Remove events emitted by the current tab target.
@@ -90,27 +83,34 @@ let WebAudioEditorController = {
     $("#content").hidden = true;
     ContextView.resetUI();
     InspectorView.resetUI();
-    PropertiesView.resetUI();
   },
 
-  // Since node events (create, disconnect, connect) are all async,
-  // we have to make sure to wait that the node has finished creating
-  // before performing an operation on it.
-  getNode: function* (nodeActor) {
-    let id = nodeActor.actorID;
-    let node = gAudioNodes.get(id);
+  // Since node create and connect are probably executed back to back,
+  // and the controller's `_onCreateNode` needs to look up type,
+  // the edge creation could be called before the graph node is actually
+  // created. This way, we can check and listen for the event before
+  // adding an edge.
+  _waitForNodeCreation: function (sourceActor, destActor) {
+    let deferred = defer();
+    let source = gAudioNodes.get(sourceActor.actorID);
+    let dest = gAudioNodes.get(destActor.actorID);
 
-    if (!node) {
-      let { resolve, promise } = defer();
+    if (!source || !dest) {
       gAudioNodes.on("add", function createNodeListener (createdNode) {
-        if (createdNode.id === id) {
+        if (sourceActor.actorID === createdNode.id)
+          source = createdNode;
+        if (destActor.actorID === createdNode.id)
+          dest = createdNode;
+        if (source && dest) {
           gAudioNodes.off("add", createNodeListener);
-          resolve(createdNode);
+          deferred.resolve([source, dest]);
         }
       });
-      node = yield promise;
     }
-    return node;
+    else {
+      deferred.resolve([source, dest]);
+    }
+    return deferred.promise;
   },
 
   /**
@@ -194,8 +194,7 @@ let WebAudioEditorController = {
    * Called when a node is connected to another node.
    */
   _onConnectNode: Task.async(function* ({ source: sourceActor, dest: destActor }) {
-    let source = yield WebAudioEditorController.getNode(sourceActor);
-    let dest = yield WebAudioEditorController.getNode(destActor);
+    let [source, dest] = yield WebAudioEditorController._waitForNodeCreation(sourceActor, destActor);
     source.connect(dest);
   }),
 
@@ -203,24 +202,22 @@ let WebAudioEditorController = {
    * Called when a node is conneceted to another node's AudioParam.
    */
   _onConnectParam: Task.async(function* ({ source: sourceActor, dest: destActor, param }) {
-    let source = yield WebAudioEditorController.getNode(sourceActor);
-    let dest = yield WebAudioEditorController.getNode(destActor);
+    let [source, dest] = yield WebAudioEditorController._waitForNodeCreation(sourceActor, destActor);
     source.connect(dest, param);
   }),
 
   /**
    * Called when a node is disconnected.
    */
-  _onDisconnectNode: Task.async(function* (nodeActor) {
-    let node = yield WebAudioEditorController.getNode(nodeActor);
+  _onDisconnectNode: function(nodeActor) {
+    let node = gAudioNodes.get(nodeActor.actorID);
     node.disconnect();
-  }),
+  },
 
   /**
    * Called when a node param is changed.
    */
-  _onChangeParam: Task.async(function* ({ actor, param, value }) {
-    let node = yield WebAudioEditorController.getNode(actor);
-    window.emit(EVENTS.CHANGE_PARAM, node, param, value);
-  })
+  _onChangeParam: function({ actor, param, value }) {
+    window.emit(EVENTS.CHANGE_PARAM, gAudioNodes.get(actor.actorID), param, value);
+  }
 };

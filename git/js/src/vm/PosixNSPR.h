@@ -129,9 +129,6 @@ uint32_t
 PR_MillisecondsToInterval(uint32_t milli);
 
 uint32_t
-PR_MicrosecondsToInterval(uint32_t micro);
-
-uint32_t
 PR_TicksPerSecond();
 
 PRStatus

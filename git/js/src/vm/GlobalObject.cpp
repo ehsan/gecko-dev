@@ -199,7 +199,7 @@ GlobalObject::resolveConstructor(JSContext *cx, Handle<GlobalObject*> global, JS
     if (clasp->spec.shouldDefineConstructor()) {
         // Stash type information, so that what we do here is equivalent to
         // initBuiltinConstructor.
-        AddTypePropertyId(cx, global, id, ObjectValue(*ctor));
+        types::AddTypePropertyId(cx, global, id, ObjectValue(*ctor));
     }
 
     return true;
@@ -224,7 +224,7 @@ GlobalObject::initBuiltinConstructor(JSContext *cx, Handle<GlobalObject*> global
     global->setPrototype(key, ObjectValue(*proto));
     global->setConstructorPropertySlot(key, ObjectValue(*ctor));
 
-    AddTypePropertyId(cx, global, id, ObjectValue(*ctor));
+    types::AddTypePropertyId(cx, global, id, ObjectValue(*ctor));
     return true;
 }
 
@@ -234,7 +234,7 @@ GlobalObject::createInternal(JSContext *cx, const Class *clasp)
     MOZ_ASSERT(clasp->flags & JSCLASS_IS_GLOBAL);
     MOZ_ASSERT(clasp->trace == JS_GlobalObjectTraceHook);
 
-    JSObject *obj = NewObjectWithGivenProto(cx, clasp, NullPtr(), NullPtr(), SingletonObject);
+    JSObject *obj = NewObjectWithGivenProto(cx, clasp, nullptr, nullptr, SingletonObject);
     if (!obj)
         return nullptr;
 
@@ -320,7 +320,7 @@ GlobalObject::valueIsEval(Value val)
 GlobalObject::initStandardClasses(JSContext *cx, Handle<GlobalObject*> global)
 {
     /* Define a top-level property 'undefined' with the undefined value. */
-    if (!DefineProperty(cx, global, cx->names().undefined, UndefinedHandleValue,
+    if (!JSObject::defineProperty(cx, global, cx->names().undefined, UndefinedHandleValue,
                                   nullptr, nullptr, JSPROP_PERMANENT | JSPROP_READONLY))
     {
         return false;
@@ -367,8 +367,8 @@ GlobalObject::initSelfHostingBuiltins(JSContext *cx, Handle<GlobalObject*> globa
                                       const JSFunctionSpec *builtins)
 {
     // Define a top-level property 'undefined' with the undefined value.
-    if (!DefineProperty(cx, global, cx->names().undefined, UndefinedHandleValue,
-                        nullptr, nullptr, JSPROP_PERMANENT | JSPROP_READONLY))
+    if (!JSObject::defineProperty(cx, global, cx->names().undefined, UndefinedHandleValue,
+                                  nullptr, nullptr, JSPROP_PERMANENT | JSPROP_READONLY))
     {
         return false;
     }
@@ -376,7 +376,11 @@ GlobalObject::initSelfHostingBuiltins(JSContext *cx, Handle<GlobalObject*> globa
     // Define a top-level property 'std_iterator' with the name of the method
     // used by for-of loops to create an iterator.
     RootedValue std_iterator(cx);
+#ifdef JS_HAS_SYMBOLS
     std_iterator.setSymbol(cx->wellKnownSymbols().get(JS::SymbolCode::iterator));
+#else
+    std_iterator.setString(cx->names().std_iterator);
+#endif
     if (!JS_DefineProperty(cx, global, "std_iterator", std_iterator,
                            JSPROP_PERMANENT | JSPROP_READONLY))
     {
@@ -435,11 +439,11 @@ GlobalObject::createConstructor(JSContext *cx, Native ctor, JSAtom *nameArg, uns
 }
 
 static NativeObject *
-CreateBlankProto(JSContext *cx, const Class *clasp, HandleObject proto, HandleObject global)
+CreateBlankProto(JSContext *cx, const Class *clasp, JSObject &proto, GlobalObject &global)
 {
     MOZ_ASSERT(clasp != &JSFunction::class_);
 
-    RootedNativeObject blankProto(cx, NewNativeObjectWithGivenProto(cx, clasp, proto, global,
+    RootedNativeObject blankProto(cx, NewNativeObjectWithGivenProto(cx, clasp, &proto, &global,
                                                                     SingletonObject));
     if (!blankProto || !blankProto->setDelegate(cx))
         return nullptr;
@@ -451,18 +455,17 @@ NativeObject *
 GlobalObject::createBlankPrototype(JSContext *cx, const Class *clasp)
 {
     Rooted<GlobalObject*> self(cx, this);
-    RootedObject objectProto(cx, getOrCreateObjectPrototype(cx));
+    JSObject *objectProto = getOrCreateObjectPrototype(cx);
     if (!objectProto)
         return nullptr;
 
-    return CreateBlankProto(cx, clasp, objectProto, self);
+    return CreateBlankProto(cx, clasp, *objectProto, *self.get());
 }
 
 NativeObject *
-GlobalObject::createBlankPrototypeInheriting(JSContext *cx, const Class *clasp, HandleObject proto)
+GlobalObject::createBlankPrototypeInheriting(JSContext *cx, const Class *clasp, JSObject &proto)
 {
-    Rooted<GlobalObject*> self(cx, this);
-    return CreateBlankProto(cx, clasp, proto, self);
+    return CreateBlankProto(cx, clasp, proto, *this);
 }
 
 bool
@@ -473,10 +476,10 @@ js::LinkConstructorAndPrototype(JSContext *cx, JSObject *ctor_, JSObject *proto_
     RootedValue protoVal(cx, ObjectValue(*proto));
     RootedValue ctorVal(cx, ObjectValue(*ctor));
 
-    return DefineProperty(cx, ctor, cx->names().prototype, protoVal,
-                          nullptr, nullptr, JSPROP_PERMANENT | JSPROP_READONLY) &&
-           DefineProperty(cx, proto, cx->names().constructor, ctorVal,
-                          nullptr, nullptr, 0);
+    return JSObject::defineProperty(cx, ctor, cx->names().prototype, protoVal,
+                                    nullptr, nullptr, JSPROP_PERMANENT | JSPROP_READONLY) &&
+           JSObject::defineProperty(cx, proto, cx->names().constructor, ctorVal,
+                                    nullptr, nullptr, 0);
 }
 
 bool
@@ -521,8 +524,7 @@ GlobalObject::getOrCreateDebuggers(JSContext *cx, Handle<GlobalObject*> global)
     if (debuggers)
         return debuggers;
 
-    NativeObject *obj = NewNativeObjectWithGivenProto(cx, &GlobalDebuggees_class, NullPtr(),
-                                                      global);
+    NativeObject *obj = NewNativeObjectWithGivenProto(cx, &GlobalDebuggees_class, nullptr, global);
     if (!obj)
         return nullptr;
     debuggers = cx->new_<DebuggerVector>();
@@ -614,11 +616,11 @@ GlobalObject::addIntrinsicValue(JSContext *cx, HandleId id, HandleValue value)
     Rooted<UnownedBaseShape*> base(cx, last->base()->unowned());
 
     StackShape child(base, id, slot, 0, 0);
-    Shape *shape = cx->compartment()->propertyTree.getChild(cx, last, child);
+    RootedShape shape(cx, cx->compartment()->propertyTree.getChild(cx, last, child));
     if (!shape)
         return false;
 
-    if (!holder->setLastProperty(cx, shape))
+    if (!NativeObject::setLastProperty(cx, holder, shape))
         return false;
 
     holder->setSlot(shape->slot(), value);

@@ -5,8 +5,6 @@ import org.mozilla.gecko.db.BrowserDB;
 import android.content.ContentResolver;
 import android.graphics.Color;
 
-import com.jayway.android.robotium.solo.Condition;
-
 /**
  * Test for thumbnail updates.
  * - loads 2 pages, each of which yield an HTTP 200
@@ -35,9 +33,9 @@ public class testThumbnails extends BaseTest {
         inputAndLoadUrl(site2Url);
         mSolo.sleep(thumbnailDelay);
         inputAndLoadUrl(StringHelper.ABOUT_HOME_URL);
-        waitForCondition(new ThumbnailTest(site1Title, Color.GREEN), 5000);
+        waitForTest(new ThumbnailTest(site1Title, Color.GREEN), 5000);
         mAsserter.is(getTopSiteThumbnailColor(site1Title), Color.GREEN, "Top site thumbnail updated for HTTP 200");
-        waitForCondition(new ThumbnailTest(site2Title, Color.GREEN), 5000);
+        waitForTest(new ThumbnailTest(site2Title, Color.GREEN), 5000);
         mAsserter.is(getTopSiteThumbnailColor(site2Title), Color.GREEN, "Top site thumbnail updated for HTTP 200");
 
         // load sites again; both will have red background, and do404 will return HTTP 404
@@ -46,27 +44,24 @@ public class testThumbnails extends BaseTest {
         inputAndLoadUrl(site2Url);
         mSolo.sleep(thumbnailDelay);
         inputAndLoadUrl(StringHelper.ABOUT_HOME_URL);
-        waitForCondition(new ThumbnailTest(site1Title, Color.RED), 5000);
+        waitForTest(new ThumbnailTest(site1Title, Color.RED), 5000);
         mAsserter.is(getTopSiteThumbnailColor(site1Title), Color.RED, "Top site thumbnail updated for HTTP 200");
-        waitForCondition(new ThumbnailTest(site2Title, Color.GREEN), 5000);
+        waitForTest(new ThumbnailTest(site2Title, Color.GREEN), 5000);
         mAsserter.is(getTopSiteThumbnailColor(site2Title), Color.GREEN, "Top site thumbnail not updated for HTTP 404");
 
         // test dropping thumbnails
         final ContentResolver resolver = getActivity().getContentResolver();
-        final DatabaseHelper helper = new DatabaseHelper(getActivity(), mAsserter);
-        final BrowserDB db = helper.getProfileDB();
-
         // check that the thumbnail is non-null
-        byte[] thumbnailData = db.getThumbnailForUrl(resolver, site1Url);
+        byte[] thumbnailData = BrowserDB.getThumbnailForUrl(resolver, site1Url);
         mAsserter.ok(thumbnailData != null && thumbnailData.length > 0, "Checking for thumbnail data", "No thumbnail data found");
         // drop thumbnails
-        db.removeThumbnails(resolver);
+        BrowserDB.removeThumbnails(resolver);
         // check that the thumbnail is now null
-        thumbnailData = db.getThumbnailForUrl(resolver, site1Url);
+        thumbnailData = BrowserDB.getThumbnailForUrl(resolver, site1Url);
         mAsserter.ok(thumbnailData == null || thumbnailData.length == 0, "Checking for thumbnail data", "Thumbnail data found");
     }
 
-    private class ThumbnailTest implements Condition {
+    private class ThumbnailTest implements BooleanTest {
         private final String mTitle;
         private final int mColor;
 
@@ -76,7 +71,7 @@ public class testThumbnails extends BaseTest {
         }
 
         @Override
-        public boolean isSatisfied() {
+        public boolean test() {
             return getTopSiteThumbnailColor(mTitle) == mColor;
         }
     }

@@ -48,8 +48,8 @@ SOURCES += [
 ]
 
 LOCAL_INCLUDES += [
-    '/netwerk/base',
-    '/netwerk/cache',
+    '../base/src',
+    '../cache',
 ]
 
 FAIL_ON_WARNINGS = True

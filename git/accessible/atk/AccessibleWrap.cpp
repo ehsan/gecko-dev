@@ -961,40 +961,6 @@ refRelationSetCB(AtkObject *aAtkObj)
   AtkRelationSet* relation_set =
     ATK_OBJECT_CLASS(parent_class)->ref_relation_set(aAtkObj);
 
-  const AtkRelationType typeMap[] = {
-#define RELATIONTYPE(gecko, s, atk, m, i) atk,
-#include "RelationTypeMap.h"
-#undef RELATIONTYPE
-  };
-
-  if (ProxyAccessible* proxy = GetProxy(aAtkObj)) {
-    nsTArray<RelationType> types;
-    nsTArray<nsTArray<ProxyAccessible*>> targetSets;
-    proxy->Relations(&types, &targetSets);
-
-    size_t relationCount = types.Length();
-    for (size_t i = 0; i < relationCount; i++) {
-      if (typeMap[static_cast<uint32_t>(types[i])] == ATK_RELATION_NULL)
-        continue;
-
-      size_t targetCount = targetSets[i].Length();
-      nsAutoTArray<AtkObject*, 5> wrappers;
-      for (size_t j = 0; j < targetCount; j++)
-        wrappers.AppendElement(GetWrapperFor(targetSets[i][j]));
-
-      AtkRelationType atkType = typeMap[static_cast<uint32_t>(types[i])];
-      AtkRelation* atkRelation =
-        atk_relation_set_get_relation_by_type(relation_set, atkType);
-      if (atkRelation)
-        atk_relation_set_remove(relation_set, atkRelation);
-
-      atkRelation = atk_relation_new(wrappers.Elements(), wrappers.Length(),
-                                     atkType);
-      atk_relation_set_add(relation_set, atkRelation);
-      g_object_unref(atkRelation);
-    }
-  }
-
   AccessibleWrap* accWrap = GetAccessibleWrap(aAtkObj);
   if (!accWrap)
     return relation_set;
@@ -1053,20 +1019,15 @@ GetWrapperFor(ProxyAccessible* aProxy)
 }
 
 static uint16_t
-GetInterfacesForProxy(ProxyAccessible* aProxy, uint32_t aInterfaces)
+GetInterfacesForProxy(ProxyAccessible* aProxy)
 {
-  uint16_t interfaces = 1 << MAI_INTERFACE_COMPONENT;
-  if (aInterfaces & Interfaces::HYPERTEXT)
-    interfaces |= (1 << MAI_INTERFACE_HYPERTEXT) | (1 << MAI_INTERFACE_TEXT)
-        | (1 << MAI_INTERFACE_EDITABLE_TEXT);
-
-  return interfaces;
+  return MAI_INTERFACE_COMPONENT;
 }
 
 void
-a11y::ProxyCreated(ProxyAccessible* aProxy, uint32_t aInterfaces)
+a11y::ProxyCreated(ProxyAccessible* aProxy)
 {
-  GType type = GetMaiAtkType(GetInterfacesForProxy(aProxy, aInterfaces));
+  GType type = GetMaiAtkType(GetInterfacesForProxy(aProxy));
   NS_ASSERTION(type, "why don't we have a type!");
 
   AtkObject* obj =

@@ -260,7 +260,6 @@ let MozLoopServiceInternal = {
    */
   setError: function(errorType, error, actionCallback = null) {
     log.debug("setError", errorType, error);
-    log.trace();
     let messageString, detailsString, detailsButtonLabelString, detailsButtonCallback;
     const NETWORK_ERRORS = [
       Cr.NS_ERROR_CONNECTION_REFUSED,
@@ -301,23 +300,14 @@ let MozLoopServiceInternal = {
     }
 
     error.friendlyMessage = this.localizedStrings.get(messageString);
-
-    // Default to the generic "retry_button" text even though the button won't be shown if
-    // error.friendlyDetails is null.
+    error.friendlyDetails = detailsString ?
+                              this.localizedStrings.get(detailsString) :
+                              null;
     error.friendlyDetailsButtonLabel = detailsButtonLabelString ?
                                          this.localizedStrings.get(detailsButtonLabelString) :
-                                         this.localizedStrings.get("retry_button");
+                                         null;
 
     error.friendlyDetailsButtonCallback = actionCallback || detailsButtonCallback || null;
-
-    if (detailsString) {
-      error.friendlyDetails = this.localizedStrings.get(detailsString);
-    } else if (error.friendlyDetailsButtonCallback) {
-      // If we have a retry callback but no details use the generic try again string.
-      error.friendlyDetails = this.localizedStrings.get("generic_failure_no_reason2");
-    } else {
-      error.friendlyDetails = null;
-    }
 
     gErrors.set(errorType, error);
     this.notifyStatusChanged();
@@ -730,11 +720,6 @@ let MozLoopServiceInternal = {
       let string = enumerator.getNext().QueryInterface(Ci.nsIPropertyElement);
       gLocalizedStrings.set(string.key, string.value);
     }
-    // Supply the strings from the branding bundle on a per-need basis.
-    let brandBundle =
-      Services.strings.createBundle("chrome://branding/locale/brand.properties");
-    // Unfortunately the `brandShortName` string is used by Loop with a lowercase 'N'.
-    gLocalizedStrings.set("brandShortname", brandBundle.GetStringFromName("brandShortName"));
 
     return gLocalizedStrings;
   },
@@ -1051,7 +1036,6 @@ let gInitializeTimerFunc = (deferredInitialization) => {
  */
 this.MozLoopService = {
   _DNSService: gDNSService,
-  _activeScreenShares: [],
 
   get channelIDs() {
     // Channel ids that will be registered with the PushServer for notifications
@@ -1235,8 +1219,7 @@ this.MozLoopService = {
       deferredInitialization.resolve("initialized to logged-in status");
     }, error => {
       log.debug("MozLoopService: error logging in using cached auth token");
-      let retryFunc = () => MozLoopServiceInternal.promiseRegisteredWithServers(LOOP_SESSION_TYPE.FXA);
-      MozLoopServiceInternal.setError("login", error, retryFunc);
+      MozLoopServiceInternal.setError("login", error);
       deferredInitialization.reject("error logging in using cached auth token");
     });
     yield completedPromise;
@@ -1258,6 +1241,22 @@ this.MozLoopService = {
    */
   promiseRegisteredWithServers: function(sessionType = LOOP_SESSION_TYPE.GUEST) {
     return MozLoopServiceInternal.promiseRegisteredWithServers(sessionType);
+  },
+
+  /**
+   * Used to note a call url expiry time. If the time is later than the current
+   * latest expiry time, then the stored expiry time is increased. For times
+   * sooner, this function is a no-op; this ensures we always have the latest
+   * expiry time for a url.
+   *
+   * This is used to determine whether or not we should be registering with the
+   * push server on start.
+   *
+   * @param {Integer} expiryTimeSeconds The seconds since epoch of the expiry time
+   *                                    of the url.
+   */
+  noteCallUrlExpiry: function(expiryTimeSeconds) {
+    MozLoopServiceInternal.expiryTimeSeconds = expiryTimeSeconds;
   },
 
   /**
@@ -1438,17 +1437,27 @@ this.MozLoopService = {
         MozLoopServiceInternal.clearError("profile");
         return MozLoopServiceInternal.fxAOAuthTokenData;
       });
-    }).then(Task.async(function* fetchProfile(tokenData) {
-      yield MozLoopService.fetchFxAProfile(tokenData);
+    }).then(tokenData => {
+      let client = new FxAccountsProfileClient({
+        serverURL: gFxAOAuthClient.parameters.profile_uri,
+        token: tokenData.access_token
+      });
+      client.fetchProfile().then(result => {
+        MozLoopServiceInternal.fxAOAuthProfile = result;
+      }, error => {
+        log.error("Failed to retrieve profile", error);
+        this.setError("profile", error);
+        MozLoopServiceInternal.fxAOAuthProfile = null;
+        MozLoopServiceInternal.notifyStatusChanged();
+      });
       return tokenData;
-    })).catch(error => {
+    }).catch(error => {
       MozLoopServiceInternal.fxAOAuthTokenData = null;
       MozLoopServiceInternal.fxAOAuthProfile = null;
       MozLoopServiceInternal.deferredRegistrations.delete(LOOP_SESSION_TYPE.FXA);
       throw error;
     }).catch((error) => {
-      MozLoopServiceInternal.setError("login", error,
-                                      () => MozLoopService.logInToFxA());
+      MozLoopServiceInternal.setError("login", error);
       // Re-throw for testing
       throw error;
     });
@@ -1491,30 +1500,6 @@ this.MozLoopService = {
       MozLoopServiceInternal.clearError("profile");
     }
   }),
-
-  /**
-   * Fetch/update the FxA Profile for the logged in user.
-   *
-   * @return {Promise} resolving if the profile information was succesfully retrieved
-   *                   rejecting if the profile information couldn't be retrieved.
-   *                   A profile error is registered.
-   **/
-  fetchFxAProfile: function() {
-    log.debug("fetchFxAProfile");
-    let client = new FxAccountsProfileClient({
-      serverURL: gFxAOAuthClient.parameters.profile_uri,
-      token: MozLoopServiceInternal.fxAOAuthTokenData.access_token
-    });
-    return client.fetchProfile().then(result => {
-      MozLoopServiceInternal.fxAOAuthProfile = result;
-      MozLoopServiceInternal.clearError("profile");
-    }, error => {
-      log.error("Failed to retrieve profile", error, this.fetchFxAProfile.bind(this));
-      MozLoopServiceInternal.setError("profile", error);
-      MozLoopServiceInternal.fxAOAuthProfile = null;
-      MozLoopServiceInternal.notifyStatusChanged();
-    });
-  },
 
   openFxASettings: Task.async(function() {
     try {
@@ -1660,33 +1645,5 @@ this.MozLoopService = {
 
   addConversationContext: function(windowId, context) {
     MozLoopServiceInternal.conversationContexts.set(windowId, context);
-  },
-
-  /**
-   * Used to record the screen sharing state for a window so that it can
-   * be reflected on the toolbar button.
-   *
-   * @param {String} windowId The id of the conversation window the state
-   *                          is being changed for.
-   * @param {Boolean} active  Whether or not screen sharing is now active.
-   */
-  setScreenShareState: function(windowId, active) {
-    if (active) {
-      this._activeScreenShares.push(windowId);
-    } else {
-      var index = this._activeScreenShares.indexOf(windowId);
-      if (index != -1) {
-        this._activeScreenShares.splice(index, 1);
-      }
-    }
-
-    MozLoopServiceInternal.notifyStatusChanged();
-  },
-
-  /**
-   * Returns true if screen sharing is active in at least one window.
-   */
-  get screenShareActive() {
-    return this._activeScreenShares.length > 0;
   }
 };

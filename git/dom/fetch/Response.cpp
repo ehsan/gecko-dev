@@ -13,13 +13,10 @@
 #include "mozilla/dom/FetchBinding.h"
 #include "mozilla/dom/Headers.h"
 #include "mozilla/dom/Promise.h"
-#include "mozilla/dom/URL.h"
-#include "mozilla/dom/workers/bindings/URL.h"
 
 #include "nsDOMString.h"
 
 #include "InternalResponse.h"
-#include "WorkerPrivate.h"
 
 namespace mozilla {
 namespace dom {
@@ -55,64 +52,12 @@ Response::Error(const GlobalObject& aGlobal)
 
 /* static */ already_AddRefed<Response>
 Response::Redirect(const GlobalObject& aGlobal, const nsAString& aUrl,
-                   uint16_t aStatus, ErrorResult& aRv)
+                   uint16_t aStatus)
 {
-  nsAutoString parsedURL;
-
-  if (NS_IsMainThread()) {
-    nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.GetAsSupports());
-    nsCOMPtr<nsIURI> docURI = window->GetDocumentURI();
-    nsAutoCString spec;
-    aRv = docURI->GetSpec(spec);
-    if (NS_WARN_IF(aRv.Failed())) {
-      return nullptr;
-    }
-
-    nsRefPtr<mozilla::dom::URL> url =
-      dom::URL::Constructor(aGlobal, aUrl, NS_ConvertUTF8toUTF16(spec), aRv);
-    if (aRv.Failed()) {
-      return nullptr;
-    }
-
-    url->Stringify(parsedURL, aRv);
-  } else {
-    workers::WorkerPrivate* worker = workers::GetCurrentThreadWorkerPrivate();
-    MOZ_ASSERT(worker);
-    worker->AssertIsOnWorkerThread();
-
-    NS_ConvertUTF8toUTF16 baseURL(worker->GetLocationInfo().mHref);
-    nsRefPtr<workers::URL> url =
-      workers::URL::Constructor(aGlobal, aUrl, baseURL, aRv);
-    if (aRv.Failed()) {
-      return nullptr;
-    }
-
-    url->Stringify(parsedURL, aRv);
-  }
-
-  if (aRv.Failed()) {
-    return nullptr;
-  }
-
-  if (aStatus != 301 && aStatus != 302 && aStatus != 303 && aStatus != 307 && aStatus != 308) {
-    aRv.ThrowRangeError(MSG_INVALID_REDIRECT_STATUSCODE_ERROR);
-    return nullptr;
-  }
-
-  Optional<ArrayBufferOrArrayBufferViewOrBlobOrUSVStringOrURLSearchParams> body;
+  ErrorResult result;
   ResponseInit init;
-  init.mStatus = aStatus;
-  nsRefPtr<Response> r = Response::Constructor(aGlobal, body, init, aRv);
-  if (NS_WARN_IF(aRv.Failed())) {
-    return nullptr;
-  }
-
-  r->GetInternalHeaders()->Set(NS_LITERAL_CSTRING("Location"),
-                               NS_ConvertUTF16toUTF8(parsedURL), aRv);
-  if (NS_WARN_IF(aRv.Failed())) {
-    return nullptr;
-  }
-
+  Optional<ArrayBufferOrArrayBufferViewOrBlobOrUSVStringOrURLSearchParams> body;
+  nsRefPtr<Response> r = Response::Constructor(aGlobal, body, init, result);
   return r.forget();
 }
 
@@ -122,7 +67,7 @@ Response::Constructor(const GlobalObject& aGlobal,
                       const ResponseInit& aInit, ErrorResult& aRv)
 {
   if (aInit.mStatus < 200 || aInit.mStatus > 599) {
-    aRv.ThrowRangeError(MSG_INVALID_RESPONSE_STATUSCODE_ERROR);
+    aRv.Throw(NS_ERROR_RANGE_ERR);
     return nullptr;
   }
 
@@ -190,23 +135,19 @@ Response::Constructor(const GlobalObject& aGlobal,
   return r.forget();
 }
 
+// FIXME(nsm): Bug 1073231: This is currently unspecced!
 already_AddRefed<Response>
-Response::Clone(ErrorResult& aRv) const
+Response::Clone()
 {
-  if (BodyUsed()) {
-    aRv.ThrowTypeError(MSG_FETCH_BODY_CONSUMED_ERROR);
-    return nullptr;
-  }
-
-  nsRefPtr<InternalResponse> ir = mInternalResponse->Clone();
-  nsRefPtr<Response> response = new Response(mOwner, ir);
+  nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(mOwner);
+  nsRefPtr<Response> response = new Response(global, mInternalResponse);
   return response.forget();
 }
 
 void
 Response::SetBody(nsIInputStream* aBody)
 {
-  MOZ_ASSERT(!BodyUsed());
+  // FIXME(nsm): Do we flip bodyUsed here?
   mInternalResponse->SetBody(aBody);
 }
 
@@ -218,19 +159,6 @@ Response::Headers_()
   }
 
   return mHeaders;
-}
-
-void
-Response::SetFinalURL(bool aFinalURL, ErrorResult& aRv)
-{
-  nsCString url;
-  mInternalResponse->GetUrl(url);
-  if (url.IsEmpty()) {
-    aRv.ThrowTypeError(MSG_RESPONSE_URL_IS_NULL);
-    return;
-  }
-
-  mInternalResponse->SetFinalURL(aFinalURL);
 }
 } // namespace dom
 } // namespace mozilla

@@ -125,19 +125,10 @@ LIRGeneratorARM::visitBox(MBox *box)
 void
 LIRGeneratorARM::visitUnbox(MUnbox *unbox)
 {
-    MDefinition *inner = unbox->getOperand(0);
-
-    if (inner->type() == MIRType_ObjectOrNull) {
-        LUnboxObjectOrNull *lir = new(alloc()) LUnboxObjectOrNull(useRegisterAtStart(inner));
-        if (unbox->fallible())
-            assignSnapshot(lir, unbox->bailoutKind());
-        defineReuseInput(lir, unbox, 0);
-        return;
-    }
-
     // An unbox on arm reads in a type tag (either in memory or a register) and
-    // a payload. Unlike most instructions consuming a box, we ask for the type
+    // a payload. Unlike most instructions conusming a box, we ask for the type
     // second, so that the result can re-use the first input.
+    MDefinition *inner = unbox->getOperand(0);
     MOZ_ASSERT(inner->type() == MIRType_Value);
 
     ensureDefined(inner);
@@ -396,13 +387,13 @@ LIRGeneratorARM::visitGuardShape(MGuardShape *ins)
 }
 
 void
-LIRGeneratorARM::visitGuardObjectGroup(MGuardObjectGroup *ins)
+LIRGeneratorARM::visitGuardObjectType(MGuardObjectType *ins)
 {
     MOZ_ASSERT(ins->obj()->type() == MIRType_Object);
 
     LDefinition tempObj = temp(LDefinition::OBJECT);
-    LGuardObjectGroup *guard = new(alloc()) LGuardObjectGroup(useRegister(ins->obj()), tempObj);
-    assignSnapshot(guard, ins->bailoutKind());
+    LGuardObjectType *guard = new(alloc()) LGuardObjectType(useRegister(ins->obj()), tempObj);
+    assignSnapshot(guard, Bailout_ObjectIdentityOrTypeGuard);
     add(guard, ins);
     redefine(ins, ins->obj());
 }
@@ -653,7 +644,7 @@ LIRGeneratorARM::visitCompareExchangeTypedArrayElement(MCompareExchangeTypedArra
 void
 LIRGeneratorARM::visitAsmJSCompareExchangeHeap(MAsmJSCompareExchangeHeap *ins)
 {
-    MOZ_ASSERT(ins->accessType() < Scalar::Float32);
+    MOZ_ASSERT(ins->viewType() < Scalar::Float32);
 
     MDefinition *ptr = ins->ptr();
     MOZ_ASSERT(ptr->type() == MIRType_Int32);
@@ -669,7 +660,7 @@ LIRGeneratorARM::visitAsmJSCompareExchangeHeap(MAsmJSCompareExchangeHeap *ins)
 void
 LIRGeneratorARM::visitAsmJSAtomicBinopHeap(MAsmJSAtomicBinopHeap *ins)
 {
-    MOZ_ASSERT(ins->accessType() < Scalar::Float32);
+    MOZ_ASSERT(ins->viewType() < Scalar::Float32);
 
     MDefinition *ptr = ins->ptr();
     MOZ_ASSERT(ptr->type() == MIRType_Int32);

@@ -4,7 +4,11 @@
 
 const PREF_RESTORE_ON_DEMAND = "browser.sessionstore.restore_on_demand";
 
-add_task(function* test() {
+function test() {
+  TestRunner.run();
+}
+
+function runTests() {
   Services.prefs.setBoolPref(PREF_RESTORE_ON_DEMAND, false);
   registerCleanupFunction(function () {
     Services.prefs.clearUserPref(PREF_RESTORE_ON_DEMAND);
@@ -60,33 +64,32 @@ add_task(function* test() {
   let numTabs = state2.windows[0].tabs.length + state2.windows[1].tabs.length;
 
   let loadCount = 0;
-  let promiseRestoringTabs = new Promise(resolve => {
-    gProgressListener.setCallback(function (aBrowser, aNeedRestore, aRestoring, aRestored) {
-      loadCount++;
+  gProgressListener.setCallback(function (aBrowser, aNeedRestore, aRestoring, aRestored) {
+    loadCount++;
 
-      if (aBrowser.currentURI.spec == state1.windows[0].tabs[2].entries[0].url)
-        loadedWindow1 = true;
-      if (aBrowser.currentURI.spec == state1.windows[1].tabs[0].entries[0].url)
-        loadedWindow2 = true;
+    if (aBrowser.currentURI.spec == state1.windows[0].tabs[2].entries[0].url)
+      loadedWindow1 = true;
+    if (aBrowser.currentURI.spec == state1.windows[1].tabs[0].entries[0].url)
+      loadedWindow2 = true;
 
-      if (!interruptedAfter && loadedWindow1 && loadedWindow2) {
-        interruptedAfter = loadCount;
-        ss.setBrowserState(JSON.stringify(state2));
-        return;
-      }
+    if (!interruptedAfter && loadedWindow1 && loadedWindow2) {
+      interruptedAfter = loadCount;
+      ss.setBrowserState(JSON.stringify(state2));
+      return;
+    }
 
-      if (loadCount < numTabs + interruptedAfter)
-        return;
+    if (loadCount < numTabs + interruptedAfter)
+      return;
 
-      // We don't actually care about load order in this test, just that they all
-      // do load.
-      is(loadCount, numTabs + interruptedAfter, "all tabs were restored");
-      is(aNeedRestore, 0, "there are no tabs left needing restore");
+    // We don't actually care about load order in this test, just that they all
+    // do load.
+    is(loadCount, numTabs + interruptedAfter, "all tabs were restored");
+    is(aNeedRestore, 0, "there are no tabs left needing restore");
 
-      // Remove the progress listener.
-      gProgressListener.unsetCallback();
-      resolve();
-    });
+    // Remove the progress listener from this window, it will be removed from
+    // theWin when that window is closed (in setBrowserState).
+    gProgressListener.unsetCallback();
+    executeSoon(next);
   });
 
   // We also want to catch the extra windows (there should be 2), so we need to observe domwindowopened
@@ -101,11 +104,5 @@ add_task(function* test() {
     }
   });
 
-  let backupState = ss.getBrowserState();
-  ss.setBrowserState(JSON.stringify(state1));
-  yield promiseRestoringTabs;
-
-  // Cleanup.
-  yield promiseAllButPrimaryWindowClosed();
-  yield promiseBrowserState(backupState);
-});
+  yield ss.setBrowserState(JSON.stringify(state1));
+}

@@ -17,7 +17,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "CommonUtils", "resource://services-comm
 XPCOMUtils.defineLazyModuleGetter(this, "OS", "resource://gre/modules/osfile.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Task", "resource://gre/modules/Task.jsm");
 
-this.ReaderMode = {
+let ReaderMode = {
   // Version of the cache schema.
   CACHE_VERSION: 1,
 
@@ -61,8 +61,8 @@ this.ReaderMode = {
   },
 
   /**
-   * Gets an article from a loaded browser's document. This method will not attempt
-   * to parse certain URIs (e.g. about: URIs).
+   * Gets an article from a loaded browser's document. This method will parse the document
+   * if it does not find the article in the cache.
    *
    * @param doc A document to parse.
    * @return {Promise}
@@ -73,6 +73,13 @@ this.ReaderMode = {
     if (!this._shouldCheckUri(uri)) {
       this.log("Reader mode disabled for URI");
       return null;
+    }
+
+    // First, try to find a parsed article in the cache.
+    let article = yield this.getArticleFromCache(uri);
+    if (article) {
+      this.log("Page found in cache, return article immediately");
+      return article;
     }
 
     return yield this._readerParse(uri, doc);
@@ -128,13 +135,13 @@ this.ReaderMode = {
   /**
    * Retrieves an article from the cache given an article URI.
    *
-   * @param url The article URL.
+   * @param uri The article URI.
    * @return {Promise}
    * @resolves JS object representing the article, or null if no article is found.
    * @rejects OS.File.Error
    */
-  getArticleFromCache: Task.async(function* (url) {
-    let path = this._toHashedPath(url);
+  getArticleFromCache: Task.async(function* (uri) {
+    let path = this._toHashedPath(uri.specIgnoringRef);
     try {
       let array = yield OS.File.read(path);
       return JSON.parse(new TextDecoder().decode(array));
@@ -161,13 +168,13 @@ this.ReaderMode = {
   /**
    * Removes an article from the cache given an article URI.
    *
-   * @param url The article URL.
+   * @param uri The article URI.
    * @return {Promise}
    * @resolves When the article is removed.
    * @rejects OS.File.Error
    */
-  removeArticleFromCache: Task.async(function* (url) {
-    let path = this._toHashedPath(url);
+  removeArticleFromCache: Task.async(function* (uri) {
+    let path = this._toHashedPath(uri.specIgnoringRef);
     yield OS.File.remove(path);
   }),
 
@@ -218,10 +225,9 @@ this.ReaderMode = {
           return;
         }
 
-        // Readability returns a URI object, but we only care about the URL.
-        article.url = article.uri.spec;
-        delete article.uri;
-
+        // Append URL to the article data. specIgnoringRef will ignore any hash
+        // in the URL.
+        article.url = uri.specIgnoringRef;
         let flags = Ci.nsIDocumentEncoder.OutputSelectionOnly | Ci.nsIDocumentEncoder.OutputAbsoluteLinks;
         article.title = Cc["@mozilla.org/parserutils;1"].getService(Ci.nsIParserUtils)
                                                         .convertToPlainText(article.title, flags, 0);

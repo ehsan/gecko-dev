@@ -16,6 +16,7 @@
 namespace webrtc {
 namespace test {
 
+const std::string kOutputFilename = "temp_outputfile.tmp";
 const size_t kFrameLength = 1000;
 
 class FrameWriterTest: public testing::Test {
@@ -23,22 +24,21 @@ class FrameWriterTest: public testing::Test {
   FrameWriterTest() {}
   virtual ~FrameWriterTest() {}
   void SetUp() {
-    temp_filename_ = webrtc::test::TempFilename(webrtc::test::OutputPath(),
-                                                "frame_writer_unittest");
-    frame_writer_ = new FrameWriterImpl(temp_filename_, kFrameLength);
+    // Cleanup any previous output file.
+    remove(kOutputFilename.c_str());
+    frame_writer_ = new FrameWriterImpl(kOutputFilename, kFrameLength);
     ASSERT_TRUE(frame_writer_->Init());
   }
   void TearDown() {
     delete frame_writer_;
     // Cleanup the temporary file.
-    remove(temp_filename_.c_str());
+    remove(kOutputFilename.c_str());
   }
   FrameWriter* frame_writer_;
-  std::string temp_filename_;
 };
 
 TEST_F(FrameWriterTest, InitSuccess) {
-  FrameWriterImpl frame_writer(temp_filename_, kFrameLength);
+  FrameWriterImpl frame_writer(kOutputFilename, kFrameLength);
   ASSERT_TRUE(frame_writer.Init());
   ASSERT_EQ(kFrameLength, frame_writer.FrameLength());
 }
@@ -50,12 +50,12 @@ TEST_F(FrameWriterTest, WriteFrame) {
   ASSERT_TRUE(result);  // success
   // Close the file and verify the size.
   frame_writer_->Close();
-  ASSERT_EQ(kFrameLength, GetFileSize(temp_filename_));
+  ASSERT_EQ(kFrameLength, GetFileSize(kOutputFilename));
 }
 
 TEST_F(FrameWriterTest, WriteFrameUninitialized) {
   uint8_t buffer[3];
-  FrameWriterImpl frame_writer(temp_filename_, kFrameLength);
+  FrameWriterImpl frame_writer(kOutputFilename, kFrameLength);
   ASSERT_FALSE(frame_writer.WriteFrame(buffer));
 }
 

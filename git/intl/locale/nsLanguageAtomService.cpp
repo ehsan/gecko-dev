@@ -5,24 +5,31 @@
 
 #include "nsLanguageAtomService.h"
 #include "nsILocaleService.h"
-#include "nsUConvPropertySearch.h"
 #include "nsUnicharUtils.h"
 #include "nsIAtom.h"
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/Services.h"
 #include "nsServiceManagerUtils.h"
 #include "mozilla/dom/EncodingUtils.h"
-
-using namespace mozilla;
-
-static const char* kLangGroups[][3] = {
-#include "langGroups.properties.h"
-};
 
 NS_IMPL_ISUPPORTS(nsLanguageAtomService, nsILanguageAtomService)
 
 nsLanguageAtomService::nsLanguageAtomService()
 {
+}
+
+nsresult
+nsLanguageAtomService::InitLangGroupTable()
+{
+  if (mLangGroups)
+    return NS_OK;
+
+  nsCOMPtr<nsIStringBundleService> bundleService =
+    mozilla::services::GetStringBundleService();
+  if (!bundleService)
+    return NS_ERROR_FAILURE;
+
+  return bundleService->CreateBundle("resource://gre/res/langGroups.properties",
+                                     getter_AddRefs(mLangGroups));
 }
 
 nsIAtom*
@@ -89,13 +96,21 @@ nsLanguageAtomService::GetLanguageGroup(nsIAtom *aLanguage,
   retVal = mLangToGroup.GetWeak(aLanguage);
 
   if (!retVal) {
-    nsAutoCString langStr;
-    aLanguage->ToUTF8String(langStr);
+    if (!mLangGroups) {
+      if (NS_FAILED(InitLangGroupTable())) {
+        if (aError) {
+          *aError = NS_ERROR_FAILURE;
+        }
+        return nullptr;
+      }
+    }
 
-    nsAutoCString langGroupStr;
-    res = nsUConvPropertySearch::SearchPropertyValue(kLangGroups,
-                                                     ArrayLength(kLangGroups),
-                                                     langStr, langGroupStr);
+    nsAutoString langStr;
+    aLanguage->ToString(langStr);
+
+    nsXPIDLString langGroupStr;
+    res = mLangGroups->GetStringFromName(langStr.get(),
+                                         getter_Copies(langGroupStr));
     while (NS_FAILED(res)) {
       int32_t hyphen = langStr.RFindChar('-');
       if (hyphen <= 0) {
@@ -103,9 +118,8 @@ nsLanguageAtomService::GetLanguageGroup(nsIAtom *aLanguage,
         break;
       }
       langStr.Truncate(hyphen);
-      res = nsUConvPropertySearch::SearchPropertyValue(kLangGroups,
-                                                       ArrayLength(kLangGroups),
-                                                       langStr, langGroupStr);
+      res = mLangGroups->GetStringFromName(langStr.get(),
+                                           getter_Copies(langGroupStr));
     }
 
     nsCOMPtr<nsIAtom> langGroup = do_GetAtom(langGroupStr);

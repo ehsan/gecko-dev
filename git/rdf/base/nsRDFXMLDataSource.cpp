@@ -158,118 +158,118 @@ public:
                                              nsIRDFDataSource)
 
     // nsIRDFDataSource
-    NS_IMETHOD GetURI(char* *uri) MOZ_OVERRIDE;
+    NS_IMETHOD GetURI(char* *uri);
 
     NS_IMETHOD GetSource(nsIRDFResource* property,
                          nsIRDFNode* target,
                          bool tv,
-                         nsIRDFResource** source) MOZ_OVERRIDE {
+                         nsIRDFResource** source) {
         return mInner->GetSource(property, target, tv, source);
     }
 
     NS_IMETHOD GetSources(nsIRDFResource* property,
                           nsIRDFNode* target,
                           bool tv,
-                          nsISimpleEnumerator** sources) MOZ_OVERRIDE {
+                          nsISimpleEnumerator** sources) {
         return mInner->GetSources(property, target, tv, sources);
     }
 
     NS_IMETHOD GetTarget(nsIRDFResource* source,
                          nsIRDFResource* property,
                          bool tv,
-                         nsIRDFNode** target) MOZ_OVERRIDE {
+                         nsIRDFNode** target) {
         return mInner->GetTarget(source, property, tv, target);
     }
 
     NS_IMETHOD GetTargets(nsIRDFResource* source,
                           nsIRDFResource* property,
                           bool tv,
-                          nsISimpleEnumerator** targets) MOZ_OVERRIDE {
+                          nsISimpleEnumerator** targets) {
         return mInner->GetTargets(source, property, tv, targets);
     }
 
     NS_IMETHOD Assert(nsIRDFResource* aSource,
                       nsIRDFResource* aProperty,
                       nsIRDFNode* aTarget,
-                      bool tv) MOZ_OVERRIDE;
+                      bool tv);
 
     NS_IMETHOD Unassert(nsIRDFResource* source,
                         nsIRDFResource* property,
-                        nsIRDFNode* target) MOZ_OVERRIDE;
+                        nsIRDFNode* target);
 
     NS_IMETHOD Change(nsIRDFResource* aSource,
                       nsIRDFResource* aProperty,
                       nsIRDFNode* aOldTarget,
-                      nsIRDFNode* aNewTarget) MOZ_OVERRIDE;
+                      nsIRDFNode* aNewTarget);
 
     NS_IMETHOD Move(nsIRDFResource* aOldSource,
                     nsIRDFResource* aNewSource,
                     nsIRDFResource* aProperty,
-                    nsIRDFNode* aTarget) MOZ_OVERRIDE;
+                    nsIRDFNode* aTarget);
 
     NS_IMETHOD HasAssertion(nsIRDFResource* source,
                             nsIRDFResource* property,
                             nsIRDFNode* target,
                             bool tv,
-                            bool* hasAssertion) MOZ_OVERRIDE {
+                            bool* hasAssertion) {
         return mInner->HasAssertion(source, property, target, tv, hasAssertion);
     }
 
-    NS_IMETHOD AddObserver(nsIRDFObserver* aObserver) MOZ_OVERRIDE {
+    NS_IMETHOD AddObserver(nsIRDFObserver* aObserver) {
         return mInner->AddObserver(aObserver);
     }
 
-    NS_IMETHOD RemoveObserver(nsIRDFObserver* aObserver) MOZ_OVERRIDE {
+    NS_IMETHOD RemoveObserver(nsIRDFObserver* aObserver) {
         return mInner->RemoveObserver(aObserver);
     }
 
-    NS_IMETHOD HasArcIn(nsIRDFNode *aNode, nsIRDFResource *aArc, bool *_retval) MOZ_OVERRIDE {
+    NS_IMETHOD HasArcIn(nsIRDFNode *aNode, nsIRDFResource *aArc, bool *_retval) {
         return mInner->HasArcIn(aNode, aArc, _retval);
     }
 
-    NS_IMETHOD HasArcOut(nsIRDFResource *aSource, nsIRDFResource *aArc, bool *_retval) MOZ_OVERRIDE {
+    NS_IMETHOD HasArcOut(nsIRDFResource *aSource, nsIRDFResource *aArc, bool *_retval) {
         return mInner->HasArcOut(aSource, aArc, _retval);
     }
 
     NS_IMETHOD ArcLabelsIn(nsIRDFNode* node,
-                           nsISimpleEnumerator** labels) MOZ_OVERRIDE {
+                           nsISimpleEnumerator** labels) {
         return mInner->ArcLabelsIn(node, labels);
     }
 
     NS_IMETHOD ArcLabelsOut(nsIRDFResource* source,
-                            nsISimpleEnumerator** labels) MOZ_OVERRIDE {
+                            nsISimpleEnumerator** labels) {
         return mInner->ArcLabelsOut(source, labels);
     }
 
-    NS_IMETHOD GetAllResources(nsISimpleEnumerator** aResult) MOZ_OVERRIDE {
+    NS_IMETHOD GetAllResources(nsISimpleEnumerator** aResult) {
         return mInner->GetAllResources(aResult);
     }
 
     NS_IMETHOD GetAllCmds(nsIRDFResource* source,
-                              nsISimpleEnumerator/*<nsIRDFResource>*/** commands) MOZ_OVERRIDE {
+                              nsISimpleEnumerator/*<nsIRDFResource>*/** commands) {
         return mInner->GetAllCmds(source, commands);
     }
 
     NS_IMETHOD IsCommandEnabled(nsISupportsArray/*<nsIRDFResource>*/* aSources,
                                 nsIRDFResource*   aCommand,
                                 nsISupportsArray/*<nsIRDFResource>*/* aArguments,
-                                bool* aResult) MOZ_OVERRIDE {
+                                bool* aResult) {
         return mInner->IsCommandEnabled(aSources, aCommand, aArguments, aResult);
     }
 
     NS_IMETHOD DoCommand(nsISupportsArray/*<nsIRDFResource>*/* aSources,
                          nsIRDFResource*   aCommand,
-                         nsISupportsArray/*<nsIRDFResource>*/* aArguments) MOZ_OVERRIDE {
+                         nsISupportsArray/*<nsIRDFResource>*/* aArguments) {
         // XXX Uh oh, this could cause problems wrt. the "dirty" flag
         // if it changes the in-memory store's internal state.
         return mInner->DoCommand(aSources, aCommand, aArguments);
     }
 
-    NS_IMETHOD BeginUpdateBatch() MOZ_OVERRIDE {
+    NS_IMETHOD BeginUpdateBatch() {
         return mInner->BeginUpdateBatch();
     }
 
-    NS_IMETHOD EndUpdateBatch() MOZ_OVERRIDE {
+    NS_IMETHOD EndUpdateBatch() {
         return mInner->EndUpdateBatch();
     }
 
@@ -295,14 +295,14 @@ public:
     NS_DECL_NSICHANNELEVENTSINK
 
     // rdfIDataSource
-    NS_IMETHOD VisitAllSubjects(rdfITripleVisitor *aVisitor) MOZ_OVERRIDE {
+    NS_IMETHOD VisitAllSubjects(rdfITripleVisitor *aVisitor) {
         nsresult rv;
         nsCOMPtr<rdfIDataSource> rdfds = do_QueryInterface(mInner, &rv);
         if (NS_FAILED(rv)) return rv;
         return rdfds->VisitAllSubjects(aVisitor);
     } 
 
-    NS_IMETHOD VisitAllTriples(rdfITripleVisitor *aVisitor) MOZ_OVERRIDE {
+    NS_IMETHOD VisitAllTriples(rdfITripleVisitor *aVisitor) {
         nsresult rv;
         nsCOMPtr<rdfIDataSource> rdfds = do_QueryInterface(mInner, &rv);
         if (NS_FAILED(rv)) return rv;

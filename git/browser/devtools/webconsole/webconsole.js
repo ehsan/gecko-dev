@@ -105,14 +105,14 @@ const SEVERITY_CLASS_FRAGMENTS = [
 // Most of these rather idiosyncratic names are historical and predate the
 // division of message type into "category" and "severity".
 const MESSAGE_PREFERENCE_KEYS = [
-//  Error         Warning       Info       Log
-  [ "network",    "netwarn",    "netxhr",  "networkinfo", ],  // Network
-  [ "csserror",   "cssparser",  null,      "csslog",      ],  // CSS
-  [ "exception",  "jswarn",     null,      "jslog",       ],  // JS
-  [ "error",      "warn",       "info",    "log",         ],  // Web Developer
-  [ null,         null,         null,      null,          ],  // Input
-  [ null,         null,         null,      null,          ],  // Output
-  [ "secerror",   "secwarn",    null,      null,          ],  // Security
+//  Error         Warning       Info      Log
+  [ "network",    "netwarn",    null,     "networkinfo", ],  // Network
+  [ "csserror",   "cssparser",  null,     "csslog",      ],  // CSS
+  [ "exception",  "jswarn",     null,     "jslog",       ],  // JS
+  [ "error",      "warn",       "info",   "log",         ],  // Web Developer
+  [ null,         null,         null,     null,          ],  // Input
+  [ null,         null,         null,     null,          ],  // Output
+  [ "secerror",   "secwarn",    null,     null,          ],  // Security
 ];
 
 // A mapping from the console API log event levels to the Web Console
@@ -547,29 +547,25 @@ WebConsoleFrame.prototype = {
       });
     }
 
-    let saveBodiesDisabled = !this.getFilterState("networkinfo") &&
-                             !this.getFilterState("netxhr") &&
-                             !this.getFilterState("network");
-
     let saveBodies = doc.getElementById("saveBodies");
     saveBodies.addEventListener("command", reverseSaveBodiesPref);
-    saveBodies.disabled = saveBodiesDisabled;
+    saveBodies.disabled = !this.getFilterState("networkinfo") &&
+                          !this.getFilterState("network");
 
     let saveBodiesContextMenu = doc.getElementById("saveBodiesContextMenu");
     saveBodiesContextMenu.addEventListener("command", reverseSaveBodiesPref);
-    saveBodiesContextMenu.disabled = saveBodiesDisabled;
+    saveBodiesContextMenu.disabled = !this.getFilterState("networkinfo") &&
+                                     !this.getFilterState("network");
 
     saveBodies.parentNode.addEventListener("popupshowing", () => {
       updateSaveBodiesPrefUI(saveBodies);
       saveBodies.disabled = !this.getFilterState("networkinfo") &&
-                            !this.getFilterState("netxhr") &&
                             !this.getFilterState("network");
     });
 
     saveBodiesContextMenu.parentNode.addEventListener("popupshowing", () => {
       updateSaveBodiesPrefUI(saveBodiesContextMenu);
       saveBodiesContextMenu.disabled = !this.getFilterState("networkinfo") &&
-                                       !this.getFilterState("netxhr") &&
                                        !this.getFilterState("network");
     });
 
@@ -628,7 +624,7 @@ WebConsoleFrame.prototype = {
   {
     let prefs = ["network", "networkinfo", "csserror", "cssparser", "csslog",
                  "exception", "jswarn", "jslog", "error", "info", "warn", "log",
-                 "secerror", "secwarn", "netwarn", "netxhr"];
+                 "secerror", "secwarn", "netwarn"];
     for (let pref of prefs) {
       this.filterPrefs[pref] = Services.prefs
                                .getBoolPref(this._filterPrefsPrefix + pref);
@@ -887,9 +883,8 @@ WebConsoleFrame.prototype = {
         this.setFilterState(prefKey, state);
 
         // Disable the log response and request body if network logging is off.
-        if (prefKey == "networkinfo" || prefKey == "netxhr" || prefKey == "network") {
+        if (prefKey == "networkinfo" || prefKey == "network") {
           let checkState = !this.getFilterState("networkinfo") &&
-                           !this.getFilterState("netxhr") &&
                            !this.getFilterState("network");
           this.document.getElementById("saveBodies").disabled = checkState;
           this.document.getElementById("saveBodiesContextMenu").disabled = checkState;
@@ -1498,10 +1493,6 @@ WebConsoleFrame.prototype = {
     let request = networkInfo.request;
     let clipboardText = request.method + " " + request.url;
     let severity = SEVERITY_LOG;
-    if (networkInfo.isXHR) {
-      clipboardText = request.method + " XHR " + request.url;
-      severity = SEVERITY_INFO;
-    }
     let mixedRequest =
       WebConsoleUtils.isMixedHTTPSRequest(request.url, this.contentLocation);
     if (mixedRequest) {
@@ -1523,14 +1514,6 @@ WebConsoleFrame.prototype = {
 
     let body = methodNode.parentNode;
     body.setAttribute("aria-haspopup", true);
-
-    if (networkInfo.isXHR) {
-      let xhrNode = this.document.createElementNS(XHTML_NS, "span");
-      xhrNode.className = "xhr";
-      xhrNode.textContent = l10n.getStr("webConsoleXhrIndicator");
-      body.appendChild(xhrNode);
-      body.appendChild(this.document.createTextNode(" "));
-    }
 
     let displayUrl = request.url;
     let pos = displayUrl.indexOf("?");
@@ -1767,7 +1750,6 @@ WebConsoleFrame.prototype = {
         url: aActor.url,
         method: aActor.method,
       },
-      isXHR: aActor.isXHR,
       response: {},
       timings: {},
       updates: [], // track the list of network event updates
@@ -1864,7 +1846,6 @@ WebConsoleFrame.prototype = {
     let hasEventTimings = updates.indexOf("eventTimings") > -1;
     let hasResponseStart = updates.indexOf("responseStart") > -1;
     let request = networkInfo.request;
-    let methodText = (networkInfo.isXHR)? request.method + ' XHR' : request.method;
     let response = networkInfo.response;
     let updated = false;
 
@@ -1882,7 +1863,7 @@ WebConsoleFrame.prototype = {
       let statusNode = messageNode.getElementsByClassName("status")[0];
       statusNode.textContent = statusText;
 
-      messageNode.clipboardText = [methodText, request.url, statusText]
+      messageNode.clipboardText = [request.method, request.url, statusText]
                                   .join(" ");
 
       if (hasResponseStart && response.status >= MIN_HTTP_ERROR_CODE &&
@@ -2861,9 +2842,6 @@ WebConsoleFrame.prototype = {
    *        - linkOnly:
    *        An optional flag to copy only URL without timestamp and
    *        other meta-information. Default is false.
-   *        - contextmenu:
-   *        An optional flag to copy the last clicked item which brought
-   *        up the context menu if nothing is selected. Default is false.
    */
   copySelectedItems: function WCF_copySelectedItems(aOptions)
   {
@@ -2886,7 +2864,7 @@ WebConsoleFrame.prototype = {
           strings.push(item.url);
         }
         else {
-          strings.push(item.clipboardText);
+          strings.push("[" + timestampString + "] " + item.clipboardText);
         }
       }
     }
@@ -3292,9 +3270,6 @@ JSTerm.prototype = {
         case "help":
           this.hud.owner.openLink(HELP_URL);
           break;
-        case "copyValueToClipboard":
-          clipboardHelper.copyString(helperResult.value);
-          break;
       }
     }
 
@@ -3577,8 +3552,8 @@ JSTerm.prototype = {
       deferred.resolve(window);
     };
 
-    let tabPanel = this.sidebar.getTabPanel("variablesview");
-    if (tabPanel) {
+    let tab = this.sidebar.getTab("variablesview");
+    if (tab) {
       if (this.sidebar.getCurrentTabID() == "variablesview") {
         onTabReady();
       }
@@ -4808,14 +4783,6 @@ CommandController.prototype = {
     this.owner.copySelectedItems({ linkOnly: true, contextmenu: true });
   },
 
-  /**
-   * Copies the last clicked message.
-   */
-  copyLastClicked: function CommandController_copy()
-  {
-    this.owner.copySelectedItems({ linkOnly: false, contextmenu: true });
-  },
-
   supportsCommand: function CommandController_supportsCommand(aCommand)
   {
     if (!this.owner || !this.owner.output) {
@@ -4833,12 +4800,6 @@ CommandController.prototype = {
         let selectedItem = this.owner.output.getSelectedMessages(1)[0] ||
                            this.owner._contextMenuHandler.lastClickedMessage;
         return selectedItem && "url" in selectedItem;
-      }
-      case "cmd_copy": {
-        // Only copy if we right-clicked the console and there's no selected text.
-        // With text selected, we want to fall back onto the default copy behavior.
-        return this.owner._contextMenuHandler.lastClickedMessage &&
-              !this.owner.output.getSelectedMessages(1)[0];
       }
       case "consoleCmd_clearOutput":
       case "cmd_selectAll":
@@ -4864,9 +4825,6 @@ CommandController.prototype = {
         break;
       case "consoleCmd_clearOutput":
         this.owner.jsterm.clearOutput(true);
-        break;
-      case "cmd_copy":
-        this.copyLastClicked();
         break;
       case "cmd_find":
         this.owner.filterBox.focus();

@@ -8,8 +8,8 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/video_render/mac/cocoa_full_screen_window.h"
-#include "webrtc/system_wrappers/interface/trace.h"
+#import "cocoa_full_screen_window.h"
+#include "trace.h"
 
 using namespace webrtc;
 

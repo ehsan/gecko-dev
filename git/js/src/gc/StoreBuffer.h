@@ -19,6 +19,10 @@
 #include "js/MemoryMetrics.h"
 
 namespace js {
+
+MOZ_NORETURN void
+CrashAtUnhandlableOOM(const char *reason);
+
 namespace gc {
 
 /*
@@ -477,6 +481,9 @@ class StoreBuffer
     void markRelocatableValues(JSTracer *trc) { bufferRelocVal.mark(this, trc); }
     void markRelocatableCells(JSTracer *trc)  { bufferRelocCell.mark(this, trc); }
     void markGenericEntries(JSTracer *trc)    { bufferGeneric.mark(this, trc); }
+
+    /* We cannot call InParallelSection directly because of a circular dependency. */
+    bool inParallelSection() const;
 
     /* For use by our owned buffers and for testing. */
     void setAboutToOverflow();

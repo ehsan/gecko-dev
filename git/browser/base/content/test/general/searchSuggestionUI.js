@@ -28,7 +28,14 @@ let messageHandlers = {
   },
 
   startComposition: function (arg) {
-    content.synthesizeComposition({ type: "compositionstart", data: "" });
+    let data = typeof(arg) == "string" ? arg : arg.data;
+    content.synthesizeComposition({ type: "compositionstart", data: data });
+    ack();
+  },
+
+  updateComposition: function (arg) {
+    let data = typeof(arg) == "string" ? arg : arg.data;
+    content.synthesizeComposition({ type: "compositionupdate", data: data });
     ack();
   },
 
@@ -38,7 +45,7 @@ let messageHandlers = {
       composition: {
         string: data,
         clauses: [
-          { length: data.length, attr: content.COMPOSITION_ATTR_RAW_CLAUSE }
+          { length: data.length, attr: content.COMPOSITION_ATTR_RAWINPUT }
         ]
       },
       caret: { start: data.length, length: 0 }

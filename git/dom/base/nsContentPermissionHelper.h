@@ -117,7 +117,7 @@ public:
 
   // It will be called when prompt dismissed.
   virtual bool Recv__delete__(const bool &aAllow,
-                              InfallibleTArray<PermissionChoice>&& aChoices) MOZ_OVERRIDE;
+                              const nsTArray<PermissionChoice>& aChoices) MOZ_OVERRIDE;
 
   void IPDLAddRef()
   {
@@ -146,4 +146,3 @@ private:
 };
 
 #endif // nsContentPermissionHelper_h
-

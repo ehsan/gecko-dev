@@ -39,16 +39,17 @@ function test() {
     // Close Library window.
     organizer.close();
     // Clean up history.
-    PlacesTestUtils.clearHistory().then(finish);
+    waitForClearHistory(finish);
   }
 
   waitForExplicitFinish();
   // Add an history entry.
   ok(PlacesUtils, "checking PlacesUtils, running in chrome context?");
-  PlacesTestUtils.addVisits(
+  addVisits(
     {uri: PlacesUtils._uri(TEST_URI), visitDate: Date.now() * 1000,
-      transition: PlacesUtils.history.TRANSITION_TYPED}
-    ).then(() => {
+      transition: PlacesUtils.history.TRANSITION_TYPED},
+    window,
+    function() {
       openLibrary(onLibraryReady);
     });
 }

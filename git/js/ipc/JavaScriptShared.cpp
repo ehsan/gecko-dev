@@ -93,7 +93,7 @@ ObjectToIdMap::ObjectToIdMap()
 ObjectToIdMap::~ObjectToIdMap()
 {
     if (table_) {
-        dom::AddForDeferredFinalization<Table>(table_);
+        dom::AddForDeferredFinalization<Table, nsAutoPtr>(table_);
         table_ = nullptr;
     }
 }
@@ -672,8 +672,7 @@ JavaScriptShared::fromObjectOrNullVariant(JSContext *cx, ObjectOrNullVariant obj
     return fromObjectVariant(cx, objVar.get_ObjectVariant());
 }
 
-CrossProcessCpowHolder::CrossProcessCpowHolder(dom::CPOWManagerGetter *managerGetter,
-                                               const InfallibleTArray<CpowEntry> &cpows)
+CpowIdHolder::CpowIdHolder(dom::CPOWManagerGetter *managerGetter, const InfallibleTArray<CpowEntry> &cpows)
   : js_(nullptr),
     cpows_(cpows)
 {
@@ -683,7 +682,7 @@ CrossProcessCpowHolder::CrossProcessCpowHolder(dom::CPOWManagerGetter *managerGe
 }
 
 bool
-CrossProcessCpowHolder::ToObject(JSContext *cx, JS::MutableHandleObject objp)
+CpowIdHolder::ToObject(JSContext *cx, JS::MutableHandleObject objp)
 {
     if (!cpows_.Length())
         return true;
@@ -700,7 +699,7 @@ JavaScriptShared::Unwrap(JSContext *cx, const InfallibleTArray<CpowEntry> &aCpow
     if (!aCpows.Length())
         return true;
 
-    RootedObject obj(cx, JS_NewPlainObject(cx));
+    RootedObject obj(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
     if (!obj)
         return false;
 
@@ -757,16 +756,4 @@ JavaScriptShared::Wrap(JSContext *cx, HandleObject aObj, InfallibleTArray<CpowEn
     }
 
     return true;
-}
-
-CPOWManager*
-mozilla::jsipc::CPOWManagerFor(PJavaScriptParent* aParent)
-{
-    return static_cast<JavaScriptParent *>(aParent);
-}
-
-CPOWManager*
-mozilla::jsipc::CPOWManagerFor(PJavaScriptChild* aChild)
-{
-    return static_cast<JavaScriptChild *>(aChild);
 }

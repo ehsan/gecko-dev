@@ -1253,7 +1253,6 @@ void MediaDecoderStateMachine::UpdatePlaybackPositionInternal(int64_t aTime)
   if (aTime > mEndTime) {
     NS_ASSERTION(mCurrentFrameTime > GetDuration(),
                  "CurrentTime must be after duration if aTime > endTime!");
-    DECODER_LOG("Setting new end time to %lld", aTime);
     mEndTime = aTime;
     nsCOMPtr<nsIRunnable> event =
       NS_NewRunnableMethod(mDecoder, &MediaDecoder::DurationChanged);
@@ -1398,21 +1397,6 @@ int64_t MediaDecoderStateMachine::GetEndTime()
   return mEndTime;
 }
 
-// Runnable which dispatches an event to the main thread to seek to the new
-// aSeekTarget.
-class SeekRunnable : public nsRunnable {
-public:
-  SeekRunnable(MediaDecoder* aDecoder, double aSeekTarget)
-    : mDecoder(aDecoder), mSeekTarget(aSeekTarget) {}
-  NS_IMETHOD Run() {
-    mDecoder->Seek(mSeekTarget, SeekTarget::Accurate);
-    return NS_OK;
-  }
-private:
-  nsRefPtr<MediaDecoder> mDecoder;
-  double mSeekTarget;
-};
-
 void MediaDecoderStateMachine::SetDuration(int64_t aDuration)
 {
   NS_ASSERTION(NS_IsMainThread() || OnDecodeThread(),
@@ -1436,21 +1420,6 @@ void MediaDecoderStateMachine::SetDuration(int64_t aDuration)
   }
 
   mEndTime = mStartTime + aDuration;
-
-  if (mDecoder && mEndTime >= 0 && mEndTime < mCurrentFrameTime) {
-    // The current playback position is now past the end of the element duration
-    // the user agent must also seek to the time of the end of the media
-    // resource.
-    if (NS_IsMainThread()) {
-      // Seek synchronously.
-      mDecoder->Seek(double(mEndTime) / USECS_PER_S, SeekTarget::Accurate);
-    } else {
-      // Queue seek to new end position.
-      nsCOMPtr<nsIRunnable> task =
-        new SeekRunnable(mDecoder, double(mEndTime) / USECS_PER_S);
-      NS_DispatchToMainThread(task);
-    }
-  }
 }
 
 void MediaDecoderStateMachine::UpdateEstimatedDuration(int64_t aDuration)
@@ -2599,16 +2568,7 @@ MediaDecoderStateMachine::SeekCompleted()
     newCurrentTime = mAudioStartTime = seekTime;
   } else if (HasAudio()) {
     AudioData* audio = AudioQueue().PeekFront();
-    // Though we adjust the newCurrentTime in audio-based, and supplemented
-    // by video. For better UX, should NOT bind the slide position to
-    // the first audio data timestamp directly.
-    // While seeking to a position where there's only either audio or video, or
-    // seeking to a position lies before audio or video, we need to check if
-    // seekTime is bounded in suitable duration. See Bug 1112438.
-    int64_t videoStart = video ? video->mTime : seekTime;
-    int64_t audioStart = audio ? audio->mTime : seekTime;
-    newCurrentTime = mAudioStartTime =
-        std::min(std::min(audioStart, videoStart), seekTime);
+    newCurrentTime = mAudioStartTime = audio ? audio->mTime : seekTime;
   } else {
     newCurrentTime = video ? video->mTime : seekTime;
   }

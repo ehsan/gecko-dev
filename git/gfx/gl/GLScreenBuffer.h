@@ -46,7 +46,6 @@ protected:
     GLContext* const mGL;
 public:
     const gfx::IntSize mSize;
-    const GLsizei mSamples;
     const GLuint mFB;
 protected:
     const GLuint mColorMSRB;
@@ -55,14 +54,12 @@ protected:
 
     DrawBuffer(GLContext* gl,
                const gfx::IntSize& size,
-               GLsizei samples,
                GLuint fb,
                GLuint colorMSRB,
                GLuint depthRB,
                GLuint stencilRB)
         : mGL(gl)
         , mSize(size)
-        , mSamples(samples)
         , mFB(fb)
         , mColorMSRB(colorMSRB)
         , mDepthRB(depthRB)
@@ -116,8 +113,6 @@ public:
     SharedSurface* SharedSurf() const {
         return mSurf;
     }
-
-    void SetReadBuffer(GLenum mode) const;
 };
 
 
@@ -144,8 +139,6 @@ protected:
 
     bool mNeedsBlit;
 
-    GLenum mUserReadBufferMode;
-
     // Below are the parts that help us pretend to be framebuffer 0:
     GLuint mUserDrawFB;
     GLuint mUserReadFB;
@@ -164,7 +157,6 @@ protected:
         , mCaps(caps)
         , mFactory(Move(factory))
         , mNeedsBlit(true)
-        , mUserReadBufferMode(LOCAL_GL_BACK)
         , mUserDrawFB(0)
         , mUserReadFB(0)
         , mInternalDrawFB(0)
@@ -206,13 +198,6 @@ public:
         return mRead->mFB;
     }
 
-    GLsizei Samples() const {
-        if (!mDraw)
-            return 1;
-
-        return mDraw->mSamples;
-    }
-
     void DeletingFB(GLuint fb);
 
     const gfx::IntSize& Size() const {
@@ -227,8 +212,6 @@ public:
     void AssureBlitted();
     void AfterDrawCall();
     void BeforeReadCall();
-
-    void SetReadBuffer(GLenum userMode);
 
     /**
      * Attempts to read pixels from the current bound framebuffer, if
@@ -251,6 +234,8 @@ public:
     bool PublishFrame(const gfx::IntSize& size);
 
     bool Resize(const gfx::IntSize& size);
+
+    void Readback(SharedSurface* src, gfx::DataSourceSurface* dest);
 
 protected:
     bool Attach(SharedSurface* surf, const gfx::IntSize& size);

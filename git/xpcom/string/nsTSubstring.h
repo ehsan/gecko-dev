@@ -43,7 +43,7 @@ public:
   }
 
   virtual int operator()(const char_type*, const char_type*,
-                         uint32_t, uint32_t) const MOZ_OVERRIDE;
+                         uint32_t, uint32_t) const;
 };
 
 /**
@@ -176,9 +176,9 @@ public:
     return aIter = BeginWriting();
   }
 
-  char_iterator& BeginWriting(char_iterator& aIter, const fallible_t& aFallible)
+  char_iterator& BeginWriting(char_iterator& aIter, const fallible_t&)
   {
-    return aIter = BeginWriting(aFallible);
+    return aIter = BeginWriting(fallible_t());
   }
 
   char_iterator& EndWriting(char_iterator& aIter)
@@ -186,9 +186,9 @@ public:
     return aIter = EndWriting();
   }
 
-  char_iterator& EndWriting(char_iterator& aIter, const fallible_t& aFallible)
+  char_iterator& EndWriting(char_iterator& aIter, const fallible_t&)
   {
-    return aIter = EndWriting(aFallible);
+    return aIter = EndWriting(fallible_t());
   }
 
   /**
@@ -380,10 +380,9 @@ public:
     Assign(static_cast<const char16_t*>(aData));
   }
 
-  NS_WARN_UNUSED_RESULT bool Assign(char16ptr_t aData,
-                                    const fallible_t& aFallible)
+  NS_WARN_UNUSED_RESULT bool Assign(char16ptr_t aData, const fallible_t&)
   {
-    return Assign(static_cast<const char16_t*>(aData), aFallible);
+    return Assign(static_cast<const char16_t*>(aData), fallible_t());
   }
 
   void Assign(char16ptr_t aData, size_type aLength)
@@ -392,10 +391,9 @@ public:
   }
 
   NS_WARN_UNUSED_RESULT bool Assign(char16ptr_t aData, size_type aLength,
-                                    const fallible_t& aFallible)
+                                    const fallible_t&)
   {
-    return Assign(static_cast<const char16_t*>(aData), aLength,
-                  aFallible);
+    return Assign(static_cast<const char16_t*>(aData), aLength, fallible_t());
   }
 #endif
 
@@ -409,11 +407,11 @@ public:
     AssignASCII(aData, mozilla::AssertedCast<size_type, size_t>(strlen(aData)));
   }
   NS_WARN_UNUSED_RESULT bool NS_FASTCALL AssignASCII(const char* aData,
-                                                     const fallible_t& aFallible)
+                                                     const fallible_t&)
   {
     return AssignASCII(aData,
                        mozilla::AssertedCast<size_type, size_t>(strlen(aData)),
-                       aFallible);
+                       fallible_t());
   }
 
   // AssignLiteral must ONLY be applied to an actual literal string, or
@@ -475,7 +473,7 @@ public:
   NS_WARN_UNUSED_RESULT bool NS_FASTCALL Replace(index_type aCutStart,
                                                  size_type aCutLength,
                                                  char_type aChar,
-                                                 const fallible_t&);
+                                                 const mozilla::fallible_t&);
   void NS_FASTCALL Replace(index_type aCutStart, size_type aCutLength,
                            const char_type* aData,
                            size_type aLength = size_type(-1));
@@ -483,7 +481,7 @@ public:
                                                  size_type aCutLength,
                                                  const char_type* aData,
                                                  size_type aLength,
-                                                 const fallible_t&);
+                                                 const mozilla::fallible_t&);
   void Replace(index_type aCutStart, size_type aCutLength,
                const self_type& aStr)
   {
@@ -492,10 +490,10 @@ public:
   NS_WARN_UNUSED_RESULT bool Replace(index_type aCutStart,
                                      size_type aCutLength,
                                      const self_type& aStr,
-                                     const fallible_t& aFallible)
+                                     const mozilla::fallible_t&)
   {
     return Replace(aCutStart, aCutLength, aStr.Data(), aStr.Length(),
-                   aFallible);
+                   mozilla::fallible_t());
   }
   void NS_FASTCALL Replace(index_type aCutStart, size_type aCutLength,
                            const substring_tuple_type& aTuple);
@@ -519,18 +517,18 @@ public:
     Replace(mLength, 0, aChar);
   }
   NS_WARN_UNUSED_RESULT bool Append(char_type aChar,
-                                    const fallible_t& aFallible)
+                                    const mozilla::fallible_t&)
   {
-    return Replace(mLength, 0, aChar, aFallible);
+    return Replace(mLength, 0, aChar, mozilla::fallible_t());
   }
   void Append(const char_type* aData, size_type aLength = size_type(-1))
   {
     Replace(mLength, 0, aData, aLength);
   }
   NS_WARN_UNUSED_RESULT bool Append(const char_type* aData, size_type aLength,
-                                    const fallible_t& aFallible)
+                                    const mozilla::fallible_t&)
   {
-    return Replace(mLength, 0, aData, aLength, aFallible);
+    return Replace(mLength, 0, aData, aLength, mozilla::fallible_t());
   }
 
 #if defined(CharT_is_PRUnichar) && defined(MOZ_USE_CHAR16_WRAPPER)
@@ -768,11 +766,10 @@ public:
     return GetMutableData(reinterpret_cast<char16_t**>(aData), aNewLen);
   }
 
-  size_type GetMutableData(wchar_t** aData, size_type aNewLen,
-                           const fallible_t& aFallible)
+  size_type GetMutableData(wchar_t** aData, size_type aNewLen, const fallible_t&)
   {
     return GetMutableData(reinterpret_cast<char16_t**>(aData), aNewLen,
-                          aFallible);
+                          fallible_t());
   }
 #endif
 

@@ -11,6 +11,7 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/PodOperations.h"
 
+#include "jsinfer.h"
 #include "jstypes.h"
 
 #include "gc/Heap.h"
@@ -19,7 +20,6 @@
 #include "jit/IonTypes.h"
 #include "js/UbiNode.h"
 #include "vm/TraceLogging.h"
-#include "vm/TypeInference.h"
 
 namespace js {
 
@@ -31,8 +31,6 @@ class MacroAssembler;
 class CodeOffsetLabel;
 class PatchableBackedge;
 class IonBuilder;
-
-typedef Vector<JSObject *, 4, JitAllocPolicy> ObjectVector;
 
 class JitCode : public gc::TenuredCell
 {
@@ -100,10 +98,6 @@ class JitCode : public gc::TenuredCell
     uint8_t *rawEnd() const {
         return code_ + insnSize_;
     }
-    bool containsNativePC(const void *addr) const {
-        const uint8_t *addr_u8 = (const uint8_t *) addr;
-        return raw() <= addr_u8 && addr_u8 < rawEnd();
-    }
     size_t instructionsSize() const {
         return insnSize_;
     }
@@ -113,8 +107,6 @@ class JitCode : public gc::TenuredCell
     void setInvalidated() {
         invalidated_ = true;
     }
-
-    void fixupNurseryObjects(JSContext *cx, const ObjectVector &nurseryObjects);
 
     void setHasBytecodeMap() {
         hasBytecodeMap_ = true;
@@ -201,8 +193,18 @@ struct IonScript
     // Number of times this script bailed out without invalidation.
     uint32_t numBailouts_;
 
-    // Flag set if IonScript was compiled with profiling enabled.
-    bool hasProfilingInstrumentation_;
+    // Flag set when it is likely that one of our (transitive) call
+    // targets is not compiled.  Used in ForkJoin.cpp to decide when
+    // we should add call targets to the worklist.
+    mozilla::Atomic<bool, mozilla::Relaxed> hasUncompiledCallTarget_;
+
+    // Flag set when this script is used as an entry script to parallel
+    // execution. If this is true, then the parent JSScript must be in its
+    // JitCompartment's parallel entry script set.
+    bool isParallelEntryScript_;
+
+    // Flag set if IonScript was compiled with SPS profiling enabled.
+    bool hasSPSInstrumentation_;
 
     // Flag for if this script is getting recompiled.
     uint32_t recompiling_;
@@ -228,9 +230,6 @@ struct IonScript
 
     // Number of bytes this function reserves on the stack.
     uint32_t frameSlots_;
-
-    // Number of bytes used passed in as formal arguments or |this|.
-    uint32_t argumentSlots_;
 
     // Frame size is the value that can be added to the StackPointer along
     // with the frame prefix to get a valid JitFrameLayout.
@@ -264,8 +263,15 @@ struct IonScript
     // Number of references from invalidation records.
     uint32_t invalidationCount_;
 
+    // If this is a parallel script, the number of major GC collections it has
+    // been idle, otherwise 0.
+    //
+    // JSScripts with parallel IonScripts are preserved across GC if the
+    // parallel age is < MAX_PARALLEL_AGE.
+    uint32_t parallelAge_;
+
     // Identifier of the compilation which produced this code.
-    RecompileInfo recompileInfo_;
+    types::RecompileInfo recompileInfo_;
 
     // The optimization level this script was compiled in.
     OptimizationLevel optimizationLevel_;
@@ -332,8 +338,8 @@ struct IonScript
     // Do not call directly, use IonScript::New. This is public for cx->new_.
     IonScript();
 
-    static IonScript *New(JSContext *cx, RecompileInfo recompileInfo,
-                          uint32_t frameSlots, uint32_t argumentSlots, uint32_t frameSize,
+    static IonScript *New(JSContext *cx, types::RecompileInfo recompileInfo,
+                          uint32_t frameLocals, uint32_t frameSize,
                           size_t snapshotsListSize, size_t snapshotsRVATableSize,
                           size_t recoversSize, size_t bailoutEntries,
                           size_t constants, size_t safepointIndexEntries,
@@ -423,14 +429,32 @@ struct IonScript
     bool bailoutExpected() const {
         return numBailouts_ > 0;
     }
-    void setHasProfilingInstrumentation() {
-        hasProfilingInstrumentation_ = true;
+    void setHasUncompiledCallTarget() {
+        hasUncompiledCallTarget_ = true;
     }
-    void clearHasProfilingInstrumentation() {
-        hasProfilingInstrumentation_ = false;
+    void clearHasUncompiledCallTarget() {
+        hasUncompiledCallTarget_ = false;
     }
-    bool hasProfilingInstrumentation() const {
-        return hasProfilingInstrumentation_;
+    bool hasUncompiledCallTarget() const {
+        return hasUncompiledCallTarget_;
+    }
+    void setIsParallelEntryScript() {
+        isParallelEntryScript_ = true;
+    }
+    void clearIsParallelEntryScript() {
+        isParallelEntryScript_ = false;
+    }
+    bool isParallelEntryScript() const {
+        return isParallelEntryScript_;
+    }
+    void setHasSPSInstrumentation() {
+        hasSPSInstrumentation_ = true;
+    }
+    void clearHasSPSInstrumentation() {
+        hasSPSInstrumentation_ = false;
+    }
+    bool hasSPSInstrumentation() const {
+        return hasSPSInstrumentation_;
     }
     void setTraceLoggerEvent(TraceLoggerEvent &event) {
         traceLoggerScriptEvent_ = event;
@@ -468,9 +492,6 @@ struct IonScript
     }
     uint32_t frameSlots() const {
         return frameSlots_;
-    }
-    uint32_t argumentSlots() const {
-        return argumentSlots_;
     }
     uint32_t frameSize() const {
         return frameSize_;
@@ -541,10 +562,10 @@ struct IonScript
         if (!invalidationCount_)
             Destroy(fop, this);
     }
-    const RecompileInfo& recompileInfo() const {
+    const types::RecompileInfo& recompileInfo() const {
         return recompileInfo_;
     }
-    RecompileInfo& recompileInfoRef() {
+    types::RecompileInfo& recompileInfoRef() {
         return recompileInfo_;
     }
     OptimizationLevel optimizationLevel() const {
@@ -569,10 +590,24 @@ struct IonScript
         recompiling_ = false;
     }
 
+    static const uint32_t MAX_PARALLEL_AGE = 5;
+
     enum ShouldIncreaseAge {
         IncreaseAge = true,
         KeepAge = false
     };
+
+    void resetParallelAge() {
+        MOZ_ASSERT(isParallelEntryScript());
+        parallelAge_ = 0;
+    }
+    uint32_t parallelAge() const {
+        return parallelAge_;
+    }
+    uint32_t shouldPreserveParallelCode(ShouldIncreaseAge increaseAge = KeepAge) {
+        MOZ_ASSERT(isParallelEntryScript());
+        return (increaseAge ? ++parallelAge_ : parallelAge_) < MAX_PARALLEL_AGE;
+    }
 
     static void writeBarrierPre(Zone *zone, IonScript *ionScript);
 };

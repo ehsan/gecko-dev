@@ -49,10 +49,6 @@ class nsIPrincipal;
 #include "CoreLocationLocationProvider.h"
 #endif
 
-#ifdef XP_WIN
-#include "WindowsLocationProvider.h"
-#endif
-
 // Some limit to the number of get or watch geolocation requests
 // that a window can make.
 #define MAX_GEO_REQUESTS_PER_WINDOW  1500
@@ -809,14 +805,8 @@ nsresult nsGeolocationService::Init()
 #endif
 
 #ifdef MOZ_WIDGET_COCOA
-  if (Preferences::GetBool("geo.provider.use_corelocation", true)) {
+  if (Preferences::GetBool("geo.provider.use_corelocation", false)) {
     mProvider = new CoreLocationLocationProvider();
-  }
-#endif
-
-#ifdef XP_WIN
-  if (Preferences::GetBool("geo.provider.ms-windows-location", false)) {
-    mProvider = new WindowsLocationProvider();
   }
 #endif
 
@@ -1268,7 +1258,7 @@ Geolocation::Update(nsIDOMGeoPosition *aSomewhere)
     if (coords) {
       double accuracy = -1;
       coords->GetAccuracy(&accuracy);
-      mozilla::Telemetry::Accumulate(mozilla::Telemetry::GEOLOCATION_ACCURACY_EXPONENTIAL, accuracy);
+      mozilla::Telemetry::Accumulate(mozilla::Telemetry::GEOLOCATION_ACCURACY, accuracy);
     }
   }
 

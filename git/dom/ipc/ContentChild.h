@@ -126,10 +126,6 @@ public:
     AllocPImageBridgeChild(mozilla::ipc::Transport* aTransport,
                            base::ProcessId aOtherProcess) MOZ_OVERRIDE;
 
-    PProcessHangMonitorChild*
-    AllocPProcessHangMonitorChild(Transport* aTransport,
-                                  ProcessId aOtherProcess) MOZ_OVERRIDE;
-
 #if defined(XP_WIN) && defined(MOZ_CONTENT_SANDBOX)
     // Cleans up any resources used by the process when sandboxed.
     void CleanUpSandboxEnvironment();
@@ -209,7 +205,7 @@ public:
     virtual PTestShellChild* AllocPTestShellChild() MOZ_OVERRIDE;
     virtual bool DeallocPTestShellChild(PTestShellChild*) MOZ_OVERRIDE;
     virtual bool RecvPTestShellConstructor(PTestShellChild*) MOZ_OVERRIDE;
-    jsipc::CPOWManager* GetCPOWManager() MOZ_OVERRIDE;
+    jsipc::JavaScriptShared* GetCPOWManager() MOZ_OVERRIDE;
 
     PMobileConnectionChild*
     SendPMobileConnectionConstructor(PMobileConnectionChild* aActor,
@@ -276,9 +272,9 @@ public:
     virtual PSpeechSynthesisChild* AllocPSpeechSynthesisChild() MOZ_OVERRIDE;
     virtual bool DeallocPSpeechSynthesisChild(PSpeechSynthesisChild* aActor) MOZ_OVERRIDE;
 
-    virtual bool RecvRegisterChrome(InfallibleTArray<ChromePackage>&& packages,
-                                    InfallibleTArray<ResourceMapping>&& resources,
-                                    InfallibleTArray<OverrideMapping>&& overrides,
+    virtual bool RecvRegisterChrome(const InfallibleTArray<ChromePackage>& packages,
+                                    const InfallibleTArray<ResourceMapping>& resources,
+                                    const InfallibleTArray<OverrideMapping>& overrides,
                                     const nsCString& locale,
                                     const bool& reset) MOZ_OVERRIDE;
     virtual bool RecvRegisterChromeItem(const ChromeRegistryItem& item) MOZ_OVERRIDE;
@@ -304,18 +300,16 @@ public:
     virtual bool RecvNotifyAlertsObserver(const nsCString& aType,
                                           const nsString& aData) MOZ_OVERRIDE;
 
-    virtual bool RecvLoadProcessScript(const nsString& aURL) MOZ_OVERRIDE;
-
     virtual bool RecvAsyncMessage(const nsString& aMsg,
                                   const ClonedMessageData& aData,
-                                  InfallibleTArray<CpowEntry>&& aCpows,
+                                  const InfallibleTArray<CpowEntry>& aCpows,
                                   const IPC::Principal& aPrincipal) MOZ_OVERRIDE;
 
     virtual bool RecvGeolocationUpdate(const GeoPosition& somewhere) MOZ_OVERRIDE;
 
     virtual bool RecvGeolocationError(const uint16_t& errorCode) MOZ_OVERRIDE;
 
-    virtual bool RecvUpdateDictionaryList(InfallibleTArray<nsString>&& aDictionaries) MOZ_OVERRIDE;
+    virtual bool RecvUpdateDictionaryList(const InfallibleTArray<nsString>& aDictionaries) MOZ_OVERRIDE;
 
     virtual bool RecvAddPermission(const IPC::Permission& permission) MOZ_OVERRIDE;
 
@@ -334,7 +328,6 @@ public:
 
     virtual bool RecvLastPrivateDocShellDestroyed() MOZ_OVERRIDE;
 
-    virtual bool RecvVolumes(InfallibleTArray<VolumeInfo>&& aVolumes) MOZ_OVERRIDE;
     virtual bool RecvFilePathUpdate(const nsString& aStorageType,
                                     const nsString& aStorageName,
                                     const nsString& aPath,
@@ -380,8 +373,8 @@ public:
 
     virtual bool RecvStartProfiler(const uint32_t& aEntries,
                                    const double& aInterval,
-                                   nsTArray<nsCString>&& aFeatures,
-                                   nsTArray<nsCString>&& aThreadNameFilters) MOZ_OVERRIDE;
+                                   const nsTArray<nsCString>& aFeatures,
+                                   const nsTArray<nsCString>& aThreadNameFilters) MOZ_OVERRIDE;
     virtual bool RecvStopProfiler() MOZ_OVERRIDE;
     virtual bool RecvGetProfile(nsCString* aProfile) MOZ_OVERRIDE;
     virtual bool RecvShutdown() MOZ_OVERRIDE;
@@ -443,7 +436,7 @@ public:
 private:
     virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
 
-    virtual void ProcessingError(Result aCode, const char* aReason) MOZ_OVERRIDE;
+    virtual void ProcessingError(Result what) MOZ_OVERRIDE;
 
     /**
      * Exit *now*.  Do not shut down XPCOM, do not pass Go, do not run
@@ -483,9 +476,6 @@ private:
 
     DISALLOW_EVIL_CONSTRUCTORS(ContentChild);
 };
-
-uint64_t
-NextWindowID();
 
 } // namespace dom
 } // namespace mozilla

@@ -50,9 +50,9 @@ add_task(function*() {
 
     yield highlighter.show(contextNode, {selector});
 
-    let {actorID, connPrefix} = getHighlighterActorID(highlighter);
-    let {data: nb} = yield executeInContent("Test:GetSelectorHighlighterBoxNb",
-                                            {actorID, connPrefix});
+    let {data: nb} = yield executeInContent("Test:GetSelectorHighlighterBoxNb", {
+      actorID: highlighter.actorID
+    });
     ok(nb !== null, "The number of highlighters was retrieved");
 
     is(nb, containerCount, "The correct number of highlighers were created");

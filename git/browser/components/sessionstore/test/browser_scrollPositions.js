@@ -115,7 +115,8 @@ add_task(function test_scroll_old_format() {
   yield promiseBrowserLoaded(browser);
 
   // Apply the tab state with the old format.
-  yield promiseTabState(tab, TAB_STATE);
+  ss.setTabState(tab, JSON.stringify(TAB_STATE));
+  yield promiseTabRestored(tab);
 
   // Check that the scroll positions has been applied.
   let scroll = yield sendMessage(browser, "ss-test:getScrollPosition");

@@ -64,7 +64,7 @@ BluetoothReplyRunnable::Run()
   nsresult rv;
 
   AutoSafeJSContext cx;
-  JS::Rooted<JS::Value> v(cx, JS::UndefinedValue());
+  JS::Rooted<JS::Value> v(cx, JSVAL_VOID);
 
   if (mReply->type() != BluetoothReply::TBluetoothReplySuccess) {
     rv = FireReply(v);

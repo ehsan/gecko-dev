@@ -43,9 +43,7 @@
 #define XRE_DONT_SUPPORT_XPSP2
 #endif
 #include "nsWindowsWMain.cpp"
-#if defined(_MSC_VER) && (_MSC_VER < 1900)
 #define snprintf _snprintf
-#endif
 #define strcasecmp _stricmp
 #endif
 #include "BinaryPath.h"
@@ -613,8 +611,6 @@ int main(int argc, char* argv[])
 #elif defined(XP_WIN)
   IO_COUNTERS ioCounters;
   gotCounters = GetProcessIoCounters(GetCurrentProcess(), &ioCounters);
-#else
-  #error "Unknown platform"  // having this here keeps cppcheck happy
 #endif
 
   nsIFile *xreDirectory;
@@ -659,8 +655,6 @@ int main(int argc, char* argv[])
       XRE_TelemetryAccumulate(mozilla::Telemetry::GLUESTARTUP_HARD_FAULTS,
                               int(newRUsage.ru_majflt - initialRUsage.ru_majflt));
     }
-#else
-  #error "Unknown platform"  // having this here keeps cppcheck happy
 #endif
   }
 

@@ -18,8 +18,8 @@ class Clock;
 class RemoteBitrateEstimator;
 class RemoteBitrateObserver;
 class RtpHeaderParser;
-namespace test {
-class RtpFileReader;
+namespace rtpplayer {
+class RtpPacketSourceInterface;
 }
 }
 
@@ -28,7 +28,7 @@ bool ParseArgsAndSetupEstimator(
     char** argv,
     webrtc::Clock* clock,
     webrtc::RemoteBitrateObserver* observer,
-    webrtc::test::RtpFileReader** rtp_reader,
+    webrtc::rtpplayer::RtpPacketSourceInterface** rtp_reader,
     webrtc::RtpHeaderParser** parser,
     webrtc::RemoteBitrateEstimator** estimator,
     std::string* estimator_used);

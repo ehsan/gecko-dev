@@ -13,6 +13,7 @@
 #ifdef WEBRTC_MODULE_UTILITY_VIDEO
 
 #include "webrtc/common_video/libyuv/include/scaler.h"
+#include "webrtc/system_wrappers/interface/trace.h"
 
 namespace webrtc {
 

@@ -8,7 +8,8 @@ function test() {
   waitForExplicitFinish();
 
   // Purging the list of closed windows
-  forgetClosedWindows();
+  while(ss.getClosedWindowCount() > 0)
+    ss.forgetClosedWindow(0);
 
   // Load a private window, then close it 
   // and verify it doesn't get remembered for restoring

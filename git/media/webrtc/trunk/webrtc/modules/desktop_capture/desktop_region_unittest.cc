@@ -12,7 +12,7 @@
 
 #include <algorithm>
 
-#include "testing/gtest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 
 namespace webrtc {
 

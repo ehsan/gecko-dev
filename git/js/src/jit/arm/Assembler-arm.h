@@ -147,7 +147,6 @@ static MOZ_CONSTEXPR_VAR FloatRegister d15 = {FloatRegisters::d15, VFPRegister::
 // function boundaries. I'm trying to make sure this is always true.
 static const uint32_t ABIStackAlignment = 8;
 static const uint32_t CodeAlignment = 8;
-static const uint32_t JitStackAlignment = 8;
 
 // This boolean indicates whether we support SIMD instructions flavoured for
 // this architecture or not. Rather than a method in the LIRGenerator, it is
@@ -157,13 +156,9 @@ static const bool SupportsSimd = false;
 static const uint32_t SimdMemoryAlignment = 8;
 
 static_assert(CodeAlignment % SimdMemoryAlignment == 0,
-  "Code alignment should be larger than any of the alignments which are used for "
+  "Code alignment should be larger than any of the alignment which are used for "
   "the constant sections of the code buffer.  Thus it should be larger than the "
   "alignment for SIMD constants.");
-
-static_assert(JitStackAlignment % SimdMemoryAlignment == 0,
-  "Stack alignment should be larger than any of the alignments which are used for "
-  "spilled values.  Thus it should be larger than the alignment for SIMD accesses.");
 
 static const uint32_t AsmJSStackAlignment = SimdMemoryAlignment;
 
@@ -1197,11 +1192,23 @@ class Assembler : public AssemblerShared
 
     CompactBufferWriter jumpRelocations_;
     CompactBufferWriter dataRelocations_;
+    CompactBufferWriter relocations_;
     CompactBufferWriter preBarriers_;
 
     ARMBuffer m_buffer;
 
+    // There is now a semi-unified interface for instruction generation. During
+    // assembly, there is an active buffer that instructions are being written
+    // into, but later, we may wish to modify instructions that have already
+    // been created. In order to do this, we call the same assembly function,
+    // but pass it a destination address, which will be overwritten with a new
+    // instruction. In order to do this very after assembly buffers no longer
+    // exist, when calling with a third dest parameter, a this object is still
+    // needed. Dummy always happens to be null, but we shouldn't be looking at
+    // it in any case.
   public:
+    static Assembler *Dummy;
+
     // For the alignment fill use NOP: 0x0320f000 or (Always | InstNOP::NopInst).
     // For the nopFill use a branch to the next instruction: 0xeaffffff.
     Assembler()
@@ -1292,14 +1299,17 @@ class Assembler : public AssemblerShared
     size_t bytesNeeded() const;
 
     // Write a blob of binary into the instruction stream *OR* into a
-    // destination address.
-    BufferOffset writeInst(uint32_t x);
+    // destination address. If dest is nullptr (the default), then the
+    // instruction gets written into the instruction stream. If dest is not null
+    // it is interpreted as a pointer to the location that we want the
+    // instruction to be written.
+    BufferOffset writeInst(uint32_t x, uint32_t *dest = nullptr);
 
     // As above, but also mark the instruction as a branch.
     BufferOffset writeBranchInst(uint32_t x);
 
     // A static variant for the cases where we don't want to have an assembler
-    // object.
+    // object at all. Normally, you would use the dummy (nullptr) object.
     static void WriteInstStatic(uint32_t x, uint32_t *dest);
 
   public:
@@ -1308,17 +1318,12 @@ class Assembler : public AssemblerShared
     void align(int alignment);
     BufferOffset as_nop();
     BufferOffset as_alu(Register dest, Register src1, Operand2 op2,
-                        ALUOp op, SetCond_ sc = NoSetCond, Condition c = Always);
+                ALUOp op, SetCond_ sc = NoSetCond, Condition c = Always, Instruction *instdest = nullptr);
+
     BufferOffset as_mov(Register dest,
-                        Operand2 op2, SetCond_ sc = NoSetCond, Condition c = Always);
+                Operand2 op2, SetCond_ sc = NoSetCond, Condition c = Always, Instruction *instdest = nullptr);
     BufferOffset as_mvn(Register dest, Operand2 op2,
-                        SetCond_ sc = NoSetCond, Condition c = Always);
-
-    static void as_alu_patch(Register dest, Register src1, Operand2 op2,
-                             ALUOp op, SetCond_ sc, Condition c, uint32_t *pos);
-    static void as_mov_patch(Register dest,
-                             Operand2 op2, SetCond_ sc, Condition c, uint32_t *pos);
-
+                SetCond_ sc = NoSetCond, Condition c = Always);
     // Logical operations:
     BufferOffset as_and(Register dest, Register src1,
                 Operand2 op2, SetCond_ sc = NoSetCond, Condition c = Always);
@@ -1359,11 +1364,8 @@ class Assembler : public AssemblerShared
     // Not quite ALU worthy, but useful none the less: These also have the issue
     // of these being formatted completly differently from the standard ALU
     // operations.
-    BufferOffset as_movw(Register dest, Imm16 imm, Condition c = Always);
-    BufferOffset as_movt(Register dest, Imm16 imm, Condition c = Always);
-
-    static void as_movw_patch(Register dest, Imm16 imm, Condition c, Instruction *pos);
-    static void as_movt_patch(Register dest, Imm16 imm, Condition c, Instruction *pos);
+    BufferOffset as_movw(Register dest, Imm16 imm, Condition c = Always, Instruction *pos = nullptr);
+    BufferOffset as_movt(Register dest, Imm16 imm, Condition c = Always, Instruction *pos = nullptr);
 
     BufferOffset as_genmul(Register d1, Register d2, Register rm, Register rn,
                    MULOp op, SetCond_ sc, Condition c = Always);
@@ -1386,27 +1388,21 @@ class Assembler : public AssemblerShared
 
     BufferOffset as_sdiv(Register dest, Register num, Register div, Condition c = Always);
     BufferOffset as_udiv(Register dest, Register num, Register div, Condition c = Always);
-    BufferOffset as_clz(Register dest, Register src, Condition c = Always);
+    BufferOffset as_clz(Register dest, Register src, Condition c = Always, Instruction *instdest = nullptr);
 
     // Data transfer instructions: ldr, str, ldrb, strb.
     // Using an int to differentiate between 8 bits and 32 bits is overkill.
     BufferOffset as_dtr(LoadStore ls, int size, Index mode,
-                        Register rt, DTRAddr addr, Condition c = Always);
-
-    static void as_dtr_patch(LoadStore ls, int size, Index mode,
-                             Register rt, DTRAddr addr, Condition c, uint32_t *dest);
-
+                Register rt, DTRAddr addr, Condition c = Always, uint32_t *dest = nullptr);
     // Handles all of the other integral data transferring functions:
     // ldrsb, ldrsh, ldrd, etc. The size is given in bits.
     BufferOffset as_extdtr(LoadStore ls, int size, bool IsSigned, Index mode,
-                           Register rt, EDtrAddr addr, Condition c = Always);
+                   Register rt, EDtrAddr addr, Condition c = Always, uint32_t *dest = nullptr);
 
     BufferOffset as_dtm(LoadStore ls, Register rn, uint32_t mask,
                 DTMMode mode, DTMWriteBack wb, Condition c = Always);
-
     // Overwrite a pool entry with new data.
-    static void WritePoolEntry(Instruction *addr, Condition c, uint32_t data);
-
+    void as_WritePoolEntry(Instruction *addr, Condition c, uint32_t data);
     // Load a 32 bit immediate from a pool into a register.
     BufferOffset as_Imm32Pool(Register dest, uint32_t value, Condition c = Always);
     // Make a patchable jump that can target the entire 32 bit address space.
@@ -1485,14 +1481,11 @@ class Assembler : public AssemblerShared
         IsSingle = 0 << 8
     };
 
-    BufferOffset writeVFPInst(vfp_size sz, uint32_t blob);
-
-    static void WriteVFPInstStatic(vfp_size sz, uint32_t blob, uint32_t *dest);
-
+    BufferOffset writeVFPInst(vfp_size sz, uint32_t blob, uint32_t *dest=nullptr);
     // Unityped variants: all registers hold the same (ieee754 single/double)
     // notably not included are vcvt; vmov vd, #imm; vmov rt, vn.
     BufferOffset as_vfp_float(VFPRegister vd, VFPRegister vn, VFPRegister vm,
-                              VFPOp op, Condition c = Always);
+                      VFPOp op, Condition c = Always);
 
   public:
     BufferOffset as_vadd(VFPRegister vd, VFPRegister vn, VFPRegister vm,
@@ -1559,10 +1552,8 @@ class Assembler : public AssemblerShared
 
     // Transfer between VFP and memory.
     BufferOffset as_vdtr(LoadStore ls, VFPRegister vd, VFPAddr addr,
-                         Condition c = Always /* vfp doesn't have a wb option*/);
-
-    static void as_vdtr_patch(LoadStore ls, VFPRegister vd, VFPAddr addr,
-                              Condition c  /* vfp doesn't have a wb option*/, uint32_t *dest);
+                 Condition c = Always /* vfp doesn't have a wb option*/,
+                 uint32_t *dest = nullptr);
 
     // VFP's ldm/stm work differently from the standard arm ones. You can only
     // transfer a range.
@@ -1600,9 +1591,6 @@ class Assembler : public AssemblerShared
   public:
     static void TraceJumpRelocations(JSTracer *trc, JitCode *code, CompactBufferReader &reader);
     static void TraceDataRelocations(JSTracer *trc, JitCode *code, CompactBufferReader &reader);
-
-    static void FixupNurseryObjects(JSContext *cx, JitCode *code, CompactBufferReader &reader,
-                                    const ObjectVector &nurseryObjects);
 
     static bool SupportsFloatingPoint() {
         return HasVFP();
@@ -1747,11 +1735,10 @@ class Assembler : public AssemblerShared
     // API for speaking with the IonAssemblerBufferWithConstantPools generate an
     // initial placeholder instruction that we want to later fix up.
     static void InsertIndexIntoTag(uint8_t *load, uint32_t index);
-
     // Take the stub value that was written in before, and write in an actual
     // load using the index we'd computed previously as well as the address of
     // the pool start.
-    static void PatchConstantPoolLoad(void *loadAddr, void *constPoolAddr);
+    static bool PatchConstantPoolLoad(void* loadAddr, void* constPoolAddr);
     // END API
 
     // Move our entire pool into the instruction stream. This is to force an
@@ -1806,12 +1793,6 @@ class Assembler : public AssemblerShared
 
     bool bailed() {
         return m_buffer.bail();
-    }
-
-    void verifyHeapAccessDisassembly(uint32_t begin, uint32_t end,
-                                     const Disassembler::HeapAccess &heapAccess)
-    {
-        // Implement this if we implement a disassembler.
     }
 }; // Assembler
 

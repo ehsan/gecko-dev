@@ -16,15 +16,15 @@ devtools.lazyRequireGetter(this, "EventEmitter",
   "devtools/toolkit/event-emitter");
 
 devtools.lazyRequireGetter(this, "MarkersOverview",
-  "devtools/shared/timeline/markers-overview", true);
+  "devtools/timeline/markers-overview", true);
 devtools.lazyRequireGetter(this, "MemoryOverview",
-  "devtools/shared/timeline/memory-overview", true);
+  "devtools/timeline/memory-overview", true);
 devtools.lazyRequireGetter(this, "Waterfall",
-  "devtools/shared/timeline/waterfall", true);
+  "devtools/timeline/waterfall", true);
 devtools.lazyRequireGetter(this, "MarkerDetails",
-  "devtools/shared/timeline/marker-details", true);
+  "devtools/timeline/marker-details", true);
 devtools.lazyRequireGetter(this, "TIMELINE_BLUEPRINT",
-  "devtools/shared/timeline/global", true);
+  "devtools/timeline/global", true);
 
 devtools.lazyImporter(this, "CanvasGraphUtils",
   "resource:///modules/devtools/Graphs.jsm");
@@ -239,10 +239,6 @@ let TimelineController = {
    *        A time after the last marker in markers was collected.
    */
   _onMarkers: function(markers, endTime) {
-    for (let marker of markers) {
-      marker.start -= this._startTime;
-      marker.end -= this._startTime;
-    }
     Array.prototype.push.apply(this._markers, markers);
     this._endTime = endTime;
   },
@@ -256,10 +252,7 @@ let TimelineController = {
    *        A detailed breakdown of the current memory usage.
    */
   _onMemory: function(delta, measurement) {
-    this._memory.push({
-      delta: delta - this._startTime,
-      value: measurement.total / 1024 / 1024
-    });
+    this._memory.push({ delta, value: measurement.total / 1024 / 1024 });
   },
 
   /**
@@ -356,8 +349,9 @@ let TimelineView = {
     this.memoryOverview.setTheme(theme);
     yield this.memoryOverview.ready();
 
+    let interval = TimelineController.getInterval();
     let memory = TimelineController.getMemory();
-    this.memoryOverview.setData(memory);
+    this.memoryOverview.setData({ interval, memory });
 
     CanvasGraphUtils.linkAnimation(this.markersOverview, this.memoryOverview);
     CanvasGraphUtils.linkSelection(this.markersOverview, this.memoryOverview);
@@ -432,13 +426,13 @@ let TimelineView = {
     let memory = TimelineController.getMemory();
 
     if (markers.length) {
-      let start = markers[0].start * this.markersOverview.dataScaleX;
+      let start = (markers[0].start - interval.startTime) * this.markersOverview.dataScaleX;
       let end = start + this.markersOverview.width * OVERVIEW_INITIAL_SELECTION_RATIO;
       this.markersOverview.setSelection({ start, end });
     } else {
       let startTime = interval.startTime;
       let endTime = interval.endTime;
-      this.waterfall.setData({ markers, interval: { startTime, endTime } });
+      this.waterfall.setData(markers, startTime, startTime, endTime);
     }
 
     window.emit(EVENTS.RECORDING_ENDED);
@@ -453,12 +447,11 @@ let TimelineView = {
     let markers = TimelineController.getMarkers();
     let memory = TimelineController.getMemory();
 
-    let duration = interval.endTime - interval.startTime;
-    this.markersOverview.setData({ markers, duration });
+    this.markersOverview.setData({ interval, markers });
 
     // The memory overview graph is not always available.
     if (this.memoryOverview) {
-      this.memoryOverview.setData(memory);
+      this.memoryOverview.setData({ interval, memory });
     }
 
     window.emit(EVENTS.OVERVIEW_UPDATED);
@@ -488,10 +481,10 @@ let TimelineView = {
     let markers = TimelineController.getMarkers();
     let interval = TimelineController.getInterval();
 
-    let startTime = Math.min(start, end);
-    let endTime = Math.max(start, end);
+    let startTime = interval.startTime + Math.min(start, end);
+    let endTime = interval.startTime + Math.max(start, end);
 
-    this.waterfall.setData({ markers, interval: { startTime, endTime } });
+    this.waterfall.setData(markers, interval.startTime, startTime, endTime);
   },
 
   /**

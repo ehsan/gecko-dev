@@ -19,7 +19,7 @@ public:
   {
   }
 
-  void GetColor(DOMString& aColor)
+  void GetColor(nsString& aColor)
   {
     GetHTMLAttr(nsGkAtoms::color, aColor);
   }
@@ -27,7 +27,7 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::color, aColor, aError);
   }
-  void GetFace(DOMString& aFace)
+  void GetFace(nsString& aFace)
   {
     GetHTMLAttr(nsGkAtoms::face, aFace);
   }
@@ -35,7 +35,7 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::face, aFace, aError);
   }
-  void GetSize(DOMString& aSize)
+  void GetSize(nsString& aSize)
   {
     GetHTMLAttr(nsGkAtoms::size, aSize);
   }

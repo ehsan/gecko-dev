@@ -88,9 +88,9 @@ GetDataProperty(JSContext *cx, HandleValue objVal, HandlePropertyName field, Mut
     if (IsScriptedProxy(obj))
         return LinkFail(cx, "accessing property of a Proxy");
 
-    Rooted<PropertyDescriptor> desc(cx);
+    Rooted<JSPropertyDescriptor> desc(cx);
     RootedId id(cx, NameToId(field));
-    if (!GetPropertyDescriptor(cx, obj, id, &desc))
+    if (!JS_GetPropertyDescriptorById(cx, obj, id, &desc))
         return false;
 
     if (!desc.object())
@@ -538,11 +538,10 @@ DynamicallyLinkModule(JSContext *cx, CallArgs args, AsmJSModule &module)
 
     Rooted<ArrayBufferObjectMaybeShared *> heap(cx);
     if (module.hasArrayView()) {
-        if (module.isSharedView() && !IsSharedArrayBuffer(bufferVal))
-            return LinkFail(cx, "shared views can only be constructed onto SharedArrayBuffer");
-        if (!module.isSharedView() && !IsArrayBuffer(bufferVal))
-            return LinkFail(cx, "unshared views can only be constructed onto ArrayBuffer");
-        heap = &AsAnyArrayBuffer(bufferVal);
+        if (IsArrayBuffer(bufferVal) || IsSharedArrayBuffer(bufferVal))
+            heap = &AsAnyArrayBuffer(bufferVal);
+        else
+            return LinkFail(cx, "bad ArrayBuffer argument");
         if (!LinkModuleToHeap(cx, module, heap))
             return false;
     }
@@ -1012,7 +1011,7 @@ CreateExportObject(JSContext *cx, Handle<AsmJSModuleObject*> moduleObj)
         MOZ_ASSERT(func.maybeFieldName() != nullptr);
         RootedId id(cx, NameToId(func.maybeFieldName()));
         RootedValue val(cx, ObjectValue(*fun));
-        if (!NativeDefineProperty(cx, obj, id, val, nullptr, nullptr, JSPROP_ENUMERATE))
+        if (!DefineNativeProperty(cx, obj, id, val, nullptr, nullptr, JSPROP_ENUMERATE))
             return nullptr;
     }
 

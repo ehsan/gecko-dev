@@ -419,9 +419,6 @@ var SpellCheckHelper = {
   // "editable" but is because content editable is enabled for the document.
   CONTENTEDITABLE: 0x20,
 
-  // Set when over an <input type="number"> or other non-text field.
-  NUMERIC: 0x40,
-
   isTargetAKeywordField(aNode, window) {
     if (!(aNode instanceof window.HTMLInputElement))
       return false;
@@ -457,13 +454,8 @@ var SpellCheckHelper = {
     var flags = 0;
     if (element instanceof window.HTMLInputElement) {
       flags |= this.INPUT;
-
-      if (element.mozIsTextField(false) || element.type == "number") {
+      if (element.mozIsTextField(false)) {
         flags |= this.TEXTINPUT;
-
-        if (element.type == "number") {
-          flags |= this.NUMERIC;
-        }
 
         // Allow spellchecking UI on all text and search inputs.
         if (!element.readOnly &&

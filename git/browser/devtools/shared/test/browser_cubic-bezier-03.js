@@ -10,19 +10,18 @@ const TEST_URI = "chrome://browser/content/devtools/cubic-bezier-frame.xhtml";
 const {CubicBezierWidget, PREDEFINED} =
   devtools.require("devtools/shared/widgets/CubicBezierWidget");
 
-add_task(function*() {
-  yield promiseTab("about:blank");
-  let [host, win, doc] = yield createHost("bottom", TEST_URI);
+let test = Task.async(function*() {
+  yield promiseTab(TEST_URI);
 
-  let container = doc.querySelector("#container");
+  let container = content.document.querySelector("#container");
   let w = new CubicBezierWidget(container, PREDEFINED.linear);
 
   yield coordinatesCanBeChangedByProvidingAnArray(w);
   yield coordinatesCanBeChangedByProvidingAValue(w);
 
   w.destroy();
-  host.destroy();
   gBrowser.removeCurrentTab();
+  finish();
 });
 
 function* coordinatesCanBeChangedByProvidingAnArray(widget) {

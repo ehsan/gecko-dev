@@ -58,11 +58,11 @@ protected:
     virtual bool DeallocPTestDataStructuresSubParent(PTestDataStructuresSubParent* actor) MOZ_OVERRIDE;
 
     virtual bool RecvTest1(
-	    InfallibleTArray<int>&& i1,
+            const InfallibleTArray<int>& i1,
             InfallibleTArray<int>* o1) MOZ_OVERRIDE;
 
     virtual bool RecvTest2(
-            InfallibleTArray<PTestDataStructuresSubParent*>&& i1,
+            const InfallibleTArray<PTestDataStructuresSubParent*>& i1,
             InfallibleTArray<PTestDataStructuresSubParent*>* o1) MOZ_OVERRIDE;
 
     virtual bool RecvTest3(
@@ -72,7 +72,7 @@ protected:
             IntDouble* o2) MOZ_OVERRIDE;
 
     virtual bool RecvTest4(
-            InfallibleTArray<IntDouble>&& i1,
+            const InfallibleTArray<IntDouble>& i1,
             InfallibleTArray<IntDouble>* o1) MOZ_OVERRIDE;
 
     virtual bool RecvTest5(
@@ -84,7 +84,7 @@ protected:
             IntDoubleArrays* o3) MOZ_OVERRIDE;
 
     virtual bool RecvTest6(
-            InfallibleTArray<IntDoubleArrays>&& i1,
+            const InfallibleTArray<IntDoubleArrays>& i1,
             InfallibleTArray<IntDoubleArrays>* o1) MOZ_OVERRIDE;
 
 
@@ -100,7 +100,7 @@ protected:
             Actors* o3) MOZ_OVERRIDE;
 
     virtual bool RecvTest8(
-            InfallibleTArray<Actors>&& i1,
+            const InfallibleTArray<Actors>& i1,
             InfallibleTArray<Actors>* o1) MOZ_OVERRIDE;
 
     virtual bool RecvTest9(
@@ -114,7 +114,7 @@ protected:
             Unions* o4) MOZ_OVERRIDE;
 
     virtual bool RecvTest10(
-            InfallibleTArray<Unions>&& i1,
+            const InfallibleTArray<Unions>& i1,
             InfallibleTArray<Unions>* o1) MOZ_OVERRIDE;
 
     virtual bool RecvTest11(
@@ -149,9 +149,9 @@ protected:
             const WithUnions& i,
             WithUnions* o) MOZ_OVERRIDE;
 
-    virtual bool RecvTest17(InfallibleTArray<Op>&& sa) MOZ_OVERRIDE;
+    virtual bool RecvTest17(const InfallibleTArray<Op>& sa) MOZ_OVERRIDE;
 
-    virtual bool RecvTest18(InfallibleTArray<nsIntRegion>&& ra) MOZ_OVERRIDE;
+    virtual bool RecvTest18(const InfallibleTArray<nsIntRegion>& ra) MOZ_OVERRIDE;
 
     virtual bool RecvDummy(const ShmemUnion& su, ShmemUnion* rsu) MOZ_OVERRIDE
     {

@@ -90,7 +90,7 @@ class TestNonWrapperCacheInterface : public nsISupports
 public:
   NS_DECL_ISUPPORTS
 
-  bool WrapObject(JSContext* aCx, JS::MutableHandle<JSObject*> aReflector);
+  virtual JSObject* WrapObject(JSContext* cx);
 };
 
 class OnlyForUseInConstructor : public nsISupports,
@@ -182,16 +182,6 @@ public:
   int8_t CachedConstantByte();
   int8_t CachedWritableByte();
   void SetCachedWritableByte(int8_t);
-  int8_t SideEffectFreeByte();
-  int8_t SetSideEffectFreeByte(int8_t);
-  int8_t DomDependentByte();
-  int8_t SetDomDependentByte(int8_t);
-  int8_t ConstantByte();
-  int8_t DeviceStateDependentByte();
-  int8_t ReturnByteSideEffectFree();
-  int8_t ReturnDOMDependentByte();
-  int8_t ReturnConstantByte();
-  int8_t ReturnDeviceStateDependentByte();
 
   void UnsafePrerenderMethod();
   int32_t UnsafePrerenderWritable();
@@ -419,9 +409,7 @@ public:
   void ReceiveNullableObjectSequence(JSContext*, nsTArray<JSObject*>&);
 
   void PassSequenceOfSequences(const Sequence< Sequence<int32_t> >&);
-  void PassSequenceOfSequencesOfSequences(const Sequence<Sequence<Sequence<int32_t>>>&);
   void ReceiveSequenceOfSequences(nsTArray< nsTArray<int32_t> >&);
-  void ReceiveSequenceOfSequencesOfSequences(nsTArray<nsTArray<nsTArray<int32_t>>>&);
 
   // MozMap types
   void PassMozMap(const MozMap<int32_t> &);

@@ -89,8 +89,7 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
               break;
           }
 
-          mMouseDownRect =
-            LayoutDeviceIntRect::FromAppUnitsToNearest(rect, aPresContext->AppUnitsPerDevPixel());
+          mMouseDownRect = rect.ToNearestPixels(aPresContext->AppUnitsPerDevPixel());
           doDefault = false;
         }
         else {
@@ -115,7 +114,7 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
         }
 
         // remember current mouse coordinates
-        LayoutDeviceIntPoint refPoint;
+        nsIntPoint refPoint;
         if (!GetEventPoint(aEvent, refPoint))
           return NS_OK;
         mMouseDownPoint = refPoint + aEvent->widget->WidgetToScreenOffset();
@@ -163,11 +162,11 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
 
       // retrieve the offset of the mousemove event relative to the mousedown.
       // The difference is how much the resize needs to be
-      LayoutDeviceIntPoint refPoint;
+      nsIntPoint refPoint;
       if (!GetEventPoint(aEvent, refPoint))
         return NS_OK;
-      LayoutDeviceIntPoint screenPoint = refPoint + aEvent->widget->WidgetToScreenOffset();
-      LayoutDeviceIntPoint mouseMove(screenPoint - mMouseDownPoint);
+      nsIntPoint screenPoint(refPoint + aEvent->widget->WidgetToScreenOffset());
+      nsIntPoint mouseMove(screenPoint - mMouseDownPoint);
 
       // Determine which direction to resize by checking the dir attribute.
       // For windows and menus, ensure that it can be resized in that direction.
@@ -183,7 +182,7 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
         break; // don't do anything if there's nothing to resize
       }
 
-      LayoutDeviceIntRect rect = mMouseDownRect;
+      nsIntRect rect = mMouseDownRect;
 
       // Check if there are any size constraints on this window.
       widget::SizeConstraints sizeConstraints;
@@ -212,7 +211,7 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
                             NSToIntRound(frameRect.y / scale), 1, 1,
                             getter_AddRefs(screen));
           if (screen) {
-            LayoutDeviceIntRect screenRect;
+            nsIntRect screenRect;
             screen->GetRect(&screenRect.x, &screenRect.y,
                             &screenRect.width, &screenRect.height);
             rect.IntersectRect(rect, screenRect);
@@ -230,7 +229,7 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
         // than be too large. If the popup is too large it could get flipped
         // to the opposite side of the anchor point while resizing.
         nsIntRect screenRectPixels = screenRect.ToInsidePixels(aPresContext->AppUnitsPerDevPixel());
-        rect.IntersectRect(rect, LayoutDevicePixel::FromUntyped(screenRectPixels));
+        rect.IntersectRect(rect, screenRectPixels);
       }
 
       if (contentToResize) {
@@ -238,7 +237,7 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
         // direction, don't allow the new size to be less that the resizer's
         // size. This ensures that content isn't resized too small as to make
         // the resizer invisible.
-        nsRect appUnitsRect = LayoutDevicePixel::ToUntyped(rect).ToAppUnits(aPresContext->AppUnitsPerDevPixel());
+        nsRect appUnitsRect = rect.ToAppUnits(aPresContext->AppUnitsPerDevPixel());
         if (appUnitsRect.width < mRect.width && mouseMove.x)
           appUnitsRect.width = mRect.width;
         if (appUnitsRect.height < mRect.height && mouseMove.y)

@@ -11,9 +11,7 @@
 #include "mp4_demuxer/MoofParser.h"
 #include "prlog.h"
 #include "MediaData.h"
-#ifdef MOZ_FMP4
 #include "MP4Stream.h"
-#endif
 #include "SourceBufferResource.h"
 
 #ifdef PR_LOGGING
@@ -234,7 +232,6 @@ private:
   int64_t mOffset;
 };
 
-#ifdef MOZ_FMP4
 class MP4ContainerParser : public ContainerParser {
 public:
   explicit MP4ContainerParser(const nsACString& aType)
@@ -350,7 +347,6 @@ private:
   nsAutoPtr<mp4_demuxer::MoofParser> mParser;
   Monitor mMonitor;
 };
-#endif
 
 /*static*/ ContainerParser*
 ContainerParser::CreateForMIMEType(const nsACString& aType)
@@ -359,11 +355,9 @@ ContainerParser::CreateForMIMEType(const nsACString& aType)
     return new WebMContainerParser(aType);
   }
 
-#ifdef MOZ_FMP4
   if (aType.LowerCaseEqualsLiteral("video/mp4") || aType.LowerCaseEqualsLiteral("audio/mp4")) {
     return new MP4ContainerParser(aType);
   }
-#endif
   return new ContainerParser(aType);
 }
 

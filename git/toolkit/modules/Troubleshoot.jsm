@@ -30,22 +30,6 @@ const PREFS_WHITELIST = [
   "accessibility.",
   "browser.cache.",
   "browser.display.",
-  "browser.download.folderList",
-  "browser.download.hide_plugins_without_extensions",
-  "browser.download.importedFromSqlite",
-  "browser.download.lastDir.savePerSite",
-  "browser.download.manager.addToRecentDocs",
-  "browser.download.manager.alertOnEXEOpen",
-  "browser.download.manager.closeWhenDone",
-  "browser.download.manager.displayedHistoryDays",
-  "browser.download.manager.quitBehavior",
-  "browser.download.manager.resumeOnWakeDelay",
-  "browser.download.manager.retention",
-  "browser.download.manager.scanWhenDone",
-  "browser.download.manager.showAlertOnComplete",
-  "browser.download.manager.showWhenStarting",
-  "browser.download.preferred.",
-  "browser.download.useDownloadDir",
   "browser.fixup.",
   "browser.history_expire_",
   "browser.link.open_newwindow",
@@ -182,8 +166,6 @@ let dataProviders = {
         data.numRemoteWindows++;
       }
     }
-
-    data.remoteAutoStart = Services.appinfo.browserTabsRemoteAutostart;
 
     done(data);
   },
@@ -434,16 +416,9 @@ let dataProviders = {
     if (infoInfo)
       data.info = infoInfo;
 
-    let failureCount = {};
-    let failureIndices = {};
-
-    let failures = gfxInfo.getFailures(failureCount, failureIndices);
-    if (failures.length) {
+    let failures = gfxInfo.getFailures();
+    if (failures.length)
       data.failures = failures;
-      if (failureIndices.value.length == failures.length) {
-        data.indices = failureIndices.value;
-      }
-    }
 
     done(data);
   },
@@ -508,7 +483,7 @@ let dataProviders = {
     let sysInfo = Cc["@mozilla.org/system-info;1"].
                   getService(Ci.nsIPropertyBag2);
     let data = {};
-    for (let key of keys) {
+    for (key of keys) {
       if (sysInfo.hasKey(key)) {
         data[key] = sysInfo.getPropertyAsBool(key);
       }

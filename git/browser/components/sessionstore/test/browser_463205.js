@@ -17,13 +17,15 @@ add_task(function test_check_urls_before_restoring() {
   yield promiseBrowserLoaded(browser);
 
   // Restore form data with a valid URL.
-  yield promiseTabState(tab, getState(URL));
+  ss.setTabState(tab, getState(URL));
+  yield promiseTabRestored(tab);
 
   let value = yield getInputValue(browser, {id: "text"});
   is(value, "foobar", "value was restored");
 
   // Restore form data with an invalid URL.
-  yield promiseTabState(tab, getState("http://example.com/"));
+  ss.setTabState(tab, getState("http://example.com/"));
+  yield promiseTabRestored(tab);
 
   value = yield getInputValue(browser, {id: "text"});
   is(value, "", "value was not restored");

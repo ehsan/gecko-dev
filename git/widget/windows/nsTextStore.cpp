@@ -597,10 +597,6 @@ GetModifiersName(Modifiers aModifiers)
     ADD_SEPARATOR_IF_NECESSARY(names);
     names += NS_DOM_KEYNAME_FN;
   }
-  if (aModifiers & MODIFIER_FNLOCK) {
-    ADD_SEPARATOR_IF_NECESSARY(names);
-    names += NS_DOM_KEYNAME_FNLOCK;
-  }
   if (aModifiers & MODIFIER_META) {
     ADD_SEPARATOR_IF_NECESSARY(names);
     names += NS_DOM_KEYNAME_META;
@@ -616,10 +612,6 @@ GetModifiersName(Modifiers aModifiers)
   if (aModifiers & MODIFIER_SHIFT) {
     ADD_SEPARATOR_IF_NECESSARY(names);
     names += NS_DOM_KEYNAME_SHIFT;
-  }
-  if (aModifiers & MODIFIER_SYMBOL) {
-    ADD_SEPARATOR_IF_NECESSARY(names);
-    names += NS_DOM_KEYNAME_SYMBOL;
   }
   if (aModifiers & MODIFIER_SYMBOLLOCK) {
     ADD_SEPARATOR_IF_NECESSARY(names);
@@ -1903,8 +1895,7 @@ nsTextStore::CurrentSelection()
 
     mSelection.SetSelection(querySelection.mReply.mOffset,
                             querySelection.mReply.mString.Length(),
-                            querySelection.mReply.mReversed,
-                            querySelection.GetWritingMode());
+                            querySelection.mReply.mReversed);
   }
 
   PR_LOG(sTextStoreLog, PR_LOG_DEBUG,
@@ -2810,9 +2801,6 @@ nsTextStore::GetRequestedAttrIndex(const TS_ATTRID& aAttrID)
   if (IsEqualGUID(aAttrID, TSATTRID_Text_VerticalWriting)) {
     return eTextVerticalWriting;
   }
-  if (IsEqualGUID(aAttrID, TSATTRID_Text_Orientation)) {
-    return eTextOrientation;
-  }
   return eNotSupported;
 }
 
@@ -2824,8 +2812,6 @@ nsTextStore::GetAttrID(int32_t aIndex)
       return GUID_PROP_INPUTSCOPE;
     case eTextVerticalWriting:
       return TSATTRID_Text_VerticalWriting;
-    case eTextOrientation:
-      return TSATTRID_Text_Orientation;
     default:
       MOZ_CRASH("Invalid index? Or not implemented yet?");
       return GUID_NULL;
@@ -2994,21 +2980,11 @@ nsTextStore::RetrieveRequestedAttrs(ULONG ulCount,
           paAttrVals[count].varValue.punkVal = inputScope.forget().take();
           break;
         }
-        case eTextVerticalWriting: {
-          Selection& currentSelection = CurrentSelection();
+        case eTextVerticalWriting:
+          // Currently, we don't support vertical writing mode.
           paAttrVals[count].varValue.vt = VT_BOOL;
-          paAttrVals[count].varValue.boolVal =
-            currentSelection.GetWritingMode().IsVertical()
-            ? VARIANT_TRUE : VARIANT_FALSE;
+          paAttrVals[count].varValue.boolVal = VARIANT_FALSE;
           break;
-        }
-        case eTextOrientation: {
-          Selection& currentSelection = CurrentSelection();
-          paAttrVals[count].varValue.vt = VT_I4;
-          paAttrVals[count].varValue.lVal =
-            currentSelection.GetWritingMode().IsVertical() ? 2700 : 0;
-          break;
-        }
         default:
           MOZ_CRASH("Invalid index? Or not implemented yet?");
           break;
@@ -3358,9 +3334,9 @@ nsTextStore::GetScreenExtInternal(RECT &aScreenExt)
     boundRect.MoveTo(0, 0);
 
     // Clip frame rect to window rect
-    boundRect.IntersectRect(LayoutDevicePixel::ToUntyped(event.mReply.mRect), boundRect);
+    boundRect.IntersectRect(event.mReply.mRect, boundRect);
     if (!boundRect.IsEmpty()) {
-      boundRect.MoveBy(refWindow->WidgetToScreenOffsetUntyped());
+      boundRect.MoveBy(refWindow->WidgetToScreenOffset());
       ::SetRect(&aScreenExt, boundRect.x, boundRect.y,
                 boundRect.XMost(), boundRect.YMost());
     } else {
@@ -4329,7 +4305,7 @@ nsTextStore::CreateNativeCaret()
     return;
   }
 
-  LayoutDeviceIntRect& caretRect = queryCaretRect.mReply.mRect;
+  nsIntRect& caretRect = queryCaretRect.mReply.mRect;
   mNativeCaretIsCreated = ::CreateCaret(mWidget->GetWindowHandle(), nullptr,
                                         caretRect.width, caretRect.height);
   if (!mNativeCaretIsCreated) {
@@ -4917,10 +4893,8 @@ nsTextStore::Content::StartComposition(ITfCompositionView* aCompositionView,
     GetSubstring(static_cast<uint32_t>(aCompStart.mSelectionStart),
                  static_cast<uint32_t>(aCompStart.mSelectionLength)));
   if (!aPreserveSelection) {
-    // XXX Do we need to set a new writing-mode here when setting a new
-    // selection? Currently, we just preserve the existing value.
     mSelection.SetSelection(mComposition.mStart, mComposition.mString.Length(),
-                            false, mSelection.GetWritingMode());
+                            false);
   }
 }
 

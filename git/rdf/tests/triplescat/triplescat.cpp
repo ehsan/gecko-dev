@@ -64,35 +64,35 @@ public:
     NS_DECL_ISUPPORTS
 
     // nsIOutputStream interface
-    NS_IMETHOD Close(void) MOZ_OVERRIDE {
+    NS_IMETHOD Close(void) {
         return NS_OK;
     }
 
-    NS_IMETHOD Write(const char* aBuf, uint32_t aCount, uint32_t *aWriteCount) MOZ_OVERRIDE {
+    NS_IMETHOD Write(const char* aBuf, uint32_t aCount, uint32_t *aWriteCount) {
         PR_Write(PR_GetSpecialFD(PR_StandardOutput), aBuf, aCount);
         *aWriteCount = aCount;
         return NS_OK;
     }
 
     NS_IMETHOD
-    WriteFrom(nsIInputStream *inStr, uint32_t count, uint32_t *_retval) MOZ_OVERRIDE {
+    WriteFrom(nsIInputStream *inStr, uint32_t count, uint32_t *_retval) {
         NS_NOTREACHED("WriteFrom");
         return NS_ERROR_NOT_IMPLEMENTED;
     }
 
     NS_IMETHOD
-    WriteSegments(nsReadSegmentFun reader, void * closure, uint32_t count, uint32_t *_retval) MOZ_OVERRIDE {
+    WriteSegments(nsReadSegmentFun reader, void * closure, uint32_t count, uint32_t *_retval) {
         NS_NOTREACHED("WriteSegments");
         return NS_ERROR_NOT_IMPLEMENTED;
     }
 
     NS_IMETHOD
-    IsNonBlocking(bool *aNonBlocking) MOZ_OVERRIDE {
+    IsNonBlocking(bool *aNonBlocking) {
         NS_NOTREACHED("IsNonBlocking");
         return NS_ERROR_NOT_IMPLEMENTED;
     }
 
-    NS_IMETHOD Flush(void) MOZ_OVERRIDE {
+    NS_IMETHOD Flush(void) {
         PR_Sync(PR_GetSpecialFD(PR_StandardOutput));
         return NS_OK;
     }

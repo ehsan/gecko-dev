@@ -3,6 +3,10 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+XPCOMUtils.defineLazyGetter(this, "gEMEBundle", function() {
+  return document.getElementById("bundle_eme");
+});
+
 let gEMEHandler = {
   ensureEMEEnabled: function(browser, keySystem) {
     Services.prefs.setBoolPref("media.eme.enabled", true);
@@ -20,7 +24,7 @@ let gEMEHandler = {
     browser.reload();
   },
   getLearnMoreLink: function(msgId) {
-    let text = gNavigatorBundle.getString("emeNotifications." + msgId + ".learnMoreLabel");
+    let text = gEMEBundle.getString("emeNotifications." + msgId + ".learnMoreLabel");
     let baseURL = Services.urlFormatter.formatURLPref("app.support.baseURL");
     return "<label class='text-link' href='" + baseURL + "drm-content'>" +
            text + "</label>";
@@ -120,23 +124,23 @@ let gEMEHandler = {
     }
 
     let message = labelParams.length ?
-                  gNavigatorBundle.getFormattedString(msgId, labelParams) :
-                  gNavigatorBundle.getString(msgId);
+                  gEMEBundle.getFormattedString(msgId, labelParams) :
+                  gEMEBundle.getString(msgId);
 
     let buttons = [];
     if (callback) {
       let btnLabelId = msgPrefix + "button.label";
       let btnAccessKeyId = msgPrefix + "button.accesskey";
       buttons.push({
-        label: gNavigatorBundle.getString(btnLabelId),
-        accesskey: gNavigatorBundle.getString(btnAccessKeyId),
+        label: gEMEBundle.getString(btnLabelId),
+        accessKey: gEMEBundle.getString(btnAccessKeyId),
         callback: callback
       });
 
       let optionsId = "emeNotifications.optionsButton";
       buttons.push({
-        label: gNavigatorBundle.getString(optionsId + ".label"),
-        accesskey: gNavigatorBundle.getString(optionsId + ".accesskey"),
+        label: gEMEBundle.getString(optionsId + ".label"),
+        accessKey: gEMEBundle.getString(optionsId + ".accesskey"),
         popup: "emeNotificationsPopup"
       });
     }
@@ -165,21 +169,12 @@ let gEMEHandler = {
     let btnLabelId = msgPrefix + "button.label";
     let btnAccessKeyId = msgPrefix + "button.accesskey";
 
-    let message = gNavigatorBundle.getFormattedString(msgId, [this._brandShortName]);
+    let message = gEMEBundle.getFormattedString(msgId, [this._brandShortName]);
     let anchorId = "eme-notification-icon";
-    let firstPlayPref = "browser.eme.ui.firstContentShown";
-    if (!Services.prefs.getPrefType(firstPlayPref) ||
-        !Services.prefs.getBoolPref(firstPlayPref)) {
-      document.getElementById(anchorId).setAttribute("firstplay", "true");
-      Services.prefs.setBoolPref(firstPlayPref, true);
-    } else {
-      document.getElementById(anchorId).removeAttribute("firstplay");
-    }
-
 
     let mainAction = {
-      label: gNavigatorBundle.getString(btnLabelId),
-      accessKey: gNavigatorBundle.getString(btnAccessKeyId),
+      label: gEMEBundle.getString(btnLabelId),
+      accessKey: gEMEBundle.getString(btnAccessKeyId),
       callback: function() { openPreferences("paneContent"); },
       dismiss: true
     };

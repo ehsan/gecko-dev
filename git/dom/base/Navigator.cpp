@@ -1217,12 +1217,6 @@ Navigator::SendBeacon(const nsAString& aUrl,
       !contentType.Equals(APPLICATION_WWW_FORM_URLENCODED) &&
       !contentType.Equals(MULTIPART_FORM_DATA) &&
       !contentType.Equals(TEXT_PLAIN)) {
-
-    // we need to set the sameOriginChecker as a notificationCallback
-    // so we can tell the channel not to follow redirects
-    nsCOMPtr<nsIInterfaceRequestor> soc = nsContentUtils::SameOriginChecker();
-    channel->SetNotificationCallbacks(soc);
-
     nsCOMPtr<nsIChannel> preflightChannel;
     nsTArray<nsCString> unsafeHeaders;
     unsafeHeaders.AppendElement(NS_LITERAL_CSTRING("Content-Type"));
@@ -1858,33 +1852,6 @@ Navigator::MozHasPendingMessage(const nsAString& aType, ErrorResult& aRv)
 }
 
 void
-Navigator::MozSetMessageHandlerPromise(Promise& aPromise,
-                                       ErrorResult& aRv)
-{
-  // The WebIDL binding is responsible for the pref check here.
-  aRv = EnsureMessagesManager();
-  if (NS_WARN_IF(aRv.Failed())) {
-    return;
-  }
-
-  bool result = false;
-  aRv = mMessagesManager->MozIsHandlingMessage(&result);
-  if (NS_WARN_IF(aRv.Failed())) {
-    return;
-  }
-
-  if (!result) {
-    aRv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
-    return;
-  }
-
-  aRv = mMessagesManager->MozSetMessageHandlerPromise(&aPromise);
-  if (NS_WARN_IF(aRv.Failed())) {
-    return;
-  }
-}
-
-void
 Navigator::MozSetMessageHandler(const nsAString& aType,
                                 systemMessageCallback* aCallback,
                                 ErrorResult& aRv)
@@ -2447,20 +2414,6 @@ Navigator::HasTVSupport(JSContext* aCx, JSObject* aGlobal)
 
   // Only support TV Manager API for certified apps for now.
   return status == nsIPrincipal::APP_STATUS_CERTIFIED;
-}
-
-/* static */
-bool
-Navigator::IsE10sEnabled(JSContext* aCx, JSObject* aGlobal)
-{
-  return XRE_GetProcessType() == GeckoProcessType_Content;
-}
-
-bool
-Navigator::MozE10sEnabled()
-{
-  // This will only be called if IsE10sEnabled() is true.
-  return true;
 }
 
 /* static */

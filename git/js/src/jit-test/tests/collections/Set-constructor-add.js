@@ -93,7 +93,7 @@ function test_change1() {
 
   var proxy_arr = new Proxy(arr, {
     get: function(target, name) {
-      if (name == Symbol.iterator) {
+      if (name == std_iterator) {
         modified = true;
         Set.prototype.add = function() {
           called = true;

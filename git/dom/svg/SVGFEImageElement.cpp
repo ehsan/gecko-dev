@@ -306,7 +306,9 @@ SVGFEImageElement::OutputIsTainted(const nsTArray<bool>& aInputsAreTainted,
 already_AddRefed<DOMSVGAnimatedPreserveAspectRatio>
 SVGFEImageElement::PreserveAspectRatio()
 {
-  return mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(this);
+  nsRefPtr<DOMSVGAnimatedPreserveAspectRatio> ratio;
+  mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(getter_AddRefs(ratio), this);
+  return ratio.forget();
 }
 
 SVGAnimatedPreserveAspectRatio *
@@ -334,7 +336,7 @@ SVGFEImageElement::Notify(imgIRequest* aRequest, int32_t aType, const nsIntRect*
     // Request a decode
     nsCOMPtr<imgIContainer> container;
     aRequest->GetImage(getter_AddRefs(container));
-    MOZ_ASSERT(container, "who sent the notification then?");
+    NS_ABORT_IF_FALSE(container, "who sent the notification then?");
     container->StartDecoding();
   }
 

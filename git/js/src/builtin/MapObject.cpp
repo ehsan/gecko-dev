@@ -823,10 +823,7 @@ HashableValue::operator==(const HashableValue &other) const
 
 #ifdef DEBUG
     bool same;
-    PerThreadData *data = TlsPerThreadData.get();
-    RootedValue valueRoot(data, value);
-    RootedValue otherRoot(data, other.value);
-    MOZ_ASSERT(SameValue(nullptr, valueRoot, otherRoot, &same));
+    MOZ_ASSERT(SameValue(nullptr, value, other.value, &same));
     MOZ_ASSERT(same == b);
 #endif
     return b;
@@ -904,7 +901,7 @@ MapIteratorObject::kind() const
 bool
 GlobalObject::initMapIteratorProto(JSContext *cx, Handle<GlobalObject *> global)
 {
-    Rooted<JSObject*> base(cx, GlobalObject::getOrCreateIteratorPrototype(cx, global));
+    JSObject *base = GlobalObject::getOrCreateIteratorPrototype(cx, global);
     if (!base)
         return false;
     Rooted<MapIteratorObject *> proto(cx,
@@ -1080,9 +1077,14 @@ MapObject::initClass(JSContext *cx, JSObject *obj)
 
         // Define its alias.
         RootedValue funval(cx, ObjectValue(*fun));
+#if JS_HAS_SYMBOLS
         RootedId iteratorId(cx, SYMBOL_TO_JSID(cx->wellKnownSymbols().iterator));
         if (!JS_DefinePropertyById(cx, proto, iteratorId, funval, 0))
             return nullptr;
+#else
+        if (!JS_DefineProperty(cx, proto, js_std_iterator_str, funval, 0))
+            return nullptr;
+#endif
     }
     return proto;
 }
@@ -1229,14 +1231,9 @@ MapObject::construct(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     CallArgs args = CallArgsFromVp(argc, vp);
-
-    // FIXME: bug 1083752
-    if (!WarnIfNotConstructing(cx, args, "Map"))
-        return false;
-
     if (!args.get(0).isNullOrUndefined()) {
         RootedValue adderVal(cx);
-        if (!GetProperty(cx, obj, obj, cx->names().set, &adderVal))
+        if (!JSObject::getProperty(cx, obj, obj, cx->names().set, &adderVal))
             return false;
 
         if (!IsCallable(adderVal))
@@ -1271,11 +1268,11 @@ MapObject::construct(JSContext *cx, unsigned argc, Value *vp)
                 return false;
 
             RootedValue key(cx);
-            if (!GetElement(cx, pairObj, pairObj, 0, &key))
+            if (!JSObject::getElement(cx, pairObj, pairObj, 0, &key))
                 return false;
 
             RootedValue val(cx);
-            if (!GetElement(cx, pairObj, pairObj, 1, &val))
+            if (!JSObject::getElement(cx, pairObj, pairObj, 1, &val))
                 return false;
 
             if (isOriginalAdder) {
@@ -1640,7 +1637,7 @@ SetIteratorObject::kind() const
 bool
 GlobalObject::initSetIteratorProto(JSContext *cx, Handle<GlobalObject*> global)
 {
-    Rooted<JSObject*> base(cx, GlobalObject::getOrCreateIteratorPrototype(cx, global));
+    JSObject *base = GlobalObject::getOrCreateIteratorPrototype(cx, global);
     if (!base)
         return false;
     Rooted<SetIteratorObject *> proto(cx,
@@ -1793,9 +1790,14 @@ SetObject::initClass(JSContext *cx, JSObject *obj)
         if (!JS_DefineProperty(cx, proto, "keys", funval, 0))
             return nullptr;
 
+#if JS_HAS_SYMBOLS
         RootedId iteratorId(cx, SYMBOL_TO_JSID(cx->wellKnownSymbols().iterator));
         if (!JS_DefinePropertyById(cx, proto, iteratorId, funval, 0))
             return nullptr;
+#else
+        if (!JS_DefineProperty(cx, proto, js_std_iterator_str, funval, 0))
+            return nullptr;
+#endif
     }
     return proto;
 }
@@ -1878,14 +1880,9 @@ SetObject::construct(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     CallArgs args = CallArgsFromVp(argc, vp);
-
-    // FIXME: bug 1083752
-    if (!WarnIfNotConstructing(cx, args, "Set"))
-        return false;
-
     if (!args.get(0).isNullOrUndefined()) {
         RootedValue adderVal(cx);
-        if (!GetProperty(cx, obj, obj, cx->names().add, &adderVal))
+        if (!JSObject::getProperty(cx, obj, obj, cx->names().add, &adderVal))
             return false;
 
         if (!IsCallable(adderVal))

@@ -92,16 +92,8 @@ void SetThisProcessName(const char *aName)
  * NOTE: The server process serves at most one load() request.
  */
 
+using namespace base;
 using namespace mozilla::dom;
-
-using base::ChildPrivileges;
-using base::InjectionArc;
-using base::InjectiveMultimap;
-using base::ProcessHandle;
-using base::ProcessId;
-using base::SetCurrentProcessPrivileges;
-using base::ShuffleFileDescriptors;
-using base::file_handle_mapping_vector;
 
 static bool sProcLoaderClientOnDeinit = false;
 static DebugOnly<bool> sProcLoaderClientInitialized = false;
@@ -438,9 +430,9 @@ public:
 
   virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
 
-  virtual bool RecvLoad(InfallibleTArray<nsCString>&& aArgv,
-                        InfallibleTArray<nsCString>&& aEnv,
-                        InfallibleTArray<FDRemap>&& aFdsremap,
+  virtual bool RecvLoad(const InfallibleTArray<nsCString>& aArgv,
+                        const InfallibleTArray<nsCString>& aEnv,
+                        const InfallibleTArray<FDRemap>& aFdsremap,
                         const uint32_t& aPrivs,
                         const int32_t& aCookie);
 
@@ -461,9 +453,9 @@ _ProcLoaderChildDestroy(ProcLoaderChild *aChild)
 }
 
 bool
-ProcLoaderChild::RecvLoad(InfallibleTArray<nsCString>&& aArgv,
-                          InfallibleTArray<nsCString>&& aEnv,
-                          InfallibleTArray<FDRemap>&& aFdsRemap,
+ProcLoaderChild::RecvLoad(const InfallibleTArray<nsCString>& aArgv,
+                          const InfallibleTArray<nsCString>& aEnv,
+                          const InfallibleTArray<FDRemap>& aFdsRemap,
                           const uint32_t& aPrivs,
                           const int32_t& aCookie) {
   if (!sProcLoaderServing) {

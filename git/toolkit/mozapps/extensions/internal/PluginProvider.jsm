@@ -16,7 +16,6 @@ Cu.import("resource://gre/modules/Services.jsm");
 const URI_EXTENSION_STRINGS  = "chrome://mozapps/locale/extensions/extensions.properties";
 const STRING_TYPE_NAME       = "type.%ID%.name";
 const LIST_UPDATED_TOPIC     = "plugins-list-updated";
-const FLASH_MIME_TYPE        = "application/x-shockwave-flash";
 
 Cu.import("resource://gre/modules/Log.jsm");
 const LOGGER_ID = "addons.plugins";
@@ -86,9 +85,6 @@ var PluginProvider = {
           types.push(type.type + (extras ? " (" + extras + ")" : ""));
         }
         typeLabel.textContent = types.join(",\n");
-        let showProtectedModePref = canDisableFlashProtectedMode(plugin);
-        aSubject.getElementById("pluginEnableProtectedMode")
-          .setAttribute("collapsed", showProtectedModePref ? "" : "true");
       });
       break;
     case LIST_UPDATED_TOPIC:
@@ -279,19 +275,6 @@ var PluginProvider = {
       AddonManagerPrivate.callAddonListeners("onUninstalled", plugin);
   }
 };
-
-function isFlashPlugin(aPlugin) {
-  for (let type of aPlugin.pluginMimeTypes) {
-    if (type.type == FLASH_MIME_TYPE) {
-      return true;
-    }
-  }
-  return false;
-}
-// Protected mode is win32-only, not win64
-function canDisableFlashProtectedMode(aPlugin) {
-  return isFlashPlugin(aPlugin) && Services.appinfo.XPCOMABI == "x86-msvc";
-}
 
 /**
  * The PluginWrapper wraps a set of nsIPluginTags to provide the data visible to
@@ -505,16 +488,10 @@ function PluginWrapper(aId, aName, aDescription, aTags) {
     }
     return permissions;
   });
-
-  this.__defineGetter__("optionsType", function() {
-    if (canDisableFlashProtectedMode(this)) {
-      return AddonManager.OPTIONS_TYPE_INLINE;
-    }
-    return AddonManager.OPTIONS_TYPE_INLINE_INFO;
-  });
 }
 
 PluginWrapper.prototype = {
+  optionsType: AddonManager.OPTIONS_TYPE_INLINE_INFO,
   optionsURL: "chrome://mozapps/content/extensions/pluginPrefs.xul",
 
   get updateDate() {

@@ -1,14 +1,8 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 package org.mozilla.gecko.tests;
 
 import android.support.v4.app.Fragment;
 import android.view.KeyEvent;
 import android.view.View;
-
-import com.jayway.android.robotium.solo.Condition;
 
 /**
  * Test for browser search visibility.
@@ -46,9 +40,9 @@ public class testBrowserSearchVisibility extends BaseTest {
     }
 
     private void assertBrowserSearchVisibility(final boolean isVisible) {
-        waitForCondition(new Condition() {
+        waitForTest(new BooleanTest() {
             @Override
-            public boolean isSatisfied() {
+            public boolean test() {
                 final Fragment browserSearch = getBrowserSearch();
 
                 // The fragment should not be present at all. Testing if the

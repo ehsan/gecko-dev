@@ -28,6 +28,15 @@ class HTMLElement(object):
     Represents a DOM Element.
     """
 
+    CLASS = "class name"
+    SELECTOR = "css selector"
+    ID = "id"
+    NAME = "name"
+    LINK_TEXT = "link text"
+    PARTIAL_LINK_TEXT = "partial link text"
+    TAG = "tag name"
+    XPATH = "xpath"
+
     def __init__(self, marionette, id):
         self.marionette = marionette
         assert(id is not None)
@@ -90,8 +99,18 @@ class HTMLElement(object):
         '''
         Sends the string via synthesized keypresses to the element.
         '''
-        keys = Marionette.convert_keys(*string)
-        return self.marionette._send_message('sendKeysToElement', 'ok', id=self.id, value=keys)
+        typing = []
+        for val in string:
+            if isinstance(val, Keys):
+                typing.append(val)
+            elif isinstance(val, int):
+                val = str(val)
+                for i in range(len(val)):
+                    typing.append(val[i])
+            else:
+                for i in range(len(val)):
+                    typing.append(val[i])
+        return self.marionette._send_message('sendKeysToElement', 'ok', id=self.id, value=typing)
 
     def clear(self):
         '''
@@ -384,25 +403,6 @@ class Actions(object):
         self.action_chain.append(['release'])
         return self
 
-    def key_down(self, key_code):
-        """
-        Perform a "keyDown" action for the given key code. Modifier keys are
-        respected by the server for the course of an action chain.
-
-        :param key_code: The key to press as a result of this action.
-        """
-        self.action_chain.append(['keyDown', key_code])
-        return self
-
-    def key_up(self, key_code):
-        """
-        Perform a "keyUp" action for the given key code. Modifier keys are
-        respected by the server for the course of an action chain.
-        :param key_up: The key to release as a result of this action.
-        """
-        self.action_chain.append(['keyUp', key_code])
-        return self
-
     def perform(self):
         '''
         Sends the action chain built so far to the server side for execution and clears the current chain of actions.
@@ -454,42 +454,6 @@ class MultiActions(object):
         '''
         return self.marionette._send_message('multiAction', 'ok', value=self.multi_actions, max_length=self.max_length)
 
-class Alert(object):
-    '''
-    A class for interacting with alerts.
-
-    ::
-
-      Alert(marionette).accept()
-      Alert(merionette).dismiss()
-    '''
-
-    def __init__(self, marionette):
-        self.marionette = marionette
-
-    def accept(self):
-        """Accept a currently displayed modal dialog.
-        """
-        self.marionette._send_message('acceptDialog', 'ok')
-
-    def dismiss(self):
-        """Dismiss a currently displayed modal dialog.
-        """
-        self.marionette._send_message('dismissDialog', 'ok')
-
-    @property
-    def text(self):
-        """Return the currently displayed text in a tab modal.
-        """
-        return self.marionette._send_message('getTextFromDialog', 'value')
-
-    def send_keys(self, *string):
-        """Send keys to the currently displayed text input area in an open
-        tab modal dialog.
-        """
-        keys = Marionette.convert_keys(*string)
-        self.marionette._send_message('sendKeysToDialog', 'ok', value=keys)
-
 
 class Marionette(object):
     """
@@ -508,7 +472,7 @@ class Marionette(object):
                  gecko_log=None, homedir=None, baseurl=None, no_window=False, logdir=None,
                  busybox=None, symbols_path=None, timeout=None, socket_timeout=360,
                  device_serial=None, adb_path=None, process_args=None,
-                 adb_host=None, adb_port=None, prefs=None):
+                 adb_host=None, adb_port=None):
         self.host = host
         self.port = self.local_port = port
         self.bin = bin
@@ -555,7 +519,7 @@ class Marionette(object):
             self.instance = instance_class(host=self.host, port=self.port,
                                            bin=self.bin, profile=self.profile,
                                            app_args=app_args, symbols_path=symbols_path,
-                                           gecko_log=gecko_log, prefs=prefs)
+                                           gecko_log=gecko_log)
             self.instance.start()
             assert(self.wait_for_port()), "Timed out waiting for port!"
 
@@ -749,8 +713,6 @@ class Marionette(object):
             raise errors.FrameSendFailureError(message=message, status=status, stacktrace=stacktrace)
         elif status == errors.ErrorCodes.UNSUPPORTED_OPERATION:
             raise errors.UnsupportedOperationException(message=message, status=status, stacktrace=stacktrace)
-        elif status == errors.ErrorCodes.SESSION_NOT_CREATED:
-            raise errors.SessionNotCreatedException(message=message, status=status, stacktrace=stacktrace)
         else:
             raise errors.MarionetteException(message=message, status=status, stacktrace=stacktrace)
 
@@ -779,21 +741,6 @@ class Marionette(object):
             print ('PROCESS-CRASH | %s | abnormal termination with exit code %d' %
                 (name, returncode))
         return crashed
-
-    @staticmethod
-    def convert_keys(*string):
-        typing = []
-        for val in string:
-            if isinstance(val, Keys):
-                typing.append(val)
-            elif isinstance(val, int):
-                val = str(val)
-                for i in range(len(val)):
-                    typing.append(val[i])
-            else:
-                for i in range(len(val)):
-                    typing.append(val[i])
-        return typing
 
     def enforce_gecko_prefs(self, prefs):
         """
@@ -901,7 +848,8 @@ class Marionette(object):
         '''
         A JSON dictionary representing the capabilities of the current session.
         '''
-        return self.session
+        response = self._send_message('getSessionCapabilities', 'value')
+        return response
 
     def set_script_timeout(self, timeout):
         '''
@@ -1030,6 +978,7 @@ class Marionette(object):
         '''
         response = self._send_message('getPageSource', 'value')
         return response
+
     def close(self):
         """Close the current window, ending the session if it's the last
         window currently open.
@@ -1088,18 +1037,6 @@ class Marionette(object):
             yield
         finally:
             self.set_context(scope)
-
-    def switch_to_alert(self):
-        '''
-        Returns an Alert object for interacting with a currently displayed alert.
-
-        ::
-
-            alert = self.marionette.switch_to_alert()
-            text = alert.text
-            alert.accept()
-        '''
-        return Alert(self)
 
     def switch_to_window(self, window_id):
         '''
@@ -1198,19 +1135,6 @@ class Marionette(object):
         return response
 
     def timeouts(self, timeout_type, ms):
-        """An interface for managing timeout behaviour of a Marionette instance.
-
-        Setting timeouts specifies the type and amount of time the Marionette instance should wait during requests.
-
-        There are three types of timeouts that can be set: implicit, script and page load.
-
-        * An implicit  timeout specifies the amount of time a Marionette instance should wait when searching for elements. Here, marionette polls a page until an element is found or the timeout expires, whichever occurs first. When searching for multiple elements, the driver should poll the page until at least one element is found or the timeout expires, at which point it should return an empty list.
-        * A script timeout specifies the amount of time the Marionette instance should wait after calling executeAsyncScript for the callback to have executed before returning a timeout response.
-        * A page load timeout specifies the amount of time the Marionette instance should wait for a page load operation to complete. If this limit is exceeded, the Marionette instance will return a "timeout" response status.
-
-        :param timeout_type: A string value specifying the timeout type. This must be one of three types: 'implicit', 'script' or 'page load'
-        :param ms: A number value specifying the timeout length in milliseconds (ms)
-        """
         assert(timeout_type == self.TIMEOUT_SEARCH or timeout_type == self.TIMEOUT_SCRIPT or timeout_type == self.TIMEOUT_PAGE)
         response = self._send_message('timeouts', 'ok', type=timeout_type, ms=ms)
         return response
@@ -1369,7 +1293,7 @@ class Marionette(object):
                                       filename=os.path.basename(frame[0]))
         return self.unwrapValue(response)
 
-    def execute_async_script(self, script, script_args=None, new_sandbox=True, special_powers=False, script_timeout=None, debug_script=False):
+    def execute_async_script(self, script, script_args=None, new_sandbox=True, special_powers=False, script_timeout=None):
         '''
         Executes an asynchronous JavaScript script, and returns the result (or None if the script does return a value).
 
@@ -1387,8 +1311,6 @@ class Marionette(object):
         :param new_sandbox: If False, preserve global variables from the last
          execute_*script call. This is True by default, in which case no
          globals are preserved.
-        :param debug_script: Capture javascript exceptions when in
-         CONTEXT_CHROME context.
 
         Usage example:
 
@@ -1416,8 +1338,7 @@ class Marionette(object):
                                       specialPowers=special_powers,
                                       scriptTimeout=script_timeout,
                                       line=int(frame[1]),
-                                      filename=os.path.basename(frame[0]),
-                                      debug_script=debug_script)
+                                      filename=os.path.basename(frame[0]))
         return self.unwrapValue(response)
 
     def find_element(self, method, target, id=None):
@@ -1476,7 +1397,7 @@ class Marionette(object):
         assert(isinstance(response, list))
         elements = []
         for x in response:
-            elements.append(HTMLElement(self, x['ELEMENT']))
+            elements.append(HTMLElement(self, x))
         return elements
 
     def get_active_element(self):
@@ -1620,8 +1541,7 @@ class Marionette(object):
     def application_cache(self):
         return ApplicationCache(self)
 
-    def screenshot(self, element=None, highlights=None, format="base64",
-                   full=True):
+    def screenshot(self, element=None, highlights=None, format="base64"):
         """Takes a screenshot of a web element or the current frame.
 
         The screen capture is returned as a lossless PNG image encoded
@@ -1640,9 +1560,6 @@ class Marionette(object):
             as a base64-string. If "binary", the data is decoded and
             returned as raw binary.
 
-        :param full: If True (the default), the capture area will be the
-            complete frame. Else only the viewport is captured. Only applies
-            when `element` is None.
         """
 
         if element:
@@ -1651,8 +1568,7 @@ class Marionette(object):
         if highlights:
             lights = [highlight.id for highlight in highlights]
         screenshot_data = self._send_message("takeScreenshot", "value",
-                                             id=element, highlights=lights,
-                                             full=full)
+                                  id=element, highlights=lights)
         if format == 'base64':
             return screenshot_data
         elif format == 'binary':

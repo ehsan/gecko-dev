@@ -6,7 +6,7 @@
 
 waitForExplicitFinish();
 
-const TEST_URL = TEST_BASE + "doc_xulpage.xul";
+const TEST_URL = "about:config";
 
 add_task(function*() {
   let tab = yield addTab(TEST_URL);

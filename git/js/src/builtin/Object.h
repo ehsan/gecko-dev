@@ -9,8 +9,6 @@
 
 #include "jsapi.h"
 
-#include "vm/NativeObject.h"
-
 namespace JS {
 class CallArgs;
 class Value;
@@ -24,13 +22,6 @@ obj_construct(JSContext *cx, unsigned argc, JS::Value *vp);
 
 bool
 obj_valueOf(JSContext *cx, unsigned argc, JS::Value *vp);
-
-PlainObject *
-ObjectCreateImpl(JSContext *cx, HandleObject proto, NewObjectKind newKind = GenericObject,
-                 HandleObjectGroup group = js::NullPtr());
-
-PlainObject *
-ObjectCreateWithTemplate(JSContext *cx, HandlePlainObject templateObj);
 
 // Object methods exposed so they can be installed in the self-hosting global.
 bool

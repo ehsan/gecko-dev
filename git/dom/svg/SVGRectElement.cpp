@@ -111,8 +111,8 @@ SVGRectElement::GetLengthInfo()
 // nsSVGPathGeometryElement methods
 
 bool
-SVGRectElement::GetGeometryBounds(
-  Rect* aBounds, const StrokeOptions& aStrokeOptions, const Matrix& aTransform)
+SVGRectElement::GetGeometryBounds(Rect* aBounds, Float aStrokeWidth,
+                                  const Matrix& aTransform)
 {
   Rect rect;
   Float rx, ry;
@@ -122,8 +122,7 @@ SVGRectElement::GetGeometryBounds(
   if (rect.IsEmpty()) {
     // Rendering of the element disabled
     rect.SetEmpty(); // Make sure width/height are zero and not negative
-    // We still want the x/y position from 'rect'
-    *aBounds = aTransform.TransformBounds(rect);
+    *aBounds = rect; // We still want the x/y position from 'rect'
     return true;
   }
 
@@ -137,8 +136,8 @@ SVGRectElement::GetGeometryBounds(
     }
   }
 
-  if (aStrokeOptions.mLineWidth > 0.f) {
-    rect.Inflate(aStrokeOptions.mLineWidth / 2.f);
+  if (aStrokeWidth > 0.f) {
+    rect.Inflate(aStrokeWidth / 2.f);
   }
 
   *aBounds = aTransform.TransformBounds(rect);

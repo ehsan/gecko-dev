@@ -214,7 +214,7 @@ GMPDecryptorParent::RecvRejectPromise(const uint32_t& aPromiseId,
 bool
 GMPDecryptorParent::RecvSessionMessage(const nsCString& aSessionId,
                                        const GMPSessionMessageType& aMessageType,
-                                       nsTArray<uint8_t>&& aMessage)
+                                       const nsTArray<uint8_t>& aMessage)
 {
   if (!mIsOpen) {
     NS_WARNING("Trying to use a dead GMP decrypter!");
@@ -266,7 +266,7 @@ GMPDecryptorParent::RecvSessionError(const nsCString& aSessionId,
 
 bool
 GMPDecryptorParent::RecvKeyStatusChanged(const nsCString& aSessionId,
-                                         InfallibleTArray<uint8_t>&& aKeyId,
+                                         const nsTArray<uint8_t>& aKeyId,
                                          const GMPMediaKeyStatus& aStatus)
 {
   if (mIsOpen) {
@@ -289,7 +289,7 @@ GMPDecryptorParent::RecvSetCaps(const uint64_t& aCaps)
 bool
 GMPDecryptorParent::RecvDecrypted(const uint32_t& aId,
                                   const GMPErr& aErr,
-                                  InfallibleTArray<uint8_t>&& aBuffer)
+                                  const nsTArray<uint8_t>& aBuffer)
 {
   if (!mIsOpen) {
     NS_WARNING("Trying to use a dead GMP decrypter!");

@@ -7,7 +7,6 @@ const { Cc, Ci, Cm, Cr } = require("chrome");
 const { isCIDRegistered } = Cm.QueryInterface(Ci.nsIComponentRegistrar);
 const { Class } = require("sdk/core/heritage");
 const { Loader } = require("sdk/test/loader");
-const { Services } = require("resource://gre/modules/Services.jsm");
 
 exports['test Unknown implements nsISupports'] = function(assert) {
   let actual = xpcom.Unknown();
@@ -129,13 +128,15 @@ function testRegister(assert, text) {
       extends: xpcom.Unknown,
       get wrappedJSObject() this,
       interfaces: [ 'nsIAboutModule' ],
-      newChannel : function(aURI, aLoadInfo) {
+      newChannel : function(aURI) {
         var ios = Cc["@mozilla.org/network/io-service;1"].
                   getService(Ci.nsIIOService);
 
-        var uri = ios.newURI("data:text/plain;charset=utf-8," + text,
-                             null, null);
-        var channel = ios.newChannelFromURIWithLoadInfo(uri, aLoadInfo);
+        var channel = ios.newChannel(
+          "data:text/plain;charset=utf-8," + text,
+          null,
+          null
+        );
 
         channel.originalURI = aURI;
         return channel;
@@ -161,12 +162,7 @@ function testRegister(assert, text) {
   );
 
   var aboutURI = ios.newURI("about:boop", null, null);
-  var channel = ios.newChannelFromURI2(aboutURI,
-                                       null,      // aLoadingNode
-                                       Services.scriptSecurityManager.getSystemPrincipal(),
-                                       null,      // aTriggeringPrincipal
-                                       Ci.nsILoadInfo.SEC_NORMAL,
-                                       Ci.nsIContentPolicy.TYPE_OTHER);
+  var channel = ios.newChannelFromURI(aboutURI);
   var iStream = channel.open();
   var siStream = Cc['@mozilla.org/scriptableinputstream;1']
                  .createInstance(Ci.nsIScriptableInputStream);
@@ -224,4 +220,4 @@ exports["test unload"] = function(assert) {
                    'component was manually unregistered on unload');
 };
 
-require("sdk/test").run(exports);
+require("test").run(exports);

@@ -26,10 +26,11 @@ function test() {
   }
 
   // delete existing sessionstore.js, to make sure we're not reading
-  // the mtime of an old one initially.
-  let sessionStoreJS = getSessionstoreFile();
-  if (sessionStoreJS.exists())
-    sessionStoreJS.remove(false);
+  // the mtime of an old one initialy
+  let (sessionStoreJS = getSessionstoreFile()) {
+    if (sessionStoreJS.exists())
+      sessionStoreJS.remove(false);
+  }
 
   // test content URL
   const TEST_URL = "data:text/html;charset=utf-8,"
@@ -46,7 +47,7 @@ function test() {
 
   // create and select a first tab
   let tab = gBrowser.addTab(TEST_URL);
-  promiseBrowserLoaded(tab.linkedBrowser).then(() => {
+  whenBrowserLoaded(tab.linkedBrowser, function() {
     // step1: the above has triggered some saveStateDelayed(), sleep until
     // it's done, and get the initial sessionstore.js mtime
     setTimeout(function step1(e) {

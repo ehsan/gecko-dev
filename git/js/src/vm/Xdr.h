@@ -28,12 +28,23 @@ namespace js {
  * this wiki page:
  *
  *  https://developer.mozilla.org/en-US/docs/SpiderMonkey/Internals/Bytecode
+ *
+ * === GREETINGS, FELLOW SUBTRAHEND INCREMENTER! ===
+ * For the time being, please increment the subtrahend by 2 each time it
+ * changes, because we have two flavors of bytecode: with JSOP_SYMBOL (in
+ * Nightly) and without (all others).  FIXME: Bug 1066322 - Enable ES6 symbols
+ * in all builds.
  */
-static const uint32_t XDR_BYTECODE_VERSION_SUBTRAHEND = 246;
+static const uint32_t XDR_BYTECODE_VERSION_SUBTRAHEND = 226;
+static_assert(XDR_BYTECODE_VERSION_SUBTRAHEND % 2 == 0, "see the comment above");
 static const uint32_t XDR_BYTECODE_VERSION =
-    uint32_t(0xb973c0de - XDR_BYTECODE_VERSION_SUBTRAHEND);
+    uint32_t(0xb973c0de - (XDR_BYTECODE_VERSION_SUBTRAHEND
+#ifdef JS_HAS_SYMBOLS
+                                                           + 1
+#endif
+                                                              ));
 
-static_assert(JSErr_Limit == 368,
+static_assert(JSErr_Limit == 365,
               "GREETINGS, POTENTIAL SUBTRAHEND INCREMENTER! If you added or "
               "removed MSG_DEFs from js.msg, you should increment "
               "XDR_BYTECODE_VERSION_SUBTRAHEND and update this assertion's "

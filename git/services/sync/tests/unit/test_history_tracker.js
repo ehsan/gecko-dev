@@ -199,5 +199,6 @@ add_test(function test_stop_tracking_twice() {
 
 add_test(function cleanup() {
    _("Clean up.");
-  PlacesTestUtils.clearHistory().then(run_next_test);
+  PlacesUtils.history.removeAllPages();
+  run_next_test();
 });

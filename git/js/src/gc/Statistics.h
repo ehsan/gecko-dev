@@ -95,9 +95,6 @@ enum Stat {
     // compaction
     STAT_STOREBUFFER_OVERFLOW,
 
-    // Number of arenas relocated by compacting GC.
-    STAT_ARENA_RELOCATED,
-
     STAT_LIMIT
 };
 
@@ -169,10 +166,7 @@ struct Statistics
     void startTimingMutator();
     bool stopTimingMutator(double &mutator_ms, double &gc_ms);
 
-    void reset(const char *reason) {
-        if (!aborted)
-            slices.back().resetReason = reason;
-    }
+    void reset(const char *reason) { slices.back().resetReason = reason; }
     void nonincremental(const char *reason) { nonincrementalReason = reason; }
 
     void count(Stat s) {
@@ -284,10 +278,10 @@ struct Statistics
     JS::GCSliceCallback sliceCallback;
 
     /*
-     * True if we saw an OOM while allocating slices. The statistics for this
-     * GC will be invalid.
+     * True if we saw an OOM while allocating slices. Slices will not be
+     * individually recorded for the remainder of this GC.
      */
-    bool aborted;
+    bool abortSlices;
 
     void beginGC(JSGCInvocationKind kind);
     void endGC();

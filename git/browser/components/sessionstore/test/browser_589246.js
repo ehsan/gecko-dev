@@ -163,7 +163,7 @@ function onStateRestored(aSubject, aTopic, aData) {
   newWin.addEventListener("load", function(aEvent) {
     newWin.removeEventListener("load", arguments.callee, false);
 
-    promiseBrowserLoaded(newWin.gBrowser.selectedBrowser).then(() => {
+    whenBrowserLoaded(newWin.gBrowser.selectedBrowser, function() {
       // pin this tab
       if (shouldPinTab)
         newWin.gBrowser.pinTab(newWin.gBrowser.selectedTab);

@@ -119,9 +119,6 @@ public:
   virtual void Blur(ErrorResult& aError) MOZ_OVERRIDE;
   virtual void Focus(ErrorResult& aError) MOZ_OVERRIDE;
 
-  // Element
-  virtual bool IsInteractiveHTMLContent() const MOZ_OVERRIDE;
-
   // nsIDOMHTMLInputElement
   NS_DECL_NSIDOMHTMLINPUTELEMENT
 
@@ -716,7 +713,6 @@ public:
   void MozGetFileNameArray(nsTArray< nsString >& aFileNames);
 
   void MozSetFileNameArray(const Sequence< nsString >& aFileNames);
-  void MozSetFileArray(const Sequence<OwningNonNull<File>>& aFiles);
 
   HTMLInputElement* GetOwnerNumberControl();
 

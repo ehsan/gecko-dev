@@ -42,6 +42,13 @@ public:
      * and we need to call UpdateOverflow on the frame.
      */
     CHILDREN_CHANGED,
+    /**
+     * The overflow areas of children have changed
+     * and we need to call UpdateOverflow on the frame.
+     * Also call UpdateOverflow on the parent even if the
+     * overflow areas of the frame does not change.
+     */
+    CHILDREN_AND_PARENT_CHANGED
   };
 
   OverflowChangedTracker() :
@@ -114,7 +121,12 @@ public:
       nsIFrame *frame = entry->mFrame;
 
       bool overflowChanged = false;
-      if (entry->mChangeKind == CHILDREN_CHANGED) {
+      if (entry->mChangeKind == CHILDREN_AND_PARENT_CHANGED) {
+        // Need to union the overflow areas of the children.
+        // Always update the parent, even if the overflow does not change.
+        frame->UpdateOverflow();
+        overflowChanged = true;
+      } else if (entry->mChangeKind == CHILDREN_CHANGED) {
         // Need to union the overflow areas of the children.
         // Only update the parent if the overflow changes.
         overflowChanged = frame->UpdateOverflow();
@@ -258,7 +270,13 @@ public:
   /**
    * Process the restyles we've been tracking.
    */
-  void DoProcessRestyles();
+  void ProcessRestyles() {
+    // Fast-path the common case (esp. for the animation restyle
+    // tracker) of not having anything to do.
+    if (mPendingRestyles.Count()) {
+      DoProcessRestyles();
+    }
+  }
 
   // Return our ELEMENT_HAS_PENDING_(ANIMATION_)RESTYLE bit
   uint32_t RestyleBit() const {
@@ -343,6 +361,11 @@ private:
   inline void ProcessOneRestyle(Element* aElement,
                                 nsRestyleHint aRestyleHint,
                                 nsChangeHint aChangeHint);
+
+  /**
+   * The guts of our restyle processing.
+   */
+  void DoProcessRestyles();
 
   typedef nsClassHashtable<nsISupportsHashKey, RestyleData> PendingRestyleTable;
   typedef nsAutoTArray< nsRefPtr<Element>, 32> RestyleRootArray;

@@ -91,7 +91,7 @@ class LIRGeneratorMIPS : public LIRGeneratorShared
     void visitReturn(MReturn *ret);
     void lowerPhi(MPhi *phi);
     void visitGuardShape(MGuardShape *ins);
-    void visitGuardObjectGroup(MGuardObjectGroup *ins);
+    void visitGuardObjectType(MGuardObjectType *ins);
     void visitAsmJSUnsignedToDouble(MAsmJSUnsignedToDouble *ins);
     void visitAsmJSUnsignedToFloat32(MAsmJSUnsignedToFloat32 *ins);
     void visitAsmJSLoadHeap(MAsmJSLoadHeap *ins);

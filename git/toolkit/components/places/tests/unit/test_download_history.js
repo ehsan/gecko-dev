@@ -101,10 +101,8 @@ add_test(function test_dh_addRemoveDownload()
 
 add_test(function test_dh_addMultiRemoveDownload()
 {
-  PlacesTestUtils.addVisits({
-    uri: DOWNLOAD_URI,
-    transition: TRANSITION_TYPED
-  }).then(function () {
+  promiseAddVisits({ uri: DOWNLOAD_URI,
+                     transition: TRANSITION_TYPED }).then(function () {
     waitForOnVisit(function DHAD_onVisit(aURI) {
       do_check_true(aURI.equals(DOWNLOAD_URI));
       do_check_true(!!page_in_database(DOWNLOAD_URI));
@@ -113,7 +111,7 @@ add_test(function test_dh_addMultiRemoveDownload()
         do_check_true(aURI.equals(DOWNLOAD_URI));
         do_check_true(!!page_in_database(DOWNLOAD_URI));
 
-        PlacesTestUtils.clearHistory().then(run_next_test);
+        promiseClearHistory().then(run_next_test);
       });
       gDownloadHistory.removeAllDownloads();
     });
@@ -136,7 +134,7 @@ add_test(function test_dh_addBookmarkRemoveDownload()
       do_check_true(aURI.equals(DOWNLOAD_URI));
       do_check_true(!!page_in_database(DOWNLOAD_URI));
 
-      PlacesTestUtils.clearHistory().then(run_next_test);
+      promiseClearHistory().then(run_next_test);
     });
     gDownloadHistory.removeAllDownloads();
   });
@@ -158,7 +156,7 @@ add_test(function test_dh_addDownload_referrer()
       // Verify that the URI is already available in results at this time.
       do_check_true(!!page_in_database(DOWNLOAD_URI));
 
-      PlacesTestUtils.clearHistory().then(run_next_test);
+      promiseClearHistory().then(run_next_test);
     });
 
     gDownloadHistory.addDownload(DOWNLOAD_URI, REFERRER_URI, Date.now() * 1000);
@@ -187,7 +185,7 @@ add_test(function test_dh_addDownload_disabledHistory()
     do_check_true(!!page_in_database(DOWNLOAD_URI));
     do_check_false(!!page_in_database(PRIVATE_URI));
 
-    PlacesTestUtils.clearHistory().then(run_next_test);
+    promiseClearHistory().then(run_next_test);
   });
 
   Services.prefs.setBoolPref("places.history.enabled", false);
@@ -223,7 +221,7 @@ add_test(function test_dh_details()
       PlacesUtils.annotations.removeObserver(annoObserver);
       PlacesUtils.history.removeObserver(historyObserver);
 
-      PlacesTestUtils.clearHistory().then(run_next_test);
+      promiseClearHistory().then(run_next_test);
     }
   };
 

@@ -42,7 +42,6 @@ class ChannelGroup {
 
   bool SetChannelRembStatus(int channel_id, bool sender, bool receiver,
                             ViEChannel* channel);
-  void SetBandwidthEstimationConfig(const webrtc::Config& config);
 
   BitrateController* GetBitrateController();
   CallStats* GetCallStats();

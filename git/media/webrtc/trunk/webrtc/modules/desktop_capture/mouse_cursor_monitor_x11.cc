@@ -184,13 +184,9 @@ bool MouseCursorMonitorX11::HandleXEvent(const XEvent& event) {
 void MouseCursorMonitorX11::CaptureCursor() {
   assert(have_xfixes_);
 
-  XFixesCursorImage* img;
-  {
-    XErrorTrap error_trap(display());
-    img = XFixesGetCursorImage(display());
-    if (!img || error_trap.GetLastErrorAndDisable() != 0)
-       return;
-   }
+  XFixesCursorImage* img = XFixesGetCursorImage(display());
+  if (!img)
+     return;
 
   scoped_ptr<DesktopFrame> image(
       new BasicDesktopFrame(DesktopSize(img->width, img->height)));

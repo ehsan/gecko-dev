@@ -59,11 +59,11 @@ add_task(function test_execute()
     .getService(Ci.nsIObserver)
     .observe(null, "gather-telemetry", null);
 
-  yield PlacesTestUtils.promiseAsyncUpdates();
+  yield promiseAsyncUpdates();
 
   // Test expiration probes.
   for (let i = 0; i < 2; i++) {
-    yield PlacesTestUtils.addVisits({
+    yield promiseAddVisits({
       uri: uri("http://" +  i + ".moz.org/"),
       visitDate: Date.now() // [sic]
     });
@@ -117,7 +117,7 @@ add_task(function test_execute()
   yield promiseTopicObserved("places-maintenance-finished");
 
   for (let histogramId in histograms) {
-    do_print("checking histogram " + histogramId);
+    do_log_info("checking histogram " + histogramId);
     let validate = histograms[histogramId];
     let snapshot = Services.telemetry.getHistogramById(histogramId).snapshot();
     validate(snapshot.sum);

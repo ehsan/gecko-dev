@@ -19,6 +19,12 @@
 using namespace js;
 using namespace js::gc;
 
+#ifdef JS_HAS_SYMBOLS
+#define STD_ITERATOR_ID  SYMBOL_TO_JSID(cx->wellKnownSymbols().iterator)
+#else
+#define STD_ITERATOR_ID  ::js::NameToId(cx->names().std_iterator)
+#endif
+
 bool
 js::ForOfPIC::Chain::initialize(JSContext *cx)
 {
@@ -46,7 +52,7 @@ js::ForOfPIC::Chain::initialize(JSContext *cx)
     disabled_ = true;
 
     // Look up Array.prototype[@@iterator], ensure it's a slotful shape.
-    Shape *iterShape = arrayProto->lookup(cx, SYMBOL_TO_JSID(cx->wellKnownSymbols().iterator));
+    Shape *iterShape = arrayProto->lookup(cx, STD_ITERATOR_ID);
     if (!iterShape || !iterShape->hasSlot() || !iterShape->hasDefaultGetter())
         return true;
 
@@ -145,7 +151,7 @@ js::ForOfPIC::Chain::tryOptimizeArray(JSContext *cx, HandleArrayObject array, bo
         return true;
 
     // Ensure array doesn't define @@iterator directly.
-    if (array->lookup(cx, SYMBOL_TO_JSID(cx->wellKnownSymbols().iterator)))
+    if (array->lookup(cx, STD_ITERATOR_ID))
         return true;
 
     // Good to optimize now, create stub to add.
@@ -308,7 +314,7 @@ const Class ForOfPIC::jsclass = {
 js::ForOfPIC::createForOfPICObject(JSContext *cx, Handle<GlobalObject*> global)
 {
     assertSameCompartment(cx, global);
-    NativeObject *obj = NewNativeObjectWithGivenProto(cx, &ForOfPIC::jsclass, NullPtr(), global);
+    NativeObject *obj = NewNativeObjectWithGivenProto(cx, &ForOfPIC::jsclass, nullptr, global);
     if (!obj)
         return nullptr;
     ForOfPIC::Chain *chain = cx->new_<ForOfPIC::Chain>();

@@ -920,5 +920,5 @@
     };
 
     if (inNode) module.exports = obj;
-    else        self.WebIDL2 = obj;
+    else        window.WebIDL2 = obj;
 }());

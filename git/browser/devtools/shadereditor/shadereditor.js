@@ -10,7 +10,6 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource:///modules/devtools/SideMenuWidget.jsm");
 Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
-Cu.import("resource://gre/modules/devtools/Console.jsm");
 
 const require = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.require;
 const promise = Cu.import("resource://gre/modules/Promise.jsm", {}).Promise;
@@ -124,26 +123,26 @@ let EventsHandler = {
   _onTabNavigated: function(event, {isFrameSwitching}) {
     switch (event) {
       case "will-navigate": {
-        // Make sure the backend is prepared to handle WebGL contexts.
-        if (!isFrameSwitching) {
-          gFront.setup({ reload: false });
-        }
+        Task.spawn(function() {
+          // Make sure the backend is prepared to handle WebGL contexts.
+          if (!isFrameSwitching) {
+            gFront.setup({ reload: false });
+          }
 
-        // Reset UI.
-        ShadersListView.empty();
-        // When switching to an iframe, ensure displaying the reload button.
-        // As the document has already been loaded without being hooked.
-        if (isFrameSwitching) {
-          $("#reload-notice").hidden = false;
-          $("#waiting-notice").hidden = true;
-        } else {
-          $("#reload-notice").hidden = true;
-          $("#waiting-notice").hidden = false;
-        }
-
-        $("#content").hidden = true;
-        window.emit(EVENTS.UI_RESET);
-
+          // Reset UI.
+          ShadersListView.empty();
+          // When switching to an iframe, ensure displaying the reload button.
+          // As the document has already been loaded without being hooked.
+          if (isFrameSwitching) {
+            $("#reload-notice").hidden = false;
+            $("#waiting-notice").hidden = true;
+          } else {
+            $("#reload-notice").hidden = true;
+            $("#waiting-notice").hidden = false;
+          }
+          yield ShadersEditorsView.setText({ vs: "", fs: "" });
+          $("#content").hidden = true;
+        }).then(() => window.emit(EVENTS.UI_RESET));
         break;
       }
       case "navigate": {
@@ -371,7 +370,7 @@ let ShadersEditorsView = {
    */
   destroy: Task.async(function*() {
     this._destroyed = true;
-    yield this._toggleListeners("off");
+    this._toggleListeners("off");
     for (let p of this._editorPromises.values()) {
       let editor = yield p;
       editor.destroy();
@@ -395,7 +394,7 @@ let ShadersEditorsView = {
       editor.clearHistory();
     }
 
-    return Task.spawn(function*() {
+    return Task.spawn(function() {
       yield view._toggleListeners("off");
       yield promise.all([
         view._getEditor("vs").then(e => setTextAndClearHistory(e, sources.vs)),
@@ -415,6 +414,9 @@ let ShadersEditorsView = {
    *        Returns a promise that resolves to an editor instance
    */
   _getEditor: function(type) {
+    if ($("#content").hidden) {
+      return promise.reject(new Error("Shader Editor is still waiting for a WebGL context to be created."));
+    }
     if (this._editorPromises.has(type)) {
       return this._editorPromises.get(type);
     }
@@ -488,7 +490,7 @@ let ShadersEditorsView = {
    *        The corresponding shader type for the focused editor (e.g. "vs").
    */
   _doCompile: function(type) {
-    Task.spawn(function*() {
+    Task.spawn(function() {
       let editor = yield this._getEditor(type);
       let shaderActor = yield ShadersListView.selectedAttachment[type];
 

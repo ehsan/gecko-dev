@@ -22,20 +22,8 @@
  * limitations under the License.
  */
 
-#if defined(_MSC_VER) && _MSC_VER < 1900
-// When building with -D_HAS_EXCEPTIONS=0, MSVC's <xtree> header triggers
-// warning C4702: unreachable code.
-// https://connect.microsoft.com/VisualStudio/feedback/details/809962
-#pragma warning(push)
-#pragma warning(disable: 4702)
-#endif
-
 #include <map>
-
-#if defined(_MSC_VER) && _MSC_VER < 1900
-#pragma warning(pop)
-#endif
-
+#include "cert.h"
 #include "pkix/pkix.h"
 #include "pkixgtest.h"
 #include "pkixtestutil.h"
@@ -80,7 +68,7 @@ CreateCert(const char* issuerCN, // null means "empty name"
   return certDER;
 }
 
-class TestTrustDomain final : public TrustDomain
+class TestTrustDomain : public TrustDomain
 {
 public:
   // The "cert chain tail" is a longish chain of certificates that is used by
@@ -113,8 +101,9 @@ public:
   ByteString GetLeafCACertDER() const { return leafCACertDER; }
 
 private:
-  Result GetCertTrust(EndEntityOrCA, const CertPolicyId&, Input candidateCert,
-                      /*out*/ TrustLevel& trustLevel) override
+  virtual Result GetCertTrust(EndEntityOrCA, const CertPolicyId&,
+                              Input candidateCert,
+                              /*out*/ TrustLevel& trustLevel)
   {
     trustLevel = InputEqualsByteString(candidateCert, rootCACertDER)
                ? TrustLevel::TrustAnchor
@@ -122,8 +111,8 @@ private:
     return Success;
   }
 
-  Result FindIssuer(Input encodedIssuerName, IssuerChecker& checker, Time)
-                    override
+  virtual Result FindIssuer(Input encodedIssuerName,
+                            IssuerChecker& checker, Time time)
   {
     ByteString subjectDER(InputToByteString(encodedIssuerName));
     ByteString certDER(subjectDERToCertDER[subjectDER]);
@@ -141,47 +130,35 @@ private:
     return Success;
   }
 
-  Result CheckRevocation(EndEntityOrCA, const CertID&, Time,
-                         /*optional*/ const Input*, /*optional*/ const Input*)
-                         override
+  virtual Result CheckRevocation(EndEntityOrCA, const CertID&, Time,
+                                 /*optional*/ const Input*,
+                                 /*optional*/ const Input*)
   {
     return Success;
   }
 
-  Result IsChainValid(const DERArray&, Time) override
+  virtual Result IsChainValid(const DERArray&, Time)
   {
     return Success;
   }
 
-  Result DigestBuf(Input input, DigestAlgorithm digestAlg,
-                   /*out*/ uint8_t* digestBuf, size_t digestLen) override
+  virtual Result VerifySignedData(const SignedDataWithSignature& signedData,
+                                  Input subjectPublicKeyInfo)
   {
-    return TestDigestBuf(input, digestAlg, digestBuf, digestLen);
+    return TestVerifySignedData(signedData, subjectPublicKeyInfo);
   }
 
-  Result CheckRSAPublicKeyModulusSizeInBits(EndEntityOrCA, unsigned int)
-                                            override
+  virtual Result DigestBuf(Input item, /*out*/ uint8_t *digestBuf,
+                           size_t digestBufLen)
   {
-    return Success;
+    ADD_FAILURE();
+    return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result VerifyRSAPKCS1SignedDigest(const SignedDigest& signedDigest,
-                                    Input subjectPublicKeyInfo) override
+  virtual Result CheckPublicKey(Input subjectPublicKeyInfo)
   {
-    return TestVerifyRSAPKCS1SignedDigest(signedDigest, subjectPublicKeyInfo);
+    return TestCheckPublicKey(subjectPublicKeyInfo);
   }
-
-  Result CheckECDSACurveIsAcceptable(EndEntityOrCA, NamedCurve) override
-  {
-    return Success;
-  }
-
-  Result VerifyECDSASignedDigest(const SignedDigest& signedDigest,
-                                 Input subjectPublicKeyInfo) override
-  {
-    return TestVerifyECDSASignedDigest(signedDigest, subjectPublicKeyInfo);
-  }
-
 
   std::map<ByteString, ByteString> subjectDERToCertDER;
   ByteString leafCACertDER;
@@ -276,7 +253,7 @@ TEST_F(pkixbuild, BeyondMaxAcceptableCertChainLength)
 // is treated as a trust anchor and is assumed to have issued all certificates
 // (i.e. FindIssuer always attempts to build the next step in the chain with
 // it).
-class ExpiredCertTrustDomain final : public TrustDomain
+class ExpiredCertTrustDomain : public TrustDomain
 {
 public:
   explicit ExpiredCertTrustDomain(ByteString rootDER)
@@ -285,8 +262,9 @@ public:
   }
 
   // The CertPolicyId argument is unused because we don't care about EV.
-  Result GetCertTrust(EndEntityOrCA, const CertPolicyId&, Input candidateCert,
-                      /*out*/ TrustLevel& trustLevel) override
+  virtual Result GetCertTrust(EndEntityOrCA endEntityOrCA, const CertPolicyId&,
+                              Input candidateCert,
+                              /*out*/ TrustLevel& trustLevel)
   {
     Input rootCert;
     Result rv = rootCert.Init(rootDER.data(), rootDER.length());
@@ -301,7 +279,8 @@ public:
     return Success;
   }
 
-  Result FindIssuer(Input, IssuerChecker& checker, Time) override
+  virtual Result FindIssuer(Input encodedIssuerName,
+                            IssuerChecker& checker, Time time)
   {
     // keepGoing is an out parameter from IssuerChecker.Check. It would tell us
     // whether or not to continue attempting other potential issuers. We only
@@ -315,46 +294,34 @@ public:
     return checker.Check(rootCert, nullptr, keepGoing);
   }
 
-  Result CheckRevocation(EndEntityOrCA, const CertID&, Time,
-                         /*optional*/ const Input*,
-                         /*optional*/ const Input*) override
+  virtual Result CheckRevocation(EndEntityOrCA, const CertID&, Time,
+                                 /*optional*/ const Input*,
+                                 /*optional*/ const Input*)
   {
     ADD_FAILURE();
     return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result IsChainValid(const DERArray&, Time) override
+  virtual Result IsChainValid(const DERArray&, Time)
   {
     return Success;
   }
 
-  Result DigestBuf(Input input, DigestAlgorithm digestAlg,
-                   /*out*/ uint8_t* digestBuf, size_t digestLen) override
+  virtual Result VerifySignedData(const SignedDataWithSignature& signedData,
+                                  Input subjectPublicKeyInfo)
   {
-    return TestDigestBuf(input, digestAlg, digestBuf, digestLen);
+    return TestVerifySignedData(signedData, subjectPublicKeyInfo);
   }
 
-  Result CheckRSAPublicKeyModulusSizeInBits(EndEntityOrCA, unsigned int)
-                                            override
+  virtual Result DigestBuf(Input, /*out*/uint8_t*, size_t)
   {
-    return Success;
+    ADD_FAILURE();
+    return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result VerifyRSAPKCS1SignedDigest(const SignedDigest& signedDigest,
-                                    Input subjectPublicKeyInfo) override
+  virtual Result CheckPublicKey(Input subjectPublicKeyInfo)
   {
-    return TestVerifyRSAPKCS1SignedDigest(signedDigest, subjectPublicKeyInfo);
-  }
-
-  Result CheckECDSACurveIsAcceptable(EndEntityOrCA, NamedCurve) override
-  {
-    return Success;
-  }
-
-  Result VerifyECDSASignedDigest(const SignedDigest& signedDigest,
-                                    Input subjectPublicKeyInfo) override
-  {
-    return TestVerifyECDSASignedDigest(signedDigest, subjectPublicKeyInfo);
+    return TestCheckPublicKey(subjectPublicKeyInfo);
   }
 
 private:
@@ -377,7 +344,7 @@ TEST_F(pkixbuild, NoRevocationCheckingForExpiredCert)
   ByteString certDER(CreateEncodedCertificate(
                        v3, sha256WithRSAEncryption,
                        serialNumber, issuerDER,
-                       oneDayBeforeNow - ONE_DAY_IN_SECONDS_AS_TIME_T,
+                       oneDayBeforeNow - Time::ONE_DAY_IN_SECONDS,
                        oneDayBeforeNow,
                        subjectDER, *reusedKey, nullptr, *reusedKey,
                        sha256WithRSAEncryption));
@@ -394,64 +361,51 @@ TEST_F(pkixbuild, NoRevocationCheckingForExpiredCert)
                            nullptr));
 }
 
-class DSSTrustDomain final : public TrustDomain
+class DSSTrustDomain : public TrustDomain
 {
 public:
-  Result GetCertTrust(EndEntityOrCA, const CertPolicyId&,
-                      Input, /*out*/ TrustLevel& trustLevel) override
+  virtual Result GetCertTrust(EndEntityOrCA, const CertPolicyId&,
+                              Input, /*out*/ TrustLevel& trustLevel)
   {
     trustLevel = TrustLevel::TrustAnchor;
     return Success;
   }
 
-  Result FindIssuer(Input, IssuerChecker&, Time) override
+  virtual Result FindIssuer(Input, IssuerChecker&, Time)
   {
     ADD_FAILURE();
     return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result CheckRevocation(EndEntityOrCA, const CertID&, Time,
-                         /*optional*/ const Input*,
-                         /*optional*/ const Input*) override
+  virtual Result CheckRevocation(EndEntityOrCA, const CertID&, Time,
+                                 /*optional*/ const Input*,
+                                 /*optional*/ const Input*)
   {
     ADD_FAILURE();
     return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result IsChainValid(const DERArray&, Time) override
+  virtual Result IsChainValid(const DERArray&, Time)
   {
     return Success;
   }
 
-  Result DigestBuf(Input, DigestAlgorithm, /*out*/uint8_t*, size_t) override
+  virtual Result VerifySignedData(const SignedDataWithSignature& signedData,
+                                  Input subjectPublicKeyInfo)
   {
     ADD_FAILURE();
     return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result CheckRSAPublicKeyModulusSizeInBits(EndEntityOrCA, unsigned int)
-                                            override
+  virtual Result DigestBuf(Input, /*out*/uint8_t*, size_t)
   {
     ADD_FAILURE();
     return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result VerifyRSAPKCS1SignedDigest(const SignedDigest&, Input) override
+  virtual Result CheckPublicKey(Input subjectPublicKeyInfo)
   {
-    ADD_FAILURE();
-    return Result::FATAL_ERROR_LIBRARY_FAILURE;
-  }
-
-  Result CheckECDSACurveIsAcceptable(EndEntityOrCA, NamedCurve) override
-  {
-    ADD_FAILURE();
-    return Result::FATAL_ERROR_LIBRARY_FAILURE;
-  }
-
-  Result VerifyECDSASignedDigest(const SignedDigest&, Input) override
-  {
-    ADD_FAILURE();
-    return Result::FATAL_ERROR_LIBRARY_FAILURE;
+    return TestCheckPublicKey(subjectPublicKeyInfo);
   }
 };
 
@@ -492,7 +446,7 @@ TEST_F(pkixbuild_DSS, DSSEndEntityKeyNotAccepted)
                            nullptr/*stapledOCSPResponse*/));
 }
 
-class IssuerNameCheckTrustDomain final : public TrustDomain
+class IssuerNameCheckTrustDomain : public TrustDomain
 {
 public:
   IssuerNameCheckTrustDomain(const ByteString& issuer, bool expectedKeepGoing)
@@ -501,8 +455,9 @@ public:
   {
   }
 
-  Result GetCertTrust(EndEntityOrCA endEntityOrCA, const CertPolicyId&, Input,
-                      /*out*/ TrustLevel& trustLevel) override
+  virtual Result GetCertTrust(EndEntityOrCA endEntityOrCA,
+                              const CertPolicyId&, Input,
+                              /*out*/ TrustLevel& trustLevel)
   {
     trustLevel = endEntityOrCA == EndEntityOrCA::MustBeCA
                ? TrustLevel::TrustAnchor
@@ -510,7 +465,7 @@ public:
     return Success;
   }
 
-  Result FindIssuer(Input, IssuerChecker& checker, Time) override
+  virtual Result FindIssuer(Input subjectCert, IssuerChecker& checker, Time)
   {
     Input issuerInput;
     EXPECT_EQ(Success, issuerInput.Init(issuer.data(), issuer.length()));
@@ -522,45 +477,33 @@ public:
     return Success;
   }
 
-  Result CheckRevocation(EndEntityOrCA, const CertID&, Time,
-                         /*optional*/ const Input*, /*optional*/ const Input*)
-                         override
+  virtual Result CheckRevocation(EndEntityOrCA, const CertID&, Time,
+                                 /*optional*/ const Input*,
+                                 /*optional*/ const Input*)
   {
     return Success;
   }
 
-  Result IsChainValid(const DERArray&, Time) override
+  virtual Result IsChainValid(const DERArray&, Time)
   {
     return Success;
   }
 
-  Result DigestBuf(Input input, DigestAlgorithm digestAlg,
-                   /*out*/ uint8_t* digestBuf, size_t digestLen) override
+  virtual Result VerifySignedData(const SignedDataWithSignature& signedData,
+                                  Input subjectPublicKeyInfo)
   {
-    return TestDigestBuf(input, digestAlg, digestBuf, digestLen);
+    return TestVerifySignedData(signedData, subjectPublicKeyInfo);
   }
 
-  Result CheckRSAPublicKeyModulusSizeInBits(EndEntityOrCA, unsigned int)
-                                            override
+  virtual Result DigestBuf(Input, /*out*/uint8_t*, size_t)
   {
-    return Success;
+    ADD_FAILURE();
+    return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result VerifyRSAPKCS1SignedDigest(const SignedDigest& signedDigest,
-                                    Input subjectPublicKeyInfo) override
+  virtual Result CheckPublicKey(Input subjectPublicKeyInfo)
   {
-    return TestVerifyRSAPKCS1SignedDigest(signedDigest, subjectPublicKeyInfo);
-  }
-
-  Result CheckECDSACurveIsAcceptable(EndEntityOrCA, NamedCurve) override
-  {
-    return Success;
-  }
-
-  Result VerifyECDSASignedDigest(const SignedDigest& signedDigest,
-                                    Input subjectPublicKeyInfo) override
-  {
-    return TestVerifyECDSASignedDigest(signedDigest, subjectPublicKeyInfo);
+    return TestCheckPublicKey(subjectPublicKeyInfo);
   }
 
 private:

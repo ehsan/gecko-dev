@@ -127,7 +127,11 @@ Init()
   MOZ_ASSERT(!GetModuleHandleA("msvcr120.dll"));
   MOZ_ASSERT(!GetModuleHandleA("msvcr120d.dll"));
 
-#if defined(_M_IX86) && defined(_MSC_VER)
+  // Temporary until we fully switch over to VS 2013:
+  MOZ_ASSERT(!GetModuleHandleA("msvcr100.dll"));
+  MOZ_ASSERT(!GetModuleHandleA("msvcr100d.dll"));
+
+#if defined(_M_IX86) && defined(_MSC_VER) && _MSC_VER >= 1800
   if (!mozilla::IsWin2003OrLater()) {
     // Test for the export because we can't trust the SP version (bug 1137609)
     HMODULE kernel = GetModuleHandleA("kernel32.dll");

@@ -200,17 +200,7 @@ this.TrustedHostedAppsUtils = {
       throw "CERTDB_ERROR";
     }
 
-    let principal = Services.scriptSecurityManager.getAppCodebasePrincipal(
-                      aApp.origin, aApp.localId, false);
-
-    let mRequestChannel = NetUtil.newChannel2(aApp.manifestURL,
-                                              null,
-                                              null,
-                                              null,      // aLoadingNode
-                                              principal,
-                                              null,      // aTriggeringPrincipal
-                                              Ci.nsILoadInfo.SEC_NORMAL,
-                                              Ci.nsIContentPolicy.TYPE_OTHER)
+    let mRequestChannel = NetUtil.newChannel(aApp.manifestURL)
                                  .QueryInterface(Ci.nsIHttpChannel);
     mRequestChannel.loadFlags |= Ci.nsIRequest.INHIBIT_CACHING;
     mRequestChannel.notificationCallbacks =
@@ -232,14 +222,7 @@ this.TrustedHostedAppsUtils = {
       return;
     }
 
-    let sRequestChannel = NetUtil.newChannel2(signatureURL,
-                                              null,
-                                              null,
-                                              null,      // aLoadingNode
-                                              principal,
-                                              null,      // aTriggeringPrincipal
-                                              Ci.nsILoadInfo.SEC_NORMAL,
-                                              Ci.nsIContentPolicy.TYPE_OTHER)
+    let sRequestChannel = NetUtil.newChannel(signatureURL)
       .QueryInterface(Ci.nsIHttpChannel);
     sRequestChannel.loadFlags |= Ci.nsIRequest.INHIBIT_CACHING;
     sRequestChannel.notificationCallbacks =
@@ -256,12 +239,12 @@ this.TrustedHostedAppsUtils = {
 
     Promise.all([
       new Promise((resolve, reject) => {
-        NetUtil.asyncFetch2(mRequestChannel,
-                            getAsyncFetchCallback(resolve, reject));
+        NetUtil.asyncFetch(mRequestChannel,
+                           getAsyncFetchCallback(resolve, reject));
       }),
       new Promise((resolve, reject) => {
-        NetUtil.asyncFetch2(sRequestChannel,
-                            getAsyncFetchCallback(resolve, reject));
+        NetUtil.asyncFetch(sRequestChannel,
+                           getAsyncFetchCallback(resolve, reject));
       })
     ]).then(([aManifestStream, aSignatureStream]) => {
       this._verifySignedFile(aManifestStream, aSignatureStream, certDb)

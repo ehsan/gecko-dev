@@ -26,7 +26,7 @@ enum {
 };
 
 typedef struct {
-  float buffer[kResamplerBufferSize];
+  short buffer[kResamplerBufferSize];
   float position;
 
   int deviceSampleRateHz;
@@ -71,15 +71,15 @@ int WebRtcAec_FreeResampler(void* resampInst) {
 }
 
 void WebRtcAec_ResampleLinear(void* resampInst,
-                              const float* inspeech,
+                              const short* inspeech,
                               int size,
                               float skew,
-                              float* outspeech,
+                              short* outspeech,
                               int* size_out) {
   resampler_t* obj = (resampler_t*)resampInst;
 
-  float* y;
-  float be, tnew;
+  short* y;
+  float be, tnew, interp;
   int tn, mm;
 
   assert(!(size < 0 || size > 2 * FRAME_LEN));
@@ -91,7 +91,7 @@ void WebRtcAec_ResampleLinear(void* resampInst,
   // Add new frame data in lookahead
   memcpy(&obj->buffer[FRAME_LEN + kResamplingDelay],
          inspeech,
-         size * sizeof(inspeech[0]));
+         size * sizeof(short));
 
   // Sample rate ratio
   be = 1 + skew;
@@ -106,7 +106,15 @@ void WebRtcAec_ResampleLinear(void* resampInst,
   while (tn < size) {
 
     // Interpolation
-    outspeech[mm] = y[tn] + (tnew - tn) * (y[tn + 1] - y[tn]);
+    interp = y[tn] + (tnew - tn) * (y[tn + 1] - y[tn]);
+
+    if (interp > 32767) {
+      interp = 32767;
+    } else if (interp < -32768) {
+      interp = -32768;
+    }
+
+    outspeech[mm] = (short)interp;
     mm++;
 
     tnew = be * mm + obj->position;
@@ -119,7 +127,7 @@ void WebRtcAec_ResampleLinear(void* resampInst,
   // Shift buffer
   memmove(obj->buffer,
           &obj->buffer[size],
-          (kResamplerBufferSize - size) * sizeof(obj->buffer[0]));
+          (kResamplerBufferSize - size) * sizeof(short));
 }
 
 int WebRtcAec_GetSkew(void* resampInst, int rawSkew, float* skewEst) {

@@ -171,9 +171,6 @@ extern double
 math_log_uncached(double x);
 
 extern bool
-math_log_handle(JSContext *cx, HandleValue val, MutableHandleValue res);
-
-extern bool
 math_sin(JSContext *cx, unsigned argc, js::Value *vp);
 
 extern double
@@ -245,12 +242,6 @@ math_atanh(JSContext *cx, unsigned argc, js::Value *vp);
 extern double
 ecmaHypot(double x, double y);
 
-extern double
-hypot3(double x, double y, double z);
-
-extern double
-hypot4(double x, double y, double z, double w);
-
 extern bool
 math_hypot(JSContext *cx, unsigned argc, Value *vp);
 
@@ -310,9 +301,6 @@ math_acos_uncached(double x);
 
 extern bool
 math_acos(JSContext *cx, unsigned argc, js::Value *vp);
-
-extern bool
-math_ceil_handle(JSContext *cx, HandleValue value, MutableHandleValue res);
 
 extern bool
 math_ceil(JSContext *cx, unsigned argc, Value *vp);

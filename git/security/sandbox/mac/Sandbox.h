@@ -38,7 +38,6 @@ typedef struct _MacSandboxInfo {
   MacSandboxPluginInfo pluginInfo;
   nsCString appPath;
   nsCString appBinaryPath;
-  nsCString appDir;
 } MacSandboxInfo;
 
 namespace mozilla {

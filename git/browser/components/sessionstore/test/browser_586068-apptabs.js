@@ -4,7 +4,11 @@
 
 const PREF_RESTORE_ON_DEMAND = "browser.sessionstore.restore_on_demand";
 
-add_task(function* test() {
+function test() {
+  TestRunner.run();
+}
+
+function runTests() {
   Services.prefs.setBoolPref(PREF_RESTORE_ON_DEMAND, true);
   registerCleanupFunction(function () {
     Services.prefs.clearUserPref(PREF_RESTORE_ON_DEMAND);
@@ -21,36 +25,29 @@ add_task(function* test() {
   ], selected: 5 }] };
 
   let loadCount = 0;
-  let promiseRestoringTabs = new Promise(resolve => {
-    gProgressListener.setCallback(function (aBrowser, aNeedRestore, aRestoring, aRestored) {
-      loadCount++;
+  gProgressListener.setCallback(function (aBrowser, aNeedRestore, aRestoring, aRestored) {
+    loadCount++;
 
-      // We'll make sure that the loads we get come from pinned tabs or the
-      // the selected tab.
+    // We'll make sure that the loads we get come from pinned tabs or the
+    // the selected tab.
 
-      // get the tab
-      let tab;
-      for (let i = 0; i < window.gBrowser.tabs.length; i++) {
-        if (!tab && window.gBrowser.tabs[i].linkedBrowser == aBrowser)
-          tab = window.gBrowser.tabs[i];
-      }
+    // get the tab
+    let tab;
+    for (let i = 0; i < window.gBrowser.tabs.length; i++) {
+      if (!tab && window.gBrowser.tabs[i].linkedBrowser == aBrowser)
+        tab = window.gBrowser.tabs[i];
+    }
 
-      ok(tab.pinned || tab.selected,
-         "load came from pinned or selected tab");
+    ok(tab.pinned || tab.selected,
+       "load came from pinned or selected tab");
 
-      // We should get 4 loads: 3 app tabs + 1 normal selected tab
-      if (loadCount < 4)
-        return;
+    // We should get 4 loads: 3 app tabs + 1 normal selected tab
+    if (loadCount < 4)
+      return;
 
-      gProgressListener.unsetCallback();
-      resolve();
-    });
+    gProgressListener.unsetCallback();
+    executeSoon(next);
   });
 
-  let backupState = ss.getBrowserState();
-  ss.setBrowserState(JSON.stringify(state));
-  yield promiseRestoringTabs;
-
-  // Cleanup.
-  yield promiseBrowserState(backupState);
-});
+  yield ss.setBrowserState(JSON.stringify(state));
+}

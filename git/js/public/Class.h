@@ -162,24 +162,49 @@ typedef void
 namespace js {
 
 typedef bool
-(* LookupPropertyOp)(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
-                     JS::MutableHandleObject objp, JS::MutableHandle<Shape*> propp);
+(* LookupGenericOp)(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
+                    JS::MutableHandleObject objp, JS::MutableHandle<Shape*> propp);
 typedef bool
-(* DefinePropertyOp)(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::HandleValue value,
-                     JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs);
+(* LookupPropOp)(JSContext *cx, JS::HandleObject obj, JS::Handle<PropertyName*> name,
+                 JS::MutableHandleObject objp, JS::MutableHandle<Shape*> propp);
 typedef bool
-(* HasPropertyOp)(JSContext *cx, JS::HandleObject obj, JS::HandleId id, bool *foundp);
+(* LookupElementOp)(JSContext *cx, JS::HandleObject obj, uint32_t index,
+                    JS::MutableHandleObject objp, JS::MutableHandle<Shape*> propp);
 typedef bool
-(* GetPropertyOp)(JSContext *cx, JS::HandleObject obj, JS::HandleObject receiver, JS::HandleId id,
-                  JS::MutableHandleValue vp);
+(* DefineGenericOp)(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::HandleValue value,
+                    JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs);
 typedef bool
-(* SetPropertyOp)(JSContext *cx, JS::HandleObject obj, JS::HandleObject receiver, JS::HandleId id,
-                  JS::MutableHandleValue vp, bool strict);
+(* DefinePropOp)(JSContext *cx, JS::HandleObject obj, JS::Handle<PropertyName*> name,
+                 JS::HandleValue value, JSPropertyOp getter, JSStrictPropertyOp setter,
+                 unsigned attrs);
 typedef bool
-(* GetOwnPropertyOp)(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
-                     JS::MutableHandle<JSPropertyDescriptor> desc);
+(* DefineElementOp)(JSContext *cx, JS::HandleObject obj, uint32_t index, JS::HandleValue value,
+                    JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs);
 typedef bool
-(* DeletePropertyOp)(JSContext *cx, JS::HandleObject obj, JS::HandleId id, bool *succeeded);
+(* GenericIdOp)(JSContext *cx, JS::HandleObject obj, JS::HandleObject receiver, JS::HandleId id,
+                JS::MutableHandleValue vp);
+typedef bool
+(* PropertyIdOp)(JSContext *cx, JS::HandleObject obj, JS::HandleObject receiver,
+                 JS::Handle<PropertyName*> name, JS::MutableHandleValue vp);
+typedef bool
+(* ElementIdOp)(JSContext *cx, JS::HandleObject obj, JS::HandleObject receiver, uint32_t index,
+                JS::MutableHandleValue vp);
+typedef bool
+(* StrictGenericIdOp)(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
+                      JS::MutableHandleValue vp, bool strict);
+typedef bool
+(* StrictPropertyIdOp)(JSContext *cx, JS::HandleObject obj, JS::Handle<PropertyName*> name,
+                       JS::MutableHandleValue vp, bool strict);
+typedef bool
+(* StrictElementIdOp)(JSContext *cx, JS::HandleObject obj, uint32_t index,
+                      JS::MutableHandleValue vp, bool strict);
+typedef bool
+(* GenericAttributesOp)(JSContext *cx, JS::HandleObject obj, JS::HandleId id, unsigned *attrsp);
+typedef bool
+(* PropertyAttributesOp)(JSContext *cx, JS::HandleObject obj, JS::Handle<PropertyName*> name,
+                         unsigned *attrsp);
+typedef bool
+(* DeleteGenericOp)(JSContext *cx, JS::HandleObject obj, JS::HandleId id, bool *succeeded);
 
 typedef bool
 (* WatchOp)(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::HandleObject callable);
@@ -341,13 +366,21 @@ struct ClassExtension
 
 struct ObjectOps
 {
-    LookupPropertyOp    lookupProperty;
-    DefinePropertyOp    defineProperty;
-    HasPropertyOp       hasProperty;
-    GetPropertyOp       getProperty;
-    SetPropertyOp       setProperty;
-    GetOwnPropertyOp    getOwnPropertyDescriptor;
-    DeletePropertyOp    deleteProperty;
+    LookupGenericOp     lookupGeneric;
+    LookupPropOp        lookupProperty;
+    LookupElementOp     lookupElement;
+    DefineGenericOp     defineGeneric;
+    DefinePropOp        defineProperty;
+    DefineElementOp     defineElement;
+    GenericIdOp         getGeneric;
+    PropertyIdOp        getProperty;
+    ElementIdOp         getElement;
+    StrictGenericIdOp   setGeneric;
+    StrictPropertyIdOp  setProperty;
+    StrictElementIdOp   setElement;
+    GenericAttributesOp getGenericAttributes;
+    GenericAttributesOp setGenericAttributes;
+    DeleteGenericOp     deleteGeneric;
     WatchOp             watch;
     UnwatchOp           unwatch;
     GetElementsOp       getElements;
@@ -357,7 +390,8 @@ struct ObjectOps
 
 #define JS_NULL_OBJECT_OPS                                                    \
     {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,  \
-     nullptr, nullptr, nullptr, nullptr}
+     nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,  \
+     nullptr, nullptr, nullptr}
 
 } // namespace js
 
@@ -368,7 +402,7 @@ typedef void (*JSClassInternal)();
 struct JSClass {
     JS_CLASS_MEMBERS(JSFinalizeOp);
 
-    void                *reserved[24];
+    void                *reserved[32];
 };
 
 #define JSCLASS_HAS_PRIVATE             (1<<0)  // objects have private slot
@@ -428,7 +462,7 @@ struct JSClass {
 // the beginning of every global object's slots for use by the
 // application.
 #define JSCLASS_GLOBAL_APPLICATION_SLOTS 4
-#define JSCLASS_GLOBAL_SLOT_COUNT      (JSCLASS_GLOBAL_APPLICATION_SLOTS + JSProto_LIMIT * 3 + 31)
+#define JSCLASS_GLOBAL_SLOT_COUNT      (JSCLASS_GLOBAL_APPLICATION_SLOTS + JSProto_LIMIT * 3 + 30)
 #define JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(n)                                    \
     (JSCLASS_IS_GLOBAL | JSCLASS_HAS_RESERVED_SLOTS(JSCLASS_GLOBAL_SLOT_COUNT + (n)))
 #define JSCLASS_GLOBAL_FLAGS                                                  \
@@ -459,13 +493,7 @@ struct Class
     ClassExtension      ext;
     ObjectOps           ops;
 
-    /*
-     * Objects of this class aren't native objects. They don't have Shapes that
-     * describe their properties and layout. Classes using this flag must
-     * provide their own property behavior, either by being proxy classes (do
-     * this) or by overriding all the ObjectOps except getElements, watch,
-     * unwatch, and thisObject (don't do this).
-     */
+    /* Class is not native and its map is not a scope. */
     static const uint32_t NON_NATIVE = JSCLASS_INTERNAL_FLAG2;
 
     bool isNative() const {

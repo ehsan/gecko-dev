@@ -55,8 +55,7 @@ interface nsIGfxInfo : nsISupports
   readonly attribute boolean isGPU2Active;
 
   void getFailures(
-               out unsigned long failureCount,
-               [optional, array, size_is(failureCount)] out long indices,
+               [optional] out unsigned long failureCount,
                [retval, array, size_is(failureCount)] out string failures);
 
   [noscript, notxpcom] void logFailure(in ACString failure);

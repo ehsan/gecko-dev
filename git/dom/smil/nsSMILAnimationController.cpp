@@ -14,7 +14,6 @@
 #include "nsSMILTimedElement.h"
 #include <algorithm>
 #include "mozilla/AutoRestore.h"
-#include "RestyleTracker.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -33,7 +32,7 @@ nsSMILAnimationController::nsSMILAnimationController(nsIDocument* aDoc)
     mRegisteredWithRefreshDriver(false),
     mDocument(aDoc)
 {
-  MOZ_ASSERT(aDoc, "need a non-null document");
+  NS_ABORT_IF_FALSE(aDoc, "need a non-null document");
 
   nsRefreshDriver* refreshDriver = GetRefreshDriver();
   if (refreshDriver) {
@@ -58,9 +57,9 @@ nsSMILAnimationController::~nsSMILAnimationController()
 void
 nsSMILAnimationController::Disconnect()
 {
-  MOZ_ASSERT(mDocument, "disconnecting when we weren't connected...?");
-  MOZ_ASSERT(mRefCnt.get() == 1,
-             "Expecting to disconnect when doc is sole remaining owner");
+  NS_ABORT_IF_FALSE(mDocument, "disconnecting when we weren't connected...?");
+  NS_ABORT_IF_FALSE(mRefCnt.get() == 1,
+                    "Expecting to disconnect when doc is sole remaining owner");
   NS_ASSERTION(mPauseState & nsSMILTimeContainer::PAUSE_PAGEHIDE,
                "Expecting to be paused for pagehide before disconnect");
 
@@ -171,9 +170,9 @@ nsSMILAnimationController::RegisterAnimationElement(
     mDeferredStartSampling = false;
     if (mChildContainerTable.Count()) {
       // mAnimationElementTable was empty, but now we've added its 1st element
-      MOZ_ASSERT(mAnimationElementTable.Count() == 1,
-                 "we shouldn't have deferred sampling if we already had "
-                 "animations registered");
+      NS_ABORT_IF_FALSE(mAnimationElementTable.Count() == 1,
+                        "we shouldn't have deferred sampling if we already had "
+                        "animations registered");
       StartSampling(GetRefreshDriver());
       Sample(); // Run the first sample manually
     } // else, don't sample until a time container is registered (via AddChild)
@@ -266,8 +265,9 @@ nsSMILAnimationController::StartSampling(nsRefreshDriver* aRefreshDriver)
   if (aRefreshDriver) {
     MOZ_ASSERT(!mRegisteredWithRefreshDriver,
                "Redundantly registering with refresh driver");
-    MOZ_ASSERT(!GetRefreshDriver() || aRefreshDriver == GetRefreshDriver(),
-               "Starting sampling with wrong refresh driver");
+    NS_ABORT_IF_FALSE(!GetRefreshDriver() ||
+                      aRefreshDriver == GetRefreshDriver(),
+                      "Starting sampling with wrong refresh driver");
     // We're effectively resuming from a pause so update our current sample time
     // or else it will confuse our "average time between samples" calculations.
     mCurrentSampleTime = mozilla::TimeStamp::Now();
@@ -282,8 +282,9 @@ nsSMILAnimationController::StopSampling(nsRefreshDriver* aRefreshDriver)
   if (aRefreshDriver && mRegisteredWithRefreshDriver) {
     // NOTE: The document might already have been detached from its PresContext
     // (and RefreshDriver), which would make GetRefreshDriver() return null.
-    MOZ_ASSERT(!GetRefreshDriver() || aRefreshDriver == GetRefreshDriver(),
-               "Stopping sampling with wrong refresh driver");
+    NS_ABORT_IF_FALSE(!GetRefreshDriver() ||
+                      aRefreshDriver == GetRefreshDriver(),
+                      "Stopping sampling with wrong refresh driver");
     aRefreshDriver->RemoveRefreshObserver(this, Flush_Style);
     mRegisteredWithRefreshDriver = false;
   }
@@ -481,8 +482,8 @@ nsSMILAnimationController::RewindElements()
 nsSMILAnimationController::RewindNeeded(TimeContainerPtrKey* aKey,
                                         void* aData)
 {
-  MOZ_ASSERT(aData,
-             "Null data pointer during time container enumeration");
+  NS_ABORT_IF_FALSE(aData,
+      "Null data pointer during time container enumeration");
   bool* rewindNeeded = static_cast<bool*>(aData);
 
   nsSMILTimeContainer* container = aKey->GetKey();
@@ -568,7 +569,7 @@ nsSMILAnimationController::DoMilestoneSamples()
 
     for (uint32_t i = 0; i < length; ++i) {
       SVGAnimationElement* elem = params.mElements[i].get();
-      MOZ_ASSERT(elem, "nullptr animation element in list");
+      NS_ABORT_IF_FALSE(elem, "nullptr animation element in list");
       nsSMILTimeContainer* container = elem->GetTimeContainer();
       if (!container)
         // The container may be nullptr if the element has been detached from its
@@ -596,10 +597,10 @@ nsSMILAnimationController::DoMilestoneSamples()
 nsSMILAnimationController::GetNextMilestone(TimeContainerPtrKey* aKey,
                                             void* aData)
 {
-  MOZ_ASSERT(aKey, "Null hash key for time container hash table");
-  MOZ_ASSERT(aKey->GetKey(), "Null time container key in hash table");
-  MOZ_ASSERT(aData,
-             "Null data pointer during time container enumeration");
+  NS_ABORT_IF_FALSE(aKey, "Null hash key for time container hash table");
+  NS_ABORT_IF_FALSE(aKey->GetKey(), "Null time container key in hash table");
+  NS_ABORT_IF_FALSE(aData,
+      "Null data pointer during time container enumeration");
 
   nsSMILMilestone* nextMilestone = static_cast<nsSMILMilestone*>(aData);
 
@@ -621,10 +622,10 @@ nsSMILAnimationController::GetNextMilestone(TimeContainerPtrKey* aKey,
 nsSMILAnimationController::GetMilestoneElements(TimeContainerPtrKey* aKey,
                                                 void* aData)
 {
-  MOZ_ASSERT(aKey, "Null hash key for time container hash table");
-  MOZ_ASSERT(aKey->GetKey(), "Null time container key in hash table");
-  MOZ_ASSERT(aData,
-             "Null data pointer during time container enumeration");
+  NS_ABORT_IF_FALSE(aKey, "Null hash key for time container hash table");
+  NS_ABORT_IF_FALSE(aKey->GetKey(), "Null time container key in hash table");
+  NS_ABORT_IF_FALSE(aData,
+      "Null data pointer during time container enumeration");
 
   GetMilestoneElementsParams* params =
     static_cast<GetMilestoneElementsParams*>(aData);
@@ -701,8 +702,8 @@ nsSMILAnimationController::SampleTimedElement(
 
   nsSMILTime containerTime = timeContainer->GetCurrentTime();
 
-  MOZ_ASSERT(!timeContainer->IsSeeking(),
-             "Doing a regular sample but the time container is still seeking");
+  NS_ABORT_IF_FALSE(!timeContainer->IsSeeking(),
+      "Doing a regular sample but the time container is still seeking");
   aElement->TimedElement().SampleAt(containerTime);
 }
 
@@ -813,36 +814,6 @@ nsSMILAnimationController::GetTargetIdentifierForAnimation(
   aResult.mIsCSS = isCSS;
 
   return true;
-}
-
-/*static*/ PLDHashOperator
-nsSMILAnimationController::AddStyleUpdate(AnimationElementPtrKey* aKey,
-                                          void* aData)
-{
-  SVGAnimationElement* animElement = aKey->GetKey();
-  RestyleTracker* restyleTracker = static_cast<RestyleTracker*>(aData);
-
-  nsSMILTargetIdentifier key;
-  if (!GetTargetIdentifierForAnimation(animElement, key)) {
-    // Something's wrong/missing about animation's target; skip this animation
-    return PL_DHASH_NEXT;
-  }
-
-  // mIsCSS true means that the rules are the ones returned from
-  // Element::GetSMILOverrideStyleRule (via nsSMILCSSProperty objects),
-  // and mIsCSS false means the rules are nsSMILMappedAttribute objects
-  // returned from nsSVGElement::GetAnimatedContentStyleRule.
-  nsRestyleHint rshint = key.mIsCSS ? eRestyle_StyleAttribute_Animations
-                                    : eRestyle_SVGAttrAnimations;
-  restyleTracker->AddPendingRestyle(key.mElement, rshint, nsChangeHint(0));
-
-  return PL_DHASH_NEXT;
-}
-
-void
-nsSMILAnimationController::AddStyleUpdatesTo(RestyleTracker& aTracker)
-{
-  mAnimationElementTable.EnumerateEntries(AddStyleUpdate, &aTracker);
 }
 
 //----------------------------------------------------------------------

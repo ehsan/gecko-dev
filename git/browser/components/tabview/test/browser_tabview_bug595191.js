@@ -45,7 +45,7 @@ function escapeTest(contentWindow) {
   }
   contentWindow.addEventListener("tabviewsearchdisabled", onSearchDisabled, 
     false);
-  EventUtils.synthesizeKey("KEY_Escape", { code: "Escape" }, contentWindow);
+  EventUtils.synthesizeKey("VK_ESCAPE", { }, contentWindow);
 }
 
 function toggleTabViewTest(contentWindow) {
@@ -57,6 +57,5 @@ function toggleTabViewTest(contentWindow) {
   }
   contentWindow.addEventListener("tabviewhidden", onTabViewHidden, false);
   // Use keyboard shortcut to toggle back to browser view
-  EventUtils.synthesizeKey("e", { accelKey: true, shiftKey: true,
-                                  code: "KeyE", keyCode: KeyboardEvent.DOM_VK_E }, contentWindow);
+  EventUtils.synthesizeKey("e", { accelKey: true, shiftKey: true });
 }

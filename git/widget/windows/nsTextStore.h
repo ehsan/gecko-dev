@@ -384,15 +384,13 @@ protected:
       mACP.style.fInterimChar = FALSE;
     }
 
-    void SetSelection(uint32_t aStart, uint32_t aLength, bool aReversed,
-                      mozilla::WritingMode aWritingMode)
+    void SetSelection(uint32_t aStart, uint32_t aLength, bool aReversed)
     {
       mDirty = false;
       mACP.acpStart = static_cast<LONG>(aStart);
       mACP.acpEnd = static_cast<LONG>(aStart + aLength);
       mACP.style.ase = aReversed ? TS_AE_START : TS_AE_END;
       mACP.style.fInterimChar = FALSE;
-      mWritingMode = aWritingMode;
     }
 
     bool IsCollapsed() const
@@ -403,9 +401,6 @@ protected:
 
     void CollapseAt(uint32_t aOffset)
     {
-      // XXX This does not update the selection's mWritingMode.
-      // If it is ever used to "collapse" to an entirely new location,
-      // we may need to fix that.
       mDirty = false;
       mACP.acpStart = mACP.acpEnd = static_cast<LONG>(aOffset);
       mACP.style.ase = TS_AE_END;
@@ -467,15 +462,8 @@ protected:
       return (mACP.style.fInterimChar != FALSE);
     }
 
-    mozilla::WritingMode GetWritingMode() const
-    {
-      MOZ_ASSERT(!mDirty);
-      return mWritingMode;
-    }
-
   private:
     TS_SELECTION_ACP mACP;
-    mozilla::WritingMode mWritingMode;
     bool mDirty;
   };
   // Don't access mSelection directly except at calling MarkDirty().
@@ -492,7 +480,7 @@ protected:
 
   struct PendingAction MOZ_FINAL
   {
-    enum ActionType : uint8_t
+    enum ActionType MOZ_ENUM_TYPE(uint8_t)
     {
       COMPOSITION_START,
       COMPOSITION_UPDATE,
@@ -647,7 +635,7 @@ protected:
     nsTextStore::Selection& mSelection;
 
     // The minimum offset of modified part of the text.
-    enum : uint32_t
+    enum MOZ_ENUM_TYPE(uint32_t)
     {
       NOT_MODIFIED = UINT32_MAX
     };
@@ -718,7 +706,6 @@ protected:
     // Supported attributes
     eInputScope = 0,
     eTextVerticalWriting,
-    eTextOrientation,
 
     // Count of the supported attributes
     NUM_OF_SUPPORTED_ATTRS

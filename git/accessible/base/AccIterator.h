@@ -43,7 +43,7 @@ public:
    * Return next accessible complying with filter function. Return the first
    * accessible for the first time.
    */
-  virtual Accessible* Next() MOZ_OVERRIDE;
+  virtual Accessible* Next();
 
 private:
   AccIterator();
@@ -89,7 +89,7 @@ public:
   /**
    * Return next related accessible for the given dependent accessible.
    */
-  virtual Accessible* Next() MOZ_OVERRIDE;
+  virtual Accessible* Next();
 
 private:
   RelatedAccIterator();
@@ -123,7 +123,7 @@ public:
   /**
    * Return next label accessible associated with the given element.
    */
-  virtual Accessible* Next() MOZ_OVERRIDE;
+  virtual Accessible* Next();
 
 private:
   HTMLLabelIterator();
@@ -150,7 +150,7 @@ public:
   /**
    * Return next output accessible associated with the given element.
    */
-  virtual Accessible* Next() MOZ_OVERRIDE;
+  virtual Accessible* Next();
 
 private:
   HTMLOutputIterator();
@@ -173,7 +173,7 @@ public:
   /**
    * Return next label accessible associated with the given element.
    */
-  virtual Accessible* Next() MOZ_OVERRIDE;
+  virtual Accessible* Next();
 
 private:
   XULLabelIterator();
@@ -196,7 +196,7 @@ public:
   /**
    * Return next description accessible associated with the given element.
    */
-  virtual Accessible* Next() MOZ_OVERRIDE;
+  virtual Accessible* Next();
 
 private:
   XULDescriptionIterator();
@@ -234,7 +234,7 @@ public:
   nsIContent* GetElem(const nsDependentSubstring& aID);
 
   // AccIterable
-  virtual Accessible* Next() MOZ_OVERRIDE;
+  virtual Accessible* Next();
 
 private:
   IDRefsIterator();
@@ -247,48 +247,6 @@ private:
   nsAString::index_type mCurrIdx;
 };
 
-
-/**
- * Iterates over related accessible referred by aria-owns.
- */
-class ARIAOwnedByIterator MOZ_FINAL : public RelatedAccIterator
-{
-public:
-  explicit ARIAOwnedByIterator(const Accessible* aDependent);
-  virtual ~ARIAOwnedByIterator() { }
-
-  virtual Accessible* Next() MOZ_OVERRIDE;
-
-private:
-  ARIAOwnedByIterator() = delete;
-  ARIAOwnedByIterator(const ARIAOwnedByIterator&) = delete;
-  ARIAOwnedByIterator& operator = (const ARIAOwnedByIterator&) = delete;
-
-  const Accessible* mDependent;
-};
-
-
-/**
- * Iterates over related accessible referred by aria-owns.
- */
-class ARIAOwnsIterator MOZ_FINAL : public AccIterable
-{
-public:
-  explicit ARIAOwnsIterator(const Accessible* aOwner);
-  virtual ~ARIAOwnsIterator() { }
-
-  virtual Accessible* Next() MOZ_OVERRIDE;
-
-private:
-  ARIAOwnsIterator() = delete;
-  ARIAOwnsIterator(const ARIAOwnsIterator&) = delete;
-  ARIAOwnsIterator& operator = (const ARIAOwnsIterator&) = delete;
-
-  IDRefsIterator mIter;
-  const Accessible* mOwner;
-};
-
-
 /**
  * Iterator that points to a single accessible returning it on the first call
  * to Next().
@@ -299,7 +257,7 @@ public:
   explicit SingleAccIterator(Accessible* aTarget): mAcc(aTarget) { }
   virtual ~SingleAccIterator() { }
 
-  virtual Accessible* Next() MOZ_OVERRIDE;
+  virtual Accessible* Next();
 
 private:
   SingleAccIterator();
@@ -320,7 +278,7 @@ public:
     mContainer(aItemContainer), mAnchor(nullptr) { }
   virtual ~ItemIterator() { }
 
-  virtual Accessible* Next() MOZ_OVERRIDE;
+  virtual Accessible* Next();
 
 private:
   ItemIterator() = delete;
@@ -342,7 +300,7 @@ public:
                       int32_t aRowIdx);
   virtual ~XULTreeItemIterator() { }
 
-  virtual Accessible* Next() MOZ_OVERRIDE;
+  virtual Accessible* Next();
 
 private:
   XULTreeItemIterator() = delete;

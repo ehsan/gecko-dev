@@ -62,18 +62,12 @@ protected:
     NS_NewRubyTextContainerFrame(nsIPresShell* aPresShell,
                                  nsStyleContext* aContext);
   explicit nsRubyTextContainerFrame(nsStyleContext* aContext)
-    : nsRubyTextContainerFrameSuper(aContext)
-    , mISize(0) {}
+    : nsRubyTextContainerFrameSuper(aContext) {}
 
   void UpdateSpanFlag();
 
+  // For MoveOverflowToChildList
   friend class nsRubyBaseContainerFrame;
-  void SetISize(nscoord aISize) { mISize = aISize; }
-
-  // The intended inline size of the ruby text container. It is set by
-  // the corresponding ruby base container when the segment is reflowed,
-  // and used when the ruby text container is reflowed by its parent.
-  nscoord mISize;
 };
 
 #endif /* nsRubyTextContainerFrame_h___ */

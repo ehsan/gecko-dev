@@ -93,11 +93,7 @@ class BaselineInspector
 
   public:
     typedef Vector<Shape *, 4, JitAllocPolicy> ShapeVector;
-    typedef Vector<ObjectGroup *, 4, JitAllocPolicy> ObjectGroupVector;
-    bool maybeInfoForPropertyOp(jsbytecode *pc,
-                                ShapeVector &nativeShapes,
-                                ObjectGroupVector &unboxedGroups,
-                                ObjectGroupVector &convertUnboxedGroups);
+    bool maybeShapesForPropertyOp(jsbytecode *pc, ShapeVector &shapes);
 
     SetElemICInspector setElemICInspector(jsbytecode *pc) {
         return makeICInspector<SetElemICInspector>(pc, ICStub::SetElem_Fallback);
@@ -113,23 +109,16 @@ class BaselineInspector
     bool hasSeenDoubleResult(jsbytecode *pc);
     bool hasSeenNonStringIterMore(jsbytecode *pc);
 
-    bool isOptimizableCallStringSplit(jsbytecode *pc, JSString **stringOut, JSString **stringArg,
-                                      NativeObject **objOut);
-    JSObject *getTemplateObject(jsbytecode *pc);
-    JSObject *getTemplateObjectForNative(jsbytecode *pc, Native native);
+    NativeObject *getTemplateObject(jsbytecode *pc);
+    NativeObject *getTemplateObjectForNative(jsbytecode *pc, Native native);
     JSObject *getTemplateObjectForClassHook(jsbytecode *pc, const Class *clasp);
-
-    JSFunction *getSingleCallee(jsbytecode *pc);
 
     DeclEnvObject *templateDeclEnvObject();
     CallObject *templateCallObject();
 
-    bool commonGetPropFunction(jsbytecode *pc, JSObject **holder, Shape **holderShape,
-                               JSFunction **commonGetter, Shape **globalShape, bool *isOwnProperty,
-                               ShapeVector &receiverShapes);
-    bool commonSetPropFunction(jsbytecode *pc, JSObject **holder, Shape **holderShape,
-                               JSFunction **commonSetter, bool *isOwnProperty,
-                               ShapeVector &receiverShapes);
+    JSObject *commonGetPropFunction(jsbytecode *pc, Shape **lastProperty, JSFunction **commonGetter,
+                                    Shape **globalShape);
+    JSObject *commonSetPropFunction(jsbytecode *pc, Shape **lastProperty, JSFunction **commonSetter);
 
     bool instanceOfData(jsbytecode *pc, Shape **shape, uint32_t *slot, JSObject **prototypeObject);
 };

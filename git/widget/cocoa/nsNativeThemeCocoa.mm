@@ -2256,16 +2256,15 @@ nsNativeThemeCocoa::DrawResizer(CGContextRef cgContext, const HIRect& aRect,
 
 static void
 DrawVibrancyBackground(CGContextRef cgContext, CGRect inBoxRect,
-                       nsIFrame* aFrame, nsITheme::ThemeGeometryType aThemeGeometryType)
+                       nsIFrame* aFrame, uint8_t aWidgetType)
 {
   ChildView* childView = ChildViewForFrame(aFrame);
   if (childView) {
-    NSRect rect = NSRectFromCGRect(inBoxRect);
     NSGraphicsContext* savedContext = [NSGraphicsContext currentContext];
     [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithGraphicsPort:cgContext flipped:YES]];
 
-    [[childView vibrancyFillColorForThemeGeometryType:aThemeGeometryType] set];
-    NSRectFill(rect);
+    [[childView vibrancyFillColorForWidgetType:aWidgetType] set];
+    NSRectFill(NSRectFromCGRect(inBoxRect));
 
     [NSGraphicsContext setCurrentContext:savedContext];
   }
@@ -2382,27 +2381,24 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
     }
       break;
 
-    case NS_THEME_MENUPOPUP:
-      if (VibrancyManager::SystemSupportsVibrancy()) {
-        DrawVibrancyBackground(cgContext, macRect, aFrame, eThemeGeometryTypeMenu);
-      } else {
-        HIThemeMenuDrawInfo mdi;
-        memset(&mdi, 0, sizeof(mdi));
-        mdi.version = 0;
-        mdi.menuType = IsDisabled(aFrame, eventState) ?
-                         static_cast<ThemeMenuType>(kThemeMenuTypeInactive) :
-                         static_cast<ThemeMenuType>(kThemeMenuTypePopUp);
+    case NS_THEME_MENUPOPUP: {
+      HIThemeMenuDrawInfo mdi;
+      memset(&mdi, 0, sizeof(mdi));
+      mdi.version = 0;
+      mdi.menuType = IsDisabled(aFrame, eventState) ?
+                       static_cast<ThemeMenuType>(kThemeMenuTypeInactive) :
+                       static_cast<ThemeMenuType>(kThemeMenuTypePopUp);
 
-        bool isLeftOfParent = false;
-        if (IsSubmenu(aFrame, &isLeftOfParent) && !isLeftOfParent) {
-          mdi.menuType = kThemeMenuTypeHierarchical;
-        }
-
-        // The rounded corners draw outside the frame.
-        CGRect deflatedRect = CGRectMake(macRect.origin.x, macRect.origin.y + 4,
-                                         macRect.size.width, macRect.size.height - 8);
-        HIThemeDrawMenuBackground(&deflatedRect, &mdi, cgContext, HITHEME_ORIENTATION);
+      bool isLeftOfParent = false;
+      if (IsSubmenu(aFrame, &isLeftOfParent) && !isLeftOfParent) {
+        mdi.menuType = kThemeMenuTypeHierarchical;
       }
+      
+      // The rounded corners draw outside the frame.
+      CGRect deflatedRect = CGRectMake(macRect.origin.x, macRect.origin.y + 4,
+                                       macRect.size.width, macRect.size.height - 8);
+      HIThemeDrawMenuBackground(&deflatedRect, &mdi, cgContext, HITHEME_ORIENTATION);
+    }
       break;
 
     case NS_THEME_MENUARROW: {
@@ -2414,27 +2410,28 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
 
     case NS_THEME_MENUITEM:
     case NS_THEME_CHECKMENUITEM: {
-      if (VibrancyManager::SystemSupportsVibrancy()) {
-        ThemeGeometryType type = ThemeGeometryTypeForWidget(aFrame, aWidgetType);
-        DrawVibrancyBackground(cgContext, macRect, aFrame, type);
-      } else {
-        bool isDisabled = IsDisabled(aFrame, eventState);
-        bool isSelected = !isDisabled && CheckBooleanAttr(aFrame, nsGkAtoms::menuactive);
-        // maybe use kThemeMenuItemHierBackground or PopUpBackground instead of just Plain?
-        HIThemeMenuItemDrawInfo drawInfo;
-        memset(&drawInfo, 0, sizeof(drawInfo));
-        drawInfo.version = 0;
-        drawInfo.itemType = kThemeMenuItemPlain;
-        drawInfo.state = (isDisabled ?
-                           static_cast<ThemeMenuState>(kThemeMenuDisabled) :
-                           isSelected ?
-                             static_cast<ThemeMenuState>(kThemeMenuSelected) :
-                             static_cast<ThemeMenuState>(kThemeMenuActive));
-
-        // XXX pass in the menu rect instead of always using the item rect
-        HIRect ignored;
-        HIThemeDrawMenuItem(&macRect, &macRect, &drawInfo, cgContext, HITHEME_ORIENTATION, &ignored);
+      SurfaceFormat format  = thebesCtx->GetDrawTarget()->GetFormat();
+      bool isTransparent = (format == SurfaceFormat::R8G8B8A8) ||
+                           (format == SurfaceFormat::B8G8R8A8);
+      if (isTransparent) {
+        // Clear the background to get correct transparency.
+        CGContextClearRect(cgContext, macRect);
       }
+
+      // maybe use kThemeMenuItemHierBackground or PopUpBackground instead of just Plain?
+      HIThemeMenuItemDrawInfo drawInfo;
+      memset(&drawInfo, 0, sizeof(drawInfo));
+      drawInfo.version = 0;
+      drawInfo.itemType = kThemeMenuItemPlain;
+      drawInfo.state = (IsDisabled(aFrame, eventState) ?
+                         static_cast<ThemeMenuState>(kThemeMenuDisabled) :
+                         CheckBooleanAttr(aFrame, nsGkAtoms::menuactive) ?
+                           static_cast<ThemeMenuState>(kThemeMenuSelected) :
+                           static_cast<ThemeMenuState>(kThemeMenuActive));
+
+      // XXX pass in the menu rect instead of always using the item rect
+      HIRect ignored;
+      HIThemeDrawMenuItem(&macRect, &macRect, &drawInfo, cgContext, HITHEME_ORIENTATION, &ignored);
 
       if (aWidgetType == NS_THEME_CHECKMENUITEM) {
         DrawMenuIcon(cgContext, macRect, eventState, aFrame, kCheckmarkSize, kCheckmarkImage, false);
@@ -2466,7 +2463,7 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
 
     case NS_THEME_TOOLTIP:
       if (VibrancyManager::SystemSupportsVibrancy()) {
-        DrawVibrancyBackground(cgContext, macRect, aFrame, ThemeGeometryTypeForWidget(aFrame, aWidgetType));
+        DrawVibrancyBackground(cgContext, macRect, aFrame, aWidgetType);
       } else {
         CGContextSetRGBFillColor(cgContext, 0.996, 1.000, 0.792, 0.950);
         CGContextFillRect(cgContext, macRect);
@@ -2903,11 +2900,9 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
       break;
 
     case NS_THEME_MAC_VIBRANCY_LIGHT:
-    case NS_THEME_MAC_VIBRANCY_DARK: {
-      ThemeGeometryType type = ThemeGeometryTypeForWidget(aFrame, aWidgetType);
-      DrawVibrancyBackground(cgContext, macRect, aFrame, type);
+    case NS_THEME_MAC_VIBRANCY_DARK:
+      DrawVibrancyBackground(cgContext, macRect, aFrame, aWidgetType);
       break;
-    }
   }
 
   if (hidpi) {
@@ -3756,9 +3751,6 @@ nsNativeThemeCocoa::NeedToClearBackgroundBehindWidget(uint8_t aWidgetType)
     case NS_THEME_MAC_VIBRANCY_LIGHT:
     case NS_THEME_MAC_VIBRANCY_DARK:
     case NS_THEME_TOOLTIP:
-    case NS_THEME_MENUPOPUP:
-    case NS_THEME_MENUITEM:
-    case NS_THEME_CHECKMENUITEM:
       return true;
     default:
       return false;
@@ -3783,14 +3775,10 @@ nsNativeThemeCocoa::WidgetProvidesFontSmoothingBackgroundColor(nsIFrame* aFrame,
     case NS_THEME_MAC_VIBRANCY_LIGHT:
     case NS_THEME_MAC_VIBRANCY_DARK:
     case NS_THEME_TOOLTIP:
-    case NS_THEME_MENUPOPUP:
-    case NS_THEME_MENUITEM:
-    case NS_THEME_CHECKMENUITEM:
     {
       ChildView* childView = ChildViewForFrame(aFrame);
       if (childView) {
-        ThemeGeometryType type = ThemeGeometryTypeForWidget(aFrame, aWidgetType);
-        NSColor* color = [childView vibrancyFontSmoothingBackgroundColorForThemeGeometryType:type];
+        NSColor* color = [childView vibrancyFontSmoothingBackgroundColorForWidgetType:aWidgetType];
         *aColor = ConvertNSColor(color);
         return true;
       }
@@ -3798,39 +3786,6 @@ nsNativeThemeCocoa::WidgetProvidesFontSmoothingBackgroundColor(nsIFrame* aFrame,
     }
     default:
       return false;
-  }
-}
-
-nsITheme::ThemeGeometryType
-nsNativeThemeCocoa::ThemeGeometryTypeForWidget(nsIFrame* aFrame, uint8_t aWidgetType)
-{
-  switch (aWidgetType) {
-    case NS_THEME_WINDOW_TITLEBAR:
-      return eThemeGeometryTypeTitlebar;
-    case NS_THEME_TOOLBAR:
-    case NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR:
-      return eThemeGeometryTypeToolbar;
-    case NS_THEME_WINDOW_BUTTON_BOX:
-      return eThemeGeometryTypeWindowButtons;
-    case NS_THEME_MOZ_MAC_FULLSCREEN_BUTTON:
-      return eThemeGeometryTypeFullscreenButton;
-    case NS_THEME_MAC_VIBRANCY_LIGHT:
-      return eThemeGeometryTypeVibrancyLight;
-    case NS_THEME_MAC_VIBRANCY_DARK:
-      return eThemeGeometryTypeVibrancyDark;
-    case NS_THEME_TOOLTIP:
-      return eThemeGeometryTypeTooltip;
-    case NS_THEME_MENUPOPUP:
-      return eThemeGeometryTypeMenu;
-    case NS_THEME_MENUITEM:
-    case NS_THEME_CHECKMENUITEM: {
-      EventStates eventState = GetContentState(aFrame, aWidgetType);
-      bool isDisabled = IsDisabled(aFrame, eventState);
-      bool isSelected = !isDisabled && CheckBooleanAttr(aFrame, nsGkAtoms::menuactive);
-      return isSelected ? eThemeGeometryTypeHighlightedMenuItem : eThemeGeometryTypeMenu;
-    }
-    default:
-      return eThemeGeometryTypeUnknown;
   }
 }
 

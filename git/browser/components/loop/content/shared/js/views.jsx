@@ -8,13 +8,11 @@
 /* global loop:true, React */
 var loop = loop || {};
 loop.shared = loop.shared || {};
-loop.shared.views = (function(_, l10n) {
+loop.shared.views = (function(_, OT, l10n) {
   "use strict";
 
-  var sharedActions = loop.shared.actions;
   var sharedModels = loop.shared.models;
   var sharedMixins = loop.shared.mixins;
-  var SCREEN_SHARE_STATES = loop.shared.utils.SCREEN_SHARE_STATES;
 
   /**
    * Media control button.
@@ -48,7 +46,6 @@ loop.shared.views = (function(_, l10n) {
       var classesObj = {
         "btn": true,
         "media-control": true,
-        "transparent-button": true,
         "local-media": this.props.scope === "local",
         "muted": !this.props.enabled,
         "hide": !this.props.visible
@@ -76,96 +73,6 @@ loop.shared.views = (function(_, l10n) {
   });
 
   /**
-   * Screen sharing control button.
-   *
-   * Required props:
-   * - {loop.Dispatcher} dispatcher  The dispatcher instance
-   * - {Boolean}         visible     Set to true to display the button
-   * - {String}          state       One of the screen sharing states, see
-   *                                 loop.shared.utils.SCREEN_SHARE_STATES
-   */
-  var ScreenShareControlButton = React.createClass({
-    mixins: [sharedMixins.DropdownMenuMixin],
-
-    propTypes: {
-      dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired,
-      visible: React.PropTypes.bool.isRequired,
-      state: React.PropTypes.string.isRequired,
-    },
-
-    handleClick: function() {
-      if (this.props.state === SCREEN_SHARE_STATES.ACTIVE) {
-        this.props.dispatcher.dispatch(
-          new sharedActions.EndScreenShare({}));
-      } else {
-        this.toggleDropdownMenu();
-      }
-    },
-
-    _startScreenShare: function(type) {
-      this.props.dispatcher.dispatch(new sharedActions.StartScreenShare({
-        type: type
-      }));
-    },
-
-    _handleShareTabs: function() {
-      this._startScreenShare("browser");
-    },
-
-    _handleShareWindows: function() {
-      this._startScreenShare("window");
-    },
-
-    _getTitle: function() {
-      var prefix = this.props.state === SCREEN_SHARE_STATES.ACTIVE ?
-        "active" : "inactive";
-
-      return l10n.get(prefix + "_screenshare_button_title");
-    },
-
-    render: function() {
-      if (!this.props.visible) {
-        return null;
-      }
-
-      var cx = React.addons.classSet;
-
-      var isActive = this.props.state === SCREEN_SHARE_STATES.ACTIVE;
-      var screenShareClasses = cx({
-        "btn": true,
-        "btn-screen-share": true,
-        "transparent-button": true,
-        "menu-showing": this.state.showMenu,
-        "active": isActive,
-        "disabled": this.props.state === SCREEN_SHARE_STATES.PENDING
-      });
-      var dropdownMenuClasses = cx({
-        "native-dropdown-menu": true,
-        "conversation-window-dropdown": true,
-        "visually-hidden": !this.state.showMenu
-      });
-
-      return (
-        <div>
-          <button className={screenShareClasses}
-                  onClick={this.handleClick}
-                  title={this._getTitle()}>
-            {isActive ? null : <span className="chevron"/>}
-          </button>
-          <ul ref="menu" className={dropdownMenuClasses}>
-            <li onClick={this._handleShareTabs} className="disabled">
-              {l10n.get("share_tabs_button_title")}
-            </li>
-            <li onClick={this._handleShareWindows}>
-              {l10n.get("share_windows_button_title")}
-            </li>
-          </ul>
-        </div>
-      );
-    }
-  });
-
-  /**
    * Conversation controls.
    */
   var ConversationToolbar = React.createClass({
@@ -173,16 +80,13 @@ loop.shared.views = (function(_, l10n) {
       return {
         video: {enabled: true, visible: true},
         audio: {enabled: true, visible: true},
-        screenShare: {state: SCREEN_SHARE_STATES.INACTIVE, visible: false},
         enableHangup: true
       };
     },
 
     propTypes: {
-      dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired,
       video: React.PropTypes.object.isRequired,
       audio: React.PropTypes.object.isRequired,
-      screenShare: React.PropTypes.object,
       hangup: React.PropTypes.func.isRequired,
       publishStream: React.PropTypes.func.isRequired,
       hangupButtonLabel: React.PropTypes.string,
@@ -206,6 +110,7 @@ loop.shared.views = (function(_, l10n) {
     },
 
     render: function() {
+      var cx = React.addons.classSet;
       return (
         <ul className="conversation-toolbar">
           <li className="conversation-toolbar-btn-box btn-hangup-entry">
@@ -227,11 +132,6 @@ loop.shared.views = (function(_, l10n) {
                                 visible={this.props.audio.visible}
                                 scope="local" type="audio" />
           </li>
-          <li className="conversation-toolbar-btn-box btn-screen-share-entry">
-            <ScreenShareControlButton dispatcher={this.props.dispatcher}
-                                      visible={this.props.screenShare.visible}
-                                      state={this.props.screenShare.state} />
-          </li>
         </ul>
       );
     }
@@ -241,24 +141,32 @@ loop.shared.views = (function(_, l10n) {
    * Conversation view.
    */
   var ConversationView = React.createClass({
-    mixins: [
-      Backbone.Events,
-      sharedMixins.AudioMixin,
-      sharedMixins.MediaSetupMixin
-    ],
+    mixins: [Backbone.Events, sharedMixins.AudioMixin],
 
     propTypes: {
       sdk: React.PropTypes.object.isRequired,
       video: React.PropTypes.object,
       audio: React.PropTypes.object,
-      initiate: React.PropTypes.bool,
-      isDesktop: React.PropTypes.bool
+      initiate: React.PropTypes.bool
+    },
+
+    // height set to 100%" to fix video layout on Google Chrome
+    // @see https://bugzilla.mozilla.org/show_bug.cgi?id=1020445
+    publisherConfig: {
+      insertMode: "append",
+      width: "100%",
+      height: "100%",
+      style: {
+        audioLevelDisplayMode: "off",
+        buttonDisplayMode: "off",
+        nameDisplayMode: "off",
+        videoDisabledDisplayMode: "off"
+      }
     },
 
     getDefaultProps: function() {
       return {
         initiate: true,
-        isDesktop: false,
         video: {enabled: true, visible: true},
         audio: {enabled: true, visible: true}
       };
@@ -271,25 +179,14 @@ loop.shared.views = (function(_, l10n) {
       };
     },
 
+    componentWillMount: function() {
+      if (this.props.initiate) {
+        this.publisherConfig.publishVideo = this.props.video.enabled;
+      }
+    },
+
     componentDidMount: function() {
       if (this.props.initiate) {
-        /**
-         * XXX This is a workaround for desktop machines that do not have a
-         * camera installed. As we don't yet have device enumeration, when
-         * we do, this can be removed (bug 1138851), and the sdk should handle it.
-         */
-        if (this.props.isDesktop &&
-            !window.MediaStreamTrack.getSources) {
-          // If there's no getSources function, the sdk defines its own and caches
-          // the result. So here we define the "normal" one which doesn't get cached, so
-          // we can change it later.
-          window.MediaStreamTrack.getSources = function(callback) {
-            callback([{kind: "audio"}, {kind: "video"}]);
-          };
-        }
-
-        this.listenTo(this.props.sdk, "exception", this._handleSdkException.bind(this));
-
         this.listenTo(this.props.model, "session:connected",
                                         this._onSessionConnected);
         this.listenTo(this.props.model, "session:stream-created",
@@ -299,6 +196,26 @@ loop.shared.views = (function(_, l10n) {
                                          "session:ended"].join(" "),
                                          this.stopPublishing);
         this.props.model.startSession();
+      }
+
+      /**
+       * OT inserts inline styles into the markup. Using a listener for
+       * resize events helps us trigger a full width/height on the element
+       * so that they update to the correct dimensions.
+       * XXX: this should be factored as a mixin.
+       */
+      window.addEventListener('orientationchange', this.updateVideoContainer);
+      window.addEventListener('resize', this.updateVideoContainer);
+    },
+
+    updateVideoContainer: function() {
+      var localStreamParent = document.querySelector('.local .OT_publisher');
+      var remoteStreamParent = document.querySelector('.remote .OT_subscriber');
+      if (localStreamParent) {
+        localStreamParent.style.width = "100%";
+      }
+      if (remoteStreamParent) {
+        remoteStreamParent.style.height = "100%";
       }
     },
 
@@ -330,39 +247,7 @@ loop.shared.views = (function(_, l10n) {
      */
     _streamCreated: function(event) {
       var incoming = this.getDOMNode().querySelector(".remote");
-      this.props.model.subscribe(event.stream, incoming,
-        this.getDefaultPublisherConfig({
-          publishVideo: this.props.video.enabled
-        }));
-    },
-
-    /**
-     * Handles the SDK Exception event.
-     *
-     * https://tokbox.com/opentok/libraries/client/js/reference/ExceptionEvent.html
-     *
-     * @param {ExceptionEvent} event
-     */
-    _handleSdkException: function(event) {
-      /**
-       * XXX This is a workaround for desktop machines that do not have a
-       * camera installed. As we don't yet have device enumeration, when
-       * we do, this can be removed (bug 1138851), and the sdk should handle it.
-       */
-      if (this.publisher &&
-          event.code === OT.ExceptionCodes.UNABLE_TO_PUBLISH &&
-          event.message === "GetUserMedia" &&
-          this.state.video.enabled) {
-        this.state.video.enabled = false;
-
-        window.MediaStreamTrack.getSources = function(callback) {
-          callback([{kind: "audio"}]);
-        };
-
-        this.stopListening(this.publisher);
-        this.publisher.destroy();
-        this.startPublishing();
-      }
+      this.props.model.subscribe(event.stream, incoming, this.publisherConfig);
     },
 
     /**
@@ -377,7 +262,7 @@ loop.shared.views = (function(_, l10n) {
 
       // XXX move this into its StreamingVideo component?
       this.publisher = this.props.sdk.initPublisher(
-        outgoing, this.getDefaultPublisherConfig({publishVideo: this.props.video.enabled}));
+        outgoing, this.publisherConfig);
 
       // Suppress OT GuM custom dialog, see bug 1018875
       this.listenTo(this.publisher, "accessDialogOpened accessDenied",
@@ -439,10 +324,10 @@ loop.shared.views = (function(_, l10n) {
       /* jshint ignore:start */
       return (
         <div className="video-layout-wrapper">
-          <div className="conversation in-call">
+          <div className="conversation">
             <div className="media nested">
               <div className="video_wrapper remote_wrapper">
-                <div className="video_inner remote focus-stream"></div>
+                <div className="video_inner remote"></div>
               </div>
               <div className={localStreamClasses}></div>
             </div>
@@ -609,7 +494,6 @@ loop.shared.views = (function(_, l10n) {
     ConversationView: ConversationView,
     ConversationToolbar: ConversationToolbar,
     MediaControlButton: MediaControlButton,
-    ScreenShareControlButton: ScreenShareControlButton,
     NotificationListView: NotificationListView
   };
-})(_, navigator.mozL10n || document.mozL10n);
+})(_, window.OT, navigator.mozL10n || document.mozL10n);

@@ -1,11 +1,3 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 package org.mozilla.gecko.tests;
 
 import java.util.ArrayList;
@@ -34,7 +26,7 @@ class DatabaseHelper {
     */
     protected boolean isBookmark(String url) {
         final ContentResolver resolver = mActivity.getContentResolver();
-        return getProfileDB().isBookmark(resolver, url);
+        return BrowserDB.isBookmark(resolver, url);
     }
 
     protected Uri buildUri(BrowserDataType dataType) {
@@ -56,7 +48,7 @@ class DatabaseHelper {
      */
     protected void addOrUpdateMobileBookmark(String title, String url) {
         final ContentResolver resolver = mActivity.getContentResolver();
-        getProfileDB().addBookmark(resolver, title, url);
+        BrowserDB.addBookmark(resolver, title, url);
         mAsserter.ok(true, "Inserting/updating a new bookmark", "Inserting/updating the bookmark with the title = " + title + " and the url = " + url);
     }
 
@@ -70,14 +62,14 @@ class DatabaseHelper {
         // Get the id for the bookmark with the given URL.
         Cursor c = null;
         try {
-            c = getProfileDB().getBookmarkForUrl(resolver, url);
+            c = BrowserDB.getBookmarkForUrl(resolver, url);
             if (!c.moveToFirst()) {
                 mAsserter.ok(false, "Getting bookmark with url", "Couldn't find bookmark with url = " + url);
                 return;
             }
 
             int id = c.getInt(c.getColumnIndexOrThrow("_id"));
-            getProfileDB().updateBookmark(resolver, id, url, title, keyword);
+            BrowserDB.updateBookmark(resolver, id, url, title, keyword);
 
             mAsserter.ok(true, "Updating bookmark", "Updating bookmark with url = " + url);
         } finally {
@@ -89,20 +81,19 @@ class DatabaseHelper {
 
     protected void deleteBookmark(String url) {
         final ContentResolver resolver = mActivity.getContentResolver();
-        getProfileDB().removeBookmarksWithURL(resolver, url);
+        BrowserDB.removeBookmarksWithURL(resolver, url);
     }
 
     protected void deleteHistoryItem(String url) {
         final ContentResolver resolver = mActivity.getContentResolver();
-        getProfileDB().removeHistoryEntry(resolver, url);
+        BrowserDB.removeHistoryEntry(resolver, url);
     }
 
     // About the same implementation as getFolderIdFromGuid from LocalBrowserDB because it is declared private and we can't use reflections to access it
     protected long getFolderIdFromGuid(String guid) {
-        final ContentResolver resolver = mActivity.getContentResolver();
+        ContentResolver resolver = mActivity.getContentResolver();
         long folderId = -1L;
-        final Uri bookmarksUri = buildUri(BrowserDataType.BOOKMARKS);
-
+        Uri bookmarksUri = buildUri(BrowserDataType.BOOKMARKS);
         Cursor c = null;
         try {
             c = resolver.query(bookmarksUri,
@@ -113,7 +104,6 @@ class DatabaseHelper {
             if (c.moveToFirst()) {
                 folderId = c.getLong(c.getColumnIndexOrThrow("_id"));
             }
-
             if (folderId == -1) {
                 mAsserter.ok(false, "Trying to get the folder id" ,"We did not get the correct folder id");
             }
@@ -125,48 +115,37 @@ class DatabaseHelper {
         return folderId;
     }
 
-    /**
-     * Returns all of the bookmarks or history entries in a database.
-     *
-     * @return an ArrayList of the urls in the Firefox for Android Bookmarks or History databases.
+     /**
+     * @param  a BrowserDataType value - either HISTORY or BOOKMARKS
+     * @return an ArrayList of the urls in the Firefox for Android Bookmarks or History databases
      */
     protected ArrayList<String> getBrowserDBUrls(BrowserDataType dataType) {
-        final ArrayList<String> browserData = new ArrayList<String>();
-        final ContentResolver resolver = mActivity.getContentResolver();
-
+        ArrayList<String> browserData = new ArrayList<String>();
+        ContentResolver resolver = mActivity.getContentResolver();
         Cursor cursor = null;
-        final BrowserDB db = getProfileDB();
+        Uri uri = buildUri(dataType);
         if (dataType == BrowserDataType.HISTORY) {
-            cursor = db.getAllVisitedHistory(resolver);
+            cursor = BrowserDB.getAllVisitedHistory(resolver);
         } else if (dataType == BrowserDataType.BOOKMARKS) {
-            cursor = db.getBookmarksInFolder(resolver, getFolderIdFromGuid("mobile"));
+            cursor = BrowserDB.getBookmarksInFolder(resolver, getFolderIdFromGuid("mobile"));
         }
-
-        if (cursor == null) {
-            mAsserter.ok(false, "We could not retrieve any data from the database", "The cursor was null");
-            return browserData;
-        }
-
-        try {
-            if (!cursor.moveToFirst()) {
-                // Nothing here, but that's OK -- maybe there are zero results. The calling test will fail.
-                return browserData;
-            }
-
-            do {
-                // The URL field may be null for folders in the structure of the Bookmarks table for Firefox. Eliminate those.
+        if (cursor != null) {
+            cursor.moveToFirst();
+            for (int i = 0; i < cursor.getCount(); i++ ) {
+                 // The url field may be null for folders in the structure of the Bookmarks table for Firefox so we should eliminate those
                 if (cursor.getString(cursor.getColumnIndex("url")) != null) {
                     browserData.add(cursor.getString(cursor.getColumnIndex("url")));
                 }
-            } while (cursor.moveToNext());
-
-            return browserData;
-        } finally {
+                if(!cursor.isLast()) {
+                    cursor.moveToNext();
+                }
+            }
+        } else {
+             mAsserter.ok(false, "We could not retrieve any data from the database", "The cursor was null");
+        }
+        if (cursor != null) {
             cursor.close();
         }
-    }
-
-    protected BrowserDB getProfileDB() {
-        return GeckoProfile.get(mActivity).getDB();
+        return browserData;
     }
 }

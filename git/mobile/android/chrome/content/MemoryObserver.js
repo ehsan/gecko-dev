@@ -33,9 +33,6 @@ var MemoryObserver = {
 
     // Reduce the amount of decoded image data we keep around
     defaults.setIntPref("image.mem.max_decoded_image_kb", 0);
-
-    // Stop using the bfcache
-    defaults.setIntPref("browser.sessionhistory.max_total_viewers", 0);
   },
 
   zombify: function(tab) {

@@ -10,7 +10,6 @@
 #include "mozilla/Preferences.h"
 #include "nsLayoutUtils.h"
 #include "nsGkAtoms.h"
-#include "nsFontMetrics.h"
 #include "nsPrintfCString.h"
 #include "mozilla/dom/Element.h"
 #include "nsRegion.h"
@@ -76,8 +75,6 @@ struct EventRadiusPrefs
   bool mRegistered;
   bool mTouchOnly;
   bool mRepositionEventCoords;
-  bool mTouchClusterDetection;
-  uint32_t mLimitReadableSize;
 };
 
 static EventRadiusPrefs sMouseEventRadiusPrefs;
@@ -124,12 +121,6 @@ GetPrefsFor(EventClassID aEventClassID)
 
     nsPrintfCString repositionPref("ui.%s.radius.reposition", prefBranch);
     Preferences::AddBoolVarCache(&prefs->mRepositionEventCoords, repositionPref.get(), false);
-
-    nsPrintfCString touchClusterPref("ui.zoomedview.enabled", prefBranch);
-    Preferences::AddBoolVarCache(&prefs->mTouchClusterDetection, touchClusterPref.get(), false);
-
-    nsPrintfCString limitReadableSizePref("ui.zoomedview.limitReadableSize", prefBranch);
-    Preferences::AddUintVarCache(&prefs->mLimitReadableSize, limitReadableSizePref.get(), 8);
   }
 
   return prefs;
@@ -325,8 +316,7 @@ SubtractFromExposedRegion(nsRegion* aExposedRegion, const nsRegion& aRegion)
 static nsIFrame*
 GetClosest(nsIFrame* aRoot, const nsPoint& aPointRelativeToRootFrame,
            const nsRect& aTargetRect, const EventRadiusPrefs* aPrefs,
-           nsIFrame* aRestrictToDescendants, nsTArray<nsIFrame*>& aCandidates,
-           int32_t* aElementsInCluster)
+           nsIFrame* aRestrictToDescendants, nsTArray<nsIFrame*>& aCandidates)
 {
   nsIFrame* bestTarget = nullptr;
   // Lower is better; distance is in appunits
@@ -368,8 +358,6 @@ GetClosest(nsIFrame* aRoot, const nsPoint& aPointRelativeToRootFrame,
       continue;
     }
 
-    (*aElementsInCluster)++;
-
     // distance is in appunits
     float distance = ComputeDistanceFromRegion(aPointRelativeToRootFrame, region);
     nsIContent* content = f->GetContent();
@@ -385,46 +373,6 @@ GetClosest(nsIFrame* aRoot, const nsPoint& aPointRelativeToRootFrame,
     }
   }
   return bestTarget;
-}
-
-/*
- * Return always true when touch cluster detection is OFF.
- * When cluster detection is ON, return true if the text inside
- * the frame is readable (by human eyes):
- *   in this case, the frame is really clickable.
- * Frames with a too small size will return false:
- *   in this case, the frame is considered not clickable.
- */
-static bool
-IsElementClickableAndReadable(nsIFrame* aFrame, WidgetGUIEvent* aEvent, const EventRadiusPrefs* aPrefs)
-{
-  if (!aPrefs->mTouchClusterDetection) {
-    return true;
-  }
-
-  if (aEvent->mClass != eMouseEventClass) {
-    return true;
-  }
-
-  uint32_t limitReadableSize = aPrefs->mLimitReadableSize;
-  nsSize frameSize = aFrame->GetSize();
-  nsPresContext* pc = aFrame->PresContext();
-  nsIPresShell* presShell = pc->PresShell();
-  gfxSize cumulativeResolution = presShell->GetCumulativeResolution();
-  if ((pc->AppUnitsToGfxUnits(frameSize.height) * cumulativeResolution.height) < limitReadableSize ||
-      (pc->AppUnitsToGfxUnits(frameSize.width) * cumulativeResolution.width) < limitReadableSize) {
-    return false;
-  }
-  nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(aFrame, getter_AddRefs(fm),
-    nsLayoutUtils::FontSizeInflationFor(aFrame));
-  if (fm) {
-    if ((pc->AppUnitsToGfxUnits(fm->EmHeight()) * cumulativeResolution.height) < limitReadableSize) {
-      return false;
-    }
-  }
-
-  return true;
 }
 
 nsIFrame*
@@ -443,15 +391,8 @@ FindFrameTargetedByInputEvent(WidgetGUIEvent* aEvent,
     mozilla::layers::Stringify(aPointRelativeToRootFrame).c_str(), aRootFrame);
 
   const EventRadiusPrefs* prefs = GetPrefsFor(aEvent->mClass);
-  if (!prefs || !prefs->mEnabled) {
-    PET_LOG("Retargeting disabled\n");
-    return target;
-  }
-  if (target && IsElementClickable(target, nsGkAtoms::body)) {
-    if (!IsElementClickableAndReadable(target, aEvent, prefs)) {
-      aEvent->AsMouseEventBase()->hitCluster = true;
-    }
-    PET_LOG("Target %p is clickable\n", target);
+  if (!prefs || !prefs->mEnabled || (target && IsElementClickable(target, nsGkAtoms::body))) {
+    PET_LOG("Retargeting disabled or target %p is clickable\n", target);
     return target;
   }
 
@@ -483,19 +424,10 @@ FindFrameTargetedByInputEvent(WidgetGUIEvent* aEvent,
     return target;
   }
 
-  int32_t elementsInCluster = 0;
-
   nsIFrame* closestClickable =
     GetClosest(aRootFrame, aPointRelativeToRootFrame, targetRect, prefs,
-               restrictToDescendants, candidates, &elementsInCluster);
+               restrictToDescendants, candidates);
   if (closestClickable) {
-    if ((prefs->mTouchClusterDetection && elementsInCluster > 1) ||
-        (!IsElementClickableAndReadable(closestClickable, aEvent, prefs))) {
-      if (aEvent->mClass == eMouseEventClass) {
-        WidgetMouseEventBase* mouseEventBase = aEvent->AsMouseEventBase();
-        mouseEventBase->hitCluster = true;
-      }
-    }
     target = closestClickable;
   }
   PET_LOG("Final target is %p\n", target);
@@ -526,11 +458,11 @@ FindFrameTargetedByInputEvent(WidgetGUIEvent* aEvent,
   if (!view) {
     return target;
   }
-  LayoutDeviceIntPoint widgetPoint = nsLayoutUtils::TranslateViewToWidget(
+  nsIntPoint widgetPoint = nsLayoutUtils::TranslateViewToWidget(
         aRootFrame->PresContext(), view, point, aEvent->widget);
   if (widgetPoint.x != NS_UNCONSTRAINEDSIZE) {
     // If that succeeded, we update the point in the event
-    aEvent->refPoint = widgetPoint;
+    aEvent->refPoint = LayoutDeviceIntPoint::FromUntyped(widgetPoint);
   }
   return target;
 }

@@ -80,11 +80,10 @@
     sdkDriver: {}
   });
 
-  loop.store.StoreMixin.register({feedbackStore: feedbackStore});
-
   // Local mocks
 
   var mockMozLoopRooms = _.extend({}, navigator.mozLoop);
+  mockMozLoopRooms.roomsEnabled = true;
 
   var mockContact = {
     name: ["Mr Smith"],
@@ -94,6 +93,7 @@
   };
 
   var mockClient = {
+    requestCallUrl: noop,
     requestCallUrlInfo: noop
   };
 
@@ -124,54 +124,35 @@
 
   var SVGIcon = React.createClass({displayName: "SVGIcon",
     render: function() {
-      var sizeUnit = this.props.size.split("x")[0] + "px";
       return (
         React.createElement("span", {className: "svg-icon", style: {
-          "backgroundImage": "url(../content/shared/img/icons-" + this.props.size +
-                              ".svg#" + this.props.shapeId + ")",
-          "backgroundSize": sizeUnit + " " + sizeUnit
+          "background-image": "url(/content/shared/img/icons-16x16.svg#" + this.props.shapeId + ")"
         }})
       );
     }
   });
 
   var SVGIcons = React.createClass({displayName: "SVGIcons",
-    shapes: {
-      "10x10": ["close", "close-active", "close-disabled", "dropdown",
-        "dropdown-white", "dropdown-active", "dropdown-disabled", "expand",
-        "expand-active", "expand-disabled", "minimize", "minimize-active",
-        "minimize-disabled"
-      ],
-      "14x14": ["audio", "audio-active", "audio-disabled", "facemute",
-        "facemute-active", "facemute-disabled", "hangup", "hangup-active",
-        "hangup-disabled", "incoming", "incoming-active", "incoming-disabled",
-        "link", "link-active", "link-disabled", "mute", "mute-active",
-        "mute-disabled", "pause", "pause-active", "pause-disabled", "video",
-        "video-white", "video-active", "video-disabled", "volume", "volume-active",
-        "volume-disabled"
-      ],
-      "16x16": ["audio", "audio-hover", "audio-active", "block", "block-red",
-        "block-hover", "block-active", "contacts", "contacts-hover", "contacts-active",
-        "copy", "checkmark", "google", "google-hover", "google-active", "history",
-        "history-hover", "history-active", "leave", "precall", "precall-hover",
-        "precall-active", "screen-white", "screenmute-white", "settings",
-        "settings-hover", "settings-active", "tag", "tag-hover", "tag-active",
-        "trash", "unblock", "unblock-hover", "unblock-active", "video", "video-hover",
-        "video-active", "tour"
-      ]
-    },
+    shapes: [
+      "audio", "audio-hover", "audio-active", "block",
+      "block-red", "block-hover", "block-active", "contacts", "contacts-hover",
+      "contacts-active", "copy", "checkmark", "google", "google-hover",
+      "google-active", "history", "history-hover", "history-active", "leave",
+      "precall", "precall-hover", "precall-active", "settings", "settings-hover",
+      "settings-active", "tag", "tag-hover", "tag-active", "trash", "unblock",
+      "unblock-hover", "unblock-active", "video", "video-hover", "video-active"
+    ],
 
     render: function() {
-      var icons = this.shapes[this.props.size].map(function(shapeId, i) {
-        return (
-          React.createElement("li", {key: this.props.size + "-" + i, className: "svg-icon-entry"}, 
-            React.createElement("p", null, React.createElement(SVGIcon, {shapeId: shapeId, size: this.props.size})), 
-            React.createElement("p", null, shapeId)
-          )
-        );
-      }, this);
       return (
-        React.createElement("ul", {className: "svg-icon-list"}, icons)
+        React.createElement("div", {className: "svg-icon-list"}, 
+          this.shapes.map(function(shapeId, i) {
+            return React.createElement("div", {key: i, className: "svg-icon-entry"}, 
+              React.createElement("p", null, React.createElement(SVGIcon, {shapeId: shapeId})), 
+              React.createElement("p", null, shapeId)
+            );
+          }, this)
+        )
       );
     }
   });
@@ -190,7 +171,7 @@
             React.createElement("a", {href: this.makeId("#")}, " ¶")
           ), 
           React.createElement("div", {className: cx({comp: true, dashed: this.props.dashed}), 
-               style: this.props.style}, 
+               style: this.props.style || {}}, 
             this.props.children
           )
         )
@@ -201,7 +182,7 @@
   var Section = React.createClass({displayName: "Section",
     render: function() {
       return (
-        React.createElement("section", {id: this.props.name, className: this.props.className}, 
+        React.createElement("section", {id: this.props.name}, 
           React.createElement("h1", null, this.props.name), 
           this.props.children
         )
@@ -239,21 +220,33 @@
             React.createElement("p", {className: "note"}, 
               React.createElement("strong", null, "Note:"), " 332px wide."
             ), 
-            React.createElement(Example, {summary: "Room list tab", dashed: "true", style: {width: "332px"}}, 
+            React.createElement(Example, {summary: "Call URL retrieved", dashed: "true", style: {width: "332px"}}, 
               React.createElement(PanelView, {client: mockClient, notifications: notifications, 
-                         userProfile: {email: "test@example.com"}, 
-                         mozLoop: mockMozLoopRooms, 
+                         callUrl: "http://invalid.example.url/", 
+                         mozLoop: navigator.mozLoop, 
                          dispatcher: dispatcher, 
-                         roomStore: roomStore, 
-                         selectedTab: "rooms"})
+                         roomStore: roomStore})
             ), 
-            React.createElement(Example, {summary: "Contact list tab", dashed: "true", style: {width: "332px"}}, 
+            React.createElement(Example, {summary: "Call URL retrieved - authenticated", dashed: "true", style: {width: "332px"}}, 
+              React.createElement(PanelView, {client: mockClient, notifications: notifications, 
+                         callUrl: "http://invalid.example.url/", 
+                         userProfile: {email: "test@example.com"}, 
+                         mozLoop: navigator.mozLoop, 
+                         dispatcher: dispatcher, 
+                         roomStore: roomStore})
+            ), 
+            React.createElement(Example, {summary: "Pending call url retrieval", dashed: "true", style: {width: "332px"}}, 
+              React.createElement(PanelView, {client: mockClient, notifications: notifications, 
+                         mozLoop: navigator.mozLoop, 
+                         dispatcher: dispatcher, 
+                         roomStore: roomStore})
+            ), 
+            React.createElement(Example, {summary: "Pending call url retrieval - authenticated", dashed: "true", style: {width: "332px"}}, 
               React.createElement(PanelView, {client: mockClient, notifications: notifications, 
                          userProfile: {email: "test@example.com"}, 
-                         mozLoop: mockMozLoopRooms, 
+                         mozLoop: navigator.mozLoop, 
                          dispatcher: dispatcher, 
-                         roomStore: roomStore, 
-                         selectedTab: "contacts"})
+                         roomStore: roomStore})
             ), 
             React.createElement(Example, {summary: "Error Notification", dashed: "true", style: {width: "332px"}}, 
               React.createElement(PanelView, {client: mockClient, notifications: errNotifications, 
@@ -268,21 +261,13 @@
                          dispatcher: dispatcher, 
                          roomStore: roomStore})
             ), 
-            React.createElement(Example, {summary: "Contact import success", dashed: "true", style: {width: "332px"}}, 
-              React.createElement(PanelView, {notifications: new loop.shared.models.NotificationCollection([{level: "success", message: "Import success"}]), 
+            React.createElement(Example, {summary: "Room list tab", dashed: "true", style: {width: "332px"}}, 
+              React.createElement(PanelView, {client: mockClient, notifications: notifications, 
                          userProfile: {email: "test@example.com"}, 
                          mozLoop: mockMozLoopRooms, 
                          dispatcher: dispatcher, 
                          roomStore: roomStore, 
-                         selectedTab: "contacts"})
-            ), 
-            React.createElement(Example, {summary: "Contact import error", dashed: "true", style: {width: "332px"}}, 
-              React.createElement(PanelView, {notifications: new loop.shared.models.NotificationCollection([{level: "error", message: "Import error"}]), 
-                         userProfile: {email: "test@example.com"}, 
-                         mozLoop: mockMozLoopRooms, 
-                         dispatcher: dispatcher, 
-                         roomStore: roomStore, 
-                         selectedTab: "contacts"})
+                         selectedTab: "rooms"})
             )
           ), 
 
@@ -516,10 +501,10 @@
 
           React.createElement(Section, {name: "CallUrlExpiredView"}, 
             React.createElement(Example, {summary: "Firefox User"}, 
-              React.createElement(CallUrlExpiredView, {isFirefox: true})
+              React.createElement(CallUrlExpiredView, {helper: {isFirefox: returnTrue}})
             ), 
             React.createElement(Example, {summary: "Non-Firefox User"}, 
-              React.createElement(CallUrlExpiredView, {isFirefox: false})
+              React.createElement(CallUrlExpiredView, {helper: {isFirefox: returnFalse}})
             )
           ), 
 
@@ -566,7 +551,7 @@
           React.createElement(Section, {name: "UnsupportedBrowserView"}, 
             React.createElement(Example, {summary: "Standalone Unsupported Browser"}, 
               React.createElement("div", {className: "standalone"}, 
-                React.createElement(UnsupportedBrowserView, {isFirefox: false})
+                React.createElement(UnsupportedBrowserView, {helper: {isFirefox: returnFalse}})
               )
             )
           ), 
@@ -574,7 +559,7 @@
           React.createElement(Section, {name: "UnsupportedDeviceView"}, 
             React.createElement(Example, {summary: "Standalone Unsupported Device"}, 
               React.createElement("div", {className: "standalone"}, 
-                React.createElement(UnsupportedDeviceView, {platform: "ios"})
+                React.createElement(UnsupportedDeviceView, null)
               )
             )
           ), 
@@ -586,7 +571,6 @@
                 React.createElement(DesktopRoomConversationView, {
                   roomStore: roomStore, 
                   dispatcher: dispatcher, 
-                  mozLoop: navigator.mozLoop, 
                   roomState: ROOM_STATES.INIT})
               )
             ), 
@@ -597,7 +581,6 @@
                 React.createElement(DesktopRoomConversationView, {
                   roomStore: roomStore, 
                   dispatcher: dispatcher, 
-                  mozLoop: navigator.mozLoop, 
                   roomState: ROOM_STATES.HAS_PARTICIPANTS})
               )
             )
@@ -610,7 +593,7 @@
                   dispatcher: dispatcher, 
                   activeRoomStore: activeRoomStore, 
                   roomState: ROOM_STATES.READY, 
-                  isFirefox: true})
+                  helper: {isFirefox: returnTrue}})
               )
             ), 
 
@@ -620,7 +603,7 @@
                   dispatcher: dispatcher, 
                   activeRoomStore: activeRoomStore, 
                   roomState: ROOM_STATES.JOINED, 
-                  isFirefox: true})
+                  helper: {isFirefox: returnTrue}})
               )
             ), 
 
@@ -630,7 +613,7 @@
                   dispatcher: dispatcher, 
                   activeRoomStore: activeRoomStore, 
                   roomState: ROOM_STATES.HAS_PARTICIPANTS, 
-                  isFirefox: true})
+                  helper: {isFirefox: returnTrue}})
               )
             ), 
 
@@ -640,7 +623,7 @@
                   dispatcher: dispatcher, 
                   activeRoomStore: activeRoomStore, 
                   roomState: ROOM_STATES.FULL, 
-                  isFirefox: true})
+                  helper: {isFirefox: returnTrue}})
               )
             ), 
 
@@ -650,7 +633,7 @@
                   dispatcher: dispatcher, 
                   activeRoomStore: activeRoomStore, 
                   roomState: ROOM_STATES.FULL, 
-                  isFirefox: false})
+                  helper: {isFirefox: returnFalse}})
               )
             ), 
 
@@ -661,7 +644,7 @@
                   activeRoomStore: activeRoomStore, 
                   feedbackStore: feedbackStore, 
                   roomState: ROOM_STATES.ENDED, 
-                  isFirefox: false})
+                  helper: {isFirefox: returnFalse}})
               )
             ), 
 
@@ -671,20 +654,14 @@
                   dispatcher: dispatcher, 
                   activeRoomStore: activeRoomStore, 
                   roomState: ROOM_STATES.FAILED, 
-                  isFirefox: false})
+                  helper: {isFirefox: returnFalse}})
               )
             )
           ), 
 
-          React.createElement(Section, {name: "SVG icons preview", className: "svg-icons"}, 
-            React.createElement(Example, {summary: "10x10"}, 
-              React.createElement(SVGIcons, {size: "10x10"})
-            ), 
-            React.createElement(Example, {summary: "14x14"}, 
-              React.createElement(SVGIcons, {size: "14x14"})
-            ), 
+          React.createElement(Section, {name: "SVG icons preview"}, 
             React.createElement(Example, {summary: "16x16"}, 
-              React.createElement(SVGIcons, {size: "16x16"})
+              React.createElement(SVGIcons, null)
             )
           )
 

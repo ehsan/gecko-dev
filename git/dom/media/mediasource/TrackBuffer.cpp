@@ -639,10 +639,6 @@ TrackBuffer::InitializeDecoder(SourceBufferDecoder* aDecoder)
     MSE_DEBUG("was shut down while reading metadata. Aborting initialization.");
     return;
   }
-  if (mCurrentDecoder != aDecoder) {
-    MSE_DEBUG("append was cancelled. Aborting initialization.");
-    return;
-  }
 
   if (NS_SUCCEEDED(rv) && reader->IsWaitingOnCDMResource()) {
     mWaitingDecoders.AppendElement(aDecoder);
@@ -942,6 +938,7 @@ public:
     // so that it can't accidentally read it after the decoder
     // is destroyed.
     mDecoder->GetReader()->Shutdown();
+    mDecoder->GetReader()->ClearDecoder();
     RefPtr<nsIRunnable> task = new ReleaseDecoderTask(mDecoder);
     mDecoder = nullptr;
     // task now holds the only ref to the decoder.

@@ -613,10 +613,6 @@ File::Constructor(
   }
   MOZ_ASSERT(impl->IsFile());
 
-  if (aBag.mLastModified.WasPassed()) {
-    impl->SetLastModified(aBag.mLastModified.Value());
-  }
-
   nsRefPtr<File> file = new File(aGlobal.GetAsSupports(), impl);
   return file.forget();
 }
@@ -638,10 +634,6 @@ File::Constructor(const GlobalObject& aGlobal,
     return nullptr;
   }
   MOZ_ASSERT(impl->IsFile());
-
-  if (aBag.mLastModified.WasPassed()) {
-    impl->SetLastModified(aBag.mLastModified.Value());
-  }
 
   nsRefPtr<File> domFile = new File(aGlobal.GetAsSupports(), impl);
   return domFile.forget();
@@ -668,10 +660,6 @@ File::Constructor(const GlobalObject& aGlobal,
   }
   MOZ_ASSERT(impl->IsFile());
 
-  if (aBag.mLastModified.WasPassed()) {
-    impl->SetLastModified(aBag.mLastModified.Value());
-  }
-
   nsRefPtr<File> domFile = new File(aGlobal.GetAsSupports(), impl);
   return domFile.forget();
 }
@@ -695,10 +683,6 @@ File::Constructor(const GlobalObject& aGlobal,
     return nullptr;
   }
   MOZ_ASSERT(impl->IsFile());
-
-  if (aBag.mLastModified.WasPassed()) {
-    impl->SetLastModified(aBag.mLastModified.Value());
-  }
 
   nsRefPtr<File> domFile = new File(aGlobal.GetAsSupports(), impl);
   return domFile.forget();
@@ -803,12 +787,6 @@ FileImplBase::GetLastModified(ErrorResult& aRv)
   }
 
   return mLastModificationDate / PR_USEC_PER_MSEC;
-}
-
-void
-FileImplBase::SetLastModified(int64_t aLastModified)
-{
-  mLastModificationDate = aLastModified * PR_USEC_PER_MSEC;
 }
 
 int64_t
@@ -1032,12 +1010,6 @@ FileImplFile::GetLastModified(ErrorResult& aRv)
   }
 
   return mLastModificationDate;
-}
-
-void
-FileImplFile::SetLastModified(int64_t aLastModified)
-{
-  MOZ_CRASH("SetLastModified of a real file is not allowed!");
 }
 
 const uint32_t sFileStreamFlags =

@@ -81,9 +81,10 @@ this.ForgetAboutSite = {
     }
 
     // EME
-    let mps = Cc["@mozilla.org/gecko-media-plugin-service;1"].
-               getService(Ci.mozIGeckoMediaPluginService);
-    mps.forgetThisSite(aDomain);
+    let (mps = Cc["@mozilla.org/gecko-media-plugin-service;1"].
+               getService(Ci.mozIGeckoMediaPluginService)) {
+      mps.forgetThisSite(aDomain);
+    }
 
     // Plugin data
     const phInterface = Ci.nsIPluginHost;
@@ -108,7 +109,7 @@ this.ForgetAboutSite = {
     }
 
     if (useJSTransfer) {
-      Task.spawn(function*() {
+      Task.spawn(function() {
         let list = yield Downloads.getList(Downloads.ALL);
         list.removeFinished(download => hasRootDomain(
              NetUtil.newURI(download.source.url).host, aDomain));

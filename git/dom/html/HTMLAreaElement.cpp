@@ -67,7 +67,7 @@ HTMLAreaElement::TabIndexDefault()
 }
 
 void
-HTMLAreaElement::GetItemValueText(DOMString& aValue)
+HTMLAreaElement::GetItemValueText(nsAString& aValue)
 {
   GetHref(aValue);
 }

@@ -10,7 +10,7 @@
 
 #include "webrtc/modules/audio_coding/main/acm2/call_statistics.h"
 
-#include <assert.h>
+#include <cassert>
 
 namespace webrtc {
 

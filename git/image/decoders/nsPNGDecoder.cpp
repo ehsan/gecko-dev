@@ -15,7 +15,6 @@
 #include "nspr.h"
 #include "png.h"
 #include "RasterImage.h"
-#include "mozilla/Telemetry.h"
 
 #include <algorithm>
 
@@ -169,6 +168,7 @@ void nsPNGDecoder::CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
   }
 
   mFrameRect = neededRect;
+  mFrameHasNoAlpha = true;
 
   PR_LOG(GetPNGDecoderAccountingLog(), PR_LOG_DEBUG,
          ("PNGDecoderAccounting: nsPNGDecoder::CreateFrame -- created "
@@ -200,7 +200,7 @@ nsPNGDecoder::EndImageFrame()
   mNumFrames++;
 
   Opacity opacity = Opacity::SOME_TRANSPARENCY;
-  if (format == gfx::SurfaceFormat::B8G8R8X8) {
+  if (format == gfx::SurfaceFormat::B8G8R8X8 || mFrameHasNoAlpha) {
     opacity = Opacity::OPAQUE;
   }
 
@@ -315,7 +315,7 @@ nsPNGDecoder::InitInternal()
 void
 nsPNGDecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
 {
-  MOZ_ASSERT(!HasError(), "Shouldn't call WriteInternal after error!");
+  NS_ABORT_IF_FALSE(!HasError(), "Shouldn't call WriteInternal after error!");
 
   // If we only want width/height, we don't need to go through libpng
   if (IsSizeDecode()) {
@@ -738,6 +738,7 @@ nsPNGDecoder::row_callback(png_structp png_ptr, png_bytep new_row,
 
     uint32_t bpr = width * sizeof(uint32_t);
     uint32_t* cptr32 = (uint32_t*)(decoder->mImageData + (row_num*bpr));
+    bool rowHasNoAlpha = true;
 
     if (decoder->mTransform) {
       if (decoder->mCMSLine) {
@@ -786,12 +787,18 @@ nsPNGDecoder::row_callback(png_structp png_ptr, png_bytep new_row,
         if (!decoder->mDisablePremultipliedAlpha) {
           for (uint32_t x=width; x>0; --x) {
             *cptr32++ = gfxPackedPixel(line[3], line[0], line[1], line[2]);
+            if (line[3] != 0xff) {
+              rowHasNoAlpha = false;
+            }
             line += 4;
           }
         } else {
           for (uint32_t x=width; x>0; --x) {
             *cptr32++ = gfxPackedPixelNoPreMultiply(line[3], line[0], line[1],
                                                     line[2]);
+            if (line[3] != 0xff) {
+              rowHasNoAlpha = false;
+            }
             line += 4;
           }
         }
@@ -799,6 +806,10 @@ nsPNGDecoder::row_callback(png_structp png_ptr, png_bytep new_row,
       break;
       default:
         png_longjmp(decoder->mPNG, 1);
+    }
+
+    if (!rowHasNoAlpha) {
+      decoder->mFrameHasNoAlpha = false;
     }
 
     if (decoder->mNumFrames <= 1) {
@@ -861,7 +872,7 @@ nsPNGDecoder::end_callback(png_structp png_ptr, png_infop info_ptr)
                static_cast<nsPNGDecoder*>(png_get_progressive_ptr(png_ptr));
 
   // We shouldn't get here if we've hit an error
-  MOZ_ASSERT(!decoder->HasError(), "Finishing up PNG but hit error!");
+  NS_ABORT_IF_FALSE(!decoder->HasError(), "Finishing up PNG but hit error!");
 
   int32_t loop_count = 0;
 #ifdef PNG_APNG_SUPPORTED

@@ -157,7 +157,7 @@ function onLibraryAvailable() {
   // Cleanup.
   PlacesUtils.tagging.untagURI(PlacesUtils._uri(TEST_URL), ["dummyTag"]);
   PlacesUtils.bookmarks.removeFolderChildren(PlacesUtils.unfiledBookmarksFolderId);
-  PlacesTestUtils.clearHistory().then(finish);
+  waitForClearHistory(finish);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -169,12 +169,13 @@ function test() {
   ok(PlacesUtils, "PlacesUtils in context");
 
   // Add visits, a bookmark and a tag.
-  PlacesTestUtils.addVisits(
+  addVisits(
     [{ uri: PlacesUtils._uri(TEST_URL), visitDate: Date.now() * 1000,
        transition: PlacesUtils.history.TRANSITION_TYPED },
      { uri: PlacesUtils._uri(TEST_DOWNLOAD_URL), visitDate: Date.now() * 1000,
-       transition: PlacesUtils.history.TRANSITION_DOWNLOAD }]
-    ).then(() => {
+       transition: PlacesUtils.history.TRANSITION_DOWNLOAD }],
+    window,
+    function() {
       PlacesUtils.bookmarks.insertBookmark(PlacesUtils.unfiledBookmarksFolderId,
                                            PlacesUtils._uri(TEST_URL),
                                            PlacesUtils.bookmarks.DEFAULT_INDEX,

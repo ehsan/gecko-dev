@@ -53,7 +53,7 @@ int     sProfileEntries  = 0;
 using std::string;
 using namespace mozilla;
 
-#if defined(_MSC_VER) && _MSC_VER < 1900
+#if _MSC_VER
  #define snprintf _snprintf
 #endif
 
@@ -155,16 +155,17 @@ void genPseudoBacktraceEntries(/*MODIFIED*/UnwinderThreadBuffer* utb,
 // RUNS IN SIGHANDLER CONTEXT
 static
 void populateBuffer(UnwinderThreadBuffer* utb, TickSample* sample,
-                    UTB_RELEASE_FUNC releaseFunction)
+                    UTB_RELEASE_FUNC releaseFunction, bool jankOnly)
 {
   ThreadProfile& sampledThreadProfile = *sample->threadProfile;
   PseudoStack* stack = sampledThreadProfile.GetPseudoStack();
+  stack->updateGeneration(sampledThreadProfile.GetGenerationID());
 
   /* Manufacture the ProfileEntries that we will give to the unwinder
      thread, and park them in |utb|. */
   bool recordSample = true;
 
-  /* Don't process the PeudoStack's markers if we're
+  /* Don't process the PeudoStack's markers or honour jankOnly if we're
      immediately sampling the current thread. */
   if (!sample->isSamplingCurrentThread) {
     // LinkedUWTBuffers before markers
@@ -177,8 +178,29 @@ void populateBuffer(UnwinderThreadBuffer* utb, TickSample* sample,
     ProfilerMarkerLinkedList* pendingMarkersList = stack->getPendingMarkers();
     while (pendingMarkersList && pendingMarkersList->peek()) {
       ProfilerMarker* marker = pendingMarkersList->popHead();
-      sampledThreadProfile.addStoredMarker(marker);
+      stack->addStoredMarker(marker);
       utb__addEntry( utb, ProfileEntry('m', marker) );
+    }
+    if (jankOnly) {
+      // if we are on a different event we can discard any temporary samples
+      // we've kept around
+      if (sLastSampledEventGeneration != sCurrentEventGeneration) {
+        // XXX: we also probably want to add an entry to the profile to help
+        // distinguish which samples are part of the same event. That, or record
+        // the event generation in each sample
+        sampledThreadProfile.erase();
+      }
+      sLastSampledEventGeneration = sCurrentEventGeneration;
+
+      recordSample = false;
+      // only record the events when we have a we haven't seen a tracer
+      // event for 100ms
+      if (!sLastTracerEvent.IsNull()) {
+        mozilla::TimeDuration delta = sample->timestamp - sLastTracerEvent;
+        if (delta.ToMilliseconds() > 100.0) {
+            recordSample = true;
+        }
+      }
     }
   }
 
@@ -296,7 +318,7 @@ void sampleCurrent(TickSample* sample)
     return;
   }
   UnwinderThreadBuffer* utb = syncBuf->GetBuffer();
-  populateBuffer(utb, sample, &utb__finish_sync_buffer);
+  populateBuffer(utb, sample, &utb__finish_sync_buffer, false);
 }
 
 // RUNS IN SIGHANDLER CONTEXT
@@ -322,7 +344,7 @@ void TableTicker::UnwinderTick(TickSample* sample)
   if (!utb)
     return;
 
-  populateBuffer(utb, sample, &uwt__release_full_buffer);
+  populateBuffer(utb, sample, &uwt__release_full_buffer, mJankOnly);
 }
 
 // END take samples

@@ -99,8 +99,9 @@ GlobalNameHashClearEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
   memset(&e->mGlobalName, 0, sizeof(nsGlobalNameStruct));
 }
 
-static void
-GlobalNameHashInitEntry(PLDHashEntryHdr *entry, const void *key)
+static bool
+GlobalNameHashInitEntry(PLDHashTable *table, PLDHashEntryHdr *entry,
+                        const void *key)
 {
   GlobalNameMapEntry *e = static_cast<GlobalNameMapEntry *>(entry);
   const nsAString *keyStr = static_cast<const nsAString *>(key);
@@ -111,6 +112,7 @@ GlobalNameHashInitEntry(PLDHashEntryHdr *entry, const void *key)
   // This will set e->mGlobalName.mType to
   // nsGlobalNameStruct::eTypeNotInitialized
   memset(&e->mGlobalName, 0, sizeof(nsGlobalNameStruct));
+  return true;
 }
 
 NS_IMPL_ISUPPORTS(
@@ -140,8 +142,9 @@ nsGlobalNameStruct *
 nsScriptNameSpaceManager::AddToHash(PLDHashTable *aTable, const nsAString *aKey,
                                     const char16_t **aClassName)
 {
-  GlobalNameMapEntry *entry = static_cast<GlobalNameMapEntry *>
-    (PL_DHashTableAdd(aTable, aKey, fallible));
+  GlobalNameMapEntry *entry =
+    static_cast<GlobalNameMapEntry *>
+               (PL_DHashTableAdd(aTable, aKey));
 
   if (!entry) {
     return nullptr;
@@ -169,9 +172,10 @@ nsScriptNameSpaceManager::GetConstructorProto(const nsGlobalNameStruct* aStruct)
   if (!aStruct->mAlias->mProto) {
     GlobalNameMapEntry *proto =
       static_cast<GlobalNameMapEntry *>
-                 (PL_DHashTableSearch(&mGlobalNames,
+                 (PL_DHashTableLookup(&mGlobalNames,
                                       &aStruct->mAlias->mProtoName));
-    if (proto) {
+
+    if (PL_DHASH_ENTRY_IS_BUSY(proto)) {
       aStruct->mAlias->mProto = &proto->mGlobalName;
     }
   }
@@ -316,22 +320,25 @@ nsScriptNameSpaceManager::Init()
 {
   static const PLDHashTableOps hash_table_ops =
   {
+    PL_DHashAllocTable,
+    PL_DHashFreeTable,
     GlobalNameHashHashKey,
     GlobalNameHashMatchEntry,
     PL_DHashMoveEntryStub,
     GlobalNameHashClearEntry,
+    PL_DHashFinalizeStub,
     GlobalNameHashInitEntry
   };
 
   mIsInitialized = PL_DHashTableInit(&mGlobalNames, &hash_table_ops,
-                                     sizeof(GlobalNameMapEntry),
-                                     fallible,
+                                     nullptr, sizeof(GlobalNameMapEntry),
+                                     fallible_t(),
                                      GLOBALNAME_HASHTABLE_INITIAL_LENGTH);
   NS_ENSURE_TRUE(mIsInitialized, NS_ERROR_OUT_OF_MEMORY);
 
   mIsInitialized = PL_DHashTableInit(&mNavigatorNames, &hash_table_ops,
-                                     sizeof(GlobalNameMapEntry),
-                                     fallible,
+                                     nullptr, sizeof(GlobalNameMapEntry),
+                                     fallible_t(),
                                      GLOBALNAME_HASHTABLE_INITIAL_LENGTH);
   if (!mIsInitialized) {
     PL_DHashTableFinish(&mGlobalNames);
@@ -381,9 +388,9 @@ nsScriptNameSpaceManager::LookupNameInternal(const nsAString& aName,
 {
   GlobalNameMapEntry *entry =
     static_cast<GlobalNameMapEntry *>
-               (PL_DHashTableSearch(&mGlobalNames, &aName));
+               (PL_DHashTableLookup(&mGlobalNames, &aName));
 
-  if (entry) {
+  if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
     if (aClassName) {
       *aClassName = entry->mKey.get();
     }
@@ -401,9 +408,13 @@ nsScriptNameSpaceManager::LookupNavigatorName(const nsAString& aName)
 {
   GlobalNameMapEntry *entry =
     static_cast<GlobalNameMapEntry *>
-               (PL_DHashTableSearch(&mNavigatorNames, &aName));
+               (PL_DHashTableLookup(&mNavigatorNames, &aName));
 
-  return entry ? &entry->mGlobalName : nullptr;
+  if (!PL_DHASH_ENTRY_IS_BUSY(entry)) {
+    return nullptr;
+  }
+
+  return &entry->mGlobalName;
 }
 
 nsresult

@@ -1,16 +1,25 @@
 {
- "version": 4,
+ "version": 3,
  "invocation": {
   "dmdEnvVar": "--mode=live --sample-below=127",
   "mode": "live",
   "sampleBelowSize": 127
  },
  "blockList": [
-  {"req": 4096, "alloc": "A", "num": 4},
+  {"req": 4096, "alloc": "A"},
+  {"req": 4096, "alloc": "A"},
+  {"req": 4096, "alloc": "A"},
+  {"req": 4096, "alloc": "A"},
 
-  {"req": 4096, "alloc": "B", "num": 4},
+  {"req": 4096, "alloc": "B"},
+  {"req": 4096, "alloc": "B"},
+  {"req": 4096, "alloc": "B"},
+  {"req": 4096, "alloc": "B"},
 
-  {"req": 4096, "alloc": "C", "num": 4},
+  {"req": 4096, "alloc": "C"},
+  {"req": 4096, "alloc": "C"},
+  {"req": 4096, "alloc": "C"},
+  {"req": 4096, "alloc": "C"},
 
   {"req": 4096,             "alloc": "D"},
   {"req": 4096,             "alloc": "D"},

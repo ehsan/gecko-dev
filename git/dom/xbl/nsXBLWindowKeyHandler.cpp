@@ -214,6 +214,9 @@ BuildHandlerChain(nsIContent* aContent, nsXBLPrototypeHandler** aResult)
 
       nsXBLPrototypeHandler* handler = new nsXBLPrototypeHandler(key);
 
+      if (!handler)
+        return;
+
       handler->SetNextHandler(*aResult);
       *aResult = handler;
     }

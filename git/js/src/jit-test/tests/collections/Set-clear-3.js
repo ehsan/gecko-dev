@@ -1,6 +1,6 @@
 // Clearing a Set with a nontrivial number of elements works.
 
-var s = new Set();
+var s = Set();
 for (var i = 0; i < 100; i++)
     s.add(i);
 assertEq(s.size, i);

@@ -37,12 +37,6 @@ class nsComboboxDisplayFrame;
 class nsIDOMEventListener;
 class nsIScrollableFrame;
 
-namespace mozilla {
-namespace gfx {
-class DrawTarget;
-}
-}
-
 class nsComboboxControlFrame MOZ_FINAL : public nsBlockFrame,
                                          public nsIFormControlFrame,
                                          public nsIComboboxControlFrame,
@@ -51,8 +45,6 @@ class nsComboboxControlFrame MOZ_FINAL : public nsBlockFrame,
                                          public nsIRollupListener,
                                          public nsIStatefulFrame
 {
-  typedef mozilla::gfx::DrawTarget DrawTarget;
-
 public:
   friend nsContainerFrame* NS_NewComboboxControlFrame(nsIPresShell* aPresShell,
                                                       nsStyleContext* aContext,
@@ -92,7 +84,7 @@ public:
                                 const nsRect&           aDirtyRect,
                                 const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
-  void PaintFocus(DrawTarget& aDrawTarget, nsPoint aPt);
+  void PaintFocus(nsRenderingContext& aRenderingContext, nsPoint aPt);
 
   // XXXbz this is only needed to prevent the quirk percent height stuff from
   // leaking out of the combobox.  We may be able to get rid of this as more

@@ -9,33 +9,10 @@
 #include "SharedWorker.h"
 #include "WorkerPrivate.h"
 
-#include "mozilla/Preferences.h"
 #include "mozilla/dom/Promise.h"
-#include "mozilla/dom/ServiceWorkerGlobalScopeBinding.h"
 
-#ifdef XP_WIN
-#undef PostMessage
-#endif
-
-using mozilla::ErrorResult;
 using namespace mozilla::dom;
-
-namespace mozilla {
-namespace dom {
-namespace workers {
-
-bool
-ServiceWorkerVisible(JSContext* aCx, JSObject* aObj)
-{
-  if (NS_IsMainThread()) {
-    return Preferences::GetBool("dom.serviceWorkers.enabled", false);
-  }
-
-  ServiceWorkerGlobalScope* scope = nullptr;
-  nsresult rv = UnwrapObject<prototypes::id::ServiceWorkerGlobalScope_workers,
-                             mozilla::dom::ServiceWorkerGlobalScopeBinding_workers::NativeType>(aObj, scope);
-  return NS_SUCCEEDED(rv);
-}
+USING_WORKERS_NAMESPACE
 
 ServiceWorker::ServiceWorker(nsPIDOMWindow* aWindow,
                              SharedWorker* aSharedWorker)
@@ -69,22 +46,6 @@ ServiceWorker::WrapObject(JSContext* aCx)
   return ServiceWorkerBinding::Wrap(aCx, this);
 }
 
-void
-ServiceWorker::PostMessage(JSContext* aCx, JS::Handle<JS::Value> aMessage,
-                           const Optional<Sequence<JS::Value>>& aTransferable,
-                           ErrorResult& aRv)
-{
-  WorkerPrivate* workerPrivate = GetWorkerPrivate();
-  MOZ_ASSERT(workerPrivate);
-
-  if (State() == ServiceWorkerState::Redundant) {
-    aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
-    return;
-  }
-
-  workerPrivate->PostMessage(aCx, aMessage, aTransferable, aRv);
-}
-
 WorkerPrivate*
 ServiceWorker::GetWorkerPrivate() const
 {
@@ -94,7 +55,3 @@ ServiceWorker::GetWorkerPrivate() const
   MOZ_ASSERT(mSharedWorker);
   return mSharedWorker->GetWorkerPrivate();
 }
-
-} // namespace workers
-} // namespace dom
-} // namespace mozilla

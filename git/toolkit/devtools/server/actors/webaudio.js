@@ -14,10 +14,10 @@ const protocol = require("devtools/server/protocol");
 const { CallWatcherActor, CallWatcherFront } = require("devtools/server/actors/call-watcher");
 const { ThreadActor } = require("devtools/server/actors/script");
 const AutomationTimeline = require("./utils/automation-timeline");
+
 const { on, once, off, emit } = events;
 const { types, method, Arg, Option, RetVal } = protocol;
 
-const ENABLE_AUTOMATION = false;
 const AUTOMATION_GRANULARITY = 2000;
 const AUTOMATION_GRANULARITY_MAX = 6000;
 
@@ -35,7 +35,7 @@ const NODE_CREATION_METHODS = [
 
 const AUTOMATION_METHODS = [
   "setValueAtTime", "linearRampToValueAtTime", "exponentialRampToValueAtTime",
-  "setTargetAtTime", "setValueCurveAtTime", "cancelScheduledValues"
+  "setTargetAtTime", "setValueCurveAtTime"
 ];
 
 const NODE_ROUTING_METHODS = [
@@ -44,113 +44,76 @@ const NODE_ROUTING_METHODS = [
 
 const NODE_PROPERTIES = {
   "OscillatorNode": {
-    "properties": {
-      "type": {},
-      "frequency": {
-        "param": true
-      },
-      "detune": {
-        "param": true
-      }
-    }
+    "type": {},
+    "frequency": {},
+    "detune": {}
   },
   "GainNode": {
-    "properties": { "gain": { "param": true }}
+    "gain": {}
   },
   "DelayNode": {
-    "properties": { "delayTime": { "param": true }}
+    "delayTime": {}
   },
-  // TODO deal with figuring out adding `detune` AudioParam
-  // for AudioBufferSourceNode, which is in the spec
-  // but not yet added in implementation
-  // bug 1116852
   "AudioBufferSourceNode": {
-    "properties": {
-      "buffer": { "Buffer": true },
-      "playbackRate": {
-        "param": true
-      },
-      "loop": {},
-      "loopStart": {},
-      "loopEnd": {}
-    }
+    "buffer": { "Buffer": true },
+    "playbackRate": {},
+    "loop": {},
+    "loopStart": {},
+    "loopEnd": {}
   },
   "ScriptProcessorNode": {
-    "properties": { "bufferSize": { "readonly": true }}
+    "bufferSize": { "readonly": true }
   },
   "PannerNode": {
-    "properties": {
-      "panningModel": {},
-      "distanceModel": {},
-      "refDistance": {},
-      "maxDistance": {},
-      "rolloffFactor": {},
-      "coneInnerAngle": {},
-      "coneOuterAngle": {},
-      "coneOuterGain": {}
-    }
+    "panningModel": {},
+    "distanceModel": {},
+    "refDistance": {},
+    "maxDistance": {},
+    "rolloffFactor": {},
+    "coneInnerAngle": {},
+    "coneOuterAngle": {},
+    "coneOuterGain": {}
   },
   "ConvolverNode": {
-    "properties": {
-      "buffer": { "Buffer": true },
-      "normalize": {},
-    }
+    "buffer": { "Buffer": true },
+    "normalize": {},
   },
   "DynamicsCompressorNode": {
-    "properties": {
-      "threshold": { "param": true },
-      "knee": { "param": true },
-      "ratio": { "param": true },
-      "reduction": {},
-      "attack": { "param": true },
-      "release": { "param": true }
-    }
+    "threshold": {},
+    "knee": {},
+    "ratio": {},
+    "reduction": {},
+    "attack": {},
+    "release": {}
   },
   "BiquadFilterNode": {
-    "properties": {
-      "type": {},
-      "frequency": { "param": true },
-      "Q": { "param": true },
-      "detune": { "param": true },
-      "gain": { "param": true }
-    }
+    "type": {},
+    "frequency": {},
+    "Q": {},
+    "detune": {},
+    "gain": {}
   },
   "WaveShaperNode": {
-    "properties": {
-      "curve": { "Float32Array": true },
-      "oversample": {}
-    }
+    "curve": { "Float32Array": true },
+    "oversample": {}
   },
   "AnalyserNode": {
-    "properties": {
-      "fftSize": {},
-      "minDecibels": {},
-      "maxDecibels": {},
-      "smoothingTimeConstant": {},
-      "frequencyBinCount": { "readonly": true },
-    }
+    "fftSize": {},
+    "minDecibels": {},
+    "maxDecibels": {},
+    "smoothingTimeConstant": {},
+    "frequencyBinCount": { "readonly": true },
   },
-  "AudioDestinationNode": {
-    "unbypassable": true
-  },
-  "ChannelSplitterNode": {
-    "unbypassable": true
-  },
-  "ChannelMergerNode": {
-    "unbypassable": true
-  },
+  "AudioDestinationNode": {},
+  "ChannelSplitterNode": {},
+  "ChannelMergerNode": {},
   "MediaElementAudioSourceNode": {},
   "MediaStreamAudioSourceNode": {},
   "MediaStreamAudioDestinationNode": {
-    "unbypassable": true,
-    "properties": {
-      "stream": { "MediaStream": true }
-    }
+    "stream": { "MediaStream": true }
   },
   "StereoPannerNode": {
-    "properties": {
-      "pan": {}
-    }
+    "pan": {}
   }
 };
 
@@ -189,7 +152,7 @@ let AudioNodeActor = exports.AudioNodeActor = protocol.ActorClass({
     }
 
     // Create automation timelines for all AudioParams
-    Object.keys(NODE_PROPERTIES[this.type].properties || {})
+    Object.keys(NODE_PROPERTIES[this.type])
       .filter(isAudioParam.bind(null, node))
       .forEach(paramName => {
         this.automation[paramName] = new AutomationTimeline(node[paramName].defaultValue);
@@ -228,9 +191,7 @@ let AudioNodeActor = exports.AudioNodeActor = protocol.ActorClass({
       return false;
     }
 
-    // Cast to boolean incase `passThrough` is undefined,
-    // like for AudioDestinationNode
-    return !!node.passThrough;
+    return node.passThrough;
   }, {
     response: { bypassed: RetVal("boolean") }
   }),
@@ -238,12 +199,10 @@ let AudioNodeActor = exports.AudioNodeActor = protocol.ActorClass({
   /**
    * Takes a boolean, either enabling or disabling the "passThrough" option
    * on an AudioNode. If a node is bypassed, an effects processing node (like gain, biquad),
-   * will allow the audio stream to pass through the node, unaffected. Returns
-   * the bypass state of the node.
+   * will allow the audio stream to pass through the node, unaffected.
    *
    * @param Boolean enable
    *        Whether the bypass value should be set on or off.
-   * @return Boolean
    */
   bypass: method(function (enable) {
     let node = this.node.get();
@@ -252,15 +211,10 @@ let AudioNodeActor = exports.AudioNodeActor = protocol.ActorClass({
       return;
     }
 
-    let bypassable = !NODE_PROPERTIES[this.type].unbypassable;
-    if (bypassable) {
-      node.passThrough = enable;
-    }
-
-    return this.isBypassed();
+    node.passThrough = enable;
   }, {
     request: { enable: Arg(0, "boolean") },
-    response: { bypassed: RetVal("boolean") }
+    oneway: true
   }),
 
   /**
@@ -345,7 +299,7 @@ let AudioNodeActor = exports.AudioNodeActor = protocol.ActorClass({
    *        Name of the AudioParam whose flags are desired.
    */
   getParamFlags: method(function (param) {
-    return ((NODE_PROPERTIES[this.type] || {}).properties || {})[param];
+    return (NODE_PROPERTIES[this.type] || {})[param];
   }, {
     request: { param: Arg(0, "string") },
     response: { flags: RetVal("nullable:primitive") }
@@ -355,8 +309,8 @@ let AudioNodeActor = exports.AudioNodeActor = protocol.ActorClass({
    * Get an array of objects each containing a `param` and `value` property,
    * corresponding to a property name and current value of the audio node.
    */
-  getParams: method(function (param) {
-    let props = Object.keys(NODE_PROPERTIES[this.type].properties || {});
+  getParams: method(function () {
+    let props = Object.keys(NODE_PROPERTIES[this.type]);
     return props.map(prop =>
       ({ param: prop, value: this.getParam(prop), flags: this.getParamFlags(prop) }));
   }, {
@@ -447,13 +401,13 @@ let AudioNodeActor = exports.AudioNodeActor = protocol.ActorClass({
 
   getAutomationData: method(function (paramName) {
     let timeline = this.automation[paramName];
-    if (!timeline) {
-      return null;
-    }
-
     let events = timeline.events;
     let values = [];
     let i = 0;
+
+    if (!timeline) {
+      return null;
+    }
 
     if (!timeline.events.length) {
       return { events, values };
@@ -467,9 +421,9 @@ let AudioNodeActor = exports.AudioNodeActor = protocol.ActorClass({
     let scale = timeDelta / AUTOMATION_GRANULARITY;
 
     for (; i < AUTOMATION_GRANULARITY; i++) {
-      let delta = firstEvent.time + (i * scale);
-      let value = timeline.getValueAtTime(delta);
-      values.push({ delta, value });
+      let t = firstEvent.time + (i * scale);
+      let value = timeline.getValueAtTime(t);
+      values.push({ t, value });
     }
 
     // If the last event is setTargetAtTime, the automation
@@ -478,9 +432,9 @@ let AudioNodeActor = exports.AudioNodeActor = protocol.ActorClass({
     // until we're "close enough" to the target.
     if (lastEvent.type === "setTargetAtTime") {
       for (; i < AUTOMATION_GRANULARITY_MAX; i++) {
-        let delta = firstEvent.time + (++i * scale);
-        let value = timeline.getValueAtTime(delta);
-        values.push({ delta, value });
+        let t = firstEvent.time + (++i * scale);
+        let value = timeline.getValueAtTime(t);
+        values.push({ t, value });
       }
     }
 
@@ -523,23 +477,24 @@ let AudioNodeActor = exports.AudioNodeActor = protocol.ActorClass({
       // double-casting will only occur when starting from `addAutomationEvent`,
       // which is only used in tests.
       let param = XPCNativeWrapper.unwrap(node[paramName]);
-      let contentGlobal = Cu.getGlobalForObject(param);
-      let contentArgs = Cu.cloneInto(args, contentGlobal);
 
       // If calling `setValueCurveAtTime`, the first argument
       // is a Float32Array, which won't be able to be serialized
       // over the protocol. Cast a normal array to a Float32Array here.
       if (eventName === "setValueCurveAtTime") {
+        let contentGlobal = Cu.getGlobalForObject(param);
+        // Since we cannot iterate over and modify the actual Float32Array
+        // in the content, we'll have to pass in an array to the constructor
+        // from the same context, since we can iterate over non-TypedArrays.
+        let contentArray = copyInto(new contentGlobal.Array(), args[0]);
+
         // Create a Float32Array from the content, seeding with an array
         // from the same scope.
-        let curve = new contentGlobal.Float32Array(contentArgs[0]);
-        contentArgs[0] = curve;
+        let curve = new contentGlobal.Float32Array(contentArray);
+        args[0] = curve;
       }
 
-      // Apply the args back from the content scope, which is necessary
-      // due to the method wrapping changing in bug 1130901 to be exported
-      // directly to the content scope.
-      param[eventName].apply(param, contentArgs);
+      param[eventName].apply(param, args);
     } catch (e) {
       return constructError(e);
     }
@@ -614,16 +569,6 @@ let WebAudioActor = exports.WebAudioActor = protocol.ActorClass({
   },
 
   /**
-   * Returns definition of all AudioNodes, such as AudioParams, and
-   * flags.
-   */
-  getDefinition: method(function () {
-    return NODE_PROPERTIES;
-  }, {
-    response: { definition: RetVal("json") }
-  }),
-
-  /**
    * Starts waiting for the current tab actor's document global to be
    * created, in order to instrument the Canvas context and become
    * aware of everything the content does with Web Audio.
@@ -680,7 +625,7 @@ let WebAudioActor = exports.WebAudioActor = protocol.ActorClass({
     else if (WebAudioFront.NODE_CREATION_METHODS.has(name)) {
       this._handleCreationCall(functionCall);
     }
-    else if (ENABLE_AUTOMATION && WebAudioFront.AUTOMATION_METHODS.has(name)) {
+    else if (WebAudioFront.AUTOMATION_METHODS.has(name)) {
       this._handleAutomationCall(functionCall);
     }
   },
@@ -833,7 +778,7 @@ let WebAudioActor = exports.WebAudioActor = protocol.ActorClass({
    */
   _instrumentParams: function (node) {
     let type = getConstructorName(node);
-    Object.keys(NODE_PROPERTIES[type].properties || {})
+    Object.keys(NODE_PROPERTIES[type])
       .filter(isAudioParam.bind(null, node))
       .forEach(paramName => {
         let param = node[paramName];

@@ -25,11 +25,13 @@ let gDataNotificationInfoBar = {
   },
 
   init: function() {
-    window.addEventListener("unload", () => {
+    window.addEventListener("unload", function onUnload() {
+      window.removeEventListener("unload", onUnload, false);
+
       for (let o of this._OBSERVERS) {
         Services.obs.removeObserver(this, o);
       }
-    }, false);
+    }.bind(this), false);
 
     for (let o of this._OBSERVERS) {
       Services.obs.addObserver(this, o, true);
@@ -59,10 +61,10 @@ let gDataNotificationInfoBar = {
       label: gNavigatorBundle.getString("dataReportingNotification.button.label"),
       accessKey: gNavigatorBundle.getString("dataReportingNotification.button.accessKey"),
       popup: null,
-      callback: () => {
+      callback: function () {
         this._actionTaken = true;
         window.openAdvancedPreferences("dataChoicesTab");
-      },
+      }.bind(this),
     }];
 
     this._log.info("Creating data reporting policy notification.");
@@ -72,11 +74,11 @@ let gDataNotificationInfoBar = {
       null,
       this._notificationBox.PRIORITY_INFO_HIGH,
       buttons,
-      event => {
+      function onEvent(event) {
         if (event == "removed") {
           Services.obs.notifyObservers(null, "datareporting:notify-data-policy:close", null);
         }
-      }
+      }.bind(this)
     );
     // It is important to defer calling onUserNotifyComplete() until we're
     // actually sure the notification was displayed. If we ever called

@@ -116,8 +116,7 @@ js::StartOffThreadIonCompile(JSContext *cx, jit::IonBuilder *builder)
 static void
 FinishOffThreadIonCompile(jit::IonBuilder *builder)
 {
-    if (!HelperThreadState().ionFinishedList().append(builder))
-        CrashAtUnhandlableOOM("FinishOffThreadIonCompile");
+    HelperThreadState().ionFinishedList().append(builder);
 }
 
 static inline bool
@@ -212,11 +211,11 @@ ParseTask::init(JSContext *cx, const ReadOnlyCompileOptions &options)
     if (!this->options.copy(cx, options))
         return false;
 
-    // If the main-thread global is a debuggee that observes asm.js, disable
-    // asm.js compilation. This is preferred to marking the task compartment
-    // as a debuggee, as the task compartment is (1) invisible to Debugger and
-    // (2) cannot have any Debuggers.
-    if (cx->compartment()->debuggerObservesAsmJS())
+    // If the main-thread global is a debuggee, disable asm.js
+    // compilation. This is preferred to marking the task compartment as a
+    // debuggee, as the task compartment is (1) invisible to Debugger and (2)
+    // cannot have any Debuggers.
+    if (cx->compartment()->isDebuggee())
         this->options.asmJSOption = false;
 
     return true;
@@ -362,7 +361,7 @@ js::StartOffThreadParseScript(JSContext *cx, const ReadOnlyCompileOptions &optio
 
     ScopedJSDeletePtr<ExclusiveContext> helpercx(
         cx->new_<ExclusiveContext>(cx->runtime(), (PerThreadData *) nullptr,
-                                   ExclusiveContext::Context_Exclusive));
+                                   ThreadSafeContext::Context_Exclusive));
     if (!helpercx)
         return false;
 
@@ -845,15 +844,6 @@ LeaveParseTaskZone(JSRuntime *rt, ParseTask *task)
     rt->clearUsedByExclusiveThread(task->cx->zone());
 }
 
-static bool
-EnsureConstructor(JSContext *cx, Handle<GlobalObject*> global, JSProtoKey key)
-{
-    if (!GlobalObject::ensureConstructor(cx, global, key))
-        return false;
-
-    return global->getPrototype(key).toObject().setDelegate(cx);
-}
-
 JSScript *
 GlobalHelperThreadState::finishParseTask(JSContext *maybecx, JSRuntime *rt, void *token)
 {
@@ -885,11 +875,11 @@ GlobalHelperThreadState::finishParseTask(JSContext *maybecx, JSRuntime *rt, void
     // Make sure we have all the constructors we need for the prototype
     // remapping below, since we can't GC while that's happening.
     Rooted<GlobalObject*> global(cx, &cx->global()->as<GlobalObject>());
-    if (!EnsureConstructor(cx, global, JSProto_Object) ||
-        !EnsureConstructor(cx, global, JSProto_Array) ||
-        !EnsureConstructor(cx, global, JSProto_Function) ||
-        !EnsureConstructor(cx, global, JSProto_RegExp) ||
-        !EnsureConstructor(cx, global, JSProto_Iterator))
+    if (!GlobalObject::ensureConstructor(cx, global, JSProto_Object) ||
+        !GlobalObject::ensureConstructor(cx, global, JSProto_Array) ||
+        !GlobalObject::ensureConstructor(cx, global, JSProto_Function) ||
+        !GlobalObject::ensureConstructor(cx, global, JSProto_RegExp) ||
+        !GlobalObject::ensureConstructor(cx, global, JSProto_Iterator))
     {
         LeaveParseTaskZone(rt, parseTask);
         return nullptr;
@@ -901,12 +891,12 @@ GlobalHelperThreadState::finishParseTask(JSContext *maybecx, JSRuntime *rt, void
     // to the corresponding prototype in the new compartment. This will briefly
     // create cross compartment pointers, which will be fixed by the
     // MergeCompartments call below.
-    for (gc::ZoneCellIter iter(parseTask->cx->zone(), gc::FINALIZE_OBJECT_GROUP);
+    for (gc::ZoneCellIter iter(parseTask->cx->zone(), gc::FINALIZE_TYPE_OBJECT);
          !iter.done();
          iter.next())
     {
-        ObjectGroup *group = iter.get<ObjectGroup>();
-        TaggedProto proto(group->proto());
+        types::TypeObject *object = iter.get<types::TypeObject>();
+        TaggedProto proto(object->proto());
         if (!proto.isObject())
             continue;
 
@@ -920,7 +910,7 @@ GlobalHelperThreadState::finishParseTask(JSContext *maybecx, JSRuntime *rt, void
         JSObject *newProto = GetBuiltinPrototypePure(global, key);
         MOZ_ASSERT(newProto);
 
-        group->setProtoUnchecked(TaggedProto(newProto));
+        object->setProtoUnchecked(TaggedProto(newProto));
     }
 
     // Move the parsed script and all its contents into the desired compartment.
@@ -942,7 +932,10 @@ GlobalHelperThreadState::finishParseTask(JSContext *maybecx, JSRuntime *rt, void
 
     if (script) {
         // The Debugger only needs to be told about the topmost script that was compiled.
-        Debugger::onNewScript(cx, script);
+        GlobalObject *compileAndGoGlobal = nullptr;
+        if (script->compileAndGo())
+            compileAndGoGlobal = &script->global();
+        Debugger::onNewScript(cx, script, compileAndGoGlobal);
 
         // Update the compressed source table with the result. This is normally
         // called by setCompressedSource when compilation occurs on the main thread.
@@ -1197,7 +1190,7 @@ HelperThread::handleParseWorkload()
         SourceBufferHolder srcBuf(parseTask->chars, parseTask->length,
                                   SourceBufferHolder::NoOwnership);
         parseTask->script = frontend::CompileScript(parseTask->cx, &parseTask->alloc,
-                                                    NullPtr(), NullPtr(), NullPtr(),
+                                                    NullPtr(), NullPtr(),
                                                     parseTask->options,
                                                     srcBuf);
     }

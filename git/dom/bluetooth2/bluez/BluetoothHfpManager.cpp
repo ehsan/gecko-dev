@@ -166,8 +166,7 @@ static CINDItem sCINDItems[] = {
 #endif
 };
 
-class BluetoothHfpManager::GetVolumeTask MOZ_FINAL
-  : public nsISettingsServiceCallback
+class BluetoothHfpManager::GetVolumeTask : public nsISettingsServiceCallback
 {
 public:
   NS_DECL_ISUPPORTS
@@ -686,28 +685,6 @@ BluetoothHfpManager::HandleShutdown()
   Disconnect(nullptr);
   DisconnectSco();
   sBluetoothHfpManager = nullptr;
-}
-
-void
-BluetoothHfpManager::ParseAtCommand(const nsACString& aAtCommand,
-                                    const int aStart,
-                                    nsTArray<nsCString>& aRetValues)
-{
-  int length = aAtCommand.Length();
-  int begin = aStart;
-
-  for (int i = aStart; i < length; ++i) {
-    // Use ',' as separator
-    if (aAtCommand[i] == ',') {
-      nsCString tmp(nsDependentCSubstring(aAtCommand, begin, i - begin));
-      aRetValues.AppendElement(tmp);
-
-      begin = i + 1;
-    }
-  }
-
-  nsCString tmp(nsDependentCSubstring(aAtCommand, begin));
-  aRetValues.AppendElement(tmp);
 }
 
 // Virtual function of class SocketConsumer

@@ -118,15 +118,6 @@ const cloneValueInto = function(value, targetWindow) {
 };
 
 /**
- * Get the two-digit hexadecimal code for a byte
- *
- * @param {byte} charCode
- */
-const toHexString = function(charCode) {
-  return ("0" + charCode.toString(16)).slice(-2);
-};
-
-/**
  * Inject any API containing _only_ function properties into the given window.
  *
  * @param {Object}       api          Object containing functions that need to
@@ -422,6 +413,26 @@ function injectLoopAPI(targetWindow) {
         } catch (ex) {
           callback(cloneValueInto(ex, targetWindow));
         }
+      }
+    },
+
+    /**
+     * Used to note a call url expiry time. If the time is later than the current
+     * latest expiry time, then the stored expiry time is increased. For times
+     * sooner, this function is a no-op; this ensures we always have the latest
+     * expiry time for a url.
+     *
+     * This is used to determine whether or not we should be registering with the
+     * push server on start.
+     *
+     * @param {Integer} expiryTimeSeconds The seconds since epoch of the expiry time
+     *                                    of the url.
+     */
+    noteCallUrlExpiry: {
+      enumerable: true,
+      writable: true,
+      value: function(expiryTimeSeconds) {
+        MozLoopService.noteCallUrlExpiry(expiryTimeSeconds);
       }
     },
 
@@ -726,43 +737,6 @@ function injectLoopAPI(targetWindow) {
     },
 
     /**
-     * Compose a URL pointing to the location of an avatar by email address.
-     * At the moment we use the Gravatar service to match email addresses with
-     * avatars. This might change in the future as avatars might come from another
-     * source.
-     *
-     * @param {String} emailAddress Users' email address
-     * @param {Number} size         Size of the avatar image to return in pixels.
-     *                              Optional. Default value: 40.
-     * @return the URL pointing to an avatar matching the provided email address.
-     */
-    getUserAvatar: {
-      enumerable: true,
-      writable: true,
-      value: function(emailAddress, size = 40) {
-        const kEmptyGif = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
-        if (!emailAddress || !MozLoopService.getLoopPref("contacts.gravatars.show")) {
-          return kEmptyGif;
-        }
-
-        // Do the MD5 dance.
-        let hasher = Cc["@mozilla.org/security/hash;1"]
-                       .createInstance(Ci.nsICryptoHash);
-        hasher.init(Ci.nsICryptoHash.MD5);
-        let stringStream = Cc["@mozilla.org/io/string-input-stream;1"]
-                             .createInstance(Ci.nsIStringInputStream);
-        stringStream.data = emailAddress.trim().toLowerCase();
-        hasher.updateFromStream(stringStream, -1);
-        let hash = hasher.finish(false);
-        // Convert the binary hash data to a hex string.
-        let md5Email = [toHexString(hash.charCodeAt(i)) for (i in hash)].join("");
-
-        // Compose the Gravatar URL.
-        return "https://www.gravatar.com/avatar/" + md5Email + ".jpg?default=blank&s=" + size;
-      }
-    },
-
-    /**
      * Associates a session-id and a call-id with a window for debugging.
      *
      * @param  {string}  windowId  The window id.
@@ -795,22 +769,6 @@ function injectLoopAPI(targetWindow) {
         UITour.notify(subject, params);
       }
     },
-
-    /**
-     * Used to record the screen sharing state for a window so that it can
-     * be reflected on the toolbar button.
-     *
-     * @param {String} windowId The id of the conversation window the state
-     *                          is being changed for.
-     * @param {Boolean} active  Whether or not screen sharing is now active.
-     */
-    setScreenShareState: {
-      enumerable: true,
-      writable: true,
-      value: function(windowId, active) {
-        MozLoopService.setScreenShareState(windowId, active);
-      }
-    }
   };
 
   function onStatusChanged(aSubject, aTopic, aData) {

@@ -76,9 +76,15 @@ add_task(function* test_notInstalled() {
     let mockAddon = gMockAddons.get(addon.id);
 
     Assert.notEqual(mockAddon, null);
-    let name = pluginsBundle.GetStringFromName(mockAddon.nameId);
+    let name = mockAddon.nameId;
+    try {
+      name = pluginsBundle.GetStringFromName(mockAddon.nameId);
+    } catch (ex) { } // Not all GMPs have a localized name.
     Assert.equal(addon.name, name);
-    let description = pluginsBundle.GetStringFromName(mockAddon.descriptionId);
+    let description = mockAddon.descriptionId;
+    try {
+      description = pluginsBundle.GetStringFromName(mockAddon.descriptionId);
+    } catch (ex) { } // Not all GMPs have a localized description.
     Assert.equal(addon.description, description);
 
     Assert.ok(!addon.isActive);
@@ -138,7 +144,10 @@ add_task(function* test_installed() {
     Assert.ok(!addon.appDisabled);
     Assert.ok(addon.userDisabled);
 
-    let name = pluginsBundle.GetStringFromName(mockAddon.nameId);
+    let name = mockAddon.nameId;
+    try {
+      name = pluginsBundle.GetStringFromName(mockAddon.nameId);
+    } catch (ex) { } // Not all GMPs have a localized name.
     Assert.equal(addon.name, name);
     Assert.equal(addon.version, TEST_VERSION);
 

@@ -44,17 +44,13 @@ CodeGeneratorX86Shared::generatePrologue()
     MOZ_ASSERT(masm.framePushed() == 0);
     MOZ_ASSERT(!gen->compilingAsmJS());
 
-    // If profiling, save the current frame pointer to a per-thread global field.
-    if (isProfilerInstrumentationEnabled())
-        masm.profilerEnterFrame(StackPointer, CallTempReg0);
-
-    // Ensure that the Ion frames is properly aligned.
-    masm.assertStackAlignment(JitStackAlignment, 0);
-
     // Note that this automatically sets MacroAssembler::framePushed().
     masm.reserveStack(frameSize());
 
-    emitTracelogIonStart();
+#ifdef JS_TRACE_LOGGING
+    emitTracelogScriptStart();
+    emitTracelogStartEvent(TraceLogger_IonMonkey);
+#endif
 
     return true;
 }
@@ -66,16 +62,14 @@ CodeGeneratorX86Shared::generateEpilogue()
 
     masm.bind(&returnLabel_);
 
-    emitTracelogIonStop();
+#ifdef JS_TRACE_LOGGING
+    emitTracelogStopEvent(TraceLogger_IonMonkey);
+    emitTracelogScriptStop();
+#endif
 
     // Pop the stack we allocated at the start of the function.
     masm.freeStack(frameSize());
     MOZ_ASSERT(masm.framePushed() == 0);
-
-    // If profiling, reset the per-thread global lastJitFrame to point to
-    // the previous frame.
-    if (isProfilerInstrumentationEnabled())
-        masm.profilerExitFrame();
 
     masm.ret();
     return true;
@@ -339,8 +333,6 @@ void
 CodeGeneratorX86Shared::visitOutOfLineLoadTypedArrayOutOfBounds(OutOfLineLoadTypedArrayOutOfBounds *ool)
 {
     switch (ool->viewType()) {
-      case Scalar::Float32x4:
-      case Scalar::Int32x4:
       case Scalar::MaxTypedArrayViewType:
         MOZ_CRASH("unexpected array type");
       case Scalar::Float32:
@@ -348,6 +340,12 @@ CodeGeneratorX86Shared::visitOutOfLineLoadTypedArrayOutOfBounds(OutOfLineLoadTyp
         break;
       case Scalar::Float64:
         masm.loadConstantDouble(GenericNaN(), ool->dest().fpu());
+        break;
+      case Scalar::Float32x4:
+        masm.loadConstantFloat32x4(SimdConstant::SplatX4(float(GenericNaN())), ool->dest().fpu());
+        break;
+      case Scalar::Int32x4:
+        masm.loadConstantInt32x4(SimdConstant::SplatX4(0), ool->dest().fpu());
         break;
       case Scalar::Int8:
       case Scalar::Uint8:
@@ -1600,7 +1598,7 @@ CodeGeneratorX86Shared::visitFloor(LFloor *lir)
         bailoutFrom(&bailout, lir->snapshot());
 
         // Round toward -Infinity.
-        masm.vroundsd(X86Encoding::RoundDown, input, scratch, scratch);
+        masm.vroundsd(X86Assembler::RoundDown, input, scratch, scratch);
 
         bailoutCvttsd2si(scratch, output, lir->snapshot());
     } else {
@@ -1657,7 +1655,7 @@ CodeGeneratorX86Shared::visitFloorF(LFloorF *lir)
         bailoutFrom(&bailout, lir->snapshot());
 
         // Round toward -Infinity.
-        masm.vroundss(X86Encoding::RoundDown, input, scratch, scratch);
+        masm.vroundss(X86Assembler::RoundDown, input, scratch, scratch);
 
         bailoutCvttss2si(scratch, output, lir->snapshot());
     } else {
@@ -1722,7 +1720,7 @@ CodeGeneratorX86Shared::visitCeil(LCeil *lir)
         // x <= -1 or x > -0
         masm.bind(&lessThanMinusOne);
         // Round toward +Infinity.
-        masm.vroundsd(X86Encoding::RoundUp, input, scratch, scratch);
+        masm.vroundsd(X86Assembler::RoundUp, input, scratch, scratch);
         bailoutCvttsd2si(scratch, output, lir->snapshot());
         return;
     }
@@ -1774,7 +1772,7 @@ CodeGeneratorX86Shared::visitCeilF(LCeilF *lir)
         // x <= -1 or x > -0
         masm.bind(&lessThanMinusOne);
         // Round toward +Infinity.
-        masm.vroundss(X86Encoding::RoundUp, input, scratch, scratch);
+        masm.vroundss(X86Assembler::RoundUp, input, scratch, scratch);
         bailoutCvttss2si(scratch, output, lir->snapshot());
         return;
     }
@@ -1815,7 +1813,6 @@ CodeGeneratorX86Shared::visitRound(LRound *lir)
 
     // Branch to a slow path for non-positive inputs. Doesn't catch NaN.
     masm.zeroDouble(scratch);
-    masm.loadConstantDouble(GetBiggestNumberLessThan(0.5), temp);
     masm.branchDouble(Assembler::DoubleLessThanOrEqual, input, scratch, &negativeOrZero);
 
     // Input is positive. Add the biggest double less than 0.5 and
@@ -1823,6 +1820,7 @@ CodeGeneratorX86Shared::visitRound(LRound *lir)
     // than 0.5, adding 0.5 would undesirably round up to 1). Note that we have
     // to add the input to the temp register because we're not allowed to
     // modify the input register.
+    masm.loadConstantDouble(GetBiggestNumberLessThan(0.5), temp);
     masm.addDouble(input, temp);
     bailoutCvttsd2si(temp, output, lir->snapshot());
 
@@ -1843,20 +1841,13 @@ CodeGeneratorX86Shared::visitRound(LRound *lir)
 
     // Input is negative.
     masm.bind(&negative);
-
-    // Inputs in ]-0.5; 0] need to be added 0.5, other negative inputs need to
-    // be added the biggest double less than 0.5.
-    Label loadJoin;
-    masm.loadConstantDouble(-0.5, scratch);
-    masm.branchDouble(Assembler::DoubleLessThan, input, scratch, &loadJoin);
     masm.loadConstantDouble(0.5, temp);
-    masm.bind(&loadJoin);
 
     if (AssemblerX86Shared::HasSSE41()) {
         // Add 0.5 and round toward -Infinity. The result is stored in the temp
         // register (currently contains 0.5).
         masm.addDouble(input, temp);
-        masm.vroundsd(X86Encoding::RoundDown, temp, scratch, scratch);
+        masm.vroundsd(X86Assembler::RoundDown, temp, scratch, scratch);
 
         // Truncate.
         bailoutCvttsd2si(scratch, output, lir->snapshot());
@@ -1904,7 +1895,6 @@ CodeGeneratorX86Shared::visitRoundF(LRoundF *lir)
 
     // Branch to a slow path for non-positive inputs. Doesn't catch NaN.
     masm.zeroFloat32(scratch);
-    masm.loadConstantFloat32(GetBiggestNumberLessThan(0.5f), temp);
     masm.branchFloat(Assembler::DoubleLessThanOrEqual, input, scratch, &negativeOrZero);
 
     // Input is non-negative. Add the biggest float less than 0.5 and truncate,
@@ -1912,6 +1902,7 @@ CodeGeneratorX86Shared::visitRoundF(LRoundF *lir)
     // adding 0.5 would undesirably round up to 1). Note that we have to add
     // the input to the temp register because we're not allowed to modify the
     // input register.
+    masm.loadConstantFloat32(GetBiggestNumberLessThan(0.5f), temp);
     masm.addFloat32(input, temp);
 
     bailoutCvttss2si(temp, output, lir->snapshot());
@@ -1933,20 +1924,13 @@ CodeGeneratorX86Shared::visitRoundF(LRoundF *lir)
 
     // Input is negative.
     masm.bind(&negative);
-
-    // Inputs in ]-0.5; 0] need to be added 0.5, other negative inputs need to
-    // be added the biggest double less than 0.5.
-    Label loadJoin;
-    masm.loadConstantFloat32(-0.5f, scratch);
-    masm.branchFloat(Assembler::DoubleLessThan, input, scratch, &loadJoin);
     masm.loadConstantFloat32(0.5f, temp);
-    masm.bind(&loadJoin);
 
     if (AssemblerX86Shared::HasSSE41()) {
         // Add 0.5 and round toward -Infinity. The result is stored in the temp
         // register (currently contains 0.5).
         masm.addFloat32(input, temp);
-        masm.vroundss(X86Encoding::RoundDown, temp, scratch, scratch);
+        masm.vroundss(X86Assembler::RoundDown, temp, scratch, scratch);
 
         // Truncate.
         bailoutCvttss2si(scratch, output, lir->snapshot());
@@ -1991,10 +1975,10 @@ CodeGeneratorX86Shared::visitGuardShape(LGuardShape *guard)
 }
 
 void
-CodeGeneratorX86Shared::visitGuardObjectGroup(LGuardObjectGroup *guard)
+CodeGeneratorX86Shared::visitGuardObjectType(LGuardObjectType *guard)
 {
     Register obj = ToRegister(guard->input());
-    masm.cmpPtr(Operand(obj, JSObject::offsetOfGroup()), ImmGCPtr(guard->mir()->group()));
+    masm.cmpPtr(Operand(obj, JSObject::offsetOfType()), ImmGCPtr(guard->mir()->typeObject()));
 
     Assembler::Condition cond =
         guard->mir()->bailOnEquality() ? Assembler::Equal : Assembler::NotEqual;
@@ -2007,8 +1991,8 @@ CodeGeneratorX86Shared::visitGuardClass(LGuardClass *guard)
     Register obj = ToRegister(guard->input());
     Register tmp = ToRegister(guard->tempInt());
 
-    masm.loadPtr(Address(obj, JSObject::offsetOfGroup()), tmp);
-    masm.cmpPtr(Operand(tmp, ObjectGroup::offsetOfClasp()), ImmPtr(guard->mir()->getClass()));
+    masm.loadPtr(Address(obj, JSObject::offsetOfType()), tmp);
+    masm.cmpPtr(Operand(tmp, types::TypeObject::offsetOfClasp()), ImmPtr(guard->mir()->getClass()));
     bailoutIf(Assembler::NotEqual, guard->snapshot());
 }
 
@@ -2674,13 +2658,13 @@ CodeGeneratorX86Shared::visitSimdBinaryArithIx4(LSimdBinaryArithIx4 *ins)
 
     MSimdBinaryArith::Operation op = ins->operation();
     switch (op) {
-      case MSimdBinaryArith::Op_add:
+      case MSimdBinaryArith::Add:
         masm.vpaddd(rhs, lhs, output);
         return;
-      case MSimdBinaryArith::Op_sub:
+      case MSimdBinaryArith::Sub:
         masm.vpsubd(rhs, lhs, output);
         return;
-      case MSimdBinaryArith::Op_mul: {
+      case MSimdBinaryArith::Mul: {
         if (AssemblerX86Shared::HasSSE41()) {
             masm.vpmulld(rhs, lhs, output);
             return;
@@ -2701,19 +2685,19 @@ CodeGeneratorX86Shared::visitSimdBinaryArithIx4(LSimdBinaryArithIx4 *ins)
         masm.vshufps(MacroAssembler::ComputeShuffleMask(LaneZ, LaneX, LaneW, LaneY), lhs, lhs, lhs);
         return;
       }
-      case MSimdBinaryArith::Op_div:
+      case MSimdBinaryArith::Div:
         // x86 doesn't have SIMD i32 div.
         break;
-      case MSimdBinaryArith::Op_max:
+      case MSimdBinaryArith::Max:
         // we can do max with a single instruction only if we have SSE4.1
         // using the PMAXSD instruction.
         break;
-      case MSimdBinaryArith::Op_min:
+      case MSimdBinaryArith::Min:
         // we can do max with a single instruction only if we have SSE4.1
         // using the PMINSD instruction.
         break;
-      case MSimdBinaryArith::Op_minNum:
-      case MSimdBinaryArith::Op_maxNum:
+      case MSimdBinaryArith::MinNum:
+      case MSimdBinaryArith::MaxNum:
         break;
     }
     MOZ_CRASH("unexpected SIMD op");
@@ -2728,19 +2712,19 @@ CodeGeneratorX86Shared::visitSimdBinaryArithFx4(LSimdBinaryArithFx4 *ins)
 
     MSimdBinaryArith::Operation op = ins->operation();
     switch (op) {
-      case MSimdBinaryArith::Op_add:
+      case MSimdBinaryArith::Add:
         masm.vaddps(rhs, lhs, output);
         return;
-      case MSimdBinaryArith::Op_sub:
+      case MSimdBinaryArith::Sub:
         masm.vsubps(rhs, lhs, output);
         return;
-      case MSimdBinaryArith::Op_mul:
+      case MSimdBinaryArith::Mul:
         masm.vmulps(rhs, lhs, output);
         return;
-      case MSimdBinaryArith::Op_div:
+      case MSimdBinaryArith::Div:
         masm.vdivps(rhs, lhs, output);
         return;
-      case MSimdBinaryArith::Op_max: {
+      case MSimdBinaryArith::Max: {
         FloatRegister lhsCopy = masm.reusedInputFloat32x4(lhs, ScratchSimdReg);
         masm.vcmpunordps(rhs, lhsCopy, ScratchSimdReg);
 
@@ -2753,14 +2737,14 @@ CodeGeneratorX86Shared::visitSimdBinaryArithFx4(LSimdBinaryArithFx4 *ins)
         masm.vorps(ScratchSimdReg, output, output); // or in the all-ones NaNs
         return;
       }
-      case MSimdBinaryArith::Op_min: {
+      case MSimdBinaryArith::Min: {
         FloatRegister rhsCopy = masm.reusedInputAlignedFloat32x4(rhs, ScratchSimdReg);
         masm.vminps(Operand(lhs), rhsCopy, ScratchSimdReg);
         masm.vminps(rhs, lhs, output);
         masm.vorps(ScratchSimdReg, output, output); // NaN or'd with arbitrary bits is NaN
         return;
       }
-      case MSimdBinaryArith::Op_minNum: {
+      case MSimdBinaryArith::MinNum: {
         FloatRegister tmp = ToFloatRegister(ins->temp());
         masm.loadConstantInt32x4(SimdConstant::SplatX4(int32_t(0x80000000)), tmp);
 
@@ -2790,7 +2774,7 @@ CodeGeneratorX86Shared::visitSimdBinaryArithFx4(LSimdBinaryArithFx4 *ins)
         }
         return;
       }
-      case MSimdBinaryArith::Op_maxNum: {
+      case MSimdBinaryArith::MaxNum: {
         FloatRegister mask = ScratchSimdReg;
         masm.loadConstantInt32x4(SimdConstant::SplatX4(0), mask);
         masm.vpcmpeqd(Operand(lhs), mask, mask);

@@ -108,7 +108,7 @@ TestFailedCtorChild::DeallocPTestFailedCtorSubChild(PTestFailedCtorSubChild* act
 }
 
 void
-TestFailedCtorChild::ProcessingError(Result aCode, const char* aReason)
+TestFailedCtorChild::ProcessingError(Result what)
 {
     if (OtherProcess() != 0) // thread-mode
         _exit(0);

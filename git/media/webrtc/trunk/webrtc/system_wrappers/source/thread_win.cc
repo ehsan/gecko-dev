@@ -162,7 +162,7 @@ void ThreadWindows::SetThreadNameHelper() {
   if (set_thread_name_) {
     WEBRTC_TRACE(kTraceStateInfo, kTraceUtility, id_,
                  "Thread with name:%s started ", name_);
-    SetThreadName(static_cast<DWORD>(-1), name_); // -1 == caller thread.
+    SetThreadName(-1, name_); // -1, set thread name for the calling thread.
   } else {
     WEBRTC_TRACE(kTraceStateInfo, kTraceUtility, id_,
                  "Thread without name started");

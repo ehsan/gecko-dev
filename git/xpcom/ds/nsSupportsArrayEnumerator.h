@@ -6,7 +6,6 @@
 #ifndef nsSupportsArrayEnumerator_h___
 #define nsSupportsArrayEnumerator_h___
 
-#include "nsCOMPtr.h"
 #include "nsIEnumerator.h"
 #include "mozilla/Attributes.h"
 
@@ -29,7 +28,7 @@ private:
   ~nsSupportsArrayEnumerator();
 
 protected:
-  nsCOMPtr<nsISupportsArray> mArray;
+  nsISupportsArray*     mArray;
   int32_t               mCursor;
 
 };

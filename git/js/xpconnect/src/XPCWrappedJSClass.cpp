@@ -13,11 +13,11 @@
 #include "nsWrapperCache.h"
 #include "AccessCheck.h"
 #include "nsJSUtils.h"
+#include "JavaScriptParent.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/DOMException.h"
 #include "mozilla/dom/DOMExceptionBinding.h"
-#include "mozilla/jsipc/CrossProcessObjectWrappers.h"
 
 #include "jsapi.h"
 #include "jsfriendapi.h"
@@ -508,13 +508,8 @@ nsXPCWrappedJSClass::DelegatedQueryInterface(nsXPCWrappedJS* self,
 
     // QI on an XPCWrappedJS can run script, so we need an AutoEntryScript.
     // This is inherently Gecko-specific.
-    // We check both nativeGlobal and nativeGlobal->GetGlobalJSObject() even
-    // though we have derived nativeGlobal from the JS global, because we know
-    // there are cases where this can happen. See bug 1094953.
     nsIGlobalObject* nativeGlobal =
       NativeGlobal(js::GetGlobalForObjectCrossCompartment(self->GetJSObject()));
-    NS_ENSURE_TRUE(nativeGlobal, NS_ERROR_FAILURE);
-    NS_ENSURE_TRUE(nativeGlobal->GetGlobalJSObject(), NS_ERROR_FAILURE);
     AutoEntryScript aes(nativeGlobal, /* aIsMainThread = */ true);
     XPCCallContext ccx(NATIVE_CALLER, aes.cx());
     if (!ccx.IsValid()) {
@@ -592,7 +587,7 @@ nsXPCWrappedJSClass::GetRootJSObject(JSContext* cx, JSObject* aJSObjArg)
     JSObject* result = CallQueryInterfaceOnJSObject(cx, aJSObj,
                                                     NS_GET_IID(nsISupports));
     if (!result)
-        result = aJSObj;
+        return aJSObj;
     JSObject* inner = js::UncheckedUnwrap(result);
     if (inner)
         return inner;
@@ -1124,7 +1119,7 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16_t methodIndex,
 
         if (param.IsOut() || param.IsDipper()) {
             // create an 'out' object
-            RootedObject out_obj(cx, NewOutObject(cx));
+            RootedObject out_obj(cx, NewOutObject(cx, obj));
             if (!out_obj) {
                 retval = NS_ERROR_OUT_OF_MEMORY;
                 goto pre_call_clean_up;
@@ -1469,9 +1464,10 @@ xpc::IsOutObject(JSContext* cx, JSObject* obj)
 }
 
 JSObject*
-xpc::NewOutObject(JSContext* cx)
+xpc::NewOutObject(JSContext* cx, JSObject* scope)
 {
-    return JS_NewObject(cx, &XPCOutParamClass);
+    RootedObject global(cx, JS_GetGlobalForObject(cx, scope));
+    return JS_NewObject(cx, nullptr, NullPtr(), global);
 }
 
 

@@ -22,7 +22,7 @@
  * limitations under the License.
  */
 
-#include "pkixgtest.h"
+#include "gtest/gtest.h"
 #include "pkix/pkix.h"
 #include "pkixder.h"
 #include "pkixtestutil.h"
@@ -30,62 +30,49 @@
 using namespace mozilla::pkix;
 using namespace mozilla::pkix::test;
 
-class CreateEncodedOCSPRequestTrustDomain final : public TrustDomain
+class CreateEncodedOCSPRequestTrustDomain : public TrustDomain
 {
 private:
-  Result GetCertTrust(EndEntityOrCA, const CertPolicyId&, Input,
-                      /*out*/ TrustLevel&) override
+  virtual Result GetCertTrust(EndEntityOrCA, const CertPolicyId&,
+                              Input, /*out*/ TrustLevel&)
   {
     ADD_FAILURE();
     return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result FindIssuer(Input, IssuerChecker&, Time) override
+  virtual Result FindIssuer(Input, IssuerChecker&, Time)
   {
     ADD_FAILURE();
     return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result CheckRevocation(EndEntityOrCA, const CertID&, Time, const Input*,
-                         const Input*) override
+  virtual Result CheckRevocation(EndEntityOrCA, const CertID&, Time,
+                                 const Input*, const Input*)
   {
     ADD_FAILURE();
     return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result IsChainValid(const DERArray&, Time) override
+  virtual Result IsChainValid(const DERArray&, Time)
   {
     ADD_FAILURE();
     return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result DigestBuf(Input item, DigestAlgorithm digestAlg,
-                   /*out*/ uint8_t *digestBuf, size_t digestBufLen)
-                   override
-  {
-    return TestDigestBuf(item, digestAlg, digestBuf, digestBufLen);
-  }
-
-  Result CheckRSAPublicKeyModulusSizeInBits(EndEntityOrCA, unsigned int)
-                                            final override
+  virtual Result VerifySignedData(const SignedDataWithSignature&,
+                                  Input)
   {
     ADD_FAILURE();
     return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result VerifyRSAPKCS1SignedDigest(const SignedDigest&, Input) override
+  virtual Result DigestBuf(Input item, /*out*/ uint8_t *digestBuf,
+                           size_t digestBufLen)
   {
-    ADD_FAILURE();
-    return Result::FATAL_ERROR_LIBRARY_FAILURE;
+    return TestDigestBuf(item, digestBuf, digestBufLen);
   }
 
-  Result CheckECDSACurveIsAcceptable(EndEntityOrCA, NamedCurve) final override
-  {
-    ADD_FAILURE();
-    return Result::FATAL_ERROR_LIBRARY_FAILURE;
-  }
-
-  Result VerifyECDSASignedDigest(const SignedDigest&, Input) override
+  virtual Result CheckPublicKey(Input subjectPublicKeyInfo)
   {
     ADD_FAILURE();
     return Result::FATAL_ERROR_LIBRARY_FAILURE;

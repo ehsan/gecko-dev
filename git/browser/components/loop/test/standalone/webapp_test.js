@@ -20,16 +20,14 @@ describe("loop.webapp", function() {
       stubGetPermsAndCacheMedia,
       fakeAudioXHR,
       dispatcher,
-      WEBSOCKET_REASONS = loop.shared.utils.WEBSOCKET_REASONS;
+      feedbackStore;
 
   beforeEach(function() {
     sandbox = sinon.sandbox.create();
     dispatcher = new loop.Dispatcher();
     notifications = new sharedModels.NotificationCollection();
-    loop.store.StoreMixin.register({
-      feedbackStore: new loop.store.FeedbackStore(dispatcher, {
-        feedbackClient: {}
-      })
+    feedbackStore = new loop.store.FeedbackStore(dispatcher, {
+      feedbackClient: {}
     });
 
     stubGetPermsAndCacheMedia = sandbox.stub(
@@ -72,7 +70,7 @@ describe("loop.webapp", function() {
     });
 
     it("should dispatch a ExtractTokenInfo action with the hash", function() {
-      sandbox.stub(loop.shared.utils, "locationData").returns({
+      sandbox.stub(loop.shared.utils.Helper.prototype, "locationData").returns({
         hash: "#call/faketoken",
         pathname: "invalid"
       });
@@ -88,7 +86,7 @@ describe("loop.webapp", function() {
 
     it("should dispatch a ExtractTokenInfo action with the path if there is no hash",
       function() {
-        sandbox.stub(loop.shared.utils, "locationData").returns({
+        sandbox.stub(loop.shared.utils.Helper.prototype, "locationData").returns({
           hash: "",
           pathname: "/c/faketoken"
         });
@@ -123,13 +121,12 @@ describe("loop.webapp", function() {
       });
       conversation.set("loopToken", "fakeToken");
       ocView = mountTestComponent({
+        helper: new sharedUtils.Helper(),
         client: client,
         conversation: conversation,
         notifications: notifications,
-        sdk: {
-          on: sandbox.stub()
-        },
-        dispatcher: dispatcher
+        sdk: {},
+        feedbackStore: feedbackStore
       });
     });
 
@@ -245,7 +242,7 @@ describe("loop.webapp", function() {
             it("should display the FailedConversationView", function() {
               ocView._websocket.trigger("progress", {
                 state: "terminated",
-                reason: WEBSOCKET_REASONS.REJECT
+                reason: "reject"
               });
 
               TestUtils.findRenderedComponentWithType(ocView,
@@ -260,17 +257,17 @@ describe("loop.webapp", function() {
 
                 ocView._websocket.trigger("progress", {
                   state: "terminated",
-                  reason: WEBSOCKET_REASONS.REJECT
+                  reason: "reject"
                 });
 
                 sinon.assert.calledOnce(multiplexGum.reset);
               });
 
-            it("should display an error message if the reason is not WEBSOCKET_REASONS.CANCEL",
+            it("should display an error message if the reason is not 'cancel'",
               function() {
                 ocView._websocket.trigger("progress", {
                   state: "terminated",
-                  reason: WEBSOCKET_REASONS.REJECT
+                  reason: "reject"
                 });
 
                 sinon.assert.calledOnce(notifications.errorL10n);
@@ -278,11 +275,11 @@ describe("loop.webapp", function() {
                   "call_timeout_notification_text");
               });
 
-            it("should not display an error message if the reason is WEBSOCKET_REASONS.CANCEL",
+            it("should not display an error message if the reason is 'cancel'",
               function() {
                 ocView._websocket.trigger("progress", {
                   state: "terminated",
-                  reason: WEBSOCKET_REASONS.CANCEL
+                  reason: "cancel"
                 });
 
                 sinon.assert.notCalled(notifications.errorL10n);
@@ -645,7 +642,7 @@ describe("loop.webapp", function() {
   });
 
   describe("WebappRootView", function() {
-    var sdk, conversationModel, client, props, standaloneAppStore;
+    var helper, sdk, conversationModel, client, props, standaloneAppStore;
     var activeRoomStore;
 
     function mountTestComponent() {
@@ -653,16 +650,18 @@ describe("loop.webapp", function() {
         React.createElement(
           loop.webapp.WebappRootView, {
             client: client,
-            dispatcher: dispatcher,
+            helper: helper,
             notifications: notifications,
             sdk: sdk,
             conversation: conversationModel,
             standaloneAppStore: standaloneAppStore,
-            activeRoomStore: activeRoomStore
+            activeRoomStore: activeRoomStore,
+            feedbackStore: feedbackStore
           }));
     }
 
     beforeEach(function() {
+      helper = new sharedUtils.Helper();
       sdk = {
         checkSystemRequirements: function() { return true; }
       };
@@ -679,6 +678,7 @@ describe("loop.webapp", function() {
       standaloneAppStore = new loop.store.StandaloneAppStore({
         dispatcher: dispatcher,
         sdk: sdk,
+        helper: helper,
         conversation: conversationModel
       });
       // Stub this to stop the StartConversationView kicking in the request and
@@ -1084,6 +1084,7 @@ describe("loop.webapp", function() {
           loop.webapp.EndedConversationView, {
             conversation: conversation,
             sdk: {},
+            feedbackStore: feedbackStore,
             onAfterFeedbackReceived: function(){}
           }));
     });
@@ -1102,7 +1103,7 @@ describe("loop.webapp", function() {
       it("should not render when using Firefox", function() {
         var comp = TestUtils.renderIntoDocument(
           React.createElement(loop.webapp.PromoteFirefoxView, {
-            isFirefox: true
+            helper: {isFirefox: function() { return true; }}
           }));
 
         expect(comp.getDOMNode().querySelectorAll("h3").length).eql(0);
@@ -1112,7 +1113,7 @@ describe("loop.webapp", function() {
         var comp = TestUtils.renderIntoDocument(
           React.createElement(
             loop.webapp.PromoteFirefoxView, {
-              isFirefox: false
+              helper: {isFirefox: function() { return false; }}
             }));
 
         expect(comp.getDOMNode().querySelectorAll("h3").length).eql(1);

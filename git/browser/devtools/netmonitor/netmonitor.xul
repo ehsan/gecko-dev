@@ -103,16 +103,6 @@
                         flex="1">
                 </button>
               </hbox>
-              <hbox id="requests-menu-transferred-header-box"
-                    class="requests-menu-header requests-menu-transferred"
-                    align="center">
-                <button id="requests-menu-transferred-button"
-                        class="requests-menu-header-button requests-menu-transferred"
-                        data-key="transferred"
-                        label="&netmonitorUI.toolbar.transferred;"
-                        flex="1">
-                </button>
-              </hbox>
               <hbox id="requests-menu-size-header-box"
                     class="requests-menu-header requests-menu-size"
                     align="center">
@@ -190,8 +180,6 @@
                        flex="1"/>
               </hbox>
               <label class="plain requests-menu-subitem requests-menu-type"
-                     crop="end"/>
-              <label class="plain requests-menu-subitem requests-menu-transferred"
                      crop="end"/>
               <label class="plain requests-menu-subitem requests-menu-size"
                      crop="end"/>
@@ -299,10 +287,10 @@
                         align="center">
                     <label class="plain tabpanel-summary-label"
                            value="&netmonitorUI.summary.url;"/>
-                    <textbox id="headers-summary-url-value"
-                             class="plain tabpanel-summary-value devtools-monospace cropped-textbox"
-                             flex="1"
-                             readonly="true"/>
+                    <label id="headers-summary-url-value"
+                           class="plain tabpanel-summary-value devtools-monospace"
+                           crop="end"
+                           flex="1"/>
                   </hbox>
                   <hbox id="headers-summary-method"
                         class="tabpanel-summary-container"
@@ -488,14 +476,7 @@
                         flex="1">
                     <label class="plain tabpanel-summary-label"
                            value="&netmonitorUI.security.error;"/>
-                    <hbox class="security-info-section"
-                          flex="1">
-                      <textbox id="security-error-message"
-                               class="plain"
-                               flex="1"
-                               multiline="true"
-                               readonly="true"/>
-                    </hbox>
+                    <description id="security-error-message" flex="1"/>
                   </vbox>
                   <vbox id="security-information"
                         flex="1">
@@ -506,29 +487,23 @@
                       <vbox class="security-info-section">
                         <hbox id="security-protocol-version"
                               class="tabpanel-summary-container"
-                              align="baseline">
+                              align="center">
                           <label class="plain tabpanel-summary-label"
                                  value="&netmonitorUI.security.protocolVersion;"/>
-                          <textbox id="security-protocol-version-value"
-                                   class="plain tabpanel-summary-value devtools-monospace cropped-textbox"
-                                   flex="1"
-                                   readonly="true"/>
-                          <image class="security-warning-icon"
-                                 id="security-warning-sslv3"
-                                 tooltiptext="&netmonitorUI.security.warning.sslv3;" />
+                          <label id="security-protocol-version-value"
+                                 class="plain tabpanel-summary-value devtools-monospace"
+                                 crop="end"
+                                 flex="1"/>
                         </hbox>
                         <hbox id="security-ciphersuite"
                               class="tabpanel-summary-container"
-                              align="baseline">
+                              align="center">
                           <label class="plain tabpanel-summary-label"
                                  value="&netmonitorUI.security.cipherSuite;"/>
-                          <textbox id="security-ciphersuite-value"
-                                   class="plain tabpanel-summary-value devtools-monospace cropped-textbox"
-                                   flex="1"
-                                   readonly="true"/>
-                          <image class="security-warning-icon"
-                                 id="security-warning-cipher"
-                                 tooltiptext="&netmonitorUI.security.warning.cipher;" />
+                          <label id="security-ciphersuite-value"
+                                 class="plain tabpanel-summary-value devtools-monospace"
+                                 crop="end"
+                                 flex="1"/>
                         </hbox>
                       </vbox>
                     </vbox>
@@ -539,23 +514,23 @@
                       <vbox class="security-info-section">
                         <hbox id="security-http-strict-transport-security"
                               class="tabpanel-summary-container"
-                              align="baseline">
+                              align="center">
                           <label class="plain tabpanel-summary-label"
                                  value="&netmonitorUI.security.hsts;"/>
-                          <textbox id="security-http-strict-transport-security-value"
-                                   class="plain tabpanel-summary-value devtools-monospace cropped-textbox"
-                                   flex="1"
-                                   readonly="true"/>
+                          <label id="security-http-strict-transport-security-value"
+                                 class="plain tabpanel-summary-value devtools-monospace"
+                                 crop="end"
+                                 flex="1"/>
                         </hbox>
                         <hbox id="security-public-key-pinning"
                               class="tabpanel-summary-container"
-                              align="baseline">
+                              align="center">
                           <label class="plain tabpanel-summary-label"
                                  value="&netmonitorUI.security.hpkp;"/>
-                          <textbox id="security-public-key-pinning-value"
-                                   class="plain tabpanel-summary-value devtools-monospace cropped-textbox"
-                                   flex="1"
-                                   readonly="true"/>
+                          <label id="security-public-key-pinning-value"
+                                 class="plain tabpanel-summary-value devtools-monospace"
+                                 crop="end"
+                                 flex="1"/>
                         </hbox>
                       </vbox>
                     </vbox>
@@ -570,31 +545,31 @@
                         </vbox>
                         <vbox class="security-info-section">
                           <hbox class="tabpanel-summary-container"
-                                align="baseline">
+                                align="center">
                             <label class="plain tabpanel-summary-label"
                                    value="&certmgr.certdetail.cn;:"/>
-                            <textbox id="security-cert-subject-cn"
-                                     class="plain tabpanel-summary-value devtools-monospace cropped-textbox"
-                                     flex="1"
-                                     readonly="true"/>
+                            <label id="security-cert-subject-cn"
+                                   class="plain tabpanel-summary-value devtools-monospace"
+                                   crop="end"
+                                   flex="1"/>
                           </hbox>
                           <hbox class="tabpanel-summary-container"
-                                align="baseline">
+                                align="center">
                             <label class="plain tabpanel-summary-label"
                                    value="&certmgr.certdetail.o;:"/>
-                            <textbox id="security-cert-subject-o"
-                                     class="plain tabpanel-summary-value devtools-monospace cropped-textbox"
-                                     flex="1"
-                                     readonly="true"/>
+                            <label id="security-cert-subject-o"
+                                   class="plain tabpanel-summary-value devtools-monospace"
+                                   crop="end"
+                                   flex="1"/>
                           </hbox>
                           <hbox class="tabpanel-summary-container"
-                                align="baseline">
+                                align="center">
                             <label class="plain tabpanel-summary-label"
                                    value="&certmgr.certdetail.ou;:"/>
-                            <textbox id="security-cert-subject-ou"
-                                     class="plain tabpanel-summary-value devtools-monospace cropped-textbox"
-                                     flex="1"
-                                     readonly="true"/>
+                            <label id="security-cert-subject-ou"
+                                   class="plain tabpanel-summary-value devtools-monospace"
+                                   crop="end"
+                                   flex="1"/>
                           </hbox>
                         </vbox>
                         <vbox class="tabpanel-summary-container">
@@ -603,31 +578,31 @@
                         </vbox>
                         <vbox class="security-info-section">
                           <hbox class="tabpanel-summary-container"
-                                align="baseline">
+                                align="center">
                             <label class="plain tabpanel-summary-label"
                                    value="&certmgr.certdetail.cn;:"/>
-                            <textbox id="security-cert-issuer-cn"
-                                     class="plain tabpanel-summary-value devtools-monospace cropped-textbox"
-                                     flex="1"
-                                     readonly="true"/>
+                            <label id="security-cert-issuer-cn"
+                                   class="plain tabpanel-summary-value devtools-monospace"
+                                   crop="end"
+                                   flex="1"/>
                           </hbox>
                           <hbox class="tabpanel-summary-container"
-                                align="baseline">
+                                align="center">
                             <label class="plain tabpanel-summary-label"
                                    value="&certmgr.certdetail.o;:"/>
-                            <textbox id="security-cert-issuer-o"
-                                     class="plain tabpanel-summary-value devtools-monospace cropped-textbox"
-                                     flex="1"
-                                     readonly="true"/>
+                            <label id="security-cert-issuer-o"
+                                   class="plain tabpanel-summary-value devtools-monospace"
+                                   crop="end"
+                                   flex="1"/>
                           </hbox>
                           <hbox class="tabpanel-summary-container"
-                                align="baseline">
+                                align="center">
                             <label class="plain tabpanel-summary-label"
                                    value="&certmgr.certdetail.ou;:"/>
-                            <textbox id="security-cert-issuer-ou"
-                                     class="plain tabpanel-summary-value devtools-monospace cropped-textbox"
-                                     flex="1"
-                                     readonly="true"/>
+                            <label id="security-cert-issuer-ou"
+                                   class="plain tabpanel-summary-value devtools-monospace"
+                                   crop="end"
+                                   flex="1"/>
                           </hbox>
                         </vbox>
                         <vbox class="tabpanel-summary-container">
@@ -636,22 +611,22 @@
                         </vbox>
                         <vbox class="security-info-section">
                           <hbox class="tabpanel-summary-container"
-                                align="baseline">
+                                align="center">
                             <label class="plain tabpanel-summary-label"
                                    value="&certmgr.begins;:"/>
-                            <textbox id="security-cert-validity-begins"
-                                     class="plain tabpanel-summary-value devtools-monospace cropped-textbox"
-                                     flex="1"
-                                     readonly="true"/>
+                            <label id="security-cert-validity-begins"
+                                   class="plain tabpanel-summary-value devtools-monospace"
+                                   crop="end"
+                                   flex="1"/>
                           </hbox>
                           <hbox class="tabpanel-summary-container"
-                                align="baseline">
+                                align="center">
                             <label class="plain tabpanel-summary-label"
                                    value="&certmgr.expires;:"/>
-                            <textbox id="security-cert-validity-expires"
-                                     class="plain tabpanel-summary-value devtools-monospace cropped-textbox"
-                                     flex="1"
-                                     readonly="true"/>
+                            <label id="security-cert-validity-expires"
+                                   class="plain tabpanel-summary-value devtools-monospace"
+                                   crop="end"
+                                   flex="1"/>
                           </hbox>
                         </vbox>
                         <vbox class="tabpanel-summary-container">
@@ -660,22 +635,22 @@
                         </vbox>
                         <vbox class="security-info-section">
                           <hbox class="tabpanel-summary-container"
-                                align="baseline">
+                                align="center">
                             <label class="plain tabpanel-summary-label"
                                    value="&certmgr.certdetail.sha256fingerprint;:"/>
-                            <textbox id="security-cert-sha256-fingerprint"
-                                     class="plain tabpanel-summary-value devtools-monospace cropped-textbox"
-                                     flex="1"
-                                     readonly="true"/>
+                            <label id="security-cert-sha256-fingerprint"
+                                   class="plain tabpanel-summary-value devtools-monospace"
+                                   crop="end"
+                                   flex="1"/>
                           </hbox>
                           <hbox class="tabpanel-summary-container"
-                                align="baseline">
+                                align="center">
                             <label class="plain tabpanel-summary-label"
                                    value="&certmgr.certdetail.sha1fingerprint;:"/>
-                            <textbox id="security-cert-sha1-fingerprint"
-                                     class="plain tabpanel-summary-value devtools-monospace cropped-textbox"
-                                     flex="1"
-                                     readonly="true"/>
+                            <label id="security-cert-sha1-fingerprint"
+                                   class="plain tabpanel-summary-value devtools-monospace"
+                                   crop="end"
+                                   flex="1"/>
                           </hbox>
                         </vbox>
                       </vbox>

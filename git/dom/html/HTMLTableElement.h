@@ -96,7 +96,7 @@ public:
                                                    ErrorResult& aError);
   void DeleteRow(int32_t aIndex, ErrorResult& aError);
 
-  void GetAlign(DOMString& aAlign)
+  void GetAlign(nsString& aAlign)
   {
     GetHTMLAttr(nsGkAtoms::align, aAlign);
   }
@@ -104,7 +104,7 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::align, aAlign, aError);
   }
-  void GetBorder(DOMString& aBorder)
+  void GetBorder(nsString& aBorder)
   {
     GetHTMLAttr(nsGkAtoms::border, aBorder);
   }
@@ -112,7 +112,7 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::border, aBorder, aError);
   }
-  void GetFrame(DOMString& aFrame)
+  void GetFrame(nsString& aFrame)
   {
     GetHTMLAttr(nsGkAtoms::frame, aFrame);
   }
@@ -120,7 +120,7 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::frame, aFrame, aError);
   }
-  void GetRules(DOMString& aRules)
+  void GetRules(nsString& aRules)
   {
     GetHTMLAttr(nsGkAtoms::rules, aRules);
   }
@@ -132,15 +132,11 @@ public:
   {
     GetHTMLAttr(nsGkAtoms::summary, aSummary);
   }
-  void GetSummary(DOMString& aSummary)
-  {
-    GetHTMLAttr(nsGkAtoms::summary, aSummary);
-  }
   void SetSummary(const nsAString& aSummary, ErrorResult& aError)
   {
     SetHTMLAttr(nsGkAtoms::summary, aSummary, aError);
   }
-  void GetWidth(DOMString& aWidth)
+  void GetWidth(nsString& aWidth)
   {
     GetHTMLAttr(nsGkAtoms::width, aWidth);
   }
@@ -148,7 +144,7 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::width, aWidth, aError);
   }
-  void GetBgColor(DOMString& aBgColor)
+  void GetBgColor(nsString& aBgColor)
   {
     GetHTMLAttr(nsGkAtoms::bgcolor, aBgColor);
   }
@@ -156,7 +152,7 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::bgcolor, aBgColor, aError);
   }
-  void GetCellPadding(DOMString& aCellPadding)
+  void GetCellPadding(nsString& aCellPadding)
   {
     GetHTMLAttr(nsGkAtoms::cellpadding, aCellPadding);
   }
@@ -164,7 +160,7 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::cellpadding, aCellPadding, aError);
   }
-  void GetCellSpacing(DOMString& aCellSpacing)
+  void GetCellSpacing(nsString& aCellSpacing)
   {
     GetHTMLAttr(nsGkAtoms::cellspacing, aCellSpacing);
   }

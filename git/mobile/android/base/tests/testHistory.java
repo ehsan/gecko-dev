@@ -1,7 +1,3 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 package org.mozilla.gecko.tests;
 
 import android.view.View;
@@ -9,8 +5,6 @@ import android.view.ViewGroup;
 import android.widget.ListView;
 
 import org.mozilla.gecko.home.HomePager;
-
-import com.jayway.android.robotium.solo.Condition;
 
 public class testHistory extends AboutHomeTest {
     private View mFirstChild;
@@ -37,9 +31,9 @@ public class testHistory extends AboutHomeTest {
         // Click on the history item and wait for the page to load
         // wait for the history list to be populated
         mFirstChild = null;
-        boolean success = waitForCondition(new Condition() {
+        boolean success = waitForTest(new BooleanTest() {
             @Override
-            public boolean isSatisfied() {
+            public boolean test() {
                 mFirstChild = hList.getChildAt(1);
                 if (mFirstChild == null) {
                     return false;

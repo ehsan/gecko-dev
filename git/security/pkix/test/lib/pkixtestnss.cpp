@@ -74,7 +74,7 @@ InitReusedKeyPair()
   return reusedKeyPair ? PR_SUCCESS : PR_FAILURE;
 }
 
-class NSSTestKeyPair final : public TestKeyPair
+class NSSTestKeyPair : public TestKeyPair
 {
 public:
   // NSSTestKeyPair takes ownership of privateKey.
@@ -86,8 +86,9 @@ public:
   {
   }
 
-  Result SignData(const ByteString& tbs, const ByteString& signatureAlgorithm,
-                  /*out*/ ByteString& signature) const override
+  virtual Result SignData(const ByteString& tbs,
+                          const ByteString& signatureAlgorithm,
+                          /*out*/ ByteString& signature) const
   {
     // signatureAlgorithm is of the form SEQUENCE { OID { <OID bytes> } },
     // whereas SECOID_GetAlgorithmTag wants just the OID bytes, so we have to
@@ -115,8 +116,7 @@ public:
     }
 
     SECItem signatureItem;
-    if (SEC_SignData(&signatureItem, tbs.data(),
-                     static_cast<int>(tbs.length()),
+    if (SEC_SignData(&signatureItem, tbs.data(), tbs.length(),
                      privateKey.get(), signatureAlgorithmOidTag)
           != SECSuccess) {
       return MapPRErrorCodeToResult(PR_GetError());
@@ -126,7 +126,7 @@ public:
     return Success;
   }
 
-  TestKeyPair* Clone() const override
+  virtual TestKeyPair* Clone() const
   {
     ScopedSECKEYPrivateKey
       privateKeyCopy(SECKEY_CopyPrivateKey(privateKey.get()));
@@ -370,32 +370,41 @@ GenerateDSSKeyPair()
                            privateKey.release());
 }
 
-Result
-TestVerifyECDSASignedDigest(const SignedDigest& signedDigest,
-                            Input subjectPublicKeyInfo)
+ByteString
+SHA1(const ByteString& toHash)
 {
   InitNSSIfNeeded();
-  return VerifyECDSASignedDigestNSS(signedDigest, subjectPublicKeyInfo,
-                                    nullptr);
+
+  uint8_t digestBuf[SHA1_LENGTH];
+  SECStatus srv = PK11_HashBuf(SEC_OID_SHA1, digestBuf, toHash.data(),
+                               static_cast<int32_t>(toHash.length()));
+  if (srv != SECSuccess) {
+    return ByteString();
+  }
+  return ByteString(digestBuf, sizeof(digestBuf));
 }
 
 Result
-TestVerifyRSAPKCS1SignedDigest(const SignedDigest& signedDigest,
-                               Input subjectPublicKeyInfo)
+TestCheckPublicKey(Input subjectPublicKeyInfo)
 {
   InitNSSIfNeeded();
-  return VerifyRSAPKCS1SignedDigestNSS(signedDigest, subjectPublicKeyInfo,
-                                       nullptr);
+  return CheckPublicKeyNSS(subjectPublicKeyInfo, MINIMUM_TEST_KEY_BITS);
 }
 
 Result
-TestDigestBuf(Input item,
-              DigestAlgorithm digestAlg,
-              /*out*/ uint8_t* digestBuf,
-              size_t digestBufLen)
+TestVerifySignedData(const SignedDataWithSignature& signedData,
+                     Input subjectPublicKeyInfo)
 {
   InitNSSIfNeeded();
-  return DigestBufNSS(item, digestAlg, digestBuf, digestBufLen);
+  return VerifySignedDataNSS(signedData, subjectPublicKeyInfo,
+                             MINIMUM_TEST_KEY_BITS, nullptr);
+}
+
+Result
+TestDigestBuf(Input item, /*out*/ uint8_t* digestBuf, size_t digestBufLen)
+{
+  InitNSSIfNeeded();
+  return DigestBufNSS(item, digestBuf, digestBufLen);
 }
 
 } } } // namespace mozilla::pkix::test

@@ -442,37 +442,34 @@ LookupAlternateValues(gfxFontFeatureValueSet *featureLookup,
     }
 }
 
-/* static */ void
+/* static */ bool
 gfxFontShaper::MergeFontFeatures(
     const gfxFontStyle *aStyle,
     const nsTArray<gfxFontFeature>& aFontFeatures,
     bool aDisableLigatures,
     const nsAString& aFamilyName,
     bool aAddSmallCaps,
-    PLDHashOperator (*aHandleFeature)(const uint32_t&, uint32_t&, void*),
-    void* aHandleFeatureData)
+    nsDataHashtable<nsUint32HashKey,uint32_t>& aMergedFeatures)
 {
     uint32_t numAlts = aStyle->alternateValues.Length();
     const nsTArray<gfxFontFeature>& styleRuleFeatures =
         aStyle->featureSettings;
 
-    // Bail immediately if nothing to do, which is the common case.
+    // bail immediately if nothing to do
     if (styleRuleFeatures.IsEmpty() &&
         aFontFeatures.IsEmpty() &&
         !aDisableLigatures &&
         aStyle->variantCaps == NS_FONT_VARIANT_CAPS_NORMAL &&
         aStyle->variantSubSuper == NS_FONT_VARIANT_POSITION_NORMAL &&
         numAlts == 0) {
-        return;
+        return false;
     }
-
-    nsDataHashtable<nsUint32HashKey,uint32_t> mergedFeatures;
 
     // Ligature features are enabled by default in the generic shaper,
     // so we explicitly turn them off if necessary (for letter-spacing)
     if (aDisableLigatures) {
-        mergedFeatures.Put(HB_TAG('l','i','g','a'), 0);
-        mergedFeatures.Put(HB_TAG('c','l','i','g'), 0);
+        aMergedFeatures.Put(HB_TAG('l','i','g','a'), 0);
+        aMergedFeatures.Put(HB_TAG('c','l','i','g'), 0);
     }
 
     // add feature values from font
@@ -481,7 +478,7 @@ gfxFontShaper::MergeFontFeatures(
     count = aFontFeatures.Length();
     for (i = 0; i < count; i++) {
         const gfxFontFeature& feature = aFontFeatures.ElementAt(i);
-        mergedFeatures.Put(feature.mTag, feature.mValue);
+        aMergedFeatures.Put(feature.mTag, feature.mValue);
     }
 
     // font-variant-caps - handled here due to the need for fallback handling
@@ -489,27 +486,27 @@ gfxFontShaper::MergeFontFeatures(
     uint32_t variantCaps = aStyle->variantCaps;
     switch (variantCaps) {
         case NS_FONT_VARIANT_CAPS_ALLSMALL:
-            mergedFeatures.Put(HB_TAG('c','2','s','c'), 1);
+            aMergedFeatures.Put(HB_TAG('c','2','s','c'), 1);
             // fall through to the small-caps case
         case NS_FONT_VARIANT_CAPS_SMALLCAPS:
-            mergedFeatures.Put(HB_TAG('s','m','c','p'), 1);
+            aMergedFeatures.Put(HB_TAG('s','m','c','p'), 1);
             break;
 
         case NS_FONT_VARIANT_CAPS_ALLPETITE:
-            mergedFeatures.Put(aAddSmallCaps ? HB_TAG('c','2','s','c') :
-                                               HB_TAG('c','2','p','c'), 1);
+            aMergedFeatures.Put(aAddSmallCaps ? HB_TAG('c','2','s','c') :
+                                                HB_TAG('c','2','p','c'), 1);
         // fall through to the petite-caps case
         case NS_FONT_VARIANT_CAPS_PETITECAPS:
-            mergedFeatures.Put(aAddSmallCaps ? HB_TAG('s','m','c','p') :
-                                               HB_TAG('p','c','a','p'), 1);
+            aMergedFeatures.Put(aAddSmallCaps ? HB_TAG('s','m','c','p') :
+                                                HB_TAG('p','c','a','p'), 1);
         break;
 
         case NS_FONT_VARIANT_CAPS_TITLING:
-            mergedFeatures.Put(HB_TAG('t','i','t','l'), 1);
+            aMergedFeatures.Put(HB_TAG('t','i','t','l'), 1);
             break;
 
         case NS_FONT_VARIANT_CAPS_UNICASE:
-            mergedFeatures.Put(HB_TAG('u','n','i','c'), 1);
+            aMergedFeatures.Put(HB_TAG('u','n','i','c'), 1);
             break;
 
         default:
@@ -519,10 +516,10 @@ gfxFontShaper::MergeFontFeatures(
     // font-variant-position - handled here due to the need for fallback
     switch (aStyle->variantSubSuper) {
         case NS_FONT_VARIANT_POSITION_SUPER:
-            mergedFeatures.Put(HB_TAG('s','u','p','s'), 1);
+            aMergedFeatures.Put(HB_TAG('s','u','p','s'), 1);
             break;
         case NS_FONT_VARIANT_POSITION_SUB:
-            mergedFeatures.Put(HB_TAG('s','u','b','s'), 1);
+            aMergedFeatures.Put(HB_TAG('s','u','b','s'), 1);
             break;
         default:
             break;
@@ -539,7 +536,7 @@ gfxFontShaper::MergeFontFeatures(
         count = featureList.Length();
         for (i = 0; i < count; i++) {
             const gfxFontFeature& feature = featureList.ElementAt(i);
-            mergedFeatures.Put(feature.mTag, feature.mValue);
+            aMergedFeatures.Put(feature.mTag, feature.mValue);
         }
     }
 
@@ -547,12 +544,10 @@ gfxFontShaper::MergeFontFeatures(
     count = styleRuleFeatures.Length();
     for (i = 0; i < count; i++) {
         const gfxFontFeature& feature = styleRuleFeatures.ElementAt(i);
-        mergedFeatures.Put(feature.mTag, feature.mValue);
+        aMergedFeatures.Put(feature.mTag, feature.mValue);
     }
 
-    if (mergedFeatures.Count() != 0) {
-        mergedFeatures.Enumerate(aHandleFeature, aHandleFeatureData);
-    }
+    return aMergedFeatures.Count() != 0;
 }
 
 void
@@ -2119,23 +2114,6 @@ NeedsGlyphExtents(gfxFont *aFont, gfxTextRun *aTextRun)
         aFont->GetFontEntry()->IsUserFont();
 }
 
-bool
-gfxFont::IsSpaceGlyphInvisible(gfxContext *aRefContext, gfxTextRun *aTextRun)
-{
-    if (!mFontEntry->mSpaceGlyphIsInvisibleInitialized &&
-        GetAdjustedSize() >= 1.0) {
-        gfxGlyphExtents *extents =
-            GetOrCreateGlyphExtents(aTextRun->GetAppUnitsPerDevUnit());
-        gfxRect glyphExtents;
-        mFontEntry->mSpaceGlyphIsInvisible =
-            extents->GetTightGlyphExtentsAppUnits(this, eHorizontal,
-                aRefContext, GetSpaceGlyph(), &glyphExtents) &&
-            glyphExtents.IsEmpty();
-        mFontEntry->mSpaceGlyphIsInvisibleInitialized = true;
-    }
-    return mFontEntry->mSpaceGlyphIsInvisible;
-}
-
 gfxFont::RunMetrics
 gfxFont::Measure(gfxTextRun *aTextRun,
                  uint32_t aStart, uint32_t aEnd,
@@ -2211,22 +2189,16 @@ gfxFont::Measure(gfxTextRun *aTextRun,
     if (aSpacing) {
         x += direction*aSpacing[0].mBefore;
     }
-    uint32_t spaceGlyph = GetSpaceGlyph();
-    bool allGlyphsInvisible = true;
     uint32_t i;
     for (i = aStart; i < aEnd; ++i) {
         const gfxTextRun::CompressedGlyph *glyphData = &charGlyphs[i];
         if (glyphData->IsSimpleGlyph()) {
             double advance = glyphData->GetSimpleAdvance();
-            uint32_t glyphIndex = glyphData->GetSimpleGlyph();
-            if (glyphIndex != spaceGlyph ||
-                !IsSpaceGlyphInvisible(aRefContext, aTextRun)) {
-                allGlyphsInvisible = false;
-            }
             // Only get the real glyph horizontal extent if we were asked
             // for the tight bounding box or we're in quality mode
             if ((aBoundingBoxType != LOOSE_INK_EXTENTS || needsGlyphExtents) &&
-                extents){
+                extents) {
+                uint32_t glyphIndex = glyphData->GetSimpleGlyph();
                 uint16_t extentsWidth = extents->GetContainedGlyphWidthAppUnits(glyphIndex);
                 if (extentsWidth != gfxGlyphExtents::INVALID_WIDTH &&
                     aBoundingBoxType == LOOSE_INK_EXTENTS) {
@@ -2249,7 +2221,6 @@ gfxFont::Measure(gfxTextRun *aTextRun,
             }
             x += direction*advance;
         } else {
-            allGlyphsInvisible = false;
             uint32_t glyphCount = glyphData->GetGlyphCount();
             if (glyphCount > 0) {
                 const gfxTextRun::DetailedGlyph *details =
@@ -2274,7 +2245,7 @@ gfxFont::Measure(gfxTextRun *aTextRun,
                     if (isRTL) {
                         glyphRect -= gfxPoint(advance, 0);
                     }
-                    glyphRect += glyphPt;
+                    glyphRect += gfxPoint(x, 0);
                     metrics.mBoundingBox = metrics.mBoundingBox.Union(glyphRect);
                     x += direction*advance;
                 }
@@ -2290,18 +2261,14 @@ gfxFont::Measure(gfxTextRun *aTextRun,
         }
     }
 
-    if (allGlyphsInvisible) {
-        metrics.mBoundingBox.SetEmpty();
-    } else {
-        if (aBoundingBoxType == LOOSE_INK_EXTENTS) {
-            UnionRange(x, &advanceMin, &advanceMax);
-            gfxRect fontBox(advanceMin, -metrics.mAscent,
-                            advanceMax - advanceMin, metrics.mAscent + metrics.mDescent);
-            metrics.mBoundingBox = metrics.mBoundingBox.Union(fontBox);
-        }
-        if (isRTL) {
-            metrics.mBoundingBox -= gfxPoint(x, 0);
-        }
+    if (aBoundingBoxType == LOOSE_INK_EXTENTS) {
+        UnionRange(x, &advanceMin, &advanceMax);
+        gfxRect fontBox(advanceMin, -metrics.mAscent,
+                        advanceMax - advanceMin, metrics.mAscent + metrics.mDescent);
+        metrics.mBoundingBox = metrics.mBoundingBox.Union(fontBox);
+    }
+    if (isRTL) {
+        metrics.mBoundingBox -= gfxPoint(x, 0);
     }
 
     // If the font may be rendered with a fake-italic effect, we need to allow
@@ -3237,12 +3204,12 @@ gfxFont::InitMetricsFromSfntTables(Metrics& aMetrics)
     if (os2Table) {
         const OS2Table *os2 =
             reinterpret_cast<const OS2Table*>(hb_blob_get_data(os2Table, &len));
-        // although sxHeight is a signed field, we consider negative values to
-        // be erroneous and just ignore them
         if (len >= offsetof(OS2Table, sxHeight) + sizeof(int16_t) &&
-            uint16_t(os2->version) >= 2 && int16_t(os2->sxHeight) > 0) {
+            uint16_t(os2->version) >= 2) {
             // version 2 and later includes the x-height field
             SET_SIGNED(xHeight, os2->sxHeight);
+            // Abs because of negative xHeight seen in Kokonor (Tibetan) font
+            aMetrics.xHeight = Abs(aMetrics.xHeight);
         }
         // this should always be present in any valid OS/2 of any version
         if (len >= offsetof(OS2Table, sTypoLineGap) + sizeof(int16_t)) {

@@ -1,5 +1,5 @@
 function f() {
     "use strict";
 }
-g = new Proxy(f, {});
+g = wrap(f);
 Object.defineProperty(g, "arguments", {set: function(){}});

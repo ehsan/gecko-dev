@@ -16,7 +16,6 @@
 #include "webrtc/modules/video_coding/codecs/test/packet_manipulator.h"
 #include "webrtc/modules/video_coding/codecs/test/videoprocessor.h"
 #include "webrtc/modules/video_coding/codecs/vp8/include/vp8.h"
-#include "webrtc/modules/video_coding/codecs/vp9/include/vp9.h"
 #include "webrtc/modules/video_coding/codecs/vp8/include/vp8_common_types.h"
 #include "webrtc/modules/video_coding/main/interface/video_coding.h"
 #include "webrtc/test/testsupport/fileutils.h"
@@ -38,7 +37,6 @@ const int kBaseKeyFrameInterval = 3000;
 
 // Codec and network settings.
 struct CodecConfigPars {
-  VideoCodecType codec_type;
   float packet_loss;
   int num_temporal_layers;
   int key_frame_interval;
@@ -138,7 +136,6 @@ class VideoProcessorIntegrationTest: public testing::Test {
   float start_bitrate_;
 
   // Codec and network settings.
-  VideoCodecType codec_type_;
   float packet_loss_;
   int num_temporal_layers_;
   int key_frame_interval_;
@@ -152,24 +149,14 @@ class VideoProcessorIntegrationTest: public testing::Test {
   virtual ~VideoProcessorIntegrationTest() {}
 
   void SetUpCodecConfig() {
-    if (codec_type_ == kVideoCodecVP8) {
-      encoder_ = VP8Encoder::Create();
-      decoder_ = VP8Decoder::Create();
-      VideoCodingModule::Codec(kVideoCodecVP8, &codec_settings_);
-    } else if (codec_type_ == kVideoCodecVP9) {
-      encoder_ = VP9Encoder::Create();
-      decoder_ = VP9Decoder::Create();
-      VideoCodingModule::Codec(kVideoCodecVP9, &codec_settings_);
-    }
+    encoder_ = VP8Encoder::Create();
+    decoder_ = VP8Decoder::Create();
 
     // CIF is currently used for all tests below.
     // Setup the TestConfig struct for processing of a clip in CIF resolution.
     config_.input_filename =
         webrtc::test::ResourcePath("foreman_cif", "yuv");
-
-    // Generate an output filename in a safe way.
-    config_.output_filename = webrtc::test::TempFilename(
-        webrtc::test::OutputPath(), "videoprocessor_integrationtest");
+    config_.output_filename = tmpnam(NULL);
     config_.frame_length_in_bytes = CalcBufferSize(kI420,
                                                    kCIFWidth, kCIFHeight);
     config_.verbose = false;
@@ -179,42 +166,26 @@ class VideoProcessorIntegrationTest: public testing::Test {
     config_.keyframe_interval = key_frame_interval_;
     config_.networking_config.packet_loss_probability = packet_loss_;
 
-    // Configure codec settings.
+    // Get a codec configuration struct and configure it.
+    VideoCodingModule::Codec(kVideoCodecVP8, &codec_settings_);
     config_.codec_settings = &codec_settings_;
     config_.codec_settings->startBitrate = start_bitrate_;
     config_.codec_settings->width = kCIFWidth;
     config_.codec_settings->height = kCIFHeight;
-
     // These features may be set depending on the test.
-    switch (config_.codec_settings->codecType) {
-     case kVideoCodecVP8:
-       config_.codec_settings->codecSpecific.VP8.errorConcealmentOn =
-           error_concealment_on_;
-       config_.codec_settings->codecSpecific.VP8.denoisingOn =
-           denoising_on_;
-       config_.codec_settings->codecSpecific.VP8.numberOfTemporalLayers =
-           num_temporal_layers_;
-       config_.codec_settings->codecSpecific.VP8.frameDroppingOn =
-           frame_dropper_on_;
-       config_.codec_settings->codecSpecific.VP8.automaticResizeOn =
-           spatial_resize_on_;
-       config_.codec_settings->codecSpecific.VP8.keyFrameInterval =
-           kBaseKeyFrameInterval;
-       break;
-     case kVideoCodecVP9:
-       config_.codec_settings->codecSpecific.VP9.denoisingOn =
-           denoising_on_;
-       config_.codec_settings->codecSpecific.VP9.numberOfTemporalLayers =
-           num_temporal_layers_;
-       config_.codec_settings->codecSpecific.VP9.frameDroppingOn =
-           frame_dropper_on_;
-       config_.codec_settings->codecSpecific.VP9.keyFrameInterval =
-           kBaseKeyFrameInterval;
-       break;
-     default:
-       assert(false);
-       break;
-     }
+    config_.codec_settings->codecSpecific.VP8.errorConcealmentOn =
+        error_concealment_on_;
+    config_.codec_settings->codecSpecific.VP8.denoisingOn =
+        denoising_on_;
+    config_.codec_settings->codecSpecific.VP8.numberOfTemporalLayers =
+        num_temporal_layers_;
+    config_.codec_settings->codecSpecific.VP8.frameDroppingOn =
+        frame_dropper_on_;
+    config_.codec_settings->codecSpecific.VP8.automaticResizeOn =
+        spatial_resize_on_;
+    config_.codec_settings->codecSpecific.VP8.keyFrameInterval =
+        kBaseKeyFrameInterval;
+
     frame_reader_ =
         new webrtc::test::FrameReaderImpl(config_.input_filename,
                                           config_.frame_length_in_bytes);
@@ -431,7 +402,6 @@ class VideoProcessorIntegrationTest: public testing::Test {
                               CodecConfigPars process,
                               RateControlMetrics* rc_metrics) {
     // Codec/config settings.
-    codec_type_ = process.codec_type;
     start_bitrate_ = rate_profile.target_bit_rate[0];
     packet_loss_ = process.packet_loss;
     key_frame_interval_ = process.key_frame_interval;
@@ -541,7 +511,6 @@ void SetRateProfilePars(RateProfile* rate_profile,
 }
 
 void SetCodecParameters(CodecConfigPars* process_settings,
-                        VideoCodecType codec_type,
                         float packet_loss,
                         int key_frame_interval,
                         int num_temporal_layers,
@@ -549,7 +518,6 @@ void SetCodecParameters(CodecConfigPars* process_settings,
                         bool denoising_on,
                         bool frame_dropper_on,
                         bool spatial_resize_on) {
-  process_settings->codec_type = codec_type;
   process_settings->packet_loss = packet_loss;
   process_settings->key_frame_interval =  key_frame_interval;
   process_settings->num_temporal_layers = num_temporal_layers,
@@ -589,129 +557,11 @@ void SetRateControlMetrics(RateControlMetrics* rc_metrics,
   rc_metrics[update_index].num_spatial_resizes = num_spatial_resizes;
 }
 
-// VP9: Run with no packet loss and fixed bitrate. Quality should be very high.
+// Run with no packet loss and fixed bitrate. Quality should be very high.
 // One key frame (first frame only) in sequence. Setting |key_frame_interval|
 // to -1 below means no periodic key frames in test.
-TEST_F(VideoProcessorIntegrationTest, Process0PercentPacketLossVP9) {
-  // Bitrate and frame rate profile.
-  RateProfile rate_profile;
-  SetRateProfilePars(&rate_profile, 0, 500, 30, 0);
-  rate_profile.frame_index_rate_update[1] = kNbrFramesShort + 1;
-  rate_profile.num_frames = kNbrFramesShort;
-  // Codec/network settings.
-  CodecConfigPars process_settings;
-  SetCodecParameters(&process_settings, kVideoCodecVP9, 0.0f, -1, 1, false,
-                     false, true, false);
-  // Metrics for expected quality.
-  QualityMetrics quality_metrics;
-  SetQualityMetrics(&quality_metrics, 37.0, 36.0, 0.93, 0.92);
-  // Metrics for rate control.
-  RateControlMetrics rc_metrics[1];
-  SetRateControlMetrics(rc_metrics, 0, 0, 40, 20, 10, 15, 0);
-  ProcessFramesAndVerify(quality_metrics,
-                         rate_profile,
-                         process_settings,
-                         rc_metrics);
-}
-
-// VP9: Run with 5% packet loss and fixed bitrate. Quality should be a bit
-// lower. One key frame (first frame only) in sequence.
-TEST_F(VideoProcessorIntegrationTest, Process5PercentPacketLossVP9) {
-  // Bitrate and frame rate profile.
-  RateProfile rate_profile;
-  SetRateProfilePars(&rate_profile, 0, 500, 30, 0);
-  rate_profile.frame_index_rate_update[1] = kNbrFramesShort + 1;
-  rate_profile.num_frames = kNbrFramesShort;
-  // Codec/network settings.
-  CodecConfigPars process_settings;
-  SetCodecParameters(&process_settings, kVideoCodecVP9, 0.05f, -1, 1, false,
-                     false, true, false);
-  // Metrics for expected quality.
-  QualityMetrics quality_metrics;
-  SetQualityMetrics(&quality_metrics, 17.0, 15.0, 0.45, 0.38);
-  // Metrics for rate control.
-  RateControlMetrics rc_metrics[1];
-  SetRateControlMetrics(rc_metrics, 0, 0, 40, 20, 10, 15, 0);
-  ProcessFramesAndVerify(quality_metrics,
-                         rate_profile,
-                         process_settings,
-                         rc_metrics);
-}
-
-
-// VP9: Run with no packet loss, with varying bitrate (3 rate updates):
-// low to high to medium. Check that quality and encoder response to the new
-// target rate/per-frame bandwidth (for each rate update) is within limits.
-// One key frame (first frame only) in sequence.
-TEST_F(VideoProcessorIntegrationTest, ProcessNoLossChangeBitRateVP9) {
-  // Bitrate and frame rate profile.
-  RateProfile rate_profile;
-  SetRateProfilePars(&rate_profile, 0, 200, 30, 0);
-  SetRateProfilePars(&rate_profile, 1, 800, 30, 100);
-  SetRateProfilePars(&rate_profile, 2, 500, 30, 200);
-  rate_profile.frame_index_rate_update[3] = kNbrFramesLong + 1;
-  rate_profile.num_frames = kNbrFramesLong;
-  // Codec/network settings.
-  CodecConfigPars process_settings;
-  SetCodecParameters(&process_settings, kVideoCodecVP9, 0.0f, -1, 1, false,
-                     false, true, false);
-  // Metrics for expected quality.
-  QualityMetrics quality_metrics;
-  SetQualityMetrics(&quality_metrics, 36.0, 31.8, 0.90, 0.85);
-  // Metrics for rate control.
-  RateControlMetrics rc_metrics[3];
-  SetRateControlMetrics(rc_metrics, 0, 0, 30, 20, 20, 20, 0);
-  SetRateControlMetrics(rc_metrics, 1, 2, 0, 20, 20, 60, 0);
-  SetRateControlMetrics(rc_metrics, 2, 0, 0, 20, 20, 40, 0);
-  ProcessFramesAndVerify(quality_metrics,
-                         rate_profile,
-                         process_settings,
-                         rc_metrics);
-}
-
-// VP9: Run with no packet loss, with an update (decrease) in frame rate.
-// Lower frame rate means higher per-frame-bandwidth, so easier to encode.
-// At the low bitrate in this test, this means better rate control after the
-// update(s) to lower frame rate. So expect less frame drops, and max values
-// for the rate control metrics can be lower. One key frame (first frame only).
-// Note: quality after update should be higher but we currently compute quality
-// metrics averaged over whole sequence run.
 TEST_F(VideoProcessorIntegrationTest,
-       ProcessNoLossChangeFrameRateFrameDropVP9) {
-  config_.networking_config.packet_loss_probability = 0;
-  // Bitrate and frame rate profile.
-  RateProfile rate_profile;
-  SetRateProfilePars(&rate_profile, 0, 50, 24, 0);
-  SetRateProfilePars(&rate_profile, 1, 50, 15, 100);
-  SetRateProfilePars(&rate_profile, 2, 50, 10, 200);
-  rate_profile.frame_index_rate_update[3] = kNbrFramesLong + 1;
-  rate_profile.num_frames = kNbrFramesLong;
-  // Codec/network settings.
-  CodecConfigPars process_settings;
-  SetCodecParameters(&process_settings, kVideoCodecVP9, 0.0f, -1, 1, false,
-                     false, true, false);
-  // Metrics for expected quality.
-  QualityMetrics quality_metrics;
-  SetQualityMetrics(&quality_metrics, 29.0, 17.0, 0.80, 0.40);
-  // Metrics for rate control.
-  RateControlMetrics rc_metrics[3];
-  SetRateControlMetrics(rc_metrics, 0, 50, 60, 100, 15, 45, 0);
-  SetRateControlMetrics(rc_metrics, 1, 30, 0, 65, 10, 35, 0);
-  SetRateControlMetrics(rc_metrics, 2, 5, 0, 38, 10, 30, 0);
-  ProcessFramesAndVerify(quality_metrics,
-                         rate_profile,
-                         process_settings,
-                         rc_metrics);
-}
-
-
-// TODO(marpan): Add temporal layer test for VP9, once changes are in
-// vp9 wrapper for this.
-
-// VP8: Run with no packet loss and fixed bitrate. Quality should be very high.
-// One key frame (first frame only) in sequence. Setting |key_frame_interval|
-// to -1 below means no periodic key frames in test.
-TEST_F(VideoProcessorIntegrationTest, ProcessZeroPacketLoss) {
+       DISABLED_ON_ANDROID(ProcessZeroPacketLoss)) {
   // Bitrate and frame rate profile.
   RateProfile rate_profile;
   SetRateProfilePars(&rate_profile, 0, 500, 30, 0);
@@ -719,11 +569,10 @@ TEST_F(VideoProcessorIntegrationTest, ProcessZeroPacketLoss) {
   rate_profile.num_frames = kNbrFramesShort;
   // Codec/network settings.
   CodecConfigPars process_settings;
-  SetCodecParameters(&process_settings, kVideoCodecVP8, 0.0f, -1, 1, false,
-                     true, true, false);
+  SetCodecParameters(&process_settings, 0.0f, -1, 1, false, true, true, false);
   // Metrics for expected quality.
   QualityMetrics quality_metrics;
-  SetQualityMetrics(&quality_metrics, 34.95, 33.0, 0.90, 0.89);
+  SetQualityMetrics(&quality_metrics, 36.95, 33.0, 0.90, 0.90);
   // Metrics for rate control.
   RateControlMetrics rc_metrics[1];
   SetRateControlMetrics(rc_metrics, 0, 0, 40, 20, 10, 15, 0);
@@ -733,9 +582,10 @@ TEST_F(VideoProcessorIntegrationTest, ProcessZeroPacketLoss) {
                          rc_metrics);
 }
 
-// VP8: Run with 5% packet loss and fixed bitrate. Quality should be a bit
-// lower. One key frame (first frame only) in sequence.
-TEST_F(VideoProcessorIntegrationTest, Process5PercentPacketLoss) {
+// Run with 5% packet loss and fixed bitrate. Quality should be a bit lower.
+// One key frame (first frame only) in sequence.
+TEST_F(VideoProcessorIntegrationTest,
+       DISABLED_ON_ANDROID(Process5PercentPacketLoss)) {
   // Bitrate and frame rate profile.
   RateProfile rate_profile;
   SetRateProfilePars(&rate_profile, 0, 500, 30, 0);
@@ -743,8 +593,7 @@ TEST_F(VideoProcessorIntegrationTest, Process5PercentPacketLoss) {
   rate_profile.num_frames = kNbrFramesShort;
   // Codec/network settings.
   CodecConfigPars process_settings;
-  SetCodecParameters(&process_settings, kVideoCodecVP8, 0.05f, -1, 1, false,
-                     true, true, false);
+  SetCodecParameters(&process_settings, 0.05f, -1, 1, false, true, true, false);
   // Metrics for expected quality.
   QualityMetrics quality_metrics;
   SetQualityMetrics(&quality_metrics, 20.0, 16.0, 0.60, 0.40);
@@ -757,9 +606,10 @@ TEST_F(VideoProcessorIntegrationTest, Process5PercentPacketLoss) {
                          rc_metrics);
 }
 
-// VP8: Run with 10% packet loss and fixed bitrate. Quality should be lower.
+// Run with 10% packet loss and fixed bitrate. Quality should be even lower.
 // One key frame (first frame only) in sequence.
-TEST_F(VideoProcessorIntegrationTest, Process10PercentPacketLoss) {
+TEST_F(VideoProcessorIntegrationTest,
+       DISABLED_ON_ANDROID(Process10PercentPacketLoss)) {
   // Bitrate and frame rate profile.
   RateProfile rate_profile;
   SetRateProfilePars(&rate_profile, 0, 500, 30, 0);
@@ -767,8 +617,7 @@ TEST_F(VideoProcessorIntegrationTest, Process10PercentPacketLoss) {
   rate_profile.num_frames = kNbrFramesShort;
   // Codec/network settings.
   CodecConfigPars process_settings;
-  SetCodecParameters(&process_settings, kVideoCodecVP8, 0.1f, -1, 1, false,
-                     true, true, false);
+  SetCodecParameters(&process_settings, 0.1f, -1, 1, false, true, true, false);
   // Metrics for expected quality.
   QualityMetrics quality_metrics;
   SetQualityMetrics(&quality_metrics, 19.0, 16.0, 0.50, 0.35);
@@ -781,21 +630,12 @@ TEST_F(VideoProcessorIntegrationTest, Process10PercentPacketLoss) {
                          rc_metrics);
 }
 
-// The tests below are currently disabled for Android. For ARM, the encoder
-// uses |cpu_speed| = 12, as opposed to default |cpu_speed| <= 6 for x86,
-// which leads to significantly different quality. The quality and rate control
-// settings in the tests below are defined for encoder speed setting
-// |cpu_speed| <= ~6. A number of settings would need to be significantly
-// modified for the |cpu_speed| = 12 case. For now, keep the tests below
-// disabled on Android. Some quality parameter in the above test has been
-// adjusted to also pass for |cpu_speed| <= 12.
-
-// VP8: Run with no packet loss, with varying bitrate (3 rate updates):
+// Run with no packet loss, with varying bitrate (3 rate updates):
 // low to high to medium. Check that quality and encoder response to the new
 // target rate/per-frame bandwidth (for each rate update) is within limits.
 // One key frame (first frame only) in sequence.
 TEST_F(VideoProcessorIntegrationTest,
-       DISABLED_ON_ANDROID(ProcessNoLossChangeBitRateVP8)) {
+       DISABLED_ON_ANDROID(ProcessNoLossChangeBitRate)) {
   // Bitrate and frame rate profile.
   RateProfile rate_profile;
   SetRateProfilePars(&rate_profile, 0, 200, 30, 0);
@@ -805,8 +645,7 @@ TEST_F(VideoProcessorIntegrationTest,
   rate_profile.num_frames = kNbrFramesLong;
   // Codec/network settings.
   CodecConfigPars process_settings;
-  SetCodecParameters(&process_settings, kVideoCodecVP8, 0.0f, -1, 1, false,
-                     true, true, false);
+  SetCodecParameters(&process_settings, 0.0f, -1, 1, false, true, true, false);
   // Metrics for expected quality.
   QualityMetrics quality_metrics;
   SetQualityMetrics(&quality_metrics, 34.0, 32.0, 0.85, 0.80);
@@ -821,15 +660,15 @@ TEST_F(VideoProcessorIntegrationTest,
                          rc_metrics);
 }
 
-// VP8: Run with no packet loss, with an update (decrease) in frame rate.
+// Run with no packet loss, with an update (decrease) in frame rate.
 // Lower frame rate means higher per-frame-bandwidth, so easier to encode.
 // At the bitrate in this test, this means better rate control after the
 // update(s) to lower frame rate. So expect less frame drops, and max values
 // for the rate control metrics can be lower. One key frame (first frame only).
 // Note: quality after update should be higher but we currently compute quality
-// metrics averaged over whole sequence run.
+// metrics avergaed over whole sequence run.
 TEST_F(VideoProcessorIntegrationTest,
-       DISABLED_ON_ANDROID(ProcessNoLossChangeFrameRateFrameDropVP8)) {
+       DISABLED_ON_ANDROID(ProcessNoLossChangeFrameRateFrameDrop)) {
   config_.networking_config.packet_loss_probability = 0;
   // Bitrate and frame rate profile.
   RateProfile rate_profile;
@@ -840,8 +679,7 @@ TEST_F(VideoProcessorIntegrationTest,
   rate_profile.num_frames = kNbrFramesLong;
   // Codec/network settings.
   CodecConfigPars process_settings;
-  SetCodecParameters(&process_settings, kVideoCodecVP8, 0.0f, -1, 1, false,
-                     true, true, false);
+  SetCodecParameters(&process_settings, 0.0f, -1, 1, false, true, true, false);
   // Metrics for expected quality.
   QualityMetrics quality_metrics;
   SetQualityMetrics(&quality_metrics, 31.0, 22.0, 0.80, 0.65);
@@ -856,39 +694,47 @@ TEST_F(VideoProcessorIntegrationTest,
                          rc_metrics);
 }
 
-// Run with no packet loss, at low bitrate. During this time we should've
-// resized once.
+// Run with no packet loss, at low bitrate, then increase rate somewhat.
+// Key frame is thrown in every 120 frames. Can expect some frame drops after
+// key frame, even at high rate. The internal spatial resizer is on, so expect
+// spatial resize down at first key frame, and back up at second key frame.
+// Error_concealment is off in this test since there is a memory leak with
+// resizing and error concealment.
 TEST_F(VideoProcessorIntegrationTest,
-       DISABLED_ON_ANDROID(ProcessNoLossSpatialResizeFrameDropVP8)) {
+       DISABLED_ON_ANDROID(ProcessNoLossSpatialResizeFrameDrop)) {
   config_.networking_config.packet_loss_probability = 0;
   // Bitrate and frame rate profile.
   RateProfile rate_profile;
-  SetRateProfilePars(&rate_profile, 0, 50, 30, 0);
-  rate_profile.frame_index_rate_update[1] = kNbrFramesLong + 1;
+  SetRateProfilePars(&rate_profile, 0, 100, 30, 0);
+  SetRateProfilePars(&rate_profile, 1, 200, 30, 120);
+  SetRateProfilePars(&rate_profile, 2, 200, 30, 240);
+  rate_profile.frame_index_rate_update[3] = kNbrFramesLong + 1;
   rate_profile.num_frames = kNbrFramesLong;
   // Codec/network settings.
   CodecConfigPars process_settings;
-  SetCodecParameters(&process_settings, kVideoCodecVP8, 0.0f, kNbrFramesLong,
-                     1, false, true, true, true);
-  // Metrics for expected quality.
+  SetCodecParameters(&process_settings, 0.0f, 120, 1, false, true, true, true);
+  // Metrics for expected quality.: lower quality on average from up-sampling
+  // the down-sampled portion of the run, in case resizer is on.
   QualityMetrics quality_metrics;
-  SetQualityMetrics(&quality_metrics, 25.0, 15.0, 0.70, 0.40);
+  SetQualityMetrics(&quality_metrics, 29.0, 20.0, 0.75, 0.60);
   // Metrics for rate control.
-  RateControlMetrics rc_metrics[1];
-  SetRateControlMetrics(rc_metrics, 0, 160, 60, 120, 20, 70, 1);
+  RateControlMetrics rc_metrics[3];
+  SetRateControlMetrics(rc_metrics, 0, 45, 30, 75, 20, 70, 0);
+  SetRateControlMetrics(rc_metrics, 1, 20, 35, 30, 20, 15, 1);
+  SetRateControlMetrics(rc_metrics, 2, 0, 30, 30, 15, 25, 1);
   ProcessFramesAndVerify(quality_metrics,
                          rate_profile,
                          process_settings,
                          rc_metrics);
 }
 
-// VP8: Run with no packet loss, with 3 temporal layers, with a rate update in
-// the middle of the sequence. The max values for the frame size mismatch and
+// Run with no packet loss, with 3 temporal layers, with a rate update in the
+// middle of the sequence. The max values for the frame size mismatch and
 // encoding rate mismatch are applied to each layer.
 // No dropped frames in this test, and internal spatial resizer is off.
 // One key frame (first frame only) in sequence, so no spatial resizing.
 TEST_F(VideoProcessorIntegrationTest,
-       DISABLED_ON_ANDROID(ProcessNoLossTemporalLayersVP8)) {
+       DISABLED_ON_ANDROID(ProcessNoLossTemporalLayers)) {
   config_.networking_config.packet_loss_probability = 0;
   // Bitrate and frame rate profile.
   RateProfile rate_profile;
@@ -898,8 +744,7 @@ TEST_F(VideoProcessorIntegrationTest,
   rate_profile.num_frames = kNbrFramesLong;
   // Codec/network settings.
   CodecConfigPars process_settings;
-  SetCodecParameters(&process_settings, kVideoCodecVP8, 0.0f, -1, 3, false,
-                     true, true, false);
+  SetCodecParameters(&process_settings, 0.0f, -1, 3, false, true, true, false);
   // Metrics for expected quality.
   QualityMetrics quality_metrics;
   SetQualityMetrics(&quality_metrics, 32.5, 30.0, 0.85, 0.80);

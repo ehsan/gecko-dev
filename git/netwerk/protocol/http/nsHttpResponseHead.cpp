@@ -264,9 +264,6 @@ nsHttpResponseHead::AssignDefaultStatusText()
     case 417:
         mStatusText.AssignLiteral("Expectation Failed");
         break;
-    case 421:
-        mStatusText.AssignLiteral("Misdirected Request");
-        break;
     case 501:
         mStatusText.AssignLiteral("Not Implemented");
         break;
@@ -626,8 +623,7 @@ nsHttpResponseHead::Reset()
 
     mVersion = NS_HTTP_VERSION_1_1;
     mStatus = 200;
-    mContentLength = -1;
-    mCacheControlPrivate = false;
+    mContentLength = UINT64_MAX;
     mCacheControlNoStore = false;
     mCacheControlNoCache = false;
     mPragmaNoCache = false;
@@ -796,15 +792,10 @@ nsHttpResponseHead::ParseCacheControl(const char *val)
 {
     if (!(val && *val)) {
         // clear flags
-        mCacheControlPrivate = false;
         mCacheControlNoCache = false;
         mCacheControlNoStore = false;
         return;
     }
-
-    // search header value for occurrence of "private"
-    if (nsHttp::FindToken(val, "private", HTTP_HEADER_VALUE_SEPS))
-        mCacheControlPrivate = true;
 
     // search header value for occurrence(s) of "no-cache" but ignore
     // occurrence(s) of "no-cache=blah"

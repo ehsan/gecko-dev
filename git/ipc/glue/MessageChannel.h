@@ -291,14 +291,6 @@ class MessageChannel : HasResultCodes
         mListener->OnExitedCall();
     }
 
-    void EnteredSyncSend() {
-        mListener->OnEnteredSyncSend();
-    }
-
-    void ExitedSyncSend() {
-        mListener->OnExitedSyncSend();
-    }
-
     MessageListener *Listener() const {
         return mListener.get();
     }
@@ -405,8 +397,8 @@ class MessageChannel : HasResultCodes
     // Can be run on either thread
     void AssertWorkerThread() const
     {
-        MOZ_ASSERT(mWorkerLoopID == MessageLoop::current()->id(),
-                   "not on worker thread!");
+        NS_ABORT_IF_FALSE(mWorkerLoopID == MessageLoop::current()->id(),
+                          "not on worker thread!");
     }
 
     // The "link" thread is either the I/O thread (ProcessLink) or the
@@ -414,8 +406,8 @@ class MessageChannel : HasResultCodes
     // NOT our worker thread.
     void AssertLinkThread() const
     {
-        MOZ_ASSERT(mWorkerLoopID != MessageLoop::current()->id(),
-                   "on worker thread but should not be!");
+        NS_ABORT_IF_FALSE(mWorkerLoopID != MessageLoop::current()->id(),
+                          "on worker thread but should not be!");
     }
 
   private:
@@ -451,7 +443,7 @@ class MessageChannel : HasResultCodes
         explicit DequeueTask(RefCountedTask* aTask)
           : mTask(aTask)
         { }
-        void Run() MOZ_OVERRIDE { mTask->Run(); }
+        void Run() { mTask->Run(); }
 
       private:
         nsRefPtr<RefCountedTask> mTask;

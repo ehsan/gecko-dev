@@ -66,6 +66,7 @@ public:
     NS_IMETHOD Create(nsIWidget *aParent,
                       nsNativeWidget aNativeParent,
                       const nsIntRect &aRect,
+                      nsDeviceContext *aContext,
                       nsWidgetInitData *aInitData);
     NS_IMETHOD Destroy(void);
     NS_IMETHOD ConfigureChildren(const nsTArray<nsIWidget::Configuration>&);
@@ -99,7 +100,7 @@ public:
     NS_IMETHOD Invalidate(const nsIntRect &aRect);
     NS_IMETHOD SetFocus(bool aRaise = false);
     NS_IMETHOD GetScreenBounds(nsIntRect &aRect);
-    virtual mozilla::LayoutDeviceIntPoint WidgetToScreenOffset();
+    virtual nsIntPoint WidgetToScreenOffset();
     NS_IMETHOD DispatchEvent(mozilla::WidgetGUIEvent* aEvent,
                              nsEventStatus& aStatus);
     nsEventStatus DispatchEvent(mozilla::WidgetGUIEvent* aEvent);
@@ -131,6 +132,7 @@ public:
         return NS_ERROR_NOT_IMPLEMENTED;
     }
 
+    NS_IMETHOD NotifyIME(const IMENotification& aIMENotification) MOZ_OVERRIDE;
     NS_IMETHOD_(void) SetInputContext(const InputContext& aContext,
                                       const InputContextAction& aAction);
     NS_IMETHOD_(InputContext) GetInputContext();
@@ -226,9 +228,6 @@ protected:
 
     InputContext mInputContext;
 
-    virtual nsresult NotifyIMEInternal(
-                         const IMENotification& aIMENotification) MOZ_OVERRIDE;
-
     static void DumpWindows();
     static void DumpWindows(const nsTArray<nsWindow*>& wins, int indent = 0);
     static void LogWindow(nsWindow *win, int index, int indent);
@@ -238,7 +237,7 @@ private:
                       mozilla::AndroidGeckoEvent& key,
                       ANPEvent* pluginEvent);
     void DispatchGestureEvent(uint32_t msg, uint32_t direction, double delta,
-                              const mozilla::LayoutDeviceIntPoint &refPoint, uint64_t time);
+                              const nsIntPoint &refPoint, uint64_t time);
     void HandleSpecialKey(mozilla::AndroidGeckoEvent *ae);
     void CreateLayerManager(int aCompositorWidth, int aCompositorHeight);
     void RedrawAll();

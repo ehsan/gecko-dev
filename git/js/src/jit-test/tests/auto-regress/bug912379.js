@@ -5,7 +5,7 @@ evalcx("\
     } catch(a) {\
         x = a;\
     } \
-    new Proxy(x, {});\
+    wrap(x);\
 ", s);
 evalcx("\
     n = x;\

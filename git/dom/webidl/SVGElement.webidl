@@ -12,11 +12,17 @@
 
 interface SVGElement : Element {
            attribute DOMString id;
+/*           [SetterThrows]
+           attribute DOMString xmlbase; */
 
-  [Constant]
   readonly attribute SVGAnimatedString className;
   [PutForwards=cssText, Constant]
   readonly attribute CSSStyleDeclaration style;
+
+  /*[SetterThrows]
+  attribute DOMString xmllang;
+  [SetterThrows]
+  attribute DOMString xmlspace;*/
 
   readonly attribute SVGSVGElement? ownerSVGElement;
   readonly attribute SVGElement? viewportElement;

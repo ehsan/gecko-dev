@@ -324,7 +324,7 @@ GMPVideoDecoderParent::RecvError(const GMPErr& aError)
 }
 
 bool
-GMPVideoDecoderParent::RecvParentShmemForPool(Shmem&& aEncodedBuffer)
+GMPVideoDecoderParent::RecvParentShmemForPool(Shmem& aEncodedBuffer)
 {
   if (aEncodedBuffer.IsWritable()) {
     mVideoHost.SharedMemMgr()->MgrDeallocShmem(GMPSharedMem::kGMPEncodedData,

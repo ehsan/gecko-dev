@@ -5,20 +5,14 @@
 #ifndef SANDBOX_LINUX_SECCOMP_BPF_VERIFIER_H__
 #define SANDBOX_LINUX_SECCOMP_BPF_VERIFIER_H__
 
-#include <stdint.h>
+#include <linux/filter.h>
 
+#include <utility>
 #include <vector>
 
-#include "base/macros.h"
-
-struct sock_filter;
-
 namespace sandbox {
-struct arch_seccomp_data;
-namespace bpf_dsl {
-class Policy;
-class PolicyCompiler;
-}
+
+class SandboxBPFPolicy;
 
 class Verifier {
  public:
@@ -29,9 +23,9 @@ class Verifier {
   // set by the "evaluators".
   // Upon success, "err" is set to NULL. Upon failure, it contains a static
   // error message that does not need to be free()'d.
-  static bool VerifyBPF(bpf_dsl::PolicyCompiler* compiler,
+  static bool VerifyBPF(SandboxBPF* sandbox,
                         const std::vector<struct sock_filter>& program,
-                        const bpf_dsl::Policy& policy,
+                        const SandboxBPFPolicy& policy,
                         const char** err);
 
   // Evaluate a given BPF program for a particular set of system call

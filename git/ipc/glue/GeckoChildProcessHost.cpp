@@ -97,8 +97,10 @@ GeckoChildProcessHost::GeckoChildProcessHost(GeckoProcessType aProcessType,
     mDelegate(nullptr),
 #if defined(MOZ_SANDBOX) && defined(XP_WIN)
     mEnableSandboxLogging(false),
-    mSandboxLevel(0),
-    mMoreStrictSandbox(false),
+    mEnableNPAPISandbox(false),
+#if defined(MOZ_CONTENT_SANDBOX)
+    mMoreStrictContentSandbox(false),
+#endif
 #endif
     mChildProcessHandle(0)
 #if defined(MOZ_WIDGET_COCOA)
@@ -271,7 +273,7 @@ GeckoChildProcessHost::PrepareLaunch()
 #if defined(MOZ_CONTENT_SANDBOX)
   // We need to get the pref here as the process is launched off main thread.
   if (mProcessType == GeckoProcessType_Content) {
-    mMoreStrictSandbox =
+    mMoreStrictContentSandbox =
       Preferences::GetBool("security.sandbox.windows.content.moreStrict");
     mEnableSandboxLogging =
       Preferences::GetBool("security.sandbox.windows.log");
@@ -801,24 +803,20 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
 
 #if defined(XP_WIN) && defined(MOZ_SANDBOX)
   bool shouldSandboxCurrentProcess = false;
-
-  // XXX: Bug 1124167: We should get rid of the process specific logic for
-  // sandboxing in this class at some point. Unfortunately it will take a bit
-  // of reorganizing so I don't think this patch is the right time.
   switch (mProcessType) {
     case GeckoProcessType_Content:
 #if defined(MOZ_CONTENT_SANDBOX)
       if (!PR_GetEnv("MOZ_DISABLE_CONTENT_SANDBOX")) {
-        mSandboxBroker.SetSecurityLevelForContentProcess(mMoreStrictSandbox);
+        mSandboxBroker.SetSecurityLevelForContentProcess(mMoreStrictContentSandbox);
         cmdLine.AppendLooseValue(UTF8ToWide("-sandbox"));
         shouldSandboxCurrentProcess = true;
       }
 #endif // MOZ_CONTENT_SANDBOX
       break;
     case GeckoProcessType_Plugin:
-      if (mSandboxLevel > 0 &&
+      if (mEnableNPAPISandbox &&
           !PR_GetEnv("MOZ_DISABLE_NPAPI_SANDBOX")) {
-        mSandboxBroker.SetSecurityLevelForPluginProcess(mSandboxLevel);
+        mSandboxBroker.SetSecurityLevelForPluginProcess();
         cmdLine.AppendLooseValue(UTF8ToWide("-sandbox"));
         shouldSandboxCurrentProcess = true;
       }
@@ -847,12 +845,6 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
          it != mAllowedFilesRead.end();
          ++it) {
       mSandboxBroker.AllowReadFile(it->c_str());
-    }
-
-    for (auto it = mAllowedFilesReadWrite.begin();
-         it != mAllowedFilesReadWrite.end();
-         ++it) {
-      mSandboxBroker.AllowReadWriteFile(it->c_str());
     }
   }
 #endif // XP_WIN && MOZ_SANDBOX

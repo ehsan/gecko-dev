@@ -4,7 +4,7 @@
 
 const EXPORTED_SYMBOLS = ["httpRequest", "percentEncode"];
 
-const {classes: Cc, interfaces: Ci} = Components;
+const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
 // Strictly follow RFC 3986 when encoding URI components.
 // Accepts a unescaped string and returns the URI encoded string for use in
@@ -70,6 +70,7 @@ function httpRequest(aUrl, aOptions) {
       if (aOptions.onLoad)
         aOptions.onLoad(target.responseText, this);
     } catch (e) {
+      Cu.reportError(e);
       if (aOptions.onError)
         aOptions.onError(e, aRequest.target.responseText, this);
     }
@@ -82,8 +83,8 @@ function httpRequest(aUrl, aOptions) {
   }
 
   // Handle adding postData as defined above.
-  let POSTData = aOptions.postData || null;
-  if (POSTData && Array.isArray(POSTData)) {
+  let POSTData = aOptions.postData || "";
+  if (Array.isArray(POSTData)) {
     xhr.setRequestHeader("Content-Type",
                          "application/x-www-form-urlencoded; charset=utf-8");
     POSTData = POSTData.map(function(p) p[0] + "=" + percentEncode(p[1]))

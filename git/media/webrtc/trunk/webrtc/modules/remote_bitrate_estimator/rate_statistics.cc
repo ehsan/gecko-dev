@@ -10,8 +10,6 @@
 
 #include "webrtc/modules/remote_bitrate_estimator/rate_statistics.h"
 
-#include <assert.h>
-
 namespace webrtc {
 
 RateStatistics::RateStatistics(uint32_t window_size_ms, float scale)

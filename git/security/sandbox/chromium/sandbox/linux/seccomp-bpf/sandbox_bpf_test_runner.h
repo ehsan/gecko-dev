@@ -5,14 +5,12 @@
 #ifndef SANDBOX_LINUX_SECCOMP_BPF_SANDBOX_BPF_TEST_RUNNER_H_
 #define SANDBOX_LINUX_SECCOMP_BPF_SANDBOX_BPF_TEST_RUNNER_H_
 
-#include "base/macros.h"
+#include "base/basictypes.h"
 #include "base/memory/scoped_ptr.h"
+#include "sandbox/linux/seccomp-bpf/sandbox_bpf_policy.h"
 #include "sandbox/linux/tests/sandbox_test_runner.h"
 
 namespace sandbox {
-namespace bpf_dsl {
-class Policy;
-}
 
 // To create a SandboxBPFTestRunner object, one needs to implement this
 // interface and pass an instance to the SandboxBPFTestRunner constructor.
@@ -26,7 +24,7 @@ class BPFTesterDelegate {
   // This will instanciate a policy suitable for the test we want to run. It is
   // guaranteed to only be called from the child process that will run the
   // test.
-  virtual scoped_ptr<bpf_dsl::Policy> GetSandboxBPFPolicy() = 0;
+  virtual scoped_ptr<SandboxBPFPolicy> GetSandboxBPFPolicy() = 0;
   // This will be called from a child process with the BPF sandbox turned on.
   virtual void RunTestFunction() = 0;
 
@@ -47,9 +45,9 @@ class SandboxBPFTestRunner : public SandboxTestRunner {
   explicit SandboxBPFTestRunner(BPFTesterDelegate* bpf_tester_delegate);
   virtual ~SandboxBPFTestRunner();
 
-  virtual void Run() override;
+  virtual void Run() OVERRIDE;
 
-  virtual bool ShouldCheckForLeaks() const override;
+  virtual bool ShouldCheckForLeaks() const OVERRIDE;
 
  private:
   scoped_ptr<BPFTesterDelegate> bpf_tester_delegate_;

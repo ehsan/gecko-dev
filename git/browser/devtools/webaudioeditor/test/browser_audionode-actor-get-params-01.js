@@ -36,6 +36,8 @@ add_task(function*() {
       }
       else if (param === "curve") {
         is(flags["Float32Array"], true, "`curve` param has Float32Array flag");
+      } else {
+        is(Object.keys(flags), 0, type + "-" + param + " has no flags set")
       }
     });
   });

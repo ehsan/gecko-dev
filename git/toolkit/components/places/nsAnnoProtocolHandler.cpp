@@ -52,7 +52,7 @@ GetDefaultIcon(nsIChannel **aChannel)
                        defaultIconURI,
                        nsContentUtils::GetSystemPrincipal(),
                        nsILoadInfo::SEC_NORMAL,
-                       nsIContentPolicy::TYPE_IMAGE);
+                       nsIContentPolicy::TYPE_OTHER);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,7 +91,7 @@ public:
   //////////////////////////////////////////////////////////////////////////////
   //// mozIStorageStatementCallback
 
-  NS_IMETHOD HandleResult(mozIStorageResultSet *aResultSet) MOZ_OVERRIDE
+  NS_IMETHOD HandleResult(mozIStorageResultSet *aResultSet)
   {
     // We will only get one row back in total, so we do not need to loop.
     nsCOMPtr<mozIStorageRow> row;
@@ -142,7 +142,7 @@ public:
     return NS_OK;
   }
 
-  NS_IMETHOD HandleCompletion(uint16_t aReason) MOZ_OVERRIDE
+  NS_IMETHOD HandleCompletion(uint16_t aReason)
   {
     if (!mReturnDefaultIcon)
       return mOutputStream->Close();
@@ -168,12 +168,12 @@ public:
   //////////////////////////////////////////////////////////////////////////////
   //// nsIRequestObserver
 
-  NS_IMETHOD OnStartRequest(nsIRequest *, nsISupports *) MOZ_OVERRIDE
+  NS_IMETHOD OnStartRequest(nsIRequest *, nsISupports *)
   {
     return NS_OK;
   }
 
-  NS_IMETHOD OnStopRequest(nsIRequest *, nsISupports *, nsresult aStatusCode) MOZ_OVERRIDE
+  NS_IMETHOD OnStopRequest(nsIRequest *, nsISupports *, nsresult aStatusCode)
   {
     // We always need to close our output stream, regardless of the status code.
     (void)mOutputStream->Close();
@@ -343,12 +343,26 @@ nsAnnoProtocolHandler::NewFaviconChannel(nsIURI *aURI, nsIURI *aAnnotationURI,
   // Create our channel.  We'll call SetContentType with the right type when
   // we know what it actually is.
   nsCOMPtr<nsIChannel> channel;
-  rv = NS_NewInputStreamChannelInternal(getter_AddRefs(channel),
-                                        aURI,
-                                        inputStream,
-                                        EmptyCString(), // aContentType
-                                        EmptyCString(), // aContentCharset
-                                        aLoadInfo);
+  // Bug 1087720 (and Bug 1099296):
+  // Once all callsites have been updated to call NewChannel2() instead of NewChannel()
+  // we should have a non-null loadInfo consistently. Until then we have to brach on the
+  // loadInfo and provide default arguments to create a NewInputStreamChannel.
+  if (aLoadInfo) {
+    rv = NS_NewInputStreamChannelInternal(getter_AddRefs(channel),
+                                          aURI,
+                                          inputStream,
+                                          EmptyCString(), // aContentType
+                                          EmptyCString(), // aContentCharset
+                                          aLoadInfo);
+  }
+  else {
+    rv = NS_NewInputStreamChannel(getter_AddRefs(channel),
+                                  aURI,
+                                  inputStream,
+                                  nsContentUtils::GetSystemPrincipal(),
+                                  nsILoadInfo::SEC_NORMAL,
+                                  nsIContentPolicy::TYPE_OTHER);
+  }
   NS_ENSURE_SUCCESS(rv, GetDefaultIcon(_channel));
 
   // Now we go ahead and get our data asynchronously for the favicon.

@@ -37,7 +37,6 @@ class gfxTextRun;
 class nsIURI;
 class nsIAtom;
 class nsIObserver;
-class SRGBOverrideObserver;
 struct gfxRGBA;
 
 namespace mozilla {
@@ -170,8 +169,6 @@ enum class DeviceResetReason
 };
 
 class gfxPlatform {
-    friend class SRGBOverrideObserver;
-
 public:
     typedef mozilla::gfx::Color Color;
     typedef mozilla::gfx::DataSourceSurface DataSourceSurface;

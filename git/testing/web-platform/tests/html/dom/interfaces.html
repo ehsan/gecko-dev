@@ -13,17 +13,42 @@
 
 <!-- URLUtils* stubs -->
 <script type=text/plain class=untested>
-interface URLUtils {
-  stringifier;
-};
-interface URLUtilsReadOnly {
-  stringifier;
-};
+interface URLUtils {};
+interface URLUtilsReadOnly {};
 </script>
 <!-- DOM IDLs -->
 <script type=text/plain class=untested>
-[Constructor(DOMString type, optional EventInit eventInitDict)/*,
- Exposed=(Window,Worker)*/]
+exception DOMException {
+  const unsigned short INDEX_SIZE_ERR = 1;
+  const unsigned short DOMSTRING_SIZE_ERR = 2; // historical
+  const unsigned short HIERARCHY_REQUEST_ERR = 3;
+  const unsigned short WRONG_DOCUMENT_ERR = 4;
+  const unsigned short INVALID_CHARACTER_ERR = 5;
+  const unsigned short NO_DATA_ALLOWED_ERR = 6; // historical
+  const unsigned short NO_MODIFICATION_ALLOWED_ERR = 7;
+  const unsigned short NOT_FOUND_ERR = 8;
+  const unsigned short NOT_SUPPORTED_ERR = 9;
+  const unsigned short INUSE_ATTRIBUTE_ERR = 10;
+  const unsigned short INVALID_STATE_ERR = 11;
+  const unsigned short SYNTAX_ERR = 12;
+  const unsigned short INVALID_MODIFICATION_ERR = 13;
+  const unsigned short NAMESPACE_ERR = 14;
+  const unsigned short INVALID_ACCESS_ERR = 15;
+  const unsigned short VALIDATION_ERR = 16; // historical
+  const unsigned short TYPE_MISMATCH_ERR = 17; // historical; use JavaScript's TypeError instead
+  const unsigned short SECURITY_ERR = 18;
+  const unsigned short NETWORK_ERR = 19;
+  const unsigned short ABORT_ERR = 20;
+  const unsigned short URL_MISMATCH_ERR = 21;
+  const unsigned short QUOTA_EXCEEDED_ERR = 22;
+  const unsigned short TIMEOUT_ERR = 23;
+  const unsigned short INVALID_NODE_TYPE_ERR = 24;
+  const unsigned short DATA_CLONE_ERR = 25;
+  unsigned short code;
+};
+
+[Constructor(DOMString type, optional EventInit eventInitDict),
+ Exposed=Window,Worker]
 interface Event {
   readonly attribute DOMString type;
   readonly attribute EventTarget? target;
@@ -54,8 +79,8 @@ dictionary EventInit {
   boolean cancelable = false;
 };
 
-[Constructor(DOMString type, optional CustomEventInit eventInitDict)/*,
- Exposed=(Window,Worker)*/]
+[Constructor(DOMString type, optional CustomEventInit eventInitDict),
+ Exposed=Window,Worker]
 interface CustomEvent : Event {
   readonly attribute any detail;
 
@@ -66,7 +91,7 @@ dictionary CustomEventInit : EventInit {
   any detail = null;
 };
 
-//[Exposed=(Window,Worker)]
+[Exposed=Window,Worker]
 interface EventTarget {
   void addEventListener(DOMString type, EventListener? callback, optional boolean capture = false);
   void removeEventListener(DOMString type, EventListener? callback, optional boolean capture = false);
@@ -86,16 +111,16 @@ DocumentFragment implements NonElementParentNode;
 
 [NoInterfaceObject]
 interface ParentNode {
-  [SameObject] readonly attribute HTMLCollection children;
+  readonly attribute HTMLCollection children;
   readonly attribute Element? firstElementChild;
   readonly attribute Element? lastElementChild;
   readonly attribute unsigned long childElementCount;
 
-  [Unscopeable] void prepend((Node or DOMString)... nodes);
-  [Unscopeable] void append((Node or DOMString)... nodes);
+  void prepend((Node or DOMString)... nodes);
+  void append((Node or DOMString)... nodes);
 
-  [Unscopeable] Element? query(DOMString relativeSelectors);
-  [NewObject, Unscopeable] Elements queryAll(DOMString relativeSelectors);
+  Element? query(DOMString relativeSelectors);
+  [NewObject] Elements queryAll(DOMString relativeSelectors);
   Element? querySelector(DOMString selectors);
   [NewObject] NodeList querySelectorAll(DOMString selectors);
 };
@@ -113,10 +138,10 @@ CharacterData implements NonDocumentTypeChildNode;
 
 [NoInterfaceObject]
 interface ChildNode {
-  [Unscopeable] void before((Node or DOMString)... nodes);
-  [Unscopeable] void after((Node or DOMString)... nodes);
-  [Unscopeable] void replaceWith((Node or DOMString)... nodes);
-  [Unscopeable] void remove();
+  void before((Node or DOMString)... nodes);
+  void after((Node or DOMString)... nodes);
+  void replace((Node or DOMString)... nodes);
+  void remove();
 };
 DocumentType implements ChildNode;
 Element implements ChildNode;
@@ -130,10 +155,10 @@ CharacterData implements ChildNode;
 //  Elements queryAll(DOMString relativeSelectors);
 //};
 
+[ArrayClass]
 interface NodeList {
   getter Node? item(unsigned long index);
   readonly attribute unsigned long length;
-//  iterable<Node>;
 };
 
 interface HTMLCollection {
@@ -205,7 +230,7 @@ interface Node : EventTarget {
            attribute DOMString? textContent;
   void normalize();
 
-  [NewObject] Node cloneNode(optional boolean deep = false);
+  Node cloneNode(optional boolean deep = false);
   boolean isEqualNode(Node? node);
 
   const unsigned short DOCUMENT_POSITION_DISCONNECTED = 0x01;
@@ -251,11 +276,11 @@ interface Document : Node {
   [NewObject] Comment createComment(DOMString data);
   [NewObject] ProcessingInstruction createProcessingInstruction(DOMString target, DOMString data);
 
-  [NewObject] Node importNode(Node node, optional boolean deep = false);
+  Node importNode(Node node, optional boolean deep = false);
   Node adoptNode(Node node);
 
-  [NewObject] Attr createAttribute(DOMString localName);
-  [NewObject] Attr createAttributeNS(DOMString? namespace, DOMString name);
+  Attr createAttribute(DOMString localName);
+  Attr createAttributeNS(DOMString namespace, DOMString name);
 
   [NewObject] Event createEvent(DOMString interface);
 
@@ -308,7 +333,7 @@ interface Element : Node {
   boolean hasAttributeNS(DOMString? namespace, DOMString localName);
 
   Attr? getAttributeNode(DOMString name);
-  Attr? getAttributeNodeNS(DOMString? namespace, DOMString localName);
+  Attr? getAttributeNodeNS(DOMString namespace, DOMString localName);
   Attr? setAttributeNode(Attr attr);
   Attr? setAttributeNodeNS(Attr attr);
   Attr removeAttributeNode(Attr attr);
@@ -338,8 +363,7 @@ interface Attr {
   readonly attribute DOMString localName;
   readonly attribute DOMString name;
            attribute DOMString value;
-           attribute DOMString nodeValue; // legacy alias of .value
-           attribute DOMString textContent; // legacy alias of .value
+           attribute DOMString textContent; // alias of .value
 
   readonly attribute Element? ownerElement;
 
@@ -472,7 +496,6 @@ interface DOMTokenList {
   void remove(DOMString... tokens);
   boolean toggle(DOMString token, optional boolean force);
   stringifier;
-//  iterable<DOMString>;
 };
 
 interface DOMSettableTokenList : DOMTokenList {
@@ -3342,7 +3365,7 @@ window.onload = function() {
 		BarProp: [],
 		History: ['window.history'],
 		Location: ['window.location'],
-		PopStateEvent: ['new PopStateEvent("popstate", { data: {} })'],
+		PopStateEvent: [],
 		HashChangeEvent: [],
 		PageTransitionEvent: [],
 		BeforeUnloadEvent: [],

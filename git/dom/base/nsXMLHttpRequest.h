@@ -549,7 +549,7 @@ public:
   void DispatchProgressEvent(mozilla::DOMEventTargetHelper* aTarget,
                              const nsAString& aType,
                              bool aLengthComputable,
-                             int64_t aLoaded, int64_t aTotal);
+                             uint64_t aLoaded, uint64_t aTotal);
 
   // Dispatch the "progress" event on the XHR or XHR.upload object if we've
   // received data since the last "progress" event. Also dispatches
@@ -724,8 +724,8 @@ protected:
   uint32_t mState;
 
   nsRefPtr<nsXMLHttpRequestUpload> mUpload;
-  int64_t mUploadTransferred;
-  int64_t mUploadTotal;
+  uint64_t mUploadTransferred;
+  uint64_t mUploadTotal;
   bool mUploadLengthComputable;
   bool mUploadComplete;
   bool mProgressSinceLastProgressEvent;
@@ -744,7 +744,7 @@ protected:
   bool mWarnAboutMultipartHtml;
   bool mWarnAboutSyncHtml;
   bool mLoadLengthComputable;
-  int64_t mLoadTotal; // 0 if not known.
+  uint64_t mLoadTotal; // 0 if not known.
   // Amount of script-exposed (i.e. after undoing gzip compresion) data
   // received.
   uint64_t mDataAvailable;
@@ -755,7 +755,7 @@ protected:
   // mDataReceived except between the OnProgress that changes mLoadTransferred
   // and the corresponding OnDataAvailable (which changes mDataReceived).
   // Ordering of OnProgress and OnDataAvailable is undefined.
-  int64_t mLoadTransferred;
+  uint64_t mLoadTransferred;
   nsCOMPtr<nsITimer> mProgressNotifier;
   void HandleProgressTimerCallback();
 

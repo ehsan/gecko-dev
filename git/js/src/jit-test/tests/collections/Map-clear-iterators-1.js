@@ -2,19 +2,19 @@
 
 load(libdir + "iteration.js");
 
-var m = new Map();
-var it = m[Symbol.iterator]();
+var m = Map();
+var it = m[std_iterator]();
 m.clear();
 assertIteratorDone(it, undefined);
 
-m = new Map([["a", 1], ["b", 2], ["c", 3], ["d", 4]]);
-it = m[Symbol.iterator]();
+m = Map([["a", 1], ["b", 2], ["c", 3], ["d", 4]]);
+it = m[std_iterator]();
 assertIteratorNext(it, ["a", 1]);
 m.clear();
 assertIteratorDone(it, undefined);
 
 var log = "";
-m = new Map([["a", 1], ["b", 2], ["c", 3], ["d", 4]]);
+m = Map([["a", 1], ["b", 2], ["c", 3], ["d", 4]]);
 for (var [k, v] of m) {
     log += k + v;
     if (k == "b")

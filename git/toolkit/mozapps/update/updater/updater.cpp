@@ -98,17 +98,10 @@ void LaunchMacPostProcess(const char* aAppBundle);
 # include <linux/ioprio.h>
 # include <sys/resource.h>
 
-#if ANDROID_VERSION < 21
 // The only header file in bionic which has a function prototype for ioprio_set
 // is libc/include/sys/linux-unistd.h. However, linux-unistd.h conflicts
 // badly with unistd.h, so we declare the prototype for ioprio_set directly.
 extern "C" MOZ_EXPORT int ioprio_set(int which, int who, int ioprio);
-#else
-# include <sys/syscall.h>
-static int ioprio_set(int which, int who, int ioprio) {
-      return syscall(__NR_ioprio_set, which, who, ioprio);
-}
-#endif
 
 # define MAYBE_USE_HARD_LINKS 1
 static bool sUseHardLinks = true;
@@ -140,8 +133,10 @@ static bool sUseHardLinks = true;
 #define BZ2_CRC32TABLE_UNDECLARED
 
 #if MOZ_IS_GCC
+#if MOZ_GCC_VERSION_AT_LEAST(3, 3, 0)
 extern "C"  __attribute__((visibility("default"))) unsigned int BZ2_crc32Table[256];
 #undef BZ2_CRC32TABLE_UNDECLARED
+#endif
 #elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
 extern "C" __global unsigned int BZ2_crc32Table[256];
 #undef BZ2_CRC32TABLE_UNDECLARED
@@ -473,7 +468,7 @@ static int ensure_remove_recursive(const NS_tchar *path)
 {
   // We use lstat rather than stat here so that we can successfully remove
   // symlinks.
-  struct NS_tstat_t sInfo;
+  struct stat sInfo;
   int rv = NS_tlstat(path, &sInfo);
   if (rv) {
     // This error is benign
@@ -555,7 +550,7 @@ static FILE* ensure_open(const NS_tchar *path, const NS_tchar *flags, unsigned i
     }
     return nullptr;
   }
-  struct NS_tstat_t ss;
+  struct stat ss;
   if (NS_tstat(path, &ss) != 0 || ss.st_mode != options) {
     if (f != nullptr) {
       fclose(f);
@@ -644,7 +639,7 @@ static int ensure_copy(const NS_tchar *path, const NS_tchar *dest)
   }
   return 0;
 #else
-  struct NS_tstat_t ss;
+  struct stat ss;
   int rv = NS_tlstat(path, &ss);
   if (rv) {
     LOG(("ensure_copy: failed to read file status info: " LOG_S ", err: %d",
@@ -727,9 +722,8 @@ struct copy_recursive_skiplist {
   void append(unsigned index, const NS_tchar *path, const NS_tchar *suffix) {
     NS_tsnprintf(paths[index], MAXPATHLEN, NS_T("%s/%s"), path, suffix);
   }
-
   bool find(const NS_tchar *path) {
-    for (int i = 0; i < static_cast<int>(N); ++i) {
+    for (unsigned i = 0; i < N; ++i) {
       if (!NS_tstricmp(paths[i], path)) {
         return true;
       }
@@ -744,7 +738,7 @@ template <unsigned N>
 static int ensure_copy_recursive(const NS_tchar *path, const NS_tchar *dest,
                                  copy_recursive_skiplist<N>& skiplist)
 {
-  struct NS_tstat_t sInfo;
+  struct stat sInfo;
   int rv = NS_tlstat(path, &sInfo);
   if (rv) {
     LOG(("ensure_copy_recursive: path doesn't exist: " LOG_S ", rv: %d, err: %d",
@@ -810,7 +804,7 @@ static int rename_file(const NS_tchar *spath, const NS_tchar *dpath,
   if (rv)
     return rv;
 
-  struct NS_tstat_t spathInfo;
+  struct stat spathInfo;
   rv = NS_tstat(spath, &spathInfo);
   if (rv) {
     LOG(("rename_file: failed to read file status info: " LOG_S ", " \
@@ -999,7 +993,7 @@ RemoveFile::Prepare()
   LOG(("PREPARE REMOVEFILE " LOG_S, mFile));
 
   // Make sure that we're actually a file...
-  struct NS_tstat_t fileInfo;
+  struct stat fileInfo;
   rv = NS_tstat(mFile, &fileInfo);
   if (rv) {
     LOG(("failed to read file status info: " LOG_S ", err: %d", mFile,
@@ -1108,7 +1102,7 @@ RemoveDir::Prepare()
   LOG(("PREPARE REMOVEDIR " LOG_S "/", mDir));
 
   // Make sure that we're actually a dir.
-  struct NS_tstat_t dirInfo;
+  struct stat dirInfo;
   rv = NS_tstat(mDir, &dirInfo);
   if (rv) {
     LOG(("failed to read directory status info: " LOG_S ", err: %d", mDir,
@@ -1441,7 +1435,7 @@ PatchFile::Execute()
 
   // Rename the destination file if it exists before proceeding so it can be
   // used to restore the file to its original state if there is an error.
-  struct NS_tstat_t ss;
+  struct stat ss;
   rv = NS_tstat(mFile, &ss);
   if (rv) {
     LOG(("failed to read file status info: " LOG_S ", err: %d", mFile,

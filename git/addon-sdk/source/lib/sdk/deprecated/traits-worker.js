@@ -238,8 +238,7 @@ const WorkerSandbox = EventEmitter.compose({
     if (worker._injectInDocument) {
       let win = window.wrappedJSObject ? window.wrappedJSObject : window;
       Object.defineProperty(win, "addon", {
-          value: content.self,
-          configurable: true
+          value: content.self
         }
       );
     }

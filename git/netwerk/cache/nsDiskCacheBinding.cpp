@@ -124,10 +124,13 @@ nsDiskCacheBinding::EnsureStreamIO()
 
 const PLDHashTableOps nsDiskCacheBindery::ops =
 {
+    PL_DHashAllocTable,
+    PL_DHashFreeTable,
     HashKey,
     MatchEntry,
     MoveEntry,
-    ClearEntry
+    ClearEntry,
+    PL_DHashFinalizeStub
 };
 
 
@@ -147,7 +150,7 @@ nsresult
 nsDiskCacheBindery::Init()
 {
     nsresult rv = NS_OK;
-    PL_DHashTableInit(&table, &ops, sizeof(HashTableEntry), 0);
+    PL_DHashTableInit(&table, &ops, nullptr, sizeof(HashTableEntry), 0);
     initialized = true;
 
     return rv;
@@ -201,13 +204,13 @@ nsDiskCacheBindery::FindActiveBinding(uint32_t  hashNumber)
     // find hash entry for key
     HashTableEntry * hashEntry;
     hashEntry =
-      (HashTableEntry *) PL_DHashTableSearch(&table,
+      (HashTableEntry *) PL_DHashTableLookup(&table,
                                              (void*)(uintptr_t) hashNumber);
-    if (!hashEntry) return nullptr;
+    if (PL_DHASH_ENTRY_IS_FREE(hashEntry)) return nullptr;
 
     // walk list looking for active entry
     NS_ASSERTION(hashEntry->mBinding, "hash entry left with no binding");
-    nsDiskCacheBinding * binding = hashEntry->mBinding;
+    nsDiskCacheBinding * binding = hashEntry->mBinding;    
     while (binding->mCacheEntry->IsDoomed()) {
         binding = (nsDiskCacheBinding *)PR_NEXT_LINK(binding);
         if (binding == hashEntry->mBinding)  return nullptr;
@@ -236,8 +239,7 @@ nsDiskCacheBindery::AddBinding(nsDiskCacheBinding * binding)
     HashTableEntry * hashEntry;
     hashEntry = (HashTableEntry *)
       PL_DHashTableAdd(&table,
-                       (void *)(uintptr_t) binding->mRecord.HashNumber(),
-                       fallible);
+                       (void *)(uintptr_t) binding->mRecord.HashNumber());
     if (!hashEntry) return NS_ERROR_OUT_OF_MEMORY;
     
     if (hashEntry->mBinding == nullptr) {
@@ -299,9 +301,9 @@ nsDiskCacheBindery::RemoveBinding(nsDiskCacheBinding * binding)
     HashTableEntry * hashEntry;
     void           * key = (void *)(uintptr_t)binding->mRecord.HashNumber();
 
-    hashEntry = (HashTableEntry*) PL_DHashTableSearch(&table,
+    hashEntry = (HashTableEntry*) PL_DHashTableLookup(&table,
                                                       (void*)(uintptr_t) key);
-    if (!hashEntry) {
+    if (!PL_DHASH_ENTRY_IS_BUSY(hashEntry)) {
         NS_WARNING("### disk cache: binding not in hashtable!");
         return;
     }

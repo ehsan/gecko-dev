@@ -50,16 +50,11 @@ public:
   virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
     const MOZ_MUST_OVERRIDE MOZ_OVERRIDE;
 
-  // Variants of RulesMatching method above that is specific to this
+  // Variant of RulesMatching method above that is specific to this
   // rule processor.
   void ElementRulesMatching(nsPresContext* aPresContext,
                             mozilla::dom::Element* aElement,
                             nsRuleWalker* aRuleWalker);
-  // aPseudoElement here is the content node for the pseudo-element, not
-  // its corresponding real element.
-  void PseudoElementRulesMatching(mozilla::dom::Element* aPseudoElement,
-                                  nsCSSPseudoElements::Type aPseudoType,
-                                  nsRuleWalker* aRuleWalker);
 
   void CacheStyleAttr(const nsAString& aSerialized, MiscContainer* aValue);
   void EvictStyleAttr(const nsAString& aSerialized, MiscContainer* aValue);

@@ -55,7 +55,8 @@ callback EventHandlerNonNull = any (Event event);
 typedef EventHandlerNonNull? EventHandler;
 </script>
 <script type=text/plain>
-/*[Exposed=(Window,Worker)]*/
+[NoInterfaceObject/*,
+ Exposed=(Window,Worker)*/]
 interface XMLHttpRequestEventTarget : EventTarget {
   // event handlers
   attribute EventHandler onloadstart;

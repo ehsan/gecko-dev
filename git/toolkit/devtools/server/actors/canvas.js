@@ -229,10 +229,6 @@ let FrameSnapshotFront = protocol.FrontClass(FrameSnapshotActor, {
  * made when drawing frame inside an animation loop.
  */
 let CanvasActor = exports.CanvasActor = protocol.ActorClass({
-  // Reset for each recording, boolean indicating whether or not
-  // any draw calls were called for a recording.
-  _animationContainsDrawCall: false,
-
   typeName: "canvas",
   initialize: function(conn, tabActor) {
     protocol.Actor.prototype.initialize.call(this, conn);
@@ -291,16 +287,6 @@ let CanvasActor = exports.CanvasActor = protocol.ActorClass({
   }),
 
   /**
-   * Returns whether or not the CanvasActor is recording an animation.
-   * Used in tests.
-   */
-  isRecording: method(function() {
-    return !!this._callWatcher.isRecording();
-  }, {
-    response: { recording: RetVal("boolean") }
-  }),
-
-  /**
    * Records a snapshot of all the calls made during the next animation frame.
    * The animation should be implemented via the de-facto requestAnimationFrame
    * utility, not inside a `setInterval` or recursive `setTimeout`.
@@ -314,7 +300,6 @@ let CanvasActor = exports.CanvasActor = protocol.ActorClass({
       return this._currentAnimationFrameSnapshot.promise;
     }
 
-    this._recordingContainsDrawCall = false;
     this._callWatcher.eraseRecording();
     this._callWatcher.resumeRecording();
 
@@ -355,11 +340,7 @@ let CanvasActor = exports.CanvasActor = protocol.ActorClass({
   _handleAnimationFrame: function(functionCall) {
     if (!this._animationStarted) {
       this._handleAnimationFrameBegin();
-    }
-    // Check to see if draw calls occurred yet, as it could be future frames,
-    // like in the scenario where requestAnimationFrame is called to trigger an animation,
-    // and rAF is at the beginning of the animate loop.
-    else if (this._animationContainsDrawCall) {
+    } else {
       this._handleAnimationFrameEnd(functionCall);
     }
   },
@@ -381,7 +362,6 @@ let CanvasActor = exports.CanvasActor = protocol.ActorClass({
     // previously recorded calls.
     let functionCalls = this._callWatcher.pauseRecording();
     this._callWatcher.eraseRecording();
-    this._animationContainsDrawCall = false;
 
     // Since the animation frame finished, get a hold of the (already retrieved)
     // canvas pixels to conveniently create a screenshot of the final rendering.
@@ -429,8 +409,6 @@ let CanvasActor = exports.CanvasActor = protocol.ActorClass({
     // To keep things fast, generate images of small and fixed dimensions.
     let dimensions = CanvasFront.THUMBNAIL_SIZE;
     let thumbnail;
-
-    this._animationContainsDrawCall = true;
 
     // Create a thumbnail on every draw call on the canvas context, to augment
     // the respective function call actor with this additional data.

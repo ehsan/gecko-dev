@@ -363,23 +363,21 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     decorations.MoveTo(aLists);
   }
 
-  // We only care about mozpasspointerevents if we're doing hit-testing
-  // related things.
-  bool passPointerEventsToChildren =
-    (aBuilder->IsForEventDelivery() || aBuilder->IsBuildingLayerEventRegions())
-    ? PassPointerEventsToChildren() : false;
-
-  // If mozpasspointerevents is set, then we should allow subdocument content
-  // to handle events even if we're pointer-events:none.
-  if (aBuilder->IsForEventDelivery() && pointerEventsNone && !passPointerEventsToChildren) {
-    return;
+  bool passPointerEventsToChildren = false;
+  if (aBuilder->IsForEventDelivery()) {
+    passPointerEventsToChildren = PassPointerEventsToChildren();
+    // If mozpasspointerevents is set, then we should allow subdocument content
+    // to handle events even if we're pointer-events:none.
+    if (pointerEventsNone && !passPointerEventsToChildren) {
+      return;
+    }
   }
 
   // If we're passing pointer events to children then we have to descend into
   // subdocuments no matter what, to determine which parts are transparent for
-  // hit-testing or event regions.
-  bool needToDescend = aBuilder->GetDescendIntoSubdocuments() || passPointerEventsToChildren;
-  if (!mInnerView || !needToDescend) {
+  // elementFromPoint.
+  if (!mInnerView ||
+      (!aBuilder->GetDescendIntoSubdocuments() && !passPointerEventsToChildren)) {
     return;
   }
 
@@ -442,8 +440,7 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       }
     }
 
-    aBuilder->EnterPresShell(subdocRootFrame,
-                             pointerEventsNone && !passPointerEventsToChildren);
+    aBuilder->EnterPresShell(subdocRootFrame);
   } else {
     dirty = aDirtyRect;
   }
@@ -487,7 +484,8 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
               ? nsLayoutUtils::FindOrCreateIDFor(rootScrollFrame->GetContent())
               : aBuilder->GetCurrentScrollParentId());
 
-      aBuilder->SetAncestorHasApzAwareEventHandler(false);
+      aBuilder->SetAncestorHasTouchEventHandler(false);
+      aBuilder->SetAncestorHasScrollEventHandler(false);
       subdocRootFrame->
         BuildDisplayListForStackingContext(aBuilder, dirty, &childItems);
     }
@@ -760,6 +758,7 @@ nsSubDocumentFrame::Reflow(nsPresContext*           aPresContext,
 {
   DO_GLOBAL_REFLOW_COUNT("nsSubDocumentFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
+  // printf("OuterFrame::Reflow %X (%d,%d) \n", this, aReflowState.AvailableWidth(), aReflowState.AvailableHeight());
   NS_FRAME_TRACE(NS_FRAME_TRACE_CALLS,
      ("enter nsSubDocumentFrame::Reflow: maxSize=%d,%d",
       aReflowState.AvailableWidth(), aReflowState.AvailableHeight()));
@@ -814,6 +813,9 @@ nsSubDocumentFrame::Reflow(nsPresContext*           aPresContext,
     PresContext()->PresShell()->PostReflowCallback(this);
     mPostedReflowCallback = true;
   }
+
+  // printf("OuterFrame::Reflow DONE %X (%d,%d)\n", this,
+  //        aDesiredSize.Width(), aDesiredSize.Height());
 
   NS_FRAME_TRACE(NS_FRAME_TRACE_CALLS,
      ("exit nsSubDocumentFrame::Reflow: size=%d,%d status=%x",

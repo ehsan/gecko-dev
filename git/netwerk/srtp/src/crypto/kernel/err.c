@@ -136,7 +136,6 @@ err_report(int priority, char *format, ...) {
       }
 
       vsyslog(syslogpri, format, args);
-    }
 #endif
     va_end(args);
   }

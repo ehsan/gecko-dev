@@ -39,7 +39,6 @@
 #include "libEGL/Display.h"
 #include "libEGL/Surface.h"
 
-#include "common/features.h"
 #include "common/utilities.h"
 
 #include "third_party/trace_event/trace_event.h"
@@ -48,6 +47,14 @@
 
 // Can also be enabled by defining FORCE_REF_RAST in the project's predefined macros
 #define REF_RAST 0
+
+// The "Debug This Pixel..." feature in PIX often fails when using the
+// D3D9Ex interfaces.  In order to get debug pixel to work on a Vista/Win 7
+// machine, define "ANGLE_ENABLE_D3D9EX=0" in your project file.
+#if !defined(ANGLE_ENABLE_D3D9EX)
+// Enables use of the IDirect3D9Ex interface, when available
+#define ANGLE_ENABLE_D3D9EX 1
+#endif // !defined(ANGLE_ENABLE_D3D9EX)
 
 #if !defined(ANGLE_COMPILE_OPTIMIZATION_LEVEL)
 #define ANGLE_COMPILE_OPTIMIZATION_LEVEL D3DCOMPILE_OPTIMIZATION_LEVEL3
@@ -210,7 +217,7 @@ EGLint Renderer9::initialize()
     // Use Direct3D9Ex if available. Among other things, this version is less
     // inclined to report a lost context, for example when the user switches
     // desktop. Direct3D9Ex is available in Windows Vista and later if suitable drivers are available.
-    if (ANGLE_D3D9EX == ANGLE_ENABLED && Direct3DCreate9ExPtr && SUCCEEDED(Direct3DCreate9ExPtr(D3D_SDK_VERSION, &mD3d9Ex)))
+    if (ANGLE_ENABLE_D3D9EX && Direct3DCreate9ExPtr && SUCCEEDED(Direct3DCreate9ExPtr(D3D_SDK_VERSION, &mD3d9Ex)))
     {
         TRACE_EVENT0("gpu", "D3d9Ex_QueryInterface");
         ASSERT(mD3d9Ex);
@@ -399,11 +406,8 @@ void Renderer9::initializeDevice()
 
     mSceneStarted = false;
 
-    ASSERT(!mBlit);
+    ASSERT(!mBlit && !mVertexDataManager && !mIndexDataManager);
     mBlit = new Blit9(this);
-    mBlit->initialize();
-
-    ASSERT(!mVertexDataManager && !mIndexDataManager);
     mVertexDataManager = new rx::VertexDataManager(this);
     mIndexDataManager = new rx::IndexDataManager(this);
 }
@@ -498,67 +502,44 @@ void Renderer9::endScene()
     }
 }
 
-gl::Error Renderer9::sync(bool block)
+void Renderer9::sync(bool block)
 {
-    IDirect3DQuery9* query = NULL;
-    gl::Error error = allocateEventQuery(&query);
-    if (error.isError())
+    HRESULT result;
+
+    IDirect3DQuery9* query = allocateEventQuery();
+    if (!query)
     {
-        return error;
+        return;
     }
 
-    HRESULT result = query->Issue(D3DISSUE_END);
-    if (FAILED(result))
+    result = query->Issue(D3DISSUE_END);
+    ASSERT(SUCCEEDED(result));
+
+    do
     {
-        ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY);
-        return gl::Error(GL_OUT_OF_MEMORY, "Failed to issue event query, result: 0x%X.", result);
-    }
-
-    // Grab the query data once in blocking and non-blocking case
-    result = query->GetData(NULL, 0, D3DGETDATA_FLUSH);
-    if (FAILED(result))
-    {
-        if (d3d9::isDeviceLostError(result))
-        {
-            notifyDeviceLost();
-        }
-
-        freeEventQuery(query);
-        return gl::Error(GL_OUT_OF_MEMORY, "Failed to get event query data, result: 0x%X.", result);
-    }
-
-    // If blocking, loop until the query completes
-    while (block && result == S_FALSE)
-    {
-        // Keep polling, but allow other threads to do something useful first
-        Sleep(0);
-
         result = query->GetData(NULL, 0, D3DGETDATA_FLUSH);
 
-        // explicitly check for device loss
-        // some drivers seem to return S_FALSE even if the device is lost
-        // instead of D3DERR_DEVICELOST like they should
-        if (result == S_FALSE && testDeviceLost(false))
+        if(block && result == S_FALSE)
         {
-            result = D3DERR_DEVICELOST;
-        }
-
-        if (FAILED(result))
-        {
-            if (d3d9::isDeviceLostError(result))
+            // Keep polling, but allow other threads to do something useful first
+            Sleep(0);
+            // explicitly check for device loss
+            // some drivers seem to return S_FALSE even if the device is lost
+            // instead of D3DERR_DEVICELOST like they should
+            if (testDeviceLost(false))
             {
-                notifyDeviceLost();
+                result = D3DERR_DEVICELOST;
             }
-
-            freeEventQuery(query);
-            return gl::Error(GL_OUT_OF_MEMORY, "Failed to get event query data, result: 0x%X.", result);
         }
-
     }
+    while(block && result == S_FALSE);
 
     freeEventQuery(query);
 
-    return gl::Error(GL_NO_ERROR);
+    if (d3d9::isDeviceLostError(result))
+    {
+        notifyDeviceLost();
+    }
 }
 
 SwapChain *Renderer9::createSwapChain(rx::NativeWindow nativeWindow, HANDLE shareHandle, GLenum backBufferFormat, GLenum depthBufferFormat)
@@ -566,24 +547,23 @@ SwapChain *Renderer9::createSwapChain(rx::NativeWindow nativeWindow, HANDLE shar
     return new rx::SwapChain9(this, nativeWindow, shareHandle, backBufferFormat, depthBufferFormat);
 }
 
-gl::Error Renderer9::allocateEventQuery(IDirect3DQuery9 **outQuery)
+IDirect3DQuery9* Renderer9::allocateEventQuery()
 {
+    IDirect3DQuery9 *query = NULL;
+
     if (mEventQueryPool.empty())
     {
-        HRESULT result = mDevice->CreateQuery(D3DQUERYTYPE_EVENT, outQuery);
-        if (FAILED(result))
-        {
-            ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY);
-            return gl::Error(GL_OUT_OF_MEMORY, "Failed to allocate event query, result: 0x%X.", result);
-        }
+        HRESULT result = mDevice->CreateQuery(D3DQUERYTYPE_EVENT, &query);
+        UNUSED_ASSERTION_VARIABLE(result);
+        ASSERT(SUCCEEDED(result));
     }
     else
     {
-        *outQuery = mEventQueryPool.back();
+        query = mEventQueryPool.back();
         mEventQueryPool.pop_back();
     }
 
-    return gl::Error(GL_NO_ERROR);
+    return query;
 }
 
 void Renderer9::freeEventQuery(IDirect3DQuery9* query)
@@ -645,16 +625,9 @@ QueryImpl *Renderer9::createQuery(GLenum type)
     return new Query9(this, type);
 }
 
-FenceNVImpl *Renderer9::createFenceNV()
+FenceImpl *Renderer9::createFence()
 {
-    return new FenceNV9(this);
-}
-
-FenceSyncImpl *Renderer9::createFenceSync()
-{
-    // Renderer9 doesn't support ES 3.0 and its sync objects.
-    UNREACHABLE();
-    return NULL;
+    return new Fence9(this);
 }
 
 TransformFeedbackImpl* Renderer9::createTransformFeedback()
@@ -683,7 +656,7 @@ gl::Error Renderer9::generateSwizzle(gl::Texture *texture)
     return gl::Error(GL_INVALID_OPERATION);
 }
 
-gl::Error Renderer9::setSamplerState(gl::SamplerType type, int index, gl::Texture *texture, const gl::SamplerState &samplerState)
+gl::Error Renderer9::setSamplerState(gl::SamplerType type, int index, const gl::SamplerState &samplerState)
 {
     std::vector<bool> &forceSetSamplers = (type == gl::SAMPLER_PIXEL) ? mForceSetPixelSamplerStates : mForceSetVertexSamplerStates;
     std::vector<gl::SamplerState> &appliedSamplers = (type == gl::SAMPLER_PIXEL) ? mCurPixelSamplerStates: mCurVertexSamplerStates;
@@ -693,10 +666,6 @@ gl::Error Renderer9::setSamplerState(gl::SamplerType type, int index, gl::Textur
         int d3dSamplerOffset = (type == gl::SAMPLER_PIXEL) ? 0 : D3DVERTEXTEXTURESAMPLER0;
         int d3dSampler = index + d3dSamplerOffset;
 
-        // Make sure to add the level offset for our tiny compressed texture workaround
-        TextureD3D *textureD3D = TextureD3D::makeTextureD3D(texture->getImplementation());
-        DWORD baseLevel = samplerState.baseLevel + textureD3D->getNativeTexture()->getTopLevel();
-
         mDevice->SetSamplerState(d3dSampler, D3DSAMP_ADDRESSU, gl_d3d9::ConvertTextureWrap(samplerState.wrapS));
         mDevice->SetSamplerState(d3dSampler, D3DSAMP_ADDRESSV, gl_d3d9::ConvertTextureWrap(samplerState.wrapT));
 
@@ -705,7 +674,7 @@ gl::Error Renderer9::setSamplerState(gl::SamplerType type, int index, gl::Textur
         gl_d3d9::ConvertMinFilter(samplerState.minFilter, &d3dMinFilter, &d3dMipFilter, samplerState.maxAnisotropy);
         mDevice->SetSamplerState(d3dSampler, D3DSAMP_MINFILTER, d3dMinFilter);
         mDevice->SetSamplerState(d3dSampler, D3DSAMP_MIPFILTER, d3dMipFilter);
-        mDevice->SetSamplerState(d3dSampler, D3DSAMP_MAXMIPLEVEL, baseLevel);
+        mDevice->SetSamplerState(d3dSampler, D3DSAMP_MAXMIPLEVEL, samplerState.baseLevel);
         if (getRendererExtensions().textureFilterAnisotropic)
         {
             mDevice->SetSamplerState(d3dSampler, D3DSAMP_MAXANISOTROPY, (DWORD)samplerState.maxAnisotropy);
@@ -736,12 +705,7 @@ gl::Error Renderer9::setTexture(gl::SamplerType type, int index, gl::Texture *te
         if (texStorage)
         {
             TextureStorage9 *storage9 = TextureStorage9::makeTextureStorage9(texStorage);
-
-            gl::Error error = storage9->getBaseTexture(&d3dTexture);
-            if (error.isError())
-            {
-                return error;
-            }
+            d3dTexture = storage9->getBaseTexture();
         }
         // If we get NULL back from getBaseTexture here, something went wrong
         // in the texture class and we're unexpectedly missing the d3d texture
@@ -1208,23 +1172,28 @@ gl::Error Renderer9::applyRenderTarget(gl::Framebuffer *framebuffer)
     {
         attachment = getNullColorbuffer(framebuffer->getDepthbuffer());
     }
-    ASSERT(attachment);
+    if (!attachment)
+    {
+        return gl::Error(GL_OUT_OF_MEMORY, "Unable to locate renderbuffer for FBO.");
+    }
 
     bool renderTargetChanged = false;
     unsigned int renderTargetSerial = GetAttachmentSerial(attachment);
     if (renderTargetSerial != mAppliedRenderTargetSerial)
     {
         // Apply the render target on the device
-        RenderTarget9 *renderTarget = NULL;
-        gl::Error error = d3d9::GetAttachmentRenderTarget(attachment, &renderTarget);
-        if (error.isError())
-        {
-            return error;
-        }
-        ASSERT(renderTarget);
+        IDirect3DSurface9 *renderTargetSurface = NULL;
 
-        IDirect3DSurface9 *renderTargetSurface = renderTarget->getSurface();
-        ASSERT(renderTargetSurface);
+        RenderTarget9 *renderTarget = d3d9::GetAttachmentRenderTarget(attachment);
+        if (renderTarget)
+        {
+            renderTargetSurface = renderTarget->getSurface();
+        }
+
+        if (!renderTargetSurface)
+        {
+            return gl::Error(GL_OUT_OF_MEMORY, "Internal render target pointer unexpectedly null.");
+        }
 
         mDevice->SetRenderTarget(0, renderTargetSurface);
         SafeRelease(renderTargetSurface);
@@ -1256,16 +1225,18 @@ gl::Error Renderer9::applyRenderTarget(gl::Framebuffer *framebuffer)
         // Apply the depth stencil on the device
         if (depthStencil)
         {
-            RenderTarget9 *depthStencilRenderTarget = NULL;
-            gl::Error error = d3d9::GetAttachmentRenderTarget(depthStencil, &depthStencilRenderTarget);
-            if (error.isError())
-            {
-                return error;
-            }
-            ASSERT(depthStencilRenderTarget);
+            IDirect3DSurface9 *depthStencilSurface = NULL;
+            rx::RenderTarget9 *depthStencilRenderTarget = d3d9::GetAttachmentRenderTarget(depthStencil);
 
-            IDirect3DSurface9 *depthStencilSurface = depthStencilRenderTarget->getSurface();
-            ASSERT(depthStencilSurface);
+            if (depthStencilRenderTarget)
+            {
+                depthStencilSurface = depthStencilRenderTarget->getSurface();
+            }
+
+            if (!depthStencilSurface)
+            {
+                return gl::Error(GL_OUT_OF_MEMORY, "Internal depth stencil pointer unexpectedly null.");
+            }
 
             mDevice->SetDepthStencilSurface(depthStencilSurface);
             SafeRelease(depthStencilSurface);
@@ -1422,15 +1393,10 @@ gl::Error Renderer9::drawLineLoop(GLsizei count, GLenum type, const GLvoid *indi
     // Get the raw indices for an indexed draw
     if (type != GL_NONE && elementArrayBuffer)
     {
-        BufferD3D *storage = BufferD3D::makeFromBuffer(elementArrayBuffer);
+        gl::Buffer *indexBuffer = elementArrayBuffer;
+        BufferImpl *storage = indexBuffer->getImplementation();
         intptr_t offset = reinterpret_cast<intptr_t>(indices);
-        const uint8_t *bufferData = NULL;
-        gl::Error error = storage->getData(&bufferData);
-        if (error.isError())
-        {
-            return error;
-        }
-        indices = bufferData + offset;
+        indices = static_cast<const GLubyte*>(storage->getData()) + offset;
     }
 
     unsigned int startIndex = 0;
@@ -1624,17 +1590,9 @@ gl::Error Renderer9::drawIndexedPoints(GLsizei count, GLenum type, const GLvoid 
 
     if (elementArrayBuffer)
     {
-        BufferD3D *storage = BufferD3D::makeFromBuffer(elementArrayBuffer);
+        BufferImpl *storage = elementArrayBuffer->getImplementation();
         intptr_t offset = reinterpret_cast<intptr_t>(indices);
-
-        const uint8_t *bufferData = NULL;
-        gl::Error error = storage->getData(&bufferData);
-        if (error.isError())
-        {
-            return error;
-        }
-
-        indices = bufferData + offset;
+        indices = static_cast<const GLubyte*>(storage->getData()) + offset;
     }
 
     switch (type)
@@ -1763,7 +1721,7 @@ gl::Error Renderer9::applyShaders(gl::ProgramBinary *programBinary, const gl::Ve
     unsigned int programSerial = programBinary->getSerial();
     if (programSerial != mAppliedProgramSerial)
     {
-        programD3D->dirtyAllUniforms();
+        programBinary->dirtyAllUniforms();
         mDxUniformsDirty = true;
         mAppliedProgramSerial = programSerial;
     }
@@ -2292,7 +2250,7 @@ bool Renderer9::isRemovedDeviceResettable() const
 {
     bool success = false;
 
-#if ANGLE_D3D9EX == ANGLE_ENABLED
+#ifdef ANGLE_ENABLE_D3D9EX
     IDirect3D9Ex *d3d9Ex = NULL;
     typedef HRESULT (WINAPI *Direct3DCreate9ExFunc)(UINT, IDirect3D9Ex**);
     Direct3DCreate9ExFunc Direct3DCreate9ExPtr = reinterpret_cast<Direct3DCreate9ExFunc>(GetProcAddress(mD3d9Module, "Direct3DCreate9Ex"));
@@ -2470,33 +2428,34 @@ gl::Error Renderer9::blitRect(gl::Framebuffer *readFramebuffer, const gl::Rectan
     if (blitRenderTarget)
     {
         gl::FramebufferAttachment *readBuffer = readFramebuffer->getColorbuffer(0);
-        ASSERT(readBuffer);
-
-        RenderTarget9 *readRenderTarget = NULL;
-        gl::Error error = d3d9::GetAttachmentRenderTarget(readBuffer, &readRenderTarget);
-        if (error.isError())
-        {
-            return error;
-        }
-        ASSERT(readRenderTarget);
-
         gl::FramebufferAttachment *drawBuffer = drawFramebuffer->getColorbuffer(0);
-        ASSERT(drawBuffer);
-
+        RenderTarget9 *readRenderTarget = NULL;
         RenderTarget9 *drawRenderTarget = NULL;
-        error = d3d9::GetAttachmentRenderTarget(drawBuffer, &drawRenderTarget);
-        if (error.isError())
+        IDirect3DSurface9* readSurface = NULL;
+        IDirect3DSurface9* drawSurface = NULL;
+
+        if (readBuffer)
         {
-            return error;
+            readRenderTarget = d3d9::GetAttachmentRenderTarget(readBuffer);
         }
-        ASSERT(drawRenderTarget);
+        if (drawBuffer)
+        {
+            drawRenderTarget = d3d9::GetAttachmentRenderTarget(drawBuffer);
+        }
 
-        // The getSurface calls do an AddRef so save them until after no errors are possible
-        IDirect3DSurface9* readSurface = readRenderTarget->getSurface();
-        ASSERT(readSurface);
+        if (readRenderTarget)
+        {
+            readSurface = readRenderTarget->getSurface();
+        }
+        if (drawRenderTarget)
+        {
+            drawSurface = drawRenderTarget->getSurface();
+        }
 
-        IDirect3DSurface9* drawSurface = drawRenderTarget->getSurface();
-        ASSERT(drawSurface);
+        if (!readSurface || !drawSurface)
+        {
+            return gl::Error(GL_OUT_OF_MEMORY, "Failed to retrieve the internal render targets for the blit framebuffers.");
+        }
 
         gl::Extents srcSize(readRenderTarget->getWidth(), readRenderTarget->getHeight(), 1);
         gl::Extents dstSize(drawRenderTarget->getWidth(), drawRenderTarget->getHeight(), 1);
@@ -2596,33 +2555,34 @@ gl::Error Renderer9::blitRect(gl::Framebuffer *readFramebuffer, const gl::Rectan
     if (blitDepth || blitStencil)
     {
         gl::FramebufferAttachment *readBuffer = readFramebuffer->getDepthOrStencilbuffer();
-        ASSERT(readBuffer);
-
-        RenderTarget9 *readDepthStencil = NULL;
-        gl::Error error = d3d9::GetAttachmentRenderTarget(readBuffer, &readDepthStencil);
-        if (error.isError())
-        {
-            return error;
-        }
-        ASSERT(readDepthStencil);
-
         gl::FramebufferAttachment *drawBuffer = drawFramebuffer->getDepthOrStencilbuffer();
-        ASSERT(drawBuffer);
-
+        RenderTarget9 *readDepthStencil = NULL;
         RenderTarget9 *drawDepthStencil = NULL;
-        error = d3d9::GetAttachmentRenderTarget(drawBuffer, &drawDepthStencil);
-        if (error.isError())
+        IDirect3DSurface9* readSurface = NULL;
+        IDirect3DSurface9* drawSurface = NULL;
+
+        if (readBuffer)
         {
-            return error;
+            readDepthStencil = d3d9::GetAttachmentRenderTarget(readBuffer);
         }
-        ASSERT(drawDepthStencil);
+        if (drawBuffer)
+        {
+            drawDepthStencil = d3d9::GetAttachmentRenderTarget(drawBuffer);
+        }
 
-        // The getSurface calls do an AddRef so save them until after no errors are possible
-        IDirect3DSurface9* readSurface = readDepthStencil->getSurface();
-        ASSERT(readDepthStencil);
+        if (readDepthStencil)
+        {
+            readSurface = readDepthStencil->getSurface();
+        }
+        if (drawDepthStencil)
+        {
+            drawSurface = drawDepthStencil->getSurface();
+        }
 
-        IDirect3DSurface9* drawSurface = drawDepthStencil->getSurface();
-        ASSERT(drawDepthStencil);
+        if (!readSurface || !drawSurface)
+        {
+            return gl::Error(GL_OUT_OF_MEMORY, "Failed to retrieve the internal render targets for the blit framebuffers.");
+        }
 
         HRESULT result = mDevice->StretchRect(readSurface, NULL, drawSurface, NULL, D3DTEXF_NONE);
 
@@ -2643,19 +2603,25 @@ gl::Error Renderer9::readPixels(gl::Framebuffer *framebuffer, GLint x, GLint y, 
 {
     ASSERT(pack.pixelBuffer.get() == NULL);
 
-    gl::FramebufferAttachment *colorbuffer = framebuffer->getColorbuffer(0);
-    ASSERT(colorbuffer);
-
     RenderTarget9 *renderTarget = NULL;
-    gl::Error error = d3d9::GetAttachmentRenderTarget(colorbuffer, &renderTarget);
-    if (error.isError())
-    {
-        return error;
-    }
-    ASSERT(renderTarget);
+    IDirect3DSurface9 *surface = NULL;
+    gl::FramebufferAttachment *colorbuffer = framebuffer->getColorbuffer(0);
 
-    IDirect3DSurface9 *surface = renderTarget->getSurface();
-    ASSERT(surface);
+    if (colorbuffer)
+    {
+        renderTarget = d3d9::GetAttachmentRenderTarget(colorbuffer);
+    }
+
+    if (renderTarget)
+    {
+        surface = renderTarget->getSurface();
+    }
+
+    if (!surface)
+    {
+        // context must be lost
+        return gl::Error(GL_NO_ERROR);
+    }
 
     D3DSURFACE_DESC desc;
     surface->GetDesc(&desc);
@@ -2946,8 +2912,7 @@ gl::Error Renderer9::compileToExecutable(gl::InfoLog &infoLog, const std::string
     configs.push_back(CompileConfig(flags | D3DCOMPILE_PREFER_FLOW_CONTROL, "prefer flow control"));
 
     ID3DBlob *binary = NULL;
-    std::string debugInfo;
-    gl::Error error = mCompiler.compileToBinary(infoLog, shaderHLSL, profile, configs, NULL, &binary, &debugInfo);
+    gl::Error error = mCompiler.compileToBinary(infoLog, shaderHLSL, profile, configs, &binary);
     if (error.isError())
     {
         return error;
@@ -2963,16 +2928,10 @@ gl::Error Renderer9::compileToExecutable(gl::InfoLog &infoLog, const std::string
 
     error = loadExecutable(binary->GetBufferPointer(), binary->GetBufferSize(), type,
                            transformFeedbackVaryings, separatedOutputBuffers, outExectuable);
-
     SafeRelease(binary);
     if (error.isError())
     {
         return error;
-    }
-
-    if (!debugInfo.empty())
-    {
-        (*outExectuable)->appendDebugInfo(debugInfo);
     }
 
     return gl::Error(GL_NO_ERROR);
@@ -3040,11 +2999,11 @@ Image *Renderer9::createImage()
     return new Image9();
 }
 
-gl::Error Renderer9::generateMipmap(Image *dest, Image *src)
+void Renderer9::generateMipmap(Image *dest, Image *src)
 {
     Image9 *src9 = Image9::makeImage9(src);
     Image9 *dst9 = Image9::makeImage9(dest);
-    return Image9::generateMipmap(dst9, src9);
+    Image9::generateMipmap(dst9, src9);
 }
 
 TextureStorage *Renderer9::createTextureStorage2D(SwapChain *swapChain)

@@ -29,7 +29,7 @@ class InternalHeaders MOZ_FINAL
 {
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(InternalHeaders)
 
-public:
+private:
   struct Entry
   {
     Entry(const nsACString& aName, const nsACString& aValue)
@@ -43,7 +43,6 @@ public:
     nsCString mValue;
   };
 
-private:
   HeadersGuardEnum mGuard;
   nsTArray<Entry> mList;
 
@@ -86,15 +85,11 @@ public:
 
   static already_AddRefed<InternalHeaders>
   CORSHeaders(InternalHeaders* aHeaders);
-
-  void
-  GetEntries(nsTArray<InternalHeaders::Entry>& aEntries) const;
-
-  void
-  GetUnsafeHeaders(nsTArray<nsCString>& aNames) const;
 private:
   virtual ~InternalHeaders();
 
+  static bool IsSimpleHeader(const nsACString& aName,
+                             const nsACString& aValue);
   static bool IsInvalidName(const nsACString& aName, ErrorResult& aRv);
   static bool IsInvalidValue(const nsACString& aValue, ErrorResult& aRv);
   bool IsImmutable(ErrorResult& aRv) const;
@@ -121,9 +116,6 @@ private:
            IsForbiddenRequestNoCorsHeader(aName, aValue) ||
            IsForbiddenResponseHeader(aName);
   }
-
-  static bool IsSimpleHeader(const nsACString& aName,
-                             const nsACString& aValue);
 };
 
 } // namespace dom

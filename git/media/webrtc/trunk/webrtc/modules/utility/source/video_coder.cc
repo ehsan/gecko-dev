@@ -13,7 +13,10 @@
 #include "webrtc/modules/utility/source/video_coder.h"
 
 namespace webrtc {
-VideoCoder::VideoCoder() : _vcm(VideoCodingModule::Create()), _decodedVideo(0) {
+VideoCoder::VideoCoder(uint32_t instanceID)
+    : _vcm(VideoCodingModule::Create(instanceID)),
+      _decodedVideo(0)
+{
     _vcm->InitializeSender();
     _vcm->InitializeReceiver();
 

@@ -70,12 +70,10 @@ add_task(function* () {
     info("Got " + event + " event. Waiting for search query to complete");
     yield inspector.searchSuggestions._lastQuery;
 
-    info(inspector.selection.nodeFront.id + " is selected with text " +
+    info(inspector.selection.node.id + " is selected with text " +
          searchBox.value);
-    let nodeFront = yield getNodeFront("#" + id, inspector);
-    is(inspector.selection.nodeFront, nodeFront,
+    is(inspector.selection.node, content.document.getElementById(id),
        "Correct node is selected for state " + index);
-
     is(!searchBox.classList.contains("devtools-no-search-result"), isValid,
        "Correct searchbox result state for state " + index);
 

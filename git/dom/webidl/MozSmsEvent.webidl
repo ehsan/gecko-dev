@@ -5,10 +5,7 @@
  */
 interface MozSmsMessage;
 
-[Pref="dom.sms.enabled",
- CheckPermissions="sms",
- AvailableIn="CertifiedApps",
- Constructor(DOMString type, optional MozSmsEventInit eventInitDict)]
+[Constructor(DOMString type, optional MozSmsEventInit eventInitDict)]
 interface MozSmsEvent : Event
 {
   readonly attribute MozSmsMessage? message;

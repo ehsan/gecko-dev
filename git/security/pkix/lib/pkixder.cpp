@@ -24,6 +24,7 @@
 
 #include "pkixder.h"
 
+#include "pkix/bind.h"
 #include "pkixutil.h"
 
 namespace mozilla { namespace pkix { namespace der {
@@ -95,28 +96,48 @@ OptionalNull(Reader& input)
 namespace {
 
 Result
-AlgorithmIdentifierValue(Reader& input, /*out*/ Reader& algorithmOIDValue)
+DigestAlgorithmOIDValue(Reader& algorithmID,
+                        /*out*/ DigestAlgorithm& algorithm)
 {
-  Result rv = ExpectTagAndGetValue(input, der::OIDTag, algorithmOIDValue);
-  if (rv != Success) {
-    return rv;
+  // RFC 4055 Section 2.1
+  // python DottedOIDToCode.py id-sha1 1.3.14.3.2.26
+  static const uint8_t id_sha1[] = {
+    0x2b, 0x0e, 0x03, 0x02, 0x1a
+  };
+  // python DottedOIDToCode.py id-sha256 2.16.840.1.101.3.4.2.1
+  static const uint8_t id_sha256[] = {
+    0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01
+  };
+  // python DottedOIDToCode.py id-sha384 2.16.840.1.101.3.4.2.2
+  static const uint8_t id_sha384[] = {
+    0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02
+  };
+  // python DottedOIDToCode.py id-sha512 2.16.840.1.101.3.4.2.3
+  static const uint8_t id_sha512[] = {
+    0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03
+  };
+
+  // Matching is attempted based on a rough estimate of the commonality of the
+  // algorithm, to minimize the number of MatchRest calls.
+  if (algorithmID.MatchRest(id_sha1)) {
+    algorithm = DigestAlgorithm::sha1;
+  } else if (algorithmID.MatchRest(id_sha256)) {
+    algorithm = DigestAlgorithm::sha256;
+  } else if (algorithmID.MatchRest(id_sha384)) {
+    algorithm = DigestAlgorithm::sha384;
+  } else if (algorithmID.MatchRest(id_sha512)) {
+    algorithm = DigestAlgorithm::sha512;
+  } else {
+    return Result::ERROR_INVALID_ALGORITHM;
   }
-  return OptionalNull(input);
+
+  return Success;
 }
 
-} // unnamed namespace
-
 Result
-SignatureAlgorithmIdentifierValue(Reader& input,
-                                 /*out*/ PublicKeyAlgorithm& publicKeyAlgorithm,
-                                 /*out*/ DigestAlgorithm& digestAlgorithm)
+SignatureAlgorithmOIDValue(Reader& algorithmID,
+                           /*out*/ SignatureAlgorithm& algorithm)
 {
-  Reader algorithmID;
-  Result rv = AlgorithmIdentifierValue(input, algorithmID);
-  if (rv != Success) {
-    return rv;
-  }
-
   // RFC 5758 Section 3.2 (ecdsa-with-SHA224 is intentionally excluded)
   // python DottedOIDToCode.py ecdsa-with-SHA256 1.2.840.10045.4.3.2
   static const uint8_t ecdsa_with_SHA256[] = {
@@ -178,85 +199,73 @@ SignatureAlgorithmIdentifierValue(Reader& input,
   // Matching is attempted based on a rough estimate of the commonality of the
   // algorithm, to minimize the number of MatchRest calls.
   if (algorithmID.MatchRest(sha256WithRSAEncryption)) {
-    publicKeyAlgorithm = PublicKeyAlgorithm::RSA_PKCS1;
-    digestAlgorithm = DigestAlgorithm::sha256;
+    algorithm = SignatureAlgorithm::rsa_pkcs1_with_sha256;
   } else if (algorithmID.MatchRest(ecdsa_with_SHA256)) {
-    publicKeyAlgorithm = PublicKeyAlgorithm::ECDSA;
-    digestAlgorithm = DigestAlgorithm::sha256;
+    algorithm = SignatureAlgorithm::ecdsa_with_sha256;
   } else if (algorithmID.MatchRest(sha_1WithRSAEncryption)) {
-    publicKeyAlgorithm = PublicKeyAlgorithm::RSA_PKCS1;
-    digestAlgorithm = DigestAlgorithm::sha1;
+    algorithm = SignatureAlgorithm::rsa_pkcs1_with_sha1;
   } else if (algorithmID.MatchRest(ecdsa_with_SHA1)) {
-    publicKeyAlgorithm = PublicKeyAlgorithm::ECDSA;
-    digestAlgorithm = DigestAlgorithm::sha1;
+    algorithm = SignatureAlgorithm::ecdsa_with_sha1;
   } else if (algorithmID.MatchRest(ecdsa_with_SHA384)) {
-    publicKeyAlgorithm = PublicKeyAlgorithm::ECDSA;
-    digestAlgorithm = DigestAlgorithm::sha384;
+    algorithm = SignatureAlgorithm::ecdsa_with_sha384;
   } else if (algorithmID.MatchRest(ecdsa_with_SHA512)) {
-    publicKeyAlgorithm = PublicKeyAlgorithm::ECDSA;
-    digestAlgorithm = DigestAlgorithm::sha512;
+    algorithm = SignatureAlgorithm::ecdsa_with_sha512;
   } else if (algorithmID.MatchRest(sha384WithRSAEncryption)) {
-    publicKeyAlgorithm = PublicKeyAlgorithm::RSA_PKCS1;
-    digestAlgorithm = DigestAlgorithm::sha384;
+    algorithm = SignatureAlgorithm::rsa_pkcs1_with_sha384;
   } else if (algorithmID.MatchRest(sha512WithRSAEncryption)) {
-    publicKeyAlgorithm = PublicKeyAlgorithm::RSA_PKCS1;
-    digestAlgorithm = DigestAlgorithm::sha512;
+    algorithm = SignatureAlgorithm::rsa_pkcs1_with_sha512;
   } else if (algorithmID.MatchRest(sha1WithRSASignature)) {
     // XXX(bug 1042479): recognize this old OID for compatibility.
-    publicKeyAlgorithm = PublicKeyAlgorithm::RSA_PKCS1;
-    digestAlgorithm = DigestAlgorithm::sha1;
+    algorithm = SignatureAlgorithm::rsa_pkcs1_with_sha1;
   } else {
-    return Result::ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED;
+    algorithm = SignatureAlgorithm::unsupported_algorithm;
   }
 
   return Success;
 }
 
+template <typename OidValueParser, typename Algorithm>
+Result
+AlgorithmIdentifier(OidValueParser oidValueParser, Reader& input,
+                    /*out*/ Algorithm& algorithm)
+{
+  Reader value;
+  Result rv = ExpectTagAndGetValue(input, SEQUENCE, value);
+  if (rv != Success) {
+    return rv;
+  }
+
+  Reader algorithmID;
+  rv = ExpectTagAndGetValue(value, der::OIDTag, algorithmID);
+  if (rv != Success) {
+    return rv;
+  }
+  rv = oidValueParser(algorithmID, algorithm);
+  if (rv != Success) {
+    return rv;
+  }
+
+  rv = OptionalNull(value);
+  if (rv != Success) {
+    return rv;
+  }
+
+  return End(value);
+}
+
+} // unnamed namespace
+
+Result
+SignatureAlgorithmIdentifier(Reader& input,
+                             /*out*/ SignatureAlgorithm& algorithm)
+{
+  return AlgorithmIdentifier(SignatureAlgorithmOIDValue, input, algorithm);
+}
+
 Result
 DigestAlgorithmIdentifier(Reader& input, /*out*/ DigestAlgorithm& algorithm)
 {
-  Reader r;
-  return der::Nested(input, SEQUENCE, [&algorithm](Reader& r) -> Result {
-    Reader algorithmID;
-    Result rv = AlgorithmIdentifierValue(r, algorithmID);
-    if (rv != Success) {
-      return rv;
-    }
-
-    // RFC 4055 Section 2.1
-    // python DottedOIDToCode.py id-sha1 1.3.14.3.2.26
-    static const uint8_t id_sha1[] = {
-      0x2b, 0x0e, 0x03, 0x02, 0x1a
-    };
-    // python DottedOIDToCode.py id-sha256 2.16.840.1.101.3.4.2.1
-    static const uint8_t id_sha256[] = {
-      0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01
-    };
-    // python DottedOIDToCode.py id-sha384 2.16.840.1.101.3.4.2.2
-    static const uint8_t id_sha384[] = {
-      0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02
-    };
-    // python DottedOIDToCode.py id-sha512 2.16.840.1.101.3.4.2.3
-    static const uint8_t id_sha512[] = {
-      0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03
-    };
-
-    // Matching is attempted based on a rough estimate of the commonality of the
-    // algorithm, to minimize the number of MatchRest calls.
-    if (algorithmID.MatchRest(id_sha1)) {
-      algorithm = DigestAlgorithm::sha1;
-    } else if (algorithmID.MatchRest(id_sha256)) {
-      algorithm = DigestAlgorithm::sha256;
-    } else if (algorithmID.MatchRest(id_sha384)) {
-      algorithm = DigestAlgorithm::sha384;
-    } else if (algorithmID.MatchRest(id_sha512)) {
-      algorithm = DigestAlgorithm::sha512;
-    } else {
-      return Result::ERROR_INVALID_ALGORITHM;
-    }
-
-    return Success;
-  });
+  return AlgorithmIdentifier(DigestAlgorithmOIDValue, input, algorithm);
 }
 
 Result
@@ -276,7 +285,7 @@ SignedData(Reader& input, /*out*/ Reader& tbs,
     return rv;
   }
 
-  rv = ExpectTagAndGetValue(input, der::SEQUENCE, signedData.algorithm);
+  rv = SignatureAlgorithmIdentifier(input, signedData.algorithm);
   if (rv != Success) {
     return rv;
   }
@@ -310,7 +319,9 @@ BitStringWithNoUnusedBits(Reader& input, /*out*/ Input& value)
   if (unusedBitsAtEnd != 0) {
     return Result::ERROR_BAD_DER;
   }
-  return valueWithUnusedBits.SkipToEnd(value);
+  Reader::Mark mark(valueWithUnusedBits.GetMark());
+  valueWithUnusedBits.SkipToEnd();
+  return valueWithUnusedBits.GetInput(mark, value);
 }
 
 static inline Result
@@ -318,10 +329,10 @@ ReadDigit(Reader& input, /*out*/ unsigned int& value)
 {
   uint8_t b;
   if (input.Read(b) != Success) {
-    return Result::ERROR_INVALID_DER_TIME;
+    return Result::ERROR_INVALID_TIME;
   }
   if (b < '0' || b > '9') {
-    return Result::ERROR_INVALID_DER_TIME;
+    return Result::ERROR_INVALID_TIME;
   }
   value = static_cast<unsigned int>(b - static_cast<uint8_t>('0'));
   return Success;
@@ -343,7 +354,7 @@ ReadTwoDigits(Reader& input, unsigned int minValue, unsigned int maxValue,
   }
   value = (hi * 10) + lo;
   if (value < minValue || value > maxValue) {
-    return Result::ERROR_INVALID_DER_TIME;
+    return Result::ERROR_INVALID_TIME;
   }
   return Success;
 }
@@ -385,12 +396,12 @@ TimeChoice(Reader& tagged, uint8_t expectedTag, /*out*/ Time& time)
     yearHi = yearLo >= 50u ? 19u : 20u;
   } else {
     return NotReached("invalid tag given to TimeChoice",
-                      Result::ERROR_INVALID_DER_TIME);
+                      Result::ERROR_INVALID_TIME);
   }
   unsigned int year = (yearHi * 100u) + yearLo;
   if (year < 1970u) {
     // We don't support dates before January 1, 1970 because that is the epoch.
-    return Result::ERROR_INVALID_DER_TIME;
+    return Result::ERROR_INVALID_TIME;
   }
   days = DaysBeforeYear(year);
 
@@ -469,13 +480,13 @@ TimeChoice(Reader& tagged, uint8_t expectedTag, /*out*/ Time& time)
 
   uint8_t b;
   if (input.Read(b) != Success) {
-    return Result::ERROR_INVALID_DER_TIME;
+    return Result::ERROR_INVALID_TIME;
   }
   if (b != 'Z') {
-    return Result::ERROR_INVALID_DER_TIME;
+    return Result::ERROR_INVALID_TIME;
   }
   if (End(input) != Success) {
-    return Result::ERROR_INVALID_DER_TIME;
+    return Result::ERROR_INVALID_TIME;
   }
 
   uint64_t totalSeconds = (static_cast<uint64_t>(days) * 24u * 60u * 60u) +
@@ -484,72 +495,6 @@ TimeChoice(Reader& tagged, uint8_t expectedTag, /*out*/ Time& time)
                           seconds;
 
   time = TimeFromElapsedSecondsAD(totalSeconds);
-  return Success;
-}
-
-Result
-IntegralBytes(Reader& input, uint8_t tag,
-              IntegralValueRestriction valueRestriction,
-              /*out*/ Input& value,
-              /*optional out*/ Input::size_type* significantBytes)
-{
-  Result rv = ExpectTagAndGetValue(input, tag, value);
-  if (rv != Success) {
-    return rv;
-  }
-  Reader reader(value);
-
-  // There must be at least one byte in the value. (Zero is encoded with a
-  // single 0x00 value byte.)
-  uint8_t firstByte;
-  rv = reader.Read(firstByte);
-  if (rv != Success) {
-    return rv;
-  }
-
-  // If there is a byte after an initial 0x00/0xFF, then the initial byte
-  // indicates a positive/negative integer value with its high bit set/unset.
-  bool prefixed = !reader.AtEnd() && (firstByte == 0 || firstByte == 0xff);
-
-  if (prefixed) {
-    uint8_t nextByte;
-    if (reader.Read(nextByte) != Success) {
-      return NotReached("Read of one byte failed but not at end.",
-                        Result::FATAL_ERROR_LIBRARY_FAILURE);
-    }
-    if ((firstByte & 0x80) == (nextByte & 0x80)) {
-      return Result::ERROR_BAD_DER;
-    }
-  }
-
-  switch (valueRestriction) {
-    case IntegralValueRestriction::MustBe0To127:
-      if (value.GetLength() != 1 || (firstByte & 0x80) != 0) {
-        return Result::ERROR_BAD_DER;
-      }
-      break;
-
-    case IntegralValueRestriction::MustBePositive:
-      if ((value.GetLength() == 1 && firstByte == 0) ||
-          (firstByte & 0x80) != 0) {
-        return Result::ERROR_BAD_DER;
-      }
-      break;
-
-    case IntegralValueRestriction::NoRestriction:
-      break;
-  }
-
-  if (significantBytes) {
-    *significantBytes = value.GetLength();
-    if (prefixed) {
-      assert(*significantBytes > 1);
-      --*significantBytes;
-    }
-
-    assert(*significantBytes > 0);
-  }
-
   return Success;
 }
 

@@ -55,15 +55,6 @@
     }                                                                  \
   } while(0)
 
-#define ENSURE_GATT_MGR_IS_READY_VOID(gatt, runnable)                  \
-  do {                                                                 \
-    if (!gatt) {                                                       \
-      NS_NAMED_LITERAL_STRING(replyError, "GattManager is not ready"); \
-      DispatchBluetoothReply(runnable, BluetoothValue(), replyError);  \
-      return;                                                          \
-    }                                                                  \
-  } while(0)
-
 using namespace mozilla;
 using namespace mozilla::ipc;
 USING_BLUETOOTH_NAMESPACE
@@ -73,8 +64,6 @@ static nsString sAdapterBdName;
 static bool sAdapterDiscoverable(false);
 static bool sAdapterDiscovering(false);
 static bool sAdapterEnabled(false);
-// InfallibleTArray is an alias for nsTArray.
-static InfallibleTArray<nsString> sAdapterBondedAddressArray;
 
 static BluetoothInterface* sBtInterface;
 static nsTArray<nsRefPtr<BluetoothProfileController> > sControllerArray;
@@ -433,8 +422,6 @@ BluetoothServiceBluedroid::GetAdaptersInternal(
                           "Discoverable", sAdapterDiscoverable);
     BT_APPEND_NAMED_VALUE(properties.get_ArrayOfBluetoothNamedValue(),
                           "Discovering", sAdapterDiscovering);
-    BT_APPEND_NAMED_VALUE(properties.get_ArrayOfBluetoothNamedValue(),
-                          "PairedDevices", sAdapterBondedAddressArray);
 
     BT_APPEND_NAMED_VALUE(adaptersProperties.get_ArrayOfBluetoothNamedValue(),
                           "Adapter", properties);
@@ -1117,54 +1104,6 @@ BluetoothServiceBluedroid::ToggleCalls(BluetoothReplyRunnable* aRunnable)
 }
 
 //
-// GATT Client
-//
-
-void
-BluetoothServiceBluedroid::ConnectGattClientInternal(
-  const nsAString& aAppUuid, const nsAString& aDeviceAddress,
-  BluetoothReplyRunnable* aRunnable)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  ENSURE_BLUETOOTH_IS_READY_VOID(aRunnable);
-
-  BluetoothGattManager* gatt = BluetoothGattManager::Get();
-  ENSURE_GATT_MGR_IS_READY_VOID(gatt, aRunnable);
-
-  gatt->Connect(aAppUuid, aDeviceAddress, aRunnable);
-}
-
-void
-BluetoothServiceBluedroid::DisconnectGattClientInternal(
-  const nsAString& aAppUuid, const nsAString& aDeviceAddress,
-  BluetoothReplyRunnable* aRunnable)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  ENSURE_BLUETOOTH_IS_READY_VOID(aRunnable);
-
-  BluetoothGattManager* gatt = BluetoothGattManager::Get();
-  ENSURE_GATT_MGR_IS_READY_VOID(gatt, aRunnable);
-
-  gatt->Disconnect(aAppUuid, aDeviceAddress, aRunnable);
-}
-
-void
-BluetoothServiceBluedroid::UnregisterGattClientInternal(
-  int aClientIf, BluetoothReplyRunnable* aRunnable)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  ENSURE_BLUETOOTH_IS_READY_VOID(aRunnable);
-
-  BluetoothGattManager* gatt = BluetoothGattManager::Get();
-  ENSURE_GATT_MGR_IS_READY_VOID(gatt, aRunnable);
-
-  gatt->UnregisterClient(aClientIf, aRunnable);
-}
-
-//
 // Bluetooth notifications
 //
 
@@ -1250,10 +1189,6 @@ BluetoothServiceBluedroid::AdapterStateChangedNotification(bool aState)
     if (sAdapterDiscovering) {
       sAdapterDiscovering = false;
       BT_APPEND_NAMED_VALUE(props, "Discovering", false);
-    }
-    if (!sAdapterBondedAddressArray.IsEmpty()) {
-      BT_APPEND_NAMED_VALUE(props, "PairedDevices",
-                            InfallibleTArray<nsString>());
     }
 
     BluetoothSignal signal(NS_LITERAL_STRING("PropertyChanged"),
@@ -1344,15 +1279,13 @@ BluetoothServiceBluedroid::AdapterPropertiesNotification(
       BT_LOGD("Adapter property: BONDED_DEVICES. Count: %d",
               p.mStringArray.Length());
 
-      // Whenever reloading paired devices, force refresh
-      sAdapterBondedAddressArray.Clear();
-
+      nsTArray<nsString> pairedDeviceAddresses;
       for (size_t index = 0; index < p.mStringArray.Length(); index++) {
-        sAdapterBondedAddressArray.AppendElement(p.mStringArray[index]);
+        pairedDeviceAddresses.AppendElement(p.mStringArray[index]);
       }
 
-      BT_APPEND_NAMED_VALUE(propertiesArray, "PairedDevices",
-                            sAdapterBondedAddressArray);
+      BT_APPEND_NAMED_VALUE(propertiesArray, "PairedDevices", pairedDeviceAddresses);
+
     } else if (p.mType == PROPERTY_UNKNOWN) {
       /* Bug 1065999: working around unknown properties */
     } else {
@@ -1567,7 +1500,6 @@ BluetoothServiceBluedroid::PinRequestNotification(const nsAString& aRemoteBdAddr
   InfallibleTArray<BluetoothNamedValue> propertiesArray;
 
   BT_APPEND_NAMED_VALUE(propertiesArray, "address", nsString(aRemoteBdAddr));
-  BT_APPEND_NAMED_VALUE(propertiesArray, "name", nsString(aBdName));
   BT_APPEND_NAMED_VALUE(propertiesArray, "passkey", EmptyString());
   BT_APPEND_NAMED_VALUE(propertiesArray, "type",
                         NS_LITERAL_STRING(PAIRING_REQ_TYPE_ENTERPINCODE));
@@ -1614,7 +1546,6 @@ BluetoothServiceBluedroid::SspRequestNotification(
   }
 
   BT_APPEND_NAMED_VALUE(propertiesArray, "address", nsString(aRemoteBdAddr));
-  BT_APPEND_NAMED_VALUE(propertiesArray, "name", nsString(aBdName));
   BT_APPEND_NAMED_VALUE(propertiesArray, "passkey", passkey);
   BT_APPEND_NAMED_VALUE(propertiesArray, "type", pairingType);
 
@@ -1637,16 +1568,6 @@ BluetoothServiceBluedroid::BondStateChangedNotification(
 
   bool bonded = (aState == BOND_STATE_BONDED);
 
-  // Update bonded address array
-  nsString remoteBdAddr = nsString(aRemoteBdAddr);
-  if (bonded) {
-    if (!sAdapterBondedAddressArray.Contains(remoteBdAddr)) {
-      sAdapterBondedAddressArray.AppendElement(remoteBdAddr);
-    }
-  } else {
-    sAdapterBondedAddressArray.RemoveElement(remoteBdAddr);
-  }
-
   // Update attribute BluetoothDevice.paired
   InfallibleTArray<BluetoothNamedValue> propertiesArray;
   BT_APPEND_NAMED_VALUE(propertiesArray, "Paired", bonded);
@@ -1667,30 +1588,15 @@ BluetoothServiceBluedroid::BondStateChangedNotification(
                                    NS_LITERAL_STRING(KEY_ADAPTER),
                                    BluetoothValue(propertiesArray)));
 
-  if (aStatus == STATUS_SUCCESS) {
-    // Resolve existing pair/unpair promise when pair/unpair succeeded
-    if (bonded && !sBondingRunnableArray.IsEmpty()) {
-      DispatchBluetoothReply(sBondingRunnableArray[0],
-                             BluetoothValue(true), EmptyString());
-      sBondingRunnableArray.RemoveElementAt(0);
-    } else if (!bonded && !sUnbondingRunnableArray.IsEmpty()) {
-      DispatchBluetoothReply(sUnbondingRunnableArray[0],
-                             BluetoothValue(true), EmptyString());
-      sUnbondingRunnableArray.RemoveElementAt(0);
-    }
-  } else {
-    // Reject existing pair/unpair promise when pair/unpair failed
-    if (!bonded && !sBondingRunnableArray.IsEmpty()) {
-      DispatchBluetoothReply(sBondingRunnableArray[0],
-                             BluetoothValue(),
-                             NS_LITERAL_STRING("Pair Error"));
-      sBondingRunnableArray.RemoveElementAt(0);
-    } else if (bonded && !sUnbondingRunnableArray.IsEmpty()) {
-      DispatchBluetoothReply(sUnbondingRunnableArray[0],
-                             BluetoothValue(),
-                             NS_LITERAL_STRING("Unpair Error"));
-      sUnbondingRunnableArray.RemoveElementAt(0);
-    }
+  if (bonded && !sBondingRunnableArray.IsEmpty()) {
+    DispatchBluetoothReply(sBondingRunnableArray[0],
+                           BluetoothValue(true), EmptyString());
+    sBondingRunnableArray.RemoveElementAt(0);
+
+  } else if (!bonded && !sUnbondingRunnableArray.IsEmpty()) {
+    DispatchBluetoothReply(sUnbondingRunnableArray[0],
+                           BluetoothValue(true), EmptyString());
+    sUnbondingRunnableArray.RemoveElementAt(0);
   }
 }
 

@@ -50,9 +50,8 @@ let _testLogger = new _LoggerClass("xpcshell/head.js", _dumpLog, [_add_params]);
 
 // Disable automatic network detection, so tests work correctly when
 // not connected to a network.
-{
-  let ios = Components.classes["@mozilla.org/network/io-service;1"]
-                      .getService(Components.interfaces.nsIIOService2);
+let (ios = Components.classes["@mozilla.org/network/io-service;1"]
+           .getService(Components.interfaces.nsIIOService2)) {
   ios.manageOfflineStatus = false;
   ios.offline = false;
 }
@@ -71,9 +70,10 @@ if (runningInParent &&
     "mozIAsyncHistory" in Components.interfaces) {
   // Ensure places history is enabled for xpcshell-tests as some non-FF
   // apps disable it.
-  let prefs = Components.classes["@mozilla.org/preferences-service;1"]
-              .getService(Components.interfaces.nsIPrefBranch);
-  prefs.setBoolPref("places.history.enabled", true);
+  let (prefs = Components.classes["@mozilla.org/preferences-service;1"]
+               .getService(Components.interfaces.nsIPrefBranch)) {
+    prefs.setBoolPref("places.history.enabled", true);
+  };
 }
 
 try {
@@ -101,11 +101,12 @@ catch (e) { }
 try {
   if (runningInParent &&
       "@mozilla.org/toolkit/crash-reporter;1" in Components.classes) {
-    let crashReporter =
+    let (crashReporter =
           Components.classes["@mozilla.org/toolkit/crash-reporter;1"]
-          .getService(Components.interfaces.nsICrashReporter);
-    crashReporter.UpdateCrashEventsDir();
-    crashReporter.minidumpPath = do_get_minidumpdir();
+          .getService(Components.interfaces.nsICrashReporter)) {
+      crashReporter.UpdateCrashEventsDir();
+      crashReporter.minidumpPath = do_get_minidumpdir();
+    }
   }
 }
 catch (e) { }
@@ -397,9 +398,10 @@ function _setupDebuggerServer(breakpointFiles, callback) {
         try {
           // Add a breakpoint for the first line in our test files.
           let threadActor = subject.wrappedJSObject;
+          let location = { line: 1 };
           for (let file of breakpointFiles) {
             let sourceActor = threadActor.sources.source({originalUrl: file});
-            sourceActor.setBreakpoint(1);
+            sourceActor.setBreakpoint(location);
           }
         } catch (ex) {
           do_print("Failed to initialize breakpoints: " + ex + "\n" + ex.stack);
@@ -435,15 +437,9 @@ function _initDebugging(port) {
   do_print("*******************************************************************");
   do_print("")
 
-  let AuthenticatorType = DebuggerServer.Authenticators.get("PROMPT");
-  let authenticator = new AuthenticatorType.Server();
-  authenticator.allowConnection = () => {
-    return DebuggerServer.AuthenticationResult.ALLOW;
-  };
-
   let listener = DebuggerServer.createListener();
   listener.portOrPath = port;
-  listener.authenticator = authenticator;
+  listener.allowConnection = () => true;
   listener.open();
 
   // spin an event loop until the debugger connects.
@@ -652,8 +648,8 @@ function do_execute_soon(callback, aName) {
           let stack = e.stack ? _format_stack(e.stack) : null;
           _testLogger.testStatus(_TEST_NAME,
                                  funcName,
-                                 'FAIL',
-                                 'PASS',
+                                 'ERROR',
+                                 'OK',
                                  _exception_message(e),
                                  stack);
           _do_quit();

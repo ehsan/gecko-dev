@@ -29,18 +29,17 @@
 #include "nsIDOMClassInfo.h"
 #include "xpcpublic.h"
 #include "mozilla/CycleCollectedJSRuntime.h"
-#include "mozilla/IntentionalCrash.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/File.h"
 #include "mozilla/dom/nsIContentParent.h"
 #include "mozilla/dom/PermissionMessageUtils.h"
-#include "mozilla/dom/ProcessGlobal.h"
 #include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/dom/StructuredCloneUtils.h"
 #include "mozilla/dom/ipc/BlobChild.h"
 #include "mozilla/dom/ipc/BlobParent.h"
+#include "JavaScriptChild.h"
+#include "JavaScriptParent.h"
 #include "mozilla/dom/DOMStringList.h"
-#include "mozilla/jsipc/CrossProcessObjectWrappers.h"
 #include "nsPrintfCString.h"
 #include "nsXULAppAPI.h"
 #include <algorithm>
@@ -121,10 +120,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsFrameMessageManager)
   /* Frame message managers (non-process message managers) support nsIFrameScriptLoader. */
   NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIFrameScriptLoader,
                                      mChrome && !mIsProcessManager)
-
-  /* Process message managers (process message managers) support nsIProcessScriptLoader. */
-  NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIProcessScriptLoader,
-                                     mChrome && mIsProcessManager)
 
   /* Message senders in the chrome process support nsIProcessChecker. */
   NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIProcessChecker,
@@ -437,9 +432,9 @@ nsFrameMessageManager::RemoveWeakMessageListener(const nsAString& aMessage,
 // nsIFrameScriptLoader
 
 NS_IMETHODIMP
-nsFrameMessageManager::LoadScript(const nsAString& aURL,
-                                  bool aAllowDelayedLoad,
-                                  bool aRunInGlobalScope)
+nsFrameMessageManager::LoadFrameScript(const nsAString& aURL,
+                                       bool aAllowDelayedLoad,
+                                       bool aRunInGlobalScope)
 {
   if (aAllowDelayedLoad) {
     if (IsGlobal() || IsBroadcaster()) {
@@ -458,7 +453,7 @@ nsFrameMessageManager::LoadScript(const nsAString& aURL,
 #ifdef DEBUG_smaug
     printf("Will load %s \n", NS_ConvertUTF16toUTF8(aURL).get());
 #endif
-    NS_ENSURE_TRUE(mCallback->DoLoadMessageManagerScript(aURL, aRunInGlobalScope),
+    NS_ENSURE_TRUE(mCallback->DoLoadFrameScript(aURL, aRunInGlobalScope),
                    NS_ERROR_FAILURE);
   }
 
@@ -468,14 +463,14 @@ nsFrameMessageManager::LoadScript(const nsAString& aURL,
     if (mm) {
       // Use false here, so that child managers don't cache the script, which
       // is already cached in the parent.
-      mm->LoadScript(aURL, false, aRunInGlobalScope);
+      mm->LoadFrameScript(aURL, false, aRunInGlobalScope);
     }
   }
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsFrameMessageManager::RemoveDelayedScript(const nsAString& aURL)
+nsFrameMessageManager::RemoveDelayedFrameScript(const nsAString& aURL)
 {
   for (uint32_t i = 0; i < mPendingScripts.Length(); ++i) {
     if (mPendingScripts[i] == aURL) {
@@ -488,7 +483,7 @@ nsFrameMessageManager::RemoveDelayedScript(const nsAString& aURL)
 }
 
 NS_IMETHODIMP
-nsFrameMessageManager::GetDelayedScripts(JSContext* aCx, JS::MutableHandle<JS::Value> aList)
+nsFrameMessageManager::GetDelayedFrameScripts(JSContext* aCx, JS::MutableHandle<JS::Value> aList)
 {
   // Frame message managers may return an incomplete list because scripts
   // that were loaded after it was connected are not added to the list.
@@ -520,49 +515,6 @@ nsFrameMessageManager::GetDelayedScripts(JSContext* aCx, JS::MutableHandle<JS::V
 
   aList.setObject(*array);
   return NS_OK;
-}
-
-// nsIFrameScriptLoader
-
-NS_IMETHODIMP
-nsFrameMessageManager::LoadFrameScript(const nsAString& aURL,
-                                       bool aAllowDelayedLoad,
-                                       bool aRunInGlobalScope)
-{
-  return LoadScript(aURL, aAllowDelayedLoad, aRunInGlobalScope);
-}
-
-NS_IMETHODIMP
-nsFrameMessageManager::RemoveDelayedFrameScript(const nsAString& aURL)
-{
-  return RemoveDelayedScript(aURL);
-}
-
-NS_IMETHODIMP
-nsFrameMessageManager::GetDelayedFrameScripts(JSContext* aCx, JS::MutableHandle<JS::Value> aList)
-{
-  return GetDelayedScripts(aCx, aList);
-}
-
-// nsIProcessScriptLoader
-
-NS_IMETHODIMP
-nsFrameMessageManager::LoadProcessScript(const nsAString& aURL,
-                                         bool aAllowDelayedLoad)
-{
-  return LoadScript(aURL, aAllowDelayedLoad, false);
-}
-
-NS_IMETHODIMP
-nsFrameMessageManager::RemoveDelayedProcessScript(const nsAString& aURL)
-{
-  return RemoveDelayedScript(aURL);
-}
-
-NS_IMETHODIMP
-nsFrameMessageManager::GetDelayedProcessScripts(JSContext* aCx, JS::MutableHandle<JS::Value> aList)
-{
-  return GetDelayedScripts(aCx, aList);
 }
 
 static bool
@@ -824,12 +776,7 @@ nsFrameMessageManager::Dump(const nsAString& aStr)
 NS_IMETHODIMP
 nsFrameMessageManager::PrivateNoteIntentionalCrash()
 {
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    mozilla::NoteIntentionalCrash("tab");
-    return NS_OK;
-  } else {
-    return NS_ERROR_NOT_IMPLEMENTED;
-  }
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
@@ -850,14 +797,14 @@ NS_IMETHODIMP
 nsFrameMessageManager::Btoa(const nsAString& aBinaryData,
                             nsAString& aAsciiBase64String)
 {
-  return nsContentUtils::Btoa(aBinaryData, aAsciiBase64String);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsFrameMessageManager::Atob(const nsAString& aAsciiString,
                             nsAString& aBinaryData)
 {
-  return nsContentUtils::Atob(aAsciiString, aBinaryData);
+  return NS_OK;
 }
 
 // nsIProcessChecker
@@ -980,7 +927,7 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
                                       const nsAString& aMessage,
                                       bool aIsSync,
                                       const StructuredCloneData* aCloneData,
-                                      mozilla::jsipc::CpowHolder* aCpows,
+                                      CpowHolder* aCpows,
                                       nsIPrincipal* aPrincipal,
                                       InfallibleTArray<nsString>* aJSONRetVal)
 {
@@ -1034,7 +981,8 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
       JS::Rooted<JSObject*> object(cx, wrappedJS->GetJSObject());
 
       // The parameter for the listener function.
-      JS::Rooted<JSObject*> param(cx, JS_NewPlainObject(cx));
+      JS::Rooted<JSObject*> param(cx,
+        JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
       NS_ENSURE_TRUE(param, NS_ERROR_OUT_OF_MEMORY);
 
       JS::Rooted<JS::Value> targetv(cx);
@@ -1050,7 +998,7 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
       }
 
       if (!cpows) {
-        cpows = JS_NewPlainObject(cx);
+        cpows = JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr());
         if (!cpows) {
           return NS_ERROR_UNEXPECTED;
         }
@@ -1127,7 +1075,7 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
         thisValue.setObject(*object);
       }
 
-      JS::Rooted<JS::Value> rval(cx, JS::UndefinedValue());
+      JS::Rooted<JS::Value> rval(cx, JSVAL_VOID);
       JS::Rooted<JS::Value> argv(cx, JS::ObjectValue(*param));
 
       {
@@ -1447,17 +1395,17 @@ NS_NewGlobalMessageManager(nsIMessageBroadcaster** aResult)
   return CallQueryInterface(mm, aResult);
 }
 
-nsDataHashtable<nsStringHashKey, nsMessageManagerScriptHolder*>*
-  nsMessageManagerScriptExecutor::sCachedScripts = nullptr;
-nsScriptCacheCleaner* nsMessageManagerScriptExecutor::sScriptCacheCleaner = nullptr;
+nsDataHashtable<nsStringHashKey, nsFrameScriptObjectExecutorHolder*>*
+  nsFrameScriptExecutor::sCachedScripts = nullptr;
+nsScriptCacheCleaner* nsFrameScriptExecutor::sScriptCacheCleaner = nullptr;
 
 void
-nsMessageManagerScriptExecutor::DidCreateGlobal()
+nsFrameScriptExecutor::DidCreateGlobal()
 {
   NS_ASSERTION(mGlobal, "Should have mGlobal!");
   if (!sCachedScripts) {
     sCachedScripts =
-      new nsDataHashtable<nsStringHashKey, nsMessageManagerScriptHolder*>;
+      new nsDataHashtable<nsStringHashKey, nsFrameScriptObjectExecutorHolder*>;
 
     nsRefPtr<nsScriptCacheCleaner> scriptCacheCleaner =
       new nsScriptCacheCleaner();
@@ -1467,7 +1415,7 @@ nsMessageManagerScriptExecutor::DidCreateGlobal()
 
 static PLDHashOperator
 RemoveCachedScriptEntry(const nsAString& aKey,
-                        nsMessageManagerScriptHolder*& aData,
+                        nsFrameScriptObjectExecutorHolder*& aData,
                         void* aUserArg)
 {
   delete aData;
@@ -1476,7 +1424,7 @@ RemoveCachedScriptEntry(const nsAString& aKey,
 
 // static
 void
-nsMessageManagerScriptExecutor::Shutdown()
+nsFrameScriptExecutor::Shutdown()
 {
   if (sCachedScripts) {
     AutoSafeJSContext cx;
@@ -1492,8 +1440,8 @@ nsMessageManagerScriptExecutor::Shutdown()
 }
 
 void
-nsMessageManagerScriptExecutor::LoadScriptInternal(const nsAString& aURL,
-                                                   bool aRunInGlobalScope)
+nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL,
+                                               bool aRunInGlobalScope)
 {
   if (!mGlobal || !sCachedScripts) {
     return;
@@ -1502,7 +1450,7 @@ nsMessageManagerScriptExecutor::LoadScriptInternal(const nsAString& aURL,
   JSRuntime* rt = CycleCollectedJSRuntime::Get()->Runtime();
   JS::Rooted<JSScript*> script(rt);
 
-  nsMessageManagerScriptHolder* holder = sCachedScripts->Get(aURL);
+  nsFrameScriptObjectExecutorHolder* holder = sCachedScripts->Get(aURL);
   if (holder && holder->WillRunInGlobalScope() == aRunInGlobalScope) {
     script = holder->mScript;
   } else {
@@ -1534,11 +1482,10 @@ nsMessageManagerScriptExecutor::LoadScriptInternal(const nsAString& aURL,
 }
 
 void
-nsMessageManagerScriptExecutor::TryCacheLoadAndCompileScript(
-  const nsAString& aURL,
-  bool aRunInGlobalScope,
-  bool aShouldCache,
-  JS::MutableHandle<JSScript*> aScriptp)
+nsFrameScriptExecutor::TryCacheLoadAndCompileScript(const nsAString& aURL,
+                                                    bool aRunInGlobalScope,
+                                                    bool aShouldCache,
+                                                    JS::MutableHandle<JSScript*> aScriptp)
 {
   nsCString url = NS_ConvertUTF16toUTF8(aURL);
   nsCOMPtr<nsIURI> uri;
@@ -1592,49 +1539,47 @@ nsMessageManagerScriptExecutor::TryCacheLoadAndCompileScript(
 
   if (dataStringBuf && dataStringLength > 0) {
     AutoSafeJSContext cx;
-    // Compile the script in the compilation scope instead of the current global
-    // to avoid keeping the current compartment alive.
-    JS::Rooted<JSObject*> global(cx, xpc::CompilationScope());
+    JS::Rooted<JSObject*> global(cx, mGlobal->GetJSObject());
+    if (global) {
+      JSAutoCompartment ac(cx, global);
+      JS::CompileOptions options(cx);
+      options.setFileAndLine(url.get(), 1);
+      options.setNoScriptRval(true);
+      JS::Rooted<JSScript*> script(cx);
 
-    JSAutoCompartment ac(cx, global);
-    JS::CompileOptions options(cx, JSVERSION_LATEST);
-    options.setFileAndLine(url.get(), 1);
-    options.setNoScriptRval(true);
-    JS::Rooted<JSScript*> script(cx);
-
-    if (aRunInGlobalScope) {
-      if (!JS::Compile(cx, JS::NullPtr(), options, srcBuf, &script)) {
-        return;
+      if (aRunInGlobalScope) {
+        if (!JS::Compile(cx, JS::NullPtr(), options, srcBuf, &script)) {
+          return;
+        }
+      } else {
+        // We can't clone compile-and-go scripts.
+        options.setCompileAndGo(false);
+        if (!JS::Compile(cx, JS::NullPtr(), options, srcBuf, &script)) {
+          return;
+        }
       }
-    } else {
-      // We can't clone compile-and-go scripts.
-      options.setCompileAndGo(false);
-      if (!JS::Compile(cx, JS::NullPtr(), options, srcBuf, &script)) {
-        return;
+
+      aScriptp.set(script);
+
+      nsAutoCString scheme;
+      uri->GetScheme(scheme);
+      // We don't cache data: scripts!
+      if (aShouldCache && !scheme.EqualsLiteral("data")) {
+        nsFrameScriptObjectExecutorHolder* holder;
+
+        // Root the object also for caching.
+        if (script) {
+          holder = new nsFrameScriptObjectExecutorHolder(cx, script, aRunInGlobalScope);
+        }
+        sCachedScripts->Put(aURL, holder);
       }
-    }
-
-    aScriptp.set(script);
-
-    nsAutoCString scheme;
-    uri->GetScheme(scheme);
-    // We don't cache data: scripts!
-    if (aShouldCache && !scheme.EqualsLiteral("data")) {
-      nsMessageManagerScriptHolder* holder;
-
-      // Root the object also for caching.
-      if (script) {
-        holder = new nsMessageManagerScriptHolder(cx, script, aRunInGlobalScope);
-      }
-      sCachedScripts->Put(aURL, holder);
     }
   }
 }
 
 void
-nsMessageManagerScriptExecutor::TryCacheLoadAndCompileScript(
-  const nsAString& aURL,
-  bool aRunInGlobalScope)
+nsFrameScriptExecutor::TryCacheLoadAndCompileScript(const nsAString& aURL,
+                                                    bool aRunInGlobalScope)
 {
   AutoSafeJSContext cx;
   JS::Rooted<JSScript*> script(cx);
@@ -1642,9 +1587,8 @@ nsMessageManagerScriptExecutor::TryCacheLoadAndCompileScript(
 }
 
 bool
-nsMessageManagerScriptExecutor::InitChildGlobalInternal(
-  nsISupports* aScope,
-  const nsACString& aID)
+nsFrameScriptExecutor::InitTabChildGlobalInternal(nsISupports* aScope,
+                                                  const nsACString& aID)
 {
 
   nsCOMPtr<nsIJSRuntimeService> runtimeSvc =
@@ -1704,7 +1648,7 @@ public:
 
   NS_IMETHOD Run()
   {
-    nsFrameMessageManager* ppm = nsFrameMessageManager::GetChildProcessManager();
+    nsFrameMessageManager* ppm = nsFrameMessageManager::sChildProcessManager;
     ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm), ppm);
     return NS_OK;
   }
@@ -1726,20 +1670,11 @@ public:
     MOZ_COUNT_DTOR(SameParentProcessMessageManagerCallback);
   }
 
-  virtual bool DoLoadMessageManagerScript(const nsAString& aURL,
-                                          bool aRunInGlobalScope) MOZ_OVERRIDE
-  {
-    ProcessGlobal* global = ProcessGlobal::Get();
-    MOZ_ASSERT(!aRunInGlobalScope);
-    global->LoadScript(aURL);
-    return true;
-  }
-
   virtual bool DoSendAsyncMessage(JSContext* aCx,
                                   const nsAString& aMessage,
                                   const StructuredCloneData& aData,
                                   JS::Handle<JSObject *> aCpows,
-                                  nsIPrincipal* aPrincipal) MOZ_OVERRIDE
+                                  nsIPrincipal* aPrincipal)
   {
     nsRefPtr<nsIRunnable> ev =
       new nsAsyncMessageToSameProcessChild(aCx, aMessage, aData, aCpows,
@@ -1748,25 +1683,25 @@ public:
     return true;
   }
 
-  bool CheckPermission(const nsAString& aPermission) MOZ_OVERRIDE
+  bool CheckPermission(const nsAString& aPermission)
   {
     // In a single-process scenario, the child always has all capabilities.
     return true;
   }
 
-  bool CheckManifestURL(const nsAString& aManifestURL) MOZ_OVERRIDE
+  bool CheckManifestURL(const nsAString& aManifestURL)
   {
     // In a single-process scenario, the child always has all capabilities.
     return true;
   }
 
-  bool CheckAppHasPermission(const nsAString& aPermission) MOZ_OVERRIDE
+  bool CheckAppHasPermission(const nsAString& aPermission)
   {
     // In a single-process scenario, the child always has all capabilities.
     return true;
   }
 
-  virtual bool CheckAppHasStatus(unsigned short aStatus) MOZ_OVERRIDE
+  virtual bool CheckAppHasStatus(unsigned short aStatus)
   {
     // In a single-process scenario, the child always has all capabilities.
     return true;
@@ -1977,7 +1912,7 @@ nsFrameMessageManager::NewProcessMessageManager(mozilla::dom::nsIContentParent* 
 nsresult
 NS_NewChildProcessMessageManager(nsISyncMessageSender** aResult)
 {
-  NS_ASSERTION(!nsFrameMessageManager::GetChildProcessManager(),
+  NS_ASSERTION(!nsFrameMessageManager::sChildProcessManager,
                "Re-creating sChildProcessManager");
 
   MessageManagerCallback* cb;
@@ -1990,11 +1925,8 @@ NS_NewChildProcessMessageManager(nsISyncMessageSender** aResult)
   nsFrameMessageManager* mm = new nsFrameMessageManager(cb,
                                                         nullptr,
                                                         MM_PROCESSMANAGER | MM_OWNSCALLBACK);
-  nsFrameMessageManager::SetChildProcessManager(mm);
-  ProcessGlobal* global = new ProcessGlobal(mm);
-  NS_ENSURE_TRUE(global->Init(), NS_ERROR_UNEXPECTED);
-  return CallQueryInterface(global, aResult);
-
+  nsFrameMessageManager::sChildProcessManager = mm;
+  return CallQueryInterface(mm, aResult);
 }
 
 static PLDHashOperator

@@ -159,7 +159,7 @@ add_test(function test_login_on_sync() {
     // Stub mpLocked.
     let mpLockedF = Utils.mpLocked;
     let mpLocked = true;
-    Utils.mpLocked = () => mpLocked;
+    Utils.mpLocked = function() mpLocked;
 
     // Stub scheduleNextSync. This gets called within checkSyncStatus if we're
     // ready to sync, so use it as an indicator.

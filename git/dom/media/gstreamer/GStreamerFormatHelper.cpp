@@ -8,7 +8,6 @@
 #include "nsCharSeparatedTokenizer.h"
 #include "nsString.h"
 #include "GStreamerLoader.h"
-#include "mozilla/Preferences.h"
 
 #define ENTRY_FORMAT(entry) entry[0]
 #define ENTRY_CAPS(entry) entry[1]
@@ -63,10 +62,6 @@ static char const * const sDefaultCodecCaps[][2] = {
   {"audio/x-m4a", "audio/mpeg, mpegversion=(int)4"},
   {"audio/mp3", "audio/mpeg, layer=(int)3"},
   {"audio/mpeg", "audio/mpeg, layer=(int)3"}
-};
-
-static char const * const sPluginBlacklist[] = {
-  "flump3dec",
 };
 
 GStreamerFormatHelper::GStreamerFormatHelper()
@@ -208,46 +203,13 @@ GstCaps* GStreamerFormatHelper::ConvertFormatsToCaps(const char* aMIMEType,
   return caps;
 }
 
-/* static */ bool
-GStreamerFormatHelper::IsBlacklistEnabled()
-{
-  static bool sBlacklistEnabled;
-  static bool sBlacklistEnabledCached = false;
-
-  if (!sBlacklistEnabledCached) {
-    Preferences::AddBoolVarCache(&sBlacklistEnabled,
-                                 "media.gstreamer.enable-blacklist", true);
-    sBlacklistEnabledCached = true;
-  }
-
-  return sBlacklistEnabled;
-}
-
-/* static */ bool
-GStreamerFormatHelper::IsPluginFeatureBlacklisted(GstPluginFeature *aFeature)
-{
-  if (!IsBlacklistEnabled()) {
-    return false;
-  }
-
-  const gchar *factoryName =
-    gst_plugin_feature_get_name(aFeature);
-
-  for (unsigned int i = 0; i < G_N_ELEMENTS(sPluginBlacklist); i++) {
-    if (!strcmp(factoryName, sPluginBlacklist[i])) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 static gboolean FactoryFilter(GstPluginFeature *aFeature, gpointer)
 {
   if (!GST_IS_ELEMENT_FACTORY(aFeature)) {
     return FALSE;
   }
 
+  // TODO _get_klass doesn't exist in 1.0
   const gchar *className =
     gst_element_factory_get_klass(GST_ELEMENT_FACTORY_CAST(aFeature));
 
@@ -255,9 +217,7 @@ static gboolean FactoryFilter(GstPluginFeature *aFeature, gpointer)
     return FALSE;
   }
 
-  return
-    gst_plugin_feature_get_rank(aFeature) >= GST_RANK_MARGINAL &&
-    !GStreamerFormatHelper::IsPluginFeatureBlacklisted(aFeature);
+  return gst_plugin_feature_get_rank(aFeature) >= GST_RANK_MARGINAL;
 }
 
 /**

@@ -31,22 +31,16 @@ class CompileRuntime
 
     js::PerThreadData *mainThread();
 
-    // &runtime()->jitTop
+    // &mainThread.jitTop
     const void *addressOfJitTop();
 
-    // &runtime()->jitActivation
-    const void *addressOfJitActivation();
-
-    // &runtime()->profilingActivation
-    const void *addressOfProfilingActivation();
-
-    // rt->runtime()->jitStackLimit;
+    // rt->mainThread.jitStackLimit;
     const void *addressOfJitStackLimit();
 
-    // &runtime()->jitJSContext
+    // &mainThread.jitJSContext
     const void *addressOfJSContext();
 
-    // &runtime()->activation_
+    // &mainThread.activation_
     const void *addressOfActivation();
 
     // &GetJitContext()->runtime->nativeIterCache.last
@@ -57,6 +51,9 @@ class CompileRuntime
 #endif
 
     const void *addressOfInterruptUint32();
+    const void *addressOfInterruptParUint32();
+
+    const void *addressOfThreadPool();
 
     const JitRuntime *jitRuntime();
 
@@ -96,7 +93,7 @@ class CompileZone
 
     const void *addressOfNeedsIncrementalBarrier();
 
-    // arenas.getFreeList(allocKind)
+    // allocator.arenas.getFreeList(allocKind)
     const void *addressOfFreeListFirst(gc::AllocKind allocKind);
     const void *addressOfFreeListLast(gc::AllocKind allocKind);
 };
@@ -112,6 +109,8 @@ class CompileCompartment
     CompileRuntime *runtime();
 
     const void *addressOfEnumerators();
+
+    const CallsiteCloneTable &callsiteClones();
 
     const JitCompartment *jitCompartment();
 

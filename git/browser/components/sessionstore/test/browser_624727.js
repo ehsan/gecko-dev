@@ -1,9 +1,11 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-let TEST_STATE = { windows: [{ tabs: [{ url: "about:blank" }] }] };
+function test() {
+  TestRunner.run();
+}
 
-add_task(function* () {
+function runTests() {
   function assertNumberOfTabs(num, msg) {
     is(gBrowser.tabs.length, num, msg);
   }
@@ -27,9 +29,13 @@ add_task(function* () {
   assertNumberOfPinnedTabs(2, "both tabs are now pinned");
 
   // run the test
-  yield promiseBrowserState(TEST_STATE);
-
-  assertNumberOfTabs(1, "one tab left after setBrowserState()");
-  assertNumberOfPinnedTabs(0, "there are no pinned tabs");
-  is(gBrowser.tabs[0].linkedBrowser, linkedBrowser, "first tab's browser got re-used");
-});
+  yield waitForBrowserState(
+    { windows: [{ tabs: [{ url: "about:blank" }] }] },
+    function () {
+      assertNumberOfTabs(1, "one tab left after setBrowserState()");
+      assertNumberOfPinnedTabs(0, "there are no pinned tabs");
+      is(gBrowser.tabs[0].linkedBrowser, linkedBrowser, "first tab's browser got re-used");
+      next();
+    }
+  );
+}

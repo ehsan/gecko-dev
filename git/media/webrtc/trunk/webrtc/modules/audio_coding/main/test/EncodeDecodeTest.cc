@@ -10,12 +10,16 @@
 
 #include "webrtc/modules/audio_coding/main/test/EncodeDecodeTest.h"
 
-#include <sstream>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+#include <sstream>
+#include <string>
 
 #include "testing/gtest/include/gtest/gtest.h"
 #include "webrtc/common_types.h"
+#include "webrtc/common.h"
 #include "webrtc/modules/audio_coding/main/interface/audio_coding_module.h"
 #include "webrtc/modules/audio_coding/main/acm2/acm_common_defs.h"
 #include "webrtc/modules/audio_coding/main/test/utility.h"
@@ -51,19 +55,16 @@ Sender::Sender()
       _packetization(NULL) {
 }
 
-void Sender::Setup(AudioCodingModule *acm, RTPStream *rtpStream,
-                   std::string in_file_name, int sample_rate, int channels) {
+void Sender::Setup(AudioCodingModule *acm, RTPStream *rtpStream) {
   acm->InitializeSender();
   struct CodecInst sendCodec;
   int noOfCodecs = acm->NumberOfCodecs();
   int codecNo;
 
   // Open input file
-  const std::string file_name = webrtc::test::ResourcePath(in_file_name, "pcm");
-  _pcmFile.Open(file_name, sample_rate, "rb");
-  if (channels == 2) {
-    _pcmFile.ReadStereo(true);
-  }
+  const std::string file_name = webrtc::test::ResourcePath(
+      "audio_coding/testfile32kHz", "pcm");
+  _pcmFile.Open(file_name, 32000, "rb");
 
   // Set the codec for the current test.
   if ((testMode == 0) || (testMode == 1)) {
@@ -81,8 +82,10 @@ void Sender::Setup(AudioCodingModule *acm, RTPStream *rtpStream,
   }
 
   EXPECT_EQ(0, acm->Codec(codecNo, &sendCodec));
-
-  sendCodec.channels = channels;
+  // Default number of channels is 2 for CELT, so we change to 1 in this test.
+  if (!strcmp(sendCodec.plname, "CELT")) {
+    sendCodec.channels = 1;
+  }
 
   EXPECT_EQ(0, acm->RegisterSendCodec(sendCodec));
   _packetization = new TestPacketization(rtpStream, sendCodec.plfreq);
@@ -123,28 +126,21 @@ Receiver::Receiver()
       _payloadSizeBytes(MAX_INCOMING_PAYLOAD) {
 }
 
-void Receiver::Setup(AudioCodingModule *acm, RTPStream *rtpStream,
-                     std::string out_file_name, int channels) {
-  struct CodecInst recvCodec = CodecInst();
+void Receiver::Setup(AudioCodingModule *acm, RTPStream *rtpStream) {
+  struct CodecInst recvCodec;
   int noOfCodecs;
   EXPECT_EQ(0, acm->InitializeReceiver());
 
   noOfCodecs = acm->NumberOfCodecs();
   for (int i = 0; i < noOfCodecs; i++) {
-    EXPECT_EQ(0, acm->Codec(i, &recvCodec));
-    if (recvCodec.channels == channels)
-      EXPECT_EQ(0, acm->RegisterReceiveCodec(recvCodec));
-    // Forces mono/stereo for Opus.
-    if (!strcmp(recvCodec.plname, "opus")) {
-      recvCodec.channels = channels;
-      EXPECT_EQ(0, acm->RegisterReceiveCodec(recvCodec));
-    }
+    EXPECT_EQ(0, acm->Codec(static_cast<uint8_t>(i), &recvCodec));
+    EXPECT_EQ(0, acm->RegisterReceiveCodec(recvCodec));
   }
 
   int playSampFreq;
   std::string file_name;
   std::stringstream file_stream;
-  file_stream << webrtc::test::OutputPath() << out_file_name
+  file_stream << webrtc::test::OutputPath() << "encodeDecode_out"
       << static_cast<int>(codeId) << ".pcm";
   file_name = file_stream.str();
   _rtpStream = rtpStream;
@@ -161,7 +157,7 @@ void Receiver::Setup(AudioCodingModule *acm, RTPStream *rtpStream,
     printf("which means output frequency equal to received signal frequency");
     printf("\n\nChoose output sampling frequency: ");
     ASSERT_GT(scanf("%d", &playSampFreq), 0);
-    file_name = webrtc::test::OutputPath() + out_file_name + ".pcm";
+    file_name = webrtc::test::OutputPath() + "encodeDecode_out.pcm";
     _pcmFile.Open(file_name, playSampFreq, "wb+");
   }
 
@@ -218,8 +214,7 @@ bool Receiver::PlayoutData() {
   if (_playoutLengthSmpls == 0) {
     return false;
   }
-  _pcmFile.Write10MsData(audioFrame.data_,
-      audioFrame.samples_per_channel_ * audioFrame.num_channels_);
+  _pcmFile.Write10MsData(audioFrame.data_, audioFrame.samples_per_channel_);
   return true;
 }
 
@@ -247,14 +242,16 @@ void Receiver::Run() {
   }
 }
 
-EncodeDecodeTest::EncodeDecodeTest() {
+EncodeDecodeTest::EncodeDecodeTest(const Config& config)
+    : config_(config) {
   _testMode = 2;
   Trace::CreateTrace();
   Trace::SetTraceFile(
       (webrtc::test::OutputPath() + "acm_encdec_trace.txt").c_str());
 }
 
-EncodeDecodeTest::EncodeDecodeTest(int testMode) {
+EncodeDecodeTest::EncodeDecodeTest(int testMode, const Config& config)
+    : config_(config) {
   //testMode == 0 for autotest
   //testMode == 1 for testing all codecs/parameters
   //testMode > 1 for specific user-input test (as it was used before)
@@ -276,7 +273,8 @@ void EncodeDecodeTest::Perform() {
   codePars[1] = 0;
   codePars[2] = 0;
 
-  scoped_ptr<AudioCodingModule> acm(AudioCodingModule::Create(0));
+  scoped_ptr<AudioCodingModule> acm(
+      config_.Get<AudioCodingModuleFactory>().Create(0));
   struct CodecInst sendCodecTmp;
   numCodecs = acm->NumberOfCodecs();
 
@@ -307,15 +305,16 @@ void EncodeDecodeTest::Perform() {
     // Only encode using real mono encoders, not telephone-event and cng.
     for (int loopPars = 1; loopPars <= numPars[codeId]; loopPars++) {
       // Encode all data to file.
-      std::string fileName = EncodeToFile(1, codeId, codePars, _testMode);
+      EncodeToFile(1, codeId, codePars, _testMode);
 
       RTPFile rtpFile;
+      std::string fileName = webrtc::test::OutputPath() + "outFile.rtp";
       rtpFile.Open(fileName.c_str(), "rb");
 
       _receiver.codeId = codeId;
 
       rtpFile.ReadHeader();
-      _receiver.Setup(acm.get(), &rtpFile, "encodeDecode_out", 1);
+      _receiver.Setup(acm.get(), &rtpFile);
       _receiver.Run();
       _receiver.Teardown();
       rtpFile.Close();
@@ -328,14 +327,12 @@ void EncodeDecodeTest::Perform() {
   }
 }
 
-std::string EncodeDecodeTest::EncodeToFile(int fileType,
-                                           int codeId,
-                                           int* codePars,
-                                           int testMode) {
-  scoped_ptr<AudioCodingModule> acm(AudioCodingModule::Create(1));
+void EncodeDecodeTest::EncodeToFile(int fileType, int codeId, int* codePars,
+                                    int testMode) {
+  scoped_ptr<AudioCodingModule> acm(
+      config_.Get<AudioCodingModuleFactory>().Create(1));
   RTPFile rtpFile;
-  std::string fileName = webrtc::test::TempFilename(webrtc::test::OutputPath(),
-                                                    "encode_decode_rtp");
+  std::string fileName = webrtc::test::OutputPath() + "outFile.rtp";
   rtpFile.Open(fileName.c_str(), "wb+");
   rtpFile.WriteHeader();
 
@@ -343,15 +340,13 @@ std::string EncodeDecodeTest::EncodeToFile(int fileType,
   _sender.testMode = testMode;
   _sender.codeId = codeId;
 
-  _sender.Setup(acm.get(), &rtpFile, "audio_coding/testfile32kHz", 32000, 1);
+  _sender.Setup(acm.get(), &rtpFile);
   struct CodecInst sendCodecInst;
   if (acm->SendCodec(&sendCodecInst) >= 0) {
     _sender.Run();
   }
   _sender.Teardown();
   rtpFile.Close();
-
-  return fileName;
 }
 
 }  // namespace webrtc

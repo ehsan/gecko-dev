@@ -22,9 +22,7 @@ typedef char16_t nsStaticAtomStringType;
  */
 struct nsStaticAtom
 {
-  // mStringBuffer points to the string buffer for a permanent atom, and is
-  // therefore safe as a non-owning reference.
-  nsStringBuffer* MOZ_NON_OWNING_REF mStringBuffer;
+  nsStringBuffer* mStringBuffer;
   nsIAtom** mAtom;
 };
 

@@ -6,7 +6,6 @@
 #define BASE_MEMORY_REF_COUNTED_H_
 
 #include <cassert>
-#include <iosfwd>
 
 #include "base/atomic_ref_count.h"
 #include "base/base_export.h"
@@ -15,12 +14,6 @@
 #include "base/logging.h"
 #endif
 #include "base/threading/thread_collision_warner.h"
-#include "build/build_config.h"
-#include "mozilla/Attributes.h"
-
-#if defined(OS_LINUX) || defined(OS_MACOSX) || defined(OS_IOS) || defined(OS_ANDROID)
-#define DISABLE_SCOPED_REFPTR_CONVERSION_OPERATOR
-#endif
 
 namespace base {
 
@@ -208,7 +201,7 @@ class RefCountedData
     : public base::RefCountedThreadSafe< base::RefCountedData<T> > {
  public:
   RefCountedData() : data() {}
-  MOZ_IMPLICIT RefCountedData(const T& in_value) : data(in_value) {}
+  RefCountedData(const T& in_value) : data(in_value) {}
 
   T data;
 
@@ -275,39 +268,32 @@ class scoped_refptr {
   scoped_refptr() : ptr_(NULL) {
   }
 
-  MOZ_IMPLICIT scoped_refptr(T* p) : ptr_(p) {
+  scoped_refptr(T* p) : ptr_(p) {
     if (ptr_)
-      AddRef(ptr_);
+      ptr_->AddRef();
   }
 
   scoped_refptr(const scoped_refptr<T>& r) : ptr_(r.ptr_) {
     if (ptr_)
-      AddRef(ptr_);
+      ptr_->AddRef();
   }
 
   template <typename U>
   scoped_refptr(const scoped_refptr<U>& r) : ptr_(r.get()) {
     if (ptr_)
-      AddRef(ptr_);
+      ptr_->AddRef();
   }
 
   ~scoped_refptr() {
     if (ptr_)
-      Release(ptr_);
+      ptr_->Release();
   }
 
   T* get() const { return ptr_; }
 
-#if !defined(DISABLE_SCOPED_REFPTR_CONVERSION_OPERATOR)
   // Allow scoped_refptr<C> to be used in boolean expression
   // and comparison operations.
   operator T*() const { return ptr_; }
-#endif
-
-  T& operator*() const {
-    assert(ptr_ != NULL);
-    return *ptr_;
-  }
 
   T* operator->() const {
     assert(ptr_ != NULL);
@@ -317,11 +303,11 @@ class scoped_refptr {
   scoped_refptr<T>& operator=(T* p) {
     // AddRef first so that self assignment should work
     if (p)
-      AddRef(p);
+      p->AddRef();
     T* old_ptr = ptr_;
     ptr_ = p;
     if (old_ptr)
-      Release(old_ptr);
+      old_ptr->Release();
     return *this;
   }
 
@@ -344,44 +330,9 @@ class scoped_refptr {
     swap(&r.ptr_);
   }
 
-#if defined(DISABLE_SCOPED_REFPTR_CONVERSION_OPERATOR)
-  template <typename U>
-  bool operator==(const scoped_refptr<U>& rhs) const {
-    return ptr_ == rhs.get();
-  }
-
-  template <typename U>
-  bool operator!=(const scoped_refptr<U>& rhs) const {
-    return !operator==(rhs);
-  }
-
-  template <typename U>
-  bool operator<(const scoped_refptr<U>& rhs) const {
-    return ptr_ < rhs.get();
-  }
-#endif
-
  protected:
   T* ptr_;
-
- private:
-  // Non-inline helpers to allow:
-  //     class Opaque;
-  //     extern template class scoped_refptr<Opaque>;
-  // Otherwise the compiler will complain that Opaque is an incomplete type.
-  static void AddRef(T* ptr);
-  static void Release(T* ptr);
 };
-
-template <typename T>
-void scoped_refptr<T>::AddRef(T* ptr) {
-  ptr->AddRef();
-}
-
-template <typename T>
-void scoped_refptr<T>::Release(T* ptr) {
-  ptr->Release();
-}
 
 // Handy utility for creating a scoped_refptr<T> out of a T* explicitly without
 // having to retype all the template arguments
@@ -389,33 +340,5 @@ template <typename T>
 scoped_refptr<T> make_scoped_refptr(T* t) {
   return scoped_refptr<T>(t);
 }
-
-#if defined(DISABLE_SCOPED_REFPTR_CONVERSION_OPERATOR)
-// Temporary operator overloads to facilitate the transition...
-template <typename T, typename U>
-bool operator==(const scoped_refptr<T>& lhs, const U* rhs) {
-  return lhs.get() == rhs;
-}
-
-template <typename T, typename U>
-bool operator==(const T* lhs, const scoped_refptr<U>& rhs) {
-  return lhs == rhs.get();
-}
-
-template <typename T, typename U>
-bool operator!=(const scoped_refptr<T>& lhs, const U* rhs) {
-  return !operator==(lhs, rhs);
-}
-
-template <typename T, typename U>
-bool operator!=(const T* lhs, const scoped_refptr<U>& rhs) {
-  return !operator==(lhs, rhs);
-}
-
-template <typename T>
-std::ostream& operator<<(std::ostream& out, const scoped_refptr<T>& p) {
-  return out << p.get();
-}
-#endif  // defined(DISABLE_SCOPED_REFPTR_CONVERSION_OPERATOR)
 
 #endif  // BASE_MEMORY_REF_COUNTED_H_

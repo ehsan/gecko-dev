@@ -58,12 +58,10 @@ if (window.readConfig) {
 }
 
 if (config.testRoot == "chrome" || config.testRoot == "a11y") {
-  for (var p in params) {
-    // Compare with arrays to find boolean equivalents, since that's what
-    // |parseQueryString| with useArrays returns.
-    if (params[p] == [1]) {
+  for (p in params) {
+    if (params[p] == 1) {
       config[p] = true;
-    } else if (params[p] == [0]) {
+    } else if (params[p] == 0) {
       config[p] = false;
     } else {
       config[p] = params[p];

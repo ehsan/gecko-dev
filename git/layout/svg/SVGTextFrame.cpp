@@ -908,10 +908,6 @@ TextRenderedRun::GetRunUserSpaceRect(nsPresContext* aContext,
   gfxTextRun::Metrics metrics =
     textRun->MeasureText(offset, length, gfxFont::LOOSE_INK_EXTENTS,
                          nullptr, nullptr);
-  // Make sure it includes the font-box.
-  gfxRect fontBox(0, -metrics.mAscent,
-      metrics.mAdvanceWidth, metrics.mAscent + metrics.mDescent);
-  metrics.mBoundingBox.UnionRect(metrics.mBoundingBox, fontBox);
 
   // Determine the rectangle that covers the rendered run's fill,
   // taking into account the measured vertical overflow due to
@@ -1286,8 +1282,12 @@ struct TextNodeCorrespondence
   uint32_t mUndisplayedCharacters;
 };
 
-NS_DECLARE_FRAME_PROPERTY(TextNodeCorrespondenceProperty,
-                          DeleteValue<TextNodeCorrespondence>)
+static void DestroyTextNodeCorrespondence(void* aPropertyValue)
+{
+  delete static_cast<TextNodeCorrespondence*>(aPropertyValue);
+}
+
+NS_DECLARE_FRAME_PROPERTY(TextNodeCorrespondenceProperty, DestroyTextNodeCorrespondence)
 
 /**
  * Returns the number of undisplayed characters before the specified
@@ -2719,14 +2719,13 @@ public:
   {
   }
 
-  void NotifySelectionBackgroundNeedsFill(const Rect& aBackgroundRect,
-                                          nscolor aColor,
-                                          DrawTarget& aDrawTarget) MOZ_OVERRIDE;
   void NotifyBeforeText(nscolor aColor) MOZ_OVERRIDE;
   void NotifyGlyphPathEmitted() MOZ_OVERRIDE;
   void NotifyBeforeSVGGlyphPainted() MOZ_OVERRIDE;
   void NotifyAfterSVGGlyphPainted() MOZ_OVERRIDE;
   void NotifyAfterText() MOZ_OVERRIDE;
+  void NotifyBeforeSelectionBackground(nscolor aColor) MOZ_OVERRIDE;
+  void NotifySelectionBackgroundPathEmitted() MOZ_OVERRIDE;
   void NotifyBeforeDecorationLine(nscolor aColor) MOZ_OVERRIDE;
   void NotifyDecorationLinePathEmitted() MOZ_OVERRIDE;
   void NotifyBeforeSelectionDecorationLine(nscolor aColor) MOZ_OVERRIDE;
@@ -2783,27 +2782,6 @@ private:
 };
 
 void
-SVGTextDrawPathCallbacks::NotifySelectionBackgroundNeedsFill(
-                                                      const Rect& aBackgroundRect,
-                                                      nscolor aColor,
-                                                      DrawTarget& aDrawTarget)
-{
-  if (IsClipPathChild()) {
-    // Don't paint selection backgrounds when in a clip path.
-    return;
-  }
-
-  mColor = aColor; // currently needed by MakeFillPattern
-
-  GeneralPattern fillPattern;
-  MakeFillPattern(&fillPattern);
-  if (fillPattern.GetPattern()) {
-    DrawOptions drawOptions(aColor == NS_40PERCENT_FOREGROUND_COLOR ? 0.4 : 1.0);
-    aDrawTarget.FillRect(aBackgroundRect, fillPattern, drawOptions);
-  }
-}
-
-void
 SVGTextDrawPathCallbacks::NotifyBeforeText(nscolor aColor)
 {
   mColor = aColor;
@@ -2834,6 +2812,41 @@ SVGTextDrawPathCallbacks::NotifyAfterSVGGlyphPainted()
 void
 SVGTextDrawPathCallbacks::NotifyAfterText()
 {
+  gfx->Restore();
+}
+
+void
+SVGTextDrawPathCallbacks::NotifyBeforeSelectionBackground(nscolor aColor)
+{
+  if (IsClipPathChild()) {
+    // Don't paint selection backgrounds when in a clip path.
+    return;
+  }
+
+  mColor = aColor;
+  gfx->Save();
+}
+
+void
+SVGTextDrawPathCallbacks::NotifySelectionBackgroundPathEmitted()
+{
+  if (IsClipPathChild()) {
+    // Don't paint selection backgrounds when in a clip path.
+    return;
+  }
+
+  GeneralPattern fillPattern;
+  MakeFillPattern(&fillPattern);
+  if (fillPattern.GetPattern()) {
+    RefPtr<Path> path = gfx->GetPath();
+    FillRule fillRule = nsSVGUtils::ToFillRule(mFrame->StyleSVG()->mFillRule);
+    if (fillRule != path->GetFillRule()) {
+      RefPtr<PathBuilder> builder = path->CopyToBuilder(fillRule);
+      path = builder->Finish();
+    }
+    DrawOptions drawOptions(mColor == NS_40PERCENT_FOREGROUND_COLOR ? 0.4 : 1.0);
+    gfx->GetDrawTarget()->Fill(path, fillPattern, drawOptions);
+  }
   gfx->Restore();
 }
 
@@ -2898,9 +2911,8 @@ void
 SVGTextDrawPathCallbacks::HandleTextGeometry()
 {
   if (IsClipPathChild()) {
-    RefPtr<Path> path = gfx->GetPath();
-    ColorPattern white(Color(1.f, 1.f, 1.f, 1.f)); // for masking, so no ToDeviceColor
-    gfx->GetDrawTarget()->Fill(path, white);
+    gfx->SetColor(gfxRGBA(1.0f, 1.0f, 1.0f, 1.0f));
+    gfx->Fill();
   } else {
     // Normal painting.
     gfxContextMatrixAutoSaveRestore saveMatrix(gfx);
@@ -2967,15 +2979,11 @@ SVGTextDrawPathCallbacks::FillGeometry()
   GeneralPattern fillPattern;
   MakeFillPattern(&fillPattern);
   if (fillPattern.GetPattern()) {
-    RefPtr<Path> path = gfx->GetPath();
-    FillRule fillRule = nsSVGUtils::ToFillRule(IsClipPathChild() ?
-                          mFrame->StyleSVG()->mClipRule :
-                          mFrame->StyleSVG()->mFillRule);
-    if (fillRule != path->GetFillRule()) {
-      RefPtr<PathBuilder> builder = path->CopyToBuilder(fillRule);
-      path = builder->Finish();
-    }
-    gfx->GetDrawTarget()->Fill(path, fillPattern);
+    gfx->SetFillRule(
+      nsSVGUtils::ToFillRule(
+        IsClipPathChild() ?
+          mFrame->StyleSVG()->mClipRule : mFrame->StyleSVG()->mFillRule));
+    gfx->Fill(fillPattern);
   }
 }
 
@@ -3120,7 +3128,7 @@ public:
       mDisableSubpixelAA(false)
   {
     MOZ_COUNT_CTOR(nsDisplaySVGText);
-    MOZ_ASSERT(aFrame, "Must have a frame!");
+    NS_ABORT_IF_FALSE(aFrame, "Must have a frame!");
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
   virtual ~nsDisplaySVGText() {
@@ -3512,8 +3520,8 @@ SVGTextFrame::FindCloserFrameForSelection(
 void
 SVGTextFrame::NotifySVGChanged(uint32_t aFlags)
 {
-  MOZ_ASSERT(aFlags & (TRANSFORM_CHANGED | COORD_CONTEXT_CHANGED),
-             "Invalidation logic may need adjusting");
+  NS_ABORT_IF_FALSE(aFlags & (TRANSFORM_CHANGED | COORD_CONTEXT_CHANGED),
+                    "Invalidation logic may need adjusting");
 
   bool needNewBounds = false;
   bool needGlyphMetricsUpdate = false;
@@ -3831,8 +3839,8 @@ SVGTextFrame::ReflowSVG()
   NS_ASSERTION(nsSVGUtils::OuterSVGIsCallingReflowSVG(this),
                "This call is probaby a wasteful mistake");
 
-  MOZ_ASSERT(!(GetStateBits() & NS_FRAME_IS_NONDISPLAY),
-             "ReflowSVG mechanism not designed for this");
+  NS_ABORT_IF_FALSE(!(GetStateBits() & NS_FRAME_IS_NONDISPLAY),
+                    "ReflowSVG mechanism not designed for this");
 
   if (!nsSVGUtils::NeedsReflowSVG(this)) {
     NS_ASSERTION(!(mState & NS_STATE_SVG_POSITIONING_DIRTY), "How did this happen?");
@@ -4803,8 +4811,8 @@ SVGTextFrame::AdjustPositionsForClusters()
   }
 }
 
-SVGPathElement*
-SVGTextFrame::GetTextPathPathElement(nsIFrame* aTextPathFrame)
+nsIFrame*
+SVGTextFrame::GetTextPathPathFrame(nsIFrame* aTextPathFrame)
 {
   nsSVGTextPathProperty *property = static_cast<nsSVGTextPathProperty*>
     (aTextPathFrame->Properties().Get(nsSVGEffects::HrefProperty()));
@@ -4829,18 +4837,20 @@ SVGTextFrame::GetTextPathPathElement(nsIFrame* aTextPathFrame)
       return nullptr;
   }
 
-  Element* element = property->GetReferencedElement();
-  return (element && element->IsSVG(nsGkAtoms::path)) ?
-    static_cast<SVGPathElement*>(element) : nullptr;
+  return property->GetReferencedFrame(nsGkAtoms::svgPathGeometryFrame, nullptr);
 }
 
 TemporaryRef<Path>
 SVGTextFrame::GetTextPath(nsIFrame* aTextPathFrame)
 {
-  SVGPathElement* element = GetTextPathPathElement(aTextPathFrame);
-  if (!element) {
+  nsIFrame *pathFrame = GetTextPathPathFrame(aTextPathFrame);
+
+  if (!pathFrame) {
     return nullptr;
   }
+
+  nsSVGPathGeometryElement *element =
+    static_cast<nsSVGPathGeometryElement*>(pathFrame->GetContent());
 
   RefPtr<Path> path = element->GetOrBuildPathForMeasuring();
   if (!path) {
@@ -4860,11 +4870,12 @@ SVGTextFrame::GetTextPath(nsIFrame* aTextPathFrame)
 gfxFloat
 SVGTextFrame::GetOffsetScale(nsIFrame* aTextPathFrame)
 {
-  SVGPathElement* pathElement = GetTextPathPathElement(aTextPathFrame);
-  if (!pathElement)
+  nsIFrame *pathFrame = GetTextPathPathFrame(aTextPathFrame);
+  if (!pathFrame)
     return 1.0;
 
-  return pathElement->GetPathLengthScale(dom::SVGPathElement::eForTextPath);
+  return static_cast<dom::SVGPathElement*>(pathFrame->GetContent())->
+    GetPathLengthScale(dom::SVGPathElement::eForTextPath);
 }
 
 gfxFloat

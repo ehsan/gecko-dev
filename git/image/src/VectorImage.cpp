@@ -472,14 +472,17 @@ NS_IMETHODIMP
 VectorImage::GetWidth(int32_t* aWidth)
 {
   if (mError || !mIsFullyLoaded) {
-    *aWidth = -1;
-  } else {
-    SVGSVGElement* rootElem = mSVGDocumentWrapper->GetRootSVGElem();
-    MOZ_ASSERT(rootElem, "Should have a root SVG elem, since we finished "
-                         "loading without errors");
-    *aWidth = rootElem->GetIntrinsicWidth();
+    *aWidth = 0;
+    return NS_ERROR_FAILURE;
   }
-  return *aWidth >= 0 ? NS_OK : NS_ERROR_FAILURE;
+
+  if (!mSVGDocumentWrapper->GetWidthOrHeight(SVGDocumentWrapper::eWidth,
+                                             *aWidth)) {
+    *aWidth = 0;
+    return NS_ERROR_FAILURE;
+  }
+
+  return NS_OK;
 }
 
 //******************************************************************************
@@ -538,14 +541,17 @@ NS_IMETHODIMP
 VectorImage::GetHeight(int32_t* aHeight)
 {
   if (mError || !mIsFullyLoaded) {
-    *aHeight = -1;
-  } else {
-    SVGSVGElement* rootElem = mSVGDocumentWrapper->GetRootSVGElem();
-    MOZ_ASSERT(rootElem, "Should have a root SVG elem, since we finished "
-                         "loading without errors");
-    *aHeight = rootElem->GetIntrinsicHeight();
+    *aHeight = 0;
+    return NS_ERROR_FAILURE;
   }
-  return *aHeight >= 0 ? NS_OK : NS_ERROR_FAILURE;
+
+  if (!mSVGDocumentWrapper->GetWidthOrHeight(SVGDocumentWrapper::eHeight,
+                                             *aHeight)) {
+    *aHeight = 0;
+    return NS_ERROR_FAILURE;
+  }
+
+  return NS_OK;
 }
 
 //******************************************************************************
@@ -657,20 +663,17 @@ VectorImage::GetFrame(uint32_t aWhichFrame,
   if (aWhichFrame > FRAME_MAX_VALUE)
     return nullptr;
 
-  if (mError || !mIsFullyLoaded)
+  if (mError)
     return nullptr;
 
   // Look up height & width
   // ----------------------
-  SVGSVGElement* svgElem = mSVGDocumentWrapper->GetRootSVGElem();
-  MOZ_ASSERT(svgElem, "Should have a root SVG elem, since we finished "
-                      "loading without errors");
-  nsIntSize imageIntSize(svgElem->GetIntrinsicWidth(),
-                         svgElem->GetIntrinsicHeight());
-  
-  if (imageIntSize.IsEmpty()) {
-    // We'll get here if our SVG doc has a percent-valued or negative width or
-    // height.
+  nsIntSize imageIntSize;
+  if (!mSVGDocumentWrapper->GetWidthOrHeight(SVGDocumentWrapper::eWidth,
+                                             imageIntSize.width) ||
+      !mSVGDocumentWrapper->GetWidthOrHeight(SVGDocumentWrapper::eHeight,
+                                             imageIntSize.height)) {
+    // We'll get here if our SVG doc has a percent-valued width or height.
     return nullptr;
   }
 

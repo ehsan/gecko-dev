@@ -91,9 +91,6 @@ public class HomeListView extends ListView
             mContextMenuInfo = mContextMenuInfoFactory.makeInfoForCursor(view, position, id, cursor);
             return showContextMenuForChild(HomeListView.this);
 
-        } else if (mContextMenuInfoFactory instanceof HomeContextMenuInfo.ListFactory) {
-            mContextMenuInfo = ((HomeContextMenuInfo.ListFactory) mContextMenuInfoFactory).makeInfoForAdapter(view, position, id, getAdapter());
-            return showContextMenuForChild(HomeListView.this);
         } else {
             mContextMenuInfo = null;
             return false;

@@ -11,8 +11,6 @@ loop.conversationViews = (function(mozL10n) {
 
   var CALL_STATES = loop.store.CALL_STATES;
   var CALL_TYPES = loop.shared.utils.CALL_TYPES;
-  var REST_ERRNOS = loop.shared.utils.REST_ERRNOS;
-  var WEBSOCKET_REASONS = loop.shared.utils.WEBSOCKET_REASONS;
   var sharedActions = loop.shared.actions;
   var sharedUtils = loop.shared.utils;
   var sharedViews = loop.shared.views;
@@ -347,15 +345,10 @@ loop.conversationViews = (function(mozL10n) {
       conversation: React.PropTypes.instanceOf(sharedModels.ConversationModel)
                          .isRequired,
       sdk: React.PropTypes.object.isRequired,
-      isDesktop: React.PropTypes.bool,
       conversationAppStore: React.PropTypes.instanceOf(
-        loop.store.ConversationAppStore).isRequired
-    },
-
-    getDefaultProps: function() {
-      return {
-        isDesktop: false
-      };
+        loop.store.ConversationAppStore).isRequired,
+      feedbackStore:
+        React.PropTypes.instanceOf(loop.store.FeedbackStore).isRequired
     },
 
     getInitialState: function() {
@@ -410,7 +403,6 @@ loop.conversationViews = (function(mozL10n) {
 
           return (
             React.createElement(sharedViews.ConversationView, {
-              isDesktop: this.props.isDesktop, 
               initiate: true, 
               sdk: this.props.sdk, 
               model: this.props.conversation, 
@@ -432,6 +424,7 @@ loop.conversationViews = (function(mozL10n) {
 
           return (
             React.createElement(sharedViews.FeedbackView, {
+              feedbackStore: this.props.feedbackStore, 
               onAfterFeedbackReceived: this.closeWindow.bind(this)}
             )
           );
@@ -777,8 +770,8 @@ loop.conversationViews = (function(mozL10n) {
       var callStateReason =
         this.props.store.getStoreState("callStateReason");
 
-      if (callStateReason === WEBSOCKET_REASONS.REJECT || callStateReason === WEBSOCKET_REASONS.BUSY ||
-          callStateReason === REST_ERRNOS.USER_UNAVAILABLE) {
+      if (callStateReason === "reject" || callStateReason === "busy" ||
+          callStateReason === "setup") {
         var contactDisplayName = _getContactDisplayName(this.props.contact);
         if (contactDisplayName.length) {
           return mozL10n.get(
@@ -842,10 +835,6 @@ loop.conversationViews = (function(mozL10n) {
   });
 
   var OngoingConversationView = React.createClass({displayName: "OngoingConversationView",
-    mixins: [
-      sharedMixins.MediaSetupMixin
-    ],
-
     propTypes: {
       dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired,
       video: React.PropTypes.object,
@@ -860,16 +849,72 @@ loop.conversationViews = (function(mozL10n) {
     },
 
     componentDidMount: function() {
+      /**
+       * OT inserts inline styles into the markup. Using a listener for
+       * resize events helps us trigger a full width/height on the element
+       * so that they update to the correct dimensions.
+       * XXX: this should be factored as a mixin.
+       */
+      window.addEventListener('orientationchange', this.updateVideoContainer);
+      window.addEventListener('resize', this.updateVideoContainer);
+
       // The SDK needs to know about the configuration and the elements to use
       // for display. So the best way seems to pass the information here - ideally
       // the sdk wouldn't need to know this, but we can't change that.
       this.props.dispatcher.dispatch(new sharedActions.SetupStreamElements({
-        publisherConfig: this.getDefaultPublisherConfig({
-          publishVideo: this.props.video.enabled
-        }),
+        publisherConfig: this._getPublisherConfig(),
         getLocalElementFunc: this._getElement.bind(this, ".local"),
         getRemoteElementFunc: this._getElement.bind(this, ".remote")
       }));
+    },
+
+    componentWillUnmount: function() {
+      window.removeEventListener('orientationchange', this.updateVideoContainer);
+      window.removeEventListener('resize', this.updateVideoContainer);
+    },
+
+    /**
+     * Returns either the required DOMNode
+     *
+     * @param {String} className The name of the class to get the element for.
+     */
+    _getElement: function(className) {
+      return this.getDOMNode().querySelector(className);
+    },
+
+    /**
+     * Returns the required configuration for publishing video on the sdk.
+     */
+    _getPublisherConfig: function() {
+      // height set to 100%" to fix video layout on Google Chrome
+      // @see https://bugzilla.mozilla.org/show_bug.cgi?id=1020445
+      return {
+        insertMode: "append",
+        width: "100%",
+        height: "100%",
+        publishVideo: this.props.video.enabled,
+        style: {
+          audioLevelDisplayMode: "off",
+          buttonDisplayMode: "off",
+          nameDisplayMode: "off",
+          videoDisabledDisplayMode: "off"
+        }
+      };
+    },
+
+    /**
+     * Used to update the video container whenever the orientation or size of the
+     * display area changes.
+     */
+    updateVideoContainer: function() {
+      var localStreamParent = this._getElement('.local .OT_publisher');
+      var remoteStreamParent = this._getElement('.remote .OT_subscriber');
+      if (localStreamParent) {
+        localStreamParent.style.width = "100%";
+      }
+      if (remoteStreamParent) {
+        remoteStreamParent.style.height = "100%";
+      }
     },
 
     /**
@@ -906,7 +951,7 @@ loop.conversationViews = (function(mozL10n) {
           React.createElement("div", {className: "conversation"}, 
             React.createElement("div", {className: "media nested"}, 
               React.createElement("div", {className: "video_wrapper remote_wrapper"}, 
-                React.createElement("div", {className: "video_inner remote focus-stream"})
+                React.createElement("div", {className: "video_inner remote"})
               ), 
               React.createElement("div", {className: localStreamClasses})
             ), 
@@ -934,7 +979,8 @@ loop.conversationViews = (function(mozL10n) {
     propTypes: {
       dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired,
       store: React.PropTypes.instanceOf(
-        loop.store.ConversationStore).isRequired
+        loop.store.ConversationStore).isRequired,
+      feedbackStore: React.PropTypes.instanceOf(loop.store.FeedbackStore)
     },
 
     getInitialState: function() {
@@ -973,6 +1019,7 @@ loop.conversationViews = (function(mozL10n) {
 
       return (
         React.createElement(sharedViews.FeedbackView, {
+          feedbackStore: this.props.feedbackStore, 
           onAfterFeedbackReceived: this._closeWindow.bind(this)}
         )
       );

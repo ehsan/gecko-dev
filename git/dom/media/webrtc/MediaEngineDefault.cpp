@@ -69,7 +69,7 @@ MediaEngineDefaultVideoSource::GetUUID(nsAString& aUUID)
 }
 
 nsresult
-MediaEngineDefaultVideoSource::Allocate(const dom::MediaTrackConstraints &aConstraints,
+MediaEngineDefaultVideoSource::Allocate(const VideoTrackConstraintsN &aConstraints,
                                         const MediaEnginePrefs &aPrefs)
 {
   if (mState != kReleased) {
@@ -138,11 +138,12 @@ MediaEngineDefaultVideoSource::Start(SourceMediaStream* aStream, TrackID aID)
     return NS_ERROR_FAILURE;
   }
 
-  aStream->AddTrack(aID, 0, new VideoSegment(), SourceMediaStream::ADDTRACK_QUEUED);
+  aStream->AddTrack(aID, 0, new VideoSegment());
+  aStream->AdvanceKnownTracksTime(STREAM_TIME_MAX);
 
   if (mHasFakeTracks) {
     for (int i = 0; i < kFakeVideoTrackCount; ++i) {
-      aStream->AddTrack(kTrackCount + i, 0, new VideoSegment(), SourceMediaStream::ADDTRACK_QUEUED);
+      aStream->AddTrack(kTrackCount + i, 0, new VideoSegment());
     }
   }
 
@@ -349,7 +350,7 @@ MediaEngineDefaultAudioSource::GetUUID(nsAString& aUUID)
 }
 
 nsresult
-MediaEngineDefaultAudioSource::Allocate(const dom::MediaTrackConstraints &aConstraints,
+MediaEngineDefaultAudioSource::Allocate(const AudioTrackConstraintsN &aConstraints,
                                         const MediaEnginePrefs &aPrefs)
 {
   if (mState != kReleased) {
@@ -388,14 +389,17 @@ MediaEngineDefaultAudioSource::Start(SourceMediaStream* aStream, TrackID aID)
 
   // AddTrack will take ownership of segment
   AudioSegment* segment = new AudioSegment();
-  mSource->AddAudioTrack(aID, AUDIO_RATE, 0, segment, SourceMediaStream::ADDTRACK_QUEUED);
+  mSource->AddAudioTrack(aID, AUDIO_RATE, 0, segment);
 
   if (mHasFakeTracks) {
     for (int i = 0; i < kFakeAudioTrackCount; ++i) {
       mSource->AddAudioTrack(kTrackCount + kFakeVideoTrackCount+i,
-                             AUDIO_RATE, 0, new AudioSegment(), SourceMediaStream::ADDTRACK_QUEUED);
+                             AUDIO_RATE, 0, new AudioSegment());
     }
   }
+
+  // We aren't going to add any more tracks
+  mSource->AdvanceKnownTracksTime(STREAM_TIME_MAX);
 
   // Remember TrackID so we can finish later
   mTrackID = aID;
@@ -463,12 +467,12 @@ MediaEngineDefaultAudioSource::Notify(nsITimer* aTimer)
 }
 
 void
-MediaEngineDefault::EnumerateVideoDevices(dom::MediaSourceEnum aMediaSource,
+MediaEngineDefault::EnumerateVideoDevices(MediaSourceType aMediaSource,
                                           nsTArray<nsRefPtr<MediaEngineVideoSource> >* aVSources) {
   MutexAutoLock lock(mMutex);
 
   // only supports camera sources (for now).  See Bug 1038241
-  if (aMediaSource != dom::MediaSourceEnum::Camera) {
+  if (aMediaSource != MediaSourceType::Camera) {
     return;
   }
 
@@ -484,7 +488,7 @@ MediaEngineDefault::EnumerateVideoDevices(dom::MediaSourceEnum aMediaSource,
 }
 
 void
-MediaEngineDefault::EnumerateAudioDevices(dom::MediaSourceEnum aMediaSource,
+MediaEngineDefault::EnumerateAudioDevices(MediaSourceType aMediaSource,
                                           nsTArray<nsRefPtr<MediaEngineAudioSource> >* aASources) {
   MutexAutoLock lock(mMutex);
   int32_t len = mASources.Length();

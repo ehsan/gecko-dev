@@ -25,9 +25,13 @@ BEGIN_TEST(testResolveRecursion)
         my_resolve
     };
 
-    obj1.init(cx, JS_NewObject(cx, &my_resolve_class));
+    obj1 = obj2 = nullptr;
+    JS::AddObjectRoot(cx, &obj1);
+    JS::AddObjectRoot(cx, &obj2);
+
+    obj1 = JS_NewObject(cx, &my_resolve_class, JS::NullPtr(), JS::NullPtr());
     CHECK(obj1);
-    obj2.init(cx, JS_NewObject(cx, &my_resolve_class));
+    obj2 = JS_NewObject(cx, &my_resolve_class, JS::NullPtr(), JS::NullPtr());
     CHECK(obj2);
     JS_SetPrivate(obj1, this);
     JS_SetPrivate(obj2, this);
@@ -49,11 +53,13 @@ BEGIN_TEST(testResolveRecursion)
 
     obj1 = nullptr;
     obj2 = nullptr;
+    JS::RemoveObjectRoot(cx, &obj1);
+    JS::RemoveObjectRoot(cx, &obj2);
     return true;
 }
 
-JS::PersistentRootedObject obj1;
-JS::PersistentRootedObject obj2;
+JS::Heap<JSObject *> obj1;
+JS::Heap<JSObject *> obj2;
 int resolveEntryCount;
 int resolveExitCount;
 

@@ -4,9 +4,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "jsproxy.h"
 #include "jswrapper.h" // UncheckedUnwrap
 
-#include "js/Proxy.h"
 #include "vm/ProxyObject.h"
 
 #include "jsobjinlines.h"
@@ -20,7 +20,7 @@ DirectProxyHandler::getPropertyDescriptor(JSContext *cx, HandleObject proxy, Han
     assertEnteredPolicy(cx, proxy, id, GET | SET | GET_PROPERTY_DESCRIPTOR);
     MOZ_ASSERT(!hasPrototype()); // Should never be called if there's a prototype.
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return GetPropertyDescriptor(cx, target, id, desc);
+    return JS_GetPropertyDescriptorById(cx, target, id, desc);
 }
 
 bool
@@ -29,7 +29,7 @@ DirectProxyHandler::getOwnPropertyDescriptor(JSContext *cx, HandleObject proxy, 
 {
     assertEnteredPolicy(cx, proxy, id, GET | SET | GET_PROPERTY_DESCRIPTOR);
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return GetOwnPropertyDescriptor(cx, target, id, desc);
+    return js::GetOwnPropertyDescriptor(cx, target, id, desc);
 }
 
 bool
@@ -38,8 +38,11 @@ DirectProxyHandler::defineProperty(JSContext *cx, HandleObject proxy, HandleId i
 {
     assertEnteredPolicy(cx, proxy, id, SET);
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    bool ignored;
-    return StandardDefineProperty(cx, target, id, desc, &ignored);
+    RootedValue v(cx, desc.value());
+    return CheckDefineProperty(cx, target, id, v, desc.attributes(),
+                               desc.getter(), desc.setter()) &&
+           JSObject::defineGeneric(cx, target, id, v, desc.getter(), desc.setter(),
+                                   desc.attributes());
 }
 
 bool
@@ -56,7 +59,7 @@ DirectProxyHandler::delete_(JSContext *cx, HandleObject proxy, HandleId id, bool
 {
     assertEnteredPolicy(cx, proxy, id, SET);
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return DeleteProperty(cx, target, id, bp);
+    return JSObject::deleteGeneric(cx, target, id, bp);
 }
 
 bool
@@ -114,35 +117,35 @@ bool
 DirectProxyHandler::getPrototypeOf(JSContext *cx, HandleObject proxy, MutableHandleObject protop) const
 {
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return GetPrototype(cx, target, protop);
+    return JSObject::getProto(cx, target, protop);
 }
 
 bool
 DirectProxyHandler::setPrototypeOf(JSContext *cx, HandleObject proxy, HandleObject proto, bool *bp) const
 {
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return SetPrototype(cx, target, proto, bp);
+    return JSObject::setProto(cx, target, proto, bp);
 }
 
 bool
 DirectProxyHandler::setImmutablePrototype(JSContext *cx, HandleObject proxy, bool *succeeded) const
 {
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return SetImmutablePrototype(cx, target, succeeded);
+    return JSObject::setImmutablePrototype(cx, target, succeeded);
 }
 
 bool
 DirectProxyHandler::preventExtensions(JSContext *cx, HandleObject proxy, bool *succeeded) const
 {
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return PreventExtensions(cx, target, succeeded);
+    return JSObject::preventExtensions(cx, target, succeeded);
 }
 
 bool
 DirectProxyHandler::isExtensible(JSContext *cx, HandleObject proxy, bool *extensible) const
 {
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return IsExtensible(cx, target, extensible);
+    return JSObject::isExtensible(cx, target, extensible);
 }
 
 bool
@@ -158,7 +161,7 @@ DirectProxyHandler::className(JSContext *cx, HandleObject proxy) const
 {
     assertEnteredPolicy(cx, proxy, JSID_VOID, GET);
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return GetObjectClassName(cx, target);
+    return JSObject::className(cx, target);
 }
 
 JSString *
@@ -218,7 +221,7 @@ DirectProxyHandler::get(JSContext *cx, HandleObject proxy, HandleObject receiver
 {
     assertEnteredPolicy(cx, proxy, id, GET);
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return GetProperty(cx, target, receiver, id, vp);
+    return JSObject::getGeneric(cx, target, receiver, id, vp);
 }
 
 bool
@@ -227,7 +230,7 @@ DirectProxyHandler::set(JSContext *cx, HandleObject proxy, HandleObject receiver
 {
     assertEnteredPolicy(cx, proxy, id, SET);
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return SetProperty(cx, target, receiver, id, vp, strict);
+    return JSObject::setGeneric(cx, target, receiver, id, vp, strict);
 }
 
 bool

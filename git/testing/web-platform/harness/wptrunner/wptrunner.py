@@ -454,8 +454,7 @@ def run_tests(config, serve_root, test_paths, product, **kwargs):
                                       browser_kwargs,
                                       executor_cls,
                                       executor_kwargs,
-                                      kwargs["pause_on_unexpected"],
-                                      kwargs["debug_args"]) as manager_group:
+                                      kwargs["pause_on_unexpected"]) as manager_group:
                         try:
                             manager_group.run(test_type, test_loader.tests)
                         except KeyboardInterrupt:
@@ -483,7 +482,7 @@ def run_tests(config, serve_root, test_paths, product, **kwargs):
                 logging_thread.join(10)
             logging_queue.close()
 
-    return unexpected_total == 0
+    return manager_group.unexpected_count() == 0
 
 
 def main():

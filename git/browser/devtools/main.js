@@ -219,7 +219,7 @@ Tools.shaderEditor = {
   tooltip: l10n("ToolboxShaderEditor.tooltip", shaderEditorStrings),
 
   isTargetSupported: function(target) {
-    return target.hasActor("webgl") && !target.chrome;
+    return target.hasActor("webgl");
   },
 
   build: function(iframeWindow, toolbox) {

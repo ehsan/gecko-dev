@@ -72,7 +72,6 @@
 #include "vm/HelperThreads.h"
 #include "vm/Monitor.h"
 #include "vm/Shape.h"
-#include "vm/SharedArrayObject.h"
 #include "vm/TypedArrayObject.h"
 #include "vm/WrapperObject.h"
 
@@ -130,7 +129,7 @@ static size_t gMaxStackSize = 128 * sizeof(size_t) * 1024;
 static double MAX_TIMEOUT_INTERVAL = 1800.0;
 static double gTimeoutInterval = -1.0;
 static volatile bool gServiceInterrupt = false;
-static JS::PersistentRootedValue gInterruptFunc;
+static Maybe<JS::PersistentRootedValue> gInterruptFunc;
 
 static bool enableDisassemblyDumps = false;
 
@@ -365,7 +364,7 @@ ShellInterruptCallback(JSContext *cx)
     gServiceInterrupt = false;
 
     bool result;
-    RootedValue interruptFunc(cx, gInterruptFunc);
+    RootedValue interruptFunc(cx, *gInterruptFunc);
     if (!interruptFunc.isNull()) {
         JS::AutoSaveExceptionState savedExc(cx);
         JSAutoCompartment ac(cx, &interruptFunc.toObject());
@@ -995,7 +994,7 @@ class AutoNewContext
                 JS_GetPendingException(newcx, &exc);
             newCompartment.reset();
             newRequest.reset();
-            if (throwing && JS_WrapValue(oldcx, &exc))
+            if (throwing)
                 JS_SetPendingException(oldcx, exc);
             DestroyContext(newcx, false);
         }
@@ -1008,7 +1007,7 @@ my_LargeAllocFailCallback(void *data)
     JSContext *cx = (JSContext*)data;
     JSRuntime *rt = cx->runtime();
 
-    if (!cx->isJSContext())
+    if (InParallelSection() || !cx->allowGC())
         return;
 
     MOZ_ASSERT(!rt->isHeapBusy());
@@ -1036,7 +1035,7 @@ CacheEntry(JSContext* cx, unsigned argc, JS::Value *vp)
         return false;
     }
 
-    RootedObject obj(cx, JS_NewObject(cx, &CacheEntry_class));
+    RootedObject obj(cx, JS_NewObject(cx, &CacheEntry_class, JS::NullPtr(), JS::NullPtr()));
     if (!obj)
         return false;
 
@@ -1652,21 +1651,8 @@ Quit(JSContext *cx, unsigned argc, jsval *vp)
 #endif
 
     CallArgs args = CallArgsFromVp(argc, vp);
-    int32_t code;
-    if (!ToInt32(cx, args.get(0), &code))
-        return false;
+    JS_ConvertArguments(cx, args, "/ i", &gExitCode);
 
-    // The fuzzers check the shell's exit code and assume a value >= 128 means
-    // the process crashed (for instance, SIGSEGV will result in code 139). On
-    // POSIX platforms, the exit code is 8-bit and negative values can also
-    // result in an exit code >= 128. We restrict the value to range [0, 127] to
-    // avoid false positives.
-    if (code < 0 || code >= 128) {
-        JS_ReportError(cx, "quit exit code should be in range 0-127");
-        return false;
-    }
-
-    gExitCode = code;
     gQuitting = true;
     return false;
 }
@@ -1729,8 +1715,8 @@ SetGCCallback(JSContext *cx, unsigned argc, jsval *vp)
         return false;
     }
 
-    RootedObject opts(cx, ToObject(cx, args[0]));
-    if (!opts)
+    RootedObject opts(cx);
+    if (!JS_ValueToObject(cx, args[0], &opts))
         return false;
 
     RootedValue v(cx);
@@ -2486,8 +2472,6 @@ DisassWithSrc(JSContext *cx, unsigned argc, jsval *vp)
             pc += len;
         }
 
-        fprintf(stdout, "%s\n", sprinter.string());
-
       bail:
         fclose(file);
     }
@@ -2681,19 +2665,11 @@ static bool
 EvalInContext(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    if (!args.requireAtLeast(cx, "evalcx", 1))
-        return false;
 
-    RootedString str(cx, ToString(cx, args[0]));
-    if (!str)
-        return false;
-
+    RootedString str(cx);
     RootedObject sobj(cx);
-    if (args.hasDefined(1)) {
-        sobj = ToObject(cx, args[1]);
-        if (!sobj)
-            return false;
-    }
+    if (!JS_ConvertArguments(cx, args, "S / o", str.address(), sobj.address()))
+        return false;
 
     AutoStableStringChars strChars(cx);
     if (!strChars.initTwoByte(cx, str))
@@ -2909,7 +2885,7 @@ Sleep_fn(JSContext *cx, unsigned argc, Value *vp)
     PR_Lock(gWatchdogLock);
     int64_t to_wakeup = PRMJ_Now() + t_ticks;
     for (;;) {
-        PR_WaitCondVar(gSleepWakeup, PR_MillisecondsToInterval(t_ticks / 1000));
+        PR_WaitCondVar(gSleepWakeup, t_ticks);
         if (gServiceInterrupt)
             break;
         int64_t now = PRMJ_Now();
@@ -2918,7 +2894,6 @@ Sleep_fn(JSContext *cx, unsigned argc, Value *vp)
         t_ticks = to_wakeup - now;
     }
     PR_Unlock(gWatchdogLock);
-    args.rval().setUndefined();
     return !gServiceInterrupt;
 }
 
@@ -3046,7 +3021,7 @@ CancelExecution(JSRuntime *rt)
     gServiceInterrupt = true;
     JS_RequestInterruptCallback(rt);
 
-    if (!gInterruptFunc.isNull()) {
+    if (!gInterruptFunc->get().isNull()) {
         static const char msg[] = "Script runs for too long, terminating.\n";
         fputs(msg, stderr);
     }
@@ -3093,7 +3068,7 @@ Timeout(JSContext *cx, unsigned argc, Value *vp)
             JS_ReportError(cx, "Second argument must be a timeout function");
             return false;
         }
-        gInterruptFunc = value;
+        *gInterruptFunc = value;
     }
 
     args.rval().setUndefined();
@@ -3164,7 +3139,7 @@ SetInterruptCallback(JSContext *cx, unsigned argc, Value *vp)
         JS_ReportError(cx, "Argument must be a function");
         return false;
     }
-    gInterruptFunc = value;
+    *gInterruptFunc = value;
 
     args.rval().setUndefined();
     return true;
@@ -3937,6 +3912,26 @@ ThisFilename(JSContext *cx, unsigned argc, Value *vp)
 }
 
 static bool
+Wrap(JSContext *cx, unsigned argc, jsval *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    Value v = args.get(0);
+    if (v.isPrimitive()) {
+        args.rval().set(v);
+        return true;
+    }
+
+    RootedObject obj(cx, v.toObjectOrNull());
+    JSObject *wrapped = Wrapper::New(cx, obj, &obj->global(),
+                                     &Wrapper::singleton);
+    if (!wrapped)
+        return false;
+
+    args.rval().setObject(*wrapped);
+    return true;
+}
+
+static bool
 WrapWithProto(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -4028,7 +4023,7 @@ ObjectEmulatingUndefined(JSContext *cx, unsigned argc, jsval *vp)
         JSCLASS_EMULATES_UNDEFINED
     };
 
-    RootedObject obj(cx, JS_NewObject(cx, &cls));
+    RootedObject obj(cx, JS_NewObject(cx, &cls, JS::NullPtr(), JS::NullPtr()));
     if (!obj)
         return false;
     args.rval().setObject(*obj);
@@ -4160,10 +4155,6 @@ SingleStepCallback(void *arg, jit::Simulator *sim, void *pc)
 {
     JSRuntime *rt = reinterpret_cast<JSRuntime*>(arg);
 
-    // If profiling is not enabled, don't do anything.
-    if (!rt->spsProfiler.enabled())
-        return;
-
     JS::ProfilingFrameIterator::RegisterState state;
     state.pc = pc;
     state.sp = (void*)sim->get_register(jit::Simulator::sp);
@@ -4171,19 +4162,12 @@ SingleStepCallback(void *arg, jit::Simulator *sim, void *pc)
 
     DebugOnly<void*> lastStackAddress = nullptr;
     StackChars stack;
-    uint32_t frameNo = 0;
     for (JS::ProfilingFrameIterator i(rt, state); !i.done(); ++i) {
         MOZ_ASSERT(i.stackAddress() != nullptr);
         MOZ_ASSERT(lastStackAddress <= i.stackAddress());
         lastStackAddress = i.stackAddress();
-        JS::ProfilingFrameIterator::Frame frames[16];
-        uint32_t nframes = i.extractStack(frames, 0, 16);
-        for (uint32_t i = 0; i < nframes; i++) {
-            if (frameNo > 0)
-                stack.append(",", 1);
-            stack.append(frames[i].label, strlen(frames[i].label));
-            frameNo++;
-        }
+        const char *label = i.label();
+        stack.append(label, strlen(label));
     }
 
     // Only append the stack if it differs from the last stack.
@@ -4202,7 +4186,7 @@ EnableSingleStepProfiling(JSContext *cx, unsigned argc, Value *vp)
 #if defined(JS_ARM_SIMULATOR)
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    jit::Simulator *sim = cx->runtime()->simulator();
+    jit::Simulator *sim = cx->runtime()->mainThread.simulator();
     sim->enable_single_stepping(SingleStepCallback, cx->runtime());
 
     args.rval().setUndefined();
@@ -4219,7 +4203,7 @@ DisableSingleStepProfiling(JSContext *cx, unsigned argc, Value *vp)
 #if defined(JS_ARM_SIMULATOR)
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    jit::Simulator *sim = cx->runtime()->simulator();
+    jit::Simulator *sim = cx->runtime()->mainThread.simulator();
     sim->disable_single_stepping();
 
     AutoValueVector elems(cx);
@@ -4250,93 +4234,6 @@ IsLatin1(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
     bool isLatin1 = args.get(0).isString() && args[0].toString()->hasLatin1Chars();
     args.rval().setBoolean(isLatin1);
-    return true;
-}
-
-// Global mailbox that is used to communicate a SharedArrayBuffer
-// value from one worker to another.
-//
-// For simplicity we store only the SharedArrayRawBuffer; retaining
-// the SAB object would require per-runtime storage, and would have no
-// real benefits.
-//
-// Invariant: when a SARB is in the mailbox its reference count is at
-// least 1, accounting for the reference from the mailbox.
-//
-// The lock guards the mailbox variable and prevents a race where two
-// workers try to set the mailbox at the same time to replace a SARB
-// that is only referenced from the mailbox: the workers will both
-// decrement the reference count on the old SARB, and one of those
-// decrements will be on a garbage object.  We could implement this
-// with atomics and a CAS loop but it's not worth the bother.
-
-static PRLock *sharedArrayBufferMailboxLock;
-static SharedArrayRawBuffer *sharedArrayBufferMailbox;
-
-static bool
-InitSharedArrayBufferMailbox()
-{
-    sharedArrayBufferMailboxLock = PR_NewLock();
-    return sharedArrayBufferMailboxLock != nullptr;
-}
-
-static void
-DestructSharedArrayBufferMailbox()
-{
-    // All workers need to have terminated at this point.
-    if (sharedArrayBufferMailbox)
-        sharedArrayBufferMailbox->dropReference();
-    PR_DestroyLock(sharedArrayBufferMailboxLock);
-}
-
-static bool
-GetSharedArrayBuffer(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    JSObject *newObj = nullptr;
-    bool rval = true;
-
-    PR_Lock(sharedArrayBufferMailboxLock);
-    SharedArrayRawBuffer *buf = sharedArrayBufferMailbox;
-    if (buf) {
-        buf->addReference();
-        newObj = SharedArrayBufferObject::New(cx, buf);
-        if (!newObj) {
-            buf->dropReference();
-            rval = false;
-        }
-    }
-    PR_Unlock(sharedArrayBufferMailboxLock);
-
-    args.rval().setObjectOrNull(newObj);
-    return rval;
-}
-
-static bool
-SetSharedArrayBuffer(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    SharedArrayRawBuffer *newBuffer = nullptr;
-
-    if (argc == 0 || args.get(0).isNullOrUndefined()) {
-        // Clear out the mailbox
-    }
-    else if (args.get(0).isObject() && args[0].toObject().is<SharedArrayBufferObject>()) {
-        newBuffer = args[0].toObject().as<SharedArrayBufferObject>().rawBufferObject();
-        newBuffer->addReference();
-    } else {
-        JS_ReportError(cx, "Only a SharedArrayBuffer can be installed in the global mailbox");
-        return false;
-    }
-
-    PR_Lock(sharedArrayBufferMailboxLock);
-    SharedArrayRawBuffer *oldBuffer = sharedArrayBufferMailbox;
-    if (oldBuffer)
-        oldBuffer->dropReference();
-    sharedArrayBufferMailbox = newBuffer;
-    PR_Unlock(sharedArrayBufferMailboxLock);
-
-    args.rval().setUndefined();
     return true;
 }
 
@@ -4506,9 +4403,9 @@ static const JSFunctionSpecWithHelp shell_functions[] = {
 "  themselves from roots that keep |thing| from being collected. (We could make\n"
 "  this distinction if it is useful.)\n"
 "\n"
-"  If there are any references on the native stack, the references\n"
-"  object will have properties named like \"edge: exact-value \"; the referrers\n"
-"  will be 'null', because they are roots."),
+"  If any references are found by the conservative scanner, the references\n"
+"  object will have a property named \"edge: machine stack\"; the referrers will\n"
+"  be 'null', because they are roots."),
 
 #endif
     JS_FN_HELP("build", BuildDate, 0, 0,
@@ -4532,18 +4429,6 @@ static const JSFunctionSpecWithHelp shell_functions[] = {
     JS_FN_HELP("evalInWorker", EvalInWorker, 1, 0,
 "evalInWorker(str)",
 "  Evaluate 'str' in a separate thread with its own runtime.\n"),
-
-    JS_FN_HELP("getSharedArrayBuffer", GetSharedArrayBuffer, 0, 0,
-"getSharedArrayBuffer()",
-"  Retrieve the SharedArrayBuffer object from the cross-worker mailbox.\n"
-"  The object retrieved may not be identical to the object that was\n"
-"  installed, but it references the same shared memory.\n"
-"  getSharedArrayBuffer performs an ordering memory barrier.\n"),
-
-    JS_FN_HELP("setSharedArrayBuffer", SetSharedArrayBuffer, 0, 0,
-"setSharedArrayBuffer()",
-"  Install the SharedArrayBuffer object in the cross-worker mailbox.\n"
-"  setSharedArrayBuffer performs an ordering memory barrier.\n"),
 
     JS_FN_HELP("shapeOf", ShapeOf, 1, 0,
 "shapeOf(obj)",
@@ -4651,6 +4536,14 @@ static const JSFunctionSpecWithHelp shell_functions[] = {
     JS_FN_HELP("thisFilename", ThisFilename, 0, 0,
 "thisFilename()",
 "  Return the filename of the current script"),
+
+    JS_FN_HELP("wrap", Wrap, 1, 0,
+"wrap(obj)",
+"  Wrap an object into a noop wrapper."),
+
+    JS_FN_HELP("wrapWithProto", WrapWithProto, 2, 0,
+"wrapWithProto(obj)",
+"  Wrap an object into a noop wrapper with prototype semantics."),
 
     JS_FN_HELP("newGlobal", NewGlobal, 1, 0,
 "newGlobal([options])",
@@ -4778,12 +4671,6 @@ static const JSFunctionSpecWithHelp fuzzing_unsafe_functions[] = {
 "  might be asked for the source code of compilations that |fun|\n"
 "  performed, and which, presumably, only |hook| knows how to find.\n"),
 
-    JS_FN_HELP("wrapWithProto", WrapWithProto, 2, 0,
-"wrapWithProto(obj)",
-"  Wrap an object into a noop wrapper with prototype semantics.\n"
-"  Note: This is not fuzzing safe because it can be used to construct\n"
-"        deeply nested wrapper chains that cannot exist in the wild."),
-
     JS_FS_HELP_END
 };
 
@@ -4798,7 +4685,7 @@ static const JSFunctionSpecWithHelp console_functions[] = {
 bool
 DefineConsole(JSContext *cx, HandleObject global)
 {
-    RootedObject obj(cx, JS_NewPlainObject(cx));
+    RootedObject obj(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
     return obj &&
            JS_DefineFunctionsWithHelp(cx, obj, console_functions) &&
            JS_DefineProperty(cx, global, "console", obj, 0);
@@ -5173,7 +5060,7 @@ dom_constructor(JSContext* cx, unsigned argc, JS::Value *vp)
 
     RootedObject callee(cx, &args.callee());
     RootedValue protov(cx);
-    if (!GetProperty(cx, callee, callee, cx->names().prototype, &protov))
+    if (!JSObject::getProperty(cx, callee, callee, cx->names().prototype, &protov))
         return false;
 
     if (!protov.isObject()) {
@@ -5182,7 +5069,7 @@ dom_constructor(JSContext* cx, unsigned argc, JS::Value *vp)
     }
 
     RootedObject proto(cx, &protov.toObject());
-    RootedObject domObj(cx, JS_NewObjectWithGivenProto(cx, &dom_class, proto, JS::NullPtr()));
+    RootedObject domObj(cx, JS_NewObject(cx, &dom_class, proto, JS::NullPtr()));
     if (!domObj)
         return false;
 
@@ -5619,13 +5506,11 @@ SetRuntimeOptions(JSRuntime *rt, const OptionParser &op)
     bool enableIon = !op.getBoolOption("no-ion");
     bool enableAsmJS = !op.getBoolOption("no-asmjs");
     bool enableNativeRegExp = !op.getBoolOption("no-native-regexp");
-    bool enableUnboxedObjects = op.getBoolOption("unboxed-objects");
 
     JS::RuntimeOptionsRef(rt).setBaseline(enableBaseline)
                              .setIon(enableIon)
                              .setAsmJS(enableAsmJS)
-                             .setNativeRegExp(enableNativeRegExp)
-                             .setUnboxedObjects(enableUnboxedObjects);
+                             .setNativeRegExp(enableNativeRegExp);
 
     if (const char *str = op.getStringOption("ion-scalar-replacement")) {
         if (strcmp(str, "on") == 0)
@@ -5736,9 +5621,18 @@ SetRuntimeOptions(JSRuntime *rt, const OptionParser &op)
         jit::js_JitOptions.baselineWarmUpThreshold = 0;
 
     if (const char *str = op.getStringOption("ion-regalloc")) {
-        jit::js_JitOptions.forcedRegisterAllocator = jit::LookupRegisterAllocator(str);
-        if (!jit::js_JitOptions.forcedRegisterAllocator.isSome())
+        if (strcmp(str, "lsra") == 0) {
+            jit::js_JitOptions.forceRegisterAllocator = true;
+            jit::js_JitOptions.forcedRegisterAllocator = jit::RegisterAllocator_LSRA;
+        } else if (strcmp(str, "backtracking") == 0) {
+            jit::js_JitOptions.forceRegisterAllocator = true;
+            jit::js_JitOptions.forcedRegisterAllocator = jit::RegisterAllocator_Backtracking;
+        } else if (strcmp(str, "stupid") == 0) {
+            jit::js_JitOptions.forceRegisterAllocator = true;
+            jit::js_JitOptions.forcedRegisterAllocator = jit::RegisterAllocator_Stupid;
+        } else {
             return OptionFailure("ion-regalloc", str);
+        }
     }
 
     if (op.getBoolOption("ion-eager"))
@@ -5817,14 +5711,6 @@ SetRuntimeOptions(JSRuntime *rt, const OptionParser &op)
 static int
 Shell(JSContext *cx, OptionParser *op, char **envp)
 {
-    Maybe<JS::AutoDisableGenerationalGC> noggc;
-    if (op->getBoolOption("no-ggc"))
-        noggc.emplace(cx->runtime());
-
-    Maybe<AutoDisableCompactingGC> nocgc;
-    if (op->getBoolOption("no-cgc"))
-        nocgc.emplace(cx->runtime());
-
     JSAutoRequest ar(cx);
 
     if (op->getBoolOption("fuzzing-safe"))
@@ -5966,7 +5852,6 @@ main(int argc, char **argv, char **envp)
         || !op.addBoolOption('\0', "no-ion", "Disable IonMonkey")
         || !op.addBoolOption('\0', "no-asmjs", "Disable asm.js compilation")
         || !op.addBoolOption('\0', "no-native-regexp", "Disable native regexp compilation")
-        || !op.addBoolOption('\0', "unboxed-objects", "Allow creating unboxed objects")
         || !op.addStringOption('\0', "ion-scalar-replacement", "on/off",
                                "Scalar Replacement (default: on, off to disable)")
         || !op.addStringOption('\0', "ion-gvn", "[mode]",
@@ -6021,13 +5906,12 @@ main(int argc, char **argv, char **envp)
         || !op.addBoolOption('\0', "no-avx", "No-op. AVX is currently disabled by default.")
         || !op.addBoolOption('\0', "fuzzing-safe", "Don't expose functions that aren't safe for "
                              "fuzzers to call")
-        || !op.addBoolOption('\0', "no-threads", "Disable helper threads")
+        || !op.addBoolOption('\0', "no-threads", "Disable helper threads and PJS threads")
 #ifdef DEBUG
         || !op.addBoolOption('\0', "dump-entrained-variables", "Print variables which are "
                              "unnecessarily entrained by inner functions")
 #endif
         || !op.addBoolOption('\0', "no-ggc", "Disable Generational GC")
-        || !op.addBoolOption('\0', "no-cgc", "Disable Compacting GC")
         || !op.addBoolOption('\0', "no-incremental-gc", "Disable Incremental GC")
         || !op.addIntOption('\0', "available-memory", "SIZE",
                             "Select GC settings based on available memory (MB)", 0)
@@ -6114,9 +5998,6 @@ main(int argc, char **argv, char **envp)
     if (!JS_Init())
         return 1;
 
-    if (!InitSharedArrayBufferMailbox())
-        return 1;
-
     // The fake thread count must be set before initializing the Runtime,
     // which spins up the thread pool.
     int32_t threadCount = op.getIntOption("thread-count");
@@ -6136,9 +6017,12 @@ main(int argc, char **argv, char **envp)
     if (!SetRuntimeOptions(rt, op))
         return 1;
 
-    gInterruptFunc.init(rt, NullValue());
+    gInterruptFunc.emplace(rt, NullValue());
 
     JS_SetGCParameter(rt, JSGC_MAX_BYTES, 0xffffffff);
+    Maybe<JS::AutoDisableGenerationalGC> noggc;
+    if (op.getBoolOption("no-ggc"))
+        noggc.emplace(rt);
 
     size_t availMem = op.getIntOption("available-memory");
     if (availMem > 0)
@@ -6196,11 +6080,13 @@ main(int argc, char **argv, char **envp)
 
     KillWatchdog();
 
+    gInterruptFunc.reset();
+
     MOZ_ASSERT_IF(!CanUseExtraThreads(), workerThreads.empty());
     for (size_t i = 0; i < workerThreads.length(); i++)
         PR_JoinThread(workerThreads[i]);
 
-    DestructSharedArrayBufferMailbox();
+    noggc.reset();
 
     JS_DestroyRuntime(rt);
     JS_ShutDown();

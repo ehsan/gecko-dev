@@ -1,10 +1,5 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 package org.mozilla.gecko.tests;
 
-import com.jayway.android.robotium.solo.Condition;
 
 public class testBookmark extends AboutHomeTest {
     private static String BOOKMARK_URL;
@@ -43,9 +38,9 @@ public class testBookmark extends AboutHomeTest {
     }
 
     private void waitForBookmarked(final boolean isBookmarked) {
-        boolean bookmarked = waitForCondition(new Condition() {
+        boolean bookmarked = waitForTest(new BooleanTest() {
             @Override
-            public boolean isSatisfied() {
+            public boolean test() {
                 return (isBookmarked) ?
                     mDatabaseHelper.isBookmark(BOOKMARK_URL) :
                     !mDatabaseHelper.isBookmark(BOOKMARK_URL);

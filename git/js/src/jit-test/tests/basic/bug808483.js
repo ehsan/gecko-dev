@@ -1,7 +1,7 @@
 pSandbox = newGlobal();
 evalcx("\
     x = ArrayBuffer;\
-    y = new Map();\
+    y = Map();\
     x += 1;\
     w = x;\
     x += '0';\

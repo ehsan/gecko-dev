@@ -305,9 +305,15 @@ SVGSVGElement::UnsuspendRedrawAll()
 }
 
 void
-SVGSVGElement::ForceRedraw()
+SVGSVGElement::ForceRedraw(ErrorResult& rv)
 {
-  // no-op
+  nsIDocument* doc = GetComposedDoc();
+  if (!doc) {
+    rv.Throw(NS_ERROR_FAILURE);
+    return;
+  }
+
+  doc->FlushPendingNotifications(Flush_Display);
 }
 
 void
@@ -447,7 +453,9 @@ SVGSVGElement::ViewBox()
 already_AddRefed<DOMSVGAnimatedPreserveAspectRatio>
 SVGSVGElement::PreserveAspectRatio()
 {
-  return mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(this);
+  nsRefPtr<DOMSVGAnimatedPreserveAspectRatio> ratio;
+  mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(getter_AddRefs(ratio), this);
+  return ratio.forget();
 }
 
 uint16_t
@@ -471,7 +479,7 @@ SVGSVGElement::SetZoomAndPan(uint16_t aZoomAndPan, ErrorResult& rv)
     return;
   }
 
-  rv.ThrowRangeError(MSG_INVALID_ZOOMANDPAN_VALUE_ERROR, &aZoomAndPan);
+  rv.Throw(NS_ERROR_RANGE_ERR);
 }
 
 //----------------------------------------------------------------------
@@ -685,8 +693,9 @@ void
 SVGSVGElement::ChildrenOnlyTransformChanged(uint32_t aFlags)
 {
   // Avoid wasteful calls:
-  MOZ_ASSERT(!(GetPrimaryFrame()->GetStateBits() & NS_FRAME_IS_NONDISPLAY),
-             "Non-display SVG frames don't maintain overflow rects");
+  NS_ABORT_IF_FALSE(!(GetPrimaryFrame()->GetStateBits() &
+                      NS_FRAME_IS_NONDISPLAY),
+                    "Non-display SVG frames don't maintain overflow rects");
 
   nsChangeHint changeHint;
 
@@ -962,7 +971,7 @@ SVGSVGElement::PrependLocalTransformsTo(const gfxMatrix &aMatrix,
       // the common case
       return ThebesMatrix(GetViewBoxTransform()) * gfxMatrix::Translation(x, y) * fromUserSpace;
     }
-    MOZ_ASSERT(aWhich == eChildToUserSpace, "Unknown TransformTypes");
+    NS_ABORT_IF_FALSE(aWhich == eChildToUserSpace, "Unknown TransformTypes");
     return ThebesMatrix(GetViewBoxTransform()) * gfxMatrix::Translation(x, y) * aMatrix;
   }
 
@@ -1026,8 +1035,8 @@ SVGSVGElement::HasViewBoxRect() const
 bool
 SVGSVGElement::ShouldSynthesizeViewBox() const
 {
-  MOZ_ASSERT(!HasViewBoxRect(),
-             "Should only be called if we lack a viewBox");
+  NS_ABORT_IF_FALSE(!HasViewBoxRect(),
+                    "Should only be called if we lack a viewBox");
 
   nsIDocument* doc = GetUncomposedDoc();
   return doc &&
@@ -1044,8 +1053,8 @@ SVGSVGElement::SetPreserveAspectRatioProperty(const SVGPreserveAspectRatio& aPAR
                             pAROverridePtr,
                             nsINode::DeleteProperty<SVGPreserveAspectRatio>,
                             true);
-  MOZ_ASSERT(rv != NS_PROPTABLE_PROP_OVERWRITTEN,
-             "Setting override value when it's already set...?");
+  NS_ABORT_IF_FALSE(rv != NS_PROPTABLE_PROP_OVERWRITTEN,
+                    "Setting override value when it's already set...?"); 
 
   if (MOZ_UNLIKELY(NS_FAILED(rv))) {
     // property-insertion failed (e.g. OOM in property-table code)
@@ -1078,8 +1087,8 @@ SVGSVGElement::
   SetImageOverridePreserveAspectRatio(const SVGPreserveAspectRatio& aPAR)
 {
 #ifdef DEBUG
-  MOZ_ASSERT(OwnerDoc()->IsBeingUsedAsImage(),
-             "should only override preserveAspectRatio in images");
+  NS_ABORT_IF_FALSE(OwnerDoc()->IsBeingUsedAsImage(),
+                    "should only override preserveAspectRatio in images");
 #endif
 
   bool hasViewBoxRect = HasViewBoxRect();
@@ -1108,8 +1117,8 @@ void
 SVGSVGElement::ClearImageOverridePreserveAspectRatio()
 {
 #ifdef DEBUG
-  MOZ_ASSERT(OwnerDoc()->IsBeingUsedAsImage(),
-             "should only override image preserveAspectRatio in images");
+  NS_ABORT_IF_FALSE(OwnerDoc()->IsBeingUsedAsImage(),
+                    "should only override image preserveAspectRatio in images");
 #endif
 
   mIsPaintingSVGImageElement = false;
@@ -1128,9 +1137,9 @@ SVGSVGElement::ClearImageOverridePreserveAspectRatio()
 void
 SVGSVGElement::FlushImageTransformInvalidation()
 {
-  MOZ_ASSERT(!GetParent(), "Should only be called on root node");
-  MOZ_ASSERT(OwnerDoc()->IsBeingUsedAsImage(),
-             "Should only be called on image documents");
+  NS_ABORT_IF_FALSE(!GetParent(), "Should only be called on root node");
+  NS_ABORT_IF_FALSE(OwnerDoc()->IsBeingUsedAsImage(),
+                    "Should only be called on image documents");
 
   if (mImageNeedsTransformInvalidation) {
     InvalidateTransformNotifyFrame();
@@ -1146,8 +1155,8 @@ SVGSVGElement::SetViewBoxProperty(const nsSVGViewBoxRect& aViewBox)
                             pViewBoxOverridePtr,
                             nsINode::DeleteProperty<nsSVGViewBoxRect>,
                             true);
-  MOZ_ASSERT(rv != NS_PROPTABLE_PROP_OVERWRITTEN,
-             "Setting override value when it's already set...?");
+  NS_ABORT_IF_FALSE(rv != NS_PROPTABLE_PROP_OVERWRITTEN,
+                    "Setting override value when it's already set...?"); 
 
   if (MOZ_UNLIKELY(NS_FAILED(rv))) {
     // property-insertion failed (e.g. OOM in property-table code)
@@ -1181,8 +1190,8 @@ SVGSVGElement::SetZoomAndPanProperty(uint16_t aValue)
   nsresult rv = SetProperty(nsGkAtoms::zoomAndPan,
                             reinterpret_cast<void*>(aValue),
                             nullptr, true);
-  MOZ_ASSERT(rv != NS_PROPTABLE_PROP_OVERWRITTEN,
-             "Setting override value when it's already set...?");
+  NS_ABORT_IF_FALSE(rv != NS_PROPTABLE_PROP_OVERWRITTEN,
+                    "Setting override value when it's already set...?"); 
 
   return NS_SUCCEEDED(rv);
 }
@@ -1211,8 +1220,8 @@ SVGSVGElement::SetTransformProperty(const SVGTransformList& aTransform)
                             pTransformOverridePtr,
                             nsINode::DeleteProperty<SVGTransformList>,
                             true);
-  MOZ_ASSERT(rv != NS_PROPTABLE_PROP_OVERWRITTEN,
-             "Setting override value when it's already set...?");
+  NS_ABORT_IF_FALSE(rv != NS_PROPTABLE_PROP_OVERWRITTEN,
+                    "Setting override value when it's already set...?"); 
 
   if (MOZ_UNLIKELY(NS_FAILED(rv))) {
     // property-insertion failed (e.g. OOM in property-table code)
@@ -1236,34 +1245,6 @@ bool
 SVGSVGElement::ClearTransformProperty()
 {
   return UnsetProperty(nsGkAtoms::transform);
-}
-
-int32_t
-SVGSVGElement::GetIntrinsicWidth()
-{
-  if (mLengthAttributes[ATTR_WIDTH].IsPercentage()) {
-    return -1;
-  }
-  // Passing |this| as a SVGSVGElement* invokes the variant of GetAnimValue
-  // that uses the passed argument as the context, but that's fine since we
-  // know the length isn't a percentage so the context won't be used (and we
-  // need to pass the element to be able to resolve em/ex units).
-  float width = mLengthAttributes[ATTR_WIDTH].GetAnimValue(this);
-  return nsSVGUtils::ClampToInt(width);
-}
-
-int32_t
-SVGSVGElement::GetIntrinsicHeight()
-{
-  if (mLengthAttributes[ATTR_HEIGHT].IsPercentage()) {
-    return -1;
-  }
-  // Passing |this| as a SVGSVGElement* invokes the variant of GetAnimValue
-  // that uses the passed argument as the context, but that's fine since we
-  // know the length isn't a percentage so the context won't be used (and we
-  // need to pass the element to be able to resolve em/ex units).
-  float height = mLengthAttributes[ATTR_HEIGHT].GetAnimValue(this);
-  return nsSVGUtils::ClampToInt(height);
 }
 
 } // namespace dom

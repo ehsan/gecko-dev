@@ -285,7 +285,7 @@ public class SyncAccounts {
     Logger.debug(LOG_TAG, "Account " + account + " added successfully.");
 
     setSyncAutomatically(account, syncAutomatically);
-    setIsSyncable(account, true);
+    setIsSyncable(account, syncAutomatically);
     Logger.debug(LOG_TAG, "Set account to sync automatically? " + syncAutomatically + ".");
 
     try {

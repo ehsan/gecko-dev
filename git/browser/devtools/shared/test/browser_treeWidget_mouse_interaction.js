@@ -9,25 +9,36 @@ const TEST_URI = "data:text/html;charset=utf-8,<head><link rel='stylesheet' " +
   "rel='stylesheet' type='text/css' href='chrome://browser/skin/devtools/widg" +
   "ets.css'></head><body><div></div><span></span></body>";
 const {TreeWidget} = devtools.require("devtools/shared/widgets/TreeWidget");
-const {Promise} = devtools.require("resource://gre/modules/Promise.jsm");
+let {Task} = devtools.require("resource://gre/modules/Task.jsm");
+let {Promise} = devtools.require("resource://gre/modules/Promise.jsm");
 
-add_task(function*() {
-  yield promiseTab("about:blank");
-  let [host, win, doc] = yield createHost("bottom", TEST_URI);
+let doc, tree;
 
-  let tree = new TreeWidget(doc.querySelector("div"), {
-    defaultType: "store"
+function test() {
+  waitForExplicitFinish();
+  addTab(TEST_URI, () => {
+    doc = content.document;
+    tree = new TreeWidget(doc.querySelector("div"), {
+      defaultType: "store"
+    });
+    startTests();
   });
+}
 
-  populateTree(tree, doc);
-  yield testMouseInteraction(tree);
-
+function endTests() {
   tree.destroy();
-  host.destroy();
+  doc = tree = null;
   gBrowser.removeCurrentTab();
+  finish();
+}
+
+let startTests = Task.async(function*() {
+  populateTree();
+  yield testMouseInteraction();
+  endTests();
 });
 
-function populateTree(tree, doc) {
+function populateTree() {
   tree.add([{
     id: "level1",
     label: "Level 1"
@@ -76,14 +87,13 @@ function populateTree(tree, doc) {
 
 // Sends a click event on the passed DOM node in an async manner
 function click(node) {
-  let win = node.ownerDocument.defaultView;
-  executeSoon(() => EventUtils.synthesizeMouseAtCenter(node, {}, win));
+  executeSoon(() => EventUtils.synthesizeMouseAtCenter(node, {}, content));
 }
 
 /**
  * Tests if clicking the tree items does the expected behavior
  */
-function* testMouseInteraction(tree) {
+let testMouseInteraction = Task.async(function*() {
   info("Testing mouse interaction with the tree");
   let event;
   let pass = (e, d, a) => event.resolve([e, d, a]);
@@ -134,4 +144,4 @@ function* testMouseInteraction(tree) {
   click(node2);
   yield event.promise;
   ok(!node2.hasAttribute("expanded"), "New node collapsed after click again");
-}
+});

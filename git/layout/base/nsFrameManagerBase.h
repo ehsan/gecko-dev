@@ -37,6 +37,7 @@ public:
     , mDisplayContentsMap(nullptr)
     , mIsDestroyingFrames(false)
   {
+    mPlaceholderMap.ops = nullptr;
   }
 
   bool IsDestroyingFrames() { return mIsDestroyingFrames; }

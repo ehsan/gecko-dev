@@ -48,9 +48,6 @@ class CodeGeneratorNone : public CodeGeneratorShared
     void testObjectEmitBranch(Assembler::Condition, ValueOperand, MBasicBlock *, MBasicBlock *) {
         MOZ_CRASH();
     }
-    void testZeroEmitBranch(Assembler::Condition, Register, MBasicBlock *, MBasicBlock *) {
-        MOZ_CRASH();
-    }
     void emitTableSwitchDispatch(MTableSwitch *, Register, Register) { MOZ_CRASH(); }
     ValueOperand ToValue(LInstruction *, size_t) { MOZ_CRASH(); }
     ValueOperand ToOutValue(LInstruction *) { MOZ_CRASH(); }

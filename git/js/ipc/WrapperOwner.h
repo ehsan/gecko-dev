@@ -10,9 +10,13 @@
 
 #include "JavaScriptShared.h"
 #include "mozilla/ipc/ProtocolUtils.h"
-#include "mozilla/jsipc/CrossProcessObjectWrappers.h"
 #include "js/Class.h"
-#include "js/Proxy.h"
+#include "jsproxy.h"
+
+#ifdef XP_WIN
+#undef GetClassName
+#undef GetClassInfo
+#endif
 
 namespace mozilla {
 namespace jsipc {
@@ -28,7 +32,7 @@ class WrapperOwner : public virtual JavaScriptShared
     bool init();
 
     // Standard internal methods.
-    // (The traps should be in the same order like js/Proxy.h)
+    // (The traps should be in the same order like js/src/jsproxy.h)
     bool getOwnPropertyDescriptor(JSContext *cx, JS::HandleObject proxy, JS::HandleId id,
                                   JS::MutableHandle<JSPropertyDescriptor> desc);
     bool defineProperty(JSContext *cx, JS::HandleObject proxy, JS::HandleId id,
@@ -54,8 +58,6 @@ class WrapperOwner : public virtual JavaScriptShared
     bool hasInstance(JSContext *cx, JS::HandleObject proxy, JS::MutableHandleValue v, bool *bp);
     bool objectClassIs(JSContext *cx, JS::HandleObject obj, js::ESClassValue classValue);
     const char* className(JSContext *cx, JS::HandleObject proxy);
-    bool getPrototypeOf(JSContext *cx, JS::HandleObject proxy, JS::MutableHandleObject protop);
-
     bool regexp_toShared(JSContext *cx, JS::HandleObject proxy, js::RegExpGuard *g);
 
     nsresult instanceOf(JSObject *obj, const nsID *id, bool *bp);
@@ -136,7 +138,6 @@ class WrapperOwner : public virtual JavaScriptShared
     virtual bool SendObjectClassIs(const ObjectId &objId, const uint32_t &classValue,
                                    bool *result) = 0;
     virtual bool SendClassName(const ObjectId &objId, nsString *result) = 0;
-    virtual bool SendGetPrototypeOf(const ObjectId &objId, ReturnStatus *rs, ObjectOrNullVariant *result) = 0;
     virtual bool SendRegExpToShared(const ObjectId &objId, ReturnStatus *rs, nsString *source,
                                     uint32_t *flags) = 0;
 
@@ -147,6 +148,21 @@ class WrapperOwner : public virtual JavaScriptShared
     virtual bool SendDOMInstanceOf(const ObjectId &objId, const int &prototypeID, const int &depth,
                                    ReturnStatus *rs, bool *instanceof) = 0;
 };
+
+bool
+IsCPOW(JSObject *obj);
+
+bool
+IsWrappedCPOW(JSObject *obj);
+
+nsresult
+InstanceOf(JSObject *obj, const nsID *id, bool *bp);
+
+bool
+DOMInstanceOf(JSContext *cx, JSObject *obj, int prototypeID, int depth, bool *bp);
+
+void
+GetWrappedCPOWTag(JSObject *obj, nsACString &out);
 
 } // jsipc
 } // mozilla

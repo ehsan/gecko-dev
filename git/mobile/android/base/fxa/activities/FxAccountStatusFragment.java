@@ -4,12 +4,15 @@
 
 package org.mozilla.gecko.fxa.activities;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+
 import org.mozilla.gecko.AppConstants;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.background.fxa.FxAccountUtils;
 import org.mozilla.gecko.background.preferences.PreferenceFragment;
-import org.mozilla.gecko.db.BrowserContract;
 import org.mozilla.gecko.fxa.FirefoxAccounts;
 import org.mozilla.gecko.fxa.FxAccountConstants;
 import org.mozilla.gecko.fxa.authenticator.AndroidFxAccount;
@@ -39,14 +42,6 @@ import android.preference.PreferenceScreen;
 import android.text.TextUtils;
 import android.text.format.DateUtils;
 
-import java.util.Calendar;
-import java.util.Date;
-import java.util.GregorianCalendar;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-
-
 /**
  * A fragment that displays the status of an AndroidFxAccount.
  * <p>
@@ -58,15 +53,6 @@ public class FxAccountStatusFragment
     implements OnPreferenceClickListener, OnPreferenceChangeListener {
   private static final String LOG_TAG = FxAccountStatusFragment.class.getSimpleName();
 
-    /**
-     * If a device claims to have synced before this date, we will assume it has never synced.
-     */
-    private static final Date EARLIEST_VALID_SYNCED_DATE;
-    static {
-        final Calendar c = GregorianCalendar.getInstance();
-        c.set(2000, Calendar.JANUARY, 1, 0, 0, 0);
-        EARLIEST_VALID_SYNCED_DATE = c.getTime();
-    }
   // When a checkbox is toggled, wait 5 seconds (for other checkbox actions)
   // before trying to sync. Should we kill off the fragment before the sync
   // request happens, that's okay: the runnable will run if the UI thread is
@@ -92,6 +78,7 @@ public class FxAccountStatusFragment
   protected Preference needsUpgradePreference;
   protected Preference needsVerificationPreference;
   protected Preference needsMasterSyncAutomaticallyEnabledPreference;
+  protected Preference needsAccountEnabledPreference;
   protected Preference needsFinishMigratingPreference;
 
   protected PreferenceCategory syncCategory;
@@ -100,7 +87,6 @@ public class FxAccountStatusFragment
   protected CheckBoxPreference historyPreference;
   protected CheckBoxPreference tabsPreference;
   protected CheckBoxPreference passwordsPreference;
-  protected CheckBoxPreference readingListPreference;
 
   protected EditTextPreference deviceNamePreference;
   protected Preference syncServerPreference;
@@ -157,6 +143,7 @@ public class FxAccountStatusFragment
     needsUpgradePreference = ensureFindPreference("needs_upgrade");
     needsVerificationPreference = ensureFindPreference("needs_verification");
     needsMasterSyncAutomaticallyEnabledPreference = ensureFindPreference("needs_master_sync_automatically_enabled");
+    needsAccountEnabledPreference = ensureFindPreference("needs_account_enabled");
     needsFinishMigratingPreference = ensureFindPreference("needs_finish_migrating");
 
     syncCategory = (PreferenceCategory) ensureFindPreference("sync_category");
@@ -165,9 +152,6 @@ public class FxAccountStatusFragment
     historyPreference = (CheckBoxPreference) ensureFindPreference("history");
     tabsPreference = (CheckBoxPreference) ensureFindPreference("tabs");
     passwordsPreference = (CheckBoxPreference) ensureFindPreference("passwords");
-    // The Reading List toggle appears with the other Firefox Sync toggles but
-    // controls a separate Android authority.
-    readingListPreference = (CheckBoxPreference) ensureFindPreference("reading_list");
 
     if (!FxAccountUtils.LOG_PERSONAL_INFORMATION) {
       removeDebugButtons();
@@ -179,13 +163,13 @@ public class FxAccountStatusFragment
 
     needsPasswordPreference.setOnPreferenceClickListener(this);
     needsVerificationPreference.setOnPreferenceClickListener(this);
+    needsAccountEnabledPreference.setOnPreferenceClickListener(this);
     needsFinishMigratingPreference.setOnPreferenceClickListener(this);
 
     bookmarksPreference.setOnPreferenceClickListener(this);
     historyPreference.setOnPreferenceClickListener(this);
     tabsPreference.setOnPreferenceClickListener(this);
     passwordsPreference.setOnPreferenceClickListener(this);
-    readingListPreference.setOnPreferenceClickListener(this);
 
     deviceNamePreference = (EditTextPreference) ensureFindPreference("device_name");
     deviceNamePreference.setOnPreferenceChangeListener(this);
@@ -254,19 +238,18 @@ public class FxAccountStatusFragment
       return true;
     }
 
+    if (preference == needsAccountEnabledPreference) {
+      fxAccount.enableSyncing();
+      refresh();
+
+      return true;
+    }
+
     if (preference == bookmarksPreference ||
         preference == historyPreference ||
         preference == passwordsPreference ||
         preference == tabsPreference) {
       saveEngineSelections();
-      return true;
-    }
-
-    if (preference == readingListPreference) {
-      final boolean syncAutomatically = readingListPreference.isChecked();
-      ContentResolver.setIsSyncable(fxAccount.getAndroidAccount(), BrowserContract.READING_LIST_AUTHORITY, 1);
-      ContentResolver.setSyncAutomatically(fxAccount.getAndroidAccount(), BrowserContract.READING_LIST_AUTHORITY, syncAutomatically);
-      FxAccountUtils.pii(LOG_TAG, (syncAutomatically ? "En" : "Dis") + "abling Reading List sync automatically.");
       return true;
     }
 
@@ -304,11 +287,6 @@ public class FxAccountStatusFragment
     // Since we can't sync, we can't update our remote client record.
     deviceNamePreference.setEnabled(enabled);
     syncNowPreference.setEnabled(enabled);
-
-    // The checkboxes are a set of global settings: they reflect the account
-    // state and not the underlying Sync state. In the future, each checkbox
-    // will reflect its own piece of the account state.
-    readingListPreference.setEnabled(enabled);
   }
 
   /**
@@ -323,6 +301,7 @@ public class FxAccountStatusFragment
         this.needsUpgradePreference,
         this.needsVerificationPreference,
         this.needsMasterSyncAutomaticallyEnabledPreference,
+        this.needsAccountEnabledPreference,
         this.needsFinishMigratingPreference,
     };
     for (Preference errorPreference : errorPreferences) {
@@ -363,6 +342,12 @@ public class FxAccountStatusFragment
                                                    R.string.fxaccount_status_needs_master_sync_automatically_enabled :
                                                    R.string.fxaccount_status_needs_master_sync_automatically_enabled_v21);
     showOnlyOneErrorPreference(needsMasterSyncAutomaticallyEnabledPreference);
+    setCheckboxesEnabled(false);
+  }
+
+  protected void showNeedsAccountEnabled() {
+    syncCategory.setTitle(R.string.fxaccount_status_sync);
+    showOnlyOneErrorPreference(needsAccountEnabledPreference);
     setCheckboxesEnabled(false);
   }
 
@@ -493,10 +478,17 @@ public class FxAccountStatusFragment
 
     try {
       // There are error states determined by Android, not the login state
-      // machine, and we have a chance to present these states here. We handle
+      // machine, and we have a chance to present these states here.  We handle
       // them specially, since we can't surface these states as part of syncing,
-      // because they generally stop syncs from happening regularly. Right now
-      // there are no such states.
+      // because they generally stop syncs from happening regularly.
+
+      // The action to enable syncing the Firefox Account doesn't require
+      // leaving this activity, so let's present it first.
+      final boolean isSyncing = fxAccount.isSyncing();
+      if (!isSyncing) {
+        showNeedsAccountEnabled();
+        return;
+      }
 
       // Interrogate the Firefox Account's state.
       State state = fxAccount.getState();
@@ -530,7 +522,6 @@ public class FxAccountStatusFragment
     } finally {
       // No matter our state, we should update the checkboxes.
       updateSelectedEngines();
-      updateReadingList();
     }
 
     final String clientName = clientsDataDelegate.getClientName();
@@ -542,9 +533,6 @@ public class FxAccountStatusFragment
 
   // This is a helper function similar to TabsAccessor.getLastSyncedString() to calculate relative "Last synced" time span.
   private String getLastSyncedString(final long startTime) {
-    if (new Date(startTime).before(EARLIEST_VALID_SYNCED_DATE)) {
-      return getActivity().getString(R.string.fxaccount_status_never_synced);
-    }
     final CharSequence relativeTimeSpanString = DateUtils.getRelativeTimeSpanString(startTime);
     return getActivity().getResources().getString(R.string.fxaccount_status_last_synced, relativeTimeSpanString);
   }
@@ -639,19 +627,6 @@ public class FxAccountStatusFragment
     } catch (Exception e) {
       Logger.warn(LOG_TAG, "Got exception getting engines to select; ignoring.", e);
       return;
-    }
-  }
-
-  /**
-   * Query the current reading list automatic sync state, and update the UI
-   * accordingly.
-   */
-  protected void updateReadingList() {
-    if (AppConstants.MOZ_ANDROID_READING_LIST_SERVICE) {
-      final boolean syncAutomatically = ContentResolver.getSyncAutomatically(fxAccount.getAndroidAccount(), BrowserContract.READING_LIST_AUTHORITY);
-      readingListPreference.setChecked(syncAutomatically);
-    } else {
-      syncCategory.removePreference(readingListPreference);
     }
   }
 

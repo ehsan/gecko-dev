@@ -16,8 +16,6 @@
 namespace js {
 namespace jit {
 
-class TrackedOptimizations;
-
 inline unsigned
 StartArgSlot(JSScript *script)
 {
@@ -132,16 +130,13 @@ class BytecodeSite : public TempObject
     // Bytecode address within innermost active function.
     jsbytecode *pc_;
 
-    // Optimization information at the pc.
-    TrackedOptimizations *optimizations_;
-
   public:
     BytecodeSite()
-      : tree_(nullptr), pc_(nullptr), optimizations_(nullptr)
+      : tree_(nullptr), pc_(nullptr)
     {}
 
     BytecodeSite(InlineScriptTree *tree, jsbytecode *pc)
-      : tree_(tree), pc_(pc), optimizations_(nullptr)
+      : tree_(tree), pc_(pc)
     {
         MOZ_ASSERT(tree_ != nullptr);
         MOZ_ASSERT(pc_ != nullptr);
@@ -158,47 +153,18 @@ class BytecodeSite : public TempObject
     JSScript *script() const {
         return tree_ ? tree_->script() : nullptr;
     }
-
-    bool hasOptimizations() const {
-        return !!optimizations_;
-    }
-
-    TrackedOptimizations *optimizations() const {
-        MOZ_ASSERT(hasOptimizations());
-        return optimizations_;
-    }
-
-    void setOptimizations(TrackedOptimizations *optimizations) {
-        optimizations_ = optimizations;
-    }
 };
 
-enum AnalysisMode {
-    /* JavaScript execution, not analysis. */
-    Analysis_None,
-
-    /*
-     * MIR analysis performed when invoking 'new' on a script, to determine
-     * definite properties. Used by the optimizing JIT.
-     */
-    Analysis_DefiniteProperties,
-
-    /*
-     * MIR analysis performed when executing a script which uses its arguments,
-     * when it is not known whether a lazy arguments value can be used.
-     */
-    Analysis_ArgumentsUsage
-};
 
 // Contains information about the compilation source for IR being generated.
 class CompileInfo
 {
   public:
     CompileInfo(JSScript *script, JSFunction *fun, jsbytecode *osrPc, bool constructing,
-                AnalysisMode analysisMode, bool scriptNeedsArgsObj,
+                ExecutionMode executionMode, bool scriptNeedsArgsObj,
                 InlineScriptTree *inlineScriptTree)
       : script_(script), fun_(fun), osrPc_(osrPc), constructing_(constructing),
-        analysisMode_(analysisMode), scriptNeedsArgsObj_(scriptNeedsArgsObj),
+        executionMode_(executionMode), scriptNeedsArgsObj_(scriptNeedsArgsObj),
         inlineScriptTree_(inlineScriptTree)
     {
         MOZ_ASSERT_IF(osrPc, JSOp(*osrPc) == JSOP_LOOPENTRY);
@@ -212,7 +178,7 @@ class CompileInfo
             MOZ_ASSERT(fun_->isTenured());
         }
 
-        osrStaticScope_ = osrPc ? script->getStaticBlockScope(osrPc) : nullptr;
+        osrStaticScope_ = osrPc ? script->getStaticScope(osrPc) : nullptr;
 
         nimplicit_ = StartArgSlot(script)                   /* scope chain and argument obj */
                    + (fun ? 1 : 0);                         /* this */
@@ -224,9 +190,9 @@ class CompileInfo
         nslots_ = nimplicit_ + nargs_ + nlocals_ + nstack_;
     }
 
-    explicit CompileInfo(unsigned nlocals)
+    CompileInfo(unsigned nlocals, ExecutionMode executionMode)
       : script_(nullptr), fun_(nullptr), osrPc_(nullptr), osrStaticScope_(nullptr),
-        constructing_(false), analysisMode_(Analysis_None), scriptNeedsArgsObj_(false),
+        constructing_(false), executionMode_(executionMode), scriptNeedsArgsObj_(false),
         inlineScriptTree_(nullptr)
     {
         nimplicit_ = 0;
@@ -463,12 +429,12 @@ class CompileInfo
         return scriptNeedsArgsObj_ && !script()->strict();
     }
 
-    AnalysisMode analysisMode() const {
-        return analysisMode_;
+    ExecutionMode executionMode() const {
+        return executionMode_;
     }
 
-    bool isAnalysis() const {
-        return analysisMode_ != Analysis_None;
+    bool executionModeIsAnalysis() const {
+        return executionMode_ == DefinitePropertiesAnalysis || executionMode_ == ArgumentsUsageAnalysis;
     }
 
     // Returns true if a slot can be observed out-side the current frame while
@@ -554,7 +520,7 @@ class CompileInfo
     jsbytecode *osrPc_;
     NestedScopeObject *osrStaticScope_;
     bool constructing_;
-    AnalysisMode analysisMode_;
+    ExecutionMode executionMode_;
 
     // Whether a script needs an arguments object is unstable over compilation
     // since the arguments optimization could be marked as failed on the main

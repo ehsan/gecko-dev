@@ -43,8 +43,6 @@ class FrameGeneratorCapturer : public VideoCapturer {
   virtual void Start() OVERRIDE;
   virtual void Stop() OVERRIDE;
 
-  int64_t first_frame_capture_time() const { return first_frame_capture_time_; }
-
  private:
   FrameGeneratorCapturer(Clock* clock,
                          VideoSendStreamInput* input,
@@ -54,7 +52,7 @@ class FrameGeneratorCapturer : public VideoCapturer {
   void InsertFrame();
   static bool Run(void* obj);
 
-  Clock* const clock_;
+  Clock* clock_;
   bool sending_;
 
   scoped_ptr<EventWrapper> tick_;
@@ -63,8 +61,6 @@ class FrameGeneratorCapturer : public VideoCapturer {
   scoped_ptr<FrameGenerator> frame_generator_;
 
   int target_fps_;
-
-  int64_t first_frame_capture_time_;
 };
 }  // test
 }  // webrtc

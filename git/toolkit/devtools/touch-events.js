@@ -11,16 +11,6 @@ let handlerCount = 0;
 
 let orig_w3c_touch_events = Services.prefs.getIntPref('dom.w3c_touch_events.enabled');
 
-let systemAppOrigin = (function() {
-  let systemOrigin = "_";
-  try {
-    systemOrigin = Services.io.newURI(
-      Services.prefs.getCharPref('b2g.system_manifest_url'), null, null)
-      .prePath;
-  } catch(e) {}
-  return systemOrigin;
-})();
-
 let trackedWindows = new WeakMap();
 
 // =================== Touch ====================
@@ -75,10 +65,7 @@ function TouchEventHandler (window) {
       // a mix of mouse/touch events. So let's not cancel *all* mouse events
       // if it is the current target.
       let content = this.getContent(evt.target);
-      if (!content) {
-        return;
-      }
-      let isSystemWindow = content.location.toString().startsWith(systemAppOrigin);
+      let isSystemWindow = content.location.toString().indexOf("system.gaiamobile.org") != -1;
 
       // App touchstart & touchend should also be dispatched on the system app
       // to match on-device behavior.
@@ -246,9 +233,6 @@ function TouchEventHandler (window) {
       }
       let document = target.ownerDocument;
       let content = this.getContent(target);
-      if (!content) {
-        return null;
-      }
 
       let touchEvent = document.createEvent('touchevent');
       let point = document.createTouch(content, target, 0,
@@ -266,9 +250,7 @@ function TouchEventHandler (window) {
       return touchEvent;
     },
     getContent: function teh_getContent(target) {
-      let win = (target && target.ownerDocument)
-        ? target.ownerDocument.defaultView
-        : null;
+      let win = target.ownerDocument.defaultView;
       return win;
     }
   };

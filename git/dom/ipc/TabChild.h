@@ -45,8 +45,7 @@ class RenderFrameChild;
 }
 
 namespace layers {
-class APZEventState;
-struct SetTargetAPZCCallback;
+class ActiveElementManager;
 }
 
 namespace widget {
@@ -66,8 +65,7 @@ class TabChildBase;
 class TabChildGlobal : public DOMEventTargetHelper,
                        public nsIContentFrameMessageManager,
                        public nsIScriptObjectPrincipal,
-                       public nsIGlobalObject,
-                       public nsSupportsWeakReference
+                       public nsIGlobalObject
 {
 public:
   explicit TabChildGlobal(TabChildBase* aTabChild);
@@ -76,7 +74,6 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(TabChildGlobal, DOMEventTargetHelper)
   NS_FORWARD_SAFE_NSIMESSAGELISTENERMANAGER(mMessageManager)
   NS_FORWARD_SAFE_NSIMESSAGESENDER(mMessageManager)
-  NS_FORWARD_SAFE_NSIMESSAGEMANAGERGLOBAL(mMessageManager)
   NS_IMETHOD SendSyncMessage(const nsAString& aMessageName,
                              JS::Handle<JS::Value> aObject,
                              JS::Handle<JS::Value> aRemote,
@@ -105,6 +102,15 @@ public:
   }
   NS_IMETHOD GetContent(nsIDOMWindow** aContent) MOZ_OVERRIDE;
   NS_IMETHOD GetDocShell(nsIDocShell** aDocShell) MOZ_OVERRIDE;
+  NS_IMETHOD Dump(const nsAString& aStr) MOZ_OVERRIDE
+  {
+    return mMessageManager ? mMessageManager->Dump(aStr) : NS_OK;
+  }
+  NS_IMETHOD PrivateNoteIntentionalCrash() MOZ_OVERRIDE;
+  NS_IMETHOD Btoa(const nsAString& aBinaryData,
+                  nsAString& aAsciiBase64String) MOZ_OVERRIDE;
+  NS_IMETHOD Atob(const nsAString& aAsciiString,
+                  nsAString& aBinaryData) MOZ_OVERRIDE;
 
   nsresult AddEventListener(const nsAString& aType,
                             nsIDOMEventListener* aListener,
@@ -165,7 +171,7 @@ protected:
 // It make sense to place in this class all helper functions, and functionality which could be shared between
 // Cross-process/Cross-thread implmentations.
 class TabChildBase : public nsISupports,
-                     public nsMessageManagerScriptExecutor,
+                     public nsFrameScriptExecutor,
                      public ipc::MessageManagerCallback
 {
 public:
@@ -174,7 +180,7 @@ public:
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
     NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(TabChildBase)
 
-    virtual nsIWebNavigation* WebNavigation() const = 0;
+    virtual nsIWebNavigation* WebNavigation() = 0;
     virtual nsIWidget* WebWidget() = 0;
     nsIPrincipal* GetPrincipal() { return mPrincipal; }
     bool IsAsyncPanZoomEnabled();
@@ -189,6 +195,10 @@ public:
                                          const bool& aIsRoot,
                                          const mozilla::layers::ZoomConstraints& aConstraints) = 0;
 
+    nsEventStatus DispatchSynthesizedMouseEvent(uint32_t aMsg, uint64_t aTime,
+                                                const LayoutDevicePoint& aRefPoint,
+                                                nsIWidget* aWidget);
+
 protected:
     virtual ~TabChildBase();
     CSSSize GetPageSize(nsCOMPtr<nsIDocument> aDocument, const CSSSize& aViewport);
@@ -196,7 +206,7 @@ protected:
     // Get the DOMWindowUtils for the top-level window in this tab.
     already_AddRefed<nsIDOMWindowUtils> GetDOMWindowUtils();
     // Get the Document for the top-level window in this tab.
-    already_AddRefed<nsIDocument> GetDocument() const;
+    already_AddRefed<nsIDocument> GetDocument();
 
     // Wrapper for nsIDOMWindowUtils.setCSSViewport(). This updates some state
     // variables local to this class before setting it.
@@ -209,6 +219,8 @@ protected:
     // so we don't need things like this.
     void DispatchMessageManagerMessage(const nsAString& aMessageName,
                                        const nsAString& aJSONData);
+
+    nsEventStatus DispatchWidgetEvent(WidgetGUIEvent& event);
 
     void InitializeRootMetrics();
 
@@ -244,15 +256,10 @@ class TabChild MOZ_FINAL : public TabChildBase,
     typedef mozilla::dom::ClonedMessageData ClonedMessageData;
     typedef mozilla::layout::RenderFrameChild RenderFrameChild;
     typedef mozilla::layout::ScrollingBehavior ScrollingBehavior;
-    typedef mozilla::layers::APZEventState APZEventState;
-    typedef mozilla::layers::SetTargetAPZCCallback SetTargetAPZCCallback;
+    typedef mozilla::layers::ActiveElementManager ActiveElementManager;
 
 public:
-    /**
-     * Find TabChild of aTabId in the same content process of the
-     * caller.
-     */
-    static already_AddRefed<TabChild> FindTabChild(const TabId& aTabId);
+    static std::map<TabId, nsRefPtr<TabChild>>& NestedTabChildMap();
 
 public:
     /** 
@@ -306,8 +313,7 @@ public:
                                          const ViewID& aViewId,
                                          const bool& aIsRoot,
                                          const ZoomConstraints& aConstraints) MOZ_OVERRIDE;
-    virtual bool RecvLoadURL(const nsCString& aURI,
-                             const BrowserConfiguration& aConfiguration) MOZ_OVERRIDE;
+    virtual bool RecvLoadURL(const nsCString& uri) MOZ_OVERRIDE;
     virtual bool RecvCacheFileDescriptor(const nsString& aPath,
                                          const FileDescriptor& aFileDescriptor)
                                          MOZ_OVERRIDE;
@@ -316,8 +322,7 @@ public:
                           const ScrollingBehavior& aScrolling,
                           const TextureFactoryIdentifier& aTextureFactoryIdentifier,
                           const uint64_t& aLayersId,
-                          PRenderFrameChild* aRenderFrame,
-                          const bool& aParentIsActive) MOZ_OVERRIDE;
+                          PRenderFrameChild* aRenderFrame) MOZ_OVERRIDE;
     virtual bool RecvUpdateDimensions(const nsIntRect& rect,
                                       const nsIntSize& size,
                                       const ScreenOrientation& orientation,
@@ -346,8 +351,7 @@ public:
                                 const int32_t&  aClickCount,
                                 const int32_t&  aModifiers,
                                 const bool&     aIgnoreRootScrollFrame) MOZ_OVERRIDE;
-    virtual bool RecvRealMouseMoveEvent(const mozilla::WidgetMouseEvent& event) MOZ_OVERRIDE;
-    virtual bool RecvRealMouseButtonEvent(const mozilla::WidgetMouseEvent& event) MOZ_OVERRIDE;
+    virtual bool RecvRealMouseEvent(const mozilla::WidgetMouseEvent& event) MOZ_OVERRIDE;
     virtual bool RecvRealKeyEvent(const mozilla::WidgetKeyboardEvent& event,
                                   const MaybeNativeKeyBinding& aBindings) MOZ_OVERRIDE;
     virtual bool RecvMouseWheelEvent(const mozilla::WidgetWheelEvent& event,
@@ -371,7 +375,7 @@ public:
                                       const bool& aRunInGlobalScope) MOZ_OVERRIDE;
     virtual bool RecvAsyncMessage(const nsString& aMessage,
                                   const ClonedMessageData& aData,
-                                  InfallibleTArray<CpowEntry>&& aCpows,
+                                  const InfallibleTArray<CpowEntry>& aCpows,
                                   const IPC::Principal& aPrincipal) MOZ_OVERRIDE;
 
     virtual bool RecvAppOfflineStatus(const uint32_t& aId, const bool& aOffline) MOZ_OVERRIDE;
@@ -414,7 +418,7 @@ public:
                                        PIndexedDBPermissionRequestChild* aActor)
                                        MOZ_OVERRIDE;
 
-    virtual nsIWebNavigation* WebNavigation() const MOZ_OVERRIDE { return mWebNav; }
+    virtual nsIWebNavigation* WebNavigation() MOZ_OVERRIDE { return mWebNav; }
     virtual nsIWidget* WebWidget() MOZ_OVERRIDE { return mWidget; }
 
     /** Return the DPI of the widget this TabChild draws to. */
@@ -429,6 +433,17 @@ public:
 
     void RequestNativeKeyBindings(mozilla::widget::AutoCacheNativeKeyCommands* aAutoCache,
                                   WidgetKeyboardEvent* aEvent);
+
+    /** Return a boolean indicating if the page has called preventDefault on
+     *  the event.
+     */
+    bool DispatchMouseEvent(const nsString&       aType,
+                            const CSSPoint&       aPoint,
+                            const int32_t&        aButton,
+                            const int32_t&        aClickCount,
+                            const int32_t&        aModifiers,
+                            const bool&           aIgnoreRootScrollFrame,
+                            const unsigned short& aInputSourceArg);
 
     /**
      * Signal to this TabChild that it should be made visible:
@@ -480,16 +495,11 @@ public:
      */
     PPluginWidgetChild* AllocPPluginWidgetChild() MOZ_OVERRIDE;
     bool DeallocPPluginWidgetChild(PPluginWidgetChild* aActor) MOZ_OVERRIDE;
-    nsresult CreatePluginWidget(nsIWidget* aParent, nsIWidget** aOut);
+    already_AddRefed<nsIWidget> CreatePluginWidget(nsIWidget* aParent);
 
     nsIntPoint GetChromeDisplacement() { return mChromeDisp; };
 
     bool IPCOpen() { return mIPCOpen; }
-
-    bool ParentIsActive()
-    {
-      return mParentIsActive;
-    }
 
 protected:
     virtual ~TabChild();
@@ -524,6 +534,7 @@ private:
 
     nsresult Init();
 
+    class DelayedFireSingleTapEvent;
     class DelayedFireContextMenuEvent;
 
     // Notify others that our TabContext has been updated.  (At the moment, this
@@ -563,24 +574,45 @@ private:
     void UpdateTapState(const WidgetTouchEvent& aEvent, nsEventStatus aStatus);
 
     nsresult
-    ProvideWindowCommon(nsIDOMWindow* aOpener,
-                        bool aIframeMoz,
-                        uint32_t aChromeFlags,
-                        bool aCalledFromJS,
-                        bool aPositionSpecified,
-                        bool aSizeSpecified,
-                        nsIURI* aURI,
-                        const nsAString& aName,
-                        const nsACString& aFeatures,
-                        bool* aWindowIsNew,
-                        nsIDOMWindow** aReturn);
+    BrowserFrameProvideWindow(nsIDOMWindow* aOpener,
+                              nsIURI* aURI,
+                              const nsAString& aName,
+                              const nsACString& aFeatures,
+                              bool* aWindowIsNew,
+                              nsIDOMWindow** aReturn);
 
     bool HasValidInnerSize();
 
-    // Get the pres shell resolution of the document in this tab.
-    float GetPresShellResolution() const;
+    void SendPendingTouchPreventedResponse(bool aPreventDefault,
+                                           const ScrollableLayerGuid& aGuid);
 
-    void SetTabId(const TabId& aTabId);
+    // Adds the scrollable layer target to the target list, and returns whether
+    // or not the caller should wait for a refresh to send a target
+    // notification.
+    bool PrepareForSetTargetAPZCNotification(const ScrollableLayerGuid& aGuid,
+                                             const uint64_t& aInputBlockId,
+                                             nsIFrame* aRootFrame,
+                                             const nsIntPoint& aRefPoint,
+                                             nsTArray<ScrollableLayerGuid>* aTargets);
+
+    // Sends a SetTarget notification for APZC, given one or more previous
+    // calls to PrepareForAPZCSetTargetNotification().
+    void SendSetTargetAPZCNotification(nsIPresShell* aShell,
+                                       const uint64_t& aInputBlockId,
+                                       const nsTArray<ScrollableLayerGuid>& aTargets,
+                                       bool aWaitForRefresh);
+
+    void SendSetTargetAPZCNotification(const WidgetTouchEvent& aEvent,
+                                       const mozilla::layers::ScrollableLayerGuid& aGuid,
+                                       const uint64_t& aInputBlockId);
+
+    void SetTabId(const TabId& aTabId)
+    {
+      MOZ_ASSERT(mUniqueId == 0);
+
+      mUniqueId = aTabId;
+      NestedTabChildMap()[mUniqueId] = this;
+    }
 
     class CachedFileDescriptorInfo;
     class CachedFileDescriptorCallbackRunnable;
@@ -615,10 +647,16 @@ private:
     bool mTriedBrowserInit;
     ScreenOrientation mOrientation;
     bool mUpdateHitRegion;
+    bool mPendingTouchPreventedResponse;
+    ScrollableLayerGuid mPendingTouchPreventedGuid;
+    uint64_t mPendingTouchPreventedBlockId;
+    void FireSingleTapEvent(LayoutDevicePoint aPoint);
+
+    bool mTouchEndCancelled;
+    bool mEndTouchIsClick;
 
     bool mIgnoreKeyPressEvent;
-    nsRefPtr<APZEventState> mAPZEventState;
-    nsRefPtr<SetTargetAPZCCallback> mSetTargetAPZCCallback;
+    nsRefPtr<ActiveElementManager> mActiveElementManager;
     bool mHasValidInnerSize;
     bool mDestroyed;
     // Position of tab, relative to parent widget (typically the window)
@@ -627,7 +665,6 @@ private:
     float mDPI;
     double mDefaultScale;
     bool mIPCOpen;
-    bool mParentIsActive;
 
     DISALLOW_EVIL_CONSTRUCTORS(TabChild);
 };

@@ -4,6 +4,7 @@
  * This program is made available under an ISC-style license.  See the
  * accompanying file LICENSE for details.
  */
+#undef NDEBUG
 #define __MSVCRT_VERSION__ 0x0700
 #undef WINVER
 #define WINVER 0x0501
@@ -11,11 +12,11 @@
 #define WIN32_LEAN_AND_MEAN
 
 #include <malloc.h>
+#include <assert.h>
 #include <windows.h>
 #include <mmreg.h>
 #include <mmsystem.h>
 #include <process.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include "cubeb/cubeb.h"
@@ -94,7 +95,7 @@ bytes_per_frame(cubeb_stream_params params)
     bytes = sizeof(float);
     break;
   default:
-    XASSERT(0);
+    assert(0);
   }
 
   return bytes * params.channels;
@@ -105,10 +106,10 @@ winmm_get_next_buffer(cubeb_stream * stm)
 {
   WAVEHDR * hdr = NULL;
 
-  XASSERT(stm->free_buffers > 0 && stm->free_buffers <= NBUFS);
+  assert(stm->free_buffers > 0 && stm->free_buffers <= NBUFS);
   hdr = &stm->buffers[stm->next_buffer];
-  XASSERT(hdr->dwFlags & WHDR_PREPARED ||
-          (hdr->dwFlags & WHDR_DONE && !(hdr->dwFlags & WHDR_INQUEUE)));
+  assert(hdr->dwFlags & WHDR_PREPARED ||
+         (hdr->dwFlags & WHDR_DONE && !(hdr->dwFlags & WHDR_INQUEUE)));
   stm->next_buffer = (stm->next_buffer + 1) % NBUFS;
   stm->free_buffers -= 1;
 
@@ -125,7 +126,7 @@ winmm_refill_stream(cubeb_stream * stm)
 
   EnterCriticalSection(&stm->lock);
   stm->free_buffers += 1;
-  XASSERT(stm->free_buffers > 0 && stm->free_buffers <= NBUFS);
+  assert(stm->free_buffers > 0 && stm->free_buffers <= NBUFS);
 
   if (stm->draining) {
     LeaveCriticalSection(&stm->lock);
@@ -154,17 +155,17 @@ winmm_refill_stream(cubeb_stream * stm)
   if (got < 0) {
     LeaveCriticalSection(&stm->lock);
     /* XXX handle this case */
-    XASSERT(0);
+    assert(0);
     return;
   } else if (got < wanted) {
     stm->draining = 1;
   }
   stm->written += got;
 
-  XASSERT(hdr->dwFlags & WHDR_PREPARED);
+  assert(hdr->dwFlags & WHDR_PREPARED);
 
   hdr->dwBufferLength = got * bytes_per_frame(stm->params);
-  XASSERT(hdr->dwBufferLength <= stm->buffer_size);
+  assert(hdr->dwBufferLength <= stm->buffer_size);
 
   if (stm->soft_volume != -1.0) {
     if (stm->params.format == CUBEB_SAMPLE_FLOAT32NE) {
@@ -196,14 +197,14 @@ static unsigned __stdcall
 winmm_buffer_thread(void * user_ptr)
 {
   cubeb * ctx = (cubeb *) user_ptr;
-  XASSERT(ctx);
+  assert(ctx);
 
   for (;;) {
     DWORD r;
     PSLIST_ENTRY item;
 
     r = WaitForSingleObject(ctx->event, INFINITE);
-    XASSERT(r == WAIT_OBJECT_0);
+    assert(r == WAIT_OBJECT_0);
 
     /* Process work items in batches so that a single stream can't
        starve the others by continuously adding new work to the top of
@@ -235,7 +236,7 @@ winmm_buffer_callback(HWAVEOUT waveout, UINT msg, DWORD_PTR user_ptr, DWORD_PTR 
   }
 
   item = _aligned_malloc(sizeof(struct cubeb_stream_item), MEMORY_ALLOCATION_ALIGNMENT);
-  XASSERT(item);
+  assert(item);
   item->stream = stm;
   InterlockedPushEntrySList(stm->context->work, &item->head);
 
@@ -277,16 +278,16 @@ winmm_init(cubeb ** context, char const * context_name)
 {
   cubeb * ctx;
 
-  XASSERT(context);
+  assert(context);
   *context = NULL;
 
   ctx = calloc(1, sizeof(*ctx));
-  XASSERT(ctx);
+  assert(ctx);
 
   ctx->ops = &winmm_ops;
 
   ctx->work = _aligned_malloc(sizeof(*ctx->work), MEMORY_ALLOCATION_ALIGNMENT);
-  XASSERT(ctx->work);
+  assert(ctx->work);
   InitializeSListHead(ctx->work);
 
   ctx->event = CreateEvent(NULL, FALSE, FALSE, NULL);
@@ -324,8 +325,8 @@ winmm_destroy(cubeb * ctx)
 {
   DWORD r;
 
-  XASSERT(ctx->active_streams == 0);
-  XASSERT(!InterlockedPopEntrySList(ctx->work));
+  assert(ctx->active_streams == 0);
+  assert(!InterlockedPopEntrySList(ctx->work));
 
   DeleteCriticalSection(&ctx->lock);
 
@@ -333,7 +334,7 @@ winmm_destroy(cubeb * ctx)
     ctx->shutdown = 1;
     SetEvent(ctx->event);
     r = WaitForSingleObject(ctx->thread, INFINITE);
-    XASSERT(r == WAIT_OBJECT_0);
+    assert(r == WAIT_OBJECT_0);
     CloseHandle(ctx->thread);
   }
 
@@ -361,8 +362,8 @@ winmm_stream_init(cubeb * context, cubeb_stream ** stream, char const * stream_n
   int i;
   size_t bufsz;
 
-  XASSERT(context);
-  XASSERT(stream);
+  assert(context);
+  assert(stream);
 
   *stream = NULL;
 
@@ -412,7 +413,7 @@ winmm_stream_init(cubeb * context, cubeb_stream ** stream, char const * stream_n
   LeaveCriticalSection(&context->lock);
 
   stm = calloc(1, sizeof(*stm));
-  XASSERT(stm);
+  assert(stm);
 
   stm->context = context;
 
@@ -431,7 +432,7 @@ winmm_stream_init(cubeb * context, cubeb_stream ** stream, char const * stream_n
   if (bufsz % bytes_per_frame(stm->params) != 0) {
     bufsz += bytes_per_frame(stm->params) - (bufsz % bytes_per_frame(stm->params));
   }
-  XASSERT(bufsz % bytes_per_frame(stm->params) == 0);
+  assert(bufsz % bytes_per_frame(stm->params) == 0);
 
   stm->buffer_size = bufsz;
 
@@ -466,7 +467,7 @@ winmm_stream_init(cubeb * context, cubeb_stream ** stream, char const * stream_n
     WAVEHDR * hdr = &stm->buffers[i];
 
     hdr->lpData = calloc(1, bufsz);
-    XASSERT(hdr->lpData);
+    assert(hdr->lpData);
     hdr->dwBufferLength = bufsz;
     hdr->dwFlags = 0;
 
@@ -503,7 +504,7 @@ winmm_stream_destroy(cubeb_stream * stm)
     /* Wait for all blocks to complete. */
     while (enqueued > 0) {
       r = WaitForSingleObject(stm->event, INFINITE);
-      XASSERT(r == WAIT_OBJECT_0);
+      assert(r == WAIT_OBJECT_0);
 
       EnterCriticalSection(&stm->lock);
       enqueued = NBUFS - stm->free_buffers;
@@ -534,7 +535,7 @@ winmm_stream_destroy(cubeb_stream * stm)
   }
 
   EnterCriticalSection(&stm->context->lock);
-  XASSERT(stm->context->active_streams >= 1);
+  assert(stm->context->active_streams >= 1);
   stm->context->active_streams -= 1;
   LeaveCriticalSection(&stm->context->lock);
 
@@ -544,7 +545,7 @@ winmm_stream_destroy(cubeb_stream * stm)
 static int
 winmm_get_max_channel_count(cubeb * ctx, uint32_t * max_channels)
 {
-  XASSERT(ctx && max_channels);
+  assert(ctx && max_channels);
 
   /* We don't support more than two channels in this backend. */
   *max_channels = 2;
@@ -652,10 +653,6 @@ winmm_stream_get_latency(cubeb_stream * stm, uint32_t * latency)
   r = waveOutGetPosition(stm->waveout, &time, sizeof(time));
   written = stm->written;
   LeaveCriticalSection(&stm->lock);
-
-  if (r != MMSYSERR_NOERROR || time.wType != TIME_SAMPLES) {
-    return CUBEB_ERROR;
-  }
 
   *latency = written - time.u.sample;
 

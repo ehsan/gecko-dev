@@ -19,13 +19,13 @@
 #include "jsgc.h"
 #include "jsobj.h"
 #include "jsopcode.h"
+#include "jsproxy.h"
 #include "jsscript.h"
 #include "jstypes.h"
 #include "jsutil.h"
 
 #include "ds/Sort.h"
 #include "gc/Marking.h"
-#include "js/Proxy.h"
 #include "vm/GeneratorObject.h"
 #include "vm/GlobalObject.h"
 #include "vm/Interpreter.h"
@@ -33,6 +33,8 @@
 #include "vm/StopIterationObject.h"
 #include "vm/TypedArrayCommon.h"
 
+#include "jsinferinlines.h"
+#include "jsobjinlines.h"
 #include "jsscriptinlines.h"
 
 #include "vm/NativeObject-inl.h"
@@ -350,7 +352,7 @@ Snapshot(JSContext *cx, HandleObject pobj_, unsigned flags, AutoIdVector *props)
         if (flags & JSITER_OWNONLY)
             break;
 
-        if (!GetPrototype(cx, pobj, &pobj))
+        if (!JSObject::getProto(cx, pobj, &pobj))
             return false;
 
     } while (pobj != nullptr);
@@ -425,7 +427,7 @@ GetCustomIterator(JSContext *cx, HandleObject obj, unsigned flags, MutableHandle
     RootedValue rval(cx);
     /* Check whether we have a valid __iterator__ method. */
     HandlePropertyName name = cx->names().iteratorIntrinsic;
-    if (!GetProperty(cx, obj, obj, name, &rval))
+    if (!JSObject::getProperty(cx, obj, obj, name, &rval))
         return false;
 
     /* If there is no custom __iterator__ method, we are done here. */
@@ -481,9 +483,8 @@ static inline PropertyIteratorObject *
 NewPropertyIteratorObject(JSContext *cx, unsigned flags)
 {
     if (flags & JSITER_ENUMERATE) {
-        RootedObjectGroup group(cx, ObjectGroup::defaultNewGroup(cx, &PropertyIteratorObject::class_,
-                                                                 TaggedProto(nullptr)));
-        if (!group)
+        RootedTypeObject type(cx, cx->getNewType(&PropertyIteratorObject::class_, TaggedProto(nullptr)));
+        if (!type)
             return nullptr;
 
         JSObject *metadata = nullptr;
@@ -497,7 +498,7 @@ NewPropertyIteratorObject(JSContext *cx, unsigned flags)
             return nullptr;
 
         JSObject *obj = JSObject::create(cx, ITERATOR_FINALIZE_KIND,
-                                         GetInitialHeap(GenericObject, clasp), shape, group);
+                                         GetInitialHeap(GenericObject, clasp), shape, type);
         if (!obj)
             return nullptr;
         PropertyIteratorObject *res = &obj->as<PropertyIteratorObject>();
@@ -576,9 +577,9 @@ VectorToKeyIterator(JSContext *cx, HandleObject obj, unsigned flags, AutoIdVecto
 {
     MOZ_ASSERT(!(flags & JSITER_FOREACH));
 
-    if (obj->isSingleton() && !obj->setIteratedSingleton(cx))
+    if (obj->hasSingletonType() && !obj->setIteratedSingleton(cx))
         return false;
-    MarkObjectGroupFlags(cx, obj, OBJECT_FLAG_ITERATED);
+    types::MarkTypeObjectFlags(cx, obj, types::OBJECT_FLAG_ITERATED);
 
     Rooted<PropertyIteratorObject *> iterobj(cx, NewPropertyIteratorObject(cx, flags));
     if (!iterobj)
@@ -619,9 +620,9 @@ VectorToValueIterator(JSContext *cx, HandleObject obj, unsigned flags, AutoIdVec
 {
     MOZ_ASSERT(flags & JSITER_FOREACH);
 
-    if (obj->isSingleton() && !obj->setIteratedSingleton(cx))
+    if (obj->hasSingletonType() && !obj->setIteratedSingleton(cx))
         return false;
-    MarkObjectGroupFlags(cx, obj, OBJECT_FLAG_ITERATED);
+    types::MarkTypeObjectFlags(cx, obj, types::OBJECT_FLAG_ITERATED);
 
     Rooted<PropertyIteratorObject*> iterobj(cx, NewPropertyIteratorObject(cx, flags));
     if (!iterobj)
@@ -828,11 +829,11 @@ js::CreateItrResultObject(JSContext *cx, HandleValue value, bool done)
     if (!obj)
         return nullptr;
 
-    if (!DefineProperty(cx, obj, cx->names().value, value))
+    if (!JSObject::defineProperty(cx, obj, cx->names().value, value))
         return nullptr;
 
     RootedValue doneBool(cx, BooleanValue(done));
-    if (!DefineProperty(cx, obj, cx->names().done, doneBool))
+    if (!JSObject::defineProperty(cx, obj, cx->names().done, doneBool))
         return nullptr;
 
     return obj;
@@ -896,7 +897,7 @@ NativeIteratorNext(JSContext *cx, NativeIterator *ni, MutableHandleValue rval, b
         return false;
     ni->incCursor();
     RootedObject obj(cx, ni->obj);
-    if (!GetProperty(cx, obj, obj, id, rval))
+    if (!JSObject::getGeneric(cx, obj, obj, id, rval))
         return false;
 
     // JS 1.7 only: for each (let [k, v] in obj)
@@ -1162,26 +1163,31 @@ SuppressDeletedPropertyHelper(JSContext *cx, HandleObject obj, StringPredicate p
                      * became visible as a result of this deletion.
                      */
                     RootedObject proto(cx);
-                    if (!GetPrototype(cx, obj, &proto))
+                    if (!JSObject::getProto(cx, obj, &proto))
                         return false;
                     if (proto) {
+                        RootedObject obj2(cx);
+                        RootedShape prop(cx);
                         RootedId id(cx);
                         RootedValue idv(cx, StringValue(*idp));
                         if (!ValueToId<CanGC>(cx, idv, &id))
                             return false;
-
-                        Rooted<PropertyDescriptor> desc(cx);
-                        if (!GetPropertyDescriptor(cx, proto, id, &desc))
+                        if (!JSObject::lookupGeneric(cx, proto, id, &obj2, &prop))
                             return false;
+                        if (prop) {
+                            unsigned attrs;
+                            if (obj2->isNative())
+                                attrs = GetShapeAttributes(obj2, prop);
+                            else if (!JSObject::getGenericAttributes(cx, obj2, id, &attrs))
+                                return false;
 
-                        if (desc.object()) {
-                            if (desc.isEnumerable())
+                            if (attrs & JSPROP_ENUMERATE)
                                 continue;
                         }
                     }
 
                     /*
-                     * If GetPropertyDescriptorById above removed a property from
+                     * If lookupProperty or getAttributes above removed a property from
                      * ni, start over.
                      */
                     if (props_end != ni->props_end || props_cursor != ni->props_cursor)
@@ -1297,7 +1303,7 @@ js::IteratorMore(JSContext *cx, HandleObject iterobj, MutableHandleValue rval)
     JS_CHECK_RECURSION(cx, return false);
 
     // Call the iterator object's .next method.
-    if (!GetProperty(cx, iterobj, iterobj, cx->names().next, rval))
+    if (!JSObject::getProperty(cx, iterobj, iterobj, cx->names().next, rval))
         return false;
     // We try to support the old and new iterator protocol at the same time!
     if (!Invoke(cx, ObjectValue(*iterobj), rval, 0, nullptr, rval)) {
@@ -1324,11 +1330,11 @@ js::IteratorMore(JSContext *cx, HandleObject iterobj, MutableHandleValue rval)
     // it's using the new style protocol. Otherwise just return the object.
     RootedObject result(cx, &rval.toObject());
     bool found = false;
-    if (!HasProperty(cx, result, cx->names().done, &found))
+    if (!JSObject::hasProperty(cx, result, cx->names().done, &found))
         return false;
     if (!found)
         return true;
-    if (!HasProperty(cx, result, cx->names().value, &found))
+    if (!JSObject::hasProperty(cx, result, cx->names().value, &found))
         return false;
     if (!found)
         return true;
@@ -1337,7 +1343,7 @@ js::IteratorMore(JSContext *cx, HandleObject iterobj, MutableHandleValue rval)
 
     // 7.4.4 IteratorComplete
     // Get iterResult.done
-    if (!GetProperty(cx, result, result, cx->names().done, rval))
+    if (!JSObject::getProperty(cx, result, result, cx->names().done, rval))
         return false;
 
     bool done = ToBoolean(rval);
@@ -1347,7 +1353,7 @@ js::IteratorMore(JSContext *cx, HandleObject iterobj, MutableHandleValue rval)
      }
 
     // 7.4.5 IteratorValue
-    return GetProperty(cx, result, result, cx->names().value, rval);
+    return JSObject::getProperty(cx, result, result, cx->names().value, rval);
 }
 
 static bool
@@ -1410,7 +1416,7 @@ GlobalObject::initIteratorClasses(JSContext *cx, Handle<GlobalObject *> global)
     RootedObject proto(cx);
     if (global->getSlot(ARRAY_ITERATOR_PROTO).isUndefined()) {
         const Class *cls = &ArrayIteratorPrototypeClass;
-        proto = global->createBlankPrototypeInheriting(cx, cls, iteratorProto);
+        proto = global->createBlankPrototypeInheriting(cx, cls, *iteratorProto);
         if (!proto || !DefinePropertiesAndFunctions(cx, proto, nullptr, array_iterator_methods))
             return false;
         global->setReservedSlot(ARRAY_ITERATOR_PROTO, ObjectValue(*proto));
@@ -1434,7 +1440,7 @@ GlobalObject::initStopIterationClass(JSContext *cx, Handle<GlobalObject *> globa
         return true;
 
     RootedObject proto(cx, global->createBlankPrototype(cx, &StopIterationObject::class_));
-    if (!proto || !FreezeObject(cx, proto))
+    if (!proto || !JSObject::freeze(cx, proto))
         return false;
 
     // This should use a non-JSProtoKey'd slot, but this is easier for now.

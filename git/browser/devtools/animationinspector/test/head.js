@@ -5,12 +5,11 @@
 "use strict";
 
 const Cu = Components.utils;
-const {gDevTools} = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
-const {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
-const {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
-const TargetFactory = devtools.TargetFactory;
-const {console} = Components.utils.import("resource://gre/modules/devtools/Console.jsm", {});
-const {ViewHelpers} = Cu.import("resource:///modules/devtools/ViewHelpers.jsm", {});
+let {gDevTools} = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
+let {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
+let {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
+let TargetFactory = devtools.TargetFactory;
+let {console} = Components.utils.import("resource://gre/modules/devtools/Console.jsm", {});
 
 // All tests are asynchronous
 waitForExplicitFinish();
@@ -18,7 +17,6 @@ waitForExplicitFinish();
 const TEST_URL_ROOT = "http://example.com/browser/browser/devtools/animationinspector/test/";
 const ROOT_TEST_DIR = getRootDirectory(gTestPath);
 const FRAME_SCRIPT_URL = ROOT_TEST_DIR + "doc_frame_script.js";
-const COMMON_FRAME_SCRIPT_URL = "chrome://browser/content/devtools/frame-script-utils.js";
 
 // Auto clean-up when a test ends
 registerCleanupFunction(function*() {
@@ -64,9 +62,6 @@ function addTab(url) {
   info("Loading the helper frame script " + FRAME_SCRIPT_URL);
   browser.messageManager.loadFrameScript(FRAME_SCRIPT_URL, false);
 
-  info("Loading the helper frame script " + COMMON_FRAME_SCRIPT_URL);
-  browser.messageManager.loadFrameScript(COMMON_FRAME_SCRIPT_URL, false);
-
   browser.addEventListener("load", function onload() {
     browser.removeEventListener("load", onload, true);
     info("URL '" + url + "' loading complete");
@@ -75,13 +70,6 @@ function addTab(url) {
   }, true);
 
   return def.promise;
-}
-
-/**
- * Reload the current tab location.
- */
-function reloadTab() {
-  return executeInContent("devtools:test:reload", {}, {}, false);
 }
 
 /**
@@ -159,12 +147,10 @@ let openAnimationInspector = Task.async(function*() {
   let win = inspector.sidebar.getWindowForTab("animationinspector");
   let {AnimationsController, AnimationsPanel} = win;
 
-  info("Waiting for the animation controller and panel to be ready");
-  if (AnimationsPanel.initialized) {
-    yield AnimationsPanel.initialized;
-  } else {
-    yield AnimationsPanel.once(AnimationsPanel.PANEL_INITIALIZED);
-  }
+  yield promise.all([
+    AnimationsController.initialized,
+    AnimationsPanel.initialized
+  ]);
 
   return {
     toolbox: toolbox,
@@ -277,40 +263,12 @@ function executeInContent(name, data={}, objects={}, expectResponse=true) {
  * Simulate a click on the playPause button of a playerWidget.
  */
 let togglePlayPauseButton = Task.async(function*(widget) {
-  let nextState = widget.player.state.playState === "running" ? "paused" : "running";
-
   // Note that instead of simulating a real event here, the callback is just
   // called. This is better because the callback returns a promise, so we know
   // when the player is paused, and we don't really care to test that simulating
   // a DOM event actually works.
-  let onClicked = widget.onPlayPauseBtnClick();
-
-  // Verify that the button's state is changed immediately, even if it will be
-  // changed anyway with the next auto-refresh.
-  ok(widget.el.classList.contains(nextState),
-    "The button's state was changed in the UI before the request was sent");
-
-  yield onClicked;
+  yield widget.onPlayPauseBtnClick();
 
   // Wait for the next sate change event to make sure the state is updated
   yield widget.player.once(widget.player.AUTO_REFRESH_EVENT);
 });
-
-/**
- * Get the current playState of an animation player on a given node.
- */
-let getAnimationPlayerState = Task.async(function*(selector, animationIndex=0) {
-  let playState = yield executeInContent("Test:GetAnimationPlayerState",
-                                         {animationIndex},
-                                         {node: getNode(selector)});
-  return playState;
-});
-
-/**
- * Is the given node visible in the page (rendered in the frame tree).
- * @param {DOMNode}
- * @return {Boolean}
- */
-function isNodeVisible(node) {
-  return !!node.getClientRects().length;
-}

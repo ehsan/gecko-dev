@@ -31,6 +31,18 @@ public:
 
     virtual int GetRecCodec(int channel, CodecInst& codec);
 
+    virtual int SetAMREncFormat(int channel,
+                                AmrMode mode = kRfc3267BwEfficient);
+
+    virtual int SetAMRDecFormat(int channel,
+                                AmrMode mode = kRfc3267BwEfficient);
+
+    virtual int SetAMRWbEncFormat(int channel,
+                                  AmrMode mode = kRfc3267BwEfficient);
+
+    virtual int SetAMRWbDecFormat(int channel,
+                                  AmrMode mode = kRfc3267BwEfficient);
+
     virtual int SetSendCNPayloadType(
         int channel, int type,
         PayloadFrequencies frequency = kFreq16000Hz);
@@ -40,9 +52,13 @@ public:
 
     virtual int GetRecPayloadType(int channel, CodecInst& codec);
 
-    virtual int SetFECStatus(int channel, bool enable);
+    virtual int SetISACInitTargetRate(int channel,
+                                      int rateBps,
+                                      bool useFixedFrameSize = false);
 
-    virtual int GetFECStatus(int channel, bool& enabled);
+    virtual int SetISACMaxRate(int channel, int rateBps);
+
+    virtual int SetISACMaxPayloadSize(int channel, int sizeBytes);
 
     virtual int SetVADStatus(int channel,
                              bool enable,
@@ -53,8 +69,6 @@ public:
                              bool& enabled,
                              VadModes& mode,
                              bool& disabledDTX);
-
-    virtual int SetOpusMaxPlaybackRate(int channel, int frequency_hz);
 
     // Dual-streaming
     virtual int SetSecondarySendCodec(int channel, const CodecInst& codec,

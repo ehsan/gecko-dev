@@ -16,11 +16,37 @@
 
 #include <algorithm>
 
-#include "webrtc/base/constructormagic.h"
 #include "webrtc/common_types.h"
+#include "webrtc/system_wrappers/interface/constructor_magic.h"
 #include "webrtc/typedefs.h"
 
+#ifdef _WIN32
+// Remove warning "new behavior: elements of array will be default initialized".
+#pragma warning(disable : 4351)
+#endif
+
 namespace webrtc {
+
+struct RTPHeaderExtension {
+  bool hasTransmissionTimeOffset;
+  int32_t transmissionTimeOffset;
+  bool hasAbsoluteSendTime;
+  uint32_t absoluteSendTime;
+};
+
+struct RTPHeader {
+  bool markerBit;
+  uint8_t payloadType;
+  uint16_t sequenceNumber;
+  uint32_t timestamp;
+  uint32_t ssrc;
+  uint8_t numCSRCs;
+  uint32_t arrOfCSRCs[kRtpCsrcSize];
+  uint8_t paddingLength;
+  uint16_t headerLength;
+  int payload_type_frequency;
+  RTPHeaderExtension extension;
+};
 
 struct RTPAudioHeader {
   uint8_t numEnergy;                  // number of valid entries in arrOfEnergy
@@ -29,10 +55,21 @@ struct RTPAudioHeader {
   uint8_t channel;                    // number of channels 2 = stereo
 };
 
-const int16_t kNoPictureId = -1;
-const int16_t kNoTl0PicIdx = -1;
-const uint8_t kNoTemporalIdx = 0xFF;
-const int kNoKeyIdx = -1;
+enum {
+  kNoPictureId = -1
+};
+enum {
+  kNoTl0PicIdx = -1
+};
+enum {
+  kNoTemporalIdx = -1
+};
+enum {
+  kNoKeyIdx = -1
+};
+enum {
+  kNoSimulcastIdx = 0
+};
 
 struct RTPVideoHeaderVP8 {
   void InitRTPVideoHeaderVP8() {
@@ -51,7 +88,7 @@ struct RTPVideoHeaderVP8 {
                               // kNoPictureId if PictureID does not exist.
   int16_t tl0PicIdx;          // TL0PIC_IDX, 8 bits;
                               // kNoTl0PicIdx means no value provided.
-  uint8_t temporalIdx;        // Temporal layer index, or kNoTemporalIdx.
+  int8_t temporalIdx;         // Temporal layer index, or kNoTemporalIdx.
   bool layerSync;             // This frame is a layer sync frame.
                               // Disabled if temporalIdx == kNoTemporalIdx.
   int keyIdx;                 // 5 bits; kNoKeyIdx means not used.
@@ -61,9 +98,8 @@ struct RTPVideoHeaderVP8 {
 };
 
 struct RTPVideoHeaderH264 {
-  uint8_t nalu_header;    // us ********* REMOVE ME??? *********
-  bool stap_a;            // them *** or this? ***
-  bool single_nalu;
+  uint8_t nalu_header;
+  bool    single_nalu;
 };
 
 union RTPVideoTypeHeader {
@@ -96,8 +132,6 @@ struct WebRtcRTPHeader {
   RTPHeader header;
   FrameType frameType;
   RTPTypeHeader type;
-  // NTP time of the capture time in local timebase in milliseconds.
-  int64_t ntp_time_ms;
 };
 
 class RTPFragmentationHeader {
@@ -660,10 +694,6 @@ class AudioFrame {
   AudioFrame();
   virtual ~AudioFrame() {}
 
-  // Resets all members to their default state (except does not modify the
-  // contents of |data_|).
-  void Reset();
-
   // |interleaved_| is not changed by this method.
   void UpdateFrame(int id, uint32_t timestamp, const int16_t* data,
                    int samples_per_channel, int sample_rate_hz,
@@ -681,24 +711,13 @@ class AudioFrame {
   AudioFrame& operator-=(const AudioFrame& rhs);
 
   int id_;
-  // RTP timestamp of the first sample in the AudioFrame.
   uint32_t timestamp_;
-  // Time since the first frame in milliseconds.
-  // -1 represents an uninitialized value.
-  int64_t elapsed_time_ms_;
-  // NTP time of the estimated capture time in local timebase in milliseconds.
-  // -1 represents an uninitialized value.
-  int64_t ntp_time_ms_;
   int16_t data_[kMaxDataSizeSamples];
   int samples_per_channel_;
   int sample_rate_hz_;
   int num_channels_;
   SpeechType speech_type_;
   VADActivity vad_activity_;
-  // Note that there is no guarantee that |energy_| is correct. Any user of this
-  // member must verify that the value is correct.
-  // TODO(henrike) Remove |energy_|.
-  // See https://code.google.com/p/webrtc/issues/detail?id=3315.
   uint32_t energy_;
   bool interleaved_;
 
@@ -707,25 +726,16 @@ class AudioFrame {
 };
 
 inline AudioFrame::AudioFrame()
-    : data_() {
-  Reset();
-}
-
-inline void AudioFrame::Reset() {
-  id_ = -1;
-  // TODO(wu): Zero is a valid value for |timestamp_|. We should initialize
-  // to an invalid value, or add a new member to indicate invalidity.
-  timestamp_ = 0;
-  elapsed_time_ms_ = -1;
-  ntp_time_ms_ = -1;
-  samples_per_channel_ = 0;
-  sample_rate_hz_ = 0;
-  num_channels_ = 0;
-  speech_type_ = kUndefined;
-  vad_activity_ = kVadUnknown;
-  energy_ = 0xffffffff;
-  interleaved_ = true;
-}
+    : id_(-1),
+      timestamp_(0),
+      data_(),
+      samples_per_channel_(0),
+      sample_rate_hz_(0),
+      num_channels_(1),
+      speech_type_(kUndefined),
+      vad_activity_(kVadUnknown),
+      energy_(0xffffffff),
+      interleaved_(true) {}
 
 inline void AudioFrame::UpdateFrame(int id, uint32_t timestamp,
                                     const int16_t* data,
@@ -756,8 +766,6 @@ inline void AudioFrame::CopyFrom(const AudioFrame& src) {
 
   id_ = src.id_;
   timestamp_ = src.timestamp_;
-  elapsed_time_ms_ = src.elapsed_time_ms_;
-  ntp_time_ms_ = src.ntp_time_ms_;
   samples_per_channel_ = src.samples_per_channel_;
   sample_rate_hz_ = src.sample_rate_hz_;
   speech_type_ = src.speech_type_;

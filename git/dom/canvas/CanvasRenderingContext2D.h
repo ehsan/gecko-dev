@@ -269,7 +269,6 @@ public:
 
   void AddHitRegion(const HitRegionOptions& options, mozilla::ErrorResult& error);
   void RemoveHitRegion(const nsAString& id);
-  void ClearHitRegions();
 
   void DrawImage(const HTMLImageOrCanvasOrVideoElement& image,
                  double dx, double dy, mozilla::ErrorResult& error)
@@ -543,17 +542,17 @@ public:
 
   NS_DECL_CYCLE_COLLECTION_SKIPPABLE_SCRIPT_HOLDER_CLASS(CanvasRenderingContext2D)
 
-  enum class CanvasMultiGetterType : uint8_t {
+  MOZ_BEGIN_NESTED_ENUM_CLASS(CanvasMultiGetterType, uint8_t)
     STRING = 0,
     PATTERN = 1,
     GRADIENT = 2
-  };
+  MOZ_END_NESTED_ENUM_CLASS(CanvasMultiGetterType)
 
-  enum class Style : uint8_t {
+  MOZ_BEGIN_NESTED_ENUM_CLASS(Style, uint8_t)
     STROKE = 0,
     FILL,
     MAX
-  };
+  MOZ_END_NESTED_ENUM_CLASS(Style)
 
   nsINode* GetParentObject()
   {
@@ -891,29 +890,31 @@ protected:
 
   // text
 
-protected:
-  enum class TextAlign : uint8_t {
+public: // These enums are public only to accomodate non-C++11 legacy path of
+        // MOZ_FINISH_NESTED_ENUM_CLASS. Can move back to protected as soon
+        // as that legacy path is dropped.
+  MOZ_BEGIN_NESTED_ENUM_CLASS(TextAlign, uint8_t)
     START,
     END,
     LEFT,
     RIGHT,
     CENTER
-  };
+  MOZ_END_NESTED_ENUM_CLASS(TextAlign)
 
-  enum class TextBaseline : uint8_t {
+  MOZ_BEGIN_NESTED_ENUM_CLASS(TextBaseline, uint8_t)
     TOP,
     HANGING,
     MIDDLE,
     ALPHABETIC,
     IDEOGRAPHIC,
     BOTTOM
-  };
+  MOZ_END_NESTED_ENUM_CLASS(TextBaseline)
 
-  enum class TextDrawOperation : uint8_t {
+  MOZ_BEGIN_NESTED_ENUM_CLASS(TextDrawOperation, uint8_t)
     FILL,
     STROKE,
     MEASURE
-  };
+  MOZ_END_NESTED_ENUM_CLASS(TextDrawOperation)
 
 protected:
   gfxFontGroup *GetCurrentFontStyle();
@@ -1101,6 +1102,12 @@ protected:
   friend struct CanvasBidiProcessor;
   friend class CanvasDrawObserver;
 };
+
+MOZ_FINISH_NESTED_ENUM_CLASS(CanvasRenderingContext2D::CanvasMultiGetterType)
+MOZ_FINISH_NESTED_ENUM_CLASS(CanvasRenderingContext2D::Style)
+MOZ_FINISH_NESTED_ENUM_CLASS(CanvasRenderingContext2D::TextAlign)
+MOZ_FINISH_NESTED_ENUM_CLASS(CanvasRenderingContext2D::TextBaseline)
+MOZ_FINISH_NESTED_ENUM_CLASS(CanvasRenderingContext2D::TextDrawOperation)
 
 }
 }

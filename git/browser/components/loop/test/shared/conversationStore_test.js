@@ -8,8 +8,6 @@ describe("loop.store.ConversationStore", function () {
 
   var CALL_STATES = loop.store.CALL_STATES;
   var WS_STATES = loop.store.WS_STATES;
-  var WEBSOCKET_REASONS = loop.shared.utils.WEBSOCKET_REASONS;
-  var FAILURE_DETAILS = loop.shared.utils.FAILURE_DETAILS;
   var sharedActions = loop.shared.actions;
   var sharedUtils = loop.shared.utils;
   var sandbox, dispatcher, client, store, fakeSessionData, sdkDriver;
@@ -57,8 +55,7 @@ describe("loop.store.ConversationStore", function () {
     };
     sdkDriver = {
       connectSession: sinon.stub(),
-      disconnectSession: sinon.stub(),
-      retryPublishWithoutVideo: sinon.stub()
+      disconnectSession: sinon.stub()
     };
 
     wsCancelSpy = sinon.spy();
@@ -135,26 +132,6 @@ describe("loop.store.ConversationStore", function () {
     beforeEach(function() {
       store._websocket = fakeWebsocket;
       store.setStoreState({windowId: "42"});
-    });
-
-    it("should retry publishing if on desktop, and in the videoMuted state", function() {
-      store._isDesktop = true;
-
-      store.connectionFailure(new sharedActions.ConnectionFailure({
-        reason: FAILURE_DETAILS.UNABLE_TO_PUBLISH_MEDIA
-      }));
-
-      sinon.assert.calledOnce(sdkDriver.retryPublishWithoutVideo);
-    });
-
-    it("should set videoMuted to try when retrying publishing", function() {
-      store._isDesktop = true;
-
-      store.connectionFailure(new sharedActions.ConnectionFailure({
-        reason: FAILURE_DETAILS.UNABLE_TO_PUBLISH_MEDIA
-      }));
-
-      expect(store.getStoreState().videoMuted).eql(true);
     });
 
     it("should disconnect the session", function() {
@@ -782,7 +759,7 @@ describe("loop.store.ConversationStore", function () {
       it("should dispatch a connection failure action on 'terminate'", function() {
         store._websocket.trigger("progress", {
           state: WS_STATES.TERMINATED,
-          reason: WEBSOCKET_REASONS.REJECT
+          reason: "reject"
         });
 
         sinon.assert.calledOnce(dispatcher.dispatch);
@@ -790,7 +767,7 @@ describe("loop.store.ConversationStore", function () {
         sinon.assert.calledWithMatch(dispatcher.dispatch,
           sinon.match.hasOwn("name", "connectionFailure"));
         sinon.assert.calledWithMatch(dispatcher.dispatch,
-          sinon.match.hasOwn("reason", WEBSOCKET_REASONS.REJECT));
+          sinon.match.hasOwn("reason", "reject"));
       });
 
       it("should dispatch a connection progress action on 'alerting'", function() {

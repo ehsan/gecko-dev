@@ -10,7 +10,6 @@ if CONFIG['MOZ_B2G_BT']:
         'BluetoothClassOfDevice.cpp',
         'BluetoothDevice.cpp',
         'BluetoothDiscoveryHandle.cpp',
-        'BluetoothGatt.cpp',
         'BluetoothHidManager.cpp',
         'BluetoothInterface.cpp',
         'BluetoothManager.cpp',
@@ -19,7 +18,6 @@ if CONFIG['MOZ_B2G_BT']:
         'BluetoothProfileController.cpp',
         'BluetoothReplyRunnable.cpp',
         'BluetoothService.cpp',
-        'BluetoothUtils.cpp',
         'BluetoothUuid.cpp',
         'ipc/BluetoothChild.cpp',
         'ipc/BluetoothParent.cpp',
@@ -41,7 +39,8 @@ if CONFIG['MOZ_B2G_BT']:
                 'bluez/BluetoothHfpManager.cpp',
                 'bluez/BluetoothOppManager.cpp',
                 'bluez/BluetoothSocket.cpp',
-                'bluez/BluetoothUnixSocketConnector.cpp'
+                'bluez/BluetoothUnixSocketConnector.cpp',
+                'bluez/BluetoothUtils.cpp',
             ]
             LOCAL_INCLUDES += [
                 'bluez',
@@ -52,8 +51,6 @@ if CONFIG['MOZ_B2G_BT']:
                 'bluedroid/BluetoothA2dpHALInterface.cpp',
                 'bluedroid/BluetoothA2dpManager.cpp',
                 'bluedroid/BluetoothAvrcpHALInterface.cpp',
-                'bluedroid/BluetoothDaemonA2dpInterface.cpp',
-                'bluedroid/BluetoothDaemonAvrcpInterface.cpp',
                 'bluedroid/BluetoothDaemonHandsfreeInterface.cpp',
                 'bluedroid/BluetoothDaemonHelpers.cpp',
                 'bluedroid/BluetoothDaemonInterface.cpp',
@@ -68,7 +65,8 @@ if CONFIG['MOZ_B2G_BT']:
                 'bluedroid/BluetoothServiceBluedroid.cpp',
                 'bluedroid/BluetoothSocket.cpp',
                 'bluedroid/BluetoothSocketHALInterface.cpp',
-                'bluedroid/BluetoothSocketMessageWatcher.cpp'
+                'bluedroid/BluetoothSocketMessageWatcher.cpp',
+                'bluedroid/BluetoothUtils.cpp',
             ]
             LOCAL_INCLUDES += [
                 'bluedroid',
@@ -90,8 +88,6 @@ if CONFIG['MOZ_B2G_BT']:
                 ]
 
             DEFINES['MOZ_B2G_BT_BLUEDROID'] = True
-            if CONFIG['MOZ_B2G_BT_DAEMON']:
-                DEFINES['MOZ_B2G_BT_DAEMON'] = True
     elif CONFIG['MOZ_ENABLE_DBUS']:
         CFLAGS += CONFIG['MOZ_DBUS_CFLAGS']
         CFLAGS += CONFIG['MOZ_DBUS_GLIB_CFLAGS']
@@ -123,7 +119,6 @@ EXPORTS.mozilla.dom.bluetooth += [
     'BluetoothCommon.h',
     'BluetoothDevice.h',
     'BluetoothDiscoveryHandle.h',
-    'BluetoothGatt.h',
     'BluetoothManager.h',
     'BluetoothPairingHandle.h',
     'BluetoothPairingListener.h',

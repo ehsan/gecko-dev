@@ -36,9 +36,6 @@ public:
   static void HandleFocusBlurPlugin(Element* aElement, WidgetEvent* aEvent);
 #endif
 
-  // Element
-  virtual bool IsInteractiveHTMLContent() const MOZ_OVERRIDE;
-
   // nsIDOMHTMLObjectElement
   NS_DECL_NSIDOMHTMLOBJECTELEMENT
 
@@ -241,7 +238,7 @@ private:
    */
   bool IsFocusableForTabIndex();
   
-  virtual void GetItemValueText(DOMString& text) MOZ_OVERRIDE;
+  virtual void GetItemValueText(nsAString& text) MOZ_OVERRIDE;
   virtual void SetItemValueText(const nsAString& text) MOZ_OVERRIDE;
 
   virtual ~HTMLObjectElement();

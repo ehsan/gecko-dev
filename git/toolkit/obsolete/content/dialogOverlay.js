@@ -71,17 +71,12 @@ function moveToAlertPosition()
         sizeToContent();
     }
 
-    if (opener) {
-        var xOffset = (opener.outerWidth - window.outerWidth) / 2;
-        var yOffset = opener.outerHeight / 5;
-
-        var newX = opener.screenX + xOffset;
-        var newY = opener.screenY + yOffset;
-    } else {
-        newX = (screen.availWidth - window.outerWidth) / 2;
-        newY = (screen.availHeight - window.outerHeight) / 2;
-    }
-
+	var xOffset = (opener.outerWidth - window.outerWidth) / 2;
+	var yOffset = opener.outerHeight / 5;
+	
+	var newX = opener.screenX + xOffset;
+	var newY = opener.screenY + yOffset;
+	
 	// ensure the window is fully onscreen (if smaller than the screen)
 	if (newX < screen.availLeft)
 		newX = screen.availLeft + 20;

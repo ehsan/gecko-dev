@@ -126,12 +126,6 @@ nsresult HTMLVideoElement::SetAcceptHeader(nsIHttpChannel* aChannel)
                                     false);
 }
 
-bool
-HTMLVideoElement::IsInteractiveHTMLContent() const
-{
-  return HasAttr(kNameSpaceID_None, nsGkAtoms::controls);
-}
-
 uint32_t HTMLVideoElement::MozParsedFrames() const
 {
   MOZ_ASSERT(NS_IsMainThread(), "Should be on main thread.");

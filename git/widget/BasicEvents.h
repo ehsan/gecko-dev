@@ -495,10 +495,6 @@ public:
   // consumed by content.
   // Note that mDefaultPrevented must be true when this is true.
   bool    mDefaultPreventedByContent : 1;
-  // If mDefaultPreventedByChrome is true, the event has been
-  // consumed by chrome.
-  // Note that mDefaultPrevented must be true when this is true.
-  bool    mDefaultPreventedByChrome : 1;
   // mMultipleActionsPrevented may be used when default handling don't want to
   // be prevented, but only one of the event targets should handle the event.
   // For example, when a <label> element is in another <label> element and
@@ -937,14 +933,12 @@ enum Modifier
   MODIFIER_CAPSLOCK   = 0x0004,
   MODIFIER_CONTROL    = 0x0008,
   MODIFIER_FN         = 0x0010,
-  MODIFIER_FNLOCK     = 0x0020,
-  MODIFIER_META       = 0x0040,
-  MODIFIER_NUMLOCK    = 0x0080,
-  MODIFIER_SCROLLLOCK = 0x0100,
-  MODIFIER_SHIFT      = 0x0200,
-  MODIFIER_SYMBOL     = 0x0400,
-  MODIFIER_SYMBOLLOCK = 0x0800,
-  MODIFIER_OS         = 0x1000
+  MODIFIER_META       = 0x0020,
+  MODIFIER_NUMLOCK    = 0x0040,
+  MODIFIER_SCROLLLOCK = 0x0080,
+  MODIFIER_SHIFT      = 0x0100,
+  MODIFIER_SYMBOLLOCK = 0x0200,
+  MODIFIER_OS         = 0x0400
 };
 
 /******************************************************************************
@@ -956,12 +950,10 @@ enum Modifier
 #define NS_DOM_KEYNAME_CAPSLOCK   "CapsLock"
 #define NS_DOM_KEYNAME_CONTROL    "Control"
 #define NS_DOM_KEYNAME_FN         "Fn"
-#define NS_DOM_KEYNAME_FNLOCK     "FnLock"
 #define NS_DOM_KEYNAME_META       "Meta"
 #define NS_DOM_KEYNAME_NUMLOCK    "NumLock"
 #define NS_DOM_KEYNAME_SCROLLLOCK "ScrollLock"
 #define NS_DOM_KEYNAME_SHIFT      "Shift"
-#define NS_DOM_KEYNAME_SYMBOL     "Symbol"
 #define NS_DOM_KEYNAME_SYMBOLLOCK "SymbolLock"
 #define NS_DOM_KEYNAME_OS         "OS"
 
@@ -1016,11 +1008,6 @@ public:
    */
   static Modifier AccelModifier();
 
-  /**
-   * GetModifier() returns a modifier flag which is activated by aDOMKeyName.
-   */
-  static Modifier GetModifier(const nsAString& aDOMKeyName);
-
   // true indicates the accel key on the environment is down
   bool IsAccel() const
   {
@@ -1060,42 +1047,29 @@ public:
   {
     return ((modifiers & MODIFIER_ALTGRAPH) != 0);
   }
-  // true indicates the CapLock LED is turn on.
+  // true indeicates the CapLock LED is turn on.
   bool IsCapsLocked() const
   {
     return ((modifiers & MODIFIER_CAPSLOCK) != 0);
   }
-  // true indicates the NumLock LED is turn on.
+  // true indeicates the NumLock LED is turn on.
   bool IsNumLocked() const
   {
     return ((modifiers & MODIFIER_NUMLOCK) != 0);
   }
-  // true indicates the ScrollLock LED is turn on.
+  // true indeicates the ScrollLock LED is turn on.
   bool IsScrollLocked() const
   {
     return ((modifiers & MODIFIER_SCROLLLOCK) != 0);
   }
 
-  // true indicates the Fn key is down, but this is not supported by native
+  // true indeicates the Fn key is down, but this is not supported by native
   // key event on any platform.
   bool IsFn() const
   {
     return ((modifiers & MODIFIER_FN) != 0);
   }
-  // true indicates the FnLock LED is turn on, but we don't know such
-  // keyboards nor platforms.
-  bool IsFnLocked() const
-  {
-    return ((modifiers & MODIFIER_FNLOCK) != 0);
-  }
-  // true indicates the Symbol is down, but this is not supported by native
-  // key event on any platforms.
-  bool IsSymbol() const
-  {
-    return ((modifiers & MODIFIER_SYMBOL) != 0);
-  }
-  // true indicates the SymbolLock LED is turn on, but we don't know such
-  // keyboards nor platforms.
+  // true indeicates the ScrollLock LED is turn on.
   bool IsSymbolLocked() const
   {
     return ((modifiers & MODIFIER_SYMBOLLOCK) != 0);

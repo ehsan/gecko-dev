@@ -52,7 +52,9 @@ SVGSymbolElement::ViewBox()
 already_AddRefed<DOMSVGAnimatedPreserveAspectRatio>
 SVGSymbolElement::PreserveAspectRatio()
 {
-  return mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(this);
+  nsRefPtr<DOMSVGAnimatedPreserveAspectRatio> ratio;
+  mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(getter_AddRefs(ratio), this);
+  return ratio.forget();
 }
 
 //----------------------------------------------------------------------

@@ -22,18 +22,17 @@
 #include "mozilla/layers/TextureClientPool.h" // for TextureClientPool
 #include "ClientReadbackLayer.h"        // for ClientReadbackLayer
 #include "nsAString.h"
+#include "nsIWidget.h"                  // for nsIWidget
 #include "nsIWidgetListener.h"
 #include "nsTArray.h"                   // for AutoInfallibleTArray
 #include "nsXULAppAPI.h"                // for XRE_GetProcessType, etc
 #include "TiledLayerBuffer.h"
 #include "mozilla/dom/WindowBinding.h"  // for Overfill Callback
 #include "FrameLayerBuilder.h"          // for FrameLayerbuilder
+#include "gfxPrefs.h"
 #ifdef MOZ_WIDGET_ANDROID
 #include "AndroidBridge.h"
 #include "LayerMetricsWrapper.h"
-#endif
-#ifdef XP_WIN
-#include "gfxWindowsPlatform.h"
 #endif
 
 namespace mozilla {
@@ -185,7 +184,7 @@ ClientLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)
   NS_ASSERTION(!InTransaction(), "Nested transactions not allowed");
   mPhase = PHASE_CONSTRUCTION;
 
-  MOZ_ASSERT(mKeepAlive.IsEmpty(), "uncommitted txn?");
+  NS_ABORT_IF_FALSE(mKeepAlive.IsEmpty(), "uncommitted txn?");
   nsRefPtr<gfxContext> targetContext = aTarget;
 
   // If the last transaction was incomplete (a failed DoEmptyTransaction),
@@ -208,16 +207,11 @@ ClientLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)
   // composited (including resampling) asynchronously before we get
   // a chance to repaint, so we have to ensure that it's all valid
   // and not rotated.
-  //
-  // Desktop does not support async zoom yet, so we ignore this for those
-  // platforms.
-#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
   if (mWidget) {
     if (dom::TabChild* window = mWidget->GetOwningTabChild()) {
       mCompositorMightResample = window->IsAsyncPanZoomEnabled();
     }
   }
-#endif
 
   // If we have a non-default target, we need to let our shadow manager draw
   // to it. This will happen at the end of the transaction.
@@ -296,14 +290,6 @@ ClientLayerManager::EndTransactionInternal(DrawPaintedLayerCallback aCallback,
   }
 
   return !mTransactionIncomplete;
-}
-
-void
-ClientLayerManager::StorePluginWidgetConfigurations(const nsTArray<nsIWidget::Configuration>& aConfigurations)
-{
-  if (mForwarder) {
-    mForwarder->StorePluginWidgetConfigurations(aConfigurations);
-  }
 }
 
 void
@@ -644,11 +630,11 @@ ClientLayerManager::ForwardTransaction(bool aScheduleComposite)
 ShadowableLayer*
 ClientLayerManager::Hold(Layer* aLayer)
 {
-  MOZ_ASSERT(HasShadowManager(),
-             "top-level tree, no shadow tree to remote to");
+  NS_ABORT_IF_FALSE(HasShadowManager(),
+                    "top-level tree, no shadow tree to remote to");
 
   ShadowableLayer* shadowable = ClientLayer::ToClientLayer(aLayer);
-  MOZ_ASSERT(shadowable, "trying to remote an unshadowable layer");
+  NS_ABORT_IF_FALSE(shadowable, "trying to remote an unshadowable layer");
 
   mKeepAlive.AppendElement(aLayer);
   return shadowable;
@@ -712,10 +698,6 @@ ClientLayerManager::ReportClientLost(TextureClient& aClient) {
 void
 ClientLayerManager::ClearCachedResources(Layer* aSubtree)
 {
-  if (mDestroyed) {
-    // ClearCachedResource was already called by ClientLayerManager::Destroy
-    return;
-  }
   MOZ_ASSERT(!HasShadowManager() || !aSubtree);
   mForwarder->ClearCachedResources();
   if (aSubtree) {
@@ -754,16 +736,7 @@ ClientLayerManager::GetBackendName(nsAString& aName)
     case LayersBackend::LAYERS_OPENGL: aName.AssignLiteral("OpenGL"); return;
     case LayersBackend::LAYERS_D3D9: aName.AssignLiteral("Direct3D 9"); return;
     case LayersBackend::LAYERS_D3D10: aName.AssignLiteral("Direct3D 10"); return;
-    case LayersBackend::LAYERS_D3D11: {
-#ifdef XP_WIN
-      if (gfxWindowsPlatform::GetPlatform()->IsWARP()) {
-        aName.AssignLiteral("Direct3D 11 WARP");
-      } else {
-        aName.AssignLiteral("Direct3D 11");
-      }
-#endif
-      return;
-    }
+    case LayersBackend::LAYERS_D3D11: aName.AssignLiteral("Direct3D 11"); return;
     default: NS_RUNTIMEABORT("Invalid backend");
   }
 }

@@ -47,14 +47,6 @@ config = {
             "run_filename": "test.py",
             "testsdir": "mozbase"
         },
-        "mozmill": {
-            "options": [
-                "--binary=%(binary_path)s",
-                "--symbols-path=%(symbols_path)s"
-            ],
-            "run_filename": "runtestlist.py",
-            "testsdir": "mozmill"
-        },
         "reftest": {
             "options": [
                 "--appname=%(binary_path)s",

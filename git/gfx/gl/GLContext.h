@@ -84,7 +84,7 @@ namespace mozilla {
 namespace mozilla {
 namespace gl {
 
-enum class GLFeature {
+MOZ_BEGIN_ENUM_CLASS(GLFeature)
     bind_buffer_offset,
     blend_minmax,
     clear_buffers,
@@ -104,7 +104,6 @@ enum class GLFeature {
     get_integer_indexed,
     get_integer64_indexed,
     get_query_object_iv,
-    get_string_indexed,
     gpu_shader4,
     instanced_arrays,
     instanced_non_arrays,
@@ -115,7 +114,6 @@ enum class GLFeature {
     occlusion_query2,
     packed_depth_stencil,
     query_objects,
-    read_buffer,
     renderbuffer_color_float,
     renderbuffer_color_half_float,
     robustness,
@@ -136,17 +134,17 @@ enum class GLFeature {
     uniform_matrix_nonsquare,
     vertex_array_object,
     EnumMax
-};
+MOZ_END_ENUM_CLASS(GLFeature)
 
-enum class ContextProfile : uint8_t {
+MOZ_BEGIN_ENUM_CLASS(ContextProfile, uint8_t)
     Unknown = 0,
     OpenGL, // only for IsAtLeast's <profile> parameter
     OpenGLCore,
     OpenGLCompatibility,
     OpenGLES
-};
+MOZ_END_ENUM_CLASS(ContextProfile)
 
-enum class GLVendor {
+MOZ_BEGIN_ENUM_CLASS(GLVendor)
     Intel,
     NVIDIA,
     ATI,
@@ -157,9 +155,9 @@ enum class GLVendor {
     VMware,
     ARM,
     Other
-};
+MOZ_END_ENUM_CLASS(GLVendor)
 
-enum class GLRenderer {
+MOZ_BEGIN_ENUM_CLASS(GLRenderer)
     Adreno200,
     Adreno205,
     AdrenoTM200,
@@ -173,7 +171,7 @@ enum class GLRenderer {
     IntelHD3000,
     MicrosoftBasicRenderDriver,
     Other
-};
+MOZ_END_ENUM_CLASS(GLRenderer)
 
 class GLContext
     : public GLLibraryLoader
@@ -311,6 +309,7 @@ public:
     virtual bool IsCurrent() = 0;
 
 protected:
+
     bool mInitialized;
     bool mIsOffscreen;
     bool mIsGlobalSharedContext;
@@ -327,12 +326,9 @@ protected:
     GLVendor mVendor;
     GLRenderer mRenderer;
 
-    void SetProfileVersion(ContextProfile profile, uint32_t version) {
-        MOZ_ASSERT(!mInitialized, "SetProfileVersion can only be called before"
-                                  " initialization!");
-        MOZ_ASSERT(profile != ContextProfile::Unknown &&
-                   profile != ContextProfile::OpenGL,
-                   "Invalid `profile` for SetProfileVersion");
+    inline void SetProfileVersion(ContextProfile profile, unsigned int version) {
+        MOZ_ASSERT(!mInitialized, "SetProfileVersion can only be called before initialization!");
+        MOZ_ASSERT(profile != ContextProfile::Unknown && profile != ContextProfile::OpenGL, "Invalid `profile` for SetProfileVersion");
         MOZ_ASSERT(version >= 100, "Invalid `version` for SetProfileVersion");
 
         mVersion = version;
@@ -462,7 +458,6 @@ public:
         return mAvailableExtensions[aKnownExtension];
     }
 
-protected:
     void MarkExtensionUnsupported(GLExtensions aKnownExtension) {
         mAvailableExtensions[aKnownExtension] = 0;
     }
@@ -471,6 +466,42 @@ protected:
         mAvailableExtensions[aKnownExtension] = 1;
     }
 
+public:
+    template<size_t N>
+    static void InitializeExtensionsBitSet(std::bitset<N>& extensionsBitset,
+                                           const char* extStr,
+                                           const char** extList)
+    {
+        char* exts = ::strdup(extStr);
+
+        if (ShouldSpew())
+            printf_stderr("Extensions: %s\n", exts);
+
+        char* cur = exts;
+        bool done = false;
+        while (!done) {
+            char* space = strchr(cur, ' ');
+            if (space) {
+                *space = '\0';
+            } else {
+                done = true;
+            }
+
+            for (int i = 0; extList[i]; ++i) {
+                if (PL_strcasecmp(cur, extList[i]) == 0) {
+                    if (ShouldSpew())
+                        printf_stderr("Found extension %s\n", cur);
+                    extensionsBitset[i] = true;
+                }
+            }
+
+            cur = space + 1;
+        }
+
+        free(exts);
+    }
+
+protected:
     std::bitset<Extensions_Max> mAvailableExtensions;
 
 // -----------------------------------------------------------------------------
@@ -1985,15 +2016,13 @@ public:
         AFTER_GL_CALL;
     }
 
-    void fShaderSource(GLuint shader, GLsizei count, const GLchar* const* strings, const GLint* lengths) {
+    void fShaderSource(GLuint shader, GLsizei count, const GLchar** strings, const GLint* lengths) {
         BEFORE_GL_CALL;
         mSymbols.fShaderSource(shader, count, strings, lengths);
         AFTER_GL_CALL;
     }
 
 private:
-    friend class SharedSurface;
-
     void raw_fBindFramebuffer(GLenum target, GLuint framebuffer) {
         BEFORE_GL_CALL;
         mSymbols.fBindFramebuffer(target, framebuffer);
@@ -3153,17 +3182,6 @@ public:
     }
 
 // -----------------------------------------------------------------------------
-// get_string_indexed
-
-    const GLubyte* fGetStringi(GLenum name, GLuint index) {
-        BEFORE_GL_CALL;
-        ASSERT_SYMBOL_PRESENT(fGetStringi);
-        const GLubyte* ret = mSymbols.fGetStringi(name, index);
-        AFTER_GL_CALL;
-        return ret;
-    }
-
-// -----------------------------------------------------------------------------
 // Constructor
 protected:
     explicit GLContext(const SurfaceCaps& caps,
@@ -3431,9 +3449,11 @@ public:
         fViewport(0, 0, size.width, size.height);
 
         mCaps = mScreen->mCaps;
-        MOZ_ASSERT(!mCaps.any);
+        if (mCaps.any)
+            DetermineCaps();
 
         UpdateGLFormats(mCaps);
+        UpdatePixelFormat();
 
         return true;
     }
@@ -3456,8 +3476,10 @@ public:
 protected:
     SurfaceCaps mCaps;
     nsAutoPtr<GLFormats> mGLFormats;
+    nsAutoPtr<PixelBufferFormat> mPixelFormat;
 
 public:
+    void DetermineCaps();
     const SurfaceCaps& Caps() const {
         return mCaps;
     }
@@ -3471,6 +3493,14 @@ public:
     const GLFormats& GetGLFormats() const {
         MOZ_ASSERT(mGLFormats);
         return *mGLFormats;
+    }
+
+    PixelBufferFormat QueryPixelFormat();
+    void UpdatePixelFormat();
+
+    const PixelBufferFormat& GetPixelFormat() const {
+        MOZ_ASSERT(mPixelFormat);
+        return *mPixelFormat;
     }
 
     bool IsFramebufferComplete(GLuint fb, GLenum* status = nullptr);
@@ -3512,7 +3542,7 @@ public:
     }
 
     bool IsOffscreen() const {
-        return mIsOffscreen;
+        return mScreen;
     }
 
     GLScreenBuffer* Screen() const {
@@ -3667,43 +3697,10 @@ protected:
 public:
     void FlushIfHeavyGLCallsSinceLastFlush();
     static bool ShouldSpew();
-    static bool ShouldDumpExts();
-    void Readback(SharedSurface* src, gfx::DataSourceSurface* dest);
 };
 
 bool DoesStringMatch(const char* aString, const char *aWantedString);
 
-void SplitByChar(const nsACString& str, const char delim,
-                 std::vector<nsCString>* const out);
-
-template<size_t N>
-bool
-MarkBitfieldByString(const nsACString& str, const char* (&markStrList)[N],
-                     std::bitset<N>* const out_markList)
-{
-    for (size_t i = 0; i < N; i++) {
-        if (str.Equals(markStrList[i])) {
-            (*out_markList)[i] = 1;
-            return true;
-        }
-    }
-    return false;
-}
-
-template<size_t N>
-void
-MarkBitfieldByStrings(const std::vector<nsCString>& strList,
-                      bool dumpStrings, const char* (&markStrList)[N],
-                      std::bitset<N>* const out_markList)
-{
-    for (auto itr = strList.begin(); itr != strList.end(); ++itr) {
-        const nsACString& str = *itr;
-        const bool wasMarked = MarkBitfieldByString(str, markStrList,
-                                                    out_markList);
-        if (dumpStrings)
-            printf_stderr("  %s%s\n", str.BeginReading(), wasMarked ? "(*)" : "");
-    }
-}
 
 } /* namespace gl */
 } /* namespace mozilla */

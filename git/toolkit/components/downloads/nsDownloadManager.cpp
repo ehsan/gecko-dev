@@ -2524,9 +2524,9 @@ nsDownloadManager::Observe(nsISupports *aSubject,
 
     ConfirmCancelDownloads(mCurrentPrivateDownloads.Count(), cancelDownloads,
                            MOZ_UTF16("leavePrivateBrowsingCancelDownloadsAlertTitle"),
-                           MOZ_UTF16("leavePrivateBrowsingWindowsCancelDownloadsAlertMsgMultiple2"),
-                           MOZ_UTF16("leavePrivateBrowsingWindowsCancelDownloadsAlertMsg2"),
-                           MOZ_UTF16("dontLeavePrivateBrowsingButton2"));
+                           MOZ_UTF16("leavePrivateBrowsingWindowsCancelDownloadsAlertMsgMultiple"),
+                           MOZ_UTF16("leavePrivateBrowsingWindowsCancelDownloadsAlertMsg"),
+                           MOZ_UTF16("dontLeavePrivateBrowsingButton"));
   }
 
   return NS_OK;

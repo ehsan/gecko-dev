@@ -645,10 +645,10 @@ struct HasProperty
     }
 };
 
-enum class FallbackOption {
+MOZ_BEGIN_ENUM_CLASS(FallbackOption)
     THROW,
     RETURN,
-};
+MOZ_END_ENUM_CLASS(FallbackOption)
 
 template <class Property>
 typename Property::Type

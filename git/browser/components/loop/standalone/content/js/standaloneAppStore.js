@@ -33,6 +33,9 @@ loop.store.StandaloneAppStore = (function() {
     if (!options.sdk) {
       throw new Error("Missing option sdk");
     }
+    if (!options.helper) {
+      throw new Error("Missing option helper");
+    }
     if (!options.conversation) {
       throw new Error("Missing option conversation");
     }
@@ -40,6 +43,7 @@ loop.store.StandaloneAppStore = (function() {
     this._dispatcher = options.dispatcher;
     this._storeState = {};
     this._sdk = options.sdk;
+    this._helper = options.helper;
     this._conversation = options.conversation;
 
     this._dispatcher.register(this, [
@@ -109,10 +113,7 @@ loop.store.StandaloneAppStore = (function() {
       var token;
 
       // Check if we're on a supported device/platform.
-      var unsupportedPlatform =
-        sharedUtils.getUnsupportedPlatform(navigator.platform);
-
-      if (unsupportedPlatform) {
+      if (this._helper.isIOS(navigator.platform)) {
         windowType = "unsupportedDevice";
       } else if (!this._sdk.checkSystemRequirements()) {
         windowType = "unsupportedBrowser";
@@ -129,9 +130,7 @@ loop.store.StandaloneAppStore = (function() {
       }
 
       this.setStoreState({
-        windowType: windowType,
-        isFirefox: sharedUtils.isFirefox(navigator.userAgent),
-        unsupportedPlatform: unsupportedPlatform
+        windowType: windowType
       });
 
       // If we've not got a window ID, don't dispatch the action, as we don't need

@@ -80,7 +80,7 @@ AutoCompleteInput.prototype = {
 function run_test()
 {
   do_test_pending();
-  PlacesTestUtils.addVisits(url).then(continue_test);
+  promiseAddVisits(url).then(continue_test);
 }
 
 function continue_test()

@@ -55,7 +55,7 @@ function errorListener() {
      "Docshell URI is the original URI.");
 
   // Global history does not record URI of a failed request.
-  PlacesTestUtils.promiseAsyncUpdates().then(() => {
+  promiseAsyncUpdates().then(function() {
     gAsyncHistory.isURIVisited(kUniqueURI, errorAsyncListener);
   });
 }
@@ -91,14 +91,14 @@ function reloadListener() {
      "Document URI is not the offline-error page, but the original URI.");
 
   // Check if global history remembers the successfully-requested URI.
-  PlacesTestUtils.promiseAsyncUpdates().then(() => {
+  promiseAsyncUpdates().then(function() {
     gAsyncHistory.isURIVisited(kUniqueURI, reloadAsyncListener);
   });
 }
 
 function reloadAsyncListener(aURI, aIsVisited) {
   ok(kUniqueURI.equals(aURI) && aIsVisited, "We have visited the URI.");
-  PlacesTestUtils.clearHistory().then(finish);
+  promiseClearHistory().then(finish);
 }
 
 registerCleanupFunction(function() {

@@ -34,41 +34,52 @@ class RtpReceiverImpl : public RtpReceiver {
 
   virtual ~RtpReceiverImpl();
 
-  virtual int32_t RegisterReceivePayload(
+  RTPReceiverStrategy* GetMediaReceiver() const;
+
+  int32_t RegisterReceivePayload(
       const char payload_name[RTP_PAYLOAD_NAME_SIZE],
       const int8_t payload_type,
       const uint32_t frequency,
       const uint8_t channels,
-      const uint32_t rate) OVERRIDE;
+      const uint32_t rate);
 
-  virtual int32_t DeRegisterReceivePayload(const int8_t payload_type) OVERRIDE;
+  int32_t DeRegisterReceivePayload(const int8_t payload_type);
 
-  virtual bool IncomingRtpPacket(
+  bool IncomingRtpPacket(
       const RTPHeader& rtp_header,
       const uint8_t* payload,
       int payload_length,
       PayloadUnion payload_specific,
-      bool in_order) OVERRIDE;
+      bool in_order);
 
-  virtual NACKMethod NACK() const OVERRIDE;
+  NACKMethod NACK() const;
 
   // Turn negative acknowledgement requests on/off.
-  virtual void SetNACKStatus(const NACKMethod method) OVERRIDE;
+  void SetNACKStatus(const NACKMethod method);
 
   // Returns the last received timestamp.
-  virtual bool Timestamp(uint32_t* timestamp) const OVERRIDE;
-  virtual bool LastReceivedTimeMs(int64_t* receive_time_ms) const OVERRIDE;
+  bool Timestamp(uint32_t* timestamp) const;
+  bool LastReceivedTimeMs(int64_t* receive_time_ms) const;
 
-  virtual uint32_t SSRC() const OVERRIDE;
+  uint32_t SSRC() const;
 
-  virtual int32_t CSRCs(uint32_t array_of_csrc[kRtpCsrcSize]) const OVERRIDE;
+  int32_t CSRCs(uint32_t array_of_csrc[kRtpCsrcSize]) const;
 
-  virtual int32_t Energy(uint8_t array_of_energy[kRtpCsrcSize]) const OVERRIDE;
+  int32_t Energy(uint8_t array_of_energy[kRtpCsrcSize]) const;
 
-  virtual TelephoneEventHandler* GetTelephoneEventHandler() OVERRIDE;
+  // RTX.
+  void SetRTXStatus(bool enable, uint32_t ssrc);
+
+  void RTXStatus(bool* enable, uint32_t* ssrc, int* payload_type) const;
+
+  void SetRtxPayloadType(int payload_type);
+
+  TelephoneEventHandler* GetTelephoneEventHandler();
 
  private:
   bool HaveReceivedFrame() const;
+
+  RtpVideoCodecTypes VideoCodecType() const;
 
   void CheckSSRCChanged(const RTPHeader& rtp_header);
   void CheckCSRC(const WebRtcRTPHeader& rtp_header);

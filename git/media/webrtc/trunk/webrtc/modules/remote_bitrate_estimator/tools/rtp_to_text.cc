@@ -9,70 +9,68 @@
  */
 
 #include <stdio.h>
-#include <sstream>
 
 #include "webrtc/modules/remote_bitrate_estimator/tools/bwe_rtp.h"
 #include "webrtc/modules/rtp_rtcp/interface/rtp_header_parser.h"
 #include "webrtc/modules/rtp_rtcp/interface/rtp_payload_registry.h"
+#include "webrtc/modules/video_coding/main/test/rtp_file_reader.h"
+#include "webrtc/modules/video_coding/main/test/rtp_player.h"
 #include "webrtc/system_wrappers/interface/scoped_ptr.h"
-#include "webrtc/test/rtp_file_reader.h"
+
+using webrtc::rtpplayer::RtpPacketSourceInterface;
 
 int main(int argc, char** argv) {
-  if (argc < 4) {
-    fprintf(stderr, "Usage: rtp_to_text <extension type> <extension id>"
-           " <input_file.rtp> [-t]\n");
-    fprintf(stderr, "<extension type> can either be:\n"
+  if (argc < 5) {
+    printf("Usage: rtp_to_text <extension type> <extension id> <input_file.rtp>"
+           " <output_file.rtp>\n");
+    printf("<extension type> can either be:\n"
            "  abs for absolute send time or\n"
            "  tsoffset for timestamp offset.\n"
-           "<extension id> is the id associated with the extension.\n"
-           "  -t is an optional flag, if set only packet arrival time will be"
-           " output.\n");
+           "<extension id> is the id associated with the extension.\n");
     return -1;
   }
-  webrtc::test::RtpFileReader* reader;
+  RtpPacketSourceInterface* reader;
   webrtc::RtpHeaderParser* parser;
   if (!ParseArgsAndSetupEstimator(argc, argv, NULL, NULL, &reader, &parser,
                                   NULL, NULL)) {
     return -1;
   }
-  bool arrival_time_only = (argc >= 5 && strncmp(argv[4], "-t", 2) == 0);
-  webrtc::scoped_ptr<webrtc::test::RtpFileReader> rtp_reader(reader);
+  webrtc::scoped_ptr<RtpPacketSourceInterface> rtp_reader(reader);
   webrtc::scoped_ptr<webrtc::RtpHeaderParser> rtp_parser(parser);
-  fprintf(stdout, "seqnum timestamp ts_offset abs_sendtime recvtime "
+
+  FILE* out_file = fopen(argv[4], "wt");
+  if (!out_file)
+    printf("Cannot open output file %s\n", argv[4]);
+
+  printf("Output file: %s\n\n", argv[4]);
+  fprintf(out_file, "seqnum timestamp ts_offset abs_sendtime recvtime "
           "markerbit ssrc size\n");
   int packet_counter = 0;
+  static const uint32_t kMaxPacketSize = 1500;
+  uint8_t packet_buffer[kMaxPacketSize];
+  uint8_t* packet = packet_buffer;
+  uint32_t packet_length = kMaxPacketSize;
+  uint32_t time_ms = 0;
   int non_zero_abs_send_time = 0;
   int non_zero_ts_offsets = 0;
-  webrtc::test::RtpFileReader::Packet packet;
-  while (rtp_reader->NextPacket(&packet)) {
-    webrtc::RTPHeader header;
-    parser->Parse(packet.data, packet.length, &header);
+  while (rtp_reader->NextPacket(packet, &packet_length, &time_ms) == 0) {
+    webrtc::RTPHeader header = {};
+    parser->Parse(packet, packet_length, &header);
     if (header.extension.absoluteSendTime != 0)
       ++non_zero_abs_send_time;
     if (header.extension.transmissionTimeOffset != 0)
       ++non_zero_ts_offsets;
-    if (arrival_time_only) {
-      std::stringstream ss;
-      ss << static_cast<int64_t>(packet.time_ms) * 1000000;
-      fprintf(stdout, "%s\n", ss.str().c_str());
-    } else {
-      fprintf(stdout,
-              "%u %u %d %u %u %d %u %d\n",
-              header.sequenceNumber,
-              header.timestamp,
-              header.extension.transmissionTimeOffset,
-              header.extension.absoluteSendTime,
-              packet.time_ms,
-              header.markerBit,
-              header.ssrc,
-              static_cast<int>(packet.length));
-    }
+    fprintf(out_file, "%u %u %d %u %u %d %u %u\n", header.sequenceNumber,
+            header.timestamp, header.extension.transmissionTimeOffset,
+            header.extension.absoluteSendTime, time_ms, header.markerBit,
+            header.ssrc, packet_length);
+    packet_length = kMaxPacketSize;
     ++packet_counter;
   }
-  fprintf(stderr, "Parsed %d packets\n", packet_counter);
-  fprintf(stderr, "Packets with non-zero absolute send time: %d\n",
+  printf("Parsed %d packets\n", packet_counter);
+  printf("Packets with non-zero absolute send time: %d\n",
          non_zero_abs_send_time);
-  fprintf(stderr, "Packets with non-zero timestamp offset: %d\n",
+  printf("Packets with non-zero timestamp offset: %d\n",
          non_zero_ts_offsets);
   return 0;
 }

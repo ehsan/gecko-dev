@@ -546,7 +546,8 @@ MmsMessage::GetAttachments(JSContext* aCx, JS::MutableHandle<JS::Value> aAttachm
   for (uint32_t i = 0; i < length; ++i) {
     const Attachment &attachment = mAttachments[i];
 
-    JS::Rooted<JSObject*> attachmentObj(aCx, JS_NewPlainObject(aCx));
+    JS::Rooted<JSObject*> attachmentObj(
+      aCx, JS_NewObject(aCx, nullptr, JS::NullPtr(), JS::NullPtr()));
     NS_ENSURE_TRUE(attachmentObj, NS_ERROR_OUT_OF_MEMORY);
 
     JS::Rooted<JSString*> tmpJsStr(aCx);

@@ -171,11 +171,11 @@ EventListenerService::GetEventTargetChainFor(nsIDOMEventTarget* aEventTarget,
   *aOutArray = nullptr;
   NS_ENSURE_ARG(aEventTarget);
   WidgetEvent event(true, NS_EVENT_NULL);
-  nsTArray<EventTarget*> targets;
+  nsCOMArray<EventTarget> targets;
   nsresult rv = EventDispatcher::Dispatch(aEventTarget, nullptr, &event,
                                           nullptr, nullptr, nullptr, &targets);
   NS_ENSURE_SUCCESS(rv, rv);
-  int32_t count = targets.Length();
+  int32_t count = targets.Count();
   if (count == 0) {
     return NS_OK;
   }

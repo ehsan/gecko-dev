@@ -19,6 +19,8 @@ namespace js {
 class FunctionExtended;
 
 typedef JSNative           Native;
+typedef JSParallelNative   ParallelNative;
+typedef JSThreadSafeNative ThreadSafeNative;
 }
 
 struct JSAtomState;
@@ -48,7 +50,6 @@ class JSFunction : public js::NativeObject
         INTERPRETED_LAZY = 0x1000,  /* function is interpreted but doesn't have a script yet */
         ARROW            = 0x2000,  /* ES6 '(args) => body' syntax */
         RESOLVED_LENGTH  = 0x4000,  /* f.length has been resolved (see js::fun_resolve). */
-        RESOLVED_NAME    = 0x8000,  /* f.name has been resolved (see js::fun_resolve). */
 
         /* Derived Flags values for convenience: */
         NATIVE_FUN = 0,
@@ -135,7 +136,6 @@ class JSFunction : public js::NativeObject
     bool isArrow()                  const { return flags() & ARROW; }
 
     bool hasResolvedLength()        const { return flags() & RESOLVED_LENGTH; }
-    bool hasResolvedName()          const { return flags() & RESOLVED_NAME; }
 
     bool hasJITCode() const {
         if (!hasScript())
@@ -156,6 +156,9 @@ class JSFunction : public js::NativeObject
     }
     bool isNamedLambda() const {
         return isLambda() && displayAtom() && !hasGuessedAtom();
+    }
+    bool hasParallelNative() const {
+        return isNative() && jitInfo() && jitInfo()->hasParallelNative();
     }
 
     bool isBuiltinFunctionConstructor();
@@ -206,10 +209,6 @@ class JSFunction : public js::NativeObject
 
     void setResolvedLength() {
         flags_ |= RESOLVED_LENGTH;
-    }
-
-    void setResolvedName() {
-        flags_ |= RESOLVED_NAME;
     }
 
     JSAtom *atom() const { return hasGuessedAtom() ? nullptr : atom_.get(); }
@@ -324,14 +323,14 @@ class JSFunction : public js::NativeObject
         return u.i.s.script_;
     }
 
-    bool getLength(JSContext *cx, uint16_t *length) {
-        JS::RootedFunction self(cx, this);
-        if (self->isInterpretedLazy() && !self->getOrCreateScript(cx))
-            return false;
-
-        *length = self->hasScript() ? self->nonLazyScript()->funLength()
-                                    : (self->nargs() - self->hasRest());
-        return true;
+    // Returns non-callsited-clone version of this.  Use when return
+    // value can flow to arbitrary JS (see Bug 944975).
+    JSFunction* originalFunction() {
+        if (this->hasScript() && this->nonLazyScript()->isCallsiteClone()) {
+            return this->nonLazyScript()->donorFunction();
+        } else {
+            return this;
+        }
     }
 
     js::HeapPtrScript &mutableScript() {
@@ -403,6 +402,15 @@ class JSFunction : public js::NativeObject
         return isInterpreted() ? nullptr : native();
     }
 
+    JSParallelNative parallelNative() const {
+        MOZ_ASSERT(hasParallelNative());
+        return jitInfo()->parallelNative;
+    }
+
+    JSParallelNative maybeParallelNative() const {
+        return hasParallelNative() ? parallelNative() : nullptr;
+    }
+
     void initNative(js::Native native, const JSJitInfo *jitinfo) {
         MOZ_ASSERT(native);
         u.n.native = native;
@@ -442,10 +450,16 @@ class JSFunction : public js::NativeObject
 
     /* Bound function accessors. */
 
-    inline bool initBoundFunction(JSContext *cx, js::HandleObject target, js::HandleValue thisArg,
+    inline bool initBoundFunction(JSContext *cx, js::HandleValue thisArg,
                                   const js::Value *args, unsigned argslen);
 
-    JSObject *getBoundFunctionTarget() const;
+    JSObject *getBoundFunctionTarget() const {
+        MOZ_ASSERT(isBoundFunction());
+
+        /* Bound functions abuse |parent| to store their target function. */
+        return getParent();
+    }
+
     const js::Value &getBoundFunctionThis() const;
     const js::Value &getBoundFunctionArgument(unsigned which) const;
     size_t getBoundFunctionArgumentCount() const;
@@ -520,7 +534,7 @@ NewFunction(ExclusiveContext *cx, HandleObject funobj, JSNative native, unsigned
 extern JSFunction *
 NewFunctionWithProto(ExclusiveContext *cx, HandleObject funobj, JSNative native, unsigned nargs,
                      JSFunction::Flags flags, HandleObject parent, HandleAtom atom,
-                     HandleObject proto, gc::AllocKind allocKind = JSFunction::FinalizeKind,
+                     JSObject *proto, gc::AllocKind allocKind = JSFunction::FinalizeKind,
                      NewObjectKind newKind = GenericObject);
 
 extern JSAtom *

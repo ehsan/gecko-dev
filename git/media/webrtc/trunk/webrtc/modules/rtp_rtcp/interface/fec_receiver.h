@@ -18,7 +18,7 @@ namespace webrtc {
 
 class FecReceiver {
  public:
-  static FecReceiver* Create(RtpData* callback);
+  static FecReceiver* Create(int32_t id, RtpData* callback);
 
   virtual ~FecReceiver() {}
 

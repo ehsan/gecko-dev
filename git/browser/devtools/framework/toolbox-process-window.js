@@ -51,7 +51,6 @@ function setPrefDefaults() {
   Services.prefs.setBoolPref("devtools.inspector.showUserAgentStyles", true);
   Services.prefs.setBoolPref("devtools.profiler.ui.show-platform-data", true);
   Services.prefs.setBoolPref("browser.devedition.theme.showCustomizeButton", false);
-  Services.prefs.setBoolPref("devtools.inspector.showAllAnonymousContent", true);
 }
 
 window.addEventListener("load", function() {

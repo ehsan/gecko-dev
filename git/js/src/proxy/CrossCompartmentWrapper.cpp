@@ -84,7 +84,7 @@ CrossCompartmentWrapper::getPrototypeOf(JSContext *cx, HandleObject wrapper,
     {
         RootedObject wrapped(cx, wrappedObject(wrapper));
         AutoCompartment call(cx, wrapped);
-        if (!GetPrototype(cx, wrapped, protop))
+        if (!JSObject::getProto(cx, wrapped, protop))
             return false;
         if (protop)
             protop->setDelegate(cx);

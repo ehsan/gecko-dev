@@ -115,6 +115,8 @@ int16_t ACMG722_1C::InternalCreateEncoder() { return -1; }
 
 void ACMG722_1C::DestructEncoderSafe() { return; }
 
+void ACMG722_1C::InternalDestructEncoderInst(void* /* ptr_inst */) { return; }
+
 #else  //===================== Actual Implementation =======================
 ACMG722_1C::ACMG722_1C(int16_t codec_id)
     : encoder_inst_ptr_(NULL),
@@ -318,6 +320,13 @@ void ACMG722_1C::DestructEncoderSafe() {
   encoder_inst24_ptr_ = NULL;
   encoder_inst32_ptr_ = NULL;
   encoder_inst48_ptr_ = NULL;
+}
+
+void ACMG722_1C::InternalDestructEncoderInst(void* ptr_inst) {
+  if (ptr_inst != NULL) {
+    delete ptr_inst;
+  }
+  return;
 }
 
 #endif

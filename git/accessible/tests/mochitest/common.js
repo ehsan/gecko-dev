@@ -213,7 +213,7 @@ function getAccessible(aAccOrElmOrID, aInterfaces, aElmObj, aDoNotFailIf)
   var elm = null;
 
   if (aAccOrElmOrID instanceof nsIAccessible) {
-    try { elm = aAccOrElmOrID.DOMNode; } catch(e) { }
+    elm = aAccOrElmOrID.DOMNode;
 
   } else if (aAccOrElmOrID instanceof nsIDOMNode) {
     elm = aAccOrElmOrID;
@@ -700,9 +700,8 @@ function prettyName(aIdentifier)
 
   if (aIdentifier instanceof nsIAccessible) {
     var acc = getAccessible(aIdentifier);
-    var msg = "[";
+    var msg = "[" + getNodePrettyName(acc.DOMNode);
     try {
-      msg += getNodePrettyName(acc.DOMNode);
       msg += ", role: " + roleToString(acc.role);
       if (acc.name)
         msg += ", name: '" + shortenString(acc.name) + "'";

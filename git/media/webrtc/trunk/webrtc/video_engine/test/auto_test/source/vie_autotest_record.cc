@@ -216,7 +216,7 @@ int VideoEngineSampleRecordCode(void* window1, void* window2) {
     printf("Error in scanf()\n");
     return -1;
   }
-  getc(stdin);
+  getchar();
   captureIdx = captureIdx - 1;  // Compensate for idx start at 1.
 #endif
   error = ptrViECapture->GetCaptureDevice(captureIdx, deviceName,
@@ -441,14 +441,14 @@ int VideoEngineSampleRecordCode(void* window1, void* window2) {
     clock_time = webrtc::TickTime::MillisecondTimestamp();
     timing << clock_time << std::endl;
   }
-  char c = getc(stdin);
+  char c = getchar();
   fflush(stdin);
   while (c != 's') {
     if (c == '\n' && enable_labeling == 1) {
       clock_time = webrtc::TickTime::MillisecondTimestamp();
       timing << clock_time << std::endl;
     }
-    c = getc(stdin);
+    c = getchar();
   }
   if (enable_labeling == 1) {
     clock_time = webrtc::TickTime::MillisecondTimestamp();

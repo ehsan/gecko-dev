@@ -76,7 +76,6 @@ class FontFaceSet;
 }
 namespace layers {
 class ContainerLayer;
-class LayerManager;
 }
 }
 
@@ -1483,12 +1482,6 @@ public:
    * updated our window, so they look in sync with our window.
    */
   void ApplyPluginGeometryUpdates();
-
-  /**
-   * Transfer stored plugin geometry updates to the compositor. Called during
-   * reflow, data is shipped over with layer updates. e10s specific.
-   */
-  void CollectPluginGeometryUpdates(mozilla::layers::LayerManager* aLayerManager);
 
   virtual bool IsRoot() MOZ_OVERRIDE { return true; }
 

@@ -27,6 +27,10 @@
 class nsFloatManager;
 struct nsStyleText;
 
+namespace mozilla {
+class RubyReflowState;
+}
+
 class nsLineLayout {
 public:
   /**
@@ -56,7 +60,7 @@ public:
                        bool aImpactedByFloats,
                        bool aIsTopOfPage,
                        mozilla::WritingMode aWritingMode,
-                       const nsSize& aContainerSize);
+                       nscoord aContainerWidth);
 
   void EndLineReflow();
 
@@ -98,6 +102,13 @@ public:
 
   bool IsZeroBSize();
 
+  // The ruby layout will be passed to the next frame to be reflowed
+  // via the HTML reflow state.
+  void SetRubyReflowState(mozilla::RubyReflowState* aRubyReflowState)
+  {
+    mRubyReflowState = aRubyReflowState;
+  }
+
   // Reflows the frame and returns the reflow status. aPushedFrame is true
   // if the frame is pushed to the next line because it doesn't fit.
   void ReflowFrame(nsIFrame* aFrame,
@@ -116,6 +127,15 @@ public:
    */
   void VerticalAlignLine();
 
+  // Get the final size of the line, in the block direction.
+  // Do not call this until after we've called VerticalAlignLine.
+  nscoord GetFinalLineBSize() const
+  {
+    NS_ASSERTION(mFinalLineBSize != nscoord_MIN,
+                 "VerticalAlignLine should have been called before");
+    return mFinalLineBSize;
+  }
+
   bool TrimTrailingWhiteSpace();
 
   /**
@@ -128,10 +148,7 @@ public:
    * combined area (== overflow area) for the line, and handle view
    * sizing/positioning and the setting of the overflow rect.
    */
-  void RelativePositionFrames(nsOverflowAreas& aOverflowAreas)
-  {
-    RelativePositionFrames(mRootSpan, aOverflowAreas);
-  }
+  void RelativePositionFrames(nsOverflowAreas& aOverflowAreas);
 
   // Support methods for word-wrapping during line reflow
 
@@ -180,9 +197,8 @@ public:
     // provided to the line layout. However, floats should never be
     // associated with ruby text containers, hence this method should
     // not be called in that case.
-    MOZ_ASSERT(mBlockRS,
-               "Should not call this method if there is no block reflow state "
-               "available");
+    NS_ABORT_IF_FALSE(mBlockRS, "Should not call this method "
+                      "if there is no block reflow state available");
     return mBlockRS->AddFloat(this, aFloat, aAvailableISize);
   }
 
@@ -298,11 +314,6 @@ public:
     *aPriority = mLastOptionalBreakPriority;
     return mLastOptionalBreakFrame;
   }
-  // Whether any optional break position has been recorded.
-  bool HasOptionalBreakPosition() const
-  {
-    return mLastOptionalBreakFrame != nullptr;
-  }
   
   /**
    * Check whether frames overflowed the available width and CanPlaceFrame
@@ -358,17 +369,15 @@ public:
    * Move the inline position where the next frame will be reflowed forward by
    * aAmount.
    */
-  void AdvanceICoord(nscoord aAmount) { mCurrentSpan->mICoord += aAmount; }
+  void AdvanceICoord(nscoord aAmount);
   /**
    * Returns the writing mode for the root span.
    */
-  mozilla::WritingMode GetWritingMode() { return mRootSpan->mWritingMode; }
+  mozilla::WritingMode GetWritingMode();
   /**
    * Returns the inline position where the next frame will be reflowed.
    */
-  nscoord GetCurrentICoord() { return mCurrentSpan->mICoord; }
-
-  void SetSuppressLineWrap(bool aEnabled) { mSuppressLineWrap = aEnabled; }
+  nscoord GetCurrentICoord();
 
 protected:
   // This state is constant for a given block frame doing line layout
@@ -376,22 +385,13 @@ protected:
   const nsStyleText* mStyleText; // for the block
   const nsHTMLReflowState* mBlockReflowState;
 
-  // The line layout for the base text.  It is usually nullptr.
-  // It becomes not null when the current line layout is for ruby
-  // annotations. When there is nested ruby inside annotation, it
-  // forms a linked list from the inner annotation to the outermost
-  // line layout. The outermost line layout, which has this member
-  // being nullptr, is responsible for managing the life cycle of
-  // per-frame data and per-span data, and handling floats.
+  // The line layout for the base text. It is usually same as |this|.
+  // It becomes different when the current line layout is for ruby
+  // annotations. All line layouts share the same base line layout
+  // when they are associated. The base line layout is responsible
+  // for managing the life cycle of per-frame data and per-span data,
+  // and handling floats.
   nsLineLayout* const mBaseLineLayout;
-
-  nsLineLayout* GetOutermostLineLayout() {
-    nsLineLayout* lineLayout = this;
-    while (lineLayout->mBaseLineLayout) {
-      lineLayout = lineLayout->mBaseLineLayout;
-    }
-    return lineLayout;
-  }
 
   nsIFrame* mLastOptionalBreakFrame;
   nsIFrame* mForceBreakFrame;
@@ -512,6 +512,7 @@ protected:
     const nsHTMLReflowState* mReflowState;
     bool mNoWrap;
     mozilla::WritingMode mWritingMode;
+    bool mZeroEffectiveSpanBox;
     bool mContainsFloat;
     bool mHasNonemptyContent;
 
@@ -541,11 +542,11 @@ protected:
 
   // The container width to use when converting between logical and
   // physical coordinates for frames in this span. For the root span
-  // this is the width of the block cached in mContainerSize.width; for
+  // this is the width of the block cached in mContainerWidth; for
   // child spans it's the width of the root span
   nscoord ContainerWidthForSpan(PerSpanData* aPSD) {
     return (aPSD == mRootSpan)
-      ? ContainerWidth()
+      ? mContainerWidth
       : aPSD->mFrame->mBounds.Width(mRootSpan->mWritingMode);
   }
 
@@ -564,6 +565,10 @@ protected:
   int32_t mLineNumber;
   mozilla::JustificationInfo mJustificationInfo;
 
+  // The ruby layout for the next frame to be reflowed.
+  // It is reset every time it is used.
+  mozilla::RubyReflowState* mRubyReflowState;
+
   int32_t mTotalPlacedFrames;
 
   nscoord mBStartEdge;
@@ -580,10 +585,8 @@ protected:
   // frame, if any
   nscoord mTrimmableISize;
 
-  // Physical size. Use only for physical <-> logical coordinate conversion.
-  nsSize mContainerSize;
-  nscoord ContainerWidth() const { return mContainerSize.width; }
-  nscoord ContainerHeight() const { return mContainerSize.height; }
+  // Physical width. Use only for physical <-> logical coordinate conversion.
+  nscoord mContainerWidth;
 
   bool mFirstLetterStyleOK      : 1;
   bool mIsTopOfPage             : 1;
@@ -599,7 +602,6 @@ protected:
   bool mDirtyNextLine           : 1;
   bool mLineAtStart             : 1;
   bool mHasRuby                 : 1;
-  bool mSuppressLineWrap        : 1;
 
   int32_t mSpanDepth;
 #ifdef DEBUG
@@ -644,7 +646,7 @@ protected:
   void AllowForStartMargin(PerFrameData* pfd,
                            nsHTMLReflowState& aReflowState);
 
-  void SyncAnnotationBounds(PerFrameData* aRubyFrame);
+  void SyncAnnotationContainersBounds(PerFrameData* aRubyFrame);
 
   bool CanPlaceFrame(PerFrameData* pfd,
                        bool aNotSafeToBreak,
@@ -663,20 +665,11 @@ protected:
                             nscoord aDistanceFromStart,
                             nscoord aLineBSize);
 
-  void ApplyRelativePositioning(PerFrameData* aPFD);
-
-  void RelativePositionAnnotations(PerSpanData* aRubyPSD,
-                                   nsOverflowAreas& aOverflowAreas);
-
   void RelativePositionFrames(PerSpanData* psd, nsOverflowAreas& aOverflowAreas);
 
   bool TrimTrailingWhiteSpaceIn(PerSpanData* psd, nscoord* aDeltaISize);
 
   struct JustificationComputationState;
-
-  static int AssignInterframeJustificationGaps(
-    PerFrameData* aFrame, JustificationComputationState& aState);
-
   int32_t ComputeFrameJustification(PerSpanData* psd,
                                     JustificationComputationState& aState);
 

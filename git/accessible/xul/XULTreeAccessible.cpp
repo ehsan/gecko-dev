@@ -144,8 +144,11 @@ XULTreeAccessible::Value(nsString& aValue)
 void
 XULTreeAccessible::Shutdown()
 {
-  if (!mDoc->IsDefunct())
-    mAccessibleCache.Enumerate(UnbindCacheEntryFromDocument<Accessible>, nullptr);
+  // XXX: we don't remove accessible from document cache if shutdown wasn't
+  // initiated by document destroying. Note, we can't remove accessible from
+  // document cache here while document is going to be shutdown. Note, this is
+  // not unique place where we have similar problem.
+  ClearCache(mAccessibleCache);
 
   mTree = nullptr;
   mTreeView = nullptr;
@@ -549,8 +552,7 @@ XULTreeAccessible::InvalidateCache(int32_t aRow, int32_t aCount)
     return;
 
   if (!mTreeView) {
-    mAccessibleCache.Enumerate(UnbindCacheEntryFromDocument<Accessible>,
-                               nullptr);
+    ClearCache(mAccessibleCache);
     return;
   }
 
@@ -608,8 +610,7 @@ XULTreeAccessible::TreeViewInvalidated(int32_t aStartRow, int32_t aEndRow,
     return;
 
   if (!mTreeView) {
-    mAccessibleCache.Enumerate(UnbindCacheEntryFromDocument<Accessible>,
-                               nullptr);
+    ClearCache(mAccessibleCache);
     return;
   }
 
@@ -668,9 +669,7 @@ XULTreeAccessible::TreeViewChanged(nsITreeView* aView)
   Document()->FireDelayedEvent(reorderEvent);
 
   // Clear cache.
-  mAccessibleCache.Enumerate(UnbindCacheEntryFromDocument<Accessible>,
-                             nullptr);
-
+  ClearCache(mAccessibleCache);
   mTreeView = aView;
 }
 

@@ -152,34 +152,14 @@ public:
    */
   virtual MediaConduitErrorCode ReceivedRTCPPacket(const void *data, int len) = 0;
 
-  virtual MediaConduitErrorCode StopTransmitting() = 0;
-  virtual MediaConduitErrorCode StartTransmitting() = 0;
-  virtual MediaConduitErrorCode StopReceiving() = 0;
-  virtual MediaConduitErrorCode StartReceiving() = 0;
-
 
   /**
-   * Function to attach transmitter transport end-point of the Media conduit.
+   * Function to attach Transport end-point of the Media conduit.
    * @param aTransport: Reference to the concrete teansport implementation
-   * When nullptr, unsets the transmitter transport endpoint.
    * Note: Multiple invocations of this call , replaces existing transport with
    * with the new one.
-   * Note: This transport is used for RTP, and RTCP if no receiver transport is
-   * set. In the future, we should ensure that RTCP sender reports use this
-   * regardless of whether the receiver transport is set.
    */
-  virtual MediaConduitErrorCode SetTransmitterTransport(RefPtr<TransportInterface> aTransport) = 0;
-
-  /**
-   * Function to attach receiver transport end-point of the Media conduit.
-   * @param aTransport: Reference to the concrete teansport implementation
-   * When nullptr, unsets the receiver transport endpoint.
-   * Note: Multiple invocations of this call , replaces existing transport with
-   * with the new one.
-   * Note: This transport is used for RTCP.
-   * Note: In the future, we should avoid using this for RTCP sender reports.
-   */
-  virtual MediaConduitErrorCode SetReceiverTransport(RefPtr<TransportInterface> aTransport) = 0;
+  virtual MediaConduitErrorCode AttachTransport(RefPtr<TransportInterface> aTransport) = 0;
 
   virtual bool SetLocalSSRC(unsigned int ssrc) = 0;
   virtual bool GetLocalSSRC(unsigned int* ssrc) = 0;
@@ -254,7 +234,7 @@ public:
    * return: Concrete VideoSessionConduitObject or nullptr in the case
    *         of failure
    */
-  static RefPtr<VideoSessionConduit> Create();
+  static RefPtr<VideoSessionConduit> Create(VideoSessionConduit *aOther);
 
   enum FrameRequestType
   {
@@ -379,7 +359,7 @@ public:
     * return: Concrete AudioSessionConduitObject or nullptr in the case
     *         of failure
     */
-  static mozilla::RefPtr<AudioSessionConduit> Create();
+  static mozilla::RefPtr<AudioSessionConduit> Create(AudioSessionConduit *aOther);
 
   virtual ~AudioSessionConduit() {}
 

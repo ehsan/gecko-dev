@@ -2,10 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
- #defaultEngine {
-   -moz-margin-start: 0;
- }
-
 #defaultEngine > .menulist-label-box > .menulist-icon {
   height: 16px;
 }
@@ -16,7 +12,7 @@
 }
 
 #engineList {
-  margin: .5em 0;
+  margin: .5em 6px;
 }
 
 #engineList treechildren::-moz-tree-image(engineShown, checked) {
@@ -46,18 +42,4 @@
                      we may have, overflow isn't visible. */
   height: 2px;
   -moz-margin-start: 0;
-}
-
-#engineShown {
-  min-width: 26px;
-}
-
-#addEnginesBox {
-  margin-bottom: 1em;
-}
-
-#removeEngineButton,
-#restoreDefaultSearchEngines {
-  margin-right: 0;
-  margin-left: 0;
 }

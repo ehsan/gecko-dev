@@ -158,14 +158,11 @@ using namespace webrtc;
 - (void)checkOSSupported
 {
     Class osSupportedTest = NSClassFromString(@"QTCaptureSession");
+    _OSSupportedInfo = NO;
     if(nil == osSupportedTest)
     {
-      _OSSupportedInfo = NO;
     }
-    else
-    {
-      _OSSupportedInfo = YES;
-    }
+    _OSSupportedInfo = YES;
 }
 
 /// ***** Retrieves the number of capture devices currently available

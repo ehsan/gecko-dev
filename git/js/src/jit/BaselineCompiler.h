@@ -252,14 +252,12 @@ class BaselineCompiler : public BaselineCompilerSpecific
     bool emitInterruptCheck();
     bool emitWarmUpCounterIncrement(bool allowOsr=true);
     bool emitArgumentTypeChecks();
-    void emitIsDebuggeeCheck();
     bool emitDebugPrologue();
     bool emitDebugTrap();
     bool emitTraceLoggerEnter();
     bool emitTraceLoggerExit();
-
-    void emitProfilerEnterFrame();
-    void emitProfilerExitFrame();
+    bool emitSPSPush();
+    void emitSPSPop();
 
     bool initScopeChain();
 

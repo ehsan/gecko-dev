@@ -8,6 +8,7 @@
 
 #include "2D.h"
 #include "mozilla/Constants.h"
+#include "mozilla/TypedEnum.h"
 #include "UserData.h"
 
 namespace mozilla {

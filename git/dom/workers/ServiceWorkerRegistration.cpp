@@ -164,7 +164,6 @@ ServiceWorkerRegistration::Unregister(ErrorResult& aRv)
 
   nsCOMPtr<nsIURI> scopeURI;
   nsCOMPtr<nsIURI> baseURI = document->GetBaseURI();
-  // "If the origin of scope is not client's origin..."
   nsresult rv = NS_NewURI(getter_AddRefs(scopeURI), mScope, nullptr, baseURI);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     aRv.Throw(NS_ERROR_DOM_SECURITY_ERR);
@@ -180,7 +179,7 @@ ServiceWorkerRegistration::Unregister(ErrorResult& aRv)
   }
 
   nsAutoCString uriSpec;
-  aRv = scopeURI->GetSpecIgnoringRef(uriSpec);
+  aRv = scopeURI->GetSpec(uriSpec);
   if (NS_WARN_IF(aRv.Failed())) {
     return nullptr;
   }
@@ -200,7 +199,7 @@ ServiceWorkerRegistration::Unregister(ErrorResult& aRv)
   nsRefPtr<UnregisterCallback> cb = new UnregisterCallback(promise);
 
   NS_ConvertUTF8toUTF16 scope(uriSpec);
-  aRv = swm->Unregister(documentPrincipal, cb, scope);
+  aRv = swm->Unregister(cb, scope);
   if (aRv.Failed()) {
     return nullptr;
   }
@@ -238,9 +237,7 @@ ServiceWorkerRegistration::GetWorkerReference(WhichServiceWorker aWhichOne)
       MOZ_CRASH("Invalid enum value");
   }
 
-  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv) || rv == NS_ERROR_DOM_NOT_FOUND_ERR,
-                   "Unexpected error getting service worker instance from ServiceWorkerManager");
-  if (NS_FAILED(rv)) {
+  if (NS_WARN_IF(NS_FAILED(rv))) {
     return nullptr;
   }
 
@@ -265,28 +262,6 @@ ServiceWorkerRegistration::InvalidateWorkerReference(WhichServiceWorker aWhichOn
   }
 }
 
-void
-ServiceWorkerRegistration::QueueStateChangeEvent(WhichServiceWorker aWhichOne,
-                                                 ServiceWorkerState aState) const
-{
-  nsRefPtr<ServiceWorker> worker;
-  if (aWhichOne == WhichServiceWorker::INSTALLING_WORKER) {
-    worker = mInstallingWorker;
-  } else if (aWhichOne == WhichServiceWorker::WAITING_WORKER) {
-    worker = mWaitingWorker;
-  } else if (aWhichOne == WhichServiceWorker::ACTIVE_WORKER) {
-    worker = mActiveWorker;
-  } else {
-    MOZ_CRASH("Invalid case");
-  }
-
-  if (worker) {
-    worker->SetState(aState);
-    nsCOMPtr<nsIRunnable> r = NS_NewRunnableMethod(worker, &ServiceWorker::DispatchStateChange);
-    NS_DispatchToMainThread(r);
-  }
-}
-
 // XXXnsm, maybe this can be optimized to only add when a event handler is
 // registered.
 void
@@ -294,7 +269,7 @@ ServiceWorkerRegistration::StartListeningForEvents()
 {
   nsCOMPtr<nsIServiceWorkerManager> swm = do_GetService(SERVICEWORKERMANAGER_CONTRACTID);
   if (swm) {
-    swm->AddRegistrationEventListener(mScope, this);
+    swm->AddRegistrationEventListener(GetDocumentURI(), this);
     mListeningForEvents = true;
   }
 }
@@ -308,9 +283,16 @@ ServiceWorkerRegistration::StopListeningForEvents()
 
   nsCOMPtr<nsIServiceWorkerManager> swm = do_GetService(SERVICEWORKERMANAGER_CONTRACTID);
   if (swm) {
-    swm->RemoveRegistrationEventListener(mScope, this);
+    swm->RemoveRegistrationEventListener(GetDocumentURI(), this);
     mListeningForEvents = false;
   }
+}
+
+nsIURI*
+ServiceWorkerRegistration::GetDocumentURI() const
+{
+  MOZ_ASSERT(GetOwner());
+  return GetOwner()->GetDocumentURI();
 }
 
 } // dom namespace

@@ -23,7 +23,8 @@
  */
 
 #include "pkix/Result.h"
-#include "pkixutil.h"
+
+#include "pkix/nullptr.h"
 
 namespace mozilla { namespace pkix {
 
@@ -39,7 +40,9 @@ MapResultToName(Result result)
 
 #undef MOZILLA_PKIX_MAP
 
-    MOZILLA_PKIX_UNREACHABLE_DEFAULT_ENUM
+    default:
+      assert(false);
+      return nullptr;
   }
 }
 

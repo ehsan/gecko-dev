@@ -835,7 +835,7 @@ protected:
   float                  mAudioVolume;
 
   // And these are the references between inner and outer windows.
-  nsPIDOMWindow* MOZ_NON_OWNING_REF mInnerWindow;
+  nsPIDOMWindow         *mInnerWindow;
   nsCOMPtr<nsPIDOMWindow> mOuterWindow;
 
   // the element within the document that is currently focused when this

@@ -272,6 +272,7 @@ private:
       , mLength(0)
     {
       MOZ_ASSERT(aCapacity > 0, "Creating zero-capacity chunk");
+      static const fallible_t fallible = fallible_t();
       mData = new (fallible) char[mCapacity];
     }
 

@@ -86,7 +86,6 @@ MediaDecoderReader::MediaDecoderReader(AbstractMediaDecoder* aDecoder)
 MediaDecoderReader::~MediaDecoderReader()
 {
   MOZ_ASSERT(mShutdown);
-  MOZ_ASSERT(!mDecoder);
   ResetDecode();
   MOZ_COUNT_DTOR(MediaDecoderReader);
 }
@@ -179,7 +178,7 @@ MediaDecoderReader::ComputeStartTime(const VideoData* aVideo, const AudioData* a
   }
   DECODER_LOG("ComputeStartTime first video frame start %lld", aVideo ? aVideo->mTime : -1);
   DECODER_LOG("ComputeStartTime first audio frame start %lld", aAudio ? aAudio->mTime : -1);
-  NS_ASSERTION(startTime >= 0, "Start time is negative");
+  MOZ_ASSERT(startTime >= 0);
   return startTime;
 }
 
@@ -350,8 +349,6 @@ MediaDecoderReader::Shutdown()
     // asynchronously).
     p = ShutdownPromise::CreateAndResolve(true, __func__);
   }
-
-  mDecoder = nullptr;
 
   return p;
 }

@@ -367,7 +367,7 @@ private:
 
     NS_DECL_ISUPPORTS
 
-    NS_IMETHOD DoTransaction() MOZ_OVERRIDE {
+    NS_IMETHOD DoTransaction() {
       nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
       NS_ENSURE_TRUE(bookmarks, NS_ERROR_OUT_OF_MEMORY);
       BookmarkData folder;
@@ -382,7 +382,7 @@ private:
       return bookmarks->RemoveItem(mID);
     }
 
-    NS_IMETHOD UndoTransaction() MOZ_OVERRIDE {
+    NS_IMETHOD UndoTransaction() {
       nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
       NS_ENSURE_TRUE(bookmarks, NS_ERROR_OUT_OF_MEMORY);
       int64_t newFolder;
@@ -390,16 +390,16 @@ private:
                                               &mIndex, EmptyCString(), &newFolder);
     }
 
-    NS_IMETHOD RedoTransaction() MOZ_OVERRIDE {
+    NS_IMETHOD RedoTransaction() {
       return DoTransaction();
     }
 
-    NS_IMETHOD GetIsTransient(bool* aResult) MOZ_OVERRIDE {
+    NS_IMETHOD GetIsTransient(bool* aResult) {
       *aResult = false;
       return NS_OK;
     }
 
-    NS_IMETHOD Merge(nsITransaction* aTransaction, bool* aResult) MOZ_OVERRIDE {
+    NS_IMETHOD Merge(nsITransaction* aTransaction, bool* aResult) {
       *aResult = false;
       return NS_OK;
     }

@@ -43,8 +43,6 @@ DrawTargetTiled::Init(const TileSet& aTiles)
     mRect.y = min(mRect.y, mTiles[i].mTileOrigin.y);
     mRect.width = newXMost - mRect.x;
     mRect.height = newYMost - mRect.y;
-    mTiles[i].mDrawTarget->SetTransform(Matrix::Translation(mTiles[i].mTileOrigin.x,
-                                                            mTiles[i].mTileOrigin.y));
   }
   mFormat = mTiles[0].mDrawTarget->GetFormat();
   return true;
@@ -180,14 +178,19 @@ DrawTargetTiled::CopySurface(SourceSurface *aSurface,
                              const IntRect &aSourceRect,
                              const IntPoint &aDestination)
 {
+  // CopySurface ignores the transform, account for that here.
   for (size_t i = 0; i < mTiles.size(); i++) {
-    IntPoint tileOrigin = mTiles[i].mTileOrigin;
-    IntSize tileSize = mTiles[i].mDrawTarget->GetSize();
-    if (!IntRect(aDestination, aSourceRect.Size()).Intersects(IntRect(tileOrigin, tileSize))) {
+    IntRect src = aSourceRect;
+    src.x += mTiles[i].mTileOrigin.x;
+    src.width -= mTiles[i].mTileOrigin.x;
+    src.y = mTiles[i].mTileOrigin.y;
+    src.height -= mTiles[i].mTileOrigin.y;
+
+    if (src.width <= 0 || src.height <= 0) {
       continue;
     }
-    // CopySurface ignores the transform, account for that here.
-    mTiles[i].mDrawTarget->CopySurface(aSurface, aSourceRect, aDestination - tileOrigin);
+
+    mTiles[i].mDrawTarget->CopySurface(aSurface, src, aDestination);
   }
 }
 

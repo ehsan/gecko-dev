@@ -10,7 +10,7 @@
 
 #include "AccessCheck.h"
 #include "jsfriendapi.h"
-#include "js/Proxy.h"
+#include "jsproxy.h"
 #include "js/StructuredClone.h"
 #include "nsContentUtils.h"
 #include "nsGlobalWindow.h"
@@ -30,11 +30,11 @@
 #include "Crypto.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/BlobBinding.h"
+#include "mozilla/dom/CryptoBinding.h"
 #include "mozilla/dom/CSSBinding.h"
 #include "mozilla/dom/indexedDB/IndexedDatabaseManager.h"
 #include "mozilla/dom/FileBinding.h"
 #include "mozilla/dom/PromiseBinding.h"
-#include "mozilla/dom/RTCIdentityProviderRegistrar.h"
 #include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/dom/TextDecoderBinding.h"
 #include "mozilla/dom/TextEncoderBinding.h"
@@ -229,22 +229,8 @@ SandboxCreateCrypto(JSContext *cx, JS::HandleObject obj)
 
     dom::Crypto* crypto = new dom::Crypto();
     crypto->Init(native);
-    JS::RootedObject wrapped(cx, crypto->WrapObject(cx));
+    JS::RootedObject wrapped(cx, dom::CryptoBinding::Wrap(cx, crypto));
     return JS_DefineProperty(cx, obj, "crypto", wrapped, JSPROP_ENUMERATE);
-}
-
-static bool
-SandboxCreateRTCIdentityProvider(JSContext *cx, JS::HandleObject obj)
-{
-    MOZ_ASSERT(JS_IsGlobalObject(obj));
-
-    nsCOMPtr<nsIGlobalObject> nativeGlobal = xpc::NativeGlobal(obj);
-    MOZ_ASSERT(nativeGlobal);
-
-    dom::RTCIdentityProviderRegistrar* registrar =
-            new dom::RTCIdentityProviderRegistrar(nativeGlobal);
-    JS::RootedObject wrapped(cx, registrar->WrapObject(cx));
-    return JS_DefineProperty(cx, obj, "rtcIdentityProvider", wrapped, JSPROP_ENUMERATE);
 }
 
 static bool
@@ -373,7 +359,7 @@ sandbox_convert(JSContext *cx, HandleObject obj, JSType type, MutableHandleValue
         return true;
     }
 
-    return OrdinaryToPrimitive(cx, obj, type, vp);
+    return JS::OrdinaryToPrimitive(cx, obj, type, vp);
 }
 
 static bool
@@ -468,8 +454,7 @@ sandbox_addProperty(JSContext *cx, HandleObject obj, HandleId id, MutableHandleV
         if (!JS_SetPropertyById(cx, proto, id, vp))
             return false;
     } else {
-        if (!JS_CopyPropertyFrom(cx, id, unwrappedProto, obj,
-                                 MakeNonConfigurableIntoConfigurable))
+        if (!JS_CopyPropertyFrom(cx, id, unwrappedProto, obj))
             return false;
     }
 
@@ -816,8 +801,6 @@ xpc::GlobalProperties::Parse(JSContext *cx, JS::HandleObject obj)
             File = true;
         } else if (!strcmp(name.ptr(), "crypto")) {
             crypto = true;
-        } else if (!strcmp(name.ptr(), "rtcIdentityProvider")) {
-            rtcIdentityProvider = true;
         } else {
             JS_ReportError(cx, "Unknown property name: %s", name.ptr());
             return false;
@@ -873,9 +856,6 @@ xpc::GlobalProperties::Define(JSContext *cx, JS::HandleObject obj)
         return false;
 
     if (crypto && !SandboxCreateCrypto(cx, obj))
-        return false;
-
-    if (rtcIdentityProvider && !SandboxCreateRTCIdentityProvider(cx, obj))
         return false;
 
     return true;

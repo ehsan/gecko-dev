@@ -17,7 +17,9 @@ add_task(function* setup() {
 
   // We'll clear all closed windows to make sure our state is clean
   // forgetClosedWindow doesn't trigger a delayed save
-  forgetClosedWindows();
+  while (ss.getClosedWindowCount()) {
+    ss.forgetClosedWindow(0);
+  }
   is(ss.getClosedWindowCount(), 0, "starting with no closed windows");
 });
 
@@ -77,6 +79,8 @@ add_task(function* done() {
   // The API still represents the closed window as closed, so we can clear it
   // with the API, but just to make sure...
 //  is(ss.getClosedWindowCount(), 1, "1 closed window according to API");
-  forgetClosedWindows();
+  while (ss.getClosedWindowCount()) {
+    ss.forgetClosedWindow(0);
+  }
   Services.prefs.clearUserPref("browser.sessionstore.interval");
 });

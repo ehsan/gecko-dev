@@ -74,10 +74,6 @@ public:
   virtual void OnSocketDisconnect(BluetoothSocket* aSocket) MOZ_OVERRIDE;
 
 private:
-  class CloseSocketTask;
-  class ReadFileTask;
-  class SendSocketDataTask;
-
   BluetoothOppManager();
   bool Init();
   void HandleShutdown();

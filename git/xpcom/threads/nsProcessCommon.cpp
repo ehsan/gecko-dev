@@ -37,7 +37,6 @@
 #include <crt_externs.h>
 #include <spawn.h>
 #include <sys/wait.h>
-#include <sys/errno.h>
 #endif
 #include <sys/types.h>
 #include <signal.h>
@@ -265,11 +264,7 @@ nsProcess::Monitor(void* aArg)
 #ifdef XP_MACOSX
   int exitCode = -1;
   int status = 0;
-  pid_t result;
-  do {
-    result = waitpid(process->mPid, &status, 0);
-  } while (result == -1 && errno == EINTR);
-  if (result == process->mPid) {
+  if (waitpid(process->mPid, &status, 0) == process->mPid) {
     if (WIFEXITED(status)) {
       exitCode = WEXITSTATUS(status);
     } else if (WIFSIGNALED(status)) {

@@ -6,55 +6,85 @@
 // https://github.com/mozilla-b2g/gaia/blob/master/tests/atoms/gaia_lock_screen.js
 
 'use strict';
-/* globals waitFor, finish */
-/* exported GaiaLockScreen */
 
 var GaiaLockScreen = {
 
-  unlock: function(forcibly) {
+  unlock: function() {
+    let lockscreen = window.wrappedJSObject.lockScreen;
     let setlock = window.wrappedJSObject.SettingsListener.getSettingsLock();
-    let service = window.wrappedJSObject.Service;
+    let system = window.wrappedJSObject.System;
     let obj = {'screen.timeout': 0};
     setlock.set(obj);
 
+    window.wrappedJSObject.ScreenManager.turnScreenOn();
+
     waitFor(
       function() {
-        service.request('unlock', { forcibly: forcibly });
+        window.wrappedJSObject.dispatchEvent(
+          new window.wrappedJSObject.CustomEvent(
+            'lockscreen-request-unlock', {
+              detail: {
+                forcibly: true
+              }
+            }));
         waitFor(
           function() {
-            finish(service.locked);
+            finish(system.locked);
           },
           function() {
-            return !service.locked;
+            return !system.locked;
           }
         );
       },
       function() {
-        return !!service;
+        return !!lockscreen;
       }
     );
   },
 
-  lock: function(forcibly) {
-    let service = window.wrappedJSObject.Service;
+  lock: function() {
+    let lwm = window.wrappedJSObject.lockScreenWindowManager;
+    let lockscreen = window.wrappedJSObject.lockScreen;
+    let system = window.wrappedJSObject.System;
     let setlock = window.wrappedJSObject.SettingsListener.getSettingsLock();
     let obj = {'screen.timeout': 0};
+    let waitLock = function() {
+      waitFor(
+        function() {
+        window.wrappedJSObject.dispatchEvent(
+          new window.wrappedJSObject.CustomEvent(
+            'lockscreen-request-lock', {
+              detail: {
+                forcibly: true
+              }
+            }));
+          waitFor(
+            function() {
+              finish(!system.locked);
+            },
+            function() {
+              return system.locked;
+            }
+          );
+        },
+        function() {
+          return !!lockscreen;
+        }
+      );
+    };
+
     setlock.set(obj);
-    waitFor(
-      function() {
-      service.request('lock', { forcibly: forcibly });
-        waitFor(
-          function() {
-            finish(!service.locked);
-          },
-          function() {
-            return service.locked;
-          }
-        );
-      },
-      function() {
-        return !!service;
-      }
-    );
+    window.wrappedJSObject.ScreenManager.turnScreenOn();
+
+    // Need to open the window before we lock the lockscreen.
+    // This would only happen when someone directly call the lockscrene.lock.
+    // It's a bad pattern and would only for test.
+    lwm.openApp();
+    waitFor(function() {
+      waitLock();
+    }, function() {
+      return lwm.states.instance.isActive();
+    });
   }
 };
+

@@ -1,8 +1,3 @@
-/*
- * Note, please see l10n-gaia-upstream.txt for a list of changes
- * that will need to be reapplied if this file is updated.
- */
-
 (function(window, undefined) {
   'use strict';
 
@@ -1472,7 +1467,7 @@
     // XXX always pretranslate if data-no-complete-bug is set;  this is
     // a workaround for a netError page not firing some onreadystatechange
     // events;  see https://bugzil.la/444165
-    var pretranslate = document.documentElement.getAttribute("data-noCompleteBug") ?
+    var pretranslate = document.documentElement.dataset.noCompleteBug ?
       true : !isPretranslated;
     waitFor('interactive', init.bind(navigator.mozL10n, pretranslate));
   }
@@ -1497,7 +1492,7 @@
   }
 
   function inlineLocalization() {
-    var locale = this.ctx.getLocale(navigator.language || navigator.browserLanguage);
+    var locale = this.ctx.getLocale(navigator.language);
     var scriptLoc = locale.isPseudo ? this.ctx.defaultLocale : locale.id;
     var script = document.documentElement
                          .querySelector('script[type="application/l10n"]' +

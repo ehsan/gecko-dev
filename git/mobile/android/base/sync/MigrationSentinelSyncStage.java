@@ -80,8 +80,7 @@ public class MigrationSentinelSyncStage extends AbstractNonRepositorySyncStage {
           profile,
           authServerURI,
           tokenServerURI,
-          state,
-          AndroidFxAccount.DEFAULT_AUTHORITIES_TO_SYNC_AUTOMATICALLY_MAP);
+          state);
 
       if (fxAccount == null) {
         Logger.warn(LOG_TAG, "Could not add Android account named like: " + Utils.obfuscateEmail(email));

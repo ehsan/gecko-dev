@@ -14,7 +14,7 @@
 #include <stdio.h>
 
 #include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
-#include "webrtc/system_wrappers/interface/logging.h"
+#include "webrtc/system_wrappers/interface/trace.h"
 
 #if defined(_WIN32)
 #include <Windows.h>
@@ -71,6 +71,7 @@ RtpDumpImpl::RtpDumpImpl()
       _file(*FileWrapper::Create()),
       _startTime(0)
 {
+    WEBRTC_TRACE(kTraceMemory, kTraceUtility, -1, "%s created", __FUNCTION__);
 }
 
 RtpDump::~RtpDump()
@@ -83,6 +84,7 @@ RtpDumpImpl::~RtpDumpImpl()
     _file.CloseFile();
     delete &_file;
     delete _critSect;
+    WEBRTC_TRACE(kTraceMemory, kTraceUtility, -1, "%s deleted", __FUNCTION__);
 }
 
 int32_t RtpDumpImpl::Start(const char* fileNameUTF8)
@@ -98,7 +100,8 @@ int32_t RtpDumpImpl::Start(const char* fileNameUTF8)
     _file.CloseFile();
     if (_file.OpenFile(fileNameUTF8, false, false, false) == -1)
     {
-        LOG(LS_ERROR) << "Failed to open file.";
+        WEBRTC_TRACE(kTraceError, kTraceUtility, -1,
+                     "failed to open the specified file");
         return -1;
     }
 
@@ -110,7 +113,8 @@ int32_t RtpDumpImpl::Start(const char* fileNameUTF8)
     sprintf(magic, "#!rtpplay%s \n", RTPFILE_VERSION);
     if (_file.WriteText(magic) == -1)
     {
-        LOG(LS_ERROR) << "Error writing to file.";
+        WEBRTC_TRACE(kTraceError, kTraceUtility, -1,
+                     "error writing to file");
         return -1;
     }
 
@@ -125,7 +129,8 @@ int32_t RtpDumpImpl::Start(const char* fileNameUTF8)
     memset(dummyHdr, 0, 16);
     if (!_file.Write(dummyHdr, sizeof(dummyHdr)))
     {
-        LOG(LS_ERROR) << "Error writing to file.";
+        WEBRTC_TRACE(kTraceError, kTraceUtility, -1,
+                     "error writing to file");
         return -1;
     }
     return 0;
@@ -193,12 +198,14 @@ int32_t RtpDumpImpl::DumpPacket(const uint8_t* packet, uint16_t packetLength)
 
     if (!_file.Write(&hdr, sizeof(hdr)))
     {
-        LOG(LS_ERROR) << "Error writing to file.";
+        WEBRTC_TRACE(kTraceError, kTraceUtility, -1,
+                     "error writing to file");
         return -1;
     }
     if (!_file.Write(packet, packetLength))
     {
-        LOG(LS_ERROR) << "Error writing to file.";
+        WEBRTC_TRACE(kTraceError, kTraceUtility, -1,
+                     "error writing to file");
         return -1;
     }
 

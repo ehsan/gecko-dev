@@ -64,7 +64,6 @@
 #include "ActiveLayerTracker.h"
 #include "CounterStyleManager.h"
 #include "FrameLayerBuilder.h"
-#include "mozilla/dom/RequestSyncWifiService.h"
 
 #include "AudioChannelService.h"
 #include "mozilla/dom/DataStoreService.h"
@@ -242,7 +241,11 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-  nsCSSRuleProcessor::Startup();
+  rv = nsCSSRuleProcessor::Startup();
+  if (NS_FAILED(rv)) {
+    NS_ERROR("Could not initialize nsCSSRuleProcessor");
+    return rv;
+  }
 
 #ifdef MOZ_XUL
   rv = nsXULPopupManager::Init();
@@ -297,12 +300,6 @@ nsLayoutStatics::Initialize()
 
   IMEStateManager::Init();
 
-  ServiceWorkerRegistrar::Initialize();
-
-#ifdef MOZ_B2G
-  RequestSyncWifiService::Init();
-#endif
-
   return NS_OK;
 }
 
@@ -312,7 +309,7 @@ nsLayoutStatics::Shutdown()
   // Don't need to shutdown nsWindowMemoryReporter, that will be done by the
   // memory reporter manager.
 
-  nsMessageManagerScriptExecutor::Shutdown();
+  nsFrameScriptExecutor::Shutdown();
   nsFocusManager::Shutdown();
 #ifdef MOZ_XUL
   nsXULPopupManager::Shutdown();

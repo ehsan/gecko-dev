@@ -105,10 +105,6 @@ const SNAPSHOT_SCHEMA = {
         supportURL: {
           type: "string",
         },
-        remoteAutoStart: {
-          type: "boolean",
-          required: true,
-        },
         numTotalWindows: {
           type: "number",
         },

@@ -164,9 +164,7 @@ ClientEngine.prototype = {
   },
 
   // Treat reset the same as wiping for locally cached clients
-  _resetClient() {
-    this._wipeClient();
-  },
+  _resetClient: function _resetClient() this._wipeClient(),
 
   _wipeClient: function _wipeClient() {
     SyncEngine.prototype._resetClient.call(this);
@@ -270,7 +268,7 @@ ClientEngine.prototype = {
       this.clearCommands();
 
       // Process each command in order.
-      for each (let {command, args} in commands) {
+      for each ({command: command, args: args} in commands) {
         this._log.debug("Processing command: " + command + "(" + args + ")");
 
         let engines = [args[0]];
@@ -402,9 +400,7 @@ function ClientStore(name, engine) {
 ClientStore.prototype = {
   __proto__: Store.prototype,
 
-  create(record) {
-    this.update(record)
-  },
+  create: function create(record) this.update(record),
 
   update: function update(record) {
     // Only grab commands from the server; local name/type always wins
@@ -440,9 +436,7 @@ ClientStore.prototype = {
     return record;
   },
 
-  itemExists(id) {
-    return id in this.getAllIDs();
-  },
+  itemExists: function itemExists(id) id in this.getAllIDs(),
 
   getAllIDs: function getAllIDs() {
     let ids = {};

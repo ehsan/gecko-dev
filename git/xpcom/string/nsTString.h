@@ -393,12 +393,6 @@ public:
    */
   void ReplaceSubstring(const self_type& aTarget, const self_type& aNewValue);
   void ReplaceSubstring(const char_type* aTarget, const char_type* aNewValue);
-  NS_WARN_UNUSED_RESULT bool ReplaceSubstring(const self_type& aTarget,
-                                              const self_type& aNewValue,
-                                              const fallible_t&);
-  NS_WARN_UNUSED_RESULT bool ReplaceSubstring(const char_type* aTarget,
-                                              const char_type* aNewValue,
-                                              const fallible_t&);
 
 
   /**
@@ -446,7 +440,7 @@ public:
   /**
    * verify restrictions for dependent strings
    */
-  void AssertValidDependentString()
+  void AssertValidDepedentString()
   {
     NS_ASSERTION(mData, "nsTDependentString must wrap a non-NULL buffer");
     NS_ASSERTION(mLength != size_type(-1), "nsTDependentString has bogus length");

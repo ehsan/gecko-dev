@@ -16,19 +16,20 @@
 #include "webrtc/modules/rtp_rtcp/source/rtp_utility.h"
 #include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
 #include "webrtc/system_wrappers/interface/scoped_ptr.h"
-#include "webrtc/system_wrappers/interface/logging.h"
+#include "webrtc/system_wrappers/interface/trace.h"
 
 // RFC 5109
 namespace webrtc {
 
-FecReceiver* FecReceiver::Create(RtpData* callback) {
-  return new FecReceiverImpl(callback);
+FecReceiver* FecReceiver::Create(int32_t id, RtpData* callback) {
+  return new FecReceiverImpl(id, callback);
 }
 
-FecReceiverImpl::FecReceiverImpl(RtpData* callback)
-    : crit_sect_(CriticalSectionWrapper::CreateCriticalSection()),
+FecReceiverImpl::FecReceiverImpl(const int32_t id, RtpData* callback)
+    : id_(id),
+      crit_sect_(CriticalSectionWrapper::CreateCriticalSection()),
       recovered_packet_callback_(callback),
-      fec_(new ForwardErrorCorrection()) {}
+      fec_(new ForwardErrorCorrection(id)) {}
 
 FecReceiverImpl::~FecReceiverImpl() {
   while (!received_packet_list_.empty()) {
@@ -102,7 +103,8 @@ int32_t FecReceiverImpl::AddReceivedRedPacket(
     if (timestamp_offset != 0) {
       // |timestampOffset| should be 0. However, it's possible this is the first
       // location a corrupt payload can be caught, so don't assert.
-      LOG(LS_WARNING) << "Corrupt payload found.";
+      WEBRTC_TRACE(kTraceWarning, kTraceRtpRtcp, id_,
+                   "Corrupt payload found in %s", __FUNCTION__);
       delete received_packet;
       return -1;
     }
@@ -171,7 +173,7 @@ int32_t FecReceiverImpl::AddReceivedRedPacket(
         payload_data_length - REDHeaderLength);
     received_packet->pkt->length = payload_data_length - REDHeaderLength;
     received_packet->ssrc =
-        RtpUtility::BufferToUWord32(&incoming_rtp_packet[8]);
+        ModuleRTPUtility::BufferToUWord32(&incoming_rtp_packet[8]);
 
   } else {
     // copy the RTP header

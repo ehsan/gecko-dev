@@ -19,13 +19,15 @@
 #include "mozilla/layers/APZTestData.h" // for APZTestData
 #include "nsAutoPtr.h"                  // for nsRefPtr
 #include "nsCOMPtr.h"                   // for already_AddRefed
+#include "nsDebug.h"                    // for NS_ABORT_IF_FALSE
 #include "nsIObserver.h"                // for nsIObserver
 #include "nsISupportsImpl.h"            // for Layer::Release, etc
 #include "nsRect.h"                     // for nsIntRect
 #include "nsTArray.h"                   // for nsTArray
 #include "nscore.h"                     // for nsAString
 #include "mozilla/layers/TransactionIdAllocator.h"
-#include "nsIWidget.h"                  // For plugin window configuration information structs
+
+class nsIWidget;
 
 namespace mozilla {
 namespace layers {
@@ -45,10 +47,8 @@ public:
 
   virtual void Destroy() MOZ_OVERRIDE
   {
-    // It's important to call ClearCachedResource before Destroy because the
-    // former will early-return if the later has already run.
-    ClearCachedResources();
     LayerManager::Destroy();
+    ClearCachedResources();
   }
 
 protected:
@@ -128,15 +128,6 @@ public:
   void ReturnTextureClientDeferred(TextureClient& aClient);
   void ReturnTextureClient(TextureClient& aClient);
   void ReportClientLost(TextureClient& aClient);
-
-  /**
-   * Pass through call to the forwarder for nsPresContext's
-   * CollectPluginGeometryUpdates. Passes widget configuration information
-   * to the compositor for transmission to the chrome process. This
-   * configuration gets set when the window paints.
-   */
-  void StorePluginWidgetConfigurations(const nsTArray<nsIWidget::Configuration>&
-                                       aConfigurations) MOZ_OVERRIDE;
 
   // Drop cached resources and ask our shadow manager to do the same,
   // if we have one.
@@ -359,7 +350,7 @@ public:
 
   void SetShadow(PLayerChild* aShadow)
   {
-    MOZ_ASSERT(!mShadow, "can't have two shadows (yet)");
+    NS_ABORT_IF_FALSE(!mShadow, "can't have two shadows (yet)");
     mShadow = aShadow;
   }
 
@@ -397,7 +388,7 @@ CreateShadowFor(ClientLayer* aLayer,
 {
   PLayerChild* shadow = aMgr->AsShadowForwarder()->ConstructShadowFor(aLayer);
   // XXX error handling
-  MOZ_ASSERT(shadow, "failed to create shadow");
+  NS_ABORT_IF_FALSE(shadow, "failed to create shadow");
 
   aLayer->SetShadow(shadow);
   (aMgr->AsShadowForwarder()->*aMethod)(aLayer);

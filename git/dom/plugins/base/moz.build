@@ -97,7 +97,6 @@ LOCAL_INCLUDES += [
     '/dom/plugins/ipc',
     '/layout/generic',
     '/layout/xul',
-    '/netwerk/base',
     '/widget',
     '/widget/android',
     '/widget/cocoa',

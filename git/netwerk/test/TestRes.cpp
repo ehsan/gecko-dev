@@ -5,6 +5,7 @@
 
 #include "nsIResProtocolHandler.h"
 #include "nsIServiceManager.h"
+#include "nsIIOService.h"
 #include "nsIInputStream.h"
 #include "nsIComponentManager.h"
 #include "nsIComponentRegistrar.h"
@@ -13,9 +14,6 @@
 #include "nsIURI.h"
 #include "nsCRT.h"
 #include "nsNetCID.h"
-#include "nsIScriptSecurityManager.h"
-#include "nsILoadInfo.h"
-#include "nsNetUtil.h"
 
 static NS_DEFINE_CID(kIOServiceCID, NS_IOSERVICE_CID);
 static NS_DEFINE_CID(kEventQueueServiceCID, NS_EVENTQUEUESERVICE_CID);
@@ -53,22 +51,13 @@ TestOpenInputStream(const char* url)
 {
     nsresult rv;
 
-    nsCOMPtr<nsIScriptSecurityManager> secman =
-      do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
-    if (NS_FAILED(rv)) return rv;
-    nsCOMPtr<nsIPrincipal> systemPrincipal;
-    rv = secman->GetSystemPrincipal(getter_AddRefs(systemPrincipal));
-    if (NS_FAILED(rv)) return rv;
-    nsCOMPtr<nsIURI> uri;
-    rv = NS_NewURI(getter_AddRefs(uri), url);
+    nsCOMPtr<nsIIOService> serv(do_GetService(kIOServiceCID, &rv));
     if (NS_FAILED(rv)) return rv;
 
     nsCOMPtr<nsIChannel> channel;
-    rv = NS_NewChannel(getter_AddRefs(channel),
-                       uri,
-                       systemPrincipal,
-                       nsILoadInfo::SEC_NORMAL,
-                       nsIContentPolicy::TYPE_OTHER);
+    rv = serv->NewChannel(url,
+                          nullptr, // base uri
+                          getter_AddRefs(channel));
     if (NS_FAILED(rv)) return rv;
 
     nsCOMPtr<nsIInputStream> in;
@@ -191,22 +180,13 @@ TestAsyncRead(const char* url)
     rv = eventQService->GetThreadEventQueue(NS_CURRENT_THREAD, &gEventQ);
     if (NS_FAILED(rv)) return rv;
 
-    nsCOMPtr<nsIScriptSecurityManager> secman =
-      do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
-    if (NS_FAILED(rv)) return rv;
-    nsCOMPtr<nsIPrincipal> systemPrincipal;
-    rv = secman->GetSystemPrincipal(getter_AddRefs(systemPrincipal));
-    if (NS_FAILED(rv)) return rv;
-    nsCOMPtr<nsIURI> uri;
-    rv = NS_NewURI(getter_AddRefs(uri), url);
+    nsCOMPtr<nsIIOService> serv(do_GetService(kIOServiceCID, &rv));
     if (NS_FAILED(rv)) return rv;
 
     nsCOMPtr<nsIChannel> channel;
-    rv = NS_NewChannel(getter_AddRefs(channel),
-                       uri,
-                       systemPrincipal,
-                       nsILoadInfo::SEC_NORMAL,
-                       nsIContentPolicy::TYPE_OTHER);
+    rv = serv->NewChannel(url,
+                          nullptr, // base uri
+                          getter_AddRefs(channel));
     if (NS_FAILED(rv)) return rv;
 
     nsCOMPtr<nsIStreamListener> listener = new Listener();

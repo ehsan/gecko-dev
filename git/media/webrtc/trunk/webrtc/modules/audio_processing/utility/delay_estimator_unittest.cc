@@ -23,12 +23,8 @@ enum { kSpectrumSize = 65 };
 // Delay history sizes.
 enum { kMaxDelay = 100 };
 enum { kLookahead = 10 };
-enum { kHistorySize = kMaxDelay + kLookahead };
 // Length of binary spectrum sequence.
 enum { kSequenceLength = 400 };
-
-const int kDifferentHistorySize = 3;
-const int kDifferentLookahead = 1;
 
 const int kEnable[] = { 0, 1 };
 const size_t kSizeEnable = sizeof(kEnable) / sizeof(*kEnable);
@@ -60,7 +56,7 @@ class DelayEstimatorTest : public ::testing::Test {
   float near_f_[kSpectrumSize];
   uint16_t far_u16_[kSpectrumSize];
   uint16_t near_u16_[kSpectrumSize];
-  uint32_t binary_spectrum_[kSequenceLength + kHistorySize];
+  uint32_t binary_spectrum_[kSequenceLength + kMaxDelay + kLookahead];
 };
 
 DelayEstimatorTest::DelayEstimatorTest()
@@ -80,20 +76,21 @@ DelayEstimatorTest::DelayEstimatorTest()
   // |kSequenceLength| has to be long enough for the delay estimation to leave
   // the initialized state.
   binary_spectrum_[0] = 1;
-  for (int i = 1; i < (kSequenceLength + kHistorySize); i++) {
+  for (int i = 1; i < (kSequenceLength + kMaxDelay + kLookahead); i++) {
     binary_spectrum_[i] = 3 * binary_spectrum_[i - 1];
   }
 }
 
 void DelayEstimatorTest::SetUp() {
   farend_handle_ = WebRtc_CreateDelayEstimatorFarend(kSpectrumSize,
-                                                     kHistorySize);
+                                                     kMaxDelay + kLookahead);
   ASSERT_TRUE(farend_handle_ != NULL);
   farend_self_ = reinterpret_cast<DelayEstimatorFarend*>(farend_handle_);
   handle_ = WebRtc_CreateDelayEstimator(farend_handle_, kLookahead);
   ASSERT_TRUE(handle_ != NULL);
   self_ = reinterpret_cast<DelayEstimator*>(handle_);
-  binary_farend_ = WebRtc_CreateBinaryDelayEstimatorFarend(kHistorySize);
+  binary_farend_ = WebRtc_CreateBinaryDelayEstimatorFarend(kMaxDelay +
+                                                           kLookahead);
   ASSERT_TRUE(binary_farend_ != NULL);
   binary_ = WebRtc_CreateBinaryDelayEstimator(binary_farend_, kLookahead);
   ASSERT_TRUE(binary_ != NULL);
@@ -120,7 +117,7 @@ void DelayEstimatorTest::Init() {
   EXPECT_EQ(0, farend_self_->far_spectrum_initialized);
   EXPECT_EQ(0, self_->near_spectrum_initialized);
   EXPECT_EQ(-2, WebRtc_last_delay(handle_));  // Delay in initial state.
-  EXPECT_FLOAT_EQ(0, WebRtc_last_delay_quality(handle_));  // Zero quality.
+  EXPECT_EQ(0, WebRtc_last_delay_quality(handle_));  // Zero quality.
 }
 
 void DelayEstimatorTest::InitBinary() {
@@ -193,9 +190,9 @@ void DelayEstimatorTest::RunBinarySpectra(BinaryDelayEstimator* binary1,
   }
   // Verify that we have left the initialized state.
   EXPECT_NE(-2, WebRtc_binary_last_delay(binary1));
-  EXPECT_LT(0, WebRtc_binary_last_delay_quality(binary1));
+  EXPECT_NE(0, WebRtc_binary_last_delay_quality(binary1));
   EXPECT_NE(-2, WebRtc_binary_last_delay(binary2));
-  EXPECT_LT(0, WebRtc_binary_last_delay_quality(binary2));
+  EXPECT_NE(0, WebRtc_binary_last_delay_quality(binary2));
 }
 
 void DelayEstimatorTest::RunBinarySpectraTest(int near_offset,
@@ -229,14 +226,16 @@ TEST_F(DelayEstimatorTest, CorrectErrorReturnsOfWrapper) {
   // Make sure we have a non-NULL value at start, so we can detect NULL after
   // create failure.
   void* handle = farend_handle_;
-  handle = WebRtc_CreateDelayEstimatorFarend(33, kHistorySize);
+  handle = WebRtc_CreateDelayEstimatorFarend(33, kMaxDelay + kLookahead);
   EXPECT_TRUE(handle == NULL);
+  handle = farend_handle_;
   handle = WebRtc_CreateDelayEstimatorFarend(kSpectrumSize, 1);
   EXPECT_TRUE(handle == NULL);
 
   handle = handle_;
   handle = WebRtc_CreateDelayEstimator(NULL, kLookahead);
   EXPECT_TRUE(handle == NULL);
+  handle = handle_;
   handle = WebRtc_CreateDelayEstimator(farend_handle_, -1);
   EXPECT_TRUE(handle == NULL);
 
@@ -269,28 +268,6 @@ TEST_F(DelayEstimatorTest, CorrectErrorReturnsOfWrapper) {
   EXPECT_EQ(-1, WebRtc_AddFarSpectrumFix(farend_handle_, far_u16_,
                                          spectrum_size_, 16));
 
-  // WebRtc_set_history_size() should return -1 if:
-  // 1) |handle| is a NULL.
-  // 2) |history_size| <= 1.
-  EXPECT_EQ(-1, WebRtc_set_history_size(NULL, 1));
-  EXPECT_EQ(-1, WebRtc_set_history_size(handle_, 1));
-  // WebRtc_history_size() should return -1 if:
-  // 1) NULL pointer input.
-  EXPECT_EQ(-1, WebRtc_history_size(NULL));
-  // 2) there is a mismatch between history size.
-  void* tmp_handle = WebRtc_CreateDelayEstimator(farend_handle_, kHistorySize);
-  EXPECT_EQ(0, WebRtc_InitDelayEstimator(tmp_handle));
-  EXPECT_EQ(kDifferentHistorySize,
-            WebRtc_set_history_size(tmp_handle, kDifferentHistorySize));
-  EXPECT_EQ(kDifferentHistorySize, WebRtc_history_size(tmp_handle));
-  EXPECT_EQ(kHistorySize, WebRtc_set_history_size(handle_, kHistorySize));
-  EXPECT_EQ(-1, WebRtc_history_size(tmp_handle));
-
-  // WebRtc_set_lookahead() should return -1 if we try a value outside the
-  /// buffer.
-  EXPECT_EQ(-1, WebRtc_set_lookahead(handle_, kLookahead + 1));
-  EXPECT_EQ(-1, WebRtc_set_lookahead(handle_, -1));
-
   // WebRtc_set_allowed_offset() should return -1 if we have:
   // 1) NULL pointer as |handle|.
   // 2) |allowed_offset| < 0.
@@ -314,8 +291,6 @@ TEST_F(DelayEstimatorTest, CorrectErrorReturnsOfWrapper) {
   // 1) NULL pointer as |handle|.
   // 2) NULL pointer as near-end spectrum.
   // 3) Incorrect spectrum size.
-  // 4) Non matching history sizes if multiple delay estimators using the same
-  //    far-end reference.
   EXPECT_EQ(-1, WebRtc_DelayEstimatorProcessFloat(NULL, near_f_,
                                                   spectrum_size_));
   // Use |handle_| which is properly created at SetUp().
@@ -323,18 +298,12 @@ TEST_F(DelayEstimatorTest, CorrectErrorReturnsOfWrapper) {
                                                   spectrum_size_));
   EXPECT_EQ(-1, WebRtc_DelayEstimatorProcessFloat(handle_, near_f_,
                                                   spectrum_size_ + 1));
-  // |tmp_handle| is already in a non-matching state.
-  EXPECT_EQ(-1, WebRtc_DelayEstimatorProcessFloat(tmp_handle,
-                                                  near_f_,
-                                                  spectrum_size_));
 
   // WebRtc_DelayEstimatorProcessFix() should return -1 if we have:
   // 1) NULL pointer as |handle|.
-  // 2) NULL pointer as near-end spectrum.
-  // 3) Incorrect spectrum size.
-  // 4) Too high precision in near-end spectrum (Q-domain > 15).
-  // 5) Non matching history sizes if multiple delay estimators using the same
-  //    far-end reference.
+  // 3) NULL pointer as near-end spectrum.
+  // 4) Incorrect spectrum size.
+  // 6) Too high precision in near-end spectrum (Q-domain > 15).
   EXPECT_EQ(-1, WebRtc_DelayEstimatorProcessFix(NULL, near_u16_, spectrum_size_,
                                                 0));
   EXPECT_EQ(-1, WebRtc_DelayEstimatorProcessFix(handle_, NULL, spectrum_size_,
@@ -343,15 +312,13 @@ TEST_F(DelayEstimatorTest, CorrectErrorReturnsOfWrapper) {
                                                 spectrum_size_ + 1, 0));
   EXPECT_EQ(-1, WebRtc_DelayEstimatorProcessFix(handle_, near_u16_,
                                                 spectrum_size_, 16));
-  // |tmp_handle| is already in a non-matching state.
-  EXPECT_EQ(-1, WebRtc_DelayEstimatorProcessFix(tmp_handle,
-                                                near_u16_,
-                                                spectrum_size_,
-                                                0));
-  WebRtc_FreeDelayEstimator(tmp_handle);
 
   // WebRtc_last_delay() should return -1 if we have a NULL pointer as |handle|.
   EXPECT_EQ(-1, WebRtc_last_delay(NULL));
+
+  // WebRtc_last_delay_quality() should return -1 if we have a NULL pointer as
+  // |handle|.
+  EXPECT_EQ(-1, WebRtc_last_delay_quality(NULL));
 
   // Free any local memory if needed.
   WebRtc_FreeDelayEstimator(handle);
@@ -383,23 +350,14 @@ TEST_F(DelayEstimatorTest, VerifyEnableRobustValidation) {
 
 TEST_F(DelayEstimatorTest, InitializedSpectrumAfterProcess) {
   // In this test we verify that the mean spectra are initialized after first
-  // time we call WebRtc_AddFarSpectrum() and Process() respectively. The test
-  // also verifies the state is not left for zero spectra.
-  const float kZerosFloat[kSpectrumSize] = { 0.0 };
-  const uint16_t kZerosU16[kSpectrumSize] = { 0 };
+  // time we call WebRtc_AddFarSpectrum() and Process() respectively.
 
   // For floating point operations, process one frame and verify initialization
   // flag.
   Init();
-  EXPECT_EQ(0, WebRtc_AddFarSpectrumFloat(farend_handle_, kZerosFloat,
-                                          spectrum_size_));
-  EXPECT_EQ(0, farend_self_->far_spectrum_initialized);
   EXPECT_EQ(0, WebRtc_AddFarSpectrumFloat(farend_handle_, far_f_,
                                            spectrum_size_));
   EXPECT_EQ(1, farend_self_->far_spectrum_initialized);
-  EXPECT_EQ(-2, WebRtc_DelayEstimatorProcessFloat(handle_, kZerosFloat,
-                                                  spectrum_size_));
-  EXPECT_EQ(0, self_->near_spectrum_initialized);
   EXPECT_EQ(-2, WebRtc_DelayEstimatorProcessFloat(handle_, near_f_,
                                                   spectrum_size_));
   EXPECT_EQ(1, self_->near_spectrum_initialized);
@@ -407,15 +365,9 @@ TEST_F(DelayEstimatorTest, InitializedSpectrumAfterProcess) {
   // For fixed point operations, process one frame and verify initialization
   // flag.
   Init();
-  EXPECT_EQ(0, WebRtc_AddFarSpectrumFix(farend_handle_, kZerosU16,
-                                        spectrum_size_, 0));
-  EXPECT_EQ(0, farend_self_->far_spectrum_initialized);
   EXPECT_EQ(0, WebRtc_AddFarSpectrumFix(farend_handle_, far_u16_,
                                          spectrum_size_, 0));
   EXPECT_EQ(1, farend_self_->far_spectrum_initialized);
-  EXPECT_EQ(-2, WebRtc_DelayEstimatorProcessFix(handle_, kZerosU16,
-                                                spectrum_size_, 0));
-  EXPECT_EQ(0, self_->near_spectrum_initialized);
   EXPECT_EQ(-2, WebRtc_DelayEstimatorProcessFix(handle_, near_u16_,
                                                 spectrum_size_, 0));
   EXPECT_EQ(1, self_->near_spectrum_initialized);
@@ -427,7 +379,6 @@ TEST_F(DelayEstimatorTest, CorrectLastDelay) {
   // (|last_delay| = -2). Then we compare the Process() output with the
   // last_delay() call.
 
-  // TODO(bjornv): Update quality values for robust validation.
   int last_delay = 0;
   // Floating point operations.
   Init();
@@ -438,16 +389,13 @@ TEST_F(DelayEstimatorTest, CorrectLastDelay) {
                                                    spectrum_size_);
     if (last_delay != -2) {
       EXPECT_EQ(last_delay, WebRtc_last_delay(handle_));
-      if (!WebRtc_is_robust_validation_enabled(handle_)) {
-        EXPECT_FLOAT_EQ(7203.f / kMaxBitCountsQ9,
-                        WebRtc_last_delay_quality(handle_));
-      }
+      EXPECT_EQ(7203, WebRtc_last_delay_quality(handle_));
       break;
     }
   }
   // Verify that we have left the initialized state.
   EXPECT_NE(-2, WebRtc_last_delay(handle_));
-  EXPECT_LT(0, WebRtc_last_delay_quality(handle_));
+  EXPECT_NE(0, WebRtc_last_delay_quality(handle_));
 
   // Fixed point operations.
   Init();
@@ -458,16 +406,13 @@ TEST_F(DelayEstimatorTest, CorrectLastDelay) {
                                                  spectrum_size_, 0);
     if (last_delay != -2) {
       EXPECT_EQ(last_delay, WebRtc_last_delay(handle_));
-      if (!WebRtc_is_robust_validation_enabled(handle_)) {
-        EXPECT_FLOAT_EQ(7203.f / kMaxBitCountsQ9,
-                        WebRtc_last_delay_quality(handle_));
-      }
+      EXPECT_EQ(7203, WebRtc_last_delay_quality(handle_));
       break;
     }
   }
   // Verify that we have left the initialized state.
   EXPECT_NE(-2, WebRtc_last_delay(handle_));
-  EXPECT_LT(0, WebRtc_last_delay_quality(handle_));
+  EXPECT_NE(0, WebRtc_last_delay_quality(handle_));
 }
 
 TEST_F(DelayEstimatorTest, CorrectErrorReturnsOfBinaryEstimatorFarend) {
@@ -496,6 +441,7 @@ TEST_F(DelayEstimatorTest, CorrectErrorReturnsOfBinaryEstimator) {
   // create failure.
   binary_handle = WebRtc_CreateBinaryDelayEstimator(NULL, kLookahead);
   EXPECT_TRUE(binary_handle == NULL);
+  binary_handle = binary_;
   binary_handle = WebRtc_CreateBinaryDelayEstimator(binary_farend_, -1);
   EXPECT_TRUE(binary_handle == NULL);
 }
@@ -578,44 +524,5 @@ TEST_F(DelayEstimatorTest, AllowedOffsetNoImpactWhenRobustValidationDisabled) {
   RunBinarySpectraTest(0, 0, 0, 0);
   binary_->allowed_offset = 0;  // Reset reference.
 }
-
-TEST_F(DelayEstimatorTest, VerifyLookaheadAtCreate) {
-  void* farend_handle = WebRtc_CreateDelayEstimatorFarend(kSpectrumSize,
-                                                          kMaxDelay);
-  ASSERT_TRUE(farend_handle != NULL);
-  void* handle = WebRtc_CreateDelayEstimator(farend_handle, kLookahead);
-  ASSERT_TRUE(handle != NULL);
-  EXPECT_EQ(kLookahead, WebRtc_lookahead(handle));
-  WebRtc_FreeDelayEstimator(handle);
-  WebRtc_FreeDelayEstimatorFarend(farend_handle);
-}
-
-TEST_F(DelayEstimatorTest, VerifyLookaheadIsSetAndKeptAfterInit) {
-  EXPECT_EQ(kLookahead, WebRtc_lookahead(handle_));
-  EXPECT_EQ(kDifferentLookahead,
-            WebRtc_set_lookahead(handle_, kDifferentLookahead));
-  EXPECT_EQ(kDifferentLookahead, WebRtc_lookahead(handle_));
-  EXPECT_EQ(0, WebRtc_InitDelayEstimatorFarend(farend_handle_));
-  EXPECT_EQ(kDifferentLookahead, WebRtc_lookahead(handle_));
-  EXPECT_EQ(0, WebRtc_InitDelayEstimator(handle_));
-  EXPECT_EQ(kDifferentLookahead, WebRtc_lookahead(handle_));
-}
-
-TEST_F(DelayEstimatorTest, VerifyHistorySizeAtCreate) {
-  EXPECT_EQ(kHistorySize, WebRtc_history_size(handle_));
-}
-
-TEST_F(DelayEstimatorTest, VerifyHistorySizeIsSetAndKeptAfterInit) {
-  EXPECT_EQ(kHistorySize, WebRtc_history_size(handle_));
-  EXPECT_EQ(kDifferentHistorySize,
-            WebRtc_set_history_size(handle_, kDifferentHistorySize));
-  EXPECT_EQ(kDifferentHistorySize, WebRtc_history_size(handle_));
-  EXPECT_EQ(0, WebRtc_InitDelayEstimator(handle_));
-  EXPECT_EQ(kDifferentHistorySize, WebRtc_history_size(handle_));
-  EXPECT_EQ(0, WebRtc_InitDelayEstimatorFarend(farend_handle_));
-  EXPECT_EQ(kDifferentHistorySize, WebRtc_history_size(handle_));
-}
-
-// TODO(bjornv): Add tests for SoftReset...(...).
 
 }  // namespace

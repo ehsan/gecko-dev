@@ -135,8 +135,7 @@ public:
 
       principal = doc->NodePrincipal();
     } else {
-      // We use the worker Principal in case this is a SharedWorker, a
-      // ChromeWorker or a ServiceWorker.
+      MOZ_ASSERT_IF(!mWorkerPrivate->GetParent(), mWorkerPrivate->IsChromeWorker());
       principal = mWorkerPrivate->GetPrincipal();
     }
 
@@ -192,8 +191,7 @@ public:
 
       principal = doc->NodePrincipal();
     } else {
-      // We use the worker Principal in case this is a SharedWorker, a
-      // ChromeWorker or a ServiceWorker.
+      MOZ_ASSERT_IF(!mWorkerPrivate->GetParent(), mWorkerPrivate->IsChromeWorker());
       principal = mWorkerPrivate->GetPrincipal();
     }
 
@@ -582,10 +580,10 @@ URL::~URL()
   }
 }
 
-bool
-URL::WrapObject(JSContext* aCx, JS::MutableHandle<JSObject*> aReflector)
+JSObject*
+URL::WrapObject(JSContext* aCx)
 {
-  return URLBinding_workers::Wrap(aCx, this, aReflector);
+  return URLBinding_workers::Wrap(aCx, this);
 }
 
 void
@@ -878,6 +876,19 @@ URL::SetHash(const nsAString& aHash, ErrorResult& aRv)
   if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
     JS_ReportPendingException(mWorkerPrivate->GetJSContext());
   }
+}
+
+// static
+void
+URL::CreateObjectURL(const GlobalObject& aGlobal, JSObject* aBlob,
+                     const mozilla::dom::objectURLOptions& aOptions,
+                     nsString& aResult, mozilla::ErrorResult& aRv)
+{
+  SetDOMStringToNull(aResult);
+
+  NS_NAMED_LITERAL_STRING(argStr, "Argument 1 of URL.createObjectURL");
+  NS_NAMED_LITERAL_STRING(blobStr, "MediaStream");
+  aRv.ThrowTypeError(MSG_DOES_NOT_IMPLEMENT_INTERFACE, &argStr, &blobStr);
 }
 
 // static

@@ -166,19 +166,26 @@ class nsChromeRegistryChrome : public nsChromeRegistry
   nsClassHashtable<nsCStringHashKey, PackageEntry> mPackagesHash;
 
   virtual void ManifestContent(ManifestProcessingContext& cx, int lineno,
-                               char *const * argv, int flags) MOZ_OVERRIDE;
+                               char *const * argv, bool platform,
+                               bool contentaccessible);
   virtual void ManifestLocale(ManifestProcessingContext& cx, int lineno,
-                              char *const * argv, int flags) MOZ_OVERRIDE;
+                              char *const * argv, bool platform,
+                              bool contentaccessible);
   virtual void ManifestSkin(ManifestProcessingContext& cx, int lineno,
-                            char *const * argv, int flags) MOZ_OVERRIDE;
+                            char *const * argv, bool platform,
+                            bool contentaccessible);
   virtual void ManifestOverlay(ManifestProcessingContext& cx, int lineno,
-                               char *const * argv, int flags) MOZ_OVERRIDE;
+                               char *const * argv, bool platform,
+                               bool contentaccessible);
   virtual void ManifestStyle(ManifestProcessingContext& cx, int lineno,
-                             char *const * argv, int flags) MOZ_OVERRIDE;
+                             char *const * argv, bool platform,
+                             bool contentaccessible);
   virtual void ManifestOverride(ManifestProcessingContext& cx, int lineno,
-                                char *const * argv, int flags) MOZ_OVERRIDE;
+                                char *const * argv, bool platform,
+                                bool contentaccessible);
   virtual void ManifestResource(ManifestProcessingContext& cx, int lineno,
-                                char *const * argv, int flags) MOZ_OVERRIDE;
+                                char *const * argv, bool platform,
+                                bool contentaccessible);
 };
 
 #endif // nsChromeRegistryChrome_h

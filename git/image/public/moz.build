@@ -15,7 +15,6 @@ XPIDL_SOURCES += [
     'imgIRequest.idl',
     'imgIScriptedNotificationObserver.idl',
     'imgITools.idl',
-    'nsIIconURI.idl',
 ]
 
 XPIDL_MODULE = 'imglib2'

@@ -22,6 +22,7 @@
  * limitations under the License.
  */
 
+#include "pkix/bind.h"
 #include "pkixutil.h"
 
 namespace mozilla { namespace pkix {
@@ -82,7 +83,8 @@ BackCert::Init()
   // XXX: Ignored. What are we supposed to check? This seems totally redundant
   // with Certificate.signatureAlgorithm. Is it important to check that they
   // are consistent with each other? It doesn't seem to matter!
-  rv = der::ExpectTagAndGetValue(tbsCertificate, der::SEQUENCE, signature);
+  SignatureAlgorithm signature;
+  rv = der::SignatureAlgorithmIdentifier(tbsCertificate, signature);
   if (rv != Success) {
     return rv;
   }
@@ -102,6 +104,13 @@ BackCert::Init()
   if (rv != Success) {
     return rv;
   }
+  // TODO(bug XXXXXXX): We defer parsing/validating subjectPublicKeyInfo to
+  // the point where the public key is needed. For end-entity certificates, we
+  // assume that the caller will extract the public key and use it somehow; if
+  // they don't do that then we'll never know whether the key is invalid. On
+  // the other hand, if the caller never uses the key then in some ways it
+  // doesn't matter. Regardless, we should parse and validate
+  // subjectPublicKeyKeyInfo internally.
   rv = der::ExpectTagAndGetTLV(tbsCertificate, der::SEQUENCE,
                                subjectPublicKeyInfo);
   if (rv != Success) {
@@ -131,12 +140,9 @@ BackCert::Init()
     }
   }
 
-  rv = der::OptionalExtensions(
-         tbsCertificate, CSC | 3,
-         [this](Reader& extnID, const Input& extnValue, bool critical,
-                /*out*/ bool& understood) {
-           return RememberExtension(extnID, extnValue, critical, understood);
-         });
+  rv = der::OptionalExtensions(tbsCertificate, CSC | 3,
+                               bind(&BackCert::RememberExtension, *this, _1,
+                                    _2, _3, _4));
   if (rv != Success) {
     return rv;
   }
@@ -172,8 +178,10 @@ BackCert::Init()
   return der::End(tbsCertificate);
 }
 
+// XXX: The second value is of type |const Input&| instead of type |Input| due
+// to limitations in our std::bind polyfill.
 Result
-BackCert::RememberExtension(Reader& extnID, Input extnValue,
+BackCert::RememberExtension(Reader& extnID, const Input& extnValue,
                             bool critical, /*out*/ bool& understood)
 {
   understood = false;

@@ -89,9 +89,9 @@ public:
 
   static TemporaryRef<SyncObject> CreateSyncObject(SyncHandle aHandle);
 
-  enum class SyncType {
+  MOZ_BEGIN_NESTED_ENUM_CLASS(SyncType)
     D3D11,
-  };
+  MOZ_END_NESTED_ENUM_CLASS(SyncType)
 
   virtual SyncType GetSyncType() = 0;
   virtual void FinalizeFrame() = 0;
@@ -282,17 +282,7 @@ public:
     return gfx::SurfaceFormat::UNKNOWN;
   }
 
-  /**
-   * This method is strictly for debugging. It causes locking and
-   * needless copies.
-   */
-  virtual TemporaryRef<gfx::DataSourceSurface> GetAsSurface() {
-    Lock(OpenMode::OPEN_READ);
-    RefPtr<gfx::SourceSurface> surf = BorrowDrawTarget()->Snapshot();
-    RefPtr<gfx::DataSourceSurface> data = surf->GetDataSurface();
-    Unlock();
-    return data;
-  }
+  virtual TemporaryRef<gfx::DataSourceSurface> GetAsSurface() { return nullptr; }
 
   virtual void PrintInfo(std::stringstream& aStream, const char* aPrefix);
 
@@ -459,7 +449,7 @@ public:
   /**
    * This function waits until the buffer is no longer being used.
    */
-  virtual void WaitForBufferOwnership(bool aWaitReleaseFence = true) {}
+  virtual void WaitForBufferOwnership() {}
 
   /**
    * Track how much of this texture is wasted.
@@ -600,6 +590,8 @@ public:
   virtual bool AllocateForYCbCr(gfx::IntSize aYSize,
                                 gfx::IntSize aCbCrSize,
                                 StereoMode aStereoMode) MOZ_OVERRIDE;
+
+  virtual TemporaryRef<gfx::DataSourceSurface> GetAsSurface() MOZ_OVERRIDE;
 
   virtual gfx::SurfaceFormat GetFormat() const MOZ_OVERRIDE { return mFormat; }
 

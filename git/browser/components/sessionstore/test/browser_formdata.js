@@ -73,7 +73,8 @@ add_task(function test_old_format() {
 
   // Check that the form value is restored.
   let state = {entries: [{url: URL, formdata: {id: {input: VALUE}}}]};
-  yield promiseTabState(tab, state);
+  ss.setTabState(tab, JSON.stringify(state));
+  yield promiseTabRestored(tab);
   is((yield getInputValue(browser, "input")), VALUE, "form data restored");
 
   // Cleanup.
@@ -96,7 +97,8 @@ add_task(function test_old_format_inner_html() {
 
   // Restore the tab state.
   let state = {entries: [{url: URL, innerHTML: VALUE}]};
-  yield promiseTabState(tab, state);
+  ss.setTabState(tab, JSON.stringify(state));
+  yield promiseTabRestored(tab);
 
   // Check that the innerHTML value was restored.
   let html = yield getInnerHTML(browser);
@@ -128,7 +130,8 @@ add_task(function test_url_check() {
       state.formdata.url = url;
     }
 
-    return promiseTabState(tab, state).then(() => getInputValue(browser, "input"));
+    ss.setTabState(tab, JSON.stringify(state));
+    return promiseTabRestored(tab).then(() => getInputValue(browser, "input"));
   }
 
   // Check that the form value is restored with the correct URL.

@@ -10,9 +10,10 @@
 #include "mozilla/dom/StructuredCloneUtils.h"
 #include "mozilla/dom/TabChild.h"
 #include "mozilla/dom/ipc/BlobChild.h"
-#include "mozilla/jsipc/CrossProcessObjectWrappers.h"
 #include "mozilla/ipc/InputStreamUtils.h"
+#include "JavaScriptChild.h"
 
+using namespace base;
 using namespace mozilla::ipc;
 using namespace mozilla::jsipc;
 
@@ -65,10 +66,10 @@ ContentBridgeChild::DeferredDestroy()
 bool
 ContentBridgeChild::RecvAsyncMessage(const nsString& aMsg,
                                      const ClonedMessageData& aData,
-                                     InfallibleTArray<jsipc::CpowEntry>&& aCpows,
+                                     const InfallibleTArray<jsipc::CpowEntry>& aCpows,
                                      const IPC::Principal& aPrincipal)
 {
-  return nsIContentChild::RecvAsyncMessage(aMsg, aData, Move(aCpows), aPrincipal);
+  return nsIContentChild::RecvAsyncMessage(aMsg, aData, aCpows, aPrincipal);
 }
 
 PBlobChild*
@@ -99,13 +100,14 @@ ContentBridgeChild::SendPBrowserConstructor(PBrowserChild* aActor,
 // This implementation is identical to ContentChild::GetCPOWManager but we can't
 // move it to nsIContentChild because it calls ManagedPJavaScriptChild() which
 // only exists in PContentChild and PContentBridgeChild.
-jsipc::CPOWManager*
+jsipc::JavaScriptShared*
 ContentBridgeChild::GetCPOWManager()
 {
   if (ManagedPJavaScriptChild().Length()) {
-    return CPOWManagerFor(ManagedPJavaScriptChild()[0]);
+    return static_cast<JavaScriptChild*>(ManagedPJavaScriptChild()[0]);
   }
-  return CPOWManagerFor(SendPJavaScriptConstructor());
+  JavaScriptChild* actor = static_cast<JavaScriptChild*>(SendPJavaScriptConstructor());
+  return actor;
 }
 
 mozilla::jsipc::PJavaScriptChild *

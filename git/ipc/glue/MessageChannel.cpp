@@ -177,11 +177,6 @@ public:
         return INTR_SEMS == mMesageSemantics && OUT_MESSAGE == mDirection;
     }
 
-    bool IsOutgoingSync() const {
-        return (mMesageSemantics == INTR_SEMS || mMesageSemantics == SYNC_SEMS) &&
-               mDirection == OUT_MESSAGE;
-    }
-
     void Describe(int32_t* id, const char** dir, const char** sems,
                   const char** name) const
     {
@@ -223,9 +218,6 @@ public:
         if (frame.IsInterruptIncall())
             mThat.EnteredCall();
 
-        if (frame.IsOutgoingSync())
-            mThat.EnteredSyncSend();
-
         mThat.mSawInterruptOutMsg |= frame.IsInterruptOutcall();
     }
 
@@ -234,9 +226,7 @@ public:
 
         MOZ_ASSERT(!mThat.mCxxStackFrames.empty());
 
-        const InterruptFrame& frame = mThat.mCxxStackFrames.back();
-        bool exitingSync = frame.IsOutgoingSync();
-        bool exitingCall = frame.IsInterruptIncall();
+        bool exitingCall = mThat.mCxxStackFrames.back().IsInterruptIncall();
         mThat.mCxxStackFrames.shrinkBy(1);
 
         bool exitingStack = mThat.mCxxStackFrames.empty();
@@ -248,9 +238,6 @@ public:
 
         if (exitingCall)
             mThat.ExitedCall();
-
-        if (exitingSync)
-            mThat.ExitedSyncSend();
 
         if (exitingStack)
             mThat.ExitedCxxStack();
@@ -606,6 +593,19 @@ MessageChannel::ShouldDeferMessage(const Message& aMsg)
     return mSide == ParentSide && aMsg.transaction_id() != mCurrentTransaction;
 }
 
+// Predicate that is true for messages that should be consolidated if 'compress' is set.
+class MatchingKinds {
+    typedef IPC::Message Message;
+    Message::msgid_t mType;
+    int32_t mRoutingId;
+public:
+    MatchingKinds(Message::msgid_t aType, int32_t aRoutingId) :
+        mType(aType), mRoutingId(aRoutingId) {}
+    bool operator()(const Message &msg) {
+        return msg.type() == mType && msg.routing_id() == mRoutingId;
+    }
+};
+
 void
 MessageChannel::OnMessageReceivedFromLink(const Message& aMsg)
 {
@@ -649,15 +649,22 @@ MessageChannel::OnMessageReceivedFromLink(const Message& aMsg)
     // Prioritized messages cannot be compressed.
     MOZ_ASSERT(!aMsg.compress() || aMsg.priority() == IPC::Message::PRIORITY_NORMAL);
 
-    bool compress = (aMsg.compress() && !mPending.empty() &&
-                     mPending.back().type() == aMsg.type() &&
-                     mPending.back().routing_id() == aMsg.routing_id());
+    bool compress = (aMsg.compress() && !mPending.empty());
     if (compress) {
-        // This message type has compression enabled, and the back of the
-        // queue was the same message type and routed to the same destination.
-        // Replace it with the newer message.
-        MOZ_ASSERT(mPending.back().compress());
-        mPending.pop_back();
+        // Check the message queue for another message with this type/destination.
+        auto it = std::find_if(mPending.rbegin(), mPending.rend(),
+                               MatchingKinds(aMsg.type(), aMsg.routing_id()));
+        if (it != mPending.rend()) {
+            // This message type has compression enabled, and the queue holds
+            // a message with the same message type and routed to the same destination.
+            // Erase it.  Note that, since we always compress these redundancies, There Can
+            // Be Only One.
+            MOZ_ASSERT((*it).compress());
+            mPending.erase((++it).base());
+        } else {
+            // No other messages with the same type/destination exist.
+            compress = false;
+        }
     }
 
     bool shouldWakeUp = AwaitingInterruptReply() ||
@@ -1486,7 +1493,7 @@ void
 MessageChannel::ReportMessageRouteError(const char* channelName) const
 {
     PrintErrorMessage(mSide, channelName, "Need a route");
-    mListener->OnProcessingError(MsgRouteError, "MsgRouteError");
+    mListener->OnProcessingError(MsgRouteError);
 }
 
 void
@@ -1520,7 +1527,7 @@ MessageChannel::ReportConnectionError(const char* aChannelName) const
     PrintErrorMessage(mSide, aChannelName, errorMsg);
 
     MonitorAutoUnlock unlock(*mMonitor);
-    mListener->OnProcessingError(MsgDropped, errorMsg);
+    mListener->OnProcessingError(MsgDropped);
 }
 
 bool
@@ -1555,14 +1562,14 @@ MessageChannel::MaybeHandleError(Result code, const Message& aMsg, const char* c
         return false;
     }
 
-    char reason[512];
-    PR_snprintf(reason, sizeof(reason),
+    char printedMsg[512];
+    PR_snprintf(printedMsg, sizeof(printedMsg),
                 "(msgtype=0x%lX,name=%s) %s",
                 aMsg.type(), aMsg.name(), errorMsg);
 
-    PrintErrorMessage(mSide, channelName, reason);
+    PrintErrorMessage(mSide, channelName, printedMsg);
 
-    mListener->OnProcessingError(code, reason);
+    mListener->OnProcessingError(code);
 
     return false;
 }

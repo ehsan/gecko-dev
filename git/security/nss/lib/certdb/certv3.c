@@ -43,31 +43,71 @@ CERT_StartCertExtensions(CERTCertificate *cert)
     return (cert_StartExtensions ((void *)cert, cert->arena, SetExts));
 }
 
-/* find a URL extension in the cert
+/* find the given extension in the certificate of the Issuer of 'cert' */
+SECStatus
+CERT_FindIssuerCertExtension(CERTCertificate *cert, int tag, SECItem *value)
+{
+    CERTCertificate *issuercert;
+    SECStatus rv;
+
+    issuercert = CERT_FindCertByName(cert->dbhandle, &cert->derIssuer);
+    if ( issuercert ) {
+	rv = cert_FindExtension(issuercert->extensions, tag, value);
+	CERT_DestroyCertificate(issuercert);
+    } else {
+	rv = SECFailure;
+    }
+    
+    return(rv);
+}
+
+/* find a URL extension in the cert or its CA
+ * apply the base URL string if it exists
  */
 char *
-CERT_FindCertURLExtension(CERTCertificate *cert, SECOidTag tag)
+CERT_FindCertURLExtension(CERTCertificate *cert, int tag, int catag)
 {
     SECStatus rv;
     SECItem urlitem = {siBuffer,0};
+    SECItem baseitem = {siBuffer,0};
     SECItem urlstringitem = {siBuffer,0};
+    SECItem basestringitem = {siBuffer,0};
     PLArenaPool *arena = NULL;
-    char *urlstring = NULL;
+    PRBool hasbase;
+    char *urlstring;
     char *str;
     int len;
+    unsigned int i;
     
-    if (!cert) {
-        PORT_SetError(SEC_ERROR_INVALID_ARGS);
-        return NULL;
-    }
+    urlstring = NULL;
 
     arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
     if ( ! arena ) {
 	goto loser;
     }
     
+    hasbase = PR_FALSE;
+    
     rv = cert_FindExtension(cert->extensions, tag, &urlitem);
-    if ( rv != SECSuccess ) {
+    if ( rv == SECSuccess ) {
+	rv = cert_FindExtension(cert->extensions, SEC_OID_NS_CERT_EXT_BASE_URL,
+				   &baseitem);
+	if ( rv == SECSuccess ) {
+	    hasbase = PR_TRUE;
+	}
+	
+    } else if ( catag ) {
+	/* if the cert doesn't have the extensions, see if the issuer does */
+	rv = CERT_FindIssuerCertExtension(cert, catag, &urlitem);
+	if ( rv != SECSuccess ) {
+	    goto loser;
+	}	    
+	rv = CERT_FindIssuerCertExtension(cert, SEC_OID_NS_CERT_EXT_BASE_URL,
+					 &baseitem);
+	if ( rv == SECSuccess ) {
+	    hasbase = PR_TRUE;
+	}
+    } else {
 	goto loser;
     }
 
@@ -77,15 +117,42 @@ CERT_FindCertURLExtension(CERTCertificate *cert, SECOidTag tag)
     if ( rv != SECSuccess ) {
 	goto loser;
     }
+    if ( hasbase ) {
+	rv = SEC_QuickDERDecodeItem(arena, &basestringitem,
+                                    SEC_ASN1_GET(SEC_IA5StringTemplate),
+                                    &baseitem);
+
+	if ( rv != SECSuccess ) {
+	    goto loser;
+	}
+    }
     
-    len = urlstringitem.len + 1;
+    len = urlstringitem.len + ( hasbase ? basestringitem.len : 0 ) + 1;
     
     str = urlstring = (char *)PORT_Alloc(len);
     if ( urlstring == NULL ) {
 	goto loser;
     }
     
-    /* copy the URL */
+    /* copy the URL base first */
+    if ( hasbase ) {
+
+	/* if the urlstring has a : in it, then we assume it is an absolute
+	 * URL, and will not get the base string pre-pended
+	 */
+	for ( i = 0; i < urlstringitem.len; i++ ) {
+	    if ( urlstringitem.data[i] == ':' ) {
+		goto nobase;
+	    }
+	}
+	
+	PORT_Memcpy(str, basestringitem.data, basestringitem.len);
+	str += basestringitem.len;
+	
+    }
+
+nobase:
+    /* copy the rest (or all) of the URL */
     PORT_Memcpy(str, urlstringitem.data, urlstringitem.len);
     str += urlstringitem.len;
     
@@ -101,6 +168,9 @@ loser:
 done:
     if ( arena ) {
 	PORT_FreeArena(arena, PR_FALSE);
+    }
+    if ( baseitem.data ) {
+	PORT_Free(baseitem.data);
     }
     if ( urlitem.data ) {
 	PORT_Free(urlitem.data);

@@ -24,7 +24,7 @@ public:
   MediaOmxCommonDecoder();
 
   virtual void FirstFrameLoaded(nsAutoPtr<MediaInfo> aInfo,
-                                bool aRestoredFromDormant);
+                                bool aRestoredFromDromant);
   virtual void ChangeState(PlayState aState);
   virtual void ApplyStateToStateMachine(PlayState aState);
   virtual void SetVolume(double aVolume);

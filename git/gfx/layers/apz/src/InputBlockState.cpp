@@ -23,7 +23,6 @@ InputBlockState::InputBlockState(const nsRefPtr<AsyncPanZoomController>& aTarget
   : mTargetApzc(aTargetApzc)
   , mTargetConfirmed(aTargetConfirmed)
   , mBlockId(sBlockCounter++)
-  , mTransformToApzc(aTargetApzc->GetTransformToThis())
 {
   // We should never be constructed with a nullptr target.
   MOZ_ASSERT(mTargetApzc);
@@ -51,7 +50,6 @@ InputBlockState::SetConfirmedTargetApzc(const nsRefPtr<AsyncPanZoomController>& 
 
   // note that aTargetApzc MAY be null here.
   mTargetApzc = aTargetApzc;
-  mTransformToApzc = aTargetApzc ? aTargetApzc->GetTransformToThis() : gfx::Matrix4x4();
   mOverscrollHandoffChain = (mTargetApzc ? mTargetApzc->BuildOverscrollHandoffChain() : nullptr);
   return true;
 }
@@ -134,14 +132,6 @@ CancelableBlockState::IsReadyForHandling() const
   return mContentResponded || mContentResponseTimerExpired;
 }
 
-void
-CancelableBlockState::DispatchImmediate(const InputData& aEvent) const
-{
-  MOZ_ASSERT(!HasEvents());
-  MOZ_ASSERT(GetTargetApzc());
-  GetTargetApzc()->HandleInputEvent(aEvent, mTransformToApzc);
-}
-
 WheelBlockState::WheelBlockState(const nsRefPtr<AsyncPanZoomController>& aTargetApzc,
                                  bool aTargetConfirmed)
   : CancelableBlockState(aTargetApzc, aTargetConfirmed)
@@ -177,13 +167,13 @@ WheelBlockState::DropEvents()
 }
 
 void
-WheelBlockState::HandleEvents()
+WheelBlockState::HandleEvents(const nsRefPtr<AsyncPanZoomController>& aTarget)
 {
   while (HasEvents()) {
     TBS_LOG("%p returning first of %lu events\n", this, mEvents.Length());
     ScrollWheelInput event = mEvents[0];
     mEvents.RemoveElementAt(0);
-    GetTargetApzc()->HandleInputEvent(event, mTransformToApzc);
+    aTarget->HandleInputEvent(event);
   }
 }
 
@@ -221,15 +211,12 @@ TouchBlockState::SetAllowedTouchBehaviors(const nsTArray<TouchBehaviorFlags>& aB
   return true;
 }
 
-void
-TouchBlockState::CopyPropertiesFrom(const TouchBlockState& aOther)
+bool
+TouchBlockState::CopyAllowedTouchBehaviorsFrom(const TouchBlockState& aOther)
 {
-  TBS_LOG("%p copying properties from %p\n", this, &aOther);
-  if (gfxPrefs::TouchActionEnabled()) {
-    MOZ_ASSERT(aOther.mAllowedTouchBehaviorSet);
-    SetAllowedTouchBehaviors(aOther.mAllowedTouchBehaviors);
-  }
-  mTransformToApzc = aOther.mTransformToApzc;
+  TBS_LOG("%p copying allowed touch behaviours from %p\n", this, &aOther);
+  MOZ_ASSERT(aOther.mAllowedTouchBehaviorSet);
+  return SetAllowedTouchBehaviors(aOther.mAllowedTouchBehaviors);
 }
 
 bool
@@ -310,14 +297,21 @@ TouchBlockState::DropEvents()
 }
 
 void
-TouchBlockState::HandleEvents()
+TouchBlockState::HandleEvents(const nsRefPtr<AsyncPanZoomController>& aTarget)
 {
   while (HasEvents()) {
-    TBS_LOG("%p returning first of %lu events\n", this, mEvents.Length());
-    MultiTouchInput event = mEvents[0];
-    mEvents.RemoveElementAt(0);
-    GetTargetApzc()->HandleInputEvent(event, mTransformToApzc);
+    aTarget->HandleInputEvent(RemoveFirstEvent());
   }
+}
+
+MultiTouchInput
+TouchBlockState::RemoveFirstEvent()
+{
+  MOZ_ASSERT(!mEvents.IsEmpty());
+  TBS_LOG("%p returning first of %lu events\n", this, mEvents.Length());
+  MultiTouchInput event = mEvents[0];
+  mEvents.RemoveElementAt(0);
+  return event;
 }
 
 bool

@@ -205,19 +205,10 @@ nsXULPopupManager::Rollup(uint32_t aCount, bool aFlush,
     ConsumeOutsideClicksResult consumeResult = item->Frame()->ConsumeOutsideClicks();
     consume = (consumeResult == ConsumeOutsideClicks_True);
 
-    bool rollup = true;
-
-    // If norolluponanchor is true, then don't rollup when clicking the anchor.
-    // This would be used to allow adjusting the caret position in an
-    // autocomplete field without hiding the popup for example.
-    bool noRollupOnAnchor = (!consume && pos &&
-      item->Frame()->GetContent()->AttrValueIs(kNameSpaceID_None,
-        nsGkAtoms::norolluponanchor, nsGkAtoms::_true, eCaseMatters));
-
-    // When ConsumeOutsideClicks_ParentOnly is used, always consume the click
-    // when the click was over the anchor. This way, clicking on a menu doesn't
+    // If ConsumeOutsideClicks_ParentOnly was returned, then only consume the
+    // click is it was over the anchor. This way, clicking on a menu doesn't
     // reopen the menu.
-    if ((consumeResult == ConsumeOutsideClicks_ParentOnly || noRollupOnAnchor) && pos) {
+    if (consumeResult == ConsumeOutsideClicks_ParentOnly && pos) {
       nsCOMPtr<nsIContent> anchor = item->Frame()->GetAnchor();
 
       // Check if the anchor has indicated another node to use for checking
@@ -243,41 +234,33 @@ nsXULPopupManager::Rollup(uint32_t aCount, bool aFlush,
         // event will get consumed, so here only a quick coordinates check is
         // done rather than a slower complete check of what is at that location.
         if (anchor->GetPrimaryFrame()->GetScreenRect().Contains(*pos)) {
-          if (consumeResult == ConsumeOutsideClicks_ParentOnly) {
-            consume = true;
-          }
-
-          if (noRollupOnAnchor) {
-            rollup = false;
-          }
+          consume = true;
         }
       }
     }
 
-    if (rollup) {
-      // if a number of popups to close has been specified, determine the last
-      // popup to close
-      nsIContent* lastPopup = nullptr;
-      if (aCount != UINT32_MAX) {
-        nsMenuChainItem* last = item;
-        while (--aCount && last->GetParent()) {
-          last = last->GetParent();
-        }
-        if (last) {
-          lastPopup = last->Content();
-        }
+    // if a number of popups to close has been specified, determine the last
+    // popup to close
+    nsIContent* lastPopup = nullptr;
+    if (aCount != UINT32_MAX) {
+      nsMenuChainItem* last = item;
+      while (--aCount && last->GetParent()) {
+        last = last->GetParent();
       }
-
-      nsPresContext* presContext = item->Frame()->PresContext();
-      nsRefPtr<nsViewManager> viewManager = presContext->PresShell()->GetViewManager();
-
-      HidePopup(item->Content(), true, true, false, true, lastPopup);
-
-      if (aFlush) {
-        // The popup's visibility doesn't update until the minimize animation has
-        // finished, so call UpdateWidgetGeometry to update it right away.
-        viewManager->UpdateWidgetGeometry();
+      if (last) {
+        lastPopup = last->Content();
       }
+    }
+
+    nsPresContext* presContext = item->Frame()->PresContext();
+    nsRefPtr<nsViewManager> viewManager = presContext->PresShell()->GetViewManager();
+
+    HidePopup(item->Content(), true, true, false, true, lastPopup);
+
+    if (aFlush) {
+      // The popup's visibility doesn't update until the minimize animation has
+      // finished, so call UpdateWidgetGeometry to update it right away.
+      viewManager->UpdateWidgetGeometry();
     }
   }
 
@@ -537,7 +520,7 @@ void
 nsXULPopupManager::InitTriggerEvent(nsIDOMEvent* aEvent, nsIContent* aPopup,
                                     nsIContent** aTriggerContent)
 {
-  mCachedMousePoint = LayoutDeviceIntPoint(0, 0);
+  mCachedMousePoint = nsIntPoint(0, 0);
 
   if (aTriggerContent) {
     *aTriggerContent = nullptr;
@@ -598,8 +581,8 @@ nsXULPopupManager::InitTriggerEvent(nsIDOMEvent* aEvent, nsIContent* aPopup,
           else if (rootDocumentRootFrame) {
             nsPoint pnt =
               nsLayoutUtils::GetEventCoordinatesRelativeTo(event, rootDocumentRootFrame);
-            mCachedMousePoint = LayoutDeviceIntPoint(rootDocPresContext->AppUnitsToDevPixels(pnt.x),
-                                                     rootDocPresContext->AppUnitsToDevPixels(pnt.y));
+            mCachedMousePoint = nsIntPoint(rootDocPresContext->AppUnitsToDevPixels(pnt.x),
+                                           rootDocPresContext->AppUnitsToDevPixels(pnt.y));
           }
         }
       }
@@ -738,8 +721,8 @@ nsXULPopupManager::ShowTooltipAtScreen(nsIContent* aPopup,
   InitTriggerEvent(nullptr, nullptr, nullptr);
 
   nsPresContext* pc = popupFrame->PresContext();
-  mCachedMousePoint = LayoutDeviceIntPoint(pc->CSSPixelsToDevPixels(aXPos),
-                                           pc->CSSPixelsToDevPixels(aYPos));
+  mCachedMousePoint = nsIntPoint(pc->CSSPixelsToDevPixels(aXPos),
+                                 pc->CSSPixelsToDevPixels(aYPos));
 
   // coordinates are relative to the root widget
   nsPresContext* rootPresContext = pc->GetRootPresContext();
@@ -1323,11 +1306,11 @@ nsXULPopupManager::FirePopupShowingEvent(nsIContent* aPopup,
     event.widget = nullptr;
   }
 
-  event.refPoint = mCachedMousePoint;
+  event.refPoint = LayoutDeviceIntPoint::FromUntyped(mCachedMousePoint);
   event.modifiers = mCachedModifiers;
   EventDispatcher::Dispatch(popup, presContext, &event, nullptr, &status);
 
-  mCachedMousePoint = LayoutDeviceIntPoint(0, 0);
+  mCachedMousePoint = nsIntPoint(0, 0);
   mOpeningPopup = nullptr;
 
   mCachedModifiers = 0;

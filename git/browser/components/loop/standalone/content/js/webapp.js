@@ -19,7 +19,6 @@ loop.webapp = (function($, _, OT, mozL10n) {
   var sharedModels = loop.shared.models;
   var sharedViews = loop.shared.views;
   var sharedUtils = loop.shared.utils;
-  var WEBSOCKET_REASONS = loop.shared.utils.WEBSOCKET_REASONS;
 
   var multiplexGum = loop.standaloneMedia.multiplexGum;
 
@@ -39,19 +38,15 @@ loop.webapp = (function($, _, OT, mozL10n) {
    * Unsupported Browsers view.
    */
   var UnsupportedBrowserView = React.createClass({displayName: "UnsupportedBrowserView",
-    propTypes: {
-      isFirefox: React.PropTypes.bool.isRequired
-    },
-
     render: function() {
       return (
-        React.createElement("div", {className: "highlight-issue-box"}, 
+        React.createElement("div", {className: "expired-url-info"}, 
           React.createElement("div", {className: "info-panel"}, 
             React.createElement("div", {className: "firefox-logo"}), 
             React.createElement("h1", null, mozL10n.get("incompatible_browser_heading")), 
             React.createElement("h4", null, mozL10n.get("incompatible_browser_message"))
           ), 
-          React.createElement(PromoteFirefoxView, {isFirefox: this.props.isFirefox})
+          React.createElement(PromoteFirefoxView, {helper: this.props.helper})
         )
       );
     }
@@ -61,28 +56,12 @@ loop.webapp = (function($, _, OT, mozL10n) {
    * Unsupported Device view.
    */
   var UnsupportedDeviceView = React.createClass({displayName: "UnsupportedDeviceView",
-    propTypes: {
-      platform: React.PropTypes.string.isRequired
-    },
-
     render: function() {
-      var unsupportedDeviceParams = {
-        clientShortname: mozL10n.get("clientShortname2"),
-        platform: mozL10n.get("unsupported_platform_" + this.props.platform)
-      };
-      var unsupportedLearnMoreText = mozL10n.get("unsupported_platform_learn_more_link",
-        {clientShortname: mozL10n.get("clientShortname2")});
-
       return (
-        React.createElement("div", {className: "highlight-issue-box"}, 
-          React.createElement("div", {className: "info-panel"}, 
-            React.createElement("div", {className: "firefox-logo"}), 
-            React.createElement("h1", null, mozL10n.get("unsupported_platform_heading")), 
-            React.createElement("h4", null, mozL10n.get("unsupported_platform_message", unsupportedDeviceParams))
-          ), 
-          React.createElement("p", null, 
-            React.createElement("a", {className: "btn btn-large btn-accept btn-unsupported-device", 
-               href: loop.config.unsupportedPlatformUrl}, unsupportedLearnMoreText))
+        React.createElement("div", null, 
+          React.createElement("h2", null, mozL10n.get("incompatible_device")), 
+          React.createElement("p", null, mozL10n.get("sorry_device_unsupported", {clientShortname: mozL10n.get("clientShortname2")})), 
+          React.createElement("p", null, mozL10n.get("use_firefox_windows_mac_linux", {brandShortname: mozL10n.get("brandShortname")}))
         )
       );
     }
@@ -93,11 +72,11 @@ loop.webapp = (function($, _, OT, mozL10n) {
    */
   var PromoteFirefoxView = React.createClass({displayName: "PromoteFirefoxView",
     propTypes: {
-      isFirefox: React.PropTypes.bool.isRequired
+      helper: React.PropTypes.object.isRequired
     },
 
     render: function() {
-      if (this.props.isFirefox) {
+      if (this.props.helper.isFirefox(navigator.userAgent)) {
         return React.createElement("div", null);
       }
       return (
@@ -121,18 +100,18 @@ loop.webapp = (function($, _, OT, mozL10n) {
    */
   var CallUrlExpiredView = React.createClass({displayName: "CallUrlExpiredView",
     propTypes: {
-      isFirefox: React.PropTypes.bool.isRequired
+      helper: React.PropTypes.object.isRequired
     },
 
     render: function() {
       return (
-        React.createElement("div", {className: "highlight-issue-box"}, 
+        React.createElement("div", {className: "expired-url-info"}, 
           React.createElement("div", {className: "info-panel"}, 
             React.createElement("div", {className: "firefox-logo"}), 
             React.createElement("h1", null, mozL10n.get("call_url_unavailable_notification_heading")), 
             React.createElement("h4", null, mozL10n.get("call_url_unavailable_notification_message2"))
           ), 
-          React.createElement(PromoteFirefoxView, {isFirefox: this.props.isFirefox})
+          React.createElement(PromoteFirefoxView, {helper: this.props.helper})
         )
       );
     }
@@ -583,6 +562,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
       conversation: React.PropTypes.instanceOf(sharedModels.ConversationModel)
                          .isRequired,
       sdk: React.PropTypes.object.isRequired,
+      feedbackStore: React.PropTypes.instanceOf(loop.store.FeedbackStore),
       onAfterFeedbackReceived: React.PropTypes.func.isRequired
     },
 
@@ -593,6 +573,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
       return (
         React.createElement("div", {className: "ended-conversation"}, 
           React.createElement(sharedViews.FeedbackView, {
+            feedbackStore: this.props.feedbackStore, 
             onAfterFeedbackReceived: this.props.onAfterFeedbackReceived}
           ), 
           React.createElement(sharedViews.ConversationView, {
@@ -649,10 +630,11 @@ loop.webapp = (function($, _, OT, mozL10n) {
         React.PropTypes.instanceOf(sharedModels.ConversationModel),
         React.PropTypes.instanceOf(FxOSConversationModel)
       ]).isRequired,
-      dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired,
+      helper: React.PropTypes.instanceOf(sharedUtils.Helper).isRequired,
       notifications: React.PropTypes.instanceOf(sharedModels.NotificationCollection)
                           .isRequired,
-      sdk: React.PropTypes.object.isRequired
+      sdk: React.PropTypes.object.isRequired,
+      feedbackStore: React.PropTypes.instanceOf(loop.store.FeedbackStore)
     },
 
     getInitialState: function() {
@@ -683,7 +665,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
     },
 
     resetCallStatus: function() {
-      this.props.dispatcher.dispatch(new sharedActions.FeedbackComplete());
+      this.props.feedbackStore.dispatchAction(new sharedActions.FeedbackComplete());
       return function() {
         this.setState({callStatus: "start"});
       }.bind(this);
@@ -736,13 +718,14 @@ loop.webapp = (function($, _, OT, mozL10n) {
             React.createElement(EndedConversationView, {
               sdk: this.props.sdk, 
               conversation: this.props.conversation, 
+              feedbackStore: this.props.feedbackStore, 
               onAfterFeedbackReceived: this.resetCallStatus()}
             )
           );
         }
         case "expired": {
           return (
-            React.createElement(CallUrlExpiredView, null)
+            React.createElement(CallUrlExpiredView, {helper: this.props.helper})
           );
         }
         default: {
@@ -909,7 +892,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
     _handleCallTerminated: function(reason) {
       multiplexGum.reset();
 
-      if (reason === WEBSOCKET_REASONS.CANCEL) {
+      if (reason === "cancel") {
         this.setState({callStatus: "start"});
         return;
       }
@@ -946,6 +929,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
         React.PropTypes.instanceOf(sharedModels.ConversationModel),
         React.PropTypes.instanceOf(FxOSConversationModel)
       ]).isRequired,
+      helper: React.PropTypes.instanceOf(sharedUtils.Helper).isRequired,
       notifications: React.PropTypes.instanceOf(sharedModels.NotificationCollection)
                           .isRequired,
       sdk: React.PropTypes.object.isRequired,
@@ -957,7 +941,8 @@ loop.webapp = (function($, _, OT, mozL10n) {
         React.PropTypes.instanceOf(loop.store.ActiveRoomStore),
         React.PropTypes.instanceOf(loop.store.FxOSActiveRoomStore)
       ]).isRequired,
-      dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired
+      dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired,
+      feedbackStore: React.PropTypes.instanceOf(loop.store.FeedbackStore)
     },
 
     getInitialState: function() {
@@ -981,19 +966,20 @@ loop.webapp = (function($, _, OT, mozL10n) {
     render: function() {
       switch (this.state.windowType) {
         case "unsupportedDevice": {
-          return React.createElement(UnsupportedDeviceView, {platform: this.state.unsupportedPlatform});
+          return React.createElement(UnsupportedDeviceView, null);
         }
         case "unsupportedBrowser": {
-          return React.createElement(UnsupportedBrowserView, {isFirefox: this.state.isFirefox});
+          return React.createElement(UnsupportedBrowserView, {helper: this.props.helper});
         }
         case "outgoing": {
           return (
             React.createElement(OutgoingConversationView, {
                client: this.props.client, 
-               dispatcher: this.props.dispatcher, 
                conversation: this.props.conversation, 
+               helper: this.props.helper, 
                notifications: this.props.notifications, 
-               sdk: this.props.sdk}
+               sdk: this.props.sdk, 
+               feedbackStore: this.props.feedbackStore}
             )
           );
         }
@@ -1001,8 +987,9 @@ loop.webapp = (function($, _, OT, mozL10n) {
           return (
             React.createElement(loop.standaloneRoomViews.StandaloneRoomView, {
               activeRoomStore: this.props.activeRoomStore, 
+              feedbackStore: this.props.feedbackStore, 
               dispatcher: this.props.dispatcher, 
-              isFirefox: this.state.isFirefox}
+              helper: this.props.helper}
             )
           );
         }
@@ -1022,6 +1009,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
    * App initialization.
    */
   function init() {
+    var helper = new sharedUtils.Helper();
     var standaloneMozLoop = new loop.StandaloneMozLoop({
       baseServerUrl: loop.config.serverUrl
     });
@@ -1047,7 +1035,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
     });
     var conversation;
     var activeRoomStore;
-    if (sharedUtils.isFirefoxOS(navigator.userAgent)) {
+    if (helper.isFirefoxOS(navigator.userAgent)) {
       if (loop.config.fxosApp) {
         conversation = new FxOSConversationModel();
         if (loop.config.fxosApp.rooms) {
@@ -1079,13 +1067,12 @@ loop.webapp = (function($, _, OT, mozL10n) {
     var standaloneAppStore = new loop.store.StandaloneAppStore({
       conversation: conversation,
       dispatcher: dispatcher,
+      helper: helper,
       sdk: OT
     });
     var feedbackStore = new loop.store.FeedbackStore(dispatcher, {
       feedbackClient: feedbackClient
     });
-
-    loop.store.StoreMixin.register({feedbackStore: feedbackStore});
 
     window.addEventListener("unload", function() {
       dispatcher.dispatch(new sharedActions.WindowUnload());
@@ -1094,8 +1081,10 @@ loop.webapp = (function($, _, OT, mozL10n) {
     React.render(React.createElement(WebappRootView, {
       client: client, 
       conversation: conversation, 
+      helper: helper, 
       notifications: notifications, 
       sdk: OT, 
+      feedbackStore: feedbackStore, 
       standaloneAppStore: standaloneAppStore, 
       activeRoomStore: activeRoomStore, 
       dispatcher: dispatcher}
@@ -1106,12 +1095,10 @@ loop.webapp = (function($, _, OT, mozL10n) {
     document.documentElement.dir = mozL10n.language.direction;
     document.title = mozL10n.get("clientShortname2");
 
-    var locationData = sharedUtils.locationData();
-
     dispatcher.dispatch(new sharedActions.ExtractTokenInfo({
       // We pass the hash or the pathname - the hash was used for the original
       // urls, the pathname for later ones.
-      windowPath: locationData.hash || locationData.pathname
+      windowPath: helper.locationData().hash || helper.locationData().pathname
     }));
   }
 

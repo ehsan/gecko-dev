@@ -250,9 +250,6 @@ bool
 ImageHost::Lock()
 {
   MOZ_ASSERT(!mLocked);
-  if (!mFrontBuffer) {
-    return false;
-  }
   if (!mFrontBuffer->Lock()) {
     return false;
   }
@@ -264,9 +261,7 @@ void
 ImageHost::Unlock()
 {
   MOZ_ASSERT(mLocked);
-  if (mFrontBuffer) {
-    mFrontBuffer->Unlock();
-  }
+  mFrontBuffer->Unlock();
   mLocked = false;
 }
 

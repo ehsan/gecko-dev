@@ -39,9 +39,9 @@ HTMLFrameSetElement::SetCols(const nsAString& aCols)
 NS_IMETHODIMP
 HTMLFrameSetElement::GetCols(nsAString& aCols)
 {
-  DOMString cols;
+  nsString cols;
   GetCols(cols);
-  cols.ToString(aCols);
+  aCols = cols;
   return NS_OK;
 }
 
@@ -56,9 +56,9 @@ HTMLFrameSetElement::SetRows(const nsAString& aRows)
 NS_IMETHODIMP
 HTMLFrameSetElement::GetRows(nsAString& aRows)
 {
-  DOMString rows;
+  nsString rows;
   GetRows(rows);
-  rows.ToString(aRows);
+  aRows = rows;
   return NS_OK;
 }
 
@@ -232,6 +232,7 @@ HTMLFrameSetElement::ParseRowCol(const nsAString & aValue,
     commaX = spec.FindChar(sComma, commaX + 1);
   }
 
+  static const fallible_t fallible = fallible_t();
   nsFramesetSpec* specs = new (fallible) nsFramesetSpec[count];
   if (!specs) {
     *aSpecs = nullptr;

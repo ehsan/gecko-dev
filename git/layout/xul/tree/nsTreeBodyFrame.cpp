@@ -3267,20 +3267,18 @@ nsTreeBodyFrame::PaintCell(int32_t              aRowIndex,
           // Paint full vertical line only if we have next sibling.
           bool hasNextSibling;
           mView->HasNextSibling(currentParent, aRowIndex, &hasNextSibling);
-          if (hasNextSibling || i == level) {
-            Point p1(pc->AppUnitsToGfxUnits(srcX),
-                     pc->AppUnitsToGfxUnits(lineY));
-            Point p2;
-            p2.x = pc->AppUnitsToGfxUnits(srcX);
+          Point p1(pc->AppUnitsToGfxUnits(srcX),
+                   pc->AppUnitsToGfxUnits(lineY));
+          Point p2;
+          p2.x = pc->AppUnitsToGfxUnits(srcX);
 
-            if (hasNextSibling)
-              p2.y = pc->AppUnitsToGfxUnits(lineY + mRowHeight);
-            else if (i == level)
-              p2.y = pc->AppUnitsToGfxUnits(lineY + mRowHeight / 2);
+          if (hasNextSibling)
+            p2.y = pc->AppUnitsToGfxUnits(lineY + mRowHeight);
+          else if (i == level)
+            p2.y = pc->AppUnitsToGfxUnits(lineY + mRowHeight / 2);
 
-            SnapLineToDevicePixelsForStroking(p1, p2, *drawTarget);
-            drawTarget->StrokeLine(p1, p2, colorPatt, strokeOptions);
-          }          
+          SnapLineToDevicePixelsForStroking(p1, p2, *drawTarget);
+          drawTarget->StrokeLine(p1, p2, colorPatt, strokeOptions);
         }
 
         int32_t parent;

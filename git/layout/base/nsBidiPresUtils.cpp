@@ -1222,11 +1222,11 @@ nsBidiPresUtils::ResolveParagraphWithinBlock(nsBlockFrame* aBlockFrame,
 }
 
 void
-nsBidiPresUtils::ReorderFrames(nsIFrame*     aFirstFrameOnLine,
-                               int32_t       aNumFramesOnLine,
-                               WritingMode   aLineWM,
-                               const nsSize& aContainerSize,
-                               nscoord       aStart)
+nsBidiPresUtils::ReorderFrames(nsIFrame*   aFirstFrameOnLine,
+                               int32_t     aNumFramesOnLine,
+                               WritingMode aLineWM,
+                               nscoord     aLineWidth,
+                               nscoord     aStart)
 {
   // If this line consists of a line frame, reorder the line frame's children.
   if (aFirstFrameOnLine->GetType() == nsGkAtoms::lineFrame) {
@@ -1239,8 +1239,7 @@ nsBidiPresUtils::ReorderFrames(nsIFrame*     aFirstFrameOnLine,
   }
 
   BidiLineData bld(aFirstFrameOnLine, aNumFramesOnLine);
-  RepositionInlineFrames(&bld, aFirstFrameOnLine, aLineWM,
-                         aContainerSize, aStart);
+  RepositionInlineFrames(&bld, aFirstFrameOnLine, aLineWM, aLineWidth, aStart);
 }
 
 nsIFrame*
@@ -1401,7 +1400,7 @@ nsBidiPresUtils::RepositionFrame(nsIFrame*             aFrame,
                                  nscoord&              aStart,
                                  nsContinuationStates* aContinuationStates,
                                  WritingMode           aContainerWM,
-                                 const nsSize&         aContainerSize)
+                                 nscoord               aContainerWidth)
 {
   if (!aFrame)
     return;
@@ -1466,7 +1465,7 @@ nsBidiPresUtils::RepositionFrame(nsIFrame*             aFrame,
                       iCoord,
                       aContinuationStates,
                       frameWM,
-                      aFrame->GetSize());
+                      aFrame->GetLogicalSize(aContainerWM).Width(aContainerWM));
       index++;
       frame = reverseOrder ?
                 childList[childList.Length() - index - 1] :
@@ -1478,22 +1477,11 @@ nsBidiPresUtils::RepositionFrame(nsIFrame*             aFrame,
     aStart += aFrame->ISize(aContainerWM);
   }
 
-  // LogicalRect doesn't correctly calculate the vertical position
-  // in vertical writing modes with right-to-left direction (Bug 1131451).
-  // This does the correct calculation ad hoc pending the fix for that.
-  nsRect rect = aFrame->GetRect();
-  nscoord lineSize = aContainerWM.IsVertical()
-    ? aContainerSize.height : aContainerSize.width;
-  NS_ASSERTION(aContainerWM.IsBidiLTR() || lineSize != NS_UNCONSTRAINEDSIZE,
-               "Unconstrained inline line size in bidi frame reordering");
-
-  nscoord frameIStart = aContainerWM.IsBidiLTR() ? start : lineSize - aStart;
-  nscoord frameISize = aStart - start;
-
-  (aContainerWM.IsVertical() ? rect.y : rect.x) = frameIStart;
-  (aContainerWM.IsVertical() ? rect.height : rect.width) = frameISize;
-
-  aFrame->SetRect(rect);
+  LogicalRect logicalRect = aFrame->GetLogicalRect(aContainerWM,
+                                                   aContainerWidth);
+  logicalRect.IStart(aContainerWM) = start;
+  logicalRect.ISize(aContainerWM) = aStart - start;
+  aFrame->SetRect(aContainerWM, logicalRect, aContainerWidth);
 
   aStart += margin.IEnd(aContainerWM);
 }
@@ -1522,7 +1510,7 @@ void
 nsBidiPresUtils::RepositionInlineFrames(BidiLineData *aBld,
                                         nsIFrame* aFirstChild,
                                         WritingMode aLineWM,
-                                        const nsSize& aContainerSize,
+                                        nscoord aLineWidth,
                                         nscoord aStart)
 {
   nscoord start = aStart;
@@ -1555,7 +1543,7 @@ nsBidiPresUtils::RepositionInlineFrames(BidiLineData *aBld,
                     start,
                     &continuationStates,
                     aLineWM,
-                    aContainerSize);
+                    aLineWidth);
   }
 }
 
@@ -2232,7 +2220,7 @@ void nsBidiPresUtils::CopyLogicalToVisual(const nsAString& aSource,
   uint32_t srcLength = aSource.Length();
   if (srcLength == 0)
     return;
-  if (!aDest.SetLength(srcLength, fallible)) {
+  if (!aDest.SetLength(srcLength, fallible_t())) {
     return;
   }
   nsAString::const_iterator fromBegin, fromEnd;

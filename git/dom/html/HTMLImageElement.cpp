@@ -149,12 +149,6 @@ NS_IMPL_STRING_ATTR(HTMLImageElement, UseMap, usemap)
 NS_IMPL_INT_ATTR(HTMLImageElement, Vspace, vspace)
 
 bool
-HTMLImageElement::IsInteractiveHTMLContent() const
-{
-  return HasAttr(kNameSpaceID_None, nsGkAtoms::usemap);
-}
-
-bool
 HTMLImageElement::IsSrcsetEnabled()
 {
   return Preferences::GetBool(kPrefSrcsetEnabled, false);
@@ -181,7 +175,7 @@ HTMLImageElement::GetCurrentSrc(nsAString& aValue)
 }
 
 void
-HTMLImageElement::GetItemValueText(DOMString& aValue)
+HTMLImageElement::GetItemValueText(nsAString& aValue)
 {
   GetSrc(aValue);
 }
@@ -205,10 +199,6 @@ HTMLImageElement::Complete()
 {
   if (!mCurrentRequest) {
     return true;
-  }
-
-  if (mPendingRequest) {
-    return false;
   }
 
   uint32_t status;
@@ -401,8 +391,8 @@ HTMLImageElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
       (aName == nsGkAtoms::name || aName == nsGkAtoms::id) &&
       aValue && !aValue->IsEmptyString()) {
     // add the image to the hashtable as needed
-    MOZ_ASSERT(aValue->Type() == nsAttrValue::eAtom,
-               "Expected atom value for name/id");
+    NS_ABORT_IF_FALSE(aValue->Type() == nsAttrValue::eAtom,
+      "Expected atom value for name/id");
     mForm->AddImageElementToTable(this,
       nsDependentAtomString(aValue->GetAtomValue()));
   }
@@ -420,7 +410,7 @@ HTMLImageElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
     // img.src, so we only need to handle the unset case
     if (InResponsiveMode()) {
       if (mResponsiveSelector->Content() == this) {
-        mResponsiveSelector->SetDefaultSource(NullString());
+        mResponsiveSelector->SetDefaultSource(nullptr);
       }
       QueueImageLoadTask();
     } else {
@@ -585,7 +575,7 @@ HTMLImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     UpdateFormOwner();
   }
 
-  bool addedToPicture = aParent && aParent->IsHTML(nsGkAtoms::picture) &&
+  bool addedToPicture = aParent && aParent->Tag() == nsGkAtoms::picture &&
                         HTMLPictureElement::IsPictureEnabled();
   if (addedToPicture) {
     QueueImageLoadTask();
@@ -887,8 +877,8 @@ HTMLImageElement::HaveSrcsetOrInPicture()
     return false;
   }
 
-  Element *parent = nsINode::GetParentElement();
-  return (parent && parent->IsHTML(nsGkAtoms::picture));
+  nsINode *parent = nsINode::GetParentNode();
+  return (parent && parent->Tag() == nsGkAtoms::picture);
 }
 
 bool
@@ -916,9 +906,7 @@ HTMLImageElement::LoadSelectedImage(bool aForce, bool aNotify)
 
   if (mResponsiveSelector) {
     nsCOMPtr<nsIURI> url = mResponsiveSelector->GetSelectedImageURL();
-    if (url) {
-      rv = LoadImage(url, aForce, aNotify, eImageLoadType_Imageset);
-    }
+    rv = LoadImage(url, aForce, aNotify, eImageLoadType_Imageset);
   } else {
     nsAutoString src;
     if (!GetAttr(kNameSpaceID_None, nsGkAtoms::src, src)) {
@@ -1043,10 +1031,10 @@ HTMLImageElement::UpdateResponsiveSource()
   nsIContent *currentSource =
     mResponsiveSelector ? mResponsiveSelector->Content() : nullptr;
   bool pictureEnabled = HTMLPictureElement::IsPictureEnabled();
-  Element *parent = pictureEnabled ? nsINode::GetParentElement() : nullptr;
+  nsINode *parent = pictureEnabled ? this->nsINode::GetParentNode() : nullptr;
 
   nsINode *candidateSource = nullptr;
-  if (parent && parent->IsHTML(nsGkAtoms::picture)) {
+  if (parent && parent->Tag() == nsGkAtoms::picture) {
     // Walk source nodes previous to ourselves
     candidateSource = parent->GetFirstChild();
   } else {
@@ -1075,8 +1063,7 @@ HTMLImageElement::UpdateResponsiveSource()
         mResponsiveSelector = nullptr;
       }
       break;
-    } else if (candidateSource->IsElement() &&
-               candidateSource->AsElement()->IsHTML(nsGkAtoms::source) &&
+    } else if (candidateSource->Tag() == nsGkAtoms::source &&
                TryCreateResponsiveSelector(candidateSource->AsContent())) {
       // This led to a valid source, stop
       break;
@@ -1090,14 +1077,6 @@ HTMLImageElement::UpdateResponsiveSource()
   }
 }
 
-/*static */ bool
-HTMLImageElement::SupportedPictureSourceType(const nsAString& aType)
-{
-  return
-    imgLoader::SupportImageWithMimeType(NS_ConvertUTF16toUTF8(aType).get(),
-                                        AcceptedMimeTypes::IMAGES_AND_DOCUMENTS);
-}
-
 bool
 HTMLImageElement::TryCreateResponsiveSelector(nsIContent *aSourceNode,
                                               const nsAString *aSrcset,
@@ -1109,10 +1088,10 @@ HTMLImageElement::TryCreateResponsiveSelector(nsIContent *aSourceNode,
 
   bool pictureEnabled = HTMLPictureElement::IsPictureEnabled();
   // Skip if this is not a <source> with matching media query
-  bool isSourceTag = aSourceNode->IsHTML(nsGkAtoms::source);
+  bool isSourceTag = aSourceNode->Tag() == nsGkAtoms::source;
   if (isSourceTag) {
-    DebugOnly<Element *> parent(nsINode::GetParentElement());
-    MOZ_ASSERT(parent && parent->IsHTML(nsGkAtoms::picture));
+    DebugOnly<nsINode *> parent(nsINode::GetParentNode());
+    MOZ_ASSERT(parent && parent->Tag() == nsGkAtoms::picture);
     MOZ_ASSERT(IsPreviousSibling(aSourceNode, this));
     MOZ_ASSERT(pictureEnabled);
 
@@ -1124,10 +1103,13 @@ HTMLImageElement::TryCreateResponsiveSelector(nsIContent *aSourceNode,
 
     nsAutoString type;
     if (aSourceNode->GetAttr(kNameSpaceID_None, nsGkAtoms::type, type) &&
-        !SupportedPictureSourceType(type)) {
+        !imgLoader::SupportImageWithMimeType(
+          NS_ConvertUTF16toUTF8(type).get(),
+          AcceptedMimeTypes::IMAGES_AND_DOCUMENTS)
+        ) {
       return false;
     }
-  } else if (aSourceNode->IsHTML(nsGkAtoms::img)) {
+  } else if (aSourceNode->Tag() == nsGkAtoms::img) {
     // Otherwise this is the <img> tag itself
     MOZ_ASSERT(aSourceNode == this);
   }
@@ -1172,71 +1154,6 @@ HTMLImageElement::TryCreateResponsiveSelector(nsIContent *aSourceNode,
 
   mResponsiveSelector = sel;
   return true;
-}
-
-/* static */ bool
-HTMLImageElement::SelectSourceForTagWithAttrs(nsIDocument *aDocument,
-                                              bool aIsSourceTag,
-                                              const nsAString& aSrcAttr,
-                                              const nsAString& aSrcsetAttr,
-                                              const nsAString& aSizesAttr,
-                                              const nsAString& aTypeAttr,
-                                              const nsAString& aMediaAttr,
-                                              nsAString& aResult)
-{
-  MOZ_ASSERT(aIsSourceTag || (aTypeAttr.IsEmpty() && aMediaAttr.IsEmpty()),
-             "Passing type or media attrs makes no sense without aIsSourceTag");
-  MOZ_ASSERT(!aIsSourceTag || aSrcAttr.IsEmpty(),
-             "Passing aSrcAttr makes no sense with aIsSourceTag set");
-
-  bool pictureEnabled = HTMLPictureElement::IsPictureEnabled();
-  if (aIsSourceTag && !pictureEnabled) {
-    return false;
-  }
-
-  if (!IsSrcsetEnabled() || aSrcsetAttr.IsEmpty()) {
-    if (!aIsSourceTag) {
-      // For an <img> with no srcset, we would always select the src attr.
-      aResult.Assign(aSrcAttr);
-      return true;
-    }
-    // Otherwise, a <source> without srcset is never selected
-    return false;
-  }
-
-  // Would not consider source tags with unsupported media or type
-  if (aIsSourceTag &&
-      ((!aMediaAttr.IsVoid() &&
-       !HTMLSourceElement::WouldMatchMediaForDocument(aMediaAttr, aDocument)) ||
-      (!aTypeAttr.IsVoid() &&
-       !SupportedPictureSourceType(aTypeAttr)))) {
-    return false;
-  }
-
-  // Using srcset or picture <source>, build a responsive selector for this tag.
-  nsRefPtr<ResponsiveImageSelector> sel =
-    new ResponsiveImageSelector(aDocument);
-
-  sel->SetCandidatesFromSourceSet(aSrcsetAttr);
-  if (pictureEnabled && !aSizesAttr.IsEmpty()) {
-    sel->SetSizesFromDescriptor(aSizesAttr);
-  }
-  if (!aIsSourceTag) {
-    sel->SetDefaultSource(aSrcAttr);
-  }
-
-  if (sel->GetSelectedImageURLSpec(aResult)) {
-    return true;
-  }
-
-  if (!aIsSourceTag) {
-    // <img> tag with no match would definitively load nothing.
-    aResult.Truncate();
-    return true;
-  }
-
-  // <source> tags with no match would leave source yet-undetermined.
-  return false;
 }
 
 void

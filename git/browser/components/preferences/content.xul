@@ -56,10 +56,10 @@
           <row id="playDRMContentRow">
             <vbox align="start">
               <checkbox id="playDRMContent" preference="media.eme.enabled"
-                        label="&playDRMContent.label;" accesskey="&playDRMContent.accesskey;"/>
+                        label="Play DRM content" accesskey="P"/>
             </vbox>
             <hbox pack="end">
-              <label id="playDRMContentLink" class="text-link" value="&playDRMContent.learnMore.label;"/>
+              <label id="playDRMContentLink" class="text-link" value="Learn more"/>
             </hbox>
           </row>
           <row id="popupPolicyRow">

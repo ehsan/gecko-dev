@@ -74,8 +74,11 @@ class IncrementalSafety
     static IncrementalSafety Safe() { return IncrementalSafety(nullptr); }
     static IncrementalSafety Unsafe(const char *reason) { return IncrementalSafety(reason); }
 
-    explicit operator bool() const {
-        return reason_ == nullptr;
+    typedef void (IncrementalSafety::* ConvertibleToBool)();
+    void nonNull() {}
+
+    operator ConvertibleToBool() const {
+        return reason_ == nullptr ? &IncrementalSafety::nonNull : 0;
     }
 
     const char *reason() {
@@ -140,14 +143,16 @@ void
 CheckHashTablesAfterMovingGC(JSRuntime *rt);
 #endif
 
+#ifdef JSGC_COMPACTING
 struct MovingTracer : JSTracer {
-    explicit MovingTracer(JSRuntime *rt) : JSTracer(rt, Visit, TraceWeakMapKeysValues) {}
+    MovingTracer(JSRuntime *rt) : JSTracer(rt, Visit, TraceWeakMapKeysValues) {}
 
     static void Visit(JSTracer *jstrc, void **thingp, JSGCTraceKind kind);
     static bool IsMovingTracer(JSTracer *trc) {
         return trc->callback == Visit;
     }
 };
+#endif
 
 } /* namespace gc */
 } /* namespace js */

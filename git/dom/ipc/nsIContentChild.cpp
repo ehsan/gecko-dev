@@ -15,6 +15,7 @@
 #include "mozilla/dom/ipc/BlobChild.h"
 #include "mozilla/ipc/InputStreamUtils.h"
 
+#include "JavaScriptChild.h"
 #include "nsIJSRuntimeService.h"
 #include "nsPrintfCString.h"
 
@@ -34,13 +35,17 @@ nsIContentChild::AllocPJavaScriptChild()
   svc->GetRuntime(&rt);
   NS_ENSURE_TRUE(svc, nullptr);
 
-  return NewJavaScriptChild(rt);
+  nsAutoPtr<JavaScriptChild> child(new JavaScriptChild(rt));
+  if (!child->init()) {
+    return nullptr;
+  }
+  return child.forget();
 }
 
 bool
 nsIContentChild::DeallocPJavaScriptChild(PJavaScriptChild* aChild)
 {
-  ReleaseJavaScriptChild(aChild);
+  static_cast<JavaScriptChild*>(aChild)->decref();
   return true;
 }
 
@@ -110,13 +115,13 @@ nsIContentChild::GetOrCreateActorForBlob(File* aBlob)
 bool
 nsIContentChild::RecvAsyncMessage(const nsString& aMsg,
                                   const ClonedMessageData& aData,
-                                  InfallibleTArray<CpowEntry>&& aCpows,
+                                  const InfallibleTArray<CpowEntry>& aCpows,
                                   const IPC::Principal& aPrincipal)
 {
-  nsRefPtr<nsFrameMessageManager> cpm = nsFrameMessageManager::GetChildProcessManager();
+  nsRefPtr<nsFrameMessageManager> cpm = nsFrameMessageManager::sChildProcessManager;
   if (cpm) {
     StructuredCloneData cloneData = ipc::UnpackClonedMessageDataForChild(aData);
-    CrossProcessCpowHolder cpows(this, aCpows);
+    CpowIdHolder cpows(this, aCpows);
     cpm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(cpm.get()),
                         aMsg, false, &cloneData, &cpows, aPrincipal, nullptr);
   }

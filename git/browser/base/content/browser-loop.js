@@ -35,7 +35,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "PanelFrame", "resource:///modules/Panel
      *                                Will be NULL if the panel hasn't loaded yet.
      */
     get browser() {
-      let browser = document.querySelector("#loop-notification-panel > #loop-panel-iframe");
+      let browser = document.querySelector("#loop-notification-panel > #loop");
       if (browser) {
         delete this.browser;
         this.browser = browser;
@@ -252,8 +252,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "PanelFrame", "resource:///modules/Panel
       let state = "";
       if (MozLoopService.errors.size) {
         state = "error";
-      } else if (MozLoopService.screenShareActive) {
-        state = "action";
       } else if (aReason == "login" && MozLoopService.userProfile) {
         state = "active";
       } else if (MozLoopService.doNotDisturb) {

@@ -7,8 +7,6 @@
 #ifndef jit_MacroAssembler_h
 #define jit_MacroAssembler_h
 
-#include "mozilla/MathAlgorithms.h"
-
 #include "jscompartment.h"
 
 #if defined(JS_CODEGEN_X86)
@@ -118,20 +116,20 @@ class MacroAssembler : public MacroAssemblerSpecific
     };
 
     /*
-     * Creates a branch based on a specific TypeSet::Type.
-     * Note: emits number test (int/double) for TypeSet::DoubleType()
+     * Creates a branch based on a specific types::Type.
+     * Note: emits number test (int/double) for types::Type::DoubleType()
      */
     class BranchType : public Branch
     {
-        TypeSet::Type type_;
+        types::Type type_;
 
       public:
         BranchType()
           : Branch(),
-            type_(TypeSet::UnknownType())
+            type_(types::Type::UnknownType())
         { }
 
-        BranchType(Condition cond, Register reg, TypeSet::Type type, Label *jump)
+        BranchType(Condition cond, Register reg, types::Type type, Label *jump)
           : Branch(cond, reg, jump),
             type_(type)
         { }
@@ -187,18 +185,27 @@ class MacroAssembler : public MacroAssemblerSpecific
     mozilla::Maybe<JitContext> jitContext_;
     mozilla::Maybe<AutoJitContextAlloc> alloc_;
 
+    // SPS instrumentation, only used for Ion caches.
+    mozilla::Maybe<IonInstrumentation> spsInstrumentation_;
+    jsbytecode *spsPc_;
+
   private:
     // This field is used to manage profiling instrumentation output. If
     // provided and enabled, then instrumentation will be emitted around call
-    // sites.
-    bool emitProfilingInstrumentation_;
+    // sites. The IonInstrumentation instance is hosted inside of
+    // CodeGeneratorShared and is the manager of when instrumentation is
+    // actually emitted or not. If nullptr, then no instrumentation is emitted.
+    IonInstrumentation *sps_;
 
     // Labels for handling exceptions and failures.
     NonAssertingLabel failureLabel_;
 
   public:
+    // If instrumentation should be emitted, then the sps parameter should be
+    // provided, but otherwise it can be safely omitted to prevent all
+    // instrumentation from being emitted.
     MacroAssembler()
-      : emitProfilingInstrumentation_(false)
+      : sps_(nullptr)
     {
         JitContext *jcx = GetJitContext();
         JSContext *cx = jcx->cx;
@@ -221,7 +228,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     // (for example, Trampoline-$(ARCH).cpp and IonCaches.cpp).
     explicit MacroAssembler(JSContext *cx, IonScript *ion = nullptr,
                             JSScript *script = nullptr, jsbytecode *pc = nullptr)
-      : emitProfilingInstrumentation_(false)
+      : sps_(nullptr)
     {
         constructRoot(cx);
         jitContext_.emplace(cx, (js::jit::TempAllocator *)nullptr);
@@ -233,15 +240,21 @@ class MacroAssembler : public MacroAssemblerSpecific
 #endif
         if (ion) {
             setFramePushed(ion->frameSize());
-            if (pc && cx->runtime()->spsProfiler.enabled())
-                emitProfilingInstrumentation_ = true;
+            if (pc && cx->runtime()->spsProfiler.enabled()) {
+                // We have to update the SPS pc when this IC stub calls into
+                // the VM.
+                spsPc_ = pc;
+                spsInstrumentation_.emplace(&cx->runtime()->spsProfiler, &spsPc_);
+                sps_ = spsInstrumentation_.ptr();
+                sps_->setPushed(script);
+            }
         }
     }
 
     // asm.js compilation handles its own JitContext-pushing
     struct AsmJSToken {};
     explicit MacroAssembler(AsmJSToken)
-      : emitProfilingInstrumentation_(false)
+      : sps_(nullptr)
     {
 #ifdef JS_CODEGEN_ARM
         initWithAllocator();
@@ -249,8 +262,8 @@ class MacroAssembler : public MacroAssemblerSpecific
 #endif
     }
 
-    void enableProfilingInstrumentation() {
-        emitProfilingInstrumentation_ = true;
+    void setInstrumentation(IonInstrumentation *sps) {
+        sps_ = sps;
     }
 
     void resetForNewCodeGenerator(TempAllocator &alloc) {
@@ -278,7 +291,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     template <typename TypeSet>
     void guardObjectType(Register obj, const TypeSet *types, Register scratch, Label *miss);
     template <typename Source>
-    void guardType(const Source &address, TypeSet::Type type, Register scratch, Label *miss);
+    void guardType(const Source &address, types::Type type, Register scratch, Label *miss);
 
     void loadObjShape(Register objReg, Register dest) {
         loadPtr(Address(objReg, JSObject::offsetOfShape()), dest);
@@ -289,13 +302,13 @@ class MacroAssembler : public MacroAssemblerSpecific
         loadPtr(Address(dest, Shape::offsetOfBase()), dest);
     }
     void loadObjClass(Register objReg, Register dest) {
-        loadPtr(Address(objReg, JSObject::offsetOfGroup()), dest);
-        loadPtr(Address(dest, ObjectGroup::offsetOfClasp()), dest);
+        loadPtr(Address(objReg, JSObject::offsetOfType()), dest);
+        loadPtr(Address(dest, types::TypeObject::offsetOfClasp()), dest);
     }
     void branchTestObjClass(Condition cond, Register obj, Register scratch, const js::Class *clasp,
                             Label *label) {
-        loadPtr(Address(obj, JSObject::offsetOfGroup()), scratch);
-        branchPtr(cond, Address(scratch, ObjectGroup::offsetOfClasp()), ImmPtr(clasp), label);
+        loadPtr(Address(obj, JSObject::offsetOfType()), scratch);
+        branchPtr(cond, Address(scratch, types::TypeObject::offsetOfClasp()), ImmPtr(clasp), label);
     }
     void branchTestObjShape(Condition cond, Register obj, const Shape *shape, Label *label) {
         branchPtr(cond, Address(obj, JSObject::offsetOfShape()), ImmGCPtr(shape), label);
@@ -347,8 +360,8 @@ class MacroAssembler : public MacroAssemblerSpecific
     }
 
     void loadObjProto(Register obj, Register dest) {
-        loadPtr(Address(obj, JSObject::offsetOfGroup()), dest);
-        loadPtr(Address(dest, ObjectGroup::offsetOfProto()), dest);
+        loadPtr(Address(obj, JSObject::offsetOfType()), dest);
+        loadPtr(Address(dest, types::TypeObject::offsetOfProto()), dest);
     }
 
     void loadStringLength(Register str, Register dest) {
@@ -377,6 +390,10 @@ class MacroAssembler : public MacroAssemblerSpecific
         Address flags(str, JSString::offsetOfFlags());
         static_assert(JSString::ROPE_FLAGS == 0, "Rope type flags must be 0");
         branchTest32(Assembler::Zero, flags, Imm32(JSString::TYPE_FLAGS_MASK), label);
+    }
+
+    void loadSliceBounds(Register worker, Register dest) {
+        loadPtr(Address(worker, ThreadPoolWorker::offsetOfSliceBounds()), dest);
     }
 
     void loadJSContext(Register dest) {
@@ -422,17 +439,6 @@ class MacroAssembler : public MacroAssemblerSpecific
         } else {
             storeValue(ValueTypeFromMIRType(src.type()), src.typedReg().gpr(), dest);
         }
-    }
-
-    template <typename T>
-    void storeObjectOrNull(Register src, const T &dest) {
-        Label notNull, done;
-        branchTestPtr(Assembler::NonZero, src, src, &notNull);
-        storeValue(NullValue(), dest);
-        jump(&done);
-        bind(&notNull);
-        storeValue(JSVAL_TYPE_OBJECT, src, dest);
-        bind(&done);
     }
 
     template <typename T>
@@ -705,8 +711,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     }
 
     template<typename T>
-    void loadFromTypedArray(Scalar::Type arrayType, const T &src, AnyRegister dest, Register temp, Label *fail,
-                            bool canonicalizeDoubles = true);
+    void loadFromTypedArray(Scalar::Type arrayType, const T &src, AnyRegister dest, Register temp, Label *fail);
 
     template<typename T>
     void loadFromTypedArray(Scalar::Type arrayType, const T &src, const ValueOperand &dest, bool allowDouble,
@@ -743,17 +748,6 @@ class MacroAssembler : public MacroAssemblerSpecific
 
     void storeToTypedFloatArray(Scalar::Type arrayType, FloatRegister value, const BaseIndex &dest);
     void storeToTypedFloatArray(Scalar::Type arrayType, FloatRegister value, const Address &dest);
-
-    // Load a property from an UnboxedPlainObject.
-    template <typename T>
-    void loadUnboxedProperty(T address, JSValueType type, TypedOrValueRegister output);
-
-    // Store a property to an UnboxedPlainObject, without triggering barriers.
-    // If failure is null, the value definitely has a type suitable for storing
-    // in the property.
-    template <typename T>
-    void storeUnboxedProperty(T address, JSValueType type,
-                              ConstantOrRegister value, Label *failure);
 
     Register extractString(const Address &address, Register scratch) {
         return extractObject(address, scratch);
@@ -827,7 +821,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     void createGCObject(Register result, Register temp, JSObject *templateObj,
                         gc::InitialHeap initialHeap, Label *fail, bool initFixedSlots = true);
 
-    void newGCThing(Register result, Register temp, JSObject *templateObj,
+    void newGCThing(Register result, Register temp, NativeObject *templateObj,
                      gc::InitialHeap initialHeap, Label *fail);
     void initGCThing(Register obj, Register temp, JSObject *templateObj,
                      bool initFixedSlots = true);
@@ -866,12 +860,32 @@ class MacroAssembler : public MacroAssemblerSpecific
         Push(ImmPtr(nullptr));
     }
 
+    void loadThreadPool(Register pool) {
+        // JitRuntimes are tied to JSRuntimes and there is one ThreadPool per
+        // JSRuntime, so we can hardcode the ThreadPool address here.
+        movePtr(ImmPtr(GetJitContext()->runtime->addressOfThreadPool()), pool);
+    }
+
     void leaveExitFrame() {
         freeStack(ExitFooterFrame::Size());
     }
 
     bool hasEnteredExitFrame() const {
         return exitCodePatch_.offset() != 0;
+    }
+
+    void link(JitCode *code) {
+        MOZ_ASSERT(!oom());
+        // If this code can transition to C++ code and witness a GC, then we need to store
+        // the JitCode onto the stack in order to GC it correctly.  exitCodePatch should
+        // be unset if the code never needed to push its JitCode*.
+        if (hasEnteredExitFrame()) {
+            exitCodePatch_.fixup(this);
+            PatchDataWithValueCheck(CodeLocationLabel(code, exitCodePatch_),
+                                    ImmPtr(code),
+                                    ImmPtr((void*)-1));
+        }
+
     }
 
     // Generates code used to complete a bailout.
@@ -885,45 +899,50 @@ class MacroAssembler : public MacroAssemblerSpecific
     // been made so that a safepoint can be made at that location.
 
     template <typename T>
-    void callWithABI(const T &fun, MoveOp::Type result = MoveOp::GENERAL) {
-        profilerPreCall();
+    void callWithABINoProfiling(const T &fun, MoveOp::Type result = MoveOp::GENERAL) {
         MacroAssemblerSpecific::callWithABI(fun, result);
-        profilerPostReturn();
+    }
+
+    template <typename T>
+    void callWithABI(const T &fun, MoveOp::Type result = MoveOp::GENERAL) {
+        leaveSPSFrame();
+        callWithABINoProfiling(fun, result);
+        reenterSPSFrame();
     }
 
     // see above comment for what is returned
     uint32_t callJit(Register callee) {
-        profilerPreCall();
+        leaveSPSFrame();
         MacroAssemblerSpecific::callJit(callee);
         uint32_t ret = currentOffset();
-        profilerPostReturn();
+        reenterSPSFrame();
         return ret;
     }
 
     // see above comment for what is returned
     uint32_t callWithExitFrame(Label *target) {
-        profilerPreCall();
+        leaveSPSFrame();
         MacroAssemblerSpecific::callWithExitFrame(target);
         uint32_t ret = currentOffset();
-        profilerPostReturn();
+        reenterSPSFrame();
         return ret;
     }
 
     // see above comment for what is returned
     uint32_t callWithExitFrame(JitCode *target) {
-        profilerPreCall();
+        leaveSPSFrame();
         MacroAssemblerSpecific::callWithExitFrame(target);
         uint32_t ret = currentOffset();
-        profilerPostReturn();
+        reenterSPSFrame();
         return ret;
     }
 
     // see above comment for what is returned
     uint32_t callWithExitFrame(JitCode *target, Register dynStack) {
-        profilerPreCall();
+        leaveSPSFrame();
         MacroAssemblerSpecific::callWithExitFrame(target, dynStack);
         uint32_t ret = currentOffset();
-        profilerPostReturn();
+        reenterSPSFrame();
         return ret;
     }
 
@@ -959,19 +978,165 @@ class MacroAssembler : public MacroAssemblerSpecific
     // These two functions are helpers used around call sites throughout the
     // assembler. They are called from the above call wrappers to emit the
     // necessary instrumentation.
-    void profilerPreCall() {
-        if (!emitProfilingInstrumentation_)
+    void leaveSPSFrame() {
+        if (!sps_ || !sps_->enabled())
             return;
-        profilerPreCallImpl();
+        // No registers are guaranteed to be available, so push/pop a register
+        // so we can use one
+        push(CallTempReg0);
+        sps_->leave(*this, CallTempReg0);
+        pop(CallTempReg0);
     }
 
-    void profilerPostReturn() {
-        if (!emitProfilingInstrumentation_)
+    void reenterSPSFrame() {
+        if (!sps_ || !sps_->enabled())
             return;
-        profilerPostReturnImpl();
+        // Attempt to use a now-free register within a given set, but if the
+        // architecture being built doesn't have an available register, resort
+        // to push/pop
+        GeneralRegisterSet regs(Registers::TempMask & ~Registers::JSCallMask &
+                                                      ~Registers::CallMask);
+        if (regs.empty()) {
+            push(CallTempReg0);
+            sps_->reenter(*this, CallTempReg0);
+            pop(CallTempReg0);
+        } else {
+            sps_->reenter(*this, regs.getAny());
+        }
+    }
+
+    void spsProfileEntryAddress(SPSProfiler *p, int offset, Register temp,
+                                Label *full)
+    {
+        movePtr(ImmPtr(p->sizePointer()), temp);
+        load32(Address(temp, 0), temp);
+        if (offset != 0)
+            add32(Imm32(offset), temp);
+        branch32(Assembler::GreaterThanOrEqual, temp, Imm32(p->maxSize()), full);
+
+        JS_STATIC_ASSERT(sizeof(ProfileEntry) == (2 * sizeof(void *)) + 8);
+        if (sizeof(void *) == 4) {
+            lshiftPtr(Imm32(4), temp);
+        } else {
+            lshiftPtr(Imm32(3), temp);
+            mulBy3(temp, temp);
+        }
+
+        addPtr(ImmPtr(p->stack()), temp);
+    }
+
+    // The safe version of the above method refrains from assuming that the fields
+    // of the SPSProfiler class are going to stay the same across different runs of
+    // the jitcode.  Ion can use the more efficient unsafe version because ion jitcode
+    // will not survive changes to to the profiler settings.  Baseline jitcode, however,
+    // can span these changes, so any hardcoded field values will be incorrect afterwards.
+    // All the sps-related methods used by baseline call |spsProfileEntryAddressSafe|.
+    void spsProfileEntryAddressSafe(SPSProfiler *p, int offset, Register temp,
+                                    Label *full)
+    {
+        // Load size pointer
+        loadPtr(AbsoluteAddress(p->addressOfSizePointer()), temp);
+
+        // Load size
+        load32(Address(temp, 0), temp);
+        if (offset != 0)
+            add32(Imm32(offset), temp);
+
+        // Test against max size.
+        branch32(Assembler::LessThanOrEqual, AbsoluteAddress(p->addressOfMaxSize()), temp, full);
+
+        JS_STATIC_ASSERT(sizeof(ProfileEntry) == (2 * sizeof(void *)) + 8);
+        if (sizeof(void *) == 4) {
+            lshiftPtr(Imm32(4), temp);
+        } else {
+            lshiftPtr(Imm32(3), temp);
+            mulBy3(temp, temp);
+        }
+
+        push(temp);
+        loadPtr(AbsoluteAddress(p->addressOfStack()), temp);
+        addPtr(Address(StackPointer, 0), temp);
+        addPtr(Imm32(sizeof(size_t)), StackPointer);
     }
 
   public:
+    // These functions are needed by the IonInstrumentation interface defined in
+    // vm/SPSProfiler.h.  They will modify the pseudostack provided to SPS to
+    // perform the actual instrumentation.
+
+    void spsUpdatePCIdx(SPSProfiler *p, int32_t idx, Register temp) {
+        Label stackFull;
+        spsProfileEntryAddress(p, -1, temp, &stackFull);
+        store32(Imm32(idx), Address(temp, ProfileEntry::offsetOfLineOrPc()));
+        bind(&stackFull);
+    }
+
+    void spsUpdatePCIdx(SPSProfiler *p, Register idx, Register temp) {
+        Label stackFull;
+        spsProfileEntryAddressSafe(p, -1, temp, &stackFull);
+        store32(idx, Address(temp, ProfileEntry::offsetOfLineOrPc()));
+        bind(&stackFull);
+    }
+
+    // spsPushFrame variant for Ion-optimized scripts.
+    void spsPushFrame(SPSProfiler *p, const char *str, JSScript *s, Register temp) {
+        Label stackFull;
+        spsProfileEntryAddress(p, 0, temp, &stackFull);
+
+        // Push a JS frame with a copy label
+        storePtr(ImmPtr(str), Address(temp, ProfileEntry::offsetOfLabel()));
+        storePtr(ImmGCPtr(s), Address(temp, ProfileEntry::offsetOfSpOrScript()));
+        store32(Imm32(ProfileEntry::NullPCOffset), Address(temp, ProfileEntry::offsetOfLineOrPc()));
+        store32(Imm32(ProfileEntry::FRAME_LABEL_COPY), Address(temp, ProfileEntry::offsetOfFlags()));
+
+        /* Always increment the stack size, whether or not we actually pushed. */
+        bind(&stackFull);
+        movePtr(ImmPtr(p->sizePointer()), temp);
+        add32(Imm32(1), Address(temp, 0));
+    }
+
+    // spsPushFrame variant for Baseline-optimized scripts.
+    void spsPushFrame(SPSProfiler *p, const Address &str, const Address &script,
+                      Register temp, Register temp2)
+    {
+        Label stackFull;
+        spsProfileEntryAddressSafe(p, 0, temp, &stackFull);
+
+        // Push a JS frame with a copy label
+        loadPtr(str, temp2);
+        storePtr(temp2, Address(temp, ProfileEntry::offsetOfLabel()));
+
+        loadPtr(script, temp2);
+        storePtr(temp2, Address(temp, ProfileEntry::offsetOfSpOrScript()));
+
+        // Store 0 for PCIdx because that's what interpreter does.
+        // (See probes::EnterScript, which calls spsProfiler.enter, which pushes an entry
+        //  with 0 pcIdx).
+        store32(Imm32(0), Address(temp, ProfileEntry::offsetOfLineOrPc()));
+        store32(Imm32(ProfileEntry::FRAME_LABEL_COPY), Address(temp, ProfileEntry::offsetOfFlags()));
+
+        /* Always increment the stack size, whether or not we actually pushed. */
+        bind(&stackFull);
+        movePtr(ImmPtr(p->addressOfSizePointer()), temp);
+        loadPtr(Address(temp, 0), temp);
+        add32(Imm32(1), Address(temp, 0));
+    }
+
+    void spsPopFrame(SPSProfiler *p, Register temp) {
+        movePtr(ImmPtr(p->sizePointer()), temp);
+        add32(Imm32(-1), Address(temp, 0));
+    }
+
+    // spsPropFrameSafe does not assume |profiler->sizePointer()| will stay constant.
+    void spsPopFrameSafe(SPSProfiler *p, Register temp) {
+        loadPtr(AbsoluteAddress(p->addressOfSizePointer()), temp);
+        add32(Imm32(-1), Address(temp, 0));
+    }
+
+    static const char enterJitLabel[];
+    void spsMarkJit(SPSProfiler *p, Register framePtr, Register temp);
+    void spsUnmarkJit(SPSProfiler *p, Register temp);
+
     void loadBaselineOrIonRaw(Register script, Register dest, Label *failure);
     void loadBaselineOrIonNoArgCheck(Register callee, Register dest, Label *failure);
 
@@ -996,13 +1161,8 @@ class MacroAssembler : public MacroAssemblerSpecific
     }
 
     void finish();
-    void link(JitCode *code);
 
     void assumeUnreachable(const char *output);
-
-    template<typename T>
-    void assertTestInt32(Condition cond, const T &value, const char *output);
-
     void printf(const char *output);
     void printf(const char *output, Register value);
 
@@ -1263,42 +1423,15 @@ class MacroAssembler : public MacroAssemblerSpecific
         PopRegsInMask(liveRegs);
     }
 
-    // Align the stack pointer based on the number of arguments which are pushed
-    // on the stack, such that the JitFrameLayout would be correctly aligned on
-    // the JitStackAlignment.
-    void alignJitStackBasedOnNArgs(Register nargs);
-    void alignJitStackBasedOnNArgs(uint32_t nargs);
-
-    void assertStackAlignment(uint32_t alignment, int32_t offset = 0) {
+    void assertStackAlignment(uint32_t alignment) {
 #ifdef DEBUG
-        Label ok, bad;
+        Label ok;
         MOZ_ASSERT(IsPowerOfTwo(alignment));
-
-        // Wrap around the offset to be a non-negative number.
-        offset %= alignment;
-        if (offset < 0)
-            offset += alignment;
-
-        // Test if each bit from offset is set.
-        uint32_t off = offset;
-        while (off) {
-            uint32_t lowestBit = 1 << mozilla::CountTrailingZeroes32(off);
-            branchTestPtr(Assembler::Zero, StackPointer, Imm32(lowestBit), &bad);
-            off ^= lowestBit;
-        }
-
-        // Check that all remaining bits are zero.
-        branchTestPtr(Assembler::Zero, StackPointer, Imm32((alignment - 1) ^ offset), &ok);
-
-        bind(&bad);
+        branchTestPtr(Assembler::Zero, StackPointer, Imm32(alignment - 1), &ok);
         breakpoint();
         bind(&ok);
 #endif
     }
-
-    void profilerPreCallImpl();
-    void profilerPreCallImpl(Register reg, Register reg2);
-    void profilerPostReturnImpl() {}
 };
 
 static inline Assembler::DoubleCondition

@@ -121,16 +121,16 @@ class BASE_EXPORT FundamentalValue : public Value {
   explicit FundamentalValue(bool in_value);
   explicit FundamentalValue(int in_value);
   explicit FundamentalValue(double in_value);
-  ~FundamentalValue() override;
+  virtual ~FundamentalValue();
 
   // Overridden from Value:
-  bool GetAsBoolean(bool* out_value) const override;
-  bool GetAsInteger(int* out_value) const override;
+  virtual bool GetAsBoolean(bool* out_value) const OVERRIDE;
+  virtual bool GetAsInteger(int* out_value) const OVERRIDE;
   // Values of both type TYPE_INTEGER and TYPE_DOUBLE can be obtained as
   // doubles.
-  bool GetAsDouble(double* out_value) const override;
-  FundamentalValue* DeepCopy() const override;
-  bool Equals(const Value* other) const override;
+  virtual bool GetAsDouble(double* out_value) const OVERRIDE;
+  virtual FundamentalValue* DeepCopy() const OVERRIDE;
+  virtual bool Equals(const Value* other) const OVERRIDE;
 
  private:
   union {
@@ -148,18 +148,18 @@ class BASE_EXPORT StringValue : public Value {
   // Initializes a StringValue with a string16.
   explicit StringValue(const string16& in_value);
 
-  ~StringValue() override;
+  virtual ~StringValue();
 
   // Returns |value_| as a pointer or reference.
   std::string* GetString();
   const std::string& GetString() const;
 
   // Overridden from Value:
-  bool GetAsString(std::string* out_value) const override;
-  bool GetAsString(string16* out_value) const override;
-  bool GetAsString(const StringValue** out_value) const override;
-  StringValue* DeepCopy() const override;
-  bool Equals(const Value* other) const override;
+  virtual bool GetAsString(std::string* out_value) const OVERRIDE;
+  virtual bool GetAsString(string16* out_value) const OVERRIDE;
+  virtual bool GetAsString(const StringValue** out_value) const OVERRIDE;
+  virtual StringValue* DeepCopy() const OVERRIDE;
+  virtual bool Equals(const Value* other) const OVERRIDE;
 
  private:
   std::string value_;
@@ -174,7 +174,7 @@ class BASE_EXPORT BinaryValue: public Value {
   // |buffer|.
   BinaryValue(scoped_ptr<char[]> buffer, size_t size);
 
-  ~BinaryValue() override;
+  virtual ~BinaryValue();
 
   // For situations where you want to keep ownership of your buffer, this
   // factory method creates a new BinaryValue by copying the contents of the
@@ -188,8 +188,8 @@ class BASE_EXPORT BinaryValue: public Value {
   const char* GetBuffer() const { return buffer_.get(); }
 
   // Overridden from Value:
-  BinaryValue* DeepCopy() const override;
-  bool Equals(const Value* other) const override;
+  virtual BinaryValue* DeepCopy() const OVERRIDE;
+  virtual bool Equals(const Value* other) const OVERRIDE;
 
  private:
   scoped_ptr<char[]> buffer_;
@@ -204,11 +204,12 @@ class BASE_EXPORT BinaryValue: public Value {
 class BASE_EXPORT DictionaryValue : public Value {
  public:
   DictionaryValue();
-  ~DictionaryValue() override;
+  virtual ~DictionaryValue();
 
   // Overridden from Value:
-  bool GetAsDictionary(DictionaryValue** out_value) override;
-  bool GetAsDictionary(const DictionaryValue** out_value) const override;
+  virtual bool GetAsDictionary(DictionaryValue** out_value) OVERRIDE;
+  virtual bool GetAsDictionary(
+      const DictionaryValue** out_value) const OVERRIDE;
 
   // Returns true if the current dictionary has a value for the given key.
   bool HasKey(const std::string& key) const;
@@ -361,8 +362,8 @@ class BASE_EXPORT DictionaryValue : public Value {
   };
 
   // Overridden from Value:
-  DictionaryValue* DeepCopy() const override;
-  bool Equals(const Value* other) const override;
+  virtual DictionaryValue* DeepCopy() const OVERRIDE;
+  virtual bool Equals(const Value* other) const OVERRIDE;
 
  private:
   ValueMap dictionary_;
@@ -377,7 +378,7 @@ class BASE_EXPORT ListValue : public Value {
   typedef ValueVector::const_iterator const_iterator;
 
   ListValue();
-  ~ListValue() override;
+  virtual ~ListValue();
 
   // Clears the contents of this ListValue
   void Clear();
@@ -475,10 +476,10 @@ class BASE_EXPORT ListValue : public Value {
   const_iterator end() const { return list_.end(); }
 
   // Overridden from Value:
-  bool GetAsList(ListValue** out_value) override;
-  bool GetAsList(const ListValue** out_value) const override;
-  ListValue* DeepCopy() const override;
-  bool Equals(const Value* other) const override;
+  virtual bool GetAsList(ListValue** out_value) OVERRIDE;
+  virtual bool GetAsList(const ListValue** out_value) const OVERRIDE;
+  virtual ListValue* DeepCopy() const OVERRIDE;
+  virtual bool Equals(const Value* other) const OVERRIDE;
 
  private:
   ValueVector list_;

@@ -28,7 +28,7 @@ const { Promise: promise } = Cu.import("resource://gre/modules/Promise.jsm", {})
 
 this.EXPORTED_SYMBOLS = ["BrowserToolboxProcess"];
 
-let processes = new Set();
+let processes = Set();
 
 /**
  * Constructor for creating a process that will hold a chrome toolbox.

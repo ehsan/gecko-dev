@@ -28,7 +28,6 @@
 #include "mozilla/TimeStamp.h"
 #include "mozilla/TouchEvents.h"
 #include "mozilla/dom/Touch.h"
-#include "mozilla/layers/APZThreadUtils.h"
 #include "mozilla/layers/CompositorParent.h"
 #include "nsAppShell.h"
 #include "nsDebug.h"
@@ -74,6 +73,48 @@ GeckoTouchDispatcher::GeckoTouchDispatcher()
   ClearOnShutdown(&sTouchDispatcher);
 }
 
+class DispatchTouchEventsMainThread : public nsRunnable
+{
+public:
+  DispatchTouchEventsMainThread(GeckoTouchDispatcher* aTouchDispatcher,
+                                TimeStamp aVsyncTime)
+    : mTouchDispatcher(aTouchDispatcher)
+    , mVsyncTime(aVsyncTime)
+  {
+  }
+
+  NS_IMETHOD Run()
+  {
+    mTouchDispatcher->DispatchTouchMoveEvents(mVsyncTime);
+    return NS_OK;
+  }
+
+private:
+  nsRefPtr<GeckoTouchDispatcher> mTouchDispatcher;
+  TimeStamp mVsyncTime;
+};
+
+class DispatchSingleTouchMainThread : public nsRunnable
+{
+public:
+  DispatchSingleTouchMainThread(GeckoTouchDispatcher* aTouchDispatcher,
+                                MultiTouchInput& aTouch)
+    : mTouchDispatcher(aTouchDispatcher)
+    , mTouch(aTouch)
+  {
+  }
+
+  NS_IMETHOD Run()
+  {
+    mTouchDispatcher->DispatchTouchEvent(mTouch);
+    return NS_OK;
+  }
+
+private:
+  nsRefPtr<GeckoTouchDispatcher> mTouchDispatcher;
+  MultiTouchInput mTouch;
+};
+
 /* static */ void
 GeckoTouchDispatcher::SetCompositorVsyncObserver(mozilla::layers::CompositorVsyncObserver *aObserver)
 {
@@ -81,7 +122,7 @@ GeckoTouchDispatcher::SetCompositorVsyncObserver(mozilla::layers::CompositorVsyn
   MOZ_ASSERT(NS_IsMainThread());
   // We assume on b2g that there is only 1 CompositorParent
   MOZ_ASSERT(sTouchDispatcher->mCompositorVsyncObserver == nullptr);
-  if (sTouchDispatcher->mResamplingEnabled) {
+  if (gfxPrefs::TouchResampling()) {
     sTouchDispatcher->mCompositorVsyncObserver = aObserver;
   }
 }
@@ -90,7 +131,7 @@ GeckoTouchDispatcher::SetCompositorVsyncObserver(mozilla::layers::CompositorVsyn
 /* static */ bool
 GeckoTouchDispatcher::NotifyVsync(TimeStamp aVsyncTimestamp)
 {
-  if (sTouchDispatcher == nullptr) {
+  if ((sTouchDispatcher == nullptr) || !gfxPrefs::TouchResampling()) {
     return false;
   }
 
@@ -102,8 +143,7 @@ GeckoTouchDispatcher::NotifyVsync(TimeStamp aVsyncTimestamp)
   }
 
   if (haveTouchData) {
-    layers::APZThreadUtils::AssertOnControllerThread();
-    sTouchDispatcher->DispatchTouchMoveEvents(aVsyncTimestamp);
+    NS_DispatchToMainThread(new DispatchTouchEventsMainThread(sTouchDispatcher, aVsyncTimestamp));
   }
 
   return haveTouchData;
@@ -113,7 +153,7 @@ GeckoTouchDispatcher::NotifyVsync(TimeStamp aVsyncTimestamp)
 void
 GeckoTouchDispatcher::NotifyTouch(MultiTouchInput& aTouch, TimeStamp aEventTime)
 {
-  if (mCompositorVsyncObserver) {
+  if (aTouch.mType == MultiTouchInput::MULTITOUCH_START && mCompositorVsyncObserver) {
     mCompositorVsyncObserver->SetNeedsComposite(true);
   }
 
@@ -131,11 +171,9 @@ GeckoTouchDispatcher::NotifyTouch(MultiTouchInput& aTouch, TimeStamp aEventTime)
       mTouchMoveEvents.back() = aTouch;
     }
 
-    layers::APZThreadUtils::RunOnControllerThread(NewRunnableMethod(
-      this, &GeckoTouchDispatcher::DispatchTouchMoveEvents, TimeStamp::Now()));
+    NS_DispatchToMainThread(new DispatchTouchEventsMainThread(this, TimeStamp::Now()));
   } else {
-    layers::APZThreadUtils::RunOnControllerThread(NewRunnableMethod(
-      this, &GeckoTouchDispatcher::DispatchTouchEvent, aTouch));
+    NS_DispatchToMainThread(new DispatchSingleTouchMainThread(this, aTouch));
   }
 }
 
@@ -186,15 +224,19 @@ Interpolate(int start, int end, TimeDuration aFrameDiff, TimeDuration aTouchDiff
 static const SingleTouchData&
 GetTouchByID(const SingleTouchData& aCurrentTouch, MultiTouchInput& aOtherTouch)
 {
-  int32_t index = aOtherTouch.IndexOfTouch(aCurrentTouch.mIdentifier);
-  if (index < 0) {
-    // We can have situations where a previous touch event had 2 fingers
-    // and we lift 1 finger off. In those cases, we won't find the touch event
-    // with given id, so just return the current touch, which will be resampled
-    // without modification and dispatched.
-    return aCurrentTouch;
+  int32_t id = aCurrentTouch.mIdentifier;
+  for (size_t i = 0; i < aOtherTouch.mTouches.Length(); i++) {
+    SingleTouchData& touch = aOtherTouch.mTouches[i];
+    if (touch.mIdentifier == id) {
+      return touch;
+    }
   }
-  return aOtherTouch.mTouches[index];
+
+  // We can have situations where a previous touch event had 2 fingers
+  // and we lift 1 finger off. In those cases, we won't find the touch event
+  // with given id, so just return the current touch, which will be resampled
+  // without modification and dispatched.
+  return aCurrentTouch;
 }
 
 
@@ -209,8 +251,8 @@ ResampleTouch(MultiTouchInput& aOutTouch,
 
   // Make sure we only resample the correct finger.
   for (size_t i = 0; i < aOutTouch.mTouches.Length(); i++) {
-    const SingleTouchData& current = aCurrent.mTouches[i];
-    const SingleTouchData& base = GetTouchByID(current, aBase);
+    const SingleTouchData& base = aBase.mTouches[i];
+    const SingleTouchData& current = GetTouchByID(base, aCurrent);
 
     const ScreenIntPoint& baseTouchPoint = base.mScreenPoint;
     const ScreenIntPoint& currentTouchPoint = current.mScreenPoint;
@@ -298,7 +340,7 @@ IsExpired(const MultiTouchInput& aTouch)
   return (timeNowMs - aTouch.mTime) > kInputExpirationThresholdMs;
 }
 void
-GeckoTouchDispatcher::DispatchTouchEvent(MultiTouchInput aMultiTouch)
+GeckoTouchDispatcher::DispatchTouchEvent(MultiTouchInput& aMultiTouch)
 {
   if ((aMultiTouch.mType == MultiTouchInput::MULTITOUCH_END ||
        aMultiTouch.mType == MultiTouchInput::MULTITOUCH_CANCEL) &&

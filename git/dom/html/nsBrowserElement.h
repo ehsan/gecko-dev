@@ -13,6 +13,7 @@
 #include "nsIBrowserElementAPI.h"
 
 class nsFrameLoader;
+class nsIObserver;
 
 namespace mozilla {
 
@@ -30,8 +31,8 @@ class ErrorResult;
 class nsBrowserElement
 {
 public:
-  nsBrowserElement() : mOwnerIsWidget(false) {}
-  virtual ~nsBrowserElement() {}
+  nsBrowserElement();
+  virtual ~nsBrowserElement();
 
   void SetVisible(bool aVisible, ErrorResult& aRv);
   already_AddRefed<dom::DOMRequest> GetVisible(ErrorResult& aRv);
@@ -88,18 +89,19 @@ public:
   already_AddRefed<dom::DOMRequest> SetInputMethodActive(bool isActive,
                                                          ErrorResult& aRv);
 
-  void SetNFCFocus(bool isFocus,
-                   ErrorResult& aRv);
-
 protected:
   NS_IMETHOD_(already_AddRefed<nsFrameLoader>) GetFrameLoader() = 0;
-  void InitBrowserElementAPI();
   nsCOMPtr<nsIBrowserElementAPI> mBrowserElementAPI;
 
 private:
+  void InitBrowserElementAPI();
   bool IsBrowserElementOrThrow(ErrorResult& aRv);
   bool IsNotWidgetOrThrow(ErrorResult& aRv);
   bool mOwnerIsWidget;
+
+  class BrowserShownObserver;
+  friend class BrowserShownObserver;
+  nsRefPtr<BrowserShownObserver> mObserver;
 };
 
 } // namespace mozilla

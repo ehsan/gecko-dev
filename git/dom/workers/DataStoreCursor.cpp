@@ -40,11 +40,10 @@ WorkerDataStoreCursor::Constructor(GlobalObject& aGlobal, ErrorResult& aRv)
   return nullptr;
 }
 
-bool
-WorkerDataStoreCursor::WrapObject(JSContext* aCx,
-                                  JS::MutableHandle<JSObject*> aReflector)
+JSObject*
+WorkerDataStoreCursor::WrapObject(JSContext* aCx)
 {
-  return DataStoreCursorBinding_workers::Wrap(aCx, this, aReflector);
+  return DataStoreCursorBinding_workers::Wrap(aCx, this);
 }
 
 // A WorkerMainThreadRunnable which holds a reference to DataStoreCursor.
@@ -185,6 +184,12 @@ WorkerDataStoreCursor::Close(JSContext* aCx, ErrorResult& aRv)
   nsRefPtr<DataStoreCursorCloseRunnable> runnable =
     new DataStoreCursorCloseRunnable(workerPrivate, mBackingCursor, aRv);
   runnable->Dispatch(aCx);
+}
+
+void
+WorkerDataStoreCursor::SetDataStoreCursorImpl(DataStoreCursorImpl& aCursor)
+{
+  NS_NOTREACHED("We don't use this for the WorkerDataStoreCursor!");
 }
 
 void

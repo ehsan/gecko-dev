@@ -355,7 +355,7 @@ let FormAssistant = {
   },
 
   handleEvent: function fa_handleEvent(evt) {
-    let target = evt.composedTarget;
+    let target = evt.target;
 
     let range = null;
     switch (evt.type) {
@@ -1207,44 +1207,15 @@ function replaceSurroundingText(element, text, offset, length) {
 
 let CompositionManager =  {
   _isStarted: false,
-  _textInputProcessor: null,
   _clauseAttrMap: {
     'raw-input':
-      Ci.nsITextInputProcessor.ATTR_RAW_CLAUSE,
+      Ci.nsICompositionStringSynthesizer.ATTR_RAWINPUT,
     'selected-raw-text':
-      Ci.nsITextInputProcessor.ATTR_SELECTED_RAW_CLAUSE,
+      Ci.nsICompositionStringSynthesizer.ATTR_SELECTEDRAWTEXT,
     'converted-text':
-      Ci.nsITextInputProcessor.ATTR_CONVERTED_CLAUSE,
+      Ci.nsICompositionStringSynthesizer.ATTR_CONVERTEDTEXT,
     'selected-converted-text':
-      Ci.nsITextInputProcessor.ATTR_SELECTED_CLAUSE
-  },
-
-  _callback: function cm_callback(aTIP, aNotification)
-  {
-    try {
-      switch (aNotification.type) {
-        case "request-to-commit":
-          aTIP.commitComposition();
-          break;
-        case "request-to-cancel":
-          aTIP.cancelComposition();
-          break;
-      }
-    } catch (e) {
-      return false;
-    }
-    return true;
-  },
-
-  _prepareTextInputProcessor: function cm_prepareTextInputProcessor(aWindow)
-  {
-    if (!this._textInputProcessor) {
-      this._textInputProcessor =
-        Cc["@mozilla.org/text-input-processor;1"].
-          createInstance(Ci.nsITextInputProcessor);
-    }
-    return this._textInputProcessor.beginInputTransaction(aWindow,
-                                                          this._callback);
+      Ci.nsICompositionStringSynthesizer.ATTR_SELECTEDCONVERTEDTEXT
   },
 
   setComposition: function cm_setComposition(element, text, cursor, clauses) {
@@ -1271,7 +1242,7 @@ let CompositionManager =  {
           remainingLength -= clauseLength;
           clauseLens.push(clauseLength);
           clauseAttrs.push(this._clauseAttrMap[clauses[i].selectionType] ||
-                           Ci.nsITextInputProcessor.ATTR_RAW_CLAUSE);
+                           Ci.nsICompositionStringSynthesizer.ATTR_RAWINPUT);
         }
       }
       // If the total clauses length is less than that of the composition
@@ -1281,33 +1252,32 @@ let CompositionManager =  {
       }
     } else {
       clauseLens.push(len);
-      clauseAttrs.push(Ci.nsITextInputProcessor.ATTR_RAW_CLAUSE);
+      clauseAttrs.push(Ci.nsICompositionStringSynthesizer.ATTR_RAWINPUT);
     }
 
-    let win = element.ownerDocument.defaultView;
-    if (!this._prepareTextInputProcessor(win)) {
-      return;
+    // Start composition if need to.
+    if (!this._isStarted) {
+      this._isStarted = true;
+      domWindowUtils.sendCompositionEvent('compositionstart', '', '');
     }
+
     // Update the composing text.
-    this._textInputProcessor.setPendingCompositionString(text);
+    let compositionString = domWindowUtils.createCompositionStringSynthesizer();
+    compositionString.setString(text);
     for (var i = 0; i < clauseLens.length; i++) {
-      if (!clauseLens[i]) {
-        continue;
-      }
-      this._textInputProcessor.appendClauseToPendingComposition(clauseLens[i],
-                                                                clauseAttrs[i]);
+      compositionString.appendClause(clauseLens[i], clauseAttrs[i]);
     }
     if (cursor >= 0) {
-      this._textInputProcessor.setCaretInPendingComposition(cursor);
+      compositionString.setCaret(cursor, 0);
     }
-    this._isStarted = this._textInputProcessor.flushPendingComposition();
+    compositionString.dispatchEvent();
   },
 
   endComposition: function cm_endComposition(text) {
     if (!this._isStarted) {
       return;
     }
-    this._textInputProcessor.commitCompositionWith(text ? text : "");
+    domWindowUtils.sendCompositionEvent('compositioncommit', text, '');
     this._isStarted = false;
   },
 

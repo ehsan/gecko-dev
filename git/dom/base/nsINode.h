@@ -520,9 +520,11 @@ public:
   }
 
   /**
-   * This method returns the owner doc if the node is in the
-   * composed document (as defined in the Shadow DOM spec), otherwise
-   * it returns null.
+   * This method gets the current doc of the node hosting this content
+   * or the current doc of this content if it is not being hosted. This
+   * method walks through ShadowRoot boundaries until it reach the host
+   * that is located in the root of the "tree of trees" (see Shadow DOM
+   * spec) and returns the current doc for that host.
    */
   nsIDocument* GetComposedDoc() const
   {
@@ -1019,7 +1021,7 @@ public:
   // Note: This asserts |IsInAnonymousSubtree()|.
   bool IsAnonymousContentInSVGUseSubtree() const;
 
-  // True for native anonymous content and for XBL content if the binding
+  // True for native anonymous content and for XBL content if the binging
   // has chromeOnlyContent="true".
   bool ChromeOnlyAccess() const
   {

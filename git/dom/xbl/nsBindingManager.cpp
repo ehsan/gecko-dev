@@ -344,7 +344,8 @@ nsBindingManager::RemoveFromAttachedQueue(nsXBLBinding* aBinding)
 nsresult
 nsBindingManager::AddToAttachedQueue(nsXBLBinding* aBinding)
 {
-  mAttachedStack.AppendElement(aBinding);
+  if (!mAttachedStack.AppendElement(aBinding))
+    return NS_ERROR_OUT_OF_MEMORY;
 
   // If we're in the middle of processing our queue already, don't
   // bother posting the event.

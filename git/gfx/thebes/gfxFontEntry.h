@@ -163,6 +163,7 @@ public:
     }
 
     virtual bool SkipDuringSystemFallback() { return false; }
+    virtual bool TestCharacterMap(uint32_t aCh);
     nsresult InitializeUVSMap();
     uint16_t GetUVSGlyph(uint32_t aCh, uint32_t aVS);
 
@@ -402,8 +403,6 @@ public:
     bool             mHasSpaceFeaturesKerning : 1;
     bool             mHasSpaceFeaturesNonKerning : 1;
     bool             mSkipDefaultFeatureSpaceCheck : 1;
-    bool             mSpaceGlyphIsInvisible : 1;
-    bool             mSpaceGlyphIsInvisibleInitialized : 1;
     bool             mHasGraphiteTables : 1;
     bool             mCheckedForGraphiteTables : 1;
     bool             mHasCmapTable : 1;
@@ -475,9 +474,6 @@ protected:
     GetCMAPFromFontInfo(FontInfoData *aFontInfoData,
                         uint32_t& aUVSOffset,
                         bool& aSymbolFont);
-
-    // helper for HasCharacter(), which is what client code should call
-    virtual bool TestCharacterMap(uint32_t aCh);
 
     // Font's unitsPerEm from the 'head' table, if available (will be set to
     // kInvalidUPEM for non-sfnt font formats)

@@ -15,7 +15,7 @@
 <datepicker id="datepicker"/>
 <datepicker id="datepicker-popup" type="popup"/>
 <hbox onDOMMouseScroll="mouseScrolled = event.defaultPrevented;">
-  <datepicker id="datepicker-grid" type="grid" value="2007-04-21"/>
+  <datepicker id="datepicker-grid" type="grid"/>
 </hbox>
 </hbox>
 
@@ -46,10 +46,7 @@ function testtag_datepickers()
   var dppopup = document.getElementById("datepicker-popup");
   testtag_datepicker(document.getElementById("datepicker"), "", "datepicker");
   testtag_datepicker(dppopup, "popup", "datepicker popup");
-
-  var gridpicker = document.getElementById("datepicker-grid");
-  is(gridpicker.monthField.selectedIndex, 3, "datepicker grid correct month is initially selected");
-  testtag_datepicker(gridpicker, "grid", "datepicker grid");
+  testtag_datepicker(document.getElementById("datepicker-grid"), "grid", "datepicker grid");
   dppopup.open = true;
 }
 

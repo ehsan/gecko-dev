@@ -67,7 +67,7 @@ public:
 
   already_AddRefed<HTMLFormElement> GetForm();
 
-  void GetAlign(DOMString& aAlign)
+  void GetAlign(nsAString& aAlign)
   {
     GetHTMLAttr(nsGkAtoms::align, aAlign);
   }

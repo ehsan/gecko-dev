@@ -2,7 +2,7 @@
 
 var g = newGlobal();
 var dbg = Debugger(g);
-var seen = new WeakMap();
+var seen = WeakMap();
 var hits;
 dbg.onNewScript = function (s) {
     assertEq(s instanceof Debugger.Script, true);

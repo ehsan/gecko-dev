@@ -119,14 +119,12 @@ function doTest(evt) {
 
 function reportResult(info, pass, error) {
   var data = {type: "testResult", info: info, pass: pass, error: error};
-  var event = new CustomEvent("FirefoxHealthReportTestResponse", {detail: {data: data}, bubbles: true});
-  document.dispatchEvent(event);
+  window.parent.postMessage(data, "*");
 }
 
 function reportFinished(cmd) {
   var data = {type: "testsComplete", count: tests.length};
-  var event = new CustomEvent("FirefoxHealthReportTestResponse", {detail: {data: data}, bubbles: true});
-  document.dispatchEvent(event);
+  window.parent.postMessage(data, "*");
 }
 
 function sendToBrowser(type) {

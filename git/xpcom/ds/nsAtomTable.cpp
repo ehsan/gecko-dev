@@ -40,6 +40,8 @@ using namespace mozilla;
  * XXX This should be manipulated in a threadsafe way or we should make
  * sure it's only manipulated from the main thread.  Probably the latter
  * is better, since the former would hurt performance.
+ *
+ * If |gAtomTable.ops| is 0, then the table is uninitialized.
  */
 static PLDHashTable gAtomTable;
 
@@ -66,10 +68,7 @@ public:
 
   enum { ALLOW_MEMMOVE = true };
 
-  // mAtom only points to objects of type PermanentAtomImpl, which are not
-  // really refcounted.  But since these entries live in a global hashtable,
-  // this reference is essentially owning.
-  nsIAtom* MOZ_OWNING_REF mAtom;
+  nsIAtom* mAtom;
 };
 
 /**
@@ -156,6 +155,8 @@ public:
   PermanentAtomImpl() {}
 
   ~PermanentAtomImpl();
+  NS_IMETHOD_(MozExternalRefCountType) AddRef();
+  NS_IMETHOD_(MozExternalRefCountType) Release();
 
   virtual bool IsPermanent();
 
@@ -167,20 +168,13 @@ public:
   {
     return ::operator new(aSize);
   }
-
-private:
-  NS_IMETHOD_(MozExternalRefCountType) AddRef();
-  NS_IMETHOD_(MozExternalRefCountType) Release();
 };
 
 //----------------------------------------------------------------------
 
 struct AtomTableEntry : public PLDHashEntryHdr
 {
-  // These references are either to non-permanent atoms, in which case they are
-  // non-owning, or they are to permanent atoms that are not really refcounted.
-  // The exact lifetime rules are documented in AtomTableClearEntry.
-  AtomImpl* MOZ_NON_OWNING_REF mAtom;
+  AtomImpl* mAtom;
 };
 
 struct AtomTableKey
@@ -283,18 +277,24 @@ AtomTableClearEntry(PLDHashTable* aTable, PLDHashEntryHdr* aEntry)
   }
 }
 
-static void
-AtomTableInitEntry(PLDHashEntryHdr* aEntry, const void* aKey)
+static bool
+AtomTableInitEntry(PLDHashTable* aTable, PLDHashEntryHdr* aEntry,
+                   const void* aKey)
 {
   static_cast<AtomTableEntry*>(aEntry)->mAtom = nullptr;
+
+  return true;
 }
 
 
 static const PLDHashTableOps AtomTableOps = {
+  PL_DHashAllocTable,
+  PL_DHashFreeTable,
   AtomTableGetHash,
   AtomTableMatchKey,
   PL_DHashMoveEntryStub,
   AtomTableClearEntry,
+  PL_DHashFinalizeStub,
   AtomTableInitEntry
 };
 
@@ -337,7 +337,7 @@ NS_PurgeAtomTable()
 {
   delete gStaticAtomTable;
 
-  if (gAtomTable.IsInitialized()) {
+  if (gAtomTable.ops) {
 #ifdef DEBUG
     const char* dumpAtomLeaks = PR_GetEnv("MOZ_DUMP_ATOM_LEAKS");
     if (dumpAtomLeaks && *dumpAtomLeaks) {
@@ -349,6 +349,7 @@ NS_PurgeAtomTable()
     }
 #endif
     PL_DHashTableFinish(&gAtomTable);
+    gAtomTable.ops = nullptr;
   }
 }
 
@@ -397,14 +398,14 @@ AtomImpl::AtomImpl(nsStringBuffer* aStringBuffer, uint32_t aLength,
 
 AtomImpl::~AtomImpl()
 {
-  NS_PRECONDITION(gAtomTable.IsInitialized(), "uninitialized atom hashtable");
+  NS_PRECONDITION(gAtomTable.ops, "uninitialized atom hashtable");
   // Permanent atoms are removed from the hashtable at shutdown, and we
   // don't want to remove them twice.  See comment above in
   // |AtomTableClearEntry|.
   if (!IsPermanentInDestructor()) {
     AtomTableKey key(mString, mLength, mHash);
     PL_DHashTableRemove(&gAtomTable, &key);
-    if (gAtomTable.IsInitialized() && gAtomTable.EntryCount() == 0) {
+    if (gAtomTable.ops && gAtomTable.EntryCount() == 0) {
       PL_DHashTableFinish(&gAtomTable);
       NS_ASSERTION(gAtomTable.EntryCount() == 0,
                    "PL_DHashTableFinish changed the entry count");
@@ -523,7 +524,7 @@ void
 NS_SizeOfAtomTablesIncludingThis(MallocSizeOf aMallocSizeOf,
                                  size_t* aMain, size_t* aStatic)
 {
-  *aMain = gAtomTable.IsInitialized()
+  *aMain = gAtomTable.ops
          ? PL_DHashTableSizeOfExcludingThis(&gAtomTable,
                                             SizeOfAtomTableEntryExcludingThis,
                                             aMallocSizeOf)
@@ -541,8 +542,8 @@ NS_SizeOfAtomTablesIncludingThis(MallocSizeOf aMallocSizeOf,
 static inline void
 EnsureTableExists()
 {
-  if (!gAtomTable.IsInitialized()) {
-    PL_DHashTableInit(&gAtomTable, &AtomTableOps,
+  if (!gAtomTable.ops) {
+    PL_DHashTableInit(&gAtomTable, &AtomTableOps, 0,
                       sizeof(AtomTableEntry), ATOM_HASHTABLE_INITIAL_LENGTH);
   }
 }
@@ -553,8 +554,12 @@ GetAtomHashEntry(const char* aString, uint32_t aLength, uint32_t* aHashOut)
   MOZ_ASSERT(NS_IsMainThread(), "wrong thread");
   EnsureTableExists();
   AtomTableKey key(aString, aLength, aHashOut);
-  // This is an infallible add.
-  return static_cast<AtomTableEntry*>(PL_DHashTableAdd(&gAtomTable, &key));
+  AtomTableEntry* e = static_cast<AtomTableEntry*>(
+    PL_DHashTableAdd(&gAtomTable, &key));
+  if (!e) {
+    NS_ABORT_OOM(gAtomTable.EntryCount() * gAtomTable.EntrySize());
+  }
+  return e;
 }
 
 static inline AtomTableEntry*
@@ -563,8 +568,12 @@ GetAtomHashEntry(const char16_t* aString, uint32_t aLength, uint32_t* aHashOut)
   MOZ_ASSERT(NS_IsMainThread(), "wrong thread");
   EnsureTableExists();
   AtomTableKey key(aString, aLength, aHashOut);
-  // This is an infallible add.
-  return static_cast<AtomTableEntry*>(PL_DHashTableAdd(&gAtomTable, &key));
+  AtomTableEntry* e = static_cast<AtomTableEntry*>(
+    PL_DHashTableAdd(&gAtomTable, &key));
+  if (!e) {
+    NS_ABORT_OOM(gAtomTable.EntryCount() * gAtomTable.EntrySize());
+  }
+  return e;
 }
 
 class CheckStaticAtomSizes

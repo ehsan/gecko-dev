@@ -14,8 +14,6 @@
 #include "jit/IonCode.h"
 #include "jit/Snapshots.h"
 
-#include "js/ProfilingFrameIterator.h"
-
 namespace js {
     class ActivationIterator;
 };
@@ -44,17 +42,18 @@ enum FrameType
     // mismatches in calls.
     JitFrame_Rectifier,
 
-    // Ion IC calling a scripted getter/setter.
-    JitFrame_IonAccessorIC,
-
     // An unwound JS frame is a JS frame signalling that its callee frame has been
     // turned into an exit frame (see EnsureExitFrame). Used by Ion bailouts and
     // Baseline exception unwinding.
     JitFrame_Unwound_BaselineJS,
     JitFrame_Unwound_IonJS,
+
+    // Like Unwound_IonJS, but the caller is a baseline stub frame.
     JitFrame_Unwound_BaselineStub,
+
+    // An unwound rectifier frame is a rectifier frame signalling that its callee
+    // frame has been turned into an exit frame (see EnsureExitFrame).
     JitFrame_Unwound_Rectifier,
-    JitFrame_Unwound_IonAccessorIC,
 
     // An exit frame is necessary for transitioning from a JS frame into C++.
     // From within C++, an exit frame is always the last frame in any
@@ -86,11 +85,6 @@ class ExitFrameLayout;
 class BaselineFrame;
 
 class JitActivation;
-
-// Iterate over the JIT stack to assert that all invariants are respected.
-//  - Check that all entry frames are aligned on JitStackAlignment.
-//  - Check that all rectifier frames keep the JitStackAlignment.
-void AssertJitStackInvariants(JSContext *cx);
 
 class JitFrameIterator
 {
@@ -265,34 +259,6 @@ class JitFrameIterator
 #else
     inline bool verifyReturnAddressUsingNativeToBytecodeMap() { return true; }
 #endif
-};
-
-class JitcodeGlobalTable;
-
-class JitProfilingFrameIterator
-{
-    uint8_t *fp_;
-    FrameType type_;
-    void *returnAddressToFp_;
-
-    inline JitFrameLayout *framePtr();
-    inline JSScript *frameScript();
-    bool tryInitWithPC(void *pc);
-    bool tryInitWithTable(JitcodeGlobalTable *table, void *pc, JSRuntime *rt,
-                          bool forLastCallSite);
-
-  public:
-    JitProfilingFrameIterator(JSRuntime *rt,
-                              const JS::ProfilingFrameIterator::RegisterState &state);
-    explicit JitProfilingFrameIterator(void *exitFrame);
-
-    void operator++();
-    bool done() const { return fp_ == nullptr; }
-
-    void *fp() const { MOZ_ASSERT(!done()); return fp_; }
-    void *stackAddress() const { return fp(); }
-    FrameType frameType() const { MOZ_ASSERT(!done()); return type_; }
-    void *returnAddressToFp() const { MOZ_ASSERT(!done()); return returnAddressToFp_; }
 };
 
 class RInstructionResults

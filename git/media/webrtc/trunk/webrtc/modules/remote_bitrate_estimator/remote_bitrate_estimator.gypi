@@ -21,8 +21,10 @@
       'sources': [
         'include/bwe_defines.h',
         'include/remote_bitrate_estimator.h',
+        'include/rtp_to_ntp.h',
         'rate_statistics.cc',
         'rate_statistics.h',
+        'rtp_to_ntp.cc',
       ], # source
     },
     {
@@ -45,7 +47,6 @@
       ],
       'dependencies': [
         '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
-        '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers_default',
         'bwe_tools_util',
         'rtp_rtcp',
       ],
@@ -56,8 +57,8 @@
       },
       'sources': [
         'tools/rtp_to_text.cc',
-        '<(webrtc_root)/test/rtp_file_reader.cc',
-        '<(webrtc_root)/test/rtp_file_reader.h',
+        '<(webrtc_root)/modules/video_coding/main/test/rtp_file_reader.cc',
+        '<(webrtc_root)/modules/video_coding/main/test/rtp_file_reader.h',
       ], # source
     },
     {
@@ -68,7 +69,6 @@
       ],
       'dependencies': [
         '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
-        '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers_default',
         'bwe_tools_util',
         'rtp_rtcp',
       ],
@@ -79,8 +79,8 @@
       },
       'sources': [
         'tools/bwe_rtp_play.cc',
-        '<(webrtc_root)/test/rtp_file_reader.cc',
-        '<(webrtc_root)/test/rtp_file_reader.h',
+        '<(webrtc_root)/modules/video_coding/main/test/rtp_file_reader.cc',
+        '<(webrtc_root)/modules/video_coding/main/test/rtp_file_reader.h',
       ], # source
     },
   ], # targets

@@ -14,7 +14,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include "webrtc/common_audio/wav_header.h"
 #include "webrtc/common_types.h"
 #include "webrtc/engine_configurations.h"
 #include "webrtc/modules/interface/module_common_types.h"
@@ -26,6 +25,12 @@
 #endif
 
 namespace {
+enum WaveFormats
+{
+    kWaveFormatPcm   = 0x0001,
+    kWaveFormatALaw  = 0x0006,
+    kWaveFormatMuLaw = 0x0007
+};
 
 // First 16 bytes the WAVE header. ckID should be "RIFF", wave_ckID should be
 // "WAVE" and ckSize is the chunk size (4 + n)
@@ -178,7 +183,7 @@ int32_t ModuleFileUtility::InitAviWriting(
             waveFormatHeader.nSamplesPerSec  = 8000;
             waveFormatHeader.wBitsPerSample  = 8;
             waveFormatHeader.nBlockAlign     = 1;
-            waveFormatHeader.wFormatTag      = kWavFormatMuLaw;
+            waveFormatHeader.wFormatTag      = kWaveFormatMuLaw;
 
         } else if (strncmp(audioCodecInst.plname, "PCMA", 4) == 0)
         {
@@ -191,7 +196,7 @@ int32_t ModuleFileUtility::InitAviWriting(
             waveFormatHeader.nSamplesPerSec  = 8000;
             waveFormatHeader.wBitsPerSample  = 8;
             waveFormatHeader.nBlockAlign     = 1;
-            waveFormatHeader.wFormatTag      = kWavFormatALaw;
+            waveFormatHeader.wFormatTag      = kWaveFormatALaw;
 
         } else if (strncmp(audioCodecInst.plname, "L16", 3) == 0)
         {
@@ -205,7 +210,7 @@ int32_t ModuleFileUtility::InitAviWriting(
             waveFormatHeader.nSamplesPerSec  = audioCodecInst.plfreq;
             waveFormatHeader.wBitsPerSample  = 16;
             waveFormatHeader.nBlockAlign     = 2;
-            waveFormatHeader.wFormatTag      = kWavFormatPcm;
+            waveFormatHeader.wFormatTag      = kWaveFormatPcm;
         } else
         {
             return -1;
@@ -494,7 +499,8 @@ int32_t ModuleFileUtility::ReadWavHeader(InStream& wav)
 
             memcpy(tmpStr2, &_wavFormatObj.formatTag, 2);
             _wavFormatObj.formatTag =
-                (uint32_t)tmpStr2[0] + (((uint32_t)tmpStr2[1])<<8);
+                (WaveFormats) ((uint32_t)tmpStr2[0] +
+                               (((uint32_t)tmpStr2[1])<<8));
             memcpy(tmpStr2, &_wavFormatObj.nChannels, 2);
             _wavFormatObj.nChannels =
                 (int16_t) ((uint32_t)tmpStr2[0] +
@@ -569,9 +575,9 @@ int32_t ModuleFileUtility::ReadWavHeader(InStream& wav)
 
     // Either a proper format chunk has been read or a data chunk was come
     // across.
-    if( (_wavFormatObj.formatTag != kWavFormatPcm) &&
-        (_wavFormatObj.formatTag != kWavFormatALaw) &&
-        (_wavFormatObj.formatTag != kWavFormatMuLaw))
+    if( (_wavFormatObj.formatTag != kWaveFormatPcm) &&
+        (_wavFormatObj.formatTag != kWaveFormatALaw) &&
+        (_wavFormatObj.formatTag != kWaveFormatMuLaw))
     {
         WEBRTC_TRACE(kTraceError, kTraceFile, _id,
                      "Coding formatTag value=%d not supported!",
@@ -597,7 +603,7 @@ int32_t ModuleFileUtility::ReadWavHeader(InStream& wav)
     }
 
     // Calculate the number of bytes that 10 ms of audio data correspond to.
-    if(_wavFormatObj.formatTag == kWavFormatPcm)
+    if(_wavFormatObj.formatTag == kWaveFormatPcm)
     {
         // TODO (hellner): integer division for 22050 and 11025 would yield
         //                 the same result as the else statement. Remove those
@@ -637,19 +643,19 @@ int32_t ModuleFileUtility::InitWavCodec(uint32_t samplesPerSec,
     // Calculate the packet size for 10ms frames
     switch(formatTag)
     {
-    case kWavFormatALaw:
+    case kWaveFormatALaw:
         strcpy(codec_info_.plname, "PCMA");
         _codecId = kCodecPcma;
         codec_info_.pltype = 8;
         codec_info_.pacsize  = codec_info_.plfreq / 100;
         break;
-    case kWavFormatMuLaw:
+    case kWaveFormatMuLaw:
         strcpy(codec_info_.plname, "PCMU");
         _codecId = kCodecPcmu;
         codec_info_.pltype = 0;
         codec_info_.pacsize  = codec_info_.plfreq / 100;
          break;
-    case kWavFormatPcm:
+    case kWaveFormatPcm:
         codec_info_.pacsize  = (bitsPerSample * (codec_info_.plfreq / 100)) / 8;
         if(samplesPerSec == 8000)
         {
@@ -1048,14 +1054,14 @@ int32_t ModuleFileUtility::InitWavWriting(OutStream& wav,
     {
         _bytesPerSample = 1;
         if(WriteWavHeader(wav, 8000, _bytesPerSample, channels,
-                          kWavFormatMuLaw, 0) == -1)
+                          kWaveFormatMuLaw, 0) == -1)
         {
             return -1;
         }
     }else if(STR_CASE_CMP(codecInst.plname, "PCMA") == 0)
     {
         _bytesPerSample = 1;
-        if(WriteWavHeader(wav, 8000, _bytesPerSample, channels, kWavFormatALaw,
+        if(WriteWavHeader(wav, 8000, _bytesPerSample, channels, kWaveFormatALaw,
                           0) == -1)
         {
             return -1;
@@ -1065,7 +1071,7 @@ int32_t ModuleFileUtility::InitWavWriting(OutStream& wav,
     {
         _bytesPerSample = 2;
         if(WriteWavHeader(wav, codecInst.plfreq, _bytesPerSample, channels,
-                          kWavFormatPcm, 0) == -1)
+                          kWaveFormatPcm, 0) == -1)
         {
             return -1;
         }
@@ -1118,16 +1124,101 @@ int32_t ModuleFileUtility::WriteWavHeader(
     const uint32_t format,
     const uint32_t lengthInBytes)
 {
+
     // Frame size in bytes for 10 ms of audio.
-    const int32_t frameSize = (freq / 100) * channels;
+    int32_t frameSize = (freq / 100) * bytesPerSample * channels;
 
     // Calculate the number of full frames that the wave file contain.
-    const int32_t dataLengthInBytes = frameSize * (lengthInBytes / frameSize);
+    const int32_t dataLengthInBytes = frameSize *
+        (lengthInBytes / frameSize);
 
-    uint8_t buf[kWavHeaderSize];
-    webrtc::WriteWavHeader(buf, channels, freq, static_cast<WavFormat>(format),
-                           bytesPerSample, dataLengthInBytes / bytesPerSample);
-    wav.Write(buf, kWavHeaderSize);
+    int8_t tmpStr[4];
+    int8_t tmpChar;
+    uint32_t tmpLong;
+
+    memcpy(tmpStr, "RIFF", 4);
+    wav.Write(tmpStr, 4);
+
+    tmpLong = dataLengthInBytes + 36;
+    tmpChar = (int8_t)(tmpLong);
+    wav.Write(&tmpChar, 1);
+    tmpChar = (int8_t)(tmpLong >> 8);
+    wav.Write(&tmpChar, 1);
+    tmpChar = (int8_t)(tmpLong >> 16);
+    wav.Write(&tmpChar, 1);
+    tmpChar = (int8_t)(tmpLong >> 24);
+    wav.Write(&tmpChar, 1);
+
+    memcpy(tmpStr, "WAVE", 4);
+    wav.Write(tmpStr, 4);
+
+    memcpy(tmpStr, "fmt ", 4);
+    wav.Write(tmpStr, 4);
+
+    tmpChar = 16;
+    wav.Write(&tmpChar, 1);
+    tmpChar = 0;
+    wav.Write(&tmpChar, 1);
+    tmpChar = 0;
+    wav.Write(&tmpChar, 1);
+    tmpChar = 0;
+    wav.Write(&tmpChar, 1);
+
+    tmpChar = (int8_t)(format);
+    wav.Write(&tmpChar, 1);
+    tmpChar = 0;
+    wav.Write(&tmpChar, 1);
+
+    tmpChar = (int8_t)(channels);
+    wav.Write(&tmpChar, 1);
+    tmpChar = 0;
+    wav.Write(&tmpChar, 1);
+
+    tmpLong = freq;
+    tmpChar = (int8_t)(tmpLong);
+    wav.Write(&tmpChar, 1);
+    tmpChar = (int8_t)(tmpLong >> 8);
+    wav.Write(&tmpChar, 1);
+    tmpChar = (int8_t)(tmpLong >> 16);
+    wav.Write(&tmpChar, 1);
+    tmpChar = (int8_t)(tmpLong >> 24);
+    wav.Write(&tmpChar, 1);
+
+    // nAverageBytesPerSec = Sample rate * Bytes per sample * Channels
+    tmpLong = bytesPerSample * freq * channels;
+    tmpChar = (int8_t)(tmpLong);
+    wav.Write(&tmpChar, 1);
+    tmpChar = (int8_t)(tmpLong >> 8);
+    wav.Write(&tmpChar, 1);
+    tmpChar = (int8_t)(tmpLong >> 16);
+    wav.Write(&tmpChar, 1);
+    tmpChar = (int8_t)(tmpLong >> 24);
+    wav.Write(&tmpChar, 1);
+
+    // nBlockAlign = Bytes per sample * Channels
+    tmpChar = (int8_t)(bytesPerSample * channels);
+    wav.Write(&tmpChar, 1);
+    tmpChar = 0;
+    wav.Write(&tmpChar, 1);
+
+    tmpChar = (int8_t)(bytesPerSample*8);
+    wav.Write(&tmpChar, 1);
+    tmpChar = 0;
+    wav.Write(&tmpChar, 1);
+
+    memcpy(tmpStr, "data", 4);
+    wav.Write(tmpStr, 4);
+
+    tmpLong = dataLengthInBytes;
+    tmpChar = (int8_t)(tmpLong);
+    wav.Write(&tmpChar, 1);
+    tmpChar = (int8_t)(tmpLong >> 8);
+    wav.Write(&tmpChar, 1);
+    tmpChar = (int8_t)(tmpLong >> 16);
+    wav.Write(&tmpChar, 1);
+    tmpChar = (int8_t)(tmpLong >> 24);
+    wav.Write(&tmpChar, 1);
+
     return 0;
 }
 
@@ -1144,12 +1235,12 @@ int32_t ModuleFileUtility::UpdateWavHeader(OutStream& wav)
     if(STR_CASE_CMP(codec_info_.plname, "L16") == 0)
     {
         res = WriteWavHeader(wav, codec_info_.plfreq, 2, channels,
-                             kWavFormatPcm, _bytesWritten);
+                             kWaveFormatPcm, _bytesWritten);
     } else if(STR_CASE_CMP(codec_info_.plname, "PCMU") == 0) {
-            res = WriteWavHeader(wav, 8000, 1, channels, kWavFormatMuLaw,
+            res = WriteWavHeader(wav, 8000, 1, channels, kWaveFormatMuLaw,
                                  _bytesWritten);
     } else if(STR_CASE_CMP(codec_info_.plname, "PCMA") == 0) {
-            res = WriteWavHeader(wav, 8000, 1, channels, kWavFormatALaw,
+            res = WriteWavHeader(wav, 8000, 1, channels, kWaveFormatALaw,
                                  _bytesWritten);
     } else {
         // Allow calling this API even if not writing to a WAVE file.
@@ -2428,7 +2519,6 @@ int32_t ModuleFileUtility::FileDurationMs(const char* fileName,
                 break;
             }
 #endif
-            break;
         }
         case kFileFormatPreencodedFile:
         {

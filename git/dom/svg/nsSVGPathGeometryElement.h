@@ -31,7 +31,6 @@ typedef mozilla::dom::SVGGraphicsElement nsSVGPathGeometryElementBase;
 class nsSVGPathGeometryElement : public nsSVGPathGeometryElementBase
 {
 protected:
-  typedef mozilla::gfx::CapStyle CapStyle;
   typedef mozilla::gfx::DrawTarget DrawTarget;
   typedef mozilla::gfx::FillRule FillRule;
   typedef mozilla::gfx::Float Float;
@@ -40,7 +39,6 @@ protected:
   typedef mozilla::gfx::Point Point;
   typedef mozilla::gfx::PathBuilder PathBuilder;
   typedef mozilla::gfx::Rect Rect;
-  typedef mozilla::gfx::StrokeOptions StrokeOptions;
 
 public:
   explicit nsSVGPathGeometryElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
@@ -78,7 +76,7 @@ public:
    * shapes and simple transforms where the Moz2D Path backends can fail to
    * produce the clean integer bounds that content authors expect in some cases.
    */
-  virtual bool GetGeometryBounds(Rect* aBounds, const StrokeOptions& aStrokeOptions,
+  virtual bool GetGeometryBounds(Rect* aBounds, Float aStrokeWidth,
                                  const Matrix& aTransform) {
     return false;
   }

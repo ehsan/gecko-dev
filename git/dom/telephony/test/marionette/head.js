@@ -501,6 +501,11 @@ let emulator = (function() {
 
     let promises = [];
 
+    let promise = waitForNamedStateEvent(call, "connecting")
+      .then(() => waitForNamedStateEvent(call, "connected"));
+
+    promises.push(promise);
+
     // incoming call triggers conference state change. We should wait for
     // |conference.onstatechange| before checking the state of the conference
     // call.
@@ -515,8 +520,8 @@ let emulator = (function() {
       promises.push(promise);
     }
 
-    promises.push(waitForNamedStateEvent(call, "connected"));
-    promises.push(call.answer());
+    promise = call.answer();
+    promises.push(promise);
 
     return Promise.all(promises).then(() => call);
   }
@@ -533,8 +538,12 @@ let emulator = (function() {
 
     let promises = [];
 
-    promises.push(waitForNamedStateEvent(call, "held"));
-    promises.push(call.hold());
+    let promise = waitForNamedStateEvent(call, "holding")
+      .then(() => waitForNamedStateEvent(call, "held"));
+    promises.push(promise);
+
+    promise = call.hold();
+    promises.push(promise);
 
     return Promise.all(promises).then(() => call);
   }
@@ -551,8 +560,12 @@ let emulator = (function() {
 
     let promises = [];
 
-    promises.push(waitForNamedStateEvent(call, "connected"));
-    promises.push(call.resume());
+    let promise = waitForNamedStateEvent(call, "resuming")
+      .then(() => waitForNamedStateEvent(call, "connected"));
+    promises.push(promise);
+
+    promise = call.resume();
+    promises.push(promise);
 
     return Promise.all(promises).then(() => call);
   }
@@ -569,8 +582,12 @@ let emulator = (function() {
 
     let promises = [];
 
-    promises.push(waitForNamedStateEvent(call, "disconnected"));
-    promises.push(call.hangUp());
+    let promise = waitForNamedStateEvent(call, "disconnecting")
+      .then(() => waitForNamedStateEvent(call, "disconnected"));
+    promises.push(promise);
+
+    promise = call.hangUp();
+    promises.push(promise);
 
     return Promise.all(promises).then(() => call);
   }
@@ -661,9 +678,11 @@ let emulator = (function() {
    * @param connectedCallback [optional]
    *        A callback function which is called when conference state becomes
    *        connected.
+   * @param twice [optional]
+   *        To send conference request twice. It is only used for special test.
    * @return Promise<[TelephonyCall ...]>
    */
-  function addCallsToConference(callsToAdd, connectedCallback) {
+  function addCallsToConference(callsToAdd, connectedCallback, twice) {
     log("Add " + callsToAdd.length + " calls into conference.");
 
     let promises = [];
@@ -684,12 +703,13 @@ let emulator = (function() {
     promises.push(promise);
 
     // Cannot use apply() through webidl, so just separate the cases to handle.
-    if (callsToAdd.length == 2) {
-      promise = conference.add(callsToAdd[0], callsToAdd[1]);
-      promises.push(promise);
-    } else {
-      promise = conference.add(callsToAdd[0]);
-      promises.push(promise);
+    let requestCount = twice ? 2 : 1;
+    for (let i = 0; i < requestCount; ++i) {
+      if (callsToAdd.length == 2) {
+        conference.add(callsToAdd[0], callsToAdd[1]);
+      } else {
+        conference.add(callsToAdd[0]);
+      }
     }
 
     return Promise.all(promises).then(() => conference.calls);
@@ -711,7 +731,9 @@ let emulator = (function() {
     let promises = [];
 
     for (let call of callsInConference) {
-      promises.push(waitForNamedStateEvent(call, "held"));
+      let promise = waitForNamedStateEvent(call, "holding")
+        .then(() => waitForNamedStateEvent(call, "held"));
+      promises.push(promise);
     }
 
     let promise = waitForNamedStateEvent(conference, "holding")
@@ -723,7 +745,7 @@ let emulator = (function() {
       });
     promises.push(promise);
 
-    promises.push(conference.hold());
+    conference.hold();
 
     return Promise.all(promises).then(() => conference.calls);
   }
@@ -744,7 +766,9 @@ let emulator = (function() {
     let promises = [];
 
     for (let call of callsInConference) {
-      promises.push(waitForNamedStateEvent(call, "connected"));
+      let promise = waitForNamedStateEvent(call, "resuming")
+        .then(() => waitForNamedStateEvent(call, "connected"));
+      promises.push(promise);
     }
 
     let promise = waitForNamedStateEvent(conference, "resuming")
@@ -756,7 +780,7 @@ let emulator = (function() {
       });
     promises.push(promise);
 
-    promises.push(conference.resume());
+    conference.resume();
 
     return Promise.all(promises).then(() => conference.calls);
   }
@@ -813,7 +837,7 @@ let emulator = (function() {
       });
     promises.push(promise);
 
-    promises.push(conference.remove(callToRemove));
+    conference.remove(callToRemove);
 
     return Promise.all(promises)
       .then(() => checkCalls(conference.calls, remainedCalls))

@@ -119,7 +119,6 @@ public:
     NS_IMETHOD AsyncOpen(nsIStreamListener *listener, nsISupports *aContext) MOZ_OVERRIDE;
     // nsIHttpChannelInternal
     NS_IMETHOD SetupFallbackChannel(const char *aFallbackKey) MOZ_OVERRIDE;
-    NS_IMETHOD ContinueBeginConnect() MOZ_OVERRIDE;
     // nsISupportsPriority
     NS_IMETHOD SetPriority(int32_t value) MOZ_OVERRIDE;
     // nsIClassOfService
@@ -367,8 +366,6 @@ private:
     nsresult MaybeSetupByteRangeRequest(int64_t partialLen, int64_t contentLength,
                                         bool ignoreMissingPartialLen = false);
     nsresult SetupByteRangeRequest(int64_t partialLen);
-    void UntieByteRangeRequest();
-    void UntieValidationRequest();
     nsresult OpenCacheInputStream(nsICacheEntry* cacheEntry, bool startBuffering,
                                   bool checkingAppCacheEntry);
 
@@ -468,9 +465,6 @@ private:
     nsRefPtr<nsDNSPrefetch>           mDNSPrefetch;
 
     Http2PushedStream                 *mPushedStream;
-    // True if the channel's principal was found on a phishing, malware, or
-    // tracking (if tracking protection is enabled) blocklist
-    bool                              mLocalBlocklist;
 
     nsresult WaitForRedirectCallback();
     void PushRedirectAsyncFunc(nsContinueRedirectionFunc func);

@@ -50,12 +50,6 @@ HTMLObjectElement::~HTMLObjectElement()
 }
 
 bool
-HTMLObjectElement::IsInteractiveHTMLContent() const
-{
-  return HasAttr(kNameSpaceID_None, nsGkAtoms::usemap);
-}
-
-bool
 HTMLObjectElement::IsDoneAddingChildren()
 {
   return mIsDoneAddingChildren;
@@ -164,7 +158,7 @@ HTMLObjectElement::GetForm(nsIDOMHTMLFormElement **aForm)
 }
 
 void
-HTMLObjectElement::GetItemValueText(DOMString& aValue)
+HTMLObjectElement::GetItemValueText(nsAString& aValue)
 {
   GetData(aValue);
 }

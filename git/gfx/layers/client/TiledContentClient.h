@@ -182,7 +182,7 @@ struct TileClient
     mCompositableClient = aCompositableClient;
   }
 
-  bool IsPlaceholderTile() const
+  bool IsPlaceholderTile()
   {
     return mBackBuffer == nullptr && mFrontBuffer == nullptr;
   }

@@ -22,6 +22,7 @@
 #include <algorithm>
 
 using namespace mozilla;
+using namespace mozilla::image;
 using namespace mozilla::layout;
 
 nsTableRowGroupFrame::nsTableRowGroupFrame(nsStyleContext* aContext):
@@ -1845,8 +1846,13 @@ nsTableRowGroupFrame::GetNextSiblingOnLine(nsIFrame*& aFrame,
 
 //end nsLineIterator methods
 
-NS_DECLARE_FRAME_PROPERTY(RowCursorProperty,
-                          DeleteValue<nsTableRowGroupFrame::FrameCursorData>)
+static void
+DestroyFrameCursorData(void* aPropertyValue)
+{
+  delete static_cast<nsTableRowGroupFrame::FrameCursorData*>(aPropertyValue);
+}
+
+NS_DECLARE_FRAME_PROPERTY(RowCursorProperty, DestroyFrameCursorData)
 
 void
 nsTableRowGroupFrame::ClearRowCursor()

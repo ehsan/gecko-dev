@@ -42,6 +42,8 @@ threadSelected(ThreadInfo* aInfo, char** aThreadNameFilters, uint32_t aFeatureCo
 extern mozilla::TimeStamp sLastTracerEvent;
 extern int sFrameNumber;
 extern int sLastFrameNumber;
+extern unsigned int sCurrentEventGeneration;
+extern unsigned int sLastSampledEventGeneration;
 
 class BreakpadSampler;
 
@@ -52,7 +54,6 @@ class TableTicker: public Sampler {
               const char** aThreadNameFilters, uint32_t aFilterCount)
     : Sampler(aInterval, true, aEntrySize)
     , mPrimaryThreadProfile(nullptr)
-    , mBuffer(new ProfileBuffer(aEntrySize))
     , mSaveRequested(false)
     , mUnwinderThread(false)
     , mFilterCount(aFilterCount)
@@ -62,6 +63,8 @@ class TableTicker: public Sampler {
   {
     mUseStackWalk = hasFeature(aFeatures, aFeatureCount, "stackwalk");
 
+    //XXX: It's probably worth splitting the jank profiler out from the regular profiler at some point
+    mJankOnly = hasFeature(aFeatures, aFeatureCount, "jank");
     mProfileJS = hasFeature(aFeatures, aFeatureCount, "js");
     mProfileJava = hasFeature(aFeatures, aFeatureCount, "java");
     mProfileGPU = hasFeature(aFeatures, aFeatureCount, "gpu");
@@ -108,7 +111,7 @@ class TableTicker: public Sampler {
 
 #ifdef MOZ_TASK_TRACER
     if (mTaskTracer) {
-      mozilla::tasktracer::StartLogging();
+      mozilla::tasktracer::StartLogging(sStartTime);
     }
 #endif
   }
@@ -153,18 +156,18 @@ class TableTicker: public Sampler {
       return;
     }
 
-    ThreadProfile* profile = new ThreadProfile(aInfo, mBuffer);
+    ThreadProfile* profile = new ThreadProfile(aInfo, EntrySize());
     aInfo->SetProfile(profile);
   }
 
   // Called within a signal. This function must be reentrant
-  virtual void Tick(TickSample* sample) MOZ_OVERRIDE;
+  virtual void Tick(TickSample* sample);
 
   // Immediately captures the calling thread's call stack and returns it.
-  virtual SyncProfile* GetBacktrace() MOZ_OVERRIDE;
+  virtual SyncProfile* GetBacktrace();
 
   // Called within a signal. This function must be reentrant
-  virtual void RequestSave() MOZ_OVERRIDE
+  virtual void RequestSave()
   {
     mSaveRequested = true;
 #ifdef MOZ_TASK_TRACER
@@ -174,8 +177,7 @@ class TableTicker: public Sampler {
 #endif
   }
 
-  virtual void HandleSaveRequest() MOZ_OVERRIDE;
-  virtual void DeleteExpiredMarkers() MOZ_OVERRIDE;
+  virtual void HandleSaveRequest();
 
   ThreadProfile* GetPrimaryThreadProfile()
   {
@@ -203,7 +205,7 @@ class TableTicker: public Sampler {
   bool ProfileJava() const { return mProfileJava; }
   bool ProfileGPU() const { return mProfileGPU; }
   bool ProfilePower() const { return mProfilePower; }
-  bool ProfileThreads() const MOZ_OVERRIDE { return mProfileThreads; }
+  bool ProfileThreads() const { return mProfileThreads; }
   bool InPrivacyMode() const { return mPrivacyMode; }
   bool AddMainThreadIO() const { return mAddMainThreadIO; }
   bool ProfileMemory() const { return mProfileMemory; }
@@ -225,10 +227,10 @@ protected:
 
   // This represent the application's main thread (SAMPLER_INIT)
   ThreadProfile* mPrimaryThreadProfile;
-  nsRefPtr<ProfileBuffer> mBuffer;
   bool mSaveRequested;
   bool mAddLeafAddresses;
   bool mUseStackWalk;
+  bool mJankOnly;
   bool mProfileJS;
   bool mProfileGPU;
   bool mProfileThreads;

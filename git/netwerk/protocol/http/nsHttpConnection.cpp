@@ -1120,9 +1120,9 @@ nsHttpConnection::TakeTransport(nsISocketTransport  **aTransport,
     // via https) that filter needs to take direct control of the
     // streams
     if (mTLSFilter) {
-        nsCOMPtr<nsIAsyncInputStream>  ref1(mSocketIn);
-        nsCOMPtr<nsIAsyncOutputStream> ref2(mSocketOut);
-        mTLSFilter->newIODriver(ref1, ref2,
+        nsCOMPtr<nsISupports> ref1(mSocketIn);
+        nsCOMPtr<nsISupports> ref2(mSocketOut);
+        mTLSFilter->newIODriver(mSocketIn, mSocketOut,
                                 getter_AddRefs(mSocketIn),
                                 getter_AddRefs(mSocketOut));
         mTLSFilter = nullptr;
@@ -2080,8 +2080,8 @@ nsHttpConnection::OnOutputStreamReady(nsIAsyncOutputStream *out)
 NS_IMETHODIMP
 nsHttpConnection::OnTransportStatus(nsITransport *trans,
                                     nsresult status,
-                                    int64_t progress,
-                                    int64_t progressMax)
+                                    uint64_t progress,
+                                    uint64_t progressMax)
 {
     if (mTransaction)
         mTransaction->OnTransportStatus(trans, status, progress);

@@ -11,7 +11,6 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/TelemetryTimestamps.jsm");
 Cu.import("resource://gre/modules/TelemetryPing.jsm");
-Cu.import("resource://gre/modules/TelemetrySession.jsm");
 
 const Telemetry = Services.telemetry;
 const bundle = Services.strings.createBundle(
@@ -119,8 +118,7 @@ let GeneralData = {
     let table = document.createElement("table");
 
     let caption = document.createElement("caption");
-    let captionString = bundle.GetStringFromName("generalDataTitle");
-    caption.appendChild(document.createTextNode(captionString + "\n"));
+    caption.appendChild(document.createTextNode("General data\n"));
     table.appendChild(caption);
 
     let headings = document.createElement("tr");
@@ -569,7 +567,7 @@ let Histogram = {
    * @return Unpacked histogram representation
    */
   unpack: function Histogram_unpack(aHgram) {
-    let sample_count = aHgram.counts.reduceRight((a, b) => a + b);
+    let sample_count = aHgram.counts.reduceRight(function (a, b) a + b);
     let buckets = [0, 1];
     if (aHgram.histogram_type != Telemetry.HISTOGRAM_BOOLEAN) {
       buckets = aHgram.ranges;
@@ -952,7 +950,7 @@ function setupListeners() {
 
   document.getElementById("late-writes-fetch-symbols").addEventListener("click",
     function () {
-      let lateWrites = TelemetrySession.getPayload().lateWrites;
+      let lateWrites = TelemetryPing.getPayload().lateWrites;
       let req = new SymbolicationRequest("late-writes",
                                          LateWritesSingleton.renderHeader,
                                          lateWrites.memoryMap,
@@ -962,9 +960,10 @@ function setupListeners() {
 
   document.getElementById("late-writes-hide-symbols").addEventListener("click",
     function () {
-      let ping = TelemetrySession.getPayload();
+      let ping = TelemetryPing.getPayload();
       LateWritesSingleton.renderLateWrites(ping.lateWrites);
   }, false);
+
 
   // Clicking on the section name will toggle its state
   let sectionHeaders = document.getElementsByClassName("section-name");
@@ -978,6 +977,7 @@ function setupListeners() {
     toggleLink.addEventListener("click", toggleSection, false);
   }
 }
+
 
 function onLoad() {
   window.removeEventListener("load", onLoad);
@@ -1114,7 +1114,7 @@ function sortStartupMilestones(aSimpleMeasurements) {
 }
 
 function displayPingData() {
-  let ping = TelemetrySession.getPayload();
+  let ping = TelemetryPing.getPayload();
 
   let keysHeader = bundle.GetStringFromName("keysHeader");
   let valuesHeader = bundle.GetStringFromName("valuesHeader");

@@ -71,6 +71,13 @@ void ACMCNG::DestructEncoderSafe() {
   encoder_initialized_ = false;
 }
 
+void ACMCNG::InternalDestructEncoderInst(void* ptr_inst) {
+  if (ptr_inst != NULL) {
+    WebRtcCng_FreeEnc(static_cast<CNG_enc_inst*>(ptr_inst));
+  }
+  return;
+}
+
 }  // namespace acm2
 
 }  // namespace webrtc

@@ -4,10 +4,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-[Constructor(DOMString type, optional MozCellBroadcastEventInit eventInitDict),
- Pref="dom.cellbroadcast.enabled",
- CheckPermissions="cellbroadcast",
- AvailableIn="CertifiedApps"]
+[Constructor(DOMString type, optional MozCellBroadcastEventInit eventInitDict), Pref="dom.cellbroadcast.enabled"]
 interface MozCellBroadcastEvent : Event
 {
   readonly attribute MozCellBroadcastMessage? message;

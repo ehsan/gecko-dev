@@ -250,7 +250,7 @@ var LoginManagerContent = {
     let doc = form.ownerDocument;
     let autofillForm = gAutofillForms && !PrivateBrowsingUtils.isContentWindowPrivate(doc.defaultView);
 
-    this._fillForm(form, autofillForm, false, false, loginsFound);
+    this._fillForm(form, autofillForm, false, false, false, loginsFound);
   },
 
   /*
@@ -293,7 +293,7 @@ var LoginManagerContent = {
     if (usernameField == acInputField && passwordField) {
       this._asyncFindLogins(acForm, { showMasterPassword: false })
           .then(({ form, loginsFound }) => {
-              this._fillForm(form, true, true, true, loginsFound);
+              this._fillForm(form, true, true, true, true, loginsFound);
           })
           .then(null, Cu.reportError);
     } else {
@@ -563,13 +563,14 @@ var LoginManagerContent = {
    * [success, foundLogins].
    *
    * - autofillForm denotes if we should fill the form in automatically
+   * - ignoreAutocomplete denotes if we should ignore autocomplete=off
+   *     attributes
    * - userTriggered is an indication of whether this filling was triggered by
    *     the user
    * - foundLogins is an array of nsILoginInfo
    */
-  _fillForm : function (form, autofillForm, clobberPassword,
-                        userTriggered, foundLogins) {
-    let ignoreAutocomplete = true;
+  _fillForm : function (form, autofillForm, ignoreAutocomplete,
+                        clobberPassword, userTriggered, foundLogins) {
     const AUTOFILL_RESULT = {
       FILLED: 0,
       NO_PASSWORD_FIELD: 1,

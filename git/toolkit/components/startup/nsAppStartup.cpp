@@ -745,7 +745,7 @@ nsAppStartup::Observe(nsISupports *aSubject,
 NS_IMETHODIMP
 nsAppStartup::GetStartupInfo(JSContext* aCx, JS::MutableHandle<JS::Value> aRetval)
 {
-  JS::Rooted<JSObject*> obj(aCx, JS_NewPlainObject(aCx));
+  JS::Rooted<JSObject*> obj(aCx, JS_NewObject(aCx, nullptr, JS::NullPtr(), JS::NullPtr()));
 
   aRetval.setObject(*obj);
 

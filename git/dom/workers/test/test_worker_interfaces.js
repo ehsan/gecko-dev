@@ -35,7 +35,7 @@ var ecmaGlobals =
     "Int32Array",
     "Int8Array",
     "InternalError",
-    {name: "Intl", b2g: false, android: false},
+    {name: "Intl", desktop: true},
     "Iterator",
     "JSON",
     "Map",
@@ -62,7 +62,6 @@ var ecmaGlobals =
     {name: "Atomics", nightly: true},
     "StopIteration",
     "String",
-    "Symbol",
     "SyntaxError",
     {name: "TypedObject", nightly: true},
     "TypeError",
@@ -77,13 +76,17 @@ var ecmaGlobals =
 // IMPORTANT: Do not change the list above without review from
 //            a JavaScript Engine peer!
 
+// Symbol is conditionally defined.
+// If it's defined, insert "Symbol" before "SyntaxError".
+if (typeof Symbol === "function") {
+  ecmaGlobals.splice(ecmaGlobals.indexOf("SyntaxError"), 0, "Symbol");
+}
+
 // IMPORTANT: Do not change the list below without review from a DOM peer!
 var interfaceNamesInGlobalScope =
   [
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "Blob",
-// IMPORTANT: Do not change this list without review from a DOM peer!
-    { name: "BroadcastChannel", pref: "dom.broadcastChannel.enabled" },
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "DedicatedWorkerGlobalScope",
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -143,8 +146,6 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "XMLHttpRequest",
 // IMPORTANT: Do not change this list without review from a DOM peer!
-    "XMLHttpRequestEventTarget",
-// IMPORTANT: Do not change this list without review from a DOM peer!
     "XMLHttpRequestUpload",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "URL",
@@ -164,11 +165,11 @@ var interfaceNamesInGlobalScope =
   ];
 // IMPORTANT: Do not change the list above without review from a DOM peer!
 
-function createInterfaceMap(prefMap, permissionMap, version, userAgent, isB2G) {
+function createInterfaceMap(prefMap, permissionMap, version, userAgent) {
   var isNightly = version.endsWith("a1");
   var isRelease = !version.contains("a");
   var isDesktop = !/Mobile|Tablet/.test(userAgent);
-  var isAndroid = !!navigator.userAgent.contains("Android");
+  var isB2G = !isDesktop && !userAgent.contains("Android");
 
   var interfaceMap = {};
 
@@ -179,7 +180,6 @@ function createInterfaceMap(prefMap, permissionMap, version, userAgent, isB2G) {
         interfaceMap[entry] = true;
       } else if ((entry.nightly === !isNightly) ||
                  (entry.desktop === !isDesktop) ||
-                 (entry.android === !isAndroid) ||
                  (entry.b2g === !isB2G) ||
                  (entry.release === !isRelease) ||
                  (entry.pref && !prefMap[entry.pref])  ||
@@ -197,8 +197,8 @@ function createInterfaceMap(prefMap, permissionMap, version, userAgent, isB2G) {
   return interfaceMap;
 }
 
-function runTest(prefMap, permissionMap, version, userAgent, isB2G) {
-  var interfaceMap = createInterfaceMap(prefMap, permissionMap, version, userAgent, isB2G);
+function runTest(prefMap, permissionMap, version, userAgent) {
+  var interfaceMap = createInterfaceMap(prefMap, permissionMap, version, userAgent);
   for (var name of Object.getOwnPropertyNames(self)) {
     // An interface name should start with an upper case character.
     if (!/^[A-Z]/.test(name)) {
@@ -250,10 +250,8 @@ workerTestGetPrefs(prefs, function(prefMap) {
   workerTestGetPermissions(permissions, function(permissionMap) {
     workerTestGetVersion(function(version) {
       workerTestGetUserAgent(function(userAgent) {
-        workerTestGetIsB2G(function(isB2G) {
-          runTest(prefMap, permissionMap, version, userAgent, isB2G);
-          workerTestDone();
-	});
+        runTest(prefMap, permissionMap, version, userAgent);
+        workerTestDone();
       });
     });
   });

@@ -81,59 +81,6 @@ loop.contacts = (function(_, mozL10n) {
     contact[field][0].value = value;
   };
 
-  const GravatarPromo = React.createClass({displayName: "GravatarPromo",
-    propTypes: {
-      handleUse: React.PropTypes.func.isRequired
-    },
-
-    getInitialState: function() {
-      return {
-        showMe: navigator.mozLoop.getLoopPref("contacts.gravatars.promo") &&
-          !navigator.mozLoop.getLoopPref("contacts.gravatars.show")
-      };
-    },
-
-    handleCloseButtonClick: function() {
-      navigator.mozLoop.setLoopPref("contacts.gravatars.promo", false);
-      this.setState({ showMe: false });
-    },
-
-    handleUseButtonClick: function() {
-      navigator.mozLoop.setLoopPref("contacts.gravatars.promo", false);
-      navigator.mozLoop.setLoopPref("contacts.gravatars.show", true);
-      this.setState({ showMe: false });
-      this.props.handleUse();
-    },
-
-    render: function() {
-      if (!this.state.showMe) {
-        return null;
-      }
-
-      let privacyUrl = navigator.mozLoop.getLoopPref("legal.privacy_url");
-      let message = mozL10n.get("gravatars_promo_message", {
-        "learn_more": React.renderToStaticMarkup(
-          React.createElement("a", {href: privacyUrl, target: "_blank"}, 
-            mozL10n.get("gravatars_promo_message_learnmore")
-          )
-        )
-      });
-      return (
-        React.createElement("div", {className: "contacts-gravatar-promo"}, 
-          React.createElement(Button, {additionalClass: "button-close", onClick: this.handleCloseButtonClick}), 
-          React.createElement("p", {dangerouslySetInnerHTML: {__html: message}}), 
-          React.createElement(ButtonGroup, null, 
-            React.createElement(Button, {caption: mozL10n.get("gravatars_promo_button_nothanks"), 
-                    onClick: this.handleCloseButtonClick}), 
-            React.createElement(Button, {caption: mozL10n.get("gravatars_promo_button_use"), 
-                    additionalClass: "button-accept", 
-                    onClick: this.handleUseButtonClick})
-          )
-        )
-      );
-    }
-  });
-
   const ContactDropdown = React.createClass({displayName: "ContactDropdown",
     propTypes: {
       handleAction: React.PropTypes.func.isRequired,
@@ -285,9 +232,7 @@ loop.contacts = (function(_, mozL10n) {
 
       return (
         React.createElement("li", {className: contactCSSClass, onMouseLeave: this.hideDropdownMenu}, 
-          React.createElement("div", {className: "avatar"}, 
-            React.createElement("img", {src: navigator.mozLoop.getUserAvatar(email.value)})
-          ), 
+          React.createElement("div", {className: "avatar"}), 
           React.createElement("div", {className: "details"}, 
             React.createElement("div", {className: "username"}, React.createElement("strong", null, names.firstName), " ", names.lastName, 
               React.createElement("i", {className: cx({"icon icon-google": this.props.contact.category[0] == "google"})}), 
@@ -317,11 +262,6 @@ loop.contacts = (function(_, mozL10n) {
       React.addons.LinkedStateMixin,
       loop.shared.mixins.WindowCloseMixin
     ],
-
-    propTypes: {
-      notifications: React.PropTypes.instanceOf(
-        loop.shared.models.NotificationCollection).isRequired
-    },
 
     /**
      * Contacts collection object
@@ -449,14 +389,10 @@ loop.contacts = (function(_, mozL10n) {
         service: "google"
       }, (err, stats) => {
         this.setState({ importBusy: false });
+        // TODO: bug 1076764 - proper error and success reporting.
         if (err) {
-          console.error("Contact import error", err);
-          this.props.notifications.errorL10n("import_contacts_failure_message");
-          return;
+          throw err;
         }
-        this.props.notifications.successL10n("import_contacts_success_message", {
-          total: stats.total
-        });
       });
     },
 
@@ -515,12 +451,6 @@ loop.contacts = (function(_, mozL10n) {
           console.error("Unrecognized action: " + actionName);
           break;
       }
-    },
-
-    handleUseGravatar: function() {
-      // We got permission to use Gravatar icons now, so we need to redraw the
-      // list entirely to show them.
-      this.refresh();
     },
 
     sortContacts: function(contact1, contact2) {
@@ -583,8 +513,7 @@ loop.contacts = (function(_, mozL10n) {
             React.createElement("input", {className: "contact-filter", 
                    placeholder: mozL10n.get("contacts_search_placesholder"), 
                    valueLink: this.linkState("filter")})
-            : null, 
-            React.createElement(GravatarPromo, {handleUse: this.handleUseGravatar})
+            : null
           ), 
           React.createElement("ul", {className: "contact-list"}, 
             shownContacts.available ?

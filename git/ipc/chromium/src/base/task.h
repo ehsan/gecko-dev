@@ -197,8 +197,7 @@ class ScopedRunnableMethodFactory : public RevocableStore {
     virtual void Run() { DispatchToMethod(obj_, meth_, params_); }
 
    private:
-    T* MOZ_UNSAFE_REF("The validity of this pointer must be enforced by "
-                      "external factors.") obj_;
+    T* obj_;
     Method meth_;
     Params params_;
 
@@ -226,8 +225,7 @@ class DeleteTask : public CancelableTask {
     obj_ = NULL;
   }
  private:
-  T* MOZ_UNSAFE_REF("The validity of this pointer must be enforced by "
-                    "external factors.") obj_;
+  T* obj_;
 };
 
 // Task to Release() an object
@@ -244,8 +242,7 @@ class ReleaseTask : public CancelableTask {
     obj_ = NULL;
   }
  private:
-  T* MOZ_UNSAFE_REF("The validity of this pointer must be enforced by "
-                    "external factors.") obj_;
+  T* obj_;
 };
 
 // RunnableMethodTraits --------------------------------------------------------
@@ -322,9 +319,7 @@ class RunnableMethod : public CancelableTask,
     }
   }
 
-  // This is owning because of the RetainCallee and ReleaseCallee calls in the
-  // constructor and destructor.
-  T* MOZ_OWNING_REF obj_;
+  T* obj_;
   Method meth_;
   Params params_;
 };
@@ -518,8 +513,7 @@ class CallbackStorage {
   }
 
  protected:
-  T* MOZ_UNSAFE_REF("The validity of this pointer must be enforced by "
-                    "external factors.") obj_;
+  T* obj_;
   Method meth_;
 };
 

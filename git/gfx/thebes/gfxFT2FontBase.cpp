@@ -116,7 +116,7 @@ gfxFT2FontBase::GetHorizontalMetrics()
 
     if (MOZ_UNLIKELY(GetStyle()->size <= 0.0)) {
         new(&mMetrics) gfxFont::Metrics(); // zero initialize
-        mSpaceGlyph = GetGlyph(' ');
+        mSpaceGlyph = 0;
     } else {
         gfxFT2LockedFace face(this);
         face.GetMetrics(&mMetrics, &mSpaceGlyph);
@@ -144,6 +144,8 @@ gfxFT2FontBase::GetHorizontalMetrics()
 uint32_t
 gfxFT2FontBase::GetSpaceGlyph()
 {
+    NS_ASSERTION(GetStyle()->size != 0,
+                 "forgot to short-circuit a text run with zero-sized font?");
     GetHorizontalMetrics();
     return mSpaceGlyph;
 }

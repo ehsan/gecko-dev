@@ -18,6 +18,10 @@ const TEST_STATE = {
   }]
 };
 
+function test() {
+  TestRunner.run();
+}
+
 /**
  * This test ensures that windows that have just been restored will be marked
  * as dirty, otherwise _getCurrentState() might ignore them when collecting
@@ -28,20 +32,19 @@ const TEST_STATE = {
  * their state at least once.
  */
 
-add_task(function* test() {
+function runTests() {
+  let win;
+
   // Wait until the new window has been opened.
-  let promiseWindow = new Promise(resolve => {
-    Services.obs.addObserver(function onOpened(subject) {
-      Services.obs.removeObserver(onOpened, "domwindowopened");
-      resolve(subject);
-    }, "domwindowopened", false);
-  });
+  Services.obs.addObserver(function onOpened(subject) {
+    Services.obs.removeObserver(onOpened, "domwindowopened");
+    win = subject;
+    executeSoon(next);
+  }, "domwindowopened", false);
 
   // Set the new browser state that will
   // restore a window with two slowly loading tabs.
-  let backupState = SessionStore.getBrowserState();
-  SessionStore.setBrowserState(JSON.stringify(TEST_STATE));
-  let win = yield promiseWindow;
+  yield SessionStore.setBrowserState(JSON.stringify(TEST_STATE));
 
   // The window has now been opened. Check the state that is returned,
   // this should come from the cache while the window isn't restored, yet.
@@ -50,14 +53,10 @@ add_task(function* test() {
 
   // The history has now been restored and the tabs are loading. The data must
   // now come from the window, if it's correctly been marked as dirty before.
-  yield new Promise(resolve => whenDelayedStartupFinished(win, resolve));
+  yield whenDelayedStartupFinished(win, next);
   info("the delayed startup has finished");
   checkWindows();
-
-  // Cleanup.
-  yield promiseWindowClosed(win);
-  yield promiseBrowserState(backupState);
-});
+}
 
 function checkWindows() {
   let state = JSON.parse(SessionStore.getBrowserState());

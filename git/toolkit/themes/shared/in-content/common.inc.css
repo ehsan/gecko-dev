@@ -7,8 +7,7 @@
 @namespace xul "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
 html|body,
-xul|page,
-xul|window {
+xul|page {
   font: message-box;
   -moz-appearance: none;
   background-color: #fbfbfb;
@@ -25,14 +24,8 @@ html|h1 {
   font-size: 2.5em;
   font-weight: lighter;
   line-height: 1.2;
-  color: #333;
   margin: 0;
   margin-bottom: .5em;
-}
-
-html|hr {
-  border-style: solid none none none;
-  border-color: #c1c1c1;
 }
 
 xul|caption {
@@ -40,7 +33,6 @@ xul|caption {
   margin: 0;
 }
 
-xul|caption > xul|checkbox,
 xul|caption > xul|label {
   font-size: 1.3rem;
   font-weight: bold;
@@ -206,7 +198,7 @@ xul|menulist > xul|*.menulist-label-box {
   padding-left: 10px !important;
 }
 
-xul|menulist > xul|*.menulist-label-box > xul|*.menulist-icon[src] {
+xul|menulist > xul|*.menulist-label-box > xul|*.menulist-icon {
   -moz-margin-end: 5px;
 }
 
@@ -365,6 +357,7 @@ xul|button[type="menu"] > xul|menupopup xul|menuseparator {
   height: 30px;
   color: #333;
   line-height: 20px;
+  text-shadow: 0 1px 1px #fefffe;
   padding-right: 10px;
   padding-left: 10px;
   border: 1px solid #c1c1c1;
@@ -389,52 +382,34 @@ xul|textbox[disabled="true"] {
 /* Links */
 
 html|a,
-.text-link,
-.inline-link {
+xul|*.text-link,
+xul|*.inline-link {
   line-height: 22px;
   color: #0095dd;
   text-decoration: none;
 }
 
 html|a:hover,
-.text-link:hover,
-.inline-link:hover {
-  color: #178ce5;
-  text-decoration: underline;
+xul|*.text-link:hover,
+xul|*.inline-link:hover {
+  color: #4cb1ff;
+  text-decoration: none;
 }
 
 html|a:hover:active,
-.text-link:hover:active,
-.inline-link:hover:active {
+xul|*.text-link:hover:active,
+xul|*.inline-link:hover:active {
   color: #ff9500;
   text-decoration: none;
 }
 
 /* Checkboxes and radio buttons */
 
-/* Hide the actual checkbox */
-html|input[type="checkbox"] {
-  opacity: 0;
-  position: absolute;
-}
-
-/* Create a box to style as the checkbox */
-html|input[type="checkbox"] + html|label:before {
-  display: inline-block;
-  content: "";
-  vertical-align: middle;
-}
-
-html|input[type="checkbox"] + html|label {
-  line-height: 0px;
-}
-
 xul|checkbox {
   -moz-margin-start: 0;
 }
 
-xul|*.checkbox-check,
-html|input[type="checkbox"] + html|label:before {
+xul|*.checkbox-check {
   -moz-appearance: none;
   width: 23px;
   height: 23px;
@@ -449,8 +424,7 @@ html|input[type="checkbox"] + html|label:before {
   box-shadow: 0 1px 1px 0 #fff, inset 0 2px 0 0 rgba(0,0,0,0.03);
 }
 
-xul|checkbox:not([disabled="true"]):hover > xul|*.checkbox-check,
-html|input[type="checkbox"]:not(:disabled) + html|label:hover:before {
+xul|checkbox:not([disabled="true"]):hover > xul|*.checkbox-check {
   border-color: #0095dd;
 }
 
@@ -458,12 +432,7 @@ xul|*.checkbox-check[checked] {
   list-style-image: url("chrome://global/skin/in-content/check.svg#check");
 }
 
-html|input[type="checkbox"]:checked + html|label:before {
-  background-image: url("chrome://global/skin/in-content/check.svg#check"), linear-gradient(#fff, rgba(255,255,255,0.8)) !important;
-}
-
-xul|checkbox[disabled="true"] > xul|*.checkbox-check,
-html|input[type="checkbox"]:disabled + html|label {
+xul|checkbox[disabled="true"] > xul|*.checkbox-check {
   opacity: 0.5;
 }
 
@@ -654,11 +623,6 @@ xul|tree {
   border: 1px solid #c1c1c1;
 }
 
-xul|tree:-moz-focusring,
-xul|richlistbox:-moz-focusring {
-  border: 1px dotted #0095dd;
-}
-
 xul|listheader,
 xul|treecols {
   -moz-appearance: none;
@@ -676,7 +640,7 @@ xul|treecolpicker {
   padding: 5px 10px;
 }
 
-xul|treecol:not([hideheader="true"]):not([sortable="false"]):hover,
+xul|treecol:not([hideheader="true"]):hover,
 xul|treecolpicker:hover {
   background-color: #dadada;
   color: #333;

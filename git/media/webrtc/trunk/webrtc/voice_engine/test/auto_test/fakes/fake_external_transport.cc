@@ -59,8 +59,7 @@ bool FakeExternalTransport::Process() {
   switch (event_->Wait(500)) {
     case webrtc::kEventSignaled:
       lock_->Enter();
-      my_network_->ReceivedRTPPacket(channel_, packet_buffer_, length_,
-                                     webrtc::PacketTime());
+      my_network_->ReceivedRTPPacket(channel_, packet_buffer_, length_);
       lock_->Leave();
       return true;
     case webrtc::kEventTimeout:

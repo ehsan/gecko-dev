@@ -51,11 +51,10 @@ public:
     virtual ~gfxXlibSurface();
 
     virtual already_AddRefed<gfxASurface>
-    CreateSimilarSurface(gfxContentType aType,
-                         const gfxIntSize& aSize) MOZ_OVERRIDE;
+    CreateSimilarSurface(gfxContentType aType, const gfxIntSize& aSize);
     virtual void Finish() MOZ_OVERRIDE;
 
-    virtual const gfxIntSize GetSize() const MOZ_OVERRIDE;
+    virtual const gfxIntSize GetSize() const;
 
     Display* XDisplay() { return mDisplay; }
     Screen* XScreen();
@@ -81,7 +80,7 @@ public:
 
     // This surface is a wrapper around X pixmaps, which are stored in the X
     // server, not the main application.
-    virtual gfxMemoryLocation GetMemoryLocation() const MOZ_OVERRIDE;
+    virtual gfxMemoryLocation GetMemoryLocation() const;
 
 #if defined(GL_PROVIDER_GLX)
     GLXPixmap GetGLXPixmap();

@@ -120,8 +120,6 @@ class SamplerThread : public Thread {
         ::timeBeginPeriod(interval_);
 
     while (sampler_->IsActive()) {
-      sampler_->DeleteExpiredMarkers();
-
       if (!sampler_->IsPaused()) {
         mozilla::MutexAutoLock lock(*Sampler::sRegisteredThreadsMutex);
         std::vector<ThreadInfo*> threads =
@@ -137,6 +135,8 @@ class SamplerThread : public Thread {
           PseudoStack::SleepState sleeping = info->Stack()->observeSleeping();
           if (sleeping == PseudoStack::SLEEPING_AGAIN) {
             info->Profile()->DuplicateLastSample();
+            //XXX: This causes flushes regardless of jank-only mode
+            info->Profile()->flush();
             continue;
           }
 
@@ -189,13 +189,7 @@ class SamplerThread : public Thread {
     if (SuspendThread(profiled_thread) == kSuspendFailed)
       return;
 
-    // CONTEXT_CONTROL is faster but we can't use it on 64-bit because it
-    // causes crashes in RtlVirtualUnwind (see bug 1120126).
-#if V8_HOST_ARCH_X64
-    context.ContextFlags = CONTEXT_FULL;
-#else
     context.ContextFlags = CONTEXT_CONTROL;
-#endif
     if (GetThreadContext(profiled_thread, &context) != 0) {
 #if V8_HOST_ARCH_X64
       sample->pc = reinterpret_cast<Address>(context.Rip);

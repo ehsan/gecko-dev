@@ -10,7 +10,6 @@
 
 #include "nsAutoPtr.h"
 #include "nsColor.h"
-#include "nsITextInputProcessor.h"
 #include "nsStyleConsts.h"
 #include "nsTArray.h"
 
@@ -84,7 +83,7 @@ struct TextRangeStyle
            IsLineStyleDefined() && mLineStyle == LINESTYLE_NONE;
   }
 
-  bool Equals(const TextRangeStyle& aOther) const
+  bool Equals(const TextRangeStyle& aOther)
   {
     if (mDefinedStyles != aOther.mDefinedStyles)
       return false;
@@ -103,12 +102,12 @@ struct TextRangeStyle
     return true;
   }
 
-  bool operator !=(const TextRangeStyle &aOther) const
+  bool operator !=(const TextRangeStyle &aOther)
   {
     return !Equals(aOther);
   }
 
-  bool operator ==(const TextRangeStyle &aOther) const
+  bool operator ==(const TextRangeStyle &aOther)
   {
     return Equals(aOther);
   }
@@ -127,25 +126,16 @@ struct TextRangeStyle
  * mozilla::TextRange
  ******************************************************************************/
 
-// XXX NS_TEXTRANGE_* should be moved into TextRange as an typed enum.
-enum
-{
-  NS_TEXTRANGE_UNDEFINED = 0x00,
-  NS_TEXTRANGE_CARETPOSITION = 0x01,
-  NS_TEXTRANGE_RAWINPUT =
-    nsITextInputProcessor::ATTR_RAW_CLAUSE,
-  NS_TEXTRANGE_SELECTEDRAWTEXT =
-    nsITextInputProcessor::ATTR_SELECTED_RAW_CLAUSE,
-  NS_TEXTRANGE_CONVERTEDTEXT =
-    nsITextInputProcessor::ATTR_CONVERTED_CLAUSE,
-  NS_TEXTRANGE_SELECTEDCONVERTEDTEXT =
-    nsITextInputProcessor::ATTR_SELECTED_CLAUSE
-};
+#define NS_TEXTRANGE_CARETPOSITION         0x01
+#define NS_TEXTRANGE_RAWINPUT              0x02
+#define NS_TEXTRANGE_SELECTEDRAWTEXT       0x03
+#define NS_TEXTRANGE_CONVERTEDTEXT         0x04
+#define NS_TEXTRANGE_SELECTEDCONVERTEDTEXT 0x05
 
 struct TextRange
 {
   TextRange() :
-    mStartOffset(0), mEndOffset(0), mRangeType(NS_TEXTRANGE_UNDEFINED)
+    mStartOffset(0), mEndOffset(0), mRangeType(0)
   {
   }
 
@@ -165,14 +155,6 @@ struct TextRange
                  mRangeType <= NS_TEXTRANGE_SELECTEDCONVERTEDTEXT,
                "Invalid range type");
     return mRangeType != NS_TEXTRANGE_CARETPOSITION;
-  }
-
-  bool Equals(const TextRange& aOther) const
-  {
-    return mStartOffset == aOther.mStartOffset &&
-           mEndOffset == aOther.mEndOffset &&
-           mRangeType == aOther.mRangeType &&
-           mRangeStyle == aOther.mRangeStyle;
   }
 };
 
@@ -208,20 +190,6 @@ public:
       }
     }
     return 0;
-  }
-
-  bool Equals(const TextRangeArray& aOther) const
-  {
-    size_t len = Length();
-    if (len != aOther.Length()) {
-      return false;
-    }
-    for (size_t i = 0; i < len; i++) {
-      if (!ElementAt(i).Equals(aOther.ElementAt(i))) {
-        return false;
-      }
-    }
-    return true;
   }
 };
 

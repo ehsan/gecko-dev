@@ -125,7 +125,12 @@ RootActor.prototype = {
     highlightable: true,
     // Which custom highlighter does the server-side highlighter actor supports?
     // (see server/actors/highlighter.js)
-    customHighlighters: true,
+    customHighlighters: [
+      "BoxModelHighlighter",
+      "CssTransformHighlighter",
+      "SelectorHighlighter",
+      "RectHighlighter"
+    ],
     // Whether the inspector actor implements the getImageDataFromURL
     // method that returns data-uris for image URLs. This is used for image
     // tooltips for instance
@@ -149,18 +154,13 @@ RootActor.prototype = {
     addNewRule: true,
     // Whether the dom node actor implements the getUniqueSelector method
     getUniqueSelector: true,
-    // Whether the director scripts are supported
-    directorScripts: true,
     // Whether the debugger server supports
     // blackboxing/pretty-printing (not supported in Fever Dream yet)
     noBlackBoxing: false,
     noPrettyPrinting: false,
     // Whether the page style actor implements the getUsedFontFaces method
     // that returns the font faces used on a node
-    getUsedFontFaces: true,
-    // Trait added in Gecko 38, indicating that all features necessary for
-    // grabbing allocations from the MemoryActor are available for the performance tool
-    memoryActorAllocations: true
+    getUsedFontFaces: true
   },
 
   /**

@@ -8,13 +8,13 @@ var FindHelper = {
   _targetTab: null,
   _initialViewport: null,
   _viewportChanged: false,
-  _result: null,
-  _limit: 0,
+  _matchesCountResult: null,
 
   observe: function(aMessage, aTopic, aData) {
     switch(aTopic) {
       case "FindInPage:Opened": {
         this._findOpened();
+        this._init();
         break;
       }
 
@@ -32,13 +32,6 @@ var FindHelper = {
   },
 
   _findOpened: function() {
-    try {
-      this._limit = Services.prefs.getIntPref("accessibility.typeaheadfind.matchesCountLimit");
-    } catch (e) {
-      // Pref not available, assume 0, no match counting.
-      this._limit = 0;
-    }
-
     Messaging.addListener((data) => {
       this.doFind(data.searchString, data.matchCase);
       return this._getMatchesCountResult(data.searchString);
@@ -98,22 +91,18 @@ var FindHelper = {
    * Request, wait for, and return the current matchesCount results for a string.
    */
   _getMatchesCountResult: function(findString) {
-    // Count matches up to any provided limit.
-    if (this._limit <= 0) {
-      return { total: 0, current: 0, limit: 0 };
-    }
+      // Sync call to Finder, results available immediately.
+      this._matchesCountResult = null;
+      this._finder.requestMatchesCount(findString);
 
-    // Sync call to Finder, results available immediately.
-    this._finder.requestMatchesCount(findString, this._limit);
-    return this._result;
+      return this._matchesCountResult;
   },
 
   /**
    * Pass along the count results to FindInPageBar for display.
    */
   onMatchesCountResult: function(result) {
-    this._result = result;
-    this._result.limit = this._limit;
+    this._matchesCountResult = result;
   },
 
   doFind: function(searchString, matchCase) {
@@ -126,9 +115,7 @@ var FindHelper = {
   },
 
   findAgain: function(searchString, findBackwards, matchCase) {
-    // This always happens if the user taps next/previous after re-opening the
-    // search bar, and not only forces _init() but also an initial fastFind(STRING)
-    // before any findAgain(DIRECTION).
+    // This can happen if the user taps next/previous after re-opening the search bar
     if (!this._finder) {
       this.doFind(searchString, matchCase);
       return;

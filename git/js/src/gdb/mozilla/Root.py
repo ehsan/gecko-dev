@@ -64,7 +64,7 @@ class MutableHandle(Common):
     handle = True
 
 @template_pretty_printer("js::BarrieredBase")
-class BarrieredBase(Common):
+class PreBarriered(Common):
     member = 'value'
 
 # Return the referent of a HeapPtr, Rooted, or Handle.

@@ -116,7 +116,7 @@ public:
   {
     NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
     return mVideoSource && !mStopped &&
-           mVideoSource->GetMediaSource() == dom::MediaSourceEnum::Camera &&
+           mVideoSource->GetMediaSource() == MediaSourceType::Camera &&
            (!mVideoSource->IsFake() ||
             Preferences::GetBool("media.navigator.permission.fake"));
   }
@@ -131,19 +131,19 @@ public:
   {
     NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
     return mVideoSource && !mStopped && !mVideoSource->IsAvailable() &&
-           mVideoSource->GetMediaSource() == dom::MediaSourceEnum::Screen;
+           mVideoSource->GetMediaSource() == MediaSourceType::Screen;
   }
   bool CapturingWindow()
   {
     NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
     return mVideoSource && !mStopped && !mVideoSource->IsAvailable() &&
-           mVideoSource->GetMediaSource() == dom::MediaSourceEnum::Window;
+           mVideoSource->GetMediaSource() == MediaSourceType::Window;
   }
   bool CapturingApplication()
   {
     NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
     return mVideoSource && !mStopped && !mVideoSource->IsAvailable() &&
-           mVideoSource->GetMediaSource() == dom::MediaSourceEnum::Application;
+           mVideoSource->GetMediaSource() == MediaSourceType::Application;
   }
 
   void SetStopped()
@@ -393,6 +393,8 @@ public:
           NS_ASSERTION(!NS_IsMainThread(), "Never call on main thread");
           nsresult rv;
 
+          source->SetPullEnabled(true);
+
           DOMMediaStream::TrackTypeHints expectedTracks = 0;
           if (mAudioSource) {
             rv = mAudioSource->Start(source, kAudioTrack);
@@ -412,13 +414,8 @@ public:
               return;
             }
           }
-          // Start() queued the tracks to be added synchronously to avoid races
-          source->FinishAddTracks();
 
           mOnTracksAvailableCallback->SetExpectedTracks(expectedTracks);
-
-          source->SetPullEnabled(true);
-          source->AdvanceKnownTracksTime(STREAM_TIME_MAX);
 
           MM_LOG(("started all sources"));
           // Forward mOnTracksAvailableCallback to GetUserMediaNotificationEvent,
@@ -511,7 +508,7 @@ protected:
   nsString mID;
   bool mHasFacingMode;
   dom::VideoFacingModeEnum mFacingMode;
-  dom::MediaSourceEnum mMediaSource;
+  MediaSourceType mMediaSource;
   nsRefPtr<MediaEngineSource> mSource;
 };
 
@@ -523,7 +520,7 @@ public:
   explicit VideoDevice(Source* aSource);
   NS_IMETHOD GetType(nsAString& aType);
   Source* GetSource();
-  uint32_t GetBestFitnessDistance(
+  bool SatisfiesConstraintSets(
     const nsTArray<const dom::MediaTrackConstraintSet*>& aConstraintSets);
 };
 
@@ -535,7 +532,7 @@ public:
   explicit AudioDevice(Source* aSource);
   NS_IMETHOD GetType(nsAString& aType);
   Source* GetSource();
-  uint32_t GetBestFitnessDistance(
+  bool SatisfiesConstraintSets(
     const nsTArray<const dom::MediaTrackConstraintSet*>& aConstraintSets);
 };
 

@@ -15,7 +15,6 @@ typedef sequence <PerformanceEntry> PerformanceEntryList;
 
 [Exposed=(Window,Worker)]
 interface Performance {
-  [DependsOn=DeviceState, Affects=Nothing]
   DOMHighResTimeStamp now();
 };
 
@@ -50,17 +49,4 @@ partial interface Performance {
   void setResourceTimingBufferSize(unsigned long maxSize);
   [Pref="dom.enable_resource_timing"]
   attribute EventHandler onresourcetimingbufferfull;
-};
-
-// http://www.w3.org/TR/user-timing/
-[Exposed=Window]
-partial interface Performance {
-  [Pref="dom.enable_user_timing", Throws]
-  void mark(DOMString markName);
-  [Pref="dom.enable_user_timing"]
-  void clearMarks(optional DOMString markName);
-  [Pref="dom.enable_user_timing", Throws]
-  void measure(DOMString measureName, optional DOMString startMark, optional DOMString endMark);
-  [Pref="dom.enable_user_timing"]
-  void clearMeasures(optional DOMString measureName);
 };

@@ -199,8 +199,7 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
     ll.BeginLineReflow(bp.IStart(wm), bp.BStart(wm),
                        availSize.ISize(wm), NS_UNCONSTRAINEDSIZE,
                        false, true, kidWritingMode,
-                       nsSize(aReflowState.AvailableWidth(),
-                              aReflowState.AvailableHeight()));
+                       aReflowState.AvailableWidth());
     rs.mLineLayout = &ll;
     ll.SetInFirstLetter(true);
     ll.SetFirstLetterStyleOK(true);
@@ -254,7 +253,8 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
     aMetrics.ISize(lineWM) = ll->EndSpan(this) + bp.IStartEnd(wm);
     ll->SetInFirstLetter(false);
 
-    nsLayoutUtils::SetBSizeFromFontMetrics(this, aMetrics, bp, lineWM, wm);
+    nsLayoutUtils::SetBSizeFromFontMetrics(this, aMetrics, aReflowState,
+                                           bp, lineWM, wm);
   }
 
   if (!NS_INLINE_IS_BREAK_BEFORE(aReflowStatus)) {

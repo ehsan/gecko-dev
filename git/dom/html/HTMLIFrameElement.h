@@ -26,12 +26,6 @@ public:
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
-  // Element
-  virtual bool IsInteractiveHTMLContent() const MOZ_OVERRIDE
-  {
-    return true;
-  }
-
   // nsIDOMHTMLIFrameElement
   NS_DECL_NSIDOMHTMLIFRAMEELEMENT
 
@@ -177,7 +171,7 @@ public:
 protected:
   virtual ~HTMLIFrameElement();
 
-  virtual void GetItemValueText(DOMString& text) MOZ_OVERRIDE;
+  virtual void GetItemValueText(nsAString& text) MOZ_OVERRIDE;
   virtual void SetItemValueText(const nsAString& text) MOZ_OVERRIDE;
 
   virtual JSObject* WrapNode(JSContext* aCx) MOZ_OVERRIDE;

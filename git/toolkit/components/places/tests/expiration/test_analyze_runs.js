@@ -64,7 +64,7 @@ add_task(function init_tests()
   let bs = PlacesUtils.bookmarks;
   bs.insertBookmark(PlacesUtils.unfiledBookmarksFolderId, TEST_URI,
                     bs.DEFAULT_INDEX, TEST_TITLE);
-  yield PlacesTestUtils.addVisits(TEST_URI);
+  yield promiseAddVisits(TEST_URI);
   let thing = {
     QueryInterface: XPCOMUtils.generateQI([Ci.nsIAutoCompleteInput,
                                            Ci.nsIAutoCompletePopup,

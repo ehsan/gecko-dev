@@ -37,11 +37,13 @@ function debug(aMsg) {
 }
 
 
-function enableOfflineCacheForApp(aPrincipal) {
-  Services.perms.addFromPrincipal(aPrincipal, 'offline-app',
+function enableOfflineCacheForApp(origin, appId) {
+  let principal = Services.scriptSecurityManager.getAppCodebasePrincipal(
+                    origin, appId, false);
+  Services.perms.addFromPrincipal(principal, 'offline-app',
                                   Ci.nsIPermissionManager.ALLOW_ACTION);
   // Prevent cache from being evicted:
-  Services.perms.addFromPrincipal(aPrincipal, 'pin-app',
+  Services.perms.addFromPrincipal(principal, 'pin-app',
                                   Ci.nsIPermissionManager.ALLOW_ACTION);
 }
 
@@ -78,18 +80,10 @@ function storeCache(applicationCache, url, file, itemType) {
   });
 }
 
-function readFile(aFile, aPrincipal, aCallback) {
-
-  let channel = NetUtil.newChannel2(aFile,
-                                    null,
-                                    null,
-                                    null,      // aLoadingNode
-                                    aPrincipal,
-                                    null,      // aTriggeringPrincipal
-                                    Ci.nsILoadInfo.SEC_NORMAL,
-                                    Ci.nsIContentPolicy.TYPE_OTHER);
+function readFile(aFile, aCallback) {
+  let channel = NetUtil.newChannel(aFile);
   channel.contentType = "plain/text";
-  NetUtil.asyncFetch2(channel, function(aStream, aResult) {
+  NetUtil.asyncFetch(channel, function(aStream, aResult) {
     if (!Components.isSuccessCode(aResult)) {
       Cu.reportError("OfflineCacheInstaller: Could not read file " + aFile.path);
       if (aCallback)
@@ -217,10 +211,7 @@ function installCache(app) {
   if (!cacheManifest.exists())
     return;
 
-  let principal = Services.scriptSecurityManager.getAppCodebasePrincipal(
-                    app.origin, app.localId, false);
-
-  enableOfflineCacheForApp(principal);
+  enableOfflineCacheForApp(app.origin, app.localId);
 
   // Get the url for the manifest.
   let appcacheURL = app.appcache_path;
@@ -232,7 +223,7 @@ function installCache(app) {
   let applicationCache = applicationCacheService.createApplicationCache(groupID);
   applicationCache.activate();
 
-  readFile(cacheManifest, principal, function readAppCache(content) {
+  readFile(cacheManifest, function readAppCache(content) {
     let entries = parseAppCache(app, cacheManifest.path, content);
 
     entries.urls.forEach(function processCachedFile(url) {

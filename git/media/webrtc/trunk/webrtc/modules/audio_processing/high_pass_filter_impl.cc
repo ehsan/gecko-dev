@@ -13,10 +13,11 @@
 #include <assert.h>
 
 #include "webrtc/common_audio/signal_processing/include/signal_processing_library.h"
-#include "webrtc/modules/audio_processing/audio_buffer.h"
 #include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
 #include "webrtc/typedefs.h"
 
+#include "webrtc/modules/audio_processing/audio_buffer.h"
+#include "webrtc/modules/audio_processing/audio_processing_impl.h"
 
 namespace webrtc {
 namespace {
@@ -35,7 +36,7 @@ struct FilterState {
 int InitializeFilter(FilterState* hpf, int sample_rate_hz) {
   assert(hpf != NULL);
 
-  if (sample_rate_hz == AudioProcessing::kSampleRate8kHz) {
+  if (sample_rate_hz == AudioProcessingImpl::kSampleRate8kHz) {
     hpf->ba = kFilterCoefficients8kHz;
   } else {
     hpf->ba = kFilterCoefficients;
@@ -82,8 +83,8 @@ int Filter(FilterState* hpf, int16_t* data, int length) {
     y[2] = y[0];
     y[3] = y[1];
     y[0] = static_cast<int16_t>(tmp_int32 >> 13);
-    y[1] = static_cast<int16_t>(
-        (tmp_int32 - (static_cast<int32_t>(y[0]) << 13)) << 2);
+    y[1] = static_cast<int16_t>((tmp_int32 -
+        WEBRTC_SPL_LSHIFT_W32(static_cast<int32_t>(y[0]), 13)) << 2);
 
     // Rounding in Q12, i.e. add 2^11
     tmp_int32 += 2048;
@@ -93,8 +94,9 @@ int Filter(FilterState* hpf, int16_t* data, int length) {
                                tmp_int32,
                                static_cast<int32_t>(-134217728));
 
-    // Convert back to Q0 and use rounding.
-    data[i] = (int16_t)(tmp_int32 >> 12);
+    // Convert back to Q0 and use rounding
+    data[i] = (int16_t)WEBRTC_SPL_RSHIFT_W32(tmp_int32, 12);
+
   }
 
   return AudioProcessing::kNoError;
@@ -103,11 +105,9 @@ int Filter(FilterState* hpf, int16_t* data, int length) {
 
 typedef FilterState Handle;
 
-HighPassFilterImpl::HighPassFilterImpl(const AudioProcessing* apm,
-                                       CriticalSectionWrapper* crit)
-  : ProcessingComponent(),
-    apm_(apm),
-    crit_(crit) {}
+HighPassFilterImpl::HighPassFilterImpl(const AudioProcessingImpl* apm)
+  : ProcessingComponent(apm),
+    apm_(apm) {}
 
 HighPassFilterImpl::~HighPassFilterImpl() {}
 
@@ -135,7 +135,7 @@ int HighPassFilterImpl::ProcessCaptureAudio(AudioBuffer* audio) {
 }
 
 int HighPassFilterImpl::Enable(bool enable) {
-  CriticalSectionScoped crit_scoped(crit_);
+  CriticalSectionScoped crit_scoped(apm_->crit());
   return EnableComponent(enable);
 }
 
@@ -147,13 +147,14 @@ void* HighPassFilterImpl::CreateHandle() const {
   return new FilterState;
 }
 
-void HighPassFilterImpl::DestroyHandle(void* handle) const {
+int HighPassFilterImpl::DestroyHandle(void* handle) const {
   delete static_cast<Handle*>(handle);
+  return apm_->kNoError;
 }
 
 int HighPassFilterImpl::InitializeHandle(void* handle) const {
   return InitializeFilter(static_cast<Handle*>(handle),
-                          apm_->proc_sample_rate_hz());
+                          apm_->sample_rate_hz());
 }
 
 int HighPassFilterImpl::ConfigureHandle(void* /*handle*/) const {

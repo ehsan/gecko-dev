@@ -18,7 +18,6 @@
         '<(webrtc_root)/test/test.gyp:test_support_main',
       ],
       'sources': [
-        'aligned_array_unittest.cc',
         'aligned_malloc_unittest.cc',
         'clock_unittest.cc',
         'condition_variable_unittest.cc',
@@ -30,12 +29,10 @@
         'data_log_helpers_unittest.cc',
         'data_log_c_helpers_unittest.c',
         'data_log_c_helpers_unittest.h',
-        'rtp_to_ntp_unittest.cc',
-        'scoped_vector_unittest.cc',
         'stringize_macros_unittest.cc',
-        'stl_util_unittest.cc',
         'thread_unittest.cc',
         'thread_posix_unittest.cc',
+        'unittest_utilities_unittest.cc',
       ],
       'conditions': [
         ['enable_data_logging==1', {
@@ -46,7 +43,9 @@
         ['os_posix==0', {
           'sources!': [ 'thread_posix_unittest.cc', ],
         }],
-        ['OS=="android"', {
+        # TODO(henrike): remove build_with_chromium==1 when the bots are
+        # using Chromium's buildbots.
+        ['build_with_chromium==1 and OS=="android" and gtest_target_type=="shared_library"', {
           'dependencies': [
             '<(DEPTH)/testing/android/native_test.gyp:native_test_native_code',
           ],
@@ -59,7 +58,9 @@
     },
   ],
   'conditions': [
-    ['include_tests==1 and OS=="android"', {
+    # TODO(henrike): remove build_with_chromium==1 when the bots are using
+    # Chromium's buildbots.
+    ['include_tests==1 and build_with_chromium==1 and OS=="android" and gtest_target_type=="shared_library"', {
       'targets': [
         {
           'target_name': 'system_wrappers_unittests_apk_target',
@@ -80,6 +81,7 @@
           ],
           'includes': [
             '../../build/isolate.gypi',
+            'system_wrappers_unittests.isolate',
           ],
           'sources': [
             'system_wrappers_unittests.isolate',

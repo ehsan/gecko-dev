@@ -65,27 +65,19 @@ nsBlockReflowState::nsBlockReflowState(const nsHTMLReflowState& aReflowState,
     aFrame->GetLogicalSkipSides(&aReflowState);
   mBorderPadding.ApplySkipSides(logicalSkipSides);
 
-  // Note that mContainerSize is the physical size, needed to
-  // convert logical block-coordinates in vertical-rl writing mode
-  // (measured from a RHS origin) to physical coordinates within the
-  // containing block.
-  // If aReflowState doesn't have a constrained ComputedWidth(), we set
-  // mContainerSize.width to zero, which means lines will be positioned
-  // (physically) incorrectly; we will fix them up at the end of
-  // nsBlockFrame::Reflow, after we know the total block-size of the
-  // frame.
-  mContainerSize.width = aReflowState.ComputedWidth();
-  if (mContainerSize.width == NS_UNCONSTRAINEDSIZE) {
-    mContainerSize.width = 0;
+  // Note that mContainerWidth is the physical width, needed to convert
+  // logical block-coordinates in vertical-rl writing mode (measured from a
+  // RHS origin) to physical coordinates within the containing block.
+  // If aReflowState doesn't have a constrained ComputedWidth(), we set it to
+  // zero, which means lines will be positioned (physically) incorrectly;
+  // we will fix them up at the end of nsBlockFrame::Reflow, after we know
+  // the total block-size of the frame.
+  mContainerWidth = aReflowState.ComputedWidth();
+  if (mContainerWidth == NS_UNCONSTRAINEDSIZE) {
+    mContainerWidth = 0;
   }
 
-  mContainerSize.width += mBorderPadding.LeftRight(wm);
-
-  // For now at least, we don't do that fix-up for mContainerHeight.
-  // It's only used in nsBidiUtils::ReorderFrames for vertical rtl
-  // writing modes, which aren't fully supported for the time being.
-  mContainerSize.height = aReflowState.ComputedHeight() +
-                          mBorderPadding.TopBottom(wm);
+  mContainerWidth += mBorderPadding.LeftRight(wm);
 
   if ((aBStartMarginRoot && !logicalSkipSides.BStart()) ||
       0 != mBorderPadding.BStart(wm)) {
@@ -328,7 +320,7 @@ nsBlockReflowState::GetFloatAvailableSpaceWithState(
   nsFlowAreaRect result =
     mFloatManager->GetFlowArea(wm, aBCoord, nsFloatManager::BAND_FROM_POINT,
                                blockSize, mContentArea, aState,
-                               ContainerWidth());
+                               mContainerWidth);
   // Keep the inline size >= 0 for compatibility with nsSpaceManager.
   if (result.mRect.ISize(wm) < 0) {
     result.mRect.ISize(wm) = 0;
@@ -365,7 +357,7 @@ nsBlockReflowState::GetFloatAvailableSpaceForBSize(
 #endif
   nsFlowAreaRect result =
     mFloatManager->GetFlowArea(wm, aBCoord, nsFloatManager::WIDTH_WITHIN_HEIGHT,
-                               aBSize, mContentArea, aState, ContainerWidth());
+                               aBSize, mContentArea, aState, mContainerWidth);
   // Keep the width >= 0 for compatibility with nsSpaceManager.
   if (result.mRect.ISize(wm) < 0) {
     result.mRect.ISize(wm) = 0;
@@ -425,8 +417,8 @@ nsBlockReflowState::ReconstructMarginBefore(nsLineList::iterator aLine)
 void
 nsBlockReflowState::SetupPushedFloatList()
 {
-  MOZ_ASSERT(!GetFlag(BRS_PROPTABLE_FLOATCLIST) == !mPushedFloats,
-             "flag mismatch");
+  NS_ABORT_IF_FALSE(!GetFlag(BRS_PROPTABLE_FLOATCLIST) == !mPushedFloats,
+                    "flag mismatch");
   if (!GetFlag(BRS_PROPTABLE_FLOATCLIST)) {
     // If we're being re-Reflow'd without our next-in-flow having been
     // reflowed, some pushed floats from our previous reflow might
@@ -496,7 +488,7 @@ nsBlockReflowState::RecoverFloats(nsLineList::iterator aLine,
                mFloatManagerOrigin.B(mFloatManagerWM));
         nsFrame::ListTag(stdout, floatFrame);
         LogicalRect region = nsFloatManager::GetRegionFor(wm, floatFrame,
-                                                          ContainerWidth());
+                                                          mContainerWidth);
         printf(" aDeltaBCoord=%d region={%d,%d,%d,%d}\n",
                aDeltaBCoord, region.IStart(wm), region.BStart(wm),
                region.ISize(wm), region.BSize(wm));
@@ -504,13 +496,13 @@ nsBlockReflowState::RecoverFloats(nsLineList::iterator aLine,
 #endif
       mFloatManager->AddFloat(floatFrame,
                               nsFloatManager::GetRegionFor(wm, floatFrame,
-                                                           ContainerWidth()),
-                              wm, ContainerWidth());
+                                                           mContainerWidth),
+                              wm, mContainerWidth);
       fc = fc->Next();
     }
   } else if (aLine->IsBlock()) {
     nsBlockFrame::RecoverFloatsFor(aLine->mFirstChild, *mFloatManager, wm,
-                                   ContainerWidth());
+                                   mContainerWidth);
   }
   mFloatManager->Untranslate(oldWM, oPt);
 }
@@ -566,13 +558,13 @@ nsBlockReflowState::AddFloat(nsLineLayout*       aLineLayout,
   NS_PRECONDITION(aFloat->GetStateBits() & NS_FRAME_OUT_OF_FLOW,
                   "aFloat must be an out-of-flow frame");
 
-  MOZ_ASSERT(aFloat->GetParent(), "float must have parent");
-  MOZ_ASSERT(aFloat->GetParent()->IsFrameOfType(nsIFrame::eBlockFrame),
-             "float's parent must be block");
-  MOZ_ASSERT(aFloat->GetParent() == mBlock ||
-             (aFloat->GetStateBits() & NS_FRAME_IS_PUSHED_FLOAT),
-             "float should be in this block unless it was marked as "
-             "pushed float");
+  NS_ABORT_IF_FALSE(aFloat->GetParent(), "float must have parent");
+  NS_ABORT_IF_FALSE(aFloat->GetParent()->IsFrameOfType(nsIFrame::eBlockFrame),
+                    "float's parent must be block");
+  NS_ABORT_IF_FALSE(aFloat->GetParent() == mBlock ||
+                    (aFloat->GetStateBits() & NS_FRAME_IS_PUSHED_FLOAT),
+                    "float should be in this block unless it was marked as "
+                    "pushed float");
   if (aFloat->GetStateBits() & NS_FRAME_IS_PUSHED_FLOAT) {
     // If, in a previous reflow, the float was pushed entirely to
     // another column/page, we need to steal it back.  (We might just
@@ -704,7 +696,7 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
 
   // The float's old region, so we can propagate damage.
   LogicalRect oldRegion = nsFloatManager::GetRegionFor(wm, aFloat,
-                                                       ContainerWidth());
+                                                       mContainerWidth);
 
   // Enforce CSS2 9.5.1 rule [2], i.e., make sure that a float isn't
   // ``above'' another float that preceded it in the flow.
@@ -712,7 +704,7 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
   // set the origin to our writing mode
   LogicalPoint oPt(wm);
   WritingMode oldWM = mFloatManager->Translate(wm, oPt);
-  mBCoord = std::max(mFloatManager->GetLowestFloatTop(wm, ContainerWidth()),
+  mBCoord = std::max(mFloatManager->GetLowestFloatTop(wm, mContainerWidth),
                      mBCoord);
 
   // See if the float should clear any preceding floats...
@@ -921,33 +913,41 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
   // Calculate the actual origin of the float frame's border rect
   // relative to the parent block; the margin must be added in
   // to get the border rect
-  LogicalPoint origin(wm, floatMargin.IStart(wm) + floatPos.I(wm),
-                      floatMargin.BStart(wm) + floatPos.B(wm));
+
+  //XXX temporary! ApplyRelativePositioning still uses physical margin and point
+  LogicalSize size = aFloat->GetLogicalSize(wm);
+  LogicalMargin margin = aFloat->GetLogicalUsedMargin(wm);
+  size.ISize(wm) += margin.IStartEnd(wm);
+  size.BSize(wm) += margin.BStartEnd(wm);
+  nsPoint physicalPos =
+    LogicalRect(wm, floatPos, size).GetPhysicalPosition(wm, mContainerWidth);
+  nsPoint origin(floatMargin.Left(wm) + physicalPos.x,
+                 floatMargin.Top(wm) + physicalPos.y);
 
   // If float is relatively positioned, factor that in as well
-  nsHTMLReflowState::ApplyRelativePositioning(aFloat, wm, floatOffsets,
-                                              &origin, ContainerWidth());
+  nsHTMLReflowState::ApplyRelativePositioning(aFloat,
+                                             floatOffsets.GetPhysicalMargin(wm),
+                                              &origin);
 
   // Position the float and make sure and views are properly
   // positioned. We need to explicitly position its child views as
   // well, since we're moving the float after flowing it.
-  bool moved = aFloat->GetLogicalPosition(wm, ContainerWidth()) != origin;
+  bool moved = aFloat->GetPosition() != origin;
   if (moved) {
-    aFloat->SetPosition(wm, origin, ContainerWidth());
+    aFloat->SetPosition(origin);
     nsContainerFrame::PositionFrameView(aFloat);
     nsContainerFrame::PositionChildViews(aFloat);
   }
 
   // Update the float combined area state
   // XXX Floats should really just get invalidated here if necessary
-  mFloatOverflowAreas.UnionWith(aFloat->GetOverflowAreas() +
-                                aFloat->GetPosition());
+  mFloatOverflowAreas.UnionWith(aFloat->GetOverflowAreas() + origin);
 
   // Place the float in the float manager
   // calculate region
   LogicalRect region =
     nsFloatManager::CalculateRegionFor(wm, aFloat, floatMargin,
-                                       ContainerWidth());
+                                       mContainerWidth);
   // if the float split, then take up all of the vertical height
   if (NS_FRAME_IS_NOT_COMPLETE(reflowStatus) &&
       (NS_UNCONSTRAINEDSIZE != ContentBSize())) {
@@ -955,10 +955,10 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
                                 ContentBSize() - floatPos.B(wm));
   }
   DebugOnly<nsresult> rv = mFloatManager->AddFloat(aFloat, region, wm,
-                                                   ContainerWidth());
-  MOZ_ASSERT(NS_SUCCEEDED(rv), "bad float placement");
+                                                   mContainerWidth);
+  NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "bad float placement");
   // store region
-  nsFloatManager::StoreRegionFor(wm, aFloat, region, ContainerWidth());
+  nsFloatManager::StoreRegionFor(wm, aFloat, region, mContainerWidth);
 
   // If the float's dimensions have changed, note the damage in the
   // float manager.
@@ -1017,8 +1017,9 @@ nsBlockReflowState::PushFloatPastBreak(nsIFrame *aFloat)
   if (aFloat->StyleDisplay()->mFloats == NS_STYLE_FLOAT_LEFT) {
     mFloatManager->SetPushedLeftFloatPastBreak();
   } else {
-    MOZ_ASSERT(aFloat->StyleDisplay()->mFloats == NS_STYLE_FLOAT_RIGHT,
-               "unexpected float value");
+    NS_ABORT_IF_FALSE(aFloat->StyleDisplay()->mFloats ==
+                        NS_STYLE_FLOAT_RIGHT,
+                      "unexpected float value");
     mFloatManager->SetPushedRightFloatPastBreak();
   }
 
@@ -1086,7 +1087,7 @@ nsBlockReflowState::ClearFloats(nscoord aBCoord, uint8_t aBreakType,
 
   if (aBreakType != NS_STYLE_CLEAR_NONE) {
     newBCoord = mFloatManager->ClearFloats(wm, newBCoord, aBreakType,
-                                           ContainerWidth(), aFlags);
+                                           mContainerWidth, aFlags);
   }
 
   if (aReplacedBlock) {

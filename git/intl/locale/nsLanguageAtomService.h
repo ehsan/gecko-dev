@@ -36,6 +36,9 @@ private:
   ~nsLanguageAtomService() { }
 
 protected:
+  nsresult InitLangGroupTable();
+
   nsInterfaceHashtable<nsISupportsHashKey, nsIAtom> mLangToGroup;
+  nsCOMPtr<nsIStringBundle> mLangGroups;
   nsCOMPtr<nsIAtom> mLocaleLanguage;
 };

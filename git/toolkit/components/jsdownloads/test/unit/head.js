@@ -31,8 +31,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "HttpServer",
                                   "resource://testing-common/httpd.js");
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
                                   "resource://gre/modules/NetUtil.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "PlacesTestUtils",
-                                  "resource://testing-common/PlacesTestUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
                                   "resource://gre/modules/PlacesUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Promise",
@@ -169,6 +167,43 @@ function promiseTimeout(aTime)
   let deferred = Promise.defer();
   do_timeout(aTime, deferred.resolve);
   return deferred.promise;
+}
+
+/**
+ * Allows waiting for an observer notification once.
+ *
+ * @param aTopic
+ *        Notification topic to observe.
+ *
+ * @return {Promise}
+ * @resolves The array [aSubject, aData] from the observed notification.
+ * @rejects Never.
+ */
+function promiseTopicObserved(aTopic)
+{
+  let deferred = Promise.defer();
+
+  Services.obs.addObserver(
+    function PTO_observe(aSubject, aTopic, aData) {
+      Services.obs.removeObserver(PTO_observe, aTopic);
+      deferred.resolve([aSubject, aData]);
+    }, aTopic, false);
+
+  return deferred.promise;
+}
+
+/**
+ * Clears history asynchronously.
+ *
+ * @return {Promise}
+ * @resolves When history has been cleared.
+ * @rejects Never.
+ */
+function promiseClearHistory()
+{
+  let promise = promiseTopicObserved(PlacesUtils.TOPIC_EXPIRATION_FINISHED);
+  do_execute_soon(function() PlacesUtils.bhistory.removeAllPages());
+  return promise;
 }
 
 /**
@@ -320,7 +355,13 @@ function promiseStartLegacyDownload(aSourceUrl, aOptions) {
   persist.persistFlags |=
     Ci.nsIWebBrowserPersist.PERSIST_FLAGS_AUTODETECT_APPLY_CONVERSION;
 
-  let transfer = Cc["@mozilla.org/transfer;1"].createInstance(Ci.nsITransfer);
+  // We must create the nsITransfer implementation using its class ID because
+  // the "@mozilla.org/transfer;1" contract is currently implemented in
+  // "toolkit/components/downloads".  When the other folder is not included in
+  // builds anymore (bug 851471), we'll be able to use the contract ID.
+  let transfer =
+      Components.classesByID["{1b4c85df-cbdd-4bb6-b04e-613caece083c}"]
+                .createInstance(Ci.nsITransfer);
 
   let deferred = Promise.defer();
 
@@ -394,14 +435,7 @@ function promiseStartExternalHelperAppServiceDownload(aSourceUrl) {
       },
     }).then(null, do_report_unexpected_exception);
 
-    let channel = NetUtil.newChannel2(sourceURI,
-                                      null,
-                                      null,
-                                      null,      // aLoadingNode
-                                      Services.scriptSecurityManager.getSystemPrincipal(),
-                                      null,      // aTriggeringPrincipal
-                                      Ci.nsILoadInfo.SEC_NORMAL,
-                                      Ci.nsIContentPolicy.TYPE_OTHER);
+    let channel = NetUtil.newChannel(sourceURI);
 
     // Start the actual download process.
     channel.asyncOpen({
@@ -535,29 +569,21 @@ function promiseVerifyContents(aPath, aExpectedContents)
     }
 
     let deferred = Promise.defer();
-    NetUtil.asyncFetch2(
-      file,
-      function(aInputStream, aStatus) {
-        do_check_true(Components.isSuccessCode(aStatus));
-        let contents = NetUtil.readInputStreamToString(aInputStream,
-                                                       aInputStream.available());
-        if (contents.length > TEST_DATA_SHORT.length * 2 ||
-            /[^\x20-\x7E]/.test(contents)) {
-          // Do not print the entire content string to the test log.
-          do_check_eq(contents.length, aExpectedContents.length);
-          do_check_true(contents == aExpectedContents);
-        } else {
-          // Print the string if it is short and made of printable characters.
-          do_check_eq(contents, aExpectedContents);
-        }
-        deferred.resolve();
-      },
-      null,      // aLoadingNode
-      Services.scriptSecurityManager.getSystemPrincipal(),
-      null,      // aTriggeringPrincipal
-      Ci.nsILoadInfo.SEC_NORMAL,
-      Ci.nsIContentPolicy.TYPE_OTHER);
-
+    NetUtil.asyncFetch(file, function(aInputStream, aStatus) {
+      do_check_true(Components.isSuccessCode(aStatus));
+      let contents = NetUtil.readInputStreamToString(aInputStream,
+                                                     aInputStream.available());
+      if (contents.length > TEST_DATA_SHORT.length * 2 ||
+          /[^\x20-\x7E]/.test(contents)) {
+        // Do not print the entire content string to the test log.
+        do_check_eq(contents.length, aExpectedContents.length);
+        do_check_true(contents == aExpectedContents);
+      } else {
+        // Print the string if it is short and made of printable characters.
+        do_check_eq(contents, aExpectedContents);
+      }
+      deferred.resolve();
+    });
     yield deferred.promise;
   });
 }
@@ -802,6 +828,15 @@ add_task(function test_common_initialize()
     createInstance: function (aOuter, aIid) {
       return {
         QueryInterface: XPCOMUtils.generateQI([Ci.nsIHelperAppLauncherDialog]),
+        promptForSaveToFile: function (aLauncher, aWindowContext,
+                                       aDefaultFileName,
+                                       aSuggestedFileExtension,
+                                       aForcePrompt)
+        {
+          throw new Components.Exception(
+                             "Synchronous promptForSaveToFile not implemented.",
+                             Cr.NS_ERROR_NOT_AVAILABLE);
+        },
         promptForSaveToFileAsync: function (aLauncher, aWindowContext,
                                             aDefaultFileName,
                                             aSuggestedFileExtension,
@@ -826,5 +861,19 @@ add_task(function test_common_initialize()
   do_register_cleanup(function () {
     registrar.unregisterFactory(cid, mockFactory);
     registrar.registerFactory(cid, "", contractID, oldFactory);
+  });
+
+  // We must also make sure that nsIExternalHelperAppService uses the
+  // JavaScript implementation of nsITransfer, because the
+  // "@mozilla.org/transfer;1" contract is currently implemented in
+  // "toolkit/components/downloads".  When the other folder is not included in
+  // builds anymore (bug 851471), we'll not need to do this anymore.
+  let transferContractID = "@mozilla.org/transfer;1";
+  let transferNewCid = Components.ID("{1b4c85df-cbdd-4bb6-b04e-613caece083c}");
+  let transferCid = registrar.contractIDToCID(transferContractID);
+
+  registrar.registerFactory(transferNewCid, "", transferContractID, null);
+  do_register_cleanup(function () {
+    registrar.registerFactory(transferCid, "", transferContractID, null);
   });
 });

@@ -7,7 +7,6 @@
 #define nsTextFrame_h__
 
 #include "mozilla/Attributes.h"
-#include "mozilla/gfx/2D.h"
 #include "nsFrame.h"
 #include "nsSplittableFrame.h"
 #include "nsLineBox.h"
@@ -38,9 +37,6 @@ public:
 };
 
 class nsTextFrame : public nsTextFrameBase {
-  typedef mozilla::gfx::DrawTarget DrawTarget;
-  typedef mozilla::gfx::Rect Rect;
-
 public:
   NS_DECL_QUERYFRAME_TARGET(nsTextFrame)
   NS_DECL_FRAMEARENA_HELPERS
@@ -304,7 +300,7 @@ public:
    *
    * Callbacks are invoked in the following order:
    *
-   *   (NotifySelectionBackgroundNeedsFill)?
+   *   (NotifyBeforeSelectionBackground NotifySelectionBackgroundPathEmitted)?
    *   (NotifyBeforeDecorationLine NotifyDecorationLinePathEmitted)*
    *   NotifyBeforeText
    *   (NotifyGlyphPathEmitted |
@@ -330,14 +326,6 @@ public:
     }
 
     /**
-     * Called to have the selection highlight drawn before the text is drawn
-     * over the top.
-     */
-    virtual void NotifySelectionBackgroundNeedsFill(const Rect& aBackgroundRect,
-                                                    nscolor aColor,
-                                                    DrawTarget& aDrawTarget) { }
-
-    /**
      * Called just before any paths have been emitted to the gfxContext
      * for the glyphs of the frame's text.
      */
@@ -348,6 +336,18 @@ public:
      * for the glyphs of the frame's text.
      */
     virtual void NotifyAfterText() { }
+
+    /**
+     * Called just before a path corresponding to the selection background
+     * has been emitted to the gfxContext.
+     */
+    virtual void NotifyBeforeSelectionBackground(nscolor aColor) { }
+
+    /**
+     * Called just after a path corresponding to the selection background
+     * has been emitted to the gfxContext.
+     */
+    virtual void NotifySelectionBackgroundPathEmitted() { }
 
     /**
      * Called just before a path corresponding to a text decoration line
@@ -582,19 +582,7 @@ protected:
                       const nscolor& aForegroundColor,
                       const nsCharClipDisplayItem::ClipEdges& aClipEdges,
                       nscoord aLeftSideOffset,
-                      gfxRect& aBoundingBox,
-                      uint32_t aBlurFlags);
-
-  void PaintShadows(nsCSSShadowArray* aShadow,
-                    uint32_t aOffset, uint32_t aLength,
-                    const nsRect& aDirtyRect,
-                    const gfxPoint& aFramePt,
-                    const gfxPoint& aTextBaselinePt,
-                    nscoord aLeftEdgeOffset,
-                    PropertyProvider& aProvider,
-                    nscolor aForegroundColor,
-                    const nsCharClipDisplayItem::ClipEdges& aClipEdges,
-                    gfxContext* aCtx);
+                      gfxRect& aBoundingBox);
 
   struct LineDecoration {
     nsIFrame* mFrame;

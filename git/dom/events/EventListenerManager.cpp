@@ -1034,7 +1034,7 @@ public:
   {
   }
 
-  virtual void AddDetails(mozilla::dom::ProfileTimelineMarker& aMarker) MOZ_OVERRIDE
+  virtual void AddDetails(mozilla::dom::ProfileTimelineMarker& aMarker)
   {
     if (GetMetaData() == TRACING_INTERVAL_START) {
       aMarker.mType.Construct(GetCause());
@@ -1247,19 +1247,8 @@ EventListenerManager::MutationListenerBits()
 bool
 EventListenerManager::HasListenersFor(const nsAString& aEventName)
 {
-  if (mIsMainThreadELM) {
-    nsCOMPtr<nsIAtom> atom = do_GetAtom(NS_LITERAL_STRING("on") + aEventName);
-    return HasListenersFor(atom);
-  }
-
-  uint32_t count = mListeners.Length();
-  for (uint32_t i = 0; i < count; ++i) {
-    Listener* listener = &mListeners.ElementAt(i);
-    if (listener->mTypeString == aEventName) {
-      return true;
-    }
-  }
-  return false;
+  nsCOMPtr<nsIAtom> atom = do_GetAtom(NS_LITERAL_STRING("on") + aEventName);
+  return HasListenersFor(atom);
 }
 
 bool

@@ -103,6 +103,8 @@ class InlineMap
         InlineElem  *inlPtr;
         bool        isInlinePtr;
 
+        typedef Ptr ******* ConvertibleToBool;
+
         explicit Ptr(WordMapPtr p) : mapPtr(p), isInlinePtr(false) {}
         explicit Ptr(InlineElem *ie) : inlPtr(ie), isInlinePtr(true) {}
         void operator==(const Ptr &other);
@@ -122,8 +124,8 @@ class InlineMap
             return isInlinePtr ? bool(inlPtr) : mapPtr.found();
         }
 
-        explicit operator bool() const {
-            return found();
+        operator ConvertibleToBool() const {
+            return ConvertibleToBool(found());
         }
 
         K &key() {
@@ -155,6 +157,8 @@ class InlineMap
 
         void operator==(const AddPtr &other);
 
+        typedef AddPtr ******* ConvertibleToBool;
+
       public:
         AddPtr() {}
 
@@ -162,8 +166,8 @@ class InlineMap
             return isInlinePtr ? inlPtrFound : mapAddPtr.found();
         }
 
-        explicit operator bool() const {
-            return found();
+        operator ConvertibleToBool() const {
+            return found() ? ConvertibleToBool(1) : ConvertibleToBool(0);
         }
 
         V &value() {

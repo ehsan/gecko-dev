@@ -6,15 +6,22 @@ const { classes: Cc, interfaces: Ci, utils: Cu, results: Cr } = Components;
 
 let { Services } = Cu.import("resource://gre/modules/Services.jsm", {});
 
+// Enable logging for all the tests. Both the debugger server and frontend will
+// be affected by this pref.
+let gEnableLogging = Services.prefs.getBoolPref("devtools.debugger.log");
+Services.prefs.setBoolPref("devtools.debugger.log", false);
+
+// Enable the new performance panel for all tests. Remove this after
+// bug 1075567 is resolved.
+let gToolEnabled = Services.prefs.getBoolPref("devtools.performance_dev.enabled");
+
 let { Task } = Cu.import("resource://gre/modules/Task.jsm", {});
 let { Promise } = Cu.import("resource://gre/modules/Promise.jsm", {});
-let { devtools } = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
 let { gDevTools } = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
 let { DevToolsUtils } = Cu.import("resource://gre/modules/devtools/DevToolsUtils.jsm", {});
+let { devtools } = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
 let { DebuggerServer } = Cu.import("resource://gre/modules/devtools/dbg-server.jsm", {});
-let { merge } = devtools.require("sdk/util/object");
 let { getPerformanceActorsConnection, PerformanceFront } = devtools.require("devtools/performance/front");
-
 let nsIProfilerModule = Cc["@mozilla.org/tools/profiler;1"].getService(Ci.nsIProfiler);
 let TargetFactory = devtools.TargetFactory;
 let mm = null;
@@ -23,41 +30,10 @@ const FRAME_SCRIPT_UTILS_URL = "chrome://browser/content/devtools/frame-script-u
 const EXAMPLE_URL = "http://example.com/browser/browser/devtools/performance/test/";
 const SIMPLE_URL = EXAMPLE_URL + "doc_simple-test.html";
 
-const FRAMERATE_PREF = "devtools.performance.ui.enable-framerate";
-const MEMORY_PREF = "devtools.performance.ui.enable-memory";
-const PLATFORM_DATA_PREF = "devtools.performance.ui.show-platform-data";
-const IDLE_PREF = "devtools.performance.ui.show-idle-blocks";
-const INVERT_PREF = "devtools.performance.ui.invert-call-tree";
-const INVERT_FLAME_PREF = "devtools.performance.ui.invert-flame-graph";
-const FLATTEN_PREF = "devtools.performance.ui.flatten-tree-recursion";
-
 // All tests are asynchronous.
 waitForExplicitFinish();
 
 gDevTools.testing = true;
-
-let DEFAULT_PREFS = [
-  "devtools.debugger.log",
-  "devtools.performance.ui.invert-call-tree",
-  "devtools.performance.ui.flatten-tree-recursion",
-  "devtools.performance.ui.show-platform-data",
-  "devtools.performance.ui.show-idle-blocks",
-  "devtools.performance.ui.enable-memory",
-  "devtools.performance.ui.enable-framerate",
-
-  // remove after bug 1075567 is resolved.
-  "devtools.performance_dev.enabled"
-].reduce((prefs, pref) => {
-  prefs[pref] = Services.prefs.getBoolPref(pref);
-  return prefs;
-}, {});
-
-// Enable the new performance panel for all tests. Remove this after
-// bug 1075567 is resolved.
-Services.prefs.setBoolPref("devtools.performance_dev.enabled", true);
-// Enable logging for all the tests. Both the debugger server and frontend will
-// be affected by this pref.
-Services.prefs.setBoolPref("devtools.debugger.log", false);
 
 /**
  * Call manually in tests that use frame script utils after initializing
@@ -74,10 +50,8 @@ registerCleanupFunction(() => {
   gDevTools.testing = false;
   info("finish() was called, cleaning up...");
 
-  // Rollback any pref changes
-  Object.keys(DEFAULT_PREFS).forEach(pref => {
-    Services.prefs.setBoolPref(pref, DEFAULT_PREFS[pref]);
-  });
+  Services.prefs.setBoolPref("devtools.debugger.log", gEnableLogging);
+  Services.prefs.setBoolPref("devtools.performance_dev.enabled", gToolEnabled);
 
   // Make sure the profiler module is stopped when the test finishes.
   nsIProfilerModule.StopProfiler();
@@ -162,7 +136,7 @@ function test () {
   Task.spawn(spawnTest).then(finish, handleError);
 }
 
-function initBackend(aUrl, targetOps={}) {
+function initBackend(aUrl) {
   info("Initializing a performance front.");
 
   if (!DebuggerServer.initialized) {
@@ -176,24 +150,16 @@ function initBackend(aUrl, targetOps={}) {
 
     yield target.makeRemote();
 
-    // Attach addition options to `target`. This is used to force mock fronts
-    // to smokescreen test different servers where memory or timeline actors
-    // may not exist. Possible options that will actually work:
-    // TEST_MOCK_MEMORY_ACTOR = true
-    // TEST_MOCK_TIMELINE_ACTOR = true
-    merge(target, targetOps);
-
     yield gDevTools.showToolbox(target, "performance");
 
     let connection = getPerformanceActorsConnection(target);
     yield connection.open();
-
     let front = new PerformanceFront(connection);
     return { target, front };
   });
 }
 
-function initPerformance(aUrl, selectedTool="performance", targetOps={}) {
+function initPerformance(aUrl, selectedTool="performance") {
   info("Initializing a performance pane.");
 
   return Task.spawn(function*() {
@@ -202,13 +168,7 @@ function initPerformance(aUrl, selectedTool="performance", targetOps={}) {
 
     yield target.makeRemote();
 
-    // Attach addition options to `target`. This is used to force mock fronts
-    // to smokescreen test different servers where memory or timeline actors
-    // may not exist. Possible options that will actually work:
-    // TEST_MOCK_MEMORY_ACTOR = true
-    // TEST_MOCK_TIMELINE_ACTOR = true
-    merge(target, targetOps);
-
+    Services.prefs.setBoolPref("devtools.performance_dev.enabled", true);
     let toolbox = yield gDevTools.showToolbox(target, selectedTool);
     let panel = toolbox.getCurrentPanel();
     return { target, panel, toolbox };
@@ -262,23 +222,20 @@ function click (win, button) {
   EventUtils.sendMouseEvent({ type: "click" }, button, win);
 }
 
-function mousedown (win, button) {
-  EventUtils.sendMouseEvent({ type: "mousedown" }, button, win);
-}
-
-function* startRecording(panel, options={}) {
+function* startRecording(panel) {
   let win = panel.panelWin;
   let clicked = panel.panelWin.PerformanceView.once(win.EVENTS.UI_START_RECORDING);
-  let willStart = panel.panelWin.PerformanceController.once(win.EVENTS.RECORDING_WILL_START);
-  let hasStarted = panel.panelWin.PerformanceController.once(win.EVENTS.RECORDING_STARTED);
-  let button = win.$("#main-record-button");
+  let started = panel.panelWin.PerformanceController.once(win.EVENTS.RECORDING_STARTED);
+  let button = win.$("#record-button");
 
   ok(!button.hasAttribute("checked"),
     "The record button should not be checked yet.");
+
   ok(!button.hasAttribute("locked"),
     "The record button should not be locked yet.");
 
   click(win, button);
+
   yield clicked;
 
   ok(button.hasAttribute("checked"),
@@ -286,17 +243,7 @@ function* startRecording(panel, options={}) {
   ok(button.hasAttribute("locked"),
     "The record button should be locked.");
 
-  yield willStart;
-  let stateChanged = once(win.PerformanceView, win.EVENTS.UI_STATE_CHANGED);
-
-  yield hasStarted;
-  let overviewRendered = options.waitForOverview ? once(win.OverviewView, win.EVENTS.OVERVIEW_RENDERED) : Promise.resolve();
-
-  yield stateChanged;
-  yield overviewRendered;
-
-  is(win.PerformanceView.getState(), "recording",
-    "The current state is 'recording'.");
+  yield started;
 
   ok(button.hasAttribute("checked"),
     "The record button should still be checked.");
@@ -304,12 +251,11 @@ function* startRecording(panel, options={}) {
     "The record button should not be locked.");
 }
 
-function* stopRecording(panel, options={}) {
+function* stopRecording(panel) {
   let win = panel.panelWin;
   let clicked = panel.panelWin.PerformanceView.once(win.EVENTS.UI_STOP_RECORDING);
-  let willStop = panel.panelWin.PerformanceController.once(win.EVENTS.RECORDING_WILL_STOP);
-  let hasStopped = panel.panelWin.PerformanceController.once(win.EVENTS.RECORDING_STOPPED);
-  let button = win.$("#main-record-button");
+  let ended = panel.panelWin.PerformanceController.once(win.EVENTS.RECORDING_STOPPED);
+  let button = win.$("#record-button");
 
   ok(button.hasAttribute("checked"),
     "The record button should already be checked.");
@@ -317,6 +263,7 @@ function* stopRecording(panel, options={}) {
     "The record button should not be locked yet.");
 
   click(win, button);
+
   yield clicked;
 
   ok(!button.hasAttribute("checked"),
@@ -324,17 +271,7 @@ function* stopRecording(panel, options={}) {
   ok(button.hasAttribute("locked"),
     "The record button should be locked.");
 
-  yield willStop;
-  let stateChanged = once(win.PerformanceView, win.EVENTS.UI_STATE_CHANGED);
-
-  yield hasStopped;
-  let overviewRendered = options.waitForOverview ? once(win.OverviewView, win.EVENTS.OVERVIEW_RENDERED) : Promise.resolve();
-
-  yield stateChanged;
-  yield overviewRendered;
-
-  is(win.PerformanceView.getState(), "recorded",
-    "The current state is 'recorded'.");
+  yield ended;
 
   ok(!button.hasAttribute("checked"),
     "The record button should not be checked.");
@@ -343,26 +280,15 @@ function* stopRecording(panel, options={}) {
 }
 
 function waitForWidgetsRendered(panel) {
-  let {
-    EVENTS,
-    OverviewView,
-    WaterfallView,
-    JsCallTreeView,
-    JsFlameGraphView,
-    MemoryCallTreeView,
-    MemoryFlameGraphView,
-  } = panel.panelWin;
+  let { EVENTS, OverviewView, CallTreeView, WaterfallView } = panel.panelWin;
 
   return Promise.all([
+    once(OverviewView, EVENTS.FRAMERATE_GRAPH_RENDERED),
     once(OverviewView, EVENTS.MARKERS_GRAPH_RENDERED),
     once(OverviewView, EVENTS.MEMORY_GRAPH_RENDERED),
-    once(OverviewView, EVENTS.FRAMERATE_GRAPH_RENDERED),
     once(OverviewView, EVENTS.OVERVIEW_RENDERED),
-    once(WaterfallView, EVENTS.WATERFALL_RENDERED),
-    once(JsCallTreeView, EVENTS.JS_CALL_TREE_RENDERED),
-    once(JsFlameGraphView, EVENTS.JS_FLAMEGRAPH_RENDERED),
-    once(MemoryCallTreeView, EVENTS.MEMORY_CALL_TREE_RENDERED),
-    once(MemoryFlameGraphView, EVENTS.MEMORY_FLAMEGRAPH_RENDERED),
+    once(CallTreeView, EVENTS.CALL_TREE_RENDERED),
+    once(WaterfallView, EVENTS.WATERFALL_RENDERED)
   ]);
 }
 
@@ -403,22 +329,10 @@ function dragStop(graph, x, y = 1) {
 
 function dropSelection(graph) {
   graph.dropSelection();
-  graph.emit("selecting");
+  graph.emit("mouseup");
 }
 
 function getSourceActor(aSources, aURL) {
   let item = aSources.getItemForAttachment(a => a.source.url === aURL);
   return item && item.value;
-}
-
-/**
- * Fires a key event, like "VK_UP", "VK_DOWN", etc.
- */
-function fireKey (e) {
-  EventUtils.synthesizeKey(e, {});
-}
-
-function reload (aTarget, aEvent = "navigate") {
-  aTarget.activeTab.reload();
-  return once(aTarget, aEvent);
 }

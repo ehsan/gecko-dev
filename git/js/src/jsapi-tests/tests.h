@@ -56,12 +56,13 @@ class JSAPITest
 
     JSRuntime *rt;
     JSContext *cx;
-    JS::PersistentRootedObject global;
+    JS::Heap<JSObject *> global;
     bool knownFail;
     JSAPITestString msgs;
     JSCompartment *oldCompartment;
 
-    JSAPITest() : rt(nullptr), cx(nullptr), knownFail(false), oldCompartment(nullptr) {
+    JSAPITest() : rt(nullptr), cx(nullptr), global(nullptr),
+                  knownFail(false), oldCompartment(nullptr) {
         next = list;
         list = this;
     }
@@ -316,8 +317,8 @@ class JSAPITest
 #define BEGIN_TEST(testname)                                            \
     class cls_##testname : public JSAPITest {                           \
       public:                                                           \
-        virtual const char * name() MOZ_OVERRIDE { return #testname; }  \
-        virtual bool run(JS::HandleObject global) MOZ_OVERRIDE
+        virtual const char * name() { return #testname; }               \
+        virtual bool run(JS::HandleObject global)
 
 #define END_TEST(testname)                                              \
     };                                                                  \
@@ -334,8 +335,8 @@ class JSAPITest
 #define BEGIN_FIXTURE_TEST(fixture, testname)                           \
     class cls_##testname : public fixture {                             \
       public:                                                           \
-        virtual const char * name() MOZ_OVERRIDE { return #testname; }  \
-        virtual bool run(JS::HandleObject global) MOZ_OVERRIDE
+        virtual const char * name() { return #testname; }               \
+        virtual bool run(JS::HandleObject global)
 
 #define END_FIXTURE_TEST(fixture, testname)                             \
     };                                                                  \

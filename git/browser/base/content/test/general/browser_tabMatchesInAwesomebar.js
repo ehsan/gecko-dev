@@ -150,7 +150,8 @@ function nextStep() {
       gBrowser.removeCurrentTab();
     }
 
-    PlacesTestUtils.clearHistory().then(finish);
+    waitForClearHistory(finish);
+
     return;
   }
 
@@ -181,6 +182,22 @@ function ensure_opentabs_match_db(aCallback) {
   }
 
   checkAutocompleteResults(tabs, aCallback);
+}
+
+/**
+ * Clears history invoking callback when done.
+ */
+function waitForClearHistory(aCallback) {
+  const TOPIC_EXPIRATION_FINISHED = "places-expiration-finished";
+  let observer = {
+    observe: function(aSubject, aTopic, aData) {
+      Services.obs.removeObserver(this, TOPIC_EXPIRATION_FINISHED);
+      aCallback();
+    }
+  };
+  Services.obs.addObserver(observer, TOPIC_EXPIRATION_FINISHED, false);
+
+  PlacesUtils.bhistory.removeAllPages();
 }
 
 function checkAutocompleteResults(aExpected, aCallback)

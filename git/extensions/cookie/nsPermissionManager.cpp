@@ -193,7 +193,7 @@ public:
 
   // nsIObserver implementation.
   NS_IMETHODIMP
-  Observe(nsISupports *aSubject, const char *aTopic, const char16_t *data) MOZ_OVERRIDE
+  Observe(nsISupports *aSubject, const char *aTopic, const char16_t *data)
   {
     MOZ_ASSERT(!nsCRT::strcmp(aTopic, "webapps-clear-data"));
 
@@ -362,8 +362,10 @@ static const char kPermissionsFileName[] = "permissions.sqlite";
 static const char kHostpermFileName[] = "hostperm.1";
 
 // Default permissions are read from a URL - this is the preference we read
-// to find that URL. If not set, don't use any default permissions.
+// to find that URL.
 static const char kDefaultsUrlPrefName[] = "permissions.manager.defaultsUrl";
+// If the pref above doesn't exist, the URL we use by default.
+static const char kDefaultsUrl[] = "resource://app/chrome/browser/default_permissions";
 
 static const char kPermissionChangeNotification[] = PERM_CHANGE_NOTIFICATION;
 
@@ -1890,21 +1892,27 @@ nsPermissionManager::Import()
 nsresult
 nsPermissionManager::ImportDefaults()
 {
-  nsCString defaultsURL = mozilla::Preferences::GetCString(kDefaultsUrlPrefName);
-  if (defaultsURL.IsEmpty()) { // == Don't use built-in permissions.
-    return NS_OK;
+  // We allow prefs to override the default permissions URI, mainly as a hook
+  // for testing.
+  nsCString defaultsURL;
+  if (mozilla::Preferences::HasUserValue(kDefaultsUrlPrefName)) {
+    defaultsURL = mozilla::Preferences::GetCString(kDefaultsUrlPrefName);
+  } else {
+    defaultsURL = NS_LITERAL_CSTRING(kDefaultsUrl);
   }
 
+  nsresult rv;
+  nsCOMPtr<nsIIOService> ioservice =
+    do_GetService("@mozilla.org/network/io-service;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   nsCOMPtr<nsIURI> defaultsURI;
-  nsresult rv = NS_NewURI(getter_AddRefs(defaultsURI), defaultsURL);
+  rv = NS_NewURI(getter_AddRefs(defaultsURI), defaultsURL,
+                 nullptr, nullptr, ioservice);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIChannel> channel;
-  rv = NS_NewChannel(getter_AddRefs(channel),
-                     defaultsURI,
-                     nsContentUtils::GetSystemPrincipal(),
-                     nsILoadInfo::SEC_NORMAL,
-                     nsIContentPolicy::TYPE_OTHER);
+  rv = ioservice->NewChannelFromURI(defaultsURI, getter_AddRefs(channel));
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIInputStream> inputStream;

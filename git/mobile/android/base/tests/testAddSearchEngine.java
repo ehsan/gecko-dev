@@ -1,7 +1,3 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 package org.mozilla.gecko.tests;
 
 import java.io.File;
@@ -17,8 +13,6 @@ import org.mozilla.gecko.home.HomePager;
 import android.widget.ImageView;
 import android.widget.ListAdapter;
 import android.widget.ListView;
-
-import com.jayway.android.robotium.solo.Condition;
 
 /**
  * Test adding a search engine from an input field context menu.
@@ -142,9 +136,9 @@ public class testAddSearchEngine extends AboutHomeTest {
     public void verifyDisplayedSearchEnginesCount(final int expectedCount) {
         mSolo.clearEditText(0);
         mActions.sendKeys(SEARCH_TEXT);
-        boolean correctNumSearchEnginesDisplayed = waitForCondition(new Condition() {
+        boolean correctNumSearchEnginesDisplayed = waitForTest(new BooleanTest() {
             @Override
-            public boolean isSatisfied() {
+            public boolean test() {
                 ListView list = findListViewWithTag(HomePager.LIST_TAG_BROWSER_SEARCH);
                 if (list == null) {
                     return false;

@@ -64,19 +64,20 @@ bool RtpFormatVp8TestHelper::Init(const int* partition_sizes,
 }
 
 void RtpFormatVp8TestHelper::GetAllPacketsAndCheck(
-    RtpPacketizerVp8* packetizer,
+    RtpFormatVp8* packetizer,
     const int* expected_sizes,
     const int* expected_part,
     const bool* expected_frag_start,
     int expected_num_packets) {
   ASSERT_TRUE(inited_);
-  size_t send_bytes = 0;
+  int send_bytes = 0;
   bool last = false;
   for (int i = 0; i < expected_num_packets; ++i) {
     std::ostringstream ss;
     ss << "Checking packet " << i;
     SCOPED_TRACE(ss.str());
-    EXPECT_TRUE(packetizer->NextPacket(buffer_, &send_bytes, &last));
+    EXPECT_EQ(expected_part[i],
+              packetizer->NextPacket(buffer_, &send_bytes, &last));
     CheckPacket(send_bytes, expected_sizes[i], last,
                 expected_frag_start[i]);
   }

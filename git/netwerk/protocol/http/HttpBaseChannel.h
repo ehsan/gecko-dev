@@ -153,7 +153,6 @@ public:
   NS_IMETHOD SetRedirectionLimit(uint32_t value) MOZ_OVERRIDE;
   NS_IMETHOD IsNoStoreResponse(bool *value) MOZ_OVERRIDE;
   NS_IMETHOD IsNoCacheResponse(bool *value) MOZ_OVERRIDE;
-  NS_IMETHOD IsPrivateResponse(bool *value) MOZ_OVERRIDE;
   NS_IMETHOD GetResponseStatus(uint32_t *aValue) MOZ_OVERRIDE;
   NS_IMETHOD GetResponseStatusText(nsACString& aValue) MOZ_OVERRIDE;
   NS_IMETHOD GetRequestSucceeded(bool *aValue) MOZ_OVERRIDE;
@@ -189,8 +188,6 @@ public:
   NS_IMETHOD GetLastModifiedTime(PRTime* lastModifiedTime) MOZ_OVERRIDE;
   NS_IMETHOD ForceNoIntercept() MOZ_OVERRIDE;
   NS_IMETHOD GetTopWindowURI(nsIURI **aTopWindowURI) MOZ_OVERRIDE;
-  NS_IMETHOD ContinueBeginConnect() MOZ_OVERRIDE;
-  NS_IMETHOD GetProxyURI(nsIURI **proxyURI) MOZ_OVERRIDE;
 
   inline void CleanRedirectCacheChainIfNecessary()
   {
@@ -241,7 +238,7 @@ public:
     const NetAddr& GetPeerAddr() { return mPeerAddr; }
 
 public: /* Necko internal use only... */
-    bool IsNavigation();
+
 
     // Return whether upon a redirect code of httpStatus for method, the
     // request method should be rewritten to GET.
@@ -289,8 +286,10 @@ protected:
   // Checks whether or not aURI and mOriginalURI share the same domain.
   bool SameOriginWithOriginalUri(nsIURI *aURI);
 
-  // GetPrincipal Returns the channel's URI principal.
-  nsIPrincipal *GetURIPrincipal();
+  // GetPrincipal
+  // Returns the channel principal. If requireAppId is true, then returns
+  // null if the principal has unknown appId.
+  nsIPrincipal *GetPrincipal(bool requireAppId);
 
   // Returns true if this channel should intercept the network request and prepare
   // for a possible synthesized response instead.

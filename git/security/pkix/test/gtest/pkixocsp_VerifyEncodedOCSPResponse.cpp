@@ -40,22 +40,21 @@ public:
 
   Result GetCertTrust(EndEntityOrCA endEntityOrCA, const CertPolicyId&,
                       Input, /*out*/ TrustLevel& trustLevel)
-                      /*non-final*/ override
   {
     EXPECT_EQ(endEntityOrCA, EndEntityOrCA::MustBeEndEntity);
     trustLevel = TrustLevel::InheritsTrust;
     return Success;
   }
 
-  Result FindIssuer(Input, IssuerChecker&, Time) final override
+  Result FindIssuer(Input, IssuerChecker&, Time)
   {
     ADD_FAILURE();
     return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result CheckRevocation(EndEntityOrCA, const CertID&, Time,
-                         /*optional*/ const Input*, /*optional*/ const Input*)
-                         final override
+  virtual Result CheckRevocation(EndEntityOrCA endEntityOrCA, const CertID&,
+                                 Time time, /*optional*/ const Input*,
+                                 /*optional*/ const Input*)
   {
     // TODO: I guess mozilla::pkix should support revocation of designated
     // OCSP responder eventually, but we don't now, so this function should
@@ -64,44 +63,32 @@ public:
     return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result IsChainValid(const DERArray&, Time) final override
+  virtual Result IsChainValid(const DERArray&, Time)
   {
     ADD_FAILURE();
     return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result DigestBuf(Input item, DigestAlgorithm digestAlg,
-                   /*out*/ uint8_t* digestBuf, size_t digestBufLen)
-                   final override
+  virtual Result VerifySignedData(const SignedDataWithSignature& signedData,
+                                  Input subjectPublicKeyInfo)
   {
-    return TestDigestBuf(item, digestAlg, digestBuf, digestBufLen);
+    return TestVerifySignedData(signedData, subjectPublicKeyInfo);
   }
 
-  Result CheckRSAPublicKeyModulusSizeInBits(EndEntityOrCA, unsigned int)
-                                            final override
+  virtual Result DigestBuf(Input item, /*out*/ uint8_t *digestBuf,
+                           size_t digestBufLen)
   {
-    return Success;
+    return TestDigestBuf(item, digestBuf, digestBufLen);
   }
 
-  Result VerifyRSAPKCS1SignedDigest(const SignedDigest& signedDigest,
-                                    Input subjectPublicKeyInfo) override
+  virtual Result CheckPublicKey(Input subjectPublicKeyInfo)
   {
-    return TestVerifyRSAPKCS1SignedDigest(signedDigest, subjectPublicKeyInfo);
+    return TestCheckPublicKey(subjectPublicKeyInfo);
   }
 
-  Result CheckECDSACurveIsAcceptable(EndEntityOrCA, NamedCurve) final override
-  {
-    return Success;
-  }
-
-  Result VerifyECDSASignedDigest(const SignedDigest& signedDigest,
-                                 Input subjectPublicKeyInfo) override
-  {
-    return TestVerifyECDSASignedDigest(signedDigest, subjectPublicKeyInfo);
-  }
-
-  OCSPTestTrustDomain(const OCSPTestTrustDomain&) = delete;
-  void operator=(const OCSPTestTrustDomain&) = delete;
+private:
+  OCSPTestTrustDomain(const OCSPTestTrustDomain&) /*delete*/;
+  void operator=(const OCSPTestTrustDomain&) /*delete*/;
 };
 
 namespace {
@@ -132,8 +119,7 @@ public:
       abort();
     }
 
-    serialNumberDER =
-      CreateEncodedSerialNumber(static_cast<long>(++rootIssuedCount));
+    serialNumberDER = CreateEncodedSerialNumber(++rootIssuedCount);
     if (ENCODING_FAILED(serialNumberDER)) {
       abort();
     }
@@ -157,7 +143,7 @@ public:
   }
 
   static ScopedTestKeyPair rootKeyPair;
-  static uint32_t rootIssuedCount;
+  static long rootIssuedCount;
   OCSPTestTrustDomain trustDomain;
 
   // endEntityCertID references rootKeyPair, rootNameDER, and serialNumberDER.
@@ -168,7 +154,7 @@ public:
 };
 
 /*static*/ ScopedTestKeyPair pkixocsp_VerifyEncodedResponse::rootKeyPair;
-/*static*/ uint32_t pkixocsp_VerifyEncodedResponse::rootIssuedCount = 0;
+/*static*/ long pkixocsp_VerifyEncodedResponse::rootIssuedCount = 0;
 
 ///////////////////////////////////////////////////////////////////////////////
 // responseStatus
@@ -272,7 +258,7 @@ public:
     context.signatureAlgorithm = signatureAlgorithm;
     context.certs = certs;
 
-    context.certStatus = static_cast<uint8_t>(certStatus);
+    context.certStatus = certStatus;
     context.thisUpdate = thisUpdate;
     context.nextUpdate = nextUpdate ? *nextUpdate : 0;
     context.includeNextUpdate = nextUpdate != nullptr;
@@ -422,8 +408,7 @@ TEST_F(pkixocsp_VerifyEncodedResponse_successful, check_validThrough)
     ASSERT_FALSE(expired);
     // The response was created to be valid until one day after now, so the
     // value we got for validThrough should be after that.
-    Time oneDayAfterNowAsPKIXTime(
-          TimeFromEpochInSeconds(static_cast<uint64_t>(oneDayAfterNow)));
+    Time oneDayAfterNowAsPKIXTime(TimeFromEpochInSeconds(oneDayAfterNow));
     ASSERT_TRUE(validThrough > oneDayAfterNowAsPKIXTime);
   }
   {
@@ -533,8 +518,7 @@ protected:
                                 /*optional*/ const ByteString* extensions,
                                              const TestKeyPair& signerKeyPair)
   {
-    ByteString serialNumberDER(CreateEncodedSerialNumber(
-                                 static_cast<long>(serialNumber)));
+    ByteString serialNumberDER(CreateEncodedSerialNumber(serialNumber));
     if (ENCODING_FAILED(serialNumberDER)) {
       return ByteString();
     }
@@ -650,8 +634,8 @@ TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder, good_expired)
   ScopedTestKeyPair signerKeyPair(GenerateKeyPair());
   ByteString signerDER(CreateEncodedCertificate(
                           ++rootIssuedCount, sha256WithRSAEncryption, rootName,
-                          now - (10 * ONE_DAY_IN_SECONDS_AS_TIME_T),
-                          now - (2 * ONE_DAY_IN_SECONDS_AS_TIME_T),
+                          now - (10 * Time::ONE_DAY_IN_SECONDS),
+                          now - (2 * Time::ONE_DAY_IN_SECONDS),
                           signerName, *signerKeyPair, extensions,
                           *rootKeyPair));
   ASSERT_FALSE(ENCODING_FAILED(signerDER));
@@ -686,8 +670,8 @@ TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder, good_future)
   ByteString signerDER(CreateEncodedCertificate(
                          ++rootIssuedCount, sha256WithRSAEncryption,
                          rootName,
-                         now + (2 * ONE_DAY_IN_SECONDS_AS_TIME_T),
-                         now + (10 * ONE_DAY_IN_SECONDS_AS_TIME_T),
+                         now + (2 * Time::ONE_DAY_IN_SECONDS),
+                         now + (10 * Time::ONE_DAY_IN_SECONDS),
                          signerName, *signerKeyPair, extensions,
                          *rootKeyPair));
   ASSERT_FALSE(ENCODING_FAILED(signerDER));
@@ -967,7 +951,7 @@ public:
     }
   }
 
-  class TrustDomain final : public OCSPTestTrustDomain
+  class TrustDomain : public OCSPTestTrustDomain
   {
   public:
     TrustDomain()
@@ -982,9 +966,10 @@ public:
       return true;
     }
   private:
-    Result GetCertTrust(EndEntityOrCA endEntityOrCA, const CertPolicyId&,
-                        Input candidateCert, /*out*/ TrustLevel& trustLevel)
-                        override
+    virtual Result GetCertTrust(EndEntityOrCA endEntityOrCA,
+                                const CertPolicyId&,
+                                Input candidateCert,
+                                /*out*/ TrustLevel& trustLevel)
     {
       EXPECT_EQ(endEntityOrCA, EndEntityOrCA::MustBeEndEntity);
       EXPECT_FALSE(certDER.empty());
@@ -1033,14 +1018,13 @@ TEST_F(pkixocsp_VerifyEncodedResponse_GetCertTrust, ActivelyDistrusted)
 {
   ASSERT_TRUE(trustDomain.SetCertTrust(signerCertDER,
                                        TrustLevel::ActivelyDistrusted));
-  Input responseInput;
+  Input response;
   ASSERT_EQ(Success,
-            responseInput.Init(responseString.data(),
-                               responseString.length()));
+            response.Init(responseString.data(), responseString.length()));
   bool expired;
   ASSERT_EQ(Result::ERROR_OCSP_INVALID_SIGNING_CERT,
             VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, Now(),
                                       END_ENTITY_MAX_LIFETIME_IN_DAYS,
-                                      responseInput, expired));
+                                      response, expired));
   ASSERT_FALSE(expired);
 }

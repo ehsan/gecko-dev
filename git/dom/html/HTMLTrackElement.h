@@ -93,9 +93,11 @@ public:
   virtual nsresult Clone(mozilla::dom::NodeInfo* aNodeInfo, nsINode** aResult) const MOZ_OVERRIDE;
 
   // For Track, ItemValue reflects the src attribute
-  virtual void GetItemValueText(DOMString& aText) MOZ_OVERRIDE
+  virtual void GetItemValueText(nsAString& aText) MOZ_OVERRIDE
   {
-    GetSrc(aText);
+    DOMString value;
+    GetSrc(value);
+    aText = value;
   }
   virtual void SetItemValueText(const nsAString& aText) MOZ_OVERRIDE
   {

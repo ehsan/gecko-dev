@@ -53,26 +53,6 @@ NS_QUERYFRAME_HEAD(nsCanvasFrame)
   NS_QUERYFRAME_ENTRY(nsIAnonymousContentCreator)
 NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
 
-NS_IMPL_ISUPPORTS(nsCanvasFrame::DummyTouchListener, nsIDOMEventListener)
-
-void
-nsCanvasFrame::ShowCustomContentContainer()
-{
-  if (mCustomContentContainer) {
-    mCustomContentContainer->UnsetAttr(kNameSpaceID_None, nsGkAtoms::hidden, true);
-  }
-}
-
-void
-nsCanvasFrame::HideCustomContentContainer()
-{
-  if (mCustomContentContainer) {
-    mCustomContentContainer->SetAttr(kNameSpaceID_None, nsGkAtoms::hidden,
-                                     NS_LITERAL_STRING("true"),
-                                     true);
-  }
-}
-
 nsresult
 nsCanvasFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 {
@@ -103,12 +83,6 @@ nsCanvasFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
     classValue.AppendLiteral("moz-touchcaret hidden");
     rv = mTouchCaretElement->SetAttr(kNameSpaceID_None, nsGkAtoms::_class,
                                      classValue, true);
-
-    if (!mDummyTouchListener) {
-      mDummyTouchListener = new DummyTouchListener();
-    }
-    mTouchCaretElement->AddEventListener(NS_LITERAL_STRING("touchstart"),
-                                         mDummyTouchListener, false);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -132,14 +106,6 @@ nsCanvasFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
     rv = mSelectionCaretsEndElement->SetAttr(kNameSpaceID_None, nsGkAtoms::_class,
                                              NS_LITERAL_STRING("moz-selectioncaret-right hidden"),
                                              true);
-
-    if (!mDummyTouchListener) {
-      mDummyTouchListener = new DummyTouchListener();
-    }
-    mSelectionCaretsStartElement->AddEventListener(NS_LITERAL_STRING("touchstart"),
-                                                   mDummyTouchListener, false);
-    mSelectionCaretsEndElement->AddEventListener(NS_LITERAL_STRING("touchstart"),
-                                                 mDummyTouchListener, false);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -154,15 +120,10 @@ nsCanvasFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Append all existing AnonymousContent nodes stored at document level if any.
-  size_t len = doc->GetAnonymousContents().Length();
-  for (size_t i = 0; i < len; ++i) {
+  int32_t anonymousContentCount = doc->GetAnonymousContents().Length();
+  for (int32_t i = 0; i < anonymousContentCount; ++i) {
     nsCOMPtr<Element> node = doc->GetAnonymousContents()[i]->GetContentNode();
     mCustomContentContainer->AppendChildTo(node->AsContent(), true);
-  }
-
-  // Only create a frame for mCustomContentContainer if it has some children.
-  if (len == 0) {
-    HideCustomContentContainer();
   }
 
   return NS_OK;
@@ -195,21 +156,6 @@ nsCanvasFrame::DestroyFrom(nsIFrame* aDestructRoot)
     sf->RemoveScrollPositionListener(this);
   }
 
-  if (mTouchCaretElement) {
-    mTouchCaretElement->RemoveEventListener(NS_LITERAL_STRING("touchstart"),
-                                            mDummyTouchListener, false);
-  }
-
-  if (mSelectionCaretsStartElement) {
-    mSelectionCaretsStartElement->RemoveEventListener(NS_LITERAL_STRING("touchstart"),
-                                                      mDummyTouchListener, false);
-  }
-
-  if (mSelectionCaretsEndElement) {
-    mSelectionCaretsEndElement->RemoveEventListener(NS_LITERAL_STRING("touchstart"),
-                                                    mDummyTouchListener, false);
-  }
-
   nsContentUtils::DestroyAnonymousContent(&mTouchCaretElement);
   nsContentUtils::DestroyAnonymousContent(&mSelectionCaretsStartElement);
   nsContentUtils::DestroyAnonymousContent(&mSelectionCaretsEndElement);
@@ -221,10 +167,8 @@ nsCanvasFrame::DestroyFrom(nsIFrame* aDestructRoot)
     nsCOMPtr<nsIDocument> doc = mContent->OwnerDoc();
     ErrorResult rv;
 
-    nsTArray<nsRefPtr<mozilla::dom::AnonymousContent>>& docAnonContents =
-      doc->GetAnonymousContents();
-    for (size_t i = 0, len = docAnonContents.Length(); i < len; ++i) {
-      AnonymousContent* content = docAnonContents[i];
+    for (int32_t i = doc->GetAnonymousContents().Length() - 1; i >= 0; --i) {
+      AnonymousContent* content = doc->GetAnonymousContents()[i];
       nsCOMPtr<nsINode> clonedElement = content->GetContentNode()->CloneNode(true, rv);
       content->SetContentNode(clonedElement->AsElement());
     }
@@ -658,22 +602,18 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
       kidReflowState.SetVResize(true);
     }
 
-    WritingMode wm = aReflowState.GetWritingMode();
-    WritingMode kidWM = kidReflowState.GetWritingMode();
-    nscoord containerWidth = aReflowState.ComputedWidth();
+    nsPoint kidPt(kidReflowState.ComputedPhysicalMargin().left,
+                  kidReflowState.ComputedPhysicalMargin().top);
 
-    LogicalMargin margin = kidReflowState.ComputedLogicalMargin();
-    LogicalPoint kidPt(kidWM, margin.IStart(kidWM), margin.BStart(kidWM));
-
-    kidReflowState.ApplyRelativePositioning(&kidPt, containerWidth);
+    kidReflowState.ApplyRelativePositioning(&kidPt);
 
     // Reflow the frame
     ReflowChild(kidFrame, aPresContext, kidDesiredSize, kidReflowState,
-                kidWM, kidPt, containerWidth, 0, aStatus);
+                kidPt.x, kidPt.y, 0, aStatus);
 
     // Complete the reflow and position and size the child frame
     FinishReflowChild(kidFrame, aPresContext, kidDesiredSize, &kidReflowState,
-                      kidWM, kidPt, containerWidth, 0);
+                      kidPt.x, kidPt.y, 0);
 
     if (!NS_FRAME_IS_FULLY_COMPLETE(aStatus)) {
       nsIFrame* nextFrame = kidFrame->GetNextInFlow();
@@ -711,6 +651,7 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
     // Return our desired size. Normally it's what we're told, but
     // sometimes we can be given an unconstrained height (when a window
     // is sizing-to-content), and we should compute our desired height.
+    WritingMode wm = aReflowState.GetWritingMode();
     LogicalSize finalSize(wm);
     finalSize.ISize(wm) = aReflowState.ComputedISize();
     if (aReflowState.ComputedBSize() == NS_UNCONSTRAINEDSIZE) {
@@ -723,7 +664,7 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
     aDesiredSize.SetSize(wm, finalSize);
     aDesiredSize.SetOverflowAreasToDesiredBounds();
     aDesiredSize.mOverflowAreas.UnionWith(
-      kidDesiredSize.mOverflowAreas + kidFrame->GetPosition());
+      kidDesiredSize.mOverflowAreas + kidPt);
   }
 
   if (prevCanvasFrame) {

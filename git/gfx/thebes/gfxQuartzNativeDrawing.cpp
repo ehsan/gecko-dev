@@ -44,16 +44,13 @@ gfxQuartzNativeDrawing::BeginNativeDrawing()
                                 IntSize(mNativeRect.width, mNativeRect.height),
                                 SurfaceFormat::B8G8R8A8);
 
-    if (mTempDrawTarget) {
-        transform.PostTranslate(-mNativeRect.x, -mNativeRect.y);
-        mTempDrawTarget->SetTransform(transform);
-    }
+    transform.PostTranslate(-mNativeRect.x, -mNativeRect.y);
+    mTempDrawTarget->SetTransform(transform);
+
     dt = mTempDrawTarget;
   }
-  if (dt) {
-    mCGContext = mBorrowedContext.Init(dt);
-    MOZ_ASSERT(mCGContext);
-  }
+  mCGContext = mBorrowedContext.Init(dt);
+  MOZ_ASSERT(mCGContext);
   return mCGContext;
 }
 

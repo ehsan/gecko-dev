@@ -681,6 +681,7 @@ void nsSSLIOLayerHelpers::Cleanup()
 {
   MutexAutoLock lock(mutex);
   mTLSIntoleranceInfo.Clear();
+  mRenegoUnrestrictedSites.Clear();
   mInsecureFallbackSites.Clear();
 }
 
@@ -1187,12 +1188,17 @@ uint32_t tlsIntoleranceTelemetryBucket(PRErrorCode err)
     case SSL_ERROR_BAD_MAC_READ: return 2;
     case SSL_ERROR_HANDSHAKE_FAILURE_ALERT: return 3;
     case SSL_ERROR_HANDSHAKE_UNEXPECTED_ALERT: return 4;
+    case SSL_ERROR_CLIENT_KEY_EXCHANGE_FAILURE: return 5;
     case SSL_ERROR_ILLEGAL_PARAMETER_ALERT: return 6;
     case SSL_ERROR_NO_CYPHER_OVERLAP: return 7;
+    case SSL_ERROR_BAD_SERVER: return 8;
+    case SSL_ERROR_BAD_BLOCK_PADDING: return 9;
     case SSL_ERROR_UNSUPPORTED_VERSION: return 10;
     case SSL_ERROR_PROTOCOL_VERSION_ALERT: return 11;
+    case SSL_ERROR_RX_MALFORMED_FINISHED: return 12;
     case SSL_ERROR_BAD_HANDSHAKE_HASH_VALUE: return 13;
     case SSL_ERROR_DECODE_ERROR_ALERT: return 14;
+    case SSL_ERROR_RX_UNKNOWN_ALERT: return 15;
     case PR_CONNECT_RESET_ERROR: return 16;
     case PR_END_OF_FILE_ERROR: return 17;
     default: return 0;
@@ -1207,13 +1213,6 @@ retryDueToTLSIntolerance(PRErrorCode err, nsNSSSocketInfo* socketInfo)
   // Note this only happens during the initial SSL handshake.
 
   SSLVersionRange range = socketInfo->GetTLSVersionRange();
-  nsSSLIOLayerHelpers& helpers = socketInfo->SharedState().IOLayerHelpers();
-
-  if (err == SSL_ERROR_UNSUPPORTED_VERSION &&
-      range.min == SSL_LIBRARY_VERSION_TLS_1_0) {
-    socketInfo->SetSecurityState(nsIWebProgressListener::STATE_IS_INSECURE |
-                                 nsIWebProgressListener::STATE_USES_SSL_3);
-  }
 
   if (err == SSL_ERROR_INAPPROPRIATE_FALLBACK_ALERT) {
     // This is a clear signal that we've fallen back too many versions.  Treat
@@ -1223,31 +1222,30 @@ retryDueToTLSIntolerance(PRErrorCode err, nsNSSSocketInfo* socketInfo)
     // First, track the original cause of the version fallback.  This uses the
     // same buckets as the telemetry below, except that bucket 0 will include
     // all cases where there wasn't an original reason.
-    PRErrorCode originalReason =
-      helpers.getIntoleranceReason(socketInfo->GetHostName(),
-                                   socketInfo->GetPort());
+    PRErrorCode originalReason = socketInfo->SharedState().IOLayerHelpers()
+      .getIntoleranceReason(socketInfo->GetHostName(), socketInfo->GetPort());
     Telemetry::Accumulate(Telemetry::SSL_VERSION_FALLBACK_INAPPROPRIATE,
                           tlsIntoleranceTelemetryBucket(originalReason));
 
-    helpers.forgetIntolerance(socketInfo->GetHostName(),
-                              socketInfo->GetPort());
+    socketInfo->SharedState().IOLayerHelpers()
+      .forgetIntolerance(socketInfo->GetHostName(), socketInfo->GetPort());
 
     return false;
   }
 
   // Disallow PR_CONNECT_RESET_ERROR if fallback limit reached.
-  bool fallbackLimitReached =
-    helpers.fallbackLimitReached(socketInfo->GetHostName(), range.max);
-  if (err == PR_CONNECT_RESET_ERROR && fallbackLimitReached) {
+  if (err == PR_CONNECT_RESET_ERROR &&
+      socketInfo->SharedState().IOLayerHelpers()
+        .fallbackLimitReached(socketInfo->GetHostName(), range.max)) {
     return false;
   }
 
   if ((err == SSL_ERROR_NO_CYPHER_OVERLAP || err == PR_END_OF_FILE_ERROR ||
        err == PR_CONNECT_RESET_ERROR) &&
-      !fallbackLimitReached &&
       nsNSSComponent::AreAnyWeakCiphersEnabled()) {
-    if (helpers.rememberStrongCiphersFailed(socketInfo->GetHostName(),
-                                            socketInfo->GetPort(), err)) {
+    if (socketInfo->SharedState().IOLayerHelpers()
+                  .rememberStrongCiphersFailed(socketInfo->GetHostName(),
+                                               socketInfo->GetPort(), err)) {
       Telemetry::Accumulate(Telemetry::SSL_WEAK_CIPHERS_FALLBACK,
                             tlsIntoleranceTelemetryBucket(err));
       return true;
@@ -1309,9 +1307,10 @@ retryDueToTLSIntolerance(PRErrorCode err, nsNSSSocketInfo* socketInfo)
   // TLS intolerance fallback due to remembered tolerance.
   Telemetry::Accumulate(pre, reason);
 
-  if (!helpers.rememberIntolerantAtVersion(socketInfo->GetHostName(),
-                                           socketInfo->GetPort(),
-                                           range.min, range.max, err)) {
+  if (!socketInfo->SharedState().IOLayerHelpers()
+                 .rememberIntolerantAtVersion(socketInfo->GetHostName(),
+                                              socketInfo->GetPort(),
+                                              range.min, range.max, err)) {
     return false;
   }
 
@@ -1676,7 +1675,11 @@ PrefObserver::Observe(nsISupports* aSubject, const char* aTopic,
   if (nsCRT::strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID) == 0) {
     NS_ConvertUTF16toUTF8 prefName(someData);
 
-    if (prefName.EqualsLiteral("security.ssl.treat_unsafe_negotiation_as_broken")) {
+    if (prefName.EqualsLiteral("security.ssl.renego_unrestricted_hosts")) {
+      nsCString unrestrictedHosts;
+      Preferences::GetCString("security.ssl.renego_unrestricted_hosts", &unrestrictedHosts);
+      mOwner->setSiteList(mOwner->mRenegoUnrestrictedSites, unrestrictedHosts);
+    } else if (prefName.EqualsLiteral("security.ssl.treat_unsafe_negotiation_as_broken")) {
       bool enabled;
       Preferences::GetBool("security.ssl.treat_unsafe_negotiation_as_broken", &enabled);
       mOwner->setTreatUnsafeNegotiationAsBroken(enabled);
@@ -1725,6 +1728,8 @@ nsSSLIOLayerHelpers::~nsSSLIOLayerHelpers()
   // mPrefObserver will only be set if this->Init was called. The GTest tests
   // do not call Init.
   if (mPrefObserver) {
+    Preferences::RemoveObserver(mPrefObserver,
+      "security.ssl.renego_unrestricted_hosts");
     Preferences::RemoveObserver(mPrefObserver,
         "security.ssl.treat_unsafe_negotiation_as_broken");
     Preferences::RemoveObserver(mPrefObserver,
@@ -1783,6 +1788,10 @@ nsSSLIOLayerHelpers::Init()
     nsSSLPlaintextLayerMethods.recv = PlaintextRecv;
   }
 
+  nsCString unrestrictedHosts;
+  Preferences::GetCString("security.ssl.renego_unrestricted_hosts", &unrestrictedHosts);
+  setSiteList(mRenegoUnrestrictedSites, unrestrictedHosts);
+
   bool enabled = false;
   Preferences::GetBool("security.ssl.treat_unsafe_negotiation_as_broken", &enabled);
   setTreatUnsafeNegotiationAsBroken(enabled);
@@ -1802,6 +1811,8 @@ nsSSLIOLayerHelpers::Init()
     Preferences::GetBool("security.tls.insecure_fallback_hosts.use_static_list", true);
 
   mPrefObserver = new PrefObserver(this);
+  Preferences::AddStrongObserver(mPrefObserver,
+                                 "security.ssl.renego_unrestricted_hosts");
   Preferences::AddStrongObserver(mPrefObserver,
                                  "security.ssl.treat_unsafe_negotiation_as_broken");
   Preferences::AddStrongObserver(mPrefObserver,
@@ -1833,16 +1844,18 @@ void
 nsSSLIOLayerHelpers::clearStoredData()
 {
   MutexAutoLock lock(mutex);
+  mRenegoUnrestrictedSites.Clear();
   mInsecureFallbackSites.Clear();
   mTLSIntoleranceInfo.Clear();
 }
 
 void
-nsSSLIOLayerHelpers::setInsecureFallbackSites(const nsCString& str)
+nsSSLIOLayerHelpers::setSiteList(nsTHashtable<nsCStringHashKey>& sites,
+                                 const nsCString& str)
 {
   MutexAutoLock lock(mutex);
 
-  mInsecureFallbackSites.Clear();
+  sites.Clear();
 
   if (str.IsEmpty()) {
     return;
@@ -1853,7 +1866,7 @@ nsSSLIOLayerHelpers::setInsecureFallbackSites(const nsCString& str)
   while (toker.hasMoreTokens()) {
     const nsCSubstring& host = toker.nextToken();
     if (!host.IsEmpty()) {
-      mInsecureFallbackSites.PutEntry(host);
+      sites.PutEntry(host);
     }
   }
 }
@@ -1903,6 +1916,13 @@ nsSSLIOLayerHelpers::isInsecureFallbackSite(const nsACString& hostname)
   }
   MutexAutoLock lock(mutex);
   return mInsecureFallbackSites.Contains(hostname);
+}
+
+bool
+nsSSLIOLayerHelpers::isRenegoUnrestrictedSite(const nsCString& str)
+{
+  MutexAutoLock lock(mutex);
+  return mRenegoUnrestrictedSites.Contains(str);
 }
 
 void
@@ -2692,6 +2712,16 @@ nsSSLIOLayerSetOptions(PRFileDesc* fd, bool forSTARTTLS,
 
   if (SECSuccess != SSL_OptionSet(fd, SSL_HANDSHAKE_AS_CLIENT, true)) {
     return NS_ERROR_FAILURE;
+  }
+
+  nsSSLIOLayerHelpers& ioHelpers = infoObject->SharedState().IOLayerHelpers();
+  if (ioHelpers.isRenegoUnrestrictedSite(nsDependentCString(host))) {
+    if (SECSuccess != SSL_OptionSet(fd, SSL_REQUIRE_SAFE_NEGOTIATION, false)) {
+      return NS_ERROR_FAILURE;
+    }
+    if (SECSuccess != SSL_OptionSet(fd, SSL_ENABLE_RENEGOTIATION, SSL_RENEGOTIATE_UNRESTRICTED)) {
+      return NS_ERROR_FAILURE;
+    }
   }
 
   // Set the Peer ID so that SSL proxy connections work properly and to

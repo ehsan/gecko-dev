@@ -32,8 +32,8 @@ public:
   void UpdateMouseThrough() MOZ_OVERRIDE { AddStateBits(NS_FRAME_MOUSE_THROUGH_NEVER); }
 
 protected:
-  bool mTrackingMouseMove;
-  mozilla::LayoutDeviceIntPoint mLastPoint;
+	bool mTrackingMouseMove;	
+	nsIntPoint mLastPoint;
 
 }; // class nsTitleBarFrame
 

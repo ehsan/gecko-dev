@@ -27,7 +27,6 @@ struct SelectionDetails;
 
 namespace mozilla {
 class ErrorResult;
-struct AutoPrepareFocusRange;
 }
 
 struct RangeData
@@ -227,7 +226,7 @@ public:
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
   };
 private:
-  friend struct mozilla::AutoPrepareFocusRange;
+
   class ScrollSelectionIntoViewEvent;
   friend class ScrollSelectionIntoViewEvent;
 
@@ -312,28 +311,6 @@ private:
    * It determines whether we exclude -moz-user-select:none nodes or not.
    */
   bool mApplyUserSelectStyle;
-};
-
-// Stack-class to turn on/off selection batching.
-class MOZ_STACK_CLASS SelectionBatcher MOZ_FINAL
-{
-private:
-  nsRefPtr<Selection> mSelection;
-public:
-  explicit SelectionBatcher(Selection* aSelection)
-  {
-    mSelection = aSelection;
-    if (mSelection) {
-      mSelection->StartBatchChanges();
-    }
-  }
-
-  ~SelectionBatcher()
-  {
-    if (mSelection) {
-      mSelection->EndBatchChanges();
-    }
-  }
 };
 
 } // namespace dom

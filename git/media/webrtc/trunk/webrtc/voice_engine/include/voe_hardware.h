@@ -131,7 +131,6 @@ public:
     virtual int EnableBuiltInAEC(bool enable) = 0;
     virtual bool BuiltInAECIsEnabled() const = 0;
 
-
 protected:
     VoEHardware() {}
     virtual ~VoEHardware() {}

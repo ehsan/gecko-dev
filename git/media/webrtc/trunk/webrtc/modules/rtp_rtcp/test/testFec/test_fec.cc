@@ -105,7 +105,9 @@ TEST(FecTest, FecTest) {
   ASSERT_EQ(12, kMaxMediaPackets[1]) << "Max media packets for bursty mode not "
                                      << "equal to 12.";
 
-  ForwardErrorCorrection fec;
+  uint32_t id = 0;
+  ForwardErrorCorrection fec(id);
+
   ForwardErrorCorrection::PacketList mediaPacketList;
   ForwardErrorCorrection::PacketList fecPacketList;
   ForwardErrorCorrection::ReceivedPacketList toDecodeList;
@@ -134,7 +136,7 @@ TEST(FecTest, FecTest) {
   fclose(randomSeedFile);
   randomSeedFile = NULL;
 
-  uint16_t seqNum = 0;
+  uint16_t seqNum = static_cast<uint16_t>(rand());
   uint32_t timeStamp = static_cast<uint32_t>(rand());
   const uint32_t ssrc = static_cast<uint32_t>(rand());
 
@@ -224,11 +226,6 @@ TEST(FecTest, FecTest) {
             }
 
             // Construct media packets.
-            // Reset the sequence number here for each FEC code/mask tested
-            // below, to avoid sequence number wrap-around. In actual decoding,
-            // old FEC packets in list are dropped if sequence number wrap
-            // around is detected. This case is currently not handled below.
-            seqNum = 0;
             for (uint32_t i = 0; i < numMediaPackets; ++i) {
               mediaPacket = new ForwardErrorCorrection::Packet;
               mediaPacketList.push_back(mediaPacket);
@@ -259,10 +256,12 @@ TEST(FecTest, FecTest) {
               // Only push one (fake) frame to the FEC.
               mediaPacket->data[1] &= 0x7f;
 
-              RtpUtility::AssignUWord16ToBuffer(&mediaPacket->data[2], seqNum);
-              RtpUtility::AssignUWord32ToBuffer(&mediaPacket->data[4],
-                                                timeStamp);
-              RtpUtility::AssignUWord32ToBuffer(&mediaPacket->data[8], ssrc);
+              ModuleRTPUtility::AssignUWord16ToBuffer(&mediaPacket->data[2],
+                                                      seqNum);
+              ModuleRTPUtility::AssignUWord32ToBuffer(&mediaPacket->data[4],
+                                                      timeStamp);
+              ModuleRTPUtility::AssignUWord32ToBuffer(&mediaPacket->data[8],
+                                                      ssrc);
               // Generate random values for payload
               for (int32_t j = 12; j < mediaPacket->length; ++j) {
                 mediaPacket->data[j] = static_cast<uint8_t>(rand() % 256);
@@ -301,7 +300,7 @@ TEST(FecTest, FecTest) {
                 memcpy(receivedPacket->pkt->data, mediaPacket->data,
                        mediaPacket->length);
                 receivedPacket->seq_num =
-                    RtpUtility::BufferToUWord16(&mediaPacket->data[2]);
+                    ModuleRTPUtility::BufferToUWord16(&mediaPacket->data[2]);
                 receivedPacket->is_fec = false;
               }
               mediaPacketIdx++;

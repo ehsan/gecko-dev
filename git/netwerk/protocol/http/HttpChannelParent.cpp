@@ -819,8 +819,8 @@ HttpChannelParent::OnDataAvailable(nsIRequest *aRequest,
 NS_IMETHODIMP
 HttpChannelParent::OnProgress(nsIRequest *aRequest,
                               nsISupports *aContext,
-                              int64_t aProgress,
-                              int64_t aProgressMax)
+                              uint64_t aProgress,
+                              uint64_t aProgressMax)
 {
   // OnStatus has always just set mStoredStatus. If it indicates this precedes
   // OnDataAvailable, store and ODA will send to child.

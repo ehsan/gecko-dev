@@ -42,22 +42,19 @@ function test() {
         ok(isEqualVec(rot(), prev_rot),
           "At init, the rotation should be zero.");
 
-        function testEventCancel(cancellingEvent, cancellingDescription) {
-          let description = "testEventCancel, cancellingEvent is " + cancellingDescription + ": ";
+
+        function testEventCancel(cancellingEvent) {
           is(document.activeElement, canvas,
-             description + "The visualizer canvas should be focused when performing this test.");
+            "The visualizer canvas should be focused when performing this test.");
 
-          EventUtils.synthesizeKey("a", { type: "keydown", code: "KeyA", keyCode: KeyboardEvent.DOM_VK_A });
+          EventUtils.synthesizeKey("VK_A", { type: "keydown" });
+          EventUtils.synthesizeKey("VK_LEFT", { type: "keydown" });
           instance.controller._update();
-          ok(!isEqualVec(rot(), prev_rot),
-             description + "After a rotation key is pressed, the quaternion should change.");
-          EventUtils.synthesizeKey("a", { type: "keyup", code: "KeyA", keyCode: KeyboardEvent.DOM_VK_A });
 
-          EventUtils.synthesizeKey("ArrowLeft", { type: "keydown", code: "ArrowLeft", keyCode: KeyboardEvent.DOM_VK_LEFT });
-          instance.controller._update();
           ok(!isEqualVec(tran(), prev_tran),
-             description + "After a translation key is pressed, the vector should change.");
-          EventUtils.synthesizeKey("ArrowLeft", { type: "keyup", code: "ArrowLeft", keyCode: KeyboardEvent.DOM_VK_LEFT });
+            "After a translation key is pressed, the vector should change.");
+          ok(!isEqualVec(rot(), prev_rot),
+            "After a rotation key is pressed, the quaternion should change.");
 
           save();
 
@@ -66,9 +63,9 @@ function test() {
           instance.controller._update();
 
           ok(!isEqualVec(tran(), prev_tran),
-             description + "Even if the canvas lost focus, the vector has some inertia.");
+            "Even if the canvas lost focus, the vector has some inertia.");
           ok(!isEqualVec(rot(), prev_rot),
-             description + "Even if the canvas lost focus, the quaternion has some inertia.");
+            "Even if the canvas lost focus, the quaternion has some inertia.");
 
           save();
 
@@ -85,40 +82,41 @@ function test() {
 
         info("Setting typeaheadfind to true.");
 
-        let typeaheadfindEnabled = true;
-        Services.prefs.setBoolPref("accessibility.typeaheadfind", typeaheadfindEnabled);
-        for (var i = 0; i < 2; i++) {
-          testEventCancel(function() {
-            // XXX Don't use a character which is registered as a mnemonic in the menubar.
-            EventUtils.synthesizeKey("A", { altKey: true, code: "KeyA", keyCode: KeyboardEvent.DOM_VK_A });
-          }, "Alt + A");
-          testEventCancel(function() {
-            // XXX Don't use a character which is registered as a shortcut key.
-            EventUtils.synthesizeKey(";", { ctrlKey: true, code: "Semicolon", keyCode: KeyboardEvent.DOM_VK_SEMICONLON });
-          }, "Ctrl + ;");
-          testEventCancel(function() {
-            // XXX Don't use a character which is registered as a shortcut key.
-            EventUtils.synthesizeKey("\\", { metaKey: true, code: "Backslash", keyCode: KeyboardEvent.DOM_VK_BACK_SLASH });
-          }, "Meta + \\");
-          // If typeahead is enabled, Shift + T causes moving focus to the findbar because it inputs "T".
-          if (!typeaheadfindEnabled) {
-            testEventCancel(function() {
-              EventUtils.synthesizeKey("T", { shiftKey: true, code: "KeyT", keyCode: KeyboardEvent.DOM_VK_T });
-            }, "Shift + T");
-          }
+        Services.prefs.setBoolPref("accessibility.typeaheadfind", true);
+        testEventCancel(function() {
+          EventUtils.synthesizeKey("T", { type: "keydown", altKey: 1 });
+        });
+        testEventCancel(function() {
+          EventUtils.synthesizeKey("I", { type: "keydown", ctrlKey: 1 });
+        });
+        testEventCancel(function() {
+          EventUtils.synthesizeKey("L", { type: "keydown", metaKey: 1 });
+        });
+        testEventCancel(function() {
+          EventUtils.synthesizeKey("T", { type: "keydown", shiftKey: 1 });
+        });
 
-          // Retry after disabling typeaheadfind.
-          info("Setting typeaheadfind to false.");
+        info("Setting typeaheadfind to false.");
 
-          typeaheadfindEnabled = false;
-          Services.prefs.setBoolPref("accessibility.typeaheadfind", typeaheadfindEnabled);
-        }
+        Services.prefs.setBoolPref("accessibility.typeaheadfind", false);
+        testEventCancel(function() {
+          EventUtils.synthesizeKey("T", { type: "keydown", altKey: 1 });
+        });
+        testEventCancel(function() {
+          EventUtils.synthesizeKey("I", { type: "keydown", ctrlKey: 1 });
+        });
+        testEventCancel(function() {
+          EventUtils.synthesizeKey("L", { type: "keydown", metaKey: 1 });
+        });
+        testEventCancel(function() {
+          EventUtils.synthesizeKey("T", { type: "keydown", shiftKey: 1 });
+        });
 
         info("Testing if loosing focus halts any stacked arcball animations.");
 
         testEventCancel(function() {
           gBrowser.selectedBrowser.contentWindow.focus();
-        }, "setting focus to the content window");
+        });
       },
       onEnd: function()
       {

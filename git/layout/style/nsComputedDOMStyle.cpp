@@ -419,7 +419,7 @@ nsComputedDOMStyle::GetStyleContextForElementNoFlush(Element* aElement,
                                                      nsIPresShell* aPresShell,
                                                      StyleType aStyleType)
 {
-  MOZ_ASSERT(aElement, "NULL element");
+  NS_ABORT_IF_FALSE(aElement, "NULL element");
   // If the content has a pres shell, we must use it.  Otherwise we'd
   // potentially mix rule trees by using the wrong pres shell's style
   // set.  Using the pres shell from the content also means that any
@@ -432,10 +432,7 @@ nsComputedDOMStyle::GetStyleContextForElementNoFlush(Element* aElement,
       return nullptr;
   }
 
-  // XXX the !aElement->IsHTML(nsGkAtoms::area)
-  // check is needed due to bug 135040 (to avoid using 
-  // mPrimaryFrame). Remove it once that's fixed.
-  if (!aPseudo && aStyleType == eAll && !aElement->IsHTML(nsGkAtoms::area)) {
+  if (!aPseudo && aStyleType == eAll) {
     nsIFrame* frame = nsLayoutUtils::GetStyleFrame(aElement);
     if (frame) {
       nsStyleContext* result = frame->StyleContext();
@@ -597,10 +594,7 @@ nsComputedDOMStyle::UpdateCurrentStyleSources(bool aNeedsLayoutFlush)
     return;
   }
 
-  // XXX the !mContent->IsHTML(nsGkAtoms::area)
-  // check is needed due to bug 135040 (to avoid using 
-  // mPrimaryFrame). Remove it once that's fixed.
-  if (!mPseudo && mStyleType == eAll && !mContent->IsHTML(nsGkAtoms::area)) {
+  if (!mPseudo && mStyleType == eAll) {
     mOuterFrame = mContent->GetPrimaryFrame();
     mInnerFrame = mOuterFrame;
     if (mOuterFrame) {
@@ -658,8 +652,9 @@ nsComputedDOMStyle::UpdateCurrentStyleSources(bool aNeedsLayoutFlush)
 
   // mExposeVisitedStyle is set to true only by testing APIs that
   // require chrome privilege.
-  MOZ_ASSERT(!mExposeVisitedStyle || nsContentUtils::IsCallerChrome(),
-             "mExposeVisitedStyle set incorrectly");
+  NS_ABORT_IF_FALSE(!mExposeVisitedStyle ||
+                    nsContentUtils::IsCallerChrome(),
+                    "mExposeVisitedStyle set incorrectly");
   if (mExposeVisitedStyle && mStyleContextHolder->RelevantLinkVisited()) {
     nsStyleContext *styleIfVisited = mStyleContextHolder->GetStyleIfVisited();
     if (styleIfVisited) {
@@ -701,8 +696,8 @@ nsComputedDOMStyle::GetPropertyCSSValue(const nsAString& aPropertyName, ErrorRes
     if (prop != eCSSProperty_UNKNOWN &&
         nsCSSProps::PropHasFlags(prop, CSS_PROPERTY_IS_ALIAS)) {
       const nsCSSProperty* subprops = nsCSSProps::SubpropertyEntryFor(prop);
-      MOZ_ASSERT(subprops[1] == eCSSProperty_UNKNOWN,
-                 "must have list of length 1");
+      NS_ABORT_IF_FALSE(subprops[1] == eCSSProperty_UNKNOWN,
+                        "must have list of length 1");
       prop = subprops[0];
     }
 
@@ -1066,8 +1061,8 @@ nsComputedDOMStyle::DoGetContent()
             nsStyleUtil::AppendEscapedCSSString(
               nsDependentString(a->Item(1).GetStringBufferValue()), str);
           }
-          MOZ_ASSERT(eCSSUnit_None != a->Item(typeItem).GetUnit(),
-                     "'none' should be handled as identifier value");
+          NS_ABORT_IF_FALSE(eCSSUnit_None != a->Item(typeItem).GetUnit(),
+                            "'none' should be handled as identifier value");
           nsString type;
           a->Item(typeItem).AppendToString(eCSSProperty_list_style_type,
                                            type, nsCSSValue::eNormalized);
@@ -2069,8 +2064,8 @@ nsComputedDOMStyle::SetValueToPositionCoord(const PositionCoord& aCoord,
                                             nsROCSSPrimitiveValue* aValue)
 {
   if (!aCoord.mHasPercent) {
-    MOZ_ASSERT(aCoord.mPercent == 0.0f,
-               "Shouldn't have mPercent!");
+    NS_ABORT_IF_FALSE(aCoord.mPercent == 0.0f,
+                      "Shouldn't have mPercent!");
     aValue->SetAppUnits(aCoord.mLength);
   } else if (aCoord.mLength == 0) {
     aValue->SetPercent(aCoord.mPercent);
@@ -2170,8 +2165,8 @@ nsComputedDOMStyle::DoGetBackgroundSize()
     switch (size.mWidthType) {
       case nsStyleBackground::Size::eContain:
       case nsStyleBackground::Size::eCover: {
-        MOZ_ASSERT(size.mWidthType == size.mHeightType,
-                   "unsynced types");
+        NS_ABORT_IF_FALSE(size.mWidthType == size.mHeightType,
+                          "unsynced types");
         nsCSSKeyword keyword = size.mWidthType == nsStyleBackground::Size::eContain
                              ? eCSSKeyword_contain
                              : eCSSKeyword_cover;
@@ -2192,14 +2187,14 @@ nsComputedDOMStyle::DoGetBackgroundSize()
         if (size.mWidthType == nsStyleBackground::Size::eAuto) {
           valX->SetIdent(eCSSKeyword_auto);
         } else {
-          MOZ_ASSERT(size.mWidthType ==
-                       nsStyleBackground::Size::eLengthPercentage,
-                     "bad mWidthType");
+          NS_ABORT_IF_FALSE(size.mWidthType ==
+                              nsStyleBackground::Size::eLengthPercentage,
+                            "bad mWidthType");
           if (!size.mWidth.mHasPercent &&
               // negative values must have come from calc()
               size.mWidth.mLength >= 0) {
-            MOZ_ASSERT(size.mWidth.mPercent == 0.0f,
-                       "Shouldn't have mPercent");
+            NS_ABORT_IF_FALSE(size.mWidth.mPercent == 0.0f,
+                              "Shouldn't have mPercent");
             valX->SetAppUnits(size.mWidth.mLength);
           } else if (size.mWidth.mLength == 0 &&
                      // negative values must have come from calc()
@@ -2213,14 +2208,14 @@ nsComputedDOMStyle::DoGetBackgroundSize()
         if (size.mHeightType == nsStyleBackground::Size::eAuto) {
           valY->SetIdent(eCSSKeyword_auto);
         } else {
-          MOZ_ASSERT(size.mHeightType ==
-                       nsStyleBackground::Size::eLengthPercentage,
-                     "bad mHeightType");
+          NS_ABORT_IF_FALSE(size.mHeightType ==
+                              nsStyleBackground::Size::eLengthPercentage,
+                            "bad mHeightType");
           if (!size.mHeight.mHasPercent &&
               // negative values must have come from calc()
               size.mHeight.mLength >= 0) {
-            MOZ_ASSERT(size.mHeight.mPercent == 0.0f,
-                       "Shouldn't have mPercent");
+            NS_ABORT_IF_FALSE(size.mHeight.mPercent == 0.0f,
+                              "Shouldn't have mPercent");
             valY->SetAppUnits(size.mHeight.mLength);
           } else if (size.mHeight.mLength == 0 &&
                      // negative values must have come from calc()
@@ -3082,20 +3077,16 @@ nsComputedDOMStyle::DoGetLineHeight()
 }
 
 CSSValue*
-nsComputedDOMStyle::DoGetRubyAlign()
-{
-  nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
-  val->SetIdent(nsCSSProps::ValueToKeywordEnum(
-    StyleText()->mRubyAlign, nsCSSProps::kRubyAlignKTable));
-  return val;
-}
-
-CSSValue*
 nsComputedDOMStyle::DoGetRubyPosition()
 {
-  nsROCSSPrimitiveValue *val = new nsROCSSPrimitiveValue;
-  val->SetIdent(nsCSSProps::ValueToKeywordEnum(
-    StyleText()->mRubyPosition, nsCSSProps::kRubyPositionKTable));
+  nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
+  int32_t intValue = StyleText()->mRubyPosition;
+  nsAutoString valueStr;
+  nsStyleUtil::AppendBitmaskCSSValue(eCSSProperty_ruby_position,
+                                     intValue,
+                                     NS_STYLE_RUBY_POSITION_OVER,
+                                     NS_STYLE_RUBY_POSITION_LEFT, valueStr);
+  val->SetString(valueStr);
   return val;
 }
 
@@ -3715,8 +3706,8 @@ nsComputedDOMStyle::DoGetAlignSelf()
     }
   }
 
-  MOZ_ASSERT(computedAlignSelf != NS_STYLE_ALIGN_SELF_AUTO,
-             "Should have swapped out 'auto' for something non-auto");
+  NS_ABORT_IF_FALSE(computedAlignSelf != NS_STYLE_ALIGN_SELF_AUTO,
+                    "Should have swapped out 'auto' for something non-auto");
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(computedAlignSelf,
                                    nsCSSProps::kAlignSelfKTable));
@@ -4673,8 +4664,8 @@ nsComputedDOMStyle::SetValueToCoord(nsROCSSPrimitiveValue* aValue,
       if (!aCoord.CalcHasPercent()) {
         nscoord val = nsRuleNode::ComputeCoordPercentCalc(aCoord, 0);
         if (aClampNegativeCalc && val < 0) {
-          MOZ_ASSERT(aCoord.IsCalcUnit(),
-                     "parser should have rejected value");
+          NS_ABORT_IF_FALSE(aCoord.IsCalcUnit(),
+                            "parser should have rejected value");
           val = 0;
         }
         aValue->SetAppUnits(std::max(aMinAppUnits, std::min(val, aMaxAppUnits)));
@@ -4683,8 +4674,8 @@ nsComputedDOMStyle::SetValueToCoord(nsROCSSPrimitiveValue* aValue,
         nscoord val =
           nsRuleNode::ComputeCoordPercentCalc(aCoord, percentageBase);
         if (aClampNegativeCalc && val < 0) {
-          MOZ_ASSERT(aCoord.IsCalcUnit(),
-                     "parser should have rejected value");
+          NS_ABORT_IF_FALSE(aCoord.IsCalcUnit(),
+                            "parser should have rejected value");
           val = 0;
         }
         aValue->SetAppUnits(std::max(aMinAppUnits, std::min(val, aMaxAppUnits)));
@@ -4740,8 +4731,8 @@ nsComputedDOMStyle::StyleCoordToNSCoord(const nsStyleCoord& aCoord,
       nscoord result =
         nsRuleNode::ComputeCoordPercentCalc(aCoord, percentageBase);
       if (aClampNegativeCalc && result < 0) {
-        MOZ_ASSERT(aCoord.IsCalcUnit(),
-                   "parser should have rejected value");
+        NS_ABORT_IF_FALSE(aCoord.IsCalcUnit(),
+                          "parser should have rejected value");
         result = 0;
       }
       return result;
@@ -5237,7 +5228,7 @@ void
 nsComputedDOMStyle::BoxValuesToString(nsAString& aString,
                                       const nsTArray<nsStyleCoord>& aBoxValues)
 {
-  MOZ_ASSERT(aBoxValues.Length() == 4, "wrong number of box values");
+  NS_ABORT_IF_FALSE(aBoxValues.Length() == 4, "wrong number of box values");
   nsAutoString value1, value2, value3, value4;
   SetCssTextToCoord(value1, aBoxValues[0]);
   SetCssTextToCoord(value2, aBoxValues[1]);
@@ -5320,8 +5311,9 @@ nsComputedDOMStyle::CreatePrimitiveValueForClipPath(
       case nsStyleBasicShape::Type::eCircle:
       case nsStyleBasicShape::Type::eEllipse: {
         const nsTArray<nsStyleCoord>& radii = aStyleBasicShape->Coordinates();
-        MOZ_ASSERT(radii.Length() == (nsStyleBasicShape::Type::eCircle ? 1 : 2),
-                   "wrong number of radii");
+        NS_ABORT_IF_FALSE(radii.Length() ==
+                          (nsStyleBasicShape::Type::eCircle ? 1 : 2),
+                          "wrong number of radii");
         for (size_t i = 0; i < radii.Length(); ++i) {
           nsAutoString radius;
           nsRefPtr<nsROCSSPrimitiveValue> value = new nsROCSSPrimitiveValue;
@@ -5516,8 +5508,8 @@ nsComputedDOMStyle::DoGetTransitionDelay()
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(true);
 
-  MOZ_ASSERT(display->mTransitionDelayCount > 0,
-             "first item must be explicit");
+  NS_ABORT_IF_FALSE(display->mTransitionDelayCount > 0,
+                    "first item must be explicit");
   uint32_t i = 0;
   do {
     const StyleTransition *transition = &display->mTransitions[i];
@@ -5536,8 +5528,8 @@ nsComputedDOMStyle::DoGetTransitionDuration()
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(true);
 
-  MOZ_ASSERT(display->mTransitionDurationCount > 0,
-             "first item must be explicit");
+  NS_ABORT_IF_FALSE(display->mTransitionDurationCount > 0,
+                    "first item must be explicit");
   uint32_t i = 0;
   do {
     const StyleTransition *transition = &display->mTransitions[i];
@@ -5557,8 +5549,8 @@ nsComputedDOMStyle::DoGetTransitionProperty()
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(true);
 
-  MOZ_ASSERT(display->mTransitionPropertyCount > 0,
-             "first item must be explicit");
+  NS_ABORT_IF_FALSE(display->mTransitionPropertyCount > 0,
+                    "first item must be explicit");
   uint32_t i = 0;
   do {
     const StyleTransition *transition = &display->mTransitions[i];
@@ -5623,8 +5615,8 @@ nsComputedDOMStyle::DoGetTransitionTimingFunction()
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(true);
 
-  MOZ_ASSERT(display->mTransitionTimingFunctionCount > 0,
-             "first item must be explicit");
+  NS_ABORT_IF_FALSE(display->mTransitionTimingFunctionCount > 0,
+                    "first item must be explicit");
   uint32_t i = 0;
   do {
     AppendTimingFunction(valueList,
@@ -5641,8 +5633,8 @@ nsComputedDOMStyle::DoGetAnimationName()
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(true);
 
-  MOZ_ASSERT(display->mAnimationNameCount > 0,
-             "first item must be explicit");
+  NS_ABORT_IF_FALSE(display->mAnimationNameCount > 0,
+                    "first item must be explicit");
   uint32_t i = 0;
   do {
     const StyleAnimation *animation = &display->mAnimations[i];
@@ -5669,8 +5661,8 @@ nsComputedDOMStyle::DoGetAnimationDelay()
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(true);
 
-  MOZ_ASSERT(display->mAnimationDelayCount > 0,
-             "first item must be explicit");
+  NS_ABORT_IF_FALSE(display->mAnimationDelayCount > 0,
+                    "first item must be explicit");
   uint32_t i = 0;
   do {
     const StyleAnimation *animation = &display->mAnimations[i];
@@ -5689,8 +5681,8 @@ nsComputedDOMStyle::DoGetAnimationDuration()
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(true);
 
-  MOZ_ASSERT(display->mAnimationDurationCount > 0,
-             "first item must be explicit");
+  NS_ABORT_IF_FALSE(display->mAnimationDurationCount > 0,
+                    "first item must be explicit");
   uint32_t i = 0;
   do {
     const StyleAnimation *animation = &display->mAnimations[i];
@@ -5710,8 +5702,8 @@ nsComputedDOMStyle::DoGetAnimationTimingFunction()
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(true);
 
-  MOZ_ASSERT(display->mAnimationTimingFunctionCount > 0,
-             "first item must be explicit");
+  NS_ABORT_IF_FALSE(display->mAnimationTimingFunctionCount > 0,
+                    "first item must be explicit");
   uint32_t i = 0;
   do {
     AppendTimingFunction(valueList,
@@ -5728,8 +5720,8 @@ nsComputedDOMStyle::DoGetAnimationDirection()
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(true);
 
-  MOZ_ASSERT(display->mAnimationDirectionCount > 0,
-             "first item must be explicit");
+  NS_ABORT_IF_FALSE(display->mAnimationDirectionCount > 0,
+                    "first item must be explicit");
   uint32_t i = 0;
   do {
     const StyleAnimation *animation = &display->mAnimations[i];
@@ -5750,8 +5742,8 @@ nsComputedDOMStyle::DoGetAnimationFillMode()
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(true);
 
-  MOZ_ASSERT(display->mAnimationFillModeCount > 0,
-             "first item must be explicit");
+  NS_ABORT_IF_FALSE(display->mAnimationFillModeCount > 0,
+                    "first item must be explicit");
   uint32_t i = 0;
   do {
     const StyleAnimation *animation = &display->mAnimations[i];
@@ -5772,8 +5764,8 @@ nsComputedDOMStyle::DoGetAnimationIterationCount()
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(true);
 
-  MOZ_ASSERT(display->mAnimationIterationCountCount > 0,
-             "first item must be explicit");
+  NS_ABORT_IF_FALSE(display->mAnimationIterationCountCount > 0,
+                    "first item must be explicit");
   uint32_t i = 0;
   do {
     const StyleAnimation *animation = &display->mAnimations[i];
@@ -5806,8 +5798,8 @@ nsComputedDOMStyle::DoGetAnimationPlayState()
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(true);
 
-  MOZ_ASSERT(display->mAnimationPlayStateCount > 0,
-             "first item must be explicit");
+  NS_ABORT_IF_FALSE(display->mAnimationPlayStateCount > 0,
+                    "first item must be explicit");
   uint32_t i = 0;
   do {
     const StyleAnimation *animation = &display->mAnimations[i];
@@ -5876,9 +5868,7 @@ nsComputedDOMStyle::RegisterPrefChangeCallbacks()
 #define CSS_PROP(prop_, id_, method_, flags_, pref_, parsevariant_,          \
                  kwtable_, stylestruct_, stylestructoffset_, animtype_)      \
   REGISTER_CALLBACK(pref_)
-#define CSS_PROP_LIST_INCLUDE_LOGICAL
 #include "nsCSSPropList.h"
-#undef CSS_PROP_LIST_INCLUDE_LOGICAL
 #undef CSS_PROP
 #undef REGISTER_CALLBACK
 }
@@ -5894,9 +5884,7 @@ nsComputedDOMStyle::UnregisterPrefChangeCallbacks()
 #define CSS_PROP(prop_, id_, method_, flags_, pref_, parsevariant_,            \
                  kwtable_, stylestruct_, stylestructoffset_, animtype_)        \
   UNREGISTER_CALLBACK(pref_)
-#define CSS_PROP_LIST_INCLUDE_LOGICAL
 #include "nsCSSPropList.h"
-#undef CSS_PROP_LIST_INCLUDE_LOGICAL
 #undef CSS_PROP
 #undef UNREGISTER_CALLBACK
 }

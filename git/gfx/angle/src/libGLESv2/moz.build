@@ -133,7 +133,6 @@ UNIFIED_SOURCES += [
     'renderer/Image.cpp',
     'renderer/IndexRangeCache.cpp',
     'renderer/loadimage.cpp',
-    'renderer/ProgramImpl.cpp',
     'renderer/Renderer.cpp',
     'ResourceManager.cpp',
     'Sampler.cpp',
@@ -175,10 +174,8 @@ if CONFIG['MOZ_HAS_WINSDK_WITH_D3D']:
         'renderer/d3d/d3d11/TextureStorage11.cpp',
         'renderer/d3d/d3d11/VertexBuffer11.cpp',
     ]
-if CONFIG['MOZ_HAS_WINSDK_WITH_D3D']:
-    SOURCES += [
-        'renderer/d3d/d3d11/SwapChain11.cpp',
-    ]
+    SOURCES += ['renderer/d3d/d3d11/SwapChain11.cpp']
+    SOURCES['renderer/d3d/d3d11/SwapChain11.cpp'].flags += ['-DANGLE_RESOURCE_SHARE_TYPE=D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX']
 
 
 if CONFIG['GNU_CXX']:
@@ -233,7 +230,4 @@ RCFILE = SRCDIR + '/libGLESv2.rc'
 DEFFILE = SRCDIR + '/libGLESv2.def'
 
 SOURCES['renderer/d3d/HLSLCompiler.cpp'].flags += ['-DANGLE_PRELOADED_D3DCOMPILER_MODULE_NAMES=\'{ TEXT("d3dcompiler_47.dll"), TEXT("d3dcompiler_46.dll"), TEXT("d3dcompiler_43.dll") }\'']
-
-if CONFIG['MOZ_HAS_WINSDK_WITH_D3D']:
-    SOURCES['renderer/d3d/d3d11/SwapChain11.cpp'].flags += ['-DANGLE_RESOURCE_SHARE_TYPE=D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX']
 

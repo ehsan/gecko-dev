@@ -581,7 +581,7 @@ CopyFrontToBack(TextureClient* aFront,
     return false;
   }
 
-  if (!aBack->Lock(OpenMode::OPEN_READ_WRITE)) {
+  if (!aBack->Lock(OpenMode::OPEN_WRITE)) {
     NS_WARNING("Failed to lock the tile's back buffer");
     return false;
   }
@@ -1064,11 +1064,9 @@ ClientTiledLayerBuffer::UnlockTile(TileClient aTile)
   // We locked the back buffer, and flipped so we now need to unlock the front
   if (aTile.mFrontBuffer && aTile.mFrontBuffer->IsLocked()) {
     aTile.mFrontBuffer->Unlock();
-    aTile.mFrontBuffer->SyncWithObject(mCompositableClient->GetForwarder()->GetSyncObject());
   }
   if (aTile.mFrontBufferOnWhite && aTile.mFrontBufferOnWhite->IsLocked()) {
     aTile.mFrontBufferOnWhite->Unlock();
-    aTile.mFrontBufferOnWhite->SyncWithObject(mCompositableClient->GetForwarder()->GetSyncObject());
   }
   if (aTile.mBackBuffer && aTile.mBackBuffer->IsLocked()) {
     aTile.mBackBuffer->Unlock();
@@ -1170,7 +1168,7 @@ ClientTiledLayerBuffer::ValidateTile(TileClient aTile,
     } else {
       moz2DTile.mDrawTarget = dt;
     }
-    moz2DTile.mTileOrigin = gfx::IntPoint(aTileOrigin.x, aTileOrigin.y);
+    moz2DTile.mTileOrigin = gfx::IntPoint(aTileOrigin.x * mResolution, aTileOrigin.y * mResolution);
     if (!dt || (backBufferOnWhite && !dtOnWhite)) {
       aTile.DiscardFrontBuffer();
       aTile.DiscardBackBuffer();
@@ -1203,7 +1201,8 @@ ClientTiledLayerBuffer::ValidateTile(TileClient aTile,
     }
 
     // The new buffer is now validated, remove the dirty region from it.
-    aTile.mInvalidBack.SubOut(offsetScaledDirtyRegion);
+    aTile.mInvalidBack.Sub(nsIntRect(0, 0, GetTileSize().width, GetTileSize().height),
+                           offsetScaledDirtyRegion);
 
     aTile.Flip();
 
@@ -1268,11 +1267,12 @@ ClientTiledLayerBuffer::ValidateTile(TileClient aTile,
   }
 
   // The new buffer is now validated, remove the dirty region from it.
-  aTile.mInvalidBack.SubOut(offsetScaledDirtyRegion);
+  aTile.mInvalidBack.Sub(nsIntRect(0, 0, GetTileSize().width, GetTileSize().height),
+                         offsetScaledDirtyRegion);
 
 #ifdef GFX_TILEDLAYER_DEBUG_OVERLAY
   DrawDebugOverlay(drawTarget, aTileOrigin.x * mResolution,
-                   aTileOrigin.y * GetPresShellResolution(), GetTileLength(), GetTileLength());
+                   aTileOrigin.y * mPresShellResolution, GetTileLength(), GetTileLength());
 #endif
 
   ctxt = nullptr;
@@ -1285,8 +1285,9 @@ ClientTiledLayerBuffer::ValidateTile(TileClient aTile,
   tileRegion.SubOut(GetValidRegion());
   tileRegion.SubOut(aDirtyRegion); // Has now been validated
 
-  backBuffer->Unlock();
   backBuffer->SetWaste(tileRegion.Area() * mResolution * mResolution);
+  backBuffer->Unlock();
+  backBuffer->SyncWithObject(mCompositableClient->GetForwarder()->GetSyncObject());
 
   if (createdTextureClient) {
     if (!mCompositableClient->AddTextureClient(backBuffer)) {

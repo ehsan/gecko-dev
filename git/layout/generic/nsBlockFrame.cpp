@@ -1141,16 +1141,6 @@ nsBlockFrame::Reflow(nsPresContext*           aPresContext,
     PrepareResizeReflow(state);
   }
 
-  // The same for percentage text-indent, except conditioned on the
-  // parent resizing.
-  if (!(GetStateBits() & NS_FRAME_IS_DIRTY) &&
-      reflowState->mCBReflowState &&
-      reflowState->mCBReflowState->IsIResize() &&
-      reflowState->mStyleText->mTextIndent.HasPercent() &&
-      !mLines.empty()) {
-    mLines.front()->MarkDirty();
-  }
-
   LazyMarkLinesDirty();
 
   mState &= ~NS_FRAME_FIRST_REFLOW;
@@ -1272,7 +1262,7 @@ nsBlockFrame::Reflow(nsPresContext*           aPresContext,
   // physical origins.
   if (wm.IsVerticalRL()) {
     nscoord containerWidth = aMetrics.Width();
-    nscoord deltaX = containerWidth - state.ContainerWidth();
+    nscoord deltaX = containerWidth - state.mContainerWidth;
     if (deltaX) {
       for (line_iterator line = begin_lines(), end = end_lines();
            line != end; line++) {
@@ -1933,7 +1923,7 @@ nsBlockFrame::PropagateFloatDamage(nsBlockReflowState& aState,
     // Scrollable overflow should be sufficient for things that affect
     // layout.
     WritingMode wm = aState.mReflowState.GetWritingMode();
-    nscoord containerWidth = aState.ContainerWidth();
+    nscoord containerWidth = aState.mContainerWidth;
     LogicalRect overflow = aLine->GetOverflowArea(eScrollableOverflow, wm,
                                                   containerWidth);
     nscoord lineBCoordCombinedBefore = overflow.BStart(wm) + aDeltaBCoord;
@@ -2184,8 +2174,8 @@ nsBlockFrame::ReflowDirtyLines(nsBlockReflowState& aState)
     // If the container width has changed reset the container width. If the
     // line's writing mode is not ltr, or if the line is not left-aligned, also
     // mark the line dirty.
-    if (aState.ContainerWidth() != line->mContainerWidth) {
-      line->mContainerWidth = aState.ContainerWidth();
+    if (aState.mContainerWidth != line->mContainerWidth) {
+      line->mContainerWidth = aState.mContainerWidth;
 
       bool isLastLine = line == mLines.back() &&
                         !GetNextInFlow() &&
@@ -2701,7 +2691,7 @@ nsBlockFrame::ReflowLine(nsBlockReflowState& aState,
                          line_iterator aLine,
                          bool* aKeepReflowGoing)
 {
-  MOZ_ASSERT(aLine->GetChildCount(), "reflowing empty line");
+  NS_ABORT_IF_FALSE(aLine->GetChildCount(), "reflowing empty line");
 
   // Setup the line-layout for the new line
   aState.mCurrentLine = aLine;
@@ -2752,9 +2742,9 @@ nsBlockFrame::PullFrameFrom(nsLineBox*           aLine,
                             nsLineList::iterator aFromLine)
 {
   nsLineBox* fromLine = aFromLine;
-  MOZ_ASSERT(fromLine, "bad line to pull from");
-  MOZ_ASSERT(fromLine->GetChildCount(), "empty line");
-  MOZ_ASSERT(aLine->GetChildCount(), "empty line");
+  NS_ABORT_IF_FALSE(fromLine, "bad line to pull from");
+  NS_ABORT_IF_FALSE(fromLine->GetChildCount(), "empty line");
+  NS_ABORT_IF_FALSE(aLine->GetChildCount(), "empty line");
 
   NS_ASSERTION(fromLine->IsBlock() == fromLine->mFirstChild->IsBlockOutside(),
                "Disagreement about whether it's a block or not");
@@ -2822,7 +2812,7 @@ nsBlockFrame::SlideLine(nsBlockReflowState& aState,
   NS_PRECONDITION(aDeltaBCoord != 0, "why slide a line nowhere?");
 
   // Adjust line state
-  aLine->SlideBy(aDeltaBCoord, aState.ContainerWidth());
+  aLine->SlideBy(aDeltaBCoord, aState.mContainerWidth);
 
   // Adjust the frames in the line
   MoveChildFramesOfLine(aLine, aDeltaBCoord);
@@ -2931,22 +2921,10 @@ nsBlockFrame::AttributeChanged(int32_t         aNameSpaceID,
 }
 
 static inline bool
-IsNonAutoNonZeroBSize(const nsStyleCoord& aCoord)
+IsNonAutoNonZeroHeight(const nsStyleCoord& aCoord)
 {
-  nsStyleUnit unit = aCoord.GetUnit();
-  if (unit == eStyleUnit_Auto ||
-      // The enumerated values were originally aimed at inline-size
-      // (or width, as it was before logicalization). For now, let them
-      // return false here, so we treat them like 'auto' pending a
-      // real implementation. (See bug 1126420.)
-      //
-      // FIXME (bug 567039, bug 527285)
-      // This isn't correct for the 'fill' value, which should more
-      // likely (but not necessarily, depending on the available space)
-      // be returning true.
-      unit == eStyleUnit_Enumerated) {
+  if (aCoord.GetUnit() == eStyleUnit_Auto)
     return false;
-  }
   if (aCoord.IsCoordPercentCalcUnit()) {
     // If we evaluate the length/percent/calc at a percentage basis of
     // both nscoord_MAX and 0, and it's zero both ways, then it's a zero
@@ -2955,7 +2933,7 @@ IsNonAutoNonZeroBSize(const nsStyleCoord& aCoord)
     return nsRuleNode::ComputeCoordPercentCalc(aCoord, nscoord_MAX) > 0 ||
            nsRuleNode::ComputeCoordPercentCalc(aCoord, 0) > 0;
   }
-  MOZ_ASSERT(false, "unexpected unit for height or min-height");
+  NS_ABORT_IF_FALSE(false, "unexpected unit for height or min-height");
   return true;
 }
 
@@ -2965,42 +2943,22 @@ nsBlockFrame::IsSelfEmpty()
   // Blocks which are margin-roots (including inline-blocks) cannot be treated
   // as empty for margin-collapsing and other purposes. They're more like
   // replaced elements.
-  if (GetStateBits() & NS_BLOCK_MARGIN_ROOT) {
+  if (GetStateBits() & NS_BLOCK_MARGIN_ROOT)
     return false;
-  }
 
   const nsStylePosition* position = StylePosition();
-  bool vertical = GetWritingMode().IsVertical();
 
-  if (vertical) {
-    if (IsNonAutoNonZeroBSize(position->mMinWidth) ||
-        IsNonAutoNonZeroBSize(position->mWidth)) {
-      return false;
-    }
-  } else {
-    if (IsNonAutoNonZeroBSize(position->mMinHeight) ||
-        IsNonAutoNonZeroBSize(position->mHeight)) {
-      return false;
-    }
-  }
+  if (IsNonAutoNonZeroHeight(position->mMinHeight) ||
+      IsNonAutoNonZeroHeight(position->mHeight))
+    return false;
 
   const nsStyleBorder* border = StyleBorder();
   const nsStylePadding* padding = StylePadding();
-
-  if (vertical) {
-    if (border->GetComputedBorderWidth(NS_SIDE_LEFT) != 0 ||
-        border->GetComputedBorderWidth(NS_SIDE_RIGHT) != 0 ||
-        !nsLayoutUtils::IsPaddingZero(padding->mPadding.GetLeft()) ||
-        !nsLayoutUtils::IsPaddingZero(padding->mPadding.GetRight())) {
-      return false;
-    }
-  } else {
-    if (border->GetComputedBorderWidth(NS_SIDE_TOP) != 0 ||
-        border->GetComputedBorderWidth(NS_SIDE_BOTTOM) != 0 ||
-        !nsLayoutUtils::IsPaddingZero(padding->mPadding.GetTop()) ||
-        !nsLayoutUtils::IsPaddingZero(padding->mPadding.GetBottom())) {
-      return false;
-    }
+  if (border->GetComputedBorderWidth(NS_SIDE_TOP) != 0 ||
+      border->GetComputedBorderWidth(NS_SIDE_BOTTOM) != 0 ||
+      !nsLayoutUtils::IsPaddingZero(padding->mPadding.GetTop()) ||
+      !nsLayoutUtils::IsPaddingZero(padding->mPadding.GetBottom())) {
+    return false;
   }
 
   if (HasOutsideBullet() && !BulletIsEmpty()) {
@@ -3709,7 +3667,7 @@ nsBlockFrame::DoReflowInlineFrames(nsBlockReflowState& aState,
   WritingMode lineWM = GetWritingMode(aLine->mFirstChild);
   LogicalRect lineRect =
     aFloatAvailableSpace.mRect.ConvertTo(lineWM, outerWM,
-                                         aState.ContainerWidth());
+                                         aState.mContainerWidth);
 
   nscoord iStart = lineRect.IStart(lineWM);
   nscoord availISize = lineRect.ISize(lineWM);
@@ -3730,7 +3688,7 @@ nsBlockFrame::DoReflowInlineFrames(nsBlockReflowState& aState,
                               availISize, availBSize,
                               aFloatAvailableSpace.mHasFloats,
                               false, /*XXX isTopOfPage*/
-                              lineWM, aState.mContainerSize);
+                              lineWM, aState.mContainerWidth);
 
   aState.SetFlag(BRS_LINE_LAYOUT_EMPTY, false);
 
@@ -4135,8 +4093,8 @@ nsBlockFrame::SplitFloat(nsBlockReflowState& aState,
   if (aFloat->StyleDisplay()->mFloats == NS_STYLE_FLOAT_LEFT) {
     aState.mFloatManager->SetSplitLeftFloatAcrossBreak();
   } else {
-    MOZ_ASSERT(aFloat->StyleDisplay()->mFloats == NS_STYLE_FLOAT_RIGHT,
-               "unexpected float side");
+    NS_ABORT_IF_FALSE(aFloat->StyleDisplay()->mFloats ==
+                        NS_STYLE_FLOAT_RIGHT, "unexpected float side");
     aState.mFloatManager->SetSplitRightFloatAcrossBreak();
   }
 
@@ -4181,10 +4139,10 @@ nsBlockFrame::SplitLine(nsBlockReflowState& aState,
                         nsIFrame* aFrame,
                         LineReflowStatus* aLineReflowStatus)
 {
-  MOZ_ASSERT(aLine->IsInline(), "illegal SplitLine on block line");
+  NS_ABORT_IF_FALSE(aLine->IsInline(), "illegal SplitLine on block line");
 
   int32_t pushCount = aLine->GetChildCount() - aLineLayout.GetCurrentSpanCount();
-  MOZ_ASSERT(pushCount >= 0, "bad push count"); 
+  NS_ABORT_IF_FALSE(pushCount >= 0, "bad push count"); 
 
 #ifdef DEBUG
   if (gNoisyReflow) {
@@ -4205,8 +4163,8 @@ nsBlockFrame::SplitLine(nsBlockReflowState& aState,
 #endif
 
   if (0 != pushCount) {
-    MOZ_ASSERT(aLine->GetChildCount() > pushCount, "bad push");
-    MOZ_ASSERT(nullptr != aFrame, "whoops");
+    NS_ABORT_IF_FALSE(aLine->GetChildCount() > pushCount, "bad push");
+    NS_ABORT_IF_FALSE(nullptr != aFrame, "whoops");
 #ifdef DEBUG
     {
       nsIFrame *f = aFrame;
@@ -7055,7 +7013,7 @@ nsBlockFrame::ReflowBullet(nsIFrame* aBulletFrame,
   aBulletFrame->SetRect(wm, LogicalRect(wm, iStart, bStart,
                                         aMetrics.ISize(wm),
                                         aMetrics.BSize(wm)),
-                        aState.ContainerWidth());
+                        aState.mContainerWidth);
   aBulletFrame->DidReflow(aState.mPresContext, &aState.mReflowState,
                           nsDidReflowStatus::FINISHED);
 }
@@ -7356,7 +7314,7 @@ nsBlockFrame::VerifyLines(bool aFinalCheckOK)
       cursor = nullptr;
     }
     if (aFinalCheckOK) {
-      MOZ_ASSERT(line->GetChildCount(), "empty line");
+      NS_ABORT_IF_FALSE(line->GetChildCount(), "empty line");
       if (line->IsBlock()) {
         NS_ASSERTION(1 == line->GetChildCount(), "bad first line");
       }

@@ -2,8 +2,8 @@
 
 load(libdir + "iteration.js");
 
-var set = new Set("abcd");
-var iter = set[Symbol.iterator]();
+var set = Set("abcd");
+var iter = set[std_iterator]();
 assertIteratorNext(iter, "a");
 assertIteratorNext(iter, "b");
 set.delete("c");

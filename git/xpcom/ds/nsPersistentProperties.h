@@ -32,7 +32,8 @@ private:
 protected:
   nsCOMPtr<nsIUnicharInputStream> mIn;
 
-  PLDHashTable mTable;
+  nsIPersistentProperties* mSubclass;
+  struct PLDHashTable mTable;
   PLArenaPool mArena;
 };
 

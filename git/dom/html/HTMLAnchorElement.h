@@ -42,12 +42,6 @@ public:
   virtual int32_t TabIndexDefault() MOZ_OVERRIDE;
   virtual bool Draggable() const MOZ_OVERRIDE;
 
-  // Element
-  virtual bool IsInteractiveHTMLContent() const MOZ_OVERRIDE
-  {
-    return true;
-  }
-
   // nsIDOMHTMLAnchorElement
   NS_DECL_NSIDOMHTMLANCHORELEMENT
 
@@ -105,7 +99,7 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::target, aValue, rv);
   }
-  void GetDownload(DOMString& aValue)
+  void GetDownload(nsString& aValue)
   {
     GetHTMLAttr(nsGkAtoms::download, aValue);
   }
@@ -118,7 +112,7 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::ping, aValue, rv);
   }
-  void GetRel(DOMString& aValue)
+  void GetRel(nsString& aValue)
   {
     GetHTMLAttr(nsGkAtoms::rel, aValue);
   }
@@ -127,7 +121,7 @@ public:
     SetHTMLAttr(nsGkAtoms::rel, aValue, rv);
   }
   nsDOMTokenList* RelList();
-  void GetHreflang(DOMString& aValue)
+  void GetHreflang(nsString& aValue)
   {
     GetHTMLAttr(nsGkAtoms::hreflang, aValue);
   }
@@ -135,7 +129,7 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::hreflang, aValue, rv);
   }
-  void GetType(DOMString& aValue)
+  void GetType(nsString& aValue)
   {
     GetHTMLAttr(nsGkAtoms::type, aValue);
   }
@@ -179,7 +173,7 @@ public:
   using Link::SetHash;
 
   // The XPCOM URI decomposition attributes are fine for us
-  void GetCoords(DOMString& aValue)
+  void GetCoords(nsString& aValue)
   {
     GetHTMLAttr(nsGkAtoms::coords, aValue);
   }
@@ -187,7 +181,7 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::coords, aValue, rv);
   }
-  void GetCharset(DOMString& aValue)
+  void GetCharset(nsString& aValue)
   {
     GetHTMLAttr(nsGkAtoms::charset, aValue);
   }
@@ -195,7 +189,7 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::charset, aValue, rv);
   }
-  void GetName(DOMString& aValue)
+  void GetName(nsString& aValue)
   {
     GetHTMLAttr(nsGkAtoms::name, aValue);
   }
@@ -203,7 +197,7 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::name, aValue, rv);
   }
-  void GetRev(DOMString& aValue)
+  void GetRev(nsString& aValue)
   {
     GetHTMLAttr(nsGkAtoms::rev, aValue);
   }
@@ -211,7 +205,7 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::rev, aValue, rv);
   }
-  void GetShape(DOMString& aValue)
+  void GetShape(nsString& aValue)
   {
     GetHTMLAttr(nsGkAtoms::shape, aValue);
   }
@@ -227,7 +221,7 @@ public:
 protected:
   virtual ~HTMLAnchorElement();
 
-  virtual void GetItemValueText(DOMString& text) MOZ_OVERRIDE;
+  virtual void GetItemValueText(nsAString& text) MOZ_OVERRIDE;
   virtual void SetItemValueText(const nsAString& text) MOZ_OVERRIDE;
   virtual JSObject* WrapNode(JSContext *aCx) MOZ_OVERRIDE;
   nsRefPtr<nsDOMTokenList > mRelList;

@@ -38,6 +38,7 @@ function AwaitAllKeysUsable(session, keys, token) {
         usableKeyIds.push(key);
       }
       if (UsableKeyIdsMatch(usableKeyIds, keys)) {
+        Log(token, "resolving AwaitAllKeysUsable promise");
         session.removeEventListener("keystatuseschange", check);
         resolve();
       }

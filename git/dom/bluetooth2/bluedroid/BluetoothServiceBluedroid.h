@@ -171,24 +171,6 @@ public:
                    const nsAString& aMessage) MOZ_OVERRIDE;
 
   //
-  // GATT Client
-  //
-
-  virtual void
-  ConnectGattClientInternal(const nsAString& aAppUuid,
-                            const nsAString& aDeviceAddress,
-                            BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  virtual void
-  DisconnectGattClientInternal(const nsAString& aAppUuid,
-                               const nsAString& aDeviceAddress,
-                               BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  virtual void
-  UnregisterGattClientInternal(int aClientIf,
-                               BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  //
   // Bluetooth notifications
   //
 

@@ -149,7 +149,7 @@ StkIconInfo.prototype = {
 
 function StkItem(aIdentifier, aText, aStkIconInfo) {
   this.identifier = aIdentifier;
-  if (aText !== undefined) {
+  if (aText) {
     this.text = aText;
   }
   this.iconInfo = aStkIconInfo;
@@ -312,13 +312,13 @@ function StkSetupEventListMessage(aStkSetupEventListCmd) {
 }
 StkSetupEventListMessage.prototype = Object.create(StkCommandMessage.prototype);
 
-function StkSetUpMenuCmd(aCommandDetails) {
+function StkMenuCmd(aCommandDetails) {
   // Call |StkProactiveCommand| constructor.
   StkProactiveCommand.call(this, aCommandDetails);
 
   let options = aCommandDetails.options;
 
-  if (options.title !== undefined) {
+  if (options.title) {
     this.title = options.title;
   }
 
@@ -340,10 +340,10 @@ function StkSetUpMenuCmd(aCommandDetails) {
 
   this.isHelpAvailable = !!(options.isHelpAvailable);
 }
-StkSetUpMenuCmd.prototype = Object.create(StkProactiveCommand.prototype, {
+StkMenuCmd.prototype = Object.create(StkProactiveCommand.prototype, {
   QueryInterface: {
     value: XPCOMUtils.generateQI([Ci.nsIStkProactiveCmd,
-                                  Ci.nsIStkSetUpMenuCmd])
+                                  Ci.nsIStkMenuCmd])
   },
 
   // Cache items for getItems()
@@ -352,7 +352,7 @@ StkSetUpMenuCmd.prototype = Object.create(StkProactiveCommand.prototype, {
   // Cache items for getNextActionList()
   nextActionList: { value: null, writable: true },
 
-  // nsIStkSetUpMenuCmd
+  // nsIStkMenuCmd
   title: { value: null, writable: true },
 
   getItems: {
@@ -393,12 +393,12 @@ StkSetUpMenuCmd.prototype = Object.create(StkProactiveCommand.prototype, {
   isHelpAvailable: { value: false, writable: true }
 });
 
-function StkSetUpMenuMessage(aStkSetUpMenuCmd) {
+function StkMenuMessage(aStkMenuCmd) {
   // Call |StkCommandMessage| constructor.
-  StkCommandMessage.call(this, aStkSetUpMenuCmd);
+  StkCommandMessage.call(this, aStkMenuCmd);
 
   this.options = {
-    items: aStkSetUpMenuCmd.getItems().map(function(aStkItem) {
+    items: aStkMenuCmd.getItems().map(function(aStkItem) {
       if (!aStkItem) {
         return null;
       }
@@ -414,47 +414,70 @@ function StkSetUpMenuMessage(aStkSetUpMenuCmd) {
 
       return item;
     }),
-    isHelpAvailable: aStkSetUpMenuCmd.isHelpAvailable,
-    title: aStkSetUpMenuCmd.title
+    isHelpAvailable: aStkMenuCmd.isHelpAvailable
   };
 
-  let nextActionList = aStkSetUpMenuCmd.getNextActionList();
+  if (aStkMenuCmd.title) {
+    this.options.title = aStkMenuCmd.title;
+  }
+
+  let nextActionList = aStkMenuCmd.getNextActionList();
   if (nextActionList && nextActionList.length > 0) {
     this.options.nextActionList = nextActionList;
   }
 
-  if (aStkSetUpMenuCmd.iconInfo) {
-    appendIconInfo(this.options, aStkSetUpMenuCmd.iconInfo);
+  if (aStkMenuCmd.iconInfo) {
+    appendIconInfo(this.options, aStkMenuCmd.iconInfo);
   }
 }
-StkSetUpMenuMessage.prototype = Object.create(StkCommandMessage.prototype);
+StkMenuMessage.prototype = Object.create(StkCommandMessage.prototype);
 
-function StkSelectItemCmd(aCommandDetails) {
-  // Call |StkSetUpMenuCmd| constructor.
-  StkSetUpMenuCmd.call(this, aCommandDetails);
+function StkSetUpMenuCmd(aCommandDetails) {
+  // Call |StkMenuCmd| constructor.
+  StkMenuCmd.call(this, aCommandDetails);
 
   let options = aCommandDetails.options;
 
   this.presentationType = options.presentationType;
+}
+StkSetUpMenuCmd.prototype = Object.create(StkMenuCmd.prototype, {
+  QueryInterface: {
+    value: XPCOMUtils.generateQI([Ci.nsIStkProactiveCmd,
+                                  Ci.nsIStkMenuCmd,
+                                  Ci.nsIStkSetUpMenuCmd])
+  },
+
+  // nsIStkSetUpMenuCmd
+  presentationType: { value: 0, writable: true }
+});
+
+function StkSetUpMenuMessage(aStkSetUpMenuCmd) {
+  // Call |StkMenuMessage| constructor.
+  StkMenuMessage.call(this, aStkSetUpMenuCmd);
+
+  this.options.presentationType = aStkSetUpMenuCmd.presentationType;
+}
+StkSetUpMenuMessage.prototype = Object.create(StkMenuMessage.prototype);
+
+function StkSelectItemCmd(aCommandDetails) {
+  // Call |StkMenuCmd| constructor.
+  StkMenuCmd.call(this, aCommandDetails);
+
+  let options = aCommandDetails.options;
 
   if (options.defaultItem !== undefined &&
       options.defaultItem !== null) {
     this.defaultItem = options.defaultItem;
   }
 }
-StkSelectItemCmd.prototype = Object.create(StkSetUpMenuCmd.prototype, {
+StkSelectItemCmd.prototype = Object.create(StkMenuCmd.prototype, {
   QueryInterface: {
     value: XPCOMUtils.generateQI([Ci.nsIStkProactiveCmd,
-                                  Ci.nsIStkSetUpMenuCmd,
+                                  Ci.nsIStkMenuCmd,
                                   Ci.nsIStkSelectItemCmd])
   },
 
   // nsIStkSelectItemCmd
-  presentationType: {
-    value: 0,
-    writable: true
-  },
-
   defaultItem: {
     value: Ci.nsIStkSelectItemCmd.DEFAULT_ITEM_INVALID,
     writable: true
@@ -462,16 +485,14 @@ StkSelectItemCmd.prototype = Object.create(StkSetUpMenuCmd.prototype, {
 });
 
 function StkSelectItemMessage(aStkSelectItemCmd) {
-  // Call |StkSetUpMenuMessage| constructor.
-  StkSetUpMenuMessage.call(this, aStkSelectItemCmd);
-
-  this.options.presentationType = aStkSelectItemCmd.presentationType;
+  // Call |StkMenuMessage| constructor.
+  StkMenuMessage.call(this, aStkSelectItemCmd);
 
   if (aStkSelectItemCmd.defaultItem !== Ci.nsIStkSelectItemCmd.DEFAULT_ITEM_INVALID) {
     this.options.defaultItem = aStkSelectItemCmd.defaultItem;
   }
 }
-StkSelectItemMessage.prototype = Object.create(StkSetUpMenuMessage.prototype);
+StkSelectItemMessage.prototype = Object.create(StkMenuMessage.prototype);
 
 function StkTextMessageCmd(aCommandDetails) {
   // Call |StkProactiveCommand| constructor.
@@ -479,7 +500,7 @@ function StkTextMessageCmd(aCommandDetails) {
 
   let options = aCommandDetails.options;
 
-  if (options.text !== undefined) {
+  if (options.text) {
     this.text = options.text;
   }
 
@@ -500,9 +521,11 @@ function StkTextMessage(aStkTextMessageCmd) {
   // Call |StkCommandMessage| constructor.
   StkCommandMessage.call(this, aStkTextMessageCmd);
 
-  this.options = {
-    text: aStkTextMessageCmd.text
-  };
+  this.options = {};
+
+  if (aStkTextMessageCmd.text) {
+    this.options.text = aStkTextMessageCmd.text;
+  }
 
   if (aStkTextMessageCmd.iconInfo) {
     appendIconInfo(this.options, aStkTextMessageCmd.iconInfo);
@@ -557,13 +580,13 @@ function StkInputCmd(aCommandDetails) {
 
   let options = aCommandDetails.options;
 
-  if (options.text !== undefined) {
+  if (options.text) {
     this.text = options.text;
   }
 
   this.duration = mapDurationToStkDuration(options.duration);
 
-  if (options.defaultText !== undefined) {
+  if (options.defaultText) {
     this.defaultText = options.defaultText;
   }
 
@@ -602,12 +625,15 @@ function StkInputMessage(aStkInputCmd) {
     isAlphabet: aStkInputCmd.isAlphabet,
     isUCS2: aStkInputCmd.isUCS2,
     isHelpAvailable: aStkInputCmd.isHelpAvailable,
-    defaultText: aStkInputCmd.defaultText
   };
 
   if (aStkInputCmd.duration) {
     this.options.duration = {};
     appendDuration(this.options.duration, aStkInputCmd.duration);
+  }
+
+  if (aStkInputCmd.defaultText) {
+    this.options.defaultText = aStkInputCmd.defaultText;
   }
 
   if (aStkInputCmd.iconInfo) {
@@ -691,14 +717,14 @@ function StkSetUpCallCmd(aCommandDetails) {
   this.address = options.address;
 
   if(confirmMessage) {
-    if (confirmMessage.text !== undefined) {
+    if (confirmMessage.text) {
       this.confirmText = confirmMessage.text;
     }
     this.confirmIconInfo = mapIconInfoToStkIconInfo(confirmMessage);
   }
 
   if(callMessage) {
-    if (callMessage.text !== undefined) {
+    if (callMessage.text) {
       this.callText = callMessage.text;
     }
     this.callIconInfo = mapIconInfoToStkIconInfo(callMessage);
@@ -729,22 +755,22 @@ function StkSetUpCallMessage(aStkSetUpCallCmd) {
     address: aStkSetUpCallCmd.address
   };
 
-  if (aStkSetUpCallCmd.confirmText !== null ||
-      aStkSetUpCallCmd.confirmIconInfo) {
-    let confirmMessage = {
-      text: aStkSetUpCallCmd.confirmText
-    };
+  if (aStkSetUpCallCmd.confirmText || aStkSetUpCallCmd.confirmIconInfo) {
+    let confirmMessage = {};
+    if (aStkSetUpCallCmd.confirmText) {
+      confirmMessage.text = aStkSetUpCallCmd.confirmText;
+    }
     if (aStkSetUpCallCmd.confirmIconInfo) {
       appendIconInfo(confirmMessage, aStkSetUpCallCmd.confirmIconInfo);
     }
     this.options.confirmMessage = confirmMessage;
   }
 
-  if (aStkSetUpCallCmd.callText !== null ||
-      aStkSetUpCallCmd.callIconInfo) {
-    let callMessage = {
-      text: aStkSetUpCallCmd.callText
-    };
+  if (aStkSetUpCallCmd.callText || aStkSetUpCallCmd.callIconInfo) {
+    let callMessage = {};
+    if (aStkSetUpCallCmd.callText) {
+      callMessage.text = aStkSetUpCallCmd.callText;
+    }
     if (aStkSetUpCallCmd.callIconInfo) {
       appendIconInfo(callMessage, aStkSetUpCallCmd.callIconInfo);
     }
@@ -771,7 +797,7 @@ function StkBrowserSettingCmd(aCommandDetails) {
   let confirmMessage = options.confirmMessage;
 
   if(confirmMessage) {
-    if (confirmMessage.text !== undefined) {
+    if (confirmMessage.text) {
       this.confirmText = confirmMessage.text;
     }
     this.confirmIconInfo = mapIconInfoToStkIconInfo(confirmMessage);
@@ -799,11 +825,11 @@ function StkBrowserSettingMessage(aStkBrowserSettingCmd) {
     mode: aStkBrowserSettingCmd.mode
   };
 
-  if (aStkBrowserSettingCmd.confirmText !== null ||
-      aStkBrowserSettingCmd.confirmIconInfo) {
-    let confirmMessage = {
-      text: aStkBrowserSettingCmd.confirmText
-    };
+  if (aStkBrowserSettingCmd.confirmText || aStkBrowserSettingCmd.confirmIconInfo) {
+    let confirmMessage = {};
+    if (aStkBrowserSettingCmd.confirmText) {
+      confirmMessage.text = aStkBrowserSettingCmd.confirmText;
+    }
     if (aStkBrowserSettingCmd.confirmIconInfo) {
       appendIconInfo(confirmMessage, aStkBrowserSettingCmd.confirmIconInfo);
     }
@@ -818,7 +844,7 @@ function StkPlayToneCmd(aCommandDetails) {
 
   let options = aCommandDetails.options;
 
-  if(options.text !== undefined) {
+  if(options.text) {
     this.text = options.text;
   }
 
@@ -854,9 +880,12 @@ function StkPlayToneMessage(aStkPlayToneCmd) {
   StkCommandMessage.call(this, aStkPlayToneCmd);
 
   this.options = {
-    isVibrate: aStkPlayToneCmd.isVibrate,
-    text: aStkPlayToneCmd.text
+    isVibrate: aStkPlayToneCmd.isVibrate
   };
+
+  if (aStkPlayToneCmd.text) {
+    this.options.text = aStkPlayToneCmd.text;
+  }
 
   if (aStkPlayToneCmd.tone != Ci.nsIStkPlayToneCmd.TONE_TYPE_INVALID) {
     this.options.tone = aStkPlayToneCmd.tone;

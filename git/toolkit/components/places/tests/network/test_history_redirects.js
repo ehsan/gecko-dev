@@ -62,12 +62,7 @@ function PathHandler(aMeta, aResponse, aChannelEvent, aRedirURL) {
 function run_test() {
   do_test_pending();
 
-  var chan = NetUtil.ioService.newChannelFromURI2(uri(PERMA_REDIR_URL),
-                                                  null,      // aLoadingNode
-                                                  Services.scriptSecurityManager.getSystemPrincipal(),
-                                                  null,      // aTriggeringPrincipal
-                                                  Ci.nsILoadInfo.SEC_NORMAL,
-                                                  Ci.nsIContentPolicy.TYPE_OTHER);
+  var chan = NetUtil.ioService.newChannelFromURI(uri(PERMA_REDIR_URL));
   var listener = new ChannelListener();
   chan.notificationCallbacks = listener;
   chan.asyncOpen(listener, null);
@@ -97,8 +92,8 @@ function continue_test() {
   try {
     while(stmt.executeStep()) {
       let comparator = EXPECTED.shift();
-      do_print("Checking that '" + comparator.url +
-               "' was entered into the DB correctly");
+      do_log_info("Checking that '" + comparator.url +
+                  "' was entered into the DB correctly");
       do_check_eq(stmt.row.id, comparator.id);
       do_check_eq(stmt.row.url, comparator.url);
       do_check_eq(stmt.row.from_visit, comparator.from_visit);
@@ -160,7 +155,7 @@ ChannelListener.prototype = {
   },
 
   onStartRequest: function(request, context) {
-    do_print("onStartRequest");
+    do_log_info("onStartRequest");
     this._got_onstartrequest = true;
   },
 
@@ -169,7 +164,7 @@ ChannelListener.prototype = {
   },
 
   onStopRequest: function(request, context, status) {
-    do_print("onStopRequest");
+    do_log_info("onStopRequest");
     this._got_onstoprequest++;
     let success = Components.isSuccessCode(status);
     do_check_true(success);
@@ -182,7 +177,7 @@ ChannelListener.prototype = {
 
   // nsIChannelEventSink
   asyncOnChannelRedirect: function (aOldChannel, aNewChannel, aFlags, callback) {
-    do_print("onChannelRedirect");
+    do_log_info("onChannelRedirect");
     this._got_onchannelredirect = true;
     callback.onRedirectVerifyCallback(Components.results.NS_OK);
   },

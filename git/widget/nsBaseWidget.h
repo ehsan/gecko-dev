@@ -18,7 +18,6 @@
 #include "nsIObserver.h"
 #include "nsIWidgetListener.h"
 #include "nsPIDOMWindow.h"
-#include "nsWeakReference.h"
 #include <algorithm>
 class nsIContent;
 class nsAutoRollup;
@@ -37,9 +36,7 @@ class CompositorChild;
 class CompositorParent;
 class APZCTreeManager;
 class GeckoContentController;
-class APZEventState;
 struct ScrollableLayerGuid;
-struct SetTargetAPZCCallback;
 }
 
 class CompositorVsyncDispatcher;
@@ -80,7 +77,7 @@ public:
  * class, but it gives them a head start.)
  */
 
-class nsBaseWidget : public nsIWidget, public nsSupportsWeakReference
+class nsBaseWidget : public nsIWidget
 {
   friend class nsAutoRollup;
 
@@ -93,8 +90,6 @@ protected:
   typedef mozilla::layers::APZCTreeManager APZCTreeManager;
   typedef mozilla::layers::GeckoContentController GeckoContentController;
   typedef mozilla::layers::ScrollableLayerGuid ScrollableLayerGuid;
-  typedef mozilla::layers::APZEventState APZEventState;
-  typedef mozilla::layers::SetTargetAPZCCallback SetTargetAPZCCallback;
   typedef mozilla::ScreenRotation ScreenRotation;
 
   virtual ~nsBaseWidget();
@@ -141,6 +136,7 @@ public:
   virtual void            SetWindowAnimationType(WindowAnimationType aType) MOZ_OVERRIDE {}
   NS_IMETHOD              HideWindowChrome(bool aShouldHide) MOZ_OVERRIDE;
   NS_IMETHOD              MakeFullScreen(bool aFullScreen, nsIScreen* aScreen = nullptr) MOZ_OVERRIDE;
+  virtual nsDeviceContext* GetDeviceContext() MOZ_OVERRIDE;
   virtual LayerManager*   GetLayerManager(PLayerTransactionChild* aShadowManager = nullptr,
                                           LayersBackend aBackendHint = mozilla::layers::LayersBackend::LAYERS_NONE,
                                           LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
@@ -199,7 +195,7 @@ public:
   NS_IMETHOD              BeginMoveDrag(mozilla::WidgetMouseEvent* aEvent) MOZ_OVERRIDE;
   virtual nsresult        ActivateNativeMenuItemAt(const nsAString& indexString) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
   virtual nsresult        ForceUpdateNativeMenuAt(const nsAString& indexString) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
-  NS_IMETHOD              NotifyIME(const IMENotification& aIMENotification) MOZ_OVERRIDE MOZ_FINAL;
+  NS_IMETHOD              NotifyIME(const IMENotification& aIMENotification) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              StartPluginIME(const mozilla::WidgetKeyboardEvent& aKeyboardEvent,
                                          int32_t aPanelX, int32_t aPanelY,
                                          nsString& aCommitted) MOZ_OVERRIDE
@@ -223,24 +219,18 @@ public:
                                                          double& aOverriddenDeltaY) MOZ_OVERRIDE;
   virtual already_AddRefed<nsIWidget>
   CreateChild(const nsIntRect  &aRect,
+              nsDeviceContext *aContext,
               nsWidgetInitData *aInitData = nullptr,
               bool             aForceUseIWidgetParent = false) MOZ_OVERRIDE;
-  NS_IMETHOD              AttachViewToTopLevel(bool aUseAttachedEvents) MOZ_OVERRIDE;
+  NS_IMETHOD              AttachViewToTopLevel(bool aUseAttachedEvents, nsDeviceContext *aContext) MOZ_OVERRIDE;
   virtual nsIWidgetListener* GetAttachedWidgetListener() MOZ_OVERRIDE;
   virtual void               SetAttachedWidgetListener(nsIWidgetListener* aListener) MOZ_OVERRIDE;
   NS_IMETHOD              RegisterTouchWindow() MOZ_OVERRIDE;
   NS_IMETHOD              UnregisterTouchWindow() MOZ_OVERRIDE;
-  NS_IMETHOD_(TextEventDispatcher*) GetTextEventDispatcher() MOZ_OVERRIDE MOZ_FINAL;
 
   void NotifyWindowDestroyed();
   void NotifySizeMoveDone();
   void NotifyWindowMoved(int32_t aX, int32_t aY);
-
-  // Register plugin windows for remote updates from the compositor
-  virtual void RegisterPluginWindowForRemoteUpdates() MOZ_OVERRIDE;
-  virtual void UnregisterPluginWindowForRemoteUpdates() MOZ_OVERRIDE;
-
-  virtual void SetNativeData(uint32_t aDataType, uintptr_t aVal) MOZ_OVERRIDE {};
 
   // Should be called by derived implementations to notify on system color and
   // theme changes.
@@ -319,10 +309,11 @@ protected:
   void            ResolveIconName(const nsAString &aIconName,
                                   const nsAString &aIconSuffix,
                                   nsIFile **aResult);
-  virtual void    OnDestroy();
-  void            BaseCreate(nsIWidget *aParent,
-                             const nsIntRect &aRect,
-                             nsWidgetInitData *aInitData);
+  virtual void            OnDestroy();
+  virtual void            BaseCreate(nsIWidget *aParent,
+                                     const nsIntRect &aRect,
+                                     nsDeviceContext *aContext,
+                                     nsWidgetInitData *aInitData);
 
   virtual void ConfigureAPZCTreeManager();
   virtual already_AddRefed<GeckoContentController> CreateRootContentController();
@@ -348,15 +339,15 @@ protected:
                                             const nsAString& aUnmodifiedCharacters) MOZ_OVERRIDE
   { return NS_ERROR_UNEXPECTED; }
 
-  virtual nsresult SynthesizeNativeMouseEvent(mozilla::LayoutDeviceIntPoint aPoint,
+  virtual nsresult SynthesizeNativeMouseEvent(nsIntPoint aPoint,
                                               uint32_t aNativeMessage,
                                               uint32_t aModifierFlags) MOZ_OVERRIDE
   { return NS_ERROR_UNEXPECTED; }
 
-  virtual nsresult SynthesizeNativeMouseMove(mozilla::LayoutDeviceIntPoint aPoint) MOZ_OVERRIDE
+  virtual nsresult SynthesizeNativeMouseMove(nsIntPoint aPoint) MOZ_OVERRIDE
   { return NS_ERROR_UNEXPECTED; }
 
-  virtual nsresult SynthesizeNativeMouseScrollEvent(mozilla::LayoutDeviceIntPoint aPoint,
+  virtual nsresult SynthesizeNativeMouseScrollEvent(nsIntPoint aPoint,
                                                     uint32_t aNativeMessage,
                                                     double aDeltaX,
                                                     double aDeltaY,
@@ -371,9 +362,6 @@ protected:
                                               double aPointerPressure,
                                               uint32_t aPointerOrientation) MOZ_OVERRIDE
   { return NS_ERROR_UNEXPECTED; }
-
-  virtual nsresult NotifyIMEInternal(const IMENotification& aIMENotification)
-  { return NS_ERROR_NOT_IMPLEMENTED; }
 
 protected:
   // Utility to check if an array of clip rects is equal to our
@@ -427,8 +415,6 @@ protected:
    */
   virtual void WindowUsesOMTC() {}
 
-  nsIDocument* GetDocument() const;
-
 protected:
   /**
    * Starts the OMTC compositor destruction sequence.
@@ -443,16 +429,14 @@ protected:
 
   nsIWidgetListener* mWidgetListener;
   nsIWidgetListener* mAttachedWidgetListener;
+  nsDeviceContext* mContext;
   nsRefPtr<LayerManager> mLayerManager;
   nsRefPtr<LayerManager> mBasicLayerManager;
   nsRefPtr<CompositorChild> mCompositorChild;
   nsRefPtr<CompositorParent> mCompositorParent;
   nsRefPtr<mozilla::CompositorVsyncDispatcher> mCompositorVsyncDispatcher;
   nsRefPtr<APZCTreeManager> mAPZC;
-  nsRefPtr<APZEventState> mAPZEventState;
-  nsRefPtr<SetTargetAPZCCallback> mSetTargetAPZCCallback;
   nsRefPtr<WidgetShutdownObserver> mShutdownObserver;
-  nsRefPtr<TextEventDispatcher> mTextEventDispatcher;
   nsCursor          mCursor;
   bool              mUpdateCursor;
   nsBorderStyle     mBorderStyle;
@@ -463,6 +447,7 @@ protected:
   // such windows.
   bool              mRequireOffMainThreadCompositing;
   bool              mUseAttachedEvents;
+  bool              mContextInitialized;
   nsIntRect         mBounds;
   nsIntRect*        mOriginalBounds;
   // When this pointer is null, the widget is not clipped

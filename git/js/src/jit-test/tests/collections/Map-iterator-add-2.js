@@ -2,8 +2,8 @@
 
 load(libdir + "iteration.js");
 
-var map = new Map();
-var iter0 = map[Symbol.iterator](), iter1 = map[Symbol.iterator]();
+var map = Map();
+var iter0 = map[std_iterator](), iter1 = map[std_iterator]();
 assertIteratorDone(iter0, undefined);  // closes iter0
 map.set(1, 2);
 assertIteratorDone(iter0, undefined);  // already closed

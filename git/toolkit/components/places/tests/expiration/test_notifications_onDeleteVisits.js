@@ -81,7 +81,7 @@ add_task(function test_notifications_onDeleteVisits() {
     for (let j = 0; j < currentTest.visitsPerPage; j++) {
       for (let i = 0; i < currentTest.addPages; i++) {
         let page = "http://" + testIndex + "." + i + ".mozilla.org/";
-        yield PlacesTestUtils.addVisits({ uri: uri(page), visitDate: now++ });
+        yield promiseAddVisits({ uri: uri(page), visitDate: now++ });
       }
     }
 
@@ -126,10 +126,10 @@ add_task(function test_notifications_onDeleteVisits() {
 
     // Clean up.
     bs.removeFolderChildren(bs.unfiledBookmarksFolder);
-    yield PlacesTestUtils.clearHistory();
+    yield promiseClearHistory();
   }
 
   clearMaxPages();
   bs.removeFolderChildren(bs.unfiledBookmarksFolder);
-  yield PlacesTestUtils.clearHistory();
+  yield promiseClearHistory();
 });

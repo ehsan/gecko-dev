@@ -47,19 +47,14 @@ CodeGeneratorARM::generatePrologue()
 #ifdef JS_USE_LINK_REGISTER
     masm.pushReturnAddress();
 #endif
-
-    // If profiling, save the current frame pointer to a per-thread global field.
-    if (isProfilerInstrumentationEnabled())
-        masm.profilerEnterFrame(StackPointer, CallTempReg0);
-
-    // Ensure that the Ion frames is properly aligned.
-    masm.assertStackAlignment(JitStackAlignment, 0);
-
     // Note that this automatically sets MacroAssembler::framePushed().
     masm.reserveStack(frameSize());
     masm.checkStackAlignment();
 
-    emitTracelogIonStart();
+#ifdef JS_TRACE_LOGGING
+    emitTracelogScriptStart();
+    emitTracelogStartEvent(TraceLogger_IonMonkey);
+#endif
 
     return true;
 }
@@ -70,16 +65,13 @@ CodeGeneratorARM::generateEpilogue()
     MOZ_ASSERT(!gen->compilingAsmJS());
     masm.bind(&returnLabel_);
 
-    emitTracelogIonStop();
+#ifdef JS_TRACE_LOGGING
+    emitTracelogStopEvent(TraceLogger_IonMonkey);
+    emitTracelogScriptStop();
+#endif
 
     masm.freeStack(frameSize());
     MOZ_ASSERT(masm.framePushed() == 0);
-
-    // If profiling, reset the per-thread global lastJitFrame to point to
-    // the previous frame.
-    if (isProfilerInstrumentationEnabled())
-        masm.profilerExitFrame();
-
     masm.pop(pc);
     masm.flushBuffer();
     return true;
@@ -624,7 +616,6 @@ CodeGeneratorARM::visitSoftDivI(LSoftDivI *ins)
         masm.callWithABI(AsmJSImm_aeabi_idivmod);
     else
         masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, __aeabi_idivmod));
-
     // idivmod returns the quotient in r0, and the remainder in r1.
     if (!mir->canTruncateRemainder()) {
         MOZ_ASSERT(mir->fallible());
@@ -1658,13 +1649,13 @@ CodeGeneratorARM::visitGuardShape(LGuardShape *guard)
 }
 
 void
-CodeGeneratorARM::visitGuardObjectGroup(LGuardObjectGroup *guard)
+CodeGeneratorARM::visitGuardObjectType(LGuardObjectType *guard)
 {
     Register obj = ToRegister(guard->input());
     Register tmp = ToRegister(guard->tempInt());
 
-    masm.ma_ldr(DTRAddr(obj, DtrOffImm(JSObject::offsetOfGroup())), tmp);
-    masm.ma_cmp(tmp, ImmGCPtr(guard->mir()->group()));
+    masm.ma_ldr(DTRAddr(obj, DtrOffImm(JSObject::offsetOfType())), tmp);
+    masm.ma_cmp(tmp, ImmGCPtr(guard->mir()->typeObject()));
 
     Assembler::Condition cond =
         guard->mir()->bailOnEquality() ? Assembler::Equal : Assembler::NotEqual;
@@ -1776,7 +1767,7 @@ CodeGeneratorARM::visitAsmJSLoadHeap(LAsmJSLoadHeap *ins)
     bool isSigned;
     int size;
     bool isFloat = false;
-    switch (mir->accessType()) {
+    switch (mir->viewType()) {
       case Scalar::Int8:    isSigned = true;  size =  8; break;
       case Scalar::Uint8:   isSigned = false; size =  8; break;
       case Scalar::Int16:   isSigned = true;  size = 16; break;
@@ -1856,7 +1847,7 @@ CodeGeneratorARM::visitAsmJSStoreHeap(LAsmJSStoreHeap *ins)
     bool isSigned;
     int size;
     bool isFloat = false;
-    switch (mir->accessType()) {
+    switch (mir->viewType()) {
       case Scalar::Int8:
       case Scalar::Uint8:   isSigned = false; size = 8; break;
       case Scalar::Int16:
@@ -1924,7 +1915,7 @@ void
 CodeGeneratorARM::visitAsmJSCompareExchangeHeap(LAsmJSCompareExchangeHeap *ins)
 {
     MAsmJSCompareExchangeHeap *mir = ins->mir();
-    Scalar::Type vt = mir->accessType();
+    Scalar::Type vt = mir->viewType();
     const LAllocation *ptr = ins->ptr();
     Register ptrReg = ToRegister(ptr);
     BaseIndex srcAddr(HeapReg, ptrReg, TimesOne);
@@ -1958,7 +1949,7 @@ void
 CodeGeneratorARM::visitAsmJSAtomicBinopHeap(LAsmJSAtomicBinopHeap *ins)
 {
     MAsmJSAtomicBinopHeap *mir = ins->mir();
-    Scalar::Type vt = mir->accessType();
+    Scalar::Type vt = mir->viewType();
     const LAllocation *ptr = ins->ptr();
     Register ptrReg = ToRegister(ptr);
     Register temp = ins->temp()->isBogusTemp() ? InvalidReg : ToRegister(ins->temp());
@@ -2018,7 +2009,20 @@ CodeGeneratorARM::visitUDiv(LUDiv *ins)
     Register output = ToRegister(ins->output());
 
     Label done;
-    generateUDivModZeroCheck(rhs, output, &done, ins->snapshot(), ins->mir());
+    if (ins->mir()->canBeDivideByZero()) {
+        masm.ma_cmp(rhs, Imm32(0));
+        if (ins->mir()->isTruncated()) {
+            // Infinity|0 == 0
+            Label skip;
+            masm.ma_b(&skip, Assembler::NotEqual);
+            masm.ma_mov(Imm32(0), output);
+            masm.ma_b(&done);
+            masm.bind(&skip);
+        } else {
+            MOZ_ASSERT(ins->mir()->fallible());
+            bailoutIf(Assembler::Equal, ins->snapshot());
+        }
+    }
 
     masm.ma_udiv(lhs, rhs, output);
 
@@ -2036,9 +2040,22 @@ CodeGeneratorARM::visitUMod(LUMod *ins)
     Register lhs = ToRegister(ins->lhs());
     Register rhs = ToRegister(ins->rhs());
     Register output = ToRegister(ins->output());
-
     Label done;
-    generateUDivModZeroCheck(rhs, output, &done, ins->snapshot(), ins->mir());
+
+    if (ins->mir()->canBeDivideByZero()) {
+        masm.ma_cmp(rhs, Imm32(0));
+        if (ins->mir()->isTruncated()) {
+            // Infinity|0 == 0
+            Label skip;
+            masm.ma_b(&skip, Assembler::NotEqual);
+            masm.ma_mov(Imm32(0), output);
+            masm.ma_b(&done);
+            masm.bind(&skip);
+        } else {
+            MOZ_ASSERT(ins->mir()->fallible());
+            bailoutIf(Assembler::Equal, ins->snapshot());
+        }
+    }
 
     masm.ma_umod(lhs, rhs, output);
 
@@ -2048,30 +2065,6 @@ CodeGeneratorARM::visitUMod(LUMod *ins)
     }
 
     masm.bind(&done);
-}
-
-template<class T>
-void
-CodeGeneratorARM::generateUDivModZeroCheck(Register rhs, Register output, Label *done,
-                                           LSnapshot *snapshot, T *mir)
-{
-    if (!mir)
-        return;
-    if (mir->canBeDivideByZero()) {
-        masm.ma_cmp(rhs, Imm32(0));
-        if (mir->isTruncated()) {
-            Label skip;
-            masm.ma_b(&skip, Assembler::NotEqual);
-            // Infinity|0 == 0
-            masm.ma_mov(Imm32(0), output);
-            masm.ma_b(done);
-            masm.bind(&skip);
-        } else {
-            // Bailout for divide by zero
-            MOZ_ASSERT(mir->fallible());
-            bailoutIf(Assembler::Equal, snapshot);
-        }
-    }
 }
 
 void
@@ -2087,12 +2080,14 @@ CodeGeneratorARM::visitSoftUDivOrMod(LSoftUDivOrMod *ins)
     MOZ_ASSERT_IF(ins->mirRaw()->isDiv(), output == r0);
     MOZ_ASSERT_IF(ins->mirRaw()->isMod(), output == r1);
 
-    Label done;
-    MDiv *div = ins->mir()->isDiv() ? ins->mir()->toDiv() : nullptr;
-    MMod *mod = !div ? ins->mir()->toMod() : nullptr;
+    Label afterDiv;
 
-    generateUDivModZeroCheck(rhs, output, &done, ins->snapshot(), div);
-    generateUDivModZeroCheck(rhs, output, &done, ins->snapshot(), mod);
+    masm.ma_cmp(rhs, Imm32(0));
+    Label notzero;
+    masm.ma_b(&notzero, Assembler::NonZero);
+    masm.ma_mov(Imm32(0), output);
+    masm.ma_b(&afterDiv);
+    masm.bind(&notzero);
 
     masm.setupAlignedABICall(2);
     masm.passABIArg(lhs);
@@ -2102,22 +2097,7 @@ CodeGeneratorARM::visitSoftUDivOrMod(LSoftUDivOrMod *ins)
     else
         masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, __aeabi_uidivmod));
 
-    // uidivmod returns the quotient in r0, and the remainder in r1.
-    if (div && !div->canTruncateRemainder()) {
-        MOZ_ASSERT(div->fallible());
-        masm.ma_cmp(r1, Imm32(0));
-        bailoutIf(Assembler::NonZero, ins->snapshot());
-    }
-
-    // Bailout for big unsigned results
-    if ((div && !div->isTruncated()) || (mod && !mod->isTruncated())) {
-        DebugOnly<bool> isFallible = (div && div->fallible()) || (mod && mod->fallible());
-        MOZ_ASSERT(isFallible);
-        masm.ma_cmp(output, Imm32(0));
-        bailoutIf(Assembler::LessThan, ins->snapshot());
-    }
-
-    masm.bind(&done);
+    masm.bind(&afterDiv);
 }
 
 void

@@ -108,13 +108,14 @@ gTests.push({
 
       menuNode.containerOpen = false;
 
-      PlacesTestUtils.clearHistory().then(nextTest);
+      waitForClearHistory(nextTest);
     }
     // add a visit to browser history
-    PlacesTestUtils.addVisits(
+    addVisits(
       { uri: PlacesUtils._uri(TEST_URI), visitDate: Date.now() * 1000,
-        transition: PlacesUtils.history.TRANSITION_TYPED }
-      ).then(addVisitsCallback);
+        transition: PlacesUtils.history.TRANSITION_TYPED },
+      window,
+      addVisitsCallback);
   }
 });
 

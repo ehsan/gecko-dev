@@ -33,6 +33,7 @@ nsProtectedAuthThread::nsProtectedAuthThread()
 , mSlot(0)
 , mLoginResult(SECFailure)
 {
+    NS_INIT_ISUPPORTS();
 }
 
 nsProtectedAuthThread::~nsProtectedAuthThread()

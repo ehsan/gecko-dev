@@ -4,17 +4,19 @@
 // Tests that selections in the flame graph widget work properly.
 
 let TEST_DATA = [{ color: "#f00", blocks: [{ x: 0, y: 0, width: 50, height: 20, text: "FOO" }, { x: 50, y: 0, width: 100, height: 20, text: "BAR" }] }, { color: "#00f", blocks: [{ x: 0, y: 30, width: 30, height: 20, text: "BAZ" }] }];
-let TEST_BOUNDS = { startTime: 0, endTime: 150 };
 let TEST_WIDTH = 200;
 let TEST_HEIGHT = 100;
 
 let {FlameGraph} = Cu.import("resource:///modules/devtools/FlameGraph.jsm", {});
+let {DOMHelpers} = Cu.import("resource:///modules/devtools/DOMHelpers.jsm", {});
 let {Promise} = devtools.require("resource://gre/modules/Promise.jsm");
+let {Hosts} = devtools.require("devtools/framework/toolbox-hosts");
 
-add_task(function*() {
+let test = Task.async(function*() {
   yield promiseTab("about:blank");
   yield performTest();
   gBrowser.removeCurrentTab();
+  finish();
 });
 
 function* performTest() {
@@ -34,53 +36,53 @@ function* performTest() {
 }
 
 function testGraph(graph) {
-  graph.setData({ data: TEST_DATA, bounds: TEST_BOUNDS });
+  graph.setData(TEST_DATA);
 
-  is(graph.getViewRange().startTime, 0,
+  is(graph.getDataWindowStart(), 0,
     "The selection start boundary is correct (1).");
-  is(graph.getViewRange().endTime, 150,
+  is(graph.getDataWindowEnd(), TEST_WIDTH,
     "The selection end boundary is correct (1).");
 
   scroll(graph, 200, HORIZONTAL_AXIS, 10);
-  is(graph.getViewRange().startTime | 0, 75,
+  is(graph.getDataWindowStart() | 0, 100,
     "The selection start boundary is correct (2).");
-  is(graph.getViewRange().endTime | 0, 150,
+  is(graph.getDataWindowEnd() | 0, 200,
     "The selection end boundary is correct (2).");
 
   scroll(graph, -200, HORIZONTAL_AXIS, 10);
-  is(graph.getViewRange().startTime | 0, 37,
+  is(graph.getDataWindowStart() | 0, 50,
     "The selection start boundary is correct (3).");
-  is(graph.getViewRange().endTime | 0, 112,
+  is(graph.getDataWindowEnd() | 0, 150,
     "The selection end boundary is correct (3).");
 
   scroll(graph, 200, VERTICAL_AXIS, TEST_WIDTH / 2);
-  is(graph.getViewRange().startTime | 0, 34,
+  is(graph.getDataWindowStart() | 0, 46,
     "The selection start boundary is correct (4).");
-  is(graph.getViewRange().endTime | 0, 115,
+  is(graph.getDataWindowEnd() | 0, 153,
     "The selection end boundary is correct (4).");
 
   scroll(graph, -200, VERTICAL_AXIS, TEST_WIDTH / 2);
-  is(graph.getViewRange().startTime | 0, 37,
+  is(graph.getDataWindowStart() | 0, 50,
     "The selection start boundary is correct (5).");
-  is(graph.getViewRange().endTime | 0, 112,
+  is(graph.getDataWindowEnd() | 0, 149,
     "The selection end boundary is correct (5).");
 
   dragStart(graph, TEST_WIDTH / 2);
-  is(graph.getViewRange().startTime | 0, 37,
+  is(graph.getDataWindowStart() | 0, 50,
     "The selection start boundary is correct (6).");
-  is(graph.getViewRange().endTime | 0, 112,
+  is(graph.getDataWindowEnd() | 0, 149,
     "The selection end boundary is correct (6).");
 
   hover(graph, TEST_WIDTH / 2 - 10);
-  is(graph.getViewRange().startTime | 0, 41,
+  is(graph.getDataWindowStart() | 0, 55,
     "The selection start boundary is correct (7).");
-  is(graph.getViewRange().endTime | 0, 116,
+  is(graph.getDataWindowEnd() | 0, 154,
     "The selection end boundary is correct (7).");
 
   dragStop(graph, 10);
-  is(graph.getViewRange().startTime | 0, 71,
+  is(graph.getDataWindowStart() | 0, 95,
     "The selection start boundary is correct (8).");
-  is(graph.getViewRange().endTime | 0, 145,
+  is(graph.getDataWindowEnd() | 0, 194,
     "The selection end boundary is correct (8).");
 }
 

@@ -25,9 +25,8 @@ const FM = Cc["@mozilla.org/focus-manager;1"].
 
 const XUL_NS = 'http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul';
 
-const prefs = require("../preferences/service");
 const BROWSER = 'navigator:browser',
-      URI_BROWSER = prefs.get('browser.chromeURL', null),
+      URI_BROWSER = 'chrome://browser/content/browser.xul',
       NAME = '_blank',
       FEATURES = 'chrome,all,dialog=no,non-private';
 
@@ -186,9 +185,6 @@ function serializeFeatures(options) {
 function open(uri, options) {
   uri = uri || URI_BROWSER;
   options = options || {};
-
-  if (!uri)
-    throw new Error('browser.chromeURL is undefined, please provide an explicit uri');
 
   if (['chrome', 'resource', 'data'].indexOf(io.newURI(uri, null, null).scheme) < 0)
     throw new Error('only chrome, resource and data uris are allowed');

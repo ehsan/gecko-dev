@@ -39,8 +39,8 @@ public:
   NS_IMETHOD_(void) Serialize(IPC::Message* aMsg, bool aSerializeInterfaceType) MOZ_OVERRIDE;
   NS_IMETHOD_(bool) Deserialize(const IPC::Message* aMsg, void** aIter) MOZ_OVERRIDE;
 
-  static LayoutDeviceIntPoint CalculateScreenPoint(nsPresContext* aPresContext,
-                                                   WidgetEvent* aEvent)
+  static nsIntPoint CalculateScreenPoint(nsPresContext* aPresContext,
+                                         WidgetEvent* aEvent)
   {
     if (!aEvent ||
         (aEvent->mClass != eMouseEventClass &&
@@ -49,19 +49,20 @@ public:
          aEvent->mClass != eDragEventClass &&
          aEvent->mClass != ePointerEventClass &&
          aEvent->mClass != eSimpleGestureEventClass)) {
-      return LayoutDeviceIntPoint(0, 0);
+      return nsIntPoint(0, 0);
     }
 
     WidgetGUIEvent* event = aEvent->AsGUIEvent();
     if (!event->widget) {
-      return aEvent->refPoint;
+      return LayoutDeviceIntPoint::ToUntyped(aEvent->refPoint);
     }
 
-    LayoutDeviceIntPoint offset = aEvent->refPoint + event->widget->WidgetToScreenOffset();
+    LayoutDeviceIntPoint offset = aEvent->refPoint +
+      LayoutDeviceIntPoint::FromUntyped(event->widget->WidgetToScreenOffset());
     nscoord factor =
       aPresContext->DeviceContext()->AppUnitsPerDevPixelAtUnitFullZoom();
-    return LayoutDeviceIntPoint(nsPresContext::AppUnitsToIntCSSPixels(offset.x * factor),
-                                nsPresContext::AppUnitsToIntCSSPixels(offset.y * factor));
+    return nsIntPoint(nsPresContext::AppUnitsToIntCSSPixels(offset.x * factor),
+                      nsPresContext::AppUnitsToIntCSSPixels(offset.y * factor));
   }
 
   static CSSIntPoint CalculateClientPoint(nsPresContext* aPresContext,

@@ -18,7 +18,6 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/LightweightThemeManager.jsm", this);
 Cu.import("resource://gre/modules/XPCOMUtils.jsm", this);
 Cu.import("resource://gre/modules/TelemetryPing.jsm", this);
-Cu.import("resource://gre/modules/TelemetrySession.jsm", this);
 Cu.import("resource://gre/modules/TelemetryFile.jsm", this);
 Cu.import("resource://gre/modules/Task.jsm", this);
 Cu.import("resource://gre/modules/Promise.jsm", this);
@@ -66,13 +65,11 @@ XPCOMUtils.defineLazyGetter(this, "gDatareportingService",
           .wrappedJSObject);
 
 function sendPing () {
-  TelemetrySession.gatherStartup();
+  TelemetryPing.gatherStartup();
   if (gServerStarted) {
-    TelemetryPing.setServer("http://localhost:" + gHttpServer.identity.primaryPort);
-    return TelemetrySession.testPing();
+    return TelemetryPing.testPing("http://localhost:" + gHttpServer.identity.primaryPort);
   } else {
-    TelemetryPing.setServer("http://doesnotexist");
-    return TelemetrySession.testPing();
+    return TelemetryPing.testPing("http://doesnotexist");
   }
 }
 
@@ -214,7 +211,8 @@ function checkPayloadInfo(payload, reason) {
   }
 }
 
-function checkPayload(request, payload, reason, successfulPings) {
+function checkPayload(request, reason, successfulPings) {
+  let payload = decodeRequestPayload(request);
   // Take off ["","submit","telemetry"].
   let pathComponents = request.path.split("/").slice(3);
 
@@ -258,7 +256,7 @@ function checkPayload(request, payload, reason, successfulPings) {
   do_check_true(TELEMETRY_TEST_FLAG in payload.histograms);
   do_check_true(TELEMETRY_TEST_COUNT in payload.histograms);
 
-  let rh = Telemetry.registeredHistograms(Ci.nsITelemetry.DATASET_RELEASE_CHANNEL_OPTIN, []);
+  let rh = Telemetry.registeredHistograms([]);
   for (let name of rh) {
     if (/SQLITE/.test(name) && name in payload.histograms) {
       do_check_true(("STARTUP_" + name) in payload.histograms); 
@@ -504,7 +502,6 @@ function actualTest() {
 }
 
 add_task(function* asyncSetup() {
-  yield TelemetrySession.setup();
   yield TelemetryPing.setup();
 
   if (HAS_DATAREPORTINGSERVICE) {
@@ -513,7 +510,7 @@ add_task(function* asyncSetup() {
   }
 
   // When no DRS or no DRS.getSessionRecorder(), activeTicks should be -1.
-  do_check_eq(TelemetrySession.getPayload().simpleMeasurements.activeTicks, -1);
+  do_check_eq(TelemetryPing.getPayload().simpleMeasurements.activeTicks, -1);
 
   if (HAS_DATAREPORTINGSERVICE) {
     // Restore normal behavior for getSessionRecorder()
@@ -544,8 +541,8 @@ add_task(function* test_expiredHistogram() {
 
   dummy.add(1);
 
-  do_check_eq(TelemetrySession.getPayload()["histograms"][histogram_id], undefined);
-  do_check_eq(TelemetrySession.getPayload()["histograms"]["TELEMETRY_TEST_EXPIRED"], undefined);
+  do_check_eq(TelemetryPing.getPayload()["histograms"][histogram_id], undefined);
+  do_check_eq(TelemetryPing.getPayload()["histograms"]["TELEMETRY_TEST_EXPIRED"], undefined);
 });
 
 // Checks that an invalid histogram file is deleted if TelemetryFile fails to parse it.
@@ -555,7 +552,7 @@ add_task(function* test_runInvalidJSON() {
   writeStringToFile(histogramsFile, "this.is.invalid.JSON");
   do_check_true(histogramsFile.exists());
 
-  yield TelemetrySession.testLoadHistograms(histogramsFile);
+  yield TelemetryPing.testLoadHistograms(histogramsFile);
   do_check_false(histogramsFile.exists());
 });
 
@@ -584,25 +581,21 @@ add_task(function* test_saveLoadPing() {
   let histogramsFile = getSavedHistogramsFile("saved-histograms.dat");
 
   setupTestData();
-  yield TelemetrySession.testSaveHistograms(histogramsFile);
-  yield TelemetrySession.testLoadHistograms(histogramsFile);
+  yield TelemetryPing.testSaveHistograms(histogramsFile);
+  yield TelemetryPing.testLoadHistograms(histogramsFile);
   yield sendPing();
 
   // Get requests received by dummy server.
   let request1 = yield gRequestIterator.next();
   let request2 = yield gRequestIterator.next();
 
-  // We decode both requests to check for the |reason|.
-  let payload1 = decodeRequestPayload(request1);
-  let payload2 = decodeRequestPayload(request2);
-
   // Check we have the correct two requests. Ordering is not guaranteed.
-  if (payload1.info.reason === "test-ping") {
-    checkPayload(request1, payload1, "test-ping", 1);
-    checkPayload(request2, payload2, "saved-session", 1);
+  if (request1.path.contains("test-ping")) {
+    checkPayload(request1, "test-ping", 1);
+    checkPayload(request2, "saved-session", 1);
   } else {
-    checkPayload(request1, payload1, "saved-session", 1);
-    checkPayload(request2, payload2, "test-ping", 1);
+    checkPayload(request1, "saved-session", 1);
+    checkPayload(request2, "test-ping", 1);
   }
 });
 
@@ -610,22 +603,22 @@ add_task(function* test_saveLoadPing() {
 add_task(function* test_runOldPingFile() {
   let histogramsFile = getSavedHistogramsFile("old-histograms.dat");
 
-  yield TelemetrySession.testSaveHistograms(histogramsFile);
+  yield TelemetryPing.testSaveHistograms(histogramsFile);
   do_check_true(histogramsFile.exists());
   let mtime = histogramsFile.lastModifiedTime;
   histogramsFile.lastModifiedTime = mtime - (14 * 24 * 60 * 60 * 1000 + 60000); // 14 days, 1m
 
-  yield TelemetrySession.testLoadHistograms(histogramsFile);
+  yield TelemetryPing.testLoadHistograms(histogramsFile);
   do_check_false(histogramsFile.exists());
 });
 
 add_task(function* test_savedSessionClientID() {
   // Assure that we store the ping properly when saving sessions on shutdown.
-  // We make the TelemetrySession shutdown to trigger a session save.
+  // We make the TelemetryPings shutdown to trigger a session save.
   const dir = TelemetryFile.pingDirectoryPath;
   yield OS.File.removeDir(dir, {ignoreAbsent: true});
   yield OS.File.makeDir(dir);
-  yield TelemetrySession.shutdown();
+  yield TelemetryPing.shutdown();
 
   yield TelemetryFile.loadSavedPings();
   Assert.equal(TelemetryFile.pingsLoaded, 1);

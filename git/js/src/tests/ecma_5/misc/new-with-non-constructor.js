@@ -3,41 +3,36 @@
  * http://creativecommons.org/licenses/publicdomain/
  */
 
-function checkConstruct(thing) {
+function checkConstruct(thing, buggy) {
     try {
         new thing();
         assertEq(0, 1, "not reached " + thing);
     } catch (e) {
-        assertEq(String(e.message).indexOf(" is not a constructor") === -1, false);
+        if (buggy)
+            assertEq(String(e.message).indexOf("is not a constructor") === -1, false);
+        else
+            assertEq(String(e.message).indexOf("thing is not a constructor") === -1, false);
     }
 }
 
 var re = /aaa/
-checkConstruct(re);
+checkConstruct(re, false);
 
 var boundFunctionPrototype = Function.prototype.bind();
-checkConstruct(boundFunctionPrototype);
+checkConstruct(boundFunctionPrototype, true);
 
 var boundBuiltin = Math.sin.bind();
-checkConstruct(boundBuiltin);
+checkConstruct(boundBuiltin, true);
 
 /* We set the proxies construct trap to undefined,
  * so the call trap is used as constructor.
  */
 
-var handler = {
-    getPropertyDescriptor(name) {
-        /* toSource may be called to generate error message. */
-        assertEq(name, "toSource");
-        return { value: () => "foo" };
-    }
-};
+var proxiedFunctionPrototype = Proxy.create({}, Function.prototype, undefined);
+checkConstruct(proxiedFunctionPrototype, false);
 
-var proxiedFunctionPrototype = Proxy.create(handler, Function.prototype, undefined);
-checkConstruct(proxiedFunctionPrototype);
-
-var proxiedBuiltin = Proxy.create(handler, parseInt, undefined);
-checkConstruct(proxiedBuiltin);
+var proxiedBuiltin = Proxy.create({}, parseInt, undefined);
+checkConstruct(proxiedBuiltin, false);
 
 
 if (typeof reportCompare == 'function')

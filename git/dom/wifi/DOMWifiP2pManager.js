@@ -116,11 +116,6 @@ MozWifiP2pManager.prototype = {
     let state = this._mm.sendSyncMessage("WifiP2pManager:getState")[0];
     if (state) {
       debug('State: ' + JSON.stringify(state));
-      this.enabled = state.enabled;
-      this.currentPeer = state.currentPeer;
-      if (state.groupOwner) {
-        this.groupOwner = new MozWifiP2pGroupOwner(state.groupOwner);
-      }
     } else {
       debug('Failed to get state');
     }

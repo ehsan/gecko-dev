@@ -22,7 +22,6 @@ js::Debugger::onLeaveFrame(JSContext *cx, AbstractFramePtr frame, bool ok)
     MOZ_ASSERT_IF(evalTraps, frame.isDebuggee());
     if (frame.isDebuggee())
         ok = slowPathOnLeaveFrame(cx, frame, ok);
-    assertNotInFrameMaps(frame);
     return ok;
 }
 

@@ -32,8 +32,7 @@ const HTML_NS = "http://www.w3.org/1999/xhtml";
  * @param onClick
  *        A function that's called when a search suggestion is clicked.  Ideally
  *        we could call submit() on inputElement's ancestor form, but that
- *        doesn't trigger submit listeners. The function is passed one argument,
- *        the click event.
+ *        doesn't trigger submit listeners.
  * @param idPrefix
  *        The IDs of elements created by the object will be prefixed with this
  *        string.
@@ -235,9 +234,6 @@ SearchSuggestionUIController.prototype = {
   },
 
   _onMousedown: function (event) {
-    if (event.button == 2) {
-      return;
-    }
     let idx = this._indexOfTableRowOrDescendent(event.target);
     let suggestion = this.suggestionAtIndex(idx);
     this._stickyInputValue = suggestion;
@@ -255,7 +251,7 @@ SearchSuggestionUIController.prototype = {
     this.input.setAttribute("selection-kind", "mouse");
     this._hideSuggestions();
     if (this.onClick) {
-      this.onClick.call(null, event);
+      this.onClick.call(null);
     }
   },
 

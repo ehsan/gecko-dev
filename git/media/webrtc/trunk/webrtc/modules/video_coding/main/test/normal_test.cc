@@ -37,7 +37,8 @@ int NormalTest::RunTest(const CmdArgs& args)
     Trace::SetTraceFile(
         (test::OutputPath() + "VCMNormalTestTrace.txt").c_str());
     Trace::set_level_filter(webrtc::kTraceAll);
-    VideoCodingModule* vcm = VideoCodingModule::Create(clock, &event_factory);
+    VideoCodingModule* vcm = VideoCodingModule::Create(1, clock,
+                                                       &event_factory);
     NormalTest VCMNTest(vcm, clock);
     VCMNTest.Perform(args);
     VideoCodingModule::Destroy(vcm);
@@ -100,9 +101,6 @@ VCMNTEncodeCompleteCallback::SendData(
         videoHdr->codecHeader.VP8.nonReference;
     rtpInfo.type.Video.codecHeader.VP8.pictureId =
         videoHdr->codecHeader.VP8.pictureId;
-    break;
-  case kVideoCodecVP9:
-    // Leave for now, until we add kRtpVideoVp9 to RTP.
     break;
   default:
     assert(false);

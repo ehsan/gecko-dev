@@ -240,7 +240,6 @@ class AudioNodeEngine;
 class AudioNodeExternalInputStream;
 class AudioNodeStream;
 struct AudioChunk;
-class CameraPreviewMediaStream;
 
 /**
  * A stream of synchronized audio and video data. All (not blocked) streams
@@ -419,7 +418,6 @@ public:
   virtual SourceMediaStream* AsSourceStream() { return nullptr; }
   virtual ProcessedMediaStream* AsProcessedStream() { return nullptr; }
   virtual AudioNodeStream* AsAudioNodeStream() { return nullptr; }
-  virtual CameraPreviewMediaStream* AsCameraPreviewStream() { return nullptr; }
 
   // media graph thread only
   void Init();
@@ -720,35 +718,25 @@ public:
   void AddDirectListener(MediaStreamDirectListener* aListener);
   void RemoveDirectListener(MediaStreamDirectListener* aListener);
 
-  enum {
-    ADDTRACK_QUEUED    = 0x01 // Queue track add until FinishAddTracks()
-  };
   /**
    * Add a new track to the stream starting at the given base time (which
    * must be greater than or equal to the last time passed to
    * AdvanceKnownTracksTime). Takes ownership of aSegment. aSegment should
    * contain data starting after aStart.
    */
-  void AddTrack(TrackID aID, StreamTime aStart, MediaSegment* aSegment,
-                uint32_t aFlags = 0)
+  void AddTrack(TrackID aID, StreamTime aStart, MediaSegment* aSegment)
   {
-    AddTrackInternal(aID, GraphRate(), aStart, aSegment, aFlags);
+    AddTrackInternal(aID, GraphRate(), aStart, aSegment);
   }
 
   /**
    * Like AddTrack, but resamples audio from aRate to the graph rate.
    */
   void AddAudioTrack(TrackID aID, TrackRate aRate, StreamTime aStart,
-                     AudioSegment* aSegment, uint32_t aFlags = 0)
+                     AudioSegment* aSegment)
   {
-    AddTrackInternal(aID, aRate, aStart, aSegment, aFlags);
+    AddTrackInternal(aID, aRate, aStart, aSegment);
   }
-
-  /**
-   * Call after a series of AddTrack or AddAudioTrack calls to implement
-   * any pending track adds.
-   */
-  void FinishAddTracks();
 
   /**
    * Append media data to a track. Ownership of aSegment remains with the caller,
@@ -884,8 +872,7 @@ protected:
   void ResampleAudioToGraphSampleRate(TrackData* aTrackData, MediaSegment* aSegment);
 
   void AddTrackInternal(TrackID aID, TrackRate aRate,
-                        StreamTime aStart, MediaSegment* aSegment,
-                        uint32_t aFlags);
+                        StreamTime aStart, MediaSegment* aSegment);
 
   TrackData* FindDataForTrack(TrackID aID)
   {
@@ -916,7 +903,6 @@ protected:
   // protected by mMutex
   StreamTime mUpdateKnownTracksTime;
   nsTArray<TrackData> mUpdateTracks;
-  nsTArray<TrackData> mPendingTracks;
   nsTArray<nsRefPtr<MediaStreamDirectListener> > mDirectListeners;
   bool mPullEnabled;
   bool mUpdateFinished;

@@ -15,13 +15,11 @@
  */
 
 add_task(function* test_tag_match_url() {
-  do_print("Make sure tag matches return the right url as well as '+' remain escaped");
+  do_log_info("Make sure tag matches return the right url as well as '+' remain escaped");
   let uri1 = NetUtil.newURI("http://escaped/ユニコード");
   let uri2 = NetUtil.newURI("http://asciiescaped/blocking-firefox3%2B");
-  yield PlacesTestUtils.addVisits([
-    { uri: uri1, title: "title" },
-    { uri: uri2, title: "title" }
-  ]);
+  yield promiseAddVisits([ { uri: uri1, title: "title" },
+  						   { uri: uri2, title: "title" } ]);
   addBookmark({ uri: uri1,
                 title: "title",
                 tags: [ "superTag" ],

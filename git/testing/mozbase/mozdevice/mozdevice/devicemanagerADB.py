@@ -249,14 +249,13 @@ class DeviceManagerADB(DeviceManager):
                 self._logger.warning(traceback.format_exc())
                 self._logger.warning("zip/unzip failure: falling back to normal push")
                 self._useZip = False
-                self.pushDir(localDir, remoteDir, retryLimit=retryLimit, timeout=timeout)
+                self.pushDir(localDir, remoteDir, retryLimit=retryLimit)
         else:
             tmpDir = tempfile.mkdtemp()
             # copytree's target dir must not already exist, so create a subdir
             tmpDirTarget = os.path.join(tmpDir, "tmp")
             shutil.copytree(localDir, tmpDirTarget)
-            self._checkCmd(["push", tmpDirTarget, remoteDir],
-                           retryLimit=retryLimit, timeout=timeout)
+            self._checkCmd(["push", tmpDirTarget, remoteDir], retryLimit=retryLimit)
             mozfile.remove(tmpDir)
 
     def dirExists(self, remotePath):
@@ -379,7 +378,7 @@ class DeviceManagerADB(DeviceManager):
                 envCnt += 1
         if uri != "":
             acmd.append("-d")
-            acmd.append(''.join(['\'',uri, '\'']));
+            acmd.append(uri);
         self._logger.info(acmd)
         self._checkCmd(acmd)
         return outputFile
@@ -621,10 +620,10 @@ class DeviceManagerADB(DeviceManager):
                     self._checkCmd(["shell", "chmod", mask, remoteEntry])
                     self._logger.info("chmod %s" % remoteEntry)
             self._checkCmd(["shell", "chmod", mask, remoteDir])
-            self._logger.debug("chmod %s" % remoteDir)
+            self._logger.info("chmod %s" % remoteDir)
         else:
             self._checkCmd(["shell", "chmod", mask, remoteDir.strip()])
-            self._logger.debug("chmod %s" % remoteDir.strip())
+            self._logger.info("chmod %s" % remoteDir.strip())
 
     def _verifyADB(self):
         """
@@ -694,13 +693,8 @@ class DeviceManagerADB(DeviceManager):
         return False
 
     def _isLocalZipAvailable(self):
-        def _noOutput(line):
-            # suppress output from zip ProcessHandler
-            pass
         try:
-            proc = ProcessHandler(["zip", "-?"], storeOutput=False, processOutputLine=_noOutput)
-            proc.run()
-            proc.wait()
+            self._checkCmd(["zip", "-?"])
         except:
             return False
         return True

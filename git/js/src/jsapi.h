@@ -13,6 +13,7 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Range.h"
 #include "mozilla/RangedPtr.h"
+#include "mozilla/TypedEnum.h"
 
 #include <stdarg.h>
 #include <stddef.h>
@@ -59,6 +60,20 @@ class JS_PUBLIC_API(AutoCheckRequestDepth)
 # define CHECK_REQUEST(cx) \
     ((void) 0)
 
+#endif /* JS_DEBUG */
+
+#ifdef JS_DEBUG
+/*
+ * Assert that we're not doing GC on cx, that we're in a request as
+ * needed, and that the compartments for cx and v are correct.
+ * Also check that GC would be safe at this point.
+ */
+JS_PUBLIC_API(void)
+AssertArgumentsAreSane(JSContext *cx, JS::HandleValue v);
+#else
+inline void AssertArgumentsAreSane(JSContext *cx, JS::HandleValue v) {
+    /* Do nothing */
+}
 #endif /* JS_DEBUG */
 
 /* AutoValueArray roots an internal fixed-size array of Values. */
@@ -598,6 +613,61 @@ class HandleValueArray
     }
 };
 
+// Container for futex methods, used to implement the Atomics primitives.
+//
+// Client code calls JS_SetContextFutexAPI to install an instance of a
+// subclass of PerRuntimeFutexAPI on the runtime.  Implementations
+// of the Atomics primitives will use that object, if it is present
+// (and fail, if not).
+//
+// The API may differ among clients; for example, the APIs installed by
+// a worker and by the main window event thread are possibly different.
+
+class PerRuntimeFutexAPI
+{
+  public:
+    virtual ~PerRuntimeFutexAPI() {}
+
+    // Acquire the GLOBAL lock for all futex resources in all domains.
+    virtual void lock() = 0;
+
+    // Release the GLOBAL lock.
+    virtual void unlock() = 0;
+
+    // Return true iff the calling thread is a worker thread.  This must be
+    // used to guard calls to wait().  The lock need not be held.
+    virtual bool isOnWorkerThread() = 0;
+
+    enum WakeResult {
+        Woken,                  // Woken by futexWait
+        Timedout,               // Woken by timeout
+        InterruptForTerminate,  // Woken by a request to terminate the worker
+        ErrorTooLong            // Implementation constraint on the timer (for now)
+    };
+
+    // Block the thread.
+    //
+    // The lock must be held around this call, see lock() and unlock().
+    virtual WakeResult wait(double timeout_ns) = 0;
+
+    // Wake the thread represented by this PerRuntimeFutexAPI.
+    //
+    // The lock must be held around this call, see lock() and unlock().
+    // Since the sleeping thread also needs that lock to wake up, the
+    // thread will not actually wake up until the caller of wake()
+    // releases the lock.
+    virtual void wake() = 0;
+};
+
+JS_PUBLIC_API(JS::PerRuntimeFutexAPI *)
+GetRuntimeFutexAPI(JSRuntime *rt);
+
+// Transfers ownership of fx to rt; if rt's futexAPI field is not null when rt is
+// deleted then rt's destructor will delete that value.  If fx is null in this
+// call then ownership of a held nonnull value is transfered away from rt.
+JS_PUBLIC_API(void)
+SetRuntimeFutexAPI(JSRuntime *rt, JS::PerRuntimeFutexAPI *fx);
+
 }  /* namespace JS */
 
 /************************************************************************/
@@ -972,18 +1042,49 @@ JS_GetEmptyStringValue(JSContext *cx);
 extern JS_PUBLIC_API(JSString *)
 JS_GetEmptyString(JSRuntime *rt);
 
-struct CompartmentTimeStats {
-    char compartmentName[1024];
-    JSAddonId *addonId;
-    JSCompartment *compartment;
-    uint64_t time;  // microseconds
-    uint64_t cpowTime; // microseconds
-};
+/*
+ * Format is a string of the following characters (spaces are insignificant),
+ * specifying the tabulated type conversions:
+ *
+ *   b      bool            Boolean
+ *   c      char16_t        ECMA uint16_t, Unicode character
+ *   i      int32_t         ECMA int32_t
+ *   j      int32_t         ECMA int32_t (used to be different)
+ *   u      uint32_t        ECMA uint32_t
+ *   d      double          IEEE double
+ *   I      double          Integral IEEE double
+ *   S      JSString *      Unicode string, accessed by a JSString pointer
+ *   W      char16_t *      Unicode character vector, 0-terminated (W for wide)
+ *   o      JSObject *      Object reference
+ *   f      JSFunction *    Function private
+ *   v      jsval           Argument value (no conversion)
+ *   *      N/A             Skip this argument (no vararg)
+ *   /      N/A             End of required arguments
+ *
+ * The variable argument list after format must consist of &b, &c, &s, e.g.,
+ * where those variables have the types given above.  For the pointer types
+ * char *, JSString *, and JSObject *, the pointed-at memory returned belongs
+ * to the JS runtime, not to the calling native code.  The runtime promises
+ * to keep this memory valid so long as argv refers to allocated stack space
+ * (so long as the native function is active).
+ *
+ * Fewer arguments than format specifies may be passed only if there is a /
+ * in format after the last required argument specifier and argc is at least
+ * the number of required arguments.  More arguments than format specifies
+ * may be passed without error; it is up to the caller to deal with trailing
+ * unconverted arguments.
+ */
+extern JS_PUBLIC_API(bool)
+JS_ConvertArguments(JSContext *cx, const JS::CallArgs &args, const char *format, ...);
 
-typedef js::Vector<CompartmentTimeStats, 0, js::SystemAllocPolicy> CompartmentStatsVector;
+#ifdef va_start
+extern JS_PUBLIC_API(bool)
+JS_ConvertArgumentsVA(JSContext *cx, const JS::CallArgs &args, const char *format,
+                      va_list ap);
+#endif
 
 extern JS_PUBLIC_API(bool)
-JS_GetCompartmentStats(JSRuntime *rt, CompartmentStatsVector &stats);
+JS_ConvertValue(JSContext *cx, JS::HandleValue v, JSType type, JS::MutableHandleValue vp);
 
 extern JS_PUBLIC_API(bool)
 JS_ValueToObject(JSContext *cx, JS::HandleValue v, JS::MutableHandleObject objp);
@@ -997,20 +1098,207 @@ JS_ValueToConstructor(JSContext *cx, JS::HandleValue v);
 extern JS_PUBLIC_API(JSString *)
 JS_ValueToSource(JSContext *cx, JS::Handle<JS::Value> v);
 
+namespace js {
+/*
+ * DO NOT CALL THIS.  Use JS::ToNumber
+ */
+extern JS_PUBLIC_API(bool)
+ToNumberSlow(JSContext *cx, JS::Value v, double *dp);
+
+/*
+ * DO NOT CALL THIS. Use JS::ToBoolean
+ */
+extern JS_PUBLIC_API(bool)
+ToBooleanSlow(JS::HandleValue v);
+
+/*
+ * DO NOT CALL THIS. Use JS::ToString
+ */
+extern JS_PUBLIC_API(JSString*)
+ToStringSlow(JSContext *cx, JS::HandleValue v);
+
+/*
+ * DO NOT CALL THIS. Use JS::ToObject.
+ */
+extern JS_PUBLIC_API(JSObject*)
+ToObjectSlow(JSContext *cx, JS::HandleValue vp, bool reportScanStack);
+
+} /* namespace js */
+
+namespace JS {
+
+/* ES5 9.3 ToNumber. */
+MOZ_ALWAYS_INLINE bool
+ToNumber(JSContext *cx, HandleValue v, double *out)
+{
+    AssertArgumentsAreSane(cx, v);
+
+    if (v.isNumber()) {
+        *out = v.toNumber();
+        return true;
+    }
+    return js::ToNumberSlow(cx, v, out);
+}
+
+MOZ_ALWAYS_INLINE bool
+ToBoolean(HandleValue v)
+{
+    if (v.isBoolean())
+        return v.toBoolean();
+    if (v.isInt32())
+        return v.toInt32() != 0;
+    if (v.isNullOrUndefined())
+        return false;
+    if (v.isDouble()) {
+        double d = v.toDouble();
+        return !mozilla::IsNaN(d) && d != 0;
+    }
+    if (v.isSymbol())
+        return true;
+
+    /* The slow path handles strings and objects. */
+    return js::ToBooleanSlow(v);
+}
+
+MOZ_ALWAYS_INLINE JSString*
+ToString(JSContext *cx, HandleValue v)
+{
+    if (v.isString())
+        return v.toString();
+    return js::ToStringSlow(cx, v);
+}
+
+/* ES5 9.9 ToObject. */
+MOZ_ALWAYS_INLINE JSObject*
+ToObject(JSContext *cx, HandleValue vp)
+{
+    if (vp.isObject())
+        return &vp.toObject();
+    return js::ToObjectSlow(cx, vp, false);
+}
+
+/*
+ * Implements ES6 draft rev 28 (2014 Oct 14) 7.1.1, second algorithm.
+ *
+ * Most users should not call this -- use JS::ToNumber, ToBoolean, or ToString
+ * instead. This should only be called from custom convert hooks. It implements
+ * the default conversion behavior shared by most objects in JS, so it's useful
+ * as a fallback.
+ */
+extern JS_PUBLIC_API(bool)
+OrdinaryToPrimitive(JSContext *cx, HandleObject obj, JSType type, MutableHandleValue vp);
+
+} /* namespace JS */
+
 extern JS_PUBLIC_API(bool)
 JS_DoubleIsInt32(double d, int32_t *ip);
+
+extern JS_PUBLIC_API(int32_t)
+JS_DoubleToInt32(double d);
+
+extern JS_PUBLIC_API(uint32_t)
+JS_DoubleToUint32(double d);
+
+
+namespace js {
+/* DO NOT CALL THIS. Use JS::ToUint16. */
+extern JS_PUBLIC_API(bool)
+ToUint16Slow(JSContext *cx, JS::HandleValue v, uint16_t *out);
+
+/* DO NOT CALL THIS. Use JS::ToInt32. */
+extern JS_PUBLIC_API(bool)
+ToInt32Slow(JSContext *cx, JS::HandleValue v, int32_t *out);
+
+/* DO NOT CALL THIS. Use JS::ToUint32. */
+extern JS_PUBLIC_API(bool)
+ToUint32Slow(JSContext *cx, JS::HandleValue v, uint32_t *out);
+
+/* DO NOT CALL THIS. Use JS::ToInt64. */
+extern JS_PUBLIC_API(bool)
+ToInt64Slow(JSContext *cx, JS::HandleValue v, int64_t *out);
+
+/* DO NOT CALL THIS. Use JS::ToUint64. */
+extern JS_PUBLIC_API(bool)
+ToUint64Slow(JSContext *cx, JS::HandleValue v, uint64_t *out);
+} /* namespace js */
+
+namespace JS {
+
+MOZ_ALWAYS_INLINE bool
+ToUint16(JSContext *cx, JS::HandleValue v, uint16_t *out)
+{
+    AssertArgumentsAreSane(cx, v);
+
+    if (v.isInt32()) {
+        *out = uint16_t(v.toInt32());
+        return true;
+    }
+    return js::ToUint16Slow(cx, v, out);
+}
+
+MOZ_ALWAYS_INLINE bool
+ToInt32(JSContext *cx, JS::HandleValue v, int32_t *out)
+{
+    AssertArgumentsAreSane(cx, v);
+
+    if (v.isInt32()) {
+        *out = v.toInt32();
+        return true;
+    }
+    return js::ToInt32Slow(cx, v, out);
+}
+
+MOZ_ALWAYS_INLINE bool
+ToUint32(JSContext *cx, JS::HandleValue v, uint32_t *out)
+{
+    AssertArgumentsAreSane(cx, v);
+
+    if (v.isInt32()) {
+        *out = uint32_t(v.toInt32());
+        return true;
+    }
+    return js::ToUint32Slow(cx, v, out);
+}
+
+MOZ_ALWAYS_INLINE bool
+ToInt64(JSContext *cx, JS::HandleValue v, int64_t *out)
+{
+    AssertArgumentsAreSane(cx, v);
+
+    if (v.isInt32()) {
+        *out = int64_t(v.toInt32());
+        return true;
+    }
+    return js::ToInt64Slow(cx, v, out);
+}
+
+MOZ_ALWAYS_INLINE bool
+ToUint64(JSContext *cx, JS::HandleValue v, uint64_t *out)
+{
+    AssertArgumentsAreSane(cx, v);
+
+    if (v.isInt32()) {
+        /* Account for sign extension of negatives into the longer 64bit space. */
+        *out = uint64_t(int64_t(v.toInt32()));
+        return true;
+    }
+    return js::ToUint64Slow(cx, v, out);
+}
+
+
+} /* namespace JS */
 
 extern JS_PUBLIC_API(JSType)
 JS_TypeOfValue(JSContext *cx, JS::Handle<JS::Value> v);
 
 extern JS_PUBLIC_API(bool)
-JS_StrictlyEqual(JSContext *cx, JS::Handle<JS::Value> v1, JS::Handle<JS::Value> v2, bool *equal);
+JS_StrictlyEqual(JSContext *cx, jsval v1, jsval v2, bool *equal);
 
 extern JS_PUBLIC_API(bool)
 JS_LooselyEqual(JSContext *cx, JS::Handle<JS::Value> v1, JS::Handle<JS::Value> v2, bool *equal);
 
 extern JS_PUBLIC_API(bool)
-JS_SameValue(JSContext *cx, JS::Handle<JS::Value> v1, JS::Handle<JS::Value> v2, bool *same);
+JS_SameValue(JSContext *cx, jsval v1, jsval v2, bool *same);
 
 /* True iff fun is the global eval function. */
 extern JS_PUBLIC_API(bool)
@@ -1196,7 +1484,6 @@ class JS_PUBLIC_API(RuntimeOptions) {
         ion_(false),
         asmJS_(false),
         nativeRegExp_(false),
-        unboxedObjects_(false),
         werror_(false),
         strictMode_(false),
         extraWarnings_(false),
@@ -1237,12 +1524,6 @@ class JS_PUBLIC_API(RuntimeOptions) {
     bool nativeRegExp() const { return nativeRegExp_; }
     RuntimeOptions &setNativeRegExp(bool flag) {
         nativeRegExp_ = flag;
-        return *this;
-    }
-
-    bool unboxedObjects() const { return unboxedObjects_; }
-    RuntimeOptions &setUnboxedObjects(bool flag) {
-        unboxedObjects_ = flag;
         return *this;
     }
 
@@ -1291,7 +1572,6 @@ class JS_PUBLIC_API(RuntimeOptions) {
     bool ion_ : 1;
     bool asmJS_ : 1;
     bool nativeRegExp_ : 1;
-    bool unboxedObjects_ : 1;
     bool werror_ : 1;
     bool strictMode_ : 1;
     bool extraWarnings_ : 1;
@@ -1659,6 +1939,16 @@ extern JS_PUBLIC_API(void)
 JS_SetCTypesCallbacks(JSObject *ctypesObj, const JSCTypesCallbacks *callbacks);
 #endif
 
+typedef bool
+(* JSEnumerateDiagnosticMemoryCallback)(void *ptr, size_t length);
+
+/*
+ * Enumerate memory regions that contain diagnostic information
+ * intended to be included in crash report minidumps.
+ */
+extern JS_PUBLIC_API(void)
+JS_EnumerateDiagnosticMemoryRegions(JSEnumerateDiagnosticMemoryCallback callback);
+
 extern JS_PUBLIC_API(void *)
 JS_malloc(JSContext *cx, size_t nbytes);
 
@@ -1693,6 +1983,83 @@ JS_strdup(JSContext *cx, const char *s);
 extern JS_PUBLIC_API(char *)
 JS_strdup(JSRuntime *rt, const char *s);
 
+namespace JS {
+
+/*
+ * A GC root is a pointer to a jsval, JSObject * or JSString * that itself
+ * points into the GC heap. JS_AddValueRoot takes a pointer to a jsval and
+ * JS_AddGCThingRoot takes a pointer to a JSObject * or JString *.
+ *
+ * Note that, since JS_Add*Root stores the address of a variable (of type
+ * jsval, JSString *, or JSObject *), that variable must live until
+ * JS_Remove*Root is called to remove that variable. For example, after:
+ *
+ *   void some_function() {
+ *     jsval v;
+ *     JS_AddNamedValueRoot(cx, &v, "name");
+ *
+ * the caller must perform
+ *
+ *     JS_RemoveValueRoot(cx, &v);
+ *
+ * before some_function() returns.
+ *
+ * Also, use JS_AddNamed*Root(cx, &structPtr->memberObj, "structPtr->memberObj")
+ * in preference to JS_Add*Root(cx, &structPtr->memberObj), in order to identify
+ * roots by their source callsites.  This way, you can find the callsite while
+ * debugging if you should fail to do JS_Remove*Root(cx, &structPtr->memberObj)
+ * before freeing structPtr's memory.
+ */
+extern JS_PUBLIC_API(bool)
+AddValueRoot(JSContext *cx, JS::Heap<JS::Value> *vp);
+
+extern JS_PUBLIC_API(bool)
+AddStringRoot(JSContext *cx, JS::Heap<JSString *> *rp);
+
+extern JS_PUBLIC_API(bool)
+AddObjectRoot(JSContext *cx, JS::Heap<JSObject *> *rp);
+
+extern JS_PUBLIC_API(bool)
+AddNamedValueRoot(JSContext *cx, JS::Heap<JS::Value> *vp, const char *name);
+
+extern JS_PUBLIC_API(bool)
+AddNamedValueRootRT(JSRuntime *rt, JS::Heap<JS::Value> *vp, const char *name);
+
+extern JS_PUBLIC_API(bool)
+AddNamedStringRoot(JSContext *cx, JS::Heap<JSString *> *rp, const char *name);
+
+extern JS_PUBLIC_API(bool)
+AddNamedObjectRoot(JSContext *cx, JS::Heap<JSObject *> *rp, const char *name);
+
+extern JS_PUBLIC_API(bool)
+AddNamedScriptRoot(JSContext *cx, JS::Heap<JSScript *> *rp, const char *name);
+
+extern JS_PUBLIC_API(void)
+RemoveValueRoot(JSContext *cx, JS::Heap<JS::Value> *vp);
+
+extern JS_PUBLIC_API(void)
+RemoveStringRoot(JSContext *cx, JS::Heap<JSString *> *rp);
+
+extern JS_PUBLIC_API(void)
+RemoveObjectRoot(JSContext *cx, JS::Heap<JSObject *> *rp);
+
+extern JS_PUBLIC_API(void)
+RemoveScriptRoot(JSContext *cx, JS::Heap<JSScript *> *rp);
+
+extern JS_PUBLIC_API(void)
+RemoveValueRootRT(JSRuntime *rt, JS::Heap<JS::Value> *vp);
+
+extern JS_PUBLIC_API(void)
+RemoveStringRootRT(JSRuntime *rt, JS::Heap<JSString *> *rp);
+
+extern JS_PUBLIC_API(void)
+RemoveObjectRootRT(JSRuntime *rt, JS::Heap<JSObject *> *rp);
+
+extern JS_PUBLIC_API(void)
+RemoveScriptRootRT(JSRuntime *rt, JS::Heap<JSScript *> *rp);
+
+} /* namespace JS */
+
 /*
  * Register externally maintained GC roots.
  *
@@ -1706,6 +2073,29 @@ JS_AddExtraGCRootsTracer(JSRuntime *rt, JSTraceDataOp traceOp, void *data);
 /* Undo a call to JS_AddExtraGCRootsTracer. */
 extern JS_PUBLIC_API(void)
 JS_RemoveExtraGCRootsTracer(JSRuntime *rt, JSTraceDataOp traceOp, void *data);
+
+#ifdef JS_DEBUG
+
+/*
+ * Debug-only method to dump the object graph of heap-allocated things.
+ *
+ * fp:              file for the dump output.
+ * start:           when non-null, dump only things reachable from start
+ *                  thing. Otherwise dump all things reachable from the
+ *                  runtime roots.
+ * startKind:       trace kind of start if start is not null. Must be
+ *                  JSTRACE_OBJECT when start is null.
+ * thingToFind:     dump only paths in the object graph leading to thingToFind
+ *                  when non-null.
+ * maxDepth:        the upper bound on the number of edges to descend from the
+ *                  graph roots.
+ * thingToIgnore:   thing to ignore during the graph traversal when non-null.
+ */
+extern JS_PUBLIC_API(bool)
+JS_DumpHeap(JSRuntime *rt, FILE *fp, void* startThing, JSGCTraceKind kind,
+            void *thingToFind, size_t maxDepth, void *thingToIgnore);
+
+#endif
 
 /*
  * Garbage collector API.
@@ -1849,10 +2239,7 @@ typedef enum JSGCParamKey {
     JSGC_MIN_EMPTY_CHUNK_COUNT = 21,
 
     /* We never keep more than this many unused chunks in the free chunk pool. */
-    JSGC_MAX_EMPTY_CHUNK_COUNT = 22,
-
-    /* Whether compacting GC is enabled. */
-    JSGC_COMPACTING_ENABLED = 23
+    JSGC_MAX_EMPTY_CHUNK_COUNT = 22
 } JSGCParamKey;
 
 extern JS_PUBLIC_API(void)
@@ -2000,6 +2387,17 @@ JS_PropertyStub(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
 extern JS_PUBLIC_API(bool)
 JS_StrictPropertyStub(JSContext *cx, JS::HandleObject obj, JS::HandleId id, bool strict,
                       JS::MutableHandleValue vp);
+
+#if defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ == 4
+/*
+ * This is here because GCC 4.4 for Android ICS can't compile the JS engine
+ * without it. The function is unused, but if you delete it, we'll trigger a
+ * compiler bug. When we no longer support ICS, this can be deleted.
+ * See bug 1103152.
+ */
+extern JS_PUBLIC_API(bool)
+JS_ResolveStub(JSContext *cx, JS::HandleObject obj, JS::HandleId id, bool *resolvedp);
+#endif  /* GCC 4.4 */
 
 template<typename T>
 struct JSConstScalarSpec {
@@ -2183,7 +2581,8 @@ struct JSFunctionSpec {
  *
  * The _SYM variants allow defining a function with a symbol key rather than a
  * string key. For example, use JS_SYM_FN(iterator, ...) to define an
- * @@iterator method.
+ * @@iterator method. (In builds without ES6 symbols, it defines a method with
+ * the string id "@@iterator".)
  */
 #define JS_FS(name,call,nargs,flags)                                          \
     JS_FNSPEC(name, call, nullptr, nargs, flags, nullptr)
@@ -2197,10 +2596,17 @@ struct JSFunctionSpec {
     JS_FNSPEC(name, nullptr, nullptr, nargs, flags, selfHostedName)
 #define JS_SELF_HOSTED_SYM_FN(symbol, selfHostedName, nargs, flags)           \
     JS_SYM_FNSPEC(symbol, nullptr, nullptr, nargs, flags, selfHostedName)
+
+#ifdef JS_HAS_SYMBOLS
 #define JS_SYM_FNSPEC(symbol, call, info, nargs, flags, selfHostedName)       \
     JS_FNSPEC(reinterpret_cast<const char *>(                                 \
                   uint32_t(::JS::SymbolCode::symbol) + 1),                    \
               call, info, nargs, flags, selfHostedName)
+#else
+#define JS_SYM_FNSPEC(symbol, call, info, nargs, flags, selfHostedName)       \
+    JS_FNSPEC("@@" #symbol, call, info, nargs, flags, selfHostedName)
+#endif
+
 #define JS_FNSPEC(name,call,info,nargs,flags,selfHostedName)                  \
     {name, {call, info}, nargs, flags, selfHostedName}
 
@@ -2464,7 +2870,8 @@ extern JS_PUBLIC_API(void)
 JS_FireOnNewGlobalObject(JSContext *cx, JS::HandleObject global);
 
 extern JS_PUBLIC_API(JSObject *)
-JS_NewObject(JSContext *cx, const JSClass *clasp, JS::Handle<JSObject*> parent = JS::NullPtr());
+JS_NewObject(JSContext *cx, const JSClass *clasp, JS::Handle<JSObject*> proto,
+             JS::Handle<JSObject*> parent);
 
 /* Queries the [[Extensible]] property of the object. */
 extern JS_PUBLIC_API(bool)
@@ -2477,16 +2884,12 @@ extern JS_PUBLIC_API(JSRuntime *)
 JS_GetObjectRuntime(JSObject *obj);
 
 /*
- * Unlike JS_NewObject, JS_NewObjectWithGivenProto does not compute a default proto.
- * If proto is JS::NullPtr, the JS object will have `null` as [[Prototype]].
+ * Unlike JS_NewObject, JS_NewObjectWithGivenProto does not compute a default
+ * proto if proto's actual parameter value is null.
  */
 extern JS_PUBLIC_API(JSObject *)
 JS_NewObjectWithGivenProto(JSContext *cx, const JSClass *clasp, JS::Handle<JSObject*> proto,
-                           JS::Handle<JSObject*> parent = JS::NullPtr());
-
-// Creates a new plain object, like `new Object()`, with Object.prototype as [[Prototype]].
-extern JS_PUBLIC_API(JSObject *)
-JS_NewPlainObject(JSContext *cx);
+                           JS::Handle<JSObject*> parent);
 
 /*
  * Freeze obj, and all objects it refers to, recursively. This will not recurse
@@ -2517,7 +2920,8 @@ JS_New(JSContext *cx, JS::HandleObject ctor, const JS::HandleValueArray& args);
 
 extern JS_PUBLIC_API(JSObject *)
 JS_DefineObject(JSContext *cx, JS::HandleObject obj, const char *name,
-                const JSClass *clasp = nullptr, unsigned attrs = 0);
+                const JSClass *clasp = nullptr, JS::HandleObject proto = JS::NullPtr(),
+                unsigned attrs = 0);
 
 extern JS_PUBLIC_API(bool)
 JS_DefineConstDoubles(JSContext *cx, JS::HandleObject obj, const JSConstDoubleSpec *cds);
@@ -4170,11 +4574,11 @@ JS_PUBLIC_API(JSString *)
 GetSymbolDescription(HandleSymbol symbol);
 
 /* Well-known symbols. */
-enum class SymbolCode : uint32_t {
+MOZ_BEGIN_ENUM_CLASS(SymbolCode, uint32_t)
     iterator,                       // well-known Symbol.iterator
     InSymbolRegistry = 0xfffffffe,  // created by Symbol.for() or JS::GetSymbolFor()
     UniqueSymbol = 0xffffffff       // created by Symbol() or JS::NewSymbol()
-};
+MOZ_END_ENUM_CLASS(SymbolCode)
 
 /* For use in loops that iterate over the well-known symbols. */
 const size_t WellKnownSymbolLimit = 1;
@@ -4708,12 +5112,11 @@ JS_SetParallelParsingEnabled(JSRuntime *rt, bool enabled);
 extern JS_PUBLIC_API(void)
 JS_SetOffthreadIonCompilationEnabled(JSRuntime *rt, bool enabled);
 
-#define JIT_COMPILER_OPTIONS(Register)                                     \
-    Register(BASELINE_WARMUP_TRIGGER, "baseline.warmup.trigger")           \
-    Register(ION_WARMUP_TRIGGER, "ion.warmup.trigger")                     \
-    Register(ION_GVN_ENABLE, "ion.gvn.enable")                             \
-    Register(ION_ENABLE, "ion.enable")                                     \
-    Register(BASELINE_ENABLE, "baseline.enable")                           \
+#define JIT_COMPILER_OPTIONS(Register)                                  \
+    Register(BASELINE_WARMUP_TRIGGER, "baseline.warmup.trigger")    \
+    Register(ION_WARMUP_TRIGGER, "ion.warmup.trigger")              \
+    Register(ION_ENABLE, "ion.enable")                                  \
+    Register(BASELINE_ENABLE, "baseline.enable")                        \
     Register(OFFTHREAD_COMPILATION_ENABLE, "offthread-compilation.enable") \
     Register(SIGNALS_ENABLE, "signals.enable")
 

@@ -10,86 +10,14 @@ const DEFAULT_PIN = "0000";
 // The puk code hard coded in emulator is "12345678".
 const DEFAULT_PUK = "12345678";
 
-const WHT = 0xFFFFFFFF;
-const BLK = 0x000000FF;
-const RED = 0xFF0000FF;
-const GRN = 0x00FF00FF;
-const BLU = 0x0000FFFF;
-const TSP = 0;
-
-// Basic Image, see record number 1 in EFimg.
-const BASIC_ICON = {
-  width: 8,
-  height: 8,
-  codingScheme: "basic",
-  pixels: [WHT, WHT, WHT, WHT, WHT, WHT, WHT, WHT,
-           BLK, BLK, BLK, BLK, BLK, BLK, WHT, WHT,
-           WHT, BLK, WHT, BLK, BLK, WHT, BLK, WHT,
-           WHT, BLK, BLK, WHT, WHT, BLK, BLK, WHT,
-           WHT, BLK, BLK, WHT, WHT, BLK, BLK, WHT,
-           WHT, BLK, WHT, BLK, BLK, WHT, BLK, WHT,
-           WHT, WHT, BLK, BLK, BLK, BLK, WHT, WHT,
-           WHT, WHT, WHT, WHT, WHT, WHT, WHT, WHT]
-};
-// Color Image, see record number 3 in EFimg.
-const COLOR_ICON = {
-  width: 8,
-  height: 8,
-  codingScheme: "color",
-  pixels: [BLU, BLU, BLU, BLU, BLU, BLU, BLU, BLU,
-           BLU, RED, RED, RED, RED, RED, RED, BLU,
-           BLU, RED, GRN, GRN, GRN, RED, RED, BLU,
-           BLU, RED, RED, GRN, GRN, RED, RED, BLU,
-           BLU, RED, RED, GRN, GRN, RED, RED, BLU,
-           BLU, RED, RED, GRN, GRN, GRN, RED, BLU,
-           BLU, RED, RED, RED, RED, RED, RED, BLU,
-           BLU, BLU, BLU, BLU, BLU, BLU, BLU, BLU]
-};
-// Color Image with Transparency, see record number 5 in EFimg.
-const COLOR_TRANSPARENCY_ICON = {
-  width: 8,
-  height: 8,
-  codingScheme: "color-transparency",
-  pixels: [TSP, TSP, TSP, TSP, TSP, TSP, TSP, TSP,
-           TSP, RED, RED, RED, RED, RED, RED, TSP,
-           TSP, RED, GRN, GRN, GRN, RED, RED, TSP,
-           TSP, RED, RED, GRN, GRN, RED, RED, TSP,
-           TSP, RED, RED, GRN, GRN, RED, RED, TSP,
-           TSP, RED, RED, GRN, GRN, GRN, RED, TSP,
-           TSP, RED, RED, RED, RED, RED, RED, TSP,
-           TSP, TSP, TSP, TSP, TSP, TSP, TSP, TSP]
-};
-
-/**
- * Helper function for checking stk icon.
- */
-function isIcons(aIcons, aExpectedIcons) {
-  is(aIcons.length, aExpectedIcons.length, "icons.length");
-  for (let i = 0; i < aIcons.length; i++) {
-    let icon = aIcons[i];
-    let expectedIcon = aExpectedIcons[i];
-
-    is(icon.width, expectedIcon.width, "icon.width");
-    is(icon.height, expectedIcon.height, "icon.height");
-    is(icon.codingScheme, expectedIcon.codingScheme, "icon.codingScheme");
-
-    is(icon.pixels.length, expectedIcon.pixels.length);
-    for (let j = 0; j < icon.pixels.length; j++) {
-      is(icon.pixels[j], expectedIcon.pixels[j], "icon.pixels[" + j + "]");
-    }
-  }
-}
-
-/**
- * Helper function for checking stk text.
- */
-function isStkText(aStkText, aExpectedStkText) {
-  is(aStkText.text, aExpectedStkText.text, "stkText.text");
-  if (aExpectedStkText.icons) {
-    is(aStkText.iconSelfExplanatory, aExpectedStkText.iconSelfExplanatory,
-       "stkText.iconSelfExplanatory");
-    isIcons(aStkText.icons, aExpectedStkText.icons);
-  }
+// Emulate Promise.jsm semantics.
+Promise.defer = function() { return new Deferred(); }
+function Deferred() {
+  this.promise = new Promise(function(resolve, reject) {
+    this.resolve = resolve;
+    this.reject = reject;
+  }.bind(this));
+  Object.freeze(this);
 }
 
 let _pendingEmulatorCmdCount = 0;
@@ -112,35 +40,22 @@ let _pendingEmulatorCmdCount = 0;
  * @return A deferred promise.
  */
 function runEmulatorCmdSafe(aCommand) {
-  return new Promise(function(aResolve, aReject) {
-    ++_pendingEmulatorCmdCount;
-    runEmulatorCmd(aCommand, function(aResult) {
-      --_pendingEmulatorCmdCount;
+  let deferred = Promise.defer();
 
-      ok(true, "Emulator response: " + JSON.stringify(aResult));
-      if (Array.isArray(aResult) &&
-          aResult[aResult.length - 1] === "OK") {
-        aResolve(aResult);
-      } else {
-        aReject(aResult);
-      }
-    });
+  ++_pendingEmulatorCmdCount;
+  runEmulatorCmd(aCommand, function(aResult) {
+    --_pendingEmulatorCmdCount;
+
+    ok(true, "Emulator response: " + JSON.stringify(aResult));
+    if (Array.isArray(aResult) &&
+        aResult[aResult.length - 1] === "OK") {
+      deferred.resolve(aResult);
+    } else {
+      deferred.reject(aResult);
+    }
   });
-}
 
-/**
- * Send stk proactive pdu.
- *
- * Fulfill params: (none)
- * Reject params: (none)
- *
- * @param aPdu
- *
- * @return A deferred promise.
- */
-function sendEmulatorStkPdu(aPdu) {
-  let cmd = "stk pdu " + aPdu;
-  return runEmulatorCmdSafe(cmd);
+  return deferred.promise;
 }
 
 let workingFrame;
@@ -163,44 +78,46 @@ let iccManager;
  * @return A deferred promise.
  */
 function ensureIccManager(aAdditionalPermissions) {
-  return new Promise(function(aResolve, aReject) {
-    aAdditionalPermissions = aAdditionalPermissions || [];
+  let deferred = Promise.defer();
 
-    if (aAdditionalPermissions.indexOf("mobileconnection") < 0) {
-      aAdditionalPermissions.push("mobileconnection");
-    }
-    let permissions = [];
-    for (let perm of aAdditionalPermissions) {
-      permissions.push({ "type": perm, "allow": 1, "context": document });
-    }
+  aAdditionalPermissions = aAdditionalPermissions || [];
 
-    SpecialPowers.pushPermissions(permissions, function() {
-      ok(true, "permissions pushed: " + JSON.stringify(permissions));
+  if (aAdditionalPermissions.indexOf("mobileconnection") < 0) {
+    aAdditionalPermissions.push("mobileconnection");
+  }
+  let permissions = [];
+  for (let perm of aAdditionalPermissions) {
+    permissions.push({ "type": perm, "allow": 1, "context": document });
+  }
 
-      // Permission changes can't change existing Navigator.prototype
-      // objects, so grab our objects from a new Navigator.
-      workingFrame = document.createElement("iframe");
-      workingFrame.addEventListener("load", function load() {
-        workingFrame.removeEventListener("load", load);
+  SpecialPowers.pushPermissions(permissions, function() {
+    ok(true, "permissions pushed: " + JSON.stringify(permissions));
 
-        iccManager = workingFrame.contentWindow.navigator.mozIccManager;
+    // Permission changes can't change existing Navigator.prototype
+    // objects, so grab our objects from a new Navigator.
+    workingFrame = document.createElement("iframe");
+    workingFrame.addEventListener("load", function load() {
+      workingFrame.removeEventListener("load", load);
 
-        if (iccManager) {
-          ok(true, "navigator.mozIccManager is instance of " + iccManager.constructor);
-        } else {
-          ok(true, "navigator.mozIccManager is undefined");
-        }
+      iccManager = workingFrame.contentWindow.navigator.mozIccManager;
 
-        if (iccManager instanceof MozIccManager) {
-          aResolve(iccManager);
-        } else {
-          aReject();
-        }
-      });
+      if (iccManager) {
+        ok(true, "navigator.mozIccManager is instance of " + iccManager.constructor);
+      } else {
+        ok(true, "navigator.mozIccManager is undefined");
+      }
 
-      document.body.appendChild(workingFrame);
+      if (iccManager instanceof MozIccManager) {
+        deferred.resolve(iccManager);
+      } else {
+        deferred.reject();
+      }
     });
+
+    document.body.appendChild(workingFrame);
   });
+
+  return deferred.promise;
 }
 
 /**
@@ -276,45 +193,17 @@ function setRadioEnabled(aEnabled, aServiceId) {
  * @return A deferred promise.
  */
 function waitForTargetEvent(aEventTarget, aEventName, aMatchFun) {
-  return new Promise(function(aResolve, aReject) {
-    aEventTarget.addEventListener(aEventName, function onevent(aEvent) {
-      if (!aMatchFun || aMatchFun(aEvent)) {
-        aEventTarget.removeEventListener(aEventName, onevent);
-        ok(true, "Event '" + aEventName + "' got.");
-        aResolve(aEvent);
-      }
-    });
-  });
-}
+  let deferred = Promise.defer();
 
-/**
- * Wait for one named system message.
- *
- * Resolve if that named message is received. Never reject.
- *
- * Fulfill params: the message passed.
- *
- * @param aEventName
- *        A string message name.
- * @param aMatchFun [optional]
- *        A matching function returns true or false to filter the message. If no
- *        matching function passed the promise is resolved after receiving the
- *        first message.
- *
- * @return A deferred promise.
- */
-function waitForSystemMessage(aMessageName, aMatchFun) {
-  let target = workingFrame.contentWindow.navigator;
-
-  return new Promise(function(aResolve, aReject) {
-    target.mozSetMessageHandler(aMessageName, function(aMessage) {
-      if (!aMatchFun || aMatchFun(aMessage)) {
-        target.mozSetMessageHandler(aMessageName, null);
-        ok(true, "System message '" + aMessageName + "' got.");
-        aResolve(aMessage);
-      }
-    });
+  aEventTarget.addEventListener(aEventName, function onevent(aEvent) {
+    if (!aMatchFun || aMatchFun(aEvent)) {
+      aEventTarget.removeEventListener(aEventName, onevent);
+      ok(true, "Event '" + aEventName + "' got.");
+      deferred.resolve(aEvent);
+    }
   });
+
+  return deferred.promise;
 }
 
 /**

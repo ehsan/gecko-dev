@@ -10,6 +10,7 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Monitor.h"
 #include "mozilla/Move.h"
+#include "mozilla/TypedEnum.h"
 #include "mozilla/VolatileBuffer.h"
 #include "gfxDrawable.h"
 #include "imgIContainer.h"
@@ -22,7 +23,7 @@ class ImageRegion;
 class DrawableFrameRef;
 class RawAccessFrameRef;
 
-enum class BlendMethod : int8_t {
+MOZ_BEGIN_ENUM_CLASS(BlendMethod, int8_t)
   // All color components of the frame, including alpha, overwrite the current
   // contents of the frame's output buffer region.
   SOURCE,
@@ -30,20 +31,20 @@ enum class BlendMethod : int8_t {
   // The frame should be composited onto the output buffer based on its alpha,
   // using a simple OVER operation.
   OVER
-};
+MOZ_END_ENUM_CLASS(BlendMethod)
 
-enum class DisposalMethod : int8_t {
+MOZ_BEGIN_ENUM_CLASS(DisposalMethod, int8_t)
   CLEAR_ALL = -1,  // Clear the whole image, revealing what's underneath.
   NOT_SPECIFIED,   // Leave the frame and let the new frame draw on top.
   KEEP,            // Leave the frame and let the new frame draw on top.
   CLEAR,           // Clear the frame's area, revealing what's underneath.
   RESTORE_PREVIOUS // Restore the previous (composited) frame.
-};
+MOZ_END_ENUM_CLASS(DisposalMethod)
 
-enum class Opacity : uint8_t {
+MOZ_BEGIN_ENUM_CLASS(Opacity, uint8_t)
   OPAQUE,
   SOME_TRANSPARENCY
-};
+MOZ_END_ENUM_CLASS(Opacity)
 
 
 /**
@@ -294,7 +295,7 @@ private: // methods
 
   uint32_t PaletteDataLength() const
   {
-    return mPaletteDepth ? (size_t(1) << mPaletteDepth) * sizeof(uint32_t)
+    return mPaletteDepth ? (1 << mPaletteDepth) * sizeof(uint32_t)
                          : 0;
   }
 
@@ -386,6 +387,10 @@ private: // data
  */
 class DrawableFrameRef MOZ_FINAL
 {
+  // Implementation details for safe boolean conversion.
+  typedef void (DrawableFrameRef::* ConvertibleToBool)(float*****, double*****);
+  void nonNull(float*****, double*****) {}
+
 public:
   DrawableFrameRef() { }
 
@@ -412,7 +417,10 @@ public:
     return *this;
   }
 
-  explicit operator bool() const { return bool(mFrame); }
+  operator ConvertibleToBool() const
+  {
+    return bool(mFrame) ? &DrawableFrameRef::nonNull : 0;
+  }
 
   imgFrame* operator->()
   {
@@ -454,6 +462,10 @@ private:
  */
 class RawAccessFrameRef MOZ_FINAL
 {
+  // Implementation details for safe boolean conversion.
+  typedef void (RawAccessFrameRef::* ConvertibleToBool)(float*****, double*****);
+  void nonNull(float*****, double*****) {}
+
 public:
   RawAccessFrameRef() { }
 
@@ -492,7 +504,10 @@ public:
     return *this;
   }
 
-  explicit operator bool() const { return bool(mFrame); }
+  operator ConvertibleToBool() const
+  {
+    return bool(mFrame) ? &RawAccessFrameRef::nonNull : 0;
+  }
 
   imgFrame* operator->()
   {

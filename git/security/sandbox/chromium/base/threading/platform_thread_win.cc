@@ -150,8 +150,9 @@ void PlatformThread::Sleep(TimeDelta duration) {
   // When measured with a high resolution clock, Sleep() sometimes returns much
   // too early. We may need to call it repeatedly to get the desired duration.
   TimeTicks end = TimeTicks::Now() + duration;
-  for (TimeTicks now = TimeTicks::Now(); now < end; now = TimeTicks::Now())
-    ::Sleep(static_cast<DWORD>((end - now).InMillisecondsRoundedUp()));
+  TimeTicks now;
+  while ((now = TimeTicks::Now()) < end)
+    ::Sleep((end - now).InMillisecondsRoundedUp());
 }
 
 // static

@@ -51,9 +51,8 @@ RTSPSource::RTSPSource(
       mDisconnectReplyID(0),
       mLatestPausedUnit(0),
       mPlayPending(false),
-      mSeekGeneration(0),
-      mDisconnectedToPauseLiveStream(false),
-      mPlayOnConnected(false)
+      mSeekGeneration(0)
+
 {
     CHECK(aListener != NULL);
 
@@ -72,8 +71,6 @@ RTSPSource::~RTSPSource()
 
 void RTSPSource::start()
 {
-    mDisconnectedToPauseLiveStream = false;
-
     if (mLooper == NULL) {
         mLooper = new ALooper;
         mLooper->setName("rtsp");
@@ -98,9 +95,6 @@ void RTSPSource::start()
 
 void RTSPSource::stop()
 {
-    if (mState == DISCONNECTED) {
-        return;
-    }
     sp<AMessage> msg = new AMessage(kWhatDisconnect, mReflector->id());
 
     sp<AMessage> dummy;
@@ -119,14 +113,6 @@ void RTSPSource::play()
 void RTSPSource::pause()
 {
     LOGI("RTSPSource::pause()");
-
-    // Live streams can't be paused, so we have to disconnect now.
-    if (isLiveStream()) {
-        mDisconnectedToPauseLiveStream = true;
-        stop();
-        return;
-    }
-
     sp<AMessage> msg = new AMessage(kWhatPerformPause, mReflector->id());
     msg->post();
 }
@@ -226,7 +212,6 @@ status_t RTSPSource::seekTo(int64_t seekTimeUs) {
 void RTSPSource::performPlay(int64_t playTimeUs) {
     if (mState == DISCONNECTED) {
         LOGI("We are in a idle state, restart play");
-        mPlayOnConnected = true;
         start();
         return;
     }
@@ -656,11 +641,6 @@ void RTSPSource::onConnected(bool isSeekable)
     }
 
     mState = CONNECTED;
-
-    if (mPlayOnConnected) {
-        mPlayOnConnected = false;
-        play();
-    }
 }
 
 void RTSPSource::onDisconnected(const sp<AMessage> &msg) {
@@ -679,9 +659,7 @@ void RTSPSource::onDisconnected(const sp<AMessage> &msg) {
     if (mDisconnectReplyID != 0) {
         finishDisconnectIfPossible();
     }
-    // If the disconnection is caused by pausing live stream,
-    // do not report back to the controller.
-    if (mListener && !mDisconnectedToPauseLiveStream) {
+    if (mListener) {
         nsresult reason = (err == OK) ? NS_OK : NS_ERROR_NET_TIMEOUT;
         mListener->OnDisconnected(0, reason);
         // Break the cycle reference between RtspController and us.
@@ -750,9 +728,7 @@ void RTSPSource::onTrackDataAvailable(size_t trackIndex)
 
 void RTSPSource::onTrackEndOfStream(size_t trackIndex)
 {
-    // If we are disconnecting to pretend pausing a live stream,
-    // do not report the end of stream.
-    if (!mListener || mDisconnectedToPauseLiveStream) {
+    if (!mListener) {
         return;
     }
 
@@ -764,12 +740,5 @@ void RTSPSource::onTrackEndOfStream(size_t trackIndex)
     data.AssignLiteral("END_OF_STREAM");
 
     mListener->OnMediaDataAvailable(trackIndex, data, data.Length(), 0, meta.get());
-}
-
-
-bool RTSPSource::isLiveStream() {
-    int64_t duration = 0;
-    getDuration(&duration);
-    return duration == 0;
 }
 }  // namespace android

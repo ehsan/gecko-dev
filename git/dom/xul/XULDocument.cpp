@@ -760,15 +760,19 @@ XULDocument::AddBroadcastListenerFor(Element& aBroadcaster, Element& aListener,
     }
 
     static const PLDHashTableOps gOps = {
+        PL_DHashAllocTable,
+        PL_DHashFreeTable,
         PL_DHashVoidPtrKeyStub,
         PL_DHashMatchEntryStub,
         PL_DHashMoveEntryStub,
         ClearBroadcasterMapEntry,
+        PL_DHashFinalizeStub,
         nullptr
     };
 
     if (! mBroadcasterMap) {
-        mBroadcasterMap = PL_NewDHashTable(&gOps, sizeof(BroadcasterMapEntry));
+        mBroadcasterMap =
+            PL_NewDHashTable(&gOps, nullptr, sizeof(BroadcasterMapEntry));
 
         if (! mBroadcasterMap) {
             aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
@@ -778,11 +782,12 @@ XULDocument::AddBroadcastListenerFor(Element& aBroadcaster, Element& aListener,
 
     BroadcasterMapEntry* entry =
         static_cast<BroadcasterMapEntry*>
-                   (PL_DHashTableSearch(mBroadcasterMap, &aBroadcaster));
+                   (PL_DHashTableLookup(mBroadcasterMap, &aBroadcaster));
 
-    if (!entry) {
-        entry = static_cast<BroadcasterMapEntry*>
-            (PL_DHashTableAdd(mBroadcasterMap, &aBroadcaster, fallible));
+    if (PL_DHASH_ENTRY_IS_FREE(entry)) {
+        entry =
+            static_cast<BroadcasterMapEntry*>
+                       (PL_DHashTableAdd(mBroadcasterMap, &aBroadcaster));
 
         if (! entry) {
             aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
@@ -843,9 +848,9 @@ XULDocument::RemoveBroadcastListenerFor(Element& aBroadcaster,
 
     BroadcasterMapEntry* entry =
         static_cast<BroadcasterMapEntry*>
-                   (PL_DHashTableSearch(mBroadcasterMap, &aBroadcaster));
+                   (PL_DHashTableLookup(mBroadcasterMap, &aBroadcaster));
 
-    if (entry) {
+    if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
         nsCOMPtr<nsIAtom> attr = do_GetAtom(aAttr);
         for (int32_t i = entry->mListeners.Count() - 1; i >= 0; --i) {
             BroadcastListener* bl =
@@ -930,7 +935,7 @@ XULDocument::AttributeWillChange(nsIDocument* aDocument,
                                  Element* aElement, int32_t aNameSpaceID,
                                  nsIAtom* aAttribute, int32_t aModType)
 {
-    MOZ_ASSERT(aElement, "Null content!");
+    NS_ABORT_IF_FALSE(aElement, "Null content!");
     NS_PRECONDITION(aAttribute, "Must have an attribute that's changing!");
 
     // XXXbz check aNameSpaceID, dammit!
@@ -957,7 +962,7 @@ XULDocument::AttributeChanged(nsIDocument* aDocument,
     if (aAttribute == nsGkAtoms::ref) {
         AddElementToRefMap(aElement);
     }
-
+    
     nsresult rv;
 
     // Synchronize broadcast listeners
@@ -965,9 +970,9 @@ XULDocument::AttributeChanged(nsIDocument* aDocument,
         CanBroadcast(aNameSpaceID, aAttribute)) {
         BroadcasterMapEntry* entry =
             static_cast<BroadcasterMapEntry*>
-                       (PL_DHashTableSearch(mBroadcasterMap, aElement));
+                       (PL_DHashTableLookup(mBroadcasterMap, aElement));
 
-        if (entry) {
+        if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
             // We've got listeners: push the value.
             nsAutoString value;
             bool attrSet = aElement->GetAttr(kNameSpaceID_None, aAttribute, value);
@@ -4159,8 +4164,8 @@ XULDocument::BroadcastAttributeChangeFromOverlay(nsIContent* aNode,
         return rv;
 
     BroadcasterMapEntry* entry = static_cast<BroadcasterMapEntry*>
-        (PL_DHashTableSearch(mBroadcasterMap, aNode->AsElement()));
-    if (!entry)
+        (PL_DHashTableLookup(mBroadcasterMap, aNode->AsElement()));
+    if (!PL_DHASH_ENTRY_IS_BUSY(entry))
         return rv;
 
     // We've got listeners: push the value.

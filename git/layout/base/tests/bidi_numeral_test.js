@@ -31,6 +31,15 @@ RemoteCanvas.prototype.remotePageLoaded = function(callback) {
   callback(this);
 };
 
+function bidiNumeral(val) {
+  if (typeof val == "undefined")
+    return SpecialPowers.getIntPref("bidi.numeral");
+  else
+    SpecialPowers.setIntPref("bidi.numeral", val);
+}
+
+var bidiNumeralDefault = bidiNumeral();
+
 var currentPass = 0;
 
 function run()
@@ -56,6 +65,7 @@ function do_test()
            " is not different with bidi.numeral == " + passes[currentPass].bidiNumeralValue);
       }
 
+      bidiNumeral(bidiNumeralDefault);
 
       if (currentPass < passes.length - 1) {
         ++currentPass;
@@ -75,15 +85,13 @@ function do_test()
     " expecting " + passes[currentPass].op));
   document.body.appendChild(header);
 
-  SpecialPowers.pushPrefEnv({'set': [['bidi.numeral', passes[currentPass].bidiNumeralValue]]},callback);
+  bidiNumeral(passes[currentPass].bidiNumeralValue);
 
-  function callback() {
-    var testCanvas = new RemoteCanvas(fileprefix + file + ".html", "test-" + currentPass);
-    testCanvas.load(callbackTestCanvas);
+  var testCanvas = new RemoteCanvas(fileprefix + file + ".html", "test-" + currentPass);
+  testCanvas.load(callbackTestCanvas);
 
-    var refCanvas = new RemoteCanvas(fileprefix + file + "-ref.html", "ref-" + currentPass);
-    refCanvas.load(callbackTestCanvas);
-  }
+  var refCanvas = new RemoteCanvas(fileprefix + file + "-ref.html", "ref-" + currentPass);
+  refCanvas.load(callbackTestCanvas);
 }
 
 run();

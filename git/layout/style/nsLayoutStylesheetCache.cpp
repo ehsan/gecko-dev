@@ -90,7 +90,7 @@ nsLayoutStylesheetCache::NumberControlSheet()
 
   if (!gStyleCache->mNumberControlSheet) {
     LoadSheetURL("resource://gre-resources/number-control.css",
-                 gStyleCache->mNumberControlSheet, true);
+                 gStyleCache->mNumberControlSheet, false);
   }
 
   return gStyleCache->mNumberControlSheet;

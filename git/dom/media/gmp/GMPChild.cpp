@@ -37,6 +37,9 @@ static const int MAX_VOUCHER_LENGTH = 500000;
 #if defined(XP_WIN)
 #define TARGET_SANDBOX_EXPORTS
 #include "mozilla/sandboxTarget.h"
+#elif defined (XP_LINUX)
+#include "mozilla/Sandbox.h"
+#include "mozilla/SandboxInfo.h"
 #elif defined(XP_MACOSX)
 #include "mozilla/Sandbox.h"
 #endif
@@ -314,7 +317,7 @@ GMPChild::PreLoadLibraries(const std::string& aPluginPath)
 
   std::ifstream stream;
 #ifdef _MSC_VER
-  stream.open(static_cast<const wchar_t*>(path.get()));
+  stream.open(path.get());
 #else
   stream.open(NS_ConvertUTF16toUTF8(path).get());
 #endif
@@ -459,9 +462,9 @@ GMPChild::ActorDestroy(ActorDestroyReason aWhy)
 }
 
 void
-GMPChild::ProcessingError(Result aCode, const char* aReason)
+GMPChild::ProcessingError(Result aWhat)
 {
-  switch (aCode) {
+  switch (aWhat) {
     case MsgDropped:
       _exit(0); // Don't trigger a crash report.
     case MsgNotKnown:

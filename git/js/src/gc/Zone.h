@@ -12,17 +12,36 @@
 #include "mozilla/MemoryReporting.h"
 
 #include "jscntxt.h"
+#include "jsinfer.h"
 
 #include "gc/FindSCCs.h"
 #include "gc/GCRuntime.h"
 #include "js/TracingAPI.h"
-#include "vm/TypeInference.h"
 
 namespace js {
 
 namespace jit {
 class JitZone;
 }
+
+// Encapsulates the data needed to perform allocation. Typically there is
+// precisely one of these per zone (|cx->zone().allocator|). However, in
+// parallel execution mode, there will be one per worker thread.
+class Allocator
+{
+  public:
+    explicit Allocator(JS::Zone *zone);
+
+    js::gc::ArenaLists arenas;
+
+  private:
+    // Since allocators can be accessed from worker threads, the parent zone_
+    // should not be accessed in general. GCRuntime is allowed to actually do
+    // the allocation, however.
+    friend class js::gc::GCRuntime;
+
+    JS::Zone *zone_;
+};
 
 namespace gc {
 
@@ -103,7 +122,9 @@ namespace JS {
 // shapes within it are alive.
 //
 // We always guarantee that a zone has at least one live compartment by refusing
-// to delete the last compartment in a live zone.
+// to delete the last compartment in a live zone. (This could happen, for
+// example, if the conservative scanner marks a string in an otherwise dead
+// zone.)
 struct Zone : public JS::shadow::Zone,
               public js::gc::GraphNodeBase<JS::Zone>,
               public js::MallocProvider<JS::Zone>
@@ -235,9 +256,9 @@ struct Zone : public JS::shadow::Zone,
     }
 
   public:
-    js::gc::ArenaLists arenas;
+    js::Allocator allocator;
 
-    js::TypeZone types;
+    js::types::TypeZone types;
 
     // The set of compartments in this zone.
     typedef js::Vector<JSCompartment *, 1, js::SystemAllocPolicy> CompartmentVector;

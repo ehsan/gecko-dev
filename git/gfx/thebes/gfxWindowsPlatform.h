@@ -212,6 +212,10 @@ public:
 
     virtual bool DidRenderingDeviceReset(DeviceResetReason* aResetReason = nullptr);
 
+    /* Find a FontFamily/FontEntry object that represents a font on your system given a name */
+    gfxFontFamily *FindFontFamily(const nsAString& aName);
+    gfxFontEntry *FindFontEntry(const nsAString& aName, const gfxFontStyle& aFontStyle);
+
     // ClearType is not always enabled even when available (e.g. Windows XP)
     // if either of these prefs are enabled and apply, use ClearType rendering
     bool UseClearTypeForDownloadableFonts();
@@ -253,7 +257,6 @@ public:
 
     bool IsWARP() { return mIsWARP; }
 
-    virtual already_AddRefed<mozilla::gfx::VsyncSource> CreateHardwareVsyncSource() MOZ_OVERRIDE;
     static mozilla::Atomic<size_t> sD3D11MemoryUsed;
     static mozilla::Atomic<size_t> sD3D9MemoryUsed;
     static mozilla::Atomic<size_t> sD3D9SurfaceImageUsed;

@@ -146,6 +146,8 @@ const int32_t kStorageProgressGranularity = 1000;
 
 const char kSavepointClause[] = "SAVEPOINT sp;";
 
+const fallible_t fallible = fallible_t();
+
 const uint32_t kFileCopyBufferSize = 32768;
 
 const char kJournalDirectoryName[] = "journals";
@@ -3034,7 +3036,7 @@ private:
   virtual bool
   RecvPBackgroundIDBTransactionConstructor(
                                     PBackgroundIDBTransactionParent* aActor,
-                                    InfallibleTArray<nsString>&& aObjectStoreNames,
+                                    const nsTArray<nsString>& aObjectStoreNames,
                                     const Mode& aMode)
                                     MOZ_OVERRIDE;
 
@@ -3937,6 +3939,7 @@ protected:
   nsCString mDatabaseId;
   State mState;
   bool mIsApp;
+  bool mHasUnlimStoragePerm;
   bool mEnforcingQuota;
   const bool mDeleting;
   bool mBlockedQuotaManager;
@@ -6523,7 +6526,7 @@ Database::AllocPBackgroundIDBTransactionParent(
 bool
 Database::RecvPBackgroundIDBTransactionConstructor(
                                     PBackgroundIDBTransactionParent* aActor,
-                                    InfallibleTArray<nsString>&& aObjectStoreNames,
+                                    const nsTArray<nsString>& aObjectStoreNames,
                                     const Mode& aMode)
 {
   AssertIsOnBackgroundThread();
@@ -10500,6 +10503,7 @@ FactoryOp::FactoryOp(Factory* aFactory,
   , mCommonParams(aCommonParams)
   , mState(State_Initial)
   , mIsApp(false)
+  , mHasUnlimStoragePerm(false)
   , mEnforcingQuota(true)
   , mDeleting(aDeleting)
   , mBlockedQuotaManager(false)
@@ -10750,7 +10754,7 @@ FactoryOp::CheckPermission(ContentParent* aContentParent,
     if (aContentParent) {
       // The DOM in the other process should have kept us from receiving any
       // indexedDB messages so assume that the child is misbehaving.
-      aContentParent->KillHard("IndexedDB CheckPermission 1");
+      aContentParent->KillHard();
     }
     return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
   }
@@ -10797,14 +10801,14 @@ FactoryOp::CheckPermission(ContentParent* aContentParent,
 
       // Deleting a database requires write permissions.
       if (mDeleting && !canWrite) {
-        aContentParent->KillHard("IndexedDB CheckPermission 2");
+        aContentParent->KillHard();
         IDB_REPORT_INTERNAL_ERR();
         return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
       }
 
       // Opening or deleting requires read permissions.
       if (!canRead) {
-        aContentParent->KillHard("IndexedDB CheckPermission 3");
+        aContentParent->KillHard();
         IDB_REPORT_INTERNAL_ERR();
         return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
       }
@@ -10815,13 +10819,15 @@ FactoryOp::CheckPermission(ContentParent* aContentParent,
     }
 
     if (State_Initial == mState) {
-      QuotaManager::GetInfoForChrome(&mGroup, &mOrigin, &mIsApp);
+      QuotaManager::GetInfoForChrome(&mGroup, &mOrigin, &mIsApp,
+                                     &mHasUnlimStoragePerm);
 
       MOZ_ASSERT(!QuotaManager::IsFirstPromptRequired(persistenceType, mOrigin,
                                                       mIsApp));
 
       mEnforcingQuota =
-        QuotaManager::IsQuotaEnforced(persistenceType, mOrigin, mIsApp);
+        QuotaManager::IsQuotaEnforced(persistenceType, mOrigin, mIsApp,
+                                      mHasUnlimStoragePerm);
     }
 
     *aPermission = PermissionRequestBase::kPermissionAllowed;
@@ -10840,7 +10846,9 @@ FactoryOp::CheckPermission(ContentParent* aContentParent,
   nsCString group;
   nsCString origin;
   bool isApp;
-  rv = QuotaManager::GetInfoFromPrincipal(principal, &group, &origin, &isApp);
+  bool hasUnlimStoragePerm;
+  rv = QuotaManager::GetInfoFromPrincipal(principal, &group, &origin,
+                                          &isApp, &hasUnlimStoragePerm);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
@@ -10885,9 +10893,11 @@ FactoryOp::CheckPermission(ContentParent* aContentParent,
     mGroup = group;
     mOrigin = origin;
     mIsApp = isApp;
+    mHasUnlimStoragePerm = hasUnlimStoragePerm;
 
     mEnforcingQuota =
-      QuotaManager::IsQuotaEnforced(persistenceType, mOrigin, mIsApp);
+      QuotaManager::IsQuotaEnforced(persistenceType, mOrigin, mIsApp,
+                                    mHasUnlimStoragePerm);
   }
 
   *aPermission = permission;
@@ -10987,7 +10997,7 @@ FactoryOp::CheckAtLeastOneAppHasPermission(ContentParent* aContentParent,
          index < count;
          index++) {
       uint32_t appId =
-        TabParent::GetFrom(browsers[index])->OwnOrContainingAppId();
+        static_cast<TabParent*>(browsers[index])->OwnOrContainingAppId();
       MOZ_ASSERT(kUnknownAppId != appId && kNoAppId != appId);
 
       nsCOMPtr<mozIApplication> app;
@@ -11279,6 +11289,7 @@ OpenDatabaseOp::DoDatabaseWork()
                                             mGroup,
                                             mOrigin,
                                             mIsApp,
+                                            mHasUnlimStoragePerm,
                                             getter_AddRefs(dbDirectory));
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
@@ -12271,12 +12282,12 @@ OpenDatabaseOp::AssertMetadataConsistency(const FullDatabaseMetadata* aMetadata)
   MOZ_ASSERT(thisDB->mDatabaseId == otherDB->mDatabaseId);
   MOZ_ASSERT(thisDB->mFilePath == otherDB->mFilePath);
 
-  // |thisDB| reflects the latest objectStore and index ids that have committed
-  // to disk. The in-memory metadata |otherDB| keeps track of objectStores and
-  // indexes that were created and then removed as well, so the next ids for
-  // |otherDB| may be higher than for |thisDB|.
-  MOZ_ASSERT(thisDB->mNextObjectStoreId <= otherDB->mNextObjectStoreId);
-  MOZ_ASSERT(thisDB->mNextIndexId <= otherDB->mNextIndexId);
+  // The newer database metadata (db2) reflects the latest objectStore and index
+  // ids that have committed to disk. The in-memory metadata (db1) keeps track
+  // of objectStores and indexes that were created and then removed as well, so
+  // the next ids for db1 may be higher than for db2.
+  MOZ_ASSERT(thisDB->mNextObjectStoreId >= otherDB->mNextObjectStoreId);
+  MOZ_ASSERT(thisDB->mNextIndexId >= otherDB->mNextIndexId);
 
   MOZ_ASSERT(thisDB->mObjectStores.Count() == otherDB->mObjectStores.Count());
 

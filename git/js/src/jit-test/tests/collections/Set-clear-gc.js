@@ -2,7 +2,7 @@
 
 load(libdir + "referencesVia.js");
 
-var s = new Set();
+var s = Set();
 var obj = {};
 s.add(obj);
 assertEq(referencesVia(s, "key", obj), true);

@@ -291,16 +291,6 @@ SipccSdpMediaSection::AddCodec(const std::string& pt, const std::string& name,
 }
 
 void
-SipccSdpMediaSection::ClearCodecs()
-{
-  mFormats.clear();
-  mAttributeList.RemoveAttribute(SdpAttribute::kRtpmapAttribute);
-  mAttributeList.RemoveAttribute(SdpAttribute::kFmtpAttribute);
-  mAttributeList.RemoveAttribute(SdpAttribute::kSctpmapAttribute);
-  mAttributeList.RemoveAttribute(SdpAttribute::kRtcpFbAttribute);
-}
-
-void
 SipccSdpMediaSection::AddDataChannel(const std::string& pt,
                                      const std::string& name, uint16_t streams)
 {

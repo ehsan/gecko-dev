@@ -42,7 +42,7 @@ NS_IMETHODIMP_(MozExternalRefCountType) DOMStorageDBChild::Release(void)
 void
 DOMStorageDBChild::AddIPDLReference()
 {
-  MOZ_ASSERT(!mIPCOpen, "Attempting to retain multiple IPDL references");
+  NS_ABORT_IF_FALSE(!mIPCOpen, "Attempting to retain multiple IPDL references");
   mIPCOpen = true;
   AddRef();
 }
@@ -50,7 +50,7 @@ DOMStorageDBChild::AddIPDLReference()
 void
 DOMStorageDBChild::ReleaseIPDLReference()
 {
-  MOZ_ASSERT(mIPCOpen, "Attempting to release non-existent IPDL reference");
+  NS_ABORT_IF_FALSE(mIPCOpen, "Attempting to release non-existent IPDL reference");
   mIPCOpen = false;
   Release();
 }
@@ -214,7 +214,7 @@ DOMStorageDBChild::RecvObserve(const nsCString& aTopic,
 }
 
 bool
-DOMStorageDBChild::RecvScopesHavingData(nsTArray<nsCString>&& aScopes)
+DOMStorageDBChild::RecvScopesHavingData(const InfallibleTArray<nsCString>& aScopes)
 {
   for (uint32_t i = 0; i < aScopes.Length(); ++i) {
     ScopesHavingData().PutEntry(aScopes[i]);
@@ -275,7 +275,7 @@ NS_IMPL_RELEASE(DOMStorageDBParent)
 void
 DOMStorageDBParent::AddIPDLReference()
 {
-  MOZ_ASSERT(!mIPCOpen, "Attempting to retain multiple IPDL references");
+  NS_ABORT_IF_FALSE(!mIPCOpen, "Attempting to retain multiple IPDL references");
   mIPCOpen = true;
   AddRef();
 }
@@ -283,7 +283,7 @@ DOMStorageDBParent::AddIPDLReference()
 void
 DOMStorageDBParent::ReleaseIPDLReference()
 {
-  MOZ_ASSERT(mIPCOpen, "Attempting to release non-existent IPDL reference");
+  NS_ABORT_IF_FALSE(mIPCOpen, "Attempting to release non-existent IPDL reference");
   mIPCOpen = false;
   Release();
 }

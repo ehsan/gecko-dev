@@ -45,8 +45,8 @@ public:
     return nullptr;
   }
 
-  bool
-  WrapObject(JSContext* aCx, JS::MutableHandle<JSObject*> aReflector);
+  JSObject*
+  WrapObject(JSContext* aCx);
 
   // Methods for WebIDL
 
@@ -56,6 +56,11 @@ public:
   static already_AddRefed<URL>
   Constructor(const GlobalObject& aGlobal, const nsAString& aUrl,
               const nsAString& aBase, ErrorResult& aRv);
+
+  static void
+  CreateObjectURL(const GlobalObject& aGlobal,
+                  JSObject* aArg, const objectURLOptions& aOptions,
+                  nsString& aResult, ErrorResult& aRv);
 
   static void
   CreateObjectURL(const GlobalObject& aGlobal,

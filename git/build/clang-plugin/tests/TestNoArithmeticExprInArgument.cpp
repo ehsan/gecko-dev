@@ -10,9 +10,9 @@ int operator+(X, int);
 int operator++(X);
 
 void badArithmeticsInArgs() {
-  int a = 1;
+  int a;
   typedef int myint;
-  myint b = 2;
+  myint b;
   X goodObj1(a);
   goodObj1.baz(b);
   X badObj1(a + b); // expected-error{{cannot pass an arithmetic expression of built-in types to 'X'}}

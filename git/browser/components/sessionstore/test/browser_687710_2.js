@@ -30,7 +30,7 @@ function test()
   });
 
   let tab = gBrowser.addTab("about:blank");
-  promiseTabState(tab, state).then(() => {
+  waitForTabState(tab, state, function () {
     let history = tab.linkedBrowser.webNavigation.sessionHistory;
 
     is(history.count, 2, "history.count");

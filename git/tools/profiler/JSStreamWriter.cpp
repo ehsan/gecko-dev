@@ -11,7 +11,7 @@
 #include "nsTArray.h"
 #include "nsUTF8Utils.h"
 
-#if defined(_MSC_VER) && _MSC_VER < 1900
+#if _MSC_VER
  #define snprintf _snprintf
 #endif
 
@@ -138,20 +138,6 @@ JSStreamWriter::Name(const char *aName)
 
 void
 JSStreamWriter::Value(int aValue)
-{
-  MOZ_ASSERT(!mNeedsName);
-  if (mNeedsComma && mStack.Peek() == ARRAY) {
-    mStream << ",";
-  }
-  mStream << aValue;
-  mNeedsComma = true;
-  if (mStack.Peek() == OBJECT) {
-    mNeedsName = true;
-  }
-}
-
-void
-JSStreamWriter::Value(unsigned aValue)
 {
   MOZ_ASSERT(!mNeedsName);
   if (mNeedsComma && mStack.Peek() == ARRAY) {

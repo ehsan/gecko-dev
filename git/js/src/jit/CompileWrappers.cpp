@@ -37,37 +37,25 @@ CompileRuntime::mainThread()
 const void *
 CompileRuntime::addressOfJitTop()
 {
-    return &runtime()->jitTop;
-}
-
-const void *
-CompileRuntime::addressOfJitActivation()
-{
-    return &runtime()->jitActivation;
-}
-
-const void *
-CompileRuntime::addressOfProfilingActivation()
-{
-    return (const void *) &runtime()->profilingActivation_;
+    return &runtime()->mainThread.jitTop;
 }
 
 const void *
 CompileRuntime::addressOfJitStackLimit()
 {
-    return runtime()->addressOfJitStackLimit();
+    return runtime()->mainThread.addressOfJitStackLimit();
 }
 
 const void *
 CompileRuntime::addressOfJSContext()
 {
-    return &runtime()->jitJSContext;
+    return &runtime()->mainThread.jitJSContext;
 }
 
 const void *
 CompileRuntime::addressOfActivation()
 {
-    return runtime()->addressOfActivation();
+    return runtime()->mainThread.addressOfActivation();
 }
 
 const void *
@@ -88,6 +76,18 @@ const void *
 CompileRuntime::addressOfInterruptUint32()
 {
     return runtime()->addressOfInterruptUint32();
+}
+
+const void *
+CompileRuntime::addressOfInterruptParUint32()
+{
+    return runtime()->addressOfInterruptParUint32();
+}
+
+const void *
+CompileRuntime::addressOfThreadPool()
+{
+    return &runtime()->threadPool;
 }
 
 const JitRuntime *
@@ -210,13 +210,13 @@ CompileZone::addressOfNeedsIncrementalBarrier()
 const void *
 CompileZone::addressOfFreeListFirst(gc::AllocKind allocKind)
 {
-    return zone()->arenas.getFreeList(allocKind)->addressOfFirst();
+    return zone()->allocator.arenas.getFreeList(allocKind)->addressOfFirst();
 }
 
 const void *
 CompileZone::addressOfFreeListLast(gc::AllocKind allocKind)
 {
-    return zone()->arenas.getFreeList(allocKind)->addressOfLast();
+    return zone()->allocator.arenas.getFreeList(allocKind)->addressOfLast();
 }
 
 JSCompartment *
@@ -247,6 +247,12 @@ const void *
 CompileCompartment::addressOfEnumerators()
 {
     return &compartment()->enumerators;
+}
+
+const CallsiteCloneTable &
+CompileCompartment::callsiteClones()
+{
+    return compartment()->callsiteClones;
 }
 
 const JitCompartment *

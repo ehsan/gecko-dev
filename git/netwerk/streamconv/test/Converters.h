@@ -29,11 +29,11 @@ public:
 
     // nsIStreamConverter methods
     NS_IMETHOD Convert(nsIInputStream *aFromStream, const char *aFromType, 
-                       const char *aToType, nsISupports *ctxt, nsIInputStream **_retval) MOZ_OVERRIDE;
+                       const char *aToType, nsISupports *ctxt, nsIInputStream **_retval);
 
 
     NS_IMETHOD AsyncConvertData(const char *aFromType, const char *aToType, 
-                                nsIStreamListener *aListener, nsISupports *ctxt) MOZ_OVERRIDE;
+                                nsIStreamListener *aListener, nsISupports *ctxt);
 
     // member data
     nsCOMPtr<nsIStreamListener> mListener;

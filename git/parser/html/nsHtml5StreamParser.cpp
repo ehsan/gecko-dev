@@ -771,7 +771,8 @@ nsHtml5StreamParser::SniffStreamBytes(const uint8_t* aFromSegment,
   }
 
   if (!mSniffingBuffer) {
-    mSniffingBuffer = new (mozilla::fallible)
+    const mozilla::fallible_t fallible = mozilla::fallible_t();
+    mSniffingBuffer = new (fallible)
       uint8_t[NS_HTML5_STREAM_PARSER_SNIFFING_BUFFER_SIZE];
     if (!mSniffingBuffer) {
       return NS_ERROR_OUT_OF_MEMORY;
@@ -1145,7 +1146,8 @@ nsHtml5StreamParser::OnDataAvailable(nsIRequest* aRequest,
   uint32_t totalRead;
   // Main thread to parser thread dispatch requires copying to buffer first.
   if (NS_IsMainThread()) {
-    nsAutoArrayPtr<uint8_t> data(new (mozilla::fallible) uint8_t[aLength]);
+    const mozilla::fallible_t fallible = mozilla::fallible_t();
+    nsAutoArrayPtr<uint8_t> data(new (fallible) uint8_t[aLength]);
     if (!data) {
       return mExecutor->MarkAsBroken(NS_ERROR_OUT_OF_MEMORY);
     }

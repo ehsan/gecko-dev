@@ -71,12 +71,17 @@ CompareCacheMatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
   return entryPtr->entry->key == key;
 }
 
-static void
-CompareCacheInitEntry(PLDHashEntryHdr *hdr, const void *key)
+static bool
+CompareCacheInitEntry(PLDHashTable *table, PLDHashEntryHdr *hdr,
+                     const void *key)
 {
   new (hdr) CompareCacheHashEntryPtr();
   CompareCacheHashEntryPtr *entryPtr = static_cast<CompareCacheHashEntryPtr*>(hdr);
+  if (!entryPtr->entry) {
+    return false;
+  }
   entryPtr->entry->key = (void*)key;
+  return true;
 }
 
 static void
@@ -87,10 +92,13 @@ CompareCacheClearEntry(PLDHashTable *table, PLDHashEntryHdr *hdr)
 }
 
 static const PLDHashTableOps gMapOps = {
+  PL_DHashAllocTable,
+  PL_DHashFreeTable,
   PL_DHashVoidPtrKeyStub,
   CompareCacheMatchEntry,
   PL_DHashMoveEntryStub,
   CompareCacheClearEntry,
+  PL_DHashFinalizeStub,
   CompareCacheInitEntry
 };
 
@@ -156,6 +164,7 @@ nsCertTree::nsCertTree() : mTreeArray(nullptr)
 {
   static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 
+  mCompareCache.ops = nullptr;
   mNSSComponent = do_GetService(kNSSComponentCID);
   mOverrideService = do_GetService("@mozilla.org/security/certoverride;1");
   // Might be a different service if someone is overriding the contract
@@ -168,16 +177,18 @@ nsCertTree::nsCertTree() : mTreeArray(nullptr)
 
 void nsCertTree::ClearCompareHash()
 {
-  if (mCompareCache.IsInitialized()) {
+  if (mCompareCache.ops) {
     PL_DHashTableFinish(&mCompareCache);
+    mCompareCache.ops = nullptr;
   }
 }
 
 nsresult nsCertTree::InitCompareHash()
 {
   ClearCompareHash();
-  if (!PL_DHashTableInit(&mCompareCache, &gMapOps,
-                         sizeof(CompareCacheHashEntryPtr), fallible, 64)) {
+  if (!PL_DHashTableInit(&mCompareCache, &gMapOps, nullptr,
+                         sizeof(CompareCacheHashEntryPtr), fallible_t(), 64)) {
+    mCompareCache.ops = nullptr;
     return NS_ERROR_OUT_OF_MEMORY;
   }
   return NS_OK;
@@ -199,8 +210,9 @@ CompareCacheHashEntry *
 nsCertTree::getCacheEntry(void *cache, void *aCert)
 {
   PLDHashTable &aCompareCache = *reinterpret_cast<PLDHashTable*>(cache);
-  CompareCacheHashEntryPtr *entryPtr = static_cast<CompareCacheHashEntryPtr*>
-    (PL_DHashTableAdd(&aCompareCache, aCert, fallible));
+  CompareCacheHashEntryPtr *entryPtr = 
+    static_cast<CompareCacheHashEntryPtr*>
+               (PL_DHashTableAdd(&aCompareCache, aCert));
   return entryPtr ? entryPtr->entry : nullptr;
 }
 

@@ -40,11 +40,10 @@ let startup = Task.async(function*(inspector) {
     throw new Error("AnimationsPanel was not loaded in the animationinspector window");
   }
 
-  // Startup first initalizes the controller and then the panel, in sequence.
-  // If you want to know when everything's ready, do:
-  // AnimationsPanel.once(AnimationsPanel.PANEL_INITIALIZED)
-  yield AnimationsController.initialize();
-  yield AnimationsPanel.initialize();
+  yield promise.all([
+    AnimationsController.initialize(),
+    AnimationsPanel.initialize()
+  ]).then(null, Cu.reportError);
 });
 
 /**
@@ -52,20 +51,23 @@ let startup = Task.async(function*(inspector) {
  * widget when loading/unloading the iframe into the tab.
  */
 let shutdown = Task.async(function*() {
-  yield AnimationsController.destroy();
-  // Don't assume that AnimationsPanel is defined here, it's in another file.
-  if (typeof AnimationsPanel !== "undefined") {
-    yield AnimationsPanel.destroy()
-  }
-  gToolbox = gInspector = null;
+  yield promise.all([
+    AnimationsController.destroy(),
+    // Don't assume that AnimationsPanel is defined here, it's in another file.
+    typeof AnimationsPanel !== "undefined"
+      ? AnimationsPanel.destroy()
+      : promise.resolve()
+  ]).then(() => {
+    gToolbox = gInspector = null;
+  }, Cu.reportError);
 });
 
 // This is what makes the sidebar widget able to load/unload the panel.
 function setPanel(panel) {
-  return startup(panel).catch(Cu.reportError);
+  return startup(panel);
 }
 function destroy() {
-  return shutdown().catch(Cu.reportError);
+  return shutdown();
 }
 
 /**
@@ -99,8 +101,6 @@ let AnimationsController = {
 
     let target = gToolbox.target;
     this.animationsFront = new AnimationsFront(target.client, target.form);
-    // Not all server versions provide a way to pause all animations at once.
-    this.hasToggleAll = yield target.actorHasMethod("animations", "toggleAll");
 
     this.onPanelVisibilityChange = this.onPanelVisibilityChange.bind(this);
     this.onNewNodeFront = this.onNewNodeFront.bind(this);
@@ -185,17 +185,6 @@ let AnimationsController = {
 
     done();
   }),
-
-  /**
-   * Toggle (pause/play) all animations in the current target.
-   */
-  toggleAll: function() {
-    if (!this.hasToggleAll) {
-      return promis.resolve();
-    }
-
-    return this.animationsFront.toggleAll().catch(Cu.reportError);
-  },
 
   // AnimationPlayerFront objects are managed by this controller. They are
   // retrieved when refreshAnimationPlayers is called, stored in the

@@ -13,14 +13,7 @@ add_task(function* () {
     "test1.example.com": "security-state-insecure",
     "example.com": "security-state-secure",
     "nocert.example.com": "security-state-broken",
-    "rc4.example.com": "security-state-weak",
   };
-
-  yield new promise(resolve => {
-    SpecialPowers.pushPrefEnv({"set": [
-      ["security.tls.insecure_fallback_hosts", "rc4.example.com"]
-    ]}, resolve);
-  });
 
   let [tab, debuggee, monitor] = yield initNetMonitor(CUSTOM_GET_URL);
   let { $, EVENTS, NetMonitorView } = monitor.panelWin;
@@ -77,12 +70,7 @@ add_task(function* () {
     debuggee.performRequests(1, "https://example.com" + CORS_SJS_PATH);
     yield done;
 
-    done = waitForNetworkEvents(monitor, 1);
-    info("Requesting a resource over HTTPS with RC4.");
-    debuggee.performRequests(1, "https://rc4.example.com" + CORS_SJS_PATH);
-    yield done;
-
-    is(RequestsMenu.itemCount, 4, "Four events logged.");
+    is(RequestsMenu.itemCount, 3, "Three events logged.");
   }
 
   /**

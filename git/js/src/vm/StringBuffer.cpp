@@ -111,14 +111,14 @@ StringBuffer::finishString()
     JS_STATIC_ASSERT(JSFatInlineString::MAX_LENGTH_LATIN1 < Latin1CharBuffer::InlineLength);
 
     if (isLatin1()) {
-        if (JSInlineString::lengthFits<Latin1Char>(len)) {
+        if (JSFatInlineString::latin1LengthFits(len)) {
             mozilla::Range<const Latin1Char> range(latin1Chars().begin(), len);
-            return NewInlineString<CanGC>(cx, range);
+            return NewFatInlineString<CanGC>(cx, range);
         }
     } else {
-        if (JSInlineString::lengthFits<char16_t>(len)) {
+        if (JSFatInlineString::twoByteLengthFits(len)) {
             mozilla::Range<const char16_t> range(twoByteChars().begin(), len);
-            return NewInlineString<CanGC>(cx, range);
+            return NewFatInlineString<CanGC>(cx, range);
         }
     }
 

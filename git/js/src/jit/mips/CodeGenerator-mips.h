@@ -160,11 +160,6 @@ class CodeGeneratorMIPS : public CodeGeneratorShared
     {
         emitBranch(value.typeReg(), (Imm32)ImmType(JSVAL_TYPE_OBJECT), cond, ifTrue, ifFalse);
     }
-    void testZeroEmitBranch(Assembler::Condition cond, Register reg,
-                            MBasicBlock *ifTrue, MBasicBlock *ifFalse)
-    {
-        emitBranch(reg, Imm32(0), cond, ifTrue, ifFalse);
-    }
 
     void emitTableSwitchDispatch(MTableSwitch *mir, Register index, Register base);
 
@@ -249,7 +244,7 @@ class CodeGeneratorMIPS : public CodeGeneratorShared
     void visitFloat32(LFloat32 *ins);
 
     void visitGuardShape(LGuardShape *guard);
-    void visitGuardObjectGroup(LGuardObjectGroup *guard);
+    void visitGuardObjectType(LGuardObjectType *guard);
     void visitGuardClass(LGuardClass *guard);
 
     void visitNegI(LNegI *lir);

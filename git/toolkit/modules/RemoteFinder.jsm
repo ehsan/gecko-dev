@@ -1,5 +1,4 @@
 // -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
-// vim: set ts=2 sw=2 sts=2 et tw=80: */
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -12,53 +11,39 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-XPCOMUtils.defineLazyGetter(this, "GetClipboardSearchString",
-  () => Cu.import("resource://gre/modules/Finder.jsm", {}).GetClipboardSearchString
-);
-
 function RemoteFinder(browser) {
   this._browser = browser;
-  this._listeners = new Set();
+  this._listeners = [];
   this._searchString = null;
 
-  let mm = this._browser.messageManager;
-  mm.addMessageListener("Finder:Result", this);
-  mm.addMessageListener("Finder:MatchesResult", this);
-  mm.addMessageListener("Finder:CurrentSelectionResult",this);
-  mm.sendAsyncMessage("Finder:Initialize");
+  this._browser.messageManager.addMessageListener("Finder:Result", this);
+  this._browser.messageManager.addMessageListener("Finder:MatchesResult", this);
+  this._browser.messageManager.sendAsyncMessage("Finder:Initialize");
 }
 
 RemoteFinder.prototype = {
   addResultListener: function (aListener) {
-    this._listeners.add(aListener);
+    if (this._listeners.indexOf(aListener) === -1)
+      this._listeners.push(aListener);
   },
 
   removeResultListener: function (aListener) {
-    this._listeners.delete(aListener);
+    this._listeners = this._listeners.filter(l => l != aListener);
   },
 
   receiveMessage: function (aMessage) {
     // Only Finder:Result messages have the searchString field.
-    let callback;
-    let params;
-    switch (aMessage.name) {
-      case "Finder:Result":
-        this._searchString = aMessage.data.searchString;
-        callback = "onFindResult";
-        params = [ aMessage.data ];
-        break;
-      case "Finder:MatchesResult":
-        callback = "onMatchesCountResult";
-        params = [ aMessage.data ];
-        break;
-      case "Finder:CurrentSelectionResult":
-        callback = "onCurrentSelection";
-        params = [ aMessage.data.selection, aMessage.data.initial ];
-        break;
+    if (aMessage.name == "Finder:Result") {
+      this._searchString = aMessage.data.searchString;
     }
 
+    // The parent can receive either one of the two types of message.
     for (let l of this._listeners) {
-      l[callback].apply(l, params);
+      if (aMessage.name == "Finder:Result") {
+        l.onFindResult(aMessage.data);
+      } else if (aMessage.name == "Finder:MatchesResult") {
+        l.onMatchesCountResult(aMessage.data);
+      }
     }
   },
 
@@ -66,21 +51,9 @@ RemoteFinder.prototype = {
     return this._searchString;
   },
 
-  get clipboardSearchString() {
-    return GetClipboardSearchString(this._browser.loadContext);
-  },
-
-  setSearchStringToSelection() {
-    this._browser.messageManager.sendAsyncMessage("Finder:SetSearchStringToSelection", {});
-  },
-
   set caseSensitive(aSensitive) {
     this._browser.messageManager.sendAsyncMessage("Finder:CaseSensitive",
                                                   { caseSensitive: aSensitive });
-  },
-
-  getInitialSelection: function() {
-    this._browser.messageManager.sendAsyncMessage("Finder:GetInitialSelection", {});
   },
 
   fastFind: function (aSearchString, aLinksOnly) {
@@ -154,8 +127,6 @@ RemoteFinderListener.prototype = {
     "Finder:CaseSensitive",
     "Finder:FastFind",
     "Finder:FindAgain",
-    "Finder:SetSearchStringToSelection",
-    "Finder:GetInitialSelection",
     "Finder:Highlight",
     "Finder:EnableSelection",
     "Finder:RemoveSelection",
@@ -181,22 +152,6 @@ RemoteFinderListener.prototype = {
       case "Finder:CaseSensitive":
         this._finder.caseSensitive = data.caseSensitive;
         break;
-
-      case "Finder:SetSearchStringToSelection": {
-        let selection = this._finder.setSearchStringToSelection();
-        this._global.sendAsyncMessage("Finder:CurrentSelectionResult",
-                                      { selection: selection,
-                                        initial: false });
-        break;
-      }
-
-      case "Finder:GetInitialSelection": {
-        let selection = this._finder.getActiveSelectionText();
-        this._global.sendAsyncMessage("Finder:CurrentSelectionResult",
-                                      { selection: selection,
-                                        initial: true });
-        break;
-      }
 
       case "Finder:FastFind":
         this._finder.fastFind(data.searchString, data.linksOnly);

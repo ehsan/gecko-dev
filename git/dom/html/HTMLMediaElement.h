@@ -338,11 +338,7 @@ public:
   MediaStream* GetSrcMediaStream() const
   {
     NS_ASSERTION(mSrcStream, "Don't call this when not playing a stream");
-    if (!mPlaybackStream) {
-      // XXX Remove this check with CameraPreviewMediaStream per bug 1124630.
-      return mSrcStream->GetStream();
-    }
-    return mPlaybackStream->GetStream();
+    return mSrcStream->GetStream();
   }
 
   // WebIDL
@@ -632,7 +628,7 @@ protected:
   class MediaStreamTracksAvailableCallback;
   class StreamListener;
 
-  virtual void GetItemValueText(DOMString& text) MOZ_OVERRIDE;
+  virtual void GetItemValueText(nsAString& text) MOZ_OVERRIDE;
   virtual void SetItemValueText(const nsAString& text) MOZ_OVERRIDE;
 
   class WakeLockBoolWrapper {
@@ -1015,14 +1011,6 @@ protected:
   // actually playing.
   // At most one of mDecoder and mSrcStream can be non-null.
   nsRefPtr<DOMMediaStream> mSrcStream;
-
-  // Holds a reference to a MediaInputPort connecting mSrcStream to mPlaybackStream.
-  nsRefPtr<MediaInputPort> mPlaybackStreamInputPort;
-
-  // Holds a reference to a stream with mSrcStream as input but intended for
-  // playback. Used so we don't block playback of other video elements
-  // playing the same mSrcStream.
-  nsRefPtr<DOMMediaStream> mPlaybackStream;
 
   // Holds references to the DOM wrappers for the MediaStreams that we're
   // writing to.

@@ -74,10 +74,6 @@ this.BrowserUtils = {
     return Services.io.newFileURI(aFile);
   },
 
-  makeURIFromCPOW: function(aCPOWURI) {
-    return Services.io.newURI(aCPOWURI.spec, aCPOWURI.originCharset, null);
-  },
-
   /**
    * Return the current focus element and window. If the current focus
    * is in a content process, then this function returns CPOWs

@@ -305,12 +305,7 @@ RESTRequest.prototype = {
     }
 
     // Create and initialize HTTP channel.
-    let channel = Services.io.newChannelFromURI2(this.uri,
-                                                 null,      // aLoadingNode
-                                                 Services.scriptSecurityManager.getSystemPrincipal(),
-                                                 null,      // aTriggeringPrincipal
-                                                 Ci.nsILoadInfo.SEC_NORMAL,
-                                                 Ci.nsIContentPolicy.TYPE_OTHER)
+    let channel = Services.io.newChannelFromURI(this.uri, null, null)
                           .QueryInterface(Ci.nsIRequest)
                           .QueryInterface(Ci.nsIHttpChannel);
     this.channel = channel;

@@ -86,8 +86,7 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
      *    that because mViewportMetrics might get reassigned in between reading the different
      *    fields. */
     private volatile ImmutableViewportMetrics mViewportMetrics;
-    private LayerView.OnMetricsChangedListener mDynamicToolbarViewportChangeListener;
-    private LayerView.OnMetricsChangedListener mZoomedViewViewportChangeListener;
+    private LayerView.OnMetricsChangedListener mViewportChangeListener;
 
     private ZoomConstraints mZoomConstraints;
 
@@ -681,14 +680,12 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
         mCurrentViewTransform.offsetX = offset.x;
         mCurrentViewTransform.offsetY = offset.y;
 
-        if (mRootLayer != null) {
-            mRootLayer.setPositionAndResolution(
-                Math.round(x + mCurrentViewTransform.offsetX),
-                Math.round(y + mCurrentViewTransform.offsetY),
-                Math.round(x + width + mCurrentViewTransform.offsetX),
-                Math.round(y + height + mCurrentViewTransform.offsetY),
-                resolution);
-        }
+        mRootLayer.setPositionAndResolution(
+            Math.round(x + mCurrentViewTransform.offsetX),
+            Math.round(y + mCurrentViewTransform.offsetY),
+            Math.round(x + width + mCurrentViewTransform.offsetX),
+            Math.round(y + height + mCurrentViewTransform.offsetY),
+            resolution);
 
         if (layersUpdated && mRecordDrawTimes) {
             // If we got a layers update, that means a draw finished. Check to see if the area drawn matches
@@ -730,9 +727,6 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
     public LayerRenderer.Frame createFrame() {
         // Create the shaders and textures if necessary.
         if (!mLayerRendererInitialized) {
-            if (mLayerRenderer == null) {
-                return null;
-            }
             mLayerRenderer.checkMonitoringEnabled();
             mLayerRenderer.createDefaultProgram();
             mLayerRendererInitialized = true;
@@ -859,11 +853,8 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
      * You must hold the monitor while calling this.
      */
     private void viewportMetricsChanged(boolean notifyGecko) {
-        if (mDynamicToolbarViewportChangeListener != null) {
-            mDynamicToolbarViewportChangeListener.onMetricsChanged(mViewportMetrics);
-        }
-        if (mZoomedViewViewportChangeListener != null) {
-            mZoomedViewViewportChangeListener.onMetricsChanged(mViewportMetrics);
+        if (mViewportChangeListener != null) {
+            mViewportChangeListener.onMetricsChanged(mViewportMetrics);
         }
 
         mView.requestRender();
@@ -919,11 +910,8 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
     /** Implementation of PanZoomTarget */
     @Override
     public void panZoomStopped() {
-        if (mDynamicToolbarViewportChangeListener != null) {
-            mDynamicToolbarViewportChangeListener.onPanZoomStopped();
-        }
-        if (mZoomedViewViewportChangeListener != null) {
-            mZoomedViewViewportChangeListener.onPanZoomStopped();
+        if (mViewportChangeListener != null) {
+            mViewportChangeListener.onPanZoomStopped();
         }
     }
 
@@ -994,12 +982,8 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
         return layerPoint;
     }
 
-    void setOnMetricsChangedDynamicToolbarViewportListener(LayerView.OnMetricsChangedListener listener) {
-        mDynamicToolbarViewportChangeListener = listener;
-    }
-
-    void setOnMetricsChangedZoomedViewportListener(LayerView.OnMetricsChangedListener listener) {
-    	mZoomedViewViewportChangeListener = listener;
+    void setOnMetricsChangedListener(LayerView.OnMetricsChangedListener listener) {
+        mViewportChangeListener = listener;
     }
 
     public void addDrawListener(DrawListener listener) {

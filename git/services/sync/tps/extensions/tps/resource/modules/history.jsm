@@ -72,7 +72,7 @@ var HistoryEntry = {
         "FROM moz_places " +
         "WHERE url = :url) " +
       "ORDER BY date DESC LIMIT 10");
-    this.__defineGetter__("_visitStm", () => stm);
+    this.__defineGetter__("_visitStm", function() stm);
     return stm;
   },
 
@@ -198,3 +198,4 @@ var HistoryEntry = {
     }
   },
 };
+

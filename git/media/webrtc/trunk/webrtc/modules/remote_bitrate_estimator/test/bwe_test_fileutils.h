@@ -11,12 +11,11 @@
 #ifndef WEBRTC_MODULES_REMOTE_BITRATE_ESTIMATOR_TEST_BWE_TEST_FILEUTILS_H_
 #define WEBRTC_MODULES_REMOTE_BITRATE_ESTIMATOR_TEST_BWE_TEST_FILEUTILS_H_
 
-#include <stdio.h>
-
+#include <cstdio>
 #include <string>
 
-#include "webrtc/base/constructormagic.h"
 #include "webrtc/modules/interface/module_common_types.h"
+#include "webrtc/system_wrappers/interface/constructor_magic.h"
 
 namespace webrtc {
 namespace testing {

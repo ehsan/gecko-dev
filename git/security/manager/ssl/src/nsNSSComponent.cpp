@@ -157,7 +157,6 @@ bool EnsureNSSInitialized(EnsureNSSOperator op)
     // call do_GetService for nss component to ensure it.
   case nssEnsure:
   case nssEnsureOnChromeOnly:
-  case nssEnsureChromeOrContent:
     // We are reentered during nss component creation or nss component is already up
     if (PR_AtomicAdd(&haveLoaded, 0) || loading)
       return true;
@@ -183,9 +182,9 @@ bool EnsureNSSInitialized(EnsureNSSOperator op)
 }
 
 static void
-GetOCSPBehaviorFromPrefs(/*out*/ CertVerifier::OcspDownloadConfig* odc,
-                         /*out*/ CertVerifier::OcspStrictConfig* osc,
-                         /*out*/ CertVerifier::OcspGetConfig* ogc,
+GetOCSPBehaviorFromPrefs(/*out*/ CertVerifier::ocsp_download_config* odc,
+                         /*out*/ CertVerifier::ocsp_strict_config* osc,
+                         /*out*/ CertVerifier::ocsp_get_config* ogc,
                          const MutexAutoLock& /*proofOfLock*/)
 {
   MOZ_ASSERT(NS_IsMainThread());
@@ -195,17 +194,17 @@ GetOCSPBehaviorFromPrefs(/*out*/ CertVerifier::OcspDownloadConfig* odc,
 
   // 0 = disabled, otherwise enabled
   *odc = Preferences::GetInt("security.OCSP.enabled", 1)
-       ? CertVerifier::ocspOn
-       : CertVerifier::ocspOff;
+       ? CertVerifier::ocsp_on
+       : CertVerifier::ocsp_off;
 
   *osc = Preferences::GetBool("security.OCSP.require", false)
-       ? CertVerifier::ocspStrict
-       : CertVerifier::ocspRelaxed;
+       ? CertVerifier::ocsp_strict
+       : CertVerifier::ocsp_relaxed;
 
   // XXX: Always use POST for OCSP; see bug 871954 for undoing this.
   *ogc = Preferences::GetBool("security.OCSP.GET.enabled", false)
-       ? CertVerifier::ocspGetEnabled
-       : CertVerifier::ocspGetDisabled;
+       ? CertVerifier::ocsp_get_enabled
+       : CertVerifier::ocsp_get_disabled;
 
   SSL_ClearSessionCache();
 }
@@ -734,6 +733,7 @@ nsNSSComponent::FillTLSVersionRange(SSLVersionRange& rangeOut,
 
 static const int32_t OCSP_ENABLED_DEFAULT = 1;
 static const bool REQUIRE_SAFE_NEGOTIATION_DEFAULT = false;
+static const bool ALLOW_UNRESTRICTED_RENEGO_DEFAULT = false;
 static const bool FALSE_START_ENABLED_DEFAULT = true;
 static const bool NPN_ENABLED_DEFAULT = true;
 static const bool ALPN_ENABLED_DEFAULT = false;
@@ -875,9 +875,9 @@ void nsNSSComponent::setValidationOptions(bool isInitialSetting,
     pinningMode = CertVerifier::pinningDisabled;
   }
 
-  CertVerifier::OcspDownloadConfig odc;
-  CertVerifier::OcspStrictConfig osc;
-  CertVerifier::OcspGetConfig ogc;
+  CertVerifier::ocsp_download_config odc;
+  CertVerifier::ocsp_strict_config osc;
+  CertVerifier::ocsp_get_config ogc;
 
   GetOCSPBehaviorFromPrefs(&odc, &osc, &ogc, lock);
   mDefaultCertVerifier = new SharedCertVerifier(odc, osc, ogc, pinningMode);
@@ -1053,7 +1053,13 @@ nsNSSComponent::InitializeNSS()
                          REQUIRE_SAFE_NEGOTIATION_DEFAULT);
   SSL_OptionSetDefault(SSL_REQUIRE_SAFE_NEGOTIATION, requireSafeNegotiation);
 
-  SSL_OptionSetDefault(SSL_ENABLE_RENEGOTIATION, SSL_RENEGOTIATE_REQUIRES_XTN);
+  bool allowUnrestrictedRenego =
+    Preferences::GetBool("security.ssl.allow_unrestricted_renego_everywhere__temporarily_available_pref",
+                         ALLOW_UNRESTRICTED_RENEGO_DEFAULT);
+  SSL_OptionSetDefault(SSL_ENABLE_RENEGOTIATION,
+                       allowUnrestrictedRenego ?
+                         SSL_RENEGOTIATE_UNRESTRICTED :
+                         SSL_RENEGOTIATE_REQUIRES_XTN);
 
   SSL_OptionSetDefault(SSL_ENABLE_FALSE_START,
                        Preferences::GetBool("security.ssl.enable_false_start",
@@ -1330,6 +1336,14 @@ nsNSSComponent::Observe(nsISupports* aSubject, const char* aTopic,
         Preferences::GetBool("security.ssl.require_safe_negotiation",
                              REQUIRE_SAFE_NEGOTIATION_DEFAULT);
       SSL_OptionSetDefault(SSL_REQUIRE_SAFE_NEGOTIATION, requireSafeNegotiation);
+    } else if (prefName.EqualsLiteral("security.ssl.allow_unrestricted_renego_everywhere__temporarily_available_pref")) {
+      bool allowUnrestrictedRenego =
+        Preferences::GetBool("security.ssl.allow_unrestricted_renego_everywhere__temporarily_available_pref",
+                             ALLOW_UNRESTRICTED_RENEGO_DEFAULT);
+      SSL_OptionSetDefault(SSL_ENABLE_RENEGOTIATION,
+                           allowUnrestrictedRenego ?
+                             SSL_RENEGOTIATE_UNRESTRICTED :
+                             SSL_RENEGOTIATE_REQUIRES_XTN);
     } else if (prefName.EqualsLiteral("security.ssl.enable_false_start")) {
       SSL_OptionSetDefault(SSL_ENABLE_FALSE_START,
                            Preferences::GetBool("security.ssl.enable_false_start",

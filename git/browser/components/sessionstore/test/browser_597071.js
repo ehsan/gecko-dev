@@ -7,7 +7,9 @@
  */
 add_task(function test_close_last_nonpopup_window() {
   // Purge the list of closed windows.
-  forgetClosedWindows();
+  while (ss.getClosedWindowCount()) {
+    ss.forgetClosedWindow(0);
+  }
 
   let oldState = ss.getWindowState(window);
 

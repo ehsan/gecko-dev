@@ -44,22 +44,22 @@ public:
   already_AddRefed<CallsList>
   Calls() const;
 
-  already_AddRefed<Promise>
+  void
   Add(TelephonyCall& aCall, ErrorResult& aRv);
 
-  already_AddRefed<Promise>
+  void
   Add(TelephonyCall& aCall, TelephonyCall& aSecondCall, ErrorResult& aRv);
 
-  already_AddRefed<Promise>
+  void
   Remove(TelephonyCall& aCall, ErrorResult& aRv);
 
   already_AddRefed<Promise>
   HangUp(ErrorResult& aRv);
 
-  already_AddRefed<Promise>
+  void
   Hold(ErrorResult& aRv);
 
-  already_AddRefed<Promise>
+  void
   Resume(ErrorResult& aRv);
 
   void
@@ -117,10 +117,7 @@ private:
   DispatchCallEvent(const nsAString& aType,
                     TelephonyCall* aCall);
 
-  already_AddRefed<Promise>
-  CreatePromise(ErrorResult& aRv);
-
-  bool CanConference(const TelephonyCall& aCall, const TelephonyCall* aSecondCall);
+  bool CanConference(const TelephonyCall& aCall, TelephonyCall* aSecondCall);
 };
 
 } // namespace dom

@@ -219,6 +219,7 @@ gc::GCRuntime::startVerifyPreBarriers()
     /* Create the root node. */
     trc->curnode = MakeNode(trc, nullptr, JSGCTraceKind(0));
 
+    /* We want MarkRuntime to save the roots to gcSavedRoots. */
     incrementalState = MARK_ROOTS;
 
     /* Make all the roots be edges emanating from the root node. */
@@ -253,7 +254,7 @@ gc::GCRuntime::startVerifyPreBarriers()
     for (ZonesIter zone(rt, WithAtoms); !zone.done(); zone.next()) {
         PurgeJITCaches(zone);
         zone->setNeedsIncrementalBarrier(true, Zone::UpdateJit);
-        zone->arenas.purge();
+        zone->allocator.arenas.purge();
     }
 
     return;
@@ -404,7 +405,7 @@ struct VerifyPostTracer : JSTracer
 void
 gc::GCRuntime::startVerifyPostBarriers()
 {
-    if (!JS::IsGenerationalGCEnabled(rt) || verifyPostData || isIncrementalGCInProgress())
+    if (verifyPostData || isIncrementalGCInProgress())
         return;
 
     evictNursery();

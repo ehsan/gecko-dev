@@ -506,7 +506,6 @@ void TextureClient::ForceRemove(bool sync)
 {
   if (mValid && mActor) {
     if (sync || GetFlags() & TextureFlags::DEALLOCATE_CLIENT) {
-      MOZ_PERFORMANCE_WARNING("gfx", "TextureClient/Host pair requires synchronous deallocation");
       if (mActor->IPCOpen()) {
         mActor->SendClearTextureHostSync();
         mActor->SendRemoveTexture();
@@ -673,7 +672,8 @@ bool
 MemoryTextureClient::Allocate(uint32_t aSize)
 {
   MOZ_ASSERT(!mBuffer);
-  mBuffer = new (fallible) uint8_t[aSize];
+  static const fallible_t fallible = fallible_t();
+  mBuffer = new(fallible) uint8_t[aSize];
   if (!mBuffer) {
     NS_WARNING("Failed to allocate buffer");
     return false;
@@ -860,7 +860,7 @@ BufferTextureClient::AllocateForYCbCr(gfx::IntSize aYSize,
 
   size_t bufSize = YCbCrImageDataSerializer::ComputeMinBufferSize(aYSize,
                                                                   aCbCrSize);
-  if (!bufSize || !Allocate(bufSize)) {
+  if (!Allocate(bufSize)) {
     return false;
   }
   YCbCrImageDataSerializer serializer(GetBuffer(), GetBufferSize());
@@ -880,6 +880,20 @@ BufferTextureClient::GetLockedData() const
   MOZ_ASSERT(serializer.IsValid());
 
   return serializer.GetData();
+}
+
+TemporaryRef<gfx::DataSourceSurface>
+BufferTextureClient::GetAsSurface()
+{
+  ImageDataSerializer serializer(GetBuffer(), GetBufferSize());
+  MOZ_ASSERT(serializer.IsValid());
+
+  RefPtr<gfx::DataSourceSurface> wrappingSurf =
+    gfx::Factory::CreateWrappingDataSourceSurface(serializer.GetData(),
+                                                  serializer.GetStride(),
+                                                  serializer.GetSize(),
+                                                  serializer.GetFormat());
+  return gfx::CreateDataSourceSurfaceByCloning(wrappingSurf);
 }
 
 ////////////////////////////////////////////////////////////////////////

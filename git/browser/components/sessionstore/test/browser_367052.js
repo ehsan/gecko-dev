@@ -14,11 +14,12 @@ function test() {
 
   // restore a blank tab
   let tab = gBrowser.addTab("about:");
-  promiseBrowserLoaded(tab.linkedBrowser).then(() => {
+  whenBrowserLoaded(tab.linkedBrowser, function() {
     let history = tab.linkedBrowser.webNavigation.sessionHistory;
     ok(history.count >= 1, "the new tab does have at least one history entry");
 
-    promiseTabState(tab, {entries: []}).then(() => {
+    ss.setTabState(tab, JSON.stringify({ entries: [] }));
+    whenTabRestored(tab, function() {
       // We may have a different sessionHistory object if the tab
       // switched from non-remote to remote.
       history = tab.linkedBrowser.webNavigation.sessionHistory;

@@ -7,29 +7,11 @@
 function spawnTest () {
   let { panel } = yield initPerformance(SIMPLE_URL);
   let { EVENTS, OverviewView } = panel.panelWin;
-
-  // Enable memory to test all the overview graphs.
-  Services.prefs.setBoolPref(MEMORY_PREF, true);
-
-  yield startRecording(panel);
-
-  yield Promise.all([
-    once(OverviewView, EVENTS.FRAMERATE_GRAPH_RENDERED),
-    once(OverviewView, EVENTS.MARKERS_GRAPH_RENDERED),
-    once(OverviewView, EVENTS.MEMORY_GRAPH_RENDERED),
-    once(OverviewView, EVENTS.OVERVIEW_RENDERED),
-  ]);
-
+  let framerateGraph = OverviewView.framerateGraph;
   let markersOverview = OverviewView.markersOverview;
   let memoryOverview = OverviewView.memoryOverview;
-  let framerateGraph = OverviewView.framerateGraph;
 
-  ok(markersOverview,
-    "The markers graph should have been created now.");
-  ok(memoryOverview,
-    "The memory graph should have been created now.");
-  ok(framerateGraph,
-    "The framerate graph should have been created now.");
+  yield startRecording(panel);
 
   ok(!framerateGraph.selectionEnabled,
     "Selection shouldn't be enabled when the first recording started (1).");
@@ -48,13 +30,6 @@ function spawnTest () {
     "Selection should be enabled when the first recording finishes (3).");
 
   yield startRecording(panel);
-
-  yield Promise.all([
-    once(OverviewView, EVENTS.FRAMERATE_GRAPH_RENDERED),
-    once(OverviewView, EVENTS.MARKERS_GRAPH_RENDERED),
-    once(OverviewView, EVENTS.MEMORY_GRAPH_RENDERED),
-    once(OverviewView, EVENTS.OVERVIEW_RENDERED),
-  ]);
 
   ok(!framerateGraph.selectionEnabled,
     "Selection shouldn't be enabled when the second recording started (1).");

@@ -36,7 +36,8 @@ nsresult
 MetadataHelper::GetSuccessResult(JSContext* aCx,
                                  JS::MutableHandle<JS::Value> aVal)
 {
-  JS::Rooted<JSObject*> obj(aCx, JS_NewPlainObject(aCx));
+  JS::Rooted<JSObject*> obj(aCx, JS_NewObject(aCx, nullptr, JS::NullPtr(),
+                                              JS::NullPtr()));
   NS_ENSURE_TRUE(obj, NS_ERROR_OUT_OF_MEMORY);
 
   if (mParams->SizeRequested()) {

@@ -16,12 +16,14 @@
 namespace js {
 class NativeObject;
 class GCMarker;
-class ObjectGroup;
 namespace gc {
 struct ArenaHeader;
 }
 namespace jit {
 class JitCode;
+}
+namespace types {
+struct TypeObject;
 }
 
 static const size_t NON_INCREMENTAL_MARK_STACK_BASE_CAPACITY = 4096;
@@ -141,8 +143,8 @@ class GCMarker : public JSTracer
         pushTaggedPtr(ObjectTag, obj);
     }
 
-    void pushType(ObjectGroup *group) {
-        pushTaggedPtr(GroupTag, group);
+    void pushType(types::TypeObject *type) {
+        pushTaggedPtr(TypeTag, type);
     }
 
     void pushJitCode(jit::JitCode *code) {
@@ -229,7 +231,7 @@ class GCMarker : public JSTracer
     enum StackTag {
         ValueArrayTag,
         ObjectTag,
-        GroupTag,
+        TypeTag,
         XmlTag,
         SavedValueArrayTag,
         JitCodeTag,

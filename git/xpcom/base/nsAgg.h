@@ -63,12 +63,7 @@ private:                                                                    \
                                                                             \
     friend class Internal;                                                  \
                                                                             \
-    nsISupports* MOZ_UNSAFE_REF("fOuter can either point to fAggregated "   \
-                                "or to an outer object, and the safety "    \
-                                "of this reference depends on the exact "   \
-                                "lifetime semantics of the AddRef/Release " \
-                                "functions created by these macros.")       \
-                        fOuter;                                             \
+    nsISupports*        fOuter;                                             \
     Internal            fAggregated;                                        \
                                                                             \
 public:                                                                     \

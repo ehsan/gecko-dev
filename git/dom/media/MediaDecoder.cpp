@@ -351,71 +351,6 @@ MediaDecoder::DecodedStreamGraphListener::NotifyEvent(MediaStreamGraph* aGraph,
   }
 }
 
-class MediaDecoder::OutputStreamListener : public MediaStreamListener {
-public:
-  OutputStreamListener(MediaDecoder* aDecoder, MediaStream* aStream)
-    : mDecoder(aDecoder), mStream(aStream) {}
-
-  virtual void NotifyEvent(
-      MediaStreamGraph* aGraph,
-      MediaStreamListener::MediaStreamGraphEvent event) MOZ_OVERRIDE {
-    if (event == EVENT_FINISHED) {
-      nsRefPtr<nsIRunnable> r = NS_NewRunnableMethod(
-          this, &OutputStreamListener::DoNotifyFinished);
-      aGraph->DispatchToMainThreadAfterStreamStateUpdate(r.forget());
-    }
-  }
-
-  void Forget() {
-    MOZ_ASSERT(NS_IsMainThread());
-    mDecoder = nullptr;
-  }
-
-private:
-  void DoNotifyFinished() {
-    MOZ_ASSERT(NS_IsMainThread());
-    if (!mDecoder) {
-      return;
-    }
-
-    // Remove the finished stream so it won't block the decoded stream.
-    ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-    auto& streams = mDecoder->OutputStreams();
-    // Don't read |mDecoder| in the loop since removing the element will lead
-    // to ~OutputStreamData() which will call Forget() to reset |mDecoder|.
-    for (int32_t i = streams.Length() - 1; i >= 0; --i) {
-      auto& os = streams[i];
-      MediaStream* p = os.mStream.get();
-      if (p == mStream.get()) {
-        if (os.mPort) {
-          os.mPort->Destroy();
-          os.mPort = nullptr;
-        }
-        streams.RemoveElementAt(i);
-        break;
-      }
-    }
-  }
-
-  // Main thread only
-  MediaDecoder* mDecoder;
-  nsRefPtr<MediaStream> mStream;
-};
-
-void
-MediaDecoder::OutputStreamData::Init(MediaDecoder* aDecoder,
-                                     ProcessedMediaStream* aStream)
-{
-  mStream = aStream;
-  mListener = new OutputStreamListener(aDecoder, aStream);
-  aStream->AddListener(mListener);
-}
-
-MediaDecoder::OutputStreamData::~OutputStreamData()
-{
-  mListener->Forget();
-}
-
 void MediaDecoder::DestroyDecodedStream()
 {
   MOZ_ASSERT(NS_IsMainThread());
@@ -432,20 +367,22 @@ void MediaDecoder::DestroyDecodedStream()
   // need to be explicitly blocked again.
   for (int32_t i = mOutputStreams.Length() - 1; i >= 0; --i) {
     OutputStreamData& os = mOutputStreams[i];
-    // Explicitly remove all existing ports.
-    // This is not strictly necessary but it's good form.
-    MOZ_ASSERT(os.mPort, "Double-delete of the ports!");
-    os.mPort->Destroy();
-    os.mPort = nullptr;
     // During cycle collection, nsDOMMediaStream can be destroyed and send
     // its Destroy message before this decoder is destroyed. So we have to
     // be careful not to send any messages after the Destroy().
     if (os.mStream->IsDestroyed()) {
       // Probably the DOM MediaStream was GCed. Clean up.
+      MOZ_ASSERT(os.mPort, "Double-delete of the ports!");
+      os.mPort->Destroy();
       mOutputStreams.RemoveElementAt(i);
-    } else {
-      os.mStream->ChangeExplicitBlockerCount(1);
+      continue;
     }
+    os.mStream->ChangeExplicitBlockerCount(1);
+    // Explicitly remove all existing ports. This is not strictly necessary but it's
+    // good form.
+    MOZ_ASSERT(os.mPort, "Double-delete of the ports!");
+    os.mPort->Destroy();
+    os.mPort = nullptr;
   }
 
   mDecodedStream = nullptr;
@@ -493,8 +430,12 @@ void MediaDecoder::RecreateDecodedStream(int64_t aStartTimeUSecs)
   // between main-thread stable states take effect atomically.
   for (int32_t i = mOutputStreams.Length() - 1; i >= 0; --i) {
     OutputStreamData& os = mOutputStreams[i];
-    MOZ_ASSERT(!os.mStream->IsDestroyed(),
-        "Should've been removed in DestroyDecodedStream()");
+    if (os.mStream->IsDestroyed()) {
+      // Probably the DOM MediaStream was GCed. Clean up.
+      // No need to destroy the port; all ports have been destroyed here.
+      mOutputStreams.RemoveElementAt(i);
+      continue;
+    }
     ConnectDecodedStreamToOutputStream(&os);
   }
   UpdateStreamBlockingForStateMachinePlaying();
@@ -522,7 +463,7 @@ void MediaDecoder::AddOutputStream(ProcessedMediaStream* aStream,
       RecreateDecodedStream(t);
     }
     OutputStreamData* os = mOutputStreams.AppendElement();
-    os->Init(this, aStream);
+    os->Init(aStream, aFinishWhenEnded);
     ConnectDecodedStreamToOutputStream(os);
     if (aFinishWhenEnded) {
       // Ensure that aStream finishes the moment mDecodedStream does.
@@ -778,7 +719,7 @@ nsresult MediaDecoder::Seek(double aTime, SeekTarget::Type aSeekType)
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
   UpdateDormantState(false /* aDormantTimeout */, true /* aActivity */);
 
-  MOZ_ASSERT(aTime >= 0.0, "Cannot seek to a negative value.");
+  NS_ABORT_IF_FALSE(aTime >= 0.0, "Cannot seek to a negative value.");
 
   int64_t timeUsecs = 0;
   nsresult rv = SecondsToUsecs(aTime, timeUsecs);
@@ -850,7 +791,7 @@ MediaDecoder::IsExpectingMoreData()
 
 void MediaDecoder::MetadataLoaded(nsAutoPtr<MediaInfo> aInfo,
                                   nsAutoPtr<MetadataTags> aTags,
-                                  bool aRestoredFromDormant)
+                                  bool aRestoredFromDromant)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -880,14 +821,14 @@ void MediaDecoder::MetadataLoaded(nsAutoPtr<MediaInfo> aInfo,
     // Make sure the element and the frame (if any) are told about
     // our new size.
     Invalidate();
-    if (!aRestoredFromDormant) {
+    if (!aRestoredFromDromant) {
       mOwner->MetadataLoaded(mInfo, nsAutoPtr<const MetadataTags>(aTags.forget()));
     }
   }
 }
 
 void MediaDecoder::FirstFrameLoaded(nsAutoPtr<MediaInfo> aInfo,
-                                    bool aRestoredFromDormant)
+                                    bool aRestoredFromDromant)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -903,7 +844,7 @@ void MediaDecoder::FirstFrameLoaded(nsAutoPtr<MediaInfo> aInfo,
 
   if (mOwner) {
     Invalidate();
-    if (!aRestoredFromDormant) {
+    if (!aRestoredFromDromant) {
       mOwner->FirstFrameLoaded();
     }
   }
@@ -1003,6 +944,32 @@ void MediaDecoder::PlaybackEnded()
       mPlayState == PLAY_STATE_SEEKING ||
       mPlayState == PLAY_STATE_LOADING) {
     return;
+  }
+
+  {
+    ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
+
+    for (int32_t i = mOutputStreams.Length() - 1; i >= 0; --i) {
+      OutputStreamData& os = mOutputStreams[i];
+      if (os.mStream->IsDestroyed()) {
+        // Probably the DOM MediaStream was GCed. Clean up.
+        MOZ_ASSERT(os.mPort, "Double-delete of the ports!");
+        os.mPort->Destroy();
+        mOutputStreams.RemoveElementAt(i);
+        continue;
+      }
+      if (os.mFinishWhenEnded) {
+        // Shouldn't really be needed since mDecodedStream should already have
+        // finished, but doesn't hurt.
+        os.mStream->Finish();
+        MOZ_ASSERT(os.mPort, "Double-delete of the ports!");
+        os.mPort->Destroy();
+        // Not really needed but it keeps the invariant that a stream not
+        // connected to mDecodedStream is explicity blocked.
+        os.mStream->ChangeExplicitBlockerCount(1);
+        mOutputStreams.RemoveElementAt(i);
+      }
+    }
   }
 
   PlaybackPositionChanged();

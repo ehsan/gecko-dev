@@ -513,10 +513,7 @@ BackgroundHangMonitor::NotifyActivity()
                "This thread is not initialized for hang monitoring");
     return;
   }
-
-  if (Telemetry::CanRecord()) {
-    mThread->NotifyActivity();
-  }
+  mThread->NotifyActivity();
 #endif
 }
 
@@ -529,10 +526,7 @@ BackgroundHangMonitor::NotifyWait()
                "This thread is not initialized for hang monitoring");
     return;
   }
-
-  if (Telemetry::CanRecord()) {
-    mThread->NotifyWait();
-  }
+  mThread->NotifyWait();
 #endif
 }
 

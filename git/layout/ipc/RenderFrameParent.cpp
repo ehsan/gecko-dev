@@ -16,14 +16,11 @@
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/TabParent.h"
 #include "mozilla/layers/APZCTreeManager.h"
-#include "mozilla/layers/APZThreadUtils.h"
 #include "mozilla/layers/CompositorParent.h"
 #include "mozilla/layers/LayerTransactionParent.h"
 #include "nsContentUtils.h"
-#include "nsFocusManager.h"
 #include "nsFrameLoader.h"
 #include "nsIObserver.h"
-#include "nsStyleStructInlines.h"
 #include "nsSubDocumentFrame.h"
 #include "nsView.h"
 #include "nsViewportFrame.h"
@@ -95,7 +92,7 @@ public:
   {
     MOZ_ASSERT(NS_IsMainThread());
     if (mRenderFrame) {
-      TabParent* browser = TabParent::GetFrom(mRenderFrame->Manager());
+      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
       browser->UpdateFrame(aFrameMetrics);
     }
   }
@@ -113,7 +110,7 @@ public:
       return;
     }
     if (mRenderFrame) {
-      TabParent* browser = TabParent::GetFrom(mRenderFrame->Manager());
+      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
       browser->AcknowledgeScrollUpdate(aScrollId, aScrollGeneration);
     }
   }
@@ -132,7 +129,7 @@ public:
       return;
     }
     if (mRenderFrame) {
-      TabParent* browser = TabParent::GetFrom(mRenderFrame->Manager());
+      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
       browser->HandleDoubleTap(aPoint, aModifiers, aGuid);
     }
   }
@@ -151,8 +148,7 @@ public:
       return;
     }
     if (mRenderFrame) {
-      mRenderFrame->TakeFocusForClick();
-      TabParent* browser = TabParent::GetFrom(mRenderFrame->Manager());
+      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
       browser->HandleSingleTap(aPoint, aModifiers, aGuid);
     }
   }
@@ -172,7 +168,7 @@ public:
       return;
     }
     if (mRenderFrame) {
-      TabParent* browser = TabParent::GetFrom(mRenderFrame->Manager());
+      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
       browser->HandleLongTap(aPoint, aModifiers, aGuid, aInputBlockId);
     }
   }
@@ -191,7 +187,7 @@ public:
       return;
     }
     if (mRenderFrame) {
-      TabParent* browser = TabParent::GetFrom(mRenderFrame->Manager());
+      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
       browser->HandleLongTapUp(aPoint, aModifiers, aGuid);
     }
   }
@@ -211,7 +207,7 @@ public:
       return;
     }
     if (mRenderFrame && aIsRoot) {
-      TabParent* browser = TabParent::GetFrom(mRenderFrame->Manager());
+      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
       BrowserElementParent::DispatchAsyncScrollEvent(browser, aContentRect,
                                                      aContentSize);
     }
@@ -251,7 +247,7 @@ public:
       return;
     }
     if (mRenderFrame) {
-      TabParent* browser = TabParent::GetFrom(mRenderFrame->Manager());
+      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
       browser->NotifyAPZStateChange(aGuid.mScrollId, aChange, aArg);
     }
   }
@@ -356,21 +352,21 @@ RenderFrameParent::BuildLayer(nsDisplayListBuilder* aBuilder,
                               nsDisplayItem* aItem,
                               const ContainerLayerParameters& aContainerParameters)
 {
-  MOZ_ASSERT(aFrame,
-             "makes no sense to have a shadow tree without a frame");
-  MOZ_ASSERT(!mContainer ||
-             IsTempLayerManager(aManager) ||
-             mContainer->Manager() == aManager,
-             "retaining manager changed out from under us ... HELP!");
+  NS_ABORT_IF_FALSE(aFrame,
+                    "makes no sense to have a shadow tree without a frame");
+  NS_ABORT_IF_FALSE(!mContainer ||
+                    IsTempLayerManager(aManager) ||
+                    mContainer->Manager() == aManager,
+                    "retaining manager changed out from under us ... HELP!");
 
   if (IsTempLayerManager(aManager) ||
       (mContainer && mContainer->Manager() != aManager)) {
     // This can happen if aManager is a "temporary" manager, or if the
     // widget's layer manager changed out from under us.  We need to
     // FIXME handle the former case somehow, probably with an API to
-    // draw a manager's subtree.  The latter is bad bad bad, but the the
-    // MOZ_ASSERT() above will flag it.  Returning nullptr here will just
-    // cause the shadow subtree not to be rendered.
+    // draw a manager's subtree.  The latter is bad bad bad, but the
+    // the NS_ABORT_IF_FALSE() above will flag it.  Returning nullptr
+    // here will just cause the shadow subtree not to be rendered.
     NS_WARNING("Remote iframe not rendered");
     return nullptr;
   }
@@ -408,8 +404,8 @@ RenderFrameParent::BuildLayer(nsDisplayListBuilder* aBuilder,
 void
 RenderFrameParent::OwnerContentChanged(nsIContent* aContent)
 {
-  MOZ_ASSERT(mFrameLoader->GetOwnerContent() == aContent,
-             "Don't build new map if owner is same!");
+  NS_ABORT_IF_FALSE(mFrameLoader->GetOwnerContent() == aContent,
+                    "Don't build new map if owner is same!");
 
   nsRefPtr<LayerManager> lm = GetFrom(mFrameLoader);
   // Perhaps the document containing this frame currently has no presentation?
@@ -418,6 +414,18 @@ RenderFrameParent::OwnerContentChanged(nsIContent* aContent)
       static_cast<ClientLayerManager*>(lm.get());
     clientManager->GetRemoteRenderer()->SendAdoptChild(mLayersId);
   }
+}
+
+nsEventStatus
+RenderFrameParent::NotifyInputEvent(WidgetInputEvent& aEvent,
+                                    ScrollableLayerGuid* aOutTargetGuid,
+                                    uint64_t* aOutInputBlockId)
+{
+  if (GetApzcTreeManager()) {
+    return GetApzcTreeManager()->ReceiveInputEvent(
+        aEvent, aOutTargetGuid, aOutInputBlockId);
+  }
+  return nsEventStatus_eIgnore;
 }
 
 void
@@ -533,9 +541,7 @@ RenderFrameParent::ContentReceivedInputBlock(const ScrollableLayerGuid& aGuid,
     return;
   }
   if (GetApzcTreeManager()) {
-    APZThreadUtils::RunOnControllerThread(NewRunnableMethod(
-        GetApzcTreeManager(), &APZCTreeManager::ContentReceivedInputBlock,
-        aInputBlockId, aPreventDefault));
+    GetApzcTreeManager()->ContentReceivedInputBlock(aInputBlockId, aPreventDefault);
   }
 }
 
@@ -551,12 +557,7 @@ RenderFrameParent::SetTargetAPZC(uint64_t aInputBlockId,
     }
   }
   if (GetApzcTreeManager()) {
-    // need a local var to disambiguate between the SetTargetAPZC overloads.
-    void (APZCTreeManager::*setTargetApzcFunc)(uint64_t, const nsTArray<ScrollableLayerGuid>&)
-        = &APZCTreeManager::SetTargetAPZC;
-    APZThreadUtils::RunOnControllerThread(NewRunnableMethod(
-        GetApzcTreeManager(), setTargetApzcFunc,
-        aInputBlockId, aTargets));
+    GetApzcTreeManager()->SetTargetAPZC(aInputBlockId, aTargets);
   }
 }
 
@@ -594,45 +595,8 @@ RenderFrameParent::GetTextureFactoryIdentifier(TextureFactoryIdentifier* aTextur
   }
 }
 
-void
-RenderFrameParent::TakeFocusForClick()
-{
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (!fm) {
-    return;
-  }
-  nsCOMPtr<nsIContent> owner = mFrameLoader->GetOwnerContent();
-  if (!owner) {
-    return;
-  }
-  nsCOMPtr<nsIDOMElement> element = do_QueryInterface(owner);
-  if (!element) {
-    return;
-  }
-  fm->SetFocus(element, nsIFocusManager::FLAG_BYMOUSE |
-                        nsIFocusManager::FLAG_NOSCROLL);
-}
-
 }  // namespace layout
 }  // namespace mozilla
-
-nsDisplayRemote::nsDisplayRemote(nsDisplayListBuilder* aBuilder,
-                                 nsIFrame* aFrame,
-                                 RenderFrameParent* aRemoteFrame)
-  : nsDisplayItem(aBuilder, aFrame)
-  , mRemoteFrame(aRemoteFrame)
-  , mEventRegionsOverride(EventRegionsOverride::NoOverride)
-{
-  if (aBuilder->IsBuildingLayerEventRegions()) {
-    if (aBuilder->IsInsidePointerEventsNoneDoc() ||
-        aFrame->StyleVisibility()->GetEffectivePointerEvents(aFrame) == NS_STYLE_POINTER_EVENTS_NONE) {
-      mEventRegionsOverride |= EventRegionsOverride::ForceEmptyHitRegion;
-    }
-    if (nsLayoutUtils::HasDocumentLevelListenersForApzAwareEvents(aFrame->PresContext()->PresShell())) {
-      mEventRegionsOverride |= EventRegionsOverride::ForceDispatchToContent;
-    }
-  }
-}
 
 already_AddRefed<Layer>
 nsDisplayRemote::BuildLayer(nsDisplayListBuilder* aBuilder,
@@ -643,9 +607,6 @@ nsDisplayRemote::BuildLayer(nsDisplayListBuilder* aBuilder,
   nsIntRect visibleRect = GetVisibleRect().ToNearestPixels(appUnitsPerDevPixel);
   visibleRect += aContainerParameters.mOffset;
   nsRefPtr<Layer> layer = mRemoteFrame->BuildLayer(aBuilder, mFrame, aManager, visibleRect, this, aContainerParameters);
-  if (layer && layer->AsContainerLayer()) {
-    layer->AsContainerLayer()->SetEventRegionsOverride(mEventRegionsOverride);
-  }
   return layer.forget();
 }
 

@@ -20,7 +20,7 @@ import sys
 import tempfile
 
 # The DMD output version this script handles.
-outputVersion = 4
+outputVersion = 3
 
 # If --ignore-alloc-fns is specified, stack frames containing functions that
 # match these strings will be removed from the *start* of stack traces. (Once
@@ -408,19 +408,14 @@ def getDigestFromFile(args, inputFile):
             slopSize = 0
             isSampled = True
 
-        if 'num' in block:
-            num = block['num']
-        else:
-            num = 1
-
         usableSize = reqSize + slopSize
-        heapUsableSize += num * usableSize
-        heapBlocks += num
+        heapUsableSize += usableSize
+        heapBlocks += 1
 
-        record.numBlocks  += num
-        record.reqSize    += num * reqSize
-        record.slopSize   += num * slopSize
-        record.usableSize += num * usableSize
+        record.numBlocks  += 1
+        record.reqSize    += reqSize
+        record.slopSize   += slopSize
+        record.usableSize += usableSize
         record.isSampled   = record.isSampled or isSampled
         if record.allocatedAtDesc == None:
             record.allocatedAtDesc = \
@@ -433,7 +428,7 @@ def getDigestFromFile(args, inputFile):
             if 'reps' in block and record.reportedAtDescs == []:
                 f = lambda k: buildTraceDescription(traceTable, frameTable, k)
                 record.reportedAtDescs = map(f, reportedAtTraceKeys)
-        record.usableSizes[(usableSize, isSampled)] += num
+        record.usableSizes[(usableSize, isSampled)] += 1
 
     # All the processed data for a single DMD file is called a "digest".
     digest = {}

@@ -910,10 +910,10 @@ nsWebBrowserPersist::OnDataAvailable(
 //*****************************************************************************
 
 /* void onProgress (in nsIRequest request, in nsISupports ctxt,
-    in long long aProgress, in long long aProgressMax); */
+    in unsigned long long aProgress, in unsigned long long aProgressMax); */
 NS_IMETHODIMP nsWebBrowserPersist::OnProgress(
-    nsIRequest *request, nsISupports *ctxt, int64_t aProgress,
-    int64_t aProgressMax)
+    nsIRequest *request, nsISupports *ctxt, uint64_t aProgress,
+    uint64_t aProgressMax)
 {
     if (!mProgressListener)
     {
@@ -925,16 +925,16 @@ NS_IMETHODIMP nsWebBrowserPersist::OnProgress(
     OutputData *data = mOutputMap.Get(keyPtr);
     if (data)
     {
-        data->mSelfProgress = aProgress;
-        data->mSelfProgressMax = aProgressMax;
+        data->mSelfProgress = int64_t(aProgress);
+        data->mSelfProgressMax = int64_t(aProgressMax);
     }
     else
     {
         UploadData *upData = mUploadList.Get(keyPtr);
         if (upData)
         {
-            upData->mSelfProgress = aProgress;
-            upData->mSelfProgressMax = aProgressMax;
+            upData->mSelfProgress = int64_t(aProgress);
+            upData->mSelfProgressMax = int64_t(aProgressMax);
         }
     }
 
@@ -3628,11 +3628,11 @@ nsWebBrowserPersist::CreateChannelFromURI(nsIURI *aURI, nsIChannel **aChannel)
     nsresult rv = NS_OK;
     *aChannel = nullptr;
 
-    rv = NS_NewChannel(aChannel,
-                       aURI,
-                       nsContentUtils::GetSystemPrincipal(),
-                       nsILoadInfo::SEC_NORMAL,
-                       nsIContentPolicy::TYPE_OTHER);
+    nsCOMPtr<nsIIOService> ioserv;
+    ioserv = do_GetIOService(&rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = ioserv->NewChannelFromURI(aURI, aChannel);
     NS_ENSURE_SUCCESS(rv, rv);
     NS_ENSURE_ARG_POINTER(*aChannel);
 

@@ -22,10 +22,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "WebappOSUtils",
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
   "resource://gre/modules/NetUtil.jsm");
 
-XPCOMUtils.defineLazyServiceGetter(this, "appsService",
-                                   "@mozilla.org/AppsService;1",
-                                   "nsIAppsService");
-
 // Shared code for AppsServiceChild.jsm, TrustedHostedAppsUtils.jsm,
 // Webapps.jsm and Webapps.js
 
@@ -489,20 +485,12 @@ this.AppsUtils = {
    * Checks if the app role is allowed:
    * Only certified apps can be themes.
    * Only privileged or certified apps can be addons.
-   * Langpacks need to be privileged.
    * @param aRole   : the role assigned to this app.
    * @param aStatus : the APP_STATUS_* for this app.
    */
   checkAppRole: function(aRole, aStatus) {
     if (aRole == "theme" && aStatus !== Ci.nsIPrincipal.APP_STATUS_CERTIFIED) {
       return false;
-    }
-    if (aRole == "langpack" && aStatus !== Ci.nsIPrincipal.APP_STATUS_PRIVILEGED) {
-      let allow = false;
-      try  {
-        allow = Services.prefs.getBoolPref("dom.apps.allow_unsigned_langpacks");
-      } catch(e) {}
-      return allow;
     }
     if (!this.allowUnsignedAddons &&
         (aRole == "addon" &&
@@ -673,17 +661,10 @@ this.AppsUtils = {
       let file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
       file.initWithPath(aPath);
 
-      let channel = NetUtil.newChannel2(file,
-                                        null,
-                                        null,
-                                        null,      // aLoadingNode
-                                        Services.scriptSecurityManager.getSystemPrincipal(),
-                                        null,      // aTriggeringPrincipal
-                                        Ci.nsILoadInfo.SEC_NORMAL,
-                                        Ci.nsIContentPolicy.TYPE_OTHER);
+      let channel = NetUtil.newChannel(file);
       channel.contentType = "application/json";
 
-      NetUtil.asyncFetch2(channel, function(aStream, aResult) {
+      NetUtil.asyncFetch(channel, function(aStream, aResult) {
         if (!Components.isSuccessCode(aResult)) {
           deferred.resolve(null);
 
@@ -751,16 +732,7 @@ this.AppsUtils = {
   // Returns the hash for a JS object.
   computeObjectHash: function(aObject) {
     return this.computeHash(JSON.stringify(aObject));
-  },
-
-  getAppManifestURLFromWindow: function(aWindow) {
-    let appId = aWindow.document.nodePrincipal.appId;
-    if (appId === Ci.nsIScriptSecurityManager.NO_APP_ID) {
-      return null;
-    }
-
-    return appsService.getManifestURLByLocalId(appId);
-  },
+  }
 }
 
 /**

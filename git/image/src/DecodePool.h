@@ -12,6 +12,7 @@
 
 #include "mozilla/Mutex.h"
 #include "mozilla/StaticPtr.h"
+#include <mozilla/TypedEnum.h>
 #include "nsCOMPtr.h"
 #include "nsIEventTarget.h"
 #include "nsIObserver.h"

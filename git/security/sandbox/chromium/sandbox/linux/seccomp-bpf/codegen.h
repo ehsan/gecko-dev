@@ -5,18 +5,16 @@
 #ifndef SANDBOX_LINUX_SECCOMP_BPF_CODEGEN_H__
 #define SANDBOX_LINUX_SECCOMP_BPF_CODEGEN_H__
 
-#include <stdint.h>
-
 #include <map>
+#include <set>
 #include <vector>
 
+#include "sandbox/linux/seccomp-bpf/basicblock.h"
+#include "sandbox/linux/seccomp-bpf/instruction.h"
+#include "sandbox/linux/seccomp-bpf/sandbox_bpf.h"
 #include "sandbox/sandbox_export.h"
 
-struct sock_filter;
-
 namespace sandbox {
-struct BasicBlock;
-struct Instruction;
 
 typedef std::vector<Instruction*> Instructions;
 typedef std::vector<BasicBlock*> BasicBlocks;
@@ -31,24 +29,25 @@ typedef std::map<const BasicBlock*, int> IncomingBranches;
 //
 // Callers would typically create a new CodeGen object and then use it to
 // build a DAG of Instructions. They'll eventually call Compile() to convert
-// this DAG to a Program.
+// this DAG to a SandboxBPF::Program.
+//
+// Instructions can be chained at the time when they are created, or they
+// can be joined later by calling JoinInstructions().
 //
 //   CodeGen gen;
-//   Instruction *allow, *branch, *dag;
-//
-//   allow =
-//     gen.MakeInstruction(BPF_RET+BPF_K,
-//                         ErrorCode(ErrorCode::ERR_ALLOWED).err()));
-//   branch =
-//     gen.MakeInstruction(BPF_JMP+BPF_EQ+BPF_K, __NR_getpid,
-//                         Trap(GetPidHandler, NULL), allow);
+//   Instruction *dag, *branch;
 //   dag =
 //     gen.MakeInstruction(BPF_LD+BPF_W+BPF_ABS,
-//                         offsetof(struct arch_seccomp_data, nr), branch);
+//                         offsetof(struct arch_seccomp_data, nr),
+//   branch =
+//     gen.MakeInstruction(BPF_JMP+BPF_EQ+BPF_K, __NR_getpid,
+//                         Trap(GetPidHandler, NULL), NULL);
+//   gen.JoinInstructions(branch,
+//     gen.MakeInstruction(BPF_RET+BPF_K, ErrorCode(ErrorCode::ERR_ALLOWED)));
 //
 //   // Simplified code follows; in practice, it is important to avoid calling
 //   // any C++ destructors after starting the sandbox.
-//   CodeGen::Program program;
+//   SandboxBPF::Program program;
 //   gen.Compile(dag, program);
 //   const struct sock_fprog prog = {
 //     static_cast<unsigned short>(program->size()), &program[0] };
@@ -56,12 +55,12 @@ typedef std::map<const BasicBlock*, int> IncomingBranches;
 //
 class SANDBOX_EXPORT CodeGen {
  public:
-  // A vector of BPF instructions that need to be installed as a filter
-  // program in the kernel.
-  typedef std::vector<struct sock_filter> Program;
-
   CodeGen();
   ~CodeGen();
+
+  // This is a helper method that can be used for debugging purposes. It is
+  // not normally called.
+  static void PrintProgram(const SandboxBPF::Program& program);
 
   // Create a new instruction. Instructions form a DAG. The instruction objects
   // are owned by the CodeGen object. They do not need to be explicitly
@@ -69,16 +68,30 @@ class SANDBOX_EXPORT CodeGen {
   // For details on the possible parameters refer to <linux/filter.h>
   Instruction* MakeInstruction(uint16_t code,
                                uint32_t k,
-                               Instruction* next = nullptr);
+                               Instruction* next = NULL);
+  Instruction* MakeInstruction(uint16_t code, const ErrorCode& err);
   Instruction* MakeInstruction(uint16_t code,
                                uint32_t k,
                                Instruction* jt,
                                Instruction* jf);
 
+  // Join two (sequences of) instructions. This is useful, if the "next"
+  // parameter had not originally been given in the call to MakeInstruction(),
+  // or if a (conditional) jump still has an unsatisfied target.
+  void JoinInstructions(Instruction* head, Instruction* tail);
+
+  // Traverse the graph of instructions and visit each instruction once.
+  // Traversal order is implementation-defined. It is acceptable to make
+  // changes to the graph from within the callback function. These changes
+  // do not affect traversal.
+  // The "fnc" function gets called with both the instruction and the opaque
+  // "aux" pointer.
+  void Traverse(Instruction*, void (*fnc)(Instruction*, void* aux), void* aux);
+
   // Compiles the graph of instructions into a BPF program that can be passed
   // to the kernel. Please note that this function modifies the graph in place
   // and must therefore only be called once per graph.
-  void Compile(Instruction* instructions, Program* program);
+  void Compile(Instruction* instructions, SandboxBPF::Program* program);
 
  private:
   friend class CodeGenUnittestHelper;
@@ -128,7 +141,7 @@ class SANDBOX_EXPORT CodeGen {
 
   // Concatenate instructions from all basic blocks into a BPF program that
   // can be passed to the kernel.
-  void ConcatenateBasicBlocks(const BasicBlocks&, Program* program);
+  void ConcatenateBasicBlocks(const BasicBlocks&, SandboxBPF::Program* program);
 
   // We stick all instructions and basic blocks into pools that get destroyed
   // when the CodeGen object is destroyed. This way, we neither need to worry

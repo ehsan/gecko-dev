@@ -1362,14 +1362,7 @@ function getLocale() {
     return gLocale;
 
   for (let res of ['app', 'gre']) {
-    var channel = Services.io.newChannel2("resource://" + res + "/" + FILE_UPDATE_LOCALE,
-                                          null,
-                                          null,
-                                          null,      // aLoadingNode
-                                          Services.scriptSecurityManager.getSystemPrincipal(),
-                                          null,      // aTriggeringPrincipal
-                                          Ci.nsILoadInfo.SEC_NORMAL,
-                                          Ci.nsIContentPolicy.TYPE_DATAREQUEST);
+    var channel = Services.io.newChannel("resource://" + res + "/" + FILE_UPDATE_LOCALE, null, null);
     try {
       var inputStream = channel.open();
       gLocale = readStringFromInputStream(inputStream);

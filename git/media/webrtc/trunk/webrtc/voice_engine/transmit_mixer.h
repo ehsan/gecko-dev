@@ -17,7 +17,6 @@
 #include "webrtc/modules/interface/module_common_types.h"
 #include "webrtc/modules/utility/interface/file_player.h"
 #include "webrtc/modules/utility/interface/file_recorder.h"
-#include "webrtc/system_wrappers/interface/scoped_ptr.h"
 #include "webrtc/voice_engine/include/voe_base.h"
 #include "webrtc/voice_engine/level_indicator.h"
 #include "webrtc/voice_engine/monitor_module.h"
@@ -37,7 +36,9 @@ class MixedAudio;
 class Statistics;
 
 class TransmitMixer : public MonitorObserver,
-                      public FileCallback {
+                      public FileCallback
+
+{
 public:
     static int32_t Create(TransmitMixer*& mixer, uint32_t instanceId);
 
@@ -117,6 +118,8 @@ public:
 
     int IsPlayingFileAsMicrophone() const;
 
+    int ScaleFileAsMicrophonePlayout(float scale);
+
     int StartRecordingMicrophone(const char* fileName,
                                  const CodecInst* codecInst);
 
@@ -172,10 +175,10 @@ private:
     // sending codecs.
     void GetSendCodecInfo(int* max_sample_rate, int* max_channels);
 
-    void GenerateAudioFrame(const int16_t audioSamples[],
-                            int nSamples,
-                            int nChannels,
-                            int samplesPerSec);
+    int GenerateAudioFrame(const int16_t audioSamples[],
+                           int nSamples,
+                           int nChannels,
+                           int samplesPerSec);
     int32_t RecordAudioToFile(uint32_t mixingFrequency);
 
     int32_t MixOrReplaceAudioWithFile(
@@ -198,7 +201,7 @@ private:
     // owns
     MonitorModule _monitorModule;
     AudioFrame _audioFrame;
-    PushResampler<int16_t> resampler_;  // ADM sample rate -> mixing rate
+    PushResampler resampler_;  // ADM sample rate -> mixing rate
     FilePlayer* _filePlayerPtr;
     FileRecorder* _fileRecorderPtr;
     FileRecorder* _fileCallRecorderPtr;
@@ -229,7 +232,6 @@ private:
     int32_t _remainingMuteMicTimeMs;
     bool stereo_codec_;
     bool swap_stereo_channels_;
-    scoped_ptr<int16_t[]> mono_buffer_;
 };
 
 }  // namespace voe

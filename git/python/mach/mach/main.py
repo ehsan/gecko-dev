@@ -445,12 +445,12 @@ To see more help for a specific command, run:
 
         fn = getattr(instance, handler.method)
 
+        if args.debug_command:
+            import pdb
+            pdb.set_trace()
+
         try:
-            if args.debug_command:
-                import pdb
-                result = pdb.runcall(fn, **vars(args.command_args))
-            else:
-                result = fn(**vars(args.command_args))
+            result = fn(**vars(args.command_args))
 
             if not result:
                 result = 0

@@ -5,6 +5,7 @@
 
 // Original author: ekr@rtfm.com
 
+#include "logging.h"
 #include "MediaPipeline.h"
 
 #ifndef USE_FAKE_MEDIA_STREAMS
@@ -44,7 +45,8 @@
 #include "mozilla/gfx/Point.h"
 #include "mozilla/gfx/Types.h"
 
-#include "logging.h"
+#include "webrtc/modules/interface/module_common_types.h"
+#include "webrtc/modules/rtp_rtcp/interface/rtp_header_parser.h"
 
 using namespace mozilla;
 using namespace mozilla::gfx;
@@ -65,12 +67,6 @@ MediaPipeline::~MediaPipeline() {
 nsresult MediaPipeline::Init() {
   ASSERT_ON_THREAD(main_thread_);
 
-  if (direction_ == RECEIVE) {
-    conduit_->SetReceiverTransport(transport_);
-  } else {
-    conduit_->SetTransmitterTransport(transport_);
-  }
-
   RUN_ON_THREAD(sts_thread_,
                 WrapRunnable(
                     nsRefPtr<MediaPipeline>(this),
@@ -82,36 +78,8 @@ nsresult MediaPipeline::Init() {
 
 nsresult MediaPipeline::Init_s() {
   ASSERT_ON_THREAD(sts_thread_);
+  conduit_->AttachTransport(transport_);
 
-  return AttachTransport_s();
-}
-
-
-// Disconnect us from the transport so that we can cleanly destruct the
-// pipeline on the main thread.  ShutdownMedia_m() must have already been
-// called
-void MediaPipeline::ShutdownTransport_s() {
-  ASSERT_ON_THREAD(sts_thread_);
-  MOZ_ASSERT(!stream_); // verifies that ShutdownMedia_m() has run
-
-  DetachTransport_s();
-}
-
-void
-MediaPipeline::DetachTransport_s()
-{
-  ASSERT_ON_THREAD(sts_thread_);
-
-  disconnect_all();
-  transport_->Detach();
-  rtp_.transport_ = nullptr;
-  rtcp_.transport_ = nullptr;
-}
-
-nsresult
-MediaPipeline::AttachTransport_s()
-{
-  ASSERT_ON_THREAD(sts_thread_);
   nsresult res;
   MOZ_ASSERT(rtp_.transport_);
   MOZ_ASSERT(rtcp_.transport_);
@@ -126,55 +94,22 @@ MediaPipeline::AttachTransport_s()
       return res;
     }
   }
+
   return NS_OK;
 }
 
-void
-MediaPipeline::UpdateTransport_m(int level,
-                                 RefPtr<TransportFlow> rtp_transport,
-                                 RefPtr<TransportFlow> rtcp_transport,
-                                 nsAutoPtr<MediaPipelineFilter> filter)
-{
-  RUN_ON_THREAD(sts_thread_,
-                WrapRunnable(
-                    this,
-                    &MediaPipeline::UpdateTransport_s,
-                    level,
-                    rtp_transport,
-                    rtcp_transport,
-                    filter),
-                NS_DISPATCH_NORMAL);
-}
 
-void
-MediaPipeline::UpdateTransport_s(int level,
-                                 RefPtr<TransportFlow> rtp_transport,
-                                 RefPtr<TransportFlow> rtcp_transport,
-                                 nsAutoPtr<MediaPipelineFilter> filter)
-{
-  bool rtcp_mux = false;
-  if (!rtcp_transport) {
-    rtcp_transport = rtp_transport;
-    rtcp_mux = true;
-  }
+// Disconnect us from the transport so that we can cleanly destruct the
+// pipeline on the main thread.  ShutdownMedia_m() must have already been
+// called
+void MediaPipeline::ShutdownTransport_s() {
+  ASSERT_ON_THREAD(sts_thread_);
+  MOZ_ASSERT(!stream_); // verifies that ShutdownMedia_m() has run
 
-  if ((rtp_transport != rtp_.transport_) ||
-      (rtcp_transport != rtcp_.transport_)) {
-    DetachTransport_s();
-    rtp_ = TransportInfo(rtp_transport, rtcp_mux ? MUX : RTP);
-    rtcp_ = TransportInfo(rtcp_transport, rtcp_mux ? MUX : RTCP);
-    AttachTransport_s();
-  }
-
-  level_ = level;
-
-  if (filter_ && filter) {
-    // Use the new filter, but don't forget any remote SSRCs that we've learned
-    // by receiving traffic.
-    filter_->Update(*filter);
-  } else {
-    filter_ = filter;
-  }
+  disconnect_all();
+  transport_->Detach();
+  rtp_.transport_ = nullptr;
+  rtcp_.transport_ = nullptr;
 }
 
 void MediaPipeline::StateChange(TransportFlow *flow, TransportLayer::State state) {
@@ -491,7 +426,6 @@ void MediaPipeline::RtpPacketReceived(TransportLayer *layer,
 
     return;
   }
-  MOZ_MTLOG(ML_DEBUG, description_ << " received RTP packet.");
   increment_rtp_packets_received(out_len);
 
   (void)conduit_->ReceivedRTPPacket(inner_data, out_len);  // Ignore error codes
@@ -552,7 +486,6 @@ void MediaPipeline::RtcpPacketReceived(TransportLayer *layer,
     }
   }
 
-  MOZ_MTLOG(ML_DEBUG, description_ << " received RTCP packet.");
   increment_rtcp_packets_received();
 
   MOZ_ASSERT(rtcp_.recv_srtp_);  // This should never happen
@@ -614,13 +547,17 @@ nsresult MediaPipelineTransmit::Init() {
   return MediaPipeline::Init();
 }
 
-void MediaPipelineTransmit::AttachToTrack(const std::string& track_id) {
+void MediaPipelineTransmit::AttachToTrack(TrackID track_id) {
+  char track_id_string[11];
   ASSERT_ON_THREAD(main_thread_);
+
+  // We can replace this when we are allowed to do streams or std::to_string
+  PR_snprintf(track_id_string, sizeof(track_id_string), "%d", track_id);
 
   description_ = pc_ + "| ";
   description_ += conduit_->type() == MediaSessionConduit::AUDIO ?
       "Transmit audio[" : "Transmit video[";
-  description_ += track_id;
+  description_ += track_id_string;
   description_ += "]";
 
   // TODO(ekr@rtfm.com): Check for errors
@@ -676,11 +613,10 @@ nsresult MediaPipelineTransmit::TransportReady_s(TransportInfo &info) {
 }
 
 nsresult MediaPipelineTransmit::ReplaceTrack(DOMMediaStream *domstream,
-                                             const std::string& track_id) {
+                                             TrackID track_id) {
   // MainThread, checked in calls we make
-  MOZ_MTLOG(ML_DEBUG, "Reattaching pipeline " << description_ << " to stream "
-            << static_cast<void *>(domstream->GetStream())
-            << " track " << track_id << " conduit type=" <<
+  MOZ_MTLOG(ML_DEBUG, "Reattaching pipeline to stream "
+            << static_cast<void *>(domstream->GetStream()) << " conduit type=" <<
             (conduit_->type() == MediaSessionConduit::AUDIO ?"audio":"video"));
 
   if (domstream_) { // may be excessive paranoia
@@ -688,7 +624,7 @@ nsresult MediaPipelineTransmit::ReplaceTrack(DOMMediaStream *domstream,
   }
   domstream_ = domstream; // Detach clears it
   stream_ = domstream->GetStream();
-  track_id_ = track_id;
+  //track_id_ = track_id; not threadsafe to change this; and we don't need to
   AttachToTrack(track_id);
   return NS_OK;
 }
@@ -746,6 +682,22 @@ MediaPipeline::TransportInfo* MediaPipeline::GetTransportInfo_s(
   return nullptr;
 }
 
+MediaPipelineFilter* MediaPipeline::UpdateFilterFromRemoteDescription_s(
+    nsAutoPtr<MediaPipelineFilter> filter) {
+  ASSERT_ON_THREAD(sts_thread_);
+  // This is only supposed to relax the filter. Relaxing a missing filter is
+  // not possible.
+  MOZ_ASSERT(filter_);
+
+  if (!filter) {
+    filter_ = nullptr;
+  } else {
+    filter_->IncorporateRemoteDescription(*filter);
+  }
+
+  return filter_.get();
+}
+
 nsresult MediaPipeline::PipelineTransport::SendRtpPacket(
     const void *data, int len) {
 
@@ -793,7 +745,6 @@ nsresult MediaPipeline::PipelineTransport::SendRtpPacket_s(
   if (!NS_SUCCEEDED(res))
     return res;
 
-  MOZ_MTLOG(ML_DEBUG, pipeline_->description_ << " sending RTP packet.");
   pipeline_->increment_rtp_packets_sent(out_len);
   return pipeline_->SendPacket(pipeline_->rtp_.transport_, inner_data,
                                out_len);
@@ -847,7 +798,6 @@ nsresult MediaPipeline::PipelineTransport::SendRtcpPacket_s(
   if (!NS_SUCCEEDED(res))
     return res;
 
-  MOZ_MTLOG(ML_DEBUG, pipeline_->description_ << " sending RTCP packet.");
   pipeline_->increment_rtcp_packets_sent();
   return pipeline_->SendPacket(pipeline_->rtcp_.transport_, inner_data,
                                out_len);
@@ -1064,6 +1014,7 @@ void MediaPipelineTransmit::PipelineListener::ProcessVideoChunk(
 
     // Send a black image.
     nsAutoArrayPtr<uint8_t> pixelData;
+    static const fallible_t fallible = fallible_t();
     pixelData = new (fallible) uint8_t[length];
     if (pixelData) {
       // YCrCb black = 0x10 0x80 0x80
@@ -1214,11 +1165,15 @@ void MediaPipelineTransmit::PipelineListener::ProcessVideoChunk(
 #endif
 
 nsresult MediaPipelineReceiveAudio::Init() {
+  char track_id_string[11];
   ASSERT_ON_THREAD(main_thread_);
   MOZ_MTLOG(ML_DEBUG, __FUNCTION__);
 
+  // We can replace this when we are allowed to do streams or std::to_string
+  PR_snprintf(track_id_string, sizeof(track_id_string), "%d", track_id_);
+
   description_ = pc_ + "| Receive audio[";
-  description_ += track_id_;
+  description_ += track_id_string;
   description_ += "]";
 
   listener_->AddSelf(new AudioSegment());
@@ -1347,6 +1302,7 @@ NotifyPull(MediaStreamGraph* graph, StreamTime desired_time) {
             track_rate_,
             0,  // TODO(ekr@rtfm.com): better estimate of "capture" (really playout) delay
             samples_length);
+    MOZ_ASSERT(samples_length < AUDIO_SAMPLE_BUFFER_MAX);
 
     if (err != kMediaConduitNoError) {
       // Insert silence on conduit/GIPS failure (extremely unlikely)
@@ -1354,11 +1310,10 @@ NotifyPull(MediaStreamGraph* graph, StreamTime desired_time) {
                 << ") to return data @ " << played_ticks_
                 << " (desired " << desired_time << " -> "
                 << source_->StreamTimeToSeconds(desired_time) << ")");
+      MOZ_ASSERT(err == kMediaConduitNoError);
       samples_length = (track_rate_/100)*sizeof(uint16_t); // if this is not enough we'll loop and provide more
       memset(samples_data, '\0', samples_length);
     }
-
-    MOZ_ASSERT(samples_length < AUDIO_SAMPLE_BUFFER_MAX);
 
     MOZ_MTLOG(ML_DEBUG, "Audio conduit returned buffer of length "
               << samples_length);
@@ -1381,11 +1336,15 @@ NotifyPull(MediaStreamGraph* graph, StreamTime desired_time) {
 }
 
 nsresult MediaPipelineReceiveVideo::Init() {
+  char track_id_string[11];
   ASSERT_ON_THREAD(main_thread_);
   MOZ_MTLOG(ML_DEBUG, __FUNCTION__);
 
+  // We can replace this when we are allowed to do streams or std::to_string
+  PR_snprintf(track_id_string, sizeof(track_id_string), "%d", track_id_);
+
   description_ = pc_ + "| Receive video[";
-  description_ += track_id_;
+  description_ += track_id_string;
   description_ += "]";
 
 #ifdef MOZILLA_INTERNAL_API

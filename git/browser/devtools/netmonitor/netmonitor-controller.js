@@ -119,7 +119,6 @@ const promise = Cu.import("resource://gre/modules/Promise.jsm", {}).Promise;
 const EventEmitter = require("devtools/toolkit/event-emitter");
 const Editor = require("devtools/sourceeditor/editor");
 const {Tooltip} = require("devtools/shared/widgets/Tooltip");
-const {ToolSidebar} = require("devtools/framework/sidebar");
 
 XPCOMUtils.defineLazyModuleGetter(this, "Chart",
   "resource:///modules/devtools/Chart.jsm");
@@ -401,16 +400,6 @@ let NetMonitorController = {
   },
 
   /**
-   * Getter that tells if the server includes the transferred (compressed /
-   * encoded) response size.
-   * @type boolean
-   */
-  get supportsTransferredResponseSize() {
-    return this.webConsoleClient &&
-           this.webConsoleClient.traits.transferredResponseSize;
-  },
-
-  /**
    * Getter that tells if the server can do network performance statistics.
    * @type boolean
    */
@@ -616,7 +605,6 @@ NetworkEventsHandler.prototype = {
       case "responseContent":
         NetMonitorView.RequestsMenu.updateRequest(aPacket.from, {
           contentSize: aPacket.contentSize,
-          transferredSize: aPacket.transferredSize,
           mimeType: aPacket.mimeType
         });
         this.webConsoleClient.getResponseContent(actor, this._onResponseContent);
@@ -815,8 +803,7 @@ NetMonitorController.NetworkEventsHandler = new NetworkEventsHandler();
  */
 Object.defineProperties(window, {
   "gNetwork": {
-    get: function() NetMonitorController.NetworkEventsHandler,
-    configurable: true
+    get: function() NetMonitorController.NetworkEventsHandler
   }
 });
 

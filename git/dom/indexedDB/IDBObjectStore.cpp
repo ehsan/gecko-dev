@@ -464,7 +464,7 @@ StructuredCloneReadString(JSStructuredCloneReader* aReader,
   }
   length = NativeEndian::swapFromLittleEndian(length);
 
-  if (!aString.SetLength(length, fallible)) {
+  if (!aString.SetLength(length, fallible_t())) {
     NS_WARNING("Out of memory?");
     return false;
   }
@@ -677,7 +677,9 @@ public:
     MOZ_ASSERT(!aDatabase);
 
     // MutableFile can't be used in index creation, so just make a dummy object.
-    JS::Rooted<JSObject*> obj(aCx, JS_NewPlainObject(aCx));
+    JS::Rooted<JSObject*> obj(aCx,
+      JS_NewObject(aCx, nullptr, JS::NullPtr(), JS::NullPtr()));
+
     if (NS_WARN_IF(!obj)) {
       return false;
     }
@@ -703,7 +705,8 @@ public:
     //   File.name
     //   File.lastModifiedDate
 
-    JS::Rooted<JSObject*> obj(aCx, JS_NewPlainObject(aCx));
+    JS::Rooted<JSObject*> obj(aCx,
+      JS_NewObject(aCx, nullptr, JS::NullPtr(), JS::NullPtr()));
     if (NS_WARN_IF(!obj)) {
       return false;
     }
@@ -853,7 +856,7 @@ const JSClass IDBObjectStore::sDummyPropJSClass = {
 IDBObjectStore::IDBObjectStore(IDBTransaction* aTransaction,
                                const ObjectStoreSpec* aSpec)
   : mTransaction(aTransaction)
-  , mCachedKeyPath(JS::UndefinedValue())
+  , mCachedKeyPath(JSVAL_VOID)
   , mSpec(aSpec)
   , mId(aSpec->metadata().id())
   , mRooted(false)
@@ -868,7 +871,7 @@ IDBObjectStore::~IDBObjectStore()
   AssertIsOnOwningThread();
 
   if (mRooted) {
-    mCachedKeyPath.setUndefined();
+    mCachedKeyPath = JSVAL_VOID;
     mozilla::DropJSObjects(this);
   }
 }
@@ -1484,7 +1487,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IDBObjectStore)
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mIndexes);
 
-  tmp->mCachedKeyPath.setUndefined();
+  tmp->mCachedKeyPath = JSVAL_VOID;
 
   if (tmp->mRooted) {
     mozilla::DropJSObjects(tmp);

@@ -32,7 +32,6 @@ from .data import (
     Exports,
     FinalTargetFiles,
     GeneratedEventWebIDLFile,
-    GeneratedFile,
     GeneratedInclude,
     GeneratedSources,
     GeneratedWebIDLFile,
@@ -48,7 +47,6 @@ from .data import (
     IPDLFile,
     JARManifest,
     JavaScriptModules,
-    JsPreferenceFile,
     Library,
     Linkable,
     LinkageWrongKindError,
@@ -411,6 +409,7 @@ class TreeMetadataEmitter(LoggingMixin):
             'EXTRA_PP_COMPONENTS',
             'FAIL_ON_WARNINGS',
             'USE_STATIC_LIBS',
+            'GENERATED_FILES',
             'IS_GYP_DIR',
             'MSVC_ENABLE_PGO',
             'NO_DIST_INSTALL',
@@ -518,33 +517,6 @@ class TreeMetadataEmitter(LoggingMixin):
             yield Exports(context, exports,
                 dist_install=not context.get('NO_DIST_INSTALL', False))
 
-        generated_files = context.get('GENERATED_FILES')
-        if generated_files:
-            for f in generated_files:
-                flags = generated_files[f]
-                output = f
-                if flags.script:
-                    script = mozpath.join(context.srcdir, flags.script)
-                    inputs = [mozpath.join(context.srcdir, i) for i in flags.inputs]
-
-                    if not os.path.exists(script):
-                        raise SandboxValidationError(
-                            'Script for generating %s does not exist: %s'
-                            % (f, script), context)
-                    if os.path.splitext(script)[1] != '.py':
-                        raise SandboxValidationError(
-                            'Script for generating %s does not end in .py: %s'
-                            % (f, script), context)
-                    for i in inputs:
-                        if not os.path.exists(i):
-                            raise SandboxValidationError(
-                                'Input for generating %s does not exist: %s'
-                                % (f, i), context)
-                else:
-                    script = None
-                    inputs = []
-                yield GeneratedFile(context, script, output, inputs)
-
         test_harness_files = context.get('TEST_HARNESS_FILES')
         if test_harness_files:
             srcdir_files = defaultdict(list)
@@ -582,9 +554,6 @@ class TreeMetadataEmitter(LoggingMixin):
         resources = context.get('RESOURCE_FILES')
         if resources:
             yield Resources(context, resources, defines)
-
-        for pref in sorted(context['JS_PREFERENCE_FILES']):
-            yield JsPreferenceFile(context, pref)
 
         for kind, cls in [('PROGRAM', Program), ('HOST_PROGRAM', HostProgram)]:
             program = context.get(kind)

@@ -85,8 +85,6 @@ gfxFontEntry::gfxFontEntry() :
     mHasSpaceFeaturesKerning(false),
     mHasSpaceFeaturesNonKerning(false),
     mSkipDefaultFeatureSpaceCheck(false),
-    mSpaceGlyphIsInvisible(false),
-    mSpaceGlyphIsInvisibleInitialized(false),
     mCheckedForGraphiteTables(false),
     mHasCmapTable(false),
     mGrFaceInitialized(false),
@@ -122,8 +120,6 @@ gfxFontEntry::gfxFontEntry(const nsAString& aName, bool aIsStandardFace) :
     mHasSpaceFeaturesKerning(false),
     mHasSpaceFeaturesNonKerning(false),
     mSkipDefaultFeatureSpaceCheck(false),
-    mSpaceGlyphIsInvisible(false),
-    mSpaceGlyphIsInvisibleInitialized(false),
     mCheckedForGraphiteTables(false),
     mHasCmapTable(false),
     mGrFaceInitialized(false),
@@ -336,10 +332,10 @@ bool
 gfxFontEntry::GetSVGGlyphExtents(gfxContext *aContext, uint32_t aGlyphId,
                                  gfxRect *aResult)
 {
-    MOZ_ASSERT(mSVGInitialized,
-               "SVG data has not yet been loaded. TryGetSVGData() first.");
-    MOZ_ASSERT(mUnitsPerEm >= kMinUPEM && mUnitsPerEm <= kMaxUPEM,
-               "font has invalid unitsPerEm");
+    NS_ABORT_IF_FALSE(mSVGInitialized,
+                      "SVG data has not yet been loaded. TryGetSVGData() first.");
+    NS_ABORT_IF_FALSE(mUnitsPerEm >= kMinUPEM && mUnitsPerEm <= kMaxUPEM,
+                      "font has invalid unitsPerEm");
 
     gfxContextAutoSaveRestore matrixRestore(aContext);
     cairo_matrix_t fontMatrix;
@@ -1473,7 +1469,7 @@ gfxFontFamily::FindFontForChar(GlobalFontMatch *aMatchData)
     if (fe && !fe->SkipDuringSystemFallback()) {
         int32_t rank = 0;
 
-        if (fe->HasCharacter(aMatchData->mCh)) {
+        if (fe->TestCharacterMap(aMatchData->mCh)) {
             rank += RANK_MATCHED_CMAP;
             aMatchData->mCount++;
 #ifdef PR_LOGGING
@@ -1520,7 +1516,7 @@ gfxFontFamily::SearchAllFontsForChar(GlobalFontMatch *aMatchData)
     uint32_t i, numFonts = mAvailableFonts.Length();
     for (i = 0; i < numFonts; i++) {
         gfxFontEntry *fe = mAvailableFonts[i];
-        if (fe && fe->HasCharacter(aMatchData->mCh)) {
+        if (fe && fe->TestCharacterMap(aMatchData->mCh)) {
             int32_t rank = RANK_MATCHED_CMAP;
             rank += CalcStyleMatch(fe, aMatchData->mStyle);
             if (rank > aMatchData->mMatchRank

@@ -41,8 +41,6 @@
 #include "nsISocketTransportService.h"
 #include "nsIURI.h"
 #include "nsICacheSession.h"
-#include "nsILoadInfo.h"
-#include "nsNullPrincipal.h"
 
 #ifdef MOZ_WIDGET_GONK
 #include "NetStatistics.h"
@@ -82,7 +80,7 @@ nsFtpState::nsFtpState()
     , mReceivedControlData(false)
     , mTryingCachedControl(false)
     , mRETRFailed(false)
-    , mFileSize(kJS_MAX_SAFE_UINTEGER)
+    , mFileSize(UINT64_MAX)
     , mServerType(FTP_GENERIC_TYPE)
     , mAction(GET)
     , mAnonymous(true)
@@ -1875,7 +1873,7 @@ nsFtpState::Init(nsFtpChannel *channel)
         do_GetService(NS_PROTOCOLPROXYSERVICE_CONTRACTID);
 
     if (pps && !mChannel->ProxyInfo()) {
-        pps->AsyncResolve(static_cast<nsIChannel*>(mChannel), 0, this,
+        pps->AsyncResolve(mChannel->URI(), 0, this,
                           getter_AddRefs(mProxyRequest));
     }
 
@@ -2171,7 +2169,7 @@ nsFtpState::ConvertDirspecFromVMS(nsCString& dirSpec)
 
 NS_IMETHODIMP
 nsFtpState::OnTransportStatus(nsITransport *transport, nsresult status,
-                              int64_t progress, int64_t progressMax)
+                              uint64_t progress, uint64_t progressMax)
 {
     // Mix signals from both the control and data connections.
 
@@ -2315,8 +2313,7 @@ nsFtpState::SaveNetworkStats(bool enforce)
     // Create the event to save the network statistics.
     // the event is then dispathed to the main thread.
     nsRefPtr<nsRunnable> event =
-        new SaveNetworkStatsEvent(appId, isInBrowser, mActiveNetwork,
-                                  mCountRecv, 0, false);
+        new SaveNetworkStatsEvent(appId, mActiveNetwork, mCountRecv, 0, false);
     NS_DispatchToMainThread(event);
 
     // Reset the counters after saving.
@@ -2364,7 +2361,7 @@ nsFtpState::CloseWithStatus(nsresult status)
 }
 
 static nsresult
-CreateHTTPProxiedChannel(nsIChannel *channel, nsIProxyInfo *pi, nsIChannel **newChannel)
+CreateHTTPProxiedChannel(nsIURI *uri, nsIProxyInfo *pi, nsIChannel **newChannel)
 {
     nsresult rv;
     nsCOMPtr<nsIIOService> ioService = do_GetIOService(&rv);
@@ -2380,17 +2377,11 @@ CreateHTTPProxiedChannel(nsIChannel *channel, nsIProxyInfo *pi, nsIChannel **new
     if (NS_FAILED(rv))
         return rv;
 
-    nsCOMPtr<nsIURI> uri;
-    channel->GetURI(getter_AddRefs(uri));
-
-    nsCOMPtr<nsILoadInfo> loadInfo;
-    channel->GetLoadInfo(getter_AddRefs(loadInfo));
-
-    return pph->NewProxiedChannel2(uri, pi, 0, nullptr, loadInfo, newChannel);
+    return pph->NewProxiedChannel(uri, pi, 0, nullptr, newChannel);
 }
 
 NS_IMETHODIMP
-nsFtpState::OnProxyAvailable(nsICancelable *request, nsIChannel *channel,
+nsFtpState::OnProxyAvailable(nsICancelable *request, nsIURI *uri,
                              nsIProxyInfo *pi, nsresult status)
 {
   mProxyRequest = nullptr;
@@ -2407,7 +2398,7 @@ nsFtpState::OnProxyAvailable(nsICancelable *request, nsIChannel *channel,
         LOG(("FTP:(%p) Configured to use a HTTP proxy channel\n", this));
 
         nsCOMPtr<nsIChannel> newChannel;
-        if (NS_SUCCEEDED(CreateHTTPProxiedChannel(channel, pi,
+        if (NS_SUCCEEDED(CreateHTTPProxiedChannel(uri, pi,
                                                   getter_AddRefs(newChannel))) &&
             NS_SUCCEEDED(mChannel->Redirect(newChannel,
                                             nsIChannelEventSink::REDIRECT_INTERNAL,

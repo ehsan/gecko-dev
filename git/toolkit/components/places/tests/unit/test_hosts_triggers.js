@@ -78,7 +78,7 @@ add_task(function test_moz_hosts_update()
     places.push(place);
   });
 
-  yield PlacesTestUtils.addVisits(places);
+  yield promiseAddVisits(places);
 
   do_check_true(isHostInMozHosts(urls[0].uri, urls[0].typed, urls[0].prefix));
   do_check_true(isHostInMozHosts(urls[1].uri, urls[1].typed, urls[1].prefix));
@@ -91,7 +91,7 @@ add_task(function test_remove_places()
     PlacesUtils.history.removePage(urls[idx].uri);
   }
 
-  yield PlacesTestUtils.clearHistory();
+  yield promiseClearHistory();
 
   for (let idx in urls) {
     do_check_false(isHostInMozHosts(urls[idx].uri, urls[idx].typed, urls[idx].prefix));
@@ -112,7 +112,7 @@ add_task(function test_bookmark_changes()
   // Change the hostname
   PlacesUtils.bookmarks.changeBookmarkURI(itemId, NetUtil.newURI(NEW_URL));
 
-  yield PlacesTestUtils.clearHistory();
+  yield promiseClearHistory();
 
   let newUri = NetUtil.newURI(NEW_URL);
   do_check_true(isHostInMozPlaces(newUri));
@@ -126,7 +126,7 @@ add_task(function test_bookmark_removal()
                                                     PlacesUtils.bookmarks.DEFAULT_INDEX);
   let newUri = NetUtil.newURI(NEW_URL);
   PlacesUtils.bookmarks.removeItem(itemId);
-  yield PlacesTestUtils.clearHistory();
+  yield promiseClearHistory();
 
   do_check_false(isHostInMozHosts(newUri, false, null));
 });
@@ -142,10 +142,10 @@ add_task(function test_moz_hosts_typed_update()
                 , transition: TRANSITION_TYPED
                 }];
 
-  yield PlacesTestUtils.addVisits(places);
+  yield promiseAddVisits(places);
 
   do_check_true(isHostInMozHosts(TEST_URI, true, null));
-  yield PlacesTestUtils.clearHistory();
+  yield promiseClearHistory();
 });
 
 add_task(function test_moz_hosts_www_remove()
@@ -160,7 +160,7 @@ add_task(function test_moz_hosts_www_remove()
                   , transition: TRANSITION_TYPED
                   }];
 
-    yield PlacesTestUtils.addVisits(places);
+    yield promiseAddVisits(places);
     print("removing " + aURIToRemove.spec + " keeping " + aURIToKeep);
     dump_table("moz_hosts");
     dump_table("moz_places");
@@ -175,7 +175,7 @@ add_task(function test_moz_hosts_www_remove()
   const TEST_WWW_URI = NetUtil.newURI("http://www.rem.mozilla.com");
   yield test_removal(TEST_URI, TEST_WWW_URI);
   yield test_removal(TEST_WWW_URI, TEST_URI);
-  yield PlacesTestUtils.clearHistory();
+  yield promiseClearHistory();
 });
 
 add_task(function test_moz_hosts_ftp_matchall()
@@ -183,10 +183,8 @@ add_task(function test_moz_hosts_ftp_matchall()
   const TEST_URI_1 = NetUtil.newURI("ftp://www.mozilla.com/");
   const TEST_URI_2 = NetUtil.newURI("ftp://mozilla.com/");
 
-  yield PlacesTestUtils.addVisits([
-    { uri: TEST_URI_1, transition: TRANSITION_TYPED },
-    { uri: TEST_URI_2, transition: TRANSITION_TYPED }
-  ]);
+  yield promiseAddVisits([{ uri: TEST_URI_1, transition: TRANSITION_TYPED },
+                          { uri: TEST_URI_2, transition: TRANSITION_TYPED }]);
 
   do_check_true(isHostInMozHosts(TEST_URI_1, true, "ftp://"));
 });
@@ -196,10 +194,8 @@ add_task(function test_moz_hosts_ftp_not_matchall()
   const TEST_URI_1 = NetUtil.newURI("http://mozilla.com/");
   const TEST_URI_2 = NetUtil.newURI("ftp://mozilla.com/");
 
-  yield PlacesTestUtils.addVisits([
-    { uri: TEST_URI_1, transition: TRANSITION_TYPED },
-    { uri: TEST_URI_2, transition: TRANSITION_TYPED }
-  ]);
+  yield promiseAddVisits([{ uri: TEST_URI_1, transition: TRANSITION_TYPED },
+                          { uri: TEST_URI_2, transition: TRANSITION_TYPED }]);
 
   do_check_true(isHostInMozHosts(TEST_URI_1, true, null));
 });
@@ -215,7 +211,7 @@ add_task(function test_moz_hosts_update_2()
                 },
                 { uri: TEST_URI_2
                 }];
-  yield PlacesTestUtils.addVisits(places);
+  yield promiseAddVisits(places);
 
   do_check_true(isHostInMozHosts(TEST_URI_1, true, "https://www."));
 });

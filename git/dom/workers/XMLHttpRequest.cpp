@@ -32,6 +32,9 @@ using namespace mozilla;
 using namespace mozilla::dom;
 USING_WORKERS_NAMESPACE
 
+// XXX Need to figure this out...
+#define UNCATCHABLE_EXCEPTION NS_ERROR_OUT_OF_MEMORY
+
 /**
  *  XMLHttpRequest in workers
  *
@@ -451,7 +454,7 @@ public:
   EventRunnable(Proxy* aProxy, bool aUploadEvent, const nsString& aType,
                 bool aLengthComputable, uint64_t aLoaded, uint64_t aTotal)
   : MainThreadProxyRunnable(aProxy->mWorkerPrivate, aProxy), mType(aType),
-    mResponse(JS::UndefinedValue()), mLoaded(aLoaded), mTotal(aTotal),
+    mResponse(JSVAL_VOID), mLoaded(aLoaded), mTotal(aTotal),
     mEventStreamId(aProxy->mInnerEventStreamId), mStatus(0), mReadyState(0),
     mUploadEvent(aUploadEvent), mProgressEvent(true),
     mLengthComputable(aLengthComputable), mUseCachedArrayBufferResponse(false),
@@ -460,7 +463,7 @@ public:
 
   EventRunnable(Proxy* aProxy, bool aUploadEvent, const nsString& aType)
   : MainThreadProxyRunnable(aProxy->mWorkerPrivate, aProxy), mType(aType),
-    mResponse(JS::UndefinedValue()), mLoaded(0), mTotal(0),
+    mResponse(JSVAL_VOID), mLoaded(0), mTotal(0),
     mEventStreamId(aProxy->mInnerEventStreamId), mStatus(0), mReadyState(0),
     mUploadEvent(aUploadEvent), mProgressEvent(false), mLengthComputable(0),
     mUseCachedArrayBufferResponse(false), mResponseTextResult(NS_OK),
@@ -1904,7 +1907,7 @@ XMLHttpRequest::Open(const nsACString& aMethod, const nsAString& aUrl,
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv.ThrowUncatchableException();
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
@@ -1941,7 +1944,7 @@ XMLHttpRequest::SetRequestHeader(const nsACString& aHeader,
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv.ThrowUncatchableException();
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
@@ -1964,7 +1967,7 @@ XMLHttpRequest::SetTimeout(uint32_t aTimeout, ErrorResult& aRv)
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv.ThrowUncatchableException();
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
@@ -1990,7 +1993,7 @@ XMLHttpRequest::SetWithCredentials(bool aWithCredentials, ErrorResult& aRv)
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv.ThrowUncatchableException();
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
@@ -2017,7 +2020,7 @@ XMLHttpRequest::SetMozBackgroundRequest(bool aBackgroundRequest,
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv.ThrowUncatchableException();
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
@@ -2044,7 +2047,7 @@ XMLHttpRequest::GetUpload(ErrorResult& aRv)
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv.ThrowUncatchableException();
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return nullptr;
   }
 
@@ -2066,7 +2069,7 @@ XMLHttpRequest::Send(ErrorResult& aRv)
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv.ThrowUncatchableException();
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
@@ -2088,7 +2091,7 @@ XMLHttpRequest::Send(const nsAString& aBody, ErrorResult& aRv)
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv.ThrowUncatchableException();
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
@@ -2114,7 +2117,7 @@ XMLHttpRequest::Send(JS::Handle<JSObject*> aBody, ErrorResult& aRv)
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv.ThrowUncatchableException();
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
@@ -2160,7 +2163,7 @@ XMLHttpRequest::Send(File& aBody, ErrorResult& aRv)
   JSContext* cx = mWorkerPrivate->GetJSContext();
 
   if (mCanceled) {
-    aRv.ThrowUncatchableException();
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
@@ -2227,7 +2230,7 @@ XMLHttpRequest::Abort(ErrorResult& aRv)
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv.ThrowUncatchableException();
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
   }
 
   if (!mProxy) {
@@ -2255,7 +2258,7 @@ XMLHttpRequest::GetResponseHeader(const nsACString& aHeader,
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv.ThrowUncatchableException();
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
@@ -2282,7 +2285,7 @@ XMLHttpRequest::GetAllResponseHeaders(nsACString& aResponseHeaders,
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv.ThrowUncatchableException();
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
@@ -2308,7 +2311,7 @@ XMLHttpRequest::OverrideMimeType(const nsAString& aMimeType, ErrorResult& aRv)
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv.ThrowUncatchableException();
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
@@ -2339,7 +2342,7 @@ XMLHttpRequest::SetResponseType(XMLHttpRequestResponseType aResponseType,
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv.ThrowUncatchableException();
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
@@ -2379,24 +2382,19 @@ XMLHttpRequest::GetResponse(JSContext* /* unused */,
 {
   if (NS_SUCCEEDED(mStateData.mResponseTextResult) &&
       mStateData.mResponse.isUndefined()) {
+    MOZ_ASSERT(mStateData.mResponseText.Length());
     MOZ_ASSERT(NS_SUCCEEDED(mStateData.mResponseResult));
 
-    if (mStateData.mResponseText.IsEmpty()) {
-      mStateData.mResponse =
-        JS_GetEmptyStringValue(mWorkerPrivate->GetJSContext());
-    } else {
-      JSString* str =
-        JS_NewUCStringCopyN(mWorkerPrivate->GetJSContext(),
-                            mStateData.mResponseText.get(),
-                            mStateData.mResponseText.Length());
-
-      if (!str) {
-        aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
-        return;
-      }
-
-      mStateData.mResponse = STRING_TO_JSVAL(str);
+    JSString* str =
+      JS_NewUCStringCopyN(mWorkerPrivate->GetJSContext(),
+                          mStateData.mResponseText.get(),
+                          mStateData.mResponseText.Length());
+    if (!str) {
+      aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
+      return;
     }
+
+    mStateData.mResponse = STRING_TO_JSVAL(str);
   }
 
   JS::ExposeValueToActiveJS(mStateData.mResponse);

@@ -254,7 +254,8 @@ protected:
     }
 
 #ifdef DEBUG
-  virtual void AssertOnDispatchThread() MOZ_OVERRIDE
+  // Can't mark MOZ_OVERRIDE due to bug in clang builders we use for osx b2g desktop. :-(
+  virtual void AssertOnDispatchThread()
   {
     detail::AssertOnThread(mResponseTarget);
   }

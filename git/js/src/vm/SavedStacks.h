@@ -14,22 +14,16 @@
 
 namespace js {
 
-class SavedFrame;
-typedef JS::Handle<SavedFrame*> HandleSavedFrame;
-typedef JS::MutableHandle<SavedFrame*> MutableHandleSavedFrame;
-typedef JS::Rooted<SavedFrame*> RootedSavedFrame;
-
 class SavedFrame : public NativeObject {
     friend class SavedStacks;
 
   public:
     static const Class          class_;
     static void finalize(FreeOp *fop, JSObject *obj);
-    static const JSPropertySpec protoAccessors[];
-    static const JSFunctionSpec protoFunctions[];
-    static const JSFunctionSpec staticFunctions[];
 
     // Prototype methods and properties to be exposed to JS.
+    static const JSPropertySpec properties[];
+    static const JSFunctionSpec methods[];
     static bool construct(JSContext *cx, unsigned argc, Value *vp);
     static bool sourceProperty(JSContext *cx, unsigned argc, Value *vp);
     static bool lineProperty(JSContext *cx, unsigned argc, Value *vp);
@@ -55,12 +49,10 @@ class SavedFrame : public NativeObject {
                     HashPolicy,
                     SystemAllocPolicy> Set;
 
-    typedef RootedGeneric<Lookup*> AutoLookupRooter;
-    typedef AutoLookupRooter &HandleLookup;
-    class AutoLookupVector;
+    class AutoLookupRooter;
+    class HandleLookup;
 
   private:
-    static bool finishSavedFrameInit(JSContext *cx, HandleObject ctor, HandleObject proto);
     void initFromLookup(HandleLookup lookup);
 
     enum {
@@ -85,12 +77,15 @@ class SavedFrame : public NativeObject {
     // know that GC moved the parent and we need to update our private value and
     // rekey the saved frame in its hash set. These two methods are helpers for
     // this process.
-    bool parentMoved();
-    void updatePrivateParent();
+    bool         parentMoved();
+    void         updatePrivateParent();
 
-    static bool checkThis(JSContext *cx, CallArgs &args, const char *fnName,
-                          MutableHandleSavedFrame frame);
+    static SavedFrame *checkThis(JSContext *cx, CallArgs &args, const char *fnName);
 };
+
+typedef JS::Handle<SavedFrame*> HandleSavedFrame;
+typedef JS::MutableHandle<SavedFrame*> MutableHandleSavedFrame;
+typedef JS::Rooted<SavedFrame*> RootedSavedFrame;
 
 struct SavedFrame::HashPolicy
 {
@@ -111,6 +106,7 @@ class SavedStacks {
   public:
     SavedStacks()
       : frames(),
+        savedFrameProto(nullptr),
         allocationSamplingProbability(1.0),
         allocationSkipCount(0),
         // XXX: Initialize the RNG state to 0 so that random_initSeed is lazily
@@ -133,6 +129,7 @@ class SavedStacks {
 
   private:
     SavedFrame::Set     frames;
+    ReadBarrieredObject savedFrameProto;
     double              allocationSamplingProbability;
     uint32_t            allocationSkipCount;
     uint64_t            rngState;
@@ -140,6 +137,9 @@ class SavedStacks {
     bool       insertFrames(JSContext *cx, FrameIter &iter, MutableHandleSavedFrame frame,
                             unsigned maxFrameCount = 0);
     SavedFrame *getOrCreateSavedFrame(JSContext *cx, SavedFrame::HandleLookup lookup);
+    // |SavedFrame.prototype| is created lazily and held weakly. It should only
+    // be accessed through this method.
+    JSObject   *getOrCreateSavedFramePrototype(JSContext *cx);
     SavedFrame *createFrameFromLookup(JSContext *cx, SavedFrame::HandleLookup lookup);
     void       chooseSamplingProbability(JSContext* cx);
 
@@ -222,6 +222,44 @@ class SavedStacks {
 
     void sweepPCLocationMap();
     bool getLocation(JSContext *cx, const FrameIter &iter, MutableHandleLocationValue locationp);
+
+    struct FrameState
+    {
+        FrameState() : principals(nullptr), name(nullptr), location() { }
+        explicit FrameState(const FrameIter &iter);
+        FrameState(const FrameState &fs);
+
+        ~FrameState();
+
+        void trace(JSTracer *trc);
+
+        // Note: we don't have to hold/drop principals, because we're
+        // only alive while the stack is being walked and during this
+        // time the principals are kept alive by the stack itself.
+        JSPrincipals  *principals;
+        JSAtom        *name;
+        LocationValue location;
+    };
+
+    class MOZ_STACK_CLASS AutoFrameStateVector : public JS::CustomAutoRooter {
+      public:
+        explicit AutoFrameStateVector(JSContext *cx)
+          : JS::CustomAutoRooter(cx),
+            frames(cx)
+        { }
+
+        typedef Vector<FrameState, 20> FrameStateVector;
+        inline FrameStateVector *operator->() { return &frames; }
+        inline FrameState &operator[](size_t i) { return frames[i]; }
+
+      private:
+        FrameStateVector frames;
+
+        virtual void trace(JSTracer *trc) {
+            for (size_t i = 0; i < frames.length(); i++)
+                frames[i].trace(trc);
+        }
+    };
 };
 
 bool SavedStacksMetadataCallback(JSContext *cx, JSObject **pmetadata);

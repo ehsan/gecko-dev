@@ -26,7 +26,7 @@ nsresult CallGetClassObject(const char* aContractID, const nsIID& aIID,
                             void** aResult);
 
 
-class MOZ_STACK_CLASS nsCreateInstanceByCID : public nsCOMPtr_helper
+class nsCreateInstanceByCID : public nsCOMPtr_helper
 {
 public:
   nsCreateInstanceByCID(const nsCID& aCID, nsISupports* aOuter,
@@ -37,8 +37,7 @@ public:
   {
   }
 
-  virtual nsresult NS_FASTCALL operator()(const nsIID&, void**) const
-    MOZ_OVERRIDE;
+  virtual nsresult NS_FASTCALL operator()(const nsIID&, void**) const;
 
 private:
   const nsCID&    mCID;
@@ -46,7 +45,7 @@ private:
   nsresult*       mErrorPtr;
 };
 
-class MOZ_STACK_CLASS nsCreateInstanceByContractID : public nsCOMPtr_helper
+class nsCreateInstanceByContractID : public nsCOMPtr_helper
 {
 public:
   nsCreateInstanceByContractID(const char* aContractID, nsISupports* aOuter,
@@ -57,7 +56,7 @@ public:
   {
   }
 
-  virtual nsresult NS_FASTCALL operator()(const nsIID&, void**) const MOZ_OVERRIDE;
+  virtual nsresult NS_FASTCALL operator()(const nsIID&, void**) const;
 
 private:
   const char*   mContractID;
@@ -65,7 +64,7 @@ private:
   nsresult*     mErrorPtr;
 };
 
-class MOZ_STACK_CLASS nsCreateInstanceFromFactory : public nsCOMPtr_helper
+class nsCreateInstanceFromFactory : public nsCOMPtr_helper
 {
 public:
   nsCreateInstanceFromFactory(nsIFactory* aFactory, nsISupports* aOuter,
@@ -76,7 +75,7 @@ public:
   {
   }
 
-  virtual nsresult NS_FASTCALL operator()(const nsIID&, void**) const MOZ_OVERRIDE;
+  virtual nsresult NS_FASTCALL operator()(const nsIID&, void**) const;
 
 private:
   nsIFactory* MOZ_NON_OWNING_REF mFactory;
@@ -124,7 +123,7 @@ do_CreateInstance(nsIFactory* aFactory, nsISupports* aOuter,
 }
 
 
-class MOZ_STACK_CLASS nsGetClassObjectByCID : public nsCOMPtr_helper
+class nsGetClassObjectByCID : public nsCOMPtr_helper
 {
 public:
   nsGetClassObjectByCID(const nsCID& aCID, nsresult* aErrorPtr)
@@ -133,14 +132,14 @@ public:
   {
   }
 
-  virtual nsresult NS_FASTCALL operator()(const nsIID&, void**) const MOZ_OVERRIDE;
+  virtual nsresult NS_FASTCALL operator()(const nsIID&, void**) const;
 
 private:
   const nsCID&    mCID;
   nsresult*       mErrorPtr;
 };
 
-class MOZ_STACK_CLASS nsGetClassObjectByContractID : public nsCOMPtr_helper
+class nsGetClassObjectByContractID : public nsCOMPtr_helper
 {
 public:
   nsGetClassObjectByContractID(const char* aContractID, nsresult* aErrorPtr)
@@ -149,7 +148,7 @@ public:
   {
   }
 
-  virtual nsresult NS_FASTCALL operator()(const nsIID&, void**) const MOZ_OVERRIDE;
+  virtual nsresult NS_FASTCALL operator()(const nsIID&, void**) const;
 
 private:
   const char*   mContractID;

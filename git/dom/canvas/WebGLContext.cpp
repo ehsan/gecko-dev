@@ -202,8 +202,6 @@ WebGLContextOptions::WebGLContextOptions()
 
 WebGLContext::WebGLContext()
     : WebGLContextUnchecked(nullptr)
-    , mBypassShaderValidation(false)
-    , mGLMaxSamples(1)
     , mNeedsFakeNoAlpha(false)
 {
     mGeneration = 0;
@@ -216,6 +214,8 @@ WebGLContext::WebGLContext()
     mPixelStoreFlipY = false;
     mPixelStorePremultiplyAlpha = false;
     mPixelStoreColorspaceConversion = BROWSER_DEFAULT_WEBGL;
+
+    mShaderValidation = true;
 
     mFakeBlackStatus = WebGLContextFakeBlackStatus::NotNeeded;
 
@@ -330,9 +330,7 @@ WebGLContext::DestroyResourcesAndContext()
     mBoundTransformFeedbackBuffer = nullptr;
     mBoundUniformBuffer = nullptr;
     mCurrentProgram = nullptr;
-    mActiveProgramLinkInfo = nullptr;
-    mBoundDrawFramebuffer = nullptr;
-    mBoundReadFramebuffer = nullptr;
+    mBoundFramebuffer = nullptr;
     mActiveOcclusionQuery = nullptr;
     mBoundRenderbuffer = nullptr;
     mBoundVertexArray = nullptr;
@@ -506,7 +504,7 @@ IsFeatureInBlacklist(const nsCOMPtr<nsIGfxInfo>& gfxInfo, int32_t feature)
 
 static already_AddRefed<GLContext>
 CreateHeadlessNativeGL(bool forceEnabled, const nsCOMPtr<nsIGfxInfo>& gfxInfo,
-                       bool requireCompatProfile, WebGLContext* webgl)
+                       WebGLContext* webgl)
 {
     if (!forceEnabled &&
         IsFeatureInBlacklist(gfxInfo, nsIGfxInfo::FEATURE_WEBGL_OPENGL))
@@ -516,7 +514,7 @@ CreateHeadlessNativeGL(bool forceEnabled, const nsCOMPtr<nsIGfxInfo>& gfxInfo,
         return nullptr;
     }
 
-    nsRefPtr<GLContext> gl = gl::GLContextProvider::CreateHeadless(requireCompatProfile);
+    nsRefPtr<GLContext> gl = gl::GLContextProvider::CreateHeadless();
     if (!gl) {
         webgl->GenerateWarning("Error during native OpenGL init.");
         return nullptr;
@@ -531,7 +529,7 @@ CreateHeadlessNativeGL(bool forceEnabled, const nsCOMPtr<nsIGfxInfo>& gfxInfo,
 // Eventually, we want to be able to pick ANGLE-EGL or native EGL.
 static already_AddRefed<GLContext>
 CreateHeadlessANGLE(bool forceEnabled, const nsCOMPtr<nsIGfxInfo>& gfxInfo,
-                    bool requireCompatProfile, WebGLContext* webgl)
+                    WebGLContext* webgl)
 {
     nsRefPtr<GLContext> gl;
 
@@ -544,7 +542,7 @@ CreateHeadlessANGLE(bool forceEnabled, const nsCOMPtr<nsIGfxInfo>& gfxInfo,
         return nullptr;
     }
 
-    gl = gl::GLContextProviderEGL::CreateHeadless(requireCompatProfile);
+    gl = gl::GLContextProviderEGL::CreateHeadless();
     if (!gl) {
         webgl->GenerateWarning("Error during ANGLE OpenGL init.");
         return nullptr;
@@ -556,13 +554,13 @@ CreateHeadlessANGLE(bool forceEnabled, const nsCOMPtr<nsIGfxInfo>& gfxInfo,
 }
 
 static already_AddRefed<GLContext>
-CreateHeadlessEGL(bool forceEnabled, bool requireCompatProfile,
+CreateHeadlessEGL(bool forceEnabled, const nsCOMPtr<nsIGfxInfo>& gfxInfo,
                   WebGLContext* webgl)
 {
     nsRefPtr<GLContext> gl;
 
 #ifdef ANDROID
-    gl = gl::GLContextProviderEGL::CreateHeadless(requireCompatProfile);
+    gl = gl::GLContextProviderEGL::CreateHeadless();
     if (!gl) {
         webgl->GenerateWarning("Error during EGL OpenGL init.");
         return nullptr;
@@ -584,22 +582,16 @@ CreateHeadlessGL(bool forceEnabled, const nsCOMPtr<nsIGfxInfo>& gfxInfo,
     if (PR_GetEnv("MOZ_WEBGL_FORCE_OPENGL"))
         disableANGLE = true;
 
-    bool requireCompatProfile = webgl->IsWebGL2() ? false : true;
-
     nsRefPtr<GLContext> gl;
 
     if (preferEGL)
-        gl = CreateHeadlessEGL(forceEnabled, requireCompatProfile, webgl);
+        gl = CreateHeadlessEGL(forceEnabled, gfxInfo, webgl);
 
-    if (!gl && !disableANGLE) {
-        gl = CreateHeadlessANGLE(forceEnabled, gfxInfo, requireCompatProfile,
-                                 webgl);
-    }
+    if (!gl && !disableANGLE)
+        gl = CreateHeadlessANGLE(forceEnabled, gfxInfo, webgl);
 
-    if (!gl) {
-        gl = CreateHeadlessNativeGL(forceEnabled, gfxInfo,
-                                    requireCompatProfile, webgl);
-    }
+    if (!gl)
+        gl = CreateHeadlessNativeGL(forceEnabled, gfxInfo, webgl);
 
     return gl.forget();
 }
@@ -1067,6 +1059,7 @@ WebGLContext::GetImageBuffer(uint8_t** out_imageBuffer, int32_t* out_format)
     if (!dataSurface->Map(DataSourceSurface::MapType::READ, &map))
         return;
 
+    static const fallible_t fallible = fallible_t();
     uint8_t* imageBuffer = new (fallible) uint8_t[mWidth * mHeight * 4];
     if (!imageBuffer) {
         dataSurface->Unmap();
@@ -1722,7 +1715,6 @@ WebGLContext::GetSurfaceSnapshot(bool* out_premultAlpha)
     {
         ScopedBindFramebuffer autoFB(gl, 0);
         ClearBackbufferIfNeeded();
-        // TODO: Save, override, then restore glReadBuffer if present.
         ReadPixelsIntoDataSurface(gl, surf);
     }
 
@@ -1895,8 +1887,7 @@ NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(WebGLContext,
   mBoundTransformFeedbackBuffer,
   mBoundUniformBuffer,
   mCurrentProgram,
-  mBoundDrawFramebuffer,
-  mBoundReadFramebuffer,
+  mBoundFramebuffer,
   mBoundRenderbuffer,
   mBoundVertexArray,
   mDefaultVertexArray,

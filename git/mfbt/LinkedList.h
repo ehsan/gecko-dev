@@ -55,10 +55,6 @@
  *     }
  *   };
  *
- * Additionally, the class AutoCleanLinkedList<T> is a LinkedList<T> that will
- * remove and delete each element still within itself upon destruction. Note
- * that because each element is deleted, elements must have been allocated
- * using |new|.
  */
 
 #ifndef mozilla_LinkedList_h
@@ -480,18 +476,6 @@ private:
 
   LinkedList& operator=(const LinkedList<T>& aOther) = delete;
   LinkedList(const LinkedList<T>& aOther) = delete;
-};
-
-template <typename T>
-class AutoCleanLinkedList : public LinkedList<T>
-{
-public:
-  ~AutoCleanLinkedList()
-  {
-    while (T* element = this->popFirst()) {
-      delete element;
-    }
-  }
 };
 
 } /* namespace mozilla */

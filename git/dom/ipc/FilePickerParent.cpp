@@ -113,7 +113,7 @@ FilePickerParent::FileSizeAndDateRunnable::Destroy()
 void
 FilePickerParent::SendFiles(const nsCOMArray<nsIDOMFile>& aDomfiles)
 {
-  nsIContentParent* parent = TabParent::GetFrom(Manager())->Manager();
+  nsIContentParent* parent = static_cast<TabParent*>(Manager())->Manager();
   InfallibleTArray<PBlobParent*> files;
 
   for (unsigned i = 0; i < aDomfiles.Length(); i++) {
@@ -183,7 +183,7 @@ FilePickerParent::CreateFilePicker()
     return false;
   }
 
-  Element* element = TabParent::GetFrom(Manager())->GetOwnerElement();
+  Element* element = static_cast<TabParent*>(Manager())->GetOwnerElement();
   if (!element) {
     return false;
   }
@@ -201,8 +201,8 @@ FilePickerParent::RecvOpen(const int16_t& aSelectedType,
                            const bool& aAddToRecentDocs,
                            const nsString& aDefaultFile,
                            const nsString& aDefaultExtension,
-                           InfallibleTArray<nsString>&& aFilters,
-                           InfallibleTArray<nsString>&& aFilterNames,
+                           const InfallibleTArray<nsString>& aFilters,
+                           const InfallibleTArray<nsString>& aFilterNames,
                            const nsString& aDisplayDirectory)
 {
   if (!CreateFilePicker()) {

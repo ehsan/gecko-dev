@@ -80,15 +80,6 @@ void
 LIRGeneratorX64::visitUnbox(MUnbox *unbox)
 {
     MDefinition *box = unbox->getOperand(0);
-
-    if (box->type() == MIRType_ObjectOrNull) {
-        LUnboxObjectOrNull *lir = new(alloc()) LUnboxObjectOrNull(useRegisterAtStart(box));
-        if (unbox->fallible())
-            assignSnapshot(lir, unbox->bailoutKind());
-        defineReuseInput(lir, unbox, 0);
-        return;
-    }
-
     MOZ_ASSERT(box->type() == MIRType_Value);
 
     LUnboxBase *lir;
@@ -157,7 +148,7 @@ LIRGeneratorX64::visitAsmJSLoadHeap(MAsmJSLoadHeap *ins)
     // offset in the addressing mode would not wrap back into the protected area
     // reserved for the heap. For simplicity (and since we don't care about
     // getting maximum performance in these cases) only allow constant
-    // operands when skipping bounds checks.
+    // opererands when skipping bounds checks.
     LAllocation ptrAlloc = ins->needsBoundsCheck()
                            ? useRegisterAtStart(ptr)
                            : useRegisterOrNonNegativeConstantAtStart(ptr);
@@ -180,8 +171,8 @@ LIRGeneratorX64::visitAsmJSStoreHeap(MAsmJSStoreHeap *ins)
                            ? useRegisterAtStart(ptr)
                            : useRegisterOrNonNegativeConstantAtStart(ptr);
 
-    LAsmJSStoreHeap *lir = nullptr;  // initialize to silence GCC warning
-    switch (ins->accessType()) {
+    LAsmJSStoreHeap *lir;
+    switch (ins->viewType()) {
       case Scalar::Int8:
       case Scalar::Uint8:
       case Scalar::Int16:

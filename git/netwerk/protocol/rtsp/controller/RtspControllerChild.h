@@ -33,14 +33,14 @@ class RtspControllerChild : public nsIStreamingProtocolController
   ~RtspControllerChild();
 
   bool RecvOnConnected(const uint8_t& index,
-                       InfallibleTArray<RtspMetadataParam>&& meta);
+                       const InfallibleTArray<RtspMetadataParam>& meta);
 
   bool RecvOnMediaDataAvailable(
          const uint8_t& index,
          const nsCString& data,
          const uint32_t& length,
          const uint32_t& offset,
-         InfallibleTArray<RtspMetadataParam>&& meta);
+         const InfallibleTArray<RtspMetadataParam>& meta);
 
   bool RecvOnDisconnected(const uint8_t& index,
                           const nsresult& reason);

@@ -29,28 +29,27 @@ namespace mozilla {
 class JSGCThingParticipant: public nsCycleCollectionParticipant
 {
 public:
-  NS_IMETHOD_(void) Root(void*) MOZ_OVERRIDE
+  NS_IMETHOD_(void) Root(void*)
   {
     MOZ_ASSERT(false, "Don't call Root on GC things");
   }
 
-  NS_IMETHOD_(void) Unlink(void*) MOZ_OVERRIDE
+  NS_IMETHOD_(void) Unlink(void*)
   {
     MOZ_ASSERT(false, "Don't call Unlink on GC things, as they may be dead");
   }
 
-  NS_IMETHOD_(void) Unroot(void*) MOZ_OVERRIDE
+  NS_IMETHOD_(void) Unroot(void*)
   {
     MOZ_ASSERT(false, "Don't call Unroot on GC things, as they may be dead");
   }
 
-  NS_IMETHOD_(void) DeleteCycleCollectable(void* aPtr) MOZ_OVERRIDE
+  NS_IMETHOD_(void) DeleteCycleCollectable(void* aPtr)
   {
     MOZ_ASSERT(false, "Can't directly delete a cycle collectable GC thing");
   }
 
-  NS_IMETHOD Traverse(void* aPtr, nsCycleCollectionTraversalCallback& aCb)
-    MOZ_OVERRIDE;
+  NS_IMETHOD Traverse(void* aPtr, nsCycleCollectionTraversalCallback& aCb);
 };
 
 class JSZoneParticipant : public nsCycleCollectionParticipant
@@ -60,28 +59,27 @@ public:
   {
   }
 
-  NS_IMETHOD_(void) Root(void*) MOZ_OVERRIDE
+  NS_IMETHOD_(void) Root(void*)
   {
     MOZ_ASSERT(false, "Don't call Root on GC things");
   }
 
-  NS_IMETHOD_(void) Unlink(void*) MOZ_OVERRIDE
+  NS_IMETHOD_(void) Unlink(void*)
   {
     MOZ_ASSERT(false, "Don't call Unlink on GC things, as they may be dead");
   }
 
-  NS_IMETHOD_(void) Unroot(void*) MOZ_OVERRIDE
+  NS_IMETHOD_(void) Unroot(void*)
   {
     MOZ_ASSERT(false, "Don't call Unroot on GC things, as they may be dead");
   }
 
-  NS_IMETHOD_(void) DeleteCycleCollectable(void*) MOZ_OVERRIDE
+  NS_IMETHOD_(void) DeleteCycleCollectable(void*)
   {
     MOZ_ASSERT(false, "Can't directly delete a cycle collectable GC thing");
   }
 
-  NS_IMETHOD Traverse(void* aPtr, nsCycleCollectionTraversalCallback& aCb)
-    MOZ_OVERRIDE;
+  NS_IMETHOD Traverse(void* aPtr, nsCycleCollectionTraversalCallback& aCb);
 };
 
 class IncrementalFinalizeRunnable;
@@ -212,7 +210,7 @@ private:
 public:
   // Two conditions, JSOutOfMemory and JSLargeAllocationFailure, are noted in
   // crash reports. Here are the values that can appear in the reports:
-  enum class OOMState : uint32_t {
+  MOZ_BEGIN_NESTED_ENUM_CLASS(OOMState, uint32_t)
     // The condition has never happened. No entry appears in the crash report.
     OK,
 
@@ -240,7 +238,7 @@ public:
     // GC is taken as a proxy for "we've been banging on the heap a good bit
     // now and haven't crashed; the OOM was probably handled correctly".
     Recovered
-  };
+  MOZ_END_NESTED_ENUM_CLASS(OOMState)
 
 private:
   void AnnotateAndSetOutOfMemory(OOMState* aStatePtr, OOMState aNewState);
@@ -315,6 +313,8 @@ private:
   OOMState mOutOfMemoryState;
   OOMState mLargeAllocationFailureState;
 };
+
+MOZ_FINISH_NESTED_ENUM_CLASS(CycleCollectedJSRuntime::OOMState)
 
 void TraceScriptHolder(nsISupports* aHolder, JSTracer* aTracer);
 

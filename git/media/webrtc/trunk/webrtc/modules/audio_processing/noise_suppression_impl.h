@@ -15,18 +15,15 @@
 #include "webrtc/modules/audio_processing/processing_component.h"
 
 namespace webrtc {
-
+class AudioProcessingImpl;
 class AudioBuffer;
-class CriticalSectionWrapper;
 
 class NoiseSuppressionImpl : public NoiseSuppression,
                              public ProcessingComponent {
  public:
-  NoiseSuppressionImpl(const AudioProcessing* apm,
-                       CriticalSectionWrapper* crit);
+  explicit NoiseSuppressionImpl(const AudioProcessingImpl* apm);
   virtual ~NoiseSuppressionImpl();
 
-  int AnalyzeCaptureAudio(AudioBuffer* audio);
   int ProcessCaptureAudio(AudioBuffer* audio);
 
   // NoiseSuppression implementation.
@@ -43,15 +40,13 @@ class NoiseSuppressionImpl : public NoiseSuppression,
   virtual void* CreateHandle() const OVERRIDE;
   virtual int InitializeHandle(void* handle) const OVERRIDE;
   virtual int ConfigureHandle(void* handle) const OVERRIDE;
-  virtual void DestroyHandle(void* handle) const OVERRIDE;
+  virtual int DestroyHandle(void* handle) const OVERRIDE;
   virtual int num_handles_required() const OVERRIDE;
   virtual int GetHandleError(void* handle) const OVERRIDE;
 
-  const AudioProcessing* apm_;
-  CriticalSectionWrapper* crit_;
+  const AudioProcessingImpl* apm_;
   Level level_;
 };
-
 }  // namespace webrtc
 
 #endif  // WEBRTC_MODULES_AUDIO_PROCESSING_NOISE_SUPPRESSION_IMPL_H_

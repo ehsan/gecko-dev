@@ -176,9 +176,6 @@ protected:
                                            PluginAsyncSurrogate** aSurrogate = nullptr);
 
 protected:
-    void SetChildTimeout(const int32_t aChildTimeout);
-    static void TimeoutChanged(const char* aPref, void* aModule);
-
     virtual void UpdatePluginTimeout() {}
 
     virtual bool RecvNotifyContentModuleDestroyed() MOZ_OVERRIDE { return true; }
@@ -231,7 +228,7 @@ protected:
                                          const nsIntRect& aRect) MOZ_OVERRIDE;
 
 #if defined(XP_UNIX) && !defined(XP_MACOSX) && !defined(MOZ_WIDGET_GONK)
-    virtual nsresult NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs, NPError* error) MOZ_OVERRIDE;
+    virtual nsresult NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs, NPError* error);
 #else
     virtual nsresult NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error) MOZ_OVERRIDE;
 #endif
@@ -259,7 +256,6 @@ protected:
     void InitAsyncSurrogates();
 
 protected:
-    void NotifyFlashHang();
     void NotifyPluginCrashed();
     void OnInitFailure();
 
@@ -313,23 +309,13 @@ class PluginModuleContentParent : public PluginModuleParent
     static void OnLoadPluginResult(const uint32_t& aPluginId, const bool& aResult);
     static void AssociatePluginId(uint32_t aPluginId, base::ProcessId aProcessId);
 
-    virtual ~PluginModuleContentParent();
-
-#if defined(XP_WIN) || defined(XP_MACOSX)
-    nsresult NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error) MOZ_OVERRIDE;
-#endif
-
   private:
-    virtual bool ShouldContinueFromReplyTimeout() MOZ_OVERRIDE;
-    virtual void OnExitedSyncSend() MOZ_OVERRIDE;
 
 #ifdef MOZ_CRASHREPORTER_INJECTOR
     void OnCrash(DWORD processID) MOZ_OVERRIDE {}
 #endif
 
     static PluginModuleContentParent* sSavedModuleParent;
-
-    uint32_t mPluginId;
 };
 
 class PluginModuleChromeParent
@@ -346,14 +332,6 @@ class PluginModuleChromeParent
     static PluginLibrary* LoadModule(const char* aFilePath, uint32_t aPluginId,
                                      nsPluginTag* aPluginTag);
 
-    /**
-     * The following two functions are called by SetupBridge to determine
-     * whether an existing plugin module was reused, or whether a new module
-     * was instantiated by the plugin host.
-     */
-    static void ClearInstantiationFlag() { sInstantiated = false; }
-    static bool DidInstantiate() { return sInstantiated; }
-
     virtual ~PluginModuleChromeParent();
 
     void TerminateChildProcess(MessageLoop* aMsgLoop);
@@ -365,9 +343,6 @@ class PluginModuleChromeParent
      */
     void
     OnHangUIContinue();
-
-    void
-    EvaluateHangUIState(const bool aReset);
 #endif // XP_WIN
 
     virtual bool WaitForIPCConnection() MOZ_OVERRIDE;
@@ -427,6 +402,8 @@ private:
     CrashReporterParent* CrashReporter();
 
     void CleanupFromTimeout(const bool aByHangUI);
+    void SetChildTimeout(const int32_t aChildTimeout);
+    static void TimeoutChanged(const char* aPref, void* aModule);
 
     virtual void UpdatePluginTimeout() MOZ_OVERRIDE;
 
@@ -471,6 +448,9 @@ private:
     CrashReporterParent* mCrashReporter;
 #endif // MOZ_CRASHREPORTER
 
+
+    void
+    EvaluateHangUIState(const bool aReset);
 
     /**
      * Launches the Plugin Hang UI.
@@ -529,8 +509,6 @@ private:
     dom::ContentParent* mContentParent;
     nsCOMPtr<nsIObserver> mOfflineObserver;
     bool mIsFlashPlugin;
-    bool mIsBlocklisted;
-    static bool sInstantiated;
 };
 
 } // namespace plugins

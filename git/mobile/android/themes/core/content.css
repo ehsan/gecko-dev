@@ -165,10 +165,7 @@ select[size="1"] {
 textarea {
   resize: none;
   border-width: 1px;
-  -moz-padding-start: 1px;
-  -moz-padding-end: 1px;
-  padding-block-start: 2px;
-  padding-block-end: 2px;
+  padding: 2px 1px 2px 1px;
 }
 
 input[type="button"],
@@ -176,19 +173,13 @@ input[type="submit"],
 input[type="reset"],
 button {
   border-width: 1px;
-  -moz-padding-start: 7px;
-  -moz-padding-end: 7px;
-  padding-block-start: 0;
-  padding-block-end: 0;
+  padding: 0 7px 0 7px;
 }
 
 input[type="radio"],
 input[type="checkbox"] {
   border: 1px solid @form_border@ !important;
-  -moz-padding-start: 1px;
-  -moz-padding-end: 1px;
-  padding-block-start: 2px;
-  padding-block-end: 2px;
+  padding: 2px 1px 2px 1px;
 }
 
 select > button {
@@ -278,10 +269,7 @@ input[type="reset"][disabled],
 input[type="reset"][disabled]:active,
 button[disabled],
 button[disabled]:active {
-  -moz-padding-start: 7px;
-  -moz-padding-end: 7px;
-  padding-block-start: 0;
-  padding-block-end: 0;
+  padding: 0 7px 0 7px;
   background: @form_background_disabled@;
 }
 
@@ -298,10 +286,7 @@ input[type="checkbox"][disabled]:hover:active {
 
 select[disabled] > button {
   opacity: 0.6;
-  -moz-padding-start: 7px;
-  -moz-padding-end: 7px;
-  padding-block-start: 1px;
-  padding-block-end: 1px;
+  padding: 1px 7px 1px 7px;
 }
 
 /* -moz-touch-enabled? media elements */

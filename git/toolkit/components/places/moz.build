@@ -28,6 +28,7 @@ if CONFIG['MOZ_PLACES']:
         'nsINavBookmarksService.idl',
         'nsITaggingService.idl',
         'nsPIPlacesDatabase.idl',
+        'nsPIPlacesHistoryListenersNotifier.idl',
     ]
 
     EXPORTS.mozilla.places = [

@@ -82,9 +82,9 @@ void AudioDeviceUtility::WaitForKey()
 
     // choose enter out of all available keys
 
-    if (getc(stdin) == '\n')
+    if (getchar() == '\n')
     {
-        getc(stdin);
+        getchar();
     }
 
     tcsetattr( STDIN_FILENO, TCSANOW, &oldt );

@@ -17,7 +17,6 @@
 #include "nsITimer.h"
 #include "nsTArray.h"
 #include "mozilla/EventForwards.h"
-#include "WritingModes.h"
 
 class nsChildView;
 
@@ -697,11 +696,7 @@ public:
 
   virtual void OnFocusChangeInGecko(bool aFocus);
 
-  void OnSelectionChange()
-  {
-    mSelectedRange.location = NSNotFound;
-    mRangeForWritingMode.location = NSNotFound;
-  }
+  void OnSelectionChange() { mSelectedRange.location = NSNotFound; }
 
   /**
    * DispatchCompositionChangeEvent() dispatches a compositionchange event on
@@ -776,17 +771,6 @@ public:
   NSRange SelectedRange();
 
   /**
-   * DrawsVerticallyForCharacterAtIndex() returns whether the character at
-   * the given index is being rendered vertically.
-   *
-   * @param aCharIndex            The character offset to query.
-   *
-   * @return                      True if writing-mode is vertical at the given
-   *                              character offset; otherwise false.
-   */
-  bool DrawsVerticallyForCharacterAtIndex(uint32_t aCharIndex);
-
-  /**
    * FirstRectForCharacterRange() returns first *character* rect in the range.
    * Cocoa needs the first line rect in the range, but we cannot compute it
    * on current implementation.
@@ -846,16 +830,7 @@ public:
   void SetIMEOpenState(bool aOpen);
   void SetASCIICapableOnly(bool aASCIICapableOnly);
 
-  /**
-   * True if OSX believes that our view has keyboard focus.
-   */
   bool IsFocused();
-
-  /**
-   * True if our view has keyboard focus (and our window is key), or if
-   * it would have keyboard focus if our window were key.
-   */
-  bool IsOrWouldBeFocused();
 
   static CFArrayRef CreateAllIMEModeList();
   static void DebugPrintAllIMEModes();
@@ -903,9 +878,6 @@ private:
 
   NSRange mMarkedRange;
   NSRange mSelectedRange;
-
-  NSRange mRangeForWritingMode; // range within which mWritingMode applies
-  mozilla::WritingMode mWritingMode;
 
   bool mIsIMEComposing;
   bool mIsIMEEnabled;

@@ -190,10 +190,7 @@ var gSearchPane = {
 
 function onDragEngineStart(event) {
   var selectedIndex = gEngineView.selectedIndex;
-  var tree = document.getElementById("engineList");
-  var row = { }, col = { }, child = { };
-  tree.treeBoxObject.getCellAt(event.clientX, event.clientY, row, col, child);
-  if (selectedIndex >= 0 && !gEngineView.isCheckBox(row.value, col.value)) {
+  if (selectedIndex >= 0) {
     event.dataTransfer.setData(ENGINE_FLAVOR, selectedIndex.toString());
     event.dataTransfer.effectAllowed = "move";
   }
@@ -372,11 +369,6 @@ EngineStore.prototype = {
         this.moveEngine(this._getEngineByName(e.name), i);
       } else {
         // Otherwise, add it back to our internal store
-
-        // The search service removes the alias when an engine is hidden,
-        // so clear any alias we may have cached before unhiding the engine.
-        e.alias = "";
-
         this._engines.splice(i, 0, e);
         this._ops.push(new EngineUnhideOp(e, i));
         added++;
@@ -441,10 +433,6 @@ EngineView.prototype = {
 
   getSourceIndexFromDrag: function (dataTransfer) {
     return parseInt(dataTransfer.getData(ENGINE_FLAVOR));
-  },
-
-  isCheckBox: function(index, column) {
-    return column.id == "engineShown";
   },
 
   // nsITreeView

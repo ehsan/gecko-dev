@@ -15,7 +15,6 @@
 #include "nsProxyRelease.h"
 #include "nsServiceManagerUtils.h"
 #include "nsComponentManagerUtils.h"
-#include "mozilla/Telemetry.h"
 
 using mozilla::gfx::IntSize;
 using mozilla::gfx::SurfaceFormat;
@@ -102,7 +101,7 @@ Decoder::InitSharedDecoder(uint8_t* aImageData, uint32_t aImageDataLength,
                            RawAccessFrameRef&& aFrameRef)
 {
   // No re-initializing
-  MOZ_ASSERT(!mInitialized, "Can't re-initialize a decoder!");
+  NS_ABORT_IF_FALSE(!mInitialized, "Can't re-initialize a decoder!");
 
   mImageData = aImageData;
   mImageDataLength = aImageDataLength;
@@ -570,8 +569,8 @@ Decoder::PostSize(int32_t aWidth,
                   Orientation aOrientation /* = Orientation()*/)
 {
   // Validate
-  MOZ_ASSERT(aWidth >= 0, "Width can't be negative!");
-  MOZ_ASSERT(aHeight >= 0, "Height can't be negative!");
+  NS_ABORT_IF_FALSE(aWidth >= 0, "Width can't be negative!");
+  NS_ABORT_IF_FALSE(aHeight >= 0, "Height can't be negative!");
 
   // Tell the image
   mImageMetadata.SetSize(aWidth, aHeight, aOrientation);
@@ -590,7 +589,7 @@ void
 Decoder::PostFrameStart()
 {
   // We shouldn't already be mid-frame
-  MOZ_ASSERT(!mInFrame, "Starting new frame but not done with old one!");
+  NS_ABORT_IF_FALSE(!mInFrame, "Starting new frame but not done with old one!");
 
   // Update our state to reflect the new frame
   mInFrame = true;
@@ -634,8 +633,8 @@ Decoder::PostInvalidation(const nsIntRect& aRect,
                             /* = Nothing() */)
 {
   // We should be mid-frame
-  MOZ_ASSERT(mInFrame, "Can't invalidate when not mid-frame!");
-  MOZ_ASSERT(mCurrentFrame, "Can't invalidate when not mid-frame!");
+  NS_ABORT_IF_FALSE(mInFrame, "Can't invalidate when not mid-frame!");
+  NS_ABORT_IF_FALSE(mCurrentFrame, "Can't invalidate when not mid-frame!");
 
   // Record this invalidation, unless we're not sending partial invalidations
   // or we're past the first frame.
@@ -648,9 +647,9 @@ Decoder::PostInvalidation(const nsIntRect& aRect,
 void
 Decoder::PostDecodeDone(int32_t aLoopCount /* = 0 */)
 {
-  MOZ_ASSERT(!IsSizeDecode(), "Can't be done with decoding with size decode!");
-  MOZ_ASSERT(!mInFrame, "Can't be done decoding if we're mid-frame!");
-  MOZ_ASSERT(!mDecodeDone, "Decode already done!");
+  NS_ABORT_IF_FALSE(!IsSizeDecode(), "Can't be done with decoding with size decode!");
+  NS_ABORT_IF_FALSE(!mInFrame, "Can't be done decoding if we're mid-frame!");
+  NS_ABORT_IF_FALSE(!mDecodeDone, "Decode already done!");
   mDecodeDone = true;
 
   mImageMetadata.SetLoopCount(aLoopCount);
@@ -671,7 +670,7 @@ Decoder::PostDataError()
 void
 Decoder::PostDecoderError(nsresult aFailureCode)
 {
-  MOZ_ASSERT(NS_FAILED(aFailureCode), "Not a failure code!");
+  NS_ABORT_IF_FALSE(NS_FAILED(aFailureCode), "Not a failure code!");
 
   mFailCode = aFailureCode;
 
@@ -700,13 +699,6 @@ Decoder::NeedNewFrame(uint32_t framenum, uint32_t x_offset, uint32_t y_offset,
                                nsIntRect(x_offset, y_offset, width, height),
                                format, palette_depth);
   mNeedsNewFrame = true;
-}
-
-Telemetry::ID
-Decoder::SpeedHistogram()
-{
-  // Use HistogramCount as an invalid Histogram ID.
-  return Telemetry::HistogramCount;
 }
 
 } // namespace image

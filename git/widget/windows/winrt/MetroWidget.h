@@ -95,6 +95,7 @@ public:
   NS_IMETHOD    Create(nsIWidget *aParent,
                        nsNativeWidget aNativeParent,
                        const nsIntRect &aRect,
+                       nsDeviceContext *aContext,
                        nsWidgetInitData *aInitData = nullptr);
   NS_IMETHOD    Destroy();
   NS_IMETHOD    EnableDragDrop(bool aEnable);
@@ -127,10 +128,10 @@ public:
                                             uint32_t aModifierFlags,
                                             const nsAString& aCharacters,
                                             const nsAString& aUnmodifiedCharacters);
-  virtual nsresult SynthesizeNativeMouseEvent(mozilla::LayoutDeviceIntPoint aPoint,
+  virtual nsresult SynthesizeNativeMouseEvent(nsIntPoint aPoint,
                                               uint32_t aNativeMessage,
                                               uint32_t aModifierFlags);
-  virtual nsresult SynthesizeNativeMouseScrollEvent(mozilla::LayoutDeviceIntPoint aPoint,
+  virtual nsresult SynthesizeNativeMouseScrollEvent(nsIntPoint aPoint,
                                                     uint32_t aNativeMessage,
                                                     double aDeltaX,
                                                     double aDeltaY,
@@ -147,6 +148,7 @@ public:
   virtual bool  IsEnabled() const;
   // ShouldUseOffMainThreadCompositing is defined in base widget
   virtual bool  ShouldUseOffMainThreadCompositing();
+  bool          ShouldUseMainThreadD3D10Manager();
   bool          ShouldUseBasicManager();
   bool          ShouldUseAPZC();
   virtual LayerManager* GetLayerManager(PLayerTransactionChild* aShadowManager = nullptr,
@@ -159,6 +161,7 @@ public:
   NS_IMETHOD_(void) SetInputContext(const InputContext& aContext,
                                     const InputContextAction& aAction);
   NS_IMETHOD_(nsIWidget::InputContext) GetInputContext();
+  NS_IMETHOD    NotifyIME(const IMENotification& aIMENotification) MOZ_OVERRIDE;
   NS_IMETHOD    GetToggledKeyState(uint32_t aKeyCode, bool* aLEDState);
   virtual nsIMEUpdatePreference GetIMEUpdatePreference() MOZ_OVERRIDE;
 
@@ -171,7 +174,7 @@ public:
   virtual nsresult ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
   virtual void* GetNativeData(uint32_t aDataType);
   virtual void  FreeNativeData(void * data, uint32_t aDataType);
-  virtual mozilla::LayoutDeviceIntPoint WidgetToScreenOffset();
+  virtual nsIntPoint WidgetToScreenOffset();
 
   already_AddRefed<nsIPresShell> GetPresShell();
 
@@ -249,9 +252,6 @@ protected:
   void SetSubclass();
   void RemoveSubclass();
   nsIWidgetListener* GetPaintListener();
-
-  virtual nsresult NotifyIMEInternal(
-                     const IMENotification& aIMENotification) MOZ_OVERRIDE;
 
   // Async event dispatching
   void DispatchAsyncScrollEvent(DispatchMsg* aEvent);

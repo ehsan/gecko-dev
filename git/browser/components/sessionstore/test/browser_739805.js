@@ -18,7 +18,7 @@ function test() {
   let tab = gBrowser.addTab("about:blank");
   let browser = tab.linkedBrowser;
 
-  promiseBrowserLoaded(browser).then(() => {
+  whenBrowserLoaded(browser, function () {
     isnot(gBrowser.selectedTab, tab, "newly created tab is not selected");
 
     ss.setTabState(tab, JSON.stringify(tabState));
@@ -28,7 +28,7 @@ function test() {
     let formdata = state.entries[0].formdata;
     is(formdata && formdata.id["foo"], "bar", "tab state's formdata is valid");
 
-    promiseTabRestored(tab).then(() => {
+    whenTabRestored(tab, function () {
       let input = browser.contentDocument.getElementById("foo");
       is(input.value, "bar", "formdata has been restored correctly");
       finish();
@@ -36,5 +36,19 @@ function test() {
 
     // Restore the tab by selecting it.
     gBrowser.selectedTab = tab;
+  });
+}
+
+function whenBrowserLoaded(aBrowser, aCallback) {
+  aBrowser.addEventListener("load", function onLoad() {
+    aBrowser.removeEventListener("load", onLoad, true);
+    executeSoon(aCallback);
+  }, true);
+}
+
+function whenTabRestored(aTab, aCallback) {
+  aTab.addEventListener("SSTabRestored", function onRestored() {
+    aTab.removeEventListener("SSTabRestored", onRestored);
+    executeSoon(aCallback);
   });
 }

@@ -16,7 +16,7 @@
  *
  * @return XMLHttpRequest object
  */
-this.PROT_NewXMLHttpRequest = function PROT_NewXMLHttpRequest() {
+function PROT_NewXMLHttpRequest() {
   var Cc = Components.classes;
   var Ci = Components.interfaces;
   var request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
@@ -37,7 +37,7 @@ this.PROT_NewXMLHttpRequest = function PROT_NewXMLHttpRequest() {
  * appId.
  * @constructor
  */
-this.PROT_XMLFetcher = function PROT_XMLFetcher() {
+function PROT_XMLFetcher() {
   this.debugZone = "xmlfetcher";
   this._request = PROT_NewXMLHttpRequest();
   // implements nsILoadContext

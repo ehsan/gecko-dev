@@ -11,7 +11,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 function testForExpectedSymbols(stage, data) {
   const expectedSymbols = [ "IDBKeyRange", "indexedDB" ];
-  for (var symbol of expectedSymbols) {
+  for each (var symbol in expectedSymbols) {
     Services.prefs.setBoolPref("indexeddbtest.bootstrap." + stage + "." +
                                symbol, symbol in this);
   }

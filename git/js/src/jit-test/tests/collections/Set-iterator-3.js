@@ -1,7 +1,7 @@
 // Iterating over a set of objects yields those exact objects.
 
 var arr = [{}, {}, {}, [], /xyz/, new Date];
-var set = new Set(arr);
+var set = Set(arr);
 assertEq(set.size, arr.length);
 
 var i = 0;

@@ -81,9 +81,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
 XPCOMUtils.defineLazyModuleGetter(this, "ScriptPreloader",
                                   "resource://gre/modules/ScriptPreloader.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "Langpacks",
-                                  "resource://gre/modules/Langpacks.jsm");
-
 XPCOMUtils.defineLazyModuleGetter(this, "TrustedHostedAppsUtils",
                                   "resource://gre/modules/TrustedHostedAppsUtils.jsm");
 
@@ -224,7 +221,6 @@ this.DOMApplicationRegistry = {
                      "Webapps:RegisterBEP",
                      "Webapps:Export",
                      "Webapps:Import",
-                     "Webapps:GetIcon",
                      "Webapps:ExtractManifest",
                      "Webapps:SetEnabled",
                      "child-process-shutdown"];
@@ -247,9 +243,6 @@ this.DOMApplicationRegistry = {
                                       ["webapps", "webapps.json"], true).path;
 
     this.loadAndUpdateApps();
-
-    Langpacks.registerRegistryFunctions(this.broadcastMessage.bind(this),
-                                        this._appIdForManifestURL.bind(this));
   },
 
   // loads the current registry, that could be empty on first run.
@@ -431,7 +424,6 @@ this.DOMApplicationRegistry = {
         }
         app.kind = this.appKind(app, aResult.manifest);
         UserCustomizations.register(aResult.manifest, app);
-        Langpacks.register(app, aResult.manifest);
       });
 
       // Nothing else to do but notifying we're ready.
@@ -651,7 +643,7 @@ this.DOMApplicationRegistry = {
   //   c. for all apps in the new core registry, install them if they are not
   //      yet in the current registry, and run installPermissions()
   installSystemApps: function() {
-    return Task.spawn(function*() {
+    return Task.spawn(function() {
       let file;
       try {
         file = FileUtils.getFile("coreAppsDir", ["webapps", "webapps.json"], false);
@@ -728,7 +720,7 @@ this.DOMApplicationRegistry = {
   },
 
   loadAndUpdateApps: function() {
-    return Task.spawn(function*() {
+    return Task.spawn(function() {
       let runUpdate = AppsUtils.isFirstRun(Services.prefs);
 
       yield this.loadCurrentRegistry();
@@ -761,16 +753,13 @@ this.DOMApplicationRegistry = {
       if (runUpdate) {
 
         // Run migration before uninstall of core apps happens.
-        let appMigrator = Components.classes["@mozilla.org/app-migrator;1"];
-        if (appMigrator) {
-          try {
-              appMigrator = appMigrator.createInstance(Components.interfaces.nsIObserver);
-              appMigrator.observe(null, "webapps-before-update-merge", null);
-          } catch(e) {
-            debug("Exception running app migration: ");
-            debug(e.name + " " + e.message);
-            debug("Skipping app migration.");
-          }
+        try {
+          let appMigrator = Components.classes["@mozilla.org/app-migrator;1"].createInstance(Components.interfaces.nsIObserver);
+          appMigrator.observe(null, "webapps-before-update-merge", null);
+        } catch(e) {
+          debug("Exception running app migration: ");
+          debug(e.name + " " + e.message);
+          debug("Skipping app migration.");
         }
 
 #ifdef MOZ_WIDGET_GONK
@@ -1160,7 +1149,6 @@ this.DOMApplicationRegistry = {
         this._registerInterAppConnections(manifest, app);
         appsToRegister.push({ manifest: manifest, app: app });
         UserCustomizations.register(manifest, app);
-        Langpacks.register(app, manifest);
       });
       this._safeToClone.resolve();
       this._registerActivitiesForApps(appsToRegister, aRunUpdate);
@@ -1429,9 +1417,6 @@ this.DOMApplicationRegistry = {
         case "Webapps:RegisterBEP":
           this.registerBrowserElementParentForApp(msg, mm);
           break;
-        case "Webapps:GetIcon":
-          this.getIcon(msg, mm);
-          break;
         case "Webapps:Export":
           this.doExport(msg, mm);
           break;
@@ -1535,8 +1520,6 @@ this.DOMApplicationRegistry = {
     this.safeToClone.then( () => {
       for (let id in this.webapps) {
         tmp.push({ id: id });
-        this.webapps[id].additionalLanguages =
-          Langpacks.getAdditionalLanguages(this.webapps[id].manifestURL).langs;
       }
       this._readManifests(tmp).then(
         function(manifests) {
@@ -1981,10 +1964,6 @@ this.DOMApplicationRegistry = {
 
     // Update the asm.js scripts we need to compile.
     yield ScriptPreloader.preload(app, newManifest);
-
-    // Update langpack information.
-    Langpacks.register(app, newManifest);
-
     yield this._saveApps();
     // Update the handlers and permissions for this app.
     this.updateAppHandlers(oldManifest, newManifest, app);
@@ -2102,13 +2081,11 @@ this.DOMApplicationRegistry = {
       this.notifyAppsRegistryReady();
     }
 
-    // Update user customizations and langpacks.
+    // Update user customizations.
     if (aOldManifest) {
       UserCustomizations.unregister(aOldManifest, aApp);
-      Langpacks.unregister(aApp, aOldManifest);
     }
     UserCustomizations.register(aNewManifest, aApp);
-    Langpacks.register(aApp, aNewManifest);
   },
 
   checkForUpdate: function(aData, aMm) {
@@ -2363,6 +2340,7 @@ this.DOMApplicationRegistry = {
       doRequest.call(this, aResult[0].manifest, extraHeaders);
     });
   },
+
 
   updatePackagedApp: Task.async(function*(aData, aId, aApp, aNewManifest) {
     debug("updatePackagedApp");
@@ -3041,7 +3019,7 @@ this.DOMApplicationRegistry = {
                            this.webapps[id].manifestURL, jsonManifest);
     }
 
-    for (let prop of ["installState", "downloadAvailable", "downloading",
+    for each (let prop in ["installState", "downloadAvailable", "downloading",
                            "downloadSize", "readyToApplyDownload"]) {
       aData.app[prop] = appObject[prop];
     }
@@ -3207,9 +3185,6 @@ this.DOMApplicationRegistry = {
     // Check if we have asm.js code to preload for this application.
     yield ScriptPreloader.preload(aNewApp, aManifest);
 
-    // Update langpack information.
-    yield Langpacks.register(aNewApp, aManifest);
-
     this.broadcastMessage("Webapps:FireEvent", {
       eventType: ["downloadsuccess", "downloadapplied"],
       manifestURL: aNewApp.manifestURL
@@ -3354,6 +3329,7 @@ this.DOMApplicationRegistry = {
 
     oldPackage = oldPackage || (hash == aOldApp.packageHash);
 
+
     if (oldPackage) {
       debug("package's etag or hash unchanged; sending 'applied' event");
       // The package's Etag or hash has not changed.
@@ -3434,29 +3410,11 @@ this.DOMApplicationRegistry = {
                                aNewApp) {
     let requestChannel;
 
-    let appURI = NetUtil.newURI(aNewApp.origin, null, null);
-    let principal = Services.scriptSecurityManager.getAppCodebasePrincipal(
-                      appURI, aNewApp.localId, false);
-
     if (aIsLocalFileInstall) {
-      requestChannel = NetUtil.newChannel2(aFullPackagePath,
-                                           null,
-                                           null,
-                                           null,      // aLoadingNode
-                                           principal,
-                                           null,      // aTriggeringPrincipal
-                                           Ci.nsILoadInfo.SEC_NORMAL,
-                                           Ci.nsIContentPolicy.TYPE_OTHER)
+      requestChannel = NetUtil.newChannel(aFullPackagePath)
                               .QueryInterface(Ci.nsIFileChannel);
     } else {
-      requestChannel = NetUtil.newChannel2(aFullPackagePath,
-                                           null,
-                                           null,
-                                           null,      // aLoadingNode
-                                           principal,
-                                           null,      // aTriggeringPrincipal
-                                           Ci.nsILoadInfo.SEC_NORMAL,
-                                           Ci.nsIContentPolicy.TYPE_OTHER)
+      requestChannel = NetUtil.newChannel(aFullPackagePath)
                               .QueryInterface(Ci.nsIHttpChannel);
       requestChannel.loadFlags |= Ci.nsIRequest.INHIBIT_CACHING;
     }
@@ -3552,7 +3510,7 @@ this.DOMApplicationRegistry = {
     let file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
     file.initWithPath(aFilePath);
 
-    NetUtil.asyncFetch2(file, function(inputStream, status) {
+    NetUtil.asyncFetch(file, function(inputStream, status) {
       if (!Components.isSuccessCode(status)) {
         debug("Error reading " + aFilePath + ": " + e);
         deferred.reject();
@@ -3579,12 +3537,7 @@ this.DOMApplicationRegistry = {
       debug("File hash computed: " + hash);
 
       deferred.resolve(hash);
-    },
-    null,      // aLoadingNode
-    Services.scriptSecurityManager.getSystemPrincipal(),
-    null,      // aTriggeringPrincipal
-    Ci.nsILoadInfo.SEC_NORMAL,
-    Ci.nsIContentPolicy.TYPE_OTHER);
+    });
 
     return deferred.promise;
   },
@@ -4141,7 +4094,6 @@ this.DOMApplicationRegistry = {
       this._unregisterActivities(aApp.manifest, aApp);
     }
     UserCustomizations.unregister(aApp.manifest, aApp);
-    Langpacks.unregister(aApp, aApp.manifest);
 
     let dir = this._getAppDir(id);
     try {
@@ -4283,74 +4235,6 @@ this.DOMApplicationRegistry = {
       for (let i = 0; i < aResult.length; i++)
         aData.apps[i].manifest = aResult[i].manifest;
       aMm.sendAsyncMessage("Webapps:GetNotInstalled:Return:OK", aData);
-    });
-  },
-
-  getIcon: function(aData, aMm) {
-    function sendError(aError) {
-      debug("getIcon error: " + aError);
-      aData.error = aError;
-      aMm.sendAsyncMessage("Webapps:GetIcon:Return", aData);
-    }
-
-    let app = this.getAppByManifestURL(aData.manifestURL);
-    if (!app) {
-      sendError("NO_APP");
-      return;
-    }
-
-    function loadIcon(aUrl) {
-      let fallbackMimeType = aUrl.indexOf('.') >= 0 ?
-                             "image/" + aUrl.split(".").reverse()[0] : "";
-      // Set up an xhr to download a blob.
-      let xhr = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
-                  .createInstance(Ci.nsIXMLHttpRequest);
-      xhr.mozBackgroundRequest = true;
-      xhr.open("GET", aUrl, true);
-      xhr.responseType = "blob";
-      xhr.addEventListener("load", function() {
-        debug("Got http status=" + xhr.status + " for " + aUrl);
-        if (xhr.status == 200) {
-          let blob = xhr.response;
-          // Reusing aData with sendAsyncMessage() leads to an empty blob in
-          // the child.
-          let payload = {
-            "oid": aData.oid,
-            "requestID": aData.requestID,
-            "blob": blob,
-            "type": xhr.getResponseHeader("Content-Type") || fallbackMimeType
-          };
-          aMm.sendAsyncMessage("Webapps:GetIcon:Return", payload);
-        } else if (xhr.status === 0) {
-          sendError("NETWORK_ERROR");
-        } else {
-          sendError("FETCH_ICON_FAILED");
-        }
-      });
-      xhr.addEventListener("error", function() {
-        sendError("FETCH_ICON_FAILED");
-      });
-      xhr.send();
-    }
-
-    // Get the manifest, to find the icon url in the current locale.
-    this.getManifestFor(aData.manifestURL, aData.entryPoint)
-        .then((aManifest) => {
-      if (!aManifest) {
-        sendError("FETCH_ICON_FAILED");
-        return;
-      }
-
-      let manifest = new ManifestHelper(aManifest, app.origin, app.manifestURL);
-      let url = manifest.iconURLForSize(aData.iconID);
-      if (!url) {
-        sendError("NO_ICON");
-        return;
-      }
-      loadIcon(url);
-    }).catch(() => {
-      sendError("FETCH_ICON_FAILED");
-      return;
     });
   },
 
@@ -4587,7 +4471,7 @@ this.DOMApplicationRegistry = {
     });
   },
 
-  getManifestFor: function(aManifestURL, aEntryPoint) {
+  getManifestFor: function(aManifestURL) {
     let id = this._appIdForManifestURL(aManifestURL);
     let app = this.webapps[id];
     if (!id || (app.installState == "pending" && !app.retryingDownload)) {
@@ -4595,11 +4479,7 @@ this.DOMApplicationRegistry = {
     }
 
     return this._readManifests([{ id: id }]).then((aResult) => {
-      if (aEntryPoint) {
-        return aResult[0].manifest.entry_points[aEntryPoint];
-      } else {
-        return aResult[0].manifest;
-      }
+      return aResult[0].manifest;
     });
   },
 

@@ -90,8 +90,6 @@
  */
 #define NS_MESSAGE_LOOP_CONTRACTID "@mozilla.org/message-loop;1"
 
-#define NS_COMPARTMENT_INFO_CONTRACTID "@mozilla.org/compartment-info;1"
-
 /**
  * The following are the CIDs and Contract IDs of the nsISupports wrappers for
  * primative types.

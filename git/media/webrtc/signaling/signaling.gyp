@@ -51,6 +51,10 @@
         '../../../dom/media',
         '../../../media/mtransport',
         '../trunk',
+        '../trunk/webrtc',
+        '../trunk/webrtc/video_engine/include',
+        '../trunk/webrtc/voice_engine/include',
+        '../trunk/webrtc/modules/interface',
         '../../libyuv/include',
         '../../mtransport/third_party/nrappkit/src/util/libekr',
       ],
@@ -205,6 +209,7 @@
           ],
           'include_dirs': [
             # hack on hack to re-add it after SrtpFlow removes it
+            '../../webrtc/trunk/webrtc',
             '../../../dom/media/omx',
             '../../../gfx/layers/client',
           ],
@@ -245,7 +250,6 @@
           'defines': [
             'OS_LINUX',
             'SIP_OS_LINUX',
-            'WEBRTC_POSIX',
             '_GNU_SOURCE',
             'LINUX',
             'GIPS_VER=3510',
@@ -282,7 +286,6 @@
           ],
           'defines': [
             # avoiding pointless ifdef churn
-            'WEBRTC_POSIX',
             'SIP_OS_OSX',
             'OSX',
             'SECLIB_OPENSSL',
@@ -295,7 +298,6 @@
           'include_dirs': [
           ],
           'defines': [
-            'WEBRTC_POSIX',
             'OS_MACOSX',
             'SIP_OS_OSX',
             'OSX',

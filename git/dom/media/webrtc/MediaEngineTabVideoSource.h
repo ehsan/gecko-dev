@@ -20,7 +20,7 @@ class MediaEngineTabVideoSource : public MediaEngineVideoSource, nsIDOMEventList
 
     virtual void GetName(nsAString_internal&) MOZ_OVERRIDE;
     virtual void GetUUID(nsAString_internal&) MOZ_OVERRIDE;
-    virtual nsresult Allocate(const dom::MediaTrackConstraints &,
+    virtual nsresult Allocate(const VideoTrackConstraintsN &,
                               const mozilla::MediaEnginePrefs&) MOZ_OVERRIDE;
     virtual nsresult Deallocate() MOZ_OVERRIDE;
     virtual nsresult Start(mozilla::SourceMediaStream*, mozilla::TrackID) MOZ_OVERRIDE;
@@ -29,13 +29,13 @@ class MediaEngineTabVideoSource : public MediaEngineVideoSource, nsIDOMEventList
     virtual nsresult Stop(mozilla::SourceMediaStream*, mozilla::TrackID) MOZ_OVERRIDE;
     virtual nsresult Config(bool, uint32_t, bool, uint32_t, bool, uint32_t, int32_t) MOZ_OVERRIDE;
     virtual bool IsFake() MOZ_OVERRIDE;
-    virtual const dom::MediaSourceEnum GetMediaSource() MOZ_OVERRIDE {
-      return dom::MediaSourceEnum::Browser;
+    virtual const MediaSourceType GetMediaSource() MOZ_OVERRIDE {
+      return MediaSourceType::Browser;
     }
-    virtual uint32_t GetBestFitnessDistance(
+    virtual bool SatisfiesConstraintSets(
       const nsTArray<const dom::MediaTrackConstraintSet*>& aConstraintSets) MOZ_OVERRIDE
     {
-      return 0;
+      return true;
     }
 
     virtual nsresult TakePhoto(PhotoCallback* aCallback) MOZ_OVERRIDE
@@ -70,13 +70,12 @@ protected:
     ~MediaEngineTabVideoSource() {}
 
 private:
-    int mBufWidthMax;
-    int mBufHeightMax;
+    int mBufW;
+    int mBufH;
     int64_t mWindowId;
     bool mScrollWithPage;
     int mTimePerFrame;
     ScopedFreePtr<unsigned char> mData;
-    size_t mDataSize;
     nsCOMPtr<nsIDOMWindow> mWindow;
     nsRefPtr<layers::CairoImage> mImage;
     nsCOMPtr<nsITimer> mTimer;

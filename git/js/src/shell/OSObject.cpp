@@ -21,8 +21,6 @@
 // For JSFunctionSpecWithHelp
 #include "jsfriendapi.h"
 
-#include "js/Conversions.h"
-
 using namespace JS;
 
 static bool
@@ -238,7 +236,7 @@ os_waitpid(JSContext* cx, unsigned argc, Value* vp)
         return false;
     }
 
-    RootedObject info(cx, JS_NewPlainObject(cx));
+    RootedObject info(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
     if (!info)
         return false;
 
@@ -295,7 +293,7 @@ static const JSFunctionSpecWithHelp os_functions[] = {
 bool
 js::DefineOS(JSContext *cx, HandleObject global)
 {
-    RootedObject obj(cx, JS_NewPlainObject(cx));
+    RootedObject obj(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
     return obj &&
            JS_DefineFunctionsWithHelp(cx, obj, os_functions) &&
            JS_DefineProperty(cx, global, "os", obj, 0);

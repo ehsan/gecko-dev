@@ -75,7 +75,7 @@ loop.shared.views.FeedbackView = (function(l10n) {
         audio_quality: l10n.get("feedback_category_audio_quality"),
         video_quality: l10n.get("feedback_category_video_quality"),
         disconnected : l10n.get("feedback_category_was_disconnected"),
-        confusing:     l10n.get("feedback_category_confusing2"),
+        confusing:     l10n.get("feedback_category_confusing"),
         other:         l10n.get("feedback_category_other2")
       };
     },
@@ -142,7 +142,7 @@ loop.shared.views.FeedbackView = (function(l10n) {
 
     render: function() {
       return (
-        React.createElement(FeedbackLayout, {title: l10n.get("feedback_category_list_heading"), 
+        React.createElement(FeedbackLayout, {title: l10n.get("feedback_what_makes_you_sad"), 
                         reset: this.props.reset}, 
           React.createElement("form", {onSubmit: this.handleFormSubmit}, 
             this._getCategoryFields(), 
@@ -216,32 +216,42 @@ loop.shared.views.FeedbackView = (function(l10n) {
    * Feedback view.
    */
   var FeedbackView = React.createClass({displayName: "FeedbackView",
-    mixins: [
-      Backbone.Events,
-      loop.store.StoreMixin("feedbackStore")
-    ],
+    mixins: [Backbone.Events],
 
     propTypes: {
+      feedbackStore: React.PropTypes.instanceOf(loop.store.FeedbackStore),
       onAfterFeedbackReceived: React.PropTypes.func,
       // Used by the UI showcase.
       feedbackState: React.PropTypes.string
     },
 
     getInitialState: function() {
-      var storeState = this.getStoreState();
+      var storeState = this.props.feedbackStore.getStoreState();
       return _.extend({}, storeState, {
         feedbackState: this.props.feedbackState || storeState.feedbackState
       });
     },
 
+    componentWillMount: function() {
+      this.listenTo(this.props.feedbackStore, "change", this._onStoreStateChanged);
+    },
+
+    componentWillUnmount: function() {
+      this.stopListening(this.props.feedbackStore);
+    },
+
+    _onStoreStateChanged: function() {
+      this.setState(this.props.feedbackStore.getStoreState());
+    },
+
     reset: function() {
-      this.setState(this.getStore().getInitialStoreState());
+      this.setState(this.props.feedbackStore.getInitialStoreState());
     },
 
     handleHappyClick: function() {
       // XXX: If the user is happy, we directly send this information to the
       //      feedback API; this is a behavior we might want to revisit later.
-      this.getStore().dispatchAction(new sharedActions.SendFeedback({
+      this.props.feedbackStore.dispatchAction(new sharedActions.SendFeedback({
         happy: true,
         category: "",
         description: ""
@@ -249,7 +259,7 @@ loop.shared.views.FeedbackView = (function(l10n) {
     },
 
     handleSadClick: function() {
-      this.getStore().dispatchAction(
+      this.props.feedbackStore.dispatchAction(
         new sharedActions.RequireFeedbackDetails());
     },
 
@@ -280,7 +290,7 @@ loop.shared.views.FeedbackView = (function(l10n) {
         case FEEDBACK_STATES.DETAILS: {
           return (
             React.createElement(FeedbackForm, {
-              feedbackStore: this.getStore(), 
+              feedbackStore: this.props.feedbackStore, 
               reset: this.reset, 
               pending: this.state.feedbackState === FEEDBACK_STATES.PENDING})
             );

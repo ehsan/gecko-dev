@@ -37,6 +37,7 @@ class ScreenCapturerTest : public testing::Test {
 
  protected:
   scoped_ptr<ScreenCapturer> capturer_;
+  MockMouseShapeObserver mouse_observer_;
   MockScreenCapturerCallback callback_;
 };
 
@@ -68,6 +69,7 @@ TEST_F(ScreenCapturerTest, GetScreenListAndSelectScreen) {
 }
 
 TEST_F(ScreenCapturerTest, StartCapturer) {
+  capturer_->SetMouseShapeObserver(&mouse_observer_);
   capturer_->Start(&callback_);
 }
 
@@ -76,6 +78,8 @@ TEST_F(ScreenCapturerTest, Capture) {
   DesktopFrame* frame = NULL;
   EXPECT_CALL(callback_, OnCaptureCompleted(_))
       .WillOnce(SaveArg<0>(&frame));
+  EXPECT_CALL(mouse_observer_, OnCursorShapeChangedPtr(_))
+      .Times(AnyNumber());
 
   EXPECT_CALL(callback_, CreateSharedMemory(_))
       .Times(AnyNumber())
@@ -102,12 +106,14 @@ TEST_F(ScreenCapturerTest, Capture) {
   delete frame;
 }
 
-#if defined(WEBRTC_WIN)
+#if defined(OS_WIN)
 
 TEST_F(ScreenCapturerTest, UseSharedBuffers) {
   DesktopFrame* frame = NULL;
   EXPECT_CALL(callback_, OnCaptureCompleted(_))
       .WillOnce(SaveArg<0>(&frame));
+  EXPECT_CALL(mouse_observer_, OnCursorShapeChangedPtr(_))
+      .Times(AnyNumber());
 
   EXPECT_CALL(callback_, CreateSharedMemory(_))
       .Times(AnyNumber())
@@ -123,20 +129,6 @@ TEST_F(ScreenCapturerTest, UseSharedBuffers) {
   delete frame;
 }
 
-TEST_F(ScreenCapturerTest, UseMagnifier) {
-  DesktopCaptureOptions options(DesktopCaptureOptions::CreateDefault());
-  options.set_allow_use_magnification_api(true);
-  capturer_.reset(ScreenCapturer::Create(options));
-
-  DesktopFrame* frame = NULL;
-  EXPECT_CALL(callback_, OnCaptureCompleted(_)).WillOnce(SaveArg<0>(&frame));
-
-  capturer_->Start(&callback_);
-  capturer_->Capture(DesktopRegion());
-  ASSERT_TRUE(frame);
-  delete frame;
-}
-
-#endif  // defined(WEBRTC_WIN)
+#endif  // defined(OS_WIN)
 
 }  // namespace webrtc

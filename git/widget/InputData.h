@@ -22,10 +22,6 @@ namespace dom {
 class Touch;
 }
 
-namespace gfx {
-class Matrix4x4;
-}
-
 enum InputType
 {
   MULTITOUCH_INPUT,
@@ -48,12 +44,12 @@ class ScrollWheelInput;
 #define INPUTDATA_AS_CHILD_TYPE(type, enumID) \
   const type& As##type() const \
   { \
-    MOZ_ASSERT(mInputType == enumID, "Invalid cast of InputData."); \
+    NS_ABORT_IF_FALSE(mInputType == enumID, "Invalid cast of InputData."); \
     return (const type&) *this; \
   } \
   type& As##type() \
   { \
-    MOZ_ASSERT(mInputType == enumID, "Invalid cast of InputData."); \
+    NS_ABORT_IF_FALSE(mInputType == enumID, "Invalid cast of InputData."); \
     return (type&) *this; \
   }
 
@@ -222,10 +218,6 @@ public:
   WidgetTouchEvent ToWidgetTouchEvent(nsIWidget* aWidget) const;
   WidgetMouseEvent ToWidgetMouseEvent(nsIWidget* aWidget) const;
 
-  // Return the index into mTouches of the SingleTouchData with the given
-  // identifier, or -1 if there is no such SingleTouchData.
-  int32_t IndexOfTouch(int32_t aTouchIdentifier);
-
   // This conversion from WidgetMouseEvent to MultiTouchInput is needed because
   // on the B2G emulator we can only receive mouse events, but we need to be
   // able to pan correctly. To do this, we convert the events into a format that
@@ -233,8 +225,6 @@ public:
   // SingleTouchData. It also sends garbage for the identifier, radius, force
   // and rotation angle.
   explicit MultiTouchInput(const WidgetMouseEvent& aMouseEvent);
-
-  void TransformToLocal(const gfx::Matrix4x4& aTransform);
 
   MultiTouchType mType;
   nsTArray<SingleTouchData> mTouches;
@@ -306,8 +296,6 @@ public:
   {
   }
 
-  void TransformToLocal(const gfx::Matrix4x4& aTransform);
-
   PanGestureType mType;
   ScreenPoint mPanStartPoint;
 
@@ -368,8 +356,6 @@ public:
       mPreviousSpan(aPreviousSpan)
   {
   }
-
-  void TransformToLocal(const gfx::Matrix4x4& aTransform);
 
   PinchGestureType mType;
 
@@ -439,8 +425,6 @@ public:
   {
   }
 
-  void TransformToLocal(const gfx::Matrix4x4& aTransform);
-
   TapGestureType mType;
 
   // The location of the tap in screen pixels.
@@ -485,8 +469,6 @@ public:
      mDeltaX(aDeltaX),
      mDeltaY(aDeltaY)
   {}
-
-  void TransformToLocal(const gfx::Matrix4x4& aTransform);
 
   ScrollDeltaType mDeltaType;
   ScrollMode mScrollMode;

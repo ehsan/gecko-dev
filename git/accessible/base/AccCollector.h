@@ -77,14 +77,14 @@ public:
   virtual ~EmbeddedObjCollector() { }
 
 public:
-  virtual int32_t GetIndexAt(Accessible* aAccessible) MOZ_OVERRIDE;
+  virtual int32_t GetIndexAt(Accessible* aAccessible);
 
 protected:
   // Make sure it's used by Accessible class only.
   explicit EmbeddedObjCollector(Accessible* aRoot) :
     AccCollector(aRoot, filters::GetEmbeddedObject) { }
 
-  virtual void AppendObject(Accessible* aAccessible) MOZ_OVERRIDE;
+  virtual void AppendObject(Accessible* aAccessible);
 
   friend class Accessible;
 };

@@ -228,7 +228,7 @@ nsBlockReflowContext::ReflowBlock(const LogicalRect&  aSpace,
 {
   mFrame = aFrameRS.frame;
   mWritingMode = aState.mReflowState.GetWritingMode();
-  mContainerWidth = aState.ContainerWidth();
+  mContainerWidth = aState.mContainerWidth;
   mSpace = aSpace;
 
   if (!aIsAdjacentWithBStart) {
@@ -424,22 +424,20 @@ nsBlockReflowContext::PlaceBlock(const nsHTMLReflowState&  aReflowState,
                    mMetrics.ISize(mWritingMode), mMetrics.BSize(mWritingMode),
                    mContainerWidth);
 
-  WritingMode frameWM = mFrame->GetWritingMode();
-  LogicalPoint logPos =
-    LogicalPoint(mWritingMode, mICoord, mBCoord).
-      ConvertTo(frameWM, mWritingMode, mContainerWidth - mMetrics.Width());
+  // XXX temporary until other classes are logicalized
+  nsPoint position = LogicalRect(mWritingMode,
+                                 mICoord, mBCoord,
+                                 mMetrics.ISize(mWritingMode),
+                                 mMetrics.BSize(mWritingMode)).
+                       GetPhysicalPosition(mWritingMode, mContainerWidth);
 
-  // ApplyRelativePositioning in right-to-left writing modes needs to
-  // know the updated frame width
-  mFrame->SetSize(mWritingMode, mMetrics.Size(mWritingMode));
-  aReflowState.ApplyRelativePositioning(&logPos, mContainerWidth);
+  aReflowState.ApplyRelativePositioning(&position);
 
   // Now place the frame and complete the reflow process
   nsContainerFrame::FinishReflowChild(mFrame, mPresContext, mMetrics,
-                                      &aReflowState, frameWM, logPos,
-                                      mContainerWidth, 0);
+                                      &aReflowState, position.x, position.y, 0);
 
-  aOverflowAreas = mMetrics.mOverflowAreas + mFrame->GetPosition();
+  aOverflowAreas = mMetrics.mOverflowAreas + position;
 
   return true;
 }

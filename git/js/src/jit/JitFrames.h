@@ -13,7 +13,6 @@
 #include "jsfun.h"
 
 #include "jit/JitFrameIterator.h"
-#include "jit/Safepoints.h"
 
 namespace js {
 namespace jit {
@@ -273,13 +272,13 @@ void HandleException(ResumeFromException *rfe);
 
 void EnsureExitFrame(CommonFrameLayout *frame);
 
-void MarkJitActivations(JSRuntime *rt, JSTracer *trc);
+void MarkJitActivations(PerThreadData *ptd, JSTracer *trc);
 void MarkIonCompilerRoots(JSTracer *trc);
 
 JSCompartment *
 TopmostIonActivationCompartment(JSRuntime *rt);
 
-void UpdateJitActivationsForMinorGC(JSRuntime *rt, JSTracer *trc);
+void UpdateJitActivationsForMinorGC(PerThreadData *ptd, JSTracer *trc);
 
 static inline uint32_t
 MakeFrameDescriptor(uint32_t frameSize, FrameType type)
@@ -289,11 +288,15 @@ MakeFrameDescriptor(uint32_t frameSize, FrameType type)
 
 // Returns the JSScript associated with the topmost JIT frame.
 inline JSScript *
-GetTopJitJSScript(JSContext *cx)
+GetTopJitJSScript(JSContext *cx, void **returnAddrOut = nullptr)
 {
     JitFrameIterator iter(cx);
     MOZ_ASSERT(iter.type() == JitFrame_Exit);
     ++iter;
+
+    MOZ_ASSERT(iter.returnAddressToFp() != nullptr);
+    if (returnAddrOut)
+        *returnAddrOut = (void *) iter.returnAddressToFp();
 
     if (iter.isBaselineStub()) {
         ++iter;
@@ -327,9 +330,6 @@ class CommonFrameLayout
   public:
     static size_t offsetOfDescriptor() {
         return offsetof(CommonFrameLayout, descriptor_);
-    }
-    uintptr_t descriptor() const {
-        return descriptor_;
     }
     static size_t offsetOfReturnAddress() {
         return offsetof(CommonFrameLayout, returnAddress_);
@@ -397,10 +397,11 @@ class JitFrameLayout : public CommonFrameLayout
         return numActualArgs_;
     }
 
-    // Computes a reference to a stack or argument slot, where a slot is a
-    // distance from the base frame pointer, as would be used for LStackSlot
-    // or LArgument.
-    uintptr_t *slotRef(SafepointSlotEntry where);
+    // Computes a reference to a slot, where a slot is a distance from the base
+    // frame pointer (as would be used for LStackSlot).
+    uintptr_t *slotRef(uint32_t slot) {
+        return (uintptr_t *)((uint8_t *)this - slot);
+    }
 
     static inline size_t Size() {
         return sizeof(JitFrameLayout);
@@ -421,21 +422,6 @@ class RectifierFrameLayout : public JitFrameLayout
   public:
     static inline size_t Size() {
         return sizeof(RectifierFrameLayout);
-    }
-};
-
-class IonAccessorICFrameLayout : public CommonFrameLayout
-{
-  protected:
-    // Pointer to root the stub's JitCode.
-    JitCode *stubCode_;
-
-  public:
-    JitCode **stubCode() {
-        return &stubCode_;
-    }
-    static size_t Size() {
-        return sizeof(IonAccessorICFrameLayout);
     }
 };
 
@@ -486,18 +472,6 @@ class IonOOLPropertyOpExitFrameLayout;
 class IonOOLProxyExitFrameLayout;
 class IonDOMExitFrameLayout;
 
-enum ExitFrameTokenValues
-{
-    NativeExitFrameLayoutToken            = 0x0,
-    IonDOMExitFrameLayoutGetterToken      = 0x1,
-    IonDOMExitFrameLayoutSetterToken      = 0x2,
-    IonDOMMethodExitFrameLayoutToken      = 0x3,
-    IonOOLNativeExitFrameLayoutToken      = 0x4,
-    IonOOLPropertyOpExitFrameLayoutToken  = 0x5,
-    IonOOLProxyExitFrameLayoutToken       = 0x6,
-    ExitFrameLayoutBareToken              = 0xFF
-};
-
 // this is the frame layout when we are exiting ion code, and about to enter platform ABI code
 class ExitFrameLayout : public CommonFrameLayout
 {
@@ -508,7 +482,7 @@ class ExitFrameLayout : public CommonFrameLayout
   public:
     // Pushed for "bare" fake exit frames that have no GC things on stack to be
     // marked.
-    static JitCode *BareToken() { return (JitCode *)ExitFrameLayoutBareToken; }
+    static JitCode *BareToken() { return (JitCode *)0xFF; }
 
     static inline size_t Size() {
         return sizeof(ExitFrameLayout);
@@ -562,7 +536,7 @@ class NativeExitFrameLayout
     uint32_t hiCalleeResult_;
 
   public:
-    static JitCode *Token() { return (JitCode *)NativeExitFrameLayoutToken; }
+    static JitCode *Token() { return (JitCode *)0x0; }
 
     static inline size_t Size() {
         return sizeof(NativeExitFrameLayout);
@@ -600,7 +574,7 @@ class IonOOLNativeExitFrameLayout
     uint32_t hiThis_;
 
   public:
-    static JitCode *Token() { return (JitCode *)IonOOLNativeExitFrameLayoutToken; }
+    static JitCode *Token() { return (JitCode *)0x4; }
 
     static inline size_t Size(size_t argc) {
         // The frame accounts for the callee/result and |this|, so we only need args.
@@ -646,7 +620,7 @@ class IonOOLPropertyOpExitFrameLayout
     JitCode *stubCode_;
 
   public:
-    static JitCode *Token() { return (JitCode *)IonOOLPropertyOpExitFrameLayoutToken; }
+    static JitCode *Token() { return (JitCode *)0x5; }
 
     static inline size_t Size() {
         return sizeof(IonOOLPropertyOpExitFrameLayout);
@@ -698,7 +672,7 @@ class IonOOLProxyExitFrameLayout
     JitCode *stubCode_;
 
   public:
-    static JitCode *Token() { return (JitCode *)IonOOLProxyExitFrameLayoutToken; }
+    static JitCode *Token() { return (JitCode *)0x6; }
 
     static inline size_t Size() {
         return sizeof(IonOOLProxyExitFrameLayout);
@@ -738,8 +712,8 @@ class IonDOMExitFrameLayout
     uint32_t hiCalleeResult_;
 
   public:
-    static JitCode *GetterToken() { return (JitCode *)IonDOMExitFrameLayoutGetterToken; }
-    static JitCode *SetterToken() { return (JitCode *)IonDOMExitFrameLayoutSetterToken; }
+    static JitCode *GetterToken() { return (JitCode *)0x1; }
+    static JitCode *SetterToken() { return (JitCode *)0x2; }
 
     static inline size_t Size() {
         return sizeof(IonDOMExitFrameLayout);
@@ -778,7 +752,7 @@ class IonDOMMethodExitFrameLayout
     friend struct IonDOMMethodExitFrameLayoutTraits;
 
   public:
-    static JitCode *Token() { return (JitCode *)IonDOMMethodExitFrameLayoutToken; }
+    static JitCode *Token() { return (JitCode *)0x3; }
 
     static inline size_t Size() {
         return sizeof(IonDOMMethodExitFrameLayout);
@@ -847,11 +821,6 @@ class BaselineStubFrameLayout : public CommonFrameLayout
     }
     static inline int reverseOffsetOfSavedFramePtr() {
         return -int(2 * sizeof(void *));
-    }
-
-    void *reverseSavedFramePtr() {
-        uint8_t *addr = ((uint8_t *) this) + reverseOffsetOfSavedFramePtr();
-        return *(void **)addr;
     }
 
     inline ICStub *maybeStubPtr() {

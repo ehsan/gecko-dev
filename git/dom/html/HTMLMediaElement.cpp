@@ -276,7 +276,7 @@ public:
     : mElement(aElement),
       mLoadID(aElement->GetCurrentLoadID())
   {
-    MOZ_ASSERT(mElement, "Must pass an element to call back");
+    NS_ABORT_IF_FALSE(mElement, "Must pass an element to call back");
   }
 
 private:
@@ -435,7 +435,6 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLMediaElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(HTMLMediaElement, nsGenericHTMLElement)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mMediaSource)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSrcStream)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPlaybackStream)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSrcAttrStream)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSourcePointer)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mLoadBlockedDoc)
@@ -520,7 +519,7 @@ already_AddRefed<MediaSource>
 HTMLMediaElement::GetMozMediaSourceObject() const
 {
   nsRefPtr<MediaSource> source;
-  if (mLoadingSrc && IsMediaSourceURI(mLoadingSrc)) {
+  if (IsMediaSourceURI(mLoadingSrc)) {
     NS_GetSourceForMediaSourceURI(mLoadingSrc, getter_AddRefs(source));
   }
   return source.forget();
@@ -538,14 +537,14 @@ HTMLMediaElement::GetMozSrcObject() const
 void
 HTMLMediaElement::SetMozSrcObject(DOMMediaStream& aValue)
 {
-  SetMozSrcObject(&aValue);
+  mSrcAttrStream = &aValue;
+  Load();
 }
 
 void
 HTMLMediaElement::SetMozSrcObject(DOMMediaStream* aValue)
 {
-  mSrcAttrStream = aValue;
-  Load();
+  SetMozSrcObject(*aValue);
 }
 
 /* readonly attribute nsIDOMHTMLMediaElement mozAutoplayEnabled; */
@@ -865,7 +864,6 @@ void HTMLMediaElement::SelectResource()
         "Should think we're not loading from source children by default");
 
       mLoadingSrc = uri;
-      UpdatePreloadAction();
       if (mPreloadAction == HTMLMediaElement::PRELOAD_NONE) {
         // preload:none media, suspend the load here before we make any
         // network requests.
@@ -1080,12 +1078,9 @@ void HTMLMediaElement::UpdatePreloadAction()
     // Find the appropriate preload action by looking at the attribute.
     const nsAttrValue* val = mAttrsAndChildren.GetAttr(nsGkAtoms::preload,
                                                        kNameSpaceID_None);
-    // MSE doesn't work if preload is none, so it ignores the pref when src is
-    // from MSE.
-    uint32_t preloadDefault = (mLoadingSrc && IsMediaSourceURI(mLoadingSrc)) ?
-                              HTMLMediaElement::PRELOAD_ATTR_METADATA :
-                              Preferences::GetInt("media.preload.default",
-                                                  HTMLMediaElement::PRELOAD_ATTR_METADATA);
+    uint32_t preloadDefault =
+      Preferences::GetInt("media.preload.default",
+                          HTMLMediaElement::PRELOAD_ATTR_METADATA);
     uint32_t preloadAuto =
       Preferences::GetInt("media.preload.auto",
                           HTMLMediaElement::PRELOAD_ENOUGH);
@@ -1226,21 +1221,12 @@ nsresult HTMLMediaElement::LoadResource()
     return FinishDecoderSetup(decoder, resource, nullptr, nullptr);
   }
 
-  nsSecurityFlags securityFlags = nsILoadInfo::SEC_NORMAL;
-  if (nsContentUtils::ChannelShouldInheritPrincipal(NodePrincipal(),
-                                                    mLoadingSrc,
-                                                    false, // aInheritForAboutBlank
-                                                    false // aForceInherit
-                                                    )) {
-    securityFlags = nsILoadInfo::SEC_FORCE_INHERIT_PRINCIPAL;
-  }
-
   nsCOMPtr<nsILoadGroup> loadGroup = GetDocumentLoadGroup();
   nsCOMPtr<nsIChannel> channel;
   rv = NS_NewChannel(getter_AddRefs(channel),
                      mLoadingSrc,
                      static_cast<Element*>(this),
-                     securityFlags,
+                     nsILoadInfo::SEC_NORMAL,
                      nsIContentPolicy::TYPE_MEDIA,
                      loadGroup,
                      nullptr,   // aCallbacks
@@ -1766,7 +1752,7 @@ HTMLMediaElement::MozGetMetadata(JSContext* cx,
     return;
   }
 
-  JS::Rooted<JSObject*> tags(cx, JS_NewPlainObject(cx));
+  JS::Rooted<JSObject*> tags(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
   if (!tags) {
     aRv.Throw(NS_ERROR_FAILURE);
     return;
@@ -2149,7 +2135,7 @@ HTMLMediaElement::~HTMLMediaElement()
 }
 
 void
-HTMLMediaElement::GetItemValueText(DOMString& aValue)
+HTMLMediaElement::GetItemValueText(nsAString& aValue)
 {
   // Can't call GetSrc because we don't have a JSContext
   GetURIAttr(nsGkAtoms::src, nullptr, aValue);
@@ -2959,28 +2945,6 @@ void HTMLMediaElement::SetupSrcMediaStreamPlayback(DOMMediaStream* aStream)
 
   mSrcStream = aStream;
 
-  nsIDOMWindow* window = OwnerDoc()->GetInnerWindow();
-  if (!window) {
-    return;
-  }
-
-  // XXX Remove this if with CameraPreviewMediaStream per bug 1124630.
-  if (!mSrcStream->GetStream()->AsCameraPreviewStream()) {
-    // Now that we have access to |mSrcStream| we can pipe it to our shadow
-    // version |mPlaybackStream|. If two media elements are playing the
-    // same realtime DOMMediaStream, this allows them to pause playback
-    // independently of each other.
-    mPlaybackStream = DOMMediaStream::CreateTrackUnionStream(window);
-    mPlaybackStreamInputPort = mPlaybackStream->GetStream()->AsProcessedStream()->
-      AllocateInputPort(mSrcStream->GetStream(), MediaInputPort::FLAG_BLOCK_OUTPUT);
-
-    nsRefPtr<nsIPrincipal> principal = GetCurrentPrincipal();
-    mPlaybackStream->CombineWithPrincipal(principal);
-
-    // Let |mSrcStream| decide when the stream has finished.
-    GetSrcMediaStream()->AsProcessedStream()->SetAutofinish(true);
-  }
-
   nsRefPtr<MediaStream> stream = mSrcStream->GetStream();
   if (stream) {
     stream->SetAudioChannelType(mAudioChannel);
@@ -3027,10 +2991,6 @@ void HTMLMediaElement::EndSrcMediaStreamPlayback()
   }
   mSrcStream->DisconnectTrackListListeners(AudioTracks(), VideoTracks());
 
-  if (mPlaybackStreamInputPort) {
-    mPlaybackStreamInputPort->Destroy();
-  }
-
   // Kill its reference to this element
   mSrcStreamListener->Forget();
   mSrcStreamListener = nullptr;
@@ -3051,8 +3011,6 @@ void HTMLMediaElement::EndSrcMediaStreamPlayback()
     stream->ChangeExplicitBlockerCount(-1);
   }
   mSrcStream = nullptr;
-  mPlaybackStreamInputPort = nullptr;
-  mPlaybackStream = nullptr;
 }
 
 void HTMLMediaElement::ProcessMediaFragmentURI()
@@ -3078,17 +3036,7 @@ void HTMLMediaElement::MetadataLoaded(const MediaInfo* aInfo,
   mTags = aTags.forget();
   mLoadedDataFired = false;
   ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_METADATA);
-
-  if (mIsEncrypted) {
-    nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
-    obs->NotifyObservers(static_cast<nsIContent*>(this), "media-eme-metadataloaded", nullptr);
-  }
-
   DispatchAsyncEvent(NS_LITERAL_STRING("durationchange"));
-  if (IsVideo() && mHasVideo) {
-    mMediaSize = aInfo->mVideo.mDisplay;
-    DispatchAsyncEvent(NS_LITERAL_STRING("resize"));
-  }
   DispatchAsyncEvent(NS_LITERAL_STRING("loadedmetadata"));
   if (mDecoder && mDecoder->IsTransportSeekable() && mDecoder->IsMediaSeekable()) {
     ProcessMediaFragmentURI();
@@ -3315,7 +3263,7 @@ void HTMLMediaElement::CheckProgress(bool aHaveNewProgress)
   if (now - mDataTime >= TimeDuration::FromMilliseconds(STALL_MS)) {
     DispatchAsyncEvent(NS_LITERAL_STRING("stalled"));
 
-    if (mLoadingSrc && IsMediaSourceURI(mLoadingSrc)) {
+    if (IsMediaSourceURI(mLoadingSrc)) {
       ChangeDelayLoadStatus(false);
     }
 
@@ -3747,10 +3695,6 @@ void HTMLMediaElement::NotifyDecoderPrincipalChanged()
 
 void HTMLMediaElement::UpdateMediaSize(nsIntSize size)
 {
-  if (IsVideo() && mReadyState != HAVE_NOTHING && mMediaSize != size) {
-    DispatchAsyncEvent(NS_LITERAL_STRING("resize"));
-  }
-
   mMediaSize = size;
   UpdateReadyStateForData(mLastNextFrameStatus);
 }

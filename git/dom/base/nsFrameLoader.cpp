@@ -53,8 +53,7 @@
 #include "nsISHistory.h"
 #include "nsNullPrincipal.h"
 #include "nsIScriptError.h"
-#include "nsGlobalWindow.h"
-#include "nsPIWindowRoot.h"
+
 #include "nsLayoutUtils.h"
 #include "nsView.h"
 
@@ -76,21 +75,20 @@
 #include "AppProcessChecker.h"
 #include "ContentParent.h"
 #include "TabParent.h"
-#include "mozilla/plugins/PPluginWidgetParent.h"
-#include "../plugins/ipc/PluginWidgetParent.h"
 #include "mozilla/AsyncEventDispatcher.h"
 #include "mozilla/GuardObjects.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/unused.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/jsipc/CrossProcessObjectWrappers.h"
 #include "mozilla/layout/RenderFrameParent.h"
 #include "nsIAppsService.h"
 #include "GeckoProfiler.h"
 
 #include "jsapi.h"
 #include "mozilla/dom/HTMLIFrameElement.h"
+#include "mozilla/dom/SVGIFrameElement.h"
 #include "nsSandboxFlags.h"
+#include "JavaScriptParent.h"
 #include "mozilla/layers/CompositorChild.h"
 
 #include "mozilla/dom/StructuredCloneUtils.h"
@@ -169,12 +167,14 @@ nsFrameLoader::nsFrameLoader(Element* aOwner, bool aNetworkCreated)
   , mRemoteFrame(false)
   , mClipSubdocument(true)
   , mClampScrollPosition(true)
+  , mRemoteBrowserInitialized(false)
   , mObservingOwnerContent(false)
   , mVisible(true)
   , mCurrentRemoteFrame(nullptr)
   , mRemoteBrowser(nullptr)
   , mChildID(0)
   , mEventMode(EVENT_MODE_NORMAL_DISPATCH)
+  , mPendingFrameSent(false)
 {
   ResetPermissionManagerStatus();
 }
@@ -208,7 +208,8 @@ nsFrameLoader::LoadFrame()
 
   nsAutoString src;
 
-  bool isSrcdoc = mOwnerContent->IsHTML(nsGkAtoms::iframe) &&
+  bool isSrcdoc = (mOwnerContent->IsHTML(nsGkAtoms::iframe) ||
+                   mOwnerContent->IsSVG(nsGkAtoms::iframe)) &&
                   mOwnerContent->HasAttr(kNameSpaceID_None, nsGkAtoms::srcdoc);
   if (isSrcdoc) {
     src.AssignLiteral("about:srcdoc");
@@ -361,6 +362,15 @@ nsFrameLoader::ReallyStartLoadingInternal()
 
   if (mRemoteFrame) {
     if (!mRemoteBrowser) {
+      if (!mPendingFrameSent) {
+        nsCOMPtr<nsIObserverService> os = services::GetObserverService();
+        if (os && !mRemoteBrowserInitialized) {
+          os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, this),
+                              "remote-browser-pending", nullptr);
+          mPendingFrameSent = true;
+        }
+      }
+
       TryRemoteBrowser();
 
       if (!mRemoteBrowser) {
@@ -402,7 +412,8 @@ nsFrameLoader::ReallyStartLoadingInternal()
   nsCOMPtr<nsIURI> referrer;
   
   nsAutoString srcdoc;
-  bool isSrcdoc = mOwnerContent->IsHTML(nsGkAtoms::iframe) &&
+  bool isSrcdoc = (mOwnerContent->IsHTML(nsGkAtoms::iframe) ||
+                   mOwnerContent->IsSVG(nsGkAtoms::iframe)) &&
                   mOwnerContent->GetAttr(kNameSpaceID_None, nsGkAtoms::srcdoc,
                                          srcdoc);
 
@@ -887,26 +898,21 @@ nsFrameLoader::ShowRemoteFrame(const nsIntSize& size,
       return false;
     }
 
-    nsPIDOMWindow* win = mOwnerContent->OwnerDoc()->GetWindow();
-    bool parentIsActive = false;
-    if (win) {
-      nsCOMPtr<nsPIWindowRoot> windowRoot =
-        static_cast<nsGlobalWindow*>(win)->GetTopWindowRoot();
-      if (windowRoot) {
-        nsPIDOMWindow* topWin = windowRoot->GetWindow();
-        parentIsActive = topWin && topWin->IsActive();
-      }
-    }
-    mRemoteBrowser->Show(size, parentIsActive);
+    mRemoteBrowser->Show(size);
     mRemoteBrowserShown = true;
 
     EnsureMessageManager();
 
-    InitializeBrowserAPI();
     nsCOMPtr<nsIObserverService> os = services::GetObserverService();
-    if (os) {
+    if (os && !mRemoteBrowserInitialized) {
+      if (!mPendingFrameSent) {
+        os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, this),
+                            "remote-browser-pending", nullptr);
+        mPendingFrameSent = true;
+      }
       os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, this),
                           "remote-browser-shown", nullptr);
+      mRemoteBrowserInitialized = true;
     }
   } else {
     nsIntRect dimensions;
@@ -953,8 +959,6 @@ nsFrameLoader::SwapWithOtherRemoteLoader(nsFrameLoader* aOther,
                                          nsRefPtr<nsFrameLoader>& aFirstToSwap,
                                          nsRefPtr<nsFrameLoader>& aSecondToSwap)
 {
-  MOZ_ASSERT(NS_IsMainThread());
-
   Element* ourContent = mOwnerContent;
   Element* otherContent = aOther->mOwnerContent;
 
@@ -1007,17 +1011,6 @@ nsFrameLoader::SwapWithOtherRemoteLoader(nsFrameLoader* aOther,
   if (NS_FAILED(rv)) {
     mInSwap = aOther->mInSwap = false;
     return rv;
-  }
-
-  // Native plugin windows used by this remote content need to be reparented.
-  const nsTArray<mozilla::plugins::PPluginWidgetParent*>& plugins =
-    aOther->mRemoteBrowser->ManagedPPluginWidgetParent();
-  nsPIDOMWindow* newWin = ourDoc->GetWindow();
-  if (newWin) {
-    nsRefPtr<nsIWidget> newParent = ((nsGlobalWindow*)newWin)->GetMainWidget();
-    for (uint32_t idx = 0; idx < plugins.Length(); ++idx) {
-      static_cast<mozilla::plugins::PluginWidgetParent*>(plugins[idx])->SetParent(newParent);
-    }
   }
 
   SetOwnerContent(otherContent);
@@ -1638,8 +1631,13 @@ nsFrameLoader::MaybeCreateDocShell()
   // Apply sandbox flags even if our owner is not an iframe, as this copies
   // flags from our owning content's owning document.
   uint32_t sandboxFlags = 0;
-  HTMLIFrameElement* iframe = HTMLIFrameElement::FromContent(mOwnerContent);
-  if (iframe) {
+  if (!mOwnerContent->IsSVG(nsGkAtoms::iframe)) {
+    HTMLIFrameElement* iframe = HTMLIFrameElement::FromContent(mOwnerContent);
+    if (iframe) {
+      sandboxFlags = iframe->GetSandboxFlags();
+    }
+  } else {
+    SVGIFrameElement* iframe = static_cast<SVGIFrameElement*>(mOwnerContent);
     sandboxFlags = iframe->GetSandboxFlags();
   }
   ApplySandboxFlags(sandboxFlags);
@@ -1655,7 +1653,8 @@ nsFrameLoader::MaybeCreateDocShell()
   nsAutoString frameName;
 
   int32_t namespaceID = mOwnerContent->GetNameSpaceID();
-  if (namespaceID == kNameSpaceID_XHTML && !mOwnerContent->IsInHTMLDocument()) {
+  if ((namespaceID == kNameSpaceID_XHTML || namespaceID == kNameSpaceID_SVG)
+      && !mOwnerContent->IsInHTMLDocument()) {
     mOwnerContent->GetAttr(kNameSpaceID_None, nsGkAtoms::id, frameName);
   } else {
     mOwnerContent->GetAttr(kNameSpaceID_None, nsGkAtoms::name, frameName);
@@ -1769,7 +1768,6 @@ nsFrameLoader::MaybeCreateDocShell()
     mDocShell->SetIsBrowserInsideApp(containingAppId);
   }
 
-  InitializeBrowserAPI();
   nsCOMPtr<nsIObserverService> os = services::GetObserverService();
   if (os) {
     os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, this),
@@ -1965,11 +1963,10 @@ nsFrameLoader::UpdatePositionAndSize(nsSubDocumentFrame *aIFrame)
     }
     return NS_OK;
   }
-  UpdateBaseWindowPositionAndSize(aIFrame);
-  return NS_OK;
+  return UpdateBaseWindowPositionAndSize(aIFrame);
 }
 
-void
+nsresult
 nsFrameLoader::UpdateBaseWindowPositionAndSize(nsSubDocumentFrame *aIFrame)
 {
   nsCOMPtr<nsIDocShell> docShell;
@@ -1983,17 +1980,19 @@ nsFrameLoader::UpdateBaseWindowPositionAndSize(nsSubDocumentFrame *aIFrame)
 
     nsWeakFrame weakFrame(aIFrame);
 
-    baseWindow->GetPosition(&x, &y);
+    baseWindow->GetPositionAndSize(&x, &y, nullptr, nullptr);
 
     if (!weakFrame.IsAlive()) {
-      // GetPosition() killed us
-      return;
+      // GetPositionAndSize() killed us
+      return NS_OK;
     }
 
     nsIntSize size = aIFrame->GetSubdocumentSize();
 
     baseWindow->SetPositionAndSize(x, y, size.width, size.height, false);
   }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -2100,7 +2099,7 @@ nsFrameLoader::TryRemoteBrowser()
     return false;
   }
 
-  TabParent* openingTab = TabParent::GetFrom(parentDocShell->GetOpener());
+  TabParent* openingTab = static_cast<TabParent*>(parentDocShell->GetOpener());
   ContentParent* openerContentParent = nullptr;
 
   if (openingTab &&
@@ -2190,6 +2189,7 @@ nsFrameLoader::TryRemoteBrowser()
                                    eCaseMatters)) {
       unused << mRemoteBrowser->SendSetUpdateHitRegion(true);
     }
+    parentDocShell->SetOpenedRemote(mRemoteBrowser);
   }
   return true;
 }
@@ -2303,9 +2303,9 @@ nsFrameLoader::CreateStaticClone(nsIFrameLoader* aDest)
 }
 
 bool
-nsFrameLoader::DoLoadMessageManagerScript(const nsAString& aURL, bool aRunInGlobalScope)
+nsFrameLoader::DoLoadFrameScript(const nsAString& aURL, bool aRunInGlobalScope)
 {
-  auto* tabParent = TabParent::GetFrom(GetRemoteBrowser());
+  mozilla::dom::PBrowserParent* tabParent = GetRemoteBrowser();
   if (tabParent) {
     return tabParent->SendLoadRemoteScript(nsString(aURL), aRunInGlobalScope);
   }
@@ -2421,13 +2421,7 @@ nsFrameLoader::EnsureMessageManager()
     return rv;
   }
 
-  if (!mIsTopLevelContent &&
-      !OwnerIsBrowserOrAppFrame() &&
-      !mRemoteFrame &&
-      !(mOwnerContent->IsXUL() &&
-        mOwnerContent->AttrValueIs(kNameSpaceID_None,
-                                   nsGkAtoms::forcemessagemanager,
-                                   nsGkAtoms::_true, eCaseMatters))) {
+  if (!mIsTopLevelContent && !OwnerIsBrowserOrAppFrame() && !mRemoteFrame) {
     return NS_OK;
   }
 
@@ -2501,7 +2495,7 @@ nsFrameLoader::SetRemoteBrowser(nsITabParent* aTabParent)
   MOZ_ASSERT(!mRemoteBrowser);
   MOZ_ASSERT(!mCurrentRemoteFrame);
   mRemoteFrame = true;
-  mRemoteBrowser = TabParent::GetFrom(aTabParent);
+  mRemoteBrowser = static_cast<TabParent*>(aTabParent);
   mChildID = mRemoteBrowser ? mRemoteBrowser->Manager()->ChildID() : 0;
   ShowRemoteFrame(nsIntSize(0, 0));
 }
@@ -2732,13 +2726,4 @@ nsFrameLoader::GetLoadContext(nsILoadContext** aLoadContext)
   }
   loadContext.forget(aLoadContext);
   return NS_OK;
-}
-
-void
-nsFrameLoader::InitializeBrowserAPI()
-{
-  nsCOMPtr<nsIMozBrowserFrame> browserFrame = do_QueryInterface(mOwnerContent);
-  if (browserFrame) {
-    browserFrame->InitializeBrowserAPI();
-  }
 }

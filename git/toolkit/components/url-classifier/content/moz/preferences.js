@@ -46,7 +46,6 @@
  *
  * @constructor
  */
-this.G_Preferences =
 function G_Preferences(opt_startPoint, opt_getDefaultBranch) {
   this.debugZone = "prefs";
   this.observers_ = {};
@@ -197,7 +196,6 @@ G_Preferences.prototype.removeAllObservers = function() {
  * @constructor
  * @param callback Function to call when the preference changes
  */
-this.G_PreferenceObserver =
 function G_PreferenceObserver(callback) {
   this.debugZone = "prefobserver";
   this.callback_ = callback;
@@ -233,7 +231,7 @@ G_PreferenceObserver.prototype.QueryInterface = function(iid) {
 
 #ifdef DEBUG
 // UNITTESTS
-this.TEST_G_Preferences = function TEST_G_Preferences() {
+function TEST_G_Preferences() {
   if (G_GDEBUG) {
     var z = "preferences UNITTEST";
     G_debugService.enableZone(z);

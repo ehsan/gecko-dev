@@ -156,7 +156,7 @@
       <menuitem id="context-video-fullscreen"
                 accesskey="&videoFullScreen.accesskey;"
                 label="&videoFullScreen.label;"
-                oncommand="gContextMenu.mediaCommand('fullscreen');"/>
+                oncommand="gContextMenu.fullScreenVideo();"/>
       <menuitem id="context-leave-dom-fullscreen"
                 accesskey="&leaveDOMFullScreen.accesskey;"
                 label="&leaveDOMFullScreen.label;"
@@ -419,6 +419,6 @@
       <menuitem id="context-media-eme-learnmore"
                 class="menuitem-iconic"
                 hidden="true"
-                label="&emeLearnMoreContextMenu.label;"
-                accesskey="&emeLearnMoreContextMenu.accesskey;"
+                label="Learn more about DRM"
+                accesskey="D"
                 onclick="gContextMenu.drmLearnMore(event);"/>

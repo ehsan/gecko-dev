@@ -509,6 +509,3 @@ js_DestroyDtoaState(DtoaState *state)
 {
     destroydtoa(state);
 }
-
-/* Cleanup pollution from dtoa.c */
-#undef Bias

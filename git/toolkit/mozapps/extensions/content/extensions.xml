@@ -1296,9 +1296,7 @@
               this._errorLink.hidden = false;
             } else if (this.mAddon.isGMPlugin && !this.mAddon.isInstalled) {
               this.setAttribute("notification", "warning");
-              this._warning.textContent =
-                gStrings.ext.formatStringFromName("notification.gmpPending",
-                                                  [this.mAddon.name], 1);
+              this._warning.textContent = gStrings.ext.GetStringFromName("notification.openH264Pending");
             } else {
               this.removeAttribute("notification");
             }

@@ -115,7 +115,9 @@ SVGMarkerElement::ViewBox()
 already_AddRefed<DOMSVGAnimatedPreserveAspectRatio>
 SVGMarkerElement::PreserveAspectRatio()
 {
-  return mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(this);
+  nsRefPtr<DOMSVGAnimatedPreserveAspectRatio> ratio;
+  mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(getter_AddRefs(ratio), this);
+  return ratio.forget();
 }
 
 //----------------------------------------------------------------------
@@ -346,8 +348,8 @@ SVGMarkerElement::GetViewBoxTransform()
 
     nsSVGViewBoxRect viewbox = GetViewBoxRect();
 
-    MOZ_ASSERT(viewbox.width > 0.0f && viewbox.height > 0.0f,
-               "Rendering should be disabled");
+    NS_ABORT_IF_FALSE(viewbox.width > 0.0f && viewbox.height > 0.0f,
+                      "Rendering should be disabled");
 
     gfx::Matrix viewBoxTM =
       SVGContentUtils::GetViewBoxTransform(viewportWidth, viewportHeight,

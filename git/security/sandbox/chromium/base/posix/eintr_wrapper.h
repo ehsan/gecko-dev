@@ -25,7 +25,7 @@
 #if defined(NDEBUG)
 
 #define HANDLE_EINTR(x) ({ \
-  decltype(x) eintr_wrapper_result; \
+  typeof(x) eintr_wrapper_result; \
   do { \
     eintr_wrapper_result = (x); \
   } while (eintr_wrapper_result == -1 && errno == EINTR); \
@@ -36,7 +36,7 @@
 
 #define HANDLE_EINTR(x) ({ \
   int eintr_wrapper_counter = 0; \
-  decltype(x) eintr_wrapper_result; \
+  typeof(x) eintr_wrapper_result; \
   do { \
     eintr_wrapper_result = (x); \
   } while (eintr_wrapper_result == -1 && errno == EINTR && \
@@ -47,7 +47,7 @@
 #endif  // NDEBUG
 
 #define IGNORE_EINTR(x) ({ \
-  decltype(x) eintr_wrapper_result; \
+  typeof(x) eintr_wrapper_result; \
   do { \
     eintr_wrapper_result = (x); \
     if (eintr_wrapper_result == -1 && errno == EINTR) { \

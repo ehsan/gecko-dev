@@ -13,6 +13,7 @@
 #include "mozilla/gfx/Types.h"
 #include "mozilla/EnumSet.h"
 
+#include "mozilla/TypedEnum.h"
 #include "mozilla/TypedEnumBits.h"
 
 namespace mozilla {
@@ -24,7 +25,7 @@ namespace layers {
  * by the compositableCient, they may be modified by either the compositable or
  * texture clients.
  */
-enum class TextureFlags : uint32_t {
+MOZ_BEGIN_ENUM_CLASS(TextureFlags, uint32_t)
   NO_FLAGS           = 0,
   // Use nearest-neighbour texture filtering (as opposed to linear filtering).
   USE_NEAREST_FILTER = 1 << 0,
@@ -66,7 +67,7 @@ enum class TextureFlags : uint32_t {
   ALL_BITS           = (1 << 10) - 1,
   // the default flags
   DEFAULT = NO_FLAGS
-};
+MOZ_END_ENUM_CLASS(TextureFlags)
 MOZ_MAKE_ENUM_CLASS_BITWISE_OPERATORS(TextureFlags)
 
 static inline bool
@@ -82,14 +83,14 @@ TextureRequiresLocking(TextureFlags aFlags)
 /**
  * The type of debug diagnostic to enable.
  */
-enum class DiagnosticTypes : uint8_t {
+MOZ_BEGIN_ENUM_CLASS(DiagnosticTypes, uint8_t)
   NO_DIAGNOSTIC    = 0,
   TILE_BORDERS     = 1 << 0,
   LAYER_BORDERS    = 1 << 1,
   BIGIMAGE_BORDERS = 1 << 2,
   FLASH_BORDERS    = 1 << 3,
   ALL_BITS         = (1 << 4) - 1
-};
+MOZ_END_ENUM_CLASS(DiagnosticTypes)
 MOZ_MAKE_ENUM_CLASS_BITWISE_OPERATORS(DiagnosticTypes)
 
 #define DIAGNOSTIC_FLASH_COUNTER_MAX 100
@@ -97,7 +98,7 @@ MOZ_MAKE_ENUM_CLASS_BITWISE_OPERATORS(DiagnosticTypes)
 /**
  * Information about the object that is being diagnosed.
  */
-enum class DiagnosticFlags : uint16_t {
+MOZ_BEGIN_ENUM_CLASS(DiagnosticFlags, uint16_t)
   NO_DIAGNOSTIC   = 0,
   IMAGE           = 1 << 0,
   CONTENT         = 1 << 1,
@@ -108,13 +109,13 @@ enum class DiagnosticFlags : uint16_t {
   BIGIMAGE        = 1 << 6,
   COMPONENT_ALPHA = 1 << 7,
   REGION_RECT     = 1 << 8
-};
+MOZ_END_ENUM_CLASS(DiagnosticFlags)
 MOZ_MAKE_ENUM_CLASS_BITWISE_OPERATORS(DiagnosticFlags)
 
 /**
  * See gfx/layers/Effects.h
  */
-enum class EffectTypes : uint8_t {
+MOZ_BEGIN_ENUM_CLASS(EffectTypes, uint8_t)
   MASK,
   BLEND_MODE,
   COLOR_MATRIX,
@@ -126,12 +127,12 @@ enum class EffectTypes : uint8_t {
   RENDER_TARGET,
   VR_DISTORTION,
   MAX  //sentinel for the count of all effect types
-};
+MOZ_END_ENUM_CLASS(EffectTypes)
 
 /**
  * How the Compositable should manage textures.
  */
-enum class CompositableType : uint8_t {
+MOZ_BEGIN_ENUM_CLASS(CompositableType, uint8_t)
   UNKNOWN,
   CONTENT_INC,     // painted layer interface, only sends incremental
                    // updates to a texture on the compositor side.
@@ -142,19 +143,19 @@ enum class CompositableType : uint8_t {
   CONTENT_SINGLE,  // painted layer interface, single buffering
   CONTENT_DOUBLE,  // painted layer interface, double buffering
   COUNT
-};
+MOZ_END_ENUM_CLASS(CompositableType)
 
 /**
  * How the texture host is used for composition,
  * XXX - Only used by ContentClientIncremental
  */
-enum class DeprecatedTextureHostFlags : uint8_t {
+MOZ_BEGIN_ENUM_CLASS(DeprecatedTextureHostFlags, uint8_t)
   DEFAULT = 0,       // The default texture host for the given SurfaceDescriptor
   TILED = 1 << 0,    // A texture host that supports tiling
   COPY_PREVIOUS = 1 << 1, // Texture contents should be initialized
                                       // from the previous texture.
   ALL_BITS = (1 << 2) - 1
-};
+MOZ_END_ENUM_CLASS(DeprecatedTextureHostFlags)
 MOZ_MAKE_ENUM_CLASS_BITWISE_OPERATORS(DeprecatedTextureHostFlags)
 
 #ifdef XP_WIN
@@ -200,13 +201,13 @@ struct TextureFactoryIdentifier
  * XXX - We don't really need this, it will be removed along with the incremental
  * ContentClient/Host.
  */
-enum class TextureIdentifier : uint8_t {
+MOZ_BEGIN_ENUM_CLASS(TextureIdentifier, uint8_t)
   Front = 1,
   Back = 2,
   OnWhiteFront = 3,
   OnWhiteBack = 4,
   HighBound
-};
+MOZ_END_ENUM_CLASS(TextureIdentifier)
 
 /**
  * Information required by the compositor from the content-side for creating or
@@ -248,24 +249,24 @@ struct TextureInfo
  *
  * See ShadowLayerForwarder::OpenDescriptor for example.
  */
-enum class OpenMode : uint8_t {
+MOZ_BEGIN_ENUM_CLASS(OpenMode, uint8_t)
   OPEN_NONE        = 0,
   OPEN_READ        = 0x1,
   OPEN_WRITE       = 0x2,
   OPEN_READ_WRITE  = OPEN_READ|OPEN_WRITE,
   OPEN_READ_ONLY   = OPEN_READ,
   OPEN_WRITE_ONLY  = OPEN_WRITE
-};
+MOZ_END_ENUM_CLASS(OpenMode)
 MOZ_MAKE_ENUM_CLASS_BITWISE_OPERATORS(OpenMode)
 
 // The kinds of mask texture a shader can support
 // We rely on the items in this enum being sequential
-enum class MaskType : uint8_t {
+MOZ_BEGIN_ENUM_CLASS(MaskType, uint8_t)
   MaskNone = 0,   // no mask layer
   Mask2d,         // mask layer for layers with 2D transforms
   Mask3d,         // mask layer for layers with 3D transforms
   NumMaskTypes
-};
+MOZ_END_ENUM_CLASS(MaskType)
 
 } // namespace layers
 } // namespace mozilla

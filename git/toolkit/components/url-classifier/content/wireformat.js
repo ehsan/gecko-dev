@@ -36,7 +36,6 @@
  * that the table is a differential from the curent table the extension
  * has. Its absence means that this is a full, new table.
  */
-this.PROT_VersionParser =
 function PROT_VersionParser(type, opt_major, opt_minor, opt_requireMac) {
   this.debugZone = "versionparser";
   this.type = type;
@@ -203,7 +202,7 @@ PROT_VersionParser.prototype.processOptTokens_ = function(line) {
 }
 
 #ifdef DEBUG
-this.TEST_PROT_WireFormat = function TEST_PROT_WireFormat() {
+function TEST_PROT_WireFormat() {
   if (G_GDEBUG) {
     var z = "versionparser UNITTEST";
     G_Debug(z, "Starting");

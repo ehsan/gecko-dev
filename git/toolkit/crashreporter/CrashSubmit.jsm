@@ -2,20 +2,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
-
-Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/KeyValueParser.jsm");
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.importGlobalProperties(['File']);
-
-XPCOMUtils.defineLazyModuleGetter(this, "PromiseUtils",
-                                  "resource://gre/modules/PromiseUtils.jsm");
+Components.utils.import("resource://gre/modules/Services.jsm");
+Components.utils.import("resource://gre/modules/KeyValueParser.jsm");
+Components.utils.importGlobalProperties(['File']);
 
 this.EXPORTED_SYMBOLS = [
   "CrashSubmit"
 ];
 
+const Cc = Components.classes;
+const Ci = Components.interfaces;
 const STATE_START = Ci.nsIWebProgressListener.STATE_START;
 const STATE_STOP = Ci.nsIWebProgressListener.STATE_STOP;
 
@@ -90,7 +86,7 @@ function getDir(name) {
 function writeFile(dirName, fileName, data) {
   let path = getDir(dirName);
   if (!path.exists())
-    path.create(Ci.nsIFile.DIRECTORY_TYPE, parseInt('0700', 8));
+    path.create(Ci.nsIFile.DIRECTORY_TYPE, 0700);
   path.append(fileName);
   var fs = Cc["@mozilla.org/network/file-output-stream;1"].
            createInstance(Ci.nsIFileOutputStream);
@@ -201,13 +197,15 @@ function writeSubmittedReport(crashID, viewURL) {
 }
 
 // the Submitter class represents an individual submission.
-function Submitter(id, recordSubmission, noThrottle, extraExtraKeyVals) {
+function Submitter(id, recordSubmission, submitSuccess, submitError,
+                   noThrottle, extraExtraKeyVals) {
   this.id = id;
   this.recordSubmission = recordSubmission;
+  this.successCallback = submitSuccess;
+  this.errorCallback = submitError;
   this.noThrottle = noThrottle;
   this.additionalDumps = [];
   this.extraKeyVals = extraExtraKeyVals || {};
-  this.deferredSubmit = PromiseUtils.defer();
 }
 
 Submitter.prototype = {
@@ -239,6 +237,8 @@ Submitter.prototype = {
 
   cleanup: function Submitter_cleanup() {
     // drop some references just to be nice
+    this.successCallback = null;
+    this.errorCallback = null;
     this.iframe = null;
     this.dump = null;
     this.extra = null;
@@ -298,28 +298,29 @@ Submitter.prototype = {
     let manager = Services.crashmanager;
     let submissionID = manager.generateSubmissionID();
 
-    xhr.addEventListener("readystatechange", (evt) => {
+    let self = this;
+    xhr.addEventListener("readystatechange", function (aEvt) {
       if (xhr.readyState == 4) {
         let ret =
           xhr.status == 200 ? parseKeyValuePairs(xhr.responseText) : {};
         let submitted = !!ret.CrashID;
 
-        if (this.recordSubmission) {
+        if (self.recordSubmission) {
           let result = submitted ? manager.SUBMISSION_RESULT_OK :
                                    manager.SUBMISSION_RESULT_FAILED;
-          manager.addSubmissionResult(this.id, submissionID, new Date(),
+          manager.addSubmissionResult(self.id, submissionID, new Date(),
                                       result);
           if (submitted) {
-            manager.setRemoteCrashID(this.id, ret.CrashID);
+            manager.setRemoteCrashID(self.id, ret.CrashID);
           }
         }
 
         if (submitted) {
-          this.submitSuccess(ret);
+          self.submitSuccess(ret);
         }
         else {
-           this.notifyStatus(FAILED);
-           this.cleanup();
+           self.notifyStatus(FAILED);
+           self.cleanup();
         }
       }
     }, false);
@@ -351,10 +352,12 @@ Submitter.prototype = {
 
     switch (status) {
       case SUCCESS:
-        this.deferredSubmit.resolve(ret.CrashID);
+        if (this.successCallback)
+          this.successCallback(this.id, ret);
         break;
       case FAILED:
-        this.deferredSubmit.reject();
+        if (this.errorCallback)
+          this.errorCallback(this.id);
         break;
       default:
         // no callbacks invoked.
@@ -368,7 +371,7 @@ Submitter.prototype = {
     if (!dump.exists() || !extra.exists()) {
       this.notifyStatus(FAILED);
       this.cleanup();
-      return this.deferredSubmit.promise;
+      return false;
     }
     this.dump = dump;
     this.extra = extra;
@@ -393,7 +396,7 @@ Submitter.prototype = {
         if (!dump.exists()) {
           this.notifyStatus(FAILED);
           this.cleanup();
-          return this.deferredSubmit.promise;
+          return false;
         }
         additionalDumps.push({'name': name, 'dump': dump});
       }
@@ -406,8 +409,9 @@ Submitter.prototype = {
     if (!this.submitForm()) {
        this.notifyStatus(FAILED);
        this.cleanup();
+       return false;
     }
-    return this.deferredSubmit.promise;
+    return true;
   }
 };
 
@@ -423,6 +427,15 @@ this.CrashSubmit = {
    *        An object containing any of the following optional parameters:
    *        - recordSubmission
    *          If true, a submission event is recorded in CrashManager.
+   *        - submitSuccess
+   *          A function that will be called if the report is submitted
+   *          successfully with two parameters: the id that was passed
+   *          to this function, and an object containing the key/value
+   *          data returned from the server in its properties.
+   *        - submitError
+   *          A function that will be called with one parameter if the
+   *          report fails to submit: the id that was passed to this
+   *          function.
    *        - noThrottle
    *          If true, this crash report should be submitted with
    *          an extra parameter of "Throttleable=0" indicating that
@@ -435,8 +448,9 @@ this.CrashSubmit = {
    *          this object will override properties of the same name in the
    *          .extra file.
    *
-   *  @return a Promise that is fulfilled with the server crash ID when the
-   *          submission succeeds and rejected otherwise.
+   * @return true if the submission began successfully, or false if
+   *         it failed for some reason. (If the dump file does not
+   *         exist, for example.)
    */
   submit: function CrashSubmit_submit(id, params)
   {
@@ -449,12 +463,17 @@ this.CrashSubmit = {
 
     if ('recordSubmission' in params)
       recordSubmission = params.recordSubmission;
+    if ('submitSuccess' in params)
+      submitSuccess = params.submitSuccess;
+    if ('submitError' in params)
+      submitError = params.submitError;
     if ('noThrottle' in params)
       noThrottle = params.noThrottle;
     if ('extraExtraKeyVals' in params)
       extraExtraKeyVals = params.extraExtraKeyVals;
 
     let submitter = new Submitter(id, recordSubmission,
+                                  submitSuccess, submitError,
                                   noThrottle, extraExtraKeyVals);
     CrashSubmit._activeSubmissions.push(submitter);
     return submitter.submit();

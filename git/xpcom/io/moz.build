@@ -9,7 +9,6 @@ XPIDL_SOURCES += [
     'nsIAsyncOutputStream.idl',
     'nsIBinaryInputStream.idl',
     'nsIBinaryOutputStream.idl',
-    'nsICloneableInputStream.idl',
     'nsIConverterInputStream.idl',
     'nsIConverterOutputStream.idl',
     'nsIDirectoryEnumerator.idl',

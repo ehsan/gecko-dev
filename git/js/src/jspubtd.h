@@ -20,7 +20,8 @@
 
 #include "js/TypeDecls.h"
 
-#if (defined(JS_GC_ZEAL)) || defined(DEBUG)
+#if (defined(JS_GC_ZEAL)) || \
+    (defined(JSGC_COMPACTING) && defined(DEBUG))
 # define JSGC_HASH_TABLE_CHECKS
 #endif
 
@@ -279,14 +280,26 @@ class JS_PUBLIC_API(AutoGCRooter)
 
 namespace js {
 
+/*
+ * Parallel operations in general can have one of three states. They may
+ * succeed, fail, or "bail", where bail indicates that the code encountered an
+ * unexpected condition and should be re-run sequentially. Different
+ * subcategories of the "bail" state are encoded as variants of TP_RETRY_*.
+ */
+enum ParallelResult { TP_SUCCESS, TP_RETRY_SEQUENTIALLY, TP_RETRY_AFTER_GC, TP_FATAL };
+
+struct ThreadSafeContext;
+class ForkJoinContext;
 class ExclusiveContext;
+
+class Allocator;
 
 enum ThingRootKind
 {
     THING_ROOT_OBJECT,
     THING_ROOT_SHAPE,
     THING_ROOT_BASE_SHAPE,
-    THING_ROOT_OBJECT_GROUP,
+    THING_ROOT_TYPE_OBJECT,
     THING_ROOT_STRING,
     THING_ROOT_SYMBOL,
     THING_ROOT_JIT_CODE,
@@ -454,7 +467,7 @@ struct PerThreadDataFriendFields
     }
 
     /* Limit pointer for checking native stack consumption. */
-    uintptr_t nativeStackLimit[js::StackKindCount];
+    uintptr_t nativeStackLimit[StackKindCount];
 
     static const size_t RuntimeMainThreadOffset = offsetof(RuntimeDummy, mainThread);
 

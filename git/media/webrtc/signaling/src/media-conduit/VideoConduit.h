@@ -94,11 +94,6 @@ public:
    */
   virtual MediaConduitErrorCode ReceivedRTCPPacket(const void *data, int len) MOZ_OVERRIDE;
 
-  virtual MediaConduitErrorCode StopTransmitting() MOZ_OVERRIDE;
-  virtual MediaConduitErrorCode StartTransmitting() MOZ_OVERRIDE;
-  virtual MediaConduitErrorCode StopReceiving() MOZ_OVERRIDE;
-  virtual MediaConduitErrorCode StartReceiving() MOZ_OVERRIDE;
-
    /**
    * Function to configure send codec for the video session
    * @param sendSessionConfig: CodecConfiguration
@@ -125,9 +120,7 @@ public:
    * Register Transport for this Conduit. RTP and RTCP frames from the VideoEngine
    * shall be passed to the registered transport for transporting externally.
    */
-  virtual MediaConduitErrorCode SetTransmitterTransport(mozilla::RefPtr<TransportInterface> aTransport) MOZ_OVERRIDE;
-
-  virtual MediaConduitErrorCode SetReceiverTransport(mozilla::RefPtr<TransportInterface> aTransport) MOZ_OVERRIDE;
+  virtual MediaConduitErrorCode AttachTransport(mozilla::RefPtr<TransportInterface> aTransport) MOZ_OVERRIDE;
 
   /**
    * Function to select and change the encoding resolution based on incoming frame size
@@ -136,13 +129,6 @@ public:
    */
   bool SelectSendResolution(unsigned short width,
                             unsigned short height);
-
-  /**
-   * Function to select and change the encoding frame rate based on incoming frame rate
-   * and max-mbps setting.
-   * @param framerate
-   */
-  bool SelectSendFrameRate(unsigned int framerate);
 
   /**
    * Function to deliver a capture video frame for encoding and transport
@@ -196,8 +182,8 @@ public:
    */
   virtual int FrameSizeChange(unsigned int, unsigned int, unsigned int) MOZ_OVERRIDE;
 
-  virtual int DeliverFrame(unsigned char*, int, uint32_t , int64_t,
-                           int64_t, void *handle) MOZ_OVERRIDE;
+  virtual int DeliverFrame(unsigned char*,int, uint32_t , int64_t,
+                           void *handle) MOZ_OVERRIDE;
 
   /**
    * Does DeliverFrame() support a null buffer and non-null handle
@@ -240,7 +226,7 @@ public:
   WebrtcVideoConduit();
   virtual ~WebrtcVideoConduit();
 
-  MediaConduitErrorCode Init();
+  MediaConduitErrorCode Init(WebrtcVideoConduit *other);
 
   int GetChannel() { return mChannel; }
   webrtc::VideoEngine* GetVideoEngine() { return mVideoEngine; }
@@ -303,10 +289,17 @@ private:
   // Video Latency Test averaging filter
   void VideoLatencyUpdate(uint64_t new_sample);
 
-  webrtc::VideoEngine* mVideoEngine;
-  mozilla::ReentrantMonitor mTransportMonitor;
-  mozilla::RefPtr<TransportInterface> mTransmitterTransport;
-  mozilla::RefPtr<TransportInterface> mReceiverTransport;
+  // The two sides of a send/receive pair of conduits each keep a pointer to the other.
+  // They also share a single VideoEngine and mChannel.  Shutdown must be coordinated
+  // carefully to avoid double-freeing or accessing after one frees.
+  WebrtcVideoConduit*  mOtherDirection;
+  // The other side has shut down our mChannel and related items already
+  bool mShutDown;
+
+  // A few of these are shared by both directions.  They're released by the last
+  // conduit to die.
+  webrtc::VideoEngine* mVideoEngine;          // shared
+  mozilla::RefPtr<TransportInterface> mTransport;
   mozilla::RefPtr<VideoRenderer> mRenderer;
 
   ScopedCustomReleasePtr<webrtc::ViEBase> mPtrViEBase;
@@ -317,11 +310,11 @@ private:
   ScopedCustomReleasePtr<webrtc::ViERTP_RTCP> mPtrRTP;
   ScopedCustomReleasePtr<webrtc::ViEExternalCodec> mPtrExtCodec;
 
-  webrtc::ViEExternalCapture* mPtrExtCapture;
+  webrtc::ViEExternalCapture* mPtrExtCapture; // shared
 
   // Engine state we are concerned with.
-  mozilla::Atomic<bool> mEngineTransmitting; //If true ==> Transmit Sub-system is up and running
-  mozilla::Atomic<bool> mEngineReceiving;    // if true ==> Receive Sus-sysmtem up and running
+  bool mEngineTransmitting; //If true ==> Transmit Sub-system is up and running
+  bool mEngineReceiving;    // if true ==> Receive Sus-sysmtem up and running
 
   int mChannel; // Video Channel for this conduit
   int mCapId;   // Capturer for this conduit
@@ -331,8 +324,6 @@ private:
   unsigned short mSendingHeight;
   unsigned short mReceivingWidth;
   unsigned short mReceivingHeight;
-  unsigned int   mSendingFramerate;
-  unsigned short mNumReceivingStreams;
   bool mVideoLatencyTestEnable;
   uint64_t mVideoLatencyAvg;
   uint32_t mMinBitrate;

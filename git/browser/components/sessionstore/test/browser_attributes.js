@@ -1,6 +1,10 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
+function test() {
+  TestRunner.run();
+}
+
 /**
  * This test makes sure that we correctly preserve tab attributes when storing
  * and restoring tabs. It also ensures that we skip special attributes like
@@ -9,13 +13,13 @@
 
 const PREF = "browser.sessionstore.restore_on_demand";
 
-add_task(function* test() {
+function runTests() {
   Services.prefs.setBoolPref(PREF, true)
   registerCleanupFunction(() => Services.prefs.clearUserPref(PREF));
 
   // Add a new tab with a nice icon.
   let tab = gBrowser.addTab("about:robots");
-  yield promiseBrowserLoaded(tab.linkedBrowser);
+  yield whenBrowserLoaded(tab.linkedBrowser);
 
   // Check that the tab has an 'image' attribute.
   ok(tab.hasAttribute("image"), "tab.image exists");
@@ -40,16 +44,15 @@ add_task(function* test() {
   };
 
   // Prepare a pending tab waiting to be restored.
-  let promise = promiseTabRestoring(tab);
-  ss.setTabState(tab, JSON.stringify(state));
-  yield promise;
+  whenTabRestoring(tab);
+  yield ss.setTabState(tab, JSON.stringify(state));
 
   ok(tab.hasAttribute("pending"), "tab is pending");
   is(gBrowser.getIcon(tab), state.attributes.image, "tab has correct icon");
 
   // Let the pending tab load.
   gBrowser.selectedTab = tab;
-  yield promiseTabRestored(tab);
+  yield whenTabRestored(tab);
 
   // Ensure no 'image' or 'pending' attributes are stored.
   ({attributes} = JSON.parse(ss.getTabState(tab)));
@@ -59,13 +62,11 @@ add_task(function* test() {
 
   // Clean up.
   gBrowser.removeTab(tab);
-});
+}
 
-function promiseTabRestoring(tab) {
-  return new Promise(resolve => {
-    tab.addEventListener("SSTabRestoring", function onRestoring() {
-      tab.removeEventListener("SSTabRestoring", onRestoring);
-      resolve();
-    });
+function whenTabRestoring(tab) {
+  tab.addEventListener("SSTabRestoring", function onRestoring() {
+    tab.removeEventListener("SSTabRestoring", onRestoring);
+    executeSoon(next);
   });
 }

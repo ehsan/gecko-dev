@@ -95,21 +95,6 @@ marionetteScriptFinished(4);
         self.assertEqual(self.marionette.execute_async_script(
             "marionetteScriptFinished(global.barfoo);", new_sandbox=False), [42, 23])
 
-    def test_sandbox_refresh_arguments(self):
-        self.marionette.execute_async_script("this.foobar = [arguments[0], arguments[1]];"
-                                             "marionetteScriptFinished();",
-                                             script_args=[23, 42])
-        self.assertEqual(self.marionette.execute_async_script(
-            "marionetteScriptFinished(this.foobar);", new_sandbox=False),
-                         [23, 42])
-
-        self.marionette.execute_async_script("global.barfoo = [arguments[0], arguments[1]];"
-                                             "marionetteScriptFinished()",
-                                             script_args=[42, 23], new_sandbox=False)
-        self.assertEqual(self.marionette.execute_async_script(
-            "marionetteScriptFinished(global.barfoo);", new_sandbox=False),
-                         [42, 23])
-
 
 class TestExecuteAsyncChrome(TestExecuteAsyncContent):
     def setUp(self):
@@ -124,17 +109,3 @@ class TestExecuteAsyncChrome(TestExecuteAsyncContent):
 var c = Components.classes;
 marionetteScriptFinished(5);
 """))
-
-    def test_execute_async_js_exception(self):
-        # Javascript exceptions are not propagated in chrome code
-        self.marionette.set_script_timeout(200)
-        self.assertRaises(ScriptTimeoutException,
-            self.marionette.execute_async_script, """
-            var callback = arguments[arguments.length - 1];
-            setTimeout("callback(foo())", 50);
-            """)
-        self.assertRaises(JavascriptException,
-            self.marionette.execute_async_script, """
-            var callback = arguments[arguments.length - 1];
-            setTimeout("callback(foo())", 50);
-            """, debug_script=True)

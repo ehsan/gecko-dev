@@ -72,9 +72,11 @@ public:
         kReferenceSelection
     };
 
-    static VideoCodingModule* Create();
+    static VideoCodingModule* Create(const int32_t id);
 
-    static VideoCodingModule* Create(Clock* clock, EventFactory* event_factory);
+    static VideoCodingModule* Create(const int32_t id,
+                                     Clock* clock,
+                                     EventFactory* event_factory);
 
     static void Destroy(VideoCodingModule* module);
 
@@ -238,7 +240,7 @@ public:
     // frame rate/dimensions need to be updated for video quality optimization
     //
     // Input:
-    //      - videoQMSettings  : The callback object to register.
+    //		- videoQMSettings  : The callback object to register.
     //
     // Return value      : VCM_OK, on success.
     //                     < 0,         on error

@@ -67,7 +67,7 @@ LOCAL_INCLUDES += [
     '/extensions/cookie',
     '/js/xpconnect/loader',
     '/js/xpconnect/src',
-    '/netwerk/base',
+    '/netwerk/base/src',
     '/netwerk/cookie',
     '/view',
 ]
@@ -118,10 +118,5 @@ if CONFIG['MOZ_WEBSPEECH']:
 
 if CONFIG['MOZ_GSTREAMER']:
     CXXFLAGS += CONFIG['GSTREAMER_CFLAGS']
-
-if CONFIG['MOZ_SECUREELEMENT']:
-    LOCAL_INCLUDES += [
-        '/dom/secureelement',
-    ]
 
 FINAL_LIBRARY = 'xul'

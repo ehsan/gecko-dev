@@ -7,7 +7,7 @@
 #ifndef jit_x86_Architecture_x86_h
 #define jit_x86_Architecture_x86_h
 
-#include "jit/shared/Constants-x86-shared.h"
+#include "jit/shared/BaseAssembler-x86-shared.h"
 
 namespace js {
 namespace jit {
@@ -35,7 +35,7 @@ static const uint32_t BAILOUT_TABLE_ENTRY_SIZE    = 5;
 
 class Registers {
   public:
-    typedef X86Encoding::RegisterID Code;
+    typedef X86Registers::RegisterID Code;
     typedef uint8_t SetType;
     static uint32_t SetSize(SetType x) {
         static_assert(sizeof(SetType) == 1, "SetType must be 8 bits");
@@ -48,7 +48,9 @@ class Registers {
         return 31 - mozilla::CountLeadingZeroes32(x);
     }
     static const char *GetName(Code code) {
-        return X86Encoding::GPRegName(code);
+        static const char * const Names[] = { "eax", "ecx", "edx", "ebx",
+                                              "esp", "ebp", "esi", "edi" };
+        return Names[code];
     }
 
     static Code FromName(const char *name) {
@@ -59,8 +61,8 @@ class Registers {
         return Invalid;
     }
 
-    static const Code StackPointer = X86Encoding::rsp;
-    static const Code Invalid = X86Encoding::invalid_reg;
+    static const Code StackPointer = X86Registers::esp;
+    static const Code Invalid = X86Registers::invalid_reg;
 
     static const uint32_t Total = 8;
     static const uint32_t TotalPhys = 8;
@@ -71,28 +73,28 @@ class Registers {
     static const uint32_t ArgRegMask = 0;
 
     static const uint32_t VolatileMask =
-        (1 << X86Encoding::rax) |
-        (1 << X86Encoding::rcx) |
-        (1 << X86Encoding::rdx);
+        (1 << X86Registers::eax) |
+        (1 << X86Registers::ecx) |
+        (1 << X86Registers::edx);
 
     static const uint32_t NonVolatileMask =
-        (1 << X86Encoding::rbx) |
-        (1 << X86Encoding::rsi) |
-        (1 << X86Encoding::rdi) |
-        (1 << X86Encoding::rbp);
+        (1 << X86Registers::ebx) |
+        (1 << X86Registers::esi) |
+        (1 << X86Registers::edi) |
+        (1 << X86Registers::ebp);
 
     static const uint32_t WrapperMask =
         VolatileMask |
-        (1 << X86Encoding::rbx);
+        (1 << X86Registers::ebx);
 
     static const uint32_t SingleByteRegs =
-        (1 << X86Encoding::rax) |
-        (1 << X86Encoding::rcx) |
-        (1 << X86Encoding::rdx) |
-        (1 << X86Encoding::rbx);
+        (1 << X86Registers::eax) |
+        (1 << X86Registers::ecx) |
+        (1 << X86Registers::edx) |
+        (1 << X86Registers::ebx);
 
     static const uint32_t NonAllocatableMask =
-        (1 << X86Encoding::rsp);
+        (1 << X86Registers::esp);
 
     static const uint32_t AllocatableMask = AllMask & ~NonAllocatableMask;
 
@@ -101,12 +103,12 @@ class Registers {
 
     // Registers returned from a JS -> JS call.
     static const uint32_t JSCallMask =
-        (1 << X86Encoding::rcx) |
-        (1 << X86Encoding::rdx);
+        (1 << X86Registers::ecx) |
+        (1 << X86Registers::edx);
 
     // Registers returned from a JS -> C call.
     static const uint32_t CallMask =
-        (1 << X86Encoding::rax);
+        (1 << X86Registers::eax);
 };
 
 // Smallest integer type that can hold a register bitmask.
@@ -114,10 +116,12 @@ typedef uint8_t PackedRegisterMask;
 
 class FloatRegisters {
   public:
-    typedef X86Encoding::XMMRegisterID Code;
+    typedef X86Registers::XMMRegisterID Code;
     typedef uint32_t SetType;
     static const char *GetName(Code code) {
-        return X86Encoding::XMMRegName(code);
+        static const char * const Names[] = { "xmm0", "xmm1", "xmm2", "xmm3",
+                                              "xmm4", "xmm5", "xmm6", "xmm7" };
+        return Names[code];
     }
 
     static Code FromName(const char *name) {
@@ -128,7 +132,7 @@ class FloatRegisters {
         return Invalid;
     }
 
-    static const Code Invalid = X86Encoding::invalid_xmm;
+    static const Code Invalid = X86Registers::invalid_xmm;
 
     static const uint32_t Total = 8;
     static const uint32_t TotalPhys = 8;
@@ -142,7 +146,7 @@ class FloatRegisters {
     static const uint32_t WrapperMask = VolatileMask;
 
     static const uint32_t NonAllocatableMask =
-        (1 << X86Encoding::xmm7);     // This is ScratchDoubleReg.
+        (1 << X86Registers::xmm7);
 
     static const uint32_t AllocatableMask = AllMask & ~NonAllocatableMask;
 };
@@ -181,10 +185,10 @@ struct FloatRegister {
     bool volatile_() const {
         return !!((1 << code()) & FloatRegisters::VolatileMask);
     }
-    bool operator !=(FloatRegister other) const {
+    bool operator != (FloatRegister other) const {
         return other.code_ != code_;
     }
-    bool operator ==(FloatRegister other) const {
+    bool operator == (FloatRegister other) const {
         return other.code_ == code_;
     }
     bool aliases(FloatRegister other) const {
@@ -221,6 +225,8 @@ struct FloatRegister {
     static uint32_t GetSizeInBytes(const TypedRegisterSet<FloatRegister> &s);
     static uint32_t GetPushSizeInBytes(const TypedRegisterSet<FloatRegister> &s);
     uint32_t getRegisterDumpOffsetInBytes();
+
+
 };
 
 // Arm/D32 has double registers that can NOT be treated as float32

@@ -194,18 +194,18 @@ class InvokeState : public RunState
 {
     CallArgs &args_;
     InitialFrameFlags initial_;
-    bool createSingleton_;
+    bool useNewType_;
 
   public:
     InvokeState(JSContext *cx, CallArgs &args, InitialFrameFlags initial)
       : RunState(cx, Invoke, args.callee().as<JSFunction>().nonLazyScript()),
         args_(args),
         initial_(initial),
-        createSingleton_(false)
+        useNewType_(false)
     { }
 
-    bool createSingleton() const { return createSingleton_; }
-    void setCreateSingleton() { createSingleton_ = true; }
+    bool useNewType() const { return useNewType_; }
+    void setUseNewType() { useNewType_ = true; }
 
     bool constructing() const { return InitialFrameFlagsAreConstructing(initial_); }
     CallArgs &args() const { return args_; }
@@ -221,14 +221,14 @@ extern bool
 RunScript(JSContext *cx, RunState &state);
 
 extern bool
-StrictlyEqual(JSContext *cx, HandleValue lval, HandleValue rval, bool *equal);
+StrictlyEqual(JSContext *cx, const Value &lval, const Value &rval, bool *equal);
 
 extern bool
-LooselyEqual(JSContext *cx, HandleValue lval, HandleValue rval, bool *equal);
+LooselyEqual(JSContext *cx, const Value &lval, const Value &rval, bool *equal);
 
 /* === except that NaN is the same as NaN and -0 is not the same as +0. */
 extern bool
-SameValue(JSContext *cx, HandleValue v1, HandleValue v2, bool *same);
+SameValue(JSContext *cx, const Value &v1, const Value &v2, bool *same);
 
 extern JSType
 TypeOfObject(JSObject *obj);
@@ -246,7 +246,7 @@ UnwindScope(JSContext *cx, ScopeIter &si, jsbytecode *pc);
 
 // Unwind all scopes.
 extern void
-UnwindAllScopesInFrame(JSContext *cx, ScopeIter &si);
+UnwindAllScopes(JSContext *cx, ScopeIter &si);
 
 // Compute the pc needed to unwind the scope to the beginning of the block
 // pointed to by the try note.
@@ -343,6 +343,10 @@ UrshValues(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, Mutabl
 
 template <bool strict>
 bool
+SetProperty(JSContext *cx, HandleObject obj, HandleId id, const Value &value);
+
+template <bool strict>
+bool
 DeleteProperty(JSContext *ctx, HandleValue val, HandlePropertyName name, bool *bv);
 
 template <bool strict>
@@ -392,8 +396,8 @@ SpreadCallOperation(JSContext *cx, HandleScript script, jsbytecode *pc, HandleVa
 inline bool
 SetConstOperation(JSContext *cx, HandleObject varobj, HandlePropertyName name, HandleValue rval)
 {
-    return DefineProperty(cx, varobj, name, rval, nullptr, nullptr,
-                          JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_READONLY);
+    return JSObject::defineProperty(cx, varobj, name, rval, nullptr, nullptr,
+                                    JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_READONLY);
 }
 
 void

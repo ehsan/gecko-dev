@@ -88,15 +88,11 @@ GrallocTextureClientOGL::SetRemoveFromCompositableTracker(AsyncTransactionTracke
 }
 
 void
-GrallocTextureClientOGL::WaitForBufferOwnership(bool aWaitReleaseFence)
+GrallocTextureClientOGL::WaitForBufferOwnership()
 {
   if (mRemoveFromCompositableTracker) {
     mRemoveFromCompositableTracker->WaitComplete();
     mRemoveFromCompositableTracker = nullptr;
-  }
-
-  if (!aWaitReleaseFence) {
-    return;
   }
 
 #if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
@@ -126,11 +122,7 @@ GrallocTextureClientOGL::Lock(OpenMode aMode)
     return true;
   }
 
-#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 21
-  WaitForBufferOwnership(false /* aWaitReleaseFence */);
-#else
   WaitForBufferOwnership();
-#endif
 
   uint32_t usage = 0;
   if (aMode & OpenMode::OPEN_READ) {
@@ -139,19 +131,7 @@ GrallocTextureClientOGL::Lock(OpenMode aMode)
   if (aMode & OpenMode::OPEN_WRITE) {
     usage |= GRALLOC_USAGE_SW_WRITE_OFTEN;
   }
-#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 21
-  android::sp<Fence> fence = android::Fence::NO_FENCE;
-  if (mReleaseFenceHandle.IsValid()) {
-    fence = mReleaseFenceHandle.mFence;
-  }
-  mReleaseFenceHandle = FenceHandle();
-  int32_t rv = mGraphicBuffer->lockAsync(usage,
-                                         reinterpret_cast<void**>(&mMappedBuffer),
-                                         fence->dup());
-#else
-  int32_t rv = mGraphicBuffer->lock(usage,
-                                    reinterpret_cast<void**>(&mMappedBuffer));
-#endif
+  int32_t rv = mGraphicBuffer->lock(usage, reinterpret_cast<void**>(&mMappedBuffer));
   if (rv) {
     mMappedBuffer = nullptr;
     NS_WARNING("Couldn't lock graphic buffer");

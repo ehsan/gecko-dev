@@ -48,7 +48,7 @@ NeckoChild::~NeckoChild()
 
 void NeckoChild::InitNeckoChild()
 {
-  MOZ_ASSERT(IsNeckoChild(), "InitNeckoChild called by non-child!");
+  NS_ABORT_IF_FALSE(IsNeckoChild(), "InitNeckoChild called by non-child!");
 
   if (!gNeckoChild) {
     mozilla::dom::ContentChild * cpc = 
@@ -63,9 +63,9 @@ void NeckoChild::InitNeckoChild()
 // automatically destroyed at exit.  
 void NeckoChild::DestroyNeckoChild()
 {
-  MOZ_ASSERT(IsNeckoChild(), "DestroyNeckoChild called by non-child!");
+  NS_ABORT_IF_FALSE(IsNeckoChild(), "DestroyNeckoChild called by non-child!");
   static bool alreadyDestroyed = false;
-  MOZ_ASSERT(!alreadyDestroyed, "DestroyNeckoChild already called!");
+  NS_ABORT_IF_FALSE(!alreadyDestroyed, "DestroyNeckoChild already called!");
 
   if (!alreadyDestroyed) {
     Send__delete__(gNeckoChild); 
@@ -88,7 +88,7 @@ NeckoChild::AllocPHttpChannelChild(const PBrowserOrId& browser,
 bool 
 NeckoChild::DeallocPHttpChannelChild(PHttpChannelChild* channel)
 {
-  MOZ_ASSERT(IsNeckoChild(), "DeallocPHttpChannelChild called by non-child!");
+  NS_ABORT_IF_FALSE(IsNeckoChild(), "DeallocPHttpChannelChild called by non-child!");
 
   HttpChannelChild* child = static_cast<HttpChannelChild*>(channel);
   child->ReleaseIPDLReference();
@@ -108,7 +108,7 @@ NeckoChild::AllocPFTPChannelChild(const PBrowserOrId& aBrowser,
 bool
 NeckoChild::DeallocPFTPChannelChild(PFTPChannelChild* channel)
 {
-  MOZ_ASSERT(IsNeckoChild(), "DeallocPFTPChannelChild called by non-child!");
+  NS_ABORT_IF_FALSE(IsNeckoChild(), "DeallocPFTPChannelChild called by non-child!");
 
   FTPChannelChild* child = static_cast<FTPChannelChild*>(channel);
   child->ReleaseIPDLReference();
@@ -144,7 +144,7 @@ NeckoChild::AllocPWyciwygChannelChild()
 bool
 NeckoChild::DeallocPWyciwygChannelChild(PWyciwygChannelChild* channel)
 {
-  MOZ_ASSERT(IsNeckoChild(), "DeallocPWyciwygChannelChild called by non-child!");
+  NS_ABORT_IF_FALSE(IsNeckoChild(), "DeallocPWyciwygChannelChild called by non-child!");
 
   WyciwygChannelChild *p = static_cast<WyciwygChannelChild*>(channel);
   p->ReleaseIPDLReference();
@@ -254,8 +254,7 @@ NeckoChild::DeallocPUDPSocketChild(PUDPSocketChild* child)
 
 PDNSRequestChild*
 NeckoChild::AllocPDNSRequestChild(const nsCString& aHost,
-                                  const uint32_t& aFlags,
-                                  const nsCString& aNetworkInterface)
+                                  const uint32_t& aFlags)
 {
   // We don't allocate here: instead we always use IPDL constructor that takes
   // an existing object
@@ -309,11 +308,12 @@ NeckoChild::RecvAsyncAuthPromptForNestedFrame(const TabId& aNestedFrameId,
                                               const nsString& aRealm,
                                               const uint64_t& aCallbackId)
 {
-  nsRefPtr<dom::TabChild> tabChild = dom::TabChild::FindTabChild(aNestedFrameId);
-  if (!tabChild) {
+  auto iter = dom::TabChild::NestedTabChildMap().find(aNestedFrameId);
+  if (iter == dom::TabChild::NestedTabChildMap().end()) {
     MOZ_CRASH();
     return false;
   }
+  dom::TabChild* tabChild = iter->second;
   tabChild->SendAsyncAuthPrompt(aUri, aRealm, aCallbackId);
   return true;
 }

@@ -43,7 +43,7 @@ public:
   virtual bool RecvCallbackOpened(const UDPAddressInfo& aAddressInfo) MOZ_OVERRIDE;
   virtual bool RecvCallbackClosed() MOZ_OVERRIDE;
   virtual bool RecvCallbackReceivedData(const UDPAddressInfo& aAddressInfo,
-                                        InfallibleTArray<uint8_t>&& aData) MOZ_OVERRIDE;
+                                        const InfallibleTArray<uint8_t>& aData) MOZ_OVERRIDE;
   virtual bool RecvCallbackError(const nsCString& aMessage,
                                  const nsCString& aFilename,
                                  const uint32_t& aLineNumber) MOZ_OVERRIDE;

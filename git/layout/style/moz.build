@@ -23,7 +23,6 @@ EXPORTS += [
     'nsCSSProperty.h',
     'nsCSSPropertySet.h',
     'nsCSSPropList.h',
-    'nsCSSPropLogicalGroupList.h',
     'nsCSSProps.h',
     'nsCSSPseudoClasses.h',
     'nsCSSPseudoClassList.h',
@@ -174,10 +173,6 @@ RESOURCE_FILES += [
     'TopLevelImageDocument.css',
     'TopLevelVideoDocument.css',
 ]
-
-GENERATED_FILES += ['nsStyleStructList.h']
-style_struct_list = GENERATED_FILES['nsStyleStructList.h']
-style_struct_list.script = 'generate-stylestructlist.py'
 
 if CONFIG['GNU_CC']:
     CFLAGS += ['-Wshadow']

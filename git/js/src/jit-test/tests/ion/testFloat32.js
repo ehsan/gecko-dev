@@ -37,12 +37,6 @@
         }))
     })();
     //
-    (function() {
-        // bug 1134298
-        for (var k = 0; k < 1; k++) {
-            Math.fround(Math.ceil(Math.fround(Math.acos(3.0))))
-        }
-    })();
 })();
 //
 // ION TESTS

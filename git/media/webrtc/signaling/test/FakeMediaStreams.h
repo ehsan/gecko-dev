@@ -6,8 +6,6 @@
 #define FAKE_MEDIA_STREAM_H_
 
 #include <set>
-#include <string>
-#include <sstream>
 
 #include "nsNetCID.h"
 #include "nsITimer.h"
@@ -15,7 +13,6 @@
 #include "nsIComponentManager.h"
 #include "nsIComponentRegistrar.h"
 #include "nsISupportsImpl.h"
-#include "nsServiceManagerUtils.h"
 
 // #includes from MediaStream.h
 #include "mozilla/Mutex.h"
@@ -223,20 +220,9 @@ class Fake_MediaStreamTrack
 public:
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(Fake_MediaStreamTrack)
 
-  Fake_MediaStreamTrack(bool aIsVideo, Fake_DOMMediaStream* aStream) :
-    mIsVideo (aIsVideo),
-    mStream (aStream)
-  {
-    static size_t counter = 0;
-    std::ostringstream os;
-    os << counter++;
-    mID = os.str();
-  }
-
+  explicit Fake_MediaStreamTrack(bool aIsVideo) : mIsVideo (aIsVideo) {}
   mozilla::TrackID GetTrackID() { return mIsVideo ? 1 : 0; }
-  std::string GetId() const { return mID; }
-  void AssignId(const std::string& id) { mID = id; }
-  Fake_DOMMediaStream *GetStream() { return mStream; }
+  Fake_DOMMediaStream *GetStream() { return nullptr; }
   const Fake_MediaStreamTrack* AsVideoStreamTrack() const
   {
     return mIsVideo? this : nullptr;
@@ -249,8 +235,6 @@ private:
   ~Fake_MediaStreamTrack() {}
 
   const bool mIsVideo;
-  Fake_DOMMediaStream* mStream;
-  std::string mID;
 };
 
 class Fake_DOMMediaStream : public nsISupports
@@ -263,9 +247,9 @@ protected:
 
 public:
   explicit Fake_DOMMediaStream(Fake_MediaStream *stream = nullptr)
-    : mMediaStream(stream ? stream : new Fake_MediaStream())
-    , mVideoTrack(new Fake_MediaStreamTrack(true, this))
-    , mAudioTrack(new Fake_MediaStreamTrack(false, this)) {}
+    : mMediaStream(stream? stream : new Fake_MediaStream())
+    , mVideoTrack(new Fake_MediaStreamTrack(true))
+    , mAudioTrack(new Fake_MediaStreamTrack(false)) {}
 
   NS_DECL_THREADSAFE_ISUPPORTS
 
@@ -285,8 +269,6 @@ public:
   virtual void RemoveDirectListener(Fake_MediaStreamListener *aListener) {}
 
   Fake_MediaStream *GetStream() { return mMediaStream; }
-  std::string GetId() const { return mID; }
-  void AssignId(const std::string& id) { mID = id; }
 
   // Hints to tell the SDP generator about whether this
   // MediaStream probably has audio and/or video
@@ -345,8 +327,6 @@ private:
   uint32_t mHintContents;
   nsRefPtr<Fake_MediaStreamTrack> mVideoTrack;
   nsRefPtr<Fake_MediaStreamTrack> mAudioTrack;
-
-  std::string mID;
 };
 
 class Fake_MediaStreamBase : public Fake_MediaStream {

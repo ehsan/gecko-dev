@@ -3,8 +3,7 @@
  */
 
 #include "jsfriendapi.h"
-
-#include "js/Proxy.h"
+#include "jsproxy.h"
 
 #include "jsapi-tests/tests.h"
 

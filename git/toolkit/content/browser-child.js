@@ -454,16 +454,6 @@ addMessageListener("Browser:Thumbnail:Request", function (aMessage) {
   });
 });
 
-/**
- * Remote isSafeForCapture request handler for PageThumbs.
- */
-addMessageListener("Browser:Thumbnail:CheckState", function (aMessage) {
-  let result = PageThumbUtils.shouldStoreContentThumbnail(content, docShell);
-  sendAsyncMessage("Browser:Thumbnail:CheckState:Response", {
-    result: result
-  });
-});
-
 // The AddonsChild needs to be rooted so that it stays alive as long as
 // the tab.
 let AddonsChild = RemoteAddonsChild.init(this);
@@ -542,13 +532,6 @@ let AutoCompletePopup = {
     });
   },
 
-  destroy: function() {
-    let controller = Cc["@mozilla.org/satchel/form-fill-controller;1"]
-                       .getService(Ci.nsIFormFillController);
-
-    controller.detachFromBrowser(docShell);
-  },
-
   get input () { return this._input; },
   get overrideValue () { return null; },
   set selectedIndex (index) { },
@@ -595,7 +578,3 @@ if (initData.length) {
     setTimeout(() => AutoCompletePopup.init(), 0);
   }
 }
-
-addEventListener("unload", function() {
-  AutoCompletePopup.destroy();
-});

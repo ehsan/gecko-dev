@@ -47,6 +47,18 @@ protected:
   RecvUnregisterListener() MOZ_OVERRIDE;
 
   virtual bool
+  RecvConferenceCall(const uint32_t& aClientId) MOZ_OVERRIDE;
+
+  virtual bool
+  RecvSeparateCall(const uint32_t& aClientId, const uint32_t& callIndex) MOZ_OVERRIDE;
+
+  virtual bool
+  RecvHoldConference(const uint32_t& aClientId) MOZ_OVERRIDE;
+
+  virtual bool
+  RecvResumeConference(const uint32_t& aClientId) MOZ_OVERRIDE;
+
+  virtual bool
   RecvStartTone(const uint32_t& aClientId, const nsString& aTone) MOZ_OVERRIDE;
 
   virtual bool

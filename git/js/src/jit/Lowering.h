@@ -109,7 +109,7 @@ class LIRGenerator : public LIRGeneratorSpecific
     void visitTest(MTest *test);
     void visitGotoWithFake(MGotoWithFake *ins);
     void visitFunctionDispatch(MFunctionDispatch *ins);
-    void visitObjectGroupDispatch(MObjectGroupDispatch *ins);
+    void visitTypeObjectDispatch(MTypeObjectDispatch *ins);
     void visitCompare(MCompare *comp);
     void visitTypeOf(MTypeOf *ins);
     void visitToId(MToId *ins);
@@ -197,7 +197,6 @@ class LIRGenerator : public LIRGeneratorSpecific
     void visitStoreElementHole(MStoreElementHole *ins);
     void visitStoreUnboxedObjectOrNull(MStoreUnboxedObjectOrNull *ins);
     void visitStoreUnboxedString(MStoreUnboxedString *ins);
-    void visitConvertUnboxedObjectToNative(MConvertUnboxedObjectToNative *ins);
     void visitEffectiveAddress(MEffectiveAddress *ins);
     void visitArrayPopShift(MArrayPopShift *ins);
     void visitArrayPush(MArrayPush *ins);
@@ -221,13 +220,13 @@ class LIRGenerator : public LIRGeneratorSpecific
     void visitGuardObject(MGuardObject *ins);
     void visitGuardString(MGuardString *ins);
     void visitGuardShapePolymorphic(MGuardShapePolymorphic *ins);
-    void visitPolyInlineGuard(MPolyInlineGuard *ins);
     void visitAssertRange(MAssertRange *ins);
     void visitCallGetProperty(MCallGetProperty *ins);
     void visitDeleteProperty(MDeleteProperty *ins);
     void visitDeleteElement(MDeleteElement *ins);
     void visitGetNameCache(MGetNameCache *ins);
     void visitCallGetIntrinsicValue(MCallGetIntrinsicValue *ins);
+    void visitCallsiteCloneCache(MCallsiteCloneCache *ins);
     void visitCallGetElement(MCallGetElement *ins);
     void visitCallSetElement(MCallSetElement *ins);
     void visitCallInitElementArray(MCallInitElementArray *ins);
@@ -249,6 +248,7 @@ class LIRGenerator : public LIRGeneratorSpecific
     void visitInArray(MInArray *ins);
     void visitInstanceOf(MInstanceOf *ins);
     void visitCallInstanceOf(MCallInstanceOf *ins);
+    void visitProfilerStackOp(MProfilerStackOp *ins);
     void visitIsCallable(MIsCallable *ins);
     void visitIsObject(MIsObject *ins);
     void visitHasClass(MHasClass *ins);
@@ -266,7 +266,6 @@ class LIRGenerator : public LIRGeneratorSpecific
     void visitRecompileCheck(MRecompileCheck *ins);
     void visitMemoryBarrier(MMemoryBarrier *ins);
     void visitSimdBox(MSimdBox *ins);
-    void visitSimdUnbox(MSimdUnbox *ins);
     void visitSimdExtractElement(MSimdExtractElement *ins);
     void visitSimdInsertElement(MSimdInsertElement *ins);
     void visitSimdSignMask(MSimdSignMask *ins);
@@ -287,7 +286,6 @@ class LIRGenerator : public LIRGeneratorSpecific
     void visitLexicalCheck(MLexicalCheck *ins);
     void visitThrowUninitializedLexical(MThrowUninitializedLexical *ins);
     void visitDebugger(MDebugger *ins);
-    void visitNurseryObject(MNurseryObject *ins);
 };
 
 } // namespace jit

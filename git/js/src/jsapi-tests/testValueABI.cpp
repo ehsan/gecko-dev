@@ -30,12 +30,11 @@ C_jsvalAlignmentTest();
 BEGIN_TEST(testValueABI_retparam)
 {
     JS::RootedObject obj(cx, JS::CurrentGlobalOrNull(cx));
-    RootedValue v(cx, ObjectValue(*obj));
+    jsval v = OBJECT_TO_JSVAL(obj);
     obj = nullptr;
     CHECK(C_ValueToObject(cx, v, obj.address()));
     bool equal;
-    RootedValue v2(cx, ObjectValue(*obj));
-    CHECK(JS_StrictlyEqual(cx, v, v2, &equal));
+    CHECK(JS_StrictlyEqual(cx, v, OBJECT_TO_JSVAL(obj), &equal));
     CHECK(equal);
 
     v = C_GetEmptyStringValue(cx);

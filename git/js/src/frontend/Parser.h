@@ -372,6 +372,14 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
     /* Unexpected end of input, i.e. TOK_EOF not at top-level. */
     bool isUnexpectedEOF_:1;
 
+    /* Used for collecting telemetry on SpiderMonkey's deprecated language extensions. */
+    bool sawDeprecatedForEach:1;
+    bool sawDeprecatedDestructuringForIn:1;
+    bool sawDeprecatedLegacyGenerator:1;
+    bool sawDeprecatedExpressionClosure:1;
+    bool sawDeprecatedLetBlock:1;
+    bool sawDeprecatedLetExpression:1;
+
     typedef typename ParseHandler::Node Node;
     typedef typename ParseHandler::DefinitionNode DefinitionNode;
 
@@ -435,10 +443,11 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
                                 Directives directives, GeneratorKind generatorKind);
 
     /*
-     * Create a new function object given a name (which is optional if this is
-     * a function expression).
+     * Create a new function object given parse context (pc) and a name (which
+     * is optional if this is a function expression).
      */
-    JSFunction *newFunction(HandleAtom atom, FunctionSyntaxKind kind, HandleObject proto);
+    JSFunction *newFunction(GenericParseContext *pc, HandleAtom atom, FunctionSyntaxKind kind,
+                            JSObject *proto = nullptr);
 
     void trace(JSTracer *trc);
 
@@ -510,9 +519,6 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
     }
 
   private:
-    enum InvokedPrediction { PredictUninvoked = false, PredictInvoked = true };
-
-  private:
     /*
      * JS parsers, from lowest to highest precedence.
      *
@@ -530,7 +536,7 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
      * suffix) and a never-inlined version (with an 'n' suffix).
      */
     Node functionStmt();
-    Node functionExpr(InvokedPrediction invoked = PredictUninvoked);
+    Node functionExpr();
     Node statements();
 
     Node blockStatement();
@@ -549,23 +555,22 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
     Node debuggerStatement();
 
     Node lexicalDeclaration(bool isConst);
-    Node letDeclarationOrBlock();
+    Node letStatement();
     Node importDeclaration();
     Node exportDeclaration();
-    Node expressionStatement(InvokedPrediction invoked = PredictUninvoked);
+    Node expressionStatement();
     Node variables(ParseNodeKind kind, bool *psimple = nullptr,
                    StaticBlockObject *blockObj = nullptr,
                    VarContext varContext = HoistVars);
-    Node expr(InvokedPrediction invoked = PredictUninvoked);
-    Node assignExpr(InvokedPrediction invoked = PredictUninvoked);
+    Node expr();
+    Node assignExpr();
     Node assignExprWithoutYield(unsigned err);
     Node yieldExpression();
-    Node condExpr1(InvokedPrediction invoked = PredictUninvoked);
-    Node orExpr1(InvokedPrediction invoked = PredictUninvoked);
-    Node unaryExpr(InvokedPrediction invoked = PredictUninvoked);
-    Node memberExpr(TokenKind tt, bool allowCallSyntax,
-                    InvokedPrediction invoked = PredictUninvoked);
-    Node primaryExpr(TokenKind tt, InvokedPrediction invoked = PredictUninvoked);
+    Node condExpr1();
+    Node orExpr1();
+    Node unaryExpr();
+    Node memberExpr(TokenKind tt, bool allowCallSyntax);
+    Node primaryExpr(TokenKind tt);
     Node parenExprOrGeneratorComprehension();
     Node exprInParens();
 
@@ -575,11 +580,10 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
     /*
      * Additional JS parsers.
      */
-    bool functionArguments(FunctionSyntaxKind kind, FunctionType type, Node *list, Node funcpn,
-                           bool *hasRest);
+    bool functionArguments(FunctionSyntaxKind kind, Node *list, Node funcpn, bool *hasRest);
 
     Node functionDef(HandlePropertyName name, FunctionType type, FunctionSyntaxKind kind,
-                     GeneratorKind generatorKind, InvokedPrediction invoked = PredictUninvoked);
+                     GeneratorKind generatorKind);
     bool functionArgsAndBody(Node pn, HandleFunction fun,
                              FunctionType type, FunctionSyntaxKind kind,
                              GeneratorKind generatorKind,
@@ -606,7 +610,7 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
     Node generatorComprehension(uint32_t begin);
 
     bool argumentList(Node listNode, bool *isSpread);
-    Node deprecatedLetBlockOrExpression(LetContext letContext);
+    Node letBlock(LetContext letContext);
     Node destructuringExpr(BindData<ParseHandler> *data, TokenKind tt);
     Node destructuringExprWithoutYield(BindData<ParseHandler> *data, TokenKind tt, unsigned msg);
 
@@ -663,7 +667,6 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
     bool bindDestructuringVar(BindData<ParseHandler> *data, Node pn);
     bool bindDestructuringLHS(Node pn);
     bool makeSetCall(Node pn, unsigned msg);
-    Node cloneDestructuringDefault(Node opn);
     Node cloneLeftHandSide(Node opn);
     Node cloneParseTree(Node opn);
 
@@ -696,7 +699,7 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
 
     bool asmJS(Node list);
 
-    void addTelemetry(JSCompartment::DeprecatedLanguageExtension e);
+    void accumulateTelemetry();
 
     friend class LegacyCompExprTransplanter;
     friend struct BindData<ParseHandler>;

@@ -122,8 +122,6 @@
           'type': '<(gtest_target_type)',
           'dependencies': [
             'video_engine_core',
-            '<(webrtc_root)/modules/modules.gyp:video_capture_module_internal_impl',
-            '<(webrtc_root)/modules/modules.gyp:video_render_module_internal_impl',
             '<(DEPTH)/testing/gtest.gyp:gtest',
             '<(DEPTH)/testing/gmock.gyp:gmock',
             '<(webrtc_root)/test/test.gyp:test_support_main',
@@ -133,12 +131,12 @@
             'encoder_state_feedback_unittest.cc',
             'overuse_frame_detector_unittest.cc',
             'stream_synchronization_unittest.cc',
-            'vie_capturer_unittest.cc',
-            'vie_codec_unittest.cc',
             'vie_remb_unittest.cc',
           ],
           'conditions': [
-            ['OS=="android"', {
+            # TODO(henrike): remove build_with_chromium==1 when the bots are
+            # using Chromium's buildbots.
+            ['build_with_chromium==1 and OS=="android" and gtest_target_type=="shared_library"', {
               'dependencies': [
                 '<(DEPTH)/testing/android/native_test.gyp:native_test_native_code',
               ],
@@ -147,7 +145,9 @@
         },
       ], # targets
       'conditions': [
-        ['OS=="android"', {
+        # TODO(henrike): remove build_with_chromium==1 when the bots are using
+        # Chromium's buildbots.
+        ['build_with_chromium==1 and OS=="android" and gtest_target_type=="shared_library"', {
           'targets': [
             {
               'target_name': 'video_engine_core_unittests_apk_target',
@@ -168,6 +168,7 @@
               ],
               'includes': [
                 '../build/isolate.gypi',
+                'video_engine_core_unittests.isolate',
               ],
               'sources': [
                 'video_engine_core_unittests.isolate',

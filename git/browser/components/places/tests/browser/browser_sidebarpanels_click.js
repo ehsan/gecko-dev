@@ -18,7 +18,7 @@ function test() {
   // If a sidebar is already open, close it.
   if (!document.getElementById("sidebar-box").hidden) {
     info("Unexpected sidebar found - a previous test failed to cleanup correctly");
-    SidebarUI.hide();
+    toggleSidebar();
   }
 
   let sidebar = document.getElementById("sidebar");
@@ -53,10 +53,11 @@ function test() {
     init: function(aCallback) {
       // Add a history entry.
       let uri = PlacesUtils._uri(TEST_URL);
-      PlacesTestUtils.addVisits({
-        uri: uri, visitDate: Date.now() * 1000,
-        transition: PlacesUtils.history.TRANSITION_TYPED
-      }).then(aCallback);
+      addVisits(
+        { uri: uri, visitDate: Date.now() * 1000,
+          transition: PlacesUtils.history.TRANSITION_TYPED },
+        window,
+        aCallback);
     },
     prepare: function() {
       sidebar.contentDocument.getElementById("byvisited").doCommand();
@@ -67,7 +68,7 @@ function test() {
       is(tree.selectedNode.itemId, -1, "The selected node is not bookmarked");
     },
     cleanup: function(aCallback) {
-      PlacesTestUtils.clearHistory().then(aCallback);
+      waitForClearHistory(aCallback);
     },
     sidebarName: HISTORY_SIDEBAR_ID,
     treeName: HISTORY_SIDEBAR_TREE_ID,
@@ -76,7 +77,7 @@ function test() {
 
   function testPlacesPanel(preFunc, postFunc) {
     currentTest.init(function() {
-      SidebarUI.show(currentTest.sidebarName);
+      toggleSidebar(currentTest.sidebarName);
     });
 
     sidebar.addEventListener("load", function() {
@@ -95,7 +96,7 @@ function test() {
           aSubject.Dialog.ui.button0.click();
 
           executeSoon(function () {
-              SidebarUI.hide();
+              toggleSidebar(currentTest.sidebarName);
               currentTest.cleanup(postFunc);
             });
         }
@@ -153,5 +154,5 @@ function test() {
   }
 
   // Ensure history is clean before starting the test.
-  PlacesTestUtils.clearHistory().then(runNextTest);
+  waitForClearHistory(runNextTest);
 }

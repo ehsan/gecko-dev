@@ -43,7 +43,7 @@ TrustDomain::IssuerChecker::~IssuerChecker() { }
 
 // The implementation of TrustDomain::IssuerTracker is in a subclass only to
 // hide the implementation from external users.
-class PathBuildingStep final : public TrustDomain::IssuerChecker
+class PathBuildingStep : public TrustDomain::IssuerChecker
 {
 public:
   PathBuildingStep(TrustDomain& trustDomain, const BackCert& subject,
@@ -66,7 +66,7 @@ public:
 
   Result Check(Input potentialIssuerDER,
                /*optional*/ const Input* additionalNameConstraints,
-               /*out*/ bool& keepGoing) override;
+               /*out*/ bool& keepGoing);
 
   Result CheckResult() const;
 
@@ -80,17 +80,12 @@ private:
   const unsigned int subCACount;
   const Result deferredSubjectError;
 
-  // Initialized lazily.
-  uint8_t subjectSignatureDigestBuf[MAX_DIGEST_SIZE_IN_BYTES];
-  der::PublicKeyAlgorithm subjectSignaturePublicKeyAlg;
-  SignedDigest subjectSignature;
-
   Result RecordResult(Result currentResult, /*out*/ bool& keepGoing);
   Result result;
   bool resultWasSet;
 
-  PathBuildingStep(const PathBuildingStep&) = delete;
-  void operator=(const PathBuildingStep&) = delete;
+  PathBuildingStep(const PathBuildingStep&) /*= delete*/;
+  void operator=(const PathBuildingStep&) /*= delete*/;
 };
 
 Result
@@ -100,8 +95,6 @@ PathBuildingStep::RecordResult(Result newResult, /*out*/ bool& keepGoing)
     newResult = Result::ERROR_UNTRUSTED_ISSUER;
   } else if (newResult == Result::ERROR_EXPIRED_CERTIFICATE) {
     newResult = Result::ERROR_EXPIRED_ISSUER_CERTIFICATE;
-  } else if (newResult == Result::ERROR_NOT_YET_VALID_CERTIFICATE) {
-    newResult = Result::ERROR_NOT_YET_VALID_ISSUER_CERTIFICATE;
   }
 
   if (resultWasSet) {
@@ -197,22 +190,8 @@ PathBuildingStep::Check(Input potentialIssuerDER,
     return RecordResult(rv, keepGoing);
   }
 
-  // Calculate the digest of the subject's signed data if we haven't already
-  // done so. We do this lazily to avoid doing it at all if we backtrack before
-  // getting to this point. We cache the result to avoid recalculating it if we
-  // backtrack after getting to this point.
-  if (subjectSignature.digest.GetLength() == 0) {
-    rv = DigestSignedData(trustDomain, subject.GetSignedData(),
-                          subjectSignatureDigestBuf,
-                          subjectSignaturePublicKeyAlg, subjectSignature);
-    if (rv != Success) {
-      return rv;
-    }
-  }
-
-  rv = VerifySignedDigest(trustDomain, subjectSignaturePublicKeyAlg,
-                          subjectSignature,
-                          potentialIssuer.GetSubjectPublicKeyInfo());
+  rv = WrappedVerifySignedData(trustDomain, subject.GetSignedData(),
+                               potentialIssuer.GetSubjectPublicKeyInfo());
   if (rv != Success) {
     return RecordResult(rv, keepGoing);
   }
@@ -342,6 +321,14 @@ BuildCertChain(TrustDomain& trustDomain, Input certDER,
   // domain name the certificate is valid for.
   BackCert cert(certDER, endEntityOrCA, nullptr);
   Result rv = cert.Init();
+  if (rv != Success) {
+    return rv;
+  }
+
+  // See documentation for CheckPublicKey() in pkixtypes.h for why the public
+  // key also needs to be checked here when trustDomain.VerifySignedData()
+  // should already be doing it.
+  rv = trustDomain.CheckPublicKey(cert.GetSubjectPublicKeyInfo());
   if (rv != Success) {
     return rv;
   }

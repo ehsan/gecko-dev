@@ -68,38 +68,25 @@ function testConstructorFatalOption(data, expectedString)
 
 function testConstructorEncodingOption(aData, aExpectedString)
 {
-  function errorMessage(encoding) {
-    return `The given encoding '${String(encoding).trim()}' is not supported.`;
-  }
-
   // valid encoding passed
-  var encoding = "iso-8859-11";
-  testCharset({encoding: encoding, input: aData, expected: aExpectedString,
+  testCharset({encoding: "iso-8859-11", input: aData, expected: aExpectedString,
     msg: "decoder testing constructor valid encoding."});
 
-  // passing spaces for encoding
-  encoding = "   ";
-  testCharset({encoding: encoding, input: aData, error: "RangeError",
-    errorMessage: errorMessage(encoding),
-    msg: "constructor encoding, spaces encoding test."});
-
   // invalid encoding passed
-  encoding = "asdfasdf";
-  testCharset({encoding: encoding, input: aData, error: "RangeError",
-    errorMessage: errorMessage(encoding),
+  testCharset({encoding: "asdfasdf", input: aData, error: "TypeError",
     msg: "constructor encoding, invalid encoding test."});
 
-  // null encoding passed
-  encoding = null;
-  testCharset({encoding: encoding, input: aData, error: "RangeError",
-    errorMessage: errorMessage(encoding),
+  // passing spaces for encoding
+  testCharset({encoding: "   ", input: aData, error: "TypeError",
+    msg: "constructor encoding, spaces encoding test."});
+
+  // passing null for encoding
+  testCharset({encoding: null, input: aData, error: "TypeError",
     msg: "constructor encoding, \"null\" encoding test."});
 
   // empty encoding passed
-  encoding = "";
-  testCharset({encoding: encoding, input: aData, error: "RangeError",
-    errorMessage: errorMessage(encoding),
-    msg: "constructor encoding, empty encoding test."});
+  testCharset({encoding: "", input: aData, error: "TypeError",
+    msg: "constuctor encoding, empty encoding test."});
 
   // replacement character test
   aExpectedString = "\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd"
@@ -183,8 +170,8 @@ function testDecodeStreamOption(data, expectedString)
   ], msg: "decode() stream test utf-8."});
 
   testCharset({encoding: "utf-8", fatal: true, array: [
-    {input: [0xC2], error: "TypeError"},
-    {input: [0x80], error: "TypeError"},
+    {input: [0xC2], error: "EncodingError"},
+    {input: [0x80], error: "EncodingError"},
   ], msg: "decode() stream test utf-8 fatal."});
 }
 
@@ -364,7 +351,7 @@ function testDecoderGetEncoding()
     {encoding: "utf-16le", labels: ["utf-16", "utf-16le"]},
     {encoding: "utf-16be", labels: ["utf-16be"]},
     {encoding: "x-user-defined", labels: ["x-user-defined"]},
-    {error: "RangeError", labels: ["x-windows-949", "\u0130SO-8859-1", "csiso2022kr", "iso-2022-kr", "iso-2022-cn", "iso-2022-cn-ext", "replacement", "hz-gb-2312"]},
+    {error: "TypeError", labels: ["x-windows-949", "\u0130SO-8859-1", "csiso2022kr", "iso-2022-kr", "iso-2022-cn", "iso-2022-cn-ext", "replacement", "hz-gb-2312"]},
   ];
 
   for (var le of labelEncodings) {
@@ -389,9 +376,6 @@ function testCharset(test)
     var decoder = new TextDecoder(test.encoding, fatal);
   } catch (e) {
     assert_equals(e.name, test.error, test.msg + " error thrown from the constructor.");
-    if (test.errorMessage) {
-      assert_equals(e.message, test.errorMessage, test.msg + " error thrown from the constructor.");
-    }
     return;
   }
 
@@ -455,7 +439,7 @@ function testInvalid2022JP()
       // decode() should never throw unless {fatal: true} is specified
       (new TextDecoder("iso-2022-jp")).decode(new Uint8Array(input));
     } catch (e) {
-      if (e.name !== "TypeError") {
+      if (e.name !== "EncodingError") {
         throw e;
       }
       failureCount++;

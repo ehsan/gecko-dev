@@ -4,16 +4,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "BluetoothClassOfDevice.h"
+#include "BluetoothDevice.h"
 #include "BluetoothReplyRunnable.h"
 #include "BluetoothService.h"
 #include "BluetoothUtils.h"
 
+#include "mozilla/dom/bluetooth/BluetoothTypes.h"
 #include "mozilla/dom/BluetoothAttributeEvent.h"
 #include "mozilla/dom/BluetoothDevice2Binding.h"
-#include "mozilla/dom/bluetooth/BluetoothClassOfDevice.h"
-#include "mozilla/dom/bluetooth/BluetoothDevice.h"
-#include "mozilla/dom/bluetooth/BluetoothGatt.h"
-#include "mozilla/dom/bluetooth/BluetoothTypes.h"
 #include "mozilla/dom/Promise.h"
 
 using namespace mozilla;
@@ -21,10 +20,7 @@ using namespace mozilla::dom;
 
 USING_BLUETOOTH_NAMESPACE
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED(BluetoothDevice,
-                                   DOMEventTargetHelper,
-                                   mCod,
-                                   mGatt)
+NS_IMPL_CYCLE_COLLECTION_INHERITED(BluetoothDevice, DOMEventTargetHelper, mCod)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(BluetoothDevice)
 NS_INTERFACE_MAP_END_INHERITING(DOMEventTargetHelper)
 
@@ -304,19 +300,6 @@ BluetoothDevice::DispatchAttributeEvent(const nsTArray<nsString>& aTypes)
                                          NS_LITERAL_STRING("attributechanged"),
                                          init);
   DispatchTrustedEvent(event);
-}
-
-BluetoothGatt*
-BluetoothDevice::GetGatt()
-{
-  NS_ENSURE_TRUE(mType == BluetoothDeviceType::Le ||
-                 mType == BluetoothDeviceType::Dual,
-                 nullptr);
-  if (!mGatt) {
-    mGatt = new BluetoothGatt(GetOwner(), mAddress);
-  }
-
-  return mGatt;
 }
 
 JSObject*

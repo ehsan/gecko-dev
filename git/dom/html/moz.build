@@ -241,7 +241,7 @@ LOCAL_INCLUDES += [
     '/layout/style',
     '/layout/tables',
     '/layout/xul',
-    '/netwerk/base',
+    '/netwerk/base/src',
 ]
 
 FINAL_LIBRARY = 'xul'

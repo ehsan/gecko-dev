@@ -11179,250 +11179,248 @@
 46753a52402,52403
 > terahertz/M
 > terapixel/MS
-46756a52407
-> teriyaki
-46806,46807c52457
+46806,46807c52456
 < test's/AFK
 < test/AKFCDGS
 ---
 > test/AKFCDGSM
-46817a52468
+46817a52467
 > testcase/MS
-46831a52483
+46831a52482
 > testsuite/MS
-46845a52498
+46845a52497
 > textbox/SM
-46925a52579
+46925a52578
 > theremin/MS
-46999c52653
+46999c52652
 < thinking's
 ---
 > thinking/M
-47095,47096c52749
+47095,47096c52748
 < throne's
 < throne/CDS
 ---
 > throne/CDSM
-47188,47189c52841
+47188,47189c52840
 < tie's
 < tie/AUSD
 ---
 > tie/AUSDM
-47213,47214c52865
+47213,47214c52864
 < till's
 < till/EDRZGS
 ---
 > till/EDRZGSM
-47303,47304c52954
+47303,47304c52953
 < tire's
 < tire/AGDS
 ---
 > tire/AGDSM
-47433,47434c53083
+47433,47434c53082
 < tone's
 < tone/IZGDRS
 ---
 > tone/IZGDRSM
-47453,47455c53102,53103
+47453,47455c53101,53102
 < tool's
 < tool/ADGS
 < toolbar
 ---
 > tool/ADGSM
 > toolbar/MS
-47540,47541c53188
+47540,47541c53187
 < tort's
 < tort/FEAS
 ---
 > tort/FEASM
-47644a53292
+47644a53291
 > traceur/SM
-47657,47658c53305
+47657,47658c53304
 < tract's
 < tract/CEKFAS
 ---
 > tract/CEKFASM
-47755a53403
+47755a53402
 > transfect/DSMG
-47774a53423,53424
+47774a53422,53423
 > transgenderism
 > transgene/MS
-47807,47808c53457
+47807,47808c53456
 < transmission's
 < transmission/AS
 ---
 > transmission/ASM
-47928,47929c53577
+47928,47929c53576
 < trench's
 < trench/AIGSD
 ---
 > trench/AIGSDM
-47951c53599
+47951c53598
 < triage/M
 ---
 > triage/MGS
-47976,47977c53624
+47976,47977c53623
 < tribute's
 < tribute/FS
 ---
 > tribute/FSM
-47997a53645
+47997a53644
 > trifecta/S
-48165,48166c53813
+48165,48166c53812
 < trust's/E
 < trust/IESGD
 ---
 > trust/IESGDM
-48180,48181c53827
+48180,48181c53826
 < try's
 < try/AGDS
 ---
 > try/AGDSM
-48271a53918
+48271a53917
 > turducken
-48334a53982
+48334a53981
 > tweep/S
-48371,48372c54019
+48371,48372c54018
 < twist's
 < twist/USDG
 ---
 > twist/USDGM
-48396,48397c54043
+48396,48397c54042
 < type's
 < type/AGDS
 ---
 > type/AGDSM
-48869a54516
+48869a54515
 > unlikeable
-49163,49164c54810
+49163,49164c54809
 < usual's
 < usual/UY
 ---
 > usual/UYM
-49211c54857
+49211c54856
 < vagina/M
 ---
 > vagina/MS
-49249,49250c54895
+49249,49250c54894
 < value's
 < value/CAGSD
 ---
 > value/CAGSDM
-49292,49293c54937
+49292,49293c54936
 < variant's
 < variant/IS
 ---
 > variant/ISM
-49356,49357c55000
+49356,49357c54999
 < veil's
 < veil/UDGS
 ---
 > veil/UDGSM
-49368,49369c55011
+49368,49369c55010
 < velour's
 < velours's
 ---
 > velour/MS
-49398,49399c55040
+49398,49399c55039
 < vent's
 < vent/DGS
 ---
 > vent/DGSM
-49435,49436c55076
+49435,49436c55075
 < verge's
 < verge/FDSG
 ---
 > verge/FDSGM
-49478a55119
+49478a55118
 > vertices
-49488,49489c55129
+49488,49489c55128
 < vest's
 < vest/ILDGS
 ---
 > vest/ILDGSM
-49681,49682c55321
+49681,49682c55320
 < visit's
 < visit/ASGD
 ---
 > visit/ASGDM
-49772a55412,55414
+49772a55411,55413
 > volcanological
 > volcanologist/MS
 > volcanology/M
-49807,49808c55449
+49807,49808c55448
 < vote's
 < vote/CGVDS
 ---
 > vote/CGVDSM
-50148a55790
+50148a55789
 > weaponize/DSG
-50215,50216c55857
+50215,50216c55856
 < weigh's
 < weigh/AGD
 ---
 > weigh/AGDM
-50260,50261d55900
+50260,50261d55899
 < werwolf/M
 < werwolves
-50555,50556c56194
+50555,50556c56193
 < wind's
 < wind/UASG
 ---
 > wind/UASGM
-50626,50627c56264
+50626,50627c56263
 < wire's
 < wire/AGDS
 ---
 > wire/AGDSM
-50728c56365
+50728c56364
 < women
 ---
 > women/M
-50794,50796c56431,56432
+50794,50796c56430,56431
 < wop/S!
 < word's
 < word/AJDSG
 ---
 > wop/MS!
 > word/AJDSGM
-50801c56437
+50801c56436
 < wording's
 ---
 > wording/M
-50808,50809c56444
+50808,50809c56443
 < work's
 < work/ADJSG
 ---
 > work/ADJSGM
-50824c56459
+50824c56458
 < working's
 ---
 > working/M
-50884,50885c56519
+50884,50885c56518
 < worthy's
 < worthy/UPRT
 ---
 > worthy/UPRTM
-50903,50904c56537
+50903,50904c56536
 < wrap's
 < wrap/US
 ---
 > wrap/USM
-50945c56578
+50945c56577
 < writing's
 ---
 > writing/M
-51118,51119c56751
+51118,51119c56750
 < yoke's
 < yoke/UGDS
 ---
 > yoke/UGDSM
-51212,51213c56844
+51212,51213c56843
 < zip's
 < zip/US
 ---
 > zip/USM
-51228,51229c56859
+51228,51229c56858
 < zone's
 < zone/AGDS
 ---

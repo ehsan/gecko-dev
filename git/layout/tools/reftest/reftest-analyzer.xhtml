@@ -104,14 +104,14 @@ function load() {
   build_mag();
   gParams = hash_parameters();
   if (gParams.log) {
-    show_phase("loading");
-    process_log(gParams.log);
+    ID("logentry").value = gParams.log;
+    log_pasted();
   } else if (gParams.logurl) {
-    show_phase("loading");
     var req = new XMLHttpRequest();
     req.onreadystatechange = function() {
       if (req.readyState === 4) {
-        process_log(req.responseText);
+        ID("logentry").value = req.responseText;
+        log_pasted();
       }
     };
     req.open('GET', gParams.logurl, true);

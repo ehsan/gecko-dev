@@ -10,7 +10,6 @@
 #include "nsNetUtil.h"
 #include "nsContentUtils.h"
 #include "nsIHttpHeaderVisitor.h"
-#include "nsNullPrincipal.h"
 
 NS_IMPL_ADDREF(nsViewSourceChannel)
 NS_IMPL_RELEASE(nsViewSourceChannel)
@@ -56,24 +55,9 @@ nsViewSourceChannel::Init(nsIURI* uri)
       return NS_ERROR_INVALID_ARG;
     }
 
-    // This function is called from within nsViewSourceHandler::NewChannel2
-    // and sets the right loadInfo right after returning from this function.
-    // Until then we follow the principal of least privilege and use
-    // nullPrincipal as the loadingPrincipal.
-    nsCOMPtr<nsIPrincipal> nullPrincipal =
-      do_CreateInstance("@mozilla.org/nullprincipal;1", &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = pService->NewChannel2(path,
-                               nullptr, // aOriginCharset
-                               nullptr, // aCharSet
-                               nullptr, // aLoadingNode
-                               nullPrincipal,
-                               nullptr, // aTriggeringPrincipal
-                               nsILoadInfo::SEC_NORMAL,
-                               nsIContentPolicy::TYPE_OTHER,
-                               getter_AddRefs(mChannel));
-    NS_ENSURE_SUCCESS(rv, rv);
+    rv = pService->NewChannel(path, nullptr, nullptr, getter_AddRefs(mChannel));
+    if (NS_FAILED(rv))
+      return rv;
 
     mIsSrcdocChannel = false;
 
@@ -782,13 +766,6 @@ nsViewSourceChannel::IsNoCacheResponse(bool *_retval)
 {
     return !mHttpChannel ? NS_ERROR_NULL_POINTER :
         mHttpChannel->IsNoCacheResponse(_retval);
-}
-
-NS_IMETHODIMP
-nsViewSourceChannel::IsPrivateResponse(bool *_retval)
-{
-    return !mHttpChannel ? NS_ERROR_NULL_POINTER :
-        mHttpChannel->IsPrivateResponse(_retval);
 }
 
 NS_IMETHODIMP

@@ -11,6 +11,7 @@
 
 /*
  * This file contains implementations of the randomization functions
+ * WebRtcSpl_IncreaseSeed()
  * WebRtcSpl_RandU()
  * WebRtcSpl_RandN()
  * WebRtcSpl_RandUArray()
@@ -20,8 +21,6 @@
  */
 
 #include "webrtc/common_audio/signal_processing/include/signal_processing_library.h"
-
-static const uint32_t kMaxSeedUsed = 0x80000000;
 
 static const int16_t kRandNTable[] = {
     9178,    -7260,       40,    10189,     4894,    -3531,   -13779,    14764,
@@ -90,26 +89,31 @@ static const int16_t kRandNTable[] = {
     2374,    -5797,    11839,     8940,   -11874,    18213,     2855,    10492
 };
 
-static uint32_t IncreaseSeed(uint32_t* seed) {
-  seed[0] = (seed[0] * ((int32_t)69069) + 1) & (kMaxSeedUsed - 1);
-  return seed[0];
+uint32_t WebRtcSpl_IncreaseSeed(uint32_t *seed)
+{
+    seed[0] = (seed[0] * ((int32_t)69069) + 1) & (WEBRTC_SPL_MAX_SEED_USED - 1);
+    return seed[0];
 }
 
-int16_t WebRtcSpl_RandU(uint32_t* seed) {
-  return (int16_t)(IncreaseSeed(seed) >> 16);
+int16_t WebRtcSpl_RandU(uint32_t *seed)
+{
+    return (int16_t)(WebRtcSpl_IncreaseSeed(seed) >> 16);
 }
 
-int16_t WebRtcSpl_RandN(uint32_t* seed) {
-  return kRandNTable[IncreaseSeed(seed) >> 23];
+int16_t WebRtcSpl_RandN(uint32_t *seed)
+{
+    return kRandNTable[WebRtcSpl_IncreaseSeed(seed) >> 23];
 }
 
-// Creates an array of uniformly distributed variables.
+// Creates an array of uniformly distributed variables
 int16_t WebRtcSpl_RandUArray(int16_t* vector,
                              int16_t vector_length,
-                             uint32_t* seed) {
-  int i;
-  for (i = 0; i < vector_length; i++) {
-    vector[i] = WebRtcSpl_RandU(seed);
-  }
-  return vector_length;
+                             uint32_t* seed)
+{
+    int i;
+    for (i = 0; i < vector_length; i++)
+    {
+        vector[i] = WebRtcSpl_RandU(seed);
+    }
+    return vector_length;
 }

@@ -21,7 +21,6 @@ import org.mozilla.gecko.favicons.Favicons;
 import org.mozilla.gecko.favicons.LoadFaviconTask;
 import org.mozilla.gecko.favicons.OnFaviconLoadedListener;
 import org.mozilla.gecko.favicons.RemoteFavicon;
-import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.gfx.Layer;
 import org.mozilla.gecko.toolbar.BrowserToolbar.TabEditingState;
 import org.mozilla.gecko.util.ThreadUtils;
@@ -41,7 +40,6 @@ public class Tab {
 
     private static Pattern sColorPattern;
     private final int mId;
-    private final BrowserDB mDB;
     private long mLastUsed;
     private String mUrl;
     private String mBaseDomain;
@@ -107,7 +105,6 @@ public class Tab {
 
     public Tab(Context context, int id, String url, boolean external, int parentId, String title) {
         mAppContext = context.getApplicationContext();
-        mDB = GeckoProfile.get(context).getDB();
         mId = id;
         mUrl = url;
         mBaseDomain = "";
@@ -233,11 +230,11 @@ public class Tab {
                     try {
                         mThumbnail = new BitmapDrawable(mAppContext.getResources(), b);
                         if (mState == Tab.STATE_SUCCESS && cachePolicy == ThumbnailHelper.CachePolicy.STORE) {
-                            saveThumbnailToDB(mDB);
+                            saveThumbnailToDB();
                         } else {
                             // If the page failed to load, or requested that we not cache info about it, clear any previous
                             // thumbnails we've stored.
-                            clearThumbnailFromDB(mDB);
+                            clearThumbnailFromDB();
                         }
                     } catch (OutOfMemoryError oom) {
                         Log.w(LOGTAG, "Unable to create/scale bitmap.", oom);
@@ -307,13 +304,11 @@ public class Tab {
         }
 
         final ContentResolver cr = mAppContext.getContentResolver();
-        final URLMetadata urlMetadata = mDB.getURLMetadata();
-
-        final Map<String, Object> data = urlMetadata.fromJSON(metadata);
+        final Map<String, Object> data = URLMetadata.fromJSON(metadata);
         ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
             public void run() {
-                urlMetadata.save(cr, mUrl, data);
+                URLMetadata.save(cr, mUrl, data);
             }
         });
     }
@@ -491,7 +486,7 @@ public class Tab {
                     return;
                 }
 
-                mBookmark = mDB.isBookmark(getContentResolver(), url);
+                mBookmark = BrowserDB.isBookmark(getContentResolver(), url);
                 Tabs.getInstance().notifyListeners(Tab.this, Tabs.TabEvents.MENU_UPDATED);
             }
         });
@@ -505,7 +500,7 @@ public class Tab {
                 if (url == null)
                     return;
 
-                mDB.addBookmark(getContentResolver(), mTitle, url);
+                BrowserDB.addBookmark(getContentResolver(), mTitle, url);
                 Tabs.getInstance().notifyListeners(Tab.this, Tabs.TabEvents.BOOKMARK_ADDED);
             }
         });
@@ -519,7 +514,7 @@ public class Tab {
                 if (url == null)
                     return;
 
-                mDB.removeBookmarksWithURL(getContentResolver(), url);
+                BrowserDB.removeBookmarksWithURL(getContentResolver(), url);
                 Tabs.getInstance().notifyListeners(Tab.this, Tabs.TabEvents.BOOKMARK_REMOVED);
             }
         });
@@ -612,7 +607,7 @@ public class Tab {
 
         setHasFeeds(false);
         setHasOpenSearch(false);
-        mSiteIdentity.reset();
+        updateIdentityData(null);
         setZoomConstraints(new ZoomConstraints(true));
         setHasTouchListeners(false);
         setBackgroundColor(DEFAULT_BACKGROUND_COLOR);
@@ -629,7 +624,7 @@ public class Tab {
     void handleDocumentStart(boolean restoring, String url) {
         setLoadProgress(LOAD_PROGRESS_START);
         setState((!restoring && shouldShowProgress(url)) ? STATE_LOADING : STATE_SUCCESS);
-        mSiteIdentity.reset();
+        updateIdentityData(null);
     }
 
     void handleDocumentStop(boolean success) {
@@ -638,7 +633,6 @@ public class Tab {
         final String oldURL = getURL();
         final Tab tab = this;
         tab.setLoadProgress(LOAD_PROGRESS_STOP);
-
         ThreadUtils.getBackgroundHandler().postDelayed(new Runnable() {
             @Override
             public void run() {
@@ -655,54 +649,32 @@ public class Tab {
         setLoadProgressIfLoading(LOAD_PROGRESS_LOADED);
     }
 
-    protected void saveThumbnailToDB(final BrowserDB db) {
+    protected void saveThumbnailToDB() {
         final BitmapDrawable thumbnail = mThumbnail;
         if (thumbnail == null) {
             return;
         }
 
         try {
-            final String url = getURL();
+            String url = getURL();
             if (url == null) {
                 return;
             }
 
-            db.updateThumbnailForUrl(getContentResolver(), url, thumbnail);
+            BrowserDB.updateThumbnailForUrl(getContentResolver(), url, thumbnail);
         } catch (Exception e) {
             // ignore
         }
     }
 
-    public void loadThumbnailFromDB(final BrowserDB db) {
+    private void clearThumbnailFromDB() {
         try {
-            final String url = getURL();
-            if (url == null) {
+            String url = getURL();
+            if (url == null)
                 return;
-            }
-
-            byte[] thumbnail = db.getThumbnailForUrl(getContentResolver(), url);
-            if (thumbnail == null) {
-                return;
-            }
-
-            Bitmap bitmap = BitmapUtils.decodeByteArray(thumbnail);
-            mThumbnail = new BitmapDrawable(mAppContext.getResources(), bitmap);
-
-            Tabs.getInstance().notifyListeners(Tab.this, Tabs.TabEvents.THUMBNAIL);
-        } catch (Exception e) {
-            // ignore
-        }
-    }
-
-    private void clearThumbnailFromDB(final BrowserDB db) {
-        try {
-            final String url = getURL();
-            if (url == null) {
-                return;
-            }
 
             // Passing in a null thumbnail will delete the stored thumbnail for this url
-            db.updateThumbnailForUrl(getContentResolver(), url, null);
+            BrowserDB.updateThumbnailForUrl(getContentResolver(), url, null);
         } catch (Exception e) {
             // ignore
         }

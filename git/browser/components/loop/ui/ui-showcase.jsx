@@ -80,11 +80,10 @@
     sdkDriver: {}
   });
 
-  loop.store.StoreMixin.register({feedbackStore: feedbackStore});
-
   // Local mocks
 
   var mockMozLoopRooms = _.extend({}, navigator.mozLoop);
+  mockMozLoopRooms.roomsEnabled = true;
 
   var mockContact = {
     name: ["Mr Smith"],
@@ -94,6 +93,7 @@
   };
 
   var mockClient = {
+    requestCallUrl: noop,
     requestCallUrlInfo: noop
   };
 
@@ -124,54 +124,35 @@
 
   var SVGIcon = React.createClass({
     render: function() {
-      var sizeUnit = this.props.size.split("x")[0] + "px";
       return (
         <span className="svg-icon" style={{
-          "backgroundImage": "url(../content/shared/img/icons-" + this.props.size +
-                              ".svg#" + this.props.shapeId + ")",
-          "backgroundSize": sizeUnit + " " + sizeUnit
+          "background-image": "url(/content/shared/img/icons-16x16.svg#" + this.props.shapeId + ")"
         }} />
       );
     }
   });
 
   var SVGIcons = React.createClass({
-    shapes: {
-      "10x10": ["close", "close-active", "close-disabled", "dropdown",
-        "dropdown-white", "dropdown-active", "dropdown-disabled", "expand",
-        "expand-active", "expand-disabled", "minimize", "minimize-active",
-        "minimize-disabled"
-      ],
-      "14x14": ["audio", "audio-active", "audio-disabled", "facemute",
-        "facemute-active", "facemute-disabled", "hangup", "hangup-active",
-        "hangup-disabled", "incoming", "incoming-active", "incoming-disabled",
-        "link", "link-active", "link-disabled", "mute", "mute-active",
-        "mute-disabled", "pause", "pause-active", "pause-disabled", "video",
-        "video-white", "video-active", "video-disabled", "volume", "volume-active",
-        "volume-disabled"
-      ],
-      "16x16": ["audio", "audio-hover", "audio-active", "block", "block-red",
-        "block-hover", "block-active", "contacts", "contacts-hover", "contacts-active",
-        "copy", "checkmark", "google", "google-hover", "google-active", "history",
-        "history-hover", "history-active", "leave", "precall", "precall-hover",
-        "precall-active", "screen-white", "screenmute-white", "settings",
-        "settings-hover", "settings-active", "tag", "tag-hover", "tag-active",
-        "trash", "unblock", "unblock-hover", "unblock-active", "video", "video-hover",
-        "video-active", "tour"
-      ]
-    },
+    shapes: [
+      "audio", "audio-hover", "audio-active", "block",
+      "block-red", "block-hover", "block-active", "contacts", "contacts-hover",
+      "contacts-active", "copy", "checkmark", "google", "google-hover",
+      "google-active", "history", "history-hover", "history-active", "leave",
+      "precall", "precall-hover", "precall-active", "settings", "settings-hover",
+      "settings-active", "tag", "tag-hover", "tag-active", "trash", "unblock",
+      "unblock-hover", "unblock-active", "video", "video-hover", "video-active"
+    ],
 
     render: function() {
-      var icons = this.shapes[this.props.size].map(function(shapeId, i) {
-        return (
-          <li key={this.props.size + "-" + i} className="svg-icon-entry">
-            <p><SVGIcon shapeId={shapeId} size={this.props.size} /></p>
-            <p>{shapeId}</p>
-          </li>
-        );
-      }, this);
       return (
-        <ul className="svg-icon-list">{icons}</ul>
+        <div className="svg-icon-list">{
+          this.shapes.map(function(shapeId, i) {
+            return <div key={i} className="svg-icon-entry">
+              <p><SVGIcon shapeId={shapeId} /></p>
+              <p>{shapeId}</p>
+            </div>;
+          }, this)
+        }</div>
       );
     }
   });
@@ -190,7 +171,7 @@
             <a href={this.makeId("#")}>&nbsp;¶</a>
           </h3>
           <div className={cx({comp: true, dashed: this.props.dashed})}
-               style={this.props.style}>
+               style={this.props.style || {}}>
             {this.props.children}
           </div>
         </div>
@@ -201,7 +182,7 @@
   var Section = React.createClass({
     render: function() {
       return (
-        <section id={this.props.name} className={this.props.className}>
+        <section id={this.props.name}>
           <h1>{this.props.name}</h1>
           {this.props.children}
         </section>
@@ -239,21 +220,33 @@
             <p className="note">
               <strong>Note:</strong> 332px wide.
             </p>
-            <Example summary="Room list tab" dashed="true" style={{width: "332px"}}>
+            <Example summary="Call URL retrieved" dashed="true" style={{width: "332px"}}>
               <PanelView client={mockClient} notifications={notifications}
-                         userProfile={{email: "test@example.com"}}
-                         mozLoop={mockMozLoopRooms}
+                         callUrl="http://invalid.example.url/"
+                         mozLoop={navigator.mozLoop}
                          dispatcher={dispatcher}
-                         roomStore={roomStore}
-                         selectedTab="rooms" />
+                         roomStore={roomStore} />
             </Example>
-            <Example summary="Contact list tab" dashed="true" style={{width: "332px"}}>
+            <Example summary="Call URL retrieved - authenticated" dashed="true" style={{width: "332px"}}>
+              <PanelView client={mockClient} notifications={notifications}
+                         callUrl="http://invalid.example.url/"
+                         userProfile={{email: "test@example.com"}}
+                         mozLoop={navigator.mozLoop}
+                         dispatcher={dispatcher}
+                         roomStore={roomStore} />
+            </Example>
+            <Example summary="Pending call url retrieval" dashed="true" style={{width: "332px"}}>
+              <PanelView client={mockClient} notifications={notifications}
+                         mozLoop={navigator.mozLoop}
+                         dispatcher={dispatcher}
+                         roomStore={roomStore} />
+            </Example>
+            <Example summary="Pending call url retrieval - authenticated" dashed="true" style={{width: "332px"}}>
               <PanelView client={mockClient} notifications={notifications}
                          userProfile={{email: "test@example.com"}}
-                         mozLoop={mockMozLoopRooms}
+                         mozLoop={navigator.mozLoop}
                          dispatcher={dispatcher}
-                         roomStore={roomStore}
-                         selectedTab="contacts" />
+                         roomStore={roomStore} />
             </Example>
             <Example summary="Error Notification" dashed="true" style={{width: "332px"}}>
               <PanelView client={mockClient} notifications={errNotifications}
@@ -268,21 +261,13 @@
                          dispatcher={dispatcher}
                          roomStore={roomStore} />
             </Example>
-            <Example summary="Contact import success" dashed="true" style={{width: "332px"}}>
-              <PanelView notifications={new loop.shared.models.NotificationCollection([{level: "success", message: "Import success"}])}
+            <Example summary="Room list tab" dashed="true" style={{width: "332px"}}>
+              <PanelView client={mockClient} notifications={notifications}
                          userProfile={{email: "test@example.com"}}
                          mozLoop={mockMozLoopRooms}
                          dispatcher={dispatcher}
                          roomStore={roomStore}
-                         selectedTab="contacts" />
-            </Example>
-            <Example summary="Contact import error" dashed="true" style={{width: "332px"}}>
-              <PanelView notifications={new loop.shared.models.NotificationCollection([{level: "error", message: "Import error"}])}
-                         userProfile={{email: "test@example.com"}}
-                         mozLoop={mockMozLoopRooms}
-                         dispatcher={dispatcher}
-                         roomStore={roomStore}
-                         selectedTab="contacts" />
+                         selectedTab="rooms" />
             </Example>
           </Section>
 
@@ -516,10 +501,10 @@
 
           <Section name="CallUrlExpiredView">
             <Example summary="Firefox User">
-              <CallUrlExpiredView isFirefox={true} />
+              <CallUrlExpiredView helper={{isFirefox: returnTrue}} />
             </Example>
             <Example summary="Non-Firefox User">
-              <CallUrlExpiredView isFirefox={false} />
+              <CallUrlExpiredView helper={{isFirefox: returnFalse}} />
             </Example>
           </Section>
 
@@ -566,7 +551,7 @@
           <Section name="UnsupportedBrowserView">
             <Example summary="Standalone Unsupported Browser">
               <div className="standalone">
-                <UnsupportedBrowserView isFirefox={false}/>
+                <UnsupportedBrowserView helper={{isFirefox: returnFalse}}/>
               </div>
             </Example>
           </Section>
@@ -574,7 +559,7 @@
           <Section name="UnsupportedDeviceView">
             <Example summary="Standalone Unsupported Device">
               <div className="standalone">
-                <UnsupportedDeviceView platform="ios"/>
+                <UnsupportedDeviceView />
               </div>
             </Example>
           </Section>
@@ -586,7 +571,6 @@
                 <DesktopRoomConversationView
                   roomStore={roomStore}
                   dispatcher={dispatcher}
-                  mozLoop={navigator.mozLoop}
                   roomState={ROOM_STATES.INIT} />
               </div>
             </Example>
@@ -597,7 +581,6 @@
                 <DesktopRoomConversationView
                   roomStore={roomStore}
                   dispatcher={dispatcher}
-                  mozLoop={navigator.mozLoop}
                   roomState={ROOM_STATES.HAS_PARTICIPANTS} />
               </div>
             </Example>
@@ -610,7 +593,7 @@
                   dispatcher={dispatcher}
                   activeRoomStore={activeRoomStore}
                   roomState={ROOM_STATES.READY}
-                  isFirefox={true} />
+                  helper={{isFirefox: returnTrue}} />
               </div>
             </Example>
 
@@ -620,7 +603,7 @@
                   dispatcher={dispatcher}
                   activeRoomStore={activeRoomStore}
                   roomState={ROOM_STATES.JOINED}
-                  isFirefox={true} />
+                  helper={{isFirefox: returnTrue}} />
               </div>
             </Example>
 
@@ -630,7 +613,7 @@
                   dispatcher={dispatcher}
                   activeRoomStore={activeRoomStore}
                   roomState={ROOM_STATES.HAS_PARTICIPANTS}
-                  isFirefox={true} />
+                  helper={{isFirefox: returnTrue}} />
               </div>
             </Example>
 
@@ -640,7 +623,7 @@
                   dispatcher={dispatcher}
                   activeRoomStore={activeRoomStore}
                   roomState={ROOM_STATES.FULL}
-                  isFirefox={true} />
+                  helper={{isFirefox: returnTrue}} />
               </div>
             </Example>
 
@@ -650,7 +633,7 @@
                   dispatcher={dispatcher}
                   activeRoomStore={activeRoomStore}
                   roomState={ROOM_STATES.FULL}
-                  isFirefox={false} />
+                  helper={{isFirefox: returnFalse}} />
               </div>
             </Example>
 
@@ -661,7 +644,7 @@
                   activeRoomStore={activeRoomStore}
                   feedbackStore={feedbackStore}
                   roomState={ROOM_STATES.ENDED}
-                  isFirefox={false} />
+                  helper={{isFirefox: returnFalse}} />
               </div>
             </Example>
 
@@ -671,20 +654,14 @@
                   dispatcher={dispatcher}
                   activeRoomStore={activeRoomStore}
                   roomState={ROOM_STATES.FAILED}
-                  isFirefox={false} />
+                  helper={{isFirefox: returnFalse}} />
               </div>
             </Example>
           </Section>
 
-          <Section name="SVG icons preview" className="svg-icons">
-            <Example summary="10x10">
-              <SVGIcons size="10x10"/>
-            </Example>
-            <Example summary="14x14">
-              <SVGIcons size="14x14" />
-            </Example>
+          <Section name="SVG icons preview">
             <Example summary="16x16">
-              <SVGIcons size="16x16"/>
+              <SVGIcons />
             </Example>
           </Section>
 

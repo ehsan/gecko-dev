@@ -628,10 +628,7 @@ Engine.prototype = {
   // Signal to the engine that processing further records is pointless.
   eEngineAbortApplyIncoming: "error.engine.abort.applyincoming",
 
-  get prefName() {
-    return this.name;
-  },
-
+  get prefName() this.name,
   get enabled() {
     return Svc.Prefs.get("engine." + this.prefName, false);
   },
@@ -640,19 +637,17 @@ Engine.prototype = {
     Svc.Prefs.set("engine." + this.prefName, !!val);
   },
 
-  get score() {
-    return this._tracker.score;
-  },
+  get score() this._tracker.score,
 
   get _store() {
     let store = new this._storeObj(this.Name, this);
-    this.__defineGetter__("_store", () => store);
+    this.__defineGetter__("_store", function() store);
     return store;
   },
 
   get _tracker() {
     let tracker = new this._trackerObj(this.Name, this);
-    this.__defineGetter__("_tracker", () => tracker);
+    this.__defineGetter__("_tracker", function() tracker);
     return tracker;
   },
 
@@ -735,21 +730,13 @@ SyncEngine.prototype = {
   // How many records to process in a single batch.
   applyIncomingBatchSize: DEFAULT_STORE_BATCH_SIZE,
 
-  get storageURL() {
-    return this.service.storageURL;
-  },
+  get storageURL() this.service.storageURL,
 
-  get engineURL() {
-    return this.storageURL + this.name;
-  },
+  get engineURL() this.storageURL + this.name,
 
-  get cryptoKeysURL() {
-    return this.storageURL + "crypto/keys";
-  },
+  get cryptoKeysURL() this.storageURL + "crypto/keys",
 
-  get metaURL() {
-    return this.storageURL + "meta/global";
-  },
+  get metaURL() this.storageURL + "meta/global",
 
   get syncID() {
     // Generate a random syncID if we don't have one
@@ -779,9 +766,7 @@ SyncEngine.prototype = {
     this.lastSyncLocal = 0;
   },
 
-  get toFetch() {
-    return this._toFetch;
-  },
+  get toFetch() this._toFetch,
   set toFetch(val) {
     let cb = (error) => this._log.error(Utils.exceptionStr(error));
     // Coerce the array to a string for more efficient comparison.
@@ -804,9 +789,7 @@ SyncEngine.prototype = {
     });
   },
 
-  get previousFailed() {
-    return this._previousFailed;
-  },
+  get previousFailed() this._previousFailed,
   set previousFailed(val) {
     let cb = (error) => this._log.error(Utils.exceptionStr(error));
     // Coerce the array to a string for more efficient comparison.

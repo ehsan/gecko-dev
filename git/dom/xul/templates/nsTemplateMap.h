@@ -11,7 +11,8 @@
 
 class nsTemplateMap {
 protected:
-    struct Entry : public PLDHashEntryHdr {
+    struct Entry {
+        PLDHashEntryHdr mHdr;
         nsIContent*     mContent;
         nsIContent*     mTemplate;
     };
@@ -21,7 +22,8 @@ protected:
     void
     Init()
     {
-        PL_DHashTableInit(&mTable, PL_DHashGetStubOps(), sizeof(Entry));
+        PL_DHashTableInit(&mTable, PL_DHashGetStubOps(), nullptr,
+                          sizeof(Entry));
     }
 
     void
@@ -34,11 +36,11 @@ public:
 
     void
     Put(nsIContent* aContent, nsIContent* aTemplate) {
-        NS_ASSERTION(!PL_DHashTableSearch(&mTable, aContent),
+        NS_ASSERTION(PL_DHASH_ENTRY_IS_FREE(PL_DHashTableLookup(&mTable, aContent)),
                      "aContent already in map");
 
-        Entry* entry = static_cast<Entry*>
-            (PL_DHashTableAdd(&mTable, aContent, fallible));
+        Entry* entry =
+            reinterpret_cast<Entry*>(PL_DHashTableAdd(&mTable, aContent));
 
         if (entry) {
             entry->mContent = aContent;
@@ -61,9 +63,9 @@ public:
     void
     GetTemplateFor(nsIContent* aContent, nsIContent** aResult) {
         Entry* entry =
-            static_cast<Entry*>(PL_DHashTableSearch(&mTable, aContent));
+            reinterpret_cast<Entry*>(PL_DHashTableLookup(&mTable, aContent));
 
-        if (entry)
+        if (PL_DHASH_ENTRY_IS_BUSY(&entry->mHdr))
             NS_IF_ADDREF(*aResult = entry->mTemplate);
         else
             *aResult = nullptr;

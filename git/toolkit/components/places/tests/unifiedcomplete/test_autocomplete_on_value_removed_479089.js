@@ -17,7 +17,7 @@ add_task(function* test_autocomplete_on_value_removed() {
                  getService(Components.interfaces.nsIAutoCompleteSimpleResultListener);
 
   let testUri = NetUtil.newURI("http://foo.mozilla.com/");
-  yield PlacesTestUtils.addVisits({
+  yield promiseAddVisits({
     uri: testUri,
     referrer: uri("http://mozilla.com/")
   });

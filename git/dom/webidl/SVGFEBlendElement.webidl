@@ -30,11 +30,8 @@ interface SVGFEBlendElement : SVGElement {
   const unsigned short SVG_FEBLEND_MODE_SATURATION = 14;
   const unsigned short SVG_FEBLEND_MODE_COLOR = 15;
   const unsigned short SVG_FEBLEND_MODE_LUMINOSITY = 16;
-  [Constant]
   readonly attribute SVGAnimatedString in1;
-  [Constant]
   readonly attribute SVGAnimatedString in2;
-  [Constant]
   readonly attribute SVGAnimatedEnumeration mode;
 };
 

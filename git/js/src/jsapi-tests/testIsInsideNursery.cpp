@@ -15,7 +15,7 @@ BEGIN_TEST(testIsInsideNursery)
 
     JS_GC(rt);
 
-    JS::RootedObject object(cx, JS_NewPlainObject(cx));
+    JS::RootedObject object(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
 
     /* Objects are initially allocated in the nursery. */
     CHECK(js::gc::IsInsideNursery(object));

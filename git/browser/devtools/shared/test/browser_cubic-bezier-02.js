@@ -10,23 +10,22 @@ const TEST_URI = "chrome://browser/content/devtools/cubic-bezier-frame.xhtml";
 const {CubicBezierWidget, PREDEFINED} =
   devtools.require("devtools/shared/widgets/CubicBezierWidget");
 
-add_task(function*() {
-  yield promiseTab("about:blank");
-  let [host, win, doc] = yield createHost("bottom", TEST_URI);
+let test = Task.async(function*() {
+  yield promiseTab(TEST_URI);
 
-  let container = doc.querySelector("#container");
+  let container = content.document.querySelector("#container");
   let w = new CubicBezierWidget(container, PREDEFINED.linear);
 
-  yield pointsCanBeDragged(w, win, doc);
-  yield curveCanBeClicked(w, win, doc);
-  yield pointsCanBeMovedWithKeyboard(w, win, doc);
+  yield pointsCanBeDragged(w);
+  yield curveCanBeClicked(w);
+  yield pointsCanBeMovedWithKeyboard(w);
 
   w.destroy();
-  host.destroy();
   gBrowser.removeCurrentTab();
+  finish();
 });
 
-function* pointsCanBeDragged(widget, win, doc) {
+function* pointsCanBeDragged(widget) {
   info("Checking that the control points can be dragged with the mouse");
 
   info("Listening for the update event");
@@ -34,8 +33,10 @@ function* pointsCanBeDragged(widget, win, doc) {
 
   info("Generating a mousedown/move/up on P1");
   widget._onPointMouseDown({target: widget.p1});
-  doc.onmousemove({pageX: 0, pageY: 100});
-  doc.onmouseup();
+  EventUtils.synthesizeMouse(content.document.documentElement, 0, 100,
+    {type: "mousemove"}, content.window);
+  EventUtils.synthesizeMouse(content.document.documentElement, 0, 100,
+    {type: "mouseup"}, content.window);
 
   let bezier = yield onUpdated;
   ok(true, "The widget fired the updated event");
@@ -48,15 +49,17 @@ function* pointsCanBeDragged(widget, win, doc) {
 
   info("Generating a mousedown/move/up on P2");
   widget._onPointMouseDown({target: widget.p2});
-  doc.onmousemove({pageX: 200, pageY: 300});
-  doc.onmouseup();
+  EventUtils.synthesizeMouse(content.document.documentElement, 200, 300,
+    {type: "mousemove"}, content.window);
+  EventUtils.synthesizeMouse(content.document.documentElement, 200, 300,
+    {type: "mouseup"}, content.window);
 
   bezier = yield onUpdated;
   is(bezier.P2[0], 1, "The new P2 time coordinate is correct");
   is(bezier.P2[1], 0, "The new P2 progress coordinate is correct");
 }
 
-function* curveCanBeClicked(widget, win, doc) {
+function* curveCanBeClicked(widget) {
   info("Checking that clicking on the curve moves the closest control point");
 
   info("Listening for the update event");
@@ -85,7 +88,7 @@ function* curveCanBeClicked(widget, win, doc) {
   is(bezier.P1[1], 0.75, "P1 progress coordinate remained unchanged");
 }
 
-function* pointsCanBeMovedWithKeyboard(widget, win, doc) {
+function* pointsCanBeMovedWithKeyboard(widget) {
   info("Checking that points respond to keyboard events");
 
   info("Moving P1 to the left");

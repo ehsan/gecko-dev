@@ -53,7 +53,7 @@ TEST_F(DISABLED_ON_MAC(ViEExtendedIntegrationTest),
 }
 
 TEST_F(DISABLED_ON_MAC(ViEExtendedIntegrationTest),
-       DISABLED_RunsRtpRtcpTestWithoutErrors) {
+       RunsRtpRtcpTestWithoutErrors) {
   tests_->ViERtpRtcpExtendedTest();
 }
 

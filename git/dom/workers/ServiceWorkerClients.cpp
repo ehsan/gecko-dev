@@ -3,8 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/dom/Promise.h"
-
 #include "ServiceWorkerClient.h"
 #include "ServiceWorkerClients.h"
 #include "ServiceWorkerManager.h"
@@ -12,6 +10,9 @@
 #include "WorkerPrivate.h"
 #include "WorkerRunnable.h"
 #include "WorkerScope.h"
+
+#include "mozilla/dom/Promise.h"
+#include "mozilla/dom/ServiceWorkerClientsBinding.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -35,7 +36,7 @@ ServiceWorkerClients::ServiceWorkerClients(ServiceWorkerGlobalScope* aWorkerScop
 JSObject*
 ServiceWorkerClients::WrapObject(JSContext* aCx)
 {
-  return ClientsBinding::Wrap(aCx, this);
+  return ServiceWorkerClientsBinding::Wrap(aCx, this);
 }
 
 namespace {
@@ -44,7 +45,7 @@ namespace {
 // keeping the worker alive.
 class PromiseHolder MOZ_FINAL : public WorkerFeature
 {
-  friend class MatchAllRunnable;
+  friend class GetServicedRunnable;
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(PromiseHolder)
 
@@ -187,15 +188,15 @@ private:
 
 };
 
-class MatchAllRunnable MOZ_FINAL : public nsRunnable
+class GetServicedRunnable MOZ_FINAL : public nsRunnable
 {
   WorkerPrivate* mWorkerPrivate;
   nsRefPtr<PromiseHolder> mPromiseHolder;
   nsCString mScope;
 public:
-  MatchAllRunnable(WorkerPrivate* aWorkerPrivate,
-                   PromiseHolder* aPromiseHolder,
-                   const nsCString& aScope)
+  GetServicedRunnable(WorkerPrivate* aWorkerPrivate,
+                      PromiseHolder* aPromiseHolder,
+                      const nsCString& aScope)
     : mWorkerPrivate(aWorkerPrivate),
       mPromiseHolder(aPromiseHolder),
       mScope(aScope)
@@ -218,7 +219,7 @@ public:
     nsRefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
     nsAutoPtr<nsTArray<uint64_t>> result(new nsTArray<uint64_t>());
 
-    swm->GetAllClients(mScope, result);
+    swm->GetServicedClients(mScope, result);
     nsRefPtr<ResolvePromiseWorkerRunnable> r =
       new ResolvePromiseWorkerRunnable(mWorkerPrivate, mPromiseHolder, result);
 
@@ -243,20 +244,14 @@ public:
 } // anonymous namespace
 
 already_AddRefed<Promise>
-ServiceWorkerClients::MatchAll(const ClientQueryOptions& aOptions,
-                               ErrorResult& aRv)
+ServiceWorkerClients::GetServiced(ErrorResult& aRv)
 {
   WorkerPrivate* workerPrivate = GetCurrentThreadWorkerPrivate();
   MOZ_ASSERT(workerPrivate);
   workerPrivate->AssertIsOnWorkerThread();
 
-  nsString scope;
+  DOMString scope;
   mWorkerScope->GetScope(scope);
-
-  if (aOptions.mIncludeUncontrolled || aOptions.mType != ClientType::Window) {
-    aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
-    return nullptr;
-  }
 
   nsRefPtr<Promise> promise = Promise::Create(mWorkerScope, aRv);
   if (NS_WARN_IF(aRv.Failed())) {
@@ -270,10 +265,10 @@ ServiceWorkerClients::MatchAll(const ClientQueryOptions& aOptions,
     return promise.forget();
   }
 
-  nsRefPtr<MatchAllRunnable> r =
-    new MatchAllRunnable(workerPrivate,
-                         promiseHolder,
-                         NS_ConvertUTF16toUTF8(scope));
+  nsRefPtr<GetServicedRunnable> r =
+    new GetServicedRunnable(workerPrivate,
+                            promiseHolder,
+                            NS_ConvertUTF16toUTF8(scope));
   nsresult rv = NS_DispatchToMainThread(r);
 
   if (NS_WARN_IF(NS_FAILED(rv))) {
@@ -282,3 +277,16 @@ ServiceWorkerClients::MatchAll(const ClientQueryOptions& aOptions,
 
   return promise.forget();
 }
+
+// FIXME(catalinb): Bug 1045257 - Implement ReloadAll
+already_AddRefed<Promise>
+ServiceWorkerClients::ReloadAll(ErrorResult& aRv)
+{
+  nsRefPtr<Promise> promise = Promise::Create(mWorkerScope, aRv);
+  if (NS_WARN_IF(aRv.Failed())) {
+    return nullptr;
+  }
+  promise->MaybeReject(NS_ERROR_NOT_AVAILABLE);
+  return promise.forget();
+}
+

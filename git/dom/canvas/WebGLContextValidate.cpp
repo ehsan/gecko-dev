@@ -22,7 +22,6 @@
 #include "WebGLShader.h"
 #include "WebGLTexture.h"
 #include "WebGLUniformLocation.h"
-#include "WebGLValidateStrings.h"
 #include "WebGLVertexArray.h"
 #include "WebGLVertexAttribData.h"
 
@@ -368,15 +367,59 @@ WebGLContext::ValidateDrawModeEnum(GLenum mode, const char* info)
     }
 }
 
+bool
+WebGLContext::ValidateGLSLVariableName(const nsAString& name, const char* info)
+{
+    if (name.IsEmpty())
+        return false;
+
+    const uint32_t maxSize = 256;
+    if (name.Length() > maxSize) {
+        ErrorInvalidValue("%s: Identifier is %d characters long, exceeds the"
+                          " maximum allowed length of %d characters.", info,
+                          name.Length(), maxSize);
+        return false;
+    }
+
+    if (!ValidateGLSLString(name, info))
+        return false;
+
+    nsString prefix1 = NS_LITERAL_STRING("webgl_");
+    nsString prefix2 = NS_LITERAL_STRING("_webgl_");
+
+    if (Substring(name, 0, prefix1.Length()).Equals(prefix1) ||
+        Substring(name, 0, prefix2.Length()).Equals(prefix2))
+    {
+        ErrorInvalidOperation("%s: String contains a reserved GLSL prefix.",
+                              info);
+        return false;
+    }
+
+    return true;
+}
+
+bool WebGLContext::ValidateGLSLString(const nsAString& string, const char* info)
+{
+    for (uint32_t i = 0; i < string.Length(); ++i) {
+        if (!ValidateGLSLCharacter(string.CharAt(i))) {
+             ErrorInvalidValue("%s: String contains the illegal character"
+                               " '%d'.", info, string.CharAt(i));
+             return false;
+        }
+    }
+
+    return true;
+}
+
 /**
  * Return true if the framebuffer attachment is valid. Attachment must
  * be one of depth/stencil/depth_stencil/color attachment.
  */
 bool
-WebGLContext::ValidateFramebufferAttachment(const WebGLFramebuffer* fb, GLenum attachment,
+WebGLContext::ValidateFramebufferAttachment(GLenum attachment,
                                             const char* funcName)
 {
-    if (!fb) {
+    if (!mBoundFramebuffer) {
         switch (attachment) {
         case LOCAL_GL_COLOR:
         case LOCAL_GL_DEPTH:
@@ -1285,12 +1328,27 @@ WebGLContext::ValidateCopyTexImage(GLenum format, WebGLTexImageFunc func,
     // Default framebuffer format
     GLenum fboFormat = mOptions.alpha ? LOCAL_GL_RGBA : LOCAL_GL_RGB;
 
-    if (mBoundReadFramebuffer) {
-        TexInternalFormat srcFormat;
-        if (!mBoundReadFramebuffer->ValidateForRead(InfoFrom(func, dims), &srcFormat))
+    if (mBoundFramebuffer) {
+        if (!mBoundFramebuffer->CheckAndInitializeAttachments()) {
+            ErrorInvalidFramebufferOperation("%s: Incomplete framebuffer.",
+                                             InfoFrom(func, dims));
             return false;
+        }
 
-        fboFormat = srcFormat.get();
+        GLenum readPlaneBits = LOCAL_GL_COLOR_BUFFER_BIT;
+        if (!mBoundFramebuffer->HasCompletePlanes(readPlaneBits)) {
+            ErrorInvalidOperation("%s: Read source attachment doesn't have the"
+                                  " correct color/depth/stencil type.",
+                                  InfoFrom(func, dims));
+            return false;
+        }
+
+        // Get the correct format for the framebuffer, as it's not the default
+        // one.
+        const WebGLFramebuffer::Attachment& color0 =
+            mBoundFramebuffer->GetAttachment(LOCAL_GL_COLOR_ATTACHMENT0);
+
+        fboFormat = mBoundFramebuffer->GetFormatForAttachment(color0);
     }
 
     // Make sure the format of the framebuffer is a superset of the format
@@ -1455,37 +1513,163 @@ WebGLContext::ValidateTexImage(TexImageTarget texImageTarget, GLint level,
 }
 
 bool
-WebGLContext::ValidateUniformLocation(WebGLUniformLocation* loc, const char* funcName)
+WebGLContext::ValidateUniformLocation(const char* info,
+                                      WebGLUniformLocation* loc)
 {
-    /* GLES 2.0.25, p38:
-     *   If the value of location is -1, the Uniform* commands will silently
-     *   ignore the data passed in, and the current uniform values will not be
-     *   changed.
-     */
+    if (!ValidateObjectAllowNull(info, loc))
+        return false;
+
     if (!loc)
         return false;
 
-    if (!ValidateObject(funcName, loc))
-        return false;
-
+    // The need to check specifically for !mCurrentProgram here is explained in
+    // bug 657556.
     if (!mCurrentProgram) {
-        ErrorInvalidOperation("%s: No program is currently bound.", funcName);
+        ErrorInvalidOperation("%s: No program is currently bound.", info);
         return false;
     }
 
-    return loc->ValidateForProgram(mCurrentProgram, this, funcName);
+    if (mCurrentProgram != loc->Program()) {
+        ErrorInvalidOperation("%s: This uniform location doesn't correspond to"
+                              " the current program.", info);
+        return false;
+    }
+
+    if (mCurrentProgram->Generation() != loc->ProgramGeneration()) {
+        ErrorInvalidOperation("%s: This uniform location is obsolete since the"
+                              " program has been relinked.", info);
+        return false;
+    }
+
+    return true;
 }
 
 bool
-WebGLContext::ValidateAttribArraySetter(const char* name, uint32_t setterElemSize,
+WebGLContext::ValidateSamplerUniformSetter(const char* info,
+                                           WebGLUniformLocation* loc,
+                                           GLint value)
+{
+    if (loc->Info().type != LOCAL_GL_SAMPLER_2D &&
+        loc->Info().type != LOCAL_GL_SAMPLER_CUBE)
+    {
+        return true;
+    }
+
+    if (value >= 0 && value < mGLMaxTextureUnits)
+        return true;
+
+    ErrorInvalidValue("%s: This uniform location is a sampler, but %d is not a"
+                      " valid texture unit.", info, value);
+    return false;
+}
+
+bool
+WebGLContext::ValidateAttribArraySetter(const char* name, uint32_t cnt,
                                         uint32_t arrayLength)
 {
     if (IsContextLost())
         return false;
 
-    if (arrayLength < setterElemSize) {
-        ErrorInvalidOperation("%s: Array must have >= %d elements.", name,
-                              setterElemSize);
+    if (arrayLength < cnt) {
+        ErrorInvalidOperation("%s: Array must be >= %d elements.", name, cnt);
+        return false;
+    }
+
+    return true;
+}
+
+static bool
+IsUniformSetterTypeValid(GLenum setterType, GLenum uniformType)
+{
+    switch (uniformType) {
+    case LOCAL_GL_BOOL:
+    case LOCAL_GL_BOOL_VEC2:
+    case LOCAL_GL_BOOL_VEC3:
+    case LOCAL_GL_BOOL_VEC4:
+        return true; // GLfloat(0.0) sets a bool to false.
+
+    case LOCAL_GL_INT:
+    case LOCAL_GL_INT_SAMPLER_2D:
+    case LOCAL_GL_INT_SAMPLER_2D_ARRAY:
+    case LOCAL_GL_INT_SAMPLER_3D:
+    case LOCAL_GL_INT_SAMPLER_CUBE:
+    case LOCAL_GL_INT_VEC2:
+    case LOCAL_GL_INT_VEC3:
+    case LOCAL_GL_INT_VEC4:
+    case LOCAL_GL_SAMPLER_2D:
+    case LOCAL_GL_SAMPLER_2D_ARRAY:
+    case LOCAL_GL_SAMPLER_2D_ARRAY_SHADOW:
+    case LOCAL_GL_SAMPLER_2D_SHADOW:
+    case LOCAL_GL_SAMPLER_CUBE:
+    case LOCAL_GL_SAMPLER_CUBE_SHADOW:
+    case LOCAL_GL_UNSIGNED_INT_SAMPLER_2D:
+    case LOCAL_GL_UNSIGNED_INT_SAMPLER_2D_ARRAY:
+    case LOCAL_GL_UNSIGNED_INT_SAMPLER_3D:
+    case LOCAL_GL_UNSIGNED_INT_SAMPLER_CUBE:
+        return setterType == LOCAL_GL_INT;
+
+    case LOCAL_GL_FLOAT:
+    case LOCAL_GL_FLOAT_MAT2:
+    case LOCAL_GL_FLOAT_MAT2x3:
+    case LOCAL_GL_FLOAT_MAT2x4:
+    case LOCAL_GL_FLOAT_MAT3:
+    case LOCAL_GL_FLOAT_MAT3x2:
+    case LOCAL_GL_FLOAT_MAT3x4:
+    case LOCAL_GL_FLOAT_MAT4:
+    case LOCAL_GL_FLOAT_MAT4x2:
+    case LOCAL_GL_FLOAT_MAT4x3:
+    case LOCAL_GL_FLOAT_VEC2:
+    case LOCAL_GL_FLOAT_VEC3:
+    case LOCAL_GL_FLOAT_VEC4:
+        return setterType == LOCAL_GL_FLOAT;
+
+    default:
+        MOZ_ASSERT(false); // should never get here
+        return false;
+    }
+}
+
+static bool
+CheckUniformSizeAndType(WebGLContext& webgl, WebGLUniformLocation* loc,
+                        uint8_t setterElemSize, GLenum setterType,
+                        const char* info)
+{
+    if (setterElemSize != loc->ElementSize()) {
+        webgl.ErrorInvalidOperation("%s: Bad uniform size: %i", info,
+                                    loc->ElementSize());
+        return false;
+    }
+
+    if (!IsUniformSetterTypeValid(setterType, loc->Info().type)) {
+        webgl.ErrorInvalidOperation("%s: Bad uniform type: %i", info,
+                                    loc->Info().type);
+        return false;
+    }
+
+    return true;
+}
+
+static bool
+CheckUniformArrayLength(WebGLContext& webgl, WebGLUniformLocation* loc,
+                        uint8_t setterElemSize, size_t setterArraySize,
+                        const char* info)
+{
+    if (setterArraySize == 0 ||
+        setterArraySize % setterElemSize)
+    {
+        webgl.ErrorInvalidValue("%s: expected an array of length a multiple of"
+                                " %d, got an array of length %d.", info,
+                                setterElemSize, setterArraySize);
+        return false;
+    }
+
+    if (!loc->Info().isArray &&
+        setterArraySize != setterElemSize)
+    {
+        webgl.ErrorInvalidOperation("%s: expected an array of length exactly %d"
+                                    " (since this uniform is not an array"
+                                    " uniform), got an array of length %d.",
+                                    info, setterElemSize, setterArraySize);
         return false;
     }
 
@@ -1495,18 +1679,18 @@ WebGLContext::ValidateAttribArraySetter(const char* name, uint32_t setterElemSiz
 bool
 WebGLContext::ValidateUniformSetter(WebGLUniformLocation* loc,
                                     uint8_t setterElemSize, GLenum setterType,
-                                    const char* funcName, GLuint* out_rawLoc)
+                                    const char* info, GLuint* out_rawLoc)
 {
     if (IsContextLost())
         return false;
 
-    if (!ValidateUniformLocation(loc, funcName))
+    if (!ValidateUniformLocation(info, loc))
         return false;
 
-    if (!loc->ValidateSizeAndType(setterElemSize, setterType, this, funcName))
+    if (!CheckUniformSizeAndType(*this, loc, setterElemSize, setterType, info))
         return false;
 
-    *out_rawLoc = loc->mLoc;
+    *out_rawLoc = loc->Location();
     return true;
 }
 
@@ -1515,24 +1699,27 @@ WebGLContext::ValidateUniformArraySetter(WebGLUniformLocation* loc,
                                          uint8_t setterElemSize,
                                          GLenum setterType,
                                          size_t setterArraySize,
-                                         const char* funcName,
+                                         const char* info,
                                          GLuint* const out_rawLoc,
                                          GLsizei* const out_numElementsToUpload)
 {
     if (IsContextLost())
         return false;
 
-    if (!ValidateUniformLocation(loc, funcName))
+    if (!ValidateUniformLocation(info, loc))
         return false;
 
-    if (!loc->ValidateSizeAndType(setterElemSize, setterType, this, funcName))
+    if (!CheckUniformSizeAndType(*this, loc, setterElemSize, setterType, info))
         return false;
 
-    if (!loc->ValidateArrayLength(setterElemSize, setterArraySize, this, funcName))
+    if (!CheckUniformArrayLength(*this, loc, setterElemSize, setterArraySize,
+                                 info))
+    {
         return false;
+    }
 
-    *out_rawLoc = loc->mLoc;
-    *out_numElementsToUpload = std::min((size_t)loc->mActiveInfo->mElemCount,
+    *out_rawLoc = loc->Location();
+    *out_numElementsToUpload = std::min((size_t)loc->Info().arraySize,
                                         setterArraySize / setterElemSize);
     return true;
 }
@@ -1543,7 +1730,7 @@ WebGLContext::ValidateUniformMatrixArraySetter(WebGLUniformLocation* loc,
                                                GLenum setterType,
                                                size_t setterArraySize,
                                                bool setterTranspose,
-                                               const char* funcName,
+                                               const char* info,
                                                GLuint* const out_rawLoc,
                                                GLsizei* const out_numElementsToUpload)
 {
@@ -1552,22 +1739,25 @@ WebGLContext::ValidateUniformMatrixArraySetter(WebGLUniformLocation* loc,
     if (IsContextLost())
         return false;
 
-    if (!ValidateUniformLocation(loc, funcName))
+    if (!ValidateUniformLocation(info, loc))
         return false;
 
-    if (!loc->ValidateSizeAndType(setterElemSize, setterType, this, funcName))
+    if (!CheckUniformSizeAndType(*this, loc, setterElemSize, setterType, info))
         return false;
 
-    if (!loc->ValidateArrayLength(setterElemSize, setterArraySize, this, funcName))
-        return false;
-
-    if (setterTranspose) {
-        ErrorInvalidValue("%s: `transpose` must be false.", funcName);
+    if (!CheckUniformArrayLength(*this, loc, setterElemSize, setterArraySize,
+                                 info))
+    {
         return false;
     }
 
-    *out_rawLoc = loc->mLoc;
-    *out_numElementsToUpload = std::min((size_t)loc->mActiveInfo->mElemCount,
+    if (setterTranspose) {
+        ErrorInvalidValue("%s: `transpose` must be false.", info);
+        return false;
+    }
+
+    *out_rawLoc = loc->Location();
+    *out_numElementsToUpload = std::min((size_t)loc->Info().arraySize,
                                         setterArraySize / setterElemSize);
     return true;
 }
@@ -1759,14 +1949,13 @@ WebGLContext::InitAndValidateGL()
     mBoundTransformFeedbackBuffer = nullptr;
     mCurrentProgram = nullptr;
 
-    mBoundDrawFramebuffer = nullptr;
-    mBoundReadFramebuffer = nullptr;
+    mBoundFramebuffer = nullptr;
     mBoundRenderbuffer = nullptr;
 
     MakeContextCurrent();
 
-    // For OpenGL compat. profiles, we always keep vertex attrib 0 array enabled.
-    if (gl->IsCompatibilityProfile())
+    // on desktop OpenGL, we always keep vertex attrib 0 array enabled
+    if (!gl->IsGLES())
         gl->fEnableVertexAttribArray(0);
 
     if (MinCapabilityMode())
@@ -1804,16 +1993,12 @@ WebGLContext::InitAndValidateGL()
         mGLMaxRenderbufferSize = MINVALUE_GL_MAX_RENDERBUFFER_SIZE;
         mGLMaxTextureImageUnits = MINVALUE_GL_MAX_TEXTURE_IMAGE_UNITS;
         mGLMaxVertexTextureImageUnits = MINVALUE_GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS;
-        mGLMaxSamples = 1;
     } else {
         gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, &mGLMaxTextureSize);
         gl->fGetIntegerv(LOCAL_GL_MAX_CUBE_MAP_TEXTURE_SIZE, &mGLMaxCubeMapTextureSize);
         gl->fGetIntegerv(LOCAL_GL_MAX_RENDERBUFFER_SIZE, &mGLMaxRenderbufferSize);
         gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_IMAGE_UNITS, &mGLMaxTextureImageUnits);
         gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, &mGLMaxVertexTextureImageUnits);
-
-        if (!gl->GetPotentialInteger(LOCAL_GL_MAX_SAMPLES, (GLint*)&mGLMaxSamples))
-            mGLMaxSamples = 1;
     }
 
     // Calculate log2 of mGLMaxTextureSize and mGLMaxCubeMapTextureSize
@@ -1879,7 +2064,7 @@ WebGLContext::InitAndValidateGL()
     // Always 1 for GLES2
     mMaxFramebufferColorAttachments = 1;
 
-    if (gl->IsCompatibilityProfile()) {
+    if (!gl->IsGLES()) {
         // gl_PointSize is always available in ES2 GLSL, but has to be
         // specifically enabled on desktop GLSL.
         gl->fEnable(LOCAL_GL_VERTEX_PROGRAM_POINT_SIZE);
@@ -1910,13 +2095,15 @@ WebGLContext::InitAndValidateGL()
     // Check the shader validator pref
     NS_ENSURE_TRUE(Preferences::GetRootBranch(), false);
 
-    mBypassShaderValidation = Preferences::GetBool("webgl.bypass-shader-validation",
-                                                   mBypassShaderValidation);
+    mShaderValidation = Preferences::GetBool("webgl.shader_validator",
+                                             mShaderValidation);
 
     // initialize shader translator
-    if (!ShInitialize()) {
-        GenerateWarning("GLSL translator initialization failed!");
-        return false;
+    if (mShaderValidation) {
+        if (!ShInitialize()) {
+            GenerateWarning("GLSL translator initialization failed!");
+            return false;
+        }
     }
 
     // Mesa can only be detected with the GL_VERSION string, of the form
@@ -1954,34 +2141,6 @@ WebGLContext::InitAndValidateGL()
         mContextObserver->RegisterMemoryPressureEvent();
 
     return true;
-}
-
-bool
-WebGLContext::ValidateFramebufferTarget(GLenum target,
-                                        const char* const info)
-{
-    bool isValid = true;
-    switch (target) {
-    case LOCAL_GL_FRAMEBUFFER:
-        break;
-
-    case LOCAL_GL_DRAW_FRAMEBUFFER:
-    case LOCAL_GL_READ_FRAMEBUFFER:
-        isValid = IsWebGL2();
-        break;
-
-    default:
-        isValid = false;
-        break;
-    }
-
-    if (MOZ_LIKELY(isValid)) {
-        return true;
-    }
-
-    ErrorInvalidEnum("%s: Invalid target: %s (0x%04x).", info, EnumName(target),
-                     target);
-    return false;
 }
 
 } // namespace mozilla

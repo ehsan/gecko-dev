@@ -121,8 +121,8 @@ nsSVGPolyElement::GetMarkPoints(nsTArray<nsSVGMark> *aMarks)
 }
 
 bool
-nsSVGPolyElement::GetGeometryBounds(
-  Rect* aBounds, const StrokeOptions& aStrokeOptions, const Matrix& aTransform)
+nsSVGPolyElement::GetGeometryBounds(Rect* aBounds, Float aStrokeWidth,
+                                    const Matrix& aTransform)
 {
   const SVGPointList &points = mPoints.GetAnimValue();
 
@@ -132,7 +132,7 @@ nsSVGPolyElement::GetGeometryBounds(
     return true;
   }
 
-  if (aStrokeOptions.mLineWidth > 0) {
+  if (aStrokeWidth > 0) {
     // We don't handle stroke-miterlimit etc. yet
     return false;
   }

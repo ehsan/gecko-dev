@@ -19,7 +19,6 @@
 #include "nsWrapperCache.h"
 #include "nsAutoPtr.h"
 #include "js/TypeDecls.h"
-#include "jspubtd.h"
 
 #include "mozilla/dom/workers/bindings/WorkerFeature.h"
 
@@ -177,10 +176,6 @@ public:
 
   void AppendNativeHandler(PromiseNativeHandler* aRunnable);
 
-  JSObject* GlobalJSObject() const;
-
-  JSCompartment* Compartment() const;
-
 protected:
   // Do NOT call this unless you're Promise::Create.  I wish we could enforce
   // that from inside this class too, somehow.
@@ -249,7 +244,7 @@ private:
   void MaybeReportRejectedOnce() {
     MaybeReportRejected();
     RemoveFeature();
-    mResult.setUndefined();
+    mResult = JS::UndefinedValue();
   }
 
   void MaybeResolveInternal(JSContext* aCx,

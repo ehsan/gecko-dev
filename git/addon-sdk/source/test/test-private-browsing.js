@@ -66,14 +66,7 @@ exports.testIsPrivateBrowsingFalseDefault = function(assert) {
 };
 
 exports.testNSIPrivateBrowsingChannel = function(assert) {
-  let channel = Services.io.newChannel2("about:blank",
-                                        null,
-                                        null,
-                                        null,      // aLoadingNode
-                                        Services.scriptSecurityManager.getSystemPrincipal(),
-                                        null,      // aTriggeringPrincipal
-                                        Ci.nsILoadInfo.SEC_NORMAL,
-                                        Ci.nsIContentPolicy.TYPE_OTHER);
+  let channel = Services.io.newChannel("about:blank", null, null);
   channel.QueryInterface(Ci.nsIPrivateBrowsingChannel);
   assert.equal(isPrivate(channel), false, 'isPrivate detects non-private channels');
   channel.setPrivate(true);
@@ -89,4 +82,4 @@ exports.testNewGlobalPBService = function(assert) {
   assert.equal(isPrivate(), false, 'isPrivate() is false again');
 };
 
-require('sdk/test').run(module.exports);
+require('sdk/test').run(exports);

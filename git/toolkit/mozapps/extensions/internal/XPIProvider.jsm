@@ -1929,12 +1929,7 @@ this.XPIProvider = {
 
         let chan;
         try {
-          chan = Services.io.newChannelFromURI2(aURI,
-                                                null,      // aLoadingNode
-                                                Services.scriptSecurityManager.getSystemPrincipal(),
-                                                null,      // aTriggeringPrincipal
-                                                Ci.nsILoadInfo.SEC_NORMAL,
-                                                Ci.nsIContentPolicy.TYPE_OTHER);
+          chan = Services.io.newChannelFromURI(aURI);
         }
         catch (ex) {
           return null;
@@ -2099,8 +2094,6 @@ this.XPIProvider = {
 
       // Changes to installed extensions may have changed which theme is selected
       this.applyThemeChange();
-
-      AddonManagerPrivate.markProviderSafe(this);
 
       if (aAppChanged === undefined) {
         // For new profiles we will never need to show the add-on selection UI
@@ -2402,9 +2395,7 @@ this.XPIProvider = {
     }
     catch (e) { }
 
-    let TelemetrySession =
-      Cu.import("resource://gre/modules/TelemetrySession.jsm", {}).TelemetrySession;
-    TelemetrySession.setAddOns(data);
+    Cu.import("resource://gre/modules/TelemetryPing.jsm", {}).TelemetryPing.setAddOns(data);
   },
 
   /**
@@ -4458,13 +4449,6 @@ this.XPIProvider = {
       if (aMethod == "shutdown" && aReason != BOOTSTRAP_REASONS.APP_SHUTDOWN) {
         logger.debug("Removing manifest for " + aFile.path);
         Components.manager.removeBootstrappedManifestLocation(aFile);
-
-        let manifest = getURIForResourceInFile(aFile, "chrome.manifest");
-        for (let line of ChromeManifestParser.parseSync(manifest)) {
-          if (line.type == "resource") {
-            ResProtocolHandler.setSubstitution(line.args[0], null);
-          }
-        }
       }
       this.setTelemetry(aAddon.id, aMethod + "_MS", new Date() - timeStart);
     }
@@ -5405,14 +5389,7 @@ AddonInstall.prototype = {
       let requireBuiltIn = Preferences.get(PREF_INSTALL_REQUIREBUILTINCERTS, true);
       this.badCertHandler = new BadCertHandler(!requireBuiltIn);
 
-      this.channel = NetUtil.newChannel2(this.sourceURI,
-                                         null,
-                                         null,
-                                         null,      // aLoadingNode
-                                         Services.scriptSecurityManager.getSystemPrincipal(),
-                                         null,      // aTriggeringPrincipal
-                                         Ci.nsILoadInfo.SEC_NORMAL,
-                                         Ci.nsIContentPolicy.TYPE_OTHER);
+      this.channel = NetUtil.newChannel(this.sourceURI);
       this.channel.notificationCallbacks = this;
       if (this.channel instanceof Ci.nsIHttpChannel) {
         this.channel.setRequestHeader("Moz-XPI-Update", "1", true);
@@ -6458,8 +6435,6 @@ AddonInternal.prototype = {
         }
       });
     });
-    if (aUpdate.multiprocessCompatible !== undefined)
-      this.multiprocessCompatible = aUpdate.multiprocessCompatible;
     this.appDisabled = !isUsableAddon(this);
   },
 
@@ -6619,7 +6594,7 @@ function AddonWrapper(aAddon) {
    "providesUpdatesSecurely", "blocklistState", "blocklistURL", "appDisabled",
    "softDisabled", "skinnable", "size", "foreignInstall", "hasBinaryComponents",
    "strictCompatibility", "compatibilityOverrides", "updateURL",
-   "getDataDirectory", "multiprocessCompatible"].forEach(function(aProp) {
+   "getDataDirectory"].forEach(function(aProp) {
      this.__defineGetter__(aProp, function AddonWrapper_propertyGetter() aAddon[aProp]);
   }, this);
 

@@ -12,6 +12,7 @@
 #include "Utils.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/RefPtr.h"
+#include "mozilla/UniquePtr.h"
 
 /**
  * Helper class wrapping z_stream to avoid malloc() calls during
@@ -29,12 +30,7 @@
 class zxx_stream: public z_stream
 {
 public:
-  /* Forward declaration */
-  class StaticAllocator;
-
-  explicit zxx_stream(StaticAllocator *allocator_=nullptr)
-  : allocator(allocator_)
-  {
+  zxx_stream() {
     memset(this, 0, sizeof(z_stream));
     zalloc = Alloc;
     zfree = Free;
@@ -44,38 +40,45 @@ public:
 private:
   static void *Alloc(void *data, uInt items, uInt size)
   {
-    zxx_stream *zStream = reinterpret_cast<zxx_stream *>(data);
-    if (zStream->allocator) {
-      return zStream->allocator->Alloc(items, size);
-    }
     size_t buf_size = items * size;
-    return ::operator new(buf_size);
+    zxx_stream *zStream = reinterpret_cast<zxx_stream *>(data);
+
+    if (items == 1 && buf_size <= zStream->stateBuf.size) {
+      return zStream->stateBuf.get();
+    } else if (buf_size == zStream->windowBuf.size) {
+      return zStream->windowBuf.get();
+    } else {
+      MOZ_CRASH("No ZStreamBuf for allocation");
+    }
   }
 
   static void Free(void *data, void *ptr)
   {
     zxx_stream *zStream = reinterpret_cast<zxx_stream *>(data);
-    if (zStream->allocator) {
-      zStream->allocator->Free(ptr);
+
+    if (zStream->stateBuf.Equals(ptr)) {
+      zStream->stateBuf.Release();
+    } else if (zStream->windowBuf.Equals(ptr)) {
+      zStream->windowBuf.Release();
     } else {
-      ::operator delete(ptr);
+      MOZ_CRASH("Pointer doesn't match a ZStreamBuf");
     }
   }
 
   /**
-   * Helper class for each buffer in StaticAllocator.
+   * Helper class for each buffer.
    */
   template <size_t Size>
   class ZStreamBuf
   {
   public:
-    ZStreamBuf() : inUse(false) { }
+    ZStreamBuf() : buf(new char[Size]), inUse(false) { }
 
     char *get()
     {
       if (!inUse) {
         inUse = true;
-        return buf;
+        return buf.get();
       } else {
         MOZ_CRASH("ZStreamBuf already in use");
       }
@@ -83,54 +86,21 @@ private:
 
     void Release()
     {
-      memset(buf, 0, Size);
+      memset(buf.get(), 0, Size);
       inUse = false;
     }
 
-    bool Equals(const void *other) { return other == buf; }
+    bool Equals(const void *other) { return other == buf.get(); }
 
     static const size_t size = Size;
 
   private:
-    char buf[Size];
+    mozilla::UniquePtr<char[]> buf;
     bool inUse;
   };
 
-public:
-  /**
-   * Special allocator that uses static buffers to allocate from.
-   */
-  class StaticAllocator
-  {
-  public:
-    void *Alloc(uInt items, uInt size)
-    {
-      if (items == 1 && size <= stateBuf.size) {
-        return stateBuf.get();
-      } else if (items * size == windowBuf.size) {
-        return windowBuf.get();
-      } else {
-        MOZ_CRASH("No ZStreamBuf for allocation");
-      }
-    }
-
-    void Free(void *ptr)
-    {
-      if (stateBuf.Equals(ptr)) {
-        stateBuf.Release();
-      } else if (windowBuf.Equals(ptr)) {
-        windowBuf.Release();
-      } else {
-        MOZ_CRASH("Pointer doesn't match a ZStreamBuf");
-      }
-    }
-
-    ZStreamBuf<0x3000> stateBuf; // 0x3000 is an arbitrary size above 10K.
-    ZStreamBuf<1 << MAX_WBITS> windowBuf;
-  };
-
-private:
-  StaticAllocator *allocator;
+  ZStreamBuf<0x3000> stateBuf; // 0x3000 is an arbitrary size above 10K.
+  ZStreamBuf<1 << MAX_WBITS> windowBuf;
 };
 
 /**

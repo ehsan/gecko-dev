@@ -85,10 +85,10 @@ protected:
                                 const GMPErr& aStatus) MOZ_OVERRIDE;
   virtual bool RecvReadComplete(const nsCString& aRecordName,
                                 const GMPErr& aStatus,
-                                InfallibleTArray<uint8_t>&& aBytes) MOZ_OVERRIDE;
+                                const InfallibleTArray<uint8_t>& aBytes) MOZ_OVERRIDE;
   virtual bool RecvWriteComplete(const nsCString& aRecordName,
                                  const GMPErr& aStatus) MOZ_OVERRIDE;
-  virtual bool RecvRecordNames(InfallibleTArray<nsCString>&& aRecordNames,
+  virtual bool RecvRecordNames(const InfallibleTArray<nsCString>& aRecordNames,
                                const GMPErr& aStatus) MOZ_OVERRIDE;
   virtual bool RecvShutdown() MOZ_OVERRIDE;
 
