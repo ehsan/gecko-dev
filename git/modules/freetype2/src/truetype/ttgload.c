@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    TrueType Glyph Loader (body).                                        */
 /*                                                                         */
-/*  Copyright 1996-2014                                                    */
+/*  Copyright 1996-2013                                                    */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -99,13 +99,13 @@
 
     else if ( face->os2.version != 0xFFFFU )
     {
-      *tsb = (FT_Short)( face->os2.sTypoAscender - yMax );
+      *tsb = face->os2.sTypoAscender - yMax;
       *ah  = face->os2.sTypoAscender - face->os2.sTypoDescender;
     }
 
     else
     {
-      *tsb = (FT_Short)( face->horizontal.Ascender - yMax );
+      *tsb = face->horizontal.Ascender - yMax;
       *ah  = face->horizontal.Ascender - face->horizontal.Descender;
     }
 
@@ -801,8 +801,10 @@
       FT_Outline      current_outline = gloader->current.outline;
 
 
-      TT_Set_CodeRange( loader->exec, tt_coderange_glyph,
-                        loader->exec->glyphIns, n_ins );
+      error = TT_Set_CodeRange( loader->exec, tt_coderange_glyph,
+                                loader->exec->glyphIns, n_ins );
+      if ( error )
+        return error;
 
       loader->exec->is_composite = is_composite;
       loader->exec->pts          = *zone;
@@ -1787,12 +1789,8 @@
           /* (1): exists from the beginning                               */
           /* (2): components that have been loaded so far                 */
           /* (3): the newly loaded component                              */
-          error = TT_Process_Composite_Component( loader,
-                                                  subglyph,
-                                                  start_point,
-                                                  num_base_points );
-          if ( error )
-            goto Exit;
+          TT_Process_Composite_Component( loader, subglyph, start_point,
+                                          num_base_points );
         }
 
         loader->stream   = old_stream;
@@ -1801,17 +1799,16 @@
         /* process the glyph */
         loader->ins_pos = ins_pos;
         if ( IS_HINTED( loader->load_flags ) &&
+
 #ifdef TT_USE_BYTECODE_INTERPRETER
+
              subglyph->flags & WE_HAVE_INSTR &&
+
 #endif
+
              num_points > start_point )
-        {
-          error = TT_Process_Composite_Glyph( loader,
-                                              start_point,
-                                              start_contour );
-          if ( error )
-            goto Exit;
-        }
+          TT_Process_Composite_Glyph( loader, start_point, start_contour );
+
       }
     }
     else
@@ -2086,8 +2083,6 @@
                   FT_Int32      load_flags,
                   FT_Bool       glyf_table_only )
   {
-    FT_Error  error;
-
     TT_Face    face;
     FT_Stream  stream;
 #ifdef TT_USE_BYTECODE_INTERPRETER
@@ -2125,16 +2120,14 @@
       FT_Bool  reexecute = FALSE;
 
 
-      if ( size->bytecode_ready < 0 || size->cvt_ready < 0 )
+      if ( !size->cvt_ready )
       {
-        error = tt_size_ready_bytecode( size, pedantic );
+        FT_Error  error = tt_size_ready_bytecode( size, pedantic );
+
+
         if ( error )
           return error;
       }
-      else if ( size->bytecode_ready )
-        return size->bytecode_ready;
-      else if ( size->cvt_ready )
-        return size->cvt_ready;
 
       /* query new execution context */
       exec = size->debug ? size->context
@@ -2198,9 +2191,7 @@
                              FT_RENDER_MODE_MONO );
       }
 
-      error = TT_Load_Context( exec, face, size );
-      if ( error )
-        return error;
+      TT_Load_Context( exec, face, size );
 
 #ifdef TT_CONFIG_OPTION_SUBPIXEL_HINTING
 
@@ -2252,9 +2243,7 @@
 
         for ( i = 0; i < size->cvt_size; i++ )
           size->cvt[i] = FT_MulFix( face->cvt[i], size->ttmetrics.scale );
-        error = tt_size_run_prep( size, pedantic );
-        if ( error )
-          return error;
+        tt_size_run_prep( size, pedantic );
       }
 
       /* see whether the cvt program has disabled hinting */
@@ -2285,7 +2274,8 @@
 #endif
 
     {
-      error = face->goto_table( face, TTAG_glyf, stream, 0 );
+      FT_Error  error = face->goto_table( face, TTAG_glyf, stream, 0 );
+
 
       if ( FT_ERR_EQ( error, Table_Missing ) )
         loader->glyf_offset = 0;
@@ -2376,18 +2366,15 @@
           (void)tt_loader_init( &loader, size, glyph, load_flags, TRUE );
           (void)load_truetype_glyph( &loader, glyph_index, 0, TRUE );
           glyph->linearHoriAdvance = loader.linear;
-          glyph->linearVertAdvance = loader.vadvance;
+          glyph->linearVertAdvance = loader.top_bearing + loader.bbox.yMax -
+                                       loader.vadvance;
 
-          /* sanity checks: if `xxxAdvance' in the sbit metric */
-          /* structure isn't set, use `linearXXXAdvance'      */
+          /* sanity check: if `horiAdvance' in the sbit metric */
+          /* structure isn't set, use `linearHoriAdvance'      */
           if ( !glyph->metrics.horiAdvance && glyph->linearHoriAdvance )
             glyph->metrics.horiAdvance =
               FT_MulFix( glyph->linearHoriAdvance,
                          size->root.metrics.x_scale );
-          if ( !glyph->metrics.vertAdvance && glyph->linearVertAdvance )
-            glyph->metrics.vertAdvance =
-              FT_MulFix( glyph->linearVertAdvance,
-                         size->root.metrics.y_scale );
         }
 
         return FT_Err_Ok;
@@ -2467,7 +2454,7 @@
 
 #endif /* TT_USE_BYTECODE_INTERPRETER */
 
-      error = compute_glyph_metrics( &loader, glyph_index );
+      compute_glyph_metrics( &loader, glyph_index );
     }
 
     /* Set the `high precision' bit flag.                           */

@@ -50,9 +50,9 @@ protected:
 
 private:
   // Forbidden
-  MediaResourceHandler() = delete;
-  MediaResourceHandler(const MediaResourceHandler &) = delete;
-  const MediaResourceHandler &operator=(const MediaResourceHandler &) = delete;
+  MediaResourceHandler() MOZ_DELETE;
+  MediaResourceHandler(const MediaResourceHandler &) MOZ_DELETE;
+  const MediaResourceHandler &operator=(const MediaResourceHandler &) MOZ_DELETE;
 
   // Resource Notification Listener
   wp<ResourceListener> mListener;

@@ -326,8 +326,8 @@ public:
   }
 
 private:
-  UniquePtr(const UniquePtr& aOther) = delete; // construct using Move()!
-  void operator=(const UniquePtr& aOther) = delete; // assign using Move()!
+  UniquePtr(const UniquePtr& aOther) MOZ_DELETE; // construct using Move()!
+  void operator=(const UniquePtr& aOther) MOZ_DELETE; // assign using Move()!
 };
 
 // In case you didn't read the comment by the main definition (you should!): the
@@ -377,7 +377,7 @@ private:
             typename EnableIf<IsPointer<U>::value &&
                               IsConvertible<U, Pointer>::value,
                               int>::Type aDummy = 0)
-  = delete;
+  MOZ_DELETE;
 
 public:
   UniquePtr(Pointer aPtr,
@@ -406,7 +406,7 @@ private:
             typename EnableIf<IsPointer<U>::value &&
                               IsConvertible<U, Pointer>::value,
                               int>::Type aDummy = 0)
-  = delete;
+  MOZ_DELETE;
 
 public:
   UniquePtr(UniquePtr&& aOther)
@@ -481,14 +481,14 @@ private:
                                                    int,
                                                    long>::Type>::value,
                                int>::Type aDummy = 0)
-  = delete;
+  MOZ_DELETE;
 
 public:
   void swap(UniquePtr& aOther) { mTuple.swap(aOther.mTuple); }
 
 private:
-  UniquePtr(const UniquePtr& aOther) = delete; // construct using Move()!
-  void operator=(const UniquePtr& aOther) = delete; // assign using Move()!
+  UniquePtr(const UniquePtr& aOther) MOZ_DELETE; // construct using Move()!
+  void operator=(const UniquePtr& aOther) MOZ_DELETE; // assign using Move()!
 };
 
 /** A default deletion policy using plain old operator delete. */
@@ -526,7 +526,7 @@ public:
 
 private:
   template<typename U>
-  void operator()(U* aPtr) const = delete;
+  void operator()(U* aPtr) const MOZ_DELETE;
 };
 
 template<typename T, class D>
@@ -759,46 +759,46 @@ MakeUnique(decltype(sizeof(int)) aN)
 
 template<typename T>
 typename detail::UniqueSelector<T>::KnownBound
-MakeUnique() = delete;
+MakeUnique() MOZ_DELETE;
 
 template<typename T, typename A1>
 typename detail::UniqueSelector<T>::KnownBound
-MakeUnique(A1&& aA1) = delete;
+MakeUnique(A1&& aA1) MOZ_DELETE;
 
 template<typename T, typename A1, typename A2>
 typename detail::UniqueSelector<T>::KnownBound
-MakeUnique(A1&& aA1, A2&& aA2) = delete;
+MakeUnique(A1&& aA1, A2&& aA2) MOZ_DELETE;
 
 template<typename T, typename A1, typename A2, typename A3>
 typename detail::UniqueSelector<T>::KnownBound
-MakeUnique(A1&& aA1, A2&& aA2, A3&& aA3) = delete;
+MakeUnique(A1&& aA1, A2&& aA2, A3&& aA3) MOZ_DELETE;
 
 template<typename T, typename A1, typename A2, typename A3, typename A4>
 typename detail::UniqueSelector<T>::KnownBound
-MakeUnique(A1&& aA1, A2&& aA2, A3&& aA3, A4&& aA4) = delete;
+MakeUnique(A1&& aA1, A2&& aA2, A3&& aA3, A4&& aA4) MOZ_DELETE;
 
 template<typename T, typename A1, typename A2, typename A3, typename A4,
          typename A5>
 typename detail::UniqueSelector<T>::KnownBound
-MakeUnique(A1&& aA1, A2&& aA2, A3&& aA3, A4&& aA4, A5&& aA5) = delete;
+MakeUnique(A1&& aA1, A2&& aA2, A3&& aA3, A4&& aA4, A5&& aA5) MOZ_DELETE;
 
 template<typename T, typename A1, typename A2, typename A3, typename A4,
          typename A5, typename A6>
 typename detail::UniqueSelector<T>::KnownBound
 MakeUnique(A1&& a1, A2&& a2, A3&& a3, A4&& a4, A5&& a5,
-           A6&& a6) = delete;
+           A6&& a6) MOZ_DELETE;
 
 template<typename T, typename A1, typename A2, typename A3, typename A4,
          typename A5, typename A6, typename A7>
 typename detail::UniqueSelector<T>::KnownBound
 MakeUnique(A1&& a1, A2&& a2, A3&& a3, A4&& a4, A5&& a5, A6&& a6,
-           A7&& a7) = delete;
+           A7&& a7) MOZ_DELETE;
 
 template<typename T, typename A1, typename A2, typename A3, typename A4,
          typename A5, typename A6, typename A7, typename A8>
 typename detail::UniqueSelector<T>::KnownBound
 MakeUnique(A1&& a1, A2&& a2, A3&& a3, A4&& a4, A5&& a5, A6&& a6,
-           A7&& a7, A8&& a8) = delete;
+           A7&& a7, A8&& a8) MOZ_DELETE;
 
 } // namespace mozilla
 

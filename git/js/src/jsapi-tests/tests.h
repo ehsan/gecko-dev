@@ -425,8 +425,7 @@ class AutoLeaveZeal
 
   public:
     explicit AutoLeaveZeal(JSContext *cx) : cx_(cx) {
-        uint32_t dummy;
-        JS_GetGCZeal(cx_, &zeal_, &frequency_, &dummy);
+        JS_GetGCZeal(cx_, &zeal_, &frequency_);
         JS_SetGCZeal(cx_, 0, 0);
         JS::PrepareForFullGC(JS_GetRuntime(cx_));
         JS::GCForReason(JS_GetRuntime(cx_), GC_SHRINK, JS::gcreason::DEBUG_GC);

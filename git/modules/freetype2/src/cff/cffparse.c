@@ -188,7 +188,7 @@
     }
 
     /* Read fraction part, if any. */
-    if ( nib == 0xA )
+    if ( nib == 0xa )
       for (;;)
       {
         /* If we entered this iteration with phase == 4, we need */

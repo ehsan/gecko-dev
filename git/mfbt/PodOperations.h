@@ -55,9 +55,9 @@ PodZero(T* aT, size_t aNElem)
  * compile error involving PodZero and array types, use PodArrayZero instead.
  */
 template<typename T, size_t N>
-static void PodZero(T (&aT)[N]) = delete;
+static void PodZero(T (&aT)[N]) MOZ_DELETE;
 template<typename T, size_t N>
-static void PodZero(T (&aT)[N], size_t aNElem) = delete;
+static void PodZero(T (&aT)[N], size_t aNElem) MOZ_DELETE;
 
 /** Set the contents of the array |aT| to zero. */
 template <class T, size_t N>

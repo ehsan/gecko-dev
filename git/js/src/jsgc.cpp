@@ -1157,11 +1157,10 @@ GCRuntime::GCRuntime(JSRuntime *rt) :
 #ifdef JS_GC_ZEAL
 
 void
-GCRuntime::getZeal(uint8_t *zeal, uint32_t *frequency, uint32_t *scheduled)
+GCRuntime::getZeal(uint8_t *zeal, uint32_t *frequency)
 {
     *zeal = zealMode;
     *frequency = zealFrequency;
-    *scheduled = nextScheduled;
 }
 
 const char *gc::ZealModeHelpText =

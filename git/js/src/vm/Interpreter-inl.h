@@ -324,8 +324,11 @@ SetNameOperation(JSContext *cx, JSScript *script, jsbytecode *pc, HandleObject s
     if (scope->isUnqualifiedVarObj()) {
         MOZ_ASSERT(!scope->getOps()->setProperty);
         RootedId id(cx, NameToId(name));
-        return baseops::SetPropertyHelper(cx, scope.as<NativeObject>(), scope.as<NativeObject>(),
-                                          id, baseops::Unqualified, &valCopy, strict);
+        return baseops::SetPropertyHelper<SequentialExecution>(cx,
+                                                               scope.as<NativeObject>(),
+                                                               scope.as<NativeObject>(),
+                                                               id, baseops::Unqualified, &valCopy,
+                                                               strict);
     }
 
     return JSObject::setProperty(cx, scope, scope, name, &valCopy, strict);
@@ -882,8 +885,8 @@ class FastInvokeGuard
     }
 
   private:
-    FastInvokeGuard(const FastInvokeGuard& other) = delete;
-    const FastInvokeGuard& operator=(const FastInvokeGuard& other) = delete;
+    FastInvokeGuard(const FastInvokeGuard& other) MOZ_DELETE;
+    const FastInvokeGuard& operator=(const FastInvokeGuard& other) MOZ_DELETE;
 };
 
 }  /* namespace js */

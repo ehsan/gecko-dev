@@ -101,7 +101,7 @@ public:
   }
 
 #ifdef MOZ_EME
-  virtual nsresult SetCDMProxy(CDMProxy* aProxy) MOZ_OVERRIDE
+  virtual nsresult SetCDMProxy(CDMProxy* aProxy)
   {
     MOZ_ASSERT(NS_IsMainThread());
     ReentrantMonitorAutoEnter mon(GetReentrantMonitor());

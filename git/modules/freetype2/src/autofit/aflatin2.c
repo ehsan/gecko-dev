@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    Auto-fitter hinting routines for latin writing system (body).        */
 /*                                                                         */
-/*  Copyright 2003-2014 by                                                 */
+/*  Copyright 2003-2013 by                                                 */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -890,6 +890,9 @@
         FT_Pos    last_v  = last->v;
 
 
+        if ( first == last )
+          continue;
+
         if ( first_v < last_v )
         {
           p = first->prev;
@@ -981,7 +984,7 @@
 #ifdef AF_SORT_SEGMENTS
     for ( seg1 = segments; seg1 < segment_mid; seg1++ )
     {
-      if ( seg1->dir != axis->major_dir )
+      if ( seg1->dir != axis->major_dir || seg1->first == seg1->last )
         continue;
 
       for ( seg2 = segment_mid; seg2 < segment_limit; seg2++ )
@@ -989,7 +992,9 @@
     /* now compare each segment to the others */
     for ( seg1 = segments; seg1 < segment_limit; seg1++ )
     {
-      if ( seg1->dir != axis->major_dir )
+      /* the fake segments are introduced to hint the metrics -- */
+      /* we must never link them to anything                     */
+      if ( seg1->dir != axis->major_dir || seg1->first == seg1->last )
         continue;
 
       for ( seg2 = segments; seg2 < segment_limit; seg2++ )
@@ -1189,10 +1194,9 @@
 
         edge->first    = seg;
         edge->last     = seg;
-        edge->dir      = seg->dir;
         edge->fpos     = seg->pos;
-        edge->opos     = FT_MulFix( seg->pos, scale );
-        edge->pos      = edge->opos;
+        edge->dir      = seg->dir;
+        edge->opos     = edge->pos = FT_MulFix( seg->pos, scale );
         seg->edge_next = seg;
       }
       else

@@ -33,14 +33,11 @@
   /*************************************************************************/
 
   FT_CALLBACK_DEF( FT_Error )
-  cff_cmap_encoding_init( CFF_CMapStd  cmap,
-                          FT_Pointer   pointer )
+  cff_cmap_encoding_init( CFF_CMapStd  cmap )
   {
     TT_Face       face     = (TT_Face)FT_CMAP_FACE( cmap );
     CFF_Font      cff      = (CFF_Font)face->extra.data;
     CFF_Encoding  encoding = &cff->encoding;
-
-    FT_UNUSED( pointer );
 
 
     cmap->gids  = encoding->codes;
@@ -138,16 +135,13 @@
 
 
   FT_CALLBACK_DEF( FT_Error )
-  cff_cmap_unicode_init( PS_Unicodes  unicodes,
-                         FT_Pointer   pointer )
+  cff_cmap_unicode_init( PS_Unicodes  unicodes )
   {
     TT_Face             face    = (TT_Face)FT_CMAP_FACE( unicodes );
     FT_Memory           memory  = FT_FACE_MEMORY( face );
     CFF_Font            cff     = (CFF_Font)face->extra.data;
     CFF_Charset         charset = &cff->charset;
     FT_Service_PsCMaps  psnames = (FT_Service_PsCMaps)cff->psnames;
-
-    FT_UNUSED( pointer );
 
 
     /* can't build Unicode map for CID-keyed font */

@@ -63,7 +63,7 @@ using JS::ToUint64;
  */
 template <typename CharT>
 static bool
-ComputeAccurateDecimalInteger(ExclusiveContext *cx, const CharT *start, const CharT *end,
+ComputeAccurateDecimalInteger(ThreadSafeContext *cx, const CharT *start, const CharT *end,
                               double *dp)
 {
     size_t length = end - start;
@@ -208,7 +208,7 @@ js::ParseDecimalNumber(const mozilla::Range<const char16_t> chars);
 
 template <typename CharT>
 bool
-js::GetPrefixInteger(ExclusiveContext *cx, const CharT *start, const CharT *end, int base,
+js::GetPrefixInteger(ThreadSafeContext *cx, const CharT *start, const CharT *end, int base,
                      const CharT **endp, double *dp)
 {
     MOZ_ASSERT(start <= end);
@@ -254,11 +254,11 @@ js::GetPrefixInteger(ExclusiveContext *cx, const CharT *start, const CharT *end,
 }
 
 template bool
-js::GetPrefixInteger(ExclusiveContext *cx, const char16_t *start, const char16_t *end, int base,
+js::GetPrefixInteger(ThreadSafeContext *cx, const char16_t *start, const char16_t *end, int base,
                      const char16_t **endp, double *dp);
 
 template bool
-js::GetPrefixInteger(ExclusiveContext *cx, const Latin1Char *start, const Latin1Char *end,
+js::GetPrefixInteger(ThreadSafeContext *cx, const Latin1Char *start, const Latin1Char *end,
                      int base, const Latin1Char **endp, double *dp);
 
 bool
@@ -553,9 +553,12 @@ ToCStringBuf::~ToCStringBuf()
 
 MOZ_ALWAYS_INLINE
 static JSFlatString *
-LookupDtoaCache(ExclusiveContext *cx, double d)
+LookupDtoaCache(ThreadSafeContext *cx, double d)
 {
-    if (JSCompartment *comp = cx->compartment()) {
+    if (!cx->isExclusiveContext())
+        return nullptr;
+
+    if (JSCompartment *comp = cx->asExclusiveContext()->compartment()) {
         if (JSFlatString *str = comp->dtoaCache.lookup(10, d))
             return str;
     }
@@ -565,15 +568,18 @@ LookupDtoaCache(ExclusiveContext *cx, double d)
 
 MOZ_ALWAYS_INLINE
 static void
-CacheNumber(ExclusiveContext *cx, double d, JSFlatString *str)
+CacheNumber(ThreadSafeContext *cx, double d, JSFlatString *str)
 {
-    if (JSCompartment *comp = cx->compartment())
+    if (!cx->isExclusiveContext())
+        return;
+
+    if (JSCompartment *comp = cx->asExclusiveContext()->compartment())
         comp->dtoaCache.cache(10, d, str);
 }
 
 MOZ_ALWAYS_INLINE
 static JSFlatString *
-LookupInt32ToString(ExclusiveContext *cx, int32_t si)
+LookupInt32ToString(ThreadSafeContext *cx, int32_t si)
 {
     if (si >= 0 && StaticStrings::hasInt(si))
         return cx->staticStrings().getInt(si);
@@ -601,7 +607,7 @@ BackfillInt32InBuffer(int32_t si, T *buffer, size_t size, size_t *length)
 
 template <AllowGC allowGC>
 JSFlatString *
-js::Int32ToString(ExclusiveContext *cx, int32_t si)
+js::Int32ToString(ThreadSafeContext *cx, int32_t si)
 {
     if (JSFlatString *str = LookupInt32ToString(cx, si))
         return str;
@@ -620,10 +626,10 @@ js::Int32ToString(ExclusiveContext *cx, int32_t si)
 }
 
 template JSFlatString *
-js::Int32ToString<CanGC>(ExclusiveContext *cx, int32_t si);
+js::Int32ToString<CanGC>(ThreadSafeContext *cx, int32_t si);
 
 template JSFlatString *
-js::Int32ToString<NoGC>(ExclusiveContext *cx, int32_t si);
+js::Int32ToString<NoGC>(ThreadSafeContext *cx, int32_t si);
 
 JSAtom *
 js::Int32ToAtom(ExclusiveContext *cx, int32_t si)
@@ -683,7 +689,7 @@ Int32ToCString(ToCStringBuf *cbuf, int32_t i, size_t *len, int base = 10)
 
 template <AllowGC allowGC>
 static JSString * JS_FASTCALL
-js_NumberToStringWithBase(ExclusiveContext *cx, double d, int base);
+js_NumberToStringWithBase(ThreadSafeContext *cx, double d, int base);
 
 MOZ_ALWAYS_INLINE bool
 num_toString_impl(JSContext *cx, CallArgs args)
@@ -1221,7 +1227,7 @@ js_InitNumberClass(JSContext *cx, HandleObject obj)
 }
 
 static char *
-FracNumberToCString(ExclusiveContext *cx, ToCStringBuf *cbuf, double d, int base = 10)
+FracNumberToCString(ThreadSafeContext *cx, ToCStringBuf *cbuf, double d, int base = 10)
 {
 #ifdef DEBUG
     {
@@ -1262,7 +1268,7 @@ js::NumberToCString(JSContext *cx, ToCStringBuf *cbuf, double d, int base/* = 10
 
 template <AllowGC allowGC>
 static JSString * JS_FASTCALL
-js_NumberToStringWithBase(ExclusiveContext *cx, double d, int base)
+js_NumberToStringWithBase(ThreadSafeContext *cx, double d, int base)
 {
     ToCStringBuf cbuf;
     char *numStr;
@@ -1275,7 +1281,9 @@ js_NumberToStringWithBase(ExclusiveContext *cx, double d, int base)
     if (base < 2 || base > 36)
         return nullptr;
 
-    JSCompartment *comp = cx->compartment();
+    JSCompartment *comp = cx->isExclusiveContext()
+                          ? cx->asExclusiveContext()->compartment()
+                          : nullptr;
 
     int32_t i;
     if (mozilla::NumberIsInt32(d, &i)) {
@@ -1289,15 +1297,19 @@ js_NumberToStringWithBase(ExclusiveContext *cx, double d, int base)
             return cx->staticStrings().getUnit(c);
         }
 
-        if (JSFlatString *str = comp->dtoaCache.lookup(base, d))
-            return str;
+        if (comp) {
+            if (JSFlatString *str = comp->dtoaCache.lookup(base, d))
+                return str;
+        }
 
         size_t len;
         numStr = Int32ToCString(&cbuf, i, &len, base);
         MOZ_ASSERT(!cbuf.dbuf && numStr >= cbuf.sbuf && numStr < cbuf.sbuf + cbuf.sbufSize);
     } else {
-        if (JSFlatString *str = comp->dtoaCache.lookup(base, d))
-            return str;
+        if (comp) {
+            if (JSFlatString *str = comp->dtoaCache.lookup(base, d))
+                return str;
+        }
 
         numStr = FracNumberToCString(cx, &cbuf, d, base);
         if (!numStr) {
@@ -1312,22 +1324,24 @@ js_NumberToStringWithBase(ExclusiveContext *cx, double d, int base)
 
     JSFlatString *s = NewStringCopyZ<allowGC>(cx, numStr);
 
-    comp->dtoaCache.cache(base, d, s);
+    if (comp)
+        comp->dtoaCache.cache(base, d, s);
+
     return s;
 }
 
 template <AllowGC allowGC>
 JSString *
-js::NumberToString(ExclusiveContext *cx, double d)
+js::NumberToString(ThreadSafeContext *cx, double d)
 {
     return js_NumberToStringWithBase<allowGC>(cx, d, 10);
 }
 
 template JSString *
-js::NumberToString<CanGC>(ExclusiveContext *cx, double d);
+js::NumberToString<CanGC>(ThreadSafeContext *cx, double d);
 
 template JSString *
-js::NumberToString<NoGC>(ExclusiveContext *cx, double d);
+js::NumberToString<NoGC>(ThreadSafeContext *cx, double d);
 
 JSAtom *
 js::NumberToAtom(ExclusiveContext *cx, double d)
@@ -1419,7 +1433,7 @@ js::NumberValueToStringBuffer(JSContext *cx, const Value &v, StringBuffer &sb)
 
 template <typename CharT>
 static bool
-CharsToNumber(ExclusiveContext *cx, const CharT *chars, size_t length, double *result)
+CharsToNumber(ThreadSafeContext *cx, const CharT *chars, size_t length, double *result)
 {
     if (length == 1) {
         CharT c = chars[0];
@@ -1487,16 +1501,42 @@ CharsToNumber(ExclusiveContext *cx, const CharT *chars, size_t length, double *r
 }
 
 bool
-js::StringToNumber(ExclusiveContext *cx, JSString *str, double *result)
+js::StringToNumber(ThreadSafeContext *cx, JSString *str, double *result)
 {
     AutoCheckCannotGC nogc;
-    JSLinearString *linearStr = str->ensureLinear(cx);
-    if (!linearStr)
+    ScopedThreadSafeStringInspector inspector(str);
+    if (!inspector.ensureChars(cx, nogc))
         return false;
 
-    return linearStr->hasLatin1Chars()
-           ? CharsToNumber(cx, linearStr->latin1Chars(nogc), str->length(), result)
-           : CharsToNumber(cx, linearStr->twoByteChars(nogc), str->length(), result);
+    return inspector.hasLatin1Chars()
+           ? CharsToNumber(cx, inspector.latin1Chars(), str->length(), result)
+           : CharsToNumber(cx, inspector.twoByteChars(), str->length(), result);
+}
+
+bool
+js::NonObjectToNumberSlow(ThreadSafeContext *cx, Value v, double *out)
+{
+    MOZ_ASSERT(!v.isNumber());
+    MOZ_ASSERT(!v.isObject());
+
+    if (v.isString())
+        return StringToNumber(cx, v.toString(), out);
+    if (v.isBoolean()) {
+        *out = v.toBoolean() ? 1.0 : 0.0;
+        return true;
+    }
+    if (v.isNull()) {
+        *out = 0.0;
+        return true;
+    }
+    if (v.isSymbol()) {
+        JS_ReportErrorNumber(cx->asJSContext(), js_GetErrorMessage, nullptr, JSMSG_SYMBOL_TO_NUMBER);
+        return false;
+    }
+
+    MOZ_ASSERT(v.isUndefined());
+    *out = GenericNaN();
+    return true;
 }
 
 bool
@@ -1511,29 +1551,8 @@ js::ToNumberSlow(ExclusiveContext *cx, Value v, double *out)
         }
 
       skip_int_double:
-        if (!v.isObject()) {
-            if (v.isString())
-                return StringToNumber(cx, v.toString(), out);
-            if (v.isBoolean()) {
-                *out = v.toBoolean() ? 1.0 : 0.0;
-                return true;
-            }
-            if (v.isNull()) {
-                *out = 0.0;
-                return true;
-            }
-            if (v.isSymbol()) {
-                if (cx->isJSContext()) {
-                    JS_ReportErrorNumber(cx->asJSContext(), js_GetErrorMessage, nullptr,
-                                         JSMSG_SYMBOL_TO_NUMBER);
-                }
-                return false;
-            }
-
-            MOZ_ASSERT(v.isUndefined());
-            *out = GenericNaN();
-            return true;
-        }
+        if (!v.isObject())
+            return NonObjectToNumberSlow(cx, v, out);
 
         if (!cx->isJSContext())
             return false;
@@ -1594,15 +1613,18 @@ js::ToUint64Slow(JSContext *cx, const HandleValue v, uint64_t *out)
     return true;
 }
 
-JS_PUBLIC_API(bool)
-js::ToInt32Slow(JSContext *cx, const HandleValue v, int32_t *out)
+template <typename ContextType,
+          bool (*ToNumberSlowFn)(ContextType *, Value, double *),
+          typename ValueType>
+static bool
+ToInt32SlowImpl(ContextType *cx, const ValueType v, int32_t *out)
 {
     MOZ_ASSERT(!v.isInt32());
     double d;
     if (v.isDouble()) {
         d = v.toDouble();
     } else {
-        if (!ToNumberSlow(cx, v, &d))
+        if (!ToNumberSlowFn(cx, v, &d))
             return false;
     }
     *out = ToInt32(d);
@@ -1610,18 +1632,45 @@ js::ToInt32Slow(JSContext *cx, const HandleValue v, int32_t *out)
 }
 
 JS_PUBLIC_API(bool)
-js::ToUint32Slow(JSContext *cx, const HandleValue v, uint32_t *out)
+js::ToInt32Slow(JSContext *cx, const HandleValue v, int32_t *out)
+{
+    return ToInt32SlowImpl<JSContext, ToNumberSlow>(cx, v, out);
+}
+
+bool
+js::NonObjectToInt32Slow(ThreadSafeContext *cx, const Value &v, int32_t *out)
+{
+    return ToInt32SlowImpl<ThreadSafeContext, NonObjectToNumberSlow>(cx, v, out);
+}
+
+template <typename ContextType,
+          bool (*ToNumberSlowFn)(ContextType *, Value, double *),
+          typename ValueType>
+static bool
+ToUint32SlowImpl(ContextType *cx, const ValueType v, uint32_t *out)
 {
     MOZ_ASSERT(!v.isInt32());
     double d;
     if (v.isDouble()) {
         d = v.toDouble();
     } else {
-        if (!ToNumberSlow(cx, v, &d))
+        if (!ToNumberSlowFn(cx, v, &d))
             return false;
     }
     *out = ToUint32(d);
     return true;
+}
+
+JS_PUBLIC_API(bool)
+js::ToUint32Slow(JSContext *cx, const HandleValue v, uint32_t *out)
+{
+    return ToUint32SlowImpl<JSContext, ToNumberSlow>(cx, v, out);
+}
+
+bool
+js::NonObjectToUint32Slow(ThreadSafeContext *cx, const Value &v, uint32_t *out)
+{
+    return ToUint32SlowImpl<ThreadSafeContext, NonObjectToNumberSlow>(cx, v, out);
 }
 
 JS_PUBLIC_API(bool)
@@ -1695,7 +1744,7 @@ js::ToLengthClamped<ExclusiveContext>(ExclusiveContext*, HandleValue, uint32_t*,
 
 template <typename CharT>
 bool
-js_strtod(ExclusiveContext *cx, const CharT *begin, const CharT *end, const CharT **dEnd,
+js_strtod(ThreadSafeContext *cx, const CharT *begin, const CharT *end, const CharT **dEnd,
           double *d)
 {
     const CharT *s = SkipSpace(begin, end);
@@ -1744,9 +1793,9 @@ js_strtod(ExclusiveContext *cx, const CharT *begin, const CharT *end, const Char
 }
 
 template bool
-js_strtod(ExclusiveContext *cx, const char16_t *begin, const char16_t *end, const char16_t **dEnd,
+js_strtod(ThreadSafeContext *cx, const char16_t *begin, const char16_t *end, const char16_t **dEnd,
           double *d);
 
 template bool
-js_strtod(ExclusiveContext *cx, const Latin1Char *begin, const Latin1Char *end,
+js_strtod(ThreadSafeContext *cx, const Latin1Char *begin, const Latin1Char *end,
           const Latin1Char **dEnd, double *d);

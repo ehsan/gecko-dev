@@ -304,6 +304,9 @@
   cf2_hintmap_map( CF2_HintMap  hintmap,
                    CF2_Fixed    csCoord )
   {
+    FT_ASSERT( hintmap->isValid );  /* must call Build before Map */
+    FT_ASSERT( hintmap->lastIndex < CF2_MAX_HINT_EDGES );
+
     if ( hintmap->count == 0 || ! hintmap->hinted )
     {
       /* there are no hints; use uniform scale and zero offset */
@@ -314,7 +317,6 @@
       /* start linear search from last hit */
       CF2_UInt  i = hintmap->lastIndex;
 
-      FT_ASSERT( hintmap->lastIndex < CF2_MAX_HINT_EDGES );
 
       /* search up */
       while ( i < hintmap->count - 1                  &&
@@ -792,11 +794,8 @@
     maskPtr      = cf2_hintmask_getMaskPtr( &tempHintMask );
 
     /* use the hStem hints only, which are first in the mask */
+    /* TODO: compare this to cffhintmaskGetBitCount */
     bitCount = cf2_arrstack_size( hStemHintArray );
-
-    /* Defense-in-depth.  Should never return here. */
-    if ( bitCount > hintMask->bitCount )
-        return;
 
     /* synthetic embox hints get highest priority */
     if ( font->blues.doEmBoxHints )
@@ -1561,7 +1560,7 @@
         {
           /* -y */
           *x = -glyphpath->xOffset;
-          *y = glyphpath->yOffset;
+          *y = glyphpath->xOffset;
         }
         else
         {
@@ -1692,8 +1691,7 @@
 
     if ( glyphpath->elemIsQueued )
     {
-      FT_ASSERT( cf2_hintmap_isValid( &glyphpath->hintMap ) ||
-                 glyphpath->hintMap.count == 0              );
+      FT_ASSERT( cf2_hintmap_isValid( &glyphpath->hintMap ) );
 
       cf2_glyphpath_pushPrevElem( glyphpath,
                                   &glyphpath->hintMap,
@@ -1779,8 +1777,7 @@
 
     if ( glyphpath->elemIsQueued )
     {
-      FT_ASSERT( cf2_hintmap_isValid( &glyphpath->hintMap ) ||
-                 glyphpath->hintMap.count == 0              );
+      FT_ASSERT( cf2_hintmap_isValid( &glyphpath->hintMap ) );
 
       cf2_glyphpath_pushPrevElem( glyphpath,
                                   &glyphpath->hintMap,

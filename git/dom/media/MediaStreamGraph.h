@@ -693,10 +693,10 @@ public:
     mNeedsMixing(false)
   {}
 
-  virtual SourceMediaStream* AsSourceStream() MOZ_OVERRIDE { return this; }
+  virtual SourceMediaStream* AsSourceStream() { return this; }
 
   // Media graph thread only
-  virtual void DestroyImpl() MOZ_OVERRIDE;
+  virtual void DestroyImpl();
 
   // Call these on any thread.
   /**
@@ -1069,7 +1069,7 @@ public:
    */
   void SetAutofinish(bool aAutofinish);
 
-  virtual ProcessedMediaStream* AsProcessedStream() MOZ_OVERRIDE { return this; }
+  virtual ProcessedMediaStream* AsProcessedStream() { return this; }
 
   friend class MediaStreamGraphImpl;
 
@@ -1087,7 +1087,7 @@ public:
   {
     return mInputs.Length();
   }
-  virtual void DestroyImpl() MOZ_OVERRIDE;
+  virtual void DestroyImpl();
   /**
    * This gets called after we've computed the blocking states for all
    * streams (mBlocked is up to date up to mStateComputedTime).
