@@ -2600,7 +2600,7 @@ nsBlockFrame::PullFrameFrom(nsBlockReflowState& aState,
 
       Invalidate(fromLine->GetCombinedArea());
       fromLineList->erase(aFromLine);
-      // aFromLine is now invalid
+      // Note that aFromLine just got incremented, so don't use it again here!
       aState.FreeLineBox(fromLine);
 
       // Put any remaining overflow lines back.
@@ -2609,8 +2609,6 @@ nsBlockFrame::PullFrameFrom(nsBlockReflowState& aState,
           aFromContainer->SetOverflowLines(fromLineList);
         } else {
           delete fromLineList;
-          // Now any iterators into fromLineList are invalid (but
-          // aFromLine already was invalidated above)
         }
       }
     }
@@ -5350,12 +5348,6 @@ nsBlockFrame::DoRemoveFrame(nsIFrame* aDeletedFrame, PRUint32 aFlags)
           SetOverflowLines(lineList);
         } else {
           delete lineList;
-          // We just invalidated our iterators.  Since we were in
-          // the overflow lines list, which is now empty, set them
-          // so we're at the end of the regular line list.
-          line_start = mLines.begin();
-          line_end = mLines.end();
-          line = line_end;
         }
       }
       cur->Destroy(presShell);
@@ -5490,22 +5482,16 @@ nsBlockFrame::StealFrame(nsPresContext* aPresContext,
           if (searchingOverflowList) {
             // Erase line, but avoid making the overflow line list empty
             nsLineList* lineList = RemoveOverflowLines();
-            line = lineList->erase(line);
+            lineList->erase(line);
             if (!lineList->empty()) {
               nsresult rv = SetOverflowLines(lineList);
               NS_ENSURE_SUCCESS(rv, rv);
             } else {
               delete lineList;
-              // We just invalidated our iterators.  Since we were in
-              // the overflow lines list, which is now empty, set them
-              // so we're at the end of the regular line list.
-              line_start = mLines.begin();
-              line_end = mLines.end();
-              line = line_end;
             }
           }
           else {
-            line = mLines.erase(line);
+            mLines.erase(line);
           }
           lineBox->Destroy(aPresContext->PresShell());
           if (line != line_end) {
