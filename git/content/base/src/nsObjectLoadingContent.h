@@ -128,6 +128,17 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     void NotifyOwnerDocumentActivityChanged();
 
     /**
+     * Returns the base URI of the object as seen by plugins. This differs from
+     * the normal codebase in that it takes <param> tags and plugin-specific
+     * quirks into account.
+     *
+     * XXX(johns): This is moving to the nsIObjectLoadingContent interface in
+     *             the future, but was landed here to avoid changing the IDL IID
+     *             on branches.
+     */
+    nsresult GetBaseURI(nsIURI **aResult);
+
+    /**
      * When a plug-in is instantiated, it can create a scriptable
      * object that the page wants to interact with.  We expose this
      * object by placing it on the prototype chain of our element,
@@ -336,10 +347,14 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      * 
      * NOTE This function does not perform security checks, only determining the
      *      requested type and parameters of the object.
-     * 
+     *
+     * @param aJavaURI Specify that the URI will be consumed by java, which
+     *                 changes codebase parsing and URI construction. Used
+     *                 internally.
+     *
      * @return Returns a bitmask of ParameterUpdateFlags values
      */
-    ParameterUpdateFlags UpdateObjectParameters();
+    ParameterUpdateFlags UpdateObjectParameters(bool aJavaURI = false);
 
     /**
      * Queue a CheckPluginStopEvent and track it in mPendingCheckPluginStopEvent
@@ -364,6 +379,11 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      * NOTE that this does not actually check if the object is a loadable plugin
      */
     bool ShouldPlay(FallbackType &aReason);
+
+    /*
+     * Helper to check if mBaseURI can be used by java as a codebase
+     */
+    bool CheckJavaCodebase();
 
     /**
      * Helper to check if our current URI passes policy
