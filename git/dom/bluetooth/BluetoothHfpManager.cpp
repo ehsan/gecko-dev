@@ -8,7 +8,6 @@
 
 #include "BluetoothHfpManager.h"
 
-#include "BluetoothA2dpManager.h"
 #include "BluetoothReplyRunnable.h"
 #include "BluetoothService.h"
 #include "BluetoothSocket.h"
@@ -31,6 +30,7 @@
 #define MOZSETTINGS_CHANGED_ID "mozsettings-changed"
 #define MOBILE_CONNECTION_ICCINFO_CHANGED "mobile-connection-iccinfo-changed"
 #define MOBILE_CONNECTION_VOICE_CHANGED "mobile-connection-voice-changed"
+#define BLUETOOTH_SCO_STATUS_CHANGED "bluetooth-sco-status-changed"
 
 /**
  * BRSF bitmask of AG supported features. See 4.34.1 "Bluetooth Defined AT
@@ -62,7 +62,7 @@ using namespace mozilla::ipc;
 USING_BLUETOOTH_NAMESPACE
 
 namespace {
-  StaticRefPtr<BluetoothHfpManager> gBluetoothHfpManager;
+  StaticAutoPtr<BluetoothHfpManager> gBluetoothHfpManager;
   StaticRefPtr<BluetoothHfpManagerObserver> sHfpObserver;
   bool gInShutdown = false;
   static const char kHfpCrlf[] = "\xd\xa";
@@ -526,7 +526,7 @@ BluetoothHfpManager::NotifyDialer(const nsAString& aCommand)
 }
 
 void
-BluetoothHfpManager::NotifyAudioManager(bool aStatus)
+BluetoothHfpManager::NotifyAudioManager(const nsAString& aAddress)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -534,12 +534,9 @@ BluetoothHfpManager::NotifyAudioManager(bool aStatus)
     do_GetService("@mozilla.org/observer-service;1");
   NS_ENSURE_TRUE_VOID(obs);
 
-  nsAutoString data;
-  data.AppendInt(aStatus);
-
-  if (NS_FAILED(obs->NotifyObservers(this,
+  if (NS_FAILED(obs->NotifyObservers(nullptr,
                                      BLUETOOTH_SCO_STATUS_CHANGED,
-                                     data.BeginReading()))) {
+                                     aAddress.BeginReading()))) {
     NS_WARNING("Failed to notify bluetooth-sco-status-changed observsers!");
   }
 }
@@ -1117,10 +1114,6 @@ BluetoothHfpManager::Disconnect()
     mSocket->Disconnect();
     mSocket = nullptr;
   }
-
-  BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
-  NS_ENSURE_TRUE_VOID(a2dp);
-  a2dp->Disconnect();
 }
 
 bool
@@ -1502,10 +1495,6 @@ BluetoothHfpManager::OnConnectSuccess(BluetoothSocket* aSocket)
   NotifyStatusChanged(NS_LITERAL_STRING("bluetooth-hfp-status-changed"));
 
   ListenSco();
-
-  BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
-  NS_ENSURE_TRUE_VOID(a2dp);
-  a2dp->Connect(mDeviceAddress);
 }
 
 void
@@ -1634,7 +1623,7 @@ BluetoothHfpManager::OnScoConnectSuccess()
     mScoRunnable = nullptr;
   }
 
-  NotifyAudioManager(true);
+  NotifyAudioManager(mDeviceAddress);
   NotifyStatusChanged(NS_LITERAL_STRING("bluetooth-sco-status-changed"));
 
   mScoSocketStatus = mScoSocket->GetConnectionStatus();
@@ -1658,7 +1647,7 @@ BluetoothHfpManager::OnScoDisconnect()
 {
   if (mScoSocketStatus == SocketConnectionStatus::SOCKET_CONNECTED) {
     ListenSco();
-    NotifyAudioManager(false);
+    NotifyAudioManager(EmptyString());
     NotifyStatusChanged(NS_LITERAL_STRING("bluetooth-sco-status-changed"));
   }
 }
@@ -1763,6 +1752,3 @@ BluetoothHfpManager::IsScoConnected()
   }
   return false;
 }
-
-NS_IMPL_ISUPPORTS0(BluetoothHfpManager)
-

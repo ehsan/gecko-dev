@@ -60,8 +60,8 @@ DOMBindingBase::GetJSObject() const
 {
   // Make sure that the public method results in the same bits as our private
   // method.
-  MOZ_ASSERT(GetWrapperJSObject() == GetWrapperPreserveColor());
-  return GetWrapperJSObject();
+  MOZ_ASSERT(GetJSObjectFromBits() == GetWrapperPreserveColor());
+  return GetJSObjectFromBits();
 }
 
 void
@@ -71,10 +71,10 @@ DOMBindingBase::SetJSObject(JSObject* aObject)
   // method.
   SetWrapper(aObject);
 
-  uint8_t oldFlags = mFlags;
+  uintptr_t oldWrapperPtrBits = mWrapperPtrBits;
 
-  SetWrapperJSObject(aObject);
+  SetWrapperBits(aObject);
 
-  MOZ_ASSERT(oldFlags == mFlags && aObject == mWrapper);
+  MOZ_ASSERT(oldWrapperPtrBits == mWrapperPtrBits);
 }
 #endif

@@ -210,7 +210,7 @@ HTMLCanvasElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   if (NS_SUCCEEDED(rv) && mCurrentContext &&
       (aName == nsGkAtoms::width || aName == nsGkAtoms::height || aName == nsGkAtoms::moz_opaque))
   {
-    rv = UpdateContext(nullptr, JS::NullHandleValue);
+    rv = UpdateContext();
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -724,21 +724,24 @@ nsresult
 HTMLCanvasElement::GetContext(const nsAString& aContextId,
                               nsISupports** aContext)
 {
-  ErrorResult rv;
-  *aContext = GetContext(nullptr, aContextId, JS::NullHandleValue, rv).get();
-  return rv.ErrorCode();
+  return GetContext(aContextId, JS::UndefinedHandleValue, nullptr, aContext);
 }
 
-already_AddRefed<nsISupports>
-HTMLCanvasElement::GetContext(JSContext* aCx,
-                              const nsAString& aContextId,
-                              JS::Handle<JS::Value> aContextOptions,
-                              ErrorResult& rv)
+NS_IMETHODIMP
+HTMLCanvasElement::GetContext(const nsAString& aContextId,
+                              const JS::Value& aContextOptions,
+                              JSContext* aCx,
+                              nsISupports **aContext)
 {
+  MOZ_ASSERT_IF(!aCx, aContextOptions.isUndefined());
+
+  nsresult rv;
+
   if (mCurrentContextId.IsEmpty()) {
     rv = GetContextHelper(aContextId, getter_AddRefs(mCurrentContext));
-    if (rv.Failed() || !mCurrentContext) {
-      return nullptr;
+    NS_ENSURE_SUCCESS(rv, rv);
+    if (!mCurrentContext) {
+      return NS_OK;
     }
 
     // Ensure that the context participates in CC.  Note that returning a
@@ -747,24 +750,70 @@ HTMLCanvasElement::GetContext(JSContext* aCx,
     CallQueryInterface(mCurrentContext, &cp);
     if (!cp) {
       mCurrentContext = nullptr;
-      rv.Throw(NS_ERROR_FAILURE);
-      return nullptr;
+      return NS_ERROR_FAILURE;
     }
 
-    rv = UpdateContext(aCx, aContextOptions);
-    if (rv.Failed()) {
-      return nullptr;
+    // note: if any contexts end up supporting something other
+    // than objects, e.g. plain strings, then we'll need to expand
+    // this to know how to create nsISupportsStrings etc.
+
+    nsCOMPtr<nsIWritablePropertyBag2> contextProps;
+    if (aContextOptions.isObject()) {
+      MOZ_ASSERT(aCx);
+      contextProps = do_CreateInstance("@mozilla.org/hash-property-bag;1");
+
+      JS::Rooted<JSObject*> opts(aCx, &aContextOptions.toObject());
+      JS::AutoIdArray props(aCx, JS_Enumerate(aCx, opts));
+      for (size_t i = 0; !!props && i < props.length(); ++i) {
+        jsid propid = props[i];
+        JS::Rooted<JS::Value> propname(aCx), propval(aCx);
+        if (!JS_IdToValue(aCx, propid, propname.address()) ||
+            !JS_GetPropertyById(aCx, opts, propid, propval.address())) {
+          return NS_ERROR_FAILURE;
+        }
+
+        JSString *propnameString = JS_ValueToString(aCx, propname);
+        nsDependentJSString pstr;
+        if (!propnameString || !pstr.init(aCx, propnameString)) {
+          mCurrentContext = nullptr;
+          return NS_ERROR_FAILURE;
+        }
+
+        if (JSVAL_IS_BOOLEAN(propval)) {
+          contextProps->SetPropertyAsBool(pstr, JSVAL_TO_BOOLEAN(propval));
+        } else if (JSVAL_IS_INT(propval)) {
+          contextProps->SetPropertyAsInt32(pstr, JSVAL_TO_INT(propval));
+        } else if (JSVAL_IS_DOUBLE(propval)) {
+          contextProps->SetPropertyAsDouble(pstr, JSVAL_TO_DOUBLE(propval));
+        } else if (JSVAL_IS_STRING(propval)) {
+          JSString *propvalString = JS_ValueToString(aCx, propval);
+          nsDependentJSString vstr;
+          if (!propvalString || !vstr.init(aCx, propvalString)) {
+            mCurrentContext = nullptr;
+            return NS_ERROR_FAILURE;
+          }
+
+          contextProps->SetPropertyAsAString(pstr, vstr);
+        }
+
+      }
     }
+
+    rv = UpdateContext(contextProps);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+
     mCurrentContextId.Assign(aContextId);
   }
 
   if (!mCurrentContextId.Equals(aContextId)) {
     //XXX eventually allow for more than one active context on a given canvas
-    return nullptr;
+    return NS_OK;
   }
 
-  nsCOMPtr<nsICanvasRenderingContextInternal> context = mCurrentContext;
-  return context.forget();
+  NS_ADDREF (*aContext = mCurrentContext);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -789,7 +838,7 @@ HTMLCanvasElement::MozGetIPCContext(const nsAString& aContextId,
 
     mCurrentContext->SetIsIPC(true);
 
-    rv = UpdateContext(nullptr, JS::NullHandleValue);
+    rv = UpdateContext();
     NS_ENSURE_SUCCESS(rv, rv);
 
     mCurrentContextId.Assign(aContextId);
@@ -803,7 +852,7 @@ HTMLCanvasElement::MozGetIPCContext(const nsAString& aContextId,
 }
 
 nsresult
-HTMLCanvasElement::UpdateContext(JSContext* aCx, JS::Handle<JS::Value> aNewContextOptions)
+HTMLCanvasElement::UpdateContext(nsIPropertyBag *aNewContextOptions)
 {
   if (!mCurrentContext)
     return NS_OK;
@@ -817,7 +866,7 @@ HTMLCanvasElement::UpdateContext(JSContext* aCx, JS::Handle<JS::Value> aNewConte
     return rv;
   }
 
-  rv = mCurrentContext->SetContextOptions(aCx, aNewContextOptions);
+  rv = mCurrentContext->SetContextOptions(aNewContextOptions);
   if (NS_FAILED(rv)) {
     mCurrentContext = nullptr;
     mCurrentContextId.Truncate();

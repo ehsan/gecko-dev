@@ -18,6 +18,7 @@
 #include "nsIGfxInfo.h"
 #include "nsIWidget.h"
 
+#include "nsIPropertyBag.h"
 #include "nsIVariant.h"
 
 #include "imgIEncoder.h"
@@ -307,22 +308,38 @@ WebGLContext::Invalidate()
 // nsICanvasRenderingContextInternal
 //
 
-NS_IMETHODIMP
-WebGLContext::SetContextOptions(JSContext* aCx, JS::Handle<JS::Value> aOptions)
+static bool
+GetBoolFromPropertyBag(nsIPropertyBag *bag, const char *propName, bool *boolResult)
 {
-    WebGLContextAttributes attributes;
-    attributes.Init(aCx, aOptions);
+    nsCOMPtr<nsIVariant> vv;
+    bool bv;
+
+    nsresult rv = bag->GetProperty(NS_ConvertASCIItoUTF16(propName), getter_AddRefs(vv));
+    if (NS_FAILED(rv) || !vv)
+        return false;
+
+    rv = vv->GetAsBool(&bv);
+    if (NS_FAILED(rv))
+        return false;
+
+    *boolResult = bv ? true : false;
+    return true;
+}
+
+NS_IMETHODIMP
+WebGLContext::SetContextOptions(nsIPropertyBag *aOptions)
+{
+    if (!aOptions)
+        return NS_OK;
 
     WebGLContextOptions newOpts;
 
-    newOpts.stencil = attributes.mStencil;
-    newOpts.depth = attributes.mDepth;
-    newOpts.premultipliedAlpha = attributes.mPremultipliedAlpha;
-    newOpts.antialias = attributes.mAntialias;
-    newOpts.preserveDrawingBuffer = attributes.mPreserveDrawingBuffer;
-    if (attributes.mAlpha.WasPassed()) {
-      newOpts.alpha = attributes.mAlpha.Value();
-    }
+    GetBoolFromPropertyBag(aOptions, "stencil", &newOpts.stencil);
+    GetBoolFromPropertyBag(aOptions, "depth", &newOpts.depth);
+    GetBoolFromPropertyBag(aOptions, "premultipliedAlpha", &newOpts.premultipliedAlpha);
+    GetBoolFromPropertyBag(aOptions, "antialias", &newOpts.antialias);
+    GetBoolFromPropertyBag(aOptions, "preserveDrawingBuffer", &newOpts.preserveDrawingBuffer);
+    GetBoolFromPropertyBag(aOptions, "alpha", &newOpts.alpha);
 
     // enforce that if stencil is specified, we also give back depth
     newOpts.depth |= newOpts.stencil;
@@ -908,7 +925,7 @@ WebGLContext::GetContextAttributes(Nullable<dom::WebGLContextAttributesInitializ
 
     const PixelBufferFormat& format = gl->GetPixelFormat();
 
-    result.mAlpha.Construct(format.alpha > 0);
+    result.mAlpha = format.alpha > 0;
     result.mDepth = format.depth > 0;
     result.mStencil = format.stencil > 0;
     result.mAntialias = format.samples > 1;

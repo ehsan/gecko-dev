@@ -1360,27 +1360,13 @@ GLContext::MarkDestroyed()
 
 static void SwapRAndBComponents(gfxImageSurface* surf)
 {
-  uint8_t *row = surf->Data();
-
-  size_t rowBytes = surf->Width()*4;
-  size_t rowHole = surf->Stride() - rowBytes;
-
-  size_t rows = surf->Height();
-
-  while (rows) {
-
-    const uint8_t *rowEnd = row + rowBytes;
-
-    while (row != rowEnd) {
-      row[0] ^= row[2];
-      row[2] ^= row[0];
-      row[0] ^= row[2];
-      row += 4;
+    for (int j = 0; j < surf->Height(); ++j) {
+        uint32_t* row = (uint32_t*)(surf->Data() + surf->Stride() * j);
+        for (int i = 0; i < surf->Width(); ++i) {
+            *row = (*row & 0xff00ff00) | ((*row & 0xff) << 16) | ((*row & 0xff0000) >> 16);
+            row++;
+        }
     }
-
-    row += rowHole;
-    --rows;
-  }
 }
 
 static already_AddRefed<gfxImageSurface> YInvertImageSurface(gfxImageSurface* aSurf)

@@ -32,6 +32,7 @@ public:
    * aElement is the element pointer corresponding to this link.
    */
   Link(Element* aElement);
+  nsLinkState GetLinkState() const;
   virtual void SetLinkState(nsLinkState aState);
 
   /**

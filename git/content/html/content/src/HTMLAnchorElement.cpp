@@ -31,7 +31,8 @@ enum {
   HTML_ANCHOR_DNS_PREFETCH_DEFERRED =     ANCHOR_ELEMENT_FLAG_BIT(1)
 };
 
-ASSERT_NODE_FLAGS_SPACE(ELEMENT_TYPE_SPECIFIC_BITS_OFFSET + 2);
+// Make sure we have enough space for those bits
+PR_STATIC_ASSERT(ELEMENT_TYPE_SPECIFIC_BITS_OFFSET + 1 < 32);
 
 #undef ANCHOR_ELEMENT_FLAG_BIT
 
@@ -327,6 +328,12 @@ NS_IMETHODIMP
 HTMLAnchorElement::SetPing(const nsAString& aValue)
 {
   return SetAttr(kNameSpaceID_None, nsGkAtoms::ping, aValue, true);
+}
+
+nsLinkState
+HTMLAnchorElement::GetLinkState() const
+{
+  return Link::GetLinkState();
 }
 
 already_AddRefed<nsIURI>

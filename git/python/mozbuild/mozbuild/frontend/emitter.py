@@ -86,7 +86,6 @@ class TreeMetadataEmitter(object):
             DEFINES='DEFINES',
             EXTRA_COMPONENTS='EXTRA_COMPONENTS',
             HOST_CSRCS='HOST_CSRCS',
-            HOST_LIBRARY_NAME='HOST_LIBRARY_NAME',
             MODULE='MODULE',
             SIMPLE_PROGRAMS='SIMPLE_PROGRAMS',
             XPIDL_FLAGS='XPIDL_FLAGS',

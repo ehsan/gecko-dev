@@ -377,15 +377,16 @@ LIRGenerator::visitCall(MCall *call)
     // Call DOM functions.
     if (call->isDOMFunction()) {
         JS_ASSERT(target && target->isNative());
-        Register cxReg, objReg, privReg, argsReg;
+        Register cxReg, objReg, privReg, argcReg, valueReg;
         GetTempRegForIntArg(0, 0, &cxReg);
         GetTempRegForIntArg(1, 0, &objReg);
         GetTempRegForIntArg(2, 0, &privReg);
-        mozilla::DebugOnly<bool> ok = GetTempRegForIntArg(3, 0, &argsReg);
-        MOZ_ASSERT(ok, "How can we not have four temp registers?");
+        GetTempRegForIntArg(3, 0, &argcReg);
+        mozilla::DebugOnly<bool> ok = GetTempRegForIntArg(4, 0, &valueReg);
+        MOZ_ASSERT(ok, "How can we not have five temp registers?");
         LCallDOMNative *lir = new LCallDOMNative(argslot, tempFixed(cxReg),
                                                  tempFixed(objReg), tempFixed(privReg),
-                                                 tempFixed(argsReg));
+                                                 tempFixed(argcReg), tempFixed(valueReg));
         return (defineReturn(lir, call) && assignSafepoint(lir, call));
     }
 
@@ -862,7 +863,7 @@ ReorderCommutative(MDefinition **lhsp, MDefinition **rhsp)
         return;
 
     if (lhs->isConstant() ||
-        (rhs->defUseCount() == 1 && lhs->defUseCount() > 1))
+        (lhs->defUseCount() == 1 && rhs->defUseCount() != 1))
     {
         *rhsp = lhs;
         *lhsp = rhs;

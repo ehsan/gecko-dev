@@ -6,7 +6,6 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.gfx.InputConnectionHandler;
-import org.mozilla.gecko.util.Clipboard;
 import org.mozilla.gecko.util.GamepadUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 
@@ -272,10 +271,10 @@ class GeckoInputConnection
                 // If selection is empty, we'll select everything
                 if (selStart == selEnd) {
                     // Fill the clipboard
-                    Clipboard.setText(editable);
+                    GeckoAppShell.setClipboardText(editable.toString());
                     editable.clear();
                 } else {
-                    Clipboard.setText(
+                    GeckoAppShell.setClipboardText(
                             editable.toString().substring(
                                 Math.min(selStart, selEnd),
                                 Math.max(selStart, selEnd)));
@@ -283,7 +282,7 @@ class GeckoInputConnection
                 }
                 break;
             case R.id.paste:
-                commitText(Clipboard.getText(), 1);
+                commitText(GeckoAppShell.getClipboardText(), 1);
                 break;
             case R.id.copy:
                 // Copy the current selection or the empty string if nothing is selected.
@@ -291,7 +290,7 @@ class GeckoInputConnection
                                     editable.toString().substring(
                                         Math.min(selStart, selEnd),
                                         Math.max(selStart, selEnd));
-                Clipboard.setText(copiedText);
+                GeckoAppShell.setClipboardText(copiedText);
                 break;
         }
         return true;

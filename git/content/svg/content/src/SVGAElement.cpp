@@ -134,6 +134,12 @@ SVGAElement::UnbindFromTree(bool aDeep, bool aNullParent)
   SVGAElementBase::UnbindFromTree(aDeep, aNullParent);
 }
 
+nsLinkState
+SVGAElement::GetLinkState() const
+{
+  return Link::GetLinkState();
+}
+
 already_AddRefed<nsIURI>
 SVGAElement::GetHrefURI() const
 {

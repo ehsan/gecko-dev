@@ -30,6 +30,7 @@ function test() {
     }
   }
 
+  registerCleanupFunction(finalize);
   Services.obs.addObserver(observer, "browser-search-engine-modified", false);
   ss.addEngine("http://mochi.test:8888/browser/browser/components/search/test/testEngine_mozsearch.xml",
                Ci.nsISearchEngine.DATA_XML, "data:image/x-icon,%00",
@@ -40,10 +41,7 @@ function test() {
     ok(contextMenu, "Got context menu XUL");
 
     doOnloadOnce(testContextMenu);
-    let tab = gBrowser.selectedTab = gBrowser.addTab("data:text/plain;charset=utf8,test%20search");
-    registerCleanupFunction(function () {
-      gBrowser.removeTab(tab);
-    });
+    gBrowser.selectedTab = gBrowser.addTab("data:text/plain;charset=utf8,test%20search");
   }
 
   function testContextMenu() {
@@ -71,9 +69,7 @@ function test() {
       is(event.originalTarget.URL,
          "http://mochi.test:8888/browser/browser/components/search/test/?test=test+search&ie=utf-8&client=app&channel=contextsearch",
          "Checking context menu search URL");
-      // Remove the tab opened by the search
-      gBrowser.removeCurrentTab();
-      ss.removeEngine(ss.currentEngine);
+      finalize();
     }
 
     var selectionListener = {
@@ -96,5 +92,15 @@ function test() {
       // select the text on the page
       goDoCommand('cmd_selectAll');
     }, 500);
+  }
+
+  function finalize() {
+    while (gBrowser.tabs.length != 1) {
+      gBrowser.removeTab(gBrowser.tabs[0]);
+    }
+    content.location.href = "about:blank";
+    var engine = ss.getEngineByName(ENGINE_NAME);
+    if (engine)
+      ss.removeEngine(engine);
   }
 }

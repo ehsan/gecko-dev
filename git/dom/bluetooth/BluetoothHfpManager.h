@@ -55,8 +55,6 @@ class BluetoothHfpManager : public BluetoothSocketObserver
                           , public BluetoothProfileManagerBase
 {
 public:
-  NS_DECL_ISUPPORTS
-
   static BluetoothHfpManager* Get();
   ~BluetoothHfpManager();
 
@@ -70,7 +68,6 @@ public:
                                    const nsAString& aServiceUuid,
                                    int aChannel) MOZ_OVERRIDE;
   virtual void OnUpdateSdpRecords(const nsAString& aDeviceAddress) MOZ_OVERRIDE;
-  virtual void GetAddress(nsAString& aDeviceAddress) MOZ_OVERRIDE;
 
   void Connect(const nsAString& aDeviceAddress,
                const bool aIsHandsfree,
@@ -90,6 +87,7 @@ public:
 
   bool IsConnected();
   bool IsScoConnected();
+  void GetAddress(nsAString& aDeviceAddress);
 
 private:
   class GetVolumeTask;
@@ -116,7 +114,7 @@ private:
 
   void NotifyDialer(const nsAString& aCommand);
   void NotifyStatusChanged(const nsAString& aType);
-  void NotifyAudioManager(bool aStatus);
+  void NotifyAudioManager(const nsAString& aAddress);
 
   bool SendCommand(const char* aCommand, uint32_t aValue = 0);
   bool SendLine(const char* aMessage);

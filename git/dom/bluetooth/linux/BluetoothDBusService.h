@@ -48,6 +48,9 @@ public:
   virtual nsresult StopDiscoveryInternal(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
   virtual nsresult
+  GetDevicePropertiesInternal(const BluetoothSignal& aSignal) MOZ_OVERRIDE;
+
+  virtual nsresult
   SetProperty(BluetoothObjectType aType,
               const BluetoothNamedValue& aValue,
               BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
@@ -116,6 +119,9 @@ public:
   SetAuthorizationInternal(const nsAString& aDeviceAddress, bool aAllow,
                            BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
+  virtual nsresult
+  PrepareAdapterInternal() MOZ_OVERRIDE;
+
   virtual void
   Connect(const nsAString& aDeviceAddress,
           const uint16_t aProfileId,
@@ -149,10 +155,6 @@ public:
 
   virtual void
   IsScoConnected(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  virtual nsresult
-  SendSinkMessage(const nsAString& aDeviceAddresses,
-                  const nsAString& aMessage) MOZ_OVERRIDE;
 
 private:
   nsresult SendGetPropertyMessage(const nsAString& aPath,

@@ -318,6 +318,12 @@ HTMLLinkElement::GetLinkTarget(nsAString& aTarget)
   }
 }
 
+nsLinkState
+HTMLLinkElement::GetLinkState() const
+{
+  return Link::GetLinkState();
+}
+
 already_AddRefed<nsIURI>
 HTMLLinkElement::GetHrefURI() const
 {

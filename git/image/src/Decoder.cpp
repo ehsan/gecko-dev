@@ -199,28 +199,20 @@ Decoder::AllocateFrame()
   MarkFrameDirty();
 
   nsresult rv;
-  imgFrame* frame = nullptr;
   if (mNewFrameData.mPaletteDepth) {
     rv = mImage.EnsureFrame(mNewFrameData.mFrameNum, mNewFrameData.mOffsetX,
                             mNewFrameData.mOffsetY, mNewFrameData.mWidth,
                             mNewFrameData.mHeight, mNewFrameData.mFormat,
                             mNewFrameData.mPaletteDepth,
                             &mImageData, &mImageDataLength,
-                            &mColormap, &mColormapSize, &frame);
+                            &mColormap, &mColormapSize, &mCurrentFrame);
   } else {
     rv = mImage.EnsureFrame(mNewFrameData.mFrameNum, mNewFrameData.mOffsetX,
                             mNewFrameData.mOffsetY, mNewFrameData.mWidth,
                             mNewFrameData.mHeight, mNewFrameData.mFormat,
-                            &mImageData, &mImageDataLength, &frame);
+                            &mImageData, &mImageDataLength, &mCurrentFrame);
   }
 
-  if (NS_SUCCEEDED(rv)) {
-    mCurrentFrame = frame;
-  } else {
-    mCurrentFrame = nullptr;
-  }
-
-  // Notify if appropriate
   if (NS_SUCCEEDED(rv) && mNewFrameData.mFrameNum == mFrameCount) {
     PostFrameStart();
   } else if (NS_FAILED(rv)) {

@@ -1739,33 +1739,10 @@ DocAccessible::UpdateTree(Accessible* aContainer, nsIContent* aChildNode,
   if (child) {
     updateFlags |= UpdateTreeInternal(child, aIsInsert, reorderEvent);
   } else {
-    if (aIsInsert) {
-      TreeWalker walker(aContainer, aChildNode, true);
+    TreeWalker walker(aContainer, aChildNode, true);
 
-      while ((child = walker.NextChild()))
-        updateFlags |= UpdateTreeInternal(child, aIsInsert, reorderEvent);
-    } else {
-      // aChildNode may not coorespond to a particular accessible, to handle
-      // this we go through all the children of aContainer.  Then if a child
-      // has aChildNode as an ancestor, or does not have the node for
-      // aContainer as an ancestor remove that child of aContainer.  Note that
-      // when we are called aChildNode may already have been removed
-      // from the DOM so we can't expect it to have a parent or what was it's
-      // parent to have it as a child.
-      nsINode* containerNode = aContainer->GetNode();
-      for (uint32_t idx = 0; idx < aContainer->ContentChildCount();) {
-        Accessible* child = aContainer->ContentChildAt(idx);
-        nsINode* childNode = child->GetContent();
-        while (childNode != aChildNode && childNode != containerNode &&
-               (childNode = childNode->GetParentNode()));
-
-        if (childNode != containerNode) {
-          updateFlags |= UpdateTreeInternal(child, false, reorderEvent);
-        } else {
-          idx++;
-        }
-      }
-    }
+    while ((child = walker.NextChild()))
+      updateFlags |= UpdateTreeInternal(child, aIsInsert, reorderEvent);
   }
 
   // Content insertion/removal is not cause of accessible tree change.
