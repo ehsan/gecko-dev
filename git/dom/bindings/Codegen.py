@@ -3658,9 +3658,8 @@ for (uint32_t i = 0; i < length; ++i) {
             notDate = failureCode
 
         conversion = (
-            "JS::RootedObject possibleDateObject(cx, &${val}.toObject());\n"
-            "if (!JS_ObjectIsDate(cx, possibleDateObject) ||\n"
-            "    !%s.SetTimeStamp(cx, possibleDateObject)) {\n"
+            "if (!JS_ObjectIsDate(cx, &${val}.toObject()) ||\n"
+            "    !%s.SetTimeStamp(cx, &${val}.toObject())) {\n"
             "%s\n"
             "}" %
             (dateVal, CGIndenter(CGGeneric(notDate)).define()))

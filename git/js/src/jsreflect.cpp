@@ -96,8 +96,6 @@ static char const * const callbackNames[] = {
     NULL
 };
 
-enum YieldKind { Delegating, NotDelegating };
-
 typedef AutoValueVector NodeVector;
 
 /*
@@ -603,7 +601,7 @@ class NodeBuilder
 
     bool thisExpression(TokenPos *pos, MutableHandleValue dst);
 
-    bool yieldExpression(HandleValue arg, YieldKind kind, TokenPos *pos, MutableHandleValue dst);
+    bool yieldExpression(HandleValue arg, TokenPos *pos, MutableHandleValue dst);
 
     bool comprehensionBlock(HandleValue patt, HandleValue src, bool isForEach, bool isForOf, TokenPos *pos,
                             MutableHandleValue dst);
@@ -1244,23 +1242,13 @@ NodeBuilder::thisExpression(TokenPos *pos, MutableHandleValue dst)
 }
 
 bool
-NodeBuilder::yieldExpression(HandleValue arg, YieldKind kind, TokenPos *pos, MutableHandleValue dst)
+NodeBuilder::yieldExpression(HandleValue arg, TokenPos *pos, MutableHandleValue dst)
 {
     RootedValue cb(cx, callbacks[AST_YIELD_EXPR]);
-    RootedValue delegateVal(cx);
-
-    switch (kind) {
-      case Delegating:
-        delegateVal = BooleanValue(true);
-        break;
-      case NotDelegating:
-        delegateVal = BooleanValue(false);
-        break;
-    }
-
     if (!cb.isNull())
-        return callback(cb, opt(arg), delegateVal, pos, dst);
-    return newNode(AST_YIELD_EXPR, pos, "argument", arg, "delegate", delegateVal, dst);
+        return callback(cb, opt(arg), pos, dst);
+
+    return newNode(AST_YIELD_EXPR, pos, "argument", arg, dst);
 }
 
 bool
@@ -2609,22 +2597,13 @@ ASTSerializer::expression(ParseNode *pn, MutableHandleValue dst)
       case PNK_NULL:
         return literal(pn, dst);
 
-      case PNK_YIELD_STAR:
-      {
-        JS_ASSERT(pn->pn_pos.encloses(pn->pn_kid->pn_pos));
-
-        RootedValue arg(cx);
-        return expression(pn->pn_kid, &arg) &&
-               builder.yieldExpression(arg, Delegating, &pn->pn_pos, dst);
-      }
-
       case PNK_YIELD:
       {
         JS_ASSERT_IF(pn->pn_kid, pn->pn_pos.encloses(pn->pn_kid->pn_pos));
 
         RootedValue arg(cx);
         return optExpression(pn->pn_kid, &arg) &&
-               builder.yieldExpression(arg, NotDelegating, &pn->pn_pos, dst);
+               builder.yieldExpression(arg, &pn->pn_pos, dst);
       }
 
       case PNK_ARRAYCOMP:

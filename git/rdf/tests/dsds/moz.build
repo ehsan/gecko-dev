@@ -13,5 +13,3 @@ CPP_SOURCES += [
 
 LIBRARY_NAME = 'rdfdsds'
 
-IS_COMPONENT = True
-

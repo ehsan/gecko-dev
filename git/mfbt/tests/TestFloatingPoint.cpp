@@ -141,7 +141,6 @@ TestPredicates()
   MOZ_ASSERT(!IsNegativeZero(SpecificNaN(1, 0xfffffffffff0fULL)));
   MOZ_ASSERT(!IsNegativeZero(SpecificNaN(0, 17)));;
   MOZ_ASSERT(!IsNegativeZero(SpecificNaN(0, 0xfffffffffff0fULL)));
-  MOZ_ASSERT(!IsNegativeZero(UnspecifiedNaN()));
   MOZ_ASSERT(IsNegativeZero(-0.0));
   MOZ_ASSERT(!IsNegativeZero(0.0));
   MOZ_ASSERT(!IsNegativeZero(-1.0));

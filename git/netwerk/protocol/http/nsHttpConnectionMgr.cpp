@@ -211,7 +211,7 @@ nsHttpConnectionMgr::ConditionallyStopPruneDeadConnectionsTimer()
     mTimeOfNextWakeUp = UINT64_MAX;
     if (mTimer) {
         mTimer->Cancel();
-        mTimer = nullptr;
+        mTimer = NULL;
     }
 }
 

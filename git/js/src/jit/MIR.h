@@ -217,12 +217,10 @@ class AliasSet {
         FixedSlot         = 1 << 3, // A member of obj->fixedSlots().
         TypedArrayElement = 1 << 4, // A typed array element.
         DOMProperty       = 1 << 5, // A DOM property
-        AsmJSGlobalVar    = 1 << 6, // An asm.js global var
-        AsmJSHeap         = 1 << 7, // An asm.js heap load
-        Last              = AsmJSHeap,
+        Last              = DOMProperty,
         Any               = Last | (Last - 1),
 
-        NumCategories     = 8,
+        NumCategories     = 6,
 
         // Indicates load or store.
         Store_            = 1 << 31
@@ -4974,10 +4972,9 @@ class MBoundsCheckLower
   : public MUnaryInstruction
 {
     int32_t minimum_;
-    bool fallible_;
 
     MBoundsCheckLower(MDefinition *index)
-      : MUnaryInstruction(index), minimum_(0), fallible_(true)
+      : MUnaryInstruction(index), minimum_(0)
     {
         setGuard();
         setMovable();
@@ -5003,10 +5000,7 @@ class MBoundsCheckLower
     AliasSet getAliasSet() const {
         return AliasSet::None();
     }
-    bool fallible() const {
-        return fallible_;
-    }
-    void collectRangeInfo();
+    bool fallible();
 };
 
 // Load a value from a dense array's element vector and does a hole check if the
@@ -7869,16 +7863,8 @@ class MPostWriteBarrier
   : public MBinaryInstruction,
     public ObjectPolicy<0>
 {
-    bool hasValue_;
-
     MPostWriteBarrier(MDefinition *obj, MDefinition *value)
-      : MBinaryInstruction(obj, value), hasValue_(true)
-    {
-        setGuard();
-    }
-
-    MPostWriteBarrier(MDefinition *obj)
-      : MBinaryInstruction(obj, NULL), hasValue_(false)
+      : MBinaryInstruction(obj, value)
     {
         setGuard();
     }
@@ -7890,20 +7876,12 @@ class MPostWriteBarrier
         return new MPostWriteBarrier(obj, value);
     }
 
-    static MPostWriteBarrier *New(MDefinition *obj) {
-        return new MPostWriteBarrier(obj);
-    }
-
     TypePolicy *typePolicy() {
         return this;
     }
 
     MDefinition *object() const {
         return getOperand(0);
-    }
-
-    bool hasValue() const {
-        return hasValue_;
     }
     MDefinition *value() const {
         return getOperand(1);
@@ -8428,7 +8406,6 @@ class MAsmJSLoadHeap : public MUnaryInstruction, public MAsmJSHeapAccess
     MAsmJSLoadHeap(ArrayBufferView::ViewType vt, MDefinition *ptr)
       : MUnaryInstruction(ptr), MAsmJSHeapAccess(vt, false)
     {
-        setMovable();
         if (vt == ArrayBufferView::TYPE_FLOAT32 || vt == ArrayBufferView::TYPE_FLOAT64)
             setResultType(MIRType_Double);
         else
@@ -8443,12 +8420,6 @@ class MAsmJSLoadHeap : public MUnaryInstruction, public MAsmJSHeapAccess
     }
 
     MDefinition *ptr() const { return getOperand(0); }
-
-    bool congruentTo(MDefinition *ins) const;
-    AliasSet getAliasSet() const {
-        return AliasSet::Load(AliasSet::AsmJSHeap);
-    }
-    bool mightAlias(MDefinition *def);
 };
 
 class MAsmJSStoreHeap : public MBinaryInstruction, public MAsmJSHeapAccess
@@ -8466,23 +8437,21 @@ class MAsmJSStoreHeap : public MBinaryInstruction, public MAsmJSHeapAccess
 
     MDefinition *ptr() const { return getOperand(0); }
     MDefinition *value() const { return getOperand(1); }
-
-    AliasSet getAliasSet() const {
-        return AliasSet::Store(AliasSet::AsmJSHeap);
-    }
 };
 
 class MAsmJSLoadGlobalVar : public MNullaryInstruction
 {
     MAsmJSLoadGlobalVar(MIRType type, unsigned globalDataOffset, bool isConstant)
-      : globalDataOffset_(globalDataOffset)
+      : globalDataOffset_(globalDataOffset), isConstant_(isConstant)
     {
         JS_ASSERT(type == MIRType_Int32 || type == MIRType_Double);
         setResultType(type);
-        setMovable();
+        if (isConstant)
+            setMovable();
     }
 
     unsigned globalDataOffset_;
+    bool isConstant_;
 
   public:
     INSTRUCTION_HEADER(AsmJSLoadGlobalVar);
@@ -8493,13 +8462,12 @@ class MAsmJSLoadGlobalVar : public MNullaryInstruction
 
     unsigned globalDataOffset() const { return globalDataOffset_; }
 
-    bool congruentTo(MDefinition *ins) const;
-
     AliasSet getAliasSet() const {
-        return AliasSet::Load(AliasSet::AsmJSGlobalVar);
+        if (isConstant_)
+            return AliasSet::None();
+        else
+            return AliasSet::Store(AliasSet::Any);
     }
-
-    bool mightAlias(MDefinition *def);
 };
 
 class MAsmJSStoreGlobalVar : public MUnaryInstruction
@@ -8519,10 +8487,6 @@ class MAsmJSStoreGlobalVar : public MUnaryInstruction
 
     unsigned globalDataOffset() const { return globalDataOffset_; }
     MDefinition *value() const { return getOperand(0); }
-
-    AliasSet getAliasSet() const {
-        return AliasSet::Store(AliasSet::AsmJSGlobalVar);
-    }
 };
 
 class MAsmJSLoadFuncPtr : public MUnaryInstruction

@@ -360,10 +360,13 @@ class MacroAssembler : public MacroAssemblerSpecific
     }
 
     void loadJSContext(const Register &dest) {
-        loadPtr(AbsoluteAddress(&GetIonContext()->runtime->mainThread.ionJSContext), dest);
+        movePtr(ImmPtr(GetIonContext()->runtime), dest);
+        loadPtr(Address(dest, offsetof(JSRuntime, mainThread.ionJSContext)), dest);
     }
     void loadJitActivation(const Register &dest) {
-        loadPtr(AbsoluteAddress(GetIonContext()->runtime->mainThread.addressOfActivation()), dest);
+        movePtr(ImmPtr(GetIonContext()->runtime), dest);
+        size_t offset = offsetof(JSRuntime, mainThread) + PerThreadData::offsetOfActivation();
+        loadPtr(Address(dest, offset), dest);
     }
 
     template<typename T>
@@ -611,8 +614,8 @@ class MacroAssembler : public MacroAssemblerSpecific
     void branchTestNeedsBarrier(Condition cond, const Register &scratch, Label *label) {
         JS_ASSERT(cond == Zero || cond == NonZero);
         JS::Zone *zone = GetIonContext()->compartment->zone();
-        movePtr(ImmPtr(zone->AddressOfNeedsBarrier()), scratch);
-        Address needsBarrierAddr(scratch, 0);
+        movePtr(ImmPtr(zone), scratch);
+        Address needsBarrierAddr(scratch, JS::Zone::OffsetOfNeedsBarrier());
         branchTest32(cond, needsBarrierAddr, Imm32(0x1), label);
     }
 
@@ -669,14 +672,14 @@ class MacroAssembler : public MacroAssemblerSpecific
     void canonicalizeDouble(FloatRegister reg) {
         Label notNaN;
         branchDouble(DoubleOrdered, reg, reg, &notNaN);
-        loadConstantDouble(JS::GenericNaN(), reg);
+        loadConstantDouble(js_NaN, reg);
         bind(&notNaN);
     }
 
     void canonicalizeFloat(FloatRegister reg) {
         Label notNaN;
         branchFloat(DoubleOrdered, reg, reg, &notNaN);
-        loadConstantFloat32(float(JS::GenericNaN()), reg);
+        loadConstantFloat32((float)js_NaN, reg);
         bind(&notNaN);
     }
 
@@ -762,8 +765,7 @@ class MacroAssembler : public MacroAssemblerSpecific
                                  Label *label);
 
     // Inline allocation.
-    void newGCThing(const Register &result, gc::AllocKind allocKind, Label *fail,
-                    gc::InitialHeap initialHeap = gc::DefaultHeap);
+    void newGCThing(const Register &result, gc::AllocKind allocKind, Label *fail);
     void newGCThing(const Register &result, JSObject *templateObject, Label *fail);
     void newGCString(const Register &result, Label *fail);
     void newGCShortString(const Register &result, Label *fail);
@@ -974,8 +976,10 @@ class MacroAssembler : public MacroAssemblerSpecific
     void spsProfileEntryAddressSafe(SPSProfiler *p, int offset, Register temp,
                                     Label *full)
     {
+        movePtr(ImmPtr(p->addressOfSizePointer()), temp);
+
         // Load size pointer
-        loadPtr(AbsoluteAddress(p->addressOfSizePointer()), temp);
+        loadPtr(Address(temp, 0), temp);
 
         // Load size
         load32(Address(temp, 0), temp);
@@ -989,7 +993,8 @@ class MacroAssembler : public MacroAssemblerSpecific
         JS_STATIC_ASSERT(sizeof(ProfileEntry) == 4 * sizeof(void*));
         lshiftPtr(Imm32(2 + (sizeof(void*) == 4 ? 2 : 3)), temp);
         push(temp);
-        loadPtr(AbsoluteAddress(p->addressOfStack()), temp);
+        movePtr(ImmPtr(p->addressOfStack()), temp);
+        loadPtr(Address(temp, 0), temp);
         addPtr(Address(StackPointer, 0), temp);
         addPtr(Imm32(sizeof(size_t)), StackPointer);
     }
@@ -1062,7 +1067,8 @@ class MacroAssembler : public MacroAssemblerSpecific
 
     // spsPropFrameSafe does not assume |profiler->sizePointer()| will stay constant.
     void spsPopFrameSafe(SPSProfiler *p, Register temp) {
-        loadPtr(AbsoluteAddress(p->addressOfSizePointer()), temp);
+        movePtr(ImmPtr(p->addressOfSizePointer()), temp);
+        loadPtr(Address(temp, 0), temp);
         add32(Imm32(-1), Address(temp, 0));
     }
 

@@ -11,7 +11,6 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/Compiler.h"
 #include "mozilla/Move.h"
-#include "mozilla/NullPtr.h"
 #include "mozilla/Scoped.h"
 #include "mozilla/TemplateLib.h"
 
@@ -87,7 +86,7 @@ static JS_ALWAYS_INLINE void
 PrintBacktrace()
 {
     void* OOM_trace[JS_OOM_BACKTRACE_SIZE];
-    char** OOM_traceSymbols = nullptr;
+    char** OOM_traceSymbols = NULL;
     int32_t OOM_traceSize = 0;
     int32_t OOM_traceIdx = 0;
     OOM_traceSize = backtrace(OOM_trace, JS_OOM_BACKTRACE_SIZE);
@@ -117,7 +116,7 @@ PrintBacktrace()
     { \
         if (++OOM_counter > OOM_maxAllocations) { \
             JS_OOM_EMIT_BACKTRACE();\
-            return nullptr; \
+            return NULL; \
         } \
     } while (0)
 
@@ -127,7 +126,7 @@ PrintBacktrace()
         if (++OOM_counter > OOM_maxAllocations) { \
             JS_OOM_EMIT_BACKTRACE();\
             js_ReportOutOfMemory(cx);\
-            return nullptr; \
+            return NULL; \
         } \
     } while (0)
 
@@ -226,7 +225,7 @@ static JS_INLINE void js_free(void* p)
 
 #define JS_NEW_BODY(allocator, t, parms)                                       \
     void *memory = allocator(sizeof(t));                                       \
-    return memory ? new(memory) t parms : nullptr;
+    return memory ? new(memory) t parms : NULL;
 
 /*
  * Given a class which should provide 'new' methods, add
@@ -345,7 +344,7 @@ static JS_ALWAYS_INLINE T *
 js_pod_malloc(size_t numElems)
 {
     if (numElems & mozilla::tl::MulOverflowMask<sizeof(T)>::value)
-        return nullptr;
+        return NULL;
     return (T *)js_malloc(numElems * sizeof(T));
 }
 
@@ -354,7 +353,7 @@ static JS_ALWAYS_INLINE T *
 js_pod_calloc(size_t numElems)
 {
     if (numElems & mozilla::tl::MulOverflowMask<sizeof(T)>::value)
-        return nullptr;
+        return NULL;
     return (T *)js_calloc(numElems * sizeof(T));
 }
 
@@ -364,7 +363,7 @@ template<typename T>
 struct ScopedFreePtrTraits
 {
     typedef T* type;
-    static T* empty() { return nullptr; }
+    static T* empty() { return NULL; }
     static void release(T* ptr) { js_free(ptr); }
 };
 SCOPED_TEMPLATE(ScopedJSFreePtr, ScopedFreePtrTraits)

@@ -1047,10 +1047,7 @@ let Front = Class({
 
     // Remaining packets must be responses.
     if (this._requests.length === 0) {
-      let msg = "Unexpected packet from " + this.actorID + ", " + packet.type;
-      let err = Error(msg);
-      console.error(err);
-      throw err;
+      throw Error("Unexpected packet from " + this.actorID + ", " + packet.type);
     }
 
     let deferred = this._requests.shift();

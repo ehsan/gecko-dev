@@ -73,10 +73,9 @@ ABIArgGenerator::next(MIRType type)
 #endif
 }
 
-// Avoid r11, which is the MacroAssembler's ScratchReg.
 const Register ABIArgGenerator::NonArgReturnVolatileReg0 = r10;
-const Register ABIArgGenerator::NonArgReturnVolatileReg1 = r12;
-const Register ABIArgGenerator::NonVolatileReg = r13;
+const Register ABIArgGenerator::NonArgReturnVolatileReg1 = r11;
+const Register ABIArgGenerator::NonVolatileReg = r12;
 
 void
 Assembler::writeRelocation(JmpSrc src, Relocation::Kind reloc)

@@ -46,7 +46,6 @@ namespace js {
 using JS::Value;
 using JS::BooleanValue;
 using JS::DoubleValue;
-using JS::Float32Value;
 using JS::Int32Value;
 using JS::IsPoisonedValue;
 using JS::MagicValue;

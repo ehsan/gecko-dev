@@ -533,11 +533,11 @@ class PerThreadData : public PerThreadDataFriendFields,
     js::AsmJSActivation *asmJSActivationStack_;
 
   public:
-    js::Activation *const *addressOfActivation() const {
-        return &activation_;
+    static unsigned offsetOfActivation() {
+        return offsetof(PerThreadData, activation_);
     }
-    js::AsmJSActivation *const *addressOfAsmJSActivationStackReadOnly() const {
-        return &asmJSActivationStack_;
+    static unsigned offsetOfAsmJSActivationStackReadOnly() {
+        return offsetof(PerThreadData, asmJSActivationStack_);
     }
 
     js::AsmJSActivation *asmJSActivationStackFromAnyThread() const {
@@ -1262,9 +1262,9 @@ struct JSRuntime : public JS::shadow::Runtime,
     js::ScriptAndCountsVector *scriptAndCountsVector;
 
     /* Well-known numbers held for use by this runtime's contexts. */
-    const js::Value     NaNValue;
-    const js::Value     negativeInfinityValue;
-    const js::Value     positiveInfinityValue;
+    js::Value           NaNValue;
+    js::Value           negativeInfinityValue;
+    js::Value           positiveInfinityValue;
 
     js::PropertyName    *emptyString;
 

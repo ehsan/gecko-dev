@@ -444,9 +444,8 @@ SECKEY_UpdateCertPQG(CERTCertificate * subjectCert)
  * the normal standard format.  Store the decoded parameters in
  * a V3 certificate data structure.  */ 
 
-static SECStatus
-seckey_DSADecodePQG(PLArenaPool *arena, SECKEYPublicKey *pubk,
-                    const SECItem *params) {
+SECStatus
+SECKEY_DSADecodePQG(PLArenaPool *arena, SECKEYPublicKey *pubk, SECItem *params) {
     SECStatus rv;
     SECItem newparams;
 
@@ -540,13 +539,13 @@ seckey_GetKeyType (SECOidTag tag) {
 
 /* Function used to determine what kind of cert we are dealing with. */
 KeyType 
-CERT_GetCertKeyType (const CERTSubjectPublicKeyInfo *spki) 
+CERT_GetCertKeyType (CERTSubjectPublicKeyInfo *spki) 
 {
     return seckey_GetKeyType(SECOID_GetAlgorithmTag(&spki->algorithm));
 }
 
 static SECKEYPublicKey *
-seckey_ExtractPublicKey(const CERTSubjectPublicKeyInfo *spki)
+seckey_ExtractPublicKey(CERTSubjectPublicKeyInfo *spki)
 {
     SECKEYPublicKey *pubk;
     SECItem os, newOs, newParms;
@@ -595,7 +594,7 @@ seckey_ExtractPublicKey(const CERTSubjectPublicKeyInfo *spki)
 	rv = SEC_QuickDERDecodeItem(arena, pubk, SECKEY_DSAPublicKeyTemplate, &newOs);
 	if (rv != SECSuccess) break;
 
-        rv = seckey_DSADecodePQG(arena, pubk,
+        rv = SECKEY_DSADecodePQG(arena, pubk,
                                  &spki->algorithm.parameters); 
 
 	if (rv == SECSuccess) return pubk;
@@ -645,7 +644,7 @@ seckey_ExtractPublicKey(const CERTSubjectPublicKeyInfo *spki)
 
 /* required for JSS */
 SECKEYPublicKey *
-SECKEY_ExtractPublicKey(const CERTSubjectPublicKeyInfo *spki)
+SECKEY_ExtractPublicKey(CERTSubjectPublicKeyInfo *spki)
 {
     return seckey_ExtractPublicKey(spki);
 }
@@ -1345,7 +1344,7 @@ SECKEY_DestroySubjectPublicKeyInfo(CERTSubjectPublicKeyInfo *spki)
  * similiar to CERT_ExtractPublicKey for other key times.
  */
 SECKEYPublicKey *
-SECKEY_DecodeDERPublicKey(const SECItem *pubkder)
+SECKEY_DecodeDERPublicKey(SECItem *pubkder)
 {
     PLArenaPool *arena;
     SECKEYPublicKey *pubk;
@@ -1386,7 +1385,7 @@ SECKEY_DecodeDERPublicKey(const SECItem *pubkder)
  * Decode a base64 ascii encoded DER encoded public key.
  */
 SECKEYPublicKey *
-SECKEY_ConvertAndDecodePublicKey(const char *pubkstr)
+SECKEY_ConvertAndDecodePublicKey(char *pubkstr)
 {
     SECKEYPublicKey *pubk;
     SECStatus rv;
@@ -1426,7 +1425,7 @@ finish:
 
 
 CERTSubjectPublicKeyInfo *
-SECKEY_DecodeDERSubjectPublicKeyInfo(const SECItem *spkider)
+SECKEY_DecodeDERSubjectPublicKeyInfo(SECItem *spkider)
 {
     PLArenaPool *arena;
     CERTSubjectPublicKeyInfo *spki;
@@ -1465,7 +1464,7 @@ SECKEY_DecodeDERSubjectPublicKeyInfo(const SECItem *spkider)
  * Decode a base64 ascii encoded DER encoded subject public key info.
  */
 CERTSubjectPublicKeyInfo *
-SECKEY_ConvertAndDecodeSubjectPublicKeyInfo(const char *spkistr)
+SECKEY_ConvertAndDecodeSubjectPublicKeyInfo(char *spkistr)
 {
     CERTSubjectPublicKeyInfo *spki;
     SECStatus rv;
@@ -1648,7 +1647,7 @@ SECKEY_DestroyEncryptedPrivateKeyInfo(SECKEYEncryptedPrivateKeyInfo *epki,
 SECStatus
 SECKEY_CopyPrivateKeyInfo(PLArenaPool *poolp,
 			  SECKEYPrivateKeyInfo *to,
-			  const SECKEYPrivateKeyInfo *from)
+			  SECKEYPrivateKeyInfo *from)
 {
     SECStatus rv = SECFailure;
 
@@ -1672,7 +1671,7 @@ SECKEY_CopyPrivateKeyInfo(PLArenaPool *poolp,
 SECStatus
 SECKEY_CopyEncryptedPrivateKeyInfo(PLArenaPool *poolp,
 				   SECKEYEncryptedPrivateKeyInfo *to,
-				   const SECKEYEncryptedPrivateKeyInfo *from)
+				   SECKEYEncryptedPrivateKeyInfo *from)
 {
     SECStatus rv = SECFailure;
 
@@ -1690,19 +1689,19 @@ SECKEY_CopyEncryptedPrivateKeyInfo(PLArenaPool *poolp,
 }
 
 KeyType
-SECKEY_GetPrivateKeyType(const SECKEYPrivateKey *privKey)
+SECKEY_GetPrivateKeyType(SECKEYPrivateKey *privKey)
 {
    return privKey->keyType;
 }
 
 KeyType
-SECKEY_GetPublicKeyType(const SECKEYPublicKey *pubKey)
+SECKEY_GetPublicKeyType(SECKEYPublicKey *pubKey)
 {
    return pubKey->keyType;
 }
 
 SECKEYPublicKey*
-SECKEY_ImportDERPublicKey(const SECItem *derKey, CK_KEY_TYPE type)
+SECKEY_ImportDERPublicKey(SECItem *derKey, CK_KEY_TYPE type)
 {
     SECKEYPublicKey *pubk = NULL;
     SECStatus rv = SECFailure;

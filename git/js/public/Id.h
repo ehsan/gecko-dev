@@ -20,8 +20,6 @@
 // A jsid is not implicitly convertible to or from a jsval; JS_ValueToId or
 // JS_IdToValue must be used instead.
 
-#include "mozilla/NullPtr.h"
- 
 #include "jstypes.h"
 
 #include "js/RootingAPI.h"
@@ -118,7 +116,7 @@ static JS_ALWAYS_INLINE jsid
 OBJECT_TO_JSID(JSObject *obj)
 {
     jsid id;
-    JS_ASSERT(obj != nullptr);
+    JS_ASSERT(obj != NULL);
     JS_ASSERT(((size_t)obj & JSID_TYPE_MASK) == 0);
     JSID_BITS(id) = ((size_t)obj | JSID_TYPE_OBJECT);
     return id;
