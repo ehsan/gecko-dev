@@ -4,8 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsImageModule.h"
-
 #include "mozilla/ModuleUtils.h"
 #include "nsMimeTypes.h"
 
@@ -81,29 +79,23 @@ static const mozilla::Module::CategoryEntry kImageCategories[] = {
   { nullptr }
 };
 
-static bool sInitialized = false;
-nsresult
-mozilla::image::InitModule()
+static nsresult
+imglib_Initialize()
 {
   mozilla::image::DiscardTracker::Initialize();
   mozilla::image::ImageFactory::Initialize();
   mozilla::image::RasterImage::Initialize();
   mozilla::image::SurfaceCache::Initialize();
   imgLoader::GlobalInit();
-  sInitialized = true;
   return NS_OK;
 }
 
-void
-mozilla::image::ShutdownModule()
+static void
+imglib_Shutdown()
 {
-  if (!sInitialized) {
-    return;
-  }
   imgLoader::Shutdown();
   mozilla::image::SurfaceCache::Shutdown();
   mozilla::image::DiscardTracker::Shutdown();
-  sInitialized = false;
 }
 
 static const mozilla::Module kImageModule = {
@@ -112,11 +104,8 @@ static const mozilla::Module kImageModule = {
   kImageContracts,
   kImageCategories,
   nullptr,
-  mozilla::image::InitModule,
-  // We need to be careful about shutdown ordering to avoid intermittent crashes
-  // when hashtable enumeration decides to destroy modules in an unfortunate
-  // order. So our shutdown is invoked explicitly during layout module shutdown.
-  nullptr
+  imglib_Initialize,
+  imglib_Shutdown
 };
 
 NSMODULE_DEFN(nsImageLib2Module) = &kImageModule;

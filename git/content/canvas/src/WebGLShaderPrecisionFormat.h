@@ -24,7 +24,7 @@ public:
     {
     }
 
-    JSObject* WrapObject(JSContext *cx);
+    JSObject* WrapObject(JSContext *cx, JS::Handle<JSObject*> scope);
 
     // WebIDL WebGLShaderPrecisionFormat API
     GLint RangeMin() const {

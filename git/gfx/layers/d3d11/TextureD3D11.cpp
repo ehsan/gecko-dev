@@ -173,9 +173,6 @@ TextureClientD3D11::~TextureClientD3D11()
 bool
 TextureClientD3D11::Lock(OpenMode aMode)
 {
-  if (!mTexture) {
-    return false;
-  }
   MOZ_ASSERT(!mIsLocked, "The Texture is already locked!");
   LockD3DTexture(mTexture.get());
   mIsLocked = true;
@@ -193,7 +190,6 @@ void
 TextureClientD3D11::Unlock()
 {
   MOZ_ASSERT(mIsLocked, "Unlocked called while the texture is not locked!");
-
   if (mDrawTarget) {
     // see the comment on TextureClientDrawTarget::GetAsDrawTarget.
     // This DrawTarget is internal to the TextureClient and is only exposed to the
@@ -214,10 +210,6 @@ TextureClientD3D11::GetAsDrawTarget()
 {
   MOZ_ASSERT(mIsLocked, "Calling TextureClient::GetAsDrawTarget without locking :(");
 
-  if (!mTexture) {
-    return nullptr;
-  }
-
   if (mDrawTarget) {
     return mDrawTarget;
   }
@@ -232,7 +224,7 @@ TextureClientD3D11::AllocateForSurface(gfx::IntSize aSize, TextureAllocationFlag
   mSize = aSize;
   ID3D10Device* device = gfxWindowsPlatform::GetPlatform()->GetD3D10Device();
 
-  CD3D10_TEXTURE2D_DESC newDesc(DXGI_FORMAT_B8G8R8A8_UNORM,
+  CD3D10_TEXTURE2D_DESC newDesc(SurfaceFormatToDXGIFormat(mFormat),
                                 aSize.width, aSize.height, 1, 1,
                                 D3D10_BIND_RENDER_TARGET | D3D10_BIND_SHADER_RESOURCE);
 
@@ -340,10 +332,10 @@ DataTextureSourceD3D11::Update(DataSourceSurface* aSurface,
                                nsIntRegion* aDestRegion,
                                IntPoint* aSrcOffset)
 {
-  // Right now we only support full surface update. If aDestRegion is provided,
-  // It will be ignored. Incremental update with a source offset is only used
-  // on Mac so it is not clear that we ever will need to support it for D3D.
-  MOZ_ASSERT(!aSrcOffset);
+  // Right now we only support null aDestRegion and aSrcOffset (which means)
+  // full surface update. Incremental update is only used on Mac so it is
+  // not clear that we ever will need to support it for D3D.
+  MOZ_ASSERT(!aDestRegion && !aSrcOffset);
   MOZ_ASSERT(aSurface);
 
   if (!mCompositor || !mCompositor->GetDevice()) {

@@ -3358,9 +3358,9 @@ LIRGenerator::visitCallInstanceOf(MCallInstanceOf *ins)
 }
 
 bool
-LIRGenerator::visitProfilerStackOp(MProfilerStackOp *ins)
+LIRGenerator::visitFunctionBoundary(MFunctionBoundary *ins)
 {
-    LProfilerStackOp *lir = new(alloc()) LProfilerStackOp(temp());
+    LFunctionBoundary *lir = new(alloc()) LFunctionBoundary(temp());
     if (!add(lir, ins))
         return false;
     // If slow assertions are enabled, then this node will result in a callVM
@@ -3532,11 +3532,8 @@ bool
 LIRGenerator::visitGetDOMMember(MGetDOMMember *ins)
 {
     MOZ_ASSERT(ins->isDomMovable(), "Members had better be movable");
-    // We wish we could assert that ins->domAliasSet() == JSJitInfo::AliasNone,
-    // but some MGetDOMMembers are for [Pure], not [Constant] properties, whose
-    // value can in fact change as a result of DOM setters and method calls.
-    MOZ_ASSERT(ins->domAliasSet() != JSJitInfo::AliasEverything,
-               "Member gets had better not alias the world");
+    MOZ_ASSERT(ins->domAliasSet() == JSJitInfo::AliasNone,
+               "Members had better not alias anything");
     LGetDOMMember *lir =
         new(alloc()) LGetDOMMember(useRegister(ins->object()));
     return defineBox(lir, ins);
@@ -3585,9 +3582,6 @@ LIRGenerator::visitInstruction(MInstruction *ins)
         return false;
     if (!ins->accept(this))
         return false;
-
-    if (ins->possiblyCalls())
-        gen->setPerformsCall();
 
     if (ins->resumePoint())
         updateResumeState(ins);

@@ -24,9 +24,9 @@ DOMStringList::~DOMStringList()
 }
 
 JSObject*
-DOMStringList::WrapObject(JSContext* aCx)
+DOMStringList::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return DOMStringListBinding::Wrap(aCx, this);
+  return DOMStringListBinding::Wrap(aCx, aScope, this);
 }
 
 } // namespace dom

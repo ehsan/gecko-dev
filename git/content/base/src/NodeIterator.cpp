@@ -289,9 +289,9 @@ void NodeIterator::ContentRemoved(nsIDocument *aDocument,
 }
 
 JSObject*
-NodeIterator::WrapObject(JSContext *cx)
+NodeIterator::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
 {
-    return NodeIteratorBinding::Wrap(cx, this);
+    return NodeIteratorBinding::Wrap(cx, scope, this);
 }
 
 } // namespace dom

@@ -7409,9 +7409,9 @@ HTMLInputElement::PickerClosed()
 }
 
 JSObject*
-HTMLInputElement::WrapNode(JSContext* aCx)
+HTMLInputElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return HTMLInputElementBinding::Wrap(aCx, this);
+  return HTMLInputElementBinding::Wrap(aCx, aScope, this);
 }
 
 } // namespace dom

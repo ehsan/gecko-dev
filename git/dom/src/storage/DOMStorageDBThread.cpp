@@ -20,7 +20,6 @@
 #include "mozIStorageFunction.h"
 #include "nsIObserverService.h"
 #include "nsIVariant.h"
-#include "mozilla/IOInterposer.h"
 #include "mozilla/Services.h"
 
 // How long we collect write oprerations
@@ -280,11 +279,9 @@ void
 DOMStorageDBThread::ThreadFunc(void* aArg)
 {
   PR_SetCurrentThreadName("localStorage DB");
-  mozilla::IOInterposer::RegisterCurrentThread();
 
   DOMStorageDBThread* thread = static_cast<DOMStorageDBThread*>(aArg);
   thread->ThreadFunc();
-  mozilla::IOInterposer::UnregisterCurrentThread();
 }
 
 void

@@ -74,9 +74,9 @@ Comment::Constructor(const GlobalObject& aGlobal,
 }
 
 JSObject*
-Comment::WrapNode(JSContext *aCx)
+Comment::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
-  return CommentBinding::Wrap(aCx, this);
+  return CommentBinding::Wrap(aCx, aScope, this);
 }
 
 } // namespace dom

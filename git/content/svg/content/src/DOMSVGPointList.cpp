@@ -130,9 +130,9 @@ DOMSVGPointList::~DOMSVGPointList()
 }
 
 JSObject*
-DOMSVGPointList::WrapObject(JSContext *cx)
+DOMSVGPointList::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
 {
-  return mozilla::dom::SVGPointListBinding::Wrap(cx, this);
+  return mozilla::dom::SVGPointListBinding::Wrap(cx, scope, this);
 }
 
 void

@@ -3389,7 +3389,7 @@ nsDisplayOpacity::ShouldFlattenAway(nsDisplayListBuilder* aBuilder)
     return false;
   }
 
-  return child->ApplyOpacity(aBuilder, mFrame->StyleDisplay()->mOpacity, mClip);
+  return child->ApplyOpacity(mFrame->StyleDisplay()->mOpacity);
 }
 
 nsDisplayItem::LayerState

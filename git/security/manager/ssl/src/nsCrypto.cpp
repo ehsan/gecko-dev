@@ -2848,9 +2848,10 @@ CRMFObject::~CRMFObject()
 }
 
 JSObject*
-CRMFObject::WrapObject(JSContext *aCx, bool* aTookOwnership)
+CRMFObject::WrapObject(JSContext *aCx, JS::Handle<JSObject*> aScope,
+                       bool* aTookOwnership)
 {
-  return CRMFObjectBinding::Wrap(aCx, this, aTookOwnership);
+  return CRMFObjectBinding::Wrap(aCx, aScope, this, aTookOwnership);
 }
 
 void

@@ -67,6 +67,7 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'android':
         'gfxFT2Fonts.cpp',
         'gfxFT2Utils.cpp',
         'gfxPDFSurface.cpp',
+        'nsUnicodeRange.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
     EXPORTS += [
@@ -82,6 +83,7 @@ elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
         'gfxFT2Fonts.cpp',
         'gfxFT2Utils.cpp',
         'gfxPDFSurface.cpp',
+        'nsUnicodeRange.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
     EXPORTS += [
@@ -97,6 +99,7 @@ elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
         'gfxQuartzImageSurface.cpp',
         'gfxQuartzNativeDrawing.cpp',
         'gfxQuartzSurface.cpp',
+        'nsUnicodeRange.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_GTK']:
     EXPORTS += [
@@ -117,6 +120,7 @@ elif CONFIG['MOZ_WIDGET_GTK']:
         'gfxPDFSurface.cpp',
         'gfxPlatformGtk.cpp',
         'gfxPSSurface.cpp',
+        'nsUnicodeRange.cpp',
     ]
 
     if CONFIG['MOZ_X11']:
@@ -146,6 +150,7 @@ elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'qt':
         'gfxPDFSurface.cpp',
         'gfxQPainterSurface.cpp',
         'gfxQtPlatform.cpp',
+        'nsUnicodeRange.cpp',
     ]
 
     if CONFIG['MOZ_X11']:
@@ -179,6 +184,7 @@ elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
         'gfxWindowsNativeDrawing.cpp',
         'gfxWindowsPlatform.cpp',
         'gfxWindowsSurface.cpp',
+        'nsUnicodeRange.cpp',
     ]
     if CONFIG['MOZ_ENABLE_DWRITE_FONT']:
         # gfxDWriteFontList.cpp forces NSPR logging, so it cannot be built in unified mode.
@@ -247,7 +253,6 @@ UNIFIED_SOURCES += [
     'gfxTeeSurface.cpp',
     'gfxUtils.cpp',
     'nsSurfaceTexture.cpp',
-    'nsUnicodeRange.cpp',
 ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':

@@ -80,9 +80,9 @@ NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLElement)
 NS_IMPL_ELEMENT_CLONE_WITH_INIT(HTMLTemplateElement)
 
 JSObject*
-HTMLTemplateElement::WrapNode(JSContext *aCx)
+HTMLTemplateElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
-  return HTMLTemplateElementBinding::Wrap(aCx, this);
+  return HTMLTemplateElementBinding::Wrap(aCx, aScope, this);
 }
 
 } // namespace dom

@@ -6,16 +6,12 @@ const isOSX = (Services.appinfo.OS === "Darwin");
 
 let originalWindowWidth;
 registerCleanupFunction(function() {
-  overflowPanel.removeAttribute("animate");
   window.resizeTo(originalWindowWidth, window.outerHeight);
 });
 
 // Right-click on an item within the overflow panel should
 // show a context menu with options to move it.
 add_task(function() {
-
-  overflowPanel.setAttribute("animate", "false");
-
   originalWindowWidth = window.outerWidth;
   let navbar = document.getElementById(CustomizableUI.AREA_NAVBAR);
   ok(!navbar.hasAttribute("overflowing"), "Should start with a non-overflowing toolbar.");

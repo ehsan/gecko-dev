@@ -41,9 +41,9 @@ nsMimeTypeArray::~nsMimeTypeArray()
 }
 
 JSObject*
-nsMimeTypeArray::WrapObject(JSContext* aCx)
+nsMimeTypeArray::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return MimeTypeArrayBinding::Wrap(aCx, this);
+  return MimeTypeArrayBinding::Wrap(aCx, aScope, this);
 }
 
 void
@@ -251,9 +251,9 @@ nsMimeType::GetParentObject() const
 }
 
 JSObject*
-nsMimeType::WrapObject(JSContext* aCx)
+nsMimeType::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return MimeTypeBinding::Wrap(aCx, this);
+  return MimeTypeBinding::Wrap(aCx, aScope, this);
 }
 
 void

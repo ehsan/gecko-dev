@@ -376,9 +376,9 @@ nsTreeColumns::GetParentObject() const
 }
 
 /* virtual */ JSObject*
-nsTreeColumns::WrapObject(JSContext* aCx)
+nsTreeColumns::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return dom::TreeColumnsBinding::Wrap(aCx, this);
+  return dom::TreeColumnsBinding::Wrap(aCx, aScope, this);
 }
 
 nsITreeBoxObject*

@@ -370,9 +370,9 @@ HTMLFieldSetElement::IntrinsicState() const
 }
 
 JSObject*
-HTMLFieldSetElement::WrapNode(JSContext* aCx)
+HTMLFieldSetElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return HTMLFieldSetElementBinding::Wrap(aCx, this);
+  return HTMLFieldSetElementBinding::Wrap(aCx, aScope, this);
 }
 
 } // namespace dom

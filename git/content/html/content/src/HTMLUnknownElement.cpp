@@ -14,9 +14,9 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-HTMLUnknownElement::WrapNode(JSContext *aCx)
+HTMLUnknownElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
-  return HTMLUnknownElementBinding::Wrap(aCx, this);
+  return HTMLUnknownElementBinding::Wrap(aCx, aScope, this);
 }
 
 NS_IMPL_ELEMENT_CLONE(HTMLUnknownElement)

@@ -259,9 +259,9 @@ HTMLMenuElement::AddSeparator(nsIMenuBuilder* aBuilder, int8_t& aSeparator)
 }
 
 JSObject*
-HTMLMenuElement::WrapNode(JSContext* aCx)
+HTMLMenuElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return HTMLMenuElementBinding::Wrap(aCx, this);
+  return HTMLMenuElementBinding::Wrap(aCx, aScope, this);
 }
 
 } // namespace dom

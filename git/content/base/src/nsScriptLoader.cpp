@@ -1333,16 +1333,12 @@ nsScriptLoader::OnStreamComplete(nsIStreamLoader* aLoader,
     } else {
       mPreloads.RemoveElement(request, PreloadRequestComparator());
     }
-    rv = NS_OK;
-  } else {
-    NS_Free(const_cast<uint8_t *>(aString));
-    rv = NS_SUCCESS_ADOPTED_DATA;
   }
 
   // Process our request and/or any pending ones
   ProcessPendingRequests();
 
-  return rv;
+  return NS_OK;
 }
 
 void

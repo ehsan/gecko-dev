@@ -277,9 +277,9 @@ WaveShaperNode::ClearCurve()
 }
 
 JSObject*
-WaveShaperNode::WrapObject(JSContext *aCx)
+WaveShaperNode::WrapObject(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
-  return WaveShaperNodeBinding::Wrap(aCx, this);
+  return WaveShaperNodeBinding::Wrap(aCx, aScope, this);
 }
 
 void

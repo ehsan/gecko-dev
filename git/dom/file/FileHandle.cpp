@@ -123,9 +123,9 @@ FileHandle::CreateFileObject(LockedFile* aLockedFile, uint32_t aFileSize)
 
 // virtual
 JSObject*
-FileHandle::WrapObject(JSContext* aCx)
+FileHandle::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return FileHandleBinding::Wrap(aCx, this);
+  return FileHandleBinding::Wrap(aCx, aScope, this);
 }
 
 already_AddRefed<LockedFile>

@@ -5695,12 +5695,12 @@ class LCallInstanceOf : public LCallInstructionHelper<1, BOX_PIECES+1, 0>
     static const size_t RHS = BOX_PIECES;
 };
 
-class LProfilerStackOp : public LInstructionHelper<0, 0, 1>
+class LFunctionBoundary : public LInstructionHelper<0, 0, 1>
 {
   public:
-    LIR_HEADER(ProfilerStackOp)
+    LIR_HEADER(FunctionBoundary)
 
-    LProfilerStackOp(const LDefinition &temp) {
+    LFunctionBoundary(const LDefinition &temp) {
         setTemp(0, temp);
     }
 
@@ -5709,15 +5709,15 @@ class LProfilerStackOp : public LInstructionHelper<0, 0, 1>
     }
 
     JSScript *script() {
-        return mir_->toProfilerStackOp()->script();
+        return mir_->toFunctionBoundary()->script();
     }
 
-    MProfilerStackOp::Type type() {
-        return mir_->toProfilerStackOp()->type();
+    MFunctionBoundary::Type type() {
+        return mir_->toFunctionBoundary()->type();
     }
 
     unsigned inlineLevel() {
-        return mir_->toProfilerStackOp()->inlineLevel();
+        return mir_->toFunctionBoundary()->inlineLevel();
     }
 };
 

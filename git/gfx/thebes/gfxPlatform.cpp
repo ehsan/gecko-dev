@@ -421,6 +421,11 @@ gfxPlatform::Init()
     mozilla::layers::InitGralloc();
 #endif
 
+    // Force registration of the gfx component, thus arranging for
+    // ::Shutdown to be called.
+    nsCOMPtr<nsISupports> forceReg
+        = do_CreateInstance("@mozilla.org/gfx/init;1");
+
     Preferences::RegisterCallbackAndCall(RecordingPrefChanged, "gfx.2d.recording", nullptr);
 
     CreateCMSOutputProfile();

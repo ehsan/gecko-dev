@@ -266,9 +266,6 @@ struct ThreadSafeContext : ContextFriendFields,
         return runtime_->onOutOfMemory(p, nbytes, maybeJSContext());
     }
 
-    /* Clear the pending exception (if any) due to OOM. */
-    void recoverFromOutOfMemory();
-
     inline void updateMallocCounter(size_t nbytes) {
         // Note: this is racy.
         runtime_->updateMallocCounter(zone_, nbytes);
@@ -559,8 +556,6 @@ struct JSContext : public js::ExclusiveContext,
 
     MOZ_WARN_UNUSED_RESULT
     bool getPendingException(JS::MutableHandleValue rval);
-
-    bool isThrowingOutOfMemory();
 
     void setPendingException(js::Value v);
 

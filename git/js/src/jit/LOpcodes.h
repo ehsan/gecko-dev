@@ -272,7 +272,7 @@
     _(CallInstanceOf)               \
     _(InterruptCheck)               \
     _(InterruptCheckImplicit)       \
-    _(ProfilerStackOp)              \
+    _(FunctionBoundary)             \
     _(GetDOMProperty)               \
     _(GetDOMMember)                 \
     _(SetDOMProperty)               \

@@ -2178,10 +2178,8 @@ jit::AnalyzeNewScriptProperties(JSContext *cx, JSFunction *fun,
     const OptimizationInfo *optimizationInfo = js_IonOptimizations.get(Optimization_Normal);
 
     types::CompilerConstraintList *constraints = types::NewCompilerConstraintList(temp);
-    if (!constraints) {
-        js_ReportOutOfMemory(cx);
+    if (!constraints)
         return false;
-    }
 
     BaselineInspector inspector(script);
     const JitCompileOptions options(cx);

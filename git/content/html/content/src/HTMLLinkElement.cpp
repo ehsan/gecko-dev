@@ -433,9 +433,9 @@ HTMLLinkElement::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
 }
 
 JSObject*
-HTMLLinkElement::WrapNode(JSContext* aCx)
+HTMLLinkElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return HTMLLinkElementBinding::Wrap(aCx, this);
+  return HTMLLinkElementBinding::Wrap(aCx, aScope, this);
 }
 
 } // namespace dom

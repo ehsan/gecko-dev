@@ -1019,21 +1019,18 @@ MakeMIRTypeSet(MIRType type)
     return GetIonContext()->temp->lifoAlloc()->new_<types::TemporaryTypeSet>(ntype);
 }
 
-bool
+void
 jit::MergeTypes(MIRType *ptype, types::TemporaryTypeSet **ptypeSet,
                 MIRType newType, types::TemporaryTypeSet *newTypeSet)
 {
     if (newTypeSet && newTypeSet->empty())
-        return true;
+        return;
     if (newType != *ptype) {
         if (IsNumberType(newType) && IsNumberType(*ptype)) {
             *ptype = MIRType_Double;
         } else if (*ptype != MIRType_Value) {
-            if (!*ptypeSet) {
+            if (!*ptypeSet)
                 *ptypeSet = MakeMIRTypeSet(*ptype);
-                if (!*ptypeSet)
-                    return false;
-            }
             *ptype = MIRType_Value;
         } else if (*ptypeSet && (*ptypeSet)->empty()) {
             *ptype = newType;
@@ -1041,11 +1038,8 @@ jit::MergeTypes(MIRType *ptype, types::TemporaryTypeSet **ptypeSet,
     }
     if (*ptypeSet) {
         LifoAlloc *alloc = GetIonContext()->temp->lifoAlloc();
-        if (!newTypeSet && newType != MIRType_Value) {
+        if (!newTypeSet && newType != MIRType_Value)
             newTypeSet = MakeMIRTypeSet(newType);
-            if (!newTypeSet)
-                return false;
-        }
         if (newTypeSet) {
             if (!newTypeSet->isSubset(*ptypeSet))
                 *ptypeSet = types::TypeSet::unionSets(*ptypeSet, newTypeSet, alloc);
@@ -1053,10 +1047,9 @@ jit::MergeTypes(MIRType *ptype, types::TemporaryTypeSet **ptypeSet,
             *ptypeSet = nullptr;
         }
     }
-    return true;
 }
 
-bool
+void
 MPhi::specializeType()
 {
 #ifdef DEBUG
@@ -1082,16 +1075,14 @@ MPhi::specializeType()
 
     for (size_t i = start; i < inputs_.length(); i++) {
         MDefinition *def = getOperand(i);
-        if (!MergeTypes(&resultType, &resultTypeSet, def->type(), def->resultTypeSet()))
-            return false;
+        MergeTypes(&resultType, &resultTypeSet, def->type(), def->resultTypeSet());
     }
 
     setResultType(resultType);
     setResultTypeSet(resultTypeSet);
-    return true;
 }
 
-bool
+void
 MPhi::addBackedgeType(MIRType type, types::TemporaryTypeSet *typeSet)
 {
     JS_ASSERT(!specialized_);
@@ -1100,8 +1091,7 @@ MPhi::addBackedgeType(MIRType type, types::TemporaryTypeSet *typeSet)
         MIRType resultType = this->type();
         types::TemporaryTypeSet *resultTypeSet = this->resultTypeSet();
 
-        if (!MergeTypes(&resultType, &resultTypeSet, type, typeSet))
-            return false;
+        MergeTypes(&resultType, &resultTypeSet, type, typeSet);
 
         setResultType(resultType);
         setResultTypeSet(resultTypeSet);
@@ -1110,7 +1100,6 @@ MPhi::addBackedgeType(MIRType type, types::TemporaryTypeSet *typeSet)
         setResultTypeSet(typeSet);
         hasBackedgeType_ = true;
     }
-    return true;
 }
 
 bool
@@ -1178,8 +1167,7 @@ MPhi::addInputSlow(MDefinition *ins, bool *ptypeChange)
         MIRType resultType = this->type();
         types::TemporaryTypeSet *resultTypeSet = this->resultTypeSet();
 
-        if (!MergeTypes(&resultType, &resultTypeSet, ins->type(), ins->resultTypeSet()))
-            return false;
+        MergeTypes(&resultType, &resultTypeSet, ins->type(), ins->resultTypeSet());
 
         if (resultType != this->type() || resultTypeSet != this->resultTypeSet()) {
             *ptypeChange = true;

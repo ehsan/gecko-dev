@@ -1510,11 +1510,7 @@ Interpret(JSContext *cx, RunState &state)
         if (!activation.entryFrame()->prologue(cx))
             goto error;
     } else {
-        if (!probes::EnterScript(cx, script, script->functionNonDelazifying(),
-                                 activation.entryFrame()))
-        {
-            goto error;
-        }
+        probes::EnterScript(cx, script, script->functionNonDelazifying(), activation.entryFrame());
     }
     if (MOZ_UNLIKELY(cx->compartment()->debugMode())) {
         JSTrapStatus status = ScriptDebugPrologue(cx, activation.entryFrame(), REGS.pc);

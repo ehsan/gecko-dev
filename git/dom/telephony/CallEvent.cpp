@@ -25,9 +25,9 @@ CallEvent::Create(EventTarget* aOwner, const nsAString& aType,
 }
 
 JSObject*
-CallEvent::WrapObject(JSContext* aCx)
+CallEvent::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return CallEventBinding::Wrap(aCx, this);
+  return CallEventBinding::Wrap(aCx, aScope, this);
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(CallEvent)

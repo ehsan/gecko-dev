@@ -35,7 +35,8 @@ public:
 
   nsresult SetCRMFRequest(char *inRequest);
 
-  JSObject* WrapObject(JSContext *aCx, bool* aTookOwnership);
+  JSObject* WrapObject(JSContext *aCx, JS::Handle<JSObject*> aScope,
+                       bool* aTookOwnership);
 
   void GetRequest(nsAString& aRequest);
 
