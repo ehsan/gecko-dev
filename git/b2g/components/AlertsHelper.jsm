@@ -225,8 +225,7 @@ let AlertsHelper = {
   },
 
   showNotification: function(imageURL, title, text, textClickable, cookie,
-                             uid, bidi, lang, dataObj, manifestURL, timestamp,
-                             behavior) {
+                             uid, bidi, lang, dataObj, manifestURL, timestamp) {
     function send(appName, appIcon) {
       SystemAppProxy._sendCustomEvent(kMozChromeNotificationEvent, {
         type: kDesktopNotification,
@@ -240,8 +239,7 @@ let AlertsHelper = {
         appIcon: appIcon,
         manifestURL: manifestURL,
         timestamp: timestamp,
-        data: dataObj,
-        mozbehavior: behavior
+        data: dataObj
       });
     }
 
@@ -294,7 +292,7 @@ let AlertsHelper = {
     this.showNotification(data.imageURL, data.title, data.text,
                           details.textClickable, null, data.uid, details.dir,
                           details.lang, dataObject, details.manifestURL,
-                          details.timestamp, details.mozbehavior);
+                          details.timestamp);
   },
 
   closeAlert: function(name) {

@@ -258,6 +258,12 @@ XPCOMUtils.defineLazyGetter(this, "PageMenu", function() {
 */
 function pageShowEventHandlers(persisted) {
   XULBrowserWindow.asyncUpdateUI();
+
+  // The PluginClickToPlay events are not fired when navigating using the
+  // BF cache. |persisted| is true when the page is loaded from the
+  // BF cache, so this code reshows the notification if necessary.
+  if (persisted)
+    gPluginHandler.reshowClickToPlayNotification();
 }
 
 function UpdateBackForwardCommands(aWebNavigation) {
@@ -773,6 +779,13 @@ var gBrowserInit = {
     var mustLoadSidebar = false;
 
     gBrowser.addEventListener("DOMUpdatePageReport", gPopupBlockerObserver, false);
+
+    // Note that the XBL binding is untrusted
+    gBrowser.addEventListener("PluginBindingAttached", gPluginHandler, true, true);
+    gBrowser.addEventListener("PluginCrashed",         gPluginHandler, true);
+    gBrowser.addEventListener("PluginOutdated",        gPluginHandler, true);
+    gBrowser.addEventListener("PluginInstantiated",    gPluginHandler, true);
+    gBrowser.addEventListener("PluginRemoved",         gPluginHandler, true);
 
     gBrowser.addEventListener("NewPluginInstalled", gPluginHandler.newPluginInstalled, true);
 
@@ -2499,14 +2512,14 @@ let BrowserOnClick = {
 
     let button = event.originalTarget;
     if (button.id == "tryAgain") {
-      let browser = gBrowser.getBrowserForDocument(ownerDoc);
 #ifdef MOZ_CRASHREPORTER
       if (ownerDoc.getElementById("checkSendReport").checked) {
+        let browser = gBrowser.getBrowserForDocument(ownerDoc);
         TabCrashReporter.submitCrashReport(browser);
       }
 #endif
 
-      TabCrashReporter.reloadCrashedTab(browser);
+      TabCrashReporter.reloadCrashedTabs();
     }
   },
 
@@ -4121,7 +4134,7 @@ function nsBrowserAccess() { }
 nsBrowserAccess.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIBrowserDOMWindow, Ci.nsISupports]),
 
-  _openURIInNewTab: function(aURI, aOpener, aIsExternal) {
+  _openURIInNewTab: function(aURI, aOpener, aIsExternal, aEnsureNonRemote=false) {
     let win, needToFocusWin;
 
     // try the current window.  if we're in a popup, fall back on the most recent browser window
@@ -4153,6 +4166,15 @@ nsBrowserAccess.prototype = {
                                       inBackground: loadInBackground});
     let browser = win.gBrowser.getBrowserForTab(tab);
 
+    // It's possible that we've been asked to open a new non-remote
+    // browser in a window that defaults to having remote browsers -
+    // this can happen if we're opening the new tab due to a window.open
+    // or _blank anchor in a non-remote browser. If so, we have to force
+    // the newly opened browser to also not be remote.
+    if (win.gMultiProcessBrowser && aEnsureNonRemote) {
+      win.gBrowser.updateBrowserRemoteness(browser, false);
+    }
+
     if (needToFocusWin || (!loadInBackground && aIsExternal))
       win.focus();
 
@@ -4160,6 +4182,14 @@ nsBrowserAccess.prototype = {
   },
 
   openURI: function (aURI, aOpener, aWhere, aContext) {
+    // This function should only ever be called if we're opening a URI
+    // from a non-remote browser window (via nsContentTreeOwner).
+    if (aOpener && Cu.isCrossProcessWrapper(aOpener)) {
+      Cu.reportError("nsBrowserAccess.openURI was passed a CPOW for aOpener. " +
+                     "openURI should only ever be called from non-remote browsers.");
+      throw Cr.NS_ERROR_FAILURE;
+    }
+
     var newWindow = null;
     var isExternal = (aContext == Ci.nsIBrowserDOMWindow.OPEN_EXTERNAL);
 
@@ -4185,7 +4215,7 @@ nsBrowserAccess.prototype = {
         newWindow = openDialog(getBrowserURL(), "_blank", "all,dialog=no", url, null, null, null);
         break;
       case Ci.nsIBrowserDOMWindow.OPEN_NEWTAB :
-        let browser = this._openURIInNewTab(aURI, aOpener, isExternal);
+        let browser = this._openURIInNewTab(aURI, aOpener, isExternal, true);
         if (browser)
           newWindow = browser.contentWindow;
         break;

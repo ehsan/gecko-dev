@@ -545,7 +545,7 @@ AboutReader.prototype = {
       if (article)
         this._showContent(article);
       else
-        this._win.location.href = url;
+        this._showError(gStrings.GetStringFromName("aboutReader.loadError"));
     }.bind(this));
   },
 

@@ -78,9 +78,10 @@ abstract class BaseTest extends BaseRobocopTest {
     protected String mProfile;
     public Device mDevice;
     protected DatabaseHelper mDatabaseHelper;
+    protected StringHelper mStringHelper;
     protected int mScreenMidWidth;
     protected int mScreenMidHeight;
-    private final HashSet<Integer> mKnownTabIDs = new HashSet<Integer>();
+    private HashSet<Integer> mKnownTabIDs = new HashSet<Integer>();
 
     protected void blockForGeckoReady() {
         try {
@@ -99,12 +100,12 @@ abstract class BaseTest extends BaseRobocopTest {
         super.setUp();
 
         // Create the intent to be used with all the important arguments.
-        mBaseUrl = mConfig.get("host").replaceAll("(/$)", "");
-        mRawBaseUrl = mConfig.get("rawhost").replaceAll("(/$)", "");
+        mBaseUrl = ((String) mConfig.get("host")).replaceAll("(/$)", "");
+        mRawBaseUrl = ((String) mConfig.get("rawhost")).replaceAll("(/$)", "");
         Intent i = new Intent(Intent.ACTION_MAIN);
-        mProfile = mConfig.get("profile");
+        mProfile = (String) mConfig.get("profile");
         i.putExtra("args", "-no-remote -profile " + mProfile);
-        String envString = mConfig.get("envvars");
+        String envString = (String) mConfig.get("envvars");
         if (envString != "") {
             String[] envStrings = envString.split(",");
             for (int iter = 0; iter < envStrings.length; iter++) {
@@ -121,6 +122,7 @@ abstract class BaseTest extends BaseRobocopTest {
         mActions = new FennecNativeActions(mActivity, mSolo, getInstrumentation(), mAsserter);
         mDevice = new Device();
         mDatabaseHelper = new DatabaseHelper(mActivity, mAsserter);
+        mStringHelper = new StringHelper();
     }
 
     protected void initializeProfile() {
@@ -273,8 +275,8 @@ abstract class BaseTest extends BaseRobocopTest {
     }
 
     class VerifyTextViewText implements Condition {
-        private final TextView mTextView;
-        private final String mExpected;
+        private TextView mTextView;
+        private String mExpected;
         public VerifyTextViewText(TextView textView, String expected) {
             mTextView = textView;
             mExpected = expected;
@@ -302,7 +304,7 @@ abstract class BaseTest extends BaseRobocopTest {
         boolean result = mSolo.waitForCondition(condition, timeout);
         if (!result) {
             // Log timeout failure for diagnostic purposes only; a failed wait may
-            // be normal and does not necessarily warrant a test assertion/failure.
+            // be normal and does not necessarily warrant a test asssertion/failure.
             mAsserter.dumpLog("waitForCondition timeout after " + timeout + " ms.");
         }
         return result;
@@ -755,8 +757,8 @@ abstract class BaseTest extends BaseRobocopTest {
     }
 
     class Navigation {
-        private final String devType;
-        private final String osVersion;
+        private String devType;
+        private String osVersion;
 
         public Navigation(Device mDevice) {
             devType = mDevice.type;
@@ -860,8 +862,8 @@ abstract class BaseTest extends BaseRobocopTest {
      */
     private class DescriptionCondition<T extends View> implements Condition {
         public T mView;
-        private final String mDescr;
-        private final Class<T> mCls;
+        private String mDescr;
+        private Class<T> mCls;
 
         public DescriptionCondition(Class<T> cls, String descr) {
             mDescr = descr;

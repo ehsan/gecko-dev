@@ -132,7 +132,7 @@ public abstract class SessionTest extends BaseTest {
     protected void loadSessionTabs(Session session) {
         // Verify initial about:home tab
         verifyTabCount(1);
-        verifyUrl(StringHelper.ABOUT_HOME_URL);
+        verifyUrl("about:home");
 
         SessionTab[] tabs = session.getItems();
         for (int i = 0; i < tabs.length; i++) {
@@ -141,8 +141,7 @@ public abstract class SessionTest extends BaseTest {
 
             // New tabs always start with about:home, so make sure about:home
             // is always the first entry.
-            mAsserter.is(pages[0].url, StringHelper.ABOUT_HOME_URL, "first page in tab is " +
-                    StringHelper.ABOUT_HOME_URL);
+            mAsserter.is(pages[0].url, "about:home", "first page in tab is about:home");
 
             // If this is the first tab, the tab already exists, so no need to
             // create a new one. Otherwise, create a new tab if we're loading
@@ -192,7 +191,7 @@ public abstract class SessionTest extends BaseTest {
                 (new NavigationWalker<PageInfo>(tab) {
                     @Override
                     public void onItem(PageInfo page, int currentIndex) {
-                        if (page.url.equals(StringHelper.ABOUT_HOME_URL)) {
+                        if (page.url.equals("about:home")) {
                             waitForText("Enter Search or Address");
                             verifyUrl(page.url);
                         } else {

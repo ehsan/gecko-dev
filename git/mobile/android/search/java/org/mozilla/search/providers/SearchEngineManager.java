@@ -233,23 +233,19 @@ public class SearchEngineManager implements SharedPreferences.OnSharedPreference
         final String languageTag = BrowserLocaleManager.getLanguageTag(locale);
         String url = getSearchPluginsJarURL(languageTag, fileName);
 
-        InputStream in = GeckoJarReader.getStream(url);
+        final InputStream in = GeckoJarReader.getStream(url);
         if (in != null) {
             return in;
         }
 
         // If that doesn't work, try a file path for just the language.
         final String language = BrowserLocaleManager.getLanguage(locale);
-        if (!languageTag.equals(language)) {
-            url = getSearchPluginsJarURL(language, fileName);
-            in = GeckoJarReader.getStream(url);
-            if (in != null) {
-                return in;
-            }
+        if (languageTag.equals(language)) {
+            // We already tried this, so just return null.
+            return null;
         }
 
-        // Finally, fall back to en-US.
-        url = getSearchPluginsJarURL("en-US", fileName);
+        url = getSearchPluginsJarURL(language, fileName);
         return GeckoJarReader.getStream(url);
     }
 

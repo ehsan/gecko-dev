@@ -22,20 +22,20 @@ public class testAboutPage extends PixelTest {
         String url = "about:";
         loadAndPaint(url);
 
-        ensureTitleMatches(StringHelper.ABOUT_LABEL);
+        ensureTitleMatches("About (Fennec|Nightly|Aurora|Firefox|Firefox Beta)");
 
         // Open a new page to remove the about: page from the current tab.
-        url = getAbsoluteUrl(StringHelper.ROBOCOP_BLANK_PAGE_01_URL);
+        url = getAbsoluteUrl("/robocop/robocop_blank_01.html");
         inputAndLoadUrl(url);
 
         // At this point the page title should have been set.
-        ensureTitleMatches(StringHelper.ROBOCOP_BLANK_PAGE_01_TITLE);
+        ensureTitleMatches("Browser Blank Page 01");
 
         // Set up listeners to catch the page load we're about to do.
         Actions.EventExpecter tabEventExpecter = mActions.expectGeckoEvent("Tab:Added");
         Actions.EventExpecter contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
 
-        selectSettingsItem(StringHelper.MOZILLA_SECTION_LABEL, StringHelper.ABOUT_LABEL);
+        selectSettingsItem("Mozilla", "About (Fennec|Nightly|Aurora|Firefox|Firefox Beta)");
 
         // Wait for the new tab and page to load
         tabEventExpecter.blockForEvent();
@@ -45,6 +45,6 @@ public class testAboutPage extends PixelTest {
         contentEventExpecter.unregisterListener();
 
         // Grab the title to make sure the about: page was loaded.
-        ensureTitleMatches(StringHelper.ABOUT_LABEL);
+        ensureTitleMatches("About (Fennec|Nightly|Aurora|Firefox|Firefox Beta)");
     }
 }

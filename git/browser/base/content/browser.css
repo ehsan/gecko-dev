@@ -1215,13 +1215,3 @@ toolbarpaletteitem[place="palette"][hidden] {
 #context-navigation > .menuitem-iconic > .menu-accel-container {
   display: none;
 }
-
-/* Tracking protection doorhanger */
-.popup-notification-footer[popupid="bad-content"] {
-  display: none;
-}
-
-.popup-notification-footer[popupid="bad-content"][mixedblockdisabled],
-.popup-notification-footer[popupid="bad-content"][trackingblockdisabled] {
-  display: block;
-}

@@ -19,8 +19,6 @@ import android.content.res.Resources;
 import android.util.AttributeSet;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.animation.AccelerateInterpolator;
-import android.view.animation.Interpolator;
 import android.widget.RelativeLayout;
 
 /**
@@ -38,8 +36,6 @@ class BrowserToolbarTablet extends BrowserToolbarTabletBase {
 
     private final int urlBarViewOffset;
     private final int defaultForwardMargin;
-
-    private final Interpolator buttonsInterpolator = new AccelerateInterpolator();
 
     public BrowserToolbarTablet(final Context context, final AttributeSet attrs) {
         super(context, attrs);
@@ -260,22 +256,5 @@ class BrowserToolbarTablet extends BrowserToolbarTabletBase {
         }
 
         urlDisplayLayout.prepareForwardAnimation(anim, animation, width);
-    }
-
-    @Override
-    public void triggerTabsPanelTransition(final PropertyAnimator animator, final boolean areTabsShown) {
-        if (areTabsShown) {
-            ViewHelper.setAlpha(tabsCounter, 0.0f);
-            return;
-        }
-
-        final PropertyAnimator buttonsAnimator =
-                new PropertyAnimator(animator.getDuration(), buttonsInterpolator);
-
-        buttonsAnimator.attach(tabsCounter,
-                               PropertyAnimator.Property.ALPHA,
-                               1.0f);
-
-        buttonsAnimator.start();
     }
 }
