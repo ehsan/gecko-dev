@@ -1,3 +1,4 @@
+#!perl5
 #
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -15,12 +16,11 @@
 # The Original Code is mozilla.org code.
 #
 # The Initial Developer of the Original Code is
-# Mozilla Corporation.
-# Portions created by the Initial Developer are Copyright (C) 2009
+# Netscape Communications Corporation.
+# Portions created by the Initial Developer are Copyright (C) 1998
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
-#   Alexander Surkov <surkov.alexander@gmail.com> (original author)
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -36,45 +36,31 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH		= ../../../..
-topsrcdir	= @top_srcdir@
-srcdir		= @srcdir@
-VPATH		= @srcdir@
-relativesrcdir  = accessible/tree
+sub fastcwd {
+	local($odev, $oino, $cdev, $cino, $tdev, $tino);
+	local(@path, $path);
+	local(*DIR);
 
-include $(DEPTH)/config/autoconf.mk
-include $(topsrcdir)/config/rules.mk
+	($cdev, $cino) = stat('.');
+	for (;;) {
+		($odev, $oino) = ($cdev, $cino);
+		chdir('..');
+		($cdev, $cino) = stat('.');
+		last if $odev == $cdev && $oino == $cino;
+		opendir(DIR, '.');
+		for (;;) {
+			$_ = readdir(DIR);
+			next if $_ eq '.';
+			next if $_ eq '..';
 
-_TEST_FILES =\
-		dockids.html \
-	$(warning test_applicationacc.xul temporarily disabled, see bug 561508) \
-		test_aria_globals.html \
-		test_aria_imgmap.html \
-		test_aria_presentation.html \
-		test_button.xul \
-		test_combobox.xul \
-		test_cssoverflow.html \
-		test_dochierarchy.html \
-		test_dockids.html \
-		test_filectrl.html \
-		test_formctrl.html \
-		test_formctrl.xul \
-		test_gencontent.html \
-		test_groupbox.xul \
-		test_iframe.html \
-		test_img.html \
-		test_list.html \
-		test_media.html \
-		test_select.html \
-		test_tabbox.xul \
-		test_tabbrowser.xul \
-		test_table.html \
-		test_tree.xul \
-		test_txtcntr.html \
-		test_txtctrl.html \
-		test_txtctrl.xul \
-		wnd.xul \
-		$(NULL)
-
-libs:: $(_TEST_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/a11y/$(relativesrcdir)
+			last unless $_;
+			($tdev, $tino) = lstat($_);
+			last unless $tdev != $odev || $tino != $oino;
+		}
+		closedir(DIR);
+		unshift(@path, $_);
+	}
+	chdir($path = '/' . join('/', @path));
+	$path;
+}
+1;
