@@ -455,7 +455,6 @@ nsresult
 nsGonkCameraControl::Set(uint32_t aKey, int aValue)
 {
   if (aKey == CAMERA_PARAM_PICTURE_ROTATION) {
-    RETURN_IF_NO_CAMERA_HW();
     aValue = RationalizeRotation(aValue + mCameraHw->GetSensorOrientation());
   }
   return SetAndPush(aKey, aValue);
@@ -465,7 +464,9 @@ nsresult
 nsGonkCameraControl::Get(uint32_t aKey, int& aRet)
 {
   if (aKey == CAMERA_PARAM_SENSORANGLE) {
-    RETURN_IF_NO_CAMERA_HW();
+    if (!mCameraHw.get()) {
+      return NS_ERROR_NOT_AVAILABLE;
+    }
     aRet = mCameraHw->GetSensorOrientation();
     return NS_OK;
   }
@@ -596,16 +597,13 @@ nsGonkCameraControl::SetThumbnailSizeImpl(const Size& aSize)
   }
 
   if (smallestDeltaIndex == UINT32_MAX) {
-    DOM_CAMERA_LOGW("Unable to find a thumbnail size close to %ux%u, disabling thumbnail\n",
+    DOM_CAMERA_LOGW("Unable to find a thumbnail size close to %ux%u\n",
       aSize.width, aSize.height);
-    // If we are unable to find a thumbnail size with a suitable aspect ratio,
-    // just disable the thumbnail altogether.
-    Size size = { 0, 0 };
-    return SetAndPush(CAMERA_PARAM_THUMBNAILSIZE, size);
+    return NS_ERROR_INVALID_ARG;
   }
 
   Size size = supportedSizes[smallestDeltaIndex];
-  DOM_CAMERA_LOGI("camera-param set thumbnail-size = %ux%u (requested %ux%u)\n",
+  DOM_CAMERA_LOGI("camera-param set picture-size = %ux%u (requested %ux%u)\n",
     size.width, size.height, aSize.width, aSize.height);
   if (size.width > INT32_MAX || size.height > INT32_MAX) {
     DOM_CAMERA_LOGE("Supported thumbnail size is too big, no change\n");
@@ -1039,13 +1037,27 @@ nsGonkCameraControl::SetPreviewSize(const Size& aSize)
     }
   }
 
-  // Some camera drivers will ignore our preview size if it's larger
-  // that the currently set video recording size, so we need to set
-  // both here just in case.
-  mParams.Set(CAMERA_PARAM_PREVIEWSIZE, best);
-  mParams.Set(CAMERA_PARAM_VIDEOSIZE, best);
+  {
+    ICameraControlParameterSetAutoEnter set(this);
+
+    // Some camera drivers will ignore our preview size if it's larger
+    // that the currently set video recording size, so we need to set
+    // both here just in case.
+    rv = SetAndPush(CAMERA_PARAM_PREVIEWSIZE, best);
+    if (NS_FAILED(rv)) {
+      DOM_CAMERA_LOGE("Failed to set picture mode preview size (0x%x)\n", rv);
+      return rv;
+    }
+
+    rv = SetAndPush(CAMERA_PARAM_VIDEOSIZE, best);
+    if (NS_FAILED(rv)) {
+      DOM_CAMERA_LOGE("Failed to bump up picture mode video size (0x%x)\n", rv);
+      return rv;
+    }
+  }
+
   mCurrentConfiguration.mPreviewSize = best;
-  return PushParameters();
+  return NS_OK;
 }
 
 nsresult

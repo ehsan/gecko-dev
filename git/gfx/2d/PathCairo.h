@@ -19,7 +19,6 @@ class PathCairo;
 class PathBuilderCairo : public PathBuilder
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(PathBuilderCairo)
   PathBuilderCairo(FillRule aFillRule);
 
   virtual void MoveTo(const Point &aPoint);
@@ -49,7 +48,6 @@ private: // data
 class PathCairo : public Path
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(PathCairo)
   PathCairo(FillRule aFillRule, std::vector<cairo_path_data_t> &aPathData, const Point &aCurrentPoint);
   PathCairo(cairo_t *aContext);
   ~PathCairo();

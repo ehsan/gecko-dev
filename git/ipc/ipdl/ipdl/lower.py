@@ -2884,8 +2884,6 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
                              [ ExprVar.THIS ]) ]),
                 ExprMemberInit(p.lastActorIdVar(),
                                [ p.actorIdInit(self.side) ]),
-                ExprMemberInit(p.otherProcessVar(),
-                               [ ExprVar('ipc::kInvalidProcessHandle') ]),
                 ExprMemberInit(p.lastShmemIdVar(),
                                [ p.shmemIdInit(self.side) ]),
                 ExprMemberInit(p.stateVar(),
@@ -4035,10 +4033,8 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
 
         # bool AdoptShmem(const Shmem& mem, Shmem* outmem):
         #   SharedMemory* raw = mem.mSegment;
-        #   if (!raw || IsTrackingSharedMemory(raw)) {
-        #     NS_WARNING("bad Shmem"); // or NS_RUNTIMEABORT on child side
-        #     return false;
-        #   }
+        #   if (!raw || IsTrackingSharedMemory(raw))
+        #     RUNTIMEABORT()
         #   id_t id
         #   if (!AdoptSharedMemory(raw, &id))
         #     return false
@@ -4055,14 +4051,7 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
         ifbad = StmtIf(ExprBinary(
             ExprNot(rawvar), '||',
             ExprCall(ExprVar('IsTrackingSharedMemory'), args=[ rawvar ])))
-        badShmemActions = []
-        if (self.side == 'child'):
-            badShmemActions.append(_runtimeAbort('bad Shmem'));
-        else:
-            badShmemActions.append(_printWarningMessage('bad Shmem'));
-        badShmemActions.append(StmtReturn.FALSE);
-        ifbad.addifstmts(badShmemActions)
-
+        ifbad.addifstmt(_runtimeAbort('bad Shmem'))
         adoptShmem.addstmt(ifbad)
 
         ifadoptfails = StmtIf(ExprNot(ExprCall(
@@ -4083,8 +4072,7 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
         #   bool ok = DestroySharedMemory(mem);
         ##ifdef DEBUG
         #   if (!ok) {
-        #     NS_WARNING("bad Shmem"); // or NS_RUNTIMEABORT on child side
-        #     return false;
+        #     NS_RUNTIMEABORT("bad Shmem");
         #   }
         ##endif // DEBUG
         #   mem.forget();
@@ -4096,7 +4084,7 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
         okvar = ExprVar('ok')
 
         ifbad = StmtIf(ExprNot(okvar))
-        ifbad.addifstmts(badShmemActions)
+        ifbad.addifstmt(_runtimeAbort('bad Shmem'))
 
         deallocShmem.addstmts([
             StmtDecl(Decl(Type.BOOL, okvar.name),

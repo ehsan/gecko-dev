@@ -423,14 +423,14 @@ class ScriptSource
     bool hasIntroductionOffset_:1;
 
   public:
-    explicit ScriptSource()
+    explicit ScriptSource(JSPrincipals *originPrincipals)
       : refs(0),
         length_(0),
         compressedLength_(0),
         filename_(nullptr),
         displayURL_(nullptr),
         sourceMapURL_(nullptr),
-        originPrincipals_(nullptr),
+        originPrincipals_(originPrincipals),
         introductionOffset_(0),
         introducerFilename_(nullptr),
         introductionType_(nullptr),
@@ -440,6 +440,8 @@ class ScriptSource
         hasIntroductionOffset_(false)
     {
         data.source = nullptr;
+        if (originPrincipals_)
+            JS_HoldPrincipals(originPrincipals_);
     }
     void incref() { refs++; }
     void decref() {
@@ -447,7 +449,6 @@ class ScriptSource
         if (--refs == 0)
             destroy();
     }
-    bool initFromOptions(ExclusiveContext *cx, const ReadOnlyCompileOptions &options);
     bool setSourceCopy(ExclusiveContext *cx,
                        const jschar *src,
                        uint32_t length,
@@ -475,6 +476,9 @@ class ScriptSource
     bool performXDR(XDRState<mode> *xdr);
 
     bool setFilename(ExclusiveContext *cx, const char *filename);
+    bool setIntroducedFilename(ExclusiveContext *cx,
+                               const char *callerFilename, unsigned callerLineno,
+                               const char *introductionType, const char *introducerFilename);
     const char *introducerFilename() const {
         return introducerFilename_;
     }

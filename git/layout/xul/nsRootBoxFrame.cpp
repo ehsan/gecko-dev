@@ -51,28 +51,28 @@ public:
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
 
-  virtual nsPopupSetFrame* GetPopupSetFrame() MOZ_OVERRIDE;
-  virtual void SetPopupSetFrame(nsPopupSetFrame* aPopupSet) MOZ_OVERRIDE;
-  virtual nsIContent* GetDefaultTooltip() MOZ_OVERRIDE;
-  virtual void SetDefaultTooltip(nsIContent* aTooltip) MOZ_OVERRIDE;
-  virtual nsresult AddTooltipSupport(nsIContent* aNode) MOZ_OVERRIDE;
-  virtual nsresult RemoveTooltipSupport(nsIContent* aNode) MOZ_OVERRIDE;
+  virtual nsPopupSetFrame* GetPopupSetFrame();
+  virtual void SetPopupSetFrame(nsPopupSetFrame* aPopupSet);
+  virtual nsIContent* GetDefaultTooltip();
+  virtual void SetDefaultTooltip(nsIContent* aTooltip);
+  virtual nsresult AddTooltipSupport(nsIContent* aNode);
+  virtual nsresult RemoveTooltipSupport(nsIContent* aNode);
 
   virtual nsresult AppendFrames(ChildListID     aListID,
-                                nsFrameList&    aFrameList) MOZ_OVERRIDE;
+                                nsFrameList&    aFrameList);
   virtual nsresult InsertFrames(ChildListID     aListID,
                                 nsIFrame*       aPrevFrame,
-                                nsFrameList&    aFrameList) MOZ_OVERRIDE;
+                                nsFrameList&    aFrameList);
   virtual nsresult RemoveFrame(ChildListID     aListID,
-                               nsIFrame*       aOldFrame) MOZ_OVERRIDE;
+                               nsIFrame*       aOldFrame);
 
   virtual nsresult Reflow(nsPresContext*          aPresContext,
                           nsHTMLReflowMetrics&     aDesiredSize,
                           const nsHTMLReflowState& aReflowState,
-                          nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+                          nsReflowStatus&          aStatus);
   virtual nsresult HandleEvent(nsPresContext* aPresContext,
                                WidgetGUIEvent* aEvent,
-                               nsEventStatus* aEventStatus) MOZ_OVERRIDE;
+                               nsEventStatus* aEventStatus);
 
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
@@ -83,9 +83,9 @@ public:
    *
    * @see nsGkAtoms::rootFrame
    */
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
+  virtual bool IsFrameOfType(uint32_t aFlags) const
   {
     // Override bogus IsFrameOfType in nsBoxFrame.
     if (aFlags & (nsIFrame::eReplacedContainsBlock | nsIFrame::eReplaced))
@@ -94,7 +94,7 @@ public:
   }
   
 #ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  virtual nsresult GetFrameName(nsAString& aResult) const;
 #endif
 
   nsPopupSetFrame* mPopupSetFrame;

@@ -1574,12 +1574,10 @@ public:
 
   ~DeviceStorageCursorRequest() {}
 
-  bool Recv__delete__(const bool& allow,
-                      const InfallibleTArray<PermissionChoice>& choices)
+  bool Recv__delete__(const bool& allow)
   {
-    MOZ_ASSERT(choices.IsEmpty(), "DeviceStorageCursor doesn't support permission choice");
     if (allow) {
-      Allow(JS::UndefinedHandleValue);
+      Allow();
     }
     else {
       Cancel();
@@ -1815,11 +1813,7 @@ nsDOMDeviceStorageCursor::GetTypes(nsIArray** aTypes)
     DeviceStorageTypeChecker::GetPermissionForType(mFile->mStorageType, type);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsTArray<nsString> emptyOptions;
-  return CreatePermissionArray(type,
-                               NS_LITERAL_CSTRING("read"),
-                               emptyOptions,
-                               aTypes);
+  return CreatePermissionArray(type, NS_LITERAL_CSTRING("read"), aTypes);
 }
 
 NS_IMETHODIMP
@@ -1852,10 +1846,8 @@ nsDOMDeviceStorageCursor::Cancel()
 }
 
 NS_IMETHODIMP
-nsDOMDeviceStorageCursor::Allow(JS::HandleValue aChoices)
+nsDOMDeviceStorageCursor::Allow()
 {
-  MOZ_ASSERT(aChoices.isUndefined());
-
   if (!mFile->IsSafePath()) {
     nsCOMPtr<nsIRunnable> r
       = new PostErrorEvent(this, POST_ERROR_EVENT_PERMISSION_DENIED);
@@ -1905,13 +1897,10 @@ nsDOMDeviceStorageCursor::Continue(ErrorResult& aRv)
 }
 
 bool
-nsDOMDeviceStorageCursor::Recv__delete__(const bool& allow,
-                                         const InfallibleTArray<PermissionChoice>& choices)
+nsDOMDeviceStorageCursor::Recv__delete__(const bool& allow)
 {
-  MOZ_ASSERT(choices.IsEmpty(), "DeviceStorageCursor doesn't support permission choice");
-
   if (allow) {
-    Allow(JS::UndefinedHandleValue);
+    Allow();
   }
   else {
     Cancel();
@@ -2433,7 +2422,7 @@ public:
     MOZ_ASSERT(NS_IsMainThread());
 
     if (mozilla::Preferences::GetBool("device.storage.prompt.testing", false)) {
-      Allow(JS::UndefinedHandleValue);
+      Allow();
       return NS_OK;
     }
 
@@ -2464,8 +2453,7 @@ public:
         return rv;
       }
       nsTArray<PermissionRequest> permArray;
-      nsTArray<nsString> emptyOptions;
-      permArray.AppendElement(PermissionRequest(type, access, emptyOptions));
+      permArray.AppendElement(PermissionRequest(type, access));
       child->SendPContentPermissionRequestConstructor(
         this, permArray, IPC::Principal(mPrincipal));
 
@@ -2497,8 +2485,7 @@ public:
       return rv;
     }
 
-    nsTArray<nsString> emptyOptions;
-    return CreatePermissionArray(type, access, emptyOptions, aTypes);
+    return CreatePermissionArray(type, access, aTypes);
   }
 
   NS_IMETHOD GetPrincipal(nsIPrincipal * *aRequestingPrincipal)
@@ -2527,10 +2514,9 @@ public:
     return NS_DispatchToMainThread(event);
   }
 
-  NS_IMETHOD Allow(JS::HandleValue aChoices)
+  NS_IMETHOD Allow()
   {
     MOZ_ASSERT(NS_IsMainThread());
-    MOZ_ASSERT(aChoices.isUndefined());
 
     if (!mRequest) {
       return NS_ERROR_FAILURE;
@@ -2786,13 +2772,10 @@ public:
     return NS_OK;
   }
 
-  bool Recv__delete__(const bool& allow,
-                      const InfallibleTArray<PermissionChoice>& choices)
+  bool Recv__delete__(const bool& allow)
   {
-    MOZ_ASSERT(choices.IsEmpty(), "DeviceStorage doesn't support permission choice");
-
     if (allow) {
-      Allow(JS::UndefinedHandleValue);
+      Allow();
     }
     else {
       Cancel();
@@ -3658,7 +3641,7 @@ nsDOMDeviceStorage::EnumerateInternal(const nsAString& aPath,
     = new DeviceStorageCursorRequest(cursor);
 
   if (mozilla::Preferences::GetBool("device.storage.prompt.testing", false)) {
-    r->Allow(JS::UndefinedHandleValue);
+    r->Allow();
     return cursor.forget();
   }
 
@@ -3680,10 +3663,7 @@ nsDOMDeviceStorage::EnumerateInternal(const nsAString& aPath,
       return nullptr;
     }
     nsTArray<PermissionRequest> permArray;
-    nsTArray<nsString> emptyOptions;
-    permArray.AppendElement(PermissionRequest(type,
-                                              NS_LITERAL_CSTRING("read"),
-                                              emptyOptions));
+    permArray.AppendElement(PermissionRequest(type, NS_LITERAL_CSTRING("read")));
     child->SendPContentPermissionRequestConstructor(r,
                                                     permArray,
                                                     IPC::Principal(mPrincipal));

@@ -212,7 +212,7 @@ SPSProfiler::push(const char *string, void *sp, JSScript *script, jsbytecode *pc
     volatile uint32_t *size = size_;
     uint32_t current = *size;
 
-    JS_ASSERT(installed());
+    JS_ASSERT(enabled());
     if (current < max_) {
         stack[current].setLabel(string);
         stack[current].setStackAddress(sp);
@@ -291,12 +291,12 @@ SPSEntryMarker::SPSEntryMarker(JSRuntime *rt
     : profiler(&rt->spsProfiler)
 {
     MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-    if (!profiler->installed()) {
+    if (!profiler->enabled()) {
         profiler = nullptr;
         return;
     }
     size_before = *profiler->size_;
-    profiler->pushNoCopy("js::RunScript", this, nullptr, nullptr);
+    profiler->push("js::RunScript", this, nullptr, nullptr);
 }
 
 SPSEntryMarker::~SPSEntryMarker()

@@ -563,12 +563,6 @@ FragmentOrElement::nsDOMSlots::Traverse(nsCycleCollectionTraversalCallback &cb, 
 
   NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mSlots->mClassList");
   cb.NoteXPCOMChild(mClassList.get());
-
-  if (mCustomElementData) {
-    for (uint32_t i = 0; i < mCustomElementData->mCallbackQueue.Length(); i++) {
-      mCustomElementData->mCallbackQueue[i]->Traverse(cb);
-    }
-  }
 }
 
 void
@@ -588,7 +582,6 @@ FragmentOrElement::nsDOMSlots::Unlink(bool aIsXUL)
   mContainingShadow = nullptr;
   mChildrenList = nullptr;
   mUndoManager = nullptr;
-  mCustomElementData = nullptr;
   if (mClassList) {
     mClassList->DropReference();
     mClassList = nullptr;
@@ -1018,24 +1011,6 @@ FragmentOrElement::SetXBLInsertionParent(nsIContent* aContent)
     SetFlags(NODE_MAY_BE_IN_BINDING_MNGR);
   }
   slots->mXBLInsertionParent = aContent;
-}
-
-CustomElementData*
-FragmentOrElement::GetCustomElementData() const
-{
-  nsDOMSlots *slots = GetExistingDOMSlots();
-  if (slots) {
-    return slots->mCustomElementData;
-  }
-  return nullptr;
-}
-
-void
-FragmentOrElement::SetCustomElementData(CustomElementData* aData)
-{
-  nsDOMSlots *slots = DOMSlots();
-  MOZ_ASSERT(!slots->mCustomElementData, "Custom element data may not be changed once set.");
-  slots->mCustomElementData = aData;
 }
 
 nsresult

@@ -74,20 +74,10 @@ this.PermissionPromptHelper = {
     }
 
     if (permValue == Ci.nsIPermissionManager.PROMPT_ACTION) {
-
-      // create the options from permission request.
-      let options = Cc["@mozilla.org/array;1"].createInstance(Ci.nsIMutableArray);
-      if (msg.options) {
-        for (let option of options) {
-          options.appendElement(option);
-        }
-      }
-
       // create an array with a nsIContentPermissionType element
       let type = {
         type: msg.type,
         access: msg.access ? msg.access : "unused",
-        options: options,
         QueryInterface: XPCOMUtils.generateQI([Ci.nsIContentPermissionType])
       };
       let typeArray = Cc["@mozilla.org/array;1"].createInstance(Ci.nsIMutableArray);
@@ -132,10 +122,9 @@ this.PermissionPromptHelper = {
                               { result: Ci.nsIPermissionManager.DENY_ACTION,
                                 requestID: msg.requestID });
         },
-        allow: function(aChoice) {
+        allow: function() {
           mm.sendAsyncMessage("PermissionPromptHelper:AskPermission:OK",
                               { result: Ci.nsIPermissionManager.ALLOW_ACTION,
-                                choice: aChoice,
                                 requestID: msg.requestID });
         }
       });

@@ -198,7 +198,6 @@ LOCAL_INCLUDES += [
     '/caps/include',
     '/content/html/content/src',
     '/content/html/document/src',
-    '/content/svg/content/src',
     '/content/xml/content/src',
     '/content/xml/document/src',
     '/content/xul/content/src',

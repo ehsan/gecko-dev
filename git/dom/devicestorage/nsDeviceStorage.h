@@ -204,8 +204,7 @@ public:
   bool mOkToCallContinue;
   PRTime mSince;
 
-  virtual bool Recv__delete__(const bool& allow,
-                              const InfallibleTArray<PermissionChoice>& choices) MOZ_OVERRIDE;
+  virtual bool Recv__delete__(const bool& allow) MOZ_OVERRIDE;
   virtual void IPDLRelease() MOZ_OVERRIDE;
 
   void GetStorageType(nsAString & aType);

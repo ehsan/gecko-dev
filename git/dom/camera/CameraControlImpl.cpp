@@ -240,7 +240,7 @@ CameraControlImpl::OnError(CameraControlListener::CameraErrorContext aContext,
     "init-failed",
     "invalid-configuration",
     "service-failed",
-    "set-picture-size-failed",
+    "set-picture-size-failred",
     "set-thumbnail-size-failed",
     "unknown"
   };

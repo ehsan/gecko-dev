@@ -657,8 +657,6 @@ pref("plugins.update.notifyUser", false);
 
 pref("plugins.click_to_play", true);
 
-pref("plugins.hideMissingPluginsNotification", false);
-
 #ifdef RELEASE_BUILD
 // For now, plugins other than Java and Flash are enabled in beta/release
 // and click-to-activate in earlier channels.
@@ -1383,11 +1381,6 @@ pref("identity.fxaccounts.settings.uri", "https://accounts.firefox.com/settings"
 // The URL of the Firefox Accounts auth server backend
 pref("identity.fxaccounts.auth.uri", "https://api.accounts.firefox.com/v1");
 
-// On GTK, we now default to showing the menubar only when alt is pressed:
-#ifdef MOZ_WIDGET_GTK
-pref("ui.key.menuAccessKeyFocuses", true);
-#endif
 
-
-// Delete HTTP cache v2 data of users that didn't opt-in manually
-pref("browser.cache.auto_delete_cache_version", 1);
+// Temporarily turn the new http cache v2 on for Desktop Firefox only
+pref("browser.cache.use_new_backend_temp", true);

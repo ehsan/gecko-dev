@@ -143,9 +143,8 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    * @param type
    *        DOMString indicates the desired preferred network type.
    *        Possible values: 'wcdma/gsm', 'gsm', 'wcdma', 'wcdma/gsm-auto',
-   *                         'cdma/evdo', 'cdma', 'evdo', 'wcdma/gsm/cdma/evdo',
-   *                         'lte/cdma/evdo', 'lte/wcdma/gsm',
-   *                         'lte/wcdma/gsm/cdma/evdo' or 'lte'.
+   *                         'cdma/evdo', 'cdma', 'evdo', or
+   *                         'wcdma/gsm/cdma/evdo'.
    *
    * If successful, the request's onsuccess will be called.
    *
@@ -164,8 +163,7 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    * If successful, the request's onsuccess will be called. And the request's
    * result will be a string indicating the current preferred network type.
    * The value will be either 'wcdma/gsm', 'gsm', 'wcdma', 'wcdma/gsm-auto',
-   * 'cdma/evdo', 'cdma', 'evdo', 'wcdma/gsm/cdma/evdo', 'lte/cdma/evdo',
-   * 'lte/wcdma/gsm', 'lte/wcdma/gsm/cdma/evdo' or 'lte'.
+   * 'cdma/evdo', 'cdma', 'evdo', or 'wcdma/gsm/cdma/evdo'.
    *
    * Otherwise, the request's onerror will be called, and the request's error
    * will be either 'RadioNotAvailable', 'RequestNotSupported',

@@ -291,7 +291,7 @@ public:
   {
   }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
     if (!pm)

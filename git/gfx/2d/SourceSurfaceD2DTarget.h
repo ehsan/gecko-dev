@@ -19,7 +19,6 @@ class DrawTargetD2D;
 class SourceSurfaceD2DTarget : public SourceSurface
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(SourceSurfaceD2DTarget)
   SourceSurfaceD2DTarget(DrawTargetD2D* aDrawTarget, ID3D10Texture2D* aTexture,
                          SurfaceFormat aFormat);
   ~SourceSurfaceD2DTarget();
@@ -61,7 +60,6 @@ private:
 class DataSourceSurfaceD2DTarget : public DataSourceSurface
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(DataSourceSurfaceD2DTarget)
   DataSourceSurfaceD2DTarget(SurfaceFormat aFormat);
   ~DataSourceSurfaceD2DTarget();
 

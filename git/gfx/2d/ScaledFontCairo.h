@@ -16,7 +16,6 @@ namespace gfx {
 class ScaledFontCairo : public ScaledFontBase
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(ScaledFontCairo)
 
   ScaledFontCairo(cairo_scaled_font_t* aScaledFont, Float aSize);
 
@@ -33,7 +32,6 @@ public:
 class GlyphRenderingOptionsCairo : public GlyphRenderingOptions
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(GlyphRenderingOptionsCairo)
   GlyphRenderingOptionsCairo()
     : mHinting(FontHinting::NORMAL)
     , mAutoHinting(false)

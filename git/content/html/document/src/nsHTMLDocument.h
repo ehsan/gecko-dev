@@ -86,8 +86,6 @@ public:
   virtual NS_HIDDEN_(nsContentList*) GetFormControls();
  
   // nsIDOMDocument interface
-  using nsDocument::CreateElement;
-  using nsDocument::CreateElementNS;
   NS_FORWARD_NSIDOMDOCUMENT(nsDocument::)
 
   // And explicitly import the things from nsDocument that we just shadowed

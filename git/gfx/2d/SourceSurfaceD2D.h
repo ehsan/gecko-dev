@@ -18,7 +18,6 @@ class DataSourceSurfaceD2D;
 class SourceSurfaceD2D : public SourceSurface
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(SourceSurfaceD2D)
   SourceSurfaceD2D();
   ~SourceSurfaceD2D();
 
@@ -56,7 +55,6 @@ private:
 class DataSourceSurfaceD2D : public DataSourceSurface
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(DataSourceSurfaceD2D)
   DataSourceSurfaceD2D(SourceSurfaceD2D* aSourceSurface);
   virtual ~DataSourceSurfaceD2D();
 

@@ -97,12 +97,12 @@ ShadowAfter(const OpInsertAfter& op)
 }
 
 static ShadowLayerParent*
-ShadowContainer(const OpPrependChild& op)
+ShadowContainer(const OpAppendChild& op)
 {
   return cast(op.containerParent());
 }
 static ShadowLayerParent*
-ShadowChild(const OpPrependChild& op)
+ShadowChild(const OpAppendChild& op)
 {
   return cast(op.childLayerParent());
 }
@@ -203,9 +203,6 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
   if (mDestroyed || !layer_manager() || layer_manager()->IsDestroyed()) {
     return true;
   }
-
-  // Clear fence handles used in previsou transaction.
-  ClearPrevFenceHandles();
 
   EditReplyVector replyv;
 
@@ -419,10 +416,10 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       }
       break;
     }
-    case Edit::TOpPrependChild: {
-      MOZ_LAYERS_LOG(("[ParentSide] PrependChild"));
+    case Edit::TOpAppendChild: {
+      MOZ_LAYERS_LOG(("[ParentSide] AppendChild"));
 
-      const OpPrependChild& oac = edit.get_OpPrependChild();
+      const OpAppendChild& oac = edit.get_OpAppendChild();
       Layer* child = ShadowChild(oac)->AsLayer();
       if (!child) {
         return false;
@@ -708,11 +705,6 @@ bool
 LayerTransactionParent::DeallocPTextureParent(PTextureParent* actor)
 {
   return TextureHost::DestroyIPDLActor(actor);
-}
-
-bool LayerTransactionParent::IsSameProcess() const
-{
-  return OtherProcess() == ipc::kInvalidProcessHandle;
 }
 
 } // namespace layers

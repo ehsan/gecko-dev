@@ -1078,10 +1078,6 @@ MacFontInfo::LoadFontFamilyData(const nsAString& aFamilyName)
         }
         CTFontRef fontRef = CTFontCreateWithFontDescriptor(faceDesc,
                                                            0.0, nullptr);
-        if (!fontRef) {
-            NS_WARNING("failed to create a CTFontRef");
-            continue;
-        }
 
         if (mLoadCmaps) {
             // face name

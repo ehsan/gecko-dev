@@ -2109,11 +2109,10 @@ add_test(function test_personalization_state() {
 
   context.ICCRecordHelper.readICCID = function fakeReadICCID() {};
 
-  function testPersonalization(isCdma, cardPersoState, geckoCardState) {
+  function testPersonalization(cardPersoState, geckoCardState) {
     let iccStatus = {
       cardState: CARD_STATE_PRESENT,
-      gsmUmtsSubscriptionAppIndex: (!isCdma) ? 0 : -1,
-      cdmaSubscriptionAppIndex: (isCdma) ? 0 : -1,
+      gsmUmtsSubscriptionAppIndex: 0,
       apps: [
         {
           app_state: CARD_APPSTATE_SUBSCRIPTION_PERSO,
@@ -2121,52 +2120,24 @@ add_test(function test_personalization_state() {
         }],
     };
 
-    ril._isCdma = isCdma;
     ril._processICCStatus(iccStatus);
     do_check_eq(ril.cardState, geckoCardState);
   }
 
-  // Test GSM personalization state.
-  testPersonalization(false, CARD_PERSOSUBSTATE_SIM_NETWORK,
+  testPersonalization(CARD_PERSOSUBSTATE_SIM_NETWORK,
                       GECKO_CARDSTATE_NETWORK_LOCKED);
-  testPersonalization(false, CARD_PERSOSUBSTATE_SIM_CORPORATE,
+  testPersonalization(CARD_PERSOSUBSTATE_SIM_CORPORATE,
                       GECKO_CARDSTATE_CORPORATE_LOCKED);
-  testPersonalization(false, CARD_PERSOSUBSTATE_SIM_SERVICE_PROVIDER,
+  testPersonalization(CARD_PERSOSUBSTATE_SIM_SERVICE_PROVIDER,
                       GECKO_CARDSTATE_SERVICE_PROVIDER_LOCKED);
-  testPersonalization(false, CARD_PERSOSUBSTATE_SIM_NETWORK_PUK,
+  testPersonalization(CARD_PERSOSUBSTATE_SIM_NETWORK_PUK,
                       GECKO_CARDSTATE_NETWORK_PUK_REQUIRED);
-  testPersonalization(false, CARD_PERSOSUBSTATE_SIM_CORPORATE_PUK,
+  testPersonalization(CARD_PERSOSUBSTATE_SIM_CORPORATE_PUK,
                       GECKO_CARDSTATE_CORPORATE_PUK_REQUIRED);
-  testPersonalization(false, CARD_PERSOSUBSTATE_SIM_SERVICE_PROVIDER_PUK,
+  testPersonalization(CARD_PERSOSUBSTATE_SIM_SERVICE_PROVIDER_PUK,
                       GECKO_CARDSTATE_SERVICE_PROVIDER_PUK_REQUIRED);
-  testPersonalization(false, CARD_PERSOSUBSTATE_READY,
+  testPersonalization(CARD_PERSOSUBSTATE_READY,
                       GECKO_CARDSTATE_PERSONALIZATION_READY);
-
-  // Test CDMA personalization state.
-  testPersonalization(true, CARD_PERSOSUBSTATE_RUIM_NETWORK1,
-                      GECKO_CARDSTATE_NETWORK1_LOCKED);
-  testPersonalization(true, CARD_PERSOSUBSTATE_RUIM_NETWORK2,
-                      GECKO_CARDSTATE_NETWORK2_LOCKED);
-  testPersonalization(true, CARD_PERSOSUBSTATE_RUIM_HRPD,
-                      GECKO_CARDSTATE_HRPD_NETWORK_LOCKED);
-  testPersonalization(true, CARD_PERSOSUBSTATE_RUIM_CORPORATE,
-                      GECKO_CARDSTATE_RUIM_CORPORATE_LOCKED);
-  testPersonalization(true, CARD_PERSOSUBSTATE_RUIM_SERVICE_PROVIDER,
-                      GECKO_CARDSTATE_RUIM_SERVICE_PROVIDER_LOCKED);
-  testPersonalization(true, CARD_PERSOSUBSTATE_RUIM_RUIM,
-                      GECKO_CARDSTATE_RUIM_LOCKED);
-  testPersonalization(true, CARD_PERSOSUBSTATE_RUIM_NETWORK1_PUK,
-                      GECKO_CARDSTATE_NETWORK1_PUK_REQUIRED);
-  testPersonalization(true, CARD_PERSOSUBSTATE_RUIM_NETWORK2_PUK,
-                      GECKO_CARDSTATE_NETWORK2_PUK_REQUIRED);
-  testPersonalization(true, CARD_PERSOSUBSTATE_RUIM_HRPD_PUK,
-                      GECKO_CARDSTATE_HRPD_NETWORK_PUK_REQUIRED);
-  testPersonalization(true, CARD_PERSOSUBSTATE_RUIM_CORPORATE_PUK,
-                      GECKO_CARDSTATE_RUIM_CORPORATE_PUK_REQUIRED);
-  testPersonalization(true, CARD_PERSOSUBSTATE_RUIM_SERVICE_PROVIDER_PUK,
-                      GECKO_CARDSTATE_RUIM_SERVICE_PROVIDER_PUK_REQUIRED);
-  testPersonalization(true, CARD_PERSOSUBSTATE_RUIM_RUIM_PUK,
-                      GECKO_CARDSTATE_RUIM_PUK_REQUIRED);
 
   run_next_test();
 });
@@ -2325,21 +2296,11 @@ add_test(function test_unlock_card_lock_corporateLocked() {
 
   let GECKO_CARDLOCK_TO_PASSWORD_TYPE = {};
   GECKO_CARDLOCK_TO_PASSWORD_TYPE[GECKO_CARDLOCK_NCK] = "pin";
-  GECKO_CARDLOCK_TO_PASSWORD_TYPE[GECKO_CARDLOCK_NCK1] = "pin";
-  GECKO_CARDLOCK_TO_PASSWORD_TYPE[GECKO_CARDLOCK_NCK2] = "pin";
-  GECKO_CARDLOCK_TO_PASSWORD_TYPE[GECKO_CARDLOCK_HNCK] = "pin";
   GECKO_CARDLOCK_TO_PASSWORD_TYPE[GECKO_CARDLOCK_CCK] = "pin";
   GECKO_CARDLOCK_TO_PASSWORD_TYPE[GECKO_CARDLOCK_SPCK] = "pin";
-  GECKO_CARDLOCK_TO_PASSWORD_TYPE[GECKO_CARDLOCK_RCCK] = "pin";
-  GECKO_CARDLOCK_TO_PASSWORD_TYPE[GECKO_CARDLOCK_RSPCK] = "pin";
   GECKO_CARDLOCK_TO_PASSWORD_TYPE[GECKO_CARDLOCK_NCK_PUK] = "puk";
-  GECKO_CARDLOCK_TO_PASSWORD_TYPE[GECKO_CARDLOCK_NCK1_PUK] = "puk";
-  GECKO_CARDLOCK_TO_PASSWORD_TYPE[GECKO_CARDLOCK_NCK2_PUK] = "puk";
-  GECKO_CARDLOCK_TO_PASSWORD_TYPE[GECKO_CARDLOCK_HNCK_PUK] = "puk";
   GECKO_CARDLOCK_TO_PASSWORD_TYPE[GECKO_CARDLOCK_CCK_PUK] = "puk";
   GECKO_CARDLOCK_TO_PASSWORD_TYPE[GECKO_CARDLOCK_SPCK_PUK] = "puk";
-  GECKO_CARDLOCK_TO_PASSWORD_TYPE[GECKO_CARDLOCK_RCCK_PUK] = "puk";
-  GECKO_CARDLOCK_TO_PASSWORD_TYPE[GECKO_CARDLOCK_RSPCK_PUK] = "puk";
 
   function do_test(aLock, aPassword) {
     buf.sendParcel = function fakeSendParcel () {
@@ -2363,21 +2324,11 @@ add_test(function test_unlock_card_lock_corporateLocked() {
   }
 
   do_test(GECKO_CARDLOCK_NCK, pin);
-  do_test(GECKO_CARDLOCK_NCK1, pin);
-  do_test(GECKO_CARDLOCK_NCK2, pin);
-  do_test(GECKO_CARDLOCK_HNCK, pin);
   do_test(GECKO_CARDLOCK_CCK, pin);
   do_test(GECKO_CARDLOCK_SPCK, pin);
-  do_test(GECKO_CARDLOCK_RCCK, pin);
-  do_test(GECKO_CARDLOCK_RSPCK, pin);
   do_test(GECKO_CARDLOCK_NCK_PUK, puk);
-  do_test(GECKO_CARDLOCK_NCK1_PUK, puk);
-  do_test(GECKO_CARDLOCK_NCK2_PUK, puk);
-  do_test(GECKO_CARDLOCK_HNCK_PUK, puk);
   do_test(GECKO_CARDLOCK_CCK_PUK, puk);
   do_test(GECKO_CARDLOCK_SPCK_PUK, puk);
-  do_test(GECKO_CARDLOCK_RCCK_PUK, puk);
-  do_test(GECKO_CARDLOCK_RSPCK_PUK, puk);
 
   run_next_test();
 });

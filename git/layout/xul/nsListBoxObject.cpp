@@ -22,13 +22,13 @@ public:
   NS_DECL_NSILISTBOXOBJECT
 
   // nsPIListBoxObject
-  virtual nsListBoxBodyFrame* GetListBoxBody(bool aFlush) MOZ_OVERRIDE;
+  virtual nsListBoxBodyFrame* GetListBoxBody(bool aFlush);
 
   nsListBoxObject();
 
   // nsPIBoxObject
-  virtual void Clear() MOZ_OVERRIDE;
-  virtual void ClearCachedValues() MOZ_OVERRIDE;
+  virtual void Clear();
+  virtual void ClearCachedValues();
   
 protected:
   nsListBoxBodyFrame *mListBoxBody;

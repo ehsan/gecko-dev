@@ -167,13 +167,23 @@ frontend::MaybeCallSourceHandler(JSContext *cx, const ReadOnlyCompileOptions &op
 ScriptSourceObject *
 frontend::CreateScriptSourceObject(ExclusiveContext *cx, const ReadOnlyCompileOptions &options)
 {
-    ScriptSource *ss = cx->new_<ScriptSource>();
+    ScriptSource *ss = cx->new_<ScriptSource>(options.originPrincipals());
     if (!ss)
         return nullptr;
-    ScriptSourceHolder ssHolder(ss);
 
-    if (!ss->initFromOptions(cx, options))
-        return nullptr;
+    if (options.hasIntroductionInfo) {
+        const char *filename = options.filename() ? options.filename() : "<unknown>";
+        JS_ASSERT(options.introductionType != nullptr);
+
+        if (!ss->setIntroducedFilename(cx, filename, options.introductionLineno,
+                                       options.introductionType, options.introducerFilename()))
+            return nullptr;
+
+        ss->setIntroductionOffset(options.introductionOffset);
+    } else {
+        if (options.filename() && !ss->setFilename(cx, options.filename()))
+            return nullptr;
+    }
 
     return ScriptSourceObject::create(cx, ss, options);
 }
