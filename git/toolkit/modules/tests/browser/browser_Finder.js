@@ -51,9 +51,6 @@ function startTests () {
           if (first) {
             ok(aMessage.data.ok, "content script should send okay");
             first = false;
-
-            // Just a simple search for "test link".
-            finder.fastFind("test link", false, false);
           } else {
             ok(!aMessage.data.ok, "content script should not send okay");
             cleanup();
@@ -63,6 +60,8 @@ function startTests () {
       }
       // Search only for links and draw outlines.
       finder.fastFind("test link", true, true);
+      // Just a simple search for "test link".
+      finder.fastFind("test link", false, false);
     }
     finder.highlight(true, "Bla");
   }

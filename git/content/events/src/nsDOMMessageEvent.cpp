@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsDOMMessageEvent.h"
-#include "mozilla/dom/MessageEventBinding.h"
 #include "mozilla/dom/MessagePort.h"
 #include "mozilla/dom/MessagePortBinding.h"
 #include "mozilla/dom/MessagePortList.h"
@@ -54,12 +53,6 @@ nsDOMMessageEvent::~nsDOMMessageEvent()
 {
   mData = JSVAL_VOID;
   mozilla::DropJSObjects(this);
-}
-
-JSObject*
-nsDOMMessageEvent::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
-{
-  return mozilla::dom::MessageEventBinding::Wrap(aCx, aScope, this);
 }
 
 NS_IMETHODIMP
@@ -155,7 +148,7 @@ nsDOMMessageEvent::Constructor(const mozilla::dom::GlobalObject& aGlobal,
     }
 
     if (!event->mWindowSource) {
-      MessagePortBase* port = nullptr;
+      MessagePort* port = nullptr;
       nsresult rv = UNWRAP_OBJECT(MessagePort, aCx, aParam.mSource, port);
       if (NS_FAILED(rv)) {
         aRv.Throw(NS_ERROR_INVALID_ARG);
@@ -167,7 +160,7 @@ nsDOMMessageEvent::Constructor(const mozilla::dom::GlobalObject& aGlobal,
   }
 
   if (aParam.mPorts.WasPassed() && !aParam.mPorts.Value().IsNull()) {
-    nsTArray<nsRefPtr<MessagePortBase>> ports;
+    nsTArray<nsRefPtr<MessagePort> > ports;
     for (uint32_t i = 0, len = aParam.mPorts.Value().Value().Length(); i < len; ++i) {
       ports.AppendElement(aParam.mPorts.Value().Value()[i].get());
     }
@@ -198,13 +191,6 @@ nsDOMMessageEvent::InitMessageEvent(const nsAString& aType,
   mWindowSource = aSource;
 
   return NS_OK;
-}
-
-void
-nsDOMMessageEvent::SetPorts(mozilla::dom::MessagePortList* aPorts)
-{
-  MOZ_ASSERT(!mPorts && aPorts);
-  mPorts = aPorts;
 }
 
 nsresult

@@ -8,9 +8,8 @@
 
 #include "Workers.h"
 
-#include "nsDOMEventTargetHelper.h"
 #include "mozilla/dom/BindingDeclarations.h"
-#include "mozilla/dom/MessagePort.h"
+#include "nsDOMEventTargetHelper.h"
 
 class nsIDOMEvent;
 class nsPIDOMWindow;
@@ -18,17 +17,14 @@ class nsPIDOMWindow;
 BEGIN_WORKERS_NAMESPACE
 
 class SharedWorker;
-class WorkerPrivate;
 
-class MessagePort MOZ_FINAL : public mozilla::dom::MessagePortBase
+class MessagePort MOZ_FINAL : public nsDOMEventTargetHelper
 {
   friend class SharedWorker;
-  friend class WorkerPrivate;
 
   typedef mozilla::ErrorResult ErrorResult;
 
   nsRefPtr<SharedWorker> mSharedWorker;
-  WorkerPrivate* mWorkerPrivate;
   nsTArray<nsCOMPtr<nsIDOMEvent>> mQueuedEvents;
   uint64_t mSerial;
   bool mStarted;
@@ -37,16 +33,23 @@ public:
   static bool
   PrefEnabled();
 
-  virtual void
+  void
   PostMessageMoz(JSContext* aCx, JS::HandleValue aMessage,
                  const Optional<Sequence<JS::Value>>& aTransferable,
-                 ErrorResult& aRv) MOZ_OVERRIDE;
+                 ErrorResult& aRv);
 
-  virtual void
-  Start() MOZ_OVERRIDE;
+  void
+  Start();
 
-  virtual void
-  Close() MOZ_OVERRIDE;
+  void
+  Close()
+  {
+    AssertIsOnMainThread();
+
+    if (!IsClosed()) {
+      CloseInternal();
+    }
+  }
 
   uint64_t
   Serial() const
@@ -60,19 +63,30 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(MessagePort, nsDOMEventTargetHelper)
 
-  virtual EventHandlerNonNull*
-  GetOnmessage() MOZ_OVERRIDE;
+  EventHandlerNonNull*
+  GetOnmessage()
+  {
+    AssertIsOnMainThread();
 
-  virtual void
-  SetOnmessage(EventHandlerNonNull* aCallback) MOZ_OVERRIDE;
+    return GetEventHandler(nsGkAtoms::onmessage, EmptyString());
+  }
 
-  virtual already_AddRefed<MessagePortBase>
-  Clone() MOZ_OVERRIDE;
+  void
+  SetOnmessage(EventHandlerNonNull* aCallback)
+  {
+    AssertIsOnMainThread();
+
+    SetEventHandler(nsGkAtoms::onmessage, EmptyString(), aCallback);
+
+    Start();
+  }
 
   bool
   IsClosed() const
   {
-    return !mSharedWorker && !mWorkerPrivate;
+    AssertIsOnMainThread();
+
+    return !mSharedWorker;
   }
 
   virtual JSObject*
@@ -81,19 +95,10 @@ public:
   virtual nsresult
   PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
 
-#ifdef DEBUG
-  void
-  AssertCorrectThread() const;
-#else
-  void
-  AssertCorrectThread() const { }
-#endif
-
 private:
-  // This class can only be created by SharedWorker or WorkerPrivate.
+  // This class can only be created by SharedWorker.
   MessagePort(nsPIDOMWindow* aWindow, SharedWorker* aSharedWorker,
               uint64_t aSerial);
-  MessagePort(WorkerPrivate* aWorkerPrivate, uint64_t aSerial);
 
   // This class is reference-counted and will be destroyed from Release().
   ~MessagePort();

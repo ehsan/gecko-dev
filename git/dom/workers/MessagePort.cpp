@@ -5,15 +5,12 @@
 
 #include "MessagePort.h"
 
-#include "mozilla/dom/MessagePortBinding.h"
+#include "mozilla/dom/WorkerMessagePortBinding.h"
 #include "nsDOMEvent.h"
 #include "nsEventDispatcher.h"
 
 #include "SharedWorker.h"
-#include "WorkerPrivate.h"
 
-using mozilla::dom::EventHandlerNonNull;
-using mozilla::dom::MessagePortBase;
 using mozilla::dom::Optional;
 using mozilla::dom::Sequence;
 
@@ -21,54 +18,51 @@ USING_WORKERS_NAMESPACE
 
 namespace {
 
-class DelayedEventRunnable MOZ_FINAL : public WorkerRunnable
+class DelayedEventRunnable MOZ_FINAL : public nsIRunnable
 {
   nsRefPtr<MessagePort> mMessagePort;
-  nsTArray<nsCOMPtr<nsIDOMEvent>> mEvents;
+  nsCOMPtr<nsIDOMEvent> mEvent;
 
 public:
-  DelayedEventRunnable(WorkerPrivate* aWorkerPrivate,
-                       Target aTarget,
-                       MessagePort* aMessagePort,
-                       nsTArray<nsCOMPtr<nsIDOMEvent>>& aEvents)
-  : WorkerRunnable(aWorkerPrivate, aTarget,
-                   aTarget == WorkerThread ? ModifyBusyCount : UnchangedBusyCount,
-                   SkipWhenClearing),
-    mMessagePort(aMessagePort)
+  DelayedEventRunnable(MessagePort* aMessagePort,
+                       already_AddRefed<nsIDOMEvent> aEvent)
+  : mMessagePort(aMessagePort), mEvent(aEvent)
   {
     AssertIsOnMainThread();
     MOZ_ASSERT(aMessagePort);
-    MOZ_ASSERT(aEvents.Length());
-
-    mEvents.SwapElements(aEvents);
+    MOZ_ASSERT(aEvent.get());
   }
 
-  bool
-  WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate);
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIRUNNABLE
 };
 
 } // anonymous namespace
 
 MessagePort::MessagePort(nsPIDOMWindow* aWindow, SharedWorker* aSharedWorker,
                          uint64_t aSerial)
-: MessagePortBase(aWindow), mSharedWorker(aSharedWorker),
-  mWorkerPrivate(nullptr), mSerial(aSerial), mStarted(false)
+: nsDOMEventTargetHelper(aWindow), mSharedWorker(aSharedWorker),
+  mSerial(aSerial), mStarted(false)
 {
   AssertIsOnMainThread();
   MOZ_ASSERT(aSharedWorker);
-  SetIsDOMBinding();
-}
-
-MessagePort::MessagePort(WorkerPrivate* aWorkerPrivate, uint64_t aSerial)
-: mWorkerPrivate(aWorkerPrivate), mSerial(aSerial), mStarted(false)
-{
-  aWorkerPrivate->AssertIsOnWorkerThread();
-  SetIsDOMBinding();
 }
 
 MessagePort::~MessagePort()
 {
+  AssertIsOnMainThread();
+
   Close();
+}
+
+// static
+bool
+MessagePort::PrefEnabled()
+{
+  AssertIsOnMainThread();
+
+  // Currently tied to the SharedWorker preference.
+  return SharedWorker::PrefEnabled();
 }
 
 void
@@ -76,26 +70,20 @@ MessagePort::PostMessageMoz(JSContext* aCx, JS::HandleValue aMessage,
                             const Optional<Sequence<JS::Value>>& aTransferable,
                             ErrorResult& aRv)
 {
-  AssertCorrectThread();
+  AssertIsOnMainThread();
 
   if (IsClosed()) {
     aRv = NS_ERROR_DOM_INVALID_STATE_ERR;
     return;
   }
 
-  if (mSharedWorker) {
-    mSharedWorker->PostMessage(aCx, aMessage, aTransferable, aRv);
-  }
-  else {
-    mWorkerPrivate->PostMessageToParentMessagePort(aCx, Serial(), aMessage,
-                                                   aTransferable, aRv);
-  }
+  mSharedWorker->PostMessage(aCx, aMessage, aTransferable, aRv);
 }
 
 void
 MessagePort::Start()
 {
-  AssertCorrectThread();
+  AssertIsOnMainThread();
 
   if (IsClosed()) {
     NS_WARNING("Called start() after calling close()!");
@@ -109,34 +97,21 @@ MessagePort::Start()
   mStarted = true;
 
   if (!mQueuedEvents.IsEmpty()) {
-    WorkerRunnable::Target target = WorkerRunnable::WorkerThread;
-    WorkerPrivate* workerPrivate = mWorkerPrivate;
-
-    if (!workerPrivate) {
-      target = WorkerRunnable::ParentThread;
-      workerPrivate = mSharedWorker->GetWorkerPrivate();
+    for (uint32_t index = 0; index < mQueuedEvents.Length(); index++) {
+      nsCOMPtr<nsIRunnable> runnable =
+        new DelayedEventRunnable(this, mQueuedEvents[index].forget());
+      if (NS_FAILED(NS_DispatchToCurrentThread(runnable))) {
+        NS_WARNING("Failed to dispatch queued event!");
+      }
     }
-
-    nsRefPtr<DelayedEventRunnable> runnable =
-      new DelayedEventRunnable(workerPrivate, target, this, mQueuedEvents);
-    runnable->Dispatch(nullptr);
-  }
-}
-
-void
-MessagePort::Close()
-{
-  AssertCorrectThread();
-
-  if (!IsClosed()) {
-    CloseInternal();
+    mQueuedEvents.Clear();
   }
 }
 
 void
 MessagePort::QueueEvent(nsIDOMEvent* aEvent)
 {
-  AssertCorrectThread();
+  AssertIsOnMainThread();
   MOZ_ASSERT(aEvent);
   MOZ_ASSERT(!IsClosed());
   MOZ_ASSERT(!mStarted);
@@ -144,41 +119,10 @@ MessagePort::QueueEvent(nsIDOMEvent* aEvent)
   mQueuedEvents.AppendElement(aEvent);
 }
 
-EventHandlerNonNull*
-MessagePort::GetOnmessage()
-{
-  AssertCorrectThread();
-
-  return NS_IsMainThread() ? GetEventHandler(nsGkAtoms::onmessage, EmptyString())
-                           : GetEventHandler(nullptr, NS_LITERAL_STRING("message"));
-}
-
-void
-MessagePort::SetOnmessage(EventHandlerNonNull* aCallback)
-{
-  AssertCorrectThread();
-
-  if (NS_IsMainThread()) {
-    SetEventHandler(nsGkAtoms::onmessage, EmptyString(), aCallback);
-  }
-  else {
-    SetEventHandler(nullptr, NS_LITERAL_STRING("message"), aCallback);
-  }
-
-  Start();
-}
-
-already_AddRefed<MessagePortBase>
-MessagePort::Clone()
-{
-  NS_WARNING("Haven't implemented structured clone for these ports yet!");
-  return nullptr;
-}
-
 void
 MessagePort::CloseInternal()
 {
-  AssertCorrectThread();
+  AssertIsOnMainThread();
   MOZ_ASSERT(!IsClosed());
   MOZ_ASSERT_IF(mStarted, mQueuedEvents.IsEmpty());
 
@@ -189,28 +133,7 @@ MessagePort::CloseInternal()
   }
 
   mSharedWorker = nullptr;
-  mWorkerPrivate = nullptr;
 }
-
-#ifdef DEBUG
-void
-MessagePort::AssertCorrectThread() const
-{
-  if (IsClosed()) {
-    return; // Can't assert anything if we nulled out our pointers.
-  }
-
-  MOZ_ASSERT((mSharedWorker || mWorkerPrivate) &&
-             !(mSharedWorker && mWorkerPrivate));
-
-  if (mSharedWorker) {
-    AssertIsOnMainThread();
-  }
-  else {
-    mWorkerPrivate->AssertIsOnWorkerThread();
-  }
-}
-#endif
 
 NS_IMPL_ADDREF_INHERITED(MessagePort, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(MessagePort, nsDOMEventTargetHelper)
@@ -234,15 +157,15 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 JSObject*
 MessagePort::WrapObject(JSContext* aCx, JS::HandleObject aScope)
 {
-  AssertCorrectThread();
+  AssertIsOnMainThread();
 
-  return MessagePortBinding::Wrap(aCx, aScope, this);
+  return WorkerMessagePortBinding::Wrap(aCx, aScope, this);
 }
 
 nsresult
 MessagePort::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
-  AssertCorrectThread();
+  AssertIsOnMainThread();
 
   nsIDOMEvent*& event = aVisitor.mDOMEvent;
 
@@ -251,7 +174,7 @@ MessagePort::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 
     if (IsClosed()) {
       preventDispatch = true;
-    } else if (NS_IsMainThread() && mSharedWorker->IsSuspended()) {
+    } else if (mSharedWorker->IsSuspended()) {
       mSharedWorker->QueueEvent(event);
       preventDispatch = true;
     } else if (!mStarted) {
@@ -269,17 +192,18 @@ MessagePort::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   return nsDOMEventTargetHelper::PreHandleEvent(aVisitor);
 }
 
-bool
-DelayedEventRunnable::WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
+NS_IMPL_ISUPPORTS1(DelayedEventRunnable, nsIRunnable)
+
+NS_IMETHODIMP
+DelayedEventRunnable::Run()
 {
+  AssertIsOnMainThread();
   MOZ_ASSERT(mMessagePort);
-  mMessagePort->AssertCorrectThread();
-  MOZ_ASSERT(mEvents.Length());
+  MOZ_ASSERT(mEvent);
 
   bool ignored;
-  for (uint32_t i = 0; i < mEvents.Length(); i++) {
-    mMessagePort->DispatchEvent(mEvents[i], &ignored);
-  }
+  nsresult rv = mMessagePort->DispatchEvent(mEvent, &ignored);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  return true;
+  return NS_OK;
 }
