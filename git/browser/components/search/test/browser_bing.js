@@ -103,11 +103,6 @@ function test() {
               value: "MOZLBR",
               purpose:"keyword",
             },
-            {
-              name: "form",
-              value: "MOZTSB",
-              purpose: "newtab",
-            },
           ],
           mozparams: {},
         },

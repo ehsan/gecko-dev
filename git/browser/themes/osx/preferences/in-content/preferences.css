@@ -12,6 +12,7 @@ menulist:not([editable="true"]) > .menulist-dropmarker {
 
 checkbox:hover::before,
 checkbox[checked]::before {
+  margin-bottom: -2px;
   -moz-margin-end: -20px;
   -moz-margin-start: 5px;
 }

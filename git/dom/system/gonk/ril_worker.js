@@ -1498,11 +1498,6 @@ RilObject.prototype = {
   },
 
   sendDialRequest: function(options) {
-    // Always succeed.
-    options.success = true;
-    this.sendChromeMessage(options);
-    this._createPendingOutgoingCall(options);
-
     let Buf = this.context.Buf;
     Buf.newParcel(options.request, options);
     Buf.writeString(options.number);
@@ -1546,12 +1541,9 @@ RilObject.prototype = {
 
     let callIndex = call.callIndex;
     if (callIndex === OUTGOING_PLACEHOLDER_CALL_INDEX) {
-      if (DEBUG) this.context.debug("Hang up pending outgoing call.");
       this._removeVoiceCall(call, GECKO_CALL_ERROR_NORMAL_CALL_CLEARING);
       return;
     }
-
-    call.hangUpLocal = true;
 
     if (call.state === CALL_STATE_HOLDING) {
       this.sendHangUpBackgroundRequest(callIndex);
@@ -1630,8 +1622,6 @@ RilObject.prototype = {
     if (!call) {
       return;
     }
-
-    call.hangUpLocal = true;
 
     let Buf = this.context.Buf;
     if (this._isCdma) {
@@ -3766,9 +3756,7 @@ RilObject.prototype = {
         if (this.currentConference.participants[currentCall.callIndex]) {
           conferenceChanged = true;
         }
-        this._removeVoiceCall(currentCall,
-                              currentCall.hangUpLocal ?
-                                GECKO_CALL_ERROR_NORMAL_CALL_CLEARING : null);
+        this._removeVoiceCall(currentCall);
         continue;
       }
 
@@ -3858,14 +3846,14 @@ RilObject.prototype = {
     }
 
     if (pendingOutgoingCall) {
+      // We don't get a successful call for pendingOutgoingCall.
       if (!newCalls || Object.keys(newCalls).length === 0) {
-        // We don't get a successful call for pendingOutgoingCall.
-        this._removePendingOutgoingCall(GECKO_CALL_ERROR_UNSPECIFIED);
-      } else {
-        // Only remove it from currentCalls map. Will use the new call to
-        // replace the placeholder.
-        delete this.currentCalls[OUTGOING_PLACEHOLDER_CALL_INDEX];
+        if (DEBUG) this.context.debug("No result for pending outgoing call.");
+        pendingOutgoingCall.failCause = GECKO_CALL_ERROR_UNSPECIFIED;
+        this._handleDisconnectedCall(pendingOutgoingCall);
       }
+
+      delete this.currentCalls[OUTGOING_PLACEHOLDER_CALL_INDEX];
     }
 
     // Go through any remaining calls that are new to us.
@@ -3878,7 +3866,7 @@ RilObject.prototype = {
             (newCall.state === CALL_STATE_DIALING ||
              newCall.state === CALL_STATE_ALERTING)) {
           // Receive a new outgoing call which is already hung up by user.
-          if (DEBUG) this.context.debug("Pending outgoing call is hung up by user.");
+          if (DEBUG) this.context.debug("Hang up pending outgoing call");
           this.sendHangUpRequest(newCall.callIndex);
         } else {
           this._addNewVoiceCall(newCall);
@@ -3943,25 +3931,6 @@ RilObject.prototype = {
         }).bind(this, removedCall));
       }
     }
-  },
-
-  _createPendingOutgoingCall: function(options) {
-    if (DEBUG) this.context.debug("Create a pending outgoing call.");
-    this._addNewVoiceCall({
-      number: options.number,
-      state: CALL_STATE_DIALING,
-      callIndex: OUTGOING_PLACEHOLDER_CALL_INDEX
-    });
-  },
-
-  _removePendingOutgoingCall: function(failCause) {
-    let call = this.currentCalls[OUTGOING_PLACEHOLDER_CALL_INDEX];
-    if (!call) {
-      return;
-    }
-
-    if (DEBUG) this.context.debug("Remove pending outgoing call.");
-    this._removeVoiceCall(pendingOutgoingCall, failCause);
   },
 
   _ensureConference: function() {
@@ -5360,14 +5329,24 @@ RilObject.prototype[REQUEST_GET_CURRENT_CALLS] = function REQUEST_GET_CURRENT_CA
   this._processCalls(calls);
 };
 RilObject.prototype[REQUEST_DIAL] = function REQUEST_DIAL(length, options) {
-  // We already return a successful response before. Don't respond it again!
-  if (options.rilRequestError) {
-    this.getFailCauseCode((function(failCause) {
-      this._removePendingOutgoingCall(failCause);
-    }).bind(this));
+  options.success = (options.rilRequestError === 0);
+  if (options.success) {
+    this.sendChromeMessage(options);
+
+    // Create a pending outgoing call.
+    if (DEBUG) this.context.debug("Create a pending outgoing call.");
+    this._addNewVoiceCall({
+      number: options.number,
+      state: CALL_STATE_DIALING,
+      callIndex: OUTGOING_PLACEHOLDER_CALL_INDEX
+    });
+  } else {
+    this.getFailCauseCode((function(options, failCause) {
+      options.errorMsg = failCause;
+      this.sendChromeMessage(options);
+    }).bind(this, options));
   }
 };
-RilObject.prototype[REQUEST_DIAL_EMERGENCY_CALL] = RilObject.prototype[REQUEST_DIAL];
 RilObject.prototype[REQUEST_GET_IMSI] = function REQUEST_GET_IMSI(length, options) {
   if (options.rilRequestError) {
     return;
