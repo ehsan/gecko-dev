@@ -409,31 +409,12 @@ Seer::Init()
   rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR,
                               getter_AddRefs(mDBFile));
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = mDBFile->AppendNative(NS_LITERAL_CSTRING("netpredictions.sqlite"));
+  rv = mDBFile->AppendNative(NS_LITERAL_CSTRING("seer.sqlite"));
   NS_ENSURE_SUCCESS(rv, rv);
 
   mInitialized = true;
 
   return rv;
-}
-
-void
-Seer::CheckForAndDeleteOldDBFile()
-{
-  nsCOMPtr<nsIFile> oldDBFile;
-  nsresult rv = mDBFile->GetParent(getter_AddRefs(oldDBFile));
-  RETURN_IF_FAILED(rv);
-
-  rv = oldDBFile->AppendNative(NS_LITERAL_CSTRING("seer.sqlite"));
-  RETURN_IF_FAILED(rv);
-
-  bool oldFileExists = false;
-  rv = oldDBFile->Exists(&oldFileExists);
-  if (NS_FAILED(rv) || !oldFileExists) {
-    return;
-  }
-
-  oldDBFile->Remove(false);
 }
 
 // Make sure that our sqlite storage is all set up with all the tables we need
@@ -450,8 +431,6 @@ Seer::EnsureInitStorage()
   }
 
   nsresult rv;
-
-  CheckForAndDeleteOldDBFile();
 
   rv = mStorageService->OpenDatabase(mDBFile, getter_AddRefs(mDB));
   if (NS_FAILED(rv)) {
@@ -689,7 +668,7 @@ Seer::EnsureInitStorage()
                          "  origin TEXT NOT NULL,\n"
                          "  hits INTEGER DEFAULT 0,\n"
                          "  last_hit INTEGER DEFAULT 0,\n"
-                         "  FOREIGN KEY(pid) REFERENCES moz_pages(id) ON DELETE CASCADE\n"
+                         "  FOREIGN KEY(pid) REFERENCES moz_pages(id)\n"
                          ");\n"));
   NS_ENSURE_SUCCESS(rv, rv);
 
