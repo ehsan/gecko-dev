@@ -41,7 +41,7 @@
 #include "nsAccessibilityService.h"
 #include "nsCoreUtils.h"
 #include "nsAccUtils.h"
-#include "nsARIAGridAccessibleWrap.h"
+#include "nsARIAGridAccessible.h"
 #include "nsARIAMap.h"
 #include "nsIContentViewer.h"
 #include "nsCURILoader.h"
@@ -557,10 +557,6 @@ nsAccessibilityService::CreateHTMLAccessibleByMarkup(nsIFrame *aFrame,
 #endif
            tag == nsAccessibilityAtoms::q) {
     return CreateHyperTextAccessible(aFrame, aAccessible);
-  }
-  else if (tag == nsAccessibilityAtoms::tr) {
-    *aAccessible = new nsEnumRoleAccessible(aNode, aWeakShell,
-                                            nsIAccessibleRole::ROLE_ROW);
   }
   else if (nsCoreUtils::IsHTMLTableHeader(content)) {
     *aAccessible = new nsHTMLTableHeaderAccessible(aNode, aWeakShell);
@@ -1559,7 +1555,7 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
       // Try to create ARIA grid/treegrid accessibles.
       if (roleMapEntry->role == nsIAccessibleRole::ROLE_TABLE ||
           roleMapEntry->role == nsIAccessibleRole::ROLE_TREE_TABLE) {
-        newAcc = new nsARIAGridAccessibleWrap(aNode, aWeakShell);
+        newAcc = new nsARIAGridAccessible(aNode, aWeakShell);
       } else if (roleMapEntry->role == nsIAccessibleRole::ROLE_GRID_CELL ||
                  roleMapEntry->role == nsIAccessibleRole::ROLE_ROWHEADER ||
                  roleMapEntry->role == nsIAccessibleRole::ROLE_COLUMNHEADER) {
