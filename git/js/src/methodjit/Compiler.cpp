@@ -666,12 +666,19 @@ MakeJITScript(JSContext *cx, JSScript *script, bool construct)
     Vector<ChunkDescriptor> chunks(cx);
     Vector<CrossChunkEdge> edges(cx);
 
+    /*
+     * Chunk compilation is not supported on x64, since there is no guarantee
+     * that cross chunk jumps will be patchable even to go to the default shim.
+     */
+#ifndef JS_CPU_X64
     if (script->length < CHUNK_LIMIT || !cx->typeInferenceEnabled()) {
+#endif
         ChunkDescriptor desc;
         desc.begin = 0;
         desc.end = script->length;
         if (!chunks.append(desc))
             return NULL;
+#ifndef JS_CPU_X64
     } else {
         if (!script->ensureRanInference(cx))
             return NULL;
@@ -864,6 +871,7 @@ MakeJITScript(JSContext *cx, JSScript *script, bool construct)
                 return NULL;
         }
     }
+#endif /* !JS_CPU_X64 */
 
     size_t dataSize = sizeof(JITScript)
         + (chunks.length() * sizeof(ChunkDescriptor))
@@ -1251,15 +1259,6 @@ mjit::Compiler::generateEpilogue()
 CompileStatus
 mjit::Compiler::finishThisUp()
 {
-#ifdef JS_CPU_X64
-    /* Generate trampolines to ensure that cross chunk edges are patchable. */
-    for (unsigned i = 0; i < chunkEdges.length(); i++) {
-        chunkEdges[i].sourceTrampoline = stubcc.masm.label();
-        stubcc.masm.move(ImmPtr(NULL), Registers::ScratchReg);
-        stubcc.masm.jump(Registers::ScratchReg);
-    }
-#endif
-
     RETURN_IF_OOM(Compile_Error);
 
     /*
@@ -1790,6 +1789,8 @@ mjit::Compiler::finishThisUp()
 
     outerChunk.chunk = chunk;
 
+    Repatcher repatch(chunk);
+
     /* Patch all incoming and outgoing cross-chunk jumps. */
     CrossChunkEdge *crossEdges = jit->edges();
     for (unsigned i = 0; i < jit->nedges; i++) {
@@ -1836,15 +1837,12 @@ mjit::Compiler::finishThisUp()
                      * jump is never taken.
                      */
                     edge.sourceJump1 = fullCode.locationOf(oedge.fastJump).executableAddress();
+                    repatch.relink(CodeLocationJump(edge.sourceJump1), targetLabel);
                     if (oedge.slowJump.isSet()) {
                         edge.sourceJump2 =
                             stubCode.locationOf(oedge.slowJump.get()).executableAddress();
+                        repatch.relink(CodeLocationJump(edge.sourceJump2), targetLabel);
                     }
-#ifdef JS_CPU_X64
-                    edge.sourceTrampoline =
-                        stubCode.locationOf(oedge.sourceTrampoline).executableAddress();
-#endif
-                    jit->patchEdge(edge, label);
                     break;
                 }
             }
@@ -3926,7 +3924,7 @@ void
 mjit::Compiler::interruptCheckHelper()
 {
     Jump jump;
-    if (cx->runtime->gcZeal() == js::gc::ZealVerifierValue) {
+    if (cx->runtime->gcZeal() >= js::gc::ZealVerifierThreshold) {
         /* For barrier verification, always take the interrupt so we can verify. */
         jump = masm.jump();
     } else {
@@ -6894,9 +6892,7 @@ mjit::Compiler::jsop_regexp()
         !cx->typeInferenceEnabled() ||
         analysis->localsAliasStack() ||
         types::TypeSet::HasObjectFlags(cx, globalObj->getType(cx),
-                                       types::OBJECT_FLAG_REGEXP_FLAGS_SET) ||
-        cx->runtime->gcIncrementalState == gc::MARK)
-    {
+                                       types::OBJECT_FLAG_REGEXP_FLAGS_SET)) {
         prepareStubCall(Uses(0));
         masm.move(ImmPtr(obj), Registers::ArgReg1);
         INLINE_STUBCALL(stubs::RegExp, REJOIN_FALLTHROUGH);
@@ -6950,11 +6946,10 @@ mjit::Compiler::jsop_regexp()
     }
 
     /*
-     * Force creation of the RegExpShared in the script's RegExpObject so that
-     * we grab it in the getNewObject template copy. Note that JIT code is
-     * discarded on every GC, which permits us to burn in the pointer to the
-     * RegExpShared. We don't do this during an incremental
-     * GC, since we don't discard JIT code after every marking slice.
+     * Force creation of the RegExpShared in the script's RegExpObject
+     * so that we grab it in the getNewObject template copy. Note that
+     * JIT code is discarded on every GC, which permits us to burn in
+     * the pointer to the RegExpShared.
      */
     if (!reobj->getShared(cx))
         return false;

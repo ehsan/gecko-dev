@@ -422,6 +422,8 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
 
         updated = cr.update(contentUri, bumped, where, args);
         debug("Updated " + updated + " rows to new modified time.");
+
+        cr.notifyChange(contentUri, null);
     }
 
     public void removeBookmark(ContentResolver cr, int id) {
@@ -434,6 +436,8 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         final String[] idArgs = new String[] { idString };
         final String idEquals = Bookmarks._ID + " = ?";
         cr.delete(contentUri, idEquals, idArgs);
+
+        cr.notifyChange(contentUri, null);
     }
 
     public void removeBookmarksWithURL(ContentResolver cr, String uri) {
@@ -445,6 +449,8 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         final String[] urlArgs = new String[] { uri };
         final String urlEquals = Bookmarks.URL + " = ?";
         cr.delete(contentUri, urlEquals, urlArgs);
+
+        cr.notifyChange(contentUri, null);
     }
 
     public void registerBookmarkObserver(ContentResolver cr, ContentObserver observer) {

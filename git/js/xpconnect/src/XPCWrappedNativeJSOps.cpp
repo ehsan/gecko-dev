@@ -832,9 +832,11 @@ XPCWrappedNativeJSClass XPC_WN_NoHelper_JSClass = {
     XPC_WN_NoHelper_Finalize,          // finalize
 
     /* Optionally non-null members start here. */
+    nsnull,                         // reserved0
     nsnull,                         // checkAccess
     nsnull,                         // call
     nsnull,                         // construct
+    nsnull,                         // xdrObject;
     nsnull,                         // hasInstance
     XPC_WN_NoHelper_Trace,          // trace
 
@@ -1695,9 +1697,11 @@ js::Class XPC_WN_ModsAllowed_WithCall_Proto_JSClass = {
     XPC_WN_Shared_Proto_Finalize,   // finalize;
 
     /* Optionally non-null members start here. */
+    nsnull,                         // reserved0;
     nsnull,                         // checkAccess;
     nsnull,                         // call;
     nsnull,                         // construct;
+    nsnull,                         // xdrObject;
     nsnull,                         // hasInstance;
     XPC_WN_Shared_Proto_Trace,      // trace;
 
@@ -1720,9 +1724,11 @@ js::Class XPC_WN_ModsAllowed_NoCall_Proto_JSClass = {
     XPC_WN_Shared_Proto_Finalize,   // finalize;
 
     /* Optionally non-null members start here. */
+    nsnull,                         // reserved0;
     nsnull,                         // checkAccess;
     nsnull,                         // call;
     nsnull,                         // construct;
+    nsnull,                         // xdrObject;
     nsnull,                         // hasInstance;
     XPC_WN_Shared_Proto_Trace,      // trace;
 
@@ -1808,9 +1814,11 @@ js::Class XPC_WN_NoMods_WithCall_Proto_JSClass = {
     XPC_WN_Shared_Proto_Finalize,              // finalize;
 
     /* Optionally non-null members start here. */
+    nsnull,                         // reserved0;
     nsnull,                         // checkAccess;
     nsnull,                         // call;
     nsnull,                         // construct;
+    nsnull,                         // xdrObject;
     nsnull,                         // hasInstance;
     XPC_WN_Shared_Proto_Trace,      // trace;
 
@@ -1833,9 +1841,11 @@ js::Class XPC_WN_NoMods_NoCall_Proto_JSClass = {
     XPC_WN_Shared_Proto_Finalize,              // finalize;
 
     /* Optionally non-null members start here. */
+    nsnull,                         // reserved0;
     nsnull,                         // checkAccess;
     nsnull,                         // call;
     nsnull,                         // construct;
+    nsnull,                         // xdrObject;
     nsnull,                         // hasInstance;
     XPC_WN_Shared_Proto_Trace,      // trace;
 

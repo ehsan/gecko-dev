@@ -457,12 +457,6 @@ protected:
   void SelectResource();
 
   /**
-   * A wrapper function that allows us to cleanly reset flags after a call
-   * to SelectResource()
-   */
-  void SelectResourceWrapper();
-
-  /**
    * Asynchronously awaits a stable state, and then causes SelectResource()
    * to be run on the main thread's event loop.
    */
@@ -744,9 +738,6 @@ protected:
   // True when we've got a task queued to call SelectResource(),
   // or while we're running SelectResource().
   bool mIsRunningSelectResource;
-
-  // True when we already have select resource call queued
-  bool mHaveQueuedSelectResource;
 
   // True if we suspended the decoder because we were paused,
   // preloading metadata is enabled, autoplay was not enabled, and we loaded

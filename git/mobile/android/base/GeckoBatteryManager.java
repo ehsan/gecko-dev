@@ -47,7 +47,6 @@ import android.content.Context;
 import android.content.Intent;
 
 import android.os.BatteryManager;
-import android.os.Build;
 import android.os.SystemClock;
 
 public class GeckoBatteryManager
@@ -78,14 +77,7 @@ public class GeckoBatteryManager
     boolean previousCharging = isCharging();
     double previousLevel = getLevel();
 
-    // NOTE: it might not be common (in 2012) but technically, Android can run
-    // on a device that has no battery so we want to make sure it's not the case
-    // before bothering checking for battery state.
-    // However, the Galaxy Nexus phone advertizes itself as battery-less which
-    // force us to special-case the logic.
-    // See the Google bug: https://code.google.com/p/android/issues/detail?id=22035
-    if (intent.getBooleanExtra(BatteryManager.EXTRA_PRESENT, false) ||
-        Build.MODEL.equals("Galaxy Nexus")) {
+    if (intent.getBooleanExtra(BatteryManager.EXTRA_PRESENT, false)) {
       int plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1);
       if (plugged == -1) {
         sCharging = kDefaultCharging;
@@ -148,7 +140,7 @@ public class GeckoBatteryManager
     } else {
       sLevel = kDefaultLevel;
       sCharging = kDefaultCharging;
-      sRemainingTime = 0;
+      sRemainingTime = kDefaultRemainingTime;
     }
 
     /*

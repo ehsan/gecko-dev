@@ -119,11 +119,7 @@ public:
   nsCOMPtr<nsITimer> mUnloadTimer;
 private:
   PRUint32      mFlags;
-
-  void InitMime(const char* const* aMimeTypes,
-                const char* const* aMimeDescriptions,
-                const char* const* aExtensions,
-                PRUint32 aVariantCount);
+  
   nsresult EnsureMembersAreUTF8();
 };
 

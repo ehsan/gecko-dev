@@ -209,18 +209,17 @@ class DeviceManagerSUT(DeviceManager):
             self._sock = None
             return None
 
-          data += temp
-
           # If something goes wrong in the agent it will send back a string that
           # starts with '##AGENT-ERROR##'
-          if self.agentErrorRE.match(data):
+          if (self.agentErrorRE.match(temp)):
+            data = temp
             break
 
+          data += temp
+
           for line in data.splitlines():
-            if promptre.match(line):
+            if (promptre.match(line)):
               found = True
-              data = self._stripPrompt(data)
-              break
 
           # If we violently lose the connection to the device, this loop tends to spin,
           # this guard prevents that
@@ -239,7 +238,7 @@ class DeviceManagerSUT(DeviceManager):
   
   # internal function
   # take a data blob and strip instances of the prompt '$>\x00'
-  def _stripPrompt(self, data):
+  def stripPrompt(self, data):
     promptre = re.compile(self.prompt_regex + '.*')
     retVal = []
     lines = data.split('\n')
@@ -294,7 +293,7 @@ class DeviceManagerSUT(DeviceManager):
 
     validated = False
     if (retVal):
-      retline = retVal.strip()
+      retline = self.stripPrompt(retVal).strip() 
       if (retline == None):
         # Then we failed to get back a hash from agent, try manual validation
         validated = self.validateFile(destname, localname)
@@ -380,9 +379,11 @@ class DeviceManagerSUT(DeviceManager):
     except(DMError):
       return False
 
+    retVal = self.stripPrompt(data)
+    data = retVal.split('\n')
     found = False
-    for d in data.splitlines():
-      if (dirre.match(d)):
+    for d in data:
+      if (dirre.match(d)): 
         found = True
 
     return found
@@ -416,7 +417,8 @@ class DeviceManagerSUT(DeviceManager):
     except(DMError):
       return []
 
-    files = filter(lambda x: x, data.splitlines())
+    retVal = self.stripPrompt(data)
+    files = filter(lambda x: x, retVal.split('\n'))
     if len(files) == 1 and files[0] == '<empty>':
       # special case on the agent: empty directories return just the string "<empty>"
       return []
@@ -458,9 +460,11 @@ class DeviceManagerSUT(DeviceManager):
     except DMError:
       return []
 
+    retVal = self.stripPrompt(data)
+    lines = retVal.split('\n')
     files = []
-    for line in data.splitlines():
-      if line:
+    for line in lines:
+      if (line.strip() != ''):
         pidproc = line.strip().split()
         if (len(pidproc) == 2):
           files += [[pidproc[0], pidproc[1]]]
@@ -548,7 +552,7 @@ class DeviceManagerSUT(DeviceManager):
     except(DMError):
       return None
 
-    return data.strip()
+    return self.stripPrompt(data).strip('\n')
 
   # external function
   # returns:
@@ -560,7 +564,7 @@ class DeviceManagerSUT(DeviceManager):
     except(DMError):
       return None
 
-    return data
+    return self.stripPrompt(data)
   
   # external function
   # returns:
@@ -750,8 +754,7 @@ class DeviceManagerSUT(DeviceManager):
       # return the string "<filename>: No such file or directory".
       # However, I've seen AGENT-WARNING returned before. 
       return False
-
-    retVal = data.strip()
+    retVal = self.stripPrompt(data).strip()
     if not retVal:
       raise FileError('isdir returned null')
     return retVal == 'TRUE'
@@ -784,9 +787,9 @@ class DeviceManagerSUT(DeviceManager):
     except(DMError):
       return None
 
-    retVal = None
-    if data:
-      retVal = data.strip()
+    retVal = self.stripPrompt(data)
+    if (retVal != None):
+      retVal = retVal.strip('\n')
     if (self.debug >= 3): print "remote hash returned: '" + retVal + "'"
     return retVal
     
@@ -812,8 +815,8 @@ class DeviceManagerSUT(DeviceManager):
       data = self.verifySendCMD(['testroot'])
     except:
       return None
-
-    deviceRoot = data.strip() + '/tests'
+  
+    deviceRoot = self.stripPrompt(data).strip('\n') + '/tests'
 
     if (not self.dirExists(deviceRoot)):
       if (self.mkDir(deviceRoot) == None):
@@ -826,8 +829,9 @@ class DeviceManagerSUT(DeviceManager):
       data = self.verifySendCMD(['getapproot '+packageName])
     except:
       return None
-
-    return data.strip()
+  
+    appRoot = self.stripPrompt(data).strip('\n')
+    return appRoot
 
   # external function
   # returns:
@@ -921,6 +925,7 @@ class DeviceManagerSUT(DeviceManager):
       data = self.verifySendCMD(['info ' + d])
       if (data is None):
         continue
+      data = self.stripPrompt(data)
       data = collapseSpaces.sub(' ', data)
       result[d] = data.split('\n')
 
@@ -1050,7 +1055,7 @@ class DeviceManagerSUT(DeviceManager):
     except(DMError):
       return None
 
-    return data.strip()
+    return self.stripPrompt(data).strip('\n')
 
   """
     Connect the ipaddress and port for a callback ping.  Defaults to current IP address

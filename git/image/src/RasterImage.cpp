@@ -397,7 +397,10 @@ RasterImage::AdvanceFrame(TimeStamp aTime, nsIntRect* aDirtyRect)
     EvaluateAnimation();
   }
 
+  imgFrame *frameToUse = nsnull;
+
   if (nextFrameIndex == 0) {
+    frameToUse = nextFrame;
     *aDirtyRect = mAnim->firstFrameRefreshArea;
   } else {
     imgFrame *curFrame = mFrames[currentFrameIndex];
@@ -975,54 +978,50 @@ RasterImage::GetImageContainer(ImageContainer **_retval)
   return NS_OK;
 }
 
-size_t
-RasterImage::HeapSizeOfSourceWithComputedFallback(nsMallocSizeOfFun aMallocSizeOf) const
-{
-  // n == 0 is possible for two reasons. 
-  // - This is a zero-length image.
-  // - We're on a platform where moz_malloc_size_of always returns 0.
-  // In either case the fallback works appropriately.
-  size_t n = mSourceData.SizeOfExcludingThis(aMallocSizeOf);
-  if (n == 0) {
-    n = mSourceData.Length();
-    NS_ABORT_IF_FALSE(StoringSourceData() || (n == 0),
-                      "Non-zero source data size when we aren't storing it?");
-  }
-  return n;
-}
+namespace {
 
-static size_t
-SizeOfDecodedWithComputedFallbackIfHeap(
-  const nsTArray<imgFrame*>& aFrames, gfxASurface::MemoryLocation aLocation,
-  nsMallocSizeOfFun aMallocSizeOf)
+PRUint32
+GetDecodedSize(const nsTArray<imgFrame *> &aFrames,
+               gfxASurface::MemoryLocation aLocation)
 {
-  size_t n = 0;
+  PRUint32 val = 0;
   for (PRUint32 i = 0; i < aFrames.Length(); ++i) {
-    imgFrame* frame = aFrames.SafeElementAt(i, nsnull);
+    imgFrame *frame = aFrames.SafeElementAt(i, nsnull);
     NS_ABORT_IF_FALSE(frame, "Null frame in frame array!");
-    n += frame->SizeOfExcludingThisWithComputedFallbackIfHeap(aLocation, aMallocSizeOf);
+    val += frame->EstimateMemoryUsed(aLocation);
   }
 
-  return n;
+  return val;
 }
 
-size_t
-RasterImage::HeapSizeOfDecodedWithComputedFallback(nsMallocSizeOfFun aMallocSizeOf) const
+} // anonymous namespace
+
+PRUint32
+RasterImage::GetDecodedHeapSize()
 {
-  return SizeOfDecodedWithComputedFallbackIfHeap(
-           mFrames, gfxASurface::MEMORY_IN_PROCESS_HEAP, aMallocSizeOf);
+  return GetDecodedSize(mFrames, gfxASurface::MEMORY_IN_PROCESS_HEAP);
 }
 
-size_t
-RasterImage::NonHeapSizeOfDecoded() const
+PRUint32
+RasterImage::GetDecodedNonheapSize()
 {
-  return SizeOfDecodedWithComputedFallbackIfHeap(mFrames, gfxASurface::MEMORY_IN_PROCESS_NONHEAP, NULL);
+  return GetDecodedSize(mFrames, gfxASurface::MEMORY_IN_PROCESS_NONHEAP);
 }
 
-size_t
-RasterImage::OutOfProcessSizeOfDecoded() const
+PRUint32
+RasterImage::GetDecodedOutOfProcessSize()
 {
-  return SizeOfDecodedWithComputedFallbackIfHeap(mFrames, gfxASurface::MEMORY_OUT_OF_PROCESS, NULL);
+  return GetDecodedSize(mFrames, gfxASurface::MEMORY_OUT_OF_PROCESS);
+}
+
+PRUint32
+RasterImage::GetSourceHeapSize()
+{
+  PRUint32 sourceDataSize = mSourceData.Length();
+  
+  NS_ABORT_IF_FALSE(StoringSourceData() || (sourceDataSize == 0),
+                    "Non-zero source data size when we aren't storing it?");
+  return sourceDataSize;
 }
 
 void
@@ -2227,7 +2226,7 @@ RasterImage::DiscardingActive() {
 // Helper method to determine if we're storing the source data in a buffer
 // or just writing it directly to the decoder
 bool
-RasterImage::StoringSourceData() const {
+RasterImage::StoringSourceData() {
   return (mDecodeOnDraw || mDiscardable);
 }
 

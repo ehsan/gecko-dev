@@ -1168,13 +1168,8 @@ BuildTextRuns(gfxContext* aContext, nsTextFrame* aForFrame,
   NS_ASSERTION(!aForFrameLine || aLineContainer,
                "line but no line container");
   
-  nsIFrame* lineContainerChild = aForFrame;
   if (!aLineContainer) {
-    if (aForFrame->IsFloatingFirstLetterChild()) {
-      lineContainerChild = aForFrame->PresContext()->PresShell()->
-        GetPlaceholderFrameFor(aForFrame->GetParent());
-    }
-    aLineContainer = FindLineContainer(lineContainerChild);
+    aLineContainer = FindLineContainer(aForFrame);
   } else {
     NS_ASSERTION(!aForFrame ||
                  (aLineContainer == FindLineContainer(aForFrame) ||
@@ -1207,14 +1202,14 @@ BuildTextRuns(gfxContext* aContext, nsTextFrame* aForFrame,
     return;
   }
 
-  // Find the line containing 'lineContainerChild'.
+  // Find the line containing aForFrame
 
   bool isValid = true;
   nsBlockInFlowLineIterator backIterator(block, &isValid);
   if (aForFrameLine) {
     backIterator = nsBlockInFlowLineIterator(block, *aForFrameLine, false);
   } else {
-    backIterator = nsBlockInFlowLineIterator(block, lineContainerChild, &isValid);
+    backIterator = nsBlockInFlowLineIterator(block, aForFrame, &isValid);
     NS_ASSERTION(isValid, "aForFrame not found in block, someone lied to us");
     NS_ASSERTION(backIterator.GetContainer() == block,
                  "Someone lied to us about the block");
@@ -1235,7 +1230,7 @@ BuildTextRuns(gfxContext* aContext, nsTextFrame* aForFrame,
   // This is a little awkward because we traverse lines in the reverse direction
   // but we traverse the frames in each line in the forward direction.
   nsBlockInFlowLineIterator forwardIterator = backIterator;
-  nsIFrame* stopAtFrame = lineContainerChild;
+  nsTextFrame* stopAtFrame = aForFrame;
   nsTextFrame* nextLineFirstTextFrame = nsnull;
   bool seenTextRunBoundaryOnLaterLine = false;
   bool mayBeginInTextRun = true;
@@ -2071,10 +2066,12 @@ BuildTextRunsScanner::SetupLineBreakerContext(gfxTextRun *aTextRun)
 
   PRUint32 i;
   const nsStyleText* textStyle = nsnull;
+  nsStyleContext* lastStyleContext = nsnull;
   for (i = 0; i < mMappedFlows.Length(); ++i) {
     MappedFlow* mappedFlow = &mMappedFlows[i];
     nsTextFrame* f = mappedFlow->mStartFrame;
 
+    lastStyleContext = f->GetStyleContext();
     textStyle = f->GetStyleText();
     nsTextFrameUtils::CompressionMode compression =
       CSSWhitespaceToCompressionMode[textStyle->mWhiteSpace];
@@ -7117,7 +7114,7 @@ nsTextFrame::SetLength(PRInt32 aLength, nsLineLayout* aLineLayout,
 }
 
 bool
-nsTextFrame::IsFloatingFirstLetterChild() const
+nsTextFrame::IsFloatingFirstLetterChild()
 {
   if (!(GetStateBits() & TEXT_FIRST_LETTER))
     return false;
@@ -8049,7 +8046,7 @@ nsTextFrame::List(FILE* out, PRInt32 aIndent) const
   fprintf(out, " [run=%p]", static_cast<void*>(mTextRun));
 
   // Output the first/last content offset and prev/next in flow info
-  bool isComplete = PRUint32(GetContentEnd()) == GetContent()->TextLength();
+  bool isComplete = GetContentEnd() == GetContent()->TextLength();
   fprintf(out, "[%d,%d,%c] ", 
           GetContentOffset(), GetContentLength(),
           isComplete ? 'T':'F');

@@ -175,8 +175,7 @@ public class AndroidBrowserBookmarksDataAccessor extends AndroidBrowserRepositor
     // Other types should be filtered out and dropped.
     cv.put(BrowserContract.Bookmarks.IS_FOLDER,   rec.type.equalsIgnoreCase(TYPE_FOLDER) ? 1 : 0);
 
-    // Note that we don't set the modified timestamp: we allow the
-    // content provider to do that for us.
+    cv.put("modified", rec.lastModified);
     return cv;
   }
   

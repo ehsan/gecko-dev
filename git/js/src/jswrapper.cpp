@@ -61,14 +61,18 @@
 using namespace js;
 using namespace js::gc;
 
-namespace js {
-int sWrapperFamily;
-}
+static int sWrapperFamily;
 
 void *
 Wrapper::getWrapperFamily()
 {
     return &sWrapperFamily;
+}
+
+JS_FRIEND_API(bool)
+js::IsWrapper(const JSObject *wrapper)
+{
+    return wrapper->isProxy() && GetProxyHandler(wrapper)->family() == &sWrapperFamily;
 }
 
 JS_FRIEND_API(JSObject *)

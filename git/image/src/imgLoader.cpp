@@ -136,8 +136,7 @@ static void PrintImageDecoders()
 }
 #endif
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(ImagesMallocSizeOf, "images")
- 
+
 class imgMemoryReporter MOZ_FINAL :
   public nsIMemoryReporter
 {
@@ -228,11 +227,11 @@ public:
 
   struct EnumArg {
     EnumArg(ReporterType aType)
-      : rtype(aType), n(0)
+      : rtype(aType), value(0)
     { }
 
     ReporterType rtype;
-    size_t n;
+    PRInt32 value;
   };
 
   static PLDHashOperator EnumEntries(const nsACString&,
@@ -256,11 +255,11 @@ public:
       return PL_DHASH_NEXT;
 
     if (rtype & RAW_BIT) {
-      arg->n += image->HeapSizeOfSourceWithComputedFallback(ImagesMallocSizeOf);
+      arg->value += image->GetSourceHeapSize();
     } else if (rtype & HEAP_BIT) {
-      arg->n += image->HeapSizeOfDecodedWithComputedFallback(ImagesMallocSizeOf);
+      arg->value += image->GetDecodedHeapSize();
     } else {
-      arg->n += image->NonHeapSizeOfDecoded();
+      arg->value += image->GetDecodedNonheapSize();
     }
 
     return PL_DHASH_NEXT;
@@ -275,7 +274,7 @@ public:
       imgLoader::sCache.EnumerateRead(EnumEntries, &arg);
     }
 
-    *amount = arg.n;
+    *amount = arg.value;
     return NS_OK;
   }
 
@@ -1654,7 +1653,7 @@ NS_IMETHODIMP imgLoader::LoadImage(nsIURI *aURI,
       entry->Touch();
 
 #ifdef DEBUG_joe
-      printf("CACHEGET: %d %s %d\n", time(NULL), spec.get(), entry->SizeOfData());
+      printf("CACHEGET: %d %s %d\n", time(NULL), spec.get(), entry->GetDataSize());
 #endif
     }
     else {

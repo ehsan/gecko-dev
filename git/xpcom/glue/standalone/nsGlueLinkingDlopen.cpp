@@ -62,7 +62,7 @@
 #define LEADING_UNDERSCORE
 #endif
 
-#if defined(MOZ_LINKER) && !defined(ANDROID)
+#ifdef MOZ_LINKER
 extern "C" {
 NS_HIDDEN __typeof(dlopen) __wrap_dlopen;
 NS_HIDDEN __typeof(dlsym) __wrap_dlsym;

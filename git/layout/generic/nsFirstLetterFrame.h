@@ -64,11 +64,9 @@ public:
 #endif
   virtual nsIAtom* GetType() const;
 
-  bool IsFloating() const { return GetStateBits() & NS_FRAME_OUT_OF_FLOW; }
-
   virtual bool IsFrameOfType(PRUint32 aFlags) const
   {
-    if (!IsFloating())
+    if (!GetStyleDisplay()->IsFloating())
       aFlags = aFlags & ~(nsIFrame::eLineParticipant);
     return nsContainerFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eBidiInlineContainer));

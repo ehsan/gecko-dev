@@ -93,8 +93,7 @@ function serverForFoo(engine) {
 add_test(function test_processIncoming_error_orderChildren() {
   _("Ensure that _orderChildren() is called even when _processIncoming() throws an error.");
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
 
   let engine = new BookmarksEngine();
@@ -167,8 +166,8 @@ add_test(function test_restorePromptsReupload() {
   _("Ensure that restoring from a backup will reupload all records.");
   let syncTesting = new SyncTestingInfrastructure();
   Svc.Prefs.set("username", "foo");
-  Service.serverURL = TEST_SERVER_URL;
-  Service.clusterURL = TEST_CLUSTER_URL;
+  Service.serverURL = "http://localhost:8080/";
+  Service.clusterURL = "http://localhost:8080/";
 
   let engine = new BookmarksEngine();
   let store  = engine._store;
@@ -335,8 +334,8 @@ add_test(function test_mismatched_types() {
 
   let syncTesting = new SyncTestingInfrastructure();
   Svc.Prefs.set("username", "foo");
-  Service.serverURL = TEST_SERVER_URL;
-  Service.clusterURL = TEST_CLUSTER_URL;
+  Service.serverURL = "http://localhost:8080/";
+  Service.clusterURL = "http://localhost:8080/";
 
   let engine = new BookmarksEngine();
   let store  = engine._store;
@@ -378,8 +377,7 @@ add_test(function test_bookmark_guidMap_fail() {
   _("Ensure that failures building the GUID map cause early death.");
 
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
   let engine = new BookmarksEngine();
   let store = engine._store;

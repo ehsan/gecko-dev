@@ -70,6 +70,7 @@ public class AndroidBrowserHistoryDataAccessor extends AndroidBrowserRepositoryD
     ContentValues cv = new ContentValues();
     HistoryRecord rec = (HistoryRecord) record;
     cv.put(BrowserContract.History.GUID,          rec.guid);
+    cv.put(BrowserContract.History.DATE_MODIFIED, rec.lastModified);
     cv.put(BrowserContract.History.TITLE,         rec.title);
     cv.put(BrowserContract.History.URL,           rec.histURI);
     if (rec.visits != null) {

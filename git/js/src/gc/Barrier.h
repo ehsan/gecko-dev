@@ -329,7 +329,6 @@ class HeapValue
     bool isFalse() const { return value.isFalse(); }
     bool isNumber() const { return value.isNumber(); }
     bool isInt32() const { return value.isInt32(); }
-    bool isDouble() const { return value.isDouble(); }
     bool isString() const { return value.isString(); }
     bool isObject() const { return value.isObject(); }
     bool isMagic(JSWhyMagic why) const { return value.isMagic(why); }
@@ -407,7 +406,6 @@ class HeapId
     bool operator!=(jsid id) const { return value != id; }
 
     jsid get() const { return value; }
-    jsid *unsafeGet() { return &value; }
     operator jsid() const { return value; }
 
   private:
@@ -456,20 +454,6 @@ class ReadBarriered
 
     template<class U>
     operator MarkablePtr<U>() const { return MarkablePtr<U>(value); }
-};
-
-class ReadBarrieredValue
-{
-    Value value;
-
-  public:
-    ReadBarrieredValue() : value(UndefinedValue()) {}
-    ReadBarrieredValue(const Value &value) : value(value) {}
-
-    inline const Value &get() const;
-    inline operator const Value &() const;
-
-    inline JSObject &toObject() const;
 };
 
 }

@@ -1222,8 +1222,7 @@ nsComputedDOMStyle::DoGetFontFamily()
   const nsString& fontName = font->mFont.name;
   if (font->mGenericID == kGenericFont_NONE && !font->mFont.systemFont) {
     const nsFont* defaultFont =
-      presContext->GetDefaultFont(kPresContext_DefaultVariableFont_ID,
-                                  font->mLanguage);
+      presContext->GetDefaultFont(kPresContext_DefaultVariableFont_ID);
 
     PRInt32 lendiff = fontName.Length() - defaultFont->name.Length();
     if (lendiff > 0) {

@@ -411,7 +411,7 @@ void imgRequest::SetIsInCache(bool incache)
 void imgRequest::UpdateCacheEntrySize()
 {
   if (mCacheEntry) {
-    mCacheEntry->SetDataSize(mImage->SizeOfData());
+    mCacheEntry->SetDataSize(mImage->GetDataSize());
 
 #ifdef DEBUG_joe
     nsCAutoString url;

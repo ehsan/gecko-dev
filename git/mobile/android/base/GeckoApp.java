@@ -573,9 +573,6 @@ abstract public class GeckoApp
         }
 
         public void run() {
-            if (mSoftwareLayerClient == null)
-                return;
-
             synchronized (mSoftwareLayerClient) {
                 if (!Tabs.getInstance().isSelectedTab(mThumbnailTab))
                     return;
@@ -642,8 +639,7 @@ abstract public class GeckoApp
             }
             mLastScreen = compressed;
         }
-
-        if ("about:home".equals(thumbnailTab.getURL())) {
+        if (thumbnailTab.getURL().equals("about:home")) {
             thumbnailTab.updateThumbnail(null);
             return;
         }
@@ -1121,19 +1117,6 @@ abstract public class GeckoApp
                         }
                     });
                 }
-            } else if (event.equals("Bookmark:Insert")) {
-                final String url = message.getString("url");
-                final String title = message.getString("title");
-                mMainHandler.post(new Runnable() {
-                    public void run() {
-                        Toast.makeText(GeckoApp.mAppContext, R.string.bookmark_added, Toast.LENGTH_SHORT).show();
-                        GeckoAppShell.getHandler().post(new Runnable() {
-                            public void run() {
-                                BrowserDB.addBookmark(GeckoApp.mAppContext.getContentResolver(), title, url);
-                            }
-                        });
-                    }
-                });
             }
         } catch (Exception e) {
             Log.e(LOGTAG, "Exception handling message \"" + event + "\":", e);
@@ -1260,8 +1243,8 @@ abstract public class GeckoApp
         mMainHandler.post(new Runnable() {
             public void run() {
                 Tab tab = Tabs.getInstance().getTab(tabId);
-                if (tab != null)
-                    mDoorHangerPopup.addDoorHanger(message, value, buttons, tab, options);
+                mDoorHangerPopup.addDoorHanger(message, value, buttons,
+                                                           tab, options);
             }
         });
     }
@@ -1860,7 +1843,6 @@ abstract public class GeckoApp
         GeckoAppShell.registerGeckoEventListener("Update:Restart", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("Tab:HasTouchListener", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("Session:StatePurged", GeckoApp.mAppContext);
-        GeckoAppShell.registerGeckoEventListener("Bookmark:Insert", GeckoApp.mAppContext);
 
         IntentFilter batteryFilter = new IntentFilter();
         batteryFilter.addAction(Intent.ACTION_BATTERY_CHANGED);
@@ -2217,7 +2199,6 @@ abstract public class GeckoApp
         GeckoAppShell.unregisterGeckoEventListener("CharEncoding:State", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("Tab:HasTouchListener", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("Session:StatePurged", GeckoApp.mAppContext);
-        GeckoAppShell.unregisterGeckoEventListener("Bookmark:Insert", GeckoApp.mAppContext);
 
         mFavicons.close();
 

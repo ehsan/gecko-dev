@@ -1049,6 +1049,10 @@ nsGlobalWindow::~nsGlobalWindow()
     }
   }
 
+  if (IsInnerWindow() && mDocument) {
+    mDoc->MarkAsOrphan();
+  }
+
   mDocument = nsnull;           // Forces Release
   mDoc = nsnull;
 
@@ -1311,6 +1315,8 @@ nsGlobalWindow::FreeInnerObjects(bool aClearScope)
 
     // Remember the document's principal.
     mDocumentPrincipal = mDoc->NodePrincipal();
+
+    mDoc->MarkAsOrphan();
   }
 
 #ifdef DEBUG
@@ -2262,13 +2268,14 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
                                            html_doc);
   }
 
-  if (aDocument) {
-    aDocument->SetScriptGlobalObject(newInnerWindow);
-  }
+  aDocument->SetScriptGlobalObject(newInnerWindow);
 
   if (!aState) {
     if (reUseInnerWindow) {
       if (newInnerWindow->mDoc != aDocument) {
+        newInnerWindow->mDoc->MarkAsOrphan();
+        aDocument->MarkAsNonOrphan();
+
         newInnerWindow->mDocument = do_QueryInterface(aDocument);
         newInnerWindow->mDoc = aDocument;
 
@@ -2386,6 +2393,9 @@ nsGlobalWindow::InnerSetNewDocument(nsIDocument* aDocument)
     PR_LogPrint("DOMWINDOW %p SetNewDocument %s", this, spec.get());
   }
 #endif
+
+  MOZ_ASSERT(aDocument->IsOrphan(), "New document must be orphan!");
+  aDocument->MarkAsNonOrphan();
 
   mDocument = do_QueryInterface(aDocument);
   mDoc = aDocument;
@@ -4448,22 +4458,17 @@ nsGlobalWindow::GetNearestWidget()
 NS_IMETHODIMP
 nsGlobalWindow::SetFullScreen(bool aFullScreen)
 {
-  return SetFullScreenInternal(aFullScreen, true);
-}
-
-nsresult
-nsGlobalWindow::SetFullScreenInternal(bool aFullScreen, bool aRequireTrust)
-{
   FORWARD_TO_OUTER(SetFullScreen, (aFullScreen), NS_ERROR_NOT_INITIALIZED);
 
   NS_ENSURE_TRUE(mDocShell, NS_ERROR_FAILURE);
 
   bool rootWinFullScreen;
   GetFullScreen(&rootWinFullScreen);
-  // Only chrome can change our fullScreen mode, unless we're running in
-  // untrusted mode.
-  if (aFullScreen == rootWinFullScreen || 
-      (aRequireTrust && !nsContentUtils::IsCallerTrustedForWrite())) {
+  // Only chrome can change our fullScreen mode, unless the DOM full-screen
+  // API is enabled.
+  if ((aFullScreen == rootWinFullScreen || 
+      !nsContentUtils::IsCallerTrustedForWrite()) &&
+      !nsContentUtils::IsFullScreenApiEnabled()) {
     return NS_OK;
   }
 
@@ -4473,11 +4478,11 @@ nsGlobalWindow::SetFullScreenInternal(bool aFullScreen, bool aRequireTrust)
   nsCOMPtr<nsIDocShellTreeItem> treeItem = do_QueryInterface(mDocShell);
   nsCOMPtr<nsIDocShellTreeItem> rootItem;
   treeItem->GetRootTreeItem(getter_AddRefs(rootItem));
-  nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(rootItem);
+  nsCOMPtr<nsIDOMWindow> window = do_GetInterface(rootItem);
   if (!window)
     return NS_ERROR_FAILURE;
   if (rootItem != treeItem)
-    return window->SetFullScreenInternal(aFullScreen, aRequireTrust);
+    return window->SetFullScreen(aFullScreen);
 
   // make sure we don't try to set full screen on a non-chrome window,
   // which might happen in embedding world

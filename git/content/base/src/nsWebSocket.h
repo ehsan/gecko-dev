@@ -54,9 +54,7 @@
 #include "nsIInterfaceRequestor.h"
 #include "nsIWebSocketChannel.h"
 #include "nsIWebSocketListener.h"
-#include "nsIObserver.h"
 #include "nsIRequest.h"
-#include "nsWeakReference.h"
 
 #define DEFAULT_WS_SCHEME_PORT  80
 #define DEFAULT_WSS_SCHEME_PORT 443
@@ -76,8 +74,6 @@ class nsWebSocket: public nsDOMEventTargetHelper,
                    public nsIJSNativeInitializer,
                    public nsIInterfaceRequestor,
                    public nsIWebSocketListener,
-                   public nsIObserver,
-                   public nsSupportsWeakReference,
                    public nsIRequest
 {
 friend class nsWSCloseEvent;
@@ -92,7 +88,6 @@ public:
   NS_DECL_NSIWEBSOCKET
   NS_DECL_NSIINTERFACEREQUESTOR
   NS_DECL_NSIWEBSOCKETLISTENER
-  NS_DECL_NSIOBSERVER
   NS_DECL_NSIREQUEST
 
   // nsIJSNativeInitializer
@@ -119,7 +114,6 @@ protected:
   // These methods when called can release the WebSocket object
   nsresult FailConnection(PRUint16 reasonCode,
                           const nsACString& aReasonString = EmptyCString());
-  void     FailConnectionQuietly();
   nsresult CloseConnection(PRUint16 reasonCode,
                            const nsACString& aReasonString = EmptyCString());
   nsresult Disconnect();

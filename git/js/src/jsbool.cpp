@@ -53,14 +53,12 @@
 #include "jsobj.h"
 #include "jsstr.h"
 
+#include "vm/BooleanObject-inl.h"
 #include "vm/GlobalObject.h"
 
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
 #include "jsstrinlines.h"
-
-#include "vm/BooleanObject-inl.h"
-#include "vm/MethodGuard-inl.h"
 
 using namespace js;
 using namespace js::types;

@@ -26,8 +26,7 @@ add_test(function test_change_password() {
   }
 
   try {
-    Weave.Service.serverURL = TEST_SERVER_URL;
-    Weave.Service.clusterURL = TEST_CLUSTER_URL;
+    Weave.Service.serverURL = "http://localhost:8080/";
     Weave.Service.username = "johndoe";
     Weave.Service.password = "ilovejane";
 

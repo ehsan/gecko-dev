@@ -70,7 +70,6 @@
 #include "frontend/Parser.h"
 #include "frontend/TokenStream.h"
 #include "vm/GlobalObject.h"
-#include "vm/MethodGuard.h"
 
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
@@ -233,9 +232,11 @@ JS_FRIEND_DATA(Class) js::NamespaceClass = {
     JS_ResolveStub,
     JS_ConvertStub,
     JS_FinalizeStub,
+    NULL,                    /* reserved0   */
     NULL,                    /* checkAccess */
     NULL,                    /* call        */
     NULL,                    /* construct   */
+    NULL,                    /* xdrObject   */
     NULL,                    /* hasInstance */
     NULL,                    /* mark        */
     {
@@ -347,9 +348,11 @@ JS_FRIEND_DATA(Class) js::QNameClass = {
     JS_ResolveStub,
     JS_ConvertStub,
     JS_FinalizeStub,
+    NULL,                    /* reserved0   */
     NULL,                    /* checkAccess */
     NULL,                    /* call        */
     NULL,                    /* construct   */
+    NULL,                    /* xdrObject   */
     NULL,                    /* hasInstance */
     NULL,                    /* mark        */
     {
@@ -863,7 +866,7 @@ js_XMLArrayCursorTrace(JSTracer *trc, JSXMLArrayCursor<JSXML> *cursor)
 {
     for (; cursor; cursor = cursor->next) {
         if (cursor->root)
-            MarkXML(trc, &(HeapPtr<JSXML> &)cursor->root, "cursor_root");
+            MarkXML(trc, (const HeapPtr<JSXML> &)cursor->root, "cursor_root");
     }
 }
 
@@ -872,7 +875,7 @@ js_XMLArrayCursorTrace(JSTracer *trc, JSXMLArrayCursor<JSObject> *cursor)
 {
     for (; cursor; cursor = cursor->next) {
         if (cursor->root)
-            MarkObject(trc, &(HeapPtr<JSObject> &)cursor->root, "cursor_root");
+            MarkObject(trc, (const HeapPtr<JSObject> &)cursor->root, "cursor_root");
     }
 }
 
@@ -5366,7 +5369,7 @@ out:
 
 JS_FRIEND_DATA(Class) js::XMLClass = {
     js_XML_str,
-    JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
+    JSCLASS_HAS_PRIVATE |
     JSCLASS_HAS_CACHED_PROTO(JSProto_XML),
     JS_PropertyStub,         /* addProperty */
     JS_PropertyStub,         /* delProperty */
@@ -5376,9 +5379,11 @@ JS_FRIEND_DATA(Class) js::XMLClass = {
     JS_ResolveStub,
     xml_convert,
     xml_finalize,
+    NULL,                 /* reserved0   */
     NULL,                 /* checkAccess */
     NULL,                 /* call        */
     NULL,                 /* construct   */
+    NULL,                 /* xdrObject   */
     xml_hasInstance,
     xml_trace,
     JS_NULL_CLASS_EXT,
@@ -7323,15 +7328,15 @@ void
 js_TraceXML(JSTracer *trc, JSXML *xml)
 {
     if (xml->object)
-        MarkObject(trc, &xml->object, "object");
+        MarkObject(trc, xml->object, "object");
     if (xml->name)
-        MarkObject(trc, &xml->name, "name");
+        MarkObject(trc, xml->name, "name");
     if (xml->parent)
-        MarkXML(trc, &xml->parent, "xml_parent");
+        MarkXML(trc, xml->parent, "xml_parent");
 
     if (JSXML_HAS_VALUE(xml)) {
         if (xml->xml_value)
-            MarkString(trc, &xml->xml_value, "value");
+            MarkString(trc, xml->xml_value, "value");
         return;
     }
 
@@ -7340,9 +7345,9 @@ js_TraceXML(JSTracer *trc, JSXML *xml)
 
     if (xml->xml_class == JSXML_CLASS_LIST) {
         if (xml->xml_target)
-            MarkXML(trc, &xml->xml_target, "target");
+            MarkXML(trc, xml->xml_target, "target");
         if (xml->xml_targetprop)
-            MarkObject(trc, &xml->xml_targetprop, "targetprop");
+            MarkObject(trc, xml->xml_targetprop, "targetprop");
     } else {
         MarkObjectRange(trc, xml->xml_namespaces.length,
                         xml->xml_namespaces.vector,
@@ -7893,11 +7898,11 @@ xmlfilter_trace(JSTracer *trc, JSObject *obj)
         return;
 
     JS_ASSERT(filter->list);
-    MarkXML(trc, &filter->list, "list");
+    MarkXML(trc, filter->list, "list");
     if (filter->result)
-        MarkXML(trc, &filter->result, "result");
+        MarkXML(trc, filter->result, "result");
     if (filter->kid)
-        MarkXML(trc, &filter->kid, "kid");
+        MarkXML(trc, filter->kid, "kid");
 
     /*
      * We do not need to trace the cursor as that would be done when
@@ -7917,7 +7922,7 @@ xmlfilter_finalize(JSContext *cx, JSObject *obj)
 
 Class js_XMLFilterClass = {
     "XMLFilter",
-    JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_IS_ANONYMOUS,
+    JSCLASS_HAS_PRIVATE | JSCLASS_IS_ANONYMOUS,
     JS_PropertyStub,         /* addProperty */
     JS_PropertyStub,         /* delProperty */
     JS_PropertyStub,         /* getProperty */
@@ -7926,9 +7931,11 @@ Class js_XMLFilterClass = {
     JS_ResolveStub,
     JS_ConvertStub,
     xmlfilter_finalize,
+    NULL,                    /* reserved0   */
     NULL,                    /* checkAccess */
     NULL,                    /* call        */
     NULL,                    /* construct   */
+    NULL,                    /* xdrObject   */
     NULL,                    /* hasInstance */
     xmlfilter_trace
 };

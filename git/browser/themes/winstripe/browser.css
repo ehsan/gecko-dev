@@ -686,22 +686,17 @@ menuitem.bookmark-item {
 @navbarLargeIcons@ .toolbarbutton-1 {
   -moz-appearance: none;
   padding: 1px 5px;
-  background: hsla(210,48%,90%,.1)
-              -moz-linear-gradient(rgba(255,255,255,.8), rgba(255,255,255,.45) 49%,
-                                   rgba(255,255,255,.35) 51%, rgba(255,255,255,.1))
-              padding-box;
+  background: rgba(151,152,153,.05)
+              -moz-linear-gradient(rgba(251,252,253,.95), rgba(246,247,248,.47) 49%, 
+                                   rgba(231,232,233,.45) 51%, rgba(225,226,229,.3));
+  background-clip: padding-box;
   border-radius: 2.5px;
   border: 1px solid;
-  border-color: hsla(210,54%,20%,.13) hsla(210,54%,20%,.16) hsla(210,54%,20%,.2);
-  box-shadow: 0 1px 0 rgba(255,255,255,.3) inset,
-              0 0 0 1px rgba(255,255,255,.3) inset,
-              0 1px 0 hsla(210,54%,20%,.02),
-              /* allows winstripe-keyhole-forward-mask to be used for non-hover as well as hover: */
-              0 0 2px hsla(210,54%,20%,0);
+  border-color: rgba(0,0,0,.12) rgba(0,0,0,.19) rgba(0,0,0,.38);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.3) inset,
+              0 0 0 2px rgba(255,255,255,.1) inset;
   color: black;
   text-shadow: 0 0 2px white;
-  -moz-transition-property: background-color, border-color, box-shadow;
-  -moz-transition-duration: 250ms;
 }
 
 @navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker {
@@ -760,13 +755,16 @@ menuitem.bookmark-item {
 
 @navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-menubutton-button:not([disabled="true"]):not(:active):hover,
 @navbarLargeIcons@ .toolbarbutton-1:not([open="true"]):not(:active):hover > .toolbarbutton-menubutton-dropmarker:not([disabled="true"]),
-@navbarLargeIcons@ .toolbarbutton-1:not([type="menu-button"]):not([disabled="true"]):not([checked="true"]):not([open="true"]):not(:active):hover {
-  background-color: hsla(210,48%,96%,.75);
-  border-color: hsla(210,54%,20%,.3) hsla(210,54%,20%,.35) hsla(210,54%,20%,.4);
-  box-shadow: 0 1px 0 rgba(255,255,255,.3) inset,
-              0 0 0 1px rgba(255,255,255,.3) inset,
-              0 1px 0 hsla(210,54%,20%,.03),
-              0 0 2px hsla(210,54%,20%,.1);
+@navbarLargeIcons@ .toolbarbutton-1:not([type="menu-button"]):not([disabled="true"]):not([checked="true"]):not([open="true"]):not(:active):hover,
+@navbarLargeIcons@ #back-button:not([disabled="true"]):not([open]):not(:active):hover > .toolbarbutton-icon {
+  background-color: hsla(190,60%,70%,.5);
+  border-color: hsla(190,50%,65%,.8) hsla(190,50%,50%,.8) hsla(190,50%,40%,.8);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.3) inset,
+              0 0 0 1.5px rgba(255,255,255,.1) inset,
+              0 0 3.5px hsl(190,90%,80%);
+  -moz-transition: background-color .4s ease-in,
+                   border-color .3s ease-in,
+                   box-shadow .3s ease-in;
 }
 
 @navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-menubutton-button:not([disabled="true"]):hover:active,
@@ -775,15 +773,12 @@ menuitem.bookmark-item {
 @navbarLargeIcons@ .toolbarbutton-1:not([type="menu-button"]):not([disabled="true"]):hover:active,
 @navbarLargeIcons@ .toolbarbutton-1:not([type="menu-button"])[checked="true"],
 @navbarLargeIcons@ .toolbarbutton-1[open="true"] {
-  background-color: hsla(210,54%,20%,.2);
-  border-color: hsla(210,54%,20%,.3) hsla(210,54%,20%,.35) hsla(210,54%,20%,.4);
-  box-shadow: 0 1px 1px rgba(0,0,0,.1) inset,
-              0 0 2px rgba(0,0,0,.3) inset,
-              /* allows winstripe-keyhole-forward-mask to be used for non-hover as well as hover: */
-              0 1px 0 hsla(210,54%,20%,0),
-              0 0 2px hsla(210,54%,20%,0);
+  background-color: transparent;
+  border-color: rgba(0,0,0,.65) rgba(0,0,0,.55) rgba(0,0,0,.5);
+  box-shadow: 0 0 6.5px rgba(0,0,0,.4) inset,
+              0 0 2px rgba(0,0,0,.4) inset,
+              0 1px 0 rgba(255,255,255,.4);
   text-shadow: none;
-  -moz-transition: none;
 }
 
 @navbarLargeIcons@ .toolbarbutton-1[checked="true"]:not(:active):hover {
@@ -909,33 +904,28 @@ toolbar[mode="full"] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   border-radius: 10000px;
   padding: 5px;
   border: none;
-  background: hsla(210,48%,90%,.1)
-              -moz-linear-gradient(rgba(255,255,255,.88), rgba(255,255,255,.45) 49%,
-                                   rgba(255,255,255,.35) 51%, rgba(255,255,255,.67));
-  box-shadow: 0 1px 0 rgba(255,255,255,.3) inset,
-              0 0 0 1px rgba(255,255,255,.3) inset,
-              0 1px 0 hsla(210,54%,20%,.02),
-              0 0 0 1px rgba(0,0,0,.15);
-  -moz-transition-property: background-color, box-shadow;
-  -moz-transition-duration: 250ms;
+  background-image: -moz-linear-gradient(rgba(251,252,253,.97), rgba(246,247,248,.5) 49%, 
+                                         rgba(231,232,233,.45) 51%, rgba(225,226,229,.2));
+  box-shadow: 0 0 0 1px rgba(255,255,255,.3) inset,
+              0 0 0 2px rgba(255,255,255,.1) inset,
+              0 0 0 1px rgba(0,0,0,.15),
+              0 1px 0 rgba(0,0,0,.4);
 }
 
 @navbarLargeIcons@ #back-button:not([disabled="true"]):not([open="true"]):not(:active):hover > .toolbarbutton-icon {
-  background-color: hsla(210,48%,96%,.75);
-  box-shadow: 0 1px 0 rgba(255,255,255,.3) inset,
-              0 0 0 1px rgba(255,255,255,.1) inset,
-              0 1px 0 hsla(210,54%,20%,.03),
-              0 0 0 1px rgba(0,0,0,.2),
-              0 0 2px 1px hsla(210,54%,20%,.2);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.3) inset,
+              0 0 0 2px rgba(255,255,255,.1) inset,
+              0 0 0 1px hsla(190,50%,40%,.3),
+              0 1px 0 rgba(0,0,0,.4),
+              0 0 5px 1px hsl(190,90%,80%);
 }
 
 @navbarLargeIcons@ #back-button:not([disabled="true"]):hover:active > .toolbarbutton-icon,
 @navbarLargeIcons@ #back-button[open="true"] > .toolbarbutton-icon {
-  background-color: hsla(210,54%,20%,.2);
-  box-shadow: 0 1px 1px rgba(0,0,0,.1) inset,
-              0 0 2px rgba(0,0,0,.3) inset,
-              0 0 0 1px rgba(0,0,0,.2);
-  -moz-transition: none;
+  box-shadow: 0 0 6.5px rgba(0,0,0,.4) inset,
+              0 0 2px rgba(0,0,0,.4) inset,
+              0 0 0 1px rgba(0,0,0,.65),
+              0 2px 0 rgba(255,255,255,.4);
 }
 
 @navbarLargeIcons@[currentset*="unified-back-forward-button"],
@@ -955,6 +945,13 @@ toolbar[mode="full"] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   -moz-margin-start: -6px !important;
   padding-left: 7px;
   padding-right: 3px;
+}
+
+@navbarLargeIcons@ #forward-button:not([disabled="true"]):not(:active):hover {
+  /*mask: url(keyhole-forward-mask.svg#mask-hover);*/
+  mask: url(chrome://browser/content/browser.xul#winstripe-keyhole-forward-mask-hover);
+  /* Don't animate the box shadow, as the blur and spread radii affect the mask. */
+  -moz-transition: background-color .4s ease-in;
 }
 
 .unified-nav-back[_moz-menuactive]:-moz-locale-dir(ltr),

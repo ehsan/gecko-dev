@@ -758,44 +758,36 @@ void imgFrame::SetCompositingFailed(bool val)
   mCompositingFailed = val;
 }
 
-size_t
-imgFrame::SizeOfExcludingThisWithComputedFallbackIfHeap(gfxASurface::MemoryLocation aLocation, nsMallocSizeOfFun aMallocSizeOf) const
+PRUint32
+imgFrame::EstimateMemoryUsed(gfxASurface::MemoryLocation aLocation) const
 {
-  // aMallocSizeOf is only used if aLocation==MEMORY_IN_PROCESS_HEAP.  It
-  // should be NULL otherwise.
-  NS_ABORT_IF_FALSE(
-    (aLocation == gfxASurface::MEMORY_IN_PROCESS_HEAP &&  aMallocSizeOf) ||
-    (aLocation != gfxASurface::MEMORY_IN_PROCESS_HEAP && !aMallocSizeOf),
-    "mismatch between aLocation and aMallocSizeOf");
+  PRUint32 size = 0;
 
-  size_t n = 0;
-
-  if (mPalettedImageData && aLocation == gfxASurface::MEMORY_IN_PROCESS_HEAP) {
-    size_t usable = aMallocSizeOf(mPalettedImageData);
-    if (!usable) {
-      usable = GetImageDataLength() + PaletteDataLength();
-    }
-    n += usable;
+  if (mSinglePixel && aLocation == gfxASurface::MEMORY_IN_PROCESS_HEAP) {
+    size += sizeof(gfxRGBA);
   }
 
-  // XXX: should pass aMallocSizeOf here.  See bug 723827.
+  if (mPalettedImageData && aLocation == gfxASurface::MEMORY_IN_PROCESS_HEAP) {
+    size += GetImageDataLength() + PaletteDataLength();
+  }
+
 #ifdef USE_WIN_SURFACE
   if (mWinSurface && aLocation == mWinSurface->GetMemoryLocation()) {
-    n += mWinSurface->KnownMemoryUsed();
+    size += mWinSurface->KnownMemoryUsed();
   } else
 #endif
 #ifdef XP_MACOSX
   if (mQuartzSurface && aLocation == gfxASurface::MEMORY_IN_PROCESS_HEAP) {
-    n += mSize.width * mSize.height * 4;
+    size += mSize.width * mSize.height * 4;
   } else
 #endif
   if (mImageSurface && aLocation == mImageSurface->GetMemoryLocation()) {
-    n += mImageSurface->KnownMemoryUsed();
+    size += mImageSurface->KnownMemoryUsed();
   }
 
   if (mOptSurface && aLocation == mOptSurface->GetMemoryLocation()) {
-    n += mOptSurface->KnownMemoryUsed();
+    size += mOptSurface->KnownMemoryUsed();
   }
 
-  return n;
+  return size;
 }

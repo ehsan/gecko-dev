@@ -48,7 +48,6 @@ import org.mozilla.apache.commons.codec.binary.Base64;
 import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.crypto.CryptoException;
 import java.security.InvalidKeyException;
-import java.util.Locale;
 
 public class KeyBundle {
     private static final String KEY_ALGORITHM_SPEC = "AES";
@@ -77,9 +76,9 @@ public class KeyBundle {
         throw new IllegalArgumentException("No account name provided.");
       }
       if (account.matches("^[A-Za-z0-9._-]+$")) {
-        return account.toLowerCase(Locale.US);
+        return account;
       }
-      return Utils.sha1Base32(account.toLowerCase(Locale.US));
+      return Utils.sha1Base32(account);
     }
 
     // If we encounter characters not allowed by the API (as found for

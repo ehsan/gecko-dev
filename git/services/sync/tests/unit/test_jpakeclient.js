@@ -66,11 +66,6 @@ function server_report(request, response) {
   response.setStatusLine(request.httpVersion, 200, "OK");
 }
 
-// Hook for test code.
-let hooks = {
-  onGET: function onGET(request) {}
-}
-
 function ServerChannel() {
   this.data = "";
   this.etag = "";
@@ -88,7 +83,6 @@ ServerChannel.prototype = {
       let etag = request.getHeader("If-None-Match");
       if (etag == this.etag) {
         response.setStatusLine(request.httpVersion, 304, "Not Modified");
-        hooks.onGET(request);
         return;
       }
     }
@@ -101,7 +95,6 @@ ServerChannel.prototype = {
     if (this.getCount == SERVER_MAX_GETS) {
       this.clear();
     }
-    hooks.onGET(request);
   },
 
   PUT: function PUT(request, response) {
@@ -166,7 +159,7 @@ const DATA = {"msg": "eggstreamly sekrit"};
 const POLLINTERVAL = 50;
 
 function run_test() {
-  Svc.Prefs.set("jpake.serverURL", TEST_SERVER_URL);
+  Svc.Prefs.set("jpake.serverURL", "http://localhost:8080/");
   Svc.Prefs.set("jpake.pollInterval", POLLINTERVAL);
   Svc.Prefs.set("jpake.maxTries", 2);
   Svc.Prefs.set("jpake.firstMsgMaxTries", 5);
@@ -301,15 +294,9 @@ add_test(function test_lastMsgMaxTries() {
       // to 2 times for other exchanges). So let's pretend it took
       // 150ms to come up with the final payload, which should require
       // 3 polls.
-      // Rather than using an imprecise timer, we hook into the channel's
-      // GET handler to know how long to wait.
-      let count = 0;
-      hooks.onGET = function onGET(request) {
-        if (++count == 3) {
-          _("Third GET. Triggering send.");
-          Utils.nextTick(function() { snd.sendAndComplete(DATA); });
-        }
-      };
+      _("Pairing successful, waiting 150ms to send final payload.");
+      Utils.namedTimer(function() { snd.sendAndComplete(DATA); },
+                       150, this, "_sendTimer");
     },
     onComplete: function onComplete() {}
   });
@@ -327,9 +314,6 @@ add_test(function test_lastMsgMaxTries() {
       // Ensure channel was cleared, no error report.
       do_check_eq(channels[this.cid].data, undefined);
       do_check_eq(error_report, undefined);
-
-      // Clean up.
-      hooks.onGET = function onGET(request) {};
       run_next_test();
     }
   });

@@ -878,7 +878,7 @@ stubs::DebuggerStatement(VMFrame &f, jsbytecode *pc)
 void JS_FASTCALL
 stubs::Interrupt(VMFrame &f, jsbytecode *pc)
 {
-    gc::MaybeVerifyBarriers(f.cx);
+    gc::VerifyBarriers(f.cx);
 
     if (!js_HandleExecutionInterrupt(f.cx))
         THROW();

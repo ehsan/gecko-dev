@@ -203,13 +203,6 @@ PRThread* gCycleCollectorThread = nsnull;
 // If true, always log cycle collector graphs.
 const bool gAlwaysLogCCGraphs = false;
 
-MOZ_NEVER_INLINE void
-CC_AbortIfNull(void *ptr)
-{
-    if (!ptr)
-        MOZ_Assert("ptr was null", __FILE__, __LINE__);
-}
-
 // Various parameters of this collector can be tuned using environment
 // variables.
 
@@ -1379,45 +1372,40 @@ nsCycleCollectionXPCOMRuntime::ToParticipant(void *p)
 
 
 template <class Visitor>
-MOZ_NEVER_INLINE void
+void
 GraphWalker<Visitor>::Walk(PtrInfo *s0)
 {
     nsDeque queue;
-    CC_AbortIfNull(s0);
     queue.Push(s0);
     DoWalk(queue);
 }
 
 template <class Visitor>
-MOZ_NEVER_INLINE void
+void
 GraphWalker<Visitor>::WalkFromRoots(GCGraph& aGraph)
 {
     nsDeque queue;
     NodePool::Enumerator etor(aGraph.mNodes);
     for (PRUint32 i = 0; i < aGraph.mRootCount; ++i) {
-        PtrInfo *pi = etor.GetNext();
-        CC_AbortIfNull(pi);
-        queue.Push(pi);
+        queue.Push(etor.GetNext());
     }
     DoWalk(queue);
 }
 
 template <class Visitor>
-MOZ_NEVER_INLINE void
+void
 GraphWalker<Visitor>::DoWalk(nsDeque &aQueue)
 {
     // Use a aQueue to match the breadth-first traversal used when we
     // built the graph, for hopefully-better locality.
     while (aQueue.GetSize() > 0) {
         PtrInfo *pi = static_cast<PtrInfo*>(aQueue.PopFront());
-        CC_AbortIfNull(pi);
 
         if (mVisitor.ShouldVisitNode(pi)) {
             mVisitor.VisitNode(pi);
             for (EdgePool::Iterator child = pi->FirstChild(),
                                 child_end = pi->LastChild();
                  child != child_end; ++child) {
-                CC_AbortIfNull(*child);
                 aQueue.Push(*child);
             }
         }
@@ -1894,7 +1882,7 @@ GCGraphBuilder::AddNode(void *s, nsCycleCollectionParticipant *aParticipant
     return result;
 }
 
-MOZ_NEVER_INLINE void
+void
 GCGraphBuilder::Traverse(PtrInfo* aPtrInfo)
 {
     mCurrPi = aPtrInfo;
@@ -2225,7 +2213,7 @@ nsCycleCollector::ForgetSkippable()
     }
 }
 
-MOZ_NEVER_INLINE void
+void
 nsCycleCollector::MarkRoots(GCGraphBuilder &builder)
 {
     mGraph.mRootCount = builder.Count();
@@ -2234,7 +2222,6 @@ nsCycleCollector::MarkRoots(GCGraphBuilder &builder)
     NodePool::Enumerator queue(mGraph.mNodes);
     while (!queue.IsDone()) {
         PtrInfo *pi = queue.GetNext();
-        CC_AbortIfNull(pi);
         builder.Traverse(pi);
         if (queue.AtBlockEnd())
             builder.SetLastChild();
@@ -2261,7 +2248,7 @@ struct ScanBlackVisitor
         return pi->mColor != black;
     }
 
-    MOZ_NEVER_INLINE void VisitNode(PtrInfo *pi)
+    void VisitNode(PtrInfo *pi)
     {
         if (pi->mColor == white)
             --mWhiteNodeCount;
@@ -2286,7 +2273,7 @@ struct scanVisitor
         return pi->mColor == grey;
     }
 
-    MOZ_NEVER_INLINE void VisitNode(PtrInfo *pi)
+    void VisitNode(PtrInfo *pi)
     {
         if (pi->mInternalRefs > pi->mRefCount && pi->mRefCount > 0)
             Fault("traversed refs exceed refcount", pi);

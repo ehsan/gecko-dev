@@ -859,7 +859,7 @@ TransferZoomLevels(nsIDocument* aFromDoc,
     return;
 
   toCtxt->SetFullZoom(fromCtxt->GetFullZoom());
-  toCtxt->SetMinFontSize(fromCtxt->MinFontSize(nsnull));
+  toCtxt->SetMinFontSize(fromCtxt->MinFontSize());
   toCtxt->SetTextZoom(fromCtxt->TextZoom());
 }
 
@@ -1579,7 +1579,8 @@ nsDocument::~nsDocument()
   nsCycleCollector_DEBUG_wasFreed(static_cast<nsIDocument*>(this));
 #endif
 
-  NS_ASSERTION(!mIsShowing, "Destroying a currently-showing document");
+  NS_ASSERTION(!mIsShowing, "Deleting a currently-showing document");
+  NS_ASSERTION(IsOrphan(), "Deleted document not an orphan?");
 
   mInDestructor = true;
   mInUnlinkOrDeletion = true;
@@ -2118,6 +2119,7 @@ nsDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
   }
 #endif
 
+  SetPrincipal(nsnull);
   mSecurityInfo = nsnull;
 
   mDocumentLoadGroup = nsnull;
@@ -2166,12 +2168,6 @@ nsDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
 
   // Release the stylesheets list.
   mDOMStyleSheets = nsnull;
-
-  // Release our principal after tearing down the document, rather than before.
-  // This ensures that, during teardown, the document and the dying window (which
-  // already nulled out its document pointer and cached the principal) have
-  // matching principals.
-  SetPrincipal(nsnull);
 
   // Clear the original URI so SetDocumentURI sets it.
   mOriginalURI = nsnull;
@@ -5133,9 +5129,11 @@ NS_IMETHODIMP
 nsDocument::GetDefaultView(nsIDOMWindow** aDefaultView)
 {
   *aDefaultView = nsnull;
-  nsCOMPtr<nsPIDOMWindow> win = GetWindow();
-  win.forget(aDefaultView);
-  return NS_OK;
+  nsPIDOMWindow* win = GetWindow();
+  if (!win) {
+    return NS_OK;
+  }
+  return CallQueryInterface(win, aDefaultView);
 }
 
 NS_IMETHODIMP
@@ -8118,7 +8116,7 @@ nsIDocument::ScheduleFrameRequestCallback(nsIFrameRequestCallback* aCallback,
   PRInt32 newHandle = ++mFrameRequestCallbackCounter;
 
   bool alreadyRegistered = !mFrameRequestCallbacks.IsEmpty();
-  DebugOnly<FrameRequest*> request =
+  FrameRequest *request =
     mFrameRequestCallbacks.AppendElement(FrameRequest(aCallback, newHandle));
   NS_ASSERTION(request, "This is supposed to be infallible!");
   if (!alreadyRegistered && mPresShell && IsEventHandlingEnabled()) {
@@ -8301,8 +8299,11 @@ nsDocument::RemoveImage(imgIRequest* aImage)
   NS_ENSURE_ARG_POINTER(aImage);
 
   // Get the old count. It should exist and be > 0.
-  PRUint32 count = 0;
-  DebugOnly<bool> found = mImageTracker.Get(aImage, &count);
+  PRUint32 count;
+#ifdef DEBUG
+  bool found =
+#endif
+  mImageTracker.Get(aImage, &count);
   NS_ABORT_IF_FALSE(found, "Removing image that wasn't in the tracker!");
   NS_ABORT_IF_FALSE(count > 0, "Entry in the cache tracker with count 0!");
 
@@ -8526,7 +8527,7 @@ public:
   NS_IMETHOD Run()
   {
     if (mDoc->GetWindow()) {
-      mDoc->GetWindow()->SetFullScreenInternal(mValue, false);
+      mDoc->GetWindow()->SetFullScreen(mValue);
     }
     return NS_OK;
   }

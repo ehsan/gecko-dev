@@ -1146,11 +1146,9 @@ js_NewPrinter(JSContext *cx, const char *name, JSFunction *fun,
 void
 js_DestroyPrinter(JSPrinter *jp)
 {
-    JSContext *cx = jp->sprinter.context;
     jp->pool.freeAll();
     Foreground::delete_(jp->localNames);
-    jp->sprinter.Sprinter::~Sprinter();
-    cx->free_(jp);
+    jp->sprinter.context->free_(jp);
 }
 
 JSString *

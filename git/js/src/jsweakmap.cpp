@@ -54,8 +54,6 @@
 #include "jsgcinlines.h"
 #include "jsobjinlines.h"
 
-#include "vm/MethodGuard-inl.h"
-
 using namespace js;
 
 namespace js {
@@ -64,7 +62,7 @@ bool
 WeakMapBase::markAllIteratively(JSTracer *tracer)
 {
     bool markedAny = false;
-    JSRuntime *rt = tracer->runtime;
+    JSRuntime *rt = tracer->context->runtime;
     for (WeakMapBase *m = rt->gcWeakMapList; m; m = m->next) {
         if (m->markIteratively(tracer))
             markedAny = true;
@@ -75,7 +73,7 @@ WeakMapBase::markAllIteratively(JSTracer *tracer)
 void
 WeakMapBase::sweepAll(JSTracer *tracer)
 {
-    JSRuntime *rt = tracer->runtime;
+    JSRuntime *rt = tracer->context->runtime;
     for (WeakMapBase *m = rt->gcWeakMapList; m; m = m->next)
         m->sweep(tracer);
 }
@@ -121,14 +119,16 @@ GetKeyArg(JSContext *cx, CallArgs &args)
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_NOT_NONNULL_OBJECT);
         return NULL;
     }
-    JSObject &key = vp->toObject();
+    JSObject *key = &vp->toObject();
+    if (!key)
+        return NULL;
 
     // If the key is from another compartment, and we store the wrapper as the key
     // the wrapper might be GC-ed since it is not strong referenced (Bug 673468).
     // To avoid this we always use the unwrapped object as the key instead of its
     // security wrapper. This also means that if the keys are ever exposed they must
     // be re-wrapped (see: JS_NondeterministicGetWeakMapKeys).
-    return JS_UnwrapObject(&key);
+    return JS_UnwrapObject(key);
 }
 
 static JSBool
@@ -314,16 +314,8 @@ WeakMap_mark(JSTracer *trc, JSObject *obj)
 static void
 WeakMap_finalize(JSContext *cx, JSObject *obj)
 {
-    if (ObjectValueMap *map = GetObjectMap(obj)) {
-        map->check();
-#ifdef DEBUG
-        map->~ObjectValueMap();
-        memset(map, 0xdc, sizeof(ObjectValueMap));
-        cx->free_(map);
-#else
-        cx->delete_(map);
-#endif
-    }
+    ObjectValueMap *map = GetObjectMap(obj);
+    cx->delete_(map);
 }
 
 static JSBool
@@ -339,7 +331,7 @@ WeakMap_construct(JSContext *cx, uintN argc, Value *vp)
 
 Class js::WeakMapClass = {
     "WeakMap",
-    JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
+    JSCLASS_HAS_PRIVATE |
     JSCLASS_HAS_CACHED_PROTO(JSProto_WeakMap),
     JS_PropertyStub,         /* addProperty */
     JS_PropertyStub,         /* delProperty */
@@ -349,10 +341,12 @@ Class js::WeakMapClass = {
     JS_ResolveStub,
     JS_ConvertStub,
     WeakMap_finalize,
+    NULL,                    /* reserved0   */
     NULL,                    /* checkAccess */
     NULL,                    /* call        */
     NULL,                    /* construct   */
     NULL,                    /* xdrObject   */
+    NULL,                    /* hasInstance */
     WeakMap_mark
 };
 

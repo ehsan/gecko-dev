@@ -1365,6 +1365,8 @@ nsresult nsNSSComponent::getParamsForNextCrlToDownload(nsAutoString *url, PRTime
 NS_IMETHODIMP
 nsNSSComponent::Notify(nsITimer *timer)
 {
+  nsresult rv;
+
   //Timer has fired. So set the flag accordingly
   {
     MutexAutoLock lock(mCrlTimerLock);
@@ -1372,7 +1374,7 @@ nsNSSComponent::Notify(nsITimer *timer)
   }
 
   //First, handle this download
-  DownloadCrlSilently();
+  rv = DownloadCrlSilently();
 
   //Dont Worry if successful or not
   //Set the next timer
@@ -2278,9 +2280,11 @@ nsNSSComponent::Observe(nsISupports *aSubject, const char *aTopic,
     // Cleanup code that requires services, it's too late in destructor.
 
     if (mPSMContentListener) {
+      nsresult rv = NS_ERROR_FAILURE;
+
       nsCOMPtr<nsIURILoader> dispatcher(do_GetService(NS_URI_LOADER_CONTRACTID));
       if (dispatcher) {
-        dispatcher->UnRegisterContentListener(mPSMContentListener);
+        rv = dispatcher->UnRegisterContentListener(mPSMContentListener);
       }
       mPSMContentListener = nsnull;
     }

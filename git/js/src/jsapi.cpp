@@ -92,7 +92,6 @@
 #include "js/MemoryMetrics.h"
 #include "mozilla/Util.h"
 #include "yarr/BumpPointerAllocator.h"
-#include "vm/MethodGuard.h"
 
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
@@ -724,6 +723,8 @@ JSRuntime::JSRuntime()
     gcMaxBytes(0),
     gcMaxMallocBytes(0),
     gcNumArenasFreeCommitted(0),
+    gcNumber(0),
+    gcIncrementalTracer(NULL),
     gcVerifyData(NULL),
     gcChunkAllocationSinceLastGC(false),
     gcNextFullGCTime(0),
@@ -732,20 +733,12 @@ JSRuntime::JSRuntime()
     gcIsNeeded(0),
     gcWeakMapList(NULL),
     gcStats(thisFromCtor()),
-    gcNumber(0),
-    gcStartNumber(0),
     gcTriggerReason(gcreason::NO_REASON),
     gcTriggerCompartment(NULL),
     gcCurrentCompartment(NULL),
     gcCheckCompartment(NULL),
-    gcIncrementalState(gc::NO_INCREMENTAL),
-    gcCompartmentCreated(false),
-    gcLastMarkSlice(false),
-    gcInterFrameGC(0),
-    gcSliceBudget(SliceBudget::Unlimited),
-    gcIncrementalEnabled(true),
-    gcIncrementalCompartment(NULL),
     gcPoke(false),
+    gcMarkAndSweep(false),
     gcRunning(false),
 #ifdef JS_GC_ZEAL
     gcZeal_(0),
@@ -754,7 +747,7 @@ JSRuntime::JSRuntime()
     gcDebugCompartmentGC(false),
 #endif
     gcCallback(NULL),
-    gcSliceCallback(NULL),
+    gcFinishedCallback(NULL),
     gcMallocBytes(0),
     gcBlackRootsTraceOp(NULL),
     gcBlackRootsData(NULL),
@@ -793,8 +786,7 @@ JSRuntime::JSRuntime()
 #ifdef DEBUG
     noGCOrAllocationCheck(0),
 #endif
-    inOOMReport(0),
-    jitHardening(false)
+    inOOMReport(0)
 {
     /* Initialize infallibly first, so we can goto bad and JS_DestroyRuntime. */
     JS_INIT_CLIST(&contextList);
@@ -820,9 +812,6 @@ JSRuntime::init(uint32_t maxbytes)
 #endif
 
     if (!js_InitGC(this, maxbytes))
-        return false;
-
-    if (!gcMarker.init())
         return false;
 
     if (!(atomsCompartment = this->new_<JSCompartment>(this)) ||
@@ -995,6 +984,30 @@ JS_PUBLIC_API(void)
 JS_SetRuntimePrivate(JSRuntime *rt, void *data)
 {
     rt->data = data;
+}
+
+JS_PUBLIC_API(size_t)
+JS::SystemCompartmentCount(const JSRuntime *rt)
+{
+    size_t n = 0;
+    for (size_t i = 0; i < rt->compartments.length(); i++) {
+        if (rt->compartments[i]->isSystemCompartment) {
+            ++n;
+        }
+    }
+    return n;
+}
+
+JS_PUBLIC_API(size_t)
+JS::UserCompartmentCount(const JSRuntime *rt)
+{
+    size_t n = 0;
+    for (size_t i = 0; i < rt->compartments.length(); i++) {
+        if (!rt->compartments[i]->isSystemCompartment) {
+            ++n;
+        }
+    }
+    return n;
 }
 
 #ifdef JS_THREADSAFE
@@ -2170,14 +2183,6 @@ JS_GetObjectPrototype(JSContext *cx, JSObject *forObj)
 }
 
 JS_PUBLIC_API(JSObject *)
-JS_GetFunctionPrototype(JSContext *cx, JSObject *forObj)
-{
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, forObj);
-    return forObj->global().getOrCreateFunctionPrototype(cx);
-}
-
-JS_PUBLIC_API(JSObject *)
 JS_GetGlobalForObject(JSContext *cx, JSObject *obj)
 {
     AssertNoGC(cx);
@@ -2432,7 +2437,13 @@ JS_SetExtraGCRootsTracer(JSRuntime *rt, JSTraceDataOp traceOp, void *data)
 JS_PUBLIC_API(void)
 JS_TracerInit(JSTracer *trc, JSContext *cx, JSTraceCallback callback)
 {
-    InitTracer(trc, cx->runtime, cx, callback);
+    trc->runtime = cx->runtime;
+    trc->context = cx;
+    trc->callback = callback;
+    trc->debugPrinter = NULL;
+    trc->debugPrintArg = NULL;
+    trc->debugPrintIndex = size_t(-1);
+    trc->eagerlyTraceWeakMaps = true;
 }
 
 JS_PUBLIC_API(void)
@@ -2864,7 +2875,8 @@ JS_CompartmentGC(JSContext *cx, JSCompartment *comp)
     /* We cannot GC the atoms compartment alone; use a full GC instead. */
     JS_ASSERT(comp != cx->runtime->atomsCompartment);
 
-    GC(cx, comp, GC_NORMAL, gcreason::API);
+    js::gc::VerifyBarriers(cx, true);
+    js_GC(cx, comp, GC_NORMAL, gcreason::API);
 }
 
 JS_PUBLIC_API(void)
@@ -2902,6 +2914,7 @@ JS_PUBLIC_API(JSBool)
 JS_IsAboutToBeFinalized(void *thing)
 {
     gc::Cell *t = static_cast<gc::Cell *>(thing);
+    JS_ASSERT(!t->compartment()->rt->gcIncrementalTracer);
     return IsAboutToBeFinalized(t);
 }
 
@@ -2918,15 +2931,11 @@ JS_SetGCParameter(JSRuntime *rt, JSGCParamKey key, uint32_t value)
       case JSGC_MAX_MALLOC_BYTES:
         rt->setGCMaxMallocBytes(value);
         break;
-      case JSGC_SLICE_TIME_BUDGET:
-        rt->gcSliceBudget = SliceBudget::TimeBudget(value);
-        break;
       default:
         JS_ASSERT(key == JSGC_MODE);
         rt->gcMode = JSGCMode(value);
         JS_ASSERT(rt->gcMode == JSGC_MODE_GLOBAL ||
-                  rt->gcMode == JSGC_MODE_COMPARTMENT ||
-                  rt->gcMode == JSGC_MODE_INCREMENTAL);
+                  rt->gcMode == JSGC_MODE_COMPARTMENT);
         return;
     }
 }
@@ -2947,11 +2956,9 @@ JS_GetGCParameter(JSRuntime *rt, JSGCParamKey key)
         return uint32_t(rt->gcChunkPool.getEmptyCount());
       case JSGC_TOTAL_CHUNKS:
         return uint32_t(rt->gcChunkSet.count() + rt->gcChunkPool.getEmptyCount());
-      case JSGC_SLICE_TIME_BUDGET:
-        return uint32_t(rt->gcSliceBudget > 0 ? rt->gcSliceBudget / PRMJ_USEC_PER_MSEC : 0);
       default:
         JS_ASSERT(key == JSGC_NUMBER);
-        return uint32_t(rt->gcNumber);
+        return rt->gcNumber;
     }
 }
 
@@ -4300,9 +4307,11 @@ static Class prop_iter_class = {
     JS_ResolveStub,
     JS_ConvertStub,
     prop_iter_finalize,
+    NULL,           /* reserved0   */
     NULL,           /* checkAccess */
     NULL,           /* call        */
     NULL,           /* construct   */
+    NULL,           /* xdrObject   */
     NULL,           /* hasInstance */
     prop_iter_trace
 };
@@ -6600,16 +6609,7 @@ JS_AbortIfWrongThread(JSRuntime *rt)
 JS_PUBLIC_API(void)
 JS_SetGCZeal(JSContext *cx, uint8_t zeal, uint32_t frequency, JSBool compartment)
 {
-#ifdef JS_GC_ZEAL
-    const char *env = getenv("JS_GC_ZEAL");
-    if (env) {
-        zeal = atoi(env);
-        frequency = 1;
-        compartment = false;
-    }
-#endif
-
-    bool schedule = zeal >= js::gc::ZealAllocValue;
+    bool schedule = zeal >= js::gc::ZealAllocThreshold && zeal < js::gc::ZealVerifierThreshold;
     cx->runtime->gcZeal_ = zeal;
     cx->runtime->gcZealFrequency = frequency;
     cx->runtime->gcNextScheduled = schedule ? frequency : 0;

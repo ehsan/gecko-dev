@@ -374,7 +374,7 @@ nsSVGGlyphFrame::PaintSVG(nsSVGRenderState *aContext,
   iter.SetInitialMatrix(gfx);
 
   nsRefPtr<gfxPattern> strokePattern;
-  DrawMode drawMode = SetupCairoState(gfx, getter_AddRefs(strokePattern));
+  DrawMode drawMode = SetupCairoState(gfx, &strokePattern);
 
   if (drawMode) {
     DrawCharacters(&iter, gfx, drawMode, strokePattern);
@@ -884,44 +884,39 @@ nsSVGGlyphFrame::GetBaselineOffset(float aMetricsScale)
 }
 
 DrawMode
-nsSVGGlyphFrame::SetupCairoState(gfxContext *aContext, gfxPattern **aStrokePattern)
-{
+nsSVGGlyphFrame::SetupCairoState(gfxContext *context, nsRefPtr<gfxPattern> *strokePattern) {
   DrawMode toDraw = DrawMode(0);
   const nsStyleSVG* style = GetStyleSVG();
 
   if (HasStroke()) {
-    gfxContextMatrixAutoSaveRestore matrixRestore(aContext);
-    aContext->IdentityMatrix();
+    gfxContextMatrixAutoSaveRestore matrixRestore(context);
+    context->IdentityMatrix();
 
     toDraw = DrawMode(toDraw | gfxFont::GLYPH_STROKE);
 
-    SetupCairoStrokeHitGeometry(aContext);
+    SetupCairoStrokeHitGeometry(context);
     float opacity = style->mStrokeOpacity;
     nsSVGPaintServerFrame *ps = GetPaintServer(&style->mStroke,
                                                nsSVGEffects::StrokeProperty());
 
-    nsRefPtr<gfxPattern> strokePattern;
-
     if (ps) {
       // Gradient or Pattern: can get pattern directly from frame
-      strokePattern = ps->GetPaintServerPattern(this, opacity);
-    }
+      *strokePattern = ps->GetPaintServerPattern(this, opacity);
 
-    if (!strokePattern) {
+      NS_ASSERTION(*strokePattern, "No pattern returned from paint server");
+    } else {
       nscolor color;
-      nsSVGUtils::GetFallbackOrPaintColor(aContext, GetStyleContext(),
+      nsSVGUtils::GetFallbackOrPaintColor(context, GetStyleContext(),
                                           &nsStyleSVG::mStroke, &opacity,
                                           &color);
-      strokePattern = new gfxPattern(gfxRGBA(NS_GET_R(color) / 255.0,
-                                             NS_GET_G(color) / 255.0,
-                                             NS_GET_B(color) / 255.0,
-                                             NS_GET_A(color) / 255.0 * opacity));
+      *strokePattern = new gfxPattern(gfxRGBA(NS_GET_R(color) / 255.0,
+                                              NS_GET_G(color) / 255.0,
+                                              NS_GET_B(color) / 255.0,
+                                              NS_GET_A(color) / 255.0 * opacity));
     }
-
-    strokePattern.forget(aStrokePattern);
   }
 
-  if (SetupCairoFill(aContext)) {
+  if (SetupCairoFill(context)) {
     toDraw = DrawMode(toDraw | gfxFont::GLYPH_FILL);
   }
 

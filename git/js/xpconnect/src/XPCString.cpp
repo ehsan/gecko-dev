@@ -55,6 +55,8 @@
 #include "xpcprivate.h"
 #include "nsStringBuffer.h"
 
+static int sDOMStringFinalizerIndex = -1;
+
 static void
 FinalizeDOMString(const JSStringFinalizer *fin, jschar *chars)
 {

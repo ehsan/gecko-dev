@@ -1029,7 +1029,7 @@ class AutoEnumStateRooter : private AutoGCRooter
   protected:
     void trace(JSTracer *trc);
 
-    JSObject *obj;
+    JSObject * const obj;
 
   private:
     Value stateValue;
@@ -1351,6 +1351,13 @@ typedef JSBool
                     jsval *vp);
 
 /*
+ * Encode or decode an object, given an XDR state record representing external
+ * data.  See jsxdrapi.h.
+ */
+typedef JSBool
+(* JSXDRObjectOp)(JSXDRState *xdr, JSObject **objp);
+
+/*
  * Check whether v is an instance of obj.  Return false on error or exception,
  * true on success with JS_TRUE in *bp if v is an instance of obj, JS_FALSE in
  * *bp otherwise.
@@ -1421,11 +1428,8 @@ typedef JSBool
 (* JSContextCallback)(JSContext *cx, uintN contextOp);
 
 typedef enum JSGCStatus {
-    /* These callbacks happen outside the GC lock. */
     JSGC_BEGIN,
     JSGC_END,
-
-    /* These callbacks happen within the GC lock. */
     JSGC_MARK_END,
     JSGC_FINALIZE_END
 } JSGCStatus;
@@ -2683,18 +2687,6 @@ class JS_PUBLIC_API(JSAutoEnterCompartment)
 JS_BEGIN_EXTERN_C
 #endif
 
-typedef void (*JSIterateCompartmentCallback)(JSContext *cx, void *data,
-              JSCompartment *compartment);
-
-/*
- * This function calls |compartmentCallback| on every compartment.  Beware that
- * there is no guarantee that the compartment will survive after the callback
- * returns.
- */
-extern JS_PUBLIC_API(void)
-JS_IterateCompartments(JSContext *cx, void *data,
-                       JSIterateCompartmentCallback compartmentCallback);
-
 extern JS_PUBLIC_API(JSObject *)
 JS_GetGlobalObject(JSContext *cx);
 
@@ -2743,13 +2735,6 @@ JS_EnumerateResolvedStandardClasses(JSContext *cx, JSObject *obj,
 extern JS_PUBLIC_API(JSBool)
 JS_GetClassObject(JSContext *cx, JSObject *obj, JSProtoKey key,
                   JSObject **objp);
-
-/*
- * Returns the original value of |Function.prototype| from the global object in
- * which |forObj| was created.
- */
-extern JS_PUBLIC_API(JSObject *)
-JS_GetFunctionPrototype(JSContext *cx, JSObject *forObj);
 
 /*
  * Returns the original value of |Object.prototype| from the global object in
@@ -3305,10 +3290,7 @@ typedef enum JSGCParamKey {
     JSGC_UNUSED_CHUNKS = 7,
 
     /* Total number of allocated GC chunks. */
-    JSGC_TOTAL_CHUNKS = 8,
-
-    /* Max milliseconds to spend in an incremental GC slice. */
-    JSGC_SLICE_TIME_BUDGET = 9
+    JSGC_TOTAL_CHUNKS = 8
 } JSGCParamKey;
 
 typedef enum JSGCMode {
@@ -3316,13 +3298,7 @@ typedef enum JSGCMode {
     JSGC_MODE_GLOBAL = 0,
 
     /* Perform per-compartment GCs until too much garbage has accumulated. */
-    JSGC_MODE_COMPARTMENT = 1,
-
-    /*
-     * Collect in short time slices rather than all at once. Implies
-     * JSGC_MODE_COMPARTMENT.
-     */
-    JSGC_MODE_INCREMENTAL = 2
+    JSGC_MODE_COMPARTMENT = 1
 } JSGCMode;
 
 extern JS_PUBLIC_API(void)
@@ -3397,12 +3373,15 @@ struct JSClass {
     JSFinalizeOp        finalize;
 
     /* Optionally non-null members start here. */
+    JSClassInternal     reserved0;
     JSCheckAccessOp     checkAccess;
     JSNative            call;
     JSNative            construct;
+    JSXDRObjectOp       xdrObject;
     JSHasInstanceOp     hasInstance;
     JSTraceOp           trace;
 
+    JSClassInternal     reserved1;
     void                *reserved[40];
 };
 
@@ -3414,8 +3393,6 @@ struct JSClass {
                                                    object in prototype chain
                                                    passed in via *objp in/out
                                                    parameter */
-#define JSCLASS_IMPLEMENTS_BARRIERS     (1<<5)  /* Correctly implements GC read
-                                                   and write barriers */
 #define JSCLASS_DOCUMENT_OBSERVER       (1<<6)  /* DOM document observer */
 
 /*
@@ -3486,8 +3463,8 @@ struct JSClass {
                                           & JSCLASS_CACHED_PROTO_MASK))
 
 /* Initializer for unused members of statically initialized JSClass structs. */
-#define JSCLASS_NO_INTERNAL_MEMBERS     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
-#define JSCLASS_NO_OPTIONAL_MEMBERS     0,0,0,0,0,JSCLASS_NO_INTERNAL_MEMBERS
+#define JSCLASS_NO_INTERNAL_MEMBERS     0,{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+#define JSCLASS_NO_OPTIONAL_MEMBERS     0,0,0,0,0,0,0,JSCLASS_NO_INTERNAL_MEMBERS
 
 extern JS_PUBLIC_API(jsint)
 JS_IdArrayLength(JSContext *cx, JSIdArray *ida);

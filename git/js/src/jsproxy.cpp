@@ -50,8 +50,6 @@
 #include "jsproxy.h"
 #include "jsscope.h"
 
-#include "vm/MethodGuard.h"
-
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
@@ -1313,7 +1311,7 @@ proxy_TypeOf(JSContext *cx, JSObject *proxy)
 
 JS_FRIEND_DATA(Class) js::ObjectProxyClass = {
     "Proxy",
-    Class::NON_NATIVE | JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_HAS_RESERVED_SLOTS(4),
+    Class::NON_NATIVE | JSCLASS_HAS_RESERVED_SLOTS(4),
     JS_PropertyStub,         /* addProperty */
     JS_PropertyStub,         /* delProperty */
     JS_PropertyStub,         /* getProperty */
@@ -1322,9 +1320,11 @@ JS_FRIEND_DATA(Class) js::ObjectProxyClass = {
     JS_ResolveStub,
     proxy_Convert,
     proxy_Finalize,          /* finalize    */
+    NULL,                    /* reserved0   */
     NULL,                    /* checkAccess */
     NULL,                    /* call        */
     NULL,                    /* construct   */
+    NULL,                    /* xdrObject   */
     proxy_HasInstance,       /* hasInstance */
     proxy_TraceObject,       /* trace       */
     JS_NULL_CLASS_EXT,
@@ -1367,7 +1367,7 @@ JS_FRIEND_DATA(Class) js::ObjectProxyClass = {
 
 JS_FRIEND_DATA(Class) js::OuterWindowProxyClass = {
     "Proxy",
-    Class::NON_NATIVE | JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_HAS_RESERVED_SLOTS(4),
+    Class::NON_NATIVE | JSCLASS_HAS_RESERVED_SLOTS(4),
     JS_PropertyStub,         /* addProperty */
     JS_PropertyStub,         /* delProperty */
     JS_PropertyStub,         /* getProperty */
@@ -1376,9 +1376,11 @@ JS_FRIEND_DATA(Class) js::OuterWindowProxyClass = {
     JS_ResolveStub,
     JS_ConvertStub,
     proxy_Finalize,          /* finalize    */
+    NULL,                    /* reserved0   */
     NULL,                    /* checkAccess */
     NULL,                    /* call        */
     NULL,                    /* construct   */
+    NULL,                    /* xdrObject   */
     NULL,                    /* hasInstance */
     proxy_TraceObject,       /* trace       */
     {
@@ -1443,7 +1445,7 @@ proxy_Construct(JSContext *cx, uintN argc, Value *vp)
 
 JS_FRIEND_DATA(Class) js::FunctionProxyClass = {
     "Proxy",
-    Class::NON_NATIVE | JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_HAS_RESERVED_SLOTS(6),
+    Class::NON_NATIVE | JSCLASS_HAS_RESERVED_SLOTS(6),
     JS_PropertyStub,         /* addProperty */
     JS_PropertyStub,         /* delProperty */
     JS_PropertyStub,         /* getProperty */
@@ -1452,9 +1454,11 @@ JS_FRIEND_DATA(Class) js::FunctionProxyClass = {
     JS_ResolveStub,
     JS_ConvertStub,
     NULL,                    /* finalize */
+    NULL,                    /* reserved0   */
     NULL,                    /* checkAccess */
     proxy_Call,
     proxy_Construct,
+    NULL,                    /* xdrObject   */
     FunctionClass.hasInstance,
     proxy_TraceFunction,     /* trace       */
     JS_NULL_CLASS_EXT,
@@ -1728,6 +1732,7 @@ Class js::CallableObjectClass = {
     JS_ResolveStub,
     JS_ConvertStub,
     NULL,                    /* finalize    */
+    NULL,                    /* reserved0   */
     NULL,                    /* checkAccess */
     callable_Call,
     callable_Construct,

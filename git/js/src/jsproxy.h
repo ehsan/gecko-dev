@@ -144,30 +144,21 @@ class Proxy {
     static bool iteratorNext(JSContext *cx, JSObject *proxy, Value *vp);
 };
 
-inline bool IsObjectProxyClass(const Class *clasp)
-{
-    return clasp == &js::ObjectProxyClass || clasp == &js::OuterWindowProxyClass;
-}
-
-inline bool IsFunctionProxyClass(const Class *clasp)
-{
-    return clasp == &js::FunctionProxyClass;
-}
-
 inline bool IsObjectProxy(const JSObject *obj)
 {
-    return IsObjectProxyClass(GetObjectClass(obj));
+    Class *clasp = GetObjectClass(obj);
+    return clasp == &js::ObjectProxyClass || clasp == &js::OuterWindowProxyClass;
 }
 
 inline bool IsFunctionProxy(const JSObject *obj)
 {
-    return IsFunctionProxyClass(GetObjectClass(obj));
+    Class *clasp = GetObjectClass(obj);
+    return clasp == &js::FunctionProxyClass;
 }
 
 inline bool IsProxy(const JSObject *obj)
 {
-    Class *clasp = GetObjectClass(obj);
-    return IsObjectProxyClass(clasp) || IsFunctionProxyClass(clasp);
+    return IsObjectProxy(obj) || IsFunctionProxy(obj);
 }
 
 /* Shared between object and function proxies. */

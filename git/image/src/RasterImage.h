@@ -228,10 +228,10 @@ public:
   /* The total number of frames in this image. */
   PRUint32 GetNumFrames();
 
-  virtual size_t HeapSizeOfSourceWithComputedFallback(nsMallocSizeOfFun aMallocSizeOf) const;
-  virtual size_t HeapSizeOfDecodedWithComputedFallback(nsMallocSizeOfFun aMallocSizeOf) const;
-  virtual size_t NonHeapSizeOfDecoded() const;
-  virtual size_t OutOfProcessSizeOfDecoded() const;
+  virtual PRUint32 GetDecodedHeapSize();
+  virtual PRUint32 GetDecodedNonheapSize();
+  virtual PRUint32 GetDecodedOutOfProcessSize();
+  virtual PRUint32 GetSourceHeapSize();
 
   /* Triggers discarding. */
   void Discard(bool force = false);
@@ -699,7 +699,7 @@ private: // data
   bool CanDiscard();
   bool CanForciblyDiscard();
   bool DiscardingActive();
-  bool StoringSourceData() const;
+  bool StoringSourceData();
 
 protected:
   bool ShouldAnimate();

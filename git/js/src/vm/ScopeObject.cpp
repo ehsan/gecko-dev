@@ -382,9 +382,11 @@ Class js::WithClass = {
     JS_ResolveStub,
     JS_ConvertStub,
     NULL,                    /* finalize */
+    NULL,                    /* reserved    */
     NULL,                    /* checkAccess */
     NULL,                    /* call        */
     NULL,                    /* construct   */
+    NULL,                    /* xdrObject   */
     NULL,                    /* hasInstance */
     NULL,                    /* trace       */
     JS_NULL_CLASS_EXT,
@@ -615,7 +617,7 @@ FindObjectIndex(JSObjectArray *array, JSObject *obj)
 }
 
 bool
-js::XDRStaticBlockObject(JSXDRState *xdr, JSScript *script, StaticBlockObject **objp)
+js_XDRStaticBlockObject(JSXDRState *xdr, StaticBlockObject **objp)
 {
     JSContext *cx = xdr->cx;
 
@@ -625,8 +627,8 @@ js::XDRStaticBlockObject(JSXDRState *xdr, JSScript *script, StaticBlockObject **
     uint32_t depthAndCount = 0;
     if (xdr->mode == JSXDR_ENCODE) {
         obj = *objp;
-        parentId = JSScript::isValidOffset(script->objectsOffset)
-                   ? FindObjectIndex(script->objects(), obj->enclosingBlock())
+        parentId = JSScript::isValidOffset(xdr->script->objectsOffset)
+                   ? FindObjectIndex(xdr->script->objects(), obj->enclosingBlock())
                    : NO_PARENT_INDEX;
         uint32_t depth = obj->stackDepth();
         JS_ASSERT(depth <= UINT16_MAX);
@@ -652,7 +654,7 @@ js::XDRStaticBlockObject(JSXDRState *xdr, JSScript *script, StaticBlockObject **
          */
         obj->setEnclosingBlock(parentId == NO_PARENT_INDEX
                                ? NULL
-                               : &script->getObject(parentId)->asStaticBlock());
+                               : &xdr->script->getObject(parentId)->asStaticBlock());
     }
 
     AutoObjectRooter tvr(cx, obj);

@@ -36,7 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-var EXPORTED_SYMBOLS = ["Elem", "Selector", "ID", "Link", "XPath", "Name", "Lookup",
+var EXPORTED_SYMBOLS = ["Elem", "Selector", "ID", "Link", "XPath", "Name", "Lookup", 
                         "MozMillElement", "MozMillCheckBox", "MozMillRadio", "MozMillDropList",
                         "MozMillTextBox", "subclasses",
                        ];
@@ -55,10 +55,9 @@ var subclasses = [MozMillCheckBox, MozMillRadio, MozMillDropList, MozMillTextBox
  * Returns an new instance of a MozMillElement
  * The type of the element is automatically determined
  */
-function createInstance(locatorType, locator, elem, document) {
+function createInstance(locatorType, locator, elem) {
   if (elem) {
-    var args = { "element": elem,
-                 "document": document };
+    var args = {"element":elem};
     for (var i = 0; i < subclasses.length; ++i) {
       if (subclasses[i].isType(elem)) {
         return new subclasses[i](locatorType, locator, args);
@@ -73,28 +72,28 @@ var Elem = function(node) {
   return createInstance("Elem", node, node);
 };
 
-var Selector = function(document, selector, index) {
-  return createInstance("Selector", selector, elementslib.Selector(document, selector, index), document);
+var Selector = function(_document, selector, index) {
+  return createInstance("Selector", selector, elementslib.Selector(_document, selector, index));
 };
 
-var ID = function(document, nodeID) {
-  return createInstance("ID", nodeID, elementslib.ID(document, nodeID), document);
+var ID = function(_document, nodeID) {
+  return createInstance("ID", nodeID, elementslib.ID(_document, nodeID));
 };
 
-var Link = function(document, linkName) {
-  return createInstance("Link", linkName, elementslib.Link(document, linkName), document);
+var Link = function(_document, linkName) {
+  return createInstance("Link", linkName, elementslib.Link(_document, linkName));
 };
 
-var XPath = function(document, expr) {
-  return createInstance("XPath", expr, elementslib.XPath(document, expr), document);
+var XPath = function(_document, expr) {
+  return createInstance("XPath", expr, elementslib.XPath(_document, expr));
 };
 
-var Name = function(document, nName) {
-  return createInstance("Name", nName, elementslib.Name(document, nName), document);
+var Name = function(_document, nName) {
+  return createInstance("Name", nName, elementslib.Name(_document, nName));
 };
 
-var Lookup = function(document, expression) {
-  return createInstance("Lookup", expression, elementslib.Lookup(document, expression), document);
+var Lookup = function(_document, expression) {
+  return createInstance("Lookup", expression, elementslib.Lookup(_document, expression));
 };
 
 
@@ -122,7 +121,7 @@ MozMillElement.isType = function(node) {
 MozMillElement.prototype.__defineGetter__("element", function() {
   if (this._element == undefined) {
     if (elementslib[this._locatorType]) {
-      this._element = elementslib[this._locatorType](this._document, this._locator);
+      this._element = elementslib[this._locatorType](this._document, this._locator); 
     } else if (this._locatorType == "Elem") {
       this._element = this._locator;
     } else {
@@ -480,7 +479,7 @@ MozMillRadio.prototype.select = function(index) {
   if (!this.element) {
     throw new Error("could not find element " + this.getInfo());
   }
-
+  
   if (this.element.localName.toLowerCase() == "radiogroup") {
     var element = this.element.getElementsByTagName("radio")[index || 0];
     new MozMillRadio("Elem", element).click();
@@ -488,7 +487,7 @@ MozMillRadio.prototype.select = function(index) {
     var element = this.element;
     this.click();
   }
-
+  
   utils.waitFor(function() {
     // If we have a XUL element, unwrap its XPCNativeWrapper
     if (element.namespaceURI == "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul") {
@@ -582,7 +581,7 @@ MozMillDropList.prototype.select = function (indx, option, value) {
     this.element = utils.unwrapNode(this.element);
     // Get the list of menuitems
     menuitems = this.element.getElementsByTagName("menupopup")[0].getElementsByTagName("menuitem");
-
+    
     var item = null;
 
     if (indx != undefined) {

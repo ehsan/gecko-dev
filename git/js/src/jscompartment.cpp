@@ -73,6 +73,7 @@ JSCompartment::JSCompartment(JSRuntime *rt)
   : rt(rt),
     principals(NULL),
     needsBarrier_(false),
+    gcIncrementalTracer(NULL),
     gcBytes(0),
     gcTriggerBytes(0),
     gcLastBytes(0),
@@ -125,9 +126,6 @@ JSCompartment::init(JSContext *cx)
         return false;
 
     if (!scriptFilenameTable.init())
-        return false;
-
-    if (!barrierMarker_.init())
         return false;
 
     return debuggees.init();
@@ -437,8 +435,7 @@ JSCompartment::markTypes(JSTracer *trc)
 
     for (CellIterUnderGC i(this, FINALIZE_SCRIPT); !i.done(); i.next()) {
         JSScript *script = i.get<JSScript>();
-        MarkScriptRoot(trc, &script, "mark_types_script");
-        JS_ASSERT(script == i.get<JSScript>());
+        MarkScriptRoot(trc, script, "mark_types_script");
     }
 
     for (size_t thingKind = FINALIZE_OBJECT0;
@@ -446,42 +443,13 @@ JSCompartment::markTypes(JSTracer *trc)
          thingKind++) {
         for (CellIterUnderGC i(this, AllocKind(thingKind)); !i.done(); i.next()) {
             JSObject *object = i.get<JSObject>();
-            if (object->hasSingletonType()) {
-                MarkObjectRoot(trc, &object, "mark_types_singleton");
-                JS_ASSERT(object == i.get<JSObject>());
-            }
+            if (object->hasSingletonType())
+                MarkObjectRoot(trc, object, "mark_types_singleton");
         }
     }
 
-    for (CellIterUnderGC i(this, FINALIZE_TYPE_OBJECT); !i.done(); i.next()) {
-        types::TypeObject *type = i.get<types::TypeObject>();
-        MarkTypeObjectRoot(trc, &type, "mark_types_scan");
-        JS_ASSERT(type == i.get<types::TypeObject>());
-    }
-}
-
-void
-JSCompartment::discardJitCode(JSContext *cx)
-{
-    /*
-     * Kick all frames on the stack into the interpreter, and release all JIT
-     * code in the compartment.
-     */
-#ifdef JS_METHODJIT
-    mjit::ClearAllFrames(this);
-
-    for (CellIterUnderGC i(this, FINALIZE_SCRIPT); !i.done(); i.next()) {
-        JSScript *script = i.get<JSScript>();
-        mjit::ReleaseScriptCode(cx, script);
-
-        /*
-         * Use counts for scripts are reset on GC. After discarding code we
-         * need to let it warm back up to get information like which opcodes
-         * are setting array holes or accessing getter properties.
-         */
-        script->resetUseCount();
-    }
-#endif
+    for (CellIterUnderGC i(this, FINALIZE_TYPE_OBJECT); !i.done(); i.next())
+        MarkTypeObjectRoot(trc, i.get<types::TypeObject>(), "mark_types_scan");
 }
 
 void
@@ -500,8 +468,6 @@ JSCompartment::sweep(JSContext *cx, bool releaseTypes)
 
     /* Remove dead references held weakly by the compartment. */
 
-    regExps.sweep(rt);
-
     sweepBaseShapeTable(cx);
     sweepInitialShapeTable(cx);
     sweepNewTypeObjectTable(cx, newTypeObjects);
@@ -516,7 +482,26 @@ JSCompartment::sweep(JSContext *cx, bool releaseTypes)
 
     {
         gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_DISCARD_CODE);
-        discardJitCode(cx);
+
+        /*
+         * Kick all frames on the stack into the interpreter, and release all JIT
+         * code in the compartment.
+         */
+#ifdef JS_METHODJIT
+        mjit::ClearAllFrames(this);
+
+        for (CellIterUnderGC i(this, FINALIZE_SCRIPT); !i.done(); i.next()) {
+            JSScript *script = i.get<JSScript>();
+            mjit::ReleaseScriptCode(cx, script);
+
+            /*
+             * Use counts for scripts are reset on GC. After discarding code we
+             * need to let it warm back up to get information like which opcodes
+             * are setting array holes or accessing getter properties.
+             */
+            script->resetUseCount();
+        }
+#endif
     }
 
     if (!activeAnalysis) {
@@ -570,6 +555,8 @@ JSCompartment::sweep(JSContext *cx, bool releaseTypes)
 void
 JSCompartment::purge(JSContext *cx)
 {
+    arenas.purge();
+    regExps.purge();
     dtoaCache.purge();
 
     /*
@@ -781,6 +768,13 @@ JSCompartment::sweepBreakpoints(JSContext *cx)
             }
         }
     }
+}
+
+GCMarker *
+JSCompartment::createBarrierTracer()
+{
+    JS_ASSERT(!gcIncrementalTracer);
+    return NULL;
 }
 
 size_t

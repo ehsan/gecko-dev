@@ -45,8 +45,8 @@ namespace gc {
  * defined for marking arrays of object pointers.
  */
 #define DeclMarker(base, type)                                                                    \
-void Mark##base(JSTracer *trc, HeapPtr<type> *thing, const char *name);                           \
-void Mark##base##Root(JSTracer *trc, type **thingp, const char *name);                            \
+void Mark##base(JSTracer *trc, const HeapPtr<type> &thing, const char *name);                     \
+void Mark##base##Root(JSTracer *trc, type *thing, const char *name);                              \
 void Mark##base##Unbarriered(JSTracer *trc, type *thing, const char *name);                       \
 void Mark##base##Range(JSTracer *trc, size_t len, HeapPtr<type> *thing, const char *name);        \
 void Mark##base##RootRange(JSTracer *trc, size_t len, type **thing, const char *name);
@@ -83,10 +83,10 @@ MarkGCThingRoot(JSTracer *trc, void *thing, const char *name);
 /*** ID Marking ***/
 
 void
-MarkId(JSTracer *trc, HeapId *id, const char *name);
+MarkId(JSTracer *trc, const HeapId &id, const char *name);
 
 void
-MarkIdRoot(JSTracer *trc, jsid *id, const char *name);
+MarkIdRoot(JSTracer *trc, const jsid &id, const char *name);
 
 void
 MarkIdRange(JSTracer *trc, size_t len, js::HeapId *vec, const char *name);
@@ -116,6 +116,10 @@ MarkValueRootRange(JSTracer *trc, Value *begin, Value *end, const char *name)
 
 /*** Special Cases ***/
 
+/* TypeNewObject contains a HeapPtr<const Shape> that needs a unique cast. */
+void
+MarkShape(JSTracer *trc, const HeapPtr<const Shape> &thing, const char *name);
+
 /* Direct value access used by the write barriers and the methodjit */
 void
 MarkValueUnbarriered(JSTracer *trc, Value *v, const char *name);
@@ -140,13 +144,9 @@ MarkChildren(JSTracer *trc, JSObject *obj);
  * JS_TraceShapeCycleCollectorChildren.
  */
 void
-MarkCycleCollectorChildren(JSTracer *trc, Shape *shape);
-
-void
-PushArena(GCMarker *gcmarker, ArenaHeader *aheader);
+MarkCycleCollectorChildren(JSTracer *trc, const Shape *shape);
 
 /*** Generic ***/
-
 /*
  * The Mark() functions interface should only be used by code that must be
  * templated.  Other uses should use the more specific, type-named functions.
@@ -159,13 +159,13 @@ Mark(JSTracer *trc, HeapValue *v, const char *name)
 }
 
 inline void
-Mark(JSTracer *trc, HeapPtr<JSObject> *o, const char *name)
+Mark(JSTracer *trc, const HeapPtr<JSObject> &o, const char *name)
 {
     MarkObject(trc, o, name);
 }
 
 inline void
-Mark(JSTracer *trc, HeapPtr<JSXML> *xml, const char *name)
+Mark(JSTracer *trc, const HeapPtr<JSXML> &xml, const char *name)
 {
     MarkXML(trc, xml, name);
 }
