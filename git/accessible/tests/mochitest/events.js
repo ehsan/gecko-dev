@@ -2,7 +2,6 @@
 // Constants
 
 const EVENT_DOM_DESTROY = nsIAccessibleEvent.EVENT_DOM_DESTROY;
-const EVENT_FOCUS = nsIAccessibleEvent.EVENT_FOCUS;
 const EVENT_NAME_CHANGE = nsIAccessibleEvent.EVENT_NAME_CHANGE;
 const EVENT_REORDER = nsIAccessibleEvent.EVENT_REORDER;
 
@@ -81,12 +80,6 @@ function unregisterA11yEventListener(aEventType, aEventHandler)
 // Event queue
 
 /**
- * Return value of invoke method of invoker object. Indicates invoker was unable
- * to prepare action.
- */
-const INVOKER_ACTION_FAILED = 1;
-
-/**
  * Creates event queue for the given event type. The queue consists of invoker
  * objects, each of them generates the event of the event type. When queue is
  * started then every invoker object is asked to generate event after timeout.
@@ -96,8 +89,7 @@ const INVOKER_ACTION_FAILED = 1;
  * Invoker interface is:
  *
  *   var invoker = {
- *     // Generates accessible event or event sequence. If returns
- *     // INVOKER_ACTION_FAILED constant then stop tests.
+ *     // Generates accessible event or event sequence.
  *     invoke: function(){},
  *
  *     // [optional] Invoker's check of handled event for correctness.
@@ -227,11 +219,7 @@ function eventQueue(aEventType)
 
     this.setEventHandler(invoker);
 
-    if (invoker.invoke() == INVOKER_ACTION_FAILED) {
-      // Invoker failed to prepare action, fail and finish tests.
-      this.processNextInvoker();
-      return;
-    }
+    invoker.invoke();
 
     if (invoker.doNotExpectEvents) {
       // Check in timeout invoker didn't fire registered events.
@@ -271,12 +259,6 @@ function eventQueue(aEventType)
       var idx = this.mEventSeqIdx + 1;
 
       if (gA11yEventDumpID) { // debug stuff
-
-        if (aEvent instanceof nsIDOMEvent) {
-          var info = "Event type: " + aEvent.type;
-          info += ". Target: " + prettyName(aEvent.originalTarget);
-          dumpInfoToDOM(info);
-        }
 
         var currType = this.getEventType(idx);
         var currTarget = this.getEventTarget(idx);
@@ -386,10 +368,8 @@ function eventQueue(aEventType)
       return target1 == target2;
     }
 
-    // If original target isn't suitable then extend interface to support target
-    // (original target is used in test_elm_media.html).
     var target2 = (aEvent instanceof nsIDOMEvent) ?
-      aEvent.originalTarget : aEvent.DOMNode;
+      aEvent.target : aEvent.DOMNode;
     return target1 == target2;
   }
 
@@ -517,20 +497,12 @@ function removeA11yEventListener(aEventType, aEventHandler)
   return true;
 }
 
-/**
- * Dumps message to DOM.
- *
- * @param aInfo      [in] the message to dump
- * @param aDumpNode  [in, optional] host DOM node for dumped message, if ommited
- *                    then global variable gA11yEventDumpID is used
- */
-function dumpInfoToDOM(aInfo, aDumpNode)
+function dumpInfoToDOM(aInfo)
 {
-  var dumpID = gA11yEventDumpID ? gA11yEventDumpID : aDumpNode;
-  if (!dumpID)
+  if (!gA11yEventDumpID)
     return;
 
-  var dumpElm = document.getElementById(dumpID);
+  var dumpElm = document.getElementById(gA11yEventDumpID);
 
   var containerTagName = document instanceof nsIDOMHTMLDocument ?
     "div" : "description";

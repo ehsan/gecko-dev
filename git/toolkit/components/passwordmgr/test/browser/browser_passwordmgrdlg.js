@@ -139,9 +139,10 @@ function test() {
             if (showMode) {
                 let obs = {
                     observe: function(aSubject, aTopic, aData) {
-                        if (aTopic == "domwindowclosed")
+                        if (aTopic == "domwindowclosed") {
                             ww.unregisterNotification(this);
-                        else if (aTopic == "domwindowopened") {
+                            setTimeout(func, 0);
+                        } else if (aTopic == "domwindowopened") {
                             let win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
                             win.addEventListener("load", function() {
                                 win.removeEventListener("load", arguments.callee, true);
@@ -155,18 +156,9 @@ function test() {
                 ww.registerNotification(obs);
             }
 
-            let obsSvc = Cc["@mozilla.org/observer-service;1"].
-                         getService(Ci.nsIObserverService);
-            obsSvc.addObserver({
-                observe: function(aSubject, aTopic, aData) {
-                    if (aTopic == "passwordmgr-password-toggle-complete") {
-                        obsSvc.removeObserver(this, "passwordmgr-password-toggle-complete", false);
-                        func();
-                    }
-                }
-            }, "passwordmgr-password-toggle-complete", false);
-
             EventUtils.synthesizeMouse(toggleButton, 1, 1, {}, win);
+            if (!showMode)
+                func();
         }
 
         function runTests(mode, endFunction) {
