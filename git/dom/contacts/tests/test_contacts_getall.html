@@ -52,7 +52,9 @@ let properties1 = {
   email: [{type: ["work"], value: "x@y.com"}]
 };
 
-function tests() {
+function onUnwantedSuccess() {
+  ok(false, "onUnwantedSuccess: shouldn't get here");
+}
 
 function onFailure() {
   ok(false, "in on Failure!");
@@ -413,12 +415,9 @@ function permissionTest() {
   }
 }
 
-permissionTest();
-}
-
 let gContactsEnabled = SpecialPowers.getBoolPref("dom.mozContacts.enabled");
-addLoadEvent(tests);
 SimpleTest.waitForExplicitFinish();
+addLoadEvent(permissionTest);
 </script>
 </pre>
 </body>
