@@ -49,6 +49,13 @@ extern "C" {
 PRLogModuleInfo* gAudioStreamLog = nsnull;
 #endif
 
+#define FAKE_BUFFER_SIZE 176400
+
+static float CurrentTimeInSeconds()
+{
+  return PR_IntervalToMilliseconds(PR_IntervalNow()) / 1000.0;
+}
+
 void nsAudioStream::InitLibrary()
 {
 #ifdef PR_LOGGING
@@ -67,6 +74,8 @@ nsAudioStream::nsAudioStream() :
   mChannels(0),
   mSavedPauseBytes(0),
   mPauseBytes(0),
+  mPauseTime(0.0),
+  mSamplesBuffered(0),
   mPaused(PR_FALSE)
 {
 }
@@ -75,6 +84,7 @@ void nsAudioStream::Init(PRInt32 aNumChannels, PRInt32 aRate)
 {
   mRate = aRate;
   mChannels = aNumChannels;
+  mStartTime = CurrentTimeInSeconds();
   if (sa_stream_create_pcm(reinterpret_cast<sa_stream_t**>(&mAudioHandle),
                            NULL, 
                            SA_MODE_WRONLY, 
@@ -105,6 +115,8 @@ void nsAudioStream::Shutdown()
 
 void nsAudioStream::Write(const float* aBuf, PRUint32 aCount)
 {
+  mSamplesBuffered += aCount;
+
   if (!mAudioHandle)
     return;
 
@@ -135,6 +147,8 @@ void nsAudioStream::Write(const float* aBuf, PRUint32 aCount)
 
 void nsAudioStream::Write(const short* aBuf, PRUint32 aCount)
 {
+  mSamplesBuffered += aCount;
+
   if (!mAudioHandle)
     return;
 
@@ -154,8 +168,10 @@ void nsAudioStream::Write(const short* aBuf, PRUint32 aCount)
 
 PRInt32 nsAudioStream::Available()
 {
+  // If the audio backend failed to open, lie and say we'll accept some
+  // data.
   if (!mAudioHandle)
-    return 0;
+    return FAKE_BUFFER_SIZE;
 
   size_t s = 0; 
   sa_stream_get_write_size(reinterpret_cast<sa_stream_t*>(mAudioHandle), &s);
@@ -174,8 +190,11 @@ void nsAudioStream::SetVolume(float aVolume)
 
 void nsAudioStream::Drain()
 {
-  if (!mAudioHandle)
+  if (!mAudioHandle) {
+    PRUint32 drainTime = (float(mSamplesBuffered) / mRate / mChannels - GetTime()) * 1000.0;
+    PR_Sleep(PR_MillisecondsToInterval(drainTime));
     return;
+  }
 
   if (sa_stream_drain(reinterpret_cast<sa_stream_t*>(mAudioHandle)) != SA_SUCCESS) {
         PR_LOG(gAudioStreamLog, PR_LOG_ERROR, ("nsAudioStream: sa_stream_drain error"));
@@ -185,13 +204,17 @@ void nsAudioStream::Drain()
 
 void nsAudioStream::Pause()
 {
-  if (!mAudioHandle)
-    return;
-
   if (mPaused)
     return;
 
+  // Save the elapsed playback time.  Used to offset the wall-clock time
+  // when resuming.
+  mPauseTime = CurrentTimeInSeconds() - mStartTime;
+
   mPaused = PR_TRUE;
+
+  if (!mAudioHandle)
+    return;
 
   int64_t bytes = 0;
 #if !defined(WIN32)
@@ -204,13 +227,17 @@ void nsAudioStream::Pause()
 
 void nsAudioStream::Resume()
 {
-  if (!mAudioHandle)
-    return;
-
   if (!mPaused)
     return;
 
+  // Reset the start time to the current time offset backwards by the
+  // elapsed time saved when the stream paused.
+  mStartTime = CurrentTimeInSeconds() - mPauseTime;
+
   mPaused = PR_FALSE;
+
+  if (!mAudioHandle)
+    return;
 
   sa_stream_resume(reinterpret_cast<sa_stream_t*>(mAudioHandle));
 
@@ -221,8 +248,10 @@ void nsAudioStream::Resume()
 
 double nsAudioStream::GetTime()
 {
+  // If the audio backend failed to open, emulate the current playback
+  // position using the system clock.
   if (!mAudioHandle)
-    return 0.0;
+    return mPaused ? mPauseTime : CurrentTimeInSeconds() - mStartTime;
 
   int64_t bytes = 0;
 #if defined(WIN32)
