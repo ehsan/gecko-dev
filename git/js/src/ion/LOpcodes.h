@@ -156,7 +156,6 @@
     _(LoadTypedArrayElement)        \
     _(LoadTypedArrayElementHole)    \
     _(StoreTypedArrayElement)       \
-    _(StoreTypedArrayElementHole)   \
     _(EffectiveAddress)             \
     _(ClampIToUint8)                \
     _(ClampDToUint8)                \

@@ -92,15 +92,9 @@ struct IonOptions
     bool parallelCompilation;
 
     // How many invocations or loop iterations are needed before functions
-    // are compiled with the baseline compiler.
-    //
-    // Default: 10
-    uint32_t baselineUsesBeforeCompile;
-
-    // How many invocations or loop iterations are needed before functions
     // are compiled.
     //
-    // Default: 1,000
+    // Default: 10,240
     uint32_t usesBeforeCompile;
 
     // How many invocations or loop iterations are needed before functions
@@ -185,7 +179,6 @@ struct IonOptions
     void setEagerCompilation() {
         eagerCompilation = true;
         usesBeforeCompile = usesBeforeCompileNoJaeger = 0;
-        baselineUsesBeforeCompile = 0;
 
         parallelCompilation = false;
     }
@@ -203,8 +196,7 @@ struct IonOptions
         uce(true),
         eaa(true),
         parallelCompilation(false),
-        baselineUsesBeforeCompile(10),
-        usesBeforeCompile(1000),
+        usesBeforeCompile(10240),
         usesBeforeCompileNoJaeger(40),
         usesBeforeInliningFactor(.125),
         maxStackArgs(4096),
@@ -276,13 +268,9 @@ IonContext *GetIonContext();
 
 bool SetIonContext(IonContext *ctx);
 
-bool CanIonCompileScript(JSContext *cx, HandleScript script);
-
 MethodStatus CanEnterAtBranch(JSContext *cx, JSScript *script,
                               AbstractFramePtr fp, jsbytecode *pc, bool isConstructing);
 MethodStatus CanEnter(JSContext *cx, JSScript *script, AbstractFramePtr fp, bool isConstructing);
-MethodStatus CompileFunctionForBaseline(JSContext *cx, HandleScript script, AbstractFramePtr fp,
-                                        bool isConstructing);
 MethodStatus CanEnterUsingFastInvoke(JSContext *cx, HandleScript script, uint32_t numActualArgs);
 
 enum IonExecStatus
@@ -350,7 +338,7 @@ void ForbidCompilation(JSContext *cx, RawScript script, ExecutionMode mode);
 uint32_t UsesBeforeIonRecompile(RawScript script, jsbytecode *pc);
 
 void PurgeCaches(RawScript script, JS::Zone *zone);
-size_t SizeOfIonData(RawScript script, JSMallocSizeOfFun mallocSizeOf);
+size_t MemoryUsed(RawScript script, JSMallocSizeOfFun mallocSizeOf);
 void DestroyIonScripts(FreeOp *fop, RawScript script);
 void TraceIonScripts(JSTracer* trc, RawScript script);
 

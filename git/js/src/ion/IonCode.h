@@ -172,7 +172,7 @@ struct IonScript
     uint32_t invalidateEpilogueDataOffset_;
 
     // Flag set when we bailout, to avoid frequent bailouts.
-    uint32_t bailoutExpected_;
+    bool bailoutExpected_;
 
     // Any kind of data needed by the runtime, these can be either cache
     // information or profiling info.
@@ -304,9 +304,6 @@ struct IonScript
     static inline size_t offsetOfOsrEntryOffset() {
         return offsetof(IonScript, osrEntryOffset_);
     }
-    static size_t offsetOfBailoutExpected() {
-        return offsetof(IonScript, bailoutExpected_);
-    }
 
   public:
     IonCode *method() const {
@@ -357,10 +354,10 @@ struct IonScript
         return invalidateEpilogueDataOffset_;
     }
     void setBailoutExpected() {
-        bailoutExpected_ = 1;
+        bailoutExpected_ = true;
     }
     bool bailoutExpected() const {
-        return bailoutExpected_ ? true : false;
+        return bailoutExpected_;
     }
     const uint8_t *snapshots() const {
         return reinterpret_cast<const uint8_t *>(this) + snapshots_;

@@ -1995,7 +1995,7 @@ JS_StringToVersion(const char *string);
 
 #define JSOPTION_METHODJIT      JS_BIT(14)      /* Whole-method JIT. */
 
-#define JSOPTION_BASELINE       JS_BIT(15)      /* Baseline compiler. */
+/* JS_BIT(15) is currently unused. */
 
 #define JSOPTION_METHODJIT_ALWAYS \
                                 JS_BIT(16)      /* Always whole-method JIT,
@@ -2009,7 +2009,6 @@ JS_StringToVersion(const char *string);
                                                    "use strict" annotations. */
 
 #define JSOPTION_ION            JS_BIT(20)      /* IonMonkey */
-
 #define JSOPTION_ASMJS          JS_BIT(21)      /* optimizingasm.js compiler */
 
 #define JSOPTION_MASK           JS_BITMASK(22)

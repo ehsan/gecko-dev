@@ -34,7 +34,6 @@
 #include "jstypedarrayinlines.h"
 #include "vm/RegExpObject-inl.h"
 
-#include "ion/BaselineJIT.h"
 #include "ion/Ion.h"
 
 #if JS_TRACE_LOGGING
@@ -991,11 +990,6 @@ mjit::CanMethodJIT(JSContext *cx, JSScript *script, jsbytecode *pc,
   checkOutput:
     if (!cx->methodJitEnabled)
         return Compile_Abort;
-
-#ifdef JS_ION
-    if (ion::IsBaselineEnabled(cx))
-        return Compile_Abort;
-#endif
 
     /*
      * If SPS (profiling) is enabled, then the emitted instrumentation has to be
