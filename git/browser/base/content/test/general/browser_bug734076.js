@@ -26,7 +26,8 @@ function test() {
           cb();
         });
 
-        doContextCommand(contentBody, "context-viewbgimage");
+        let contextMenu = initContextMenu(contentBody);
+        contextMenu.viewBGImage();
       }
     },
     {
@@ -44,7 +45,8 @@ function test() {
         img.setAttribute("src", writeDomainURL);
         doc.body.appendChild(img);
 
-        doContextCommand(img, "context-viewimage");
+        let contextMenu = initContextMenu(img);
+        contextMenu.viewMedia();
       }
     },
     {
@@ -63,8 +65,8 @@ function test() {
         doc.body.appendChild(iframe);
 
         iframe.addEventListener("load", function onload() {
-          doContextCommand(iframe.contentDocument.body,
-                           "context-showonlythisframe");
+          let contextMenu = initContextMenu(iframe.contentDocument.body);
+          contextMenu.showOnlyThisFrame();
         }, false);
       }
     }
@@ -97,8 +99,9 @@ function test() {
   doNext();
 }
 
-function doContextCommand(aNode, aCmd) {
-  EventUtils.sendMouseEvent({ type: "contextmenu" }, aNode);
-  document.getElementById(aCmd).click();
-  document.getElementById("contentAreaContextMenu").hidePopup();
+function initContextMenu(aNode) {
+  document.popupNode = aNode;
+  let contentAreaContextMenu = document.getElementById("contentAreaContextMenu");
+  let contextMenu = new nsContextMenu(contentAreaContextMenu);
+  return contextMenu;
 }

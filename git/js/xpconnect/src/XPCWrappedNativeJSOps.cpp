@@ -364,7 +364,13 @@ DefinePropertyIfFound(XPCCallContext& ccx,
             AutoResolveName arn(ccx, id);
             if (resolved)
                 *resolved = true;
-            return JS_DefinePropertyById(ccx, obj, id, desc);
+            return JS_DefinePropertyById(ccx, obj, id, desc.value(),
+                                         // Descriptors never store JSNatives
+                                         // for accessors: they have either
+                                         // JSFunctions or JSPropertyOps.
+                                         desc.attributes(),
+                                         JS_PROPERTYOP_GETTER(desc.getter()),
+                                         JS_PROPERTYOP_SETTER(desc.setter()));
         }
     }
 
@@ -427,10 +433,9 @@ XPC_WN_OnlyIWrite_AddPropertyStub(JSContext *cx, HandleObject obj, HandleId id, 
 }
 
 static bool
-XPC_WN_OnlyIWrite_SetPropertyStub(JSContext *cx, HandleObject obj, HandleId id,
-                                  MutableHandleValue vp, ObjectOpResult &result)
+XPC_WN_OnlyIWrite_SetPropertyStub(JSContext *cx, HandleObject obj, HandleId id, bool strict,
+                                  MutableHandleValue vp)
 {
-    result.succeed();
     return XPC_WN_OnlyIWrite_AddPropertyStub(cx, obj, id, vp);
 }
 
@@ -443,16 +448,16 @@ XPC_WN_CannotModifyPropertyStub(JSContext *cx, HandleObject obj, HandleId id,
 
 static bool
 XPC_WN_CantDeletePropertyStub(JSContext *cx, HandleObject obj, HandleId id,
-                              ObjectOpResult &result)
+                              bool *succeeded)
 {
     return Throw(NS_ERROR_XPC_CANT_MODIFY_PROP_ON_WN, cx);
 }
 
 static bool
-XPC_WN_CannotModifySetPropertyStub(JSContext *cx, HandleObject obj, HandleId id,
-                                   MutableHandleValue vp, ObjectOpResult &result)
+XPC_WN_CannotModifyStrictPropertyStub(JSContext *cx, HandleObject obj, HandleId id, bool strict,
+                                      MutableHandleValue vp)
 {
-    return Throw(NS_ERROR_XPC_CANT_MODIFY_PROP_ON_WN, cx);
+    return XPC_WN_CannotModifyPropertyStub(cx, obj, id, vp);
 }
 
 static bool
@@ -708,23 +713,22 @@ XPC_WN_MaybeResolvingPropertyStub(JSContext *cx, HandleObject obj, HandleId id, 
 }
 
 static bool
-XPC_WN_MaybeResolvingSetPropertyStub(JSContext *cx, HandleObject obj, HandleId id,
-                                     MutableHandleValue vp, ObjectOpResult &result)
+XPC_WN_MaybeResolvingStrictPropertyStub(JSContext *cx, HandleObject obj, HandleId id, bool strict,
+                                        MutableHandleValue vp)
 {
-    result.succeed();
     return XPC_WN_MaybeResolvingPropertyStub(cx, obj, id, vp);
 }
 
 static bool
-XPC_WN_MaybeResolvingDeletePropertyStub(JSContext *cx, HandleObject obj, HandleId id,
-                                        ObjectOpResult &result)
+XPC_WN_MaybeResolvingDeletePropertyStub(JSContext *cx, HandleObject obj, HandleId id, bool *succeeded)
 {
     XPCCallContext ccx(JS_CALLER, cx, obj);
     XPCWrappedNative* wrapper = ccx.GetWrapper();
     THROW_AND_RETURN_IF_BAD_WRAPPER(cx, wrapper);
 
     if (ccx.GetResolvingWrapper() == wrapper) {
-        return result.succeed();
+        *succeeded = true;
+        return true;
     }
     return Throw(NS_ERROR_XPC_CANT_MODIFY_PROP_ON_WN, cx);
 }
@@ -749,11 +753,6 @@ XPC_WN_MaybeResolvingDeletePropertyStub(JSContext *cx, HandleObject obj, HandleI
         return Throw(rv, cx);                                                 \
     return retval;
 
-#define POST_HELPER_STUB_WITH_OBJECTOPRESULT(failMethod)                      \
-    if (NS_FAILED(rv))                                                        \
-        return Throw(rv, cx);                                                 \
-    return retval ? result.succeed() : result.failMethod();
-
 static bool
 XPC_WN_Helper_AddProperty(JSContext *cx, HandleObject obj, HandleId id,
                           MutableHandleValue vp)
@@ -773,12 +772,12 @@ XPC_WN_Helper_GetProperty(JSContext *cx, HandleObject obj, HandleId id,
 }
 
 bool
-XPC_WN_Helper_SetProperty(JSContext *cx, HandleObject obj, HandleId id,
-                          MutableHandleValue vp, ObjectOpResult &result)
+XPC_WN_Helper_SetProperty(JSContext *cx, HandleObject obj, HandleId id, bool strict,
+                          MutableHandleValue vp)
 {
     PRE_HELPER_STUB
     SetProperty(wrapper, cx, obj, id, vp.address(), &retval);
-    POST_HELPER_STUB_WITH_OBJECTOPRESULT(failReadOnly)
+    POST_HELPER_STUB
 }
 
 static bool
@@ -999,7 +998,7 @@ XPCNativeScriptableShared::PopulateJSClass()
     if (mFlags.IsGlobalObject())
         mJSClass.base.flags |= XPCONNECT_GLOBAL_FLAGS;
 
-    JSAddPropertyOp addProperty;
+    JSPropertyOp addProperty;
     if (mFlags.WantAddProperty())
         addProperty = XPC_WN_Helper_AddProperty;
     else if (mFlags.UseJSStubForAddProperty())
@@ -1024,15 +1023,15 @@ XPCNativeScriptableShared::PopulateJSClass()
     else
         mJSClass.base.getProperty = nullptr;
 
-    JSSetterOp setProperty;
+    JSStrictPropertyOp setProperty;
     if (mFlags.WantSetProperty())
         setProperty = XPC_WN_Helper_SetProperty;
     else if (mFlags.UseJSStubForSetProperty())
         setProperty = nullptr;
     else if (mFlags.AllowPropModsDuringResolve())
-        setProperty = XPC_WN_MaybeResolvingSetPropertyStub;
+        setProperty = XPC_WN_MaybeResolvingStrictPropertyStub;
     else
-        setProperty = XPC_WN_CannotModifySetPropertyStub;
+        setProperty = XPC_WN_CannotModifyStrictPropertyStub;
     mJSClass.base.setProperty = setProperty;
 
     MOZ_ASSERT_IF(mFlags.WantEnumerate(), !mFlags.WantNewEnumerate());
@@ -1362,10 +1361,9 @@ XPC_WN_OnlyIWrite_Proto_AddPropertyStub(JSContext *cx, HandleObject obj, HandleI
 }
 
 static bool
-XPC_WN_OnlyIWrite_Proto_SetPropertyStub(JSContext *cx, HandleObject obj, HandleId id,
-                                        MutableHandleValue vp, ObjectOpResult &result)
+XPC_WN_OnlyIWrite_Proto_SetPropertyStub(JSContext *cx, HandleObject obj, HandleId id, bool strict,
+                                        MutableHandleValue vp)
 {
-    result.succeed();
     return XPC_WN_OnlyIWrite_Proto_AddPropertyStub(cx, obj, id, vp);
 }
 

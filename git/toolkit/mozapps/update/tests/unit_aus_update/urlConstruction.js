@@ -29,9 +29,6 @@ function run_test() {
 // Callback function used by the custom XMLHttpRequest implementation to
 // call the nsIDOMEventListener's handleEvent method for onload.
 function callHandleEvent() {
-  // The mock xmlhttprequest needs a status code to return to the consumer and
-  // the value is not important for this test.
-  gXHR.status = 404;
   let e = { target: gXHR };
   gXHR.onload(e);
 }
@@ -45,7 +42,7 @@ function getResult(url) {
 function run_test_pt1() {
   gCheckFunc = check_test_pt1;
   let url = URL_PREFIX + "%PRODUCT%/";
-  debugDump("testing url constructed with %PRODUCT% - " + url);
+  logTestInfo("testing url constructed with %PRODUCT% - " + url);
   setUpdateURLOverride(url);
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
@@ -59,7 +56,7 @@ function check_test_pt1() {
 function run_test_pt2() {
   gCheckFunc = check_test_pt2;
   let url = URL_PREFIX + "%VERSION%/";
-  debugDump("testing url constructed with %VERSION% - " + url);
+  logTestInfo("testing url constructed with %VERSION% - " + url);
   setUpdateURLOverride(url);
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
@@ -73,7 +70,7 @@ function check_test_pt2() {
 function run_test_pt3() {
   gCheckFunc = check_test_pt3;
   let url = URL_PREFIX + "%BUILD_ID%/";
-  debugDump("testing url constructed with %BUILD_ID% - " + url);
+  logTestInfo("testing url constructed with %BUILD_ID% - " + url);
   setUpdateURLOverride(url);
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
@@ -88,7 +85,7 @@ function check_test_pt3() {
 function run_test_pt4() {
   gCheckFunc = check_test_pt4;
   let url = URL_PREFIX + "%BUILD_TARGET%/";
-  debugDump("testing url constructed with %BUILD_TARGET% - " + url);
+  logTestInfo("testing url constructed with %BUILD_TARGET% - " + url);
   setUpdateURLOverride(url);
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
@@ -125,20 +122,15 @@ function check_test_pt4() {
 // url constructed with %LOCALE%
 // Bug 488936 added the update.locale file that stores the update locale
 function run_test_pt5() {
-  // The code that gets the locale accesses the profile which is only available
-  // after calling do_get_profile in xpcshell tests. This prevents an error from
-  // being logged.
-  do_get_profile();
-
   gCheckFunc = check_test_pt5;
   let url = URL_PREFIX + "%LOCALE%/";
-  debugDump("testing url constructed with %LOCALE% - " + url);
+  logTestInfo("testing url constructed with %LOCALE% - " + url);
   setUpdateURLOverride(url);
   try {
     gUpdateChecker.checkForUpdates(updateCheckListener, true);
   } catch (e) {
-    debugDump("The following error is most likely due to a missing " +
-              "update.locale file");
+    logTestInfo("The following error is most likely due to a missing " +
+                "update.locale file");
     do_throw(e);
   }
 }
@@ -152,7 +144,7 @@ function check_test_pt5() {
 function run_test_pt6() {
   gCheckFunc = check_test_pt6;
   let url = URL_PREFIX + "%CHANNEL%/";
-  debugDump("testing url constructed with %CHANNEL% - " + url);
+  logTestInfo("testing url constructed with %CHANNEL% - " + url);
   setUpdateURLOverride(url);
   setUpdateChannel("test_channel");
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
@@ -167,7 +159,7 @@ function check_test_pt6() {
 function run_test_pt7() {
   gCheckFunc = check_test_pt7;
   let url = URL_PREFIX + "%CHANNEL%/";
-  debugDump("testing url constructed with %CHANNEL% - " + url);
+  logTestInfo("testing url constructed with %CHANNEL% - " + url);
   setUpdateURLOverride(url);
   gDefaultPrefBranch.setCharPref(PREF_APP_PARTNER_BRANCH + "test_partner1", "test_partner1");
   gDefaultPrefBranch.setCharPref(PREF_APP_PARTNER_BRANCH + "test_partner2", "test_partner2");
@@ -183,7 +175,7 @@ function check_test_pt7() {
 function run_test_pt8() {
   gCheckFunc = check_test_pt8;
   let url = URL_PREFIX + "%PLATFORM_VERSION%/";
-  debugDump("testing url constructed with %PLATFORM_VERSION% - " + url);
+  logTestInfo("testing url constructed with %PLATFORM_VERSION% - " + url);
   setUpdateURLOverride(url);
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
@@ -197,7 +189,7 @@ function check_test_pt8() {
 function run_test_pt9() {
   gCheckFunc = check_test_pt9;
   let url = URL_PREFIX + "%OS_VERSION%/";
-  debugDump("testing url constructed with %OS_VERSION% - " + url);
+  logTestInfo("testing url constructed with %OS_VERSION% - " + url);
   setUpdateURLOverride(url);
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
@@ -345,7 +337,7 @@ function check_test_pt9() {
 function run_test_pt10() {
   gCheckFunc = check_test_pt10;
   let url = URL_PREFIX + "%DISTRIBUTION%/";
-  debugDump("testing url constructed with %DISTRIBUTION% - " + url);
+  logTestInfo("testing url constructed with %DISTRIBUTION% - " + url);
   setUpdateURLOverride(url);
   gDefaultPrefBranch.setCharPref(PREF_DISTRIBUTION_ID, "test_distro");
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
@@ -360,7 +352,7 @@ function check_test_pt10() {
 function run_test_pt11() {
   gCheckFunc = check_test_pt11;
   let url = URL_PREFIX + "%DISTRIBUTION_VERSION%/";
-  debugDump("testing url constructed with %DISTRIBUTION_VERSION% - " + url);
+  logTestInfo("testing url constructed with %DISTRIBUTION_VERSION% - " + url);
   setUpdateURLOverride(url);
   gDefaultPrefBranch.setCharPref(PREF_DISTRIBUTION_VERSION, "test_distro_version");
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
@@ -375,8 +367,8 @@ function check_test_pt11() {
 function run_test_pt12() {
   gCheckFunc = check_test_pt12;
   let url = URL_PREFIX;
-  debugDump("testing url with force param that doesn't already have a " +
-            "param - " + url);
+  logTestInfo("testing url with force param that doesn't already have a " +
+              "param - " + url);
   setUpdateURLOverride(url);
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
@@ -390,7 +382,8 @@ function check_test_pt12() {
 function run_test_pt13() {
   gCheckFunc = check_test_pt13;
   let url = URL_PREFIX + "?extra=param";
-  debugDump("testing url with force param that already has a param - " + url);
+  logTestInfo("testing url with force param that already has a param - " + url);
+  logTestInfo("testing url constructed that has a parameter - " + url);
   setUpdateURLOverride(url);
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
@@ -404,7 +397,7 @@ function run_test_pt14() {
   Services.prefs.setCharPref("app.update.custom", "custom");
   gCheckFunc = check_test_pt14;
   let url = URL_PREFIX + "?custom=%CUSTOM%";
-  debugDump("testing url constructed with %CUSTOM% - " + url);
+  logTestInfo("testing url constructed with %CUSTOM% - " + url);
   setUpdateURLOverride(url);
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }

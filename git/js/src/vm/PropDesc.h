@@ -12,16 +12,16 @@
 
 namespace js {
 
-static inline JSGetterOp
-CastAsGetterOp(JSObject *object)
+static inline JSPropertyOp
+CastAsPropertyOp(JSObject *object)
 {
-    return JS_DATA_TO_FUNC_PTR(JSGetterOp, object);
+    return JS_DATA_TO_FUNC_PTR(JSPropertyOp, object);
 }
 
-static inline JSSetterOp
-CastAsSetterOp(JSObject *object)
+static inline JSStrictPropertyOp
+CastAsStrictPropertyOp(JSObject *object)
 {
-    return JS_DATA_TO_FUNC_PTR(JSSetterOp, object);
+    return JS_DATA_TO_FUNC_PTR(JSStrictPropertyOp, object);
 }
 
 /*
@@ -213,11 +213,11 @@ struct PropDesc {
      * Unfortunately the values produced by these methods are used such that
      * we can't assert anything here.  :-(
      */
-    JSGetterOp getter() const {
-        return CastAsGetterOp(get_.isUndefined() ? nullptr : &get_.toObject());
+    JSPropertyOp getter() const {
+        return CastAsPropertyOp(get_.isUndefined() ? nullptr : &get_.toObject());
     }
-    JSSetterOp setter() const {
-        return CastAsSetterOp(set_.isUndefined() ? nullptr : &set_.toObject());
+    JSStrictPropertyOp setter() const {
+        return CastAsStrictPropertyOp(set_.isUndefined() ? nullptr : &set_.toObject());
     }
 
     /*
@@ -263,8 +263,8 @@ class PropDescOperations
     HandleValue getterValue() const { return desc()->getterValue(); }
     HandleValue setterValue() const { return desc()->setterValue(); }
 
-    JSGetterOp getter() const { return desc()->getter(); }
-    JSSetterOp setter() const { return desc()->setter(); }
+    JSPropertyOp getter() const { return desc()->getter(); }
+    JSStrictPropertyOp setter() const { return desc()->setter(); }
 
     void populatePropertyDescriptor(HandleObject obj,
                                     MutableHandle<JSPropertyDescriptor> descriptor) const {

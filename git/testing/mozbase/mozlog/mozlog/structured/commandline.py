@@ -3,7 +3,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import sys
-import os
 import optparse
 
 from collections import defaultdict
@@ -60,11 +59,8 @@ fmt_options = {
 def log_file(name):
     if name == "-":
         return sys.stdout
-    # ensure we have a correct dirpath by using realpath
-    dirpath = os.path.dirname(os.path.realpath(name))
-    if not os.path.exists(dirpath):
-        os.makedirs(dirpath)
-    return open(name, "w")
+    else:
+        return open(name, "w")
 
 
 def add_logging_group(parser, include_formatters=None):

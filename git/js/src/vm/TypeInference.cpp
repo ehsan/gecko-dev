@@ -27,7 +27,6 @@
 #include "jit/Ion.h"
 #include "jit/IonAnalysis.h"
 #include "jit/JitCompartment.h"
-#include "jit/OptimizationTracking.h"
 #include "js/MemoryMetrics.h"
 #include "vm/HelperThreads.h"
 #include "vm/Opcodes.h"
@@ -419,9 +418,8 @@ TypeSet::isSubset(const TypeSet *other) const
     return true;
 }
 
-template <class TypeListT>
 bool
-TypeSet::enumerateTypes(TypeListT *list) const
+TypeSet::enumerateTypes(TypeList *list) const
 {
     /* If any type is possible, there's no need to worry about specifics. */
     if (flags & TYPE_FLAG_UNKNOWN)
@@ -452,9 +450,6 @@ TypeSet::enumerateTypes(TypeListT *list) const
 
     return true;
 }
-
-template bool TypeSet::enumerateTypes<TypeSet::TypeList>(TypeList *list) const;
-template bool TypeSet::enumerateTypes<jit::TempTypeList>(jit::TempTypeList *list) const;
 
 inline bool
 TypeSet::addTypesToConstraint(JSContext *cx, TypeConstraint *constraint)
@@ -696,11 +691,11 @@ TypeSet::IsTypeMarkedFromAnyThread(TypeSet::Type *v)
 {
     bool rv;
     if (v->isSingletonUnchecked()) {
-        JSObject *obj = v->singletonNoBarrier();
+        JSObject *obj = v->singleton();
         rv = IsObjectMarkedFromAnyThread(&obj);
         *v = TypeSet::ObjectType(obj);
     } else if (v->isGroupUnchecked()) {
-        ObjectGroup *group = v->groupNoBarrier();
+        ObjectGroup *group = v->group();
         rv = IsObjectGroupMarkedFromAnyThread(&group);
         *v = TypeSet::ObjectType(group);
     } else {

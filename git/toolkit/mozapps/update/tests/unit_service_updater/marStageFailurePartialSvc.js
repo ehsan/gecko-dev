@@ -6,9 +6,6 @@
 /* General Partial MAR File Staged Patch Apply Failure Test */
 
 function run_test() {
-  // Set to true due to bug 1109219
-  DEBUG_AUS_TEST = true;
-
   if (!shouldRunServiceTest()) {
     return;
   }
@@ -47,8 +44,8 @@ function setupAppFilesFinished() {
 function checkUpdateFinished() {
   if (IS_WIN || IS_MACOSX) {
     let running = getPostUpdateFile(".running");
-    debugDump("checking that the post update process running file doesn't " +
-              "exist. Path: " + running.path);
+    logTestInfo("checking that the post update process running file doesn't " +
+                "exist. Path: " + running.path);
     do_check_false(running.exists());
   }
 

@@ -10,17 +10,9 @@ on, e.g. `git checkout -b topic-name`
 
 * Make your changes
 
-* Run the `lint` script in the root of your checkout to detect common
-  mistakes in test submissions. This will also be run after submission
-  and any errors will prevent your PR being accepted. If it detects an
-  error that forms an essential part of your test, edit the list of
-  exceptions stored in `tools/lint/lint.whitelist`.
+* Push that to your GitHub repository
 
-* Commit your changes.
-
-* Push your local branch to your GitHub repository.
-
-* Using the GitHub UI create a Pull Request for your branch.
+* Send in a pull request based on the above
 
 * When you get review comments, make more commits to your branch to
   address the comments (**note**: Do *not* rewrite existing commits using

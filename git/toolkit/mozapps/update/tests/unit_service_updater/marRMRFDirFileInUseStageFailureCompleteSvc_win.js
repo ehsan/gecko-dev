@@ -6,9 +6,6 @@
    test */
 
 function run_test() {
-  // Set to true due to bug 1123503
-  DEBUG_AUS_TEST = true;
-
   if (!shouldRunServiceTest()) {
     return;
   }

@@ -529,8 +529,7 @@ class TypedObject : public JSObject
                                   MutableHandleObject objp, MutableHandleShape propp);
 
     static bool obj_defineProperty(JSContext *cx, HandleObject obj, HandleId id, HandleValue v,
-                                   GetterOp getter, SetterOp setter, unsigned attrs,
-                                   ObjectOpResult &result);
+                                   PropertyOp getter, StrictPropertyOp setter, unsigned attrs);
 
     static bool obj_hasProperty(JSContext *cx, HandleObject obj, HandleId id, bool *foundp);
 
@@ -541,13 +540,12 @@ class TypedObject : public JSObject
                                uint32_t index, MutableHandleValue vp);
 
     static bool obj_setProperty(JSContext *cx, HandleObject obj, HandleObject receiver,
-                                HandleId id, MutableHandleValue vp, ObjectOpResult &result);
+                                HandleId id, MutableHandleValue vp, bool strict);
 
     static bool obj_getOwnPropertyDescriptor(JSContext *cx, HandleObject obj, HandleId id,
                                              MutableHandle<JSPropertyDescriptor> desc);
 
-    static bool obj_deleteProperty(JSContext *cx, HandleObject obj, HandleId id,
-                                   ObjectOpResult &result);
+    static bool obj_deleteProperty(JSContext *cx, HandleObject obj, HandleId id, bool *succeeded);
 
     static bool obj_enumerate(JSContext *cx, HandleObject obj, AutoIdVector &properties);
 

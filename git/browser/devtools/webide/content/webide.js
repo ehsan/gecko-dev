@@ -927,10 +927,8 @@ let UI = {
           // We can't know for sure which one was used here, so reset the
           // |toolboxPromise| since someone must be destroying it to reach here,
           // and call our own close method.
-          if (this.toolboxIframe && this.toolboxIframe.uid == json.uid) {
-            this.toolboxPromise = null;
-            this._closeToolboxUI();
-          }
+          this.toolboxPromise = null;
+          this._closeToolboxUI();
           break;
       }
     } catch(e) { console.error(e); }
@@ -943,9 +941,9 @@ let UI = {
       this.toolboxPromise = null;
       return toolboxPromise.then(toolbox => {
         return toolbox.destroy();
-      }).then(null, console.error)
+      }).catch(console.error)
         .then(() => this._closeToolboxUI())
-        .then(null, console.error);
+        .catch(console.error);
     }
     return promise.resolve();
   },
@@ -968,13 +966,9 @@ let UI = {
     let iframe = document.createElement("iframe");
     iframe.id = "toolbox";
 
-    // Compute a uid on the iframe in order to identify toolbox iframe
-    // when receiving toolbox-close event
-    iframe.uid = new Date().getTime();
-
     document.querySelector("notificationbox").insertBefore(iframe, splitter.nextSibling);
     let host = devtools.Toolbox.HostType.CUSTOM;
-    let options = { customIframe: iframe, zoom: false, uid: iframe.uid };
+    let options = { customIframe: iframe, zoom: false };
     this.toolboxIframe = iframe;
 
     let height = Services.prefs.getIntPref("devtools.toolbox.footer.height");

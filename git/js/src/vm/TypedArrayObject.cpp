@@ -718,7 +718,7 @@ FinishTypedArrayInit(JSContext *cx, HandleObject ctor, HandleObject proto)
  * B2G ICS. Older GCC versions have a bug in which they fail to compile
  * reinterpret_casts of templated functions with the message: "insufficient
  * contextual information to determine type". JS_PSG needs to
- * reinterpret_cast<JSGetterOp>, so this causes problems for us here.
+ * reinterpret_cast<JSPropertyOp>, so this causes problems for us here.
  *
  * We could restructure all this code to make this nicer, but since ICS isn't
  * going to be around forever (and since this bug is fixed with the newer GCC
@@ -772,6 +772,14 @@ TypedArrayObject::protoAccessors[] = {
 };
 
 /* static */ bool
+TypedArrayObject::copyWithin(JSContext *cx, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    return CallNonGenericMethod<TypedArrayObject::is,
+                                TypedArrayMethods<TypedArrayObject>::copyWithin>(cx, args);
+}
+
+/* static */ bool
 TypedArrayObject::set(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -779,11 +787,19 @@ TypedArrayObject::set(JSContext *cx, unsigned argc, Value *vp)
                                 TypedArrayMethods<TypedArrayObject>::set>(cx, args);
 }
 
+/* static */ bool
+TypedArrayObject::subarray(JSContext *cx, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    return CallNonGenericMethod<TypedArrayObject::is,
+                                TypedArrayMethods<TypedArrayObject>::subarray>(cx, args);
+}
+
 /* static */ const JSFunctionSpec
 TypedArrayObject::protoFunctions[] = {
-    JS_SELF_HOSTED_FN("subarray", "TypedArraySubarray", 2, 0),
+    JS_FN("subarray", TypedArrayObject::subarray, 2, 0),
     JS_FN("set", TypedArrayObject::set, 2, 0),
-    JS_SELF_HOSTED_FN("copyWithin", "TypedArrayCopyWithin", 3, 0),
+    JS_FN("copyWithin", TypedArrayObject::copyWithin, 2, 0),
     JS_SELF_HOSTED_FN("every", "TypedArrayEvery", 2, 0),
     JS_SELF_HOSTED_FN("fill", "TypedArrayFill", 3, 0),
     JS_SELF_HOSTED_FN("filter", "TypedArrayFilter", 2, 0),
@@ -1950,7 +1966,7 @@ DataViewObject::defineGetter(JSContext *cx, PropertyName *name, HandleNativeObje
         return false;
 
     return NativeDefineProperty(cx, proto, id, UndefinedHandleValue,
-                                JS_DATA_TO_FUNC_PTR(GetterOp, getter), nullptr, attrs);
+                                JS_DATA_TO_FUNC_PTR(PropertyOp, getter), nullptr, attrs);
 }
 
 /* static */ bool

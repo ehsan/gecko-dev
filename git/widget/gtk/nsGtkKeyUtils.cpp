@@ -175,8 +175,7 @@ KeymapWrapper::KeymapWrapper() :
     g_object_weak_ref(G_OBJECT(mGdkKeymap),
                       (GWeakNotify)OnDestroyKeymap, this);
 
-    if (GDK_IS_X11_DISPLAY(gdk_display_get_default()))
-        InitXKBExtension();
+    InitXKBExtension();
 
     Init();
 }
@@ -196,8 +195,7 @@ KeymapWrapper::Init()
     mModifierKeys.Clear();
     memset(mModifierMasks, 0, sizeof(mModifierMasks));
 
-    if (GDK_IS_X11_DISPLAY(gdk_display_get_default()))
-        InitBySystemSettings();
+    InitBySystemSettings();
 
     gdk_window_add_filter(nullptr, FilterEvents, this);
 
@@ -899,10 +897,9 @@ KeymapWrapper::InitKeyEvent(WidgetKeyboardEvent& aKeyEvent,
     // state.  It means if there're some pending modifier key press or
     // key release events, the result isn't what we want.
     guint modifierState = aGdkKeyEvent->state;
-    GdkDisplay* gdkDisplay = gdk_display_get_default();
-    if (aGdkKeyEvent->is_modifier && GDK_IS_X11_DISPLAY(gdkDisplay)) {
+    if (aGdkKeyEvent->is_modifier) {
         Display* display =
-            gdk_x11_display_get_xdisplay(gdkDisplay);
+            gdk_x11_display_get_xdisplay(gdk_display_get_default());
         if (XEventsQueued(display, QueuedAfterReading)) {
             XEvent nextEvent;
             XPeekEvent(display, &nextEvent);

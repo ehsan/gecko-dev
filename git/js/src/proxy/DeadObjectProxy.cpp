@@ -32,8 +32,7 @@ DeadObjectProxy::getOwnPropertyDescriptor(JSContext *cx, HandleObject wrapper, H
 
 bool
 DeadObjectProxy::defineProperty(JSContext *cx, HandleObject wrapper, HandleId id,
-                                MutableHandle<PropertyDescriptor> desc,
-                                ObjectOpResult &result) const
+                                MutableHandle<PropertyDescriptor> desc) const
 {
     JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_DEAD_OBJECT);
     return false;
@@ -48,8 +47,7 @@ DeadObjectProxy::ownPropertyKeys(JSContext *cx, HandleObject wrapper,
 }
 
 bool
-DeadObjectProxy::delete_(JSContext *cx, HandleObject wrapper, HandleId id,
-                         ObjectOpResult &result) const
+DeadObjectProxy::delete_(JSContext *cx, HandleObject wrapper, HandleId id, bool *bp) const
 {
     JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_DEAD_OBJECT);
     return false;
@@ -63,14 +61,14 @@ DeadObjectProxy::enumerate(JSContext *cx, HandleObject wrapper, MutableHandleObj
 }
 
 bool
-DeadObjectProxy::getPrototype(JSContext *cx, HandleObject proxy, MutableHandleObject protop) const
+DeadObjectProxy::getPrototypeOf(JSContext *cx, HandleObject proxy, MutableHandleObject protop) const
 {
     protop.set(nullptr);
     return true;
 }
 
 bool
-DeadObjectProxy::preventExtensions(JSContext *cx, HandleObject proxy, ObjectOpResult &result) const
+DeadObjectProxy::preventExtensions(JSContext *cx, HandleObject proxy, bool *succeeded) const
 {
     JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_DEAD_OBJECT);
     return false;

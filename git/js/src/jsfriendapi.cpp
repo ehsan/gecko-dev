@@ -474,13 +474,6 @@ js::SetFunctionNativeReserved(JSObject *fun, size_t which, const Value &val)
 }
 
 JS_FRIEND_API(bool)
-js::FunctionHasNativeReserved(JSObject *fun)
-{
-    MOZ_ASSERT(fun->as<JSFunction>().isNative());
-    return fun->as<JSFunction>().isExtended();
-}
-
-JS_FRIEND_API(bool)
 js::GetObjectProto(JSContext *cx, JS::Handle<JSObject*> obj, JS::MutableHandle<JSObject*> proto)
 {
     if (IsProxy(obj))
@@ -1192,7 +1185,7 @@ js::GetObjectMetadata(JSObject *obj)
 
 JS_FRIEND_API(bool)
 js::DefineOwnProperty(JSContext *cx, JSObject *objArg, jsid idArg,
-                      JS::Handle<js::PropertyDescriptor> descriptor, ObjectOpResult &result)
+                      JS::Handle<js::PropertyDescriptor> descriptor, bool *bp)
 {
     RootedObject obj(cx, objArg);
     RootedId id(cx, idArg);
@@ -1204,7 +1197,7 @@ js::DefineOwnProperty(JSContext *cx, JSObject *objArg, jsid idArg,
     if (descriptor.hasSetterObject())
         assertSameCompartment(cx, descriptor.setterObject());
 
-    return StandardDefineProperty(cx, obj, id, descriptor, result);
+    return StandardDefineProperty(cx, obj, id, descriptor, bp);
 }
 
 JS_FRIEND_API(bool)

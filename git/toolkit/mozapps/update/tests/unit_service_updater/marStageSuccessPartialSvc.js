@@ -6,9 +6,6 @@
 /* General Partial MAR File Staged Patch Apply Test */
 
 function run_test() {
-  // Set to true due to bug 1083653
-  DEBUG_AUS_TEST = true;
-
   if (!shouldRunServiceTest(false, true)) {
     return;
   }
@@ -47,8 +44,8 @@ function checkUpdateFinished() {
 
   if (IS_WIN || IS_MACOSX) {
     let running = getPostUpdateFile(".running");
-    debugDump("checking that the post update process running file doesn't " +
-              "exist. Path: " + running.path);
+    logTestInfo("checking that the post update process running file doesn't " +
+                "exist. Path: " + running.path);
     do_check_false(running.exists());
   }
 
@@ -79,8 +76,8 @@ function checkUpdateApplied() {
  */
 function finishCheckUpdateApplied() {
   if (IS_MACOSX) {
-    debugDump("testing last modified time on the apply to directory has " +
-              "changed after a successful update (bug 600098)");
+    logTestInfo("testing last modified time on the apply to directory has " +
+                "changed after a successful update (bug 600098)");
     let now = Date.now();
     let applyToDir = getApplyDirFile();
     let timeDiff = Math.abs(applyToDir.lastModifiedTime - now);
@@ -89,8 +86,8 @@ function finishCheckUpdateApplied() {
 
   if (IS_WIN || IS_MACOSX) {
     let running = getPostUpdateFile(".running");
-    debugDump("checking that the post update process running file exists. " +
-              "Path: " + running.path);
+    logTestInfo("checking that the post update process running file exists. " +
+                "Path: " + running.path);
     do_check_true(running.exists());
   }
 

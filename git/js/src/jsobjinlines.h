@@ -133,7 +133,7 @@ js::GetPrototype(JSContext *cx, js::HandleObject obj, js::MutableHandleObject pr
 {
     if (obj->getTaggedProto().isLazy()) {
         MOZ_ASSERT(obj->is<js::ProxyObject>());
-        return js::Proxy::getPrototype(cx, obj, protop);
+        return js::Proxy::getPrototypeOf(cx, obj, protop);
     } else {
         protop.set(obj->getTaggedProto().toObjectOrNull());
         return true;
@@ -182,21 +182,21 @@ js::GetElementNoGC(JSContext *cx, JSObject *obj, JSObject *receiver, uint32_t in
 }
 
 inline bool
-js::DeleteProperty(JSContext *cx, HandleObject obj, HandleId id, ObjectOpResult &result)
+js::DeleteProperty(JSContext *cx, HandleObject obj, HandleId id, bool *succeeded)
 {
     MarkTypePropertyNonData(cx, obj, id);
     if (DeletePropertyOp op = obj->getOps()->deleteProperty)
-        return op(cx, obj, id, result);
-    return NativeDeleteProperty(cx, obj.as<NativeObject>(), id, result);
+        return op(cx, obj, id, succeeded);
+    return NativeDeleteProperty(cx, obj.as<NativeObject>(), id, succeeded);
 }
 
 inline bool
-js::DeleteElement(JSContext *cx, HandleObject obj, uint32_t index, ObjectOpResult &result)
+js::DeleteElement(JSContext *cx, HandleObject obj, uint32_t index, bool *succeeded)
 {
     RootedId id(cx);
     if (!IndexToId(cx, index, &id))
         return false;
-    return DeleteProperty(cx, obj, id, result);
+    return DeleteProperty(cx, obj, id, succeeded);
 }
 
 

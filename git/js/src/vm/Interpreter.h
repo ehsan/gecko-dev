@@ -343,11 +343,11 @@ UrshValues(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, Mutabl
 
 template <bool strict>
 bool
-DeletePropertyJit(JSContext *ctx, HandleValue val, HandlePropertyName name, bool *bv);
+DeleteProperty(JSContext *ctx, HandleValue val, HandlePropertyName name, bool *bv);
 
 template <bool strict>
 bool
-DeleteElementJit(JSContext *cx, HandleValue val, HandleValue index, bool *bv);
+DeleteElement(JSContext *cx, HandleValue val, HandleValue index, bool *bv);
 
 bool
 DefFunOperation(JSContext *cx, HandleScript script, HandleObject scopeChain, HandleFunction funArg);

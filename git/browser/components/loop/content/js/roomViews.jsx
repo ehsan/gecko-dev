@@ -166,8 +166,7 @@ loop.roomViews = (function(mozL10n) {
       ActiveRoomStoreMixin,
       sharedMixins.DocumentTitleMixin,
       sharedMixins.MediaSetupMixin,
-      sharedMixins.RoomsAudioMixin,
-      sharedMixins.WindowCloseMixin
+      sharedMixins.RoomsAudioMixin
     ],
 
     propTypes: {
@@ -205,11 +204,14 @@ loop.roomViews = (function(mozL10n) {
      * User clicked on the "Leave" button.
      */
     leaveRoom: function() {
-      if (this.state.used) {
-        this.props.dispatcher.dispatch(new sharedActions.LeaveRoom());
-      } else {
-        this.closeWindow();
-      }
+      this.props.dispatcher.dispatch(new sharedActions.LeaveRoom());
+    },
+
+    /**
+     * Closes the window if the cancel button is pressed in the generic failure view.
+     */
+    closeWindow: function() {
+      window.close();
     },
 
     /**
@@ -253,9 +255,15 @@ loop.roomViews = (function(mozL10n) {
           />;
         }
         case ROOM_STATES.ENDED: {
-          return <sharedViews.FeedbackView
-            onAfterFeedbackReceived={this.closeWindow}
-          />;
+          if (this.state.used)
+            return <sharedViews.FeedbackView
+              onAfterFeedbackReceived={this.closeWindow}
+            />;
+
+          // In case the room was not used (no one was here), we
+          // bypass the feedback form.
+          this.closeWindow();
+          return null;
         }
         default: {
           return (

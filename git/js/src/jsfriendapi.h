@@ -361,8 +361,7 @@ proxy_LookupProperty(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::M
                     JS::MutableHandle<Shape*> propp);
 extern JS_FRIEND_API(bool)
 proxy_DefineProperty(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::HandleValue value,
-                     JSGetterOp getter, JSSetterOp setter, unsigned attrs,
-                     JS::ObjectOpResult &result);
+                     JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs);
 extern JS_FRIEND_API(bool)
 proxy_HasProperty(JSContext *cx, JS::HandleObject obj, JS::HandleId id, bool *foundp);
 extern JS_FRIEND_API(bool)
@@ -370,13 +369,12 @@ proxy_GetProperty(JSContext *cx, JS::HandleObject obj, JS::HandleObject receiver
                   JS::MutableHandleValue vp);
 extern JS_FRIEND_API(bool)
 proxy_SetProperty(JSContext *cx, JS::HandleObject obj, JS::HandleObject receiver, JS::HandleId id,
-                  JS::MutableHandleValue bp, JS::ObjectOpResult &result);
+                  JS::MutableHandleValue bp, bool strict);
 extern JS_FRIEND_API(bool)
 proxy_GetOwnPropertyDescriptor(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
                                JS::MutableHandle<JSPropertyDescriptor> desc);
 extern JS_FRIEND_API(bool)
-proxy_DeleteProperty(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
-                     JS::ObjectOpResult &result);
+proxy_DeleteProperty(JSContext *cx, JS::HandleObject obj, JS::HandleId id, bool *succeeded);
 
 extern JS_FRIEND_API(void)
 proxy_Trace(JSTracer *trc, JSObject *obj);
@@ -689,6 +687,14 @@ IsCallObject(JSObject *obj);
 JS_FRIEND_API(bool)
 CanAccessObjectShape(JSObject *obj);
 
+inline JSObject *
+GetObjectParent(JSObject *obj)
+{
+    MOZ_ASSERT(!IsScopeObject(obj));
+    MOZ_ASSERT(CanAccessObjectShape(obj));
+    return reinterpret_cast<shadow::Object*>(obj)->shape->base->parent;
+}
+
 static MOZ_ALWAYS_INLINE JSCompartment *
 GetObjectCompartment(JSObject *obj)
 {
@@ -748,9 +754,6 @@ GetFunctionNativeReserved(JSObject *fun, size_t which);
 
 JS_FRIEND_API(void)
 SetFunctionNativeReserved(JSObject *fun, size_t which, const JS::Value &val);
-
-JS_FRIEND_API(bool)
-FunctionHasNativeReserved(JSObject *fun);
 
 JS_FRIEND_API(bool)
 GetObjectProto(JSContext *cx, JS::HandleObject obj, JS::MutableHandleObject proto);
@@ -2388,46 +2391,21 @@ struct JSTypedMethodJitInfo
                                                  have side-effects. */
 };
 
-namespace js {
-
-static MOZ_ALWAYS_INLINE shadow::Function *
-FunctionObjectToShadowFunction(JSObject *fun)
-{
-    MOZ_ASSERT(GetObjectClass(fun) == FunctionClassPtr);
-    return reinterpret_cast<shadow::Function *>(fun);
-}
-
-/* Statically asserted in jsfun.h. */
-static const unsigned JS_FUNCTION_INTERPRETED_BITS = 0x1001;
-
-// Return whether the given function object is native.
-static MOZ_ALWAYS_INLINE bool
-FunctionObjectIsNative(JSObject *fun)
-{
-    return !(FunctionObjectToShadowFunction(fun)->flags & JS_FUNCTION_INTERPRETED_BITS);
-}
-
-static MOZ_ALWAYS_INLINE JSNative
-GetFunctionObjectNative(JSObject *fun)
-{
-    MOZ_ASSERT(FunctionObjectIsNative(fun));
-    return FunctionObjectToShadowFunction(fun)->native;
-}
-
-} // namespace js
-
 static MOZ_ALWAYS_INLINE const JSJitInfo *
 FUNCTION_VALUE_TO_JITINFO(const JS::Value& v)
 {
-    MOZ_ASSERT(js::FunctionObjectIsNative(&v.toObject()));
-    return js::FunctionObjectToShadowFunction(&v.toObject())->jitinfo;
+    MOZ_ASSERT(js::GetObjectClass(&v.toObject()) == js::FunctionClassPtr);
+    return reinterpret_cast<js::shadow::Function *>(&v.toObject())->jitinfo;
 }
+
+/* Statically asserted in jsfun.h. */
+static const unsigned JS_FUNCTION_INTERPRETED_BIT = 0x1;
 
 static MOZ_ALWAYS_INLINE void
 SET_JITINFO(JSFunction * func, const JSJitInfo *info)
 {
     js::shadow::Function *fun = reinterpret_cast<js::shadow::Function *>(func);
-    MOZ_ASSERT(!(fun->flags & js::JS_FUNCTION_INTERPRETED_BITS));
+    MOZ_ASSERT(!(fun->flags & JS_FUNCTION_INTERPRETED_BIT));
     fun->jitinfo = info;
 }
 
@@ -2636,8 +2614,7 @@ JS_FRIEND_API(bool)
 SetPropertyIgnoringNamedGetter(JSContext *cx, const BaseProxyHandler *handler,
                                JS::HandleObject proxy, JS::HandleObject receiver,
                                JS::HandleId id, JS::MutableHandle<JSPropertyDescriptor> desc,
-                               bool descIsOwn, JS::MutableHandleValue vp,
-                               JS::ObjectOpResult &result);
+                               bool descIsOwn, bool strict, JS::MutableHandleValue vp);
 
 JS_FRIEND_API(void)
 ReportErrorWithId(JSContext *cx, const char *msg, JS::HandleId id);
@@ -2708,7 +2685,7 @@ ReportIsNotFunction(JSContext *cx, JS::HandleValue v);
 
 extern JS_FRIEND_API(bool)
 DefineOwnProperty(JSContext *cx, JSObject *objArg, jsid idArg,
-                  JS::Handle<JSPropertyDescriptor> descriptor, JS::ObjectOpResult &result);
+                  JS::Handle<JSPropertyDescriptor> descriptor, bool *bp);
 
 } /* namespace js */
 

@@ -358,13 +358,12 @@ UnboxedPlainObject::obj_lookupProperty(JSContext *cx, HandleObject obj,
 
 /* static */ bool
 UnboxedPlainObject::obj_defineProperty(JSContext *cx, HandleObject obj, HandleId id, HandleValue v,
-                                       GetterOp getter, SetterOp setter, unsigned attrs,
-                                       ObjectOpResult &result)
+                                       PropertyOp getter, StrictPropertyOp setter, unsigned attrs)
 {
     if (!convertToNative(cx, obj))
         return false;
 
-    return DefineProperty(cx, obj, id, v, getter, setter, attrs, result);
+    return DefineProperty(cx, obj, id, v, getter, setter, attrs);
 }
 
 /* static */ bool
@@ -406,24 +405,24 @@ UnboxedPlainObject::obj_getProperty(JSContext *cx, HandleObject obj, HandleObjec
 
 /* static */ bool
 UnboxedPlainObject::obj_setProperty(JSContext *cx, HandleObject obj, HandleObject receiver,
-                                    HandleId id, MutableHandleValue vp, ObjectOpResult &result)
+                                    HandleId id, MutableHandleValue vp, bool strict)
 {
     const UnboxedLayout &layout = obj->as<UnboxedPlainObject>().layout();
 
     if (const UnboxedLayout::Property *property = layout.lookup(id)) {
         if (obj == receiver) {
             if (obj->as<UnboxedPlainObject>().setValue(cx, *property, vp))
-                return result.succeed();
+                return true;
 
             if (!convertToNative(cx, obj))
                 return false;
-            return SetProperty(cx, obj, receiver, id, vp, result);
+            return SetProperty(cx, obj, receiver, id, vp, strict);
         }
 
-        return SetPropertyByDefining(cx, obj, receiver, id, vp, false, result);
+        return SetPropertyByDefining(cx, obj, receiver, id, vp, strict, false);
     }
 
-    return SetPropertyOnProto(cx, obj, receiver, id, vp, result);
+    return SetPropertyOnProto(cx, obj, receiver, id, vp, strict);
 }
 
 /* static */ bool
@@ -445,11 +444,11 @@ UnboxedPlainObject::obj_getOwnPropertyDescriptor(JSContext *cx, HandleObject obj
 
 /* static */ bool
 UnboxedPlainObject::obj_deleteProperty(JSContext *cx, HandleObject obj, HandleId id,
-                                       ObjectOpResult &result)
+                                       bool *succeeded)
 {
     if (!convertToNative(cx, obj))
         return false;
-    return DeleteProperty(cx, obj, id, result);
+    return DeleteProperty(cx, obj, id, succeeded);
 }
 
 /* static */ bool

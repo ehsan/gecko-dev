@@ -30,14 +30,14 @@ using namespace mozilla::pkix;
 extern PRLogModuleInfo* gPIPNSSLog;
 #endif
 
-static const unsigned int DEFAULT_MIN_RSA_BITS = 2048;
+static const unsigned int DEFAULT_MINIMUM_NON_ECC_BITS = 2048;
 
 namespace mozilla { namespace psm {
 
 AppTrustDomain::AppTrustDomain(ScopedCERTCertList& certChain, void* pinArg)
   : mCertChain(certChain)
   , mPinArg(pinArg)
-  , mMinRSABits(DEFAULT_MIN_RSA_BITS)
+  , mMinimumNonECCBits(DEFAULT_MINIMUM_NON_ECC_BITS)
 {
 }
 
@@ -75,7 +75,7 @@ AppTrustDomain::SetTrustedRoot(AppTrustedRoot trustedRoot)
       trustedDER.data = const_cast<uint8_t*>(marketplaceStageRoot);
       trustedDER.len = mozilla::ArrayLength(marketplaceStageRoot);
       // The staging root was generated with a 1024-bit key.
-      mMinRSABits = 1024u;
+      mMinimumNonECCBits = 1024u;
       break;
 
     case nsIX509CertDB::AppXPCShellRoot:
@@ -254,7 +254,7 @@ Result
 AppTrustDomain::CheckRSAPublicKeyModulusSizeInBits(
   EndEntityOrCA /*endEntityOrCA*/, unsigned int modulusSizeInBits)
 {
-  if (modulusSizeInBits < mMinRSABits) {
+  if (modulusSizeInBits < mMinimumNonECCBits) {
     return Result::ERROR_INADEQUATE_KEY_SIZE;
   }
   return Success;

@@ -21,7 +21,6 @@ interface WorkerGlobalScope : EventTarget {
 
   readonly attribute WorkerLocation location;
 
-  [Throws]
   void close();
   attribute OnErrorEventHandler onerror;
 

@@ -5848,7 +5848,7 @@ DebuggerFrame_getArguments(JSContext *cx, unsigned argc, Value *vp)
             id = INT_TO_JSID(i);
             if (!getobj ||
                 !NativeDefineProperty(cx, argsobj, id, UndefinedHandleValue,
-                                      JS_DATA_TO_FUNC_PTR(GetterOp, getobj.get()), nullptr,
+                                      JS_DATA_TO_FUNC_PTR(PropertyOp, getobj.get()), nullptr,
                                       JSPROP_ENUMERATE | JSPROP_SHARED | JSPROP_GETTER))
             {
                 return false;
@@ -6735,7 +6735,8 @@ DebuggerObject_defineProperty(JSContext *cx, unsigned argc, Value *vp)
             return false;
 
         ErrorCopier ec(ac);
-        if (!StandardDefineProperty(cx, obj, id, desc))
+        bool dummy;
+        if (!StandardDefineProperty(cx, obj, id, desc, true, &dummy))
             return false;
     }
 
@@ -6778,7 +6779,8 @@ DebuggerObject_defineProperties(JSContext *cx, unsigned argc, Value *vp)
 
         ErrorCopier ec(ac);
         for (size_t i = 0; i < n; i++) {
-            if (!StandardDefineProperty(cx, obj, ids[i], descs[i]))
+            bool dummy;
+            if (!StandardDefineProperty(cx, obj, ids[i], descs[i], true, &dummy))
                 return false;
         }
     }
@@ -6803,10 +6805,10 @@ DebuggerObject_deleteProperty(JSContext *cx, unsigned argc, Value *vp)
     ac.emplace(cx, obj);
     ErrorCopier ec(ac);
 
-    ObjectOpResult result;
-    if (!DeleteProperty(cx, obj, id, result))
+    bool succeeded;
+    if (!DeleteProperty(cx, obj, id, &succeeded))
         return false;
-    args.rval().setBoolean(result.ok());
+    args.rval().setBoolean(succeeded);
     return true;
 }
 
@@ -6820,17 +6822,24 @@ DebuggerObject_sealHelper(JSContext *cx, unsigned argc, Value *vp, SealHelperOp 
     Maybe<AutoCompartment> ac;
     ac.emplace(cx, obj);
     ErrorCopier ec(ac);
+    bool ok;
     if (op == OpSeal) {
-        if (!SetIntegrityLevel(cx, obj, IntegrityLevel::Sealed))
-            return false;
+        ok = SetIntegrityLevel(cx, obj, IntegrityLevel::Sealed);
     } else if (op == OpFreeze) {
-        if (!SetIntegrityLevel(cx, obj, IntegrityLevel::Frozen))
-            return false;
+        ok = SetIntegrityLevel(cx, obj, IntegrityLevel::Frozen);
     } else {
         MOZ_ASSERT(op == OpPreventExtensions);
-        if (!PreventExtensions(cx, obj))
+        bool succeeded;
+        ok = PreventExtensions(cx, obj, &succeeded);
+        if (!ok)
             return false;
+        if (!succeeded) {
+            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_CANT_CHANGE_EXTENSIBILITY);
+            return false;
+        }
     }
+    if (!ok)
+        return false;
     args.rval().setUndefined();
     return true;
 }
@@ -7510,7 +7519,7 @@ DebuggerEnv_setVariable(JSContext *cx, unsigned argc, Value *vp)
         }
 
         /* Just set the property. */
-        if (!SetProperty(cx, env, env, id, &v))
+        if (!SetProperty(cx, env, env, id, &v, true))
             return false;
     }
 

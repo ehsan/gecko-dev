@@ -31,10 +31,7 @@ class nsMathMLContainerFrame : public nsContainerFrame,
                                public nsMathMLFrame {
   friend class nsMathMLmfencedFrame;
 public:
-  explicit nsMathMLContainerFrame(nsStyleContext* aContext)
-    : nsContainerFrame(aContext)
-    , mIntrinsicWidth(NS_INTRINSIC_WIDTH_UNKNOWN)
-  {}
+  explicit nsMathMLContainerFrame(nsStyleContext* aContext) : nsContainerFrame(aContext) {}
 
   NS_DECL_QUERYFRAME_TARGET(nsMathMLContainerFrame)
   NS_DECL_QUERYFRAME
@@ -99,8 +96,8 @@ public:
    * Both GetMinISize and GetPrefISize use the intrinsic width metrics
    * returned by GetIntrinsicMetrics, including ink overflow.
    */
-  virtual nscoord GetMinISize(nsRenderingContext* aRenderingContext) MOZ_OVERRIDE;
-  virtual nscoord GetPrefISize(nsRenderingContext* aRenderingContext) MOZ_OVERRIDE;
+  virtual nscoord GetMinISize(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+  virtual nscoord GetPrefISize(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
 
   /**
    * Return the intrinsic horizontal metrics of the frame's content area.
@@ -136,8 +133,6 @@ public:
                                 const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   virtual bool UpdateOverflow() MOZ_OVERRIDE;
-
-  virtual void MarkIntrinsicISizesDirty() MOZ_OVERRIDE;
 
   // Notification when an attribute is changed. The MathML module uses the
   // following paradigm:
@@ -395,13 +390,6 @@ protected:
    * The method does nothing if aFirst == nullptr.
    */
   static void DidReflowChildren(nsIFrame* aFirst, nsIFrame* aStop = nullptr);
-
-  /**
-   * Recompute mIntrinsicWidth if it's not already up to date.
-   */
-  void UpdateIntrinsicWidth(nsRenderingContext* aRenderingContext);
-
-  nscoord mIntrinsicWidth;
 
 private:
   class RowChildFrameIterator;

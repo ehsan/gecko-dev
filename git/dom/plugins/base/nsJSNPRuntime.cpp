@@ -161,12 +161,11 @@ static bool
 NPObjWrapper_AddProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, JS::MutableHandle<JS::Value> vp);
 
 static bool
-NPObjWrapper_DelProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
-                         JS::ObjectOpResult &result);
+NPObjWrapper_DelProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, bool *succeeded);
 
 static bool
-NPObjWrapper_SetProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
-                         JS::MutableHandle<JS::Value> vp, JS::ObjectOpResult &result);
+NPObjWrapper_SetProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, bool strict,
+                         JS::MutableHandle<JS::Value> vp);
 
 static bool
 NPObjWrapper_GetProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, JS::MutableHandle<JS::Value> vp);
@@ -976,33 +975,33 @@ nsJSObjWrapper::NP_RemoveProperty(NPObject *npobj, NPIdentifier npid)
   }
 
   nsJSObjWrapper *npjsobj = (nsJSObjWrapper *)npobj;
+  bool ok = false;
 
   AutoJSExceptionReporter reporter(cx);
-  JS::ObjectOpResult result;
+  bool deleted = false;
   JS::Rooted<JSObject*> obj(cx, npjsobj->mJSObj);
   JSAutoCompartment ac(cx, obj);
 
   NS_ASSERTION(NPIdentifierIsInt(npid) || NPIdentifierIsString(npid),
                "id must be either string or int!\n");
   JS::Rooted<jsid> id(cx, NPIdentifierToJSId(npid));
-  if (!::JS_DeletePropertyById(cx, obj, id, result))
-    return false;
-
-  if (result) {
+  ok = ::JS_DeletePropertyById2(cx, obj, id, &deleted);
+  if (ok && deleted) {
     // FIXME: See bug 425823, we shouldn't need to do this, and once
     // that bug is fixed we can remove this code.
-    bool hasProp;
-    if (!::JS_HasPropertyById(cx, obj, id, &hasProp))
-      return false;
-    if (!hasProp)
-      return true;
 
-    // The property might have been deleted, but it got
-    // re-resolved, so no, it's not really deleted.
-    result.failCantDelete();
+    bool hasProp;
+    ok = ::JS_HasPropertyById(cx, obj, id, &hasProp);
+
+    if (ok && hasProp) {
+      // The property might have been deleted, but it got
+      // re-resolved, so no, it's not really deleted.
+
+      deleted = false;
+    }
   }
 
-  return result.reportError(cx, obj, id);
+  return ok && deleted;
 }
 
 //static
@@ -1275,8 +1274,7 @@ NPObjWrapper_AddProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<js
 }
 
 static bool
-NPObjWrapper_DelProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
-                         JS::ObjectOpResult &result)
+NPObjWrapper_DelProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, bool *succeeded)
 {
   NPObject *npobj = GetNPObject(cx, obj);
 
@@ -1296,23 +1294,20 @@ NPObjWrapper_DelProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<js
     if (!ReportExceptionIfPending(cx))
       return false;
 
-    if (!hasProperty)
-      return result.succeed();
+    if (!hasProperty) {
+      *succeeded = true;
+      return true;
+    }
   }
 
-  // This removeProperty hook may throw an exception and return false; or just
-  // return false without an exception pending, which behaves like `delete
-  // obj.prop` returning false: in strict mode it becomes a TypeError. Legacy
-  // code---nothing else that uses the JSAPI works this way anymore.
-  bool succeeded = npobj->_class->removeProperty(npobj, identifier);
-  if (!ReportExceptionIfPending(cx))
-    return false;
-  return succeeded ? result.succeed() : result.failCantDelete();
+  *succeeded = npobj->_class->removeProperty(npobj, identifier);
+
+  return ReportExceptionIfPending(cx);
 }
 
 static bool
-NPObjWrapper_SetProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
-                         JS::MutableHandle<JS::Value> vp, JS::ObjectOpResult &result)
+NPObjWrapper_SetProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, bool strict,
+                         JS::MutableHandle<JS::Value> vp)
 {
   NPObject *npobj = GetNPObject(cx, obj);
 
@@ -1367,7 +1362,7 @@ NPObjWrapper_SetProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<js
     return false;
   }
 
-  return result.succeed();
+  return true;
 }
 
 static bool

@@ -444,11 +444,24 @@ obj_setPrototypeOf(JSContext *cx, unsigned argc, Value *vp)
         return true;
     }
 
-    /* Step 5-7. */
+    /* Step 5-6. */
     RootedObject obj(cx, &args[0].toObject());
     RootedObject newProto(cx, args[1].toObjectOrNull());
-    if (!SetPrototype(cx, obj, newProto))
+
+    bool success;
+    if (!SetPrototype(cx, obj, newProto, &success))
         return false;
+
+    /* Step 7. */
+    if (!success) {
+        UniquePtr<char[], JS::FreePolicy> bytes(DecompileValueGenerator(cx, JSDVG_SEARCH_STACK,
+                                                                        args[0], NullPtr()));
+        if (!bytes)
+            return false;
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_SETPROTOTYPEOF_FAIL,
+                             bytes.get());
+        return false;
+    }
 
     /* Step 8. */
     args.rval().set(args[0]);
@@ -820,7 +833,8 @@ js::obj_defineProperty(JSContext *cx, unsigned argc, Value *vp)
     if (!desc.initialize(cx, args.get(2)))
         return false;
 
-    if (!StandardDefineProperty(cx, obj, id, desc))
+    bool ignored;
+    if (!StandardDefineProperty(cx, obj, id, desc, true, &ignored))
         return false;
 
     args.rval().setObject(*obj);
@@ -884,9 +898,21 @@ obj_preventExtensions(JSContext *cx, unsigned argc, Value *vp)
     if (!args.get(0).isObject())
         return true;
 
-    // Steps 2-5.
+    // Steps 2-3.
     RootedObject obj(cx, &args.get(0).toObject());
-    return PreventExtensions(cx, obj);
+
+    bool status;
+    if (!PreventExtensions(cx, obj, &status))
+        return false;
+
+    // Step 4.
+    if (!status) {
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_CANT_CHANGE_EXTENSIBILITY);
+        return false;
+    }
+
+    // Step 5.
+    return true;
 }
 
 // ES6 draft rev27 (2014/08/24) 19.1.2.5 Object.freeze(O)
@@ -1018,8 +1044,15 @@ ProtoSetter(JSContext *cx, unsigned argc, Value *vp)
     }
 
     Rooted<JSObject*> newProto(cx, args[0].toObjectOrNull());
-    if (!SetPrototype(cx, obj, newProto))
+
+    bool success;
+    if (!SetPrototype(cx, obj, newProto, &success))
         return false;
+
+    if (!success) {
+        ReportValueError(cx, JSMSG_SETPROTOTYPEOF_FAIL, JSDVG_IGNORE_STACK, thisv, js::NullPtr());
+        return false;
+    }
 
     args.rval().setUndefined();
     return true;

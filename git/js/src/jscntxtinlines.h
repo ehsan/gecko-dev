@@ -133,15 +133,6 @@ class CompartmentChecker
     void check(InterpreterFrame *fp);
     void check(AbstractFramePtr frame);
     void check(SavedStacks *stacks);
-
-    void check(Handle<JSPropertyDescriptor> desc) {
-        check(desc.object());
-        if (desc.hasGetterObject())
-            check(desc.getterObject());
-        if (desc.hasSetterObject())
-            check(desc.setterObject());
-        check(desc.value());
-    }
 };
 #endif /* JS_CRASH_DIAGNOSTICS */
 
@@ -298,8 +289,7 @@ CallJSNativeConstructor(JSContext *cx, Native native, const CallArgs &args)
 }
 
 MOZ_ALWAYS_INLINE bool
-CallJSGetterOp(JSContext *cx, GetterOp op, HandleObject receiver, HandleId id,
-               MutableHandleValue vp)
+CallJSPropertyOp(JSContext *cx, PropertyOp op, HandleObject receiver, HandleId id, MutableHandleValue vp)
 {
     JS_CHECK_RECURSION(cx, return false);
 
@@ -311,45 +301,44 @@ CallJSGetterOp(JSContext *cx, GetterOp op, HandleObject receiver, HandleId id,
 }
 
 MOZ_ALWAYS_INLINE bool
-CallJSSetterOp(JSContext *cx, SetterOp op, HandleObject obj, HandleId id, MutableHandleValue vp,
-               ObjectOpResult &result)
+CallJSPropertyOpSetter(JSContext *cx, StrictPropertyOp op, HandleObject obj, HandleId id,
+                       bool strict, MutableHandleValue vp)
 {
     JS_CHECK_RECURSION(cx, return false);
 
     assertSameCompartment(cx, obj, id, vp);
-    return op(cx, obj, id, vp, result);
+    return op(cx, obj, id, strict, vp);
 }
 
-inline bool
+static inline bool
 CallJSDeletePropertyOp(JSContext *cx, JSDeletePropertyOp op, HandleObject receiver, HandleId id,
-                       ObjectOpResult &result)
+                       bool *succeeded)
 {
     JS_CHECK_RECURSION(cx, return false);
 
     assertSameCompartment(cx, receiver, id);
     if (op)
-        return op(cx, receiver, id, result);
-    return result.succeed();
+        return op(cx, receiver, id, succeeded);
+    *succeeded = true;
+    return true;
 }
 
 inline bool
-CallSetter(JSContext *cx, HandleObject obj, HandleId id, SetterOp op, unsigned attrs,
-           MutableHandleValue vp, ObjectOpResult &result)
+CallSetter(JSContext *cx, HandleObject obj, HandleId id, StrictPropertyOp op, unsigned attrs,
+           bool strict, MutableHandleValue vp)
 {
     if (attrs & JSPROP_SETTER) {
         RootedValue opv(cx, CastAsObjectJsval(op));
-        if (!InvokeGetterOrSetter(cx, obj, opv, 1, vp.address(), vp))
-            return false;
-        return result.succeed();
+        return InvokeGetterOrSetter(cx, obj, opv, 1, vp.address(), vp);
     }
 
     if (attrs & JSPROP_GETTER)
-        return result.fail(JSMSG_GETTER_ONLY);
+        return ReportGetterOnlyAssignment(cx, strict);
 
     if (!op)
-        return result.succeed();
+        return true;
 
-    return CallJSSetterOp(cx, op, obj, id, vp, result);
+    return CallJSPropertyOpSetter(cx, op, obj, id, strict, vp);
 }
 
 inline uintptr_t

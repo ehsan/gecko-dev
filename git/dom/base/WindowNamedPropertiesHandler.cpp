@@ -159,8 +159,7 @@ bool
 WindowNamedPropertiesHandler::defineProperty(JSContext* aCx,
                                              JS::Handle<JSObject*> aProxy,
                                              JS::Handle<jsid> aId,
-                                             JS::MutableHandle<JSPropertyDescriptor> aDesc,
-                                             JS::ObjectOpResult &result) const
+                                             JS::MutableHandle<JSPropertyDescriptor> aDesc) const
 {
   ErrorResult rv;
   rv.ThrowTypeError(MSG_DEFINEPROPERTY_ON_GSP);
@@ -210,10 +209,10 @@ WindowNamedPropertiesHandler::ownPropNames(JSContext* aCx,
 bool
 WindowNamedPropertiesHandler::delete_(JSContext* aCx,
                                       JS::Handle<JSObject*> aProxy,
-                                      JS::Handle<jsid> aId,
-                                      JS::ObjectOpResult &aResult) const
+                                      JS::Handle<jsid> aId, bool* aBp) const
 {
-  return aResult.failCantDeleteWindowNamedProperty();
+  *aBp = false;
+  return true;
 }
 
 static bool

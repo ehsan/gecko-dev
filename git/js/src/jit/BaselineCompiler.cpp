@@ -2005,10 +2005,8 @@ BaselineCompiler::emit_JSOP_STRICTSETELEM()
 }
 
 typedef bool (*DeleteElementFn)(JSContext *, HandleValue, HandleValue, bool *);
-static const VMFunction DeleteElementStrictInfo
-    = FunctionInfo<DeleteElementFn>(DeleteElementJit<true>);
-static const VMFunction DeleteElementNonStrictInfo
-    = FunctionInfo<DeleteElementFn>(DeleteElementJit<false>);
+static const VMFunction DeleteElementStrictInfo = FunctionInfo<DeleteElementFn>(DeleteElement<true>);
+static const VMFunction DeleteElementNonStrictInfo = FunctionInfo<DeleteElementFn>(DeleteElement<false>);
 
 bool
 BaselineCompiler::emit_JSOP_DELELEM()
@@ -2172,10 +2170,8 @@ BaselineCompiler::emit_JSOP_GETXPROP()
 }
 
 typedef bool (*DeletePropertyFn)(JSContext *, HandleValue, HandlePropertyName, bool *);
-static const VMFunction DeletePropertyStrictInfo =
-    FunctionInfo<DeletePropertyFn>(DeletePropertyJit<true>);
-static const VMFunction DeletePropertyNonStrictInfo =
-    FunctionInfo<DeletePropertyFn>(DeletePropertyJit<false>);
+static const VMFunction DeletePropertyStrictInfo = FunctionInfo<DeletePropertyFn>(DeleteProperty<true>);
+static const VMFunction DeletePropertyNonStrictInfo = FunctionInfo<DeletePropertyFn>(DeleteProperty<false>);
 
 bool
 BaselineCompiler::emit_JSOP_DELPROP()

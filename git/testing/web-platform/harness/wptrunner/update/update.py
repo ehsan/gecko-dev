@@ -9,12 +9,11 @@ from metadata import MetadataUpdateRunner
 from sync import SyncFromUpstreamRunner
 from tree import GitTree, HgTree, NoVCSTree
 
-from .. import wptrunner
 from base import Step, StepRunner, exit_clean, exit_unclean
 from state import State
 
 def setup_paths(serve_root):
-    wptrunner.do_delayed_imports(serve_root)
+    sys.path.insert(0, os.path.join(serve_root, "tools", "scripts"))
 
 class LoadConfig(Step):
     """Step for loading configuration from the ini file and kwargs."""
@@ -83,8 +82,9 @@ class UpdateMetadata(Step):
             return
 
         kwargs = state.kwargs
-        with state.push(["local_tree", "sync_tree", "paths", "serve_root"]):
+        with state.push(["local_tree", "sync_tree", "paths"]):
             state.run_log = kwargs["run_log"]
+            state.serve_root = kwargs["serve_root"]
             state.ignore_existing = kwargs["ignore_existing"]
             state.no_patch = kwargs["no_patch"]
             runner = MetadataUpdateRunner(self.logger, state)
@@ -108,9 +108,11 @@ class WPTUpdate(object):
         :param kwargs: Command line arguments
         """
         self.runner_cls = runner_cls
-        self.serve_root = kwargs["test_paths"]["/"]["tests_path"]
+        if kwargs["serve_root"] is None:
+            kwargs["serve_root"] = kwargs["test_paths"]["/"]["tests_path"]
+
         #This must be before we try to reload state
-        setup_paths(self.serve_root)
+        setup_paths(kwargs["serve_root"])
 
         self.state = State(logger)
         self.kwargs = kwargs
@@ -133,8 +135,6 @@ class WPTUpdate(object):
             self.kwargs = self.state.kwargs
         else:
             self.state.kwargs = self.kwargs
-
-        self.state.serve_root = self.serve_root
 
         update_runner = self.runner_cls(self.logger, self.state)
         rv = update_runner.run()

@@ -3666,13 +3666,20 @@ bool nsWindow::DispatchKeyboardEvent(WidgetGUIEvent* event)
 
 bool nsWindow::DispatchScrollEvent(WidgetGUIEvent* aEvent)
 {
-  if (aEvent->mClass != eWheelEventClass) {
-    nsEventStatus status;
-    DispatchEvent(aEvent, status);
-    return ConvertStatus(status);
-  }
+  nsEventStatus status;
 
-  nsEventStatus status = DispatchAPZAwareEvent(aEvent->AsInputEvent());
+  if (mAPZC && aEvent->mClass == eWheelEventClass) {
+    uint64_t inputBlockId = 0;
+    ScrollableLayerGuid guid;
+
+    nsEventStatus result = mAPZC->ReceiveInputEvent(*aEvent->AsWheelEvent(), &guid, &inputBlockId);
+    if (result == nsEventStatus_eConsumeNoDefault) {
+      return true;
+    }
+    status = DispatchEventForAPZ(aEvent, guid, inputBlockId);
+  } else {
+    DispatchEvent(aEvent, status);
+  }
   return ConvertStatus(status);
 }
 

@@ -66,6 +66,7 @@ extern PRLogModuleInfo* gPIPNSSLog;
 
 NS_IMPL_ISUPPORTS(nsNSSCertificate,
                   nsIX509Cert,
+                  nsIIdentityInfo,
                   nsISerializable,
                   nsIClassInfo)
 
@@ -1439,7 +1440,7 @@ nsNSSCertificate::getValidEVOidTag(SECOidTag& resultOidTag, bool& validEV)
 
 #endif // MOZ_NO_EV_CERTS
 
-nsresult
+NS_IMETHODIMP
 nsNSSCertificate::GetIsExtendedValidation(bool* aIsEV)
 {
 #ifdef MOZ_NO_EV_CERTS

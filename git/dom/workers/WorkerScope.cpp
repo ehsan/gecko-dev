@@ -171,15 +171,11 @@ WorkerGlobalScope::GetExistingNavigator() const
 }
 
 void
-WorkerGlobalScope::Close(JSContext* aCx, ErrorResult& aRv)
+WorkerGlobalScope::Close(JSContext* aCx)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
-  if (mWorkerPrivate->IsServiceWorker()) {
-    aRv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
-  } else {
-    mWorkerPrivate->CloseInternal(aCx);
-  }
+  mWorkerPrivate->CloseInternal(aCx);
 }
 
 OnErrorEventHandlerNonNull*

@@ -445,12 +445,41 @@ js::Throw(JSContext *cx, JSObject *obj, unsigned errorNumber)
     return false;
 }
 
+static bool
+Reject(JSContext *cx, unsigned errorNumber, bool throwError, jsid id, bool *rval)
+{
+    if (throwError)
+        return Throw(cx, id, errorNumber);
+
+    *rval = false;
+    return true;
+}
+
+static bool
+Reject(JSContext *cx, JSObject *obj, unsigned errorNumber, bool throwError, bool *rval)
+{
+    if (throwError)
+        return Throw(cx, obj, errorNumber);
+
+    *rval = false;
+    return true;
+}
+
+static bool
+Reject(JSContext *cx, HandleId id, unsigned errorNumber, bool throwError, bool *rval)
+{
+    if (throwError)
+        return Throw(cx, id, errorNumber);
+
+    *rval = false;
+    return true;
+}
 
 /*** Standard-compliant property definition (used by Object.defineProperty) **********************/
 
 static bool
 DefinePropertyOnObject(JSContext *cx, HandleNativeObject obj, HandleId id, const PropDesc &desc,
-                       ObjectOpResult &result)
+                       bool throwError, bool *rval)
 {
     /* 8.12.9 step 1. */
     RootedShape shape(cx);
@@ -466,19 +495,20 @@ DefinePropertyOnObject(JSContext *cx, HandleNativeObject obj, HandleId id, const
         if (!IsExtensible(cx, obj, &extensible))
             return false;
         if (!extensible)
-            return result.fail(JSMSG_OBJECT_NOT_EXTENSIBLE);
+            return Reject(cx, obj, JSMSG_OBJECT_NOT_EXTENSIBLE, throwError, rval);
+
+        *rval = true;
 
         if (desc.isGenericDescriptor() || desc.isDataDescriptor()) {
             MOZ_ASSERT(!obj->getOps()->defineProperty);
             RootedValue v(cx, desc.hasValue() ? desc.value() : UndefinedValue());
-            return NativeDefineProperty(cx, obj, id, v, nullptr, nullptr, desc.attributes(),
-                                        result);
+            return NativeDefineProperty(cx, obj, id, v, nullptr, nullptr, desc.attributes());
         }
 
         MOZ_ASSERT(desc.isAccessorDescriptor());
 
         return NativeDefineProperty(cx, obj, id, UndefinedHandleValue,
-                                    desc.getter(), desc.setter(), desc.attributes(), result);
+                                    desc.getter(), desc.setter(), desc.attributes());
     }
 
     /* 8.12.9 steps 5-6 (note 5 is merely a special case of 6). */
@@ -541,7 +571,7 @@ DefinePropertyOnObject(JSContext *cx, HandleNativeObject obj, HandleId id, const
                 v = obj->getDenseOrTypedArrayElement(JSID_TO_INT(id));
             } else if (shape->isDataDescriptor()) {
                 /*
-                 * We must rule out a non-configurable js::SetterOp-guarded
+                 * We must rule out a non-configurable js::PropertyOp-guarded
                  * property becoming a writable unguarded data property, since
                  * such a property can have its value changed to one the getter
                  * and setter preclude.
@@ -555,7 +585,7 @@ DefinePropertyOnObject(JSContext *cx, HandleNativeObject obj, HandleId id, const
                     desc.isDataDescriptor() &&
                     (desc.hasWritable() ? desc.writable() : shape->writable()))
                 {
-                    return result.fail(JSMSG_CANT_REDEFINE_PROP);
+                    return Reject(cx, JSMSG_CANT_REDEFINE_PROP, throwError, id, rval);
                 }
 
                 if (!NativeGetExistingProperty(cx, obj, obj, shape, &v))
@@ -572,25 +602,25 @@ DefinePropertyOnObject(JSContext *cx, HandleNativeObject obj, HandleId id, const
                         return false;
                     if (!same) {
                         /*
-                         * Insist that a non-configurable js::GetterOp data
+                         * Insist that a non-configurable js::PropertyOp data
                          * property is frozen at exactly the last-got value.
                          *
                          * Duplicate the first part of the big conjunction that
                          * we tested above, rather than add a local bool flag.
                          * Likewise, don't try to keep shape->writable() in a
                          * flag we veto from true to false for non-configurable
-                         * GetterOp-based data properties and test before the
+                         * PropertyOp-based data properties and test before the
                          * SameValue check later on in order to re-use that "if
-                         * (!SameValue) return false" logic.
+                         * (!SameValue) Reject" logic.
                          *
                          * This function is large and complex enough that it
                          * seems best to repeat a small bit of code and return
-                         * result.fail() ASAP, instead of being clever.
+                         * Reject(...) ASAP, instead of being clever.
                          */
                         if (!shapeConfigurable &&
                             (!shape->hasDefaultGetter() || !shape->hasDefaultSetter()))
                         {
-                            return result.fail(JSMSG_CANT_REDEFINE_PROP);
+                            return Reject(cx, JSMSG_CANT_REDEFINE_PROP, throwError, id, rval);
                         }
                         break;
                     }
@@ -609,14 +639,15 @@ DefinePropertyOnObject(JSContext *cx, HandleNativeObject obj, HandleId id, const
             break;
 
         /* The conditions imposed by step 5 or step 6 apply. */
-        return result.succeed();
+        *rval = true;
+        return true;
     } while (0);
 
     /* 8.12.9 step 7. */
     if (!shapeConfigurable) {
         if ((desc.hasConfigurable() && desc.configurable()) ||
             (desc.hasEnumerable() && desc.enumerable() != shape->enumerable())) {
-            return result.fail(JSMSG_CANT_REDEFINE_PROP);
+            return Reject(cx, JSMSG_CANT_REDEFINE_PROP, throwError, id, rval);
         }
     }
 
@@ -627,19 +658,19 @@ DefinePropertyOnObject(JSContext *cx, HandleNativeObject obj, HandleId id, const
     } else if (desc.isDataDescriptor() != shapeDataDescriptor) {
         /* 8.12.9 step 9. */
         if (!shapeConfigurable)
-            return result.fail(JSMSG_CANT_REDEFINE_PROP);
+            return Reject(cx, JSMSG_CANT_REDEFINE_PROP, throwError, id, rval);
     } else if (desc.isDataDescriptor()) {
         /* 8.12.9 step 10. */
         MOZ_ASSERT(shapeDataDescriptor);
         if (!shapeConfigurable && !shape->writable()) {
             if (desc.hasWritable() && desc.writable())
-                return result.fail(JSMSG_CANT_REDEFINE_PROP);
+                return Reject(cx, JSMSG_CANT_REDEFINE_PROP, throwError, id, rval);
             if (desc.hasValue()) {
                 bool same;
                 if (!SameValue(cx, desc.value(), v, &same))
                     return false;
                 if (!same)
-                    return result.fail(JSMSG_CANT_REDEFINE_PROP);
+                    return Reject(cx, JSMSG_CANT_REDEFINE_PROP, throwError, id, rval);
             }
         }
 
@@ -654,7 +685,7 @@ DefinePropertyOnObject(JSContext *cx, HandleNativeObject obj, HandleId id, const
                 if (!SameValue(cx, desc.setterValue(), setter, &same))
                     return false;
                 if (!same)
-                    return result.fail(JSMSG_CANT_REDEFINE_PROP);
+                    return Reject(cx, JSMSG_CANT_REDEFINE_PROP, throwError, id, rval);
             }
 
             if (desc.hasGet()) {
@@ -663,15 +694,15 @@ DefinePropertyOnObject(JSContext *cx, HandleNativeObject obj, HandleId id, const
                 if (!SameValue(cx, desc.getterValue(), getter, &same))
                     return false;
                 if (!same)
-                    return result.fail(JSMSG_CANT_REDEFINE_PROP);
+                    return Reject(cx, JSMSG_CANT_REDEFINE_PROP, throwError, id, rval);
             }
         }
     }
 
     /* 8.12.9 step 12. */
     unsigned attrs;
-    GetterOp getter;
-    SetterOp setter;
+    PropertyOp getter;
+    StrictPropertyOp setter;
     if (desc.isGenericDescriptor()) {
         unsigned changed = 0;
         if (desc.hasConfigurable())
@@ -728,6 +759,8 @@ DefinePropertyOnObject(JSContext *cx, HandleNativeObject obj, HandleId id, const
         }
     }
 
+    *rval = true;
+
     /*
      * Since "data" properties implemented using native C functions may rely on
      * side effects during setting, we must make them aware that they have been
@@ -738,18 +771,18 @@ DefinePropertyOnObject(JSContext *cx, HandleNativeObject obj, HandleId id, const
      * redefining it or we had invoked its setter to change its value).
      */
     if (callDelProperty) {
-        ObjectOpResult ignored;
-        if (!CallJSDeletePropertyOp(cx, obj->getClass()->delProperty, obj, id, ignored))
+        bool succeeded;
+        if (!CallJSDeletePropertyOp(cx, obj->getClass()->delProperty, obj, id, &succeeded))
             return false;
     }
 
-    return NativeDefineProperty(cx, obj, id, v, getter, setter, attrs, result);
+    return NativeDefineProperty(cx, obj, id, v, getter, setter, attrs);
 }
 
 /* ES6 20130308 draft 8.4.2.1 [[DefineOwnProperty]] */
 static bool
 DefinePropertyOnArray(JSContext *cx, Handle<ArrayObject*> arr, HandleId id, const PropDesc &desc,
-                      ObjectOpResult &result)
+                      bool throwError, bool *rval)
 {
     /* Step 2. */
     if (id == NameToId(cx->names().length)) {
@@ -771,23 +804,23 @@ DefinePropertyOnArray(JSContext *cx, Handle<ArrayObject*> arr, HandleId id, cons
         }
 
         if (desc.hasConfigurable() && desc.configurable())
-            return result.fail(JSMSG_CANT_REDEFINE_PROP);
+            return Reject(cx, id, JSMSG_CANT_REDEFINE_PROP, throwError, rval);
         if (desc.hasEnumerable() && desc.enumerable())
-            return result.fail(JSMSG_CANT_REDEFINE_PROP);
+            return Reject(cx, id, JSMSG_CANT_REDEFINE_PROP, throwError, rval);
 
         if (desc.isAccessorDescriptor())
-            return result.fail(JSMSG_CANT_REDEFINE_PROP);
+            return Reject(cx, id, JSMSG_CANT_REDEFINE_PROP, throwError, rval);
 
         unsigned attrs = arr->lookup(cx, id)->attributes();
         if (!arr->lengthIsWritable()) {
             if (desc.hasWritable() && desc.writable())
-                return result.fail(JSMSG_CANT_REDEFINE_PROP);
+                return Reject(cx, id, JSMSG_CANT_REDEFINE_PROP, throwError, rval);
         } else {
             if (desc.hasWritable() && !desc.writable())
                 attrs = attrs | JSPROP_READONLY;
         }
 
-        return ArraySetLength(cx, arr, id, attrs, v, result);
+        return ArraySetLength(cx, arr, id, attrs, v, throwError);
     }
 
     /* Step 3. */
@@ -798,21 +831,22 @@ DefinePropertyOnArray(JSContext *cx, Handle<ArrayObject*> arr, HandleId id, cons
 
         /* Steps 3a, 3e. */
         if (index >= oldLen && !arr->lengthIsWritable())
-            return result.fail(JSMSG_CANT_APPEND_TO_ARRAY);
+            return Reject(cx, arr, JSMSG_CANT_APPEND_TO_ARRAY, throwError, rval);
 
         /* Steps 3f-j. */
-        return DefinePropertyOnObject(cx, arr, id, desc, result);
+        return DefinePropertyOnObject(cx, arr, id, desc, throwError, rval);
     }
 
     /* Step 4. */
-    return DefinePropertyOnObject(cx, arr, id, desc, result);
+    return DefinePropertyOnObject(cx, arr, id, desc, throwError, rval);
 }
 
 // ES6 draft rev31 9.4.5.3 [[DefineOwnProperty]]
 static bool
 DefinePropertyOnTypedArray(JSContext *cx, HandleObject obj, HandleId id, const PropDesc &desc,
-                           ObjectOpResult &result)
+                           bool throwError, bool *rval)
 {
+
     MOZ_ASSERT(IsAnyTypedArray(obj));
     // Steps 3.a-c.
     uint64_t index;
@@ -820,24 +854,26 @@ DefinePropertyOnTypedArray(JSContext *cx, HandleObject obj, HandleId id, const P
         // These are all substeps of 3.c.
         // Steps i-vi.
         // We (wrongly) ignore out of range defines with a value.
-        if (index >= AnyTypedArrayLength(obj))
-            return result.succeed();
+        if (index >= AnyTypedArrayLength(obj)) {
+            *rval = true;
+            return true;
+        }
 
         // Step vii.
         if (desc.isAccessorDescriptor())
-            return result.fail(JSMSG_CANT_REDEFINE_PROP);
+            return Reject(cx, id, JSMSG_CANT_REDEFINE_PROP, throwError, rval);
 
         // Step viii.
         if (desc.hasConfigurable() && desc.configurable())
-            return result.fail(JSMSG_CANT_REDEFINE_PROP);
+            return Reject(cx, id, JSMSG_CANT_REDEFINE_PROP, throwError, rval);
 
         // Step ix.
         if (desc.hasEnumerable() && !desc.enumerable())
-            return result.fail(JSMSG_CANT_REDEFINE_PROP);
+            return Reject(cx, id, JSMSG_CANT_REDEFINE_PROP, throwError, rval);
 
         // Step x.
         if (desc.hasWritable() && !desc.writable())
-            return result.fail(JSMSG_CANT_REDEFINE_PROP);
+            return Reject(cx, id, JSMSG_CANT_REDEFINE_PROP, throwError, rval);
 
         // Step xi.
         if (desc.hasValue()) {
@@ -852,24 +888,25 @@ DefinePropertyOnTypedArray(JSContext *cx, HandleObject obj, HandleId id, const P
         }
 
         // Step xii.
-        return result.succeed();
+        *rval = true;
+        return true;
     }
 
     // Step 4.
-    return DefinePropertyOnObject(cx, obj.as<NativeObject>(), id, desc, result);
+    return DefinePropertyOnObject(cx, obj.as<NativeObject>(), id, desc, throwError, rval);
 }
 
 bool
 js::StandardDefineProperty(JSContext *cx, HandleObject obj, HandleId id, const PropDesc &desc,
-                           ObjectOpResult &result)
+                           bool throwError, bool *rval)
 {
     if (obj->is<ArrayObject>()) {
         Rooted<ArrayObject*> arr(cx, &obj->as<ArrayObject>());
-        return DefinePropertyOnArray(cx, arr, id, desc, result);
+        return DefinePropertyOnArray(cx, arr, id, desc, throwError, rval);
     }
 
     if (IsAnyTypedArray(obj))
-        return DefinePropertyOnTypedArray(cx, obj, id, desc, result);
+        return DefinePropertyOnTypedArray(cx, obj, id, desc, throwError, rval);
 
     if (obj->is<UnboxedPlainObject>() && !UnboxedPlainObject::convertToNative(cx, obj))
         return false;
@@ -879,38 +916,21 @@ js::StandardDefineProperty(JSContext *cx, HandleObject obj, HandleId id, const P
             Rooted<PropertyDescriptor> pd(cx);
             desc.populatePropertyDescriptor(obj, &pd);
             pd.object().set(obj);
-            return Proxy::defineProperty(cx, obj, id, &pd, result);
+            return Proxy::defineProperty(cx, obj, id, &pd);
         }
-        return result.fail(JSMSG_OBJECT_NOT_EXTENSIBLE);
+        return Reject(cx, obj, JSMSG_OBJECT_NOT_EXTENSIBLE, throwError, rval);
     }
 
-    return DefinePropertyOnObject(cx, obj.as<NativeObject>(), id, desc, result);
+    return DefinePropertyOnObject(cx, obj.as<NativeObject>(), id, desc, throwError, rval);
 }
 
 bool
 js::StandardDefineProperty(JSContext *cx, HandleObject obj, HandleId id,
-                           Handle<PropertyDescriptor> descriptor, ObjectOpResult &result)
+                           Handle<PropertyDescriptor> descriptor, bool *bp)
 {
     Rooted<PropDesc> desc(cx);
     desc.initFromPropertyDescriptor(descriptor);
-    return StandardDefineProperty(cx, obj, id, desc, result);
-}
-
-bool
-js::StandardDefineProperty(JSContext *cx, HandleObject obj, HandleId id, const PropDesc &desc)
-{
-    ObjectOpResult success;
-    return StandardDefineProperty(cx, obj, id, desc, success) &&
-           success.checkStrict(cx, obj, id);
-}
-
-bool
-js::StandardDefineProperty(JSContext *cx, HandleObject obj, HandleId id,
-                           Handle<PropertyDescriptor> desc)
-{
-    ObjectOpResult success;
-    return StandardDefineProperty(cx, obj, id, desc, success) &&
-           success.checkStrict(cx, obj, id);
+    return StandardDefineProperty(cx, obj, id, desc, true, bp);
 }
 
 bool
@@ -943,8 +963,9 @@ js::DefineProperties(JSContext *cx, HandleObject obj, HandleObject props)
     if (!ReadPropertyDescriptors(cx, props, true, &ids, &descs))
         return false;
 
+    bool dummy;
     for (size_t i = 0, len = ids.length(); i < len; i++) {
-        if (!StandardDefineProperty(cx, obj, ids[i], descs[i]))
+        if (!StandardDefineProperty(cx, obj, ids[i], descs[i], true, &dummy))
             return false;
     }
 
@@ -969,8 +990,13 @@ js::SetIntegrityLevel(JSContext *cx, HandleObject obj, IntegrityLevel level)
     assertSameCompartment(cx, obj);
 
     // Steps 3-5. (Steps 1-2 are redundant assertions.)
-    if (!PreventExtensions(cx, obj))
+    bool status;
+    if (!PreventExtensions(cx, obj, &status))
         return false;
+    if (!status) {
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_CANT_CHANGE_EXTENSIBILITY);
+        return false;
+    }
 
     // Steps 6-7.
     AutoIdVector keys(cx);
@@ -1057,7 +1083,8 @@ js::SetIntegrityLevel(JSContext *cx, HandleObject obj, IntegrityLevel level)
             desc.object().set(obj);
 
             // 8.a.i-ii. / 9.a.iii.3-4
-            if (!StandardDefineProperty(cx, obj, id, desc))
+            bool result;
+            if (!StandardDefineProperty(cx, obj, id, desc, &result))
                 return false;
         }
     }
@@ -1653,24 +1680,24 @@ js::CreateThisForFunction(JSContext *cx, HandleObject callee, NewObjectKind newK
 
 /* static */ bool
 JSObject::nonNativeSetProperty(JSContext *cx, HandleObject obj, HandleObject receiver,
-                               HandleId id, MutableHandleValue vp, ObjectOpResult &result)
+                               HandleId id, MutableHandleValue vp, bool strict)
 {
     if (MOZ_UNLIKELY(obj->watched())) {
         WatchpointMap *wpmap = cx->compartment()->watchpointMap;
         if (wpmap && !wpmap->triggerWatchpoint(cx, obj, id, vp))
             return false;
     }
-    return obj->getOps()->setProperty(cx, obj, receiver, id, vp, result);
+    return obj->getOps()->setProperty(cx, obj, receiver, id, vp, strict);
 }
 
 /* static */ bool
 JSObject::nonNativeSetElement(JSContext *cx, HandleObject obj, HandleObject receiver,
-                              uint32_t index, MutableHandleValue vp, ObjectOpResult &result)
+                              uint32_t index, MutableHandleValue vp, bool strict)
 {
     RootedId id(cx);
     if (!IndexToId(cx, index, &id))
         return false;
-    return nonNativeSetProperty(cx, obj, receiver, id, vp, result);
+    return nonNativeSetProperty(cx, obj, receiver, id, vp, strict);
 }
 
 JS_FRIEND_API(bool)
@@ -1685,7 +1712,7 @@ JS_CopyPropertyFrom(JSContext *cx, HandleId id, HandleObject target,
         return false;
     MOZ_ASSERT(desc.object());
 
-    // Silently skip JSGetterOp/JSSetterOp-implemented accessors.
+    // Silently skip JSPropertyOp-implemented accessors.
     if (desc.getter() && !desc.hasGetterObject())
         return true;
     if (desc.setter() && !desc.hasSetterObject())
@@ -1701,7 +1728,8 @@ JS_CopyPropertyFrom(JSContext *cx, HandleId id, HandleObject target,
     if (!cx->compartment()->wrap(cx, &desc))
         return false;
 
-    return StandardDefineProperty(cx, target, wrappedId, desc);
+    bool ignored;
+    return StandardDefineProperty(cx, target, wrappedId, desc, &ignored);
 }
 
 JS_FRIEND_API(bool)
@@ -2566,11 +2594,9 @@ DefineConstructorAndPrototype(JSContext *cx, HandleObject obj, JSProtoKey key, H
 
 bad:
     if (named) {
-        ObjectOpResult ignored;
+        bool succeeded;
         RootedId id(cx, AtomToId(atom));
-
-        // XXX FIXME - absurd to call this here; instead define the property last.
-        DeleteProperty(cx, obj, id, ignored);
+        DeleteProperty(cx, obj, id, &succeeded);
     }
     if (cached)
         ClearClassObject(obj, key);
@@ -3087,22 +3113,23 @@ JSObject::reportNotExtensible(JSContext *cx, unsigned report)
 /*** ES6 standard internal methods ***************************************************************/
 
 bool
-js::SetPrototype(JSContext *cx, HandleObject obj, HandleObject proto, JS::ObjectOpResult &result)
+js::SetPrototype(JSContext *cx, HandleObject obj, HandleObject proto, bool *succeeded)
 {
     /*
      * If |obj| has a "lazy" [[Prototype]], it is 1) a proxy 2) whose handler's
-     * {get,set}Prototype and setImmutablePrototype methods mediate access to
+     * {get,set}PrototypeOf and setImmutablePrototype methods mediate access to
      * |obj.[[Prototype]]|.  The Proxy subsystem is responsible for responding
      * to such attempts.
      */
     if (obj->hasLazyPrototype()) {
         MOZ_ASSERT(obj->is<ProxyObject>());
-        return Proxy::setPrototype(cx, obj, proto, result);
+        return Proxy::setPrototypeOf(cx, obj, proto, succeeded);
     }
 
     /* Disallow mutation of immutable [[Prototype]]s. */
     if (obj->nonLazyPrototypeIsImmutable()) {
-        return result.fail(JSMSG_CANT_SET_PROTO);
+        *succeeded = false;
+        return true;
     }
 
     /*
@@ -3111,7 +3138,7 @@ js::SetPrototype(JSContext *cx, HandleObject obj, HandleObject proto, JS::Object
      * have a mutable [[Prototype]].
      */
     if (obj->is<ArrayBufferObject>()) {
-        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_CANT_SET_PROTO_OF,
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_SETPROTOTYPEOF_FAIL,
                              "incompatible ArrayBuffer");
         return false;
     }
@@ -3120,7 +3147,7 @@ js::SetPrototype(JSContext *cx, HandleObject obj, HandleObject proto, JS::Object
      * Disallow mutating the [[Prototype]] on Typed Objects, per the spec.
      */
     if (obj->is<TypedObject>()) {
-        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_CANT_SET_PROTO_OF,
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_SETPROTOTYPEOF_FAIL,
                              "incompatible TypedObject");
         return false;
     }
@@ -3130,7 +3157,7 @@ js::SetPrototype(JSContext *cx, HandleObject obj, HandleObject proto, JS::Object
      * for flash-related security reasons.
      */
     if (!strcmp(obj->getClass()->name, "Location")) {
-        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_CANT_SET_PROTO_OF,
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_SETPROTOTYPEOF_FAIL,
                              "incompatible Location object");
         return false;
     }
@@ -3139,14 +3166,18 @@ js::SetPrototype(JSContext *cx, HandleObject obj, HandleObject proto, JS::Object
     bool extensible;
     if (!IsExtensible(cx, obj, &extensible))
         return false;
-    if (!extensible)
-        return result.fail(JSMSG_CANT_SET_PROTO);
+    if (!extensible) {
+        *succeeded = false;
+        return true;
+    }
 
     /* ES6 9.1.2 step 6 forbids generating cyclical prototype chains. */
     RootedObject obj2(cx);
     for (obj2 = proto; obj2; ) {
-        if (obj2 == obj)
-            return result.fail(JSMSG_CANT_SET_PROTO_CYCLE);
+        if (obj2 == obj) {
+            *succeeded = false;
+            return true;
+        }
 
         if (!GetPrototype(cx, obj2, &obj2))
             return false;
@@ -3158,52 +3189,40 @@ js::SetPrototype(JSContext *cx, HandleObject obj, HandleObject proto, JS::Object
         return false;
 
     Rooted<TaggedProto> taggedProto(cx, TaggedProto(proto));
-    if (!SetClassAndProto(cx, obj, obj->getClass(), taggedProto))
-        return false;
-
-    return result.succeed();
+    *succeeded = SetClassAndProto(cx, obj, obj->getClass(), taggedProto);
+    return *succeeded;
 }
 
 bool
-js::SetPrototype(JSContext *cx, HandleObject obj, HandleObject proto)
-{
-    ObjectOpResult result;
-    return SetPrototype(cx, obj, proto, result) && result.checkStrict(cx, obj);
-}
-
-bool
-js::PreventExtensions(JSContext *cx, HandleObject obj, ObjectOpResult &result)
+js::PreventExtensions(JSContext *cx, HandleObject obj, bool *succeeded)
 {
     if (obj->is<ProxyObject>())
-        return js::Proxy::preventExtensions(cx, obj, result);
+        return js::Proxy::preventExtensions(cx, obj, succeeded);
 
-    if (!obj->nonProxyIsExtensible())
-        return result.succeed();
+    if (!obj->nonProxyIsExtensible()) {
+        *succeeded = true;
+        return true;
+    }
 
-    // Force lazy properties to be resolved.
+    /*
+     * Force lazy properties to be resolved by iterating over the objects' own
+     * properties.
+     */
     AutoIdVector props(cx);
     if (!js::GetPropertyKeys(cx, obj, JSITER_HIDDEN | JSITER_OWNONLY, &props))
         return false;
 
-    // Convert all dense elements to sparse properties. This will shrink the
-    // initialized length and capacity of the object to zero and ensure that no
-    // new dense elements can be added without calling growElements(), which
-    // checks isExtensible().
-    if (obj->isNative()) {
-        if (!NativeObject::sparsifyDenseElements(cx, obj.as<NativeObject>()))
-            return false;
-    }
-
-    if (!obj->setFlags(cx, BaseShape::NOT_EXTENSIBLE, JSObject::GENERATE_SHAPE))
+    /*
+     * Convert all dense elements to sparse properties. This will shrink the
+     * initialized length and capacity of the object to zero and ensure that no
+     * new dense elements can be added without calling growElements(), which
+     * checks isExtensible().
+     */
+    if (obj->isNative() && !NativeObject::sparsifyDenseElements(cx, obj.as<NativeObject>()))
         return false;
-    return result.succeed();
-}
 
-bool
-js::PreventExtensions(JSContext *cx, HandleObject obj)
-{
-    ObjectOpResult result;
-    return PreventExtensions(cx, obj, result) && result.checkStrict(cx, obj);
+    *succeeded = true;
+    return obj->setFlags(cx, BaseShape::NOT_EXTENSIBLE, JSObject::GENERATE_SHAPE);
 }
 
 bool
@@ -3232,7 +3251,7 @@ js::GetOwnPropertyDescriptor(JSContext *cx, HandleObject obj, HandleId id,
             desc.setSetterObject(shape->setterObject());
     } else {
         // This is either a straight-up data property or (rarely) a
-        // property with a JSGetterOp/JSSetterOp. The latter must be
+        // property with a JSPropertyOp getter/setter. The latter must be
         // reported to the caller as a plain data property, so don't
         // populate desc.getter/setter, and mask away the SHARED bit.
         desc.attributesRef() &= ~JSPROP_SHARED;
@@ -3249,8 +3268,7 @@ js::GetOwnPropertyDescriptor(JSContext *cx, HandleObject obj, HandleId id,
 
 bool
 js::DefineProperty(ExclusiveContext *cx, HandleObject obj, HandleId id, HandleValue value,
-                   JSGetterOp getter, JSSetterOp setter, unsigned attrs,
-                   ObjectOpResult &result)
+                   JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs)
 {
     MOZ_ASSERT(getter != JS_PropertyStub);
     MOZ_ASSERT(setter != JS_StrictPropertyStub);
@@ -3260,54 +3278,15 @@ js::DefineProperty(ExclusiveContext *cx, HandleObject obj, HandleId id, HandleVa
     if (op) {
         if (!cx->shouldBeJSContext())
             return false;
-        return op(cx->asJSContext(), obj, id, value, getter, setter, attrs, result);
+        return op(cx->asJSContext(), obj, id, value, getter, setter, attrs);
     }
-    return NativeDefineProperty(cx, obj.as<NativeObject>(), id, value, getter, setter, attrs,
-                                result);
+    return NativeDefineProperty(cx, obj.as<NativeObject>(), id, value, getter, setter, attrs);
 }
 
 bool
-js::DefineProperty(ExclusiveContext *cx, HandleObject obj, PropertyName *name, HandleValue value,
-                   JSGetterOp getter, JSSetterOp setter, unsigned attrs,
-                   ObjectOpResult &result)
-{
-    RootedId id(cx, NameToId(name));
-    return DefineProperty(cx, obj, id, value, getter, setter, attrs, result);
-}
-
-bool
-js::DefineElement(ExclusiveContext *cx, HandleObject obj, uint32_t index, HandleValue value,
-                  JSGetterOp getter, JSSetterOp setter, unsigned attrs,
-                  ObjectOpResult &result)
-{
-    MOZ_ASSERT(getter != JS_PropertyStub);
-    MOZ_ASSERT(setter != JS_StrictPropertyStub);
-
-    RootedId id(cx);
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return DefineProperty(cx, obj, id, value, getter, setter, attrs, result);
-}
-
-bool
-js::DefineProperty(ExclusiveContext *cx, HandleObject obj, HandleId id, HandleValue value,
-                   JSGetterOp getter, JSSetterOp setter, unsigned attrs)
-{
-    ObjectOpResult result;
-    if (!DefineProperty(cx, obj, id, value, getter, setter, attrs, result))
-        return false;
-    if (!result) {
-        if (!cx->shouldBeJSContext())
-            return false;
-        result.reportError(cx->asJSContext(), obj, id);
-        return false;
-    }
-    return true;
-}
-
-bool
-js::DefineProperty(ExclusiveContext *cx, HandleObject obj, PropertyName *name, HandleValue value,
-                   JSGetterOp getter, JSSetterOp setter, unsigned attrs)
+js::DefineProperty(ExclusiveContext *cx, HandleObject obj,
+                 PropertyName *name, HandleValue value,
+                 JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs)
 {
     RootedId id(cx, NameToId(name));
     return DefineProperty(cx, obj, id, value, getter, setter, attrs);
@@ -3315,7 +3294,7 @@ js::DefineProperty(ExclusiveContext *cx, HandleObject obj, PropertyName *name, H
 
 bool
 js::DefineElement(ExclusiveContext *cx, HandleObject obj, uint32_t index, HandleValue value,
-                  JSGetterOp getter, JSSetterOp setter, unsigned attrs)
+                  JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs)
 {
     MOZ_ASSERT(getter != JS_PropertyStub);
     MOZ_ASSERT(setter != JS_StrictPropertyStub);
@@ -3324,22 +3303,6 @@ js::DefineElement(ExclusiveContext *cx, HandleObject obj, uint32_t index, Handle
     if (!IndexToId(cx, index, &id))
         return false;
     return DefineProperty(cx, obj, id, value, getter, setter, attrs);
-}
-
-bool
-js::SetProperty(JSContext *cx, HandleObject obj, HandleObject receiver, HandlePropertyName name,
-                MutableHandleValue vp)
-{
-    RootedId id(cx, NameToId(name));
-    return SetProperty(cx, obj, receiver, id, vp);
-}
-
-bool
-js::PutProperty(JSContext *cx, HandleObject obj, HandlePropertyName name, MutableHandleValue value,
-                bool strict)
-{
-    RootedId id(cx, NameToId(name));
-    return PutProperty(cx, obj, id, value, strict);
 }
 
 

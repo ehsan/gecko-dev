@@ -182,7 +182,6 @@ class TypeCache(object):
         self.mod_JSString = None
         self.mod_JSObject = None
         self.mod_jsval = None
-        self.mod_Interpreter = None
 
 # Yield a series of all the types that |t| implements, by following typedefs
 # and iterating over base classes. Specifically:

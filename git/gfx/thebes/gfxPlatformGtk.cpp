@@ -63,8 +63,7 @@ gfxPlatformGtk::gfxPlatformGtk()
     if (!sFontconfigUtils)
         sFontconfigUtils = gfxFontconfigUtils::GetFontconfigUtils();
 #ifdef MOZ_X11
-    sUseXRender = (GDK_IS_X11_DISPLAY(gdk_display_get_default())) ? 
-                    mozilla::Preferences::GetBool("gfx.xrender.enabled") : false;
+    sUseXRender = mozilla::Preferences::GetBool("gfx.xrender.enabled");
 #endif
 
     uint32_t canvasMask = BackendTypeBit(BackendType::CAIRO) | BackendTypeBit(BackendType::SKIA);
@@ -277,15 +276,11 @@ gfxPlatformGtk::GetPlatformCMSOutputProfile(void *&mem, size_t &size)
     size = 0;
 
 #ifdef MOZ_X11
-    GdkDisplay *display = gdk_display_get_default();
-    if (!GDK_IS_X11_DISPLAY(display))
-        return;
-
     const char EDID1_ATOM_NAME[] = "XFree86_DDC_EDID1_RAWDATA";
     const char ICC_PROFILE_ATOM_NAME[] = "_ICC_PROFILE";
 
     Atom edidAtom, iccAtom;
-    Display *dpy = GDK_DISPLAY_XDISPLAY(display);
+    Display *dpy = GDK_DISPLAY_XDISPLAY(gdk_display_get_default());
     // In xpcshell tests, we never initialize X and hence don't have a Display.
     // In this case, there's no output colour management to be done, so we just
     // return with nullptr.

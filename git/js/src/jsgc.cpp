@@ -1038,14 +1038,6 @@ GCRuntime::allocateArena(Chunk *chunk, Zone *zone, AllocKind thingKind, const Au
 {
     MOZ_ASSERT(chunk->hasAvailableArenas());
 
-    // Fail the allocation if we are over our heap size limits.
-    if (!isHeapMinorCollecting() &&
-        !isHeapCompacting() &&
-        usage.gcBytes() >= tunables.gcMaxBytes())
-    {
-        return nullptr;
-    }
-
     ArenaHeader *aheader = chunk->allocateArena(rt, zone, thingKind, lock);
     zone->usage.addGCArena();
 
@@ -1970,9 +1962,17 @@ ArenaList::removeRemainingArenas(ArenaHeader **arenap)
 }
 
 static bool
-ShouldRelocateAllArenas(JS::gcreason::Reason reason)
+ShouldRelocateAllArenas(JSRuntime *runtime)
 {
-    return reason == JS::gcreason::DEBUG_GC;
+    // In compacting zeal mode and in debug builds on 64 bit architectures, we
+    // relocate all arenas. The purpose of this is to balance test coverage of
+    // object moving with test coverage of the arena selection routine in
+    // pickArenasToRelocate().
+#if defined(DEBUG) && defined(JS_PUNBOX64)
+    return true;
+#else
+    return runtime->gc.zeal() == ZealCompactValue;
+#endif
 }
 
 /*
@@ -2179,7 +2179,7 @@ ArenaLists::relocateArenas(ArenaHeader *&relocatedListOut, JS::gcreason::Reason 
     purge();
     checkEmptyFreeLists();
 
-    if (ShouldRelocateAllArenas(reason)) {
+    if (ShouldRelocateAllArenas(runtime_)) {
         for (size_t i = 0; i < FINALIZE_LIMIT; i++) {
             if (CanRelocateAllocKind(AllocKind(i))) {
                 ArenaList &al = arenaLists[i];
@@ -5523,7 +5523,7 @@ GCRuntime::compactPhase(JS::gcreason::Reason reason)
 #ifndef DEBUG
     releaseRelocatedArenas(relocatedList);
 #else
-    if (reason != JS::gcreason::DEBUG_GC) {
+    if (reason == JS::gcreason::DESTROY_RUNTIME || reason == JS::gcreason::LAST_DITCH) {
         releaseRelocatedArenas(relocatedList);
     } else {
         MOZ_ASSERT(!relocatedArenasToRelease);

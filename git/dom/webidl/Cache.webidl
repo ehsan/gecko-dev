@@ -33,6 +33,7 @@ dictionary CacheQueryOptions {
 boolean ignoreSearch = false;
 boolean ignoreMethod = false;
 boolean ignoreVary = false;
+boolean prefixMatch = false;
 DOMString cacheName;
 };
 

@@ -131,11 +131,11 @@ static const Class CallConstructHolder = {
 const char ScriptedIndirectProxyHandler::family = 0;
 
 bool
-ScriptedIndirectProxyHandler::preventExtensions(JSContext *cx, HandleObject proxy,
-                                                ObjectOpResult &result) const
+ScriptedIndirectProxyHandler::preventExtensions(JSContext *cx, HandleObject proxy, bool *succeeded) const
 {
-    // Scripted indirect proxies don't support extensibility changes.
-    return result.fail(JSMSG_CANT_CHANGE_EXTENSIBILITY);
+    // See above.
+    *succeeded = false;
+    return true;
 }
 
 bool
@@ -196,15 +196,13 @@ ScriptedIndirectProxyHandler::getOwnPropertyDescriptor(JSContext *cx, HandleObje
 
 bool
 ScriptedIndirectProxyHandler::defineProperty(JSContext *cx, HandleObject proxy, HandleId id,
-                                             MutableHandle<PropertyDescriptor> desc,
-                                             ObjectOpResult &result) const
+                                             MutableHandle<PropertyDescriptor> desc) const
 {
     RootedObject handler(cx, GetIndirectProxyHandlerObject(proxy));
     RootedValue fval(cx), value(cx);
     return GetFundamentalTrap(cx, handler, cx->names().defineProperty, &fval) &&
            NewPropertyDescriptorObject(cx, desc, &value) &&
-           Trap2(cx, handler, fval, id, value, &value) &&
-           result.succeed();
+           Trap2(cx, handler, fval, id, value, &value);
 }
 
 bool
@@ -219,21 +217,13 @@ ScriptedIndirectProxyHandler::ownPropertyKeys(JSContext *cx, HandleObject proxy,
 }
 
 bool
-ScriptedIndirectProxyHandler::delete_(JSContext *cx, HandleObject proxy, HandleId id,
-                                      ObjectOpResult &result) const
+ScriptedIndirectProxyHandler::delete_(JSContext *cx, HandleObject proxy, HandleId id, bool *bp) const
 {
     RootedObject handler(cx, GetIndirectProxyHandlerObject(proxy));
     RootedValue fval(cx), value(cx);
-    if (!GetFundamentalTrap(cx, handler, cx->names().delete_, &fval))
-        return false;
-    if (!Trap1(cx, handler, fval, id, &value))
-        return false;
-
-    if (ToBoolean(value))
-        result.succeed();
-    else
-        result.fail(JSMSG_PROXY_DELETE_RETURNED_FALSE);
-    return true;
+    return GetFundamentalTrap(cx, handler, cx->names().delete_, &fval) &&
+           Trap1(cx, handler, fval, id, &value) &&
+           ValueToBool(value, bp);
 }
 
 bool
@@ -304,7 +294,7 @@ ScriptedIndirectProxyHandler::get(JSContext *cx, HandleObject proxy, HandleObjec
 
 bool
 ScriptedIndirectProxyHandler::set(JSContext *cx, HandleObject proxy, HandleObject receiver,
-                                  HandleId id, MutableHandleValue vp, ObjectOpResult &result) const
+                                  HandleId id, bool strict, MutableHandleValue vp) const
 {
     RootedObject handler(cx, GetIndirectProxyHandlerObject(proxy));
     RootedValue idv(cx);
@@ -318,16 +308,13 @@ ScriptedIndirectProxyHandler::set(JSContext *cx, HandleObject proxy, HandleObjec
     if (!GetDerivedTrap(cx, handler, cx->names().set, &fval))
         return false;
     if (!IsCallable(fval))
-        return derivedSet(cx, proxy, receiver, id, vp, result);
-    if (!Trap(cx, handler, fval, 3, argv.begin(), &idv))
-        return false;
-    return result.succeed();
+        return derivedSet(cx, proxy, receiver, id, strict, vp);
+    return Trap(cx, handler, fval, 3, argv.begin(), &idv);
 }
 
 bool
 ScriptedIndirectProxyHandler::derivedSet(JSContext *cx, HandleObject proxy, HandleObject receiver,
-                                         HandleId id, MutableHandleValue vp,
-                                         ObjectOpResult &result) const
+                                         HandleId id, bool strict, MutableHandleValue vp) const
 {
     // Find an own or inherited property. The code here is strange for maximum
     // backward compatibility with earlier code written before ES6 and before
@@ -341,8 +328,8 @@ ScriptedIndirectProxyHandler::derivedSet(JSContext *cx, HandleObject proxy, Hand
             return false;
     }
 
-    return SetPropertyIgnoringNamedGetter(cx, this, proxy, receiver, id, &desc, descIsOwn, vp,
-                                          result);
+    return SetPropertyIgnoringNamedGetter(cx, this, proxy, receiver, id, &desc, descIsOwn, strict,
+                                          vp);
 }
 
 bool

@@ -53,7 +53,7 @@ NSSCertDBTrustDomain::NSSCertDBTrustDomain(SECTrustType certDBTrustType,
              /*optional but shouldn't be*/ void* pinArg,
                                            CertVerifier::OcspGetConfig ocspGETConfig,
                                            CertVerifier::PinningMode pinningMode,
-                                           unsigned int minRSABits,
+                                           unsigned int minimumNonECCKeyBits,
                               /*optional*/ const char* hostname,
                               /*optional*/ ScopedCERTCertList* builtChain)
   : mCertDBTrustType(certDBTrustType)
@@ -62,7 +62,7 @@ NSSCertDBTrustDomain::NSSCertDBTrustDomain(SECTrustType certDBTrustType,
   , mPinArg(pinArg)
   , mOCSPGetConfig(ocspGETConfig)
   , mPinningMode(pinningMode)
-  , mMinRSABits(minRSABits)
+  , mMinimumNonECCBits(minimumNonECCKeyBits)
   , mHostname(hostname)
   , mBuiltChain(builtChain)
   , mCertBlocklist(do_GetService(NS_CERTBLOCKLIST_CONTRACTID))
@@ -720,7 +720,7 @@ Result
 NSSCertDBTrustDomain::CheckRSAPublicKeyModulusSizeInBits(
   EndEntityOrCA /*endEntityOrCA*/, unsigned int modulusSizeInBits)
 {
-  if (modulusSizeInBits < mMinRSABits) {
+  if (modulusSizeInBits < mMinimumNonECCBits) {
     return Result::ERROR_INADEQUATE_KEY_SIZE;
   }
   return Success;

@@ -11,8 +11,8 @@
 function run_test() {
   setupTestCommon();
 
-  debugDump("testing nsIUpdatePrompt notifications should not be seen " +
-            "when the " + PREF_APP_UPDATE_SILENT + " preference is true");
+  logTestInfo("testing nsIUpdatePrompt notifications should not be seen " +
+              "when the " + PREF_APP_UPDATE_SILENT + " preference is true");
 
   Services.prefs.setBoolPref(PREF_APP_UPDATE_SILENT, true);
 
@@ -24,7 +24,7 @@ function run_test() {
 
   standardInit();
 
-  debugDump("testing showUpdateInstalled should not call openWindow");
+  logTestInfo("testing showUpdateInstalled should not call openWindow");
   Services.prefs.setBoolPref(PREF_APP_UPDATE_SHOW_INSTALLED_UI, true);
 
   gCheckFunc = check_showUpdateInstalled;
@@ -33,7 +33,7 @@ function run_test() {
   // didn't throw and otherwise it would report no tests run.
   do_check_true(true);
 
-  debugDump("testing showUpdateAvailable should not call openWindow");
+  logTestInfo("testing showUpdateAvailable should not call openWindow");
   writeUpdatesToXMLFile(getLocalUpdatesXMLString(""), false);
   let patches = getLocalPatchString(null, null, null, null, null, null,
                                     STATE_FAILED);
@@ -49,7 +49,7 @@ function run_test() {
   // didn't throw and otherwise it would report no tests run.
   do_check_true(true);
 
-  debugDump("testing showUpdateError should not call getNewPrompter");
+  logTestInfo("testing showUpdateError should not call getNewPrompter");
   gCheckFunc = check_showUpdateError;
   update.errorCode = WRITE_ERROR;
   gUP.showUpdateError(update);

@@ -282,13 +282,13 @@ Shape::fixupShapeTreeAfterMovingGC()
         if (IsForwarded(unowned))
             unowned = Forwarded(unowned);
 
-        GetterOp getter = key->getter();
+        PropertyOp getter = key->getter();
         if (key->hasGetterObject())
-            getter = GetterOp(MaybeForwarded(key->getterObject()));
+            getter = PropertyOp(MaybeForwarded(key->getterObject()));
 
-        SetterOp setter = key->setter();
+        StrictPropertyOp setter = key->setter();
         if (key->hasSetterObject())
-            setter = SetterOp(MaybeForwarded(key->setterObject()));
+            setter = StrictPropertyOp(MaybeForwarded(key->setterObject()));
 
         StackShape lookup(unowned,
                           const_cast<Shape *>(key)->propidRef(),

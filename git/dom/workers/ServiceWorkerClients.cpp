@@ -8,7 +8,6 @@
 #include "ServiceWorkerClient.h"
 #include "ServiceWorkerClients.h"
 #include "ServiceWorkerManager.h"
-#include "ServiceWorkerWindowClient.h"
 
 #include "WorkerPrivate.h"
 #include "WorkerRunnable.h"
@@ -123,17 +122,17 @@ private:
 class ResolvePromiseWorkerRunnable MOZ_FINAL : public WorkerRunnable
 {
   nsRefPtr<PromiseHolder> mPromiseHolder;
-  nsTArray<ServiceWorkerClientInfo> mValue;
+  nsAutoPtr<nsTArray<uint64_t>> mValue;
 
 public:
   ResolvePromiseWorkerRunnable(WorkerPrivate* aWorkerPrivate,
                                PromiseHolder* aPromiseHolder,
-                               nsTArray<ServiceWorkerClientInfo>& aValue)
+                               nsAutoPtr<nsTArray<uint64_t>>& aValue)
     : WorkerRunnable(aWorkerPrivate, WorkerThreadModifyBusyCount),
-      mPromiseHolder(aPromiseHolder)
+      mPromiseHolder(aPromiseHolder),
+      mValue(aValue)
   {
     AssertIsOnMainThread();
-    mValue.SwapElements(aValue);
   }
 
   bool
@@ -146,10 +145,10 @@ public:
     MOZ_ASSERT(promise);
 
     nsTArray<nsRefPtr<ServiceWorkerClient>> ret;
-    for (size_t i = 0; i < mValue.Length(); i++) {
+    for (size_t i = 0; i < mValue->Length(); i++) {
       ret.AppendElement(nsRefPtr<ServiceWorkerClient>(
-            new ServiceWorkerWindowClient(promise->GetParentObject(),
-                                          mValue.ElementAt(i))));
+            new ServiceWorkerClient(promise->GetParentObject(),
+                                    mValue->ElementAt(i))));
     }
     promise->MaybeResolve(ret);
 
@@ -217,7 +216,7 @@ public:
     }
 
     nsRefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
-    nsTArray<ServiceWorkerClientInfo> result;
+    nsAutoPtr<nsTArray<uint64_t>> result(new nsTArray<uint64_t>());
 
     swm->GetAllClients(mScope, result);
     nsRefPtr<ResolvePromiseWorkerRunnable> r =
@@ -281,31 +280,5 @@ ServiceWorkerClients::MatchAll(const ClientQueryOptions& aOptions,
     promise->MaybeReject(NS_ERROR_NOT_AVAILABLE);
   }
 
-  return promise.forget();
-}
-
-already_AddRefed<Promise>
-ServiceWorkerClients::OpenWindow(const nsAString& aUrl)
-{
-  ErrorResult result;
-  nsRefPtr<Promise> promise = Promise::Create(mWorkerScope, result);
-  if (NS_WARN_IF(result.Failed())) {
-    return nullptr;
-  }
-
-  promise->MaybeReject(NS_ERROR_NOT_AVAILABLE);
-  return promise.forget();
-}
-
-already_AddRefed<Promise>
-ServiceWorkerClients::Claim()
-{
-  ErrorResult result;
-  nsRefPtr<Promise> promise = Promise::Create(mWorkerScope, result);
-  if (NS_WARN_IF(result.Failed())) {
-    return nullptr;
-  }
-
-  promise->MaybeReject(NS_ERROR_NOT_AVAILABLE);
   return promise.forget();
 }

@@ -6,7 +6,6 @@
 
 #include "mozilla/dom/cache/Manager.h"
 
-#include "mozilla/AutoRestore.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/StaticMutex.h"
 #include "mozilla/StaticPtr.h"
@@ -198,7 +197,9 @@ public:
     MOZ_ALWAYS_TRUE(sFactory->mManagerList.RemoveElement(aManager));
 
     // clean up the factory singleton if there are no more managers
-    MaybeDestroyInstance();
+    if (sFactory->mManagerList.IsEmpty()) {
+      DestroyInstance();
+    }
   }
 
   static void
@@ -235,7 +236,6 @@ public:
 
 private:
   Factory()
-    : mInSyncShutdown(false)
   {
     MOZ_COUNT_CTOR(cache::Manager::Factory);
   }
@@ -244,7 +244,6 @@ private:
   {
     MOZ_COUNT_DTOR(cache::Manager::Factory);
     MOZ_ASSERT(mManagerList.IsEmpty());
-    MOZ_ASSERT(!mInSyncShutdown);
   }
 
   static nsresult
@@ -265,7 +264,7 @@ private:
 
         // Cannot use ClearOnShutdown() because we're on the background thread.
         // This is automatically cleared when Factory::Remove() calls
-        // MaybeDestroyInstance().
+        // DestroyInstance().
         MOZ_ASSERT(!sBackgroundThread);
         sBackgroundThread = NS_GetCurrentThread();
       }
@@ -286,18 +285,10 @@ private:
   }
 
   static void
-  MaybeDestroyInstance()
+  DestroyInstance()
   {
     mozilla::ipc::AssertIsOnBackgroundThread();
     MOZ_ASSERT(sFactory);
-
-    // If the factory is is still in use then we cannot delete yet.  This
-    // could be due to managers still existing or because we are in the
-    // middle of shutting down.  We need to be careful not to delete ourself
-    // synchronously during shutdown.
-    if (!sFactory->mManagerList.IsEmpty() || sFactory->mInSyncShutdown) {
-      return;
-    }
 
     // Be clear about what we are locking.  sFactory is bg thread only, so
     // we don't need to lock it here.  Just protect sBackgroundThread.
@@ -329,21 +320,11 @@ private:
 
     MOZ_ASSERT(!sFactory->mManagerList.IsEmpty());
 
-    {
-      // Note that we are synchronously calling shutdown code here.  If any
-      // of the shutdown code synchronously decides to delete the Factory
-      // we need to delay that delete until the end of this method.
-      AutoRestore<bool> restore(sFactory->mInSyncShutdown);
-      sFactory->mInSyncShutdown = true;
-
-      ManagerList::ForwardIterator iter(sFactory->mManagerList);
-      while (iter.HasMore()) {
-        nsRefPtr<Manager> manager = iter.GetNext();
-        manager->Shutdown();
-      }
+    ManagerList::ForwardIterator iter(sFactory->mManagerList);
+    while (iter.HasMore()) {
+      nsRefPtr<Manager> manager = iter.GetNext();
+      manager->Shutdown();
     }
-
-    MaybeDestroyInstance();
   }
 
   class ShutdownAllRunnable MOZ_FINAL : public nsRunnable
@@ -382,11 +363,6 @@ private:
   // PBackground thread only.
   typedef nsTObserverArray<Manager*> ManagerList;
   ManagerList mManagerList;
-
-  // This flag is set when we are looping through the list and calling
-  // Shutdown() on each Manager.  We need to be careful not to synchronously
-  // trigger the deletion of the factory while still executing this loop.
-  bool mInSyncShutdown;
 };
 
 // static

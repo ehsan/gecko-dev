@@ -32,8 +32,8 @@ SecurityWrapper<Base>::nativeCall(JSContext *cx, IsAcceptableThis test, NativeIm
 
 template <class Base>
 bool
-SecurityWrapper<Base>::setPrototype(JSContext *cx, HandleObject wrapper, HandleObject proto,
-                                    ObjectOpResult &result) const
+SecurityWrapper<Base>::setPrototypeOf(JSContext *cx, HandleObject wrapper,
+                                      HandleObject proto, bool *bp) const
 {
     JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_UNWRAP_DENIED);
     return false;
@@ -51,12 +51,13 @@ SecurityWrapper<Base>::setImmutablePrototype(JSContext *cx, HandleObject wrapper
 template <class Base>
 bool
 SecurityWrapper<Base>::preventExtensions(JSContext *cx, HandleObject wrapper,
-                                         ObjectOpResult &result) const
+                                         bool *succeeded) const
 {
     // Just like BaseProxyHandler, SecurityWrappers claim by default to always
     // be extensible, so as not to leak information about the state of the
     // underlying wrapped thing.
-    return result.fail(JSMSG_CANT_CHANGE_EXTENSIBILITY);
+    *succeeded = false;
+    return true;
 }
 
 template <class Base>
@@ -104,8 +105,7 @@ SecurityWrapper<Base>::boxedValue_unbox(JSContext *cx, HandleObject obj, Mutable
 template <class Base>
 bool
 SecurityWrapper<Base>::defineProperty(JSContext *cx, HandleObject wrapper,
-                                      HandleId id, MutableHandle<PropertyDescriptor> desc,
-                                      ObjectOpResult &result) const
+                                      HandleId id, MutableHandle<PropertyDescriptor> desc) const
 {
     if (desc.getter() || desc.setter()) {
         RootedValue idVal(cx, IdToValue(id));
@@ -121,7 +121,7 @@ SecurityWrapper<Base>::defineProperty(JSContext *cx, HandleObject wrapper,
         return false;
     }
 
-    return Base::defineProperty(cx, wrapper, id, desc, result);
+    return Base::defineProperty(cx, wrapper, id, desc);
 }
 
 template <class Base>

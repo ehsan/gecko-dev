@@ -66,7 +66,6 @@ public:
     , mExtraResolution(1)
     , mBackgroundColor(0, 0, 0, 0)
     , mLineScrollAmount(0, 0)
-    , mAllowVerticalScrollWithWheel(false)
   {
   }
 
@@ -99,8 +98,7 @@ public:
            mExtraResolution == aOther.mExtraResolution &&
            mBackgroundColor == aOther.mBackgroundColor &&
            mDoSmoothScroll == aOther.mDoSmoothScroll &&
-           mLineScrollAmount == aOther.mLineScrollAmount &&
-           mAllowVerticalScrollWithWheel == aOther.mAllowVerticalScrollWithWheel;
+           mLineScrollAmount == aOther.mLineScrollAmount;
   }
   bool operator!=(const FrameMetrics& aOther) const
   {
@@ -522,16 +520,6 @@ public:
     mScrollableRect = aScrollableRect;
   }
 
-  bool AllowVerticalScrollWithWheel() const
-  {
-    return mAllowVerticalScrollWithWheel;
-  }
-
-  void SetAllowVerticalScrollWithWheel()
-  {
-    mAllowVerticalScrollWithWheel = true;
-  }
-
 private:
 
   // The pres-shell resolution that has been induced on the document containing
@@ -682,9 +670,6 @@ private:
 
   // The value of GetLineScrollAmount(), for scroll frames.
   LayoutDeviceIntSize mLineScrollAmount;
-
-  // Whether or not the frame can be vertically scrolled with a mouse wheel.
-  bool mAllowVerticalScrollWithWheel;
 };
 
 /**

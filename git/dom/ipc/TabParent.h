@@ -231,7 +231,6 @@ public:
                                                const bool& aPreventDefault) MOZ_OVERRIDE;
     virtual bool RecvSetTargetAPZC(const uint64_t& aInputBlockId,
                                    nsTArray<ScrollableLayerGuid>&& aTargets) MOZ_OVERRIDE;
-    virtual bool RecvSynthesizedMouseWheelEvent(const mozilla::WidgetWheelEvent& aEvent) MOZ_OVERRIDE;
 
     virtual PColorPickerParent*
     AllocPColorPickerParent(const nsString& aTitle, const nsString& aInitialColor) MOZ_OVERRIDE;
@@ -246,8 +245,6 @@ public:
                           const nsIntPoint& chromeDisp);
     void UpdateFrame(const layers::FrameMetrics& aFrameMetrics);
     void UIResolutionChanged();
-    void RequestFlingSnap(const FrameMetrics::ViewID& aScrollId,
-                          const mozilla::CSSPoint& aDestination);
     void AcknowledgeScrollUpdate(const ViewID& aScrollId, const uint32_t& aScrollGeneration);
     void HandleDoubleTap(const CSSPoint& aPoint,
                          Modifiers aModifiers,
@@ -374,11 +371,6 @@ public:
 
     bool SendLoadRemoteScript(const nsString& aURL,
                               const bool& aRunInGlobalScope);
-
-    // See nsIFrameLoader requestNotifyLayerTreeReady.
-    bool RequestNotifyLayerTreeReady();
-    bool RequestNotifyLayerTreeCleared();
-    bool LayerTreeUpdate(bool aActive);
 
 protected:
     bool ReceiveMessage(const nsString& aMessage,

@@ -2088,7 +2088,7 @@ class FetchEventRunnable : public WorkerRunnable
   nsMainThreadPtrHandle<ServiceWorker> mServiceWorker;
   nsTArray<nsCString> mHeaderNames;
   nsTArray<nsCString> mHeaderValues;
-  nsAutoPtr<ServiceWorkerClientInfo> mClientInfo;
+  uint64_t mWindowId;
   nsCString mSpec;
   nsCString mMethod;
   bool mIsReload;
@@ -2096,11 +2096,11 @@ public:
   FetchEventRunnable(WorkerPrivate* aWorkerPrivate,
                      nsMainThreadPtrHandle<nsIInterceptedChannel>& aChannel,
                      nsMainThreadPtrHandle<ServiceWorker>& aServiceWorker,
-                     nsAutoPtr<ServiceWorkerClientInfo>& aClientInfo)
+                     uint64_t aWindowId)
     : WorkerRunnable(aWorkerPrivate, WorkerThreadModifyBusyCount)
     , mInterceptedChannel(aChannel)
     , mServiceWorker(aServiceWorker)
-    , mClientInfo(aClientInfo)
+    , mWindowId(aWindowId)
   {
     MOZ_ASSERT(aWorkerPrivate);
   }
@@ -2225,7 +2225,7 @@ private:
       return false;
     }
 
-    event->PostInit(mInterceptedChannel, mServiceWorker, mClientInfo);
+    event->PostInit(mInterceptedChannel, mServiceWorker, mWindowId);
     event->SetTrusted(true);
 
     nsRefPtr<EventTarget> target = do_QueryObject(aWorkerPrivate->GlobalScope());
@@ -2250,12 +2250,9 @@ ServiceWorkerManager::DispatchFetchEvent(nsIDocument* aDoc, nsIInterceptedChanne
   nsresult rv = aChannel->GetIsNavigation(&isNavigation);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoPtr<ServiceWorkerClientInfo> clientInfo;
-
   if (!isNavigation) {
     MOZ_ASSERT(aDoc);
     rv = GetDocumentController(aDoc->GetInnerWindow(), getter_AddRefs(serviceWorker));
-    clientInfo = new ServiceWorkerClientInfo(aDoc);
   } else {
     nsCOMPtr<nsIChannel> internalChannel;
     rv = aChannel->GetChannel(getter_AddRefs(internalChannel));
@@ -2285,13 +2282,14 @@ ServiceWorkerManager::DispatchFetchEvent(nsIDocument* aDoc, nsIInterceptedChanne
   nsMainThreadPtrHandle<nsIInterceptedChannel> handle(
     new nsMainThreadPtrHolder<nsIInterceptedChannel>(aChannel, false));
 
+  uint64_t windowId = aDoc ? aDoc->GetInnerWindow()->WindowID() : 0;
+
   nsRefPtr<ServiceWorker> sw = static_cast<ServiceWorker*>(serviceWorker.get());
   nsMainThreadPtrHandle<ServiceWorker> serviceWorkerHandle(
     new nsMainThreadPtrHolder<ServiceWorker>(sw));
 
-  // clientInfo is null if we don't have a controlled document
   nsRefPtr<FetchEventRunnable> event =
-    new FetchEventRunnable(sw->GetWorkerPrivate(), handle, serviceWorkerHandle, clientInfo);
+    new FetchEventRunnable(sw->GetWorkerPrivate(), handle, serviceWorkerHandle, windowId);
   rv = event->Init();
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -2521,14 +2519,14 @@ namespace {
 class MOZ_STACK_CLASS FilterRegistrationData
 {
 public:
-  FilterRegistrationData(nsTArray<ServiceWorkerClientInfo>& aDocuments,
-                         ServiceWorkerRegistrationInfo* aRegistration)
+  FilterRegistrationData(nsTArray<uint64_t>* aDocuments,
+                     ServiceWorkerRegistrationInfo* aRegistration)
   : mDocuments(aDocuments),
     mRegistration(aRegistration)
   {
   }
 
-  nsTArray<ServiceWorkerClientInfo>& mDocuments;
+  nsTArray<uint64_t>* mDocuments;
   nsRefPtr<ServiceWorkerRegistrationInfo> mRegistration;
 };
 
@@ -2541,16 +2539,12 @@ EnumControlledDocuments(nsISupports* aKey,
   if (data->mRegistration != aRegistration) {
     return PL_DHASH_NEXT;
   }
-
   nsCOMPtr<nsIDocument> document = do_QueryInterface(aKey);
-
-  if (!document || !document->GetWindow()) {
+  if (!document || !document->GetInnerWindow()) {
       return PL_DHASH_NEXT;
   }
 
-  ServiceWorkerClientInfo clientInfo(document);
-  data->mDocuments.AppendElement(clientInfo);
-
+  data->mDocuments->AppendElement(document->GetInnerWindow()->WindowID());
   return PL_DHASH_NEXT;
 }
 
@@ -2597,7 +2591,7 @@ FireControllerChangeOnMatchingDocument(nsISupports* aKey,
 
 void
 ServiceWorkerManager::GetAllClients(const nsCString& aScope,
-                                    nsTArray<ServiceWorkerClientInfo>& aControlledDocuments)
+                                    nsTArray<uint64_t>* aControlledDocuments)
 {
   nsRefPtr<ServiceWorkerRegistrationInfo> registration = GetRegistration(aScope);
 

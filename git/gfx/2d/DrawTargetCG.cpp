@@ -1261,7 +1261,7 @@ DrawTargetCG::StrokeRect(const Rect &aRect,
   bool pixelAlignedStroke = mTransform.IsAllIntegers() &&
     mTransform.PreservesAxisAlignedRectangles() &&
     aPattern.GetType() == PatternType::COLOR &&
-    IsPixelAlignedStroke(rect, aStrokeOptions.mLineWidth);
+    IsPixelAlignedStroke(aRect, aStrokeOptions.mLineWidth);
   CGContextSetShouldAntialias(cg,
     aDrawOptions.mAntialiasMode != AntialiasMode::NONE && !pixelAlignedStroke);
 
@@ -1272,7 +1272,7 @@ DrawTargetCG::StrokeRect(const Rect &aRect,
   if (isGradient(aPattern)) {
     // There's no CGContextClipStrokeRect so we do it by hand
     CGContextBeginPath(cg);
-    CGContextAddRect(cg, RectToCGRect(rect));
+    CGContextAddRect(cg, RectToCGRect(aRect));
     CGContextReplacePathWithStrokedPath(cg);
     CGRect extents = CGContextGetPathBoundingBox(cg);
     //XXX: should we use EO clip here?
@@ -1280,16 +1280,17 @@ DrawTargetCG::StrokeRect(const Rect &aRect,
     DrawGradient(mColorSpace, cg, aPattern, extents);
   } else {
     SetStrokeFromPattern(cg, mColorSpace, aPattern);
-    // We'd like to use CGContextStrokeRect(cg, RectToCGRect(rect));
+    // We'd like to use CGContextStrokeRect(cg, RectToCGRect(aRect));
     // Unfortunately, newer versions of OS X no longer start at the top-left
     // corner and stroke clockwise as older OS X versions and all the other
     // Moz2D backends do. (Newer versions start at the top right-hand corner
     // and stroke counter-clockwise.) For consistency we draw the rect by hand.
+    CGRect rect = RectToCGRect(aRect);
     CGContextBeginPath(cg);
-    CGContextMoveToPoint(cg, rect.x, rect.y);
-    CGContextAddLineToPoint(cg, rect.XMost(), rect.y);
-    CGContextAddLineToPoint(cg, rect.XMost(), rect.YMost());
-    CGContextAddLineToPoint(cg, rect.x, rect.YMost());
+    CGContextMoveToPoint(cg, CGRectGetMinX(rect), CGRectGetMinY(rect));
+    CGContextAddLineToPoint(cg, CGRectGetMaxX(rect), CGRectGetMinY(rect));
+    CGContextAddLineToPoint(cg, CGRectGetMaxX(rect), CGRectGetMaxY(rect));
+    CGContextAddLineToPoint(cg, CGRectGetMinX(rect), CGRectGetMaxY(rect));
     CGContextClosePath(cg);
     CGContextStrokePath(cg);
   }

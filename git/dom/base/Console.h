@@ -101,7 +101,7 @@ public:
   Count(JSContext* aCx, const Sequence<JS::Value>& aData);
 
   void
-  NoopMethod();
+  __noSuchMethod__();
 
 private:
   enum MethodName

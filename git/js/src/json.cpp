@@ -712,8 +712,8 @@ Walk(JSContext *cx, HandleObject holder, HandleId name, HandleValue reviver, Mut
 
                 if (newElement.isUndefined()) {
                     /* Step 2a(iii)(2). */
-                    ObjectOpResult ignored;
-                    if (!DeleteProperty(cx, obj, id, ignored))
+                    bool succeeded;
+                    if (!DeleteProperty(cx, obj, id, &succeeded))
                         return false;
                 } else {
                     /* Step 2a(iii)(3). */
@@ -740,8 +740,8 @@ Walk(JSContext *cx, HandleObject holder, HandleId name, HandleValue reviver, Mut
 
                 if (newElement.isUndefined()) {
                     /* Step 2b(ii)(2). */
-                    ObjectOpResult ignored;
-                    if (!DeleteProperty(cx, obj, id, ignored))
+                    bool succeeded;
+                    if (!DeleteProperty(cx, obj, id, &succeeded))
                         return false;
                 } else {
                     /* Step 2b(ii)(3). */

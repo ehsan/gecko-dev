@@ -697,7 +697,6 @@ let gDevToolsBrowser = {
       DebuggerServer.init();
       DebuggerServer.addBrowserActors();
     }
-    DebuggerServer.allowChromeProcess = true;
 
     let transport = DebuggerServer.connectPipe();
     let client = new DebuggerClient(transport);
@@ -719,8 +718,7 @@ let gDevToolsBrowser = {
                 let options = {
                   form: response.form,
                   client: client,
-                  chrome: true,
-                  isTabActor: false
+                  chrome: true
                 };
                 return devtools.TargetFactory.forRemoteTab(options);
               })

@@ -728,13 +728,14 @@ nsWindow::GetParent(void)
 float
 nsWindow::GetDPI()
 {
-    GdkScreen *screen = gdk_display_get_default_screen(gdk_display_get_default());
-    double heightInches = gdk_screen_get_height_mm(screen)/MM_PER_INCH_FLOAT;
+    Display *dpy = GDK_DISPLAY_XDISPLAY(gdk_display_get_default());
+    int defaultScreen = DefaultScreen(dpy);
+    double heightInches = DisplayHeightMM(dpy, defaultScreen)/MM_PER_INCH_FLOAT;
     if (heightInches < 0.25) {
         // Something's broken, but we'd better not crash.
         return 96.0f;
     }
-    return float(gdk_screen_get_height(screen)/heightInches);
+    return float(DisplayHeight(dpy, defaultScreen)/heightInches);
 }
 
 double
@@ -1941,25 +1942,22 @@ nsWindow::HasPendingInputEvent()
     bool haveEvent;
 #ifdef MOZ_X11
     XEvent ev;
-    GdkDisplay* gdkDisplay = gdk_display_get_default();
-    if (GDK_IS_X11_DISPLAY(gdkDisplay)) {
-        Display *display = GDK_DISPLAY_XDISPLAY(gdkDisplay);
-        haveEvent =
-            XCheckMaskEvent(display,
-                            KeyPressMask | KeyReleaseMask | ButtonPressMask |
-                            ButtonReleaseMask | EnterWindowMask | LeaveWindowMask |
-                            PointerMotionMask | PointerMotionHintMask |
-                            Button1MotionMask | Button2MotionMask |
-                            Button3MotionMask | Button4MotionMask |
-                            Button5MotionMask | ButtonMotionMask | KeymapStateMask |
-                            VisibilityChangeMask | StructureNotifyMask |
-                            ResizeRedirectMask | SubstructureNotifyMask |
-                            SubstructureRedirectMask | FocusChangeMask |
-                            PropertyChangeMask | ColormapChangeMask |
-                            OwnerGrabButtonMask, &ev);
-        if (haveEvent) {
-            XPutBackEvent(display, &ev);
-        }
+    Display *display = GDK_DISPLAY_XDISPLAY(gdk_display_get_default());
+    haveEvent =
+        XCheckMaskEvent(display,
+                        KeyPressMask | KeyReleaseMask | ButtonPressMask |
+                        ButtonReleaseMask | EnterWindowMask | LeaveWindowMask |
+                        PointerMotionMask | PointerMotionHintMask |
+                        Button1MotionMask | Button2MotionMask |
+                        Button3MotionMask | Button4MotionMask |
+                        Button5MotionMask | ButtonMotionMask | KeymapStateMask |
+                        VisibilityChangeMask | StructureNotifyMask |
+                        ResizeRedirectMask | SubstructureNotifyMask |
+                        SubstructureRedirectMask | FocusChangeMask |
+                        PropertyChangeMask | ColormapChangeMask |
+                        OwnerGrabButtonMask, &ev);
+    if (haveEvent) {
+        XPutBackEvent(display, &ev);
     }
 #else
     haveEvent = false;
@@ -2600,26 +2598,23 @@ nsWindow::OnMotionNotifyEvent(GdkEventMotion *aEvent)
 #ifdef MOZ_X11
     XEvent xevent;
 
-    bool isX11Display = GDK_IS_X11_DISPLAY(gdk_display_get_default());
-    if (isX11Display) {
-        while (XPending (GDK_WINDOW_XDISPLAY(aEvent->window))) {
-            XEvent peeked;
-            XPeekEvent (GDK_WINDOW_XDISPLAY(aEvent->window), &peeked);
-            if (peeked.xany.window != gdk_x11_window_get_xid(aEvent->window)
-                || peeked.type != MotionNotify)
-                break;
+    while (XPending (GDK_WINDOW_XDISPLAY(aEvent->window))) {
+        XEvent peeked;
+        XPeekEvent (GDK_WINDOW_XDISPLAY(aEvent->window), &peeked);
+        if (peeked.xany.window != gdk_x11_window_get_xid(aEvent->window)
+            || peeked.type != MotionNotify)
+            break;
 
-            synthEvent = true;
-            XNextEvent (GDK_WINDOW_XDISPLAY(aEvent->window), &xevent);
-        }
-#if (MOZ_WIDGET_GTK == 2)
-        // if plugins still keeps the focus, get it back
-        if (gPluginFocusWindow && gPluginFocusWindow != this) {
-            nsRefPtr<nsWindow> kungFuDeathGrip = gPluginFocusWindow;
-            gPluginFocusWindow->LoseNonXEmbedPluginFocus();
-        }
-#endif /* MOZ_WIDGET_GTK2 */
+        synthEvent = true;
+        XNextEvent (GDK_WINDOW_XDISPLAY(aEvent->window), &xevent);
     }
+#if (MOZ_WIDGET_GTK == 2)
+    // if plugins still keeps the focus, get it back
+    if (gPluginFocusWindow && gPluginFocusWindow != this) {
+        nsRefPtr<nsWindow> kungFuDeathGrip = gPluginFocusWindow;
+        gPluginFocusWindow->LoseNonXEmbedPluginFocus();
+    }
+#endif /* MOZ_WIDGET_GTK2 */
 #endif /* MOZ_X11 */
 
     WidgetMouseEvent event(true, NS_MOUSE_MOVE, this, WidgetMouseEvent::eReal);
@@ -3255,7 +3250,19 @@ nsWindow::OnScrollEvent(GdkEventScroll *aEvent)
 
     wheelEvent.time = aEvent->time;
 
-    DispatchAPZAwareEvent(&wheelEvent);
+    if (mAPZC) {
+        uint64_t inputBlockId = 0;
+        ScrollableLayerGuid guid;
+
+        nsEventStatus result = mAPZC->ReceiveInputEvent(*wheelEvent.AsWheelEvent(), &guid, &inputBlockId);
+        if (result == nsEventStatus_eConsumeNoDefault) {
+            return;
+        }
+        DispatchEventForAPZ(&wheelEvent, guid, inputBlockId);
+    } else {
+        nsEventStatus status;
+        DispatchEvent(&wheelEvent, status);
+    }
 }
 
 void
@@ -3921,23 +3928,20 @@ nsWindow::SetWindowClass(const nsAString &xulWinType)
   gdk_window_set_role(shellWindow, role);
 
 #ifdef MOZ_X11
-  GdkDisplay *display = gdk_display_get_default();
-  if (GDK_IS_X11_DISPLAY(display)) {
-      XClassHint *class_hint = XAllocClassHint();
-      if (!class_hint) {
-        nsMemory::Free(res_name);
-        return NS_ERROR_OUT_OF_MEMORY;
-      }
-      class_hint->res_name = res_name;
-      class_hint->res_class = const_cast<char*>(res_class);
-
-      // Can't use gtk_window_set_wmclass() for this; it prints
-      // a warning & refuses to make the change.
-      XSetClassHint(GDK_DISPLAY_XDISPLAY(display),
-                    gdk_x11_window_get_xid(shellWindow),
-                    class_hint);
-      XFree(class_hint);
+  XClassHint *class_hint = XAllocClassHint();
+  if (!class_hint) {
+    nsMemory::Free(res_name);
+    return NS_ERROR_OUT_OF_MEMORY;
   }
+  class_hint->res_name = res_name;
+  class_hint->res_class = const_cast<char*>(res_class);
+
+  // Can't use gtk_window_set_wmclass() for this; it prints
+  // a warning & refuses to make the change.
+  XSetClassHint(GDK_DISPLAY_XDISPLAY(gdk_display_get_default()),
+                gdk_x11_window_get_xid(shellWindow),
+                class_hint);
+  XFree(class_hint);
 #endif /* MOZ_X11 */
 
   nsMemory::Free(res_name);
@@ -5654,22 +5658,20 @@ key_press_event_cb(GtkWidget *widget, GdkEventKey *event)
     // are generated only when the key is physically released.
 #define NS_GDKEVENT_MATCH_MASK 0x1FFF /* GDK_SHIFT_MASK .. GDK_BUTTON5_MASK */
     GdkDisplay* gdkDisplay = gtk_widget_get_display(widget);
-    if (GDK_IS_X11_DISPLAY(gdkDisplay)) {
-        Display* dpy = GDK_DISPLAY_XDISPLAY(gdkDisplay);
-        while (XPending(dpy)) {
-            XEvent next_event;
-            XPeekEvent(dpy, &next_event);
-            GdkWindow* nextGdkWindow =
-                gdk_x11_window_lookup_for_display(gdkDisplay, next_event.xany.window);
-            if (nextGdkWindow != event->window ||
-                next_event.type != KeyPress ||
-                next_event.xkey.keycode != event->hardware_keycode ||
-                next_event.xkey.state != (event->state & NS_GDKEVENT_MATCH_MASK)) {
-                break;
-            }
-            XNextEvent(dpy, &next_event);
-            event->time = next_event.xkey.time;
+    Display* dpy = GDK_DISPLAY_XDISPLAY(gdkDisplay);
+    while (XPending(dpy)) {
+        XEvent next_event;
+        XPeekEvent(dpy, &next_event);
+        GdkWindow* nextGdkWindow =
+            gdk_x11_window_lookup_for_display(gdkDisplay, next_event.xany.window);
+        if (nextGdkWindow != event->window ||
+            next_event.type != KeyPress ||
+            next_event.xkey.keycode != event->hardware_keycode ||
+            next_event.xkey.state != (event->state & NS_GDKEVENT_MATCH_MASK)) {
+            break;
         }
+        XNextEvent(dpy, &next_event);
+        event->time = next_event.xkey.time;
     }
 #endif
 

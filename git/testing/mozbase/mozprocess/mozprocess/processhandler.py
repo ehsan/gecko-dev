@@ -211,12 +211,11 @@ class ProcessHandlerMixin(object):
                     comspec = os.environ.get("COMSPEC", "cmd.exe")
                     args = comspec + " /c " + args
 
-                # Determine if we can create a job or create nested jobs.
-                can_create_job = winprocess.CanCreateJobObject()
-                can_nest_jobs = self._can_nest_jobs()
+                # determine if we can create create a job
+                canCreateJob = winprocess.CanCreateJobObject()
 
                 # Ensure we write a warning message if we are falling back
-                if not (can_create_job or can_nest_jobs) and not self._ignore_children:
+                if not canCreateJob and not self._ignore_children:
                     # We can't create job objects AND the user wanted us to
                     # Warn the user about this.
                     print >> sys.stderr, "ProcessManager UNABLE to use job objects to manage child processes"
@@ -224,9 +223,9 @@ class ProcessHandlerMixin(object):
                 # set process creation flags
                 creationflags |= winprocess.CREATE_SUSPENDED
                 creationflags |= winprocess.CREATE_UNICODE_ENVIRONMENT
-                if can_create_job:
+                if canCreateJob:
                     creationflags |= winprocess.CREATE_BREAKAWAY_FROM_JOB
-                if not (can_create_job or can_nest_jobs):
+                else:
                     # Since we've warned, we just log info here to inform you
                     # of the consequence of setting ignore_children = True
                     print "ProcessManager NOT managing child processes"
@@ -245,7 +244,7 @@ class ProcessHandlerMixin(object):
                 self.pid = pid
                 self.tid = tid
 
-                if not self._ignore_children and (can_create_job or can_nest_jobs):
+                if not self._ignore_children and canCreateJob:
                     try:
                         # We create a new job for this process, so that we can kill
                         # the process and any sub-processes
@@ -318,17 +317,6 @@ falling back to not using job objects for managing child processes"""
                 for i in (p2cread, c2pwrite, errwrite):
                     if i is not None:
                         i.Close()
-
-            def _can_nest_jobs(self):
-                # Per:
-                # https://msdn.microsoft.com/en-us/library/windows/desktop/hh448388%28v=vs.85%29.aspx
-                # Nesting jobs came in with windows versions starting with 6.2 according to the table
-                # on this page:
-                # https://msdn.microsoft.com/en-us/library/ms724834%28v=vs.85%29.aspx
-                winver = sys.getwindowsversion()
-                return (winver.major > 6 or
-                        winver.major == 6 and winver.minor >= 2)
-
 
             # Windows Process Manager - watches the IO Completion Port and
             # keeps track of child processes
