@@ -18,14 +18,13 @@ function test() {
   newTab = gBrowser.addTab();
 
   showTabView(function() {
-    let cw = TabView.getContentWindow();
-    whenAppTabIconAdded(cw.GroupItems.groupItems[0], onTabPinned);
+    whenAppTabIconAdded(onTabPinned);
     gBrowser.pinTab(newTab);
   })
 }
 
 function onTabPinned() {
-  let contentWindow = TabView.getContentWindow();
+  let contentWindow = document.getElementById("tab-view").contentWindow;
   is(contentWindow.GroupItems.groupItems.length, 1, 
      "There is one group item on startup");
 

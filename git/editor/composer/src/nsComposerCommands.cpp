@@ -46,7 +46,6 @@
 
 #include "nsIDOMElement.h"
 #include "nsIAtom.h"
-#include "nsGkAtoms.h"
 
 #include "nsIClipboard.h"
 
@@ -64,7 +63,8 @@ nsresult GetListState(nsIHTMLEditor* aEditor, bool* aMixed,
                       nsAString& aLocalName);
 nsresult RemoveOneProperty(nsIHTMLEditor* aEditor, const nsAString& aProp);
 nsresult RemoveTextProperty(nsIHTMLEditor* aEditor, const nsAString& aProp);
-nsresult SetTextProperty(nsIHTMLEditor *aEditor, const nsAString& aProp);
+nsresult SetTextProperty(nsIEditor *aEditor, const PRUnichar *prop,
+                         const PRUnichar *attr, const PRUnichar *value);
 
 
 //defines
@@ -282,7 +282,7 @@ nsStyleUpdatingCommand::ToggleState(nsIEditor *aEditor, const char* aTagName)
       rv = RemoveTextProperty(htmlEditor, tagName);
     }
     if (NS_SUCCEEDED(rv))
-      rv = SetTextProperty(htmlEditor, tagName);
+      rv = SetTextProperty(aEditor, tagName.get(), nsnull, nsnull);
 
     aEditor->EndTransaction();
   }
@@ -723,27 +723,32 @@ nsFontFaceStateCommand::SetState(nsIEditor *aEditor, nsString& newState)
   nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(aEditor);
   NS_ENSURE_TRUE(htmlEditor, NS_ERROR_FAILURE);
   
-  if (newState.EqualsLiteral("tt")) {
-    // The old "teletype" attribute
-    nsresult rv = htmlEditor->SetInlineProperty(nsGkAtoms::tt, EmptyString(),
-                                                EmptyString());
-    NS_ENSURE_SUCCESS(rv, rv);
+  nsresult rv;
+  nsCOMPtr<nsIAtom> ttAtom = do_GetAtom("tt");
+  nsCOMPtr<nsIAtom> fontAtom = do_GetAtom("font");
+
+  if (newState.EqualsLiteral("tt"))
+  {
+    // The old "teletype" attribute  
+    rv = htmlEditor->SetInlineProperty(ttAtom, EmptyString(), 
+                                       EmptyString());  
     // Clear existing font face
-    return htmlEditor->RemoveInlineProperty(nsGkAtoms::font,
-                                            NS_LITERAL_STRING("face"));
+    rv = htmlEditor->RemoveInlineProperty(fontAtom, NS_LITERAL_STRING("face"));
   }
+  else
+  {
+    // Remove any existing TT nodes
+    rv = htmlEditor->RemoveInlineProperty(ttAtom, EmptyString());  
 
-  // Remove any existing TT nodes
-  nsresult rv = htmlEditor->RemoveInlineProperty(nsGkAtoms::tt, EmptyString());
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (newState.IsEmpty() || newState.EqualsLiteral("normal")) {
-    return htmlEditor->RemoveInlineProperty(nsGkAtoms::font,
-                                            NS_LITERAL_STRING("face"));
+    if (newState.IsEmpty() || newState.EqualsLiteral("normal")) {
+      rv = htmlEditor->RemoveInlineProperty(fontAtom, NS_LITERAL_STRING("face"));
+    } else {
+      rv = htmlEditor->SetInlineProperty(fontAtom, NS_LITERAL_STRING("face"),
+                                         newState);
+    }
   }
-
-  return htmlEditor->SetInlineProperty(nsGkAtoms::font,
-                                       NS_LITERAL_STRING("face"), newState);
+  
+  return rv;
 }
 
 nsFontSizeStateCommand::nsFontSizeStateCommand()
@@ -797,22 +802,29 @@ nsFontSizeStateCommand::SetState(nsIEditor *aEditor, nsString& newState)
   nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(aEditor);
   NS_ENSURE_TRUE(htmlEditor, NS_ERROR_INVALID_ARG);
 
-  if (!newState.IsEmpty() &&
-      !newState.EqualsLiteral("normal") &&
-      !newState.EqualsLiteral("medium")) {
-    return htmlEditor->SetInlineProperty(nsGkAtoms::font,
-                                         NS_LITERAL_STRING("size"), newState);
+  nsresult rv;
+  nsCOMPtr<nsIAtom> fontAtom = do_GetAtom("font");
+  if (newState.IsEmpty() || 
+      newState.EqualsLiteral("normal") ||
+      newState.EqualsLiteral("medium")) {
+    // remove any existing font size, big or small
+    rv = htmlEditor->RemoveInlineProperty(fontAtom, NS_LITERAL_STRING("size"));  
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsCOMPtr<nsIAtom> bigAtom = do_GetAtom("big");
+    rv = htmlEditor->RemoveInlineProperty(bigAtom, EmptyString());  
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsCOMPtr<nsIAtom> smallAtom = do_GetAtom("small");
+    rv = htmlEditor->RemoveInlineProperty(smallAtom, EmptyString());  
+    NS_ENSURE_SUCCESS(rv, rv);
+  } else {
+    // set the size
+    rv = htmlEditor->SetInlineProperty(fontAtom, NS_LITERAL_STRING("size"),
+                                       newState);
   }
 
-  // remove any existing font size, big or small
-  nsresult rv = htmlEditor->RemoveInlineProperty(nsGkAtoms::font,
-                                                 NS_LITERAL_STRING("size"));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = htmlEditor->RemoveInlineProperty(nsGkAtoms::big, EmptyString());
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return htmlEditor->RemoveInlineProperty(nsGkAtoms::small, EmptyString());
+  return rv;
 }
 
 nsFontColorStateCommand::nsFontColorStateCommand()
@@ -832,13 +844,14 @@ nsFontColorStateCommand::GetCurrentState(nsIEditor *aEditor,
   bool outMixed;
   nsAutoString outStateString;
   nsresult rv = htmlEditor->GetFontColorState(&outMixed, outStateString);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCAutoString tOutStateString;
-  tOutStateString.AssignWithConversion(outStateString);
-  aParams->SetBooleanValue(STATE_MIXED, outMixed);
-  aParams->SetCStringValue(STATE_ATTRIBUTE, tOutStateString.get());
-  return NS_OK;
+  if (NS_SUCCEEDED(rv))
+  {
+    nsCAutoString tOutStateString;
+    tOutStateString.AssignWithConversion(outStateString);
+    aParams->SetBooleanValue(STATE_MIXED,outMixed);
+    aParams->SetCStringValue(STATE_ATTRIBUTE, tOutStateString.get());
+  }
+  return rv;
 }
 
 nsresult
@@ -848,13 +861,17 @@ nsFontColorStateCommand::SetState(nsIEditor *aEditor, nsString& newState)
   nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(aEditor);
   NS_ENSURE_TRUE(htmlEditor, NS_ERROR_FAILURE);
   
+  nsresult rv;
+  nsCOMPtr<nsIAtom> fontAtom = do_GetAtom("font");
+
   if (newState.IsEmpty() || newState.EqualsLiteral("normal")) {
-    return htmlEditor->RemoveInlineProperty(nsGkAtoms::font,
-                                            NS_LITERAL_STRING("color"));
+    rv = htmlEditor->RemoveInlineProperty(fontAtom, NS_LITERAL_STRING("color"));
+  } else {
+    rv = htmlEditor->SetInlineProperty(fontAtom, NS_LITERAL_STRING("color"), 
+                                       newState);
   }
   
-  return htmlEditor->SetInlineProperty(nsGkAtoms::font,
-                                       NS_LITERAL_STRING("color"), newState);
+  return rv;
 }
 
 nsHighlightColorStateCommand::nsHighlightColorStateCommand()
@@ -873,13 +890,14 @@ nsHighlightColorStateCommand::GetCurrentState(nsIEditor *aEditor,
   bool outMixed;
   nsAutoString outStateString;
   nsresult rv = htmlEditor->GetHighlightColorState(&outMixed, outStateString);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCAutoString tOutStateString;
-  tOutStateString.AssignWithConversion(outStateString);
-  aParams->SetBooleanValue(STATE_MIXED, outMixed);
-  aParams->SetCStringValue(STATE_ATTRIBUTE, tOutStateString.get());
-  return NS_OK;
+  if (NS_SUCCEEDED(rv))
+  {
+    nsCAutoString tOutStateString;
+    tOutStateString.AssignWithConversion(outStateString);
+    aParams->SetBooleanValue(STATE_MIXED,outMixed);
+    aParams->SetCStringValue(STATE_ATTRIBUTE, tOutStateString.get());
+  }
+  return rv;
 }
 
 nsresult
@@ -889,14 +907,18 @@ nsHighlightColorStateCommand::SetState(nsIEditor *aEditor, nsString& newState)
   nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(aEditor);
   NS_ENSURE_TRUE(htmlEditor, NS_ERROR_FAILURE);
 
+  nsresult rv;
+  nsCOMPtr<nsIAtom> fontAtom = do_GetAtom("font");
+
   if (newState.IsEmpty() || newState.EqualsLiteral("normal")) {
-    return htmlEditor->RemoveInlineProperty(nsGkAtoms::font,
-                                            NS_LITERAL_STRING("bgcolor"));
+//    rv = RemoveOneProperty(htmlEditor, NS_LITERAL_STRING("font"), NS_LITERAL_STRING("bgcolor"));
+    rv = htmlEditor->RemoveInlineProperty(fontAtom, NS_LITERAL_STRING("bgcolor"));
+  } else {
+    rv = htmlEditor->SetInlineProperty(fontAtom, NS_LITERAL_STRING("bgcolor"),
+                                       newState);
   }
 
-  return htmlEditor->SetInlineProperty(nsGkAtoms::font,
-                                       NS_LITERAL_STRING("bgcolor"),
-                                       newState);
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -930,13 +952,14 @@ nsBackgroundColorStateCommand::GetCurrentState(nsIEditor *aEditor,
   bool outMixed;
   nsAutoString outStateString;
   nsresult rv =  htmlEditor->GetBackgroundColorState(&outMixed, outStateString);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCAutoString tOutStateString;
-  tOutStateString.AssignWithConversion(outStateString);
-  aParams->SetBooleanValue(STATE_MIXED, outMixed);
-  aParams->SetCStringValue(STATE_ATTRIBUTE, tOutStateString.get());
-  return NS_OK;
+  if (NS_SUCCEEDED(rv))
+  {
+    nsCAutoString tOutStateString;
+    tOutStateString.AssignWithConversion(outStateString);
+    aParams->SetBooleanValue(STATE_MIXED,outMixed);
+    aParams->SetCStringValue(STATE_ATTRIBUTE, tOutStateString.get());
+  }
+  return rv;
 }
 
 nsresult
@@ -1073,7 +1096,14 @@ nsAbsolutePositioningCommand::ToggleState(nsIEditor *aEditor, const char* aTagNa
   nsresult rv = htmlEditor->GetAbsolutelyPositionedSelectionContainer(getter_AddRefs(elt));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return htmlEditor->AbsolutePositionSelection(!elt);
+  if (elt) {
+    // we have to remove positioning on an element
+    rv = htmlEditor->AbsolutePositionSelection(false);
+  }
+  else {
+    rv = htmlEditor->AbsolutePositionSelection(true);
+  }
+  return rv;
 }
 
 
@@ -1559,13 +1589,25 @@ RemoveTextProperty(nsIHTMLEditor* aEditor, const nsAString& aProp)
 // the name of the attribute here should be the contents of the appropriate
 // tag, e.g. 'b' for bold, 'i' for italics.
 nsresult
-SetTextProperty(nsIHTMLEditor* aEditor, const nsAString& aProp)
+SetTextProperty(nsIEditor *aEditor, const PRUnichar *prop, 
+                const PRUnichar *attr, const PRUnichar *value)
 {
-  MOZ_ASSERT(aEditor);
+  //static initialization 
+  static const PRUnichar sEmptyStr = PRUnichar('\0');
+  
+  NS_ENSURE_TRUE(aEditor, NS_ERROR_NOT_INITIALIZED);
 
   /// XXX Hack alert! Look in nsIEditProperty.h for this
-  nsCOMPtr<nsIAtom> styleAtom = do_GetAtom(aProp);
-  NS_ENSURE_TRUE(styleAtom, NS_ERROR_OUT_OF_MEMORY);
+  nsCOMPtr<nsIAtom> styleAtom = do_GetAtom(prop);
+  NS_ENSURE_TRUE( styleAtom, NS_ERROR_OUT_OF_MEMORY);
 
-  return aEditor->SetInlineProperty(styleAtom, EmptyString(), EmptyString());
+  nsresult  err = NS_NOINTERFACE;
+
+  nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(aEditor,&err);
+  if (htmlEditor)
+    err = htmlEditor->SetInlineProperty(styleAtom,
+                                nsDependentString(attr?attr:&sEmptyStr),
+                                nsDependentString(value?value:&sEmptyStr));
+
+  return err;
 }

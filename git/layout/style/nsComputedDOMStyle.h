@@ -353,12 +353,12 @@ private:
   nsIDOMCSSValue* DoGetResize();
   nsIDOMCSSValue* DoGetPageBreakAfter();
   nsIDOMCSSValue* DoGetPageBreakBefore();
-  nsIDOMCSSValue* DoGetTransform();
-  nsIDOMCSSValue* DoGetTransformOrigin();
-  nsIDOMCSSValue* DoGetPerspective();
-  nsIDOMCSSValue* DoGetBackfaceVisibility();
-  nsIDOMCSSValue* DoGetPerspectiveOrigin();
-  nsIDOMCSSValue* DoGetTransformStyle();
+  nsIDOMCSSValue* DoGetMozTransform();
+  nsIDOMCSSValue* DoGetMozTransformOrigin();
+  nsIDOMCSSValue* DoGetMozPerspective();
+  nsIDOMCSSValue* DoGetMozBackfaceVisibility();
+  nsIDOMCSSValue* DoGetMozPerspectiveOrigin();
+  nsIDOMCSSValue* DoGetMozTransformStyle();
   nsIDOMCSSValue* DoGetOrient();
 
   /* User interface properties */

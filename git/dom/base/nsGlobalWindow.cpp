@@ -1167,7 +1167,7 @@ nsGlobalWindow::FreeInnerObjects()
   JSObject* obj = FastGetGlobalJSObject();
   if (obj) {
     if (!cx) {
-      cx = nsContentUtils::ThreadJSContextStack()->GetSafeJSContext();
+      nsContentUtils::ThreadJSContextStack()->GetSafeJSContext(&cx);
     }
 
     JSAutoRequest ar(cx);
@@ -1391,13 +1391,43 @@ nsGlobalWindow::UnmarkGrayTimers()
 //*****************************************************************************
 
 nsresult
+nsGlobalWindow::SetScriptContext(nsIScriptContext *aScriptContext)
+{
+  NS_ASSERTION(IsOuterWindow(), "Uh, SetScriptContext() called on inner window!");
+
+  NS_ASSERTION(!aScriptContext || !mContext, "Bad call to SetContext()!");
+
+  if (aScriptContext) {
+    // should probably assert the context is clean???
+    aScriptContext->WillInitializeContext();
+
+    // We need point the context to the global window before initializing it
+    // so that it can make various decisions properly.
+    aScriptContext->SetGlobalObject(this);
+
+    nsresult rv = aScriptContext->InitContext();
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    if (IsFrame()) {
+      // This window is a [i]frame, don't bother GC'ing when the
+      // frame's context is destroyed since a GC will happen when the
+      // frameset or host document is destroyed anyway.
+
+      aScriptContext->SetGCOnDestruction(false);
+    }
+  }
+
+  mContext = aScriptContext;
+  return NS_OK;
+}
+
+nsresult
 nsGlobalWindow::EnsureScriptEnvironment()
 {
   FORWARD_TO_OUTER(EnsureScriptEnvironment, (), NS_ERROR_NOT_INITIALIZED);
 
-  if (mJSObject) {
-    return NS_OK;
-  }
+  if (mJSObject)
+      return NS_OK;
 
   NS_ASSERTION(!GetCurrentInnerWindowInternal(),
                "mJSObject is null, but we have an inner window?");
@@ -1407,29 +1437,7 @@ nsGlobalWindow::EnsureScriptEnvironment()
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIScriptContext> context = scriptRuntime->CreateContext();
-
-  NS_ASSERTION(!mContext, "Will overwrite mContext!");
-
-  // should probably assert the context is clean???
-  context->WillInitializeContext();
-
-  // We need point the context to the global window before initializing it
-  // so that it can make various decisions properly.
-  context->SetGlobalObject(this);
-
-  rv = context->InitContext();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (IsFrame()) {
-    // This window is a [i]frame, don't bother GC'ing when the
-    // frame's context is destroyed since a GC will happen when the
-    // frameset or host document is destroyed anyway.
-
-    context->SetGCOnDestruction(false);
-  }
-
-  mContext = context;
-  return NS_OK;
+  return SetScriptContext(context);
 }
 
 nsIScriptContext *
@@ -2236,8 +2244,8 @@ nsGlobalWindow::SetDocShell(nsIDocShell* aDocShell)
     if (currentInner) {
       JSObject* obj = currentInner->FastGetGlobalJSObject();
       if (obj) {
-        JSContext* cx =
-          nsContentUtils::ThreadJSContextStack()->GetSafeJSContext();
+        JSContext* cx;
+        nsContentUtils::ThreadJSContextStack()->GetSafeJSContext(&cx);
 
         JSAutoRequest ar(cx);
 
@@ -5973,7 +5981,7 @@ PostMessageEvent::Run()
     // we need to find a JSContext.
     nsIThreadJSContextStack* cxStack = nsContentUtils::ThreadJSContextStack();
     if (cxStack) {
-      cx = cxStack->GetSafeJSContext();
+      cxStack->GetSafeJSContext(&cx);
     }
 
     if (!cx) {

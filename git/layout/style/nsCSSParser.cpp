@@ -534,7 +534,7 @@ protected:
   bool ParseListStyle();
   bool ParseMargin();
   bool ParseMarks(nsCSSValue& aValue);
-  bool ParseTransform();
+  bool ParseMozTransform();
   bool ParseOutline();
   bool ParseOverflow();
   bool ParsePadding();
@@ -618,7 +618,7 @@ protected:
     return mParsingCompoundProperty;
   }
 
-  /* Functions for transform Parsing */
+  /* Functions for -moz-transform Parsing */
   bool ParseSingleTransform(nsCSSValue& aValue, bool& aIs3D);
   bool ParseFunction(const nsString &aFunction, const PRInt32 aAllowedTypes[],
                        PRUint16 aMinElems, PRUint16 aMaxElems,
@@ -628,8 +628,8 @@ protected:
                                 PRUint16 aMaxElems,
                                 InfallibleTArray<nsCSSValue>& aOutput);
 
-  /* Functions for transform-origin/perspective-origin Parsing */
-  bool ParseTransformOrigin(bool aPerspective);
+  /* Functions for -moz-transform-origin/-moz-perspective-origin Parsing */
+  bool ParseMozTransformOrigin(bool aPerspective);
 
   /* Find and return the namespace ID associated with aPrefix.
      If aPrefix has not been declared in an @namespace rule, returns
@@ -5623,12 +5623,12 @@ CSSParserImpl::ParsePropertyByFunction(nsCSSProperty aPropID)
     return ParseSize();
   case eCSSProperty_text_decoration:
     return ParseTextDecoration();
-  case eCSSProperty_transform:
-    return ParseTransform();
-  case eCSSProperty_transform_origin:
-    return ParseTransformOrigin(false);
+  case eCSSProperty__moz_transform:
+    return ParseMozTransform();
+  case eCSSProperty__moz_transform_origin:
+    return ParseMozTransformOrigin(false);
   case eCSSProperty_perspective_origin:
-    return ParseTransformOrigin(true);
+    return ParseMozTransformOrigin(true);
   case eCSSProperty_transition:
     return ParseTransition();
   case eCSSProperty_animation:
@@ -7721,7 +7721,7 @@ CSSParserImpl::ParseOneFamily(nsAString& aFamily)
 }
 
 ///////////////////////////////////////////////////////
-// transform Parsing Implementation
+// -moz-transform Parsing Implementation
 
 /* Reads a function list of arguments.  Do not call this function
  * directly; it's mean to be caled from ParseFunction.
@@ -8057,10 +8057,10 @@ CSSParserImpl::ParseSingleTransform(nsCSSValue& aValue, bool& aIs3D)
   return ParseFunction(mToken.mIdent, variantMask, minElems, maxElems, aValue);
 }
 
-/* Parses a transform property list by continuously reading in properties
+/* Parses a -moz-transform property list by continuously reading in properties
  * and constructing a matrix from it.
  */
-bool CSSParserImpl::ParseTransform()
+bool CSSParserImpl::ParseMozTransform()
 {
   nsCSSValue value;
   if (ParseVariant(value, VARIANT_INHERIT | VARIANT_NONE, nsnull)) {
@@ -8085,17 +8085,17 @@ bool CSSParserImpl::ParseTransform()
       cur = cur->mNext;
     }
   }
-  AppendValue(eCSSProperty_transform, value);
+  AppendValue(eCSSProperty__moz_transform, value);
   return true;
 }
 
-bool CSSParserImpl::ParseTransformOrigin(bool aPerspective)
+bool CSSParserImpl::ParseMozTransformOrigin(bool aPerspective)
 {
   nsCSSValuePair position;
   if (!ParseBoxPositionValues(position, true))
     return false;
 
-  nsCSSProperty prop = eCSSProperty_transform_origin;
+  nsCSSProperty prop = eCSSProperty__moz_transform_origin;
   if (aPerspective) {
     if (!ExpectEndProperty()) {
       return false;

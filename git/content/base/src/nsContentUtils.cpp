@@ -1675,7 +1675,8 @@ nsContentUtils::TraceSafeJSContext(JSTracer* aTrc)
   if (!sThreadJSContextStack) {
     return;
   }
-  JSContext* cx = sThreadJSContextStack->GetSafeJSContext();
+  JSContext* cx = nsnull;
+  sThreadJSContextStack->GetSafeJSContext(&cx);
   if (!cx) {
     return;
   }
