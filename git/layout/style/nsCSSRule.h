@@ -35,71 +35,59 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/* class for CSS @import rules */
+/* base class for all rule types in a CSS style sheet */
 
-#ifndef mozilla_css_ImportRule_h__
-#define mozilla_css_ImportRule_h__
+#ifndef nsCSSRule_h___
+#define nsCSSRule_h___
 
-#include "nsICSSRule.h"
-#include "nsCSSRule.h"
-#include "nsIDOMCSSImportRule.h"
-#include "nsCSSRules.h"
+#include "nsISupports.h"
+#include "nsCOMPtr.h"
+#include "nsCSSStyleSheet.h"
 
-class nsMediaList;
-class nsString;
+class nsICSSGroupRule;
 
-namespace mozilla {
-namespace css {
-
-class NS_FINAL_CLASS ImportRule : public nsCSSRule,
-                                  public nsICSSRule,
-                                  public nsIDOMCSSImportRule
-{
+class nsCSSRule {
 public:
-  ImportRule(nsMediaList* aMedia);
-private:
-  // for |Clone|
-  ImportRule(const ImportRule& aCopy);
-  ~ImportRule();
-public:
-  NS_DECL_ISUPPORTS
+  nsCSSRule(void)
+    : mSheet(nsnull),
+      mParentRule(nsnull)
+  {
+  }
 
-  DECL_STYLE_RULE_INHERIT
+  nsCSSRule(const nsCSSRule& aCopy)
+    : mSheet(aCopy.mSheet),
+      mParentRule(aCopy.mParentRule)
+  {
+  }
 
-  // nsIStyleRule methods
-#ifdef DEBUG
-  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
-#endif
+  already_AddRefed<nsIStyleSheet>
+  GetStyleSheet() const
+  {
+    NS_IF_ADDREF(mSheet);
+    return mSheet;
+  }
 
-  // nsICSSRule methods
-  virtual PRInt32 GetType() const;
-  virtual already_AddRefed<nsICSSRule> Clone() const;
+  void
+  SetStyleSheet(nsCSSStyleSheet* aSheet)
+  {
+    // We don't reference count this up reference. The style sheet
+    // will tell us when it's going away or when we're detached from
+    // it.
+    mSheet = aSheet;
+  }
 
-  void SetURLSpec(const nsString& aURLSpec) { mURLSpec = aURLSpec; }
-  void GetURLSpec(nsString& aURLSpec) const { aURLSpec = mURLSpec; }
+  void
+  SetParentRule(nsICSSGroupRule* aRule)
+  {
+    // We don't reference count this up reference. The group rule
+    // will tell us when it's going away or when we're detached from
+    // it.
+    mParentRule = aRule;
+  }
 
-  nsresult SetMedia(const nsString& aMedia);
-  void GetMedia(nsString& aMedia) const;
-
-  void SetSheet(nsCSSStyleSheet*);
-
-  // nsIDOMCSSRule interface
-  NS_DECL_NSIDOMCSSRULE
-
-  // nsIDOMCSSImportRule interface
-  NS_DECL_NSIDOMCSSIMPORTRULE
-
-private:
-  nsString  mURLSpec;
-  nsRefPtr<nsMediaList> mMedia;
-  nsRefPtr<nsCSSStyleSheet> mChildSheet;
+protected:
+  nsCSSStyleSheet*    mSheet;
+  nsICSSGroupRule*    mParentRule;
 };
 
-} // namespace css
-} // namespace mozilla
-
-nsresult
-NS_NewCSSImportRule(mozilla::css::ImportRule** aInstancePtrResult,
-                    const nsString& aURLSpec, nsMediaList* aMedia);
-
-#endif /* mozilla_css_ImportRule_h__ */
+#endif /* nsCSSRule_h___ */
