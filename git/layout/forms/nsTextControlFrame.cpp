@@ -1760,7 +1760,12 @@ nsTextControlFrame::GetPrefSize(nsBoxLayoutState& aState)
   NS_ENSURE_SUCCESS(rv, pref);
   AddBorderAndPadding(pref);
 
-  mPrefSize = pref;
+  PRBool widthSet, heightSet;
+  nsIBox::AddCSSPrefSize(this, pref, widthSet, heightSet);
+
+  nsSize minSize = GetMinSize(aState);
+  nsSize maxSize = GetMaxSize(aState);
+  mPrefSize = BoundsCheck(minSize, pref, maxSize);
 
 #ifdef DEBUG_rods
   {
@@ -1774,7 +1779,7 @@ nsTextControlFrame::GetPrefSize(nsBoxLayoutState& aState)
   }
 #endif
 
-  return pref;
+  return mPrefSize;
 }
 
 nsSize
