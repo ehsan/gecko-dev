@@ -371,9 +371,9 @@ protected:
   /**
    * @param  aContainer a content node which must be a descendant of
    *         mRootNode
-   * @return true if children or descendants of aContainer could match our
+   * @return PR_TRUE if children or descendants of aContainer could match our
    *                 criterion.
-   *         false otherwise.
+   *         PR_FALSE otherwise.
    */
   bool MayContainRelevantNodes(nsINode* aContainer)
   {

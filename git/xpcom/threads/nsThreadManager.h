@@ -83,7 +83,7 @@ private:
     : mCurThreadIndex(0)
     , mMainPRThread(nsnull)
     , mLock(nsnull)
-    , mInitialized(false) {
+    , mInitialized(PR_FALSE) {
   }
   
   static nsThreadManager sInstance;

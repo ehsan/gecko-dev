@@ -85,7 +85,7 @@ public:
   static KeyTypePointer KeyToPointer(KeyType aKey) { return &aKey; }
   static PLDHashNumber HashKey(KeyTypePointer aKey)
     { return static_cast<PRUint32>((*aKey) & PR_UINT32_MAX); }
-  enum { ALLOW_MEMMOVE = true };
+  enum { ALLOW_MEMMOVE = PR_TRUE };
 
 private:
   const PRInt64 mValue;
@@ -668,7 +668,7 @@ public:
   {
     nsCAutoString spec;
     if (NS_FAILED(aURI->GetSpec(spec)))
-      return false;
+      return PR_FALSE;
     return FindChildURI(spec, aNodeIndex);
   }
   nsNavHistoryResultNode* FindChildURI(const nsACString& aSpec,

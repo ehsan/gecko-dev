@@ -39,6 +39,7 @@
 
 #include "jsapi.h"
 #include "jsautooplen.h"
+#include "jsbit.h"
 #include "jsbool.h"
 #include "jsdate.h"
 #include "jsexn.h"
@@ -51,11 +52,12 @@
 #include "jsobj.h"
 #include "jsscript.h"
 #include "jscntxt.h"
+#include "jsscan.h"
 #include "jsscope.h"
 #include "jsstr.h"
+#include "jstl.h"
 #include "jsiter.h"
 
-#include "frontend/TokenStream.h"
 #include "methodjit/MethodJIT.h"
 #include "methodjit/Retcon.h"
 
@@ -347,7 +349,7 @@ types::TypeFailure(JSContext *cx, const char *fmt, ...)
     /* Always active, even in release builds */
     JS_Assert(msgbuf, __FILE__, __LINE__);
     
-    *((volatile int *)NULL) = 0;  /* Should never be reached */
+    *((int*)NULL) = 0;  /* Should never be reached */
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -1162,7 +1164,7 @@ TypeConstraintCall::newType(JSContext *cx, TypeSet *source, Type type)
                 }
             }
 
-            if (native == js::array_pop || native == js::array_shift)
+            if (native == js::array_pop)
                 callsite->thisTypes->addGetProperty(cx, script, pc, callsite->returnTypes, JSID_VOID);
 
             if (native == js_Array) {
@@ -1458,8 +1460,6 @@ GetValueTypeFromTypeFlags(TypeFlags flags)
         return JSVAL_TYPE_STRING;
       case TYPE_FLAG_LAZYARGS:
         return JSVAL_TYPE_MAGIC;
-      case TYPE_FLAG_ANYOBJECT:
-        return JSVAL_TYPE_OBJECT;
       default:
         return JSVAL_TYPE_UNKNOWN;
     }
@@ -1773,32 +1773,10 @@ TypeSet::knownNonEmpty(JSContext *cx)
     if (baseFlags() != 0 || baseObjectCount() != 0)
         return true;
 
-    addFreeze(cx);
+    add(cx, cx->typeLifoAlloc().new_<TypeConstraintFreeze>(
+                cx->compartment->types.compiledScript), false);
 
     return false;
-}
-
-bool
-TypeSet::knownSubset(JSContext *cx, TypeSet *other)
-{
-    if ((baseFlags() & other->baseFlags()) != baseFlags())
-        return false;
-
-    if (unknownObject()) {
-        JS_ASSERT(other->unknownObject());
-    } else {
-        for (unsigned i = 0; i < getObjectCount(); i++) {
-            TypeObjectKey *obj = getObject(i);
-            if (!obj)
-                continue;
-            if (!other->hasType(Type::ObjectType(obj)))
-                return false;
-        }
-    }
-
-    addFreeze(cx);
-
-    return true;
 }
 
 int
@@ -2057,14 +2035,14 @@ types::UseNewType(JSContext *cx, JSScript *script, jsbytecode *pc)
     return false;
 }
 
-bool
+void
 TypeCompartment::growPendingArray(JSContext *cx)
 {
     unsigned newCapacity = js::Max(unsigned(100), pendingCapacity * 2);
     PendingWork *newArray = (PendingWork *) OffTheBooks::calloc_(newCapacity * sizeof(PendingWork));
     if (!newArray) {
         cx->compartment->types.setPendingNukeTypes(cx);
-        return false;
+        return;
     }
 
     memcpy(newArray, pendingArray, pendingCount * sizeof(PendingWork));
@@ -2072,8 +2050,6 @@ TypeCompartment::growPendingArray(JSContext *cx)
 
     pendingArray = newArray;
     pendingCapacity = newCapacity;
-
-    return true;
 }
 
 void
@@ -6086,6 +6062,21 @@ TypeScript::Sweep(JSContext *cx, JSScript *script)
      * cannot alias the most recent one, and future activations will overwrite
      * activeCall on creation.
      */
+
+    /*
+     * Method JIT code depends on the type inference data which is about to
+     * be purged, so purge the jitcode as well.
+     */
+#ifdef JS_METHODJIT
+    mjit::ReleaseScriptCode(cx, script);
+
+    /*
+     * Use counts for scripts are reset on GC. After discarding code we need to
+     * let it warm back up to get information like which opcodes are setting
+     * array holes or accessing getter properties.
+     */
+    script->resetUseCount();
+#endif
 }
 
 void

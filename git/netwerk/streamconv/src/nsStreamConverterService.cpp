@@ -91,7 +91,7 @@ static bool DeleteAdjacencyEntry(nsHashKey *aKey, void *aData, void* closure) {
     delete entry->key;
     delete entry->data.edges;
     delete entry;
-    return true;   
+    return PR_TRUE;   
 }
 
 nsresult
@@ -263,10 +263,10 @@ static bool InitBFSTable(nsHashKey *aKey, void *aData, void* closure) {
     NS_ASSERTION((SCTableData*)aData, "no data in the table enumeration");
     
     nsHashtable *BFSTable = (nsHashtable*)closure;
-    if (!BFSTable) return false;
+    if (!BFSTable) return PR_FALSE;
 
     BFSState *state = new BFSState;
-    if (!state) return false;
+    if (!state) return PR_FALSE;
 
     state->color = white;
     state->distance = -1;
@@ -275,12 +275,12 @@ static bool InitBFSTable(nsHashKey *aKey, void *aData, void* closure) {
     SCTableData *data = new SCTableData(static_cast<nsCStringKey*>(aKey));
     if (!data) {
         delete state;
-        return false;
+        return PR_FALSE;
     }
     data->data.state = state;
 
     BFSTable->Put(aKey, data);
-    return true;   
+    return PR_TRUE;   
 }
 
 // cleans up the BFS state table
@@ -290,7 +290,7 @@ static bool DeleteBFSEntry(nsHashKey *aKey, void *aData, void *closure) {
     delete state;
     data->key = nsnull;
     delete data;
-    return true;
+    return PR_TRUE;
 }
 
 class CStreamConvDeallocator : public nsDequeFunctor {

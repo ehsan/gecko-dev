@@ -36,18 +36,15 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "ListenerManager.h"
 
 #include "jsapi.h"
 #include "jscntxt.h"
-#include "js/Vector.h"
+#include "jsvector.h"
 
 #include "Events.h"
 
-using namespace mozilla;
-using dom::workers::events::ListenerManager;
+using mozilla::dom::workers::events::ListenerManager;
 
 namespace {
 
@@ -429,7 +426,7 @@ ListenerManager::DispatchEvent(JSContext* aCx, JSObject* aTarget,
 
     jsval argv[] = { OBJECT_TO_JSVAL(aEvent) };
     jsval rval = JSVAL_VOID;
-    if (!JS_CallFunctionValue(aCx, aTarget, listenerVal, ArrayLength(argv),
+    if (!JS_CallFunctionValue(aCx, aTarget, listenerVal, JS_ARRAY_LENGTH(argv),
                               argv, &rval)) {
       if (!JS_ReportPendingException(aCx)) {
         return false;

@@ -182,7 +182,7 @@ DOMSVGNumberList::Clear()
 
     mItems.Clear();
     InternalList().Clear();
-    Element()->DidChangeNumberList(AttrEnum(), true);
+    Element()->DidChangeNumberList(AttrEnum(), PR_TRUE);
 #ifdef MOZ_SMIL
     if (mAList->IsAnimating()) {
       Element()->AnimationNeedsResample();
@@ -275,7 +275,7 @@ DOMSVGNumberList::InsertItemBefore(nsIDOMSVGNumber *newItem,
 
   UpdateListIndicesFromIndex(mItems, index + 1);
 
-  Element()->DidChangeNumberList(AttrEnum(), true);
+  Element()->DidChangeNumberList(AttrEnum(), PR_TRUE);
 #ifdef MOZ_SMIL
   if (mAList->IsAnimating()) {
     Element()->AnimationNeedsResample();
@@ -319,7 +319,7 @@ DOMSVGNumberList::ReplaceItem(nsIDOMSVGNumber *newItem,
   // would end up reading bad data from InternalList()!
   domItem->InsertingIntoList(this, AttrEnum(), index, IsAnimValList());
 
-  Element()->DidChangeNumberList(AttrEnum(), true);
+  Element()->DidChangeNumberList(AttrEnum(), PR_TRUE);
 #ifdef MOZ_SMIL
   if (mAList->IsAnimating()) {
     Element()->AnimationNeedsResample();
@@ -360,7 +360,7 @@ DOMSVGNumberList::RemoveItem(PRUint32 index,
 
   UpdateListIndicesFromIndex(mItems, index);
 
-  Element()->DidChangeNumberList(AttrEnum(), true);
+  Element()->DidChangeNumberList(AttrEnum(), PR_TRUE);
 #ifdef MOZ_SMIL
   if (mAList->IsAnimating()) {
     Element()->AnimationNeedsResample();

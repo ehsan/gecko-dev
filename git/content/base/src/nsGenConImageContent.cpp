@@ -63,7 +63,7 @@ public:
   nsresult Init(imgIRequest* aImageRequest)
   {
     // No need to notify, since we have no frame.
-    return UseAsPrimaryRequest(aImageRequest, false);
+    return UseAsPrimaryRequest(aImageRequest, PR_FALSE);
   }
 
   // nsIContent overrides

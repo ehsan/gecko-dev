@@ -119,7 +119,7 @@ nsHTMLMapElement::GetAreas(nsIDOMHTMLCollection** aAreas)
                                mNodeInfo->NamespaceID(),
                                nsGkAtoms::area,
                                nsGkAtoms::area,
-                               false);
+                               PR_FALSE);
   }
 
   NS_ADDREF(*aAreas = mAreas);

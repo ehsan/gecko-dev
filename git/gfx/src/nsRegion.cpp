@@ -74,14 +74,14 @@ inline bool nsRegion::nsRectFast::IntersectRect (const nsRect& aRect1, const nsR
   const nscoord xmost = NS_MIN (aRect1.XMost (), aRect2.XMost ());
   x = NS_MAX (aRect1.x, aRect2.x);
   width = xmost - x;
-  if (width <= 0) return false;
+  if (width <= 0) return PR_FALSE;
 
   const nscoord ymost = NS_MIN (aRect1.YMost (), aRect2.YMost ());
   y = NS_MAX (aRect1.y, aRect2.y);
   height = ymost - y;
-  if (height <= 0) return false;
+  if (height <= 0) return PR_FALSE;
 
-  return true;
+  return PR_TRUE;
 }
 
 inline void nsRegion::nsRectFast::UnionRect (const nsRect& aRect1, const nsRect& aRect2)
@@ -534,13 +534,13 @@ void nsRegion::Merge (const nsRegion& aRgn1, const nsRegion& aRgn2)
   {
     RgnRect* TmpRect = new RgnRect (*aRgn1.mRectListHead.next);
     Copy (aRgn2);
-    InsertInPlace (TmpRect, true);
+    InsertInPlace (TmpRect, PR_TRUE);
   } else
   if (aRgn2.mRectCount == 1)            // Region is single rectangle. Optimize on fly
   {
     RgnRect* TmpRect = new RgnRect (*aRgn2.mRectListHead.next);
     Copy (aRgn1);
-    InsertInPlace (TmpRect, true);
+    InsertInPlace (TmpRect, PR_TRUE);
   } else
   {
     const nsRegion* pCopyRegion, *pInsertRegion;
@@ -829,7 +829,7 @@ nsRegion& nsRegion::Or (const nsRegion& aRegion, const nsRect& aRect)
     if (!aRectFast.Intersects (aRegion.mBoundRect))     // Rectangle does not intersect region
     {
       Copy (aRegion);
-      InsertInPlace (new RgnRect (aRectFast), true);
+      InsertInPlace (new RgnRect (aRectFast), PR_TRUE);
     } else
     {
       // Region is simple rectangle and it fully overlays rectangle
@@ -907,7 +907,7 @@ nsRegion& nsRegion::Xor (const nsRegion& aRegion, const nsRect& aRect)
     if (!aRectFast.Intersects (aRegion.mBoundRect))     // Rectangle does not intersect region
     {
       Copy (aRegion);
-      InsertInPlace (new RgnRect (aRectFast), true);
+      InsertInPlace (new RgnRect (aRectFast), PR_TRUE);
     } else
     {
       // Region is simple rectangle and it fully overlays rectangle
@@ -994,9 +994,9 @@ nsRegion& nsRegion::Sub (const nsRegion& aRegion, const nsRect& aRect)
 bool nsRegion::Contains (const nsRect& aRect) const
 {
   if (aRect.IsEmpty())
-    return true;
+    return PR_TRUE;
   if (IsEmpty())
-    return false;
+    return PR_FALSE;
   if (!IsComplex())
     return mBoundRect.Contains (aRect);
 
@@ -1011,25 +1011,25 @@ bool nsRegion::Contains (const nsRegion& aRgn) const
   nsRegionRectIterator iter(aRgn);
   while (const nsRect* r = iter.Next()) {
     if (!Contains (*r)) {
-      return false;
+      return PR_FALSE;
     }
   }
-  return true;
+  return PR_TRUE;
 }
 
 bool nsRegion::Intersects (const nsRect& aRect) const
 {
   if (aRect.IsEmpty() || IsEmpty())
-    return false;
+    return PR_FALSE;
 
   const RgnRect* r = mRectListHead.next;
   while (r != &mRectListHead)
   {
     if (r->Intersects(aRect))
-      return true;
+      return PR_TRUE;
     r = r->next;
   }
-  return false;
+  return PR_FALSE;
 }
 
 // Subtract region from current region.
@@ -1255,17 +1255,17 @@ void nsRegion::SubRect (const nsRectFast& aRect, nsRegion& aResult, nsRegion& aC
 bool nsRegion::IsEqual (const nsRegion& aRegion) const
 {
   if (mRectCount == 0)
-    return (aRegion.mRectCount == 0) ? true : false;
+    return (aRegion.mRectCount == 0) ? PR_TRUE : PR_FALSE;
 
   if (aRegion.mRectCount == 0)
-    return (mRectCount == 0) ? true : false;
+    return (mRectCount == 0) ? PR_TRUE : PR_FALSE;
 
   if (mRectCount == 1 && aRegion.mRectCount == 1) // Both regions are simple rectangles
     return (mRectListHead.next->IsEqualInterior(*aRegion.mRectListHead.next));
   else                                            // At least one is complex region.
   {
     if (!mBoundRect.IsEqualInterior(aRegion.mBoundRect)) // If regions are equal then bounding rectangles should match
-      return false;
+      return PR_FALSE;
     else
     {
       nsRegion TmpRegion;
@@ -1544,9 +1544,9 @@ namespace {
     }
     bool operator<(const SizePair& aOther) const {
       if (mSizeContainingRect < aOther.mSizeContainingRect)
-        return true;
+        return PR_TRUE;
       if (mSizeContainingRect > aOther.mSizeContainingRect)
-        return false;
+        return PR_FALSE;
       return mSize < aOther.mSize;
     }
     bool operator>(const SizePair& aOther) const {

@@ -353,18 +353,14 @@ IsValidGUID(const nsCString& aGUID)
 }
 
 void
-ForceWALCheckpoint()
+ForceWALCheckpoint(mozIStorageConnection* aDBConn)
 {
-  nsRefPtr<Database> DB = Database::GetDatabase();
-  if (DB) {
-    nsCOMPtr<mozIStorageAsyncStatement> stmt = DB->GetAsyncStatement(
-      "pragma wal_checkpoint "
-    );
-    if (stmt) {
-      nsCOMPtr<mozIStoragePendingStatement> handle;
-      (void)stmt->ExecuteAsync(nsnull, getter_AddRefs(handle));
-    }
-  }
+  nsCOMPtr<mozIStorageAsyncStatement> stmt;
+  (void)aDBConn->CreateAsyncStatement(NS_LITERAL_CSTRING(
+    "pragma wal_checkpoint "
+  ), getter_AddRefs(stmt));
+  nsCOMPtr<mozIStoragePendingStatement> handle;
+  (void)stmt->ExecuteAsync(nsnull, getter_AddRefs(handle));
 }
 
 bool

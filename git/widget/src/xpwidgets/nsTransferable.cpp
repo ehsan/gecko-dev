@@ -358,7 +358,7 @@ nsTransferable::GetTransferData(const char *aFlavor, nsISupports **aData, PRUint
           }
         }
         mFormatConv->Convert(data.GetFlavor().get(), dataBytes, len, aFlavor, aData, aDataLen);
-        found = true;
+        found = PR_TRUE;
         break;
       }
     }
@@ -488,7 +488,7 @@ NS_IMETHODIMP
 nsTransferable::IsLargeDataSet(bool *_retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
-  *_retval = false;
+  *_retval = PR_FALSE;
   return NS_OK;
 }
 

@@ -143,7 +143,7 @@ XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
 XPCOMUtils.defineLazyServiceGetter(this, "CookieSvc",
   "@mozilla.org/cookiemanager;1", "nsICookieManager2");
 
-#ifdef MOZ_CRASHREPORTER
+#ifdef MOZ_CRASH_REPORTER
 XPCOMUtils.defineLazyServiceGetter(this, "CrashReporter",
   "@mozilla.org/xre/app-info;1", "nsICrashReporter");
 #endif
@@ -2481,19 +2481,7 @@ SessionStoreService.prototype = {
     if (ix != -1 && total[ix] && total[ix].sizemode == "minimized")
       ix = -1;
 
-    let session = {
-      state: this._loadState == STATE_RUNNING ? STATE_RUNNING_STR : STATE_STOPPED_STR,
-      lastUpdate: Date.now(),
-      startTime: this._sessionStartTime,
-      recentCrashes: this._recentCrashes
-    };
-
-    return {
-      windows: total,
-      selectedWindow: ix + 1,
-      _closedWindows: lastClosedWindowsCopy,
-      session: session
-    };
+    return { windows: total, selectedWindow: ix + 1, _closedWindows: lastClosedWindowsCopy };
   },
 
   /**
@@ -2577,7 +2565,7 @@ SessionStoreService.prototype = {
       this._closedWindows = root._closedWindows;
 
     var winData;
-    if (!root.selectedWindow || root.selectedWindow > root.windows.length) {
+    if (!root.selectedWindow) {
       root.selectedWindow = 0;
     } else {
       // put the selected window at the beginning of the array to ensure that
@@ -3275,48 +3263,31 @@ SessionStoreService.prototype = {
         if (!node)
           continue;
 
-        let eventType;
         let value = aData[key];
         if (typeof value == "string" && node.type != "file") {
           if (node.value == value)
             continue; // don't dispatch an input event for no change
 
           node.value = value;
-          eventType = "input";
-        }
-        else if (typeof value == "boolean") {
-          if (node.checked == value)
-            continue; // don't dispatch a change event for no change
 
-          node.checked = value;
-          eventType = "change";
+          let event = aDocument.createEvent("UIEvents");
+          event.initUIEvent("input", true, true, aDocument.defaultView, 0);
+          node.dispatchEvent(event);
         }
-        else if (typeof value == "number") {
+        else if (typeof value == "boolean")
+          node.checked = value;
+        else if (typeof value == "number")
           try {
             node.selectedIndex = value;
-            eventType = "change";
           } catch (ex) { /* throws for invalid indices */ }
-        }
-        else if (value && value.fileList && value.type == "file" && node.type == "file") {
+        else if (value && value.fileList && value.type == "file" && node.type == "file")
           node.mozSetFileNameArray(value.fileList, value.fileList.length);
-          eventType = "input";
-        }
         else if (value && typeof value.indexOf == "function" && node.options) {
           Array.forEach(node.options, function(aOpt, aIx) {
             aOpt.selected = value.indexOf(aIx) > -1;
-
-            // Only fire the event here if this wasn't selected by default
-            if (!aOpt.defaultSelected)
-              eventType = "change";
           });
         }
-
-        // Fire events for this node if applicable
-        if (eventType) {
-          let event = aDocument.createEvent("UIEvents");
-          event.initUIEvent(eventType, true, true, aDocument.defaultView, 0);
-          node.dispatchEvent(event);
-        }
+        // NB: dispatching "change" events might have unintended side-effects
       }
     }
 
@@ -3549,6 +3520,14 @@ SessionStoreService.prototype = {
         Services.prefs.savePrefFile(null);
       }
     }
+
+    oState.session = {
+      state: this._loadState == STATE_RUNNING ? STATE_RUNNING_STR : STATE_STOPPED_STR,
+      lastUpdate: Date.now(),
+      startTime: this._sessionStartTime
+    };
+    if (this._recentCrashes)
+      oState.session.recentCrashes = this._recentCrashes;
 
     // Persist the last session if we deferred restoring it
     if (this._lastSessionState)
@@ -3817,7 +3796,7 @@ SessionStoreService.prototype = {
    * Annotate a breakpad crash report with the currently selected tab's URL.
    */
   _updateCrashReportURL: function sss_updateCrashReportURL(aWindow) {
-#ifdef MOZ_CRASHREPORTER
+#ifdef MOZ_CRASH_REPORTER
     try {
       var currentURI = aWindow.gBrowser.currentURI.clone();
       // if the current URI contains a username/password, remove it

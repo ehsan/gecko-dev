@@ -375,7 +375,9 @@ pref("privacy.item.geolocation", true);
 pref("privacy.item.siteSettings", true);
 pref("privacy.item.syncAccount", true);
 
+#ifdef MOZ_PLATFORM_MAEMO
 pref("plugins.force.wmode", "opaque");
+#endif
 
 // URL to the Learn More link XXX this is the firefox one.  Bug 495578 fixes this.
 pref("browser.geolocation.warning.infoURL", "http://www.mozilla.com/%LOCALE%/firefox/geolocation/");
@@ -435,14 +437,10 @@ pref("browser.ui.touch.weight.visited", 120); // percentage
 // plugins
 #if MOZ_PLATFORM_MAEMO == 6
 pref("plugin.disable", false);
-pref("dom.ipc.plugins.enabled", true);
-#elifdef ANDROID
-pref("plugin.disable", false);
-pref("dom.ipc.plugins.enabled", false);
 #else
 pref("plugin.disable", true);
-pref("dom.ipc.plugins.enabled", true);
 #endif
+pref("dom.ipc.plugins.enabled", true);
 
 // process priority
 // higher values give content process less CPU time
@@ -666,7 +664,7 @@ pref("browser.safebrowsing.malware.reportURL", "http://safebrowsing.clients.goog
 
 // True if this is the first time we are showing about:firstrun
 pref("browser.firstrun.show.uidiscovery", true);
-pref("browser.firstrun.show.localepicker", false);
+pref("browser.firstrun.show.localepicker", true);
 
 // True if you always want dump() to work
 //

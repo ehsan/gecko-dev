@@ -133,7 +133,7 @@ static bool SendLM()
 {
   nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
   if (!prefs)
-    return false;
+    return PR_FALSE;
 
   bool val;
   nsresult rv = prefs->GetBoolPref("network.ntlm.send-lm-response", &val);
@@ -955,11 +955,11 @@ des_encrypt(const PRUint8 *key, const PRUint8 *src, PRUint8 *hash)
 
 done:
   if (ctxt)
-    PK11_DestroyContext(ctxt, true);
+    PK11_DestroyContext(ctxt, PR_TRUE);
   if (symkey)
     PK11_FreeSymKey(symkey);
   if (param)
-    SECITEM_FreeItem(param, true);
+    SECITEM_FreeItem(param, PR_TRUE);
   if (slot)
     PK11_FreeSlot(slot);
 }
@@ -980,6 +980,6 @@ static void md5sum(const PRUint8 *input, PRUint32 inputLen, PRUint8 *result)
         PK11_DigestFinal(ctxt, result, &resultLen, resultLen);
       }
     }
-    PK11_DestroyContext(ctxt, true);
+    PK11_DestroyContext(ctxt, PR_TRUE);
   }
 }

@@ -92,7 +92,7 @@ CalculateTables()
         }
     }
 
-    sTablesInitialized = true;
+    sTablesInitialized = PR_TRUE;
 }
 
 void
@@ -277,7 +277,7 @@ CreateSamplingRestrictedDrawable(gfxDrawable* aDrawable,
 
     nsRefPtr<gfxContext> tmpCtx = new gfxContext(temp);
     tmpCtx->SetOperator(OptimalFillOperator());
-    aDrawable->Draw(tmpCtx, needed - needed.TopLeft(), true,
+    aDrawable->Draw(tmpCtx, needed - needed.TopLeft(), PR_TRUE,
                     gfxPattern::FILTER_FAST, gfxMatrix().Translate(needed.TopLeft()));
 
     nsRefPtr<gfxPattern> resultPattern = new gfxPattern(temp);
@@ -297,7 +297,7 @@ struct NS_STACK_CLASS AutoCairoPixmanBugWorkaround
                                  const gfxMatrix& aDeviceSpaceToImageSpace,
                                  const gfxRect&   aFill,
                                  const gfxASurface::gfxSurfaceType& aSurfaceType)
-     : mContext(aContext), mSucceeded(true), mPushedGroup(false)
+     : mContext(aContext), mSucceeded(PR_TRUE), mPushedGroup(PR_FALSE)
     {
         // Quartz's limits for matrix are much larger than pixman
         if (aSurfaceType == gfxASurface::SurfaceTypeQuartz)
@@ -308,7 +308,7 @@ struct NS_STACK_CLASS AutoCairoPixmanBugWorkaround
             !IsSafeImageTransformComponent(aDeviceSpaceToImageSpace.yx) ||
             !IsSafeImageTransformComponent(aDeviceSpaceToImageSpace.yy)) {
             NS_WARNING("Scaling up too much, bailing out");
-            mSucceeded = false;
+            mSucceeded = PR_FALSE;
             return;
         }
 
@@ -332,7 +332,7 @@ struct NS_STACK_CLASS AutoCairoPixmanBugWorkaround
         mContext->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
         mContext->SetOperator(gfxContext::OPERATOR_OVER);
 
-        mPushedGroup = true;
+        mPushedGroup = PR_TRUE;
     }
 
     ~AutoCairoPixmanBugWorkaround()
@@ -410,7 +410,7 @@ gfxUtils::DrawPixelSnapped(gfxContext*      aContext,
         // We no longer need to tile: Either we never needed to, or we already
         // filled a surface with the tiled pattern; this surface can now be
         // drawn without tiling.
-        doTile = false;
+        doTile = PR_FALSE;
     }
 
     gfxContext::GraphicsOperator op = aContext->CurrentOperator();
@@ -463,13 +463,13 @@ ClipToRegionInternal(gfxContext* aContext, const nsIntRegion& aRegion,
 /*static*/ void
 gfxUtils::ClipToRegion(gfxContext* aContext, const nsIntRegion& aRegion)
 {
-  ClipToRegionInternal(aContext, aRegion, false);
+  ClipToRegionInternal(aContext, aRegion, PR_FALSE);
 }
 
 /*static*/ void
 gfxUtils::ClipToRegionSnapped(gfxContext* aContext, const nsIntRegion& aRegion)
 {
-  ClipToRegionInternal(aContext, aRegion, true);
+  ClipToRegionInternal(aContext, aRegion, PR_TRUE);
 }
 
 /*static*/ gfxFloat
@@ -504,13 +504,13 @@ gfxUtils::ClampToScaleFactor(gfxFloat aVal)
 /*static*/ void
 gfxUtils::PathFromRegion(gfxContext* aContext, const nsIntRegion& aRegion)
 {
-  PathFromRegionInternal(aContext, aRegion, false);
+  PathFromRegionInternal(aContext, aRegion, PR_FALSE);
 }
 
 /*static*/ void
 gfxUtils::PathFromRegionSnapped(gfxContext* aContext, const nsIntRegion& aRegion)
 {
-  PathFromRegionInternal(aContext, aRegion, true);
+  PathFromRegionInternal(aContext, aRegion, PR_TRUE);
 }
 
 
@@ -554,7 +554,7 @@ gfxUtils::GetYCbCrToRGBDestFormatAndSize(const PlanarYCbCrImage::Data& aData,
                                         aData.mPicSize.width,
                                         aData.mPicSize.height,
                                         yuvtype)) {
-      prescale = false;
+      prescale = PR_FALSE;
     }
 #else
     // yuv2rgb16 function not available
@@ -569,7 +569,7 @@ gfxUtils::GetYCbCrToRGBDestFormatAndSize(const PlanarYCbCrImage::Data& aData,
     /* ScaleYCbCrToRGB32 does not support a picture offset, nor 4:4:4 data.
        See bugs 639415 and 640073. */
     if (aData.mPicX != 0 || aData.mPicY != 0 || yuvtype == gfx::YV24)
-      prescale = false;
+      prescale = PR_FALSE;
   }
   if (!prescale) {
     aSuggestedSize = aData.mPicSize;

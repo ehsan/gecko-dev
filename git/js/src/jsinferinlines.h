@@ -716,8 +716,8 @@ TypeCompartment::addPending(JSContext *cx, TypeConstraint *constraint, TypeSet *
               InferSpewColor(constraint), constraint, InferSpewColorReset(),
               TypeString(type));
 
-    if ((pendingCount == pendingCapacity) && !growPendingArray(cx))
-        return;
+    if (pendingCount == pendingCapacity)
+        growPendingArray(cx);
 
     PendingWork &pending = pendingArray[pendingCount++];
     pending.constraint = constraint;
@@ -962,9 +962,8 @@ TypeSet::addType(JSContext *cx, Type type)
         return;
 
     if (type.isUnknown()) {
-        flags |= TYPE_FLAG_BASE_MASK;
+        flags = TYPE_FLAG_UNKNOWN | (flags & ~baseFlags());
         clearObjects();
-        JS_ASSERT(unknown());
     } else if (type.isPrimitive()) {
         TypeFlags flag = PrimitiveTypeFlag(type.primitive());
         if (flags & flag)
@@ -1282,8 +1281,7 @@ JSScript::ensureRanInference(JSContext *cx)
         js::types::AutoEnterTypeInference enter(cx);
         analysis()->analyzeTypes(cx);
     }
-    return !analysis()->OOM() &&
-        !cx->compartment->types.pendingNukeTypes;
+    return !analysis()->OOM();
 }
 
 inline bool

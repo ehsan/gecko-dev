@@ -89,7 +89,7 @@ nsTSubstring_CharT::MutatePrep( size_type capacity, char_type** oldData, PRUint3
       // Also assert for |capacity| equal to |size_type(-1)|, since we used to
       // use that value to flag immutability.
       NS_ASSERTION(capacity != size_type(-1), "Bogus capacity");
-      return false;
+      return PR_FALSE;
     }
 
     // |curCapacity == 0| means that the buffer is immutable or 0-sized, so we
@@ -100,7 +100,7 @@ nsTSubstring_CharT::MutatePrep( size_type capacity, char_type** oldData, PRUint3
       {
         if (capacity <= curCapacity) {
           mFlags &= ~F_VOIDED;  // mutation clears voided flag
-          return true;
+          return PR_TRUE;
         }
 
         // Use doubling algorithm when forced to increase available capacity.
@@ -134,12 +134,12 @@ nsTSubstring_CharT::MutatePrep( size_type capacity, char_type** oldData, PRUint3
           {
             nsStringBuffer *newHdr = nsStringBuffer::Realloc(hdr, storageSize);
             if (!newHdr)
-              return false; // out-of-memory (original header left intact)
+              return PR_FALSE; // out-of-memory (original header left intact)
 
             hdr = newHdr;
             mData = (char_type*) hdr->Data();
             mFlags &= ~F_VOIDED;  // mutation clears voided flag
-            return true;
+            return PR_TRUE;
           }
       }
 
@@ -161,7 +161,7 @@ nsTSubstring_CharT::MutatePrep( size_type capacity, char_type** oldData, PRUint3
 
         nsStringBuffer* newHdr = nsStringBuffer::Alloc(storageSize);
         if (!newHdr)
-          return false; // we are still in a consistent state
+          return PR_FALSE; // we are still in a consistent state
 
         newData = (char_type*) newHdr->Data();
         newDataFlags = F_TERMINATED | F_SHARED;
@@ -179,7 +179,7 @@ nsTSubstring_CharT::MutatePrep( size_type capacity, char_type** oldData, PRUint3
     // though we are not necessarily terminated at the moment, now is probably
     // still the best time to set F_TERMINATED.
 
-    return true;
+    return PR_TRUE;
   }
 
 void
@@ -196,7 +196,7 @@ nsTSubstring_CharT::ReplacePrepInternal(index_type cutStart, size_type cutLen,
     char_type* oldData;
     PRUint32 oldFlags;
     if (!MutatePrep(newLen, &oldData, &oldFlags))
-      return false; // out-of-memory
+      return PR_FALSE; // out-of-memory
 
     if (oldData)
       {
@@ -240,7 +240,7 @@ nsTSubstring_CharT::ReplacePrepInternal(index_type cutStart, size_type cutLen,
     mData[newLen] = char_type(0);
     mLength = newLen;
 
-    return true;
+    return PR_TRUE;
   }
 
 nsTSubstring_CharT::size_type
@@ -285,9 +285,9 @@ nsTSubstring_CharT::EnsureMutable( size_type newLen )
     if (newLen == size_type(-1) || newLen == mLength)
       {
         if (mFlags & (F_FIXED | F_OWNED))
-          return true;
+          return PR_TRUE;
         if ((mFlags & F_SHARED) && !nsStringBuffer::FromData(mData)->IsReadonly())
-          return true;
+          return PR_TRUE;
 
         // promote to a shared string buffer
         char_type* prevData = mData;
@@ -445,7 +445,7 @@ nsTSubstring_CharT::Adopt( char_type* data, size_type length )
       }
     else
       {
-        SetIsVoid(true);
+        SetIsVoid(PR_TRUE);
       }
   }
 
@@ -547,7 +547,7 @@ nsTSubstring_CharT::SetCapacity( size_type capacity )
         char_type* oldData;
         PRUint32 oldFlags;
         if (!MutatePrep(capacity, &oldData, &oldFlags))
-          return false; // out-of-memory
+          return PR_FALSE; // out-of-memory
 
         // compute new string length
         size_type newLen = NS_MIN(mLength, capacity);
@@ -570,7 +570,7 @@ nsTSubstring_CharT::SetCapacity( size_type capacity )
         mData[capacity] = char_type(0);
       }
 
-    return true;
+    return PR_TRUE;
   }
 
 void

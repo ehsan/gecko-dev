@@ -139,7 +139,7 @@ function LivemarkService() {
   Services.obs.addObserver(this, PlacesUtils.TOPIC_SHUTDOWN, false);
 
   // Observe bookmarks changes.
-  PlacesUtils.addLazyBookmarkObserver(this);
+  PlacesUtils.bookmarks.addObserver(this, false);
 }
 
 LivemarkService.prototype = {
@@ -194,7 +194,7 @@ LivemarkService.prototype = {
     if (aTopic == PlacesUtils.TOPIC_SHUTDOWN) {
       Services.obs.removeObserver(this, aTopic);
       // Remove bookmarks observer.
-      PlacesUtils.removeLazyBookmarkObserver(this);
+      PlacesUtils.bookmarks.removeObserver(this);
       // Stop updating livemarks.
       this.stopUpdateLivemarks();
     }

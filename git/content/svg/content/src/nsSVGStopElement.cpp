@@ -36,15 +36,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsSVGStylableElement.h"
 #include "nsIDOMSVGStopElement.h"
 #include "nsSVGNumber2.h"
 #include "nsSVGUtils.h"
 #include "nsGenericHTMLElement.h"
-
-using namespace mozilla;
 
 typedef nsSVGStylableElement nsSVGStopElementBase;
 
@@ -83,7 +79,7 @@ protected:
 };
 
 nsSVGElement::NumberInfo nsSVGStopElement::sNumberInfo =
-{ &nsGkAtoms::offset, 0, true };
+{ &nsGkAtoms::offset, 0, PR_TRUE };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(Stop)
 
@@ -143,7 +139,7 @@ nsSVGStopElement::IsAttributeMapped(const nsIAtom* name) const
     sGradientStopMap
   };
   
-  return FindAttributeDependence(name, map, ArrayLength(map)) ||
+  return FindAttributeDependence(name, map, NS_ARRAY_LENGTH(map)) ||
     nsSVGStopElementBase::IsAttributeMapped(name);
 }
 

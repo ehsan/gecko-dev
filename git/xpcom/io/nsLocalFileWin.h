@@ -117,7 +117,7 @@ private:
 
     PRFileInfo64 mFileInfo64;
 
-    void MakeDirty() { mDirty = true; mShortWorkingPath.Truncate(); }
+    void MakeDirty() { mDirty = PR_TRUE; mShortWorkingPath.Truncate(); }
 
     nsresult ResolveAndStat();
     nsresult ResolveShortcut();

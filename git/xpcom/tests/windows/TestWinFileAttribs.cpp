@@ -97,7 +97,7 @@ nsresult TestWinAttribs()
     //wprintf(filePath);
     //wprintf(L"\n");
 
-    rv = NS_NewLocalFile(nsEmbedString(filePath), false,
+    rv = NS_NewLocalFile(nsEmbedString(filePath), PR_FALSE,
                          getter_AddRefs(localFile));
     if (NS_FAILED(rv))
     {

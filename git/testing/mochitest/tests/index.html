@@ -4,6 +4,7 @@
     <script type="text/javascript" src="../MochiKit/MochiKit.js"></script>
     <script type="text/javascript" src="SimpleTest/TestRunner.js"></script>
     <script type="text/javascript" src="SimpleTest/MozillaLogger.js"></script>
+    <script type="text/javascript" src="SimpleTest/quit.js"></script>
     <!--<link rel="stylesheet" type="text/css" href="/static/main.css" />-->
 </head>
 <body>
@@ -21,9 +22,9 @@ var params = parseQueryString(location.search.substring(1), true);
 var fileLevel =  params.fileLevel || null;
 var consoleLevel = params.consoleLevel || null;
 
-// closeWhenDone tells us to close the browser when complete
+// closeWhenDone tells us to call quit.js when complete
 if (params.closeWhenDone) {
-  TestRunner.onComplete = SpecialPowers.quit;
+  TestRunner.onComplete = goQuitApplication;
 }
 
 // logFile to write our results

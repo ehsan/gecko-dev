@@ -52,8 +52,8 @@ class nsPresContext;
 
 nsHtml5TreeBuilder::nsHtml5TreeBuilder(nsAHtml5TreeOpSink* aOpSink,
                                        nsHtml5TreeOpStage* aStage)
-  : scriptingEnabled(false)
-  , fragment(false)
+  : scriptingEnabled(PR_FALSE)
+  , fragment(PR_FALSE)
   , contextNode(nsnull)
   , formPointer(nsnull)
   , headPointer(nsnull)
@@ -61,9 +61,9 @@ nsHtml5TreeBuilder::nsHtml5TreeBuilder(nsAHtml5TreeOpSink* aOpSink,
   , mHandles(new nsIContent*[NS_HTML5_TREE_BUILDER_HANDLE_ARRAY_LENGTH])
   , mHandlesUsed(0)
   , mSpeculativeLoadStage(aStage)
-  , mCurrentHtmlScriptIsAsyncOrDefer(false)
+  , mCurrentHtmlScriptIsAsyncOrDefer(PR_FALSE)
 #ifdef DEBUG
-  , mActive(false)
+  , mActive(PR_FALSE)
 #endif
 {
   MOZ_COUNT_CTOR(nsHtml5TreeBuilder);
@@ -393,10 +393,10 @@ nsHtml5TreeBuilder::markMalformedIfScript(nsIContent** aElement)
 void
 nsHtml5TreeBuilder::start(bool fragment)
 {
-  mCurrentHtmlScriptIsAsyncOrDefer = false;
+  mCurrentHtmlScriptIsAsyncOrDefer = PR_FALSE;
   deepTreeSurrogateParent = nsnull;
 #ifdef DEBUG
-  mActive = true;
+  mActive = PR_TRUE;
 #endif
 }
 
@@ -405,7 +405,7 @@ nsHtml5TreeBuilder::end()
 {
   mOpQueue.Clear();
 #ifdef DEBUG
-  mActive = false;
+  mActive = PR_FALSE;
 #endif
 }
 
@@ -488,7 +488,7 @@ nsHtml5TreeBuilder::elementPopped(PRInt32 aNamespace, nsIAtom* aName, nsIContent
       nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
       NS_ASSERTION(treeOp, "Tree op allocation failed.");
       treeOp->Init(eTreeOpRunScriptAsyncDefer, aElement);      
-      mCurrentHtmlScriptIsAsyncOrDefer = false;
+      mCurrentHtmlScriptIsAsyncOrDefer = PR_FALSE;
       return;
     }
     requestSuspension();
@@ -601,7 +601,7 @@ nsHtml5TreeBuilder::HasScript()
 {
   PRUint32 len = mOpQueue.Length();
   if (!len) {
-    return false;
+    return PR_FALSE;
   }
   return mOpQueue.ElementAt(len - 1).IsRunScript();
 }
@@ -629,7 +629,7 @@ nsHtml5TreeBuilder::Flush(bool aDiscretionary)
   }
   // no op sink: throw away ops
   mOpQueue.Clear();
-  return false;
+  return PR_FALSE;
 }
 
 void
@@ -685,13 +685,6 @@ nsHtml5TreeBuilder::DropHandles()
 {
   mOldHandles.Clear();
   mHandlesUsed = 0;
-}
-
-void
-nsHtml5TreeBuilder::MarkAsBroken()
-{
-  mOpQueue.Clear(); // Previous ops don't matter anymore
-  mOpQueue.AppendElement()->Init(eTreeOpMarkAsBroken);
 }
 
 // DocumentModeHandler

@@ -41,10 +41,9 @@
 
 #include "jscntxt.h"
 #include "jsapi.h"
+#include "jshashtable.h"
 #include "prlink.h"
 #include "ffi.h"
-
-#include "js/HashTable.h"
 
 namespace js {
 namespace ctypes {

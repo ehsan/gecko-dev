@@ -48,7 +48,7 @@ static bool
 DeleteCString(nsHashKey *aKey, void *aData, void* closure)
 {
   NS_Free(aData);
-  return true;
+  return PR_TRUE;
 }
 
 nsInt2StrHashtable::nsInt2StrHashtable()

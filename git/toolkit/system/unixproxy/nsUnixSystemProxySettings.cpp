@@ -104,7 +104,7 @@ IsInNoProxyList(const nsACString& aHost, PRInt32 aPort, const char* noProxyVal)
   
   nsCAutoString noProxy(noProxyVal);
   if (noProxy.EqualsLiteral("*"))
-    return true;
+    return PR_TRUE;
     
   noProxy.StripWhitespace();
   
@@ -143,13 +143,13 @@ IsInNoProxyList(const nsACString& aHost, PRInt32 aPort, const char* noProxyVal)
       nsDependentCSubstring hostStr(pos, colon);
       // By using StringEndsWith instead of an equality comparator, we can include sub-domains
       if (StringEndsWith(aHost, hostStr, nsCaseInsensitiveCStringComparator()))
-        return true;
+        return PR_TRUE;
     }
     
     pos = nextPos;
   }
   
-  return false;
+  return PR_FALSE;
 }
 
 static void SetProxyResult(const char* aType, const nsACString& aHost,
@@ -272,7 +272,7 @@ static bool ConvertToIPV6Addr(const nsACString& aName,
 {
   PRNetAddr addr;
   if (PR_StringToNetAddr(PromiseFlatCString(aName).get(), &addr) != PR_SUCCESS)
-    return false;
+    return PR_FALSE;
 
   PRIPv6Addr ipv6;
   // convert parsed address to IPv6
@@ -283,22 +283,22 @@ static bool ConvertToIPV6Addr(const nsACString& aName,
     // copy the address
     memcpy(&ipv6, &addr.ipv6.ip, sizeof(PRIPv6Addr));
   } else {
-    return false;
+    return PR_FALSE;
   }
   
-  return true;
+  return PR_TRUE;
 }
 
 static bool GConfIgnoreHost(const nsACString& aIgnore,
                               const nsACString& aHost)
 {
   if (aIgnore.Equals(aHost, nsCaseInsensitiveCStringComparator()))
-    return true;
+    return PR_TRUE;
 
   if (aIgnore.First() == '*' &&
       StringEndsWith(aHost, nsDependentCSubstring(aIgnore, 1),
                      nsCaseInsensitiveCStringComparator()))
-    return true;
+    return PR_TRUE;
 
   PRInt32 mask = 128;
   nsReadingIterator<char> start;
@@ -324,7 +324,7 @@ static bool GConfIgnoreHost(const nsACString& aIgnore,
   PRIPv6Addr ignoreAddr, hostAddr;
   if (!ConvertToIPV6Addr(aIgnore, &ignoreAddr) ||
       !ConvertToIPV6Addr(aHost, &hostAddr))
-    return false;
+    return PR_FALSE;
 
   proxy_MaskIPv6Addr(ignoreAddr, mask);
   proxy_MaskIPv6Addr(hostAddr, mask);

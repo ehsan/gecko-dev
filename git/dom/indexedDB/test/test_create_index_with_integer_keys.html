@@ -15,31 +15,28 @@
       const data = { id: new Date().getTime(),
                      num: parseInt(Math.random() * 1000) };
 
-      let request = mozIndexedDB.open(window.location.pathname, 1);
+      let request = mozIndexedDB.open(window.location.pathname);
       request.onerror = errorHandler;
-      request.onupgradeneeded = grabEventAndContinueHandler;
+      request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
 
       let db = event.target.result;
       db.onerror = errorHandler;
 
-      event.target.onsuccess = continueToNextStep;
+      db.setVersion("1").onsuccess = grabEventAndContinueHandler;
+      event = yield;
+
+      event.target.transaction.oncomplete = continueToNextStep;
 
       // Make object store, add data.
       let objectStore = db.createObjectStore("foo", { keyPath: "id" });
       objectStore.add(data);
       yield;
-      db.close();
 
-      let request = mozIndexedDB.open(window.location.pathname, 2);
-      request.onerror = errorHandler;
-      request.onupgradeneeded = grabEventAndContinueHandler;
-      let event = yield;
+      db.setVersion("2").onsuccess = grabEventAndContinueHandler;
+      event = yield;
 
-      let db2 = event.target.result;
-      db2.onerror = errorHandler;
-
-      event.target.onsuccess = continueToNextStep;
+      event.target.transaction.oncomplete = continueToNextStep;
 
       // Create index.
       event.target.transaction.objectStore("foo").createIndex("foo", "num");
@@ -49,8 +46,8 @@
       let seenCount = 0;
 
 
-      db2.transaction("foo").objectStore("foo").index("foo")
-         .openKeyCursor().onsuccess = function(event) {
+      db.transaction("foo").objectStore("foo").index("foo")
+        .openKeyCursor().onsuccess = function(event) {
         let cursor = event.target.result;
         if (cursor) {
           is(cursor.key, data.num, "Good key");

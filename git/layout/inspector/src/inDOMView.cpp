@@ -36,8 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "inDOMView.h"
 #include "inIDOMUtils.h"
 
@@ -66,7 +64,7 @@
 #include "nsIAccessibilityService.h"
 #endif
 
-using namespace mozilla;
+namespace dom = mozilla::dom;
 
 ////////////////////////////////////////////////////////////////////////
 // inDOMViewNode
@@ -97,10 +95,10 @@ inDOMViewNode::inDOMViewNode(nsIDOMNode* aNode) :
   next(nsnull),
   previous(nsnull),
   level(0),
-  isOpen(false),
-  isContainer(false),
-  hasAnonymous(false),
-  hasSubDocument(false)
+  isOpen(PR_FALSE),
+  isContainer(PR_FALSE),
+  hasAnonymous(PR_FALSE),
+  hasSubDocument(PR_FALSE)
 {
 
 }
@@ -112,10 +110,10 @@ inDOMViewNode::~inDOMViewNode()
 ////////////////////////////////////////////////////////////////////////
 
 inDOMView::inDOMView() :
-  mShowAnonymous(false),
-  mShowSubDocuments(false),
-  mShowWhitespaceNodes(true),
-  mShowAccessibleNodes(false),
+  mShowAnonymous(PR_FALSE),
+  mShowSubDocuments(PR_FALSE),
+  mShowWhitespaceNodes(PR_TRUE),
+  mShowAccessibleNodes(PR_FALSE),
   mWhatToShow(nsIDOMNodeFilter::SHOW_ALL)
 {
 }
@@ -142,7 +140,7 @@ inDOMView::~inDOMView()
 /* static */ void
 inDOMView::InitAtoms()
 {
-  NS_RegisterStaticAtoms(Atoms_info, ArrayLength(Atoms_info));
+  NS_RegisterStaticAtoms(Atoms_info, NS_ARRAY_LENGTH(Atoms_info));
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -492,7 +490,7 @@ inDOMView::IsContainerEmpty(PRInt32 index, bool *_retval)
   RowToNode(index, &node);
   if (!node) return NS_ERROR_FAILURE;
 
-  *_retval = node->isContainer ? false : true;
+  *_retval = node->isContainer ? PR_FALSE : PR_TRUE;
   return NS_OK;
 }
 
@@ -649,7 +647,7 @@ NS_IMETHODIMP
 inDOMView::CanDrop(PRInt32 index, PRInt32 orientation,
                    nsIDOMDataTransfer* aDataTransfer, bool *_retval)
 {
-  *_retval = false;
+  *_retval = PR_FALSE;
   return NS_OK;
 }
 
@@ -868,7 +866,7 @@ inDOMView::ContentInserted(nsIDocument *aDocument, nsIContent* aContainer,
     // Parent is not open, so don't bother creating tree rows for the
     // kids.  But do indicate that it's now a container, if needed.
     if (!parentNode->isContainer) {
-      parentNode->isContainer = true;
+      parentNode->isContainer = PR_TRUE;
       mTree->InvalidateRow(parentRow);
     }
     return;
@@ -954,8 +952,8 @@ inDOMView::ContentRemoved(nsIDocument *aDocument, nsIContent* aContainer,
 
   if (isOnlyChild) {
     // Fix up the parent
-    parentNode->isContainer = false;
-    parentNode->isOpen = false;
+    parentNode->isContainer = PR_FALSE;
+    parentNode->isOpen = PR_FALSE;
     mTree->InvalidateRow(NodeToRow(parentNode));
   }
     
@@ -1102,7 +1100,7 @@ inDOMView::ExpandNode(PRInt32 aRow)
   InsertNodes(list, aRow+1);
 
   if (node)
-    node->isOpen = true;
+    node->isOpen = PR_TRUE;
 }
 
 void
@@ -1119,7 +1117,7 @@ inDOMView::CollapseNode(PRInt32 aRow)
 
   RemoveNodes(aRow+1, row-aRow);
 
-  node->isOpen = false;
+  node->isOpen = PR_FALSE;
 }
 
 //////// NODE AND ROW CONVERSION

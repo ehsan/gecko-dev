@@ -216,14 +216,14 @@ sysPrefDeleteObserver(void *aElement, void *aData) {
         static_cast<SysPrefCallbackData *>(aElement);
     NS_RELEASE(pElement->observer);
     nsMemory::Free(pElement);
-    return true;
+    return PR_TRUE;
 }
 
 NS_IMPL_ISUPPORTS2(nsSystemPrefService, nsIPrefBranch, nsIPrefBranch2)
 
 /* public */
 nsSystemPrefService::nsSystemPrefService()
-    :mInitialized(false),
+    :mInitialized(PR_FALSE),
      mGConf(nsnull),
      mObservers(nsnull)
 {
@@ -231,7 +231,7 @@ nsSystemPrefService::nsSystemPrefService()
 
 nsSystemPrefService::~nsSystemPrefService()
 {
-    mInitialized = false;
+    mInitialized = PR_FALSE;
 
     delete mGConf;
     if (mObservers) {
@@ -261,7 +261,7 @@ nsSystemPrefService::Init()
         }
     }
 
-    mInitialized = true;
+    mInitialized = PR_TRUE;
     return NS_OK;
 }
 
@@ -589,13 +589,13 @@ static const PrefNamePair sPrefNameMapping[] = {
 bool
 gconfDeleteObserver(void *aElement, void *aData) {
     nsMemory::Free(aElement);
-    return true;
+    return PR_TRUE;
 }
 
 GConfProxy::GConfProxy(nsSystemPrefService *aSysPrefService):
     mGConfClient(nsnull),
     mGConfLib(nsnull),
-    mInitialized(false),
+    mInitialized(PR_FALSE),
     mSysPrefService(aSysPrefService),
     mObservers(nsnull)
 {
@@ -620,14 +620,14 @@ GConfProxy::Init()
 {
     SYSPREF_LOG(("GConfProxy:: Init GConfProxy\n"));
     if (!mSysPrefService)
-        return false;
+        return PR_FALSE;
     if (mInitialized)
-        return true;
+        return PR_TRUE;
 
     nsCOMPtr<nsIPrefBranch> pref = do_GetService(NS_PREFSERVICE_CONTRACTID); 
 
     if (!pref)
-        return false;
+        return PR_FALSE;
 
     nsXPIDLCString gconfLibName;
     nsresult rv;
@@ -649,7 +649,7 @@ GConfProxy::Init()
 
     if (!mGConfLib) {
         SYSPREF_LOG(("Fail to load GConf library\n"));
-        return false;
+        return PR_FALSE;
     }
 
     //check every func we need in the gconf library
@@ -675,14 +675,14 @@ GConfProxy::Init()
         SYSPREF_LOG(("Fail to Get default gconf client\n"));
         goto init_failed;
     }
-    mInitialized = true;
-    return true;
+    mInitialized = PR_TRUE;
+    return PR_TRUE;
 
  init_failed_unload:
     PR_UnloadLibrary(mGConfLib);
  init_failed:
     mGConfLib = nsnull;
-    return false;
+    return PR_FALSE;
 }
 
 nsresult

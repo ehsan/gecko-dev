@@ -45,7 +45,7 @@
 #include "nsCOMPtr.h"
 #include "nsString.h"
 #include "nsMargin.h"
-#include "nsGkAtoms.h"
+#include "nsWidgetAtoms.h"
 #include "nsEventStates.h"
 #include "nsTArray.h"
 #include "nsITimer.h"
@@ -94,23 +94,23 @@ class nsNativeTheme : public nsITimerCallback
 
   // button:
   bool IsDefaultButton(nsIFrame* aFrame) {
-    return CheckBooleanAttr(aFrame, nsGkAtoms::_default);
+    return CheckBooleanAttr(aFrame, nsWidgetAtoms::_default);
   }
 
   bool IsButtonTypeMenu(nsIFrame* aFrame);
 
   // checkbox:
   bool IsChecked(nsIFrame* aFrame) {
-    return GetCheckedOrSelected(aFrame, false);
+    return GetCheckedOrSelected(aFrame, PR_FALSE);
   }
 
   // radiobutton:
   bool IsSelected(nsIFrame* aFrame) {
-    return GetCheckedOrSelected(aFrame, true);
+    return GetCheckedOrSelected(aFrame, PR_TRUE);
   }
   
   bool IsFocused(nsIFrame* aFrame) {
-    return CheckBooleanAttr(aFrame, nsGkAtoms::focused);
+    return CheckBooleanAttr(aFrame, nsWidgetAtoms::focused);
   }
   
   // scrollbar button:
@@ -118,7 +118,7 @@ class nsNativeTheme : public nsITimerCallback
 
   // tab:
   bool IsSelectedTab(nsIFrame* aFrame) {
-    return CheckBooleanAttr(aFrame, nsGkAtoms::selected);
+    return CheckBooleanAttr(aFrame, nsWidgetAtoms::selected);
   }
   
   bool IsNextToSelectedTab(nsIFrame* aFrame, PRInt32 aOffset);
@@ -141,16 +141,16 @@ class nsNativeTheme : public nsITimerCallback
 
   // button / toolbarbutton:
   bool IsCheckedButton(nsIFrame* aFrame) {
-    return CheckBooleanAttr(aFrame, nsGkAtoms::checked);
+    return CheckBooleanAttr(aFrame, nsWidgetAtoms::checked);
   }
 
   bool IsSelectedButton(nsIFrame* aFrame) {
-    return CheckBooleanAttr(aFrame, nsGkAtoms::checked) ||
-           CheckBooleanAttr(aFrame, nsGkAtoms::selected);
+    return CheckBooleanAttr(aFrame, nsWidgetAtoms::checked) ||
+           CheckBooleanAttr(aFrame, nsWidgetAtoms::selected);
   }
 
   bool IsOpenButton(nsIFrame* aFrame) {
-    return CheckBooleanAttr(aFrame, nsGkAtoms::open);
+    return CheckBooleanAttr(aFrame, nsWidgetAtoms::open);
   }
 
   bool IsPressedButton(nsIFrame* aFrame);
@@ -171,7 +171,7 @@ class nsNativeTheme : public nsITimerCallback
 
   // textfield:
   bool IsReadOnly(nsIFrame* aFrame) {
-      return CheckBooleanAttr(aFrame, nsGkAtoms::readonly);
+      return CheckBooleanAttr(aFrame, nsWidgetAtoms::readonly);
   }
 
   // menupopup:

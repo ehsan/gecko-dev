@@ -302,9 +302,9 @@ nsPropertyEnumeratorByURL::HasMoreElements(bool * aResult)
     }
 
     if (!hasMore)
-        mCurrent = false;
+        mCurrent = PR_FALSE;
     
-    *aResult = mCurrent ? true : false;
+    *aResult = mCurrent ? PR_TRUE : PR_FALSE;
     
     return NS_OK;
 }

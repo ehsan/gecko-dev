@@ -189,9 +189,9 @@ nsMathMLmfracFrame::MeasureForWidth(nsRenderingContext& aRenderingContext,
                                     nsHTMLReflowMetrics& aDesiredSize)
 {
   return PlaceInternal(aRenderingContext,
-                       false,
+                       PR_FALSE,
                        aDesiredSize,
-                       true);
+                       PR_TRUE);
 }
 
 nscoord
@@ -212,7 +212,7 @@ nsMathMLmfracFrame::Place(nsRenderingContext& aRenderingContext,
   return PlaceInternal(aRenderingContext,
                        aPlaceOrigin,
                        aDesiredSize,
-                       false);
+                       PR_FALSE);
 }
 
 nsresult

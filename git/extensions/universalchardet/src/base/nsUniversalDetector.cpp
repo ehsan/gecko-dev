@@ -47,14 +47,14 @@
 
 nsUniversalDetector::nsUniversalDetector(PRUint32 aLanguageFilter)
 {
-  mDone = false;
+  mDone = PR_FALSE;
   mBestGuess = -1;   //illegal value as signal
-  mInTag = false;
+  mInTag = PR_FALSE;
   mEscCharSetProber = nsnull;
 
-  mStart = true;
+  mStart = PR_TRUE;
   mDetectedCharset = nsnull;
-  mGotData = false;
+  mGotData = PR_FALSE;
   mInputState = ePureAscii;
   mLastChar = '\0';
   mLanguageFilter = aLanguageFilter;
@@ -75,13 +75,13 @@ nsUniversalDetector::~nsUniversalDetector()
 void 
 nsUniversalDetector::Reset()
 {
-  mDone = false;
+  mDone = PR_FALSE;
   mBestGuess = -1;   //illegal value as signal
-  mInTag = false;
+  mInTag = PR_FALSE;
 
-  mStart = true;
+  mStart = PR_TRUE;
   mDetectedCharset = nsnull;
-  mGotData = false;
+  mGotData = PR_FALSE;
   mInputState = ePureAscii;
   mLastChar = '\0';
 
@@ -104,12 +104,12 @@ nsresult nsUniversalDetector::HandleData(const char* aBuf, PRUint32 aLen)
     return NS_OK;
 
   if (aLen > 0)
-    mGotData = true;
+    mGotData = PR_TRUE;
 
   //If the data starts with BOM, we know it is UTF
   if (mStart)
   {
-    mStart = false;
+    mStart = PR_FALSE;
     if (aLen > 2)
       switch (aBuf[0])
         {
@@ -132,7 +132,7 @@ nsresult nsUniversalDetector::HandleData(const char* aBuf, PRUint32 aLen)
 
       if (mDetectedCharset)
       {
-        mDone = true;
+        mDone = PR_TRUE;
         return NS_OK;
       }
   }
@@ -202,7 +202,7 @@ nsresult nsUniversalDetector::HandleData(const char* aBuf, PRUint32 aLen)
     st = mEscCharSetProber->HandleData(aBuf, aLen);
     if (st == eFoundIt)
     {
-      mDone = true;
+      mDone = PR_TRUE;
       mDetectedCharset = mEscCharSetProber->GetCharSetName();
     }
     break;
@@ -214,7 +214,7 @@ nsresult nsUniversalDetector::HandleData(const char* aBuf, PRUint32 aLen)
         st = mCharSetProbers[i]->HandleData(aBuf, aLen);
         if (st == eFoundIt) 
         {
-          mDone = true;
+          mDone = PR_TRUE;
           mDetectedCharset = mCharSetProbers[i]->GetCharSetName();
           return NS_OK;
         }
@@ -241,7 +241,7 @@ void nsUniversalDetector::DataEnd()
 
   if (mDetectedCharset)
   {
-    mDone = true;
+    mDone = PR_TRUE;
     Report(mDetectedCharset);
     return;
   }

@@ -255,12 +255,12 @@ nsCacheEntry::RemoveDescriptor(nsCacheEntryDescriptor * descriptor)
     PR_REMOVE_AND_INIT_LINK(descriptor);
 
     if (!PR_CLIST_IS_EMPTY(&mDescriptorQ))
-        return true;  // stay active if we still have open descriptors
+        return PR_TRUE;  // stay active if we still have open descriptors
 
     if (PR_CLIST_IS_EMPTY(&mRequestQ))
-        return false; // no descriptors or requests, we can deactivate
+        return PR_FALSE; // no descriptors or requests, we can deactivate
 
-    return true;     // find next best request to give a descriptor to
+    return PR_TRUE;     // find next best request to give a descriptor to
 }
 
 
@@ -403,7 +403,7 @@ nsCacheEntryHashTable::ops =
 
 
 nsCacheEntryHashTable::nsCacheEntryHashTable()
-    : initialized(false)
+    : initialized(PR_FALSE)
 {
     MOZ_COUNT_CTOR(nsCacheEntryHashTable);
 }
@@ -434,7 +434,7 @@ nsCacheEntryHashTable::Shutdown()
 {
     if (initialized) {
         PL_DHashTableFinish(&table);
-        initialized = false;
+        initialized = PR_FALSE;
     }
 }
 

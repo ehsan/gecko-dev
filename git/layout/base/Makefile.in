@@ -74,6 +74,7 @@ EXPORTS		= \
 		nsFrameManager.h \
 		nsFrameManagerBase.h \
 		nsFrameTraversal.h \
+		nsIDocumentViewer.h \
 		nsIFrameTraversal.h \
 		nsILayoutDebugger.h \
 		nsILayoutHistoryState.h \

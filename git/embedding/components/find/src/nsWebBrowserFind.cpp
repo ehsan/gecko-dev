@@ -91,12 +91,12 @@
 //*****************************************************************************
 
 nsWebBrowserFind::nsWebBrowserFind() :
-    mFindBackwards(false),
-    mWrapFind(false),
-    mEntireWord(false),
-    mMatchCase(false),
-    mSearchSubFrames(true),
-    mSearchParentFrames(true)
+    mFindBackwards(PR_FALSE),
+    mWrapFind(PR_FALSE),
+    mEntireWord(PR_FALSE),
+    mMatchCase(PR_FALSE),
+    mSearchSubFrames(PR_TRUE),
+    mSearchParentFrames(PR_TRUE)
 {
 }
 
@@ -111,7 +111,7 @@ NS_IMPL_ISUPPORTS2(nsWebBrowserFind, nsIWebBrowserFind, nsIWebBrowserFindInFrame
 NS_IMETHODIMP nsWebBrowserFind::FindNext(bool *outDidFind)
 {
     NS_ENSURE_ARG_POINTER(outDidFind);
-    *outDidFind = false;
+    *outDidFind = PR_FALSE;
 
     NS_ENSURE_TRUE(CanFindNext(), NS_ERROR_NOT_INITIALIZED);
 
@@ -153,7 +153,7 @@ NS_IMETHODIMP nsWebBrowserFind::FindNext(bool *outDidFind)
 
     // Beware! This may flush notifications via synchronous
     // ScrollSelectionIntoView.
-    rv = SearchInFrame(searchFrame, false, outDidFind);
+    rv = SearchInFrame(searchFrame, PR_FALSE, outDidFind);
     if (NS_FAILED(rv)) return rv;
     if (*outDidFind)
         return OnFind(searchFrame);     // we are done
@@ -203,7 +203,7 @@ NS_IMETHODIMP nsWebBrowserFind::FindNext(bool *outDidFind)
 
             // Beware! This may flush notifications via synchronous
             // ScrollSelectionIntoView.
-            rv = SearchInFrame(searchFrame, false, outDidFind);
+            rv = SearchInFrame(searchFrame, PR_FALSE, outDidFind);
             if (NS_FAILED(rv)) return rv;
             if (*outDidFind)
                 return OnFind(searchFrame);     // we are done
@@ -212,7 +212,7 @@ NS_IMETHODIMP nsWebBrowserFind::FindNext(bool *outDidFind)
         }
 
         if (curItem.get() == startingItem.get())
-            doFind = true;       // start looking in frames after this one
+            doFind = PR_TRUE;       // start looking in frames after this one
     };
 
     if (!mWrapFind)
@@ -245,7 +245,7 @@ NS_IMETHODIMP nsWebBrowserFind::FindNext(bool *outDidFind)
         {
             // Beware! This may flush notifications via synchronous
             // ScrollSelectionIntoView.
-            rv = SearchInFrame(searchFrame, true, outDidFind);
+            rv = SearchInFrame(searchFrame, PR_TRUE, outDidFind);
             if (NS_FAILED(rv)) return rv;
             if (*outDidFind)
                 return OnFind(searchFrame);        // we are done
@@ -259,7 +259,7 @@ NS_IMETHODIMP nsWebBrowserFind::FindNext(bool *outDidFind)
 
         // Beware! This may flush notifications via synchronous
         // ScrollSelectionIntoView.
-        rv = SearchInFrame(searchFrame, false, outDidFind);
+        rv = SearchInFrame(searchFrame, PR_FALSE, outDidFind);
         if (NS_FAILED(rv)) return rv;
         if (*outDidFind)
             return OnFind(searchFrame);        // we are done
@@ -376,13 +376,13 @@ IsInNativeAnonymousSubtree(nsIContent* aContent)
     while (aContent) {
         nsIContent* bindingParent = aContent->GetBindingParent();
         if (bindingParent == aContent) {
-            return true;
+            return PR_TRUE;
         }
 
         aContent = bindingParent;
     }
 
-    return false;
+    return PR_FALSE;
 }
 
 void nsWebBrowserFind::SetSelectionAndScroll(nsIDOMWindow* aWindow,
@@ -711,7 +711,7 @@ nsresult nsWebBrowserFind::SearchInFrame(nsIDOMWindow* aWindow,
     NS_ENSURE_ARG(aWindow);
     NS_ENSURE_ARG_POINTER(aDidFind);
 
-    *aDidFind = false;
+    *aDidFind = PR_FALSE;
 
     nsCOMPtr<nsIDOMDocument> domDoc;    
     nsresult rv = aWindow->GetDocument(getter_AddRefs(domDoc));
@@ -780,13 +780,13 @@ nsresult nsWebBrowserFind::SearchInFrame(nsIDOMWindow* aWindow,
     // If !aWrapping, search from selection to end
     if (!aWrapping)
         rv = GetSearchLimits(searchRange, startPt, endPt, domDoc, sel,
-                             false);
+                             PR_FALSE);
 
     // If aWrapping, search the part of the starting frame
     // up to the point where we left off.
     else
         rv = GetSearchLimits(searchRange, startPt, endPt, domDoc, sel,
-                             true);
+                             PR_TRUE);
 
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -795,7 +795,7 @@ nsresult nsWebBrowserFind::SearchInFrame(nsIDOMWindow* aWindow,
 
     if (NS_SUCCEEDED(rv) && foundRange)
     {
-        *aDidFind = true;
+        *aDidFind = PR_TRUE;
         sel->RemoveAllRanges();
         // Beware! This may flush notifications via synchronous
         // ScrollSelectionIntoView.

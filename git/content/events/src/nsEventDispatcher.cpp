@@ -203,7 +203,7 @@ public:
         return NS_OK;
       }
       mManager =
-        static_cast<nsEventListenerManager*>(mTarget->GetListenerManager(false));
+        static_cast<nsEventListenerManager*>(mTarget->GetListenerManager(PR_FALSE));
     }
     if (mManager) {
       NS_ASSERTION(aVisitor.mEvent->currentTarget == nsnull,
@@ -500,7 +500,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
 
       aEvent->originalTarget = target;
       target = newTarget;
-      retargeted = true;
+      retargeted = PR_TRUE;
     }
   }
 
@@ -514,7 +514,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
     }
 
     NS_ENSURE_STATE(node);
-    nsIDocument* doc = node->OwnerDoc();
+    nsIDocument* doc = node->GetOwnerDoc();
     if (!nsContentUtils::IsChromeDoc(doc)) {
       nsPIDOMWindow* win = doc ? doc->GetInnerWindow() : nsnull;
       // If we can't dispatch the event to chrome, do nothing.
@@ -543,7 +543,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
     if (target->GetContextForEventHandlers(&rv) ||
         NS_FAILED(rv)) {
       nsCOMPtr<nsINode> node = do_QueryInterface(target);
-      if (node && nsContentUtils::IsChromeDoc(node->OwnerDoc())) {
+      if (node && nsContentUtils::IsChromeDoc(node->GetOwnerDoc())) {
         NS_WARNING("Fix the caller!");
       } else {
         NS_ERROR("This is unsafe! Fix the caller!");
@@ -668,7 +668,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
                                              NS_EVENT_FLAG_BUBBLE |
                                              NS_EVENT_FLAG_CAPTURE,
                                              aCallback,
-                                             false,
+                                             PR_FALSE,
                                              &pusher);
   
         preVisitor.mEventStatus = postVisitor.mEventStatus;

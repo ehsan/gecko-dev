@@ -83,7 +83,7 @@ private:
 };
 
 nsAsyncRedirectVerifyHelper::nsAsyncRedirectVerifyHelper()
-    : mCallbackInitiated(false),
+    : mCallbackInitiated(PR_FALSE),
       mExpectedCallbacks(0),
       mResult(NS_OK)
 {
@@ -107,7 +107,7 @@ nsAsyncRedirectVerifyHelper::Init(nsIChannel* oldChan, nsIChannel* newChan,
     mCallbackThread    = do_GetCurrentThread();
 
     if (synchronize)
-      mWaitingForRedirectCallback = true;
+      mWaitingForRedirectCallback = PR_TRUE;
 
     nsresult rv;
     rv = NS_DispatchToMainThread(this);
@@ -208,8 +208,8 @@ nsAsyncRedirectVerifyHelper::ExplicitCallback(nsresult result)
         return;
     }
 
-    mCallbackInitiated = false;  // reset to ensure only one callback
-    mWaitingForRedirectCallback = false;
+    mCallbackInitiated = PR_FALSE;  // reset to ensure only one callback
+    mWaitingForRedirectCallback = PR_FALSE;
 
     // Now, dispatch the callback on the event-target which called Init()
     nsRefPtr<nsIRunnable> event =
@@ -236,7 +236,7 @@ nsAsyncRedirectVerifyHelper::InitCallback()
     LOG(("nsAsyncRedirectVerifyHelper::InitCallback() "
          "expectedCBs=%d mResult=%x", mExpectedCallbacks, mResult));
 
-    mCallbackInitiated = true;
+    mCallbackInitiated = PR_TRUE;
 
     // Invoke the callback if we are done
     if (mExpectedCallbacks == 0)

@@ -267,7 +267,7 @@ nsXBLDocGlobalObject::SetContext(nsIScriptContext *aScriptContext)
   nsresult rv;
   rv = aScriptContext->InitContext();
   NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Script Language's InitContext failed");
-  aScriptContext->SetGCOnDestruction(false);
+  aScriptContext->SetGCOnDestruction(PR_FALSE);
   aScriptContext->DidInitializeContext();
   // and we set up our global manually
   mScriptContext = aScriptContext;
@@ -424,7 +424,7 @@ static bool IsChromeURI(nsIURI* aURI)
   bool isChrome = false;
   if (NS_SUCCEEDED(aURI->SchemeIs("chrome", &isChrome)))
       return isChrome;
-  return false;
+  return PR_FALSE;
 }
 
 /* Implementation file */
@@ -496,8 +496,8 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsXBLDocumentInfo)
 
 nsXBLDocumentInfo::nsXBLDocumentInfo(nsIDocument* aDocument)
   : mDocument(aDocument),
-    mScriptAccess(true),
-    mIsChrome(false),
+    mScriptAccess(PR_TRUE),
+    mIsChrome(PR_FALSE),
     mBindingTable(nsnull),
     mFirstBinding(nsnull)
 {
@@ -511,7 +511,7 @@ nsXBLDocumentInfo::nsXBLDocumentInfo(nsIDocument* aDocument)
       reg->AllowScriptsForPackage(uri, &allow);
       mScriptAccess = allow;
     }
-    mIsChrome = true;
+    mIsChrome = PR_TRUE;
   }
 }
 
@@ -550,7 +550,7 @@ DeletePrototypeBinding(nsHashKey* aKey, void* aData, void* aClosure)
 {
   nsXBLPrototypeBinding* binding = static_cast<nsXBLPrototypeBinding*>(aData);
   delete binding;
-  return true;
+  return PR_TRUE;
 }
 
 nsresult
@@ -580,7 +580,7 @@ bool FlushScopedSkinSheets(nsHashKey* aKey, void* aData, void* aClosure)
 {
   nsXBLPrototypeBinding* proto = (nsXBLPrototypeBinding*)aData;
   proto->FlushSkinSheets();
-  return true;
+  return PR_TRUE;
 }
 
 void

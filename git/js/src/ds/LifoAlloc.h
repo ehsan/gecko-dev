@@ -49,8 +49,7 @@
  */
 
 #include "jsutil.h"
-
-#include "js/TemplateLib.h"
+#include "jstl.h"
 
 namespace js {
 
@@ -79,8 +78,7 @@ class BumpChunk
     BumpChunk   *next_;
     size_t      bumpSpaceSize;
 
-    char *headerBase() { return reinterpret_cast<char *>(this); }
-    char *bumpBase() const { return limit - bumpSpaceSize; }
+    char *base() const { return limit - bumpSpaceSize; }
 
     BumpChunk *thisDuringConstruction() { return this; }
 
@@ -92,28 +90,29 @@ class BumpChunk
         JS_ASSERT(bump == AlignPtr(bump));
     }
 
+    void clobberUnused() {
+#ifdef DEBUG
+        memset(bump, 0xcd, limit - bump);
+#endif
+    }
+
     void setBump(void *ptr) {
-        JS_ASSERT(bumpBase() <= ptr);
+        JS_ASSERT(base() <= ptr);
         JS_ASSERT(ptr <= limit);
         DebugOnly<char *> prevBump = bump;
         bump = static_cast<char *>(ptr);
-#ifdef DEBUG
-        JS_ASSERT(contains(prevBump));
-
-        /* Clobber the now-free space. */
-        if (prevBump > bump)
-            memset(bump, 0xcd, prevBump - bump);
-#endif
+        if (prevBump < bump)
+            clobberUnused();
     }
 
   public:
     BumpChunk *next() const { return next_; }
     void setNext(BumpChunk *succ) { next_ = succ; }
 
-    size_t used() const { return bump - bumpBase(); }
+    size_t used() const { return bump - base(); }
 
     void resetBump() {
-        setBump(headerBase() + sizeof(BumpChunk));
+        setBump(reinterpret_cast<char *>(this) + sizeof(BumpChunk));
     }
 
     void *mark() const { return bump; }
@@ -125,26 +124,25 @@ class BumpChunk
     }
 
     bool contains(void *mark) const {
-        return bumpBase() <= mark && mark <= limit;
+        return base() <= mark && mark <= limit;
     }
 
-    bool canAlloc(size_t n);
-    bool canAllocUnaligned(size_t n);
+    bool canAlloc(size_t n) {
+        return AlignPtr(bump) + n <= limit;
+    }
+
+    bool canAllocUnaligned(size_t n) {
+        return bump + n <= limit;
+    }
 
     /* Try to perform an allocation of size |n|, return null if not possible. */
     JS_ALWAYS_INLINE
     void *tryAlloc(size_t n) {
         char *aligned = AlignPtr(bump);
         char *newBump = aligned + n;
-
         if (newBump > limit)
             return NULL;
 
-        /* Check for overflow. */
-        if (JS_UNLIKELY(newBump < bump))
-            return NULL;
-
-        JS_ASSERT(canAlloc(n)); /* Ensure consistency between "can" and "try". */
         setBump(newBump);
         return aligned;
     }
@@ -158,7 +156,13 @@ class BumpChunk
     }
 
     static BumpChunk *new_(size_t chunkSize);
-    static void delete_(BumpChunk *chunk);
+
+    static void delete_(BumpChunk *chunk) {
+#ifdef DEBUG
+        memset(chunk, 0xcd, sizeof(*chunk) + chunk->bumpSpaceSize);
+#endif
+        js_free(chunk);
+    }
 };
 
 } /* namespace detail */
@@ -322,10 +326,6 @@ class LifoAllocScope {
     ~LifoAllocScope() {
         if (shouldRelease)
             lifoAlloc->release(mark);
-    }
-
-    LifoAlloc &alloc() {
-        return *lifoAlloc;
     }
 
     void releaseEarly() {

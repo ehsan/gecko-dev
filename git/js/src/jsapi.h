@@ -47,9 +47,8 @@
 #include <stdio.h>
 #include "js-config.h"
 #include "jspubtd.h"
+#include "jsutil.h"
 #include "jsval.h"
-
-#include "js/Utility.h"
 
 /************************************************************************/
 
@@ -663,16 +662,6 @@ class Value
 #endif
     }
 
-#ifndef _MSC_VER
-  /* To make jsval binary compatible when linking across C and C++ with MSVC,
-   * JS::Value needs to be POD. Otherwise, jsval will be passed in memory
-   * in C++ but by value in C (bug 645111).
-   */
-  private:
-#endif
-
-    jsval_layout data;
-
   private:
     void staticAssertions() {
         JS_STATIC_ASSERT(sizeof(JSValueType) == 1);
@@ -681,6 +670,8 @@ class Value
         JS_STATIC_ASSERT(sizeof(JSWhyMagic) <= 4);
         JS_STATIC_ASSERT(sizeof(Value) == 8);
     }
+
+    jsval_layout data;
 
     friend jsval_layout (::JSVAL_TO_IMPL)(Value);
     friend Value (::IMPL_TO_JSVAL)(jsval_layout l);
@@ -1704,17 +1695,6 @@ extern JS_PUBLIC_DATA(jsid) JSID_EMPTY;
  * JSFunctionSpec structs are allocated in static arrays.
  */
 #define JSFUN_GENERIC_NATIVE    JSFUN_LAMBDA
-
-/*
- * The first call to JS_CallOnce by any thread in a process will call 'func'.
- * Later calls to JS_CallOnce with the same JSCallOnceType object will be
- * suppressed.
- *
- * Equivalently: each distinct JSCallOnceType object will allow one JS_CallOnce
- * to invoke its JSInitCallback.
- */
-extern JS_PUBLIC_API(JSBool)
-JS_CallOnce(JSCallOnceType *once, JSInitCallback func);
 
 /*
  * Microseconds since the epoch, midnight, January 1, 1970 UTC.  See the
@@ -2807,9 +2787,6 @@ extern JS_PUBLIC_API(void)
 JS_PrintTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc,
                        void *thing, JSGCTraceKind kind, JSBool includeDetails);
 
-extern JS_PUBLIC_API(const char *)
-JS_GetTraceEdgeName(JSTracer *trc, char *buffer, int bufferSize);
-
 /*
  * DEBUG-only method to dump the object graph of heap-allocated things.
  *
@@ -3127,15 +3104,6 @@ JS_IdToValue(JSContext *cx, jsid id, jsval *vp);
 #define JSRESOLVE_DECLARING     0x08    /* var, const, or function prolog op */
 #define JSRESOLVE_CLASSNAME     0x10    /* class name used when constructing */
 #define JSRESOLVE_WITH          0x20    /* resolve inside a with statement */
-
-/*
- * Invoke the [[DefaultValue]] hook (see ES5 8.6.2) with the provided hint on
- * the specified object, computing a primitive default value for the object.
- * The hint must be JSTYPE_STRING, JSTYPE_NUMBER, or JSTYPE_VOID (no hint).  On
- * success the resulting value is stored in *vp.
- */
-extern JS_PUBLIC_API(JSBool)
-JS_DefaultValue(JSContext *cx, JSObject *obj, JSType hint, jsval *vp);
 
 extern JS_PUBLIC_API(JSBool)
 JS_PropertyStub(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
@@ -3817,7 +3785,7 @@ JS_CompileFileHandleForPrincipalsVersion(JSContext *cx, JSObject *obj,
                                          JSVersion version);
 
 extern JS_PUBLIC_API(JSObject *)
-JS_GetGlobalFromScript(JSScript *script);
+JS_GetObjectFromScript(JSScript *script);
 
 extern JS_PUBLIC_API(JSFunction *)
 JS_CompileFunction(JSContext *cx, JSObject *obj, const char *name,

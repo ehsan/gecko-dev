@@ -54,8 +54,7 @@ struct DatabaseInfo
   ~DatabaseInfo();
 #else
   DatabaseInfo()
-  : id(0), nextObjectStoreId(1), nextIndexId(1), runningVersionChange(false)
-  { }
+  : id(0), nextObjectStoreId(1), nextIndexId(1) { }
 #endif
 
   static bool Get(PRUint32 aId,
@@ -69,12 +68,11 @@ struct DatabaseInfo
   bool ContainsStoreName(const nsAString& aName);
 
   nsString name;
-  PRUint64 version;
+  nsString version;
   PRUint32 id;
   nsString filePath;
   PRInt64 nextObjectStoreId;
   PRInt64 nextIndexId;
-  bool runningVersionChange;
 
   nsAutoRefCnt referenceCount;
 };

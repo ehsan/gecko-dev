@@ -43,11 +43,9 @@
  */
 #include <stdlib.h>
 #include <string.h>
-
-#include "mozilla/Util.h"
-
 #include "jstypes.h"
 #include "jsstdint.h"
+#include "jsbit.h"
 #include "jsutil.h"
 #include "jsprf.h"
 #include "jsapi.h"
@@ -63,6 +61,7 @@
 #include "jsopcode.h"
 #include "jsscope.h"
 #include "jsscript.h"
+#include "jsstaticcheck.h"
 #include "jswrapper.h"
 
 #include "vm/GlobalObject.h"
@@ -72,7 +71,6 @@
 
 #include "vm/Stack-inl.h"
 
-using namespace mozilla;
 using namespace js;
 using namespace js::gc;
 using namespace js::types;
@@ -620,8 +618,8 @@ StackTraceToString(JSContext *cx, JSExnPrivate *priv)
                 length_ >= STACK_LENGTH_LIMIT - stacklen) {                   \
                 goto done;                                                    \
             }                                                                 \
-            stackmax = RoundUpPow2(stacklen + length_);                       \
-            ptr_ = cx->realloc_(stackbuf, (stackmax+1) * sizeof(jschar));     \
+            stackmax = JS_BIT(JS_CeilingLog2(stacklen + length_));            \
+            ptr_ = cx->realloc_(stackbuf, (stackmax+1) * sizeof(jschar));      \
             if (!ptr_)                                                        \
                 goto bad;                                                     \
             stackbuf = (jschar *) ptr_;                                       \
@@ -863,7 +861,7 @@ exn_toSource(JSContext *cx, uintN argc, Value *vp)
     vp->setString(name);
 
     {
-        AutoArrayRooter tvr(cx, ArrayLength(localroots), localroots);
+        AutoArrayRooter tvr(cx, JS_ARRAY_LENGTH(localroots), localroots);
 
 #ifdef __GNUC__
         message = filename = NULL;
@@ -1158,7 +1156,7 @@ js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
 
     /* Protect the newly-created strings below from nesting GCs. */
     PodArrayZero(tv);
-    AutoArrayRooter tvr(cx, ArrayLength(tv), tv);
+    AutoArrayRooter tvr(cx, JS_ARRAY_LENGTH(tv), tv);
 
     /*
      * Try to get an appropriate prototype by looking up the corresponding
@@ -1223,7 +1221,7 @@ js_ReportUncaughtException(JSContext *cx)
         return false;
 
     PodArrayZero(roots);
-    AutoArrayRooter tvr(cx, ArrayLength(roots), roots);
+    AutoArrayRooter tvr(cx, JS_ARRAY_LENGTH(roots), roots);
 
     /*
      * Because js_ValueToString below could error and an exception object
@@ -1241,7 +1239,7 @@ js_ReportUncaughtException(JSContext *cx)
     JS_ClearPendingException(cx);
     reportp = js_ErrorFromException(cx, exn);
 
-    /* XXX L10N angels cry once again. see also everywhere else */
+    /* XXX L10N angels cry once again (see also jsemit.c, /L10N gaffes/) */
     str = js_ValueToString(cx, exn);
     JSAutoByteString bytesStorage;
     if (!str) {

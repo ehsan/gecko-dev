@@ -82,8 +82,8 @@ nsXBLResourceLoader::nsXBLResourceLoader(nsXBLPrototypeBinding* aBinding,
  mResources(aResources),
  mResourceList(nsnull),
  mLastResource(nsnull),
- mLoadingResources(false),
- mInLoadResourcesFunc(false),
+ mLoadingResources(PR_FALSE),
+ mInLoadResourcesFunc(PR_FALSE),
  mPendingSheets(0)
 {
 }
@@ -96,16 +96,16 @@ nsXBLResourceLoader::~nsXBLResourceLoader()
 void
 nsXBLResourceLoader::LoadResources(bool* aResult)
 {
-  mInLoadResourcesFunc = true;
+  mInLoadResourcesFunc = PR_TRUE;
 
   if (mLoadingResources) {
     *aResult = (mPendingSheets == 0);
-    mInLoadResourcesFunc = false;
+    mInLoadResourcesFunc = PR_FALSE;
     return;
   }
 
-  mLoadingResources = true;
-  *aResult = true;
+  mLoadingResources = PR_TRUE;
+  *aResult = PR_TRUE;
 
   // Declare our loaders.
   nsCOMPtr<nsIDocument> doc = mBinding->XBLDocumentInfo()->GetDocument();
@@ -156,7 +156,7 @@ nsXBLResourceLoader::LoadResources(bool* aResult)
           NS_ASSERTION(NS_SUCCEEDED(rv), "Load failed!!!");
           if (NS_SUCCEEDED(rv))
           {
-            rv = StyleSheetLoaded(sheet, false, NS_OK);
+            rv = StyleSheetLoaded(sheet, PR_FALSE, NS_OK);
             NS_ASSERTION(NS_SUCCEEDED(rv), "Processing the style sheet failed!!!");
           }
         }
@@ -171,7 +171,7 @@ nsXBLResourceLoader::LoadResources(bool* aResult)
   }
 
   *aResult = (mPendingSheets == 0);
-  mInLoadResourcesFunc = false;
+  mInLoadResourcesFunc = PR_FALSE;
   
   // Destroy our resource list.
   delete mResourceList;

@@ -97,29 +97,21 @@ public:
 
   virtual void SetActive(bool aActive)
   {
-    NS_PRECONDITION(IsOuterWindow(),
-                    "active state is only maintained on outer windows");
     mIsActive = aActive;
   }
 
   bool IsActive()
   {
-    NS_PRECONDITION(IsOuterWindow(),
-                    "active state is only maintained on outer windows");
     return mIsActive;
   }
 
   virtual void SetIsBackground(bool aIsBackground)
   {
-    NS_PRECONDITION(IsOuterWindow(),
-                    "background state is only maintained on outer windows");
     mIsBackground = aIsBackground;
   }
 
   bool IsBackground()
   {
-    NS_PRECONDITION(IsOuterWindow(),
-                    "background state is only maintained on outer windows");
     return mIsBackground;
   }
 
@@ -148,13 +140,13 @@ public:
       if (!win) {
         NS_ERROR("No current inner window available!");
 
-        return false;
+        return PR_FALSE;
       }
     } else {
       if (!mOuterWindow) {
         NS_ERROR("HasMutationListeners() called on orphan inner window!");
 
-        return false;
+        return PR_FALSE;
       }
 
       win = this;
@@ -251,13 +243,13 @@ public:
       if (!win) {
         NS_ERROR("No current inner window available!");
 
-        return false;
+        return PR_FALSE;
       }
     } else {
       if (!mOuterWindow) {
         NS_ERROR("IsLoading() called on orphan inner window!");
 
-        return false;
+        return PR_FALSE;
       }
 
       win = this;
@@ -276,13 +268,13 @@ public:
       if (!win) {
         NS_ERROR("No current inner window available!");
 
-        return false;
+        return PR_FALSE;
       }
     } else {
       if (!mOuterWindow) {
         NS_ERROR("IsHandlingResizeEvent() called on orphan inner window!");
 
-        return false;
+        return PR_FALSE;
       }
 
       win = this;
@@ -430,7 +422,7 @@ public:
    */
   void SetHasPaintEventListeners()
   {
-    mMayHavePaintEventListener = true;
+    mMayHavePaintEventListener = PR_TRUE;
   }
 
   /**
@@ -448,7 +440,7 @@ public:
    */
   void SetHasTouchEventListeners()
   {
-    mMayHaveTouchEventListener = true;
+    mMayHaveTouchEventListener = PR_TRUE;
     MaybeUpdateTouchState();
   }
 
@@ -472,7 +464,7 @@ public:
    */
   void SetHasAudioAvailableEventListeners()
   {
-    mMayHaveAudioAvailableEventListener = true;
+    mMayHaveAudioAvailableEventListener = PR_TRUE;
   }
 
   /**
@@ -490,7 +482,7 @@ public:
    */
   void SetHasMouseEnterLeaveEventListeners()
   {
-    mMayHaveMouseEnterLeaveEventListener = true;
+    mMayHaveMouseEnterLeaveEventListener = PR_TRUE;
   }  
 
   /**
@@ -729,7 +721,7 @@ public:
     : mWindow(aWindow), mOldState(openAbused)
   {
     if (aWindow) {
-      mOldState = aWindow->PushPopupControlState(aState, false);
+      mOldState = aWindow->PushPopupControlState(aState, PR_FALSE);
     }
   }
 

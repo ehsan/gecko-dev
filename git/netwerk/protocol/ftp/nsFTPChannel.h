@@ -78,7 +78,7 @@ public:
     nsFtpChannel(nsIURI *uri, nsIProxyInfo *pi)
         : mProxyInfo(pi)
         , mStartPos(0)
-        , mResumeRequested(false)
+        , mResumeRequested(PR_FALSE)
         , mLastModifiedTime(0)
     {
         SetURI(uri);

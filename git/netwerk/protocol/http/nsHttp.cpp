@@ -254,15 +254,15 @@ bool
 nsHttp::IsValidToken(const char *start, const char *end)
 {
     if (start == end)
-        return false;
+        return PR_FALSE;
 
     for (; start != end; ++start) {
         const unsigned char idx = *start;
         if (idx > 127 || !kValidTokenMap[idx])
-            return false;
+            return PR_FALSE;
     }
 
-    return true;
+    return PR_TRUE;
 }
 
 const char *
@@ -300,13 +300,13 @@ nsHttp::ParseInt64(const char *input, const char **next, PRInt64 *r)
     while (*input >= '0' && *input <= '9') {
         PRInt64 next = 10 * (*r) + (*input - '0');
         if (next < *r) // overflow?
-            return false;
+            return PR_FALSE;
         *r = next;
         ++input;
     }
     if (input == start) // nothing parsed?
-        return false;
+        return PR_FALSE;
     if (next)
         *next = input;
-    return true;
+    return PR_TRUE;
 }

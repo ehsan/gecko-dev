@@ -96,9 +96,9 @@ nsFileResult::nsFileResult(const nsAString& aSearchString,
     nsCOMPtr<nsILocalFile> directory;
     nsDependentSubstring parent(Substring(mSearchString, 0, slashPos + 1));
     if (!parent.IsEmpty() && parent.First() == '/')
-      NS_NewLocalFile(parent, true, getter_AddRefs(directory));
+      NS_NewLocalFile(parent, PR_TRUE, getter_AddRefs(directory));
     if (!directory) {
-      if (NS_FAILED(NS_NewLocalFile(aSearchParam, true, getter_AddRefs(directory))))
+      if (NS_FAILED(NS_NewLocalFile(aSearchParam, PR_TRUE, getter_AddRefs(directory))))
         return;
       if (slashPos > 0)
         directory->AppendRelativePath(Substring(mSearchString, 0, slashPos));
@@ -294,9 +294,9 @@ NSMODULE_DEFN(nsFileViewModule) = &kFileViewModule;
 nsFileView::nsFileView() :
   mSortType(-1),
   mTotalRows(0),
-  mShowHiddenFiles(false),
-  mDirectoryFilter(false),
-  mReverseSort(false)
+  mShowHiddenFiles(PR_FALSE),
+  mDirectoryFilter(PR_FALSE),
+  mReverseSort(PR_FALSE)
 {
 }
 
@@ -508,7 +508,7 @@ nsFileView::SetFilter(const nsAString& aFilterString)
   aFilterString.BeginReading(iter);
   aFilterString.EndReading(end);
 
-  while (true) {
+  while (PR_TRUE) {
     // skip over delimiters
     while (iter != end && (*iter == ';' || *iter == ' '))
       ++iter;
@@ -593,7 +593,7 @@ nsFileView::GetSelectedFiles(nsIArray** aFiles)
       }
 
       if (curFile)
-        fileArray->AppendElement(curFile, false);
+        fileArray->AppendElement(curFile, PR_FALSE);
     }
   }
 
@@ -658,28 +658,28 @@ nsFileView::GetColumnProperties(nsITreeColumn* aCol,
 NS_IMETHODIMP
 nsFileView::IsContainer(PRInt32 aIndex, bool* aIsContainer)
 {
-  *aIsContainer = false;
+  *aIsContainer = PR_FALSE;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsFileView::IsContainerOpen(PRInt32 aIndex, bool* aIsOpen)
 {
-  *aIsOpen = false;
+  *aIsOpen = PR_FALSE;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsFileView::IsContainerEmpty(PRInt32 aIndex, bool* aIsEmpty)
 {
-  *aIsEmpty = false;
+  *aIsEmpty = PR_FALSE;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsFileView::IsSeparator(PRInt32 aIndex, bool* aIsSeparator)
 {
-  *aIsSeparator = false;
+  *aIsSeparator = PR_FALSE;
   return NS_OK;
 }
 
@@ -694,7 +694,7 @@ NS_IMETHODIMP
 nsFileView::CanDrop(PRInt32 aIndex, PRInt32 aOrientation,
                     nsIDOMDataTransfer* dataTransfer, bool* aCanDrop)
 {
-  *aCanDrop = false;
+  *aCanDrop = PR_FALSE;
   return NS_OK;
 }
 
@@ -759,10 +759,10 @@ nsFileView::GetCellText(PRInt32 aRow, nsITreeColumn* aCol,
   nsCOMPtr<nsIFile> curFile;
 
   if (aRow < (PRInt32) dirCount) {
-    isDirectory = true;
+    isDirectory = PR_TRUE;
     curFile = do_QueryElementAt(mDirList, aRow);
   } else if (aRow < mTotalRows) {
-    isDirectory = false;
+    isDirectory = PR_FALSE;
     curFile = do_QueryElementAt(mFilteredFiles, aRow - dirCount);
   } else {
     // invalid row
@@ -831,7 +831,7 @@ NS_IMETHODIMP
 nsFileView::IsEditable(PRInt32 aRow, nsITreeColumn* aCol,
                        bool* aIsEditable)
 {
-  *aIsEditable = false;
+  *aIsEditable = PR_FALSE;
   return NS_OK;
 }
 
@@ -839,7 +839,7 @@ NS_IMETHODIMP
 nsFileView::IsSelectable(PRInt32 aRow, nsITreeColumn* aCol,
                          bool* aIsSelectable)
 {
-  *aIsSelectable = false;
+  *aIsSelectable = PR_FALSE;
   return NS_OK;
 }
 
@@ -911,7 +911,7 @@ nsFileView::FilterFiles()
         } else
           matched = (NS_WildCardMatch(ucsLeafName.get(),
                                       mCurrentFilters.ElementAt(j),
-                                      true) == MATCH);
+                                      PR_TRUE) == MATCH);
 
         if (matched) {
           mFilteredFiles->AppendElement(file);

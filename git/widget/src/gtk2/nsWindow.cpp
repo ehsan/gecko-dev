@@ -40,8 +40,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #ifdef MOZ_PLATFORM_MAEMO
 // needed to include hildon parts in gtk.h
 #define MAEMO_CHANGES
@@ -91,7 +89,7 @@
 #include "gtk2compat.h"
 #endif
 
-#include "nsGkAtoms.h"
+#include "nsWidgetAtoms.h"
 
 #ifdef MOZ_ENABLE_STARTUP_NOTIFICATION
 #define SN_API_NOT_YET_FROZEN
@@ -483,7 +481,7 @@ nsWindow::~nsWindow()
 /* static */ void
 nsWindow::ReleaseGlobals()
 {
-  for (PRUint32 i = 0; i < ArrayLength(gCursorCache); ++i) {
+  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(gCursorCache); ++i) {
     if (gCursorCache[i]) {
       gdk_cursor_unref(gCursorCache[i]);
       gCursorCache[i] = nsnull;
@@ -1407,10 +1405,13 @@ typedef void (* SetUserTimeFunc)(GdkWindow* aWindow, guint32 aTimestamp);
 static void
 SetUserTimeAndStartupIDForActivatedWindow(GtkWidget* aWindow)
 {
-    nsGTKToolkit* GTKToolkit = nsGTKToolkit::GetToolkit();
-    if (!GTKToolkit)
+    nsCOMPtr<nsIToolkit> toolkit;
+    NS_GetCurrentToolkit(getter_AddRefs(toolkit));
+    if (!toolkit)
         return;
 
+    nsGTKToolkit* GTKToolkit = static_cast<nsGTKToolkit*>
+                                          (static_cast<nsIToolkit*>(toolkit));
     nsCAutoString desktopStartupID;
     GTKToolkit->GetDesktopStartupID(&desktopStartupID);
     if (desktopStartupID.IsEmpty()) {
@@ -1741,9 +1742,8 @@ nsWindow::GetNativeData(PRUint32 aDataType)
 
     case NS_NATIVE_GRAPHIC: {
 #if defined(MOZ_WIDGET_GTK2)
-        nsGTKToolkit* toolkit = nsGTKToolkit::GetToolkit();
-        NS_ASSERTION(nsnull != toolkit, "NULL toolkit, unable to get a GC");    
-        return toolkit->GetSharedGC();
+        NS_ASSERTION(nsnull != mToolkit, "NULL toolkit, unable to get a GC");    
+        return (void *)static_cast<nsGTKToolkit *>(mToolkit)->GetSharedGC();
 #else
         return nsnull;
 #endif
@@ -1801,9 +1801,9 @@ nsWindow::SetIcon(const nsAString& aIconSpec)
     const char extensions[6][7] = { ".png", "16.png", "32.png", "48.png",
                                     ".xpm", "16.xpm" };
 
-    for (PRUint32 i = 0; i < ArrayLength(extensions); i++) {
+    for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(extensions); i++) {
         // Don't bother looking for XPM versions if we found a PNG.
-        if (i == ArrayLength(extensions) - 2 && iconList.Length())
+        if (i == NS_ARRAY_LENGTH(extensions) - 2 && iconList.Length())
             break;
 
         nsAutoString extension;
@@ -2852,10 +2852,10 @@ nsWindow::OnButtonPressEvent(GtkWidget *aWidget, GdkEventButton *aEvent)
         }
     // Map buttons 8-9 to back/forward
     case 8:
-        DispatchCommandEvent(nsGkAtoms::Back);
+        DispatchCommandEvent(nsWidgetAtoms::Back);
         return;
     case 9:
-        DispatchCommandEvent(nsGkAtoms::Forward);
+        DispatchCommandEvent(nsWidgetAtoms::Forward);
         return;
     default:
         return;
@@ -3001,7 +3001,7 @@ bool
 nsWindow::DispatchCommandEvent(nsIAtom* aCommand)
 {
     nsEventStatus status;
-    nsCommandEvent event(true, nsGkAtoms::onAppCommand, aCommand, this);
+    nsCommandEvent event(true, nsWidgetAtoms::onAppCommand, aCommand, this);
     DispatchEvent(&event, status);
     return TRUE;
 }
@@ -3152,19 +3152,19 @@ nsWindow::OnKeyPressEvent(GtkWidget *aWidget, GdkEventKey *aEvent)
     // Look for specialized app-command keys
     switch (aEvent->keyval) {
         case XF86XK_Back:
-            return DispatchCommandEvent(nsGkAtoms::Back);
+            return DispatchCommandEvent(nsWidgetAtoms::Back);
         case XF86XK_Forward:
-            return DispatchCommandEvent(nsGkAtoms::Forward);
+            return DispatchCommandEvent(nsWidgetAtoms::Forward);
         case XF86XK_Refresh:
-            return DispatchCommandEvent(nsGkAtoms::Reload);
+            return DispatchCommandEvent(nsWidgetAtoms::Reload);
         case XF86XK_Stop:
-            return DispatchCommandEvent(nsGkAtoms::Stop);
+            return DispatchCommandEvent(nsWidgetAtoms::Stop);
         case XF86XK_Search:
-            return DispatchCommandEvent(nsGkAtoms::Search);
+            return DispatchCommandEvent(nsWidgetAtoms::Search);
         case XF86XK_Favorites:
-            return DispatchCommandEvent(nsGkAtoms::Bookmarks);
+            return DispatchCommandEvent(nsWidgetAtoms::Bookmarks);
         case XF86XK_HomePage:
-            return DispatchCommandEvent(nsGkAtoms::Home);
+            return DispatchCommandEvent(nsWidgetAtoms::Home);
         case XF86XK_Copy:
         case GDK_F16:  // F16, F20, F18, F14 are old keysyms for Copy Cut Paste Undo
             return DispatchContentCommandEvent(NS_CONTENT_COMMAND_COPY);
@@ -3878,6 +3878,8 @@ nsWindow::Create(nsIWidget        *aParent,
                  const nsIntRect  &aRect,
                  EVENT_CALLBACK    aHandleEventFunction,
                  nsDeviceContext *aContext,
+                 nsIAppShell      *aAppShell,
+                 nsIToolkit       *aToolkit,
                  nsWidgetInitData *aInitData)
 {
     // only set the base parent if we're going to be a dialog or a
@@ -3890,11 +3892,9 @@ nsWindow::Create(nsIWidget        *aParent,
 
     NS_ASSERTION(!mWindowGroup, "already have window group (leaking it)");
 
-    // Ensure that the toolkit is created.
-    nsGTKToolkit::GetToolkit();
-
     // initialize all the common bits of this class
-    BaseCreate(baseParent, aRect, aHandleEventFunction, aContext, aInitData);
+    BaseCreate(baseParent, aRect, aHandleEventFunction, aContext,
+               aAppShell, aToolkit, aInitData);
 
     // Do we need to listen for resizes?
     bool listenForResizes = false;;

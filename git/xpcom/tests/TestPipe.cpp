@@ -175,7 +175,7 @@ NS_IMETHODIMP BackwardsAllocator::HeapMinimize(bool immediate)
 
 NS_IMETHODIMP BackwardsAllocator::IsLowMemory(bool* retval)
 {
-  *retval = false;
+  *retval = PR_FALSE;
   return NS_OK;
 }
 
@@ -199,8 +199,8 @@ nsresult TestBackwardsAllocator()
   nsCOMPtr<nsIAsyncOutputStream> output;
   rv = TP_NewPipe2(getter_AddRefs(input),
                    getter_AddRefs(output),
-                   false,
-                   false,
+                   PR_FALSE,
+                   PR_FALSE,
                    SEGMENT_SIZE, SEGMENT_COUNT, allocator); 
   if (NS_FAILED(rv))
   {

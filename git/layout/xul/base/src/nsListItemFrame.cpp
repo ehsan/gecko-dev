@@ -95,7 +95,7 @@ NS_NewListItemFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
     return nsnull;
   }
   
-  return new (aPresShell) nsListItemFrame(aPresShell, aContext, false, layout);
+  return new (aPresShell) nsListItemFrame(aPresShell, aContext, PR_FALSE, layout);
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsListItemFrame)

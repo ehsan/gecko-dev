@@ -65,7 +65,7 @@ nsScriptElement::ScriptAvailable(nsresult aResult,
       nsContentUtils::GetContextForContent(cont);
 
     nsEventStatus status = nsEventStatus_eIgnore;
-    nsScriptErrorEvent event(true, NS_LOAD_ERROR);
+    nsScriptErrorEvent event(PR_TRUE, NS_LOAD_ERROR);
 
     event.lineNr = aLineNo;
 
@@ -99,7 +99,7 @@ nsScriptElement::ScriptEvaluated(nsresult aResult,
 
     nsEventStatus status = nsEventStatus_eIgnore;
     PRUint32 type = NS_SUCCEEDED(aResult) ? NS_LOAD : NS_LOAD_ERROR;
-    nsEvent event(true, type);
+    nsEvent event(PR_TRUE, type);
     if (type == NS_LOAD) {
       // Load event doesn't bubble.
       event.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
@@ -163,9 +163,9 @@ nsScriptElement::MaybeProcessScript()
 
   FreezeUriAsyncDefer();
 
-  mAlreadyStarted = true;
+  mAlreadyStarted = PR_TRUE;
 
-  nsIDocument* ownerDoc = cont->OwnerDoc();
+  nsIDocument* ownerDoc = cont->GetOwnerDoc();
   nsCOMPtr<nsIParser> parser = ((nsIScriptElement*) this)->GetCreatorParser();
   if (parser) {
     nsCOMPtr<nsIContentSink> sink = parser->GetContentSink();

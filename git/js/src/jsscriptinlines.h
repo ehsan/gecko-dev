@@ -55,6 +55,13 @@
 
 namespace js {
 
+inline
+Bindings::Bindings(JSContext *cx)
+  : lastBinding(NULL), nargs(0), nvars(0), nupvars(0),
+    hasExtensibleParents(false)
+{
+}
+
 inline void
 Bindings::transfer(JSContext *cx, Bindings *bindings)
 {
@@ -213,6 +220,13 @@ JSScript::clearNesting()
         js::Foreground::delete_(nesting);
         types->nesting = NULL;
     }
+}
+
+inline JSScript *
+JSObject::getScript() const
+{
+    JS_ASSERT(isScript());
+    return static_cast<JSScript *>(getPrivate());
 }
 
 #endif /* jsscriptinlines_h___ */

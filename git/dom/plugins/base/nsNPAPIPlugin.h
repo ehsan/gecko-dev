@@ -106,8 +106,6 @@ public:
   nsresult CreatePluginInstance(nsNPAPIPluginInstance **aResult);
   nsresult Shutdown();
 
-  static nsresult RetainStream(NPStream *pstream, nsISupports **aRetainedPeer);
-
 protected:
   NPPluginFuncs mPluginFuncs;
   PluginLibrary* mLibrary;

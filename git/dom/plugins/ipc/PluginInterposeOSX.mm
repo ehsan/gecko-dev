@@ -207,7 +207,7 @@ NSCursorInfo::NSCursorInfo(const Cursor* aCursor)
       // Mask value
       if (mask & 0x8000) {
         bitmap[offset + 3] = 0xFF;
-        isTransparent = false;
+        isTransparent = PR_FALSE;
       } else {
         bitmap[offset + 3] = 0x0;
       }

@@ -2,7 +2,6 @@
 
 #include "BrowserStreamParent.h"
 #include "PluginInstanceParent.h"
-#include "nsNPAPIPlugin.h"
 
 #include "mozilla/unused.h"
 
@@ -98,8 +97,6 @@ BrowserStreamParent::RecvStreamDestroyed()
     return false;
   }
 
-  mStreamPeer = NULL;
-
   mState = DELETING;
   return Send__delete__(this);
 }
@@ -137,15 +134,7 @@ BrowserStreamParent::StreamAsFile(const char* fname)
   NS_ASSERTION(ALIVE == mState,
                "Calling streamasfile after NPP_DestroyStream?");
 
-  // Make sure our stream survives until the plugin process tells us we've
-  // been destroyed (until RecvStreamDestroyed() is called).  Since we retain
-  // mStreamPeer at most once, we won't get in trouble if StreamAsFile() is
-  // called more than once.
-  if (!mStreamPeer) {
-    nsNPAPIPlugin::RetainStream(mStream, getter_AddRefs(mStreamPeer));
-  }
-
-  unused << SendNPP_StreamAsFile(nsCString(fname));
+  unused << CallNPP_StreamAsFile(nsCString(fname));
   return;
 }
 

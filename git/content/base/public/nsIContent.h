@@ -139,7 +139,7 @@ public:
    * parent's child list and after the nsIDocumentObserver notifications for
    * the removal have been dispatched.   
    * @param aDeep Whether to recursively unbind the entire subtree rooted at
-   *        this node.  The only time false should be passed is when the
+   *        this node.  The only time PR_FALSE should be passed is when the
    *        parent node of the content is being destroyed.
    * @param aNullParent Whether to null out the parent pointer as well.  This
    *        is usually desirable.  This argument should only be false while
@@ -278,7 +278,9 @@ public:
    */
   inline bool IsInHTMLDocument() const
   {
-    return OwnerDoc()->IsHTML();
+    nsIDocument* doc = GetOwnerDoc();
+    return doc && // XXX clean up after bug 335998 lands
+           doc->IsHTML();
   }
 
   /**
@@ -396,8 +398,8 @@ public:
    * @param aNameSpaceID the namespace of the attr
    * @param aName the name of the attr
    * @param aResult the value (may legitimately be the empty string) [OUT]
-   * @returns true if the attribute was set (even when set to empty string)
-   *          false when not set.
+   * @returns PR_TRUE if the attribute was set (even when set to empty string)
+   *          PR_FALSE when not set.
    */
   virtual bool GetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, 
                          nsAString& aResult) const = 0;
@@ -426,7 +428,7 @@ public:
                              const nsAString& aValue,
                              nsCaseTreatment aCaseSensitive) const
   {
-    return false;
+    return PR_FALSE;
   }
   
   /**
@@ -444,7 +446,7 @@ public:
                              nsIAtom* aValue,
                              nsCaseTreatment aCaseSensitive) const
   {
-    return false;
+    return PR_FALSE;
   }
   
   enum {
@@ -523,7 +525,7 @@ public:
   virtual PRUint32 TextLength() = 0;
 
   /**
-   * Set the text to the given value. If aNotify is true then
+   * Set the text to the given value. If aNotify is PR_TRUE then
    * the document is notified of the content change.
    * NOTE: For elements this always ASSERTS and returns NS_ERROR_FAILURE
    */
@@ -531,7 +533,7 @@ public:
                            bool aNotify) = 0;
 
   /**
-   * Append the given value to the current text. If aNotify is true then
+   * Append the given value to the current text. If aNotify is PR_TRUE then
    * the document is notified of the content change.
    * NOTE: For elements this always ASSERTS and returns NS_ERROR_FAILURE
    */
@@ -539,7 +541,7 @@ public:
                               bool aNotify) = 0;
 
   /**
-   * Set the text to the given value. If aNotify is true then
+   * Set the text to the given value. If aNotify is PR_TRUE then
    * the document is notified of the content change.
    * NOTE: For elements this always asserts and returns NS_ERROR_FAILURE
    */
@@ -550,7 +552,7 @@ public:
 
   /**
    * Query method to see if the frame is nothing but whitespace
-   * NOTE: Always returns false for elements
+   * NOTE: Always returns PR_FALSE for elements
    */
   virtual bool TextIsOnlyWhitespace() = 0;
 
@@ -586,7 +588,7 @@ public:
   {
     if (aTabIndex) 
       *aTabIndex = -1; // Default, not tabbable
-    return false;
+    return PR_FALSE;
   }
 
   /**
@@ -670,7 +672,7 @@ public:
    *             set to this link's URI will be passed out.
    *
    * @note The out param, aURI, is guaranteed to be set to a non-null pointer
-   *   when the return value is true.
+   *   when the return value is PR_TRUE.
    *
    * XXXjwatt: IMO IsInteractiveLink would be a better name.
    */
@@ -775,16 +777,16 @@ public:
 
   /**
    * For HTML textarea, select, applet, and object elements, returns
-   * true if all children have been added OR if the element was not
-   * created by the parser. Returns true for all other elements.
-   * @returns false if the element was created by the parser and
+   * PR_TRUE if all children have been added OR if the element was not
+   * created by the parser. Returns PR_TRUE for all other elements.
+   * @returns PR_FALSE if the element was created by the parser and
    *                   it is an HTML textarea, select, applet, or object
    *                   element and not all children have been added.
-   * @returns true otherwise.
+   * @returns PR_TRUE otherwise.
    */
   virtual bool IsDoneAddingChildren()
   {
-    return true;
+    return PR_TRUE;
   }
 
   /**

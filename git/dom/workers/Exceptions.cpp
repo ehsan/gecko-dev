@@ -37,8 +37,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "Exceptions.h"
 
 #include "jsapi.h"
@@ -56,7 +54,6 @@
 #define CONSTANT_FLAGS \
   JSPROP_ENUMERATE | JSPROP_SHARED | JSPROP_PERMANENT | JSPROP_READONLY
 
-using namespace mozilla;
 USING_WORKERS_NAMESPACE
 
 namespace {
@@ -250,7 +247,9 @@ DOMException::Create(JSContext* aCx, intN aCode)
   }
 
   size_t foundIndex = size_t(-1);
-  for (size_t index = 0; index < ArrayLength(sStaticProperties) - 1; index++) {
+  for (size_t index = 0;
+       index < JS_ARRAY_LENGTH(sStaticProperties) - 1;
+       index++) {
     if (sStaticProperties[index].tinyid == aCode) {
       foundIndex = index;
       break;
@@ -398,7 +397,9 @@ FileException::Create(JSContext* aCx, intN aCode)
   }
 
   size_t foundIndex = size_t(-1);
-  for (size_t index = 0; index < ArrayLength(sStaticProperties) - 1; index++) {
+  for (size_t index = 0;
+       index < JS_ARRAY_LENGTH(sStaticProperties) - 1;
+       index++) {
     if (sStaticProperties[index].tinyid == aCode) {
       foundIndex = index;
       break;

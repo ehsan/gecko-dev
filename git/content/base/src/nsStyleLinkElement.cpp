@@ -60,8 +60,8 @@
 #include "nsContentUtils.h"
 
 nsStyleLinkElement::nsStyleLinkElement()
-  : mDontLoadStyle(false)
-  , mUpdatesEnabled(true)
+  : mDontLoadStyle(PR_FALSE)
+  , mUpdatesEnabled(PR_TRUE)
   , mLineNumber(1)
 {
 }
@@ -171,13 +171,13 @@ void nsStyleLinkElement::ParseLinkTypes(const nsAString& aTypes,
       if (inString) {
         ToLowerCase(Substring(start, current), subString);
         aResult.AppendElement(subString);
-        inString = false;
+        inString = PR_FALSE;
       }
     }
     else {
       if (!inString) {
         start = current;
-        inString = true;
+        inString = PR_TRUE;
       }
     }
     ++current;
@@ -194,7 +194,7 @@ nsStyleLinkElement::UpdateStyleSheet(nsICSSLoaderObserver* aObserver,
                                      bool* aIsAlternate)
 {
   return DoUpdateStyleSheet(nsnull, aObserver, aWillNotify, aIsAlternate,
-                            false);
+                            PR_FALSE);
 }
 
 nsresult
@@ -213,7 +213,7 @@ nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument *aOldDocument,
                                        bool* aIsAlternate,
                                        bool aForceUpdate)
 {
-  *aWillNotify = false;
+  *aWillNotify = PR_FALSE;
 
   if (mStyleSheet && aOldDocument) {
     // We're removing the link element from the document, unload the
@@ -279,7 +279,7 @@ nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument *aOldDocument,
   nsresult rv = NS_OK;
   if (isInline) {
     nsAutoString text;
-    nsContentUtils::GetNodeTextContent(thisContent, false, text);
+    nsContentUtils::GetNodeTextContent(thisContent, PR_FALSE, text);
 
     // Parse the style sheet.
     rv = doc->CSSLoader()->
@@ -298,8 +298,8 @@ nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument *aOldDocument,
       // Don't propagate LoadStyleLink() errors further than this, since some
       // consumers (e.g. nsXMLContentSink) will completely abort on innocuous
       // things like a stylesheet load being blocked by the security system.
-      doneLoading = true;
-      isAlternate = false;
+      doneLoading = PR_TRUE;
+      isAlternate = PR_FALSE;
       rv = NS_OK;
     }
   }

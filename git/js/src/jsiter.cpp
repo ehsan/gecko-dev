@@ -42,9 +42,6 @@
  * JavaScript iterators.
  */
 #include <string.h>     /* for memcpy */
-
-#include "mozilla/Util.h"
-
 #include "jstypes.h"
 #include "jsstdint.h"
 #include "jsutil.h"
@@ -59,6 +56,7 @@
 #include "jsfun.h"
 #include "jsgc.h"
 #include "jsgcmark.h"
+#include "jshashtable.h"
 #include "jsinterp.h"
 #include "jsiter.h"
 #include "jslock.h"
@@ -66,14 +64,16 @@
 #include "jsobj.h"
 #include "jsopcode.h"
 #include "jsproxy.h"
+#include "jsscan.h"
 #include "jsscope.h"
 #include "jsscript.h"
+#include "jsstaticcheck.h"
+#include "jsvector.h"
 
 #if JS_HAS_XML_SUPPORT
 #include "jsxml.h"
 #endif
 
-#include "frontend/TokenStream.h"
 #include "vm/GlobalObject.h"
 
 #include "jsinferinlines.h"
@@ -82,7 +82,6 @@
 #include "vm/Stack-inl.h"
 #include "vm/String-inl.h"
 
-using namespace mozilla;
 using namespace js;
 using namespace js::gc;
 
@@ -164,7 +163,7 @@ static inline bool
 NewKeyValuePair(JSContext *cx, jsid id, const Value &val, Value *rval)
 {
     Value vec[2] = { IdToValue(id), val };
-    AutoArrayRooter tvr(cx, ArrayLength(vec), vec);
+    AutoArrayRooter tvr(cx, JS_ARRAY_LENGTH(vec), vec);
 
     JSObject *aobj = NewDenseCopiedArray(cx, 2, vec);
     if (!aobj)
@@ -577,7 +576,8 @@ GetIterator(JSContext *cx, JSObject *obj, uintN flags, Value *vp)
 
     if (obj) {
         /* Enumerate Iterator.prototype directly. */
-        if (JSIteratorOp op = obj->getClass()->ext.iteratorObject) {
+        JSIteratorOp op = obj->getClass()->ext.iteratorObject;
+        if (op && (obj->getClass() != &IteratorClass || obj->getNativeIterator())) {
             JSObject *iterobj = op(cx, obj, !(flags & JSITER_FOREACH));
             if (!iterobj)
                 return false;
@@ -865,13 +865,13 @@ SuppressDeletedPropertyHelper(JSContext *cx, JSObject *obj, IdPredicate predicat
                         AutoObjectRooter proto(cx, obj->getProto());
                         AutoObjectRooter obj2(cx);
                         JSProperty *prop;
-                        if (!proto.object()->lookupGeneric(cx, *idp, obj2.addr(), &prop))
+                        if (!proto.object()->lookupProperty(cx, *idp, obj2.addr(), &prop))
                             return false;
                         if (prop) {
                             uintN attrs;
                             if (obj2.object()->isNative())
                                 attrs = ((Shape *) prop)->attributes();
-                            else if (!obj2.object()->getGenericAttributes(cx, *idp, &attrs))
+                            else if (!obj2.object()->getAttributes(cx, *idp, &attrs))
                                 return false;
 
                             if (attrs & JSPROP_ENUMERATE)
@@ -975,10 +975,12 @@ js_IteratorMore(JSContext *cx, JSObject *iterobj, Value *rval)
     if (iterobj->isIterator()) {
         /* Key iterators are handled by fast-paths. */
         ni = iterobj->getNativeIterator();
-        bool more = ni->props_cursor < ni->props_end;
-        if (ni->isKeyIter() || !more) {
-            rval->setBoolean(more);
-            return true;
+        if (ni) {
+            bool more = ni->props_cursor < ni->props_end;
+            if (ni->isKeyIter() || !more) {
+                rval->setBoolean(more);
+                return true;
+            }
         }
     }
 
@@ -1033,7 +1035,7 @@ js_IteratorNext(JSContext *cx, JSObject *iterobj, Value *rval)
          * read-only and permanent.
          */
         NativeIterator *ni = iterobj->getNativeIterator();
-        if (ni->isKeyIter()) {
+        if (ni && ni->isKeyIter()) {
             JS_ASSERT(ni->props_cursor < ni->props_end);
             *rval = IdToValue(*ni->current());
             ni->incCursor();
@@ -1458,14 +1460,6 @@ InitIteratorClass(JSContext *cx, GlobalObject *global)
     JSObject *iteratorProto = global->createBlankPrototype(cx, &IteratorClass);
     if (!iteratorProto)
         return false;
-
-    AutoIdVector blank(cx);
-    NativeIterator *ni = NativeIterator::allocateIterator(cx, 0, blank);
-    if (!ni)
-        return false;
-    ni->init(NULL, 0 /* flags */, 0, 0);
-
-    iteratorProto->setNativeIterator(ni);
 
     JSFunction *ctor = global->createConstructor(cx, Iterator, &IteratorClass,
                                                  CLASS_ATOM(cx, Iterator), 2);

@@ -106,7 +106,7 @@ nsAccessNode::
   mContent(aContent), mWeakShell(aShell)
 {
 #ifdef DEBUG_A11Y
-  mIsInitialized = false;
+  mIsInitialized = PR_FALSE;
 #endif
 }
 
@@ -138,7 +138,7 @@ nsAccessNode::IsDefunct() const
 bool
 nsAccessNode::Init()
 {
-  return true;
+  return PR_TRUE;
 }
 
 
@@ -201,7 +201,7 @@ void nsAccessNode::InitXPAccessibility()
     prefBranch->GetBoolPref("browser.formfill.enable", &gIsFormFillEnabled);
   }
 
-  NotifyA11yInitOrShutdown(true);
+  NotifyA11yInitOrShutdown(PR_TRUE);
 }
 
 // nsAccessNode protected static
@@ -235,7 +235,7 @@ void nsAccessNode::ShutdownXPAccessibility()
     NS_RELEASE(gApplicationAccessible);
   }
 
-  NotifyA11yInitOrShutdown(false);
+  NotifyA11yInitOrShutdown(PR_FALSE);
 }
 
 already_AddRefed<nsIPresShell>
@@ -262,7 +262,7 @@ nsDocAccessible *
 nsAccessNode::GetDocAccessible() const
 {
   return mContent ?
-    GetAccService()->GetDocAccessible(mContent->OwnerDoc()) : nsnull;
+    GetAccService()->GetDocAccessible(mContent->GetOwnerDoc()) : nsnull;
 }
 
 nsRootAccessible*
@@ -437,7 +437,7 @@ nsAccessNode::GetCurrentFocus()
   nsCOMPtr<nsIDOMElement> focusedElement;
   nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
   if (fm)
-    fm->GetFocusedElementForWindow(win, true, getter_AddRefs(focusedWindow),
+    fm->GetFocusedElementForWindow(win, PR_TRUE, getter_AddRefs(focusedWindow),
                                    getter_AddRefs(focusedElement));
 
   nsINode *focusedNode = nsnull;
@@ -465,8 +465,10 @@ nsAccessNode::GetLanguage(nsAString& aLanguage)
   nsCoreUtils::GetLanguageFor(mContent, nsnull, aLanguage);
 
   if (aLanguage.IsEmpty()) { // Nothing found, so use document's language
-    mContent->OwnerDoc()->GetHeaderData(nsGkAtoms::headerContentLanguage,
-                                        aLanguage);
+    nsIDocument *doc = mContent->GetOwnerDoc();
+    if (doc) {
+      doc->GetHeaderData(nsGkAtoms::headerContentLanguage, aLanguage);
+    }
   }
  
   return NS_OK;

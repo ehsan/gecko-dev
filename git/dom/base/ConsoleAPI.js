@@ -201,16 +201,13 @@ ConsoleAPI.prototype = {
     }
     let args = Array.prototype.slice.call(aArguments);
     let format = args.shift();
-    if (typeof format != "string") {
-      return aArguments;
-    }
     // Format specification regular expression.
     let pattern = /%(\d*).?(\d*)[a-zA-Z]/g;
     let processed = format.replace(pattern, function CA_PA_substitute(spec) {
       switch (spec[spec.length-1]) {
         case "o":
         case "s":
-          return String(args.shift());
+          return args.shift().toString();
         case "d":
         case "i":
           return parseInt(args.shift());

@@ -251,7 +251,7 @@ nsTransitionManager::StyleContextChanged(dom::Element *aElement,
   }
 
   ElementTransitions *et =
-      GetElementTransitions(aElement, pseudoType, false);
+      GetElementTransitions(aElement, pseudoType, PR_FALSE);
   if (!et &&
       disp->mTransitionPropertyCount == 1 &&
       disp->mTransitions[0].GetDelay() == 0.0f &&
@@ -563,7 +563,7 @@ nsTransitionManager::ConsiderStartingTransition(nsCSSProperty aProperty,
   if (!aElementTransitions) {
     aElementTransitions =
       GetElementTransitions(aElement, aNewStyleContext->GetPseudoType(),
-                            true);
+                            PR_TRUE);
     if (!aElementTransitions) {
       NS_WARNING("allocating ElementTransitions failed");
       return;
@@ -594,7 +594,7 @@ nsTransitionManager::ConsiderStartingTransition(nsCSSProperty aProperty,
     eRestyle_Self : eRestyle_Subtree;
   presContext->PresShell()->RestyleForAnimation(aElement, hint);
 
-  *aStartedAny = true;
+  *aStartedAny = PR_TRUE;
   aWhichStarted->AddProperty(aProperty);
 }
 
@@ -653,7 +653,7 @@ nsTransitionManager::WalkTransitionRule(RuleProcessorData* aData,
                                         nsCSSPseudoElements::Type aPseudoType)
 {
   ElementTransitions *et =
-    GetElementTransitions(aData->mElement, aPseudoType, false);
+    GetElementTransitions(aData->mElement, aPseudoType, PR_FALSE);
   if (!et) {
     return;
   }
@@ -722,7 +722,7 @@ struct TransitionEventInfo {
   TransitionEventInfo(nsIContent *aElement, nsCSSProperty aProperty,
                       TimeDuration aDuration)
     : mElement(aElement),
-      mEvent(true, NS_TRANSITION_END,
+      mEvent(PR_TRUE, NS_TRANSITION_END,
              NS_ConvertUTF8toUTF16(nsCSSProps::GetStringValue(aProperty)),
              aDuration.ToSeconds())
   {
@@ -732,7 +732,7 @@ struct TransitionEventInfo {
   // to ourselves in order to work with nsTArray
   TransitionEventInfo(const TransitionEventInfo &aOther)
     : mElement(aOther.mElement),
-      mEvent(true, NS_TRANSITION_END,
+      mEvent(PR_TRUE, NS_TRANSITION_END,
              aOther.mEvent.propertyName, aOther.mEvent.elapsedTime)
   {
   }

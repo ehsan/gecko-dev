@@ -122,7 +122,7 @@ const TOOLKIT_ID                      = "toolkit@mozilla.org";
 
 const BRANCH_REGEXP                   = /^([^\.]+\.[0-9]+[a-z]*).*/gi;
 
-const DB_SCHEMA                       = 6;
+const DB_SCHEMA                       = 5;
 const REQ_VERSION                     = 2;
 
 #ifdef MOZ_COMPATIBILITY_NIGHTLY
@@ -146,7 +146,7 @@ const DB_METADATA        = ["installDate", "updateDate", "size", "sourceURI",
                             "releaseNotesURI", "applyBackgroundUpdates"];
 const DB_BOOL_METADATA   = ["visible", "active", "userDisabled", "appDisabled",
                             "pendingUninstall", "bootstrap", "skinnable",
-                            "softDisabled", "foreignInstall"];
+                            "softDisabled"];
 
 const BOOTSTRAP_REASONS = {
   APP_STARTUP     : 1,
@@ -169,8 +169,6 @@ const TYPES = {
 };
 
 const MSG_JAR_FLUSH = "AddonJarFlush";
-
-var gGlobalScope = this;
 
 /**
  * Valid IDs fit this pattern.
@@ -1762,9 +1760,6 @@ var XPIProvider = {
       Services.appinfo.annotateCrashReport("Add-ons", data);
     }
     catch (e) { }
-    
-    const TelemetryPing = Cc["@mozilla.org/base/telemetry-ping;1"].getService(Ci.nsIObserver);
-    TelemetryPing.observe(null, "Add-ons", data);
   },
 
   /**
@@ -2553,23 +2548,16 @@ var XPIProvider = {
       LOG("New add-on " + aId + " installed in " + aInstallLocation.name);
 
       let newAddon = null;
-      let sameVersion = false;
       // Check the updated manifests lists for the install location, If there
       // is no manifest for the add-on ID then newAddon will be undefined
       if (aInstallLocation.name in aManifests)
         newAddon = aManifests[aInstallLocation.name][aId];
 
       try {
-        // Otherwise the add-on has appeared in the install location.
+        // Otherwise load the manifest from the add-on
         if (!newAddon) {
-          // Load the manifest from the add-on.
           let file = aInstallLocation.getLocationForID(aId);
           newAddon = loadManifestFromFile(file);
-
-          // The default theme is never a foreign install
-          if (newAddon.type != "theme" || newAddon.internalName != XPIProvider.defaultSkin)
-            newAddon.foreignInstall = true;
-
         }
         // The add-on in the manifest should match the add-on ID.
         if (newAddon.id != aId)
@@ -2593,10 +2581,9 @@ var XPIProvider = {
       newAddon.installDate = aAddonState.mtime;
       newAddon.updateDate = aAddonState.mtime;
 
-      // Check if the add-on is a foreign install and is in a scope where
-      // add-ons that were dropped in should default to disabled.
+      // Check if the add-on is in a scope where add-ons should install disabled
       let disablingScopes = Prefs.getIntPref(PREF_EM_AUTO_DISABLED_SCOPES, 0);
-      if (newAddon.foreignInstall && aInstallLocation.scope & disablingScopes)
+      if (aInstallLocation.scope & disablingScopes)
         newAddon.userDisabled = true;
 
       // If there is migration data then apply it.
@@ -2610,21 +2597,12 @@ var XPIProvider = {
           newAddon.installDate = aMigrateData.installDate;
         if ("softDisabled" in aMigrateData)
           newAddon.softDisabled = aMigrateData.softDisabled;
-        if ("applyBackgroundUpdates" in aMigrateData)
-          newAddon.applyBackgroundUpdates = aMigrateData.applyBackgroundUpdates;
-        if ("sourceURI" in aMigrateData)
-          newAddon.sourceURI = aMigrateData.sourceURI;
-        if ("releaseNotesURI" in aMigrateData)
-          newAddon.releaseNotesURI = aMigrateData.releaseNotesURI;
-        if ("foreignInstall" in aMigrateData)
-          newAddon.foreignInstall = aMigrateData.foreignInstall;
 
         // Some properties should only be migrated if the add-on hasn't changed.
         // The version property isn't a perfect check for this but covers the
         // vast majority of cases.
         if (aMigrateData.version == newAddon.version) {
           LOG("Migrating compatibility info");
-          sameVersion = true;
           if ("targetApplications" in aMigrateData)
             newAddon.applyCompatibilityUpdate(aMigrateData, true);
         }
@@ -2701,11 +2679,6 @@ var XPIProvider = {
         if (newAddon.id in oldBootstrappedAddons) {
           let oldBootstrap = oldBootstrappedAddons[newAddon.id];
           XPIProvider.bootstrappedAddons[newAddon.id] = oldBootstrap;
-
-          // If the old version is the same as the new version, don't call
-          // uninstall and install methods.
-          if (sameVersion)
-            return false;
 
           installReason = Services.vc.compare(oldBootstrap.version, newAddon.version) < 0 ?
                           BOOTSTRAP_REASONS.ADDON_UPGRADE :
@@ -3533,13 +3506,6 @@ var XPIProvider = {
     // Copy the reason values from the global object into the bootstrap scope.
     for (let name in BOOTSTRAP_REASONS)
       this.bootstrapScopes[aId][name] = BOOTSTRAP_REASONS[name];
-
-
-    // Add other stuff that extensions want.
-    const features = [ "Worker", "ChromeWorker" ];
-
-    for each (let feature in features)
-      this.bootstrapScopes[aId][feature] = gGlobalScope[feature];
   },
 
   /**
@@ -3577,39 +3543,30 @@ var XPIProvider = {
     if (Services.appinfo.inSafeMode)
       return;
 
-    if (aMethod == "startup")
-      Components.manager.addBootstrappedManifestLocation(aFile);
+    // Load the scope if it hasn't already been loaded
+    if (!(aId in this.bootstrapScopes))
+      this.loadBootstrapScope(aId, aFile, aVersion, aType);
 
-    try {
-      // Load the scope if it hasn't already been loaded
-      if (!(aId in this.bootstrapScopes))
-        this.loadBootstrapScope(aId, aFile, aVersion, aType);
-
-      if (!(aMethod in this.bootstrapScopes[aId])) {
-        WARN("Add-on " + aId + " is missing bootstrap method " + aMethod);
-        return;
-      }
-
-      let params = {
-        id: aId,
-        version: aVersion,
-        installPath: aFile.clone(),
-        resourceURI: getURIForResourceInFile(aFile, "")
-      };
-
-      LOG("Calling bootstrap method " + aMethod + " on " + aId + " version " +
-          aVersion);
-      try {
-        this.bootstrapScopes[aId][aMethod](params, aReason);
-      }
-      catch (e) {
-        WARN("Exception running bootstrap method " + aMethod + " on " +
-             aId, e);
-      }
+    if (!(aMethod in this.bootstrapScopes[aId])) {
+      WARN("Add-on " + aId + " is missing bootstrap method " + aMethod);
+      return;
     }
-    finally {
-      if (aMethod == "shutdown")
-        Components.manager.removeBootstrappedManifestLocation(aFile);
+
+    let params = {
+      id: aId,
+      version: aVersion,
+      installPath: aFile.clone(),
+      resourceURI: getURIForResourceInFile(aFile, "")
+    };
+
+    LOG("Calling bootstrap method " + aMethod + " on " + aId + " version " +
+        aVersion);
+    try {
+      this.bootstrapScopes[aId][aMethod](params, aReason);
+    }
+    catch (e) {
+      WARN("Exception running bootstrap method " + aMethod + " on " +
+           aId, e);
     }
   },
 
@@ -3879,8 +3836,7 @@ const FIELDS_ADDON = "internal_id, id, location, version, type, internalName, " 
                      "iconURL, icon64URL, defaultLocale, visible, active, " +
                      "userDisabled, appDisabled, pendingUninstall, descriptor, " +
                      "installDate, updateDate, applyBackgroundUpdates, bootstrap, " +
-                     "skinnable, size, sourceURI, releaseNotesURI, softDisabled, " +
-                     "foreignInstall";
+                     "skinnable, size, sourceURI, releaseNotesURI, softDisabled";
 
 /**
  * A helper function to log an SQL error.
@@ -4025,8 +3981,7 @@ var XPIDatabase = {
                             ":userDisabled, :appDisabled, :pendingUninstall, " +
                             ":descriptor, :installDate, :updateDate, " +
                             ":applyBackgroundUpdates, :bootstrap, :skinnable, " +
-                            ":size, :sourceURI, :releaseNotesURI, :softDisabled, " +
-                            ":foreignInstall)",
+                            ":size, :sourceURI, :releaseNotesURI, :softDisabled)",
     addAddonMetadata_addon_locale: "INSERT INTO addon_locale VALUES " +
                                    "(:internal_id, :name, :locale)",
     addAddonMetadata_locale: "INSERT INTO locale (name, description, creator, " +
@@ -4393,14 +4348,7 @@ var XPIDatabase = {
       // and future versions of the schema
       var sql = [];
       sql.push("SELECT internal_id, id, location, userDisabled, " +
-               "softDisabled, installDate, version, applyBackgroundUpdates, " +
-               "sourceURI, releaseNotesURI, foreignInstall FROM addon");
-      sql.push("SELECT internal_id, id, location, userDisabled, " +
-               "softDisabled, installDate, version, applyBackgroundUpdates, " +
-               "sourceURI, releaseNotesURI FROM addon");
-      sql.push("SELECT internal_id, id, location, userDisabled, " +
-               "installDate, version, applyBackgroundUpdates, " +
-               "sourceURI, releaseNotesURI FROM addon");
+               "softDisabled, installDate, version FROM addon");
       sql.push("SELECT internal_id, id, location, userDisabled, installDate, " +
                "version FROM addon");
 
@@ -4431,14 +4379,6 @@ var XPIDatabase = {
 
         if ("softDisabled" in row)
           migrateData[row.location][row.id].softDisabled = row.softDisabled == 1;
-        if ("applyBackgroundUpdates" in row)
-          migrateData[row.location][row.id].applyBackgroundUpdates = row.applyBackgroundUpdates == 1;
-        if ("sourceURI" in row)
-          migrateData[row.location][row.id].sourceURI = row.sourceURI;
-        if ("releaseNotesURI" in row)
-          migrateData[row.location][row.id].releaseNotesURI = row.releaseNotesURI;
-        if ("foreignInstall" in row)
-          migrateData[row.location][row.id].foreignInstall = row.foreignInstall;
       }
 
       var taStmt = this.connection.createStatement("SELECT id, minVersion, " +
@@ -4559,7 +4499,6 @@ var XPIDatabase = {
                                   "bootstrap INTEGER, skinnable INTEGER, " +
                                   "size INTEGER, sourceURI TEXT, " +
                                   "releaseNotesURI TEXT, softDisabled INTEGER, " +
-                                  "foreignInstall INTEGER, " +
                                   "UNIQUE (id, location)");
       this.connection.createTable("targetApplication",
                                   "addon_internal_id INTEGER, " +
@@ -5234,7 +5173,6 @@ var XPIDatabase = {
       this.removeAddonMetadata(aOldAddon);
       aNewAddon.installDate = aOldAddon.installDate;
       aNewAddon.applyBackgroundUpdates = aOldAddon.applyBackgroundUpdates;
-      aNewAddon.foreignInstall = aOldAddon.foreignInstall;
       aNewAddon.active = (aNewAddon.visible && !aNewAddon.userDisabled &&
                           !aNewAddon.appDisabled)
       this.addAddonMetadata(aNewAddon, aDescriptor);
@@ -6850,7 +6788,6 @@ AddonInternal.prototype = {
   softDisabled: false,
   sourceURI: null,
   releaseNotesURI: null,
-  foreignInstall: false,
 
   get selectedLocale() {
     if (this._selectedLocale)
@@ -7123,7 +7060,7 @@ function AddonWrapper(aAddon) {
 
   ["id", "version", "type", "isCompatible", "isPlatformCompatible",
    "providesUpdatesSecurely", "blocklistState", "blocklistURL", "appDisabled",
-   "softDisabled", "skinnable", "size", "foreignInstall"].forEach(function(aProp) {
+   "softDisabled", "skinnable", "size"].forEach(function(aProp) {
      this.__defineGetter__(aProp, function() aAddon[aProp]);
   }, this);
 

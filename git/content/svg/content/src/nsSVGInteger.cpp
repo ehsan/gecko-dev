@@ -89,7 +89,7 @@ nsSVGInteger::SetBaseValueString(const nsAString &aValueAsString,
     return rv;
   }
 
-  mIsBaseSet = true;
+  mIsBaseSet = PR_TRUE;
   mBaseVal = value;
   if (!mIsAnimated) {
     mAnimVal = mBaseVal;
@@ -114,7 +114,7 @@ nsSVGInteger::SetBaseValue(int aValue,
                            nsSVGElement *aSVGElement)
 {
   mBaseVal = aValue;
-  mIsBaseSet = true;
+  mIsBaseSet = PR_TRUE;
   if (!mIsAnimated) {
     mAnimVal = mBaseVal;
   }
@@ -130,7 +130,7 @@ void
 nsSVGInteger::SetAnimValue(int aValue, nsSVGElement *aSVGElement)
 {
   mAnimVal = aValue;
-  mIsAnimated = true;
+  mIsAnimated = PR_TRUE;
   aSVGElement->DidAnimateInteger(mAttrEnum);
 }
 
@@ -169,7 +169,7 @@ nsSVGInteger::SMILInteger::ValueFromString(const nsAString& aStr,
   nsSMILValue smilVal(&SMILIntegerType::sSingleton);
   smilVal.mU.mInt = val;
   aValue = smilVal;
-  aPreventCachingOfSandwich = false;
+  aPreventCachingOfSandwich = PR_FALSE;
   return NS_OK;
 }
 
@@ -186,7 +186,7 @@ nsSVGInteger::SMILInteger::ClearAnimValue()
 {
   if (mVal->mIsAnimated) {
     mVal->SetAnimValue(mVal->mBaseVal, mSVGElement);
-    mVal->mIsAnimated = false;
+    mVal->mIsAnimated = PR_FALSE;
   }
 }
 

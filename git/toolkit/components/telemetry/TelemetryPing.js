@@ -40,7 +40,6 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/LightweightThemeManager.jsm");
 
 // When modifying the payload in incompatible ways, please bump this version number
 const PAYLOAD_VERSION = 1;
@@ -76,12 +75,9 @@ function getLocale() {
          getSelectedLocale('global');
 }
 
-XPCOMUtils.defineLazyServiceGetter(this, "Telemetry",
-                                   "@mozilla.org/base/telemetry;1",
-                                   "nsITelemetry");
-XPCOMUtils.defineLazyServiceGetter(this, "idleService",
-                                   "@mozilla.org/widget/idleservice;1",
-                                   "nsIIdleService");
+XPCOMUtils.defineLazyGetter(this, "Telemetry", function () {
+  return Cc["@mozilla.org/base/telemetry;1"].getService(Ci.nsITelemetry);
+});
 
 /**
  * Returns a set of histograms that can be converted into JSON
@@ -192,7 +188,8 @@ function getMetadata(reason) {
  * @return simple measurements as a dictionary.
  */
 function getSimpleMeasurements() {
-  let si = Services.startup.getStartupInfo();
+  let si = Cc["@mozilla.org/toolkit/app-startup;1"].
+           getService(Ci.nsIAppStartup).getStartupInfo();
 
   var ret = {
     // uptime in minutes
@@ -206,7 +203,6 @@ function getSimpleMeasurements() {
       ret[field] = si[field] - si.process
     }
   }
-  ret.startupInterrupted = new Number(Services.startup.interrupted);
 
   ret.js = Cc["@mozilla.org/js/xpc/XPConnect;1"]
            .getService(Ci.nsIJSEngineTelemetryStats)
@@ -229,54 +225,6 @@ TelemetryPing.prototype = {
       this._histograms[name] = h;
     }
     h.add(val);
-  },
-
-  /**
-   * Descriptive metadata
-   * 
-   * @param  reason
-   *         The reason for the telemetry ping, this will be included in the
-   *         returned metadata,
-   * @return The metadata as a JS object
-   */
-  getMetadata: function getMetadata(reason) {
-    let ai = Services.appinfo;
-    let ret = {
-      reason: reason,
-      OS: ai.OS,
-      appID: ai.ID,
-      appVersion: ai.version,
-      appName: ai.name,
-      appBuildID: ai.appBuildID,
-      platformBuildID: ai.platformBuildID,
-    };
-
-    // sysinfo fields are not always available, get what we can.
-    let sysInfo = Cc["@mozilla.org/system-info;1"].getService(Ci.nsIPropertyBag2);
-    let fields = ["cpucount", "memsize", "arch", "version", "device", "manufacturer", "hardware"];
-    for each (let field in fields) {
-      let value;
-      try {
-        value = sysInfo.getProperty(field);
-      } catch (e) {
-        continue
-      }
-      if (field == "memsize") {
-        // Send RAM size in megabytes. Rounding because sysinfo doesn't
-        // always provide RAM in multiples of 1024.
-        value = Math.round(value / 1024 / 1024)
-      }
-      ret[field] = value
-    }
-
-    let theme = LightweightThemeManager.currentTheme;
-    if (theme)
-      ret.persona = theme.id;
-
-    if (this._addons)
-      ret.addons = this._addons;
-
-    return ret;
   },
 
   /**
@@ -345,11 +293,10 @@ TelemetryPing.prototype = {
     this.gatherMemory();
     let payload = {
       ver: PAYLOAD_VERSION,
-      info: this.getMetadata(reason),
+      info: getMetadata(reason),
       simpleMeasurements: getSimpleMeasurements(),
       histograms: getHistograms()
     };
-
     let isTestPing = (reason == "test-ping");
     // Generate a unique id once per session so the server can cope with duplicate submissions.
     // Use a deterministic url for testing.
@@ -399,7 +346,7 @@ TelemetryPing.prototype = {
     Services.obs.removeObserver(this, "idle-daily");
     Services.obs.removeObserver(this, "cycle-collector-begin");
     if (this._isIdleObserver) {
-      idleService.removeIdleObserver(this, IDLE_TIMEOUT_SECONDS);
+      idle.removeIdleObserver(this, IDLE_TIMEOUT_SECONDS);
       this._isIdleObserver = false;
     }
   },
@@ -455,9 +402,6 @@ TelemetryPing.prototype = {
     var server = this._server;
 
     switch (aTopic) {
-    case "Add-ons":
-      this._addons = aData;
-      break;
     case "profile-after-change":
       this.setup();
       break;
@@ -487,7 +431,7 @@ TelemetryPing.prototype = {
         // Notify that data should be gathered now, since ping will happen soon.
         Services.obs.notifyObservers(null, "gather-telemetry", null);
         // The ping happens at the first idle of length IDLE_TIMEOUT_SECONDS.
-        idleService.addIdleObserver(this, IDLE_TIMEOUT_SECONDS);
+        idle.addIdleObserver(this, IDLE_TIMEOUT_SECONDS);
         this._isIdleObserver = true;
       }).bind(this), Ci.nsIThread.DISPATCH_NORMAL);
       break;
@@ -496,7 +440,7 @@ TelemetryPing.prototype = {
       // fall through
     case "idle":
       if (this._isIdleObserver) {
-        idleService.removeIdleObserver(this, IDLE_TIMEOUT_SECONDS);
+        idle.removeIdleObserver(this, IDLE_TIMEOUT_SECONDS);
         this._isIdleObserver = false;
       }
       this.send(aTopic == "idle" ? "idle-daily" : aTopic, server);

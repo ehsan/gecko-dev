@@ -221,7 +221,7 @@ XULContentSinkImpl::XULContentSinkImpl()
     : mText(nsnull),
       mTextLength(0),
       mTextSize(0),
-      mConstrainSize(true),
+      mConstrainSize(PR_TRUE),
       mState(eInProlog),
       mParser(nsnull)
 {
@@ -382,9 +382,9 @@ XULContentSinkImpl::IsDataInBuffer(PRUnichar* buffer, PRInt32 length)
             buffer[i] == '\r')
             continue;
 
-        return true;
+        return PR_TRUE;
     }
-    return false;
+    return PR_FALSE;
 }
 
 
@@ -604,13 +604,13 @@ XULContentSinkImpl::HandleEndElement(const PRUnichar *aName)
         if (! script->mSrcURI && ! script->mScriptObject.mObject) {
             nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocument);
 
-            script->mOutOfLine = false;
+            script->mOutOfLine = PR_FALSE;
             if (doc)
                 script->Compile(mText, mTextLength, mDocumentURL,
                                 script->mLineNo, doc, mPrototype);
         }
 
-        FlushText(false);
+        FlushText(PR_FALSE);
     }
     break;
 
@@ -732,7 +732,7 @@ XULContentSinkImpl::ReportError(const PRUnichar* aErrorText,
   NS_PRECONDITION(aError && aSourceText && aErrorText, "Check arguments!!!");
 
   // The expat driver should report the error.
-  *_retval = true;
+  *_retval = PR_TRUE;
 
   nsresult rv = NS_OK;
 
@@ -813,7 +813,7 @@ XULContentSinkImpl::SetElementScriptType(nsXULPrototypeElement* element,
                     NS_ASSERTION(element->mScriptTypeID == nsIProgrammingLanguage::UNKNOWN,
                                  "Default script type should be unknown");
                 }
-                found = true;
+                found = PR_TRUE;
                 break;
             }
         }
@@ -1014,7 +1014,7 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
           bool isJavaScript = false;
           for (PRInt32 i = 0; jsTypes[i]; i++) {
               if (mimeType.LowerCaseEqualsASCII(jsTypes[i])) {
-                  isJavaScript = true;
+                  isJavaScript = PR_TRUE;
                   break;
               }
           }
@@ -1156,7 +1156,7 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
 
       children->AppendElement(script);
 
-      mConstrainSize = false;
+      mConstrainSize = PR_FALSE;
 
       mContextStack.Push(script, mState);
       mState = eInScript;

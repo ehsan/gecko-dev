@@ -33,8 +33,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsSVGTextPositioningElement.h"
 #include "SVGAnimatedLengthList.h"
 #include "DOMSVGAnimatedLengthList.h"
@@ -46,17 +44,17 @@ using namespace mozilla;
 
 nsSVGElement::LengthListInfo nsSVGTextPositioningElement::sLengthListInfo[4] =
 {
-  { &nsGkAtoms::x,  nsSVGUtils::X, false },
-  { &nsGkAtoms::y,  nsSVGUtils::Y, false },
-  { &nsGkAtoms::dx, nsSVGUtils::X, true },
-  { &nsGkAtoms::dy, nsSVGUtils::Y, true }
+  { &nsGkAtoms::x,  nsSVGUtils::X, PR_FALSE },
+  { &nsGkAtoms::y,  nsSVGUtils::Y, PR_FALSE },
+  { &nsGkAtoms::dx, nsSVGUtils::X, PR_TRUE },
+  { &nsGkAtoms::dy, nsSVGUtils::Y, PR_TRUE }
 };
 
 nsSVGElement::LengthListAttributesInfo
 nsSVGTextPositioningElement::GetLengthListInfo()
 {
   return LengthListAttributesInfo(mLengthListAttributes, sLengthListInfo,
-                                  ArrayLength(sLengthListInfo));
+                                  NS_ARRAY_LENGTH(sLengthListInfo));
 }
 
 
@@ -69,7 +67,7 @@ nsSVGElement::NumberListAttributesInfo
 nsSVGTextPositioningElement::GetNumberListInfo()
 {
   return NumberListAttributesInfo(mNumberListAttributes, sNumberListInfo,
-                                  ArrayLength(sNumberListInfo));
+                                  NS_ARRAY_LENGTH(sNumberListInfo));
 }
 
 //----------------------------------------------------------------------

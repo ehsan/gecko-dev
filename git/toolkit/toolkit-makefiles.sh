@@ -189,16 +189,16 @@ MAKEFILES_intl="
 "
 
 MAKEFILES_xpconnect="
-  js/xpconnect/Makefile
-  js/xpconnect/public/Makefile
-  js/xpconnect/idl/Makefile
-  js/xpconnect/shell/Makefile
-  js/xpconnect/src/Makefile
-  js/xpconnect/loader/Makefile
-  js/xpconnect/tests/Makefile
-  js/xpconnect/tests/components/js/Makefile
-  js/xpconnect/tests/components/native/Makefile
-  js/xpconnect/tests/idl/Makefile
+  js/src/xpconnect/Makefile
+  js/src/xpconnect/public/Makefile
+  js/src/xpconnect/idl/Makefile
+  js/src/xpconnect/shell/Makefile
+  js/src/xpconnect/src/Makefile
+  js/src/xpconnect/loader/Makefile
+  js/src/xpconnect/tests/Makefile
+  js/src/xpconnect/tests/components/js/Makefile
+  js/src/xpconnect/tests/components/native/Makefile
+  js/src/xpconnect/tests/idl/Makefile
 "
 
 MAKEFILES_jsipc="
@@ -672,18 +672,18 @@ MAKEFILES_jsductwork="
 "
 
 MAKEFILES_libpr0n="
-  image/Makefile
-  image/build/Makefile
-  image/public/Makefile
-  image/src/Makefile
-  image/decoders/Makefile
-  image/decoders/icon/Makefile
-  image/decoders/icon/mac/Makefile
-  image/decoders/icon/win/Makefile
-  image/decoders/icon/gtk/Makefile
-  image/encoders/Makefile
-  image/encoders/png/Makefile
-  image/encoders/jpeg/Makefile
+  modules/libpr0n/Makefile
+  modules/libpr0n/build/Makefile
+  modules/libpr0n/public/Makefile
+  modules/libpr0n/src/Makefile
+  modules/libpr0n/decoders/Makefile
+  modules/libpr0n/decoders/icon/Makefile
+  modules/libpr0n/decoders/icon/mac/Makefile
+  modules/libpr0n/decoders/icon/win/Makefile
+  modules/libpr0n/decoders/icon/gtk/Makefile
+  modules/libpr0n/encoders/Makefile
+  modules/libpr0n/encoders/png/Makefile
+  modules/libpr0n/encoders/jpeg/Makefile
 "
 
 MAKEFILES_accessible="
@@ -846,7 +846,7 @@ if [ "$ENABLE_TESTS" ]; then
     embedding/test/Makefile
     extensions/cookie/test/Makefile
     extensions/pref/Makefile
-    js/xpconnect/tests/mochitest/Makefile
+    js/src/xpconnect/tests/mochitest/Makefile
     layout/forms/test/Makefile
     layout/generic/test/Makefile
     layout/inspector/tests/Makefile
@@ -860,8 +860,8 @@ if [ "$ENABLE_TESTS" ]; then
     layout/xul/test/Makefile
     modules/libjar/test/chrome/Makefile
     modules/libjar/test/mochitest/Makefile
-    image/test/Makefile
-    image/test/mochitest/Makefile
+    modules/libpr0n/test/Makefile
+    modules/libpr0n/test/mochitest/Makefile
     modules/libpref/test/Makefile
     netwerk/test/httpserver/Makefile
     parser/htmlparser/tests/mochitest/Makefile
@@ -977,7 +977,7 @@ fi
 
 if [ ! "$SYSTEM_JPEG" ]; then
   add_makefiles "
-    media/libjpeg/Makefile
+    jpeg/Makefile
   "
 fi
 
@@ -1004,7 +1004,7 @@ fi
 
 if [ ! "$SYSTEM_PNG" ]; then
   add_makefiles "
-    media/libpng/Makefile
+    modules/libimg/png/Makefile
   "
 fi
 

@@ -69,7 +69,7 @@ SVGAnimatedNumberList::SetBaseValueString(const nsAString& aValue)
   // nsSVGElement::ParseAttribute under nsGenericElement::SetAttr,
   // which takes care of notifying.
 
-  mIsBaseSet = true;
+  mIsBaseSet = PR_TRUE;
   rv = mBaseVal.CopyFrom(newBaseValue);
   if (NS_FAILED(rv) && domWrapper) {
     // Attempting to increase mBaseVal's length failed - reduce domWrapper
@@ -89,7 +89,7 @@ SVGAnimatedNumberList::ClearBaseValue(PRUint32 aAttrEnum)
     domWrapper->InternalBaseValListWillChangeTo(SVGNumberList());
   }
   mBaseVal.Clear();
-  mIsBaseSet = false;
+  mIsBaseSet = PR_FALSE;
   // Caller notifies
 }
 
@@ -173,7 +173,7 @@ SVGAnimatedNumberList::
     nlai->SetInfo(mElement);
     aValue.Swap(val);
   }
-  aPreventCachingOfSandwich = false;
+  aPreventCachingOfSandwich = PR_FALSE;
   return rv;
 }
 

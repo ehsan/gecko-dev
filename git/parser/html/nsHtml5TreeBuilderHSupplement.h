@@ -95,5 +95,3 @@
     void AddSnapshotToScript(nsAHtml5TreeBuilderState* aSnapshot, PRInt32 aLine);
 
     void DropHandles();
-
-    void MarkAsBroken();

@@ -96,7 +96,7 @@ NS_IMETHODIMP
 nsChromeProtocolHandler::AllowPort(PRInt32 port, const char *scheme, bool *_retval)
 {
     // don't override anything.
-    *_retval = false;
+    *_retval = PR_FALSE;
     return NS_OK;
 }
 
@@ -136,7 +136,7 @@ nsChromeProtocolHandler::NewURI(const nsACString &aSpec,
     if (NS_FAILED(rv))
         return rv;
 
-    surl->SetMutable(false);
+    surl->SetMutable(PR_FALSE);
 
     NS_ADDREF(*result = url);
     return NS_OK;

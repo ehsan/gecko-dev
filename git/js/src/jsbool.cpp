@@ -53,8 +53,8 @@
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jsstr.h"
+#include "jsvector.h"
 
-#include "vm/BooleanObject-inl.h"
 #include "vm/GlobalObject.h"
 
 #include "jsinferinlines.h"
@@ -135,15 +135,17 @@ static JSFunctionSpec boolean_methods[] = {
 static JSBool
 Boolean(JSContext *cx, uintN argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    bool b = args.length() != 0 ? js_ValueToBoolean(args[0]) : false;
+    Value *argv = vp + 2;
+    bool b = argc != 0 ? js_ValueToBoolean(argv[0]) : false;
 
     if (IsConstructing(vp)) {
-        JSObject *obj = BooleanObject::create(cx, b);
-        args.rval().setObject(*obj);
+        JSObject *obj = NewBuiltinClassInstance(cx, &BooleanClass);
+        if (!obj)
+            return false;
+        obj->setPrimitiveThis(BooleanValue(b));
+        vp->setObject(*obj);
     } else {
-        args.rval().setBoolean(b);
+        vp->setBoolean(b);
     }
     return true;
 }
@@ -204,14 +206,14 @@ BooleanGetPrimitiveValueSlow(JSContext *cx, JSObject &obj, Value *vp)
      * its [[Class]] is "Boolean". Boolean.prototype.valueOf is specified to
      * return the [[PrimitiveValue]] internal property, so call that instead.
      */
-    InvokeArgsGuard ag;
-    if (!cx->stack.pushInvokeArgs(cx, 0, &ag))
+    InvokeArgsGuard args;
+    if (!cx->stack.pushInvokeArgs(cx, 0, &args))
         return false;
-    ag.calleev().setUndefined();
-    ag.thisv().setObject(obj);
-    if (!GetProxyHandler(&obj)->nativeCall(cx, &obj, &BooleanClass, bool_valueOf, ag))
+    args.calleev().setUndefined();
+    args.thisv().setObject(obj);
+    if (!GetProxyHandler(&obj)->nativeCall(cx, &obj, &BooleanClass, bool_valueOf, args))
         return false;
-    *vp = ag.rval();
+    *vp = args.rval();
     return true;
 }
 

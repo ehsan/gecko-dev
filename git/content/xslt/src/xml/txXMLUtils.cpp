@@ -191,10 +191,10 @@ bool XMLUtils::isWhitespace(const nsAFlatString& aText)
     aText.EndReading(end);
     for ( ; start != end; ++start) {
         if (!isWhitespace(*start)) {
-            return false;
+            return PR_FALSE;
         }
     }
-    return true;
+    return PR_TRUE;
 }
 
 /**
@@ -237,13 +237,13 @@ MBool XMLUtils::getXMLSpacePreserve(const txXPathNode& aNode)
     do {
         if (walker.getAttr(nsGkAtoms::space, kNameSpaceID_XML, value)) {
             if (TX_StringEqualsAtom(value, nsGkAtoms::preserve)) {
-                return true;
+                return PR_TRUE;
             }
             if (TX_StringEqualsAtom(value, nsGkAtoms::_default)) {
-                return false;
+                return PR_FALSE;
             }
         }
     } while (walker.moveToParent());
 
-    return false;
+    return PR_FALSE;
 }

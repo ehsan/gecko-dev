@@ -153,9 +153,9 @@ public:
 
   /*
    * When this popup is open, should clicks outside of it be consumed?
-   * Return true if the popup should rollup on an outside click, 
+   * Return PR_TRUE if the popup should rollup on an outside click, 
    * but consume that click so it can't be used for anything else.
-   * Return false to allow clicks outside the popup to activate content 
+   * Return PR_FALSE to allow clicks outside the popup to activate content 
    * even when the popup is open.
    * ---------------------------------------------------------------------
    * 
@@ -228,7 +228,7 @@ public:
   nsresult SetPopupPosition(nsIFrame* aAnchorFrame, bool aIsMove);
 
   bool HasGeneratedChildren() { return mGeneratedChildren; }
-  void SetGeneratedChildren() { mGeneratedChildren = true; }
+  void SetGeneratedChildren() { mGeneratedChildren = PR_TRUE; }
 
   // called when the Enter key is pressed while the popup is open. This will
   // just pass the call down to the current menu, if any. If a current menu
@@ -409,7 +409,7 @@ protected:
 
   // Create a popup view for this frame. The view is added a child of the root
   // view, and is initially hidden.
-  nsresult CreatePopupView();
+  nsresult CreatePopupViewForFrame();
 
   nsString     mIncrementalString;  // for incremental typing navigation
 

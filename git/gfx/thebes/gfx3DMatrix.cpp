@@ -677,7 +677,8 @@ gfx3DMatrix::TransformRect(const gfxRect& aRect) const
   points[2] = Transform(gfxPoint(aRect.X() + aRect.Width(),
                                  aRect.Y() + aRect.Height()));
   points[3] = Transform(gfxPoint(aRect.X(), aRect.Y() + aRect.Height()));
-  
+
+
   // Could this ever result in lines that intersect? I don't think so.
   return gfxQuad(points[0], points[1], points[2], points[3]);
 }
@@ -689,16 +690,16 @@ gfx3DMatrix::Is2D() const
       _23 != 0.0f || _24 != 0.0f ||
       _31 != 0.0f || _32 != 0.0f || _33 != 1.0f || _34 != 0.0f ||
       _43 != 0.0f || _44 != 1.0f) {
-    return false;
+    return PR_FALSE;
   }
-  return true;
+  return PR_TRUE;
 }
 
 bool
 gfx3DMatrix::Is2D(gfxMatrix* aMatrix) const
 {
   if (!Is2D()) {
-    return false;
+    return PR_FALSE;
   }
   if (aMatrix) {
     aMatrix->xx = _11;
@@ -708,7 +709,7 @@ gfx3DMatrix::Is2D(gfxMatrix* aMatrix) const
     aMatrix->x0 = _41;
     aMatrix->y0 = _42;
   }
-  return true;
+  return PR_TRUE;
 }
 
 bool
@@ -716,7 +717,7 @@ gfx3DMatrix::CanDraw2D(gfxMatrix* aMatrix) const
 {
   if (_14 != 0.0f || _24 != 0.0f ||
       _34 != 0.0f || _44 != 1.0f) {
-    return false;
+    return PR_FALSE;
   }
   if (aMatrix) {
     aMatrix->xx = _11;
@@ -726,7 +727,7 @@ gfx3DMatrix::CanDraw2D(gfxMatrix* aMatrix) const
     aMatrix->x0 = _41;
     aMatrix->y0 = _42;
   }
-  return true;
+  return PR_TRUE;
 }
 
 gfx3DMatrix&
@@ -800,26 +801,15 @@ gfxRect gfx3DMatrix::ProjectRectBounds(const gfxRect& aRect) const
 
 gfxPoint3D gfx3DMatrix::GetNormalVector() const
 {
-  // Define a plane in transformed space as the transformations
-  // of 3 points on the z=0 screen plane.
-  gfxPoint3D a = Transform3D(gfxPoint3D(0, 0, 0));
-  gfxPoint3D b = Transform3D(gfxPoint3D(0, 1, 0));
-  gfxPoint3D c = Transform3D(gfxPoint3D(1, 0, 0));
+    // Define a plane in transformed space as the transformations
+    // of 3 points on the z=0 screen plane.
+    gfxPoint3D a = Transform3D(gfxPoint3D(0, 0, 0));
+    gfxPoint3D b = Transform3D(gfxPoint3D(0, 1, 0));
+    gfxPoint3D c = Transform3D(gfxPoint3D(1, 0, 0));
 
-  // Convert to two vectors on the surface of the plane.
-  gfxPoint3D ab = b - a;
-  gfxPoint3D ac = c - a;
+    // Convert to two vectors on the surface of the plane.
+    gfxPoint3D ab = b - a;
+    gfxPoint3D ac = c - a;
 
-  return ac.CrossProduct(ab);
+    return ac.CrossProduct(ab);
 }
-
-bool gfx3DMatrix::IsBackfaceVisible() const
-{
-  // Inverse()._33 < 0;
-  gfxFloat det = Determinant();
-  float _33 = _12*_24*_41 - _14*_22*_41 +
-              _14*_21*_42 - _11*_24*_42 -
-              _12*_21*_44 + _11*_22*_44;
-  return (_33 * det) < 0;
-}
-

@@ -248,7 +248,7 @@ class nsHtml5Tokenizer
     inline void silentCarriageReturn()
     {
       ++line;
-      lastCR = true;
+      lastCR = PR_TRUE;
     }
 
     inline void silentLineFeed()

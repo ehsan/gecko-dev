@@ -56,7 +56,6 @@ DIRS	= \
   states \
   table \
   text \
-  textselection \
   tree \
   treeupdate \
   value \

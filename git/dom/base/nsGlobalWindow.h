@@ -245,7 +245,6 @@ public:
     return true;
   }
   JSString *obj_toString(JSContext *cx, JSObject *wrapper);
-  void finalize(JSContext *cx, JSObject *proxy);
 
   static nsOuterWindowProxy singleton;
 };
@@ -299,16 +298,6 @@ public:
 
   // nsISupports
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-
-  // nsWrapperCache
-  JSObject *WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
-                       bool *triedToWrap)
-  {
-    NS_ASSERTION(IsOuterWindow(),
-                 "Inner window supports nsWrapperCache, fix WrapObject!");
-    *triedToWrap = true;
-    return EnsureInnerWindow() ? GetWrapper() : nsnull;
-  }
 
   // nsIScriptGlobalObject
   virtual nsIScriptContext *GetContext();
@@ -609,7 +598,7 @@ protected:
   bool IsPopupSpamWindow()
   {
     if (IsInnerWindow() && !mOuterWindow) {
-      return false;
+      return PR_FALSE;
     }
 
     return GetOuterWindowInternal()->mIsPopupSpam;
@@ -762,13 +751,13 @@ protected:
   void Freeze()
   {
     NS_ASSERTION(!IsFrozen(), "Double-freezing?");
-    mIsFrozen = true;
+    mIsFrozen = PR_TRUE;
     NotifyDOMWindowFrozen(this);
   }
 
   void Thaw()
   {
-    mIsFrozen = false;
+    mIsFrozen = PR_FALSE;
     NotifyDOMWindowThawed(this);
   }
 
@@ -1023,8 +1012,8 @@ public:
   nsGlobalChromeWindow(nsGlobalWindow *aOuterWindow)
     : nsGlobalWindow(aOuterWindow)
   {
-    mIsChrome = true;
-    mCleanMessageManager = true;
+    mIsChrome = PR_TRUE;
+    mCleanMessageManager = PR_TRUE;
   }
 
   ~nsGlobalChromeWindow()
@@ -1036,7 +1025,7 @@ public:
         mMessageManager.get())->Disconnect();
     }
 
-    mCleanMessageManager = false;
+    mCleanMessageManager = PR_FALSE;
   }
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsGlobalChromeWindow,
@@ -1058,7 +1047,7 @@ public:
   nsGlobalModalWindow(nsGlobalWindow *aOuterWindow)
     : nsGlobalWindow(aOuterWindow)
   {
-    mIsModalContentWindow = true;
+    mIsModalContentWindow = PR_TRUE;
   }
 
   NS_DECL_ISUPPORTS_INHERITED

@@ -22,7 +22,6 @@
  *
  * Contributor(s):
  *   Shawn Wilsher <me@shawnwilsher.com> (Original Author)
- *   David Rajchenbach-Teller <dteller@mozilla.com> (added Telemetry)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -254,13 +253,6 @@ private:
    * about the error message, the user gets reliable error messages.
    */
   SQLiteMutex &mDBMutex;
-  
-  /**
-   * The instant at which the request was started.
-   *
-   * Used by telemetry.
-   */
-  TimeStamp mRequestStartDate;
 };
 
 } // namespace storage

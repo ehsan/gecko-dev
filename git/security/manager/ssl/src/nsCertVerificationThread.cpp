@@ -58,7 +58,7 @@ void nsCertVerificationJob::Run()
   nsRefPtr<nsCertVerificationResult> vres = new nsCertVerificationResult;
   if (vres)
   {
-    nsresult rv = mCert->GetUsagesArray(false, // do not ignore OCSP
+    nsresult rv = mCert->GetUsagesArray(PR_FALSE, // do not ignore OCSP
                                         &verified,
                                         &count,
                                         &usages);
@@ -126,7 +126,7 @@ nsresult nsCertVerificationThread::addJob(nsBaseVerificationJob *aJob)
 
 void nsCertVerificationThread::Run(void)
 {
-  while (true) {
+  while (PR_TRUE) {
 
     nsBaseVerificationJob *job = nsnull;
 

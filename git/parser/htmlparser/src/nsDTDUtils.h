@@ -193,11 +193,11 @@ public:
 class CTableState {
 public:
   CTableState(CTableState *aPreviousState=0) {
-    mHasCaption=false;
-    mHasCols=false;
-    mHasTHead=false;
-    mHasTFoot=false;
-    mHasTBody=false;    
+    mHasCaption=PR_FALSE;
+    mHasCols=PR_FALSE;
+    mHasTHead=PR_FALSE;
+    mHasTFoot=PR_FALSE;
+    mHasTBody=PR_FALSE;    
     mPrevious=aPreviousState;
   }
 
@@ -452,7 +452,7 @@ protected:
 
 
 struct TagList {
-  size_t mCount;
+  PRUint32 mCount;
   const eHTMLTags *mTags;
 };
 

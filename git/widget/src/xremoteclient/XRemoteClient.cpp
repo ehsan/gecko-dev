@@ -91,7 +91,7 @@ static bool sGotBadWindow;
 XRemoteClient::XRemoteClient()
 {
   mDisplay = 0;
-  mInitialized = false;
+  mInitialized = PR_FALSE;
   mMozVersionAtom = 0;
   mMozLockAtom = 0;
   mMozCommandAtom = 0;
@@ -152,7 +152,7 @@ XRemoteClient::Init()
   mMozProgramAtom  = XAtoms[i++];
   mMozCommandLineAtom = XAtoms[i++];
 
-  mInitialized = true;
+  mInitialized = PR_TRUE;
 
   return NS_OK;
 }
@@ -168,7 +168,7 @@ XRemoteClient::Shutdown (void)
   // shut everything down
   XCloseDisplay(mDisplay);
   mDisplay = 0;
-  mInitialized = false;
+  mInitialized = PR_FALSE;
   if (mLockData) {
     free(mLockData);
     mLockData = 0;
@@ -208,7 +208,7 @@ static int
 HandleBadWindow(Display *display, XErrorEvent *event)
 {
   if (event->error_code == BadWindow) {
-    sGotBadWindow = true;
+    sGotBadWindow = PR_TRUE;
     return 0; // ignored
   }
   else {
@@ -223,7 +223,7 @@ XRemoteClient::SendCommandInternal(const char *aProgram, const char *aUsername,
                                    const char* aDesktopStartupID,
                                    char **aResponse, bool *aWindowFound)
 {
-  *aWindowFound = false;
+  *aWindowFound = PR_FALSE;
   bool isCommandLine = !aCommand;
 
   // FindBestWindow() iterates down the window hierarchy, so catch X errors
@@ -236,12 +236,12 @@ XRemoteClient::SendCommandInternal(const char *aProgram, const char *aUsername,
 
   if (w) {
     // ok, let the caller know that we at least found a window.
-    *aWindowFound = true;
+    *aWindowFound = PR_TRUE;
 
     // Ignore BadWindow errors up to this point.  The last request from
     // FindBestWindow() was a synchronous XGetWindowProperty(), so no need to
     // Sync.  Leave the error handler installed to detect if w gets destroyed.
-    sGotBadWindow = false;
+    sGotBadWindow = PR_FALSE;
 
     // make sure we get the right events on that window
     XSelectInput(mDisplay, w,
@@ -350,7 +350,7 @@ XRemoteClient::GetLock(Window aWindow, bool *aDestroyed)
 {
   bool locked = false;
   bool waited = false;
-  *aDestroyed = false;
+  *aDestroyed = PR_FALSE;
 
   nsresult rv = NS_OK;
 
@@ -399,7 +399,7 @@ XRemoteClient::GetLock(Window aWindow, bool *aDestroyed)
     // tell us.  XGetWindowProperty() was synchronous so error responses have
     // now been processed, setting sGotBadWindow.
     if (sGotBadWindow) {
-      *aDestroyed = true;
+      *aDestroyed = PR_TRUE;
       rv = NS_ERROR_FAILURE;
     }
     else if (result != Success || actual_type == None) {
@@ -445,7 +445,7 @@ XRemoteClient::GetLock(Window aWindow, bool *aDestroyed)
 	XNextEvent (mDisplay, &event);
 	if (event.xany.type == DestroyNotify &&
 	    event.xdestroywindow.window == aWindow) {
-	  *aDestroyed = true;
+	  *aDestroyed = PR_TRUE;
           rv = NS_ERROR_FAILURE;
           break;
 	}
@@ -674,7 +674,7 @@ XRemoteClient::DoSendCommand(Window aWindow, const char *aCommand,
                              const char* aDesktopStartupID,
                              char **aResponse, bool *aDestroyed)
 {
-  *aDestroyed = false;
+  *aDestroyed = PR_FALSE;
 
   PR_LOG(sRemoteLm, PR_LOG_DEBUG,
      ("(writing " MOZILLA_COMMAND_PROP " \"%s\" to 0x%x)\n",
@@ -725,7 +725,7 @@ XRemoteClient::DoSendCommandLine(Window aWindow, PRInt32 argc, char **argv,
                                  const char* aDesktopStartupID,
                                  char **aResponse, bool *aDestroyed)
 {
-  *aDestroyed = false;
+  *aDestroyed = PR_FALSE;
 
   char cwdbuf[MAX_PATH];
   if (!getcwd(cwdbuf, MAX_PATH))
@@ -812,8 +812,8 @@ XRemoteClient::WaitForResponse(Window aWindow, char **aResponse,
              ("window 0x%x was destroyed.\n",
               (unsigned int) aWindow));
       *aResponse = strdup("Window was destroyed while reading response.");
-      *aDestroyed = true;
-      return false;
+      *aDestroyed = PR_TRUE;
+      return PR_FALSE;
     }
     else if (event.xany.type == PropertyNotify &&
              event.xproperty.state == PropertyNewValue &&
@@ -837,7 +837,7 @@ XRemoteClient::WaitForResponse(Window aWindow, char **aResponse,
                 " from window 0x%0x.\n",
                 (unsigned int) aWindow));
         *aResponse = strdup("Internal error reading response from window.");
-        done = true;
+        done = PR_TRUE;
       }
       else if (!data || strlen((char *) data) < 5) {
         PR_LOG(sRemoteLm, PR_LOG_DEBUG,
@@ -845,25 +845,25 @@ XRemoteClient::WaitForResponse(Window aWindow, char **aResponse,
                 " property of window 0x%0x.\n",
                 (unsigned int) aWindow));
         *aResponse = strdup("Server returned invalid data in response.");
-        done = true;
+        done = PR_TRUE;
       }
       else if (*data == '1') {  /* positive preliminary reply */
         PR_LOG(sRemoteLm, PR_LOG_DEBUG,  ("%s\n", data + 4));
         /* keep going */
-        done = false;
+        done = PR_FALSE;
       }
 
       else if (!strncmp ((char *)data, "200", 3)) { /* positive completion */
         *aResponse = strdup((char *)data);
-        accepted = true;
-        done = true;
+        accepted = PR_TRUE;
+        done = PR_TRUE;
       }
 
       else if (*data == '2') {  /* positive completion */
         PR_LOG(sRemoteLm, PR_LOG_DEBUG, ("%s\n", data + 4));
         *aResponse = strdup((char *)data);
-        accepted = true;
-        done = true;
+        accepted = PR_TRUE;
+        done = PR_TRUE;
       }
 
       else if (*data == '3') {  /* positive intermediate reply */
@@ -872,14 +872,14 @@ XRemoteClient::WaitForResponse(Window aWindow, char **aResponse,
                 "server wants more information?  (%s)\n",
                 data));
         *aResponse = strdup((char *)data);
-        done = true;
+        done = PR_TRUE;
       }
 
       else if (*data == '4' ||  /* transient negative completion */
                *data == '5') {  /* permanent negative completion */
         PR_LOG(sRemoteLm, PR_LOG_DEBUG, ("%s\n", data + 4));
         *aResponse = strdup((char *)data);
-        done = true;
+        done = PR_TRUE;
       }
 
       else {
@@ -888,7 +888,7 @@ XRemoteClient::WaitForResponse(Window aWindow, char **aResponse,
                 " from window 0x%x: %s\n",
                 (unsigned int) aWindow, data));
         *aResponse = strdup((char *)data);
-        done = true;
+        done = PR_TRUE;
       }
 
       if (data)

@@ -72,6 +72,7 @@
 #include "jsscope.h"
 #include "jsstr.h"
 #include "jstracer.h"
+#include "jsvector.h"
 #include "jslibmath.h"
 
 #include "vm/GlobalObject.h"

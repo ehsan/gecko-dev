@@ -36,8 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsBaseWidget.h"
 #include "nsDeviceContext.h"
 #include "nsCOMPtr.h"
@@ -104,12 +102,13 @@ nsBaseWidget::nsBaseWidget()
 , mEventCallback(nsnull)
 , mViewCallback(nsnull)
 , mContext(nsnull)
+, mToolkit(nsnull)
 , mCursor(eCursor_standard)
 , mWindowType(eWindowType_child)
 , mBorderStyle(eBorderStyle_none)
-, mOnDestroyCalled(false)
-, mUseAcceleratedRendering(false)
-, mTemporarilyUseBasicLayerManager(false)
+, mOnDestroyCalled(PR_FALSE)
+, mUseAcceleratedRendering(PR_FALSE)
+, mTemporarilyUseBasicLayerManager(PR_FALSE)
 , mBounds(0,0,0,0)
 , mOriginalBounds(nsnull)
 , mClipRectCount(0)
@@ -149,6 +148,7 @@ nsBaseWidget::~nsBaseWidget()
   printf("WIDGETS- = %d\n", gNumWidgets);
 #endif
 
+  NS_IF_RELEASE(mToolkit);
   NS_IF_RELEASE(mContext);
   delete mOriginalBounds;
 }
@@ -163,8 +163,43 @@ void nsBaseWidget::BaseCreate(nsIWidget *aParent,
                               const nsIntRect &aRect,
                               EVENT_CALLBACK aHandleEventFunction,
                               nsDeviceContext *aContext,
+                              nsIAppShell *aAppShell,
+                              nsIToolkit *aToolkit,
                               nsWidgetInitData *aInitData)
 {
+  if (nsnull == mToolkit) {
+    if (nsnull != aToolkit) {
+      mToolkit = (nsIToolkit*)aToolkit;
+      NS_ADDREF(mToolkit);
+    }
+    else {
+      if (nsnull != aParent) {
+        mToolkit = aParent->GetToolkit();
+        NS_IF_ADDREF(mToolkit);
+      }
+      // it's some top level window with no toolkit passed in.
+      // Create a default toolkit with the current thread
+#if !defined(USE_TLS_FOR_TOOLKIT)
+      else {
+        static NS_DEFINE_CID(kToolkitCID, NS_TOOLKIT_CID);
+        
+        nsresult res;
+        res = CallCreateInstance(kToolkitCID, &mToolkit);
+        NS_ASSERTION(NS_SUCCEEDED(res), "Can not create a toolkit in nsBaseWidget::Create");
+        if (mToolkit)
+          mToolkit->Init(PR_GetCurrentThread());
+      }
+#else /* USE_TLS_FOR_TOOLKIT */
+      else {
+        nsresult rv;
+
+        rv = NS_GetCurrentToolkit(&mToolkit);
+      }
+#endif /* USE_TLS_FOR_TOOLKIT */
+    }
+    
+  }
+  
   // save the event callback function
   mEventCallback = aHandleEventFunction;
   
@@ -217,6 +252,8 @@ already_AddRefed<nsIWidget>
 nsBaseWidget::CreateChild(const nsIntRect  &aRect,
                           EVENT_CALLBACK   aHandleEventFunction,
                           nsDeviceContext *aContext,
+                          nsIAppShell      *aAppShell,
+                          nsIToolkit       *aToolkit,
                           nsWidgetInitData *aInitData,
                           bool             aForceUseIWidgetParent)
 {
@@ -243,7 +280,8 @@ nsBaseWidget::CreateChild(const nsIntRect  &aRect,
   if (widget &&
       NS_SUCCEEDED(widget->Create(parent, nativeParent, aRect,
                                   aHandleEventFunction,
-                                  aContext, aInitData))) {
+                                  aContext, aAppShell, aToolkit,
+                                  aInitData))) {
     return widget.forget();
   }
 
@@ -460,7 +498,7 @@ NS_IMETHODIMP nsBaseWidget::SetZIndex(PRInt32 aZIndex)
             // go of it
             parent->mFirstChild = this;
           }
-          PlaceBehind(eZPlacementBelow, sib, false);
+          PlaceBehind(eZPlacementBelow, sib, PR_FALSE);
           break;
         }
       }
@@ -620,14 +658,14 @@ nsBaseWidget::StoreWindowClipRegion(const nsTArray<nsIntRect>& aRects)
 {
   if (mClipRects && mClipRectCount == aRects.Length() &&
       memcmp(mClipRects, aRects.Elements(), sizeof(nsIntRect)*mClipRectCount) == 0)
-    return false;
+    return PR_FALSE;
 
   mClipRectCount = aRects.Length();
   mClipRects = new nsIntRect[mClipRectCount];
   if (mClipRects) {
     memcpy(mClipRects, aRects.Elements(), sizeof(nsIntRect)*mClipRectCount);
   }
-  return true;
+  return PR_TRUE;
 }
 
 void
@@ -687,14 +725,14 @@ NS_IMETHODIMP nsBaseWidget::MakeFullScreen(bool aFullScreen)
       if (screen) {
         PRInt32 left, top, width, height;
         if (NS_SUCCEEDED(screen->GetRect(&left, &top, &width, &height))) {
-          Resize(left, top, width, height, true);
+          Resize(left, top, width, height, PR_TRUE);
         }
       }
     }
 
   } else if (mOriginalBounds) {
     Resize(mOriginalBounds->x, mOriginalBounds->y, mOriginalBounds->width,
-           mOriginalBounds->height, true);
+           mOriginalBounds->height, PR_TRUE);
   }
 
   return NS_OK;
@@ -728,12 +766,12 @@ nsBaseWidget::AutoLayerManagerSetup::~AutoLayerManagerSetup()
 nsBaseWidget::AutoUseBasicLayerManager::AutoUseBasicLayerManager(nsBaseWidget* aWidget)
   : mWidget(aWidget)
 {
-  mWidget->mTemporarilyUseBasicLayerManager = true;
+  mWidget->mTemporarilyUseBasicLayerManager = PR_TRUE;
 }
 
 nsBaseWidget::AutoUseBasicLayerManager::~AutoUseBasicLayerManager()
 {
-  mWidget->mTemporarilyUseBasicLayerManager = false;
+  mWidget->mTemporarilyUseBasicLayerManager = PR_FALSE;
 }
 
 bool
@@ -759,7 +797,7 @@ nsBaseWidget::GetShouldAccelerate()
   if (err1 == noErr && err2 == noErr && err3 == noErr) {
     if (major == 10 && minor == 6) {
       if (bugfix <= 2) {
-        accelerateByDefault = false;
+        accelerateByDefault = PR_FALSE;
       }
     }
   }
@@ -806,18 +844,18 @@ nsBaseWidget::GetShouldAccelerate()
   }
 
   if (disableAcceleration || safeMode)
-    return false;
+    return PR_FALSE;
 
   if (forceAcceleration)
-    return true;
+    return PR_TRUE;
   
   if (!whitelisted) {
     NS_WARNING("OpenGL-accelerated layers are not supported on this system.");
-    return false;
+    return PR_FALSE;
   }
 
   if (accelerateByDefault)
-    return true;
+    return PR_TRUE;
 
   /* use the window acceleration flag */
   return mUseAcceleratedRendering;
@@ -867,6 +905,17 @@ BasicLayerManager* nsBaseWidget::CreateBasicLayerManager()
 
 //-------------------------------------------------------------------------
 //
+// Return the toolkit this widget was created on
+//
+//-------------------------------------------------------------------------
+nsIToolkit* nsBaseWidget::GetToolkit()
+{
+  return mToolkit;
+}
+
+
+//-------------------------------------------------------------------------
+//
 // Return the used device context
 //
 //-------------------------------------------------------------------------
@@ -895,8 +944,9 @@ gfxASurface *nsBaseWidget::GetThebesSurface()
 //-------------------------------------------------------------------------
 void nsBaseWidget::OnDestroy()
 {
-  // release references to device context and app shell
+  // release references to device context, toolkit, and app shell
   NS_IF_RELEASE(mContext);
+  NS_IF_RELEASE(mToolkit);
 }
 
 NS_METHOD nsBaseWidget::SetWindowClass(const nsAString& xulWinType)
@@ -981,7 +1031,7 @@ nsBaseWidget::GetAttention(PRInt32 aCycleCount) {
 bool
 nsBaseWidget::HasPendingInputEvent()
 {
-  return false;
+  return PR_FALSE;
 }
 
 NS_IMETHODIMP
@@ -995,7 +1045,7 @@ nsBaseWidget::BeginSecureKeyboardInput()
 {
 #ifdef DEBUG
   NS_ASSERTION(!debug_InSecureKeyboardInputMode, "Attempting to nest call to BeginSecureKeyboardInput!");
-  debug_InSecureKeyboardInputMode = true;
+  debug_InSecureKeyboardInputMode = PR_TRUE;
 #endif
   return NS_OK;
 }
@@ -1005,7 +1055,7 @@ nsBaseWidget::EndSecureKeyboardInput()
 {
 #ifdef DEBUG
   NS_ASSERTION(debug_InSecureKeyboardInputMode, "Calling EndSecureKeyboardInput when it hasn't been enabled!");
-  debug_InSecureKeyboardInputMode = false;
+  debug_InSecureKeyboardInputMode = PR_FALSE;
 #endif
   return NS_OK;
 }
@@ -1019,7 +1069,7 @@ nsBaseWidget::SetWindowTitlebarColor(nscolor aColor, bool aActive)
 bool
 nsBaseWidget::ShowsResizeIndicator(nsIntRect* aResizerRect)
 {
-  return false;
+  return PR_FALSE;
 }
 
 NS_IMETHODIMP
@@ -1282,12 +1332,12 @@ struct PrefPair
 
 static PrefPair debug_PrefValues[] =
 {
-  { "nglayout.debug.crossing_event_dumping", false },
-  { "nglayout.debug.event_dumping", false },
-  { "nglayout.debug.invalidate_dumping", false },
-  { "nglayout.debug.motion_event_dumping", false },
-  { "nglayout.debug.paint_dumping", false },
-  { "nglayout.debug.paint_flashing", false }
+  { "nglayout.debug.crossing_event_dumping", PR_FALSE },
+  { "nglayout.debug.event_dumping", PR_FALSE },
+  { "nglayout.debug.invalidate_dumping", PR_FALSE },
+  { "nglayout.debug.motion_event_dumping", PR_FALSE },
+  { "nglayout.debug.paint_dumping", PR_FALSE },
+  { "nglayout.debug.paint_flashing", PR_FALSE }
 };
 
 //////////////////////////////////////////////////////////////
@@ -1296,7 +1346,7 @@ nsBaseWidget::debug_GetCachedBoolPref(const char * aPrefName)
 {
   NS_ASSERTION(nsnull != aPrefName,"cmon, pref name is null.");
 
-  for (PRUint32 i = 0; i < ArrayLength(debug_PrefValues); i++)
+  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(debug_PrefValues); i++)
   {
     if (strcmp(debug_PrefValues[i].name, aPrefName) == 0)
     {
@@ -1304,14 +1354,14 @@ nsBaseWidget::debug_GetCachedBoolPref(const char * aPrefName)
     }
   }
 
-  return false;
+  return PR_FALSE;
 }
 //////////////////////////////////////////////////////////////
 static void debug_SetCachedBoolPref(const char * aPrefName,bool aValue)
 {
   NS_ASSERTION(nsnull != aPrefName,"cmon, pref name is null.");
 
-  for (PRUint32 i = 0; i < ArrayLength(debug_PrefValues); i++)
+  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(debug_PrefValues); i++)
   {
     if (strcmp(debug_PrefValues[i].name, aPrefName) == 0)
     {
@@ -1321,7 +1371,7 @@ static void debug_SetCachedBoolPref(const char * aPrefName,bool aValue)
     }
   }
 
-  NS_ASSERTION(false, "cmon, this code is not reached dude.");
+  NS_ASSERTION(PR_FALSE, "cmon, this code is not reached dude.");
 }
 
 //////////////////////////////////////////////////////////////
@@ -1354,10 +1404,10 @@ debug_RegisterPrefCallbacks()
     return;
   }
 
-  once = false;
+  once = PR_FALSE;
 
   nsCOMPtr<nsIObserver> obs(new Debug_PrefObserver());
-  for (PRUint32 i = 0; i < ArrayLength(debug_PrefValues); i++) {
+  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(debug_PrefValues); i++) {
     // Initialize the pref values
     debug_PrefValues[i].value =
       Preferences::GetBool(debug_PrefValues[i].name, false);

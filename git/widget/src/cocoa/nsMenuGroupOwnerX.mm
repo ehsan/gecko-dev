@@ -47,6 +47,7 @@
 
 #include "nsCOMPtr.h"
 #include "nsString.h"
+#include "nsWidgetAtoms.h"
 #include "nsGUIEvent.h"
 #include "nsObjCExceptions.h"
 #include "nsHashtable.h"
@@ -89,7 +90,7 @@ nsresult nsMenuGroupOwnerX::Create(nsIContent* aContent)
 
   mContent = aContent;
 
-  nsIDocument* doc = aContent->OwnerDoc();
+  nsIDocument* doc = aContent->GetOwnerDoc();
   if (!doc)
     return NS_ERROR_FAILURE;
   doc->AddMutationObserver(this);

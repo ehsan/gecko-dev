@@ -48,16 +48,9 @@
   direction: ltr;
   unicode-bidi: embed;
 }
-bdi, bdi[dir], output, output[dir], [dir="auto"] { 
-  unicode-bidi: -moz-isolate;
-}
-bdo, bdo[dir] {
+bdo[dir] {
   unicode-bidi: bidi-override;
 }
-bdo[dir="auto"] {
-  unicode-bidi: bidi-override -moz-isolate;
-}
-textarea[dir="auto"], pre[dir="auto"] { unicode-bidi: -moz-plaintext; }
 
 /* To ensure http://www.w3.org/TR/REC-html40/struct/dirlang.html#style-bidi:
  *
@@ -115,7 +108,7 @@ thead,
 tr,
 ul,
 xmp {
-  unicode-bidi: -moz-isolate;
+  unicode-bidi: embed;
 }
 
 
@@ -645,7 +638,7 @@ img:-moz-loading::before, input:-moz-loading::before,
 applet:-moz-empty-except-children-with-localname(param):-moz-broken::before,
 applet:-moz-empty-except-children-with-localname(param):-moz-user-disabled::before {
   content: -moz-alt-content !important;
-  unicode-bidi: -moz-isolate;
+  unicode-bidi: embed;
 }
 
 :-moz-any(object,applet):-moz-any(:-moz-broken,:-moz-user-disabled) > *|* {

@@ -64,8 +64,8 @@ static NS_DEFINE_CID(kSimpleURICID, NS_SIMPLEURI_CID);
 // nsSimpleURI methods:
 
 nsSimpleURI::nsSimpleURI()
-    : mMutable(true),
-      mIsRefValid(false)
+    : mMutable(PR_TRUE),
+      mIsRefValid(PR_FALSE)
 {
 }
 
@@ -94,7 +94,7 @@ nsSimpleURI::Read(nsIObjectInputStream* aStream)
     bool isMutable; // (because ReadBoolean doesn't support bool*)
     rv = aStream->ReadBoolean(&isMutable);
     if (NS_FAILED(rv)) return rv;
-    if (isMutable != true && isMutable != false) {
+    if (isMutable != PR_TRUE && isMutable != PR_FALSE) {
         NS_WARNING("Unexpected boolean value");
         return NS_ERROR_UNEXPECTED;
     }
@@ -109,7 +109,7 @@ nsSimpleURI::Read(nsIObjectInputStream* aStream)
     bool isRefValid;
     rv = aStream->ReadBoolean(&isRefValid);
     if (NS_FAILED(rv)) return rv;
-    if (isRefValid != true && isRefValid != false) {
+    if (isRefValid != PR_TRUE && isRefValid != PR_FALSE) {
         NS_WARNING("Unexpected boolean value");
         return NS_ERROR_UNEXPECTED;
     }
@@ -161,7 +161,7 @@ nsSimpleURI::Read(const IPC::Message *aMsg, void **aIter)
         !ReadParam(aMsg, aIter, &mScheme) ||
         !ReadParam(aMsg, aIter, &mPath) ||
         !ReadParam(aMsg, aIter, &isRefValid))
-        return false;
+        return PR_FALSE;
 
     mMutable = isMutable;
     mIsRefValid = isRefValid;
@@ -171,7 +171,7 @@ nsSimpleURI::Read(const IPC::Message *aMsg, void **aIter)
     }
     mRef.Truncate(); // invariant: mRef should be empty when it's not valid
 
-    return true;
+    return PR_TRUE;
 }
 
 void
@@ -388,7 +388,7 @@ nsSimpleURI::SetPath(const nsACString &path)
     
     PRInt32 hashPos = path.FindChar('#');
     if (hashPos < 0) {
-        mIsRefValid = false;
+        mIsRefValid = PR_FALSE;
         mRef.Truncate(); // invariant: mRef should be empty when it's not valid
         mPath = path;
         return NS_OK;
@@ -420,12 +420,12 @@ nsSimpleURI::SetRef(const nsACString &aRef)
 
     if (aRef.IsEmpty()) {
       // Empty string means to remove ref completely.
-      mIsRefValid = false;
+      mIsRefValid = PR_FALSE;
       mRef.Truncate(); // invariant: mRef should be empty when it's not valid
       return NS_OK;
     }
 
-    mIsRefValid = true;
+    mIsRefValid = PR_TRUE;
 
     // Gracefully skip initial hash
     if (aRef[0] == '#') {
@@ -461,7 +461,7 @@ nsSimpleURI::EqualsInternal(nsIURI* other,
     nsresult rv = other->QueryInterface(kThisSimpleURIImplementationCID,
                                         getter_AddRefs(otherUri));
     if (NS_FAILED(rv)) {
-        *result = false;
+        *result = PR_FALSE;
         return NS_OK;
     }
 
@@ -493,9 +493,9 @@ nsSimpleURI::SchemeIs(const char *i_Scheme, bool *o_Equals)
 
     // mScheme is guaranteed to be lower case.
     if (*i_Scheme == *this_scheme || *i_Scheme == (*this_scheme - ('a' - 'A')) ) {
-        *o_Equals = PL_strcasecmp(this_scheme, i_Scheme) ? false : true;
+        *o_Equals = PL_strcasecmp(this_scheme, i_Scheme) ? PR_FALSE : PR_TRUE;
     } else {
-        *o_Equals = false;
+        *o_Equals = PR_FALSE;
     }
 
     return NS_OK;

@@ -115,10 +115,8 @@ function teststylePanels() {
   for (let i = 0, max = stylePanels.length; i < max; i++) {
     ok(stylePanels[i], "style inspector instance " + i +
        " correctly initialized");
-    is(stylePanels[i].state, "open", "style inspector " + i + " is open");
+    ok(stylePanels[i].isOpen(), "style inspector " + i + " is open");
 
-/*  // the following should be tested elsewhere
-    // TODO bug 696166
     let htmlTree = stylePanels[i].cssHtmlTree;
     let cssLogic = htmlTree.cssLogic;
     let elt = eltArray[i];
@@ -151,7 +149,6 @@ function teststylePanels() {
         is(selector, "#container", "correct best match for #container");
         is(value, "fantasy", "correct css property value for #" + eltId);
     }
-*/
   }
 
   info("hiding stylePanels[1]");
@@ -163,9 +160,9 @@ function teststylePanels() {
 function styleInspectorClosedByHide()
 {
   Services.obs.removeObserver(styleInspectorClosedByHide, "StyleInspector-closed", false);
-  is(stylePanels[0].state, "open", "instance stylePanels[0] is still open");
-  isnot(stylePanels[1].state, "open", "instance stylePanels[1] is not open");
-  is(stylePanels[2].state, "open", "instance stylePanels[2] is still open");
+  ok(stylePanels[0].isOpen(), "instance stylePanels[0] is still open");
+  ok(!stylePanels[1].isOpen(), "instance stylePanels[1] is hidden");
+  ok(stylePanels[2].isOpen(), "instance stylePanels[2] is still open");
 
   info("closing web console");
   Services.obs.addObserver(styleInspectorClosedFromConsole1,

@@ -86,8 +86,8 @@ public:
    *                   parsed result.
    * @param aParseResult  Outparam used for reporting parse errors. Will be set
    *                      to NS_OK if everything succeeds.
-   * @return  true if aAttribute is a recognized animation-related
-   *          attribute; false otherwise.
+   * @return  PR_TRUE if aAttribute is a recognized animation-related
+   *          attribute; PR_FALSE otherwise.
    */
   virtual bool SetAttr(nsIAtom* aAttribute, const nsAString& aValue,
                          nsAttrValue& aResult, nsresult* aParseResult = nsnull);
@@ -95,8 +95,8 @@ public:
   /*
    * Unsets the given attribute.
    *
-   * @returns true if aAttribute is a recognized animation-related
-   *          attribute; false otherwise.
+   * @returns PR_TRUE if aAttribute is a recognized animation-related
+   *          attribute; PR_FALSE otherwise.
    */
   virtual bool UnsetAttr(nsIAtom* aAttribute);
 
@@ -140,7 +140,7 @@ public:
    * the animation function that it should no longer add its result to the
    * animation sandwich.
    *
-   * @param aIsFrozen true if this animation should continue to contribute
+   * @param aIsFrozen PR_TRUE if this animation should continue to contribute
    *                  to the animation sandwich using the most recent sample
    *                  parameters.
    */
@@ -180,7 +180,7 @@ public:
    * Indicates if the animation is currently active or frozen. Inactive
    * animations will not contribute to the composed result.
    *
-   * @return  true if the animation is active or frozen, false otherwise.
+   * @return  PR_TRUE if the animation is active or frozen, PR_FALSE otherwise.
    */
   bool IsActiveOrFrozen() const
   {
@@ -211,7 +211,7 @@ public:
    * Note that the caller is responsible for determining if the animation
    * target has changed (with help from my UpdateCachedTarget() method).
    *
-   * @return  true if the animation parameters have changed, false
+   * @return  PR_TRUE if the animation parameters have changed, PR_FALSE
    *          otherwise.
    */
   bool HasChanged() const;
@@ -222,15 +222,15 @@ public:
    * won't needlessly recompose their targets in every sample.
    *
    * This should only be called on an animation function that is inactive and
-   * that returns true from HasChanged().
+   * that returns PR_TRUE from HasChanged().
    */
   void ClearHasChanged()
   {
     NS_ABORT_IF_FALSE(HasChanged(),
-                      "clearing mHasChanged flag, when it's already false");
+                      "clearing mHasChanged flag, when it's already PR_FALSE");
     NS_ABORT_IF_FALSE(!IsActiveOrFrozen(),
                       "clearing mHasChanged flag for active animation");
-    mHasChanged = false;
+    mHasChanged = PR_FALSE;
   }
 
   /**
@@ -242,8 +242,8 @@ public:
    *
    * @param aNewTarget A nsSMILTargetIdentifier representing the animation
    *                   target of this function for this sample.
-   * @return  true if |aNewTarget| is different from the old cached value;
-   *          otherwise, false.
+   * @return  PR_TRUE if |aNewTarget| is different from the old cached value;
+   *          otherwise, PR_FALSE.
    */
   bool UpdateCachedTarget(const nsSMILTargetIdentifier& aNewTarget);
 
@@ -344,7 +344,7 @@ protected:
            !HasAttr(nsGkAtoms::from);
   }
 
-  // Returns true if we know our composited value won't change over the
+  // Returns PR_TRUE if we know our composited value won't change over the
   // simple duration of this animation (for a fixed base value).
   virtual bool IsValueFixedForSimpleDuration() const;
 

@@ -516,7 +516,7 @@ class LayerOGL
 {
 public:
   LayerOGL(LayerManagerOGL *aManager)
-    : mOGLManager(aManager), mDestroyed(false)
+    : mOGLManager(aManager), mDestroyed(PR_FALSE)
   { }
 
   virtual ~LayerOGL() { }

@@ -94,13 +94,13 @@ nsSHEntryShared::Shutdown()
 nsSHEntryShared::nsSHEntryShared()
   : mDocShellID(0)
   , mParent(nsnull)
-  , mIsFrameNavigation(false)
-  , mSaveLayoutState(true)
-  , mSticky(true)
-  , mDynamicallyCreated(false)
+  , mIsFrameNavigation(PR_FALSE)
+  , mSaveLayoutState(PR_TRUE)
+  , mSticky(PR_TRUE)
+  , mDynamicallyCreated(PR_FALSE)
   , mLastTouched(0)
   , mID(gSHEntrySharedID++)
-  , mExpired(false)
+  , mExpired(PR_FALSE)
   , mViewerBounds(0, 0, 0, 0)
 {
 }
@@ -184,7 +184,7 @@ nsSHEntryShared::DropPresentationState()
 
   RemoveFromExpirationTracker();
   mContentViewer = nsnull;
-  mSticky = true;
+  mSticky = PR_TRUE;
   mWindowState = nsnull;
   mViewerBounds.SetRect(0, 0, 0, 0);
   mChildShells.Clear();

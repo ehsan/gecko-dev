@@ -251,11 +251,11 @@ public:
         , mCallback(nsnull)
         , mClosure(nsnull)
         , mChunkSize(0)
-        , mEventInProcess(false)
-        , mEventIsPending(false)
-        , mCloseSource(true)
-        , mCloseSink(true)
-        , mCanceled(false)
+        , mEventInProcess(PR_FALSE)
+        , mEventIsPending(PR_FALSE)
+        , mCloseSource(PR_TRUE)
+        , mCloseSink(PR_TRUE)
+        , mCanceled(PR_FALSE)
         , mCancelStatus(NS_OK)
     {
     }
@@ -412,7 +412,7 @@ public:
             aReason = NS_BASE_STREAM_CLOSED;
         }
 
-        mCanceled = true;
+        mCanceled = PR_TRUE;
         mCancelStatus = aReason;
         return NS_OK;
     }
@@ -436,9 +436,9 @@ public:
 
         // clear "in process" flag and post any pending continuation event
         MutexAutoLock lock(mLock);
-        mEventInProcess = false;
+        mEventInProcess = PR_FALSE;
         if (mEventIsPending) {
-            mEventIsPending = false;
+            mEventIsPending = PR_FALSE;
             PostContinuationEvent_Locked();
         }
 
@@ -462,11 +462,11 @@ public:
     {
         nsresult rv = NS_OK;
         if (mEventInProcess)
-            mEventIsPending = true;
+            mEventIsPending = PR_TRUE;
         else {
             rv = mTarget->Dispatch(this, NS_DISPATCH_NORMAL);
             if (NS_SUCCEEDED(rv))
-                mEventInProcess = true;
+                mEventInProcess = PR_TRUE;
             else
                 NS_WARNING("unable to post continuation event");
         }
@@ -687,7 +687,7 @@ TestInputStream(nsIInputStream *inStr,
                 PRUint32 *countWritten)
 {
     bool *result = static_cast<bool *>(closure);
-    *result = true;
+    *result = PR_TRUE;
     return NS_ERROR_ABORT;  // don't call me anymore
 }
 
@@ -710,7 +710,7 @@ TestOutputStream(nsIOutputStream *outStr,
                  PRUint32 *countRead)
 {
     bool *result = static_cast<bool *>(closure);
-    *result = true;
+    *result = PR_TRUE;
     return NS_ERROR_ABORT;  // don't call me anymore
 }
 

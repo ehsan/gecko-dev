@@ -103,11 +103,11 @@ nsShmImage::Create(const gfxIntSize& aSize,
     if (!attachOk || xerror) {
         // Assume XShm isn't available, and don't attempt to use it
         // again.
-        gShmAvailable = false;
+        gShmAvailable = PR_FALSE;
         return nsnull;
     }
 
-    shm->mXAttached = true;
+    shm->mXAttached = PR_TRUE;
     shm->mSize = aSize;
     switch (shm->mImage->depth) {
     case 24:
@@ -124,7 +124,7 @@ nsShmImage::Create(const gfxIntSize& aSize,
     unsupported:
     default:
         NS_WARNING("Unsupported XShm Image format!");
-        gShmAvailable = false;
+        gShmAvailable = PR_FALSE;
         return nsnull;
     }
     return shm.forget();

@@ -158,7 +158,7 @@ protected:
       mNextInFlow = nsnull;
       mLineContainer = nsnull;
       mLineLayout = nsnull;
-      mSetParentPointer = false;
+      mSetParentPointer = PR_FALSE;
     }
   };
 

@@ -445,7 +445,7 @@ txXSLTNumber::getPrevInDocumentOrder(txXPathTreeWalker& aWalker)
         while (aWalker.moveToLastChild()) {
             // do nothing
         }
-        return true;
+        return PR_TRUE;
     }
     return aWalker.moveToParent();
 }

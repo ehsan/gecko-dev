@@ -45,6 +45,7 @@
 #include "nsGUIEvent.h"
 #include "nsIServiceManager.h"
 #include "nsComponentManagerUtils.h"
+#include "nsWidgetAtoms.h"
 #include <objbase.h>
 #include <initguid.h>
 
@@ -53,7 +54,14 @@
 // unknwn.h is needed to build with WIN32_LEAN_AND_MEAN
 #include <unknwn.h>
 
-nsToolkit* nsToolkit::gToolkit = nsnull;
+NS_IMPL_ISUPPORTS1(nsToolkit, nsIToolkit)
+
+//
+// Static thread local storage index of the Toolkit 
+// object associated with a given thread...
+//
+static PRUintn gToolkitTLSIndex = 0;
+
 
 HINSTANCE nsToolkit::mDllInstance = 0;
 bool      nsToolkit::mIsWinXP     = false;
@@ -118,22 +126,6 @@ nsToolkit::nsToolkit()
 #endif
 
     gMouseTrailer = new MouseTrailer();
-
-    // Store the thread ID of the thread containing the message pump.  
-    // If no thread is provided create one
-    PRThread* thread = PR_GetCurrentThread();
-    if (NULL != thread) {
-      CreateInternalWindow(thread);
-    } else {
-      // create a thread where the message pump will run
-      CreateUIThread();
-    }
-
-    mD3D9Timer = do_CreateInstance("@mozilla.org/timer;1");
-    mD3D9Timer->InitWithFuncCallback(::StartAllowingD3D9,
-                                     NULL,
-                                     kD3DUsageDelay,
-                                     nsITimer::TYPE_ONE_SHOT);
 }
 
 
@@ -151,11 +143,18 @@ nsToolkit::~nsToolkit()
     ::DestroyWindow(mDispatchWnd);
     mDispatchWnd = NULL;
 
+    // Remove the TLS reference to the toolkit...
+    PR_SetThreadPrivate(gToolkitTLSIndex, nsnull);
+
     if (gMouseTrailer) {
       gMouseTrailer->DestroyTimer();
       delete gMouseTrailer;
       gMouseTrailer = nsnull;
     }
+
+#if defined (MOZ_STATIC_COMPONENT_LIBS)
+    nsToolkit::Shutdown();
+#endif
 }
 
 void
@@ -187,21 +186,18 @@ nsToolkit::Startup(HMODULE hModule)
 void
 nsToolkit::Shutdown()
 {
-#if defined (MOZ_STATIC_COMPONENT_LIBS)
     // Crashes on certain XP machines/profiles - see bug 448104 for details
     //nsUXThemeData::Teardown();
     //VERIFY(::UnregisterClass("nsToolkitClass", nsToolkit::mDllInstance));
     ::UnregisterClassW(L"nsToolkitClass", nsToolkit::mDllInstance);
-#endif
-
-    delete gToolkit;
-    gToolkit = nsnull;
 }
 
 void
 nsToolkit::StartAllowingD3D9()
 {
-  nsToolkit::GetToolkit()->mD3D9Timer->Cancel();
+  nsRefPtr<nsIToolkit> toolkit;
+  NS_GetCurrentToolkit(getter_AddRefs(toolkit));
+  static_cast<nsToolkit*>(toolkit.get())->mD3D9Timer->Cancel();
   nsWindow::StartAllowingD3D9(false);
 }
 
@@ -271,6 +267,32 @@ void nsToolkit::CreateUIThread()
 
 //-------------------------------------------------------------------------
 //
+//
+//-------------------------------------------------------------------------
+NS_METHOD nsToolkit::Init(PRThread *aThread)
+{
+    // Store the thread ID of the thread containing the message pump.  
+    // If no thread is provided create one
+    if (NULL != aThread) {
+        CreateInternalWindow(aThread);
+    } else {
+        // create a thread where the message pump will run
+        CreateUIThread();
+    }
+
+    mD3D9Timer = do_CreateInstance("@mozilla.org/timer;1");
+    mD3D9Timer->InitWithFuncCallback(::StartAllowingD3D9,
+                                     NULL,
+                                     kD3DUsageDelay,
+                                     nsITimer::TYPE_ONE_SHOT);
+
+    nsWidgetAtoms::RegisterAtoms();
+
+    return NS_OK;
+}
+
+//-------------------------------------------------------------------------
+//
 // nsToolkit WindowProc. Used to call methods on the "main GUI thread"...
 //
 //-------------------------------------------------------------------------
@@ -300,18 +322,51 @@ LRESULT CALLBACK nsToolkit::WindowProc(HWND hWnd, UINT msg, WPARAM wParam,
 
 //-------------------------------------------------------------------------
 //
-// Return the nsToolkit for the current thread.  If a toolkit does not
+// Return the nsIToolkit for the current thread.  If a toolkit does not
 // yet exist, then one will be created...
 //
 //-------------------------------------------------------------------------
-// static
-nsToolkit* nsToolkit::GetToolkit()
+NS_METHOD NS_GetCurrentToolkit(nsIToolkit* *aResult)
 {
-  if (!gToolkit) {
-    gToolkit = new nsToolkit();
+  nsIToolkit* toolkit = nsnull;
+  nsresult rv = NS_OK;
+  PRStatus status;
+
+  // Create the TLS index the first time through...
+  if (0 == gToolkitTLSIndex) {
+    status = PR_NewThreadPrivateIndex(&gToolkitTLSIndex, NULL);
+    if (PR_FAILURE == status) {
+      rv = NS_ERROR_FAILURE;
+    }
   }
 
-  return gToolkit;
+  if (NS_SUCCEEDED(rv)) {
+    toolkit = (nsIToolkit*)PR_GetThreadPrivate(gToolkitTLSIndex);
+
+    //
+    // Create a new toolkit for this thread...
+    //
+    if (!toolkit) {
+      toolkit = new nsToolkit();
+
+      if (!toolkit) {
+        rv = NS_ERROR_OUT_OF_MEMORY;
+      } else {
+        NS_ADDREF(toolkit);
+        toolkit->Init(PR_GetCurrentThread());
+        //
+        // The reference stored in the TLS is weak.  It is removed in the
+        // nsToolkit destructor...
+        //
+        PR_SetThreadPrivate(gToolkitTLSIndex, (void*)toolkit);
+      }
+    } else {
+      NS_ADDREF(toolkit);
+    }
+    *aResult = toolkit;
+  }
+
+  return rv;
 }
 
 

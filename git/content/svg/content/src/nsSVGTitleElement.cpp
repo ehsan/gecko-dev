@@ -123,7 +123,7 @@ nsSVGTitleElement::CharacterDataChanged(nsIDocument *aDocument,
                                         nsIContent *aContent,
                                         CharacterDataChangeInfo *aInfo)
 {
-  SendTitleChangeEvent(false);
+  SendTitleChangeEvent(PR_FALSE);
 }
 
 void
@@ -132,7 +132,7 @@ nsSVGTitleElement::ContentAppended(nsIDocument *aDocument,
                                    nsIContent *aFirstNewContent,
                                    PRInt32 aNewIndexInContainer)
 {
-  SendTitleChangeEvent(false);
+  SendTitleChangeEvent(PR_FALSE);
 }
 
 void
@@ -141,7 +141,7 @@ nsSVGTitleElement::ContentInserted(nsIDocument *aDocument,
                                    nsIContent *aChild,
                                    PRInt32 aIndexInContainer)
 {
-  SendTitleChangeEvent(false);
+  SendTitleChangeEvent(PR_FALSE);
 }
 
 void
@@ -151,7 +151,7 @@ nsSVGTitleElement::ContentRemoved(nsIDocument *aDocument,
                                   PRInt32 aIndexInContainer,
                                   nsIContent *aPreviousSibling)
 {
-  SendTitleChangeEvent(false);
+  SendTitleChangeEvent(PR_FALSE);
 }
 
 nsresult
@@ -166,7 +166,7 @@ nsSVGTitleElement::BindToTree(nsIDocument *aDocument,
                                                   aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  SendTitleChangeEvent(true);
+  SendTitleChangeEvent(PR_TRUE);
 
   return NS_OK;
 }
@@ -174,7 +174,7 @@ nsSVGTitleElement::BindToTree(nsIDocument *aDocument,
 void
 nsSVGTitleElement::UnbindFromTree(bool aDeep, bool aNullParent)
 {
-  SendTitleChangeEvent(false);
+  SendTitleChangeEvent(PR_FALSE);
 
   // Let this fall through.
   nsSVGTitleElementBase::UnbindFromTree(aDeep, aNullParent);
@@ -184,7 +184,7 @@ nsresult
 nsSVGTitleElement::DoneAddingChildren(bool aHaveNotified)
 {
   if (!aHaveNotified) {
-    SendTitleChangeEvent(false);
+    SendTitleChangeEvent(PR_FALSE);
   }
   return NS_OK;
 }

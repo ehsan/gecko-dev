@@ -48,7 +48,7 @@ async-signal safe.
 #if !defined (WIN32)
 #include <sys/param.h>
 #include <inttypes.h>
-#if defined(__FreeBSD__) || defined(ANDROID)
+#if defined(__FreeBSD__)
 #include <sys/endian.h>
 #endif
 #else

@@ -110,9 +110,9 @@ nsSVGMarkerFrame::GetCanvasTM()
 
   nsSVGMarkerElement *content = static_cast<nsSVGMarkerElement*>(mContent);
   
-  mInUse2 = true;
+  mInUse2 = PR_TRUE;
   gfxMatrix markedTM = mMarkedFrame->GetCanvasTM();
-  mInUse2 = false;
+  mInUse2 = PR_FALSE;
 
   gfxMatrix markerTM = content->GetMarkerTransform(mStrokeWidth, mX, mY, mAutoAngle);
   gfxMatrix viewBoxTM = content->GetViewBoxTransform();
@@ -272,7 +272,7 @@ nsSVGMarkerFrame::AutoMarkerReferencer::AutoMarkerReferencer(
     nsSVGPathGeometryFrame *aMarkedFrame)
       : mFrame(aFrame)
 {
-  mFrame->mInUse = true;
+  mFrame->mInUse = PR_TRUE;
   mFrame->mMarkedFrame = aMarkedFrame;
 
   nsSVGSVGElement *ctx =
@@ -285,5 +285,5 @@ nsSVGMarkerFrame::AutoMarkerReferencer::~AutoMarkerReferencer()
   mFrame->SetParentCoordCtxProvider(nsnull);
 
   mFrame->mMarkedFrame = nsnull;
-  mFrame->mInUse = false;
+  mFrame->mInUse = PR_FALSE;
 }

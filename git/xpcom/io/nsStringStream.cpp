@@ -87,7 +87,7 @@ public:
         : mData(nsnull)
         , mOffset(0)
         , mLength(0)
-        , mOwned(false)
+        , mOwned(PR_FALSE)
     {}
 
 private:
@@ -211,7 +211,7 @@ nsStringInputStream::AdoptData(char *data, PRInt32 dataLen)
     
     mData = data;
     mLength = dataLen;
-    mOwned = true;
+    mOwned = PR_TRUE;
     return NS_OK;
 }
 
@@ -227,7 +227,7 @@ nsStringInputStream::ShareData(const char *data, PRInt32 dataLen)
     
     mData = data;
     mLength = dataLen;
-    mOwned = false;
+    mOwned = PR_FALSE;
     return NS_OK;
 }
 
@@ -241,7 +241,7 @@ nsStringInputStream::Close()
     Clear();
     mData = nsnull;
     mLength = 0;
-    mOwned = false;
+    mOwned = PR_FALSE;
     return NS_OK;
 }
     
@@ -295,7 +295,7 @@ nsStringInputStream::ReadSegments(nsWriteSegmentFun writer, void *closure,
 NS_IMETHODIMP
 nsStringInputStream::IsNonBlocking(bool *aNonBlocking)
 {
-    *aNonBlocking = true;
+    *aNonBlocking = PR_TRUE;
     return NS_OK;
 }
 
@@ -367,13 +367,13 @@ nsStringInputStream::Read(const IPC::Message *aMsg, void **aIter)
     nsCAutoString value;
 
     if (!ReadParam(aMsg, aIter, &value))
-        return false;
+        return PR_FALSE;
 
     nsresult rv = SetData(value.get(), value.Length());
     if (NS_FAILED(rv))
-        return false;
+        return PR_FALSE;
 
-    return true;
+    return PR_TRUE;
 }
 
 void

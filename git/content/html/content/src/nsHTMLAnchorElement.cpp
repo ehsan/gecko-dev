@@ -204,7 +204,7 @@ nsHTMLAnchorElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Prefetch links
-  if (aDocument && nsHTMLDNSPrefetch::IsAllowed(OwnerDoc())) {
+  if (aDocument && nsHTMLDNSPrefetch::IsAllowed(GetOwnerDoc())) {
     nsHTMLDNSPrefetch::PrefetchLow(this);
   }
   return rv;
@@ -225,7 +225,7 @@ nsHTMLAnchorElement::IsHTMLFocusable(bool aWithMouse,
                                      bool *aIsFocusable, PRInt32 *aTabIndex)
 {
   if (nsGenericHTMLElement::IsHTMLFocusable(aWithMouse, aIsFocusable, aTabIndex)) {
-    return true;
+    return PR_TRUE;
   }
 
   // cannot focus links if there is no link handler
@@ -235,8 +235,8 @@ nsHTMLAnchorElement::IsHTMLFocusable(bool aWithMouse,
     if (presShell) {
       nsPresContext* presContext = presShell->GetPresContext();
       if (presContext && !presContext->GetLinkHandler()) {
-        *aIsFocusable = false;
-        return false;
+        *aIsFocusable = PR_FALSE;
+        return PR_FALSE;
       }
     }
   }
@@ -246,9 +246,9 @@ nsHTMLAnchorElement::IsHTMLFocusable(bool aWithMouse,
       *aTabIndex = -1;
     }
 
-    *aIsFocusable = false;
+    *aIsFocusable = PR_FALSE;
 
-    return true;
+    return PR_TRUE;
   }
 
   if (!HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex)) {
@@ -261,9 +261,9 @@ nsHTMLAnchorElement::IsHTMLFocusable(bool aWithMouse,
         *aTabIndex = -1;
       }
 
-      *aIsFocusable = false;
+      *aIsFocusable = PR_FALSE;
 
-      return false;
+      return PR_FALSE;
     }
   }
 
@@ -271,9 +271,9 @@ nsHTMLAnchorElement::IsHTMLFocusable(bool aWithMouse,
     *aTabIndex = -1;
   }
 
-  *aIsFocusable = true;
+  *aIsFocusable = PR_TRUE;
 
-  return false;
+  return PR_FALSE;
 }
 
 nsresult
@@ -315,7 +315,7 @@ nsHTMLAnchorElement::GetTarget(nsAString& aValue)
 NS_IMETHODIMP
 nsHTMLAnchorElement::SetTarget(const nsAString& aValue)
 {
-  return SetAttr(kNameSpaceID_None, nsGkAtoms::target, aValue, true);
+  return SetAttr(kNameSpaceID_None, nsGkAtoms::target, aValue, PR_TRUE);
 }
 
 #define IMPL_URI_PART(_part)                                 \
@@ -343,14 +343,14 @@ IMPL_URI_PART(Hash)
 NS_IMETHODIMP    
 nsHTMLAnchorElement::GetText(nsAString& aText)
 {
-  nsContentUtils::GetNodeTextContent(this, true, aText);
+  nsContentUtils::GetNodeTextContent(this, PR_TRUE, aText);
   return NS_OK;
 }
 
 NS_IMETHODIMP    
 nsHTMLAnchorElement::SetText(const nsAString& aText)
 {
-  return nsContentUtils::SetNodeTextContent(this, aText, false);
+  return nsContentUtils::SetNodeTextContent(this, aText, PR_FALSE);
 }
 
 NS_IMETHODIMP
@@ -368,7 +368,7 @@ nsHTMLAnchorElement::GetPing(nsAString& aValue)
 NS_IMETHODIMP
 nsHTMLAnchorElement::SetPing(const nsAString& aValue)
 {
-  return SetAttr(kNameSpaceID_None, nsGkAtoms::ping, aValue, true);
+  return SetAttr(kNameSpaceID_None, nsGkAtoms::ping, aValue, PR_TRUE);
 }
 
 nsLinkState

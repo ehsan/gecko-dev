@@ -84,7 +84,7 @@ public:
       ToLowerCase(tmKey);
       return HashString(tmKey);
   }
-  enum { ALLOW_MEMMOVE = true };
+  enum { ALLOW_MEMMOVE = PR_TRUE };
 
 private:
   const nsString mStr;

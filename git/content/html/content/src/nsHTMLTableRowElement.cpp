@@ -34,9 +34,6 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-
-#include "mozilla/Util.h"
-
 #include "nsIDOMHTMLTableRowElement.h"
 #include "nsIDOMHTMLTableElement.h"
 #include "nsIDOMHTMLTableSectionElem.h"
@@ -51,8 +48,6 @@
 #include "nsHTMLParts.h"
 #include "nsRuleData.h"
 #include "nsContentUtils.h"
-
-using namespace mozilla;
 
 class nsHTMLTableRowElement : public nsGenericHTMLElement,
                               public nsIDOMHTMLTableRowElement
@@ -198,7 +193,7 @@ nsHTMLTableRowElement::GetRowIndex(PRInt32* aValue)
 
       if (node.get() == static_cast<nsIDOMNode *>(this)) {
         *aValue = i;
-        found = true;
+        found = PR_TRUE;
       }
     }
   }
@@ -231,7 +226,7 @@ nsHTMLTableRowElement::GetSectionRowIndex(PRInt32* aValue)
 
       if (node.get() == static_cast<nsIDOMNode *>(this)) {
         *aValue = i;
-        found = true;
+        found = PR_TRUE;
       }
     } 
   }
@@ -257,10 +252,10 @@ nsHTMLTableRowElement::GetCells(nsIDOMHTMLCollection** aValue)
                                IsCell,
                                nsnull, // destroy func
                                nsnull, // closure data
-                               false,
+                               PR_FALSE,
                                nsnull,
                                kNameSpaceID_XHTML,
-                               false);
+                               PR_FALSE);
 
     NS_ENSURE_TRUE(mCells, NS_ERROR_OUT_OF_MEMORY);
   }
@@ -462,7 +457,7 @@ nsHTMLTableRowElement::IsAttributeMapped(const nsIAtom* aAttribute) const
     sBackgroundAttributeMap,
   };
 
-  return FindAttributeDependence(aAttribute, map, ArrayLength(map));
+  return FindAttributeDependence(aAttribute, map, NS_ARRAY_LENGTH(map));
 }
 
 nsMapRuleToAttributesFunc

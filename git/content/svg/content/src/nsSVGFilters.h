@@ -96,7 +96,7 @@ public:
     // When true, the RGB values are the same for all pixels in mImage
     bool                      mConstantColorChannels;
     
-    Image() : mConstantColorChannels(false) {}
+    Image() : mConstantColorChannels(PR_FALSE) {}
   };
 
 protected:
@@ -211,7 +211,7 @@ protected:
   virtual bool OperatesOnSRGB(nsSVGFilterInstance* aInstance,
                                 PRInt32 aInputIndex, Image* aImage) {
     nsIFrame* frame = GetPrimaryFrame();
-    if (!frame) return false;
+    if (!frame) return PR_FALSE;
 
     nsStyleContext* style = frame->GetStyleContext();
     return style->GetStyleSVG()->mColorInterpolationFilters ==

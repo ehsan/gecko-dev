@@ -87,16 +87,16 @@ nsBlockReflowState::nsBlockReflowState(const nsHTMLReflowState& aReflowState,
   const nsMargin& borderPadding = BorderPadding();
 
   if (aTopMarginRoot || 0 != aReflowState.mComputedBorderPadding.top) {
-    SetFlag(BRS_ISTOPMARGINROOT, true);
+    SetFlag(BRS_ISTOPMARGINROOT, PR_TRUE);
   }
   if (aBottomMarginRoot || 0 != aReflowState.mComputedBorderPadding.bottom) {
-    SetFlag(BRS_ISBOTTOMMARGINROOT, true);
+    SetFlag(BRS_ISBOTTOMMARGINROOT, PR_TRUE);
   }
   if (GetFlag(BRS_ISTOPMARGINROOT)) {
-    SetFlag(BRS_APPLYTOPMARGIN, true);
+    SetFlag(BRS_APPLYTOPMARGIN, PR_TRUE);
   }
   if (aBlockNeedsFloatManager) {
-    SetFlag(BRS_FLOAT_MGR, true);
+    SetFlag(BRS_FLOAT_MGR, PR_TRUE);
   }
   
   mFloatManager = aReflowState.mFloatManager;
@@ -136,7 +136,7 @@ nsBlockReflowState::nsBlockReflowState(const nsHTMLReflowState& aReflowState,
   else {
     // When we are not in a paginated situation then we always use
     // an constrained height.
-    SetFlag(BRS_UNCONSTRAINEDHEIGHT, true);
+    SetFlag(BRS_UNCONSTRAINEDHEIGHT, PR_TRUE);
     mContentArea.height = mBottomEdge = NS_UNCONSTRAINEDSIZE;
   }
   mContentArea.x = borderPadding.left;
@@ -402,7 +402,7 @@ nsBlockReflowState::SetupPushedFloatList()
     // (nsBlockFrame::ReflowDirtyLines ensures that any lines with
     // pushed floats are reflowed.)
     mPushedFloats = mBlock->EnsurePushedFloats();
-    SetFlag(BRS_PROPTABLE_FLOATCLIST, true);
+    SetFlag(BRS_PROPTABLE_FLOATCLIST, PR_TRUE);
   }
 }
 
@@ -567,7 +567,7 @@ nsBlockReflowState::AddFloat(nsLineLayout*       aLineLayout,
   else {
     // Always claim to be placed; we don't know whether we fit yet, so we
     // deal with this in PlaceBelowCurrentLineFloats
-    placed = true;
+    placed = PR_TRUE;
     // This float will be placed after the line is done (it is a
     // below-current-line float).
     mBelowCurrentLineFloats.Append(mFloatCacheFreeList.Alloc(aFloat));
@@ -610,7 +610,7 @@ FloatMarginWidth(const nsHTMLReflowState& aCBReflowState,
              aFloatOffsetState.mComputedPadding.TopBottom()),
     nsSize(aFloatOffsetState.mComputedPadding.LeftRight(),
            aFloatOffsetState.mComputedPadding.TopBottom()),
-    true).width +
+    PR_TRUE).width +
   aFloatOffsetState.mComputedMargin.LeftRight() +
   aFloatOffsetState.mComputedBorderPadding.LeftRight();
 }
@@ -668,7 +668,7 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
   bool isLetter = aFloat->GetType() == nsGkAtoms::letterFrame;
   if (isLetter) {
     mBlock->ReflowFloat(*this, adjustedAvailableSpace, aFloat,
-                        floatMargin, false, reflowStatus);
+                        floatMargin, PR_FALSE, reflowStatus);
     floatMarginWidth = aFloat->GetSize().width + floatMargin.LeftRight();
     NS_ASSERTION(NS_FRAME_IS_COMPLETE(reflowStatus),
                  "letter frames shouldn't break, and if they do now, "
@@ -697,7 +697,7 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
         !mustPlaceFloat) {
       // No space, nowhere to put anything.
       PushFloatPastBreak(aFloat);
-      return false;
+      return PR_FALSE;
     }
 
     if (CanPlaceFloat(floatMarginWidth, floatAvailableSpace)) {
@@ -740,7 +740,7 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
             // IE messes things up when "right" (overlapping frames) 
             if (content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::align,
                                      NS_LITERAL_STRING("left"), eIgnoreCase)) {
-              keepFloatOnSameLine = true;
+              keepFloatOnSameLine = PR_TRUE;
               // don't advance to next line (IE quirkie behaviour)
               // it breaks rule CSS2/9.5.1/1, but what the hell
               // since we cannot evangelize the world
@@ -762,7 +762,7 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
                                           aFloat, offsets);
     }
 
-    mustPlaceFloat = false;
+    mustPlaceFloat = PR_FALSE;
   }
 
   // If the float is continued, it will get the same absolute x value as its prev-in-flow
@@ -820,7 +820,7 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
       NS_FRAME_IS_TRUNCATED(reflowStatus)) {
 
     PushFloatPastBreak(aFloat);
-    return false;
+    return PR_FALSE;
   }
 
   // Calculate the actual origin of the float frame's border rect
@@ -896,7 +896,7 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
   }
 #endif
 
-  return true;
+  return PR_TRUE;
 }
 
 void

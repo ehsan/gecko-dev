@@ -77,7 +77,7 @@ nsAutoWindowStateHelper::DispatchCustomEvent(const char *aEventName)
 {
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(mWindow);
   if (!window) {
-    return true;
+    return PR_TRUE;
   }
 
   return window->DispatchCustomEvent(aEventName);
