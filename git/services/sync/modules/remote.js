@@ -230,49 +230,6 @@ Resource.prototype = {
   }
 };
 
-function ResourceSet(basePath) {
-  this._init(basePath);
-}
-ResourceSet.prototype = {
-  __proto__: new Resource(),
-  _init: function ResSet__init(basePath) {
-    this.__proto__.__proto__._init.call(this);
-    this._basePath = basePath;
-    this._log = Log4Moz.Service.getLogger("Service.ResourceSet");
-  },
-
-  _hack: function ResSet__hack(action, id, data) {
-    let self = yield;
-    let savedData = this._data;
-
-    if ("PUT" == action)
-      this._data = data;
-
-    this._path = this._basePath + id;
-    yield this._request.async(this, self.cb, action, data);
-
-    let newData = this._data;
-    this._data = savedData;
-    if (this._data == null)
-      this._data = {};
-    this._data[id] = newData;
-
-    self.done(this._data[id]);
-  },
-
-  get: function ResSet_get(onComplete, id) {
-    this._hack.async(this, onComplete, "GET", id);
-  },
-
-  put: function ResSet_put(onComplete, id, data) {
-    this._hack.async(this, onComplete, "PUT", id, data);
-  },
-
-  delete: function ResSet_delete(onComplete, id) {
-    this._hack.async(this, onComplete, "DELETE", id);
-  }
-};
-
 function ResourceFilter() {
   this._log = Log4Moz.Service.getLogger("Service.ResourceFilter");
 }
@@ -341,6 +298,18 @@ CryptoFilter.prototype = {
   }
 };
 
+function Status(remoteStore) {
+  this._init(remoteStore);
+}
+Status.prototype = {
+  __proto__: new Resource(),
+  _init: function Status__init(remoteStore) {
+    this._remote = remoteStore;
+    this.__proto__.__proto__._init.call(this, this._remote.serverPrefix + "status.json");
+    this.pushFilter(new JsonFilter());
+  }
+};
+
 function Keychain(remoteStore) {
   this._init(remoteStore);
 }
@@ -383,8 +352,7 @@ RemoteStore.prototype = {
   get engineId() this._engine.engineId,
 
   get status() {
-    let status = new Resource(this.serverPrefix + "status.json");
-    status.pushFilter(new JsonFilter());
+    let status = new Status(this);
     this.__defineGetter__("status", function() status);
     return status;
   },
@@ -404,7 +372,7 @@ RemoteStore.prototype = {
   },
 
   get _deltas() {
-    let deltas = new ResourceSet(this.serverPrefix + "deltas/");
+    let deltas = new Resource(this.serverPrefix + "deltas.json");
     deltas.pushFilter(new JsonFilter());
     deltas.pushFilter(new CryptoFilter(this, "deltasEncryption"));
     this.__defineGetter__("_deltas", function() deltas);
@@ -422,7 +390,8 @@ RemoteStore.prototype = {
     this._snapshot.data = null;
     this._deltas.data = null;
 
-    let ret = yield DAV.MKCOL(this.serverPrefix + "deltas", self.cb);
+    DAV.MKCOL(this.serverPrefix, self.cb);
+    let ret = yield;
     if (!ret)
       throw "Could not create remote folder";
 
@@ -452,7 +421,6 @@ RemoteStore.prototype = {
   },
 
   // Does a fresh upload of the given snapshot to a new store
-  // FIXME: add 'metadata' arg here like appendDelta's
   _initialize: function RStore__initialize(snapshot) {
     let self = yield;
     let wrappedSymkey;
@@ -472,7 +440,7 @@ RemoteStore.prototype = {
     yield this.keys.put(self.cb, keys);
 
     yield this._snapshot.put(self.cb, snapshot.data);
-    //yield this._deltas.put(self.cb, []);
+    yield this._deltas.put(self.cb, []);
 
     let c = 0;
     for (GUID in snapshot.data)
@@ -499,7 +467,7 @@ RemoteStore.prototype = {
     yield this.status.delete(self.cb);
     yield this.keys.delete(self.cb);
     yield this._snapshot.delete(self.cb);
-    //yield this._deltas.delete(self.cb);
+    yield this._deltas.delete(self.cb);
     this._log.debug("Server files deleted");
   },
   wipe: function Engine_wipe(onComplete) {
@@ -510,17 +478,20 @@ RemoteStore.prototype = {
   // (snapshot + deltas)
   _getLatestFromScratch: function RStore__getLatestFromScratch() {
     let self = yield;
-    let status = this.status.data;
 
     this._log.info("Downloading all server data from scratch");
 
-    let snap = new SnapshotStore();
-    snap.data = yield this._snapshot.get(self.cb);
-    snap.version = status.maxVersion;
+    this._log.debug("Downloading server snapshot");
+    let data = yield this._snapshot.get(self.cb);
+    this._log.debug("Downloading server deltas");
+    let deltas = yield this._deltas.get(self.cb);
 
-    for (let id = status.snapVersion + 1; id <= status.maxVersion; id++) {
-      let delta = yield this._deltas.get(self.cb, id);
-      yield snap.applyCommands.async(snap, self.cb, delta);
+    let snap = new SnapshotStore();
+    snap.version = this.status.data.maxVersion;
+    snap.data = data;
+    for (let i = 0; i < deltas.length; i++) {
+      snap.applyCommands.async(snap, self.cb, deltas[i]);
+      yield;
     }
 
     self.done(snap);
@@ -543,12 +514,8 @@ RemoteStore.prototype = {
       this._log.debug("Using last sync snapshot as starting point for server snapshot");
       snap.data = Utils.deepCopy(lastSyncSnap.data);
       this._log.info("Downloading server deltas");
-      deltas = [];
-      let min = lastSyncSnap.version + 1;
-      let max = this.status.data.maxVersion;
-      for (let id = min; id <= max; id++) {
-        deltas.push(yield this._deltas.get(self.cb, id));
-      }
+      let allDeltas = yield this._deltas.get(self.cb);
+      deltas = allDeltas.slice(lastSyncSnap.version - this.status.data.snapVersion);
 
     } else if (lastSyncSnap.version == this.status.data.maxVersion) {
       this._log.debug("Using last sync snapshot as server snapshot (snap version == max version)");
@@ -590,19 +557,17 @@ RemoteStore.prototype = {
   },
 
   // Adds a new set of changes (a delta) to this store
-  _appendDelta: function RStore__appendDelta(delta, metadata) {
+  _appendDelta: function RStore__appendDelta(delta) {
     let self = yield;
-
-    if (metadata) {
-      for (let key in metadata)
-        this.status.data[key] = metadata[key];
+    if (this._deltas.data == null) {
+      yield this._deltas.get(self.cb);
+      if (this._deltas.data == null)
+        this._deltas.data = [];
     }
-
-    let id = this.status.data.maxVersion; // FIXME: we increment maxVersion in Engine
-    yield this._deltas.put(self.cb, id, delta);
-    yield this.status.put(self.cb, this.status.data);
+    this._deltas.data.push(delta);
+    yield this._deltas.put(self.cb, this._deltas.data);
   },
-  appendDelta: function RStore_appendDelta(onComplete, delta, metadata) {
-    this._appendDelta.async(this, onComplete, delta, metadata);
+  appendDelta: function RStore_appendDelta(onComplete, delta) {
+    this._appendDelta.async(this, onComplete, delta);
   }
 };
