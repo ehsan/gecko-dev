@@ -18,7 +18,7 @@ using mozilla::net::gNeckoChild;
 namespace IPC {
 
 bool
-DeserializeArrayBuffer(JSObject* aObj,
+DeserializeArrayBuffer(JSRawObject aObj,
                        const InfallibleTArray<uint8_t>& aBuffer,
                        JS::Value* aVal)
 {

@@ -19,11 +19,9 @@
 #include "nsIArray.h"
 #include "mozilla/Attributes.h"
 
-class nsICycleCollectorListener;
 class nsIXPConnectJSObjectHolder;
 class nsRootedJSValueArray;
 class nsScriptNameSpaceManager;
-
 namespace mozilla {
 template <class> class Maybe;
 }

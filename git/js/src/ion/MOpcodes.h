@@ -103,8 +103,6 @@ namespace ion {
     _(TypeBarrier)                                                          \
     _(MonitorTypes)                                                         \
     _(GetPropertyCache)                                                     \
-    _(GetPropertyPolymorphic)                                               \
-    _(SetPropertyPolymorphic)                                               \
     _(GetElementCache)                                                      \
     _(BindNameCache)                                                        \
     _(GuardShape)                                                           \

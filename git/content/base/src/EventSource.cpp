@@ -12,6 +12,7 @@
 #include "nsNetUtil.h"
 #include "nsMimeTypes.h"
 #include "nsDOMMessageEvent.h"
+#include "nsIJSContextStack.h"
 #include "nsIPromptFactory.h"
 #include "nsIWindowWatcher.h"
 #include "nsPresContext.h"
@@ -200,8 +201,10 @@ EventSource::Init(nsISupports* aOwner,
   mWithCredentials = aWithCredentials;
   BindToOwner(ownerWindow);
 
-  // The conditional here is historical and not necessarily sane.
-  if (JSContext *cx = nsContentUtils::GetCurrentJSContext()) {
+  nsCOMPtr<nsIJSContextStack> stack =
+    do_GetService("@mozilla.org/js/xpc/ContextStack;1");
+  JSContext* cx = nullptr;
+  if (stack && NS_SUCCEEDED(stack->Peek(&cx)) && cx) {
     const char *filename;
     if (nsJSUtils::GetCallingLocation(cx, &filename, &mScriptLine)) {
       mScriptFile.AssignASCII(filename);

@@ -420,22 +420,6 @@ struct ReverseIndexComparator
     }
 };
 
-bool
-js::CanonicalizeArrayLengthValue(JSContext *cx, HandleValue v, uint32_t *newLen)
-{
-    if (!ToUint32(cx, v, newLen))
-        return false;
-
-    double d;
-    if (!ToNumber(cx, v, &d))
-        return false;
-    if (d == *newLen)
-        return true;
-
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_ARRAY_LENGTH);
-    return false;
-}
-
 /* ES6 20130308 draft 8.4.2.4 ArraySetLength */
 bool
 js::ArraySetLength(JSContext *cx, HandleObject obj, HandleId id, unsigned attrs,
@@ -448,10 +432,19 @@ js::ArraySetLength(JSContext *cx, HandleObject obj, HandleId id, unsigned attrs,
 
     /* Steps 1-2 are irrelevant in our implementation. */
 
-    /* Steps 3-5. */
+    /* Step 3. */
     uint32_t newLen;
-    if (!CanonicalizeArrayLengthValue(cx, value, &newLen))
+    if (!ToUint32(cx, value, &newLen))
         return false;
+
+    /* Steps 4-5. */
+    double d;
+    if (!ToNumber(cx, value, &d))
+        return false;
+    if (d != newLen) {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_ARRAY_LENGTH);
+        return false;
+    }
 
     /* Steps 6-7. */
     bool lengthIsWritable = obj->arrayLengthIsWritable();
@@ -1015,7 +1008,7 @@ array_toString(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     if (!js_IsCallable(join)) {
-        JSString *str = JS_BasicObjectToString(cx, obj);
+        JSString *str = obj_toStringHelper(cx, obj);
         if (!str)
             return false;
         args.rval().setString(str);
@@ -2911,7 +2904,7 @@ NewArray(JSContext *cx, uint32_t length, RawObject protoArg, NewObjectKind newKi
     NewObjectCache &cache = cx->runtime->newObjectCache;
 
     NewObjectCache::EntryIndex entry = -1;
-    if (newKind == GenericObject &&
+    if (newKind != SingletonObject &&
         cache.lookupGlobal(&ArrayClass, cx->global(), allocKind, &entry))
     {
         RootedObject obj(cx, cache.newObjectFromHit(cx, entry, GetInitialHeap(newKind, &ArrayClass)));
@@ -2945,8 +2938,7 @@ NewArray(JSContext *cx, uint32_t length, RawObject protoArg, NewObjectKind newKi
     if (!shape)
         return NULL;
 
-    RootedObject obj(cx, JSObject::createArray(cx, allocKind, GetInitialHeap(newKind, &ArrayClass),
-                                               shape, type, length));
+    RootedObject obj(cx, JSObject::createArray(cx, allocKind, gc::DefaultHeap, shape, type, length));
     if (!obj)
         return NULL;
 

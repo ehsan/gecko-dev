@@ -3667,7 +3667,7 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
   margin: 2px;
 }
 
-.toolbarbutton-badge[badge]:not([badge=""]) {
+.toolbarbutton-badge[badge]:not([badge=""])::after {
   /* The |content| property is set in the content stylesheet. */
   font-size: 9px;
   font-weight: bold;
@@ -3680,26 +3680,18 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
   position: absolute;
   top: 0;
   right: 0;
-  z-index: 1;
 }
 
-.toolbarbutton-badge[badge]:not([badge=""]):-moz-window-inactive {
-  background-color: rgb(230,230,230);
-  box-shadow: none;
-  border: 1px solid rgb(206,206,206);
-  color: rgb(192,192,192);
-}
-
-.toolbarbutton-badge[badge]:not([badge=""]):-moz-locale-dir(rtl) {
+.toolbarbutton-badge[badge]:not([badge=""]):-moz-locale-dir(rtl)::after {
   left: 0;
   right: auto;
 }
 
-toolbar[mode="icons"] > *|* > .toolbarbutton-badge[badge]:not([badge=""]) {
+toolbar[mode="icons"] > *|* > .toolbarbutton-badge[badge]:not([badge=""])::after {
   right: -2px;
 }
 
-toolbar[mode="icons"] > *|* > .toolbarbutton-badge[badge]:not([badge=""]):-moz-locale-dir(rtl) {
+toolbar[mode="icons"] > *|* > .toolbarbutton-badge[badge]:not([badge=""]):-moz-locale-dir(rtl)::after {
   left: -2px;
 }
 

@@ -41,6 +41,17 @@ function dbg_assert(cond, e) {
   }
 }
 
+/* Turn the error e into a string, without fail. */
+function safeErrorString(aError) {
+  try {
+    var s = aError.toString();
+    if (typeof s === "string")
+      return s;
+  } catch (ee) { }
+
+  return "<failed trying to find error description>";
+}
+
 loadSubScript.call(this, "chrome://global/content/devtools/dbg-transport.js");
 
 // XPCOM constructors
@@ -270,18 +281,21 @@ var DebuggerServer = {
 
   // nsIServerSocketListener implementation
 
-  onSocketAccepted:
-  makeInfallible(function DS_onSocketAccepted(aSocket, aTransport) {
+  onSocketAccepted: function DS_onSocketAccepted(aSocket, aTransport) {
     if (!this._allowConnection()) {
       return;
     }
     dumpn("New debugging connection on " + aTransport.host + ":" + aTransport.port);
 
-    let input = aTransport.openInputStream(0, 0, 0);
-    let output = aTransport.openOutputStream(0, 0, 0);
-    let transport = new DebuggerTransport(input, output);
-    DebuggerServer._onConnection(transport);
-  }, "DebuggerServer.onSocketAccepted"),
+    try {
+      let input = aTransport.openInputStream(0, 0, 0);
+      let output = aTransport.openOutputStream(0, 0, 0);
+      let transport = new DebuggerTransport(input, output);
+      DebuggerServer._onConnection(transport);
+    } catch (e) {
+      dumpn("Couldn't initialize connection: " + e + " - " + e.stack);
+    }
+  },
 
   onStopListening: function DS_onStopListening(aSocket, status) {
     dumpn("onStopListening, status: " + status);

@@ -27,6 +27,7 @@ CPPSRCS		= \
 		DOMSVGPointList.cpp \
 		DOMSVGStringList.cpp \
 		DOMSVGTransformList.cpp \
+		nsDOMSVGZoomEvent.cpp \
 		nsISVGPoint.cpp \
 		nsSVGAngle.cpp \
 		nsSVGAnimatedTransformList.cpp \
@@ -152,7 +153,6 @@ CPPSRCS		= \
 		SVGUseElement.cpp \
 		SVGViewBoxSMILType.cpp \
 		SVGViewElement.cpp \
-		SVGZoomEvent.cpp \
 		$(NULL)
 
 include $(topsrcdir)/config/config.mk

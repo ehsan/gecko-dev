@@ -46,6 +46,7 @@
 
 // These are needed to load a URL in a browser window.
 #include "nsIDOMLocation.h"
+#include "nsIJSContextStack.h"
 #include "nsIWebNavigation.h"
 #include "nsIWindowMediator.h"
 

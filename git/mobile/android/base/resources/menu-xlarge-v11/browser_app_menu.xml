@@ -66,7 +66,6 @@
     </item>
 
     <item android:id="@+id/char_encoding"
-          android:icon="@drawable/ic_menu_character_encoding"
           android:visible="false"
           android:title="@string/char_encoding"/>
 

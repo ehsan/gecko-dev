@@ -100,6 +100,7 @@ using namespace mozilla::system;
 
 #include "nsError.h"
 
+#include "nsCycleCollector.h"
 #include "nsJSEnvironment.h"
 #include "nsContentSink.h"
 #include "nsFrameMessageManager.h"

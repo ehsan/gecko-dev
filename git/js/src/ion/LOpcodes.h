@@ -174,8 +174,6 @@
     _(ParSlice)                     \
     _(GetPropertyCacheV)            \
     _(GetPropertyCacheT)            \
-    _(GetPropertyPolymorphicV)      \
-    _(GetPropertyPolymorphicT)      \
     _(GetElementCacheV)             \
     _(GetElementCacheT)             \
     _(BindNameCache)                \
@@ -190,8 +188,6 @@
     _(CallDeleteProperty)           \
     _(SetPropertyCacheV)            \
     _(SetPropertyCacheT)            \
-    _(SetPropertyPolymorphicV)      \
-    _(SetPropertyPolymorphicT)      \
     _(CallIteratorStart)            \
     _(IteratorStart)                \
     _(IteratorNext)                 \

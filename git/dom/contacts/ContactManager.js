@@ -381,7 +381,7 @@ Contact.prototype = {
 // ContactManager
 
 const CONTACTMANAGER_CONTRACTID = "@mozilla.org/contactManager;1";
-const CONTACTMANAGER_CID        = Components.ID("{7bfb6481-f946-4254-afc5-d7fe9f5c45a3}");
+const CONTACTMANAGER_CID        = Components.ID("{4efae3f8-dd69-4622-97c8-f16e4d38d95c}");
 const nsIDOMContactManager      = Components.interfaces.nsIDOMContactManager;
 
 function ContactManager()
@@ -545,13 +545,6 @@ ContactManager.prototype = {
           this._oncontactchange.handleEvent(event);
         }
         break;
-      case "Contacts:Revision":
-        if (DEBUG) debug("new revision: " + msg.revision);
-        req = this.getRequest(msg.requestID);
-        if (req) {
-          Services.DOMRequest.fireSuccess(req, msg.revision);
-        }
-        break;
       default:
         if (DEBUG) debug("Wrong message: " + aMessage.name);
     }
@@ -572,7 +565,6 @@ ContactManager.prototype = {
       case "find":
       case "getSimContacts":
       case "listen":
-      case "revision":
         access = "read";
         break;
       default:
@@ -762,23 +754,6 @@ ContactManager.prototype = {
     return request;
   },
 
-  getRevision: function() {
-    let request = this.createRequest();
-
-    let allowCallback = function() {
-      cpmm.sendAsyncMessage("Contacts:GetRevision", {
-        requestID: this.getRequestId(request)
-      });
-    }.bind(this);
-
-    let cancelCallback = function() {
-      Services.DOMRequest.fireError(request);
-    };
-
-    this.askPermission("revision", request, allowCallback, cancelCallback);
-    return request;
-  },
-
   init: function(aWindow) {
     this.initHelper(aWindow, ["Contacts:Find:Return:OK", "Contacts:Find:Return:KO",
                               "Contacts:Clear:Return:OK", "Contacts:Clear:Return:KO",
@@ -788,8 +763,7 @@ ContactManager.prototype = {
                               "Contacts:GetSimContacts:Return:KO",
                               "Contact:Changed",
                               "PermissionPromptHelper:AskPermission:OK",
-                              "Contacts:GetAll:Next",
-                              "Contacts:Revision"]);
+                              "Contacts:GetAll:Next"]);
   },
 
   // Called from DOMRequestIpcHelper

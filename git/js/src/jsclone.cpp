@@ -879,14 +879,14 @@ JSStructuredCloneReader::readTypedArray(uint32_t arrayType, uint32_t nelems, Val
         return false;
 
     // Read the ArrayBuffer object and its contents (but no properties)
-    RootedValue v(context());
+    Value v;
     uint32_t byteOffset;
     if (v1Read) {
-        if (!readV1ArrayBuffer(arrayType, nelems, v.address()))
+        if (!readV1ArrayBuffer(arrayType, nelems, &v))
             return false;
         byteOffset = 0;
     } else {
-        if (!startRead(v.address()))
+        if (!startRead(&v))
             return false;
         uint64_t n;
         if (!in.read(&n))

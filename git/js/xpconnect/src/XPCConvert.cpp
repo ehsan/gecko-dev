@@ -1136,10 +1136,10 @@ XPCConvert::ConstructException(nsresult rv, const char* message,
 
 /********************************/
 
-class MOZ_STACK_CLASS AutoExceptionRestorer
+class AutoExceptionRestorer
 {
 public:
-    AutoExceptionRestorer(JSContext *cx, Value v)
+    AutoExceptionRestorer(JSContext *cx, jsval v)
         : mContext(cx), tvr(cx, v)
     {
         JS_ClearPendingException(mContext);
@@ -1147,12 +1147,12 @@ public:
 
     ~AutoExceptionRestorer()
     {
-        JS_SetPendingException(mContext, tvr);
+        JS_SetPendingException(mContext, tvr.jsval_value());
     }
 
 private:
     JSContext * const mContext;
-    RootedValue tvr;
+    AutoValueRooter tvr;
 };
 
 // static

@@ -64,6 +64,7 @@ class nsIFragmentContentSink;
 class nsIImageLoadingContent;
 class nsIInterfaceRequestor;
 class nsIIOService;
+class nsIJSContextStack;
 class nsIJSRuntimeService;
 class nsILineBreaker;
 class nsIMIMEHeaderParam;
@@ -81,6 +82,7 @@ class nsIScriptSecurityManager;
 class nsIStringBundle;
 class nsIStringBundleService;
 class nsISupportsHashKey;
+class nsIThreadJSContextStack;
 class nsIURI;
 class nsIWidget;
 class nsIWordBreaker;
@@ -1625,7 +1627,12 @@ public:
   static nsresult CheckSameOrigin(nsIChannel *aOldChannel, nsIChannel *aNewChannel);
   static nsIInterfaceRequestor* GetSameOriginChecker();
 
-  // Trace the safe JS context.
+  static nsIThreadJSContextStack* ThreadJSContextStack()
+  {
+    return sThreadJSContextStack;
+  }
+
+  // Trace the safe JS context of the ThreadJSContextStack.
   static void TraceSafeJSContext(JSTracer* aTrc);
 
 
@@ -2175,6 +2182,8 @@ private:
   static nsIXPConnect *sXPConnect;
 
   static nsIScriptSecurityManager *sSecurityManager;
+
+  static nsIThreadJSContextStack *sThreadJSContextStack;
 
   static nsIParserService *sParserService;
 

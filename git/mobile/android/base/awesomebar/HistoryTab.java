@@ -12,7 +12,6 @@ import org.mozilla.gecko.db.BrowserDB.URLColumns;
 import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.util.GamepadUtils;
 import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.widget.FaviconView;
 
 import android.app.Activity;
 import android.content.ContentResolver;
@@ -164,7 +163,7 @@ public class HistoryTab extends AwesomeBarTab {
                 viewHolder = new AwesomeEntryViewHolder();
                 viewHolder.titleView = (TextView) convertView.findViewById(R.id.title);
                 viewHolder.urlView = (TextView) convertView.findViewById(R.id.url);
-                viewHolder.faviconView = (FaviconView) convertView.findViewById(R.id.favicon);
+                viewHolder.faviconView = (ImageView) convertView.findViewById(R.id.favicon);
                 viewHolder.bookmarkIconView = (ImageView) convertView.findViewById(R.id.bookmark_icon);
 
                 convertView.setTag(viewHolder);

@@ -653,11 +653,6 @@ VectorImage::Draw(gfxContext* aContext,
     NS_WARNING("Refusing to make re-entrant call to VectorImage::Draw");
     return NS_ERROR_FAILURE;
   }
-
-  if (mAnimationConsumers == 0 && mStatusTracker) {
-    mStatusTracker->OnUnlockedDraw();
-  }
-
   AutoRestore<bool> autoRestoreIsDrawing(mIsDrawing);
   mIsDrawing = true;
 

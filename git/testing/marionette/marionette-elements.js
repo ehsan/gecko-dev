@@ -71,11 +71,7 @@ ElementManager.prototype = {
   */
   addToKnownElements: function EM_addToKnownElements(element) {
     for (let i in this.seenItems) {
-      let foundEl = null;
-      try {
-        foundEl = this.seenItems[i].get();
-      }
-      catch(e) {}
+      let foundEl = this.seenItems[i].get();
       if (foundEl) {
         if (XPCNativeWrapper(foundEl) == XPCNativeWrapper(element)) {
           return i;
@@ -107,13 +103,7 @@ ElementManager.prototype = {
     if (!el) {
       throw new ElementException("Element has not been seen before", 17, null);
     }
-    try {
-      el = el.get();
-    }
-    catch(e) {
-      el = null;
-      delete this.seenItems[id];
-    }
+    el = el.get();
     // use XPCNativeWrapper to compare elements; see bug 834266
     if (!el || !(XPCNativeWrapper(el).ownerDocument == XPCNativeWrapper(win).document)) {
       throw new ElementException("Stale element reference", 10, null);

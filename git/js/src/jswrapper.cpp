@@ -497,7 +497,7 @@ CrossCompartmentWrapper::nativeCall(JSContext *cx, IsAcceptableThis test, Native
             // will stymie this whole process. If that happens, unwrap the wrapper.
             // This logic can go away when same-compartment security wrappers go away.
             if ((src == srcArgs.base() + 1) && dst->isObject()) {
-                RootedObject thisObj(cx, &dst->toObject());
+                JSObject *thisObj = &dst->toObject();
                 if (thisObj->isWrapper() &&
                     !Wrapper::wrapperHandler(thisObj)->isSafeToUnwrap())
                 {
@@ -526,11 +526,19 @@ CrossCompartmentWrapper::hasInstance(JSContext *cx, HandleObject wrapper, Mutabl
     return Wrapper::hasInstance(cx, wrapper, v, bp);
 }
 
-const char *
-CrossCompartmentWrapper::className(JSContext *cx, HandleObject wrapper)
+JSString *
+CrossCompartmentWrapper::obj_toString(JSContext *cx, HandleObject wrapper)
 {
-    AutoCompartment call(cx, wrappedObject(wrapper));
-    return Wrapper::className(cx, wrapper);
+    RootedString str(cx);
+    {
+        AutoCompartment call(cx, wrappedObject(wrapper));
+        str = Wrapper::obj_toString(cx, wrapper);
+        if (!str)
+            return NULL;
+    }
+    if (!cx->compartment->wrap(cx, str.address()))
+        return NULL;
+    return str;
 }
 
 JSString *
@@ -781,10 +789,10 @@ DeadObjectProxy::objectClassIs(HandleObject obj, ESClassValue classValue, JSCont
     return false;
 }
 
-const char *
-DeadObjectProxy::className(JSContext *cx, HandleObject wrapper)
+JSString *
+DeadObjectProxy::obj_toString(JSContext *cx, HandleObject wrapper)
 {
-    return "DeadObject";
+    return JS_NewStringCopyZ(cx, "[object DeadObject]");
 }
 
 JSString *

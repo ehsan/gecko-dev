@@ -25,7 +25,6 @@
 #include "jsproxy.h"
 #include "jsscript.h"
 
-#include "ds/Sort.h"
 #include "gc/Marking.h"
 #include "vm/GlobalObject.h"
 #include "vm/Shape.h"
@@ -576,10 +575,10 @@ js::GetIterator(JSContext *cx, HandleObject obj, unsigned flags, MutableHandleVa
         if (!Invoke(cx, ObjectOrNullValue(obj), method, 0, NULL, vp.address()))
             return false;
 
-        RawObject resultObj = ToObject(cx, vp);
-        if (!resultObj)
+        RawObject obj = ToObject(cx, vp);
+        if (!obj)
             return false;
-        vp.setObject(*resultObj);
+        vp.setObject(*obj);
         return true;
     }
 

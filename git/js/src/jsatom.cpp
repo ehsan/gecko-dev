@@ -250,8 +250,8 @@ AtomizeAndTakeOwnership(JSContext *cx, const jschar *tbchars, size_t length,
      * unchanged, we need to re-lookup the table position because a last-ditch
      * GC will potentially free some table entries.
      */
-    AtomSet& atoms = cx->runtime->atoms;
-    AtomSet::AddPtr p = atoms.lookupForAdd(AtomHasher::Lookup(tbchars, length));
+    AtomHasher::Lookup lookup(tbchars, length);
+    AtomSet::AddPtr p = cx->runtime->atoms.lookupForAdd(lookup);
     SkipRoot skipHash(cx, &p); /* Prevent the hash from being poisoned. */
     if (p) {
         RawAtom atom = p->asPtr();
@@ -270,8 +270,7 @@ AtomizeAndTakeOwnership(JSContext *cx, const jschar *tbchars, size_t length,
 
     RawAtom atom = flat->morphAtomizedStringIntoAtom();
 
-    if (!atoms.relookupOrAdd(p, AtomHasher::Lookup(tbchars, length),
-                             AtomStateEntry(atom, bool(ib)))) {
+    if (!cx->runtime->atoms.relookupOrAdd(p, lookup, AtomStateEntry(atom, bool(ib)))) {
         JS_ReportOutOfMemory(cx); /* SystemAllocPolicy does not report OOM. */
         return NULL;
     }
@@ -294,9 +293,8 @@ AtomizeAndCopyChars(JSContext *cx, const jschar *tbchars, size_t length, InternB
      * unchanged, we need to re-lookup the table position because a last-ditch
      * GC will potentially free some table entries.
      */
-
-    AtomSet& atoms = cx->runtime->atoms;
-    AtomSet::AddPtr p = atoms.lookupForAdd(AtomHasher::Lookup(tbchars, length));
+    AtomHasher::Lookup lookup(tbchars, length);
+    AtomSet::AddPtr p = cx->runtime->atoms.lookupForAdd(lookup);
     SkipRoot skipHash(cx, &p); /* Prevent the hash from being poisoned. */
     if (p) {
         RawAtom atom = p->asPtr();
@@ -312,8 +310,7 @@ AtomizeAndCopyChars(JSContext *cx, const jschar *tbchars, size_t length, InternB
 
     RawAtom atom = flat->morphAtomizedStringIntoAtom();
 
-    if (!atoms.relookupOrAdd(p, AtomHasher::Lookup(tbchars, length),
-                             AtomStateEntry(atom, bool(ib)))) {
+    if (!cx->runtime->atoms.relookupOrAdd(p, lookup, AtomStateEntry(atom, bool(ib)))) {
         JS_ReportOutOfMemory(cx); /* SystemAllocPolicy does not report OOM. */
         return NULL;
     }

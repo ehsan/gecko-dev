@@ -24,6 +24,7 @@
 #include "nsIPermissionManager.h"
 #include "nsPluginHost.h"
 #include "nsJSNPRuntime.h"
+#include "nsIJSContextStack.h"
 #include "nsIPresShell.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptSecurityManager.h"
@@ -3125,7 +3126,7 @@ nsObjectLoadingContent::TeardownProtoChain()
 bool
 nsObjectLoadingContent::DoNewResolve(JSContext* aCx, JSHandleObject aObject,
                                      JSHandleId aId, unsigned aFlags,
-                                     JS::MutableHandle<JSObject*> aObjp)
+                                     JSMutableHandleObject aObjp)
 {
   // We don't resolve anything; we just try to make sure we're instantiated
 

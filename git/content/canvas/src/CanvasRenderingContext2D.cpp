@@ -1291,7 +1291,7 @@ CanvasRenderingContext2D::SetStyleFromJSValue(JSContext* cx,
 }
 
 static JS::Value
-WrapStyle(JSContext* cx, JSObject* objArg,
+WrapStyle(JSContext* cx, JSObject* obj,
           CanvasRenderingContext2D::CanvasMultiGetterType type,
           nsAString& str, nsISupports* supports, ErrorResult& error)
 {
@@ -1306,7 +1306,6 @@ WrapStyle(JSContext* cx, JSObject* objArg,
     case CanvasRenderingContext2D::CMG_STYLE_PATTERN:
     case CanvasRenderingContext2D::CMG_STYLE_GRADIENT:
     {
-      JS::Rooted<JSObject*> obj(cx, objArg);
       ok = dom::WrapObject(cx, obj, supports, &v);
       break;
     }
@@ -2417,27 +2416,19 @@ struct MOZ_STACK_CLASS CanvasBidiProcessor : public nsBidiPresUtils::BidiProcess
                        ForStyle(mCtx, CanvasRenderingContext2D::STYLE_FILL, mCtx->mTarget),
                      DrawOptions(mState->globalAlpha, mCtx->UsedOperation()));
       } else if (mOp == CanvasRenderingContext2D::TEXT_DRAW_OPERATION_STROKE) {
-        // stroke glyphs one at a time to avoid poor CoreGraphics performance
-        // when stroking a path with a very large number of points
-        buffer.mGlyphs = &glyphBuf.front();
-        buffer.mNumGlyphs = 1;
-        const ContextState& state = *mState;
-        AdjustedTarget target(mCtx, &bounds);
-        const StrokeOptions strokeOpts(state.lineWidth, state.lineJoin,
-                                       state.lineCap, state.miterLimit,
-                                       state.dash.Length(),
-                                       state.dash.Elements(),
-                                       state.dashOffset);
-        CanvasGeneralPattern cgp;
-        const Pattern& patForStyle
-          (cgp.ForStyle(mCtx, CanvasRenderingContext2D::STYLE_STROKE, mCtx->mTarget));
-        const DrawOptions drawOpts(state.globalAlpha, mCtx->UsedOperation());
+        RefPtr<Path> path = scaledFont->GetPathForGlyphs(buffer, mCtx->mTarget);
 
-        for (unsigned i = glyphBuf.size(); i > 0; --i) {
-          RefPtr<Path> path = scaledFont->GetPathForGlyphs(buffer, mCtx->mTarget);
-          target->Stroke(path, patForStyle, strokeOpts, drawOpts);
-          buffer.mGlyphs++;
-        }
+        const ContextState& state = *mState;
+        AdjustedTarget(mCtx, &bounds)->
+          Stroke(path, CanvasGeneralPattern().
+                   ForStyle(mCtx, CanvasRenderingContext2D::STYLE_STROKE, mCtx->mTarget),
+                 StrokeOptions(state.lineWidth, state.lineJoin,
+                               state.lineCap, state.miterLimit,
+                               state.dash.Length(),
+                               state.dash.Elements(),
+                               state.dashOffset),
+                 DrawOptions(state.globalAlpha, mCtx->UsedOperation()));
+
       }
     }
   }

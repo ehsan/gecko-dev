@@ -113,6 +113,7 @@ DOMCI_CLASS(SVGAnimatedString)
 DOMCI_CLASS(SVGLength)
 DOMCI_CLASS(SVGNumber)
 DOMCI_CLASS(SVGRect)
+DOMCI_CLASS(SVGZoomEvent)
 
 // Canvas
 DOMCI_CLASS(MozCanvasPrintState)

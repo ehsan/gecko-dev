@@ -71,7 +71,8 @@ class nsGeolocationRequest
   void Shutdown();
 
   // Called by the geolocation device to notify that a location has changed.
-  bool Update(nsIDOMGeoPosition* aPosition);
+  // isBetter: the accuracy is as good or better than the previous position. 
+  bool Update(nsIDOMGeoPosition* aPosition, bool aIsBetter);
 
   void SendLocation(nsIDOMGeoPosition* location, bool aCachePosition);
   void MarkCleared();
@@ -134,6 +135,7 @@ public:
 
   void SetCachedPosition(nsIDOMGeoPosition* aPosition);
   nsIDOMGeoPosition* GetCachedPosition();
+  bool IsBetterPosition(nsIDOMGeoPosition *aSomewhere);
 
   // Find and startup a geolocation device (gps, nmea, etc.)
   nsresult StartDevice(nsIPrincipal* aPrincipal, bool aRequestPrivate);
@@ -158,7 +160,7 @@ private:
   nsCOMPtr<nsITimer> mDisconnectTimer;
 
   // The object providing geo location information to us.
-  nsCOMPtr<nsIGeolocationProvider> mProvider;
+  nsCOMArray<nsIGeolocationProvider> mProviders;
 
   // mGeolocators are not owned here.  Their constructor
   // adds them to this list, and their destructor removes
@@ -200,7 +202,7 @@ public:
   void GetCurrentPosition(PositionCallback& aCallback, PositionErrorCallback* aErrorCallback, const PositionOptions& aOptions, ErrorResult& aRv);
 
   // Called by the geolocation device to notify that a location has changed.
-  void Update(nsIDOMGeoPosition* aPosition);
+  void Update(nsIDOMGeoPosition* aPosition, bool aIsBetter);
 
   void SetCachedPosition(Position* aPosition);
   Position* GetCachedPosition();

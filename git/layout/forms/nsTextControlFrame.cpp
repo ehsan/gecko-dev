@@ -65,6 +65,7 @@
 #include "nsNodeInfoManager.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsINativeKeyBindings.h"
+#include "nsIJSContextStack.h"
 #include "nsFocusManager.h"
 #include "nsTextEditRules.h"
 #include "nsPresState.h"

@@ -482,9 +482,6 @@ class IDLExternalInterface(IDLObjectWithIdentifier):
     def isJSImplemented(self):
         return False
 
-    def getNavigatorProperty(self):
-        return None
-
     def _getDependentObjects(self):
         return set()
 
@@ -902,12 +899,11 @@ class IDLInterface(IDLObjectWithScope):
                   identifier == "Pref" or
                   identifier == "NeedNewResolve" or
                   identifier == "JSImplementation" or
-                  identifier == "HeaderFile" or
-                  identifier == "NavigatorProperty"):
+                  identifier == "HeaderFile"):
                 # Known attributes that we don't need to do anything with here
                 pass
             else:
-                raise WebIDLError("Unknown extended attribute %s on interface" % identifier,
+                raise WebIDLError("Unknown extended attribute %s" % identifier,
                                   [attr.location])
 
             attrlist = attr.listValue()
@@ -994,15 +990,6 @@ class IDLInterface(IDLObjectWithScope):
 
     def isJSImplemented(self):
         return bool(self.getJSImplementation())
-
-    def getNavigatorProperty(self):
-        naviProp = self.getExtendedAttribute("NavigatorProperty")
-        if not naviProp:
-            return None
-        assert len(naviProp) == 1
-        assert isinstance(naviProp, list)
-        assert len(naviProp[0]) != 0
-        return naviProp[0]
 
     def hasChildInterfaces(self):
         return self._hasChildInterfaces
@@ -2533,7 +2520,7 @@ class IDLAttribute(IDLInterfaceMember):
             # Known attributes that we don't need to do anything with here
             pass
         else:
-            raise WebIDLError("Unknown extended attribute %s on attribute" % identifier,
+            raise WebIDLError("Unknown extended attribute %s" % identifier,
                               [attr.location])
         IDLInterfaceMember.handleExtendedAttribute(self, attr)
 
@@ -3077,7 +3064,7 @@ class IDLMethod(IDLInterfaceMember, IDLScope):
             # Known attributes that we don't need to do anything with here
             pass
         else:
-            raise WebIDLError("Unknown extended attribute %s on method" % identifier,
+            raise WebIDLError("Unknown extended attribute %s" % identifier,
                               [attr.location])
         IDLInterfaceMember.handleExtendedAttribute(self, attr)
 

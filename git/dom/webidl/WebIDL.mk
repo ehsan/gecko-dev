@@ -290,7 +290,6 @@ webidl_files = \
   SVGURIReference.webidl \
   SVGViewElement.webidl \
   SVGZoomAndPan.webidl \
-  SVGZoomEvent.webidl \
   Text.webidl \
   TextDecoder.webidl \
   TextEncoder.webidl \

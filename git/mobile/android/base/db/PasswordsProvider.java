@@ -25,7 +25,7 @@ import android.net.Uri;
 import android.text.TextUtils;
 import android.util.Log;
 
-public class PasswordsProvider extends PerProfileContentProvider {
+public class PasswordsProvider extends GeckoProvider {
     static final String TABLE_PASSWORDS = "moz_logins";
     static final String TABLE_DELETED_PASSWORDS = "moz_deleted_logins";
 
@@ -43,10 +43,9 @@ public class PasswordsProvider extends PerProfileContentProvider {
     // this should be kept in sync with the version in toolkit/components/passwordmgr/storage-mozStorage.js
     private static final int DB_VERSION = 5;
     private static final String DB_FILENAME = "signons.sqlite";
+
     private static final String WHERE_GUID_IS_NULL = BrowserContract.DeletedPasswords.GUID + " IS NULL";
     private static final String WHERE_GUID_IS_VALUE = BrowserContract.DeletedPasswords.GUID + " = ?";
-
-    private static final String LOG_TAG = "GeckPasswordsProvider";
 
     static {
         URI_MATCHER = new UriMatcher(UriMatcher.NO_MATCH);
@@ -79,18 +78,12 @@ public class PasswordsProvider extends PerProfileContentProvider {
         System.loadLibrary("mozglue");
     }
 
-    public PasswordsProvider() {
-        super(LOG_TAG);
-    }
-
     @Override
-    protected String getDBName(){
-        return DB_FILENAME;
-    }
-
-    @Override
-    protected int getDBVersion(){
-        return DB_VERSION;
+    public boolean onCreate() {
+        setLogTag("GeckoPasswordsProvider");
+        setDBName(DB_FILENAME);
+        setDBVersion(DB_VERSION);
+        return super.onCreate();
     }
 
     @Override
@@ -126,9 +119,8 @@ public class PasswordsProvider extends PerProfileContentProvider {
 
     @Override
     public String getSortOrder(Uri uri, String aRequested) {
-        if (!TextUtils.isEmpty(aRequested)) {
+        if (!TextUtils.isEmpty(aRequested))
             return aRequested;
-        }
 
         final int match = URI_MATCHER.match(uri);
         switch (match) {
@@ -214,7 +206,7 @@ public class PasswordsProvider extends PerProfileContentProvider {
                 }
             }
         } catch (Exception ex) {
-            Log.e(LOG_TAG, "Error in NSSBridge");
+            Log.e(getLogTag(), "Error in NSSBridge");
             throw new RuntimeException(ex);
         }
         return result;

@@ -34,6 +34,7 @@
 #include "nsIBaseWindow.h"
 #include "nsContentUtils.h"
 #include "nsIXPConnect.h"
+#include "nsIJSContextStack.h"
 #include "nsUnicharUtils.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptSecurityManager.h"

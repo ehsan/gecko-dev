@@ -4173,8 +4173,8 @@ static JSBool
 DebuggerObject_getClass(JSContext *cx, unsigned argc, Value *vp)
 {
     THIS_DEBUGOBJECT_REFERENT(cx, argc, vp, "get class", args, refobj);
-    const char *className = JSObject::className(cx, refobj);
-    JSAtom *str = Atomize(cx, className, strlen(className));
+    const char *s = refobj->getClass()->name;
+    JSAtom *str = Atomize(cx, s, strlen(s));
     if (!str)
         return false;
     args.rval().setString(str);

@@ -778,12 +778,7 @@ enum Role {
   /**
    * Represent a definition in a definition list (dd in HTML)
    */
-  DEFINITION = 128,
-
-  /**
-   * Represent a keyboard or keypad key (ARIA role "key").
-   */
-  KEY = 129
+  DEFINITION = 128
 };
 
 } // namespace role

@@ -9,7 +9,6 @@
 
 #include "ISimpleDOMNode.h"
 #include "AccessibleWrap.h"
-#include "IUnknownImpl.h"
 
 #include "mozilla/Attributes.h"
 
