@@ -179,10 +179,6 @@ public class TabsPanel extends LinearLayout
     }
 
     public void showMenu() {
-        if (mCurrentPanel == Panel.REMOTE_TABS) {
-            return;
-        }
-
         final Menu menu = mPopupMenu.getMenu();
 
         // Each panel has a "+" shortcut button, so don't show it for that panel.

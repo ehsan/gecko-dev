@@ -40,6 +40,7 @@ public class TopSitesCursorWrapper implements Cursor {
         TopSites.TITLE,
         TopSites.BOOKMARK_ID,
         TopSites.HISTORY_ID,
+        TopSites.DISPLAY,
         TopSites.TYPE
     };
 

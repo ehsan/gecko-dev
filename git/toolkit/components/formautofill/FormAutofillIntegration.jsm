@@ -24,8 +24,6 @@ Cu.import("resource://gre/modules/Services.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "Promise",
                                   "resource://gre/modules/Promise.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "RequestAutocompleteUI",
-                                  "resource://gre/modules/RequestAutocompleteUI.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
                                   "resource://gre/modules/Task.jsm");
 
@@ -37,26 +35,14 @@ this.FormAutofillIntegration = {
   /**
    * Creates a new RequestAutocompleteUI object.
    *
-   * @param aAutofillData
-   *        Provides the initial data required to display the user interface.
-   *        {
-   *          sections: [{
-   *            name: User-specified section name, or empty string.
-   *            addressSections: [{
-   *              addressType: "shipping", "billing", or empty string.
-   *              fields: [{
-   *                fieldName: Type of information requested, like "email".
-   *                contactType: For example "work", "home", or empty string.
-   *              }],
-   *            }],
-   *          }],
-   *        }
+   * @param aProperties
+   *        Provides the initial properties for the newly created object.
    *
    * @return {Promise}
    * @resolves The newly created RequestAutocompleteUI object.
    * @rejects JavaScript exception.
    */
-  createRequestAutocompleteUI: Task.async(function* (aAutofillData) {
-    return new RequestAutocompleteUI(aAutofillData);
+  createRequestAutocompleteUI: Task.async(function* (aProperties) {
+    return {};
   }),
 };

@@ -559,9 +559,9 @@ var PageStyleActor = protocol.ActorClass({
   get styleElement() {
     if (!this._styleElement) {
       let document = this.inspector.window.document;
-      let style = document.createElementNS("http://www.w3.org/1999/xhtml", "style");
+      let style = document.createElement("style");
       style.setAttribute("type", "text/css");
-      document.documentElement.appendChild(style);
+      document.head.appendChild(style);
       this._styleElement = style;
     }
 

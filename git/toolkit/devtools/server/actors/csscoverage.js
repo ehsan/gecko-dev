@@ -108,17 +108,12 @@ let CSSUsageActor = protocol.ActorClass({
 
   /**
    * Begin recording usage data
-   * @param noreload It's best if we start by reloading the current page
-   * because that starts the test at a known point, but there could be reasons
-   * why we don't want to do that (e.g. the page contains state that will be
-   * lost across a reload)
    */
-  start: method(function(noreload) {
+  start: method(function() {
     if (this._running) {
       throw new Error(l10n.lookup("csscoverageRunningError"));
     }
 
-    this._isOneShot = false;
     this._visitedPages = new Set();
     this._knownRules = new Map();
     this._running = true;
@@ -148,18 +143,10 @@ let CSSUsageActor = protocol.ActorClass({
                                             .getInterface(Ci.nsIWebProgress);
     this._progress.addProgressListener(this._progressListener, this._notifyOn);
 
-    if (noreload) {
-      // If we're not starting by reloading the page, then pretend that onload
-      // has just happened.
-      this._onTabLoad(this._tabActor.window.document);
-    }
-    else {
-      this._tabActor.window.location.reload();
-    }
+    this._populateKnownRules(this._tabActor.window.document);
+    this._updateUsage(this._tabActor.window.document, false);
 
     events.emit(this, "state-change", { isRunning: true });
-  }, {
-    request: { url: Arg(0, "boolean") }
   }),
 
   /**
@@ -193,7 +180,6 @@ let CSSUsageActor = protocol.ActorClass({
       throw new Error(l10n.lookup("csscoverageRunningError"));
     }
 
-    this._isOneShot = true;
     this._visitedPages = new Set();
     this._knownRules = new Map();
 
@@ -404,10 +390,6 @@ let CSSUsageActor = protocol.ActorClass({
 
     if (this._visitedPages == null) {
       throw new Error(l10n.lookup("csscoverageNotRunError"));
-    }
-
-    if (this._isOneShot) {
-      throw new Error(l10n.lookup("csscoverageOneShotReportError"));
     }
 
     // Helper function to create a JSONable data structure representing a rule
@@ -795,11 +777,11 @@ const CSSUsageFront = protocol.FrontClass(CSSUsageActor, {
   /**
    * Server-side start is above. Client-side start adds a notification box
    */
-  start: custom(function(newChromeWindow, newTarget, noreload=false) {
+  start: custom(function(newChromeWindow, newTarget) {
     target = newTarget;
     chromeWindow = newChromeWindow;
 
-    return this._start(noreload);
+    return this._start();
   }, {
     impl: "_start"
   }),
