@@ -1228,7 +1228,8 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
 
           nsRefPtr<nsDocShell> docShell = GetDocShell(shell->GetPresContext());
           if (docShell) {
-            docShell->AddProfileTimelineMarker("Styles", TRACING_INTERVAL_START);
+            docShell->AddProfileTimelineMarker("Styles", mStyleCause,
+                                               TRACING_INTERVAL_START);
           }
 
           if (!tracingStyleFlush) {

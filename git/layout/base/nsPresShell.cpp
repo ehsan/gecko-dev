@@ -2775,11 +2775,10 @@ PresShell::FrameNeedsReflow(nsIFrame *aFrame, IntrinsicDirty aIntrinsicDirty,
                             nsFrameState aBitToAdd)
 {
   NS_PRECONDITION(aBitToAdd == NS_FRAME_IS_DIRTY ||
-                  aBitToAdd == NS_FRAME_HAS_DIRTY_CHILDREN ||
-                  !aBitToAdd,
+                  aBitToAdd == NS_FRAME_HAS_DIRTY_CHILDREN,
                   "Unexpected bits being added");
-  NS_PRECONDITION(!(aIntrinsicDirty == eStyleChange &&
-                    aBitToAdd == NS_FRAME_HAS_DIRTY_CHILDREN),
+  NS_PRECONDITION(aIntrinsicDirty != eStyleChange ||
+                  aBitToAdd == NS_FRAME_IS_DIRTY,
                   "bits don't correspond to style change reason");
 
   NS_ASSERTION(!mIsReflowing, "can't mark frame dirty during reflow");
@@ -2875,11 +2874,6 @@ PresShell::FrameNeedsReflow(nsIFrame *aFrame, IntrinsicDirty aIntrinsicDirty,
           }
         }
       } while (stack.Length() != 0);
-    }
-
-    // Skip setting dirty bits up the tree if we weren't given a bit to add.
-    if (!aBitToAdd) {
-      continue;
     }
 
     // Set NS_FRAME_HAS_DIRTY_CHILDREN bits (via nsIFrame::ChildIsDirty)

@@ -94,12 +94,12 @@ public:
 
   /**
    * Return the minimum buffer size that should be given to Blur() method.  If
-   * zero, the class is not properly setup for blurring.  Note that this
+   * negative, the class is not properly setup for blurring.  Note that this
    * includes the extra three bytes on top of the stride*width, where something
    * like gfxImageSurface::GetDataSize() would report without it, even if it 
    * happens to have the extra bytes.
    */
-  size_t GetSurfaceAllocationSize() const;
+  int32_t GetSurfaceAllocationSize() const;
 
   /**
    * Perform the blur in-place on the surface backed by specified 8-bit
@@ -162,7 +162,7 @@ private:
   /**
    * The minimum size of the buffer needed for the Blur() operation.
    */
-  size_t mSurfaceAllocationSize;
+  int32_t mSurfaceAllocationSize;
 
   /**
    * Whether mDirtyRect contains valid data.

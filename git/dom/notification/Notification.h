@@ -114,12 +114,11 @@ public:
   void InitFromJSVal(JSContext* aCx, JS::Handle<JS::Value> aData, ErrorResult& aRv);
 
   void InitFromBase64(JSContext* aCx, const nsAString& aData, ErrorResult& aRv);
-
 protected:
   Notification(const nsAString& aID, const nsAString& aTitle, const nsAString& aBody,
                NotificationDirection aDir, const nsAString& aLang,
                const nsAString& aTag, const nsAString& aIconUrl,
-               const NotificationBehavior& aBehavior, nsPIDOMWindow* aWindow);
+               nsPIDOMWindow* aWindow);
 
   static already_AddRefed<Notification> CreateInternal(nsPIDOMWindow* aWindow,
                                                        const nsAString& aID,
@@ -170,7 +169,6 @@ protected:
   nsString mTag;
   nsString mIconUrl;
   nsCOMPtr<nsIStructuredCloneContainer> mDataObjectContainer;
-  NotificationBehavior mBehavior;
 
   // It's null until GetData is first called
   nsCOMPtr<nsIVariant> mData;

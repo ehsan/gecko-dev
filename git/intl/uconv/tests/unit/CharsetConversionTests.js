@@ -21,7 +21,7 @@ function checkDecode(converter, charset, inText, expectedText)
 
   dump("testing decoding from " + charset + " to Unicode.\n");
   try {
-    var outText = converter.ConvertToUnicode(inText);
+    var outText = converter.ConvertToUnicode(inText) + converter.Finish();
   } catch(e) {
     outText = "\ufffd";
   }

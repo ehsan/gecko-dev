@@ -4,7 +4,7 @@
 
 # Text progress bar library, like curl or scp.
 
-import sys, datetime, time
+import sys, datetime
 
 class ProgressBar(object):
     def __init__(self, label, limit, label_width=12):

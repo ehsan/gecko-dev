@@ -611,11 +611,9 @@ HttpBaseChannel::DoApplyContentConversions(nsIStreamListener* aNextListener,
                                            nsISupports *aCtxt)
 {
   *aNewNextListener = nullptr;
-  if (!mResponseHead || ! aNextListener) {
-    return NS_OK;
-  }
-
   nsCOMPtr<nsIStreamListener> nextListener = aNextListener;
+  if (!mResponseHead)
+    return NS_OK;
 
   LOG(("HttpBaseChannel::DoApplyContentConversions [this=%p]\n", this));
 
@@ -683,7 +681,7 @@ HttpBaseChannel::DoApplyContentConversions(nsIStreamListener* aNextListener,
     }
   }
   *aNewNextListener = nextListener;
-  NS_IF_ADDREF(*aNewNextListener);
+  NS_ADDREF(*aNewNextListener);
   return NS_OK;
 }
 
