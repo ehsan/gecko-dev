@@ -225,12 +225,19 @@ gfxASurface::Wrap (cairo_surface_t *csurf)
 void
 gfxASurface::Init(cairo_surface_t* surface, bool existingSurface)
 {
+    if (cairo_surface_status(surface)) {
+        // the surface has an error on it
+        mSurfaceValid = PR_FALSE;
+        cairo_surface_destroy(surface);
+        return;
+    }
+
     SetSurfaceWrapper(surface, this);
 
     mSurface = surface;
-    mSurfaceValid = surface && !cairo_surface_status(surface);
+    mSurfaceValid = PR_TRUE;
 
-    if (existingSurface || !mSurfaceValid) {
+    if (existingSurface) {
         mFloatingRefs = 0;
     } else {
         mFloatingRefs = 1;

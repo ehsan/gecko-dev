@@ -103,8 +103,6 @@ public:
     virtual gfxASurface::MemoryLocation GetMemoryLocation() const;
 
 private:
-    void MakeInvalid(gfxIntSize& size);
-
     bool mOwnsDC;
     bool mForPrinting;
 

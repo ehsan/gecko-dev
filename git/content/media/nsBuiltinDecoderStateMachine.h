@@ -269,11 +269,11 @@ public:
 
 protected:
 
-  // Returns true if we've got less than aAudioUsecs microseconds of decoded
+  // Returns PR_TRUE if we've got less than aAudioUsecs microseconds of decoded
   // and playable data. The decoder monitor must be held.
   bool HasLowDecodedData(PRInt64 aAudioUsecs) const;
 
-  // Returns true if we're running low on data which is not yet decoded.
+  // Returns PR_TRUE if we're running low on data which is not yet decoded.
   // The decoder monitor must be held.
   bool HasLowUndecodedData() const;
 
@@ -287,11 +287,11 @@ protected:
   // must be held.
   PRInt64 AudioDecodedUsecs() const;
 
-  // Returns true when there's decoded audio waiting to play.
+  // Returns PR_TRUE when there's decoded audio waiting to play.
   // The decoder monitor must be held.
   bool HasFutureAudio() const;
 
-  // Returns true if we recently exited "quick buffering" mode.
+  // Returns PR_TRUE if we recently exited "quick buffering" mode.
   bool JustExitedQuickBuffering();
 
   // Waits on the decoder ReentrantMonitor for aUsecs microseconds. If the decoder
@@ -388,7 +388,7 @@ protected:
   // thread. The decoder monitor must be held.
   void StartDecoding();
 
-  // Returns true if we're currently playing. The decoder monitor must
+  // Returns PR_TRUE if we're currently playing. The decoder monitor must
   // be held.
   bool IsPlaying();
 
@@ -440,7 +440,7 @@ protected:
     return !mTimeout.IsNull() || mRunAgain;
   }
 
-  // Returns true if we're not playing and the decode thread has filled its
+  // Returns PR_TRUE if we're not playing and the decode thread has filled its
   // decode buffers and is waiting. We can shut the decode thread down in this
   // case as it may not be needed again.
   bool IsPausedAndDecoderWaiting();
@@ -560,71 +560,71 @@ protected:
   // Time at which we started decoding. Synchronised via decoder monitor.
   TimeStamp mDecodeStartTime;
 
-  // True if the media resource can be seeked. Accessed from the state
+  // PR_TRUE if the media resource can be seeked. Accessed from the state
   // machine and main threads. Synchronised via decoder monitor.
   bool mSeekable;
 
-  // True if an event to notify about a change in the playback
-  // position has been queued, but not yet run. It is set to false when
+  // PR_TRUE if an event to notify about a change in the playback
+  // position has been queued, but not yet run. It is set to PR_FALSE when
   // the event is run. This allows coalescing of these events as they can be
   // produced many times per second. Synchronised via decoder monitor.
   // Accessed on main and state machine threads.
   bool mPositionChangeQueued;
 
-  // True if the audio playback thread has finished. It is finished
+  // PR_TRUE if the audio playback thread has finished. It is finished
   // when either all the audio frames in the Vorbis bitstream have completed
   // playing, or we've moved into shutdown state, and the threads are to be
   // destroyed. Written by the audio playback thread and read and written by
   // the state machine thread. Synchronised via decoder monitor.
   bool mAudioCompleted;
 
-  // True if mDuration has a value obtained from an HTTP header, or from
+  // PR_TRUE if mDuration has a value obtained from an HTTP header, or from
   // the media index/metadata. Accessed on the state machine thread.
   bool mGotDurationFromMetaData;
     
-  // False while decode thread should be running. Accessed state machine
+  // PR_FALSE while decode thread should be running. Accessed state machine
   // and decode threads. Syncrhonised by decoder monitor.
   bool mStopDecodeThread;
 
-  // True when the decode thread run function has finished, but the thread
+  // PR_TRUE when the decode thread run function has finished, but the thread
   // has not necessarily been shut down yet. This can happen if we switch
   // from COMPLETED state to SEEKING before the state machine has a chance
   // to run in the COMPLETED state and shutdown the decode thread.
   // Synchronised by the decoder monitor.
   bool mDecodeThreadIdle;
 
-  // False while audio thread should be running. Accessed state machine
+  // PR_FALSE while audio thread should be running. Accessed state machine
   // and audio threads. Syncrhonised by decoder monitor.
   bool mStopAudioThread;
 
-  // If this is true while we're in buffering mode, we can exit early,
+  // If this is PR_TRUE while we're in buffering mode, we can exit early,
   // as it's likely we may be able to playback. This happens when we enter
   // buffering mode soon after the decode starts, because the decode-ahead
   // ran fast enough to exhaust all data while the download is starting up.
   // Synchronised via decoder monitor.
   bool mQuickBuffering;
 
-  // True if the shared state machine thread is currently running this
+  // PR_TRUE if the shared state machine thread is currently running this
   // state machine.
   bool mIsRunning;
 
-  // True if we should run the state machine again once the current
+  // PR_TRUE if we should run the state machine again once the current
   // state machine run has finished.
   bool mRunAgain;
 
-  // True if we've dispatched an event to run the state machine. It's
+  // PR_TRUE if we've dispatched an event to run the state machine. It's
   // imperative that we don't dispatch multiple events to run the state
   // machine at the same time, as our code assume all events are synchronous.
   // If we dispatch multiple events, the second event can run while the
   // first is shutting down a thread, causing inconsistent state.
   bool mDispatchedRunEvent;
 
-  // True if the decode thread has gone filled its buffers and is now
+  // PR_TRUE if the decode thread has gone filled its buffers and is now
   // waiting to be awakened before it continues decoding. Synchronized
   // by the decoder monitor.
   bool mDecodeThreadWaiting;
 
-  // True is we are decoding a realtime stream, like a camera stream
+  // true is we are decoding a realtime stream, like a camera stream
   bool mRealTime;
   
   PRUint32 mBufferingWait;

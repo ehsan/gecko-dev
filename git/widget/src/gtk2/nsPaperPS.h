@@ -58,7 +58,7 @@ class nsPaperSizePS {
         nsPaperSizePS() { mCurrent = 0; }
 
         /** ---------------------------------------------------
-         * @return true if the cursor points past the last item.
+         * @return PR_TRUE if the cursor points past the last item.
          */
         bool AtEnd() { return mCurrent >= mCount; }
 
@@ -79,7 +79,7 @@ class nsPaperSizePS {
 
         /** ---------------------------------------------------
          * Point the cursor to the entry with the given paper name.
-         * @return true if pointing to a valid entry.
+         * @return PR_TRUE if pointing to a valid entry.
          */
         bool Find(const char *aName);
 
@@ -108,7 +108,7 @@ class nsPaperSizePS {
         }
 
         /** ---------------------------------------------------
-         * @return true if the paper should be presented to
+         * @return PR_TRUE if the paper should be presented to
          *                 the user in metric units.
          */
         bool IsMetric() {

@@ -164,6 +164,8 @@ public:
   // height reflow will occur. 
   static void RequestSpecialHeightReflow(const nsHTMLReflowState& aReflowState);
 
+  virtual bool IsContainingBlock() const;
+
   static void RePositionViews(nsIFrame* aFrame);
 
   static bool PageBreakAfter(nsIFrame* aSourceFrame,
@@ -193,7 +195,6 @@ public:
 
   virtual nsMargin GetUsedBorder() const;
   virtual nsMargin GetUsedPadding() const;
-  virtual nsMargin GetUsedMargin() const;
 
   // Get the offset from the border box to the area where the row groups fit
   nsMargin GetChildAreaOffset(const nsHTMLReflowState* aReflowState) const;

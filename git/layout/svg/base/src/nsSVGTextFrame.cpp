@@ -38,6 +38,7 @@
 
 #include "nsIDOMSVGTextElement.h"
 #include "nsSVGTextFrame.h"
+#include "nsWeakReference.h"
 #include "SVGLengthList.h"
 #include "nsIDOMSVGLength.h"
 #include "nsIDOMSVGAnimatedNumber.h"
@@ -255,12 +256,11 @@ nsSVGTextFrame::InitialUpdate()
 }  
 
 gfxRect
-nsSVGTextFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
-                                    PRUint32 aFlags)
+nsSVGTextFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace)
 {
   UpdateGlyphPositioning(PR_TRUE);
 
-  return nsSVGTextFrameBase::GetBBoxContribution(aToBBoxUserspace, aFlags);
+  return nsSVGTextFrameBase::GetBBoxContribution(aToBBoxUserspace);
 }
 
 //----------------------------------------------------------------------

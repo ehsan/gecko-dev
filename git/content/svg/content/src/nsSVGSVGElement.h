@@ -193,6 +193,12 @@ public:
 
   // nsSVGElement specializations:
   virtual gfxMatrix PrependLocalTransformTo(const gfxMatrix &aMatrix) const;
+  virtual void DidChangeLength(PRUint8 aAttrEnum, bool aDoSetAttr);
+  virtual void DidChangeViewBox(bool aDoSetAttr);
+  virtual void DidChangePreserveAspectRatio(bool aDoSetAttr);
+
+  virtual void DidAnimateViewBox();
+  virtual void DidAnimatePreserveAspectRatio();
   
   // nsSVGSVGElement methods:
   float GetLength(PRUint8 mCtxType);

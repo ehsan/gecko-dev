@@ -104,7 +104,6 @@ class gfxSkipChars;
 class gfxSkipCharsIterator;
 class gfxContext;
 class nsLineList_iterator;
-class nsAbsoluteContainingBlock;
 
 struct nsPeekOffsetStruct;
 struct nsPoint;
@@ -286,9 +285,6 @@ typedef PRUint64 nsFrameState;
 // Only meaningful for display roots, so we don't really need a global state
 // bit; we could free up this bit with a little extra complexity.
 #define NS_FRAME_UPDATE_LAYER_TREE                  NS_FRAME_STATE_BIT(36)
-
-// Frame can accept absolutely positioned children.
-#define NS_FRAME_HAS_ABSPOS_CHILDREN                NS_FRAME_STATE_BIT(37)
 
 // The lower 20 bits and upper 32 bits of the frame state are reserved
 // by this API.
@@ -576,10 +572,6 @@ protected:
   /**
    * Implements Destroy(). Do not call this directly except from within a
    * DestroyFrom() implementation.
-   *
-   * @note This will always be called, so it is not necessary to override
-   *       Destroy() in subclasses of nsFrame, just DestroyFrom().
-   *
    * @param  aDestructRoot is the root of the subtree being destroyed
    */
   virtual void DestroyFrom(nsIFrame* aDestructRoot) = 0;
@@ -597,8 +589,6 @@ public:
    * @param   aListID the child list identifier.
    * @param   aChildList list of child frames. Each of the frames has its
    *            NS_FRAME_IS_DIRTY bit set.  Must not be empty.
-   *            This method cannot handle the child list returned by
-   *            GetAbsoluteListID().
    * @return  NS_ERROR_INVALID_ARG if there is no child list with the specified
    *            name,
    *          NS_ERROR_UNEXPECTED if the frame is an atomic frame or if the
@@ -1986,17 +1976,9 @@ public:
   }
 
   /**
-   * Returns true if the frame is a block wrapper.
+   * Is this frame a containing block for non-positioned elements?
    */
-  bool IsBlockWrapper() const;
-
-  /**
-   * Get this frame's CSS containing block.
-   *
-   * The algorithm is defined in
-   * http://www.w3.org/TR/CSS2/visudet.html#containing-block-details.
-   */
-  nsIFrame* GetContainingBlock() const;
+  virtual bool IsContainingBlock() const = 0;
 
   /**
    * Is this frame a containing block for floating elements?
@@ -2741,17 +2723,7 @@ NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::EmbeddingLevelProperty()))
       }
     }
   }  
-
-  /**
-   * Accessors for the absolute containing block.
-   */
-  bool IsAbsoluteContainer() const { return !!(mState & NS_FRAME_HAS_ABSPOS_CHILDREN); }
-  bool HasAbsolutelyPositionedChildren() const;
-  nsAbsoluteContainingBlock* GetAbsoluteContainingBlock() const;
-  virtual void MarkAsAbsoluteContainingBlock();
-  // Child frame types override this function to select their own child list name
-  virtual mozilla::layout::FrameChildListID GetAbsoluteListID() const { return kAbsoluteList; }
-
+  
 protected:
   // Members
   nsRect           mRect;
@@ -2761,8 +2733,6 @@ protected:
 private:
   nsIFrame*        mNextSibling;  // doubly-linked list of frames
   nsIFrame*        mPrevSibling;  // Do not touch outside SetNextSibling!
-
-  void MarkAbsoluteFramesForDisplayList(nsDisplayListBuilder* aBuilder, const nsRect& aDirtyRect);
 
   static void DestroyPaintedPresShellList(void* propertyValue) {
     nsTArray<nsWeakPtr>* list = static_cast<nsTArray<nsWeakPtr>*>(propertyValue);

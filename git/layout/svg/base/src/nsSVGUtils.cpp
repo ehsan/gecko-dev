@@ -1273,7 +1273,7 @@ nsSVGUtils::ClipToGfxRect(nsIntRect* aRect, const gfxRect& aGfxRect)
 }
 
 gfxRect
-nsSVGUtils::GetBBox(nsIFrame *aFrame, PRUint32 aFlags)
+nsSVGUtils::GetBBox(nsIFrame *aFrame)
 {
   if (aFrame->GetContent()->IsNodeOfType(nsINode::eTEXT)) {
     aFrame = aFrame->GetParent();
@@ -1293,7 +1293,7 @@ nsSVGUtils::GetBBox(nsIFrame *aFrame, PRUint32 aFlags)
       }
       svg = do_QueryFrame(aFrame);
     }
-    bbox = svg->GetBBoxContribution(gfxMatrix(), aFlags);
+    bbox = svg->GetBBoxContribution(gfxMatrix());
   } else {
     bbox = nsSVGIntegrationUtils::GetSVGBBoxForNonSVGFrame(aFrame);
   }

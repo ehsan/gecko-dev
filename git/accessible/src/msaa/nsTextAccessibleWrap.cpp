@@ -41,15 +41,12 @@
 
 #include "nsCoreUtils.h"
 #include "nsDocAccessible.h"
-#include "Statistics.h"
 #include "nsIFrame.h"
 #include "nsFontMetrics.h"
 #include "nsPresContext.h"
 #include "nsLayoutUtils.h"
 
 #include "gfxFont.h"
-
-using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsTextAccessibleWrap Accessible
@@ -75,14 +72,11 @@ STDMETHODIMP nsTextAccessibleWrap::QueryInterface(REFIID iid, void** ppv)
 {
   *ppv = nsnull;
 
-  if (IID_IUnknown == iid) {
+  if (IID_IUnknown == iid || IID_ISimpleDOMText == iid)
     *ppv = static_cast<ISimpleDOMText*>(this);
-  } else if (IID_ISimpleDOMText == iid) {
-    statistics::ISimpleDOMUsed();
-    *ppv = static_cast<ISimpleDOMText*>(this);
-  } else {
+
+  if (nsnull == *ppv)
     return nsAccessibleWrap::QueryInterface(iid, ppv);
-  }
    
   (reinterpret_cast<IUnknown*>(*ppv))->AddRef(); 
   return S_OK;

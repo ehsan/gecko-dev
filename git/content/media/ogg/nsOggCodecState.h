@@ -111,9 +111,9 @@ public:
   
   virtual CodecType GetType() { return TYPE_UNKNOWN; }
   
-  // Reads a header packet. Returns true when last header has been read.
+  // Reads a header packet. Returns PR_TRUE when last header has been read.
   virtual bool DecodeHeader(ogg_packet* aPacket) {
-    return (mDoneReadingHeaders = true);
+    return (mDoneReadingHeaders = PR_TRUE);
   }
 
   // Returns the end time that a granulepos represents.
@@ -125,22 +125,22 @@ public:
   // Initializes the codec state.
   virtual bool Init();
 
-  // Returns true when this bitstream has finished reading all its
+  // Returns PR_TRUE when this bitstream has finished reading all its
   // header packets.
   bool DoneReadingHeaders() { return mDoneReadingHeaders; }
 
   // Deactivates the bitstream. Only the primary video and audio bitstreams
   // should be active.
   void Deactivate() {
-    mActive = false;
-    mDoneReadingHeaders = true;
+    mActive = PR_FALSE;
+    mDoneReadingHeaders = PR_TRUE;
     Reset();
   }
 
   // Resets decoding state.
   virtual nsresult Reset();
 
-  // Returns true if the nsOggCodecState thinks this packet is a header
+  // Returns PR_TRUE if the nsOggCodecState thinks this packet is a header
   // packet. Note this does not verify the validity of the header packet,
   // it just guarantees that the packet is marked as a header packet (i.e.
   // it is definintely not a data packet). Do not use this to identify
@@ -183,13 +183,13 @@ public:
   // Is the bitstream active; whether we're decoding and playing this bitstream.
   bool mActive;
   
-  // True when all headers packets have been read.
+  // PR_TRUE when all headers packets have been read.
   bool mDoneReadingHeaders;
 
 protected:
   // Constructs a new nsOggCodecState. aActive denotes whether the stream is
   // active. For streams of unsupported or unknown types, aActive should be
-  // false.
+  // PR_FALSE.
   nsOggCodecState(ogg_page* aBosPage, bool aActive);
 
   // Deallocates all packets stored in mUnstamped, and clears the array.
@@ -331,7 +331,7 @@ public:
   bool Init() { return true; }
   bool IsHeader(ogg_packet* aPacket) { return true; }
 
-  // Return true if the given time (in milliseconds) is within
+  // Return PR_TRUE if the given time (in milliseconds) is within
   // the presentation time defined in the skeleton track.
   bool IsPresentable(PRInt64 aTime) { return aTime >= mPresentationTime; }
 
@@ -391,7 +391,7 @@ public:
 
 private:
 
-  // Decodes an index packet. Returns false on failure.
+  // Decodes an index packet. Returns PR_FALSE on failure.
   bool DecodeIndex(ogg_packet* aPacket);
 
   // Gets the keypoint you must seek to in order to get the keyframe required

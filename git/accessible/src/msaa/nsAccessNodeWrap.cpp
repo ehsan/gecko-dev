@@ -46,7 +46,6 @@
 #include "nsCoreUtils.h"
 #include "nsRootAccessible.h"
 #include "nsWinUtils.h"
-#include "Statistics.h"
 
 #include "nsAttrName.h"
 #include "nsIDocument.h"
@@ -60,7 +59,6 @@
 #include "mozilla/Preferences.h"
 
 using namespace mozilla;
-using namespace mozilla::a11y;
 
 /// the accessible library and cached methods
 HINSTANCE nsAccessNodeWrap::gmAccLib = nsnull;
@@ -122,14 +120,11 @@ STDMETHODIMP nsAccessNodeWrap::QueryInterface(REFIID iid, void** ppv)
 {
   *ppv = nsnull;
 
-  if (IID_IUnknown == iid) {
+  if (IID_IUnknown == iid || IID_ISimpleDOMNode == iid)
     *ppv = static_cast<ISimpleDOMNode*>(this);
-  } else if (IID_ISimpleDOMNode == iid) {
-    statistics::ISimpleDOMUsed();
-    *ppv = static_cast<ISimpleDOMNode*>(this);
-  } else {
+
+  if (nsnull == *ppv)
     return E_NOINTERFACE;      //iid not supported.
-  }
    
   (reinterpret_cast<IUnknown*>(*ppv))->AddRef(); 
   return S_OK;

@@ -142,6 +142,10 @@ public:
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
 
+  /* needed only because we use Reflow in a hacky way, see
+     nsTableFrame::ReflowColGroups */
+  virtual bool IsContainingBlock() const;
+
   /**
    * Get the "type" of the frame
    *

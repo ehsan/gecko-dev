@@ -149,6 +149,8 @@ public:
    */
   virtual nsIAtom* GetType() const;
 
+  virtual bool IsContainingBlock() const;
+
   nsTableRowFrame* GetFirstRow();
 
 #ifdef DEBUG

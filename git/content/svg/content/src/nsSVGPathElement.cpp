@@ -44,6 +44,7 @@
 #include "nsIFrame.h"
 #include "nsSVGPathDataParser.h"
 #include "nsSVGPathElement.h"
+#include "nsISVGValueUtils.h"
 #include "nsSVGUtils.h"
 #include "DOMSVGPoint.h"
 #include "gfxContext.h"

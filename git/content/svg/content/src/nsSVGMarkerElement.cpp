@@ -36,6 +36,7 @@
 
 #include "nsGkAtoms.h"
 #include "nsCOMPtr.h"
+#include "nsISVGValueUtils.h"
 #include "SVGAnimatedPreserveAspectRatio.h"
 #include "nsDOMError.h"
 #include "nsSVGUtils.h"

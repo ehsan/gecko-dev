@@ -2108,7 +2108,10 @@ GetPercentHeight(const nsStyleCoord& aStyle,
   if (eStyleUnit_Percent != aStyle.GetUnit())
     return PR_FALSE;
 
-  nsIFrame *f = aFrame->GetContainingBlock();
+  nsIFrame *f;
+  for (f = aFrame->GetParent(); f && !f->IsContainingBlock();
+       f = f->GetParent())
+    ;
   if (!f) {
     NS_NOTREACHED("top of frame tree not a containing block");
     return PR_FALSE;
@@ -4289,102 +4292,6 @@ nsLayoutUtils::Shutdown()
   if (sContentMap) {
     delete sContentMap;
     sContentMap = NULL;
-  }
-}
-
-/* static */
-void
-nsLayoutUtils::RegisterImageRequest(nsPresContext* aPresContext,
-                                    imgIRequest* aRequest,
-                                    bool* aRequestRegistered)
-{
-  if (!aPresContext) {
-    return;
-  }
-
-  if (aRequestRegistered && *aRequestRegistered) {
-    // Our request is already registered with the refresh driver, so
-    // no need to register it again.
-    return;
-  }
-
-  if (aRequest) {
-    nsCOMPtr<imgIContainer> image;
-    aRequest->GetImage(getter_AddRefs(image));
-    if (image) {
-      if (!aPresContext->RefreshDriver()->AddImageRequest(aRequest)) {
-        NS_WARNING("Unable to add image request");
-        return;
-      }
-
-      if (aRequestRegistered) {
-        *aRequestRegistered = true;
-      }
-    }
-  }
-}
-
-/* static */
-void
-nsLayoutUtils::DeregisterImageRequest(nsPresContext* aPresContext,
-                                      imgIRequest* aRequest,
-                                      bool* aRequestRegistered)
-{
-  if (!aPresContext) {
-    return;
-  }
-
-  // Deregister our imgIRequest with the refresh driver to
-  // complete tear-down, but only if it has been registered
-  if (aRequestRegistered && !*aRequestRegistered) {
-    return;
-  }
-
-  if (aRequest) {
-    nsCOMPtr<imgIContainer> image;
-    aRequest->GetImage(getter_AddRefs(image));
-    if (image) {
-      aPresContext->RefreshDriver()->RemoveImageRequest(aRequest);
-
-      if (aRequestRegistered) {
-        *aRequestRegistered = false;
-      }
-    }
-  }
-}
-
-/* static */
-void
-nsLayoutUtils::DeregisterImageRequestIfNotAnimated(nsPresContext* aPresContext,
-                                                   imgIRequest* aRequest,
-                                                   bool* aRequestRegistered)
-{
-  if (!aPresContext) {
-    return;
-  }
-
-  if (aRequestRegistered && !*aRequestRegistered) {
-    // Image request isn't registered with the refresh driver - no need
-    // to try and deregister it.
-    return;
-  }
-
-  // Deregister the imgIRequest with the refresh driver if the
-  // image is not animated
-  nsCOMPtr<imgIContainer> imageContainer;
-  if (aRequest) {
-    aRequest->GetImage(getter_AddRefs(imageContainer));
-    bool animated;
-
-    if (!imageContainer) {
-      return;
-    }
-
-    nsresult rv = imageContainer->GetAnimated(&animated);
-    if (NS_SUCCEEDED(rv) && !animated) {
-      nsLayoutUtils::DeregisterImageRequest(aPresContext, aRequest,
-                                            aRequestRegistered);
-    }
   }
 }
 

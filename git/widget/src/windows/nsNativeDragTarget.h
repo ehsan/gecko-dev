@@ -113,7 +113,7 @@ protected:
   ULONG            m_cRef;      // reference count
   HWND             mHWnd;
   DWORD            mEffectsAllowed;
-  DWORD            mEffectsPreferred;
+  bool             mMovePreferred;
   bool             mTookOwnRef;
 
   // Gecko Stuff

@@ -46,8 +46,8 @@ NS_IMPL_ISUPPORTS1(nsBidiKeyboard, nsIBidiKeyboard)
 
 nsBidiKeyboard::nsBidiKeyboard() : nsIBidiKeyboard()
 {
-  mInitialized = false;
-  mHaveBidiKeyboards = false;
+  mInitialized = PR_FALSE;
+  mHaveBidiKeyboards = PR_FALSE;
   mLTRKeyboard[0] = '\0';
   mRTLKeyboard[0] = '\0';
   mCurrentLocaleName[0] = '\0';
@@ -86,7 +86,7 @@ NS_IMETHODIMP nsBidiKeyboard::SetLangFromBidiLevel(PRUint8 aLevel)
 
 NS_IMETHODIMP nsBidiKeyboard::IsLangRTL(bool *aIsRTL)
 {
-  *aIsRTL = false;
+  *aIsRTL = PR_FALSE;
 
   nsresult result = SetupBidiKeyboards();
   if (NS_FAILED(result))
@@ -171,16 +171,16 @@ nsresult nsBidiKeyboard::SetupBidiKeyboards()
     if (IsRTLLanguage(locale)) {
       _snwprintf(mRTLKeyboard, KL_NAMELENGTH, L"%.*x", KL_NAMELENGTH - 1,
                  LANGIDFROMLCID((DWORD_PTR)locale));
-      isRTLKeyboardSet = true;
+      isRTLKeyboardSet = PR_TRUE;
     }
     else {
       _snwprintf(mLTRKeyboard, KL_NAMELENGTH, L"%.*x", KL_NAMELENGTH - 1,
                  LANGIDFROMLCID((DWORD_PTR)locale));
-      isLTRKeyboardSet = true;
+      isLTRKeyboardSet = PR_TRUE;
     }
   }
   PR_Free(buf);
-  mInitialized = true;
+  mInitialized = PR_TRUE;
 
   // If there is not at least one keyboard of each directionality, Bidi
   // keyboard functionality will be disabled.

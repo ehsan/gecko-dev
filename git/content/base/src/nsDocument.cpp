@@ -1825,6 +1825,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDocument)
   }
 
   // Traverse all nsIDocument pointer members.
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCachedRootElement)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mSecurityInfo)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDisplayDocument)
 
@@ -1905,7 +1906,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
   tmp->mFirstChild = nsnull;
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mXPathEvaluatorTearoff)
-  tmp->mCachedRootElement = nsnull; // Avoid a dangling pointer
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCachedRootElement)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDisplayDocument)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFirstBaseNodeWithHref)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDOMImplementation)
@@ -3220,7 +3221,6 @@ nsDocument::DeleteShell()
   if (IsEventHandlingEnabled()) {
     RevokeAnimationFrameNotifications();
   }
-
   mPresShell = nsnull;
 }
 
@@ -3397,13 +3397,6 @@ nsDocument::NodeName(nsAString& aNodeName)
 }
 
 Element*
-nsIDocument::GetRootElement() const
-{
-  return (mCachedRootElement && mCachedRootElement->GetNodeParent() == this) ?
-         mCachedRootElement : GetRootElementInternal();
-}
-
-Element*
 nsDocument::GetRootElementInternal() const
 {
   // Loop backwards because any non-elements, such as doctypes and PIs
@@ -3412,7 +3405,7 @@ nsDocument::GetRootElementInternal() const
   for (i = mChildren.ChildCount(); i > 0; --i) {
     nsIContent* child = mChildren.ChildAt(i - 1);
     if (child->IsElement()) {
-      const_cast<nsDocument*>(this)->mCachedRootElement = child->AsElement();
+      const_cast<nsDocument*>(this)->mCachedRootElement = child;
       return child->AsElement();
     }
   }
@@ -4493,6 +4486,11 @@ nsDocument::CreateProcessingInstruction(const nsAString& aTarget,
                                         nsIDOMProcessingInstruction** aReturn)
 {
   *aReturn = nsnull;
+
+  // There are no PIs for HTML
+  if (IsHTML()) {
+    return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+  }
 
   nsresult rv = nsContentUtils::CheckQName(aTarget, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -5886,6 +5884,23 @@ nsDocument::GetInputEncoding(nsAString& aInputEncoding)
   }
 
   SetDOMStringToNull(aInputEncoding);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDocument::GetXmlEncoding(nsAString& aXmlEncoding)
+{
+  WarnOnceAbout(eXmlEncoding);
+  if (!IsHTML() &&
+      mXMLDeclarationBits & XML_DECLARATION_BITS_DECLARATION_EXISTS &&
+      mXMLDeclarationBits & XML_DECLARATION_BITS_ENCODING_EXISTS) {
+    // XXX We don't store the encoding given in the xml declaration.
+    // For now, just output the inputEncoding which we do store.
+    GetInputEncoding(aXmlEncoding);
+  } else {
+    SetDOMStringToNull(aXmlEncoding);
+  }
+
   return NS_OK;
 }
 

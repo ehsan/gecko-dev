@@ -95,7 +95,7 @@ void RunPump(void* arg)
     // do registration and creation in this thread
     info->toolkit->CreateInternalWindow(PR_GetCurrentThread());
 
-    gThreadState = true;
+    gThreadState = PR_TRUE;
 
     ::PR_Notify(info->monitor);
     ::PR_ExitMonitor(info->monitor);
@@ -374,7 +374,7 @@ bool nsToolkit::InitVersionInfo()
 
   if (!isInitialized)
   {
-    isInitialized = true;
+    isInitialized = PR_TRUE;
 
     OSVERSIONINFO osversion;
     osversion.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
@@ -386,7 +386,7 @@ bool nsToolkit::InitVersionInfo()
     }
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 //-------------------------------------------------------------------------
@@ -394,7 +394,7 @@ bool nsToolkit::InitVersionInfo()
 //
 //-------------------------------------------------------------------------
 MouseTrailer::MouseTrailer() : mMouseTrailerWindow(nsnull), mCaptureWindow(nsnull),
-  mIsInCaptureMode(false), mEnabled(true)
+  mIsInCaptureMode(PR_FALSE), mEnabled(PR_TRUE)
 {
 }
 //-------------------------------------------------------------------------
@@ -427,7 +427,7 @@ void MouseTrailer::SetCaptureWindow(HWND aWnd)
 { 
   mCaptureWindow = aWnd;
   if (mCaptureWindow) {
-    mIsInCaptureMode = true;
+    mIsInCaptureMode = PR_TRUE;
   }
 }
 
@@ -485,7 +485,7 @@ void MouseTrailer::TimerProc(nsITimer* aTimer, void* aClosure)
       // it if we were capturing and now this is the first timer callback 
       // since we canceled the capture
       mtrailer->mMouseTrailerWindow = nsnull;
-      mtrailer->mIsInCaptureMode = false;
+      mtrailer->mIsInCaptureMode = PR_FALSE;
       return;
     }
   }

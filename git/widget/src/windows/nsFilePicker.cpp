@@ -218,7 +218,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
   if (mParentWidget) {
     nsIWidget *tmp = mParentWidget;
     nsWindow *parent = static_cast<nsWindow *>(tmp);
-    parent->SuppressBlurEvents(true);
+    parent->SuppressBlurEvents(PR_TRUE);
   }
 
   bool result = false;
@@ -387,7 +387,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
         // Don't follow shortcuts when saving a shortcut, this can be used
         // to trick users (bug 271732)
         NS_ConvertUTF16toUTF8 ext(mDefault);
-        ext.Trim(" .", false, true); // watch out for trailing space and dots
+        ext.Trim(" .", PR_FALSE, PR_TRUE); // watch out for trailing space and dots
         ToLowerCase(ext);
         if (StringEndsWith(ext, NS_LITERAL_CSTRING(".lnk")) ||
             StringEndsWith(ext, NS_LITERAL_CSTRING(".pif")) ||
@@ -411,12 +411,12 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
         NS_ERROR("unsupported mode"); 
       }
     }
-    MOZ_SEH_EXCEPT(true) {
+    MOZ_SEH_EXCEPT(PR_TRUE) {
       MessageBoxW(ofn.hwndOwner,
                   0,
                   L"The filepicker was unexpectedly closed by Windows.",
                   MB_ICONERROR);
-      result = false;
+      result = PR_FALSE;
     }
 
     if (result) {
@@ -536,7 +536,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
   if (mParentWidget) {
     nsIWidget *tmp = mParentWidget;
     nsWindow *parent = static_cast<nsWindow *>(tmp);
-    parent->SuppressBlurEvents(false);
+    parent->SuppressBlurEvents(PR_FALSE);
   }
 
   return NS_OK;

@@ -58,7 +58,7 @@ TaskbarTabPreview::TaskbarTabPreview(ITaskbarList4 *aTaskbar, nsITaskbarPreviewC
   : TaskbarPreview(aTaskbar, aController, aHWND, aShell),
     mProxyWindow(NULL),
     mIcon(NULL),
-    mRegistered(false)
+    mRegistered(PR_FALSE)
 {
   WindowHook &hook = GetWindowHook();
   hook.AddMonitor(WM_WINDOWPOSCHANGED, MainWindowHook, this);
@@ -125,7 +125,7 @@ TaskbarTabPreview::SetIcon(imgIContainer *icon) {
   HICON hIcon = NULL;
   if (icon) {
     nsresult rv;
-    rv = nsWindowGfx::CreateIcon(icon, false, 0, 0,
+    rv = nsWindowGfx::CreateIcon(icon, PR_FALSE, 0, 0,
                                  nsWindowGfx::GetIconMetrics(nsWindowGfx::kSmallIcon),
                                  &hIcon);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -163,7 +163,7 @@ TaskbarTabPreview::UpdateTaskbarProperties() {
   nsresult rv = UpdateNext();
   NS_ENSURE_SUCCESS(rv, rv);
   rv = TaskbarPreview::UpdateTaskbarProperties();
-  mRegistered = true;
+  mRegistered = PR_TRUE;
   return rv;
 }
 
@@ -172,7 +172,7 @@ TaskbarTabPreview::WndProc(UINT nMsg, WPARAM wParam, LPARAM lParam) {
   nsRefPtr<TaskbarTabPreview> kungFuDeathGrip(this);
   switch (nMsg) {
     case WM_CREATE:
-      TaskbarPreview::EnableCustomDrawing(mProxyWindow, true);
+      TaskbarPreview::EnableCustomDrawing(mProxyWindow, PR_TRUE);
       return 0;
     case WM_CLOSE:
       mController->OnClose();
@@ -291,7 +291,7 @@ TaskbarTabPreview::Disable() {
 
   if (FAILED(mTaskbar->UnregisterTab(mProxyWindow)))
     return NS_ERROR_FAILURE;
-  mRegistered = false;
+  mRegistered = PR_FALSE;
 
   // TaskbarPreview::WndProc will set mProxyWindow to null
   if (!DestroyWindow(mProxyWindow))
@@ -302,7 +302,7 @@ TaskbarTabPreview::Disable() {
 
 void
 TaskbarTabPreview::DetachFromNSWindow() {
-  (void) SetVisible(false);
+  (void) SetVisible(PR_FALSE);
   WindowHook &hook = GetWindowHook();
   hook.RemoveMonitor(WM_WINDOWPOSCHANGED, MainWindowHook, this);
 
@@ -323,7 +323,7 @@ TaskbarTabPreview::MainWindowHook(void *aContext,
   } else {
     NS_NOTREACHED("Style changed hook fired on non-style changed message");
   }
-  return false;
+  return PR_FALSE;
 }
 
 void

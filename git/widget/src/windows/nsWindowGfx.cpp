@@ -226,7 +226,7 @@ bool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
   // but view manager will refuse to paint the surface, resulting is black
   // flashes on the plugin rendering surface.
   if (mozilla::ipc::RPCChannel::IsSpinLoopActive() && mPainting)
-    return false;
+    return PR_FALSE;
 
   if (mWindowType == eWindowType_plugin) {
 
@@ -243,7 +243,7 @@ bool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
       PAINTSTRUCT ps;
       BeginPaint(mWnd, &ps);
       EndPaint(mWnd, &ps);
-      return true;
+      return PR_TRUE;
     }
 
     PluginInstanceParent* instance = reinterpret_cast<PluginInstanceParent*>(
@@ -251,12 +251,12 @@ bool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
     if (instance) {
       instance->CallUpdateWindow();
       ValidateRect(mWnd, NULL);
-      return true;
+      return PR_TRUE;
     }
   }
 
-  nsPaintEvent willPaintEvent(true, NS_WILL_PAINT, this);
-  willPaintEvent.willSendDidPaint = true;
+  nsPaintEvent willPaintEvent(PR_TRUE, NS_WILL_PAINT, this);
+  willPaintEvent.willSendDidPaint = PR_TRUE;
   DispatchWindowEvent(&willPaintEvent);
 
   bool result = true;
@@ -279,7 +279,7 @@ bool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
   }
 #endif
 
-  mPainting = true;
+  mPainting = PR_TRUE;
 
 #ifdef WIDGET_DEBUG_OUTPUT
   HRGN debugPaintFlashRegion = NULL;
@@ -299,7 +299,7 @@ bool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
   }
 
   // generate the event and call the event callback
-  nsPaintEvent event(true, NS_PAINT, this);
+  nsPaintEvent event(PR_TRUE, NS_PAINT, this);
   InitEvent(event);
 
 #ifdef MOZ_XUL
@@ -308,7 +308,7 @@ bool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
   bool forceRepaint = NULL != aDC;
 #endif
   event.region = GetRegionToPaint(forceRepaint, ps, hDC);
-  event.willSendDidPaint = true;
+  event.willSendDidPaint = PR_TRUE;
 
   if (!event.region.IsEmpty() && mEventCallback)
   {
@@ -339,6 +339,15 @@ bool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
           }
 #endif
 
+          nsRefPtr<gfxWindowsSurface> targetSurfaceWin;
+          if (!targetSurface &&
+              IsRenderMode(gfxWindowsPlatform::RENDER_GDI))
+          {
+            PRUint32 flags = (mTransparencyMode == eTransparencyOpaque) ? 0 :
+                gfxWindowsSurface::FLAG_IS_TRANSPARENT;
+            targetSurfaceWin = new gfxWindowsSurface(hDC, flags);
+            targetSurface = targetSurfaceWin;
+          }
 #ifdef CAIRO_HAS_D2D_SURFACE
           if (!targetSurface &&
               IsRenderMode(gfxWindowsPlatform::RENDER_DIRECT2D))
@@ -352,25 +361,9 @@ bool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
 #endif
               mD2DWindowSurface = new gfxD2DSurface(mWnd, content);
             }
-            if (!mD2DWindowSurface->CairoStatus()) {
-              targetSurface = mD2DWindowSurface;
-            } else {
-              mD2DWindowSurface = nsnull;
-            }
+            targetSurface = mD2DWindowSurface;
           }
 #endif
-
-          nsRefPtr<gfxWindowsSurface> targetSurfaceWin;
-          if (!targetSurface &&
-              (IsRenderMode(gfxWindowsPlatform::RENDER_GDI) ||
-               IsRenderMode(gfxWindowsPlatform::RENDER_DIRECT2D)))
-          {
-            PRUint32 flags = (mTransparencyMode == eTransparencyOpaque) ? 0 :
-                gfxWindowsSurface::FLAG_IS_TRANSPARENT;
-            targetSurfaceWin = new gfxWindowsSurface(hDC, flags);
-            targetSurface = targetSurfaceWin;
-          }
-
           nsRefPtr<gfxImageSurface> targetSurfaceImage;
           if (!targetSurface &&
               (IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH32) ||
@@ -407,7 +400,7 @@ bool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
             const nsIntRect* r;
             for (nsIntRegionRectIterator iter(event.region);
                  (r = iter.Next()) != nsnull;) {
-              thebesContext->Rectangle(gfxRect(r->x, r->y, r->width, r->height), true);
+              thebesContext->Rectangle(gfxRect(r->x, r->y, r->width, r->height), PR_TRUE);
             }
             thebesContext->Clip();
             thebesContext->SetOperator(gfxContext::OPERATOR_CLEAR);
@@ -573,7 +566,7 @@ bool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
             // When our device was removed, we should have gfxWindowsPlatform
             // check if its render mode is up to date!
             gfxWindowsPlatform::GetPlatform()->UpdateRenderMode();
-            Invalidate(false);
+            Invalidate(PR_FALSE);
           }
         }
         break;
@@ -584,7 +577,7 @@ bool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
           gfxWindowsPlatform::GetPlatform()->UpdateRenderMode();
           LayerManagerD3D10 *layerManagerD3D10 = static_cast<mozilla::layers::LayerManagerD3D10*>(GetLayerManager());
           if (layerManagerD3D10->device() != gfxWindowsPlatform::GetPlatform()->GetD3D10Device()) {
-            Invalidate(false);
+            Invalidate(PR_FALSE);
           } else {
             result = DispatchWindowEvent(&event, eventStatus);
           }
@@ -620,12 +613,12 @@ bool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
   }
 #endif // WIDGET_DEBUG_OUTPUT
 
-  mPainting = false;
+  mPainting = PR_FALSE;
 
-  nsPaintEvent didPaintEvent(true, NS_DID_PAINT, this);
+  nsPaintEvent didPaintEvent(PR_TRUE, NS_DID_PAINT, this);
   DispatchWindowEvent(&didPaintEvent);
 
-  if (aNestingLevel == 0 && ::GetUpdateRect(mWnd, NULL, false)) {
+  if (aNestingLevel == 0 && ::GetUpdateRect(mWnd, NULL, PR_FALSE)) {
     OnPaint(aDC, 1);
   }
 
@@ -758,7 +751,7 @@ bool nsWindowGfx::IsCursorTranslucencySupported()
   static bool didCheck = false;
   static bool isSupported = false;
   if (!didCheck) {
-    didCheck = true;
+    didCheck = PR_TRUE;
     // Cursor translucency is supported on Windows XP and newer
     isSupported = nsWindow::GetWindowsVersion() >= 0x501;
   }

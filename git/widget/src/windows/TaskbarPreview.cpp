@@ -136,7 +136,7 @@ TaskbarPreview::TaskbarPreview(ITaskbarList4 *aTaskbar, nsITaskbarPreviewControl
   : mTaskbar(aTaskbar),
     mController(aController),
     mWnd(aHWND),
-    mVisible(false),
+    mVisible(PR_FALSE),
     mDocShell(do_GetWeakReference(aShell))
 {
   // TaskbarPreview may outlive the WinTaskbar that created it
@@ -252,7 +252,7 @@ TaskbarPreview::UpdateTaskbarProperties() {
   // and should be displayed as so.
   if (sActivePreview == this) {
     if (mWnd == ::GetActiveWindow()) {
-      nsresult rvActive = ShowActive(true);
+      nsresult rvActive = ShowActive(PR_TRUE);
       if (NS_FAILED(rvActive))
         rv = rvActive;
     } else {
@@ -287,10 +287,10 @@ TaskbarPreview::IsWindowAvailable() const {
   if (mWnd) {
     nsWindow* win = nsWindow::GetNSWindowPtr(mWnd);
     if(win && !win->HasDestroyStarted()) {
-      return true;
+      return PR_TRUE;
     }
   }
-  return false;
+  return PR_FALSE;
 }
 
 void
@@ -324,7 +324,7 @@ TaskbarPreview::WndProc(UINT nMsg, WPARAM wParam, LPARAM lParam) {
           thumbnailHeight = PRUint32(thumbnailWidth / preferredAspectRatio);
         }
 
-        DrawBitmap(thumbnailWidth, thumbnailHeight, false);
+        DrawBitmap(thumbnailWidth, thumbnailHeight, PR_FALSE);
       }
       break;
     case WM_DWMSENDICONICLIVEPREVIEWBITMAP:
@@ -338,7 +338,7 @@ TaskbarPreview::WndProc(UINT nMsg, WPARAM wParam, LPARAM lParam) {
         if (NS_FAILED(rv))
           break;
 
-        DrawBitmap(width, height, true);
+        DrawBitmap(width, height, PR_TRUE);
       }
       break;
   }
@@ -350,17 +350,17 @@ TaskbarPreview::CanMakeTaskbarCalls() {
   // If the nsWindow has already been destroyed and we know it but our caller
   // clearly doesn't so we can't make any calls.
   if (!mWnd)
-    return false;
+    return PR_FALSE;
   // Certain functions like SetTabOrder seem to require a visible window. During
   // window close, the window seems to be hidden before being destroyed.
   if (!::IsWindowVisible(mWnd))
-    return false;
+    return PR_FALSE;
   if (mVisible) {
     nsWindow *window = nsWindow::GetNSWindowPtr(mWnd);
     NS_ASSERTION(window, "Could not get nsWindow from HWND");
     return window->HasTaskbarIconBeenCreated();
   }
-  return false;
+  return PR_FALSE;
 }
 
 WindowHook&
@@ -373,18 +373,17 @@ TaskbarPreview::GetWindowHook() {
 
 void
 TaskbarPreview::EnableCustomDrawing(HWND aHWND, bool aEnable) {
-  BOOL enabled = aEnable;
   nsUXThemeData::dwmSetWindowAttributePtr(
       aHWND,
       DWMWA_FORCE_ICONIC_REPRESENTATION,
-      &enabled,
-      sizeof(enabled));
+      &aEnable,
+      sizeof(aEnable));
 
   nsUXThemeData::dwmSetWindowAttributePtr(
       aHWND,
       DWMWA_HAS_ICONIC_BITMAP,
-      &enabled,
-      sizeof(enabled));
+      &aEnable,
+      sizeof(aEnable));
 }
 
 
@@ -457,7 +456,7 @@ TaskbarPreview::MainWindowHook(void *aContext,
     if (preview->mVisible)
       preview->UpdateTaskbarProperties();
   }
-  return false;
+  return PR_FALSE;
 }
 
 TaskbarPreview *

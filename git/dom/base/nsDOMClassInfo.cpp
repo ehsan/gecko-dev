@@ -139,6 +139,7 @@
 #include "nsIDOMDOMStringList.h"
 #include "nsIDOMDOMTokenList.h"
 #include "nsIDOMDOMSettableTokenList.h"
+#include "nsIDOMNameList.h"
 #include "nsIDOMNSElement.h"
 
 #include "nsDOMStringMap.h"
@@ -999,6 +1000,9 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(DOMStringList, nsStringListSH,
                            ARRAY_SCRIPTABLE_FLAGS)
 
+  NS_DEFINE_CLASSINFO_DATA(NameList, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+
 #ifdef MOZ_XUL
   NS_DEFINE_CLASSINFO_DATA(TreeColumn, nsDOMGenericSH,
                            DEFAULT_SCRIPTABLE_FLAGS)
@@ -1444,8 +1448,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(WebGLActiveInfo, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(WebGLExtension, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(WebGLExtensionStandardDerivatives, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(PaintRequest, nsDOMGenericSH,
@@ -2992,6 +2994,10 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDOMStringList)
   DOM_CLASSINFO_MAP_END
 
+  DOM_CLASSINFO_MAP_BEGIN(NameList, nsIDOMNameList)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNameList)
+  DOM_CLASSINFO_MAP_END
+
 #ifdef MOZ_XUL
   DOM_CLASSINFO_MAP_BEGIN(TreeColumn, nsITreeColumn)
     DOM_CLASSINFO_MAP_ENTRY(nsITreeColumn)
@@ -3817,6 +3823,8 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(FileReader, nsIDOMFileReader)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMFileReader)
+    DOM_CLASSINFO_MAP_ENTRY(nsIXMLHttpRequestEventTarget)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIInterfaceRequestor)
   DOM_CLASSINFO_MAP_END
 
@@ -3987,10 +3995,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(WebGLExtension, nsIWebGLExtension)
     DOM_CLASSINFO_MAP_ENTRY(nsIWebGLExtension)
-  DOM_CLASSINFO_MAP_END
-  
-  DOM_CLASSINFO_MAP_BEGIN(WebGLExtensionStandardDerivatives, nsIWebGLExtensionStandardDerivatives)
-    DOM_CLASSINFO_MAP_ENTRY(nsIWebGLExtensionStandardDerivatives)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(PaintRequest, nsIDOMPaintRequest)

@@ -113,16 +113,16 @@
 #include "ContentParent.h"
 #include "TabParent.h"
 #include "mozilla/layout/RenderFrameParent.h"
-#include "mozilla/dom/Element.h"
-#include "mozilla/Preferences.h"
 
-#include "jsapi.h"
+#include "mozilla/Preferences.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::layers;
 using namespace mozilla::layout;
 typedef FrameMetrics::ViewID ViewID;
+
+#include "jsapi.h"
 
 class nsAsyncDocShellDestroyer : public nsRunnable
 {
@@ -315,7 +315,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsFrameLoader)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIFrameLoader)
 NS_INTERFACE_MAP_END
 
-nsFrameLoader::nsFrameLoader(Element* aOwner, bool aNetworkCreated)
+nsFrameLoader::nsFrameLoader(nsIContent *aOwner, bool aNetworkCreated)
   : mOwnerContent(aOwner)
   , mDepthTooGreat(PR_FALSE)
   , mIsTopLevelContent(PR_FALSE)
@@ -336,7 +336,7 @@ nsFrameLoader::nsFrameLoader(Element* aOwner, bool aNetworkCreated)
 }
 
 nsFrameLoader*
-nsFrameLoader::Create(Element* aOwner, bool aNetworkCreated)
+nsFrameLoader::Create(nsIContent* aOwner, bool aNetworkCreated)
 {
   NS_ENSURE_TRUE(aOwner, nsnull);
   nsIDocument* doc = aOwner->GetOwnerDoc();
@@ -962,8 +962,8 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
                   "Swapping some sort of random loaders?");
   NS_ENSURE_STATE(!mInShow && !aOther->mInShow);
 
-  Element* ourContent = mOwnerContent;
-  Element* otherContent = aOther->mOwnerContent;
+  nsIContent* ourContent = mOwnerContent;
+  nsIContent* otherContent = aOther->mOwnerContent;
 
   if (!ourContent || !otherContent) {
     // Can't handle this
@@ -1337,7 +1337,7 @@ nsFrameLoader::GetDepthTooGreat(bool* aDepthTooGreat)
 }
 
 void
-nsFrameLoader::SetOwnerContent(Element* aContent)
+nsFrameLoader::SetOwnerContent(nsIContent* aContent)
 {
   mOwnerContent = aContent;
   if (RenderFrameParent* rfp = GetCurrentRemoteFrame()) {

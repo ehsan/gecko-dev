@@ -206,13 +206,13 @@ public:
 
   bool IsASCIICapable()
   {
-    NS_ENSURE_TRUE(mInputSource, false);
+    NS_ENSURE_TRUE(mInputSource, PR_FALSE);
     return GetBoolProperty(kTISPropertyInputSourceIsASCIICapable);
   }
 
   bool IsEnabled()
   {
-    NS_ENSURE_TRUE(mInputSource, false);
+    NS_ENSURE_TRUE(mInputSource, PR_FALSE);
     return GetBoolProperty(kTISPropertyInputSourceIsEnabled);
   }
 
@@ -222,49 +222,49 @@ public:
 
   bool GetLocalizedName(CFStringRef &aName)
   {
-    NS_ENSURE_TRUE(mInputSource, false);
+    NS_ENSURE_TRUE(mInputSource, PR_FALSE);
     return GetStringProperty(kTISPropertyLocalizedName, aName);
   }
 
   bool GetLocalizedName(nsAString &aName)
   {
-    NS_ENSURE_TRUE(mInputSource, false);
+    NS_ENSURE_TRUE(mInputSource, PR_FALSE);
     return GetStringProperty(kTISPropertyLocalizedName, aName);
   }
 
   bool GetInputSourceID(CFStringRef &aID)
   {
-    NS_ENSURE_TRUE(mInputSource, false);
+    NS_ENSURE_TRUE(mInputSource, PR_FALSE);
     return GetStringProperty(kTISPropertyInputSourceID, aID);
   }
 
   bool GetInputSourceID(nsAString &aID)
   {
-    NS_ENSURE_TRUE(mInputSource, false);
+    NS_ENSURE_TRUE(mInputSource, PR_FALSE);
     return GetStringProperty(kTISPropertyInputSourceID, aID);
   }
 
   bool GetBundleID(CFStringRef &aBundleID)
   {
-    NS_ENSURE_TRUE(mInputSource, false);
+    NS_ENSURE_TRUE(mInputSource, PR_FALSE);
     return GetStringProperty(kTISPropertyBundleID, aBundleID);
   }
 
   bool GetBundleID(nsAString &aBundleID)
   {
-    NS_ENSURE_TRUE(mInputSource, false);
+    NS_ENSURE_TRUE(mInputSource, PR_FALSE);
     return GetStringProperty(kTISPropertyBundleID, aBundleID);
   }
 
   bool GetInputSourceType(CFStringRef &aType)
   {
-    NS_ENSURE_TRUE(mInputSource, false);
+    NS_ENSURE_TRUE(mInputSource, PR_FALSE);
     return GetStringProperty(kTISPropertyInputSourceType, aType);
   }
 
   bool GetInputSourceType(nsAString &aType)
   {
-    NS_ENSURE_TRUE(mInputSource, false);
+    NS_ENSURE_TRUE(mInputSource, PR_FALSE);
     return GetStringProperty(kTISPropertyInputSourceType, aType);
   }
 
@@ -505,9 +505,9 @@ protected:
         [mKeyEvent release];
         mKeyEvent = nsnull;
       }
-      mKeyDownHandled = false;
-      mKeyPressDispatched = false;
-      mKeyPressHandled = false;
+      mKeyDownHandled = PR_FALSE;
+      mKeyPressDispatched = PR_FALSE;
+      mKeyPressHandled = PR_FALSE;
     }
 
     bool KeyDownOrPressHandled()
@@ -586,7 +586,7 @@ private:
     bool mOverrideEnabled;
 
     KeyboardLayoutOverride() :
-      mKeyboardLayout(0), mOverrideEnabled(false)
+      mKeyboardLayout(0), mOverrideEnabled(PR_FALSE)
     {
     }
   };
@@ -609,7 +609,7 @@ public:
    */
   nsresult StartComplexTextInputForCurrentEvent()
   {
-    mPluginComplexTextInputRequested = true;
+    mPluginComplexTextInputRequested = PR_TRUE;
     return NS_OK;
   }
 

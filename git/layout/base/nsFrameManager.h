@@ -125,7 +125,10 @@ public:
   // Functions for manipulating the frame model
   NS_HIDDEN_(nsresult) AppendFrames(nsIFrame*       aParentFrame,
                                     ChildListID     aListID,
-                                    nsFrameList&    aFrameList);
+                                    nsFrameList&    aFrameList)
+  {
+    return aParentFrame->AppendFrames(aListID, aFrameList);
+  }
 
   NS_HIDDEN_(nsresult) InsertFrames(nsIFrame*       aParentFrame,
                                     ChildListID     aListID,

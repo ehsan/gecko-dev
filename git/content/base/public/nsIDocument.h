@@ -527,8 +527,13 @@ public:
   /**
    * Return the root element for this document.
    */
-  Element *GetRootElement() const;
-
+  Element *GetRootElement() const
+  {
+    return (mCachedRootElement &&
+            mCachedRootElement->GetNodeParent() == this) ?
+           reinterpret_cast<Element*>(mCachedRootElement.get()) :
+           GetRootElementInternal();
+  }
 protected:
   virtual Element *GetRootElementInternal() const = 0;
 
@@ -1639,7 +1644,9 @@ protected:
   nsIDocument* mParentDocument;
 
   // A reference to the element last returned from GetRootElement().
-  mozilla::dom::Element* mCachedRootElement;
+  // This should be an Element, but that would force us to pull in
+  // Element.h and therefore nsIContent.h.
+  nsCOMPtr<nsINode> mCachedRootElement;
 
   // We'd like these to be nsRefPtrs, but that'd require us to include
   // additional headers that we don't want to expose.

@@ -201,7 +201,7 @@
 
             dragStop: function dragStop(dx, dy) {
               if (this._grabSidebar)
-                TabletSidebar.ungrab();
+                Browser.ungrabSidebar();
               dragger.dragStop(dx, dy, scroller);
             },
 
@@ -211,10 +211,10 @@
               if (!this._grabSidebar && hiddingPan) {
                 this._grabSidebar = dx && Util.isTablet() && !Util.isPortrait();
                 if (this._grabSidebar)
-                  TabletSidebar.grab();
+                  Browser.grabSidebar();
               }
               if (this._grabSidebar)
-                TabletSidebar.slideBy(dx);
+                Browser.slideSidebarBy(dx);
               return dragger.dragMove(dx, dy, scroller);
             }
           };

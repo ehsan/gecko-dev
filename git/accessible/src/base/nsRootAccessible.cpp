@@ -387,10 +387,15 @@ nsRootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
   NS_ASSERTION(targetDocument, "No document while accessible is in document?!");
 
   nsINode* targetNode = accessible->GetNode();
+  nsIContent* targetContent = targetNode->IsElement() ?
+    targetNode->AsElement() : nsnull;
+  nsIContent* origTargetContent = origTargetNode->IsElement() ?
+    origTargetNode->AsElement() : nsnull;
 
 #ifdef MOZ_XUL
-  bool isTree = targetNode->IsElement() &&
-    targetNode->AsElement()->NodeInfo()->Equals(nsGkAtoms::tree, kNameSpaceID_XUL);
+  bool isTree = targetContent ?
+    targetContent->NodeInfo()->Equals(nsGkAtoms::tree, kNameSpaceID_XUL) :
+    PR_FALSE;
 
   if (isTree) {
     nsRefPtr<nsXULTreeAccessible> treeAcc = do_QueryObject(accessible);

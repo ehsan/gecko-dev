@@ -190,8 +190,10 @@ public:
                                          nsStyleContext* aStyleContext);
   virtual void SetParent(nsIFrame* aParent);
   virtual nscoord GetBaseline() const;
-  virtual nsFrameList GetChildList(ChildListID aListID) const;
-  virtual void GetChildLists(nsTArray<ChildList>* aLists) const;
+  virtual nsFrameList GetChildList(ChildListID aListID) const {
+    return nsFrameList::EmptyList();
+  }
+  virtual void GetChildLists(nsTArray<ChildList>* aLists) const {}
 
   NS_IMETHOD  HandleEvent(nsPresContext* aPresContext, 
                           nsGUIEvent*     aEvent,
@@ -231,6 +233,7 @@ public:
   NS_IMETHOD  SetNextInFlow(nsIFrame*);
   NS_IMETHOD  GetOffsetFromView(nsPoint& aOffset, nsIView** aView) const;
   virtual nsIAtom* GetType() const;
+  virtual bool IsContainingBlock() const;
 
   NS_IMETHOD  GetSelected(bool *aSelected) const;
   NS_IMETHOD  IsSelectable(bool* aIsSelectable, PRUint8* aSelectStyle) const;
@@ -336,15 +339,6 @@ public:
   NS_IMETHOD  DidReflow(nsPresContext*           aPresContext,
                         const nsHTMLReflowState*  aReflowState,
                         nsDidReflowStatus         aStatus);
-  void ReflowAbsoluteFrames(nsPresContext*           aPresContext,
-                            nsHTMLReflowMetrics&     aDesiredSize,
-                            const nsHTMLReflowState& aReflowState,
-                            nsReflowStatus&          aStatus);
-  void FinishReflowWithAbsoluteFrames(nsPresContext*           aPresContext,
-                                      nsHTMLReflowMetrics&     aDesiredSize,
-                                      const nsHTMLReflowState& aReflowState,
-                                      nsReflowStatus&          aStatus);
-  void DestroyAbsoluteFrames(nsIFrame* aDestructRoot);
   virtual bool CanContinueTextRun() const;
 
   // Selection Methods

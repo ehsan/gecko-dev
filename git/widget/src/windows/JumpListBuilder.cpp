@@ -80,7 +80,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(AsyncDeleteAllFaviconsFromDisk, nsIRunnable)
 
 JumpListBuilder::JumpListBuilder() :
   mMaxItems(0),
-  mHasCommit(false)
+  mHasCommit(PR_FALSE)
 {
   ::CoInitialize(NULL);
   
@@ -102,10 +102,10 @@ JumpListBuilder::~JumpListBuilder()
 /* readonly attribute short available; */
 NS_IMETHODIMP JumpListBuilder::GetAvailable(PRInt16 *aAvailable)
 {
-  *aAvailable = false;
+  *aAvailable = PR_FALSE;
 
   if (mJumpListMgr)
-    *aAvailable = true;
+    *aAvailable = PR_TRUE;
 
   return NS_OK;
 }
@@ -149,7 +149,7 @@ NS_IMETHODIMP JumpListBuilder::InitListBuild(nsIMutableArray *removedItems, bool
 {
   NS_ENSURE_ARG_POINTER(removedItems);
 
-  *_retval = false;
+  *_retval = PR_FALSE;
 
   if (!mJumpListMgr)
     return NS_ERROR_NOT_AVAILABLE;
@@ -167,8 +167,8 @@ NS_IMETHODIMP JumpListBuilder::InitListBuild(nsIMutableArray *removedItems, bool
 
     RemoveIconCacheForItems(removedItems);
 
-    sBuildingList = true;
-    *_retval = true;
+    sBuildingList = PR_TRUE;
+    *_retval = PR_TRUE;
     return NS_OK;
   }
 
@@ -265,7 +265,7 @@ nsresult JumpListBuilder::RemoveIconCacheForAllItems()
         continue;
 
       // We found an ICO file that exists, so we should remove it
-      currFile->Remove(false);
+      currFile->Remove(PR_FALSE);
     }
   } while(true);
 
@@ -277,7 +277,7 @@ NS_IMETHODIMP JumpListBuilder::AddListToBuild(PRInt16 aCatType, nsIArray *items,
 {
   nsresult rv;
 
-  *_retval = false;
+  *_retval = PR_FALSE;
 
   if (!mJumpListMgr)
     return NS_ERROR_NOT_AVAILABLE;
@@ -327,21 +327,21 @@ NS_IMETHODIMP JumpListBuilder::AddListToBuild(PRInt16 aCatType, nsIArray *items,
       // Add the tasks
       hr = mJumpListMgr->AddUserTasks(pArray);
       if (SUCCEEDED(hr))
-        *_retval = true;
+        *_retval = PR_TRUE;
       return NS_OK;
     }
     break;
     case nsIJumpListBuilder::JUMPLIST_CATEGORY_RECENT:
     {
       if (SUCCEEDED(mJumpListMgr->AppendKnownCategory(KDC_RECENT)))
-        *_retval = true;
+        *_retval = PR_TRUE;
       return NS_OK;
     }
     break;
     case nsIJumpListBuilder::JUMPLIST_CATEGORY_FREQUENT:
     {
       if (SUCCEEDED(mJumpListMgr->AppendKnownCategory(KDC_FREQUENT)))
-        *_retval = true;
+        *_retval = PR_TRUE;
       return NS_OK;
     }
     break;
@@ -408,7 +408,7 @@ NS_IMETHODIMP JumpListBuilder::AddListToBuild(PRInt16 aCatType, nsIArray *items,
       // Add the tasks
       hr = mJumpListMgr->AppendCategory(catName.BeginReading(), pArray);
       if (SUCCEEDED(hr))
-        *_retval = true;
+        *_retval = PR_TRUE;
       return NS_OK;
     }
     break;
@@ -423,7 +423,7 @@ NS_IMETHODIMP JumpListBuilder::AbortListBuild()
     return NS_ERROR_NOT_AVAILABLE;
 
   mJumpListMgr->AbortList();
-  sBuildingList = false;
+  sBuildingList = PR_FALSE;
 
   return NS_OK;
 }
@@ -431,18 +431,18 @@ NS_IMETHODIMP JumpListBuilder::AbortListBuild()
 /* boolean commitListBuild(); */
 NS_IMETHODIMP JumpListBuilder::CommitListBuild(bool *_retval)
 {
-  *_retval = false;
+  *_retval = PR_FALSE;
 
   if (!mJumpListMgr)
     return NS_ERROR_NOT_AVAILABLE;
 
   HRESULT hr = mJumpListMgr->CommitList();
-  sBuildingList = false;
+  sBuildingList = PR_FALSE;
 
   // XXX We might want some specific error data here.
   if (SUCCEEDED(hr)) {
-    *_retval = true;
-    mHasCommit = true;
+    *_retval = PR_TRUE;
+    mHasCommit = PR_TRUE;
   }
 
   return NS_OK;
@@ -451,7 +451,7 @@ NS_IMETHODIMP JumpListBuilder::CommitListBuild(bool *_retval)
 /* boolean deleteActiveList(); */
 NS_IMETHODIMP JumpListBuilder::DeleteActiveList(bool *_retval)
 {
-  *_retval = false;
+  *_retval = PR_FALSE;
 
   if (!mJumpListMgr)
     return NS_ERROR_NOT_AVAILABLE;
@@ -464,7 +464,7 @@ NS_IMETHODIMP JumpListBuilder::DeleteActiveList(bool *_retval)
     return NS_OK;
 
   if (SUCCEEDED(mJumpListMgr->DeleteList(uid.get())))
-    *_retval = true;
+    *_retval = PR_TRUE;
 
   return NS_OK;
 }
@@ -476,11 +476,11 @@ bool JumpListBuilder::IsSeparator(nsCOMPtr<nsIJumpListItem>& item)
   PRInt16 type;
   item->GetType(&type);
   if (NS_FAILED(item->GetType(&type)))
-    return false;
+    return PR_FALSE;
     
   if (type == nsIJumpListItem::JUMPLIST_ITEM_SEPARATOR)
-    return true;
-  return false;
+    return PR_TRUE;
+  return PR_FALSE;
 }
 
 // TransferIObjectArrayToIMutableArray - used in converting removed items
@@ -524,7 +524,7 @@ nsresult JumpListBuilder::TransferIObjectArrayToIMutableArray(IObjectArray *objA
       pItem->Release();
 
     if (NS_SUCCEEDED(rv)) {
-      removedItems->AppendElement(item, false);
+      removedItems->AppendElement(item, PR_FALSE);
     }
   }
   return NS_OK;
@@ -703,7 +703,7 @@ NS_IMETHODIMP AsyncDeleteIconFromDisk::Run()
       return NS_ERROR_FAILURE;
 
     // We found an ICO file that exists, so we should remove it
-    icoFile->Remove(false);
+    icoFile->Remove(PR_FALSE);
   }
 
   return NS_OK;
@@ -753,7 +753,7 @@ NS_IMETHODIMP AsyncDeleteAllFaviconsFromDisk::Run()
         continue;
 
       // We found an ICO file that exists, so we should remove it
-      currFile->Remove(false);
+      currFile->Remove(PR_FALSE);
     }
   } while(true);
 

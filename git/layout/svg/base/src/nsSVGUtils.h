@@ -514,19 +514,11 @@ public:
                        nsSVGEnum *aUnits,
                        nsIFrame *aFrame);
 
-  enum BBoxFlags {
-    eBBoxIncludeFill          = 1 << 0,
-    eBBoxIgnoreFillIfNone     = 1 << 1,
-    eBBoxIncludeStroke        = 1 << 2,
-    eBBoxIgnoreStrokeIfNone   = 1 << 3,
-    eBBoxIncludeMarkers       = 1 << 4
-  };
   /**
-   * Get the SVG bbox (the SVG spec's simplified idea of bounds) of aFrame in
-   * aFrame's userspace.
+   * Get bounding-box for aFrame. Matrix propagation is disabled so the
+   * bounding box is computed in terms of aFrame's own user space.
    */
-  static gfxRect GetBBox(nsIFrame *aFrame, PRUint32 aFlags = eBBoxIncludeFill);
-
+  static gfxRect GetBBox(nsIFrame *aFrame);
   /**
    * Compute a rectangle in userSpaceOnUse or objectBoundingBoxUnits.
    * @param aXYWH pointer to 4 consecutive nsSVGLength2 objects containing

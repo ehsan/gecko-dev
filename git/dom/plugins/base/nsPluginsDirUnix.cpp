@@ -121,12 +121,12 @@ static bool LoadExtraSharedLib(const char *name, char **soname, bool tryToGetSon
     tempSpec.value.pathname = name;
     handle = PR_LoadLibraryWithFlags(tempSpec, PR_LD_NOW|PR_LD_GLOBAL);
     if (!handle) {
-        ret = false;
+        ret = PR_FALSE;
         DisplayPR_LoadLibraryErrorMessage(name);
         if (tryToGetSoname) {
             SearchForSoname(name, soname);
             if (*soname) {
-                ret = LoadExtraSharedLib((const char *) *soname, NULL, false);
+                ret = LoadExtraSharedLib((const char *) *soname, NULL, PR_FALSE);
             }
         }
     }
@@ -158,7 +158,7 @@ static void LoadExtraSharedLibs()
         res = prefs->GetCharPref(PREF_PLUGINS_SONAME, &sonameList);
         if (!sonameList) {
             // pref is not set, lets use hardcoded list
-            prefSonameListIsSet = false;
+            prefSonameListIsSet = PR_FALSE;
             sonameList = PL_strdup(DEFAULT_EXTRA_LIBS_LIST);
         }
         if (sonameList) {
@@ -187,7 +187,7 @@ static void LoadExtraSharedLibs()
                             *p = 0;
                         }
                     } else {
-                        head = false;
+                        head = PR_FALSE;
                         p++;
                     }
                 }
@@ -202,7 +202,7 @@ static void LoadExtraSharedLibs()
                         //get just a file name
                         arrayOfLibs[i] = PL_strrchr(arrayOfLibs[i], '/') + 1;
                     } else
-                        tryToGetSoname = false;
+                        tryToGetSoname = PR_FALSE;
                 }
                 char *soname = NULL;
                 if (LoadExtraSharedLib(arrayOfLibs[i], &soname, tryToGetSoname)) {
@@ -245,7 +245,7 @@ bool nsPluginsDir::IsPluginFile(nsIFile* file)
 {
     nsCAutoString filename;
     if (NS_FAILED(file->GetNativeLeafName(filename)))
-        return false;
+        return PR_FALSE;
 
 #ifdef ANDROID
     // It appears that if you load
@@ -254,21 +254,21 @@ bool nsPluginsDir::IsPluginFile(nsIFile* file)
     // Since these are just helper libs, we can ignore.
     const char *cFile = filename.get();
     if (strstr(cFile, "libstagefright") != NULL)
-        return false;
+        return PR_FALSE;
 #endif
 
     NS_NAMED_LITERAL_CSTRING(dllSuffix, LOCAL_PLUGIN_DLL_SUFFIX);
     if (filename.Length() > dllSuffix.Length() &&
         StringEndsWith(filename, dllSuffix))
-        return true;
+        return PR_TRUE;
     
 #ifdef LOCAL_PLUGIN_DLL_ALT_SUFFIX
     NS_NAMED_LITERAL_CSTRING(dllAltSuffix, LOCAL_PLUGIN_DLL_ALT_SUFFIX);
     if (filename.Length() > dllAltSuffix.Length() &&
         StringEndsWith(filename, dllAltSuffix))
-        return true;
+        return PR_TRUE;
 #endif
-    return false;
+    return PR_FALSE;
 }
 
 /* nsPluginFile implementation */
