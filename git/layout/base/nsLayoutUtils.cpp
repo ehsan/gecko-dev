@@ -528,12 +528,22 @@ nsLayoutUtils::FindIDFor(const nsIContent* aContent, ViewID* aOutViewId)
 }
 
 ViewID
-nsLayoutUtils::FindOrCreateIDFor(nsIContent* aContent)
+nsLayoutUtils::FindOrCreateIDFor(nsIContent* aContent, bool aRoot)
 {
   ViewID scrollId;
 
   if (!FindIDFor(aContent, &scrollId)) {
-    scrollId = sScrollIdCounter++;
+    scrollId = aRoot ? FrameMetrics::ROOT_SCROLL_ID : sScrollIdCounter++;
+    if (aRoot) {
+      // We are possibly replacing the old ROOT_SCROLL_ID content with a new one, so
+      // we should clear the property on the old content if there is one. Otherwise when
+      // that content is destroyed it will clear its property list and clobber ROOT_SCROLL_ID.
+      nsIContent* oldRoot;
+      bool oldExists = GetContentMap().Get(scrollId, &oldRoot);
+      if (oldExists) {
+        oldRoot->DeleteProperty(nsGkAtoms::RemoteId);
+      }
+    }
     aContent->SetProperty(nsGkAtoms::RemoteId, new ViewID(scrollId),
                           DestroyViewID);
     GetContentMap().Put(scrollId, aContent);
@@ -1469,7 +1479,6 @@ nsLayoutUtils::GetEventCoordinatesRelativeTo(const WidgetEvent* aEvent,
                   aEvent->eventStructType != NS_WHEEL_EVENT &&
                   aEvent->eventStructType != NS_DRAG_EVENT &&
                   aEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT &&
-                  aEvent->eventStructType != NS_POINTER_EVENT &&
                   aEvent->eventStructType != NS_GESTURENOTIFY_EVENT &&
                   aEvent->eventStructType != NS_TOUCH_EVENT &&
                   aEvent->eventStructType != NS_QUERY_CONTENT_EVENT))

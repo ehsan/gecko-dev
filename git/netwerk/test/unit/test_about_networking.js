@@ -14,14 +14,7 @@ const gHttpServer = new HttpServer();
 
 add_test(function test_http() {
   gDashboard.requestHttpConnections(function(data) {
-    let found = false;
-    for (let i = 0; i < data.connections.length; i++) {
-      if (data.connections[i].host == "localhost") {
-        found = true;
-        break;
-      }
-    }
-    do_check_eq(found, true);
+    do_check_neq(data.host.indexOf("localhost"), -1);
 
     run_next_test();
   });
@@ -29,14 +22,7 @@ add_test(function test_http() {
 
 add_test(function test_dns() {
   gDashboard.requestDNSInfo(function(data) {
-    let found = false;
-    for (let i = 0; i < data.entries.length; i++) {
-      if (data.entries[i].hostname == "localhost") {
-        found = true;
-        break;
-      }
-    }
-    do_check_eq(found, true);
+    do_check_neq(data.hostname.indexOf("localhost"), -1);
 
     do_test_pending();
     gHttpServer.stop(do_test_finished);
@@ -57,14 +43,8 @@ add_test(function test_sockets() {
       if (aStatus == Ci.nsISocketTransport.STATUS_CONNECTED_TO) {
         gDashboard.requestSockets(function(data) {
           gServerSocket.close();
-          let found = false;
-          for (let i = 0; i < data.sockets.length; i++) {
-            if (data.sockets[i].host == "127.0.0.1") {
-              found = true;
-              break;
-            }
-          }
-          do_check_eq(found, true);
+
+          do_check_neq(data.host.indexOf("127.0.0.1"), -1);
 
           run_next_test();
         });

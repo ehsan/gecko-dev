@@ -3,9 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_nsQueryContentEventResult_h
-#define mozilla_dom_nsQueryContentEventResult_h
-
 #include "nsIQueryContentEventResult.h"
 #include "nsString.h"
 #include "nsRect.h"
@@ -35,5 +32,3 @@ protected:
   bool mSucceeded;
   bool mReversed;
 };
-
-#endif // mozilla_dom_nsQueryContentEventResult_h

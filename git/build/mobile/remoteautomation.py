@@ -48,7 +48,7 @@ class RemoteAutomation(Automation):
         self._remoteLog = logfile
 
     # Set up what we need for the remote environment
-    def environment(self, env=None, xrePath=None, crashreporter=True, debugger=False):
+    def environment(self, env = None, xrePath = None, crashreporter = True):
         # Because we are running remote, we don't want to mimic the local env
         # so no copying of os.environ
         if env is None:
@@ -56,11 +56,11 @@ class RemoteAutomation(Automation):
 
         # Except for the mochitest results table hiding option, which isn't
         # passed to runtestsremote.py as an actual option, but through the
-        # MOZ_HIDE_RESULTS_TABLE environment variable.
+        # MOZ_CRASHREPORTER_DISABLE environment variable.
         if 'MOZ_HIDE_RESULTS_TABLE' in os.environ:
             env['MOZ_HIDE_RESULTS_TABLE'] = os.environ['MOZ_HIDE_RESULTS_TABLE']
 
-        if crashreporter and not debugger:
+        if crashreporter:
             env['MOZ_CRASHREPORTER_NO_REPORT'] = '1'
             env['MOZ_CRASHREPORTER'] = '1'
         else:

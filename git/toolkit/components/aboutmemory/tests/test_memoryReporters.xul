@@ -127,7 +127,6 @@
   }
   let amounts = [
     "vsize",
-    "vsizeMaxContiguous",
     "resident",
     "residentFast",
     "heapAllocated",

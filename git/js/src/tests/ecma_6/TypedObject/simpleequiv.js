@@ -2,21 +2,30 @@
 var BUGNUMBER = 922216;
 var summary = 'TypedObjects Equivalent Numeric Types';
 
-var T = TypedObject;
+var ArrayType = TypedObject.ArrayType;
+var StructType = TypedObject.StructType;
+var uint8 = TypedObject.uint8;
+var uint16 = TypedObject.uint16;
+var uint32 = TypedObject.uint32;
+var uint8Clamped = TypedObject.uint8Clamped;
+var int8 = TypedObject.int8;
+var int16 = TypedObject.int16;
+var int32 = TypedObject.int32;
+var float32 = TypedObject.float32;
+var float64 = TypedObject.float64;
 
 function runTests() {
   print(BUGNUMBER + ": " + summary);
 
-  var simpleTypes = [
-    T.int8, T.int16, T.int32,
-    T.uint8, T.uint16, T.uint32,
-    T.float32, T.float64,
-    T.Object, T.Any, T.string
+  var scalarTypes = [
+    int8, int16, int32,
+    uint8, uint16, uint32,
+    float32, float64
   ];
 
-  for (var i = 0; i < simpleTypes.length; i++)
-    for (var j = 0; j < simpleTypes.length; j++)
-      assertEq(i == j, simpleTypes[i].equivalent(simpleTypes[j]));
+  for (var i = 0; i < scalarTypes.length; i++)
+    for (var j = 0; j < scalarTypes.length; j++)
+      assertEq(i == j, scalarTypes[i].equivalent(scalarTypes[j]));
 
   reportCompare(true, true);
   print("Tests complete");

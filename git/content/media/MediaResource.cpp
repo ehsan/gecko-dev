@@ -33,13 +33,13 @@
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* gMediaResourceLog;
-#define RESOURCE_LOG(msg, ...) PR_LOG(gMediaResourceLog, PR_LOG_DEBUG, \
-                                      (msg, ##__VA_ARGS__))
+#define LOG(msg, ...) PR_LOG(gMediaResourceLog, PR_LOG_DEBUG, \
+                             (msg, ##__VA_ARGS__))
 // Debug logging macro with object pointer and class name.
 #define CMLOG(msg, ...) \
-        RESOURCE_LOG("%p [ChannelMediaResource]: " msg, this, ##__VA_ARGS__)
+        LOG("%p [ChannelMediaResource]: " msg, this, ##__VA_ARGS__)
 #else
-#define RESOURCE_LOG(msg, ...)
+#define LOG(msg, ...)
 #define CMLOG(msg, ...)
 #endif
 
@@ -147,7 +147,7 @@ ChannelMediaResource::OnStartRequest(nsIRequest* aRequest)
 
   MediaDecoderOwner* owner = mDecoder->GetMediaOwner();
   NS_ENSURE_TRUE(owner, NS_ERROR_FAILURE);
-  dom::HTMLMediaElement* element = owner->GetMediaElement();
+  HTMLMediaElement* element = owner->GetMediaElement();
   NS_ENSURE_TRUE(element, NS_ERROR_FAILURE);
   nsresult status;
   nsresult rv = aRequest->GetStatus(&status);
@@ -475,10 +475,10 @@ ChannelMediaResource::CopySegmentToCache(nsIInputStream *aInStream,
   closure->mResource->mDecoder->NotifyDataArrived(aFromSegment, aCount, closure->mResource->mOffset);
 
   // Keep track of where we're up to.
-  RESOURCE_LOG("%p [ChannelMediaResource]: CopySegmentToCache at mOffset [%lld] add "
-               "[%d] bytes for decoder[%p]",
-               closure->mResource, closure->mResource->mOffset, aCount,
-               closure->mResource->mDecoder);
+  LOG("%p [ChannelMediaResource]: CopySegmentToCache at mOffset [%lld] add "
+      "[%d] bytes for decoder[%p]",
+      closure->mResource, closure->mResource->mOffset, aCount,
+      closure->mResource->mDecoder);
   closure->mResource->mOffset += aCount;
 
   closure->mResource->mCacheStream.NotifyDataReceived(aCount, aFromSegment,
@@ -583,7 +583,7 @@ nsresult ChannelMediaResource::OpenChannel(nsIStreamListener** aStreamListener)
     // an authorizing Access-Control header.
     MediaDecoderOwner* owner = mDecoder->GetMediaOwner();
     NS_ENSURE_TRUE(owner, NS_ERROR_FAILURE);
-    dom::HTMLMediaElement* element = owner->GetMediaElement();
+    HTMLMediaElement* element = owner->GetMediaElement();
     NS_ENSURE_TRUE(element, NS_ERROR_FAILURE);
     if (element->ShouldCheckAllowOrigin()) {
       nsRefPtr<nsCORSListenerProxy> crossSiteListener =
@@ -642,7 +642,7 @@ void ChannelMediaResource::SetupChannelHeaders()
     if (!owner) {
       return;
     }
-    dom::HTMLMediaElement* element = owner->GetMediaElement();
+    HTMLMediaElement* element = owner->GetMediaElement();
     if (!element) {
       return;
     }
@@ -805,7 +805,7 @@ void ChannelMediaResource::Suspend(bool aCloseImmediately)
     // Shutting down; do nothing.
     return;
   }
-  dom::HTMLMediaElement* element = owner->GetMediaElement();
+  HTMLMediaElement* element = owner->GetMediaElement();
   if (!element) {
     // Shutting down; do nothing.
     return;
@@ -840,7 +840,7 @@ void ChannelMediaResource::Resume()
     // Shutting down; do nothing.
     return;
   }
-  dom::HTMLMediaElement* element = owner->GetMediaElement();
+  HTMLMediaElement* element = owner->GetMediaElement();
   if (!element) {
     // Shutting down; do nothing.
     return;
@@ -889,7 +889,7 @@ ChannelMediaResource::RecreateChannel()
     // The decoder is being shut down, so don't bother opening a new channel
     return NS_OK;
   }
-  dom::HTMLMediaElement* element = owner->GetMediaElement();
+  HTMLMediaElement* element = owner->GetMediaElement();
   if (!element) {
     // The decoder is being shut down, so don't bother opening a new channel
     return NS_OK;
@@ -1309,7 +1309,7 @@ nsresult FileMediaResource::Open(nsIStreamListener** aStreamListener)
     // web server.
     MediaDecoderOwner* owner = mDecoder->GetMediaOwner();
     NS_ENSURE_TRUE(owner, NS_ERROR_FAILURE);
-    dom::HTMLMediaElement* element = owner->GetMediaElement();
+    HTMLMediaElement* element = owner->GetMediaElement();
     NS_ENSURE_TRUE(element, NS_ERROR_FAILURE);
 
     rv = nsContentUtils::GetSecurityManager()->
@@ -1374,7 +1374,7 @@ already_AddRefed<MediaResource> FileMediaResource::CloneData(MediaDecoder* aDeco
     // The decoder is being shut down, so we can't clone
     return nullptr;
   }
-  dom::HTMLMediaElement* element = owner->GetMediaElement();
+  HTMLMediaElement* element = owner->GetMediaElement();
   if (!element) {
     // The decoder is being shut down, so we can't clone
     return nullptr;
@@ -1533,7 +1533,7 @@ void BaseMediaResource::MoveLoadsToBackground() {
     NS_WARNING("Null owner in MediaResource::MoveLoadsToBackground()");
     return;
   }
-  dom::HTMLMediaElement* element = owner->GetMediaElement();
+  HTMLMediaElement* element = owner->GetMediaElement();
   if (!element) {
     NS_WARNING("Null element in MediaResource::MoveLoadsToBackground()");
     return;

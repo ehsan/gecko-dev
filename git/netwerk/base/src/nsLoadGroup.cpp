@@ -42,7 +42,6 @@ using namespace mozilla::net;
 static PRLogModuleInfo* gLoadGroupLog = nullptr;
 #endif
 
-#undef LOG
 #define LOG(args) PR_LOG(gLoadGroupLog, PR_LOG_DEBUG, args)
 
 ////////////////////////////////////////////////////////////////////////////////

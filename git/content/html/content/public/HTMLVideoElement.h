@@ -116,10 +116,6 @@ protected:
   void WakeLockUpdate();
 
   nsCOMPtr<nsIDOMMozWakeLock> mScreenWakeLock;
-
-private:
-  static void MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
-                                    nsRuleData* aData);
 };
 
 } // namespace dom

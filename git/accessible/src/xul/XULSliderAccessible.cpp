@@ -11,7 +11,6 @@
 
 #include "nsIFrame.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/FloatingPoint.h"
 
 using namespace mozilla::a11y;
 
@@ -25,6 +24,12 @@ XULSliderAccessible::
 {
   mStateFlags |= eHasNumericValue;
 }
+
+// nsISupports
+
+NS_IMPL_ISUPPORTS_INHERITED1(XULSliderAccessible,
+                             AccessibleWrap,
+                             nsIAccessibleValue)
 
 // Accessible
 
@@ -94,39 +99,64 @@ XULSliderAccessible::DoAction(uint8_t aIndex)
   return NS_OK;
 }
 
-double
-XULSliderAccessible::MaxValue() const
+// nsIAccessibleValue
+
+NS_IMETHODIMP
+XULSliderAccessible::GetMaximumValue(double* aValue)
 {
-  double value = AccessibleWrap::MaxValue();
-  return IsNaN(value) ? GetSliderAttr(nsGkAtoms::maxpos) : value;
+  nsresult rv = AccessibleWrap::GetMaximumValue(aValue);
+
+  // ARIA redefined maximum value.
+  if (rv != NS_OK_NO_ARIA_VALUE)
+    return rv;
+
+  return GetSliderAttr(nsGkAtoms::maxpos, aValue);
 }
 
-double
-XULSliderAccessible::MinValue() const
+NS_IMETHODIMP
+XULSliderAccessible::GetMinimumValue(double* aValue)
 {
-  double value = AccessibleWrap::MinValue();
-  return IsNaN(value) ? GetSliderAttr(nsGkAtoms::minpos) : value;
+  nsresult rv = AccessibleWrap::GetMinimumValue(aValue);
+
+  // ARIA redefined minmum value.
+  if (rv != NS_OK_NO_ARIA_VALUE)
+    return rv;
+
+  return GetSliderAttr(nsGkAtoms::minpos, aValue);
 }
 
-double
-XULSliderAccessible::Step() const
+NS_IMETHODIMP
+XULSliderAccessible::GetMinimumIncrement(double* aValue)
 {
-  double value = AccessibleWrap::Step();
-  return IsNaN(value) ? GetSliderAttr(nsGkAtoms::increment) : value;
+  nsresult rv = AccessibleWrap::GetMinimumIncrement(aValue);
+
+  // ARIA redefined minimum increment value.
+  if (rv != NS_OK_NO_ARIA_VALUE)
+    return rv;
+
+  return GetSliderAttr(nsGkAtoms::increment, aValue);
 }
 
-double
-XULSliderAccessible::CurValue() const
+NS_IMETHODIMP
+XULSliderAccessible::GetCurrentValue(double* aValue)
 {
-  double value = AccessibleWrap::CurValue();
-  return IsNaN(value) ? GetSliderAttr(nsGkAtoms::curpos) : value;
+  nsresult rv = AccessibleWrap::GetCurrentValue(aValue);
+
+  // ARIA redefined current value.
+  if (rv != NS_OK_NO_ARIA_VALUE)
+    return rv;
+
+  return GetSliderAttr(nsGkAtoms::curpos, aValue);
 }
 
-bool
-XULSliderAccessible::SetCurValue(double aValue)
+NS_IMETHODIMP
+XULSliderAccessible::SetCurrentValue(double aValue)
 {
-  if (AccessibleWrap::SetCurValue(aValue))
-    return true;
+  nsresult rv = AccessibleWrap::SetCurrentValue(aValue);
+
+  // ARIA redefined current value.
+  if (rv != NS_OK_NO_ARIA_VALUE)
+    return rv;
 
   return SetSliderAttr(nsGkAtoms::curpos, aValue);
 }
@@ -154,7 +184,7 @@ XULSliderAccessible::GetSliderElement() const
 }
 
 nsresult
-XULSliderAccessible::GetSliderAttr(nsIAtom* aName, nsAString& aValue) const
+XULSliderAccessible::GetSliderAttr(nsIAtom* aName, nsAString& aValue)
 {
   aValue.Truncate();
 
@@ -181,26 +211,35 @@ XULSliderAccessible::SetSliderAttr(nsIAtom* aName, const nsAString& aValue)
   return NS_OK;
 }
 
-double
-XULSliderAccessible::GetSliderAttr(nsIAtom* aName) const
+nsresult
+XULSliderAccessible::GetSliderAttr(nsIAtom* aName, double* aValue)
 {
+  NS_ENSURE_ARG_POINTER(aValue);
+  *aValue = 0;
+
   nsAutoString attrValue;
   nsresult rv = GetSliderAttr(aName, attrValue);
-  if (NS_FAILED(rv))
-    return UnspecifiedNaN();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // Return zero value if there is no attribute or its value is empty.
+  if (attrValue.IsEmpty())
+    return NS_OK;
 
   nsresult error = NS_OK;
   double value = attrValue.ToDouble(&error);
-  return NS_FAILED(error) ? UnspecifiedNaN() : value;
+  if (NS_SUCCEEDED(error))
+    *aValue = value;
+
+  return NS_OK;
 }
 
-bool
+nsresult
 XULSliderAccessible::SetSliderAttr(nsIAtom* aName, double aValue)
 {
   nsAutoString value;
   value.AppendFloat(aValue);
 
-  return NS_SUCCEEDED(SetSliderAttr(aName, value));
+  return SetSliderAttr(aName, value);
 }
 
 

@@ -993,7 +993,9 @@ UploadLastDir::FetchDirectoryAndDisplayPicker(nsIDocument* aDoc,
   nsIURI* docURI = aDoc->GetDocumentURI();
   NS_PRECONDITION(docURI, "docURI is null");
 
-  nsCOMPtr<nsILoadContext> loadContext = aDoc->GetLoadContext();
+  nsCOMPtr<nsISupports> container = aDoc->GetContainer();
+  nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(container);
+
   nsCOMPtr<nsIContentPrefCallback2> prefCallback = 
     new UploadLastDir::ContentPrefCallback(aFilePicker, aFpCallback);
 
@@ -1044,7 +1046,8 @@ UploadLastDir::StoreLastUsedDirectory(nsIDocument* aDoc, nsIFile* aDir)
     return NS_ERROR_OUT_OF_MEMORY;
   prefValue->SetAsAString(unicodePath);
 
-  nsCOMPtr<nsILoadContext> loadContext = aDoc->GetLoadContext();
+  nsCOMPtr<nsISupports> container = aDoc->GetContainer();
+  nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(container);
   return contentPrefService->Set(spec, CPS_PREF_NAME, prefValue, loadContext, nullptr);
 }
 
@@ -2058,7 +2061,7 @@ HTMLInputElement::ApplyStep(int32_t aStep)
 
   Decimal value = GetValueAsDecimal();
   if (value.isNaN()) {
-    value = 0;
+    return NS_OK;
   }
 
   Decimal minimum = GetMinimum();
@@ -2239,21 +2242,6 @@ HTMLInputElement::MozIsTextField(bool aExcludePassword)
   }
 
   return IsSingleLineTextControl(aExcludePassword);
-}
-
-HTMLInputElement*
-HTMLInputElement::GetOwnerNumberControl()
-{
-  if (IsInNativeAnonymousSubtree() &&
-      mType == NS_FORM_INPUT_TEXT &&
-      GetParent() && GetParent()->GetParent()) {
-    HTMLInputElement* grandparent =
-      HTMLInputElement::FromContentOrNull(GetParent()->GetParent());
-    if (grandparent && grandparent->mType == NS_FORM_INPUT_NUMBER) {
-      return grandparent;
-    }
-  }
-  return nullptr;
 }
 
 NS_IMETHODIMP
@@ -4468,9 +4456,9 @@ HTMLInputElement::ParseAttribute(int32_t aNamespaceID,
                                               aResult);
 }
 
-void
-HTMLInputElement::MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
-                                        nsRuleData* aData)
+static void
+MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
+                      nsRuleData* aData)
 {
   const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::type);
   if (value && value->Type() == nsAttrValue::eEnum &&
@@ -6834,5 +6822,3 @@ HTMLInputElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
 
 } // namespace dom
 } // namespace mozilla
-
-#undef NS_ORIGINAL_CHECKED_VALUE

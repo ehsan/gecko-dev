@@ -7,7 +7,6 @@
 EXPORTS += [
     'xpcAccessibleHyperText.h',
     'xpcAccessibleSelectable.h',
-    'xpcAccessibleValue.h',
 ]
 
 UNIFIED_SOURCES += [
@@ -16,7 +15,6 @@ UNIFIED_SOURCES += [
     'xpcAccessibleSelectable.cpp',
     'xpcAccessibleTable.cpp',
     'xpcAccessibleTableCell.cpp',
-    'xpcAccessibleValue.cpp',
 ]
 
 GENERATED_SOURCES += [

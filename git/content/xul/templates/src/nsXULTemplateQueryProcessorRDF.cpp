@@ -37,6 +37,9 @@
 
 //----------------------------------------------------------------------
 
+static NS_DEFINE_CID(kRDFContainerUtilsCID,      NS_RDFCONTAINERUTILS_CID);
+static NS_DEFINE_CID(kRDFServiceCID,             NS_RDFSERVICE_CID);
+
 #define PARSE_TYPE_INTEGER  "Integer"
 
 nsrefcnt                  nsXULTemplateQueryProcessorRDF::gRefCnt = 0;
@@ -142,14 +145,12 @@ nsXULTemplateQueryProcessorRDF::InitGlobals()
     // Initialize the global shared reference to the service
     // manager and get some shared resource objects.
     if (!gRDFService) {
-        NS_DEFINE_CID(kRDFServiceCID, NS_RDFSERVICE_CID);
         rv = CallGetService(kRDFServiceCID, &gRDFService);
         if (NS_FAILED(rv))
             return rv;
     }
 
     if (!gRDFContainerUtils) {
-        NS_DEFINE_CID(kRDFContainerUtilsCID, NS_RDFCONTAINERUTILS_CID);
         rv = CallGetService(kRDFContainerUtilsCID, &gRDFContainerUtils);
         if (NS_FAILED(rv))
             return rv;

@@ -22,9 +22,9 @@
 using namespace js;
 
 using mozilla::DoubleIsInt32;
-using mozilla::Forward;
 using mozilla::IsNaN;
-using mozilla::Move;
+using mozilla::OldMove;
+using mozilla::MoveRef;
 using mozilla::ArrayLength;
 using JS::DoubleNaNValue;
 
@@ -81,7 +81,7 @@ class OrderedHashTable
         Data *chain;
 
         Data(const T &e, Data *c) : element(e), chain(c) {}
-        Data(T &&e, Data *c) : element(Move(e)), chain(c) {}
+        Data(MoveRef<T> e, Data *c) : element(e), chain(c) {}
     };
 
     class Range;
@@ -167,11 +167,10 @@ class OrderedHashTable
      * not. On allocation failure, return false. If this returns false, it
      * means the element was not added to the table.
      */
-    template <typename ElementInput>
-    bool put(ElementInput &&element) {
+    bool put(const T &element) {
         HashNumber h = prepareHash(Ops::getKey(element));
         if (Data *e = lookup(Ops::getKey(element), h)) {
-            e->element = Forward<ElementInput>(element);
+            e->element = element;
             return true;
         }
 
@@ -186,7 +185,7 @@ class OrderedHashTable
         h >>= hashShift;
         liveCount++;
         Data *e = &data[dataLength++];
-        new (e) Data(Forward<ElementInput>(element), hashTable[h]);
+        new (e) Data(element, hashTable[h]);
         hashTable[h] = e;
         return true;
     }
@@ -593,7 +592,7 @@ class OrderedHashTable
             if (!Ops::isEmpty(Ops::getKey(rp->element))) {
                 HashNumber h = prepareHash(Ops::getKey(rp->element)) >> hashShift;
                 if (rp != wp)
-                    wp->element = Move(rp->element);
+                    wp->element = OldMove(rp->element);
                 wp->chain = hashTable[h];
                 hashTable[h] = wp;
                 wp++;
@@ -640,7 +639,7 @@ class OrderedHashTable
         for (Data *p = data, *end = data + dataLength; p != end; p++) {
             if (!Ops::isEmpty(Ops::getKey(p->element))) {
                 HashNumber h = prepareHash(Ops::getKey(p->element)) >> newHashShift;
-                new (wp) Data(Move(p->element), newHashTable[h]);
+                new (wp) Data(OldMove(p->element), newHashTable[h]);
                 newHashTable[h] = wp;
                 wp++;
             }
@@ -680,16 +679,15 @@ class OrderedHashMap
             value = rhs.value;
         }
 
-        void operator=(Entry &&rhs) {
-            MOZ_ASSERT(this != &rhs, "self-move assignment is prohibited");
-            const_cast<Key &>(key) = Move(rhs.key);
-            value = Move(rhs.value);
+        void operator=(MoveRef<Entry> rhs) {
+            const_cast<Key &>(key) = OldMove(rhs->key);
+            value = OldMove(rhs->value);
         }
 
       public:
         Entry() : key(), value() {}
         Entry(const Key &k, const Value &v) : key(k), value(v) {}
-        Entry(Entry &&rhs) : key(Move(rhs.key)), value(Move(rhs.value)) {}
+        Entry(MoveRef<Entry> rhs) : key(OldMove(rhs->key)), value(OldMove(rhs->value)) {}
 
         const Key key;
         Value value;

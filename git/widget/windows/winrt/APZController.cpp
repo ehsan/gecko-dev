@@ -299,7 +299,7 @@ APZController::HandleLongTap(const CSSIntPoint& aPoint)
 
 // requests that we send a mozbrowserasyncscroll domevent. not in use.
 void
-APZController::SendAsyncScrollDOMEvent(bool aIsRoot,
+APZController::SendAsyncScrollDOMEvent(FrameMetrics::ViewID aScrollId,
                                        const CSSRect &aContentRect,
                                        const CSSSize &aScrollableSize)
 {

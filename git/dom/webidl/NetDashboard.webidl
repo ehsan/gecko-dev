@@ -3,75 +3,60 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-dictionary SocketElement {
-  DOMString host = "";
-  unsigned long port = 0;
-  boolean active = false;
-  boolean tcp = false;
-  double sent = 0;
-  double received = 0;
-};
-
 dictionary SocketsDict {
-  sequence<SocketElement> sockets;
+  sequence<DOMString> host;
+  sequence<unsigned long> port;
+  sequence<boolean> active;
+  sequence<unsigned long> tcp;
+  sequence<double> socksent;
+  sequence<double> sockreceived;
   double sent = 0;
   double received = 0;
 };
 
-dictionary HttpConnInfo {
-  unsigned long rtt = 0;
-  unsigned long ttl = 0;
-  DOMString protocolVersion = "";
+dictionary HttpConnInfoDict {
+  sequence<unsigned long> rtt;
+  sequence<unsigned long> ttl;
+  sequence<DOMString> protocolVersion;
 };
 
 dictionary HalfOpenInfoDict {
-  boolean speculative = false;
-};
-
-dictionary HttpConnectionElement {
-  DOMString host = "";
-  unsigned long port = 0;
-  boolean spdy = false;
-  boolean ssl = false;
-  sequence<HttpConnInfo> active;
-  sequence<HttpConnInfo> idle;
-  sequence<HalfOpenInfoDict> halfOpens;
+  sequence<boolean> speculative;
 };
 
 dictionary HttpConnDict {
-  sequence<HttpConnectionElement> connections;
-};
-
-dictionary WebSocketElement {
-  DOMString hostport = "";
-  unsigned long msgsent = 0;
-  unsigned long msgreceived = 0;
-  double sentsize = 0;
-  double receivedsize = 0;
-  boolean encrypted = false;
+  sequence<DOMString> host;
+  sequence<unsigned long> port;
+  sequence<HttpConnInfoDict> active;
+  sequence<HttpConnInfoDict> idle;
+  sequence<HalfOpenInfoDict> halfOpens;
+  sequence<boolean> spdy;
+  sequence<boolean> ssl;
 };
 
 dictionary WebSocketDict {
-  sequence<WebSocketElement> websockets;
-};
-
-dictionary DnsCacheEntry {
-  DOMString hostname = "";
-  sequence<DOMString> hostaddr;
-  DOMString family = "";
-  double expiration = 0;
+  sequence<DOMString> hostport;
+  sequence<unsigned long> msgsent;
+  sequence<unsigned long> msgreceived;
+  sequence<double> sentsize;
+  sequence<double> receivedsize;
+  sequence<boolean> encrypted;
 };
 
 dictionary DNSCacheDict {
-  sequence<DnsCacheEntry> entries;
+  sequence<DOMString> hostname;
+  sequence<sequence<DOMString>> hostaddr;
+  sequence<DOMString> family;
+  sequence<double> expiration;
 };
 
 dictionary DNSLookupDict {
   sequence<DOMString> address;
-  DOMString error = "";
-  boolean answer = false;
+  DOMString error;
+  boolean answer;
 };
 
 dictionary ConnStatusDict {
-  DOMString status = "";
+  DOMString status;
 };
+

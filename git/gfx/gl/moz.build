@@ -59,48 +59,36 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
         'SharedSurfaceANGLE.h',
         'WGLLibrary.h',
     ]
-    UNIFIED_SOURCES += [
+    SOURCES += [
         'GLContextProviderEGL.cpp',
         'SharedSurfaceANGLE.cpp',
     ]
 if CONFIG['MOZ_ENABLE_SKIA_GPU']:
     EXPORTS += ['GLContextSkia.h']
-    UNIFIED_SOURCES += [
+    SOURCES += [
         'GLContextSkia.cpp',
     ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
-    UNIFIED_SOURCES += ['SharedSurfaceGralloc.cpp']
+    SOURCES += ['SharedSurfaceGralloc.cpp']
     EXPORTS += ['SharedSurfaceGralloc.h']
 
 if gl_provider == 'CGL':
-    # This file includes Mac headers that are unfriendly to unified builds,
-    # and we have only one .mm file here anyway.
     SOURCES += [
         "GLContextProvider%s.mm" % (gl_provider),
     ]
     EXPORTS += [
         'SharedSurfaceIO.h',
     ]
-    # SharedSurfaceIO.cpp includes MacIOSurface.h which include Mac headers
-    # which define Size and Point types in root namespace with often conflict with
-    # our own types. While I haven't actually hit this issue in the present case,
-    # it's been an issue in gfx/layers so let's not risk it.
     SOURCES += [
         'SharedSurfaceIO.cpp',
     ]
-elif gl_provider == 'GLX':
-    # GLContextProviderGLX.cpp needs to be kept out of UNIFIED_SOURCES
-    # as it includes X11 headers which cause conflicts.
-    SOURCES += [
-        'GLContextProviderGLX.cpp',
-    ]
 else:
-    UNIFIED_SOURCES += [
+    SOURCES += [
         'GLContextProvider%s.cpp' % gl_provider,
     ]
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'GfxTexturesReporter.cpp',
     'GLContext.cpp',
     'GLContextFeatures.cpp',

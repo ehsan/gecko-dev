@@ -53,9 +53,9 @@ HTMLFontElement::ParseAttribute(int32_t aNamespaceID,
                                               aResult);
 }
 
-void
-HTMLFontElement::MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
-                                       nsRuleData* aData)
+static void
+MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
+                      nsRuleData* aData)
 {
   if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Font)) {
     // face: string list

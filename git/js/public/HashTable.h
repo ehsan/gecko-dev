@@ -137,21 +137,20 @@ class HashMap
     }
 
     template<typename KeyInput, typename ValueInput>
-    bool add(AddPtr &p, KeyInput &&k, ValueInput &&v) {
-        Entry e(mozilla::Forward<KeyInput>(k), mozilla::Forward<ValueInput>(v));
-        return impl.add(p, mozilla::Move(e));
+    bool add(AddPtr &p, const KeyInput &k, const ValueInput &v) {
+        Entry e(k, v);
+        return impl.add(p, mozilla::OldMove(e));
     }
 
-    template<typename KeyInput>
-    bool add(AddPtr &p, KeyInput &&k) {
-        Entry e(mozilla::Forward<KeyInput>(k), Value());
-        return impl.add(p, mozilla::Move(e));
+    bool add(AddPtr &p, const Key &k) {
+        Entry e(k, Value());
+        return impl.add(p, mozilla::OldMove(e));
     }
 
     template<typename KeyInput, typename ValueInput>
-    bool relookupOrAdd(AddPtr &p, KeyInput &&k, ValueInput &&v) {
-        Entry e(mozilla::Forward<KeyInput>(k), mozilla::Forward<ValueInput>(v));
-        return impl.relookupOrAdd(p, e.key, mozilla::Move(e));
+    bool relookupOrAdd(AddPtr &p, const KeyInput &k, const ValueInput &v) {
+        Entry e(k, v);
+        return impl.relookupOrAdd(p, k, mozilla::OldMove(e));
     }
 
     // |all()| returns a Range containing |count()| elements. E.g.:
@@ -220,20 +219,20 @@ class HashMap
 
     // Overwrite existing value with v. Return false on oom.
     template<typename KeyInput, typename ValueInput>
-    bool put(KeyInput &&k, ValueInput &&v) {
+    bool put(const KeyInput &k, const ValueInput &v) {
         AddPtr p = lookupForAdd(k);
         if (p) {
-            p->value = mozilla::Forward<ValueInput>(v);
+            p->value = v;
             return true;
         }
-        return add(p, mozilla::Forward<KeyInput>(k), mozilla::Forward<ValueInput>(v));
+        return add(p, k, v);
     }
 
     // Like put, but assert that the given key is not already present.
     template<typename KeyInput, typename ValueInput>
-    bool putNew(KeyInput &&k, ValueInput &&v) {
-        Entry e(mozilla::Forward<KeyInput>(k), mozilla::Forward<ValueInput>(v));
-        return impl.putNew(e.key, mozilla::Move(e));
+    bool putNew(const KeyInput &k, const ValueInput &v) {
+        Entry e(k, v);
+        return impl.putNew(k, mozilla::OldMove(e));
     }
 
     // Add (k,defaultValue) if |k| is not found. Return a false-y Ptr on oom.
@@ -265,11 +264,8 @@ class HashMap
     }
 
     // HashMap is movable
-    HashMap(HashMap &&rhs) : impl(mozilla::Move(rhs.impl)) {}
-    void operator=(HashMap &&rhs) {
-        MOZ_ASSERT(this != &rhs, "self-move assignment is prohibited");
-        impl = mozilla::Move(rhs.impl);
-    }
+    HashMap(mozilla::MoveRef<HashMap> rhs) : impl(mozilla::OldMove(rhs->impl)) {}
+    void operator=(mozilla::MoveRef<HashMap> rhs) { impl = mozilla::OldMove(rhs->impl); }
 
   private:
     // HashMap is not copyable or assignable
@@ -375,14 +371,10 @@ class HashSet
     typedef typename Impl::AddPtr AddPtr;
     AddPtr lookupForAdd(const Lookup &l) const        { return impl.lookupForAdd(l); }
 
-    template <typename U>
-    bool add(AddPtr &p, U &&u) {
-        return impl.add(p, mozilla::Forward<U>(u));
-    }
+    bool add(AddPtr &p, const T &t)                   { return impl.add(p, t); }
 
-    template <typename U>
-    bool relookupOrAdd(AddPtr &p, const Lookup &l, U &&u) {
-        return impl.relookupOrAdd(p, l, mozilla::Forward<U>(u));
+    bool relookupOrAdd(AddPtr &p, const Lookup &l, const T &t) {
+        return impl.relookupOrAdd(p, l, t);
     }
 
     // |all()| returns a Range containing |count()| elements:
@@ -446,22 +438,19 @@ class HashSet
         return impl.lookup(l) != nullptr;
     }
 
-    // Add |u| if it is not present already. Return false on oom.
-    template <typename U>
-    bool put(U &&u) {
-        AddPtr p = lookupForAdd(u);
-        return p ? true : add(p, mozilla::Forward<U>(u));
+    // Overwrite existing value with v. Return false on oom.
+    bool put(const T &t) {
+        AddPtr p = lookupForAdd(t);
+        return p ? true : add(p, t);
     }
 
     // Like put, but assert that the given key is not already present.
-    template <typename U>
-    bool putNew(U &&u) {
-        return impl.putNew(u, mozilla::Forward<U>(u));
+    bool putNew(const T &t) {
+        return impl.putNew(t, t);
     }
 
-    template <typename U>
-    bool putNew(const Lookup &l, U &&u) {
-        return impl.putNew(l, mozilla::Forward<U>(u));
+    bool putNew(const Lookup &l, const T &t) {
+        return impl.putNew(l, t);
     }
 
     void remove(const Lookup &l) {
@@ -483,11 +472,8 @@ class HashSet
     }
 
     // HashSet is movable
-    HashSet(HashSet &&rhs) : impl(mozilla::Move(rhs.impl)) {}
-    void operator=(HashSet &&rhs) {
-        MOZ_ASSERT(this != &rhs, "self-move assignment is prohibited");
-        impl = mozilla::Move(rhs.impl);
-    }
+    HashSet(mozilla::MoveRef<HashSet> rhs) : impl(mozilla::OldMove(rhs->impl)) {}
+    void operator=(mozilla::MoveRef<HashSet> rhs) { impl = mozilla::OldMove(rhs->impl); }
 
   private:
     // HashSet is not copyable or assignable
@@ -624,11 +610,10 @@ class HashMapEntry
 
   public:
     template<typename KeyInput, typename ValueInput>
-    HashMapEntry(KeyInput &&k, ValueInput &&v)
-      : key(mozilla::Forward<KeyInput>(k)), value(mozilla::Forward<ValueInput>(v)) { }
+    HashMapEntry(const KeyInput &k, const ValueInput &v) : key(k), value(v) {}
 
-    HashMapEntry(HashMapEntry &&rhs)
-      : key(mozilla::Move(const_cast<Key &>(rhs.key))), value(mozilla::Move(rhs.value)) { }
+    HashMapEntry(mozilla::MoveRef<HashMapEntry> rhs)
+      : key(mozilla::OldMove(rhs->key)), value(mozilla::OldMove(rhs->value)) { }
 
     typedef Key KeyType;
     typedef Value ValueType;
@@ -714,11 +699,11 @@ class HashTableEntry
     HashNumber getKeyHash() const     { return keyHash & ~sCollisionBit; }
 
     template <class U>
-    void setLive(HashNumber hn, U &&u)
+    void setLive(HashNumber hn, const U &u)
     {
         JS_ASSERT(!isLive());
         keyHash = hn;
-        new(mem.addr()) T(mozilla::Forward<U>(u));
+        new(mem.addr()) T(u);
         JS_ASSERT(isLive());
     }
 };
@@ -876,18 +861,17 @@ class HashTable : private AllocPolicy
     };
 
     // HashTable is movable
-    HashTable(HashTable &&rhs)
-      : AllocPolicy(rhs)
+    HashTable(mozilla::MoveRef<HashTable> rhs)
+      : AllocPolicy(*rhs)
     {
-        mozilla::PodAssign(this, &rhs);
-        rhs.table = nullptr;
+        mozilla::PodAssign(this, &*rhs);
+        rhs->table = nullptr;
     }
-    void operator=(HashTable &&rhs) {
-        MOZ_ASSERT(this != &rhs, "self-move assignment is prohibited");
+    void operator=(mozilla::MoveRef<HashTable> rhs) {
         if (table)
             destroyTable(*this, table, capacity());
-        mozilla::PodAssign(this, &rhs);
-        rhs.table = nullptr;
+        mozilla::PodAssign(this, &*rhs);
+        rhs->table = nullptr;
     }
 
   private:
@@ -1226,7 +1210,7 @@ class HashTable : private AllocPolicy
         for (Entry *src = oldTable, *end = src + oldCap; src < end; ++src) {
             if (src->isLive()) {
                 HashNumber hn = src->getKeyHash();
-                findFreeEntry(hn).setLive(hn, mozilla::Move(src->get()));
+                findFreeEntry(hn).setLive(hn, mozilla::OldMove(src->get()));
                 src->destroy();
             }
         }
@@ -1441,7 +1425,7 @@ class HashTable : private AllocPolicy
     }
 
     template <class U>
-    bool add(AddPtr &p, U &&u)
+    bool add(AddPtr &p, const U &rhs)
     {
         mozilla::ReentrancyGuard g(*this);
         JS_ASSERT(mutationCount == p.mutationCount);
@@ -1464,16 +1448,14 @@ class HashTable : private AllocPolicy
                 p.entry_ = &findFreeEntry(p.keyHash);
         }
 
-        p.entry_->setLive(p.keyHash, mozilla::Forward<U>(u));
+        p.entry_->setLive(p.keyHash, rhs);
         entryCount++;
         mutationCount++;
         return true;
     }
 
-    // Note: |l| may be a reference to a piece of |u|, so this function
-    // must take care not to use |l| after moving |u|.
     template <class U>
-    void putNewInfallible(const Lookup &l, U &&u)
+    void putNewInfallible(const Lookup &l, const U &u)
     {
         JS_ASSERT(table);
 
@@ -1486,34 +1468,30 @@ class HashTable : private AllocPolicy
             keyHash |= sCollisionBit;
         }
 
-        entry->setLive(keyHash, mozilla::Forward<U>(u));
+        entry->setLive(keyHash, u);
         entryCount++;
         mutationCount++;
     }
 
-    // Note: |l| may be a reference to a piece of |u|, so this function
-    // must take care not to use |l| after moving |u|.
     template <class U>
-    bool putNew(const Lookup &l, U &&u)
+    bool putNew(const Lookup &l, const U &u)
     {
         if (checkOverloaded() == RehashFailed)
             return false;
 
-        putNewInfallible(l, mozilla::Forward<U>(u));
+        putNewInfallible(l, u);
         return true;
     }
 
-    // Note: |l| may be a reference to a piece of |u|, so this function
-    // must take care not to use |l| after moving |u|.
     template <class U>
-    bool relookupOrAdd(AddPtr& p, const Lookup &l, U &&u)
+    bool relookupOrAdd(AddPtr& p, const Lookup &l, const U &u)
     {
         p.mutationCount = mutationCount;
         {
             mozilla::ReentrancyGuard g(*this);
             p.entry_ = &lookup(l, p.keyHash, sCollisionBit);
         }
-        return p.found() || add(p, mozilla::Forward<U>(u));
+        return p.found() || add(p, u);
     }
 
     void remove(Ptr p)
@@ -1530,10 +1508,10 @@ class HashTable : private AllocPolicy
         JS_ASSERT(table);
         mozilla::ReentrancyGuard g(*this);
         JS_ASSERT(p.found());
-        typename HashTableEntry<T>::NonConstT t(mozilla::Move(*p));
+        typename HashTableEntry<T>::NonConstT t(mozilla::OldMove(*p));
         HashPolicy::setKey(t, const_cast<Key &>(k));
         remove(*p.entry_);
-        putNewInfallible(l, mozilla::Move(t));
+        putNewInfallible(l, mozilla::OldMove(t));
     }
 
     void rekeyAndMaybeRehash(Ptr p, const Lookup &l, const Key &k)

@@ -27,7 +27,6 @@
 #include "nsIServiceManager.h"
 #include "nsITextControlFrame.h"
 
-#include "mozilla/FloatingPoint.h"
 #include "mozilla/Preferences.h"
 
 using namespace mozilla;
@@ -546,6 +545,9 @@ HTMLFileInputAccessible::HandleAccEvent(AccEvent* aEvent)
 // HTMLRangeAccessible
 ////////////////////////////////////////////////////////////////////////////////
 
+NS_IMPL_ISUPPORTS_INHERITED1(HTMLRangeAccessible, LeafAccessible,
+                             nsIAccessibleValue)
+
 role
 HTMLRangeAccessible::NativeRole()
 {
@@ -568,53 +570,58 @@ HTMLRangeAccessible::Value(nsString& aValue)
   HTMLInputElement::FromContent(mContent)->GetValue(aValue);
 }
 
-double
-HTMLRangeAccessible::MaxValue() const
+NS_IMETHODIMP
+HTMLRangeAccessible::GetMaximumValue(double* aMaximumValue)
 {
-  double value = LeafAccessible::MaxValue();
-  if (!IsNaN(value))
-    return value;
+  nsresult rv = LeafAccessible::GetMaximumValue(aMaximumValue);
+  if (rv != NS_OK_NO_ARIA_VALUE)
+    return rv;
 
-  return HTMLInputElement::FromContent(mContent)->GetMaximum().toDouble();
+  *aMaximumValue = HTMLInputElement::FromContent(mContent)->GetMaximum().toDouble();
+  return NS_OK;
 }
 
 
-double
-HTMLRangeAccessible::MinValue() const
+NS_IMETHODIMP
+HTMLRangeAccessible::GetMinimumValue(double* aMinimumValue)
 {
-  double value = LeafAccessible::MinValue();
-  if (!IsNaN(value))
-    return value;
+  nsresult rv = LeafAccessible::GetMinimumValue(aMinimumValue);
+  if (rv != NS_OK_NO_ARIA_VALUE)
+    return rv;
 
-  return HTMLInputElement::FromContent(mContent)->GetMinimum().toDouble();
+  *aMinimumValue = HTMLInputElement::FromContent(mContent)->GetMinimum().toDouble();
+  return NS_OK;
 }
 
-double
-HTMLRangeAccessible::Step() const
-{
-  double value = LeafAccessible::Step();
-  if (!IsNaN(value))
-    return value;
 
-  return HTMLInputElement::FromContent(mContent)->GetStep().toDouble();
+NS_IMETHODIMP
+HTMLRangeAccessible::GetMinimumIncrement(double* aMinimumIncrement)
+{
+  nsresult rv = LeafAccessible::GetMinimumIncrement(aMinimumIncrement);
+  if (rv != NS_OK_NO_ARIA_VALUE)
+    return rv;
+
+  *aMinimumIncrement = HTMLInputElement::FromContent(mContent)->GetStep().toDouble();
+  return NS_OK;
 }
 
-double
-HTMLRangeAccessible::CurValue() const
+NS_IMETHODIMP
+HTMLRangeAccessible::GetCurrentValue(double* aCurrentValue)
 {
-  double value = LeafAccessible::CurValue();
-  if (!IsNaN(value))
-    return value;
+  nsresult rv = LeafAccessible::GetCurrentValue(aCurrentValue);
+  if (rv != NS_OK_NO_ARIA_VALUE)
+    return rv;
 
-  return HTMLInputElement::FromContent(mContent)->GetValueAsDecimal().toDouble();
+  *aCurrentValue = HTMLInputElement::FromContent(mContent)->GetValueAsDecimal().toDouble();
+  return NS_OK;
 }
 
-bool
-HTMLRangeAccessible::SetCurValue(double aValue)
+NS_IMETHODIMP
+HTMLRangeAccessible::SetCurrentValue(double aValue)
 {
   ErrorResult er;
   HTMLInputElement::FromContent(mContent)->SetValueAsNumber(aValue, er);
-  return !er.Failed();
+  return er.ErrorCode();
 }
 
 

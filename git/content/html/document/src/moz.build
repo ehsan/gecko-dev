@@ -13,7 +13,7 @@ EXPORTS.mozilla.dom += [
     'ImageDocument.h',
 ]
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'HTMLAllCollection.cpp',
     'ImageDocument.cpp',
     'MediaDocument.cpp',
@@ -32,7 +32,6 @@ LOCAL_INCLUDES += [
     '/caps/include',
     '/content/base/src',
     '/content/events/src',
-    '/docshell/base',
     '/dom/base',
     '/layout/style',
     '/xpcom/ds',

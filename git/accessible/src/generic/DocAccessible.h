@@ -533,16 +533,10 @@ protected:
   nsCOMPtr<nsIContent> mAnchorJumpElm;
 
   /**
-   * A generic state (see items below) before the attribute value was changed.
-   * @see AttributeWillChange and AttributeChanged notifications.
+   * Keep the ARIA attribute old value that is initialized by
+   * AttributeWillChange and used by AttributeChanged notifications.
    */
-  union {
-    // ARIA attribute value
-    nsIAtom* mARIAAttrOldValue;
-
-    // True if the accessible state bit was on
-    bool mStateBitWasOn;
-  };
+  nsIAtom* mARIAAttrOldValue;
 
   nsTArray<nsRefPtr<DocAccessible> > mChildDocuments;
 

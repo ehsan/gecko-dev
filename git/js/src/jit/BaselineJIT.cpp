@@ -746,16 +746,10 @@ BaselineScript::toggleDebugTraps(JSScript *script, jsbytecode *pc)
 {
     JS_ASSERT(script->baselineScript() == this);
 
-    // Only scripts compiled for debug mode have toggled calls.
-    if (!debugMode())
-        return;
-
     SrcNoteLineScanner scanner(script->notes(), script->lineno);
 
     JSRuntime *rt = script->runtimeFromMainThread();
-    IonContext ictx(CompileRuntime::get(rt),
-                    CompileCompartment::get(script->compartment()),
-                    nullptr);
+    IonContext ictx(rt, script->compartment(), nullptr);
     AutoFlushCache afc("DebugTraps", rt->jitRuntime());
 
     for (uint32_t i = 0; i < numPCMappingIndexEntries(); i++) {

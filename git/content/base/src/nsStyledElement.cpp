@@ -22,7 +22,7 @@
 #include "nsContentUtils.h"
 #include "nsStyleUtil.h"
 
-using namespace mozilla;
+namespace css = mozilla::css;
 using namespace mozilla::dom;
 
 //----------------------------------------------------------------------

@@ -96,10 +96,6 @@ protected:
   HTMLTableSectionElement* GetSection() const;
   HTMLTableElement* GetTable() const;
   nsRefPtr<nsContentList> mCells;
-
-private:
-  static void MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
-                                    nsRuleData* aData);
 };
 
 } // namespace dom

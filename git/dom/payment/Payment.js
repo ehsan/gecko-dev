@@ -30,8 +30,7 @@ PaymentContentHelper.prototype = {
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsINavigatorPayment,
                                          Ci.nsIDOMGlobalPropertyInitializer,
-                                         Ci.nsISupportsWeakReference,
-                                         Ci.nsIObserver]),
+                                         Ci.nsISupportsWeakReference]),
   classID:        PAYMENTCONTENTHELPER_CID,
   classInfo:      XPCOMUtils.generateCI({
     classID: PAYMENTCONTENTHELPER_CID,

@@ -184,7 +184,6 @@ public:
                                  const nsACString& aTitle,
                                  bool aIsBookmarkFolder,
                                  int32_t* aIndex,
-                                 const nsACString& aGUID,
                                  int64_t* aNewFolder);
 
   /**
@@ -397,7 +396,7 @@ private:
       NS_ENSURE_TRUE(bookmarks, NS_ERROR_OUT_OF_MEMORY);
       int64_t newFolder;
       return bookmarks->CreateContainerWithID(mID, mParent, mTitle, true,
-                                              &mIndex, EmptyCString(), &newFolder);
+                                              &mIndex, &newFolder); 
     }
 
     NS_IMETHOD RedoTransaction() {
@@ -408,7 +407,7 @@ private:
       *aResult = false;
       return NS_OK;
     }
-
+    
     NS_IMETHOD Merge(nsITransaction* aTransaction, bool* aResult) {
       *aResult = false;
       return NS_OK;

@@ -330,12 +330,15 @@ Shape::replaceLastProperty(ExclusiveContext *cx, const StackBaseShape &base,
                                            base.flags & BaseShape::OBJECT_FLAG_MASK);
     }
 
-    UnownedBaseShape *nbase = BaseShape::getUnowned(cx, base);
-    if (!nbase)
-        return nullptr;
-
     StackShape child(shape);
-    child.base = nbase;
+    StackShape::AutoRooter childRoot(cx, &child);
+    {
+        UnownedBaseShape *nbase = BaseShape::getUnowned(cx, base);
+        if (!nbase)
+            return nullptr;
+
+        child.base = nbase;
+    }
 
     return cx->compartment()->propertyTree.getChild(cx, shape->parent,
                                                     shape->numFixedSlots(), child);
@@ -393,7 +396,6 @@ JSObject::getChildPropertyOnDictionary(ThreadSafeContext *cx, JS::HandleObject o
 JSObject::getChildProperty(ExclusiveContext *cx,
                            HandleObject obj, HandleShape parent, StackShape &child)
 {
-    StackShape::AutoRooter childRoot(cx, &child);
     RootedShape shape(cx, getChildPropertyOnDictionary(cx, obj, parent, child));
 
     if (!shape) {
@@ -413,7 +415,6 @@ JSObject::getChildProperty(ExclusiveContext *cx,
 JSObject::lookupChildProperty(ThreadSafeContext *cx,
                               HandleObject obj, HandleShape parent, StackShape &child)
 {
-    StackShape::AutoRooter childRoot(cx, &child);
     JS_ASSERT(cx->isThreadLocal(obj));
 
     RootedShape shape(cx, getChildPropertyOnDictionary(cx, obj, parent, child));

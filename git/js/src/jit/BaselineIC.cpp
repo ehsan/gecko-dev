@@ -2537,7 +2537,8 @@ DoBinaryArithFallback(JSContext *cx, BaselineFrame *frame, ICBinaryArith_Fallbac
 
     // Check to see if a new stub should be generated.
     if (stub->numOptimizedStubs() >= ICBinaryArith_Fallback::MAX_OPTIMIZED_STUBS) {
-        stub->noteUnoptimizableOperands();
+        // TODO: Discard all stubs in this IC and replace with inert megamorphic stub.
+        // But for now we just bail.
         return true;
     }
 
@@ -2584,10 +2585,8 @@ DoBinaryArithFallback(JSContext *cx, BaselineFrame *frame, ICBinaryArith_Fallbac
     }
 
     // Handle only int32 or double.
-    if (!lhs.isNumber() || !rhs.isNumber()) {
-        stub->noteUnoptimizableOperands();
+    if (!lhs.isNumber() || !rhs.isNumber())
         return true;
-    }
 
     JS_ASSERT(ret.isNumber());
 
@@ -2654,7 +2653,6 @@ DoBinaryArithFallback(JSContext *cx, BaselineFrame *frame, ICBinaryArith_Fallbac
         }
     }
 
-    stub->noteUnoptimizableOperands();
     return true;
 }
 #if defined(_MSC_VER)
@@ -3271,14 +3269,10 @@ EffectlesslyLookupProperty(JSContext *cx, HandleObject obj, HandlePropertyName n
         *domProxyHasGeneration = (*shadowsResult == DoesntShadowUnique);
 
         checkObj = GetDOMProxyProto(obj);
-    } else if (obj->is<TypedArrayObject>() && obj->getProto()) {
-        // Typed array objects are non-native, but don't have any named
-        // properties. Just forward the lookup to the prototype, to allow
-        // inlining common getters like byteOffset.
-        checkObj = obj->getProto();
-    } else if (!obj->isNative()) {
-        return true;
     }
+
+    if (!isDOMProxy && !obj->isNative())
+        return true;
 
     if (checkObj->hasIdempotentProtoChain()) {
         if (!JSObject::lookupProperty(cx, checkObj, name, holder, shape))
@@ -3295,7 +3289,7 @@ static bool
 IsCacheableProtoChain(JSObject *obj, JSObject *holder, bool isDOMProxy=false)
 {
     JS_ASSERT_IF(isDOMProxy, IsCacheableDOMProxy(obj));
-    JS_ASSERT_IF(!isDOMProxy, obj->isNative() || obj->is<TypedArrayObject>());
+    JS_ASSERT_IF(!isDOMProxy, obj->isNative());
 
     // Don't handle objects which require a prototype guard. This should
     // be uncommon so handling it is likely not worth the complexity.
@@ -4451,20 +4445,17 @@ ICGetElem_Dense::Compiler::generateStubCode(MacroAssembler &masm)
         Label skipNoSuchMethod;
         regs = availableGeneralRegs(0);
         regs.takeUnchecked(obj);
-        regs.takeUnchecked(key);
-        ValueOperand val = regs.takeValueOperand();
+        regs.take(R1);
 
-        masm.loadValue(element, val);
-        masm.branchTestUndefined(Assembler::NotEqual, val, &skipNoSuchMethod);
-        regs.add(val);
+        masm.pushValue(R1);
+        masm.loadValue(element, R1);
+        masm.branchTestUndefined(Assembler::NotEqual, R1, &skipNoSuchMethod);
 
         // Call __noSuchMethod__ checker.  Object pointer is in objReg.
-        enterStubFrame(masm, regs.getAnyExcluding(BaselineTailCallReg));
+        scratchReg = regs.takeAnyExcluding(BaselineTailCallReg);
+        enterStubFrame(masm, scratchReg);
 
-        regs.take(val);
-
-        masm.tagValue(JSVAL_TYPE_INT32, key, val);
-        masm.pushValue(val);
+        // propName (R1) already pushed above.
         masm.push(obj);
         if (!callVM(LookupNoSuchMethodHandlerInfo, masm))
             return false;
@@ -4474,7 +4465,8 @@ ICGetElem_Dense::Compiler::generateStubCode(MacroAssembler &masm)
         masm.jump(&afterNoSuchMethod);
         masm.bind(&skipNoSuchMethod);
 
-        masm.moveValue(val, R0);
+        masm.moveValue(R1, R0);
+        masm.addPtr(Imm32(sizeof(Value)), BaselineStackReg); // pop previously pushed propName (R1)
         masm.bind(&afterNoSuchMethod);
     } else {
         masm.loadValue(element, R0);
@@ -5982,7 +5974,7 @@ TryAttachNativeGetPropStub(JSContext *cx, HandleScript script, jsbytecode *pc,
         return false;
     }
 
-    if (!isDOMProxy && !obj->isNative() && !obj->is<TypedArrayObject>())
+    if (!isDOMProxy && !obj->isNative())
         return true;
 
     bool isCallProp = (JSOp(*pc) == JSOP_CALLPROP);
@@ -9222,7 +9214,7 @@ DoTypeOfFallback(JSContext *cx, BaselineFrame *frame, ICTypeOf_Fallback *stub, H
 {
     FallbackICSpew(cx, stub, "TypeOf");
     JSType type = js::TypeOfValue(val);
-    RootedString string(cx, TypeName(type, cx->runtime()->atomState));
+    RootedString string(cx, TypeName(type, cx->runtime()));
 
     res.setString(string);
 
