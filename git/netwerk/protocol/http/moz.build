@@ -37,11 +37,7 @@ EXPORTS.mozilla.net += [
     'PSpdyPush.h',
 ]
 
-# ASpdySession.cpp and nsHttpAuthCache cannot be built in unified mode because
-# they use plarena.h.
-# The rest of these files cannot be built in unified mode because they want to
-# force NSPR logging.
-SOURCES += [
+UNIFIED_SOURCES += [
     'ASpdySession.cpp',
     'ConnectionDiagnostics.cpp',
     'HttpBaseChannel.cpp',

@@ -86,10 +86,6 @@ ImageHost::Composite(EffectChain& aEffectChain,
   RefPtr<TexturedEffect> effect = CreateTexturedEffect(mFrontBuffer->GetFormat(),
                                                        source,
                                                        aFilter);
-  if (!effect) {
-    return;
-  }
-
   aEffectChain.mPrimaryEffect = effect;
   IntSize textureSize = source->GetSize();
   gfx::Rect gfxPictureRect
@@ -292,9 +288,6 @@ DeprecatedImageHostSingle::Composite(EffectChain& aEffectChain,
 
   RefPtr<TexturedEffect> effect =
     CreateTexturedEffect(mDeprecatedTextureHost, aFilter);
-  if (!effect) {
-    return;
-  }
 
   aEffectChain.mPrimaryEffect = effect;
 

@@ -57,8 +57,7 @@ class nsGenericHTMLElement : public nsGenericHTMLElementBase,
 {
 public:
   nsGenericHTMLElement(already_AddRefed<nsINodeInfo> aNodeInfo)
-    : nsGenericHTMLElementBase(aNodeInfo),
-      mScrollgrab(false)
+    : nsGenericHTMLElementBase(aNodeInfo)
   {
     NS_ASSERTION(mNodeInfo->NamespaceID() == kNameSpaceID_XHTML,
                  "Unexpected namespace");
@@ -159,7 +158,7 @@ public:
     SetHTMLIntAttr(nsGkAtoms::tabindex, aTabIndex, aError);
   }
   virtual void Focus(mozilla::ErrorResult& aError);
-  virtual void Blur(mozilla::ErrorResult& aError);
+  void Blur(mozilla::ErrorResult& aError);
   void GetAccessKey(nsString& aAccessKey)
   {
     GetHTMLAttr(nsGkAtoms::accesskey, aAccessKey);
@@ -226,14 +225,6 @@ public:
                 aSpellcheck ? NS_LITERAL_STRING("true")
                             : NS_LITERAL_STRING("false"),
                 aError);
-  }
-  bool Scrollgrab() const
-  {
-    return mScrollgrab;
-  }
-  void SetScrollgrab(bool aValue)
-  {
-    mScrollgrab = aValue;
   }
 
   /**
@@ -939,9 +930,6 @@ public:
            tag == nsGkAtoms::object;
   }
 
-  static bool
-  IsScrollGrabAllowed(JSContext*, JSObject*);
-
 protected:
   /**
    * Add/remove this element to the documents name cache
@@ -1238,8 +1226,6 @@ protected:
 
 private:
   void ChangeEditableState(int32_t aChange);
-
-  bool mScrollgrab;
 };
 
 namespace mozilla {

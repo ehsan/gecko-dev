@@ -7,7 +7,6 @@
 #include "mozilla/MouseEvents.h"
 #include "mozilla/TextEvents.h"
 #include "mozilla/Util.h"
-#include "mozilla/WindowsVersion.h"
 
 #include "KeyboardLayout.h"
 #include "nsIMM32Handler.h"
@@ -582,7 +581,7 @@ NativeKey::NativeKey(nsWindowBase* aWidget,
   // On WinXP and WinServer2003, we cannot compute the virtual keycode for
   // extended keys due to the API limitation.
   bool canComputeVirtualKeyCodeFromScanCode =
-    (!mIsExtended || IsVistaOrLater());
+    (!mIsExtended || WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION);
   switch (mMsg.message) {
     case WM_KEYDOWN:
     case WM_SYSKEYDOWN:
@@ -810,7 +809,8 @@ NativeKey::GetScanCodeWithExtendedFlag() const
   // a virtual keycode, we need to add 0xE000 to the scancode.
   // On Win XP and Win Server 2003, this doesn't support. On them, we have
   // no way to get virtual keycodes from scancode of extended keys.
-  if (!mIsExtended || !IsVistaOrLater()) {
+  if (!mIsExtended ||
+      WinUtils::GetWindowsVersion() < WinUtils::VISTA_VERSION) {
     return mScanCode;
   }
   return (0xE000 | mScanCode);
@@ -892,9 +892,11 @@ NativeKey::ComputeVirtualKeyCodeFromScanCode() const
 uint8_t
 NativeKey::ComputeVirtualKeyCodeFromScanCodeEx() const
 {
+  bool VistaOrLater =
+    (WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION);
   // NOTE: WinXP doesn't support mapping scan code to virtual keycode of
   //       extended keys.
-  NS_ENSURE_TRUE(!mIsExtended || IsVistaOrLater(), 0);
+  NS_ENSURE_TRUE(!mIsExtended || VistaOrLater, 0);
   return static_cast<uint8_t>(
            ::MapVirtualKeyEx(GetScanCodeWithExtendedFlag(), MAPVK_VSC_TO_VK_EX,
                              mKeyboardLayout));

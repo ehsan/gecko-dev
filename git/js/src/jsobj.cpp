@@ -2907,13 +2907,13 @@ js_InitNullClass(JSContext *cx, HandleObject obj)
     return nullptr;
 }
 
-#define DECLARE_PROTOTYPE_CLASS_INIT(name,code,init,clasp) \
+#define DECLARE_PROTOTYPE_CLASS_INIT(name,code,init) \
     extern JSObject *init(JSContext *cx, Handle<JSObject*> obj);
 JS_FOR_EACH_PROTOTYPE(DECLARE_PROTOTYPE_CLASS_INIT)
 #undef DECLARE_PROTOTYPE_CLASS_INIT
 
 static const ClassInitializerOp lazy_prototype_init[JSProto_LIMIT] = {
-#define LAZY_PROTOTYPE_INIT(name,code,init,clasp) init,
+#define LAZY_PROTOTYPE_INIT(name,code,init) init,
     JS_FOR_EACH_PROTOTYPE(LAZY_PROTOTYPE_INIT)
 #undef LAZY_PROTOTYPE_INIT
 };
@@ -4263,7 +4263,7 @@ GetPropertyHelperInline(JSContext *cx,
             /* Ok, bad undefined property reference: whine about it. */
             RootedValue val(cx, IdToValue(id));
             if (!js_ReportValueErrorFlags(cx, flags, JSMSG_UNDEFINED_PROP,
-                                          JSDVG_IGNORE_STACK, val, js::NullPtr(),
+                                          JSDVG_IGNORE_STACK, val, NullPtr(),
                                           nullptr, nullptr))
             {
                 return false;
@@ -4573,7 +4573,7 @@ JSObject::reportReadOnly(ThreadSafeContext *cxArg, jsid id, unsigned report)
     JSContext *cx = cxArg->asJSContext();
     RootedValue val(cx, IdToValue(id));
     return js_ReportValueErrorFlags(cx, report, JSMSG_READ_ONLY,
-                                    JSDVG_IGNORE_STACK, val, js::NullPtr(),
+                                    JSDVG_IGNORE_STACK, val, NullPtr(),
                                     nullptr, nullptr);
 }
 
@@ -4589,7 +4589,7 @@ JSObject::reportNotConfigurable(ThreadSafeContext *cxArg, jsid id, unsigned repo
     JSContext *cx = cxArg->asJSContext();
     RootedValue val(cx, IdToValue(id));
     return js_ReportValueErrorFlags(cx, report, JSMSG_CANT_DELETE,
-                                    JSDVG_IGNORE_STACK, val, js::NullPtr(),
+                                    JSDVG_IGNORE_STACK, val, NullPtr(),
                                     nullptr, nullptr);
 }
 
@@ -4605,7 +4605,7 @@ JSObject::reportNotExtensible(ThreadSafeContext *cxArg, unsigned report)
     JSContext *cx = cxArg->asJSContext();
     RootedValue val(cx, ObjectValue(*this));
     return js_ReportValueErrorFlags(cx, report, JSMSG_OBJECT_NOT_EXTENSIBLE,
-                                    JSDVG_IGNORE_STACK, val, js::NullPtr(),
+                                    JSDVG_IGNORE_STACK, val, NullPtr(),
                                     nullptr, nullptr);
 }
 
@@ -5391,7 +5391,7 @@ js_GetObjectSlotName(JSTracer *trc, char *buf, size_t bufsize)
     if (!shape) {
         const char *slotname = nullptr;
         if (obj->is<GlobalObject>()) {
-#define TEST_SLOT_MATCHES_PROTOTYPE(name,code,init,clasp)                     \
+#define TEST_SLOT_MATCHES_PROTOTYPE(name,code,init)                           \
             if ((code) == slot) { slotname = js_##name##_str; goto found; }
             JS_FOR_EACH_PROTOTYPE(TEST_SLOT_MATCHES_PROTOTYPE)
 #undef TEST_SLOT_MATCHES_PROTOTYPE

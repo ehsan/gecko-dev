@@ -198,12 +198,12 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
         });
     }
 
-    public void showSurface() {
+    public void show() {
         // Fix this if TextureView support is turned back on above
         mSurfaceView.setVisibility(View.VISIBLE);
     }
 
-    public void hideSurface() {
+    public void hide() {
         // Fix this if TextureView support is turned back on above
         mSurfaceView.setVisibility(View.INVISIBLE);
     }

@@ -105,7 +105,7 @@ int32_t DeviceInfoAndroid::GetDeviceName(
   if (cid != NULL) {
     jobject javaDeviceNameObj = env->CallObjectMethod(javaCmDevInfoObject,
                                                       cid, deviceNumber);
-    if (javaDeviceNameObj == NULL || jniFrame.CheckForException()) {
+    if (javaDeviceNameObj == NULL) {
       WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceVideoCapture, _id,
                    "%s: Failed to get device name for device %d.",
                    __FUNCTION__, (int) deviceNumber);
@@ -200,7 +200,7 @@ int32_t DeviceInfoAndroid::CreateCapabilityMap(
   // Call the java class and get an array with capabilities back.
   jobject javaCapabilitiesObj = env->CallObjectMethod(javaCmDevInfoObject,
                                                       cid, capureIdString);
-  if (!javaCapabilitiesObj || jniFrame.CheckForException()) {
+  if (!javaCapabilitiesObj) {
     WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceVideoCapture, _id,
                  "%s: Failed to call java GetCapabilityArray.",
                  __FUNCTION__);

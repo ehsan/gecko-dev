@@ -99,7 +99,7 @@ public:
   SHA1Sum::Hash mHash;
 };
 
-const PLDHashTableOps CacheFileHandles::mOps =
+PLDHashTableOps CacheFileHandles::mOps =
 {
   PL_DHashAllocTable,
   PL_DHashFreeTable,

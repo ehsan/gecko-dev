@@ -49,9 +49,7 @@ NS_IMPL_CI_INTERFACE_GETTER4(
 class AsyncStatementClassInfo : public nsIClassInfo
 {
 public:
-  MOZ_CONSTEXPR AsyncStatementClassInfo() {}
-
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_ISUPPORTS
 
   NS_IMETHODIMP
   GetInterfaces(uint32_t *_count, nsIID ***_array)

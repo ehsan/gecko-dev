@@ -344,7 +344,7 @@ GetCustomIterator(JSContext *cx, HandleObject obj, unsigned flags, MutableHandle
             return false;
         RootedValue val(cx, ObjectValue(*obj));
         js_ReportValueError2(cx, JSMSG_BAD_TRAP_RETURN_VALUE,
-                             -1, val, js::NullPtr(), bytes.ptr());
+                             -1, val, NullPtr(), bytes.ptr());
         return false;
     }
     return true;
@@ -1702,7 +1702,7 @@ star_generator_next(JSContext *cx, CallArgs args)
     if (gen->state == JSGEN_NEWBORN && args.hasDefined(0)) {
         RootedValue val(cx, args[0]);
         js_ReportValueError(cx, JSMSG_BAD_GENERATOR_SEND,
-                            JSDVG_SEARCH_STACK, val, js::NullPtr());
+                            JSDVG_SEARCH_STACK, val, NullPtr());
         return false;
     }
 
@@ -1737,7 +1737,7 @@ legacy_generator_next(JSContext *cx, CallArgs args)
     if (gen->state == JSGEN_NEWBORN && args.hasDefined(0)) {
         RootedValue val(cx, args[0]);
         js_ReportValueError(cx, JSMSG_BAD_GENERATOR_SEND,
-                            JSDVG_SEARCH_STACK, val, js::NullPtr());
+                            JSDVG_SEARCH_STACK, val, NullPtr());
         return false;
     }
 
@@ -1945,7 +1945,7 @@ GlobalObject::initIteratorClasses(JSContext *cx, Handle<GlobalObject *> global)
         if (!DefineConstructorAndPrototype(cx, global, JSProto_StopIteration, proto, proto))
             return false;
 
-        global->setConstructor(JSProto_StopIteration, ObjectValue(*proto));
+        global->markStandardClassInitializedNoProto(&StopIterationObject::class_);
     }
 
     return true;

@@ -107,8 +107,7 @@ RotatedBuffer::DrawBufferQuadrant(gfxContext* aTarget,
     } else if (mDTBuffer) {
       source = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mDTBuffer);
     } else {
-      NS_WARNING("Can't draw a RotatedBuffer without any buffer!");
-      return;
+      NS_RUNTIMEABORT("Can't draw a RotatedBuffer without any buffer!");
     }
   } else {
     MOZ_ASSERT(aSource == BUFFER_WHITE);
@@ -117,8 +116,7 @@ RotatedBuffer::DrawBufferQuadrant(gfxContext* aTarget,
     } else if (mDTBufferOnWhite) {
       source = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mDTBufferOnWhite);
     } else {
-      NS_WARNING("Can't draw a RotatedBuffer without any buffer!");
-      return;
+      NS_RUNTIMEABORT("Can't draw a RotatedBuffer without any buffer!");
     }
   }
 
@@ -312,9 +310,7 @@ ThebesLayerBuffer::DrawTo(ThebesLayer* aLayer,
                           gfxASurface* aMask,
                           const gfxMatrix* aMaskTransform)
 {
-  if (!EnsureBuffer()) {
-    return;
-  }
+  EnsureBuffer();
 
   if (aTarget->IsCairo()) {
     aTarget->Save();
@@ -389,15 +385,11 @@ FillSurface(gfxASurface* aSurface, const nsIntRegion& aRegion,
 already_AddRefed<gfxContext>
 ThebesLayerBuffer::GetContextForQuadrantUpdate(const nsIntRect& aBounds, ContextSource aSource, nsIntPoint *aTopLeft)
 {
-  if (!EnsureBuffer()) {
-    return nullptr;
-  }
+  EnsureBuffer();
 
   nsRefPtr<gfxContext> ctx;
   if (aSource == BUFFER_BOTH && HaveBufferOnWhite()) {
-    if (!EnsureBufferOnWhite()) {
-      return nullptr;
-    }
+    EnsureBufferOnWhite();
     if (mBuffer) {
       MOZ_ASSERT(mBufferOnWhite);
       gfxASurface* surfaces[2] = { mBuffer, mBufferOnWhite };
@@ -418,9 +410,7 @@ ThebesLayerBuffer::GetContextForQuadrantUpdate(const nsIntRect& aBounds, Context
       ctx = new gfxContext(dualDT);
     }
   } else if (aSource == BUFFER_WHITE) {
-    if (!EnsureBufferOnWhite()) {
-      return nullptr;
-    }
+    EnsureBufferOnWhite();
     if (mBufferOnWhite) {
       ctx = new gfxContext(mBufferOnWhite);
     } else {
@@ -499,7 +489,7 @@ ThebesLayerBuffer::IsAzureBuffer()
   return SupportsAzureContent();
 }
 
-bool
+void
 ThebesLayerBuffer::EnsureBuffer()
 {
   if ((!mBuffer && !mDTBuffer) && mBufferProvider) {
@@ -511,12 +501,9 @@ ThebesLayerBuffer::EnsureBuffer()
       mDTBuffer = nullptr;
     }
   }
-
-  NS_WARN_IF_FALSE(mBuffer || mDTBuffer, "no buffer");
-  return mBuffer || mDTBuffer;
 }
 
-bool
+void
 ThebesLayerBuffer::EnsureBufferOnWhite()
 {
   if ((!mBufferOnWhite && !mDTBufferOnWhite) && mBufferProviderOnWhite) {
@@ -528,9 +515,6 @@ ThebesLayerBuffer::EnsureBufferOnWhite()
       mDTBufferOnWhite = nullptr;
     }
   }
-
-  NS_WARN_IF_FALSE(mBufferOnWhite || mDTBufferOnWhite, "no buffer");
-  return mBufferOnWhite || mDTBufferOnWhite;
 }
 
 bool
@@ -689,9 +673,7 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
     bufferFlags |= BUFFER_COMPONENT_ALPHA;
   }
   if (canReuseBuffer) {
-    if (!EnsureBuffer()) {
-      return result;
-    }
+    EnsureBuffer();
     nsIntRect keepArea;
     if (keepArea.IntersectRect(destBufferRect, mBufferRect)) {
       // Set mBufferRotation so that the pixels currently in mBuffer
@@ -719,9 +701,7 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
             mDTBuffer->CopyRect(IntRect(srcRect.x, srcRect.y, srcRect.width, srcRect.height),
                                 IntPoint(dest.x, dest.y));
             if (mode == Layer::SURFACE_COMPONENT_ALPHA) {
-              if (!EnsureBufferOnWhite()) {
-                return result;
-              }
+              EnsureBufferOnWhite();
               MOZ_ASSERT(mDTBufferOnWhite);
               mDTBufferOnWhite->CopyRect(IntRect(srcRect.x, srcRect.y, srcRect.width, srcRect.height),
                                          IntPoint(dest.x, dest.y));
@@ -730,9 +710,7 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
             MOZ_ASSERT(mBuffer);
             mBuffer->MovePixels(srcRect, dest);
             if (mode == Layer::SURFACE_COMPONENT_ALPHA) {
-              if (!EnsureBufferOnWhite()) {
-                return result;
-              }
+              EnsureBufferOnWhite();
               MOZ_ASSERT(mBufferOnWhite);
               mBufferOnWhite->MovePixels(srcRect, dest);
             }
@@ -760,9 +738,7 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
               mDTBuffer->ReleaseBits(data);
 
               if (mode == Layer::SURFACE_COMPONENT_ALPHA) {
-                if (!EnsureBufferOnWhite()) {
-                  return result;
-                }
+                EnsureBufferOnWhite();
                 MOZ_ASSERT(mDTBufferOnWhite);
                 mDTBufferOnWhite->LockBits(&data, &size, &stride, &format);
                 uint8_t bytesPerPixel = BytesPerPixel(format);
@@ -825,15 +801,11 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
       nsIntPoint offset = -destBufferRect.TopLeft();
       tmpCtx->SetOperator(gfxContext::OPERATOR_SOURCE);
       tmpCtx->Translate(gfxPoint(offset.x, offset.y));
-      if (!EnsureBuffer()) {
-        return result;
-      }
+      EnsureBuffer();
       DrawBufferWithRotation(tmpCtx, BUFFER_BLACK);
 
       if (mode == Layer::SURFACE_COMPONENT_ALPHA) {
-        if (!EnsureBufferOnWhite()) {
-          return result;
-        }
+        EnsureBufferOnWhite();
         NS_ASSERTION(destBufferOnWhite, "Must have a white buffer!");
         nsRefPtr<gfxContext> tmpCtx = new gfxContext(destBufferOnWhite);
         tmpCtx->SetOperator(gfxContext::OPERATOR_SOURCE);
@@ -855,19 +827,15 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
       Matrix mat;
       mat.Translate(offset.x, offset.y);
       destDTBuffer->SetTransform(mat);
-      if (!EnsureBuffer()) {
-        return result;
-      }
-       MOZ_ASSERT(mDTBuffer, "Have we got a Thebes buffer for some reason?");
+      EnsureBuffer();
+      MOZ_ASSERT(mDTBuffer, "Have we got a Thebes buffer for some reason?");
       DrawBufferWithRotation(destDTBuffer, BUFFER_BLACK, 1.0, OP_SOURCE);
       destDTBuffer->SetTransform(Matrix());
 
       if (mode == Layer::SURFACE_COMPONENT_ALPHA) {
         NS_ASSERTION(destDTBufferOnWhite, "Must have a white buffer!");
         destDTBufferOnWhite->SetTransform(mat);
-        if (!EnsureBufferOnWhite()) {
-          return result;
-        }
+        EnsureBufferOnWhite();
         MOZ_ASSERT(mDTBufferOnWhite, "Have we got a Thebes buffer for some reason?");
         DrawBufferWithRotation(destDTBufferOnWhite, BUFFER_WHITE, 1.0, OP_SOURCE);
         destDTBufferOnWhite->SetTransform(Matrix());

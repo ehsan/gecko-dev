@@ -21,14 +21,14 @@ class nsIObserver;
 namespace mozilla {
 namespace layers {
 
-class ClientLayerManager;
+class LayerManager;
 class CompositorParent;
 
 class CompositorChild : public PCompositorChild
 {
   NS_INLINE_DECL_REFCOUNTING(CompositorChild)
 public:
-  CompositorChild(ClientLayerManager *aLayerManager);
+  CompositorChild(LayerManager *aLayerManager);
   virtual ~CompositorChild();
 
   void Destroy();
@@ -44,9 +44,6 @@ public:
   static PCompositorChild* Get();
 
   static bool ChildProcessHasCompositor() { return sCompositor != nullptr; }
-
-  virtual bool RecvInvalidateAll() MOZ_OVERRIDE;
-
 protected:
   virtual PLayerTransactionChild*
     AllocPLayerTransactionChild(const nsTArray<LayersBackend>& aBackendHints,
@@ -59,7 +56,7 @@ protected:
   virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
 
 private:
-  nsRefPtr<ClientLayerManager> mLayerManager;
+  nsRefPtr<LayerManager> mLayerManager;
   nsCOMPtr<nsIObserver> mMemoryPressureObserver;
 
   // When we're in a child process, this is the process-global

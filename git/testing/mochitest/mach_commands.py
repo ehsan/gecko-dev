@@ -97,7 +97,6 @@ class MochitestRunner(MozbuildObject):
 
         self.tests_dir = os.path.join(self.topobjdir, '_tests')
         self.mochitest_dir = os.path.join(self.tests_dir, 'testing', 'mochitest')
-        self.lib_dir = os.path.join(self.topobjdir, 'dist', 'lib')
 
     def run_b2g_test(self, test_file=None, b2g_home=None, xre_path=None, **kwargs):
         """Runs a b2g mochitest.
@@ -189,9 +188,7 @@ class MochitestRunner(MozbuildObject):
         debugger_args=None, shuffle=False, keep_open=False, rerun_failures=False,
         no_autorun=False, repeat=0, run_until_failure=False, slow=False,
         chunk_by_dir=0, total_chunks=None, this_chunk=None, jsdebugger=False,
-        debug_on_failure=False, start_at=None, end_at=None, e10s=False,
-        dmd=False, dump_output_directory=None, dump_about_memory_after_test=False,
-        dump_dmd_after_test=False):
+        debug_on_failure=False, start_at=None, end_at=None, e10s=False):
         """Runs a mochitest.
 
         test_file is a path to a test file. It can be a relative path from the
@@ -278,9 +275,6 @@ class MochitestRunner(MozbuildObject):
         else:
             raise Exception('None or unrecognized mochitest suite type.')
 
-        if dmd:
-            options.dmdPath = self.lib_dir
-
         options.autorun = not no_autorun
         options.closeWhenDone = not keep_open
         options.shuffle = shuffle
@@ -299,9 +293,6 @@ class MochitestRunner(MozbuildObject):
         options.startAt = start_at
         options.endAt = end_at
         options.e10s = e10s
-        options.dumpAboutMemoryAfterTest = dump_about_memory_after_test
-        options.dumpDMDAfterTest = dump_dmd_after_test
-        options.dumpOutputDirectory = dump_output_directory
         mozinfo.update({"e10s": e10s}) # for test manifest parsing.
 
         options.failureFile = failure_file_path
@@ -442,22 +433,6 @@ def MochitestCommand(func):
     this_chunk = CommandArgument('--e10s', action='store_true',
         help='Run tests with electrolysis preferences and test filtering enabled.')
     func = this_chunk(func)
-
-    dmd = CommandArgument('--dmd', action='store_true',
-        help='Run tests with DMD active.')
-    func = dmd(func)
-
-    dumpAboutMemory = CommandArgument('--dump-about-memory-after-test', action='store_true',
-        help='Dump an about:memory log after every test.')
-    func = dumpAboutMemory(func)
-
-    dumpDMD = CommandArgument('--dump-dmd-after-test', action='store_true',
-        help='Dump a DMD log after every test.')
-    func = dumpDMD(func)
-
-    dumpOutputDirectory = CommandArgument('--dump-output-directory', action='store',
-        help='Specifies the directory in which to place dumped memory reports.')
-    func = dumpOutputDirectory(func)
 
     path = CommandArgument('test_file', default=None, nargs='?',
         metavar='TEST',

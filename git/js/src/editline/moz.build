@@ -6,7 +6,7 @@
 
 LIBRARY_NAME = 'editline'
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'editline.c',
     'sysunix.c',
 ]
