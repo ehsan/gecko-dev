@@ -128,7 +128,8 @@ let UI = {
   _storageBusyCount: 0,
 
   // Variable: isDOMWindowClosing
-  // Tells wether the parent window is about to close
+  // Tells wether we already received the "domwindowclosed" event and the parent
+  // windows is about to close.
   isDOMWindowClosing: false,
 
   // Variable: _browserKeys
@@ -256,19 +257,21 @@ let UI = {
         self._resize();
       });
 
-      // ___ setup event listener to save canvas images
-      gWindow.addEventListener("SSWindowClosing", function onWindowClosing() {
-        gWindow.removeEventListener("SSWindowClosing", onWindowClosing, false);
-
-        self.isDOMWindowClosing = true;
-
-        if (self.isTabViewVisible())
-          GroupItems.removeHiddenGroups();
-
-        Storage.saveActiveGroupName(gWindow);
-        TabItems.saveAll(true);
-        self._save();
-      }, false);
+      // ___ setup observer to save canvas images
+      function domWinClosedObserver(subject, topic, data) {
+        if (topic == "domwindowclosed" && subject == gWindow) {
+          self.isDOMWindowClosing = true;
+          if (self.isTabViewVisible())
+            GroupItems.removeHiddenGroups();
+          TabItems.saveAll(true);
+          self._save();
+        }
+      }
+      Services.obs.addObserver(
+        domWinClosedObserver, "domwindowclosed", false);
+      this._cleanupFunctions.push(function() {
+        Services.obs.removeObserver(domWinClosedObserver, "domwindowclosed");
+      });
 
       // ___ Done
       this._frameInitialized = true;
