@@ -1121,7 +1121,7 @@ ValueToNative(JSContext* cx, jsval v, uint8 type, double* slot)
              return false;
         }
         *(JSBool*)slot = JSVAL_TO_BOOLEAN(v);
-        debug_only_v(printf("boolean<%d> ", *(JSBool*)slot);)
+        debug_only_v(printf("boolean<%d> ", *(bool*)slot);)
         return true;
       case JSVAL_STRING:
         if (v == JSVAL_VOID) {
@@ -1210,8 +1210,8 @@ NativeToValue(JSContext* cx, jsval& v, uint8 type, double* slot)
     jsdouble d;
     switch (type) {
       case JSVAL_BOOLEAN:
-        v = BOOLEAN_TO_JSVAL(*(JSBool*)slot);
-        debug_only_v(printf("boolean<%d> ", *(JSBool*)slot);)
+        v = BOOLEAN_TO_JSVAL(*(bool*)slot);
+        debug_only_v(printf("boolean<%d> ", *(bool*)slot);)
         break;
       case JSVAL_INT:
         i = *(jsint*)slot;
@@ -2351,7 +2351,7 @@ js_RecordLoopEdge(JSContext* cx, TraceRecorder* r, jsbytecode* oldpc, uintN& inl
 {
 #ifdef JS_THREADSAFE
     if (OBJ_SCOPE(JS_GetGlobalForObject(cx, cx->fp->scopeChain))->title.ownercx != cx) {
-        js_AbortRecording(cx, oldpc, "Global object not owned by this context");
+        debug_only_v(printf("Global object not owned by this context.\n"););
         return false; /* we stay away from shared global objects */
     }
 #endif
@@ -2856,7 +2856,7 @@ js_InitJIT(JSTraceMonitor *tm)
         avmplus::AvmCore::sse2_available = js_CheckForSSE2();
         did_we_check_sse2 = true;
     }
-#elif defined NANOJIT_AMD64
+#else if defined NANOJIT_AMD64
     avmplus::AvmCore::cmov_available =
     avmplus::AvmCore::sse2_available = true;
 #endif
@@ -3373,12 +3373,14 @@ TraceRecorder::cmp(LOpcode op, int flags)
         ABORT_TRACE("unsupported operand types for cmp");
     }
 
-    /* If we didn't generate a constant result yet, then emit the comparison now. */
+    /* If we didn't generate a constant result yet, than emit the comparison now. */
     if (!x) {
-        /* If the result is not a number or it's not a quad, we must use an integer compare. */
-        if (!isNumber(l) || !l_ins->isQuad()) {
+        if (!l_ins->isQuad()) {
+            JS_ASSERT(!r_ins->isQuad());
             JS_ASSERT(op >= LIR_feq && op <= LIR_fge);
             op = LOpcode(op + (LIR_eq - LIR_feq));
+        } else {
+            JS_ASSERT(r_ins->isQuad());
         }
         x = lir->ins2(op, l_ins, r_ins);
         if (negate) {
@@ -4858,7 +4860,7 @@ TraceRecorder::record_JSOP_SETELEM()
         guard(false, lir->ins_eq0(ok_ins), MISMATCH_EXIT);    
     } else if (JSVAL_IS_INT(idx)) {
         if (JSVAL_TO_INT(idx) < 0)
-            ABORT_TRACE("negative JSOP_GETELEM index");
+            ABORT_TRACE("negative JSOP_SETELEM index");
         idx_ins = makeNumberInt32(idx_ins);
         LIns* args[] = { boxed_v_ins, idx_ins, obj_ins, cx_ins };
         LIns* res_ins;
@@ -4868,7 +4870,7 @@ TraceRecorder::record_JSOP_SETELEM()
             if (!js_IndexToId(cx, JSVAL_TO_INT(idx), &id))
                 return false;
             idx = ID_TO_VALUE(id);
-            if (!guardElemOp(obj, obj_ins, id, offsetof(JSObjectOps, getProperty), &v))
+            if (!guardElemOp(obj, obj_ins, id, offsetof(JSObjectOps, setProperty), NULL))
                 return false;
             res_ins = lir->insCall(F_Any_setelem, args);
         }
@@ -5282,26 +5284,6 @@ TraceRecorder::record_JSOP_CALL()
             break;
           default:
             JS_NOT_REACHED("illegal number of args to traceable native");
-        }
-        
-        /* If we got this far, and we have a charCodeAt, check that charCodeAt isn't going to 
-         * return a NaN. 
-         */
-        if (known->builtin == F_String_p_charCodeAt) {
-            JSString* str = JSVAL_TO_STRING(thisval);
-            jsval& arg = arg1_ins ? arg1 : stackval(-1);
-
-            JS_ASSERT(JSVAL_IS_STRING(thisval)); 
-            JS_ASSERT(isNumber(arg));
-
-            if (JSVAL_IS_INT(arg)) {
-                if (size_t(JSVAL_TO_INT(arg)) >= JSSTRING_LENGTH(str))
-                    ABORT_TRACE("invalid charCodeAt index");
-            } else {
-                double d = js_DoubleToInteger(*JSVAL_TO_DOUBLE(arg));
-                if (d < 0 || JSSTRING_LENGTH(str) <= d)
-                    ABORT_TRACE("invalid charCodeAt index");
-            }
         }
 
 #undef HANDLE_ARG
