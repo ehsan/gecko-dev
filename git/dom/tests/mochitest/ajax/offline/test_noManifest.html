@@ -22,9 +22,7 @@ function expectInvalidState(fn, desc) {
 }
 
 is(typeof(applicationCache), "object");
-if (SpecialPowers.isMainProcess()) {
-  is(applicationCache.mozLength, 0, "applicationCache.mozLength should be 0");
-}
+is(applicationCache.mozLength, 0, "applicationCache.mozLength should be 0");
 is(applicationCache.status, 0, "applicationCache.status should be 0 (UNCACHED)");
 
 expectInvalidState(function() { applicationCache.update(); },

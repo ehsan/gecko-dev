@@ -1727,8 +1727,7 @@ var XPIProvider = {
   bootstrapScopes: {},
   // True if the platform could have activated extensions
   extensionsActive: false,
-  // File / directory state of installed add-ons
-  installStates: [],
+
   // True if all of the add-ons found during startup were installed in the
   // application install location
   allAppGlobal: true,
@@ -3372,8 +3371,7 @@ var XPIProvider = {
     }
 
     // Cache the new install location states
-    this.installStates = this.getInstallLocationStates();
-    let cache = JSON.stringify(this.installStates);
+    let cache = JSON.stringify(this.getInstallLocationStates());
     Services.prefs.setCharPref(PREF_INSTALL_CACHE, cache);
     this.persistBootstrappedAddons();
 
@@ -3447,6 +3445,11 @@ var XPIProvider = {
       updateReasons.push("hasPendingChanges");
     }
 
+    // If the schema appears to have changed then we should update the database
+    if (DB_SCHEMA != Prefs.getIntPref(PREF_DB_SCHEMA, 0)) {
+      updateReasons.push("schemaChanged");
+    }
+
     // If the application has changed then check for new distribution add-ons
     if (aAppChanged !== false &&
         Prefs.getBoolPref(PREF_INSTALL_DISTRO_ADDONS, true))
@@ -3459,18 +3462,16 @@ var XPIProvider = {
 
     // Telemetry probe added around getInstallLocationStates() to check perf
     let telemetryCaptureTime = Date.now();
-    this.installStates = this.getInstallLocationStates();
+    let state = this.getInstallLocationStates();
     let telemetry = Services.telemetry;
     telemetry.getHistogramById("CHECK_ADDONS_MODIFIED_MS").add(Date.now() - telemetryCaptureTime);
 
     // If the install directory state has changed then we must update the database
-    let cache = Prefs.getCharPref(PREF_INSTALL_CACHE, "[]");
+    let cache = Prefs.getCharPref(PREF_INSTALL_CACHE, null);
     // For a little while, gather telemetry on whether the deep comparison
     // makes a difference
-    let newState = JSON.stringify(this.installStates);
-    if (cache != newState) {
-      LOG("Directory state JSON differs: cache " + cache + " state " + newState);
-      if (directoryStateDiffers(this.installStates, cache)) {
+    if (cache != JSON.stringify(state)) {
+      if (directoryStateDiffers(state, cache)) {
         updateReasons.push("directoryState");
       }
       else {
@@ -3478,24 +3479,11 @@ var XPIProvider = {
       }
     }
 
-    // If the schema appears to have changed then we should update the database
-    if (DB_SCHEMA != Prefs.getIntPref(PREF_DB_SCHEMA, 0)) {
-      // If we don't have any add-ons, just update the pref, since we don't need to
-      // write the database
-      if (this.installStates.length == 0) {
-        LOG("Empty XPI database, setting schema version preference to " + DB_SCHEMA);
-        Services.prefs.setIntPref(PREF_DB_SCHEMA, DB_SCHEMA);
-      }
-      else {
-        updateReasons.push("schemaChanged");
-      }
-    }
-
     // If the database doesn't exist and there are add-ons installed then we
     // must update the database however if there are no add-ons then there is
     // no need to update the database.
     let dbFile = FileUtils.getFile(KEY_PROFILEDIR, [FILE_DATABASE], true);
-    if (!dbFile.exists() && this.installStates.length > 0) {
+    if (!dbFile.exists() && state.length > 0) {
       updateReasons.push("needNewDatabase");
     }
 
@@ -3503,7 +3491,7 @@ var XPIProvider = {
       let bootstrapDescriptors = [this.bootstrappedAddons[b].descriptor
                                   for (b in this.bootstrappedAddons)];
 
-      this.installStates.forEach(function(aInstallLocationState) {
+      state.forEach(function(aInstallLocationState) {
         for (let id in aInstallLocationState.addons) {
           let pos = bootstrapDescriptors.indexOf(aInstallLocationState.addons[id].descriptor);
           if (pos != -1)
@@ -3526,7 +3514,7 @@ var XPIProvider = {
         AddonManagerPrivate.recordSimpleMeasure("XPIDB_startup_load_reasons", updateReasons);
         XPIDatabase.syncLoadDB(false);
         try {
-          extensionListChanged = this.processFileChanges(this.installStates, manifests,
+          extensionListChanged = this.processFileChanges(state, manifests,
                                                          aAppChanged,
                                                          aOldAppVersion,
                                                          aOldPlatformVersion);
@@ -3578,7 +3566,7 @@ var XPIProvider = {
     // Check that the add-ons list still exists
     let addonsList = FileUtils.getFile(KEY_PROFILEDIR, [FILE_XPI_ADDONS_LIST],
                                        true);
-    if (addonsList.exists() == (this.installStates.length == 0)) {
+    if (addonsList.exists() == (state.length == 0)) {
       LOG("Add-ons list is invalid, rebuilding");
       XPIDatabase.writeAddonsList();
     }

@@ -236,7 +236,7 @@ public:
 
   void SetParameters(bool aAnon, bool aSystem)
   {
-    mIsAnon = aAnon || aSystem;
+    mIsAnon = aAnon;
     mIsSystem = aSystem;
   }
 
