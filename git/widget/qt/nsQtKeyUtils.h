@@ -8,7 +8,7 @@
 #ifndef __nsQtKeyUtils_h__
 #define __nsQtKeyUtils_h__
 
-#include "mozilla/EventForwards.h"
+#include "nsEvent.h"
 
 int      QtKeyCodeToDOMKeyCode     (int aKeysym);
 int      DOMKeyCodeToQtKeyCode     (int aKeysym);

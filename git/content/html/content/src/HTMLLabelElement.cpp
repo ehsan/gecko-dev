@@ -115,7 +115,7 @@ nsresult
 HTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 {
   if (mHandlingEvent ||
-      (!aVisitor.mEvent->IsLeftClickEvent() &&
+      (!NS_IS_MOUSE_LEFT_CLICK(aVisitor.mEvent) &&
        aVisitor.mEvent->message != NS_MOUSE_BUTTON_DOWN) ||
       aVisitor.mEventStatus == nsEventStatus_eConsumeNoDefault ||
       !aVisitor.mPresContext ||
@@ -146,7 +146,7 @@ HTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
         break;
 
       case NS_MOUSE_CLICK:
-        if (aVisitor.mEvent->IsLeftClickEvent()) {
+        if (NS_IS_MOUSE_LEFT_CLICK(aVisitor.mEvent)) {
           const nsMouseEvent* event =
             static_cast<const nsMouseEvent*>(aVisitor.mEvent);
           LayoutDeviceIntPoint* mouseDownPoint =

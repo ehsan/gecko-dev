@@ -35,12 +35,12 @@ public:
 
     // Create a DIB surface
     gfxWindowsSurface(const gfxIntSize& size,
-                      gfxImageFormat imageFormat = gfxImageFormatRGB24);
+                      gfxImageFormat imageFormat = ImageFormatRGB24);
 
     // Create a DDB surface; dc may be nullptr to use the screen DC
     gfxWindowsSurface(HDC dc,
                       const gfxIntSize& size,
-                      gfxImageFormat imageFormat = gfxImageFormatRGB24);
+                      gfxImageFormat imageFormat = ImageFormatRGB24);
 
     gfxWindowsSurface(cairo_surface_t *csurf);
 
@@ -79,7 +79,7 @@ public:
 
     // The memory used by this surface lives in this process's address space,
     // but not in the heap.
-    virtual gfxMemoryLocation GetMemoryLocation() const;
+    virtual gfxASurface::MemoryLocation GetMemoryLocation() const;
 
 private:
     void MakeInvalid(gfxIntSize& size);

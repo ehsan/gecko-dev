@@ -108,7 +108,7 @@ CanvasLayerD3D9::UpdateSurface()
           new gfxImageSurface((uint8_t*)rect.pBits,
                               shareSurf->Size(),
                               rect.Pitch,
-                              gfxImageFormatARGB32);
+                              gfxASurface::ImageFormatARGB32);
 
       gfxContext ctx(mapSurf);
       ctx.SetOperator(gfxContext::OPERATOR_SOURCE);
@@ -134,18 +134,18 @@ CanvasLayerD3D9::UpdateSurface()
 
     nsRefPtr<gfxImageSurface> sourceSurface;
 
-    if (mSurface->GetType() == gfxSurfaceTypeWin32) {
+    if (mSurface->GetType() == gfxASurface::SurfaceTypeWin32) {
       sourceSurface = mSurface->GetAsImageSurface();
-    } else if (mSurface->GetType() == gfxSurfaceTypeImage) {
+    } else if (mSurface->GetType() == gfxASurface::SurfaceTypeImage) {
       sourceSurface = static_cast<gfxImageSurface*>(mSurface.get());
-      if (sourceSurface->Format() != gfxImageFormatARGB32 &&
-          sourceSurface->Format() != gfxImageFormatRGB24)
+      if (sourceSurface->Format() != gfxASurface::ImageFormatARGB32 &&
+          sourceSurface->Format() != gfxASurface::ImageFormatRGB24)
       {
         return;
       }
     } else {
       sourceSurface = new gfxImageSurface(gfxIntSize(mBounds.width, mBounds.height),
-                                          gfxImageFormatARGB32);
+                                          gfxASurface::ImageFormatARGB32);
       nsRefPtr<gfxContext> ctx = new gfxContext(sourceSurface);
       ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
       ctx->SetSource(mSurface);
@@ -155,7 +155,7 @@ CanvasLayerD3D9::UpdateSurface()
     uint8_t *startBits = sourceSurface->Data();
     uint32_t sourceStride = sourceSurface->Stride();
 
-    if (sourceSurface->Format() != gfxImageFormatARGB32) {
+    if (sourceSurface->Format() != gfxASurface::ImageFormatARGB32) {
       mHasAlpha = false;
     } else {
       mHasAlpha = true;

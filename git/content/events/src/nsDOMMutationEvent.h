@@ -9,8 +9,8 @@
 #include "nsIDOMMutationEvent.h"
 #include "nsINode.h"
 #include "nsDOMEvent.h"
+#include "nsMutationEvent.h"
 #include "mozilla/dom/MutationEventBinding.h"
-#include "mozilla/EventForwards.h"
 
 class nsDOMMutationEvent : public nsDOMEvent,
                            public nsIDOMMutationEvent
@@ -39,9 +39,17 @@ public:
   // GetNewValue(nsAString& aNewValue);
   // GetAttrName(nsAString& aAttrName);
 
-  already_AddRefed<nsINode> GetRelatedNode();
+  already_AddRefed<nsINode> GetRelatedNode()
+  {
+    nsCOMPtr<nsINode> n =
+      do_QueryInterface(static_cast<nsMutationEvent*>(mEvent)->mRelatedNode);
+    return n.forget();
+  }
 
-  uint16_t AttrChange();
+  uint16_t AttrChange()
+  {
+    return static_cast<nsMutationEvent*>(mEvent)->mAttrChange;
+  }
 
   void InitMutationEvent(const nsAString& aType,
                          bool& aCanBubble, bool& aCancelable,

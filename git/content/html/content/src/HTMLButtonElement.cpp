@@ -197,7 +197,7 @@ HTMLButtonElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   // DOMActivate that was dispatched directly, this will be set, but if we're
   // a DOMActivate dispatched from click handling, it will not be set.
   bool outerActivateEvent =
-    (aVisitor.mEvent->IsLeftClickEvent() ||
+    (NS_IS_MOUSE_LEFT_CLICK(aVisitor.mEvent) ||
      (aVisitor.mEvent->message == NS_UI_ACTIVATE &&
       !mInInternalActivate));
 
@@ -224,7 +224,7 @@ HTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
   }
 
   if (aVisitor.mEventStatus != nsEventStatus_eConsumeNoDefault &&
-      aVisitor.mEvent->IsLeftClickEvent()) {
+      NS_IS_MOUSE_LEFT_CLICK(aVisitor.mEvent)) {
     nsUIEvent actEvent(aVisitor.mEvent->mFlags.mIsTrusted, NS_UI_ACTIVATE, 1);
 
     nsCOMPtr<nsIPresShell> shell = aVisitor.mPresContext->GetPresShell();

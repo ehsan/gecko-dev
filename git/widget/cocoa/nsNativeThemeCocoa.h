@@ -13,6 +13,7 @@
 #include "nsCOMPtr.h"
 #include "nsIAtom.h"
 #include "nsNativeTheme.h"
+#include "gfxASurface.h"
 
 @class CellDrawView;
 @class NSProgressBarCell;

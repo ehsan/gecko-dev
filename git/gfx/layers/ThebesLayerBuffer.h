@@ -52,7 +52,7 @@ class ThebesLayer;
  */
 class RotatedBuffer {
 public:
-  typedef gfxContentType ContentType;
+  typedef gfxASurface::gfxContentType ContentType;
 
   RotatedBuffer(gfxASurface* aBuffer, gfxASurface* aBufferOnWhite,
                 const nsIntRect& aBufferRect,
@@ -154,7 +154,7 @@ protected:
  */
 class ThebesLayerBuffer : public RotatedBuffer {
 public:
-  typedef gfxContentType ContentType;
+  typedef gfxASurface::gfxContentType ContentType;
 
   /**
    * Controls the size of the backing buffer of this.
@@ -378,7 +378,7 @@ protected:
    * Return the buffer's content type.  Requires a valid buffer or
    * buffer provider.
    */
-  gfxContentType BufferContentType();
+  gfxASurface::gfxContentType BufferContentType();
   bool BufferSizeOkFor(const nsIntSize& aSize);
   /**
    * If the buffer hasn't been mapped, map it.

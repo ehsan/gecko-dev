@@ -1,5 +1,9 @@
 /***********************************************************************
-Copyright (c) 2006-2011, Skype Limited. All rights reserved.
+Copyright (c) 2006-2012 IETF Trust and Skype Limited. All rights reserved.
+
+This file is extracted from RFC6716. Please see that RFC for additional
+information.
+
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions
 are met:
@@ -12,7 +16,7 @@ documentation and/or other materials provided with the distribution.
 names of specific contributors, may be used to endorse or promote
 products derived from this software without specific prior written
 permission.
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS “AS IS”
 AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
 ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
@@ -54,7 +58,7 @@ void silk_find_pitch_lags_FLP(
     /******************************************/
     buf_len = psEnc->sCmn.la_pitch + psEnc->sCmn.frame_length + psEnc->sCmn.ltp_mem_length;
 
-    /* Safety check */
+    /* Safty check */
     silk_assert( buf_len >= psEnc->sCmn.pitch_LPC_win_length );
 
     x_buf = x - psEnc->sCmn.ltp_mem_length;
@@ -96,7 +100,7 @@ void silk_find_pitch_lags_FLP(
     silk_k2a_FLP( A, refl_coef, psEnc->sCmn.pitchEstimationLPCOrder );
 
     /* Bandwidth expansion */
-    silk_bwexpander_FLP( A, psEnc->sCmn.pitchEstimationLPCOrder, FIND_PITCH_BANDWIDTH_EXPANSION );
+    silk_bwexpander_FLP( A, psEnc->sCmn.pitchEstimationLPCOrder, FIND_PITCH_BANDWITH_EXPANSION );
 
     /*****************************************/
     /* LPC analysis filtering                */

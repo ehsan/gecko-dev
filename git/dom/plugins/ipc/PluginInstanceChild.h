@@ -30,14 +30,13 @@
 #include "nsRect.h"
 #include "nsTHashtable.h"
 #include "mozilla/PaintTracker.h"
+#include "gfxASurface.h"
 
 #include <map>
 
 #if (MOZ_WIDGET_GTK == 2)
 #include "gtk2xtbin.h"
 #endif
-
-class gfxASurface;
 
 namespace mozilla {
 

@@ -155,9 +155,9 @@ nsSVGFE::SetupScalingFilter(nsSVGFilterInstance *aInstance,
                                  nsIntRect(nsIntPoint(), scaledSize));
 
   result.mSource = new gfxImageSurface(scaledSize,
-                                       gfxImageFormatARGB32);
+                                       gfxASurface::ImageFormatARGB32);
   result.mTarget = new gfxImageSurface(scaledSize,
-                                       gfxImageFormatARGB32);
+                                       gfxASurface::ImageFormatARGB32);
   if (!result.mSource || result.mSource->CairoStatus() ||
       !result.mTarget || result.mTarget->CairoStatus()) {
     result.mSource = nullptr;

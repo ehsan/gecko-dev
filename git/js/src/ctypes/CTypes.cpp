@@ -164,6 +164,7 @@ namespace CType {
 
   static void Trace(JSTracer* trc, JSObject* obj);
   static void Finalize(JSFreeOp *fop, JSObject* obj);
+  static void FinalizeProtoClass(JSFreeOp *fop, JSObject* obj);
 
   static bool PrototypeGetter(JSContext* cx, HandleObject obj, HandleId idval,
     MutableHandleValue vp);
@@ -467,7 +468,7 @@ static const JSClass sCTypeProtoClass = {
   "CType",
   JSCLASS_HAS_RESERVED_SLOTS(CTYPEPROTO_SLOTS),
   JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
-  JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, NULL,
+  JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, CType::FinalizeProtoClass,
   NULL, ConstructAbstract, NULL, ConstructAbstract
 };
 
@@ -787,7 +788,7 @@ GetABICode(JSObject* obj)
   return ABICode(JSVAL_TO_INT(result));
 }
 
-static const JSErrorFormatString ErrorFormatString[CTYPESERR_LIMIT] = {
+static JSErrorFormatString ErrorFormatString[CTYPESERR_LIMIT] = {
 #define MSG_DEF(name, number, count, exception, format) \
   { format, count, exception } ,
 #include "ctypes/ctypes.msg"
@@ -3293,6 +3294,22 @@ CType::Finalize(JSFreeOp *fop, JSObject* obj)
 }
 
 void
+CType::FinalizeProtoClass(JSFreeOp *fop, JSObject* obj)
+{
+  // Finalize the CTypeProto class. The only important bit here is our
+  // SLOT_CLOSURECX -- it contains the JSContext that was (lazily) instantiated
+  // for use with FunctionType closures. And if we're here, in this finalizer,
+  // we're guaranteed to not need it anymore. Note that this slot will only
+  // be set for the object (of class CTypeProto) ctypes.FunctionType.prototype.
+  jsval slot = JS_GetReservedSlot(obj, SLOT_CLOSURECX);
+  if (JSVAL_IS_VOID(slot))
+    return;
+
+  JSContext* closureCx = static_cast<JSContext*>(JSVAL_TO_PRIVATE(slot));
+  JS_DestroyContextNoGC(closureCx);
+}
+
+void
 CType::Trace(JSTracer* trc, JSObject* obj)
 {
   // Make sure our TypeCode slot is legit. If it's not, bail.
@@ -4727,7 +4744,7 @@ PostBarrierCallback(JSTracer *trc, void *k, void *d)
     FieldInfoHash *table = static_cast<FieldInfoHash*>(d);
     JSString *key = prior;
     JS_CallStringTracer(trc, &key, "CType fieldName");
-    table->rekeyIfMoved(JS_ASSERT_STRING_IS_FLAT(prior), JS_ASSERT_STRING_IS_FLAT(key));
+    table->rekey(JS_ASSERT_STRING_IS_FLAT(prior), JS_ASSERT_STRING_IS_FLAT(key));
 }
 
 bool
@@ -5988,7 +6005,23 @@ CClosure::Create(JSContext* cx,
   JS_ASSERT(CType::IsCTypeProto(proto));
 
   // Get a JSContext for use with the closure.
-  cinfo->cx = js::DefaultJSContext(JS_GetRuntime(cx));
+  jsval slot = JS_GetReservedSlot(proto, SLOT_CLOSURECX);
+  if (!JSVAL_IS_VOID(slot)) {
+    // Use the existing JSContext.
+    cinfo->cx = static_cast<JSContext*>(JSVAL_TO_PRIVATE(slot));
+    JS_ASSERT(cinfo->cx);
+  } else {
+    // Lazily instantiate a new JSContext, and stash it on
+    // ctypes.FunctionType.prototype.
+    JSRuntime* runtime = JS_GetRuntime(cx);
+    cinfo->cx = JS_NewContext(runtime, 8192);
+    if (!cinfo->cx) {
+      JS_ReportOutOfMemory(cx);
+      return NULL;
+    }
+
+    JS_SetReservedSlot(proto, SLOT_CLOSURECX, PRIVATE_TO_JSVAL(cinfo->cx));
+  }
 
   // Prepare the error sentinel value. It's important to do this now, because
   // we might be unable to convert the value to the proper type. If so, we want

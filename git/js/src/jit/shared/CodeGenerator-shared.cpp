@@ -807,66 +807,61 @@ CodeGeneratorShared::callTraceLIR(uint32_t blockIndex, LInstruction *lir,
 {
     JS_ASSERT_IF(!lir, bailoutName);
 
+    uint32_t emi = (uint32_t) gen->info().executionMode();
+
     if (!IonSpewEnabled(IonSpew_Trace))
         return true;
+    masm.PushRegsInMask(RegisterSet::All());
 
-    uint32_t execMode = (uint32_t) gen->info().executionMode();
-    uint32_t lirIndex;
-    const char *lirOpName;
-    const char *mirOpName;
-    JSScript *script;
-    jsbytecode *pc;
+    RegisterSet regSet(RegisterSet::All());
 
-    masm.PushRegsInMask(RegisterSet::Volatile());
-    masm.reserveStack(sizeof(IonLIRTraceData));
+    Register blockIndexReg = regSet.takeGeneral();
+    Register lirIndexReg = regSet.takeGeneral();
+    Register emiReg = regSet.takeGeneral();
+    Register lirOpNameReg = regSet.takeGeneral();
+    Register mirOpNameReg = regSet.takeGeneral();
+    Register scriptReg = regSet.takeGeneral();
+    Register pcReg = regSet.takeGeneral();
 
     // This first move is here so that when you scan the disassembly,
     // you can easily pick out where each instruction begins.  The
     // next few items indicate to you the Basic Block / LIR.
-    masm.move32(Imm32(0xDEADBEEF), CallTempReg0);
+    masm.move32(Imm32(0xDEADBEEF), blockIndexReg);
 
     if (lir) {
-        lirIndex = lir->id();
-        lirOpName = lir->opName();
+        masm.move32(Imm32(blockIndex), blockIndexReg);
+        masm.move32(Imm32(lir->id()), lirIndexReg);
+        masm.move32(Imm32(emi), emiReg);
+        masm.movePtr(ImmPtr(lir->opName()), lirOpNameReg);
         if (MDefinition *mir = lir->mirRaw()) {
-            mirOpName = mir->opName();
-            script = mir->block()->info().script();
-            pc = mir->trackedPc();
+            masm.movePtr(ImmPtr(mir->opName()), mirOpNameReg);
+            masm.movePtr(ImmPtr(mir->block()->info().script()), scriptReg);
+            masm.movePtr(ImmPtr(mir->trackedPc()), pcReg);
         } else {
-            mirOpName = NULL;
-            script = NULL;
-            pc = NULL;
+            masm.movePtr(ImmPtr(NULL), mirOpNameReg);
+            masm.movePtr(ImmPtr(NULL), scriptReg);
+            masm.movePtr(ImmPtr(NULL), pcReg);
         }
     } else {
-        blockIndex = lirIndex = 0xDEADBEEF;
-        lirOpName = mirOpName = bailoutName;
-        script = NULL;
-        pc = NULL;
+        masm.move32(Imm32(0xDEADBEEF), blockIndexReg);
+        masm.move32(Imm32(0xDEADBEEF), lirIndexReg);
+        masm.move32(Imm32(emi), emiReg);
+        masm.movePtr(ImmPtr(bailoutName), lirOpNameReg);
+        masm.movePtr(ImmPtr(bailoutName), mirOpNameReg);
+        masm.movePtr(ImmPtr(NULL), scriptReg);
+        masm.movePtr(ImmPtr(NULL), pcReg);
     }
 
-    masm.store32(Imm32(blockIndex),
-                 Address(StackPointer, offsetof(IonLIRTraceData, blockIndex)));
-    masm.store32(Imm32(lirIndex),
-                 Address(StackPointer, offsetof(IonLIRTraceData, lirIndex)));
-    masm.store32(Imm32(execMode),
-                 Address(StackPointer, offsetof(IonLIRTraceData, execModeInt)));
-    masm.storePtr(ImmPtr(lirOpName),
-                  Address(StackPointer, offsetof(IonLIRTraceData, lirOpName)));
-    masm.storePtr(ImmPtr(mirOpName),
-                  Address(StackPointer, offsetof(IonLIRTraceData, mirOpName)));
-    masm.storePtr(ImmGCPtr(script),
-                  Address(StackPointer, offsetof(IonLIRTraceData, script)));
-    masm.storePtr(ImmPtr(pc),
-                  Address(StackPointer, offsetof(IonLIRTraceData, pc)));
-
-    masm.movePtr(StackPointer, CallTempReg0);
-    masm.setupUnalignedABICall(1, CallTempReg1);
-    masm.passABIArg(CallTempReg0);
+    masm.setupUnalignedABICall(7, CallTempReg4);
+    masm.passABIArg(blockIndexReg);
+    masm.passABIArg(lirIndexReg);
+    masm.passABIArg(emiReg);
+    masm.passABIArg(lirOpNameReg);
+    masm.passABIArg(mirOpNameReg);
+    masm.passABIArg(scriptReg);
+    masm.passABIArg(pcReg);
     masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, TraceLIR));
-
-    masm.freeStack(sizeof(IonLIRTraceData));
-    masm.PopRegsInMask(RegisterSet::Volatile());
-
+    masm.PopRegsInMask(RegisterSet::All());
     return true;
 }
 

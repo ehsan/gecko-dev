@@ -67,7 +67,7 @@
 #include "nsFocusManager.h"
 #include "nsAttrValueOrString.h"
 
-#include "mozilla/MutationEvent.h"
+#include "nsMutationEvent.h"
 #include "nsDOMStringMap.h"
 
 #include "nsIEditor.h"

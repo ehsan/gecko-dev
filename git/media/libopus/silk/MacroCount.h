@@ -1,5 +1,9 @@
 /***********************************************************************
-Copyright (c) 2006-2011, Skype Limited. All rights reserved.
+Copyright (c) 2006-2012 IETF Trust and Skype Limited. All rights reserved.
+
+This file is extracted from RFC6716. Please see that RFC for additional
+information.
+
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions
 are met:
@@ -12,7 +16,7 @@ documentation and/or other materials provided with the distribution.
 names of specific contributors, may be used to endorse or promote
 products derived from this software without specific prior written
 permission.
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS “AS IS”
 AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
 ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
@@ -477,7 +481,7 @@ static inline opus_int64 silk_abs_int64(opus_int64 a){
 #undef    silk_abs_int32
 static inline opus_int32 silk_abs_int32(opus_int32 a){
     ops_count += 1;
-    return silk_abs(a);
+    return abs(a);
 }
 
 
@@ -710,6 +714,7 @@ static inline opus_int silk_LIMIT_32(opus_int32 a, opus_int32 limit1, opus_int32
 }
 
 #else
+#define exVarDefine
 #define varDefine
 #define silk_SaveCount()
 
