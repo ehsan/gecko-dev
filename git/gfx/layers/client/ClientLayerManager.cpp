@@ -753,7 +753,7 @@ ClientLayerManager::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent,
   CSSToLayerScale paintScale = aMetrics.LayersPixelsPerCSSPixel();
   const CSSRect& metricsDisplayPort =
     (aDrawingCritical && !aMetrics.mCriticalDisplayPort.IsEmpty()) ?
-      aMetrics.mCriticalDisplayPort : aMetrics.GetDisplayPort();
+      aMetrics.mCriticalDisplayPort : aMetrics.mDisplayPort;
   LayerRect displayPort = (metricsDisplayPort + aMetrics.GetScrollOffset()) * paintScale;
 
   ParentLayerPoint scrollOffset;

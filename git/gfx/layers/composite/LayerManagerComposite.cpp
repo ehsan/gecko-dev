@@ -935,13 +935,13 @@ LayerManagerComposite::ComputeRenderIntegrity()
     }
 
     // Work out how much of the display-port covers the screen
-    if (!metrics.GetDisplayPort().IsEmpty()) {
+    if (!metrics.mDisplayPort.IsEmpty()) {
       if (hasLowPrecision) {
         lowPrecisionMultiplier =
-          GetDisplayportCoverage(metrics.GetDisplayPort(), transform, screenRect);
+          GetDisplayportCoverage(metrics.mDisplayPort, transform, screenRect);
       } else {
         lowPrecisionMultiplier = highPrecisionMultiplier =
-          GetDisplayportCoverage(metrics.GetDisplayPort(), transform, screenRect);
+          GetDisplayportCoverage(metrics.mDisplayPort, transform, screenRect);
       }
     }
   }

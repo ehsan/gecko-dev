@@ -298,7 +298,6 @@ GetMetricsFor(nsPresContext* aPresContext,
   nsRefPtr<nsFontMetrics> fm;
   aPresContext->DeviceContext()->GetMetricsFor(font,
                                                aStyleFont->mLanguage,
-                                               aStyleFont->mExplicitLanguage,
                                                orientation,
                                                fs, tp, *getter_AddRefs(fm));
   return fm.forget();

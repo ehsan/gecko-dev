@@ -10,11 +10,13 @@ import org.mozilla.gecko.db.BrowserContract.History;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.Telemetry;
 
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import android.content.ContentValues;
 import android.content.ContentResolver;
 import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.support.v4.util.LruCache;
 import android.text.TextUtils;
@@ -117,7 +119,7 @@ public class URLMetadata {
             }
         }
 
-        Telemetry.addToHistogram("FENNEC_TILES_CACHE_HIT", data.size());
+        Telemetry.HistogramAdd("FENNEC_TILES_CACHE_HIT", data.size());
 
         // If everything was in the cache, we're done!
         if (urlsToQuery.size() == 0) {

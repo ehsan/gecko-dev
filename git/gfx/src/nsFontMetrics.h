@@ -56,8 +56,7 @@ public:
      *
      * @see nsDeviceContext#GetMetricsFor()
      */
-    nsresult Init(const nsFont& aFont,
-                  nsIAtom* aLanguage, bool aExplicitLanguage,
+    nsresult Init(const nsFont& aFont, nsIAtom* aLanguage,
                   gfxFont::Orientation aOrientation,
                   nsDeviceContext *aContext,
                   gfxUserFontSet *aUserFontSet,

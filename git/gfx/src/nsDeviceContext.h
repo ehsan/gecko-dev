@@ -118,8 +118,7 @@ public:
      * @param aUserFontSet user font set
      * @return error status
      */
-    nsresult GetMetricsFor(const nsFont& aFont,
-                           nsIAtom* aLanguage, bool aExplicitLanguage,
+    nsresult GetMetricsFor(const nsFont& aFont, nsIAtom* aLanguage,
                            gfxFont::Orientation aOrientation,
                            gfxUserFontSet* aUserFontSet,
                            gfxTextPerfMetrics* aTextPerf,

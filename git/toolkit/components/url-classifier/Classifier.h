@@ -47,8 +47,6 @@ public:
    */
   nsresult Check(const nsACString& aSpec,
                  const nsACString& tables,
-                 uint32_t aFreshnessGuarantee,
-                 nsICryptoHash* aCryptoHash,
                  LookupResultArray& aResults);
 
   /**
@@ -63,6 +61,7 @@ public:
   nsresult MarkSpoiled(nsTArray<nsCString>& aTables);
   nsresult CacheCompletions(const CacheResultArray& aResults);
   uint32_t GetHashKey(void) { return mHashKey; }
+  void SetFreshTime(uint32_t aTime) { mFreshTime = aTime; }
   /*
    * Get a bunch of extra prefixes to query for completion
    * and mask the real entry being requested
@@ -103,6 +102,7 @@ private:
   uint32_t mHashKey;
   // Stores the last time a given table was updated (seconds).
   nsDataHashtable<nsCStringHashKey, int64_t> mTableFreshness;
+  uint32_t mFreshTime;
 };
 
 }

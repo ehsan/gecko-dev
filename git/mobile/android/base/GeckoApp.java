@@ -200,7 +200,8 @@ public abstract class GeckoApp
     private EventListener mWebappEventListener;
 
     abstract public int getLayout();
-
+    @Override
+    abstract public boolean hasTabsSideBar();
     abstract protected String getDefaultProfileName() throws NoMozillaDirectoryException;
 
     private static final String RESTARTER_ACTION = "org.mozilla.gecko.restart";
@@ -1226,7 +1227,7 @@ public abstract class GeckoApp
             // This happens when the GeckoApp activity is destroyed by Android
             // without killing the entire application (see Bug 769269).
             mIsRestoringActivity = true;
-            Telemetry.addToHistogram("FENNEC_RESTORING_ACTIVITY", 1);
+            Telemetry.HistogramAdd("FENNEC_RESTORING_ACTIVITY", 1);
 
         } else {
             final String uri = getURIFromIntent(intent);
@@ -1289,7 +1290,7 @@ public abstract class GeckoApp
             // Don't log OOM-kills if only one activity was destroyed. (For example
             // from "Don't keep activities" on ICS)
             if (!wasInBackground && !mIsRestoringActivity) {
-                Telemetry.addToHistogram("FENNEC_WAS_KILLED", 1);
+                Telemetry.HistogramAdd("FENNEC_WAS_KILLED", 1);
             }
 
             mPrivateBrowsingSession = savedInstanceState.getString(SAVED_STATE_PRIVATE_SESSION);
@@ -1308,7 +1309,7 @@ public abstract class GeckoApp
 
                 SessionInformation previousSession = SessionInformation.fromSharedPrefs(prefs);
                 if (previousSession.wasKilled()) {
-                    Telemetry.addToHistogram("FENNEC_WAS_KILLED", 1);
+                    Telemetry.HistogramAdd("FENNEC_WAS_KILLED", 1);
                 }
 
                 SharedPreferences.Editor editor = prefs.edit();
@@ -1531,7 +1532,7 @@ public abstract class GeckoApp
             getProfile().moveSessionFile();
         }
 
-        Telemetry.addToHistogram("FENNEC_STARTUP_GECKOAPP_ACTION", startupAction.ordinal());
+        Telemetry.HistogramAdd("FENNEC_STARTUP_GECKOAPP_ACTION", startupAction.ordinal());
 
         // Check if launched from data reporting notification.
         if (ACTION_LAUNCH_SETTINGS.equals(action)) {

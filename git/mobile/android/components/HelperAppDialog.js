@@ -9,11 +9,9 @@ const APK_MIME_TYPE = "application/vnd.android.package-archive";
 const PREF_BD_USEDOWNLOADDIR = "browser.download.useDownloadDir";
 const URI_GENERIC_ICON_DOWNLOAD = "drawable://alert_download";
 
-Cu.import("resource://gre/modules/Downloads.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
 Cu.import("resource://gre/modules/HelperApps.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 // -----------------------------------------------------------------------
@@ -231,24 +229,16 @@ HelperAppLauncherDialog.prototype = {
       Services.prefs.clearUserPref(this._getPrefName(mime));
   },
 
-  promptForSaveToFile: function () {
-    throw new Components.Exception("Async version must be used",
-                                   Cr.NS_ERROR_NOT_AVAILABLE);
-  },
+  promptForSaveToFile: function hald_promptForSaveToFile(aLauncher, aContext, aDefaultFile, aSuggestedFileExt, aForcePrompt) {
+    // Retrieve the user's default download directory
+    let dnldMgr = Cc["@mozilla.org/download-manager;1"].getService(Ci.nsIDownloadManager);
+    let defaultFolder = dnldMgr.userDownloadsDirectory;
 
-  promptForSaveToFileAsync: function (aLauncher, aContext, aDefaultFile,
-                                      aSuggestedFileExt, aForcePrompt) {
-    Task.spawn(function* () {
-      let file = null;
-      try {
-        let preferredDir = yield Downloads.getPreferredDownloadsDirectory();
-        file = this.validateLeafName(new FileUtils.File(preferredDir),
-                                     aDefaultFile, aSuggestedFileExt);
-      } finally {
-        // The file argument will be null in case any exception occurred.
-        aLauncher.saveDestinationAvailable(file);
-      }
-    }.bind(this)).catch(Cu.reportError);
+    try {
+      file = this.validateLeafName(defaultFolder, aDefaultFile, aSuggestedFileExt);
+    } catch (e) { }
+
+    return file;
   },
 
   validateLeafName: function hald_validateLeafName(aLocalFile, aLeafName, aFileExt) {

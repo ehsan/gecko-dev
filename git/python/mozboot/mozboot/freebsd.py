@@ -12,20 +12,17 @@ class FreeBSDBootstrapper(BaseBootstrapper):
 
         self.packages = [
             'autoconf213',
-            'gmake',
-            'mercurial',
-            'pkgconf',
-            'zip',
-        ]
-
-        self.browser_packages = [
             'dbus-glib',
+            'gmake',
             'gstreamer-plugins',
             'gtk2',
             'libGL',
+            'mercurial',
+            'pkgconf',
             'pulseaudio',
             'v4l_compat',
             'yasm',
+            'zip',
         ]
 
         if self.flavor == 'dragonfly':
@@ -33,7 +30,7 @@ class FreeBSDBootstrapper(BaseBootstrapper):
 
         # gcc in base is too old
         if self.flavor == 'freebsd' and self.version < 9:
-            self.browser_packages.append('gcc')
+            self.packages.append('gcc')
 
     def pkg_install(self, *packages):
         if self.which('pkg'):
@@ -46,9 +43,6 @@ class FreeBSDBootstrapper(BaseBootstrapper):
 
     def install_system_packages(self):
         self.pkg_install(*self.packages)
-
-    def install_browser_packages(self):
-        self.pkg_install(*self.browser_packages)
 
     def upgrade_mercurial(self, current):
         self.pkg_install('mercurial')

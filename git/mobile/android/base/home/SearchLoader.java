@@ -18,6 +18,7 @@ import android.os.SystemClock;
 import android.support.v4.app.LoaderManager;
 import android.support.v4.app.LoaderManager.LoaderCallbacks;
 import android.support.v4.content.Loader;
+import android.util.Log;
 
 /**
  * Encapsulates the implementation of the search cursor loader.
@@ -99,7 +100,7 @@ class SearchLoader {
             final Cursor cursor = BrowserDB.filter(getContext().getContentResolver(), mSearchTerm, SEARCH_LIMIT, mFlags);
             final long end = SystemClock.uptimeMillis();
             final long took = end - start;
-            Telemetry.addToHistogram(TELEMETRY_HISTOGRAM_LOAD_CURSOR, (int) Math.min(took, Integer.MAX_VALUE));
+            Telemetry.HistogramAdd(TELEMETRY_HISTOGRAM_LOAD_CURSOR, (int) Math.min(took, Integer.MAX_VALUE));
             return cursor;
         }
 

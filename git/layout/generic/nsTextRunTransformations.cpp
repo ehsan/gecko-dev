@@ -311,11 +311,8 @@ nsCaseTransformTextRunFactory::TransformString(
       style = aAllUppercase ? NS_STYLE_TEXT_TRANSFORM_UPPERCASE :
         styleContext->StyleText()->mTextTransform;
 
-      const nsStyleFont* styleFont = styleContext->StyleFont();
-      nsIAtom* newLang = styleFont->mExplicitLanguage
-                         ? styleFont->mLanguage : nullptr;
-      if (lang != newLang) {
-        lang = newLang;
+      if (lang != styleContext->StyleFont()->mLanguage) {
+        lang = styleContext->StyleFont()->mLanguage;
         languageSpecificCasing = GetCasingFor(lang);
         greekState.Reset();
         irishState.Reset();

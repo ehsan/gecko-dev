@@ -12,6 +12,18 @@ import android.app.Activity;
  *  - check that about: loads from Settings/About...
  */
 public class testAboutPage extends PixelTest {
+    /**
+     * Ensures the page title matches the given regex (as opposed to String equality).
+     */
+    private void ensureTitleMatches(final String titleRegex, final String urlRegex) {
+        final Activity activity = getActivity();
+        final Element urlBarTitle = mDriver.findElement(activity, R.id.url_bar_title);
+
+        // TODO: We should also be testing what the page title preference value is.
+        final String expectedTitle = NewTabletUI.isEnabled(activity) ? urlRegex : titleRegex;
+        mAsserter.isnot(urlBarTitle, null, "Got the URL bar title");
+        assertMatches(urlBarTitle.getText(), expectedTitle, "page title match");
+    }
 
     public void testAboutPage() {
         blockForGeckoReady();
@@ -20,14 +32,14 @@ public class testAboutPage extends PixelTest {
         String url = StringHelper.ABOUT_SCHEME;
         loadAndPaint(url);
 
-        verifyUrlBarTitle(url);
+        ensureTitleMatches(StringHelper.ABOUT_LABEL, url);
 
         // Open a new page to remove the about: page from the current tab.
         url = getAbsoluteUrl(StringHelper.ROBOCOP_BLANK_PAGE_01_URL);
         inputAndLoadUrl(url);
 
         // At this point the page title should have been set.
-        verifyUrlBarTitle(url);
+        verifyPageTitle(StringHelper.ROBOCOP_BLANK_PAGE_01_TITLE, url);
 
         // Set up listeners to catch the page load we're about to do.
         Actions.EventExpecter tabEventExpecter = mActions.expectGeckoEvent("Tab:Added");
@@ -42,7 +54,7 @@ public class testAboutPage extends PixelTest {
         tabEventExpecter.unregisterListener();
         contentEventExpecter.unregisterListener();
 
-        // Make sure the about: page was loaded.
-        verifyUrlBarTitle(StringHelper.ABOUT_SCHEME);
+        // Grab the title to make sure the about: page was loaded.
+        ensureTitleMatches(StringHelper.ABOUT_LABEL, StringHelper.ABOUT_SCHEME);
     }
 }
