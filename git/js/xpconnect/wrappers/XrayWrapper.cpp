@@ -1,4 +1,3 @@
-
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=4 sw=4 et tw=99 ft=cpp:
  *
@@ -22,7 +21,6 @@
 #include "nsJSUtils.h"
 
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/WindowBinding.h"
 #include "nsGlobalWindow.h"
 
 using namespace mozilla::dom;
@@ -665,26 +663,20 @@ XPCWrappedNativeXrayTraits::resolveDOMCollectionProperty(JSContext *cx, HandleOb
     return true;
 }
 
-static nsGlobalWindow*
-AsWindow(JSContext *cx, JSObject *wrapper)
+template <typename T>
+static T*
+As(JSObject *wrapper)
 {
-  nsGlobalWindow* win;
-  // We want to use our target object here, since we don't want to be
-  // doing a security check while unwrapping.
-  JSObject* target = XrayTraits::getTargetObject(wrapper);
-  nsresult rv = UNWRAP_OBJECT(Window, target, win);
-  if (NS_SUCCEEDED(rv))
-      return win;
-
-  nsCOMPtr<nsPIDOMWindow> piWin = do_QueryInterface(
-      nsContentUtils::XPConnect()->GetNativeOfWrapper(cx, target));
-  return static_cast<nsGlobalWindow*>(piWin.get());
+    XPCWrappedNative *wn = XPCWrappedNativeXrayTraits::getWN(wrapper);
+    nsCOMPtr<T> native = do_QueryWrappedNative(wn);
+    return native;
 }
 
+template <typename T>
 static bool
-IsWindow(JSContext *cx, JSObject *wrapper)
+Is(JSObject *wrapper)
 {
-    return !!AsWindow(cx, wrapper);
+    return !!As<T>(wrapper);
 }
 
 static nsQueryInterface
@@ -729,7 +721,7 @@ XPCWrappedNativeXrayTraits::resolveNativeProperty(JSContext *cx, HandleObject wr
     nsGlobalWindow *win = nullptr;
     if (id == GetRTIdByIndex(cx, XPCJSRuntime::IDX_CONTROLLERS) &&
         AccessCheck::isChrome(wrapper) &&
-        (win = AsWindow(cx, wrapper)))
+        (win = static_cast<nsGlobalWindow*>(As<nsPIDOMWindow>(wrapper))))
     {
         nsCOMPtr<nsIControllers> c;
         nsresult rv = win->GetControllers(getter_AddRefs(c));
@@ -858,7 +850,7 @@ XrayTraits::resolveOwnProperty(JSContext *cx, Wrapper &jsWrapper,
         if (key != JSProto_Null) {
             MOZ_ASSERT(key < JSProto_LIMIT);
             RootedObject constructor(cx);
-            if (!JS_GetClassObject(cx, key, &constructor))
+            if (!JS_GetClassObject(cx, target, key, &constructor))
                 return false;
             MOZ_ASSERT(constructor);
             desc.value().set(ObjectValue(*constructor));
@@ -897,7 +889,8 @@ XPCWrappedNativeXrayTraits::resolveOwnProperty(JSContext *cx, Wrapper &jsWrapper
     // Check for indexed access on a window.
     int32_t index = GetArrayIndexFromId(cx, id);
     if (IsArrayIndex(index)) {
-        nsGlobalWindow* win = AsWindow(cx, wrapper);
+        nsGlobalWindow* win =
+            static_cast<nsGlobalWindow*>(As<nsPIDOMWindow>(wrapper));
         // Note: As() unwraps outer windows to get to the inner window.
         if (win) {
             bool unused;
@@ -911,7 +904,7 @@ XPCWrappedNativeXrayTraits::resolveOwnProperty(JSContext *cx, Wrapper &jsWrapper
                     return xpc::Throw(cx, NS_ERROR_FAILURE);
                 }
                 desc.value().setObject(*obj);
-                FillPropertyDescriptor(desc, wrapper, true);
+                mozilla::dom::FillPropertyDescriptor(desc, wrapper, true);
                 return JS_WrapPropertyDescriptor(cx, desc);
             }
         }
@@ -986,7 +979,7 @@ XPCWrappedNativeXrayTraits::defineProperty(JSContext *cx, HandleObject wrapper, 
     // Check for an indexed property on a Window.  If that's happening, do
     // nothing but claim we defined it so it won't get added as an expando.
     int32_t index = GetArrayIndexFromId(cx, id);
-    if (IsArrayIndex(index) && IsWindow(cx, wrapper)) {
+    if (IsArrayIndex(index) && Is<nsIDOMWindow>(wrapper)) {
         *defined = true;
         return true;
     }
@@ -1109,29 +1102,6 @@ DOMXrayTraits::resolveOwnProperty(JSContext *cx, Wrapper &jsWrapper, HandleObjec
     if (!ok || desc.object())
         return ok;
 
-    // Check for indexed access on a window.
-    int32_t index = GetArrayIndexFromId(cx, id);
-    if (IsArrayIndex(index)) {
-        nsGlobalWindow* win = AsWindow(cx, wrapper);
-        // Note: As() unwraps outer windows to get to the inner window.
-        if (win) {
-            bool unused;
-            nsCOMPtr<nsIDOMWindow> subframe = win->IndexedGetter(index, unused);
-            if (subframe) {
-                nsGlobalWindow* global = static_cast<nsGlobalWindow*>(subframe.get());
-                global->EnsureInnerWindow();
-                JSObject* obj = global->FastGetGlobalJSObject();
-                if (MOZ_UNLIKELY(!obj)) {
-                    // It's gone?
-                    return xpc::Throw(cx, NS_ERROR_FAILURE);
-                }
-                desc.value().setObject(*obj);
-                FillPropertyDescriptor(desc, wrapper, true);
-                return JS_WrapPropertyDescriptor(cx, desc);
-            }
-        }
-    }
-
     RootedObject obj(cx, getTargetObject(wrapper));
     if (!XrayResolveOwnProperty(cx, wrapper, obj, id, desc, flags))
         return false;
@@ -1148,14 +1118,6 @@ DOMXrayTraits::defineProperty(JSContext *cx, HandleObject wrapper, HandleId id,
 {
     if (!existingDesc.object())
         return true;
-
-    // Check for an indexed property on a Window.  If that's happening, do
-    // nothing but claim we defined it so it won't get added as an expando.
-    int32_t index = GetArrayIndexFromId(cx, id);
-    if (IsArrayIndex(index) && IsWindow(cx, wrapper)) {
-        *defined = true;
-        return true;
-    }
 
     JS::Rooted<JSObject*> obj(cx, getTargetObject(wrapper));
     return XrayDefineProperty(cx, wrapper, obj, id, desc, defined);
@@ -1508,8 +1470,9 @@ XrayWrapper<Base, Traits>::getPropertyDescriptor(JSContext *cx, HandleObject wra
     // named access. So we just handle it separately here.
     nsGlobalWindow *win = nullptr;
     if (!desc.object() &&
+        (Traits::Type == XrayForWrappedNative) &&
         JSID_IS_STRING(id) &&
-        (win = AsWindow(cx, wrapper)))
+        (win = static_cast<nsGlobalWindow*>(As<nsPIDOMWindow>(wrapper))))
     {
         nsDependentJSString name(id);
         nsCOMPtr<nsIDOMWindow> childDOMWin = win->GetChildWindow(name);
@@ -1518,8 +1481,9 @@ XrayWrapper<Base, Traits>::getPropertyDescriptor(JSContext *cx, HandleObject wra
             JSObject *childObj = cwin->FastGetGlobalJSObject();
             if (MOZ_UNLIKELY(!childObj))
                 return xpc::Throw(cx, NS_ERROR_FAILURE);
-            FillPropertyDescriptor(desc, wrapper, ObjectValue(*childObj),
-                                   /* readOnly = */ true);
+            mozilla::dom::FillPropertyDescriptor(desc, wrapper,
+                                                 ObjectValue(*childObj),
+                                                 /* readOnly = */ true);
             return JS_WrapPropertyDescriptor(cx, desc);
         }
     }

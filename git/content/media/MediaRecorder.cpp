@@ -172,8 +172,7 @@ class MediaRecorder::Session: public nsIObserver
       // We need to switch MediaRecorder to "Stop" state first to make sure
       // MediaRecorder is not associated with this Session anymore, then, it's
       // safe to delete this Session.
-      // Also avoid to run if this session already call stop before
-      if (!mSession->mStopIssued) {
+      if (recorder->mState != RecordingState::Inactive) {
         ErrorResult result;
         recorder->Stop(result);
         NS_DispatchToMainThread(new DestroyRunnable(mSession.forget()));
@@ -183,8 +182,8 @@ class MediaRecorder::Session: public nsIObserver
 
       // Dispatch stop event and clear MIME type.
       recorder->DispatchSimpleEvent(NS_LITERAL_STRING("stop"));
-      mSession->mMimeType = NS_LITERAL_STRING("");
-      recorder->SetMimeType(mSession->mMimeType);
+      recorder->SetMimeType(NS_LITERAL_STRING(""));
+
       return NS_OK;
     }
 
@@ -201,8 +200,7 @@ class MediaRecorder::Session: public nsIObserver
 public:
   Session(MediaRecorder* aRecorder, int32_t aTimeSlice)
     : mRecorder(aRecorder),
-      mTimeSlice(aTimeSlice),
-      mStopIssued(false)
+      mTimeSlice(aTimeSlice)
   {
     MOZ_ASSERT(NS_IsMainThread());
 
@@ -228,7 +226,6 @@ public:
   {
     MOZ_ASSERT(NS_IsMainThread());
 
-    mStopIssued = true;
     CleanupStreams();
     nsContentUtils::UnregisterShutdownObserver(this);
   }
@@ -251,7 +248,10 @@ public:
 
   already_AddRefed<nsIDOMBlob> GetEncodedData()
   {
-    return mEncodedBufferCache->ExtractBlob(mMimeType);
+    nsString mimeType;
+    mRecorder->GetMimeType(mimeType);
+
+    return mEncodedBufferCache->ExtractBlob(mimeType);
   }
 
   bool IsEncoderError()
@@ -274,8 +274,10 @@ private:
 
     // Pull encoded media data from MediaEncoder
     nsTArray<nsTArray<uint8_t> > encodedBuf;
-    mEncoder->GetEncodedData(&encodedBuf, mMimeType);
-    mRecorder->SetMimeType(mMimeType);
+    nsString mimeType;
+    mEncoder->GetEncodedData(&encodedBuf, mimeType);
+
+    mRecorder->SetMimeType(mimeType);
 
     // Append pulled data into cache buffer.
     for (uint32_t i = 0; i < encodedBuf.Length(); i++) {
@@ -323,10 +325,8 @@ private:
       return;
     }
 
-    // Media stream is ready but UA issues a stop method follow by start method.
-    // The Session::stop would clean the mTrackUnionStream. If the AfterTracksAdded
-    // comes after stop command, this function would crash.
-    if (!mTrackUnionStream) {
+    // media stream is ready but has been issued stop command
+    if (mRecorder->mState == RecordingState::Inactive) {
       DoSessionEndTask(NS_OK);
       return;
     }
@@ -400,8 +400,6 @@ private:
   nsRefPtr<MediaEncoder> mEncoder;
   // A buffer to cache encoded meda data.
   nsAutoPtr<EncodedBufferCache> mEncodedBufferCache;
-  // Current session mimeType
-  nsString mMimeType;
   // Timestamp of the last fired dataavailable event.
   TimeStamp mLastBlobTimeStamp;
   // The interval of passing encoded data from EncodedBufferCache to onDataAvailable
@@ -409,8 +407,6 @@ private:
   // onDataAvailable, instead, it passive wait the client side pull encoded data
   // by calling requestData API.
   const int32_t mTimeSlice;
-  // Indicate this session's stop has been called.
-  bool mStopIssued;
 };
 
 NS_IMPL_ISUPPORTS1(MediaRecorder::Session, nsIObserver)

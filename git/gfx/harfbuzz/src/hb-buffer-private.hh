@@ -31,6 +31,7 @@
 #define HB_BUFFER_PRIVATE_HH
 
 #include "hb-private.hh"
+#include "hb-buffer.h"
 #include "hb-object-private.hh"
 #include "hb-unicode-private.hh"
 

@@ -327,7 +327,7 @@ ImageLayerD3D9::GetTexture(Image *aImage, bool& aHasAlpha)
 {
   NS_ASSERTION(aImage, "Null image.");
 
-  if (aImage->GetFormat() == ImageFormat::REMOTE_IMAGE_BITMAP) {
+  if (aImage->GetFormat() == REMOTE_IMAGE_BITMAP) {
     RemoteBitmapImage *remoteImage =
       static_cast<RemoteBitmapImage*>(aImage);
 
@@ -340,7 +340,7 @@ ImageLayerD3D9::GetTexture(Image *aImage, bool& aHasAlpha)
     }
 
     aHasAlpha = remoteImage->mFormat == RemoteImageData::BGRA32;
-  } else if (aImage->GetFormat() == ImageFormat::CAIRO_SURFACE) {
+  } else if (aImage->GetFormat() == CAIRO_SURFACE) {
     CairoImage *cairoImage =
       static_cast<CairoImage*>(aImage);
 
@@ -358,7 +358,7 @@ ImageLayerD3D9::GetTexture(Image *aImage, bool& aHasAlpha)
     }
 
     aHasAlpha = surf->GetContentType() == gfxContentType::COLOR_ALPHA;
-  } else if (aImage->GetFormat() == ImageFormat::D3D9_RGB32_TEXTURE) {
+  } else if (aImage->GetFormat() == D3D9_RGB32_TEXTURE) {
     if (!aImage->GetBackendData(mozilla::layers::LayersBackend::LAYERS_D3D9)) {
       // The texture in which the frame is stored belongs to DXVA's D3D9 device.
       // We need to open it on our device before we can use it.
@@ -410,11 +410,11 @@ ImageLayerD3D9::RenderLayer()
 
   gfx::IntSize size = image->GetSize();
 
-  if (image->GetFormat() == ImageFormat::CAIRO_SURFACE ||
-      image->GetFormat() == ImageFormat::REMOTE_IMAGE_BITMAP ||
-      image->GetFormat() == ImageFormat::D3D9_RGB32_TEXTURE)
+  if (image->GetFormat() == CAIRO_SURFACE ||
+      image->GetFormat() == REMOTE_IMAGE_BITMAP ||
+      image->GetFormat() == D3D9_RGB32_TEXTURE)
   {
-    NS_ASSERTION(image->GetFormat() != ImageFormat::CAIRO_SURFACE ||
+    NS_ASSERTION(image->GetFormat() != CAIRO_SURFACE ||
                  !static_cast<CairoImage*>(image)->mDeprecatedSurface ||
                  static_cast<CairoImage*>(image)->mDeprecatedSurface->GetContentType() != gfxContentType::ALPHA,
                  "Image layer has alpha image");
@@ -498,19 +498,19 @@ ImageLayerD3D9::RenderLayer()
     if (mD3DManager->GetNv3DVUtils()) {
       Nv_Stereo_Mode mode;
       switch (yuvImage->GetData()->mStereoMode) {
-      case StereoMode::LEFT_RIGHT:
+      case STEREO_MODE_LEFT_RIGHT:
         mode = NV_STEREO_MODE_LEFT_RIGHT;
         break;
-      case StereoMode::RIGHT_LEFT:
+      case STEREO_MODE_RIGHT_LEFT:
         mode = NV_STEREO_MODE_RIGHT_LEFT;
         break;
-      case StereoMode::BOTTOM_TOP:
+      case STEREO_MODE_BOTTOM_TOP:
         mode = NV_STEREO_MODE_BOTTOM_TOP;
         break;
-      case StereoMode::TOP_BOTTOM:
+      case STEREO_MODE_TOP_BOTTOM:
         mode = NV_STEREO_MODE_TOP_BOTTOM;
         break;
-      case StereoMode::MONO:
+      case STEREO_MODE_MONO:
         mode = NV_STEREO_MODE_MONO;
         break;
       }
@@ -518,7 +518,7 @@ ImageLayerD3D9::RenderLayer()
       // Send control data even in mono case so driver knows to leave stereo mode.
       mD3DManager->GetNv3DVUtils()->SendNv3DVControl(mode, true, FIREFOX_3DV_APP_HANDLE);
 
-      if (yuvImage->GetData()->mStereoMode != StereoMode::MONO) {
+      if (yuvImage->GetData()->mStereoMode != STEREO_MODE_MONO) {
         mD3DManager->GetNv3DVUtils()->SendNv3DVControl(mode, true, FIREFOX_3DV_APP_HANDLE);
 
         nsRefPtr<IDirect3DSurface9> renderTarget;
@@ -563,8 +563,8 @@ ImageLayerD3D9::GetAsTexture(gfx::IntSize* aSize)
     return nullptr;
   }
 
-  if (image->GetFormat() != ImageFormat::CAIRO_SURFACE &&
-      image->GetFormat() != ImageFormat::REMOTE_IMAGE_BITMAP) {
+  if (image->GetFormat() != CAIRO_SURFACE &&
+      image->GetFormat() != REMOTE_IMAGE_BITMAP) {
     return nullptr;
   }
 

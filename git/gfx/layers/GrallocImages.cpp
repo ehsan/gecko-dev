@@ -51,7 +51,7 @@ GrallocImage::GrallocImage()
     mGraphicBufferLocked(nullptr),
     mTextureClient(nullptr)
 {
-  mFormat = ImageFormat::GRALLOC_PLANAR_YCBCR;
+  mFormat = GRALLOC_PLANAR_YCBCR;
 }
 
 GrallocImage::~GrallocImage()

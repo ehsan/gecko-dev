@@ -147,7 +147,7 @@ VorbisTrackEncoder::GetEncodedFrames(EncodedFrameContainer& aData)
       audiodata->SetFrameType(EncodedFrame::AUDIO_FRAME);
       nsTArray<uint8_t> frameData;
       frameData.AppendElements(oggPacket.packet, oggPacket.bytes);
-      audiodata->SwapInFrameData(frameData);
+      audiodata->SetFrameData(&frameData);
       aData.AppendEncodedFrame(audiodata);
     }
   }

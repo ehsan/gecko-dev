@@ -4359,8 +4359,6 @@ var TabsInTitlebar = {
     this._menuObserver = new MutationObserver(this._onMenuMutate);
     this._menuObserver.observe(menu, {attributes: true});
 
-    gNavToolbox.addEventListener("customization-transitionend", this);
-
     this.onAreaReset = function(aArea) {
       if (aArea == CustomizableUI.AREA_TABSTRIP || aArea == CustomizableUI.AREA_MENUBAR)
         this._update(true);
@@ -4405,12 +4403,6 @@ var TabsInTitlebar = {
   observe: function (subject, topic, data) {
     if (topic == "nsPref:changed")
       this._readPref();
-  },
-
-  handleEvent: function(ev) {
-    if (ev.type == "customization-transitionend") {
-      this._update(true);
-    }
   },
 
   _onMenuMutate: function (aMutations) {
@@ -5221,21 +5213,10 @@ function UpdateCurrentCharset(target) {
           pref_item.setAttribute('checked', 'false');
     }
 
-    var menuitem = charsetMenuGetElement(target, "charset." + FoldCharset(wnd.document.characterSet));
+    var menuitem = charsetMenuGetElement(target, "charset." + wnd.document.characterSet);
     if (menuitem) {
         menuitem.setAttribute('checked', 'true');
     }
-}
-
-function FoldCharset(charset) {
-  // For substantially similar encodings, treat two encodings as the same
-  // for the purpose of the check mark.
-  if (charset == "ISO-8859-8-I") {
-    return "windows-1255";
-  } else if (charset == "gb18030") {
-    return "gbk";
-  }
-  return charset;
 }
 
 function UpdateCharsetDetector(target) {
@@ -5260,7 +5241,7 @@ function UpdateMenus(event) {
 }
 
 function charsetLoadListener() {
-  var charset = FoldCharset(window.content.document.characterSet);
+  var charset = window.content.document.characterSet;
 
   if (charset.length > 0 && (charset != gLastBrowserCharset)) {
     gPrevCharset = gLastBrowserCharset;

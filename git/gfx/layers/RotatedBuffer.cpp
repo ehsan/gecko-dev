@@ -412,7 +412,7 @@ RotatedContentBuffer::BeginPaint(ThebesLayer* aLayer,
   nsIntRegion validRegion = aLayer->GetValidRegion();
 
   bool canUseOpaqueSurface = aLayer->CanUseOpaqueSurface();
-  ContentType layerContentType =
+  ContentType contentType =
     canUseOpaqueSurface ? gfxContentType::COLOR :
                           gfxContentType::COLOR_ALPHA;
 
@@ -425,7 +425,6 @@ RotatedContentBuffer::BeginPaint(ThebesLayer* aLayer,
     mode = aLayer->GetSurfaceMode();
     neededRegion = aLayer->GetVisibleRegion();
     canReuseBuffer = HaveBuffer() && BufferSizeOkFor(neededRegion.GetBounds().Size());
-    result.mContentType = layerContentType;
 
     if (canReuseBuffer) {
       if (mBufferRect.Contains(neededRegion.GetBounds())) {
@@ -455,7 +454,7 @@ RotatedContentBuffer::BeginPaint(ThebesLayer* aLayer,
           !gfxPlatform::ComponentAlphaEnabled()) {
         mode = SurfaceMode::SURFACE_SINGLE_CHANNEL_ALPHA;
       } else {
-        result.mContentType = gfxContentType::COLOR;
+        contentType = gfxContentType::COLOR;
       }
 #endif
     }
@@ -465,7 +464,7 @@ RotatedContentBuffer::BeginPaint(ThebesLayer* aLayer,
          neededRegion.GetNumRects() > 1)) {
       // The area we add to neededRegion might not be painted opaquely
       if (mode == SurfaceMode::SURFACE_OPAQUE) {
-        result.mContentType = gfxContentType::COLOR_ALPHA;
+        contentType = gfxContentType::COLOR_ALPHA;
         mode = SurfaceMode::SURFACE_SINGLE_CHANNEL_ALPHA;
       }
 
@@ -477,7 +476,7 @@ RotatedContentBuffer::BeginPaint(ThebesLayer* aLayer,
     // If we have an existing buffer, but the content type has changed or we
     // have transitioned into/out of component alpha, then we need to recreate it.
     if (HaveBuffer() &&
-        (result.mContentType != BufferContentType() ||
+        (contentType != BufferContentType() ||
         (mode == SurfaceMode::SURFACE_COMPONENT_ALPHA) != HaveBufferOnWhite())) {
 
       // We're effectively clearing the valid region, so we need to draw
@@ -498,7 +497,7 @@ RotatedContentBuffer::BeginPaint(ThebesLayer* aLayer,
 
   result.mRegionToDraw.Sub(neededRegion, validRegion);
 
-  // Do not modify result.mRegionToDraw or result.mContentType after this call.
+  // Do not modify result.mRegionToDraw after this call.
   // Do not modify mBufferRect, mBufferRotation, or mDidSelfCopy,
   // or call CreateBuffer before this call.
   FinalizeFrame(result.mRegionToDraw);
@@ -595,7 +594,7 @@ RotatedContentBuffer::BeginPaint(ThebesLayer* aLayer,
 
           if (!result.mDidSelfCopy) {
             destBufferRect = ComputeBufferRect(neededRegion.GetBounds());
-            CreateBuffer(result.mContentType, destBufferRect, bufferFlags,
+            CreateBuffer(contentType, destBufferRect, bufferFlags,
                          &destDTBuffer, &destDTBufferOnWhite);
             if (!destDTBuffer) {
               return result;
@@ -615,7 +614,7 @@ RotatedContentBuffer::BeginPaint(ThebesLayer* aLayer,
     }
   } else {
     // The buffer's not big enough, so allocate a new one
-    CreateBuffer(result.mContentType, destBufferRect, bufferFlags,
+    CreateBuffer(contentType, destBufferRect, bufferFlags,
                  &destDTBuffer, &destDTBufferOnWhite);
     if (!destDTBuffer) {
       return result;
@@ -683,6 +682,11 @@ RotatedContentBuffer::BorrowDrawTargetForPainting(ThebesLayer* aLayer,
   DrawTarget* result = BorrowDrawTargetForQuadrantUpdate(aPaintState.mRegionToDraw.GetBounds(),
                                                          BUFFER_BOTH);
 
+  bool canUseOpaqueSurface = aLayer->CanUseOpaqueSurface();
+  ContentType contentType =
+    canUseOpaqueSurface ? gfxContentType::COLOR :
+                          gfxContentType::COLOR_ALPHA;
+
   if (aPaintState.mMode == SurfaceMode::SURFACE_COMPONENT_ALPHA) {
     MOZ_ASSERT(mDTBuffer && mDTBufferOnWhite);
     nsIntRegionRectIterator iter(aPaintState.mRegionToDraw);
@@ -693,7 +697,7 @@ RotatedContentBuffer::BorrowDrawTargetForPainting(ThebesLayer* aLayer,
       mDTBufferOnWhite->FillRect(Rect(iterRect->x, iterRect->y, iterRect->width, iterRect->height),
                                  ColorPattern(Color(1.0, 1.0, 1.0, 1.0)));
     }
-  } else if (aPaintState.mContentType == gfxContentType::COLOR_ALPHA && HaveBuffer()) {
+  } else if (contentType == gfxContentType::COLOR_ALPHA && HaveBuffer()) {
     // HaveBuffer() => we have an existing buffer that we must clear
     nsIntRegionRectIterator iter(aPaintState.mRegionToDraw);
     const nsIntRect *iterRect;

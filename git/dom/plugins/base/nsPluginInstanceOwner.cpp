@@ -179,7 +179,8 @@ nsPluginInstanceOwner::GetImageContainer()
   
   container = LayerManager::CreateImageContainer();
 
-  nsRefPtr<Image> img = container->CreateImage(ImageFormat::SHARED_TEXTURE);
+  ImageFormat format = ImageFormat::SHARED_TEXTURE;
+  nsRefPtr<Image> img = container->CreateImage(&format, 1);
 
   SharedTextureImage::Data data;
   data.mSize = gfx::IntSize(r.width, r.height);
@@ -1498,7 +1499,8 @@ already_AddRefed<ImageContainer> nsPluginInstanceOwner::GetImageContainerForVide
 {
   nsRefPtr<ImageContainer> container = LayerManager::CreateImageContainer();
 
-  nsRefPtr<Image> img = container->CreateImage(ImageFormat::SHARED_TEXTURE);
+  ImageFormat format = ImageFormat::SHARED_TEXTURE;
+  nsRefPtr<Image> img = container->CreateImage(&format, 1);
 
   SharedTextureImage::Data data;
 

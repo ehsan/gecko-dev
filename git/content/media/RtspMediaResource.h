@@ -216,8 +216,6 @@ protected:
   nsRefPtr<Listener> mListener;
 
 private:
-  bool IsVideoEnabled();
-  bool IsVideo(uint8_t tracks, nsIStreamingProtocolMetaData *meta);
   // These two members are created at |RtspMediaResource::OnConnected|.
   nsCOMPtr<nsIStreamingProtocolController> mMediaStreamController;
   nsTArray<nsAutoPtr<RtspTrackBuffer>> mTrackBuffer;

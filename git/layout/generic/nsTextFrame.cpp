@@ -1324,16 +1324,11 @@ BuildTextRuns(gfxContext* aContext, nsTextFrame* aForFrame,
                  "Wrong line container hint");
   }
 
-  if (aForFrame) {
-    if (aForFrame->HasAnyStateBits(TEXT_IS_IN_TOKEN_MATHML)) {
-      aLineContainer->AddStateBits(TEXT_IS_IN_TOKEN_MATHML);
-      if (aForFrame->HasAnyStateBits(NS_FRAME_IS_IN_SINGLE_CHAR_MI)) {
-        aLineContainer->AddStateBits(NS_FRAME_IS_IN_SINGLE_CHAR_MI);
-      }
-    }
-    if (aForFrame->HasAnyStateBits(NS_FRAME_MATHML_SCRIPT_DESCENDANT)) {
-      aLineContainer->AddStateBits(NS_FRAME_MATHML_SCRIPT_DESCENDANT);
-    }
+  if (aForFrame && aForFrame->HasAnyStateBits(NS_FRAME_IS_IN_SINGLE_CHAR_MI)) {
+    aLineContainer->AddStateBits(NS_FRAME_IS_IN_SINGLE_CHAR_MI);
+  }
+  if (aForFrame && aForFrame->HasAnyStateBits(NS_FRAME_MATHML_SCRIPT_DESCENDANT)) {
+    aLineContainer->AddStateBits(NS_FRAME_MATHML_SCRIPT_DESCENDANT);
   }
 
   nsPresContext* presContext = aLineContainer->PresContext();
@@ -1985,13 +1980,6 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
       anyMathMLStyling = true;
     }
     nsIFrame* parent = mLineContainer->GetParent();
-    if (mLineContainer->HasAnyStateBits(TEXT_IS_IN_TOKEN_MATHML)) {
-      // All MathML tokens except <mtext> use 'math' script.
-      if (!(parent && parent->GetContent() &&
-          parent->GetContent()->Tag() == nsGkAtoms::mtext_)) {
-        textFlags |= gfxTextRunFactory::TEXT_USE_MATH_SCRIPT;
-      }
-    }
     nsIFrame* child = mLineContainer;
     uint8_t oldScriptLevel = 0;
     while (parent && 

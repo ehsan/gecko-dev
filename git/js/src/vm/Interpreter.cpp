@@ -3115,21 +3115,21 @@ END_CASE(JSOP_ENDINIT)
 
 CASE(JSOP_MUTATEPROTO)
 {
+    /* Load the new [[Prototype]] value into rval. */
     MOZ_ASSERT(REGS.stackDepth() >= 2);
+    RootedValue &rval = rootValue0;
+    rval = REGS.sp[-1];
 
-    if (REGS.sp[-1].isObjectOrNull()) {
-        RootedObject &newProto = rootObject1;
-        rootObject1 = REGS.sp[-1].toObjectOrNull();
+    /* Load the object being initialized into lval/obj. */
+    RootedObject &obj = rootObject0;
+    obj = &REGS.sp[-2].toObject();
+    MOZ_ASSERT(obj->is<JSObject>());
 
-        RootedObject &obj = rootObject0;
-        obj = &REGS.sp[-2].toObject();
-        MOZ_ASSERT(obj->is<JSObject>());
+    RootedId &id = rootId0;
+    id = NameToId(cx->names().proto);
 
-        bool succeeded;
-        if (!JSObject::setProto(cx, obj, newProto, &succeeded))
-            goto error;
-        MOZ_ASSERT(succeeded);
-    }
+    if (!baseops::SetPropertyHelper<SequentialExecution>(cx, obj, obj, id, 0, &rval, false))
+        goto error;
 
     REGS.sp--;
 }

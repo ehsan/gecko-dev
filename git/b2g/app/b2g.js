@@ -578,7 +578,6 @@ pref("dom.sysmsg.enabled", true);
 pref("media.plugins.enabled", false);
 pref("media.omx.enabled", true);
 pref("media.rtsp.enabled", true);
-pref("media.rtsp.video.enabled", false);
 
 // Disable printing (particularly, window.print())
 pref("dom.disable_window_print", true);
@@ -814,6 +813,9 @@ pref("network.sntp.pools", // Servers separated by ';'.
      "0.pool.ntp.org;1.pool.ntp.org;2.pool.ntp.org;3.pool.ntp.org");
 pref("network.sntp.port", 123);
 pref("network.sntp.timeout", 30); // In seconds.
+
+// Enable promise
+pref("dom.promise.enabled", false);
 
 // Enable dataStore
 #ifdef RELEASE_BUILD

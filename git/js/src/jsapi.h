@@ -1789,13 +1789,14 @@ extern JS_PUBLIC_API(bool)
 JS_EnumerateStandardClasses(JSContext *cx, JS::HandleObject obj);
 
 extern JS_PUBLIC_API(bool)
-JS_GetClassObject(JSContext *cx, JSProtoKey key, JS::MutableHandle<JSObject*> objp);
+JS_GetClassObject(JSContext *cx, JS::Handle<JSObject*> obj, JSProtoKey key,
+                  JS::MutableHandle<JSObject*> objp);
 
 extern JS_PUBLIC_API(bool)
 JS_GetClassPrototype(JSContext *cx, JSProtoKey key, JS::MutableHandle<JSObject*> objp);
 
 extern JS_PUBLIC_API(JSProtoKey)
-JS_IdentifyClassPrototype(JSObject *obj);
+JS_IdentifyClassPrototype(JSContext *cx, JSObject *obj);
 
 extern JS_PUBLIC_API(JSProtoKey)
 JS_IdToProtoKey(JSContext *cx, JS::HandleId id);
@@ -4594,14 +4595,14 @@ extern JS_PUBLIC_API(void)
 JS_DropExceptionState(JSContext *cx, JSExceptionState *state);
 
 /*
- * If the given object is an exception object, the exception will have (or be
- * able to lazily create) an error report struct, and this function will return
- * the address of that struct.  Otherwise, it returns nullptr. The lifetime
+ * If the given value is an exception object that originated from an error,
+ * the exception will contain an error report struct, and this API will return
+ * the address of that struct.  Otherwise, it returns nullptr.  The lifetime
  * of the error report struct that might be returned is the same as the
  * lifetime of the exception object.
  */
 extern JS_PUBLIC_API(JSErrorReport *)
-JS_ErrorFromException(JSContext *cx, JS::HandleObject obj);
+JS_ErrorFromException(JSContext *cx, JS::HandleValue v);
 
 /*
  * Throws a StopIteration exception on cx.
