@@ -311,15 +311,15 @@ ContentSecurityPolicy.prototype = {
     if (aSpecCompliant) {
       newpolicy = CSPRep.fromStringSpecCompliant(aPolicy,
                                                  selfURI,
-                                                 aReportOnly,
                                                  this._docRequest,
-                                                 this);
+                                                 this,
+                                                 aReportOnly);
     } else {
       newpolicy = CSPRep.fromString(aPolicy,
                                     selfURI,
-                                    aReportOnly,
                                     this._docRequest,
-                                    this);
+                                    this,
+                                    aReportOnly);
     }
 
     newpolicy._specCompliant = !!aSpecCompliant;

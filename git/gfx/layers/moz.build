@@ -161,12 +161,8 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
     EXPORTS.mozilla.layers += [
         'opengl/GLManager.h',
     ]
-    EXPORTS += [
-        'MacIOSurfaceImage.h',
-    ]
     SOURCES += [
         'ipc/ShadowLayerUtilsMac.cpp',
-        'MacIOSurfaceImage.cpp',
         'opengl/GLManager.cpp',
     ]
 

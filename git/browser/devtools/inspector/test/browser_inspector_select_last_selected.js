@@ -30,9 +30,8 @@ function test() {
   }
 
   function endTests() {
-    inspector.destroy().then(() =>
-      toolbox.destroy()
-    ).then(() => {
+    executeSoon(() => {
+      toolbox.destroy();
       toolbox = inspector = page1 = page2 = null;
       gBrowser.removeCurrentTab();
       finish();
@@ -41,7 +40,7 @@ function test() {
 
   function loadPageAnd(page, callback) {
     inspector.once("markuploaded", () => {
-      callback();
+      executeSoon(callback);
     });
 
     if (page) {
@@ -59,7 +58,7 @@ function test() {
 
       loadPageAnd(false, () => {
         is(inspector.selection.node.id, id, "Node re-selected after reload");
-        callback();
+        executeSoon(callback);
       });
     });
 
@@ -86,12 +85,14 @@ function test() {
     // Last node selected was id4, go to a different page and check body is
     // selected
     loadPageAnd(page2, () => {
-      is(
-        inspector.selection.node.tagName.toLowerCase(),
-        "body",
-        "Node not found, body selected"
-      );
-      testSameNodeSelectedOnNavigateAwayAndBack();
+      executeSoon(() => {
+        is(
+          inspector.selection.node.tagName.toLowerCase(),
+          "body",
+          "Node not found, body selected"
+        );
+        executeSoon(testSameNodeSelectedOnNavigateAwayAndBack);
+      });
     });
   }
 
@@ -105,12 +106,17 @@ function test() {
     inspector.once("inspector-updated", () => {
       is(inspector.selection.node.id, id);
 
-      // go to page1 but do not select anything
-      loadPageAnd(page1, () => {
-          // go back to page2 and check id5 is still the current selection
-        loadPageAnd(page2, () => {
-          is(inspector.selection.node.id, id, "Node re-selected after navigation");
-          endTests();
+      executeSoon(() => {
+        // go to page1 but do not select anything
+        loadPageAnd(page1, () => {
+
+          executeSoon(() => {
+            // go back to page2 and check id5 is still the current selection
+            loadPageAnd(page2, () => {
+              is(inspector.selection.node.id, id, "Node re-selected after navigation");
+              executeSoon(endTests);
+            });
+          });
         });
       });
     });

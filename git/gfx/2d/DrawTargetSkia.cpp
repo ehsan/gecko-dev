@@ -745,14 +745,19 @@ DrawTargetSkia::Init(unsigned char* aData, const IntSize &aSize, int32_t aStride
     ConvertBGRXToBGRA(aData, aSize, aStride);
     isOpaque = true;
   }
+  
+  SkAutoTUnref<SkDevice> device(new SkDevice(GfxFormatToSkiaConfig(aFormat), aSize.width, aSize.height, isOpaque));
 
-  SkBitmap bitmap;
-  bitmap.setConfig(GfxFormatToSkiaConfig(aFormat), aSize.width, aSize.height, aStride);
+  SkBitmap bitmap = (SkBitmap)device->accessBitmap(true);
+  bitmap.lockPixels();
   bitmap.setPixels(aData);
-  bitmap.setIsOpaque(isOpaque);
-  SkAutoTUnref<SkCanvas> canvas(new SkCanvas(new SkDevice(bitmap)));
+  bitmap.setConfig(GfxFormatToSkiaConfig(aFormat), aSize.width, aSize.height, aStride);
+  bitmap.unlockPixels();
+  bitmap.notifyPixelsChanged();
 
+  SkAutoTUnref<SkCanvas> canvas(new SkCanvas(device.get()));
   mSize = aSize;
+
   mCanvas = canvas.get();
   mFormat = aFormat;
 }

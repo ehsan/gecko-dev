@@ -25,7 +25,10 @@ function inspectorRuleViewOpened()
 
   gDevTools.once("toolbox-destroyed", inspectorClosed);
   let target = TargetFactory.forTab(gBrowser.selectedTab);
-  gDevTools.getToolbox(target).destroy();
+  let toolbox = gDevTools.getToolbox(target);
+  executeSoon(function() {
+    toolbox.destroy();
+  });
 }
 
 function inspectorClosed()
@@ -52,7 +55,6 @@ function testNewDefaultTab()
 
 function finishTest()
 {
-  doc = inspector = null;
   gBrowser.removeCurrentTab();
   finish();
 }

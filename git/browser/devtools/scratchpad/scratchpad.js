@@ -1350,7 +1350,6 @@ var Scratchpad = {
     }
 
     PreferenceObserver.uninit();
-    CloseObserver.uninit();
 
     this.editor.off("change", this._onChanged);
     this.editor.destroy();
