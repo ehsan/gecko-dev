@@ -289,12 +289,12 @@ nsFaviconService::SetFaviconUrlForPage(nsIURI* aPageURI, nsIURI* aFaviconURI)
       rv = stmt->GetInt32(1, &dataSize);
       NS_ENSURE_SUCCESS(rv, rv);
       if (dataSize > 0) {
-        hasData = true;
+        hasData = PR_TRUE;
       }
     }
   }
 
-  mozStorageTransaction transaction(mDBConn, false);
+  mozStorageTransaction transaction(mDBConn, PR_FALSE);
 
   if (iconId == -1) {
     // We did not find any entry for this icon, so create a new one.
@@ -666,7 +666,7 @@ nsFaviconService::GetFaviconDataAsDataURL(nsIURI* aFaviconURI,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!data) {
-    aDataURL.SetIsVoid(true);
+    aDataURL.SetIsVoid(PR_TRUE);
     return NS_OK;
   }
 

@@ -191,7 +191,7 @@ nsRwsService::IconFromExtension(const char *aExt, bool aNeedMini,
   nsCAutoString path;
   rv = CreateFileForExtension(aExt, path);
   if (NS_SUCCEEDED(rv)) {
-    rv = IconFromPath(path.get(), false, aNeedMini, _retval);
+    rv = IconFromPath(path.get(), PR_FALSE, aNeedMini, _retval);
     DeleteFileForExtension(path.get());
     if (NS_SUCCEEDED(rv))
       mExtCache->SetIcon(aExt, aNeedMini, *_retval);
@@ -810,17 +810,17 @@ static nsresult AssignTitleString(const char *aTitle, nsAString& result)
 
   // remove line breaks, leading whitespace, & extra embedded whitespace
   // (primitive, but gcc 3.2.2 doesn't support wchar)
-  for (fSkip=true, pSrc=pDst=buffer.Elements(); *pSrc; pSrc++) {
+  for (fSkip=PR_TRUE, pSrc=pDst=buffer.Elements(); *pSrc; pSrc++) {
     if (*pSrc == ' ' || *pSrc == '\r' || *pSrc == '\n' || *pSrc == '\t') {
       if (!fSkip)
         *pDst++ = ' ';
-      fSkip = true;
+      fSkip = PR_TRUE;
     }
     else {
       if (pDst != pSrc)
         *pDst = *pSrc;
       pDst++;
-      fSkip = false;
+      fSkip = PR_FALSE;
     }
   }
 
@@ -897,7 +897,7 @@ nsresult ExtCache::SetIcon(const char *aExt, bool aIsMini,
     return NS_ERROR_FAILURE;
   }
 
-  ExtInfo *info = FindExtension(aExt, true);
+  ExtInfo *info = FindExtension(aExt, PR_TRUE);
   if (!info)
     return NS_ERROR_FAILURE;
 
@@ -966,7 +966,7 @@ nsresult ExtCache::SetHandler(const char *aExt, PRUint32 aHandle,
   }
 
   nsresult rv = NS_ERROR_FAILURE;
-  ExtInfo *info = FindExtension(aExt, true);
+  ExtInfo *info = FindExtension(aExt, PR_TRUE);
 
   // if the title can't be saved, don't save the handle
   if (info) {
@@ -1227,7 +1227,7 @@ static nsresult nsRwsServiceInit(nsRwsService **aClass)
   // set the class up as a shutdown observer
   nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
   if (os)
-    os->AddObserver(*aClass, "quit-application", false);
+    os->AddObserver(*aClass, "quit-application", PR_FALSE);
 
   return NS_OK;
 }

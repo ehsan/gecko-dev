@@ -68,7 +68,7 @@ txResultTreeFragment::stringValuePointer()
 
 bool txResultTreeFragment::booleanValue()
 {
-    return true;
+    return PR_TRUE;
 }
 
 double txResultTreeFragment::numberValue()

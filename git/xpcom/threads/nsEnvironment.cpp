@@ -139,18 +139,18 @@ static bool
 EnsureEnvHash()
 {
     if (gEnvHash)
-        return true;
+        return PR_TRUE;
 
     gEnvHash = new EnvHashType;
     if (!gEnvHash)
-        return false;
+        return PR_FALSE;
 
     if(gEnvHash->Init())
-        return true;
+        return PR_TRUE;
 
     delete gEnvHash;
     gEnvHash = nsnull;
-    return false;
+    return PR_FALSE;
 }
 
 NS_IMETHODIMP

@@ -71,7 +71,7 @@ nsRefreshDriver::InitializeStatics()
 {
   Preferences::AddBoolVarCache(&sPrecisePref,
                                "layout.frame_rate.precise",
-                               false);
+                               PR_FALSE);
 }
 // Compute the interval to use for the refresh driver timer, in
 // milliseconds
@@ -272,7 +272,7 @@ nsRefreshDriver::ArrayFor(mozFlushType aFlushType)
     case Flush_Display:
       return mObservers[2];
     default:
-      NS_ABORT_IF_FALSE(false, "bad flush type");
+      NS_ABORT_IF_FALSE(PR_FALSE, "bad flush type");
       return *static_cast<ObserverArray*>(nsnull);
   }
 }
@@ -354,7 +354,7 @@ nsRefreshDriver::Notify(nsITimer *aTimer)
 
       PRInt64 eventTime = mMostRecentRefreshEpochTime / PR_USEC_PER_MSEC;
       for (PRUint32 i = 0; i < targets.Length(); ++i) {
-        nsEvent ev(true, NS_BEFOREPAINT);
+        nsEvent ev(PR_TRUE, NS_BEFOREPAINT);
         ev.time = eventTime;
         nsEventDispatcher::Dispatch(targets[i], nsnull, &ev);
       }
@@ -376,7 +376,7 @@ nsRefreshDriver::Notify(nsITimer *aTimer)
             continue;
           NS_ADDREF(shell);
           mStyleFlushObservers.RemoveElement(shell);
-          shell->FrameConstructor()->mObservingRefreshDriver = false;
+          shell->FrameConstructor()->mObservingRefreshDriver = PR_FALSE;
           shell->FlushPendingNotifications(Flush_Style);
           NS_RELEASE(shell);
         }
@@ -395,8 +395,8 @@ nsRefreshDriver::Notify(nsITimer *aTimer)
             continue;
           NS_ADDREF(shell);
           mLayoutFlushObservers.RemoveElement(shell);
-          shell->mReflowScheduled = false;
-          shell->mSuppressInterruptibleReflows = false;
+          shell->mReflowScheduled = PR_FALSE;
+          shell->mSuppressInterruptibleReflows = PR_FALSE;
           shell->FlushPendingNotifications(Flush_InterruptibleLayout);
           NS_RELEASE(shell);
         }

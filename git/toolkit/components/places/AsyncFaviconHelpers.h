@@ -102,7 +102,7 @@ struct PageData
   , canAddToHistory(true)
   , iconId(0)
   {
-    guid.SetIsVoid(true);
+    guid.SetIsVoid(PR_TRUE);
   }
 
   PRInt64 id;

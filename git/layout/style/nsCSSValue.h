@@ -577,11 +577,11 @@ struct nsCSSValue::Array {
   bool operator==(const Array& aOther) const
   {
     if (mCount != aOther.mCount)
-      return false;
+      return PR_FALSE;
     for (size_t i = 0; i < mCount; ++i)
       if ((*this)[i] != aOther[i])
-        return false;
-    return true;
+        return PR_FALSE;
+    return PR_TRUE;
   }
 
   // XXXdholbert This uses a size_t ref count. Should we use a variant
@@ -1062,17 +1062,17 @@ struct nsCSSValueGradient {
         mAngle != aOther.mAngle ||
         mRadialShape != aOther.mRadialShape ||
         mRadialSize != aOther.mRadialSize)
-      return false;
+      return PR_FALSE;
 
     if (mStops.Length() != aOther.mStops.Length())
-      return false;
+      return PR_FALSE;
 
     for (PRUint32 i = 0; i < mStops.Length(); i++) {
       if (mStops[i] != aOther.mStops[i])
-        return false;
+        return PR_FALSE;
     }
 
-    return true;
+    return PR_TRUE;
   }
 
   bool operator!=(const nsCSSValueGradient& aOther) const
@@ -1104,25 +1104,25 @@ struct nsCSSCornerSizes {
   bool operator==(const nsCSSCornerSizes& aOther) const {
     NS_FOR_CSS_FULL_CORNERS(corner) {
       if (this->GetCorner(corner) != aOther.GetCorner(corner))
-        return false;
+        return PR_FALSE;
     }
-    return true;
+    return PR_TRUE;
   }
 
   bool operator!=(const nsCSSCornerSizes& aOther) const {
     NS_FOR_CSS_FULL_CORNERS(corner) {
       if (this->GetCorner(corner) != aOther.GetCorner(corner))
-        return true;
+        return PR_TRUE;
     }
-    return false;
+    return PR_FALSE;
   }
 
   bool HasValue() const {
     NS_FOR_CSS_FULL_CORNERS(corner) {
       if (this->GetCorner(corner).GetUnit() != eCSSUnit_Null)
-        return true;
+        return PR_TRUE;
     }
-    return false;
+    return PR_FALSE;
   }
 
   void Reset();

@@ -73,7 +73,7 @@ CanvasLayerOGL::Destroy()
       cx->fDeleteTextures(1, &mTexture);
     }
 
-    mDestroyed = true;
+    mDestroyed = PR_TRUE;
   }
 }
 
@@ -93,7 +93,7 @@ CanvasLayerOGL::Initialize(const Data& aData)
 
   if (aData.mSurface) {
     mCanvasSurface = aData.mSurface;
-    mNeedsYFlip = false;
+    mNeedsYFlip = PR_FALSE;
 #if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
     if (aData.mSurface->GetType() == gfxASurface::SurfaceTypeXlib) {
         gfxXlibSurface *xsurf = static_cast<gfxXlibSurface*>(aData.mSurface);
@@ -117,7 +117,7 @@ CanvasLayerOGL::Initialize(const Data& aData)
     mCanvasGLContext = aData.mGLContext;
     mGLBufferIsPremultiplied = aData.mGLBufferIsPremultiplied;
 
-    mNeedsYFlip = true;
+    mNeedsYFlip = PR_TRUE;
   } else {
     NS_WARNING("CanvasLayerOGL::Initialize called without surface or GL context!");
     return;
@@ -129,7 +129,7 @@ CanvasLayerOGL::Initialize(const Data& aData)
   // images of up to 2 + GL_MAX_TEXTURE_SIZE
   GLint texSize = gl()->GetMaxTextureSize();
   if (mBounds.width > (2 + texSize) || mBounds.height > (2 + texSize)) {
-    mDelayedUpdates = true;
+    mDelayedUpdates = PR_TRUE;
     MakeTexture();
     // This should only ever occur with 2d canvas, WebGL can't already have a texture
     // of this size can it?
@@ -160,7 +160,7 @@ CanvasLayerOGL::UpdateSurface()
 {
   if (!mDirty)
     return;
-  mDirty = false;
+  mDirty = PR_FALSE;
 
   if (mDestroyed || mDelayedUpdates) {
     return;
@@ -238,7 +238,7 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
 
     gl()->MakeCurrent();
     gl()->BindTex2DOffscreen(mCanvasGLContext);
-    program = mOGLManager->GetBasicLayerProgram(CanUseOpaqueSurface(), true);
+    program = mOGLManager->GetBasicLayerProgram(CanUseOpaqueSurface(), PR_TRUE);
   } else if (mDelayedUpdates) {
     NS_ABORT_IF_FALSE(mCanvasSurface, "WebGL canvases should always be using full texture upload");
     
@@ -287,7 +287,7 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
 ShadowCanvasLayerOGL::ShadowCanvasLayerOGL(LayerManagerOGL* aManager)
   : ShadowCanvasLayer(aManager, nsnull)
   , LayerOGL(aManager)
-  , mNeedsYFlip(false)
+  , mNeedsYFlip(PR_FALSE)
 {
   mImplData = static_cast<LayerOGL*>(this);
 }
@@ -346,7 +346,7 @@ void
 ShadowCanvasLayerOGL::Destroy()
 {
   if (!mDestroyed) {
-    mDestroyed = true;
+    mDestroyed = PR_TRUE;
     mTexImage = nsnull;
   }
 }
@@ -366,26 +366,10 @@ ShadowCanvasLayerOGL::RenderLayer(int aPreviousFrameBuffer,
   ColorTextureLayerProgram *program =
     mOGLManager->GetColorTextureLayerProgram(mTexImage->GetShaderProgramType());
 
-
-  gfx3DMatrix effectiveTransform = GetEffectiveTransform();
-#ifdef ANDROID
-  // Bug 691354
-  // Using the LINEAR filter we get unexplained artifacts.
-  // Use NEAREST when no scaling is required.
-  gfxMatrix matrix;
-  bool is2D = GetEffectiveTransform().Is2D(&matrix);
-  if (is2D && !matrix.HasNonTranslationOrFlip()) {
-    mTexImage->SetFilter(gfxPattern::FILTER_NEAREST);
-  } else {
-    mTexImage->SetFilter(mFilter);
-  }
-#else
   mTexImage->SetFilter(mFilter);
-#endif
-
 
   program->Activate();
-  program->SetLayerTransform(effectiveTransform);
+  program->SetLayerTransform(GetEffectiveTransform());
   program->SetLayerOpacity(GetEffectiveOpacity());
   program->SetRenderOffset(aOffset);
   program->SetTextureUnit(0);

@@ -386,7 +386,7 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
   if (mOpenChar) {
     PlaceChar(mOpenChar, ascent, bm, dx);
     aDesiredSize.mBoundingMetrics = bm;
-    firstTime = false;
+    firstTime = PR_FALSE;
   }
 
   childFrame = firstChild;
@@ -394,7 +394,7 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
     nsHTMLReflowMetrics childSize;
     GetReflowAndBoundingMetricsFor(childFrame, childSize, bm);
     if (firstTime) {
-      firstTime = false;
+      firstTime = PR_FALSE;
       aDesiredSize.mBoundingMetrics  = bm;
     }
     else  

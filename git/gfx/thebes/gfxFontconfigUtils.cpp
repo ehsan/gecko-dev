@@ -329,7 +329,7 @@ gfxFontconfigUtils::NewPattern(const nsTArray<nsString>& aFamilies,
                  ++g) {
                 if (0 == FcStrCmpIgnoreCase(ToFcChar8(sFontconfigGenerics[g]),
                                             ToFcChar8(family.get()))) {
-                    useWeakBinding = true;
+                    useWeakBinding = PR_TRUE;
                     break;
                 }
             }
@@ -497,7 +497,7 @@ gfxFontconfigUtils::GetSampleLangForGroup(nsIAtom *aLangGroup,
         if (languages) {
             const char separator = ':';
 
-            for (const char *pos = languages; true; ++pos) {
+            for (const char *pos = languages; PR_TRUE; ++pos) {
                 if (*pos == '\0' || *pos == separator) {
                     if (languages < pos &&
                         TryLangForGroup(Substring(languages, pos),
@@ -588,7 +588,7 @@ gfxFontconfigUtils::GetFontListInternal(nsTArray<nsCString>& aListOfFonts,
 nsresult
 gfxFontconfigUtils::UpdateFontList()
 {
-    return UpdateFontListInternal(true);
+    return UpdateFontListInternal(PR_TRUE);
 }
 
 nsresult
@@ -670,7 +670,7 @@ gfxFontconfigUtils::UpdateFontListInternal(bool aForce)
             while (++p != p_end && *p != kComma)
                 /* nothing */ ;
             nsCAutoString name(Substring(start, p));
-            name.CompressWhitespace(false, true);
+            name.CompressWhitespace(PR_FALSE, PR_TRUE);
             mAliasForMultiFonts.AppendElement(name);
             p++;
         }
@@ -762,7 +762,7 @@ gfxFontconfigUtils::GetStandardFamilyName(const nsAString& aFontName, nsAString&
         bool equal = true;
         for (int i = 0; i < givenFS->nfont; ++i) {
             if (!FcPatternEqual(candidateFS->fonts[i], givenFS->fonts[i])) {
-                equal = false;
+                equal = PR_FALSE;
                 break;
             }
         }
@@ -795,7 +795,7 @@ gfxFontconfigUtils::ResolveFontName(const nsAString& aFontName,
                                     void *aClosure,
                                     bool& aAborted)
 {
-    aAborted = false;
+    aAborted = PR_FALSE;
 
     nsresult rv = UpdateFontListInternal();
     if (NS_FAILED(rv))
@@ -849,7 +849,7 @@ gfxFontconfigUtils::GetFullnameFromFamilyAndStyle(FcPattern *aFont,
 {
     FcChar8 *family;
     if (FcPatternGetString(aFont, FC_FAMILY, 0, &family) != FcResultMatch)
-        return false;
+        return PR_FALSE;
 
     aFullname->Truncate();
     aFullname->Append(ToCString(family));
@@ -861,7 +861,7 @@ gfxFontconfigUtils::GetFullnameFromFamilyAndStyle(FcPattern *aFont,
         aFullname->Append(ToCString(style));
     }
 
-    return true;
+    return PR_TRUE;
 }
 
 bool
@@ -1081,7 +1081,7 @@ gfxFontconfigUtils::GetLangSupportEntry(const FcChar8 *aLang, bool aWithFonts)
             // indication that the set of installed fonts has changed, so
             // update all caches.
             mLastConfig = NULL; // invalidates caches
-            UpdateFontListInternal(true);
+            UpdateFontListInternal(PR_TRUE);
             return GetLangSupportEntry(aLang, aWithFonts);
         }
     }
@@ -1094,7 +1094,7 @@ gfxFontconfigUtils::GetBestLangSupport(const FcChar8 *aLang)
 {
     UpdateFontListInternal();
 
-    LangSupportEntry *entry = GetLangSupportEntry(aLang, false);
+    LangSupportEntry *entry = GetLangSupportEntry(aLang, PR_FALSE);
     if (!entry)
         return FcLangEqual;
 
@@ -1104,7 +1104,7 @@ gfxFontconfigUtils::GetBestLangSupport(const FcChar8 *aLang)
 const nsTArray< nsCountedRef<FcPattern> >&
 gfxFontconfigUtils::GetFontsForLang(const FcChar8 *aLang)
 {
-    LangSupportEntry *entry = GetLangSupportEntry(aLang, true);
+    LangSupportEntry *entry = GetLangSupportEntry(aLang, PR_TRUE);
     if (!entry)
         return mEmptyPatternArray;
 
@@ -1115,7 +1115,7 @@ bool
 gfxFontNameList::Exists(nsAString& aName) {
     for (PRUint32 i = 0; i < Length(); i++) {
         if (aName.Equals(ElementAt(i)))
-            return true;
+            return PR_TRUE;
     }
-    return false;
+    return PR_FALSE;
 }

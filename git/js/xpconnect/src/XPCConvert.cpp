@@ -378,7 +378,7 @@ XPCConvert::NativeData2JS(XPCLazyCallContext& lccx, jsval* d, const void* s,
                 char* t;
                 for (t=p; *t && isAscii ; t++) {
                   if (ILLEGAL_CHAR_RANGE(*t))
-                      isAscii = false;
+                      isAscii = PR_FALSE;
                 }
                 NS_ASSERTION(isAscii, "passing non ASCII data");
 #endif // STRICT_CHECK_OF_UNICODE
@@ -487,7 +487,7 @@ XPCConvert::NativeData2JS(XPCLazyCallContext& lccx, jsval* d, const void* s,
                     // creating a new XPCNativeScriptableShared.
                     xpcObjectHelper helper(iface);
                     if (!NativeInterface2JSObject(lccx, d, nsnull, helper, iid,
-                                                  nsnull, true,
+                                                  nsnull, PR_TRUE,
                                                   OBJ_IS_NOT_GLOBAL, pErr))
                         return JS_FALSE;
 
@@ -768,7 +768,7 @@ XPCConvert::JSData2Native(XPCCallContext& ccx, void* d, jsval s,
 
                 if (JSVAL_IS_NULL(s) || (!isDOMString && JSVAL_IS_VOID(s))) {
                     ws->Truncate();
-                    ws->SetIsVoid(true);
+                    ws->SetIsVoid(PR_TRUE);
                 } else
                     ws->Assign(chars, length);
             }
@@ -866,12 +866,12 @@ XPCConvert::JSData2Native(XPCCallContext& ccx, void* d, jsval s,
                     if (!rs)
                         return JS_FALSE;
 
-                    rs->SetIsVoid(true);
+                    rs->SetIsVoid(PR_TRUE);
                     *((nsACString**)d) = rs;
                 } else {
                     nsCString* rs = *((nsCString**)d);
                     rs->Truncate();
-                    rs->SetIsVoid(true);
+                    rs->SetIsVoid(PR_TRUE);
                 }
                 return JS_TRUE;
             }
@@ -910,12 +910,12 @@ XPCConvert::JSData2Native(XPCCallContext& ccx, void* d, jsval s,
                     if (!rs)
                         return JS_FALSE;
 
-                    rs->SetIsVoid(true);
+                    rs->SetIsVoid(PR_TRUE);
                     *((nsACString**)d) = rs;
                 } else {
                     nsACString* rs = *((nsACString**)d);
                     rs->Truncate();
-                    rs->SetIsVoid(true);
+                    rs->SetIsVoid(PR_TRUE);
                 }
                 return JS_TRUE;
             }
@@ -1105,7 +1105,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
 
         if (!dest) {
             if (!flat) {
-                tryConstructSlimWrapper = true;
+                tryConstructSlimWrapper = PR_TRUE;
             } else if (IS_SLIM_WRAPPER_OBJECT(flat)) {
                 if (js::GetObjectCompartment(flat) == cx->compartment) {
                     *d = OBJECT_TO_JSVAL(flat);
@@ -1318,7 +1318,7 @@ XPCConvert::JSObject2NativeInterface(XPCCallContext& ccx,
     if (!ac.enter(cx, src)) {
        if (pErr)
            *pErr = NS_ERROR_UNEXPECTED;
-       return false;
+       return PR_FALSE;
     }
 
     *dest = nsnull;

@@ -63,8 +63,8 @@ typedef enum NMState
 } NMState;
 
 nsNetworkManagerListener::nsNetworkManagerListener() :
-    mLinkUp(true), mNetworkManagerActive(false),
-    mOK(true), mManageIOService(true)
+    mLinkUp(PR_TRUE), mNetworkManagerActive(PR_FALSE),
+    mOK(PR_TRUE), mManageIOService(PR_TRUE)
 {
 }
 
@@ -143,13 +143,13 @@ nsNetworkManagerListener::RegisterWithConnection(DBusConnection* connection) {
     dbus_message_new_method_call(NM_DBUS_SERVICE, NM_DBUS_PATH,
                                  NM_DBUS_INTERFACE, "state");
   if (!msg) {
-    mOK = false;
+    mOK = PR_FALSE;
     return;
   }
   
   DBusPendingCall* reply = mDBUS->SendWithReply(this, msg);
   if (!reply) {
-    mOK = false;
+    mOK = PR_FALSE;
     return;
   }
 
@@ -178,7 +178,7 @@ nsNetworkManagerListener::NotifyNetworkStatusObservers() {
 
 void
 nsNetworkManagerListener::UnregisterWithConnection(DBusConnection* connection) {
-  mNetworkManagerActive = false;
+  mNetworkManagerActive = PR_FALSE;
   NotifyNetworkStatusObservers();
 }
 
@@ -187,9 +187,9 @@ nsNetworkManagerListener::HandleMessage(DBusMessage* message) {
   if (dbus_message_is_signal(message, NM_DBUS_INTERFACE,
                              NM_DBUS_SIGNAL_STATE_CHANGE)) {
     UpdateNetworkStatus(message);
-    return true;
+    return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 void
@@ -199,7 +199,7 @@ nsNetworkManagerListener::UpdateNetworkStatus(DBusMessage* msg) {
                              DBUS_TYPE_INVALID))
     return;
 
-  mNetworkManagerActive = true;
+  mNetworkManagerActive = PR_TRUE;
   
   bool wasUp = mLinkUp;
   mLinkUp = result == NM_STATE_CONNECTED;

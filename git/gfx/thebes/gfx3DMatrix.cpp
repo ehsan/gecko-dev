@@ -689,16 +689,16 @@ gfx3DMatrix::Is2D() const
       _23 != 0.0f || _24 != 0.0f ||
       _31 != 0.0f || _32 != 0.0f || _33 != 1.0f || _34 != 0.0f ||
       _43 != 0.0f || _44 != 1.0f) {
-    return false;
+    return PR_FALSE;
   }
-  return true;
+  return PR_TRUE;
 }
 
 bool
 gfx3DMatrix::Is2D(gfxMatrix* aMatrix) const
 {
   if (!Is2D()) {
-    return false;
+    return PR_FALSE;
   }
   if (aMatrix) {
     aMatrix->xx = _11;
@@ -708,7 +708,7 @@ gfx3DMatrix::Is2D(gfxMatrix* aMatrix) const
     aMatrix->x0 = _41;
     aMatrix->y0 = _42;
   }
-  return true;
+  return PR_TRUE;
 }
 
 bool
@@ -716,7 +716,7 @@ gfx3DMatrix::CanDraw2D(gfxMatrix* aMatrix) const
 {
   if (_14 != 0.0f || _24 != 0.0f ||
       _34 != 0.0f || _44 != 1.0f) {
-    return false;
+    return PR_FALSE;
   }
   if (aMatrix) {
     aMatrix->xx = _11;
@@ -726,7 +726,7 @@ gfx3DMatrix::CanDraw2D(gfxMatrix* aMatrix) const
     aMatrix->x0 = _41;
     aMatrix->y0 = _42;
   }
-  return true;
+  return PR_TRUE;
 }
 
 gfx3DMatrix&

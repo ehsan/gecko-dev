@@ -57,25 +57,25 @@ test_basic()
     nsCOMPtr<nsIAtom> atom = do_GetAtom(str16);
     
     if (!atom->Equals(str16) || !atom->EqualsUTF8(str8))
-      return false;
+      return PR_FALSE;
 
     nsString tmp16;
     nsCString tmp8;
     atom->ToString(tmp16);
     atom->ToUTF8String(tmp8);
     if (!str16.Equals(tmp16) || !str8.Equals(tmp8))
-      return false;
+      return PR_FALSE;
 
     if (!nsDependentString(atom->GetUTF16String()).Equals(str16))
-      return false;
+      return PR_FALSE;
 
     if (!nsAtomString(atom).Equals(str16) ||
         !nsDependentAtomString(atom).Equals(str16) ||
         !nsAtomCString(atom).Equals(str8))
-      return false;
+      return PR_FALSE;
   }
   
-  return true;
+  return PR_TRUE;
 }
 
 bool
@@ -85,10 +85,10 @@ test_16vs8()
     nsCOMPtr<nsIAtom> atom16 = do_GetAtom(ValidStrings[i].m16);
     nsCOMPtr<nsIAtom> atom8 = do_GetAtom(ValidStrings[i].m8);
     if (atom16 != atom8)
-      return false;
+      return PR_FALSE;
   }
   
-  return true;
+  return PR_TRUE;
 }
 
 bool
@@ -109,7 +109,7 @@ test_null()
   nsDependentString strCut(str.get());
 
   if (str.Equals(strCut))
-    return false;
+    return PR_FALSE;
   
   nsCOMPtr<nsIAtom> atomCut = do_GetAtom(strCut);
   nsCOMPtr<nsIAtom> atom = do_GetAtom(str);
@@ -130,11 +130,11 @@ test_invalid()
     {
       nsCOMPtr<nsIAtom> atom16 = do_GetAtom(Invalid16Strings[i].m16);
       if (!atom16->Equals(nsDependentString(Invalid16Strings[i].m16)))
-        return false;
+        return PR_FALSE;
     }
     
     if (count != NS_GetNumberOfAtoms())
-      return false;
+      return PR_FALSE;
   }
 
   for (unsigned int i = 0; i < ArrayLength(Invalid8Strings); ++i) {
@@ -145,11 +145,11 @@ test_invalid()
       nsCOMPtr<nsIAtom> atom16 = do_GetAtom(Invalid8Strings[i].m16);
       if (atom16 != atom8 ||
           !atom16->Equals(nsDependentString(Invalid8Strings[i].m16)))
-        return false;
+        return PR_FALSE;
     }
     
     if (count != NS_GetNumberOfAtoms())
-      return false;
+      return PR_FALSE;
   }
 
 // Don't run this test in debug builds as that intentionally asserts.
@@ -162,11 +162,11 @@ test_invalid()
     nsCOMPtr<nsIAtom> atom8 = do_GetAtom(Malformed8Strings[i]);
     if (atom8 != emptyAtom ||
         count != NS_GetNumberOfAtoms())
-      return false;
+      return PR_FALSE;
   }
 #endif
 
-  return true;
+  return PR_TRUE;
 }
 
 #define FIRST_ATOM_STR "first static atom. Hello!"
@@ -207,10 +207,10 @@ test_atomtable()
   nsCOMPtr<nsIAtom> thirdNonPerm = do_GetAtom(THIRD_ATOM_STR);
   
   if (isStaticAtom(thirdNonPerm))
-    return false;
+    return PR_FALSE;
 
   if (!thirdNonPerm || NS_GetNumberOfAtoms() != count + 1)
-    return false;
+    return PR_FALSE;
 
   NS_RegisterStaticAtoms(sAtoms_info, ArrayLength(sAtoms_info));
 
@@ -239,26 +239,26 @@ test_permanent()
     nsCOMPtr<nsIAtom> first = do_GetAtom(FIRST_PERM_ATOM_STR);
     if (!first->Equals(NS_LITERAL_STRING(FIRST_PERM_ATOM_STR)) ||
         isStaticAtom(first))
-      return false;
+      return PR_FALSE;
   
     nsCOMPtr<nsIAtom> first_p =
       NS_NewPermanentAtom(NS_LITERAL_STRING(FIRST_PERM_ATOM_STR));
     if (!first_p->Equals(NS_LITERAL_STRING(FIRST_PERM_ATOM_STR)) ||
         !isStaticAtom(first_p) ||
         first != first_p)
-      return false;
+      return PR_FALSE;
   
     nsCOMPtr<nsIAtom> second_p =
       NS_NewPermanentAtom(NS_LITERAL_STRING(SECOND_PERM_ATOM_STR));
     if (!second_p->Equals(NS_LITERAL_STRING(SECOND_PERM_ATOM_STR)) ||
         !isStaticAtom(second_p))
-      return false;
+      return PR_FALSE;
   
     nsCOMPtr<nsIAtom> second = do_GetAtom(SECOND_PERM_ATOM_STR);
     if (!second->Equals(NS_LITERAL_STRING(SECOND_PERM_ATOM_STR)) ||
         !isStaticAtom(second) ||
         second != second_p)
-      return false;
+      return PR_FALSE;
   }
 
   return NS_GetNumberOfAtoms() == count + 2;

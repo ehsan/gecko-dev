@@ -851,7 +851,7 @@ IDBTransaction::SetOntimeout(nsIDOMEventListener* aOntimeout)
 nsresult
 IDBTransaction::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
-  aVisitor.mCanHandle = true;
+  aVisitor.mCanHandle = PR_TRUE;
   aVisitor.mParentTarget = mDatabase;
   return NS_OK;
 }

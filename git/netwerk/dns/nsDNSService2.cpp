@@ -82,7 +82,7 @@ public:
         , mIter(nsnull)
         , mLastIter(nsnull)
         , mIterGenCnt(-1)
-        , mDone(false) {}
+        , mDone(PR_FALSE) {}
 
 private:
     virtual ~nsDNSRecord() {}
@@ -140,7 +140,7 @@ nsDNSRecord::GetNextAddr(PRUint16 port, PRNetAddr *addr)
             // Restart the iteration.  Alternatively, we could just fail.
             mIter = nsnull;
             mIterGenCnt = mHostRecord->addr_info_gencnt;
-            startedFresh = true;
+            startedFresh = PR_TRUE;
         }
 
         do {
@@ -162,7 +162,7 @@ nsDNSRecord::GetNextAddr(PRUint16 port, PRNetAddr *addr)
             
         mHostRecord->addr_info_lock.Unlock();
         if (!mIter) {
-            mDone = true;
+            mDone = PR_TRUE;
             return NS_ERROR_NOT_AVAILABLE;
         }
     }
@@ -181,7 +181,7 @@ nsDNSRecord::GetNextAddr(PRUint16 port, PRNetAddr *addr)
             addr->inet.port = port;
         else
             addr->ipv6.port = port;
-        mDone = true; // no iterations
+        mDone = PR_TRUE; // no iterations
     }
         
     return NS_OK; 
@@ -207,7 +207,7 @@ NS_IMETHODIMP
 nsDNSRecord::HasMore(bool *result)
 {
     if (mDone)
-        *result = false;
+        *result = PR_FALSE;
     else {
         // unfortunately, NSPR does not provide a way for us to determine if
         // there is another address other than to simply get the next address.
@@ -217,7 +217,7 @@ nsDNSRecord::HasMore(bool *result)
         *result = NS_SUCCEEDED(GetNextAddr(0, &addr));
         mIter = iterCopy; // backup iterator
         mLastIter = iterLastCopy; // backup iterator
-        mDone = false;
+        mDone = PR_FALSE;
     }
     return NS_OK;
 }
@@ -228,7 +228,7 @@ nsDNSRecord::Rewind()
     mIter = nsnull;
     mLastIter = nsnull;
     mIterGenCnt = -1;
-    mDone = false;
+    mDone = PR_FALSE;
     return NS_OK;
 }
 
@@ -326,7 +326,7 @@ class nsDNSSyncRequest : public nsResolveHostCallback
 {
 public:
     nsDNSSyncRequest(PRMonitor *mon)
-        : mDone(false)
+        : mDone(PR_FALSE)
         , mStatus(NS_OK)
         , mMonitor(mon) {}
     virtual ~nsDNSSyncRequest() {}
@@ -348,7 +348,7 @@ nsDNSSyncRequest::OnLookupComplete(nsHostResolver *resolver,
 {
     // store results, and wake up nsDNSService::Resolve to process results.
     PR_EnterMonitor(mMonitor);
-    mDone = true;
+    mDone = PR_TRUE;
     mStatus = status;
     mHostRecord = hostRecord;
     PR_Notify(mMonitor);
@@ -359,7 +359,7 @@ nsDNSSyncRequest::OnLookupComplete(nsHostResolver *resolver,
 
 nsDNSService::nsDNSService()
     : mLock("nsDNSServer.mLock")
-    , mFirstTime(true)
+    , mFirstTime(PR_TRUE)
 {
 }
 
@@ -407,20 +407,20 @@ nsDNSService::Init()
     }
 
     if (mFirstTime) {
-        mFirstTime = false;
+        mFirstTime = PR_FALSE;
 
         // register as prefs observer
         if (prefs) {
-            prefs->AddObserver(kPrefDnsCacheEntries, this, false);
-            prefs->AddObserver(kPrefDnsCacheExpiration, this, false);
-            prefs->AddObserver(kPrefEnableIDN, this, false);
-            prefs->AddObserver(kPrefIPv4OnlyDomains, this, false);
-            prefs->AddObserver(kPrefDisableIPv6, this, false);
-            prefs->AddObserver(kPrefDisablePrefetch, this, false);
+            prefs->AddObserver(kPrefDnsCacheEntries, this, PR_FALSE);
+            prefs->AddObserver(kPrefDnsCacheExpiration, this, PR_FALSE);
+            prefs->AddObserver(kPrefEnableIDN, this, PR_FALSE);
+            prefs->AddObserver(kPrefIPv4OnlyDomains, this, PR_FALSE);
+            prefs->AddObserver(kPrefDisableIPv6, this, PR_FALSE);
+            prefs->AddObserver(kPrefDisablePrefetch, this, PR_FALSE);
 
             // Monitor these to see if there is a change in proxy configuration
             // If a manual proxy is in use, disable prefetch implicitly
-            prefs->AddObserver("network.proxy.type", this, false);
+            prefs->AddObserver("network.proxy.type", this, PR_FALSE);
         }
     }
 

@@ -864,7 +864,7 @@ nsAccessibilityService::GetAccessible(nsINode* aNode)
 {
   NS_PRECONDITION(aNode, "Getting an accessible for null node! Crash.");
 
-  nsDocAccessible* document = GetDocAccessible(aNode->OwnerDoc());
+  nsDocAccessible* document = GetDocAccessible(aNode->GetOwnerDoc());
   return document ? document->GetAccessible(aNode) : nsnull;
 }
 
@@ -876,7 +876,7 @@ nsAccessibilityService::GetAccessibleOrContainer(nsINode* aNode,
     return nsnull;
 
   // XXX: weak shell is ignored until multiple shell documents are supported.
-  nsDocAccessible* document = GetDocAccessible(aNode->OwnerDoc());
+  nsDocAccessible* document = GetDocAccessible(aNode->GetOwnerDoc());
   return document ? document->GetAccessibleOrContainer(aNode) : nsnull;
 }
 
@@ -884,24 +884,24 @@ static bool HasRelatedContent(nsIContent *aContent)
 {
   nsAutoString id;
   if (!aContent || !nsCoreUtils::GetID(aContent, id) || id.IsEmpty()) {
-    return false;
+    return PR_FALSE;
   }
 
   // If the given ID is referred by relation attribute then create an accessible
   // for it. Take care of HTML elements only for now.
   if (aContent->IsHTML() &&
       nsAccUtils::GetDocAccessibleFor(aContent)->IsDependentID(id))
-    return true;
+    return PR_TRUE;
 
   nsIContent *ancestorContent = aContent;
   while ((ancestorContent = ancestorContent->GetParent()) != nsnull) {
     if (ancestorContent->HasAttr(kNameSpaceID_None, nsGkAtoms::aria_activedescendant)) {
         // ancestor has activedescendant property, this content could be active
-      return true;
+      return PR_TRUE;
     }
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 nsAccessible*
@@ -936,7 +936,7 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
     return nsnull;
   }
 
-  if (aNode->OwnerDoc() != aPresShell->GetDocument()) {
+  if (aNode->GetOwnerDoc() != aPresShell->GetDocument()) {
     NS_ERROR("Creating accessible for wrong pres shell");
     return nsnull;
   }
@@ -983,7 +983,7 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
 #endif
 
   nsDocAccessible* docAcc =
-    GetAccService()->GetDocAccessible(aNode->OwnerDoc());
+    GetAccService()->GetDocAccessible(aNode->GetOwnerDoc());
   if (!docAcc) {
     NS_NOTREACHED("Node has no host document accessible!");
     return nsnull;
@@ -1102,20 +1102,20 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
           }
 
           // otherwise create ARIA based accessible.
-          tryTagNameOrFrame = false;
+          tryTagNameOrFrame = PR_FALSE;
           break;
         }
 
         if (tableContent->Tag() == nsGkAtoms::table) {
           // Stop before we are fooled by any additional table ancestors
           // This table cell frameis part of a separate ancestor table.
-          tryTagNameOrFrame = false;
+          tryTagNameOrFrame = PR_FALSE;
           break;
         }
       }
 
       if (!tableContent)
-        tryTagNameOrFrame = false;
+        tryTagNameOrFrame = PR_FALSE;
     }
 
     if (roleMapEntry) {
@@ -1230,21 +1230,21 @@ nsAccessibilityService::Init()
 {
   // Initialize accessible document manager.
   if (!nsAccDocManager::Init())
-    return false;
+    return PR_FALSE;
 
   // Add observers.
   nsCOMPtr<nsIObserverService> observerService =
     mozilla::services::GetObserverService();
   if (!observerService)
-    return false;
+    return PR_FALSE;
 
-  observerService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false);
+  observerService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_FALSE);
 
   // Initialize accessibility.
   nsAccessNodeWrap::InitAccessibility();
 
-  gIsShutdown = false;
-  return true;
+  gIsShutdown = PR_FALSE;
+  return PR_TRUE;
 }
 
 void
@@ -1266,7 +1266,7 @@ nsAccessibilityService::Shutdown()
 
   NS_ASSERTION(!gIsShutdown, "Accessibility was shutdown already");
 
-  gIsShutdown = true;
+  gIsShutdown = PR_TRUE;
 
   nsAccessNodeWrap::ShutdownAccessibility();
 }

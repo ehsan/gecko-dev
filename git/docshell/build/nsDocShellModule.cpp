@@ -83,7 +83,7 @@ Initialize()
   if (gInitialized) {
     return NS_OK;
   }
-  gInitialized = true;
+  gInitialized = PR_TRUE;
 
   nsresult rv = nsSHistory::Startup();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -97,7 +97,7 @@ Shutdown()
 {
   nsSHistory::Shutdown();
   nsSHEntryShared::Shutdown();
-  gInitialized = false;
+  gInitialized = PR_FALSE;
 }
 
 // docshell

@@ -409,7 +409,7 @@ nsDOMFileReader::DoOnStopRequest(nsIRequest *aRequest,
       break;
   }
   
-  mResult.SetIsVoid(false);
+  mResult.SetIsVoid(PR_FALSE);
 
   FreeFileData();
 

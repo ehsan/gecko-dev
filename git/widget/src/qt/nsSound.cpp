@@ -82,7 +82,7 @@ typedef void (*EsdAudioCloseType) (void);
 NS_IMPL_ISUPPORTS2(nsSound, nsISound, nsIStreamLoaderObserver)
 
 nsSound::nsSound()
- : mInited( false )
+ : mInited( PR_FALSE )
 {
 }
 
@@ -136,7 +136,7 @@ nsSound::Init()
     if (!esdref)
         return NS_ERROR_FAILURE;
 
-    mInited = true;
+    mInited = PR_TRUE;
 
     return NS_OK;
 }
@@ -390,7 +390,7 @@ NS_IMETHODIMP nsSound::PlaySystemSound(const nsAString &aSoundAlias)
 
     // create a nsILocalFile and then a nsIFileURL from that
     nsCOMPtr <nsILocalFile> soundFile;
-    rv = NS_NewLocalFile(aSoundAlias, true, 
+    rv = NS_NewLocalFile(aSoundAlias, PR_TRUE, 
                          getter_AddRefs(soundFile));
     NS_ENSURE_SUCCESS(rv,rv);
 

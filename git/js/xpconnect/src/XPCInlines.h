@@ -51,14 +51,14 @@ bool
 xpc::PtrAndPrincipalHashKey::KeyEquals(const PtrAndPrincipalHashKey* aKey) const
 {
     if (aKey->mPtr != mPtr)
-        return false;
+        return PR_FALSE;
     if (aKey->mPrincipal == mPrincipal)
-        return true;
+        return PR_TRUE;
 
     bool equals;
     if (NS_FAILED(mPrincipal->EqualsIgnoringDomain(aKey->mPrincipal, &equals))) {
         NS_ERROR("we failed, guessing!");
-        return false;
+        return PR_FALSE;
     }
 
     return equals;
@@ -537,7 +537,7 @@ XPCNativeSet::HasInterfaceWithAncestor(const nsIID* iid) const
 
     // This is rare, so check last.
     if (iid == &NS_GET_IID(nsISupports))
-        return true;
+        return PR_TRUE;
 
     return JS_FALSE;
 }

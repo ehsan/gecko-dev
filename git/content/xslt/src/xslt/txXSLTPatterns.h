@@ -196,7 +196,7 @@ class txRootPattern : public txPattern
 public:
 #ifdef TX_TO_STRING
     txRootPattern()
-        : mSerialize(true)
+        : mSerialize(PR_TRUE)
     {
     }
 #endif

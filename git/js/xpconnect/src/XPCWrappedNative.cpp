@@ -273,7 +273,7 @@ static void DEBUG_TrackShutdownWrapper(XPCWrappedNative* wrapper)
 {
 #ifdef XPC_TRACK_WRAPPER_STATS
     if (!DEBUG_DumpedWrapperStats) {
-        DEBUG_DumpedWrapperStats = true;
+        DEBUG_DumpedWrapperStats = PR_TRUE;
         printf("%d WrappedNatives were constructed. "
                "(%d w/ protos, %d w/o)\n",
                DEBUG_TotalWrappedNativeCount,

@@ -153,7 +153,7 @@ nsHtml5TreeOpExecutor::DidBuildModel(bool aTerminated)
     }
 
     if (!destroying) {
-      nsContentSink::StartLayout(false);
+      nsContentSink::StartLayout(PR_FALSE);
     }
   }
 
@@ -207,7 +207,7 @@ nsHtml5TreeOpExecutor::FlushPendingNotifications(mozFlushType aType)
 {
   if (aType >= Flush_InterruptibleLayout) {
     // Bug 577508 / 253951
-    nsContentSink::StartLayout(true);
+    nsContentSink::StartLayout(PR_TRUE);
   }
 }
 
@@ -328,7 +328,7 @@ nsHtml5TreeOpExecutor::UpdateStyleSheet(nsIContent* aElement)
   nsCOMPtr<nsIStyleSheetLinkingElement> ssle(do_QueryInterface(aElement));
   NS_ASSERTION(ssle, "Node didn't QI to style.");
 
-  ssle->SetEnableUpdates(true);
+  ssle->SetEnableUpdates(PR_TRUE);
 
   bool willNotify;
   bool isAlternate;
@@ -402,7 +402,7 @@ class nsHtml5FlushLoopGuard
       , mStartTime(PR_IntervalToMilliseconds(PR_IntervalNow()))
     #endif
     {
-      mExecutor->mRunFlushLoopOnStack = true;
+      mExecutor->mRunFlushLoopOnStack = PR_TRUE;
     }
     ~nsHtml5FlushLoopGuard()
     {
@@ -418,7 +418,7 @@ class nsHtml5FlushLoopGuard
           nsHtml5TreeOpExecutor::sLongestTimeOffTheEventLoop);
       #endif
 
-      mExecutor->mRunFlushLoopOnStack = false;
+      mExecutor->mRunFlushLoopOnStack = PR_FALSE;
     }
 };
 
@@ -654,20 +654,20 @@ bool
 nsHtml5TreeOpExecutor::IsScriptEnabled()
 {
   if (!mDocument || !mDocShell)
-    return true;
+    return PR_TRUE;
   nsCOMPtr<nsIScriptGlobalObject> globalObject = mDocument->GetScriptGlobalObject();
   // Getting context is tricky if the document hasn't had its
   // GlobalObject set yet
   if (!globalObject) {
     nsCOMPtr<nsIScriptGlobalObjectOwner> owner = do_GetInterface(mDocShell);
-    NS_ENSURE_TRUE(owner, true);
+    NS_ENSURE_TRUE(owner, PR_TRUE);
     globalObject = owner->GetScriptGlobalObject();
-    NS_ENSURE_TRUE(globalObject, true);
+    NS_ENSURE_TRUE(globalObject, PR_TRUE);
   }
   nsIScriptContext *scriptContext = globalObject->GetContext();
-  NS_ENSURE_TRUE(scriptContext, true);
+  NS_ENSURE_TRUE(scriptContext, PR_TRUE);
   JSContext* cx = scriptContext->GetNativeContext();
-  NS_ENSURE_TRUE(cx, true);
+  NS_ENSURE_TRUE(cx, PR_TRUE);
   bool enabled = true;
   nsContentUtils::GetSecurityManager()->
     CanExecuteScripts(cx, mDocument->NodePrincipal(), &enabled);
@@ -707,7 +707,7 @@ nsHtml5TreeOpExecutor::StartLayout() {
     return;
   }
 
-  nsContentSink::StartLayout(false);
+  nsContentSink::StartLayout(PR_FALSE);
 
   BeginDocUpdate();
 }
@@ -748,7 +748,7 @@ nsHtml5TreeOpExecutor::RunScript(nsIContent* aScriptElement)
     #ifdef DEBUG
     nsresult rv = 
     #endif
-    aScriptElement->DoneAddingChildren(true); // scripts ignore the argument
+    aScriptElement->DoneAddingChildren(PR_TRUE); // scripts ignore the argument
     NS_ASSERTION(rv != NS_ERROR_HTMLPARSER_BLOCK, 
                  "Defer or async script tried to block.");
     return;
@@ -756,7 +756,7 @@ nsHtml5TreeOpExecutor::RunScript(nsIContent* aScriptElement)
   
   NS_ASSERTION(mFlushState == eNotFlushing, "Tried to run script when flushing.");
 
-  mReadingFromStage = false;
+  mReadingFromStage = PR_FALSE;
   
   sele->SetCreatorParser(mParser);
 
@@ -769,7 +769,7 @@ nsHtml5TreeOpExecutor::RunScript(nsIContent* aScriptElement)
   // Now tell the script that it's ready to go. This may execute the script
   // or return NS_ERROR_HTMLPARSER_BLOCK. Or neither if the script doesn't
   // need executing.
-  nsresult rv = aScriptElement->DoneAddingChildren(true);
+  nsresult rv = aScriptElement->DoneAddingChildren(PR_TRUE);
 
   // If the act of insertion evaluated the script, we're fine.
   // Else, block the parser till the script has loaded.
@@ -804,7 +804,7 @@ void
 nsHtml5TreeOpExecutor::Start()
 {
   NS_PRECONDITION(!mStarted, "Tried to start when already started.");
-  mStarted = true;
+  mStarted = PR_TRUE;
 }
 
 void
@@ -856,11 +856,11 @@ void
 nsHtml5TreeOpExecutor::Reset()
 {
   DropHeldElements();
-  mReadingFromStage = false;
+  mReadingFromStage = PR_FALSE;
   mOpQueue.Clear();
-  mStarted = false;
+  mStarted = PR_FALSE;
   mFlushState = eNotFlushing;
-  mRunFlushLoopOnStack = false;
+  mRunFlushLoopOnStack = PR_FALSE;
   NS_ASSERTION(!mBroken, "Fragment parser got broken.");
 }
 

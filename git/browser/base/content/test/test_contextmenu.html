@@ -23,33 +23,16 @@ netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 
-function openContextMenuFor(element, shiftkey, shouldWaitForFocus) {
+function openContextMenuFor(element, shiftkey) {
     // Context menu should be closed before we open it again.
     is(contextMenu.state, "closed", "checking if popup is closed");
 
-    //Some elements need time to focus and spellcheck before any tests are
-    //run on them.
-    if(shouldWaitForFocus)
-    {
-      if (lastElement)
-        lastElement.blur();
-      element.focus();
-      
-      SimpleTest.executeSoon(function() {
-        lastElement = element;
-        var eventDetails = { type : "contextmenu", button : 2, shiftKey : shiftkey };
-        synthesizeMouse(element, 2, 2, eventDetails, element.ownerDocument.defaultView);
-      });
-    }
-    else
-    {
-      if (lastElement)
-          lastElement.blur();
-      element.focus();
-      lastElement = element;
-      var eventDetails = { type : "contextmenu", button : 2, shiftKey : shiftkey };
-      synthesizeMouse(element, 2, 2, eventDetails, element.ownerDocument.defaultView);
-    }
+    if (lastElement)
+      lastElement.blur();
+    element.focus();
+    lastElement = element;
+    var eventDetails = { type : "contextmenu", button : 2, shiftKey : shiftkey };
+    synthesizeMouse(element, 2, 2, eventDetails, element.ownerDocument.defaultView);
 }
 
 function closeContextMenu() {
@@ -438,7 +421,7 @@ function runTest(testNum) {
                           "---",                  null,
                           "context-inspect",      true]);
         closeContextMenu();
-        openContextMenuFor(textarea, false, true); // Invoke context menu for next test, but wait for the spellcheck.
+        openContextMenuFor(textarea); // Invoke context menu for next test.
         break;
 
     case 12:

@@ -159,7 +159,7 @@ JSClass nsXULPDGlobalObject::gSharedGlobalClass = {
 
 nsXULPrototypeDocument::nsXULPrototypeDocument()
     : mRoot(nsnull),
-      mLoaded(false)
+      mLoaded(PR_FALSE)
 {
     ++gRefCnt;
 }
@@ -276,7 +276,7 @@ nsXULPrototypeDocument::Read(nsIObjectInputStream* aStream)
     NS_TIME_FUNCTION;
     nsresult rv;
 
-    rv = aStream->ReadObject(true, getter_AddRefs(mURI));
+    rv = aStream->ReadObject(PR_TRUE, getter_AddRefs(mURI));
 
     PRUint32 count, i;
     nsCOMPtr<nsIURI> styleOverlayURI;
@@ -285,14 +285,14 @@ nsXULPrototypeDocument::Read(nsIObjectInputStream* aStream)
     if (NS_FAILED(rv)) return rv;
 
     for (i = 0; i < count; ++i) {
-        rv |= aStream->ReadObject(true, getter_AddRefs(styleOverlayURI));
+        rv |= aStream->ReadObject(PR_TRUE, getter_AddRefs(styleOverlayURI));
         mStyleSheetReferences.AppendObject(styleOverlayURI);
     }
 
 
     // nsIPrincipal mNodeInfoManager->mPrincipal
     nsCOMPtr<nsIPrincipal> principal;
-    rv |= aStream->ReadObject(true, getter_AddRefs(principal));
+    rv |= aStream->ReadObject(PR_TRUE, getter_AddRefs(principal));
     // Better safe than sorry....
     mNodeInfoManager->SetDocumentPrincipal(principal);
 
@@ -414,7 +414,7 @@ nsXULPrototypeDocument::Write(nsIObjectOutputStream* aStream)
 {
     nsresult rv;
 
-    rv = aStream->WriteCompoundObject(mURI, NS_GET_IID(nsIURI), true);
+    rv = aStream->WriteCompoundObject(mURI, NS_GET_IID(nsIURI), PR_TRUE);
     
     PRUint32 count;
 
@@ -424,12 +424,12 @@ nsXULPrototypeDocument::Write(nsIObjectOutputStream* aStream)
     PRUint32 i;
     for (i = 0; i < count; ++i) {
         rv |= aStream->WriteCompoundObject(mStyleSheetReferences[i],
-                                           NS_GET_IID(nsIURI), true);
+                                           NS_GET_IID(nsIURI), PR_TRUE);
     }
 
     // nsIPrincipal mNodeInfoManager->mPrincipal
     rv |= aStream->WriteObject(mNodeInfoManager->DocumentPrincipal(),
-                               true);
+                               PR_TRUE);
     
 #ifdef DEBUG
     // XXX Worrisome if we're caching things without system principal.
@@ -614,13 +614,13 @@ nsXULPrototypeDocument::NotifyLoadDone()
 
     nsresult rv = NS_OK;
 
-    mLoaded = true;
+    mLoaded = PR_TRUE;
 
     for (PRUint32 i = mPrototypeWaiters.Length(); i > 0; ) {
         --i;
-        // true means that OnPrototypeLoadDone will also
+        // PR_TRUE means that OnPrototypeLoadDone will also
         // call ResumeWalk().
-        rv = mPrototypeWaiters[i]->OnPrototypeLoadDone(true);
+        rv = mPrototypeWaiters[i]->OnPrototypeLoadDone(PR_TRUE);
         if (NS_FAILED(rv)) break;
     }
     mPrototypeWaiters.Clear();
@@ -698,7 +698,7 @@ nsXULPDGlobalObject::SetScriptContext(PRUint32 lang_id, nsIScriptContext *aScrip
   void* script_glob = NULL;
 
   if (aScriptContext) {
-    aScriptContext->SetGCOnDestruction(false);
+    aScriptContext->SetGCOnDestruction(PR_FALSE);
     aScriptContext->DidInitializeContext();
     script_glob = aScriptContext->GetNativeGlobal();
     NS_ASSERTION(script_glob, "GetNativeGlobal returned NULL!");

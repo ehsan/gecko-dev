@@ -161,7 +161,7 @@ public:
 
   NS_IMETHOD Run()
   {
-    nsContentUtils::DispatchTrustedEvent(mContent->OwnerDoc(), mContent,
+    nsContentUtils::DispatchTrustedEvent(mContent->GetOwnerDoc(), mContent,
         mFinished ? NS_LITERAL_STRING("MozPaintWaitFinished") : NS_LITERAL_STRING("MozPaintWait"),
         true, true);
     return NS_OK;
@@ -583,7 +583,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetDocument(nsIDocument* *aDocument)
 
   // XXX sXBL/XBL2 issue: current doc or owner doc?
   // But keep in mind bug 322414 comment 33
-  NS_IF_ADDREF(*aDocument = mContent->OwnerDoc());
+  NS_IF_ADDREF(*aDocument = mContent->GetOwnerDoc());
   return NS_OK;
 }
 
@@ -895,7 +895,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetDocumentBase(const char* *result)
       return NS_ERROR_FAILURE;
     }
 
-    nsIDocument* doc = mContent->OwnerDoc();
+    nsIDocument* doc = mContent->GetOwnerDoc();
     NS_ASSERTION(doc, "Must have an owner doc");
     rv = doc->GetDocBaseURI()->GetSpec(mDocumentBase);
   }

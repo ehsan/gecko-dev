@@ -591,7 +591,7 @@ AsyncExecuteStatements::Run()
     return notifyComplete();
 
   if (statementsNeedTransaction()) {
-    mTransactionManager = new mozStorageTransaction(mConnection, false,
+    mTransactionManager = new mozStorageTransaction(mConnection, PR_FALSE,
                                                     mozIStorageConnection::TRANSACTION_IMMEDIATE);
   }
 

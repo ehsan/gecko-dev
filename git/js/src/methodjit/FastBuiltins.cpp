@@ -607,8 +607,7 @@ mjit::Compiler::compileArrayWithArgs(uint32 argc)
         frame.storeTo(arg, Address(result, JSObject::getFixedSlotOffset(i)), /* popped = */ true);
     }
 
-    masm.storePtr(ImmIntPtr(intptr_t(argc)),
-                  Address(result, offsetof(JSObject, initializedLength)));
+    masm.storePtr(ImmPtr((void *) argc), Address(result, offsetof(JSObject, initializedLength)));
 
     stubcc.leave();
 

@@ -347,7 +347,7 @@ void nsAccessibleWrap::SetMaiHyperlink(MaiHyperlink* aMaiHyperlink)
     NS_ASSERTION(quark_mai_hyperlink, "quark_mai_hyperlink not initialized");
     NS_ASSERTION(IS_MAI_OBJECT(mAtkObject), "Invalid AtkObject");
     if (quark_mai_hyperlink && IS_MAI_OBJECT(mAtkObject)) {
-        MaiHyperlink* maiHyperlink = GetMaiHyperlink(false);
+        MaiHyperlink* maiHyperlink = GetMaiHyperlink(PR_FALSE);
         if (!maiHyperlink && !aMaiHyperlink) {
             return; // Never set and we're shutting down
         }
@@ -1063,7 +1063,7 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
             atk_focus_tracker_notify(atkObj);
             // Fire state change event for focus
             nsRefPtr<AccEvent> stateChangeEvent =
-              new AccStateChangeEvent(accessible, states::FOCUSED, true);
+              new AccStateChangeEvent(accessible, states::FOCUSED, PR_TRUE);
             return FireAtkStateChangeEvent(stateChangeEvent, atkObj);
         }
       } break;
@@ -1215,10 +1215,10 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
         break;
 
     case nsIAccessibleEvent::EVENT_SHOW:
-        return FireAtkShowHideEvent(aEvent, atkObj, true);
+        return FireAtkShowHideEvent(aEvent, atkObj, PR_TRUE);
 
     case nsIAccessibleEvent::EVENT_HIDE:
-        return FireAtkShowHideEvent(aEvent, atkObj, false);
+        return FireAtkShowHideEvent(aEvent, atkObj, PR_FALSE);
 
         /*
          * Because dealing with menu is very different between nsIAccessible
@@ -1239,7 +1239,7 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
         MAI_LOG_DEBUG(("\n\nReceived: EVENT_WINDOW_ACTIVATED\n"));
         nsRootAccessible *rootAcc =
           static_cast<nsRootAccessible *>(accessible);
-        rootAcc->mActivated = true;
+        rootAcc->mActivated = PR_TRUE;
         guint id = g_signal_lookup ("activate", MAI_TYPE_ATK_OBJECT);
         g_signal_emit(atkObj, id, 0);
 
@@ -1252,7 +1252,7 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
         MAI_LOG_DEBUG(("\n\nReceived: EVENT_WINDOW_DEACTIVATED\n"));
         nsRootAccessible *rootAcc =
           static_cast<nsRootAccessible *>(accessible);
-        rootAcc->mActivated = false;
+        rootAcc->mActivated = PR_FALSE;
         guint id = g_signal_lookup ("deactivate", MAI_TYPE_ATK_OBJECT);
         g_signal_emit(atkObj, id, 0);
       } break;
@@ -1299,14 +1299,14 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
     case nsIAccessibleEvent::EVENT_MENUPOPUP_START:
         MAI_LOG_DEBUG(("\n\nReceived: EVENT_MENUPOPUP_START\n"));
         atk_focus_tracker_notify(atkObj); // fire extra focus event
-        atk_object_notify_state_change(atkObj, ATK_STATE_VISIBLE, true);
-        atk_object_notify_state_change(atkObj, ATK_STATE_SHOWING, true);
+        atk_object_notify_state_change(atkObj, ATK_STATE_VISIBLE, PR_TRUE);
+        atk_object_notify_state_change(atkObj, ATK_STATE_SHOWING, PR_TRUE);
         break;
 
     case nsIAccessibleEvent::EVENT_MENUPOPUP_END:
         MAI_LOG_DEBUG(("\n\nReceived: EVENT_MENUPOPUP_END\n"));
-        atk_object_notify_state_change(atkObj, ATK_STATE_VISIBLE, false);
-        atk_object_notify_state_change(atkObj, ATK_STATE_SHOWING, false);
+        atk_object_notify_state_change(atkObj, ATK_STATE_VISIBLE, PR_FALSE);
+        atk_object_notify_state_change(atkObj, ATK_STATE_SHOWING, PR_FALSE);
         break;
     }
 

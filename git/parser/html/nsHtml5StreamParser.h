@@ -180,7 +180,7 @@ class nsHtml5StreamParser : public nsIStreamListener,
 
     void Terminate() {
       mozilla::MutexAutoLock autoLock(mTerminatedMutex);
-      mTerminated = true;
+      mTerminated = PR_TRUE;
     }
     
     void DropTimer();
@@ -205,7 +205,7 @@ class nsHtml5StreamParser : public nsIStreamListener,
      */
     void Interrupt() {
       mozilla::MutexAutoLock autoLock(mTerminatedMutex);
-      mInterrupted = true;
+      mInterrupted = PR_TRUE;
     }
 
     void Uninterrupt() {
@@ -213,7 +213,7 @@ class nsHtml5StreamParser : public nsIStreamListener,
       mTokenizerMutex.AssertCurrentThreadOwns();
       // Not acquiring mTerminatedMutex because mTokenizerMutex is already
       // held at this point and is already stronger.
-      mInterrupted = false;      
+      mInterrupted = PR_FALSE;      
     }
 
     /**

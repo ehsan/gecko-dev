@@ -97,7 +97,7 @@ gfxDWriteFontFamily::FindStyleVariations()
     if (mHasStyles) {
         return;
     }
-    mHasStyles = true;
+    mHasStyles = PR_TRUE;
 
     for (UINT32 i = 0; i < mDWFamily->GetFontCount(); i++) {
         nsRefPtr<IDWriteFont> font;
@@ -258,7 +258,7 @@ gfxDWriteFontEntry::IsSymbolFont()
     if (mFont) {
         return mFont->IsSymbolFont();
     } else {
-        return false;
+        return PR_FALSE;
     }
 }
 
@@ -356,7 +356,7 @@ gfxDWriteFontEntry::ReadCMAP()
     // attempt this once, if errors occur leave a blank cmap
     if (mCmapInitialized)
         return NS_OK;
-    mCmapInitialized = true;
+    mCmapInitialized = PR_TRUE;
 
     // if loading via GDI, just use GetFontTable
     if (mFont && gfxDWriteFontList::PlatformFontList()->UseGDIFontTableAccess()) {
@@ -456,7 +456,7 @@ gfxDWriteFontEntry::InitLogFont(IDWriteFont *aFont, LOGFONTW *aLogFont)
     IDWriteGdiInterop *gdi = 
         gfxDWriteFontList::PlatformFontList()->GetGDIInterop();
     hr = gdi->ConvertFontToLOGFONT(aFont, aLogFont, &isInSystemCollection);
-    return (FAILED(hr) ? false : true);
+    return (FAILED(hr) ? PR_FALSE : PR_TRUE);
 }
 
 bool
@@ -466,7 +466,7 @@ gfxDWriteFontEntry::IsCJKFont()
         return mIsCJK;
     }
 
-    mIsCJK = false;
+    mIsCJK = PR_FALSE;
 
     const PRUint32 kOS2Tag = TRUETYPE_TAG('O','S','/','2');
     AutoFallibleTArray<PRUint8,128> buffer;
@@ -487,7 +487,7 @@ gfxDWriteFontEntry::IsCJKFont()
         const OS2Table* os2 =
             reinterpret_cast<const OS2Table*>(buffer.Elements());
         if ((PRUint32(os2->codePageRange1) & CJK_CODEPAGE_BITS) != 0) {
-            mIsCJK = true;
+            mIsCJK = PR_TRUE;
         }
     }
 
@@ -498,7 +498,7 @@ gfxDWriteFontEntry::IsCJKFont()
 // gfxDWriteFontList
 
 gfxDWriteFontList::gfxDWriteFontList()
-    : mInitialized(false), mForceGDIClassicMaxFontSize(0.0)
+    : mInitialized(PR_FALSE), mForceGDIClassicMaxFontSize(0.0)
 {
     mFontSubstitutes.Init();
 }
@@ -671,7 +671,7 @@ gfxDWriteFontList::InitFontList()
 {
     LOGREGISTRY(L"InitFontList start");
 
-    mInitialized = false;
+    mInitialized = PR_FALSE;
 
     LARGE_INTEGER frequency;        // ticks per second
     LARGE_INTEGER t1, t2, t3;           // ticks
@@ -872,7 +872,7 @@ gfxDWriteFontList::DelayedInitFontList()
         fam->SetOtherFamilyNamesInitialized();
     }
 
-    mOtherFamilyNamesInitialized = true;
+    mOtherFamilyNamesInitialized = PR_TRUE;
     GetFontSubstitutes();
 
     // bug 642093 - DirectWrite does not support old bitmap (.fon)
@@ -904,7 +904,7 @@ gfxDWriteFontList::DelayedInitFontList()
         for (i = 0; i < faces.Length(); i++) {
             // does the face have 'Ultra Bold' in the name?
             if (faces[i]->Name().Find(NS_LITERAL_STRING("Ultra Bold")) == -1) {
-                allUltraBold = false;
+                allUltraBold = PR_FALSE;
                 break;
             }
         }
@@ -1093,16 +1093,16 @@ gfxDWriteFontList::GetStandardFamilyName(const nsAString& aFontName,
     gfxFontFamily *family = FindFamily(aFontName);
     if (family) {
         family->LocalizedName(aFamilyName);
-        return true;
+        return PR_TRUE;
     }
 
-    return false;
+    return PR_FALSE;
 }
 
 gfxFontFamily* gfxDWriteFontList::FindFamily(const nsAString& aFamily)
 {
     if (!mInitialized) {
-        mInitialized = true;
+        mInitialized = PR_TRUE;
         DelayedInitFontList();
     }
 
@@ -1113,7 +1113,7 @@ void
 gfxDWriteFontList::GetFontFamilyList(nsTArray<nsRefPtr<gfxFontFamily> >& aFamilyArray)
 {
     if (!mInitialized) {
-        mInitialized = true;
+        mInitialized = PR_TRUE;
         DelayedInitFontList();
     }
 
@@ -1125,7 +1125,7 @@ gfxDWriteFontList::ResolveFontName(const nsAString& aFontName,
                                    nsAString& aResolvedFontName)
 {
     if (!mInitialized) {
-        mInitialized = true;
+        mInitialized = PR_TRUE;
         DelayedInitFontList();
     }
 
@@ -1135,11 +1135,11 @@ gfxDWriteFontList::ResolveFontName(const nsAString& aFontName,
     nsRefPtr<gfxFontFamily> ff;
     if (mFontSubstitutes.Get(keyName, &ff)) {
         aResolvedFontName = ff->Name();
-        return true;
+        return PR_TRUE;
     }
 
     if (mNonExistingFonts.Contains(keyName)) {
-        return false;
+        return PR_FALSE;
     }
 
     return gfxPlatformFontList::ResolveFontName(aFontName, aResolvedFontName);

@@ -106,7 +106,7 @@ public:
     : nsEncodingFormSubmission(aCharset, aOriginatingElement),
       mMethod(aMethod),
       mDocument(aDocument),
-      mWarnedFileControl(false)
+      mWarnedFileControl(PR_FALSE)
   {
   }
 
@@ -119,7 +119,7 @@ public:
 
   virtual bool SupportsIsindexSubmission()
   {
-    return true;
+    return PR_TRUE;
   }
 
   virtual nsresult AddIsindex(const nsAString& aValue);
@@ -203,7 +203,7 @@ nsFSURLEncoded::AddNameFilePair(const nsAString& aName,
 {
   if (!mWarnedFileControl) {
     SendJSWarning(mDocument, "ForgotFileEnctypeWarning", nsnull, 0);
-    mWarnedFileControl = true;
+    mWarnedFileControl = PR_TRUE;
   }
 
   nsAutoString filename;
@@ -223,7 +223,7 @@ HandleMailtoSubject(nsCString& aPath) {
   bool hasParams = false;
   PRInt32 paramSep = aPath.FindChar('?');
   while (paramSep != kNotFound && paramSep < (PRInt32)aPath.Length()) {
-    hasParams = true;
+    hasParams = PR_TRUE;
 
     // Get the end of the name at the = op.  If it is *after* the next &,
     // assume that someone made a parameter without an = in it
@@ -242,7 +242,7 @@ HandleMailtoSubject(nsCString& aPath) {
     if (nameEnd != kNotFound) {
       if (Substring(aPath, paramSep+1, nameEnd-(paramSep+1)).
           LowerCaseEqualsLiteral("subject")) {
-        hasSubject = true;
+        hasSubject = PR_TRUE;
         break;
       }
     }
@@ -333,7 +333,7 @@ nsFSURLEncoded::GetEncodedSubmission(nsIURI* aURI,
       mimeStream->AddHeader("Content-Type",
                             "application/x-www-form-urlencoded");
 #endif
-      mimeStream->SetAddContentLength(true);
+      mimeStream->SetAddContentLength(PR_TRUE);
       mimeStream->SetData(dataStream);
 
       *aPostDataStream = mimeStream;
@@ -571,7 +571,7 @@ nsFSMultipartFormData::GetEncodedSubmission(nsIURI* aURI,
   nsCAutoString contentType;
   GetContentType(contentType);
   mimeStream->AddHeader("Content-Type", contentType.get());
-  mimeStream->SetAddContentLength(true);
+  mimeStream->SetAddContentLength(PR_TRUE);
   mimeStream->SetData(GetSubmissionBody());
 
   *aPostDataStream = mimeStream.forget().get();
@@ -699,7 +699,7 @@ nsFSTextPlain::GetEncodedSubmission(nsIURI* aURI,
     NS_ENSURE_SUCCESS(rv, rv);
 
     mimeStream->AddHeader("Content-Type", "text/plain");
-    mimeStream->SetAddContentLength(true);
+    mimeStream->SetAddContentLength(PR_TRUE);
     mimeStream->SetData(bodyStream);
     CallQueryInterface(mimeStream, aPostDataStream);
   }
@@ -868,7 +868,7 @@ GetSubmissionFromForm(nsGenericHTMLElement* aForm,
              enctype == NS_FORM_ENCTYPE_TEXTPLAIN) {
     *aFormSubmission = new nsFSTextPlain(charset, aOriginatingElement);
   } else {
-    nsIDocument* doc = aForm->OwnerDoc();
+    nsIDocument* doc = aForm->GetOwnerDoc();
     if (enctype == NS_FORM_ENCTYPE_MULTIPART ||
         enctype == NS_FORM_ENCTYPE_TEXTPLAIN) {
       nsAutoString enctypeStr;

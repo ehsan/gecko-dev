@@ -167,9 +167,9 @@ HasOpaqueAncestorLayer(Layer* aLayer)
 {
   for (Layer* l = aLayer->GetParent(); l; l = l->GetParent()) {
     if (l->GetContentFlags() & Layer::CONTENT_OPAQUE)
-      return true;
+      return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 void
@@ -348,7 +348,7 @@ ContainerLayerD3D10::Validate()
 {
   nsIntRect visibleRect = mVisibleRegion.GetBounds();
 
-  mSupportsComponentAlphaChildren = false;
+  mSupportsComponentAlphaChildren = PR_FALSE;
 
   if (UseIntermediateSurface()) {
     const gfx3DMatrix& transform3D = GetEffectiveTransform();
@@ -356,14 +356,14 @@ ContainerLayerD3D10::Validate()
 
     if (mVisibleRegion.GetNumRects() == 1 && (GetContentFlags() & CONTENT_OPAQUE)) {
       // don't need a background, we're going to paint all opaque stuff
-      mSupportsComponentAlphaChildren = true;
+      mSupportsComponentAlphaChildren = PR_TRUE;
     } else {
       if (HasOpaqueAncestorLayer(this) &&
           transform3D.Is2D(&transform) && !transform.HasNonIntegerTranslation() &&
           GetParent()->GetEffectiveVisibleRegion().GetBounds().Contains(visibleRect))
       {
         // In this case we can copy up the background. See RenderLayer.
-        mSupportsComponentAlphaChildren = true;
+        mSupportsComponentAlphaChildren = PR_TRUE;
       }
     }
   } else {

@@ -49,8 +49,8 @@ class nsHttpChunkedDecoder
 public:
     nsHttpChunkedDecoder() : mTrailers(nsnull)
                            , mChunkRemaining(0)
-                           , mReachedEOF(false)
-                           , mWaitEOF(false) {}
+                           , mReachedEOF(PR_FALSE)
+                           , mWaitEOF(PR_FALSE) {}
    ~nsHttpChunkedDecoder() { delete mTrailers; }
 
     bool ReachedEOF() { return mReachedEOF; }

@@ -104,21 +104,21 @@ static void PrintReqURL(imgIRequest* req) {
 nsImageLoadingContent::nsImageLoadingContent()
   : mObserverList(nsnull),
     mImageBlockingStatus(nsIContentPolicy::ACCEPT),
-    mLoadingEnabled(true),
-    mIsImageStateForced(false),
-    mLoading(false),
+    mLoadingEnabled(PR_TRUE),
+    mIsImageStateForced(PR_FALSE),
+    mLoading(PR_FALSE),
     // mBroken starts out true, since an image without a URI is broken....
-    mBroken(true),
-    mUserDisabled(false),
-    mSuppressed(false),
-    mBlockingOnload(false),
-    mNewRequestsWillNeedAnimationReset(false),
-    mPendingRequestNeedsResetAnimation(false),
-    mCurrentRequestNeedsResetAnimation(false),
+    mBroken(PR_TRUE),
+    mUserDisabled(PR_FALSE),
+    mSuppressed(PR_FALSE),
+    mBlockingOnload(PR_FALSE),
+    mNewRequestsWillNeedAnimationReset(PR_FALSE),
+    mPendingRequestNeedsResetAnimation(PR_FALSE),
+    mCurrentRequestNeedsResetAnimation(PR_FALSE),
     mStateChangerDepth(0)
 {
   if (!nsContentUtils::GetImgLoader()) {
-    mLoadingEnabled = false;
+    mLoadingEnabled = PR_FALSE;
   }
 }
 
@@ -193,7 +193,7 @@ nsImageLoadingContent::OnStartDecode(imgIRequest* aRequest)
     // Block onload for non-background requests
     if (!background) {
       NS_ABORT_IF_FALSE(!mBlockingOnload, "Shouldn't already be blocking");
-      SetBlockingOnload(true);
+      SetBlockingOnload(PR_TRUE);
     }
   }
 
@@ -211,7 +211,7 @@ nsImageLoadingContent::OnStartContainer(imgIRequest* aRequest,
 
   // Have to check for state changes here, since we might have been in
   // the LOADING state before.
-  UpdateImageState(true);
+  UpdateImageState(PR_TRUE);
   return NS_OK;    
 }
 
@@ -244,7 +244,7 @@ nsImageLoadingContent::OnStopFrame(imgIRequest* aRequest,
 
   // If we're blocking a load, one frame is enough
   if (aRequest == mCurrentRequest)
-    SetBlockingOnload(false);
+    SetBlockingOnload(PR_FALSE);
 
   LOOP_OVER_OBSERVERS(OnStopFrame(aRequest, aFrame));
   return NS_OK;
@@ -263,7 +263,7 @@ nsImageLoadingContent::OnStopContainer(imgIRequest* aRequest,
   // point. So for now we take advantage of the fact that OnStopContainer is
   // always fired in the decoders at the same time as OnStopDecode.
   if (aRequest == mCurrentRequest)
-    SetBlockingOnload(false);
+    SetBlockingOnload(PR_FALSE);
 
   LOOP_OVER_OBSERVERS(OnStopContainer(aRequest, aContainer));
   return NS_OK;
@@ -290,14 +290,14 @@ nsImageLoadingContent::OnStopDecode(imgIRequest* aRequest,
   // OnStopRequest.
 
   // Our state may change. Watch it.
-  AutoStateChanger changer(this, true);
+  AutoStateChanger changer(this, PR_TRUE);
 
   // If the pending request is loaded, switch to it.
   if (aRequest == mPendingRequest) {
     PrepareCurrentRequest() = mPendingRequest;
     mPendingRequest = nsnull;
     mCurrentRequestNeedsResetAnimation = mPendingRequestNeedsResetAnimation;
-    mPendingRequestNeedsResetAnimation = false;
+    mPendingRequestNeedsResetAnimation = PR_FALSE;
   }
   NS_ABORT_IF_FALSE(aRequest == mCurrentRequest,
                     "One way or another, we should be current by now");
@@ -307,7 +307,7 @@ nsImageLoadingContent::OnStopDecode(imgIRequest* aRequest,
     mCurrentRequest->GetImage(getter_AddRefs(container));
     if (container)
       container->ResetAnimation();
-    mCurrentRequestNeedsResetAnimation = false;
+    mCurrentRequestNeedsResetAnimation = PR_FALSE;
   }
 
   // We just loaded all the data we're going to get. If we haven't done an
@@ -335,14 +335,14 @@ nsImageLoadingContent::OnStopDecode(imgIRequest* aRequest,
     // If we haven't got the initial reflow yet, IsPaintingSuppressed actually
     // returns false
     if (!shell->DidInitialReflow())
-      doRequestDecode = true;
+      doRequestDecode = PR_TRUE;
 
     // Figure out if painting is suppressed. Note that it's possible for painting
     // to be suppressed for reasons other than the initial paint delay (for
     // example - being in the bfcache), but we probably aren't loading images in
     // those situations.
     if (shell->IsPaintingSuppressed())
-      doRequestDecode = true;
+      doRequestDecode = PR_TRUE;
 
     // If we're requesting a decode, do it
     if (doRequestDecode)
@@ -561,7 +561,7 @@ nsImageLoadingContent::LoadImageWithChannel(nsIChannel* aChannel,
   // XXX what about shouldProcess?
 
   // Our state might change. Watch it.
-  AutoStateChanger changer(this, true);
+  AutoStateChanger changer(this, PR_TRUE);
 
   // Do the load.
   nsCOMPtr<imgIRequest>& req = PrepareNextRequest();
@@ -591,7 +591,7 @@ NS_IMETHODIMP nsImageLoadingContent::ForceReload()
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  return LoadImage(currentURI, true, true, nsnull, nsIRequest::VALIDATE_ALWAYS);
+  return LoadImage(currentURI, PR_TRUE, PR_TRUE, nsnull, nsIRequest::VALIDATE_ALWAYS);
 }
 
 /*
@@ -802,25 +802,25 @@ nsImageLoadingContent::UpdateImageState(bool aNotify)
     return;
   }
 
-  mLoading = mBroken = mUserDisabled = mSuppressed = false;
+  mLoading = mBroken = mUserDisabled = mSuppressed = PR_FALSE;
   
   // If we were blocked by server-based content policy, we claim to be
   // suppressed.  If we were blocked by type-based content policy, we claim to
   // be user-disabled.  Otherwise, claim to be broken.
   if (mImageBlockingStatus == nsIContentPolicy::REJECT_SERVER) {
-    mSuppressed = true;
+    mSuppressed = PR_TRUE;
   } else if (mImageBlockingStatus == nsIContentPolicy::REJECT_TYPE) {
-    mUserDisabled = true;
+    mUserDisabled = PR_TRUE;
   } else if (!mCurrentRequest) {
     // No current request means error, since we weren't disabled or suppressed
-    mBroken = true;
+    mBroken = PR_TRUE;
   } else {
     PRUint32 currentLoadStatus;
     nsresult rv = mCurrentRequest->GetImageStatus(&currentLoadStatus);
     if (NS_FAILED(rv) || (currentLoadStatus & imgIRequest::STATUS_ERROR)) {
-      mBroken = true;
+      mBroken = PR_TRUE;
     } else if (!(currentLoadStatus & imgIRequest::STATUS_SIZE_AVAILABLE)) {
-      mLoading = true;
+      mLoading = PR_TRUE;
     }
   }
 
@@ -864,7 +864,7 @@ nsImageLoadingContent::GetOurDocument()
   nsCOMPtr<nsIContent> thisContent = do_QueryInterface(this);
   NS_ENSURE_TRUE(thisContent, nsnull);
 
-  return thisContent->OwnerDoc();
+  return thisContent->GetOwnerDoc();
 }
 
 nsresult
@@ -901,7 +901,7 @@ nsImageLoadingContent::FireEvent(const nsAString& aEventType)
   nsCOMPtr<nsINode> thisNode = do_QueryInterface(this);
 
   nsRefPtr<nsPLDOMEvent> event =
-    new nsLoadBlockingPLDOMEvent(thisNode, aEventType, false, false);
+    new nsLoadBlockingPLDOMEvent(thisNode, aEventType, PR_FALSE, PR_FALSE);
   event->PostDOMEvent();
   
   return NS_OK;
@@ -990,11 +990,11 @@ nsImageLoadingContent::ClearCurrentRequest(nsresult aReason)
   UntrackImage(mCurrentRequest);
   mCurrentRequest->CancelAndForgetObserver(aReason);
   mCurrentRequest = nsnull;
-  mCurrentRequestNeedsResetAnimation = false;
+  mCurrentRequestNeedsResetAnimation = PR_FALSE;
 
   // We only block onload during the decoding of "current" images. This one is
   // going away, so we should unblock unconditionally here.
-  SetBlockingOnload(false);
+  SetBlockingOnload(PR_FALSE);
 }
 
 void
@@ -1012,7 +1012,7 @@ nsImageLoadingContent::ClearPendingRequest(nsresult aReason)
   UntrackImage(mPendingRequest);
   mPendingRequest->CancelAndForgetObserver(aReason);
   mPendingRequest = nsnull;
-  mPendingRequestNeedsResetAnimation = false;
+  mPendingRequestNeedsResetAnimation = PR_FALSE;
 }
 
 bool
@@ -1043,7 +1043,7 @@ nsImageLoadingContent::SetBlockingOnload(bool aBlocking)
     if (aBlocking)
       doc->BlockOnload();
     else
-      doc->UnblockOnload(false);
+      doc->UnblockOnload(PR_FALSE);
 
     // Update our state
     mBlockingOnload = aBlocking;

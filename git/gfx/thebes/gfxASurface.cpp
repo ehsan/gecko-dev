@@ -366,13 +366,13 @@ gfxASurface::CheckSurfaceSize(const gfxIntSize& sz, PRInt32 limit)
 {
     if (sz.width < 0 || sz.height < 0) {
         NS_WARNING("Surface width or height < 0!");
-        return false;
+        return PR_FALSE;
     }
 
     // reject images with sides bigger than limit
     if (limit && (sz.width > limit || sz.height > limit)) {
         NS_WARNING("Surface size too large (exceeds caller's limit)!");
-        return false;
+        return PR_FALSE;
     }
 
 #if defined(XP_MACOSX)
@@ -380,7 +380,7 @@ gfxASurface::CheckSurfaceSize(const gfxIntSize& sz, PRInt32 limit)
     // so clamp all surfaces on the Mac to that height
     if (sz.height > SHRT_MAX) {
         NS_WARNING("Surface size too large (exceeds CoreGraphics limit)!");
-        return false;
+        return PR_FALSE;
     }
 #endif
 
@@ -389,7 +389,7 @@ gfxASurface::CheckSurfaceSize(const gfxIntSize& sz, PRInt32 limit)
     tmp *= sz.height;
     if (!tmp.valid()) {
         NS_WARNING("Surface size too large (would overflow)!");
-        return false;
+        return PR_FALSE;
     }
 
     // assuming 4-byte stride, make sure the allocation size
@@ -397,10 +397,10 @@ gfxASurface::CheckSurfaceSize(const gfxIntSize& sz, PRInt32 limit)
     tmp *= 4;
     if (!tmp.valid()) {
         NS_WARNING("Allocation too large (would overflow)!");
-        return false;
+        return PR_FALSE;
     }
 
-    return true;
+    return PR_TRUE;
 }
 
 /* static */
@@ -488,11 +488,11 @@ bool
 gfxASurface::GetSubpixelAntialiasingEnabled()
 {
     if (!mSurfaceValid)
-      return false;
+      return PR_FALSE;
 #ifdef MOZ_TREE_CAIRO
     return cairo_surface_get_subpixel_antialiasing(mSurface) == CAIRO_SUBPIXEL_ANTIALIASING_ENABLED;
 #else
-    return true;
+    return PR_TRUE;
 #endif
 }
 

@@ -299,7 +299,7 @@ nsresult nsSound::PlaySoundFile(const nsACString &aSoundFile)
 {
   nsresult rv;
   nsCOMPtr <nsILocalFile> soundFile;
-  rv = NS_NewNativeLocalFile(aSoundFile, false, 
+  rv = NS_NewNativeLocalFile(aSoundFile, PR_FALSE, 
                              getter_AddRefs(soundFile));
   NS_ENSURE_SUCCESS(rv,rv);
 

@@ -39,23 +39,16 @@
 #ifndef nsQAppInstance_h
 #define nsQAppInstance_h
 
-// declared in nsAppRunner.cpp
-extern int    gArgc;
-extern char **gArgv;
+#include <QApplication>
 
-class QApplication;
-class MComponentData;
 class nsQAppInstance
 {
 public:
-  static void AddRef(int& aArgc = gArgc,
-                     char** aArgv = gArgv,
-                     bool aDefaultProcess = false);
+  static void AddRef(void);
   static void Release(void);
 
 private:
   static QApplication *sQAppInstance;
-  static MComponentData* sMComponentData;
   static int sQAppRefCount;
 };
 

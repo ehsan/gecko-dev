@@ -288,7 +288,7 @@ DOMSVGPathSegList::Clear()
     }
 
     InternalList().Clear();
-    Element()->DidChangePathSegList(true);
+    Element()->DidChangePathSegList(PR_TRUE);
 #ifdef MOZ_SMIL
     if (AttrIsAnimating()) {
       Element()->AnimationNeedsResample();
@@ -392,7 +392,7 @@ DOMSVGPathSegList::InsertItemBefore(nsIDOMSVGPathSeg *aNewItem,
 
   UpdateListIndicesFromIndex(aIndex + 1, argCount + 1);
 
-  Element()->DidChangePathSegList(true);
+  Element()->DidChangePathSegList(PR_TRUE);
 #ifdef MOZ_SMIL
   if (AttrIsAnimating()) {
     Element()->AnimationNeedsResample();
@@ -458,7 +458,7 @@ DOMSVGPathSegList::ReplaceItem(nsIDOMSVGPathSeg *aNewItem,
     }
   }
 
-  Element()->DidChangePathSegList(true);
+  Element()->DidChangePathSegList(PR_TRUE);
 #ifdef MOZ_SMIL
   if (AttrIsAnimating()) {
     Element()->AnimationNeedsResample();
@@ -502,7 +502,7 @@ DOMSVGPathSegList::RemoveItem(PRUint32 aIndex,
 
   UpdateListIndicesFromIndex(aIndex, -(argCount + 1));
 
-  Element()->DidChangePathSegList(true);
+  Element()->DidChangePathSegList(PR_TRUE);
 #ifdef MOZ_SMIL
   if (AttrIsAnimating()) {
     Element()->AnimationNeedsResample();

@@ -234,7 +234,7 @@ GetPrincipal(JSObject *obj)
     }
 
     nsIXPConnect *xpc = nsXPConnect::GetRuntimeInstance()->GetXPConnect();
-    return xpc->GetPrincipal(obj, true);
+    return xpc->GetPrincipal(obj, PR_TRUE);
 }
 
 bool

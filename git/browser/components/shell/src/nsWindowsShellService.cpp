@@ -351,10 +351,10 @@ nsWindowsShellService::IsDefaultBrowserVista(bool* aIsDefaultBrowser)
     *aIsDefaultBrowser = res;
 
     pAAR->Release();
-    return true;
+    return PR_TRUE;
   }
 #endif  
-  return false;
+  return PR_FALSE;
 }
 
 NS_IMETHODIMP
@@ -365,12 +365,12 @@ nsWindowsShellService::IsDefaultBrowser(bool aStartupCheck,
   // checked this session (so that subsequent window opens don't show the 
   // default browser dialog).
   if (aStartupCheck)
-    mCheckedThisSession = true;
+    mCheckedThisSession = PR_TRUE;
 
   SETTING* settings;
   SETTING* end = gSettings + sizeof(gSettings)/sizeof(SETTING);
 
-  *aIsDefaultBrowser = true;
+  *aIsDefaultBrowser = PR_TRUE;
 
   PRUnichar exePath[MAX_BUF];
   if (!::GetModuleFileNameW(0, exePath, MAX_BUF))
@@ -396,7 +396,7 @@ nsWindowsShellService::IsDefaultBrowser(bool aStartupCheck,
     HKEY theKey;
     rv = OpenKeyForReading(HKEY_CLASSES_ROOT, key, &theKey);
     if (NS_FAILED(rv)) {
-      *aIsDefaultBrowser = false;
+      *aIsDefaultBrowser = PR_FALSE;
       return NS_OK;
     }
 
@@ -408,7 +408,7 @@ nsWindowsShellService::IsDefaultBrowser(bool aStartupCheck,
     if (REG_FAILED(res) ||
         !dataLongPath.Equals(currValue, CaseInsensitiveCompare)) {
       // Key wasn't set, or was set to something other than our registry entry
-      *aIsDefaultBrowser = false;
+      *aIsDefaultBrowser = PR_FALSE;
       return NS_OK;
     }
   }
@@ -445,7 +445,7 @@ nsWindowsShellService::GetShouldCheckDefaultBrowser(bool* aResult)
   // If we've already checked, the browser has been started and this is a 
   // new window open, and we don't want to check again.
   if (mCheckedThisSession) {
-    *aResult = false;
+    *aResult = PR_FALSE;
     return NS_OK;
   }
 
@@ -847,7 +847,7 @@ nsWindowsShellService::GetMailAccountKey(HKEY* aResult)
         // Close the key we opened.
         ::RegCloseKey(mailKey);
 	 
-        return true;
+        return PR_TRUE;
       }
     }
     else
@@ -857,7 +857,7 @@ nsWindowsShellService::GetMailAccountKey(HKEY* aResult)
 
   // Close the key we opened.
   ::RegCloseKey(mailKey);
-  return false;
+  return PR_FALSE;
 }
 
 NS_IMETHODIMP
@@ -876,7 +876,7 @@ nsWindowsShellService::OpenApplicationWithURI(nsILocalFile* aApplication,
   
   const nsCString spec(aURI);
   const char* specStr = spec.get();
-  return process->Run(false, &specStr, 1);
+  return process->Run(PR_FALSE, &specStr, 1);
 }
 
 NS_IMETHODIMP

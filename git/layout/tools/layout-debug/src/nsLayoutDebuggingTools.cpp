@@ -115,13 +115,13 @@ document(nsIDocShell *aDocShell)
 #endif
 
 nsLayoutDebuggingTools::nsLayoutDebuggingTools()
-  : mPaintFlashing(false),
-    mPaintDumping(false),
-    mInvalidateDumping(false),
-    mEventDumping(false),
-    mMotionEventDumping(false),
-    mCrossingEventDumping(false),
-    mReflowCounts(false)
+  : mPaintFlashing(PR_FALSE),
+    mPaintDumping(PR_FALSE),
+    mInvalidateDumping(PR_FALSE),
+    mEventDumping(PR_FALSE),
+    mMotionEventDumping(PR_FALSE),
+    mCrossingEventDumping(PR_FALSE),
+    mReflowCounts(PR_FALSE)
 {
     NewURILoaded();
 }
@@ -182,11 +182,11 @@ nsLayoutDebuggingTools::NewURILoaded()
     // Reset all the state that should be reset between pages.
 
     // XXX Some of these should instead be transferred between pages!
-    mEditorMode = false;
-    mVisualDebugging = false;
-    mVisualEventDebugging = false;
+    mEditorMode = PR_FALSE;
+    mVisualDebugging = PR_FALSE;
+    mVisualEventDebugging = PR_FALSE;
 
-    mReflowCounts = false;
+    mReflowCounts = PR_FALSE;
 
     ForceRefresh();
     return NS_OK;

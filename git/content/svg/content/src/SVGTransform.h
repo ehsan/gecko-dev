@@ -178,15 +178,15 @@ public:
   bool operator==(const SVGTransformSMILData& aOther) const
   {
     if (mTransformType != aOther.mTransformType)
-      return false;
+      return PR_FALSE;
 
     for (PRUint32 i = 0; i < NUM_STORED_PARAMS; ++i) {
       if (mParams[i] != aOther.mParams[i]) {
-        return false;
+        return PR_FALSE;
       }
     }
 
-    return true;
+    return PR_TRUE;
   }
 
   bool operator!=(const SVGTransformSMILData& aOther) const

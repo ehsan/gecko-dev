@@ -191,9 +191,9 @@ public:
    * also means that any clear needs to continue to the next column.)
    */
   void SetPushedLeftFloatPastBreak()
-    { mPushedLeftFloatPastBreak = true; }
+    { mPushedLeftFloatPastBreak = PR_TRUE; }
   void SetPushedRightFloatPastBreak()
-    { mPushedRightFloatPastBreak = true; }
+    { mPushedRightFloatPastBreak = PR_TRUE; }
 
   /**
    * Notify that we split a float, with part of it needing to be pushed
@@ -201,9 +201,9 @@ public:
    * continue to the next page/column.)
    */
   void SetSplitLeftFloatAcrossBreak()
-    { mSplitLeftFloatAcrossBreak = true; }
+    { mSplitLeftFloatAcrossBreak = PR_TRUE; }
   void SetSplitRightFloatAcrossBreak()
-    { mSplitRightFloatAcrossBreak = true; }
+    { mSplitRightFloatAcrossBreak = PR_TRUE; }
 
   /**
    * Remove the regions associated with this floating frame and its

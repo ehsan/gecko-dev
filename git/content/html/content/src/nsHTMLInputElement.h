@@ -70,7 +70,7 @@
 #define BF_CAN_SHOW_VALID_UI 12
 
 #define GET_BOOLBIT(bitfield, field) (((bitfield) & (0x01 << (field))) \
-                                        ? true : false)
+                                        ? PR_TRUE : PR_FALSE)
 #define SET_BOOLBIT(bitfield, field, b) ((b) \
                                         ? ((bitfield) |=  (0x01 << (field))) \
                                         : ((bitfield) &= ~(0x01 << (field))))

@@ -130,10 +130,10 @@ nsXBLProtoImplMethod::InstallMember(nsIScriptContext* aContext,
                   "Should not be installing an uncompiled method");
   JSContext* cx = aContext->GetNativeContext();
 
-  nsIDocument *ownerDoc = aBoundElement->OwnerDoc();
+  nsIDocument *ownerDoc = aBoundElement->GetOwnerDoc();
   nsIScriptGlobalObject *sgo;
 
-  if (!(sgo = ownerDoc->GetScopeObject())) {
+  if (!ownerDoc || !(sgo = ownerDoc->GetScopeObject())) {
     return NS_ERROR_UNEXPECTED;
   }
 
@@ -243,7 +243,7 @@ nsXBLProtoImplMethod::CompileMember(nsIScriptContext* aContext, const nsCString&
                                           functionUri.get(),
                                           uncompiledMethod->mBodyText.GetLineNumber(),
                                           JSVERSION_LATEST,
-                                          true,
+                                          PR_TRUE,
                                           (void **) &methodObject);
 
   // Destroy our uncompiled method and delete our arg list.
@@ -279,7 +279,10 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
 
   // Get the script context the same way
   // nsXBLProtoImpl::InstallImplementation does.
-  nsIDocument* document = aBoundElement->OwnerDoc();
+  nsIDocument* document = aBoundElement->GetOwnerDoc();
+  if (!document) {
+    return NS_OK;
+  }
 
   nsIScriptGlobalObject* global = document->GetScriptGlobalObject();
   if (!global) {

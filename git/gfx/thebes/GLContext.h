@@ -219,7 +219,7 @@ public:
     };
 
     virtual bool NextTile() {
-        return false;
+        return PR_FALSE;
     };
 
     virtual nsIntRect GetTileRect() {
@@ -323,12 +323,6 @@ public:
 
     void SetFilter(gfxPattern::GraphicsFilter aFilter) { mFilter = aFilter; }
 
-    /**
-     * Applies this TextureImage's filter, assuming that its texture is
-     * the currently bound texture.
-     */
-    virtual void ApplyFilter() = 0;
-
 protected:
     friend class GLContext;
 
@@ -345,6 +339,12 @@ protected:
         , mWrapMode(aWrapMode)
         , mContentType(aContentType)
     {}
+
+    /**
+     * Applies this TextureImage's filter, assuming that its texture is
+     * the currently bound texture.
+     */
+    virtual void ApplyFilter() = 0;
 
     nsIntSize mSize;
     GLenum mWrapMode;
@@ -403,8 +403,6 @@ public:
     virtual bool InUpdate() const { return !!mUpdateSurface; }
 
     virtual void Resize(const nsIntSize& aSize);
-
-    virtual void ApplyFilter();
 protected:
 
     GLuint mTexture;
@@ -415,6 +413,8 @@ protected:
 
     // The offset into the update surface at which the update rect is located.
     nsIntPoint mUpdateOffset;
+
+    virtual void ApplyFilter();
 };
 
 /**
@@ -444,7 +444,6 @@ public:
     virtual bool DirectUpdate(gfxASurface* aSurf, const nsIntRegion& aRegion, const nsIntPoint& aFrom = nsIntPoint(0,0));
     virtual bool InUpdate() const { return mInUpdate; };
     virtual void BindTexture(GLenum);
-    virtual void ApplyFilter();
 protected:
     unsigned int mCurrentImage;
     nsTArray< nsRefPtr<TextureImage> > mImages;
@@ -459,6 +458,8 @@ protected:
     // The region of update requested
     nsIntRegion mUpdateRegion;
     TextureState mTextureState;
+
+    virtual void ApplyFilter();
 };
 
 struct THEBES_API ContextFormat
@@ -531,20 +532,20 @@ public:
     GLContext(const ContextFormat& aFormat,
               bool aIsOffscreen = false,
               GLContext *aSharedContext = nsnull)
-      : mInitialized(false),
+      : mInitialized(PR_FALSE),
         mIsOffscreen(aIsOffscreen),
 #ifdef USE_GLES2
-        mIsGLES2(true),
+        mIsGLES2(PR_TRUE),
 #else
-        mIsGLES2(false),
+        mIsGLES2(PR_FALSE),
 #endif
-        mIsGlobalSharedContext(false),
+        mIsGlobalSharedContext(PR_FALSE),
         mVendor(-1),
         mDebugMode(0),
         mCreationFormat(aFormat),
         mSharedContext(aSharedContext),
         mOffscreenTexture(0),
-        mFlipped(false),
+        mFlipped(PR_FALSE),
         mBlitProgram(0),
         mBlitFramebuffer(0),
         mOffscreenFBO(0),
@@ -651,7 +652,7 @@ public:
     }
     
     /**
-     * Returns true if either this is the GLES2 API, or had the GL_ARB_ES2_compatibility extension
+     * Returns PR_TRUE if either this is the GLES2 API, or had the GL_ARB_ES2_compatibility extension
      */
     bool HasES2Compatibility() {
         return mIsGLES2 || IsExtensionSupported(ARB_ES2_compatibility);
@@ -716,22 +717,22 @@ public:
 
     virtual bool BindTex2DOffscreen(GLContext *aOffscreen) {
         if (aOffscreen->GetContextType() != GetContextType()) {
-          return false;
+          return PR_FALSE;
         }
 
         if (!aOffscreen->mOffscreenFBO) {
-            return false;
+            return PR_FALSE;
         }
 
         if (!aOffscreen->mSharedContext ||
             aOffscreen->mSharedContext != mSharedContext)
         {
-            return false;
+            return PR_FALSE;
         }
 
         fBindTexture(LOCAL_GL_TEXTURE_2D, aOffscreen->mOffscreenTexture);
 
-        return true;
+        return PR_TRUE;
     }
 
     virtual void UnbindTex2DOffscreen(GLContext *aOffscreen) { }
@@ -751,7 +752,7 @@ public:
     virtual bool ResizeOffscreen(const gfxIntSize& aNewSize) {
         if (mOffscreenFBO)
             return ResizeOffscreenFBO(aNewSize);
-        return false;
+        return PR_FALSE;
     }
 
     /*
@@ -797,7 +798,7 @@ public:
 #endif
 
     virtual bool TextureImageSupportsGetBackingSurface() {
-        return false;
+        return PR_FALSE;
     }
 
     virtual bool RenewSurface() { return false; }
@@ -807,7 +808,7 @@ public:
      * |aContentType|.  The TextureImage's texture is configured to
      * use |aWrapMode| (usually GL_CLAMP_TO_EDGE or GL_REPEAT) and by
      * default, GL_LINEAR filtering.  Specify
-     * |aUseNearestFilter=true| for GL_NEAREST filtering.  Return
+     * |aUseNearestFilter=PR_TRUE| for GL_NEAREST filtering.  Return
      * NULL if creating the TextureImage fails.
      *
      * The returned TextureImage may only be used with this GLContext.
@@ -919,7 +920,7 @@ public:
                                              GLuint& aTexture,
                                              bool aOverwrite = false,
                                              const nsIntPoint& aSrcPoint = nsIntPoint(0, 0),
-                                             bool aPixelBuffer = false);
+                                             bool aPixelBuffer = PR_FALSE);
 
     
     void TexImage2D(GLenum target, GLint level, GLint internalformat, 
@@ -2261,11 +2262,11 @@ public:
 
     struct NamedResource {
         NamedResource()
-            : origin(nsnull), name(0), originDeleted(false)
+            : origin(nsnull), name(0), originDeleted(PR_FALSE)
         { }
 
         NamedResource(GLContext *aOrigin, GLuint aName)
-            : origin(aOrigin), name(aName), originDeleted(false)
+            : origin(aOrigin), name(aName), originDeleted(PR_FALSE)
         { }
 
         GLContext *origin;
@@ -2301,24 +2302,24 @@ inline bool
 DoesVendorStringMatch(const char* aVendorString, const char *aWantedVendor)
 {
     if (!aVendorString || !aWantedVendor)
-        return false;
+        return PR_FALSE;
 
     const char *occurrence = strstr(aVendorString, aWantedVendor);
 
     // aWantedVendor not found
     if (!occurrence)
-        return false;
+        return PR_FALSE;
 
     // aWantedVendor preceded by alpha character
     if (occurrence != aVendorString && isalpha(*(occurrence-1)))
-        return false;
+        return PR_FALSE;
 
     // aWantedVendor followed by alpha character
     const char *afterOccurrence = occurrence + strlen(aWantedVendor);
     if (isalpha(*afterOccurrence))
-        return false;
+        return PR_FALSE;
 
-    return true;
+    return PR_TRUE;
 }
 
 } /* namespace gl */

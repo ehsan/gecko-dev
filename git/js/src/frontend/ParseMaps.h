@@ -43,7 +43,6 @@
 
 #include "ds/InlineMap.h"
 #include "js/HashTable.h"
-#include "js/Vector.h"
 
 namespace js {
 

@@ -92,7 +92,7 @@ static bool IsUniversalXPConnectCapable()
   bool hasCap = false;
   nsresult rv = nsContentUtils::GetSecurityManager()->
                   IsCapabilityEnabled("UniversalXPConnect", &hasCap);
-  NS_ENSURE_SUCCESS(rv, false);
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
   return hasCap;
 }
 
@@ -173,7 +173,7 @@ nsDOMWindowUtils::SetImageAnimationMode(PRUint16 aMode)
 NS_IMETHODIMP
 nsDOMWindowUtils::GetDocCharsetIsForced(bool *aIsForced)
 {
-  *aIsForced = false;
+  *aIsForced = PR_FALSE;
 
   if (!IsUniversalXPConnectCapable()) {
     return NS_ERROR_DOM_SECURITY_ERR;
@@ -311,7 +311,7 @@ nsDOMWindowUtils::SetDisplayPortForElement(float aXPx, float aYPx,
     if (content == rootScrollFrame->GetContent()) {
       // We are setting a root displayport for a document.
       // The pres shell needs a special flag set.
-      presShell->SetIgnoreViewportScrolling(true);
+      presShell->SetIgnoreViewportScrolling(PR_TRUE);
 
       // The root document currently has a widget, but we might end up
       // painting content inside the displayport but outside the widget
@@ -367,7 +367,7 @@ nsDOMWindowUtils::SendMouseEvent(const nsAString& aType,
                                  bool aIgnoreRootScrollFrame)
 {
   return SendMouseEventCommon(aType, aX, aY, aButton, aClickCount, aModifiers,
-                              aIgnoreRootScrollFrame, false);
+                              aIgnoreRootScrollFrame, PR_FALSE);
 }
 
 NS_IMETHODIMP
@@ -380,7 +380,7 @@ nsDOMWindowUtils::SendMouseEventToWindow(const nsAString& aType,
                                          bool aIgnoreRootScrollFrame)
 {
   return SendMouseEventCommon(aType, aX, aY, aButton, aClickCount, aModifiers,
-                              aIgnoreRootScrollFrame, true);
+                              aIgnoreRootScrollFrame, PR_TRUE);
 }
 
 NS_IMETHODIMP
@@ -421,13 +421,13 @@ nsDOMWindowUtils::SendMouseEventCommon(const nsAString& aType,
   } else
     return NS_ERROR_FAILURE;
 
-  nsMouseEvent event(true, msg, widget, nsMouseEvent::eReal,
+  nsMouseEvent event(PR_TRUE, msg, widget, nsMouseEvent::eReal,
                      contextMenuKey ?
                        nsMouseEvent::eContextMenuKey : nsMouseEvent::eNormal);
-  event.isShift = (aModifiers & nsIDOMNSEvent::SHIFT_MASK) ? true : false;
-  event.isControl = (aModifiers & nsIDOMNSEvent::CONTROL_MASK) ? true : false;
-  event.isAlt = (aModifiers & nsIDOMNSEvent::ALT_MASK) ? true : false;
-  event.isMeta = (aModifiers & nsIDOMNSEvent::META_MASK) ? true : false;
+  event.isShift = (aModifiers & nsIDOMNSEvent::SHIFT_MASK) ? PR_TRUE : PR_FALSE;
+  event.isControl = (aModifiers & nsIDOMNSEvent::CONTROL_MASK) ? PR_TRUE : PR_FALSE;
+  event.isAlt = (aModifiers & nsIDOMNSEvent::ALT_MASK) ? PR_TRUE : PR_FALSE;
+  event.isMeta = (aModifiers & nsIDOMNSEvent::META_MASK) ? PR_TRUE : PR_FALSE;
   event.button = aButton;
   event.widget = widget;
 
@@ -464,7 +464,7 @@ nsDOMWindowUtils::SendMouseEventCommon(const nsAString& aType,
       return NS_ERROR_FAILURE;
 
     status = nsEventStatus_eIgnore;
-    return vo->HandleEvent(view, &event, false, &status);
+    return vo->HandleEvent(view, &event, PR_FALSE, &status);
   }
   return widget->DispatchEvent(&event, status);
 }
@@ -496,11 +496,11 @@ nsDOMWindowUtils::SendMouseScrollEvent(const nsAString& aType,
   else
     return NS_ERROR_UNEXPECTED;
 
-  nsMouseScrollEvent event(true, msg, widget);
-  event.isShift = (aModifiers & nsIDOMNSEvent::SHIFT_MASK) ? true : false;
-  event.isControl = (aModifiers & nsIDOMNSEvent::CONTROL_MASK) ? true : false;
-  event.isAlt = (aModifiers & nsIDOMNSEvent::ALT_MASK) ? true : false;
-  event.isMeta = (aModifiers & nsIDOMNSEvent::META_MASK) ? true : false;
+  nsMouseScrollEvent event(PR_TRUE, msg, widget);
+  event.isShift = (aModifiers & nsIDOMNSEvent::SHIFT_MASK) ? PR_TRUE : PR_FALSE;
+  event.isControl = (aModifiers & nsIDOMNSEvent::CONTROL_MASK) ? PR_TRUE : PR_FALSE;
+  event.isAlt = (aModifiers & nsIDOMNSEvent::ALT_MASK) ? PR_TRUE : PR_FALSE;
+  event.isMeta = (aModifiers & nsIDOMNSEvent::META_MASK) ? PR_TRUE : PR_FALSE;
   event.button = aButton;
   event.widget = widget;
   event.delta = aDelta;
@@ -551,11 +551,11 @@ nsDOMWindowUtils::SendKeyEvent(const nsAString& aType,
   else
     return NS_ERROR_FAILURE;
 
-  nsKeyEvent event(true, msg, widget);
-  event.isShift = (aModifiers & nsIDOMNSEvent::SHIFT_MASK) ? true : false;
-  event.isControl = (aModifiers & nsIDOMNSEvent::CONTROL_MASK) ? true : false;
-  event.isAlt = (aModifiers & nsIDOMNSEvent::ALT_MASK) ? true : false;
-  event.isMeta = (aModifiers & nsIDOMNSEvent::META_MASK) ? true : false;
+  nsKeyEvent event(PR_TRUE, msg, widget);
+  event.isShift = (aModifiers & nsIDOMNSEvent::SHIFT_MASK) ? PR_TRUE : PR_FALSE;
+  event.isControl = (aModifiers & nsIDOMNSEvent::CONTROL_MASK) ? PR_TRUE : PR_FALSE;
+  event.isAlt = (aModifiers & nsIDOMNSEvent::ALT_MASK) ? PR_TRUE : PR_FALSE;
+  event.isMeta = (aModifiers & nsIDOMNSEvent::META_MASK) ? PR_TRUE : PR_FALSE;
 
   event.keyCode = aKeyCode;
   event.charCode = aCharCode;
@@ -795,11 +795,11 @@ nsDOMWindowUtils::SendSimpleGestureEvent(const nsAString& aType,
   else
     return NS_ERROR_FAILURE;
  
-  nsSimpleGestureEvent event(true, msg, widget, aDirection, aDelta);
-  event.isShift = (aModifiers & nsIDOMNSEvent::SHIFT_MASK) ? true : false;
-  event.isControl = (aModifiers & nsIDOMNSEvent::CONTROL_MASK) ? true : false;
-  event.isAlt = (aModifiers & nsIDOMNSEvent::ALT_MASK) ? true : false;
-  event.isMeta = (aModifiers & nsIDOMNSEvent::META_MASK) ? true : false;
+  nsSimpleGestureEvent event(PR_TRUE, msg, widget, aDirection, aDelta);
+  event.isShift = (aModifiers & nsIDOMNSEvent::SHIFT_MASK) ? PR_TRUE : PR_FALSE;
+  event.isControl = (aModifiers & nsIDOMNSEvent::CONTROL_MASK) ? PR_TRUE : PR_FALSE;
+  event.isAlt = (aModifiers & nsIDOMNSEvent::ALT_MASK) ? PR_TRUE : PR_FALSE;
+  event.isMeta = (aModifiers & nsIDOMNSEvent::META_MASK) ? PR_TRUE : PR_FALSE;
   event.time = PR_IntervalNow();
 
   nsPresContext* presContext = GetPresContext();
@@ -929,7 +929,7 @@ nsDOMWindowUtils::CompareCanvases(nsIDOMHTMLCanvasElement *aCanvas1,
 NS_IMETHODIMP
 nsDOMWindowUtils::GetIsMozAfterPaintPending(bool *aResult)
 {
-  *aResult = false;
+  *aResult = PR_FALSE;
   nsPresContext* presContext = GetPresContext();
   if (!presContext)
     return NS_OK;
@@ -977,7 +977,7 @@ nsDOMWindowUtils::SuppressEventHandling(bool aSuppress)
   if (aSuppress) {
     doc->SuppressEventHandling();
   } else {
-    doc->UnsuppressEventHandlingAndFireEvents(true);
+    doc->UnsuppressEventHandlingAndFireEvents(PR_TRUE);
   }
 
   return NS_OK;
@@ -1166,7 +1166,7 @@ nsDOMWindowUtils::SendCompositionEvent(const nsAString& aType,
     return NS_ERROR_FAILURE;
   }
 
-  nsCompositionEvent compositionEvent(true, msg, widget);
+  nsCompositionEvent compositionEvent(PR_TRUE, msg, widget);
   InitEvent(compositionEvent);
   if (msg != NS_COMPOSITION_START) {
     compositionEvent.data = aData;
@@ -1222,7 +1222,7 @@ nsDOMWindowUtils::SendTextEvent(const nsAString& aCompositionString,
     return NS_ERROR_FAILURE;
   }
 
-  nsTextEvent textEvent(true, NS_TEXT_TEXT, widget);
+  nsTextEvent textEvent(PR_TRUE, NS_TEXT_TEXT, widget);
   InitEvent(textEvent);
 
   nsAutoTArray<nsTextRange, 4> textRanges;
@@ -1300,7 +1300,7 @@ nsDOMWindowUtils::SendQueryContentEvent(PRUint32 aType,
 
   if (aType == QUERY_CHARACTER_AT_POINT) {
     // Looking for the widget at the point.
-    nsQueryContentEvent dummyEvent(true, NS_QUERY_CONTENT_STATE, widget);
+    nsQueryContentEvent dummyEvent(PR_TRUE, NS_QUERY_CONTENT_STATE, widget);
     InitEvent(dummyEvent, &pt);
     nsIFrame* popupFrame =
       nsLayoutUtils::GetPopupFrameForEventCoordinates(presContext->GetRootPresContext(), &dummyEvent);
@@ -1322,7 +1322,7 @@ nsDOMWindowUtils::SendQueryContentEvent(PRUint32 aType,
 
   pt += widget->WidgetToScreenOffset() - targetWidget->WidgetToScreenOffset();
 
-  nsQueryContentEvent queryEvent(true, aType, targetWidget);
+  nsQueryContentEvent queryEvent(PR_TRUE, aType, targetWidget);
   InitEvent(queryEvent, &pt);
 
   switch (aType) {
@@ -1354,7 +1354,7 @@ nsDOMWindowUtils::SendSelectionSetEvent(PRUint32 aOffset,
                                         bool aReverse,
                                         bool *aResult)
 {
-  *aResult = false;
+  *aResult = PR_FALSE;
 
   if (!IsUniversalXPConnectCapable()) {
     return NS_ERROR_DOM_SECURITY_ERR;
@@ -1366,7 +1366,7 @@ nsDOMWindowUtils::SendSelectionSetEvent(PRUint32 aOffset,
     return NS_ERROR_FAILURE;
   }
 
-  nsSelectionEvent selectionEvent(true, NS_SELECTION_SET, widget);
+  nsSelectionEvent selectionEvent(PR_TRUE, NS_SELECTION_SET, widget);
   InitEvent(selectionEvent);
 
   selectionEvent.mOffset = aOffset;
@@ -1412,7 +1412,7 @@ nsDOMWindowUtils::SendContentCommandEvent(const nsAString& aType,
   else
     return NS_ERROR_FAILURE;
  
-  nsContentCommandEvent event(true, msg, widget);
+  nsContentCommandEvent event(PR_TRUE, msg, widget);
   if (msg == NS_CONTENT_COMMAND_PASTE_TRANSFERABLE) {
     event.mTransferable = aTransferable;
   }
@@ -1478,9 +1478,9 @@ nsDOMWindowUtils::GetVisitedDependentComputedStyle(
     mWindow->GetComputedStyle(aElement, aPseudoElement, getter_AddRefs(decl));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  static_cast<nsComputedDOMStyle*>(decl.get())->SetExposeVisitedStyle(true);
+  static_cast<nsComputedDOMStyle*>(decl.get())->SetExposeVisitedStyle(PR_TRUE);
   rv = decl->GetPropertyValue(aPropertyName, aResult);
-  static_cast<nsComputedDOMStyle*>(decl.get())->SetExposeVisitedStyle(false);
+  static_cast<nsComputedDOMStyle*>(decl.get())->SetExposeVisitedStyle(PR_FALSE);
 
   return rv;
 }
@@ -1577,7 +1577,7 @@ nsDOMWindowUtils::GetParent()
       *rval = OBJECT_TO_JSVAL(outerize(cx, parent));
   }
 
-  cc->SetReturnValueWasSet(true);
+  cc->SetReturnValueWasSet(PR_TRUE);
   return NS_OK;
 }
 
@@ -1649,8 +1649,8 @@ ComputeAnimationValue(nsCSSProperty aProperty,
 {
 
   if (!nsStyleAnimation::ComputeValue(aProperty, aElement, aInput,
-                                      false, aOutput)) {
-    return false;
+                                      PR_FALSE, aOutput)) {
+    return PR_FALSE;
   }
 
   // This matches TransExtractComputedValue in nsTransitionManager.cpp.
@@ -1661,7 +1661,7 @@ ComputeAnimationValue(nsCSSProperty aProperty,
                         nsStyleAnimation::eUnit_Visibility);
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 NS_IMETHODIMP
@@ -1770,7 +1770,7 @@ nsDOMWindowUtils::GetCursorType(PRInt16 *aCursor)
 
   do {
     if (nsEventStateManager::sMouseOverDocument == doc.get()) {
-      isSameDoc = true;
+      isSameDoc = PR_TRUE;
       break;
     }
   } while ((doc = doc->GetParentDocument()));
@@ -1808,7 +1808,7 @@ nsDOMWindowUtils::GoOnline()
 
   nsCOMPtr<nsIIOService> ios = do_GetService("@mozilla.org/network/io-service;1");
   if (ios) {
-    ios->SetOffline(false); // !offline
+    ios->SetOffline(PR_FALSE); // !offline
     return NS_OK;
   }
   return NS_ERROR_NOT_AVAILABLE;
@@ -1854,7 +1854,7 @@ CheckLeafLayers(Layer* aLayer, const nsIntPoint& aOffset, nsIntRegion* aCoveredR
   gfxMatrix transform;
   if (!aLayer->GetTransform().Is2D(&transform) ||
       transform.HasNonIntegerTranslation())
-    return false;
+    return PR_FALSE;
   transform.NudgeToIntegers();
   nsIntPoint offset = aOffset + nsIntPoint(transform.x0, transform.y0);
 
@@ -1862,7 +1862,7 @@ CheckLeafLayers(Layer* aLayer, const nsIntPoint& aOffset, nsIntRegion* aCoveredR
   if (child) {
     while (child) {
       if (!CheckLeafLayers(child, offset, aCoveredRegion))
-        return false;
+        return PR_FALSE;
       child = child->GetNextSibling();
     }
   } else {
@@ -1871,11 +1871,11 @@ CheckLeafLayers(Layer* aLayer, const nsIntPoint& aOffset, nsIntRegion* aCoveredR
     nsIntRegion tmp;
     tmp.And(rgn, *aCoveredRegion);
     if (!tmp.IsEmpty())
-      return false;
+      return PR_FALSE;
     aCoveredRegion->Or(*aCoveredRegion, rgn);
   }
 
-  return true;
+  return PR_TRUE;
 }
 #endif
 
@@ -1886,7 +1886,7 @@ nsDOMWindowUtils::LeafLayersPartitionWindow(bool* aResult)
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  *aResult = true;
+  *aResult = PR_TRUE;
 #ifdef DEBUG
   nsIWidget* widget = GetWidget();
   if (!widget)
@@ -1904,10 +1904,10 @@ nsDOMWindowUtils::LeafLayersPartitionWindow(bool* aResult)
   nsIntPoint offset(0, 0);
   nsIntRegion coveredRegion;
   if (!CheckLeafLayers(root, offset, &coveredRegion)) {
-    *aResult = false;
+    *aResult = PR_FALSE;
   }
   if (!coveredRegion.IsEqual(root->GetVisibleRegion())) {
-    *aResult = false;
+    *aResult = PR_FALSE;
   }
 #endif
   return NS_OK;
@@ -1921,7 +1921,7 @@ nsDOMWindowUtils::GetMayHaveTouchEventListeners(bool* aResult)
   }
 
   nsPIDOMWindow* innerWindow = mWindow->GetCurrentInnerWindow();
-  *aResult = innerWindow ? innerWindow->HasTouchEventListeners() : false;
+  *aResult = innerWindow ? innerWindow->HasTouchEventListeners() : PR_FALSE;
   return NS_OK;
 }
 

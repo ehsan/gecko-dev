@@ -216,16 +216,16 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
     nsHTMLReflowState rs(aPresContext, aReflowState, kid, availSize);
     nsLineLayout ll(aPresContext, nsnull, &aReflowState, nsnull);
     ll.BeginLineReflow(bp.left, bp.top, availSize.width, NS_UNCONSTRAINEDSIZE,
-                       false, true);
+                       PR_FALSE, PR_TRUE);
     rs.mLineLayout = &ll;
-    ll.SetInFirstLetter(true);
-    ll.SetFirstLetterStyleOK(true);
+    ll.SetInFirstLetter(PR_TRUE);
+    ll.SetFirstLetterStyleOK(PR_TRUE);
 
     kid->WillReflow(aPresContext);
     kid->Reflow(aPresContext, aMetrics, rs, aReflowStatus);
 
     ll.EndLineReflow();
-    ll.SetInFirstLetter(false);
+    ll.SetInFirstLetter(PR_FALSE);
 
     // In the floating first-letter case, we need to set this ourselves;
     // nsLineLayout::BeginSpan will set it in the other case
@@ -241,7 +241,7 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
     ll->BeginSpan(this, &aReflowState, bp.left, availSize.width, &mBaseline);
     ll->ReflowFrame(kid, aReflowStatus, &aMetrics, pushedFrame);
     ll->EndSpan(this);
-    ll->SetInFirstLetter(false);
+    ll->SetInFirstLetter(PR_FALSE);
   }
 
   // Place and size the child and update the output metrics
@@ -264,13 +264,13 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
     // the reflow completion status.
     if (NS_FRAME_IS_COMPLETE(aReflowStatus)) {
       if (aReflowState.mLineLayout) {
-        aReflowState.mLineLayout->SetFirstLetterStyleOK(false);
+        aReflowState.mLineLayout->SetFirstLetterStyleOK(PR_FALSE);
       }
       nsIFrame* kidNextInFlow = kid->GetNextInFlow();
       if (kidNextInFlow) {
         // Remove all of the childs next-in-flows
         static_cast<nsContainerFrame*>(kidNextInFlow->GetParent())
-          ->DeleteNextInFlowChild(aPresContext, kidNextInFlow, true);
+          ->DeleteNextInFlowChild(aPresContext, kidNextInFlow, PR_TRUE);
       }
     }
     else {
@@ -294,7 +294,7 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
         // text that the first letter frame was made out of.
         nsIFrame* continuation;
         rv = CreateContinuationForFloatingParent(aPresContext, kid,
-                                                 &continuation, true);
+                                                 &continuation, PR_TRUE);
       }
     }
   }
@@ -309,7 +309,7 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
 nsFirstLetterFrame::CanContinueTextRun() const
 {
   // We can continue a text run through a first-letter frame.
-  return true;
+  return PR_TRUE;
 }
 
 nsresult

@@ -58,86 +58,86 @@ nsLookAndFeelIntPref nsXPLookAndFeel::sIntPrefs[] =
 {
   { "ui.caretBlinkTime",
     eIntID_CaretBlinkTime,
-    false, 0 },
+    PR_FALSE, 0 },
   { "ui.caretWidth",
     eIntID_CaretWidth,
-    false, 0 },
+    PR_FALSE, 0 },
   { "ui.caretVisibleWithSelection",
     eIntID_ShowCaretDuringSelection,
-    false, 0 },
+    PR_FALSE, 0 },
   { "ui.submenuDelay",
     eIntID_SubmenuDelay,
-    false, 0 },
+    PR_FALSE, 0 },
   { "ui.dragThresholdX",
     eIntID_DragThresholdX,
-    false, 0 },
+    PR_FALSE, 0 },
   { "ui.dragThresholdY",
     eIntID_DragThresholdY,
-    false, 0 },
+    PR_FALSE, 0 },
   { "ui.useAccessibilityTheme",
     eIntID_UseAccessibilityTheme,
-    false, 0 },
+    PR_FALSE, 0 },
   { "ui.scrollbarsCanOverlapContent",
     eIntID_ScrollbarsCanOverlapContent,
-    false, 0 },
+    PR_FALSE, 0 },
   { "ui.menusCanOverlapOSBar",
     eIntID_MenusCanOverlapOSBar,
-    false, 0 },
+    PR_FALSE, 0 },
   { "ui.skipNavigatingDisabledMenuItem",
     eIntID_SkipNavigatingDisabledMenuItem,
-    false, 0 },
+    PR_FALSE, 0 },
   { "ui.treeOpenDelay",
     eIntID_TreeOpenDelay,
-    false, 0 },
+    PR_FALSE, 0 },
   { "ui.treeCloseDelay",
     eIntID_TreeCloseDelay,
-    false, 0 },
+    PR_FALSE, 0 },
   { "ui.treeLazyScrollDelay",
     eIntID_TreeLazyScrollDelay,
-    false, 0 },
+    PR_FALSE, 0 },
   { "ui.treeScrollDelay",
     eIntID_TreeScrollDelay,
-    false, 0 },
+    PR_FALSE, 0 },
   { "ui.treeScrollLinesMax",
     eIntID_TreeScrollLinesMax,
-    false, 0 },
+    PR_FALSE, 0 },
   { "accessibility.tabfocus",
     eIntID_TabFocusModel,
-    false, 0 },
+    PR_FALSE, 0 },
   { "ui.alertNotificationOrigin",
     eIntID_AlertNotificationOrigin,
-    false, 0 },
+    PR_FALSE, 0 },
   { "ui.scrollToClick",
     eIntID_ScrollToClick,
-    false, 0 },
+    PR_FALSE, 0 },
   { "ui.IMERawInputUnderlineStyle",
     eIntID_IMERawInputUnderlineStyle,
-    false, 0 },
+    PR_FALSE, 0 },
   { "ui.IMESelectedRawTextUnderlineStyle",
     eIntID_IMESelectedRawTextUnderlineStyle,
-    false, 0 },
+    PR_FALSE, 0 },
   { "ui.IMEConvertedTextUnderlineStyle",
     eIntID_IMEConvertedTextUnderlineStyle,
-    false, 0 },
+    PR_FALSE, 0 },
   { "ui.IMESelectedConvertedTextUnderlineStyle",
     eIntID_IMESelectedConvertedTextUnderline,
-    false, 0 },
+    PR_FALSE, 0 },
   { "ui.SpellCheckerUnderlineStyle",
     eIntID_SpellCheckerUnderlineStyle,
-    false, 0 },
+    PR_FALSE, 0 },
 };
 
 nsLookAndFeelFloatPref nsXPLookAndFeel::sFloatPrefs[] =
 {
   { "ui.IMEUnderlineRelativeSize",
     eFloatID_IMEUnderlineRelativeSize,
-    false, 0 },
+    PR_FALSE, 0 },
   { "ui.SpellCheckerUnderlineRelativeSize",
     eFloatID_SpellCheckerUnderlineRelativeSize,
-    false, 0 },
+    PR_FALSE, 0 },
   { "ui.caretAspectRatio",
     eFloatID_CaretAspectRatio,
-    false, 0 },
+    PR_FALSE, 0 },
 };
 
 
@@ -271,7 +271,7 @@ nsXPLookAndFeel::Shutdown()
   if (sShutdown) {
     return;
   }
-  sShutdown = true;
+  sShutdown = PR_TRUE;
   delete sInstance;
   sInstance = nsnull;
 }
@@ -294,7 +294,7 @@ nsXPLookAndFeel::IntPrefChanged(nsLookAndFeelIntPref *data)
     return;
   }
   data->intVar = intpref;
-  data->isSet = true;
+  data->isSet = PR_TRUE;
 #ifdef DEBUG_akkana
   printf("====== Changed int pref %s to %d\n", data->name, data->intVar);
 #endif
@@ -314,7 +314,7 @@ nsXPLookAndFeel::FloatPrefChanged(nsLookAndFeelFloatPref *data)
     return;
   }
   data->floatVar = (float)intpref / 100.0f;
-  data->isSet = true;
+  data->isSet = PR_TRUE;
 #ifdef DEBUG_akkana
   printf("====== Changed float pref %s to %f\n", data->name, data->floatVar);
 #endif
@@ -358,7 +358,7 @@ nsXPLookAndFeel::InitFromPref(nsLookAndFeelIntPref* aPref)
   PRInt32 intpref;
   nsresult rv = Preferences::GetInt(aPref->name, &intpref);
   if (NS_SUCCEEDED(rv)) {
-    aPref->isSet = true;
+    aPref->isSet = PR_TRUE;
     aPref->intVar = intpref;
   }
 }
@@ -369,7 +369,7 @@ nsXPLookAndFeel::InitFromPref(nsLookAndFeelFloatPref* aPref)
   PRInt32 intpref;
   nsresult rv = Preferences::GetInt(aPref->name, &intpref);
   if (NS_SUCCEEDED(rv)) {
-    aPref->isSet = true;
+    aPref->isSet = PR_TRUE;
     aPref->floatVar = (float)intpref / 100.0f;
   }
 }
@@ -438,7 +438,7 @@ nsXPLookAndFeel::Init()
 {
   // Say we're already initialized, and take the chance that it might fail;
   // protects against some other process writing to our static variables.
-  sInitialized = true;
+  sInitialized = PR_TRUE;
 
   // XXX If we could reorganize the pref names, we should separate the branch
   //     for each types.  Then, we could reduce the unnecessary loop from
@@ -495,11 +495,11 @@ nsXPLookAndFeel::IsSpecialColor(ColorID aID, nscolor &aColor)
     default:
       /*
        * In GetColor(), every color that is not a special color is color
-       * corrected. Use false to make other colors color corrected.
+       * corrected. Use PR_FALSE to make other colors color corrected.
        */
-      return false;
+      return PR_FALSE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 //

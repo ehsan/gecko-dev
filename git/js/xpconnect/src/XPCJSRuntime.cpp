@@ -485,7 +485,7 @@ NoteJSHolder(JSDHashTable *table, JSDHashEntryHdr *hdr, uint32 number,
     ObjectHolder* entry = reinterpret_cast<ObjectHolder*>(hdr);
     Closure *closure = static_cast<Closure*>(arg);
 
-    closure->cycleCollectionEnabled = false;
+    closure->cycleCollectionEnabled = PR_FALSE;
     entry->tracer->Trace(entry->holder, CheckParticipatesInCycleCollection,
                          closure);
     if (!closure->cycleCollectionEnabled)
@@ -594,7 +594,7 @@ XPCJSRuntime::AddXPConnectRoots(JSContext* cx,
         cb.NoteXPCOMRoot(static_cast<nsIXPConnectWrappedJS *>(wrappedJS));
     }
 
-    Closure closure = { cx, true, &cb };
+    Closure closure = { cx, PR_TRUE, &cb };
     if (mJSHolders.ops) {
         JS_DHashTableEnumerate(&mJSHolders, NoteJSHolder, &closure);
     }
@@ -960,7 +960,7 @@ XPCJSRuntime::WatchdogMain(void *arg)
             sleepInterval = PR_TicksPerSecond();
         else {
             sleepInterval = PR_INTERVAL_NO_TIMEOUT;
-            self->mWatchdogHibernating = true;
+            self->mWatchdogHibernating = PR_TRUE;
         }
 #ifdef DEBUG
         PRStatus status =
@@ -985,7 +985,7 @@ XPCJSRuntime::ActivityCallback(void *arg, JSBool active)
     if (active) {
         self->mLastActiveTime = -1;
         if (self->mWatchdogHibernating) {
-            self->mWatchdogHibernating = false;
+            self->mWatchdogHibernating = PR_FALSE;
             PR_NotifyCondVar(self->mWatchdogWakeup);
         }
     } else {
@@ -1996,7 +1996,7 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
    mObjectHolderRoots(nsnull),
    mWatchdogWakeup(nsnull),
    mWatchdogThread(nsnull),
-   mWatchdogHibernating(false),
+   mWatchdogHibernating(PR_FALSE),
    mLastActiveTime(-1)
 {
 #ifdef XPC_CHECK_WRAPPERS_AT_SHUTDOWN

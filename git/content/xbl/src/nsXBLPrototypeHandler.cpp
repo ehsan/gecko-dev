@@ -292,7 +292,9 @@ nsXBLPrototypeHandler::ExecuteHandler(nsIDOMEventTarget* aTarget,
       nsCOMPtr<nsIContent> content(do_QueryInterface(aTarget));
       if (!content)
         return NS_OK;
-      boundDocument = content->OwnerDoc();
+      boundDocument = content->GetOwnerDoc();
+      if (!boundDocument)
+        return NS_OK;
     }
 
     boundGlobal = boundDocument->GetScopeObject();
@@ -420,7 +422,7 @@ nsXBLPrototypeHandler::DispatchXBLCommand(nsIDOMEventTarget* aTarget, nsIDOMEven
       // normally.  It's not clear that the owner doc is the right
       // thing.
       if (elt)
-        doc = elt->OwnerDoc();
+        doc = elt->GetOwnerDoc();
 
       if (!doc)
         doc = do_QueryInterface(aTarget);
@@ -458,7 +460,7 @@ nsXBLPrototypeHandler::DispatchXBLCommand(nsIDOMEventTarget* aTarget, nsIDOMEven
     if (windowToCheck) {
       nsCOMPtr<nsPIDOMWindow> focusedWindow;
       focusedContent =
-        nsFocusManager::GetFocusedDescendant(windowToCheck, true, getter_AddRefs(focusedWindow));
+        nsFocusManager::GetFocusedDescendant(windowToCheck, PR_TRUE, getter_AddRefs(focusedWindow));
     }
 
     bool isLink = false;
@@ -471,7 +473,7 @@ nsXBLPrototypeHandler::DispatchXBLCommand(nsIDOMEventTarget* aTarget, nsIDOMEven
     if (focusedContent && focusedContent->GetParent()) {
       while (content) {
         if (content->Tag() == nsGkAtoms::a && content->IsHTML()) {
-          isLink = true;
+          isLink = PR_TRUE;
           break;
         }
 
@@ -533,7 +535,7 @@ nsXBLPrototypeHandler::DispatchXULKeyCommand(nsIDOMEvent* aEvent)
   keyEvent->GetShiftKey(&isShift);
   keyEvent->GetMetaKey(&isMeta);
 
-  nsContentUtils::DispatchXULCommand(handlerElement, true,
+  nsContentUtils::DispatchXULCommand(handlerElement, PR_TRUE,
                                      nsnull, nsnull,
                                      isControl, isAlt, isShift, isMeta);
   return NS_OK;
@@ -609,7 +611,7 @@ nsXBLPrototypeHandler::KeyEventMatched(nsIDOMKeyEvent* aKeyEvent,
       aKeyEvent->GetKeyCode(&code);
 
     if (code != PRUint32(mDetail))
-      return false;
+      return PR_FALSE;
   }
 
   return ModifiersMatchMask(aKeyEvent, aIgnoreShiftKey);
@@ -619,17 +621,17 @@ bool
 nsXBLPrototypeHandler::MouseEventMatched(nsIDOMMouseEvent* aMouseEvent)
 {
   if (mDetail == -1 && mMisc == 0 && (mKeyMask & cAllModifiers) == 0)
-    return true; // No filters set up. It's generic.
+    return PR_TRUE; // No filters set up. It's generic.
 
   PRUint16 button;
   aMouseEvent->GetButton(&button);
   if (mDetail != -1 && (button != mDetail))
-    return false;
+    return PR_FALSE;
 
   PRInt32 clickcount;
   aMouseEvent->GetDetail(&clickcount);
   if (mMisc != 0 && (clickcount != mMisc))
-    return false;
+    return PR_FALSE;
 
   return ModifiersMatchMask(aMouseEvent);
 }
@@ -984,7 +986,7 @@ nsXBLPrototypeHandler::ReportKeyConflict(const PRUnichar* aKey, const PRUnichar*
       doc = docInfo->GetDocument();
     }
   } else if (aKeyElement) {
-    doc = aKeyElement->OwnerDoc();
+    doc = aKeyElement->GetOwnerDoc();
   }
 
   const PRUnichar* params[] = { aKey, aModifiers };
@@ -1007,26 +1009,26 @@ nsXBLPrototypeHandler::ModifiersMatchMask(nsIDOMUIEvent* aEvent,
   if (mKeyMask & cMetaMask) {
     key ? key->GetMetaKey(&keyPresent) : mouse->GetMetaKey(&keyPresent);
     if (keyPresent != ((mKeyMask & cMeta) != 0))
-      return false;
+      return PR_FALSE;
   }
 
   if (mKeyMask & cShiftMask && !aIgnoreShiftKey) {
     key ? key->GetShiftKey(&keyPresent) : mouse->GetShiftKey(&keyPresent);
     if (keyPresent != ((mKeyMask & cShift) != 0))
-      return false;
+      return PR_FALSE;
   }
 
   if (mKeyMask & cAltMask) {
     key ? key->GetAltKey(&keyPresent) : mouse->GetAltKey(&keyPresent);
     if (keyPresent != ((mKeyMask & cAlt) != 0))
-      return false;
+      return PR_FALSE;
   }
 
   if (mKeyMask & cControlMask) {
     key ? key->GetCtrlKey(&keyPresent) : mouse->GetCtrlKey(&keyPresent);
     if (keyPresent != ((mKeyMask & cControl) != 0))
-      return false;
+      return PR_FALSE;
   }
 
-  return true;
+  return PR_TRUE;
 }

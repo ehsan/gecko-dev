@@ -53,6 +53,7 @@
 #include "jscntxt.h"
 #include "jsversion.h"
 #include "jsdbgapi.h"
+#include "jsemit.h"
 #include "jsfun.h"
 #include "jsgc.h"
 #include "jsgcmark.h"
@@ -60,15 +61,13 @@
 #include "jslock.h"
 #include "jsnum.h"
 #include "jsopcode.h"
+#include "jsparse.h"
 #include "jsscope.h"
 #include "jsscript.h"
 #include "jstracer.h"
 #if JS_HAS_XDR
 #include "jsxdrapi.h"
 #endif
-
-#include "frontend/CodeGenerator.h"
-#include "frontend/Parser.h"
 #include "methodjit/MethodJIT.h"
 #include "methodjit/Retcon.h"
 #include "vm/Debugger.h"

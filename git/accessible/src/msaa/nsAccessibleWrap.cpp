@@ -759,10 +759,10 @@ __try {
       xpAccessible->TakeSelection();
 
     if (flagsSelect & SELFLAG_ADDSELECTION)
-      xpAccessible->SetSelected(true);
+      xpAccessible->SetSelected(PR_TRUE);
 
     if (flagsSelect & SELFLAG_REMOVESELECTION)
-      xpAccessible->SetSelected(false);
+      xpAccessible->SetSelected(PR_FALSE);
 
     if (flagsSelect & SELFLAG_EXTENDSELECTION)
       xpAccessible->ExtendSelection();

@@ -127,7 +127,7 @@ public:
   void FinishSettingProperties(gfxContext* aRefContext)
   {
     if (mNeedsRebuild) {
-      mNeedsRebuild = false;
+      mNeedsRebuild = PR_FALSE;
       mFactory->RebuildTextRun(this, aRefContext);
     }
   }
@@ -150,7 +150,7 @@ private:
                        bool aOwnsFactory,
                        CompressedGlyph *aGlyphStorage)
     : gfxTextRun(aParams, aString, aLength, aFontGroup, aFlags, aGlyphStorage),
-      mFactory(aFactory), mOwnsFactory(aOwnsFactory), mNeedsRebuild(true)
+      mFactory(aFactory), mOwnsFactory(aOwnsFactory), mNeedsRebuild(PR_TRUE)
   {
     PRUint32 i;
     for (i = 0; i < aLength; ++i) {

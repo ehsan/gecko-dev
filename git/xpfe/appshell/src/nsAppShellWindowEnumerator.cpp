@@ -119,7 +119,7 @@ void GetWindowType(nsIXULWindow* aWindow, nsString &outType)
 nsWindowInfo::nsWindowInfo(nsIXULWindow* inWindow, PRInt32 inTimeStamp) :
   mWindow(inWindow),mTimeStamp(inTimeStamp),mZLevel(nsIXULWindow::normalZ)
 {
-  ReferenceSelf(true, true);
+  ReferenceSelf(PR_TRUE, PR_TRUE);
 }
 
 nsWindowInfo::~nsWindowInfo()
@@ -222,7 +222,7 @@ NS_IMETHODIMP nsAppShellWindowEnumerator::HasMoreElements(bool *retval)
   if (!retval)
     return NS_ERROR_INVALID_ARG;
 
-  *retval = mCurrentPosition ? true : false;
+  *retval = mCurrentPosition ? PR_TRUE : PR_FALSE;
   return NS_OK;
 }
 

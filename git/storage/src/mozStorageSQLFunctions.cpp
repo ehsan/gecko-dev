@@ -129,11 +129,11 @@ likeCompare(nsAString::const_iterator aPatternItr,
         return 0;
       }
       aStringItr++;
-      lastWasEscape = false;
+      lastWasEscape = PR_FALSE;
     }
     else if (!lastWasEscape && *aPatternItr == aEscapeChar) {
       // CASE 3
-      lastWasEscape = true;
+      lastWasEscape = PR_TRUE;
     }
     else {
       // CASE 4
@@ -142,7 +142,7 @@ likeCompare(nsAString::const_iterator aPatternItr,
         return 0;
       }
       aStringItr++;
-      lastWasEscape = false;
+      lastWasEscape = PR_FALSE;
     }
 
     aPatternItr++;

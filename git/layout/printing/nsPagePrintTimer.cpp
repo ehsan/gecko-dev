@@ -101,7 +101,7 @@ nsPagePrintTimer::Notify(nsITimer *timer)
     if (donePrinting) {
       // now clean up print or print the next webshell
       if (mPrintEngine->DonePrintingPages(mPrintObj, NS_OK)) {
-        initNewTimer = false;
+        initNewTimer = PR_FALSE;
       }
     }
 
@@ -113,8 +113,8 @@ nsPagePrintTimer::Notify(nsITimer *timer)
       ++mFiringCount;
       nsresult result = StartTimer(inRange);
       if (NS_FAILED(result)) {
-        donePrinting = true;     // had a failure.. we are finished..
-        mPrintEngine->SetIsPrinting(false);
+        donePrinting = PR_TRUE;     // had a failure.. we are finished..
+        mPrintEngine->SetIsPrinting(PR_FALSE);
       }
     }
   }
@@ -137,7 +137,7 @@ nsresult
 nsPagePrintTimer::Start(nsPrintObject* aPO)
 {
   mPrintObj = aPO;
-  return StartTimer(false);
+  return StartTimer(PR_FALSE);
 }
 
 

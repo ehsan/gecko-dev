@@ -144,7 +144,7 @@ gssInit()
 
     if (!libPath.IsEmpty()) {
         LOG(("Attempting to load user specified library [%s]\n", libPath.get()));
-        gssNativeImp = false;
+        gssNativeImp = PR_FALSE;
         lib = PR_LoadLibrary(libPath.get());
     }
     else {
@@ -302,7 +302,7 @@ nsAuthGSSAPI::nsAuthGSSAPI(pType package)
 
     LOG(("entering nsAuthGSSAPI::nsAuthGSSAPI()\n"));
 
-    mComplete = false;
+    mComplete = PR_FALSE;
 
     if (!gssLibrary && NS_FAILED(gssInit()))
         return;
@@ -353,7 +353,7 @@ nsAuthGSSAPI::Reset()
         gss_delete_sec_context_ptr(&minor_status, &mCtx, GSS_C_NO_BUFFER);
     }
     mCtx = GSS_C_NO_CONTEXT;
-    mComplete = false;
+    mComplete = PR_FALSE;
 }
 
 /* static */ void
@@ -494,7 +494,7 @@ nsAuthGSSAPI::GetNextToken(const void *inToken,
     if (major_status == GSS_S_COMPLETE) {
         // Mark ourselves as being complete, so that if we're called again
         // we know to start afresh.
-        mComplete = true;
+        mComplete = PR_TRUE;
     }
     else if (major_status == GSS_S_CONTINUE_NEEDED) {
         //

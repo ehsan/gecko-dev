@@ -114,7 +114,7 @@ do_dladm(nsCOMArray<nsWifiAccessPoint> &accessPoints)
     do {
       sout_char = sout[sout_scan++];
       if (escape) {
-        escape = false;
+        escape = PR_FALSE;
         if (sout_char != '\0') {
           wlan[section][wlan_put++] = sout_char;
           continue;
@@ -122,7 +122,7 @@ do_dladm(nsCOMArray<nsWifiAccessPoint> &accessPoints)
       }
 
       if (sout_char =='\\') {
-        escape = true;
+        escape = PR_TRUE;
         continue;
       }
 

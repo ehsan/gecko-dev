@@ -127,7 +127,7 @@ public:
     return const_cast<ValueObserverHashKey*>(this);
   }
 
-  enum { ALLOW_MEMMOVE = true };
+  enum { ALLOW_MEMMOVE = PR_TRUE };
 
   nsCString mPrefName;
   PrefChangedFunc mCallback;
@@ -203,7 +203,7 @@ Preferences::GetInstanceForService()
 
   NS_ENSURE_TRUE(!sShutdown, nsnull);
 
-  InitStaticMembers(true);
+  InitStaticMembers(PR_TRUE);
   NS_IF_ADDREF(sPreferences);
   return sPreferences;
 }
@@ -226,9 +226,9 @@ Preferences::InitStaticMembers(bool aForService)
     return sPreferences != nsnull;
   }
 
-  sRootBranch = new nsPrefBranch("", false);
+  sRootBranch = new nsPrefBranch("", PR_FALSE);
   NS_ADDREF(sRootBranch);
-  sDefaultRootBranch = new nsPrefBranch("", true);
+  sDefaultRootBranch = new nsPrefBranch("", PR_TRUE);
   NS_ADDREF(sDefaultRootBranch);
 
   sPreferences = new Preferences();
@@ -237,7 +237,7 @@ Preferences::InitStaticMembers(bool aForService)
   if (NS_FAILED(sPreferences->Init())) {
     // The singleton instance will delete sRootBranch and sDefaultRootBranch.
     NS_RELEASE(sPreferences);
-    return false;
+    return PR_FALSE;
   }
 
   gCacheData = new nsTArray<nsAutoPtr<CacheData> >();
@@ -245,7 +245,7 @@ Preferences::InitStaticMembers(bool aForService)
   gObserverTable = new nsRefPtrHashtable<ValueObserverHashKey, ValueObserver>();
   gObserverTable->Init();
 
-  return true;
+  return PR_TRUE;
 }
 
 // static
@@ -253,7 +253,7 @@ void
 Preferences::Shutdown()
 {
   if (!sShutdown ) {
-    sShutdown = true; // Don't create the singleton instance after here.
+    sShutdown = PR_TRUE; // Don't create the singleton instance after here.
 
     // Don't set NULL to sPreferences here.  The instance may be grabbed by
     // other modules.  The utility methods of Preferences should be available
@@ -335,7 +335,7 @@ Preferences::Init()
     // Store the array
     nsTArray<PrefTuple>::size_type index = array.Length();
     while (index-- > 0) {
-      pref_SetPrefTuple(array[index], true);
+      pref_SetPrefTuple(array[index], PR_TRUE);
     }
     return NS_OK;
   }
@@ -360,12 +360,12 @@ Preferences::Init()
   if (!observerService)
     return NS_ERROR_FAILURE;
 
-  rv = observerService->AddObserver(this, "profile-before-change", true);
+  rv = observerService->AddObserver(this, "profile-before-change", PR_TRUE);
 
   if (NS_SUCCEEDED(rv))
-    rv = observerService->AddObserver(this, "profile-do-change", true);
+    rv = observerService->AddObserver(this, "profile-do-change", PR_TRUE);
 
-  observerService->AddObserver(this, "load-extension-defaults", true);
+  observerService->AddObserver(this, "load-extension-defaults", PR_TRUE);
 
   return(rv);
 }
@@ -382,7 +382,7 @@ Preferences::Observe(nsISupports *aSubject, const char *aTopic,
   if (!nsCRT::strcmp(aTopic, "profile-before-change")) {
     if (!nsCRT::strcmp(someData, NS_LITERAL_STRING("shutdown-cleanse").get())) {
       if (mCurrentFile) {
-        mCurrentFile->Remove(false);
+        mCurrentFile->Remove(PR_FALSE);
         mCurrentFile = nsnull;
       }
     } else {
@@ -523,7 +523,7 @@ Preferences::PrefHasUserValue(const nsACString& aPrefName, bool* aHasValue)
 NS_IMETHODIMP
 Preferences::SetPreference(const PrefTuple *aPref)
 {
-  return pref_SetPrefTuple(*aPref, true);
+  return pref_SetPrefTuple(*aPref, PR_TRUE);
 }
 
 NS_IMETHODIMP
@@ -563,7 +563,7 @@ Preferences::GetBranch(const char *aPrefRoot, nsIPrefBranch **_retval)
 
   if ((nsnull != aPrefRoot) && (*aPrefRoot != '\0')) {
     // TODO: - cache this stuff and allow consumers to share branches (hold weak references I think)
-    nsPrefBranch* prefBranch = new nsPrefBranch(aPrefRoot, false);
+    nsPrefBranch* prefBranch = new nsPrefBranch(aPrefRoot, PR_FALSE);
     if (!prefBranch)
       return NS_ERROR_OUT_OF_MEMORY;
 
@@ -583,7 +583,7 @@ Preferences::GetDefaultBranch(const char *aPrefRoot, nsIPrefBranch **_retval)
   }
 
   // TODO: - cache this stuff and allow consumers to share branches (hold weak references I think)
-  nsPrefBranch* prefBranch = new nsPrefBranch(aPrefRoot, true);
+  nsPrefBranch* prefBranch = new nsPrefBranch(aPrefRoot, PR_TRUE);
   if (!prefBranch)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -666,7 +666,7 @@ Preferences::MakeBackupPrefFile(nsIFile *aFile)
   bool exists = false;
   newFile->Exists(&exists);
   if (exists) {
-    rv = newFile->Remove(false);
+    rv = newFile->Remove(PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
   }
   rv = aFile->CopyTo(nsnull, newFilename);
@@ -804,7 +804,7 @@ Preferences::WritePrefFile(nsIFile* aFile)
     }
   }
 
-  gDirty = false;
+  gDirty = PR_FALSE;
   return NS_OK;
 }
 
@@ -907,7 +907,7 @@ pref_LoadPrefsInDir(nsIFile* aDir, char const *const *aSpecialFiles, PRUint32 aS
       // separate out special files
       for (PRUint32 i = 0; i < aSpecialFilesCount; ++i) {
         if (leafName.Equals(nsDependentCString(aSpecialFiles[i]))) {
-          shouldParse = false;
+          shouldParse = PR_FALSE;
           // special files should be process in order; we put them into
           // the array by index; this can make the array sparse
           specialFiles.ReplaceObjectAt(prefFile, i);
@@ -1325,11 +1325,11 @@ Preferences::ClearUser(const char* aPref)
 bool
 Preferences::HasUserValue(const char* aPref)
 {
-  NS_ENSURE_TRUE(InitStaticMembers(), false);
+  NS_ENSURE_TRUE(InitStaticMembers(), PR_FALSE);
   bool hasUserValue;
   nsresult rv = sRootBranch->PrefHasUserValue(aPref, &hasUserValue);
   if (NS_FAILED(rv)) {
-    return false;
+    return PR_FALSE;
   }
   return hasUserValue;
 }
@@ -1340,7 +1340,7 @@ Preferences::AddStrongObserver(nsIObserver* aObserver,
                                const char* aPref)
 {
   NS_ENSURE_TRUE(InitStaticMembers(), NS_ERROR_NOT_AVAILABLE);
-  return sRootBranch->AddObserver(aPref, aObserver, false);
+  return sRootBranch->AddObserver(aPref, aObserver, PR_FALSE);
 }
 
 // static
@@ -1349,7 +1349,7 @@ Preferences::AddWeakObserver(nsIObserver* aObserver,
                              const char* aPref)
 {
   NS_ENSURE_TRUE(InitStaticMembers(), NS_ERROR_NOT_AVAILABLE);
-  return sRootBranch->AddObserver(aPref, aObserver, true);
+  return sRootBranch->AddObserver(aPref, aObserver, PR_TRUE);
 }
 
 // static

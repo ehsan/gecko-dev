@@ -188,7 +188,7 @@ public:
     return isFocusable;
   }
   /**
-   * Returns true if a subclass is not allowed to override the value returned
+   * Returns PR_TRUE if a subclass is not allowed to override the value returned
    * in aIsFocusable.
    */
   virtual bool IsHTMLFocusable(bool aWithMouse,
@@ -199,7 +199,7 @@ public:
 
   /**
    * Check if an event for an anchor can be handled
-   * @return true if the event can be handled, false otherwise
+   * @return PR_TRUE if the event can be handled, PR_FALSE otherwise
    */
   bool CheckHandleEventForAnchorsPreconditions(nsEventChainVisitor& aVisitor);
   nsresult PreHandleEventForAnchors(nsEventChainPreVisitor& aVisitor);
@@ -478,7 +478,7 @@ public:
    *
    * @param aContent an nsGenericHTMLElement* pointing to the form control
    * @param aControl an nsIFormControl* pointing to the form control
-   * @return false if RestoreState() was not called, the return
+   * @return PR_FALSE if RestoreState() was not called, the return
    *         value of RestoreState() otherwise.
    */
   static bool RestoreFormControlState(nsGenericHTMLElement* aContent,
@@ -569,14 +569,14 @@ protected:
   void RegAccessKey()
   {
     if (HasFlag(NODE_HAS_ACCESSKEY)) {
-      RegUnRegAccessKey(true);
+      RegUnRegAccessKey(PR_TRUE);
     }
   }
 
   void UnregAccessKey()
   {
     if (HasFlag(NODE_HAS_ACCESSKEY)) {
-      RegUnRegAccessKey(false);
+      RegUnRegAccessKey(PR_FALSE);
     }
   }
 
@@ -725,7 +725,7 @@ protected:
    * Helper for GetURIAttr and GetHrefURIForAnchors which returns an
    * nsIURI in the out param.
    *
-   * @return true if we had the attr, false otherwise.
+   * @return PR_TRUE if we had the attr, PR_FALSE otherwise.
    */
   NS_HIDDEN_(bool) GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr, nsIURI** aURI) const;
 
@@ -869,11 +869,11 @@ public:
   
   virtual bool RestoreState(nsPresState* aState)
   {
-    return false;
+    return PR_FALSE;
   }
   virtual bool AllowDrop()
   {
-    return true;
+    return PR_TRUE;
   }
 
   // nsIContent

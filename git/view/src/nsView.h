@@ -102,7 +102,7 @@ public:
    * the view hierarchy that would geometrically intersect with
    * this view. This is a hack, but it fixes some problems with
    * views that need to be drawn in front of all other views.
-   * @result true if the view floats, false otherwise.
+   * @result PR_TRUE if the view floats, PR_FALSE otherwise.
    */
   NS_IMETHOD  SetFloating(bool aFloatingView);
 

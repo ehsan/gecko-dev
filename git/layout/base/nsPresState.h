@@ -54,8 +54,8 @@ public:
   nsPresState()
     : mContentData(nsnull)
     , mScrollState(0, 0)
-    , mDisabledSet(false)
-    , mDisabled(false)
+    , mDisabledSet(PR_FALSE)
+    , mDisabled(PR_FALSE)
   {}
 
   void SetScrollState(const nsPoint& aState)
@@ -71,7 +71,7 @@ public:
   void ClearNonScrollState()
   {
     mContentData = nsnull;
-    mDisabledSet = false;
+    mDisabledSet = PR_FALSE;
   }
 
   bool GetDisabled()
@@ -82,7 +82,7 @@ public:
   void SetDisabled(bool aDisabled)
   {
     mDisabled = aDisabled;
-    mDisabledSet = true;
+    mDisabledSet = PR_TRUE;
   }
 
   bool IsDisabledSet()

@@ -64,16 +64,16 @@ bool
 nsAccessibleWrap::Init () 
 {
   if (!nsAccessible::Init())
-    return false;
+    return PR_FALSE;
 
   if (!mNativeWrapper && !AncestorIsFlat()) {
     // Create our native object using the class type specified in GetNativeType().
     mNativeWrapper = new AccessibleWrapper (this, GetNativeType());
     if (!mNativeWrapper)
-      return false;
+      return PR_FALSE;
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 NS_IMETHODIMP
@@ -234,12 +234,12 @@ nsAccessibleWrap::GetUnignoredChildCount(bool aDeepCount)
 
     if (aDeepCount) {
       // recursively count the unignored children of our children since it's a deep count.
-      resultChildCount += childAcc->GetUnignoredChildCount(true);
+      resultChildCount += childAcc->GetUnignoredChildCount(PR_TRUE);
     } else {
       // no deep counting, but if the child is ignored, we want to substitute it for its
       // children.
       if (childAcc->IsIgnored()) 
-        resultChildCount += childAcc->GetUnignoredChildCount(false);
+        resultChildCount += childAcc->GetUnignoredChildCount(PR_FALSE);
     }
   } 
   
@@ -316,10 +316,10 @@ nsAccessibleWrap::AncestorIsFlat()
   nsAccessible* parent = Parent();
   while (parent) {
     if (nsAccUtils::MustPrune(parent))
-      return true;
+      return PR_TRUE;
 
     parent = parent->Parent();
   }
   // no parent was flat
-  return false;
+  return PR_FALSE;
 }

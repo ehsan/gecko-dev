@@ -79,7 +79,7 @@ nsBufferedStream::nsBufferedStream()
       mCursor(0), 
       mFillPoint(0),
       mStream(nsnull),
-      mBufferDisabled(false),
+      mBufferDisabled(PR_FALSE),
       mGetBufferCount(0)
 {
 }
@@ -463,7 +463,7 @@ nsBufferedInputStream::DisableBuffering()
     // Empty the buffer so nsBufferedStream::Tell works.
     mBufferStartOffset += mCursor;
     mFillPoint = mCursor = 0;
-    mBufferDisabled = true;
+    mBufferDisabled = PR_TRUE;
     return NS_OK;
 }
 
@@ -471,7 +471,7 @@ NS_IMETHODIMP
 nsBufferedInputStream::EnableBuffering()
 {
     NS_ASSERTION(mBufferDisabled, "gratuitous call to EnableBuffering!");
-    mBufferDisabled = false;
+    mBufferDisabled = PR_FALSE;
     return NS_OK;
 }
 
@@ -496,14 +496,14 @@ nsBufferedInputStream::Read(const IPC::Message *aMsg, void **aIter)
     IPC::InputStream inputStream;
     if (!ReadParam(aMsg, aIter, &bufferSize) ||
         !ReadParam(aMsg, aIter, &inputStream))
-        return false;
+        return PR_FALSE;
 
     nsCOMPtr<nsIInputStream> stream(inputStream);
     nsresult rv = Init(stream, bufferSize);
     if (NS_FAILED(rv))
-        return false;
+        return PR_FALSE;
 
-    return true;
+    return PR_TRUE;
 }
 
 void
@@ -763,7 +763,7 @@ nsBufferedOutputStream::DisableBuffering()
     if (NS_FAILED(rv))
         return rv;
 
-    mBufferDisabled = true;
+    mBufferDisabled = PR_TRUE;
     return NS_OK;
 }
 
@@ -771,7 +771,7 @@ NS_IMETHODIMP
 nsBufferedOutputStream::EnableBuffering()
 {
     NS_ASSERTION(mBufferDisabled, "gratuitous call to EnableBuffering!");
-    mBufferDisabled = false;
+    mBufferDisabled = PR_FALSE;
     return NS_OK;
 }
 

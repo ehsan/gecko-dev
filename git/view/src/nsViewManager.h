@@ -251,7 +251,7 @@ public: // NOT in nsIViewManager, so private to the view module
 
   // Call this when you need to let the viewmanager know that it now has
   // pending updates.
-  void PostPendingUpdate() { RootViewManager()->mHasPendingUpdates = true; }
+  void PostPendingUpdate() { RootViewManager()->mHasPendingUpdates = PR_TRUE; }
 
   PRUint32 AppUnitsPerDevPixel() const
   {

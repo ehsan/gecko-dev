@@ -122,8 +122,8 @@ public:
     mService->mAppShell->Exit();
 
     // We're done "shutting down".
-    mService->mShuttingDown = false;
-    mService->mRunning = false;
+    mService->mShuttingDown = PR_FALSE;
+    mService->mRunning = PR_FALSE;
     return NS_OK;
   }
 };
@@ -134,11 +134,11 @@ public:
 
 nsAppStartup::nsAppStartup() :
   mConsiderQuitStopper(0),
-  mRunning(false),
-  mShuttingDown(false),
-  mAttemptingQuit(false),
-  mRestart(false),
-  mInterrupted(false)
+  mRunning(PR_FALSE),
+  mShuttingDown(PR_FALSE),
+  mAttemptingQuit(PR_FALSE),
+  mRestart(PR_FALSE),
+  mInterrupted(PR_FALSE)
 { }
 
 
@@ -161,11 +161,11 @@ nsAppStartup::Init()
 
   NS_TIME_FUNCTION_MARK("Got Observer service");
 
-  os->AddObserver(this, "quit-application-forced", true);
-  os->AddObserver(this, "sessionstore-windows-restored", true);
-  os->AddObserver(this, "profile-change-teardown", true);
-  os->AddObserver(this, "xul-window-registered", true);
-  os->AddObserver(this, "xul-window-destroyed", true);
+  os->AddObserver(this, "quit-application-forced", PR_TRUE);
+  os->AddObserver(this, "sessionstore-windows-restored", PR_TRUE);
+  os->AddObserver(this, "profile-change-teardown", PR_TRUE);
+  os->AddObserver(this, "xul-window-registered", PR_TRUE);
+  os->AddObserver(this, "xul-window-destroyed", PR_TRUE);
 
   return NS_OK;
 }
@@ -223,7 +223,7 @@ nsAppStartup::Run(void)
     EnterLastWindowClosingSurvivalArea();
 #endif
 
-    mRunning = true;
+    mRunning = PR_TRUE;
 
     nsresult rv = mAppShell->Run();
     if (NS_FAILED(rv))
@@ -298,7 +298,7 @@ nsAppStartup::Quit(PRUint32 aMode)
       }
     }
 
-    mShuttingDown = true;
+    mShuttingDown = PR_TRUE;
     if (!mRestart) {
       mRestart = (aMode & eRestart) != 0;
       gRestartMode = (aMode & 0xF0);
@@ -312,7 +312,7 @@ nsAppStartup::Quit(PRUint32 aMode)
     obsService = mozilla::services::GetObserverService();
 
     if (!mAttemptingQuit) {
-      mAttemptingQuit = true;
+      mAttemptingQuit = PR_TRUE;
 #ifdef XP_MACOSX
       // now even the Mac wants to quit when the last window is closed
       ExitLastWindowClosingSurvivalArea();
@@ -374,7 +374,7 @@ nsAppStartup::Quit(PRUint32 aMode)
     }
 
     if (!mRunning) {
-      postedExitEvent = true;
+      postedExitEvent = PR_TRUE;
     }
     else {
       // no matter what, make sure we send the exit event.  If
@@ -383,7 +383,7 @@ nsAppStartup::Quit(PRUint32 aMode)
       nsCOMPtr<nsIRunnable> event = new nsAppExitEvent(this);
       rv = NS_DispatchToCurrentThread(event);
       if (NS_SUCCEEDED(rv)) {
-        postedExitEvent = true;
+        postedExitEvent = PR_TRUE;
       }
       else {
         NS_WARNING("failed to dispatch nsAppExitEvent");
@@ -394,7 +394,7 @@ nsAppStartup::Quit(PRUint32 aMode)
   // turn off the reentrancy check flag, but not if we have
   // more asynchronous work to do still.
   if (!postedExitEvent)
-    mShuttingDown = false;
+    mShuttingDown = PR_FALSE;
   return rv;
 }
 
@@ -498,7 +498,7 @@ nsAppStartup::CreateChromeWindow2(nsIWebBrowserChrome *aParent,
 {
   NS_ENSURE_ARG_POINTER(aCancel);
   NS_ENSURE_ARG_POINTER(_retval);
-  *aCancel = false;
+  *aCancel = PR_FALSE;
   *_retval = 0;
 
   // Non-modal windows cannot be opened if we are attempting to quit
@@ -554,7 +554,7 @@ nsAppStartup::Observe(nsISupports *aSubject,
 {
   NS_ASSERTION(mAppShell, "appshell service notified before appshell built");
   if (!strcmp(aTopic, "quit-application-forced")) {
-    mShuttingDown = true;
+    mShuttingDown = PR_TRUE;
   }
   else if (!strcmp(aTopic, "profile-change-teardown")) {
     if (!mShuttingDown) {
@@ -738,7 +738,7 @@ nsAppStartup::GetStartupInfo()
   ncc->GetRetValPtr(&retvalPtr);
 
   *retvalPtr = JSVAL_NULL;
-  ncc->SetReturnValueWasSet(true);
+  ncc->SetReturnValueWasSet(PR_TRUE);
 
   JSContext *cx = nsnull;
   rv = ncc->GetJSContext(&cx);
@@ -746,7 +746,7 @@ nsAppStartup::GetStartupInfo()
 
   JSObject *obj = JS_NewObject(cx, NULL, NULL, NULL);
   *retvalPtr = OBJECT_TO_JSVAL(obj);
-  ncc->SetReturnValueWasSet(true);
+  ncc->SetReturnValueWasSet(PR_TRUE);
 
   char *moz_app_restart = PR_GetEnv("MOZ_APP_RESTART");
   if (moz_app_restart) {

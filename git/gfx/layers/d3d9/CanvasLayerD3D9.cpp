@@ -66,14 +66,14 @@ CanvasLayerD3D9::Initialize(const Data& aData)
     mSurface = aData.mSurface;
     NS_ASSERTION(aData.mGLContext == nsnull,
                  "CanvasLayer can't have both surface and GLContext");
-    mNeedsYFlip = false;
-    mDataIsPremultiplied = true;
+    mNeedsYFlip = PR_FALSE;
+    mDataIsPremultiplied = PR_TRUE;
   } else if (aData.mGLContext) {
     NS_ASSERTION(aData.mGLContext->IsOffscreen(), "canvas gl context isn't offscreen");
     mGLContext = aData.mGLContext;
     mCanvasFramebuffer = mGLContext->GetOffscreenFBO();
     mDataIsPremultiplied = aData.mGLBufferIsPremultiplied;
-    mNeedsYFlip = true;
+    mNeedsYFlip = PR_TRUE;
   } else {
     NS_ERROR("CanvasLayer created without mSurface or mGLContext?");
   }
@@ -88,7 +88,7 @@ CanvasLayerD3D9::UpdateSurface()
 {
   if (!mDirty)
     return;
-  mDirty = false;
+  mDirty = PR_FALSE;
 
   if (!mTexture) {
     CreateTexture();
@@ -294,7 +294,7 @@ CanvasLayerD3D9::CreateTexture()
 ShadowCanvasLayerD3D9::ShadowCanvasLayerD3D9(LayerManagerD3D9* aManager)
   : ShadowCanvasLayer(aManager, nsnull)
   , LayerD3D9(aManager)
-  , mNeedsYFlip(false)
+  , mNeedsYFlip(PR_FALSE)
 {
   mImplData = static_cast<LayerD3D9*>(this);
 }

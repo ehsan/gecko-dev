@@ -506,14 +506,14 @@ nsIRDFResource * nsCharsetMenu::kNC_BookmarkSeparator = NULL;
 nsIRDFResource * nsCharsetMenu::kRDF_type = NULL;
 
 nsCharsetMenu::nsCharsetMenu() 
-: mInitialized(false), 
-  mBrowserMenuInitialized(false),
-  mMailviewMenuInitialized(false),
-  mComposerMenuInitialized(false),
-  mMaileditMenuInitialized(false),
-  mSecondaryTiersInitialized(false),
-  mAutoDetectInitialized(false),
-  mOthersInitialized(false)
+: mInitialized(PR_FALSE), 
+  mBrowserMenuInitialized(PR_FALSE),
+  mMailviewMenuInitialized(PR_FALSE),
+  mComposerMenuInitialized(PR_FALSE),
+  mMaileditMenuInitialized(PR_FALSE),
+  mSecondaryTiersInitialized(PR_FALSE),
+  mAutoDetectInitialized(PR_FALSE),
+  mOthersInitialized(PR_FALSE)
 {
   nsresult res = NS_OK;
 
@@ -524,7 +524,7 @@ nsCharsetMenu::nsCharsetMenu()
   mRDFService = do_GetService(kRDFServiceCID, &res);
 
   if (NS_SUCCEEDED(res))  {
-    mRDFService->RegisterDataSource(this, false);
+    mRDFService->RegisterDataSource(this, PR_FALSE);
   
     CallCreateInstance(kRDFInMemoryDataSourceCID, &mInner);
 
@@ -547,7 +547,7 @@ nsCharsetMenu::nsCharsetMenu()
     if (NS_SUCCEEDED(res))
       res = observerService->AddObserver(mCharsetMenuObserver, 
                                          "charsetmenu-selected", 
-                                         false);
+                                         PR_FALSE);
   }
 
   NS_ASSERTION(NS_SUCCEEDED(res), "Failed to initialize nsCharsetMenu");
@@ -656,7 +656,7 @@ nsresult nsCharsetMenu::RefreshMaileditMenu()
     res = mInner->Unassert(kNC_MaileditCharsetMenuRoot, kNC_Name, node);
     NS_ENSURE_SUCCESS(res, res);
 
-    res = container->RemoveElement(node, false);
+    res = container->RemoveElement(node, PR_FALSE);
     NS_ENSURE_SUCCESS(res, res);
   }
 
@@ -844,10 +844,10 @@ nsresult nsCharsetMenu::SetCharsetCheckmark(nsString * aCharset,
 
   // set checkmark value
   nsCOMPtr<nsIRDFLiteral> checkedLiteral;
-  nsAutoString checked; checked.AssignWithConversion((aValue == true) ? "true" : "false");
+  nsAutoString checked; checked.AssignWithConversion((aValue == PR_TRUE) ? "true" : "false");
   res = mRDFService->GetLiteral(checked.get(), getter_AddRefs(checkedLiteral));
   if (NS_FAILED(res)) return res;
-  res = Assert(node, kNC_Checked, checkedLiteral, true);
+  res = Assert(node, kNC_Checked, checkedLiteral, PR_TRUE);
   if (NS_FAILED(res)) return res;
 
   return res;
@@ -915,7 +915,7 @@ nsresult nsCharsetMenu::InitBrowserMenu()
     // register prefs callback
     nsCOMPtr<nsIPrefBranch2> pbi = do_QueryInterface(mPrefs);
     if (pbi)
-      res = pbi->AddObserver(kBrowserStaticPrefKey, mCharsetMenuObserver, false);
+      res = pbi->AddObserver(kBrowserStaticPrefKey, mCharsetMenuObserver, PR_FALSE);
   }
 
   mBrowserMenuInitialized = NS_SUCCEEDED(res);
@@ -950,7 +950,7 @@ nsresult nsCharsetMenu::InitMaileditMenu()
     // register prefs callback
     nsCOMPtr<nsIPrefBranch2> pbi = do_QueryInterface(mPrefs);
     if (pbi)
-      res = pbi->AddObserver(kMaileditPrefKey, mCharsetMenuObserver, false);
+      res = pbi->AddObserver(kMaileditPrefKey, mCharsetMenuObserver, PR_FALSE);
   }
 
   mMaileditMenuInitialized = NS_SUCCEEDED(res);
@@ -1334,7 +1334,7 @@ nsresult nsCharsetMenu::AddMenuItemToContainer(
     res = Unassert(node, kNC_Name, titleLiteral);
     if (NS_FAILED(res)) return res;
   } else {
-    res = Assert(node, kNC_Name, titleLiteral, true);
+    res = Assert(node, kNC_Name, titleLiteral, PR_TRUE);
     if (NS_FAILED(res)) return res;
   }
 
@@ -1343,20 +1343,20 @@ nsresult nsCharsetMenu::AddMenuItemToContainer(
       res = Unassert(node, kRDF_type, aType);
       if (NS_FAILED(res)) return res;
     } else {
-      res = Assert(node, kRDF_type, aType, true);
+      res = Assert(node, kRDF_type, aType, PR_TRUE);
       if (NS_FAILED(res)) return res;
     }
   }
 
   // Add the element to the container
   if (aPlace < -1) {
-    res = aContainer->RemoveElement(node, true);
+    res = aContainer->RemoveElement(node, PR_TRUE);
     if (NS_FAILED(res)) return res;
   } else if (aPlace < 0) {
     res = aContainer->AppendElement(node);
     if (NS_FAILED(res)) return res;
   } else {
-    res = aContainer->InsertElementAt(node, aPlace, true);
+    res = aContainer->InsertElementAt(node, aPlace, PR_TRUE);
     if (NS_FAILED(res)) return res;
   } 
 

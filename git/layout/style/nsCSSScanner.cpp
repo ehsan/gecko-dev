@@ -285,11 +285,11 @@ nsCSSScanner::nsCSSScanner()
   : mInputStream(nsnull)
   , mReadPointer(nsnull)
   , mLowLevelError(NS_OK)
-  , mSVGMode(false)
+  , mSVGMode(PR_FALSE)
 #ifdef CSS_REPORT_PARSE_ERRORS
   , mError(mErrorBuf, ArrayLength(mErrorBuf), 0)
   , mInnerWindowID(0)
-  , mWindowIDCached(false)
+  , mWindowIDCached(PR_FALSE)
   , mSheet(nsnull)
   , mLoader(nsnull)
 #endif
@@ -341,20 +341,20 @@ nsCSSScanner::InitGlobals()
 {
 #ifdef CSS_REPORT_PARSE_ERRORS
   if (gConsoleService && gScriptErrorFactory)
-    return true;
+    return PR_TRUE;
   
   nsresult rv = CallGetService(NS_CONSOLESERVICE_CONTRACTID, &gConsoleService);
-  NS_ENSURE_SUCCESS(rv, false);
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
   rv = CallGetClassObject(NS_SCRIPTERROR_CONTRACTID, &gScriptErrorFactory);
-  NS_ENSURE_SUCCESS(rv, false);
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
   NS_ASSERTION(gConsoleService && gScriptErrorFactory,
                "unexpected null pointer without failure");
 
   Preferences::RegisterCallback(CSSErrorsPrefChanged, CSS_ERRORS_PREF);
   CSSErrorsPrefChanged(CSS_ERRORS_PREF, nsnull);
 #endif
-  return true;
+  return PR_TRUE;
 }
 
 /* static */ void
@@ -460,7 +460,7 @@ nsCSSScanner::OutputError()
           mInnerWindowID = doc->InnerWindowID();
         }
       }
-      mWindowIDCached = true;
+      mWindowIDCached = PR_TRUE;
     }
 
     nsresult rv;
@@ -489,21 +489,21 @@ static bool
 InitStringBundle()
 {
   if (gStringBundle)
-    return true;
+    return PR_TRUE;
 
   nsCOMPtr<nsIStringBundleService> sbs =
     mozilla::services::GetStringBundleService();
   if (!sbs)
-    return false;
+    return PR_FALSE;
 
   nsresult rv = 
     sbs->CreateBundle("chrome://global/locale/css.properties", &gStringBundle);
   if (NS_FAILED(rv)) {
     gStringBundle = nsnull;
-    return false;
+    return PR_FALSE;
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 #define ENSURE_STRINGBUNDLE \
@@ -627,7 +627,7 @@ nsCSSScanner::Close()
   mURI = nsnull;
   mError.Truncate();
   mInnerWindowID = 0;
-  mWindowIDCached = false;
+  mWindowIDCached = PR_FALSE;
   mSheet = nsnull;
   mLoader = nsnull;
 #endif
@@ -646,10 +646,10 @@ bool
 nsCSSScanner::EnsureData()
 {
   if (mOffset < mCount)
-    return true;
+    return PR_TRUE;
 
   if (!mInputStream)
-    return false;
+    return PR_FALSE;
 
   mOffset = 0;
   nsresult rv = mInputStream->Read(mBuffer, CSS_BUFFER_SIZE, &mCount);
@@ -657,7 +657,7 @@ nsCSSScanner::EnsureData()
   if (NS_FAILED(rv)) {
     mCount = 0;
     SetLowLevelError(rv);
-    return false;
+    return PR_FALSE;
   }
 
   return mCount > 0;
@@ -744,13 +744,13 @@ nsCSSScanner::LookAhead(PRUnichar aChar)
 {
   PRInt32 ch = Read();
   if (ch < 0) {
-    return false;
+    return PR_FALSE;
   }
   if (ch == aChar) {
-    return true;
+    return PR_TRUE;
   }
   Pushback(ch);
-  return false;
+  return PR_FALSE;
 }
 
 bool
@@ -758,13 +758,13 @@ nsCSSScanner::LookAheadOrEOF(PRUnichar aChar)
 {
   PRInt32 ch = Read();
   if (ch < 0) {
-    return true;
+    return PR_TRUE;
   }
   if (ch == aChar) {
-    return true;
+    return PR_TRUE;
   }
   Pushback(ch);
-  return false;
+  return PR_FALSE;
 }
 
 void
@@ -788,7 +788,7 @@ nsCSSScanner::Next(nsCSSToken& aToken)
   for (;;) { // Infinite loop so we can restart after comments.
     PRInt32 ch = Read();
     if (ch < 0) {
-      return false;
+      return PR_FALSE;
     }
 
     // UNICODE-RANGE
@@ -843,7 +843,7 @@ nsCSSScanner::Next(nsCSSToken& aToken)
       aToken.mType = eCSSToken_WhiteSpace;
       aToken.mIdent.Assign(PRUnichar(ch));
       EatWhiteSpace();
-      return true;
+      return PR_TRUE;
     }
     if (ch == '/' && !IsSVGMode()) {
       PRInt32 nextChar = Peek();
@@ -860,7 +860,7 @@ nsCSSScanner::Next(nsCSSToken& aToken)
         return ParseCComment(aToken);
 #endif
         if (!SkipCComment()) {
-          return false;
+          return PR_FALSE;
         }
         continue; // start again at the beginning
       }
@@ -871,7 +871,7 @@ nsCSSScanner::Next(nsCSSToken& aToken)
           if (LookAhead('-')) {
             aToken.mType = eCSSToken_HTMLComment;
             aToken.mIdent.AssignLiteral("<!--");
-            return true;
+            return PR_TRUE;
           }
           Pushback('-');
         }
@@ -883,7 +883,7 @@ nsCSSScanner::Next(nsCSSToken& aToken)
         if (LookAhead('>')) {
           aToken.mType = eCSSToken_HTMLComment;
           aToken.mIdent.AssignLiteral("-->");
-          return true;
+          return PR_TRUE;
         }
         Pushback('-');
       }
@@ -909,14 +909,14 @@ nsCSSScanner::Next(nsCSSToken& aToken)
         else if (ch == '*') {
           aToken.mType = eCSSToken_Containsmatch;
         }
-        return true;
+        return PR_TRUE;
       } else if (nextChar >= 0) {
         Pushback(nextChar);
       }
     }
     aToken.mType = eCSSToken_Symbol;
     aToken.mSymbol = ch;
-    return true;
+    return PR_TRUE;
   }
 }
 
@@ -927,7 +927,7 @@ nsCSSScanner::NextURL(nsCSSToken& aToken)
 
   PRInt32 ch = Read();
   if (ch < 0) {
-    return false;
+    return PR_FALSE;
   }
 
   // STRING
@@ -952,7 +952,7 @@ nsCSSScanner::NextURL(nsCSSToken& aToken)
     } else {
       aToken.mType = eCSSToken_Bad_URL;
     }
-    return true;
+    return PR_TRUE;
   }
 
   // Process a url lexical token. A CSS1 url token can contain
@@ -978,8 +978,8 @@ nsCSSScanner::NextURL(nsCSSToken& aToken)
     ch = Read();
     if (ch < 0) break;
     if (ch == CSS_ESCAPE) {
-      if (!ParseAndAppendEscape(ident, false)) {
-        ok = false;
+      if (!ParseAndAppendEscape(ident, PR_FALSE)) {
+        ok = PR_FALSE;
         Pushback(ch);
         break;
       }
@@ -991,7 +991,7 @@ nsCSSScanner::NextURL(nsCSSToken& aToken)
       break;
     } else if (ch == '"' || ch == '\'' || ch == '(' || ch < PRUnichar(' ')) {
       // This is an invalid URL spec
-      ok = false;
+      ok = PR_FALSE;
       Pushback(ch); // push it back so the parser can match tokens and
                     // then closing parenthesis
       break;
@@ -1009,7 +1009,7 @@ nsCSSScanner::NextURL(nsCSSToken& aToken)
   if (ok) {
     aToken.mType = eCSSToken_URL;
   }
-  return true;
+  return PR_TRUE;
 }
 
 
@@ -1022,7 +1022,7 @@ nsCSSScanner::ParseAndAppendEscape(nsString& aOutput, bool aInString)
 {
   PRInt32 ch = Read();
   if (ch < 0) {
-    return false;
+    return PR_FALSE;
   }
   if (IsHexDigit(ch)) {
     PRInt32 rv = 0;
@@ -1069,7 +1069,7 @@ nsCSSScanner::ParseAndAppendEscape(nsString& aOutput, bool aInString)
       if (IsWhitespace(ch))
         Pushback(ch);
     }
-    return true;
+    return PR_TRUE;
   } 
   // "Any character except a hexidecimal digit can be escaped to
   // remove its special meaning by putting a backslash in front"
@@ -1080,7 +1080,7 @@ nsCSSScanner::ParseAndAppendEscape(nsString& aOutput, bool aInString)
       // string), escaped newlines aren't special, and just tokenize as
       // eCSSToken_Symbol (DELIM).
       Pushback(ch);
-      return false;
+      return PR_FALSE;
     }
     // In strings (and in url() containing a string), escaped newlines
     // are just dropped to allow splitting over multiple lines.
@@ -1088,7 +1088,7 @@ nsCSSScanner::ParseAndAppendEscape(nsString& aOutput, bool aInString)
     aOutput.Append(ch);
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 /**
@@ -1106,8 +1106,8 @@ bool
 nsCSSScanner::GatherIdent(PRInt32 aChar, nsString& aIdent)
 {
   if (aChar == CSS_ESCAPE) {
-    if (!ParseAndAppendEscape(aIdent, false)) {
-      return false;
+    if (!ParseAndAppendEscape(aIdent, PR_FALSE)) {
+      return PR_FALSE;
     }
   }
   else if (0 < aChar) {
@@ -1135,7 +1135,7 @@ nsCSSScanner::GatherIdent(PRInt32 aChar, nsString& aIdent)
     aChar = Read();
     if (aChar < 0) break;
     if (aChar == CSS_ESCAPE) {
-      if (!ParseAndAppendEscape(aIdent, false)) {
+      if (!ParseAndAppendEscape(aIdent, PR_FALSE)) {
         Pushback(aChar);
         break;
       }
@@ -1146,7 +1146,7 @@ nsCSSScanner::GatherIdent(PRInt32 aChar, nsString& aIdent)
       break;
     }
   }
-  return true;
+  return PR_TRUE;
 }
 
 bool
@@ -1158,7 +1158,7 @@ nsCSSScanner::ParseRef(PRInt32 aChar, nsCSSToken& aToken)
 
   PRInt32 ch = Read();
   if (ch < 0) {
-    return true;
+    return PR_TRUE;
   }
   if (IsIdent(ch) || ch == CSS_ESCAPE) {
     // First char after the '#' is a valid ident char (or an escape),
@@ -1168,13 +1168,13 @@ nsCSSScanner::ParseRef(PRInt32 aChar, nsCSSToken& aToken)
     aToken.mIdent.SetLength(0);
     if (GatherIdent(ch, aToken.mIdent)) {
       aToken.mType = type;
-      return true;
+      return PR_TRUE;
     }
   }
 
   // No ident chars after the '#'.  Just unread |ch| and get out of here.
   Pushback(ch);
-  return true;
+  return PR_TRUE;
 }
 
 bool
@@ -1185,7 +1185,7 @@ nsCSSScanner::ParseIdent(PRInt32 aChar, nsCSSToken& aToken)
   if (!GatherIdent(aChar, ident)) {
     aToken.mType = eCSSToken_Symbol;
     aToken.mSymbol = aChar;
-    return true;
+    return PR_TRUE;
   }
 
   nsCSSTokenType tokenType = eCSSToken_Ident;
@@ -1196,12 +1196,12 @@ nsCSSScanner::ParseIdent(PRInt32 aChar, nsCSSToken& aToken)
 
     if (ident.LowerCaseEqualsLiteral("url")) {
       NextURL(aToken); // ignore return value, since *we* read something
-      return true;
+      return PR_TRUE;
     }
   }
 
   aToken.mType = tokenType;
-  return true;
+  return PR_TRUE;
 }
 
 bool
@@ -1213,7 +1213,7 @@ nsCSSScanner::ParseAtKeyword(PRInt32 aChar, nsCSSToken& aToken)
     aToken.mType = eCSSToken_Symbol;
     aToken.mSymbol = PRUnichar('@');
   }
-  return true;
+  return PR_TRUE;
 }
 
 bool
@@ -1285,7 +1285,7 @@ nsCSSScanner::ParseNumber(PRInt32 c, nsCSSToken& aToken)
       nextChar = Peek();
     }
     if (IsDigit(nextChar)) {
-      gotE = true;
+      gotE = PR_TRUE;
       if (expSignChar == '-') {
         expSign = -1;
       }
@@ -1308,7 +1308,7 @@ nsCSSScanner::ParseNumber(PRInt32 c, nsCSSToken& aToken)
 
   // Set mIntegerValid for all cases (except %, below) because we need
   // it for the "2n" in :nth-child(2n).
-  aToken.mIntegerValid = false;
+  aToken.mIntegerValid = PR_FALSE;
 
   // Time to reassemble our number.
   float value = float(sign * (intPart + fracPart));
@@ -1324,7 +1324,7 @@ nsCSSScanner::ParseNumber(PRInt32 c, nsCSSToken& aToken)
     } else {
       aToken.mInteger = PRInt32(NS_MAX(-intPart, double(PR_INT32_MIN)));
     }
-    aToken.mIntegerValid = true;
+    aToken.mIntegerValid = PR_TRUE;
   }
 
   nsString& ident = aToken.mIdent;
@@ -1339,7 +1339,7 @@ nsCSSScanner::ParseNumber(PRInt32 c, nsCSSToken& aToken)
     } else if ('%' == c) {
       type = eCSSToken_Percentage;
       value = value / 100.0f;
-      aToken.mIntegerValid = false;
+      aToken.mIntegerValid = PR_FALSE;
     } else {
       // Put back character that stopped numeric scan
       Pushback(c);
@@ -1347,7 +1347,7 @@ nsCSSScanner::ParseNumber(PRInt32 c, nsCSSToken& aToken)
   }
   aToken.mNumber = value;
   aToken.mType = type;
-  return true;
+  return PR_TRUE;
 }
 
 bool
@@ -1358,13 +1358,13 @@ nsCSSScanner::SkipCComment()
     if (ch < 0) break;
     if (ch == '*') {
       if (LookAhead('/')) {
-        return true;
+        return PR_TRUE;
       }
     }
   }
 
   REPORT_UNEXPECTED_EOF(PECommentEOF);
-  return false;
+  return PR_FALSE;
 }
 
 bool
@@ -1412,7 +1412,7 @@ nsCSSScanner::ParseString(PRInt32 aStop, nsCSSToken& aToken)
       break;
     }
     if (ch == CSS_ESCAPE) {
-      if (!ParseAndAppendEscape(aToken.mIdent, true)) {
+      if (!ParseAndAppendEscape(aToken.mIdent, PR_TRUE)) {
         aToken.mType = eCSSToken_Bad_String;
         Pushback(ch);
 #ifdef CSS_REPORT_PARSE_ERRORS
@@ -1431,7 +1431,7 @@ nsCSSScanner::ParseString(PRInt32 aStop, nsCSSToken& aToken)
       aToken.mIdent.Append(ch);
     }
   }
-  return true;
+  return PR_TRUE;
 }
 
 // UNICODE-RANGE tokens match the regular expression
@@ -1488,12 +1488,12 @@ nsCSSScanner::ParseURange(PRInt32 aChar, nsCSSToken& aResult)
     aResult.mIdent.Append(ch);
     if (IsHexDigit(ch)) {
       if (haveQues) {
-        valid = false; // all question marks should be at the end
+        valid = PR_FALSE; // all question marks should be at the end
       }
       low = low*16 + HexDigitValue(ch);
       high = high*16 + HexDigitValue(ch);
     } else {
-      haveQues = true;
+      haveQues = PR_TRUE;
       low = low*16 + 0x0;
       high = high*16 + 0xF;
     }
@@ -1501,7 +1501,7 @@ nsCSSScanner::ParseURange(PRInt32 aChar, nsCSSToken& aResult)
 
   if (ch == '-' && IsHexDigit(Peek())) {
     if (haveQues) {
-      valid = false;
+      valid = PR_FALSE;
     }
 
     aResult.mIdent.Append(ch);
@@ -1523,5 +1523,5 @@ nsCSSScanner::ParseURange(PRInt32 aChar, nsCSSToken& aResult)
   aResult.mInteger2 = high;
   aResult.mIntegerValid = valid;
   aResult.mType = eCSSToken_URange;
-  return true;
+  return PR_TRUE;
 }

@@ -167,7 +167,7 @@ PluginInstanceChild::PluginInstanceChild(const NPPluginFuncs* aPluginIface)
     , mHasPainted(false)
     , mSurfaceDifferenceRect(0,0,0,0)
 #if (MOZ_PLATFORM_MAEMO == 5) || (MOZ_PLATFORM_MAEMO == 6)
-    , mMaemoImageRendering(true)
+    , mMaemoImageRendering(PR_TRUE)
 #endif
 {
     memset(&mWindow, 0, sizeof(mWindow));
@@ -200,9 +200,6 @@ PluginInstanceChild::~PluginInstanceChild()
     }
     if (mCGLayer) {
         PluginUtilsOSX::ReleaseCGLayer(mCGLayer);
-    }
-    if (mDrawingModel == NPDrawingModelCoreAnimation) {
-        UnscheduleTimer(mCARefreshTimer);
     }
 #endif
 }
@@ -463,23 +460,6 @@ PluginInstanceChild::NPN_GetValue(NPNVariable aVar,
 
 }
 
-#ifdef MOZ_WIDGET_COCOA
-#define DEFAULT_REFRESH_MS 20 // CoreAnimation: 50 FPS
-
-void
-CAUpdate(NPP npp, uint32_t timerID) {
-    static_cast<PluginInstanceChild*>(npp->ndata)->Invalidate();
-}
-
-void
-PluginInstanceChild::Invalidate()
-{
-    NPRect windowRect = {0, 0, uint16_t(mWindow.height),
-        uint16_t(mWindow.width)};
-
-    InvalidateRect(&windowRect);
-}
-#endif
 
 NPError
 PluginInstanceChild::NPN_SetValue(NPPVariable aVar, void* aValue)
@@ -526,10 +506,6 @@ PluginInstanceChild::NPN_SetValue(NPPVariable aVar, void* aValue)
         if (!CallNPN_SetValue_NPPVpluginDrawingModel(drawingModel, &rv))
             return NPERR_GENERIC_ERROR;
         mDrawingModel = drawingModel;
-
-        if (drawingModel == NPDrawingModelCoreAnimation) {
-            mCARefreshTimer = ScheduleTimer(DEFAULT_REFRESH_MS, true, CAUpdate);
-        }
 
         PLUGIN_LOG_DEBUG(("  Plugin requested drawing model id  #%i\n",
             mDrawingModel));
@@ -1448,9 +1424,9 @@ PluginInstanceChild::SetWindowLongHookCheck(HWND hWnd,
       newLong == reinterpret_cast<LONG_PTR>(DefWindowProcW) ||
       // if the subclass is a WindowsMessageLoop subclass restore
       GetProp(hWnd, kOldWndProcProp))
-      return true;
+      return PR_TRUE;
   // prevent the subclass
-  return false;
+  return PR_FALSE;
 }
 
 #ifdef _WIN64
@@ -2339,7 +2315,7 @@ PluginInstanceChild::NPN_URLRedirectResponse(void* notifyData, NPBool allow)
             return;
         }
     }
-    NS_ASSERTION(false, "Couldn't find stream for redirect response!");
+    NS_ASSERTION(PR_FALSE, "Couldn't find stream for redirect response!");
 }
 
 bool
@@ -2600,7 +2576,7 @@ PluginInstanceChild::MaybeCreatePlatformHelperSurface(void)
             // No helper surface needed, when mMaemoImageRendering is TRUE.
             // we can rendering directly into image memory
             // with NPImageExpose Maemo5 NPAPI
-            return true;
+            return PR_TRUE;
         }
 #endif
         // For image layer surface we should always create helper surface

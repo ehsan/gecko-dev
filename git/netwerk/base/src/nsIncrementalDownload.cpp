@@ -185,8 +185,8 @@ nsIncrementalDownload::nsIncrementalDownload()
   , mLoadFlags(LOAD_NORMAL)
   , mNonPartialCount(0)
   , mStatus(NS_OK)
-  , mIsPending(false)
-  , mDidOnStartRequest(false)
+  , mIsPending(PR_FALSE)
+  , mDidOnStartRequest(PR_FALSE)
   , mLastProgressUpdate(0)
   , mRedirectCallback(nsnull)
   , mNewRedirectChannel(nsnull)
@@ -228,7 +228,7 @@ nsIncrementalDownload::CallOnStartRequest()
   if (!mObserver || mDidOnStartRequest)
     return NS_OK;
 
-  mDidOnStartRequest = true;
+  mDidOnStartRequest = PR_TRUE;
   return mObserver->OnStartRequest(this, mObserverContext);
 }
 
@@ -243,7 +243,7 @@ nsIncrementalDownload::CallOnStopRequest()
   if (NS_SUCCEEDED(mStatus))
     mStatus = rv;
 
-  mIsPending = false;
+  mIsPending = PR_FALSE;
 
   mObserver->OnStopRequest(this, mObserverContext, mStatus);
   mObserver = nsnull;
@@ -297,7 +297,7 @@ nsIncrementalDownload::ProcessTimeout()
     nsCAutoString range;
     MakeRangeSpec(mCurrentSize, mTotalSize, mChunkSize, mInterval == 0, range);
 
-    rv = http->SetRequestHeader(NS_LITERAL_CSTRING("Range"), range, false);
+    rv = http->SetRequestHeader(NS_LITERAL_CSTRING("Range"), range, PR_FALSE);
     if (NS_FAILED(rv))
       return rv;
   }
@@ -513,7 +513,7 @@ nsIncrementalDownload::Start(nsIRequestObserver *observer,
   // RemoveObserver.  XXX(darin): The timer code should do this for us.
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
   if (obs)
-    obs->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, true);
+    obs->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_TRUE);
 
   nsresult rv = ReadCurrentSize();
   if (NS_FAILED(rv))
@@ -527,7 +527,7 @@ nsIncrementalDownload::Start(nsIRequestObserver *observer,
   mObserverContext = context;
   mProgressSink = do_QueryInterface(observer);  // ok if null
 
-  mIsPending = true;
+  mIsPending = PR_TRUE;
   return NS_OK;
 }
 
@@ -766,7 +766,7 @@ nsIncrementalDownload::ClearRequestHeader(nsIHttpChannel *channel)
   // We don't support encodings -- they make the Content-Length not equal
   // to the actual size of the data. 
   return channel->SetRequestHeader(NS_LITERAL_CSTRING("Accept-Encoding"),
-                                   NS_LITERAL_CSTRING(""), false);
+                                   NS_LITERAL_CSTRING(""), PR_FALSE);
 }
 
 // nsIChannelEventSink
@@ -796,7 +796,7 @@ nsIncrementalDownload::AsyncOnChannelRedirect(nsIChannel *oldChannel,
   nsCAutoString rangeVal;
   http->GetRequestHeader(rangeHdr, rangeVal);
   if (!rangeVal.IsEmpty()) {
-    rv = newHttpChannel->SetRequestHeader(rangeHdr, rangeVal, false);
+    rv = newHttpChannel->SetRequestHeader(rangeHdr, rangeVal, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 

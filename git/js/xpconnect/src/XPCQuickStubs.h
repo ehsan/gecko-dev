@@ -682,7 +682,7 @@ xpc_qsGetWrapperCache(void *p)
 }
 
 /** Convert an XPCOM pointer to jsval. Return JS_TRUE on success.
- * aIdentity is a performance optimization. Set it to true,
+ * aIdentity is a performance optimization. Set it to PR_TRUE,
  * only if p is the identity pointer.
  */
 JSBool

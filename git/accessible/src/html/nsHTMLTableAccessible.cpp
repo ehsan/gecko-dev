@@ -248,7 +248,7 @@ NS_IMETHODIMP
 nsHTMLTableCellAccessible::IsSelected(bool *aIsSelected)
 {
   NS_ENSURE_ARG_POINTER(aIsSelected);
-  *aIsSelected = false;
+  *aIsSelected = PR_FALSE;
 
   if (IsDefunct())
     return NS_ERROR_FAILURE;
@@ -328,7 +328,7 @@ nsHTMLTableCellAccessible::GetHeaderCells(PRInt32 aRowOrColumnHeaderCell,
 
       if (headerCell && headerCell->Role() == desiredRole)
         headerCells->AppendElement(static_cast<nsIAccessible*>(headerCell),
-                                   false);
+                                   PR_FALSE);
     } while ((headerCellElm = iter.NextElem()));
 
     NS_ADDREF(*aHeaderCells = headerCells);
@@ -700,7 +700,7 @@ nsHTMLTableAccessible::GetSelectedCells(nsIArray **aCells)
         nsCOMPtr<nsIContent> cellContent(do_QueryInterface(cellElement));
         nsAccessible *cell =
           GetAccService()->GetAccessibleInWeakShell(cellContent, mWeakShell);
-        selCells->AppendElement(static_cast<nsIAccessible*>(cell), false);
+        selCells->AppendElement(static_cast<nsIAccessible*>(cell), PR_FALSE);
       }
     }
   }
@@ -751,10 +751,10 @@ nsHTMLTableAccessible::GetSelectedCellIndices(PRUint32 *aNumCells,
 
       if (NS_SUCCEEDED(rv) && startRowIndex == rowIndex &&
           startColIndex == columnIndex && isSelected) {
-        states[index] = true;
+        states[index] = PR_TRUE;
         (*aNumCells)++;
       } else {
-        states[index] = false;
+        states[index] = PR_FALSE;
       }
     }
   }
@@ -1015,7 +1015,7 @@ NS_IMETHODIMP
 nsHTMLTableAccessible::IsColumnSelected(PRInt32 aColumn, bool *aIsSelected)
 {
   NS_ENSURE_ARG_POINTER(aIsSelected);
-  *aIsSelected = false;
+  *aIsSelected = PR_FALSE;
 
   PRInt32 colCount = 0;
   nsresult rv = GetColumnCount(&colCount);
@@ -1045,7 +1045,7 @@ NS_IMETHODIMP
 nsHTMLTableAccessible::IsRowSelected(PRInt32 aRow, bool *aIsSelected)
 {
   NS_ENSURE_ARG_POINTER(aIsSelected);
-  *aIsSelected = false;
+  *aIsSelected = PR_FALSE;
 
   PRInt32 rowCount = 0;
   nsresult rv = GetRowCount(&rowCount);
@@ -1076,7 +1076,7 @@ nsHTMLTableAccessible::IsCellSelected(PRInt32 aRow, PRInt32 aColumn,
                                       bool *aIsSelected)
 {
   NS_ENSURE_ARG_POINTER(aIsSelected);
-  *aIsSelected = false;
+  *aIsSelected = PR_FALSE;
 
   nsITableLayout *tableLayout = GetTableLayout();
   NS_ENSURE_STATE(tableLayout);
@@ -1104,7 +1104,7 @@ nsHTMLTableAccessible::SelectRow(PRInt32 aRow)
   nsresult rv =
     RemoveRowsOrColumnsFromSelection(aRow,
                                      nsISelectionPrivate::TABLESELECTION_ROW,
-                                     true);
+                                     PR_TRUE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return AddRowOrColumnToSelection(aRow,
@@ -1120,7 +1120,7 @@ nsHTMLTableAccessible::SelectColumn(PRInt32 aColumn)
   nsresult rv =
     RemoveRowsOrColumnsFromSelection(aColumn,
                                      nsISelectionPrivate::TABLESELECTION_COLUMN,
-                                     true);
+                                     PR_TRUE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return AddRowOrColumnToSelection(aColumn,
@@ -1136,7 +1136,7 @@ nsHTMLTableAccessible::UnselectRow(PRInt32 aRow)
   return
     RemoveRowsOrColumnsFromSelection(aRow,
                                      nsISelectionPrivate::TABLESELECTION_ROW,
-                                     false);
+                                     PR_FALSE);
 }
 
 NS_IMETHODIMP
@@ -1148,7 +1148,7 @@ nsHTMLTableAccessible::UnselectColumn(PRInt32 aColumn)
   return
     RemoveRowsOrColumnsFromSelection(aColumn,
                                      nsISelectionPrivate::TABLESELECTION_COLUMN,
-                                     false);
+                                     PR_FALSE);
 }
 
 nsresult
@@ -1305,29 +1305,29 @@ nsHTMLTableAccessible::HasDescendant(const nsAString& aTagName,
                                      bool aAllowEmpty)
 {
   nsCOMPtr<nsIDOMElement> tableElt(do_QueryInterface(mContent));
-  NS_ENSURE_TRUE(tableElt, false);
+  NS_ENSURE_TRUE(tableElt, PR_FALSE);
 
   nsCOMPtr<nsIDOMNodeList> nodeList;
   tableElt->GetElementsByTagName(aTagName, getter_AddRefs(nodeList));
-  NS_ENSURE_TRUE(nodeList, false);
+  NS_ENSURE_TRUE(nodeList, PR_FALSE);
 
   nsCOMPtr<nsIDOMNode> foundItem;
   nodeList->Item(0, getter_AddRefs(foundItem));
   if (!foundItem)
-    return false;
+    return PR_FALSE;
 
   if (aAllowEmpty)
-    return true;
+    return PR_TRUE;
 
   // Make sure that the item we found has contents and either has multiple
   // children or the found item is not a whitespace-only text node.
   nsCOMPtr<nsIContent> foundItemContent = do_QueryInterface(foundItem);
   if (foundItemContent->GetChildCount() > 1)
-    return true; // Treat multiple child nodes as non-empty
+    return PR_TRUE; // Treat multiple child nodes as non-empty
 
   nsIContent *innerItemContent = foundItemContent->GetChildAt(0);
   if (innerItemContent && !innerItemContent->TextIsOnlyWhitespace())
-    return true;
+    return PR_TRUE;
 
   // If we found more than one node then return true not depending on
   // aAllowEmpty flag.
@@ -1493,7 +1493,7 @@ nsHTMLTableAccessible::IsProbablyForLayout(bool *aIsProbablyForLayout)
 
     lastRowColor = color;
     styleDecl->GetPropertyValue(NS_LITERAL_STRING("background-color"), color);
-    if (rowCount > 0 && false == lastRowColor.Equals(color)) {
+    if (rowCount > 0 && PR_FALSE == lastRowColor.Equals(color)) {
       RETURN_LAYOUT_ANSWER(false, "2 styles of row background color, non-bordered");
     }
   }

@@ -49,7 +49,7 @@ class nsDOMStoragePersistentDB;
 class nsDOMStorageMemoryDB : public nsDOMStorageBaseDB
 {
 public:
-  nsDOMStorageMemoryDB() : mPreloading(false) {}
+  nsDOMStorageMemoryDB() : mPreloading(PR_FALSE) {}
   ~nsDOMStorageMemoryDB() {}
 
   class nsInMemoryItem

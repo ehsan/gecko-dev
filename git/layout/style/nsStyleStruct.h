@@ -246,9 +246,9 @@ struct nsStyleImage {
    * The computation involves converting percentage unit to pixel unit and
    * clamping each side value to fit in the source image bounds.
    * @param aActualCropRect the computed actual crop rect.
-   * @param aIsEntireImage true iff |aActualCropRect| is identical to the
+   * @param aIsEntireImage PR_TRUE iff |aActualCropRect| is identical to the
    * source image bounds.
-   * @return true iff |aActualCropRect| holds a meaningful value.
+   * @return PR_TRUE iff |aActualCropRect| holds a meaningful value.
    */
   bool ComputeActualCropRect(nsIntRect& aActualCropRect,
                                bool* aIsEntireImage = nsnull) const;
@@ -258,18 +258,18 @@ struct nsStyleImage {
    */
   nsresult RequestDecode() const;
   /**
-   * @return true if the item is definitely opaque --- i.e., paints every
+   * @return PR_TRUE if the item is definitely opaque --- i.e., paints every
    * pixel within its bounds opaquely, and the bounds contains at least a pixel.
    */
   bool IsOpaque() const;
   /**
-   * @return true if this image is fully loaded, and its size is calculated;
-   * always returns true if |mType| is |eStyleImageType_Gradient| or
+   * @return PR_TRUE if this image is fully loaded, and its size is calculated;
+   * always returns PR_TRUE if |mType| is |eStyleImageType_Gradient| or
    * |eStyleImageType_Element|.
    */
   bool IsComplete() const;
   /**
-   * @return true if it is 100% confident that this image contains no pixel
+   * @return PR_TRUE if it is 100% confident that this image contains no pixel
    * to draw.
    */
   bool IsEmpty() const {
@@ -554,9 +554,9 @@ struct nsStyleMargin {
   {
     if (mHasCachedMargin) {
       aMargin = mCachedMargin;
-      return true;
+      return PR_TRUE;
     }
-    return false;
+    return PR_FALSE;
   }
 
 protected:
@@ -589,9 +589,9 @@ struct nsStylePadding {
   {
     if (mHasCachedPadding) {
       aPadding = mCachedPadding;
-      return true;
+      return PR_TRUE;
     }
-    return false;
+    return PR_FALSE;
   }
 
 protected:
@@ -607,15 +607,15 @@ struct nsBorderColors {
   nsBorderColors(const nscolor& aColor) : mNext(nsnull), mColor(aColor) {}
   ~nsBorderColors();
 
-  nsBorderColors* Clone() const { return Clone(true); }
+  nsBorderColors* Clone() const { return Clone(PR_TRUE); }
 
   static bool Equal(const nsBorderColors* c1,
                       const nsBorderColors* c2) {
     if (c1 == c2)
-      return true;
+      return PR_TRUE;
     while (c1 && c2) {
       if (c1->mColor != c2->mColor)
-        return false;
+        return PR_FALSE;
       c1 = c1->mNext;
       c2 = c2->mNext;
     }
@@ -638,7 +638,7 @@ struct nsCSSShadowItem {
   bool mHasColor; // Whether mColor should be used
   bool mInset;
 
-  nsCSSShadowItem() : mHasColor(false) {
+  nsCSSShadowItem() : mHasColor(PR_FALSE) {
     MOZ_COUNT_CTOR(nsCSSShadowItem);
   }
   ~nsCSSShadowItem() {
@@ -838,12 +838,12 @@ struct nsStyleBorder {
   void GetBorderColor(mozilla::css::Side aSide, nscolor& aColor,
                       bool& aForeground) const
   {
-    aForeground = false;
+    aForeground = PR_FALSE;
     NS_ASSERTION(aSide <= NS_SIDE_LEFT, "bad side");
     if ((mBorderStyle[aSide] & BORDER_COLOR_SPECIAL) == 0)
       aColor = mBorderColor[aSide];
     else if (mBorderStyle[aSide] & BORDER_COLOR_FOREGROUND)
-      aForeground = true;
+      aForeground = PR_TRUE;
     else
       NS_NOTREACHED("OUTLINE_COLOR_INITIAL should not be set here");
   }
@@ -974,9 +974,9 @@ struct nsStyleOutline {
   {
     if (mHasCachedOutline) {
       aWidth = mCachedOutlineWidth;
-      return true;
+      return PR_TRUE;
     }
-    return false;
+    return PR_FALSE;
   }
 
   PRUint8 GetOutlineStyle(void) const
@@ -990,14 +990,14 @@ struct nsStyleOutline {
     mOutlineStyle |= (aStyle & BORDER_STYLE_MASK);
   }
 
-  // false means initial value
+  // PR_FALSE means initial value
   bool GetOutlineColor(nscolor& aColor) const
   {
     if ((mOutlineStyle & BORDER_COLOR_SPECIAL) == 0) {
       aColor = mOutlineColor;
-      return true;
+      return PR_TRUE;
     }
-    return false;
+    return PR_FALSE;
   }
 
   void SetOutlineColor(nscolor aColor)
@@ -1215,11 +1215,11 @@ struct nsStyleTextReset {
 
   void GetDecorationColor(nscolor& aColor, bool& aForeground) const
   {
-    aForeground = false;
+    aForeground = PR_FALSE;
     if ((mTextDecorationStyle & BORDER_COLOR_SPECIAL) == 0) {
       aColor = mTextDecorationColor;
     } else if (mTextDecorationStyle & BORDER_COLOR_FOREGROUND) {
-      aForeground = true;
+      aForeground = PR_TRUE;
     } else {
       NS_NOTREACHED("OUTLINE_COLOR_INITIAL should not be set here");
     }

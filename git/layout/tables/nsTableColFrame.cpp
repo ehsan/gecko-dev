@@ -131,7 +131,7 @@ NS_METHOD nsTableColFrame::Reflow(nsPresContext*          aPresContext,
   if (collapseCol) {
     nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
     if (tableFrame)  {
-      tableFrame->SetNeedToCollapse(true);
+      tableFrame->SetNeedToCollapse(PR_TRUE);
     }    
   }
   aStatus = NS_FRAME_COMPLETE;

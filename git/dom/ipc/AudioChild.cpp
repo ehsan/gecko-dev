@@ -49,8 +49,8 @@ AudioChild::AudioChild()
     mLastPositionTimestamp(0),
     mMinWriteSize(-2),// Initial value, -2, error on -1
     mAudioReentrantMonitor("AudioChild.mReentrantMonitor"),
-    mIPCOpen(true),
-    mDrained(false)
+    mIPCOpen(PR_TRUE),
+    mDrained(PR_FALSE)
 {
   MOZ_COUNT_CTOR(AudioChild);
 }
@@ -63,7 +63,7 @@ AudioChild::~AudioChild()
 void
 AudioChild::ActorDestroy(ActorDestroyReason aWhy)
 {
-  mIPCOpen = false;
+  mIPCOpen = PR_FALSE;
 }
 
 bool
@@ -79,7 +79,7 @@ bool
 AudioChild::RecvDrainDone()
 {
   ReentrantMonitorAutoEnter mon(mAudioReentrantMonitor);
-  mDrained = true;
+  mDrained = PR_TRUE;
   mAudioReentrantMonitor.NotifyAll();
   return true;
 }

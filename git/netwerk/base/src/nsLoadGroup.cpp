@@ -113,7 +113,7 @@ RequestHashInitEntry(PLDHashTable *table, PLDHashEntryHdr *entry,
 
     // Initialize the entry with placement new
     new (entry) RequestMapEntry(request);
-    return true;
+    return PR_TRUE;
 }
 
 
@@ -142,7 +142,7 @@ nsLoadGroup::nsLoadGroup(nsISupports* outer)
     , mLoadFlags(LOAD_NORMAL)
     , mStatus(NS_OK)
     , mPriority(PRIORITY_NORMAL)
-    , mIsCanceling(false)
+    , mIsCanceling(PR_FALSE)
     , mDefaultLoadIsTimed(false)
     , mTimedRequests(0)
     , mCachedRequests(0)
@@ -234,7 +234,7 @@ nsLoadGroup::GetName(nsACString &result)
 NS_IMETHODIMP
 nsLoadGroup::IsPending(bool *aResult)
 {
-    *aResult = (mForegroundCount > 0) ? true : false;
+    *aResult = (mForegroundCount > 0) ? PR_TRUE : PR_FALSE;
     return NS_OK;
 }
 
@@ -299,7 +299,7 @@ nsLoadGroup::Cancel(nsresult status)
     // Set the flag indicating that the loadgroup is being canceled...  This
     // prevents any new channels from being added during the operation.
     //
-    mIsCanceling = true;
+    mIsCanceling = PR_TRUE;
 
     nsresult firstError = NS_OK;
 
@@ -352,7 +352,7 @@ nsLoadGroup::Cancel(nsresult status)
 #endif
 
     mStatus = NS_OK;
-    mIsCanceling = false;
+    mIsCanceling = PR_FALSE;
 
     return firstError;
 }
@@ -518,7 +518,7 @@ nsLoadGroup::SetDefaultLoadRequest(nsIRequest *aRequest)
         mDefaultLoadIsTimed = timedChannel != nsnull;
         if (mDefaultLoadIsTimed) {
             timedChannel->GetChannelCreation(&mDefaultRequestCreationTime);
-            timedChannel->SetTimingEnabled(true);
+            timedChannel->SetTimingEnabled(PR_TRUE);
         }
     }
     // Else, do not change the group's load flags (see bug 95981)
@@ -592,7 +592,7 @@ nsLoadGroup::AddRequest(nsIRequest *request, nsISupports* ctxt)
 
     nsCOMPtr<nsITimedChannel> timedChannel = do_QueryInterface(request);
     if (timedChannel)
-        timedChannel->SetTimingEnabled(true);
+        timedChannel->SetTimingEnabled(PR_TRUE);
 
     if (!(flags & nsIRequest::LOAD_BACKGROUND)) {
         // Update the count of foreground URIs..

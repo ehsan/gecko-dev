@@ -311,10 +311,10 @@ nsLocalFile::FillStatCache() {
     if (STAT(mPath.get(), &mCachedStat) == -1) {
         // try lstat it may be a symlink
         if (LSTAT(mPath.get(), &mCachedStat) == -1) {
-            return false;
+            return PR_FALSE;
         }
     }
-    return true;
+    return PR_TRUE;
 }
 
 NS_IMETHODIMP
@@ -936,7 +936,7 @@ nsLocalFile::MoveToNative(nsIFile *newParent, const nsACString &newName)
 #endif
             rv = CopyToNative(newParent, newName);
             if (NS_SUCCEEDED(rv))
-                rv = Remove(true);
+                rv = Remove(PR_TRUE);
         } else {
             rv = NSRESULT_FOR_ERRNO();
         }
@@ -971,7 +971,7 @@ nsLocalFile::Remove(bool recursive)
 
         nsCOMPtr<nsISimpleEnumerator> dirRef(dir); // release on exit
 
-        rv = dir->Init(this, false);
+        rv = dir->Init(this, PR_FALSE);
         if (NS_FAILED(rv))
             return rv;
 
@@ -1353,7 +1353,7 @@ nsLocalFile::GetParent(nsIFile **aParent)
     *slashp = '\0';
 
     nsCOMPtr<nsILocalFile> localFile;
-    nsresult rv = NS_NewNativeLocalFile(nsDependentCString(buffer), true,
+    nsresult rv = NS_NewNativeLocalFile(nsDependentCString(buffer), PR_TRUE,
                                         getter_AddRefs(localFile));
 
     // make buffer whole again
@@ -1442,7 +1442,7 @@ nsLocalFile::IsExecutable(bool *_retval)
         for (size_t i = 0; i < ArrayLength(executableExts); i++) {
             if (ext.EqualsASCII(executableExts[i])) {
                 // Found a match.  Set result and quit.
-                *_retval = true;
+                *_retval = PR_TRUE;
                 return NS_OK;
             }
         }
@@ -1464,7 +1464,7 @@ nsLocalFile::IsExecutable(bool *_retval)
     ::CFRelease(url);
     if (result == noErr) {
         if ((theInfo.flags & kLSItemInfoIsApplication) != 0) {
-            *_retval = true;
+            *_retval = PR_TRUE;
             return NS_OK;
         }
     }
@@ -1498,7 +1498,7 @@ NS_IMETHODIMP
 nsLocalFile::IsDirectory(bool *_retval)
 {
     NS_ENSURE_ARG_POINTER(_retval);
-    *_retval = false;
+    *_retval = PR_FALSE;
     ENSURE_STAT_CACHE();
     *_retval = S_ISDIR(mCachedStat.st_mode);
     return NS_OK;
@@ -1508,7 +1508,7 @@ NS_IMETHODIMP
 nsLocalFile::IsFile(bool *_retval)
 {
     NS_ENSURE_ARG_POINTER(_retval);
-    *_retval = false;
+    *_retval = PR_FALSE;
     ENSURE_STAT_CACHE();
     *_retval = S_ISREG(mCachedStat.st_mode);
     return NS_OK;
@@ -1557,7 +1557,7 @@ nsLocalFile::Equals(nsIFile *inFile, bool *_retval)
 {
     NS_ENSURE_ARG(inFile);
     NS_ENSURE_ARG_POINTER(_retval);
-    *_retval = false;
+    *_retval = PR_FALSE;
 
     nsCAutoString inPath;
     nsresult rv = inFile->GetNativePath(inPath);
@@ -1583,14 +1583,14 @@ nsLocalFile::Contains(nsIFile *inFile, bool recur, bool *_retval)
     if (NS_FAILED(rv = inFile->GetNativePath(inPath)))
         return rv;
 
-    *_retval = false;
+    *_retval = PR_FALSE;
 
     ssize_t len = mPath.Length();
     if (strncmp(mPath.get(), inPath.get(), len) == 0) {
         // Now make sure that the |inFile|'s path has a separator at len,
         // which implies that it has more components after len.
         if (inPath[len] == '/')
-            *_retval = true;
+            *_retval = PR_TRUE;
     }
 
     return NS_OK;
@@ -1623,7 +1623,7 @@ nsLocalFile::GetNativeTarget(nsACString &_retval)
     nsresult rv = NS_OK;
     nsCOMPtr<nsIFile> self(this);
     PRInt32 maxLinks = 40;
-    while (true) {
+    while (PR_TRUE) {
         if (maxLinks-- == 0) {
             rv = NS_ERROR_FILE_UNRESOLVABLE_SYMLINK;
             break;
@@ -1685,7 +1685,7 @@ nsLocalFile::GetNativeTarget(nsACString &_retval)
 NS_IMETHODIMP
 nsLocalFile::GetFollowLinks(bool *aFollowLinks)
 {
-    *aFollowLinks = true;
+    *aFollowLinks = PR_TRUE;
     return NS_OK;
 }
 
@@ -1703,7 +1703,7 @@ nsLocalFile::GetDirectoryEntries(nsISimpleEnumerator **entries)
         return NS_ERROR_OUT_OF_MEMORY;
 
     NS_ADDREF(dir);
-    nsresult rv = dir->Init(this, false);
+    nsresult rv = dir->Init(this, PR_FALSE);
     if (NS_FAILED(rv)) {
         *entries = nsnull;
         NS_RELEASE(dir);
@@ -1721,13 +1721,13 @@ nsLocalFile::Load(PRLibrary **_retval)
     NS_ENSURE_ARG_POINTER(_retval);
 
 #ifdef NS_BUILD_REFCNT_LOGGING
-    nsTraceRefcntImpl::SetActivityIsLegal(false);
+    nsTraceRefcntImpl::SetActivityIsLegal(PR_FALSE);
 #endif
 
     *_retval = PR_LoadLibrary(mPath.get());
 
 #ifdef NS_BUILD_REFCNT_LOGGING
-    nsTraceRefcntImpl::SetActivityIsLegal(true);
+    nsTraceRefcntImpl::SetActivityIsLegal(PR_TRUE);
 #endif
 
     if (!*_retval)
@@ -2020,7 +2020,7 @@ nsLocalFile::Equals(nsIHashable* aOther, bool *aResult)
 {
     nsCOMPtr<nsIFile> otherFile(do_QueryInterface(aOther));
     if (!otherFile) {
-        *aResult = false;
+        *aResult = PR_FALSE;
         return NS_OK;
     }
 
@@ -2119,7 +2119,7 @@ static nsresult CFStringReftoUTF8(CFStringRef aInStrRef, nsACString& aOutStr)
   // first see if the conversion would succeed and find the length of the result
   CFIndex usedBufLen, inStrLen = ::CFStringGetLength(aInStrRef);
   CFIndex charsConverted = ::CFStringGetBytes(aInStrRef, CFRangeMake(0, inStrLen),
-                                              kCFStringEncodingUTF8, 0, false,
+                                              kCFStringEncodingUTF8, 0, PR_FALSE,
                                               NULL, 0, &usedBufLen);
   if (charsConverted == inStrLen) {
     // all characters converted, do the actual conversion
@@ -2373,7 +2373,7 @@ NS_IMETHODIMP
 nsLocalFile::IsPackage(bool *_retval)
 {
   NS_ENSURE_ARG(_retval);
-  *_retval = false;
+  *_retval = PR_FALSE;
 
   CFURLRef url;
   nsresult rv = GetCFURL(&url);

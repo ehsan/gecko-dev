@@ -340,7 +340,7 @@ IDBRequest::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  aVisitor.mCanHandle = true;
+  aVisitor.mCanHandle = PR_TRUE;
   aVisitor.mParentTarget = mTransaction;
   return NS_OK;
 }

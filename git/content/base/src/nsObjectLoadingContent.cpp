@@ -170,7 +170,7 @@ nsAsyncInstantiateEvent::Run()
 
     nsresult rv = mContent->Instantiate(frame, mContentType, mURI);
     if (NS_FAILED(rv)) {
-      mContent->Fallback(true);
+      mContent->Fallback(PR_TRUE);
     }
   } else {
     LOG(("OBJLC [%p]: Discarding event, data changed\n", mContent));
@@ -223,7 +223,7 @@ nsPluginErrorEvent::Run()
       return NS_OK;
   }
   nsContentUtils::DispatchTrustedEvent(mContent->GetDocument(), mContent,
-                                       type, true, true);
+                                       type, PR_TRUE, PR_TRUE);
 
   return NS_OK;
 }
@@ -282,8 +282,8 @@ nsPluginCrashedEvent::Run()
     return NS_OK;
   }
 
-  event->InitEvent(NS_LITERAL_STRING("PluginCrashed"), true, true);
-  privateEvent->SetTrusted(true);
+  event->InitEvent(NS_LITERAL_STRING("PluginCrashed"), PR_TRUE, PR_TRUE);
+  privateEvent->SetTrusted(PR_TRUE);
   privateEvent->GetInternalNSEvent()->flags |= NS_EVENT_FLAG_ONLY_CHROME_DISPATCH;
   
   nsCOMPtr<nsIWritableVariant> variant;
@@ -345,7 +345,7 @@ class AutoNotifier {
         mOldState = aContent->ObjectState();
     }
     ~AutoNotifier() {
-      mContent->NotifyStateChanged(mOldType, mOldState, false, mNotify);
+      mContent->NotifyStateChanged(mOldType, mOldState, PR_FALSE, mNotify);
     }
 
     /**
@@ -356,7 +356,7 @@ class AutoNotifier {
     void Notify() {
       NS_ASSERTION(mNotify, "Should not notify when notify=false");
 
-      mContent->NotifyStateChanged(mOldType, mOldState, true, true);
+      mContent->NotifyStateChanged(mOldType, mOldState, PR_TRUE, PR_TRUE);
       mOldType = mContent->Type();
       mOldState = mContent->ObjectState();
     }
@@ -379,7 +379,7 @@ class AutoFallback {
     ~AutoFallback() {
       if (NS_FAILED(*mResult)) {
         LOG(("OBJLC [%p]: rv=%08x, falling back\n", mContent, *mResult));
-        mContent->Fallback(false);
+        mContent->Fallback(PR_FALSE);
         if (mPluginState != ePluginOtherState) {
           mContent->mFallbackReason = mPluginState;
         }
@@ -407,7 +407,7 @@ class AutoFallback {
 class AutoSetInstantiatingToFalse {
   public:
     AutoSetInstantiatingToFalse(nsObjectLoadingContent* objlc) : mContent(objlc) {}
-    ~AutoSetInstantiatingToFalse() { mContent->mInstantiating = false; }
+    ~AutoSetInstantiatingToFalse() { mContent->mInstantiating = PR_FALSE; }
   private:
     nsObjectLoadingContent* mContent;
 };
@@ -418,7 +418,7 @@ IsSupportedImage(const nsCString& aMimeType)
 {
   imgILoader* loader = nsContentUtils::GetImgLoader();
   if (!loader) {
-    return false;
+    return PR_FALSE;
   }
 
   bool supported;
@@ -432,7 +432,7 @@ IsSupportedPlugin(const nsCString& aMIMEType)
   nsCOMPtr<nsIPluginHost> pluginHostCOM(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
   nsPluginHost *pluginHost = static_cast<nsPluginHost*>(pluginHostCOM.get());
   if (!pluginHost) {
-    return false;
+    return PR_FALSE;
   }
   nsresult rv = pluginHost->IsPluginEnabledForType(aMIMEType.get());
   return NS_SUCCEEDED(rv);
@@ -466,31 +466,31 @@ IsPluginEnabledByExtension(nsIURI* uri, nsCString& mimeType)
   GetExtensionFromURI(uri, ext);
 
   if (ext.IsEmpty()) {
-    return false;
+    return PR_FALSE;
   }
 
   nsCOMPtr<nsIPluginHost> pluginHostCOM(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
   nsPluginHost *pluginHost = static_cast<nsPluginHost*>(pluginHostCOM.get());
   if (!pluginHost) {
-    return false;
+    return PR_FALSE;
   }
 
   const char* typeFromExt;
   if (NS_SUCCEEDED(pluginHost->IsPluginEnabledForExtension(ext.get(), typeFromExt))) {
     mimeType = typeFromExt;
-    return true;
+    return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 nsObjectLoadingContent::nsObjectLoadingContent()
   : mPendingInstantiateEvent(nsnull)
   , mChannel(nsnull)
   , mType(eType_Loading)
-  , mInstantiating(false)
-  , mUserDisabled(false)
-  , mSuppressed(false)
-  , mNetworkCreated(true)
+  , mInstantiating(PR_FALSE)
+  , mUserDisabled(PR_FALSE)
+  , mSuppressed(PR_FALSE)
+  , mNetworkCreated(PR_TRUE)
   , mFallbackReason(ePluginOtherState)
 {
 }
@@ -514,11 +514,11 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
     return NS_BINDING_ABORTED;
   }
 
-  AutoNotifier notifier(this, true);
+  AutoNotifier notifier(this, PR_TRUE);
 
   if (!IsSuccessfulRequest(aRequest)) {
     LOG(("OBJLC [%p]: OnStartRequest: Request failed\n", this));
-    Fallback(false);
+    Fallback(PR_FALSE);
     return NS_BINDING_ABORTED;
   }
 
@@ -603,7 +603,11 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
     do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
   NS_ASSERTION(thisContent, "must be a content");
 
-  nsIDocument* doc = thisContent->OwnerDoc();
+  nsIDocument* doc = thisContent->GetOwnerDoc();
+  if (!doc) {
+    Fallback(PR_FALSE);
+    return NS_BINDING_ABORTED;    
+  }
 
   PRInt16 shouldProcess = nsIContentPolicy::ACCEPT;
   rv =
@@ -644,14 +648,14 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
         mFrameLoader = nsFrameLoader::Create(thisContent->AsElement(),
                                              mNetworkCreated);
         if (!mFrameLoader) {
-          Fallback(false);
+          Fallback(PR_FALSE);
           return NS_ERROR_UNEXPECTED;
         }
       }
 
       rv = mFrameLoader->CheckForRecursiveLoad(uri);
       if (NS_FAILED(rv)) {
-        Fallback(false);
+        Fallback(PR_FALSE);
         return rv;
       }
 
@@ -691,7 +695,7 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
       break;
     }
     case eType_Plugin:
-      mInstantiating = true;
+      mInstantiating = PR_TRUE;
       if (mType != newType) {
         // This can go away once plugin loading moves to content (bug 90268)
         mType = newType;
@@ -703,7 +707,7 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
         // Do nothing in this case: This is probably due to a display:none
         // frame. If we ever get a frame, HasNewFrame will do the right thing.
         // Abort the load though, we have no use for the data.
-        mInstantiating = false;
+        mInstantiating = PR_FALSE;
         return NS_BINDING_ABORTED;
       }
 
@@ -714,7 +718,7 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
 
         rv = frame->Instantiate(chan, getter_AddRefs(mFinalListener));
 
-        mInstantiating = false;
+        mInstantiating = PR_FALSE;
 
         if (!weakFrame.IsAlive()) {
           // The frame was destroyed while instantiating. Abort the load.
@@ -730,7 +734,7 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
       // Need to fallback here (instead of using the case below), so that we can
       // set mFallbackReason without it being overwritten. This is also why we
       // return early.
-      Fallback(false);
+      Fallback(PR_FALSE);
 
       PluginSupportState pluginState = GetPluginSupportState(thisContent,
                                                              mContentType);
@@ -757,7 +761,7 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
         return NS_BINDING_ABORTED;
       }
 #endif
-      Fallback(false);
+      Fallback(PR_FALSE);
     } else if (mType == eType_Plugin) {
       nsIObjectFrame* frame = GetExistingFrame(eFlushContent);
       if (frame) {
@@ -771,7 +775,7 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
   }
 
   LOG(("OBJLC [%p]: Found no listener, falling back\n", this));
-  Fallback(false);
+  Fallback(PR_FALSE);
   return NS_BINDING_ABORTED;
 }
 
@@ -878,7 +882,7 @@ nsObjectLoadingContent::EnsureInstantiation(nsNPAPIPluginInstance** aInstance)
     }
 
     // Trigger frame construction
-    mInstantiating = true;
+    mInstantiating = PR_TRUE;
 
     nsCOMPtr<nsIContent> thisContent = 
       do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
@@ -887,13 +891,13 @@ nsObjectLoadingContent::EnsureInstantiation(nsNPAPIPluginInstance** aInstance)
     nsIDocument* doc = thisContent->GetCurrentDoc();
     if (!doc) {
       // Nothing we can do while plugin loading is done in layout...
-      mInstantiating = false;
+      mInstantiating = PR_FALSE;
       return NS_OK;
     }
 
     doc->FlushPendingNotifications(Flush_Frames);
 
-    mInstantiating = false;
+    mInstantiating = PR_FALSE;
 
     frame = GetExistingFrame(eFlushContent);
     if (!frame) {
@@ -926,7 +930,7 @@ nsObjectLoadingContent::EnsureInstantiation(nsNPAPIPluginInstance** aInstance)
     if (NS_SUCCEEDED(rv) && weakFrame.IsAlive()) {
       rv = frame->GetPluginInstance(aInstance);
     } else {
-      Fallback(true);
+      Fallback(PR_TRUE);
     }
   }
   return rv;
@@ -941,8 +945,8 @@ nsObjectLoadingContent::HasNewFrame(nsIObjectFrame* aFrame)
   nsCOMPtr<nsIContent> thisContent = 
     do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
   NS_ASSERTION(thisContent, "must be a content");
-  nsIDocument* doc = thisContent->OwnerDoc();
-  if (doc->IsStaticDocument() || doc->IsBeingUsedAsImage()) {
+  nsIDocument* doc = thisContent->GetOwnerDoc();
+  if (!doc || doc->IsStaticDocument() || doc->IsBeingUsedAsImage()) {
     return NS_OK;
   }
 
@@ -1120,7 +1124,7 @@ nsObjectLoadingContent::LoadObject(const nsAString& aURI,
     do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
   NS_ASSERTION(thisContent, "must be a content");
 
-  nsIDocument* doc = thisContent->OwnerDoc();
+  nsIDocument* doc = thisContent->GetOwnerDoc();
   nsCOMPtr<nsIURI> baseURI;
   GetObjectBaseURI(thisContent, getter_AddRefs(baseURI));
 
@@ -1183,10 +1187,10 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
   // the AutoNotifier triggers frame construction, events can be posted as
   // appropriate.
   NS_ASSERTION(!mInstantiating, "LoadObject was reentered?");
-  mInstantiating = true;
+  mInstantiating = PR_TRUE;
   AutoSetInstantiatingToFalse autoset(this);
 
-  mUserDisabled = mSuppressed = false;
+  mUserDisabled = mSuppressed = PR_FALSE;
 
   mURI = aURI;
   mContentType = aTypeHint;
@@ -1195,8 +1199,8 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
     do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
   NS_ASSERTION(thisContent, "must be a content");
 
-  nsIDocument* doc = thisContent->OwnerDoc();
-  if (doc->IsBeingUsedAsImage()) {
+  nsIDocument* doc = thisContent->GetOwnerDoc();
+  if (!doc || doc->IsBeingUsedAsImage()) {
     return NS_OK;
   }
 
@@ -1223,7 +1227,7 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
   // Security checks
   if (doc->IsLoadedAsData()) {
     if (!doc->IsStaticDocument()) {
-      Fallback(false);
+      Fallback(PR_FALSE);
     }
     return NS_OK;
   }
@@ -1238,7 +1242,7 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
     nsresult rv =
       secMan->CheckLoadURIWithPrincipal(thisContent->NodePrincipal(), aURI, 0);
     if (NS_FAILED(rv)) {
-      Fallback(false);
+      Fallback(PR_FALSE);
       return NS_OK;
     }
 
@@ -1307,7 +1311,7 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
       case eType_Image:
         // Don't notify, because we will take care of that ourselves.
         if (aURI) {
-          rv = LoadImage(aURI, aForceLoad, false);
+          rv = LoadImage(aURI, aForceLoad, PR_FALSE);
         } else {
           rv = NS_ERROR_NOT_AVAILABLE;
         }
@@ -1335,13 +1339,13 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
   // If the class ID specifies a supported plugin, or if we have no explicit URI
   // but a type, immediately instantiate the plugin.
   bool isSupportedClassID = false;
-  nsCAutoString typeForID; // Will be set iff isSupportedClassID == true
+  nsCAutoString typeForID; // Will be set iff isSupportedClassID == PR_TRUE
   bool hasID = false;
   if (caps & eSupportClassID) {
     nsAutoString classid;
     thisContent->GetAttr(kNameSpaceID_None, nsGkAtoms::classid, classid);
     if (!classid.IsEmpty()) {
-      hasID = true;
+      hasID = PR_TRUE;
       isSupportedClassID = NS_SUCCEEDED(TypeForClassID(classid, typeForID));
     }
   }
@@ -1455,7 +1459,7 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
 
   // Set up the channel's principal and such, like nsDocShell::DoURILoad does
   nsContentUtils::SetUpChannelOwner(thisContent->NodePrincipal(),
-                                    chan, aURI, true);
+                                    chan, aURI, PR_TRUE);
 
   nsCOMPtr<nsIScriptChannel> scriptChannel = do_QueryInterface(chan);
   if (scriptChannel) {
@@ -1526,7 +1530,7 @@ nsObjectLoadingContent::IsSuccessfulRequest(nsIRequest* aRequest)
   nsresult status;
   nsresult rv = aRequest->GetStatus(&status);
   if (NS_FAILED(rv) || NS_FAILED(status)) {
-    return false;
+    return PR_FALSE;
   }
 
   // This may still be an error page or somesuch
@@ -1535,12 +1539,12 @@ nsObjectLoadingContent::IsSuccessfulRequest(nsIRequest* aRequest)
     bool success;
     rv = httpChan->GetRequestSucceeded(&success);
     if (NS_FAILED(rv) || !success) {
-      return false;
+      return PR_FALSE;
     }
   }
 
   // Otherwise, the request is successful
-  return true;
+  return PR_TRUE;
 }
 
 /* static */ bool
@@ -1548,17 +1552,17 @@ nsObjectLoadingContent::CanHandleURI(nsIURI* aURI)
 {
   nsCAutoString scheme;
   if (NS_FAILED(aURI->GetScheme(scheme))) {
-    return false;
+    return PR_FALSE;
   }
 
   nsIIOService* ios = nsContentUtils::GetIOService();
   if (!ios)
-    return false;
+    return PR_FALSE;
   
   nsCOMPtr<nsIProtocolHandler> handler;
   ios->GetProtocolHandler(scheme.get(), getter_AddRefs(handler));
   if (!handler) {
-    return false;
+    return PR_FALSE;
   }
   
   nsCOMPtr<nsIExternalProtocolHandler> extHandler =
@@ -1607,20 +1611,20 @@ nsObjectLoadingContent::IsSupportedDocument(const nsCString& aMimeType)
     return supported != nsIWebNavigationInfo::PLUGIN;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 void
 nsObjectLoadingContent::UnloadContent()
 {
   // Don't notify in CancelImageRequests. We do it ourselves.
-  CancelImageRequests(false);
+  CancelImageRequests(PR_FALSE);
   if (mFrameLoader) {
     mFrameLoader->Destroy();
     mFrameLoader = nsnull;
   }
   mType = eType_Null;
-  mUserDisabled = mSuppressed = false;
+  mUserDisabled = mSuppressed = PR_FALSE;
   mFallbackReason = ePluginOtherState;
 }
 
@@ -1765,7 +1769,7 @@ nsObjectLoadingContent::GetObjectBaseURI(nsIContent* thisContent, nsIURI** aURI)
                        codebase);
   if (!codebase.IsEmpty()) {
     nsContentUtils::NewURIWithDocumentCharset(aURI, codebase,
-                                              thisContent->OwnerDoc(),
+                                              thisContent->GetOwnerDoc(),
                                               baseURI);
   } else {
     baseURI.swap(*aURI);
@@ -1815,9 +1819,9 @@ nsObjectLoadingContent::HandleBeingBlockedByContentPolicy(nsresult aStatus,
   UnloadContent();
   if (NS_SUCCEEDED(aStatus)) {
     if (aRetval == nsIContentPolicy::REJECT_TYPE) {
-      mUserDisabled = true;
+      mUserDisabled = PR_TRUE;
     } else if (aRetval == nsIContentPolicy::REJECT_SERVER) {
-      mSuppressed = true;
+      mSuppressed = PR_TRUE;
     }
   }
 }
@@ -1867,7 +1871,7 @@ nsObjectLoadingContent::Instantiate(nsIObjectFrame* aFrame,
   // Mark that we're instantiating now so that we don't end up
   // re-entering instantiation code.
   bool oldInstantiatingValue = mInstantiating;
-  mInstantiating = true;
+  mInstantiating = PR_TRUE;
 
   nsCString typeToUse(aMIMEType);
   if (typeToUse.IsEmpty() && aURI) {
@@ -1947,7 +1951,7 @@ nsObjectLoadingContent::GetPluginSupportState(nsIContent* aContent,
       }
     } else if (!hasAlternateContent) {
       hasAlternateContent =
-        nsStyleUtil::IsSignificantChild(child, true, false);
+        nsStyleUtil::IsSignificantChild(child, PR_TRUE, PR_FALSE);
     }
   }
 
@@ -1995,7 +1999,7 @@ nsObjectLoadingContent::CreateStaticClone(nsObjectLoadingContent* aDest) const
   if (mFrameLoader) {
     nsCOMPtr<nsIContent> content =
       do_QueryInterface(static_cast<nsIImageLoadingContent*>(aDest));
-    nsFrameLoader* fl = nsFrameLoader::Create(content->AsElement(), false);
+    nsFrameLoader* fl = nsFrameLoader::Create(content->AsElement(), PR_FALSE);
     if (fl) {
       aDest->mFrameLoader = fl;
       mFrameLoader->CreateStaticClone(fl);
@@ -2016,7 +2020,7 @@ nsObjectLoadingContent::PluginCrashed(nsIPluginTag* aPluginTag,
                                       const nsAString& browserDumpID,
                                       bool submittedCrashReport)
 {
-  AutoNotifier notifier(this, true);
+  AutoNotifier notifier(this, PR_TRUE);
   UnloadContent();
   mFallbackReason = ePluginCrashed;
   nsCOMPtr<nsIContent> thisContent = do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));

@@ -78,7 +78,7 @@ public:
       mName(aName), mStart(0), mLength(aLength)
   {
     // Ensure non-null mContentType by default
-    mContentType.SetIsVoid(false);
+    mContentType.SetIsVoid(PR_FALSE);
   }
 
   nsDOMFileBase(const nsAString& aContentType, PRUint64 aLength)
@@ -86,7 +86,7 @@ public:
       mStart(0), mLength(aLength)
   {
     // Ensure non-null mContentType by default
-    mContentType.SetIsVoid(false);
+    mContentType.SetIsVoid(PR_FALSE);
   }
 
   nsDOMFileBase(const nsAString& aContentType,
@@ -97,7 +97,7 @@ public:
     NS_ASSERTION(aLength != PR_UINT64_MAX,
                  "Must know length when creating slice");
     // Ensure non-null mContentType by default
-    mContentType.SetIsVoid(false);
+    mContentType.SetIsVoid(PR_FALSE);
   }
 
   virtual ~nsDOMFileBase() {}
@@ -138,7 +138,7 @@ public:
   {
     NS_ASSERTION(mFile, "must have file");
     // Lazily get the content type and size
-    mContentType.SetIsVoid(true);
+    mContentType.SetIsVoid(PR_TRUE);
     mFile->GetLeafName(mName);
   }
 
@@ -158,8 +158,8 @@ public:
       mWholeFile(true)
   {
     // Lazily get the content type and size
-    mContentType.SetIsVoid(true);
-    mName.SetIsVoid(true);
+    mContentType.SetIsVoid(PR_TRUE);
+    mName.SetIsVoid(PR_TRUE);
   }
 
   NS_DECL_ISUPPORTS_INHERITED

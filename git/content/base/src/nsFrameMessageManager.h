@@ -113,7 +113,7 @@ public:
   {
     for (PRInt32 i = mChildManagers.Count(); i > 0; --i) {
       static_cast<nsFrameMessageManager*>(mChildManagers[i - 1])->
-        Disconnect(false);
+        Disconnect(PR_FALSE);
     }
     if (mIsProcessManager) {
       if (this == sParentProcessManager) {
@@ -223,7 +223,7 @@ public:
 protected:
   friend class nsFrameScriptCx;
   nsFrameScriptExecutor() : mCx(nsnull), mCxStackRefCnt(0),
-                            mDelayedCxDestroy(false)
+                            mDelayedCxDestroy(PR_FALSE)
   { MOZ_COUNT_CTOR(nsFrameScriptExecutor); }
   ~nsFrameScriptExecutor()
   { MOZ_COUNT_DTOR(nsFrameScriptExecutor); }
@@ -269,7 +269,7 @@ class nsScriptCacheCleaner : public nsIObserver
   {
     nsCOMPtr<nsIObserverService> obsSvc = mozilla::services::GetObserverService();
     if (obsSvc)
-      obsSvc->AddObserver(this, "xpcom-shutdown", false);
+      obsSvc->AddObserver(this, "xpcom-shutdown", PR_FALSE);
   }
 
   NS_IMETHODIMP Observe(nsISupports *aSubject,

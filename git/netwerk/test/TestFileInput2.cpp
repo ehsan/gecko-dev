@@ -142,7 +142,7 @@ Copy(nsIInputStream* inStr, nsIOutputStream* outStr,
      char* buf, PRUint32 bufSize, PRUint32 *copyCount)
 {
     nsresult rv;
-    while (true) {
+    while (PR_TRUE) {
         PRUint32 count;
         rv = inStr->Read(buf, bufSize, &count);
         if (NS_FAILED(rv)) return rv;
@@ -395,7 +395,7 @@ Test(CreateFun create, PRUint32 count,
         if (NS_FAILED(rv)) goto done;
 
         if (exists) {
-            rv = outSpec->Remove(false);
+            rv = outSpec->Remove(PR_FALSE);
             if (NS_FAILED(rv)) goto done;
         }
 
@@ -457,11 +457,11 @@ main(int argc, char* argv[])
             registrar->AutoRegister(nsnull);
 
         nsCOMPtr<nsILocalFile> inDirFile;
-        rv = NS_NewNativeLocalFile(nsDependentCString(inDir), false, getter_AddRefs(inDirFile));
+        rv = NS_NewNativeLocalFile(nsDependentCString(inDir), PR_FALSE, getter_AddRefs(inDirFile));
         if (NS_FAILED(rv)) return rv;
 
         nsCOMPtr<nsILocalFile> outDirFile;
-        rv = NS_NewNativeLocalFile(nsDependentCString(outDir), false, getter_AddRefs(outDirFile));
+        rv = NS_NewNativeLocalFile(nsDependentCString(outDir), PR_FALSE, getter_AddRefs(outDirFile));
         if (NS_FAILED(rv)) return rv;
 
         CreateFun create = FileChannelWorker::Create;

@@ -177,7 +177,7 @@ XPCWrappedNativeProto::SystemIsBeingShutDown(JSContext* cx)
     if (!DEBUG_DumpedStats) {
         printf("%d XPCWrappedNativeProto(s) alive at shutdown\n",
                gDEBUG_LiveProtoCount);
-        DEBUG_DumpedStats = true;
+        DEBUG_DumpedStats = PR_TRUE;
     }
 #endif
 

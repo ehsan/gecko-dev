@@ -47,7 +47,7 @@
 typedef int (* nsVoidArrayComparatorFunc)
             (const void* aElement1, const void* aElement2, void* aData);
 
-// Enumerator callback function. Return false to stop
+// Enumerator callback function. Return PR_FALSE to stop
 typedef bool (* nsVoidArrayEnumFunc)(void* aElement, void *aData);
 
 /// A basic zero-based array of void*'s that manages its own memory
@@ -192,8 +192,8 @@ public:
 
   void ResetToAutoBuffer()
   {
-    SetArray(reinterpret_cast<Impl*>(mAutoBuf), kAutoBufSize, 0, false,
-             true);
+    SetArray(reinterpret_cast<Impl*>(mAutoBuf), kAutoBufSize, 0, PR_FALSE,
+             PR_TRUE);
   }
 
   nsAutoVoidArray& operator=(const nsVoidArray& other)

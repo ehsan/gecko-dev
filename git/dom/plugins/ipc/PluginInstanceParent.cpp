@@ -96,6 +96,7 @@ PluginInstanceParent::PluginInstanceParent(PluginModuleParent* parent,
     , mPluginWndProc(NULL)
     , mNestedEventState(false)
 #endif // defined(XP_WIN)
+    , mQuirks(0)
 #if defined(XP_MACOSX)
     , mShWidth(0)
     , mShHeight(0)
@@ -103,6 +104,20 @@ PluginInstanceParent::PluginInstanceParent(PluginModuleParent* parent,
     , mDrawingModel(NPDrawingModelCoreGraphics)
 #endif
 {
+    InitQuirksModes(aMimeType);
+}
+
+void
+PluginInstanceParent::InitQuirksModes(const nsCString& aMimeType)
+{
+#ifdef MOZ_WIDGET_COCOA
+    NS_NAMED_LITERAL_CSTRING(flash, "application/x-shockwave-flash");
+    // Flash sends us Invalidate events so we will use those
+    // instead of the refresh timer.
+    if (!FindInReadable(flash, aMimeType)) {
+        mQuirks |= COREANIMATION_REFRESH_TIMER;
+    }
+#endif
 }
 
 PluginInstanceParent::~PluginInstanceParent()
@@ -120,6 +135,9 @@ PluginInstanceParent::~PluginInstanceParent()
     }
     if (mShColorSpace)
         ::CGColorSpaceRelease(mShColorSpace);
+    if (mDrawingModel == NPDrawingModelCoreAnimation) {
+        mParent->RemoveFromRefreshTimer(this);
+    }
 #endif
 }
 
@@ -376,6 +394,10 @@ PluginInstanceParent::AnswerNPN_SetValue_NPPVpluginDrawingModel(
         mDrawingModel = drawingModel;
         *result = mNPNIface->setvalue(mNPP, NPPVpluginDrawingModel,
                                   (void*)NPDrawingModelCoreGraphics);
+        if (drawingModel == NPDrawingModelCoreAnimation &&
+            mQuirks & COREANIMATION_REFRESH_TIMER) {
+            mParent->AddToRefreshTimer(this);
+        }
     } else {
         mDrawingModel = drawingModel;
         *result = mNPNIface->setvalue(mNPP, NPPVpluginDrawingModel,
@@ -1841,3 +1863,12 @@ PluginInstanceParent::AnswerPluginFocusChange(const bool& gotFocus)
     return false;
 #endif
 }
+
+#ifdef MOZ_WIDGET_COCOA
+void
+PluginInstanceParent::Invalidate()
+{
+    NPRect windowRect = {0, 0, mShHeight, mShWidth};
+    RecvNPN_InvalidateRect(windowRect);
+}
+#endif

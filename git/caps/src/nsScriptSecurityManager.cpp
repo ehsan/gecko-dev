@@ -227,8 +227,8 @@ public:
     ClassInfoData(nsIClassInfo *aClassInfo, const char *aName)
         : mClassInfo(aClassInfo),
           mName(const_cast<char *>(aName)),
-          mDidGetFlags(false),
-          mMustFreeName(false)
+          mDidGetFlags(PR_FALSE),
+          mMustFreeName(PR_FALSE)
     {
     }
 
@@ -250,7 +250,7 @@ public:
                 mFlags = 0;
             }
 
-            mDidGetFlags = true;
+            mDidGetFlags = PR_TRUE;
         }
 
         return mFlags;
@@ -269,7 +269,7 @@ public:
             }
 
             if (mName) {
-                mMustFreeName = true;
+                mMustFreeName = PR_TRUE;
             } else {
                 mName = const_cast<char *>("UnnamedClass");
             }
@@ -440,7 +440,7 @@ static bool
 DeleteCapability(nsHashKey *aKey, void *aData, void* closure)
 {
     NS_Free(aData);
-    return true;
+    return PR_TRUE;
 }
 
 //-- Per-Domain Policy - applies to one or more protocols or hosts
@@ -464,16 +464,16 @@ struct DomainEntry
         int len = strlen(anOrigin);
         int thisLen = mOrigin.Length();
         if (len < thisLen)
-            return false;
+            return PR_FALSE;
         if (mOrigin.RFindChar(':', thisLen-1, 1) != -1)
         //-- Policy applies to all URLs of this scheme, compare scheme only
             return mOrigin.EqualsIgnoreCase(anOrigin, thisLen);
 
         //-- Policy applies to a particular host; compare domains
         if (!mOrigin.Equals(anOrigin + (len - thisLen)))
-            return false;
+            return PR_FALSE;
         if (len == thisLen)
-            return true;
+            return PR_TRUE;
         char charBefore = anOrigin[len-thisLen-1];
         return (charBefore == '.' || charBefore == ':' || charBefore == '/');
     }
@@ -496,7 +496,7 @@ DeleteDomainEntry(nsHashKey *aKey, void *aData, void* closure)
         delete entry;
         entry = next;
     } while (entry);
-    return true;
+    return PR_TRUE;
 }
 
 /////////////////////////////
@@ -1018,14 +1018,14 @@ nsScriptSecurityManager::CheckSameOriginPrincipal(nsIPrincipal* aSubject,
     if (!subjectURI) {
         aSubject->GetURI(getter_AddRefs(subjectURI));
     } else {
-        subjectSetDomain = true;
+        subjectSetDomain = PR_TRUE;
     }
 
     aObject->GetDomain(getter_AddRefs(objectURI));
     if (!objectURI) {
         aObject->GetURI(getter_AddRefs(objectURI));
     } else {
-        objectSetDomain = true;
+        objectSetDomain = PR_TRUE;
     }
 
     if (SecurityCompareURIs(subjectURI, objectURI))
@@ -1463,7 +1463,7 @@ nsScriptSecurityManager::CheckLoadURIWithPrincipal(nsIPrincipal* aPrincipal,
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (hasFlags) {
-        return aPrincipal->CheckMayLoad(targetBaseURI, true);
+        return aPrincipal->CheckMayLoad(targetBaseURI, PR_TRUE);
     }
 
     //-- get the source scheme
@@ -1788,12 +1788,12 @@ nsScriptSecurityManager::CanExecuteScripts(JSContext* cx,
                                            nsIPrincipal *aPrincipal,
                                            bool *result)
 {
-    *result = false; 
+    *result = PR_FALSE; 
 
     if (aPrincipal == mSystemPrincipal)
     {
         // Even if JavaScript is disabled, we must still execute system scripts
-        *result = true;
+        *result = PR_TRUE;
         return NS_OK;
     }
 
@@ -1803,7 +1803,7 @@ nsScriptSecurityManager::CanExecuteScripts(JSContext* cx,
 
     if (!scriptContext->GetScriptsEnabled()) {
         // No scripting on this context, folks
-        *result = false;
+        *result = PR_FALSE;
         return NS_OK;
     }
     
@@ -1838,7 +1838,7 @@ nsScriptSecurityManager::CanExecuteScripts(JSContext* cx,
     aPrincipal->GetURI(getter_AddRefs(principalURI));
     if (!principalURI) {
         // Broken principal of some sort.  Disallow.
-        *result = false;
+        *result = PR_FALSE;
         return NS_ERROR_UNEXPECTED;
     }
         
@@ -1852,7 +1852,7 @@ nsScriptSecurityManager::CanExecuteScripts(JSContext* cx,
             rv = module->GetURIFlags(principalURI, &flags);
             if (NS_SUCCEEDED(rv) &&
                 (flags & nsIAboutModule::ALLOW_SCRIPT)) {
-                *result = true;
+                *result = PR_TRUE;
                 return NS_OK;              
             }
         }
@@ -1872,12 +1872,12 @@ nsScriptSecurityManager::CanExecuteScripts(JSContext* cx,
                       nsnull, &secLevel);
     if (NS_FAILED(rv) || secLevel.level == SCRIPT_SECURITY_NO_ACCESS)
     {
-        *result = false;
+        *result = PR_FALSE;
         return rv;
     }
 
     //-- Nobody vetoed, so allow the JS to run.
-    *result = true;
+    *result = PR_TRUE;
     return NS_OK;
 }
 
@@ -1917,7 +1917,7 @@ NS_IMETHODIMP
 nsScriptSecurityManager::SubjectPrincipalIsSystem(bool* aIsSystem)
 {
     NS_ENSURE_ARG_POINTER(aIsSystem);
-    *aIsSystem = false;
+    *aIsSystem = PR_FALSE;
 
     if (!mSystemPrincipal)
         return NS_OK;
@@ -1931,7 +1931,7 @@ nsScriptSecurityManager::SubjectPrincipalIsSystem(bool* aIsSystem)
     {
         // No subject principal means no JS is running;
         // this is the equivalent of system principal code
-        *aIsSystem = true;
+        *aIsSystem = PR_TRUE;
         return NS_OK;
     }
 
@@ -1953,7 +1953,7 @@ nsScriptSecurityManager::GetCertificatePrincipal(const nsACString& aCertFingerpr
                   aCertificate);
 
     return DoGetCertificatePrincipal(aCertFingerprint, aSubjectName,
-                                     aPrettyName, aCertificate, aURI, true,
+                                     aPrettyName, aCertificate, aURI, PR_TRUE,
                                      result);
 }
 
@@ -2037,7 +2037,7 @@ nsScriptSecurityManager::DoGetCertificatePrincipal(const nsACString& aCertFinger
                                                      subjectName, aPrettyName,
                                                      granted, denied,
                                                      aCertificate,
-                                                     true, false);
+                                                     PR_TRUE, PR_FALSE);
                 if (NS_FAILED(rv))
                     return rv;
                 
@@ -2136,7 +2136,7 @@ nsScriptSecurityManager::GetCodebasePrincipal(nsIURI *aURI,
                 rv = codebase->InitFromPersistent(prefName, id,
                                                   subjectName, EmptyCString(),
                                                   granted, denied,
-                                                  nsnull, false,
+                                                  nsnull, PR_FALSE,
                                                   isTrusted);
                 if (NS_FAILED(rv))
                     return rv;
@@ -2450,7 +2450,7 @@ nsScriptSecurityManager::doGetObjectPrincipal(JSObject *aObj
 #ifdef DEBUG
                                               aAllowShortCircuit
 #else
-                                              true
+                                              PR_TRUE
 #endif
                                               );
             if (result) {
@@ -2494,7 +2494,7 @@ nsScriptSecurityManager::doGetObjectPrincipal(JSObject *aObj
 
 #ifdef DEBUG
     if (aAllowShortCircuit) {
-        nsIPrincipal *principal = doGetObjectPrincipal(origObj, false);
+        nsIPrincipal *principal = doGetObjectPrincipal(origObj, PR_FALSE);
 
         // Location is always wrapped (even for same-compartment), so we can
         // loosen the check to same-origin instead of same-principal.
@@ -2538,7 +2538,7 @@ nsScriptSecurityManager::SavePrincipal(nsIPrincipal* aToSave)
                                 subjectNamePrefName );
     if (NS_FAILED(rv)) return NS_ERROR_FAILURE;
 
-    mIsWritingPrefs = true;
+    mIsWritingPrefs = PR_TRUE;
     if (grantedList) {
         Preferences::SetCString(grantedPrefName.get(), grantedList);
     } else {
@@ -2559,7 +2559,7 @@ nsScriptSecurityManager::SavePrincipal(nsIPrincipal* aToSave)
         Preferences::ClearUser(subjectNamePrefName.get());
     }
 
-    mIsWritingPrefs = false;
+    mIsWritingPrefs = PR_FALSE;
 
     nsIPrefService* prefService = Preferences::GetService();
     NS_ENSURE_TRUE(prefService, NS_ERROR_FAILURE);
@@ -2596,12 +2596,12 @@ nsScriptSecurityManager::IsCapabilityEnabled(const char *capability,
 
         *result = (targetPrincipal && !target)
                   ? (targetPrincipal == mSystemPrincipal)
-                  : true;
+                  : PR_TRUE;
 
         return NS_OK;
     }
 
-    *result = false;
+    *result = PR_FALSE;
     nsIPrincipal* previousPrincipal = nsnull;
     do
     {
@@ -2703,7 +2703,7 @@ nsScriptSecurityManager::CheckConfirmDialog(JSContext* cx, nsIPrincipal* aPrinci
                                             const char* aCapability, bool *checkValue)
 {
     nsresult rv;
-    *checkValue = false;
+    *checkValue = PR_FALSE;
 
     //-- Get a prompter for the current window.
     nsCOMPtr<nsIPrompt> prompter;
@@ -2726,7 +2726,7 @@ nsScriptSecurityManager::CheckConfirmDialog(JSContext* cx, nsIPrincipal* aPrinci
         if (wwatch)
           wwatch->GetNewPrompter(0, getter_AddRefs(prompter));
         if (!prompter)
-            return false;
+            return PR_FALSE;
     }
 
     //-- Localize the dialog text
@@ -2734,25 +2734,25 @@ nsScriptSecurityManager::CheckConfirmDialog(JSContext* cx, nsIPrincipal* aPrinci
     rv = sStrBundle->GetStringFromName(NS_LITERAL_STRING("CheckMessage").get(),
                                        getter_Copies(check));
     if (NS_FAILED(rv))
-        return false;
+        return PR_FALSE;
 
     nsXPIDLString title;
     rv = sStrBundle->GetStringFromName(NS_LITERAL_STRING("Titleline").get(),
                                        getter_Copies(title));
     if (NS_FAILED(rv))
-        return false;
+        return PR_FALSE;
 
     nsXPIDLString yesStr;
     rv = sStrBundle->GetStringFromName(NS_LITERAL_STRING("Yes").get(),
                                        getter_Copies(yesStr));
     if (NS_FAILED(rv))
-        return false;
+        return PR_FALSE;
 
     nsXPIDLString noStr;
     rv = sStrBundle->GetStringFromName(NS_LITERAL_STRING("No").get(),
                                        getter_Copies(noStr));
     if (NS_FAILED(rv))
-        return false;
+        return PR_FALSE;
 
     nsCAutoString val;
     bool hasCert;
@@ -2763,7 +2763,7 @@ nsScriptSecurityManager::CheckConfirmDialog(JSContext* cx, nsIPrincipal* aPrinci
         rv = GetPrincipalDomainOrigin(aPrincipal, val);
 
     if (NS_FAILED(rv))
-        return false;
+        return PR_FALSE;
 
     NS_ConvertUTF8toUTF16 location(val);
     NS_ConvertASCIItoUTF16 capability(aCapability);
@@ -2776,7 +2776,7 @@ nsScriptSecurityManager::CheckConfirmDialog(JSContext* cx, nsIPrincipal* aPrinci
                                           ArrayLength(formatStrings),
                                           getter_Copies(message));
     if (NS_FAILED(rv))
-        return false;
+        return PR_FALSE;
 
     PRInt32 buttonPressed = 1; // If the user exits by clicking the close box, assume No (button 1)
     rv = prompter->ConfirmEx(title.get(), message.get(),
@@ -2787,7 +2787,7 @@ nsScriptSecurityManager::CheckConfirmDialog(JSContext* cx, nsIPrincipal* aPrinci
                              yesStr.get(), noStr.get(), nsnull, check.get(), checkValue, &buttonPressed);
 
     if (NS_FAILED(rv))
-        *checkValue = false;
+        *checkValue = PR_FALSE;
     return (buttonPressed == 0);
 }
 
@@ -3002,7 +3002,7 @@ nsScriptSecurityManager::SetCanEnableCapability(const nsACString& certFingerprin
     nsCOMPtr<nsIPrincipal> objectPrincipal;
     rv = DoGetCertificatePrincipal(certFingerprint, EmptyCString(),
                                    EmptyCString(), nsnull,
-                                   nsnull, false,
+                                   nsnull, PR_FALSE,
                                    getter_AddRefs(objectPrincipal));
     if (NS_FAILED(rv)) return NS_ERROR_FAILURE;
     rv = objectPrincipal->SetCanEnableCapability(capability, canEnable);
@@ -3307,7 +3307,7 @@ nsScriptSecurityManager::Observe(nsISupports* aObject, const char* aTopic,
     else if (PL_strncmp(message, sPolicyPrefix, sizeof(sPolicyPrefix)-1) == 0)
     {
         // This will force re-initialization of the pref table
-        mPolicyPrefsChanged = true;
+        mPolicyPrefsChanged = PR_TRUE;
     }
     else if ((PL_strncmp(message, sPrincipalPrefix, sizeof(sPrincipalPrefix)-1) == 0) &&
              !mIsWritingPrefs)
@@ -3333,10 +3333,10 @@ nsScriptSecurityManager::nsScriptSecurityManager(void)
       mDefaultPolicy(nsnull),
       mCapabilities(nsnull),
       mContextPrincipals(nsnull),
-      mPrefInitialized(false),
-      mIsJavaScriptEnabled(false),
-      mIsWritingPrefs(false),
-      mPolicyPrefsChanged(true)
+      mPrefInitialized(PR_FALSE),
+      mIsJavaScriptEnabled(PR_FALSE),
+      mIsWritingPrefs(PR_FALSE),
+      mPolicyPrefsChanged(PR_TRUE)
 {
     NS_ASSERTION(sizeof(PRWord) == sizeof(void*),
                  "PRWord and void* have different lengths on this platform. "
@@ -3657,7 +3657,7 @@ nsScriptSecurityManager::InitPolicies()
     }
 
     // Reset the "dirty" flag
-    mPolicyPrefsChanged = false;
+    mPolicyPrefsChanged = PR_FALSE;
 
 #ifdef DEBUG_CAPS_HACKER
     PrintPolicyDB();
@@ -3905,7 +3905,7 @@ nsScriptSecurityManager::InitPrincipals(PRUint32 aPrefCount, const char** aPrefN
         if (PL_strncmp(aPrefNames[c], certificateName,
                        sizeof(certificateName) - 1) == 0)
         {
-            isCert = true;
+            isCert = PR_TRUE;
         }
         else if (PL_strncmp(aPrefNames[c], codebaseName,
                             sizeof(codebaseName) - 1) == 0)
@@ -3936,9 +3936,9 @@ inline void
 nsScriptSecurityManager::ScriptSecurityPrefChanged()
 {
     // JavaScript defaults to enabled in failure cases.
-    mIsJavaScriptEnabled = true;
+    mIsJavaScriptEnabled = PR_TRUE;
 
-    sStrictFileOriginPolicy = true;
+    sStrictFileOriginPolicy = PR_TRUE;
 
     nsresult rv;
     if (!mPrefInitialized) {
@@ -3961,7 +3961,7 @@ nsScriptSecurityManager::InitPrefs()
     nsIPrefBranch* branch = Preferences::GetRootBranch();
     NS_ENSURE_TRUE(branch, NS_ERROR_FAILURE);
 
-    mPrefInitialized = true;
+    mPrefInitialized = PR_TRUE;
 
     // Set the initial value of the "javascript.enabled" prefs
     ScriptSecurityPrefChanged();
@@ -4037,7 +4037,7 @@ PrintDomainPolicy(nsHashKey *aKey, void *aData, void* aClosure)
     printf("Domain: %s Policy Name: %s.\n", de->mOrigin.get(),
            de->mPolicyName_DEBUG.get());
     PL_DHashTableEnumerate(de->mDomainPolicy, PrintClassPolicy, aClosure);
-    return true;
+    return PR_TRUE;
 }
 
 static bool
@@ -4045,7 +4045,7 @@ PrintCapability(nsHashKey *aKey, void *aData, void* aClosure)
 {
     char* cap = (char*)aData;
     printf("    %s.\n", cap);
-    return true;
+    return PR_TRUE;
 }
 
 void

@@ -150,7 +150,7 @@ MediaDocument::Init()
                                 getter_AddRefs(mStringBundle));
   }
 
-  mIsSyntheticDocument = true;
+  mIsSyntheticDocument = PR_TRUE;
 
   return NS_OK;
 }
@@ -248,7 +248,7 @@ MediaDocument::CreateSyntheticDocument()
   }
 
   NS_ASSERTION(GetChildCount() == 0, "Shouldn't have any kids");
-  rv = AppendChildTo(root, false);
+  rv = AppendChildTo(root, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::head, nsnull,
@@ -274,14 +274,14 @@ MediaDocument::CreateSyntheticDocument()
   }
   metaContent->SetAttr(kNameSpaceID_None, nsGkAtoms::name,
                        NS_LITERAL_STRING("viewport"),
-                       true);
+                       PR_TRUE);
 
   metaContent->SetAttr(kNameSpaceID_None, nsGkAtoms::content,
                        NS_LITERAL_STRING("width=device-width; height=device-height;"),
-                       true);
-  head->AppendChildTo(metaContent, false);
+                       PR_TRUE);
+  head->AppendChildTo(metaContent, PR_FALSE);
 
-  root->AppendChildTo(head, false);
+  root->AppendChildTo(head, PR_FALSE);
 
   nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::body, nsnull,
                                            kNameSpaceID_XHTML,
@@ -293,7 +293,7 @@ MediaDocument::CreateSyntheticDocument()
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  root->AppendChildTo(body, false);
+  root->AppendChildTo(body, PR_FALSE);
 
   return NS_OK;
 }
@@ -301,7 +301,7 @@ MediaDocument::CreateSyntheticDocument()
 nsresult
 MediaDocument::StartLayout()
 {
-  mMayStartLayout = true;
+  mMayStartLayout = PR_TRUE;
   nsCOMPtr<nsIPresShell> shell = GetShell();
   // Don't mess with the presshell if someone has already handled
   // its initial reflow.

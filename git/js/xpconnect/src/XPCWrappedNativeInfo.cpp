@@ -560,7 +560,7 @@ XPCNativeSet::GetNewOrUsed(XPCCallContext& ccx, nsIClassInfo* classInfo)
 
     if (iidCount) {
         AutoMarkingNativeInterfacePtrArrayPtr
-            arr(ccx, new XPCNativeInterface*[iidCount], iidCount, true);
+            arr(ccx, new XPCNativeInterface*[iidCount], iidCount, PR_TRUE);
         if (!arr)
             goto out;
 

@@ -166,10 +166,10 @@ bool HasRTLChars(const nsAString& aString)
   for (PRInt32 i = 0; i < length; i++) {
     PRUnichar ch = aString.CharAt(i);
     if (ch >= 0xD800 || IS_IN_BMP_RTL_BLOCK(ch)) {
-      return true;
+      return PR_TRUE;
     }
   }
-  return false;
+  return PR_FALSE;
 }
 
 nsCharType GetCharType(PRUint32 aChar)

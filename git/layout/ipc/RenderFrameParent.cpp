@@ -522,7 +522,7 @@ BuildBackgroundPatternFor(ContainerLayer* aContainer,
     if (!observerService) {
       return;
     }
-    nsresult rv = observerService->AddObserver(new CheckerBoardPatternDeleter, "xpcom-shutdown", false);
+    nsresult rv = observerService->AddObserver(new CheckerBoardPatternDeleter, "xpcom-shutdown", PR_FALSE);
     if (NS_FAILED(rv)) {
       return;
     }
@@ -784,7 +784,7 @@ RenderFrameParent::BuildViewMap()
 LayerManager*
 RenderFrameParent::GetLayerManager() const
 {
-  nsIDocument* doc = mFrameLoader->OwnerDoc();
+  nsIDocument* doc = mFrameLoader->GetOwnerDoc();
   return doc->GetShell()->GetLayerManager();
 }
 

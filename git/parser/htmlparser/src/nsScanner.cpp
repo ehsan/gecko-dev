@@ -104,10 +104,10 @@ nsScanner::nsScanner(const nsAString& anHTMLString, const nsACString& aCharset,
     mEndPosition = mCurrentPosition;
   }
   mMarkPosition = mCurrentPosition;
-  mIncremental = false;
+  mIncremental = PR_FALSE;
   mUnicodeDecoder = 0;
   mCharsetSource = kCharsetUninitialized;
-  mHasInvalidCharacter = false;
+  mHasInvalidCharacter = PR_FALSE;
   mReplacementCharacter = PRUnichar(0x0);
 }
 
@@ -138,13 +138,13 @@ nsScanner::nsScanner(nsString& aFilename,bool aCreateStream,
   mMarkPosition = mCurrentPosition;
   mEndPosition = mCurrentPosition;
 
-  mIncremental = true;
+  mIncremental = PR_TRUE;
   mFirstNonWhitespacePosition = -1;
   mCountRemaining = 0;
 
   mUnicodeDecoder = 0;
   mCharsetSource = kCharsetUninitialized;
-  mHasInvalidCharacter = false;
+  mHasInvalidCharacter = PR_FALSE;
   mReplacementCharacter = PRUnichar(0x0);
   SetDocumentCharset(aCharset, aSource);
 }
@@ -266,7 +266,7 @@ PRInt32 nsScanner::Mark() {
  */
 bool nsScanner::UngetReadable(const nsAString& aBuffer) {
   if (!mSlidingBuffer) {
-    return false;
+    return PR_FALSE;
   }
 
   mSlidingBuffer->UngetReadable(aBuffer,mCurrentPosition);
@@ -275,7 +275,7 @@ bool nsScanner::UngetReadable(const nsAString& aBuffer) {
  
   PRUint32 length = aBuffer.Length();
   mCountRemaining += length; // Ref. bug 117441
-  return true;
+  return PR_TRUE;
 }
 
 /** 
@@ -484,7 +484,7 @@ nsresult nsScanner::SkipWhitespace(PRInt32& aNewlinesSkipped) {
       case ' ' :
       case '\t':
         {
-          skipped = true;
+          skipped = PR_TRUE;
           PRUnichar thePrevChar = theChar;
           theChar = (++current != mEndPosition) ? *current : '\0';
           if ((thePrevChar == '\r' && theChar == '\n') ||
@@ -494,7 +494,7 @@ nsresult nsScanner::SkipWhitespace(PRInt32& aNewlinesSkipped) {
         }
         break;
       default:
-        done = true;
+        done = PR_TRUE;
         break;
     }
   }
@@ -592,7 +592,7 @@ nsresult nsScanner::ReadTagIdentifier(nsScannerSharedSubstring& aString) {
       case '<':
       case '>':
       case '/':
-        found = true;
+        found = PR_TRUE;
         break;
 
       case '\0':
@@ -649,13 +649,13 @@ nsresult nsScanner::ReadEntityIdentifier(nsString& aString) {
  
     theChar=*current;
     if(theChar) {
-      found=false;
+      found=PR_FALSE;
       switch(theChar) {
         case '_':
         case '-':
         case '.':
           // Don't allow ':' in entity names.  See bug 23791
-          found = true;
+          found = PR_TRUE;
           break;
         default:
           found = ('a'<=theChar && theChar<='z') ||
@@ -712,7 +712,7 @@ nsresult nsScanner::ReadNumber(nsString& aString,PRInt32 aBase) {
       done = (theChar < '0' || theChar > '9') && 
              ((aBase == 16)? (theChar < 'A' || theChar > 'F') &&
                              (theChar < 'a' || theChar > 'f')
-                             :true);
+                             :PR_TRUE);
       if(done) {
         AppendUnicodeTo(origin, current, aString);
         break;
@@ -744,7 +744,7 @@ nsresult nsScanner::ReadWhitespace(nsScannerSharedSubstring& aString,
                                    PRInt32& aNewlinesSkipped,
                                    bool& aHaveCR) {
 
-  aHaveCR = false;
+  aHaveCR = PR_FALSE;
 
   if (!mSlidingBuffer) {
     return kEOF;
@@ -777,13 +777,13 @@ nsresult nsScanner::ReadWhitespace(nsScannerSharedSubstring& aString,
           if ((thePrevChar == '\r' && theChar == '\n') ||
               (thePrevChar == '\n' && theChar == '\r')) {
             theChar = (++current != end) ? *current : '\0'; // CRLF == LFCR => LF
-            haveCR = true;
+            haveCR = PR_TRUE;
           } else if (thePrevChar == '\r') {
             // Lone CR becomes CRLF; callers should know to remove extra CRs
             AppendUnicodeTo(origin, current, aString);
             aString.writable().Append(PRUnichar('\n'));
             origin = current;
-            haveCR = true;
+            haveCR = PR_TRUE;
           }
         }
         break;
@@ -792,7 +792,7 @@ nsresult nsScanner::ReadWhitespace(nsScannerSharedSubstring& aString,
         theChar = (++current != end) ? *current : '\0';
         break;
       default:
-        done = true;
+        done = PR_TRUE;
         AppendUnicodeTo(origin, current, aString);
         break;
     }
@@ -848,7 +848,7 @@ nsresult nsScanner::ReadWhitespace(nsScannerIterator& aStart,
         }
         break;
       default:
-        done = true;
+        done = PR_TRUE;
         aStart = origin;
         aEnd = current;
         break;
@@ -1166,7 +1166,7 @@ bool nsScanner::AppendToBuffer(nsScannerString::Buffer* aBuf,
   if (!mSlidingBuffer) {
     mSlidingBuffer = new nsScannerString(aBuf);
     if (!mSlidingBuffer)
-      return false;
+      return PR_FALSE;
     mSlidingBuffer->BeginReading(mCurrentPosition);
     mMarkPosition = mCurrentPosition;
     mSlidingBuffer->EndReading(mEndPosition);
@@ -1182,7 +1182,7 @@ bool nsScanner::AppendToBuffer(nsScannerString::Buffer* aBuf,
   }
 
   if (aErrorPos != -1 && !mHasInvalidCharacter) {
-    mHasInvalidCharacter = true;
+    mHasInvalidCharacter = PR_TRUE;
     mFirstInvalidPosition = mCurrentPosition;
     mFirstInvalidPosition.advance(countRemaining + aErrorPos);
   }
@@ -1201,7 +1201,7 @@ bool nsScanner::AppendToBuffer(nsScannerString::Buffer* aBuf,
       ++iter;
     }
   }
-  return true;
+  return PR_TRUE;
 }
 
 /**

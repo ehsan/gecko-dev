@@ -274,7 +274,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             NS_ENSURE_SUCCESS(rv, rv);
 
             if (arg2.IsEmpty()) {
-                aContext->recycler()->getBoolResult(true, aResult);
+                aContext->recycler()->getBoolResult(PR_TRUE, aResult);
             }
             else {
                 nsAutoString arg1;
@@ -335,7 +335,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
 
             bool result = false;
             if (arg2.IsEmpty()) {
-                result = true;
+                result = PR_TRUE;
             }
             else {
                 nsAutoString arg1;
@@ -629,7 +629,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
         }
         case _FALSE:
         {
-            aContext->recycler()->getBoolResult(false, aResult);
+            aContext->recycler()->getBoolResult(PR_FALSE, aResult);
 
             return NS_OK;
         }
@@ -645,7 +645,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             } while (!found && walker.moveToParent());
 
             if (!found) {
-                aContext->recycler()->getBoolResult(false, aResult);
+                aContext->recycler()->getBoolResult(PR_FALSE, aResult);
 
                 return NS_OK;
             }
@@ -676,7 +676,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
         }
         case _TRUE:
         {
-            aContext->recycler()->getBoolResult(true, aResult);
+            aContext->recycler()->getBoolResult(PR_TRUE, aResult);
 
             return NS_OK;
         }
@@ -750,7 +750,7 @@ txCoreFunctionCall::isSensitiveTo(ContextSensitivity aContext)
     }
 
     NS_NOTREACHED("how'd we get here?");
-    return true;
+    return PR_TRUE;
 }
 
 // static
@@ -762,11 +762,11 @@ txCoreFunctionCall::getTypeFromAtom(nsIAtom* aName, eType& aType)
         if (aName == *descriptTable[i].mName) {
             aType = static_cast<eType>(i);
 
-            return true;
+            return PR_TRUE;
         }
     }
 
-    return false;
+    return PR_FALSE;
 }
 
 #ifdef TX_TO_STRING

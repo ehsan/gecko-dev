@@ -136,8 +136,8 @@ public:
         mWeight = aWeight;
         mStretch = aStretch;
         mItalic = aItalic;
-        mIsUserFont = true;
-        mIsLocalUserFont = true;
+        mIsUserFont = PR_TRUE;
+        mIsLocalUserFont = PR_TRUE;
         mIsCJK = UNINITIALIZED_VALUE;
     }
 
@@ -161,7 +161,7 @@ public:
         mWeight = aWeight;
         mStretch = aStretch;
         mItalic = aItalic;
-        mIsUserFont = true;
+        mIsUserFont = PR_TRUE;
         mIsCJK = UNINITIALIZED_VALUE;
     }
 

@@ -61,7 +61,7 @@ nsXPITriggerItem::nsXPITriggerItem( const PRUnichar* aName,
                                     const PRUnichar* aIconURL,
                                     const char* aHash,
                                     PRInt32 aFlags)
-    : mName(aName), mURL(aURL), mIconURL(aIconURL), mHashFound(false), mFlags(aFlags)
+    : mName(aName), mURL(aURL), mIconURL(aIconURL), mHashFound(PR_FALSE), mFlags(aFlags)
 {
     MOZ_COUNT_CTOR(nsXPITriggerItem);
 
@@ -97,7 +97,7 @@ nsXPITriggerItem::nsXPITriggerItem( const PRUnichar* aName,
     // parse optional hash into its parts
     if (aHash)
     {
-        mHashFound = true;
+        mHashFound = PR_TRUE;
 
         char * colon = PL_strchr(aHash, ':');
         if (colon)

@@ -110,7 +110,7 @@ AsyncStatementParams::SetProperty(
     return NS_ERROR_INVALID_ARG;
   }
 
-  *_retval = true;
+  *_retval = PR_TRUE;
   return NS_OK;
 }
 

@@ -254,7 +254,7 @@ typedef PLDHashNumber
 
 /*
  * Compare the key identifying entry in table with the provided key parameter.
- * Return true if keys match, false otherwise.
+ * Return PR_TRUE if keys match, PR_FALSE otherwise.
  */
 typedef bool
 (* PLDHashMatchEntry)(PLDHashTable *table, const PLDHashEntryHdr *entry,
@@ -306,7 +306,7 @@ typedef bool
  *  allocTable          Allocate raw bytes with malloc, no ctors run.
  *  freeTable           Free raw bytes with free, no dtors run.
  *  initEntry           Call placement new using default key-based ctor.
- *                      Return true on success, false on error.
+ *                      Return PR_TRUE on success, PR_FALSE on error.
  *  moveEntry           Call placement new using copy ctor, run dtor on old
  *                      entry storage.
  *  clearEntry          Run dtor on entry.

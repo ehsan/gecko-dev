@@ -61,6 +61,8 @@
 #include "nsDataHashtable.h"
 #include "nsHashKeys.h"
 #include "nsIFileStreams.h"
+#include "nsTObserverArray.h"
+#include "nsITimer.h"
 
 namespace mozilla {
 namespace dom {
@@ -152,6 +154,11 @@ public:
     GetIdentifierForNPIdentifier(NPP npp, NPIdentifier aIdentifier);
 
     void ProcessRemoteNativeEventsInRPCCall();
+
+#ifdef OS_MACOSX
+    void AddToRefreshTimer(PluginInstanceParent *aInstance);
+    void RemoveFromRefreshTimer(PluginInstanceParent *aInstance);
+#endif
 
 protected:
     NS_OVERRIDE
@@ -327,6 +334,11 @@ private:
     nsString mPluginDumpID;
     nsString mBrowserDumpID;
     nsString mHangID;
+
+#ifdef OS_MACOSX
+    nsCOMPtr<nsITimer> mCATimer;
+    nsTObserverArray<PluginInstanceParent*> mCATimerTargets;
+#endif
 
 #ifdef MOZ_X11
     // Dup of plugin's X socket, used to scope its resources to this

@@ -71,7 +71,7 @@ nsDirIndexParser::nsDirIndexParser() {
 nsresult
 nsDirIndexParser::Init() {
   mLineStart = 0;
-  mHasDescription = false;
+  mHasDescription = PR_FALSE;
   mFormat = nsnull;
 
   // get default charset to be used for directory listings (fallback to
@@ -233,7 +233,7 @@ nsDirIndexParser::ParseFormat(const char* aFormatStr) {
 
     // All tokens are case-insensitive - http://www.mozilla.org/projects/netlib/dirindexformat.html
     if (name.LowerCaseEqualsLiteral("description"))
-      mHasDescription = true;
+      mHasDescription = PR_TRUE;
     
     for (Field* i = gFieldTable; i->mName; ++i) {
       if (name.EqualsIgnoreCase(i->mName)) {
@@ -310,7 +310,7 @@ nsDirIndexParser::ParseData(nsIDirIndex *aIdx, char* aDataStr) {
             aIdx->SetLocation(filename.get());
             if (!mHasDescription)
               aIdx->SetDescription(result);
-            success = true;
+            success = PR_TRUE;
           }
           NS_Free(result);
         } else {
@@ -348,7 +348,7 @@ nsDirIndexParser::ParseData(nsIDirIndex *aIdx, char* aDataStr) {
       {
         PRTime tm;
         nsUnescape(value);
-        if (PR_ParseTimeString(value, false, &tm) == PR_SUCCESS) {
+        if (PR_ParseTimeString(value, PR_FALSE, &tm) == PR_SUCCESS) {
           aIdx->SetLastModified(tm);
         }
       }
@@ -414,7 +414,7 @@ nsDirIndexParser::ProcessData(nsIRequest *aRequest, nsISupports *aCtxt) {
   
   PRInt32     numItems = 0;
   
-  while(true) {
+  while(PR_TRUE) {
     ++numItems;
     
     PRInt32             eol = mBuf.FindCharInSet("\n\r", mLineStart);

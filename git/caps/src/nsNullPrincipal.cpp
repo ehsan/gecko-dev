@@ -152,7 +152,7 @@ nsNullPrincipal::GetPreferences(char** aPrefName, char** aID,
   *aSubjectName = nsnull;
   *aGrantedList = nsnull;
   *aDeniedList = nsnull;
-  *aIsTrusted = false;
+  *aIsTrusted = PR_FALSE;
 
   return NS_ERROR_FAILURE; 
 }
@@ -230,7 +230,7 @@ nsNullPrincipal::IsCapabilityEnabled(const char *aCapability,
                                      bool *aResult)
 {
   // Nope.  No capabilities, I say!
-  *aResult = false;
+  *aResult = PR_FALSE;
   return NS_OK;
 }
 
@@ -310,7 +310,7 @@ nsNullPrincipal::GetOrigin(char** aOrigin)
 NS_IMETHODIMP 
 nsNullPrincipal::GetHasCertificate(bool* aResult)
 {
-  *aResult = false;
+  *aResult = PR_FALSE;
   return NS_OK;
 }
 

@@ -257,7 +257,7 @@ public:
    */
   #define STYLE_STRUCT(name_, checkdata_cb_, ctor_args_)  \
     const nsStyle##name_ * GetStyle##name_() {            \
-      return DoGetStyle##name_(true);                  \
+      return DoGetStyle##name_(PR_TRUE);                  \
     }
   #include "nsStyleStructList.h"
   #undef STYLE_STRUCT
@@ -271,7 +271,7 @@ public:
    */
   #define STYLE_STRUCT(name_, checkdata_cb_, ctor_args_)  \
     const nsStyle##name_ * PeekStyle##name_() {           \
-      return DoGetStyle##name_(false);                 \
+      return DoGetStyle##name_(PR_FALSE);                 \
     }
   #include "nsStyleStructList.h"
   #undef STYLE_STRUCT

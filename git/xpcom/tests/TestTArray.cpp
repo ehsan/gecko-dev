@@ -69,116 +69,116 @@ static bool test_basic_array(ElementType *data,
   nsTArray<ElementType> ary;
   ary.AppendElements(data, dataLen);
   if (ary.Length() != dataLen) {
-    return false;
+    return PR_FALSE;
   }
   if (!(ary == ary)) {
-    return false;
+    return PR_FALSE;
   }
   PRUint32 i;
   for (i = 0; i < ary.Length(); ++i) {
     if (ary[i] != data[i])
-      return false;
+      return PR_FALSE;
   }
   for (i = 0; i < ary.Length(); ++i) {
     if (ary.SafeElementAt(i, extra) != data[i])
-      return false;
+      return PR_FALSE;
   }
   if (ary.SafeElementAt(ary.Length(), extra) != extra ||
       ary.SafeElementAt(ary.Length() * 10, extra) != extra)
-    return false;
+    return PR_FALSE;
   // ensure sort results in ascending order
   ary.Sort();
   PRUint32 j = 0, k;
   if (ary.GreatestIndexLtEq(extra, k))
-    return false;
+    return PR_FALSE;
   for (i = 0; i < ary.Length(); ++i) {
     if (!ary.GreatestIndexLtEq(ary[i], k))
-      return false;
+      return PR_FALSE;
     if (k < j)
-      return false;
+      return PR_FALSE;
     j = k;
   }
   for (i = ary.Length(); --i; ) {
     if (ary[i] < ary[i - 1])
-      return false;
+      return PR_FALSE;
     if (ary[i] == ary[i - 1])
       ary.RemoveElementAt(i);
   }
   if (!(ary == ary)) {
-    return false;
+    return PR_FALSE;
   }
   for (i = 0; i < ary.Length(); ++i) {
     if (ary.BinaryIndexOf(ary[i]) != i)
-      return false;
+      return PR_FALSE;
   }
   if (ary.BinaryIndexOf(extra) != ary.NoIndex)
-    return false;
+    return PR_FALSE;
   PRUint32 oldLen = ary.Length();
   ary.RemoveElement(data[dataLen / 2]);
   if (ary.Length() != (oldLen - 1))
-    return false;
+    return PR_FALSE;
   if (!(ary == ary))
-    return false;
+    return PR_FALSE;
 
   PRUint32 index = ary.Length() / 2;
   if (!ary.InsertElementAt(index, extra))
-    return false;
+    return PR_FALSE;
   if (!(ary == ary))
-    return false;
+    return PR_FALSE;
   if (ary[index] != extra)
-    return false;
+    return PR_FALSE;
   if (ary.IndexOf(extra) == PR_UINT32_MAX)
-    return false;
+    return PR_FALSE;
   if (ary.LastIndexOf(extra) == PR_UINT32_MAX)
-    return false;
+    return PR_FALSE;
   // ensure proper searching
   if (ary.IndexOf(extra) > ary.LastIndexOf(extra))
-    return false;
+    return PR_FALSE;
   if (ary.IndexOf(extra, index) != ary.LastIndexOf(extra, index))
-    return false;
+    return PR_FALSE;
 
   nsTArray<ElementType> copy(ary);
   if (!(ary == copy))
-    return false;
+    return PR_FALSE;
   for (i = 0; i < copy.Length(); ++i) {
     if (ary[i] != copy[i])
-      return false;
+      return PR_FALSE;
   }
   if (!ary.AppendElements(copy))
-    return false;
+    return PR_FALSE;
   PRUint32 cap = ary.Capacity();
   ary.RemoveElementsAt(copy.Length(), copy.Length());
   ary.Compact();
   if (ary.Capacity() == cap)
-    return false;
+    return PR_FALSE;
 
   ary.Clear();
   if (!ary.IsEmpty() || ary.Elements() == nsnull)
-    return false;
+    return PR_FALSE;
   if (!(ary == nsTArray<ElementType>()))
-    return false;
+    return PR_FALSE;
   if (ary == copy)
-    return false;
+    return PR_FALSE;
   if (ary.SafeElementAt(0, extra) != extra ||
       ary.SafeElementAt(10, extra) != extra)
-    return false;
+    return PR_FALSE;
 
   ary = copy;
   if (!(ary == copy))
-    return false;
+    return PR_FALSE;
   for (i = 0; i < copy.Length(); ++i) {
     if (ary[i] != copy[i])
-      return false;
+      return PR_FALSE;
   }
 
   if (!ary.InsertElementsAt(0, copy))
-    return false;
+    return PR_FALSE;
   if (ary == copy)
-    return false;
+    return PR_FALSE;
   ary.RemoveElementsAt(0, copy.Length());
   for (i = 0; i < copy.Length(); ++i) {
     if (ary[i] != copy[i])
-      return false;
+      return PR_FALSE;
   }
 
   // These shouldn't crash!
@@ -190,7 +190,7 @@ static bool test_basic_array(ElementType *data,
   ary.RemoveElement(extra);
   ary.RemoveElement(extra);
 
-  return true;
+  return PR_TRUE;
 }
 
 static bool test_int_array() {
@@ -255,21 +255,21 @@ static bool test_object_array() {
   for (i = 0; i < ArrayLength(kdata); ++i) {
     char x[] = {kdata[i],'\0'};
     if (!objArray.AppendElement(Object(x, i)))
-      return false;
+      return PR_FALSE;
   }
   for (i = 0; i < ArrayLength(kdata); ++i) {
     if (objArray[i].Str()[0] != kdata[i])
-      return false;
+      return PR_FALSE;
     if (objArray[i].Num() != i)
-      return false;
+      return PR_FALSE;
   }
   objArray.Sort();
   const char ksorted[] = "\0 dehllloorw";
   for (i = 0; i < ArrayLength(kdata)-1; ++i) {
     if (objArray[i].Str()[0] != ksorted[i])
-      return false;
+      return PR_FALSE;
   }
-  return true;
+  return PR_TRUE;
 }
 
 // nsTArray<nsAutoPtr<T>> is not supported
@@ -281,18 +281,18 @@ static bool test_autoptr_array() {
     char x[] = {kdata[i],'\0'};
     nsAutoPtr<Object> obj(new Object(x,i));
     if (!objArray.AppendElement(obj))  // XXX does not call copy-constructor for nsAutoPtr!!!
-      return false;
+      return PR_FALSE;
     if (obj.get() == nsnull)
-      return false;
+      return PR_FALSE;
     obj.forget();  // the array now owns the reference
   }
   for (PRUint32 i = 0; i < ArrayLength(kdata); ++i) {
     if (objArray[i]->Str()[0] != kdata[i])
-      return false;
+      return PR_FALSE;
     if (objArray[i]->Num() != i)
-      return false;
+      return PR_FALSE;
   }
-  return true;
+  return PR_TRUE;
 }
 #endif
 
@@ -310,38 +310,38 @@ static bool test_string_array() {
     nsCString str;
     str.Assign(kdata[i]);
     if (!strArray.AppendElement(str))
-      return false;
+      return PR_FALSE;
   }
   for (i = 0; i < ArrayLength(kdata); ++i) {
     if (strArray[i].CharAt(0) != kdata[i])
-      return false;
+      return PR_FALSE;
   }
 
   const char kextra[] = "foo bar";
   PRUint32 oldLen = strArray.Length();
   if (!strArray.AppendElement(kextra))
-    return false;
+    return PR_FALSE;
   strArray.RemoveElement(kextra);
   if (oldLen != strArray.Length())
-    return false;
+    return PR_FALSE;
 
   if (strArray.IndexOf("e") != 1)
-    return false;
+    return PR_FALSE;
 
   strArray.Sort();
   const char ksorted[] = "\0 dehllloorw";
   for (i = ArrayLength(kdata); i--; ) {
     if (strArray[i].CharAt(0) != ksorted[i])
-      return false;
+      return PR_FALSE;
     if (i > 0 && strArray[i] == strArray[i - 1])
       strArray.RemoveElementAt(i);
   }
   for (i = 0; i < strArray.Length(); ++i) {
     if (strArray.BinaryIndexOf(strArray[i]) != i)
-      return false;
+      return PR_FALSE;
   }
   if (strArray.BinaryIndexOf(EmptyCString()) != strArray.NoIndex)
-    return false;
+    return PR_FALSE;
 
   nsCString rawArray[NS_ARRAY_LENGTH(kdata) - 1];
   for (i = 0; i < ArrayLength(rawArray); ++i)
@@ -367,7 +367,7 @@ static bool test_comptr_array() {
   FilePointer tmpDir;
   NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(tmpDir));
   if (!tmpDir)
-    return false;
+    return PR_FALSE;
   const char *kNames[] = {
     "foo.txt", "bar.html", "baz.gif"
   };
@@ -377,14 +377,14 @@ static bool test_comptr_array() {
     FilePointer f;
     tmpDir->Clone(getter_AddRefs(f));
     if (!f)
-      return false;
+      return PR_FALSE;
     if (NS_FAILED(f->AppendNative(nsDependentCString(kNames[i]))))
-      return false;
+      return PR_FALSE;
     fileArray.AppendElement(f);
   }
 
   if (fileArray.IndexOf(kNames[1], 0, nsFileNameComparator()) != 1)
-    return false;
+    return PR_FALSE;
 
   // It's unclear what 'operator<' means for nsCOMPtr, but whatever...
   return test_basic_array(fileArray.Elements(), fileArray.Length(), 
@@ -422,7 +422,7 @@ static bool test_refptr_array() {
   objArray.AppendElement(c);
 
   if (objArray.IndexOf(b) != 1)
-    rv = false;
+    rv = PR_FALSE;
 
   a->Release();
   b->Release();
@@ -435,30 +435,30 @@ static bool test_refptr_array() {
 static bool test_ptrarray() {
   nsTArray<PRUint32*> ary;
   if (ary.SafeElementAt(0) != nsnull)
-    return false;
+    return PR_FALSE;
   if (ary.SafeElementAt(1000) != nsnull)
-    return false;
+    return PR_FALSE;
   PRUint32 a = 10;
   ary.AppendElement(&a);
   if (*ary[0] != a)
-    return false;
+    return PR_FALSE;
   if (*ary.SafeElementAt(0) != a)
-    return false;
+    return PR_FALSE;
 
   nsTArray<const PRUint32*> cary;
   if (cary.SafeElementAt(0) != nsnull)
-    return false;
+    return PR_FALSE;
   if (cary.SafeElementAt(1000) != nsnull)
-    return false;
+    return PR_FALSE;
   const PRUint32 b = 14;
   cary.AppendElement(&a);
   cary.AppendElement(&b);
   if (*cary[0] != a || *cary[1] != b)
-    return false;
+    return PR_FALSE;
   if (*cary.SafeElementAt(0) != a || *cary.SafeElementAt(1) != b)
-    return false;
+    return PR_FALSE;
 
-  return true;
+  return PR_TRUE;
 }
 
 //----
@@ -472,45 +472,45 @@ static bool test_autoarray() {
 
   void* hdr = array.DebugGetHeader();
   if (hdr == nsTArray<PRUint32>().DebugGetHeader())
-    return false;
+    return PR_FALSE;
   if (hdr == nsAutoTArray<PRUint32, NS_ARRAY_LENGTH(data)>().DebugGetHeader())
-    return false;
+    return PR_FALSE;
 
   array.AppendElement(1u);
   if (hdr != array.DebugGetHeader())
-    return false;
+    return PR_FALSE;
 
   array.RemoveElement(1u);
   array.AppendElements(data, ArrayLength(data));
   if (hdr != array.DebugGetHeader())
-    return false;
+    return PR_FALSE;
 
   array.AppendElement(2u);
   if (hdr == array.DebugGetHeader())
-    return false;
+    return PR_FALSE;
 
   array.Clear();
   array.Compact();
   if (hdr != array.DebugGetHeader())
-    return false;
+    return PR_FALSE;
   array.AppendElements(data, ArrayLength(data));
   if (hdr != array.DebugGetHeader())
-    return false;
+    return PR_FALSE;
 
   nsTArray<PRUint32> array2;
   void* emptyHdr = array2.DebugGetHeader();
   array.SwapElements(array2);
   if (emptyHdr == array.DebugGetHeader())
-    return false;
+    return PR_FALSE;
   if (hdr == array2.DebugGetHeader())
-    return false;
+    return PR_FALSE;
   PRUint32 i;
   for (i = 0; i < ArrayLength(data); ++i) {
     if (array2[i] != data[i])
-      return false;
+      return PR_FALSE;
   }
   if (!array.IsEmpty())
-    return false;
+    return PR_FALSE;
 
   array.Compact();
   array.AppendElements(data, ArrayLength(data));
@@ -520,14 +520,14 @@ static bool test_autoarray() {
   array.SwapElements(array3);
   for (i = 0; i < ArrayLength(data); ++i) {
     if (array3[i] != data[i])
-      return false;
+      return PR_FALSE;
   }
   for (i = 0; i < ArrayLength(data3); ++i) {
     if (array[i] != data3[i])
-      return false;
+      return PR_FALSE;
   }
 
-  return true;
+  return PR_TRUE;
 }
 #endif
 
@@ -553,10 +553,10 @@ static bool is_heap(const Array& ary, PRUint32 len) {
   PRUint32 index = 1;
   while (index < len) {
     if (ary[index] > ary[(index - 1) >> 1])
-      return false;
+      return PR_FALSE;
     index++;
   }
-  return true;
+  return PR_TRUE;
 } 
 
 static bool test_heap() {
@@ -566,23 +566,23 @@ static bool test_heap() {
   // make a heap and make sure it's a heap
   ary.MakeHeap();
   if (!is_heap(ary, ArrayLength(data)))
-    return false;
+    return PR_FALSE;
   // pop the root and make sure it's still a heap
   int root = ary[0];
   ary.PopHeap();
   if (!is_heap(ary, ArrayLength(data) - 1))
-    return false;
+    return PR_FALSE;
   // push the previously poped value back on and make sure it's still a heap
   ary.PushHeap(root);
   if (!is_heap(ary, ArrayLength(data)))
-    return false;
+    return PR_FALSE;
   // make sure the heap looks like what we expect
   const int expected_data[] = {8,7,5,6,4,1,4,2,3};
   PRUint32 index;
   for (index = 0; index < ArrayLength(data); index++)
     if (ary[index] != expected_data[index])
-      return false;
-  return true;
+      return PR_FALSE;
+  return PR_TRUE;
 }
 
 //----
@@ -599,7 +599,7 @@ static bool test_heap() {
     if (!(IS_USING_AUTO(arr))) {                          \
       printf("%s:%d CHECK_IS_USING_AUTO(%s) failed.\n",   \
              __FILE__, __LINE__, #arr);                   \
-      return false;                                    \
+      return PR_FALSE;                                    \
     }                                                     \
   } while(0)
 
@@ -608,7 +608,7 @@ static bool test_heap() {
     if (IS_USING_AUTO(arr)) {                             \
       printf("%s:%d CHECK_NOT_USING_AUTO(%s) failed.\n",  \
              __FILE__, __LINE__, #arr);                   \
-      return false;                                    \
+      return PR_FALSE;                                    \
     }                                                     \
   } while(0)
 
@@ -618,7 +618,7 @@ static bool test_heap() {
     if (_empty.Elements() != arr.Elements()) {            \
       printf("%s:%d CHECK_USES_EMPTY_HDR(%s) failed.\n",  \
              __FILE__, __LINE__, #arr);                   \
-      return false;                                    \
+      return PR_FALSE;                                    \
     }                                                     \
   } while(0)
 
@@ -627,7 +627,7 @@ static bool test_heap() {
     if ((actual) != (expected)) {                                            \
       printf("%s:%d CHECK_EQ_INT(%s=%u, %s=%u) failed.\n",                   \
              __FILE__, __LINE__, #actual, (actual), #expected, (expected));  \
-      return false;                                                       \
+      return PR_FALSE;                                                       \
     }                                                                        \
   } while(0)
 
@@ -862,7 +862,7 @@ static bool test_swap() {
     CHECK_EQ_INT(a.Length(), 0);
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 //----

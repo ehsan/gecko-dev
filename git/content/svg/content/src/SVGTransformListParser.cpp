@@ -145,7 +145,7 @@ SVGTransformListParser::MatchTransform()
 {
   nsCOMPtr<nsIAtom> keyatom;
 
-  nsresult rv = GetTransformToken(getter_AddRefs(keyatom), true);
+  nsresult rv = GetTransformToken(getter_AddRefs(keyatom), PR_TRUE);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -175,9 +175,9 @@ SVGTransformListParser::IsTokenTransformStarter()
 {
   nsCOMPtr<nsIAtom> keyatom;
 
-  nsresult rv = GetTransformToken(getter_AddRefs(keyatom), false);
+  nsresult rv = GetTransformToken(getter_AddRefs(keyatom), PR_FALSE);
   if (NS_FAILED(rv)) {
-    return false;
+    return PR_FALSE;
   }
 
   if (keyatom == nsGkAtoms::translate ||
@@ -186,10 +186,10 @@ SVGTransformListParser::IsTokenTransformStarter()
       keyatom == nsGkAtoms::skewX     ||
       keyatom == nsGkAtoms::skewY     ||
       keyatom == nsGkAtoms::matrix) {
-    return true;
+    return PR_TRUE;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 nsresult

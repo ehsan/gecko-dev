@@ -110,7 +110,7 @@ LayerManagerOGL::Destroy()
 
     CleanupResources();
 
-    mDestroyed = true;
+    mDestroyed = PR_TRUE;
   }
 }
 
@@ -181,10 +181,10 @@ LayerManagerOGL::Initialize(nsRefPtr<GLContext> aContext)
   NS_ABORT_IF_FALSE(mGLContext == nsnull, "Don't reiniailize layer managers");
 
   if (!aContext)
-    return false;
+    return PR_FALSE;
 
   mGLContext = aContext;
-  mGLContext->SetFlipped(true);
+  mGLContext->SetFlipped(PR_TRUE);
 
   MakeCurrent();
 
@@ -204,7 +204,7 @@ LayerManagerOGL::Initialize(nsRefPtr<GLContext> aContext)
     ptype *p = new ptype(mGLContext);                                             \
     if (!p->Initialize(vsstr, fsstr)) {                                           \
       delete p;                                                                   \
-      return false;                                                            \
+      return PR_FALSE;                                                            \
     }                                                                             \
     mPrograms.AppendElement(p);                                                   \
   } while (0)
@@ -768,7 +768,7 @@ LayerManagerOGL::Render()
   if (mWidgetSize.width != width ||
       mWidgetSize.height != height)
   {
-    MakeCurrent(true);
+    MakeCurrent(PR_TRUE);
 
     mWidgetSize.width = width;
     mWidgetSize.height = height;

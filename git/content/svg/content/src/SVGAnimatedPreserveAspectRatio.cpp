@@ -237,7 +237,7 @@ SVGAnimatedPreserveAspectRatio::SetBaseValueString(
   }
 
   mBaseVal = val;
-  mIsBaseSet = true;
+  mIsBaseSet = PR_TRUE;
   if (!mIsAnimated) {
     mAnimVal = mBaseVal;
   }
@@ -282,10 +282,10 @@ SVGAnimatedPreserveAspectRatio::SetBaseAlign(PRUint16 aAlign,
 {
   nsresult rv = mBaseVal.SetAlign(aAlign);
   NS_ENSURE_SUCCESS(rv, rv);
-  mIsBaseSet = true;
+  mIsBaseSet = PR_TRUE;
 
   mAnimVal.mAlign = mBaseVal.mAlign;
-  aSVGElement->DidChangePreserveAspectRatio(true);
+  aSVGElement->DidChangePreserveAspectRatio(PR_TRUE);
 #ifdef MOZ_SMIL
   if (mIsAnimated) {
     aSVGElement->AnimationNeedsResample();
@@ -301,10 +301,10 @@ SVGAnimatedPreserveAspectRatio::SetBaseMeetOrSlice(PRUint16 aMeetOrSlice,
 {
   nsresult rv = mBaseVal.SetMeetOrSlice(aMeetOrSlice);
   NS_ENSURE_SUCCESS(rv, rv);
-  mIsBaseSet = true;
+  mIsBaseSet = PR_TRUE;
 
   mAnimVal.mMeetOrSlice = mBaseVal.mMeetOrSlice;
-  aSVGElement->DidChangePreserveAspectRatio(true);
+  aSVGElement->DidChangePreserveAspectRatio(PR_TRUE);
 #ifdef MOZ_SMIL
   if (mIsAnimated) {
     aSVGElement->AnimationNeedsResample();
@@ -318,10 +318,10 @@ void
 SVGAnimatedPreserveAspectRatio::SetAnimValue(PRUint64 aPackedValue,
                                              nsSVGElement *aSVGElement)
 {
-  mAnimVal.SetDefer(((aPackedValue & 0xff0000) >> 16) ? true : false);
+  mAnimVal.SetDefer(((aPackedValue & 0xff0000) >> 16) ? PR_TRUE : PR_FALSE);
   mAnimVal.SetAlign(PRUint16((aPackedValue & 0xff00) >> 8));
   mAnimVal.SetMeetOrSlice(PRUint16(aPackedValue & 0xff));
-  mIsAnimated = true;
+  mIsAnimated = PR_TRUE;
   aSVGElement->DidAnimatePreserveAspectRatio();
 }
 
@@ -374,7 +374,7 @@ SMILPreserveAspectRatio::ValueFromString(const nsAString& aStr,
   nsSMILValue val(&SMILEnumType::sSingleton);
   val.mU.mUint = PackPreserveAspectRatio(par);
   aValue = val;
-  aPreventCachingOfSandwich = false;
+  aPreventCachingOfSandwich = PR_FALSE;
   return NS_OK;
 }
 
@@ -392,7 +392,7 @@ SMILPreserveAspectRatio::ClearAnimValue()
   if (mVal->mIsAnimated) {
     mVal->SetAnimValue(PackPreserveAspectRatio(mVal->GetBaseValue()),
                        mSVGElement);
-    mVal->mIsAnimated = false;
+    mVal->mIsAnimated = PR_FALSE;
   }
 }
 

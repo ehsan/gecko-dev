@@ -192,7 +192,7 @@ public:
   void RemoveIdElement(Element* aElement);
   /**
    * Set the image element override for this ID. This will be returned by
-   * GetIdElement(true) if non-null.
+   * GetIdElement(PR_TRUE) if non-null.
    */
   void SetImageElement(Element* aElement);
 
@@ -235,7 +235,7 @@ public:
       return (NS_PTR_TO_INT32(aKey->mCallback) >> 2) ^
              (NS_PTR_TO_INT32(aKey->mData));
     }
-    enum { ALLOW_MEMMOVE = true };
+    enum { ALLOW_MEMMOVE = PR_TRUE };
     
     ChangeCallback mKey;
   };
@@ -358,7 +358,7 @@ public:
   {
     mPendingLoads.Clear();
     mMap.Clear();
-    mHaveShutDown = true;
+    mHaveShutDown = PR_TRUE;
   }
 
   bool HaveShutDown() const
@@ -960,15 +960,15 @@ protected:
   /**
    * Check that aId is not empty and log a message to the console
    * service if it is.
-   * @returns true if aId looks correct, false otherwise.
+   * @returns PR_TRUE if aId looks correct, PR_FALSE otherwise.
    */
   inline bool CheckGetElementByIdArg(const nsAString& aId)
   {
     if (aId.IsEmpty()) {
       ReportEmptyGetElementByIdArg();
-      return false;
+      return PR_FALSE;
     }
-    return true;
+    return PR_TRUE;
   }
 
   void ReportEmptyGetElementByIdArg();

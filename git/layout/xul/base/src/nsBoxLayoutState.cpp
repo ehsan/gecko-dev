@@ -51,7 +51,7 @@ nsBoxLayoutState::nsBoxLayoutState(nsPresContext* aPresContext,
   , mRenderingContext(aRenderingContext)
   , mLayoutFlags(0)
   , mReflowDepth(aReflowDepth)
-  , mPaintingDisabled(false)
+  , mPaintingDisabled(PR_FALSE)
 {
   NS_ASSERTION(mPresContext, "PresContext must be non-null");
 }

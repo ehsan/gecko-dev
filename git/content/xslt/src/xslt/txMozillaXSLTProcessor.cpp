@@ -224,14 +224,14 @@ txToFragmentHandlerFactory::createHandlerWith(txOutputFormat* aFormat,
                 format.mMethod = eXMLOutput;
             }
 
-            *aHandler = new txMozillaXMLOutput(&format, mFragment, false);
+            *aHandler = new txMozillaXMLOutput(&format, mFragment, PR_FALSE);
             break;
         }
 
         case eXMLOutput:
         case eHTMLOutput:
         {
-            *aHandler = new txMozillaXMLOutput(aFormat, mFragment, false);
+            *aHandler = new txMozillaXMLOutput(aFormat, mFragment, PR_FALSE);
             break;
         }
 
@@ -422,7 +422,7 @@ public:
     }
     bool caseInsensitiveNameTests()
     {
-        return false;
+        return PR_FALSE;
     }
     void SetErrorOffset(PRUint32 aOffset)
     {
@@ -437,7 +437,7 @@ public:
     }
     bool isStripSpaceAllowed(const txXPathNode& aNode)
     {
-        return false;
+        return PR_FALSE;
     }
     void* getPrivateContext()
     {
@@ -550,7 +550,7 @@ public:
   {
     nsCOMPtr<nsIDocument> document =
         do_QueryInterface(mProcessor->GetSourceContentModel());
-    document->UnblockOnload(true);
+    document->UnblockOnload(PR_TRUE);
   }
 
   NS_IMETHOD Run()
@@ -614,7 +614,7 @@ txMozillaXSLTProcessor::ImportStylesheet(nsIDOMNode *aStyle)
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (styleNode->IsElement()) {
-        mStylesheetDocument = styleNode->OwnerDoc();
+        mStylesheetDocument = styleNode->GetOwnerDoc();
         NS_ENSURE_TRUE(mStylesheetDocument, NS_ERROR_UNEXPECTED);
 
         mEmbeddedStylesheetRoot = static_cast<nsIContent*>(styleNode.get());

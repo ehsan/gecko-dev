@@ -101,7 +101,12 @@ private:
 NS_IMETHODIMP
 nsImageBoxFrameEvent::Run()
 {
-  nsIPresShell *pres_shell = mContent->OwnerDoc()->GetShell();
+  nsIDocument* doc = mContent->GetOwnerDoc();
+  if (!doc) {
+    return NS_OK;
+  }
+
+  nsIPresShell *pres_shell = doc->GetShell();
   if (!pres_shell) {
     return NS_OK;
   }
@@ -112,7 +117,7 @@ nsImageBoxFrameEvent::Run()
   }
 
   nsEventStatus status = nsEventStatus_eIgnore;
-  nsEvent event(true, mMessage);
+  nsEvent event(PR_TRUE, mMessage);
 
   event.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
   nsEventDispatcher::Dispatch(mContent, pres_context, &event, nsnull, &status);
@@ -174,8 +179,8 @@ nsImageBoxFrame::nsImageBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext)
   nsLeafBoxFrame(aShell, aContext),
   mIntrinsicSize(0,0),
   mLoadFlags(nsIRequest::LOAD_NORMAL),
-  mUseSrcAttr(false),
-  mSuppressStyleCheck(false)
+  mUseSrcAttr(PR_FALSE),
+  mSuppressStyleCheck(PR_FALSE)
 {
   MarkIntrinsicWidthsDirty();
 }
@@ -219,9 +224,9 @@ nsImageBoxFrame::Init(nsIContent*      aContent,
     NS_RELEASE(listener);
   }
 
-  mSuppressStyleCheck = true;
+  mSuppressStyleCheck = PR_TRUE;
   nsresult rv = nsLeafBoxFrame::Init(aContent, aParent, aPrevInFlow);
-  mSuppressStyleCheck = false;
+  mSuppressStyleCheck = PR_FALSE;
 
   UpdateLoadFlags();
   UpdateImage();

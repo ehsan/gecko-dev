@@ -51,7 +51,7 @@ gfxQuartzImageSurface::gfxQuartzImageSurface(gfxImageSurface *imageSurface)
 
 gfxQuartzImageSurface::gfxQuartzImageSurface(cairo_surface_t *csurf)
 {
-    Init (csurf, true);
+    Init (csurf, PR_TRUE);
 }
 
 gfxQuartzImageSurface::~gfxQuartzImageSurface()

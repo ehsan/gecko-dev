@@ -359,7 +359,7 @@ XPCPerThreadData::~XPCPerThreadData()
             }
         }
         if (!gThreads)
-            doDestroyLock = true;
+            doDestroyLock = PR_TRUE;
     }
 
     if (gLock && doDestroyLock) {

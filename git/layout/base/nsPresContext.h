@@ -262,7 +262,7 @@ public:
   NS_HIDDEN_(void) HandleMediaFeatureValuesChangedEvent();
   void FlushPendingMediaFeatureValuesChanged() {
     if (mPendingMediaFeatureValuesChanged)
-      MediaFeatureValuesChanged(false);
+      MediaFeatureValuesChanged(PR_FALSE);
   }
 
   /**
@@ -352,7 +352,7 @@ public:
       NS_ERROR("Invalid arg passed to GetCachedBoolPref");
     }
 
-    return false;
+    return PR_FALSE;
   }
 
   /** Get a cached integer pref, by its type */
@@ -372,7 +372,7 @@ public:
       NS_ERROR("invalid arg passed to GetCachedIntPref");
     }
 
-    return false;
+    return PR_FALSE;
   }
 
   /** 
@@ -543,7 +543,7 @@ public:
     if (HasCachedStyleData()) {
       // Media queries could have changed since we changed the meaning
       // of 'em' units in them.
-      MediaFeatureValuesChanged(true);
+      MediaFeatureValuesChanged(PR_TRUE);
       RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
     }
   }
@@ -560,7 +560,7 @@ public:
     if (HasCachedStyleData()) {
       // Media queries could have changed since we changed the meaning
       // of 'em' units in them.
-      MediaFeatureValuesChanged(true);
+      MediaFeatureValuesChanged(PR_TRUE);
       RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
     }
   }
@@ -816,7 +816,7 @@ public:
   }
 
   virtual void InvalidateIsChromeCacheExternal();
-  void InvalidateIsChromeCacheInternal() { mIsChromeIsCached = false; }
+  void InvalidateIsChromeCacheInternal() { mIsChromeIsCached = PR_FALSE; }
 #ifdef _IMPL_NS_LAYOUT
   void InvalidateIsChromeCache()
   { InvalidateIsChromeCacheInternal(); }
@@ -911,8 +911,8 @@ public:
       mInterruptsEnabled(aCtx->mInterruptsEnabled),
       mHasPendingInterrupt(aCtx->mHasPendingInterrupt)
     {
-      mCtx->mInterruptsEnabled = false;
-      mCtx->mHasPendingInterrupt = false;
+      mCtx->mInterruptsEnabled = PR_FALSE;
+      mCtx->mHasPendingInterrupt = PR_FALSE;
     }
     ~InterruptPreventer() {
       mCtx->mInterruptsEnabled = mInterruptsEnabled;
@@ -974,7 +974,7 @@ public:
   }
 
   bool MayHaveFixedBackgroundFrames() { return mMayHaveFixedBackgroundFrames; }
-  void SetHasFixedBackgroundFrame() { mMayHaveFixedBackgroundFrames = true; }
+  void SetHasFixedBackgroundFrame() { mMayHaveFixedBackgroundFrames = PR_TRUE; }
 
   PRUint32 EstimateMemoryUsed() {
     PRUint32 result = 0;
@@ -1015,7 +1015,7 @@ protected:
   bool MayHavePaintEventListener();
 
   void HandleRebuildUserFontSet() {
-    mPostedFlushUserFontSet = false;
+    mPostedFlushUserFontSet = PR_FALSE;
     FlushUserFontSet();
   }
 

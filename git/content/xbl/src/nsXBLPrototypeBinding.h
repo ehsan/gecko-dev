@@ -185,7 +185,7 @@ public:
   {
     if (!mKeyHandlersRegistered) {
       CreateKeyHandlers();
-      mKeyHandlersRegistered = true;
+      mKeyHandlersRegistered = PR_TRUE;
     }
 
     return &mKeyHandlers;

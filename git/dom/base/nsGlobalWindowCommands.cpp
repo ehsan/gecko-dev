@@ -172,7 +172,7 @@ nsSelectionCommandsBase::IsCommandEnabled(const char * aCommandName,
 {
   // XXX this needs fixing. e.g. you can't scroll up if you're already at the top of
   // the document.
-  *outCmdEnabled = true;
+  *outCmdEnabled = PR_TRUE;
   return NS_OK;
 }
 
@@ -257,7 +257,7 @@ nsSelectMoveScrollCommand::DoSelectCommand(const char *aCommandName, nsIDOMWindo
           PRInt32 itemType;
           dsti->GetItemType(&itemType);
           if (itemType == nsIDocShellTreeItem::typeChrome) {
-            caretOn = false;
+            caretOn = PR_FALSE;
           }
         }
       }
@@ -278,37 +278,37 @@ nsSelectMoveScrollCommand::DoCommandBrowseWithCaretOn(const char *aCommandName,
   nsresult rv = NS_ERROR_NOT_IMPLEMENTED;
 
   if (!nsCRT::strcmp(aCommandName, sScrollTopString))
-    rv = aSelectionController->CompleteMove(false, false);
+    rv = aSelectionController->CompleteMove(PR_FALSE, PR_FALSE);
   else if (!nsCRT::strcmp(aCommandName,sScrollBottomString))
-    rv = aSelectionController->CompleteMove(true, false);
+    rv = aSelectionController->CompleteMove(PR_TRUE, PR_FALSE);
   // cmd_MovePageUp/Down are used on Window/Unix. They move the caret
   // in caret browsing mode.
   else if (!nsCRT::strcmp(aCommandName, sMovePageUpString))
-    rv = aSelectionController->PageMove(false, false);
+    rv = aSelectionController->PageMove(PR_FALSE, PR_FALSE);
   else if (!nsCRT::strcmp(aCommandName, sMovePageDownString))
-    rv = aSelectionController->PageMove(true, false);
+    rv = aSelectionController->PageMove(PR_TRUE, PR_FALSE);
   // cmd_ScrollPageUp/Down are used on Mac, and for the spacebar on all platforms.
   // They do not move the caret in caret browsing mode.
   else if (!nsCRT::strcmp(aCommandName, sScrollPageUpString))
-    rv = aSelectionController->ScrollPage(false);
+    rv = aSelectionController->ScrollPage(PR_FALSE);
   else if (!nsCRT::strcmp(aCommandName, sScrollPageDownString))
-    rv = aSelectionController->ScrollPage(true);
+    rv = aSelectionController->ScrollPage(PR_TRUE);
   else if (!nsCRT::strcmp(aCommandName, sScrollLineUpString))
-    rv = aSelectionController->LineMove(false, false);
+    rv = aSelectionController->LineMove(PR_FALSE, PR_FALSE);
   else if (!nsCRT::strcmp(aCommandName, sScrollLineDownString))
-    rv = aSelectionController->LineMove(true, false);
+    rv = aSelectionController->LineMove(PR_TRUE, PR_FALSE);
   else if (!nsCRT::strcmp(aCommandName, sWordPreviousString))
-    rv = aSelectionController->WordMove(false, false);
+    rv = aSelectionController->WordMove(PR_FALSE, PR_FALSE);
   else if (!nsCRT::strcmp(aCommandName, sWordNextString))
-    rv = aSelectionController->WordMove(true, false);
+    rv = aSelectionController->WordMove(PR_TRUE, PR_FALSE);
   else if (!nsCRT::strcmp(aCommandName, sScrollLeftString))
-    rv = aSelectionController->CharacterMove(false, false);
+    rv = aSelectionController->CharacterMove(PR_FALSE, PR_FALSE);
   else if (!nsCRT::strcmp(aCommandName, sScrollRightString))
-    rv = aSelectionController->CharacterMove(true, false);
+    rv = aSelectionController->CharacterMove(PR_TRUE, PR_FALSE);
   else if (!nsCRT::strcmp(aCommandName, sBeginLineString))
-    rv = aSelectionController->IntraLineMove(false, false);
+    rv = aSelectionController->IntraLineMove(PR_FALSE, PR_FALSE);
   else if (!nsCRT::strcmp(aCommandName, sEndLineString))
-    rv = aSelectionController->IntraLineMove(true, false);
+    rv = aSelectionController->IntraLineMove(PR_TRUE, PR_FALSE);
 
   if (NS_SUCCEEDED(rv))
   {
@@ -331,37 +331,37 @@ nsSelectMoveScrollCommand::DoCommandBrowseWithCaretOff(const char *aCommandName,
   nsresult rv = NS_ERROR_NOT_IMPLEMENTED;
 
   if (!nsCRT::strcmp(aCommandName, sScrollTopString))   
-    rv = aSelectionController->CompleteScroll(false);
+    rv = aSelectionController->CompleteScroll(PR_FALSE);
   else if (!nsCRT::strcmp(aCommandName,sScrollBottomString))
-    rv = aSelectionController->CompleteScroll(true);
+    rv = aSelectionController->CompleteScroll(PR_TRUE);
 
   // cmd_MovePageUp/Down are used on Window/Unix. They move the caret
   // in caret browsing mode.
   else if (!nsCRT::strcmp(aCommandName, sMovePageUpString))
-    rv = aSelectionController->ScrollPage(false);
+    rv = aSelectionController->ScrollPage(PR_FALSE);
   else if (!nsCRT::strcmp(aCommandName, sMovePageDownString))
-    rv = aSelectionController->ScrollPage(true);
+    rv = aSelectionController->ScrollPage(PR_TRUE);
   // cmd_ScrollPageUp/Down are used on Mac. They do not move the
   // caret in caret browsing mode.
   else if (!nsCRT::strcmp(aCommandName, sScrollPageUpString))
-    rv = aSelectionController->ScrollPage(false);
+    rv = aSelectionController->ScrollPage(PR_FALSE);
   else if (!nsCRT::strcmp(aCommandName, sScrollPageDownString))
-    rv = aSelectionController->ScrollPage(true);
+    rv = aSelectionController->ScrollPage(PR_TRUE);
 
   else if (!nsCRT::strcmp(aCommandName, sScrollLineUpString))
-    rv = aSelectionController->ScrollLine(false);
+    rv = aSelectionController->ScrollLine(PR_FALSE);
   else if (!nsCRT::strcmp(aCommandName, sScrollLineDownString))
-    rv = aSelectionController->ScrollLine(true);
+    rv = aSelectionController->ScrollLine(PR_TRUE);
   else if (!nsCRT::strcmp(aCommandName, sScrollLeftString))
-    rv = aSelectionController->ScrollHorizontal(true);
+    rv = aSelectionController->ScrollHorizontal(PR_TRUE);
   else if (!nsCRT::strcmp(aCommandName, sScrollRightString))
-    rv = aSelectionController->ScrollHorizontal(false);
+    rv = aSelectionController->ScrollHorizontal(PR_FALSE);
   // cmd_beginLine/endLine with caret browsing off
   // will act as cmd_scrollTop/Bottom
   else if (!nsCRT::strcmp(aCommandName, sBeginLineString))
-    rv = aSelectionController->CompleteScroll(false);
+    rv = aSelectionController->CompleteScroll(PR_FALSE);
   else if (!nsCRT::strcmp(aCommandName, sEndLineString))
-    rv = aSelectionController->CompleteScroll(true);
+    rv = aSelectionController->CompleteScroll(PR_TRUE);
 
   return rv;
 }
@@ -383,25 +383,25 @@ nsSelectCommand::DoSelectCommand(const char *aCommandName, nsIDOMWindow *aWindow
   // These commands are so the browser can use caret navigation key bindings -
   // Helps with accessibility - aaronl@netscape.com
   if (!nsCRT::strcmp(aCommandName, sSelectCharPreviousString))
-    rv = selCont->CharacterMove(false, true);
+    rv = selCont->CharacterMove(PR_FALSE, PR_TRUE);
   else if (!nsCRT::strcmp(aCommandName, sSelectCharNextString))
-    rv = selCont->CharacterMove(true, true);
+    rv = selCont->CharacterMove(PR_TRUE, PR_TRUE);
   else if (!nsCRT::strcmp(aCommandName, sSelectWordPreviousString))
-    rv = selCont->WordMove(false, true);
+    rv = selCont->WordMove(PR_FALSE, PR_TRUE);
   else if (!nsCRT::strcmp(aCommandName, sSelectWordNextString))
-    rv = selCont->WordMove(true, true);
+    rv = selCont->WordMove(PR_TRUE, PR_TRUE);
   else if (!nsCRT::strcmp(aCommandName, sSelectBeginLineString))
-    rv = selCont->IntraLineMove(false, true);
+    rv = selCont->IntraLineMove(PR_FALSE, PR_TRUE);
   else if (!nsCRT::strcmp(aCommandName, sSelectEndLineString))
-    rv = selCont->IntraLineMove(true, true);
+    rv = selCont->IntraLineMove(PR_TRUE, PR_TRUE);
   else if (!nsCRT::strcmp(aCommandName, sSelectLinePreviousString))
-    rv = selCont->LineMove(false, true);
+    rv = selCont->LineMove(PR_FALSE, PR_TRUE);
   else if (!nsCRT::strcmp(aCommandName, sSelectLineNextString))
-    rv = selCont->LineMove(true, true);
+    rv = selCont->LineMove(PR_TRUE, PR_TRUE);
   else if (!nsCRT::strcmp(aCommandName, sSelectTopString))
-    rv = selCont->CompleteMove(false, true);
+    rv = selCont->CompleteMove(PR_FALSE, PR_TRUE);
   else if (!nsCRT::strcmp(aCommandName, sSelectBottomString))
-    rv = selCont->CompleteMove(true, true);
+    rv = selCont->CompleteMove(PR_TRUE, PR_TRUE);
 
   return rv;
 }
@@ -424,7 +424,7 @@ nsresult
 nsClipboardCommand::IsCommandEnabled(const char* aCommandName, nsISupports *aContext, bool *outCmdEnabled)
 {
   NS_ENSURE_ARG_POINTER(outCmdEnabled);
-  *outCmdEnabled = false;
+  *outCmdEnabled = PR_FALSE;
 
   if (strcmp(aCommandName, "cmd_copy"))
     return NS_OK;
@@ -507,7 +507,7 @@ nsSelectionCommand::IsCommandEnabled(const char * aCommandName,
                                      bool *outCmdEnabled)
 {
   NS_ENSURE_ARG_POINTER(outCmdEnabled);
-  *outCmdEnabled = false;
+  *outCmdEnabled = PR_FALSE;
 
   nsCOMPtr<nsIContentViewerEdit> contentEdit;
   GetContentViewerEditFromContext(aCommandContext,  getter_AddRefs(contentEdit));
@@ -634,7 +634,7 @@ nsClipboardImageCommands::DoClipboardCommand(const char *aCommandName, nsIConten
 nsresult
 nsClipboardSelectAllNoneCommands::IsClipboardCommandEnabled(const char* aCommandName, nsIContentViewerEdit* aEdit, bool *outCmdEnabled)
 {
-  *outCmdEnabled = true;
+  *outCmdEnabled = PR_TRUE;
   return NS_OK;
 }
 
@@ -736,7 +736,7 @@ nsWebNavigationBaseCommand::IsCommandEnabled(const char * aCommandName,
                                           bool *outCmdEnabled)
 {
   NS_ENSURE_ARG_POINTER(outCmdEnabled);
-  *outCmdEnabled = false;
+  *outCmdEnabled = PR_FALSE;
 
   nsCOMPtr<nsIWebNavigation> webNav;
   GetWebNavigationFromContext(aCommandContext, getter_AddRefs(webNav));
@@ -838,7 +838,7 @@ nsClipboardDragDropHookCommand::IsCommandEnabled(const char * aCommandName,
                                                  nsISupports *aCommandContext,
                                                  bool *outCmdEnabled)
 {
-  *outCmdEnabled = true;
+  *outCmdEnabled = PR_TRUE;
   return NS_OK;
 }
 
@@ -900,7 +900,7 @@ nsClipboardDragDropHookCommand::GetCommandStateParams(const char *aCommandName,
                                                       nsISupports *aCommandContext)
 {
   NS_ENSURE_ARG_POINTER(aParams);
-  return aParams->SetBooleanValue("state_enabled", true);
+  return aParams->SetBooleanValue("state_enabled", PR_TRUE);
 }
 
 /*---------------------------------------------------------------------------

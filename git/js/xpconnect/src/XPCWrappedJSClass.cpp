@@ -59,19 +59,19 @@ bool AutoScriptEvaluate::StartEvaluating(JSObject *scope, JSErrorReporter errorR
     NS_PRECONDITION(!mEvaluated, "AutoScriptEvaluate::Evaluate should only be called once");
 
     if (!mJSContext)
-        return true;
+        return PR_TRUE;
 
-    mEvaluated = true;
+    mEvaluated = PR_TRUE;
     if (!mJSContext->errorReporter) {
         JS_SetErrorReporter(mJSContext, errorReporter);
-        mErrorReporterSet = true;
+        mErrorReporterSet = PR_TRUE;
     }
     mContextHasThread = JS_GetContextThread(mJSContext);
     if (mContextHasThread)
         JS_BeginRequest(mJSContext);
 
     if (!mEnterCompartment.enter(mJSContext, scope))
-        return false;
+        return PR_FALSE;
 
     // Saving the exception state keeps us from interfering with another script
     // that may also be running on this context.  This occurred first with the
@@ -88,7 +88,7 @@ bool AutoScriptEvaluate::StartEvaluating(JSObject *scope, JSErrorReporter errorR
         JS_ClearPendingException(mJSContext);
     }
 
-    return true;
+    return PR_TRUE;
 }
 
 AutoScriptEvaluate::~AutoScriptEvaluate()
@@ -1048,7 +1048,7 @@ nsXPCWrappedJSClass::CheckForException(XPCCallContext & ccx,
                     JSStackFrame * fp = nsnull;
                     while ((fp = JS_FrameIterator(cx, &fp))) {
                         if (JS_IsScriptFrame(cx, fp)) {
-                            onlyNativeStackFrames = false;
+                            onlyNativeStackFrames = PR_FALSE;
                             break;
                         }
                     }
@@ -1063,7 +1063,7 @@ nsXPCWrappedJSClass::CheckForException(XPCCallContext & ccx,
                 if (reportable && e_result == NS_ERROR_NO_INTERFACE &&
                     !strcmp(anInterfaceName, "nsIInterfaceRequestor") &&
                     !strcmp(aPropertyName, "getInterface")) {
-                    reportable = false;
+                    reportable = PR_FALSE;
                 }
             }
 
@@ -1339,7 +1339,7 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
                                 JSBool ok =
                                   XPCConvert::NativeInterface2JSObject(ccx,
                                                                        &v, nsnull, helper, newWrapperIID,
-                                                                       nsnull, false, false,
+                                                                       nsnull, PR_FALSE, PR_FALSE,
                                                                        nsnull);
                                 if (newWrapperIID)
                                     nsMemory::Free(newWrapperIID);
@@ -1560,7 +1560,7 @@ pre_call_clean_up:
     if (!success) {
         bool forceReport;
         if (NS_FAILED(mInfo->IsFunction(&forceReport)))
-            forceReport = false;
+            forceReport = PR_FALSE;
 
         // May also want to check if we're moving from content->chrome and force
         // a report in that case.

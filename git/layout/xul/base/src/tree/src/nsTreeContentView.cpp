@@ -208,7 +208,7 @@ nsTreeContentView::CanTrustTreeSelection(nsISupports* aValue)
 {
   // Untrusted content is only allowed to specify known-good views
   if (nsContentUtils::IsCallerTrustedForWrite())
-    return true;
+    return PR_TRUE;
   nsCOMPtr<nsINativeTreeSelection> nativeTreeSel = do_QueryInterface(aValue);
   return nativeTreeSel && NS_SUCCEEDED(nativeTreeSel->EnsureNative());
 }
@@ -341,7 +341,7 @@ nsTreeContentView::IsSeparator(PRInt32 aIndex, bool *_retval)
 NS_IMETHODIMP
 nsTreeContentView::IsSorted(bool *_retval)
 {
-  *_retval = false;
+  *_retval = PR_FALSE;
 
   return NS_OK;
 }
@@ -354,7 +354,7 @@ nsTreeContentView::CanDrop(PRInt32 aIndex, PRInt32 aOrientation,
   if (aIndex < 0 || aIndex >= PRInt32(mRows.Length()))
     return NS_ERROR_INVALID_ARG;   
 
-  *_retval = false;
+  *_retval = PR_FALSE;
  
   return NS_OK;
 }
@@ -582,9 +582,9 @@ nsTreeContentView::ToggleOpenState(PRInt32 aIndex)
   Row* row = mRows[aIndex];
 
   if (row->IsOpen())
-    row->mContent->SetAttr(kNameSpaceID_None, nsGkAtoms::open, NS_LITERAL_STRING("false"), true);
+    row->mContent->SetAttr(kNameSpaceID_None, nsGkAtoms::open, NS_LITERAL_STRING("false"), PR_TRUE);
   else
-    row->mContent->SetAttr(kNameSpaceID_None, nsGkAtoms::open, NS_LITERAL_STRING("true"), true);
+    row->mContent->SetAttr(kNameSpaceID_None, nsGkAtoms::open, NS_LITERAL_STRING("true"), PR_TRUE);
 
   return NS_OK;
 }
@@ -646,13 +646,13 @@ nsTreeContentView::CycleCell(PRInt32 aRow, nsITreeColumn* aCol)
 NS_IMETHODIMP
 nsTreeContentView::IsEditable(PRInt32 aRow, nsITreeColumn* aCol, bool* _retval)
 {
-  *_retval = false;
+  *_retval = PR_FALSE;
   NS_ENSURE_NATIVE_COLUMN(aCol);
   NS_PRECONDITION(aRow >= 0 && aRow < PRInt32(mRows.Length()), "bad row");
   if (aRow < 0 || aRow >= PRInt32(mRows.Length()))
     return NS_ERROR_INVALID_ARG;   
 
-  *_retval = true;
+  *_retval = PR_TRUE;
 
   Row* row = mRows[aRow];
 
@@ -662,7 +662,7 @@ nsTreeContentView::IsEditable(PRInt32 aRow, nsITreeColumn* aCol, bool* _retval)
     nsIContent* cell = GetCell(realRow, aCol);
     if (cell && cell->AttrValueIs(kNameSpaceID_None, nsGkAtoms::editable,
                                   nsGkAtoms::_false, eCaseMatters)) {
-      *_retval = false;
+      *_retval = PR_FALSE;
     }
   }
 
@@ -677,7 +677,7 @@ nsTreeContentView::IsSelectable(PRInt32 aRow, nsITreeColumn* aCol, bool* _retval
   if (aRow < 0 || aRow >= PRInt32(mRows.Length()))
     return NS_ERROR_INVALID_ARG;   
 
-  *_retval = true;
+  *_retval = PR_TRUE;
 
   Row* row = mRows[aRow];
 
@@ -687,7 +687,7 @@ nsTreeContentView::IsSelectable(PRInt32 aRow, nsITreeColumn* aCol, bool* _retval
     nsIContent* cell = GetCell(realRow, aCol);
     if (cell && cell->AttrValueIs(kNameSpaceID_None, nsGkAtoms::selectable,
                                   nsGkAtoms::_false, eCaseMatters)) {
-      *_retval = false;
+      *_retval = PR_FALSE;
     }
   }
 
@@ -709,7 +709,7 @@ nsTreeContentView::SetCellValue(PRInt32 aRow, nsITreeColumn* aCol, const nsAStri
   if (realRow) {
     nsIContent* cell = GetCell(realRow, aCol);
     if (cell)
-      cell->SetAttr(kNameSpaceID_None, nsGkAtoms::value, aValue, true);
+      cell->SetAttr(kNameSpaceID_None, nsGkAtoms::value, aValue, PR_TRUE);
   }
 
   return NS_OK;
@@ -730,7 +730,7 @@ nsTreeContentView::SetCellText(PRInt32 aRow, nsITreeColumn* aCol, const nsAStrin
   if (realRow) {
     nsIContent* cell = GetCell(realRow, aCol);
     if (cell)
-      cell->SetAttr(kNameSpaceID_None, nsGkAtoms::label, aValue, true);
+      cell->SetAttr(kNameSpaceID_None, nsGkAtoms::label, aValue, PR_TRUE);
   }
 
   return NS_OK;
@@ -986,7 +986,7 @@ nsTreeContentView::ContentInserted(nsIDocument *aDocument,
     PRInt32 index = FindContent(aContainer);
     if (index >= 0) {
       Row* row = mRows[index];
-      row->SetEmpty(false);
+      row->SetEmpty(PR_FALSE);
       if (mBoxObject)
         mBoxObject->InvalidateRow(index);
       if (row->IsContainer() && row->IsOpen()) {
@@ -1057,7 +1057,7 @@ nsTreeContentView::ContentRemoved(nsIDocument *aDocument,
     PRInt32 index = FindContent(aContainer);
     if (index >= 0) {
       Row* row = mRows[index];
-      row->SetEmpty(true);
+      row->SetEmpty(PR_TRUE);
       PRInt32 count = RemoveSubtree(index);
       // Invalidate also the row to update twisty.
       if (mBoxObject) {
@@ -1138,10 +1138,10 @@ nsTreeContentView::SerializeItem(nsIContent* aContent, PRInt32 aParentIndex,
 
   if (aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::container,
                             nsGkAtoms::_true, eCaseMatters)) {
-    row->SetContainer(true);
+    row->SetContainer(PR_TRUE);
     if (aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::open,
                               nsGkAtoms::_true, eCaseMatters)) {
-      row->SetOpen(true);
+      row->SetOpen(PR_TRUE);
       nsIContent* child =
         nsTreeUtils::GetImmediateChild(aContent, nsGkAtoms::treechildren);
       if (child && child->IsXUL()) {
@@ -1152,10 +1152,10 @@ nsTreeContentView::SerializeItem(nsIContent* aContent, PRInt32 aParentIndex,
         row->mSubtreeSize += aRows.Length() - count;
       }
       else
-        row->SetEmpty(true);
+        row->SetEmpty(PR_TRUE);
     } else if (aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::empty,
                                      nsGkAtoms::_true, eCaseMatters)) {
-      row->SetEmpty(true);
+      row->SetEmpty(PR_TRUE);
     }
   } 
 }
@@ -1170,7 +1170,7 @@ nsTreeContentView::SerializeSeparator(nsIContent* aContent,
     return;
 
   Row* row = Row::Create(mAllocator, aContent, aParentIndex);
-  row->SetSeparator(true);
+  row->SetSeparator(PR_TRUE);
   aRows.AppendElement(row);
 }
 
@@ -1274,7 +1274,7 @@ nsTreeContentView::InsertRowFor(nsIContent* aParent, nsIContent* aChild)
 
   if (grandParent->IsXUL() && grandParentTag == nsGkAtoms::tree) {
     // Allow insertion to the outermost container.
-    insertRow = true;
+    insertRow = PR_TRUE;
   }
   else {
     // Test insertion to an inner container.
@@ -1285,7 +1285,7 @@ nsTreeContentView::InsertRowFor(nsIContent* aParent, nsIContent* aChild)
     if (grandParentIndex >= 0) {
       // Got it, now test if it is open.
       if (mRows[grandParentIndex]->IsOpen())
-        insertRow = true;
+        insertRow = PR_TRUE;
     }
   }
 
@@ -1363,7 +1363,7 @@ void
 nsTreeContentView::OpenContainer(PRInt32 aIndex)
 {
   Row* row = mRows[aIndex];
-  row->SetOpen(true);
+  row->SetOpen(PR_TRUE);
 
   PRInt32 count = EnsureSubtree(aIndex);
   if (mBoxObject) {
@@ -1376,7 +1376,7 @@ void
 nsTreeContentView::CloseContainer(PRInt32 aIndex)
 {
   Row* row = mRows[aIndex];
-  row->SetOpen(false);
+  row->SetOpen(PR_FALSE);
 
   PRInt32 count = RemoveSubtree(aIndex);
   if (mBoxObject) {

@@ -367,9 +367,9 @@ protected:
   // Check overflow and generate events.
   void CheckOverflow(const ScrollParts& aParts);
 
-  // Calls UpdateScrollbars, Invalidate aNeedsFullInvalidation if true,
+  // Calls UpdateScrollbars, Invalidate aNeedsFullInvalidation if PR_TRUE,
   // InvalidateScrollbars and finally CheckOverflow.
-  // returns true if the frame is still alive after the method call.
+  // returns PR_TRUE if the frame is still alive after the method call.
   bool FullScrollbarsUpdate(bool aNeedsFullInvalidation);
 
   // Use to auto-fill some of the common properties without the view having to do it.

@@ -324,7 +324,7 @@ EnsureImageHlpInitialized()
     gStackWalkThread = threadID;
     if (hStackWalkThread == NULL) {
         PrintError("CreateThread");
-        return false;
+        return PR_FALSE;
     }
     ::CloseHandle(hStackWalkThread);
 
@@ -337,70 +337,70 @@ EnsureImageHlpInitialized()
     HMODULE module = ::LoadLibraryW(L"DBGHELP.DLL");
     if (!module) {
         module = ::LoadLibraryW(L"IMAGEHLP.DLL");
-        if (!module) return false;
+        if (!module) return PR_FALSE;
     }
 
     _SymSetOptions = (SYMSETOPTIONSPROC) ::GetProcAddress(module, "SymSetOptions");
-    if (!_SymSetOptions) return false;
+    if (!_SymSetOptions) return PR_FALSE;
 
     _SymInitialize = (SYMINITIALIZEPROC) ::GetProcAddress(module, "SymInitialize");
-    if (!_SymInitialize) return false;
+    if (!_SymInitialize) return PR_FALSE;
 
     _SymCleanup = (SYMCLEANUPPROC)GetProcAddress(module, "SymCleanup");
-    if (!_SymCleanup) return false;
+    if (!_SymCleanup) return PR_FALSE;
 
 #ifdef USING_WXP_VERSION
     _StackWalk64 = (STACKWALKPROC64)GetProcAddress(module, "StackWalk64");
 #endif
     _StackWalk = (STACKWALKPROC)GetProcAddress(module, "StackWalk");
-    if (!_StackWalk64  && !_StackWalk) return false;
+    if (!_StackWalk64  && !_StackWalk) return PR_FALSE;
 
 #ifdef USING_WXP_VERSION
     _SymFunctionTableAccess64 = (SYMFUNCTIONTABLEACCESSPROC64) GetProcAddress(module, "SymFunctionTableAccess64");
 #endif
     _SymFunctionTableAccess = (SYMFUNCTIONTABLEACCESSPROC) GetProcAddress(module, "SymFunctionTableAccess");
-    if (!_SymFunctionTableAccess64 && !_SymFunctionTableAccess) return false;
+    if (!_SymFunctionTableAccess64 && !_SymFunctionTableAccess) return PR_FALSE;
 
 #ifdef USING_WXP_VERSION
     _SymGetModuleBase64 = (SYMGETMODULEBASEPROC64)GetProcAddress(module, "SymGetModuleBase64");
 #endif
     _SymGetModuleBase = (SYMGETMODULEBASEPROC)GetProcAddress(module, "SymGetModuleBase");
-    if (!_SymGetModuleBase64 && !_SymGetModuleBase) return false;
+    if (!_SymGetModuleBase64 && !_SymGetModuleBase) return PR_FALSE;
 
     _SymGetSymFromAddr = (SYMGETSYMFROMADDRPROC)GetProcAddress(module, "SymGetSymFromAddr");
 #ifdef USING_WXP_VERSION
     _SymFromAddr = (SYMFROMADDRPROC)GetProcAddress(module, "SymFromAddr");
 #endif
-    if (!_SymFromAddr && !_SymGetSymFromAddr) return false;
+    if (!_SymFromAddr && !_SymGetSymFromAddr) return PR_FALSE;
 
 #ifdef USING_WXP_VERSION
     _SymLoadModule64 = (SYMLOADMODULE64)GetProcAddress(module, "SymLoadModule64");
 #endif
     _SymLoadModule = (SYMLOADMODULE)GetProcAddress(module, "SymLoadModule");
-    if (!_SymLoadModule64 && !_SymLoadModule) return false;
+    if (!_SymLoadModule64 && !_SymLoadModule) return PR_FALSE;
 
     _SymUnDName = (SYMUNDNAME)GetProcAddress(module, "SymUnDName");
-    if (!_SymUnDName) return false;
+    if (!_SymUnDName) return PR_FALSE;
 
 #ifdef USING_WXP_VERSION
     _SymGetModuleInfo64 = (SYMGETMODULEINFO64)GetProcAddress(module, "SymGetModuleInfo64");
 #endif
     _SymGetModuleInfo = (SYMGETMODULEINFO)GetProcAddress(module, "SymGetModuleInfo");
-    if (!_SymGetModuleInfo64 && !_SymGetModuleInfo) return false;
+    if (!_SymGetModuleInfo64 && !_SymGetModuleInfo) return PR_FALSE;
 
 #ifdef USING_WXP_VERSION
     _EnumerateLoadedModules64 = (ENUMLOADEDMODULES64)GetProcAddress(module, "EnumerateLoadedModules64");
 #endif
     _EnumerateLoadedModules = (ENUMLOADEDMODULES)GetProcAddress(module, "EnumerateLoadedModules");
-    if (!_EnumerateLoadedModules64 && !_EnumerateLoadedModules) return false;
+    if (!_EnumerateLoadedModules64 && !_EnumerateLoadedModules) return PR_FALSE;
 
 #ifdef USING_WXP_VERSION
     _SymGetLineFromAddr64 = (SYMGETLINEFROMADDRPROC64)GetProcAddress(module, "SymGetLineFromAddr64");
 #endif
     _SymGetLineFromAddr = (SYMGETLINEFROMADDRPROC)GetProcAddress(module, "SymGetLineFromAddr");
-    if (!_SymGetLineFromAddr64 && !_SymGetLineFromAddr) return false;
+    if (!_SymGetLineFromAddr64 && !_SymGetLineFromAddr) return PR_FALSE;
 
-    return gInitialized = true;
+    return gInitialized = PR_TRUE;
 }
 
 void
@@ -660,7 +660,7 @@ NS_StackWalk(NS_WalkStackCallback aCallback, PRUint32 aSkipFrames,
     struct WalkStackData data;
 
     if (!EnsureImageHlpInitialized())
-        return false;
+        return PR_FALSE;
 
     // Have to duplicate handle to get a real handle.
     if (!::DuplicateHandle(::GetCurrentProcess(),
@@ -954,7 +954,7 @@ EnsureSymInitialized()
     NS_TIME_FUNCTION;
 
     if (!EnsureImageHlpInitialized())
-        return false;
+        return PR_FALSE;
 
     _SymSetOptions(SYMOPT_LOAD_LINES | SYMOPT_UNDNAME);
     retStat = _SymInitialize(GetCurrentPIDorHandle(), NULL, TRUE);
@@ -1436,7 +1436,7 @@ static void FindFunctionAddresses(const char* aName, AddressRange* aRange)
   if (!aRange->mStart)
     return;
   aRange->mEnd = aRange->mStart;
-  while (true) {
+  while (PR_TRUE) {
     Dl_info info;
     if (!dladdr(aRange->mEnd, &info))
       break;

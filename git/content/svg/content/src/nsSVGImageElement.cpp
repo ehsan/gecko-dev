@@ -59,7 +59,7 @@ nsSVGElement::LengthInfo nsSVGImageElement::sLengthInfo[4] =
 
 nsSVGElement::StringInfo nsSVGImageElement::sStringInfo[1] =
 {
-  { &nsGkAtoms::href, kNameSpaceID_XLink, true }
+  { &nsGkAtoms::href, kNameSpaceID_XLink, PR_TRUE }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(Image)
@@ -181,7 +181,7 @@ nsSVGImageElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
     }
 
     if (aValue) {
-      LoadSVGImage(true, aNotify);
+      LoadSVGImage(PR_TRUE, aNotify);
     } else {
       CancelImageRequests(aNotify);
     }
@@ -194,9 +194,9 @@ void
 nsSVGImageElement::MaybeLoadSVGImage()
 {
   if (mStringAttributes[HREF].IsExplicitlySet() &&
-      (NS_FAILED(LoadSVGImage(false, true)) ||
+      (NS_FAILED(LoadSVGImage(PR_FALSE, PR_TRUE)) ||
        !LoadingEnabled())) {
-    CancelImageRequests(true);
+    CancelImageRequests(PR_TRUE);
   }
 }
 
@@ -285,7 +285,7 @@ void
 nsSVGImageElement::DidAnimateString(PRUint8 aAttrEnum)
 {
   if (aAttrEnum == HREF) {
-    LoadSVGImage(true, false);
+    LoadSVGImage(PR_TRUE, PR_FALSE);
     return;
   }
 
@@ -295,7 +295,7 @@ nsSVGImageElement::DidAnimateString(PRUint8 aAttrEnum)
 nsresult
 nsSVGImageElement::CopyInnerTo(nsGenericElement* aDest) const
 {
-  if (aDest->OwnerDoc()->IsStaticDocument()) {
+  if (aDest->GetOwnerDoc()->IsStaticDocument()) {
     CreateStaticImageClone(static_cast<nsSVGImageElement*>(aDest));
   }
   return nsSVGImageElementBase::CopyInnerTo(aDest);

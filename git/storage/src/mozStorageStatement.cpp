@@ -628,24 +628,24 @@ Statement::ExecuteStep(bool *_moreResults)
   if (srv == SQLITE_ROW) {
     // we got a row back
     mExecuting = true;
-    *_moreResults = true;
+    *_moreResults = PR_TRUE;
     return NS_OK;
   }
   else if (srv == SQLITE_DONE) {
     // statement is done (no row returned)
     mExecuting = false;
-    *_moreResults = false;
+    *_moreResults = PR_FALSE;
     return NS_OK;
   }
   else if (srv == SQLITE_BUSY || srv == SQLITE_MISUSE) {
-    mExecuting = false;
+    mExecuting = PR_FALSE;
   }
   else if (mExecuting) {
 #ifdef PR_LOGGING
     PR_LOG(gStorageLog, PR_LOG_ERROR,
            ("SQLite error after mExecuting was true!"));
 #endif
-    mExecuting = false;
+    mExecuting = PR_FALSE;
   }
 
   return convertResultCode(srv);
@@ -785,7 +785,7 @@ Statement::GetUTF8String(PRUint32 aIndex,
     // NULL columns should have IsVoid set to distinguish them from the empty
     // string.
     _value.Truncate(0);
-    _value.SetIsVoid(true);
+    _value.SetIsVoid(PR_TRUE);
   }
   else {
     const char *value =
@@ -808,7 +808,7 @@ Statement::GetString(PRUint32 aIndex,
     // NULL columns should have IsVoid set to distinguish them from the empty
     // string.
     _value.Truncate(0);
-    _value.SetIsVoid(true);
+    _value.SetIsVoid(PR_TRUE);
   } else {
     const PRUnichar *value =
       static_cast<const PRUnichar *>(::sqlite3_column_text16(mDBStatement,

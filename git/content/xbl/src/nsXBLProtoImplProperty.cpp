@@ -58,7 +58,7 @@ nsXBLProtoImplProperty::nsXBLProtoImplProperty(const PRUnichar* aName,
   mSetterText(nsnull),
   mJSAttributes(JSPROP_ENUMERATE)
 #ifdef DEBUG
-  , mIsCompiled(false)
+  , mIsCompiled(PR_FALSE)
 #endif
 {
   MOZ_COUNT_CTOR(nsXBLProtoImplProperty);
@@ -157,10 +157,10 @@ nsXBLProtoImplProperty::InstallMember(nsIScriptContext* aContext,
                   "Should not be installing an uncompiled property");
   JSContext* cx = aContext->GetNativeContext();
 
-  nsIDocument *ownerDoc = aBoundElement->OwnerDoc();
+  nsIDocument *ownerDoc = aBoundElement->GetOwnerDoc();
   nsIScriptGlobalObject *sgo;
 
-  if (!(sgo = ownerDoc->GetScopeObject())) {
+  if (!ownerDoc || !(sgo = ownerDoc->GetScopeObject())) {
     return NS_ERROR_UNEXPECTED;
   }
 
@@ -241,13 +241,13 @@ nsXBLProtoImplProperty::CompileMember(nsIScriptContext* aContext, const nsCStrin
                                      functionUri.get(),
                                      mGetterText->GetLineNumber(),
                                      JSVERSION_LATEST,
-                                     true,
+                                     PR_TRUE,
                                      (void **) &getterObject);
 
       // Make sure we free mGetterText here before setting mJSGetterObject, since
       // that'll overwrite mGetterText
       delete mGetterText;
-      deletedGetter = true;
+      deletedGetter = PR_TRUE;
       mJSGetterObject = getterObject;
     
       if (mJSGetterObject && NS_SUCCEEDED(rv)) {
@@ -291,13 +291,13 @@ nsXBLProtoImplProperty::CompileMember(nsIScriptContext* aContext, const nsCStrin
                                      functionUri.get(),
                                      mSetterText->GetLineNumber(),
                                      JSVERSION_LATEST,
-                                     true,
+                                     PR_TRUE,
                                      (void **) &setterObject);
 
       // Make sure we free mSetterText here before setting mJSGetterObject, since
       // that'll overwrite mSetterText
       delete mSetterText;
-      deletedSetter = true;
+      deletedSetter = PR_TRUE;
       mJSSetterObject = setterObject;
 
       if (mJSSetterObject && NS_SUCCEEDED(rv)) {

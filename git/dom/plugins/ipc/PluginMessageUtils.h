@@ -252,7 +252,7 @@ NullableString(const char* aString)
 {
     if (!aString) {
         nsCString str;
-        str.SetIsVoid(true);
+        str.SetIsVoid(PR_TRUE);
         return str;
     }
     return nsCString(aString);

@@ -126,7 +126,7 @@ AsyncConnectionHelper::AsyncConnectionHelper(IDBDatabase* aDatabase,
   mRequest(aRequest),
   mTimeoutDuration(TimeDuration::FromMilliseconds(kDefaultTimeoutMS)),
   mResultCode(NS_OK),
-  mDispatched(false)
+  mDispatched(PR_FALSE)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 }
@@ -138,7 +138,7 @@ AsyncConnectionHelper::AsyncConnectionHelper(IDBTransaction* aTransaction,
   mRequest(aRequest),
   mTimeoutDuration(TimeDuration::FromMilliseconds(kDefaultTimeoutMS)),
   mResultCode(NS_OK),
-  mDispatched(false)
+  mDispatched(PR_FALSE)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 }
@@ -306,13 +306,13 @@ AsyncConnectionHelper::OnProgress(mozIStorageConnection* aConnection,
 {
   if (mDatabase && mDatabase->IsInvalidated()) {
     // Someone is trying to delete the database file. Exit lightningfast!
-    *_retval = true;
+    *_retval = PR_TRUE;
     return NS_OK;
   }
 
   TimeDuration elapsed = TimeStamp::Now() - mStartTime;
   if (elapsed >= mTimeoutDuration) {
-    *_retval = true;
+    *_retval = PR_TRUE;
     return NS_OK;
   }
 
@@ -320,7 +320,7 @@ AsyncConnectionHelper::OnProgress(mozIStorageConnection* aConnection,
     return mOldProgressHandler->OnProgress(aConnection, _retval);
   }
 
-  *_retval = false;
+  *_retval = PR_FALSE;
   return NS_OK;
 }
 
@@ -349,7 +349,7 @@ AsyncConnectionHelper::Dispatch(nsIEventTarget* aDatabaseThread)
     mTransaction->OnNewRequest();
   }
 
-  mDispatched = true;
+  mDispatched = PR_TRUE;
 
   return NS_OK;
 }
@@ -422,7 +422,7 @@ AsyncConnectionHelper::OnError()
 
   // Make an error event and fire it at the target.
   nsRefPtr<nsDOMEvent> event =
-    CreateGenericEvent(NS_LITERAL_STRING(ERROR_EVT_STR), true);
+    CreateGenericEvent(NS_LITERAL_STRING(ERROR_EVT_STR), PR_TRUE);
   if (!event) {
     NS_ERROR("Failed to create event!");
     return;
@@ -543,6 +543,6 @@ TransactionPoolEventTarget::Dispatch(nsIRunnable* aRunnable,
 NS_IMETHODIMP
 TransactionPoolEventTarget::IsOnCurrentThread(bool* aResult)
 {
-  *aResult = false;
+  *aResult = PR_FALSE;
   return NS_OK;
 }

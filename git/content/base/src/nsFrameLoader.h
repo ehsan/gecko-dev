@@ -174,7 +174,7 @@ protected:
 
 public:
   ~nsFrameLoader() {
-    mNeedsAsyncDestroy = true;
+    mNeedsAsyncDestroy = PR_TRUE;
     if (mMessageManager) {
       mMessageManager->Disconnect();
     }
@@ -245,8 +245,8 @@ public:
    * Return the document that owns this, or null if we don't have
    * an owner.
    */
-  nsIDocument* OwnerDoc() const
-  { return mOwnerContent ? mOwnerContent->OwnerDoc() : nsnull; }
+  nsIDocument* GetOwnerDoc() const
+  { return mOwnerContent ? mOwnerContent->GetOwnerDoc() : nsnull; }
 
   PBrowserParent* GetRemoteBrowser();
 

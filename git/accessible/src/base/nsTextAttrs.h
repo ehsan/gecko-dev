@@ -188,10 +188,10 @@ public:
     }
 
     if (!isDefined)
-      return false;
+      return PR_FALSE;
 
     Format(*nativeValue, aValue);
-    return true;
+    return PR_TRUE;
   }
 
   virtual bool Equal(nsIContent *aContent)
@@ -200,7 +200,7 @@ public:
     bool isDefined = GetValueFor(aContent, &nativeValue);
 
     if (!mIsDefined && !isDefined)
-      return true;
+      return PR_TRUE;
 
     if (mIsDefined && isDefined)
       return nativeValue == mNativeValue;

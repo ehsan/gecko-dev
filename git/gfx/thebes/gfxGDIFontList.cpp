@@ -222,7 +222,7 @@ GDIFontEntry::GDIFontEntry(const nsAString& aFaceName,
     : gfxFontEntry(aFaceName),
       mWindowsFamily(0), mWindowsPitch(0),
       mFontType(aFontType),
-      mForceGDI(false), mUnknownCMAP(false),
+      mForceGDI(PR_FALSE), mUnknownCMAP(PR_FALSE),
       mCharset(), mUnicodeRanges()
 {
     mUserFontData = aUserFontData;
@@ -230,7 +230,7 @@ GDIFontEntry::GDIFontEntry(const nsAString& aFaceName,
     mWeight = aWeight;
     mStretch = aStretch;
     if (IsType1())
-        mForceGDI = true;
+        mForceGDI = PR_TRUE;
     mIsUserFont = aUserFontData != nsnull;
 
     InitLogFont(aFaceName, aFontType);
@@ -250,7 +250,7 @@ GDIFontEntry::ReadCMAP()
     // attempt this once, if errors occur leave a blank cmap
     if (mCmapInitialized)
         return NS_OK;
-    mCmapInitialized = true;
+    mCmapInitialized = PR_TRUE;
 
     const PRUint32 kCmapTag = TRUETYPE_TAG('c','m','a','p');
     AutoFallibleTArray<PRUint8,16384> buffer;
@@ -351,12 +351,12 @@ GDIFontEntry::TestCharacterMap(PRUint32 aCh)
     if (ReadCMAP() != NS_OK) {
         // For fonts where we failed to read the character map,
         // we can take a slow path to look up glyphs character by character
-        mUnknownCMAP = true;
+        mUnknownCMAP = PR_TRUE;
     }
 
     if (mUnknownCMAP) {
         if (aCh > 0xFFFF)
-            return false;
+            return PR_FALSE;
 
         // previous code was using the group style
         gfxFontStyle fakeStyle;  
@@ -364,9 +364,9 @@ GDIFontEntry::TestCharacterMap(PRUint32 aCh)
             fakeStyle.style = FONT_STYLE_ITALIC;
         fakeStyle.weight = mWeight * 100;
 
-        nsRefPtr<gfxFont> tempFont = FindOrMakeFont(&fakeStyle, false);
+        nsRefPtr<gfxFont> tempFont = FindOrMakeFont(&fakeStyle, PR_FALSE);
         if (!tempFont || !tempFont->Valid())
-            return false;
+            return PR_FALSE;
         gfxGDIFont *font = static_cast<gfxGDIFont*>(tempFont.get());
 
         HDC dc = GetDC((HWND)nsnull);
@@ -391,7 +391,7 @@ GDIFontEntry::TestCharacterMap(PRUint32 aCh)
                 && glyph[0] != 0xFFFF
                 && (IsType1() || glyph[0] != MISSING_GLYPH))
             {
-                hasGlyph = true;
+                hasGlyph = PR_TRUE;
             }
         } else {
             // ScriptGetCMap works better than GetGlyphIndicesW 
@@ -399,7 +399,7 @@ GDIFontEntry::TestCharacterMap(PRUint32 aCh)
             SCRIPT_CACHE sc = NULL;
             HRESULT rv = ScriptGetCMap(dc, &sc, str, 1, 0, glyph);
             if (rv == S_OK)
-                hasGlyph = true;
+                hasGlyph = PR_TRUE;
         }
 
         SelectObject(dc, oldFont);
@@ -407,14 +407,14 @@ GDIFontEntry::TestCharacterMap(PRUint32 aCh)
 
         if (hasGlyph) {
             mCharacterMap.set(aCh);
-            return true;
+            return PR_TRUE;
         }
     } else {
         // font had a cmap so simply check that
         return mCharacterMap.test(aCh);
     }
 
-    return false;
+    return PR_FALSE;
 }
 
 void
@@ -554,7 +554,7 @@ GDIFontFamily::FindStyleVariations()
 {
     if (mHasStyles)
         return;
-    mHasStyles = true;
+    mHasStyles = PR_TRUE;
 
     HDC hdc = GetDC(nsnull);
     SetGraphicsMode(hdc, GM_ADVANCED);
@@ -760,8 +760,8 @@ gfxGDIFontList::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
     if (!fe)
         return nsnull;
 
-    fe->mIsUserFont = true;
-    fe->mIsLocalUserFont = true;
+    fe->mIsUserFont = PR_TRUE;
+    fe->mIsLocalUserFont = PR_TRUE;
     return fe;
 }
 
@@ -900,7 +900,7 @@ gfxGDIFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
         PRUint8 *buffer;
         PRUint32 eotlen;
 
-        isEmbedded = true;
+        isEmbedded = PR_TRUE;
         PRUint32 nameLen = NS_MIN<PRUint32>(uniqueName.Length(), LF_FACESIZE - 1);
         nsAutoString fontName(Substring(uniqueName, 0, nameLen));
         
@@ -938,7 +938,7 @@ gfxGDIFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
         // Postscript-style glyphs, swizzle name table, load directly
         FallibleTArray<PRUint8> newFontData;
 
-        isEmbedded = false;
+        isEmbedded = PR_FALSE;
         rv = gfxFontUtils::RenameFont(uniqueName, aFontData, aLength, &newFontData);
 
         if (NS_FAILED(rv))
@@ -979,13 +979,13 @@ gfxGDIFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
     if (!fe)
         return fe;
 
-    fe->mIsUserFont = true;
+    fe->mIsUserFont = PR_TRUE;
 
     // Uniscribe doesn't place CFF fonts loaded privately 
     // via AddFontMemResourceEx on XP/Vista
     if (isCFF && gfxWindowsPlatform::WindowsOSVersion() 
                  < gfxWindowsPlatform::kWindows7) {
-        fe->mForceGDI = true;
+        fe->mForceGDI = PR_TRUE;
     }
  
     return fe;
@@ -1029,14 +1029,14 @@ gfxGDIFontList::ResolveFontName(const nsAString& aFontName, nsAString& aResolved
     nsRefPtr<gfxFontFamily> ff;
     if (mFontSubstitutes.Get(keyName, &ff)) {
         aResolvedFontName = ff->Name();
-        return true;
+        return PR_TRUE;
     }
 
     if (mNonExistingFonts.Contains(keyName))
-        return false;
+        return PR_FALSE;
 
     if (gfxPlatformFontList::ResolveFontName(aFontName, aResolvedFontName))
-        return true;
+        return PR_TRUE;
 
-    return false;
+    return PR_FALSE;
 }

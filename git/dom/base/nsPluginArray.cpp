@@ -100,7 +100,7 @@ nsPluginArray::AllowPlugins()
   bool allowPlugins = false;
   if (mDocShell)
     if (NS_FAILED(mDocShell->GetAllowPlugins(&allowPlugins)))
-      allowPlugins = false;
+      allowPlugins = PR_FALSE;
 
   return allowPlugins;
 }

@@ -98,7 +98,7 @@ DOMSVGNumber::DOMSVGNumber()
   : mList(nsnull)
   , mListIndex(0)
   , mAttrEnum(0)
-  , mIsAnimValItem(false)
+  , mIsAnimValItem(PR_FALSE)
   , mValue(0.0f)
 {
 }
@@ -108,7 +108,7 @@ DOMSVGNumber::GetValue(float* aValue)
 {
 #ifdef MOZ_SMIL
   if (mIsAnimValItem && HasOwner()) {
-    Element()->FlushAnimations(); // May make HasOwner() == false
+    Element()->FlushAnimations(); // May make HasOwner() == PR_FALSE
   }
 #endif
   *aValue = HasOwner() ? InternalItem() : mValue;
@@ -126,7 +126,7 @@ DOMSVGNumber::SetValue(float aValue)
 
   if (HasOwner()) {
     InternalItem() = aValue;
-    Element()->DidChangeNumberList(mAttrEnum, true);
+    Element()->DidChangeNumberList(mAttrEnum, PR_TRUE);
 #ifdef MOZ_SMIL
     if (mList->mAList->IsAnimating()) {
       Element()->AnimationNeedsResample();
@@ -159,7 +159,7 @@ DOMSVGNumber::RemovingFromList()
 {
   mValue = InternalItem();
   mList = nsnull;
-  mIsAnimValItem = false;
+  mIsAnimValItem = PR_FALSE;
 }
 
 float

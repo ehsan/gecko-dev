@@ -74,7 +74,7 @@ endif
 #
 
 ifndef MOZ_NATIVE_JPEG
-tier_platform_dirs	+= media/libjpeg
+tier_platform_dirs	+= jpeg
 endif
 
 ifdef MOZ_UPDATER
@@ -158,7 +158,7 @@ tier_platform_dirs += \
 endif
 
 ifndef MOZ_NATIVE_PNG
-tier_platform_dirs += media/libpng
+tier_platform_dirs += modules/libimg/png
 endif
 
 tier_platform_dirs	+= \
@@ -166,7 +166,7 @@ tier_platform_dirs	+= \
 		caps \
 		parser \
 		gfx \
-		image \
+		modules/libpr0n \
 		dom \
 		view \
 		widget \

@@ -52,7 +52,7 @@
 inFlasher::inFlasher() :
   mColor(NS_RGB(0,0,0)),
   mThickness(0),
-  mInvert(false)
+  mInvert(PR_FALSE)
 {
 }
 
@@ -171,7 +171,7 @@ inFlasher::DrawElementOutline(nsIDOMElement* aElement)
       bool isLastFrame = frame->GetNextContinuation() == nsnull;
       DrawOutline(rect.x, rect.y, rect.width, rect.height, rcontext,
                   isFirstFrame, isLastFrame);
-      isFirstFrame = false;
+      isFirstFrame = PR_FALSE;
     }
     frame = frame->GetNextContinuation();
   }

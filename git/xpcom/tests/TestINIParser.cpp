@@ -46,7 +46,7 @@ StringCB(const char *aKey, const char *aValue, void* aClosure)
 {
   printf("%s=%s\n", aKey, aValue);
 
-  return true;
+  return PR_TRUE;
 }
 
 static bool
@@ -60,7 +60,7 @@ SectionCB(const char *aSection, void* aClosure)
 
   printf("\n");
 
-  return true;
+  return PR_TRUE;
 }
 
 int main(int argc, char **argv)
@@ -73,7 +73,7 @@ int main(int argc, char **argv)
   nsCOMPtr<nsILocalFile> lf;
 
   nsresult rv = NS_NewNativeLocalFile(nsDependentCString(argv[1]),
-                                      true,
+                                      PR_TRUE,
                                       getter_AddRefs(lf));
   if (NS_FAILED(rv)) {
     fprintf(stderr, "Error: NS_NewNativeLocalFile failed\n");

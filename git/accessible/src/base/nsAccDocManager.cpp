@@ -119,12 +119,12 @@ nsAccDocManager::Init()
     do_GetService(NS_DOCUMENTLOADER_SERVICE_CONTRACTID);
 
   if (!progress)
-    return false;
+    return PR_FALSE;
 
   progress->AddProgressListener(static_cast<nsIWebProgressListener*>(this),
                                 nsIWebProgress::NOTIFY_STATE_DOCUMENT);
 
-  return true;
+  return PR_TRUE;
 }
 
 void
@@ -341,7 +341,7 @@ nsAccDocManager::AddListeners(nsIDocument *aDocument,
 {
   nsPIDOMWindow *window = aDocument->GetWindow();
   nsIDOMEventTarget *target = window->GetChromeEventHandler();
-  nsEventListenerManager* elm = target->GetListenerManager(true);
+  nsEventListenerManager* elm = target->GetListenerManager(PR_TRUE);
   elm->AddEventListenerByType(this, NS_LITERAL_STRING("pagehide"),
                               NS_EVENT_FLAG_CAPTURE);
 

@@ -94,7 +94,7 @@ nsClientAuthRememberService::Init()
                        getter_AddRefs(proxiedObserver));
 
   if (proxiedObserver) {
-    proxiedObserver->AddObserver(this, "profile-before-change", true);
+    proxiedObserver->AddObserver(this, "profile-before-change", PR_TRUE);
   }
 
   return NS_OK;
@@ -198,7 +198,7 @@ nsClientAuthRememberService::HasRememberedDecision(const nsACString & aHostName,
 
   NS_ENSURE_ARG_POINTER(aCert);
   NS_ENSURE_ARG_POINTER(_retval);
-  *_retval = false;
+  *_retval = PR_FALSE;
 
   nsresult rv;
   nsCAutoString fpStr;
@@ -219,7 +219,7 @@ nsClientAuthRememberService::HasRememberedDecision(const nsACString & aHostName,
   }
 
   aCertDBKey = settings.mDBKey;
-  *_retval = true;
+  *_retval = PR_TRUE;
   return NS_OK;
 }
 
