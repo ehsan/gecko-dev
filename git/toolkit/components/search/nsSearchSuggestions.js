@@ -25,7 +25,6 @@ SuggestAutoComplete.prototype = {
 
   _init: function() {
     this._suggestionController = new SearchSuggestionController(obj => this.onResultsReturned(obj));
-    this._suggestionController.maxLocalResults = this._historyLimit;
   },
 
   get _suggestionLabel() {
@@ -58,7 +57,8 @@ SuggestAutoComplete.prototype = {
     let finalComments = [];
 
     // If form history has results, add them to the list.
-    for (let i = 0; i < results.local.length; ++i) {
+    let maxHistoryItems = Math.min(results.local.length, this._historyLimit);
+    for (let i = 0; i < maxHistoryItems; ++i) {
       finalResults.push(results.local[i]);
       finalComments.push("");
     }

@@ -114,11 +114,8 @@ static sp<ABuffer> MakeAVCCodecSpecificData(
     }
 
     sp<ABuffer> profileLevelID = decodeHex(val);
-    if (!profileLevelID.get() || profileLevelID->size() != 3u) {
-        LOGW("Format error in profile-level-id");
-
-        return NULL;
-    }
+    CHECK(profileLevelID != NULL);
+    CHECK_EQ(profileLevelID->size(), 3u);
 
     Vector<sp<ABuffer> > paramSets;
 
@@ -138,27 +135,21 @@ static sp<ABuffer> MakeAVCCodecSpecificData(
 
         AString nalString(val, start, end - start);
         sp<ABuffer> nal = decodeBase64(nalString);
-        if (!nal.get() || nal->size() <= 0u || nal->size() > 65535u) {
-            return NULL;
-        }
+        CHECK(nal != NULL);
+        CHECK_GT(nal->size(), 0u);
+        CHECK_LE(nal->size(), 65535u);
 
         uint8_t nalType = nal->data()[0] & 0x1f;
         if (numSeqParameterSets == 0) {
-            if ((unsigned)nalType !=  7u) {
-                return NULL;
-            }
+            CHECK_EQ((unsigned)nalType, 7u);
         } else if (numPicParameterSets > 0) {
-            if ((unsigned)nalType != 8u) {
-                return NULL;
-            }
+            CHECK_EQ((unsigned)nalType, 8u);
         }
         if (nalType == 7) {
             ++numSeqParameterSets;
             totalSeqParameterSetSize += nal->size();
         } else  {
-            if ((unsigned)nalType != 8u) {
-                return NULL;
-            }
+            CHECK_EQ((unsigned)nalType, 8u);
             ++numPicParameterSets;
             totalPicParameterSetSize += nal->size();
         }
@@ -172,12 +163,8 @@ static sp<ABuffer> MakeAVCCodecSpecificData(
         start = commaPos + 1;
     }
 
-    if (numSeqParameterSets >= 32u) {
-        return NULL;
-    }
-    if (numPicParameterSets > 255u) {
-        return NULL;
-    }
+    CHECK_LT(numSeqParameterSets, 32u);
+    CHECK_LE(numPicParameterSets, 255u);
 
     size_t csdSize =
         1 + 3 + 1 + 1
@@ -281,29 +268,19 @@ sp<ABuffer> MakeAACCodecSpecificData2(const char *params) {
         const char *s = val.c_str();
         char *end;
         objectType = strtoul(s, &end, 10);
-        if (end <= s || *end != '\0') {
-            return NULL;
-        }
+        CHECK(end > s && *end == '\0');
     } else {
         objectType = 0x40;  // Audio ISO/IEC 14496-3
     }
 
-    if (!GetAttribute(params, "config", &val)) {
-        LOGW("Cannot find attribute config");
-
-        return NULL;
-    }
+    CHECK(GetAttribute(params, "config", &val));
 
     sp<ABuffer> config = decodeHex(val);
-    if (!config.get()) {
-        return NULL;
-    }
+    CHECK(config != NULL);
 
     // Make sure size fits into a single byte and doesn't have to
     // be encoded.
-    if (20 + config->size() >= 128u) {
-        return NULL;
-    }
+    CHECK_LT(20 + config->size(), 128u);
 
     static const uint8_t kStaticESDS[] = {
         0x03, 22,
@@ -391,16 +368,10 @@ static sp<ABuffer> MakeMPEG4VideoCodecSpecificData(
     *height = 0;
 
     AString val;
-    if (!GetAttribute(params, "config", &val)) {
-        LOGW("Cannot find attribute config");
-
-        return NULL;
-    }
+    CHECK(GetAttribute(params, "config", &val));
 
     sp<ABuffer> config = decodeHex(val);
-    if (!config.get()) {
-        return NULL;
-    }
+    CHECK(config != NULL);
 
     if (!ExtractDimensionsMPEG4Config(config, width, height)) {
         return NULL;
@@ -506,11 +477,8 @@ APacketSource::APacketSource(
         mFormat->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_AAC);
 
         int32_t sampleRate, numChannels;
-        if (!ASessionDescription::ParseFormatDesc(
-                desc.c_str(), &sampleRate, &numChannels)) {
-            mInitCheck = ERROR_UNSUPPORTED;
-            return;
-        }
+        ASessionDescription::ParseFormatDesc(
+                desc.c_str(), &sampleRate, &numChannels);
 
         mFormat->setInt32(kKeySampleRate, sampleRate);
         mFormat->setInt32(kKeyChannelCount, numChannels);
@@ -529,11 +497,8 @@ APacketSource::APacketSource(
         mFormat->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_AMR_NB);
 
         int32_t sampleRate, numChannels;
-        if (!ASessionDescription::ParseFormatDesc(
-                desc.c_str(), &sampleRate, &numChannels)) {
-            mInitCheck = ERROR_UNSUPPORTED;
-            return;
-        }
+        ASessionDescription::ParseFormatDesc(
+                desc.c_str(), &sampleRate, &numChannels);
 
         mFormat->setInt32(kKeySampleRate, sampleRate);
         mFormat->setInt32(kKeyChannelCount, numChannels);
@@ -545,11 +510,8 @@ APacketSource::APacketSource(
         mFormat->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_AMR_WB);
 
         int32_t sampleRate, numChannels;
-        if (!ASessionDescription::ParseFormatDesc(
-                desc.c_str(), &sampleRate, &numChannels)) {
-            mInitCheck = ERROR_UNSUPPORTED;
-            return;
-        }
+        ASessionDescription::ParseFormatDesc(
+                desc.c_str(), &sampleRate, &numChannels);
 
         mFormat->setInt32(kKeySampleRate, sampleRate);
         mFormat->setInt32(kKeyChannelCount, numChannels);
@@ -599,28 +561,20 @@ APacketSource::APacketSource(
         mFormat->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_AAC);
 
         int32_t sampleRate, numChannels;
-        if (!ASessionDescription::ParseFormatDesc(
-                desc.c_str(), &sampleRate, &numChannels)) {
-            mInitCheck = ERROR_UNSUPPORTED;
-            return;
-        }
+        ASessionDescription::ParseFormatDesc(
+                desc.c_str(), &sampleRate, &numChannels);
 
         mFormat->setInt32(kKeySampleRate, sampleRate);
         mFormat->setInt32(kKeyChannelCount, numChannels);
 
         sp<ABuffer> codecSpecificData =
             MakeAACCodecSpecificData2(params.c_str());
-        if (!codecSpecificData.get()) {
-            mInitCheck = ERROR_UNSUPPORTED;
-            return;
-        }
+
         mFormat->setData(
                 kKeyESDS, 0,
                 codecSpecificData->data(), codecSpecificData->size());
     } else if (ARawAudioAssembler::Supports(desc.c_str())) {
-        if (!ARawAudioAssembler::MakeFormat(desc.c_str(), mFormat)) {
-            mInitCheck = ERROR_UNSUPPORTED;
-        }
+        ARawAudioAssembler::MakeFormat(desc.c_str(), mFormat);
     } else {
         mInitCheck = ERROR_UNSUPPORTED;
     }

@@ -2707,8 +2707,7 @@ void MediaDecoderStateMachine::AdvanceFrame()
     // Filter out invalid frames by checking the frame time. FrameTime could be
     // zero if it's a initial frame.
     int64_t frameTime = currentFrame->mTime - mStartTime;
-    if (frameTime > 0  || (frameTime == 0 && mPlayDuration == 0) ||
-        mScheduler->IsRealTime()) {
+    if (frameTime > 0  || (frameTime == 0 && mPlayDuration == 0)) {
       ReentrantMonitorAutoExit exitMon(mDecoder->GetReentrantMonitor());
       // If we have video, we want to increment the clock in steps of the frame
       // duration.

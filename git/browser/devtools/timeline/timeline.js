@@ -107,19 +107,13 @@ let TimelineController = {
    * Starts the recording, updating the UI as needed.
    */
   _startRecording: function*() {
-    TimelineView.handleRecordingStarted();
-    let startTime = yield gFront.start();
-    // Times must come from the actor in order to be self-consistent.
-    // However, we also want to update the view with the elapsed time
-    // even when the actor is not generating data.  To do this we get
-    // the local time and use it to compute a reasonable elapsed time.
-    // See _onRecordingTick.
-    this._localStartTime = performance.now();
-
     this._markers = [];
-    this._markers.startTime = startTime;
-    this._markers.endTime = startTime;
+    this._markers.startTime = performance.now();
+    this._markers.endTime = performance.now();
     this._updateId = setInterval(this._onRecordingTick, OVERVIEW_UPDATE_INTERVAL);
+
+    TimelineView.handleRecordingStarted();
+    yield gFront.start();
   },
 
   /**
@@ -148,12 +142,9 @@ let TimelineController = {
    * @param array markers
    *        A list of new markers collected since the last time this
    *        function was invoked.
-   * @param number endTime
-   *        A time after the last marker in markers was collected.
    */
-  _onMarkers: function(markers, endTime) {
+  _onMarkers: function(markers) {
     Array.prototype.push.apply(this._markers, markers);
-    this._markers.endTime = endTime;
   },
 
   /**
@@ -161,13 +152,7 @@ let TimelineController = {
    * Updates the markers store with the current time and the timeline overview.
    */
   _onRecordingTick: function() {
-    // Compute an approximate ending time for the view.  This is
-    // needed to ensure that the view updates even when new data is
-    // not being generated.
-    let fakeTime = this._markers.startTime + (performance.now() - this._localStartTime);
-    if (fakeTime > this._markers.endTime) {
-      this._markers.endTime = fakeTime;
-    }
+    this._markers.endTime = performance.now();
     TimelineView.handleMarkersUpdate(this._markers);
   }
 };
@@ -229,12 +214,12 @@ let TimelineView = {
 
     let markers = TimelineController.getMarkers();
     if (markers.length) {
-      let start = (markers[0].start - markers.startTime) * this.overview.dataScaleX;
+      let start = markers[0].start * this.overview.dataScaleX;
       let end = start + this.overview.width * OVERVIEW_INITIAL_SELECTION_RATIO;
       this.overview.setSelection({ start, end });
     } else {
       let duration = markers.endTime - markers.startTime;
-      this.waterfall.setData(markers, markers.startTime, markers.endTime);
+      this.waterfall.setData(markers, 0, duration);
     }
 
     window.emit(EVENTS.RECORDING_ENDED);
@@ -266,8 +251,8 @@ let TimelineView = {
     let end = selection.end / this.overview.dataScaleX;
 
     let markers = TimelineController.getMarkers();
-    let timeStart = markers.startTime + Math.min(start, end);
-    let timeEnd = markers.startTime + Math.max(start, end);
+    let timeStart = Math.min(start, end);
+    let timeEnd = Math.max(start, end);
     this.waterfall.setData(markers, timeStart, timeEnd);
   },
 

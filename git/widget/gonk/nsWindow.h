@@ -19,7 +19,6 @@
 #include "nsBaseWidget.h"
 #include "nsRegion.h"
 #include "nsIIdleServiceInternal.h"
-#include "Units.h"
 
 extern nsIntRect gScreenBounds;
 
@@ -31,8 +30,6 @@ namespace layers {
 class LayersManager;
 }
 }
-
-class ANativeWindowBuffer;
 
 namespace android {
 class FramebufferNativeWindow;
@@ -97,10 +94,6 @@ public:
 
     NS_IMETHOD MakeFullScreen(bool aFullScreen) /*MOZ_OVERRIDE*/;
 
-    virtual mozilla::TemporaryRef<mozilla::gfx::DrawTarget>
-        StartRemoteDrawing() MOZ_OVERRIDE;
-    virtual void EndRemoteDrawing() MOZ_OVERRIDE;
-
     virtual float GetDPI();
     virtual double GetDefaultScaleInternal();
     virtual mozilla::layers::LayerManager*
@@ -125,11 +118,6 @@ protected:
     bool mVisible;
     InputContext mInputContext;
     nsCOMPtr<nsIIdleServiceInternal> mIdleService;
-    // If we're using a BasicCompositor, these fields are temporarily
-    // set during frame composition.  They wrap the hardware
-    // framebuffer.
-    mozilla::RefPtr<mozilla::gfx::DrawTarget> mFramebufferTarget;
-    ANativeWindowBuffer* mFramebuffer;
 
     void BringToTop();
 

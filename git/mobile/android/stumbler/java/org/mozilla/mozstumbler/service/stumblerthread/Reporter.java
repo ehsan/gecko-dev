@@ -142,10 +142,6 @@ public final class Reporter extends BroadcastReceiver {
 
         Map<String, ScanResult> currentWifiData = mBundle.getWifiData();
         for (ScanResult result : results) {
-            if (currentWifiData.size() > MAX_WIFIS_PER_LOCATION) {
-                return;
-            }
-
             String key = result.BSSID;
             if (!currentWifiData.containsKey(key)) {
                 currentWifiData.put(key, result);
@@ -160,9 +156,6 @@ public final class Reporter extends BroadcastReceiver {
 
         Map<String, CellInfo> currentCellData = mBundle.getCellData();
         for (CellInfo result : cells) {
-            if (currentCellData.size() > MAX_CELLS_PER_LOCATION) {
-                return;
-            }
             String key = result.getCellIdentity();
             if (!currentCellData.containsKey(key)) {
                 currentCellData.put(key, result);
@@ -198,9 +191,7 @@ public final class Reporter extends BroadcastReceiver {
             Log.d(LOG_TAG, "Received bundle: " + mlsObj.toString());
         }
 
-        if (wifiCount + cellCount < 1) {
-            return;
-        }
+        AppGlobals.guiLogInfo(mlsObj.toString());
 
         try {
             DataStorageManager.getInstance().insert(mlsObj.toString(), wifiCount, cellCount);
