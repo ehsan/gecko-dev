@@ -59,6 +59,9 @@ include first-letter/reftest.list
 # first-line/
 include first-line/reftest.list
 
+# floats/
+include floats/reftest.list
+
 # font-face
 include font-face/reftest.list
 
@@ -82,6 +85,9 @@ include native-theme/reftest.list
 
 # object/
 include object/reftest.list
+
+# ogg-video/
+include ogg-video/reftest.list
 
 # percent-overflow-sizing/
 include percent-overflow-sizing/reftest.list

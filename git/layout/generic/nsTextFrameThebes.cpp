@@ -1136,7 +1136,7 @@ void BuildTextRunsScanner::FlushFrames(PRBool aFlushLineBreaks, PRBool aSuppress
   if (!mSkipIncompleteTextRuns && mCurrentFramesAllSameTextRun &&
       ((mCurrentFramesAllSameTextRun->GetFlags() & nsTextFrameUtils::TEXT_INCOMING_WHITESPACE) != 0) ==
       ((mCurrentRunContextInfo & nsTextFrameUtils::INCOMING_WHITESPACE) != 0) &&
-      ((mCurrentFramesAllSameTextRun->GetFlags() & nsTextFrameUtils::TEXT_INCOMING_ARABICCHAR) != 0) ==
+      ((mCurrentFramesAllSameTextRun->GetFlags() & gfxTextRunWordCache::TEXT_INCOMING_ARABICCHAR) != 0) ==
       ((mCurrentRunContextInfo & nsTextFrameUtils::INCOMING_ARABICCHAR) != 0) &&
       IsTextRunValidForMappedFlows(mCurrentFramesAllSameTextRun)) {
     // Optimization: We do not need to (re)build the textrun.
@@ -1149,7 +1149,7 @@ void BuildTextRunsScanner::FlushFrames(PRBool aFlushLineBreaks, PRBool aSuppress
     if (textRun->GetFlags() & nsTextFrameUtils::TEXT_TRAILING_WHITESPACE) {
       mNextRunContextInfo |= nsTextFrameUtils::INCOMING_WHITESPACE;
     }
-    if (textRun->GetFlags() & nsTextFrameUtils::TEXT_TRAILING_ARABICCHAR) {
+    if (textRun->GetFlags() & gfxTextRunWordCache::TEXT_TRAILING_ARABICCHAR) {
       mNextRunContextInfo |= nsTextFrameUtils::INCOMING_ARABICCHAR;
     }
   } else {
@@ -1485,7 +1485,7 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
     textFlags |= nsTextFrameUtils::TEXT_INCOMING_WHITESPACE;
   }
   if (mCurrentRunContextInfo & nsTextFrameUtils::INCOMING_ARABICCHAR) {
-    textFlags |= nsTextFrameUtils::TEXT_INCOMING_ARABICCHAR;
+    textFlags |= gfxTextRunWordCache::TEXT_INCOMING_ARABICCHAR;
   }
 
   nsAutoTArray<PRInt32,50> textBreakPoints;
@@ -1658,7 +1658,7 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
     textFlags |= nsTextFrameUtils::TEXT_TRAILING_WHITESPACE;
   }
   if (mNextRunContextInfo & nsTextFrameUtils::INCOMING_ARABICCHAR) {
-    textFlags |= nsTextFrameUtils::TEXT_TRAILING_ARABICCHAR;
+    textFlags |= gfxTextRunWordCache::TEXT_TRAILING_ARABICCHAR;
   }
   // ContinueTextRunAcrossFrames guarantees that it doesn't matter which
   // frame's style is used, so use the last frame's
@@ -5757,10 +5757,10 @@ nsTextFrame::Reflow(nsPresContext*           aPresContext,
   PRBool completedFirstLetter = PR_FALSE;
   // Layout dependent styles are a problem because we need to reconstruct
   // the gfxTextRun based on our layout.
-  if (lineLayout.GetFirstLetterStyleOK() || lineLayout.GetInFirstLine()) {
+  if (lineLayout.GetInFirstLetter() || lineLayout.GetInFirstLine()) {
     SetLength(maxContentLength);
 
-    if (lineLayout.GetFirstLetterStyleOK()) {
+    if (lineLayout.GetInFirstLetter()) {
       // floating first-letter boundaries are significant in textrun
       // construction, so clear the textrun out every time we hit a first-letter
       // and have changed our length (which controls the first-letter boundary)
@@ -5771,17 +5771,27 @@ nsTextFrame::Reflow(nsPresContext*           aPresContext,
 
       if (mTextRun) {
         PRInt32 firstLetterLength = length;
-        completedFirstLetter =
-          FindFirstLetterRange(frag, mTextRun, offset, iter, &firstLetterLength);
-        if (newLineOffset >= 0) {
-          // Don't allow a preformatted newline to be part of a first-letter.
-          firstLetterLength = PR_MIN(firstLetterLength, length - 1);
-          if (length == 1) {
-            // There is no text to be consumed by the first-letter before the
-            // preformatted newline. Note that the first letter is therefore
-            // complete (FindFirstLetterRange will have returned false).
-            completedFirstLetter = PR_TRUE;
+        if (lineLayout.GetFirstLetterStyleOK()) {
+          completedFirstLetter =
+            FindFirstLetterRange(frag, mTextRun, offset, iter, &firstLetterLength);
+          if (newLineOffset >= 0) {
+            // Don't allow a preformatted newline to be part of a first-letter.
+            firstLetterLength = PR_MIN(firstLetterLength, length - 1);
+            if (length == 1) {
+              // There is no text to be consumed by the first-letter before the
+              // preformatted newline. Note that the first letter is therefore
+              // complete (FindFirstLetterRange will have returned false).
+              completedFirstLetter = PR_TRUE;
+            }
           }
+        } else {
+          // We're in a first-letter frame's first in flow, so if there
+          // was a first-letter, we'd be it. However, for one reason
+          // or another (e.g., preformatted line break before this text),
+          // we're not actually supposed to have first-letter style. So
+          // just make a zero-length first-letter.
+          firstLetterLength = 0;
+          completedFirstLetter = PR_TRUE;
         }
         length = firstLetterLength;
         if (length) {
@@ -6048,9 +6058,6 @@ nsTextFrame::Reflow(nsPresContext*           aPresContext,
       lineLayout.NotifyOptionalBreakPosition(mContent, offset + length, PR_TRUE,
                                              eNormalBreak);
     }
-  }
-  if (completedFirstLetter) {
-    lineLayout.SetFirstLetterStyleOK(PR_FALSE);
   }
 
   // Compute reflow status

@@ -87,8 +87,6 @@ var gContextMenu = null;
 
 var gChromeState = null; // chrome state before we went into print preview
 
-var gSanitizeListener = null;
-
 var gAutoHideTabbarPrefListener = null;
 var gBookmarkAllTabsHandler = null;
 
@@ -1144,7 +1142,11 @@ function prepareForStartup() {
   gBrowser.browsers[0].removeAttribute("disablehistory");
 
   // enable global history
-  gBrowser.docShell.QueryInterface(Components.interfaces.nsIDocShellHistory).useGlobalHistory = true;
+  try {
+    gBrowser.docShell.QueryInterface(Components.interfaces.nsIDocShellHistory).useGlobalHistory = true;
+  } catch(ex) {
+    Components.utils.reportError("Places database may be locked: " + ex);
+  }
 
   // hook up UI through progress listener
   gBrowser.addProgressListener(window.XULBrowserWindow, Components.interfaces.nsIWebProgress.NOTIFY_ALL);
@@ -1196,7 +1198,7 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   gNavToolbox.customizeChange = BrowserToolboxCustomizeChange;
 
   // Set up Sanitize Item
-  gSanitizeListener = new SanitizeListener();
+  initializeSanitizer();
 
   // Enable/Disable auto-hide tabbar
   gAutoHideTabbarPrefListener = new AutoHideTabbarPrefListener();
@@ -1396,9 +1398,6 @@ function BrowserShutdown()
     Components.utils.reportError(ex);
   }
 
-  if (gSanitizeListener)
-    gSanitizeListener.shutdown();
-
   BrowserOffline.uninit();
   OfflineApps.uninit();
   DownloadMonitorPanel.uninit();
@@ -1478,14 +1477,11 @@ function nonBrowserWindowDelayedStartup()
   BrowserOffline.init();
   
   // Set up Sanitize Item
-  gSanitizeListener = new SanitizeListener();
+  initializeSanitizer();
 }
 
 function nonBrowserWindowShutdown()
 {
-  if (gSanitizeListener)
-    gSanitizeListener.shutdown();
-
   BrowserOffline.uninit();
 }
 #endif
@@ -1521,43 +1517,18 @@ AutoHideTabbarPrefListener.prototype =
   }
 }
 
-function SanitizeListener()
+function initializeSanitizer()
 {
-  gPrefService.addObserver(this.promptDomain, this, false);
+  // Always use the label with ellipsis
+  var label = gNavigatorBundle.getString("sanitizeWithPromptLabel2");
+  document.getElementById("sanitizeItem").setAttribute("label", label);
 
-  this._defaultLabel = document.getElementById("sanitizeItem")
-                               .getAttribute("label");
-  this._updateSanitizeItem();
-
-  if (gPrefService.prefHasUserValue(this.didSanitizeDomain)) {
-    gPrefService.clearUserPref(this.didSanitizeDomain);
+  const kDidSanitizeDomain = "privacy.sanitize.didShutdownSanitize";
+  if (gPrefService.prefHasUserValue(kDidSanitizeDomain)) {
+    gPrefService.clearUserPref(kDidSanitizeDomain);
     // We need to persist this preference change, since we want to
     // check it at next app start even if the browser exits abruptly
     gPrefService.QueryInterface(Ci.nsIPrefService).savePrefFile(null);
-  }
-}
-
-SanitizeListener.prototype =
-{
-  promptDomain      : "privacy.sanitize.promptOnSanitize",
-  didSanitizeDomain : "privacy.sanitize.didShutdownSanitize",
-
-  observe: function (aSubject, aTopic, aPrefName)
-  {
-    this._updateSanitizeItem();
-  },
-
-  shutdown: function ()
-  {
-    gPrefService.removeObserver(this.promptDomain, this);
-  },
-
-  _updateSanitizeItem: function ()
-  {
-    var label = gPrefService.getBoolPref(this.promptDomain) ?
-        gNavigatorBundle.getString("sanitizeWithPromptLabel2") : 
-        this._defaultLabel;
-    document.getElementById("sanitizeItem").setAttribute("label", label);
   }
 }
 
@@ -2409,6 +2380,11 @@ function BrowserOnCommand(event) {
           notificationBox.PRIORITY_CRITICAL_HIGH,
           buttons
         );
+      }
+    }
+    else if (/^about:privatebrowsing/.test(errorDoc.documentURI)) {
+      if (ot == errorDoc.getElementById("startPrivateBrowsing")) {
+        gPrivateBrowsingUI.toggleMode();
       }
     }
 }
@@ -6869,7 +6845,14 @@ let gPrivateBrowsingUI = {
     var brandBundle = bundleService.createBundle("chrome://branding/locale/brand.properties");
 
     var appName = brandBundle.GetStringFromName("brandShortName");
+# On Mac, use the header as the title.
+#ifdef XP_MACOSX
+    var dialogTitle = pbBundle.GetStringFromName("privateBrowsingMessageHeader");
+    var header = "";
+#else
     var dialogTitle = pbBundle.GetStringFromName("privateBrowsingDialogTitle");
+    var header = pbBundle.GetStringFromName("privateBrowsingMessageHeader") + "\n\n";
+#endif
     var message = pbBundle.formatStringFromName("privateBrowsingMessage", [appName], 1);
 
     var promptService = Cc["@mozilla.org/embedcomp/prompt-service;1"].
@@ -6885,7 +6868,7 @@ let gPrivateBrowsingUI = {
     var neverAskText = pbBundle.GetStringFromName("privateBrowsingNeverAsk");
 
     var result;
-    var choice = promptService.confirmEx(null, dialogTitle, message,
+    var choice = promptService.confirmEx(null, dialogTitle, header + message,
                                flags, button0Title, button1Title, null,
                                neverAskText, neverAsk);
 
@@ -6904,9 +6887,7 @@ let gPrivateBrowsingUI = {
   },
 
   onEnterPrivateBrowsing: function PBUI_onEnterPrivateBrowsing() {
-    let pbMenuItem = document.getElementById("privateBrowsingItem");
-    if (pbMenuItem)
-      pbMenuItem.setAttribute("checked", "true");
+    this._setPBMenuTitle("stop");
 
     this._privateBrowsingAutoStarted = this._privateBrowsingService.autoStarted;
 
@@ -6921,6 +6902,7 @@ let gPrivateBrowsingUI = {
     }
     else {
       // Disable the menu item in auto-start mode
+      let pbMenuItem = document.getElementById("privateBrowsingItem");
       if (pbMenuItem)
         pbMenuItem.setAttribute("disabled", "true");
       document.getElementById("Tools:PrivateBrowsing")
@@ -6934,9 +6916,7 @@ let gPrivateBrowsingUI = {
 
     gFindBar.getElement("findbar-textbox").reset();
 
-    let pbMenuItem = document.getElementById("privateBrowsingItem");
-    if (pbMenuItem)
-      pbMenuItem.removeAttribute("checked");
+    this._setPBMenuTitle("start");
 
     if (!this._privateBrowsingAutoStarted) {
       // Adjust the window's title
@@ -6949,6 +6929,14 @@ let gPrivateBrowsingUI = {
     }
     else
       this._privateBrowsingAutoStarted = false;
+  },
+
+  _setPBMenuTitle: function PBUI__setPBMenuTitle(aMode) {
+    let pbMenuItem = document.getElementById("privateBrowsingItem");
+    if (pbMenuItem) {
+      pbMenuItem.setAttribute("label", pbMenuItem.getAttribute(aMode + "label"));
+      pbMenuItem.setAttribute("accesskey", pbMenuItem.getAttribute(aMode + "accesskey"));
+    }
   },
 
   toggleMode: function PBUI_toggleMode() {

@@ -137,7 +137,6 @@
 #include "nsIFrameDebug.h"
 #endif
   // for |#ifdef DEBUG| code
-#include "nsSpaceManager.h"
 #include "prenv.h"
 #include "nsIAttribute.h"
 #include "nsIGlobalHistory2.h"
@@ -257,7 +256,6 @@ static const VerifyReflowFlags gFlags[] = {
   { "list-commands",         VERIFY_REFLOW_DUMP_COMMANDS },
   { "noisy-commands",        VERIFY_REFLOW_NOISY_RC },
   { "really-noisy-commands", VERIFY_REFLOW_REALLY_NOISY_RC },
-  { "space-manager",         VERIFY_REFLOW_INCLUDE_SPACE_MANAGER },
   { "resize",                VERIFY_REFLOW_DURING_RESIZE_REFLOW },
 };
 
@@ -804,7 +802,6 @@ public:
 
   NS_IMETHOD BeginObservingDocument();
   NS_IMETHOD EndObservingDocument();
-  NS_IMETHOD GetDidInitialReflow(PRBool *aDidInitialReflow);
   NS_IMETHOD InitialReflow(nscoord aWidth, nscoord aHeight);
   NS_IMETHOD ResizeReflow(nscoord aWidth, nscoord aHeight);
   NS_IMETHOD StyleChangeReflow();
@@ -1190,12 +1187,7 @@ private:
                                  nsGUIEvent*    aEvent,
                                  nsEventStatus* aEventStatus);
 
-  //help funcs for resize events
-  void CreateResizeEventTimer();
-  void KillResizeEventTimer();
   void FireResizeEvent();
-  static void sResizeEventCallback(nsITimer* aTimer, void* aPresShell) ;
-  nsCOMPtr<nsITimer> mResizeEventTimer;
 
   typedef void (*nsPluginEnumCallback)(PresShell*, nsIContent*);
   void EnumeratePlugins(nsIDOMDocument *aDocument,
@@ -1695,8 +1687,6 @@ PresShell::Destroy()
     // Clear the link handler (weak reference) as well
     mPresContext->SetLinkHandler(nsnull);
   }
-
-  KillResizeEventTimer();
 
   mHaveShutDown = PR_TRUE;
 
@@ -2317,17 +2307,6 @@ static void CheckForFocus(nsPIDOMWindow* aOurWindow,
 }
 
 NS_IMETHODIMP
-PresShell::GetDidInitialReflow(PRBool *aDidInitialReflow)
-{
-  if (!aDidInitialReflow)
-    return NS_ERROR_FAILURE;
-
-  *aDidInitialReflow = mDidInitialReflow;
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
 {
   if (mIsDestroying) {
@@ -2408,7 +2387,10 @@ PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
 
     // Now flush out pending restyles before we actually reflow, in
     // case XBL constructors changed styles somewhere.
-    mFrameConstructor->ProcessPendingRestyles();
+    {
+      nsAutoScriptBlocker scriptBlocker;
+      mFrameConstructor->ProcessPendingRestyles();
+    }
 
     // And that might have run _more_ XBL constructors
     NS_ENSURE_STATE(!mHaveShutDown);
@@ -2501,17 +2483,19 @@ PresShell::ResizeReflow(nscoord aWidth, nscoord aHeight)
   if (!rootFrame)
     return NS_OK;
 
+  NS_ASSERTION(mViewManager, "Must have view manager");
+  nsCOMPtr<nsIViewManager> viewManagerDeathGrip = mViewManager;
+  // Take this ref after viewManager so it'll make sure to go away first
+  nsCOMPtr<nsIPresShell> kungFuDeathGrip(this);
   if (!GetPresContext()->SupressingResizeReflow())
   {
-    NS_ASSERTION(mViewManager, "Must have view manager");
-    nsCOMPtr<nsIViewManager> viewManagerDeathGrip = mViewManager;
     nsIViewManager::UpdateViewBatch batch(mViewManager);
 
-    // Take this ref after viewManager so it'll make sure to go away first
-    nsCOMPtr<nsIPresShell> kungFuDeathGrip(this);
-
     // Make sure style is up to date
-    mFrameConstructor->ProcessPendingRestyles();
+    {
+      nsAutoScriptBlocker scriptBlocker;
+      mFrameConstructor->ProcessPendingRestyles();
+    }
 
     if (!mIsDestroying) {
       // XXX Do a full invalidate at the beginning so that invalidates along
@@ -2542,47 +2526,12 @@ PresShell::ResizeReflow(nscoord aWidth, nscoord aHeight)
   }
 
   if (!mIsDestroying) {
-    CreateResizeEventTimer();
+    nsContentUtils::AddScriptRunner(NS_NEW_RUNNABLE_METHOD(PresShell,
+                                                           this,
+                                                           FireResizeEvent));
   }
 
   return NS_OK; //XXX this needs to be real. MMP
-}
-
-#define RESIZE_EVENT_DELAY 200
-
-void
-PresShell::CreateResizeEventTimer ()
-{
-  // if we already have a timer set, ignore this call
-  if (mResizeEventTimer)
-    return;
-
-  if (mIsDocumentGone)
-    return;
-
-  mResizeEventTimer = do_CreateInstance("@mozilla.org/timer;1");
-  if (mResizeEventTimer) {
-    mResizeEventTimer->InitWithFuncCallback(sResizeEventCallback, this, RESIZE_EVENT_DELAY, 
-                                            nsITimer::TYPE_ONE_SHOT);
-  }
-}
-
-void
-PresShell::KillResizeEventTimer()
-{
-  if (mResizeEventTimer) {
-    mResizeEventTimer->Cancel();
-    mResizeEventTimer = nsnull;
-  }
-}
-
-void
-PresShell::sResizeEventCallback(nsITimer *aTimer, void* aPresShell)
-{
-  PresShell* self = static_cast<PresShell*>(aPresShell);
-  if (self) {
-    self->FireResizeEvent();  
-  }
 }
 
 void
@@ -2590,9 +2539,6 @@ PresShell::FireResizeEvent()
 {
   if (mIsDocumentGone)
     return;
-
-  // allow a new timer to be set
-  mResizeEventTimer = nsnull;
 
   //Send resize event from here.
   nsEvent event(PR_TRUE, NS_RESIZE_EVENT);
@@ -4508,6 +4454,7 @@ PresShell::DoFlushPendingNotifications(mozFlushType aType,
       // reflow).
       mPresContext->FlushUserFontSet();
 
+      nsAutoScriptBlocker scriptBlocker;
       mFrameConstructor->ProcessPendingRestyles();
     }
 
@@ -4525,6 +4472,7 @@ PresShell::DoFlushPendingNotifications(mozFlushType aType,
     // up the new rules and we'll end up with frames whose style doesn't match
     // the frame type.
     if (!mIsDestroying) {
+      nsAutoScriptBlocker scriptBlocker;
       mFrameConstructor->ProcessPendingRestyles();
     }
 
@@ -6796,102 +6744,7 @@ CompareTrees(nsPresContext* aFirstPresContext, nsIFrame* aFirstFrame,
           break;
         }
 
-        // verify that neither frame has a space manager,
-        // or they both do and the space managers are equivalent
-        nsSpaceManager *sm1 = static_cast<nsSpaceManager*>
-                                         (k1->GetProperty(nsGkAtoms::spaceManagerProperty));
-
-        // look at the test frame
-        nsSpaceManager *sm2 = static_cast<nsSpaceManager*>
-                                         (k2->GetProperty(nsGkAtoms::spaceManagerProperty));
-
-        // now compare the space managers
-        if (((nsnull == sm1) && (nsnull != sm2)) ||
-            ((nsnull != sm1) && (nsnull == sm2))) {   // one is null, and the other is not
-          ok = PR_FALSE;
-          LogVerifyMessage(k1, k2, "space managers are not matched\n");
-        }
-        else if (sm1 && sm2) {  // both are not null, compare them
-          // first, compare yMost
-          nscoord yMost1, yMost2;
-          nsresult smresult = sm1->YMost(yMost1);
-          if (NS_ERROR_ABORT != smresult)
-          {
-            NS_ASSERTION(NS_SUCCEEDED(smresult), "bad result");
-            smresult = sm2->YMost(yMost2);
-            NS_ASSERTION(NS_SUCCEEDED(smresult), "bad result");
-            if (yMost1 != yMost2) {
-              LogVerifyMessage(k1, k2, "yMost of space managers differs\n");
-            }
-            // now compare bands by sampling
-            PRInt32 yIncrement = yMost1/100;
-            if (0==yIncrement) {
-              yIncrement = 1;   // guarantee we make progress in the loop below
-            }
-            nscoord yOffset = 0;
-            for ( ; ok && yOffset < yMost1; yOffset += yIncrement)
-            {
-              nscoord small=5, large=100;
-              nsBandData band1, band2;
-              nsBandTrapezoid trap1[20], trap2[20];
-              band1.mSize = band2.mSize = 20;
-              band1.mTrapezoids = trap1;  
-              band2.mTrapezoids = trap2;
-              sm1->GetBandData(yOffset, nsSize(small,small), band1);
-              sm2->GetBandData(yOffset, nsSize(small,small), band2);
-              if (band1.mCount != band2.mCount) 
-              { // count mismatch, stop comparing
-                LogVerifyMessage(k1, k2, "band.mCount of space managers differs\n");
-                printf("count1= %d, count2=%d, yOffset = %d, size=%d\n",
-                        band1.mCount, band2.mCount, yOffset, small);
-                ok = PR_FALSE;
-                      
-              }
-              else   // band counts match, compare individual traps
-              { 
-                PRInt32 trapIndex=0;
-                for ( ;trapIndex<band1.mCount; trapIndex++)
-                {
-                  PRBool match = (trap1[trapIndex].EqualGeometry(trap2[trapIndex])) && 
-                    ((trap1[trapIndex].mFrames!=nsnull) == (trap2[trapIndex].mFrames!=nsnull));
-                  if (!match)
-                  {
-                    LogVerifyMessage(k1, k2, "band.mTrapezoids of space managers differs\n");
-                    printf ("index %d\n", trapIndex);
-                  }
-                }
-              }
-              // test the larger maxSize
-              sm1->GetBandData(yOffset, nsSize(large,large), band1);
-              sm2->GetBandData(yOffset, nsSize(large,large), band2);
-              if (band1.mCount != band2.mCount) 
-              { // count mismatch, stop comparing
-                LogVerifyMessage(k1, k2, "band.mCount of space managers differs\n");
-                printf("count1= %d, count2=%d, yOffset = %d, size=%d\n",
-                        band1.mCount, band2.mCount, yOffset, small);
-                ok = PR_FALSE;
-                      
-              }
-              else   // band counts match, compare individual traps
-              { 
-                PRInt32 trapIndex=0;
-                for ( ; trapIndex<band1.mCount; trapIndex++)
-                {
-                  PRBool match = (trap1[trapIndex].EqualGeometry(trap2[trapIndex])) && 
-                    ((trap1[trapIndex].mFrames!=nsnull) == (trap2[trapIndex].mFrames!=nsnull));
-                  if (!match)
-                  {
-                    LogVerifyMessage(k1, k2, "band.mTrapezoids of space managers differs\n");
-                    printf ("index %d\n", trapIndex);
-                  }
-                }
-              }
-            }
-          }
-        }
-
-
-
+        // XXX Should perhaps compare their float managers.
 
         // Compare the sub-trees too
         if (!CompareTrees(aFirstPresContext, k1, aSecondPresContext, k2)) {

@@ -689,12 +689,11 @@ namespace nanojit
 	class LirBuffer : public avmplus::GCFinalizedObject
 	{
 		public:
-			static const uint32_t LIR_BUF_THRESHOLD = 1024/sizeof(LIns);  // 1KB prior to running out of space we'll allocate a new page
-
 			DWB(Fragmento*)		_frago;
 			LirBuffer(Fragmento* frago, const CallInfo* functions);
 			virtual ~LirBuffer();
 			void        clear();
+            void        rewind();
 			LInsp		next();
 			bool		outOMem() { return _noMem != 0; }
 			
@@ -724,7 +723,7 @@ namespace nanojit
 			Page*		pageAlloc();
 
 			PageList	_pages;
-			Page*		_thresholdPage; // allocated in preperation of a needing to growing the buffer
+			Page*		_nextPage; // allocated in preperation of a needing to growing the buffer
 			LInsp		_unused;	// next unused instruction slot
 			int			_noMem;		// set if ran out of memory when writing to buffer
 	};	

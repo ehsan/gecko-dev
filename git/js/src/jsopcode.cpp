@@ -885,7 +885,7 @@ GetOff(SprintStack *ss, uintN i)
 
     JS_ASSERT(off <= -2);
     JS_ASSERT(ss->printer->pcstack);
-    if (off < -2 && ss->printer->pcstack) {
+    if (off <= -2 && ss->printer->pcstack) {
         pc = ss->printer->pcstack[-2 - off];
         bytes = DecompileExpression(ss->sprinter.context, ss->printer->script,
                                     ss->printer->fun, pc);
@@ -1250,12 +1250,19 @@ GetLocal(SprintStack *ss, jsint i)
      * We must be called from js_DecompileValueGenerator (via Decompile) when
      * dereferencing a local that's undefined or null. Search script->objects
      * for the block containing this local by its stack index, i.
+     *
+     * In case of destructuring's use of JSOP_GETLOCAL, however, there may be
+     * no such local. This could mean no blocks (no script objects at all, or
+     * none of the script's object literals are blocks), or the stack slot i is
+     * not in a block. In either case, return GetStr(ss, i).
      */
     cx = ss->sprinter.context;
     script = ss->printer->script;
-    LOCAL_ASSERT(script->objectsOffset != 0);
+    if (script->objectsOffset == 0)
+        return GetStr(ss, i);
     for (j = 0, n = JS_SCRIPT_OBJECTS(script)->length; ; j++) {
-        LOCAL_ASSERT(j < n);
+        if (j == n)
+            return GetStr(ss, i);
         JS_GET_SCRIPT_OBJECT(script, j, obj);
         if (OBJ_GET_CLASS(cx, obj) == &js_BlockClass) {
             depth = OBJ_BLOCK_DEPTH(cx, obj);
@@ -2794,12 +2801,23 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
 
 #if JS_HAS_DESTRUCTURING
                 if (sn && SN_TYPE(sn) == SRC_GROUPASSIGN) {
-                    pc = DecompileGroupAssignment(ss, pc, endpc, sn, &todo);
-                    if (!pc)
-                        return NULL;
-                    LOCAL_ASSERT(*pc == JSOP_POPN);
-                    len = oplen = JSOP_POPN_LENGTH;
-                    goto end_groupassignment;
+                    /*
+                     * Distinguish a js_DecompileValueGenerator call that
+                     * targets op alone, from decompilation of a full group
+                     * assignment sequence, triggered by SRC_GROUPASSIGN
+                     * annotating the first JSOP_GETLOCAL in the sequence.
+                     */
+                    if (endpc - pc > JSOP_GETLOCAL_LENGTH || pc > startpc) {
+                        pc = DecompileGroupAssignment(ss, pc, endpc, sn, &todo);
+                        if (!pc)
+                            return NULL;
+                        LOCAL_ASSERT(*pc == JSOP_POPN);
+                        len = oplen = JSOP_POPN_LENGTH;
+                        goto end_groupassignment;
+                    }
+
+                    /* Null sn to prevent bogus VarPrefix'ing below. */
+                    sn = NULL;
                 }
 #endif
 
@@ -5072,6 +5090,12 @@ DecompileExpression(JSContext *cx, JSScript *script, JSFunction *fun,
     /* None of these stack-writing ops generates novel values. */
     JS_ASSERT(op != JSOP_CASE && op != JSOP_CASEX &&
               op != JSOP_DUP && op != JSOP_DUP2);
+
+    /* JSOP_PUSH is used to generate undefined for group assignment holes. */
+    if (op == JSOP_PUSH) {
+        name = JS_strdup(cx, js_undefined_str);
+        goto out;
+    }
 
     /*
      * |this| could convert to a very long object initialiser, so cite it by

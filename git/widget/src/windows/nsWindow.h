@@ -94,18 +94,12 @@ PRInt32 GetWindowsVersion();
  * could break touchpad scrolling or screen readers.
  */
 const PRUint32 kMaxClassNameLength    = 40;
-const LPCWSTR kWClassNameHidden       = L"MozillaHiddenWindowClass";
-const LPCWSTR kWClassNameUI           = L"MozillaUIWindowClass";
-const LPCWSTR kWClassNameContent      = L"MozillaContentWindowClass";
-const LPCWSTR kWClassNameContentFrame = L"MozillaContentFrameWindowClass";
-const LPCWSTR kWClassNameGeneral      = L"MozillaWindowClass";
-const LPCWSTR kWClassNameDialog       = L"MozillaDialogClass";
-const LPCSTR kClassNameHidden         = "MozillaHiddenWindowClass";
-const LPCSTR kClassNameUI             = "MozillaUIWindowClass";
-const LPCSTR kClassNameContent        = "MozillaContentWindowClass";
-const LPCSTR kClassNameContentFrame   = "MozillaContentFrameWindowClass";
-const LPCSTR kClassNameGeneral        = "MozillaWindowClass";
-const LPCSTR kClassNameDialog         = "MozillaDialogClass";
+const LPCWSTR kClassNameHidden       = L"MozillaHiddenWindowClass";
+const LPCWSTR kClassNameUI           = L"MozillaUIWindowClass";
+const LPCWSTR kClassNameContent      = L"MozillaContentWindowClass";
+const LPCWSTR kClassNameContentFrame = L"MozillaContentFrameWindowClass";
+const LPCWSTR kClassNameGeneral      = L"MozillaWindowClass";
+const LPCWSTR kClassNameDialog       = L"MozillaDialogClass";
 
 typedef enum
 {
@@ -271,8 +265,6 @@ public:
 
 protected:
 
-#ifndef WINCE
-
   // special callback hook methods for pop ups
   static LRESULT CALLBACK MozSpecialMsgFilter(int code, WPARAM wParam, LPARAM lParam);
   static LRESULT CALLBACK MozSpecialWndProc(int code, WPARAM wParam, LPARAM lParam);
@@ -284,7 +276,6 @@ protected:
   static void             UnregisterSpecialDropdownHooks();
 
   static void             PostSleepWakeNotification(const char* aNotification);
-#endif
 
   static BOOL             DealWithPopups (HWND inWnd, UINT inMsg, WPARAM inWParam, LPARAM inLParam, LRESULT* outResult);
 
@@ -317,10 +308,8 @@ protected:
    // Allow Derived classes to modify the height that is passed
    // when the window is created or resized.
   virtual PRInt32         GetHeight(PRInt32 aProposedHeight);
-  virtual LPCWSTR         WindowClassW();
-  virtual LPCWSTR         WindowPopupClassW();
-  virtual LPCTSTR         WindowClass();
-  virtual LPCTSTR         WindowPopupClass();
+  virtual LPCWSTR         WindowClass();
+  virtual LPCWSTR         WindowPopupClass();
   virtual DWORD           WindowStyle();
   virtual DWORD           WindowExStyle();
 
@@ -519,6 +508,7 @@ protected:
   HIMC          mOldIMC;
   PRUint32      mIMEEnabled;
 
+  static HKL    gKeyboardLayout;
   static PRBool gSwitchKeyboardLayout;
 
   HKL           mLastKeyboardLayout;

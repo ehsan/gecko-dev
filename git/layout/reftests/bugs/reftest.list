@@ -142,10 +142,15 @@ fails == 25888-3r.html 25888-3r-ref.html # bug 25888
 == 214077-1a.html 214077-1-ref.html
 == 214077-1b.html 214077-1-ref.html
 == 218473-1.html 218473-1-ref.html
+== 220165-1.svg 220165-1-ref.svg
 == 223809-1.html 223809-1-ref.html
 == 228856-1.html 228856-1-ref.html
 == 228856-2.html 228856-2-ref.html
 # == 231823-1.html 231823-1-ref.html
+== 233094-1.html 233094-1-ref.html
+== 233094-2a.html 233094-2-ref.html
+== 233094-2b.html 233094-2-ref.html
+== 233094-2c.html 233094-2-ref.html
 == 234686-1.html 234686-ref.html
 == 234686-2.html 234686-ref.html
 == 234686-3.html 234686-ref.html
@@ -169,6 +174,7 @@ fails == 25888-3r.html 25888-3r-ref.html # bug 25888
 == 234964-2.html 234964-2-ref.html
 == 235593-1.html 235593-1-ref.html
 == 236539-1.html 236539-1-ref.html
+== 240029-1.html 240029-1-ref.html
 == 240470-1.html 240470-1-ref.html
 == 243266-1.html 243266-1-ref.html
 == 243302-1.html 243302-1-ref.html
@@ -223,6 +229,7 @@ fails-if(MOZ_WIDGET_TOOLKIT!="cocoa") HTTP == 289480.html#top 289480-ref.html # 
 == 300691-1f.html 300691-1-ref.html
 == 301726-1.html 301726-1-ref.html
 != 301726-2.html 301726-2-ref.html
+== 302379.html 302379-ref.html
 == 306630-1.html 306630-1-ref.html
 == 306660-1.html 306660-1-ref.html
 == 306660-2.html 306660-2-ref.html
@@ -525,6 +532,7 @@ random-if(MOZ_WIDGET_TOOLKIT=="gtk2") == 368020-5.html 368020-5-ref.html # bug 3
 == 371925-1a.html 371925-1-ref.html
 == 371925-1b.html 371925-1-ref.html
 == 372037-1.html 372037-1-ref.html
+== 372063-1.html 372063-1-ref.html
 == 372323-1.xhtml 372323-1-ref.xhtml
 == 372553-1.html 372553-1-ref.html
 == 372632-1.html 372632-1-ref.html
@@ -627,6 +635,7 @@ fails == 386310-1d.html 386310-1-ref.html
 == 388367-1.html about:blank
 == 388980-1.html 388980-1-ref.html
 == 389468-1.html 389468-1-ref.html
+== 389623-1.html 389623-1-ref.html
 == 389636-1.html about:blank  # assertion test
 == 389924-1a.html 389924-1-ref.html
 == 389924-1b.html 389924-1-ref.html
@@ -798,7 +807,7 @@ fails == 411585-3.html 411585-3-ref.html # bug 426909
 == 412607-1b.html 412607-1-ref.html
 == 412679-1.html 412679-1-ref.html
 == 412679-2.html 412679-2-ref.html
-fails == 413027-1.html 413027-1-ref.html
+== 413027-1.html 413027-1-ref.html
 fails == 413027-2.html 413027-2-ref.html
 fails == 413027-3.html 413027-3-ref.html
 == 413027-4.html 413027-4-ref.html
@@ -964,6 +973,10 @@ fails-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 456147.xul 456147-ref.html # bug 456147
 == 456484-1.html 456484-1-ref.html
 == 457398-1.html 457398-1-ref.html
 == 457398-2.html 457398-2-ref.html
+== 458296-1a.html 458296-1-ref.html
+== 458296-1b.html 458296-1-ref.html
+== 458296-1c.html 458296-1-ref.html
+== 458296-1d.html 458296-1-ref.html
 == 458487-1a.html 458487-1-ref.html
 == 458487-1b.html 458487-1-ref.html
 == 458487-1c.html 458487-1-ref.html
@@ -998,3 +1011,4 @@ fails == 461512-1.html 461512-1-ref.html # Bug 461512
 == 467084-2.html 467084-2-ref.html
 == 467460-1.html 467460-1-ref.html
 == 468473-1.xul 468473-1-ref.xul
+== 471356-1.html 471356-1-ref.html

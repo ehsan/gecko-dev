@@ -1872,8 +1872,10 @@ TraceRecorder::determineSlotType(jsval* vp) const
 
 static jsbytecode* imacro_code[JSOP_LIMIT];
 
+JS_STATIC_ASSERT(sizeof(equality_imacros) < IMACRO_PC_ADJ_LIMIT);
 JS_STATIC_ASSERT(sizeof(binary_imacros) < IMACRO_PC_ADJ_LIMIT);
 JS_STATIC_ASSERT(sizeof(add_imacros) < IMACRO_PC_ADJ_LIMIT);
+JS_STATIC_ASSERT(sizeof(unary_imacros) < IMACRO_PC_ADJ_LIMIT);
 JS_STATIC_ASSERT(sizeof(apply_imacros) < IMACRO_PC_ADJ_LIMIT);
 
 JS_REQUIRES_STACK LIns*
@@ -1984,7 +1986,7 @@ TraceRecorder::snapshot(ExitType exitType)
     exit->block = fp->blockChain;
     exit->ip_adj = ip_adj;
     exit->sp_adj = (stackSlots * sizeof(double)) - treeInfo->nativeStackBase;
-    exit->rp_adj = exit->calldepth * sizeof(FrameInfo);
+    exit->rp_adj = exit->calldepth * sizeof(FrameInfo*);
     memcpy(getTypeMap(exit), typemap, typemap_size);
 
     /* BIG FAT WARNING: If compilation fails, we currently don't reset the lirbuf so its safe
@@ -2505,7 +2507,7 @@ TraceRecorder::prepareTreeCall(Fragment* inner)
            any outer frames that the inner tree doesn't expect but the outer tree has. */
         ptrdiff_t sp_adj = nativeStackOffset(&cx->fp->argv[-2]);
         /* Calculate the amount we have to lift the call stack by */
-        ptrdiff_t rp_adj = callDepth * sizeof(FrameInfo);
+        ptrdiff_t rp_adj = callDepth * sizeof(FrameInfo*);
         /* Guard that we have enough stack space for the tree we are trying to call on top
            of the new value for sp. */
         debug_only_v(printf("sp_adj=%d outer=%d inner=%d\n",
@@ -2517,7 +2519,7 @@ TraceRecorder::prepareTreeCall(Fragment* inner)
         guard(true, lir->ins2(LIR_lt, sp_top, eos_ins), OOM_EXIT);
         /* Guard that we have enough call stack space. */
         LIns* rp_top = lir->ins2i(LIR_piadd, lirbuf->rp, rp_adj +
-                ti->maxCallDepth * sizeof(FrameInfo));
+                ti->maxCallDepth * sizeof(FrameInfo*));
         guard(true, lir->ins2(LIR_lt, rp_top, eor_ins), OOM_EXIT);
         /* We have enough space, so adjust sp and rp to their new level. */
         lir->insStorei(inner_sp_ins = lir->ins2i(LIR_piadd, lirbuf->sp,
@@ -2697,9 +2699,6 @@ nanojit::LirNameMap::formatGuard(LIns *i, char *out)
 void
 nanojit::Fragment::onDestroy()
 {
-    if (root == this) {
-        delete lirbuf;
-    }
     delete (TreeInfo *)vmprivate;
 }
 
@@ -3009,13 +3008,7 @@ js_RecordTree(JSContext* cx, JSTraceMonitor* tm, Fragment* f, Fragment* outer, u
 
     f->recordAttempts++;
     f->root = f;
-    /* allocate space to store the LIR for this tree */
-    if (!f->lirbuf) {
-        f->lirbuf = new (&gc) LirBuffer(tm->fragmento, NULL);
-#ifdef DEBUG
-        f->lirbuf->names = new (&gc) LirNameMap(&gc, NULL, tm->fragmento->labels);
-#endif
-    }
+    f->lirbuf = tm->lirbuf;
 
     if (f->lirbuf->outOMem()) {
         js_FlushJITCache(cx);
@@ -3551,8 +3544,8 @@ js_ExecuteTree(JSContext* cx, Fragment* f, uintN& inlineCallCount,
     BuildNativeStackFrame(cx, 0/*callDepth*/, ti->stackTypeMap.data(), stack);
 
     double* entry_sp = &stack[ti->nativeStackBase/sizeof(double)];
-    FrameInfo callstack_buffer[MAX_CALL_STACK_ENTRIES];
-    FrameInfo* callstack = callstack_buffer;
+    FrameInfo* callstack_buffer[MAX_CALL_STACK_ENTRIES];
+    FrameInfo** callstack = callstack_buffer;
 
     InterpState state;
     state.sp = (void*)entry_sp;
@@ -3610,7 +3603,7 @@ js_ExecuteTree(JSContext* cx, Fragment* f, uintN& inlineCallCount,
        way through the outer frames and generate interpreter frames for them. Once the call
        stack (rp) is empty, we can process the final frames (which again are not directly
        visible and only the guard we exited on will tells us about). */
-    FrameInfo* rp = (FrameInfo*)state.rp;
+    FrameInfo** rp = (FrameInfo**)state.rp;
     if (lr->exitType == NESTED_EXIT) {
         VMSideExit* nested = state.lastTreeCallGuard;
         if (!nested) {
@@ -3626,7 +3619,7 @@ js_ExecuteTree(JSContext* cx, Fragment* f, uintN& inlineCallCount,
             /* During unwinding state.rp gets overwritten at every step and we restore
                it here to its state at the innermost nested guard. The builtin already
                added the calldepth of that innermost guard to rpAtLastTreeCall. */
-            rp = (FrameInfo*)state.rpAtLastTreeCall;
+            rp = (FrameInfo**)state.rpAtLastTreeCall;
         }
         innermost = state.lastTreeExitGuard;
         if (innermostNestedGuardp)
@@ -3640,9 +3633,9 @@ js_ExecuteTree(JSContext* cx, Fragment* f, uintN& inlineCallCount,
     while (callstack < rp) {
         /* Synthesize a stack frame and write out the values in it using the type map pointer
            on the native call stack. */
-        if (js_SynthesizeFrame(cx, *callstack) < 0)
+        if (js_SynthesizeFrame(cx, **callstack) < 0)
             return NULL;
-        int slots = FlushNativeStackFrame(cx, 1/*callDepth*/, callstack->typemap, stack, cx->fp);
+        int slots = FlushNativeStackFrame(cx, 1/*callDepth*/, (uint8*)(*callstack+1), stack, cx->fp);
 #ifdef DEBUG
         JSStackFrame* fp = cx->fp;
         debug_only_v(printf("synthesized deep frame for %s:%u@%u, slots=%d\n",
@@ -3666,7 +3659,7 @@ js_ExecuteTree(JSContext* cx, Fragment* f, uintN& inlineCallCount,
     unsigned calldepth = innermost->calldepth;
     unsigned calldepth_slots = 0;
     for (unsigned n = 0; n < calldepth; ++n) {
-        int nslots = js_SynthesizeFrame(cx, callstack[n]);
+        int nslots = js_SynthesizeFrame(cx, *callstack[n]);
         if (nslots < 0)
             return NULL;
         calldepth_slots += nslots;
@@ -3897,7 +3890,8 @@ TraceRecorder::monitorRecording(JSOp op)
         case x:                                                               \
           flag = record_##x();                                                \
           if (x == JSOP_ITER || x == JSOP_NEXTITER || x == JSOP_APPLY ||      \
-              JSOP_IS_BINARY(x) || JSOP_IS_UNARY(x)) {                       \
+              JSOP_IS_BINARY(x) || JSOP_IS_UNARY(x) ||                        \
+              JSOP_IS_EQUALITY(x)) {                                          \
               goto imacro;                                                    \
           }                                                                   \
         break;
@@ -4023,6 +4017,10 @@ js_InitJIT(JSTraceMonitor *tm)
         Fragmento* fragmento = new (&gc) Fragmento(core, 24);
         verbose_only(fragmento->labels = new (&gc) LabelMap(core, NULL);)
         tm->fragmento = fragmento;
+        tm->lirbuf = new (&gc) LirBuffer(fragmento, NULL);
+#ifdef DEBUG
+        tm->lirbuf->names = new (&gc) LirNameMap(&gc, NULL, tm->fragmento->labels);
+#endif
         tm->globalSlots = new (&gc) SlotList();
         tm->globalTypeMap = new (&gc) TypeMap();
         tm->recoveryDoublePoolPtr = tm->recoveryDoublePool = new jsval[MAX_NATIVE_STACK_SLOTS];
@@ -4031,6 +4029,7 @@ js_InitJIT(JSTraceMonitor *tm)
         Fragmento* fragmento = new (&gc) Fragmento(core, 20);
         verbose_only(fragmento->labels = new (&gc) LabelMap(core, NULL);)
         tm->reFragmento = fragmento;
+        tm->reLirBuf = new (&gc) LirBuffer(fragmento, NULL);
     }
     InitIMacroCode();
 #if !defined XP_WIN
@@ -4058,6 +4057,12 @@ js_FinishJIT(JSTraceMonitor *tm)
     if (tm->fragmento != NULL) {
         JS_ASSERT(tm->globalSlots && tm->globalTypeMap && tm->recoveryDoublePool);
         verbose_only(delete tm->fragmento->labels;)
+#ifdef DEBUG
+        delete tm->lirbuf->names;
+        tm->lirbuf->names = NULL;
+#endif
+        delete tm->lirbuf;
+        tm->lirbuf = NULL;
         delete tm->fragmento;
         tm->fragmento = NULL;
         delete tm->globalSlots;
@@ -4068,6 +4073,7 @@ js_FinishJIT(JSTraceMonitor *tm)
         tm->recoveryDoublePool = tm->recoveryDoublePoolPtr = NULL;
     }
     if (tm->reFragmento != NULL) {
+        delete tm->reLirBuf;
         verbose_only(delete tm->reFragmento->labels;)
         delete tm->reFragmento;
     }
@@ -4126,6 +4132,7 @@ js_FlushJITCache(JSContext* cx)
         delete fragmento->labels;
         fragmento->labels = new (&gc) LabelMap(core, NULL);
 #endif
+        tm->lirbuf->rewind();
     }
     if (cx->fp) {
         tm->globalShape = OBJ_SHAPE(JS_GetGlobalForObject(cx, cx->fp->scopeChain));
@@ -4652,89 +4659,99 @@ TraceRecorder::strictEquality(bool equal, bool cmpCase)
 JS_REQUIRES_STACK bool
 TraceRecorder::equality(bool negate, bool tryBranchAfterCond)
 {
-    jsval& r = stackval(-1);
-    jsval& l = stackval(-2);
-    LIns* x = NULL;
-    bool cond;
-    LIns* l_ins = get(&l);
-    LIns* r_ins = get(&r);
+    jsval& rval = stackval(-1);
+    jsval& lval = stackval(-2);
+    LIns* l_ins = get(&lval);
+    LIns* r_ins = get(&rval);
+
+    return equalityHelper(lval, rval, l_ins, r_ins, negate, tryBranchAfterCond, lval);
+}
+
+JS_REQUIRES_STACK bool
+TraceRecorder::equalityHelper(jsval l, jsval r, LIns* l_ins, LIns* r_ins,
+                              bool negate, bool tryBranchAfterCond,
+                              jsval& rval)
+{
     bool fp = false;
+    bool cond;
+    LIns* args[] = { NULL, NULL };
 
-    if (JSVAL_IS_STRING(l) || JSVAL_IS_STRING(r)) {
-        // Comparing equality of a string against null always produces false.
-        if ((JSVAL_IS_NULL(l) && l_ins->isconst()) ||
-            (JSVAL_IS_NULL(r) && r_ins->isconst())) {
-            x = INS_CONST(negate);
-            cond = negate;
-        } else {
-            if (!JSVAL_IS_STRING(l) || !JSVAL_IS_STRING(r))
-                ABORT_TRACE("unsupported type for cmp vs string");
+    /*
+     * The if chain below closely mirrors that found in 11.9.3, in general
+     * deviating from that ordering of ifs only to account for SpiderMonkey's
+     * conflation of booleans and undefined and for the possibility of
+     * confusing objects and null.  Note carefully the spec-mandated recursion
+     * in the final else clause, which terminates because Number == T recurs
+     * only if T is Object, but that must recur again to convert Object to
+     * primitive, and ToPrimitive throws if the object cannot be converted to
+     * a primitive value (which would terminate recursion).
+     */
 
-            LIns* args[] = { r_ins, l_ins };
-            l_ins = lir->ins_eq0(lir->insCall(&js_EqualStrings_ci, args));
-            r_ins = lir->insImm(0);
-            cond = js_EqualStrings(JSVAL_TO_STRING(l), JSVAL_TO_STRING(r));
-        }
-    } else if (isNumber(l) || isNumber(r)) {
-        jsval tmp[2] = {l, r};
-        JSAutoTempValueRooter tvr(cx, 2, tmp);
-        
-        fp = true;
-
-        // TODO: coerce non-numbers to numbers if it's not string-on-string above
-        LIns* args[] = { l_ins, cx_ins };
-        if (l == JSVAL_NULL && l_ins->isconst()) {
-            jsdpun u;
-            u.d = js_NaN;
-            l_ins = lir->insImmq(u.u64);
+    if (getPromotedType(l) == getPromotedType(r)) {
+        if (JSVAL_TAG(l) == JSVAL_OBJECT || JSVAL_TAG(l) == JSVAL_BOOLEAN) {
+            cond = (l == r);
         } else if (JSVAL_IS_STRING(l)) {
-            l_ins = lir->insCall(&js_StringToNumber_ci, args);
-        } else if (JSVAL_TAG(l) == JSVAL_BOOLEAN) {
-            /*
-             * What I really want here is for undefined to be type-specialized
-             * differently from real booleans.  Failing that, I want to be able
-             * to cmov on quads.  Failing that, I want to have small forward
-             * branches.  Failing that, I want to be able to ins_choose on quads
-             * without cmov.  Failing that, eat flaming builtin!
-             */
-            l_ins = lir->insCall(&js_BooleanOrUndefinedToNumber_ci, args);
-        } else if (!isNumber(l)) {
-            ABORT_TRACE("unsupported LHS type for cmp vs number");
+            args[0] = r_ins, args[1] = l_ins;
+            l_ins = lir->insCall(&js_EqualStrings_ci, args);
+            r_ins = lir->insImm(1);
+            cond = js_EqualStrings(JSVAL_TO_STRING(l), JSVAL_TO_STRING(r));
+        } else {
+            JS_ASSERT(isNumber(l) && isNumber(r));
+            cond = (asNumber(l) == asNumber(r));
+            fp = true;
         }
-        jsdouble lnum = js_ValueToNumber(cx, &tmp[0]);
-
-        args[0] = r_ins;
-        args[1] = cx_ins;
-        if (r == JSVAL_NULL && r_ins->isconst()) {
-            jsdpun u;
-            u.d = js_NaN;
-            r_ins = lir->insImmq(u.u64);
-        } else if (JSVAL_IS_STRING(r)) {
-            r_ins = lir->insCall(&js_StringToNumber_ci, args);
-        } else if (JSVAL_TAG(r) == JSVAL_BOOLEAN) {
-            // See above for the sob story.
-            r_ins = lir->insCall(&js_BooleanOrUndefinedToNumber_ci, args);
-        } else if (!isNumber(r)) {
-            ABORT_TRACE("unsupported RHS type for cmp vs number");
-        }
-        jsdouble rnum = js_ValueToNumber(cx, &tmp[1]);
-        cond = (lnum == rnum);
-    } else if ((JSVAL_TAG(l) == JSVAL_BOOLEAN && JSVAL_TAG(r) == JSVAL_BOOLEAN) ||
-               (JSVAL_TAG(l) == JSVAL_OBJECT && JSVAL_TAG(r) == JSVAL_OBJECT)) {
-        cond = (l == r); 
+    } else if (JSVAL_IS_NULL(l) && JSVAL_TAG(r) == JSVAL_BOOLEAN) {
+        l_ins = lir->insImm(JSVAL_TO_BOOLEAN(JSVAL_VOID));
+        cond = (r == JSVAL_VOID);
+    } else if (JSVAL_TAG(l) == JSVAL_BOOLEAN && JSVAL_IS_NULL(r)) {
+        r_ins = lir->insImm(JSVAL_TO_BOOLEAN(JSVAL_VOID));
+        cond = (l == JSVAL_VOID);
+    } else if (isNumber(l) && JSVAL_IS_STRING(r)) {
+        args[0] = r_ins, args[1] = cx_ins;
+        r_ins = lir->insCall(&js_StringToNumber_ci, args);
+        cond = (asNumber(l) == js_StringToNumber(cx, JSVAL_TO_STRING(r)));
+        fp = true;
+    } else if (JSVAL_IS_STRING(l) && isNumber(r)) {
+        args[0] = l_ins, args[1] = cx_ins;
+        l_ins = lir->insCall(&js_StringToNumber_ci, args);
+        cond = (js_StringToNumber(cx, JSVAL_TO_STRING(l)) == asNumber(r));
+        fp = true;
     } else {
-        ABORT_TRACE("unsupported operand types for cmp");
+        if (JSVAL_TAG(l) == JSVAL_BOOLEAN) {
+            args[0] = l_ins, args[1] = cx_ins;
+            l_ins = lir->insCall(&js_BooleanOrUndefinedToNumber_ci, args);
+            l = (l == JSVAL_VOID)
+                ? DOUBLE_TO_JSVAL(&cx->runtime->jsNaN)
+                : INT_TO_JSVAL(l == JSVAL_TRUE);
+            return equalityHelper(l, r, l_ins, r_ins, negate,
+                                  tryBranchAfterCond, rval);
+        }
+        if (JSVAL_TAG(r) == JSVAL_BOOLEAN) {
+            args[0] = r_ins, args[1] = cx_ins;
+            r_ins = lir->insCall(&js_BooleanOrUndefinedToNumber_ci, args);
+            r = (r == JSVAL_VOID)
+                ? DOUBLE_TO_JSVAL(&cx->runtime->jsNaN)
+                : INT_TO_JSVAL(r == JSVAL_TRUE);
+            return equalityHelper(l, r, l_ins, r_ins, negate,
+                                  tryBranchAfterCond, rval);
+        }
+        
+        if ((JSVAL_IS_STRING(l) || isNumber(l)) && !JSVAL_IS_PRIMITIVE(r))
+            return call_imacro(equality_imacros.any_obj);
+        if (!JSVAL_IS_PRIMITIVE(l) && (JSVAL_IS_STRING(r) || isNumber(r)))
+            return call_imacro(equality_imacros.obj_any);
+
+        l_ins = lir->insImm(0);
+        r_ins = lir->insImm(1);
+        cond = false;
     }
 
-    /* If we didn't generate a constant result yet, then emit the comparison now. */
-    if (!x) {
-        /* If the result is not a number or it's not a quad, we must use an integer compare. */
-        LOpcode op = fp ? LIR_feq : LIR_eq;
-        x = lir->ins2(op, l_ins, r_ins);
-        if (negate) {
-            x = lir->ins_eq0(x);
-            cond = !cond;
-        }
+    /* If the operands aren't numbers, compare them as integers. */
+    LOpcode op = fp ? LIR_feq : LIR_eq;
+    LIns* x = lir->ins2(op, l_ins, r_ins);
+    if (negate) {
+        x = lir->ins_eq0(x);
+        cond = !cond;
     }
 
     /*
@@ -4751,7 +4768,7 @@ TraceRecorder::equality(bool negate, bool tryBranchAfterCond)
      * comparison. This way the value of the condition doesn't have to be 
      * calculated and saved on the stack in most cases.
      */
-    set(&l, x);
+    set(&rval, x);
     return true;
 }
 
@@ -5890,35 +5907,37 @@ TraceRecorder::record_JSOP_NEG()
         return true;
     }
 
-    LIns* args[] = { get(&v), cx_ins };
-    if (JSVAL_IS_STRING(v)) {
-        set(&v, lir->ins1(LIR_fneg, lir->insCall(&js_StringToNumber_ci, args)));
-        return true;
-    }
+    JS_ASSERT(JSVAL_TAG(v) == JSVAL_STRING || JSVAL_TAG(v) == JSVAL_BOOLEAN);
 
-    JS_ASSERT(JSVAL_TAG(v) == JSVAL_BOOLEAN);
-    set(&v, lir->ins1(LIR_fneg, lir->insCall(&js_BooleanOrUndefinedToNumber_ci, args)));
+    LIns* args[] = { get(&v), cx_ins };
+    set(&v, lir->ins1(LIR_fneg,
+                      lir->insCall(JSVAL_IS_STRING(v)
+                                   ? &js_StringToNumber_ci
+                                   : &js_BooleanOrUndefinedToNumber_ci,
+                                   args)));
     return true;
 }
 
 JS_REQUIRES_STACK bool
 TraceRecorder::record_JSOP_POS()
 {
-    jsval& r = stackval(-1);
+    jsval& v = stackval(-1);
 
-    if (!JSVAL_IS_PRIMITIVE(r))
+    if (!JSVAL_IS_PRIMITIVE(v))
         return call_imacro(unary_imacros.sign);
 
-    if (isNumber(r))
+    if (isNumber(v))
         return true;
 
-    if (JSVAL_IS_NULL(r)) {
-        set(&r, lir->insImmq(0));
+    if (JSVAL_IS_NULL(v)) {
+        set(&v, lir->insImmq(0));
         return true;
     }
 
-    LIns* args[] = { get(&r), cx_ins };
-    set(&r, lir->insCall(JSVAL_IS_STRING(r)
+    JS_ASSERT(JSVAL_TAG(v) == JSVAL_STRING || JSVAL_TAG(v) == JSVAL_BOOLEAN);
+
+    LIns* args[] = { get(&v), cx_ins };
+    set(&v, lir->insCall(JSVAL_IS_STRING(v)
                          ? &js_StringToNumber_ci
                          : &js_BooleanOrUndefinedToNumber_ci,
                          args));
@@ -6674,8 +6693,9 @@ TraceRecorder::interpretedFunctionCall(jsval& fval, JSFunction* fun, uintN argc,
 
     // Generate a type map for the outgoing frame and stash it in the LIR
     unsigned stackSlots = js_NativeStackSlots(cx, 0/*callDepth*/);
-    LIns* data = lir_buf_writer->skip(stackSlots * sizeof(uint8));
-    uint8* typemap = (uint8 *)data->payload();
+    LIns* data = lir_buf_writer->skip(sizeof(FrameInfo) + stackSlots * sizeof(uint8));
+    FrameInfo* fi = (FrameInfo*)data->payload();
+    uint8* typemap = (uint8 *)(fi + 1);
     uint8* m = typemap;
     /* Determine the type of a store by looking at the current type of the actual value the
        interpreter is using. For numbers we have to check what kind of store we used last
@@ -6687,29 +6707,17 @@ TraceRecorder::interpretedFunctionCall(jsval& fval, JSFunction* fun, uintN argc,
     if (argc >= 0x8000)
         ABORT_TRACE("too many arguments");
 
-    FrameInfo fi = {
-        JSVAL_TO_OBJECT(fval),
-        fp->blockChain,
-        ENCODE_IP_ADJ(fp, fp->regs->pc),
-        typemap,
-        { { fp->regs->sp - fp->slots, argc | (constructing ? 0x8000 : 0) } }
-    };
+    fi->callee = JSVAL_TO_OBJECT(fval);
+    fi->block = fp->blockChain;
+    fi->ip_adj = ENCODE_IP_ADJ(fp, fp->regs->pc);
+    fi->s.spdist = fp->regs->sp - fp->slots;
+    fi->s.argc = argc | (constructing ? 0x8000 : 0);
 
     unsigned callDepth = getCallDepth();
     if (callDepth >= treeInfo->maxCallDepth)
         treeInfo->maxCallDepth = callDepth + 1;
 
-#define STORE_AT_RP(name)                                                     \
-    lir->insStorei(INS_CONSTPTR(fi.name), lirbuf->rp,                         \
-                   callDepth * sizeof(FrameInfo) + offsetof(FrameInfo, name))
-
-    STORE_AT_RP(callee);
-    STORE_AT_RP(block);
-    STORE_AT_RP(ip_adj);
-    STORE_AT_RP(typemap);
-    STORE_AT_RP(word);
-
-#undef STORE_AT_RP
+    lir->insStorei(INS_CONSTPTR(fi), lirbuf->rp, callDepth * sizeof(FrameInfo*));
 
     atoms = fun->u.i.script->atomMap.vector;
     return true;
@@ -8646,6 +8654,9 @@ InitIMacroCode()
 
     imacro_code[JSOP_NEG] = (jsbytecode*)&unary_imacros - 1;
     imacro_code[JSOP_POS] = (jsbytecode*)&unary_imacros - 1;
+
+    imacro_code[JSOP_EQ] = (jsbytecode*)&equality_imacros - 1;
+    imacro_code[JSOP_NE] = (jsbytecode*)&equality_imacros - 1;
 }
 
 #define UNUSED(n)                                                             \
