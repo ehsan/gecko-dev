@@ -18,18 +18,18 @@ class nsIGlobalObject;
 namespace mozilla {
 namespace dom {
 
-class ArrayBufferOrArrayBufferViewOrBlobOrUSVStringOrURLSearchParams;
+class ArrayBufferOrArrayBufferViewOrBlobOrScalarValueStringOrURLSearchParams;
 class InternalRequest;
-class OwningArrayBufferOrArrayBufferViewOrBlobOrUSVStringOrURLSearchParams;
+class OwningArrayBufferOrArrayBufferViewOrBlobOrScalarValueStringOrURLSearchParams;
 class Promise;
-class RequestOrUSVString;
+class RequestOrScalarValueString;
 
 namespace workers {
 class WorkerPrivate;
 } // namespace workers
 
 already_AddRefed<Promise>
-FetchRequest(nsIGlobalObject* aGlobal, const RequestOrUSVString& aInput,
+FetchRequest(nsIGlobalObject* aGlobal, const RequestOrScalarValueString& aInput,
              const RequestInit& aInit, ErrorResult& aRv);
 
 nsresult
@@ -41,7 +41,7 @@ GetRequestReferrer(nsIGlobalObject* aGlobal, const InternalRequest* aRequest, ns
  * Stores content type in out param aContentType.
  */
 nsresult
-ExtractByteStreamFromBody(const OwningArrayBufferOrArrayBufferViewOrBlobOrUSVStringOrURLSearchParams& aBodyInit,
+ExtractByteStreamFromBody(const OwningArrayBufferOrArrayBufferViewOrBlobOrScalarValueStringOrURLSearchParams& aBodyInit,
                           nsIInputStream** aStream,
                           nsCString& aContentType);
 
@@ -49,7 +49,7 @@ ExtractByteStreamFromBody(const OwningArrayBufferOrArrayBufferViewOrBlobOrUSVStr
  * Non-owning version.
  */
 nsresult
-ExtractByteStreamFromBody(const ArrayBufferOrArrayBufferViewOrBlobOrUSVStringOrURLSearchParams& aBodyInit,
+ExtractByteStreamFromBody(const ArrayBufferOrArrayBufferViewOrBlobOrScalarValueStringOrURLSearchParams& aBodyInit,
                           nsIInputStream** aStream,
                           nsCString& aContentType);
 

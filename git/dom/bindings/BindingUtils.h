@@ -1923,10 +1923,10 @@ ConvertJSValueToString(JSContext* cx, JS::Handle<JS::Value> v,
 }
 
 void
-NormalizeUSVString(JSContext* aCx, nsAString& aString);
+NormalizeScalarValueString(JSContext* aCx, nsAString& aString);
 
 void
-NormalizeUSVString(JSContext* aCx, binding_detail::FakeString& aString);
+NormalizeScalarValueString(JSContext* aCx, binding_detail::FakeString& aString);
 
 template<typename T>
 inline bool

@@ -112,7 +112,7 @@ public:
 };
 
 already_AddRefed<Promise>
-FetchRequest(nsIGlobalObject* aGlobal, const RequestOrUSVString& aInput,
+FetchRequest(nsIGlobalObject* aGlobal, const RequestOrScalarValueString& aInput,
              const RequestInit& aInit, ErrorResult& aRv)
 {
   nsRefPtr<Promise> p = Promise::Create(aGlobal, aRv);
@@ -316,7 +316,7 @@ ExtractFromBlob(const File& aFile, nsIInputStream** aStream,
 }
 
 nsresult
-ExtractFromUSVString(const nsString& aStr,
+ExtractFromScalarValueString(const nsString& aStr,
                              nsIInputStream** aStream,
                              nsCString& aContentType)
 {
@@ -365,7 +365,7 @@ ExtractFromURLSearchParams(const URLSearchParams& aParams,
 }
 
 nsresult
-ExtractByteStreamFromBody(const OwningArrayBufferOrArrayBufferViewOrBlobOrUSVStringOrURLSearchParams& aBodyInit,
+ExtractByteStreamFromBody(const OwningArrayBufferOrArrayBufferViewOrBlobOrScalarValueStringOrURLSearchParams& aBodyInit,
                           nsIInputStream** aStream,
                           nsCString& aContentType)
 {
@@ -380,10 +380,10 @@ ExtractByteStreamFromBody(const OwningArrayBufferOrArrayBufferViewOrBlobOrUSVStr
   } else if (aBodyInit.IsBlob()) {
     const File& blob = aBodyInit.GetAsBlob();
     return ExtractFromBlob(blob, aStream, aContentType);
-  } else if (aBodyInit.IsUSVString()) {
+  } else if (aBodyInit.IsScalarValueString()) {
     nsAutoString str;
-    str.Assign(aBodyInit.GetAsUSVString());
-    return ExtractFromUSVString(str, aStream, aContentType);
+    str.Assign(aBodyInit.GetAsScalarValueString());
+    return ExtractFromScalarValueString(str, aStream, aContentType);
   } else if (aBodyInit.IsURLSearchParams()) {
     URLSearchParams& params = aBodyInit.GetAsURLSearchParams();
     return ExtractFromURLSearchParams(params, aStream, aContentType);
@@ -394,7 +394,7 @@ ExtractByteStreamFromBody(const OwningArrayBufferOrArrayBufferViewOrBlobOrUSVStr
 }
 
 nsresult
-ExtractByteStreamFromBody(const ArrayBufferOrArrayBufferViewOrBlobOrUSVStringOrURLSearchParams& aBodyInit,
+ExtractByteStreamFromBody(const ArrayBufferOrArrayBufferViewOrBlobOrScalarValueStringOrURLSearchParams& aBodyInit,
                           nsIInputStream** aStream,
                           nsCString& aContentType)
 {
@@ -409,10 +409,10 @@ ExtractByteStreamFromBody(const ArrayBufferOrArrayBufferViewOrBlobOrUSVStringOrU
   } else if (aBodyInit.IsBlob()) {
     const File& blob = aBodyInit.GetAsBlob();
     return ExtractFromBlob(blob, aStream, aContentType);
-  } else if (aBodyInit.IsUSVString()) {
+  } else if (aBodyInit.IsScalarValueString()) {
     nsAutoString str;
-    str.Assign(aBodyInit.GetAsUSVString());
-    return ExtractFromUSVString(str, aStream, aContentType);
+    str.Assign(aBodyInit.GetAsScalarValueString());
+    return ExtractFromScalarValueString(str, aStream, aContentType);
   } else if (aBodyInit.IsURLSearchParams()) {
     URLSearchParams& params = aBodyInit.GetAsURLSearchParams();
     return ExtractFromURLSearchParams(params, aStream, aContentType);

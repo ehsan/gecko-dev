@@ -2090,9 +2090,9 @@ CodeGenerator::visitOsrEntry(LOsrEntry *lir)
 
 #ifdef JS_TRACE_LOGGING
     if (gen->info().executionMode() == SequentialExecution) {
-        if (!emitTracelogStopEvent(TraceLogger::Baseline))
+        if (!emitTracelogStopEvent(TraceLogger_Baseline))
             return false;
-        if (!emitTracelogStartEvent(TraceLogger::IonMonkey))
+        if (!emitTracelogStartEvent(TraceLogger_IonMonkey))
             return false;
     }
 #endif
@@ -7652,7 +7652,7 @@ CodeGenerator::generate()
     if (!gen->compilingAsmJS() && gen->info().executionMode() == SequentialExecution) {
         if (!emitTracelogScriptStart())
             return false;
-        if (!emitTracelogStartEvent(TraceLogger::IonMonkey))
+        if (!emitTracelogStartEvent(TraceLogger_IonMonkey))
             return false;
     }
 #endif
@@ -7928,19 +7928,25 @@ CodeGenerator::link(JSContext *cx, types::CompilerConstraintList *constraints)
         ionScript->copyPatchableBackedges(cx, code, patchableBackedges_.begin(), masm);
 
 #ifdef JS_TRACE_LOGGING
-    TraceLogger *logger = TraceLoggerForMainThread(cx->runtime());
+    TraceLoggerThread *logger = TraceLoggerForMainThread(cx->runtime());
     for (uint32_t i = 0; i < patchableTraceLoggers_.length(); i++) {
         patchableTraceLoggers_[i].fixup(&masm);
         Assembler::PatchDataWithValueCheck(CodeLocationLabel(code, patchableTraceLoggers_[i]),
                                            ImmPtr(logger),
                                            ImmPtr(nullptr));
     }
-    uint32_t scriptId = TraceLogCreateTextId(logger, script);
-    for (uint32_t i = 0; i < patchableTLScripts_.length(); i++) {
-        patchableTLScripts_[i].fixup(&masm);
-        Assembler::PatchDataWithValueCheck(CodeLocationLabel(code, patchableTLScripts_[i]),
-                                           ImmPtr((void *) uintptr_t(scriptId)),
-                                           ImmPtr((void *)0));
+
+    if (patchableTLScripts_.length() > 0) {
+        MOZ_ASSERT(TraceLogTextIdEnabled(TraceLogger_Scripts));
+        TraceLoggerEvent event(logger, TraceLogger_Scripts, script);
+        ionScript->setTraceLoggerEvent(event);
+        uint32_t textId = event.payload()->textId();
+        for (uint32_t i = 0; i < patchableTLScripts_.length(); i++) {
+            patchableTLScripts_[i].fixup(&masm);
+            Assembler::PatchDataWithValueCheck(CodeLocationLabel(code, patchableTLScripts_[i]),
+                                               ImmPtr((void *) uintptr_t(textId)),
+                                               ImmPtr((void *)0));
+        }
     }
 #endif
 
@@ -10250,10 +10256,12 @@ CodeGenerator::visitDebugger(LDebugger *ins)
     Register cx = ToRegister(ins->getTemp(0));
     Register temp = ToRegister(ins->getTemp(1));
 
+    // The check for cx->compartment()->isDebuggee() could be inlined, but the
+    // performance of |debugger;| does not matter.
     masm.loadJSContext(cx);
     masm.setupUnalignedABICall(1, temp);
     masm.passABIArg(cx);
-    masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, GlobalHasLiveOnDebuggerStatement));
+    masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, IsCompartmentDebuggee));
 
     Label bail;
     masm.branchIfTrueBool(ReturnReg, &bail);

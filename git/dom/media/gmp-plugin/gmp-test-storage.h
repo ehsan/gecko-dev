@@ -52,10 +52,6 @@ public:
 
 GMPErr
 GMPOpenRecord(const std::string& aRecordName,
-              OpenContinuation* aContinuation);
-
-GMPErr
-GMPEnumRecordNames(RecvGMPRecordIteratorPtr aRecvIteratorFunc,
-                   void* aUserArg);
+           OpenContinuation* aContinuation);
 
 #endif // TEST_GMP_STORAGE_H__

@@ -778,9 +778,9 @@ DebugEpilogueOnBaselineReturn(JSContext *cx, BaselineFrame *frame, jsbytecode *p
     if (!DebugEpilogue(cx, frame, pc, true)) {
         // DebugEpilogue popped the frame by updating jitTop, so run the stop event
         // here before we enter the exception handler.
-        TraceLogger *logger = TraceLoggerForMainThread(cx->runtime());
-        TraceLogStopEvent(logger, TraceLogger::Baseline);
-        TraceLogStopEvent(logger); // Leave script.
+        TraceLoggerThread *logger = TraceLoggerForMainThread(cx->runtime());
+        TraceLogStopEvent(logger, TraceLogger_Baseline);
+        TraceLogStopEvent(logger, TraceLogger_Scripts);
         return false;
     }
 
@@ -1046,10 +1046,9 @@ OnDebuggerStatement(JSContext *cx, BaselineFrame *frame, jsbytecode *pc, bool *m
 }
 
 bool
-GlobalHasLiveOnDebuggerStatement(JSContext *cx)
+IsCompartmentDebuggee(JSContext *cx)
 {
-    return cx->compartment()->isDebuggee() &&
-           Debugger::hasLiveHook(cx->global(), Debugger::OnDebuggerStatement);
+    return cx->compartment()->isDebuggee();
 }
 
 bool

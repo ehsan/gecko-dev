@@ -418,10 +418,12 @@ HandleExceptionIon(JSContext *cx, const InlineFrameIterator &frame, ResumeFromEx
     jsbytecode *pc = frame.pc();
 
     if (cx->compartment()->isDebuggee()) {
-        // We need to bail when we are the debuggee of a Debugger with a live
-        // onExceptionUnwind hook, or if a Debugger has observed this frame
-        // (e.g., for onPop).
-        bool shouldBail = Debugger::hasLiveHook(cx->global(), Debugger::OnExceptionUnwind);
+        // We need to bail when debug mode is active to observe the Debugger's
+        // exception unwinding handler if either a Debugger is observing all
+        // execution in the compartment, or it has a live onExceptionUnwind
+        // hook, or it has observed this frame (e.g., for onPop).
+        bool shouldBail = cx->compartment()->debugObservesAllExecution() ||
+                          Debugger::hasLiveOnExceptionUnwind(cx->global());
         if (!shouldBail) {
             JitActivation *act = cx->mainThread().activation()->asJit();
             RematerializedFrame *rematFrame =
@@ -693,7 +695,7 @@ void
 HandleException(ResumeFromException *rfe)
 {
     JSContext *cx = GetJSContextFromJitCode();
-    TraceLogger *logger = TraceLoggerForMainThread(cx->runtime());
+    TraceLoggerThread *logger = TraceLoggerForMainThread(cx->runtime());
 
     rfe->kind = ResumeFromException::RESUME_ENTRY_FRAME;
 
@@ -754,8 +756,8 @@ HandleException(ResumeFromException *rfe)
                 JSScript *script = frames.script();
                 probes::ExitScript(cx, script, script->functionNonDelazifying(), popSPSFrame);
                 if (!frames.more()) {
-                    TraceLogStopEvent(logger, TraceLogger::IonMonkey);
-                    TraceLogStopEvent(logger);
+                    TraceLogStopEvent(logger, TraceLogger_IonMonkey);
+                    TraceLogStopEvent(logger, TraceLogger_Scripts);
                     break;
                 }
                 ++frames;
@@ -785,8 +787,8 @@ HandleException(ResumeFromException *rfe)
             if (rfe->kind != ResumeFromException::RESUME_ENTRY_FRAME)
                 return;
 
-            TraceLogStopEvent(logger, TraceLogger::Baseline);
-            TraceLogStopEvent(logger);
+            TraceLogStopEvent(logger, TraceLogger_Baseline);
+            TraceLogStopEvent(logger, TraceLogger_Scripts);
 
             // Unwind profiler pseudo-stack
             JSScript *script = iter.script();

@@ -162,13 +162,12 @@ GonkMediaDataDecoder::IsWaitingMediaResources() {
 
 bool
 GonkMediaDataDecoder::IsDormantNeeded() {
-
-  return mDecoder.get() ? true : false;
+  return mDecoder->IsDormantNeeded();
 }
 
 void
 GonkMediaDataDecoder::ReleaseMediaResources() {
-  mManager->ReleaseMediaResources();
+  mDecoder->ReleaseMediaResources();
 }
 
 } // namespace mozilla

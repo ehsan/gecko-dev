@@ -2820,7 +2820,7 @@ nsPluginInstanceOwner::GetContentsScaleFactor(double *result)
   nsIPresShell* presShell = nsContentUtils::FindPresShellForDocument(mContent->OwnerDoc());
   if (presShell) {
     scaleFactor = double(nsPresContext::AppUnitsPerCSSPixel())/
-      presShell->GetPresContext()->DeviceContext()->AppUnitsPerDevPixelAtUnitFullZoom();
+      presShell->GetPresContext()->DeviceContext()->UnscaledAppUnitsPerDevPixel();
   }
 #endif
   *result = scaleFactor;
