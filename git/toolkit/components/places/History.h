@@ -28,7 +28,6 @@ namespace mozilla {
 namespace places {
 
 struct VisitData;
-class ConcurrentStatementsHolder;
 
 #define NS_HISTORYSERVICE_CID \
   {0x0937a705, 0x91a6, 0x417a, {0x82, 0x92, 0xb2, 0x2e, 0xb1, 0x0d, 0xa8, 0x6c}}
@@ -55,7 +54,7 @@ public:
   /**
    * Obtains the statement to use to check if a URI is visited or not.
    */
-  nsresult GetIsVisitedStatement(mozIStorageCompletionCallback* aCallback);
+  mozIStorageAsyncStatement* GetIsVisitedStatement();
 
   /**
    * Adds an entry in moz_places with the data in aVisitData.
@@ -147,7 +146,19 @@ private:
    */
   nsRefPtr<mozilla::places::Database> mDB;
 
-  nsRefPtr<ConcurrentStatementsHolder> mConcurrentStatementsHolder;
+  /**
+   * A read-only database connection used for checking if a URI is visited.
+   *
+   * @note this should only be accessed by GetIsVisistedStatement and Shutdown.
+   */
+  nsCOMPtr<mozIStorageConnection> mReadOnlyDBConn;
+
+  /**
+   * An asynchronous statement to query if a URI is visited or not.
+   *
+   * @note this should only be accessed by GetIsVisistedStatement and Shutdown.
+   */
+  nsCOMPtr<mozIStorageAsyncStatement> mIsVisitedStatement;
 
   /**
    * Remove any memory references to tasks and do not take on any more.

@@ -19,7 +19,6 @@
   <binding id="autocomplete" role="xul:combobox"
            extends="chrome://global/content/bindings/textbox.xml#textbox">
     <resources>
-      <stylesheet src="chrome://global/content/autocomplete.css"/>
       <stylesheet src="chrome://global/skin/autocomplete.css"/>
     </resources>
 
@@ -599,7 +598,6 @@
 
   <binding id="autocomplete-result-popup" extends="chrome://global/content/bindings/autocomplete.xml#autocomplete-base-popup">
     <resources>
-      <stylesheet src="chrome://global/content/autocomplete.css"/>
       <stylesheet src="chrome://global/skin/tree.css"/>
       <stylesheet src="chrome://global/skin/autocomplete.css"/>
     </resources>
@@ -931,7 +929,6 @@ extends="chrome://global/content/bindings/popup.xml#popup">
 
   <binding id="autocomplete-rich-result-popup" extends="chrome://global/content/bindings/autocomplete.xml#autocomplete-base-popup">
     <resources>
-      <stylesheet src="chrome://global/content/autocomplete.css"/>
       <stylesheet src="chrome://global/skin/autocomplete.css"/>
     </resources>
 

@@ -20,7 +20,7 @@ RemoteSpellcheckEngineParent::~RemoteSpellcheckEngineParent()
 }
 
 bool
-RemoteSpellcheckEngineParent::AnswerSetDictionary(
+RemoteSpellcheckEngineParent::RecvSetDictionary(
   const nsString& aDictionary,
   bool* success)
 {
@@ -30,34 +30,13 @@ RemoteSpellcheckEngineParent::AnswerSetDictionary(
 }
 
 bool
-RemoteSpellcheckEngineParent::AnswerCheck(
+RemoteSpellcheckEngineParent::RecvCheckForMisspelling(
   const nsString& aWord,
-  bool* aIsMisspelled)
+  bool* isMisspelled)
 {
-  bool isCorrect = true;
+  bool isCorrect = false;
   mEngine->Check(aWord.get(), &isCorrect);
-  *aIsMisspelled = !isCorrect;
-  return true;
-}
-
-bool
-RemoteSpellcheckEngineParent::AnswerCheckAndSuggest(
-  const nsString& aWord,
-  bool* aIsMisspelled,
-  InfallibleTArray<nsString>* aSuggestions)
-{
-  bool isCorrect = true;
-  mEngine->Check(aWord.get(), &isCorrect);
-  *aIsMisspelled = !isCorrect;
-  if (!isCorrect) {
-    char16_t **suggestions;
-    uint32_t count = 0;
-    mEngine->Suggest(aWord.get(), &suggestions, &count);
-
-    for (uint32_t i=0; i<count; i++) {
-      aSuggestions->AppendElement(nsDependentString(suggestions[i]));
-    }
-  }
+  *isMisspelled = !isCorrect;
   return true;
 }
 

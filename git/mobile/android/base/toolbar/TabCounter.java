@@ -133,7 +133,7 @@ public class TabCounter extends ThemedTextSwitcher
 
     @Override
     public View makeView() {
-        return mInflater.inflate(mLayoutId, null);
+        return mInflater.inflate(mLayoutId, this, false);
     }
 
 }

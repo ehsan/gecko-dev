@@ -8,6 +8,7 @@ package org.mozilla.gecko.favicons;
 import android.content.ContentResolver;
 import android.graphics.Bitmap;
 import android.net.http.AndroidHttpClient;
+import android.os.Handler;
 import android.text.TextUtils;
 import android.util.Log;
 import org.apache.http.Header;
@@ -30,7 +31,6 @@ import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * The implementation initially tries to get the Favicon from the database. Upon failure, the icon
  * is loaded from the internet.
  */
-public class LoadFaviconTask {
+public class LoadFaviconTask extends UiAsyncTask<Void, Void, Bitmap> {
     private static final String LOGTAG = "LoadFaviconTask";
 
     // Access to this map needs to be synchronized prevent multiple jobs loading the same favicon
@@ -61,7 +61,6 @@ public class LoadFaviconTask {
     private int flags;
 
     private final boolean onlyFromLocal;
-    /* inner-access */ volatile boolean mCancelled;
 
     // Assuming square favicons, judging by width only is acceptable.
     protected int targetWidth;
@@ -70,16 +69,20 @@ public class LoadFaviconTask {
 
     static AndroidHttpClient httpClient = AndroidHttpClient.newInstance(GeckoAppShell.getGeckoInterface().getDefaultUAString());
 
-    public LoadFaviconTask(String pageURL, String faviconURL, int flags, OnFaviconLoadedListener listener) {
-        this(pageURL, faviconURL, flags, listener, -1, false);
+    public LoadFaviconTask(Handler backgroundThreadHandler,
+                           String pageUrl, String faviconUrl, int flags,
+                           OnFaviconLoadedListener listener) {
+        this(backgroundThreadHandler, pageUrl, faviconUrl, flags, listener, -1, false);
     }
+    public LoadFaviconTask(Handler backgroundThreadHandler,
+                           String pageUrl, String faviconUrl, int flags,
+                           OnFaviconLoadedListener listener, int targetWidth, boolean onlyFromLocal) {
+        super(backgroundThreadHandler);
 
-    public LoadFaviconTask(String pageURL, String faviconURL, int flags, OnFaviconLoadedListener listener,
-                           int targetWidth, boolean onlyFromLocal) {
         id = nextFaviconLoadId.incrementAndGet();
 
-        this.pageUrl = pageURL;
-        this.faviconURL = faviconURL;
+        this.pageUrl = pageUrl;
+        this.faviconURL = faviconUrl;
         this.listener = listener;
         this.flags = flags;
         this.targetWidth = targetWidth;
@@ -294,45 +297,8 @@ public class LoadFaviconTask {
         return FaviconDecoder.decodeFavicon(buffer, 0, bPointer + 1);
     }
 
-    // LoadFavicon tasks are performed on a unique background executor thread
-    // to avoid network blocking.
-    public final void execute() {
-        ThreadUtils.assertOnUiThread();
-
-        try {
-            Favicons.longRunningExecutor.execute(new Runnable() {
-                @Override
-                public void run() {
-                    final Bitmap result = doInBackground();
-
-                    ThreadUtils.getUiHandler().post(new Runnable() {
-                       @Override
-                        public void run() {
-                            if (mCancelled) {
-                                onCancelled();
-                            } else {
-                                onPostExecute(result);
-                            }
-                        }
-                    });
-                }
-            });
-          } catch (RejectedExecutionException e) {
-              // If our executor is unavailable.
-              onCancelled();
-          }
-    }
-
-    public final boolean cancel() {
-        mCancelled = true;
-        return true;
-    }
-
-    public final boolean isCancelled() {
-        return mCancelled;
-    }
-
-    /* inner-access */ Bitmap doInBackground() {
+    @Override
+    protected Bitmap doInBackground(Void... unused) {
         if (isCancelled()) {
             return null;
         }
@@ -497,7 +463,8 @@ public class LoadFaviconTask {
                image.getHeight() > 0;
     }
 
-    /* inner-access */ void onPostExecute(Bitmap image) {
+    @Override
+    protected void onPostExecute(Bitmap image) {
         if (isChaining) {
             return;
         }
@@ -541,7 +508,8 @@ public class LoadFaviconTask {
         Favicons.dispatchResult(pageUrl, faviconURL, scaled, listener);
     }
 
-    /* inner-access */ void onCancelled() {
+    @Override
+    protected void onCancelled() {
         Favicons.removeLoadTask(id);
 
         synchronized(loadsInFlight) {

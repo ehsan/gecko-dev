@@ -16,19 +16,19 @@
   <hbox id="options-panel-container" flex="1">
     <hbox id="options-panel" class="theme-body" flex="1">
       <vbox id="tools-box" class="options-vertical-pane" flex="1">
-        <label>&options.selectDefaultTools.label;</label>
+        <label value="&options.selectDefaultTools.label;"/>
         <vbox id="default-tools-box" class="options-groupbox" tabindex="0"/>
-        <label>&options.selectAdditionalTools.label;</label>
+        <label value="&options.selectAdditionalTools.label;"/>
         <vbox id="additional-tools-box" class="options-groupbox"/>
-        <label>&options.selectEnabledToolboxButtons.label;</label>
+        <label value="&options.selectEnabledToolboxButtons.label;"/>
         <vbox id="enabled-toolbox-buttons-box" class="options-groupbox"/>
         <label id="tools-not-supported-label"
                class="options-citation-label theme-comment"
-        >&options.toolNotSupported.label;</label>
+               value="&options.toolNotSupported.label;"/>
 
       </vbox>
       <vbox class="options-vertical-pane" flex="1">
-        <label>&options.selectDevToolsTheme.label;</label>
+        <label value="&options.selectDevToolsTheme.label;"/>
         <radiogroup id="devtools-theme-box"
                     class="options-groupbox"
                     data-pref="devtools.theme"
@@ -36,21 +36,21 @@
           <radio value="light" label="&options.lightTheme.label;"/>
           <radio value="dark" label="&options.darkTheme.label;"/>
         </radiogroup>
-        <label>&options.commonPrefs.label;</label>
+        <label value="&options.commonPrefs.label;"/>
         <vbox id="commonprefs-options" class="options-groupbox">
           <checkbox label="&options.enablePersistentLogs.label;"
                     tooltiptext="&options.enablePersistentLogs.tooltip;"
                     data-pref="devtools.webconsole.persistlog"/>
         </vbox>
-        <label>&options.context.inspector;</label>
+        <label value="&options.context.inspector;"/>
         <vbox id="inspector-options" class="options-groupbox">
           <checkbox label="&options.showUserAgentStyles.label;"
                     tooltiptext="&options.showUserAgentStyles.tooltip;"
                     data-pref="devtools.inspector.showUserAgentStyles"/>
-          <description>
-            <label control="defaultColorUnitMenuList"
-                   accesskey="&options.defaultColorUnit.accesskey;"
-            >&options.defaultColorUnit.label;</label>
+          <hbox align="center">
+            <label value="&options.defaultColorUnit.label;"
+                   control="defaultColorUnitMenuList"
+                   accesskey="&options.defaultColorUnit.accesskey;"/>
             <menulist id="defaultColorUnitMenuList"
                       data-pref="devtools.defaultColorUnit">
               <menupopup>
@@ -60,16 +60,16 @@
                 <menuitem label="&options.defaultColorUnit.name;" value="name"/>
               </menupopup>
             </menulist>
-          </description>
+          </hbox>
         </vbox>
-        <label>&options.webconsole.label;</label>
+        <label value="&options.webconsole.label;"/>
         <vbox id="webconsole-options" class="options-groupbox">
           <checkbox id="webconsole-timestamp-messages"
                     label="&options.timestampMessages.label;"
                     tooltiptext="&options.timestampMessages.tooltip;"
                     data-pref="devtools.webconsole.timestampMessages"/>
         </vbox>
-        <label>&options.styleeditor.label;</label>
+        <label value="&options.styleeditor.label;"/>
         <vbox id="styleeditor-options" class="options-groupbox">
           <checkbox label="&options.stylesheetSourceMaps.label;"
                     tooltiptext="&options.stylesheetSourceMaps.tooltip;"
@@ -78,7 +78,7 @@
                     tooltiptext="&options.stylesheetAutocompletion.tooltip;"
                     data-pref="devtools.styleeditor.autocompletion-enabled"/>
         </vbox>
-        <label>&options.profiler.label;</label>
+        <label value="&options.profiler.label;"/>
         <vbox id="profiler-options" class="options-groupbox">
           <checkbox label="&options.showPlatformData.label;"
                     tooltiptext="&options.showPlatformData.tooltip;"
@@ -87,7 +87,7 @@
       </vbox>
 
       <vbox id="sourceeditor-box" class="options-vertical-pane" flex="1">
-        <label>&options.sourceeditor.label;</label>
+        <label value="&options.sourceeditor.label;"/>
         <vbox id="sourceeditor-options" class="options-groupbox">
           <checkbox id="devtools-sourceeditor-detectindentation"
                     label="&options.sourceeditor.detectindentation.label;"
@@ -101,10 +101,10 @@
                     label="&options.sourceeditor.expandtab.label;"
                     tooltiptext="&options.sourceeditor.expandtab.tooltip;"
                     data-pref="devtools.editor.expandtab"/>
-          <description>
-            <label control="devtools-sourceeditor-tabsize-menulist"
-                   accesskey="&options.sourceeditor.tabsize.accesskey;"
-            >&options.sourceeditor.tabsize.label;</label>
+          <hbox align="center">
+            <label value="&options.sourceeditor.tabsize.label;"
+                   control="devtools-sourceeditor-tabsize-menulist"
+                   accesskey="&options.sourceeditor.tabsize.accesskey;"/>
             <menulist id="devtools-sourceeditor-tabsize-menulist"
                       data-pref="devtools.editor.tabsize">
               <menupopup>
@@ -113,11 +113,11 @@
                 <menuitem label="8" value="8"/>
               </menupopup>
             </menulist>
-          </description>
-          <description>
-            <label control="devtools-sourceeditor-keybinding-menulist"
-                   accesskey="&options.sourceeditor.keybinding.accesskey;"
-            >&options.sourceeditor.keybinding.label;</label>
+          </hbox>
+          <hbox align="center">
+            <label value="&options.sourceeditor.keybinding.label;"
+                   control="devtools-sourceeditor-keybinding-menulist"
+                   accesskey="&options.sourceeditor.keybinding.accesskey;"/>
             <menulist id="devtools-sourceeditor-keybinding-menulist"
                       data-pref="devtools.editor.keymap">
               <menupopup>
@@ -128,9 +128,9 @@
                 <menuitem label="Sublime Text" value="sublime"/>
               </menupopup>
             </menulist>
-          </description>
+          </hbox>
         </vbox>
-        <label>&options.context.advancedSettings;</label>
+        <label value="&options.context.advancedSettings;"/>
         <vbox id="context-options" class="options-groupbox">
           <checkbox id="devtools-disable-cache"
                     label="&options.disableCache.label2;"
@@ -150,7 +150,7 @@
                       data-pref="devtools.debugger.remote-enabled"/>
           </hbox>
           <label class="options-citation-label theme-comment"
-          >&options.context.triggersPageRefresh;</label>
+                 value="&options.context.triggersPageRefresh;"/>
         </vbox>
       </vbox>
     </hbox>
