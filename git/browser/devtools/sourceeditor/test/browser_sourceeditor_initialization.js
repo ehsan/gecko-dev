@@ -19,16 +19,9 @@ function test()
     " title='test for bug 660784' width='600' height='500'><hbox flex='1'/></window>";
   const windowFeatures = "chrome,titlebar,toolbar,centerscreen,resizable,dialog=no";
 
-  gBrowser.selectedTab = gBrowser.addTab();
-  gBrowser.selectedBrowser.addEventListener("load", function onTabLoad() {
-    gBrowser.selectedBrowser.removeEventListener("load", onTabLoad, true);
+  testWin = Services.ww.openWindow(null, windowUrl, "_blank", windowFeatures, null);
 
-    testWin = Services.ww.openWindow(null, windowUrl, "_blank", windowFeatures, null);
-    testWin.addEventListener("load", initEditor, false);
-  }, true);
-
-  content.location = "data:text/html,<p>bug 660784 - test the SourceEditor";
-
+  testWin.addEventListener("load", initEditor, false);
 }
 
 function initEditor()
@@ -326,11 +319,7 @@ function editorLoaded()
   testWin.close();
 
   testWin = testDoc = editor = null;
-
-  waitForFocus(function() {
-    gBrowser.removeCurrentTab();
-    finish();
-  }, content);
+  finish();
 }
 
 function testBackspaceKey()
