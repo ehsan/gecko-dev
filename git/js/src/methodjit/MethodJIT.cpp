@@ -623,7 +623,7 @@ JS_STATIC_ASSERT(JSVAL_PAYLOAD_MASK == 0x00007FFFFFFFFFFFLL);
 bool
 JaegerCompartment::Initialize()
 {
-    execAlloc_ = js::OffTheBooks::new_<JSC::ExecutableAllocator>();
+    execAlloc_ = js_new<JSC::ExecutableAllocator>();
     if (!execAlloc_)
         return false;
     
@@ -647,7 +647,7 @@ void
 JaegerCompartment::Finish()
 {
     TrampolineCompiler::release(&trampolines);
-    Foreground::delete_(execAlloc_);
+    js_delete(execAlloc_);
 #ifdef JS_METHODJIT_PROFILE_STUBS
     FILE *fp = fopen("/tmp/stub-profiling", "wt");
 # define OPDEF(op,val,name,image,length,nuses,ndefs,prec,format) \
@@ -909,7 +909,7 @@ mjit::ReleaseScriptCode(JSContext *cx, JSScript *script)
         cx->runtime->mjitMemoryUsed -= jscr->scriptDataSize() + jscr->mainCodeSize();
 
         jscr->~JITScript();
-        cx->free_(jscr);
+        cx->free(jscr);
         script->jitNormal = NULL;
         script->jitArityCheckNormal = NULL;
     }
@@ -918,7 +918,7 @@ mjit::ReleaseScriptCode(JSContext *cx, JSScript *script)
         cx->runtime->mjitMemoryUsed -= jscr->scriptDataSize() + jscr->mainCodeSize();
 
         jscr->~JITScript();
-        cx->free_(jscr);
+        cx->free(jscr);
         script->jitCtor = NULL;
         script->jitArityCheckCtor = NULL;
     }

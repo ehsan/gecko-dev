@@ -359,9 +359,7 @@ public:
     {
         NS_ASSERTION(!mScriptObject.mObject, "Leaking script object.");
         if (!aObject) {
-            mScriptObject.mObject = nsnull;
-
-            return;
+          return;
         }
 
         nsresult rv = nsContentUtils::HoldScriptObject(mScriptObject.mLangID,

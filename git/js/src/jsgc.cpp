@@ -48,6 +48,7 @@
  *
  * XXX swizzle page to freelist for better locality of reference
  */
+#include <stdlib.h>     /* for free */
 #include <math.h>
 #include <string.h>     /* for memset used when DEBUG */
 #include "jstypes.h"
@@ -402,7 +403,7 @@ ReleaseGCChunk(JSRuntime *rt, jsuword chunk)
 #endif
     JS_ASSERT(rt->gcStats.nchunks != 0);
     METER(rt->gcStats.nchunks--);
-    rt->gcChunkAllocator->free_(p);
+    rt->gcChunkAllocator->free(p);
 }
 
 inline Chunk *
@@ -426,7 +427,7 @@ ReleaseGCChunk(JSRuntime *rt, Chunk *p)
 #endif
     JS_ASSERT(rt->gcStats.nchunks != 0);
     METER(rt->gcStats.nchunks--);
-    rt->gcChunkAllocator->free_(p);
+    rt->gcChunkAllocator->free(p);
 }
 
 static Chunk *
@@ -571,6 +572,8 @@ js_InitGC(JSRuntime *rt, uint32 maxbytes)
 
     rt->gcTriggerFactor = uint32(100.0f * GC_HEAP_GROWTH_FACTOR);
 
+    rt->atomsCompartment->setGCLastBytes(8192);
+    
     /*
      * The assigned value prevents GC from running when GC memory is too low
      * (during JS engine start).
@@ -866,7 +869,7 @@ js_FinishGC(JSRuntime *rt)
     for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c) {
         JSCompartment *comp = *c;
         comp->finishArenaLists();
-        Foreground::delete_(comp);
+        js_delete(comp);
     }
     rt->compartments.clear();
     rt->atomsCompartment = NULL;
@@ -1805,7 +1808,7 @@ js_FinalizeStringRT(JSRuntime *rt, JSString *str)
         jschar *chars = const_cast<jschar *>(str->asFlat().chars());
         if (thingKind == FINALIZE_STRING) {
             rt->stringMemoryUsed -= str->length() * 2;
-            rt->free_(chars);
+            rt->free(chars);
         } else if (thingKind == FINALIZE_EXTERNAL_STRING) {
             ((JSExternalString *)str)->finalize();
         }
@@ -2047,7 +2050,7 @@ GCHelperThread::replenishAndFreeLater(void *ptr)
     do {
         if (freeCursor && !freeVector.append(freeCursorEnd - FREE_ARRAY_LENGTH))
             break;
-        freeCursor = (void **) OffTheBooks::malloc_(FREE_ARRAY_SIZE);
+        freeCursor = (void **) js_malloc(FREE_ARRAY_SIZE);
         if (!freeCursor) {
             freeCursorEnd = NULL;
             break;
@@ -2056,7 +2059,7 @@ GCHelperThread::replenishAndFreeLater(void *ptr)
         *freeCursor++ = ptr;
         return;
     } while (false);
-    Foreground::free_(ptr);
+    js_free(ptr);
 }
 
 void
@@ -2129,7 +2132,7 @@ SweepCompartments(JSContext *cx, JSGCInvocationKind gckind)
                 (void) callback(cx, compartment, JSCOMPARTMENT_DESTROY);
             if (compartment->principals)
                 JSPRINCIPALS_DROP(cx, compartment->principals);
-            cx->delete_(compartment);
+            js_delete(compartment);
             continue;
         }
         *write++ = compartment;
@@ -2721,9 +2724,9 @@ JSCompartment *
 NewCompartment(JSContext *cx, JSPrincipals *principals)
 {
     JSRuntime *rt = cx->runtime;
-    JSCompartment *compartment = cx->new_<JSCompartment>(rt);
+    JSCompartment *compartment = js_new<JSCompartment>(rt);
     if (!compartment || !compartment->init()) {
-        Foreground::delete_(compartment);
+        js_delete(compartment);
         JS_ReportOutOfMemory(cx);
         return NULL;
     }
@@ -2740,7 +2743,6 @@ NewCompartment(JSContext *cx, JSPrincipals *principals)
 
         if (!rt->compartments.append(compartment)) {
             AutoUnlockGC unlock(rt);
-            Foreground::delete_(compartment);
             JS_ReportOutOfMemory(cx);
             return NULL;
         }
@@ -2750,7 +2752,7 @@ NewCompartment(JSContext *cx, JSPrincipals *principals)
     if (callback && !callback(cx, compartment, JSCOMPARTMENT_NEW)) {
         AutoLockGC lock(rt);
         rt->compartments.popBack();
-        Foreground::delete_(compartment);
+        js_delete(compartment);
         return NULL;
     }
     return compartment;

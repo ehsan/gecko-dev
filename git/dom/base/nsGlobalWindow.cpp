@@ -3621,8 +3621,10 @@ nsGlobalWindow::SetInnerWidth(PRInt32 aInnerWidth)
 
   nsRefPtr<nsIPresShell> presShell;
   mDocShell->GetPresShell(getter_AddRefs(presShell));
+  nsCOMPtr<nsIPresShell_MOZILLA_2_0_BRANCH> presShell20 =
+    do_QueryInterface(presShell);
 
-  if (presShell && presShell->GetIsViewportOverridden())
+  if (presShell20 && presShell20->GetIsViewportOverridden())
   {
     nscoord height = 0;
     nscoord width  = 0;
@@ -3688,8 +3690,10 @@ nsGlobalWindow::SetInnerHeight(PRInt32 aInnerHeight)
 
   nsRefPtr<nsIPresShell> presShell;
   mDocShell->GetPresShell(getter_AddRefs(presShell));
+  nsCOMPtr<nsIPresShell_MOZILLA_2_0_BRANCH> presShell20 =
+    do_QueryInterface(presShell);
 
-  if (presShell && presShell->GetIsViewportOverridden())
+  if (presShell20 && presShell20->GetIsViewportOverridden())
   {
     nscoord height = 0;
     nscoord width  = 0;

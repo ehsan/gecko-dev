@@ -48,7 +48,6 @@
 #include "nsITimer.h"
 #include "ImageLayers.h"
 #include "mozilla/Monitor.h"
-#include "mozilla/Mutex.h"
 
 class nsHTMLMediaElement;
 class nsMediaStream;
@@ -90,7 +89,6 @@ public:
   typedef mozilla::layers::ImageContainer ImageContainer;
   typedef mozilla::layers::Image Image;
   typedef mozilla::Monitor Monitor;
-  typedef mozilla::Mutex Mutex;
 
   nsMediaDecoder();
   virtual ~nsMediaDecoder();
@@ -282,10 +280,10 @@ public:
   // Return the frame decode/paint related statistics.
   FrameStatistics& GetFrameStatistics() { return mFrameStats; }
 
-  // Set the duration of the media resource in units of seconds.
+  // Set the duration of the media resource in units of milliseconds.
   // This is called via a channel listener if it can pick up the duration
   // from a content header. Must be called from the main thread only.
-  virtual void SetDuration(double aDuration) = 0;
+  virtual void SetDuration(PRInt64 aDuration) = 0;
 
   // Set a flag indicating whether seeking is supported
   virtual void SetSeekable(PRBool aSeekable) = 0;
@@ -443,7 +441,7 @@ protected:
   // to the RGB buffer must obtain this lock first to ensure that
   // the video element does not use video data or sizes that are
   // in the midst of being changed.
-  Mutex mVideoUpdateLock;
+  PRLock* mVideoUpdateLock;
 
   // Pixel aspect ratio (ratio of the pixel width to pixel height)
   float mPixelAspectRatio;
