@@ -96,9 +96,7 @@ jclass anp_system_loadJavaClass(NPP instance, const char* className)
 
 void anp_system_setPowerState(NPP instance, ANPPowerState powerState)
 {
-  nsNPAPIPluginInstance* pinst = static_cast<nsNPAPIPluginInstance*>(instance->ndata);
-
-  pinst->SetWakeLock(powerState == kScreenOn_ANPPowerState);
+  NOT_IMPLEMENTED();
 }
 
 void InitSystemInterface(ANPSystemInterfaceV0 *i) {
