@@ -599,7 +599,7 @@ JSCompartment::hasScriptsOnStack()
 }
 
 bool
-JSCompartment::setDebugModeFromC(JSContext *cx, bool b, AutoDebugModeGC &dmgc)
+JSCompartment::setDebugModeFromC(JSContext *cx, bool b)
 {
     bool enabledBefore = debugMode();
     bool enabledAfter = (debugModeBits & ~unsigned(DebugFromC)) || b;
@@ -626,12 +626,12 @@ JSCompartment::setDebugModeFromC(JSContext *cx, bool b, AutoDebugModeGC &dmgc)
     debugModeBits = (debugModeBits & ~unsigned(DebugFromC)) | (b ? DebugFromC : 0);
     JS_ASSERT(debugMode() == enabledAfter);
     if (enabledBefore != enabledAfter)
-        updateForDebugMode(cx->runtime->defaultFreeOp(), dmgc);
+        updateForDebugMode(cx->runtime->defaultFreeOp());
     return true;
 }
 
 void
-JSCompartment::updateForDebugMode(FreeOp *fop, AutoDebugModeGC &dmgc)
+JSCompartment::updateForDebugMode(FreeOp *fop)
 {
     for (ContextIter acx(rt); !acx.done(); acx.next()) {
         if (acx->compartment == this) 
@@ -656,13 +656,10 @@ JSCompartment::updateForDebugMode(FreeOp *fop, AutoDebugModeGC &dmgc)
     // compartment. Because !hasScriptsOnStack(), it suffices to do a garbage
     // collection cycle or to finish the ongoing GC cycle. The necessary
     // cleanup happens in JSCompartment::sweep.
-    //
-    // dmgc makes sure we can't forget to GC, but it is also important not
-    // to run any scripts in this compartment until the dmgc is destroyed.
-    // That is the caller's responsibility.
-    //
-    if (!rt->gcRunning)
-        dmgc.scheduleGC(this);
+    if (!rt->gcRunning) {
+        PrepareCompartmentForGC(this);
+        GC(rt, GC_NORMAL, gcreason::DEBUG_MODE_GC);
+    }
 #endif
 }
 
@@ -675,10 +672,8 @@ JSCompartment::addDebuggee(JSContext *cx, js::GlobalObject *global)
         return false;
     }
     debugModeBits |= DebugFromJS;
-    if (!wasEnabled) {
-        AutoDebugModeGC dmgc(cx->runtime);
-        updateForDebugMode(cx->runtime->defaultFreeOp(), dmgc);
-    }
+    if (!wasEnabled)
+        updateForDebugMode(cx->runtime->defaultFreeOp());
     return true;
 }
 
@@ -696,10 +691,8 @@ JSCompartment::removeDebuggee(FreeOp *fop,
 
     if (debuggees.empty()) {
         debugModeBits &= ~DebugFromJS;
-        if (wasEnabled && !debugMode()) {
-            AutoDebugModeGC dmgc(rt);
-            updateForDebugMode(fop, dmgc);
-        }
+        if (wasEnabled && !debugMode())
+            updateForDebugMode(fop);
     }
 }
 

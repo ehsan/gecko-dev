@@ -574,7 +574,7 @@
                   <menuitem id="menu_debugger"
                             hidden="true"
                             type="checkbox"
-                            label="&debuggerMenu.label2;"
+                            label="&debuggerMenu.label;"
                             key="key_debugger"
                             command="Tools:Debugger"/>
                   <menuitem id="menu_remoteDebugger"
