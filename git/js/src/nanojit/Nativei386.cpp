@@ -445,7 +445,7 @@ namespace nanojit
         }
         else if (i->isconst()) {
             if (!resv->arIndex) {
-                i->clearResv();
+                reserveFree(i);
             }
             LDi(r, i->imm32());
         }

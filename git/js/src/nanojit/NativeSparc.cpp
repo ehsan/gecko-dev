@@ -303,7 +303,7 @@ namespace nanojit
                 }
         else if (i->isconst()) {
             if (!resv->arIndex) {
-                i->clearResv();
+                reserveFree(i);
             }
             int v = i->imm32();
             SET32(v, r);

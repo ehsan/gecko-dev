@@ -1227,7 +1227,8 @@ MakePlaceholder(JSParseNode *pn, JSTreeContext *tc)
 
     ALE_SET_DEFN(ale, dn);
     dn->pn_defn = true;
-    dn->pn_dflags |= PND_PLACEHOLDER;
+    dn->pn_dflags |= PND_FORWARD | PND_PLACEHOLDER;
+    pn->pn_dflags |= PND_FORWARD;
     return ale;
 }
 
@@ -2024,6 +2025,9 @@ JSCompiler::setFunctionKinds(JSFunctionBox *funbox, uint16& tcflags)
                          * so check forward-reference and blockid relations.
                          */
                         if (lexdepKind != JSDefinition::FUNCTION) {
+                            if (lexdep->isForward())
+                                break;
+
                             /*
                              * Watch out for code such as
                              *
@@ -2294,7 +2298,7 @@ LeaveFunction(JSParseNode *fn, JSTreeContext *funtc, JSTreeContext *tc,
                      */
                     *pnup = outer_dn->dn_uses;
                     outer_dn->dn_uses = dn;
-                    outer_dn->pn_dflags |= dn->pn_dflags & ~PND_PLACEHOLDER;
+                    outer_dn->pn_dflags |= dn->pn_dflags & ~(PND_FORWARD | PND_PLACEHOLDER);
                     dn->pn_defn = false;
                     dn->pn_used = true;
                     dn->pn_lexdef = outer_dn;
@@ -3253,11 +3257,10 @@ NoteLValue(JSContext *cx, JSParseNode *pn, JSTreeContext *tc, uintN dflag = PND_
          * Save the win of PND_INITIALIZED if we can prove 'var x;' and 'x = y'
          * occur as direct kids of the same block with no forward refs to x.
          */
-        if ((dn->pn_dflags & PND_INITIALIZED) &&
-            dn->isBlockChild() &&
+        if (dn->isBlockChild() &&
             pn->isBlockChild() &&
             dn->pn_blockid == pn->pn_blockid &&
-            dn->pn_pos.end <= pn->pn_pos.begin &&
+            !(~dn->pn_dflags & (PND_INITIALIZED | PND_FORWARD)) &&
             dn->dn_uses == pn) {
             dflag = PND_INITIALIZED;
         }
@@ -4069,6 +4072,7 @@ NewBindingNode(JSTokenStream *ts, JSAtom *atom, JSTreeContext *tc, bool let = fa
                      pn->pn_blockid != tc->bodyid);
 
         if (pn->isPlaceholder() && pn->pn_blockid >= (let ? tc->blockid() : tc->bodyid)) {
+            JS_ASSERT(pn->isForward());
             if (let)
                 pn->pn_blockid = tc->blockid();
 
@@ -6183,7 +6187,7 @@ CompExprTransplanter::transplant(JSParseNode *pn)
                         dn2->pn_type = dn->pn_type;
                         dn2->pn_pos = root->pn_pos;
                         dn2->pn_defn = true;
-                        dn2->pn_dflags |= PND_PLACEHOLDER;
+                        dn2->pn_dflags |= PND_FORWARD | PND_PLACEHOLDER;
 
                         JSParseNode **pnup = &dn->dn_uses;
                         JSParseNode *pnu;

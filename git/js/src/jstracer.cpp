@@ -5164,7 +5164,7 @@ js_InitJIT(JSTraceMonitor *tm)
         tm->fragmento = fragmento;
         tm->lirbuf = new (&gc) LirBuffer(fragmento, NULL);
 #ifdef DEBUG
-        tm->lirbuf->names = new (&gc) LirNameMap(&gc, tm->fragmento->labels);
+        tm->lirbuf->names = new (&gc) LirNameMap(&gc, NULL, tm->fragmento->labels);
 #endif
         for (size_t i = 0; i < MONITOR_N_GLOBAL_STATES; ++i) {
             tm->globalStates[i].globalShape = -1;
@@ -6501,13 +6501,6 @@ TraceRecorder::test_property_cache(JSObject* obj, LIns* obj_ins, JSObject*& obj2
 }
 
 void
-TraceRecorder::stobj_set_fslot(LIns *obj_ins, unsigned slot, LIns* v_ins, const char *name)
-{
-    addName(lir->insStorei(v_ins, obj_ins, offsetof(JSObject, fslots) + slot * sizeof(jsval)),
-            name);
-}
-
-void
 TraceRecorder::stobj_set_dslot(LIns *obj_ins, unsigned slot, LIns*& dslots_ins, LIns* v_ins,
                                const char *name)
 {
@@ -6520,7 +6513,9 @@ void
 TraceRecorder::stobj_set_slot(LIns* obj_ins, unsigned slot, LIns*& dslots_ins, LIns* v_ins)
 {
     if (slot < JS_INITIAL_NSLOTS) {
-        stobj_set_fslot(obj_ins, slot, v_ins, "set_slot(fslots)");
+        addName(lir->insStorei(v_ins, obj_ins,
+                               offsetof(JSObject, fslots) + slot * sizeof(jsval)),
+                "set_slot(fslots)");
     } else {
         stobj_set_dslot(obj_ins, slot - JS_INITIAL_NSLOTS, dslots_ins, v_ins,
                         "set_slot(dslots)");
@@ -7402,9 +7397,6 @@ TraceRecorder::newArray(JSObject* ctor, uint32 argc, jsval* argv, jsval* rval)
             box_jsval(argv[i], elt_ins);
             stobj_set_dslot(arr_ins, i, dslots_ins, elt_ins, "set_array_elt");
         }
-
-        if (argc > 0)
-            stobj_set_fslot(arr_ins, JSSLOT_ARRAY_COUNT, INS_CONST(argc), "set_array_count");
     }
 
     set(rval, arr_ins);
@@ -8436,7 +8428,7 @@ JS_REQUIRES_STACK JSRecordingStatus
 TraceRecorder::record_JSOP_GETDSLOT()
 {
     JSObject* callee = cx->fp->callee;
-    LIns* callee_ins = get(&cx->fp->argv[-2]);
+    LIns* callee_ins = (callDepth == 0) ? get(&cx->fp->argv[-2]) : INS_CONSTPTR(callee);
 
     unsigned index = GET_UINT16(cx->fp->regs->pc);
     LIns* dslots_ins = NULL;
@@ -9703,7 +9695,7 @@ TraceRecorder::record_JSOP_LAMBDA_FC()
 JS_REQUIRES_STACK JSRecordingStatus
 TraceRecorder::record_JSOP_CALLEE()
 {
-    stack(0, get(&cx->fp->argv[-2]));
+    stack(0, INS_CONSTPTR(cx->fp->callee));
     return JSRS_CONTINUE;
 }
 
@@ -10644,8 +10636,9 @@ TraceRecorder::record_JSOP_NEWARRAY()
         stobj_set_dslot(v_ins, i, dslots_ins, elt_ins, "set_array_elt");
     }
 
+    LIns* dummy = NULL;
     if (count > 0)
-        stobj_set_fslot(v_ins, JSSLOT_ARRAY_COUNT, INS_CONST(count), "set_array_count");
+        stobj_set_slot(v_ins, JSSLOT_ARRAY_COUNT, dummy, INS_CONST(count));
 
     stack(-int(len), v_ins);
     return JSRS_CONTINUE;

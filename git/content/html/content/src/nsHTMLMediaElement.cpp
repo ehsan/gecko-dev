@@ -652,24 +652,17 @@ NS_IMETHODIMP nsHTMLMediaElement::SetCurrentTime(float aCurrentTime)
   if (!mDecoder)
     return NS_ERROR_DOM_INVALID_STATE_ERR;
 
-  if (mReadyState == nsIDOMHTMLMediaElement::HAVE_NOTHING) 
-    return NS_ERROR_DOM_INVALID_STATE_ERR;
-
   // Detect for a NaN and invalid values.
-  if (aCurrentTime != aCurrentTime)
+  if (!(aCurrentTime >= 0.0))
     return NS_ERROR_FAILURE;
 
-  // Clamp the time to [0, duration] as required by the spec
-  float clampedTime = PR_MAX(0, aCurrentTime);
-  float duration = mDecoder->GetDuration();
-  if (duration >= 0) {
-    clampedTime = PR_MIN(clampedTime, duration);
-  }
+  if (mReadyState == nsIDOMHTMLMediaElement::HAVE_NOTHING) 
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
 
   mPlayingBeforeSeek = IsPotentiallyPlaying();
   // The media backend is responsible for dispatching the timeupdate
   // event if it changes the playback position as a result of the seek.
-  nsresult rv = mDecoder->Seek(clampedTime);
+  nsresult rv = mDecoder->Seek(aCurrentTime);
   return rv;
 }
 
@@ -1352,14 +1345,11 @@ void nsHTMLMediaElement::UpdateReadyStateForData(NextFrameStatus aNextFrame)
     return;
   }
 
-  // Now see if we should set HAVE_ENOUGH_DATA.
-  // If it's something we don't know the size of, then we can't
-  // make a real estimate, so we go straight to HAVE_ENOUGH_DATA once
-  // we've downloaded enough data that our download rate is considered
-  // reliable. We have to move to HAVE_ENOUGH_DATA at some point or
-  // autoplay elements for live streams will never play.
-  if (stats.mTotalBytes < 0 ? stats.mDownloadRateReliable :
-                              stats.mTotalBytes == stats.mDownloadPosition) {
+  // Now see if we should set HAVE_ENOUGH_DATA
+  if (stats.mTotalBytes < 0 || stats.mTotalBytes == stats.mDownloadPosition) {
+    // If it's something we don't know the size of, then we can't
+    // make an estimate, so let's just go straight to HAVE_ENOUGH_DATA,
+    // since otherwise autoplay elements will never play.
     ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_ENOUGH_DATA);
     return;
   }
