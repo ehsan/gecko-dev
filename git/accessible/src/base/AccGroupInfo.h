@@ -59,7 +59,7 @@ public:
    */
   static AccGroupInfo* CreateGroupInfo(nsAccessible* aAccessible)
   {
-    PRUint32 role = aAccessible->Role();
+    PRUint32 role = nsAccUtils::Role(aAccessible);
     if (role != nsIAccessibleRole::ROLE_ROW &&
         role != nsIAccessibleRole::ROLE_GRID_CELL &&
         role != nsIAccessibleRole::ROLE_OUTLINEITEM &&

@@ -56,8 +56,6 @@ function run_test() {
       do_check_true(isExtensionInAddonsList(profileDir, newa1.id));
       do_check_true(hasFlag(newa1.permissions, AddonManager.PERM_CAN_DISABLE));
       do_check_false(hasFlag(newa1.permissions, AddonManager.PERM_CAN_ENABLE));
-      do_check_eq(newa1.operationsRequiringRestart, AddonManager.OP_NEEDS_RESTART_DISABLE |
-                                                    AddonManager.OP_NEEDS_RESTART_UNINSTALL);
       do_check_in_crash_annotation(addon1.id, addon1.version);
 
       run_test_1();
@@ -82,8 +80,6 @@ function run_test_1() {
     do_check_eq(a1.iconURL, "chrome://foo/content/icon.png");
     do_check_false(hasFlag(a1.permissions, AddonManager.PERM_CAN_DISABLE));
     do_check_true(hasFlag(a1.permissions, AddonManager.PERM_CAN_ENABLE));
-    do_check_eq(a1.operationsRequiringRestart, AddonManager.OP_NEEDS_RESTART_DISABLE |
-                                               AddonManager.OP_NEEDS_RESTART_UNINSTALL);
     do_check_in_crash_annotation(addon1.id, addon1.version);
 
     ensure_test_completed();
@@ -104,7 +100,6 @@ function run_test_1() {
         do_check_false(isExtensionInAddonsList(profileDir, newa1.id));
         do_check_false(hasFlag(newa1.permissions, AddonManager.PERM_CAN_DISABLE));
         do_check_true(hasFlag(newa1.permissions, AddonManager.PERM_CAN_ENABLE));
-        do_check_eq(newa1.operationsRequiringRestart, AddonManager.OP_NEEDS_RESTART_ENABLE);
         do_check_not_in_crash_annotation(addon1.id, addon1.version);
 
         run_test_2();
@@ -128,7 +123,6 @@ function run_test_2() {
     do_check_eq(a1.iconURL, gIconURL.spec);
     do_check_true(hasFlag(a1.permissions, AddonManager.PERM_CAN_DISABLE));
     do_check_false(hasFlag(a1.permissions, AddonManager.PERM_CAN_ENABLE));
-    do_check_eq(a1.operationsRequiringRestart, AddonManager.OP_NEEDS_RESTART_ENABLE);
 
     ensure_test_completed();
 
@@ -148,8 +142,6 @@ function run_test_2() {
         do_check_true(isExtensionInAddonsList(profileDir, newa1.id));
         do_check_true(hasFlag(newa1.permissions, AddonManager.PERM_CAN_DISABLE));
         do_check_false(hasFlag(newa1.permissions, AddonManager.PERM_CAN_ENABLE));
-        do_check_eq(newa1.operationsRequiringRestart, AddonManager.OP_NEEDS_RESTART_DISABLE |
-                                                      AddonManager.OP_NEEDS_RESTART_UNINSTALL);
         do_check_in_crash_annotation(addon1.id, addon1.version);
 
         run_test_3();

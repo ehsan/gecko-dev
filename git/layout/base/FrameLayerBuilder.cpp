@@ -42,7 +42,6 @@
 #include "nsLayoutUtils.h"
 #include "Layers.h"
 #include "BasicLayers.h"
-#include "nsSubDocumentFrame.h"
 
 #ifdef DEBUG
 #include <stdio.h>
@@ -57,21 +56,13 @@ namespace {
 /**
  * This is the userdata we associate with a layer manager.
  */
-class LayerManagerData : public LayerUserData {
+class LayerManagerData {
 public:
   LayerManagerData() :
     mInvalidateAllThebesContent(PR_FALSE),
     mInvalidateAllLayers(PR_FALSE)
   {
-    MOZ_COUNT_CTOR(LayerManagerData);
     mFramesWithLayers.Init();
-  }
-  ~LayerManagerData() {
-    // Remove display item data properties now, since we won't be able
-    // to find these frames again without mFramesWithLayers.
-    mFramesWithLayers.EnumerateEntries(
-        FrameLayerBuilder::RemoveDisplayItemDataForFrame, nsnull);
-    MOZ_COUNT_DTOR(LayerManagerData);
   }
 
   /**
@@ -97,9 +88,6 @@ static void DestroyRegion(void* aPropertyValue)
  * We add to this region in InvalidateThebesLayerContents. The region
  * is propagated to ContainerState in BuildContainerLayerFor, and then
  * the region(s) are actually invalidated in CreateOrRecycleThebesLayer.
- *
- * When the property value is null, the region is infinite --- i.e. all
- * areas of the ThebesLayers should be invalidated.
  */
 NS_DECLARE_FRAME_PROPERTY(ThebesLayerInvalidRegionProperty, DestroyRegion)
 
@@ -159,8 +147,7 @@ protected:
   public:
     ThebesLayerData() :
       mActiveScrolledRoot(nsnull), mLayer(nsnull),
-      mIsSolidColorInVisibleRegion(PR_FALSE),
-      mHasText(PR_FALSE), mHasTextOverTransparent(PR_FALSE) {}
+      mIsSolidColorInVisibleRegion(PR_FALSE) {}
     /**
      * Record that an item has been added to the ThebesLayer, so we
      * need to update our regions.
@@ -174,10 +161,10 @@ protected:
      * @param aSolidColor if non-null, the visible area of the item is
      * a constant color given by *aSolidColor
      */
-    void Accumulate(nsDisplayListBuilder* aBuilder,
-                    nsDisplayItem* aItem,
-                    const nsIntRect& aVisibleRect,
-                    const nsIntRect& aDrawRect);
+    void Accumulate(const nsIntRect& aVisibleRect,
+                    const nsIntRect& aDrawRect,
+                    const nsIntRect* aOpaqueRect,
+                    nscolor* aSolidColor);
     nsIFrame* GetActiveScrolledRoot() { return mActiveScrolledRoot; }
 
     /**
@@ -229,15 +216,6 @@ protected:
      * True if every pixel in mVisibleRegion will have color mSolidColor.
      */
     PRPackedBool mIsSolidColorInVisibleRegion;
-    /**
-     * True if there is any text visible in the layer.
-     */
-    PRPackedBool mHasText;
-    /**
-     * True if there is any text visible in the layer that's over
-     * transparent pixels in the layer.
-     */
-    PRPackedBool mHasTextOverTransparent;
   };
 
   /**
@@ -264,12 +242,6 @@ protected:
    */
   void InvalidateForLayerChange(nsDisplayItem* aItem, Layer* aNewLayer);
   /**
-   * Try to determine whether the ThebesLayer at aThebesLayerIndex
-   * has an opaque single color covering the visible area behind it.
-   * If successful, return that color, otherwise return NS_RGBA(0,0,0,0).
-   */
-  nscolor FindOpaqueBackgroundColorFor(PRInt32 aThebesLayerIndex);
-  /**
    * Indicate that we are done adding items to the ThebesLayer at the top of
    * mThebesLayerDataStack. Set the final visible region and opaque-content
    * flag, and pop it off the stack.
@@ -292,10 +264,11 @@ protected:
    * @param aSolidColor if non-null, indicates that every pixel in aVisibleRect
    * will be painted with aSolidColor by the item
    */
-  already_AddRefed<ThebesLayer> FindThebesLayerFor(nsDisplayItem* aItem,
-                                                   const nsIntRect& aVisibleRect,
+  already_AddRefed<ThebesLayer> FindThebesLayerFor(const nsIntRect& aVisibleRect,
                                                    const nsIntRect& aDrawRect,
-                                                   nsIFrame* aActiveScrolledRoot);
+                                                   nsIFrame* aActiveScrolledRoot,
+                                                   const nsIntRect* aOpaqueRect,
+                                                   nscolor* aSolidColor);
   ThebesLayerData* GetTopThebesLayerData()
   {
     return mThebesLayerDataStack.IsEmpty() ? nsnull
@@ -325,37 +298,20 @@ protected:
   PRPackedBool                     mInvalidateAllThebesContent;
 };
 
-class ThebesDisplayItemLayerUserData : public LayerUserData
-{
-public:
-  ThebesDisplayItemLayerUserData() :
-    mForcedBackgroundColor(NS_RGBA(0,0,0,0)) {}
-
-  nscolor mForcedBackgroundColor;
-};
-
 /**
  * The address of gThebesDisplayItemLayerUserData is used as the user
- * data key for ThebesLayers created by FrameLayerBuilder.
+ * data pointer for ThebesLayers created by FrameLayerBuilder.
  * It identifies ThebesLayers used to draw non-layer content, which are
  * therefore eligible for recycling. We want display items to be able to
  * create their own dedicated ThebesLayers in BuildLayer, if necessary,
  * and we wouldn't want to accidentally recycle those.
- * The user data is a ThebesDisplayItemLayerUserData.
  */
-PRUint8 gThebesDisplayItemLayerUserData;
+static PRUint8 gThebesDisplayItemLayerUserData;
 /**
  * The address of gColorLayerUserData is used as the user
- * data key for ColorLayers created by FrameLayerBuilder.
- * The user data is null.
+ * data pointer for ColorLayers
  */
-PRUint8 gColorLayerUserData;
-/**
- * The address of gLayerManagerUserData is used as the user
- * data key for retained LayerManagers managed by FrameLayerBuilder.
- * The user data is a LayerManagerData.
- */
-PRUint8 gLayerManagerUserData;
+static PRUint8 gColorLayerUserData;
 
 } // anonymous namespace
 
@@ -382,11 +338,12 @@ FrameLayerBuilder::InternalDestroyDisplayItemData(nsIFrame* aFrame,
   if (aRemoveFromFramesWithLayers) {
     LayerManager* manager = array->ElementAt(0).mLayer->Manager();
     LayerManagerData* data = static_cast<LayerManagerData*>
-      (manager->GetUserData(&gLayerManagerUserData));
+      (manager->GetUserData());
     NS_ASSERTION(data, "Frame with layer should have been recorded");
     data->mFramesWithLayers.RemoveEntry(aFrame);
     if (data->mFramesWithLayers.Count() == 0) {
-      manager->RemoveUserData(&gLayerManagerUserData);
+      delete data;
+      manager->SetUserData(nsnull);
       // Consume the reference we added when we set the user data
       // in DidEndTransaction. But don't actually release until we've
       // released all the layers in the DisplayItemData array below!
@@ -410,7 +367,7 @@ FrameLayerBuilder::WillBeginRetainedLayerTransaction(LayerManager* aManager)
 {
   mRetainingManager = aManager;
   LayerManagerData* data = static_cast<LayerManagerData*>
-    (aManager->GetUserData(&gLayerManagerUserData));
+    (aManager->GetUserData());
   if (data) {
     mInvalidateAllThebesContent = data->mInvalidateAllThebesContent;
     mInvalidateAllLayers = data->mInvalidateAllLayers;
@@ -459,13 +416,13 @@ FrameLayerBuilder::WillEndTransaction(LayerManager* aManager)
   // correctly and the NS_FRAME_HAS_CONTAINER_LAYER bits will be set
   // correctly.
   LayerManagerData* data = static_cast<LayerManagerData*>
-    (mRetainingManager->GetUserData(&gLayerManagerUserData));
+    (mRetainingManager->GetUserData());
   if (data) {
     // Update all the frames that used to have layers.
     data->mFramesWithLayers.EnumerateEntries(UpdateDisplayItemDataForFrame, this);
   } else {
     data = new LayerManagerData();
-    mRetainingManager->SetUserData(&gLayerManagerUserData, data);
+    mRetainingManager->SetUserData(data);
     // Addref mRetainingManager. We'll release it when 'data' is
     // removed.
     NS_ADDREF(mRetainingManager);
@@ -489,7 +446,7 @@ FrameLayerBuilder::UpdateDisplayItemDataForFrame(nsPtrHashKey<nsIFrame>* aEntry,
   nsIFrame* f = aEntry->GetKey();
   FrameProperties props = f->Properties();
   DisplayItemDataEntry* newDisplayItems =
-    builder ? builder->mNewDisplayItemData.GetEntry(f) : nsnull;
+    builder->mNewDisplayItemData.GetEntry(f);
   if (!newDisplayItems) {
     // This frame was visible, but isn't anymore.
     PRBool found;
@@ -508,21 +465,17 @@ FrameLayerBuilder::UpdateDisplayItemDataForFrame(nsPtrHashKey<nsIFrame>* aEntry,
     return PL_DHASH_REMOVE;
   }
 
-  if (newDisplayItems->HasContainerLayer()) {
-    // Reset or create the invalid region now so we can start collecting
-    // new dirty areas.
-    // Note that the NS_FRAME_HAS_CONTAINER_LAYER bit is set in
-    // BuildContainerLayerFor, so we don't need to set it here.
-    nsRegion* invalidRegion = static_cast<nsRegion*>
-      (props.Get(ThebesLayerInvalidRegionProperty()));
-    if (invalidRegion) {
-      invalidRegion->SetEmpty();
-    } else {
-      props.Set(ThebesLayerInvalidRegionProperty(), new nsRegion());
-    }
-  } else {
+  if (!newDisplayItems->HasContainerLayer()) {
     props.Delete(ThebesLayerInvalidRegionProperty());
     f->RemoveStateBits(NS_FRAME_HAS_CONTAINER_LAYER);
+  }
+
+  // Reset the invalid region now so we can start collecting new dirty
+  // areas.
+  nsRegion* invalidRegion = static_cast<nsRegion*>
+    (props.Get(ThebesLayerInvalidRegionProperty()));
+  if (invalidRegion) {
+    invalidRegion->SetEmpty();
   }
 
   // We need to remove and re-add the DisplayItemDataProperty in
@@ -546,12 +499,11 @@ FrameLayerBuilder::StoreNewDisplayItemData(DisplayItemDataEntry* aEntry,
 {
   LayerManagerData* data = static_cast<LayerManagerData*>(aUserArg);
   nsIFrame* f = aEntry->GetKey();
-  FrameProperties props = f->Properties();
   // Remember that this frame has display items in retained layers
   NS_ASSERTION(!data->mFramesWithLayers.GetEntry(f),
                "We shouldn't get here if we're already in mFramesWithLayers");
   data->mFramesWithLayers.PutEntry(f);
-  NS_ASSERTION(!props.Get(DisplayItemDataProperty()),
+  NS_ASSERTION(!f->Properties().Get(DisplayItemDataProperty()),
                "mFramesWithLayers out of sync");
 
   void* propValue;
@@ -560,11 +512,8 @@ FrameLayerBuilder::StoreNewDisplayItemData(DisplayItemDataEntry* aEntry,
   // Steal the list of display item layers
   array->SwapElements(aEntry->mData);
   // Save it
-  props.Set(DisplayItemDataProperty(), propValue);
+  f->Properties().Set(DisplayItemDataProperty(), propValue);
 
-  if (f->GetStateBits() & NS_FRAME_HAS_CONTAINER_LAYER) {
-    props.Set(ThebesLayerInvalidRegionProperty(), new nsRegion());
-  }
   return PL_DHASH_REMOVE;
 }
 
@@ -634,7 +583,7 @@ ContainerState::CreateOrRecycleColorLayer()
     if (!layer)
       return nsnull;
     // Mark this layer as being used for Thebes-painting display items
-    layer->SetUserData(&gColorLayerUserData, nsnull);
+    layer->SetUserData(&gColorLayerUserData);
   }
   return layer.forget();
 }
@@ -676,8 +625,7 @@ ContainerState::CreateOrRecycleThebesLayer(nsIFrame* aActiveScrolledRoot)
     if (!layer)
       return nsnull;
     // Mark this layer as being used for Thebes-painting display items
-    layer->SetUserData(&gThebesDisplayItemLayerUserData,
-        new ThebesDisplayItemLayerUserData());
+    layer->SetUserData(&gThebesDisplayItemLayerUserData);
   }
 
   // Set up transform so that 0,0 in the Thebes layer corresponds to the
@@ -697,7 +645,7 @@ ContainerState::CreateOrRecycleThebesLayer(nsIFrame* aActiveScrolledRoot)
  * have a frame because only nsDisplayClip items don't have a frame,
  * and those items are flattened away by ProcessDisplayItems.
  */
-static PRInt32
+static PRUint32
 AppUnitsPerDevPixel(nsDisplayItem* aItem)
 {
   // The underlying frame for zoom items is the root frame of the subdocument.
@@ -737,39 +685,6 @@ SetVisibleRectForLayer(Layer* aLayer, const nsIntRect& aRect)
   }
 }
 
-nscolor
-ContainerState::FindOpaqueBackgroundColorFor(PRInt32 aThebesLayerIndex)
-{
-  ThebesLayerData* target = mThebesLayerDataStack[aThebesLayerIndex];
-  for (PRInt32 i = aThebesLayerIndex - 1; i >= 0; --i) {
-    ThebesLayerData* candidate = mThebesLayerDataStack[i];
-    nsIntRegion visibleAboveIntersection;
-    visibleAboveIntersection.And(candidate->mVisibleAboveRegion, target->mVisibleRegion);
-    if (!visibleAboveIntersection.IsEmpty()) {
-      // Some non-Thebes content between target and candidate; this is
-      // hopeless
-      break;
-    }
-
-    nsIntRegion intersection;
-    intersection.And(candidate->mVisibleRegion, target->mVisibleRegion);
-    if (intersection.IsEmpty()) {
-      // The layer doesn't intersect our target, ignore it and move on
-      continue;
-    }
- 
-    // The candidate intersects our target. If any layer has a solid-color
-    // area behind our target, this must be it. Scan its display items.
-    nsPresContext* presContext = mContainerFrame->PresContext();
-    nscoord appUnitsPerDevPixel = presContext->AppUnitsPerDevPixel();
-    nsRect rect =
-      target->mVisibleRegion.GetBounds().ToAppUnits(appUnitsPerDevPixel);
-    return mBuilder->LayerBuilder()->
-      FindOpaqueColorCovering(mBuilder, candidate->mLayer, rect);
-  }
-  return NS_RGBA(0,0,0,0);
-}
-
 void
 ContainerState::PopThebesLayerData()
 {
@@ -777,6 +692,21 @@ ContainerState::PopThebesLayerData()
 
   PRInt32 lastIndex = mThebesLayerDataStack.Length() - 1;
   ThebesLayerData* data = mThebesLayerDataStack[lastIndex];
+
+  if (lastIndex > 0) {
+    // Since we're going to pop off the last ThebesLayerData, the
+    // mVisibleAboveRegion of the second-to-last item will need to include
+    // the regions of the last item.
+    ThebesLayerData* nextData = mThebesLayerDataStack[lastIndex - 1];
+    nextData->mVisibleAboveRegion.Or(nextData->mVisibleAboveRegion,
+                                     data->mVisibleAboveRegion);
+    nextData->mVisibleAboveRegion.Or(nextData->mVisibleAboveRegion,
+                                     data->mVisibleRegion);
+    nextData->mDrawAboveRegion.Or(nextData->mDrawAboveRegion,
+                                     data->mDrawAboveRegion);
+    nextData->mDrawAboveRegion.Or(nextData->mDrawAboveRegion,
+                                     data->mDrawRegion);
+  }
 
   Layer* layer;
   if (data->mIsSolidColorInVisibleRegion) {
@@ -824,87 +754,26 @@ ContainerState::PopThebesLayerData()
 
   nsIntRegion transparentRegion;
   transparentRegion.Sub(data->mVisibleRegion, data->mOpaqueRegion);
-  PRBool isOpaque = transparentRegion.IsEmpty();
-  // For translucent ThebesLayers, try to find an opaque background
-  // color that covers the entire area beneath it so we can pull that
-  // color into this layer to make it opaque.
-  if (layer == data->mLayer) {
-    nscolor backgroundColor = NS_RGBA(0,0,0,0);
-    if (!isOpaque) {
-      backgroundColor = FindOpaqueBackgroundColorFor(lastIndex);
-      if (NS_GET_A(backgroundColor) == 255) {
-        isOpaque = PR_TRUE;
-      }
-    }
-
-    // Store the background color
-    ThebesDisplayItemLayerUserData* userData =
-      static_cast<ThebesDisplayItemLayerUserData*>
-        (data->mLayer->GetUserData(&gThebesDisplayItemLayerUserData));
-    NS_ASSERTION(userData, "where did our user data go?");
-    if (userData->mForcedBackgroundColor != backgroundColor) {
-      // Invalidate the entire target ThebesLayer since we're changing
-      // the background color
-      data->mLayer->InvalidateRegion(data->mLayer->GetValidRegion());
-    }
-    userData->mForcedBackgroundColor = backgroundColor;
-  }
-  PRUint32 flags =
-    (isOpaque ? Layer::CONTENT_OPAQUE : 0) |
-    (data->mHasText ? 0 : Layer::CONTENT_NO_TEXT) |
-    (data->mHasTextOverTransparent ? 0 : Layer::CONTENT_NO_TEXT_OVER_TRANSPARENT);
-  layer->SetContentFlags(flags);
-
-  if (lastIndex > 0) {
-    // Since we're going to pop off the last ThebesLayerData, the
-    // mVisibleAboveRegion of the second-to-last item will need to include
-    // the regions of the last item.
-    ThebesLayerData* nextData = mThebesLayerDataStack[lastIndex - 1];
-    nextData->mVisibleAboveRegion.Or(nextData->mVisibleAboveRegion,
-                                     data->mVisibleAboveRegion);
-    nextData->mVisibleAboveRegion.Or(nextData->mVisibleAboveRegion,
-                                     data->mVisibleRegion);
-    nextData->mDrawAboveRegion.Or(nextData->mDrawAboveRegion,
-                                     data->mDrawAboveRegion);
-    nextData->mDrawAboveRegion.Or(nextData->mDrawAboveRegion,
-                                     data->mDrawRegion);
-  }
+  layer->SetIsOpaqueContent(transparentRegion.IsEmpty());
 
   mThebesLayerDataStack.RemoveElementAt(lastIndex);
 }
 
-static PRBool
-IsText(nsDisplayItem* aItem) {
-  switch (aItem->GetType()) {
-  case nsDisplayItem::TYPE_TEXT:
-  case nsDisplayItem::TYPE_BULLET:
-  case nsDisplayItem::TYPE_HEADER_FOOTER:
-  case nsDisplayItem::TYPE_MATHML_CHAR_FOREGROUND:
-#ifdef MOZ_XUL
-  case nsDisplayItem::TYPE_XUL_TEXT_BOX:
-#endif
-    return PR_TRUE;
-  default:
-    return PR_FALSE;
-  }
-}
-
 void
-ContainerState::ThebesLayerData::Accumulate(nsDisplayListBuilder* aBuilder,
-                                            nsDisplayItem* aItem,
-                                            const nsIntRect& aVisibleRect,
-                                            const nsIntRect& aDrawRect)
+ContainerState::ThebesLayerData::Accumulate(const nsIntRect& aVisibleRect,
+                                            const nsIntRect& aDrawRect,
+                                            const nsIntRect* aOpaqueRect,
+                                            nscolor* aSolidColor)
 {
-  nscolor uniformColor;
-  if (aItem->IsUniform(aBuilder, &uniformColor)) {
+  if (aSolidColor) {
     if (mVisibleRegion.IsEmpty()) {
       // This color is all we have
-      mSolidColor = uniformColor;
+      mSolidColor = *aSolidColor;
       mIsSolidColorInVisibleRegion = PR_TRUE;
     } else if (mIsSolidColorInVisibleRegion &&
                mVisibleRegion.IsEqual(nsIntRegion(aVisibleRect))) {
       // we can just blend the colors together
-      mSolidColor = NS_ComposeColors(mSolidColor, uniformColor);
+      mSolidColor = NS_ComposeColors(mSolidColor, *aSolidColor);
     } else {
       mIsSolidColorInVisibleRegion = PR_FALSE;
     }
@@ -916,31 +785,26 @@ ContainerState::ThebesLayerData::Accumulate(nsDisplayListBuilder* aBuilder,
   mVisibleRegion.SimplifyOutward(4);
   mDrawRegion.Or(mDrawRegion, aDrawRect);
   mDrawRegion.SimplifyOutward(4);
-
-  if (aItem->IsOpaque(aBuilder)) {
+  if (aOpaqueRect) {
     // We don't use SimplifyInward here since it's not defined exactly
     // what it will discard. For our purposes the most important case
     // is a large opaque background at the bottom of z-order (e.g.,
     // a canvas background), so we need to make sure that the first rect
     // we see doesn't get discarded.
     nsIntRegion tmp;
-    tmp.Or(mOpaqueRegion, aDrawRect);
+    tmp.Or(mOpaqueRegion, *aOpaqueRect);
     if (tmp.GetNumRects() <= 4) {
       mOpaqueRegion = tmp;
-    }
-  } else if (IsText(aItem)) {
-    mHasText = PR_TRUE;
-    if (!mOpaqueRegion.Contains(aVisibleRect)) {
-      mHasTextOverTransparent = PR_TRUE;
     }
   }
 }
 
 already_AddRefed<ThebesLayer>
-ContainerState::FindThebesLayerFor(nsDisplayItem* aItem,
-                                   const nsIntRect& aVisibleRect,
+ContainerState::FindThebesLayerFor(const nsIntRect& aVisibleRect,
                                    const nsIntRect& aDrawRect,
-                                   nsIFrame* aActiveScrolledRoot)
+                                   nsIFrame* aActiveScrolledRoot,
+                                   const nsIntRect* aOpaqueRect,
+                                   nscolor* aSolidColor)
 {
   PRInt32 i;
   PRInt32 lowestUsableLayerWithScrolledRoot = -1;
@@ -994,7 +858,7 @@ ContainerState::FindThebesLayerFor(nsDisplayItem* aItem,
     layer = thebesLayerData->mLayer;
   }
 
-  thebesLayerData->Accumulate(mBuilder, aItem, aVisibleRect, aDrawRect);
+  thebesLayerData->Accumulate(aVisibleRect, aDrawRect, aOpaqueRect, aSolidColor);
   return layer.forget();
 }
 
@@ -1089,7 +953,7 @@ ContainerState::ProcessDisplayItems(const nsDisplayList& aList,
 
       // Update that layer's clip and visible rects.
       NS_ASSERTION(ownLayer->Manager() == mManager, "Wrong manager");
-      NS_ASSERTION(!ownLayer->HasUserData(&gLayerManagerUserData),
+      NS_ASSERTION(ownLayer->GetUserData() != &gThebesDisplayItemLayerUserData,
                    "We shouldn't have a FrameLayerBuilder-managed layer here!");
       // It has its own layer. Update that layer's clip and visible rects.
       if (aClipRect) {
@@ -1140,9 +1004,17 @@ ContainerState::ProcessDisplayItems(const nsDisplayList& aList,
           nsLayoutUtils::GetActiveScrolledRootFor(viewportFrame, mBuilder->ReferenceFrame());
       }
 
+      nscolor uniformColor;
+      PRBool isUniform = item->IsUniform(mBuilder, &uniformColor);
+      PRBool isOpaque = item->IsOpaque(mBuilder);
+      nsIntRect opaqueRect;
+      if (isOpaque) {
+        opaqueRect = item->GetBounds(mBuilder).ToNearestPixels(appUnitsPerDevPixel);
+      }
       nsRefPtr<ThebesLayer> thebesLayer =
-        FindThebesLayerFor(item, itemVisibleRect, itemDrawRect,
-                           activeScrolledRoot);
+        FindThebesLayerFor(itemVisibleRect, itemDrawRect, activeScrolledRoot,
+                           isOpaque ? &opaqueRect : nsnull,
+                           isUniform ? &uniformColor : nsnull);
 
       InvalidateForLayerChange(item, thebesLayer);
 
@@ -1230,36 +1102,15 @@ FrameLayerBuilder::AddLayerDisplayItem(Layer* aLayer,
   }
 }
 
-nscolor
-FrameLayerBuilder::FindOpaqueColorCovering(nsDisplayListBuilder* aBuilder,
-                                           ThebesLayer* aLayer,
-                                           const nsRect& aRect)
-{
-  ThebesLayerItemsEntry* entry = mThebesLayerItems.GetEntry(aLayer);
-  NS_ASSERTION(entry, "Must know about this layer!");
-  for (PRInt32 i = entry->mItems.Length() - 1; i >= 0; --i) {
-    nsDisplayItem* item = entry->mItems[i].mItem;
-    const nsRect& visible = item->GetVisibleRect();
-    if (!visible.Intersects(aRect))
-      continue;
-
-    nscolor color;
-    if (visible.Contains(aRect) && item->IsUniform(aBuilder, &color) &&
-        NS_GET_A(color) == 255)
-      return color;
-    break;
-  }
-  return NS_RGBA(0,0,0,0);
-}
-
 void
 ContainerState::CollectOldLayers()
 {
   for (Layer* layer = mContainerLayer->GetFirstChild(); layer;
        layer = layer->GetNextSibling()) {
-    if (layer->HasUserData(&gColorLayerUserData)) {
+    void* data = layer->GetUserData();
+    if (data == &gColorLayerUserData) {
       mRecycledColorLayers.AppendElement(static_cast<ColorLayer*>(layer));
-    } else if (layer->HasUserData(&gThebesDisplayItemLayerUserData)) {
+    } else if (data == &gThebesDisplayItemLayerUserData) {
       NS_ASSERTION(layer->AsThebesLayer(), "Wrong layer type");
       mRecycledThebesLayers.AppendElement(static_cast<ThebesLayer*>(layer));
     }
@@ -1309,17 +1160,6 @@ ContainerState::Finish()
   }
 }
 
-static void
-SetHasContainerLayer(nsIFrame* aFrame)
-{
-  aFrame->AddStateBits(NS_FRAME_HAS_CONTAINER_LAYER);
-  for (nsIFrame* f = aFrame;
-       f && !(f->GetStateBits() & NS_FRAME_HAS_CONTAINER_LAYER_DESCENDANT);
-       f = nsLayoutUtils::GetCrossDocParentFrame(f)) {
-    f->AddStateBits(NS_FRAME_HAS_CONTAINER_LAYER_DESCENDANT);
-  }
-}
-
 already_AddRefed<Layer>
 FrameLayerBuilder::BuildContainerLayerFor(nsDisplayListBuilder* aBuilder,
                                           LayerManager* aManager,
@@ -1340,7 +1180,7 @@ FrameLayerBuilder::BuildContainerLayerFor(nsDisplayListBuilder* aBuilder,
     Layer* oldLayer = GetOldLayerFor(aContainerFrame, containerDisplayItemKey);
     if (oldLayer) {
       NS_ASSERTION(oldLayer->Manager() == aManager, "Wrong manager");
-      if (oldLayer->HasUserData(&gThebesDisplayItemLayerUserData)) {
+      if (oldLayer->GetUserData() == &gThebesDisplayItemLayerUserData) {
         // The old layer for this item is actually our ThebesLayer
         // because we rendered its layer into that ThebesLayer. So we
         // don't actually have a retained container layer.
@@ -1380,24 +1220,18 @@ FrameLayerBuilder::BuildContainerLayerFor(nsDisplayListBuilder* aBuilder,
       invalidThebesContent->MoveBy(offset);
       state.SetInvalidThebesContent(invalidThebesContent->
         ToOutsidePixels(aContainerFrame->PresContext()->AppUnitsPerDevPixel()));
-      // We have to preserve the current contents of invalidThebesContent
-      // because there might be multiple container layers for the same
-      // frame and we need to invalidate the ThebesLayer children of all
-      // of them.
       invalidThebesContent->MoveBy(-offset);
     } else {
-      // The region was deleted to indicate that everything should be
-      // invalidated.
-      state.SetInvalidateAllThebesContent();
+      // Set up region to collect invalidation data
+      props.Set(ThebesLayerInvalidRegionProperty(), new nsRegion());
     }
-    SetHasContainerLayer(aContainerFrame);
+    aContainerFrame->AddStateBits(NS_FRAME_HAS_CONTAINER_LAYER);
   }
 
   state.ProcessDisplayItems(aChildren, nsnull);
   state.Finish();
 
-  PRUint32 flags = aChildren.IsOpaque() ? Layer::CONTENT_OPAQUE : 0;
-  containerLayer->SetContentFlags(flags);
+  containerLayer->SetIsOpaqueContent(aChildren.IsOpaque());
   return containerLayer.forget();
 }
 
@@ -1414,7 +1248,7 @@ FrameLayerBuilder::GetLeafLayerFor(nsDisplayListBuilder* aBuilder,
   Layer* layer = GetOldLayerFor(f, aItem->GetPerFrameKey());
   if (!layer)
     return nsnull;
-  if (layer->HasUserData(&gThebesDisplayItemLayerUserData)) {
+  if (layer->GetUserData() == &gThebesDisplayItemLayerUserData) {
     // This layer was created to render Thebes-rendered content for this
     // display item. The display item should not use it for its own
     // layer rendering.
@@ -1437,60 +1271,11 @@ FrameLayerBuilder::InvalidateThebesLayerContents(nsIFrame* aFrame,
   invalidThebesContent->SimplifyOutward(20);
 }
 
-/**
- * Returns true if we find a descendant with a container layer
- */
-static PRBool
-InternalInvalidateThebesLayersInSubtree(nsIFrame* aFrame)
-{
-  if (!(aFrame->GetStateBits() & NS_FRAME_HAS_CONTAINER_LAYER_DESCENDANT))
-    return PR_FALSE;
-
-  PRBool foundContainerLayer = PR_FALSE;
-  if (aFrame->GetStateBits() & NS_FRAME_HAS_CONTAINER_LAYER) {
-    // Delete the invalid region to indicate that all Thebes contents
-    // need to be invalidated
-    aFrame->Properties().Delete(ThebesLayerInvalidRegionProperty());
-    foundContainerLayer = PR_TRUE;
-  }
-
-  PRInt32 listIndex = 0;
-  nsIAtom* childList = nsnull;
-  do {
-    nsIFrame* child = aFrame->GetFirstChild(childList);
-    if (!child && !childList) {
-      nsSubDocumentFrame* subdocumentFrame = do_QueryFrame(aFrame);
-      if (subdocumentFrame) {
-        // Descend into the subdocument
-        child = subdocumentFrame->GetSubdocumentRootFrame();
-      }
-    }
-    while (child) {
-      if (InternalInvalidateThebesLayersInSubtree(child)) {
-        foundContainerLayer = PR_TRUE;
-      }
-      child = child->GetNextSibling();
-    }
-    childList = aFrame->GetAdditionalChildListName(listIndex++);
-  } while (childList);
-
-  if (!foundContainerLayer) {
-    aFrame->RemoveStateBits(NS_FRAME_HAS_CONTAINER_LAYER_DESCENDANT);
-  }
-  return foundContainerLayer;
-}
-
-/* static */ void
-FrameLayerBuilder::InvalidateThebesLayersInSubtree(nsIFrame* aFrame)
-{
-  InternalInvalidateThebesLayersInSubtree(aFrame);
-}
-
 /* static */ void
 FrameLayerBuilder::InvalidateAllThebesLayerContents(LayerManager* aManager)
 {
   LayerManagerData* data = static_cast<LayerManagerData*>
-    (aManager->GetUserData(&gLayerManagerUserData));
+    (aManager->GetUserData());
   if (data) {
     data->mInvalidateAllThebesContent = PR_TRUE;
   }
@@ -1500,7 +1285,7 @@ FrameLayerBuilder::InvalidateAllThebesLayerContents(LayerManager* aManager)
 FrameLayerBuilder::InvalidateAllLayers(LayerManager* aManager)
 {
   LayerManagerData* data = static_cast<LayerManagerData*>
-    (aManager->GetUserData(&gLayerManagerUserData));
+    (aManager->GetUserData());
   if (data) {
     data->mInvalidateAllLayers = PR_TRUE;
   }
@@ -1518,9 +1303,9 @@ FrameLayerBuilder::HasDedicatedLayer(nsIFrame* aFrame, PRUint32 aDisplayItemKey)
     (reinterpret_cast<nsTArray<DisplayItemData>*>(&propValue));
   for (PRUint32 i = 0; i < array->Length(); ++i) {
     if (array->ElementAt(i).mDisplayItemKey == aDisplayItemKey) {
-      Layer* layer = array->ElementAt(i).mLayer;
-      if (!layer->HasUserData(&gColorLayerUserData) &&
-          !layer->HasUserData(&gThebesDisplayItemLayerUserData))
+      void* layerUserData = array->ElementAt(i).mLayer->GetUserData();
+      if (layerUserData != &gColorLayerUserData &&
+          layerUserData != &gThebesDisplayItemLayerUserData)
         return PR_TRUE;
     }
   }
@@ -1549,15 +1334,6 @@ FrameLayerBuilder::DrawThebesLayer(ThebesLayer* aLayer,
     // so 'entry' could become invalid.
   }
 
-  ThebesDisplayItemLayerUserData* userData =
-    static_cast<ThebesDisplayItemLayerUserData*>
-      (aLayer->GetUserData(&gThebesDisplayItemLayerUserData));
-  NS_ASSERTION(userData, "where did our user data go?");
-  if (NS_GET_A(userData->mForcedBackgroundColor) > 0) {
-    aContext->SetColor(gfxRGBA(userData->mForcedBackgroundColor));
-    aContext->Paint();
-  }
-
   gfxMatrix transform;
   if (!aLayer->GetTransform().Is2D(&transform)) {
     NS_ERROR("non-2D transform in our Thebes layer!");
@@ -1572,7 +1348,7 @@ FrameLayerBuilder::DrawThebesLayer(ThebesLayer* aLayer,
   nsIntPoint offset(PRInt32(transform.x0), PRInt32(transform.y0));
 
   nsPresContext* presContext = containerLayerFrame->PresContext();
-  PRInt32 appUnitsPerDevPixel = presContext->AppUnitsPerDevPixel();
+  nscoord appUnitsPerDevPixel = presContext->AppUnitsPerDevPixel();
   nsRect r = (aRegionToInvalidate.GetBounds() + offset).
     ToAppUnits(appUnitsPerDevPixel);
   containerLayerFrame->InvalidateWithFlags(r,

@@ -257,14 +257,14 @@ private:
                            PRBool aImageOnly = PR_FALSE);
 
   // empty if there are no elementswith this ID.
-  // The elements are stored as weak pointers.
+  // The elementsnodes are stored addrefed.
   nsSmallVoidArray mIdContentList;
   // NAME_NOT_VALID if this id cannot be used as a 'name'.  Otherwise
   // stores Elements.
   nsBaseContentList *mNameContentList;
   nsRefPtr<nsContentList> mDocAllList;
   nsAutoPtr<nsTHashtable<ChangeCallbackEntry> > mChangeCallbacks;
-  nsRefPtr<Element> mImageElement;
+  nsCOMPtr<Element> mImageElement;
 };
 
 class nsDocHeaderData

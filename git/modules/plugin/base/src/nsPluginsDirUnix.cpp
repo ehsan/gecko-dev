@@ -398,7 +398,7 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
         info.fDescription = PL_strdup(description);
     }
     else {
-        info.fDescription = PL_strdup("");
+        info.fDescription = "";
     }
 
     return NS_OK;

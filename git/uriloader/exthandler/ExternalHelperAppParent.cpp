@@ -50,11 +50,10 @@
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_ISUPPORTS_INHERITED3(ExternalHelperAppParent,
+NS_IMPL_ISUPPORTS_INHERITED2(ExternalHelperAppParent,
                              nsHashPropertyBag,
                              nsIRequest,
-                             nsIChannel,
-                             nsIResumableChannel)
+                             nsIChannel)
 
 ExternalHelperAppParent::ExternalHelperAppParent(
     const IPC::URI& uri,

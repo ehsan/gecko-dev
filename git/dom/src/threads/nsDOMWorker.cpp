@@ -39,7 +39,6 @@
 #include "jscntxt.h"
 
 #include "nsDOMWorker.h"
-#include "nsAtomicRefcnt.h"
 
 #include "nsIDOMEvent.h"
 #include "nsIEventTarget.h"
@@ -951,7 +950,7 @@ NS_IMETHODIMP_(nsrefcnt)
 nsDOMWorkerFeature::AddRef()
 {
   NS_ASSERTION(mRefCnt >= 0, "Illegal refcnt!");
-  return NS_AtomicIncrementRefcnt(mRefCnt);
+  return PR_AtomicIncrement((PRInt32*)&mRefCnt);
 }
 
 // Custom NS_IMPL_THREADSAFE_RELEASE. Checks the mFreeToDie flag before calling
@@ -962,7 +961,7 @@ NS_IMETHODIMP_(nsrefcnt)
 nsDOMWorkerFeature::Release()
 {
   NS_ASSERTION(mRefCnt, "Double release!");
-  nsrefcnt count = NS_AtomicDecrementRefcnt(mRefCnt);
+  nsrefcnt count = PR_AtomicDecrement((PRInt32*)&mRefCnt);
   if (count == 0) {
     if (mFreeToDie) {
       mRefCnt = 1;

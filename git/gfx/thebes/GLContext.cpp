@@ -342,11 +342,7 @@ GLContext::InitExtensions()
     const GLubyte *extensions = fGetString(LOCAL_GL_EXTENSIONS);
     char *exts = strdup((char *)extensions);
 
-    static bool once = false;
-
-    if (!once) {
-        printf_stderr("GL extensions: %s\n", exts);
-    }
+    printf_stderr("GL extensions: %s\n", exts);
 
     char *s = exts;
     bool done = false;
@@ -360,9 +356,7 @@ GLContext::InitExtensions()
 
         for (int i = 0; sExtensionNames[i]; ++i) {
             if (strcmp(s, sExtensionNames[i]) == 0) {
-                if (!once) {
-                    printf_stderr("Found extension %s\n", s);
-                }
+                printf_stderr("Found extension %s\n", s);
                 mAvailableExtensions[i] = 1;
             }
         }
@@ -371,8 +365,6 @@ GLContext::InitExtensions()
     }
 
     free(exts);
-
-    once = true;
 }
 
 PRBool
@@ -687,11 +679,9 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
     if (firstTime) {
         UpdateActualFormat();
 
-#ifdef DEBUG
         printf_stderr("Created offscreen FBO: r: %d g: %d b: %d a: %d depth: %d stencil: %d\n",
                       mActualFormat.red, mActualFormat.green, mActualFormat.blue, mActualFormat.alpha,
                       mActualFormat.depth, mActualFormat.stencil);
-#endif
     }
 
     // We're good, and the framebuffer is already attached, so let's
@@ -699,9 +689,6 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
     // random memory.  We saved all of these things earlier so that we
     // can restore them.
     fViewport(0, 0, aSize.width, aSize.height);
-
-    // Clear the new framebuffer with the full viewport
-    ClearSafely();
 
     // Ok, now restore the GL state back to what it was before the resize took place.
     fBindTexture(LOCAL_GL_TEXTURE_2D, curBoundTexture);
@@ -712,6 +699,8 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
     // the previous one isn't valid.
     if (!firstTime)
         fViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+
+    ClearSafely();
 
     return PR_TRUE;
 }
@@ -757,12 +746,12 @@ GLContext::UpdateActualFormat()
 {
     ContextFormat nf;
 
-    fGetIntegerv(LOCAL_GL_RED_BITS, (GLint*) &nf.red);
-    fGetIntegerv(LOCAL_GL_GREEN_BITS, (GLint*) &nf.green);
-    fGetIntegerv(LOCAL_GL_BLUE_BITS, (GLint*) &nf.blue);
+    fGetIntegerv(LOCAL_GL_RED_BITS, (GLint*) &nf.alpha);
+    fGetIntegerv(LOCAL_GL_GREEN_BITS, (GLint*) &nf.alpha);
+    fGetIntegerv(LOCAL_GL_BLUE_BITS, (GLint*) &nf.alpha);
     fGetIntegerv(LOCAL_GL_ALPHA_BITS, (GLint*) &nf.alpha);
     fGetIntegerv(LOCAL_GL_DEPTH_BITS, (GLint*) &nf.depth);
-    fGetIntegerv(LOCAL_GL_STENCIL_BITS, (GLint*) &nf.stencil);
+    fGetIntegerv(LOCAL_GL_STENCIL_BITS, (GLint*) &nf.depth);
 
     mActualFormat = nf;
 }
@@ -1018,10 +1007,6 @@ RemoveNamesFromArray(GLContext *aOrigin, GLsizei aCount, GLuint *aNames, nsTArra
 {
     for (GLsizei j = 0; j < aCount; ++j) {
         GLuint name = aNames[j];
-        // name 0 can be ignored
-        if (name == 0)
-            continue;
-
         PRBool found = PR_FALSE;
         for (PRUint32 i = 0; i < aArray.Length(); ++i) {
             if (aArray[i].name == name) {
@@ -1030,11 +1015,8 @@ RemoveNamesFromArray(GLContext *aOrigin, GLsizei aCount, GLuint *aNames, nsTArra
                 break;
             }
         }
-#ifdef DEBUG
-        if (!found) {
-            printf_stderr("GL Context %p deleting resource %d, which doesn't exist!\n", aOrigin, name);
-        }
-#endif
+        if (!found)
+            printf_stderr("GL Context %p deleting resource %d, which doesn't exist!", aOrigin, name);
     }
 }
 

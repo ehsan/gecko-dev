@@ -196,7 +196,6 @@ int ComputePixelSize(GLenum format, GLenum type)
           case GL_LUMINANCE_ALPHA: return sizeof(unsigned char) * 2;
           case GL_RGB:             return sizeof(unsigned char) * 3;
           case GL_RGBA:            return sizeof(unsigned char) * 4;
-          case GL_BGRA_EXT:        return sizeof(unsigned char) * 4;
           default: UNREACHABLE();
         }
         break;
@@ -229,7 +228,6 @@ bool CheckTextureFormatType(GLenum format, GLenum type)
         switch (format)
         {
           case GL_RGBA:
-          case GL_BGRA_EXT:
           case GL_RGB:
           case GL_ALPHA:
           case GL_LUMINANCE:

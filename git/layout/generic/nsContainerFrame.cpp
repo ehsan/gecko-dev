@@ -590,10 +590,9 @@ nsContainerFrame::SyncFrameViewProperties(nsPresContext*  aPresContext,
 
 static nscoord GetCoord(const nsStyleCoord& aCoord, nscoord aIfNotCoord)
 {
-  if (aCoord.ConvertsToLength()) {
-    return nsRuleNode::ComputeCoordPercentCalc(aCoord, 0);
-  }
-  return aIfNotCoord;
+  return aCoord.GetUnit() == eStyleUnit_Coord
+           ? aCoord.GetCoordValue()
+           : aIfNotCoord;
 }
 
 void
@@ -725,7 +724,7 @@ nsContainerFrame::ReflowChild(nsIFrame*                aKidFrame,
     if ((aFlags & NS_FRAME_INVALIDATE_ON_MOVE) &&
         !(aKidFrame->GetStateBits() & NS_FRAME_FIRST_REFLOW) &&
         aKidFrame->GetPosition() != nsPoint(aX, aY)) {
-      aKidFrame->InvalidateFrameSubtree();
+      aKidFrame->InvalidateOverflowRect();
     }
     aKidFrame->SetPosition(nsPoint(aX, aY));
   }
@@ -1131,7 +1130,7 @@ nsContainerFrame::DeleteNextInFlowChild(nsPresContext* aPresContext,
     }
   }
 
-  aNextInFlow->InvalidateFrameSubtree();
+  aNextInFlow->InvalidateOverflowRect();
 
   // Take the next-in-flow out of the parent's child list
 #ifdef DEBUG

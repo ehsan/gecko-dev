@@ -452,8 +452,11 @@ nsAccessibleWrap::CreateMaiInterfaces(void)
         interfacesBits |= 1 << MAI_INTERFACE_IMAGE;
     }
 
-    // HyperLinkAccessible
-    if (IsHyperLink()) {
+    //nsIAccessibleHyperLink
+    nsCOMPtr<nsIAccessibleHyperLink> accessInterfaceHyperlink;
+    QueryInterface(NS_GET_IID(nsIAccessibleHyperLink),
+                   getter_AddRefs(accessInterfaceHyperlink));
+    if (accessInterfaceHyperlink) {
        interfacesBits |= 1 << MAI_INTERFACE_HYPERLINK_IMPL;
     }
 
@@ -475,7 +478,10 @@ nsAccessibleWrap::CreateMaiInterfaces(void)
       }
       
       //nsIAccessibleSelection
-      if (IsSelect()) {
+      nsCOMPtr<nsIAccessibleSelectable> accessInterfaceSelection;
+      QueryInterface(NS_GET_IID(nsIAccessibleSelectable),
+                     getter_AddRefs(accessInterfaceSelection));
+      if (accessInterfaceSelection) {
           interfacesBits |= 1 << MAI_INTERFACE_SELECTION;
       }
     }
@@ -752,8 +758,11 @@ getRoleCB(AtkObject *aAtkObj)
 #endif
 
     if (aAtkObj->role == ATK_ROLE_INVALID) {
-        // map to the actual value
-        PRUint32 atkRole = atkRoleMap[accWrap->Role()];
+        PRUint32 accRole, atkRole;
+        nsresult rv = accWrap->GetRole(&accRole);
+        NS_ENSURE_SUCCESS(rv, ATK_ROLE_INVALID);
+
+        atkRole = atkRoleMap[accRole]; // map to the actual value
         NS_ASSERTION(atkRoleMap[nsIAccessibleRole::ROLE_LAST_ENTRY] ==
                      kROLE_ATK_LAST_ENTRY, "ATK role map skewed");
         aAtkObj->role = static_cast<AtkRole>(atkRole);

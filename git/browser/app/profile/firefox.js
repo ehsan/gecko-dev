@@ -56,12 +56,13 @@ pref("browser.hiddenWindowChromeURL", "chrome://browser/content/hiddenWindow.xul
 // Enables some extra Extension System Logging (can reduce performance)
 pref("extensions.logging.enabled", false);
 
-// Preferences for AMO integration
+// Preferences for the Addon Repository
 pref("extensions.getAddons.cache.enabled", true);
 pref("extensions.getAddons.maxResults", 15);
 pref("extensions.getAddons.get.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/%API_VERSION%/search/guid:%IDS%");
-pref("extensions.getAddons.search.browseURL", "https://addons.mozilla.org/%LOCALE%/%APP%/search?q=%TERMS%");
 pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/%API_VERSION%/search/%TERMS%/all/%MAX_RESULTS%/%OS%/%VERSION%");
+
+// Preferences for AMO integration
 pref("extensions.webservice.discoverURL", "https://services.addons.mozilla.org/%LOCALE%/%APP%/discovery/%VERSION%/%OS%");
 
 // Blocklist preferences
@@ -88,23 +89,6 @@ pref("app.update.timer", 600000);
 
 // Enables some extra Application Update Logging (can reduce performance)
 pref("app.update.log", false);
-
-// When |app.update.cert.requireBuiltIn| is true or not specified the
-// final certificate and all certificates the connection is redirected to before
-// the final certificate for the url specified in the |app.update.url|
-// preference must be built-in.
-pref("app.update.cert.requireBuiltIn", true);
-
-// When |app.update.cert.checkAttributes| is true or not specified the
-// certificate attributes specified in the |app.update.certs.| preference branch
-// are checked against the certificate for the url specified by the
-// |app.update.url| preference.
-pref("app.update.cert.checkAttributes", true);
-
-// The number of certificate attribute check failures to allow for background
-// update checks before notifying the user of the failure. User initiated update
-// checks always notify the user of the certificate attribute check failure.
-pref("app.update.cert.maxErrors", 5);
 
 // The |app.update.certs.| preference branch contains branches that are
 // sequentially numbered starting at 1 that contain attribute name / value

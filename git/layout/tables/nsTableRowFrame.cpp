@@ -921,7 +921,7 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
       }
       else {
         if (x != kidRect.x) {
-          kidFrame->InvalidateFrameSubtree();
+          kidFrame->InvalidateOverflowRect();
         }
         
         desiredSize.width = cellDesiredSize.width;
@@ -978,12 +978,12 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
     else {
       if (kidRect.x != x) {
         // Invalidate the old position
-        kidFrame->InvalidateFrameSubtree();
+        kidFrame->InvalidateOverflowRect();
         // move to the new position
         kidFrame->SetPosition(nsPoint(x, kidRect.y));
         nsTableFrame::RePositionViews(kidFrame);
         // invalidate the new position
-        kidFrame->InvalidateFrameSubtree();
+        kidFrame->InvalidateOverflowRect();
       }
       // we need to account for the cell's width even if it isn't reflowed
       x += kidRect.width;
@@ -1152,7 +1152,7 @@ nsTableRowFrame::CollapseRowIfNecessary(nscoord aRowOffset,
 
   if (aRowOffset != 0) {
     // We're moving, so invalidate our old position
-    InvalidateFrameSubtree();
+    InvalidateOverflowRect();
   }
   
   nsRect rowRect = GetRect();
@@ -1273,7 +1273,7 @@ nsTableRowFrame::CollapseRowIfNecessary(nscoord aRowOffset,
 
         if (aRowOffset == 0 && cRect.TopLeft() != oldCellRect.TopLeft()) {
           // We're moving the cell.  Invalidate the old overflow area
-          cellFrame->InvalidateFrameSubtree();
+          cellFrame->InvalidateOverflowRect();
         }
         
         cellFrame->SetRect(cRect);

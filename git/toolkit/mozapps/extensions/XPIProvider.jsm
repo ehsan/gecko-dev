@@ -71,7 +71,6 @@ const PREF_XPI_ENABLED                = "xpinstall.enabled";
 const PREF_XPI_WHITELIST_REQUIRED     = "xpinstall.whitelist.required";
 const PREF_XPI_WHITELIST_PERMISSIONS  = "xpinstall.whitelist.add";
 const PREF_XPI_BLACKLIST_PERMISSIONS  = "xpinstall.blacklist.add";
-const PREF_INSTALL_REQUIREBUILTINCERTS = "extensions.install.requireBuiltInCerts";
 
 const URI_EXTENSION_UPDATE_DIALOG     = "chrome://mozapps/content/extensions/update.xul";
 
@@ -107,13 +106,12 @@ const TOOLKIT_ID                      = "toolkit@mozilla.org";
 
 const BRANCH_REGEXP                   = /^([^\.]+\.[0-9]+[a-z]*).*/gi;
 
-const DB_SCHEMA                       = 3;
+const DB_SCHEMA                       = 2;
 const REQ_VERSION                     = 2;
 
 // Properties that exist in the install manifest
 const PROP_METADATA      = ["id", "version", "type", "internalName", "updateURL",
-                            "updateKey", "optionsURL", "aboutURL", "iconURL",
-                            "icon64URL"]
+                            "updateKey", "optionsURL", "aboutURL", "iconURL"]
 const PROP_LOCALE_SINGLE = ["name", "description", "creator", "homepageURL"];
 const PROP_LOCALE_MULTI  = ["developers", "translators", "contributors"];
 const PROP_TARGETAPP     = ["id", "minVersion", "maxVersion"];
@@ -2265,21 +2263,11 @@ var XPIProvider = {
     if (!this.extensionsActive)
       return false;
 
-    // Anything that is active is already enabled
-    if (aAddon.active)
-      return false;
-
-    if (aAddon.type == "theme") {
-      // If dynamic theme switching is enabled then switching themes does not
-      // require a restart
-      if (Prefs.getBoolPref(PREF_EM_DSS_ENABLED))
-        return false;
-
-      // If the theme is already the theme in use then no restart is necessary.
-      // This covers the case where the default theme is in use but a
-      // lightweight theme is considered active.
-      return aAddon.internalName != this.currentSkin;
-    }
+    // If the theme we're enabling is the skin currently selected then it doesn't
+    // require a restart to enable it.
+    if (aAddon.type == "theme")
+      return aAddon.internalName != this.currentSkin &&
+             !Prefs.getBoolPref(PREF_EM_DSS_ENABLED);
 
     return !aAddon.bootstrap;
   },
@@ -2297,30 +2285,13 @@ var XPIProvider = {
     if (!this.extensionsActive)
       return false;
 
-    // Anything that isn't active is already disabled
-    if (!aAddon.active)
-      return false;
-
-    if (aAddon.type == "theme") {
-      // If dynamic theme switching is enabled then switching themes does not
-      // require a restart
-      if (Prefs.getBoolPref(PREF_EM_DSS_ENABLED))
-        return false;
-
-      // Non-default themes always require a restart to disable since it will
-      // be switching from one theme to another or to the default theme and a
-      // lightweight theme.
-      if (aAddon.internalName != this.defaultSkin)
-        return true;
-
-      // The default theme requires a restart to disable if we are in the
-      // process of switching to a different theme. Note that this makes the
-      // disabled flag of operationsRequiringRestart incorrect for the default
-      // theme (it will be false most of the time). Bug 520124 would be required
-      // to fix it. For the UI this isn't a problem since we never try to
-      // disable or uninstall the default theme.
-      return this.selectedSkin != this.currentSkin;
-    }
+    // This sounds odd but it is correct. Themes are only ever asked to disable
+    // after another theme has been enabled. Disabling the theme only requires
+    // a restart if enabling the other theme does too. If the selected skin doesn't
+    // match the current skin then a restart is necessary.
+    if (aAddon.type == "theme")
+      return this.selectedSkin != this.currentSkin &&
+             !Prefs.getBoolPref(PREF_EM_DSS_ENABLED);
 
     return !aAddon.bootstrap;
   },
@@ -2338,33 +2309,12 @@ var XPIProvider = {
     if (!this.extensionsActive)
       return false;
 
-    // Add-ons that are already installed don't require a restart to install.
-    // This wouldn't normally be called for an already installed add-on (except
-    // for forming the operationsRequiringRestart flags) so is really here as
-    // a safety measure.
-    if (aAddon instanceof DBAddonInternal)
-      return false;
+    // Themes not currently in use can be installed immediately
+    if (aAddon.type == "theme")
+      return aAddon.internalName == this.currentSkin ||
+             Prefs.getBoolPref(PREF_EM_DSS_ENABLED);
 
-    // If we have an AddonInstall for this add-on then we can see if there is
-    // an existing installed add-on with the same ID
-    if ("_install" in aAddon && aAddon._install) {
-      // If there is an existing installed add-on and uninstalling it would
-      // require a restart then installing the update will also require a
-      // restart
-      let existingAddon = aAddon._install.existingAddon;
-      if (existingAddon && this.uninstallRequiresRestart(existingAddon))
-        return true;
-    }
-
-    // If the add-on is not going to be active after installation then it
-    // doesn't require a restart to install.
-    if (aAddon.userDisabled || aAddon.appDisabled)
-      return false;
-
-    // Themes will require a restart (even if dynamic switching is enabled due
-    // to some caching issues) and non-bootstrapped add-ons will require a
-    // restart
-    return aAddon.type == "theme" || !aAddon.bootstrap;
+    return !aAddon.bootstrap;
   },
 
   /**
@@ -2380,9 +2330,12 @@ var XPIProvider = {
     if (!this.extensionsActive)
       return false;
 
-    // If the add-on can be disabled without a restart then it can also be
-    // uninstalled without a restart
-    return this.disableRequiresRestart(aAddon);
+    // Themes not currently in use can be uninstalled immediately
+    if (aAddon.type == "theme")
+      return aAddon.internalName == this.currentSkin ||
+             Prefs.getBoolPref(PREF_EM_DSS_ENABLED);
+
+    return !aAddon.bootstrap;
   },
 
   /**
@@ -2605,7 +2558,7 @@ var XPIProvider = {
       throw new Error("Cannot uninstall addons from locked install locations");
 
     // Inactive add-ons don't require a restart to uninstall
-    let requiresRestart = this.uninstallRequiresRestart(aAddon);
+    let requiresRestart = aAddon.active && this.uninstallRequiresRestart(aAddon);
 
     if (requiresRestart) {
       // We create an empty directory in the staging directory to indicate that
@@ -2687,10 +2640,10 @@ var XPIProvider = {
 
 const FIELDS_ADDON = "internal_id, id, location, version, type, internalName, " +
                      "updateURL, updateKey, optionsURL, aboutURL, iconURL, " +
-                     "icon64URL, defaultLocale, visible, active, userDisabled, " +
-                     "appDisabled, pendingUninstall, descriptor, installDate, " +
-                     "updateDate, applyBackgroundUpdates, bootstrap, skinnable, " +
-                     "size, sourceURI, releaseNotesURI";
+                     "defaultLocale, visible, active, userDisabled, appDisabled, " +
+                     "pendingUninstall, descriptor, installDate, updateDate, " +
+                     "applyBackgroundUpdates, bootstrap, skinnable, size, " +
+                     "sourceURI, releaseNotesURI";
 
 /**
  * A helper function to log an SQL error.
@@ -2831,11 +2784,11 @@ var XPIDatabase = {
     addAddonMetadata_addon: "INSERT INTO addon VALUES (NULL, :id, :location, " +
                             ":version, :type, :internalName, :updateURL, " +
                             ":updateKey, :optionsURL, :aboutURL, :iconURL, " +
-                            ":icon64URL, :locale, :visible, :active, " +
-                            ":userDisabled, :appDisabled, :pendingUninstall, " +
-                            ":descriptor, :installDate, :updateDate, " +
-                            ":applyBackgroundUpdates, :bootstrap, :skinnable, " +
-                            ":size, :sourceURI, :releaseNotesURI)",
+                            ":locale, :visible, :active, :userDisabled, " +
+                            ":appDisabled, :pendingUninstall, :descriptor, " +
+                            ":installDate, :updateDate, :applyBackgroundUpdates, " +
+                            ":bootstrap, :skinnable, :size, :sourceURI, " +
+                            ":releaseNotesURI)",
     addAddonMetadata_addon_locale: "INSERT INTO addon_locale VALUES " +
                                    "(:internal_id, :name, :locale)",
     addAddonMetadata_locale: "INSERT INTO locale (name, description, creator, " +
@@ -3159,8 +3112,7 @@ var XPIDatabase = {
                                   "id TEXT, location TEXT, version TEXT, " +
                                   "type TEXT, internalName TEXT, updateURL TEXT, " +
                                   "updateKey TEXT, optionsURL TEXT, aboutURL TEXT, " +
-                                  "iconURL TEXT, icon64URL TEXT, " +
-                                  "defaultLocale INTEGER, " +
+                                  "iconURL TEXT, defaultLocale INTEGER, " +
                                   "visible INTEGER, active INTEGER, " +
                                   "userDisabled INTEGER, appDisabled INTEGER, " +
                                   "pendingUninstall INTEGER, descriptor TEXT, " +
@@ -4012,6 +3964,49 @@ var XPIDatabase = {
 };
 
 /**
+ * Handles callbacks for HTTP channels of XPI downloads. We support
+ * prompting for auth dialogs and, optionally, to ignore bad certs.
+ *
+ * @param  aWindow
+ *         An optional DOM Element related to the request
+ * @param  aNeedBadCertHandling
+ *         Whether we should handle bad certs or not
+ */
+function XPINotificationCallbacks(aWindow, aNeedBadCertHandling) {
+  this.window = aWindow;
+
+  // Verify that we don't end up on an insecure channel if we haven't got a
+  // hash to verify with (see bug 537761 for discussion)
+  this.needBadCertHandling = aNeedBadCertHandling;
+
+  if (this.needBadCertHandling) {
+    Components.utils.import("resource://gre/modules/CertUtils.jsm");
+    this.badCertHandler = new BadCertHandler();
+  }
+}
+
+XPINotificationCallbacks.prototype = {
+  QueryInterface: function(iid) {
+    if (iid.equals(Ci.nsISupports) || iid.equals(Ci.nsIInterfaceRequestor))
+      return this;
+    throw Components.results.NS_ERROR_NO_INTERFACE;
+  },
+
+  getInterface: function(iid) {
+    if (iid.equals(Components.interfaces.nsIAuthPrompt2)) {
+      var factory = Cc["@mozilla.org/prompter;1"].
+                    getService(Ci.nsIPromptFactory);
+      return factory.getPrompt(this.window, Ci.nsIAuthPrompt);
+    }
+
+    if (this.needBadCertHandling)
+      return this.badCertHandler.getInterface(iid);
+
+    throw Components.results.NS_ERROR_NO_INTERFACE;
+  },
+};
+
+/**
  * Instantiates an AddonInstall and passes the new object to a callback when
  * it is complete.
  *
@@ -4152,7 +4147,6 @@ AddonInstall.prototype = {
   crypto: null,
   hash: null,
   loadGroup: null,
-  badCertHandler: null,
   listeners: null,
 
   name: null,
@@ -4503,6 +4497,30 @@ AddonInstall.prototype = {
       return;
     }
 
+    this.crypto = Cc["@mozilla.org/security/hash;1"].
+                  createInstance(Ci.nsICryptoHash);
+    if (this.hash) {
+      [alg, this.hash] = this.hash.split(":", 2);
+
+      try {
+        this.crypto.initWithString(alg);
+      }
+      catch (e) {
+        WARN("Unknown hash algorithm " + alg);
+        this.state = AddonManager.STATE_DOWNLOAD_FAILED;
+        this.error = AddonManager.ERROR_INCORRECT_HASH;
+        XPIProvider.removeActiveInstall(this);
+        AddonManagerPrivate.callInstallListeners("onDownloadFailed",
+                                                 this.listeners, this.wrapper);
+        return;
+      }
+    }
+    else {
+      // We always need something to consume data from the inputstream passed
+      // to onDataAvailable so just create a dummy cryptohasher to do that.
+      this.crypto.initWithString("sha1");
+    }
+
     try {
       this.file = getTemporaryFile();
       this.ownsTempFile = true;
@@ -4525,12 +4543,9 @@ AddonInstall.prototype = {
                    createInstance(Ci.nsIStreamListenerTee);
     listener.init(this, this.stream);
     try {
-      Components.utils.import("resource://gre/modules/CertUtils.jsm");
-      let requireBuiltIn = Prefs.getBoolPref(PREF_INSTALL_REQUIREBUILTINCERTS, true);
-      this.badCertHandler = new BadCertHandler(!requireBuiltIn);
-
       this.channel = NetUtil.newChannel(this.sourceURI);
-      this.channel.notificationCallbacks = this;
+      this.channel.notificationCallbacks =
+        new XPINotificationCallbacks(this.window, !this.hash);
       this.channel.QueryInterface(Ci.nsIHttpChannelInternal)
                   .forceAllowThirdPartyCookie = true;
       this.channel.asyncOpen(listener, null);
@@ -4563,60 +4578,11 @@ AddonInstall.prototype = {
   },
 
   /**
-   * Check the redirect response for a hash of the target XPI and verify that
-   * we don't end up on an insecure channel.
-   *
-   * @see nsIChannelEventSink
-   */
-  asyncOnChannelRedirect: function(aOldChannel, aNewChannel, aFlags, aCallback) {
-    if (!this.hash && aOldChannel.originalURI.schemeIs("https") &&
-        aOldChannel instanceof Ci.nsIHttpChannel) {
-      try {
-        this.hash = aOldChannel.getResponseHeader("X-Target-Digest");
-      }
-      catch (e) {
-      }
-    }
-
-    // Verify that we don't end up on an insecure channel if we haven't got a
-    // hash to verify with (see bug 537761 for discussion)
-    if (!this.hash)
-      this.badCertHandler.asyncOnChannelRedirect(aOldChannel, aNewChannel, aFlags, aCallback);
-    else
-      aCallback.onRedirectVerifyCallback(Cr.NS_OK);
-  },
-
-  /**
    * This is the first chance to get at real headers on the channel.
    *
    * @see nsIStreamListener
    */
   onStartRequest: function AI_onStartRequest(aRequest, aContext) {
-    this.crypto = Cc["@mozilla.org/security/hash;1"].
-                  createInstance(Ci.nsICryptoHash);
-    if (this.hash) {
-      [alg, this.hash] = this.hash.split(":", 2);
-
-      try {
-        this.crypto.initWithString(alg);
-      }
-      catch (e) {
-        WARN("Unknown hash algorithm " + alg);
-        this.state = AddonManager.STATE_DOWNLOAD_FAILED;
-        this.error = AddonManager.ERROR_INCORRECT_HASH;
-        XPIProvider.removeActiveInstall(this);
-        AddonManagerPrivate.callInstallListeners("onDownloadFailed",
-                                                 this.listeners, this.wrapper);
-        aRequest.cancel(Cr.NS_BINDING_ABORTED);
-        return;
-      }
-    }
-    else {
-      // We always need something to consume data from the inputstream passed
-      // to onDataAvailable so just create a dummy cryptohasher to do that.
-      this.crypto.initWithString("sha1");
-    }
-
     this.progress = 0;
     if (aRequest instanceof Ci.nsIChannel) {
       try {
@@ -4637,7 +4603,6 @@ AddonInstall.prototype = {
   onStopRequest: function AI_onStopRequest(aRequest, aContext, aStatus) {
     this.stream.close();
     this.channel = null;
-    this.badCerthandler = null;
     Services.obs.removeObserver(this, "network:offline-about-to-go-offline");
 
     // If the download was cancelled then all events will have already been sent
@@ -4650,8 +4615,7 @@ AddonInstall.prototype = {
       if (!(aRequest instanceof Ci.nsIHttpChannel) || aRequest.requestSucceeded) {
         if (!this.hash && (aRequest instanceof Ci.nsIChannel)) {
           try {
-            checkCert(aRequest,
-                      !Prefs.getBoolPref(PREF_INSTALL_REQUIREBUILTINCERTS, true));
+            checkCert(aRequest);
           }
           catch (e) {
             this.downloadFailed(AddonManager.ERROR_NETWORK_FAILURE, e);
@@ -4770,6 +4734,12 @@ AddonInstall.prototype = {
     let isUpgrade = this.existingAddon &&
                     this.existingAddon._installLocation == this.installLocation;
     let requiresRestart = XPIProvider.installRequiresRestart(this.addon);
+    // Restarts is required if the existing add-on is active and disabling it
+    // requires a restart
+    if (!requiresRestart && this.existingAddon) {
+      requiresRestart = this.existingAddon.active &&
+                        XPIProvider.disableRequiresRestart(this.existingAddon);
+    }
 
     LOG("Starting install of " + this.sourceURI.spec);
     AddonManagerPrivate.callAddonListeners("onInstalling",
@@ -4917,19 +4887,6 @@ AddonInstall.prototype = {
     finally {
       this.removeTemporaryFile();
     }
-  },
-
-  getInterface: function(iid) {
-    if (iid.equals(Ci.nsIAuthPrompt2)) {
-      var factory = Cc["@mozilla.org/prompter;1"].
-                    getService(Ci.nsIPromptFactory);
-      return factory.getPrompt(null, Ci.nsIAuthPrompt);
-    }
-    else if (iid.equals(Ci.nsIChannelEventSink)) {
-      return this;
-    }
-
-    return this.badCertHandler.getInterface(iid);
   }
 }
 
@@ -5476,21 +5433,17 @@ function AddonWrapper(aAddon) {
     });
   }, this);
 
-  // Maps iconURL and icon64URL to the properties of the same name or icon.png
-  // and icon64.png in the add-on's files.
-  ["icon", "icon64"].forEach(function(aProp) {
-    this.__defineGetter__(aProp + "URL", function() {
-      if (aAddon.active && aAddon[aProp + "URL"])
-        return aAddon[aProp + "URL"];
+  this.__defineGetter__("iconURL", function() {
+    if (aAddon.active && aAddon.iconURL)
+      return aAddon.iconURL;
 
-      if (this.hasResource(aProp + ".png"))
-        return this.getResourceURI(aProp + ".png").spec;
+    if (this.hasResource("icon.png"))
+      return this.getResourceURI("icon.png").spec;
 
-      if (aAddon._repositoryAddon)
-        return aAddon._repositoryAddon[aProp + "URL"];
+    if (aAddon._repositoryAddon)
+      return aAddon._repositoryAddon.iconURL;
 
-      return null;
-    }, this);
+    return null;
   }, this);
 
   PROP_LOCALE_SINGLE.forEach(function(aProp) {

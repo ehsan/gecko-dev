@@ -269,13 +269,6 @@ public:
 
     friend class OnLinkClickEvent;
 
-    // We need dummy OnLocationChange in some cases to update the UI.
-    void FireDummyOnLocationChange()
-    {
-      FireOnLocationChange(this, nsnull, mCurrentURI);
-    }
-
-    nsresult HistoryTransactionRemoved(PRInt32 aIndex);
 protected:
     // Object Management
     virtual ~nsDocShell();

@@ -17,11 +17,6 @@
 != curved-borders-all-styles.html about:blank # no way to generate reference for dotted/dashed/inset/outset
 # ridge/groove borders
 
-# percent units
-== percent-1.html percent-1-ref.html
-== percent-2.html percent-2-ref.html
-== percent-3.html percent-3-ref.html
-
 # more serious tests, using SVG reference
 == border-circle-2.html border-circle-2-ref.xhtml
 fails == curved-stripe-border.html curved-stripe-border-ref.svg # bug 459945
@@ -48,7 +43,3 @@ fails == clipping-1.html clipping-1-ref.html # background color should completel
 
 == invalidate-1a.html invalidate-1-ref.html
 == invalidate-1b.html invalidate-1-ref.html
-
-# test that border-radius is reduced for scrollbars
-== scrollbar-clamping-1.html scrollbar-clamping-1-ref.html
-== scrollbar-clamping-2.html scrollbar-clamping-2-ref.html

@@ -3896,9 +3896,7 @@ nsContentUtils::CreateContextualFragment(nsINode* aContextNode,
     }
     
     nsCOMPtr<nsIContent> fragment = do_QueryInterface(frag);
-    if (contextAsContent &&
-        !(nsGkAtoms::html == contextAsContent->Tag() &&
-          contextAsContent->IsHTML())) {
+    if (contextAsContent) {
       parser->ParseFragment(aFragment, 
                             fragment, 
                             contextAsContent->Tag(), 

@@ -57,9 +57,6 @@ import android.util.*;
 abstract public class GeckoApp
     extends Activity
 {
-    public static final String ACTION_ALERT_CLICK = "org.mozilla.gecko.ACTION_ALERT_CLICK";
-    public static final String ACTION_ALERT_CLEAR = "org.mozilla.gecko.ACTION_ALERT_CLEAR";
-
     public static FrameLayout mainLayout;
     public static GeckoSurfaceView surfaceView;
     public static GeckoApp mAppContext;
@@ -231,8 +228,7 @@ abstract public class GeckoApp
     public void onLowMemory()
     {
         Log.i("GeckoApp", "low memory");
-        if (GeckoAppShell.sGeckoRunning)
-            GeckoAppShell.onLowMemory();
+        // XXX TODO
         super.onLowMemory();
     }
 
@@ -294,19 +290,10 @@ abstract public class GeckoApp
             File componentsDir = new File("/data/data/org.mozilla." + getAppName() +"/components");
             componentsDir.mkdir();
             zip = new ZipFile(getApplication().getPackageResourcePath());
-        } catch (Exception e) {
-            Log.i("GeckoAppJava", e.toString());
-            return;
-        }
 
-        byte[] buf = new byte[8192];
-        unpackFile(zip, buf, null, "application.ini");
-        unpackFile(zip, buf, null, getContentProcessName());
-
-        try {
             ZipEntry componentsList = zip.getEntry("components/components.manifest");
             if (componentsList == null) {
-                Log.i("GeckoAppJava", "Can't find components.manifest!");
+                Log.i("GeckoAppJava", "Can't find components.list !");
                 return;
             }
 
@@ -315,6 +302,8 @@ abstract public class GeckoApp
             Log.i("GeckoAppJava", e.toString());
             return;
         }
+
+        byte[] buf = new byte[8192];
 
         StreamTokenizer tkn = new StreamTokenizer(new InputStreamReader(listStream));
         String line = "components/";
@@ -346,6 +335,9 @@ abstract public class GeckoApp
                 break;
             }
         } while (status != StreamTokenizer.TT_EOF);
+
+        unpackFile(zip, buf, null, "application.ini");
+        unpackFile(zip, buf, null, getContentProcessName());
     }
 
     private void unpackFile(ZipFile zip, byte[] buf, ZipEntry fileEntry, String name)
@@ -438,9 +430,5 @@ abstract public class GeckoApp
             Log.i("GeckoAppJava", e.toString());
         }
         System.exit(0);
-    }
-
-    public void handleNotification(String action, String alertName, String alertCookie) {
-        GeckoAppShell.handleNotification(action, alertName, alertCookie);
     }
 }

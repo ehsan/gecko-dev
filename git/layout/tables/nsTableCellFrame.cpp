@@ -556,7 +556,21 @@ void nsTableCellFrame::VerticallyAlignChild(nscoord aMaxAscent)
   nscoord topInset = borderPadding.top;
   nscoord bottomInset = borderPadding.bottom;
 
-  PRUint8 verticalAlignFlags = GetVerticalAlign();
+  // As per bug 10207, we map 'sub', 'super', 'text-top', 'text-bottom',
+  // length and percentage values to 'baseline'
+  // XXX It seems that we don't get to see length and percentage values here
+  //     because the Style System has already fixed the error and mapped them
+  //     to whatever is inherited from the parent, i.e, 'middle' in most cases.
+  PRUint8 verticalAlignFlags = NS_STYLE_VERTICAL_ALIGN_BASELINE;
+  if (textStyle->mVerticalAlign.GetUnit() == eStyleUnit_Enumerated) {
+    verticalAlignFlags = textStyle->mVerticalAlign.GetIntValue();
+    if (verticalAlignFlags != NS_STYLE_VERTICAL_ALIGN_TOP &&
+        verticalAlignFlags != NS_STYLE_VERTICAL_ALIGN_MIDDLE &&
+        verticalAlignFlags != NS_STYLE_VERTICAL_ALIGN_BOTTOM)
+    {
+      verticalAlignFlags = NS_STYLE_VERTICAL_ALIGN_BASELINE;
+    }
+  }
 
   nscoord height = mRect.height;
   nsIFrame* firstKid = mFrames.FirstChild();
@@ -594,7 +608,7 @@ void nsTableCellFrame::VerticallyAlignChild(nscoord aMaxAscent)
 
   if (kidYTop != kidRect.y) {
     // Invalidate at the old position first
-    firstKid->InvalidateFrameSubtree();
+    firstKid->InvalidateOverflowRect();
   }
 
   firstKid->SetPosition(nsPoint(kidRect.x, kidYTop));
@@ -610,7 +624,7 @@ void nsTableCellFrame::VerticallyAlignChild(nscoord aMaxAscent)
     nsContainerFrame::PositionChildViews(firstKid);
 
     // Invalidate new overflow rect
-    firstKid->InvalidateFrameSubtree();
+    firstKid->InvalidateOverflowRect();
   }
   if (HasView()) {
     nsContainerFrame::SyncFrameViewAfterReflow(PresContext(), this,
@@ -619,21 +633,25 @@ void nsTableCellFrame::VerticallyAlignChild(nscoord aMaxAscent)
   }
 }
 
-// Per CSS 2.1, we map 'sub', 'super', 'text-top', 'text-bottom',
-// length, percentage, and calc() values to 'baseline'.
-PRUint8
-nsTableCellFrame::GetVerticalAlign() const
+// As per bug 10207, we map 'sub', 'super', 'text-top', 'text-bottom',
+// length and percentage values to 'baseline'
+// XXX It seems that we don't get to see length and percentage values here
+//     because the Style System has already fixed the error and mapped them
+//     to whatever is inherited from the parent, i.e, 'middle' in most cases.
+PRBool
+nsTableCellFrame::HasVerticalAlignBaseline()
 {
-  const nsStyleCoord& verticalAlign = GetStyleTextReset()->mVerticalAlign;
-  if (verticalAlign.GetUnit() == eStyleUnit_Enumerated) {
-    PRUint8 value = verticalAlign.GetIntValue();
-    if (value == NS_STYLE_VERTICAL_ALIGN_TOP ||
-        value == NS_STYLE_VERTICAL_ALIGN_MIDDLE ||
-        value == NS_STYLE_VERTICAL_ALIGN_BOTTOM) {
-      return value;
+  const nsStyleTextReset* textStyle = GetStyleTextReset();
+  if (textStyle->mVerticalAlign.GetUnit() == eStyleUnit_Enumerated) {
+    PRUint8 verticalAlignFlags = textStyle->mVerticalAlign.GetIntValue();
+    if (verticalAlignFlags == NS_STYLE_VERTICAL_ALIGN_TOP ||
+        verticalAlignFlags == NS_STYLE_VERTICAL_ALIGN_MIDDLE ||
+        verticalAlignFlags == NS_STYLE_VERTICAL_ALIGN_BOTTOM)
+    {
+      return PR_FALSE;
     }
   }
-  return NS_STYLE_VERTICAL_ALIGN_BASELINE;
+  return PR_TRUE;
 }
 
 PRBool
@@ -908,7 +926,7 @@ NS_METHOD nsTableCellFrame::Reflow(nsPresContext*           aPresContext,
 
   // XXXbz is this invalidate actually needed, really?
   if (GetStateBits() & NS_FRAME_IS_DIRTY) {
-    InvalidateFrameSubtree();
+    InvalidateOverflowRect();
   }
 
 #ifdef NS_DEBUG
@@ -1079,15 +1097,6 @@ nsBCTableCellFrame::GetUsedBorder() const
   nsMargin result;
   GetBorderWidth(result);
   return result;
-}
-
-/* virtual */ PRBool
-nsBCTableCellFrame::GetBorderRadii(nscoord aRadii[8]) const
-{
-  NS_FOR_CSS_HALF_CORNERS(corner) {
-    aRadii[corner] = 0;
-  }
-  return PR_FALSE;
 }
 
 #ifdef DEBUG

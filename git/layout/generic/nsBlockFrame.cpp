@@ -88,7 +88,6 @@
 #include "nsCSSAnonBoxes.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsCSSRendering.h"
-#include "FrameLayerBuilder.h"
 
 #ifdef IBMBIDI
 #include "nsBidiPresUtils.h"
@@ -520,21 +519,17 @@ nsBlockFrame::InvalidateInternal(const nsRect& aDamageRect,
                                  PRUint32 aFlags)
 {
   // Optimize by suppressing invalidation of areas that are clipped out
-  // with CSS 'clip'. Don't suppress invalidation of *this* frame directly,
-  // because when 'clip' shrinks we need to invalidate this frame and
-  // be able to invalidate areas outside the 'clip'.
-  if (aForChild) {
-    const nsStyleDisplay* disp = GetStyleDisplay();
-    nsRect absPosClipRect;
-    if (GetAbsPosClipRect(disp, &absPosClipRect, GetSize())) {
-      // Restrict the invalidated area to abs-pos clip rect
-      // abs-pos clipping clips everything in the frame
-      nsRect r;
-      if (r.IntersectRect(aDamageRect, absPosClipRect - nsPoint(aX, aY))) {
-        nsBlockFrameSuper::InvalidateInternal(r, aX, aY, this, aFlags);
-      }
-      return;
+  // with CSS 'clip'.
+  const nsStyleDisplay* disp = GetStyleDisplay();
+  nsRect absPosClipRect;
+  if (GetAbsPosClipRect(disp, &absPosClipRect, GetSize())) {
+    // Restrict the invalidated area to abs-pos clip rect
+    // abs-pos clipping clips everything in the frame
+    nsRect r;
+    if (r.IntersectRect(aDamageRect, absPosClipRect - nsPoint(aX, aY))) {
+      nsBlockFrameSuper::InvalidateInternal(r, aX, aY, this, aFlags);
     }
+    return;
   }
 
   nsBlockFrameSuper::InvalidateInternal(aDamageRect, aX, aY, this, aFlags);
@@ -719,12 +714,9 @@ nsBlockFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
       } else {
         if (!curFrame->GetPrevContinuation() &&
             line == curFrame->begin_lines()) {
-          // Only add text-indent if it has no percentages; using a
-          // percentage basis of 0 unconditionally would give strange
-          // behavior for calc(10%-3px).
           const nsStyleCoord &indent = GetStyleText()->mTextIndent;
-          if (indent.ConvertsToLength())
-            data.currentLine += nsRuleNode::ComputeCoordPercentCalc(indent, 0);
+          if (indent.GetUnit() == eStyleUnit_Coord)
+            data.currentLine += indent.GetCoordValue();
         }
         // XXX Bug NNNNNN Should probably handle percentage text-indent.
 
@@ -797,12 +789,9 @@ nsBlockFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
       } else {
         if (!curFrame->GetPrevContinuation() &&
             line == curFrame->begin_lines()) {
-          // Only add text-indent if it has no percentages; using a
-          // percentage basis of 0 unconditionally would give strange
-          // behavior for calc(10%-3px).
           const nsStyleCoord &indent = GetStyleText()->mTextIndent;
-          if (indent.ConvertsToLength())
-            data.currentLine += nsRuleNode::ComputeCoordPercentCalc(indent, 0);
+          if (indent.GetUnit() == eStyleUnit_Coord)
+            data.currentLine += indent.GetCoordValue();
         }
         // XXX Bug NNNNNN Should probably handle percentage text-indent.
 
@@ -1540,7 +1529,7 @@ nsBlockFrame::PrepareResizeReflow(nsBlockReflowState& aState)
           aState.mReflowState.mStyleVisibility->mDirection)) &&
       // The left content-edge must be a constant distance from the left
       // border-edge.
-      !GetStylePadding()->mPadding.GetLeft().HasPercent();
+      GetStylePadding()->mPadding.GetLeftUnit() != eStyleUnit_Percent;
 
 #ifdef DEBUG
   if (gDisableResizeOpt) {
@@ -2470,7 +2459,6 @@ nsBlockFrame::ReflowLine(nsBlockReflowState& aState,
              this, dirtyRect.x, dirtyRect.y, dirtyRect.width, dirtyRect.height);
 #endif
       Invalidate(dirtyRect);
-      FrameLayerBuilder::InvalidateThebesLayersInSubtree(aLine->mFirstChild);
     } else {
       nsRect combinedAreaHStrip, combinedAreaVStrip;
       nsRect boundsHStrip, boundsVStrip;
@@ -2512,16 +2500,9 @@ nsBlockFrame::ReflowLine(nsBlockReflowState& aState,
     printf("%p invalidate (%d, %d, %d, %d)\n",
            this, dirtyRect.x, dirtyRect.y, dirtyRect.width, dirtyRect.height);
     if (aLine->IsForceInvalidate())
-      printf("  dirty line is %p\n", static_cast<void*>(aLine.get()));
+      printf("  dirty line is %p\n", static_cast<void*>(aLine.get());
 #endif
     Invalidate(dirtyRect);
-    if (GetStateBits() & NS_FRAME_HAS_CONTAINER_LAYER_DESCENDANT) {
-      PRInt32 childCount = aLine->GetChildCount();
-      for (nsIFrame* f = aLine->mFirstChild; childCount;
-           --childCount, f = f->GetNextSibling()) {
-        FrameLayerBuilder::InvalidateThebesLayersInSubtree(f);
-      }
-    }
   }
 
   return rv;
@@ -2764,6 +2745,13 @@ nsBlockFrame::AttributeChanged(PRInt32         aNameSpaceID,
 }
 
 static inline PRBool
+IsPaddingZero(nsStyleUnit aUnit, const nsStyleCoord &aCoord)
+{
+    return ((aUnit == eStyleUnit_Coord && aCoord.GetCoordValue() == 0) ||
+            (aUnit == eStyleUnit_Percent && aCoord.GetPercentValue() == 0.0));
+}
+
+static inline PRBool
 IsNonAutoNonZeroHeight(const nsStyleCoord& aCoord)
 {
   if (aCoord.GetUnit() == eStyleUnit_Auto)
@@ -2799,8 +2787,10 @@ nsBlockFrame::IsSelfEmpty()
   const nsStylePadding* padding = GetStylePadding();
   if (border->GetActualBorderWidth(NS_SIDE_TOP) != 0 ||
       border->GetActualBorderWidth(NS_SIDE_BOTTOM) != 0 ||
-      !nsLayoutUtils::IsPaddingZero(padding->mPadding.GetTop()) ||
-      !nsLayoutUtils::IsPaddingZero(padding->mPadding.GetBottom())) {
+      !IsPaddingZero(padding->mPadding.GetTopUnit(),
+                     padding->mPadding.GetTop()) ||
+      !IsPaddingZero(padding->mPadding.GetBottomUnit(),
+                     padding->mPadding.GetBottom())) {
     return PR_FALSE;
   }
 
@@ -5954,17 +5944,19 @@ nsBlockFrame::AdjustForTextIndent(const nsLineBox* aLine,
   if (!GetPrevContinuation() && aLine == begin_lines().get()) {
     // Adjust for the text-indent.  See similar code in
     // nsLineLayout::BeginLineReflow.
-    const nsStyleCoord &textIndent = GetStyleText()->mTextIndent;
-    nscoord pctBasis = 0;
-    if (textIndent.HasPercent()) {
-      // Only work out the percentage basis if we need to.
+    nscoord indent = 0;
+    const nsStyleText* styleText = GetStyleText();
+    nsStyleUnit unit = styleText->mTextIndent.GetUnit();
+    if (eStyleUnit_Coord == unit) {
+      indent = styleText->mTextIndent.GetCoordValue();
+    } else if (eStyleUnit_Percent == unit) {
       // It's a percentage of the containing block width.
       nsIFrame* containingBlock =
         nsHTMLReflowState::GetContainingBlockFor(this);
       NS_ASSERTION(containingBlock, "Must have containing block!");
-      pctBasis = containingBlock->GetContentRect().width;
+      indent = nscoord(styleText->mTextIndent.GetPercentValue() *
+                       containingBlock->GetContentRect().width);
     }
-    nscoord indent = nsRuleNode::ComputeCoordPercentCalc(textIndent, pctBasis);
 
     // Adjust the start position and the width of the decoration by the
     // value of the indent.  Note that indent can be negative; that's OK.

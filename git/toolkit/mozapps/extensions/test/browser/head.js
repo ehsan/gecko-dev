@@ -223,7 +223,7 @@ function CategoryUtilities(aManagerWindow) {
 
   var self = this;
   this.window.addEventListener("unload", function() {
-    self.window.removeEventListener("unload", arguments.callee, false);
+    self.removeEventListener("unload", arguments.callee, false);
     self.window = null;
   }, false);
 }

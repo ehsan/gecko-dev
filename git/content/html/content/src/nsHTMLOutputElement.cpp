@@ -49,8 +49,6 @@ class nsHTMLOutputElement : public nsGenericHTMLFormElement,
                             public nsIConstraintValidation
 {
 public:
-  using nsIConstraintValidation::GetValidationMessage;
-
   nsHTMLOutputElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsHTMLOutputElement();
 

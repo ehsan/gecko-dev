@@ -203,9 +203,11 @@ nsDocAccessible::GetName(nsAString& aName)
 }
 
 // nsAccessible public method
-PRUint32
-nsDocAccessible::NativeRole()
+nsresult
+nsDocAccessible::GetRoleInternal(PRUint32 *aRole)
 {
+  *aRole = nsIAccessibleRole::ROLE_PANE; // Fall back
+
   nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem =
     nsCoreUtils::GetDocShellTreeItemFor(mDocument);
   if (docShellTreeItem) {
@@ -215,24 +217,28 @@ nsDocAccessible::NativeRole()
     docShellTreeItem->GetItemType(&itemType);
     if (sameTypeRoot == docShellTreeItem) {
       // Root of content or chrome tree
-      if (itemType == nsIDocShellTreeItem::typeChrome)
-        return nsIAccessibleRole::ROLE_CHROME_WINDOW;
-
-      if (itemType == nsIDocShellTreeItem::typeContent) {
+      if (itemType == nsIDocShellTreeItem::typeChrome) {
+        *aRole = nsIAccessibleRole::ROLE_CHROME_WINDOW;
+      }
+      else if (itemType == nsIDocShellTreeItem::typeContent) {
 #ifdef MOZ_XUL
         nsCOMPtr<nsIXULDocument> xulDoc(do_QueryInterface(mDocument));
-        if (xulDoc)
-          return nsIAccessibleRole::ROLE_APPLICATION;
+        if (xulDoc) {
+          *aRole = nsIAccessibleRole::ROLE_APPLICATION;
+        } else {
+          *aRole = nsIAccessibleRole::ROLE_DOCUMENT;
+        }
+#else
+        *aRole = nsIAccessibleRole::ROLE_DOCUMENT;
 #endif
-        return nsIAccessibleRole::ROLE_DOCUMENT;
       }
     }
     else if (itemType == nsIDocShellTreeItem::typeContent) {
-      return nsIAccessibleRole::ROLE_DOCUMENT;
+      *aRole = nsIAccessibleRole::ROLE_DOCUMENT;
     }
   }
 
-  return nsIAccessibleRole::ROLE_PANE; // Fall back;
+  return NS_OK;
 }
 
 // nsAccessible public method
@@ -1168,7 +1174,7 @@ nsDocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
 
   if (aAttribute == nsAccessibilityAtoms::aria_multiselectable &&
       aContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::role)) {
-    // This affects whether the accessible supports SelectAccessible.
+    // This affects whether the accessible supports nsIAccessibleSelectable.
     // COM says we cannot change what interfaces are supported on-the-fly,
     // so invalidate this object. A new one will be created on demand.
     InvalidateCacheSubtree(aContent,
@@ -1285,7 +1291,7 @@ nsDocAccessible::HandleAccEvent(AccEvent* aAccEvent)
 void
 nsDocAccessible::FireValueChangeForTextFields(nsAccessible *aAccessible)
 {
-  if (aAccessible->Role() != nsIAccessibleRole::ROLE_ENTRY)
+  if (nsAccUtils::Role(aAccessible) != nsIAccessibleRole::ROLE_ENTRY)
     return;
 
   // Dependent value change event for text changes in textfields
@@ -1372,7 +1378,7 @@ nsDocAccessible::CreateTextChangeEventForNode(nsAccessible *aContainerAccessible
   PRInt32 offset = 0;
   if (aChangeChild) {
     // Don't fire event for the first html:br in an editor.
-    if (aChangeChild->Role() == nsIAccessibleRole::ROLE_WHITESPACE) {
+    if (nsAccUtils::Role(aChangeChild) == nsIAccessibleRole::ROLE_WHITESPACE) {
       nsCOMPtr<nsIEditor> editor;
       textAccessible->GetAssociatedEditor(getter_AddRefs(editor));
       if (editor) {
@@ -1624,7 +1630,8 @@ nsDocAccessible::RefreshNodes(nsINode *aStartNode)
   nsAccessible *accessible = GetCachedAccessible(aStartNode);
   if (accessible) {
     // Fire menupopup end if a menu goes away
-    if (accessible->Role() == nsIAccessibleRole::ROLE_MENUPOPUP) {
+    PRUint32 role = nsAccUtils::Role(accessible);
+    if (role == nsIAccessibleRole::ROLE_MENUPOPUP) {
       nsCOMPtr<nsIDOMXULPopupElement> popup(do_QueryInterface(aStartNode));
       if (!popup) {
         // Popup elements already fire these via DOMMenuInactive

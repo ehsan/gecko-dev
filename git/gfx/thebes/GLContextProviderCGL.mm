@@ -530,7 +530,6 @@ GLContextProviderCGL::GetGlobalContext()
 void
 GLContextProviderCGL::Shutdown()
 {
-  gGlobalContext = nsnull;
 }
 
 } /* namespace gl */
