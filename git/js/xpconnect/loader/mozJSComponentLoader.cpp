@@ -90,7 +90,6 @@
 #include "nsILocalFileWin.h"
 #endif
 #include "xpcprivate.h"
-#include "xpcpublic.h"
 #include "nsIResProtocolHandler.h"
 
 #include "mozilla/scache/StartupCache.h"
@@ -236,7 +235,7 @@ Atob(JSContext *cx, uintN argc, jsval *vp)
     if (!argc)
         return true;
 
-    return xpc::Base64Decode(cx, JS_ARGV(cx, vp)[0], &JS_RVAL(cx, vp));
+    return nsXPConnect::Base64Decode(cx, JS_ARGV(cx, vp)[0], &JS_RVAL(cx, vp));
 }
 
 static JSBool
@@ -245,7 +244,7 @@ Btoa(JSContext *cx, uintN argc, jsval *vp)
     if (!argc)
         return true;
 
-    return xpc::Base64Encode(cx, JS_ARGV(cx, vp)[0], &JS_RVAL(cx, vp));
+    return nsXPConnect::Base64Encode(cx, JS_ARGV(cx, vp)[0], &JS_RVAL(cx, vp));
 }
 
 static JSBool

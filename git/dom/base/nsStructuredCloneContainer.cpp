@@ -45,10 +45,7 @@
 #include "nsIVariant.h"
 #include "nsServiceManagerUtils.h"
 #include "nsContentUtils.h"
-
-#include "mozilla/Base64.h"
-
-using namespace mozilla;
+#include "xpcprivate.h"
 
 NS_IMPL_ADDREF(nsStructuredCloneContainer)
 NS_IMPL_RELEASE(nsStructuredCloneContainer)
@@ -127,7 +124,7 @@ nsStructuredCloneContainer::InitFromBase64(const nsAString &aData,
   NS_ConvertUTF16toUTF8 data(aData);
 
   nsCAutoString binaryData;
-  nsresult rv = Base64Decode(data, binaryData);
+  nsresult rv = nsXPConnect::Base64Decode(data, binaryData);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Copy the string's data into our own buffer.
@@ -174,7 +171,7 @@ nsStructuredCloneContainer::GetDataAsBase64(nsAString &aOut)
 
   nsCAutoString binaryData(reinterpret_cast<char*>(mData), mSize);
   nsCAutoString base64Data;
-  nsresult rv = Base64Encode(binaryData, base64Data);
+  nsresult rv = nsXPConnect::Base64Encode(binaryData, base64Data);
   NS_ENSURE_SUCCESS(rv, rv);
 
   aOut.Assign(NS_ConvertASCIItoUTF16(base64Data));
