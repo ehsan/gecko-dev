@@ -64,8 +64,6 @@ function InitWithToolbox(aToolbox)
   gToolbox.addEventListener("drop", onToolbarDrop, false);
 
   initDialog();
-
-  notifyParentInitialized();
 }
 
 function finishToolbarCustomization()
@@ -127,16 +125,6 @@ function notifyParentComplete()
 {
   if ("customizeDone" in gToolbox)
     gToolbox.customizeDone(gToolboxChanged);
-}
-
-/**
- * Invoke a callback on the toolbox to notify it that the dialog is fully
- * initialized.
- */
-function notifyParentInitialized()
-{
-  if ("customizeInitialized" in gToolbox)
-    gToolbox.customizeInitialized();
 }
 
 function toolboxChanged()

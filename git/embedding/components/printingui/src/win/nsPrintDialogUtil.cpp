@@ -75,6 +75,8 @@ WIN_LIBS=                                       \
 #include "nsIPrintSettings.h"
 #include "nsIPrintSettingsWin.h"
 #include "nsIPrintOptions.h"
+#include "nsWidgetsCID.h"
+static NS_DEFINE_IID(kPrinterEnumeratorCID, NS_PRINTER_ENUMERATOR_CID);
 
 #include "nsRect.h"
 
@@ -829,8 +831,9 @@ static HGLOBAL CreateGlobalDevModeAndInit(LPCWSTR aPrintName, nsIPrintSettings* 
 // helper
 static PRUnichar * GetDefaultPrinterNameFromGlobalPrinters()
 {
+  nsresult rv;
   PRUnichar * printerName = nsnull;
-  nsCOMPtr<nsIPrinterEnumerator> prtEnum = do_GetService("@mozilla.org/gfx/printerenumerator;1");
+  nsCOMPtr<nsIPrinterEnumerator> prtEnum = do_GetService(kPrinterEnumeratorCID, &rv);
   if (prtEnum) {
     prtEnum->GetDefaultPrinterName(&printerName);
   }

@@ -1479,15 +1479,7 @@ nsSSLIOLayerHelpers::rememberPossibleTLSProblemSite(PRFileDesc* ssl_layer_fd, ns
   PRBool currentlyUsesTLS = PR_FALSE;
 
   SSL_OptionGet(ssl_layer_fd, SSL_ENABLE_TLS, &currentlyUsesTLS);
-  if (!currentlyUsesTLS)
-    return PR_FALSE;
-
-  PRBool enableSSL3 = PR_FALSE;
-  SSL_OptionGet(ssl_layer_fd, SSL_ENABLE_SSL3, &enableSSL3);
-  PRBool enableSSL2 = PR_FALSE;
-  SSL_OptionGet(ssl_layer_fd, SSL_ENABLE_SSL2, &enableSSL2);
-  if (enableSSL3 || enableSSL2)
-  {
+  if (currentlyUsesTLS) {
     // Add this site to the list of TLS intolerant sites.
     PRInt32 port;
     nsXPIDLCString host;

@@ -41,7 +41,7 @@
 #define nsDOMCSSDeclaration_h___
 
 #include "nsICSSDeclaration.h"
-#include "nsIDOMNSCSS2Properties.h"
+#include "nsIDOMCSS2Properties.h"
 
 class nsCSSDeclaration;
 class nsICSSParser;

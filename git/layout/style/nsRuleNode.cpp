@@ -171,10 +171,6 @@ static nscoord CalcLengthWith(const nsCSSValue& aValue,
                               const nsStyleFont* aStyleFont,
                               nsStyleContext* aStyleContext,
                               nsPresContext* aPresContext,
-                              // aUseUserFontSet should always be PR_TRUE
-                              // except when called from
-                              // CalcLengthWithInitialFont.
-                              PRBool aUseUserFontSet,
                               PRBool& aInherited)
 {
   NS_ASSERTION(aValue.IsLengthUnit(), "not a length unit");
@@ -206,8 +202,7 @@ static nscoord CalcLengthWith(const nsCSSValue& aValue,
     case eCSSUnit_XHeight: {
       nsFont font = aStyleFont->mFont;
       font.size = aFontSize;
-      nsCOMPtr<nsIFontMetrics> fm =
-        aPresContext->GetMetricsFor(font, aUseUserFontSet);
+      nsCOMPtr<nsIFontMetrics> fm = aPresContext->GetMetricsFor(font);
       nscoord xHeight;
       fm->GetXHeight(xHeight);
       return NSToCoordRoundWithClamp(aValue.GetFloatValue() * float(xHeight));
@@ -215,8 +210,7 @@ static nscoord CalcLengthWith(const nsCSSValue& aValue,
     case eCSSUnit_Char: {
       nsFont font = aStyleFont->mFont;
       font.size = aFontSize;
-      nsCOMPtr<nsIFontMetrics> fm =
-        aPresContext->GetMetricsFor(font, aUseUserFontSet);
+      nsCOMPtr<nsIFontMetrics> fm = aPresContext->GetMetricsFor(font);
       nsCOMPtr<nsIThebesFontMetrics> tfm(do_QueryInterface(fm));
       gfxFloat zeroWidth = (tfm->GetThebesFontGroup()->GetFontAt(0)
                             ->GetMetrics().zeroOrAveCharWidth);
@@ -240,8 +234,7 @@ nsRuleNode::CalcLength(const nsCSSValue& aValue,
 {
   NS_ASSERTION(aStyleContext, "Must have style data");
 
-  return CalcLengthWith(aValue, -1, nsnull, aStyleContext, aPresContext,
-                        PR_TRUE, aInherited);
+  return CalcLengthWith(aValue, -1, nsnull, aStyleContext, aPresContext, aInherited);
 }
 
 /* Inline helper function to redirect requests to CalcLength. */
@@ -261,7 +254,7 @@ nsRuleNode::CalcLengthWithInitialFont(nsPresContext* aPresContext,
   nsStyleFont defaultFont(aPresContext);
   PRBool inherited;
   return CalcLengthWith(aValue, -1, &defaultFont, nsnull, aPresContext,
-                        PR_FALSE, inherited);
+                        inherited);
 }
 
 #define SETCOORD_NORMAL                 0x01   // N
@@ -2344,7 +2337,7 @@ nsRuleNode::SetFontSize(nsPresContext* aPresContext,
     // for scriptlevel changes. A scriptlevel change between us and the parent
     // is simply ignored.
     *aSize = CalcLengthWith(aFontData.mSize, aParentSize, aParentFont, nsnull,
-                            aPresContext, PR_TRUE, aInherited);
+                        aPresContext, aInherited);
     zoom = aFontData.mSize.IsFixedLengthUnit() ||
            aFontData.mSize.GetUnit() == eCSSUnit_Pixel;
   }
@@ -2586,8 +2579,8 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
     // to the parent font, or the size definitions are circular and we
     // 
     aFont->mScriptMinSize =
-      CalcLengthWith(aFontData.mScriptMinSize, aParentFont->mSize, aParentFont,
-                     nsnull, aPresContext, PR_TRUE, aInherited);
+      CalcLengthWith(aFontData.mScriptMinSize, aParentFont->mSize, aParentFont, nsnull,
+                     aPresContext, aInherited);
   }
 
   // -moz-script-size-multiplier: factor, inherit, initial

@@ -1,3 +1,0 @@
-# basic sanity checking
-random-if(!haveTestPlugin||MOZ_WIDGET_TOOLKIT!="cocoa") != plugin-sanity.html about:blank
-fails-if(!haveTestPlugin||MOZ_WIDGET_TOOLKIT!="cocoa") == plugin-sanity.html div-sanity.html

@@ -40,6 +40,4 @@ NPIdentifier stringVariantToIdentifier(NPVariant variant);
 NPIdentifier int32VariantToIdentifier(NPVariant variant);
 NPIdentifier doubleVariantToIdentifier(NPVariant variant);
 
-PRUint32 parseHexColor(char* color);
-
 #endif // nptest_utils_h_

@@ -163,8 +163,7 @@ public:
                     const nsString& aValue, PRBool aCaseSensitive);
   void SetOperator(PRUnichar aOperator);
 
-  // Calculate the specificity of this selector (not including its mNext!).
-  PRInt32 CalcWeight() const;
+  PRInt32 CalcWeight(void) const;
 
   void ToString(nsAString& aString, nsICSSStyleSheet* aSheet,
                 PRBool aAppend = PR_FALSE) const;
@@ -181,9 +180,6 @@ private:
   // happens if and only if the default namespace would apply to this
   // selector).
   PRBool CanBeNamespaced(PRBool aIsNegated) const;
-  // Calculate the specificity of this selector (not including its mNext
-  // or its mNegations).
-  PRInt32 CalcWeightWithoutNegations() const;
 
 public:
   PRInt32         mNameSpace;

@@ -206,19 +206,14 @@ SimpleTest.waitForExplicitFinish = function () {
  * working (or finish).
  */
 SimpleTest.executeSoon = function(aFunc) {
-    if ("Components" in window && "classes" in window.Components) {
-        netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-        var tm = Components.classes["@mozilla.org/thread-manager;1"]
-                   .getService(Components.interfaces.nsIThreadManager);
+    var tm = Components.classes["@mozilla.org/thread-manager;1"]
+                       .getService(Components.interfaces.nsIThreadManager);
 
-        tm.mainThread.dispatch({
-            run: function() {
-                aFunc();
-            }
-        }, Components.interfaces.nsIThread.DISPATCH_NORMAL);
-    } else {
-        setTimeout(aFunc, 0);
-    }
+    tm.mainThread.dispatch({
+        run: function() {
+            aFunc();
+        }
+    }, Components.interfaces.nsIThread.DISPATCH_NORMAL);
 }
 
 /**

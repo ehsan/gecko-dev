@@ -509,6 +509,7 @@ irregularFilenames = {
 
     # stowaways
     'nsIDOMTextMetrics': 'nsIDOMCanvasRenderingContext2D',
+    'nsIDOMNSCSS2Properties': 'nsIDOMCSS2Properties',
     'nsIXPointerResult': 'nsIXPointer',
     }
 

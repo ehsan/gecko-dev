@@ -77,10 +77,9 @@
 // all this crap is needed to do the interactive shell stuff
 #include <stdlib.h>
 #include <errno.h>
-#ifdef HAVE_IO_H
+#if defined(XP_WIN) || defined(XP_OS2)
 #include <io.h>     /* for isatty() */
-#endif
-#ifdef HAVE_UNISTD_H
+#elif defined(XP_UNIX) || defined(XP_BEOS)
 #include <unistd.h>     /* for isatty() */
 #endif
 
@@ -716,9 +715,7 @@ ProcessFile(JSContext *cx, JSObject *obj, const char *filename, FILE *file,
 
     if (forceTTY) {
         file = stdin;
-    }
-#ifdef HAVE_ISATTY
-    else if (!isatty(fileno(file))) {
+    } else if (!isatty(fileno(file))) {
         /*
          * It's not interactive - just execute it.
          *
@@ -749,7 +746,6 @@ ProcessFile(JSContext *cx, JSObject *obj, const char *filename, FILE *file,
 
         return;
     }
-#endif
 
     /* It's an interactive filehandle; drop into read-eval-print loop. */
     lineno = 1;
@@ -1411,11 +1407,9 @@ main(int argc, char **argv, char **envp)
     int result;
     nsresult rv;
 
-#ifdef HAVE_SETBUF
     // unbuffer stdout so that output is in the correct order; note that stderr
     // is unbuffered by default
     setbuf(stdout, 0);
-#endif
 
     gErrFile = stderr;
     gOutFile = stdout;

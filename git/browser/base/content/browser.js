@@ -3205,8 +3205,6 @@ function OpenBrowserWindow()
   return win;
 }
 
-// Returns a reference to the window in which the toolbar
-// customization document is loaded.
 function BrowserCustomizeToolbar()
 {
   // Disable the toolbar context menu items
@@ -3239,13 +3237,11 @@ function BrowserCustomizeToolbar()
   var sheetWidth = sheetFrame.style.width.match(/([0-9]+)px/)[1];
   document.getElementById("customizeToolbarSheetPopup")
           .openPopup(gNavToolbox, "after_start", (window.innerWidth - sheetWidth) / 2, 0);
-
-  return sheetFrame.contentWindow;
 #else
-  return window.openDialog(customizeURL,
-                           "CustomizeToolbar",
-                           "chrome,titlebar,toolbar,resizable,dependent",
-                           gNavToolbox);
+  window.openDialog(customizeURL,
+                    "CustomizeToolbar",
+                    "chrome,titlebar,toolbar,resizable,dependent",
+                    gNavToolbox);
 #endif
 }
 

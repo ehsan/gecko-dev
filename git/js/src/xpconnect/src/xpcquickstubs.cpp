@@ -536,8 +536,7 @@ xpc_qsUnwrapThisImpl(JSContext *cx,
         else if(XPCNativeWrapper::IsNativeWrapperClass(clazz))
         {
             wrapper = XPCNativeWrapper::GetWrappedNative(cur);
-            if(!wrapper)
-                goto next;
+            NS_ASSERTION(wrapper, "XPCNativeWrapper wrapping nothing");
         }
         else if(IsXPCSafeJSObjectWrapperClass(clazz))
         {
