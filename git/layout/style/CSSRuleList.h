@@ -28,6 +28,7 @@ public:
   {
     SetIsDOMBinding();
   }
+  virtual ~CSSRuleList() {}
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ICSSRULELIST_IID)
 
@@ -59,9 +60,6 @@ public:
 
   virtual nsIDOMCSSRule* IndexedGetter(uint32_t aIndex, bool& aFound) = 0;
   virtual uint32_t Length() = 0;
-
-protected:
-  virtual ~CSSRuleList() {}
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(CSSRuleList, NS_ICSSRULELIST_IID)

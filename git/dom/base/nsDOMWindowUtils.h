@@ -46,8 +46,6 @@ public:
   }
 
 private:
-  ~nsTranslationNodeList() {}
-
   nsTArray<nsCOMPtr<nsIDOMNode> > mNodes;
   nsTArray<bool> mNodeIsRoot;
   uint32_t mLength;
@@ -58,12 +56,11 @@ class nsDOMWindowUtils MOZ_FINAL : public nsIDOMWindowUtils,
 {
 public:
   nsDOMWindowUtils(nsGlobalWindow *aWindow);
+  ~nsDOMWindowUtils();
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMWINDOWUTILS
 
 protected:
-  ~nsDOMWindowUtils();
-
   nsWeakPtr mWindow;
 
   // If aOffset is non-null, it gets filled in with the offset of the root

@@ -135,7 +135,6 @@ using namespace mozilla::gfx;
 class SRGBOverrideObserver MOZ_FINAL : public nsIObserver,
                                        public nsSupportsWeakReference
 {
-    ~SRGBOverrideObserver() {}
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER
@@ -181,7 +180,6 @@ static const char* kObservedPrefs[] = {
 
 class FontPrefsObserver MOZ_FINAL : public nsIObserver
 {
-    ~FontPrefsObserver() {}
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER
@@ -206,7 +204,6 @@ FontPrefsObserver::Observe(nsISupports *aSubject,
 
 class MemoryPressureObserver MOZ_FINAL : public nsIObserver
 {
-    ~MemoryPressureObserver() {}
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER

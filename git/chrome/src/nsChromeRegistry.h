@@ -60,6 +60,7 @@ public:
 
   // nsChromeRegistry methods:
   nsChromeRegistry() : mInitialized(false) { }
+  virtual ~nsChromeRegistry();
 
   virtual nsresult Init();
 
@@ -70,8 +71,6 @@ public:
   static nsresult Canonify(nsIURL* aChromeURL);
 
 protected:
-  virtual ~nsChromeRegistry();
-
   void FlushSkinCaches();
   void FlushAllCaches();
 

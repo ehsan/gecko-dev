@@ -44,8 +44,6 @@ public:
   GetQuotaPermission(nsIPrincipal* aPrincipal);
 
 private:
-  ~CheckQuotaHelper();
-
   nsPIDOMWindow* mWindow;
 
   mozilla::Mutex& mMutex;

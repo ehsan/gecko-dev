@@ -28,8 +28,6 @@ class Console MOZ_FINAL : public nsITimerCallback
                         , public nsIObserver
                         , public nsWrapperCache
 {
-  ~Console();
-
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(Console,
@@ -38,6 +36,7 @@ public:
   NS_DECL_NSIOBSERVER
 
   Console(nsPIDOMWindow* aWindow);
+  ~Console();
 
   // WebIDL methods
   nsISupports* GetParentObject() const

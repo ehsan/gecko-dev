@@ -28,13 +28,12 @@ public:
 class URLSearchParams MOZ_FINAL : public nsISupports,
                                   public nsWrapperCache
 {
-  ~URLSearchParams();
-
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(URLSearchParams)
 
   URLSearchParams();
+  ~URLSearchParams();
 
   // WebIDL methods
   nsISupports* GetParentObject() const

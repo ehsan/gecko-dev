@@ -66,10 +66,6 @@ AnnotatedResult::AnnotatedResult(const nsCString& aGUID,
 {
 }
 
-AnnotatedResult::~AnnotatedResult()
-{
-}
-
 NS_IMETHODIMP
 AnnotatedResult::GetGuid(nsACString& _guid)
 {

@@ -106,8 +106,6 @@ public:
   {}
 
 private:
-  ~LoadContext() {}
-
   nsWeakPtr     mTopFrameElement;
   uint64_t      mNestedFrameId;
   uint32_t      mAppId;

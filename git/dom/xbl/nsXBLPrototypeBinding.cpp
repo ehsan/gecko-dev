@@ -39,7 +39,6 @@
 
 #include "nsCSSRuleProcessor.h"
 #include "nsXBLResourceLoader.h"
-#include "mozilla/AddonPathService.h"
 #include "mozilla/dom/CDATASection.h"
 #include "mozilla/dom/Comment.h"
 #include "mozilla/dom/Element.h"
@@ -155,15 +154,10 @@ nsXBLPrototypeBinding::Traverse(nsCycleCollectionTraversalCallback &cb) const
 }
 
 void
-nsXBLPrototypeBinding::Unlink()
+nsXBLPrototypeBinding::UnlinkJSObjects()
 {
-  if (mImplementation) {
+  if (mImplementation)
     mImplementation->UnlinkJSObjects();
-  }
-
-  if (mResources) {
-    mResources->Unlink();
-  }
 }
 
 void
@@ -255,7 +249,7 @@ nsXBLPrototypeBinding::BindingAttached(nsIContent* aBoundElement)
 {
   if (mImplementation && mImplementation->CompiledMembers() &&
       mImplementation->mConstructor)
-    return mImplementation->mConstructor->Execute(aBoundElement, MapURIToAddonID(mBindingURI));
+    return mImplementation->mConstructor->Execute(aBoundElement);
   return NS_OK;
 }
 
@@ -264,7 +258,7 @@ nsXBLPrototypeBinding::BindingDetached(nsIContent* aBoundElement)
 {
   if (mImplementation && mImplementation->CompiledMembers() &&
       mImplementation->mDestructor)
-    return mImplementation->mDestructor->Execute(aBoundElement, MapURIToAddonID(mBindingURI));
+    return mImplementation->mDestructor->Execute(aBoundElement);
   return NS_OK;
 }
 

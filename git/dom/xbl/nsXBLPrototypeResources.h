@@ -35,8 +35,7 @@ public:
 
   nsresult Write(nsIObjectOutputStream* aStream);
 
-  void Traverse(nsCycleCollectionTraversalCallback &cb);
-  void Unlink();
+  void Traverse(nsCycleCollectionTraversalCallback &cb) const;
 
   void ClearLoader();
 

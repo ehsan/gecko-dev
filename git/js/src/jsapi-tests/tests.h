@@ -155,11 +155,8 @@ class JSAPITest
         return JSAPITestString(JS_VersionToString(v));
     }
 
-    // Note that in some still-supported GCC versions (we think anything before
-    // GCC 4.6), this template does not work when the second argument is
-    // nullptr. It infers type U = long int. Use CHECK_NULL instead.
-    template <typename T, typename U>
-    bool checkEqual(const T &actual, const U &expected,
+    template<typename T>
+    bool checkEqual(const T &actual, const T &expected,
                     const char *actualExpr, const char *expectedExpr,
                     const char *filename, int lineno) {
         return (actual == expected) ||
@@ -168,24 +165,21 @@ class JSAPITest
                  ", got (" + actualExpr + ") = " + toSource(actual), filename, lineno);
     }
 
+    // There are many cases where the static types of 'actual' and 'expected'
+    // are not identical, and C++ is understandably cautious about automatic
+    // coercions. So catch those cases and forcibly coerce, then use the
+    // identical-type specialization. This may do bad things if the types are
+    // actually *not* compatible.
+    template<typename T, typename U>
+    bool checkEqual(const T &actual, const U &expected,
+                   const char *actualExpr, const char *expectedExpr,
+                   const char *filename, int lineno) {
+        return checkEqual(U(actual), expected, actualExpr, expectedExpr, filename, lineno);
+    }
+
 #define CHECK_EQUAL(actual, expected) \
     do { \
         if (!checkEqual(actual, expected, #actual, #expected, __FILE__, __LINE__)) \
-            return false; \
-    } while (false)
-
-    template <typename T>
-    bool checkNull(const T *actual, const char *actualExpr,
-                   const char *filename, int lineno) {
-        return (actual == nullptr) ||
-            fail(JSAPITestString("CHECK_NULL failed: expected nullptr, got (") +
-                 actualExpr + ") = " + toSource(actual),
-                 filename, lineno);
-    }
-
-#define CHECK_NULL(actual) \
-    do { \
-        if (!checkNull(actual, #actual, __FILE__, __LINE__)) \
             return false; \
     } while (false)
 

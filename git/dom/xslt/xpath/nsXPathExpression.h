@@ -39,8 +39,6 @@ public:
     NS_DECL_NSIDOMNSXPATHEXPRESSION
 
 private:
-    ~nsXPathExpression() {}
-
     nsAutoPtr<Expr> mExpression;
     nsRefPtr<txResultRecycler> mRecycler;
     nsCOMPtr<nsIDOMDocument> mDocument;

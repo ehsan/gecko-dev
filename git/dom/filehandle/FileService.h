@@ -94,8 +94,6 @@ private:
     inline
     FileHandleQueue(FileHandle* aFileHandle);
 
-    ~FileHandleQueue();
-
     nsresult
     ProcessQueue();
 

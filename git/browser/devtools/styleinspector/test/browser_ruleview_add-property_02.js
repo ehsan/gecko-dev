@@ -29,7 +29,7 @@ let test = asyncTest(function*() {
 
 function* testCreateNew(inspector, ruleView) {
   // Create a new property.
-  let elementRuleEditor = getRuleViewRuleEditor(ruleView, 0);
+  let elementRuleEditor = ruleView.element.children[0]._ruleEditor;
   let editor = yield focusEditableField(elementRuleEditor.closeBrace);
 
   is(inplaceEditor(elementRuleEditor.newPropSpan), editor,

@@ -51,10 +51,9 @@ public:
   nsresult MouseDown(nsIDOMEvent* aMouseEvent);
 
   nsFormFillController();
-
-protected:
   virtual ~nsFormFillController();
 
+protected:
   void AddWindowListeners(nsIDOMWindow *aWindow);
   void RemoveWindowListeners(nsIDOMWindow *aWindow);
 

@@ -13,8 +13,6 @@
 
 class xpcJSWeakReference MOZ_FINAL : public xpcIJSWeakReference
 {
-    ~xpcJSWeakReference() {}
-
 public:
     xpcJSWeakReference();
     nsresult Init(JSContext* cx, const JS::Value& object);

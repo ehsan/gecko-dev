@@ -28,8 +28,6 @@ public:
   const mobilemessage::SmsSegmentInfoData& GetData() const;
 
 private:
-  ~SmsSegmentInfo() {}
-
   mobilemessage::SmsSegmentInfoData mData;
 };
 

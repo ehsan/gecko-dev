@@ -29,10 +29,6 @@ class DesktopNotificationRequest : public nsIContentPermissionRequest,
                                    public PCOMContentPermissionRequestChild
 
 {
-  ~DesktopNotificationRequest()
-  {
-  }
-
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSICONTENTPERMISSIONREQUEST
@@ -48,6 +44,10 @@ public:
       prompt->Prompt(this);
     }
     return NS_OK;
+  }
+
+  ~DesktopNotificationRequest()
+  {
   }
 
   virtual bool Recv__delete__(const bool& aAllow,

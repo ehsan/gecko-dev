@@ -177,6 +177,11 @@ public:
     MOZ_ASSERT(NS_IsMainThread());
     mozilla::HoldJSObjects(this);
   }
+  virtual ~AbstractResult() {
+    MOZ_ASSERT(NS_IsMainThread());
+    DropJSData();
+    mozilla::DropJSObjects(this);
+  }
 
   /**
    * Setup the AbstractResult once data is available.
@@ -202,12 +207,6 @@ public:
   }
 
 protected:
-  virtual ~AbstractResult() {
-    MOZ_ASSERT(NS_IsMainThread());
-    DropJSData();
-    mozilla::DropJSObjects(this);
-  }
-
   virtual nsresult GetCacheableResult(JSContext *cx, JS::MutableHandleValue aResult) = 0;
 
 private:

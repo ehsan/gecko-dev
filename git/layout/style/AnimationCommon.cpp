@@ -166,17 +166,17 @@ CommonAnimationManager::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
 CommonAnimationManager::ExtractComputedValueForTransition(
                           nsCSSProperty aProperty,
                           nsStyleContext* aStyleContext,
-                          StyleAnimationValue& aComputedValue)
+                          nsStyleAnimation::Value& aComputedValue)
 {
-  bool result = StyleAnimationValue::ExtractComputedValue(aProperty,
-                                                          aStyleContext,
-                                                          aComputedValue);
+  bool result =
+    nsStyleAnimation::ExtractComputedValue(aProperty, aStyleContext,
+                                           aComputedValue);
   if (aProperty == eCSSProperty_visibility) {
     NS_ABORT_IF_FALSE(aComputedValue.GetUnit() ==
-                        StyleAnimationValue::eUnit_Enumerated,
+                        nsStyleAnimation::eUnit_Enumerated,
                       "unexpected unit");
     aComputedValue.SetIntValue(aComputedValue.GetIntValue(),
-                               StyleAnimationValue::eUnit_Visibility);
+                               nsStyleAnimation::eUnit_Visibility);
   }
   return result;
 }
@@ -255,7 +255,7 @@ CommonAnimationManager::UpdateThrottledStyle(dom::Element* aElement,
     curRule.mLevel = ruleNode->GetLevel();
 
     if (curRule.mLevel == nsStyleSet::eAnimationSheet) {
-      CommonElementAnimationData* ea =
+      ElementAnimations* ea =
         mPresContext->AnimationManager()->GetElementAnimations(
           aElement,
           oldStyle->GetPseudoType(),
@@ -331,7 +331,7 @@ AnimValuesStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
 #ifdef DEBUG
         bool ok =
 #endif
-          StyleAnimationValue::UncomputeValue(cv.mProperty, cv.mValue, *prop);
+          nsStyleAnimation::UncomputeValue(cv.mProperty, cv.mValue, *prop);
         NS_ABORT_IF_FALSE(ok, "could not store computed value");
       }
     }
@@ -347,7 +347,7 @@ AnimValuesStyleRule::List(FILE* out, int32_t aIndent) const
   for (uint32_t i = 0, i_end = mPropertyValuePairs.Length(); i < i_end; ++i) {
     const PropertyValuePair &pair = mPropertyValuePairs[i];
     nsAutoString value;
-    StyleAnimationValue::UncomputeValue(pair.mProperty, pair.mValue, value);
+    nsStyleAnimation::UncomputeValue(pair.mProperty, pair.mValue, value);
     fprintf(out, "%s: %s; ", nsCSSProps::GetStringValue(pair.mProperty).get(),
                              NS_ConvertUTF16toUTF8(value).get());
   }
@@ -729,19 +729,6 @@ CommonElementAnimationData::LogAsyncAnimationFailure(nsCString& aMessage,
   printf_stderr(aMessage.get());
 }
 
-/*static*/ void
-CommonElementAnimationData::PropertyDtor(void *aObject, nsIAtom *aPropertyName,
-                                         void *aPropertyValue, void *aData)
-{
-  CommonElementAnimationData* data =
-    static_cast<CommonElementAnimationData*>(aPropertyValue);
-#ifdef DEBUG
-  NS_ABORT_IF_FALSE(!data->mCalledPropertyDtor, "can't call dtor twice");
-  data->mCalledPropertyDtor = true;
-#endif
-  delete data;
-}
-
 void
 CommonElementAnimationData::EnsureStyleRuleFor(TimeStamp aRefreshTime,
                                                EnsureStyleRuleFlags aFlags)
@@ -889,16 +876,15 @@ CommonElementAnimationData::EnsureStyleRuleFor(TimeStamp aRefreshTime,
         double valuePosition =
           segment->mTimingFunction.GetValue(positionInSegment);
 
-        StyleAnimationValue *val =
+        nsStyleAnimation::Value *val =
           mStyleRule->AddEmptyValue(prop.mProperty);
 
 #ifdef DEBUG
         bool result =
 #endif
-          StyleAnimationValue::Interpolate(prop.mProperty,
-                                           segment->mFromValue,
-                                           segment->mToValue,
-                                           valuePosition, *val);
+          nsStyleAnimation::Interpolate(prop.mProperty,
+                                        segment->mFromValue, segment->mToValue,
+                                        valuePosition, *val);
         NS_ABORT_IF_FALSE(result, "interpolate must succeed now");
       }
     }

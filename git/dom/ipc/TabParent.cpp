@@ -2232,8 +2232,6 @@ public:
 #undef NO_IMPL
 
 protected:
-  ~FakeChannel() {}
-
   nsCOMPtr<nsIURI> mUri;
   uint64_t mCallbackId;
   nsCOMPtr<Element> mElement;

@@ -12,7 +12,7 @@
 #include "nsPresContext.h"
 #include "nsRuleNode.h"
 #include "nsCSSKeywords.h"
-#include "mozilla/StyleAnimationValue.h"
+#include "nsStyleAnimation.h"
 #include "gfxMatrix.h"
 
 using namespace mozilla;
@@ -53,7 +53,7 @@ ProcessTranslatePart(const nsCSSValue& aValue,
     // Handle this here (even though nsRuleNode::CalcLength handles it
     // fine) so that callers are allowed to pass a null style context
     // and pres context to SetToTransformFunction if they know (as
-    // StyleAnimationValue does) that all lengths within the transform
+    // nsStyleAnimation does) that all lengths within the transform
     // function have already been computed to pixels and percents.
     //
     // Raw numbers are treated as being pixels.
@@ -180,14 +180,12 @@ ProcessInterpolateMatrix(gfx3DMatrix& aMatrix,
   }
   double progress = aData->Item(3).GetPercentValue();
 
-  aMatrix =
-    StyleAnimationValue::InterpolateTransformMatrix(matrix1, matrix2, progress)
-    * aMatrix;
+  aMatrix = nsStyleAnimation::InterpolateTransformMatrix(matrix1, matrix2, progress) * aMatrix;
 }
 
 /* Helper function to process a translatex function. */
 static void
-ProcessTranslateX(gfx3DMatrix& aMatrix,
+ProcessTranslateX(gfx3DMatrix& aMatrix, 
                   const nsCSSValue::Array* aData,
                   nsStyleContext* aContext,
                   nsPresContext* aPresContext,
@@ -504,7 +502,7 @@ MatrixForTransformFunction(gfx3DMatrix& aMatrix,
   NS_PRECONDITION(aData, "Why did you want to get data from a null array?");
   // It's OK if aContext and aPresContext are null if the caller already
   // knows that all length units have been converted to pixels (as
-  // StyleAnimationValue does).
+  // nsStyleAnimation does).
 
 
   /* Get the keyword for the transform. */

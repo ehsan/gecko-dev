@@ -19,8 +19,6 @@ class nsSSLStatus
   , public nsISerializable
   , public nsIClassInfo
 {
-protected:
-  virtual ~nsSSLStatus();
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSISSLSTATUS
@@ -28,6 +26,7 @@ public:
   NS_DECL_NSICLASSINFO
 
   nsSSLStatus();
+  virtual ~nsSSLStatus();
 
   /* public for initilization in this file */
   nsCOMPtr<nsIX509Cert> mServerCert;

@@ -1700,7 +1700,7 @@ function RecordResult(testRunTime, errorMsg, scriptResults)
                 gDumpLog(result);
             }
 
-            if ((!test_passed && expected == EXPECTED_PASS) || (test_passed && expected == EXPECTED_FAIL)) {
+            if (!test_passed && expected == EXPECTED_PASS) {
                 FlushTestLog();
             }
 

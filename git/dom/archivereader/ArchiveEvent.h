@@ -27,6 +27,7 @@ public:
   NS_DECL_THREADSAFE_ISUPPORTS
 
   ArchiveItem();
+  virtual ~ArchiveItem();
 
   // Getter/Setter for the type
   nsCString GetType();
@@ -39,8 +40,6 @@ public:
   virtual nsIDOMFile* File(ArchiveReader* aArchiveReader) = 0;
 
 protected:
-  virtual ~ArchiveItem();
-
   nsCString mType;
 };
 

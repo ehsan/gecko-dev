@@ -28,6 +28,7 @@ public:
 	// implementation methods
 	//
   nsSaveAsCharset();
+  virtual ~nsSaveAsCharset();
 
 	//
 	// nsISupports
@@ -44,8 +45,6 @@ public:
   NS_IMETHODIMP GetCharset(char * *aCharset);
 
 protected:
-
-  virtual ~nsSaveAsCharset();
 
   NS_IMETHOD DoCharsetConversion(const char16_t *inString, char **outString);
 

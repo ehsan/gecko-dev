@@ -20,14 +20,11 @@ class PSMContentListener : public nsIURIContentListener,
                             public nsSupportsWeakReference {
 public:
   PSMContentListener();
+  virtual ~PSMContentListener();
   nsresult init();
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIURICONTENTLISTENER
-
-protected:
-  virtual ~PSMContentListener();
-
 private:
   nsCOMPtr<nsISupports> mLoadCookie;
   nsCOMPtr<nsIURIContentListener> mParentContentListener;

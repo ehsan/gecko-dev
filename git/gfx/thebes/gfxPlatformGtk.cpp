@@ -16,7 +16,6 @@
 #include "gfxPangoFonts.h"
 #include "gfxContext.h"
 #include "gfxUserFontSet.h"
-#include "gfxUtils.h"
 #include "gfxFT2FontBase.h"
 
 #include "mozilla/gfx/2D.h"
@@ -126,7 +125,9 @@ gfxPlatformGtk::CreateOffscreenSurface(const IntSize& size,
     }
 
     if (newSurface && needsClear) {
-        gfxUtils::ClearThebesSurface(newSurface);
+        nsRefPtr<gfxContext> tmpCtx = new gfxContext(newSurface);
+        tmpCtx->SetOperator(gfxContext::OPERATOR_CLEAR);
+        tmpCtx->Paint();
     }
 
     return newSurface.forget();

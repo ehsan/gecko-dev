@@ -68,7 +68,7 @@ LIRGeneratorShared::defineFixed(LInstructionHelper<1, X, Y> *lir, MDefinition *m
 {
     LDefinition::Type type = LDefinition::TypeFrom(mir->type());
 
-    LDefinition def(type, LDefinition::FIXED);
+    LDefinition def(type, LDefinition::PRESET);
     def.setOutput(output);
 
     // Add an LNop to avoid regalloc problems if the next op uses this value

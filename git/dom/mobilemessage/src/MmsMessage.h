@@ -82,8 +82,6 @@ public:
 
 private:
 
-  ~MmsMessage() {}
-
   int32_t mId;
   uint64_t mThreadId;
   nsString mIccId;

@@ -461,6 +461,23 @@ JSCompartment::wrap(JSContext *cx, MutableHandleObject obj, HandleObject existin
 }
 
 bool
+JSCompartment::wrapId(JSContext *cx, jsid *idp)
+{
+    MOZ_ASSERT(*idp != JSID_VOID, "JSID_VOID is an out-of-band sentinel value");
+    if (JSID_IS_INT(*idp))
+        return true;
+    RootedValue value(cx, IdToValue(*idp));
+    if (!wrap(cx, &value))
+        return false;
+    RootedId id(cx);
+    if (!ValueToId<CanGC>(cx, value, &id))
+        return false;
+
+    *idp = id;
+    return true;
+}
+
+bool
 JSCompartment::wrap(JSContext *cx, PropertyOp *propp)
 {
     RootedValue value(cx, CastAsObjectJsval(*propp));
@@ -496,6 +513,18 @@ JSCompartment::wrap(JSContext *cx, MutableHandle<PropertyDescriptor> desc)
     }
 
     return wrap(cx, desc.value());
+}
+
+bool
+JSCompartment::wrap(JSContext *cx, AutoIdVector &props)
+{
+    jsid *vector = props.begin();
+    int length = props.length();
+    for (size_t n = 0; n < size_t(length); ++n) {
+        if (!wrapId(cx, &vector[n]))
+            return false;
+    }
+    return true;
 }
 
 bool

@@ -527,7 +527,8 @@ var Scratchpad = {
 
   /**
    * Execute the selected text (if any) or the entire editor content in the
-   * current context. The resulting object is inspected up in the sidebar.
+   * current context. If the result is primitive then it is written as a
+   * comment. Otherwise, the resulting object is inspected up in the sidebar.
    *
    * @return Promise
    *         The promise for the script evaluation result.
@@ -542,6 +543,9 @@ var Scratchpad = {
 
       if (aError) {
         this.writeAsErrorComment(aError.exception).then(resolve, reject);
+      }
+      else if (VariablesView.isPrimitive({ value: aResult })) {
+        this._writePrimitiveAsComment(aResult).then(resolve, reject);
       }
       else {
         this.editor.dropSelection();
@@ -2219,23 +2223,15 @@ ScratchpadSidebar.prototype = {
   /**
    * Update the object currently inspected by the sidebar.
    *
-   * @param any aValue
-   *        The JS value to inspect in the sidebar.
+   * @param object aObject
+   *        The object to inspect in the sidebar.
    * @return Promise
    *         A promise that resolves when the update completes.
    */
-  _update: function SS__update(aValue)
+  _update: function SS__update(aObject)
   {
-    let options, onlyEnumVisible;
-    if (VariablesView.isPrimitive({ value: aValue })) {
-      options = { rawObject: { value: aValue } };
-      onlyEnumVisible = true;
-    } else {
-      options = { objectActor: aValue };
-      onlyEnumVisible = false;
-    }
+    let options = { objectActor: aObject };
     let view = this.variablesView;
-    view.onlyEnumVisible = onlyEnumVisible;
     view.empty();
     return view.controller.setSingleVariable(options).expanded;
   }

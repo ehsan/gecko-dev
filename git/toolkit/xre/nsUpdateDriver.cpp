@@ -1014,10 +1014,6 @@ nsUpdateProcessor::nsUpdateProcessor()
 {
 }
 
-nsUpdateProcessor::~nsUpdateProcessor()
-{
-}
-
 NS_IMETHODIMP
 nsUpdateProcessor::ProcessUpdate(nsIUpdate* aUpdate)
 {

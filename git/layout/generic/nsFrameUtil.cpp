@@ -15,11 +15,9 @@
 
 #ifdef DEBUG
 class nsFrameUtil : public nsIFrameUtil {
-protected:
-  virtual ~nsFrameUtil();
-
 public:
   nsFrameUtil();
+  virtual ~nsFrameUtil();
 
   NS_DECL_ISUPPORTS
 

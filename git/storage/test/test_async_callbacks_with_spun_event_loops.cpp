@@ -50,14 +50,12 @@ public:
     sError = false;
   }
 
-private:
   ~UnownedCallback()
   {
     sAlive = false;
     blocking_async_close(mDBConn);
   }
 
-public:
   NS_IMETHOD HandleResult(mozIStorageResultSet* aResultSet)
   {
     sResult = true;

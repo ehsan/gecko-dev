@@ -33,6 +33,7 @@ class nsEditorSpellCheck : public nsIEditorSpellCheck
 
 public:
   nsEditorSpellCheck();
+  virtual ~nsEditorSpellCheck();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS(nsEditorSpellCheck)
@@ -41,8 +42,6 @@ public:
   NS_DECL_NSIEDITORSPELLCHECK
 
 protected:
-  virtual ~nsEditorSpellCheck();
-
   nsCOMPtr<nsISpellChecker> mSpellChecker;
 
   nsTArray<nsString>  mSuggestedWordList;

@@ -199,7 +199,6 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSITIMERCALLBACK
 private:
-  ~UITimerCallback() {}
   uint32_t mPreviousCount;
 };
 

@@ -192,10 +192,9 @@ public:
 
     MemoryReportRequestChild(uint32_t aGeneration, bool aAnonymize,
                              const nsAString& aDMDDumpIdent);
+    virtual ~MemoryReportRequestChild();
     NS_IMETHOD Run();
 private:
-    virtual ~MemoryReportRequestChild();
-
     uint32_t mGeneration;
     bool     mAnonymize;
     nsString mDMDDumpIdent;
@@ -363,8 +362,6 @@ public:
     NS_DECL_NSICONSOLELISTENER
 
 private:
-    ~ConsoleListener() {}
-
     ContentChild* mChild;
     friend class ContentChild;
 };
@@ -421,8 +418,6 @@ ConsoleListener::Observe(nsIConsoleMessage* aMessage)
 
 class SystemMessageHandledObserver MOZ_FINAL : public nsIObserver
 {
-    ~SystemMessageHandledObserver() {}
-
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER
@@ -702,7 +697,6 @@ ContentChild::AllocPMemoryReportRequestChild(const uint32_t& aGeneration,
 // This is just a wrapper for InfallibleTArray<MemoryReport> that implements
 // nsISupports, so it can be passed to nsIMemoryReporter::CollectReports.
 class MemoryReportsWrapper MOZ_FINAL : public nsISupports {
-    ~MemoryReportsWrapper() {}
 public:
     NS_DECL_ISUPPORTS
     MemoryReportsWrapper(InfallibleTArray<MemoryReport> *r) : mReports(r) { }
@@ -734,8 +728,6 @@ public:
         return NS_OK;
     }
 private:
-    ~MemoryReportCallback() {}
-
     const nsCString mProcess;
 };
 NS_IMPL_ISUPPORTS(

@@ -27,10 +27,9 @@ protected:
   void DoSetLocale();
   void DoRestoreLocale();
 
-  ~nsCollationUnix(); 
-
-public:
+public: 
   nsCollationUnix();
+  ~nsCollationUnix(); 
 
   // nsISupports interface
   NS_DECL_ISUPPORTS

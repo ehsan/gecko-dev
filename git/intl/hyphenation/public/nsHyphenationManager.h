@@ -33,8 +33,6 @@ private:
 protected:
   class MemoryPressureObserver MOZ_FINAL : public nsIObserver
   {
-      ~MemoryPressureObserver() {}
-
   public:
       NS_DECL_ISUPPORTS
       NS_DECL_NSIOBSERVER

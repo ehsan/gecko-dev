@@ -26,7 +26,6 @@ public:
                          , mCert(aCert)
     {}
 
-protected:
   virtual ~nsCertificatePrincipal() {}
 
 private:

@@ -25,14 +25,12 @@ class nsBrowserStatusFilter : public nsIWebProgress
 {
 public:
     nsBrowserStatusFilter();
+    virtual ~nsBrowserStatusFilter();
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIWEBPROGRESS
     NS_DECL_NSIWEBPROGRESSLISTENER
     NS_DECL_NSIWEBPROGRESSLISTENER2
-
-protected:
-    virtual ~nsBrowserStatusFilter();
 
 private:
     nsresult StartDelayTimer();

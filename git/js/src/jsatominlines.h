@@ -49,11 +49,6 @@ ValueToIdPure(const Value &v, jsid *id)
         return true;
     }
 
-    if (v.isSymbol()) {
-        *id = SYMBOL_TO_JSID(v.toSymbol());
-        return true;
-    }
-
     if (!v.isString() || !v.toString()->isAtom())
         return false;
 
@@ -69,11 +64,6 @@ ValueToId(JSContext* cx, typename MaybeRooted<Value, allowGC>::HandleType v,
     int32_t i;
     if (ValueFitsInInt32(v, &i) && INT_FITS_IN_JSID(i)) {
         idp.set(INT_TO_JSID(i));
-        return true;
-    }
-
-    if (v.isSymbol()) {
-        idp.set(SYMBOL_TO_JSID(v.toSymbol()));
         return true;
     }
 

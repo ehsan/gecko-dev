@@ -16,7 +16,6 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIUSERINFO
 
-protected:
   virtual ~nsUserInfo();
 };
 

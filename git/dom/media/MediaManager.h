@@ -444,8 +444,8 @@ public:
   static MediaDevice* Create(MediaEngineVideoSource* source);
   static MediaDevice* Create(MediaEngineAudioSource* source);
 
-protected:
   virtual ~MediaDevice() {}
+protected:
   MediaDevice(MediaEngineSource* aSource);
   nsString mName;
   nsString mID;

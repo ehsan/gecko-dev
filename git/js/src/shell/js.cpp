@@ -2528,13 +2528,12 @@ Intern(JSContext *cx, unsigned argc, jsval *vp)
     if (!str)
         return false;
 
-    AutoStableStringChars strChars(cx);
-    if (!strChars.initTwoByte(cx, str))
+    size_t length;
+    const jschar *chars = JS_GetStringCharsAndLength(cx, str, &length);
+    if (!chars)
         return false;
 
-    Range<const jschar> chars = strChars.twoByteRange();
-
-    if (!JS_InternUCStringN(cx, chars.start().get(), chars.length()))
+    if (!JS_InternUCStringN(cx, chars, length))
         return false;
 
     args.rval().setUndefined();
@@ -3546,24 +3545,15 @@ Compile(JSContext *cx, unsigned argc, jsval *vp)
     }
 
     RootedObject global(cx, JS::CurrentGlobalOrNull(cx));
-    JSFlatString *scriptContents = args[0].toString()->ensureFlat(cx);
-    if (!scriptContents)
-        return false;
-
-    AutoStableStringChars stableChars(cx);
-    if (!stableChars.initTwoByte(cx, scriptContents))
-        return false;
-
+    JSString *scriptContents = args[0].toString();
     JS::AutoSaveContextOptions asco(cx);
     JS::ContextOptionsRef(cx).setNoScriptRval(true);
     JS::CompileOptions options(cx);
     options.setIntroductionType("js shell compile")
            .setFileAndLine("<string>", 1)
            .setCompileAndGo(true);
-
-    const jschar *chars = stableChars.twoByteRange().start().get();
-    bool ok = JS_CompileUCScript(cx, global, chars,
-                                 scriptContents->length(), options);
+    bool ok = JS_CompileUCScript(cx, global, JS_GetStringCharsZ(cx, scriptContents),
+                                 JS_GetStringLength(scriptContents), options);
     args.rval().setUndefined();
     return ok;
 }
@@ -3586,22 +3576,14 @@ Parse(JSContext *cx, unsigned argc, jsval *vp)
         return false;
     }
 
-    JSFlatString *scriptContents = args[0].toString()->ensureFlat(cx);
-    if (!scriptContents)
-        return false;
-
-    AutoStableStringChars stableChars(cx);
-    if (!stableChars.initTwoByte(cx, scriptContents))
-        return false;
-
-    size_t length = scriptContents->length();
-    const jschar *chars = stableChars.twoByteRange().start().get();
-
+    JSString *scriptContents = args[0].toString();
     CompileOptions options(cx);
     options.setIntroductionType("js shell parse")
            .setFileAndLine("<string>", 1)
            .setCompileAndGo(false);
-    Parser<FullParseHandler> parser(cx, &cx->tempLifoAlloc(), options, chars, length,
+    Parser<FullParseHandler> parser(cx, &cx->tempLifoAlloc(), options,
+                                    JS_GetStringCharsZ(cx, scriptContents),
+                                    JS_GetStringLength(scriptContents),
                                     /* foldConstants = */ true, nullptr, nullptr);
 
     ParseNode *pn = parser.parse(nullptr);
@@ -3633,20 +3615,14 @@ SyntaxParse(JSContext *cx, unsigned argc, jsval *vp)
         return false;
     }
 
-    JSFlatString *scriptContents = args[0].toString()->ensureFlat(cx);
-    if (!scriptContents)
-        return false;
+    JSString *scriptContents = args[0].toString();
     CompileOptions options(cx);
     options.setIntroductionType("js shell syntaxParse")
            .setFileAndLine("<string>", 1)
            .setCompileAndGo(false);
 
-    AutoStableStringChars stableChars(cx);
-    if (!stableChars.initTwoByte(cx, scriptContents))
-        return false;
-
-    const jschar *chars = stableChars.twoByteRange().start().get();
-    size_t length = scriptContents->length();
+    const jschar *chars = JS_GetStringCharsZ(cx, scriptContents);
+    size_t length = JS_GetStringLength(scriptContents);
     Parser<frontend::SyntaxParseHandler> parser(cx, &cx->tempLifoAlloc(),
                                                 options, chars, length, false, nullptr, nullptr);
 

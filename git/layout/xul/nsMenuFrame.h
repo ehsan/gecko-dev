@@ -59,6 +59,7 @@ class nsMenuTimerMediator MOZ_FINAL : public nsITimerCallback
 {
 public:
   nsMenuTimerMediator(nsMenuFrame* aFrame);
+  ~nsMenuTimerMediator();
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSITIMERCALLBACK
@@ -66,7 +67,6 @@ public:
   void ClearFrame();
 
 private:
-  ~nsMenuTimerMediator();
 
   // Pointer to the wrapped frame.
   nsMenuFrame* mFrame;

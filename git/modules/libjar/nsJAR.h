@@ -24,12 +24,13 @@
 #include "nsTHashtable.h"
 #include "nsIZipReader.h"
 #include "nsZipArchive.h"
+#include "nsICertificatePrincipal.h"
+#include "nsISignatureVerifier.h"
 #include "nsIObserverService.h"
 #include "nsWeakReference.h"
 #include "nsIObserver.h"
 #include "mozilla/Attributes.h"
 
-class nsICertificatePrincipal;
 class nsIInputStream;
 class nsJARManifestItem;
 class nsZipReaderCache;

@@ -1521,8 +1521,6 @@ public:
   }
 
 private:
-  ~SetDownloadAnnotations() {}
-
   nsCOMPtr<nsIURI> mDestination;
 
   /**

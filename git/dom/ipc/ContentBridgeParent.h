@@ -21,6 +21,8 @@ public:
 
   NS_DECL_ISUPPORTS
 
+  virtual ~ContentBridgeParent();
+
   virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
   void DeferredDestroy();
 
@@ -55,8 +57,6 @@ public:
   }
 
 protected:
-  virtual ~ContentBridgeParent();
-
   void SetChildID(uint64_t aId)
   {
     mChildID = aId;

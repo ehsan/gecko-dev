@@ -297,14 +297,17 @@ Shape::dump(JSContext *cx, FILE *fp) const
         JSLinearString *str;
         if (JSID_IS_ATOM(propid)) {
             str = JSID_TO_ATOM(propid);
-            if (!str)
-                fputs("<error>", fp);
-            else
-                FileEscapedString(fp, str, '"');
         } else {
-            JS_ASSERT(JSID_IS_SYMBOL(propid));
-            JSID_TO_SYMBOL(propid)->dump(fp);
+            JS_ASSERT(JSID_IS_OBJECT(propid));
+            Value v = IdToValue(propid);
+            JSString *s = ToStringSlow<NoGC>(cx, v);
+            fputs("object ", fp);
+            str = s ? s->ensureLinear(cx) : nullptr;
         }
+        if (!str)
+            fputs("<error>", fp);
+        else
+            FileEscapedString(fp, str, '"');
     }
 
     fprintf(fp, " g/s %p/%p slot %d attrs %x ",

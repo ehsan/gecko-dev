@@ -37,12 +37,11 @@ protected:
     enumerateForwards,
     enumerateBackwards
   };
-
-  virtual                     ~nsDocShellEnumerator();
-
+  
 public:
 
                               nsDocShellEnumerator(int32_t inEnumerationDirection);
+  virtual                     ~nsDocShellEnumerator();
 
   // nsISupports
   NS_DECL_ISUPPORTS

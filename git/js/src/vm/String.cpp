@@ -64,9 +64,8 @@ JSString::sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf)
 
 #ifdef DEBUG
 
-template <typename CharT>
-/*static */ void
-JSString::dumpChars(const CharT *s, size_t n, FILE *fp)
+void
+JSString::dumpChars(const jschar *s, size_t n)
 {
     if (n == SIZE_MAX) {
         n = 0;
@@ -74,59 +73,29 @@ JSString::dumpChars(const CharT *s, size_t n, FILE *fp)
             n++;
     }
 
-    fputc('"', fp);
+    fputc('"', stderr);
     for (size_t i = 0; i < n; i++) {
-        jschar c = s[i];
-        if (c == '\n')
-            fprintf(fp, "\\n");
-        else if (c == '\t')
-            fprintf(fp, "\\t");
-        else if (c >= 32 && c < 127)
-            fputc(s[i], fp);
-        else if (c <= 255)
-            fprintf(fp, "\\x%02x", unsigned(c));
+        if (s[i] == '\n')
+            fprintf(stderr, "\\n");
+        else if (s[i] == '\t')
+            fprintf(stderr, "\\t");
+        else if (s[i] >= 32 && s[i] < 127)
+            fputc(s[i], stderr);
+        else if (s[i] <= 255)
+            fprintf(stderr, "\\x%02x", (unsigned int) s[i]);
         else
-            fprintf(fp, "\\u%04x", unsigned(c));
+            fprintf(stderr, "\\u%04x", (unsigned int) s[i]);
     }
-    fputc('"', fp);
-}
-
-template void
-JSString::dumpChars(const Latin1Char *s, size_t n, FILE *fp);
-
-template void
-JSString::dumpChars(const jschar *s, size_t n, FILE *fp);
-
-void
-JSString::dumpCharsNoNewline(FILE *fp)
-{
-    if (JSLinearString *linear = ensureLinear(nullptr)) {
-        AutoCheckCannotGC nogc;
-        if (hasLatin1Chars())
-            dumpChars(linear->latin1Chars(nogc), length(), fp);
-        else
-            dumpChars(linear->twoByteChars(nogc), length(), fp);
-    } else {
-        fprintf(fp, "(oom in JSString::dumpCharsNoNewline)");
-    }
+    fputc('"', stderr);
 }
 
 void
 JSString::dump()
 {
-    if (JSLinearString *linear = ensureLinear(nullptr)) {
-        AutoCheckCannotGC nogc;
-        if (hasLatin1Chars()) {
-            const Latin1Char *chars = linear->latin1Chars(nogc);
-            fprintf(stderr, "JSString* (%p) = Latin1Char * (%p) = ", (void *) this,
-                    (void *) chars);
-            dumpChars(chars, length(), stderr);
-        } else {
-            const jschar *chars = linear->twoByteChars(nogc);
-            fprintf(stderr, "JSString* (%p) = jschar * (%p) = ", (void *) this,
-                    (void *) chars);
-            dumpChars(chars, length(), stderr);
-        }
+    if (const jschar *chars = getChars(nullptr)) {
+        fprintf(stderr, "JSString* (%p) = jschar * (%p) = ",
+                (void *) this, (void *) chars);
+        dumpChars(chars, length());
     } else {
         fprintf(stderr, "(oom in JSString::dump)");
     }
@@ -772,11 +741,11 @@ StaticStrings::trace(JSTracer *trc)
         MarkPermanentAtom(trc, intStaticTable[i], "int-static-string");
 }
 
-template <typename CharT>
-/* static */ bool
-StaticStrings::isStatic(const CharT *chars, size_t length)
+bool
+StaticStrings::isStatic(JSAtom *atom)
 {
-    switch (length) {
+    const jschar *chars = atom->chars();
+    switch (atom->length()) {
       case 1:
         return chars[0] < UNIT_STATIC_LIMIT;
       case 2:
@@ -795,15 +764,6 @@ StaticStrings::isStatic(const CharT *chars, size_t length)
       default:
         return false;
     }
-}
-
-/* static */ bool
-StaticStrings::isStatic(JSAtom *atom)
-{
-    AutoCheckCannotGC nogc;
-    return atom->hasLatin1Chars()
-           ? isStatic(atom->latin1Chars(nogc), atom->length())
-           : isStatic(atom->twoByteChars(nogc), atom->length());
 }
 
 AutoStableStringChars::~AutoStableStringChars()

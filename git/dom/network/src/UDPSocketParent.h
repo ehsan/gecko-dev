@@ -26,6 +26,8 @@ public:
     mIPCOpen(true),
     mFilter(filter) {}
 
+  virtual ~UDPSocketParent();
+
   bool Init(const nsCString& aHost, const uint16_t aPort);
 
   virtual bool RecvClose() MOZ_OVERRIDE;
@@ -37,8 +39,6 @@ public:
   virtual bool RecvRequestDelete() MOZ_OVERRIDE;
 
 private:
-  virtual ~UDPSocketParent();
-
   virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
 
   bool mIPCOpen;

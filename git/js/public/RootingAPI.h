@@ -681,24 +681,6 @@ struct GCMethods<JSObject *>
 #endif
 };
 
-template <>
-struct GCMethods<JSFunction *>
-{
-    static JSFunction *initial() { return nullptr; }
-    static bool poisoned(JSFunction *v) { return JS::IsPoisonedPtr(v); }
-    static bool needsPostBarrier(JSFunction *v) {
-        return v != nullptr && gc::IsInsideNursery(reinterpret_cast<gc::Cell *>(v));
-    }
-#ifdef JSGC_GENERATIONAL
-    static void postBarrier(JSFunction **vp) {
-        JS::HeapCellPostBarrier(reinterpret_cast<js::gc::Cell **>(vp));
-    }
-    static void relocate(JSFunction **vp) {
-        JS::HeapCellRelocate(reinterpret_cast<js::gc::Cell **>(vp));
-    }
-#endif
-};
-
 #ifdef JS_DEBUG
 /* This helper allows us to assert that Rooted<T> is scoped within a request. */
 extern JS_PUBLIC_API(bool)
@@ -1138,7 +1120,7 @@ class PersistentRooted : private mozilla::LinkedListElement<PersistentRooted<T> 
         registerWithRuntime(rt);
     }
 
-    PersistentRooted(const PersistentRooted &rhs)
+    PersistentRooted(PersistentRooted &rhs)
       : mozilla::LinkedListElement<PersistentRooted<T> >(),
         ptr(rhs.ptr)
     {
@@ -1146,11 +1128,8 @@ class PersistentRooted : private mozilla::LinkedListElement<PersistentRooted<T> 
          * Copy construction takes advantage of the fact that the original
          * is already inserted, and simply adds itself to whatever list the
          * original was on - no JSRuntime pointer needed.
-         *
-         * This requires mutating rhs's links, but those should be 'mutable'
-         * anyway. C++ doesn't let us declare mutable base classes.
          */
-        const_cast<PersistentRooted &>(rhs).setNext(this);
+        rhs.setNext(this);
     }
 
     /*

@@ -21,6 +21,7 @@ class nsMimeTypeArray MOZ_FINAL : public nsISupports,
 {
 public:
   nsMimeTypeArray(nsPIDOMWindow* aWindow);
+  virtual ~nsMimeTypeArray();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsMimeTypeArray)
@@ -40,8 +41,6 @@ public:
   void GetSupportedNames(unsigned, nsTArray< nsString >& retval);
 
 protected:
-  virtual ~nsMimeTypeArray();
-
   void EnsurePluginMimeTypes();
   void Clear();
 
@@ -68,6 +67,8 @@ public:
   nsMimeType(nsPIDOMWindow* aWindow, nsPluginElement* aPluginElement,
              uint32_t aPluginTagMimeIndex, const nsAString& aMimeType);
   nsMimeType(nsPIDOMWindow* aWindow, const nsAString& aMimeType);
+  virtual ~nsMimeType();
+
   nsPIDOMWindow* GetParentObject() const;
   virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
 
@@ -83,8 +84,6 @@ public:
   void GetType(nsString& retval) const;
 
 protected:
-  virtual ~nsMimeType();
-
   nsCOMPtr<nsPIDOMWindow> mWindow;
 
   // Strong reference to the active plugin, if any. Note that this

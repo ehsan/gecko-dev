@@ -121,8 +121,6 @@ public:
   AsyncDeleteFileRunnable(FileManager* aFileManager, int64_t aFileId);
 
 private:
-  ~AsyncDeleteFileRunnable() {}
-
   nsRefPtr<FileManager> mFileManager;
   int64_t mFileId;
 };
@@ -157,8 +155,6 @@ public:
                                   bool* aResult);
 
 private:
-  ~GetFileReferencesHelper() {}
-
   PersistenceType mPersistenceType;
   nsCString mOrigin;
   nsString mDatabaseName;

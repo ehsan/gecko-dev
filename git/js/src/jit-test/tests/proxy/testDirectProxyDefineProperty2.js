@@ -4,12 +4,12 @@
  * as the third argument.
  */
 var target = {};
-var log = [];
+var called = false;
 var handler = {
-    defineProperty: function (target1, key, desc1) {
+    defineProperty: function (target1, name, desc1) {
         assertEq(this, handler);
         assertEq(target1, target);
-        log.push(key);
+        assertEq(name, 'foo');
         assertEq(desc1 == desc, false);
         assertEq(desc1.value, 'bar');
         assertEq(desc1.writable, true);
@@ -27,10 +27,7 @@ var desc = {
 
 var p = new Proxy(target, handler);
 Object.defineProperty(p, 'foo', desc);
-Object.defineProperty(p, Symbol.for('quux'), desc);
-assertEq(log.length, 2);
-assertEq(log[0], 'foo');
-assertEq(log[1], Symbol.for('quux'));
+assertEq(called, true);
 assertEq(Object.isExtensible(target), true);
 assertEq(Object.isExtensible(p), true);
 Object.preventExtensions(target);

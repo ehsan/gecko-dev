@@ -60,7 +60,6 @@ public:
 
   nsXBLSpecialDocInfo() : mInitialized(false) {}
 
-protected:
   virtual ~nsXBLSpecialDocInfo() {}
 
 };

@@ -27,7 +27,6 @@
 #include "jsobjinlines.h"
 
 #include "vm/String-inl.h"
-#include "vm/Symbol-inl.h"
 
 using namespace js;
 using namespace js::gc;
@@ -126,7 +125,6 @@ JSRuntime::initializeAtoms(JSContext *cx)
         commonNames = parentRuntime->commonNames;
         emptyString = parentRuntime->emptyString;
         permanentAtoms = parentRuntime->permanentAtoms;
-        wellKnownSymbols = parentRuntime->wellKnownSymbols;
         return true;
     }
 
@@ -161,43 +159,30 @@ JSRuntime::initializeAtoms(JSContext *cx)
     JS_ASSERT(uintptr_t(names) == uintptr_t(commonNames + 1));
 
     emptyString = commonNames->empty;
-
-    // Create the well-known symbols.
-    wellKnownSymbols = cx->new_<WellKnownSymbols>();
-    if (!wellKnownSymbols)
-        return false;
-
-    ImmutablePropertyNamePtr *descriptions = &commonNames->Symbol_iterator;
-    ImmutableSymbolPtr *symbols = reinterpret_cast<ImmutableSymbolPtr *>(wellKnownSymbols);
-    for (size_t i = 0; i < JS::WellKnownSymbolLimit; i++) {
-        JS::Symbol *symbol = JS::Symbol::new_(cx, JS::SymbolCode(i), descriptions[i]);
-        if (!symbol) {
-            js_ReportOutOfMemory(cx);
-            return false;
-        }
-        symbols[i].init(symbol);
-    }
-
     return true;
 }
 
 void
 JSRuntime::finishAtoms()
 {
-    js_delete(atoms_);
+    if (atoms_)
+        js_delete(atoms_);
 
     if (!parentRuntime) {
-        js_delete(staticStrings);
-        js_delete(commonNames);
-        js_delete(permanentAtoms);
-        js_delete(wellKnownSymbols);
+        if (staticStrings)
+            js_delete(staticStrings);
+
+        if (commonNames)
+            js_delete(commonNames);
+
+        if (permanentAtoms)
+            js_delete(permanentAtoms);
     }
 
     atoms_ = nullptr;
     staticStrings = nullptr;
     commonNames = nullptr;
     permanentAtoms = nullptr;
-    wellKnownSymbols = nullptr;
     emptyString = nullptr;
 }
 
@@ -238,20 +223,6 @@ js::MarkPermanentAtoms(JSTracer *trc)
             JSAtom *atom = entry.asPtr();
             MarkPermanentAtom(trc, atom, "permanent_table");
         }
-    }
-}
-
-void
-js::MarkWellKnownSymbols(JSTracer *trc)
-{
-    JSRuntime *rt = trc->runtime();
-
-    if (rt->parentRuntime)
-        return;
-
-    if (WellKnownSymbols *wks = rt->wellKnownSymbols) {
-        for (size_t i = 0; i < JS::WellKnownSymbolLimit; i++)
-            MarkWellKnownSymbol(trc, wks->get(i));
     }
 }
 
@@ -409,9 +380,6 @@ AtomizeAndCopyChars(ExclusiveContext *cx, const CharT *tbchars, size_t length, I
 
     JSFlatString *flat = js_NewStringCopyN<NoGC>(cx, tbchars, length);
     if (!flat) {
-        // Grudgingly forgo last-ditch GC. The alternative would be to release
-        // the lock, manually GC here, and retry from the top. If you fix this,
-        // please also fix or comment the similar case in Symbol::new_.
         js_ReportOutOfMemory(cx);
         return nullptr;
     }
@@ -589,62 +557,53 @@ bool
 js::XDRAtom(XDRState<mode> *xdr, MutableHandleAtom atomp)
 {
     if (mode == XDR_ENCODE) {
-        static_assert(JSString::MAX_LENGTH <= INT32_MAX, "String length must fit in 31 bits");
-        uint32_t length = atomp->length();
-        uint32_t lengthAndEncoding = (length << 1) | uint32_t(atomp->hasLatin1Chars());
-        if (!xdr->codeUint32(&lengthAndEncoding))
+        uint32_t nchars = atomp->length();
+        if (!xdr->codeUint32(&nchars))
             return false;
 
-        JS::AutoCheckCannotGC nogc;
-        return atomp->hasLatin1Chars()
-               ? xdr->codeChars(atomp->latin1Chars(nogc), length)
-               : xdr->codeChars(const_cast<jschar*>(atomp->twoByteChars(nogc)), length);
+        jschar *chars = const_cast<jschar *>(atomp->getChars(xdr->cx()));
+        if (!chars)
+            return false;
+
+        return xdr->codeChars(chars, nchars);
     }
 
     /* Avoid JSString allocation for already existing atoms. See bug 321985. */
-    uint32_t lengthAndEncoding;
-    if (!xdr->codeUint32(&lengthAndEncoding))
+    uint32_t nchars;
+    if (!xdr->codeUint32(&nchars))
         return false;
-
-    uint32_t length = lengthAndEncoding >> 1;
-    bool latin1 = lengthAndEncoding & 0x1;
 
     JSContext *cx = xdr->cx();
     JSAtom *atom;
-    if (latin1) {
-        const Latin1Char *chars = reinterpret_cast<const Latin1Char *>(xdr->buf.read(length));
-        atom = AtomizeChars(cx, chars, length);
-    } else {
 #if IS_LITTLE_ENDIAN
-        /* Directly access the little endian chars in the XDR buffer. */
-        const jschar *chars = reinterpret_cast<const jschar *>(xdr->buf.read(length * sizeof(jschar)));
-        atom = AtomizeChars(cx, chars, length);
+    /* Directly access the little endian chars in the XDR buffer. */
+    const jschar *chars = reinterpret_cast<const jschar *>(xdr->buf.read(nchars * sizeof(jschar)));
+    atom = AtomizeChars(cx, chars, nchars);
 #else
+    /*
+     * We must copy chars to a temporary buffer to convert between little and
+     * big endian data.
+     */
+    jschar *chars;
+    jschar stackChars[256];
+    if (nchars <= ArrayLength(stackChars)) {
+        chars = stackChars;
+    } else {
         /*
-         * We must copy chars to a temporary buffer to convert between little and
-         * big endian data.
+         * This is very uncommon. Don't use the tempLifoAlloc arena for this as
+         * most allocations here will be bigger than tempLifoAlloc's default
+         * chunk size.
          */
-        jschar *chars;
-        jschar stackChars[256];
-        if (length <= ArrayLength(stackChars)) {
-            chars = stackChars;
-        } else {
-            /*
-             * This is very uncommon. Don't use the tempLifoAlloc arena for this as
-             * most allocations here will be bigger than tempLifoAlloc's default
-             * chunk size.
-             */
-            chars = cx->runtime()->pod_malloc<jschar>(length);
-            if (!chars)
-                return false;
-        }
-
-        JS_ALWAYS_TRUE(xdr->codeChars(chars, length));
-        atom = AtomizeChars(cx, chars, length);
-        if (chars != stackChars)
-            js_free(chars);
-#endif /* !IS_LITTLE_ENDIAN */
+        chars = cx->runtime()->pod_malloc<jschar>(nchars);
+        if (!chars)
+            return false;
     }
+
+    JS_ALWAYS_TRUE(xdr->codeChars(chars, nchars));
+    atom = AtomizeChars(cx, chars, nchars);
+    if (chars != stackChars)
+        js_free(chars);
+#endif /* !IS_LITTLE_ENDIAN */
 
     if (!atom)
         return false;

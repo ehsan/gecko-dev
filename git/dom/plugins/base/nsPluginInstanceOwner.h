@@ -45,6 +45,7 @@ class nsPluginInstanceOwner : public nsIPluginInstanceOwner,
 {
 public:
   nsPluginInstanceOwner();
+  virtual ~nsPluginInstanceOwner();
   
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPLUGININSTANCEOWNER
@@ -291,8 +292,7 @@ public:
 #endif
   
 private:
-  virtual ~nsPluginInstanceOwner();
-
+  
   // return FALSE if LayerSurface dirty (newly created and don't have valid plugin content yet)
   bool IsUpToDate()
   {

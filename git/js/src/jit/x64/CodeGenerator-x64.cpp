@@ -106,9 +106,6 @@ CodeGeneratorX64::visitUnbox(LUnbox *unbox)
           case MIRType_String:
             cond = masm.testString(Assembler::NotEqual, value);
             break;
-          case MIRType_Symbol:
-            cond = masm.testSymbol(Assembler::NotEqual, value);
-            break;
           default:
             MOZ_ASSUME_UNREACHABLE("Given MIRType cannot be unboxed.");
         }
@@ -128,9 +125,6 @@ CodeGeneratorX64::visitUnbox(LUnbox *unbox)
         break;
       case MIRType_String:
         masm.unboxString(value, ToRegister(result));
-        break;
-      case MIRType_Symbol:
-        masm.unboxSymbol(value, ToRegister(result));
         break;
       default:
         MOZ_ASSUME_UNREACHABLE("Given MIRType cannot be unboxed.");

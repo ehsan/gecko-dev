@@ -121,10 +121,7 @@ RootActor.prototype = {
     storageInspectorReadOnly: true,
     // Whether conditional breakpoints are supported
     conditionalBreakpoints: true,
-    bulk: true,
-    // Whether the style rule actor implements the modifySelector method
-    // that modifies the rule's selector
-    selectorEditable: true
+    bulk: true
   },
 
   /**

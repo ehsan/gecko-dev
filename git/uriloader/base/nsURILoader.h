@@ -31,10 +31,9 @@ public:
   NS_DECL_ISUPPORTS
 
   nsURILoader();
-
-protected:
   ~nsURILoader();
 
+protected:
   /**
    * Equivalent to nsIURILoader::openChannel, but allows specifying whether the
    * channel is opened already.

@@ -10,6 +10,7 @@
 #include "nsSMILValue.h"
 #include "nsComputedDOMStyle.h"
 #include "nsCSSProps.h"
+#include "nsStyleAnimation.h"
 #include "mozilla/dom/Element.h"
 #include "nsIDOMElement.h"
 #include "nsIDocument.h"

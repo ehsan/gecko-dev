@@ -499,7 +499,7 @@ js_InitRegExpClass(JSContext *cx, HandleObject obj)
     if (!builder.build(empty, RegExpFlag(0)))
         return nullptr;
 
-    if (!DefinePropertiesAndFunctions(cx, proto, nullptr, regexp_methods))
+    if (!DefinePropertiesAndBrand(cx, proto, nullptr, regexp_methods))
         return nullptr;
 
     RootedFunction ctor(cx);
