@@ -78,9 +78,6 @@ const ORION_EVENTS = {
   Selection: "Selection",
   Focus: "Focus",
   Blur: "Blur",
-  MouseOver: "MouseOver",
-  MouseOut: "MouseOut",
-  MouseMove: "MouseMove",
 };
 
 /**
