@@ -820,13 +820,3 @@ BluetoothService::Notify(const BluetoothSignal& aData)
     systemMessenger->BroadcastMessage(oldType, OBJECT_TO_JSVAL(obj));
   }
 }
-
-void
-BluetoothService::DispatchToCommandThread(nsRunnable* aRunnable)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(aRunnable);
-  MOZ_ASSERT(mBluetoothCommandThread);
-
-  mBluetoothCommandThread->Dispatch(aRunnable, NS_DISPATCH_NORMAL);
-}

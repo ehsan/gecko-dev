@@ -29,8 +29,6 @@ class BluetoothOppManager : public BluetoothSocketObserver
                           , public BluetoothProfileManagerBase
 {
 public:
-  NS_DECL_ISUPPORTS
-
   /*
    * Channel of reserved services are fixed values, please check
    * function add_reserved_service_records() in
@@ -78,6 +76,7 @@ public:
   // Return true if there is an ongoing file-transfer session, please see
   // Bug 827267 for more information.
   bool IsTransferring();
+  void GetAddress(nsAString& aDeviceAddress);
 
   // Implement interface BluetoothSocketObserver
   void ReceiveSocketData(
@@ -91,7 +90,6 @@ public:
                                    const nsAString& aServiceUuid,
                                    int aChannel) MOZ_OVERRIDE;
   virtual void OnUpdateSdpRecords(const nsAString& aDeviceAddress) MOZ_OVERRIDE;
-  virtual void GetAddress(nsAString& aDeviceAddress) MOZ_OVERRIDE;
 
 private:
   BluetoothOppManager();

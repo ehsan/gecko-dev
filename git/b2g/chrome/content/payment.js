@@ -81,7 +81,7 @@ let PaymentProvider = {
   },
 
   paymentSuccess: function paymentSuccess(aResult) {
-    PaymentProvider._closePaymentFlowDialog(function notifySuccess() {
+    this._closePaymentFlowDialog(function notifySuccess() {
       if (!_requestId) {
         return;
       }
@@ -91,7 +91,7 @@ let PaymentProvider = {
   },
 
   paymentFailed: function paymentFailed(aErrorMsg) {
-    PaymentProvider._closePaymentFlowDialog(function notifyError() {
+    this._closePaymentFlowDialog(function notifyError() {
       if (!_requestId) {
         return;
       }
