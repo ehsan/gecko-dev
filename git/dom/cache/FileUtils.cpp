@@ -15,7 +15,6 @@
 #include "nsServiceManagerUtils.h"
 #include "nsString.h"
 #include "nsThreadUtils.h"
-#include <windows.h>
 
 namespace mozilla {
 namespace dom {
@@ -224,7 +223,8 @@ FileUtils::BodyDeleteFiles(nsIFile* aBaseDir, const nsTArray<nsID>& aIdList)
 
     rv = tmpFile->Remove(false /* recursive */);
     if (rv == NS_ERROR_FILE_NOT_FOUND ||
-        rv == NS_ERROR_FILE_TARGET_DOES_NOT_EXIST) {
+        rv == NS_ERROR_FILE_TARGET_DOES_NOT_EXIST ||
+        rv == NS_ERROR_FILE_IS_LOCKED) {
       rv = NS_OK;
     }
 
@@ -240,13 +240,12 @@ FileUtils::BodyDeleteFiles(nsIFile* aBaseDir, const nsTArray<nsID>& aIdList)
 
     rv = finalFile->Remove(false /* recursive */);
     if (rv == NS_ERROR_FILE_NOT_FOUND ||
-        rv == NS_ERROR_FILE_TARGET_DOES_NOT_EXIST) {
+        rv == NS_ERROR_FILE_TARGET_DOES_NOT_EXIST ||
+        rv == NS_ERROR_FILE_IS_LOCKED) {
       rv = NS_OK;
     }
 
     // Again, only treat removal as hard failure in debug build.
-    printf("rv: %x lasterror: %x\n", (unsigned)rv, (unsigned)::GetLastError());
-    fflush(stdout);
     MOZ_ASSERT(NS_SUCCEEDED(rv));
   }
 
