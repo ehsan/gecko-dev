@@ -257,8 +257,6 @@ private:
  * NOTE: do not go over 63 without updating nsEventStates::InternalType!
  */
 
-#define DIRECTION_STATES (NS_EVENT_STATE_LTR | NS_EVENT_STATE_RTL)
-
 #define ESM_MANAGED_STATES (NS_EVENT_STATE_ACTIVE | NS_EVENT_STATE_FOCUS |     \
                             NS_EVENT_STATE_HOVER | NS_EVENT_STATE_DRAGOVER |   \
                             NS_EVENT_STATE_URLTARGET | NS_EVENT_STATE_FOCUSRING | \

@@ -477,7 +477,7 @@ nsFileControlFrame::GetTextControlFrame()
   return static_cast<nsTextControlFrame*>(tc);
 }
 
-int
+PRIntn
 nsFileControlFrame::GetSkipSides() const
 {
   return 0;

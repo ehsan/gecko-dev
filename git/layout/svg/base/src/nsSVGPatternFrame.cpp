@@ -310,25 +310,22 @@ nsSVGPatternFrame::PaintPattern(gfxASurface** surface,
   // routine.
   *patternMatrix = GetPatternMatrix(patternUnits, patternTransform,
                                     bbox, callerBBox, aContextMatrix);
-  if (patternMatrix->IsSingular()) {
-    return NS_ERROR_FAILURE;
-  }
 
   // Now that we have all of the necessary geometries, we can
   // create our surface.
-  gfxRect transformedBBox = patternTransform.TransformBounds(bbox);
+  gfxFloat patternWidth = bbox.Width();
+  gfxFloat patternHeight = bbox.Height();
 
   bool resultOverflows;
   gfxIntSize surfaceSize =
     nsSVGUtils::ConvertToSurfaceSize(
-      transformedBBox.Size(), &resultOverflows);
+      gfxSize(patternWidth * fabs(patternTransform.xx),
+              patternHeight * fabs(patternTransform.yy)),
+      &resultOverflows);
 
   // 0 disables rendering, < 0 is an error
   if (surfaceSize.width <= 0 || surfaceSize.height <= 0)
     return NS_ERROR_FAILURE;
-
-  gfxFloat patternWidth = bbox.Width();
-  gfxFloat patternHeight = bbox.Height();
 
   if (resultOverflows ||
       patternWidth != surfaceSize.width ||
@@ -693,6 +690,10 @@ nsSVGPatternFrame::GetPaintServerPattern(nsIFrame *aSource,
                              aSource, aFillOrStroke, aGraphicOpacity, aOverrideBounds);
 
   if (NS_FAILED(rv)) {
+    return nullptr;
+  }
+
+  if (pMatrix.IsSingular()) {
     return nullptr;
   }
 

@@ -93,7 +93,7 @@ nsDiskCacheInputStream::Close()
 
 
 NS_IMETHODIMP
-nsDiskCacheInputStream::Available(PRUint64 * bytesAvailable)
+nsDiskCacheInputStream::Available(PRUint32 * bytesAvailable)
 {
     if (mClosed)  return NS_BASE_STREAM_CLOSED;
     if (mStreamEnd < mPos)  return NS_ERROR_UNEXPECTED;
@@ -139,7 +139,7 @@ nsDiskCacheInputStream::Read(char * buffer, PRUint32 count, PRUint32 * bytesRead
             nsresult rv = NS_ErrorAccordingToNSPR();
             CACHE_LOG_DEBUG(("CACHE: nsDiskCacheInputStream::Read PR_Read failed"
                              "[stream=%p, rv=%d, NSPR error %s",
-                             this, int(rv), PR_ErrorToName(error)));
+                             this, PRIntn(rv), PR_ErrorToName(error)));
             return rv;
         }
         
@@ -699,7 +699,7 @@ nsDiskCacheStreamIO::UpdateFileSize()
 
 
 nsresult
-nsDiskCacheStreamIO::OpenCacheFile(int flags, PRFileDesc ** fd)
+nsDiskCacheStreamIO::OpenCacheFile(PRIntn flags, PRFileDesc ** fd)
 {
     NS_ENSURE_ARG_POINTER(fd);
     

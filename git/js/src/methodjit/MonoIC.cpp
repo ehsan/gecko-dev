@@ -342,8 +342,7 @@ class EqualityCompiler : public BaseCompiler
     bool update()
     {
         if (!ic.generated) {
-            SPSInstrumentation sps(&f);
-            Assembler masm(&sps);
+            Assembler masm;
             Value rval = f.regs.sp[-1];
             Value lval = f.regs.sp[-2];
 

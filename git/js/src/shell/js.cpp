@@ -3381,29 +3381,6 @@ Wrap(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static JSBool
-WrapWithProto(JSContext *cx, unsigned argc, jsval *vp)
-{
-    Value obj = JSVAL_VOID, proto = JSVAL_VOID;
-    if (argc == 2) {
-        obj = JS_ARGV(cx, vp)[0];
-        proto = JS_ARGV(cx, vp)[1];
-    }
-    if (!obj.isObject() || !proto.isObjectOrNull()) {
-        JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_INVALID_ARGS,
-                             "wrapWithProto");
-    }
-
-    JSObject *wrapped = Wrapper::New(cx, &obj.toObject(), proto.toObjectOrNull(),
-                                     &obj.toObject().global(),
-                                     &DirectWrapper::singletonWithPrototype);
-    if (!wrapped)
-        return false;
-
-    JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(wrapped));
-    return true;
-}
-
-static JSBool
 Serialize(JSContext *cx, unsigned argc, jsval *vp)
 {
     jsval v = argc > 0 ? JS_ARGV(cx, vp)[0] : JSVAL_VOID;
@@ -3804,10 +3781,6 @@ static JSFunctionSpecWithHelp shell_functions[] = {
 "wrap(obj)",
 "  Wrap an object into a noop wrapper."),
 
-    JS_FN_HELP("wrapWithProto", WrapWithProto, 2, 0,
-"wrap(obj)",
-"  Wrap an object into a noop wrapper with prototype semantics."),
-
     JS_FN_HELP("serialize", Serialize, 1, 0,
 "serialize(sd)",
 "  Serialize sd using JS_WriteStructuredClone. Returns a TypedArray."),
@@ -3907,7 +3880,7 @@ Help(JSContext *cx, unsigned argc, jsval *vp)
 
     RootedObject obj(cx);
     if (argc == 0) {
-        RootedObject global(cx, JS_GetGlobalForScopeChain(cx));
+        RootedObject global(cx, JS_GetGlobalObject(cx));
         AutoIdArray ida(cx, JS_Enumerate(cx, global));
         if (!ida)
             return false;
@@ -3916,23 +3889,15 @@ Help(JSContext *cx, unsigned argc, jsval *vp)
             jsval v;
             if (!JS_LookupPropertyById(cx, global, ida[i], &v))
                 return false;
-            if (JSVAL_IS_PRIMITIVE(v)) {
-                JS_ReportError(cx, "primitive arg");
-                return false;
-            }
             obj = JSVAL_TO_OBJECT(v);
-            if (!PrintHelp(cx, obj))
+            if (!JSVAL_IS_PRIMITIVE(v) && !PrintHelp(cx, obj))
                 return false;
         }
     } else {
         jsval *argv = JS_ARGV(cx, vp);
         for (unsigned i = 0; i < argc; i++) {
-            if (JSVAL_IS_PRIMITIVE(argv[i])) {
-                JS_ReportError(cx, "primitive arg");
-                return false;
-            }
             obj = JSVAL_TO_OBJECT(argv[i]);
-            if (!PrintHelp(cx, obj))
+            if (!JSVAL_IS_PRIMITIVE(argv[i]) && !PrintHelp(cx, obj))
                 return false;
         }
     }

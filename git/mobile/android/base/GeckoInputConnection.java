@@ -95,7 +95,8 @@ class GeckoInputConnection
     private int mCompositionStart = NO_COMPOSITION_STRING;
     private boolean mCommittingText;
     private KeyCharacterMap mKeyCharacterMap;
-    private final Editable mEditable;
+    private Editable mEditable;
+    private Editable.Factory mEditableFactory;
     private boolean mBatchMode;
     private ExtractedTextRequest mUpdateRequest;
     private final ExtractedText mUpdateExtract = new ExtractedText();
@@ -109,8 +110,9 @@ class GeckoInputConnection
 
     protected GeckoInputConnection(View targetView) {
         super(targetView, true);
-        mEditable = Editable.Factory.getInstance().newEditable("");
-        spanAndSelectEditable();
+
+        mEditableFactory = Editable.Factory.getInstance();
+        initEditable("");
         mIMEState = IME_STATE_DISABLED;
         mIMETypeHint = "";
         mIMEActionHint = "";
@@ -281,6 +283,13 @@ class GeckoInputConnection
         // setComposingText() places the given text into the editable, replacing any existing
         // composing text. This method will likely be called multiple times while we are composing
         // text.
+
+        // If the replacement composition string is empty and we have no active composition string
+        // to replace, then just ignore the empty string. Some VKBs, such as TouchPal Keyboard,
+        // send us empty strings at inopportune times, deleting committed text. See bug 768106.
+        if (text.length() == 0 && !hasCompositionString())
+            return true;
+
         return super.setComposingText(text, newCursorPosition);
     }
 
@@ -525,7 +534,6 @@ class GeckoInputConnection
     }
 
     protected void resetCompositionState() {
-        removeComposingSpans(mEditable);
         mCompositionStart = NO_COMPOSITION_STRING;
         mBatchMode = false;
         mUpdateRequest = null;
@@ -1141,16 +1149,16 @@ class GeckoInputConnection
     }
 
     private void setEditable(String contents) {
-        int prevLength = mEditable.length();
         mEditable.removeSpan(this);
-        mEditable.replace(0, prevLength, contents);
-        spanAndSelectEditable();
+        mEditable.replace(0, mEditable.length(), contents);
+        mEditable.setSpan(this, 0, contents.length(), Spanned.SPAN_INCLUSIVE_INCLUSIVE);
+        Selection.setSelection(mEditable, contents.length());
     }
 
-    private void spanAndSelectEditable() {
-        int length = mEditable.length();
-        mEditable.setSpan(this, 0, length, Spanned.SPAN_INCLUSIVE_INCLUSIVE);
-        Selection.setSelection(mEditable, length);
+    private void initEditable(String contents) {
+        mEditable = mEditableFactory.newEditable(contents);
+        mEditable.setSpan(this, 0, contents.length(), Spanned.SPAN_INCLUSIVE_INCLUSIVE);
+        Selection.setSelection(mEditable, contents.length());
     }
 
     protected final boolean hasCompositionString() {

@@ -30,7 +30,6 @@ public:
     mFilename(aName)
   {
     NS_ASSERTION(mArchiveReader, "must have a reader");
-    MOZ_COUNT_CTOR(ArchiveZipFile);
   }
 
   ArchiveZipFile(const nsAString& aName,
@@ -45,12 +44,6 @@ public:
     mFilename(aName)
   {
     NS_ASSERTION(mArchiveReader, "must have a reader");
-    MOZ_COUNT_CTOR(ArchiveZipFile);
-  }
-
-  virtual ~ArchiveZipFile()
-  {
-    MOZ_COUNT_DTOR(ArchiveZipFile);
   }
 
   // Overrides:

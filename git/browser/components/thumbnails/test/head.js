@@ -11,6 +11,8 @@ registerCleanupFunction(function () {
     gBrowser.removeTab(gBrowser.tabs[1]);
 });
 
+let cachedXULDocument;
+
 /**
  * Provide the default test function to start our test runner.
  */

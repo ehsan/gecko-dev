@@ -14,7 +14,7 @@
 #include "nsITextServicesDocument.h"
 #include "nsIDOMTreeWalker.h"
 #include "nsWeakReference.h"
-#include "nsEditor.h"
+#include "nsIEditor.h"
 #include "nsIDOMEventListener.h"
 #include "nsWeakReference.h"
 #include "mozISpellI18NUtil.h"
@@ -35,7 +35,7 @@ class mozInlineSpellStatus
 public:
   mozInlineSpellStatus(mozInlineSpellChecker* aSpellChecker);
 
-  nsresult InitForEditorChange(EditAction aAction,
+  nsresult InitForEditorChange(PRInt32 aAction,
                                nsIDOMNode* aAnchorNode, PRInt32 aAnchorOffset,
                                nsIDOMNode* aPreviousNode, PRInt32 aPreviousOffset,
                                nsIDOMNode* aStartNode, PRInt32 aStartOffset,
@@ -62,8 +62,8 @@ public:
   PRInt32 mWordCount;
 
   // what happened?
-  enum Operation { eOpChange,       // for SpellCheckAfterChange except deleteSelection
-                   eOpChangeDelete, // for SpellCheckAfterChange deleteSelection
+  enum Operation { eOpChange,       // for SpellCheckAfterChange except kOpDeleteSelection
+                   eOpChangeDelete, // for SpellCheckAfterChange kOpDeleteSelection
                    eOpNavigation,   // for HandleNavigationEvent
                    eOpSelection,    // re-check all misspelled words
                    eOpResume };     // for resuming a previously started check

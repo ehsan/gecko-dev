@@ -2962,7 +2962,7 @@ nsXMLHttpRequest::Send(nsIVariant* aVariant, const Nullable<RequestBody>& aBody)
       }
 
       mUploadComplete = false;
-      PRUint64 uploadTotal = 0;
+      PRUint32 uploadTotal = 0;
       postDataStream->Available(&uploadTotal);
       mUploadTotal = uploadTotal;
 

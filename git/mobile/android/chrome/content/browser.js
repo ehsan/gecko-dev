@@ -27,15 +27,11 @@ XPCOMUtils.defineLazyGetter(this, "DebuggerServer", function() {
   return DebuggerServer;
 });
 
-XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
-  Cu.import("resource://gre/modules/NetUtil.jsm");
-  return NetUtil;
-});
-
 // Lazily-loaded browser scripts:
 [
   ["HelperApps", "chrome://browser/content/HelperApps.js"],
   ["SelectHelper", "chrome://browser/content/SelectHelper.js"],
+  ["Readability", "chrome://browser/content/Readability.js"],
   ["WebAppRT", "chrome://browser/content/WebAppRT.js"],
 ].forEach(function (aScript) {
   let [name, script] = aScript;
@@ -2862,12 +2858,10 @@ Tab.prototype = {
           }
         });
 
-        // Once document is fully loaded, parse it
-        Reader.parseDocumentFromTab(this.id, function (article) {
-          // Do nothing if there's no article or the page in this tab has
-          // changed
-          let tabURL = this.browser.currentURI.specIgnoringRef;
-          if (article == null || (article.url != tabURL))
+        // Once document is fully loaded, we can do a readability check to
+        // possibly enable reader mode for this page
+        Reader.checkTabReadability(this.id, function(isReadable) {
+          if (!isReadable)
             return;
 
           sendMessageToJava({
@@ -4068,21 +4062,12 @@ var FormAssistant = {
         if (!this._currentInputElement)
           break;
 
-        let editableElement = this._currentInputElement.QueryInterface(Ci.nsIDOMNSEditableElement);
-
-        // If we have an active composition string, commit it before sending
-        // the autocomplete event with the text that will replace it.
-        try {
-          let imeEditor = editableElement.editor.QueryInterface(Ci.nsIEditorIMESupport);
-          if (imeEditor.composing)
-            imeEditor.forceCompositionEnd();
-        } catch (e) {}
-
-        editableElement.setUserInput(aData);
+        this._currentInputElement.QueryInterface(Ci.nsIDOMNSEditableElement).setUserInput(aData);
 
         let event = this._currentInputElement.ownerDocument.createEvent("Events");
         event.initEvent("DOMAutoComplete", true, true);
         this._currentInputElement.dispatchEvent(event);
+
         break;
 
       case "FormAssist:Blocklisted":
@@ -5923,7 +5908,6 @@ var WebappsUI = {
     Services.obs.addObserver(this, "webapps-launch", false);
     Services.obs.addObserver(this, "webapps-sync-install", false);
     Services.obs.addObserver(this, "webapps-sync-uninstall", false);
-    Services.obs.addObserver(this, "webapps-install-error", false);
   },
   
   uninit: function unint() {
@@ -5931,33 +5915,11 @@ var WebappsUI = {
     Services.obs.removeObserver(this, "webapps-launch");
     Services.obs.removeObserver(this, "webapps-sync-install");
     Services.obs.removeObserver(this, "webapps-sync-uninstall");
-    Services.obs.removeObserver(this, "webapps-install-error", false);
   },
-
-  DEFAULT_PREFS_FILENAME: "default-prefs.js",
-
+  
   observe: function observe(aSubject, aTopic, aData) {
-    let data = {};
-    try { data = JSON.parse(aData); }
-    catch(ex) { }
+    let data = JSON.parse(aData);
     switch (aTopic) {
-      case "webapps-install-error":
-        let msg = "";
-        switch (aData) {
-          case "INVALID_MANIFEST":
-          case "MANIFEST_PARSE_ERROR":
-            msg = Strings.browser.GetStringFromName("webapps.manifestInstallError");
-            break;
-          case "NETWORK_ERROR":
-          case "MANIFEST_URL_ERROR":
-            msg = Strings.browser.GetStringFromName("webapps.networkInstallError");
-            break;
-          default:
-            msg = Strings.browser.GetStringFromName("webapps.installError");
-        }
-        NativeWindow.toast.show(msg, "short");
-        console.log("Error installing app: " + aData);
-        break;
       case "webapps-ask-install":
         this.doInstall(data);
         break;
@@ -5975,6 +5937,12 @@ var WebappsUI = {
           if (!aManifest)
             return;
           let manifest = new DOMApplicationManifest(aManifest, data.origin);
+
+          // The manifest is stored as UTF-8, sendMessageToJava expects UTF-16. Convert before sending
+          let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].createInstance(Ci.nsIScriptableUnicodeConverter);
+          converter.charset = "UTF-8";
+          let name = manifest.name ? converter.ConvertToUnicode(manifest.name) :
+                                     converter.ConvertToUnicode(manifest.fullLaunchPath());
 
           let observer = {
             observe: function (aSubject, aTopic) {
@@ -6040,8 +6008,8 @@ var WebappsUI = {
       // Add a homescreen shortcut -- we can't use createShortcut, since we need to pass
       // a unique ID for Android webapp allocation
       this.makeBase64Icon(this.getBiggestIcon(manifest.icons, Services.io.newURI(aData.app.origin, null, null)),
-        (function(icon) {
-          let profilePath = sendMessageToJava({
+        function(icon) {
+          var profilePath = sendMessageToJava({
             gecko: {
               type: "WebApps:Install",
               name: manifest.name,
@@ -6052,46 +6020,18 @@ var WebappsUI = {
           });
   
           // if java returned a profile path to us, try to use it to pre-populate the app cache
-          let file = null;
+          var file = null;
           if (profilePath) {
-            file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
+            var file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
             file.initWithPath(profilePath);
-
-            // build any app specific default prefs
-            let prefs = [];
-            if (manifest.orientation)
-              prefs.push({name:"app.orientation.default", value: manifest.orientation});
-
-            // write them into the app profile
-            let defaultPrefsFile = file.clone();
-            defaultPrefsFile.append(this.DEFAULT_PREFS_FILENAME);
-            this.writeDefaultPrefs(defaultPrefsFile, prefs);
           }
           DOMApplicationRegistry.confirmInstall(aData, false, file);
-        }).bind(this));
+        });
     } else {
       DOMApplicationRegistry.denyInstall(aData);
     }
   },
-
-  writeDefaultPrefs: function webapps_writeDefaultPrefs(aFile, aPrefs) {
-    if (aPrefs.length > 0) {
-      let data = JSON.stringify(aPrefs);
-
-      var ostream = Cc["@mozilla.org/network/file-output-stream;1"].createInstance(Ci.nsIFileOutputStream);
-      ostream.init(aFile, -1, -1, 0);
-
-      let istream = Cc["@mozilla.org/io/string-input-stream;1"].createInstance(Ci.nsIStringInputStream);
-      istream.setData(data, data.length);
-
-      NetUtil.asyncCopy(istream, ostream, function(aResult) {
-        if (!Components.isSuccessCode(aResult)) {
-          console.log("Error writing default prefs: " + aResult);
-        }
-      });
-    }
-  },
-
+  
   openURL: function openURL(aURI, aOrigin) {
     sendMessageToJava({
       gecko: {
@@ -6434,13 +6374,21 @@ let Reader = {
           return;
         }
 
-        let doc = tab.browser.contentWindow.document;
-        this._readerParse(uri, doc, function (article) {
+        // We need to clone the document before parsing because readability
+        // changes the document object in several ways to find the article
+        // in it.
+        let doc = tab.browser.contentWindow.document.cloneNode(true);
+
+        let readability = new Readability(uri, doc);
+        readability.parse(function (article) {
           if (!article) {
             this.log("Failed to parse page");
             callback(null);
             return;
           }
+
+          // Append URL to the article data
+          article.url = url;
 
           callback(article);
         }.bind(this));
@@ -6448,6 +6396,33 @@ let Reader = {
     } catch (e) {
       this.log("Error parsing document from tab: " + e);
       callback(null);
+    }
+  },
+
+  checkTabReadability: function Reader_checkTabReadability(tabId, callback) {
+    try {
+      this.log("checkTabReadability: " + tabId);
+
+      let tab = BrowserApp.getTabForId(tabId);
+      let url = tab.browser.contentWindow.location.href;
+
+      // First, try to find a cached parsed article in the DB
+      this.getArticleFromCache(url, function(article) {
+        if (article) {
+          this.log("Page found in cache, page is definitely readable");
+          callback(true);
+          return;
+        }
+
+        let uri = Services.io.newURI(url, null, null);
+        let doc = tab.browser.contentWindow.document;
+
+        let readability = new Readability(uri, doc);
+        readability.check(callback);
+      }.bind(this));
+    } catch (e) {
+      this.log("Error checking tab readability: " + e);
+      callback(false);
     }
   },
 
@@ -6548,36 +6523,6 @@ let Reader = {
       dump("Reader: " + msg);
   },
 
-  _readerParse: function Reader_readerParse(uri, doc, callback) {
-    let worker = new ChromeWorker("readerWorker.js");
-    worker.onmessage = function (evt) {
-      let article = evt.data;
-
-      // Append URL to the article data. specIgnoringRef will ignore any hash
-      // in the URL.
-      if (article)
-        article.url = uri.specIgnoringRef;
-
-      callback(article);
-    };
-
-    try {
-      worker.postMessage({
-        uri: {
-          spec: uri.spec,
-          host: uri.host,
-          prePath: uri.prePath,
-          scheme: uri.scheme,
-          pathBase: Services.io.newURI(".", null, uri).spec
-        },
-        doc: new XMLSerializer().serializeToString(doc)
-      });
-    } catch (e) {
-      dump("Reader: could not build Readability arguments: " + e);
-      callback(null);
-    }
-  },
-
   _runCallbacksAndFinish: function Reader_runCallbacksAndFinish(request, result) {
     delete this._requests[request.url];
 
@@ -6640,7 +6585,8 @@ let Reader = {
         this.log("Parsing response with Readability");
 
         let uri = Services.io.newURI(url, null, null);
-        this._readerParse(uri, doc, function (article) {
+        let readability = new Readability(uri, doc);
+        readability.parse(function (article) {
           // Delete reference to the browser element as we've finished parsing.
           let browser = request.browser;
           if (browser) {
@@ -6655,6 +6601,9 @@ let Reader = {
           }
 
           this.log("Parsing has been successful");
+
+          // Append URL to the article data
+          article.url = url;
 
           this._runCallbacksAndFinish(request, article);
         }.bind(this));

@@ -490,7 +490,7 @@ private:
 
     nsConnectionEntry *GetOrCreateConnectionEntry(nsHttpConnectionInfo *);
 
-    nsresult MakeNewConnection(nsConnectionEntry *ent,
+    bool     MakeNewConnection(nsConnectionEntry *ent,
                                nsHttpTransaction *trans);
     bool     AddToShortestPipeline(nsConnectionEntry *ent,
                                    nsHttpTransaction *trans,

@@ -12,7 +12,7 @@ namespace TestCRT {
 
 // The return from strcmp etc is only defined to be postive, zero or
 // negative. The magnitude of a non-zero return is irrelevant.
-int sign(int val) {
+PRIntn sign(PRIntn val) {
     if (val == 0)
 	return 0;
     else {
@@ -27,15 +27,15 @@ int sign(int val) {
 // Verify that nsCRT versions of string comparison routines get the
 // same answers as the native non-unicode versions. We only pass in
 // iso-latin-1 strings, so the comparison must be valid.
-static void Check(const char* s1, const char* s2, int n)
+static void Check(const char* s1, const char* s2, PRIntn n)
 {
 #ifdef DEBUG
-  int clib =
+  PRIntn clib =
 #endif
     PL_strcmp(s1, s2);
 
 #ifdef DEBUG
-  int clib_n =
+  PRIntn clib_n =
 #endif
     PL_strncmp(s1, s2, n);
 
@@ -46,12 +46,12 @@ static void Check(const char* s1, const char* s2, int n)
   const PRUnichar* us2 = t2.get();
 
 #ifdef DEBUG
-  int u2 =
+  PRIntn u2 =
 #endif
     nsCRT::strcmp(us1, us2);
 
 #ifdef DEBUG
-  int u2_n =
+  PRIntn u2_n =
 #endif
     nsCRT::strncmp(us1, us2, n);
 
@@ -62,7 +62,7 @@ static void Check(const char* s1, const char* s2, int n)
 struct Test {
   const char* s1;
   const char* s2;
-  int n;
+  PRIntn n;
 };
 
 static Test tests[] = {

@@ -177,7 +177,7 @@ FakeInputStream::Close()
 }
 
 NS_IMETHODIMP
-FakeInputStream::Available(PRUint64* aAvailable)
+FakeInputStream::Available(PRUint32* aAvailable)
 {
   *aAvailable = 0;
 

@@ -662,7 +662,7 @@ nsUrlClassifierStore::BindStatement(const nsUrlClassifierEntry &entry,
   rv = statement->BindInt32ByIndex(5, entry.mTableId);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return NS_OK;
+  return true;
 }
 
 nsresult

@@ -300,7 +300,6 @@ Snapshot(JSContext *cx, RawObject obj_, unsigned flags, AutoIdVector *props)
     AutoIdVector tmp(cx);
     if (!tmp.resize(n))
         return false;
-    PodCopy(tmp.begin(), ids, n);
 
     if (!MergeSort(ids, n, tmp.begin(), SortComparatorIds(cx)))
         return false;
@@ -676,7 +675,7 @@ GetIterator(JSContext *cx, HandleObject obj, unsigned flags, MutableHandleValue 
       miss:
         if (obj->isProxy()) {
             types::MarkIteratorUnknown(cx);
-            return Proxy::iterate(cx, obj, flags, vp);
+            return Proxy::iterate(cx, obj, flags, vp.address());
         }
         if (!GetCustomIterator(cx, obj, flags, vp))
             return false;

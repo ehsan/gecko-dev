@@ -30,8 +30,6 @@ public:
 
   virtual void CopyGlyphsToBuilder(const GlyphBuffer &aBuffer, PathBuilder *aBuilder);
 
-  float GetSize() { return mSize; }
-
 #ifdef USE_SKIA
   virtual SkTypeface* GetSkTypeface() { return mTypeface; }
 #endif

@@ -199,7 +199,7 @@ DBusMessage * dbus_func_args_timeout_valist(DBusConnection *conn,
   /* Make the call. */
   reply = dbus_connection_send_with_reply_and_block(conn, msg, timeout_ms, err);
   if (!return_error && dbus_error_is_set(err)) {
-    LOG_AND_FREE_DBUS_ERROR_WITH_MSG(err, msg);
+    //LOG_AND_FREE_DBUS_ERROR_WITH_MSG(err, msg);
   }
 
 done:
@@ -212,7 +212,6 @@ done:
 
 DBusMessage * dbus_func_args_timeout(DBusConnection *conn,
                                      int timeout_ms,
-                                     DBusError* err,
                                      const char *path,
                                      const char *ifc,
                                      const char *func,
@@ -221,7 +220,7 @@ DBusMessage * dbus_func_args_timeout(DBusConnection *conn,
   DBusMessage *ret;
   va_list lst;
   va_start(lst, first_arg_type);
-  ret = dbus_func_args_timeout_valist(conn, timeout_ms, err,
+  ret = dbus_func_args_timeout_valist(conn, timeout_ms, NULL,
                                       path, ifc, func,
                                       first_arg_type, lst);
   va_end(lst);

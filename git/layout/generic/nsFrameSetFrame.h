@@ -179,7 +179,7 @@ protected:
 
   bool GetNoResize(nsIFrame* aChildFrame); 
   
-  virtual int GetSkipSides() const;
+  virtual PRIntn GetSkipSides() const;
 
   void ReflowPlaceChild(nsIFrame*                aChild,
                         nsPresContext*          aPresContext,

@@ -257,8 +257,7 @@ class SetPropCompiler : public PICStubCompiler
         Vector<Jump, 8> slowExits(cx);
         Vector<Jump, 8> otherGuards(cx);
 
-        SPSInstrumentation sps(&f);
-        Assembler masm(&sps);
+        Assembler masm;
 
         // Shape guard.
         if (pic.shapeNeedsRemat()) {
@@ -777,8 +776,7 @@ class GetPropCompiler : public PICStubCompiler
 
     LookupStatus generateArrayLengthStub()
     {
-        SPSInstrumentation sps(&f);
-        Assembler masm(&sps);
+        Assembler masm;
 
         masm.loadObjClass(pic.objReg, pic.shapeReg);
         Jump isDense = masm.testClass(Assembler::Equal, pic.shapeReg, &ArrayClass);
@@ -819,8 +817,7 @@ class GetPropCompiler : public PICStubCompiler
 
     LookupStatus generateStringObjLengthStub()
     {
-        SPSInstrumentation sps(&f);
-        Assembler masm(&sps);
+        Assembler masm;
 
         Jump notStringObj = masm.guardShape(pic.objReg, obj);
 
@@ -880,8 +877,7 @@ class GetPropCompiler : public PICStubCompiler
         if (hadGC())
             return Lookup_Uncacheable;
 
-        SPSInstrumentation sps(&f);
-        Assembler masm(&sps);
+        Assembler masm;
 
         /* Only strings are allowed. */
         Jump notString = masm.branchPtr(Assembler::NotEqual, pic.typeReg(),
@@ -935,8 +931,7 @@ class GetPropCompiler : public PICStubCompiler
     {
         JS_ASSERT(pic.hasTypeCheck());
 
-        SPSInstrumentation sps(&f);
-        Assembler masm(&sps);
+        Assembler masm;
         Jump notString = masm.branchPtr(Assembler::NotEqual, pic.typeReg(),
                                         ImmType(JSVAL_TYPE_STRING));
         masm.loadPtr(Address(pic.objReg, JSString::offsetOfLengthAndFlags()), pic.objReg);
@@ -1213,8 +1208,7 @@ class GetPropCompiler : public PICStubCompiler
     {
         Vector<Jump, 8> shapeMismatches(cx);
 
-        SPSInstrumentation sps(&f);
-        Assembler masm(&sps);
+        Assembler masm;
 
         // Ignore GC pointers baked into assembly visible on the stack.
         SkipRoot skip(cx, &masm);
@@ -1290,7 +1284,7 @@ class GetPropCompiler : public PICStubCompiler
                 Jump shapeGuard = masm.branchPtr(Assembler::NotEqual,
                                                  Address(pic.shapeReg, JSObject::offsetOfShape()),
                                                  ImmPtr(expando->lastProperty()));
-                if (!shapeMismatches.append(shapeGuard))
+                if (!shapeMismatches.append(expandoGuard))
                     return error();
             } else {
                 Jump expandoGuard = masm.testUndefined(Assembler::NotEqual, expandoAddress);
@@ -1548,8 +1542,7 @@ class ScopeNameCompiler : public PICStubCompiler
 
     LookupStatus generateGlobalStub(JSObject *obj)
     {
-        SPSInstrumentation sps(&f);
-        Assembler masm(&sps);
+        Assembler masm;
         JumpList fails(cx);
         ScopeNameLabels &labels = pic.scopeNameLabels();
 
@@ -1621,8 +1614,7 @@ class ScopeNameCompiler : public PICStubCompiler
 
     LookupStatus generateCallStub(JSObject *obj)
     {
-        SPSInstrumentation sps(&f);
-        Assembler masm(&sps);
+        Assembler masm;
         Vector<Jump, 8> fails(cx);
         ScopeNameLabels &labels = pic.scopeNameLabels();
 
@@ -1808,8 +1800,7 @@ class BindNameCompiler : public PICStubCompiler
 
     LookupStatus generateStub(JSObject *obj)
     {
-        SPSInstrumentation sps(&f);
-        Assembler masm(&sps);
+        Assembler masm;
         Vector<Jump, 8> fails(cx);
 
         BindNameLabels &labels = pic.bindNameLabels();
@@ -2255,8 +2246,7 @@ GetElementIC::attachGetProp(VMFrame &f, HandleObject obj, HandleValue v, HandleP
     if (cx->typeInferenceEnabled() && !forcedTypeBarrier)
         return disable(f, "string element access may not have type barrier");
 
-    SPSInstrumentation sps(&f);
-    Assembler masm(&sps);
+    Assembler masm;
 
     // Guard on the string's type and identity.
     MaybeJump atomTypeGuard;
@@ -2427,8 +2417,7 @@ GetElementIC::attachTypedArray(VMFrame &f, HandleObject obj, HandleValue v, Hand
     // known to be int32, either via type inference or the inline type check.
     JS_ASSERT(hasInlineTypeGuard() || idRemat.knownType() == JSVAL_TYPE_INT32);
 
-    SPSInstrumentation sps(&f);
-    Assembler masm(&sps);
+    Assembler masm;
 
     // Guard on this typed array's shape/class.
     Jump shapeGuard = masm.guardShape(objReg, obj);
@@ -2655,8 +2644,7 @@ SetElementIC::attachHoleStub(VMFrame &f, JSObject *obj, int32_t keyval)
     if (js_PrototypeHasIndexedProperties(cx, obj))
         return disable(f, "prototype has indexed properties");
 
-    SPSInstrumentation sps(&f);
-    Assembler masm(&sps);
+    Assembler masm;
 
     Vector<Jump, 8> fails(cx);
 
@@ -2750,9 +2738,8 @@ SetElementIC::attachTypedArray(VMFrame &f, JSObject *obj, int32_t key)
     // Right now, only one shape guard extension is supported.
     JS_ASSERT(!inlineShapeGuardPatched);
 
+    Assembler masm;
     JSContext *cx = f.cx;
-    SPSInstrumentation sps(&f);
-    Assembler masm(&sps);
 
     // Restore |obj|.
     masm.rematPayload(StateRemat::FromInt32(objRemat), objReg);

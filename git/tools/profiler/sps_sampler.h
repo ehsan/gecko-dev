@@ -11,7 +11,6 @@
 #include "jsapi.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/Util.h"
-#include "nsAlgorithm.h"
 
 /* QT has a #define for the word "slots" and jsfriendapi.h has a struct with
  * this variable name, causing compilation problems. Alleviate this for now by
@@ -59,8 +58,8 @@ extern bool stack_key_initialized;
 #define SAMPLER_APPEND_LINE_NUMBER_EXPAND(id, line) SAMPLER_APPEND_LINE_NUMBER_PASTE(id, line)
 #define SAMPLER_APPEND_LINE_NUMBER(id) SAMPLER_APPEND_LINE_NUMBER_EXPAND(id, __LINE__)
 
-#define SAMPLE_LABEL(name_space, info) mozilla::SamplerStackFrameRAII SAMPLER_APPEND_LINE_NUMBER(sampler_raii)(name_space "::" info, __LINE__)
-#define SAMPLE_LABEL_PRINTF(name_space, info, ...) mozilla::SamplerStackFramePrintfRAII SAMPLER_APPEND_LINE_NUMBER(sampler_raii)(name_space "::" info, __LINE__, __VA_ARGS__)
+#define SAMPLE_LABEL(name_space, info) mozilla::SamplerStackFrameRAII SAMPLER_APPEND_LINE_NUMBER(sampler_raii)(name_space "::" info)
+#define SAMPLE_LABEL_PRINTF(name_space, info, format, ...) mozilla::SamplerStackFramePrintfRAII SAMPLER_APPEND_LINE_NUMBER(sampler_raii)(name_space "::" info, format, __VA_ARGS__)
 #define SAMPLE_MARKER(info) mozilla_sampler_add_marker(info)
 
 /* we duplicate this code here to avoid header dependencies
@@ -135,7 +134,7 @@ LinuxKernelMemoryBarrierFunc pLinuxKernelMemoryBarrier __attribute__((weak)) =
 
 // Returns a handdle to pass on exit. This can check that we are popping the
 // correct callstack.
-inline void* mozilla_sampler_call_enter(const char *aInfo, void *aFrameAddress = NULL, bool aCopy = false, uint32_t line = 0);
+inline void* mozilla_sampler_call_enter(const char *aInfo, void *aFrameAddress = NULL, bool aCopy = false);
 inline void  mozilla_sampler_call_exit(void* handle);
 inline void  mozilla_sampler_add_marker(const char *aInfo);
 
@@ -155,8 +154,8 @@ namespace mozilla {
 class NS_STACK_CLASS SamplerStackFrameRAII {
 public:
   // we only copy the strings at save time, so to take multiple parameters we'd need to copy them then.
-  SamplerStackFrameRAII(const char *aInfo, uint32_t line) {
-    mHandle = mozilla_sampler_call_enter(aInfo, this, false, line);
+  SamplerStackFrameRAII(const char *aInfo) {
+    mHandle = mozilla_sampler_call_enter(aInfo, this, false);
   }
   ~SamplerStackFrameRAII() {
     mozilla_sampler_call_exit(mHandle);
@@ -169,7 +168,7 @@ static const int SAMPLER_MAX_STRING = 128;
 class NS_STACK_CLASS SamplerStackFramePrintfRAII {
 public:
   // we only copy the strings at save time, so to take multiple parameters we'd need to copy them then.
-  SamplerStackFramePrintfRAII(const char *aDefault, uint32_t line, const char *aFormat, ...) {
+  SamplerStackFramePrintfRAII(const char *aDefault, const char *aFormat, ...) {
     if (mozilla_sampler_is_active()) {
       va_list args;
       va_start(args, aFormat);
@@ -184,10 +183,10 @@ public:
       vsnprintf(buff, SAMPLER_MAX_STRING, aFormat, args);
       snprintf(mDest, SAMPLER_MAX_STRING, "%s %s", aDefault, buff);
 #endif
-      mHandle = mozilla_sampler_call_enter(mDest, this, true, line);
+      mHandle = mozilla_sampler_call_enter(mDest, this, true);
       va_end(args);
     } else {
-      mHandle = mozilla_sampler_call_enter(aDefault, NULL, false, line);
+      mHandle = mozilla_sampler_call_enter(aDefault);
     }
   }
   ~SamplerStackFramePrintfRAII() {
@@ -200,36 +199,30 @@ private:
 
 } //mozilla
 
-// A stack entry exists to allow the JS engine to inform SPS of the current
-// backtrace, but also to instrument particular points in C++ in case stack
-// walking is not available on the platform we are running on.
-//
-// Each entry has a descriptive string, a relevant stack address, and some extra
-// information the JS engine might want to inform SPS of. This class inherits
-// from the JS engine's version of the entry to ensure that the size and layout
-// of the two representations are consistent.
-class StackEntry : public js::ProfileEntry
+class StackEntry
 {
 public:
-
-  bool isCopyLabel() volatile {
-    return !((uintptr_t)stackAddress() & 0x1);
+  // Encode the address and aCopy by dropping the last bit of aStackAddress
+  // and storing aCopy there.
+  static const void* EncodeStackAddress(const void* aStackAddress, bool aCopy) {
+    aStackAddress = reinterpret_cast<const void*>(
+                      reinterpret_cast<uintptr_t>(aStackAddress) & ~0x1);
+    if (!aCopy)
+      aStackAddress = reinterpret_cast<const void*>(
+                        reinterpret_cast<uintptr_t>(aStackAddress) | 0x1);
+    return aStackAddress;
   }
 
-  void setStackAddressCopy(void *sp, bool copy) volatile {
-    // Tagged pointer. Less significant bit used to track if mLabel needs a
-    // copy. Note that we don't need the last bit of the stack address for
-    // proper ordering. This is optimized for encoding within the JS engine's
-    // instrumentation, so we do the extra work here of encoding a bit.
-    // Last bit 1 = Don't copy, Last bit 0 = Copy.
-    if (copy) {
-      setStackAddress(reinterpret_cast<void*>(
-                        reinterpret_cast<uintptr_t>(sp) & ~0x1));
-    } else {
-      setStackAddress(reinterpret_cast<void*>(
-                        reinterpret_cast<uintptr_t>(sp) | 0x1));
-    }
+  bool isCopyLabel() const volatile {
+    return !((uintptr_t)mStackAddress & 0x1);
   }
+
+  const char* mLabel;
+  // Tagged pointer. Less significant bit used to
+  // track if mLabel needs a copy. Note that we don't
+  // need the last bit of the stack address for proper ordering.
+  // Last bit 1 = Don't copy, Last bit 0 = Copy.
+  const void* mStackAddress;
 };
 
 // the SamplerStack members are read by signal
@@ -280,12 +273,12 @@ public:
     mQueueClearMarker = false;
   }
 
-  void push(const char *aName, uint32_t line)
+  void push(const char *aName)
   {
-    push(aName, NULL, false, line);
+    push(aName, NULL, false);
   }
 
-  void push(const char *aName, void *aStackAddress, bool aCopy, uint32_t line)
+  void push(const char *aName, void *aStackAddress, bool aCopy)
   {
     if (size_t(mStackPointer) >= mozilla::ArrayLength(mStack)) {
       mStackPointer++;
@@ -294,9 +287,8 @@ public:
 
     // Make sure we increment the pointer after the name has
     // been written such that mStack is always consistent.
-    mStack[mStackPointer].setLabel(aName);
-    mStack[mStackPointer].setStackAddressCopy(aStackAddress, aCopy);
-    mStack[mStackPointer].setLine(line);
+    mStack[mStackPointer].mLabel = aName;
+    mStack[mStackPointer].mStackAddress = StackEntry::EncodeStackAddress(aStackAddress, aCopy);
 
     // Prevent the optimizer from re-ordering these instructions
     STORE_SEQUENCER();
@@ -309,10 +301,6 @@ public:
   bool isEmpty()
   {
     return mStackPointer == 0;
-  }
-  uint32_t stackSize() const
-  {
-    return NS_MIN<uint32_t>(mStackPointer, mozilla::ArrayLength(mStack));
   }
 
   void sampleRuntime(JSRuntime *runtime) {
@@ -343,11 +331,7 @@ public:
   StackEntry volatile mStack[1024];
   // Keep a list of active markers to be applied to the next sample taken
   char const * volatile mMarkers[1024];
- private:
-  // This may exceed the length of mStack, so instead use the stackSize() method
-  // to determine the number of valid samples in mStack
   volatile mozilla::sig_safe_t mStackPointer;
- public:
   volatile mozilla::sig_safe_t mMarkerPointer;
   // We don't want to modify _markers from within the signal so we allow
   // it to queue a clear operation.
@@ -365,8 +349,7 @@ inline ProfileStack* mozilla_profile_stack(void)
   return tlsStack.get();
 }
 
-inline void* mozilla_sampler_call_enter(const char *aInfo, void *aFrameAddress,
-                                        bool aCopy, uint32_t line)
+inline void* mozilla_sampler_call_enter(const char *aInfo, void *aFrameAddress, bool aCopy)
 {
   // check if we've been initialized to avoid calling pthread_getspecific
   // with a null tlsStack which will return undefined results.
@@ -381,7 +364,7 @@ inline void* mozilla_sampler_call_enter(const char *aInfo, void *aFrameAddress,
   if (!stack) {
     return stack;
   }
-  stack->push(aInfo, aFrameAddress, aCopy, line);
+  stack->push(aInfo, aFrameAddress, aCopy);
 
   // The handle is meant to support future changes
   // but for now it is simply use to save a call to

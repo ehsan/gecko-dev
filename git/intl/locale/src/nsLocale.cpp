@@ -94,15 +94,15 @@ nsLocale::Hash_HashFunction(const void* key)
 }
 
 
-int
+PRIntn
 nsLocale::Hash_CompareNSString(const void* s1, const void* s2)
 {
   return !nsCRT::strcmp((const PRUnichar *) s1, (const PRUnichar *) s2);
 }
 
 
-int
-nsLocale::Hash_EnumerateDelete(PLHashEntry *he, int hashIndex, void *arg)
+PRIntn
+nsLocale::Hash_EnumerateDelete(PLHashEntry *he, PRIntn hashIndex, void *arg)
 {
   // delete an entry
   nsMemory::Free((PRUnichar *)he->key);

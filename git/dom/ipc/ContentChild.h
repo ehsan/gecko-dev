@@ -68,7 +68,7 @@ public:
 
     virtual PBrowserChild* AllocPBrowser(const PRUint32& aChromeFlags,
                                          const bool& aIsBrowserElement,
-                                         const AppId& aAppId);
+                                         const PRUint32& aAppId);
     virtual bool DeallocPBrowser(PBrowserChild*);
 
     virtual PDeviceStorageRequestChild* AllocPDeviceStorageRequest(const DeviceStorageParams&);
@@ -163,7 +163,6 @@ public:
     virtual bool RecvLastPrivateDocShellDestroyed();
 
     virtual bool RecvFilePathUpdate(const nsString& path, const nsCString& reason);
-    virtual bool RecvFileSystemUpdate(const nsString& aFsName, const nsString& aName, const PRInt32& aState);
 
 #ifdef ANDROID
     gfxIntSize GetScreenSize() { return mScreenSize; }

@@ -374,26 +374,6 @@ MarionetteDriverActor.prototype = {
     }
   },
 
-  getSessionCapabilities: function MDA_getSessionCapabilities(){
-    let rotatable = appName == "B2G" ? true : false;
-
-    let value = {
-          'appBuildId' : Services.appinfo.appBuildID,
-          'XULappId' : Services.appinfo.ID,
-          'cssSelectorsEnabled': true,
-          'browserName': appName,
-          'handlesAlerts': false,
-          'javascriptEnabled': true,
-          'nativeEvents': false,
-          'platform': Services.appinfo.OS,
-          'rotatable': rotatable,
-          'takesScreenshot': false,
-          'version': Services.appinfo.version
-    };
-
-    this.sendResponse(value);
-  },
-
   /**
    * Log message. Accepts user defined log-level.
    *
@@ -785,21 +765,6 @@ MarionetteDriverActor.prototype = {
   },
 
   /**
-   * Gets the page source of the content document
-   */
-  getPageSource: function MDA_getPageSource(){
-    if (this.context == "chrome"){
-      var curWindow = this.getCurrentWindow();
-      var XMLSerializer = curWindow.XMLSerializer; 
-      var pageSource = new XMLSerializer().serializeToString(curWindow.document);
-      this.sendResponse(pageSource);
-    }
-    else {
-      this.sendAsync("getPageSource", {});
-    }
-  },
-
-  /**
    * Go back in history
    */
   goBack: function MDA_goBack() {
@@ -1088,28 +1053,6 @@ MarionetteDriverActor.prototype = {
     }
     else {
       this.sendAsync("getElementText", {element: aRequest.element});
-    }
-  },
-
-  /**
-   * Get the tag name of the element.
-   *
-   * @param object aRequest
-   *        'element' member holds the reference id to
-   *        the element that will be inspected 
-   */
-  getElementTagName: function MDA_getElementTagName(aRequest) {
-    if (this.context == "chrome") {
-      try {
-        let el = this.curBrowser.elementManager.getKnownElement(aRequest.element, this.getCurrentWindow());
-        this.sendResponse(el.tagName.toLowerCase());
-      }
-      catch (e) {
-        this.sendError(e.message, e.code, e.stack);
-      }
-    }
-    else {
-      this.sendAsync("getElementTagName", {element: aRequest.element});
     }
   },
 
@@ -1463,7 +1406,6 @@ MarionetteDriverActor.prototype = {
 
 MarionetteDriverActor.prototype.requestTypes = {
   "newSession": MarionetteDriverActor.prototype.newSession,
-  "getSessionCapabilities": MarionetteDriverActor.prototype.getSessionCapabilities,
   "log": MarionetteDriverActor.prototype.log,
   "getLogs": MarionetteDriverActor.prototype.getLogs,
   "addPerfData": MarionetteDriverActor.prototype.addPerfData,
@@ -1479,14 +1421,12 @@ MarionetteDriverActor.prototype.requestTypes = {
   "clickElement": MarionetteDriverActor.prototype.clickElement,
   "getElementAttribute": MarionetteDriverActor.prototype.getElementAttribute,
   "getElementText": MarionetteDriverActor.prototype.getElementText,
-  "getElementTagName": MarionetteDriverActor.prototype.getElementTagName,
   "isElementDisplayed": MarionetteDriverActor.prototype.isElementDisplayed,
   "isElementEnabled": MarionetteDriverActor.prototype.isElementEnabled,
   "isElementSelected": MarionetteDriverActor.prototype.isElementSelected,
   "sendKeysToElement": MarionetteDriverActor.prototype.sendKeysToElement,
   "clearElement": MarionetteDriverActor.prototype.clearElement,
   "getTitle": MarionetteDriverActor.prototype.getTitle,
-  "getPageSource": MarionetteDriverActor.prototype.getPageSource,
   "goUrl": MarionetteDriverActor.prototype.goUrl,
   "getUrl": MarionetteDriverActor.prototype.getUrl,
   "goBack": MarionetteDriverActor.prototype.goBack,

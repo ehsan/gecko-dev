@@ -965,7 +965,7 @@ nsHostResolver::ThreadFunc(void *arg)
     while (resolver->GetHostToLookup(&rec)) {
         LOG(("Calling getaddrinfo for host [%s].\n", rec->host));
 
-        int flags = PR_AI_ADDRCONFIG;
+        PRIntn flags = PR_AI_ADDRCONFIG;
         if (!(rec->flags & RES_CANON_NAME))
             flags |= PR_AI_NOCANONNAME;
 

@@ -86,7 +86,6 @@ using namespace QtMobility;
 #include "gfxImageSurface.h"
 
 #include "nsIDOMSimpleGestureEvent.h" //Gesture support
-#include "nsIDOMWheelEvent.h"
 
 #if MOZ_PLATFORM_MAEMO > 5
 #include "nsIDOMWindow.h"
@@ -1936,38 +1935,35 @@ nsEventStatus
 nsWindow::OnScrollEvent(QGraphicsSceneWheelEvent *aEvent)
 {
     // check to see if we should rollup
-    WheelEvent wheelEvent(true, NS_WHEEL_WHEEL, this);
-    wheelEvent.deltaMode = nsIDOMWheelEvent::DOM_DELTA_LINE;
-
-    // negative values for aEvent->delta indicate downward scrolling;
-    // this is opposite Gecko usage.
-    // TODO: Store the unused delta values due to fraction round and add it
-    //       to next event.  The stored values should be reset by other
-    //       direction scroll event.
-    PRInt32 delta = (int)(aEvent->delta() / WHEEL_DELTA) * -3;
+    nsMouseScrollEvent event(true, NS_MOUSE_SCROLL, this);
 
     switch (aEvent->orientation()) {
     case Qt::Vertical:
-        wheelEvent.deltaY = wheelEvent.lineOrPageDeltaY = delta;
+        event.scrollFlags = nsMouseScrollEvent::kIsVertical;
         break;
     case Qt::Horizontal:
-        wheelEvent.deltaX = wheelEvent.lineOrPageDeltaX = delta;
+        event.scrollFlags = nsMouseScrollEvent::kIsHorizontal;
         break;
     default:
         Q_ASSERT(0);
         break;
     }
 
-    wheelEvent.refPoint.x = nscoord(aEvent->scenePos().x());
-    wheelEvent.refPoint.y = nscoord(aEvent->scenePos().y());
+    // negative values for aEvent->delta indicate downward scrolling;
+    // this is opposite Gecko usage.
 
-    wheelEvent.InitBasicModifiers(aEvent->modifiers() & Qt::ControlModifier,
-                                  aEvent->modifiers() & Qt::AltModifier,
-                                  aEvent->modifiers() & Qt::ShiftModifier,
-                                  aEvent->modifiers() & Qt::MetaModifier);
-    wheelEvent.time = 0;
+    event.delta = (int)(aEvent->delta() / WHEEL_DELTA) * -3;
 
-    return DispatchEvent(&wheelEvent);
+    event.refPoint.x = nscoord(aEvent->scenePos().x());
+    event.refPoint.y = nscoord(aEvent->scenePos().y());
+
+    event.InitBasicModifiers(aEvent->modifiers() & Qt::ControlModifier,
+                             aEvent->modifiers() & Qt::AltModifier,
+                             aEvent->modifiers() & Qt::ShiftModifier,
+                             aEvent->modifiers() & Qt::MetaModifier);
+    event.time            = 0;
+
+    return DispatchEvent(&event);
 }
 
 
@@ -2085,7 +2081,7 @@ nsWindow::OnGestureEvent(QGestureEvent* event, bool &handled) {
             mPinchEvent.needDispatch = false;
 
             double distance = DistanceBetweenPoints(swipe->hotSpot(), mPinchEvent.touchPoint) * 2;
-            double delta = distance - mPinchEvent.startDistance;
+            PRFloat64 delta = distance - mPinchEvent.startDistance;
 
             DispatchGestureEvent(NS_SIMPLE_GESTURE_MAGNIFY, 0, delta / 2, hotspot);
 

@@ -291,7 +291,7 @@ XRE_InitChildProcess(int aArgc,
   // regardless of architecture so we don't have any cross-arch issues here.
 #ifdef XP_MACOSX
   if (aArgc < 1)
-    return NS_ERROR_FAILURE;
+    return 1;
   const char* const mach_port_name = aArgv[--aArgc];
 
   const int kTimeoutMs = 1000;
@@ -299,39 +299,39 @@ XRE_InitChildProcess(int aArgc,
   MachSendMessage child_message(0);
   if (!child_message.AddDescriptor(mach_task_self())) {
     NS_WARNING("child AddDescriptor(mach_task_self()) failed.");
-    return NS_ERROR_FAILURE;
+    return 1;
   }
 
   ReceivePort child_recv_port;
   mach_port_t raw_child_recv_port = child_recv_port.GetPort();
   if (!child_message.AddDescriptor(raw_child_recv_port)) {
     NS_WARNING("Adding descriptor to message failed");
-    return NS_ERROR_FAILURE;
+    return 1;
   }
 
   MachPortSender child_sender(mach_port_name);
   kern_return_t err = child_sender.SendMessage(child_message, kTimeoutMs);
   if (err != KERN_SUCCESS) {
     NS_WARNING("child SendMessage() failed");
-    return NS_ERROR_FAILURE;
+    return 1;
   }
 
   MachReceiveMessage parent_message;
   err = child_recv_port.WaitForMessage(&parent_message, kTimeoutMs);
   if (err != KERN_SUCCESS) {
     NS_WARNING("child WaitForMessage() failed");
-    return NS_ERROR_FAILURE;
+    return 1;
   }
 
   if (parent_message.GetTranslatedPort(0) == MACH_PORT_NULL) {
     NS_WARNING("child GetTranslatedPort(0) failed");
-    return NS_ERROR_FAILURE;
+    return 1;
   }
   err = task_set_bootstrap_port(mach_task_self(),
                                 parent_message.GetTranslatedPort(0));
   if (err != KERN_SUCCESS) {
     NS_WARNING("child task_set_bootstrap_port() failed");
-    return NS_ERROR_FAILURE;
+    return 1;
   }
 #endif
 
@@ -339,7 +339,7 @@ XRE_InitChildProcess(int aArgc,
 
 #if defined(MOZ_CRASHREPORTER)
   if (aArgc < 1)
-    return NS_ERROR_FAILURE;
+    return 1;
   const char* const crashReporterArg = aArgv[--aArgc];
   
 #  if defined(XP_WIN) || defined(XP_MACOSX)

@@ -105,7 +105,7 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
     @Override
     public void tearDown() throws Exception {
         try {
-            mAsserter.endTest();
+            mAsserter.finalize();
             mSolo.finalize();
         } catch (Throwable e) {
             e.printStackTrace();

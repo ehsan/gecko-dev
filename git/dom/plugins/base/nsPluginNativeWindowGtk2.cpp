@@ -28,15 +28,6 @@ public:
 
   virtual nsresult CallSetWindow(nsRefPtr<nsNPAPIPluginInstance> &aPluginInstance);
 private:
-  void SetWindow(XID aWindow)
-  {
-    window = reinterpret_cast<void*>(static_cast<uintptr_t>(aWindow));
-  }
-  XID GetWindow() const
-  {
-    return static_cast<XID>(reinterpret_cast<uintptr_t>(window));
-  }
-
   NPSetWindowCallbackStruct mWsInfo;
   /**
    * Either a GtkSocket or a special GtkXtBin widget (derived from GtkSocket)
@@ -140,11 +131,11 @@ nsresult nsPluginNativeWindowGtk2::CallSetWindow(nsRefPtr<nsNPAPIPluginInstance>
       if (GTK_IS_XTBIN(mSocketWidget)) {
         gtk_xtbin_resize(mSocketWidget, width, height);
         // Point the NPWindow structures window to the actual X window
-        SetWindow(GTK_XTBIN(mSocketWidget)->xtwindow);
+        window = (void*)GTK_XTBIN(mSocketWidget)->xtwindow;
       }
       else { // XEmbed or OOP&Xt
         SetAllocation();
-        SetWindow(gtk_socket_get_id(GTK_SOCKET(mSocketWidget)));
+        window = (void*)gtk_socket_get_id(GTK_SOCKET(mSocketWidget));
       }
 #ifdef DEBUG
       printf("nsPluginNativeWindowGtk2: call SetWindow with xid=%p\n", (void *)window);
@@ -162,7 +153,7 @@ nsresult nsPluginNativeWindowGtk2::CallSetWindow(nsRefPtr<nsNPAPIPluginInstance>
 nsresult nsPluginNativeWindowGtk2::CreateXEmbedWindow(bool aEnableXtFocus) {
   NS_ASSERTION(!mSocketWidget,"Already created a socket widget!");
   GdkDisplay *display = gdk_display_get_default();
-  GdkWindow *parent_win = gdk_x11_window_lookup_for_display(display, GetWindow());
+  GdkWindow *parent_win = gdk_x11_window_lookup_for_display(display, (XID)window);
   mSocketWidget = gtk_socket_new();
 
   //attach the socket to the container widget
@@ -208,11 +199,11 @@ nsresult nsPluginNativeWindowGtk2::CreateXEmbedWindow(bool aEnableXtFocus) {
   gtk_widget_show(mSocketWidget);
 
   gdk_flush();
-  SetWindow(gtk_socket_get_id(GTK_SOCKET(mSocketWidget)));
+  window = (void*)gtk_socket_get_id(GTK_SOCKET(mSocketWidget));
 
   // Fill out the ws_info structure.
   // (The windowless case is done in nsObjectFrame.cpp.)
-  GdkWindow *gdkWindow = gdk_window_lookup(GetWindow());
+  GdkWindow *gdkWindow = gdk_window_lookup((XID)window);
   if(!gdkWindow)
     return NS_ERROR_FAILURE;
 
@@ -251,7 +242,7 @@ nsresult nsPluginNativeWindowGtk2::CreateXtWindow() {
          width, height, (void*)window);
 #endif
   GdkDisplay *display = gdk_display_get_default();
-  GdkWindow *gdkWindow = gdk_x11_window_lookup_for_display(display, GetWindow());
+  GdkWindow *gdkWindow = gdk_x11_window_lookup_for_display(display, (XID)window);
   mSocketWidget = gtk_xtbin_new(gdkWindow, 0);
   // Check to see if creating the xtbin failed for some reason.
   // if it did, we can't go any further.

@@ -134,7 +134,7 @@ nsFileStreamBase::Close()
 }
 
 nsresult
-nsFileStreamBase::Available(PRUint64* aResult)
+nsFileStreamBase::Available(PRUint32* aResult)
 {
     nsresult rv = DoPendingOpen();
     NS_ENSURE_SUCCESS(rv, rv);
@@ -151,7 +151,7 @@ nsFileStreamBase::Available(PRUint64* aResult)
     }
 
     // If available is greater than 4GB, return 4GB
-    *aResult = (PRUint64)avail;
+    *aResult = avail > PR_UINT32_MAX ? PR_UINT32_MAX : (PRUint32)avail;
     return NS_OK;
 }
 
@@ -573,9 +573,9 @@ nsPartialFileInputStream::Tell(PRInt64 *aResult)
 }
 
 NS_IMETHODIMP
-nsPartialFileInputStream::Available(PRUint64* aResult)
+nsPartialFileInputStream::Available(PRUint32* aResult)
 {
-    PRUint64 available;
+    PRUint32 available;
     nsresult rv = nsFileInputStream::Available(&available);
     if (NS_SUCCEEDED(rv)) {
         *aResult = TruncateSize(available);
@@ -586,7 +586,7 @@ nsPartialFileInputStream::Available(PRUint64* aResult)
 NS_IMETHODIMP
 nsPartialFileInputStream::Read(char* aBuf, PRUint32 aCount, PRUint32* aResult)
 {
-    PRUint32 readsize = (PRUint32) TruncateSize(aCount);
+    PRUint32 readsize = TruncateSize(aCount);
     if (readsize == 0 && mBehaviorFlags & CLOSE_ON_EOF) {
         Close();
         *aResult = 0;

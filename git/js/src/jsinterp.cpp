@@ -2393,8 +2393,6 @@ BEGIN_CASE(JSOP_NEW)
 BEGIN_CASE(JSOP_CALL)
 BEGIN_CASE(JSOP_FUNCALL)
 {
-    if (regs.fp()->hasPushedSPSFrame())
-        cx->runtime->spsProfiler.updatePC(script, regs.pc);
     JS_ASSERT(regs.stackDepth() >= 2 + GET_ARGC(regs.pc));
     CallArgs args = CallArgsFromSp(GET_ARGC(regs.pc), regs.sp);
 
@@ -3225,9 +3223,8 @@ BEGIN_CASE(JSOP_RETSUB)
         goto error;
     }
     JS_ASSERT(rval.isInt32());
-
-    /* Increment the PC by this much. */
-    len = rval.toInt32() - int32_t(regs.pc - script->code);
+    len = rval.toInt32();
+    regs.pc = script->code;
 END_VARLEN_CASE
 }
 

@@ -450,8 +450,7 @@ ReadExtensionPrefs(nsIFile *aFile)
     rv = reader->GetInputStream(entry, getter_AddRefs(stream));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    PRUint64 avail;
-    PRUint32 read;
+    PRUint32 avail, read;
 
     PrefParseState ps;
     PREF_InitParseState(&ps, PREF_ReaderCallback, NULL);
@@ -760,13 +759,11 @@ static nsresult openPrefFile(nsIFile* aFile)
   if (NS_FAILED(rv)) 
     return rv;        
 
-  PRUint64 fileSize64;
-  rv = inStr->Available(&fileSize64);
+  PRUint32 fileSize;
+  rv = inStr->Available(&fileSize);
   if (NS_FAILED(rv))
     return rv;
-  NS_ENSURE_TRUE(fileSize64 <= PR_UINT32_MAX, NS_ERROR_FILE_TOO_BIG);
 
-  PRUint32 fileSize = (PRUint32)fileSize64;
   nsAutoArrayPtr<char> fileBuffer(new char[fileSize]);
   if (fileBuffer == nullptr)
     return NS_ERROR_OUT_OF_MEMORY;
@@ -948,10 +945,10 @@ static nsresult pref_ReadPrefFromJar(nsZipArchive* jarReader, const char *name)
 
   PrefParseState ps;
   PREF_InitParseState(&ps, PREF_ReaderCallback, NULL);
-  PREF_ParseBuf(&ps, manifest, manifest.Length());
+  nsresult rv = PREF_ParseBuf(&ps, manifest, manifest.Length());
   PREF_FinalizeParseState(&ps);
 
-  return NS_OK;
+  return rv;
 }
 
 //----------------------------------------------------------------------------------------

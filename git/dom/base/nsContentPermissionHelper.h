@@ -11,7 +11,6 @@
 #include "nsString.h"
 #include "nsIDOMElement.h"
 
-#include "mozilla/dom/PermissionMessageUtils.h"
 #include "mozilla/dom/PContentPermissionRequestParent.h"
 
 class nsContentPermissionRequestProxy;
@@ -22,19 +21,19 @@ namespace dom {
 class ContentPermissionRequestParent : public PContentPermissionRequestParent
 {
  public:
-  ContentPermissionRequestParent(const nsACString& type, nsIDOMElement *element, const IPC::Principal& principal);
+  ContentPermissionRequestParent(const nsACString& type, nsIDOMElement *element, const IPC::URI& principal);
   virtual ~ContentPermissionRequestParent();
-
-  nsCOMPtr<nsIPrincipal> mPrincipal;
+  
+  nsCOMPtr<nsIURI>           mURI;
   nsCOMPtr<nsIDOMElement>    mElement;
   nsCOMPtr<nsContentPermissionRequestProxy> mProxy;
   nsCString mType;
 
- private:
+ private:  
   virtual bool Recvprompt();
   virtual void ActorDestroy(ActorDestroyReason why);
 };
-
+  
 } // namespace dom
 } // namespace mozilla
 
@@ -43,10 +42,10 @@ class nsContentPermissionRequestProxy : public nsIContentPermissionRequest
  public:
   nsContentPermissionRequestProxy();
   virtual ~nsContentPermissionRequestProxy();
-
+  
   nsresult Init(const nsACString& type, mozilla::dom::ContentPermissionRequestParent* parent);
   void OnParentDestroyed();
-
+  
   NS_DECL_ISUPPORTS
   NS_DECL_NSICONTENTPERMISSIONREQUEST
 

@@ -78,12 +78,6 @@ TestConverter::AsyncConvertData(const char *aFromType,
     return NS_OK; 
 }
 
-static inline PRUint32
-saturated(PRUint64 aValue)
-{
-    return (PRUint32) NS_MIN(aValue, (PRUint64) PR_UINT32_MAX);
-}
-
 // nsIStreamListener method
 /* This method handles asyncronous conversion of data. */
 NS_IMETHODIMP
@@ -100,19 +94,9 @@ TestConverter::OnDataAvailable(nsIRequest* request,
     rv = Convert(inStr, fromType.get(), toType.get(), ctxt, getter_AddRefs(convertedStream));
     if (NS_FAILED(rv)) return rv;
 
-    PRUint64 len = 0;
+    PRUint32 len;
     convertedStream->Available(&len);
-
-    PRUint64 offset = sourceOffset;
-    while (len > 0) {
-        PRUint32 count = saturated(len);
-        rv = mListener->OnDataAvailable(request, ctxt, convertedStream, saturated(offset), count);
-        if (NS_FAILED(rv)) return rv;
-
-        offset += count;
-        len -= count;
-    }
-    return NS_OK;
+    return mListener->OnDataAvailable(request, ctxt, convertedStream, sourceOffset, len);
 }
 
 // nsIRequestObserver methods

@@ -102,7 +102,6 @@ public:
     eDOMEvents_pagehide,
     eDOMEvents_DOMMouseScroll,
     eDOMEvents_MozMousePixelScroll,
-    eDOMEvents_wheel,
     eDOMEvents_offline,
     eDOMEvents_online,
     eDOMEvents_copy,

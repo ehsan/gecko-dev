@@ -172,7 +172,7 @@ class NodeBuilder
         RootedValue funv(cx);
         for (unsigned i = 0; i < AST_LIMIT; i++) {
             const char *name = callbackNames[i];
-            JSAtom *atom = Atomize(cx, name, strlen(name));
+            JSAtom *atom = js_Atomize(cx, name, strlen(name));
             if (!atom)
                 return false;
             RootedId id(cx, AtomToId(atom));
@@ -283,9 +283,9 @@ class NodeBuilder
 
     bool atomValue(const char *s, Value *dst) {
         /*
-         * Bug 575416: instead of Atomize, lookup constant atoms in tbl file
+         * Bug 575416: instead of js_Atomize, lookup constant atoms in tbl file
          */
-        JSAtom *atom = Atomize(cx, s, strlen(s));
+        JSAtom *atom = js_Atomize(cx, s, strlen(s));
         if (!atom)
             return false;
 
@@ -417,9 +417,9 @@ class NodeBuilder
             val.setNull();
 
         /*
-         * Bug 575416: instead of Atomize, lookup constant atoms in tbl file
+         * Bug 575416: instead of js_Atomize, lookup constant atoms in tbl file
          */
-        JSAtom *atom = Atomize(cx, name, strlen(name));
+        JSAtom *atom = js_Atomize(cx, name, strlen(name));
         if (!atom)
             return false;
 
@@ -2271,9 +2271,6 @@ ASTSerializer::statement(ParseNode *pn, Value *dst)
                builder.xmlDefaultNamespace(ns, &pn->pn_pos, dst);
       }
 #endif
-
-      case PNK_NOP:
-        return builder.emptyStatement(&pn->pn_pos, dst);
 
       default:
         LOCAL_NOT_REACHED("unexpected statement type");

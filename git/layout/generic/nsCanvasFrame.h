@@ -108,7 +108,7 @@ public:
   nsRect CanvasArea() const;
 
 protected:
-  virtual int GetSkipSides() const;
+  virtual PRIntn GetSkipSides() const;
 
   // Data members
   bool                      mDoPaintFocus;

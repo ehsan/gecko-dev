@@ -19,7 +19,6 @@ class ArchiveZipItem : public ArchiveItem
 public:
   ArchiveZipItem(const char* aFilename,
                  ZipCentral& aCentralStruct);
-  virtual ~ArchiveZipItem();
 
   void SetFilename(const nsCString& aFilename);
   nsCString GetFilename();

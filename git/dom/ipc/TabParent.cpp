@@ -11,7 +11,6 @@
 #include "Blob.h"
 #include "IDBFactory.h"
 #include "IndexedDBParent.h"
-#include "mozIApplication.h"
 #include "mozilla/BrowserElementParent.h"
 #include "mozilla/docshell/OfflineCacheUpdateParent.h"
 #include "mozilla/dom/ContentParent.h"
@@ -28,7 +27,6 @@
 #include "nsFocusManager.h"
 #include "nsFrameLoader.h"
 #include "nsIContent.h"
-#include "nsIDOMApplicationRegistry.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMEvent.h"
 #include "nsIDOMEventTarget.h"
@@ -38,7 +36,6 @@
 #include "nsIPromptFactory.h"
 #include "nsIURI.h"
 #include "nsIMozBrowserFrame.h"
-#include "nsIScriptSecurityManager.h"
 #include "nsIViewManager.h"
 #include "nsIWidget.h"
 #include "nsIWindowWatcher.h"
@@ -55,7 +52,6 @@ using namespace mozilla::dom;
 using namespace mozilla::ipc;
 using namespace mozilla::layers;
 using namespace mozilla::layout;
-using namespace mozilla::services;
 using namespace mozilla::widget;
 using namespace mozilla::dom::indexedDB;
 
@@ -70,9 +66,8 @@ TabParent *TabParent::mIMETabParent = nullptr;
 
 NS_IMPL_ISUPPORTS3(TabParent, nsITabParent, nsIAuthPromptProvider, nsISecureBrowserUI)
 
-TabParent::TabParent(mozIApplication* aApp, bool aIsBrowserElement)
+TabParent::TabParent()
   : mFrameElement(NULL)
-  , mApp(aApp)
   , mIMESelectionAnchor(0)
   , mIMESelectionFocus(0)
   , mIMEComposing(false)
@@ -81,7 +76,6 @@ TabParent::TabParent(mozIApplication* aApp, bool aIsBrowserElement)
   , mIMESeqno(0)
   , mDPI(0)
   , mActive(false)
-  , mIsBrowserElement(aIsBrowserElement)
   , mShown(false)
 {
 }
@@ -231,12 +225,10 @@ TabParent::UpdateDimensions(const nsRect& rect, const nsIntSize& size)
 void
 TabParent::UpdateFrame(const FrameMetrics& aFrameMetrics)
 {
-  unused << SendUpdateFrame(aFrameMetrics);
-}
-
-void TabParent::HandleDoubleTap(const nsIntPoint& aPoint)
-{
-  unused << SendHandleDoubleTap(aPoint);
+  unused << SendUpdateFrame(aFrameMetrics.mDisplayPort,
+                            aFrameMetrics.mViewportScrollOffset,
+                            aFrameMetrics.mResolution,
+                            aFrameMetrics.mViewport);
 }
 
 void
@@ -300,11 +292,11 @@ TabParent::DeallocPDocumentRenderer(PDocumentRendererParent* actor)
 }
 
 PContentPermissionRequestParent*
-TabParent::AllocPContentPermissionRequest(const nsCString& type, const IPC::Principal& principal)
+TabParent::AllocPContentPermissionRequest(const nsCString& type, const IPC::URI& uri)
 {
-  return new ContentPermissionRequestParent(type, mFrameElement, principal);
+  return new ContentPermissionRequestParent(type, mFrameElement, uri);
 }
-
+  
 bool
 TabParent::DeallocPContentPermissionRequest(PContentPermissionRequestParent* actor)
 {
@@ -340,11 +332,11 @@ bool TabParent::SendRealMouseEvent(nsMouseEvent& event)
   return PBrowserParent::SendRealMouseEvent(e);
 }
 
-bool TabParent::SendMouseWheelEvent(WheelEvent& event)
+bool TabParent::SendMouseScrollEvent(nsMouseScrollEvent& event)
 {
-  WheelEvent e(event);
+  nsMouseScrollEvent e(event);
   MaybeForwardEventToRenderFrame(event, &e);
-  return PBrowserParent::SendMouseWheelEvent(event);
+  return PBrowserParent::SendMouseScrollEvent(e);
 }
 
 bool TabParent::SendRealKeyEvent(nsKeyEvent& event)
@@ -1095,24 +1087,6 @@ TabParent::RecvBrowserFrameOpenWindow(PBrowserParent* aOpener,
   *aOutWindowOpened =
     BrowserElementParent::OpenWindowOOP(static_cast<TabParent*>(aOpener),
                                         this, aURL, aName, aFeatures);
-  return true;
-}
-
-bool
-TabParent::RecvNotifyDOMTouchListenerAdded()
-{
-  if (RenderFrameParent* rfp = GetRenderFrame()) {
-    rfp->NotifyDOMTouchListenerAdded();
-  }
-  return true;
-}
-
-bool
-TabParent::RecvZoomToRect(const gfxRect& aRect)
-{
-  if (RenderFrameParent* rfp = GetRenderFrame()) {
-    rfp->ZoomToRect(aRect);
-  }
   return true;
 }
 

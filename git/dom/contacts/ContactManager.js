@@ -18,7 +18,6 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/DOMRequestHelper.jsm");
-Cu.import("resource://gre/modules/PermissionPromptHelper.jsm");
 
 XPCOMUtils.defineLazyGetter(Services, "DOMRequest", function() {
   return Cc["@mozilla.org/dom/dom-request-service;1"].getService(Ci.nsIDOMRequestService);
@@ -278,18 +277,78 @@ ContactManager.prototype = {
   _oncontactchange: null,
 
   set oncontactchange(aCallback) {
-    debug("set oncontactchange");
-    let allowCallback = function() {
+    if (this.hasPrivileges)
       this._oncontactchange = aCallback;
-    }.bind(this);
-    let cancelCallback = function() {
+    else
       throw Components.results.NS_ERROR_FAILURE;
-    }
-    this.askPermission("listen", null, allowCallback, cancelCallback);
   },
 
   get oncontactchange() {
     return this._oncontactchange;
+  },
+
+  save: function save(aContact) {
+    let request;
+    if (this.hasPrivileges) {
+      debug("save: " + JSON.stringify(aContact) + " :" + aContact.id);
+      let newContact = {};
+      newContact.properties = {
+        name:            [],
+        honorificPrefix: [],
+        givenName:       [],
+        additionalName:  [],
+        familyName:      [],
+        honorificSuffix: [],
+        nickname:        [],
+        email:           [],
+        photo:           [],
+        url:             [],
+        category:        [],
+        adr:             [],
+        tel:             [],
+        org:             [],
+        jobTitle:        [],
+        bday:            null,
+        note:            [],
+        impp:            [],
+        anniversary:     null,
+        sex:             null,
+        genderIdentity:  null
+      };
+      for (let field in newContact.properties)
+        newContact.properties[field] = aContact[field];
+
+      let reason;
+      if (aContact.id == "undefined") {
+        // for example {25c00f01-90e5-c545-b4d4-21E2ddbab9e0} becomes
+        // 25c00f0190e5c545b4d421E2ddbab9e0
+        aContact.id = this._getRandomId().replace('-', '', 'g').replace('{', '').replace('}', '');
+        reason = "create";
+      } else {
+        reason = "update";
+      }
+
+      this._setMetaData(newContact, aContact);
+      debug("send: " + JSON.stringify(newContact));
+      request = this.createRequest();
+      cpmm.sendAsyncMessage("Contact:Save", {contact: newContact,
+                                             requestID: this.getRequestId({request: request, reason: reason })});
+      return request;
+    } else {
+      throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
+    }
+  },
+
+  remove: function removeContact(aRecord) {
+    let request;
+    if (this.hasPrivileges) {
+      request = this.createRequest();
+      cpmm.sendAsyncMessage("Contact:Remove", {id: aRecord.id,
+                                               requestID: this.getRequestId({request: request, reason: "remove"})});
+      return request;
+    } else {
+      throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
+    }
   },
 
   _setMetaData: function(aNewContact, aRecord) {
@@ -349,164 +408,54 @@ ContactManager.prototype = {
         if (req)
           Services.DOMRequest.fireError(req.request, msg.errorMsg);
         break;
-      case "PermissionPromptHelper:AskPermission:OK":
-        debug("id: " + msg.requestID);
-        req = this.getRequest(msg.requestID);
-        if (!req) {
-          break;
-        }
-
-        if (msg.result == Ci.nsIPermissionManager.ALLOW_ACTION) {
-          req.allow();
-        } else {
-          req.cancel();
-        }
-        break;
       default: 
         debug("Wrong message: " + aMessage.name);
     }
     this.removeRequest(msg.requestID);
   },
 
-  askPermission: function (aAccess, aReqeust, aAllowCallback, aCancelCallback) {
-    debug("askPermission for contacts");
-    let requestID = this.getRequestId({
-      request: aReqeust,
-      allow: function() {
-        aAllowCallback();
-      }.bind(this),
-      cancel : function() {
-        if (aCancelCallback) {
-          aCancelCallback()
-        } else if (request) {
-          Services.DOMRequest.fireError(request, "Not Allowed");
-        }
-      }.bind(this)
-    });
-
-    let principal = this._window.document.nodePrincipal;
-    cpmm.sendAsyncMessage("PermissionPromptHelper:AskPermission", {
-      type: "contacts",
-      access: aAccess,
-      requestID: requestID,
-      origin: principal.origin,
-      appID: principal.appId,
-      browserFlag: principal.isInBrowserElement
-    });
-  },
-
-  save: function save(aContact) {
-    let request;
-    debug("save: " + JSON.stringify(aContact) + " :" + aContact.id);
-    let newContact = {};
-    newContact.properties = {
-      name:            [],
-      honorificPrefix: [],
-      givenName:       [],
-      additionalName:  [],
-      familyName:      [],
-      honorificSuffix: [],
-      nickname:        [],
-      email:           [],
-      photo:           [],
-      url:             [],
-      category:        [],
-      adr:             [],
-      tel:             [],
-      org:             [],
-      jobTitle:        [],
-      bday:            null,
-      note:            [],
-      impp:            [],
-      anniversary:     null,
-      sex:             null,
-      genderIdentity:  null
-    };
-    for (let field in newContact.properties) {
-      newContact.properties[field] = aContact[field];
-    }
-
-    let reason;
-    if (aContact.id == "undefined") {
-      // for example {25c00f01-90e5-c545-b4d4-21E2ddbab9e0} becomes
-      // 25c00f0190e5c545b4d421E2ddbab9e0
-      aContact.id = this._getRandomId().replace('-', '', 'g').replace('{', '').replace('}', '');
-      reason = "create";
-    } else {
-      reason = "update";
-    }
-
-    this._setMetaData(newContact, aContact);
-    debug("send: " + JSON.stringify(newContact));
-    request = this.createRequest();
-    let options = { contact: newContact };
-    let allowCallback = function() {
-      cpmm.sendAsyncMessage("Contact:Save", {requestID: this.getRequestId({request: request, reason: reason}), options: options});
-    }.bind(this)
-    this.askPermission(reason, request, allowCallback);
-    return request;
-  },
-
   find: function(aOptions) {
-    debug("find! " + JSON.stringify(aOptions));
     let request;
-    request = this.createRequest();
-    let options = { findOptions: aOptions };
-    let allowCallback = function() {
-      cpmm.sendAsyncMessage("Contacts:Find", {requestID: this.getRequestId({request: request, reason: "find"}), options: options});
-    }.bind(this)
-    this.askPermission("find", request, allowCallback);
-    return request;
-  },
-
-  remove: function removeContact(aRecord) {
-    let request;
-    request = this.createRequest();
-    let options = { id: aRecord.id };
-    let allowCallback = function() {
-      cpmm.sendAsyncMessage("Contact:Remove", {requestID: this.getRequestId({request: request, reason: "remove"}), options: options});
-    }.bind(this)
-    this.askPermission("remove", request, allowCallback);
-    return request;
+    if (this.hasPrivileges) {
+      request = this.createRequest();
+      cpmm.sendAsyncMessage("Contacts:Find", {findOptions: aOptions, 
+                                              requestID: this.getRequestId({request: request, reason: "find"})});
+      return request;
+    } else {
+      debug("find not allowed");
+      throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
+    }
   },
 
   clear: function() {
-    debug("clear");
     let request;
-    request = this.createRequest();
-    let options = {};
-    let allowCallback = function() {
-      cpmm.sendAsyncMessage("Contacts:Clear", {requestID: this.getRequestId({request: request, reason: "remove"}), options: options});
-    }.bind(this)
-    this.askPermission("remove", request, allowCallback);
-    return request;
+    if (this.hasPrivileges) {
+      request = this.createRequest();
+      cpmm.sendAsyncMessage("Contacts:Clear", {requestID: this.getRequestId({request: request, reason: "remove"})});
+      return request;
+    } else {
+      debug("clear not allowed");
+      throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
+    }
   },
 
   getSimContacts: function(aType) {
     let request;
-    request = this.createRequest();
-
-    let allowCallback = function() {
+    if (this.hasPrivileges) {
       let callback = function(aType, aContacts) {
         debug("got SIM contacts: " + aType + " " + JSON.stringify(aContacts));
-        let result = aContacts.map(function(c) {
-          var contact = new Contact();
-          contact.init( { name: [c.alphaId], tel: [ { number: c.number } ] } );
-          return contact;
-        });
+        let result = aContacts.map(function(c) { return { name: [c.alphaId], tel: [c.number] } });
         debug("result: " + JSON.stringify(result));
         Services.DOMRequest.fireSuccess(request, result);
       };
       debug("getSimContacts " + aType);
-
+      request = this.createRequest();
       mRIL.getICCContacts(aType, callback);
-    }.bind(this);
-
-    let cancelCallback = function() {
+      return request;
+    } else {
+      debug("getSimContacts not allowed");
       throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
     }
-    this.askPermission("getSimContacts", request, allowCallback, cancelCallback);
-    return request;
   },
 
   init: function(aWindow) {
@@ -517,8 +466,13 @@ ContactManager.prototype = {
     this.initHelper(aWindow, ["Contacts:Find:Return:OK", "Contacts:Find:Return:KO",
                               "Contacts:Clear:Return:OK", "Contacts:Clear:Return:KO",
                               "Contact:Save:Return:OK", "Contact:Save:Return:KO",
-                              "Contact:Remove:Return:OK", "Contact:Remove:Return:KO",
-                              "PermissionPromptHelper:AskPermission:OK"]);
+                              "Contact:Remove:Return:OK", "Contact:Remove:Return:KO"]);
+
+    let perm = Services.perms.testExactPermissionFromPrincipal(aWindow.document.nodePrincipal, "contacts");
+ 
+    //only pages with perm set can use the contacts
+    this.hasPrivileges = perm == Ci.nsIPermissionManager.ALLOW_ACTION;
+    debug("Contacts permission: " + this.hasPrivileges);
   },
 
   // Called from DOMRequestIpcHelper

@@ -75,7 +75,7 @@ protected:
   nsMathMLmactionFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
   virtual ~nsMathMLmactionFrame();
   
-  virtual int GetSkipSides() const { return 0; }
+  virtual PRIntn GetSkipSides() const { return 0; }
 
 private:
   PRInt32         mActionType;

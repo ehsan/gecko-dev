@@ -101,11 +101,10 @@ nsInputStreamPump::PeekStream(PeekSegmentFun callback, void* closure)
   NS_ASSERTION(mAsyncStream, "PeekStream called without stream");
 
   // See if the pipe is closed by checking the return of Available.
-  PRUint64 dummy64;
-  nsresult rv = mAsyncStream->Available(&dummy64);
+  PRUint32 dummy;
+  nsresult rv = mAsyncStream->Available(&dummy);
   if (NS_FAILED(rv))
     return rv;
-  PRUint32 dummy = (PRUint32)NS_MIN(dummy64, (PRUint64)PR_UINT32_MAX);
 
   PeekData data(callback, closure);
   return mAsyncStream->ReadSegments(CallPeekFunc,
@@ -408,7 +407,7 @@ nsInputStreamPump::OnStateStart()
     // so our listener can check our status from OnStartRequest.
     // XXX async streams should have a GetStatus method!
     if (NS_SUCCEEDED(mStatus)) {
-        PRUint64 avail;
+        PRUint32 avail;
         rv = mAsyncStream->Available(&avail);
         if (NS_FAILED(rv) && rv != NS_BASE_STREAM_CLOSED)
             mStatus = rv;
@@ -436,9 +435,9 @@ nsInputStreamPump::OnStateTransfer()
 
     nsresult rv;
 
-    PRUint64 avail;
+    PRUint32 avail;
     rv = mAsyncStream->Available(&avail);
-    LOG(("  Available returned [stream=%x rv=%x avail=%llu]\n", mAsyncStream.get(), rv, avail));
+    LOG(("  Available returned [stream=%x rv=%x avail=%u]\n", mAsyncStream.get(), rv, avail));
 
     if (rv == NS_BASE_STREAM_CLOSED) {
         rv = NS_OK;
@@ -446,8 +445,8 @@ nsInputStreamPump::OnStateTransfer()
     }
     else if (NS_SUCCEEDED(rv) && avail) {
         // figure out how much data to report (XXX detect overflow??)
-        if (avail > mStreamLength - mStreamOffset)
-            avail = mStreamLength - mStreamOffset;
+        if (PRUint64(avail) + mStreamOffset > mStreamLength)
+            avail = PRUint32(mStreamLength - mStreamOffset);
 
         if (avail) {
             // we used to limit avail to 16K - we were afraid some ODA handlers
@@ -479,15 +478,12 @@ nsInputStreamPump::OnStateTransfer()
             PRUint32 odaOffset =
                 mStreamOffset > PR_UINT32_MAX ?
                 PR_UINT32_MAX : PRUint32(mStreamOffset);
-            PRUint32 odaAvail =
-                avail > PR_UINT32_MAX ?
-                PR_UINT32_MAX : PRUint32(avail);
 
-            LOG(("  calling OnDataAvailable [offset=%lld(%u) count=%llu(%u)]\n",
-                mStreamOffset, odaOffset, avail, odaAvail));
+            LOG(("  calling OnDataAvailable [offset=%lld(%u) count=%u]\n",
+                mStreamOffset, odaOffset, avail));
 
             rv = mListener->OnDataAvailable(this, mListenerContext, mAsyncStream,
-                                            odaOffset, odaAvail);
+                                            odaOffset, avail);
 
             // don't enter this code if ODA failed or called Cancel
             if (NS_SUCCEEDED(rv) && NS_SUCCEEDED(mStatus)) {
@@ -497,7 +493,7 @@ nsInputStreamPump::OnStateTransfer()
                     // now closed, then we assume that everything was read.
                     PRInt64 offsetAfter;
                     if (NS_FAILED(seekable->Tell(&offsetAfter)))
-                        offsetAfter = offsetBefore + odaAvail;
+                        offsetAfter = offsetBefore + avail;
                     if (offsetAfter > offsetBefore)
                         mStreamOffset += (offsetAfter - offsetBefore);
                     else if (mSuspendCount == 0) {
@@ -513,7 +509,7 @@ nsInputStreamPump::OnStateTransfer()
                     }
                 }
                 else
-                    mStreamOffset += odaAvail; // assume ODA behaved well
+                    mStreamOffset += avail; // assume ODA behaved well
             }
         }
     }

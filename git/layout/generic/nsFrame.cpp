@@ -911,7 +911,7 @@ nsIFrame::GetUsedPadding() const
 void
 nsIFrame::ApplySkipSides(nsMargin& aMargin) const
 {
-  int skipSides = GetSkipSides();
+  PRIntn skipSides = GetSkipSides();
   if (skipSides & (1 << NS_SIDE_TOP))
     aMargin.top = 0;
   if (skipSides & (1 << NS_SIDE_RIGHT))
@@ -1041,7 +1041,7 @@ bool
 nsIFrame::ComputeBorderRadii(const nsStyleCorners& aBorderRadius,
                              const nsSize& aFrameSize,
                              const nsSize& aBorderArea,
-                             int aSkipSides,
+                             PRIntn aSkipSides,
                              nscoord aRadii[8])
 {
   // Percentages are relative to whichever side they're on.
@@ -3647,7 +3647,10 @@ nsIFrame::InlineMinWidthData::ForceBreak(nsRenderingContext *aRenderingContext)
   currentLine = trailingWhitespace = 0;
 
   for (PRUint32 i = 0, i_end = floats.Length(); i != i_end; ++i) {
-    nscoord float_min = floats[i].Width();
+    nsIFrame *floatFrame = floats[i];
+    nscoord float_min =
+      nsLayoutUtils::IntrinsicForContainer(aRenderingContext, floatFrame,
+                                           nsLayoutUtils::MIN_WIDTH);
     if (float_min > prevLines)
       prevLines = float_min;
   }
@@ -3686,8 +3689,8 @@ nsIFrame::InlinePrefWidthData::ForceBreak(nsRenderingContext *aRenderingContext)
             floats_cur_right = 0;
 
     for (PRUint32 i = 0, i_end = floats.Length(); i != i_end; ++i) {
-      const FloatInfo& floatInfo = floats[i];
-      const nsStyleDisplay *floatDisp = floatInfo.Frame()->GetStyleDisplay();
+      nsIFrame *floatFrame = floats[i];
+      const nsStyleDisplay *floatDisp = floatFrame->GetStyleDisplay();
       if (floatDisp->mBreakType == NS_STYLE_CLEAR_LEFT ||
           floatDisp->mBreakType == NS_STYLE_CLEAR_RIGHT ||
           floatDisp->mBreakType == NS_STYLE_CLEAR_LEFT_AND_RIGHT) {
@@ -3703,7 +3706,10 @@ nsIFrame::InlinePrefWidthData::ForceBreak(nsRenderingContext *aRenderingContext)
 
       nscoord &floats_cur = floatDisp->mFloats == NS_STYLE_FLOAT_LEFT
                               ? floats_cur_left : floats_cur_right;
-      nscoord floatWidth = floatInfo.Width();
+      nscoord floatWidth =
+          nsLayoutUtils::IntrinsicForContainer(aRenderingContext,
+                                               floatFrame,
+                                               nsLayoutUtils::PREF_WIDTH);
       // Negative-width floats don't change the available space so they
       // shouldn't change our intrinsic line width either.
       floats_cur =
@@ -8137,7 +8143,7 @@ nsFrame::GetBoxName(nsAutoString& aName)
 
 #ifdef DEBUG
 static void
-GetTagName(nsFrame* aFrame, nsIContent* aContent, int aResultSize,
+GetTagName(nsFrame* aFrame, nsIContent* aContent, PRIntn aResultSize,
            char* aResult)
 {
   if (aContent) {

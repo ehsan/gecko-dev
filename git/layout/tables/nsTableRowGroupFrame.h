@@ -332,7 +332,7 @@ protected:
                             nsHTMLReflowState& aReflowState);
   
   /** implement abstract method on nsContainerFrame */
-  virtual int GetSkipSides() const;
+  virtual PRIntn GetSkipSides() const;
 
   void PlaceChild(nsPresContext*         aPresContext,
                   nsRowGroupReflowState& aReflowState,

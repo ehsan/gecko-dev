@@ -347,7 +347,7 @@ ElfDynamic_Section *Elf::getDynSection()
     return NULL;
 }
 
-void Elf::normalize()
+void Elf::write(std::ofstream &file)
 {
     // fixup section headers sh_name; TODO: that should be done by sections
     // themselves
@@ -387,11 +387,6 @@ void Elf::normalize()
     ehdr->e_shoff = shdr_section->getOffset();
     ehdr->e_entry = eh_entry.getValue();
     ehdr->e_shstrndx = eh_shstrndx->getIndex();
-}
-
-void Elf::write(std::ofstream &file)
-{
-    normalize();
     for (ElfSection *section = ehdr;
          section != NULL; section = section->getNext()) {
         file.seekp(section->getOffset());
@@ -647,25 +642,34 @@ ElfSection *ElfDynamic_Section::getSectionForType(unsigned int tag)
     return value ? value->getSection() : NULL;
 }
 
-bool ElfDynamic_Section::setValueForType(unsigned int tag, ElfValue *val)
+void ElfDynamic_Section::setValueForType(unsigned int tag, ElfValue *val)
 {
     unsigned int i;
-    unsigned int shnum = shdr.sh_size / shdr.sh_entsize;
-    for (i = 0; (i < shnum) && (dyns[i].tag != DT_NULL); i++)
+    for (i = 0; (i < shdr.sh_size / shdr.sh_entsize) && (dyns[i].tag != DT_NULL); i++)
         if (dyns[i].tag == tag) {
             delete dyns[i].value;
             dyns[i].value = val;
-            return true;
+            return;
         }
+    // This should never happen, as the last entry is always tagged DT_NULL
+    assert(i < shdr.sh_size / shdr.sh_entsize);
     // If we get here, this means we didn't match for the given tag
-    // Most of the time, there are a few DT_NULL entries, that we can
-    // use to add our value, but if we are on the last entry, we can't.
-    if (i >= shnum - 1)
-        return false;
-
     dyns[i].tag = tag;
-    dyns[i].value = val;
-    return true;
+    dyns[i++].value = val;
+
+    // If we were on the last entry, we need to grow the section.
+    // Most of the time, though, there are a few DT_NULL entries.
+    if (i < shdr.sh_size / shdr.sh_entsize)
+        return;
+
+    Elf_DynValue value;
+    value.tag = DT_NULL;
+    value.value = NULL;
+    dyns.push_back(value);
+    // Resize the section accordingly
+    shdr.sh_size += shdr.sh_entsize;
+    if (getNext() != NULL)
+        getNext()->markDirty();
 }
 
 ElfDynamic_Section::ElfDynamic_Section(Elf_Shdr &s, std::ifstream *file, Elf *parent)

@@ -35,8 +35,7 @@ public final class Tab {
     private static final String LOGTAG = "GeckoTab";
 
     private static Pattern sColorPattern;
-    private final int mId;
-    private long mLastUsed;
+    private int mId;
     private String mUrl;
     private String mTitle;
     private Drawable mFavicon;
@@ -73,11 +72,10 @@ public final class Tab {
 
     public Tab(int id, String url, boolean external, int parentId, String title) {
         mId = id;
-        mLastUsed = 0;
         mUrl = url;
         mExternal = external;
         mParentId = parentId;
-        mTitle = title == null ? "" : title;
+        mTitle = title;
         mFavicon = null;
         mFaviconUrl = null;
         mFaviconSize = 0;
@@ -112,26 +110,13 @@ public final class Tab {
         return mId;
     }
 
-    public synchronized void onChange() {
-        mLastUsed = System.currentTimeMillis();
-    }
-
-    public synchronized long getLastUsed() {
-        return mLastUsed;
-    }
-
     public int getParentId() {
         return mParentId;
     }
 
     // may be null if user-entered query hasn't yet been resolved to a URI
-    public synchronized String getURL() {
+    public String getURL() {
         return mUrl;
-    }
-
-    // mTitle should never be null, but it may be an empty string
-    public synchronized String getTitle() {
-        return mTitle;
     }
 
     public String getDisplayTitle() {
@@ -207,7 +192,7 @@ public final class Tab {
         });
     }
 
-    public synchronized String getFaviconURL() {
+    public String getFaviconURL() {
         return mFaviconUrl;
     }
 
@@ -240,10 +225,10 @@ public final class Tab {
         return mExternal;
     }
 
-    public synchronized void updateURL(String url) {
+    public void updateURL(String url) {
         if (url != null && url.length() > 0) {
             mUrl = url;
-            Log.d(LOGTAG, "Updated URL for tab with id: " + mId);
+            Log.i(LOGTAG, "Updated url: " + url + " for tab with id: " + mId);
             updateBookmark();
             updateHistory(mUrl, mTitle);
         }
@@ -265,10 +250,10 @@ public final class Tab {
         return mContentType;
     }
 
-    public synchronized void updateTitle(String title) {
+    public void updateTitle(String title) {
         mTitle = (title == null ? "" : title);
 
-        Log.d(LOGTAG, "Updated title for tab with id: " + mId);
+        Log.i(LOGTAG, "Updated title: " + mTitle + " for tab with id: " + mId);
         updateHistory(mUrl, mTitle);
         final Tab tab = this;
 
@@ -321,10 +306,10 @@ public final class Tab {
 
     public void updateFavicon(Drawable favicon) {
         mFavicon = favicon;
-        Log.d(LOGTAG, "Updated favicon for tab with id: " + mId);
+        Log.i(LOGTAG, "Updated favicon for tab with id: " + mId);
     }
 
-    public synchronized void updateFaviconURL(String faviconUrl, int size) {
+    public void updateFaviconURL(String faviconUrl, int size) {
         // If we already have an "any" sized icon, don't update the icon.
         if (mFaviconSize == -1)
             return;
@@ -334,15 +319,16 @@ public final class Tab {
         if (size == -1 || size >= mFaviconSize) {
             mFaviconUrl = faviconUrl;
             mFaviconSize = size;
-            Log.d(LOGTAG, "Updated favicon URL for tab with id: " + mId);
+            Log.i(LOGTAG, "Updated favicon URL for tab with id: " + mId);
         }
     }
 
-    public synchronized void clearFavicon() {
+    public void clearFavicon() {
         mFavicon = null;
         mFaviconUrl = null;
         mFaviconSize = 0;
     }
+
 
     public void updateIdentityData(JSONObject identityData) {
         mIdentityData = identityData;

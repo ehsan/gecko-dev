@@ -20,7 +20,7 @@ static void
 Encode3to4(const unsigned char *src, T *dest)
 {
     PRUint32 b32 = (PRUint32)0;
-    int i, j = 18;
+    PRIntn i, j = 18;
 
     for( i = 0; i < 3; i++ )
     {
@@ -159,18 +159,14 @@ EncodeInputStream(nsIInputStream *aInputStream,
                   PRUint32 aOffset)
 {
   nsresult rv;
-  PRUint64 count64 = aCount;
 
   if (!aCount) {
-    rv = aInputStream->Available(&count64);
+    rv = aInputStream->Available(&aCount);
     NS_ENSURE_SUCCESS(rv, rv);
-    // if count64 is over 4GB, it will be failed at the below condition,
-    // then will return NS_ERROR_OUT_OF_MEMORY
-    aCount = (PRUint32)count64;
   }
 
   PRUint64 countlong =
-    (count64 + 2) / 3 * 4; // +2 due to integer math.
+    (PRUint64(aCount) + 2) / 3 * 4; // +2 due to integer math.
   if (countlong + aOffset > PR_UINT32_MAX)
     return NS_ERROR_OUT_OF_MEMORY;
 

@@ -933,13 +933,8 @@ nsHttpConnectionMgr::ProcessPendingQForEntry(nsConnectionEntry *ent)
         }
 
         rv = TryDispatchTransaction(ent, alreadyHalfOpen, trans);
-        if (NS_SUCCEEDED(rv) || (rv != NS_ERROR_NOT_AVAILABLE)) {
-            if (NS_SUCCEEDED(rv))
-                LOG(("  dispatching pending transaction...\n"));
-            else
-                LOG(("  removing pending transaction based on "
-                     "TryDispatchTransaction returning hard error %x\n", rv));
-
+        if (NS_SUCCEEDED(rv)) {
+            LOG(("  dispatching pending transaction...\n"));
             ent->mPendingQ.RemoveElementAt(i);
             NS_RELEASE(trans);
 
@@ -1204,11 +1199,7 @@ nsHttpConnectionMgr::RestrictConnections(nsConnectionEntry *ent)
     return doRestrict;
 }
 
-// returns NS_OK if a connection was started
-// return NS_ERROR_NOT_AVAILABLE if a new connection cannot be made due to
-//        ephemeral limits
-// returns other NS_ERROR on hard failure conditions
-nsresult
+bool
 nsHttpConnectionMgr::MakeNewConnection(nsConnectionEntry *ent,
                                        nsHttpTransaction *trans)
 {
@@ -1229,9 +1220,9 @@ nsHttpConnectionMgr::MakeNewConnection(nsConnectionEntry *ent,
                  ent->mConnInfo->HashKey().get()));
             ent->mHalfOpens[i]->SetSpeculative(false);
 
-            // return OK because we have essentially opened a new connection
+            // return true because we have essentially opened a new connection
             // by converting a speculative half-open to general use
-            return NS_OK;
+            return true;
         }
     }
 
@@ -1239,7 +1230,7 @@ nsHttpConnectionMgr::MakeNewConnection(nsConnectionEntry *ent,
     // don't create any new connections until the result of the
     // negotiation is known.
     if (!(trans->Caps() & NS_HTTP_DISALLOW_SPDY) && RestrictConnections(ent))
-        return NS_ERROR_NOT_AVAILABLE;
+        return false;
 
     // We need to make a new connection. If that is going to exceed the
     // global connection limit then try and free up some room by closing
@@ -1251,21 +1242,13 @@ nsHttpConnectionMgr::MakeNewConnection(nsConnectionEntry *ent,
         mCT.Enumerate(PurgeExcessIdleConnectionsCB, this);
 
     if (AtActiveConnectionLimit(ent, trans->Caps()))
-        return NS_ERROR_NOT_AVAILABLE;
+        return false;
 
     nsresult rv = CreateTransport(ent, trans, trans->Caps(), false);
-    if (NS_FAILED(rv)) {
-        /* hard failure */
-        LOG(("nsHttpConnectionMgr::MakeNewConnection [ci = %s trans = %p] "
-             "CreateTransport() hard failure.\n",
-             ent->mConnInfo->HashKey().get(), trans));
+    if (NS_FAILED(rv))                            /* hard failure */
         trans->Close(rv);
-        if (rv == NS_ERROR_NOT_AVAILABLE)
-            rv = NS_ERROR_FAILURE;
-        return rv;
-    }
 
-    return NS_OK;
+    return true;
 }
 
 bool
@@ -1391,11 +1374,9 @@ nsHttpConnectionMgr::IsUnderPressure(nsConnectionEntry *ent,
 }
 
 // returns OK if a connection is found for the transaction
-//   and the transaction is started.
+// and the transaction is started.
 // returns ERROR_NOT_AVAILABLE if no connection can be found and it
-//   should be queued until circumstances change
-// returns other ERROR when transaction has a hard failure and should
-//   not remain in the pending queue
+// should be queued
 nsresult
 nsHttpConnectionMgr::TryDispatchTransaction(nsConnectionEntry *ent,
                                             bool onlyReusedConnection,
@@ -1503,18 +1484,8 @@ nsHttpConnectionMgr::TryDispatchTransaction(nsConnectionEntry *ent,
     }
 
     // step 4
-    if (!onlyReusedConnection) {
-        nsresult rv = MakeNewConnection(ent, trans);
-        if (NS_SUCCEEDED(rv)) {
-            // this function returns NOT_AVAILABLE for asynchronous connects
-            return NS_ERROR_NOT_AVAILABLE;
-        }
-        
-        if (rv != NS_ERROR_NOT_AVAILABLE) {
-            // not available return codes should try next step as they are
-            // not hard errors. Other codes should stop now
-            return rv;
-        }
+    if (!onlyReusedConnection && MakeNewConnection(ent, trans)) {
+        return NS_ERROR_IN_PROGRESS;
     }
     
     // step 5
@@ -1707,23 +1678,16 @@ nsHttpConnectionMgr::ProcessNewTransaction(nsHttpTransaction *trans)
     else
         rv = TryDispatchTransaction(ent, false, trans);
 
-    if (NS_SUCCEEDED(rv)) {
-        LOG(("  ProcessNewTransaction Dispatch Immediately trans=%p\n", trans));
-        return rv;
-    }
-    
-    if (rv == NS_ERROR_NOT_AVAILABLE) {
+    if (NS_FAILED(rv)) {
         LOG(("  adding transaction to pending queue "
              "[trans=%p pending-count=%u]\n",
              trans, ent->mPendingQ.Length()+1));
         // put this transaction on the pending queue...
         InsertTransactionSorted(ent->mPendingQ, trans);
         NS_ADDREF(trans);
-        return NS_OK;
     }
 
-    LOG(("  ProcessNewTransaction Hard Error trans=%p rv=%x\n", trans, rv));
-    return rv;
+    return NS_OK;
 }
 
 
@@ -3109,7 +3073,5 @@ nsConnectionEntry::RemoveHalfOpen(nsHalfOpenSocket *halfOpen)
 
     if (!UnconnectedHalfOpens())
         // perhaps this reverted RestrictConnections()
-        // use the PostEvent version of processpendingq to avoid
-        // altering the pending q vector from an arbitrary stack
-        gHttpHandler->ConnMgr()->ProcessPendingQ(mConnInfo);
+        gHttpHandler->ConnMgr()->ProcessPendingQForEntry(this);
 }

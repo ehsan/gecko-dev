@@ -34,15 +34,15 @@ nsFtpControlConnection::OnInputStreamReady(nsIAsyncInputStream *stream)
     char data[4096];
 
     // Consume data whether we have a listener or not.
-    PRUint64 avail64;
     PRUint32 avail;
-    nsresult rv = stream->Available(&avail64);
+    nsresult rv = stream->Available(&avail);
     if (NS_SUCCEEDED(rv)) {
-        avail = (PRUint32)NS_MIN(avail64, (PRUint64)sizeof(data));
+        if (avail > sizeof(data))
+            avail = sizeof(data);
 
         PRUint32 n;
         rv = stream->Read(data, avail, &n);
-        if (NS_SUCCEEDED(rv))
+        if (NS_SUCCEEDED(rv) && n != avail)
             avail = n;
     }
 

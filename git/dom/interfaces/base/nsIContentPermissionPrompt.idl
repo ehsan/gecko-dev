@@ -4,7 +4,7 @@
 
 #include "nsISupports.idl"
 
-interface nsIPrincipal;
+interface nsIURI;
 interface nsIDOMWindow;
 interface nsIDOMElement;
 
@@ -13,7 +13,7 @@ interface nsIDOMElement;
  * permission to perform a privileged operation such as
  * geolocation.
  */
-[scriptable, uuid(E1F3796C-ADFA-414B-B2A7-AC62F29395EE)]
+[scriptable, uuid(E79C7063-DBAB-45E3-8A98-D0142E1ABC9A)]
 interface nsIContentPermissionRequest : nsISupports {
 
   /**
@@ -23,9 +23,9 @@ interface nsIContentPermissionRequest : nsISupports {
   readonly attribute ACString type;
 
   /**
-   *  The principal of the permission request.
+   *  The uri of the permission request.
    */
-  readonly attribute nsIPrincipal principal;
+  readonly attribute nsIURI uri;
 
   /**
    *  The window or element that the permission request was

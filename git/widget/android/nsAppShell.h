@@ -70,7 +70,6 @@ protected:
     mozilla::AndroidGeckoEvent *mQueuedDrawEvent;
     mozilla::AndroidGeckoEvent *mQueuedViewportEvent;
     bool mAllowCoalescingNextDraw;
-    bool mAllowCoalescingTouches;
     nsTArray<mozilla::AndroidGeckoEvent *> mEventQueue;
     nsInterfaceHashtable<nsStringHashKey, nsIObserver> mObserversHash;
 

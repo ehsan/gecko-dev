@@ -544,7 +544,7 @@ nsInputStreamWrapper::LazyInit()
 
     CACHE_LOG_DEBUG(("nsInputStreamWrapper::LazyInit "
                       "[entry=%p, wrapper=%p, mInput=%p, rv=%d]",
-                      mDescriptor, this, mInput.get(), int(rv)));
+                      mDescriptor, this, mInput.get(), PRIntn(rv)));
 
     if (NS_FAILED(rv)) return rv;
 
@@ -562,7 +562,7 @@ nsInputStreamWrapper::Close()
 }
 
 nsresult nsCacheEntryDescriptor::
-nsInputStreamWrapper::Available(PRUint64 *avail)
+nsInputStreamWrapper::Available(PRUint32 *avail)
 {
     nsresult rv = EnsureInit();
     if (NS_FAILED(rv)) return rv;

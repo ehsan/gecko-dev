@@ -39,7 +39,6 @@
 #include "nsIObserverService.h"
 #include "nsTObserverArray.h"
 #include "nsIObserver.h"
-#include "nsIScriptSecurityManager.h"
 #include "nsServiceManagerUtils.h"
 #include "nsXULAppAPI.h"
 #include "nsWeakReference.h"
@@ -73,10 +72,6 @@
 #include "APKOpen.h"
 #endif
 
-#if defined(MOZ_WIDGET_GONK)
-#include "nsVolume.h"
-#endif
-
 #ifdef XP_WIN
 #include <process.h>
 #define getpid _getpid
@@ -103,9 +98,6 @@ using namespace mozilla::ipc;
 using namespace mozilla::layers;
 using namespace mozilla::net;
 using namespace mozilla::places;
-#if defined(MOZ_WIDGET_GONK)
-using namespace mozilla::system;
-#endif
 
 namespace mozilla {
 namespace dom {
@@ -219,10 +211,9 @@ ConsoleListener::Observe(nsIConsoleMessage* aMessage)
 ContentChild* ContentChild::sSingleton;
 
 ContentChild::ContentChild()
- :
-   mID(PRUint64(-1))
+ : mID(PRUint64(-1))
 #ifdef ANDROID
-   ,mScreenSize(0, 0)
+ , mScreenSize(0, 0)
 #endif
 {
     // This process is a content process, so it's clearly running in
@@ -411,11 +402,10 @@ ContentChild::AllocPCompositor(mozilla::ipc::Transport* aTransport,
 
 PBrowserChild*
 ContentChild::AllocPBrowser(const PRUint32& aChromeFlags,
-                            const bool& aIsBrowserElement, const AppId& aApp)
+                            const bool& aIsBrowserElement,
+                            const PRUint32& aAppId)
 {
-    PRUint32 appId = aApp.get_uint32_t();
-    nsRefPtr<TabChild> iframe = new TabChild(aChromeFlags, aIsBrowserElement,
-                                             appId);
+    nsRefPtr<TabChild> iframe = new TabChild(aChromeFlags, aIsBrowserElement, aAppId);
     return NS_SUCCEEDED(iframe->Init()) ? iframe.forget().get() : NULL;
 }
 
@@ -946,19 +936,6 @@ ContentChild::RecvFilePathUpdate(const nsString& path, const nsCString& aReason)
 
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
     obs->NotifyObservers(nullptr, "file-watcher-update", data.get());
-    return true;
-}
-
-bool
-ContentChild::RecvFileSystemUpdate(const nsString& aFsName, const nsString& aName, const PRInt32 &aState)
-{
-#ifdef MOZ_WIDGET_GONK
-    nsRefPtr<nsVolume> volume = new nsVolume(aFsName, aName, aState);
-
-    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-    nsString stateStr(NS_ConvertUTF8toUTF16(volume->StateStr()));
-    obs->NotifyObservers(volume, NS_VOLUME_STATE_CHANGED, stateStr.get());
-#endif
     return true;
 }
 

@@ -155,7 +155,7 @@ AssertActivityIsLegal()
 // the BloatEntry.
 
 static void *
-DefaultAllocTable(void *pool, size_t size)
+DefaultAllocTable(void *pool, PRSize size)
 {
     return PR_MALLOC(size);
 }
@@ -281,7 +281,7 @@ public:
     mNewStats.mObjsOutstandingSquared += cnt * cnt;
   }
 
-  static int DumpEntry(PLHashEntry *he, int i, void *arg) {
+  static PRIntn DumpEntry(PLHashEntry *he, PRIntn i, void *arg) {
     BloatEntry* entry = (BloatEntry*)he->value;
     if (entry) {
       entry->Accumulate();
@@ -290,7 +290,7 @@ public:
     return HT_ENUMERATE_NEXT;
   }
 
-  static int TotalEntries(PLHashEntry *he, int i, void *arg) {
+  static PRIntn TotalEntries(PLHashEntry *he, PRIntn i, void *arg) {
     BloatEntry* entry = (BloatEntry*)he->value;
     if (entry && nsCRT::strcmp(entry->mClassName, "TOTAL") != 0) {
       entry->Total((BloatEntry*)arg);
@@ -342,7 +342,7 @@ public:
     return true;
   }
 
-  void Dump(int i, FILE* out, nsTraceRefcntImpl::StatisticsType type) {
+  void Dump(PRIntn i, FILE* out, nsTraceRefcntImpl::StatisticsType type) {
     nsTraceRefcntStats* stats = (type == nsTraceRefcntImpl::NEW_STATS) ? &mNewStats : &mAllStats;
     if (gLogLeaksOnly && !HaveLeaks(stats)) {
       return;
@@ -444,7 +444,7 @@ GetBloatEntry(const char* aTypeName, PRUint32 aInstanceSize)
   return entry;
 }
 
-static int DumpSerialNumbers(PLHashEntry* aHashEntry, int aIndex, void* aClosure)
+static PRIntn DumpSerialNumbers(PLHashEntry* aHashEntry, PRIntn aIndex, void* aClosure)
 {
   serialNumberRecord* record = reinterpret_cast<serialNumberRecord *>(aHashEntry->value);
 #ifdef HAVE_CPP_DYNAMIC_CAST_TO_VOID_PTR
@@ -1241,8 +1241,10 @@ static void maybeUnregisterAndCloseFile(FILE *&f) {
   if (!f)
     return;
 
-  MozillaUnRegisterDebugFILE(f);
+  int fd = fileno(f);
   fclose(f);
+  if (fd != 1 && fd != 2)
+    MozillaUnRegisterDebugFD(fd);
   f = nullptr;
 }
 

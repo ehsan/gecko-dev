@@ -583,16 +583,13 @@ nsDOMWindowUtils::SendMouseEventCommon(const nsAString& aType,
 }
 
 NS_IMETHODIMP
-nsDOMWindowUtils::SendWheelEvent(float aX,
-                                 float aY,
-                                 double aDeltaX,
-                                 double aDeltaY,
-                                 double aDeltaZ,
-                                 PRUint32 aDeltaMode,
-                                 PRInt32 aModifiers,
-                                 PRInt32 aLineOrPageDeltaX,
-                                 PRInt32 aLineOrPageDeltaY,
-                                 PRUint32 aOptions)
+nsDOMWindowUtils::SendMouseScrollEvent(const nsAString& aType,
+                                       float aX,
+                                       float aY,
+                                       PRInt32 aButton,
+                                       PRInt32 aScrollFlags,
+                                       PRInt32 aDelta,
+                                       PRInt32 aModifiers)
 {
   if (!IsUniversalXPConnectCapable()) {
     return NS_ERROR_DOM_SECURITY_ERR;
@@ -601,45 +598,36 @@ nsDOMWindowUtils::SendWheelEvent(float aX,
   // get the widget to send the event to
   nsPoint offset;
   nsCOMPtr<nsIWidget> widget = GetWidget(&offset);
-  if (!widget) {
+  if (!widget)
     return NS_ERROR_NULL_POINTER;
-  }
 
-  widget::WheelEvent wheelEvent(true, NS_WHEEL_WHEEL, widget);
-  wheelEvent.modifiers = GetWidgetModifiers(aModifiers);
-  wheelEvent.deltaX = aDeltaX;
-  wheelEvent.deltaY = aDeltaY;
-  wheelEvent.deltaZ = aDeltaZ;
-  wheelEvent.deltaMode = aDeltaMode;
-  wheelEvent.isMomentum =
-    (aOptions & WHEEL_EVENT_CAUSED_BY_MOMENTUM) != 0;
-  wheelEvent.isPixelOnlyDevice =
-    (aOptions & WHEEL_EVENT_CAUSED_BY_PIXEL_ONLY_DEVICE) != 0;
-  NS_ENSURE_TRUE(
-    !wheelEvent.isPixelOnlyDevice ||
-      aDeltaMode == nsIDOMWheelEvent::DOM_DELTA_PIXEL,
-    NS_ERROR_INVALID_ARG);
-  wheelEvent.customizedByUserPrefs =
-    (aOptions & WHEEL_EVENT_CUSTOMIZED_BY_USER_PREFS) != 0;
-  wheelEvent.lineOrPageDeltaX = aLineOrPageDeltaX;
-  wheelEvent.lineOrPageDeltaY = aLineOrPageDeltaY;
-  wheelEvent.widget = widget;
+  PRInt32 msg;
+  if (aType.EqualsLiteral("DOMMouseScroll"))
+    msg = NS_MOUSE_SCROLL;
+  else if (aType.EqualsLiteral("MozMousePixelScroll"))
+    msg = NS_MOUSE_PIXEL_SCROLL;
+  else
+    return NS_ERROR_UNEXPECTED;
 
-  wheelEvent.time = PR_Now() / 1000;
+  nsMouseScrollEvent event(true, msg, widget);
+  event.modifiers = GetWidgetModifiers(aModifiers);
+  event.button = aButton;
+  event.widget = widget;
+  event.delta = aDelta;
+  event.scrollFlags = aScrollFlags;
+
+  event.time = PR_IntervalNow();
 
   nsPresContext* presContext = GetPresContext();
-  NS_ENSURE_TRUE(presContext, NS_ERROR_FAILURE);
+  if (!presContext)
+    return NS_ERROR_FAILURE;
 
-  wheelEvent.refPoint = ToWidgetPoint(aX, aY, offset, presContext);
+  event.refPoint = ToWidgetPoint(aX, aY, offset, presContext);
 
   nsEventStatus status;
-  nsresult rv = widget->DispatchEvent(&wheelEvent, status);
-  NS_ENSURE_SUCCESS(rv, rv);
-  // ESM must not return negative values for overflow.
-  NS_ENSURE_TRUE(wheelEvent.overflowDeltaX >= 0.0, NS_ERROR_FAILURE);
-  NS_ENSURE_TRUE(wheelEvent.overflowDeltaY >= 0.0, NS_ERROR_FAILURE);
-  return rv;
+  return widget->DispatchEvent(&event, status);
 }
+
 
 NS_IMETHODIMP
 nsDOMWindowUtils::SendTouchEvent(const nsAString& aType,
@@ -989,8 +977,11 @@ nsDOMWindowUtils::GarbageCollect(nsICycleCollectorListener *aListener,
   }
 #endif
 
+  for (int i = 0; i < 3; i++) {
+    nsJSContext::GarbageCollectNow(js::gcreason::DOM_UTILS);
+    nsJSContext::CycleCollectNow(aListener, aExtraForgetSkippableCalls);
+  }
   nsJSContext::GarbageCollectNow(js::gcreason::DOM_UTILS);
-  nsJSContext::CycleCollectNow(aListener, aExtraForgetSkippableCalls);
 
   return NS_OK;
 }
@@ -1015,7 +1006,7 @@ nsDOMWindowUtils::SendSimpleGestureEvent(const nsAString& aType,
                                          float aX,
                                          float aY,
                                          PRUint32 aDirection,
-                                         double aDelta,
+                                         PRFloat64 aDelta,
                                          PRInt32 aModifiers,
                                          PRUint32 aClickCount)
 {

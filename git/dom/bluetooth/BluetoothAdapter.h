@@ -20,7 +20,6 @@ BEGIN_BLUETOOTH_NAMESPACE
 
 class BluetoothSignal;
 class BluetoothNamedValue;
-class BluetoothValue;
 
 class BluetoothAdapter : public nsDOMEventTargetHelper
                        , public nsIDOMBluetoothAdapter
@@ -37,7 +36,7 @@ public:
                                                          nsDOMEventTargetHelper)
 
   static already_AddRefed<BluetoothAdapter>
-  Create(nsPIDOMWindow* aOwner, const BluetoothValue& aValue);
+  Create(nsPIDOMWindow* aOwner, const nsAString& name);
 
   void Notify(const BluetoothSignal& aParam);
 
@@ -58,7 +57,7 @@ public:
   virtual void SetPropertyByValue(const BluetoothNamedValue& aValue);  
 private:
   
-  BluetoothAdapter(nsPIDOMWindow* aOwner, const BluetoothValue& aValue);
+  BluetoothAdapter(nsPIDOMWindow* aOwner, const nsAString& aPath);
   ~BluetoothAdapter();
 
   void Root();

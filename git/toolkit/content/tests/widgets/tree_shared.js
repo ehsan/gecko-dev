@@ -119,7 +119,7 @@ function testtag_tree(treeid, treerowinfoid, seltype, columnstype, testid)
   if (testid !="tree view")
     testtag_tree_TreeView_rows_sort(tree, testid, rowInfo);
 
-  testtag_tree_wheel(tree);
+  testtag_tree_mousescroll(tree);
 
   document.removeEventListener("keypress", preventDefault, false);
 
@@ -1165,66 +1165,49 @@ function testtag_tree_column_reorder()
   SimpleTest.finish();
 }
 
-function testtag_tree_wheel(aTree)
+function testtag_tree_mousescroll(aTree)
 {
-  const deltaModes = [
-    WheelEvent.DOM_DELTA_PIXEL,  // 0
-    WheelEvent.DOM_DELTA_LINE,   // 1
-    WheelEvent.DOM_DELTA_PAGE    // 2
+  /* Scroll event kinds, see test_mousescroll.xul */
+  const kinds = [
+    { eventType: "DOMMouseScroll", hasPixels: false, shouldScrollDOM: true, shouldScrollNative: true },
+    { eventType: "DOMMouseScroll", hasPixels: true, shouldScrollDOM: true, shouldScrollNative: false },
+    { eventType: "MozMousePixelScroll", hasPixels: false, shouldScrollDOM: false, shouldScrollNative: true }
   ];
-  function helper(aStart, aDelta, aIntDelta, aDeltaMode)
+  function helper(aStart, aDelta, aKind)
   {
     aTree.treeBoxObject.scrollToRow(aStart);
-    var expected = !aIntDelta ? aStart :
-          aDeltaMode != WheelEvent.DOM_DELTA_PAGE ? aStart + aIntDelta :
-          aIntDelta > 0 ? aStart + aTree.treeBoxObject.getPageLength() :
-                          aStart - aTree.treeBoxObject.getPageLength();
-    if (expected < 0) {
-      expected = 0;
-    }
-    if (expected > aTree.view.rowCount - aTree.treeBoxObject.getPageLength()) {
-      expected = aTree.view.rowCount - aTree.treeBoxObject.getPageLength();
-    }
-    synthesizeWheel(aTree.body, 1, 1,
-                    { deltaMode: aDeltaMode, deltaY: aDelta,
-                      lineOrPageDeltaY: aIntDelta });
-    is(aTree.treeBoxObject.getFirstVisibleRow(), expected,
-         "testtag_tree_wheel: vertical, starting " + aStart +
-           " delta " + aDelta + " lineOrPageDelta " + aIntDelta +
-           " aDeltaMode " + aDeltaMode);
+    synthesizeMouseScroll(aTree.body, 1, 1,
+                          {axis:"vertical", delta:aDelta, type:aKind.eventType,
+                           hasPixels:aKind.hasPixels});
+    var expected = aKind.shouldScrollDOM ? aStart + aDelta : aStart;
+    is(aTree.treeBoxObject.getFirstVisibleRow(), expected, "mouse-scroll vertical starting " + aStart + " delta " + aDelta
+       + " eventType " + aKind.eventType + " hasPixels " + aKind.hasPixels);
 
     aTree.treeBoxObject.scrollToRow(aStart);
     // Check that horizontal scrolling has no effect
-    synthesizeWheel(aTree.body, 1, 1,
-                    { deltaMode: aDeltaMode, deltaX: aDelta,
-                      lineOrPageDeltaX: aIntDelta });
-    is(aTree.treeBoxObject.getFirstVisibleRow(), aStart,
-         "testtag_tree_wheel: horizontal, starting " + aStart +
-           " delta " + aDelta + " lineOrPageDelta " + aIntDelta +
-           " aDeltaMode " + aDeltaMode);
+    synthesizeMouseScroll(aTree.body, 1, 1,
+                          {axis:"horizontal", delta:aDelta, type:aKind.eventType,
+                           hasPixels:aKind.hasPixels});  
+    is(aTree.treeBoxObject.getFirstVisibleRow(), aStart, "mouse-scroll horizontal starting " + aStart + " delta " + aDelta
+       + " eventType " + aKind.eventType + " hasPixels " + aKind.hasPixels);
   }
 
   var defaultPrevented = 0;
 
-  function wheelListener(event) {
+  function mouseScrollListener(event) {
     defaultPrevented++;
   }
-  window.addEventListener("wheel", wheelListener, false);
+  window.addEventListener("DOMMouseScroll", mouseScrollListener, false);
 
-  deltaModes.forEach(function(aDeltaMode) {
-    var delta = (aDeltaMode == WheelEvent.DOM_DELTA_PIXEL) ? 5.0 : 0.3;
-    helper(2, -delta,  0, aDeltaMode);
-    helper(2, -delta, -1, aDeltaMode);
-    helper(2,  delta,  0, aDeltaMode);
-    helper(2,  delta,  1, aDeltaMode);
-    helper(2, -2 * delta,  0, aDeltaMode);
-    helper(2, -2 * delta, -1, aDeltaMode);
-    helper(2,  2 * delta,  0, aDeltaMode);
-    helper(2,  2 * delta,  1, aDeltaMode);
+  kinds.forEach(function(aKind) {
+    helper(2, -1, aKind);
+    helper(2, 1, aKind);
+    helper(2, -2, aKind);
+    helper(2, 2, aKind);
   });
 
-  window.removeEventListener("wheel", wheelListener, false);
-  is(defaultPrevented, 48, "wheel event default prevented");
+  window.removeEventListener("DOMMouseScroll", mouseScrollListener, false);
+  is(defaultPrevented, 16, "mouse scroll event default prevented");
 }
 
 function synthesizeColumnDrag(aTree, aMouseDownColumnNumber, aMouseUpColumnNumber, aAfter)

@@ -1512,8 +1512,8 @@ nsIDocument::nsIDocument()
     mAllowDNSPrefetch(true),
     mIsBeingUsedAsImage(false),
     mHasLinksToUpdate(false),
-    mDirectionality(eDir_LTR),
-    mPartID(0)
+    mPartID(0),
+    mDirectionality(eDir_LTR)
 {
   SetInDocument();
 }
@@ -5592,7 +5592,7 @@ nsDocument::SetDir(const nsAString& aDirection)
         // Set the directionality of the root element and its descendants, if any
         Element* rootElement = GetRootElement();
         if (rootElement) {
-          rootElement->SetDirectionality(dir, true);
+          SetDirectionality(rootElement, dir, true);
           SetDirectionalityOnDescendants(rootElement, dir);
         }
       }

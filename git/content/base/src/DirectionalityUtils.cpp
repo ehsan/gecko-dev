@@ -20,6 +20,24 @@ namespace directionality {
 
 typedef mozilla::dom::Element Element;
 
+void
+SetDirectionality(Element* aElement, Directionality aDir, bool aNotify)
+{
+  aElement->UnsetFlags(NODE_ALL_DIRECTION_FLAGS);
+  switch (aDir) {
+    case eDir_RTL:
+      aElement->SetFlags(NODE_HAS_DIRECTION_RTL);
+      break;
+    case eDir_LTR:
+      aElement->SetFlags(NODE_HAS_DIRECTION_LTR);
+      break;
+    default:
+      break;
+  }
+
+  aElement->UpdateState(aNotify);
+}
+
 Directionality
 RecomputeDirectionality(Element* aElement, bool aNotify)
 {
@@ -47,7 +65,7 @@ RecomputeDirectionality(Element* aElement, bool aNotify)
       }
     }
     
-    aElement->SetDirectionality(dir, aNotify);
+    SetDirectionality(aElement, dir, aNotify);
   }
   return dir;
 }
@@ -67,7 +85,7 @@ SetDirectionalityOnDescendants(Element* aElement, Directionality aDir,
       child = child->GetNextNonChildNode(aElement);
       continue;
     }
-    element->SetDirectionality(aDir, aNotify);
+    SetDirectionality(element, aDir, aNotify);
     child = child->GetNextNode(aElement);
   }
 }

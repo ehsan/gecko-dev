@@ -704,16 +704,15 @@ nsPipeInputStream::Close()
 }
 
 NS_IMETHODIMP
-nsPipeInputStream::Available(PRUint64 *result)
+nsPipeInputStream::Available(PRUint32 *result)
 {
-    // nsPipeInputStream supports under 4GB stream only
     ReentrantMonitorAutoEnter mon(mPipe->mReentrantMonitor);
 
     // return error if pipe closed
     if (!mAvailable && NS_FAILED(mPipe->mStatus))
         return mPipe->mStatus;
 
-    *result = (PRUint64)mAvailable;
+    *result = mAvailable;
     return NS_OK;
 }
 

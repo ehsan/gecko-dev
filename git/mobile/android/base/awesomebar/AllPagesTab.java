@@ -67,7 +67,7 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
         super(context);
         mSearchEngines = new ArrayList<SearchEngine>();
 
-        registerEventListener("SearchEngines:Data");
+        GeckoAppShell.registerGeckoEventListener("SearchEngines:Data", this);
         GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("SearchEngines:Get", null));
     }
 
@@ -111,7 +111,7 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
 
     public void destroy() {
         AwesomeBarCursorAdapter adapter = getCursorAdapter();
-        unregisterEventListener("SearchEngines:Data");
+        GeckoAppShell.unregisterGeckoEventListener("SearchEngines:Data", this);
         if (adapter == null) {
             return;
         }
@@ -562,13 +562,5 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
 
         menu.setHeaderTitle(subject.title);
         return subject;
-    }
-
-    private void registerEventListener(String event) {
-        GeckoAppShell.getEventDispatcher().registerEventListener(event, this);
-    }
-
-    private void unregisterEventListener(String event) {
-        GeckoAppShell.getEventDispatcher().unregisterEventListener(event, this);
     }
 }

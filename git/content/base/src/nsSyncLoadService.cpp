@@ -352,9 +352,9 @@ nsSyncLoadService::PushSyncStreamToListener(nsIInputStream* aIn,
     // Load
     rv = aListener->OnStartRequest(aChannel, nullptr);
     if (NS_SUCCEEDED(rv)) {
-        PRUint64 sourceOffset = 0;
+        PRUint32 sourceOffset = 0;
         while (1) {
-            PRUint64 readCount = 0;
+            PRUint32 readCount = 0;
             rv = aIn->Available(&readCount);
             if (NS_FAILED(rv) || !readCount) {
                 if (rv == NS_BASE_STREAM_CLOSED) {
@@ -364,12 +364,8 @@ nsSyncLoadService::PushSyncStreamToListener(nsIInputStream* aIn,
                 break;
             }
 
-            if (readCount > PR_UINT32_MAX)
-                readCount = PR_UINT32_MAX;
-
             rv = aListener->OnDataAvailable(aChannel, nullptr, aIn,
-                                            (PRUint32)NS_MIN(sourceOffset, (PRUint64)PR_UINT32_MAX),
-                                            (PRUint32)readCount);
+                                            sourceOffset, readCount);
             if (NS_FAILED(rv)) {
                 break;
             }

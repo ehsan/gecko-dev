@@ -216,9 +216,9 @@ abstract class Axis {
      * Returns the resistance, as a multiplier, that should be taken into account when
      * tracking or pinching.
      */
-    float getEdgeResistance(boolean forPinching) {
+    float getEdgeResistance() {
         float excess = getExcess();
-        if (excess > 0.0f && (getOverscroll() == Overscroll.BOTH || !forPinching)) {
+        if (excess > 0.0f) {
             // excess can be greater than viewport length, but the resistance
             // must never drop below 0.0
             return Math.max(0.0f, SNAP_LIMIT - excess / getViewportLength());
@@ -299,7 +299,7 @@ abstract class Axis {
         }
 
         if (mFlingState == FlingStates.PANNING)
-            mDisplacement += (mLastTouchPos - mTouchPos) * getEdgeResistance(false);
+            mDisplacement += (mLastTouchPos - mTouchPos) * getEdgeResistance();
         else
             mDisplacement += mVelocity;
     }

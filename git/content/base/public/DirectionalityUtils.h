@@ -27,6 +27,9 @@ enum Directionality {
   eDir_LTR    = 2
 };
 
+void SetDirectionality(mozilla::dom::Element* aElement, Directionality aDir,
+                       bool aNotify = true);
+
 /**
  * Set the directionality of an element according to the algorithm defined at
  * http://www.whatwg.org/specs/web-apps/current-work/multipage/elements.html#the-directionality,

@@ -26,6 +26,11 @@ let gBrowserThumbnails = {
   _timeouts: null,
 
   /**
+   * Cache for the PageThumbs module.
+   */
+  _pageThumbs: null,
+
+  /**
    * List of tab events we want to listen for.
    */
   _tabEvents: ["TabClose", "TabSelect"],
@@ -47,6 +52,9 @@ let gBrowserThumbnails = {
     }, this);
 
     this._timeouts = new WeakMap();
+
+    XPCOMUtils.defineLazyModuleGetter(this, "_pageThumbs",
+      "resource:///modules/PageThumbs.jsm", "PageThumbs");
   },
 
   uninit: function Thumbnails_uninit() {
@@ -92,7 +100,7 @@ let gBrowserThumbnails = {
 
   _capture: function Thumbnails_capture(aBrowser) {
     if (this._shouldCapture(aBrowser))
-      PageThumbs.captureAndStore(aBrowser);
+      this._pageThumbs.captureAndStore(aBrowser);
   },
 
   _delayedCapture: function Thumbnails_delayedCapture(aBrowser) {

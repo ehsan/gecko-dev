@@ -1916,7 +1916,7 @@ nsGenericHTMLElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
            aValue->Equals(nsGkAtoms::rtl, eIgnoreCase))) {
         SetHasValidDir();
         dir = aValue->Equals(nsGkAtoms::rtl, eIgnoreCase) ? eDir_RTL : eDir_LTR;
-        SetDirectionality(dir, aNotify);
+        SetDirectionality(this, dir, aNotify);
       } else {
         ClearHasValidDir();
         dir = RecomputeDirectionality(this, aNotify);

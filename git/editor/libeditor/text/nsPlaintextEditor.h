@@ -109,7 +109,7 @@ public:
 
   /** All editor operations which alter the doc should be prefaced
    *  with a call to StartOperation, naming the action and direction */
-  NS_IMETHOD StartOperation(EditAction opID,
+  NS_IMETHOD StartOperation(OperationID opID,
                             nsIEditor::EDirection aDirection);
 
   /** All editor operations which alter the doc should be followed

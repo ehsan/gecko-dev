@@ -63,9 +63,7 @@ OperationInProgress(JSContext *cx, JSObject *proxy)
 }
 #endif
 
-BaseProxyHandler::BaseProxyHandler(void *family)
-  : mFamily(family),
-    mHasPrototype(false)
+BaseProxyHandler::BaseProxyHandler(void *family) : mFamily(family)
 {
 }
 
@@ -376,15 +374,6 @@ BaseProxyHandler::finalize(JSFreeOp *fop, JSObject *proxy)
 {
 }
 
-bool
-BaseProxyHandler::getPrototypeOf(JSContext *cx, JSObject *proxy, JSObject **proto)
-{
-    // The default implementation here just uses proto of the proxy object.
-    JS_ASSERT(hasPrototype());
-    *proto = proxy->getProto();
-    return true;
-}
-
 IndirectProxyHandler::IndirectProxyHandler(void *family) : BaseProxyHandler(family)
 {
 }
@@ -485,8 +474,8 @@ IndirectProxyHandler::construct(JSContext *cx, JSObject *proxy, unsigned argc,
     JS_ASSERT(OperationInProgress(cx, proxy));
     Value fval = GetConstruct(proxy);
     if (fval.isUndefined())
-        fval = GetCall(proxy);
-    return InvokeConstructor(cx, fval, argc, argv, rval);
+        return InvokeConstructor(cx, GetCall(proxy), argc, argv, rval);
+    return Invoke(cx, UndefinedValue(), fval, argc, argv, rval);
 }
 
 bool
@@ -1061,34 +1050,13 @@ class AutoPendingProxyOperation {
     }
 };
 
-#define INVOKE_ON_PROTOTYPE(cx, handler, proxy, protoCall)                   \
-    JS_BEGIN_MACRO                                                           \
-        JSObject *proto;                                                     \
-        if (!handler->getPrototypeOf(cx, proxy, &proto))                     \
-            return false;                                                    \
-        if (!proto)                                                          \
-            return true;                                                     \
-        assertSameCompartment(cx, proxy, proto);                             \
-        return protoCall;                                                    \
-    JS_END_MACRO                                                             \
-
-
 bool
 Proxy::getPropertyDescriptor(JSContext *cx, JSObject *proxy, jsid id, bool set,
                              PropertyDescriptor *desc)
 {
     JS_CHECK_RECURSION(cx, return false);
     AutoPendingProxyOperation pending(cx, proxy);
-    BaseProxyHandler *handler = GetProxyHandler(proxy);
-    if (!handler->hasPrototype())
-        return handler->getPropertyDescriptor(cx, proxy, id, set, desc);
-    if (!handler->getOwnPropertyDescriptor(cx, proxy, id, set, desc))
-        return false;
-    if (desc->obj)
-        return true;
-    INVOKE_ON_PROTOTYPE(cx, handler, proxy,
-                        JS_GetPropertyDescriptorById(cx, proto, id,
-                                                     JSRESOLVE_QUALIFIED, desc));
+    return GetProxyHandler(proxy)->getPropertyDescriptor(cx, proxy, id, set, desc);
 }
 
 bool
@@ -1156,40 +1124,12 @@ Proxy::delete_(JSContext *cx, JSObject *proxy, jsid id, bool *bp)
     return GetProxyHandler(proxy)->delete_(cx, proxy, id, bp);
 }
 
-static bool
-AppendUnique(JSContext *cx, AutoIdVector &base, AutoIdVector &others)
-{
-    AutoIdVector uniqueOthers(cx);
-    if (!uniqueOthers.reserve(others.length()))
-        return false;
-    for (size_t i = 0; i < others.length(); ++i) {
-        bool unique = true;
-        for (size_t j = 0; j < base.length(); ++j) {
-            if (others[i] == base[j]) {
-                unique = false;
-                break;
-            }
-        }
-        if (unique)
-            uniqueOthers.append(others[i]);
-    }
-    return base.append(uniqueOthers);
-}
-
 bool
 Proxy::enumerate(JSContext *cx, JSObject *proxy, AutoIdVector &props)
 {
     JS_CHECK_RECURSION(cx, return false);
     AutoPendingProxyOperation pending(cx, proxy);
-    BaseProxyHandler *handler = GetProxyHandler(proxy);
-    if (!handler->hasPrototype())
-        return GetProxyHandler(proxy)->enumerate(cx, proxy, props);
-    if (!handler->keys(cx, proxy, props))
-        return false;
-    AutoIdVector protoProps(cx);
-    INVOKE_ON_PROTOTYPE(cx, handler, proxy,
-                        GetPropertyNames(cx, proto, 0, &protoProps) &&
-                        AppendUnique(cx, props, protoProps));
+    return GetProxyHandler(proxy)->enumerate(cx, proxy, props);
 }
 
 bool
@@ -1197,17 +1137,7 @@ Proxy::has(JSContext *cx, JSObject *proxy, jsid id, bool *bp)
 {
     JS_CHECK_RECURSION(cx, return false);
     AutoPendingProxyOperation pending(cx, proxy);
-    BaseProxyHandler *handler = GetProxyHandler(proxy);
-    if (!handler->hasPrototype())
-        return handler->has(cx, proxy, id, bp);
-    if (!handler->hasOwn(cx, proxy, id, bp))
-        return false;
-    if (*bp)
-        return true;
-    JSBool Bp;
-    INVOKE_ON_PROTOTYPE(cx, handler, proxy,
-                        JS_HasPropertyById(cx, proto, id, &Bp) &&
-                        ((*bp = Bp) || true));
+    return GetProxyHandler(proxy)->has(cx, proxy, id, bp);
 }
 
 bool
@@ -1219,62 +1149,28 @@ Proxy::hasOwn(JSContext *cx, JSObject *proxy, jsid id, bool *bp)
 }
 
 bool
-Proxy::get(JSContext *cx, HandleObject proxy, HandleObject receiver, HandleId id,
-           MutableHandleValue vp)
+Proxy::get(JSContext *cx, JSObject *proxy, JSObject *receiver, jsid id, Value *vp)
 {
     JS_CHECK_RECURSION(cx, return false);
     AutoPendingProxyOperation pending(cx, proxy);
-    BaseProxyHandler *handler = GetProxyHandler(proxy);
-    bool own = false;
-    if (!handler->hasPrototype() || (handler->hasOwn(cx, proxy, id, &own) && own))
-        return handler->get(cx, proxy, receiver, id, vp.address());
-    INVOKE_ON_PROTOTYPE(cx, handler, proxy, proto->getGeneric(cx, receiver, id, vp));
+    return GetProxyHandler(proxy)->get(cx, proxy, receiver, id, vp);
 }
 
 bool
-Proxy::getElementIfPresent(JSContext *cx, HandleObject proxy, HandleObject receiver, uint32_t index,
-                           MutableHandleValue vp, bool *present)
+Proxy::getElementIfPresent(JSContext *cx, JSObject *proxy, JSObject *receiver, uint32_t index,
+                           Value *vp, bool *present)
 {
     JS_CHECK_RECURSION(cx, return false);
     AutoPendingProxyOperation pending(cx, proxy);
-    BaseProxyHandler *handler = GetProxyHandler(proxy);
-    bool hasOwn, status = true;
-    if (!handler->hasPrototype() ||
-        ((status = handler->hasOwn(cx, proxy, INT_TO_JSID(index), &hasOwn)) && hasOwn))
-    {
-        return GetProxyHandler(proxy)->getElementIfPresent(cx, proxy, receiver,
-                                                           index, vp.address(), present);
-    } else if (!status) {
-        return false;
-    }
-    INVOKE_ON_PROTOTYPE(cx, handler, proxy,
-                        proto->getElementIfPresent(cx, receiver, index, vp, present));
+    return GetProxyHandler(proxy)->getElementIfPresent(cx, proxy, receiver, index, vp, present);
 }
 
 bool
-Proxy::set(JSContext *cx, HandleObject proxy, HandleObject receiver, HandleId id, bool strict,
-           MutableHandleValue vp)
+Proxy::set(JSContext *cx, JSObject *proxy, JSObject *receiver, jsid id, bool strict, Value *vp)
 {
     JS_CHECK_RECURSION(cx, return false);
     AutoPendingProxyOperation pending(cx, proxy);
-    BaseProxyHandler *handler = GetProxyHandler(proxy);
-    JSObject *proto;
-    if (handler->hasPrototype()) {
-        // If we're using a prototype, we still want to use the proxy trap unless
-        // we have a non-own property with a setter.
-        bool hasOwn;
-        AutoPropertyDescriptorRooter desc(cx);
-        if (handler->hasOwn(cx, proxy, id, &hasOwn) && !hasOwn &&
-            handler->getPrototypeOf(cx, proxy, &proto) && proto &&
-            JS_GetPropertyDescriptorById(cx, proto, id, JSRESOLVE_QUALIFIED, &desc) &&
-            desc.obj && desc.setter)
-        {
-            return proto->setGeneric(cx, receiver, id, vp, strict);
-        } else if (cx->isExceptionPending()) {
-            return false;
-        }
-    }
-    return handler->set(cx, proxy, receiver, id, strict, vp.address());
+    return GetProxyHandler(proxy)->set(cx, proxy, receiver, id, strict, vp);
 }
 
 bool
@@ -1286,21 +1182,11 @@ Proxy::keys(JSContext *cx, JSObject *proxy, AutoIdVector &props)
 }
 
 bool
-Proxy::iterate(JSContext *cx, HandleObject proxy, unsigned flags, MutableHandleValue vp)
+Proxy::iterate(JSContext *cx, JSObject *proxy, unsigned flags, Value *vp)
 {
     JS_CHECK_RECURSION(cx, return false);
     AutoPendingProxyOperation pending(cx, proxy);
-    BaseProxyHandler *handler = GetProxyHandler(proxy);
-    if (!handler->hasPrototype())
-        return GetProxyHandler(proxy)->iterate(cx, proxy, flags, vp.address());
-    AutoIdVector props(cx);
-    // The other Proxy::foo methods do the prototype-aware work for us here.
-    if ((flags & JSITER_OWNONLY)
-        ? !Proxy::keys(cx, proxy, props)
-        : !Proxy::enumerate(cx, proxy, props)) {
-        return false;
-    }
-    return EnumeratedIdVectorToIterator(cx, proxy, flags, props, vp);
+    return GetProxyHandler(proxy)->iterate(cx, proxy, flags, vp);
 }
 
 bool
@@ -1486,7 +1372,7 @@ static JSBool
 proxy_GetGeneric(JSContext *cx, HandleObject obj, HandleObject receiver, HandleId id,
                  MutableHandleValue vp)
 {
-    return Proxy::get(cx, obj, receiver, id, vp);
+    return Proxy::get(cx, obj, receiver, id, vp.address());
 }
 
 static JSBool
@@ -1511,7 +1397,7 @@ static JSBool
 proxy_GetElementIfPresent(JSContext *cx, HandleObject obj, HandleObject receiver, uint32_t index,
                           MutableHandleValue vp, bool *present)
 {
-    return Proxy::getElementIfPresent(cx, obj, receiver, index, vp, present);
+    return Proxy::getElementIfPresent(cx, obj, receiver, index, vp.address(), present);
 }
 
 static JSBool
@@ -1526,7 +1412,7 @@ static JSBool
 proxy_SetGeneric(JSContext *cx, HandleObject obj, HandleId id,
                  MutableHandleValue vp, JSBool strict)
 {
-    return Proxy::set(cx, obj, obj, id, strict, vp);
+    return Proxy::set(cx, obj, obj, id, strict, vp.address());
 }
 
 static JSBool
