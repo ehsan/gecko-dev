@@ -35,7 +35,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsIdleServiceX.h"
-#include "nsObjCExceptions.h"
 #include "nsIServiceManager.h"
 #import <Foundation/Foundation.h>
 
@@ -44,8 +43,6 @@ NS_IMPL_ISUPPORTS1(nsIdleServiceX, nsIIdleService)
 NS_IMETHODIMP
 nsIdleServiceX::GetIdleTime(PRUint32 *aTimeDiff)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
-
   kern_return_t rval;
   mach_port_t masterPort;
 
@@ -97,6 +94,4 @@ nsIdleServiceX::GetIdleTime(PRUint32 *aTimeDiff)
   *aTimeDiff = static_cast<PRUint32>(time);
 
   return NS_OK;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }

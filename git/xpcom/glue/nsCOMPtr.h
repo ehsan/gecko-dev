@@ -67,7 +67,7 @@
 
 #ifndef nscore_h___
 #include "nscore.h"
-  // for |NS_COM_GLUE|
+  // for |NS_..._CAST|, |NS_COM_GLUE|
 #endif
 
 
@@ -184,10 +184,7 @@
 
 
 template <class T>
-class
-  NS_FINAL_CLASS
-  NS_STACK_CLASS
-nsDerivedSafe : public T
+class nsDerivedSafe : public T
     /*
       No client should ever see or have to type the name of this class.  It is the
       artifact that makes it a compile-time error to call |AddRef| and |Release|
@@ -344,11 +341,7 @@ class nsCOMPtr_helper
   warrant the specialcasing.
 */
 
-class
-  NS_COM_GLUE
-  NS_STACK_CLASS
-  NS_FINAL_CLASS
-nsQueryInterface
+class NS_COM_GLUE nsQueryInterface
   {
     public:
       explicit
@@ -400,7 +393,7 @@ inline
 void
 do_QueryInterface( already_AddRefed<T>& )
   {
-    // This signature exists solely to _stop_ you from doing the bad thing.
+    // This signature exists soley to _stop_ you from doing the bad thing.
     //  Saying |do_QueryInterface()| on a pointer that is not otherwise owned by
     //  someone else is an automatic leak.  See <http://bugzilla.mozilla.org/show_bug.cgi?id=8221>.
   }
@@ -410,7 +403,7 @@ inline
 void
 do_QueryInterface( already_AddRefed<T>&, nsresult* )
   {
-    // This signature exists solely to _stop_ you from doing the bad thing.
+    // This signature exists soley to _stop_ you from doing the bad thing.
     //  Saying |do_QueryInterface()| on a pointer that is not otherwise owned by
     //  someone else is an automatic leak.  See <http://bugzilla.mozilla.org/show_bug.cgi?id=8221>.
   }
@@ -482,8 +475,7 @@ class NS_COM_GLUE nsGetServiceByContractIDWithError
     nsresult*                   mErrorPtr;
 };
 
-class
-nsCOMPtr_base
+class nsCOMPtr_base
     /*
       ...factors implementation for all template versions of |nsCOMPtr|.
 
@@ -543,9 +535,7 @@ nsCOMPtr_base
 // template <class T> class nsGetterAddRefs;
 
 template <class T>
-class
-  NS_FINAL_CLASS
-nsCOMPtr
+class nsCOMPtr
 #ifdef NSCAP_FEATURE_USE_BASE
     : private nsCOMPtr_base
 #endif
@@ -828,27 +818,6 @@ nsCOMPtr
 
 
         // Other pointer operators
-
-      already_AddRefed<T>
-      forget()
-          // return the value of mRawPtr and null out mRawPtr. Useful for
-          // already_AddRefed return values.
-        {
-          T* temp = 0;
-          swap(temp);
-          return temp;
-        }
-
-      void
-      forget( T** rhs )
-          // Set the target of rhs to the value of mRawPtr and null out mRawPtr.
-          // Useful to avoid unnecessary AddRef/Release pairs with "out"
-          // parameters.
-        {
-          NS_ASSERTION(rhs, "Null pointer passed to forget!");
-          *rhs = 0;
-          swap(*rhs);
-        }
 
       T*
       get() const
@@ -1160,16 +1129,6 @@ class nsCOMPtr<nsISupports>
           mRawPtr = temp;
         }
 
-      void
-      forget( nsISupports** rhs )
-          // Set the target of rhs to the value of mRawPtr and null out mRawPtr.
-          // Useful to avoid unnecessary AddRef/Release pairs with "out"
-          // parameters.
-        {
-          NS_ASSERTION(rhs, "Null pointer passed to forget!");
-          *rhs = 0;
-          swap(*rhs);
-        }
 
         // Other pointer operators
 

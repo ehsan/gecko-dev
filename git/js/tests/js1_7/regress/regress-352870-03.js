@@ -53,7 +53,7 @@ function test()
   printBugNumber(BUGNUMBER);
   printStatus (summary);
  
-  expect = /ReferenceError: (k|"k") is not defined/;
+  expect = 'ReferenceError: k is not defined';
   actual = '';
   try
   {
@@ -65,7 +65,7 @@ function test()
   {
     actual = ex + '';
   }
-  reportMatch(expect, actual, summary);
+  reportCompare(expect, actual, summary);
 
   exitFunc ('test');
 }

@@ -83,13 +83,12 @@ nsXBLContentSink::nsXBLContentSink()
   : mState(eXBL_InDocument),
     mSecondaryState(eXBL_None),
     mDocInfo(nsnull),
-    mIsChromeOrResource(PR_FALSE),
     mFoundFirstBinding(PR_FALSE),    
+    mIsChromeOrResource(PR_FALSE),
     mBinding(nsnull),
     mHandler(nsnull),
     mImplementation(nsnull),
     mImplMember(nsnull),
-    mImplField(nsnull),
     mProperty(nsnull),
     mMethod(nsnull),
     mField(nsnull)
@@ -262,18 +261,6 @@ nsXBLContentSink::AddMember(nsXBLProtoImplMember* aMember)
     mImplementation->SetMemberList(aMember); // We're the first member in the chain.
 
   mImplMember = aMember; // Adjust our pointer to point to the new last member in the chain.
-}
-
-void
-nsXBLContentSink::AddField(nsXBLProtoImplField* aField)
-{
-  // Add this field to our chain.
-  if (mImplField)
-    mImplField->SetNext(aField); // Already have a chain. Just append to the end.
-  else
-    mImplementation->SetFieldList(aField); // We're the first member in the chain.
-
-  mImplField = aField; // Adjust our pointer to point to the new last field in the chain.
 }
 
 NS_IMETHODIMP 
@@ -567,12 +554,12 @@ nsXBLContentSink::ConstructBinding()
       return NS_ERROR_OUT_OF_MEMORY;
       
     rv = mBinding->Init(cid, mDocInfo, binding);
-    if (NS_SUCCEEDED(rv) &&
-        NS_SUCCEEDED(mDocInfo->SetPrototypeBinding(cid, mBinding))) {
+    if (NS_SUCCEEDED(rv)) {
       if (!mFoundFirstBinding) {
         mFoundFirstBinding = PR_TRUE;
         mDocInfo->SetFirstPrototypeBinding(mBinding);
       }
+      mDocInfo->SetPrototypeBinding(cid, mBinding);
       binding->UnsetAttr(kNameSpaceID_None, nsGkAtoms::id, PR_FALSE);
     } else {
       delete mBinding;
@@ -676,9 +663,11 @@ nsXBLContentSink::ConstructHandler(const PRUnichar **aAtts, PRUint32 aLineNumber
   newHandler = new nsXBLPrototypeHandler(event, phase, action, command,
                                          keycode, charcode, modifiers, button,
                                          clickcount, group, preventdefault,
-                                         allowuntrusted, mBinding, aLineNumber);
+                                         allowuntrusted, mBinding);
 
   if (newHandler) {
+    newHandler->SetLineNumber(aLineNumber);
+    
     // Add this handler to our chain of handlers.
     if (mHandler) {
       // Already have a chain. Just append to the end.
@@ -714,8 +703,7 @@ nsXBLContentSink::ConstructImplementation(const PRUnichar **aAtts)
 {
   mImplementation = nsnull;
   mImplMember = nsnull;
-  mImplField = nsnull;
-  
+      
   if (!mBinding)
     return;
 
@@ -789,7 +777,7 @@ nsXBLContentSink::ConstructField(const PRUnichar **aAtts, PRUint32 aLineNumber)
     mField = new nsXBLProtoImplField(name, readonly);
     if (mField) {
       mField->SetLineNumber(aLineNumber);
-      AddField(mField);
+      AddMember(mField);
     }
   }
 }

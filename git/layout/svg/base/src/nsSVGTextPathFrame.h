@@ -67,13 +67,9 @@ typedef nsSVGTSpanFrame nsSVGTextPathFrameBase;
 
 class nsSVGTextPathFrame : public nsSVGTextPathFrameBase
 {
-  friend nsIFrame*
-  NS_NewSVGTextPathFrame(nsIPresShell* aPresShell, nsIContent* aContent,
-                         nsIFrame* parentFrame, nsStyleContext* aContext);
-protected:
+public:
   nsSVGTextPathFrame(nsStyleContext* aContext) : nsSVGTextPathFrameBase(aContext) {}
 
-public:
   // nsIFrame:
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
@@ -99,8 +95,6 @@ public:
   already_AddRefed<gfxFlattenedPath> GetFlattenedPath();
   nsIFrame *GetPathFrame();
 
-  gfxFloat GetStartOffset();
-  gfxFloat GetPathScale();
 protected:
 
   NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetX();
@@ -109,10 +103,12 @@ protected:
   NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetDy();
 
 private:
-  already_AddRefed<gfxFlattenedPath> GetFlattenedPath(nsIFrame *path);
 
+  nsCOMPtr<nsIDOMSVGLength> mStartOffset;
   nsCOMPtr<nsIDOMSVGAnimatedString> mHref;
   nsRefPtr<nsSVGPathListener> mPathListener;
+
+  nsCOMPtr<nsIDOMSVGLengthList> mX;
 
   friend class nsSVGPathListener;
 };

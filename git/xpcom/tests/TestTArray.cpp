@@ -80,18 +80,10 @@ static PRBool test_basic_array(ElementType *data,
     return PR_FALSE;
   // ensure sort results in ascending order
   ary.Sort();
-  for (i = ary.Length(); --i; ) {
-    if (ary[i] < ary[i - 1])
-      return PR_FALSE;
-    if (ary[i] == ary[i - 1])
-      ary.RemoveElementAt(i);
-  }
-  for (i = 0; i < ary.Length(); ++i) {
-    if (ary.BinaryIndexOf(ary[i]) != i)
+  for (i = 1; i < ary.Length(); ++i) {
+    if (ary[i] < ary[i-1])
       return PR_FALSE;
   }
-  if (ary.BinaryIndexOf(extra) != -1)
-    return PR_FALSE;
   PRUint32 oldLen = ary.Length();
   ary.RemoveElement(data[dataLen / 2]);
   if (ary.Length() != (oldLen - 1))
@@ -293,18 +285,10 @@ static PRBool test_string_array() {
 
   strArray.Sort();
   const char ksorted[] = "\0 dehllloorw";
-  for (i = NS_ARRAY_LENGTH(kdata); i--; ) {
+  for (i = 0; i < NS_ARRAY_LENGTH(kdata)-1; ++i) {
     if (strArray[i].CharAt(0) != ksorted[i])
       return PR_FALSE;
-    if (i > 0 && strArray[i] == strArray[i - 1])
-      strArray.RemoveElementAt(i);
   }
-  for (i = 0; i < strArray.Length(); ++i) {
-    if (strArray.BinaryIndexOf(strArray[i]) != i)
-      return PR_FALSE;
-  }
-  if (strArray.BinaryIndexOf(EmptyCString()) != -1)
-    return PR_FALSE;
 
   nsCString rawArray[NS_ARRAY_LENGTH(kdata)-1];
   for (i = 0; i < NS_ARRAY_LENGTH(rawArray); ++i)

@@ -39,6 +39,7 @@
 #include "nsCOMPtr.h"
 #include "nsFrame.h"
 #include "nsPresContext.h"
+#include "nsUnitConversion.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
 #include "nsINameSpaceManager.h"
@@ -76,10 +77,7 @@
 
 NS_IMPL_ADDREF_INHERITED(nsMathMLmactionFrame, nsMathMLContainerFrame)
 NS_IMPL_RELEASE_INHERITED(nsMathMLmactionFrame, nsMathMLContainerFrame)
-NS_IMPL_QUERY_INTERFACE_INHERITED2(nsMathMLmactionFrame,
-                                   nsMathMLContainerFrame,
-                                   nsIDOMMouseListener,
-                                   nsIDOMEventListener)
+NS_IMPL_QUERY_INTERFACE_INHERITED1(nsMathMLmactionFrame, nsMathMLContainerFrame, nsIDOMMouseListener)
 
 nsIFrame*
 NS_NewMathMLmactionFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -139,13 +137,11 @@ nsMathMLmactionFrame::Init(nsIContent*      aContent,
         // given us the associated style. But we want to start with our default style.
 
         // So... first, remove the attribute actiontype="restyle#id"
-        // XXXbz this is pretty messed up, since this can change whether we
-        // should have a frame at all.  This really needs a better solution.
         PRBool notify = PR_FALSE; // don't trigger a reflow yet!
         aContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::actiontype_, notify);
 
         // then, re-resolve our style
-        nsStyleContext* parentStyleContext = GetStyleContext()->GetParent();
+        nsStyleContext* parentStyleContext = aParent->GetStyleContext();
         newStyleContext = PresContext()->StyleSet()->
           ResolveStyleFor(aContent, parentStyleContext);
 
@@ -286,13 +282,14 @@ nsMathMLmactionFrame::Reflow(nsPresContext*          aPresContext,
   mBoundingMetrics.Clear();
   nsIFrame* childFrame = GetSelectedFrame();
   if (childFrame) {
-    nsSize availSize(aReflowState.ComputedWidth(), NS_UNCONSTRAINEDSIZE);
+    nsSize availSize(aReflowState.ComputedWidth(),
+                     aReflowState.mComputedHeight);
     nsHTMLReflowState childReflowState(aPresContext, aReflowState,
                                        childFrame, availSize);
     rv = ReflowChild(childFrame, aPresContext, aDesiredSize,
                      childReflowState, aStatus);
-    SaveReflowAndBoundingMetricsFor(childFrame, aDesiredSize,
-                                    aDesiredSize.mBoundingMetrics);
+    childFrame->SetRect(nsRect(0,aDesiredSize.ascent,
+                        aDesiredSize.width,aDesiredSize.height));
     mBoundingMetrics = aDesiredSize.mBoundingMetrics;
   }
   FinalizeReflow(*aReflowState.rendContext, aDesiredSize);
@@ -301,7 +298,7 @@ nsMathMLmactionFrame::Reflow(nsPresContext*          aPresContext,
 }
 
 // Only place the selected child ...
-/* virtual */ nsresult
+NS_IMETHODIMP
 nsMathMLmactionFrame::Place(nsIRenderingContext& aRenderingContext,
                             PRBool               aPlaceOrigin,
                             nsHTMLReflowMetrics& aDesiredSize)

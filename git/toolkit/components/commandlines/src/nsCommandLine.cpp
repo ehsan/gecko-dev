@@ -95,7 +95,6 @@ protected:
 					void *aClosure);
 
   void appendArg(const char* arg);
-  void resolveShortcutURL(nsILocalFile* aFile, nsACString& outURL);
   nsresult EnumerateHandlers(EnumerateHandlersCallback aCallback, void *aClosure);
   nsresult EnumerateValidators(EnumerateValidatorsCallback aCallback, void *aClosure);
 
@@ -385,17 +384,20 @@ nsCommandLine::ResolveFile(const nsAString& aArgument, nsIFile* *aResult)
     // going to fail, and I haven't figured out a way to work around this without
     // the PathCombine() function, which is not available in plain win95/nt4
 
-    nsAutoString fullPath;
-    mWorkingDir->GetPath(fullPath);
+    nsCAutoString fullPath;
+    mWorkingDir->GetNativePath(fullPath);
+
+    nsCAutoString carg;
+    NS_CopyUnicodeToNative(aArgument, carg);
 
     fullPath.Append('\\');
-    fullPath.Append(aArgument);
+    fullPath.Append(carg);
 
-    WCHAR pathBuf[MAX_PATH];
-    if (!_wfullpath(pathBuf, fullPath.get(), MAX_PATH))
+    char pathBuf[MAX_PATH];
+    if (!_fullpath(pathBuf, fullPath.get(), MAX_PATH))
       return NS_ERROR_FAILURE;
 
-    rv = lf->InitWithPath(nsDependentString(pathBuf));
+    rv = lf->InitWithNativePath(nsDependentCString(pathBuf));
     if (NS_FAILED(rv)) return rv;
   }
   NS_ADDREF(*aResult = lf);
@@ -443,26 +445,16 @@ nsCommandLine::ResolveURI(const nsAString& aArgument, nsIURI* *aResult)
   nsCOMPtr<nsIIOService> io = do_GetIOService();
   NS_ENSURE_TRUE(io, NS_ERROR_OUT_OF_MEMORY);
 
-  nsCOMPtr<nsIURI> workingDirURI;
-  if (mWorkingDir) {
-    io->NewFileURI(mWorkingDir, getter_AddRefs(workingDirURI));
-  }
-
   nsCOMPtr<nsILocalFile> lf (do_CreateInstance(NS_LOCAL_FILE_CONTRACTID));
   rv = lf->InitWithPath(aArgument);
   if (NS_SUCCEEDED(rv)) {
     lf->Normalize();
-    nsCAutoString url;
-    // Try to resolve the url for .url files.
-    resolveShortcutURL(lf, url);
-    if (!url.IsEmpty()) {
-      return io->NewURI(url,
-                        nsnull,
-                        workingDirURI,
-                        aResult);
-    }
-
     return io->NewFileURI(lf, aResult);
+  }
+
+  nsCOMPtr<nsIURI> workingDirURI;
+  if (mWorkingDir) {
+    io->NewFileURI(mWorkingDir, getter_AddRefs(workingDirURI));
   }
 
   return io->NewURI(NS_ConvertUTF16toUTF8(aArgument),
@@ -479,29 +471,9 @@ nsCommandLine::appendArg(const char* arg)
 #endif
 
   nsAutoString warg;
-#ifdef XP_WIN
-  CopyUTF8toUTF16(nsDependentCString(arg), warg);
-#else
   NS_CopyNativeToUnicode(nsDependentCString(arg), warg);
-#endif
 
   mArgs.AppendString(warg);
-}
-
-void
-nsCommandLine::resolveShortcutURL(nsILocalFile* aFile, nsACString& outURL)
-{
-  nsCOMPtr<nsIFileProtocolHandler> fph;
-  nsresult rv = NS_GetFileProtocolHandler(getter_AddRefs(fph));
-  if (NS_FAILED(rv))
-    return;
-
-  nsCOMPtr<nsIURI> uri;
-  rv = fph->ReadURLFile(aFile, getter_AddRefs(uri));
-  if (NS_FAILED(rv))
-    return;
-
-  uri->GetSpec(outURL);
 }
 
 NS_IMETHODIMP

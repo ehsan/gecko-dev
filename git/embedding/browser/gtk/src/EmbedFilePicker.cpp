@@ -132,11 +132,12 @@ NS_IMETHODIMP EmbedFilePicker::GetFile(nsILocalFile **aFile)
 {
 
   NS_ENSURE_ARG_POINTER(aFile);
-  *aFile = nsnull;
+
+  if (mFilename.IsEmpty())
+    return NS_OK;
+
   nsCOMPtr<nsIURI> baseURI;
-  nsresult rv = GetFileURL(getter_AddRefs(baseURI));
-  if (!baseURI)
-    return rv;
+  nsresult rv = NS_NewURI(getter_AddRefs(baseURI), mFilename);
 
   nsCOMPtr<nsIFileURL> fileURL(do_QueryInterface(baseURI, &rv));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -161,14 +162,19 @@ NS_IMETHODIMP EmbedFilePicker::GetFile(nsILocalFile **aFile)
 }
 
 /* readonly attribute nsIFileURL fileURL; */
-NS_IMETHODIMP EmbedFilePicker::GetFileURL(nsIURI **aFileURL)
+NS_IMETHODIMP EmbedFilePicker::GetFileURL(nsIFileURL **aFileURL)
 {
   NS_ENSURE_ARG_POINTER(aFileURL);
   *aFileURL = nsnull;
-  if (mFileURI.IsEmpty())
-  return NS_OK;
 
-  return NS_NewURI(aFileURL, mFileURI);
+  nsCOMPtr<nsILocalFile> file;
+  GetFile(getter_AddRefs(file));
+  NS_ENSURE_TRUE(file, NS_ERROR_FAILURE);
+  nsCOMPtr<nsIFileURL> fileURL = do_CreateInstance(NS_STANDARDURL_CONTRACTID);
+  NS_ENSURE_TRUE(fileURL, NS_ERROR_OUT_OF_MEMORY);
+  fileURL->SetFile(file);
+  NS_ADDREF(*aFileURL = fileURL);
+  return NS_OK;
 }
 
 /* readonly attribute nsISimpleEnumerator files; */
@@ -198,7 +204,7 @@ NS_IMETHODIMP EmbedFilePicker::Show(PRInt16 *_retval)
 
   *_retval = response ? nsIFilePicker::returnOK : nsIFilePicker::returnCancel;
 
-  mFileURI = retname;
+  mFilename = retname;
   if (retname)
     NS_Free(retname);
 

@@ -47,14 +47,8 @@ printStatus (summary);
  
 var code;
 
-if (!options().match(/strict/))
-{
-  options('strict');
-}
-if (!options().match(/werror/))
-{
-  options('werror');
-}
+options('strict');
+options('werror');
 
 try
 {

@@ -346,12 +346,10 @@ PRBool imgCache::Remove(nsIURI *aKey)
 NS_IMETHODIMP
 imgCache::Observe(nsISupports* aSubject, const char* aTopic, const PRUnichar* aSomeData)
 {
-  if (strcmp(aTopic, "memory-pressure") == 0) {
-    ClearCache(PR_FALSE);
+  if (strcmp(aTopic, "memory-pressure") == 0 ||
+      strcmp(aTopic, "chrome-flush-skin-caches") == 0 ||
+      strcmp(aTopic, "chrome-flush-caches") == 0)
     ClearCache(PR_TRUE);
-  } else if (strcmp(aTopic, "chrome-flush-skin-caches") == 0 ||
-             strcmp(aTopic, "chrome-flush-caches") == 0) {
-    ClearCache(PR_TRUE);
-  }
+
   return NS_OK;
 }

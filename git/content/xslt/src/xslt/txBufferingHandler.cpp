@@ -179,6 +179,10 @@ txBufferingHandler::txBufferingHandler() : mCanAddAttribute(PR_FALSE)
     mBuffer = new txResultBuffer();
 }
 
+txBufferingHandler::~txBufferingHandler()
+{
+}
+
 nsresult
 txBufferingHandler::attribute(nsIAtom* aPrefix, nsIAtom* aLocalName,
                               nsIAtom* aLowercaseLocalName, PRInt32 aNsID,

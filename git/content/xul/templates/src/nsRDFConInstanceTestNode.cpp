@@ -274,7 +274,7 @@ nsRDFConInstanceTestNode::CanPropagate(nsIRDFResource* aSource,
         = do_GetService("@mozilla.org/rdf/container-utils;1");
 
     if (! rdfc)
-        return PR_FALSE;
+        return NS_ERROR_FAILURE;
 
     // We can certainly propagate ordinal properties
     rv = rdfc->IsOrdinalProperty(aProperty, &canpropagate);

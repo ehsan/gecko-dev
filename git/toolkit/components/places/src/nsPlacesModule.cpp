@@ -5,14 +5,14 @@
 #include "nsNavHistory.h"
 #include "nsNavBookmarks.h"
 #include "nsFaviconService.h"
-#include "nsDocShellCID.h"
+#include "nsMorkHistoryImporter.h"
 
-NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsNavHistory,
-                                         nsNavHistory::GetSingleton)
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsNavHistory, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsAnnoProtocolHandler)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsAnnotationService, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsNavBookmarks, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsFaviconService, Init)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsMorkHistoryImporter)
 
 static const nsModuleComponentInfo components[] =
 {
@@ -29,11 +29,6 @@ static const nsModuleComponentInfo components[] =
   { "Browser Navigation History",
     NS_NAVHISTORYSERVICE_CID,
     "@mozilla.org/autocomplete/search;1?name=history",
-    nsNavHistoryConstructor },
-
-  { "Download Navigation History",
-    NS_NAVHISTORYSERVICE_CID,
-    NS_DOWNLOADHISTORY_CONTRACTID,
     nsNavHistoryConstructor },
 
   { "Page Annotation Service",
@@ -56,10 +51,10 @@ static const nsModuleComponentInfo components[] =
     NS_FAVICONSERVICE_CONTRACTID,
     nsFaviconServiceConstructor },
 
-  { "Browser History Charset Resolver",
-    NS_NAVHISTORYSERVICE_CID,
-    "@mozilla.org/embeddor.implemented/bookmark-charset-resolver;1",
-    nsNavHistoryConstructor },
+  { "Mork History Importer",
+    NS_MORKHISTORYIMPORTER_CID,
+    NS_MORKHISTORYIMPORTER_CONTRACTID,
+    nsMorkHistoryImporterConstructor },
 
 };
 

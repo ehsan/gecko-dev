@@ -79,6 +79,8 @@ public:
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
     // nsIScriptGlobalObject methods
+    virtual void SetGlobalObjectOwner(nsIScriptGlobalObjectOwner* aOwner);
+    virtual nsIScriptGlobalObjectOwner *GetGlobalObjectOwner();
     virtual void OnFinalize(PRUint32 aLangID, void *aGlobal);
     virtual void SetScriptsEnabled(PRBool aEnabled, PRBool aFireTimeouts);
     virtual nsresult SetNewArguments(nsIArray *aArguments);
@@ -95,8 +97,6 @@ public:
     NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsXULPDGlobalObject,
                                              nsIScriptGlobalObject)
 
-    void ClearGlobalObjectOwner();
-
 protected:
     virtual ~nsXULPDGlobalObject();
 
@@ -105,13 +105,11 @@ protected:
     nsCOMPtr<nsIScriptContext>  mScriptContexts[NS_STID_ARRAY_UBOUND];
     void *                      mScriptGlobals[NS_STID_ARRAY_UBOUND];
 
-    nsCOMPtr<nsIPrincipal> mCachedPrincipal;
-
     static JSClass gSharedGlobalClass;
 };
 
 nsIPrincipal* nsXULPrototypeDocument::gSystemPrincipal;
-nsXULPDGlobalObject* nsXULPrototypeDocument::gSystemGlobal;
+nsIScriptGlobalObject* nsXULPrototypeDocument::gSystemGlobal;
 PRUint32 nsXULPrototypeDocument::gRefCnt;
 
 
@@ -157,6 +155,7 @@ JSClass nsXULPDGlobalObject::gSharedGlobalClass = {
 
 nsXULPrototypeDocument::nsXULPrototypeDocument()
     : mRoot(nsnull),
+      mGlobalObject(nsnull),
       mLoaded(PR_FALSE)
 {
     ++gRefCnt;
@@ -176,7 +175,7 @@ nsXULPrototypeDocument::~nsXULPrototypeDocument()
 {
     if (mGlobalObject) {
         // cleaup cycles etc.
-        mGlobalObject->ClearGlobalObjectOwner();
+        mGlobalObject->SetGlobalObjectOwner(nsnull);
     }
 
     PRUint32 count = mProcessingInstructions.Length();
@@ -199,15 +198,13 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsXULPrototypeDocument)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULPrototypeDocument)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mRoot,
                                                     nsXULPrototypeElement)
-    cb.NoteXPCOMChild(static_cast<nsIScriptGlobalObject*>(tmp->mGlobalObject));
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mNodeInfoManager,
-                                                    nsNodeInfoManager)
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mGlobalObject)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsXULPrototypeDocument)
-    NS_INTERFACE_MAP_ENTRY(nsIScriptGlobalObjectOwner)
-    NS_INTERFACE_MAP_ENTRY(nsISerializable)
-    NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIScriptGlobalObjectOwner)
+  NS_INTERFACE_MAP_ENTRY(nsIScriptGlobalObjectOwner)
+  NS_INTERFACE_MAP_ENTRY(nsISerializable)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIScriptGlobalObjectOwner)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsXULPrototypeDocument,
@@ -240,27 +237,29 @@ NS_NewXULPrototypeDocument(nsXULPrototypeDocument** aResult)
 // This method greatly reduces the number of nsXULPDGlobalObjects and their
 // nsIScriptContexts in apps that load many XUL documents via chrome: URLs.
 
-nsXULPDGlobalObject *
-nsXULPrototypeDocument::NewXULPDGlobalObject()
+nsresult
+nsXULPrototypeDocument::NewXULPDGlobalObject(nsIScriptGlobalObject** aResult)
 {
     // Now compare DocumentPrincipal() to gSystemPrincipal, in order to create
     // gSystemGlobal if the two pointers are equal.  Thus, gSystemGlobal
     // implies gSystemPrincipal.
-    nsXULPDGlobalObject *global;
+    nsCOMPtr<nsIScriptGlobalObject> global;
     if (DocumentPrincipal() == gSystemPrincipal) {
         if (!gSystemGlobal) {
             gSystemGlobal = new nsXULPDGlobalObject(nsnull);
             if (! gSystemGlobal)
-                return nsnull;
+                return NS_ERROR_OUT_OF_MEMORY;
             NS_ADDREF(gSystemGlobal);
         }
         global = gSystemGlobal;
     } else {
         global = new nsXULPDGlobalObject(this); // does not refcount
         if (! global)
-            return nsnull;
+            return NS_ERROR_OUT_OF_MEMORY;
     }
-    return global;
+    *aResult = global;
+    NS_ADDREF(*aResult);
+    return NS_OK;
 }
 
 //----------------------------------------------------------------------
@@ -293,9 +292,8 @@ nsXULPrototypeDocument::Read(nsIObjectInputStream* aStream)
     // Better safe than sorry....
     mNodeInfoManager->SetDocumentPrincipal(principal);
 
-
     // nsIScriptGlobalObject mGlobalObject
-    mGlobalObject = NewXULPDGlobalObject();
+    NewXULPDGlobalObject(getter_AddRefs(mGlobalObject));
     if (! mGlobalObject)
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -605,7 +603,7 @@ nsIScriptGlobalObject*
 nsXULPrototypeDocument::GetScriptGlobalObject()
 {
     if (!mGlobalObject)
-        mGlobalObject = NewXULPDGlobalObject();
+        NewXULPDGlobalObject(getter_AddRefs(mGlobalObject));
 
     return mGlobalObject;
 }
@@ -761,23 +759,25 @@ nsXULPDGlobalObject::GetScriptGlobal(PRUint32 lang_id)
 
 
 void
-nsXULPDGlobalObject::ClearGlobalObjectOwner()
+nsXULPDGlobalObject::SetGlobalObjectOwner(nsIScriptGlobalObjectOwner* aOwner)
 {
-    NS_ASSERTION(!mCachedPrincipal, "This shouldn't ever be set until now!");
-
-    // Cache mGlobalObjectOwner's principal if possible.
-    if (this != nsXULPrototypeDocument::gSystemGlobal)
-        mCachedPrincipal = mGlobalObjectOwner->DocumentPrincipal();
-
+  if (!aOwner) {
     PRUint32 lang_ndx;
     NS_STID_FOR_INDEX(lang_ndx) {
-        if (mScriptContexts[lang_ndx]) {
-            mScriptContexts[lang_ndx]->FinalizeContext();
-            mScriptContexts[lang_ndx] = nsnull;
-        }
+      if (mScriptContexts[lang_ndx]) {
+          mScriptContexts[lang_ndx]->FinalizeContext();
+          mScriptContexts[lang_ndx] = nsnull;
+      }
     }
+  } else {
+    NS_NOTREACHED("You can only set an owner when constructing the object.");
+  }
+}
 
-    mGlobalObjectOwner = nsnull;
+nsIScriptGlobalObjectOwner *
+nsXULPDGlobalObject::GetGlobalObjectOwner()
+{
+    return mGlobalObjectOwner;
 }
 
 
@@ -817,9 +817,9 @@ nsXULPDGlobalObject::GetPrincipal()
         if (this == nsXULPrototypeDocument::gSystemGlobal) {
             return nsXULPrototypeDocument::gSystemPrincipal;
         }
-        // Return the cached principal if it exists.
-        return mCachedPrincipal;
+        return nsnull;
     }
 
     return mGlobalObjectOwner->DocumentPrincipal();
 }
+

@@ -474,7 +474,6 @@ CHelperAppLauncherDlg::PromptForSaveToFile(nsIHelperAppLauncher *aLauncher,
                                            nsISupports *aWindowContext, 
                                            const PRUnichar *aDefaultFile, 
                                            const PRUnichar *aSuggestedFileExtension, 
-                                           PRBool aForcePrompt, 
                                            nsILocalFile **_retval)
 {
     NS_ENSURE_ARG_POINTER(_retval);

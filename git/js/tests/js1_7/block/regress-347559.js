@@ -58,14 +58,8 @@ function test()
   actual = 'No Warning';
   expect = 'No Warning';
 
-  if (!options().match(/strict/))
-  {
-    options('strict');
-  }
-  if (!options().match(/werror/))
-  {
-    options('werror');
-  }
+  options('strict');
+  options('werror');
 
   try
   {

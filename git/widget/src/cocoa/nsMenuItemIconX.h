@@ -54,7 +54,6 @@ class imgIRequest;
 class nsIMenu;
 
 #import <Carbon/Carbon.h>
-#import <Cocoa/Cocoa.h>
 
 
 class nsMenuItemIconX : public imgIDecoderObserver
@@ -62,8 +61,7 @@ class nsMenuItemIconX : public imgIDecoderObserver
 public:
   nsMenuItemIconX(nsISupports* aMenuItem,
                  nsIMenu*     aMenu,
-                 nsIContent*  aContent,
-                 NSMenuItem* aNativeMenuItem);
+                 nsIContent*  aContent);
 private:
   ~nsMenuItemIconX();
 
@@ -83,6 +81,10 @@ public:
   // icon.  The request may not complete until after LoadIcon returns.
   nsresult LoadIcon(nsIURI* aIconURI);
 
+  // ShouldLoadSync returns PR_TRUE if the LoadIcon should load the icon
+  // synchronously.
+  PRBool ShouldLoadSync(nsIURI* aURI);
+
 protected:
   nsCOMPtr<nsIContent>  mContent;
   nsCOMPtr<imgIRequest> mIconRequest;
@@ -92,7 +94,6 @@ protected:
   PRUint16              mMenuItemIndex;
   PRPackedBool          mLoadedIcon;
   PRPackedBool          mSetIcon;
-  NSMenuItem*           mNativeMenuItem;
 };
 
 #endif // nsMenuItemIconX_h_

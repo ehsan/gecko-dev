@@ -62,7 +62,6 @@
 #include "nsIProgrammingLanguage.h"
 #include "nsIXPConnect.h"
 #include "nsXTFWeakTearoff.h"
-#include "mozAutoDocUpdate.h"
 
 nsXTFElementWrapper::nsXTFElementWrapper(nsINodeInfo* aNodeInfo,
                                          nsIXTFElement* aXTFElement)
@@ -105,15 +104,8 @@ nsXTFElementWrapper::Init()
 //----------------------------------------------------------------------
 // nsISupports implementation
 
-NS_IMPL_ADDREF_INHERITED(nsXTFElementWrapper, nsXTFElementWrapperBase)
-NS_IMPL_RELEASE_INHERITED(nsXTFElementWrapper, nsXTFElementWrapperBase)
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsXTFElementWrapper)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXTFElementWrapper,
-                                                  nsXTFElementWrapperBase)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mXTFElement)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mAttributeHandler)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+NS_IMPL_ADDREF_INHERITED(nsXTFElementWrapper,nsXTFElementWrapperBase)
+NS_IMPL_RELEASE_INHERITED(nsXTFElementWrapper,nsXTFElementWrapperBase)
 
 NS_IMETHODIMP
 nsXTFElementWrapper::QueryInterface(REFNSIID aIID, void** aInstancePtr)
@@ -535,41 +527,15 @@ nsXTFElementWrapper::GetExistingAttrNameFromQName(const nsAString& aStr) const
 PRInt32
 nsXTFElementWrapper::IntrinsicState() const
 {
-  PRInt32 retState = nsXTFElementWrapperBase::IntrinsicState();
-  if (mIntrinsicState & NS_EVENT_STATE_MOZ_READONLY) {
-    retState &= ~NS_EVENT_STATE_MOZ_READWRITE;
-  } else if (mIntrinsicState & NS_EVENT_STATE_MOZ_READWRITE) {
-    retState &= ~NS_EVENT_STATE_MOZ_READONLY;
-  }
-
-  return  retState | mIntrinsicState;
+  return nsXTFElementWrapperBase::IntrinsicState() | mIntrinsicState;
 }
 
 void
 nsXTFElementWrapper::PerformAccesskey(PRBool aKeyCausesActivation,
                                       PRBool aIsTrustedEvent)
 {
-  if (mNotificationMask & nsIXTFElement::NOTIFY_PERFORM_ACCESSKEY) {
-    nsIDocument* doc = GetCurrentDoc();
-    if (!doc)
-      return;
-
-    // Get presentation shell 0
-    nsIPresShell *presShell = doc->GetPrimaryShell();
-    if (!presShell)
-      return;
-
-    nsPresContext *presContext = presShell->GetPresContext();
-    if (!presContext)
-      return;
-
-    nsIEventStateManager *esm = presContext->EventStateManager();
-    if (esm)
-      esm->ChangeFocusWith(this, nsIEventStateManager::eEventFocusedByKey);
-
-    if (aKeyCausesActivation)
-      GetXTFElement()->PerformAccesskey();
-  }
+  if (mNotificationMask & nsIXTFElement::NOTIFY_PERFORM_ACCESSKEY)
+    GetXTFElement()->PerformAccesskey();
 }
 
 nsresult
@@ -912,10 +878,6 @@ nsXTFElementWrapper::SetIntrinsicState(PRInt32 aNewState)
   
   if (!doc || !bits)
     return NS_OK;
-
-  NS_WARN_IF_FALSE(!((aNewState & NS_EVENT_STATE_MOZ_READONLY) &&
-                   (aNewState & NS_EVENT_STATE_MOZ_READWRITE)),
-                   "Both READONLY and READWRITE are being set.  Yikes!!!");
 
   mIntrinsicState = aNewState;
   mozAutoDocUpdate upd(doc, UPDATE_CONTENT_STATE, PR_TRUE);

@@ -53,7 +53,7 @@ function test()
   printBugNumber(BUGNUMBER);
   printStatus (summary);
  
-  expect = /TypeError: \[1, 2, 3, 4\].g (has no properties|is undefined)/;
+  expect = 'TypeError: [1, 2, 3, 4].g has no properties';
   actual = '';
   try
   {
@@ -63,7 +63,7 @@ function test()
   {
     actual = ex + '';
   }
-  reportMatch(expect, actual, summary);
+  reportCompare(expect, actual, summary);
 
   exitFunc ('test');
 }

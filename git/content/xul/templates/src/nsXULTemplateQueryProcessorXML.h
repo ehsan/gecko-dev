@@ -19,7 +19,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *    Laurent Jouanneau <laurent.jouanneau@disruptive-innovations.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -38,7 +37,6 @@
 #ifndef nsXULTemplateQueryProcessorXML_h__
 #define nsXULTemplateQueryProcessorXML_h__
 
-#include "nsIXULTemplateBuilder.h"
 #include "nsIXULTemplateQueryProcessor.h"
 
 #include "nsISimpleEnumerator.h"
@@ -46,13 +44,10 @@
 #include "nsCOMArray.h"
 #include "nsRefPtrHashtable.h"
 #include "nsIDOMElement.h"
-#include "nsIDOMEventListener.h"
 #include "nsIDOMXPathExpression.h"
 #include "nsIDOMXPathEvaluator.h"
 #include "nsIDOMXPathResult.h"
 #include "nsXMLBinding.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsIXMLHttpRequest.h"
 
 class nsXULTemplateQueryProcessorXML;
 
@@ -145,8 +140,7 @@ public:
     {}
 };
 
-class nsXULTemplateQueryProcessorXML : public nsIXULTemplateQueryProcessor,
-                                       public nsIDOMEventListener
+class nsXULTemplateQueryProcessorXML : public nsIXULTemplateQueryProcessor
 {
 public:
 
@@ -155,15 +149,10 @@ public:
     {}
 
     // nsISupports interface
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-    NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsXULTemplateQueryProcessorXML,
-                                             nsIXULTemplateQueryProcessor)
+    NS_DECL_ISUPPORTS
 
     // nsIXULTemplateQueryProcessor interface
     NS_DECL_NSIXULTEMPLATEQUERYPROCESSOR
-
-    // nsIDOMEventListener interface
-    NS_DECL_NSIDOMEVENTLISTENER
 
     nsXMLBindingSet*
     GetOptionalBindingsForRule(nsIDOMNode* aRuleNode);
@@ -184,10 +173,6 @@ private:
     nsCOMPtr<nsIDOMElement> mRoot;
 
     nsCOMPtr<nsIDOMXPathEvaluator> mEvaluator;
-
-    nsCOMPtr<nsIXULTemplateBuilder> mTemplateBuilder;
-
-    nsCOMPtr<nsIXMLHttpRequest> mRequest;
 };
 
 

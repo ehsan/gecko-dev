@@ -42,10 +42,8 @@
 
 #include "nsDOMAttributeMap.h"
 #include "nsDOMAttribute.h"
-#include "nsIDOM3Document.h"
 #include "nsGenericElement.h"
 #include "nsIContent.h"
-#include "nsIDocument.h"
 #include "nsINameSpaceManager.h"
 #include "nsDOMError.h"
 #include "nsContentUtils.h"
@@ -273,15 +271,7 @@ nsDOMAttributeMap::SetNamedItemInternal(nsIDOMNode *aNode,
     }
 
     if (!mContent->HasSameOwnerDoc(iAttribute)) {
-      nsCOMPtr<nsIDOM3Document> domDoc =
-        do_QueryInterface(mContent->GetOwnerDoc(), &rv);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      nsCOMPtr<nsIDOMNode> adoptedNode;
-      rv = domDoc->AdoptNode(aNode, getter_AddRefs(adoptedNode));
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      NS_ASSERTION(adoptedNode == aNode, "Uh, adopt node changed nodes?");
+      return NS_ERROR_DOM_WRONG_DOCUMENT_ERR;
     }
 
     // Get nodeinfo and preexisting attribute (if it exists)
@@ -481,7 +471,7 @@ nsDOMAttributeMap::RemoveNamedItemNS(const nsAString& aNamespaceURI,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!*aReturn) {
-    return NS_ERROR_DOM_NOT_FOUND_ERR;
+    return NS_OK;
   }
 
   nsCOMPtr<nsIAttribute> attr = do_QueryInterface(*aReturn);

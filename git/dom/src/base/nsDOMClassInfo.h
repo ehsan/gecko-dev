@@ -169,7 +169,7 @@ public:
 #endif
 
     return sXPCNativeWrapperClass &&
-      ::JS_GET_CLASS(cx, obj) == sXPCNativeWrapperClass;
+      ::JS_GetClass(cx, obj) == sXPCNativeWrapperClass;
   }
 
   static nsresult PreserveNodeWrapper(nsIXPConnectWrappedNative *aWrapper);
@@ -226,6 +226,10 @@ protected:
             id == sStatus_id       ||
             id == sName_id);
   }
+
+  nsresult doCheckPropertyAccess(JSContext *cx, JSObject *obj, jsval id,
+                                 nsIXPConnectWrappedNative *wrapper,
+                                 PRUint32 accessMode, PRBool isWindow);
 
   static JSClass sDOMConstructorProtoClass;
   static JSFunctionSpec sDOMJSClass_methods[];
@@ -312,19 +316,6 @@ protected:
   static jsval sBaseURIObject_id;
   static jsval sNodePrincipal_id;
   static jsval sDocumentURIObject_id;
-  static jsval sOncopy_id;
-  static jsval sOncut_id;
-  static jsval sOnpaste_id;
-#ifdef OJI
-  static jsval sJava_id;
-  static jsval sPackages_id;
-  static jsval sNetscape_id;
-  static jsval sSun_id;
-  static jsval sJavaObject_id;
-  static jsval sJavaClass_id;
-  static jsval sJavaArray_id;
-  static jsval sJavaMember_id;
-#endif
 
   static const JSClass *sObjectClass;
   static const JSClass *sXPCNativeWrapperClass;
@@ -570,8 +561,6 @@ protected:
 public:
   NS_IMETHOD PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                         JSObject *obj);
-  NS_IMETHOD Enumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                       JSObject *obj, PRBool *_retval);
 
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
@@ -795,8 +784,6 @@ public:
   NS_IMETHOD GetFlags(PRUint32* aFlags);
   NS_IMETHOD PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                         JSObject *obj);
-  NS_IMETHOD Finalize(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                      JSObject *obj);
 
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
@@ -933,6 +920,39 @@ public:
 };
 
 
+// HTML[I]FrameElement helper
+
+class nsHTMLFrameElementSH : public nsHTMLElementSH
+{
+protected:
+  nsHTMLFrameElementSH(nsDOMClassInfoData* aData) : nsHTMLElementSH(aData)
+  {
+  }
+
+  virtual ~nsHTMLFrameElementSH()
+  {
+  }
+
+public:
+  NS_IMETHOD GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                         JSObject *obj, jsval id, jsval *vp, PRBool *_retval);
+  NS_IMETHOD SetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                         JSObject *obj, jsval id, jsval *vp, PRBool *_retval);
+  NS_IMETHOD AddProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                         JSObject *obj, jsval id, jsval *vp, PRBool *_retval);
+  NS_IMETHOD DelProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                         JSObject *obj, jsval id, jsval *vp, PRBool *_retval);
+  NS_IMETHOD NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                        JSObject *obj, jsval id, PRUint32 flags,
+                        JSObject **objp, PRBool *_retval);
+
+  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
+  {
+    return new nsHTMLFrameElementSH(aData);
+  }
+};
+
+
 // HTMLSelectElement helper
 
 class nsHTMLSelectElementSH : public nsHTMLElementSH
@@ -963,37 +983,29 @@ public:
 };
 
 
-// HTMLEmbed/Object/AppletElement helper
+// Base helper for external HTML object (such as a plugin or an
+// applet)
 
-class nsHTMLPluginObjElementSH : public nsHTMLElementSH
+class nsHTMLExternalObjSH : public nsHTMLElementSH
 {
 protected:
-  nsHTMLPluginObjElementSH(nsDOMClassInfoData* aData)
-    : nsHTMLElementSH(aData)
+  nsHTMLExternalObjSH(nsDOMClassInfoData* aData) : nsHTMLElementSH(aData)
   {
   }
 
-  virtual ~nsHTMLPluginObjElementSH()
+  virtual ~nsHTMLExternalObjSH()
   {
   }
 
-  static nsresult GetPluginInstanceIfSafe(nsIXPConnectWrappedNative *aWrapper,
-                                          nsIPluginInstance **aResult);
+  nsresult GetPluginInstance(nsIXPConnectWrappedNative *aWrapper,
+                             nsIPluginInstance **aResult);
 
-  static nsresult GetPluginJSObject(JSContext *cx, JSObject *obj,
-                                    nsIPluginInstance *plugin_inst,
-                                    JSObject **plugin_obj,
-                                    JSObject **plugin_proto);
-
-  static nsresult GetJavaPluginJSObject(JSContext *cx, JSObject *obj,
-                                        nsIPluginInstance *plugin_inst,
-                                        JSObject **plugin_obj,
-                                        JSObject **plugin_proto);
+  virtual nsresult GetPluginJSObject(JSContext *cx, JSObject *obj,
+                                     nsIPluginInstance *plugin_inst,
+                                     JSObject **plugin_obj,
+                                     JSObject **plugin_proto) = 0;
 
 public:
-  NS_IMETHOD NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                        JSObject *obj, jsval id, PRUint32 flags,
-                        JSObject **objp, PRBool *_retval);
   NS_IMETHOD PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                         JSObject *obj);
   NS_IMETHOD GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
@@ -1003,10 +1015,58 @@ public:
   NS_IMETHOD Call(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                   JSObject *obj, PRUint32 argc, jsval *argv, jsval *vp,
                   PRBool *_retval);
+};
 
 
-  static nsresult SetupProtoChain(nsIXPConnectWrappedNative *wrapper,
-                                  JSContext *cx, JSObject *obj);
+// HTMLAppletElement helper
+
+class nsHTMLAppletElementSH : public nsHTMLExternalObjSH
+{
+protected:
+  nsHTMLAppletElementSH(nsDOMClassInfoData* aData) : nsHTMLExternalObjSH(aData)
+  {
+  }
+
+  virtual ~nsHTMLAppletElementSH()
+  {
+  }
+
+  virtual nsresult GetPluginJSObject(JSContext *cx, JSObject *obj,
+                                     nsIPluginInstance *plugin_inst,
+                                     JSObject **plugin_obj,
+                                     JSObject **plugin_proto);
+
+public:
+  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
+  {
+    return new nsHTMLAppletElementSH(aData);
+  }
+};
+
+
+// HTMLEmbed/ObjectElement helper
+
+class nsHTMLPluginObjElementSH : public nsHTMLAppletElementSH
+{
+protected:
+  nsHTMLPluginObjElementSH(nsDOMClassInfoData* aData)
+    : nsHTMLAppletElementSH(aData)
+  {
+  }
+
+  virtual ~nsHTMLPluginObjElementSH()
+  {
+  }
+
+  virtual nsresult GetPluginJSObject(JSContext *cx, JSObject *obj,
+                                     nsIPluginInstance *plugin_inst,
+                                     JSObject **plugin_obj,
+                                     JSObject **plugin_proto);
+
+public:
+  NS_IMETHOD NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                        JSObject *obj, jsval id, PRUint32 flags,
+                        JSObject **objp, PRBool *_retval);
 
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
@@ -1335,16 +1395,16 @@ public:
   }
 };
 
-// ClientRectList helper
+// TextRectangleList helper
 
-class nsClientRectListSH : public nsArraySH
+class nsTextRectangleListSH : public nsArraySH
 {
 protected:
-  nsClientRectListSH(nsDOMClassInfoData* aData) : nsArraySH(aData)
+  nsTextRectangleListSH(nsDOMClassInfoData* aData) : nsArraySH(aData)
   {
   }
 
-  virtual ~nsClientRectListSH()
+  virtual ~nsTextRectangleListSH()
   {
   }
 
@@ -1356,7 +1416,7 @@ protected:
 public:
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
-    return new nsClientRectListSH(aData);
+    return new nsTextRectangleListSH(aData);
   }
 };
 
@@ -1584,25 +1644,8 @@ public:
   }
 };
 
-class nsFileListSH : public nsArraySH
-{
-protected:
-  nsFileListSH(nsDOMClassInfoData *aData) : nsArraySH(aData)
-  {
-  }
 
-  virtual ~nsFileListSH()
-  {
-  }
+void InvalidateContextAndWrapperCache();
 
-  virtual nsresult GetItemAt(nsISupports *aNative, PRUint32 aIndex,
-                             nsISupports **aResult);
-
-public:
-  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
-  {
-    return new nsFileListSH(aData);
-  }
-};
 
 #endif /* nsDOMClassInfo_h___ */

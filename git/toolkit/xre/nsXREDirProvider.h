@@ -43,9 +43,6 @@
 #include "nsIProfileMigrator.h"
 #include "nsILocalFile.h"
 
-#include "nsCOMPtr.h"
-#include "nsCOMArray.h"
-
 class nsXREDirProvider : public nsIDirectoryServiceProvider2,
                          public nsIProfileStartup
 {
@@ -86,7 +83,7 @@ public:
 
   /* make sure you clone it, if you need to do stuff to it */
   nsIFile* GetGREDir() { return mGREDir; }
-  nsIFile* GetAppDir() {
+  nsIFile* GetAppDir() { 
     if (mXULAppDir)
       return mXULAppDir;
     return mGREDir;
@@ -116,41 +113,15 @@ public:
 protected:
   nsresult GetFilesInternal(const char* aProperty, nsISimpleEnumerator** aResult);
   static nsresult GetUserDataDirectory(nsILocalFile* *aFile, PRBool aLocal);
-  static nsresult GetUserDataDirectoryHome(nsILocalFile* *aFile, PRBool aLocal);
-  static nsresult GetSysUserExtensionsDirectory(nsILocalFile* *aFile);
-#if defined(XP_UNIX) || defined(XP_MACOSX)
-  static nsresult GetSystemExtensionsDirectory(nsILocalFile** aFile);
-#endif
   static nsresult EnsureDirectoryExists(nsIFile* aDirectory);
   void EnsureProfileFileExists(nsIFile* aFile);
-
-  // Determine the profile path within the UAppData directory. This is different
-  // on every major platform.
-  static nsresult AppendProfilePath(nsIFile* aFile);
-
-  static nsresult AppendSysUserExtensionPath(nsIFile* aFile);
-
-  // Internal helper that splits a path into components using the '/' and '\\'
-  // delimiters.
-  static inline nsresult AppendProfileString(nsIFile* aFile, const char* aPath);
-
-  // Calculate all bundle directories, including distribution bundles,
-  // extensions, and themes
-  void LoadBundleDirectories();
-  void LoadAppBundleDirs();
-
-  void Append(nsIFile* aDirectory);
 
   nsCOMPtr<nsIDirectoryServiceProvider> mAppProvider;
   nsCOMPtr<nsILocalFile> mGREDir;
   nsCOMPtr<nsIFile>      mXULAppDir;
   nsCOMPtr<nsIFile>      mProfileDir;
   nsCOMPtr<nsIFile>      mProfileLocalDir;
-  PRPackedBool           mProfileNotified;
-  PRPackedBool           mExtensionsLoaded;
-  nsCOMArray<nsIFile>    mAppBundleDirectories;
-  nsCOMArray<nsIFile>    mExtensionDirectories;
-  nsCOMArray<nsIFile>    mThemeDirectories;
+  PRBool                 mProfileNotified;
 };
 
 #endif

@@ -130,20 +130,13 @@ if (typeof Script == 'undefined')
 }
 else
 {
-  try
-  {
-    var script = Script(source);
-    script();
+  var script = Script(source);
+  script();
 
 
-    status = inSection(1);
-    actual = counter;
-    expect = (N + 1) * 2;
-  }
-  catch(ex)
-  {
-    actual = ex + '';
-  }
+  status = inSection(1);
+  actual = counter;
+  expect = (N + 1) * 2;
 }
 addThis();
 

@@ -498,17 +498,22 @@ IsASCII( const nsAString& aString )
 
     // Don't want to use |copy_string| for this task, since we can stop at the first non-ASCII character
 
-    nsAString::const_iterator iter, done_reading;
-    aString.BeginReading(iter);
+    nsAString::const_iterator done_reading;
     aString.EndReading(done_reading);
 
-    const PRUnichar* c = iter.get();
-    const PRUnichar* end = done_reading.get();
-    
-    while ( c < end )
+      // for each chunk of |aString|...
+    PRUint32 fragmentLength = 0;
+    nsAString::const_iterator iter;
+    for ( aString.BeginReading(iter); iter != done_reading; iter.advance( PRInt32(fragmentLength) ) )
       {
-        if ( *c++ & NOT_ASCII )
-          return PR_FALSE;
+        fragmentLength = PRUint32(iter.size_forward());
+        const PRUnichar* c = iter.get();
+        const PRUnichar* fragmentEnd = c + fragmentLength;
+
+          // for each character in this chunk...
+        while ( c < fragmentEnd )
+          if ( *c++ & NOT_ASCII )
+            return PR_FALSE;
       }
 
     return PR_TRUE;
@@ -523,17 +528,22 @@ IsASCII( const nsACString& aString )
 
     // Don't want to use |copy_string| for this task, since we can stop at the first non-ASCII character
 
-    nsACString::const_iterator iter, done_reading;
-    aString.BeginReading(iter);
+    nsACString::const_iterator done_reading;
     aString.EndReading(done_reading);
 
-    const char* c = iter.get();
-    const char* end = done_reading.get();
-    
-    while ( c < end )
+      // for each chunk of |aString|...
+    PRUint32 fragmentLength = 0;
+    nsACString::const_iterator iter;
+    for ( aString.BeginReading(iter); iter != done_reading; iter.advance( PRInt32(fragmentLength) ) )
       {
-        if ( *c++ & NOT_ASCII )
-          return PR_FALSE;
+        fragmentLength = PRUint32(iter.size_forward());
+        const char* c = iter.get();
+        const char* fragmentEnd = c + fragmentLength;
+
+          // for each character in this chunk...
+        while ( c < fragmentEnd )
+          if ( *c++ & NOT_ASCII )
+            return PR_FALSE;
       }
 
     return PR_TRUE;
@@ -553,78 +563,85 @@ IsUTF8( const nsACString& aString )
     PRUint16 olupper = 0; // overlong byte upper bound.
     PRUint16 slower = 0;  // surrogate byte lower bound.
 
+      // for each chunk of |aString|...
+    PRUint32 fragmentLength = 0;
     nsReadingIterator<char> iter;
-    aString.BeginReading(iter);
 
-    const char* ptr = iter.get();
-    const char* end = done_reading.get();
-    while ( ptr < end )
+    for ( aString.BeginReading(iter); iter != done_reading; iter.advance( PRInt32(fragmentLength) ) )
       {
-        PRUint8 c;
-        
-        if (0 == state)
+        fragmentLength = PRUint32(iter.size_forward());
+        const char* ptr = iter.get();
+        const char* fragmentEnd = ptr + fragmentLength;
+
+          // for each character in this chunk...
+        while ( ptr < fragmentEnd )
           {
-            c = *ptr++;
-
-            if ( UTF8traits::isASCII(c) ) 
-              continue;
-
-            if ( c <= 0xC1 ) // [80-BF] where not expected, [C0-C1] for overlong.
-              return PR_FALSE;
-            else if ( UTF8traits::is2byte(c) ) 
-                state = 1;
-            else if ( UTF8traits::is3byte(c) ) 
+            PRUint8 c;
+            
+            if (0 == state)
               {
-                state = 2;
-                if ( c == 0xE0 ) // to exclude E0[80-9F][80-BF] 
-                  {
-                    overlong = PR_TRUE;
-                    olupper = 0x9F;
-                  }
-                else if ( c == 0xED ) // ED[A0-BF][80-BF] : surrogate codepoint
-                  {
-                    surrogate = PR_TRUE;
-                    slower = 0xA0;
-                  }
-                else if ( c == 0xEF ) // EF BF [BE-BF] : non-character
-                  nonchar = PR_TRUE;
-              }
-            else if ( c <= 0xF4 ) // XXX replace /w UTF8traits::is4byte when it's updated to exclude [F5-F7].(bug 199090)
-              {
-                state = 3;
-                nonchar = PR_TRUE;
-                if ( c == 0xF0 ) // to exclude F0[80-8F][80-BF]{2}
-                  {
-                    overlong = PR_TRUE;
-                    olupper = 0x8F;
-                  }
-                else if ( c == 0xF4 ) // to exclude F4[90-BF][80-BF] 
-                  {
-                    // actually not surrogates but codepoints beyond 0x10FFFF
-                    surrogate = PR_TRUE;
-                    slower = 0x90;
-                  }
-              }
-            else
-              return PR_FALSE; // Not UTF-8 string
-          }
-          
-        while ( ptr < end && state )
-          {
-            c = *ptr++;
-            --state;
+                c = *ptr++;
 
-            // non-character : EF BF [BE-BF] or F[0-7] [89AB]F BF [BE-BF]
-            if ( nonchar &&  ( !state &&  c < 0xBE ||
-                  state == 1 && c != 0xBF  ||
-                  state == 2 && 0x0F != (0x0F & c) ))
-                nonchar = PR_FALSE;
+                if ( UTF8traits::isASCII(c) ) 
+                  continue;
 
-            if ( !UTF8traits::isInSeq(c) || overlong && c <= olupper || 
-                  surrogate && slower <= c || nonchar && !state )
-              return PR_FALSE; // Not UTF-8 string
-            overlong = surrogate = PR_FALSE;
-          }
+                if ( c <= 0xC1 ) // [80-BF] where not expected, [C0-C1] for overlong.
+                  return PR_FALSE;
+                else if ( UTF8traits::is2byte(c) ) 
+                    state = 1;
+                else if ( UTF8traits::is3byte(c) ) 
+                  {
+                    state = 2;
+                    if ( c == 0xE0 ) // to exclude E0[80-9F][80-BF] 
+                      {
+                        overlong = PR_TRUE;
+                        olupper = 0x9F;
+                      }
+                    else if ( c == 0xED ) // ED[A0-BF][80-BF] : surrogate codepoint
+                      {
+                        surrogate = PR_TRUE;
+                        slower = 0xA0;
+                      }
+                    else if ( c == 0xEF ) // EF BF [BE-BF] : non-character
+                      nonchar = PR_TRUE;
+                  }
+                else if ( c <= 0xF4 ) // XXX replace /w UTF8traits::is4byte when it's updated to exclude [F5-F7].(bug 199090)
+                  {
+                    state = 3;
+                    nonchar = PR_TRUE;
+                    if ( c == 0xF0 ) // to exclude F0[80-8F][80-BF]{2}
+                      {
+                        overlong = PR_TRUE;
+                        olupper = 0x8F;
+                      }
+                    else if ( c == 0xF4 ) // to exclude F4[90-BF][80-BF] 
+                      {
+                        // actually not surrogates but codepoints beyond 0x10FFFF
+                        surrogate = PR_TRUE;
+                        slower = 0x90;
+                      }
+                  }
+                else
+                  return PR_FALSE; // Not UTF-8 string
+              }
+              
+              while (ptr < fragmentEnd && state)
+                {
+                  c = *ptr++;
+                  --state;
+
+                  // non-character : EF BF [BE-BF] or F[0-7] [89AB]F BF [BE-BF]
+                  if ( nonchar &&  ( !state &&  c < 0xBE ||
+                       state == 1 && c != 0xBF  ||
+                       state == 2 && 0x0F != (0x0F & c) ))
+                     nonchar = PR_FALSE;
+
+                  if ( !UTF8traits::isInSeq(c) || overlong && c <= olupper || 
+                       surrogate && slower <= c || nonchar && !state )
+                    return PR_FALSE; // Not UTF-8 string
+                  overlong = surrogate = PR_FALSE;
+                }
+            }
         }
     return !state; // state != 0 at the end indicates an invalid UTF-8 seq. 
   }
@@ -880,62 +897,6 @@ FindInReadable_Impl( const StringT& aPattern, IteratorT& aSearchStart, IteratorT
     return found_it;
   }
 
-  /**
-   * This searches the entire string from right to left, and returns the first match found, if any.
-   */
-template <class StringT, class IteratorT, class Comparator>
-PRBool
-RFindInReadable_Impl( const StringT& aPattern, IteratorT& aSearchStart, IteratorT& aSearchEnd, const Comparator& compare )
-  {
-    IteratorT patternStart, patternEnd, searchEnd = aSearchEnd;
-    aPattern.BeginReading(patternStart);
-    aPattern.EndReading(patternEnd);
-
-      // Point to the last character in the pattern
-    --patternEnd;
-      // outer loop keeps searching till we run out of string to search
-    while ( aSearchStart != searchEnd )
-      {
-          // Point to the end position of the next possible match
-        --searchEnd;
-    
-          // Check last character, if a match, explore further from here
-        if ( compare(*patternEnd, *searchEnd) == 0 )
-          {  
-              // We're at a potential match, let's see if we really hit one
-            IteratorT testPattern(patternEnd);
-            IteratorT testSearch(searchEnd);
-
-              // inner loop verifies the potential match at the current position
-            do
-              {
-                  // if we verified all the way to the end of the pattern, then we found it!
-                if ( testPattern == patternStart )
-                  {
-                    aSearchStart = testSearch;  // point to start of match
-                    aSearchEnd = ++searchEnd;   // point to end of match
-                    return PR_TRUE;
-                  }
-    
-                  // if we got to end of the string we're searching before we hit the end of the
-                  //  pattern, we'll never find what we're looking for
-                if ( testSearch == aSearchStart )
-                  {
-                    aSearchStart = aSearchEnd;
-                    return PR_FALSE;
-                  }
-    
-                  // test previous character for a match
-                --testPattern;
-                --testSearch;
-              }
-            while ( compare(*testPattern, *testSearch) == 0 );
-          }
-      }
-
-    aSearchStart = aSearchEnd;
-    return PR_FALSE;
-  }
 
 NS_COM
 PRBool
@@ -958,18 +919,75 @@ CaseInsensitiveFindInReadable( const nsACString& aPattern, nsACString::const_ite
     return FindInReadable_Impl(aPattern, aSearchStart, aSearchEnd, nsCaseInsensitiveCStringComparator());
   }
 
+  /**
+   * This implementation is simple, but does too much work.
+   * It searches the entire string from left to right, and returns the last match found, if any.
+   * This implementation will be replaced when I get |reverse_iterator|s working.
+   */
 NS_COM
 PRBool
 RFindInReadable( const nsAString& aPattern, nsAString::const_iterator& aSearchStart, nsAString::const_iterator& aSearchEnd, const nsStringComparator& aComparator)
   {
-    return RFindInReadable_Impl(aPattern, aSearchStart, aSearchEnd, aComparator);
+    PRBool found_it = PR_FALSE;
+
+    nsAString::const_iterator savedSearchEnd(aSearchEnd);
+    nsAString::const_iterator searchStart(aSearchStart), searchEnd(aSearchEnd);
+
+    while ( searchStart != searchEnd )
+      {
+        if ( FindInReadable(aPattern, searchStart, searchEnd, aComparator) )
+          {
+            found_it = PR_TRUE;
+
+              // this is the best match so far, so remember it
+            aSearchStart = searchStart;
+            aSearchEnd = searchEnd;
+
+              // ...and get ready to search some more
+              //  (it's tempting to set |searchStart=searchEnd| ... but that misses overlapping patterns)
+            ++searchStart;
+            searchEnd = savedSearchEnd;
+          }
+      }
+
+      // if we never found it, return an empty range
+    if ( !found_it )
+      aSearchStart = aSearchEnd;
+
+    return found_it;
   }
 
 NS_COM
 PRBool
 RFindInReadable( const nsACString& aPattern, nsACString::const_iterator& aSearchStart, nsACString::const_iterator& aSearchEnd, const nsCStringComparator& aComparator)
   {
-    return RFindInReadable_Impl(aPattern, aSearchStart, aSearchEnd, aComparator);
+    PRBool found_it = PR_FALSE;
+
+    nsACString::const_iterator savedSearchEnd(aSearchEnd);
+    nsACString::const_iterator searchStart(aSearchStart), searchEnd(aSearchEnd);
+
+    while ( searchStart != searchEnd )
+      {
+        if ( FindInReadable(aPattern, searchStart, searchEnd, aComparator) )
+          {
+            found_it = PR_TRUE;
+
+              // this is the best match so far, so remember it
+            aSearchStart = searchStart;
+            aSearchEnd = searchEnd;
+
+              // ...and get ready to search some more
+              //  (it's tempting to set |searchStart=searchEnd| ... but that misses overlapping patterns)
+            ++searchStart;
+            searchEnd = savedSearchEnd;
+          }
+      }
+
+      // if we never found it, return an empty range
+    if ( !found_it )
+      aSearchStart = aSearchEnd;
+
+    return found_it;
   }
 
 NS_COM 
@@ -1141,20 +1159,11 @@ CompareUTF8toUTF16(const nsASingleFragmentCString& aUTF8String,
             if (err)
               return PR_INT32_MIN;
 
-            PRUint32 c16_32 = UTF16CharEnumerator::NextChar(&u16, u16end);
-            // The above UTF16CharEnumerator::NextChar() calls can
-            // fail, but if it does for anything other than no data to
-            // look at (which can't happen here), it returns the
-            // Unicode replacement character 0xFFFD for the invalid
-            // data they were fed. Ignore that error and treat invalid
-            // UTF16 as 0xFFFD.
-            //
-            // This matches what our UTF16 to UTF8 conversion code
-            // does, and thus a UTF8 string that came from an invalid
-            // UTF16 string will compare equal to the invalid UTF16
-            // string it came from. Same is true for any other UTF16
-            // string differs only in the invalid part of the string.
-            
+            PRUint32 c16_32 = UTF16CharEnumerator::NextChar(&u16, u16end,
+                                                            &err);
+            if (err)
+              return PR_INT32_MIN;
+
             if (c8_32 != c16_32)
               return c8_32 < c16_32 ? -1 : 1;
           }

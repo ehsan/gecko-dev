@@ -60,11 +60,10 @@ def alarm_handler(signum, frame):
     global prefix
     try:
         print "%s EXIT STATUS: TIMED OUT (%s seconds)" % (prefix, sys.argv[1])
-        flushkill(pid, signal.SIGKILL)
-    except OSError, e:
-        print "timed_run.py: exception trying to kill process: %d (%s)" % (e.errno, e.strerror)
+        os.kill(pid, signal.SIGKILL)
+    except:
         pass
-    flushexit(exitTimeout)
+    sys.exit(exitTimeout)
 
 def forkexec(command, args):
     global prefix
@@ -75,24 +74,11 @@ def forkexec(command, args):
         pid = os.fork()
         if pid == 0:  # Child
             os.execvp(command, args)
-            flushbuffers()
         else:  # Parent
             return pid
     except OSError, e:
         print "%s ERROR: %s %s failed: %d (%s) (%f seconds)" % (prefix, command, args, e.errno, e.strerror, elapsedtime)
-        flushexit(exitOSError)
-
-def flushbuffers():
-        sys.stdout.flush()
-        sys.stderr.flush()
-
-def flushexit(rc):
-        flushbuffers()
-        sys.exit(rc)
-
-def flushkill(pid, sig):
-        flushbuffers()
-        os.kill(pid, sig)
+        sys.exit(exitOSError)
 
 signal.signal(signal.SIGALRM, alarm_handler)
 signal.alarm(int(sys.argv[1]))
@@ -107,7 +93,7 @@ try:
 	# when the process was terminated by a signal, so test signal first.
 	if os.WIFSIGNALED(status):
 	    print "%s EXIT STATUS: CRASHED signal %d (%f seconds)" % (prefix, os.WTERMSIG(status), elapsedtime)
-	    flushexit(exitSignal)
+	    sys.exit(exitSignal)
 	elif os.WIFEXITED(status):
 	    rc = os.WEXITSTATUS(status)
 	    msg = ''
@@ -121,11 +107,10 @@ try:
 		rc = exitSignal
 
 	    print "%s EXIT STATUS: %s (%f seconds)" % (prefix, msg, elapsedtime)
-	    flushexit(rc)
+	    sys.exit(rc)
 	else:
 	    print "%s EXIT STATUS: NONE (%f seconds)" % (prefix, elapsedtime)
-	    flushexit(0)
+	    sys.exit(0)
 except KeyboardInterrupt:
-	flushkill(pid, 9)
-	flushexit(exitInterrupt)
-
+	os.kill(pid, 9)
+	sys.exit(exitInterrupt)

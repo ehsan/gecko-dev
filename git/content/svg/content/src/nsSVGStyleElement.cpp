@@ -47,8 +47,7 @@ typedef nsSVGElement nsSVGStyleElementBase;
 
 class nsSVGStyleElement : public nsSVGStyleElementBase,
                           public nsIDOMSVGStyleElement,
-                          public nsStyleLinkElement,
-                          public nsStubMutationObserver
+                          public nsStyleLinkElement
 {
 protected:
   friend nsresult NS_NewSVGStyleElement(nsIContent **aResult,
@@ -65,6 +64,9 @@ public:
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGStyleElementBase::)
 
   // nsIContent
+  virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
+                                 PRBool aNotify);
+  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify);
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
@@ -83,12 +85,6 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  // nsIMutationObserver
-  NS_DECL_NSIMUTATIONOBSERVER_CHARACTERDATACHANGED
-  NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED
-  NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
-  NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
-
 protected:
   // Dummy init method to make the NS_IMPL_NS_NEW_SVG_ELEMENT and
   // NS_IMPL_ELEMENT_CLONE_WITH_INIT usable with this class. This should be
@@ -105,12 +101,6 @@ protected:
                          nsAString& aType,
                          nsAString& aMedia,
                          PRBool* aIsAlternate);
-  /**
-   * Common method to call from the various mutation observer methods.
-   * aContent is a content node that's either the one that changed or its
-   * parent; we should only respond to the change if aContent is non-anonymous.
-   */
-  void ContentChanged(nsIContent* aContent);
 };
 
 
@@ -130,7 +120,6 @@ NS_INTERFACE_MAP_BEGIN(nsSVGStyleElement)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGStyleElement)
   NS_INTERFACE_MAP_ENTRY(nsIDOMLinkStyle)
   NS_INTERFACE_MAP_ENTRY(nsIStyleSheetLinkingElement)
-  NS_INTERFACE_MAP_ENTRY(nsIMutationObserver)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGStyleElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGStyleElementBase)
 
@@ -140,7 +129,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGStyleElementBase)
 nsSVGStyleElement::nsSVGStyleElement(nsINodeInfo *aNodeInfo)
   : nsSVGStyleElementBase(aNodeInfo)
 {
-  AddMutationObserver(this);
+
 }
 
 
@@ -153,6 +142,29 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(nsSVGStyleElement)
 
 //----------------------------------------------------------------------
 // nsIContent methods
+
+nsresult
+nsSVGStyleElement::InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
+                                 PRBool aNotify)
+{
+  nsresult rv = nsSVGStyleElementBase::InsertChildAt(aKid, aIndex, aNotify);
+  if (NS_SUCCEEDED(rv)) {
+    UpdateStyleSheetInternal(nsnull);
+  }
+
+  return rv;
+}
+
+nsresult
+nsSVGStyleElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
+{
+  nsresult rv = nsSVGStyleElementBase::RemoveChildAt(aIndex, aNotify);
+  if (NS_SUCCEEDED(rv)) {
+    UpdateStyleSheetInternal(nsnull);
+  }
+
+  return rv;
+}
 
 nsresult
 nsSVGStyleElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
@@ -211,51 +223,6 @@ nsSVGStyleElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
   }
 
   return rv;
-}
-
-//----------------------------------------------------------------------
-// nsIMutationObserver methods
-
-void
-nsSVGStyleElement::CharacterDataChanged(nsIDocument* aDocument,
-                                        nsIContent* aContent,
-                                        CharacterDataChangeInfo* aInfo)
-{
-  ContentChanged(aContent);
-}
-
-void
-nsSVGStyleElement::ContentAppended(nsIDocument* aDocument,
-                                   nsIContent* aContainer,
-                                   PRInt32 aNewIndexInContainer)
-{
-  ContentChanged(aContainer);
-}
- 
-void
-nsSVGStyleElement::ContentInserted(nsIDocument* aDocument,
-                                   nsIContent* aContainer,
-                                   nsIContent* aChild,
-                                   PRInt32 aIndexInContainer)
-{
-  ContentChanged(aChild);
-}
- 
-void
-nsSVGStyleElement::ContentRemoved(nsIDocument* aDocument,
-                                  nsIContent* aContainer,
-                                  nsIContent* aChild,
-                                  PRInt32 aIndexInContainer)
-{
-  ContentChanged(aChild);
-}
-
-void
-nsSVGStyleElement::ContentChanged(nsIContent* aContent)
-{
-  if (nsContentUtils::IsInSameAnonymousTree(this, aContent)) {
-    UpdateStyleSheetInternal(nsnull);
-  }
 }
 
 //----------------------------------------------------------------------
@@ -341,9 +308,6 @@ nsSVGStyleElement::GetStyleSheetInfo(nsAString& aTitle,
   ToLowerCase(aMedia);
 
   GetAttr(kNameSpaceID_None, nsGkAtoms::type, aType);
-  if (aType.IsEmpty()) {
-    aType.AssignLiteral("text/css");
-  }
 
   return;
 }

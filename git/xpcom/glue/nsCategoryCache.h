@@ -91,13 +91,7 @@ class nsCategoryCache : protected nsCategoryListener {
     explicit nsCategoryCache(const char* aCategory);
     ~nsCategoryCache() { if (mObserver) mObserver->ListenerDied(); }
 
-    const nsCOMArray<T>& GetEntries() {
-      // Lazy initialization, so that services in this category can't
-      // cause reentrant getService (bug 386376)
-      if (!mObserver)
-        mObserver = new nsCategoryObserver(mCategoryName.get(), this);
-      return mEntries;
-    }
+    const nsCOMArray<T>& GetEntries() const { return mEntries; }
   protected:
     virtual void EntryAdded(const nsCString& aValue);
     virtual void EntryRemoved(const nsCString& aValue);
@@ -108,7 +102,6 @@ class nsCategoryCache : protected nsCategoryListener {
     // Not to be implemented
     nsCategoryCache(const nsCategoryCache<T>&);
 
-    nsCString mCategoryName;
     nsCOMArray<T> mEntries;
     nsRefPtr<nsCategoryObserver> mObserver;
 };
@@ -118,8 +111,8 @@ class nsCategoryCache : protected nsCategoryListener {
 
 template<class T>
 nsCategoryCache<T>::nsCategoryCache(const char* aCategory)
-: mCategoryName(aCategory)
 {
+  mObserver = new nsCategoryObserver(aCategory, this);
 }
 
 template<class T>

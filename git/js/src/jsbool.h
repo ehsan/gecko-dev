@@ -66,7 +66,7 @@ extern JSString *
 js_BooleanToString(JSContext *cx, JSBool b);
 
 extern JSBool
-js_ValueToBoolean(jsval v);
+js_ValueToBoolean(JSContext *cx, jsval v, JSBool *bp);
 
 JS_END_EXTERN_C
 

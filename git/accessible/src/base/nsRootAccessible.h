@@ -101,8 +101,7 @@ class nsRootAccessible : public nsDocAccessibleWrap,
     PRBool FireAccessibleFocusEvent(nsIAccessible *aFocusAccessible,
                                     nsIDOMNode *aFocusNode,
                                     nsIDOMEvent *aFocusEvent,
-                                    PRBool aForceEvent = PR_FALSE,
-                                    PRBool aIsAsynch = PR_FALSE);
+                                    PRBool aForceEvent = PR_FALSE);
 
     nsCaretAccessible *GetCaretAccessible();
 
@@ -119,28 +118,13 @@ class nsRootAccessible : public nsDocAccessibleWrap,
     void TryFireEarlyLoadEvent(nsIDOMNode *aDocNode);
     void FireCurrentFocusEvent();
     void GetChromeEventHandler(nsIDOMEventTarget **aChromeTarget);
-
-    /**
-     * Handles 'TreeRowCountChanged' event. Used in HandleEventWithTarget().
-     */
-    nsresult HandleTreeRowCountChangedEvent(nsIDOMEvent *aEvent,
-                                            nsIAccessible *aAccessible,
-                                            const nsAString& aTargetName);
-
-    /**
-     * Handles 'TreeInvalidated' event. Used in HandleEventWithTarget().
-     */
-    nsresult HandleTreeInvalidatedEvent(nsIDOMEvent *aEvent,
-                                        nsIAccessible *aAccessible,
-                                        const nsAString& aTargetName);
-
 #ifdef MOZ_XUL
     PRUint32 GetChromeFlags();
 #endif
     already_AddRefed<nsIDocShellTreeItem>
            GetContentDocShell(nsIDocShellTreeItem *aStart);
     nsRefPtr<nsCaretAccessible> mCaretAccessible;
-    nsCOMPtr<nsIDOMNode> mCurrentARIAMenubar;
+    PRPackedBool mIsInDHTMLMenu;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsRootAccessible, NS_ROOTACCESSIBLE_IMPL_CID)

@@ -45,7 +45,6 @@
 #include "nsIContent.h"
 #include "nsIFrame.h"
 
-class nsTreeBodyFrame;
 class nsTreeColumns;
 
 // This class is our column info.  We use it to iterate our columns and to obtain
@@ -63,19 +62,17 @@ public:
 
 protected:
   nsIFrame* GetFrame();
-  nsIFrame* GetFrame(nsTreeBodyFrame* aBodyFrame);
-  // Don't call this if GetWidthInTwips or GetRect fails
-  PRBool IsLastVisible(nsTreeBodyFrame* aBodyFrame);
+  nsIFrame* GetFrame(nsIFrame* aBodyFrame);
 
   /**
    * Returns a rect with x and width taken from the frame's rect and specified
    * y and height. May fail in case there's no frame for the column.
    */
-  nsresult GetRect(nsTreeBodyFrame* aBodyFrame, nscoord aY, nscoord aHeight,
+  nsresult GetRect(nsIFrame* aBodyFrame, nscoord aY, nscoord aHeight,
                    nsRect* aResult);
 
-  nsresult GetXInTwips(nsTreeBodyFrame* aBodyFrame, nscoord* aResult);
-  nsresult GetWidthInTwips(nsTreeBodyFrame* aBodyFrame, nscoord* aResult);
+  nsresult GetXInTwips(nsIFrame* aBodyFrame, nscoord* aResult);
+  nsresult GetWidthInTwips(nsIFrame* aBodyFrame, nscoord* aResult);
 
   void SetColumns(nsTreeColumns* aColumns) { mColumns = aColumns; }
 

@@ -46,14 +46,9 @@ var expect = 'No Crash';
 printBugNumber(BUGNUMBER);
 START(summary);
 
-if (typeof document != 'undefined' && 'addEventListener' in document)
+if (typeof document != 'undefined')
 {
-    document.addEventListener('load',
-                              (function () {
-                                  var iframe = document.createElement('iframe');
-                                  document.body.appendChild('iframe');
-                                  iframe.contentDocument.location.href='javascript:<x/>.@*++;';
-                              }), true);
+    document.location.href='javascript:<x/>.@*++;';
 }
 else
 {

@@ -395,28 +395,6 @@ public:
 
     JSContext* GetSafeJSContext();
 
-    /**
-     * Utility method for comparing two URIs.  For security purposes, two URIs
-     * are equivalent if their schemes, hosts, and ports (if any) match.  This
-     * method returns true if aSubjectURI and aObjectURI have the same origin,
-     * false otherwise.
-     */
-    static PRBool SecurityCompareURIs(nsIURI* aSourceURI, nsIURI* aTargetURI);
-
-    static nsresult 
-    ReportError(JSContext* cx, const nsAString& messageTag,
-                nsIURI* aSource, nsIURI* aTarget);
-    static nsresult
-    CheckSameOriginPrincipal(nsIPrincipal* aSubject,
-                             nsIPrincipal* aObject,
-                             PRBool aIsCheckConnect);
-
-    static PRBool
-    GetStrictFileOriginPolicy()
-    {
-        return sStrictFileOriginPolicy;
-    }
-
 private:
 
     // GetScriptSecurityManager is the only call that can make one
@@ -431,25 +409,31 @@ private:
     // Returns null if a principal cannot be found; generally callers
     // should error out at that point.
     static nsIPrincipal*
-    doGetObjectPrincipal(JSObject *obj
-#ifdef DEBUG
-                         , PRBool aAllowShortCircuit = PR_TRUE
-#endif
-                         );
+    doGetObjectPrincipal(JSContext *cx, JSObject *obj,
+                         PRBool aAllowShortCircuit = PR_FALSE);
 
     // Returns null if a principal cannot be found.  Note that rv can be NS_OK
     // when this happens -- this means that there was no JS running.
     nsIPrincipal*
     doGetSubjectPrincipal(nsresult* rv);
     
+    static nsresult 
+    ReportError(JSContext* cx, const nsAString& messageTag,
+                nsIURI* aSource, nsIURI* aTarget);
+
     nsresult
     CheckPropertyAccessImpl(PRUint32 aAction,
-                            nsAXPCNativeCallContext* aCallContext,
+                            nsIXPCNativeCallContext* aCallContext,
                             JSContext* cx, JSObject* aJSObject,
                             nsISupports* aObj, nsIURI* aTargetURI,
                             nsIClassInfo* aClassInfo,
                             const char* aClassName, jsval aProperty,
                             void** aCachedClassPolicy);
+
+    nsresult
+    CheckSameOriginPrincipalInternal(nsIPrincipal* aSubject,
+                                     nsIPrincipal* aObject,
+                                     PRBool aIsCheckConnect);
 
     nsresult
     CheckSameOriginDOMProp(nsIPrincipal* aSubject, 
@@ -553,6 +537,14 @@ private:
                    nsISecurityPref* securityPref);
 
 
+    /**
+     * Utility method for comparing two URIs.  For security purposes, two URIs
+     * are equivalent if their schemes, hosts, and ports (if any) match.  This
+     * method returns true if aSubjectURI and aObjectURI have the same origin,
+     * false otherwise.
+     */
+    PRBool SecurityCompareURIs(nsIURI* aSourceURI, nsIURI* aTargetURI);
+
 #ifdef XPC_IDISPATCH_SUPPORT
     // While this header is included outside of caps, this class isn't 
     // referenced so this should be fine.
@@ -568,11 +560,10 @@ private:
     static jsval sEnabledID;
 
     inline void
-    ScriptSecurityPrefChanged();
+    JSEnabledPrefChanged(nsISecurityPref* aSecurityPref);
 
     static const char sJSEnabledPrefName[];
     static const char sJSMailEnabledPrefName[];
-    static const char sFileOriginPolicyPrefName[];
 
     nsObjectHashtable* mOriginToPolicyMap;
     DomainPolicy* mDefaultPolicy;
@@ -592,8 +583,6 @@ private:
     PRPackedBool mXPCDefaultGrantAll;
     static const char sXPCDefaultGrantAllName[];
 #endif
-
-    static PRBool sStrictFileOriginPolicy;
 
     static nsIIOService    *sIOService;
     static nsIXPConnect    *sXPConnect;

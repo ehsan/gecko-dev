@@ -45,14 +45,8 @@ var expect = 'TypeError: function f does not always return a value';
 printBugNumber(BUGNUMBER);
 printStatus (summary);
  
-if (!options().match(/strict/))
-{
-  options('strict');
-}
-if (!options().match(/werror/))
-{
-  options('werror');
-}
+options('strict');
+options('werror');
 
 try
 {
@@ -63,7 +57,7 @@ catch(ex)
   actual = ex + '';
 }
 
-reportCompare(expect, actual, summary + ': 1');
+reportCompare(expect, actual, summary);
 
 try
 {
@@ -74,29 +68,4 @@ catch(ex)
   actual = ex + '';
 }
 
-reportCompare(expect, actual, summary + ': 2');
-
-var f;
-expect = 'TypeError: function anonymous does not always return a value';
-
-try
-{
-  f = Function('if (x) return y;');
-}
-catch(ex)
-{
-  actual = ex + '';
-}
-
-reportCompare(expect, actual, summary + ': 3');
-
-try
-{
-  f = Function('if (x) { return y; }');
-}
-catch(ex)
-{
-  actual = ex + '';
-}
-
-reportCompare(expect, actual, summary + ': 4');
+reportCompare(expect, actual, summary);

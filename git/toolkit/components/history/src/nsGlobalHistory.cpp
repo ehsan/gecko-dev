@@ -1595,7 +1595,7 @@ nsGlobalHistory::GetSource(nsIRDFResource* aProperty,
     // XXX We could be more forgiving here, and check for literal
     // values as well.
     nsCOMPtr<nsIRDFResource> target = do_QueryInterface(aTarget);
-    if (target && IsURLInHistory(target))
+    if (IsURLInHistory(target))
       return CallQueryInterface(aTarget, aSource);
     
   }
@@ -2640,7 +2640,9 @@ nsGlobalHistory::OpenDB()
   nsCOMPtr <nsIFile> historyFile;
   rv = NS_GetSpecialDirectory(NS_APP_HISTORY_50_FILE, getter_AddRefs(historyFile));
   NS_ENSURE_SUCCESS(rv, rv);
-  nsCOMPtr <nsIMdbFactoryService> factoryfactory = do_GetService(NS_MORK_CONTRACTID, &rv);
+
+  nsCOMPtr<nsIMdbFactoryFactory> factoryfactory =
+      do_CreateInstance(NS_MORK_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = factoryfactory->GetMdbFactory(&gMdbFactory);

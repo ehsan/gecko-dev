@@ -46,7 +46,9 @@
 #include "nsCOMPtr.h"
 #include "nsIRenderingContext.h"
 
+#ifdef MOZ_CAIRO_GFX
 #include "gfxImageSurface.h"
+#endif
 
 // translucency level for drag images
 #define DRAG_TRANSLUCENCY 0.65
@@ -77,6 +79,7 @@ public:
 
 protected:
 
+#ifdef MOZ_CAIRO_GFX
   /**
    * Draw the drag image, if any, to a surface and return it. The drag image
    * is constructed from mImage if specified, or aDOMNode if mImage is null.
@@ -94,16 +97,12 @@ protected:
    *
    * If there is no drag image, the returned surface will be null, but
    * aScreenDragRect will still be set to the drag area.
-   *
-   * aPresContext will be set to the nsPresContext used determined from
-   * whichever of mImage or aDOMNode is used.
    */
   nsresult DrawDrag(nsIDOMNode* aDOMNode,
                     nsIScriptableRegion* aRegion,
                     PRInt32 aScreenX, PRInt32 aScreenY,
                     nsRect* aScreenDragRect,
-                    gfxASurface** aSurface,
-                    nsPresContext **aPresContext);
+                    gfxASurface** aSurface);
 
   /**
    * Draw a drag image for an image node. This is called by DrawDrag.
@@ -113,13 +112,7 @@ protected:
                             PRInt32 aScreenX, PRInt32 aScreenY,
                             nsRect* aScreenDragRect,
                             gfxASurface** aSurface);
-
-  /**
-   * Convert aScreenX and aScreenY from CSS pixels into unscaled device pixels.
-   */
-  void
-  ConvertToUnscaledDevPixels(nsPresContext* aPresContext,
-                             PRInt32* aScreenX, PRInt32* aScreenY);
+#endif
 
   PRPackedBool mCanDrop;
   PRPackedBool mDoingDrag;
@@ -146,8 +139,6 @@ protected:
   // supplied so the screen position is not known
   PRInt32 mScreenX;
   PRInt32 mScreenY;
-
-  PRUint32 mSuppressLevel;
 };
 
 #endif // nsBaseDragService_h__

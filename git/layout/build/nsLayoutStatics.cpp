@@ -60,7 +60,7 @@
 #include "nsEventListenerManager.h"
 #include "nsFrame.h"
 #include "nsGenericElement.h"  // for nsDOMEventRTTearoff
-#include "nsStyledElement.h"
+#include "nsGenericHTMLElement.h"
 #include "nsGlobalWindow.h"
 #include "nsGkAtoms.h"
 #include "nsImageFrame.h"
@@ -79,21 +79,14 @@
 #include "nsCellMap.h"
 #include "nsTextFrameTextRunCache.h"
 #include "nsCCUncollectableMarker.h"
+#include "nsXULPopupManager.h"
 #include "nsTextFragment.h"
-#include "nsCSSRuleProcessor.h"
-#include "nsXMLHttpRequest.h"
-#include "nsIFocusEventSuppressor.h"
 
 #ifdef MOZ_XUL
-#include "nsXULPopupManager.h"
 #include "nsXULContentUtils.h"
 #include "nsXULElement.h"
 #include "nsXULPrototypeCache.h"
 #include "nsXULTooltipListener.h"
-
-#ifndef MOZ_NO_INSPECTOR_APIS
-#include "inDOMView.h"
-#endif
 #endif
 
 #ifdef MOZ_MATHML
@@ -105,6 +98,10 @@
 PRBool NS_SVGEnabled();
 #endif
 
+#ifndef MOZ_NO_INSPECTOR_APIS
+#include "inDOMView.h"
+#endif
+
 #ifndef MOZILLA_PLAINTEXT_EDITOR_ONLY
 #include "nsHTMLEditor.h"
 #include "nsTextServicesDocument.h"
@@ -112,8 +109,6 @@ PRBool NS_SVGEnabled();
 
 #include "nsError.h"
 #include "nsTraceRefcnt.h"
-
-#include "nsCycleCollector.h"
 
 static nsrefcnt sLayoutStaticRefcnt;
 
@@ -175,17 +170,16 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
+#ifndef MOZ_NO_INSPECTOR_APIS
+  inDOMView::InitAtoms();
+#endif
+
 #ifdef MOZ_XUL
   rv = nsXULContentUtils::Init();
   if (NS_FAILED(rv)) {
     NS_ERROR("Could not initialize nsXULContentUtils");
     return rv;
   }
-
-#ifndef MOZ_NO_INSPECTOR_APIS
-  inDOMView::InitAtoms();
-#endif
-
 #endif
 
 #ifdef MOZ_MATHML
@@ -207,7 +201,7 @@ nsLayoutStatics::Initialize()
 #endif
   nsDOMAttribute::Initialize();
 
-  rv = txMozillaXSLTProcessor::Startup();
+  rv = txMozillaXSLTProcessor::Init();
   if (NS_FAILED(rv)) {
     NS_ERROR("Could not initialize txMozillaXSLTProcessor");
     return rv;
@@ -219,21 +213,17 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-#ifndef DEBUG_CC
   rv = nsCCUncollectableMarker::Init();
   if (NS_FAILED(rv)) {
     NS_ERROR("Could not initialize nsCCUncollectableMarker");
     return rv;
   }
-#endif
 
-#ifdef MOZ_XUL
   rv = nsXULPopupManager::Init();
   if (NS_FAILED(rv)) {
     NS_ERROR("Could not initialize nsXULPopupManager");
     return rv;
   }
-#endif
 
   return NS_OK;
 }
@@ -241,9 +231,7 @@ nsLayoutStatics::Initialize()
 void
 nsLayoutStatics::Shutdown()
 {
-#ifdef MOZ_XUL
   nsXULPopupManager::Shutdown();
-#endif
   nsDOMStorageManager::Shutdown();
   txMozillaXSLTProcessor::Shutdown();
   nsDOMAttribute::Shutdown();
@@ -252,7 +240,6 @@ nsLayoutStatics::Shutdown()
   nsContentList::Shutdown();
   nsComputedDOMStyle::Shutdown();
   CSSLoaderImpl::Shutdown();
-  nsCSSRuleProcessor::Shutdown();
   nsTextFrameTextRunCache::Shutdown();
   nsCSSRendering::Shutdown();
 #ifdef DEBUG
@@ -288,13 +275,12 @@ nsLayoutStatics::Shutdown()
 
   NS_IF_RELEASE(nsContentDLF::gUAStyleSheet);
   NS_IF_RELEASE(nsRuleNode::gLangService);
-  nsStyledElement::Shutdown();
+  nsGenericHTMLElement::Shutdown();
 
   nsTextFragment::Shutdown();
 
   nsAttrValue::Shutdown();
   nsContentUtils::Shutdown();
-  nsNodeInfo::ClearCache();
   nsLayoutStylesheetCache::Shutdown();
   NS_NameSpaceManagerShutdown();
   nsStyleSet::FreeGlobals();
@@ -309,8 +295,6 @@ nsLayoutStatics::Shutdown()
   nsHTMLEditor::Shutdown();
   nsTextServicesDocument::Shutdown();
 #endif
-
-  NS_ShutdownFocusSuppressor();
 }
 
 void

@@ -114,7 +114,8 @@ js_NewRegExp(JSContext *cx, JSTokenStream *ts,
              JSString *str, uintN flags, JSBool flat);
 
 extern JSRegExp *
-js_NewRegExpOpt(JSContext *cx, JSString *str, JSString *opt, JSBool flat);
+js_NewRegExpOpt(JSContext *cx, JSTokenStream *ts,
+                JSString *str, JSString *opt, JSBool flat);
 
 #define HOLD_REGEXP(cx, re) JS_ATOMIC_INCREMENT(&(re)->nrefs)
 #define DROP_REGEXP(cx, re) js_DestroyRegExp(cx, re)
@@ -154,7 +155,8 @@ js_InitRegExpClass(JSContext *cx, JSObject *obj);
  * Export js_regexp_toString to the decompiler.
  */
 extern JSBool
-js_regexp_toString(JSContext *cx, JSObject *obj, jsval *vp);
+js_regexp_toString(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+                   jsval *rval);
 
 /*
  * Create, serialize/deserialize, or clone a RegExp object.

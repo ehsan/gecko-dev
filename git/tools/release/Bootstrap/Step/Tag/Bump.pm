@@ -24,31 +24,30 @@ sub Execute {
     my $productTag = $config->Get(var => 'productTag');
     my $branchTag = $config->Get(var => 'branchTag');
     my $pullDate = $config->Get(var => 'pullDate');
-    my $version = $config->GetVersion(longName => 0);
-    my $appVersion = $config->GetAppVersion();
-    my $build = int($config->Get(var => 'build'));
+    my $version = $config->Get(var => 'version');
+    my $rc = int($config->Get(var => 'rc'));
     my $milestone = $config->Exists(var => 'milestone') ? 
      $config->Get(var => 'milestone') : undef;
     my $appName = $config->Get(var => 'appName');
-    my $logDir = $config->Get(sysvar => 'logDir');
+    my $logDir = $config->Get(var => 'logDir');
     my $mozillaCvsroot = $config->Get(var => 'mozillaCvsroot');
     my $tagDir = $config->Get(var => 'tagDir');
     my $geckoBranchTag = $config->Get(var => 'geckoBranchTag');
 
     my $releaseTag = $productTag . '_RELEASE';
-    my $buildTag = $productTag . '_BUILD' . $build;
+    my $rcTag = $productTag . '_RC' . $rc;
 
-    my $buildTagDir = catfile($tagDir, $buildTag);
-    my $cvsrootTagDir = catfile($buildTagDir, 'cvsroot');
+    my $rcTagDir = catfile($tagDir, $rcTag);
+    my $cvsrootTagDir = catfile($rcTagDir, 'cvsroot');
  
     ## TODO - we need to handle the case here where we're in security firedrill
     ## mode, and we need to bump versions on the GECKO_ branch, but they
     ## won't have "pre" in them. :-o
     #
-    # We only do the bump step for build1
+    # We only do the bump step for rc1
 
-    if ($build > 1) {
-        $this->Log(msg => "Skipping Tag::Bump::Execute substep for build $build.");
+    if ($rc > 1) {
+        $this->Log(msg => "Skipping Tag::Bump::Execute substep for RC $rc.");
         return;
     }
 
@@ -66,15 +65,18 @@ sub Execute {
 
     # Check out Mozilla from the branch you want to tag.
     # TODO this should support running without branch tag or pull date.
-    $this->CvsCo(
-      cvsroot => $mozillaCvsroot,
-      tag => $geckoBranchTag,
-      modules => [CvsCatfile('mozilla', 'client.mk'),
+    $this->Shell(
+      cmd => 'cvs',
+      cmdArgs => ['-d', $mozillaCvsroot, 
+                  'co', 
+                  '-r', $geckoBranchTag, 
+                  CvsCatfile('mozilla', 'client.mk'),
                   CvsCatfile('mozilla', $appName, 'app', 'module.ver'),
                   CvsCatfile('mozilla', $appName, 'config', 'version.txt'),
-                  CvsCatfile('mozilla', 'config', 'milestone.txt')],
-      workDir => $cvsrootTagDir,
-      logFile => catfile($logDir, 'tag-bump_checkout.log')
+                  CvsCatfile('mozilla', 'config', 'milestone.txt'),
+                 ],
+      dir => $cvsrootTagDir,
+      logFile => catfile($logDir, 'tag-bump_checkout.log'),
     );
 
     ### Perform version bump
@@ -93,26 +95,24 @@ sub Execute {
         # sure that the order replacement happens does not matter.
         if ($fileName eq 'client.mk') {
             %searchReplace = (
-             # MOZ_CO_TAG is commented out on some branches, make sure to
-             # accommodate that
-             '^#?MOZ_CO_TAG\s+=.+$' =>
+             '^MOZ_CO_TAG\s+=\s+' . $branchTag . '$' =>
               'MOZ_CO_TAG           = ' . $releaseTag,
              '^NSPR_CO_TAG\s+=\s+\w*' => 
               'NSPR_CO_TAG          = ' . $releaseTag,
              '^NSS_CO_TAG\s+=\s+\w*' =>
               'NSS_CO_TAG           = ' . $releaseTag,
-             '^LOCALES_CO_TAG\s+=.*$' =>
+             '^LOCALES_CO_TAG\s+=\s+' . $branchTag . '$' =>
               'LOCALES_CO_TAG       = ' . $releaseTag,
-             '^LDAPCSDK_CO_TAG\s+=.*$' =>
+             '^LDAPCSDK_CO_TAG\s+=\s+' . $branchTag . '$' =>
               'LDAPCSDK_CO_TAG      = ' . $releaseTag);
         } elsif ($fileName eq $moduleVer) {
-            $preVersion = $appVersion . 'pre';
+            $preVersion = $version . 'pre';
             %searchReplace = ('^WIN32_MODULE_PRODUCTVERSION_STRING=' . 
              $preVersion . '$' => 'WIN32_MODULE_PRODUCTVERSION_STRING=' . 
-             $appVersion);
+             $version);
         } elsif ($fileName eq $versionTxt) {
-            $preVersion = $appVersion . 'pre';
-            %searchReplace = ('^' . $preVersion . '$' => $appVersion);
+            $preVersion = $version . 'pre';
+            %searchReplace = ('^' . $preVersion . '$' => $version);
         } elsif ($fileName eq $milestoneTxt) {
             $preVersion = $milestone . 'pre';
             %searchReplace = ('^' . $preVersion . '$' => $milestone);
@@ -142,7 +142,7 @@ sub Execute {
         close INFILE or die("Could not close $file: $!");
         close OUTFILE or die("Coule not close $file.tmp: $!");
         if (not $found) {
-            die("None of " . join(' ', keys(%searchReplace)) . 
+            die("None of " . join(keys(%searchReplace)) . 
              " found in file $file: $!");
         }
 
@@ -160,7 +160,7 @@ sub Execute {
       cmdArgs => ['commit', '-m', $bumpCiMsg, 
                   @bumpFiles,
                  ],
-      dir => catfile($buildTagDir, 'cvsroot', 'mozilla'),
+      dir => catfile($rcTagDir, 'cvsroot', 'mozilla'),
       logFile => catfile($logDir, 'tag-bump_checkin.log'),
     );
 }
@@ -169,14 +169,14 @@ sub Verify {
     my $this = shift;
 
     my $config = new Bootstrap::Config();
-    my $logDir = $config->Get(sysvar => 'logDir');
+    my $logDir = $config->Get(var => 'logDir');
     my $appName = $config->Get(var => 'appName');
     my $milestone = $config->Exists(var => 'milestone') ? 
      $config->Get(var => 'milestone') : undef;
-    my $build = $config->Get(var => 'build');
+    my $rc = $config->Get(var => 'rc');
 
-    if ($build > 1) {
-        $this->Log(msg => "Skipping Tag::Bump::Verify substep for build $build.");
+    if ($rc > 1) {
+        $this->Log(msg => "Skipping Tag::Bump::Verify substep for RC $rc.");
         return;
     }
 

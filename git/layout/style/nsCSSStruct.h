@@ -210,12 +210,6 @@ struct nsCSSFont : public nsCSSStruct {
   nsCSSValue mSizeAdjust; // NEW
   nsCSSValue mStretch; // NEW
 
-#ifdef MOZ_MATHML
-  nsCSSValue mScriptLevel; // Integer values mean "relative", Number values mean "absolute" 
-  nsCSSValue mScriptSizeMultiplier;
-  nsCSSValue mScriptMinSize;
-#endif
-
 private:
   nsCSSFont(const nsCSSFont& aOther); // NOT IMPLEMENTED
 };
@@ -519,6 +513,7 @@ struct nsCSSAural : public nsCSSStruct  { // NEW
   nsCSSValue mPauseBefore;
   nsCSSValue mPitch;
   nsCSSValue mPitchRange;
+  nsCSSValuePair mPlayDuring; // mXValue is URI, mYValue are flags
   nsCSSValue mRichness;
   nsCSSValue mSpeak;
   nsCSSValue mSpeakHeader;
@@ -591,7 +586,6 @@ struct nsCSSSVG : public nsCSSStruct {
   nsCSSValue mFilter;
   nsCSSValue mFloodColor;
   nsCSSValue mFloodOpacity;
-  nsCSSValue mLightingColor;
   nsCSSValue mMarkerEnd;
   nsCSSValue mMarkerMid;
   nsCSSValue mMarkerStart;

@@ -62,25 +62,10 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Use)
 //----------------------------------------------------------------------
 // nsISupports methods
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsSVGUseElement)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsSVGUseElement,
-                                                nsSVGUseElementBase)
-  nsAutoScriptBlocker scriptBlocker;
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOriginal)
-  tmp->DestroyAnonymousContent();
-  tmp->RemoveListener();
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsSVGUseElement,
-                                                  nsSVGUseElementBase)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOriginal)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mClone)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mSourceContent)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
 NS_IMPL_ADDREF_INHERITED(nsSVGUseElement,nsSVGUseElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGUseElement,nsSVGUseElementBase)
 
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsSVGUseElement)
+NS_INTERFACE_MAP_BEGIN(nsSVGUseElement)
   NS_INTERFACE_MAP_ENTRY(nsIDOMNode)
   NS_INTERFACE_MAP_ENTRY(nsIDOMElement)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGElement)
@@ -292,11 +277,11 @@ nsSVGUseElement::CreateAnonymousContent()
   if (!targetContent)
     return nsnull;
 
-  PRBool needAddObserver = PR_FALSE;
   if (mSourceContent != targetContent) {
     RemoveListener();
-    needAddObserver = PR_TRUE;
+    targetContent->AddMutationObserver(this);
   }
+  mSourceContent = targetContent;
 
   // make sure target is valid type for <use>
   // QIable nsSVGGraphicsElement would eliminate enumerating all elements
@@ -417,10 +402,6 @@ nsSVGUseElement::CreateAnonymousContent()
     }
   }
 
-  if (needAddObserver) {
-    targetContent->AddMutationObserver(this);
-  }
-  mSourceContent = targetContent;
   mClone = newcontent;
   return mClone;
 }
@@ -518,7 +499,6 @@ nsSVGUseElement::IsAttributeMapped(const nsIAtom* name) const
     sFiltersMap,
     sFontSpecificationMap,
     sGradientStopMap,
-    sLightingEffectsMap,
     sMarkersMap,
     sTextContentElementsMap,
     sViewportsMap

@@ -453,9 +453,10 @@ nsImageBoxFrame::GetPrefSize(nsBoxLayoutState& aState)
   nsIBox::AddCSSPrefSize(aState, this, size);
 
   nsSize minSize = GetMinSize(aState);
-  nsSize maxSize = GetMaxSize(aState);  
+  nsSize maxSize = GetMaxSize(aState);
+  BoundsCheck(minSize, size, maxSize);
 
-  return BoundsCheck(minSize, size, maxSize);
+  return size;
 }
 
 nsSize

@@ -118,6 +118,7 @@ NS_IMPL_RELEASE(nsContentTreeOwner)
 NS_INTERFACE_MAP_BEGIN(nsContentTreeOwner)
    NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDocShellTreeOwner)
    NS_INTERFACE_MAP_ENTRY(nsIDocShellTreeOwner)
+   NS_INTERFACE_MAP_ENTRY(nsIDocShellTreeOwner_MOZILLA_1_8_BRANCH)
    NS_INTERFACE_MAP_ENTRY(nsIBaseWindow)
    NS_INTERFACE_MAP_ENTRY(nsIWebBrowserChrome)
    NS_INTERFACE_MAP_ENTRY(nsIWebBrowserChrome2)
@@ -302,21 +303,17 @@ NS_IMETHODIMP nsContentTreeOwner::FindItemWithName(const PRUnichar* aName,
    return NS_OK;      
 }
 
-NS_IMETHODIMP
-nsContentTreeOwner::ContentShellAdded(nsIDocShellTreeItem* aContentShell,
-                                      PRBool aPrimary, PRBool aTargetable,
-                                      const nsAString& aID)
+NS_IMETHODIMP nsContentTreeOwner::ContentShellAdded(nsIDocShellTreeItem* aContentShell,
+   PRBool aPrimary, const PRUnichar* aID)
 {
-  NS_ENSURE_STATE(mXULWindow);
-  return mXULWindow->ContentShellAdded(aContentShell, aPrimary, aTargetable,
-                                       aID);
-}
+   NS_ENSURE_STATE(mXULWindow);
+   if (aID) {
+     return mXULWindow->ContentShellAdded(aContentShell, aPrimary, PR_FALSE,
+                                          nsDependentString(aID));
+   }
 
-NS_IMETHODIMP
-nsContentTreeOwner::ContentShellRemoved(nsIDocShellTreeItem* aContentShell)
-{
-  NS_ENSURE_STATE(mXULWindow);
-  return mXULWindow->ContentShellRemoved(aContentShell);
+   return mXULWindow->ContentShellAdded(aContentShell, aPrimary, PR_FALSE,
+                                        EmptyString());
 }
 
 NS_IMETHODIMP nsContentTreeOwner::GetPrimaryContentShell(nsIDocShellTreeItem** aShell)
@@ -877,11 +874,32 @@ nsContentTreeOwner::ProvideWindow(nsIDOMWindow* aParent,
   }
 
   *aWindowIsNew = (containerPref != nsIBrowserDOMWindow::OPEN_CURRENTWINDOW);
-
-  // Get a new rendering area from the browserDOMWin.  We don't want
-  // to be starting any loads here, so get it with a null URI.
+  
+  // Get a new rendering area from the browserDOMWin.  To make this
+  // safe for cases when it'll try to return an existing window or
+  // something, get it with a null URI.
   return browserDOMWin->OpenURI(nsnull, aParent, containerPref,
                                 nsIBrowserDOMWindow::OPEN_NEW, aReturn);
+}
+
+//*****************************************************************************
+// nsContentTreeOwner::nsIDocShellTreeOwner_MOZILLA_1_8_BRANCH
+//*****************************************************************************   
+NS_IMETHODIMP
+nsContentTreeOwner::ContentShellAdded2(nsIDocShellTreeItem* aContentShell,
+                                       PRBool aPrimary, PRBool aTargetable,
+                                       const nsAString& aID)
+{
+  NS_ENSURE_STATE(mXULWindow);
+  return mXULWindow->ContentShellAdded(aContentShell, aPrimary, aTargetable,
+                                       aID);
+}
+
+NS_IMETHODIMP
+nsContentTreeOwner::ContentShellRemoved(nsIDocShellTreeItem* aContentShell)
+{
+  NS_ENSURE_STATE(mXULWindow);
+  return mXULWindow->ContentShellRemoved(aContentShell);
 }
 
 //*****************************************************************************

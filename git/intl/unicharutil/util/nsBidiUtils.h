@@ -41,6 +41,7 @@
 #ifndef nsBidiUtils_h__
 #define nsBidiUtils_h__
 
+#include "nsCOMPtr.h"
 #include "nsStringGlue.h"
 
    /**
@@ -202,12 +203,6 @@ typedef enum nsCharType nsCharType;
    * return PR_FALSE, otherwise
    */
   PRBool IsBidiControl(PRUint32 aChar);
-
-  /**
-   * Give an nsString.
-   * @return PR_TRUE if the string contains right-to-left characters
-   */
-  PRBool HasRTLChars(nsAString& aString);
 
 // --------------------------------------------------
 // IBMBIDI 

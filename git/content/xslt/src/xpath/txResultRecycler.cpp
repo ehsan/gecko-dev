@@ -290,9 +290,7 @@ txResultRecycler::getNonSharedNodeSet(txNodeSet* aNodeSet, txNodeSet** aResult)
 void
 txAExprResult::Release()
 {
-    --mRefCnt;
-    NS_LOG_RELEASE(this, mRefCnt, "txAExprResult");
-    if (mRefCnt == 0) {
+    if (--mRefCnt == 0) {
         if (mRecycler) {
             mRecycler->recycle(this);
         }

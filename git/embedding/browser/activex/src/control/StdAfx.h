@@ -100,6 +100,7 @@
 #include "nsIDocument.h"
 #include "nsIDocumentObserver.h"
 #include "nsIStreamListener.h"
+#include "nsUnitConversion.h"
 #include "nsVoidArray.h"
 
 #include "nsIDocumentViewer.h"

@@ -42,7 +42,7 @@
  */
 
 #include "nsAttrAndChildArray.h"
-#include "nsMappedAttributeElement.h"
+#include "nsGenericHTMLElement.h"
 #include "prmem.h"
 #include "prbit.h"
 #include "nsString.h"
@@ -553,7 +553,7 @@ nsAttrAndChildArray::IndexOfAttr(nsIAtom* aLocalName, PRInt32 aNamespaceID) cons
 nsresult
 nsAttrAndChildArray::SetAndTakeMappedAttr(nsIAtom* aLocalName,
                                           nsAttrValue& aValue,
-                                          nsMappedAttributeElement* aContent,
+                                          nsGenericHTMLElement* aContent,
                                           nsHTMLStyleSheet* aSheet)
 {
   nsRefPtr<nsMappedAttributes> mapped;
@@ -642,7 +642,6 @@ nsAttrAndChildArray::Clear()
     ATTRS(mImpl)[i].~InternalAttr();
   }
 
-  nsAutoScriptBlocker scriptBlocker;
   PRUint32 end = slotCount * ATTRSIZE + ChildCount();
   for (i = slotCount * ATTRSIZE; i < end; ++i) {
     nsIContent* child = static_cast<nsIContent*>(mImpl->mBuffer[i]);
@@ -677,7 +676,7 @@ nsAttrAndChildArray::MappedAttrCount() const
 }
 
 nsresult
-nsAttrAndChildArray::GetModifiableMapped(nsMappedAttributeElement* aContent,
+nsAttrAndChildArray::GetModifiableMapped(nsGenericHTMLElement* aContent,
                                          nsHTMLStyleSheet* aSheet,
                                          PRBool aWillAddAttr,
                                          nsMappedAttributes** aModifiable)

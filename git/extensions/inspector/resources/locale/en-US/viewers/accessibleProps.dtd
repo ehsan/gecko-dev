@@ -42,5 +42,3 @@
 <!ENTITY descValue.label "Value:">
 <!ENTITY descState.label "State:">
 <!ENTITY descActionName.label "Action Name:">
-<!ENTITY descBounds.label "Bounds:">
-

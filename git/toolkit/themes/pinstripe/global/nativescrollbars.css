@@ -60,21 +60,21 @@ html|select[multiple] > scrollbar {
 /* ..... track ..... */
 
 slider {
-  -moz-appearance: scrollbartrack-horizontal;
+  -moz-appearance: scrollbartrack-vertical;
 }
 
-slider[orient="vertical"] {
-  -moz-appearance: scrollbartrack-vertical;
+slider[orient="horizontal"] {
+  -moz-appearance: scrollbartrack-horizontal;
 }
 
 /* ..... thumb ..... */
 
 thumb {
-  -moz-appearance: scrollbarthumb-horizontal;
+  -moz-appearance: scrollbarthumb-vertical;
 }
 
-thumb[orient="vertical"] {
-  -moz-appearance: scrollbarthumb-vertical;
+thumb[orient="horizontal"] {
+  -moz-appearance: scrollbarthumb-horizontal;
 }
 
 /* ..... increment ..... */

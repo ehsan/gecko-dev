@@ -40,7 +40,7 @@
 #include "txStylesheetCompileHandlers.h"
 #include "txAtoms.h"
 #include "txURIUtils.h"
-#include "nsWhitespaceTokenizer.h"
+#include "txTokenizer.h"
 #include "txStylesheet.h"
 #include "txInstructions.h"
 #include "txToplevelItems.h"
@@ -72,17 +72,13 @@ txStylesheetCompiler::txStylesheetCompiler(const nsAString& aStylesheetURI,
 nsrefcnt
 txStylesheetCompiler::AddRef()
 {
-    ++mRefCnt;
-    NS_LOG_ADDREF(this, mRefCnt, "txStylesheetCompiler", sizeof(*this));
-    return mRefCnt;
+    return ++mRefCnt;
 }
 
 nsrefcnt
 txStylesheetCompiler::Release()
 {
-    --mRefCnt;
-    NS_LOG_RELEASE(this, mRefCnt, "txStylesheetCompiler");
-    if (mRefCnt == 0) {
+    if (--mRefCnt == 0) {
         mRefCnt = 1; //stabilize
         delete this;
         return 0;
@@ -278,7 +274,7 @@ txStylesheetCompiler::startElementInternal(PRInt32 aNamespaceID,
             rv = ensureNewElementContext();
             NS_ENSURE_SUCCESS(rv, rv);
 
-            nsWhitespaceTokenizer tok(attr->mValue);
+            txTokenizer tok(attr->mValue);
             while (tok.hasMoreTokens()) {
                 PRInt32 namespaceID = mElementContext->mMappings->
                     lookupNamespaceWithDefault(tok.nextToken());
@@ -768,7 +764,7 @@ txStylesheetCompilerState::addInstruction(nsAutoPtr<txInstruction> aInstruction)
     txInstruction* newInstr = aInstruction;
 
     *mNextInstrPtr = aInstruction.forget();
-    mNextInstrPtr = newInstr->mNext.StartAssignment();
+    mNextInstrPtr = &newInstr->mNext;
     
     PRInt32 i, count = mGotoTargetPointers.Count();
     for (i = 0; i < count; ++i) {
@@ -1111,7 +1107,7 @@ TX_XSLTFunctionAvailable(nsIAtom* aName, PRInt32 aNameSpaceID)
 {
     nsRefPtr<txStylesheetCompiler> compiler =
         new txStylesheetCompiler(EmptyString(), nsnull);
-    NS_ENSURE_TRUE(compiler, PR_FALSE);
+    NS_ENSURE_TRUE(compiler, NS_ERROR_OUT_OF_MEMORY);
 
     nsAutoPtr<FunctionCall> fnCall;
 

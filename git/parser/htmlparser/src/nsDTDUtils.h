@@ -364,7 +364,7 @@ public:
 
   virtual void* operator()(void* anObject) {
     CToken* aToken = (CToken*)anObject;
-    aToken->Release(mArenaPool);
+    CToken::Destroy(aToken, mArenaPool);
     return 0;
   }
 };

@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 sw=2 et tw=78: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -81,7 +80,6 @@
 #include "nsLayoutCID.h"
 #include "prio.h"
 #include "nsInt64.h"
-#include "nsEscape.h"
 #include "nsIDirectoryService.h"
 #include "nsILocalFile.h"
 #include "nsAppDirectoryServiceDefs.h"
@@ -389,33 +387,25 @@ SplitURL(nsIURI *aChromeURI, nsCString& aPackage, nsCString& aProvider, nsCStrin
   } else {
     // Protect against URIs containing .. that reach up out of the
     // chrome directory to grant chrome privileges to non-chrome files.
-    // XXX: If we find %-escaped dot or % in a chrome URI we assume
-    // someone is trying to trick us.
-    const char* pos = aFile.BeginReading();
-    const char* end = aFile.EndReading();
-    while (pos < end) {
-      switch (*pos) {
-        case ':':
-          return NS_ERROR_FAILURE;
-        case '.':
-          if (pos[1] == '.')
-            return NS_ERROR_FAILURE;
-          break;
-        case '%':
-          // chrome: URIs with escaped dots are trying to trick us.
-          // Double-escapes (%25) doubly so
-          if (pos[1] == '2' &&
-               ( pos[2] == 'e' || pos[2] == 'E' || 
-                 pos[2] == '5' ))
-            return NS_ERROR_FAILURE;
-          break;
-        case '?':
-        case '#':
-          // leave any query or ref section alone
-          pos = end;
-          continue;
+    int depth = 0;
+    PRBool sawSlash = PR_TRUE;  // .. at the beginning is suspect as well as /..
+    for (const char* p=aFile.get(); *p; p++) {
+      if (sawSlash) {
+        if (p[0] == '.' && p[1] == '.'){
+          depth--;    // we have /.., decrement depth.
+        } else {
+          static const char escape[] = "%2E%2E";
+          if (PL_strncasecmp(p, escape, sizeof(escape)-1) == 0)
+            depth--;   // we have the HTML-escaped form of /.., decrement depth.
+        }
+      } else if (p[0] != '/') {
+        depth++;        // we have /x for some x that is not /
       }
-      ++pos;
+      sawSlash = (p[0] == '/');
+
+      if (depth < 0) {
+        return NS_ERROR_FAILURE;
+      }
     }
   }
   if (aModified)
@@ -2986,7 +2976,7 @@ nsChromeRegistry::FlagXPCNativeWrappers()
         uri.AssignLiteral("chrome://");
         uri.Append(source + sizeof urn - 1);
         uri.Append('/');
-        rv = xpc->FlagSystemFilenamePrefix(uri.get(), PR_TRUE);
+        rv = xpc->FlagSystemFilenamePrefix(uri.get());
         NS_ENSURE_SUCCESS(rv, rv);
       }
     }
@@ -3124,13 +3114,6 @@ nsChromeRegistry::AllowScriptsForPackage(nsIURI* aChromeURI, PRBool *aResult)
       *aResult = PR_FALSE;
   }
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsChromeRegistry::AllowContentToAccess(nsIURI*, PRBool *aResult)
-{
-  *aResult = PR_TRUE;
-  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP

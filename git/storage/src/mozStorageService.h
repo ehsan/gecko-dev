@@ -46,13 +46,13 @@
 #include "nsIFile.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
-#include "prlock.h"
 
 #include "mozIStorageService.h"
 
 class mozStorageConnection;
 
-class mozStorageService : public mozIStorageService
+class mozStorageService : public mozIStorageService,
+                          public nsIObserver
 {
     friend class mozStorageConnection;
 
@@ -68,18 +68,19 @@ public:
     // mozIStorageService
     NS_DECL_MOZISTORAGESERVICE
 
+    NS_DECL_NSIOBSERVER
+
 private:
     virtual ~mozStorageService();
-
-    /**
-     * Used for locking around calls when initializing connections so that we
-     * can ensure that the state of sqlite3_enable_shared_cache is sane.
-     */
-    PRLock *mLock;
 protected:
     nsCOMPtr<nsIFile> mProfileStorageFile;
 
     static mozStorageService *gStorageService;
+
+    nsresult InitStorageAsyncIO();
+    nsresult FlushAsyncIO();
+    nsresult FinishAsyncIO();
+    void FreeLocks();
 };
 
 #endif /* _MOZSTORAGESERVICE_H_ */

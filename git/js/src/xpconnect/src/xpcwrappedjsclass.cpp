@@ -112,7 +112,7 @@ AutoScriptEvaluate::~AutoScriptEvaluate()
 // function is factored out to manage that.
 JSBool xpc_IsReportableErrorCode(nsresult code)
 {
-    if (NS_SUCCEEDED(code))
+    if(NS_SUCCEEDED(code))
         return JS_FALSE;
 
     switch(code)
@@ -123,7 +123,6 @@ JSBool xpc_IsReportableErrorCode(nsresult code)
         case NS_BASE_STREAM_WOULD_BLOCK:
             return JS_FALSE;
     }
-
     return JS_TRUE;
 }
 
@@ -501,35 +500,6 @@ nsXPCWrappedJSClass::IsWrappedJS(nsISupports* aPtr)
            result == WrappedJSIdentity::GetSingleton();
 }
 
-static JSContext *
-GetContextFromObject(JSObject *obj)
-{
-    // Don't stomp over a running context.
-    XPCJSContextStack* stack =
-        XPCPerThreadData::GetData(nsnull)->GetJSContextStack();
-    JSContext* topJSContext;
-
-    if(stack && NS_SUCCEEDED(stack->Peek(&topJSContext)) && topJSContext)
-        return nsnull;
-
-    // In order to get a context, we need a context.
-    XPCCallContext ccx(NATIVE_CALLER);
-    if(!ccx.IsValid())
-        return nsnull;
-    XPCWrappedNativeScope* scope =
-        XPCWrappedNativeScope::FindInJSObjectScope(ccx, obj);
-    XPCContext *xpcc = scope->GetContext();
-
-    if(xpcc)
-    {
-        JSContext *cx = xpcc->GetJSContext();
-        if(cx->thread->id == js_CurrentThreadId())
-            return cx;
-    }
-
-    return nsnull;
-}
-
 NS_IMETHODIMP
 nsXPCWrappedJSClass::DelegatedQueryInterface(nsXPCWrappedJS* self,
                                              REFNSIID aIID,
@@ -543,7 +513,7 @@ nsXPCWrappedJSClass::DelegatedQueryInterface(nsXPCWrappedJS* self,
     }
 
     // Objects internal to xpconnect are the only objects that even know *how*
-    // to ask for this iid. And none of them bother refcounting the thing.
+    // to ask for this iid. And none of them bother refcoutning the thing.
     if(aIID.Equals(NS_GET_IID(WrappedJSIdentity)))
     {
         // asking to find out if this is a wrapper object
@@ -574,9 +544,7 @@ nsXPCWrappedJSClass::DelegatedQueryInterface(nsXPCWrappedJS* self,
         return NS_OK;
     }
 
-
-    JSContext *context = GetContextFromObject(self->GetJSObject());
-    XPCCallContext ccx(NATIVE_CALLER, context);
+    XPCCallContext ccx(NATIVE_CALLER);
     if(!ccx.IsValid())
     {
         *aInstancePtr = nsnull;
@@ -909,8 +877,7 @@ nsXPCWrappedJSClass::CleanupPointerTypeObject(const nsXPTType& type,
 nsresult
 nsXPCWrappedJSClass::CheckForException(XPCCallContext & ccx,
                                        const char * aPropertyName,
-                                       const char * anInterfaceName,
-                                       PRBool aForceReport)
+                                       const char * anInterfaceName)
 {
     XPCContext * xpcc = ccx.GetXPCContext();
     JSContext * cx = ccx.GetJSContext();
@@ -931,8 +898,7 @@ nsXPCWrappedJSClass::CheckForException(XPCCallContext & ccx,
     {
         if(!xpc_exception)
             XPCConvert::JSValToXPCException(ccx, js_exception, anInterfaceName,
-                                            aPropertyName,
-                                            getter_AddRefs(xpc_exception));
+                                            aPropertyName, getter_AddRefs(xpc_exception));
 
         /* cleanup and set failed even if we can't build an exception */
         if(!xpc_exception)
@@ -947,52 +913,7 @@ nsXPCWrappedJSClass::CheckForException(XPCCallContext & ccx,
         nsresult e_result;
         if(NS_SUCCEEDED(xpc_exception->GetResult(&e_result)))
         {
-            // Figure out whether or not we should report this exception.
-            PRBool reportable = xpc_IsReportableErrorCode(e_result);
-            if(reportable)
-            {
-                // Always want to report forced exceptions and XPConnect's own
-                // errors.
-                reportable = aForceReport ||
-                    NS_ERROR_GET_MODULE(e_result) == NS_ERROR_MODULE_XPCONNECT;
-
-                // See if an environment variable was set or someone has told us
-                // that a user pref was set indicating that we should report all
-                // exceptions.
-                if(!reportable)
-                    reportable = nsXPConnect::ReportAllJSExceptions();
-
-                // Finally, check to see if this is the last JS frame on the
-                // stack. If so then we always want to report it.
-                if(!reportable)
-                {
-                    PRBool onlyNativeStackFrames = PR_TRUE;
-                    JSStackFrame * fp = nsnull;
-                    while((fp = JS_FrameIterator(cx, &fp)))
-                    {
-                        if(!JS_IsNativeFrame(cx, fp))
-                        {
-                            onlyNativeStackFrames = PR_FALSE;
-                            break;
-                        }
-                    }
-                    reportable = onlyNativeStackFrames;
-                }
-                
-                // Ugly special case for GetInterface. It's "special" in the
-                // same way as QueryInterface in that a failure is not
-                // exceptional and shouldn't be reported. We have to do this
-                // check here instead of in xpcwrappedjs (like we do for QI) to
-                // avoid adding extra code to all xpcwrappedjs objects.
-                if(reportable && e_result == NS_ERROR_NO_INTERFACE &&
-                   !strcmp(anInterfaceName, "nsIInterfaceRequestor") &&
-                   !strcmp(aPropertyName, "getInterface"))
-                {
-                    reportable = PR_FALSE;
-                }
-            }
-
-            if(reportable)
+            if(xpc_IsReportableErrorCode(e_result))
             {
 #ifdef DEBUG
                 static const char line[] =
@@ -1101,7 +1022,7 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
                                 const XPTMethodDescriptor* info,
                                 nsXPTCMiniVariant* nativeParams)
 {
-    jsval* stackbase = nsnull;
+    jsval* stackbase;
     jsval* sp = nsnull;
     uint8 i;
     uint8 argc=0;
@@ -1127,8 +1048,7 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
     // the whole nsIXPCFunctionThisTranslator bit.  That code uses ccx to
     // convert natives to JSObjects, but we do NOT plan to pass those JSObjects
     // to our real callee.
-    JSContext *context = GetContextFromObject(wrapper->GetJSObject());
-    XPCCallContext ccx(NATIVE_CALLER, context);
+    XPCCallContext ccx(NATIVE_CALLER);
     if(ccx.IsValid())
     {
         xpcc = ccx.GetXPCContext();
@@ -1520,8 +1440,26 @@ pre_call_clean_up:
     {
         if(!JSVAL_IS_PRIMITIVE(fval))
         {
-            success = js_Invoke(cx, argc, stackbase, 0);
-            result = *stackbase;
+            // Lift current frame (or make new one) to include the args
+            // and do the call.
+            JSStackFrame *fp, *oldfp, frame;
+            jsval *oldsp;
+
+            fp = oldfp = cx->fp;
+            if(!fp)
+            {
+                memset(&frame, 0, sizeof frame);
+                cx->fp = fp = &frame;
+            }
+            oldsp = fp->sp;
+            fp->sp = sp;
+
+            success = js_Invoke(cx, argc, JSINVOKE_INTERNAL);
+
+            result = fp->sp[-1];
+            fp->sp = oldsp;
+            if(oldfp != fp)
+                cx->fp = oldfp;
         }
         else
         {
@@ -1550,14 +1488,7 @@ pre_call_clean_up:
 
     if (!success)
     {
-        PRBool forceReport;
-        if(NS_FAILED(mInfo->IsFunction(&forceReport)))
-            forceReport = PR_FALSE;
-
-        // May also want to check if we're moving from content->chrome and force
-        // a report in that case.
-
-        retval = CheckForException(ccx, name, GetInterfaceName(), forceReport);
+        retval = CheckForException(ccx, name, GetInterfaceName());
         goto done;
     }
 
@@ -1811,10 +1742,10 @@ nsXPCWrappedJSClass::DebugDump(PRInt16 depth)
         if(depth)
         {
             uint16 i;
-            nsCOMPtr<nsIInterfaceInfo> parent;
+            nsIInterfaceInfo* parent;
             XPC_LOG_INDENT();
-            mInfo->GetParent(getter_AddRefs(parent));
-            XPC_LOG_ALWAYS(("parent @ %x", parent.get()));
+            mInfo->GetParent(&parent);
+            XPC_LOG_ALWAYS(("parent @ %x", parent));
             mInfo->GetMethodCount(&methodCount);
             XPC_LOG_ALWAYS(("MethodCount = %d", methodCount));
             mInfo->GetConstantCount(&i);

@@ -88,7 +88,6 @@ void nsIntervalSet::IncludeInterval(coord_type aBegin, coord_type aEnd)
 
     Interval *subsumed = newInterval->mNext;
     while (subsumed && subsumed->mBegin <= aEnd) {
-        newInterval->mBegin = PR_MIN(newInterval->mBegin, subsumed->mBegin);
         newInterval->mEnd = PR_MAX(newInterval->mEnd, subsumed->mEnd);
         newInterval->mNext = subsumed->mNext;
         FreeInterval(subsumed);

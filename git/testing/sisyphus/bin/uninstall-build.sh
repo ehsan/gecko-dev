@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/usr/local/bin/bash -e
 # -*- Mode: Shell-script; tab-width: 4; indent-tabs-mode: nil; -*-
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -37,7 +37,9 @@
 #
 # ***** END LICENSE BLOCK *****
 
-source $TEST_DIR/bin/library.sh
+TEST_DIR=${TEST_DIR:-/work/mozilla/mozilla.com/test.mozilla.com/www}
+TEST_BIN=${TEST_BIN:-$TEST_DIR/bin}
+source ${TEST_BIN}/library.sh
 
 #
 # options processing
@@ -57,8 +59,8 @@ variable            description
 -d datafiles        optional. one or more filenames of files containing 
                     environment variable definitions to be included.
 
-note that the environment variables should have the same names as in the 
-"variable" column.
+                    note that the environment variables should have the same 
+                    names as in the "variable" column.
 
 Uninstalls build located in directory-tree 'executablepath'
 then removes the directory upon completion.
@@ -70,13 +72,13 @@ EOF
 unset product branch executablepath datafiles
 
 while getopts $options optname ; 
-  do 
-  case $optname in
-      p) product=$OPTARG;;
-      b) branch=$OPTARG;;
-      x) executablepath=$OPTARG;;
-      d) datafiles=$OPTARG;;
-  esac
+do 
+    case $optname in
+        p) product=$OPTARG;;
+        b) branch=$OPTARG;;
+        x) executablepath=$OPTARG;;
+        d) datafiles=$OPTARG;;
+    esac
 done
 
 # include environment variables
@@ -88,7 +90,7 @@ if [[ -n "$datafiles" ]]; then
 fi
 
 if [[ -z "$product" || -z "$branch" || -z "$executablepath" ]]
-    then
+then
     usage
 fi
 
@@ -118,7 +120,7 @@ if [[ $OSID == "win32" ]]; then
             uninstallini="$executabledir/uninstall/uninstall.ini"
             if [[ -n "$uninstallexe"  && -e "$uninstallexe" ]]; then
                 if sed -i.bak 's/Run Mode=Normal/Run Mode=Silent/' $uninstallini; 
-                    then
+                then
                     # uninstall.exe will return non zero exit codes 
                     # for no damn reason.
                     if $uninstallexe; then
@@ -140,7 +142,7 @@ if [[ $OSID == "win32" ]]; then
                 fi
             fi
         else
-            error "Unknown branch $branch" $LINENO
+            error "Unknown branch $branch"
         fi
         # the NSIS uninstaller will copy itself, then fork to the new
         # copy so that it can delete itself. This causes a race condition
@@ -155,7 +157,7 @@ fi
 # safely creates/deletes a directory. If we pass this,
 # then we know it is safe to remove the directory.
 
-$TEST_DIR/bin/create-directory.sh -d "$executablepath" -n
+${TEST_BIN}/create-directory.sh -d "$executablepath" -n
 
 rm -fR "$executablepath"
 

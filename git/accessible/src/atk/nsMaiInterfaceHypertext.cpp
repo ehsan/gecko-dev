@@ -86,13 +86,13 @@ getLinkCountCB(AtkHypertext *aText)
     if (!accWrap)
         return -1;
 
-    nsCOMPtr<nsIAccessibleHyperText> hyperText;
+    nsCOMPtr<nsIAccessibleHyperText> accHyperlink;
     accWrap->QueryInterface(NS_GET_IID(nsIAccessibleHyperText),
-                            getter_AddRefs(hyperText));
-    NS_ENSURE_TRUE(hyperText, -1);
+                            getter_AddRefs(accHyperlink));
+    NS_ENSURE_TRUE(accHyperlink, -1);
 
     PRInt32 count = -1;
-    nsresult rv = hyperText->GetLinkCount(&count);
+    nsresult rv = accHyperlink->GetLinks(&count);
     NS_ENSURE_SUCCESS(rv, -1);
 
     return count;
@@ -105,13 +105,13 @@ getLinkIndexCB(AtkHypertext *aText, gint aCharIndex)
     if (!accWrap)
         return -1;
 
-    nsCOMPtr<nsIAccessibleHyperText> hyperText;
+    nsCOMPtr<nsIAccessibleHyperText> accHyperlink;
     accWrap->QueryInterface(NS_GET_IID(nsIAccessibleHyperText),
-                            getter_AddRefs(hyperText));
-    NS_ENSURE_TRUE(hyperText, -1);
+                            getter_AddRefs(accHyperlink));
+    NS_ENSURE_TRUE(accHyperlink, -1);
 
     PRInt32 index = -1;
-    nsresult rv = hyperText->GetLinkIndex(aCharIndex, &index);
+    nsresult rv = accHyperlink->GetLinkIndex(aCharIndex, &index);
     NS_ENSURE_SUCCESS(rv, -1);
 
     return index;

@@ -1,11 +1,6 @@
 <?xml version="1.0"?>
 
-<!DOCTYPE bindings [
-<!ENTITY % globalDTD SYSTEM "chrome://global/locale/global.dtd">
-%globalDTD;
-<!ENTITY % treeDTD SYSTEM "chrome://global/locale/tree.dtd">
-%treeDTD;
-]>
+<!DOCTYPE bindings SYSTEM "chrome://global/locale/tree.dtd">
 
 <bindings id="treeBindings"
    xmlns="http://www.mozilla.org/xbl"
@@ -32,7 +27,7 @@
   </binding>
 
   <binding id="tree" extends="chrome://global/content/bindings/tree.xml#tree-base">
-    <content hidevscroll="true" hidehscroll="true" chromedir="&locale.dir;">
+    <content hidevscroll="true" hidehscroll="true">
       <children includes="treecols"/>
       <xul:stack class="tree-stack" flex="1">
         <xul:treerows class="tree-rows" flex="1" xbl:inherits="hidevscroll">
@@ -61,7 +56,7 @@
                 onget="return this.treeBoxObject.treeBody;"/>
 
       <property name="editable"
-                onget="return this.getAttribute('editable') == 'true';"
+                onget="return this.hasAttribute('editable');"
                 onset="if (val) this.setAttribute('editable', 'true');
                        else this.removeAttribute('editable'); return val;"/>
 
@@ -74,8 +69,8 @@
                 onset="this.setAttribute('seltype', val); return val;"/>
 
       <property name="currentIndex"
-                onget="return this.view ? this.view.selection.currentIndex: - 1;"
-                onset="if (this.view) return this.view.selection.currentIndex = val; return val;"/>
+                onget="return this.view.selection.currentIndex;"
+                onset="return this.view.selection.currentIndex = val;"/>
 
       <!-- ///////////////// nsIAccessibleProvider ///////////////// -->
 
@@ -110,13 +105,13 @@
                 onset="if (val) this.setAttribute('enableColumnDrag', 'true');
                        else this.removeAttribute('enableColumnDrag'); return val;"/>
 
-      <field name="_inputField">null</field>
+      <field name="mInputField">null</field>
 
       <property name="inputField" readonly="true">
         <getter><![CDATA[
-          if (!this._inputField)
-            this._inputField = document.getAnonymousElementByAttribute(this, "anonid", "input");
-          return this._inputField;
+          if (!this.mInputField)
+            this.mInputField = document.getAnonymousElementByAttribute(this, "anonid", "input");
+          return this.mInputField;
         ]]></getter>
       </property>
 
@@ -142,10 +137,7 @@
 
       <method name="_ensureColumnOrder">
         <body><![CDATA[
-          if (!this._columnsDirty)
-            return;
-
-          if (this.columns) {
+          if (this._columnsDirty) {
             // update the ordinal position of each column to assure that it is
             // an odd number and 2 positions above its next sibling
             var cols = [];
@@ -160,8 +152,9 @@
             var splitters = this.getElementsByTagName("splitter");
             for (i = 0; i < splitters.length; ++i)
               splitters[i].setAttribute("ordinal", (i+1)*2);
+            
+            this._columnsDirty = false;
           }
-          this._columnsDirty = false;
         ]]></body>
       </method>
 
@@ -171,11 +164,11 @@
         <parameter name="aBefore"/>
         <body><![CDATA[
           this._ensureColumnOrder();
-
+          
           var i;
           var cols = [];
           var col = this.columns.getColumnFor(aColBefore);
-          if (parseInt(aColBefore.ordinal) < parseInt(aColMove.ordinal)) {
+          if (aColBefore.ordinal < aColMove.ordinal) {
             if (aBefore)
               cols.push(aColBefore);
             for (col = col.getNext(); col.element != aColMove;
@@ -184,8 +177,8 @@
 
             aColMove.ordinal = cols[0].ordinal;
             for (i = 0; i < cols.length; ++i)
-              cols[i].ordinal = parseInt(cols[i].ordinal) + 2;
-          } else if (aColBefore.ordinal != aColMove.ordinal) {
+              cols[i].ordinal += 2;
+          } else {
             if (!aBefore)
               cols.push(aColBefore);
             for (col = col.getPrevious(); col.element != aColMove;
@@ -194,7 +187,7 @@
 
             aColMove.ordinal = cols[0].ordinal;
             for (i = 0; i < cols.length; ++i)
-              cols[i].ordinal = parseInt(cols[i].ordinal) - 2;
+              cols[i].ordinal -= 2;
           }
         ]]></body>
       </method>
@@ -278,7 +271,7 @@
         ]]></body>
       </method>
 
-      <method name="_keyNavigate">
+      <method name="keyNavigate">
         <parameter name="event"/>
         <body><![CDATA[
           var key = String.fromCharCode(event.charCode).toLowerCase();
@@ -336,6 +329,7 @@
               this.stopEditing();
 
             var input = this.inputField;
+            input.hidden = false;
 
             var box = this.treeBoxObject;
             box.ensureCellIsVisible(row, column);
@@ -357,7 +351,6 @@
             coords = box.getCoordsForCellItem(row, column, "cell",
                                               outx, outy, outwidth, outheight);
             input.width = outwidth.value - (left - outx.value);
-            input.hidden = false;
 
             input.value = this.view.getCellText(row, column);
             var selectText = function selectText() {
@@ -827,8 +820,8 @@
          }
          else if (!this.disableKeyNavigation && event.charCode > 0 &&
                   !event.altKey && !this._isAccelPressed(event) &&
-                  !event.metaKey && !event.ctrlKey) {
-           var l = this._keyNavigate(event);
+                  !event.metaKey) {
+           var l = this.keyNavigate(event);
            if (l >= 0) {
              this.view.selection.timedSelect(l, this._selectDelay);
              this.treeBoxObject.ensureRowIsVisible(l);
@@ -839,10 +832,7 @@
     </handlers>    
   </binding>
 
-  <binding id="treecols">
-    <resources>
-      <stylesheet src="chrome://global/skin/tree.css"/>
-    </resources>
+  <binding id="treecols" extends="chrome://global/content/bindings/tree.xml#tree-base">
     <content orient="horizontal">
       <xul:hbox class="tree-scrollable-columns" flex="1">
         <children includes="treecol|splitter"/>
@@ -1094,7 +1084,7 @@
       <property name="accessibleType" readonly="true">
         <getter>
           <![CDATA[
-            return Components.interfaces.nsIAccessibleProvider.XULTreeColumnItem;
+            return Components.interfaces.nsIAccessibleProvider.XULTreeColumnitem;
           ]]>
         </getter>
       </property>
@@ -1102,11 +1092,10 @@
       <property name="ordinal">
         <getter><![CDATA[
           var val = this.getAttribute("ordinal");
-          return "" + (val == "" ? 1 : (val == "0" ? 0 : parseInt(val)));
+          return val == "" ? 1 : (val == "0" ? 0 : parseInt(val));
         ]]></getter>
         <setter><![CDATA[
           this.setAttribute("ordinal", val);
-          return val;
         ]]></setter>
       </property>
       
@@ -1122,7 +1111,7 @@
         ]]></getter>
       </property>
 
-      <method name="_onDragMouseMove">
+      <method name="onDragMouseMove">
         <parameter name="aEvent"/>
         <body><![CDATA[
           var col = document.treecolDragging;
@@ -1137,7 +1126,7 @@
             } else {
               col.mDragGesturing = false;
               col.setAttribute("dragging", "true");
-              window.addEventListener("click", col._onDragMouseClick, true);
+              window.addEventListener("click", col.onDragMouseClick, true);
             }
           }
                     
@@ -1188,7 +1177,7 @@
         ]]></body>        
       </method>
 
-      <method name="_onDragMouseUp">
+      <method name="onDragMouseUp">
         <parameter name="aEvent"/>
         <body><![CDATA[
           var col = document.treecolDragging;
@@ -1199,31 +1188,16 @@
               // remove insertbefore/after attributes
               var before = col.mTargetCol.hasAttribute("insertbefore");
               col.mTargetCol.removeAttribute(before ? "insertbefore" : "insertafter");
-
-              var sib = col.mTargetCol._previousVisibleColumn;
-              if (before && sib) {
-                sib.removeAttribute("insertafter");
+              if (before) {
+                var sib = col.mTargetCol._previousVisibleColumn;
+                if (sib)
+                  sib.removeAttribute("insertafter");
               }
-
-              // Move the column only if it will result in a different column
-              // ordering
-              var move = true;
-
-              // If this is a before move and the previous visible column is
-              // the same as the column we're moving, don't move
-              if (before && col == sib) {
-                move = false;
-              }
-              else if (!before && col == col.mTargetCol) {
-                // If this is an after move and the column we're moving is
-                // the same as the target column, don't move.
-                move = false;
-              }
-
-              if (move) {
+                          
+              // move the column
+              if (col != col.mTargetCol)
                 col.parentNode.parentNode._reorderColumn(col, col.mTargetCol, before);
-              }
-
+            
               // repaint to remove lines
               col.parentNode.parentNode.treeBoxObject.invalidate();
   
@@ -1235,18 +1209,18 @@
           document.treecolDragging = null;
           col.removeAttribute("dragging");
           
-          window.removeEventListener("mousemove", col._onDragMouseMove, true);
-          window.removeEventListener("mouseup", col._onDragMouseUp, true);
+          window.removeEventListener("mousemove", col.onDragMouseMove, true);
+          window.removeEventListener("mouseup", col.onDragMouseUp, true);
           // we have to wait for the click event to fire before removing
           // cancelling handler
           var clickHandler = function(handler) { 
             window.removeEventListener("click", handler, true);
           };
-          window.setTimeout(clickHandler, 0, col._onDragMouseClick);
+          window.setTimeout(clickHandler, 0, col.onDragMouseClick);
         ]]></body>        
       </method>
 
-      <method name="_onDragMouseClick">
+      <method name="onDragMouseClick">
         <parameter name="aEvent"/>
         <body><![CDATA[
           // prevent click event from firing after column drag and drop
@@ -1268,8 +1242,8 @@
             if (cols[i].boxObject.width > 0) ++visible;
             
           if (visible > 1) {
-            window.addEventListener("mousemove", this._onDragMouseMove, true);
-            window.addEventListener("mouseup", this._onDragMouseUp, true);
+            window.addEventListener("mousemove", this.onDragMouseMove, true);
+            window.addEventListener("mouseup", this.onDragMouseUp, true);
             document.treecolDragging = this;
             this.mDragGesturing = true;
             this.mStartDragX = event.clientX;
@@ -1313,13 +1287,7 @@
       </xul:menupopup>
     </content>
     
-    <implementation implements="nsIAccessibleProvider">
-      <property name="accessibleType" readonly="true">
-        <getter>
-          return Components.interfaces.nsIAccessibleProvider.XULButton;
-        </getter>
-      </property>
-
+    <implementation>
       <method name="buildPopup">
         <parameter name="aPopup"/>
         <body>

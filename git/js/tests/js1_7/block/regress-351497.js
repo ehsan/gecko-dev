@@ -53,7 +53,7 @@ function test()
   printBugNumber(BUGNUMBER);
   printStatus (summary);
  
-  expect = /SyntaxError: (invalid for\/in left-hand side|missing variable name)/;
+  expect = 'SyntaxError: invalid for/in left-hand side';
   try
   {
     eval('for(let (w) x in y) { }');
@@ -63,7 +63,7 @@ function test()
     actual = ex + '';
   }
 
-  reportMatch(expect, actual, summary);
+  reportCompare(expect, actual, summary);
 
   exitFunc ('test');
 }

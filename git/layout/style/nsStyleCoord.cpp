@@ -89,6 +89,17 @@ nsStyleCoord::nsStyleCoord(float aValue, nsStyleUnit aUnit)
   }
 }
 
+nsStyleCoord::nsStyleCoord(const nsStyleCoord& aCopy)
+  : mUnit(aCopy.mUnit)
+{
+  if ((eStyleUnit_Percent <= mUnit) && (mUnit < eStyleUnit_Coord)) {
+    mValue.mFloat = aCopy.mValue.mFloat;
+  }
+  else {
+    mValue.mInt = aCopy.mValue.mInt;
+  }
+}
+
 nsStyleCoord& nsStyleCoord::operator=(const nsStyleCoord& aCopy)
 {
   mUnit = aCopy.mUnit;
@@ -172,6 +183,16 @@ void nsStyleCoord::SetNoneValue(void)
   mValue.mInt = 0;
 }
 
+void nsStyleCoord::SetUnionValue(const nsStyleUnion& aValue, nsStyleUnit aUnit)
+{
+  mUnit = aUnit;
+#if PR_BYTES_PER_INT == PR_BYTES_PER_FLOAT
+  mValue.mInt = aValue.mInt;
+#else
+  memcpy(&mValue, &aValue, sizeof(nsStyleUnion));
+#endif
+}
+
 void nsStyleCoord::AppendToString(nsString& aBuffer) const
 {
   if ((eStyleUnit_Percent <= mUnit) && (mUnit < eStyleUnit_Coord)) {
@@ -248,17 +269,23 @@ void nsStyleSides::Reset(void)
 
 void nsStyleSides::AppendToString(nsString& aBuffer) const
 {
+  nsStyleCoord  temp;
+
+  GetLeft(temp);
   aBuffer.AppendLiteral("left: ");
-  GetLeft().AppendToString(aBuffer);
+  temp.AppendToString(aBuffer);
 
+  GetTop(temp);
   aBuffer.AppendLiteral("top: ");
-  GetTop().AppendToString(aBuffer);
+  temp.AppendToString(aBuffer);
 
+  GetRight(temp);
   aBuffer.AppendLiteral("right: ");
-  GetRight().AppendToString(aBuffer);
+  temp.AppendToString(aBuffer);
 
+  GetBottom(temp);
   aBuffer.AppendLiteral("bottom: ");
-  GetBottom().AppendToString(aBuffer);
+  temp.AppendToString(aBuffer);
 }
 
 void nsStyleSides::ToString(nsString& aBuffer) const

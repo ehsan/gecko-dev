@@ -106,18 +106,13 @@ XPCJSContextStack::Pop(JSContext * *_retval)
     if(idx > 0)
     {
         --idx; // Advance to new top of the stack
-        XPCJSContextInfo & e = mStack[idx];
+        JSContextAndFrame & e = mStack[idx];
         NS_ASSERTION(!e.frame || e.cx, "Shouldn't have frame without a cx!");
-        if(e.cx && e.frame)
+        if(e.cx)
         {
             JS_RestoreFrameChain(e.cx, e.frame);
             e.frame = nsnull;
         }
-
-        if(e.requestDepth)
-            JS_ResumeRequest(e.cx, e.requestDepth);
-
-        e.requestDepth = 0;
     }
     return NS_OK;
 }
@@ -130,14 +125,9 @@ XPCJSContextStack::Push(JSContext * cx)
         return NS_ERROR_OUT_OF_MEMORY;
     if(mStack.Length() > 1)
     {
-        XPCJSContextInfo & e = mStack[mStack.Length() - 2];
-        if(e.cx && e.cx != cx)
-        {
+        JSContextAndFrame & e = mStack[mStack.Length() - 2];
+        if(e.cx)
             e.frame = JS_SaveFrameChain(e.cx);
-
-            if(JS_GetContextThread(e.cx))
-                e.requestDepth = JS_SuspendRequest(e.cx);
-        }
     }
     return NS_OK;
 }
@@ -165,7 +155,7 @@ SafeFinalize(JSContext* cx, JSObject* obj)
 {
 #ifndef XPCONNECT_STANDALONE
     nsIScriptObjectPrincipal* sop =
-        static_cast<nsIScriptObjectPrincipal*>(xpc_GetJSPrivate(obj));
+        static_cast<nsIScriptObjectPrincipal*>(JS_GetPrivate(cx, obj));
     NS_IF_RELEASE(sop);
 #endif
 }
@@ -394,7 +384,7 @@ nsXPCThreadJSContextStackImpl::Pop(JSContext * *_retval)
 NS_IMETHODIMP
 nsXPCThreadJSContextStackImpl::Push(JSContext * cx)
 {
-    XPCJSContextStack* myStack = GetStackForCurrentThread(cx);
+    XPCJSContextStack* myStack = GetStackForCurrentThread();
 
     if(!myStack)
         return NS_ERROR_FAILURE;
@@ -423,7 +413,7 @@ nsXPCThreadJSContextStackImpl::GetSafeJSContext(JSContext * *aSafeJSContext)
 NS_IMETHODIMP
 nsXPCThreadJSContextStackImpl::SetSafeJSContext(JSContext * aSafeJSContext)
 {
-    XPCJSContextStack* myStack = GetStackForCurrentThread(aSafeJSContext);
+    XPCJSContextStack* myStack = GetStackForCurrentThread();
 
     if(!myStack)
         return NS_ERROR_FAILURE;
@@ -433,11 +423,9 @@ nsXPCThreadJSContextStackImpl::SetSafeJSContext(JSContext * aSafeJSContext)
 
 /***************************************************************************/
 
-PRUintn           XPCPerThreadData::gTLSIndex       = BAD_TLS_INDEX;
-PRLock*           XPCPerThreadData::gLock           = nsnull;
-XPCPerThreadData* XPCPerThreadData::gThreads        = nsnull;
-XPCPerThreadData *XPCPerThreadData::sMainThreadData = nsnull;
-void *            XPCPerThreadData::sMainJSThread   = nsnull;
+PRUintn           XPCPerThreadData::gTLSIndex = BAD_TLS_INDEX;
+PRLock*           XPCPerThreadData::gLock     = nsnull;
+XPCPerThreadData* XPCPerThreadData::gThreads  = nsnull;
 
 static jsuword
 GetThreadStackLimit()
@@ -571,7 +559,7 @@ void XPCPerThreadData::MarkAutoRootsAfterJSFinalize()
 
 // static
 XPCPerThreadData*
-XPCPerThreadData::GetDataImpl(JSContext *cx)
+XPCPerThreadData::GetData()
 {
     XPCPerThreadData* data;
 
@@ -616,14 +604,6 @@ XPCPerThreadData::GetDataImpl(JSContext *cx)
             return nsnull;
         }
     }
-
-    if(cx && !sMainJSThread && NS_IsMainThread())
-    {
-        sMainJSThread = cx->thread;
-
-        sMainThreadData = data;
-    }
-
     return data;
 }
 

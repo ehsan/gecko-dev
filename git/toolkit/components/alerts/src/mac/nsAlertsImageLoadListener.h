@@ -48,6 +48,7 @@ public:
   nsAlertsImageLoadListener(const nsAString &aName,
                             const nsAString& aAlertTitle,
                             const nsAString& aAlertText,
+                            PRBool aAlertClickable,
                             const nsAString& aAlertCookie,
                             PRUint32 aAlertListenerKey);
 
@@ -57,6 +58,7 @@ private:
   nsString mName;
   nsString mAlertTitle;
   nsString mAlertText;
+  PRBool   mAlertClickable;
   nsString mAlertCookie;
   PRUint32 mAlertListenerKey;
 };

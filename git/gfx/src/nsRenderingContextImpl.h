@@ -43,7 +43,9 @@
 #include "nsPoint.h"
 #include "nsSize.h"
 
+#ifdef MOZ_CAIRO_GFX
 class gfxContext;
+#endif
 
 class nsRenderingContextImpl : public nsIRenderingContext
 {
@@ -190,8 +192,6 @@ public:
                                 PRInt32 aFontID = -1,
                                 const nscoord* aSpacing = nsnull)
   { return NS_ERROR_NOT_IMPLEMENTED; }
-
-  gfxContext *ThebesContext() { return nsnull; }
 
 protected:
   virtual ~nsRenderingContextImpl();

@@ -49,6 +49,7 @@
 #include "cairo-ft.h" // includes fontconfig.h, too
 #include <freetype/tttables.h>
 
+#include "nsAutoBuffer.h"
 #include "nsICharsetConverterManager.h"
 
 class gfxOS2Font : public gfxFont {
@@ -71,13 +72,12 @@ public:
 
 protected:
     gfxMatrix mCTM;
-    virtual PRBool SetupCairoFont(gfxContext *aContext);
+    virtual void SetupCairoFont(cairo_t *aCR);
 
 private:
     cairo_font_face_t *mFontFace;
     cairo_scaled_font_t *mScaledFont;
     Metrics *mMetrics;
-    gfxFloat mAdjustedSize;
     PRUint32 mSpaceGlyph;
 };
 
@@ -103,6 +103,17 @@ public:
         return static_cast<gfxOS2Font*>(static_cast<gfxFont*>(mFonts[i]));
     }
 
+    gfxOS2Font *GetCachedFont(const nsAString& aName) const {
+        nsRefPtr<gfxOS2Font> font;
+        if (mFontCache.Get(aName, &font))
+            return font;
+        return nsnull;
+    }
+
+    void PutCachedFont(const nsAString& aName, gfxOS2Font *aFont) {
+        mFontCache.Put(aName, aFont);
+    }
+
 protected:
     void InitTextRun(gfxTextRun *aTextRun, const PRUint8 *aUTF8Text,
                      PRUint32 aUTF8Length, PRUint32 aUTF8HeaderLength);
@@ -112,7 +123,7 @@ protected:
                                const nsACString& aGenericName, void *aClosure);
 
 private:
-    PRBool mEnableKerning;
+    nsDataHashtable<nsStringHashKey, nsRefPtr<gfxOS2Font> > mFontCache;
 };
 
 #endif /* GFX_OS2_FONTS_H */

@@ -73,7 +73,8 @@ public:
   // nsSVGPaintServerFrame methods:
   virtual PRBool SetupPaintServer(gfxContext *aContext,
                                   nsSVGGeometryFrame *aSource,
-                                  float aGraphicOpacity);
+                                  float aGraphicOpacity,
+                                  void **aClosure);
 
   // nsISupports interface:
   NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
@@ -136,16 +137,12 @@ protected:
                                                      **aPreserveAspectRatio);
   NS_IMETHOD GetPatternFirstChild(nsIFrame **kid);
   NS_IMETHOD GetViewBox(nsIDOMSVGRect * *aMatrix);
-  nsresult   GetPatternRect(nsIDOMSVGRect **patternRect,
-                            nsIDOMSVGRect *bbox,
-                            nsIDOMSVGMatrix *callerCTM,
+  nsresult   GetPatternRect(nsIDOMSVGRect **patternRect, nsIDOMSVGRect *bbox, 
                             nsSVGElement *content);
   gfxMatrix  GetPatternMatrix(nsIDOMSVGRect *bbox,
                               nsIDOMSVGRect *callerBBox,
                               nsIDOMSVGMatrix *callerCTM);
-  nsresult   ConstructCTM(nsIDOMSVGMatrix **ctm,
-                          nsIDOMSVGRect *callerBBox,
-                          nsIDOMSVGMatrix *callerCTM);
+  nsresult   ConstructCTM(nsIDOMSVGMatrix **ctm, nsIDOMSVGRect *callerBBox);
   nsresult   GetCallerGeometry(nsIDOMSVGMatrix **aCTM, 
                                nsIDOMSVGRect **aBBox,
                                nsSVGElement **aContent, 

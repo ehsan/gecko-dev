@@ -54,14 +54,8 @@ startTest();
 
 print("This test requires option javascript.options.strict enabled");
 
-if (!options().match(/strict/))
-{
-  options('strict');
-}
-if (!options().match(/werror/))
-{
-  options('werror');
-}
+options('strict');
+options('werror');
 
 var result = "failed";
 

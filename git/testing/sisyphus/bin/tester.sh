@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/usr/local/bin/bash
 # -*- Mode: Shell-script; tab-width: 4; indent-tabs-mode: nil; -*-
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -37,52 +37,50 @@
 #
 # ***** END LICENSE BLOCK *****
 
-source $TEST_DIR/bin/library.sh
+TEST_DIR=${TEST_DIR:-/work/mozilla/mozilla.com/test.mozilla.com/www}
+TEST_BIN=${TEST_BIN:-$TEST_DIR/bin}
+source ${TEST_BIN}/library.sh
 
 TEST_LOG=/dev/null
+
+#trap 'echo -e "\n*** ERROR ***\n\b" && tail $TEST_LOG' ERR
 
 #
 # options processing
 #
-options="p:b:e:T:t:v"
+options="p:b:e:T:t:"
 function usage()
 {
     cat<<EOF
 usage: 
-$SCRIPT -t testscript [-v ] datalist1 [datalist2 [datalist3 [datalist4]]]
+$SCRIPT -t testscript datalist1 [datalist2 [datalist3 [datalist4]]]
 
 variable            description
 ===============     ===========================================================
 -t testscript       required. quoted test script with required arguments.
--v                  optional. verbose - copies log file output to stdout.
+
 
 executes the testscript using the input data files in 
-$TEST_DIR/data constructed from each combination of the input parameters:
+$TEST_DIR/data constructed from each 
+combination of the input parameters:
 
 {item1},{item2},{item3},{item4}
 
 EOF
-    exit 1
+    exit 2
 }
 
 unset testscript testargs
-
-# remove script name from args
-shiftargs=1
 
 while getopts $options optname ; 
   do 
   case $optname in
       t) 
-          let shiftargs=$shiftargs+1
           testscript="$OPTARG"
           if echo $testscript | grep -iq ' ' ; then
               testargs=`echo $testscript   | sed 's|^\([^ ]*\)[ ]*\(.*\)|\2|'`
               testscript=`echo $testscript | sed 's|^\([^ ]*\)[ ]*.*|\1|'`
           fi
-          ;;
-      v) verbose=1
-          let shiftargs=$shiftargs+1
           ;;
   esac
 done
@@ -91,7 +89,7 @@ if [[ -z "$testscript" ]]; then
     usage
 fi
 
-shift $shiftargs
+shift 2
 
 datalist=`combo.sh "$@"`
 
@@ -102,14 +100,9 @@ for data in $datalist; do
     TEST_LOG="${TEST_DIR}/results/${TEST_DATE},$data,$OSID,${TEST_MACHINE},$TEST_SUITE.log"
 
     # tell caller what the log files are
-    echo "log: $TEST_LOG "
+    echo "$TEST_LOG "
 
-    if [[ "$verbose" == "1" ]]; then
-        test-setup.sh -d $TEST_DIR/data/$data.data 2>&1 | tee -a $TEST_LOG
-        $testscript $testargs -d $TEST_DIR/data/$data.data 2>&1 | tee -a $TEST_LOG
-    else
-        test-setup.sh -d $TEST_DIR/data/$data.data >> $TEST_LOG 2>&1
-        $testscript $testargs -d $TEST_DIR/data/$data.data >> $TEST_LOG 2>&1
-    fi
+    test-setup.sh -d $TEST_DIR/data/$data.data >> $TEST_LOG 2>&1
 
+    $testscript $testargs -d $TEST_DIR/data/$data.data >> $TEST_LOG 2>&1
 done

@@ -76,8 +76,10 @@
 #include "nsIRollupListener.h"
 #include "nsIMenuRollup.h"
 
+#ifdef MOZ_CAIRO_GFX
 #include "gfxBeOSSurface.h"
 #include "gfxContext.h"
+#endif
 
 // See comments in nsWindow.h as to why we override these calls from nsBaseWidget
 NS_IMPL_THREADSAFE_ADDREF(nsWindow)
@@ -645,6 +647,7 @@ NS_METHOD nsWindow::Create(nsNativeWidget aParent,
 	                            aParent));
 }
 
+#ifdef MOZ_CAIRO_GFX
 gfxASurface*
 nsWindow::GetThebesSurface()
 {
@@ -654,6 +657,7 @@ nsWindow::GetThebesSurface()
 	}
 	return mThebesSurface;
 }
+#endif
 
 //-------------------------------------------------------------------------
 //
@@ -881,18 +885,28 @@ nsWindow::DealWithPopups(uint32 methodID, nsPoint pos)
 			nsCOMPtr<nsIMenuRollup> menuRollup ( do_QueryInterface(gRollupListener) );
 			if ( menuRollup ) 
 			{
-				nsAutoTArray<nsIWidget*, 5> widgetChain;
-				menuRollup->GetSubmenuWidgetChain(&widgetChain);
-
-				for ( PRUint32 i = 0; i < widgetChain.Length(); ++i ) 
+				nsCOMPtr<nsISupportsArray> widgetChain;
+				menuRollup->GetSubmenuWidgetChain ( getter_AddRefs(widgetChain) );
+				if ( widgetChain ) 
 				{
-					nsIWidget* widget = widgetChain[i];
-					if ( nsWindow::EventIsInsideWindow((nsWindow*)widget, pos) ) 
+					PRUint32 count = 0;
+					widgetChain->Count(&count);
+					for ( PRUint32 i = 0; i < count; ++i ) 
 					{
-						rollup = PR_FALSE;
-						break;
-					}
-				} // foreach parent menu widget
+						nsCOMPtr<nsISupports> genericWidget;
+						widgetChain->GetElementAt ( i, getter_AddRefs(genericWidget) );
+						nsCOMPtr<nsIWidget> widget ( do_QueryInterface(genericWidget) );
+						if ( widget ) 
+						{
+							nsIWidget* temp = widget.get();
+							if ( nsWindow::EventIsInsideWindow((nsWindow*)temp, pos) ) 
+							{
+								rollup = PR_FALSE;
+								break;
+							}
+						}
+					} // foreach parent menu widget
+				} // if widgetChain
 			} // if rollup listener knows about menus
 		} // if rollup
 
@@ -1239,6 +1253,31 @@ NS_METHOD nsWindow::SetBackgroundColor(const nscolor &aColor)
 	return NS_OK;
 }
 
+//-------------------------------------------------------------------------
+//
+// Get this component font
+//
+//-------------------------------------------------------------------------
+nsIFontMetrics* nsWindow::GetFont(void)
+{
+	return mFontMetrics;
+}
+
+
+//-------------------------------------------------------------------------
+//
+// Set this component font
+//
+//-------------------------------------------------------------------------
+NS_METHOD nsWindow::SetFont(const nsFont &aFont)
+{
+  // Cache Font for owner draw
+	NS_IF_RELEASE(mFontMetrics);
+	if (mContext)
+		mContext->GetMetricsFor(aFont, mFontMetrics);
+	return NS_OK;
+}
+
 
 //-------------------------------------------------------------------------
 //
@@ -1255,8 +1294,6 @@ NS_METHOD nsWindow::SetCursor(nsCursor aCursor)
 	if (aCursor != mCursor) 
 	{
 		BCursor const *newCursor = B_CURSOR_SYSTEM_DEFAULT;
-		if (be_app->IsCursorHidden())
-			be_app->ShowCursor();
 		
 		// Check to see if the array has been loaded, if not, do it.
 		if (gCursorArray.Count() == 0) 
@@ -1416,10 +1453,6 @@ NS_METHOD nsWindow::SetCursor(nsCursor aCursor)
 
 			case eCursor_ew_resize:
 				newCursor = (BCursor *)gCursorArray.SafeElementAt(1);
-				break;
-
-			case eCursor_none:
-				be_app->HideCursor();
 				break;
 
 			default:
@@ -2544,7 +2577,9 @@ nsresult nsWindow::OnPaint(BRegion *breg)
 	}
 
 	// Double buffering for cairo builds is done here
-	nsRefPtr<gfxContext> ctx = rc->ThebesContext();
+#ifdef MOZ_CAIRO_GFX
+	nsRefPtr<gfxContext> ctx =
+		(gfxContext*)rc->GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT);
 	ctx->Save();
 
 	// Clip
@@ -2559,6 +2594,7 @@ nsresult nsWindow::OnPaint(BRegion *breg)
 
 	// double buffer
 	ctx->PushGroup(gfxContext::CONTENT_COLOR);
+#endif
 
 	nsPaintEvent event(PR_TRUE, NS_PAINT, this);
 
@@ -2580,6 +2616,7 @@ nsresult nsWindow::OnPaint(BRegion *breg)
 
 	NS_RELEASE(event.widget);
 
+#ifdef MOZ_CAIRO_GFX
 	// The second half of double buffering
 	if (rv == NS_OK) {
 		ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
@@ -2591,6 +2628,7 @@ nsresult nsWindow::OnPaint(BRegion *breg)
 	}
 
 	ctx->Restore();
+#endif
 
 	return rv;
 }

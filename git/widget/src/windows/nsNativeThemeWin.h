@@ -65,11 +65,6 @@ public:
                                   PRUint8 aWidgetType,
                                   nsMargin* aResult);
 
-  virtual PRBool GetWidgetOverflow(nsIDeviceContext* aContext,
-                                   nsIFrame* aFrame,
-                                   PRUint8 aWidgetType,
-                                   nsRect* aOverflowRect);
-
   NS_IMETHOD GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
                                   nsSize* aResult,
@@ -125,10 +120,6 @@ protected:
 
   PRUint32 GetWidgetNativeDrawingFlags(PRUint8 aWidgetType);
 
-  PRInt32 StandardGetState(nsIFrame* aFrame, PRUint8 aWidgetType, PRBool wantFocused);
-
-  PRBool IsMenuActive(nsIFrame* aFrame, PRUint8 aWidgetType);
-
 private:
   HMODULE mThemeDLL;
   HANDLE mButtonTheme;
@@ -136,9 +127,6 @@ private:
   HANDLE mTooltipTheme;
   HANDLE mToolbarTheme;
   HANDLE mRebarTheme;
-  HANDLE mMediaRebarTheme;
-  HANDLE mCommunicationsRebarTheme;
-  HANDLE mBrowserTabBarRebarTheme;
   HANDLE mProgressTheme;
   HANDLE mScrollbarTheme;
   HANDLE mScaleTheme;
@@ -148,13 +136,9 @@ private:
   HANDLE mTreeViewTheme;
   HANDLE mComboBoxTheme;
   HANDLE mHeaderTheme;
-  HANDLE mMenuTheme;
 
   BOOL mFlatMenus;
   OSVERSIONINFO mOsVersion;
-
-  PRPackedBool mIsXPOrLater;
-  PRPackedBool mIsVistaOrLater;
 };
 
 // Creator function

@@ -103,19 +103,17 @@ public:
    * Start listening to selection events for a given document
    * More than one document's selection events can be listened to
    * at the same time, by a given nsCaretAccessible
-   * @param aShell   PresShell for document to listen to selection events from.
+   * @param aDocument   Document to listen to selection events for.
    */
-  nsresult AddDocSelectionListener(nsIPresShell *aShell);
+  nsresult AddDocSelectionListener(nsIDOMDocument *aDoc);
 
   /**
    * Stop listening to selection events for a given document
    * If the document goes away, this method needs to be called for 
-   * that document by the owner of the caret. We use presShell because
-   * instead of document because it is more direct than getting it from
-   * the document, and in any case it is unavailable from the doc after a pagehide.
-   * @param aShell   PresShell for document to no longer listen to selection events from.
+   * that document by the owner of the caret
+   * @param aDocument   Document to listen to selection events for.
    */
-  nsresult RemoveDocSelectionListener(nsIPresShell *aShell);
+  nsresult RemoveDocSelectionListener(nsIDOMDocument *aDoc);
 
   nsRect GetCaretRect(nsIWidget **aOutWidget);
 

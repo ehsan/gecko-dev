@@ -55,7 +55,7 @@ public:
   NS_IMETHOD
   TransmitAutomaticData();
 
-  virtual nsresult
+  NS_IMETHOD
   Place(nsIRenderingContext& aRenderingContext,
         PRBool               aPlaceOrigin,
         nsHTMLReflowMetrics& aDesiredSize);

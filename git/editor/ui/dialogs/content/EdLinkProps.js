@@ -265,7 +265,7 @@ function doEnabling()
 
 function ChangeLinkLocation()
 {
-  SetRelativeCheckbox(gDialog.makeRelativeLink);
+  SetRelativeCheckbox();
   // Set OK button enable state
   doEnabling();
 }

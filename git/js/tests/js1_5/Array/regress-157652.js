@@ -123,33 +123,23 @@ var actual = 'No Crash';
 printBugNumber(BUGNUMBER);
 printStatus(summary);
 
-expectExitCode(0);
 expectExitCode(5);
 
 var IN_RHINO = inRhino();
 
-try
+if (!IN_RHINO)
 {
-  if (!IN_RHINO)
-  {
-    var a1=Array(0xFFFFFFFF);
-    a1.sort();
-    a1 = null;
-  }
-
-  var a2 = Array(0x40000000);
-  a2.sort();
-  a2=null;
-
-  var a3=Array(0x10000000/4);
-  a3.sort();
-  a3=null;
+  var a1=Array(0xFFFFFFFF);
+  a1.sort();
+  a1 = null;
 }
-catch(ex)
-{
-  // handle changed 1.9 branch behavior. see bug 422348
-  expect = 'InternalError: allocation size overflow';
-  actual = ex + '';
-}
+
+var a2 = Array(0x40000000);
+a2.sort();
+a2=null;
+
+var a3=Array(0x10000000/4);
+a3.sort();
+a3=null;
 
 reportCompare(expect, actual, summary);

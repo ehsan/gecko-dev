@@ -43,17 +43,16 @@
 
 nsTArray_base::Header nsTArray_base::sEmptyHdr = { 0, 0, 0 };
 
+#ifdef NS_BUILD_REFCNT_LOGGING
 nsTArray_base::nsTArray_base()
   : mHdr(&sEmptyHdr) {
   MOZ_COUNT_CTOR(nsTArray_base);
 }
 
 nsTArray_base::~nsTArray_base() {
-  if (mHdr != &sEmptyHdr && !UsesAutoArrayBuffer()) {
-    NS_Free(mHdr);
-  }
   MOZ_COUNT_DTOR(nsTArray_base);
 }
+#endif // NS_BUILD_REFCNT_LOGGING
 
 PRBool
 nsTArray_base::EnsureCapacity(size_type capacity, size_type elemSize) {
@@ -85,7 +84,11 @@ nsTArray_base::EnsureCapacity(size_type capacity, size_type elemSize) {
   }
 
   // Use doubling algorithm when forced to increase available capacity.
-  capacity = PR_MAX(capacity, mHdr->mCapacity << 1);
+  NS_ASSERTION(mHdr->mCapacity > 0, "should not have buffer of zero size");
+  size_type temp = mHdr->mCapacity;
+  while (temp < capacity)
+    temp <<= 1;
+  capacity = temp;
 
   Header *header;
   if (UsesAutoArrayBuffer()) {
@@ -123,7 +126,7 @@ nsTArray_base::ShrinkCapacity(size_type elemSize) {
   if (IsAutoArray() && GetAutoArrayBuffer()->mCapacity >= length) {
     Header* header = GetAutoArrayBuffer();
 
-    // Copy data, but don't copy the header to avoid overwriting mCapacity
+    // copy data, but don't copy the header to avoid overwritng mCapacity
     header->mLength = length;
     memcpy(header + 1, mHdr + 1, length * elemSize);
 

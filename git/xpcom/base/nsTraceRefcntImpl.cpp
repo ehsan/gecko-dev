@@ -48,7 +48,10 @@
 #include "nsCOMPtr.h"
 #include "nsCRT.h"
 #include <math.h>
-#include "nsStackWalk.h"
+
+#if defined(_WIN32)
+#include <windows.h>
+#endif
 
 #ifdef HAVE_LIBDL
 #include <dlfcn.h>
@@ -78,6 +81,10 @@ NS_MeanAndStdDev(double n, double sumOfValues, double sumOfSquaredValues,
 ////////////////////////////////////////////////////////////////////////////////
 
 #define NS_IMPL_REFCNT_LOGGING
+
+#ifdef WINCE
+#undef NS_IMPL_REFCNT_LOGGING
+#endif
 
 #ifdef NS_IMPL_REFCNT_LOGGING
 #include "plhash.h"
@@ -818,26 +825,33 @@ static void InitTraceLog(void)
 
 #endif
 
-extern "C" {
-
-PR_STATIC_CALLBACK(void) PrintStackFrame(void *aPC, void *aClosure)
+#if defined(_WIN32) && defined(_M_IX86) && !defined(WINCE) // WIN32 x86 stack walking code
+#include "nsStackFrameWin.h"
+NS_COM void
+nsTraceRefcntImpl::WalkTheStack(FILE* aStream)
 {
-  FILE *stream = (FILE*)aClosure;
-  nsCodeAddressDetails details;
-  char buf[1024];
-
-  NS_DescribeCodeAddress(aPC, &details);
-  NS_FormatCodeAddressDetails(aPC, &details, buf, sizeof(buf));
-  fprintf(stream, buf);
+  DumpStackToFile(aStream);
 }
 
+// WIN32 x86 stack walking code
+// i386 or PPC Linux stackwalking code or Solaris
+#elif (defined(linux) && defined(__GNUC__) && (defined(__i386) || defined(PPC) || defined(__x86_64__))) || (defined(__sun) && (defined(__sparc) || defined(sparc) || defined(__i386) || defined(i386)))
+#include "nsStackFrameUnix.h"
+NS_COM void
+nsTraceRefcntImpl::WalkTheStack(FILE* aStream)
+{
+  DumpStackToFile(aStream);
 }
+
+#else // unsupported platform.
 
 NS_COM void
 nsTraceRefcntImpl::WalkTheStack(FILE* aStream)
 {
-  NS_StackWalk(PrintStackFrame, 2, aStream);
+	fprintf(aStream, "write me, dammit!\n");
 }
+
+#endif
 
 //----------------------------------------------------------------------
 
@@ -873,6 +887,65 @@ nsTraceRefcntImpl::DemangleSymbol(const char * aSymbol,
 
 
 //----------------------------------------------------------------------
+
+NS_COM void
+nsTraceRefcntImpl::LoadLibrarySymbols(const char* aLibraryName,
+                                  void* aLibrayHandle)
+{
+#ifdef NS_IMPL_REFCNT_LOGGING
+#if defined(_WIN32) && defined(_M_IX86) /* Win32 x86 only */
+  if (!gInitialized)
+    InitTraceLog();
+
+  if (gAllocLog || gRefcntsLog) {
+    fprintf(stdout, "### Loading symbols for %s\n", aLibraryName);
+    fflush(stdout);
+
+    HANDLE myProcess = ::GetCurrentProcess();    
+    BOOL ok = EnsureSymInitialized();
+    if (ok) {
+      const char* baseName = aLibraryName;
+      // just get the base name of the library if a full path was given:
+      PRInt32 len = strlen(aLibraryName);
+      for (PRInt32 i = len - 1; i >= 0; i--) {
+        if (aLibraryName[i] == '\\') {
+          baseName = &aLibraryName[i + 1];
+          break;
+        }
+      }
+      DWORD baseAddr = _SymLoadModule(myProcess,
+                                     NULL,
+                                     (char*)baseName,
+                                     (char*)baseName,
+                                     0,
+                                     0);
+      ok = (baseAddr != nsnull);
+    }
+    if (!ok) {
+      LPVOID lpMsgBuf;
+      FormatMessage( 
+        FORMAT_MESSAGE_ALLOCATE_BUFFER | 
+        FORMAT_MESSAGE_FROM_SYSTEM | 
+        FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL,
+        GetLastError(),
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
+        (LPTSTR) &lpMsgBuf,
+        0,
+        NULL 
+        );
+      fprintf(stdout, "### ERROR: LoadLibrarySymbols for %s: %s\n",
+              aLibraryName, lpMsgBuf);
+      fflush(stdout);
+      LocalFree( lpMsgBuf );
+    }
+  }
+#endif
+#endif
+}
+
+//----------------------------------------------------------------------
+
 
 EXPORT_XPCOM_API(void)
 NS_LogInit()

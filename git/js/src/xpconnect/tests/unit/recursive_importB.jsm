@@ -34,7 +34,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-var EXPORTED_SYMBOLS = ["baz", "qux"];
+EXPORTED_SYMBOLS = ["baz", "qux"]
 
 function baz() {
   return "baz";

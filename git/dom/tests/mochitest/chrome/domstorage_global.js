@@ -153,8 +153,3 @@ function test_DOMStorage_global_Item(storage, key, expectedvalue, expectedlength
 
   return item;
 }
-
-function is(left, right, str)
-{
-  window.opener.wrappedJSObject.SimpleTest.is(left, right, str);
-}

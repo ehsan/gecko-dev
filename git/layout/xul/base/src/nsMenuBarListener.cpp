@@ -68,12 +68,7 @@
 
 NS_IMPL_ADDREF(nsMenuBarListener)
 NS_IMPL_RELEASE(nsMenuBarListener)
-NS_INTERFACE_MAP_BEGIN(nsMenuBarListener)
-                     NS_INTERFACE_MAP_ENTRY(nsIDOMKeyListener)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMFocusListener)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIDOMEventListener,nsIDOMMouseListener)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMMouseListener)
-NS_INTERFACE_MAP_END
+NS_IMPL_QUERY_INTERFACE3(nsMenuBarListener, nsIDOMKeyListener, nsIDOMFocusListener, nsIDOMMouseListener)
 
 #define MODIFIER_SHIFT    1
 #define MODIFIER_CONTROL  2
@@ -114,12 +109,12 @@ void nsMenuBarListener::InitAccessKey()
 
   // Compiled-in defaults, in case we can't get LookAndFeel --
   // mac doesn't have menu shortcuts, other platforms use alt.
-#ifdef XP_MACOSX
-  mAccessKey = 0;
-  mAccessKeyMask = 0;
-#else
+#if !(defined(XP_MAC) || defined(XP_MACOSX))
   mAccessKey = nsIDOMKeyEvent::DOM_VK_ALT;
   mAccessKeyMask = MODIFIER_ALT;
+#else
+  mAccessKey = 0;
+  mAccessKeyMask = 0;
 #endif
 
   // Get the menu access key value from prefs, overriding the default:
@@ -234,22 +229,14 @@ nsMenuBarListener::KeyPress(nsIDOMEvent* aKeyEvent)
       keyEvent->GetKeyCode(&keyCode);
       keyEvent->GetCharCode(&charCode);
 
-      PRBool hasAccessKeyCandidates = charCode != 0;
-      if (!hasAccessKeyCandidates) {
-        nsEvent* nativeEvent = nsContentUtils::GetNativeEvent(aKeyEvent);
-        nsKeyEvent* nativeKeyEvent = static_cast<nsKeyEvent*>(nativeEvent);
-        if (nativeKeyEvent) {
-          nsAutoTArray<PRUint32, 10> keys;
-          nsContentUtils::GetAccessKeyCandidates(nativeKeyEvent, keys);
-          hasAccessKeyCandidates = !keys.IsEmpty();
-        }
-      }
-
       // Clear the access key flag unless we are pressing the access key.
       if (keyCode != (PRUint32)mAccessKey)
         mAccessKeyDown = PR_FALSE;
 
-      if (IsAccessKeyPressed(keyEvent) && hasAccessKeyCandidates) {
+      // If charCode == 0, then it is not a printable character.
+      // Don't attempt to handle accesskey for non-printable characters.
+      if (IsAccessKeyPressed(keyEvent) && charCode)
+      {
         // Do shortcut navigation.
         // A letter was pressed. We want to see if a shortcut gets matched. If
         // so, we'll know the menu got activated.
@@ -262,7 +249,7 @@ nsMenuBarListener::KeyPress(nsIDOMEvent* aKeyEvent)
           retVal = NS_OK;       // I am consuming event
         }
       }    
-#ifndef XP_MACOSX
+#if !defined(XP_MAC) && !defined(XP_MACOSX)
       // Also need to handle F10 specially on Non-Mac platform.
       else if (keyCode == NS_VK_F10) {
         if ((GetModifiers(keyEvent) & ~MODIFIER_CONTROL) == 0) {
@@ -275,7 +262,7 @@ nsMenuBarListener::KeyPress(nsIDOMEvent* aKeyEvent)
           return NS_OK; // consume the event
         }
       }
-#endif // !XP_MACOSX
+#endif   // !XP_MAC && !XP_MACOSX
     } 
   }
 

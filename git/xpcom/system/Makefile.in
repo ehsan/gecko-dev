@@ -51,8 +51,4 @@ XPIDLSRCS = \
         nsIGnomeVFSService.idl \
         $(NULL)
 
-ifdef MOZ_CRASHREPORTER
-XPIDLSRCS += nsICrashReporter.idl
-endif
-
 include $(topsrcdir)/config/rules.mk

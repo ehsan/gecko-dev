@@ -43,13 +43,10 @@
 #include "nsIPrintSettings.h"
 #include "nsIPrintOptions.h" 
 #include "nsCOMPtr.h"
-#include "nsString.h"
 
 #include "nsCRT.h" /* should be <limits.h>? */
 
-#include <gtk/gtk.h>
-#include <gtk/gtkprinter.h>
-#include <gtk/gtkprintjob.h>
+class nsIPrintJobGTK;
 
 #define NS_PORTRAIT  0
 #define NS_LANDSCAPE 1
@@ -73,8 +70,8 @@ public:
   NS_IMETHOD ClosePrintManager(); 
   NS_IMETHOD BeginDocument(PRUnichar * aTitle, PRUnichar * aPrintToFileName, PRInt32 aStartPage, PRInt32 aEndPage);
   NS_IMETHOD EndDocument();
-  NS_IMETHOD BeginPage() { return NS_OK; }
-  NS_IMETHOD EndPage() { return NS_OK; }
+  NS_IMETHOD BeginPage() { return NS_ERROR_NOT_IMPLEMENTED; }
+  NS_IMETHOD EndPage() { return NS_ERROR_NOT_IMPLEMENTED; }
 
   NS_IMETHOD GetToPrinter(PRBool &aToPrinter); 
   NS_IMETHOD GetIsPrintPreview(PRBool &aIsPPreview);
@@ -92,6 +89,7 @@ public:
   NS_IMETHOD GetUserCancelled(PRBool &aCancel);      
   NS_IMETHOD GetPrintMethod(PrintMethod &aMethod);
   static nsresult GetPrintMethod(const char *aPrinter, PrintMethod &aMethod);
+  NS_IMETHOD GetPageSizeInTwips(PRInt32 *aWidth, PRInt32 *aHeight);
   NS_IMETHOD GetPaperName(const char **aPaperName);
   NS_IMETHOD GetPlexName(const char **aPlexName);
   NS_IMETHOD GetResolutionName(const char **aResolutionName);
@@ -120,15 +118,7 @@ protected:
   float  mRight;              /* right margin */
   float  mTop;                /* top margin */
   float  mBottom;             /* bottom margin */
-
-  GtkPrintJob*      mPrintJob;
-  GtkPrinter*       mGtkPrinter;
-  GtkPrintSettings* mGtkPrintSettings;
-  GtkPageSetup*     mGtkPageSetup;
-
-  nsCString              mSpoolName;
-  nsCOMPtr<nsILocalFile> mSpoolFile;
-
+  nsIPrintJobGTK * mPrintJob;
 };
 
 //-------------------------------------------------------------------------

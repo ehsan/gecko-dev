@@ -541,8 +541,7 @@ public:
     NATIVE_GDK_DRAWABLE = 2,
     NATIVE_WINDOWS_DC = 3,
     NATIVE_MAC_THING = 4,
-    NATIVE_THEBES_CONTEXT = 5,
-    NATIVE_OS2_PS = 6
+    NATIVE_THEBES_CONTEXT = 5
   };
   /**
    * Retrieve the native graphic data given by aType. Return
@@ -598,14 +597,11 @@ public:
    * @param aXImageStart x location where the origin (0,0) of the image starts
    * @param aYImageStart y location where the origin (0,0) of the image starts
    * @param aTargetRect  area to draw to
-   * @param aSubimageRect the subimage (in tile space) which we expect to
-   * sample from; may be null to indicate that the whole image is
-   * OK to sample from
    */
   NS_IMETHOD DrawTile(imgIContainer *aImage,
                       nscoord aXImageStart, nscoord aYImageStart,
-                      const nsRect * aTargetRect,
-                      const nsIntRect * aSubimageRect) = 0;
+                      const nsRect * aTargetRect) = 0;
+
 
   /**
    * Get cluster details for a chunk of text.
@@ -700,11 +696,6 @@ public:
    *         doesn't support rendering EPSF, 
    */
   NS_IMETHOD RenderEPS(const nsRect& aRect, FILE *aDataFile) = 0;
-
-  /**
-   * Return the Thebes gfxContext associated with this nsIRenderingContext.
-   */
-  virtual gfxContext *ThebesContext() = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIRenderingContext, NS_IRENDERING_CONTEXT_IID)
@@ -894,20 +885,15 @@ struct nsBoundingMetrics {
   }
 
   /* Append another bounding metrics */
+  /* Notice that leftBearing is not set. The user must set leftBearing on 
+     initialization and (repeatedly) use this operator to append 
+     other bounding metrics on the right.
+   */
   void 
   operator += (const nsBoundingMetrics& bm) {
-    if (ascent + descent == 0 && rightBearing - leftBearing == 0) {
-      ascent = bm.ascent;
-      descent = bm.descent;
-      leftBearing = width + bm.leftBearing;
-      rightBearing = width + bm.rightBearing;
-    }
-    else {
-      if (ascent < bm.ascent) ascent = bm.ascent;
-      if (descent < bm.descent) descent = bm.descent;   
-      leftBearing = PR_MIN(leftBearing, width + bm.leftBearing);
-      rightBearing = PR_MAX(rightBearing, width + bm.rightBearing);
-    }
+    if (ascent < bm.ascent) ascent = bm.ascent;
+    if (descent < bm.descent) descent = bm.descent;   
+    rightBearing = PR_MAX(rightBearing, width + bm.rightBearing);
     width += bm.width;
   }
 };

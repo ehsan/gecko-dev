@@ -59,7 +59,7 @@ static void testResult( nsresult rv ) {
 }
 
 void printString(nsString &str) {
-    printf("%s", NS_ConvertUTF16toUTF8(str).get());
+    printf("%s", str.get());
 }
 
 class TestObserver : public nsIObserver, public nsSupportsWeakReference {

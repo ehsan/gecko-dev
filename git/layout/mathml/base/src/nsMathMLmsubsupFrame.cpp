@@ -42,6 +42,7 @@
 #include "nsCOMPtr.h"
 #include "nsFrame.h"
 #include "nsPresContext.h"
+#include "nsUnitConversion.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
 #include "nsIRenderingContext.h"
@@ -76,17 +77,17 @@ nsMathMLmsubsupFrame::TransmitAutomaticData()
   //    unchanged within base.
   // 2. The TeXbook (Ch 17. p.141) says the superscript inherits the compression
   //    while the subscript is compressed
-  UpdatePresentationDataFromChildAt(1, -1,
+  UpdatePresentationDataFromChildAt(1, -1, 1,
     ~NS_MATHML_DISPLAYSTYLE,
      NS_MATHML_DISPLAYSTYLE);
-  UpdatePresentationDataFromChildAt(1,  1,
+  UpdatePresentationDataFromChildAt(1,  1, 0,
      NS_MATHML_COMPRESSED,
      NS_MATHML_COMPRESSED);
 
   return NS_OK;
 }
 
-/* virtual */ nsresult
+NS_IMETHODIMP
 nsMathMLmsubsupFrame::Place(nsIRenderingContext& aRenderingContext,
                             PRBool               aPlaceOrigin,
                             nsHTMLReflowMetrics& aDesiredSize)
@@ -254,7 +255,7 @@ nsMathMLmsubsupFrame::PlaceSubSupScript(nsPresContext*      aPresContext,
   nscoord supScriptShift;
   nsPresentationData presentationData;
   aFrame->GetPresentationData(presentationData);
-  if ( aFrame->GetStyleFont()->mScriptLevel == 0 &&
+  if ( presentationData.scriptLevel == 0 &&
        NS_MATHML_IS_DISPLAYSTYLE(presentationData.flags) &&
       !NS_MATHML_IS_COMPRESSED(presentationData.flags)) {
     // Style D in TeXbook

@@ -91,7 +91,7 @@ public:
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
                                  nsIFrame*       aChildList);
 
-  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
+  // Our min width is our pref width
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
 
   NS_IMETHOD Reflow(nsPresContext*          aCX,
@@ -144,7 +144,6 @@ public:
   virtual void SetFocus(PRBool aOn = PR_TRUE, PRBool aRepaint = PR_FALSE);
 
   virtual nsGfxScrollFrameInner::ScrollbarStyles GetScrollbarStyles() const;
-  virtual PRBool ShouldPropagateComputedHeightToScrolledContent() const;
 
     // for accessibility purposes
 #ifdef ACCESSIBILITY
@@ -246,13 +245,6 @@ public:
    * frame
    */
   void PaintFocus(nsIRenderingContext& aRC, nsPoint aPt);
-  /**
-   * If this frame IsFocused(), invalidates an area that includes anything
-   * that PaintFocus will or could have painted --- basically the whole
-   * GetOptionsContainer, plus some extra stuff if there are no options. This
-   * must be called every time mEndSelectionIndex changes.
-   */
-  void InvalidateFocus();
 
   /**
    * Function to calculate the height a row, for use with the "size" attribute.

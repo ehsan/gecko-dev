@@ -70,6 +70,10 @@ txMozillaTextOutput::txMozillaTextOutput(nsIDOMDocumentFragment* aDest)
     mDocument = mTextParent->GetOwnerDoc();
 }
 
+txMozillaTextOutput::~txMozillaTextOutput()
+{
+}
+
 nsresult
 txMozillaTextOutput::attribute(nsIAtom* aPrefix, nsIAtom* aLocalName,
                                nsIAtom* aLowercaseLocalName,
@@ -290,6 +294,6 @@ txMozillaTextOutput::createXHTMLElement(nsIAtom* aName,
         GetNodeInfo(aName, nsnull, kNameSpaceID_XHTML, getter_AddRefs(ni));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    return NS_NewHTMLElement(aResult, ni, PR_FALSE);
+    return NS_NewHTMLElement(aResult, ni);
 }
 

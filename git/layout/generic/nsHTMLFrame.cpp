@@ -571,13 +571,6 @@ CanvasFrame::Reflow(nsPresContext*          aPresContext,
                                      nsSize(aReflowState.availableWidth,
                                             NS_UNCONSTRAINEDSIZE));
 
-    if (aReflowState.mFlags.mVResize &&
-        (kidFrame->GetStateBits() & NS_FRAME_CONTAINS_RELATIVE_HEIGHT)) {
-      // Tell our kid it's being vertically resized too.  Bit of a
-      // hack for framesets.
-      kidReflowState.mFlags.mVResize = PR_TRUE;
-    }
-    
     // Reflow the frame
     ReflowChild(kidFrame, aPresContext, kidDesiredSize, kidReflowState,
                 kidReflowState.mComputedMargin.left, kidReflowState.mComputedMargin.top,
@@ -599,8 +592,7 @@ CanvasFrame::Reflow(nsPresContext*          aPresContext,
       // (0, 0). We only want to invalidate GetRect() since GetOverflowRect()
       // could also include overflow to our top and left (out of the viewport)
       // which doesn't need to be painted.
-      nsIFrame* viewport = PresContext()->GetPresShell()->GetRootFrame();
-      viewport->Invalidate(nsRect(nsPoint(0, 0), viewport->GetSize()));
+      Invalidate(GetRect(), PR_FALSE);
     }
 
     // Return our desired size (which doesn't matter)

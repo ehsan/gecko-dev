@@ -55,15 +55,6 @@ function test()
   printBugNumber(BUGNUMBER);
   printStatus (summary);
 
-  if (options().match(/strict/))
-  {
-    options('strict');
-  }
-  if (options().match(/werror/))
-  {
-    options('werror');
-  }
-
   global.foo = eval;
   global.a   = 'global';
   expect = 'global indirect';
@@ -85,7 +76,6 @@ function test()
 
   options('strict');
   options('werror');
-
   try
   {
     var foo = eval;

@@ -470,10 +470,8 @@ nsBaseChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *ctxt)
 
   // Ensure that this is an allowed port before proceeding.
   nsresult rv = NS_CheckPortSafety(mURI);
-  if (NS_FAILED(rv)) {
-    mCallbacks = nsnull;
+  if (NS_FAILED(rv))
     return rv;
-  }
 
   // Store the listener and context early so that OpenContentStream and the
   // stream's AsyncWait method (called by AsyncRead) can have access to them
@@ -490,7 +488,6 @@ nsBaseChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *ctxt)
     mPump = nsnull;
     mListener = nsnull;
     mListenerContext = nsnull;
-    mCallbacks = nsnull;
     return rv;
   }
 

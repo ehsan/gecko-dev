@@ -92,8 +92,6 @@ protected:
    */  
   
   nsIFrame* GetParentFrame(nsIFrame* aFrame);
-  // like GetParentFrame but returns null once a popup frame is reached
-  nsIFrame* GetParentFrameNotPopup(nsIFrame* aFrame);
 
   nsIFrame* GetFirstChild(nsIFrame* aFrame);
   nsIFrame* GetLastChild(nsIFrame* aFrame);
@@ -280,13 +278,9 @@ nsFrameIterator::Last()
 {
   nsIFrame* result;
   nsIFrame* parent = getCurrent();
-  // If the current frame is a popup, don't move farther up the tree.
-  // Otherwise, get the nearest root frame or popup.
-  if (parent->GetType() != nsGkAtoms::menuPopupFrame) {
-    while (!IsRootFrame(parent) && (result = GetParentFrameNotPopup(parent)))
-      parent = result;
-  }
-
+  while (!IsRootFrame(parent) && (result = GetParentFrame(parent)))
+    parent = result;
+  
   while ((result = GetLastChild(parent))) {
     parent = result;
   }
@@ -333,7 +327,7 @@ nsFrameIterator::Next()
         break;
       }
       else {
-        result = GetParentFrameNotPopup(parent);
+        result = GetParentFrame(parent);
         if (!result || IsRootFrame(result) ||
             (mLockScroll && result->GetType() == nsGkAtoms::scrollFrame)) {
           result = nsnull;
@@ -389,7 +383,7 @@ nsFrameIterator::Prev()
         }
         break;
       } else {
-        result = GetParentFrameNotPopup(parent);
+        result = GetParentFrame(parent);
         if (!result || IsRootFrame(result) ||
             (mLockScroll && result->GetType() == nsGkAtoms::scrollFrame)) {
           result = nsnull;
@@ -422,27 +416,13 @@ nsFrameIterator::GetParentFrame(nsIFrame* aFrame)
 }
 
 nsIFrame*
-nsFrameIterator::GetParentFrameNotPopup(nsIFrame* aFrame)
-{
-  if (mFollowOOFs)
-    aFrame = GetPlaceholderFrame(aFrame);
-  if (aFrame) {
-    nsIFrame* parent = aFrame->GetParent();
-    if (!IsPopupFrame(parent))
-      return parent;
-  }
-    
-  return nsnull;
-}
-
-nsIFrame*
 nsFrameIterator::GetFirstChild(nsIFrame* aFrame)
 {
   nsIFrame* result = GetFirstChildInner(aFrame);
   if (result && mFollowOOFs) {
     result = nsPlaceholderFrame::GetRealFrameFor(result);
     
-    if (IsPopupFrame(result))
+    if (result && IsPopupFrame(result))
       result = GetNextSibling(result);
   }
   return result;
@@ -455,7 +435,7 @@ nsFrameIterator::GetLastChild(nsIFrame* aFrame)
   if (result && mFollowOOFs) {
     result = nsPlaceholderFrame::GetRealFrameFor(result);
     
-    if (IsPopupFrame(result))
+    if (result && IsPopupFrame(result))
       result = GetPrevSibling(result);
   }
   return result;
@@ -473,7 +453,7 @@ nsFrameIterator::GetNextSibling(nsIFrame* aFrame)
       result = nsPlaceholderFrame::GetRealFrameFor(result);
   }
 
-  if (mFollowOOFs && IsPopupFrame(result))
+  if (result && mFollowOOFs && IsPopupFrame(result))
     result = GetNextSibling(result);
 
   return result;
@@ -491,7 +471,7 @@ nsFrameIterator::GetPrevSibling(nsIFrame* aFrame)
       result = nsPlaceholderFrame::GetRealFrameFor(result);
   }
 
-  if (mFollowOOFs && IsPopupFrame(result))
+  if (result && mFollowOOFs && IsPopupFrame(result))
     result = GetPrevSibling(result);
 
   return result;
@@ -547,8 +527,7 @@ nsFrameIterator::GetPlaceholderFrame(nsIFrame* aFrame)
 PRBool
 nsFrameIterator::IsPopupFrame(nsIFrame* aFrame)
 {
-  return (aFrame &&
-          aFrame->GetStyleDisplay()->mDisplay == NS_STYLE_DISPLAY_POPUP);
+  return (aFrame->GetStyleDisplay()->mDisplay == NS_STYLE_DISPLAY_POPUP);
 }
 
 // nsVisualIterator implementation

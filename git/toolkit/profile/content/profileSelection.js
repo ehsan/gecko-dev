@@ -132,30 +132,18 @@ function acceptDialog()
   }
   gDialogParams.objects.insertElementAt(profileLock.nsIProfileLock, 0, false);
 
+  var autoSelectLastProfile = document.getElementById("autoSelectLastProfile");
+  gProfileService.startWithLastProfile = autoSelectLastProfile.checked;
   gProfileService.selectedProfile = selectedProfile.profile;
-  updateStartupPrefs();
+
+  /* Bug 257777 */
+  gProfileService.startOffline = document.getElementById("offlineState").checked;
 
   gDialogParams.SetInt(0, 1);
 
   gDialogParams.SetString(0, selectedProfile.profile.name);
 
   return true;
-}
-
-function exitDialog()
-{
-  updateStartupPrefs();
-  
-  return true;
-}
-
-function updateStartupPrefs()
-{
-  var autoSelectLastProfile = document.getElementById("autoSelectLastProfile");
-  gProfileService.startWithLastProfile = autoSelectLastProfile.checked;
-
-  /* Bug 257777 */
-  gProfileService.startOffline = document.getElementById("offlineState").checked;
 }
 
 // handle key event on listboxes
@@ -286,10 +274,7 @@ function ConfirmDelete()
   }
   
   selectedProfile.remove(deleteFiles);
-  profileList.removeChild(selectedItem);
-  if (profileList.firstChild != undefined) {
-    profileList.selectItem(profileList.firstChild);
-  }
+  selectedItem.parentNode.removeChild(selectedItem);
 
   return true;
 }

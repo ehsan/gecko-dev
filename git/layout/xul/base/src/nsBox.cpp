@@ -469,7 +469,9 @@ nsBox::GetPrefSize(nsBoxLayoutState& aState)
 
   nsSize minSize = GetMinSize(aState);
   nsSize maxSize = GetMaxSize(aState);
-  return BoundsCheck(minSize, pref, maxSize);
+  BoundsCheck(minSize, pref, maxSize);
+
+  return pref;
 }
 
 nsSize
@@ -499,15 +501,15 @@ nsBox::GetMaxSize(nsBoxLayoutState& aState)
 {
   NS_ASSERTION(aState.GetRenderingContext(), "must have rendering context");
 
-  nsSize maxSize(NS_INTRINSICSIZE, NS_INTRINSICSIZE);
-  DISPLAY_MAX_SIZE(this, maxSize);
+  nsSize max(NS_INTRINSICSIZE, NS_INTRINSICSIZE);
+  DISPLAY_MAX_SIZE(this, max);
 
   if (IsCollapsed(aState))
-    return maxSize;
+    return max;
 
-  AddBorderAndPadding(maxSize);
-  nsIBox::AddCSSMaxSize(aState, this, maxSize);
-  return maxSize;
+  AddBorderAndPadding(max);
+  nsIBox::AddCSSMaxSize(aState, this, max);
+  return max;
 }
 
 nscoord
@@ -606,9 +608,11 @@ nsBox::SyncLayout(nsBoxLayoutState& aState)
   nsRect rect(nsPoint(0, 0), GetSize());
 
   if (ComputesOwnOverflowArea()) {
-    rect = GetOverflowRect();
-  }
-  else {
+    nsRect* overflow = GetOverflowAreaProperty();
+    if (overflow)
+      rect = *overflow;
+
+  } else {
     if (!DoesClipChildren()) {
       // See if our child frames caused us to overflow after being laid
       // out. If so, store the overflow area.  This normally can't happen
@@ -617,7 +621,9 @@ nsBox::SyncLayout(nsBoxLayoutState& aState)
       // frames in HTML inside XUL).
       nsIFrame* box = GetChildBox();
       while (box) {
-        nsRect bounds = box->GetOverflowRect() + box->GetPosition();
+        nsRect* overflowArea = box->GetOverflowAreaProperty();
+        nsRect bounds = overflowArea ? *overflowArea + box->GetPosition()
+                                     : box->GetRect();
         rect.UnionRect(rect, bounds);
 
         box = box->GetNextBox();
@@ -985,30 +991,35 @@ nsBox::AddMargin(nsSize& aSize, const nsMargin& aMargin)
      aSize.height += aMargin.top + aMargin.bottom;
 }
 
-nscoord
-nsBox::BoundsCheck(nscoord aMin, nscoord aPref, nscoord aMax)
+void
+nsBox::BoundsCheck(nscoord& aMin, nscoord& aPref, nscoord& aMax)
 {
+   if (aMax < aMin)
+       aMax = aMin;
+
    if (aPref > aMax)
        aPref = aMax;
 
    if (aPref < aMin)
        aPref = aMin;
-
-   return aPref;
 }
 
-nsSize
-nsBox::BoundsCheckMinMax(const nsSize& aMinSize, const nsSize& aMaxSize)
+void
+nsBox::BoundsCheckMinMax(nsSize& aMinSize, nsSize& aMaxSize)
 {
-  return nsSize(PR_MAX(aMaxSize.width, aMinSize.width),
-                PR_MAX(aMaxSize.height, aMinSize.height));
+  if (aMaxSize.width < aMinSize.width) {
+    aMaxSize.width = aMinSize.width;
+  }
+
+  if (aMaxSize.height < aMinSize.height)
+    aMaxSize.height = aMinSize.height;
 }
 
-nsSize
-nsBox::BoundsCheck(const nsSize& aMinSize, const nsSize& aPrefSize, const nsSize& aMaxSize)
+void
+nsBox::BoundsCheck(nsSize& aMinSize, nsSize& aPrefSize, nsSize& aMaxSize)
 {
-  return nsSize(BoundsCheck(aMinSize.width, aPrefSize.width, aMaxSize.width),
-                BoundsCheck(aMinSize.height, aPrefSize.height, aMaxSize.height));
+   BoundsCheck(aMinSize.width, aPrefSize.width, aMaxSize.width);
+   BoundsCheck(aMinSize.height, aPrefSize.height, aMaxSize.height);
 }
 
 #ifdef DEBUG_LAYOUT

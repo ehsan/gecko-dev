@@ -85,7 +85,6 @@
 #include "nsIDocShellTreeNode.h"
 #include "nsIDocShellTreeOwner.h"
 #include "nsCURILoader.h"
-#include "nsURILoader.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsEscape.h"
 #include "nsIPlatformCharset.h"
@@ -124,8 +123,6 @@
 #include "nsITimer.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsContentPolicyUtils.h"
-
-#include "nsIURIClassifier.h"
 
 #ifdef NS_DEBUG
 /**
@@ -223,9 +220,14 @@ CheckPingURI(nsIURI* uri, nsIContent* content)
 
   // Check with contentpolicy
   PRInt16 shouldLoad = nsIContentPolicy::ACCEPT;
+  nsIURI* docURI = nsnull;
+  nsIDocument* doc = content->GetOwnerDoc();
+  if (doc) {
+    docURI = doc->GetDocumentURI();
+  }
   rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_PING,
                                  uri,
-                                 content->NodePrincipal(),
+                                 docURI,
                                  content,
                                  EmptyCString(), // mime hint
                                  nsnull, //extra
@@ -565,6 +567,7 @@ nsWebShell::~nsWebShell()
              // recursively if the refcount is allowed to remain 0
 
   mContentViewer=nsnull;
+  mDeviceContext=nsnull;
 
   InitFrameData();
 
@@ -766,7 +769,7 @@ nsWebShell::OnLinkClick(nsIContent* aContent,
 {
   NS_ASSERTION(NS_IsMainThread(), "wrong thread");
 
-  if (!IsOKToLoadURI(aURI)) {
+  if (mFiredUnloadEvent) {
     return NS_OK;
   }
 
@@ -797,7 +800,7 @@ nsWebShell::OnLinkClickSync(nsIContent *aContent,
     *aRequest = nsnull;
   }
 
-  if (!IsOKToLoadURI(aURI)) {
+  if (mFiredUnloadEvent) {
     return NS_OK;
   }
 
@@ -817,7 +820,7 @@ nsWebShell::OnLinkClickSync(nsIContent *aContent,
         PRBool isExposed;
         nsresult rv = extProtService->IsExposedProtocol(scheme.get(), &isExposed);
         if (NS_SUCCEEDED(rv) && !isExposed) {
-          return extProtService->LoadURI(aURI, this); 
+          return extProtService->LoadUrl(aURI);
         }
       }
     }
@@ -862,7 +865,7 @@ nsWebShell::OnLinkClickSync(nsIContent *aContent,
   nsCOMPtr<nsIDocument> refererDoc(do_QueryInterface(refererOwnerDoc));
   NS_ENSURE_TRUE(refererDoc, NS_ERROR_UNEXPECTED);
 
-  nsCOMPtr<nsIURI> referer = refererDoc->GetDocumentURI();
+  nsIURI *referer = refererDoc->GetDocumentURI();
 
   // referer could be null here in some odd cases, but that's ok,
   // we'll just load the link w/o sending a referer in those cases.
@@ -1161,6 +1164,10 @@ nsresult nsWebShell::EndPageLoad(nsIWebProgress *aProgress,
           newURI->GetSpec(newSpec);
           NS_ConvertUTF8toUTF16 newSpecW(newSpec);
 
+          // This seems evil, since it is modifying the original URL
+          rv = url->SetSpec(newSpec);
+          if (NS_FAILED(rv)) return rv;
+
           return LoadURI(newSpecW.get(),      // URI string
                          LOAD_FLAGS_NONE, // Load flags
                          nsnull,          // Referring URI
@@ -1189,9 +1196,6 @@ nsresult nsWebShell::EndPageLoad(nsIWebProgress *aProgress,
              aStatus == NS_ERROR_UNKNOWN_SOCKET_TYPE ||
              aStatus == NS_ERROR_NET_INTERRUPT ||
              aStatus == NS_ERROR_NET_RESET ||
-             aStatus == NS_ERROR_MALWARE_URI ||
-             aStatus == NS_ERROR_PHISHING_URI ||
-             aStatus == NS_ERROR_UNSAFE_CONTENT_TYPE ||
              NS_ERROR_GET_MODULE(aStatus) == NS_ERROR_MODULE_SECURITY) {
       DisplayLoadError(aStatus, url, nsnull, channel);
     }

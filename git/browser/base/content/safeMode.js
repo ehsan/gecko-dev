@@ -82,7 +82,8 @@ function disableAddons() {
   const nsIUpdateItem = Components.interfaces.nsIUpdateItem;
   var em = Components.classes["@mozilla.org/extensions/manager;1"]
                      .getService(Components.interfaces.nsIExtensionManager);
-  var type = nsIUpdateItem.TYPE_EXTENSION + nsIUpdateItem.TYPE_LOCALE;
+  var type = nsIUpdateItem.TYPE_EXTENSION + nsIUpdateItem.TYPE_LOCALE +
+             nsIUpdateItem.TYPE_PLUGIN;
   var items = em.getItemList(type, { });
   for (var i = 0; i < items.length; ++i)
     em.disableItem(items[i].id);

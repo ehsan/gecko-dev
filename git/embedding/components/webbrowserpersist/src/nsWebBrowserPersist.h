@@ -134,10 +134,6 @@ private:
         const char *aURI,
         PRBool aNeedsPersisting = PR_TRUE,
         URIData **aData = nsnull);
-    nsresult StoreURI(
-        nsIURI *aURI,
-        PRBool aNeedsPersisting = PR_TRUE,
-        URIData **aData = nsnull);
     nsresult StoreURIAttributeNS(
         nsIDOMNode *aNode, const char *aNamespaceURI, const char *aAttribute,
         PRBool aNeedsPersisting = PR_TRUE,
@@ -151,7 +147,6 @@ private:
     }
     PRBool GetQuotedAttributeValue(
     const nsAString &aSource, const nsAString &aAttribute, nsAString &aValue);
-    PRBool DocumentEncoderExists(const PRUnichar *aContentType);
 
     nsresult GetNodeToFixup(nsIDOMNode *aNodeIn, nsIDOMNode **aNodeOut);
     nsresult FixupURI(nsAString &aURI);

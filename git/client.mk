@@ -54,8 +54,7 @@
 #    clean (realclean is now the same as clean)
 #    distclean
 #
-# See http://developer.mozilla.org/en/docs/Build_Documentation for 
-# more information.
+# See http://www.mozilla.org/build/ for more information.
 #
 # Options:
 #   MOZ_BUILD_PROJECTS   - Build multiple projects in subdirectories
@@ -91,12 +90,7 @@ endif
 TOPSRCDIR = $(CWD)
 endif
 
-ifeq (Darwin,$(shell uname -s))
-AUTOCONF ?= autoconf213
-else
-AUTOCONF ?= autoconf-2.13
-endif
-
+AUTOCONF := autoconf-2.13
 MKDIR := mkdir
 SH := /bin/sh
 ifndef MAKE
@@ -106,11 +100,6 @@ PERL ?= perl
 PYTHON ?= python
 
 RUN_AUTOCONF_LOCALLY = 1
-CONFIG_GUESS_SCRIPT := $(wildcard $(TOPSRCDIR)/build/autoconf/config.guess)
-ifdef CONFIG_GUESS_SCRIPT
-  CONFIG_GUESS = $(shell $(CONFIG_GUESS_SCRIPT))
-endif
-
 
 ####################################
 # Sanity checks
@@ -193,29 +182,6 @@ clobber clobber_all: clean
 # Do everything from scratch
 everything: clean build
 
-####################################
-# Profile-Guided Optimization
-#  To use this, you should set the following variables in your mozconfig
-#    mk_add_options PROFILE_GEN_SCRIPT=/path/to/profile-script
-#
-#  The profile script should exercise the functionality to be included
-#  in the profile feedback.
-#
-#  This is up here, outside of the MOZ_CURRENT_PROJECT logic so that this
-#  is usable in multi-pass builds, where you might not have a runnable
-#  application until all the build passes and postflight scripts have run.
-ifdef MOZ_OBJDIR
-  PGO_OBJDIR = $(MOZ_OBJDIR)
-else
-  PGO_OBJDIR := $(TOPSRCDIR)
-endif
-
-profiledbuild::
-	$(MAKE) -f $(TOPSRCDIR)/client.mk build MOZ_PROFILE_GENERATE=1
-	OBJDIR=${PGO_OBJDIR} $(PROFILE_GEN_SCRIPT)
-	$(MAKE) -f $(TOPSRCDIR)/client.mk maybe_clobber_profiledbuild
-	$(MAKE) -f $(TOPSRCDIR)/client.mk build MOZ_PROFILE_USE=1
-
 #####################################################
 # Build date unification
 
@@ -231,7 +197,7 @@ endif
 #####################################################
 # Preflight, before building any project
 
-build alldep preflight_all::
+build profiledbuild alldep preflight_all::
 ifeq (,$(MOZ_CURRENT_PROJECT)$(if $(MOZ_PREFLIGHT_ALL),,1))
 # Don't run preflight_all for individual projects in multi-project builds
 # (when MOZ_CURRENT_PROJECT is set.)
@@ -255,7 +221,7 @@ endif
 # loop through them.
 
 ifeq (,$(MOZ_CURRENT_PROJECT)$(if $(MOZ_BUILD_PROJECTS),,1))
-configure depend build install export libs clean realclean distclean alldep preflight postflight maybe_clobber_profiledbuild::
+configure depend build profiledbuild install export libs clean realclean distclean alldep preflight postflight::
 	set -e; \
 	for app in $(MOZ_BUILD_PROJECTS); do \
 	  $(MAKE) -f $(TOPSRCDIR)/client.mk $@ MOZ_CURRENT_PROJECT=$$app; \
@@ -289,12 +255,14 @@ endif
 
 CONFIG_STATUS_DEPS := \
 	$(TOPSRCDIR)/configure \
+	$(TOPSRCDIR)/allmakefiles.sh \
 	$(TOPSRCDIR)/.mozconfig.mk \
 	$(wildcard $(TOPSRCDIR)/nsprpub/configure) \
 	$(wildcard $(TOPSRCDIR)/directory/c-sdk/configure) \
+	$(wildcard $(TOPSRCDIR)/mailnews/makefiles) \
+	$(wildcard $(TOPSRCDIR)/themes/makefiles) \
 	$(wildcard $(TOPSRCDIR)/config/milestone.txt) \
 	$(wildcard $(TOPSRCDIR)/config/chrome-versions.sh) \
-  $(wildcard $(addsuffix confvars.sh,$(wildcard $(TOPSRCDIR)/*/))) \
 	$(NULL)
 
 # configure uses the program name to determine @srcdir@. Calling it without
@@ -341,7 +309,7 @@ depend:: $(OBJDIR)/Makefile $(OBJDIR)/config.status
 ####################################
 # Preflight
 
-build alldep preflight::
+build profiledbuild alldep preflight::
 ifdef MOZ_PREFLIGHT
 	set -e; \
 	for mkfile in $(MOZ_PREFLIGHT); do \
@@ -356,16 +324,31 @@ build::  $(OBJDIR)/Makefile $(OBJDIR)/config.status
 	$(MOZ_MAKE)
 
 ####################################
+# Profile-feedback build (gcc only)
+#  To use this, you should set the following variables in your mozconfig
+#    mk_add_options PROFILE_GEN_SCRIPT=/path/to/profile-script
+#
+#  The profile script should exercise the functionality to be included
+#  in the profile feedback.
+
+profiledbuild:: $(OBJDIR)/Makefile $(OBJDIR)/config.status
+	$(MOZ_MAKE) MOZ_PROFILE_GENERATE=1
+	OBJDIR=${OBJDIR} $(PROFILE_GEN_SCRIPT)
+	$(MOZ_MAKE) clobber_all
+	$(MOZ_MAKE) MOZ_PROFILE_USE=1
+	find $(OBJDIR) -name "*.da" -exec rm {} \;
+
+####################################
 # Other targets
 
 # Pass these target onto the real build system
-install export libs clean realclean distclean alldep maybe_clobber_profiledbuild:: $(OBJDIR)/Makefile $(OBJDIR)/config.status
+install export libs clean realclean distclean alldep:: $(OBJDIR)/Makefile $(OBJDIR)/config.status
 	$(MOZ_MAKE) $@
 
 ####################################
 # Postflight
 
-build alldep postflight::
+build profiledbuild alldep postflight::
 ifdef MOZ_POSTFLIGHT
 	set -e; \
 	for mkfile in $(MOZ_POSTFLIGHT); do \
@@ -378,7 +361,7 @@ endif # MOZ_CURRENT_PROJECT
 ####################################
 # Postflight, after building all projects
 
-build alldep postflight_all::
+build profiledbuild alldep postflight_all::
 ifeq (,$(MOZ_CURRENT_PROJECT)$(if $(MOZ_POSTFLIGHT_ALL),,1))
 # Don't run postflight_all for individual projects in multi-project builds
 # (when MOZ_CURRENT_PROJECT is set.)
@@ -413,4 +396,4 @@ cleansrcdir:
 echo-variable-%:
 	@echo $($*)
 
-.PHONY: checkout real_checkout depend build profiledbuild maybe_clobber_profiledbuild export libs alldep install clean realclean distclean cleansrcdir pull_all build_all clobber clobber_all pull_and_build_all everything configure preflight_all preflight postflight postflight_all
+.PHONY: checkout real_checkout depend build export libs alldep install clean realclean distclean cleansrcdir pull_all build_all clobber clobber_all pull_and_build_all everything configure preflight_all preflight postflight postflight_all

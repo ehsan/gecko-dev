@@ -1,1 +1,1 @@
-var EXPORTED_SYMBOLS = [{}];
+EXPORTED_SYMBOLS = [{}];

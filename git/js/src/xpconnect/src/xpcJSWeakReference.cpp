@@ -50,8 +50,8 @@ nsresult xpcJSWeakReference::Init()
     nsXPConnect* xpc = nsXPConnect::GetXPConnect();
     if (!xpc) return NS_ERROR_UNEXPECTED;
     
-    nsAXPCNativeCallContext *cc = nsnull;
-    rv = xpc->GetCurrentNativeCallContext(&cc);
+    nsCOMPtr<nsIXPCNativeCallContext> cc;
+    rv = xpc->GetCurrentNativeCallContext(getter_AddRefs(cc));
     NS_ENSURE_SUCCESS(rv, rv);
 
     JSContext *cx = nsnull;
@@ -67,8 +67,6 @@ nsresult xpcJSWeakReference::Init()
     jsval *argv = nsnull;
     rv = cc->GetArgvPtr(&argv);
     NS_ENSURE_SUCCESS(rv, rv);
-
-    JSAutoRequest ar(cx);
 
     if (JSVAL_IS_NULL(argv[0])) return NS_ERROR_FAILURE;
     
@@ -103,8 +101,8 @@ xpcJSWeakReference::Get()
     nsXPConnect* xpc = nsXPConnect::GetXPConnect();
     if (!xpc) return NS_ERROR_UNEXPECTED;
     
-    nsAXPCNativeCallContext* cc = nsnull;
-    rv = xpc->GetCurrentNativeCallContext(&cc);
+    nsCOMPtr<nsIXPCNativeCallContext> cc;
+    rv = xpc->GetCurrentNativeCallContext(getter_AddRefs(cc));
     NS_ENSURE_SUCCESS(rv, rv);
 
     jsval *retval = nsnull;

@@ -35,9 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-var include = document.location.href.indexOf('?include') != -1;
-document.write( '<title>Import ' + (include ? 'Include' : 'Exclude') + ' Test List<\/title>')
-
 function doImport()
 {
   var lines =
@@ -45,7 +42,7 @@ function doImport()
   var suites = window.opener.suites;
   var elems = window.opener.document.forms["testCases"].elements;
 
-  if (include && document.forms["foo"].elements["clear_all"].checked)
+  if (document.forms["foo"].elements["clear_all"].checked)
     window.opener._selectNone();
 
   for (var l in lines)
@@ -75,14 +72,9 @@ function doImport()
       {
         var radioname = suites[ary[1]].testDirs[ary[2]].tests[ary[3]].id;
         var radio = elems[radioname];
-        if (include && !radio.checked)
+        if (!radio.checked)
         {
           radio.checked = true; 
-          window.opener.onRadioClick(radio);
-        }
-        else if  (!include && radio.checked)
-        {
-          radio.checked = false; 
           window.opener.onRadioClick(radio);
         }
       }

@@ -92,6 +92,14 @@ nsApplicationAccessible::GetName(nsAString& aName)
 }
 
 NS_IMETHODIMP
+nsApplicationAccessible::GetDescription(nsAString& aDescription)
+{
+  GetName(aDescription);
+  aDescription.AppendLiteral(" Application Accessible");
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsApplicationAccessible::GetRole(PRUint32 *aRole)
 {
   *aRole = nsIAccessibleRole::ROLE_APP_ROOT;
@@ -172,15 +180,6 @@ nsApplicationAccessible::GetPreviousSibling(nsIAccessible **aPreviousSibling)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsApplicationAccessible::GetIndexInParent(PRInt32 *aIndexInParent)
-{
-  NS_ENSURE_ARG_POINTER(aIndexInParent);
-
-  *aIndexInParent = -1;
-  return NS_OK;
-}
-
 void
 nsApplicationAccessible::CacheChildren()
 {
@@ -190,7 +189,6 @@ nsApplicationAccessible::CacheChildren()
   }
 
   if (mAccChildCount == eChildCountUninitialized) {
-    mAccChildCount = 0;// Prevent reentry
     nsCOMPtr<nsISimpleEnumerator> enumerator;
     mChildren->Enumerate(getter_AddRefs(enumerator));
 

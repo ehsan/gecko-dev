@@ -40,7 +40,7 @@ var gTestfile = 'regress-338001.js';
 var BUGNUMBER = 338001;
 var summary = 'integer overflow in jsfun.c:Function';
 var actual = 'No Crash';
-var expect = /No Crash|InternalError: allocation size overflow|InternalError: script stack space quota is exhausted/;
+var expect = 'No Crash';
 
 printBugNumber(BUGNUMBER);
 printStatus (summary);
@@ -50,25 +50,17 @@ expectExitCode(5);
 
 var fe="f";
 
-try
-{
-  for (i=0; i<25; i++)
-    fe += fe;
+for (i=0; i<25; i++)
+  fe += fe;
 
-  var fu=new Function(
-    fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe,
-    fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe,
-    fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe,
-    fe, fe, fe, fe, fe, fe, fe, fe, fe, fe,
-    "done"
-    );
-}
-catch(ex)
-{
-  // handle changed 1.9 branch behavior. see bug 422348
-  actual = ex + '';
-}
+var fu=new Function(
+  fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe,
+  fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe,
+  fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe, fe,
+  fe, fe, fe, fe, fe, fe, fe, fe, fe, fe,
+  "done"
+  );
  
-print('Done: ' + actual);
+print('Done');
 
-reportMatch(expect, actual, summary);
+reportCompare(expect, actual, summary);

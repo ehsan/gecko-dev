@@ -45,7 +45,6 @@
 #endif
 
 #include "nsITimer.h"
-#include "nsAutoPtr.h"
 
 #ifndef __gen_nsIWebProgressListener_h__
 #include "nsIWebProgressListener.h"
@@ -120,12 +119,6 @@ protected:
   
   PRBool          IsProgressForTargetDocument(nsIWebProgress *aWebProgress);
 
-  void            RemoveEditorControllers(nsIDOMWindow *aWindow);
-  void            RemoveWebProgressListener(nsIDOMWindow *aWindow);
-  void            RestoreAnimationMode(nsIDOMWindow *aWindow);
-  void            RemoveListenersAndControllers(nsIDOMWindow *aWindow,
-                                                nsIEditor *aEditor);
-
 protected:
 
   PRPackedBool    mDoneSetup;    // have we prepared for editing yet?
@@ -138,8 +131,6 @@ protected:
 
   PRPackedBool    mInteractive;
   PRPackedBool    mMakeWholeDocumentEditable;
-
-  PRPackedBool    mDisabledJSAndPlugins;
 
   // True if scripts were enabled before the editor turned scripts
   // off, otherwise false.
@@ -156,7 +147,7 @@ protected:
 
   // THE REMAINING MEMBER VARIABLES WILL BECOME A SET WHEN WE EDIT
   // MORE THAN ONE EDITOR PER EDITING SESSION
-  nsRefPtr<nsComposerCommandsUpdater> mStateMaintainer;
+  nsCOMPtr<nsISupports> mStateMaintainer;  // we hold the owning ref to this
   
   nsWeakPtr       mWindowToBeEdited;
 

@@ -70,7 +70,7 @@ public:
   virtual NS_HIDDEN_(PRBool) GetWidgetOverflow(nsIDeviceContext* aContext,
                                                nsIFrame* aFrame,
                                                PRUint8 aWidgetType,
-                                               nsRect* aOverflowRect);
+                                               nsRect* aResult);
 
   NS_IMETHOD GetMinimumWidgetSize(nsIRenderingContext* aContext,
                                   nsIFrame* aFrame, PRUint8 aWidgetType,

@@ -74,7 +74,6 @@
 #include "nsIGenericFactory.h"
 #include "nsToolkitCompsCID.h"
 #include "nsEmbedCID.h"
-#include "nsIDOMNSEditableElement.h"
 
 NS_INTERFACE_MAP_BEGIN(nsFormFillController)
   NS_INTERFACE_MAP_ENTRY(nsIFormFillController)
@@ -84,6 +83,7 @@ NS_INTERFACE_MAP_BEGIN(nsFormFillController)
   NS_INTERFACE_MAP_ENTRY(nsIDOMKeyListener)
   NS_INTERFACE_MAP_ENTRY(nsIDOMFormListener)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMouseListener)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMLoadListener)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCompositionListener)
   NS_INTERFACE_MAP_ENTRY(nsIDOMContextMenuListener)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIFormFillController)
@@ -104,6 +104,7 @@ nsFormFillController::nsFormFillController() :
   mSuppressOnInput(PR_FALSE)
 {
   mController = do_GetService("@mozilla.org/autocomplete/controller;1");
+  mLoginManager = do_GetService("@mozilla.org/login-manager;1");
   mDocShells = do_CreateInstance("@mozilla.org/supports-array;1");
   mPopups = do_CreateInstance("@mozilla.org/supports-array;1");
   mPwmgrInputs.Init();
@@ -120,6 +121,31 @@ nsFormFillController::~nsFormFillController()
     nsCOMPtr<nsIDOMWindow> domWindow = GetWindowForDocShell(docShell);
     RemoveWindowListeners(domWindow);
   }
+}
+
+////////////////////////////////////////////////////////////////////////
+
+nsRect
+GetScreenOrigin(nsIDOMElement* aElement)
+{
+  nsRect rect(0,0,0,0);
+
+  nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
+  nsCOMPtr<nsIDocument> doc = content->GetDocument();
+
+  if (doc) {
+    // Get Presentation shell 0
+    nsIPresShell* presShell = doc->GetPrimaryShell();
+
+    if (presShell) {
+      nsIFrame* frame = presShell->GetPrimaryFrameFor(content);
+      if (!frame)
+        return rect;
+      rect = frame->GetScreenRectExternal();
+    }
+  }
+  
+  return rect;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -171,9 +197,6 @@ nsFormFillController::MarkAsLoginManagerField(nsIDOMHTMLInputElement *aInput)
    */
   mPwmgrInputs.Put(aInput, 1);
 
-  if (!mLoginManager)
-    mLoginManager = do_GetService("@mozilla.org/login-manager;1");
-
   return NS_OK;
 }
 
@@ -222,7 +245,10 @@ nsFormFillController::SetPopupOpen(PRBool aPopupOpen)
                                        NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE,
                                        NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE);
 
-      mFocusedPopup->OpenAutocompletePopup(this, mFocusedInput);
+      nsRect popupRect = GetScreenOrigin(mFocusedInput);
+      mFocusedPopup->OpenAutocompletePopup(this, popupRect.x,
+                                           popupRect.y+popupRect.height,
+                                           popupRect.width);
     } else
       mFocusedPopup->ClosePopup();
   }
@@ -313,26 +339,13 @@ nsFormFillController::SetMaxRows(PRUint32 aMaxRows)
 }
 
 NS_IMETHODIMP
-nsFormFillController::GetShowImageColumn(PRBool *aShowImageColumn)
-{
-  *aShowImageColumn = PR_FALSE;
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsFormFillController::SetShowImageColumn(PRBool aShowImageColumn)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-
-NS_IMETHODIMP
-nsFormFillController::GetShowCommentColumn(PRBool *aShowCommentColumn)
+nsFormFillController::GetShowCommentColumn(PRUint32 *aShowCommentColumn)
 {
   *aShowCommentColumn = PR_FALSE;
   return NS_OK;
 }
 
-NS_IMETHODIMP nsFormFillController::SetShowCommentColumn(PRBool aShowCommentColumn)
+NS_IMETHODIMP nsFormFillController::SetShowCommentColumn(PRUint32 aShowCommentColumn)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -399,10 +412,9 @@ nsFormFillController::GetTextValue(nsAString & aTextValue)
 NS_IMETHODIMP
 nsFormFillController::SetTextValue(const nsAString & aTextValue)
 {
-  nsCOMPtr<nsIDOMNSEditableElement> editable = do_QueryInterface(mFocusedInput);
-  if (editable) {
+  if (mFocusedInput) {
     mSuppressOnInput = PR_TRUE;
-    editable->SetUserInput(aTextValue);
+    mFocusedInput->SetValue(aTextValue);
     mSuppressOnInput = PR_FALSE;
   }
   return NS_OK;
@@ -432,12 +444,6 @@ nsFormFillController::SelectTextRange(PRInt32 aStartIndex, PRInt32 aEndIndex)
   nsCOMPtr<nsIDOMNSHTMLInputElement> input = do_QueryInterface(mFocusedInput);
   if (input)
     input->SetSelectionRange(aStartIndex, aEndIndex);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsFormFillController::OnSearchBegin()
-{
   return NS_OK;
 }
 
@@ -557,13 +563,6 @@ nsFormFillController::HandleEvent(nsIDOMEvent* aEvent)
     if (!domDoc)
       return NS_OK;
 
-    if (mFocusedInput) {
-      nsCOMPtr<nsIDOMDocument> inputDoc;
-      mFocusedInput->GetOwnerDocument(getter_AddRefs(inputDoc));
-      if (domDoc == inputDoc)
-        StopControllingInput();
-    }
-
     mPwmgrInputs.Enumerate(RemoveForDOMDocumentEnumerator, domDoc);
   }
 
@@ -608,21 +607,15 @@ nsFormFillController::Focus(nsIDOMEvent* aEvent)
                                   
     nsAutoString autocomplete; 
     input->GetAttribute(NS_LITERAL_STRING("autocomplete"), autocomplete);
-
-    PRInt32 dummy;
-    PRBool isPwmgrInput = PR_FALSE;
-    if (mPwmgrInputs.Get(input, &dummy))
-        isPwmgrInput = PR_TRUE;
-
     if (type.LowerCaseEqualsLiteral("text") && !isReadOnly &&
-        (!autocomplete.LowerCaseEqualsLiteral("off") || isPwmgrInput)) {
+        !autocomplete.LowerCaseEqualsLiteral("off")) {
 
       nsCOMPtr<nsIDOMHTMLFormElement> form;
       input->GetForm(getter_AddRefs(form));
       if (form)
         form->GetAttribute(NS_LITERAL_STRING("autocomplete"), autocomplete);
 
-      if (!form || !autocomplete.LowerCaseEqualsLiteral("off") || isPwmgrInput)
+      if (!form || !autocomplete.LowerCaseEqualsLiteral("off"))
         StartControllingInput(input);
     }
     
@@ -690,21 +683,12 @@ nsFormFillController::KeyPress(nsIDOMEvent* aEvent)
       break;
     }
 #endif
-  case nsIDOMKeyEvent::DOM_VK_PAGE_UP:
-  case nsIDOMKeyEvent::DOM_VK_PAGE_DOWN:
-    {
-      PRBool isCtrl, isAlt, isMeta;
-      keyEvent->GetCtrlKey(&isCtrl);
-      keyEvent->GetAltKey(&isAlt);
-      keyEvent->GetMetaKey(&isMeta);
-      if (isCtrl || isAlt || isMeta)
-        break;
-    }
-    /* fall through */
   case nsIDOMKeyEvent::DOM_VK_UP:
   case nsIDOMKeyEvent::DOM_VK_DOWN:
   case nsIDOMKeyEvent::DOM_VK_LEFT:
   case nsIDOMKeyEvent::DOM_VK_RIGHT:
+  case nsIDOMKeyEvent::DOM_VK_PAGE_UP:
+  case nsIDOMKeyEvent::DOM_VK_PAGE_DOWN:
     mController->HandleKeyNavigation(k, &cancel);
     break;
   case nsIDOMKeyEvent::DOM_VK_ESCAPE:
@@ -715,7 +699,7 @@ nsFormFillController::KeyPress(nsIDOMEvent* aEvent)
     cancel = PR_FALSE;
     break;
   case nsIDOMKeyEvent::DOM_VK_RETURN:
-    mController->HandleEnter(PR_FALSE, &cancel);
+    mController->HandleEnter(&cancel);
     break;
   }
   
@@ -815,18 +799,42 @@ nsFormFillController::Input(nsIDOMEvent* aEvent)
 NS_IMETHODIMP
 nsFormFillController::MouseDown(nsIDOMEvent* aMouseEvent)
 {
+  mIgnoreClick = PR_FALSE;
+
+  nsCOMPtr<nsIDOMEventTarget> target;
+  aMouseEvent->GetTarget(getter_AddRefs(target));
+
+  nsCOMPtr<nsIDOMHTMLInputElement> targetInput = do_QueryInterface(target);
+  if (!targetInput || (targetInput && targetInput != mFocusedInput)) {
+    // A new input will be taking focus.  Ignore the first click
+    // so that the popup is not shown.
+    mIgnoreClick = PR_TRUE;
+    return NS_OK;
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsFormFillController::MouseUp(nsIDOMEvent* aMouseEvent)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsFormFillController::MouseClick(nsIDOMEvent* aMouseEvent)
+{
+  if (mIgnoreClick) {
+    mIgnoreClick = PR_FALSE;
+    return NS_OK;
+  }
+
   if (!mFocusedInput)
     return NS_OK;
 
   nsCOMPtr<nsIDOMMouseEvent> mouseEvent(do_QueryInterface(aMouseEvent));
   if (!mouseEvent)
     return NS_ERROR_FAILURE;
-
-  nsCOMPtr<nsIDOMEventTarget> target;
-  aMouseEvent->GetTarget(getter_AddRefs(target));
-  nsCOMPtr<nsIDOMHTMLInputElement> targetInput = do_QueryInterface(target);
-  if (!targetInput)
-    return NS_OK;
 
   PRUint16 button;
   mouseEvent->GetButton(&button);
@@ -860,18 +868,6 @@ nsFormFillController::MouseDown(nsIDOMEvent* aMouseEvent)
 }
 
 NS_IMETHODIMP
-nsFormFillController::MouseUp(nsIDOMEvent* aMouseEvent)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsFormFillController::MouseClick(nsIDOMEvent* aMouseEvent)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsFormFillController::MouseDblClick(nsIDOMEvent* aMouseEvent)
 { 
     return NS_OK;
@@ -890,7 +886,50 @@ nsFormFillController::MouseOut(nsIDOMEvent* aMouseEvent)
 }
 
 ////////////////////////////////////////////////////////////////////////
-//// nsIDOMContextMenuListener
+//// nsIDOMLoadListener
+
+NS_IMETHODIMP
+nsFormFillController::Load(nsIDOMEvent *aLoadEvent)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsFormFillController::BeforeUnload(nsIDOMEvent *aLoadEvent)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsFormFillController::Unload(nsIDOMEvent *aLoadEvent)
+{
+  if (mFocusedInput) {
+    nsCOMPtr<nsIDOMEventTarget> target;
+    aLoadEvent->GetTarget(getter_AddRefs(target));
+
+    nsCOMPtr<nsIDOMDocument> eventDoc = do_QueryInterface(target);
+    nsCOMPtr<nsIDOMDocument> inputDoc;
+    mFocusedInput->GetOwnerDocument(getter_AddRefs(inputDoc));
+
+    if (eventDoc == inputDoc)
+      StopControllingInput();
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsFormFillController::Abort(nsIDOMEvent *aLoadEvent)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsFormFillController::Error(nsIDOMEvent *aLoadEvent)
+{
+  return NS_OK;
+}
+
 NS_IMETHODIMP
 nsFormFillController::ContextMenu(nsIDOMEvent* aContextMenuEvent)
 {
@@ -942,6 +981,10 @@ nsFormFillController::AddWindowListeners(nsIDOMWindow *aWindow)
                            static_cast<nsIDOMFormListener *>(this),
                            PR_TRUE);
 
+  target->AddEventListener(NS_LITERAL_STRING("unload"),
+                           static_cast<nsIDOMLoadListener *>(this),
+                           PR_TRUE);
+
   target->AddEventListener(NS_LITERAL_STRING("compositionstart"),
                            static_cast<nsIDOMCompositionListener *>(this),
                            PR_TRUE);
@@ -963,10 +1006,6 @@ nsFormFillController::RemoveWindowListeners(nsIDOMWindow *aWindow)
 
   StopControllingInput();
   
-  nsCOMPtr<nsIDOMDocument> domDoc;
-  aWindow->GetDocument(getter_AddRefs(domDoc));
-  mPwmgrInputs.Enumerate(RemoveForDOMDocumentEnumerator, domDoc);
-
   nsCOMPtr<nsPIDOMWindow> privateDOMWindow(do_QueryInterface(aWindow));
   nsPIDOMEventTarget* chromeEventHandler = nsnull;
   if (privateDOMWindow)
@@ -999,6 +1038,10 @@ nsFormFillController::RemoveWindowListeners(nsIDOMWindow *aWindow)
 
   target->RemoveEventListener(NS_LITERAL_STRING("input"),
                               static_cast<nsIDOMFormListener *>(this),
+                              PR_TRUE);
+
+  target->RemoveEventListener(NS_LITERAL_STRING("unload"),
+                              static_cast<nsIDOMLoadListener *>(this),
                               PR_TRUE);
 
   target->RemoveEventListener(NS_LITERAL_STRING("compositionstart"),

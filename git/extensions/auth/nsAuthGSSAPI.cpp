@@ -357,8 +357,7 @@ nsAuthGSSAPI::Shutdown()
     }
 }
 
-/* Limitations apply to this class's thread safety. See the header file */
-NS_IMPL_THREADSAFE_ISUPPORTS1(nsAuthGSSAPI, nsIAuthModule)
+NS_IMPL_ISUPPORTS1(nsAuthGSSAPI, nsIAuthModule)
 
 NS_IMETHODIMP
 nsAuthGSSAPI::Init(const char *serviceName,
@@ -447,10 +446,7 @@ nsAuthGSSAPI::GetNextToken(const void *inToken,
     // We can only use Mac OS X specific kerb functions if we are using 
     // the native lib
     KLBoolean found;    
-    PRBool doingMailTask = mServiceName.Find("imap@") ||
-                           mServiceName.Find("pop@") ||
-                           mServiceName.Find("smtp@") ||
-                           mServiceName.Find("ldap@");
+    PRBool doingMailTask = mServiceName.Find("imap@") || mServiceName.Find("pop@") || mServiceName.Find("smtp@");
     
     if (!doingMailTask && (gssNativeImp &&
          (KLCacheHasValidTickets_ptr(NULL, kerberosVersion_V5, &found, NULL, NULL) != klNoErr || !found)))

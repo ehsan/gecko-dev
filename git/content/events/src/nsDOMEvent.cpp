@@ -64,14 +64,13 @@ static const char* const sEventNames[] = {
   "compositionstart", "compositionend", "popupshowing", "popupshown",
   "popuphiding", "popuphidden", "close", "command", "broadcast", "commandupdate",
   "dragenter", "dragover", "dragexit", "dragdrop", "draggesture",
-  "drag", "dragend", "resize",
+  "drag", "dragend", "dragstart", "dragleave", "drop", "resize",
   "scroll", "overflow", "underflow", "overflowchanged",
   "DOMSubtreeModified", "DOMNodeInserted", "DOMNodeRemoved", 
   "DOMNodeRemovedFromDocument", "DOMNodeInsertedIntoDocument",
   "DOMAttrModified", "DOMCharacterDataModified",
   "DOMActivate", "DOMFocusIn", "DOMFocusOut",
-  "pageshow", "pagehide", "DOMMouseScroll", "offline", "online",
-  "copy", "cut", "paste"
+  "pageshow", "pagehide", "DOMMouseScroll", "offline", "online"
 #ifdef MOZ_SVG
  ,
   "SVGLoad", "SVGUnload", "SVGAbort", "SVGError", "SVGResize", "SVGScroll",
@@ -85,7 +84,6 @@ static char *sPopupAllowedEvents;
 nsDOMEvent::nsDOMEvent(nsPresContext* aPresContext, nsEvent* aEvent)
 {
   mPresContext = aPresContext;
-  mPrivateDataDuplicated = PR_FALSE;
 
   if (aEvent) {
     mEvent = aEvent;
@@ -499,12 +497,6 @@ nsDOMEvent::SetEventType(const nsAString& aEventTypeArg)
       mEvent->message = NS_OFFLINE;
     else if (atom == nsGkAtoms::ononline)
       mEvent->message = NS_ONLINE;
-    else if (atom == nsGkAtoms::oncopy)
-      mEvent->message = NS_COPY;
-    else if (atom == nsGkAtoms::oncut)
-      mEvent->message = NS_CUT;
-    else if (atom == nsGkAtoms::onpaste)
-      mEvent->message = NS_PASTE;
   } else if (mEvent->eventStructType == NS_MUTATION_EVENT) {
     if (atom == nsGkAtoms::onDOMAttrModified)
       mEvent->message = NS_MUTATION_ATTRMODIFIED;
@@ -703,7 +695,6 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
       isInputEvent = PR_TRUE;
       mouseEvent->clickCount = oldMouseEvent->clickCount;
       mouseEvent->acceptActivation = oldMouseEvent->acceptActivation;
-      mouseEvent->context = oldMouseEvent->context;
       mouseEvent->relatedTarget = oldMouseEvent->relatedTarget;
       mouseEvent->button = oldMouseEvent->button;
       newEvent = mouseEvent;
@@ -902,7 +893,6 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
   mEvent = newEvent;
   mPresContext = nsnull;
   mEventIsInternal = PR_TRUE;
-  mPrivateDataDuplicated = PR_TRUE;
 
   return NS_OK;
 }
@@ -1141,10 +1131,6 @@ nsDOMEvent::GetEventPopupControlState(nsEvent *aEvent)
       }
     }
     break;
-  case NS_XUL_COMMAND_EVENT :
-    if (nsEventStateManager::IsHandlingUserInput()) {
-      abuse = openControlled;
-    }
   }
 
   return abuse;
@@ -1259,7 +1245,7 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_dragover];
   case NS_DRAGDROP_EXIT_SYNTH:
     return sEventNames[eDOMEvents_dragexit];
-  case NS_DRAGDROP_DROP:
+  case NS_DRAGDROP_DRAGDROP:
     return sEventNames[eDOMEvents_dragdrop];
   case NS_DRAGDROP_GESTURE:
     return sEventNames[eDOMEvents_draggesture];
@@ -1267,6 +1253,12 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_drag];
   case NS_DRAGDROP_END:
     return sEventNames[eDOMEvents_dragend];
+  case NS_DRAGDROP_START:
+    return sEventNames[eDOMEvents_dragstart];
+  case NS_DRAGDROP_LEAVE_SYNTH:
+    return sEventNames[eDOMEvents_dragleave];
+  case NS_DRAGDROP_DROP:
+    return sEventNames[eDOMEvents_drop];
   case NS_SCROLLPORT_OVERFLOW:
     return sEventNames[eDOMEvents_overflow];
   case NS_SCROLLPORT_UNDERFLOW:
@@ -1305,12 +1297,6 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_offline];
   case NS_ONLINE:
     return sEventNames[eDOMEvents_online];
-  case NS_COPY:
-    return sEventNames[eDOMEvents_copy];
-  case NS_CUT:
-    return sEventNames[eDOMEvents_cut];
-  case NS_PASTE:
-    return sEventNames[eDOMEvents_paste];
 #ifdef MOZ_SVG
   case NS_SVG_LOAD:
     return sEventNames[eDOMEvents_SVGLoad];

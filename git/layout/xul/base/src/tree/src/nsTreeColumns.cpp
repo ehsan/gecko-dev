@@ -48,7 +48,8 @@
 #include "nsIDOMClassInfo.h"
 #include "nsINodeInfo.h"
 #include "nsContentUtils.h"
-#include "nsTreeBodyFrame.h"
+
+static NS_DEFINE_CID(kTreeColumnImplCID, NS_TREECOLUMN_IMPL_CID);
 
 // Column class that caches all the info about our column.
 nsTreeColumn::nsTreeColumn(nsTreeColumns* aColumns, nsIContent* aContent)
@@ -87,7 +88,7 @@ NS_IMPL_ADDREF(nsTreeColumn)
 NS_IMPL_RELEASE(nsTreeColumn)
 
 nsIFrame*
-nsTreeColumn::GetFrame(nsTreeBodyFrame* aBodyFrame)
+nsTreeColumn::GetFrame(nsIFrame* aBodyFrame)
 {
   NS_PRECONDITION(aBodyFrame, "null frame?");
 
@@ -112,30 +113,8 @@ nsTreeColumn::GetFrame()
   return shell->GetPrimaryFrameFor(mContent);
 }
 
-PRBool
-nsTreeColumn::IsLastVisible(nsTreeBodyFrame* aBodyFrame)
-{
-  NS_ASSERTION(GetFrame(aBodyFrame), "should have checked for this already");
-
-  // cyclers are fixed width, don't adjust them
-  if (IsCycler())
-    return PR_FALSE;
-
-  // we're certainly not the last visible if we're not visible
-  if (GetFrame(aBodyFrame)->GetRect().width == 0)
-    return PR_FALSE;
-
-  // try to find a visible successor
-  for (nsTreeColumn *next = GetNext(); next; next = next->GetNext()) {
-    nsIFrame* frame = next->GetFrame(aBodyFrame);
-    if (frame && frame->GetRect().width > 0)
-      return PR_FALSE;
-  }
-  return PR_TRUE;
-}
-
 nsresult
-nsTreeColumn::GetRect(nsTreeBodyFrame* aBodyFrame, nscoord aY, nscoord aHeight, nsRect* aResult)
+nsTreeColumn::GetRect(nsIFrame* aBodyFrame, nscoord aY, nscoord aHeight, nsRect* aResult)
 {
   nsIFrame* frame = GetFrame(aBodyFrame);
   if (!frame) {
@@ -146,13 +125,11 @@ nsTreeColumn::GetRect(nsTreeBodyFrame* aBodyFrame, nscoord aY, nscoord aHeight, 
   *aResult = frame->GetRect();
   aResult->y = aY;
   aResult->height = aHeight;
-  if (IsLastVisible(aBodyFrame))
-    aResult->width += aBodyFrame->mAdjustWidth;
   return NS_OK;
 }
 
 nsresult
-nsTreeColumn::GetXInTwips(nsTreeBodyFrame* aBodyFrame, nscoord* aResult)
+nsTreeColumn::GetXInTwips(nsIFrame* aBodyFrame, nscoord* aResult)
 {
   nsIFrame* frame = GetFrame(aBodyFrame);
   if (!frame) {
@@ -164,7 +141,7 @@ nsTreeColumn::GetXInTwips(nsTreeBodyFrame* aBodyFrame, nscoord* aResult)
 }
 
 nsresult
-nsTreeColumn::GetWidthInTwips(nsTreeBodyFrame* aBodyFrame, nscoord* aResult)
+nsTreeColumn::GetWidthInTwips(nsIFrame* aBodyFrame, nscoord* aResult)
 {
   nsIFrame* frame = GetFrame(aBodyFrame);
   if (!frame) {
@@ -172,8 +149,6 @@ nsTreeColumn::GetWidthInTwips(nsTreeBodyFrame* aBodyFrame, nscoord* aResult)
     return NS_ERROR_FAILURE;
   }
   *aResult = frame->GetRect().width;
-  if (IsLastVisible(aBodyFrame))
-    *aResult += aBodyFrame->mAdjustWidth;
   return NS_OK;
 }
 

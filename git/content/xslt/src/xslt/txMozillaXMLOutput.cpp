@@ -132,6 +132,10 @@ txMozillaXMLOutput::txMozillaXMLOutput(txOutputFormat* aFormat,
     }
 }
 
+txMozillaXMLOutput::~txMozillaXMLOutput()
+{
+}
+
 nsresult
 txMozillaXMLOutput::attribute(nsIAtom* aPrefix,
                               nsIAtom* aLocalName,
@@ -549,7 +553,7 @@ txMozillaXMLOutput::startElementInternal(nsIAtom* aPrefix,
                                        getter_AddRefs(ni));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    NS_NewElement(getter_AddRefs(mOpenedElement), aElemType, ni, PR_FALSE);
+    NS_NewElement(getter_AddRefs(mOpenedElement), aElemType, ni);
 
     // Set up the element and adjust state
     if (!mNoFixup) {
@@ -988,12 +992,16 @@ txMozillaXMLOutput::createHTMLElement(nsIAtom* aName,
                                                 getter_AddRefs(ni));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    return NS_NewHTMLElement(aResult, ni, PR_FALSE);
+    return NS_NewHTMLElement(aResult, ni);
 }
 
 txTransformNotifier::txTransformNotifier()
     : mPendingStylesheetCount(0),
       mInTransform(PR_FALSE)      
+{
+}
+
+txTransformNotifier::~txTransformNotifier()
 {
 }
 

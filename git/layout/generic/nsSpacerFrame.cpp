@@ -42,6 +42,7 @@
 #include "nsLineLayout.h"
 #include "nsPresContext.h"
 #include "nsGkAtoms.h"
+#include "nsUnitConversion.h"
 #include "nsStyleConsts.h"
 #include "nsINameSpaceManager.h"
 

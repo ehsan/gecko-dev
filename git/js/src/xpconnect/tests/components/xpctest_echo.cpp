@@ -432,10 +432,10 @@ xpctestEcho::SetAString(const char * aAString)
 
 #define GET_CALL_CONTEXT \
   nsresult rv; \
-  nsAXPCNativeCallContext *cc = nsnull; \
+  nsCOMPtr<nsIXPCNativeCallContext> cc; \
   nsCOMPtr<nsIXPConnect> xpc(do_GetService(nsIXPConnect::GetCID(), &rv)); \
   if(NS_SUCCEEDED(rv)) \
-    rv = xpc->GetCurrentNativeCallContext(&cc) /* no ';' */        
+    rv = xpc->GetCurrentNativeCallContext(getter_AddRefs(cc)) /* no ';' */        
 
 /* void printArgTypes (); */
 NS_IMETHODIMP

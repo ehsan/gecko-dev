@@ -482,9 +482,8 @@ nsClipboard::GetNativeClipboardData(nsITransferable * aTransferable,
 }
 
 NS_IMETHODIMP
-nsClipboard::HasDataMatchingFlavors(const char** aFlavorList,
-                                    PRUint32 aLength,
-                                    PRInt32 aWhichClipboard,
+nsClipboard::HasDataMatchingFlavors(nsISupportsArray* aFlavorList, 
+                                    PRInt32 aWhichClipboard, 
                                     PRBool * outResult)
 {
 	if (aWhichClipboard == kSelectionClipboard)
@@ -505,8 +504,11 @@ nsClipboard::HasDataMatchingFlavors(const char** aFlavorList,
   * outResult = PR_FALSE;
 
  // Walk through flavors and see which flavor matches the one being pasted:
+  PRUint32 cnt;
+
+  aFlavorList->Count(&cnt);
   nsCAutoString foundFlavor;
-  if (aLength > 0) {
+  if (cnt > 0) {
     void         *clipPtr;
 		char					type[8];
     PhClipHeader *cliphdr;
@@ -515,18 +517,30 @@ nsClipboard::HasDataMatchingFlavors(const char** aFlavorList,
     if(nsnull == clipPtr)
         return res;
 
-    for ( PRUint32 i = 0; i < aLength; ++i ) {
-      nsresult err = GetFormat( aFlavorList[i], type );
-      if (err != NS_OK) continue;
+    for ( PRUint32 i = 0; i < cnt; ++i ) {
+      nsCOMPtr<nsISupports> genericFlavor;
+      aFlavorList->GetElementAt ( i, getter_AddRefs(genericFlavor) );
+      nsCOMPtr<nsISupportsCString> currentFlavor ( do_QueryInterface(genericFlavor) );
 
-      cliphdr = PhClipboardPasteType( clipPtr, type );
-      if (cliphdr)
-      {
-        res = NS_OK;
-        *outResult = PR_TRUE;
-        break;
+      if ( currentFlavor ) {
+
+        nsXPIDLCString flavorStr;
+        currentFlavor->ToString ( getter_Copies(flavorStr) );
+
+        nsresult err = GetFormat( flavorStr, type );
+        if (err != NS_OK) continue;
+
+        cliphdr = PhClipboardPasteType( clipPtr, type );
+        if (cliphdr)
+        {
+
+            res = NS_OK;
+            *outResult = PR_TRUE;
+                    break;
+        }
       }
     }
+
     PhClipboardPasteFinish( clipPtr );
   }
 

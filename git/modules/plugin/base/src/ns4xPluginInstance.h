@@ -63,6 +63,10 @@
 #endif
 #include "prlink.h"  // for PRLibrary
 
+#if defined (MOZ_WIDGET_GTK2)
+#include <gtk/gtk.h>
+#endif
+
 ////////////////////////////////////////////////////////////////////////
 
 class ns4xPluginStreamListener;
@@ -98,8 +102,6 @@ public:
     virtual void PopPopupsEnabledState();
 
     virtual PRUint16 GetPluginAPIVersion();
-
-    virtual void DefineJavaProperties();
 
     ////////////////////////////////////////////////////////////////////////
     // ns4xPluginInstance-specific methods
@@ -172,6 +174,14 @@ protected:
      */
     NPPluginFuncs* fCallbacks;
 
+#if defined (MOZ_WIDGET_GTK2)
+   /**
+    * Special GtkXtBin widget that encapsulates the Xt toolkit
+    * within a Gtk Application
+    */
+   GtkWidget *mXtBin;
+#endif
+
     /**
      * The 4.x-style structure used to communicate between the plugin
      * instance and the browser.
@@ -189,12 +199,8 @@ protected:
     PRPackedBool  mTransparent;
     PRPackedBool  mStarted;
     PRPackedBool  mCached;
-    PRPackedBool  mIsJavaPlugin;
 
 public:
-    // True while creating the plugin, or calling NPP_SetWindow() on
-    // it.
-    PRPackedBool  mInPluginInitCall;
     PRLibrary* fLibrary;
     nsInstanceStream *mStreams;
 

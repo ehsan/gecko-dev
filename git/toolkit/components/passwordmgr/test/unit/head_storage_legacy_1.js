@@ -45,7 +45,7 @@ const LoginTest = {
    */
   initStorage : function (storage, aInputPathName,  aInputFileName,
                           aOutputPathName, aOutputFileName, aExpectedError) {
-    var err = null;
+    var e, caughtError = false;
 
     var inputFile  = Cc["@mozilla.org/file/local;1"]
                             .createInstance(Ci.nsILocalFile);
@@ -63,34 +63,24 @@ const LoginTest = {
     try {
         storage.initWithFile(inputFile, outputFile);
     } catch (e) {
-        err = e;
+        caughtError = true;
+        var err = e;
     }
 
-    this.checkExpectedError(aExpectedError, err);
-
-    return;
-  },
-
-
-  /*
-   * checkExpectedError
-   *
-   * Checks to see if a thrown error was expected or not, and if it
-   * matches the expected value.
-   */
-  checkExpectedError : function (aExpectedError, aActualError) {
     if (aExpectedError) {
-        if (!aActualError)
-            throw "Test didn't throw as expected (" + aExpectedError + ")";
+        if (!caughtError)
+            throw "Storage didn't throw as expected (" + aExpectedError + ")";
 
-        if (!aExpectedError.test(aActualError))
-            throw "Test threw (" + aActualError + "), not (" + aExpectedError;
+        if (!aExpectedError.test(err))
+            throw "Storage threw (" + err + "), not (" + aExpectedError;
 
         // We got the expected error, so make a note in the test log.
         dump("...that error was expected.\n\n");
-    } else if (aActualError) {
-        throw "Test threw unexpected error: " + aActualError;
+    } else if (caughtError) {
+        throw "Component threw unexpected error: " + err;
     }
+
+    return;
   },
 
 
@@ -108,56 +98,35 @@ const LoginTest = {
     do_check_eq(ref_logins.length, stor_logins.length);
 
     /*
-     * Check values of the disabled list.
+     * Check values of the disabled list. We check both "x in y" and "y in x"
+     * to make sure any differences are explicitly noted.
      */
     var i, j, found;
     for (i = 0; i < ref_disabledHosts.length; i++) {
-        found = false;
         for (j = 0; !found && j < stor_disabledHosts.length; j++) {
             found = (ref_disabledHosts[i] == stor_disabledHosts[j]);
         }
-        do_check_true(found);
+        do_check_true(found || stor_disabledHosts.length == 0);
+    }
+    for (j = 0; j < stor_disabledHosts.length; j++) {
+        for (i = 0; !found && i < ref_disabledHosts.length; i++) {
+            found = (ref_disabledHosts[i] == stor_disabledHosts[j]);
+        }
+        do_check_true(found || stor_disabledHosts.length == 0);
     }
 
     /*
-     * Check values of the logins list.
+     * Check values of the logins list. We check both "x in y" and "y in x"
+     * to make sure any differences are explicitly noted.
      */
     var ref, stor;
     for (i = 0; i < ref_logins.length; i++) {
-        found = false;
         for (j = 0; !found && j < stor_logins.length; j++) {
             found = ref_logins[i].equals(stor_logins[j]);
         }
-        do_check_true(found);
+        do_check_true(found || stor_logins.length == 0);
     }
 
-  },
-
-  /*
-   * countLinesInFile
-   *
-   * Counts the number of lines in the specified file.
-   */
-  countLinesInFile : function (aPathName,  aFileName) {
-    var inputFile  = Cc["@mozilla.org/file/local;1"].
-                     createInstance(Ci.nsILocalFile);
-    inputFile.initWithPath(aPathName);
-    inputFile.append(aFileName);
-    if (inputFile.fileSize == 0)
-      return 0;
-
-    var inputStream = Cc["@mozilla.org/network/file-input-stream;1"].
-                      createInstance(Ci.nsIFileInputStream);
-    // init the stream as RD_ONLY, -1 == default permissions.
-    inputStream.init(inputFile, 0x01, -1, null);
-    var lineStream = inputStream.QueryInterface(Ci.nsILineInputStream);
-
-    var line = { value : null };
-    var lineCount = 1; // Empty files were dealt with above.
-    while (lineStream.readLine(line)) 
-        lineCount++;
-
-    return lineCount;
   }
 
 };
@@ -176,8 +145,7 @@ if (!profileDir) {
 }
 
 
-var PROFDIR = profileDir;
-var OUTDIR = PROFDIR.path;
+var OUTDIR = profileDir.path;
 var INDIR = do_get_file("toolkit/components/passwordmgr/test/unit/data/" +
                         "signons-00.txt").parent.path;
 
@@ -186,8 +154,9 @@ var INDIR = do_get_file("toolkit/components/passwordmgr/test/unit/data/" +
 // replace it to ensure we have the key we need.
 var keydb = do_get_file("toolkit/components/passwordmgr/test/unit/key3.db");
 try {
-    var oldfile = profileDir.clone();
-    oldfile.append("key3.db");
+    var oldfile = Cc["@mozilla.org/file/local;1"].
+                  createInstance(Ci.nsILocalFile);
+    oldfile.initWithPath(profileDir.path + "/key3.db");
     if (oldfile.exists())
         oldfile.remove(false);
 } catch(e) { }

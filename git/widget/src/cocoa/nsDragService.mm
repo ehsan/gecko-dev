@@ -37,7 +37,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsDragService.h"
-#include "nsObjCExceptions.h"
 #include "nsITransferable.h"
 #include "nsString.h"
 #include "nsClipboard.h"
@@ -66,43 +65,31 @@
 
 #import <Cocoa/Cocoa.h>
 
-#ifdef MOZ_LOGGING
-#define FORCE_PR_LOG
-#endif
-#include "prlog.h"
-
-#ifdef PR_LOGGING
-extern PRLogModuleInfo* sCocoaLog;
-#endif
-
 extern NSPasteboard* globalDragPboard;
-extern NSView* gLastDragView;
-extern NSEvent* gLastDragEvent;
-
-// This global makes the transferable array available to Cocoa's promised
-// file destination callback.
-nsISupportsArray *gDraggedTransferables = nsnull;
+extern NSView* globalDragView;
+extern NSEvent* globalDragEvent;
 
 NSString* const kWildcardPboardType = @"MozillaWildcard";
-NSString* const kCorePboardType_url  = @"CorePasteboardFlavorType 0x75726C20"; // 'url '  url
-NSString* const kCorePboardType_urld = @"CorePasteboardFlavorType 0x75726C64"; // 'urld'  desc
-NSString* const kCorePboardType_urln = @"CorePasteboardFlavorType 0x75726C6E"; // 'urln'  title
+
+NS_IMPL_ADDREF_INHERITED(nsDragService, nsBaseDragService)
+NS_IMPL_RELEASE_INHERITED(nsDragService, nsBaseDragService)
+NS_IMPL_QUERY_INTERFACE2(nsDragService, nsIDragService, nsIDragSession)
+
 
 nsDragService::nsDragService()
 {
-  mNativeDragView = nil;
-  mNativeDragEvent = nil;
+
 }
 
 
 nsDragService::~nsDragService()
 {
+
 }
+
 
 static nsresult SetUpDragClipboard(nsISupportsArray* aTransferableArray)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
-
   if (!aTransferableArray)
     return NS_ERROR_FAILURE;
 
@@ -137,24 +124,16 @@ static nsresult SetUpDragClipboard(nsISupportsArray* aTransferableArray)
     for (unsigned int i = 0; i < typeCount; i++) {
       NSString* currentKey = [types objectAtIndex:i];
       id currentValue = [pasteboardOutputDict valueForKey:currentKey];
-      if (currentKey == NSStringPboardType ||
-          currentKey == kCorePboardType_url ||
-          currentKey == kCorePboardType_urld ||
-          currentKey == kCorePboardType_urln) {
+      if (currentKey == NSStringPboardType) {
         [dragPBoard setString:currentValue forType:currentKey];
       }
       else if (currentKey == NSTIFFPboardType) {
         [dragPBoard setData:currentValue forType:currentKey];
       }
-      else if (currentKey == NSFilesPromisePboardType) {
-        [dragPBoard setPropertyList:currentValue forType:currentKey];        
-      }
     }
   }
 
   return NS_OK;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 
@@ -163,25 +142,22 @@ nsDragService::ConstructDragImage(nsIDOMNode* aDOMNode,
                                   nsRect* aDragRect,
                                   nsIScriptableRegion* aRegion)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
-
-  NSPoint screenPoint = [[gLastDragView window] convertBaseToScreen:[gLastDragEvent locationInWindow]];
+  NSPoint screenPoint = [[globalDragView window] convertBaseToScreen:[globalDragEvent locationInWindow]];
   // Y coordinates are bottom to top, so reverse this
   if ([[NSScreen screens] count] > 0)
     screenPoint.y = NSMaxY([[[NSScreen screens] objectAtIndex:0] frame]) - screenPoint.y;
 
   nsRefPtr<gfxASurface> surface;
-  nsPresContext* pc;
   nsresult rv = DrawDrag(aDOMNode, aRegion,
                          NSToIntRound(screenPoint.x), NSToIntRound(screenPoint.y),
-                         aDragRect, getter_AddRefs(surface), &pc);
+                         aDragRect, getter_AddRefs(surface));
   if (!aDragRect->width || !aDragRect->height) {
     // just use some suitable defaults
     aDragRect->SetRect(NSToIntRound(screenPoint.x), NSToIntRound(screenPoint.y), 20, 20);
   }
 
   if (NS_FAILED(rv) || !surface)
-    return nil;
+    return nsnull;
 
   PRUint32 width = aDragRect->width;
   PRUint32 height = aDragRect->height;
@@ -189,11 +165,11 @@ nsDragService::ConstructDragImage(nsIDOMNode* aDOMNode,
   nsRefPtr<gfxImageSurface> imgSurface = new gfxImageSurface(
     gfxIntSize(width, height), gfxImageSurface::ImageFormatARGB32);
   if (!imgSurface)
-    return nil;
+    return nsnull;
 
   nsRefPtr<gfxContext> context = new gfxContext(imgSurface);
   if (!context)
-    return nil;
+    return nsnull;
 
   context->SetOperator(gfxContext::OPERATOR_SOURCE);
   context->SetSource(surface);
@@ -217,17 +193,16 @@ nsDragService::ConstructDragImage(nsIDOMNode* aDOMNode,
   for (PRUint32 i = 0; i < height; ++i) {
     PRUint8* src = (PRUint8 *)imageData + i * stride;
     for (PRUint32 j = 0; j < width; ++j) {
-      // Reduce transparency overall by multipying by a factor. Remember, Alpha
-      // is premultipled here. Also, Quartz likes RGBA, so do that translation as well.
+      // reduce transparency overall by multipying by a factor
 #ifdef IS_BIG_ENDIAN
-      dest[0] = PRUint8(src[1] * DRAG_TRANSLUCENCY);
-      dest[1] = PRUint8(src[2] * DRAG_TRANSLUCENCY);
-      dest[2] = PRUint8(src[3] * DRAG_TRANSLUCENCY);
+      dest[0] = src[1];
+      dest[1] = src[2];
+      dest[2] = src[3];
       dest[3] = PRUint8(src[0] * DRAG_TRANSLUCENCY);
 #else
-      dest[0] = PRUint8(src[2] * DRAG_TRANSLUCENCY);
-      dest[1] = PRUint8(src[1] * DRAG_TRANSLUCENCY);
-      dest[2] = PRUint8(src[0] * DRAG_TRANSLUCENCY);
+      dest[0] = src[2];
+      dest[1] = src[1];
+      dest[2] = src[0];
       dest[3] = PRUint8(src[3] * DRAG_TRANSLUCENCY);
 #endif
       src += 4;
@@ -235,13 +210,10 @@ nsDragService::ConstructDragImage(nsIDOMNode* aDOMNode,
     }
   }
 
-  NSImage* image = [[NSImage alloc] initWithSize:NSMakeSize((float)width, (float)height)];
+  NSImage* image = [NSImage alloc];
   [image addRepresentation:imageRep];
-  [imageRep release];
 
   return [image autorelease];
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 // We can only invoke NSView's 'dragImage:at:offset:event:pasteboard:source:slideBack:' from
@@ -251,12 +223,7 @@ NS_IMETHODIMP
 nsDragService::InvokeDragSession(nsIDOMNode* aDOMNode, nsISupportsArray* aTransferableArray,
                                  nsIScriptableRegion* aDragRgn, PRUint32 aActionType)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
-
-  nsresult rv = nsBaseDragService::InvokeDragSession(aDOMNode,
-                                                     aTransferableArray,
-                                                     aDragRgn, aActionType);
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsBaseDragService::InvokeDragSession(aDOMNode, aTransferableArray, aDragRgn, aActionType);
 
   mDataItems = aTransferableArray;
 
@@ -292,37 +259,25 @@ nsDragService::InvokeDragSession(nsIDOMNode* aDOMNode, nsISupportsArray* aTransf
   else
     point.y = dragRect.y;
 
-  point = [[gLastDragView window] convertScreenToBase: point];
-  NSPoint localPoint = [gLastDragView convertPoint:point fromView:nil];
+  point = [[globalDragView window] convertScreenToBase: point];
+  NSPoint localPoint = [globalDragView convertPoint:point fromView:nil];
  
-  // Save the transferables away in case a promised file callback is invoked.
-  gDraggedTransferables = aTransferableArray;
-
   nsBaseDragService::StartDragSession();
-
-  // We need to retain the view and the event during the drag in case either gets destroyed.
-  mNativeDragView = [gLastDragView retain];
-  mNativeDragEvent = [gLastDragEvent retain];
-
-  [mNativeDragView dragImage:image
-                          at:localPoint
-                      offset:NSMakeSize(0,0)
-                       event:mNativeDragEvent
-                  pasteboard:[NSPasteboard pasteboardWithName:NSDragPboard]
-                      source:mNativeDragView
-                   slideBack:YES];
+  [globalDragView dragImage:image
+                         at:localPoint
+                     offset:NSMakeSize(0,0)
+                      event:globalDragEvent
+                 pasteboard:[NSPasteboard pasteboardWithName:NSDragPboard]
+                     source:globalDragView
+                  slideBack:YES];
 
   return NS_OK;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 
 NS_IMETHODIMP
 nsDragService::GetData(nsITransferable* aTransferable, PRUint32 aItemIndex)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
-
   if (!aTransferable)
     return NS_ERROR_FAILURE;
 
@@ -376,7 +331,7 @@ nsDragService::GetData(nsITransferable* aTransferable, PRUint32 aItemIndex)
     nsXPIDLCString flavorStr;
     currentFlavor->ToString(getter_Copies(flavorStr));
 
-    PR_LOG(sCocoaLog, PR_LOG_ALWAYS, ("nsDragService::GetData: looking for clipboard data of type %s\n", flavorStr.get()));
+    // printf("looking for clipboard data of type %s\n", flavorStr.get());
 
     if (flavorStr.EqualsLiteral(kFileMime)) {
       NSArray* pFiles = [globalDragPboard propertyListForType:NSFilenamesPboardType];
@@ -408,10 +363,7 @@ nsDragService::GetData(nsITransferable* aTransferable, PRUint32 aItemIndex)
       break;
     }
 
-    if (flavorStr.EqualsLiteral(kUnicodeMime) ||
-        flavorStr.EqualsLiteral(kURLMime) ||
-        flavorStr.EqualsLiteral(kURLDataMime) ||
-        flavorStr.EqualsLiteral(kURLDescriptionMime)) {
+    if (flavorStr.EqualsLiteral(kUnicodeMime)) {
       NSString* pString = [globalDragPboard stringForType:NSStringPboardType];
       if (!pString)
         continue;
@@ -455,16 +407,12 @@ nsDragService::GetData(nsITransferable* aTransferable, PRUint32 aItemIndex)
     */
   }
   return NS_OK;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 
 NS_IMETHODIMP
 nsDragService::IsDataFlavorSupported(const char *aDataFlavor, PRBool *_retval)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
-
   *_retval = PR_FALSE;
 
   if (!globalDragPboard)
@@ -521,16 +469,12 @@ nsDragService::IsDataFlavorSupported(const char *aDataFlavor, PRBool *_retval)
   }
 
   return NS_OK;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 
 NS_IMETHODIMP
 nsDragService::GetNumDropItems(PRUint32* aNumItems)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
-
   *aNumItems = 0;
 
   // first check to see if we have a number of items cached
@@ -552,27 +496,12 @@ nsDragService::GetNumDropItems(PRUint32* aNumItems)
     *aNumItems = [fileNames count];
   
   return NS_OK;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 
 NS_IMETHODIMP
 nsDragService::EndDragSession(PRBool aDoneDrag)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
-
-  if (mNativeDragView) {
-    [mNativeDragView release];
-    mNativeDragView = nil;
-  }
-  if (mNativeDragEvent) {
-    [mNativeDragEvent release];
-    mNativeDragEvent = nil;
-  }
-
   mDataItems = nsnull;
   return nsBaseDragService::EndDragSession(aDoneDrag);
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }

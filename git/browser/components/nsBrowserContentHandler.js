@@ -51,7 +51,6 @@ const nsIFactory             = Components.interfaces.nsIFactory;
 const nsIFileURL             = Components.interfaces.nsIFileURL;
 const nsIHttpProtocolHandler = Components.interfaces.nsIHttpProtocolHandler;
 const nsIInterfaceRequestor  = Components.interfaces.nsIInterfaceRequestor;
-const nsINetUtil             = Components.interfaces.nsINetUtil;
 const nsIPrefBranch          = Components.interfaces.nsIPrefBranch;
 const nsIPrefLocalizedString = Components.interfaces.nsIPrefLocalizedString;
 const nsISupportsString      = Components.interfaces.nsISupportsString;
@@ -67,9 +66,6 @@ const nsICommandLineValidator = Components.interfaces.nsICommandLineValidator;
 const NS_BINDING_ABORTED = 0x804b0002;
 const NS_ERROR_WONT_HANDLE_CONTENT = 0x805d0001;
 const NS_ERROR_ABORT = Components.results.NS_ERROR_ABORT;
-
-const URI_INHERITS_SECURITY_CONTEXT = nsIHttpProtocolHandler
-                                        .URI_INHERITS_SECURITY_CONTEXT;
 
 function shouldLoadURI(aURI) {
   if (aURI && !aURI.schemeIs("chrome"))
@@ -225,12 +221,12 @@ function getMostRecentBrowserWindow() {
   var win = wm.getMostRecentWindow("navigator:browser", true);
 
   // if we're lucky, this isn't a popup, and we can just return this
-  if (win && win.document.documentElement.getAttribute("chromehidden")) {
+  if (win && !win.toolbar.visible) {
     var windowList = wm.getEnumerator("navigator:browser", true);
     // this is oldest to newest, so this gets a bit ugly
     while (windowList.hasMoreElements()) {
       var nextWin = windowList.getNext();
-      if (!nextWin.document.documentElement.getAttribute("chromehidden"))
+      if (nextWin.toolbar.visible)
         win = nextWin;
     }
   }
@@ -240,7 +236,7 @@ function getMostRecentBrowserWindow() {
     return null;
 
   var win = windowList.getNext();
-  while (win.document.documentElement.getAttribute("chromehidden")) {
+  while (!win.toolbar.visible) {
     if (!windowList.hasMoreElements()) 
       return null;
 
@@ -434,21 +430,12 @@ var nsBrowserContentHandler = {
       // Handle the old preference dialog URL separately (bug 285416)
       if (chromeParam == "chrome://browser/content/pref/pref.xul") {
         openPreferences();
-        cmdLine.preventDefault = true;
-      } else try {
-        // only load URIs which do not inherit chrome privs
+      } else {
         var features = "chrome,dialog=no,all" + this.getFeatures(cmdLine);
-        var uri = resolveURIInternal(cmdLine, chromeParam);
-        var netutil = Components.classes["@mozilla.org/network/util;1"]
-                                .getService(nsINetUtil);
-        if (!netutil.URIChainHasFlags(uri, URI_INHERITS_SECURITY_CONTEXT)) {
-          openWindow(null, uri.spec, "_blank", features, "");
-          cmdLine.preventDefault = true;
-        }
+        openWindow(null, chromeParam, "_blank", features, "");
       }
-      catch (e) {
-        Components.utils.reportError(e);
-      }
+
+      cmdLine.preventDefault = true;
     }
     if (cmdLine.handleFlag("preferences", false)) {
       openPreferences();
@@ -517,7 +504,7 @@ var nsBrowserContentHandler = {
     var startPage = "";
     try {
       var choice = prefb.getIntPref("browser.startup.page");
-      if (choice == 1 || choice == 3)
+      if (choice == 1)
         startPage = this.startPage;
 
       if (choice == 2)
@@ -606,9 +593,16 @@ var nsBrowserContentHandler = {
       throw NS_ERROR_WONT_HANDLE_CONTENT;
     }
 
+    var parentWin;
+    try {
+      parentWin = context.getInterface(nsIDOMWindow);
+    }
+    catch (e) {
+    }
+
     request.QueryInterface(nsIChannel);
-    handURIToExistingBrowser(request.URI,
-      nsIBrowserDOMWindow.OPEN_DEFAULTWINDOW, null);
+    
+    openWindow(parentWin, request.URI, "_blank", null, null);
     request.cancel(NS_BINDING_ABORTED);
   },
 
@@ -835,15 +829,6 @@ var Module = {
   },
     
   registerSelf: function mod_regself(compMgr, fileSpec, location, type) {
-    if (Components.classes["@mozilla.org/xre/app-info;1"]) {
-      // Don't register these if Firefox is launching a XULRunner application
-      const FIREFOX_UID = "{ec8030f7-c20a-464f-9b0e-13a3a9e97384}";
-      var appInfo = Components.classes["@mozilla.org/xre/app-info;1"]
-                              .getService(Components.interfaces.nsIXULAppInfo);
-      if (appInfo.ID != FIREFOX_UID)
-        return;
-    }
-
     var compReg =
       compMgr.QueryInterface( Components.interfaces.nsIComponentRegistrar );
 

@@ -45,7 +45,6 @@
 #include "nsIDOMDocument.h"
 #include "nsSyncLoadService.h"
 #include "nsNetUtil.h"
-#include "nsIPrincipal.h"
 #else
 #include "expat_config.h"
 #include "expat.h"
@@ -99,16 +98,14 @@ txParseDocumentFromURI(const nsAString& aHref, const txXPathNode& aLoader,
     nsIDocument* loaderDocument = txXPathNativeNode::getDocument(aLoader);
 
     nsCOMPtr<nsILoadGroup> loadGroup = loaderDocument->GetDocumentLoadGroup();
-
-    // For the system principal loaderUri will be null here, which is good
-    // since that means that chrome documents can load any uri.
+    nsIURI *loaderUri = loaderDocument->GetDocumentURI();
+    NS_ENSURE_TRUE(loaderUri, NS_ERROR_FAILURE);
 
     // Raw pointer, we want the resulting txXPathNode to hold a reference to
     // the document.
     nsIDOMDocument* theDocument = nsnull;
-    rv = nsSyncLoadService::LoadDocument(documentURI,
-                                         loaderDocument->NodePrincipal(),
-                                         loadGroup, PR_TRUE, &theDocument);
+    rv = nsSyncLoadService::LoadDocument(documentURI, loaderUri, loadGroup,
+                                         PR_TRUE, &theDocument);
 
     if (NS_FAILED(rv)) {
         aErrMsg.Append(NS_LITERAL_STRING("Document load of ") + 

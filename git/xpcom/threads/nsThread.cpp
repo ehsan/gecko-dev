@@ -253,25 +253,7 @@ nsThread::ThreadFunc(void *arg)
   while (!self->ShuttingDown())
     NS_ProcessNextEvent(self);
 
-  // Do NS_ProcessPendingEvents but with special handling to set
-  // mEventsAreDoomed atomically with the removal of the last event. The key
-  // invariant here is that we will never permit PutEvent to succeed if the
-  // event would be left in the queue after our final call to
-  // NS_ProcessPendingEvents.
-  while (PR_TRUE) {
-    {
-      nsAutoLock lock(self->mLock);
-      if (!self->mEvents->HasPendingEvent()) {
-        // No events in the queue, so we will stop now. Don't let any more
-        // events be added, since they won't be processed. It is critical
-        // that no PutEvent can occur between testing that the event queue is
-        // empty and setting mEventsAreDoomed!
-        self->mEventsAreDoomed = PR_TRUE;
-        break;
-      }
-    }
-    NS_ProcessPendingEvents(self);
-  }
+  NS_ProcessPendingEvents(self);
 
   // Inform the threadmanager that this thread is going away
   nsThreadManager::get()->UnregisterCurrentThread(self);
@@ -293,7 +275,6 @@ nsThread::nsThread()
   , mRunningEvent(0)
   , mShutdownContext(nsnull)
   , mShutdownRequired(PR_FALSE)
-  , mEventsAreDoomed(PR_FALSE)
 {
 }
 
@@ -350,24 +331,22 @@ nsThread::InitCurrentThread()
   return NS_OK;
 }
 
-nsresult
+PRBool
 nsThread::PutEvent(nsIRunnable *event)
 {
+  PRBool rv;
   {
     nsAutoLock lock(mLock);
-    if (mEventsAreDoomed) {
-      NS_WARNING("An event was posted to a thread that will never run it (rejected)");
-      return NS_ERROR_UNEXPECTED;
-    }
-    if (!mEvents->PutEvent(event))
-      return NS_ERROR_OUT_OF_MEMORY;
+    rv = mEvents->PutEvent(event);
   }
+  if (!rv)
+    return PR_FALSE;
 
   nsCOMPtr<nsIThreadObserver> obs = GetObserver();
   if (obs)
     obs->OnDispatchedEvent(this);
 
-  return NS_OK;
+  return PR_TRUE;
 }
 
 //-----------------------------------------------------------------------------
@@ -380,6 +359,7 @@ nsThread::Dispatch(nsIRunnable *event, PRUint32 flags)
 
   NS_ENSURE_ARG_POINTER(event);
 
+  PRBool dispatched;
   if (flags & DISPATCH_SYNC) {
     nsThread *thread = nsThreadManager::get()->GetCurrentThread();
     NS_ENSURE_STATE(thread);
@@ -392,18 +372,19 @@ nsThread::Dispatch(nsIRunnable *event, PRUint32 flags)
         new nsThreadSyncDispatch(thread, event);
     if (!wrapper)
       return NS_ERROR_OUT_OF_MEMORY;
-    nsresult rv = PutEvent(wrapper);
-    // Don't wait for the event to finish if we didn't dispatch it...
-    if (NS_FAILED(rv))
-      return rv;
+    dispatched = PutEvent(wrapper);
 
     while (wrapper->IsPending())
       NS_ProcessNextEvent(thread);
-    return rv;
+  } else {
+    NS_ASSERTION(flags == NS_DISPATCH_NORMAL, "unexpected dispatch flags");
+    dispatched = PutEvent(event);
   }
 
-  NS_ASSERTION(flags == NS_DISPATCH_NORMAL, "unexpected dispatch flags");
-  return PutEvent(event);
+  if (NS_UNLIKELY(!dispatched))
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -453,7 +434,6 @@ nsThread::Shutdown()
   nsCOMPtr<nsIRunnable> event = new nsThreadShutdownEvent(this, &context);
   if (!event)
     return NS_ERROR_OUT_OF_MEMORY;
-  // XXXroc What if posting the event fails due to OOM?
   PutEvent(event);
 
   // We could still end up with other events being added after the shutdown

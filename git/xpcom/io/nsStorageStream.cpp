@@ -384,6 +384,7 @@ NS_IMETHODIMP
 nsStorageStream::NewInputStream(PRInt32 aStartingOffset, nsIInputStream* *aInputStream)
 {
     NS_ENSURE_TRUE(mSegmentedBuffer, NS_ERROR_NOT_INITIALIZED);
+    NS_ENSURE_TRUE(mSegmentedBuffer->GetSegmentCount(), NS_ERROR_NOT_INITIALIZED);
 
     nsStorageInputStream *inputStream = new nsStorageInputStream(this, mSegmentSize);
     if (!inputStream)
@@ -532,9 +533,6 @@ nsStorageInputStream::Seek(PRUint32 aPosition)
     PRUint32 length = mStorageStream->mLogicalLength;
     if (aPosition > length)
         return NS_ERROR_INVALID_ARG;
-
-    if (length == 0)
-        return NS_OK;
 
     mSegmentNum = SegNum(aPosition);
     PRUint32 segmentOffset = SegOffset(aPosition);

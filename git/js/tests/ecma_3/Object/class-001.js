@@ -59,14 +59,7 @@ var expect= ''; var expectedvalue = [ ];
 status = 'the global object';
 actual = getJSClass(this);
 expect = GLOBAL;
-if (expect == 'Window' && actual == 'XPCCrossOriginWrapper')
-{
-  print('Skipping global object due to XPCCrossOriginWrapper. See bug 390946');
-}
-else
-{
-  addThis();
-}
+addThis();
 
 status = 'new Object()';
 actual = getJSClass(new Object());

@@ -757,6 +757,8 @@ nsXULTreeBuilder::GetCellText(PRInt32 aRow, nsITreeColumn* aCol, nsAString& aRes
 NS_IMETHODIMP
 nsXULTreeBuilder::SetTree(nsITreeBoxObject* aTree)
 {
+    NS_PRECONDITION(mRoot, "not initialized");
+
     mBoxObject = aTree;
 
     // If this is teardown time, then we're done.
@@ -764,7 +766,6 @@ nsXULTreeBuilder::SetTree(nsITreeBoxObject* aTree)
         Uninit(PR_FALSE);
         return NS_OK;
     }
-    NS_ENSURE_TRUE(mRoot, NS_ERROR_NOT_INITIALIZED);
 
     // Is our root's principal trusted?
     PRBool isTrusted = PR_FALSE;
@@ -1338,7 +1339,9 @@ nsXULTreeBuilder::EnsureSortVariables()
 nsresult
 nsXULTreeBuilder::RebuildAll()
 {
-    NS_ENSURE_TRUE(mRoot, NS_ERROR_NOT_INITIALIZED);
+    NS_PRECONDITION(mRoot != nsnull, "not initialized");
+    if (! mRoot)
+        return NS_ERROR_NOT_INITIALIZED;
 
     nsCOMPtr<nsIDocument> doc = mRoot->GetDocument();
 

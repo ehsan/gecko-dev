@@ -128,7 +128,7 @@ public:
     /**
      * Security Info accessors
      */
-    nsISupports* SecurityInfo() { return mSecurityInfo; }
+    nsresult GetSecurityInfo( nsISupports ** result);
     void     SetSecurityInfo( nsISupports *  info) { mSecurityInfo = info; }
 
 
@@ -295,9 +295,17 @@ public:
     nsresult      AddEntry( nsCacheEntry *entry);
     void          RemoveEntry( nsCacheEntry *entry);
     
-    void          VisitEntries( PLDHashEnumerator etor, void *arg);
-
+    // XXX enumerate entries?
+    class Visitor {
+    public:
+        virtual PRBool VisitEntry( nsCacheEntry *entry) = 0;
+    };
+    
+    void          VisitEntries( Visitor *visitor);
+    
 private:
+    friend class nsCacheService; // XXX redefine interface so this isn't necessary
+
     // PLDHashTable operation callbacks
     static PLDHashNumber  PR_CALLBACK HashKey( PLDHashTable *table, const void *key);
 
@@ -331,3 +339,4 @@ private:
 };
 
 #endif // _nsCacheEntry_h_
+

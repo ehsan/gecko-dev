@@ -42,7 +42,6 @@
 /* An implementaion of nsIException. */
 
 #include "xpcprivate.h"
-#include "nsNetError.h"
 
 /***************************************************************************/
 /* Quick and dirty mapping of well known result codes to strings. We only
@@ -177,7 +176,7 @@ nsXPCException::Reset()
 
 /* readonly attribute string message; */
 NS_IMETHODIMP
-nsXPCException::GetMessageMoz(char * *aMessage)
+nsXPCException::GetMessage(char * *aMessage)
 {
     if(!mInitialized)
         return NS_ERROR_NOT_INITIALIZED;

@@ -44,6 +44,7 @@
 
 #include "nsAutoPtr.h"
 #include "nsViewManager.h"
+#include "nsUnitConversion.h"
 #include "nsIRenderingContext.h"
 #include "nsIDeviceContext.h"
 #include "nsGfxCIID.h"
@@ -61,10 +62,8 @@
 #include "nsHashtable.h"
 #include "nsCOMArray.h"
 #include "nsThreadUtils.h"
-#include "nsContentUtils.h"
+
 #include "gfxContext.h"
-#define NS_STATIC_FOCUS_SUPPRESSOR
-#include "nsIFocusEventSuppressor.h"
 
 static NS_DEFINE_IID(kBlenderCID, NS_BLENDER_CID);
 static NS_DEFINE_IID(kRegionCID, NS_REGION_CID);
@@ -92,10 +91,6 @@ static NS_DEFINE_IID(kRenderingContextCID, NS_RENDERING_CONTEXT_CID);
 
 #ifdef NS_VM_PERF_METRICS
 #include "nsITimeRecorder.h"
-#endif
-
-#ifdef DEBUG_smaug
-#define DEBUG_FOCUS_SUPPRESSION
 #endif
 
 //-------------- Begin Invalidate Event Definition ------------------------
@@ -174,9 +169,7 @@ nsViewManager::nsViewManager()
 
   gViewManagers->AppendElement(this);
 
-  if (++mVMCount == 1) {
-    NS_AddFocusSuppressorCallback(&nsViewManager::SuppressFocusEvents);
-  }
+  mVMCount++;
   // NOTE:  we use a zeroing operator new, so all data members are
   // assumed to be cleared here.
   mDefaultBackgroundColor = NS_RGBA(0, 0, 0, 0);
@@ -460,51 +453,48 @@ void nsViewManager::Refresh(nsView *aView, nsIRenderingContext *aContext,
     RootViewManager()->mRecursiveRefreshPending = PR_TRUE;
     return;
   }  
+  SetPainting(PR_TRUE);
 
-  {
-    nsAutoScriptBlocker scriptBlocker;
-    SetPainting(PR_TRUE);
+  nsCOMPtr<nsIRenderingContext> localcx;
+  NS_ASSERTION(aView->GetWidget(),
+               "Must have a widget to calculate coordinates correctly");
+  if (nsnull == aContext)
+    {
+      localcx = CreateRenderingContext(*aView);
 
-    nsCOMPtr<nsIRenderingContext> localcx;
-    NS_ASSERTION(aView->GetWidget(),
-                 "Must have a widget to calculate coordinates correctly");
-    if (nsnull == aContext)
-      {
-        localcx = CreateRenderingContext(*aView);
-
-        //couldn't get rendering context. this is ok at init time atleast
-        if (nsnull == localcx) {
-          SetPainting(PR_FALSE);
-          return;
-        }
-      } else {
-        // plain assignment grabs another reference.
-        localcx = aContext;
+      //couldn't get rendering context. this is ok at init time atleast
+      if (nsnull == localcx) {
+        SetPainting(PR_FALSE);
+        return;
       }
+    } else {
+      // plain assignment grabs another reference.
+      localcx = aContext;
+    }
 
-    PRInt32 p2a = mContext->AppUnitsPerDevPixel();
+  PRInt32 p2a = mContext->AppUnitsPerDevPixel();
 
-    nsRefPtr<gfxContext> ctx = localcx->ThebesContext();
+  nsRefPtr<gfxContext> ctx =
+    (gfxContext*) localcx->GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT);
 
-    ctx->Save();
+  ctx->Save();
 
-    nsPoint vtowoffset = aView->ViewToWidgetOffset();
-    ctx->Translate(gfxPoint(gfxFloat(vtowoffset.x) / p2a,
-                            gfxFloat(vtowoffset.y) / p2a));
+  nsPoint vtowoffset = aView->ViewToWidgetOffset();
+  ctx->Translate(gfxPoint(gfxFloat(vtowoffset.x) / p2a,
+                          gfxFloat(vtowoffset.y) / p2a));
 
-    ctx->Translate(gfxPoint(-gfxFloat(viewRect.x) / p2a,
-                            -gfxFloat(viewRect.y) / p2a));
+  ctx->Translate(gfxPoint(-gfxFloat(viewRect.x) / p2a,
+                          -gfxFloat(viewRect.y) / p2a));
 
-    nsRegion opaqueRegion;
-    AddCoveringWidgetsToOpaqueRegion(opaqueRegion, mContext, aView);
-    damageRegion.Sub(damageRegion, opaqueRegion);
+  nsRegion opaqueRegion;
+  AddCoveringWidgetsToOpaqueRegion(opaqueRegion, mContext, aView);
+  damageRegion.Sub(damageRegion, opaqueRegion);
 
-    RenderViews(aView, *localcx, damageRegion);
+  RenderViews(aView, *localcx, damageRegion);
 
-    ctx->Restore();
+  ctx->Restore();
 
-    SetPainting(PR_FALSE);
-  }
+  SetPainting(PR_FALSE);
 
   if (RootViewManager()->mRecursiveRefreshPending) {
     // Unset this flag first, since if aUpdateFlags includes NS_VMREFRESH_IMMEDIATE
@@ -608,7 +598,7 @@ void nsViewManager::RenderViews(nsView *aView, nsIRenderingContext& aRC,
     nsPoint offsetToRoot = aView->GetOffsetTo(displayRoot); 
     nsRegion damageRegion(aRegion);
     damageRegion.MoveBy(offsetToRoot);
-
+    
     aRC.PushState();
     aRC.Translate(-offsetToRoot.x, -offsetToRoot.y);
     mObserver->Paint(displayRoot, &aRC, damageRegion);
@@ -738,22 +728,24 @@ nsViewManager::UpdateViewAfterScroll(nsView *aView, const nsRegion& aUpdateRegio
   // in which case we don't need to worry about invalidating the clipped-out part.
   nsRect damageRect = aView->GetDimensions();
   if (damageRect.IsEmpty()) {
-    // Don't forget to undo mScrollCnt!
-    --RootViewManager()->mScrollCnt;
+    return;
+  }
+  nsPoint offset = ComputeViewOffset(aView);
+  damageRect.MoveBy(offset);
+
+  // if this is a floating view, it isn't covered by any widgets other than
+  // its children, which are handled by the widget scroller.
+  if (aView->GetFloating()) {
     return;
   }
 
-  nsView* displayRoot = GetDisplayRootFor(aView);
-  nsPoint offset = aView->GetOffsetTo(displayRoot);
-  damageRect.MoveBy(offset);
-
-  UpdateWidgetArea(displayRoot, nsRegion(damageRect), aView);
+  UpdateWidgetArea(RootViewManager()->GetRootView(), nsRegion(damageRect), aView);
   if (!aUpdateRegion.IsEmpty()) {
     // XXX We should update the region, not the bounds rect, but that requires
     // a little more work. Fix this when we reshuffle this code.
     nsRegion update(aUpdateRegion);
     update.MoveBy(offset);
-    UpdateWidgetArea(displayRoot, update, nsnull);
+    UpdateWidgetArea(RootViewManager()->GetRootView(), update, nsnull);
     // FlushPendingInvalidates();
   }
 
@@ -941,69 +933,6 @@ void nsViewManager::UpdateViews(nsView *aView, PRUint32 aUpdateFlags)
   }
 }
 
-nsView *nsViewManager::sCurrentlyFocusView = nsnull;
-nsView *nsViewManager::sViewFocusedBeforeSuppression = nsnull;
-PRBool nsViewManager::sFocusSuppressed = PR_FALSE;
-
-void nsViewManager::SuppressFocusEvents(PRBool aSuppress)
-{
-  if (aSuppress) {
-    sFocusSuppressed = PR_TRUE;
-    SetViewFocusedBeforeSuppression(GetCurrentlyFocusedView());
-    return;
-  }
-
-  sFocusSuppressed = PR_FALSE;
-  if (GetCurrentlyFocusedView() == GetViewFocusedBeforeSuppression()) {
-    return;
-  }
-  
-  // We're turning off suppression, synthesize LOSTFOCUS/GOTFOCUS.
-  nsIWidget *widget = nsnull;
-  nsEventStatus status;
-
-  // Backup what is focused before we send the blur. If the
-  // blur causes a focus change, keep that new focus change,
-  // don't overwrite with the old "currently focused view".
-  nsIView *currentFocusBeforeBlur = GetCurrentlyFocusedView();
-
-  // Send NS_LOSTFOCUS to widget that was focused before
-  // focus/blur suppression.
-  if (GetViewFocusedBeforeSuppression()) {
-    widget = GetViewFocusedBeforeSuppression()->GetWidget();
-    if (widget) {
-#ifdef DEBUG_FOCUS_SUPPRESSION
-      printf("*** 0 INFO TODO [CPEARCE] Unsuppressing, dispatching NS_LOSTFOCUS\n");
-#endif
-      nsGUIEvent event(PR_TRUE, NS_LOSTFOCUS, widget);
-      widget->DispatchEvent(&event, status);
-    }
-  }
-
-  // Send NS_GOTFOCUS to the widget that we think should be focused.
-  if (GetCurrentlyFocusedView() &&
-      currentFocusBeforeBlur == GetCurrentlyFocusedView())
-  {
-    widget = GetCurrentlyFocusedView()->GetWidget();
-    if (widget) {
-#ifdef DEBUG_FOCUS_SUPPRESSION
-      printf("*** 0 INFO TODO [CPEARCE] Unsuppressing, dispatching NS_GOTFOCUS\n");
-#endif
-      nsGUIEvent event(PR_TRUE, NS_GOTFOCUS, widget);
-      widget->DispatchEvent(&event, status); 
-    }
-  }
-
-}
-
-static void ConvertRectAppUnitsToIntPixels(nsRect& aRect, PRInt32 p2a)
-{
-  aRect.x = NSAppUnitsToIntPixels(aRect.x, p2a);
-  aRect.y = NSAppUnitsToIntPixels(aRect.y, p2a);
-  aRect.width = NSAppUnitsToIntPixels(aRect.width, p2a);
-  aRect.height = NSAppUnitsToIntPixels(aRect.height, p2a);
-}
-
 NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aStatus)
 {
   *aStatus = nsEventStatus_eIgnore;
@@ -1093,14 +1022,14 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
             // XXXbz do we need to notify other view observers for viewmanagers
             // in our tree?
             // Make sure to not send WillPaint notifications while scrolling
-            nsRefPtr<nsViewManager> rootVM = RootViewManager();
+            nsViewManager* rootVM = RootViewManager();
 
             nsIWidget *widget = mRootView->GetWidget();
-            PRBool transparentWindow = PR_FALSE;
+            PRBool translucentWindow = PR_FALSE;
             if (widget)
-                widget->GetHasTransparentBackground(transparentWindow);
+                widget->GetWindowTranslucency(translucentWindow);
 
-            if (rootVM->mScrollCnt == 0 && !transparentWindow) {
+            if (rootVM->mScrollCnt == 0 && !translucentWindow) {
               nsIViewObserver* observer = GetViewObserver();
               if (observer) {
                 // Do an update view batch.  Make sure not to do it DEFERRED,
@@ -1114,9 +1043,9 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
                 // refresh will be disabled it won't be able to do the paint.
                 // We should really sort out the rules on our synch painting
                 // api....
-                UpdateViewBatch batch(this);
+                BeginUpdateViewBatch();
                 observer->WillPaint();
-                batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
+                EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
 
                 // Get the view pointer again since the code above might have
                 // destroyed it (bug 378273).
@@ -1207,23 +1136,6 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
 
     default:
       {
-        if (aEvent->message == NS_GOTFOCUS) {
-#ifdef DEBUG_FOCUS_SUPPRESSION
-          printf("*** 0 INFO TODO [CPEARCE] Focus changing%s\n",
-            (nsViewManager::IsFocusSuppressed() ? " while suppressed" : ""));
-#endif
-          SetCurrentlyFocusedView(nsView::GetViewFor(aEvent->widget));
-        }
-        if ((aEvent->message == NS_GOTFOCUS || aEvent->message == NS_LOSTFOCUS) &&
-             nsViewManager::IsFocusSuppressed())
-        {
-#ifdef DEBUG_FOCUS_SUPPRESSION
-          printf("*** 0 INFO TODO [CPEARCE] Suppressing %s\n",
-            (aEvent->message == NS_GOTFOCUS ? "NS_GOTFOCUS" : "NS_LOSTFOCUS"));
-#endif          
-          break;
-        }
-        
         if ((NS_IS_MOUSE_EVENT(aEvent) &&
              // Ignore moves that we synthesize.
              static_cast<nsMouseEvent*>(aEvent)->reason ==
@@ -1250,7 +1162,6 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
         
         if (!NS_IS_KEY_EVENT(aEvent) && !NS_IS_IME_EVENT(aEvent) &&
             !NS_IS_CONTEXT_MENU_KEY(aEvent) && !NS_IS_FOCUS_EVENT(aEvent) &&
-            !NS_IS_QUERY_CONTENT_EVENT(aEvent) &&
              aEvent->eventStructType != NS_ACCESSIBLE_EVENT) {
           // will dispatch using coordinates. Pretty bogus but it's consistent
           // with what presshell does.
@@ -1337,27 +1248,26 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
           *aStatus = HandleEvent(view, pt, aEvent, capturedEvent);
 
           //
-          // need to map the reply back into platform coordinates
+          // if the event is an nsTextEvent, we need to map the reply back into platform coordinates
           //
-          switch (aEvent->message) {
-            case NS_TEXT_TEXT:
-              ConvertRectAppUnitsToIntPixels(
-                ((nsTextEvent*)aEvent)->theReply.mCursorPosition, p2a);
-              break;
-            case NS_COMPOSITION_START:
-            case NS_COMPOSITION_QUERY:
-              ConvertRectAppUnitsToIntPixels(
-                ((nsCompositionEvent*)aEvent)->theReply.mCursorPosition, p2a);
-              break;
-            case NS_QUERYCARETRECT:
-              ConvertRectAppUnitsToIntPixels(
-                ((nsQueryCaretRectEvent*)aEvent)->theReply.mCaretRect, p2a);
-              break;
-            case NS_QUERY_CHARACTER_RECT:
-            case NS_QUERY_CARET_RECT:
-              ConvertRectAppUnitsToIntPixels(
-                ((nsQueryContentEvent*)aEvent)->mReply.mRect, p2a);
-              break;
+          if (aEvent->message==NS_TEXT_TEXT) {
+            ((nsTextEvent*)aEvent)->theReply.mCursorPosition.x=NSAppUnitsToIntPixels(((nsTextEvent*)aEvent)->theReply.mCursorPosition.x, p2a);
+            ((nsTextEvent*)aEvent)->theReply.mCursorPosition.y=NSAppUnitsToIntPixels(((nsTextEvent*)aEvent)->theReply.mCursorPosition.y, p2a);
+            ((nsTextEvent*)aEvent)->theReply.mCursorPosition.width=NSAppUnitsToIntPixels(((nsTextEvent*)aEvent)->theReply.mCursorPosition.width, p2a);
+            ((nsTextEvent*)aEvent)->theReply.mCursorPosition.height=NSAppUnitsToIntPixels(((nsTextEvent*)aEvent)->theReply.mCursorPosition.height, p2a);
+          }
+          if((aEvent->message==NS_COMPOSITION_START) ||
+             (aEvent->message==NS_COMPOSITION_QUERY)) {
+            ((nsCompositionEvent*)aEvent)->theReply.mCursorPosition.x=NSAppUnitsToIntPixels(((nsCompositionEvent*)aEvent)->theReply.mCursorPosition.x, p2a);
+            ((nsCompositionEvent*)aEvent)->theReply.mCursorPosition.y=NSAppUnitsToIntPixels(((nsCompositionEvent*)aEvent)->theReply.mCursorPosition.y, p2a);
+            ((nsCompositionEvent*)aEvent)->theReply.mCursorPosition.width=NSAppUnitsToIntPixels(((nsCompositionEvent*)aEvent)->theReply.mCursorPosition.width, p2a);
+            ((nsCompositionEvent*)aEvent)->theReply.mCursorPosition.height=NSAppUnitsToIntPixels(((nsCompositionEvent*)aEvent)->theReply.mCursorPosition.height, p2a);
+          }
+          if(aEvent->message==NS_QUERYCARETRECT) {
+            ((nsQueryCaretRectEvent*)aEvent)->theReply.mCaretRect.x=NSAppUnitsToIntPixels(((nsQueryCaretRectEvent*)aEvent)->theReply.mCaretRect.x, p2a);
+            ((nsQueryCaretRectEvent*)aEvent)->theReply.mCaretRect.y=NSAppUnitsToIntPixels(((nsQueryCaretRectEvent*)aEvent)->theReply.mCaretRect.y, p2a);
+            ((nsQueryCaretRectEvent*)aEvent)->theReply.mCaretRect.width=NSAppUnitsToIntPixels(((nsQueryCaretRectEvent*)aEvent)->theReply.mCaretRect.width, p2a);
+            ((nsQueryCaretRectEvent*)aEvent)->theReply.mCaretRect.height=NSAppUnitsToIntPixels(((nsQueryCaretRectEvent*)aEvent)->theReply.mCaretRect.height, p2a);
           }
         }
     
@@ -1428,8 +1338,7 @@ void nsViewManager::ReparentChildWidgets(nsIView* aView, nsIWidget *aNewWidget)
     // to do for the view and its descendants
     nsIWidget* widget = aView->GetWidget();
     nsIWidget* parentWidget = widget->GetParent();
-    // Toplevel widgets should not be reparented!
-    if (parentWidget && parentWidget != aNewWidget) {
+    if (parentWidget != aNewWidget) {
 #ifdef DEBUG
       nsresult rv =
 #endif
@@ -1649,7 +1558,7 @@ NS_IMETHODIMP nsViewManager::ResizeView(nsIView *aView, const nsRect &aRect, PRB
   nsRect oldDimensions;
 
   view->GetDimensions(oldDimensions);
-  if (!oldDimensions.IsExactEqual(aRect)) {
+  if (oldDimensions != aRect) {
     nsView* parentView = view->GetParent();
     if (parentView == nsnull)
       parentView = view;
@@ -1710,7 +1619,7 @@ PRBool nsViewManager::CanScrollWithBitBlt(nsView* aView, nsPoint aDelta,
 
   aUpdateRegion->MoveBy(-displayOffset);
 
-#if defined(MOZ_WIDGET_GTK2) || defined(XP_OS2)
+#ifdef MOZ_WIDGET_GTK2
   return aUpdateRegion->IsEmpty();
 #else
   return PR_TRUE;
@@ -1932,7 +1841,7 @@ NS_IMETHODIMP nsViewManager::EnableRefresh(PRUint32 aUpdateFlags)
   return NS_OK;
 }
 
-nsIViewManager* nsViewManager::BeginUpdateViewBatch(void)
+NS_IMETHODIMP nsViewManager::BeginUpdateViewBatch(void)
 {
   if (!IsRootVM()) {
     return RootViewManager()->BeginUpdateViewBatch();
@@ -1948,12 +1857,14 @@ nsIViewManager* nsViewManager::BeginUpdateViewBatch(void)
   if (NS_SUCCEEDED(result))
     ++mUpdateBatchCnt;
 
-  return this;
+  return result;
 }
 
 NS_IMETHODIMP nsViewManager::EndUpdateViewBatch(PRUint32 aUpdateFlags)
 {
-  NS_ASSERTION(IsRootVM(), "Should only be called on root");
+  if (!IsRootVM()) {
+    return RootViewManager()->EndUpdateViewBatch(aUpdateFlags);
+  }
   
   nsresult result = NS_OK;
 
@@ -2001,10 +1912,7 @@ NS_IMETHODIMP nsViewManager::ForceUpdate()
   }
 
   // Walk the view tree looking for widgets, and call Update() on each one
-  if (mRootView) {
-    UpdateWidgetsForView(mRootView);
-  }
-  
+  UpdateWidgetsForView(mRootView);
   return NS_OK;
 }
 

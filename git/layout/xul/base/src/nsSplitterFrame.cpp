@@ -145,7 +145,7 @@ public:
   void AddListener(nsPresContext* aPresContext);
   void RemoveListener();
 
-  enum ResizeType { Closest, Farthest, Flex, Grow };
+  enum ResizeType { Closest, Farthest, Grow };
   enum State { Open, CollapsedBefore, CollapsedAfter, Dragging };
   enum CollapseDirection { Before, After };
 
@@ -180,25 +180,15 @@ public:
 };
 
 
-NS_IMPL_ADDREF(nsSplitterFrameInner)
-NS_IMPL_RELEASE(nsSplitterFrameInner)
-NS_INTERFACE_MAP_BEGIN(nsSplitterFrameInner)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMMouseListener)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIDOMEventListener,nsIDOMMouseListener)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMMouseMotionListener)
-NS_INTERFACE_MAP_END
+NS_IMPL_ISUPPORTS2(nsSplitterFrameInner, nsIDOMMouseListener, nsIDOMMouseMotionListener)
 
 nsSplitterFrameInner::ResizeType
 nsSplitterFrameInner::GetResizeBefore()
 {
-  static nsIContent::AttrValuesArray strings[] =
-    {&nsGkAtoms::farthest, &nsGkAtoms::flex, nsnull};
-  switch (mOuter->GetContent()->FindAttrValueIn(kNameSpaceID_None,
-                                                nsGkAtoms::resizebefore,
-                                                strings, eCaseMatters)) {
-    case 0: return Farthest;
-    case 1: return Flex;
-  }
+  if (mOuter->GetContent()->
+        AttrValueIs(kNameSpaceID_None, nsGkAtoms::resizebefore,
+                    NS_LITERAL_STRING("farthest"), eCaseMatters))
+    return Farthest;
   return Closest;
 }
 
@@ -212,13 +202,12 @@ nsSplitterFrameInner::ResizeType
 nsSplitterFrameInner::GetResizeAfter()
 {
   static nsIContent::AttrValuesArray strings[] =
-    {&nsGkAtoms::farthest, &nsGkAtoms::flex, &nsGkAtoms::grow, nsnull};
+    {&nsGkAtoms::farthest, &nsGkAtoms::grow, nsnull};
   switch (mOuter->GetContent()->FindAttrValueIn(kNameSpaceID_None,
                                                 nsGkAtoms::resizeafter,
                                                 strings, eCaseMatters)) {
     case 0: return Farthest;
-    case 1: return Flex;
-    case 2: return Grow;
+    case 1: return Grow;
   }
   return Closest;
 }
@@ -358,16 +347,16 @@ nsSplitterFrame::Init(nsIContent*      aContent,
 
   // determine orientation of parent, and if vertical, set orient to vertical
   // on splitter content, then re-resolve style
-  // XXXbz this is pretty messed up, since this can change whether we should
-  // have a frame at all.  This really needs a better solution.
+  // |newContext| to Release the reference after the call to nsBoxFrame::Init
+  nsRefPtr<nsStyleContext> newContext;
   if (aParent && aParent->IsBoxFrame()) {
     if (!aParent->IsHorizontal()) {
       if (!nsContentUtils::HasNonEmptyAttr(aContent, kNameSpaceID_None,
                                            nsGkAtoms::orient)) {
         aContent->SetAttr(kNameSpaceID_None, nsGkAtoms::orient,
                           NS_LITERAL_STRING("vertical"), PR_FALSE);
-        nsStyleContext* parentStyleContext = GetStyleContext()->GetParent();
-        nsRefPtr<nsStyleContext> newContext = PresContext()->StyleSet()->
+        nsStyleContext* parentStyleContext = aParent->GetStyleContext();
+        newContext = GetStyleContext()->GetRuleNode()->GetPresContext()->StyleSet()->
           ResolveStyleFor(aContent, parentStyleContext);
         SetStyleContextWithoutNotification(newContext);
       }
@@ -745,13 +734,10 @@ nsSplitterFrameInner::MouseDown(nsIDOMEvent* aMouseEvent)
   // get our index
   nsPresContext* outerPresContext = mOuter->PresContext();
   nscoord childIndex = nsFrameNavigator::IndexOf(outerPresContext, mParentBox, mOuter);
-  // if it's 0 then stop right here.
-  if (childIndex == 0)
-    return NS_OK;
-
   PRInt32 childCount = nsFrameNavigator::CountFrames(outerPresContext, mParentBox);
-  // if it's the last index then we need to allow for resizeafter="grow"
-  if (childIndex == childCount - 1 && GetResizeAfter() != Grow)
+
+  // if it's 0 or the last index then stop right here.
+  if (childIndex == 0 || childIndex == childCount - 1)
     return NS_OK;
 
   nsCOMPtr<nsIRenderingContext> rc;
@@ -798,8 +784,8 @@ nsSplitterFrameInner::MouseDown(nsIDOMEvent* aMouseEvent)
     if (atom != nsGkAtoms::splitter) { 
         nsSize prefSize = childBox->GetPrefSize(state);
         nsSize minSize = childBox->GetMinSize(state);
-        nsSize maxSize = nsBox::BoundsCheckMinMax(minSize, childBox->GetMaxSize(state));
-        prefSize = nsBox::BoundsCheck(minSize, prefSize, maxSize);
+        nsSize maxSize = childBox->GetMaxSize(state);
+        nsBox::BoundsCheck(minSize, prefSize, maxSize);
 
         mOuter->AddMargin(childBox, minSize);
         mOuter->AddMargin(childBox, prefSize);
@@ -818,7 +804,7 @@ nsSplitterFrameInner::MouseDown(nsIDOMEvent* aMouseEvent)
                                   nsGkAtoms::_true, eCaseMatters) &&
             !content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::hidden,
                                   nsGkAtoms::_true, eCaseMatters)) {
-            if (count < childIndex && (resizeBefore != Flex || flex > 0)) {
+            if (count < childIndex) {
                 mChildInfosBefore[mChildInfosBeforeCount].childElem = content;
                 mChildInfosBefore[mChildInfosBeforeCount].min     = isHorizontal ? minSize.width : minSize.height;
                 mChildInfosBefore[mChildInfosBeforeCount].max     = isHorizontal ? maxSize.width : maxSize.height;
@@ -827,7 +813,7 @@ nsSplitterFrameInner::MouseDown(nsIDOMEvent* aMouseEvent)
                 mChildInfosBefore[mChildInfosBeforeCount].index   = count;
                 mChildInfosBefore[mChildInfosBeforeCount].changed = mChildInfosBefore[mChildInfosBeforeCount].current;
                 mChildInfosBeforeCount++;
-            } else if (count > childIndex && (resizeAfter != Flex || flex > 0)) {
+            } else if (count > childIndex) {
                 mChildInfosAfter[mChildInfosAfterCount].childElem = content;
                 mChildInfosAfter[mChildInfosAfterCount].min     = isHorizontal ? minSize.width : minSize.height;
                 mChildInfosAfter[mChildInfosAfterCount].max     = isHorizontal ? maxSize.width : maxSize.height;
@@ -859,9 +845,9 @@ nsSplitterFrameInner::MouseDown(nsIDOMEvent* aMouseEvent)
     mChildInfosBefore = temp;
   }
 
-  // if resizebefore is not Farthest, reverse the list because the first child
-  // in the list is the farthest, and we want the first child to be the closest.
-  if (resizeBefore != Farthest)
+  // if the resizebefore is closest we must reverse the list because the first child in the list
+  // is the Farthest we want the first child to be the closest.
+  if (resizeBefore == Closest)
      Reverse(mChildInfosBefore, mChildInfosBeforeCount);
 
   // if the resizeafter is the Farthest we must reverse the list because the first child in the list
@@ -989,16 +975,15 @@ nsSplitterFrameInner::UpdateState()
           // CollapsedBefore -> Dragging
           // CollapsedAfter -> Open
           // CollapsedAfter -> Dragging
-          nsContentUtils::AddScriptRunner(
-            new nsUnsetAttrRunnable(sibling, nsGkAtoms::collapsed));
+          sibling->UnsetAttr(kNameSpaceID_None, nsGkAtoms::collapsed,
+                             PR_TRUE);
         } else if ((mState == Open || mState == Dragging)
                    && (newState == CollapsedBefore ||
                        newState == CollapsedAfter)) {
           // Open -> CollapsedBefore / CollapsedAfter
           // Dragging -> CollapsedBefore / CollapsedAfter
-          nsContentUtils::AddScriptRunner(
-            new nsSetAttrRunnable(sibling, nsGkAtoms::collapsed,
-                                  NS_LITERAL_STRING("true")));
+          sibling->SetAttr(kNameSpaceID_None, nsGkAtoms::collapsed,
+                           NS_LITERAL_STRING("true"), PR_TRUE);
         }
       }
     }

@@ -262,7 +262,6 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
         // First check to make sure it's OK to evaluate this script to
         // start with.  For example, script could be disabled.
         JSContext *cx = (JSContext*)scriptContext->GetNativeContext();
-        JSAutoRequest ar(cx);
 
         PRBool ok;
         rv = securityManager->CanExecuteScripts(cx, principal, &ok);
@@ -298,23 +297,36 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
         }
         if (NS_FAILED(rv)) {
             return rv;
-        }
+        }    
 
         rv = xpc->EvalInSandboxObject(NS_ConvertUTF8toUTF16(script), cx,
-                                      sandbox, PR_TRUE, &rval);
+                                      sandbox, &rval);
 
         // Propagate and report exceptions that happened in the
         // sandbox.
         if (JS_IsExceptionPending(cx)) {
             JS_ReportPendingException(cx);
-            isUndefined = PR_TRUE;
-        } else {
-            isUndefined = rval == JSVAL_VOID;
         }
 
+        isUndefined = rval == JSVAL_VOID;
+
         if (!isUndefined && NS_SUCCEEDED(rv)) {
-            NS_ASSERTION(JSVAL_IS_STRING(rval), "evalInSandbox is broken");
-            result = nsDependentJSString(JSVAL_TO_STRING(rval));
+            JSAutoRequest ar(cx);
+
+            JSString *str = JS_ValueToString(cx, rval);
+            if (!str) {
+                // Report any pending exceptions.
+                if (JS_IsExceptionPending(cx)) {
+                    JS_ReportPendingException(cx);
+                }
+
+                // We don't know why this failed, so just use a
+                // generic error code. It'll be translated to a
+                // different one below anyways.
+                rv = NS_ERROR_FAILURE;
+            } else {
+                result = nsDependentJSString(str);
+            }
         }
 
         stack->Pop(nsnull);
@@ -337,9 +349,7 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
         // lose the error), or it might be JS that then proceeds to
         // cause an error of its own (which will also make us lose
         // this error).
-        JSContext *cx = (JSContext*)scriptContext->GetNativeContext();
-        JSAutoRequest ar(cx);
-        ::JS_ReportPendingException(cx);
+        ::JS_ReportPendingException((JSContext*)scriptContext->GetNativeContext());
     }
     
     if (NS_FAILED(rv)) {
@@ -525,12 +535,7 @@ nsJSChannel::IsPending(PRBool *aResult)
 NS_IMETHODIMP
 nsJSChannel::GetStatus(nsresult *aResult)
 {
-    if (NS_SUCCEEDED(mStatus) && mOpenedStreamChannel) {
-        return mStreamChannel->GetStatus(aResult);
-    }
-    
     *aResult = mStatus;
-        
     return NS_OK;
 }
 
@@ -631,12 +636,7 @@ nsJSChannel::AsyncOpen(nsIStreamListener *aListener, nsISupports *aContext)
     nsCOMPtr<nsILoadGroup> loadGroup;
     mStreamChannel->GetLoadGroup(getter_AddRefs(loadGroup));
     if (loadGroup) {
-        nsresult rv = loadGroup->AddRequest(this, nsnull);
-        if (NS_FAILED(rv)) {
-            mIsActive = PR_FALSE;
-            CleanupStrongRefs();
-            return rv;
-        }
+        loadGroup->AddRequest(this, nsnull);
     }
 
     mDocumentOnloadBlockedOn =
@@ -797,19 +797,6 @@ nsJSChannel::EvaluateScript()
         // mStreamChannel will call OnStartRequest and OnStopRequest on
         // us, so we'll be sure to call them on our listener.
         mOpenedStreamChannel = PR_TRUE;
-
-        // Now readd ourselves to the loadgroup so we can receive
-        // cancellation notifications.
-        mIsActive = PR_TRUE;
-        if (loadGroup) {
-            mStatus = loadGroup->AddRequest(this, nsnull);
-
-            // If AddRequest failed, that's OK.  The key is to make sure we get
-            // cancelled if needed, and that call just canceled us if it
-            // failed.  We'll still get notified by the stream channel when it
-            // finishes.
-        }
-        
     } else if (mIsAsync) {
         NotifyListener();
     }
@@ -876,28 +863,6 @@ nsJSChannel::GetLoadGroup(nsILoadGroup* *aLoadGroup)
 NS_IMETHODIMP
 nsJSChannel::SetLoadGroup(nsILoadGroup* aLoadGroup)
 {
-    if (aLoadGroup) {
-        PRBool streamPending;
-        nsresult rv = mStreamChannel->IsPending(&streamPending);
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        if (streamPending) {
-            nsCOMPtr<nsILoadGroup> curLoadGroup;
-            mStreamChannel->GetLoadGroup(getter_AddRefs(curLoadGroup));
-
-            if (aLoadGroup != curLoadGroup) {
-                // Move the stream channel to our new loadgroup.  Make sure to
-                // add it before removing it, so that we don't trigger onload
-                // by accident.
-                aLoadGroup->AddRequest(mStreamChannel, nsnull);
-                if (curLoadGroup) {
-                    curLoadGroup->RemoveRequest(mStreamChannel, nsnull,
-                                                NS_BINDING_RETARGETED);
-                }
-            }
-        }
-    }
-    
     return mStreamChannel->SetLoadGroup(aLoadGroup);
 }
 
@@ -999,23 +964,8 @@ nsJSChannel::OnStopRequest(nsIRequest* aRequest,
     nsCOMPtr<nsIStreamListener> listener = mListener;
 
     CleanupStrongRefs();
-
-    // Make sure aStatus matches what GetStatus() returns
-    if (NS_FAILED(mStatus)) {
-        aStatus = mStatus;
-    }
     
-    nsresult rv = listener->OnStopRequest(this, aContext, aStatus);
-
-    nsCOMPtr<nsILoadGroup> loadGroup;
-    mStreamChannel->GetLoadGroup(getter_AddRefs(loadGroup));
-    if (loadGroup) {
-        loadGroup->RemoveRequest(this, nsnull, mStatus);
-    }
-
-    mIsActive = PR_FALSE;
-
-    return rv;
+    return listener->OnStopRequest(this, aContext, aStatus);
 }
 
 NS_IMETHODIMP

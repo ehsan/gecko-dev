@@ -81,6 +81,12 @@
 
 #define MAX_RECURSION_COUNT 50
 
+static NS_DEFINE_CID(kStreamTransportServiceCID, NS_STREAMTRANSPORTSERVICE_CID);
+static NS_DEFINE_CID(kSocketTransportServiceCID, NS_SOCKETTRANSPORTSERVICE_CID);
+static NS_DEFINE_CID(kDNSServiceCID, NS_DNSSERVICE_CID);
+static NS_DEFINE_CID(kErrorServiceCID, NS_ERRORSERVICE_CID);
+static NS_DEFINE_CID(kProtocolProxyServiceCID, NS_PROTOCOLPROXYSERVICE_CID);
+
 nsIOService* gIOService = nsnull;
 
 // A general port blacklist.  Connections to these ports will not be allowed unless 
@@ -196,20 +202,20 @@ nsIOService::Init()
 
     // TODO(darin): Load the Socket and DNS services lazily.
 
-    mSocketTransportService = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
+    mSocketTransportService = do_GetService(kSocketTransportServiceCID, &rv);
     if (NS_FAILED(rv)) {
         NS_WARNING("failed to get socket transport service");
         return rv;
     }
 
-    mDNSService = do_GetService(NS_DNSSERVICE_CONTRACTID, &rv);
+    mDNSService = do_GetService(kDNSServiceCID, &rv);
     if (NS_FAILED(rv)) {
         NS_WARNING("failed to get DNS service");
         return rv;
     }
 
     // XXX hack until xpidl supports error info directly (bug 13423)
-    nsCOMPtr<nsIErrorService> errorService = do_GetService(NS_ERRORSERVICE_CONTRACTID);
+    nsCOMPtr<nsIErrorService> errorService = do_GetService(kErrorServiceCID);
     if (errorService) {
         errorService->RegisterErrorStringBundle(NS_ERROR_MODULE_NETWORK, NECKO_MSGS_URL);
     }
@@ -399,32 +405,42 @@ nsIOService::GetProtocolHandler(const char* scheme, nsIProtocolHandler* *result)
             return rv;
         }
 
-#ifdef MOZ_X11
-        // check to see whether GnomeVFS can handle this URI scheme.  if it can
-        // create a nsIURI for the "scheme:", then we assume it has support for
-        // the requested protocol.  otherwise, we failover to using the default
-        // protocol handler.
-
-        // XXX should this be generalized into something that searches a
-        // category?  (see bug 234714)
-
-        rv = CallGetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX"moz-gnomevfs",
-                            result);
-        if (NS_SUCCEEDED(rv)) {
-            nsCAutoString spec(scheme);
-            spec.Append(':');
-
-            nsIURI *uri;
-            rv = (*result)->NewURI(spec, nsnull, nsnull, &uri);
-            if (NS_SUCCEEDED(rv)) {
-                NS_RELEASE(uri);
-                return rv;
-            }
-
-            NS_RELEASE(*result);
+        // If the pref for this protocol was explicitly set to false, we want
+        // to use our special "blocked protocol" handler.  That will ensure we
+        // don't open any channels for this protocol.
+        if (listedProtocol) {
+            rv = CallGetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX"default-blocked",
+                                result);
+            if (NS_FAILED(rv))
+                return NS_ERROR_UNKNOWN_PROTOCOL;
         }
-#endif
     }
+    
+#ifdef MOZ_X11
+    // check to see whether GnomeVFS can handle this URI scheme.  if it can
+    // create a nsIURI for the "scheme:", then we assume it has support for
+    // the requested protocol.  otherwise, we failover to using the default
+    // protocol handler.
+
+    // XXX should this be generalized into something that searches a
+    // category?  (see bug 234714)
+
+    rv = CallGetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX"moz-gnomevfs",
+                        result);
+    if (NS_SUCCEEDED(rv)) {
+        nsCAutoString spec(scheme);
+        spec.Append(':');
+
+        nsIURI *uri;
+        rv = (*result)->NewURI(spec, nsnull, nsnull, &uri);
+        if (NS_SUCCEEDED(rv)) {
+            NS_RELEASE(uri);
+            return rv;
+        }
+
+        NS_RELEASE(*result);
+    }
+#endif
 
     // Okay we don't have a protocol handler to handle this url type, so use
     // the default protocol handler.  This will cause urls to get dispatched
@@ -910,7 +926,7 @@ nsIOService::TrackNetworkLinkStatusForOffline()
         // option is set to always autodial. If so, then we are 
         // always up for the purposes of offline management.
         if (autodialEnabled) {
-#if defined(XP_WIN) && !defined(WINCE)
+#if defined(XP_WIN)
             // On Windows, need to do some registry checking to see if
             // autodial is enabled at the OS level. Only if that is
             // enabled are we always up for the purposes of offline
@@ -965,21 +981,5 @@ nsIOService::UnescapeString(const nsACString &aStr,
   PRBool unescaped = NS_UnescapeURL(aStr.BeginReading(), aStr.Length(), 
                                     aFlags | esc_AlwaysCopy, aResult);
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsIOService::ExtractCharsetFromContentType(const nsACString &aTypeHeader,
-                                           nsACString &aCharset,
-                                           PRInt32 *aCharsetStart,
-                                           PRInt32 *aCharsetEnd,
-                                           PRBool *aHadCharset)
-{
-    nsCAutoString ignored;
-    net_ParseContentType(aTypeHeader, ignored, aCharset, aHadCharset,
-                         aCharsetStart, aCharsetEnd);
-    if (*aHadCharset && *aCharsetStart == *aCharsetEnd) {
-        *aHadCharset = PR_FALSE;
-    }
-    return NS_OK;
 }
 

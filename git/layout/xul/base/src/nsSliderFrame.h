@@ -38,7 +38,7 @@
 #ifndef nsSliderFrame_h__
 #define nsSliderFrame_h__
 
-#include "nsRepeatService.h"
+
 #include "nsBoxFrame.h"
 #include "prtypes.h"
 #include "nsIAtom.h"
@@ -54,7 +54,8 @@ class nsSliderFrame;
 
 nsIFrame* NS_NewSliderFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-class nsSliderMediator : public nsIDOMMouseListener
+class nsSliderMediator : public nsIDOMMouseListener, 
+                         public nsITimerCallback
 {
 public:
 
@@ -112,7 +113,11 @@ public:
   NS_IMETHOD MouseOut(nsIDOMEvent* aMouseEvent) { return NS_OK; }
 
   NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent) { return NS_OK; }
-};
+
+  NS_DECL_NSITIMERCALLBACK
+
+
+}; // class nsSliderFrame
 
 class nsSliderFrame : public nsBoxFrame
 {
@@ -206,16 +211,16 @@ public:
                            nsGUIEvent *    aEvent,
                            nsEventStatus*  aEventStatus);
 
+  NS_IMETHOD_(void) Notify(nsITimer *timer);
+ 
 private:
 
   nsIBox* GetScrollbar();
 
   void PageUpDown(nscoord change);
-  void SetCurrentThumbPosition(nsIContent* aScrollbar, nscoord aNewPos, PRBool aIsSmooth,
-                               PRBool aImmediateRedraw, PRBool aMaySnap);
-  void SetCurrentPosition(nsIContent* aScrollbar, PRInt32 aNewPos, PRBool aIsSmooth,
+  void SetCurrentPosition(nsIContent* scrollbar, nscoord pos, PRBool aIsSmooth,
                           PRBool aImmediateRedraw);
-  void SetCurrentPositionInternal(nsIContent* aScrollbar, PRInt32 pos,
+  void SetCurrentPositionInternal(nsIContent* scrollbar, nscoord pos,
                                   PRBool aIsSmooth, PRBool aImmediateRedraw);
   nsresult CurrentPositionChanged(nsPresContext* aPresContext,
                                   PRBool aImmediateRedraw);
@@ -224,17 +229,6 @@ private:
   void RemoveListener();
   PRBool isDraggingThumb();
 
-  void StartRepeat() {
-    nsRepeatService::GetInstance()->Start(Notify, this);
-  }
-  void StopRepeat() {
-    nsRepeatService::GetInstance()->Stop(Notify, this);
-  }
-  void Notify();
-  static void Notify(void* aData) {
-    (static_cast<nsSliderFrame*>(aData))->Notify();
-  }
- 
   float mRatio;
 
   nscoord mDragStart;
@@ -246,7 +240,7 @@ private:
 
   nscoord mChange;
   nsPoint mDestinationPoint;
-  nsRefPtr<nsSliderMediator> mMediator;
+  nsSliderMediator* mMediator;
 
   static PRBool gMiddlePref;
   static PRInt32 gSnapMultiplier;

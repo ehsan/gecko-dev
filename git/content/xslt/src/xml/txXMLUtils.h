@@ -77,6 +77,10 @@ public:
     {
     }
 
+    ~txExpandedName()
+    {
+    }
+    
     nsresult init(const nsAString& aQName, txNamespaceMap* aResolver,
                   MBool aUseDefault);
 

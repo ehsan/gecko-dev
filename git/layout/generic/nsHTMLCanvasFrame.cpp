@@ -112,17 +112,12 @@ nsHTMLCanvasFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
                                PRBool aShrinkWrap)
 {
   nsSize size = GetCanvasSize();
-
-  IntrinsicSize intrinsicSize;
-  intrinsicSize.width.SetCoordValue(nsPresContext::CSSPixelsToAppUnits(size.width));
-  intrinsicSize.height.SetCoordValue(nsPresContext::CSSPixelsToAppUnits(size.height));
-
-  nsSize& intrinsicRatio = size; // won't actually be used
+  nsSize canvasSize(nsPresContext::CSSPixelsToAppUnits(size.width),
+                    nsPresContext::CSSPixelsToAppUnits(size.height));
 
   return nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(
-                            aRenderingContext, this,
-                            intrinsicSize, intrinsicRatio, aCBSize,
-                            aMargin, aBorder, aPadding);
+                            aRenderingContext, this, canvasSize,
+                            aCBSize, aMargin, aBorder, aPadding);
 }
 
 NS_IMETHODIMP
@@ -142,7 +137,7 @@ nsHTMLCanvasFrame::Reflow(nsPresContext*           aPresContext,
   aStatus = NS_FRAME_COMPLETE;
 
   aMetrics.width = aReflowState.ComputedWidth();
-  aMetrics.height = aReflowState.ComputedHeight();
+  aMetrics.height = aReflowState.mComputedHeight;
 
   // stash this away so we can compute our inner area later
   mBorderPadding   = aReflowState.mComputedBorderPadding;
@@ -193,10 +188,6 @@ nsHTMLCanvasFrame::PaintCanvas(nsIRenderingContext& aRenderingContext,
   if (!canvas)
     return;
 
-  // anything to do?
-  if (inner.width == 0 || inner.height == 0)
-    return;
-
   nsSize canvasSize = GetCanvasSize();
   nsSize sizeAppUnits(PresContext()->DevPixelsToAppUnits(canvasSize.width),
                       PresContext()->DevPixelsToAppUnits(canvasSize.height));
@@ -212,7 +203,7 @@ nsHTMLCanvasFrame::PaintCanvas(nsIRenderingContext& aRenderingContext,
     aRenderingContext.Translate(inner.x, inner.y);
     aRenderingContext.Scale(sx, sy);
 
-    canvas->RenderContexts(aRenderingContext.ThebesContext());
+    canvas->RenderContexts(&aRenderingContext);
 
     aRenderingContext.PopState();
   } else {
@@ -221,7 +212,7 @@ nsHTMLCanvasFrame::PaintCanvas(nsIRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.Translate(inner.x, inner.y);
 
-    canvas->RenderContexts(aRenderingContext.ThebesContext());
+    canvas->RenderContexts(&aRenderingContext);
 
     aRenderingContext.PopState();
   }

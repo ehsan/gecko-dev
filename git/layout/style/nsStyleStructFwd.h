@@ -60,7 +60,6 @@ nsStyleStructID_Length /* one past the end; length of 0-based list */
 
 };
 
-// A bit corresponding to each struct ID
-#define NS_STYLE_INHERIT_BIT(sid_)        (1 << PRInt32(eStyleStruct_##sid_))
+struct nsStyleStruct;
 
 #endif /* nsStyleStructFwd_h_ */

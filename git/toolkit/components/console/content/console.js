@@ -21,7 +21,6 @@
 #
 # Contributor(s):
 #   Joe Hewitt <hewitt@netscape.com>
-#   Simon Bünzli <zeniko@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -37,7 +36,7 @@
 #
 # ***** END LICENSE BLOCK *****
 
-var gConsole, gConsoleBundle, gTextBoxEval, gEvaluator, gCodeToEvaluate;
+var gConsole, gConsoleBundle, gTextBoxEval;
 
 /* :::::::: Console Initialization ::::::::::::::: */
 
@@ -46,12 +45,12 @@ window.onload = function()
   gConsole = document.getElementById("ConsoleBox");
   gConsoleBundle = document.getElementById("ConsoleBundle");
   gTextBoxEval = document.getElementById("TextboxEval")  
-  gEvaluator = document.getElementById("Evaluator");
   
   updateSortCommand(gConsole.sortOrder);
   updateModeCommand(gConsole.mode);
 
-  gEvaluator.addEventListener("load", loadOrDisplayResult, true);
+  var iframe = document.getElementById("Evaluator");
+  iframe.addEventListener("load", displayResult, true);
 }
 
 /* :::::::: Console UI Functions ::::::::::::::: */
@@ -106,23 +105,16 @@ function onEvalKeyPress(aEvent)
 
 function evaluateTypein()
 {
-  gCodeToEvaluate = gTextBoxEval.value;
-  // reset the iframe first; the code will be evaluated in loadOrDisplayResult
-  // below, once about:blank has completed loading (see bug 385092)
-  gEvaluator.contentWindow.location = "about:blank";
+  var code = gTextBoxEval.value;
+  var evaluator = document.getElementById("Evaluator").contentWindow;
+  evaluator.location = "about:blank"; // reset the iframe
+  evaluator.location = "javascript: " + code.replace(/%/g, "%25");
 }
 
-function loadOrDisplayResult()
+function displayResult()
 {
-  if (gCodeToEvaluate) {
-    gEvaluator.contentWindow.location = "javascript: " +
-                                        gCodeToEvaluate.replace(/%/g, "%25");
-    gCodeToEvaluate = "";
-    return;
-  }
-
-  var resultRange = gEvaluator.contentDocument.createRange();
-  resultRange.selectNode(gEvaluator.contentDocument.documentElement);
+  var resultRange = Evaluator.document.createRange();
+  resultRange.selectNode(Evaluator.document.documentElement);
   var result = resultRange.toString();
   if (result)
     gConsole.mCService.logStringMessage(result);

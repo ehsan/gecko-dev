@@ -45,14 +45,7 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE = test_dm
 
-XPCSHELL_TESTS = \
-  unit \
-  schema_migration \
-  $(NULL)
-
-DIRS = \
-  browser \
-  $(NULL)
+XPCSHELL_TESTS = unit
 
 include $(topsrcdir)/config/rules.mk
 

@@ -1,4 +1,3 @@
-/* -*- Mode: c; tab-width: 8; c-basic-offset: 4; indent-tabs-mode: t; -*- */
 /* cairo - a vector graphics library with display and print output
  *
  * Copyright © 2005 Red Hat, Inc
@@ -47,9 +46,6 @@ CAIRO_BEGIN_DECLS
 
 cairo_public cairo_surface_t *
 cairo_win32_surface_create (HDC hdc);
-
-cairo_public cairo_surface_t *
-cairo_win32_printing_surface_create (HDC hdc);
 
 cairo_public cairo_surface_t *
 cairo_win32_surface_create_with_ddb (HDC hdc,

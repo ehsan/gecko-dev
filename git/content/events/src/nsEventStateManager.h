@@ -50,8 +50,6 @@
 #include "nsIDocument.h"
 #include "nsCOMArray.h"
 #include "nsIFrame.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsIMarkupDocumentViewer.h"
 
 class nsIScrollableView;
 class nsIPresShell;
@@ -62,7 +60,7 @@ class nsIFocusController;
 class imgIContainer;
 
 // mac uses click-hold context menus, a holdover from 4.x
-#ifdef XP_MACOSX
+#if defined(XP_MAC) || defined(XP_MACOSX)
 #define CLICK_HOLD_CONTEXT_MENUS 1
 #endif
 
@@ -79,7 +77,7 @@ public:
   nsEventStateManager();
   virtual ~nsEventStateManager();
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
 
   NS_IMETHOD Init();
@@ -128,7 +126,6 @@ public:
   // Access Key Registration
   NS_IMETHOD RegisterAccessKey(nsIContent* aContent, PRUint32 aKey);
   NS_IMETHOD UnregisterAccessKey(nsIContent* aContent, PRUint32 aKey);
-  NS_IMETHOD GetRegisteredAccessKey(nsIContent* aContent, PRUint32* aKey);
 
   NS_IMETHOD SetCursor(PRInt32 aCursor, imgIContainer* aContainer,
                        PRBool aHaveHotspot, float aHotspotX, float aHotspotY,
@@ -157,11 +154,6 @@ public:
   {
     return sUserInputEventDepth > 0;
   }
-
-  NS_IMETHOD_(PRBool) IsHandlingUserInputExternal() { return IsHandlingUserInput(); }
-  
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsEventStateManager,
-                                           nsIEventStateManager)
 
 protected:
   /**
@@ -268,9 +260,6 @@ protected:
                        ProcessingAccessKeyState aAccessKeyState,
                        PRInt32 aModifierMask);
 
-  PRBool ExecuteAccessKey(nsTArray<PRUint32>& aAccessCharCodes,
-                          PRBool aIsTrustedEvent);
-
   //---------------------------------------------
   // DocShell Focus Traversal Methods
   //---------------------------------------------
@@ -307,10 +296,8 @@ protected:
                         ScrollQuantity aScrollQuantity);
   void ForceViewUpdate(nsIView* aView);
   void DoScrollHistory(PRInt32 direction);
-  void DoScrollZoom(nsIFrame *aTargetFrame, PRInt32 adjustment);
-  nsresult GetMarkupDocumentViewer(nsIMarkupDocumentViewer** aMv);
+  void DoScrollTextsize(nsIFrame *aTargetFrame, PRInt32 adjustment);
   nsresult ChangeTextSize(PRInt32 change);
-  nsresult ChangeFullZoom(PRInt32 change);
   // end mousewheel functions
 
   // routines for the d&d gesture tracking state machine
@@ -406,8 +393,8 @@ protected:
   // Recursion guard for tabbing
   PRPackedBool mTabbedThroughDocument;
 
-  // Array for accesskey support
-  nsCOMArray<nsIContent> mAccessKeys;
+  //Hashtable for accesskey support
+  nsSupportsHashtable *mAccessKeys;
 
   nsCOMArray<nsIDocShell> mTabbingFromDocShells;
 

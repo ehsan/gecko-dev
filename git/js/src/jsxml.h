@@ -39,10 +39,10 @@
 #ifndef jsxml_h___
 #define jsxml_h___
 
+JS_BEGIN_EXTERN_C
+
 #include "jsstddef.h"
 #include "jspubtd.h"
-
-JS_BEGIN_EXTERN_C
 
 extern const char js_AnyName_str[];
 extern const char js_AttributeName_str[];
@@ -215,7 +215,7 @@ extern void
 js_FinalizeXML(JSContext *cx, JSXML *xml);
 
 extern JSObject *
-js_ParseNodeToXMLObject(JSContext *cx, JSParseContext *pc, JSParseNode *pn);
+js_ParseNodeToXMLObject(JSContext *cx, JSParseNode *pn);
 
 extern JSObject *
 js_NewXMLObject(JSContext *cx, JSXMLClass xml_class);
@@ -229,7 +229,6 @@ extern JS_FRIEND_DATA(JSExtendedClass)  js_NamespaceClass;
 extern JS_FRIEND_DATA(JSExtendedClass)  js_QNameClass;
 extern JS_FRIEND_DATA(JSClass)          js_AttributeNameClass;
 extern JS_FRIEND_DATA(JSClass)          js_AnyNameClass;
-extern JSClass                          js_XMLFilterClass;
 
 /*
  * Macros to test whether an object or a value is of type "xml" (per typeof).
@@ -286,7 +285,7 @@ extern JSBool
 js_ToAttributeName(JSContext *cx, jsval *vp);
 
 extern JSString *
-js_EscapeAttributeValue(JSContext *cx, JSString *str, JSBool quote);
+js_EscapeAttributeValue(JSContext *cx, JSString *str);
 
 extern JSString *
 js_AddAttributePart(JSContext *cx, JSBool isName, JSString *str,
@@ -316,11 +315,8 @@ js_GetXMLDescendants(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
 extern JSBool
 js_DeleteXMLListElements(JSContext *cx, JSObject *listobj);
 
-extern JSObject *
-js_InitXMLFilterClass(JSContext *cx, JSObject* obj);
-
 extern JSBool
-js_StepXMLListFilter(JSContext *cx, JSBool initialized);
+js_FilterXMLList(JSContext *cx, JSObject *obj, jsbytecode *pc, jsval *vp);
 
 extern JSObject *
 js_ValueToXMLObject(JSContext *cx, jsval v);

@@ -89,6 +89,8 @@ public:
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
 
+  virtual void Destroy();
+
 #ifdef ACCESSIBILITY
   NS_IMETHODIMP GetAccessible(nsIAccessible** aAccessible);
 #endif
@@ -118,7 +120,6 @@ public:
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
                              PRBool aShrinkWrap);
-  virtual nsRect ComputeTightBounds(gfxContext* aContext) const;
   NS_IMETHOD Reflow(nsPresContext* aPresContext,
                     nsHTMLReflowMetrics& aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
@@ -139,7 +140,7 @@ public:
     // If the frame's bidi visual state is set, return is-leftmost state
     // else return true if it's the first continuation.
     return (GetStateBits() & NS_INLINE_FRAME_BIDI_VISUAL_STATE_IS_SET)
-             ? !!(GetStateBits() & NS_INLINE_FRAME_BIDI_VISUAL_IS_LEFT_MOST)
+             ? (GetStateBits() & NS_INLINE_FRAME_BIDI_VISUAL_IS_LEFT_MOST)
              : (!GetPrevInFlow());
   }
 
@@ -150,7 +151,7 @@ public:
     // If the frame's bidi visual state is set, return is-rightmost state
     // else return true if it's the last continuation.
     return (GetStateBits() & NS_INLINE_FRAME_BIDI_VISUAL_STATE_IS_SET)
-             ? !!(GetStateBits() & NS_INLINE_FRAME_BIDI_VISUAL_IS_RIGHT_MOST)
+             ? (GetStateBits() & NS_INLINE_FRAME_BIDI_VISUAL_IS_RIGHT_MOST)
              : (!GetNextInFlow());
   }
 
@@ -246,10 +247,7 @@ protected:
 class nsPositionedInlineFrame : public nsInlineFrame
 {
 public:
-  nsPositionedInlineFrame(nsStyleContext* aContext)
-    : nsInlineFrame(aContext)
-    , mAbsoluteContainer(nsGkAtoms::absoluteList)
-  {}
+  nsPositionedInlineFrame(nsStyleContext* aContext) : nsInlineFrame(aContext) {}
 
   virtual ~nsPositionedInlineFrame() { } // useful for debugging
 
@@ -279,8 +277,6 @@ public:
                     nsReflowStatus&          aStatus);
   
   virtual nsIAtom* GetType() const;
-
-  virtual PRBool NeedsView() { return PR_TRUE; }
 
 protected:
   nsAbsoluteContainingBlock mAbsoluteContainer;

@@ -40,6 +40,10 @@
 
 const PREFIX = "http://localhost:4444";
 
+const ScriptableInputStream = CC("@mozilla.org/scriptableinputstream;1",
+                                 "nsIScriptableInputStream",
+                                 "init");
+
 var tests =
   [
    new Test(PREFIX + "/test_both.html",

@@ -78,6 +78,17 @@ class nsAccessibleWrap : public nsAccessible
     virtual nsresult InvalidateChildren ();
 
     NS_IMETHOD FireAccessibleEvent(nsIAccessibleEvent *aEvent);
+
+    // we'll flatten buttons and checkboxes. usually they have a text node
+    // child, that is their title. Works in conjunction with IsPruned() below.
+    PRBool IsFlat() {
+      PRUint32 role = Role(this);
+      return (role == nsIAccessibleRole::ROLE_CHECKBUTTON ||
+              role == nsIAccessibleRole::ROLE_PUSHBUTTON ||
+              role == nsIAccessibleRole::ROLE_TOGGLE_BUTTON ||
+              role == nsIAccessibleRole::ROLE_SPLITBUTTON ||
+              role == nsIAccessibleRole::ROLE_ENTRY);
+    }
     
     // ignored means that the accessible might still have children, but is not displayed
     // to the user. it also has no native accessible object represented for it.
@@ -106,11 +117,10 @@ class nsAccessibleWrap : public nsAccessible
       
       nsCOMPtr<nsIAccessible> curParent = GetParent();
       while (curParent) {
-        if (MustPrune(curParent))
+        nsAccessibleWrap *ancestorWrap = static_cast<nsAccessibleWrap*>((nsIAccessible*)curParent.get());
+        if (ancestorWrap->IsFlat())
           return PR_TRUE;
-        nsCOMPtr<nsIAccessible> newParent;
-        curParent->GetParent(getter_AddRefs(newParent));
-        curParent.swap(newParent);
+        curParent = static_cast<nsAccessibleWrap*>((nsIAccessible*)curParent.get())->GetParent();
       }
       // no parent was flat
       return PR_FALSE;

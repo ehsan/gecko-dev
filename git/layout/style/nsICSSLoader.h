@@ -58,10 +58,10 @@ class nsICSSImportRule;
 class nsIPrincipal;
 
 // IID for the nsICSSLoader interface
-// 0c6d7e76-dddc-4727-b557-7ef531127e11
+// eed4ac28-0add-43a7-84bf-fb53109ae40c
 #define NS_ICSS_LOADER_IID     \
-{ 0x0c6d7e76, 0xdddc, 0x4727, \
- { 0xb5, 0x57, 0x7e, 0xf5, 0x31, 0x12, 0x7e, 0x11 } }
+{ 0xeed4ac28, 0x0add, 0x43a7, \
+ { 0x84, 0xbf, 0xfb, 0x53, 0x10, 0x9a, 0xe4, 0x0c } }
 
 typedef void (*nsCSSLoaderCallbackFunc)(nsICSSStyleSheet* aSheet, void *aData, PRBool aDidNotify);
 
@@ -203,6 +203,9 @@ public:
    * sheets not associated with a document.
    *
    * @param aURL the URL of the sheet to load
+   * @param aOriginURI the URI the load originated from, for content policy
+   *                   checks.  This can be null to indicate that these checks
+   *                   should be skipped.
    * @param aOriginPrincipal the principal to use for security checks.  This
    *                         can be null to indicate that these checks should
    *                         be skipped.
@@ -212,6 +215,7 @@ public:
    *              not be loaded by the time this method returns.
    */
   NS_IMETHOD LoadSheet(nsIURI* aURL,
+                       nsIURI* aOriginURI,
                        nsIPrincipal* aOriginPrincipal,
                        nsICSSLoaderObserver* aObserver,
                        nsICSSStyleSheet** aSheet) = 0;
@@ -221,6 +225,7 @@ public:
    * not-yet-loaded sheet.
    */
   NS_IMETHOD LoadSheet(nsIURI* aURL,
+                       nsIURI* aOriginURI,
                        nsIPrincipal* aOriginPrincipal,
                        nsICSSLoaderObserver* aObserver) = 0;
 

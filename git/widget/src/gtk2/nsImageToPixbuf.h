@@ -41,8 +41,6 @@
 #include "nsIImageToPixbuf.h"
 
 class gfxASurface;
-class gfxPattern;
-class gfxImageSurface;
 
 class nsImageToPixbuf : public nsIImageToPixbuf {
     public:
@@ -54,11 +52,7 @@ class nsImageToPixbuf : public nsIImageToPixbuf {
         static GdkPixbuf* ImageToPixbuf(nsIImage* aImage);
         static GdkPixbuf* SurfaceToPixbuf(gfxASurface* aSurface,
                                           PRInt32 aWidth, PRInt32 aHeight);
-        static GdkPixbuf* PatternToPixbuf(gfxPattern* aPattern,
-                                          PRInt32 aWidth, PRInt32 aHeight);
     private:
-        static GdkPixbuf* ImgSurfaceToPixbuf(gfxImageSurface* aImgSurface,
-                                             PRInt32 aWidth, PRInt32 aHeight);
         ~nsImageToPixbuf() {}
 };
 

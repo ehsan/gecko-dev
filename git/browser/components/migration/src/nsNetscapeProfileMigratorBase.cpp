@@ -318,7 +318,7 @@ nsNetscapeProfileMigratorBase::ImportNetscapeBookmarks(const nsAString& aBookmar
   mSourceProfile->Clone(getter_AddRefs(bookmarksFile));
   bookmarksFile->Append(aBookmarksFileName);
   
-  return ImportBookmarksHTML(bookmarksFile, PR_FALSE, PR_FALSE, aImportSourceNameKey);
+  return ImportBookmarksHTML(bookmarksFile, aImportSourceNameKey);
 }
 
 nsresult

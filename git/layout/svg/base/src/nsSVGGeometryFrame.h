@@ -55,12 +55,11 @@ typedef nsFrame nsSVGGeometryFrameBase;
 class nsSVGGeometryFrame : public nsSVGGeometryFrameBase,
                            public nsISVGValueObserver
 {
-protected:
-  nsSVGGeometryFrame(nsStyleContext *aContext) : nsSVGGeometryFrameBase(aContext) {}
-
 public:
-  // nsIFrame interface:
+  nsSVGGeometryFrame(nsStyleContext *aContext);
   virtual void Destroy();
+
+  // nsIFrame interface:
   NS_IMETHOD Init(nsIContent* aContent,
                   nsIFrame* aParent,
                   nsIFrame* aPrevInFlow);
@@ -98,7 +97,7 @@ public:
    * Set up a cairo context for filling a path
    * @return PR_FALSE to skip rendering
    */
-  PRBool SetupCairoFill(gfxContext *aContext);
+  PRBool SetupCairoFill(gfxContext *aContext, void **aClosure);
 
   // Set up a cairo context for measuring a stroked path
   void SetupCairoStrokeGeometry(gfxContext *aContext);
@@ -110,10 +109,14 @@ public:
    * Set up a cairo context for stroking a path
    * @return PR_FALSE to skip rendering
    */
-  PRBool SetupCairoStroke(gfxContext *aContext);
+  PRBool SetupCairoStroke(gfxContext *aContext, void **aClosure);
 
 protected:
+  virtual nsresult UpdateGraphic(PRBool suppressInvalidation = PR_FALSE) = 0;
+
   nsSVGPaintServerFrame *GetPaintServer(const nsStyleSVGPaint *aPaint);
+
+  NS_IMETHOD InitSVG();
 
 private:
   nsresult GetStrokeDashArray(double **arr, PRUint32 *count);

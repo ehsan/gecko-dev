@@ -46,7 +46,6 @@
 #include "nsCRT.h"
 #include "prlog.h"
 #include "nsInt64.h"
-#include "nsIClassInfoImpl.h"
 
 #if defined(PR_LOGGING)
 //
@@ -165,6 +164,7 @@ private:
 
 // the output end of a pipe (allocated as a member of the pipe).
 class nsPipeOutputStream : public nsIAsyncOutputStream
+                         , public nsISeekableStream
                          , public nsIClassInfo
 {
 public:
@@ -177,6 +177,7 @@ public:
 
     NS_DECL_NSIOUTPUTSTREAM
     NS_DECL_NSIASYNCOUTPUTSTREAM
+    NS_DECL_NSISEEKABLESTREAM
     NS_DECL_NSICLASSINFO
 
     nsPipeOutputStream(nsPipe *pipe)
@@ -534,29 +535,7 @@ nsPipe::AdvanceWriteCursor(PRUint32 bytesWritten)
 
         mWriteCursor = newWriteCursor;
 
-        // The only way mReadCursor == mWriteCursor is if:
-        //
-        // - mReadCursor is at the start of a segment (which, based on how
-        //   nsSegmentedBuffer works, means that this segment is the "first"
-        //   segment)
-        // - mWriteCursor points at the location past the end of the current
-        //   write segment (so the current write filled the current write
-        //   segment, so we've incremented mWriteCursor to point past the end
-        //   of it)
-        // - the segment to which data has just been written is located
-        //   exactly one segment's worth of bytes before the first segment
-        //   where mReadCursor is located
-        //
-        // Consequently, the byte immediately after the end of the current
-        // write segment is the first byte of the first segment, so
-        // mReadCursor == mWriteCursor.  (Another way to think about this is
-        // to consider the buffer architecture diagram above, but consider it
-        // with an arena allocator which allocates from the *end* of the
-        // arena to the *beginning* of the arena.)
-        NS_ASSERTION(mReadCursor != mWriteCursor ||
-                     (mBuffer.GetSegment(0) == mReadCursor &&
-                      mWriteCursor == mWriteLimit),
-                     "read cursor is bad");
+        NS_ASSERTION(mReadCursor != mWriteCursor, "read cursor is bad");
 
         // update the writable flag on the output stream
         if (mWriteCursor == mWriteLimit) {
@@ -992,9 +971,10 @@ NS_IMPL_QUERY_INTERFACE3(nsPipeOutputStream,
                          nsIAsyncOutputStream,
                          nsIClassInfo)
 
-NS_IMPL_CI_INTERFACE_GETTER2(nsPipeOutputStream,
+NS_IMPL_CI_INTERFACE_GETTER3(nsPipeOutputStream,
                              nsIOutputStream,
-                             nsIAsyncOutputStream)
+                             nsIAsyncOutputStream,
+                             nsISeekableStream)
 
 NS_IMPL_THREADSAFE_CI(nsPipeOutputStream)
 
@@ -1041,7 +1021,7 @@ nsPipeOutputStream::OnOutputException(nsresult reason, nsPipeEvents &events)
     LOG(("nsPipeOutputStream::OnOutputException [this=%x reason=%x]\n",
         this, reason));
 
-    PRBool result = PR_FALSE;
+    nsresult result = PR_FALSE;
 
     NS_ASSERTION(NS_FAILED(reason), "huh? successful exception");
     mWritable = PR_FALSE;
@@ -1254,6 +1234,32 @@ nsPipeOutputStream::AsyncWait(nsIOutputStreamCallback *callback,
         }
     }
     return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPipeOutputStream::Seek(PRInt32 whence, PRInt64 offset)
+{
+    NS_NOTREACHED("nsPipeOutputStream::Seek");
+    return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+nsPipeOutputStream::Tell(PRInt64 *offset)
+{
+    nsAutoMonitor mon(mPipe->mMonitor);
+
+    if (NS_FAILED(mPipe->mStatus))
+        return mPipe->mStatus;
+
+    *offset = mLogicalOffset;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPipeOutputStream::SetEOF()
+{
+    NS_NOTREACHED("nsPipeOutputStream::SetEOF");
+    return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

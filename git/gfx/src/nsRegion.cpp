@@ -209,12 +209,12 @@ void RgnRectMemoryAllocator::Free (nsRegion::RgnRect* aRect)
 static RgnRectMemoryAllocator gRectPool (INIT_MEM_CHUNK_ENTRIES);
 
 
-void* nsRegion::RgnRect::operator new (size_t) CPP_THROW_NEW
+inline void* nsRegion::RgnRect::operator new (size_t) CPP_THROW_NEW
 {
   return gRectPool.Alloc ();
 }
 
-void nsRegion::RgnRect::operator delete (void* aRect, size_t)
+inline void nsRegion::RgnRect::operator delete (void* aRect, size_t)
 {
   gRectPool.Free (static_cast<RgnRect*>(aRect));
 }

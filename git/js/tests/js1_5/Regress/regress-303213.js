@@ -46,43 +46,33 @@ printBugNumber(BUGNUMBER);
 printStatus (summary);
 printStatus('This bug passes if no crash occurs');
 
-expectExitCode(0);
 expectExitCode(5);
 
-try
+var s=String.fromCharCode(257);
+
+var ki="";
+var me="";
+for (i = 0; i < 1024; i++)
 {
-  var s=String.fromCharCode(257);
-
-  var ki="";
-  var me="";
-  for (i = 0; i < 1024; i++)
-  {
-    ki = ki + s;
-  }
-
-  for (i = 0; i < 1024; i++)
-  {
-    me = me + ki;
-  }
-
-  var ov = s;
-
-  for (i = 0; i < 28; i++)
-    ov += ov;
-
-  for (i = 0; i < 88; i++)
-    ov += me;
-
-  printStatus("done generating");
-  var eov = escape(ov);
-  printStatus("done escape");
-  printStatus(eov);
+  ki = ki + s;
 }
-catch(ex)
+
+for (i = 0; i < 1024; i++)
 {
-  // handle changed 1.9 branch behavior. see bug 422348
-  expect = 'InternalError: allocation size overflow';
-  actual = ex + '';
+  me = me + ki;
 }
+
+var ov = s;
+
+for (i = 0; i < 28; i++)
+  ov += ov;
+
+for (i = 0; i < 88; i++)
+  ov += me;
+
+printStatus("done generating");
+var eov = escape(ov);
+printStatus("done escape");
+printStatus(eov);
  
 reportCompare(expect, actual, summary);

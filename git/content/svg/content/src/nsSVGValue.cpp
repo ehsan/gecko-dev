@@ -108,10 +108,8 @@ nsSVGValue::AddObserver(nsISVGValueObserver* observer)
   // stroke and fill.  Safe, as on a style change we remove both, as
   // the change notification isn't fine grained, and re-add as
   // appropriate.
-  if (mObservers.IndexOf((void*)wr) >= 0) {
-    NS_RELEASE(wr);
+  if (mObservers.IndexOf((void*)wr) >= 0)
     return NS_OK;
-  }
 
   mObservers.AppendElement((void*)wr);
   return NS_OK;

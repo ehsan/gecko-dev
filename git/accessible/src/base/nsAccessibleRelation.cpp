@@ -74,9 +74,6 @@ nsAccessibleRelation::GetTarget(PRUint32 aIndex, nsIAccessible **aTarget)
 {
   NS_ENSURE_ARG_POINTER(aTarget);
 
-  if (aIndex != 0)
-    return NS_ERROR_INVALID_ARG;
-
   NS_IF_ADDREF(*aTarget = mTarget);
   return NS_OK;
 }

@@ -149,9 +149,6 @@ private:
     PRBool   RequestIsConditional();
     nsresult Connect(PRBool firstTime = PR_TRUE);
     nsresult AsyncAbort(nsresult status);
-    // Send OnStartRequest/OnStopRequest to our listener, if any.
-    void     HandleAsyncNotifyListener();
-    void     DoNotifyListener();
     nsresult SetupTransaction();
     void     AddCookiesToRequest();
     nsresult ApplyContentConversions();
@@ -171,8 +168,7 @@ private:
 
     // proxy specific methods
     nsresult ProxyFailover();
-    nsresult DoReplaceWithProxy(nsIProxyInfo *);
-    void HandleAsyncReplaceWithProxy();
+    nsresult ReplaceWithProxy(nsIProxyInfo *);
     nsresult ResolveProxy();
 
     // cache specific methods
@@ -258,7 +254,6 @@ private:
 
     nsCOMPtr<nsICacheEntryDescriptor> mOfflineCacheEntry;
     nsCacheAccessMode                 mOfflineCacheAccess;
-    nsCString                         mOfflineCacheClientID;
 
     // auth specific data
     nsISupports                      *mProxyAuthContinuationState;
@@ -271,18 +266,6 @@ private:
     // Resumable channel specific data
     nsCString                         mEntityID;
     PRUint64                          mStartPos;
-
-    // Function pointer that can be set to indicate that we got suspended while
-    // waiting on an AsyncCall.  When we get resumed we should AsyncCall this
-    // function.
-    nsAsyncCallback                   mPendingAsyncCallOnResume;
-
-    // Proxy info to replace with
-    nsCOMPtr<nsIProxyInfo>            mTargetProxyInfo;
-
-    // Suspend counter.  This is used if someone tries to suspend/resume us
-    // before we have either a cache pump or a transaction pump.
-    PRUint32                          mSuspendCount;
 
     // redirection specific data.
     PRUint8                           mRedirectionLimit;

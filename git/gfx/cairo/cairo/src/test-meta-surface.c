@@ -45,10 +45,9 @@
  * backend.
  */
 
-#include "cairoint.h"
-
 #include "test-meta-surface.h"
 
+#include "cairoint.h"
 #include "cairo-meta-surface-private.h"
 
 typedef struct _test_meta_surface {
@@ -63,7 +62,7 @@ typedef struct _test_meta_surface {
     cairo_bool_t image_reflects_meta;
 } test_meta_surface_t;
 
-static const cairo_surface_backend_t test_meta_surface_backend;
+const cairo_private cairo_surface_backend_t test_meta_surface_backend;
 
 static cairo_int_status_t
 _test_meta_surface_show_page (void *abstract_surface);
@@ -74,26 +73,21 @@ _cairo_test_meta_surface_create (cairo_content_t	content,
 			   int		 	height)
 {
     test_meta_surface_t *surface;
-    cairo_status_t status;
 
     surface = malloc (sizeof (test_meta_surface_t));
-    if (surface == NULL) {
-	status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
+    if (surface == NULL)
 	goto FAIL;
-    }
 
     _cairo_surface_init (&surface->base, &test_meta_surface_backend,
 			 content);
 
     surface->meta = _cairo_meta_surface_create (content, width, height);
-    status = cairo_surface_status (surface->meta);
-    if (status)
+    if (cairo_surface_status (surface->meta))
 	goto FAIL_CLEANUP_SURFACE;
 
     surface->image = _cairo_image_surface_create_with_content (content,
 							       width, height);
-    status = cairo_surface_status (surface->image);
-    if (status)
+    if (cairo_surface_status (surface->image))
 	goto FAIL_CLEANUP_META;
 
     surface->image_reflects_meta = FALSE;
@@ -105,7 +99,8 @@ _cairo_test_meta_surface_create (cairo_content_t	content,
   FAIL_CLEANUP_SURFACE:
     free (surface);
   FAIL:
-    return _cairo_surface_create_in_error (status);
+    _cairo_error (CAIRO_STATUS_NO_MEMORY);
+    return (cairo_surface_t*) &_cairo_surface_nil;
 }
 
 static cairo_status_t
@@ -125,13 +120,9 @@ _test_meta_surface_acquire_source_image (void		  *abstract_surface,
 					 void			**image_extra)
 {
     test_meta_surface_t *surface = abstract_surface;
-    cairo_status_t status;
 
-    if (! surface->image_reflects_meta) {
-	status = _test_meta_surface_show_page (abstract_surface);
-	if (status)
-	    return status;
-    }
+    if (! surface->image_reflects_meta)
+	_test_meta_surface_show_page (abstract_surface);
 
     return _cairo_surface_acquire_source_image (surface->image,
 						image_out, image_extra);
@@ -152,14 +143,11 @@ static cairo_int_status_t
 _test_meta_surface_show_page (void *abstract_surface)
 {
     test_meta_surface_t *surface = abstract_surface;
-    cairo_status_t status;
 
     if (surface->image_reflects_meta)
 	return CAIRO_STATUS_SUCCESS;
 
-    status = _cairo_meta_surface_replay (surface->meta, surface->image);
-    if (status)
-	return status;
+    _cairo_meta_surface_replay (surface->meta, surface->image);
 
     surface->image_reflects_meta = TRUE;
 
@@ -182,7 +170,7 @@ _test_meta_surface_intersect_clip_path (void			*abstract_surface,
 
 static cairo_int_status_t
 _test_meta_surface_get_extents (void			*abstract_surface,
-				cairo_rectangle_int_t	*rectangle)
+				cairo_rectangle_int16_t	*rectangle)
 {
     test_meta_surface_t *surface = abstract_surface;
 
@@ -291,7 +279,6 @@ static cairo_surface_t *
 _test_meta_surface_snapshot (void *abstract_other)
 {
     test_meta_surface_t *other = abstract_other;
-    cairo_status_t status;
 
     /* XXX: Just making a snapshot of other->meta is what we really
      * want. But this currently triggers a bug somewhere (the "mask"
@@ -308,29 +295,23 @@ _test_meta_surface_snapshot (void *abstract_other)
 #if 0
     return _cairo_surface_snapshot (other->meta);
 #else
-    cairo_rectangle_int_t extents;
+    cairo_rectangle_int16_t extents;
     cairo_surface_t *surface;
 
-    status = _cairo_surface_get_extents (other->image, &extents);
-    if (status)
-	return _cairo_surface_create_in_error (status);
+    _cairo_surface_get_extents (other->image, &extents);
 
     surface = cairo_surface_create_similar (other->image,
 					    CAIRO_CONTENT_COLOR_ALPHA,
 					    extents.width,
 					    extents.height);
 
-    status = _cairo_meta_surface_replay (other->meta, surface);
-    if (status) {
-	cairo_surface_destroy (surface);
-	surface = _cairo_surface_create_in_error (status);
-    }
+    _cairo_meta_surface_replay (other->meta, surface);
 
     return surface;
 #endif
 }
 
-static const cairo_surface_backend_t test_meta_surface_backend = {
+const cairo_surface_backend_t test_meta_surface_backend = {
     CAIRO_INTERNAL_SURFACE_TYPE_TEST_META,
     NULL, /* create_similar */
     _test_meta_surface_finish,

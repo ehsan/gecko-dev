@@ -403,28 +403,14 @@ nsDocShellTreeOwner::RemoveFromWatcher()
 
 NS_IMETHODIMP
 nsDocShellTreeOwner::ContentShellAdded(nsIDocShellTreeItem* aContentShell,
-                                       PRBool aPrimary, PRBool aTargetable,
-                                       const nsAString& aID)
+                                       PRBool aPrimary, const PRUnichar* aID)
 {
    if(mTreeOwner)
-      return mTreeOwner->ContentShellAdded(aContentShell, aPrimary,
-                                           aTargetable, aID);
+      return mTreeOwner->ContentShellAdded(aContentShell, aPrimary, aID);
 
    if (aPrimary)
       mPrimaryContentShell = aContentShell;
    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocShellTreeOwner::ContentShellRemoved(nsIDocShellTreeItem* aContentShell)
-{
-  if(mTreeOwner)
-    return mTreeOwner->ContentShellRemoved(aContentShell);
-
-  if(mPrimaryContentShell == aContentShell)
-    mPrimaryContentShell = nsnull;
-
-  return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -38,6 +38,7 @@
 #ifndef nsXULTooltipListener_h__
 #define nsXULTooltipListener_h__
 
+#include "nsCycleCollectionParticipant.h"
 #include "nsIDOMMouseListener.h"
 #include "nsIDOMMouseMotionListener.h"
 #include "nsIDOMKeyListener.h"
@@ -52,7 +53,6 @@
 #include "nsITreeBoxObject.h"
 #include "nsITreeColumns.h"
 #endif
-#include "nsWeakPtr.h"
 
 class nsXULTooltipListener : public nsIDOMMouseListener,
                              public nsIDOMMouseMotionListener,
@@ -60,7 +60,9 @@ class nsXULTooltipListener : public nsIDOMMouseListener,
                              public nsIDOMXULListener
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsXULTooltipListener,
+                                           nsIDOMMouseListener)
 
   // nsIDOMMouseListener
   NS_IMETHOD MouseDown(nsIDOMEvent* aMouseEvent);
@@ -132,20 +134,14 @@ protected:
   static nsXULTooltipListener* mInstance;
   static int ToolbarTipsPrefChanged(const char *aPref, void *aClosure);
 
-  nsWeakPtr mSourceNode;
-  nsWeakPtr mTargetNode;
-  nsWeakPtr mCurrentTooltip;
+  nsCOMPtr<nsIContent> mSourceNode;
+  nsCOMPtr<nsIDOMNode> mTargetNode;
+  nsCOMPtr<nsIContent> mCurrentTooltip;
 
   // a timer for showing the tooltip
   nsCOMPtr<nsITimer> mTooltipTimer;
   static void sTooltipCallback (nsITimer* aTimer, void* aListener);
-
-  // screen coordinates of the last mousemove event, stored so that the
-  // tooltip can be opened at this location.
-  PRInt32 mMouseScreenX, mMouseScreenY;
-
-  // last cached mouse event
-  nsCOMPtr<nsIDOMEvent> mCachedMouseEvent;
+  PRInt32 mMouseClientX, mMouseClientY;
 
   // a timer for auto-hiding the tooltip after a certain delay
   nsCOMPtr<nsITimer> mAutoHideTimer;

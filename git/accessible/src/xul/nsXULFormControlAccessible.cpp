@@ -50,7 +50,6 @@
 #include "nsIDOMXULMenuListElement.h"
 #include "nsIDOMXULSelectCntrlItemEl.h"
 #include "nsIDOMXULTextboxElement.h"
-#include "nsIEditor.h"
 #include "nsIFrame.h"
 #include "nsINameSpaceManager.h"
 #include "nsITextControlFrame.h"
@@ -120,8 +119,6 @@ nsXULButtonAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
   // get focus and disable status from base class
   nsresult rv = nsAccessible::GetState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
-  if (!mDOMNode)
-    return NS_OK;
 
   PRBool disabled = PR_FALSE;
   nsCOMPtr<nsIDOMXULControlElement> xulFormElement(do_QueryInterface(mDOMNode));
@@ -178,7 +175,7 @@ void nsXULButtonAccessible::CacheChildren()
     return;   // This outer doc node has been shut down
   }
   if (mAccChildCount == eChildCountUninitialized) {
-    mAccChildCount = 0;  // Avoid reentry
+    mAccChildCount = 0;
     SetFirstChild(nsnull);
     PRBool allowsAnonChildren = PR_FALSE;
     GetAllowsAnonChildAccessibles(&allowsAnonChildren);
@@ -295,12 +292,6 @@ NS_IMETHODIMP
 nsXULDropmarkerAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
   *aState = 0;
-  if (!mDOMNode) {
-    if (aExtraState) {
-      *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
-    }
-    return NS_OK;
-  }
   if (aExtraState)
     *aExtraState = 0;
 
@@ -380,8 +371,6 @@ nsXULCheckboxAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
   // Get focus and disable status from base class
   nsresult rv = nsFormControlAccessible::GetState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
-  if (!mDOMNode)
-    return NS_OK;
   
   *aState |= nsIAccessibleStates::STATE_CHECKABLE;
   
@@ -483,6 +472,16 @@ NS_IMETHODIMP nsXULProgressMeterAccessible::GetRole(PRUint32 *_retval)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsXULProgressMeterAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
+{
+  nsresult rv = nsAccessible::GetState(aState, aExtraState);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  *aState &= ~nsIAccessibleStates::STATE_FOCUSABLE; // Progress meters are not focusable
+  return NS_OK;
+}
+
 NS_IMETHODIMP nsXULProgressMeterAccessible::GetValue(nsAString& aValue)
 {
   aValue.Truncate();
@@ -557,8 +556,6 @@ nsXULRadioButtonAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
   nsresult rv = nsFormControlAccessible::GetState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
-  if (!mDOMNode)
-    return NS_OK;
 
   *aState |= nsIAccessibleStates::STATE_CHECKABLE;
   
@@ -618,10 +615,9 @@ nsXULRadioGroupAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
   // That means that the actual selected radio button should be considered focused
   nsresult rv = nsAccessible::GetState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
-  if (mDOMNode) {
-    *aState &= ~(nsIAccessibleStates::STATE_FOCUSABLE |
-                 nsIAccessibleStates::STATE_FOCUSED);
-  }
+
+  *aState &= ~(nsIAccessibleStates::STATE_FOCUSABLE |
+               nsIAccessibleStates::STATE_FOCUSED);
 
   return NS_OK;
 }
@@ -722,6 +718,16 @@ NS_IMETHODIMP nsXULToolbarAccessible::GetRole(PRUint32 *_retval)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsXULToolbarAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
+{
+  nsresult rv = nsAccessible::GetState(aState, aExtraState);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  *aState &= ~nsIAccessibleStates::STATE_FOCUSABLE;  // toolbar is not focusable
+  return NS_OK;
+}
+
 /**
   * XUL Toolbar Separator
   */
@@ -742,9 +748,9 @@ nsXULToolbarSeparatorAccessible::GetState(PRUint32 *aState,
                                           PRUint32 *aExtraState)
 {
   *aState = 0;  // no special state flags for toolbar separator
-  if (aExtraState) {
-    *aExtraState = mDOMNode ? 0 : nsIAccessibleStates::EXT_STATE_DEFUNCT;
-  }
+  if (aExtraState)
+    *aExtraState = 0;
+
   return NS_OK;
 }
 
@@ -757,7 +763,23 @@ nsXULTextFieldAccessible::nsXULTextFieldAccessible(nsIDOMNode* aNode, nsIWeakRef
 {
 }
 
-NS_IMPL_ISUPPORTS_INHERITED3(nsXULTextFieldAccessible, nsAccessible, nsHyperTextAccessible, nsIAccessibleText, nsIAccessibleEditableText)
+NS_IMPL_ISUPPORTS_INHERITED1(nsXULTextFieldAccessible, nsHyperTextAccessible,
+                             nsIAccessibleText)
+
+NS_IMETHODIMP nsXULTextFieldAccessible::Init()
+{
+  CheckForEditor();
+  return nsHyperTextAccessibleWrap::Init();
+}
+
+NS_IMETHODIMP nsXULTextFieldAccessible::Shutdown()
+{
+  if (mEditor) {
+    mEditor->RemoveEditActionListener(this);
+    mEditor = nsnull;
+  }
+  return nsHyperTextAccessibleWrap::Shutdown();
+}
 
 NS_IMETHODIMP nsXULTextFieldAccessible::GetValue(nsAString& aValue)
 {
@@ -796,10 +818,10 @@ already_AddRefed<nsIDOMNode> nsXULTextFieldAccessible::GetInputField()
 NS_IMETHODIMP
 nsXULTextFieldAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
+  NS_ENSURE_TRUE(mDOMNode, NS_ERROR_FAILURE);
+
   nsresult rv = nsHyperTextAccessibleWrap::GetState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
-  if (!mDOMNode)
-    return NS_OK;
 
   nsCOMPtr<nsIDOMNode> inputField = GetInputField();
   NS_ENSURE_TRUE(inputField, NS_ERROR_FAILURE);
@@ -916,11 +938,24 @@ nsXULTextFieldAccessible::GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChild
   return NS_OK;
 }
 
-NS_IMETHODIMP nsXULTextFieldAccessible::GetAssociatedEditor(nsIEditor **aEditor)
+void nsXULTextFieldAccessible::SetEditor(nsIEditor* aEditor)
 {
-  *aEditor = nsnull;
+  mEditor = aEditor;
+  if (mEditor)
+    mEditor->AddEditActionListener(this);
+}
+
+void nsXULTextFieldAccessible::CheckForEditor()
+{
   nsCOMPtr<nsIDOMNode> inputField = GetInputField();
   nsCOMPtr<nsIDOMNSEditableElement> editableElt(do_QueryInterface(inputField));
-  NS_ENSURE_TRUE(editableElt, NS_ERROR_FAILURE);
-  return editableElt->GetEditor(aEditor);
+  if (!editableElt) {
+    return;
+  }
+
+  nsCOMPtr<nsIEditor> editor;
+  nsresult rv = editableElt->GetEditor(getter_AddRefs(editor));
+  if (NS_SUCCEEDED(rv)) {
+    SetEditor(editor);
+  }
 }

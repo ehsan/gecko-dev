@@ -59,8 +59,6 @@ const PRInt32 nsAnnotationService::kAnnoIndex_Content = 4;
 const PRInt32 nsAnnotationService::kAnnoIndex_Flags = 5;
 const PRInt32 nsAnnotationService::kAnnoIndex_Expiration = 6;
 const PRInt32 nsAnnotationService::kAnnoIndex_Type = 7;
-const PRInt32 nsAnnotationService::kAnnoIndex_DateAdded = 8;
-const PRInt32 nsAnnotationService::kAnnoIndex_LastModified = 9;
 
 nsAnnotationService* nsAnnotationService::gAnnotationService;
 
@@ -108,7 +106,7 @@ nsAnnotationService::Init()
   // mDBSetAnnotation
   rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
       "UPDATE moz_annos "
-      "SET mime_type = ?4, content = ?5, flags = ?6, expiration = ?7, type = ?8, lastModified = ?10 "
+      "SET mime_type = ?4, content = ?5, flags = ?6, expiration = ?7, type = ?8 "
       "WHERE id = ?1"),
     getter_AddRefs(mDBSetAnnotation));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -116,7 +114,7 @@ nsAnnotationService::Init()
   // mDBSetItemAnnotation
   rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
       "UPDATE moz_items_annos "
-      "SET mime_type = ?4, content = ?5, flags = ?6, expiration = ?7, type = ?8, lastModified = ?10 "
+      "SET mime_type = ?4, content = ?5, flags = ?6, expiration = ?7, type = ?8 "
       "WHERE id = ?1"),
     getter_AddRefs(mDBSetItemAnnotation));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -191,8 +189,8 @@ nsAnnotationService::Init()
   //   Note: kAnnoIndex_Name here is a name ID and not a string like the getters
   rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
       "INSERT INTO moz_annos "
-      "(place_id, anno_attribute_id, mime_type, content, flags, expiration, type, dateAdded) "
-      "VALUES (?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"),
+      "(place_id, anno_attribute_id, mime_type, content, flags, expiration, type) "
+      "VALUES (?2, ?3, ?4, ?5, ?6, ?7, ?8)"),
     getter_AddRefs(mDBAddAnnotation));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -200,8 +198,8 @@ nsAnnotationService::Init()
   //   Note: kAnnoIndex_Name here is a name ID and not a string like the getters
   rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
       "INSERT INTO moz_items_annos "
-      "(item_id, anno_attribute_id, mime_type, content, flags, expiration, type, dateAdded) "
-      "VALUES (?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"),
+      "(item_id, anno_attribute_id, mime_type, content, flags, expiration, type) "
+      "VALUES (?2, ?3, ?4, ?5, ?6, ?7, ?8)"),
     getter_AddRefs(mDBAddItemAnnotation));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -217,14 +215,6 @@ nsAnnotationService::Init()
       "DELETE FROM moz_items_annos WHERE item_id = ?1 AND anno_attribute_id = "
       "(SELECT id FROM moz_anno_attributes WHERE name = ?2)"),
     getter_AddRefs(mDBRemoveItemAnnotation));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // mDBGetItemsWithAnnotation
-  rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
-    "SELECT a.item_id FROM moz_anno_attributes n "
-    "INNER JOIN moz_items_annos a ON n.id = a.anno_attribute_id "
-    "WHERE n.name = ?1"),
-    getter_AddRefs(mDBGetItemsWithAnnotation));
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -255,13 +245,13 @@ nsAnnotationService::InitTables(mozIStorageConnection* aDBConn)
         "mime_type VARCHAR(32) DEFAULT NULL,"
         "content LONGVARCHAR, flags INTEGER DEFAULT 0,"
         "expiration INTEGER DEFAULT 0,"
-        "type INTEGER DEFAULT 0,"
-        "dateAdded INTEGER DEFAULT 0," 
-        "lastModified INTEGER DEFAULT 0)"));
+        "type INTEGER DEFAULT 0)"));
     NS_ENSURE_SUCCESS(rv, rv);
-
     rv = aDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-        "CREATE UNIQUE INDEX moz_annos_placeattributeindex ON moz_annos (place_id, anno_attribute_id)"));
+        "CREATE INDEX moz_annos_place_idindex ON moz_annos (place_id)"));
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = aDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+        "CREATE INDEX moz_annos_attributesindex ON moz_annos (anno_attribute_id)"));
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -284,13 +274,14 @@ nsAnnotationService::InitTables(mozIStorageConnection* aDBConn)
         "anno_attribute_id INTEGER,"
         "mime_type VARCHAR(32) DEFAULT NULL,"
         "content LONGVARCHAR, flags INTEGER DEFAULT 0,"
-        "expiration INTEGER DEFAULT 0,"
-        "type INTEGER DEFAULT 0,"
-        "dateAdded INTEGER DEFAULT 0," 
-        "lastModified INTEGER DEFAULT 0)"));
+        "expiration INTEGER DEFAULT 0, "
+        "type INTEGER DEFAULT 0)"));
     NS_ENSURE_SUCCESS(rv, rv);
     rv = aDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-        "CREATE UNIQUE INDEX moz_items_annos_itemattributeindex ON moz_items_annos (item_id, anno_attribute_id)"));
+        "CREATE INDEX moz_annos_item_idindex ON moz_items_annos (item_id)"));
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = aDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+        "CREATE INDEX moz_items_annos_attributesindex ON moz_items_annos (item_id, anno_attribute_id)"));
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -414,9 +405,6 @@ nsAnnotationService::SetItemAnnotation(PRInt64 aItemId,
 {
   NS_ENSURE_ARG(aValue);
 
-  if (aExpiration == EXPIRE_WITH_HISTORY)
-    return NS_ERROR_INVALID_ARG;
-
   PRUint16 dataType;
   nsresult rv = aValue->GetDataType(&dataType);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -511,9 +499,6 @@ nsAnnotationService::SetItemAnnotationString(PRInt64 aItemId,
                                              PRInt32 aFlags,
                                              PRUint16 aExpiration)
 {
-  if (aExpiration == EXPIRE_WITH_HISTORY)
-    return NS_ERROR_INVALID_ARG;
-
   nsresult rv = SetAnnotationStringInternal(aItemId, PR_TRUE, aName, aValue,
                                             aFlags, aExpiration);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -587,9 +572,6 @@ nsAnnotationService::SetItemAnnotationInt32(PRInt64 aItemId,
                                             PRInt32 aFlags,
                                             PRUint16 aExpiration)
 {
-  if (aExpiration == EXPIRE_WITH_HISTORY)
-    return NS_ERROR_INVALID_ARG;
-
   nsresult rv = SetAnnotationInt32Internal(aItemId, PR_TRUE, aName, aValue,
                                            aFlags, aExpiration);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -663,9 +645,6 @@ nsAnnotationService::SetItemAnnotationInt64(PRInt64 aItemId,
                                             PRInt32 aFlags,
                                             PRUint16 aExpiration)
 {
-  if (aExpiration == EXPIRE_WITH_HISTORY)
-    return NS_ERROR_INVALID_ARG;
-
   nsresult rv = SetAnnotationInt64Internal(aItemId, PR_TRUE, aName, aValue,
                                            aFlags, aExpiration);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -739,9 +718,6 @@ nsAnnotationService::SetItemAnnotationDouble(PRInt64 aItemId,
                                              PRInt32 aFlags,
                                              PRUint16 aExpiration)
 {
-  if (aExpiration == EXPIRE_WITH_HISTORY)
-    return NS_ERROR_INVALID_ARG;
-
   nsresult rv = SetAnnotationDoubleInternal(aItemId, PR_TRUE, aName, aValue,
                                             aFlags, aExpiration);                      
   NS_ENSURE_SUCCESS(rv, rv);
@@ -822,9 +798,6 @@ nsAnnotationService::SetItemAnnotationBinary(PRInt64 aItemId,
                                              PRInt32 aFlags,
                                              PRUint16 aExpiration)
 {
-  if (aExpiration == EXPIRE_WITH_HISTORY)
-    return NS_ERROR_INVALID_ARG;
-
   nsresult rv = SetAnnotationBinaryInternal(aItemId, PR_TRUE, aName, aData,
                                             aDataLen, aMimeType, aFlags,
                                             aExpiration);
@@ -1295,13 +1268,20 @@ nsAnnotationService::GetItemsWithAnnotation(const nsACString& aName,
 nsresult
 nsAnnotationService::GetItemsWithAnnotationTArray(const nsACString& aName,
                                                   nsTArray<PRInt64>* aResults) {
-  mozStorageStatementScoper scoper(mDBGetItemsWithAnnotation);
-  nsresult rv = mDBGetItemsWithAnnotation->BindUTF8StringParameter(0, aName);
+  nsCOMPtr<mozIStorageStatement> statement;
+  nsresult rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
+    "SELECT a.item_id FROM moz_anno_attributes n "
+    "INNER JOIN moz_items_annos a ON n.id = a.anno_attribute_id "
+    "WHERE n.name = ?1"),
+    getter_AddRefs(statement));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = statement->BindUTF8StringParameter(0, aName);
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRBool hasMore = PR_FALSE;
-  while (NS_SUCCEEDED(rv = mDBGetItemsWithAnnotation->ExecuteStep(&hasMore)) && hasMore) {
-    if (!aResults->AppendElement(mDBGetItemsWithAnnotation->AsInt64(0)))
+  while (NS_SUCCEEDED(rv = statement->ExecuteStep(&hasMore)) && hasMore) {
+    if (!aResults->AppendElement(statement->AsInt64(0)))
       return NS_ERROR_OUT_OF_MEMORY;
   }
   return NS_OK;
@@ -1459,6 +1439,7 @@ nsAnnotationService::ItemHasAnnotation(PRInt64 aItemId,
 //    the last item of a given name, that item really should go away. It will
 //    get cleaned up on the next shutdown.
 //
+//    XXX NOT REALLY, see nsNavHistoryExpire::ExpireAnnotationsParanoid
 nsresult
 nsAnnotationService::RemoveAnnotationInternal(PRInt64 aFkId,
                                               PRBool aIsItemAnnotation,
@@ -1692,7 +1673,7 @@ nsAnnotationService::CopyItemAnnotations(PRInt64 aSourceItemId,
                                          PRInt64 aDestItemId,
                                          PRBool aOverwriteDest)
 {
- // XXX: Implement Me!
+ // XXX: Implment Me!
  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -1889,12 +1870,7 @@ nsAnnotationService::StartSetAnnotation(PRInt64 aFkId,
   // or insert a new one tied to the URI.
   if (hasAnnotation) {
     *aStatement = aIsItemAnnotation ? mDBSetItemAnnotation : mDBSetAnnotation;
-    // id
     rv = (*aStatement)->BindInt64Parameter(kAnnoIndex_ID, annotationID);
-    NS_ENSURE_SUCCESS(rv, rv);
-    // lastModified
-    rv = (*aStatement)->BindInt64Parameter(kAnnoIndex_LastModified, PR_Now());
-    NS_ENSURE_SUCCESS(rv, rv);
   } else {
     *aStatement = aIsItemAnnotation ? mDBAddItemAnnotation : mDBAddAnnotation;
 
@@ -1924,10 +1900,6 @@ nsAnnotationService::StartSetAnnotation(PRInt64 aFkId,
       rv = (*aStatement)->BindInt64Parameter(kAnnoIndex_Name, nameID);
       NS_ENSURE_SUCCESS(rv, rv);
     }
-    
-    // dateAdded
-    rv = (*aStatement)->BindInt64Parameter(kAnnoIndex_DateAdded, PR_Now());
-    NS_ENSURE_SUCCESS(rv, rv);
   }
   mozStorageStatementScoper statementResetter(*aStatement);
   NS_ENSURE_SUCCESS(rv, rv);

@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/usr/local/bin/bash -e
 # -*- Mode: Shell-script; tab-width: 4; indent-tabs-mode: nil; -*-
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -37,9 +37,9 @@
 #
 # ***** END LICENSE BLOCK *****
 
-source $TEST_DIR/bin/library.sh
-
-TEST_STARTUP_TRIES=${TEST_STARTUP_TRIES:-3}
+TEST_DIR=${TEST_DIR:-/work/mozilla/mozilla.com/test.mozilla.com/www}
+TEST_BIN=${TEST_BIN:-$TEST_DIR/bin}
+source ${TEST_BIN}/library.sh
 
 #
 # options processing
@@ -62,13 +62,13 @@ variable            description
 -d datafiles        optional. one or more filenames of files containing 
                     environment variable definitions to be included.
 
-note that the environment variables should have the same names as in the 
-"variable" column.
+                    note that the environment variables should have the same 
+                    names as in the "variable" column.
 
 Checks if the Spider extension is installed either in the named profile
 or as a global extension, by attempting up to 3 times to launch the Spider.
 
-If Spider fails to launch, the script returns exit code 2.
+If Spider fails to launch, the script returns exit code 66.
 
 EOF
     exit 1
@@ -77,14 +77,14 @@ EOF
 unset product branch executablepath profilename datafiles
 
 while getopts $options optname ; 
-  do 
-  case $optname in
-      p) product=$OPTARG;;
-      b) branch=$OPTARG;;
-      x) executablepath=$OPTARG;;
-      N) profilename=$OPTARG;;
-      d) datafiles=$OPTARG;;
-  esac
+do 
+    case $optname in
+        p) product=$OPTARG;;
+        b) branch=$OPTARG;;
+        x) executablepath=$OPTARG;;
+        N) profilename=$OPTARG;;
+        d) datafiles=$OPTARG;;
+    esac
 done
 
 # include environment variables
@@ -96,45 +96,45 @@ if [[ -n "$datafiles" ]]; then
 fi
 
 if [[ -z "$product" || -z "$branch" || -z "$executablepath" || -z "$profilename" ]]; 
-    then
+then
     usage
 fi
 
 if [[ "$product" != "firefox" && "$product" != "thunderbird" ]]; then
-    error "product \"$product\" must be one of firefox or thunderbird" $LINENO
+    error "product \"$product\" must be one of firefox or thunderbird"
 fi
 
 if [[ "$branch" != "1.8.0" && "$branch" != "1.8.1" && "$branch" != "1.9.0" ]]; 
-    then
-    error "branch \"$branch\" must be one of 1.8.0, 1.8.1, 1.9.0" $LINENO
+then
+    error "branch \"$branch\" must be one of 1.8.0, 1.8.1, 1.9.0"
 fi
 
 executable=`get_executable $product $branch $executablepath`
 
 if [[ -z "$executable" ]]; then
-    error "get_executable $product $branch $executablepath returned empty path" $LINENO
+    error "get_executable $product $branch $executablepath returned empty path"
 fi
 
 if [[ ! -x "$executable" ]]; then 
-    error "executable \"$executable\" is not executable" $LINENO
+    error "executable \"$executable\" is not executable"
 fi
 
 if echo "$profilename" | egrep -qiv '[a-z0-9_]'; then
-    error "profile name must consist of letters, digits or _" $LINENO
+    error "profile name must consist of letters, digits or _"
 fi
 
 echo # attempt to force Spider to load
 
 tries=1
-while ! $TEST_DIR/bin/timed_run.py ${TEST_STARTUP_TIMEOUT} "Start Spider: try $tries" \
+while ! $TEST_BIN/timed_run.py ${TEST_STARTUP_TIMEOUT} "Start Spider: try $tries" \
     "$executable" -P "$profilename" \
     -spider -start -quit \
     -uri "http://${TEST_HTTP}/bin/start-spider.html" \
     -hook "http://${TEST_HTTP}/bin/userhook-checkspider.js"; do
   let tries=tries+1
-  if [ "$tries" -gt $TEST_STARTUP_TRIES  ]; then
-      error "Failed to start spider. Exiting..." $LINENO
+  if [ "$tries" -gt 3 ]; then
+      echo "Failed to start spider. Exiting..."
+      exit 66
   fi
-  sleep 30
 done
 

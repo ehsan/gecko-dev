@@ -112,10 +112,7 @@ public:
          const nsHTMLReflowState& aReflowState,
          nsReflowStatus&          aStatus);
 
-  virtual nscoord
-  GetIntrinsicWidth(nsIRenderingContext* aRenderingContext);
-
-  virtual nsresult
+  NS_IMETHOD
   Place(nsIRenderingContext& aRenderingContext,
         PRBool               aPlaceOrigin,
         nsHTMLReflowMetrics& aDesiredSize);
@@ -128,8 +125,14 @@ public:
   TransmitAutomaticData();
 
   NS_IMETHOD
+  UpdatePresentationData(PRInt32         aScriptLevelIncrement,
+                         PRUint32        aFlagsValues,
+                         PRUint32        aFlagsToUpdate);
+
+  NS_IMETHOD
   UpdatePresentationDataFromChildAt(PRInt32         aFirstIndex,
                                     PRInt32         aLastIndex,
+                                    PRInt32         aScriptLevelIncrement,
                                     PRUint32        aFlagsValues,
                                     PRUint32        aFlagsToUpdate);
 
@@ -154,6 +157,7 @@ protected:
   PRBool
   IsBevelled();
 
+  PRInt32 mInnerScriptLevel;
   nsRect  mLineRect;
   nsMathMLChar* mSlashChar;
 };

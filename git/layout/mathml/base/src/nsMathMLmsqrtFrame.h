@@ -87,13 +87,11 @@ public:
        nsIFrame*   aParent,
        nsIFrame*   aPrevInFlow);
 
-  virtual nsresult
-  Place(nsIRenderingContext& aRenderingContext,
-        PRBool               aPlaceOrigin,
-        nsHTMLReflowMetrics& aDesiredSize);
-
-  virtual nscoord
-  GetIntrinsicWidth(nsIRenderingContext* aRenderingContext);
+  NS_IMETHOD
+  Reflow(nsPresContext*          aPresContext,
+         nsHTMLReflowMetrics&     aDesiredSize,
+         const nsHTMLReflowState& aReflowState,
+         nsReflowStatus&          aStatus);
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
@@ -117,10 +115,6 @@ protected:
   virtual ~nsMathMLmsqrtFrame();
   
   virtual PRIntn GetSkipSides() const { return 0; }
-
-  virtual nsresult
-  MeasureChildFrames(nsIRenderingContext& aRenderingContext,
-                     nsHTMLReflowMetrics& aDesiredSize);
 
   nsMathMLChar mSqrChar;
   nsRect       mBarRect;

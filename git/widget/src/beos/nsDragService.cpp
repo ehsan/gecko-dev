@@ -48,6 +48,7 @@
 #include "nsVoidArray.h"
 #include "nsXPIDLString.h"
 #include "nsPrimitiveHelpers.h"
+#include "nsUnitConversion.h"
 #include "nsWidgetsCID.h"
 #include "nsCRT.h"
 
@@ -151,11 +152,8 @@ nsDragService::InvokeDragSession (nsIDOMNode *aDOMNode,
                                   PRUint32 aActionType)
 {
     PR_LOG(sDragLm, PR_LOG_DEBUG, ("nsDragService::InvokeDragSession"));
-    nsresult rv = nsBaseDragService::InvokeDragSession(aDOMNode,
-                                                       aArrayTransferables,
-                                                       aRegion, aActionType);
-    NS_ENSURE_SUCCESS(rv, rv);
-
+    nsBaseDragService::InvokeDragSession (aDOMNode, aArrayTransferables,
+                                         aRegion, aActionType);
     ResetDragInfo();       
     // make sure that we have an array of transferables to use
     if (nsnull == aArrayTransferables)

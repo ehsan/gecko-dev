@@ -64,8 +64,7 @@ static const char *kTypeString[NUMBER_OF_TYPES] = {"other",
                                                    "xbl",
                                                    "ping",
                                                    "xmlhttprequest",
-                                                   "objectsubrequest",
-                                                   "dtd"};
+                                                   "objectsubrequest"};
 
 
 NS_IMPL_ISUPPORTS3(nsContentBlocker, 

@@ -147,8 +147,15 @@ public:
 
   NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
 
-  // nsIAccessibleEditableText
-  NS_IMETHOD GetAssociatedEditor(nsIEditor **aEditor);
+  NS_IMETHOD Init();
+  NS_IMETHOD Shutdown();
+
+protected:
+  virtual void SetEditor(nsIEditor *aEditor);
+  virtual already_AddRefed<nsIEditor> GetEditor();
+
+private:
+  nsCOMPtr<nsIEditor> mEditor;
 };
 
 

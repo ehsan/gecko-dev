@@ -42,7 +42,7 @@
  * loader.
  *
  * Import into a JS component using
- * 'Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");'
+ * 'Components.utils.import("rel:XPCOMUtils.jsm");'
  *
  * Exposing a JS 'class' as a component using these utility methods consists
  * of several steps:
@@ -59,25 +59,8 @@
  *
  *    // [optional] custom factory (an object implementing nsIFactory). If not
  *    // provided, the default factory is used, which returns
- *    // |(new MyComponent()).QueryInterface(iid)| in its createInstance().
- *    _xpcom_factory: { ... },
- *
- *    // [optional] an array of categories to register this component in.
- *    _xpcom_categories: [{
- *      // Each object in the array specifies the parameters to pass to
- *      // nsICategoryManager.addCategoryEntry(). 'true' is passed for
- *      // both aPersist and aReplace params.
- *      category: "some-category",
- *      // optional, defaults to the object's classDescription
- *      entry: "entry name",
- *      // optional, defaults to the object's contractID (unless
- *      // 'service' is specified)
- *      value: "...",
- *      // optional, defaults to false. When set to true, and only if 'value'
- *      // is not specified, the concatenation of the string "service," and the
- *      // object's contractID is passed as aValue parameter of addCategoryEntry.
- *      service: true
- *    }],
+ *    // |(new MyComponent()).QueryInterface(iid)| in its createInterface().
+ *    _xpcom_factory: { ... }
  *
  *    // QueryInterface implementation, e.g. using the generateQI helper
  *    QueryInterface: XPCOMUtils.generateQI(
@@ -99,10 +82,11 @@
  */
 
 
-var EXPORTED_SYMBOLS = [ "XPCOMUtils" ];
+EXPORTED_SYMBOLS = [ "XPCOMUtils" ];
+
+debug("*** loading XPCOMUtils\n");
 
 const Ci = Components.interfaces;
-const Cr = Components.results;
 
 var XPCOMUtils = {
   /**
@@ -147,75 +131,51 @@ var XPCOMUtils = {
         className:    component.prototype.classDescription,
         contractID:   component.prototype.contractID,
         factory:      this._getFactory(component),
-        categories:   component.prototype._xpcom_categories
       });
     }
 
     return { // nsIModule impl.
       getClassObject: function(compMgr, cid, iid) {
-        // We only support nsIFactory queries, not nsIClassInfo
         if (!iid.equals(Ci.nsIFactory))
-          throw Cr.NS_ERROR_NOT_IMPLEMENTED;
+          throw Components.results.NS_ERROR_NO_INTERFACE;
 
         for each (let classDesc in classes) {
           if (classDesc.cid.equals(cid))
             return classDesc.factory;
         }
 
-        throw Cr.NS_ERROR_FACTORY_NOT_REGISTERED;
+        throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
       },
 
       registerSelf: function(compMgr, fileSpec, location, type) {
-        var componentCount = 0;
         debug("*** registering " + fileSpec.leafName + ": [ ");
         compMgr.QueryInterface(Ci.nsIComponentRegistrar);
-
         for each (let classDesc in classes) {
-          debug((componentCount++ ? ", " : "") + classDesc.className);
+          debug(classDesc.cid + " ");
           compMgr.registerFactoryLocation(classDesc.cid,
                                           classDesc.className,
                                           classDesc.contractID,
                                           fileSpec,
                                           location,
                                           type);
-          if (classDesc.categories) {
-            let catMan = XPCOMUtils.categoryManager;
-            for each (let cat in classDesc.categories) {
-              let defaultValue = (cat.service ? "service," : "") +
-                                 classDesc.contractID;
-              catMan.addCategoryEntry(cat.category,
-                                      cat.entry || classDesc.className,
-                                      cat.value || defaultValue,
-                                      true, true);
-            }
-          }
         }
 
         if (postRegister)
           postRegister(compMgr, fileSpec, componentsArray);
-        debug(" ]\n");
+        debug("]\n");
       },
 
       unregisterSelf: function(compMgr, fileSpec, location) {
-        var componentCount = 0;
         debug("*** unregistering " + fileSpec.leafName + ": [ ");
         compMgr.QueryInterface(Ci.nsIComponentRegistrar);
         if (preUnregister)
           preUnregister(compMgr, fileSpec, componentsArray);
 
         for each (let classDesc in classes) {
-          debug((componentCount++ ? ", " : "") + classDesc.className);
-          if (classDesc.categories) {
-            let catMan = XPCOMUtils.categoryManager;
-            for each (let cat in classDesc.categories) {
-              catMan.deleteCategoryEntry(cat.category,
-                                         cat.entry || classDesc.className,
-                                         true);
-            }
-          }
+          debug(classDesc.className + " ");
           compMgr.unregisterFactoryLocation(classDesc.cid, fileSpec);
         }
-        debug(" ]\n");
+        debug("]\n");
       },
 
       canUnload: function(compMgr) {
@@ -240,8 +200,8 @@ var XPCOMUtils = {
     if (!factory) {
       factory = {
         createInstance: function(outer, iid) {
-          if (outer)
-            throw Cr.NS_ERROR_NO_AGGREGATION;
+          if(outer)
+            throw CR.NS_ERROR_NO_AGGREGATION;
           return (new component()).QueryInterface(iid);
         }
       }
@@ -262,6 +222,6 @@ function makeQI(interfaceNames) {
         return this;
     }
 
-    throw Cr.NS_ERROR_NO_INTERFACE;
+    throw Components.results.NS_ERROR_NO_INTERFACE;
   };
 }

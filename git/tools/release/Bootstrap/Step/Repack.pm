@@ -15,27 +15,16 @@ sub Execute {
     my $config = new Bootstrap::Config();
     my $l10n_buildDir = $config->Get(sysvar => 'l10n_buildDir');
     my $productTag = $config->Get(var => 'productTag');
-    my $build = $config->Get(var => 'build');
-    my $logDir = $config->Get(sysvar => 'logDir');
+    my $rc = $config->Get(var => 'rc');
+    my $logDir = $config->Get(var => 'logDir');
     my $l10n_buildPlatform = $config->Get(sysvar => 'l10n_buildPlatform');
-    my $sysname = $config->SystemInfo(var => 'sysname');
-    my $buildTag = $productTag . '_BUILD' . $build;
+    my $rcTag = $productTag . '_RC' . $rc;
 
-    my $buildLog = catfile($logDir, 'repack_' . $buildTag . '-build-l10n.log');
+    my $buildLog = catfile($logDir, 'repack_' . $rcTag . '-build-l10n.log');
     my $lastBuilt = catfile($l10n_buildDir, $l10n_buildPlatform, 'last-built');
     unlink($lastBuilt) 
       or $this->Log(msg => "Cannot unlink last-built file $lastBuilt: $!");
     $this->Log(msg => "Unlinked $lastBuilt");
-
-    # For Cygwin only, ensure that the system mount point is textmode
-    # This forces CVS to use DOS-style carriage-return EOL characters.
-    if ($sysname =~ /cygwin/i) {
-        $this->Shell(
-          cmd => 'mount',
-          cmdArgs => ['-t', '-sc', '/cygdrive'],
-          dir => $buildDir,
-        );
-    }
 
     $this->Shell(
       cmd => './build-seamonkey.pl',
@@ -46,16 +35,6 @@ sub Execute {
       logFile => $buildLog,
       timeout => 36000
     );
-
-    # For Cygwin only, set the system mount point back to binmode
-    # This forces CVS to use Unix-style linefeed EOL characters.
-    if ($sysname =~ /cygwin/i) {
-        $this->Shell(
-          cmd => 'mount',
-          cmdArgs => ['-b', '-sc', '/cygdrive'],
-          dir => $buildDir,
-        );
-    }
 }
 
 sub Verify {
@@ -64,16 +43,15 @@ sub Verify {
     my $config = new Bootstrap::Config();
     my $productTag = $config->Get(var => 'productTag');
     my $product = $config->Get(var => 'product');
-    my $build = $config->Get(var => 'build');
-    my $oldBuild = $config->Get(var => 'oldBuild');
-    my $logDir = $config->Get(sysvar => 'logDir');
-    my $version = $config->GetVersion(longName => 0);
-    my $oldVersion = $config->GetOldVersion(longName => 0);
+    my $rc = $config->Get(var => 'rc');
+    my $oldRc = $config->Get(var => 'oldRc');
+    my $logDir = $config->Get(var => 'logDir');
+    my $version = $config->Get(var => 'version');
+    my $oldVersion = $config->Get(var => 'oldVersion');
     my $mozillaCvsroot = $config->Get(var => 'mozillaCvsroot');
     my $verifyDir = $config->Get(var => 'verifyDir');
-    my $stagingServer = $config->Get(var => 'stagingServer');
-    my $linuxExtension = $config->GetLinuxExtension();
-    my $buildTag = $productTag.'_BUILD'.$build;
+
+    my $rcTag = $productTag.'_RC'.$rc;
 
     # l10n metadiff test
 
@@ -84,13 +62,14 @@ sub Verify {
 
     # check out l10n verification scripts
     foreach my $dir ('common', 'l10n') {
-        $this->CvsCo(cvsroot => $mozillaCvsroot,
-                     checkoutDir => $dir,
-                     modules => [CvsCatfile('mozilla', 'testing', 'release',
-                                            $dir)],
-                     workDir => $verifyDirVersion,
-                     logFile => catfile($logDir,
-                                 'repack_checkout-l10n_verification.log')
+        $this->Shell(
+          cmd => 'cvs',
+          cmdArgs => ['-d', $mozillaCvsroot, 
+                      'co', '-d', $dir, 
+                      CvsCatfile('mozilla', 'testing', 'release', $dir)],
+          dir => $verifyDirVersion,
+          logFile => catfile($logDir, 
+                               'repack_checkout-l10n_verification.log'),
         );
     }
 
@@ -101,11 +80,11 @@ sub Verify {
                   '-e', 'ssh', 
                   '--include=*.dmg',
                   '--include=*.exe',
-                  '--include=*.tar.'.$linuxExtension,
+                  '--include=*.tar.gz',
                   '--exclude=*',
-                  $stagingServer . ':/home/ftp/pub/' . $product
-                  . '/nightly/' . $version . '-candidates/build' . $build . '/*',
-                  $product . '-' . $version . '-build' . $build . '/',
+                  'stage.mozilla.org:/home/ftp/pub/' . $product
+                  . '/nightly/' . $version . '-candidates/rc' . $rc . '/*',
+                  $product . '-' . $version . '-rc' . $rc . '/',
                  ],
       dir => catfile($verifyDirVersion, 'l10n'),
       logFile => 
@@ -120,12 +99,12 @@ sub Verify {
                   '-e', 'ssh', 
                   '--include=*.dmg',
                   '--include=*.exe',
-                  '--include=*.tar.'.$linuxExtension,
+                  '--include=*.tar.gz',
                   '--exclude=*',
-                  $stagingServer . ':/home/ftp/pub/' . $product
-                  . '/nightly/' . $oldVersion . '-candidates/build' 
-                  . $oldBuild . '/*',
-                  $product . '-' . $oldVersion . '-build' . $oldBuild . '/',
+                  'stage.mozilla.org:/home/ftp/pub/' . $product
+                  . '/nightly/' . $oldVersion . '-candidates/rc' 
+                  . $oldRc . '/*',
+                  $product . '-' . $oldVersion . '-rc' . $oldRc . '/',
                  ],
       dir => catfile($verifyDirVersion, 'l10n'),
       logFile => 
@@ -133,8 +112,8 @@ sub Verify {
       timeout => 3600
     );
 
-    my $newProduct = $product . '-' . $version . '-' . 'build' . $build;
-    my $oldProduct = $product . '-' . $oldVersion . '-' . 'build' . $oldBuild;
+    my $newProduct = $product . '-' . $version . '-' . 'rc' . $rc;
+    my $oldProduct = $product . '-' . $oldVersion . '-' . 'rc' . $oldRc;
 
     foreach my $product ($newProduct, $oldProduct) {
         MkdirWithPath(dir => catfile($verifyDirVersion, 'l10n', $product))
@@ -187,14 +166,14 @@ sub Push {
 
     my $config = new Bootstrap::Config();
     my $productTag = $config->Get(var => 'productTag');
-    my $build = $config->Get(var => 'build');
-    my $logDir = $config->Get(sysvar => 'logDir');  
-    my $stagingUser = $config->Get(var => 'stagingUser');
-    my $stagingServer = $config->Get(var => 'stagingServer');
+    my $rc = $config->Get(var => 'rc');
+    my $logDir = $config->Get(var => 'logDir');  
+    my $sshUser = $config->Get(var => 'sshUser');
+    my $sshServer = $config->Get(var => 'sshServer');
 
-    my $buildTag = $productTag . '_BUILD' . $build;
-    my $buildLog = catfile($logDir, 'repack_' . $buildTag . '-build-l10n.log');
-    my $pushLog  = catfile($logDir, 'repack_' . $buildTag . '-push-l10n.log');
+    my $rcTag = $productTag . '_RC' . $rc;
+    my $buildLog = catfile($logDir, 'repack_' . $rcTag . '-build-l10n.log');
+    my $pushLog  = catfile($logDir, 'repack_' . $rcTag . '-push-l10n.log');
     
     my $logParser = new MozBuild::TinderLogParse(
         logFile => $buildLog,
@@ -206,10 +185,8 @@ sub Push {
     $pushDir =~ s!^http://ftp.mozilla.org/pub/mozilla.org!/home/ftp/pub!;
 
     my $candidateDir = $config->GetFtpCandidateDir(bitsUnsigned => 1);
-    $this->CreateCandidatesDir();
 
-    my $osFileMatch = $config->SystemInfo(var => 'osname');    
-    # TODO - use a more generic function for this kind of remapping
+    my $osFileMatch = $config->SystemInfo(var => 'osname');
     if ($osFileMatch eq 'win32')  {
       $osFileMatch = 'win';
     } elsif ($osFileMatch eq 'macosx') {
@@ -218,7 +195,14 @@ sub Push {
 
     $this->Shell(
       cmd => 'ssh',
-      cmdArgs => ['-2', '-l', $stagingUser, $stagingServer,
+      cmdArgs => ['-2', '-l', $sshUser, $sshServer,
+                  'mkdir -p ' . $candidateDir],
+      logFile => $pushLog,
+    );
+
+    $this->Shell(
+      cmd => 'ssh',
+      cmdArgs => ['-2', '-l', $sshUser, $sshServer,
                   'rsync', '-av',
                   '--include=*' . $osFileMatch . '*',
                   '--include=*.xpi',
@@ -234,12 +218,12 @@ sub Announce {
     my $config = new Bootstrap::Config();
     my $product = $config->Get(var => 'product');
     my $productTag = $config->Get(var => 'productTag');
-    my $version = $config->GetVersion(longName => 0);
-    my $build = $config->Get(var => 'build');
-    my $logDir = $config->Get(sysvar => 'logDir');
+    my $version = $config->Get(var => 'version');
+    my $rc = $config->Get(var => 'rc');
+    my $logDir = $config->Get(var => 'logDir');
 
-    my $buildTag = $productTag . '_BUILD' . $build;
-    my $buildLog = catfile($logDir, 'repack_' . $buildTag . '-build-l10n.log');
+    my $rcTag = $productTag . '_RC' . $rc;
+    my $buildLog = catfile($logDir, 'repack_' . $rcTag . '-build-l10n.log');
 
     my $logParser = new MozBuild::TinderLogParse(
         logFile => $buildLog,

@@ -53,7 +53,7 @@ function test()
   printBugNumber(BUGNUMBER);
   printStatus (summary);
  
-  expect = /TypeError: /;
+  expect = 'TypeError: XML filtering predicate operator called on incompatible Number';
 
   try
   {
@@ -64,7 +64,7 @@ function test()
     actual = ex + '';
   }
 
-  reportMatch(expect, actual, summary);
+  reportCompare(expect, actual, summary);
 
   exitFunc ('test');
 }

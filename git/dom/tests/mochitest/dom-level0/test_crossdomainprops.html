@@ -27,7 +27,7 @@ function runTest() {
   catch (e) {
     otherDomainVar = -1;
   }
-  is(otherDomainVar, -1, "access other domain inner window variable");
+  ok(otherDomainVar == -1, "access other domain inner window variable");
   SimpleTest.finish();
 }
 

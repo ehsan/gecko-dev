@@ -54,16 +54,10 @@
 #include "nsXULElement.h"
 #endif
 
-// This macro expects the ownerDocument of content_ to be in scope as
-// |nsIDocument* doc|
 #define IMPL_MUTATION_NOTIFICATION(func_, content_, params_)      \
   PR_BEGIN_MACRO                                                  \
   nsINode* node = content_;                                       \
-  NS_ASSERTION(node->GetOwnerDoc() == doc, "Bogus document");     \
-  if (doc) {                                                      \
-    static_cast<nsIMutationObserver*>(doc->BindingManager())->    \
-      func_ params_;                                              \
-  }                                                               \
+  nsINode* prev;                                                  \
   do {                                                            \
     nsINode::nsSlots* slots = node->GetExistingSlots();           \
     if (slots && !slots->mMutationObservers.IsEmpty()) {          \
@@ -73,19 +67,17 @@
         slots->mMutationObservers, nsIMutationObserver,           \
         func_, params_);                                          \
     }                                                             \
+    prev = node;                                                  \
     node = node->GetNodeParent();                                 \
+                                                                  \
+    if (!node && prev->HasFlag(NODE_FORCE_XBL_BINDINGS)) {        \
+      /* For elements that have the NODE_FORCE_XBL_BINDINGS flag  \
+         set we need to notify the document */                    \
+      node = prev->GetOwnerDoc();                                 \
+    }                                                             \
   } while (node);                                                 \
   PR_END_MACRO
 
-
-void
-nsNodeUtils::CharacterDataWillChange(nsIContent* aContent,
-                                     CharacterDataChangeInfo* aInfo)
-{
-  nsIDocument* doc = aContent->GetOwnerDoc();
-  IMPL_MUTATION_NOTIFICATION(CharacterDataWillChange, aContent,
-                             (doc, aContent, aInfo));
-}
 
 void
 nsNodeUtils::CharacterDataChanged(nsIContent* aContent,
@@ -113,10 +105,10 @@ void
 nsNodeUtils::ContentAppended(nsIContent* aContainer,
                              PRInt32 aNewIndexInContainer)
 {
-  nsIDocument* doc = aContainer->GetOwnerDoc();
+  nsIDocument* document = aContainer->GetOwnerDoc();
 
   IMPL_MUTATION_NOTIFICATION(ContentAppended, aContainer,
-                             (doc, aContainer, aNewIndexInContainer));
+                             (document, aContainer, aNewIndexInContainer));
 }
 
 void
@@ -128,11 +120,10 @@ nsNodeUtils::ContentInserted(nsINode* aContainer,
                   aContainer->IsNodeOfType(nsINode::eDOCUMENT),
                   "container must be an nsIContent or an nsIDocument");
   nsIContent* container;
-  nsIDocument* doc = aContainer->GetOwnerDoc();
   nsIDocument* document;
   if (aContainer->IsNodeOfType(nsINode::eCONTENT)) {
     container = static_cast<nsIContent*>(aContainer);
-    document = doc;
+    document = aContainer->GetOwnerDoc();
   }
   else {
     container = nsnull;
@@ -152,11 +143,10 @@ nsNodeUtils::ContentRemoved(nsINode* aContainer,
                   aContainer->IsNodeOfType(nsINode::eDOCUMENT),
                   "container must be an nsIContent or an nsIDocument");
   nsIContent* container;
-  nsIDocument* doc = aContainer->GetOwnerDoc();
   nsIDocument* document;
   if (aContainer->IsNodeOfType(nsINode::eCONTENT)) {
     container = static_cast<nsIContent*>(aContainer);
-    document = doc;
+    document = aContainer->GetOwnerDoc();
   }
   else {
     container = nsnull;
@@ -233,13 +223,6 @@ nsNodeUtils::LastRelease(nsINode* aNode)
 
     nsContentUtils::RemoveListenerManager(aNode);
     aNode->UnsetFlags(NODE_HAS_LISTENERMANAGER);
-  }
-
-  if (aNode->IsNodeOfType(nsINode::eELEMENT)) {
-    nsIDocument* ownerDoc = aNode->GetOwnerDoc();
-    if (ownerDoc) {
-      ownerDoc->ClearBoxObjectFor(static_cast<nsIContent*>(aNode));
-    }
   }
 
   delete aNode;
@@ -390,7 +373,6 @@ NoteUserData(void *aObject, nsIAtom *aKey, void *aXPCOMChild, void *aData)
 {
   nsCycleCollectionTraversalCallback* cb =
     static_cast<nsCycleCollectionTraversalCallback*>(aData);
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "[user data (or handler)]");
   cb->NoteXPCOMChild(static_cast<nsISupports*>(aXPCOMChild));
 }
 
@@ -552,9 +534,6 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
     nsCOMPtr<nsISupports> oldRef;
     nsIDocument* oldDoc = aNode->GetOwnerDoc();
     if (oldDoc) {
-      if (aNode->IsNodeOfType(nsINode::eELEMENT)) {
-        oldDoc->ClearBoxObjectFor(static_cast<nsIContent*>(aNode));
-      }
       oldRef = oldDoc->GetReference(aNode);
       if (oldRef) {
         oldDoc->RemoveReference(aNode);

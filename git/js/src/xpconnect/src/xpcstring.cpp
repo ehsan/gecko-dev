@@ -132,8 +132,10 @@ XPCStringConvert::ReadableToJSString(JSContext *cx,
 
 // static
 XPCReadableJSStringWrapper *
-XPCStringConvert::JSStringToReadable(XPCCallContext& ccx, JSString *str)
+XPCStringConvert::JSStringToReadable(JSString *str)
 {
-    return ccx.NewStringWrapper(reinterpret_cast<PRUnichar *>(JS_GetStringChars(str)),
-                                JS_GetStringLength(str));
+    return new
+        XPCReadableJSStringWrapper(reinterpret_cast<PRUnichar *>
+                                                   (JS_GetStringChars(str)),
+                                   JS_GetStringLength(str));
 }

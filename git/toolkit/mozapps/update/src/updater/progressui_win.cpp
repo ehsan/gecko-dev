@@ -43,7 +43,6 @@
 #include <process.h>
 #include <io.h>
 #include "resource.h"
-#include "progressui.h"
 
 #define TIMER_ID 1
 #define TIMER_INTERVAL 100
@@ -73,16 +72,16 @@ static BOOL  sQuit = FALSE;
 static HFONT sSystemFont = 0;
 
 static BOOL
-GetStringsFile(WCHAR filename[MAX_PATH])
+GetStringsFile(char filename[MAX_PATH])
 {
-  if (!GetModuleFileNameW(NULL, filename, MAX_PATH))
-    return FALSE;
- 
-  WCHAR *dot = wcsrchr(filename, '.');
-  if (!dot || wcsicmp(dot + 1, L"exe"))
+  if (!GetModuleFileName(NULL, filename, MAX_PATH))
     return FALSE;
 
-  wcscpy(dot + 1, L"ini");
+  char *dot = strrchr(filename, '.');
+  if (!dot || stricmp(dot + 1, "exe"))
+    return FALSE;
+
+  strcpy(dot + 1, "ini");
   return TRUE;
 }
 
@@ -96,7 +95,7 @@ UpdateDialog(HWND hDlg)
 static void
 ResizeDialogToFit(HWND hDlg)
 {
-  WCHAR text[MAX_INFO_LENGTH];
+  char text[MAX_INFO_LENGTH];
   RECT infoSize, textSize;
   HFONT hInfoFont, hOldFont;
 
@@ -174,23 +173,23 @@ CenterDialog(HWND hDlg)
 }
 
 static void
-SetItemText(HWND hwnd, const WCHAR *key, const WCHAR *ini)
+SetItemText(HWND hwnd, const char *key, const char *ini)
 {
-  WCHAR text[MAX_INFO_LENGTH];
-  if (!GetPrivateProfileStringW(L"Strings", key, NULL, text, sizeof(text), ini))
+  char text[MAX_INFO_LENGTH];
+  if (!GetPrivateProfileString("Strings", key, NULL, text, sizeof(text), ini))
     return;
-  SetWindowTextW(hwnd, text);
+  SetWindowText(hwnd, text);
 }
 
 static void
 InitDialog(HWND hDlg)
 {
-  WCHAR filename[MAX_PATH];
+  char filename[MAX_PATH];
   if (!GetStringsFile(filename))
     return;
 
-  SetItemText(hDlg, L"Title", filename);
-  SetItemText(GetDlgItem(hDlg, IDC_INFO), L"Info", filename);
+  SetItemText(hDlg, "Title", filename);
+  SetItemText(GetDlgItem(hDlg, IDC_INFO), "Info", filename);
 
   // On Win9x, we need to send WM_SETFONT for l10n builds.  Yes, we shouldn't
   // use the system font.  For example, if the text has Japanese characters on
@@ -251,7 +250,7 @@ DialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 }
 
 int
-InitProgressUI(int *argc, NS_tchar ***argv)
+InitProgressUI(int *argc, char ***argv)
 {
   return 0;
 }
@@ -268,10 +267,10 @@ ShowProgressUI()
     return 0;
 
   // If we do not have updater.ini, then we should not bother showing UI.
-  WCHAR filename[MAX_PATH];
+  char filename[MAX_PATH];
   if (!GetStringsFile(filename))
     return -1;
-  if (_waccess(filename, 04))
+  if (_access(filename, 04))
     return -1;
 
   INITCOMMONCONTROLSEX icc = {

@@ -42,6 +42,7 @@
 #include "nsCOMPtr.h"
 #include "nsFrame.h"
 #include "nsPresContext.h"
+#include "nsUnitConversion.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
 #include "nsIRenderingContext.h"
@@ -73,7 +74,7 @@ nsMathMLmmultiscriptsFrame::TransmitAutomaticData()
   // The REC says:
   // The <mmultiscripts> element increments scriptlevel by 1, and sets
   // displaystyle to "false", within each of its arguments except base
-  UpdatePresentationDataFromChildAt(1, -1,
+  UpdatePresentationDataFromChildAt(1, -1, 1,
     ~NS_MATHML_DISPLAYSTYLE, NS_MATHML_DISPLAYSTYLE);
 
   // The TeXbook (Ch 17. p.141) says the superscript inherits the compression
@@ -106,7 +107,7 @@ nsMathMLmmultiscriptsFrame::TransmitAutomaticData()
   }
   for (PRInt32 i = subScriptFrames.Count() - 1; i >= 0; i--) {
     childFrame = (nsIFrame*)subScriptFrames[i];
-    PropagatePresentationDataFor(childFrame,
+    PropagatePresentationDataFor(childFrame, 0,
       NS_MATHML_COMPRESSED, NS_MATHML_COMPRESSED);
   }
 
@@ -140,7 +141,7 @@ nsMathMLmmultiscriptsFrame::ProcessAttributes()
   }
 }
 
-/* virtual */ nsresult
+NS_IMETHODIMP
 nsMathMLmmultiscriptsFrame::Place(nsIRenderingContext& aRenderingContext,
                                   PRBool               aPlaceOrigin,
                                   nsHTMLReflowMetrics& aDesiredSize)
@@ -158,8 +159,7 @@ nsMathMLmmultiscriptsFrame::Place(nsIRenderingContext& aRenderingContext,
   ProcessAttributes();
 
   // get x-height (an ex)
-  const nsStyleFont* font = GetStyleFont();
-  aRenderingContext.SetFont(font->mFont, nsnull);
+  aRenderingContext.SetFont(GetStyleFont()->mFont, nsnull);
   nsCOMPtr<nsIFontMetrics> fm;
   aRenderingContext.GetFontMetrics(*getter_AddRefs(fm));
 
@@ -218,7 +218,7 @@ nsMathMLmmultiscriptsFrame::Place(nsIRenderingContext& aRenderingContext,
   // get sup script shift depending on current script level and display style
   // Rule 18c, App. G, TeXbook
   nscoord supScriptShift;
-  if ( font->mScriptLevel == 0 &&
+  if ( mPresentationData.scriptLevel == 0 &&
        NS_MATHML_IS_DISPLAYSTYLE(mPresentationData.flags) &&
       !NS_MATHML_IS_COMPRESSED(mPresentationData.flags)) {
     // Style D in TeXbook

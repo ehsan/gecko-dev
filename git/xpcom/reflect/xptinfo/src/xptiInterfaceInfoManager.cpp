@@ -69,14 +69,8 @@ xptiInterfaceInfoManager::GetInterfaceInfoManagerNoAddRef()
         }
 
         gInterfaceInfoManager = new xptiInterfaceInfoManager(searchPath);
-        if(!gInterfaceInfoManager)
-        {
-            NS_ERROR("can't instantiate xptiInterfaceInfoManager");
-            return nsnull;
-        }
-
-        NS_ADDREF(gInterfaceInfoManager);
-
+        if(gInterfaceInfoManager)
+            NS_ADDREF(gInterfaceInfoManager);
         if(!gInterfaceInfoManager->IsValid())
         {
             NS_RELEASE(gInterfaceInfoManager);

@@ -98,9 +98,6 @@
 #include "nsISelectionController.h"
 #include "nsFrameSelection.h"
 #include "nsIDOMEventTarget.h"
-#include "nsWidgetsCID.h"
-
-static NS_DEFINE_CID(kHTMLConverterCID,        NS_HTMLFORMATCONVERTER_CID);
 
 // private clipboard data flavors for html copy, used by editor when pasting
 #define kHTMLContext   "text/_moz_htmlcontext"
@@ -140,8 +137,11 @@ private:
   static void GetSelectedLink(nsISelection* inSelection,
                               nsIDOMNode **outLinkNode);
 
+  enum serializationMode {serializeAsText, serializeAsHTML};
   // if inNode is null, use the selection from the window
-  static nsresult SerializeNodeOrSelection(nsIDOMWindow* inWindow,
+  static nsresult SerializeNodeOrSelection(serializationMode inMode,
+                                           PRUint32 inFlags,
+                                           nsIDOMWindow* inWindow,
                                            nsIDOMNode* inNode,
                                            nsAString& outResultString,
                                            nsAString& outHTMLContext,
@@ -1338,24 +1338,16 @@ nsTransferableFactory::Produce(PRBool* aDragSelection,
       nodeToSerialize = nsnull;
     }
 
-    SerializeNodeOrSelection(window, nodeToSerialize,
+    SerializeNodeOrSelection(serializeAsHTML,
+                             nsIDocumentEncoder::OutputAbsoluteLinks |
+                             nsIDocumentEncoder::OutputEncodeW3CEntities,
+                             window, nodeToSerialize,
                              mHtmlString, mContextString, mInfoString);
 
-    nsCOMPtr<nsIFormatConverter> htmlConverter =
-      do_CreateInstance(kHTMLConverterCID);
-    NS_ENSURE_TRUE(htmlConverter, NS_ERROR_FAILURE);
-
-    nsCOMPtr<nsISupportsString> html =
-      do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID);
-    NS_ENSURE_TRUE(html, NS_ERROR_FAILURE);
-    html->SetData(mHtmlString);
-
-    nsCOMPtr<nsISupportsString> text;
-    PRUint32 textLen;
-    htmlConverter->Convert(kHTMLMime, html, mHtmlString.Length() * 2,
-                           kUnicodeMime, getter_AddRefs(text), &textLen);
-    NS_ENSURE_TRUE(text, NS_ERROR_FAILURE);
-    text->GetData(mTitleString);
+    nsAutoString dummy1, dummy2;
+    SerializeNodeOrSelection(serializeAsText, 0,
+                             window, nodeToSerialize,
+                             mTitleString, dummy1, dummy2);
 
 #ifdef CHANGE_SELECTION_ON_DRAG
     // We used to change the selection to wrap the dragged node (mainly
@@ -1696,7 +1688,9 @@ void nsTransferableFactory::GetSelectedLink(nsISelection* inSelection,
 
 // static
 nsresult
-nsTransferableFactory::SerializeNodeOrSelection(nsIDOMWindow* inWindow,
+nsTransferableFactory::SerializeNodeOrSelection(serializationMode inMode,
+                                                PRUint32 inFlags,
+                                                nsIDOMWindow* inWindow,
                                                 nsIDOMNode* inNode,
                                                 nsAString& outResultString,
                                                 nsAString& outContext,
@@ -1705,16 +1699,22 @@ nsTransferableFactory::SerializeNodeOrSelection(nsIDOMWindow* inWindow,
   NS_ENSURE_ARG_POINTER(inWindow);
 
   nsresult rv;
-  nsCOMPtr<nsIDocumentEncoder> encoder =
-    do_CreateInstance(NS_HTMLCOPY_ENCODER_CONTRACTID);
-  NS_ENSURE_TRUE(encoder, NS_ERROR_FAILURE);
+  nsCOMPtr<nsIDocumentEncoder> encoder;
+  static const char *textplain = "text/plain";
+
+  if (inMode == serializeAsText) {
+    nsCAutoString formatType(NS_DOC_ENCODER_CONTRACTID_BASE);
+    formatType.Append(textplain);
+    encoder = do_CreateInstance(formatType.get(), &rv);
+  } else {
+    encoder = do_CreateInstance(NS_HTMLCOPY_ENCODER_CONTRACTID, &rv);
+  }
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIDOMDocument> domDoc;
   inWindow->GetDocument(getter_AddRefs(domDoc));
   NS_ENSURE_TRUE(domDoc, NS_ERROR_FAILURE);
 
-  PRUint32 flags = nsIDocumentEncoder::OutputAbsoluteLinks |
-                   nsIDocumentEncoder::OutputEncodeHTMLEntities;
   nsCOMPtr<nsIDOMRange> range;
   nsCOMPtr<nsISelection> selection;
   if (inNode) {
@@ -1725,16 +1725,26 @@ nsTransferableFactory::SerializeNodeOrSelection(nsIDOMWindow* inWindow,
     NS_ENSURE_SUCCESS(rv, rv);
   } else {
     inWindow->GetSelection(getter_AddRefs(selection));
-    flags |= nsIDocumentEncoder::OutputSelectionOnly;
+    inFlags |= nsIDocumentEncoder::OutputSelectionOnly;
   }
 
-  rv = encoder->Init(domDoc, NS_LITERAL_STRING(kHTMLMime), flags);
+  if (inMode == serializeAsText) {
+    rv = encoder->Init(domDoc, NS_ConvertASCIItoUTF16(textplain), inFlags);
+  } else {
+    rv = encoder->Init(domDoc, NS_LITERAL_STRING(kHTMLMime), inFlags);
+  }
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (range) {
     encoder->SetRange(range);
   } else if (selection) {
     encoder->SetSelection(selection);
+  }
+
+  if (inMode == serializeAsText) {
+    outContext.Truncate();
+    outInfo.Truncate();
+    return encoder->EncodeToString(outResultString);
   }
 
   return encoder->EncodeToStringWithContext(outContext, outInfo,

@@ -56,8 +56,7 @@ class nsISO2022CNToUnicode : public nsBasicDecoderSupport
 public:
   nsISO2022CNToUnicode() : 
         mState(eState_ASCII), 
-        mPlaneID(0),
-        mRunLength(0) { }
+        mPlaneID(0) { }
 
   virtual ~nsISO2022CNToUnicode() {}
 
@@ -75,7 +74,6 @@ public:
   {
     mState = eState_ASCII;
     mPlaneID = 0;
-    mRunLength = 0;
 
     return NS_OK;
   }
@@ -119,9 +117,6 @@ private:
 
   // Plane number for CNS11643 code
   int mPlaneID;
-
-  // Length of non-ASCII run
-  PRUint32 mRunLength;
 
   // Decoder handler
   nsCOMPtr<nsIUnicodeDecoder> mGB2312_Decoder;

@@ -47,7 +47,6 @@
 #include "nsIJSRuntimeService.h"
 #include "nsIServiceManager.h"
 #include "nsMemory.h"
-#include "nsStringBuffer.h"
 
 JS_STATIC_DLL_CALLBACK(void *)
 nsGetPrincipalArray(JSContext *cx, JSPrincipals *prin)
@@ -94,7 +93,8 @@ nsDestroyJSPrincipals(JSContext *cx, struct JSPrincipals *jsprin)
 #else
     nsjsprin->refcount++;
 #endif
-    nsjsprin->nsIPrincipalPtr->Release();
+    if (nsjsprin->nsIPrincipalPtr)
+        nsjsprin->nsIPrincipalPtr->Release();
     // The nsIPrincipal that we release owns the JSPrincipal struct,
     // so we don't need to worry about "codebase"
 }
@@ -198,7 +198,7 @@ nsJSPrincipals::nsJSPrincipals()
 }
 
 nsresult
-nsJSPrincipals::Init(nsIPrincipal *aPrincipal, const nsCString& aCodebase)
+nsJSPrincipals::Init(nsIPrincipal *aPrincipal, const char *aCodebase)
 {
     if (nsIPrincipalPtr) {
         NS_ERROR("Init called twice!");
@@ -206,30 +206,15 @@ nsJSPrincipals::Init(nsIPrincipal *aPrincipal, const nsCString& aCodebase)
     }
 
     nsIPrincipalPtr = aPrincipal;
-    nsStringBuffer* buf = nsStringBuffer::FromString(aCodebase);
-    char* data;
-    if (buf) {
-        buf->AddRef();
-        data = static_cast<char*>(buf->Data());
-    } else {
-        PRUint32 len = aCodebase.Length();
-        buf = nsStringBuffer::Alloc(len + 1); // addrefs
-        if (!buf) {
-            return NS_ERROR_OUT_OF_MEMORY;
-        }
-        data = static_cast<char*>(buf->Data());
-        memcpy(data, aCodebase.get(), len);
-        data[len] = '\0';
-    }
-    
-    codebase = data;
+    codebase = PL_strdup(aCodebase);
+    if (!codebase)
+        return NS_ERROR_OUT_OF_MEMORY;
 
     return NS_OK;
 }
 
 nsJSPrincipals::~nsJSPrincipals()
 {
-    if (codebase) {
-        nsStringBuffer::FromData(codebase)->Release();
-    }
+    if (codebase)
+        PL_strfree(codebase);
 }

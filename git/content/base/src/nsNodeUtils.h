@@ -49,21 +49,12 @@ class nsNodeInfoManager;
 class nsIVariant;
 class nsIDOMUserDataHandler;
 template<class E> class nsCOMArray;
-class nsCycleCollectionTraversalCallback;
+struct nsCycleCollectionTraversalCallback;
 struct CharacterDataChangeInfo;
 
 class nsNodeUtils
 {
 public:
-  /**
-   * Send CharacterDataWillChange notifications to nsIMutationObservers.
-   * @param aContent  Node whose data changed
-   * @param aInfo     Struct with information details about the change
-   * @see nsIMutationObserver::CharacterDataWillChange
-   */
-  static void CharacterDataWillChange(nsIContent* aContent,
-                                      CharacterDataChangeInfo* aInfo);
-
   /**
    * Send CharacterDataChanged notifications to nsIMutationObservers.
    * @param aContent  Node whose data changed

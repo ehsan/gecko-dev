@@ -45,8 +45,8 @@ class nsIDocument;
 class nsINode;
 
 #define NS_IMUTATION_OBSERVER_IID \
-{ 0x32e68316, 0x67d4, 0x44a5, \
- { 0x8d, 0x35, 0xd, 0x39, 0xf, 0xa9, 0xdf, 0x11 } }
+{ 0x93542eb8, 0x98e1, 0x46f6, \
+ { 0xbb, 0xa2, 0x90, 0x54, 0x05, 0xfe, 0xbe, 0xf9 } }
 
 /**
  * Information details about a characterdata change
@@ -77,22 +77,6 @@ public:
 
   /**
    * Notification that the node value of a data node (text, cdata, pi, comment)
-   * will be changed.
-   *
-   * This notification is not sent when a piece of content is
-   * added/removed from the document (the other notifications are used
-   * for that).
-   *
-   * @param aDocument The owner-document of aContent. Can be null.
-   * @param aContent  The piece of content that changed. Is never null.
-   * @param aInfo     The structure with information details about the change.
-   */
-  virtual void CharacterDataWillChange(nsIDocument *aDocument,
-                                       nsIContent* aContent,
-                                       CharacterDataChangeInfo* aInfo) = 0;
-
-  /**
-   * Notification that the node value of a data node (text, cdata, pi, comment)
    * has changed.
    *
    * This notification is not sent when a piece of content is
@@ -101,7 +85,7 @@ public:
    *
    * @param aDocument The owner-document of aContent. Can be null.
    * @param aContent  The piece of content that changed. Is never null.
-   * @param aInfo     The structure with information details about the change.
+   * @param aAppend   Whether the change was an append
    */
   virtual void CharacterDataChanged(nsIDocument *aDocument,
                                     nsIContent* aContent,
@@ -210,11 +194,6 @@ public:
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIMutationObserver, NS_IMUTATION_OBSERVER_IID)
 
-#define NS_DECL_NSIMUTATIONOBSERVER_CHARACTERDATAWILLCHANGE                  \
-    virtual void CharacterDataWillChange(nsIDocument* aDocument,             \
-                                         nsIContent* aContent,               \
-                                         CharacterDataChangeInfo* aInfo);
-
 #define NS_DECL_NSIMUTATIONOBSERVER_CHARACTERDATACHANGED                     \
     virtual void CharacterDataChanged(nsIDocument* aDocument,                \
                                       nsIContent* aContent,                  \
@@ -252,7 +231,6 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIMutationObserver, NS_IMUTATION_OBSERVER_IID)
     virtual void ParentChainChanged(nsIContent *aContent);
 
 #define NS_DECL_NSIMUTATIONOBSERVER                                          \
-    NS_DECL_NSIMUTATIONOBSERVER_CHARACTERDATAWILLCHANGE                      \
     NS_DECL_NSIMUTATIONOBSERVER_CHARACTERDATACHANGED                         \
     NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED                             \
     NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED                              \
@@ -268,12 +246,6 @@ _class::NodeWillBeDestroyed(const nsINode* aNode)                               
 }
 
 #define NS_IMPL_NSIMUTATIONOBSERVER_CONTENT(_class)                       \
-void                                                                      \
-_class::CharacterDataWillChange(nsIDocument* aDocument,                   \
-                                nsIContent* aContent,                     \
-                                CharacterDataChangeInfo* aInfo)           \
-{                                                                         \
-}                                                                         \
 void                                                                      \
 _class::CharacterDataChanged(nsIDocument* aDocument,                      \
                              nsIContent* aContent,                        \

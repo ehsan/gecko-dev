@@ -5,21 +5,7 @@
 #   "Except where otherwise noted, recipes in the Python Cookbook are published under the Python license ."
 #   This recipe is covered under the Python license: http://www.python.org/license
 
-import httplib, mimetypes, urllib2
-from socket import error, herror, gaierror, timeout
-
-def link_exists(host, selector):
-    """
-    Check to see if the given host exists and is reachable
-    """
-    try:
-      site = urllib2.urlopen("http://" + host + selector)
-      meta = site.info()
-    except urllib2.URLError, e:
-      print "FAIL: graph server does not resolve" 
-      print "FAIL: " + str(e.reason)
-      return 0
-    return 1
+import httplib, mimetypes
 
 def post_multipart(host, selector, fields, files):
     """
@@ -28,23 +14,15 @@ def post_multipart(host, selector, fields, files):
     files is a sequence of (name, filename, value) elements for data to be uploaded as files
     Return the server's response page.
     """
-    try:
-      content_type, body = encode_multipart_formdata(fields, files)
-      h = httplib.HTTP(host)
-      h.putrequest('POST', selector)
-      h.putheader('content-type', content_type)
-      h.putheader('content-length', str(len(body)))
-      h.endheaders()
-      h.send(body)
-      errcode, errmsg, headers = h.getreply()
-      return h.file.read()
-    except (httplib.HTTPException, error, herror, gaierror, timeout), e:
-      print "FAIL: graph server unreachable"
-      print "FAIL: " + str(e)
-      raise
-    except:
-      print "FAIL: graph server unreachable"
-      raise
+    content_type, body = encode_multipart_formdata(fields, files)
+    h = httplib.HTTP(host)
+    h.putrequest('POST', selector)
+    h.putheader('content-type', content_type)
+    h.putheader('content-length', str(len(body)))
+    h.endheaders()
+    h.send(body)
+    errcode, errmsg, headers = h.getreply()
+    return h.file.read()
 
 def encode_multipart_formdata(fields, files):
     """

@@ -23,7 +23,6 @@
  * Contributor(s):
  *   Stuart Parmenter <pavlov@netscape.com>
  *   Chris Saari <saari@netscape.com>
- *   Federico Mena-Quintero <federico@novell.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -59,7 +58,6 @@
 #include "nsIProperties.h"
 #include "nsITimer.h"
 #include "nsWeakReference.h"
-#include "nsTArray.h"
 
 #define NS_IMGCONTAINER_CID \
 { /* 27f0682c-ff64-4dd2-ae7a-668e59f2fd38 */         \
@@ -105,7 +103,7 @@
  *
  * @note
  * <li> "Mask", "Alpha", and "Alpha Level" are interchangable phrases in
- * respects to imgContainer.
+ * respects to imgContainerGIF.
  *
  * @par
  * <li> GIFs never have more than a 1 bit alpha.
@@ -145,6 +143,8 @@ public:
   virtual ~imgContainer();
 
 private:
+  friend class nsGIFDecoder2;
+  
   struct Anim
   {
     //! Area of the first frame that needs to be redrawn on subsequent loops.
@@ -194,8 +194,14 @@ private:
         timer->Cancel();
     }
   };
-
-  gfxIImageFrame* GetCurrentFrameNoRef();
+  
+  inline gfxIImageFrame* inlinedGetCurrentFrame() {
+    if (!mAnim)
+      return mFrames.SafeObjectAt(0);
+    if (mAnim->lastCompositedFrameIndex == mAnim->currentAnimationFrameIndex)
+      return mAnim->compositingFrame;
+    return mFrames.SafeObjectAt(mAnim->currentAnimationFrameIndex);
+  }
   
   inline Anim* ensureAnimExists() {
     if (!mAnim)
@@ -265,29 +271,13 @@ private:
   static PRBool CopyFrameImage(gfxIImageFrame *aSrcFrame,
                                gfxIImageFrame *aDstFrame);
   
-  /** Draws one gfxIImageFrame's image to into another,
-   * at the position specified by aRect
-   *
-   * @param aSrcFrame  Frame providing the source image
-   * @param aDstFrame  Frame where the image is drawn into
-   * @param aRect      The position and size to draw the image
-   */
-  static nsresult DrawFrameTo(gfxIImageFrame *aSrcFrame,
-                              gfxIImageFrame *aDstFrame,
-                              nsIntRect& aRect);
-
   nsIntSize                  mSize;
   
   //! All the <gfxIImageFrame>s of the PNG
-  // *** IMPORTANT: if you use mFrames in a method, call RestoreDiscardedData() first to ensure
-  //     that the frames actually exist (they may have been discarded to save memory).
   nsCOMArray<gfxIImageFrame> mFrames;
-  int                        mNumFrames; /* stored separately from mFrames.Count() to support discarded images */
   
   nsCOMPtr<nsIProperties>    mProperties;
-
-  // *** IMPORTANT: if you use mAnim in a method, call RestoreDiscardedData() first to ensure
-  //     that the frames actually exist (they may have been discarded to save memory).
+  
   imgContainer::Anim*        mAnim;
   
   //! See imgIContainer for mode constants
@@ -298,19 +288,6 @@ private:
   
   //! imgIContainerObserver
   nsWeakPtr                  mObserver;
-
-  PRBool                     mDiscardable;
-  PRBool                     mDiscarded;
-  nsCString                  mDiscardableMimeType;
-
-  nsTArray<char>             mRestoreData;
-  PRBool                     mRestoreDataDone;
-  nsCOMPtr<nsITimer>         mDiscardTimer;
-
-  nsresult ResetDiscardTimer (void);
-  nsresult RestoreDiscardedData (void);
-  nsresult ReloadImages (void);
-  static void sDiscardTimerCallback (nsITimer *aTimer, void *aClosure);
 };
 
 #endif /* __imgContainer_h__ */

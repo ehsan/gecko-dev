@@ -48,7 +48,6 @@
 #include "nsISelectElement.h"
 #include "nsIDOMHTMLSelectElement.h"
 #include "nsEventDispatcher.h"
-#include "nsHTMLSelectElement.h"
 
 /**
  * The implementation of &lt;optgroup&gt;
@@ -115,11 +114,11 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLOptGroupElement, nsGenericElement)
 
 
 // QueryInterface implementation for nsHTMLOptGroupElement
-NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLOptGroupElement,
-                                     nsGenericHTMLElement)
-  NS_INTERFACE_TABLE_INHERITED1(nsHTMLOptGroupElement,
-                                nsIDOMHTMLOptGroupElement)
-NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLOptGroupElement)
+NS_HTML_CONTENT_INTERFACE_MAP_BEGIN(nsHTMLOptGroupElement,
+                                    nsGenericHTMLElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMHTMLOptGroupElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(HTMLOptGroupElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
 
 
 NS_IMPL_ELEMENT_CLONE(nsHTMLOptGroupElement)
@@ -175,23 +174,23 @@ nsHTMLOptGroupElement::InsertChildAt(nsIContent* aKid,
                                      PRUint32 aIndex,
                                      PRBool aNotify)
 {
-  nsSafeOptionListMutation safeMutation(GetSelect(), this, aKid, aIndex);
-  nsresult rv = nsGenericHTMLElement::InsertChildAt(aKid, aIndex, aNotify);
-  if (NS_FAILED(rv)) {
-    safeMutation.MutationFailed();
+  nsCOMPtr<nsISelectElement> sel = do_QueryInterface(GetSelect());
+  if (sel) {
+    sel->WillAddOptions(aKid, this, aIndex);
   }
-  return rv;
+
+  return nsGenericHTMLElement::InsertChildAt(aKid, aIndex, aNotify);
 }
 
 nsresult
 nsHTMLOptGroupElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
 {
-  nsSafeOptionListMutation safeMutation(GetSelect(), this, nsnull, aIndex);
-  nsresult rv = nsGenericHTMLElement::RemoveChildAt(aIndex, aNotify);
-  if (NS_FAILED(rv)) {
-    safeMutation.MutationFailed();
+  nsCOMPtr<nsISelectElement> sel = do_QueryInterface(GetSelect());
+  if (sel) {
+    sel->WillRemoveOptions(this, aIndex);
   }
-  return rv;
+
+  return nsGenericHTMLElement::RemoveChildAt(aIndex, aNotify);
 }
 
 PRInt32

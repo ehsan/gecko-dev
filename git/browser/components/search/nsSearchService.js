@@ -201,21 +201,10 @@ function isUsefulLine(aLine) {
 const SEARCH_LOG_PREFIX = "*** Search: ";
 
 /**
- * Outputs aText to the JavaScript console as well as to stdout.
+ * Outputs aText to the JavaScript console as well as to stdout, if the search
+ * logging pref (browser.search.log) is set to true.
  */
-function DO_LOG(aText) {
-  dump(SEARCH_LOG_PREFIX + aText + "\n");
-  var consoleService = Cc["@mozilla.org/consoleservice;1"].
-                       getService(Ci.nsIConsoleService);
-  consoleService.logStringMessage(aText);
-}
-
-#ifdef DEBUG
-/**
- * In debug builds, use a live, pref-based (browser.search.log) LOG function
- * to allow enabling/disabling without a restart.
- */
-function PREF_LOG(aText) {
+function LOG(aText) {
   var prefB = Cc["@mozilla.org/preferences-service;1"].
               getService(Ci.nsIPrefBranch);
   var shouldLog = false;
@@ -224,20 +213,12 @@ function PREF_LOG(aText) {
   } catch (ex) {}
 
   if (shouldLog) {
-    DO_LOG(aText);
+    dump(SEARCH_LOG_PREFIX + aText + "\n");
+    var consoleService = Cc["@mozilla.org/consoleservice;1"].
+                         getService(Ci.nsIConsoleService);
+    consoleService.logStringMessage(aText);
   }
 }
-var LOG = PREF_LOG;
-
-#else
-
-/**
- * Otherwise, don't log at all by default. This can be overridden at startup
- * by the pref, see SearchService's _init method.
- */
-var LOG = function(){};
-
-#endif
 
 function ERROR(message, resultCode) {
   NS_ASSERT(false, SEARCH_LOG_PREFIX + message);
@@ -310,8 +291,7 @@ loadListener.prototype = {
         aIID.equals(Ci.nsIStreamListener)     ||
         aIID.equals(Ci.nsIChannelEventSink)   ||
         aIID.equals(Ci.nsIInterfaceRequestor) ||
-        aIID.equals(Ci.nsIBadCertListener2)   ||
-        aIID.equals(Ci.nsISSLErrorListener)   ||
+        aIID.equals(Ci.nsIBadCertListener)    ||
         // See FIXME comment below
         aIID.equals(Ci.nsIHttpEventSink)      ||
         aIID.equals(Ci.nsIProgressEventSink)  ||
@@ -367,14 +347,22 @@ loadListener.prototype = {
     return this.QueryInterface(aIID);
   },
 
-  // nsIBadCertListener2
-  notifyCertProblem: function SRCH_certProblem(socketInfo, status, targetSite) {
-    return true;
+  // nsIBadCertListener
+  confirmUnknownIssuer: function SRCH_load_CUI(aSocketInfo, aCert,
+                                               aCertAddType) {
+    return false;
   },
 
-  // nsISSLErrorListener
-  notifySSLError: function SRCH_SSLError(socketInfo, error, targetSite) {
-    return true;
+  confirmMismatchDomain: function SRCH_load_CMD(aSocketInfo, aTargetURL,
+                                                aCert) {
+    return false;
+  },
+
+  confirmCertExpired: function SRCH_load_CCE(aSocketInfo, aCert) {
+    return false;
+  },
+
+  notifyCrlNextupdate: function SRCH_load_NCN(aSocketInfo, aTargetURL, aCert) {
   },
 
   // FIXME: bug 253127
@@ -1396,7 +1384,7 @@ Engine.prototype = {
     this._urls.push(new EngineURL("text/html", aMethod, aTemplate));
 
     this._name = aName;
-    this.alias = aAlias;
+    this._alias = aAlias;
     this._description = aDescription;
     this._setIcon(aIconURL, true);
 
@@ -1526,6 +1514,9 @@ Engine.prototype = {
           break;
 
         // Non-OpenSearch elements
+        case "Alias":
+          this._alias = child.textContent;
+          break;
         case "SearchForm":
           this._searchForm = child.textContent;
           break;
@@ -1902,6 +1893,7 @@ Engine.prototype = {
       }
     }
 
+    appendTextNode(MOZSEARCH_NS_10, "Alias", this.alias);
     appendTextNode(MOZSEARCH_NS_10, "UpdateInterval", this._updateInterval);
     appendTextNode(MOZSEARCH_NS_10, "UpdateUrl", this._updateURL);
     appendTextNode(MOZSEARCH_NS_10, "IconUpdateUrl", this._iconUpdateURL);
@@ -2216,18 +2208,6 @@ SearchService.prototype = {
   _needToSetOrderPrefs: false,
 
   _init: function() {
-    var prefB = Cc["@mozilla.org/preferences-service;1"].
-                getService(Ci.nsIPrefBranch);
-    var shouldLog = false;
-    try {
-      shouldLog = prefB.getBoolPref(BROWSER_SEARCH_PREF + "log");
-    } catch (ex) {}
-
-    if (shouldLog) {
-      // Replace the empty LOG function with the useful one
-      LOG = DO_LOG;
-    }
-
     engineMetadataService.init();
     engineUpdateService.init();
 
@@ -2564,7 +2544,7 @@ SearchService.prototype = {
         bStream.close();
 
         // Convert the byte array to a base64-encoded string
-        var str = btoa(String.fromCharCode.apply(null, bytes));
+        var str = b64(bytes);
 
         aEngine._iconURI = makeURI(ICON_DATAURL_PREFIX + str);
         LOG("_importSherlockEngine: Set sherlock iconURI to: \"" +
@@ -2754,12 +2734,6 @@ SearchService.prototype = {
       engineToRemove.hidden = true;
       engineToRemove.alias = null;
     } else {
-      // Cancel the lazy serialization timer if it's running
-      if (engineToRemove._serializeTimer) {
-        engineToRemove._serializeTimer.cancel();
-        engineToRemove._serializeTimer = null;
-      }
-
       // Remove the engine file from disk (this might throw)
       engineToRemove._remove();
       engineToRemove._file = null;

@@ -120,8 +120,8 @@ FixedTableLayoutStrategy::GetMinWidth(nsIRenderingContext* aRenderingContext)
                 if (styleWidth->GetUnit() == eStyleUnit_Coord ||
                     styleWidth->GetUnit() == eStyleUnit_Chars ||
                     (styleWidth->GetUnit() == eStyleUnit_Enumerated &&
-                     (styleWidth->GetIntValue() == NS_STYLE_WIDTH_MAX_CONTENT ||
-                      styleWidth->GetIntValue() == NS_STYLE_WIDTH_MIN_CONTENT))) {
+                     (styleWidth->GetIntValue() == NS_STYLE_WIDTH_INTRINSIC ||
+                      styleWidth->GetIntValue() == NS_STYLE_WIDTH_MIN_INTRINSIC))) {
                     nscoord cellWidth = nsLayoutUtils::IntrinsicForContainer(
                         aRenderingContext, cellFrame, nsLayoutUtils::MIN_WIDTH);
                     if (colSpan > 1) {
@@ -139,7 +139,7 @@ FixedTableLayoutStrategy::GetMinWidth(nsIRenderingContext* aRenderingContext)
                         result -= spacing * (colSpan - 1);
                     }
                 }
-                // else, for 'auto', '-moz-available', and '-moz-fit-content'
+                // else, for 'auto', '-moz-fill', and '-moz-shrink-wrap'
                 // do nothing
             }
         }
@@ -242,8 +242,8 @@ FixedTableLayoutStrategy::ComputeColumnWidths(const nsHTMLReflowState& aReflowSt
                 if (styleWidth->GetUnit() == eStyleUnit_Coord ||
                     styleWidth->GetUnit() == eStyleUnit_Chars ||
                     (styleWidth->GetUnit() == eStyleUnit_Enumerated &&
-                     (styleWidth->GetIntValue() == NS_STYLE_WIDTH_MAX_CONTENT ||
-                      styleWidth->GetIntValue() == NS_STYLE_WIDTH_MIN_CONTENT))) {
+                     (styleWidth->GetIntValue() == NS_STYLE_WIDTH_INTRINSIC ||
+                      styleWidth->GetIntValue() == NS_STYLE_WIDTH_MIN_INTRINSIC))) {
                     // XXX This should use real percentage padding
                     // Note that the difference between MIN_WIDTH and
                     // PREF_WIDTH shouldn't matter for any of these
@@ -264,7 +264,7 @@ FixedTableLayoutStrategy::ComputeColumnWidths(const nsHTMLReflowState& aReflowSt
                     colFrame->AddPrefPercent(pct);
                     pctTotal += pct;
                 } else {
-                    // 'auto', '-moz-available', and '-moz-fit-content'
+                    // 'auto', '-moz-fill', and '-moz-shrink-wrap'
                     colWidth = unassignedMarker;
                 }
                 if (colWidth != unassignedMarker) {

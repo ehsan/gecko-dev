@@ -44,20 +44,14 @@ var expect = 'No Crash';
 
 printBugNumber(BUGNUMBER);
 printStatus (summary);
-expectExitCode(3);
+expectExitCode(3)
 
-var a = new Array();
+  var a = new Array();
 
-try
+while (1)
 {
-  while (1)
-  {
-    (a = new Array(a)).sort();
-  }
-}
-catch(ex)
-{
-  print(ex + '');
+
+  (a = new Array(a)).sort();
 }
 
 reportCompare(expect, actual, summary);

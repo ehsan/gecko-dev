@@ -96,17 +96,16 @@ nsProxyAutoConfig.prototype = {
             return null;
 
         // Call the original function
-        try {
-            var rval = this._sandBox.FindProxyForURL(testURI, testHost);
-        } catch (e) {
-            throw XPCSafeJSObjectWrapper(e);
-        }
+        var rval = this._sandBox.FindProxyForURL(testURI, testHost);
         return rval;
     }
 }
 
 function proxyAlert(msg) {
-    msg = XPCSafeJSObjectWrapper(msg);
+    // Ensure that we have a string.
+    if (typeof msg != "string")
+        msg = new XPCSafeJSObjectWrapper(msg).toString();
+
     try {
         // It would appear that the console service is threadsafe.
         var cns = Components.classes["@mozilla.org/consoleservice;1"]
@@ -128,7 +127,9 @@ function myIpAddress() {
 
 // wrapper for resolving hostnames called by PAC file
 function dnsResolve(host) {
-    host = XPCSafeJSObjectWrapper(host);
+    if (typeof host != "string")
+        host = new XPCSafeJSObjectWrapper(host).toString();
+
     try {
         return dns.resolve(host, 0).getNextAddrAsString();
     } catch (e) {
@@ -243,14 +244,15 @@ var pacUtils =
 "   return newRe.test(url);\n" +
 "}\n" +
 
-"var wdays = {SUN: 0, MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6};\n" +
+"var wdays = new Array('SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT');\n" +
 
-"var months = {JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5, JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11};\n"+
+"var monthes = new Array('JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC');\n"+
 
 "function weekdayRange() {\n" +
 "    function getDay(weekday) {\n" +
-"        if (weekday in wdays) {\n" +
-"            return wdays[weekday];\n" +
+"        for (var i = 0; i < 6; i++) {\n" +
+"            if (weekday == wdays[i]) \n" +
+"                return i;\n" +
 "        }\n" +
 "        return -1;\n" +
 "    }\n" +
@@ -273,8 +275,9 @@ var pacUtils =
 
 "function dateRange() {\n" +
 "    function getMonth(name) {\n" +
-"        if (name in months) {\n" +
-"            return months[name];\n" +
+"        for (var i = 0; i < 6; i++) {\n" +
+"            if (name == monthes[i])\n" +
+"                return i;\n" +
 "        }\n" +
 "        return -1;\n" +
 "    }\n" +

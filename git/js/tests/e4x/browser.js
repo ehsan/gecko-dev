@@ -67,9 +67,16 @@ window.onerror = function (msg, page, line)
                               ' Section ' + SECTION, EXPECTED, "error");
 
   testcase.passed = false;
+  testcase.reason += msg;
 
-  testcase.reason = page + ':' + line + ': ' + msg;
-
+  if (typeof(page) != 'undefined')
+  {
+    testcase.reason += ' Page: ' + page;
+  }
+  if (typeof(line) != 'undefined')
+  {
+    testcase.reason += ' Line: ' + line;
+  }
   reportFailure(SECTION, msg);
 
   gDelayTestDriverEnd = false;

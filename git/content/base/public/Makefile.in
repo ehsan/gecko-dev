@@ -75,7 +75,6 @@ nsContentCreatorFunctions.h \
 nsLineBreaker.h \
 nsXMLNameSpaceMap.h \
 nsPresShellIterator.h \
-nsDOMFile.h \
 $(NULL)
 
 ifndef DISABLE_XFORMS_HOOKS
@@ -90,9 +89,6 @@ XPIDLSRCS	= \
 		nsIChromeRegistry.idl       \
 		nsIContentPolicy.idl        \
 		nsIDocumentEncoder.idl      \
-		nsIDOMFile.idl \
-		nsIDOMFileList.idl \
-		nsIDOMFileException.idl \
 		nsIDOMParser.idl \
 		nsIDOMSerializer.idl \
 		nsISelection2.idl \

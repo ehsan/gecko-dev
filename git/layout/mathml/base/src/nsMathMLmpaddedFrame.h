@@ -22,7 +22,6 @@
  * Contributor(s):
  *   Roger B. Sidje <rbs@maths.uq.edu.au>
  *   David J. Fiddes <D.J.Fiddes@hw.ac.uk>
- *   Karl Tomlinson <karlt+@karlt.net>, Mozilla Corporation
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -61,11 +60,6 @@ public:
          const nsHTMLReflowState& aReflowState,
          nsReflowStatus&          aStatus);
   
-  virtual nsresult
-  Place(nsIRenderingContext& aRenderingContext,
-        PRBool               aPlaceOrigin,
-        nsHTMLReflowMetrics& aDesiredSize);
-
 protected:
   nsMathMLmpaddedFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
   virtual ~nsMathMLmpaddedFrame();
@@ -98,13 +92,15 @@ private:
                  nsCSSValue& aCSSValue,
                  PRInt32&    aPseudoUnit);
 
-  void
-  UpdateValue(PRInt32                  aSign,
-              PRInt32                  aPseudoUnit,
-              const nsCSSValue&        aCSSValue,
-              nscoord                  aLeftSpace,
-              const nsBoundingMetrics& aBoundingMetrics,
-              nscoord&                 aValueToUpdate) const;
+  static void
+  UpdateValue(nsPresContext*      aPresContext,
+              nsStyleContext*      aStyleContext,
+              PRInt32              aSign,
+              PRInt32              aPseudoUnit,
+              nsCSSValue&          aCSSValue,
+              nscoord              aLeftSpace,
+              nsBoundingMetrics&   aBoundingMetrics,
+              nscoord&             aValueToUpdate);
 };
 
 #endif /* nsMathMLmpaddedFrame_h___ */

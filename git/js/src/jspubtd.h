@@ -523,14 +523,6 @@ typedef JSObject *
 (* JS_DLL_CALLBACK JSObjectOp)(JSContext *cx, JSObject *obj);
 
 /*
- * Hook that creates an iterator object for a given object. Returns the
- * iterator object or null if an error or exception was thrown on cx.
- */
-typedef JSObject *
-(* JS_DLL_CALLBACK JSIteratorOp)(JSContext *cx, JSObject *obj,
-                                 JSBool keysonly);
-
-/*
  * A generic type for functions taking a context, object, and property, with
  * no return value.  Used by JSObjectOps.dropProperty currently (see above,
  * JSDefinePropOp and JSLookupPropOp, for the object-locking protocol in which
@@ -541,9 +533,9 @@ typedef void
                                     JSProperty *prop);
 
 /*
- * Function pointer type for JSObjectOps.setProto and JSObjectOps.setParent.
- * These hooks must check for cycles without deadlocking, and otherwise take
- * special steps. See jsobj.c and jsgc.c for details.
+ * Function type for JSObjectOps.setProto and JSObjectOps.setParent.  These
+ * hooks must check for cycles without deadlocking, and otherwise take special
+ * steps.  See jsobj.c, js_SetProtoOrParent, for an example.
  */
 typedef JSBool
 (* JS_DLL_CALLBACK JSSetObjectSlotOp)(JSContext *cx, JSObject *obj,
@@ -597,10 +589,6 @@ typedef JSBool
 (* JS_DLL_CALLBACK JSNative)(JSContext *cx, JSObject *obj, uintN argc,
                              jsval *argv, jsval *rval);
 
-/* See jsapi.h, the JS_CALLEE, JS_THIS, etc. macros. */
-typedef JSBool
-(* JS_DLL_CALLBACK JSFastNative)(JSContext *cx, uintN argc, jsval *vp);
-
 /* Callbacks and their arguments. */
 
 typedef enum JSContextOp {
@@ -634,6 +622,9 @@ typedef enum JSGCStatus {
 typedef JSBool
 (* JS_DLL_CALLBACK JSGCCallback)(JSContext *cx, JSGCStatus status);
 
+typedef void
+(* JS_DLL_CALLBACK JSGCThingCallback)(void *thing, uint8 flags, void *closure);
+
 /*
  * Generic trace operation that calls JS_CallTracer on each traceable thing
  * stored in data.
@@ -641,12 +632,6 @@ typedef JSBool
 typedef void
 (* JS_DLL_CALLBACK JSTraceDataOp)(JSTracer *trc, void *data);
 
-typedef JSBool
-(* JS_DLL_CALLBACK JSOperationCallback)(JSContext *cx);
-
-/*
- * Deprecated form of JSOperationCallback.
- */
 typedef JSBool
 (* JS_DLL_CALLBACK JSBranchCallback)(JSContext *cx, JSScript *script);
 
@@ -673,7 +658,7 @@ typedef enum JSExnType {
 } JSExnType;
 
 typedef struct JSErrorFormatString {
-    /* The error format string (UTF-8 if js_CStringsAreUTF8). */
+    /* The error format string (UTF-8 if JS_C_STRINGS_ARE_UTF8 is defined). */
     const char *format;
 
     /* The number of arguments to expand in the formatted error message. */

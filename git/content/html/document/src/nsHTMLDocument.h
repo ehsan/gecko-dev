@@ -171,8 +171,6 @@ public:
   NS_IMETHOD Writeln(const nsAString & text);
   NS_IMETHOD GetElementsByName(const nsAString & elementName,
                                nsIDOMNodeList **_retval);
-  virtual nsresult GetDocumentAllResult(const nsAString& aID,
-                                        nsISupports** aResult);
 
   // nsIDOMNSHTMLDocument interface
   NS_DECL_NSIDOMNSHTMLDOCUMENT
@@ -187,7 +185,6 @@ public:
   virtual void AddedForm();
   virtual void RemovedForm();
   virtual PRInt32 GetNumFormsSynchronous();
-  virtual void TearingDownEditor(nsIEditor *aEditor);
 
   PRBool IsXHTML()
   {
@@ -203,25 +200,12 @@ public:
 
   nsresult ChangeContentEditableCount(nsIContent *aElement, PRInt32 aChange);
 
-  virtual EditingState GetEditingState()
+  virtual PRBool IsEditingOn()
   {
-    return mEditingState;
+    return mEditingState != eOff;
   }
-
-  virtual nsIContent* GetBodyContentExternal();
-
-  void EndUpdate(nsUpdateType aUpdateType);
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLDocument, nsDocument)
-
-  virtual already_AddRefed<nsIParser> GetFragmentParser() {
-    return mFragmentParser.forget();
-  }
-  virtual void SetFragmentParser(nsIParser* aParser) {
-    mFragmentParser = aParser;
-  }
-
-  virtual nsresult SetEditingState(EditingState aState);
 
 protected:
   nsresult GetBodySize(PRInt32* aWidth,
@@ -248,7 +232,8 @@ protected:
 
   static void DocumentWriteTerminationFunc(nsISupports *aRef);
 
-  nsIContent* GetBodyContent();
+  PRBool GetBodyContent();
+  void GetBodyElement(nsIDOMHTMLBodyElement** aBody);
 
   void GetDomainURI(nsIURI **uri);
 
@@ -338,6 +323,8 @@ protected:
   // Load flags of the document's channel
   PRUint32 mLoadFlags;
 
+  nsCOMPtr<nsIDOMNode> mBodyContent;
+
   PRPackedBool mIsFrameset;
 
   PRPackedBool mTooDeepWriteRecursion;
@@ -369,14 +356,27 @@ protected:
 
   /* Midas implementation */
   nsresult   GetMidasCommandManager(nsICommandManager** aCommandManager);
-
+  PRBool     ConvertToMidasInternalCommand(const nsAString & inCommandID,
+                                           const nsAString & inParam,
+                                           nsACString& outCommandID,
+                                           nsACString& outParam,
+                                           PRBool& isBoolean,
+                                           PRBool& boolValue);
   nsCOMPtr<nsICommandManager> mMidasCommandManager;
 
   nsresult TurnEditingOff();
   nsresult EditingStateChanged();
 
   PRUint32 mContentEditableCount;
+  enum EditingState {
+    eSettingUp = -1,
+    eOff = 0,
+    eDesignMode,
+    eContentEditable
+  };
   EditingState mEditingState;
+  PRPackedBool mScriptsEnabled;
+  PRPackedBool mPluginsEnabled;
 
   nsresult   DoClipboardSecurityCheck(PRBool aPaste);
   static jsval       sCutCopyInternal_id;
@@ -387,9 +387,6 @@ protected:
   // XXXbz should this be reset if someone manually calls
   // SetContentType() on this document?
   PRInt32 mDefaultNamespaceID;
-
-  // Parser used for constructing document fragments.
-  nsCOMPtr<nsIParser> mFragmentParser;
 };
 
 #endif /* nsHTMLDocument_h___ */

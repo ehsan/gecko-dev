@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/usr/local/bin/bash -e
 # -*- Mode: Shell-script; tab-width: 4; indent-tabs-mode: nil; -*-
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -37,7 +37,9 @@
 #
 # ***** END LICENSE BLOCK *****
 
-source $TEST_DIR/bin/library.sh
+TEST_DIR=${TEST_DIR:-/work/mozilla/mozilla.com/test.mozilla.com/www}
+TEST_BIN=${TEST_BIN:-$TEST_DIR/bin}
+source ${TEST_BIN}/library.sh
 
 #
 # options processing
@@ -74,7 +76,7 @@ variable            description
                     /tmp/\$product-\$branch. 
                     For cvs builds it will be defaulted to the appropriate 
                     directory in 
-                    ${BUILDDIR}/\$branch/mozilla/\$product-\$buildtype/
+                    /work/mozilla/builds/\$branch/mozilla/\$product-\$buildtype/
 -N profilename      optional. profilename. profilename is required if 
                     profiledirectory or extensiondir are specified.
 -D profiledirectory optional. If profiledirectory is specified, a new profile 
@@ -87,17 +89,16 @@ variable            description
                     profile.
                     If userpreferences is not specified when a new profile is 
                     created, it is defaulted to
-                    ${TEST_DIR}/prefs/test-user.js
+                    /work/mozilla/mozilla.com/test.mozilla.com/www/prefs/test-user.js
 -E extensiondir     optional. path to directory tree containing extensions to 
                     be installed.
 -d datafiles        optional. one or more filenames of files containing 
                     environment variable definitions to be included.
 
-note that the environment variables should have the same 
-names as in the "variable" column.
-
+                    note that the environment variables should have the same 
+                    names as in the "variable" column.
 EOF
-    exit 1
+    exit 2
 }
 
 unset product branch url filepath credentials buildcommands buildtype executablepath profilename profiledirectory profiletemplate userpreferences extenstiondir datafiles
@@ -212,10 +213,10 @@ if [[ -n "$buildcommands" ]]; then
             if [[ "$buildtype" == "debug" ]]; then
                 AppType=Debug
             fi
-            executablepath="${BUILDDIR}/$branch/mozilla/$product-$buildtype/dist/$App$AppType.app/Contents/MacOS"
+            executablepath="/work/mozilla/builds/$branch/mozilla/$product-$buildtype/dist/$App$AppType.app/Contents/MacOS"
             ;;
         *)
-            executablepath="${BUILDDIR}/$branch/mozilla/$product/$buildtype/dist/bin"
+            executablepath="/work/mozilla/builds/$branch/mozilla/$product/$buildtype/dist/bin"
     esac
 
     if echo "$buildcommands" | grep -iq clean; then
@@ -235,7 +236,7 @@ fi
 if [[ -n "$profiledirectory" ]]; then
 
     if [[ -z "$userpreferences" ]]; then
-        userpreferences=${TEST_DIR}/prefs/test-user.js
+        userpreferences=/work/mozilla/mozilla.com/test.mozilla.com/www/prefs/test-user.js
     fi
 
     unset optargs
@@ -260,3 +261,7 @@ if [[ -n "$extensiondir" ]]; then
         -x $executablepath -N $profilename
 
 fi
+
+        
+
+

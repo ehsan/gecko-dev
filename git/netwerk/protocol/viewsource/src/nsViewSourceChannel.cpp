@@ -65,7 +65,7 @@ NS_INTERFACE_MAP_BEGIN(nsViewSourceChannel)
     NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIRequest, nsIViewSourceChannel)
     NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIChannel, nsIViewSourceChannel)
     NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIViewSourceChannel)
-NS_INTERFACE_MAP_END
+NS_INTERFACE_MAP_END_THREADSAFE
 
 nsresult
 nsViewSourceChannel::Init(nsIURI* uri)

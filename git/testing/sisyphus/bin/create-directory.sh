@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/usr/local/bin/bash -e
 # -*- Mode: Shell-script; tab-width: 4; indent-tabs-mode: nil; -*-
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -37,7 +37,9 @@
 #
 # ***** END LICENSE BLOCK *****
 
-source $TEST_DIR/bin/library.sh
+TEST_DIR=${TEST_DIR:-/work/mozilla/mozilla.com/test.mozilla.com/www}
+TEST_BIN=${TEST_BIN:-$TEST_DIR/bin}
+source ${TEST_BIN}/library.sh
 
 #
 # options processing
@@ -68,7 +70,7 @@ disk. Use with caution.
 ******************** WARNING ********************
 
 EOF
-    exit 1
+    exit 2
 }
 
 unset directory
@@ -76,39 +78,39 @@ unset directory
 rmopt="-i"
 
 while getopts $options optname ; 
-  do 
-  case $optname in
-      d) directory=$OPTARG;;
-      n) unset rmopt;;
-  esac
+do 
+    case $optname in
+        d) directory=$OPTARG;;
+        n) unset rmopt;;
+    esac
 done
 
 if [[ -z $directory ]]
-    then
+then
     usage
 fi
 
 if [[ `whoami` == "root" ]]; then
-    error "can not be run as root" $LINENO
+    error "can not be run as root"
 fi
 
 # get the cannonical name directory name
 mkdir -p "$directory"
 if ! pushd "$directory" > /dev/null ; then 
-    error "$directory is not accessible" $LINENO
+    error "$directory is not accessible"
 fi
 directory=`pwd`
 popd > /dev/null
 
 if [[ "$directory" == "/" ]]; then
-    error "directory $directory can not be root" $LINENO
+    error "directory $directory can not be root"
 fi
 
 parent=`dirname "$directory"`
 grandparent=`dirname "$parent"`
 
 if [[ "$parent" != "/tmp" && ( "$parent" == "/" || "$grandparent" == "/" ) ]]; then
-    error "directory $directory can not be a subdirectory of $parent" $LINENO
+    error "directory $directory can not be a subdirectory of $parent"
 fi
 
 

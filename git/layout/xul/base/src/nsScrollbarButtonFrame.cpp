@@ -46,6 +46,7 @@
 #include "nsPresContext.h"
 #include "nsIContent.h"
 #include "nsCOMPtr.h"
+#include "nsUnitConversion.h"
 #include "nsINameSpaceManager.h"
 #include "nsGkAtoms.h"
 #include "nsSliderFrame.h"
@@ -65,6 +66,19 @@ NS_NewScrollbarButtonFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsScrollbarButtonFrame(aPresShell, aContext);
 } // NS_NewScrollBarButtonFrame
+
+NS_IMETHODIMP 
+nsScrollbarButtonFrame::QueryInterface(REFNSIID aIID, void** aInstancePtr)      
+{           
+  NS_PRECONDITION(aInstancePtr, "null out param");
+
+  if (aIID.Equals(NS_GET_IID(nsITimerCallback))) {                                         
+    *aInstancePtr = static_cast<nsITimerCallback*>(this);
+    return NS_OK;                                                        
+  }   
+
+  return nsButtonBoxFrame::QueryInterface(aIID, aInstancePtr);                                     
+}
 
 NS_IMETHODIMP
 nsScrollbarButtonFrame::HandleEvent(nsPresContext* aPresContext, 
@@ -142,7 +156,14 @@ nsScrollbarButtonFrame::HandleButtonPress(nsPresContext* aPresContext,
   PRBool smoothScroll = PR_TRUE;
   switch (pressedButtonAction) {
     case 0:
+#ifdef MOZ_WIDGET_COCOA
+      // Emulate the Mac IE behavior of scrolling 2 lines instead of 1
+      // on a button press.  This makes scrolling appear smoother and
+      // keeps us competitive with IE.
+      mIncrement = direction * nsSliderFrame::GetIncrement(content) * 2;
+#else
       mIncrement = direction * nsSliderFrame::GetIncrement(content);
+#endif
       break;
     case 1:
       mIncrement = direction * nsSliderFrame::GetPageIncrement(content);
@@ -171,7 +192,7 @@ nsScrollbarButtonFrame::HandleButtonPress(nsPresContext* aPresContext,
     DoButtonAction(smoothScroll);
   }
   if (repeat)
-    StartRepeat();
+    nsRepeatService::GetInstance()->Start(this);
   return PR_TRUE;
 }
 
@@ -182,15 +203,17 @@ nsScrollbarButtonFrame::HandleRelease(nsPresContext* aPresContext,
 {
   // we're not active anymore
   mContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::active, PR_TRUE);
-  StopRepeat();
+  nsRepeatService::GetInstance()->Stop();
   return NS_OK;
 }
 
-void nsScrollbarButtonFrame::Notify()
+
+NS_IMETHODIMP nsScrollbarButtonFrame::Notify(nsITimer *timer)
 {
   // Since this is only going to get called if we're scrolling a page length
   // or a line increment, we will always use smooth scrolling.
   DoButtonAction(PR_TRUE);
+  return NS_OK;
 }
 
 void
@@ -313,6 +336,6 @@ nsScrollbarButtonFrame::Destroy()
 {
   // Ensure our repeat service isn't going... it's possible that a scrollbar can disappear out
   // from under you while you're in the process of scrolling.
-  StopRepeat();
+  nsRepeatService::GetInstance()->Stop();
   nsButtonBoxFrame::Destroy();
 }

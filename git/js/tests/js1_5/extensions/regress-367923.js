@@ -55,14 +55,8 @@ function test()
 
   print('This test will fail in Gecko prior to 1.9');
 
-  if (!options().match(/strict/))
-  {
-    options('strict');
-  }
-  if (!options().match(/werror/))
-  {
-    options('werror');
-  }
+  options('strict');
+  options('werror');
 
   try
   {

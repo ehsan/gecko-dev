@@ -51,6 +51,7 @@
 gfxFontconfigUtils *gfxOS2Platform::sFontconfigUtils = nsnull;
 
 gfxOS2Platform::gfxOS2Platform()
+    : mDC(NULL), mPS(NULL), mBitmap(NULL)
 {
 #ifdef DEBUG_thebes
     printf("gfxOS2Platform::gfxOS2Platform()\n");
@@ -74,6 +75,16 @@ gfxOS2Platform::~gfxOS2Platform()
     gfxFontconfigUtils::Shutdown();
     sFontconfigUtils = nsnull;
 
+    if (mBitmap) {
+        GpiSetBitmap(mPS, NULL);
+        GpiDeleteBitmap(mBitmap);
+    }
+    if (mPS) {
+        GpiDestroyPS(mPS);
+    }
+    if (mDC) {
+        DevCloseDC(mDC);
+    }
     // clean up OS/2 cairo stuff
     cairo_os2_fini();
 #ifdef DEBUG_thebes
@@ -91,12 +102,41 @@ gfxOS2Platform::CreateOffscreenSurface(const gfxIntSize& aSize,
 #endif
     gfxASurface *newSurface = nsnull;
 
-    // we only ever seem to get aImageFormat=0 or ImageFormatARGB32 but
+    // XXX we only ever seem to get aImageFormat=0 or ImageFormatARGB32 but
     // I don't really know if we need to differ between ARGB32 and RGB24 here
     if (aImageFormat == gfxASurface::ImageFormatARGB32 ||
         aImageFormat == gfxASurface::ImageFormatRGB24)
     {
-        newSurface = new gfxOS2Surface(aSize, aImageFormat);
+        // create a PS, partly taken from nsOffscreenSurface::Init(), i.e. nsDrawingSurfaceOS2.cpp
+        DEVOPENSTRUC dop = { 0, 0, 0, 0, 0 };
+        SIZEL sizel = { 0, 0 }; /* use same page size as device */
+        mDC = DevOpenDC(0, OD_MEMORY, "*", 5, (PDEVOPENDATA)&dop, NULLHANDLE);
+        if (mDC != DEV_ERROR) {
+            mPS = GpiCreatePS(0, mDC, &sizel, PU_PELS | GPIT_MICRO | GPIA_ASSOC);
+            if (mPS != GPI_ERROR) {
+                // XXX: nsPaletteOS2::SelectGlobalPalette(mPS);
+                // perhaps implement the palette stuff at some point?!
+
+                // now create a bitmap of the right size
+                BITMAPINFOHEADER2 hdr = { 0 };
+                hdr.cbFix = sizeof(BITMAPINFOHEADER2);
+                hdr.cx = aSize.width;
+                hdr.cy = aSize.height;
+                hdr.cPlanes = 1;
+
+                // find bit depth, XXX this may not work here, use the aImageFormat instead?!
+                LONG lBitCount = 0;
+                DevQueryCaps(mDC, CAPS_COLOR_BITCOUNT, 1, &lBitCount);
+                hdr.cBitCount = (USHORT)lBitCount;
+
+                mBitmap = GpiCreateBitmap(mPS, &hdr, 0, 0, 0);
+                if (mBitmap != GPI_ERROR) {
+                    // set final stats & select bitmap into ps
+                    GpiSetBitmap(mPS, mBitmap);
+                }
+            } /* if mPS */
+        } /* if mDC */
+        newSurface = new gfxOS2Surface(mPS, aSize);
     } else if (aImageFormat == gfxASurface::ImageFormatA8 ||
                aImageFormat == gfxASurface::ImageFormatA1) {
         newSurface = new gfxImageSurface(aSize, aImageFormat);
@@ -145,12 +185,6 @@ gfxOS2Platform::ResolveFontName(const nsAString& aFontName,
                                              aAborted);
     //aAborted = !(*aCallback)(aFontName, aClosure);
     //return NS_OK;
-}
-
-nsresult
-gfxOS2Platform::GetStandardFamilyName(const nsAString& aFontName, nsAString& aFamilyName)
-{
-    return sFontconfigUtils->GetStandardFamilyName(aFontName, aFamilyName);
 }
 
 gfxFontGroup *

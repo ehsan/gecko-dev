@@ -45,34 +45,23 @@ var expect = 'No Crash';
 
 printBugNumber(BUGNUMBER);
 START(summary);
-printStatus ("Expect either no error, out of memory or catchable script stack " + 
-             "space quota is exhausted error");
-expectExitCode(0);
+printStatus ("Expect out of memory error");
 expectExitCode(3);
-expectExitCode(5);
 
-try
-{
-  var i,m,str;
-  str="<a xmlns:v=\"";
-  m="";
+var i,m,str;
+str="<a xmlns:v=\"";
+m="";
 
-  for (i=0;i<(1024*1024)/2;i++)
-    m += "\n";
+for (i=0;i<(1024*1024)/2;i++)
+  m += "\n";
 
-  for(i=0;i<500;i++)
-    str += m ;
+for(i=0;i<500;i++)
+  str += m ;
 
-  str += "\">f00k</a>";
+str += "\">f00k</a>";
 
-  var xx = new XML(str);
+var xx = new XML(str);
 
-  printStatus(xx.toXMLString());
-}
-catch(ex)
-{
-  expect = 'InternalError: script stack space quota is exhausted';
-  actual = ex + '';
-  print(actual);
-}
+printStatus(xx.toXMLString());
+ 
 TEST(1, expect, actual);

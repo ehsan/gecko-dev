@@ -88,6 +88,7 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
+#include "nsBoxLayoutState.h"
 #include "nsITheme.h"
 #include "nsThemeConstants.h"
 
@@ -152,9 +153,7 @@ class nsComboButtonListener: public nsIDOMMouseListener
   nsComboboxControlFrame* mComboBox;
 };
 
-NS_IMPL_ISUPPORTS2(nsComboButtonListener,
-                   nsIDOMMouseListener,
-                   nsIDOMEventListener)
+NS_IMPL_ISUPPORTS1(nsComboButtonListener, nsIDOMMouseListener)
 
 // static class data member for Bug 32920
 nsComboboxControlFrame * nsComboboxControlFrame::mFocused = nsnull;
@@ -360,7 +359,7 @@ nsComboboxControlFrame::SetFocus(PRBool aOn, PRBool aRepaint)
   // This is needed on a temporary basis. It causes the focus
   // rect to be drawn. This is much faster than ReResolvingStyle
   // Bug 32920
-  Invalidate(nsRect(0,0,mRect.width,mRect.height), PR_FALSE);
+  Invalidate(nsRect(0,0,mRect.width,mRect.height), PR_TRUE);
 
   // Make sure the content area gets updated for where the dropdown was
   // This is only needed for embedding, the focus may go to 
@@ -419,9 +418,10 @@ nsComboboxControlFrame::ShowList(nsPresContext* aPresContext, PRBool aShowList)
     mListControlFrame->CaptureMouseEvents(PR_TRUE);
   }
 
-  // XXXbz so why do we need to flush here, exactly?
-  shell->GetDocument()->FlushPendingNotifications(Flush_Layout);
+  // Don't flush anything but reflows lest it destroy us
+  shell->GetDocument()->FlushPendingNotifications(Flush_OnlyReflow);
   if (!weakFrame.IsAlive()) {
+    NS_ERROR("Flush_OnlyReflow destroyed the frame");
     return PR_FALSE;
   }
 
@@ -563,8 +563,19 @@ static void printSize(char * aDesc, nscoord aSize)
 //-------------------------------------------------------------------
 
 nscoord
-nsComboboxControlFrame::GetIntrinsicWidth(nsIRenderingContext* aRenderingContext,
-                                          nsLayoutUtils::IntrinsicWidthType aType)
+nsComboboxControlFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
+{
+  // We want to size to our pref width
+  nscoord result;
+  DISPLAY_MIN_WIDTH(this, result);
+
+  result = GetPrefWidth(aRenderingContext);
+
+  return result;
+}
+
+nscoord
+nsComboboxControlFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   // get the scrollbar width, we'll use this later
   nscoord scrollbarWidth = 0;
@@ -573,56 +584,27 @@ nsComboboxControlFrame::GetIntrinsicWidth(nsIRenderingContext* aRenderingContext
     nsIScrollableFrame* scrollable;
     CallQueryInterface(mListControlFrame, &scrollable);
     NS_ASSERTION(scrollable, "List must be a scrollable frame");
-    scrollbarWidth =
-      scrollable->GetDesiredScrollbarSizes(presContext, aRenderingContext).LeftRight();
+    nsBoxLayoutState bls(presContext, aRenderingContext);
+    scrollbarWidth = scrollable->GetDesiredScrollbarSizes(&bls).LeftRight();
   }
 
-  nscoord displayWidth = 0;
+  nscoord displayPrefWidth = 0;
+  DISPLAY_PREF_WIDTH(this, displayPrefWidth);
   if (NS_LIKELY(mDisplayFrame)) {
-    displayWidth = nsLayoutUtils::IntrinsicForContainer(aRenderingContext,
-                                                        mDisplayFrame,
-                                                        aType);
+    displayPrefWidth = nsLayoutUtils::IntrinsicForContainer(aRenderingContext, mDisplayFrame,
+                                                            nsLayoutUtils::PREF_WIDTH);
   }
 
   if (mDropdownFrame) {
-    nscoord dropdownContentWidth;
-    if (aType == nsLayoutUtils::MIN_WIDTH) {
-      dropdownContentWidth = mDropdownFrame->GetMinWidth(aRenderingContext);
-    } else {
-      NS_ASSERTION(aType == nsLayoutUtils::PREF_WIDTH, "Unexpected type");
-      dropdownContentWidth = mDropdownFrame->GetPrefWidth(aRenderingContext);
-    }
-    dropdownContentWidth = NSCoordSaturatingSubtract(dropdownContentWidth, 
-                                                     scrollbarWidth,
-                                                     nscoord_MAX);
-  
-    displayWidth = PR_MAX(dropdownContentWidth, displayWidth);
+    nscoord dropdownContentWidth = mDropdownFrame->GetPrefWidth(aRenderingContext) - scrollbarWidth;
+    displayPrefWidth = PR_MAX(dropdownContentWidth, displayPrefWidth);
   }
 
   // add room for the dropmarker button if there is one
   if (!IsThemed() || presContext->GetTheme()->ThemeNeedsComboboxDropmarker())
-    displayWidth += scrollbarWidth;
+    displayPrefWidth += scrollbarWidth;
 
-  return displayWidth;
-
-}
-
-nscoord
-nsComboboxControlFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
-{
-  nscoord minWidth;
-  DISPLAY_MIN_WIDTH(this, minWidth);
-  minWidth = GetIntrinsicWidth(aRenderingContext, nsLayoutUtils::MIN_WIDTH);
-  return minWidth;
-}
-
-nscoord
-nsComboboxControlFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
-{
-  nscoord prefWidth;
-  DISPLAY_PREF_WIDTH(this, prefWidth);
-  prefWidth = GetIntrinsicWidth(aRenderingContext, nsLayoutUtils::PREF_WIDTH);
-  return prefWidth;
+  return displayPrefWidth;
 }
 
 NS_IMETHODIMP 
@@ -679,9 +661,8 @@ nsComboboxControlFrame::Reflow(nsPresContext*          aPresContext,
     nsIScrollableFrame* scrollable;
     CallQueryInterface(mListControlFrame, &scrollable);
     NS_ASSERTION(scrollable, "List must be a scrollable frame");
-    buttonWidth =
-      scrollable->GetDesiredScrollbarSizes(PresContext(), 
-                                           aReflowState.rendContext).LeftRight();
+    nsBoxLayoutState bls(PresContext(), aReflowState.rendContext);
+    buttonWidth = scrollable->GetDesiredScrollbarSizes(&bls).LeftRight();
     if (buttonWidth > aReflowState.ComputedWidth()) {
       buttonWidth = 0;
     }
@@ -698,7 +679,7 @@ nsComboboxControlFrame::Reflow(nsPresContext*          aPresContext,
   nsRect buttonRect = mButtonFrame->GetRect();
   // If we have a non-intrinsic computed height, our kids should have sized
   // themselves properly on their own.
-  if (aReflowState.ComputedHeight() == NS_INTRINSICSIZE) {
+  if (aReflowState.mComputedHeight == NS_INTRINSICSIZE) {
     // The display frame is going to be the right height and width at this
     // point. Use its height as the button height.
     nsRect displayRect = mDisplayFrame->GetRect();
@@ -713,10 +694,10 @@ nsComboboxControlFrame::Reflow(nsPresContext*          aPresContext,
     // The button and display area should be equal heights, unless the computed
     // height on the combobox is too small to fit their borders and padding.
     NS_ASSERTION(buttonHeight == displayHeight ||
-                 (aReflowState.ComputedHeight() < buttonHeight &&
+                 (aReflowState.mComputedHeight < buttonHeight &&
                   buttonHeight ==
                     mButtonFrame->GetUsedBorderAndPadding().TopBottom()) ||
-                 (aReflowState.ComputedHeight() < displayHeight &&
+                 (aReflowState.mComputedHeight < displayHeight &&
                   displayHeight ==
                     mDisplayFrame->GetUsedBorderAndPadding().TopBottom()),
                  "Different heights?");
@@ -936,8 +917,6 @@ nsComboboxControlFrame::GetOptionSelected(PRInt32 aIndex, PRBool* aValue)
 NS_IMETHODIMP
 nsComboboxControlFrame::OnSetSelectedIndex(PRInt32 aOldIndex, PRInt32 aNewIndex)
 {
-  RedisplayText(aNewIndex);
-  
   nsISelectControlFrame* listFrame = nsnull;
   NS_ASSERTION(mDropdownFrame, "No dropdown frame!");
 
@@ -1049,7 +1028,7 @@ nsComboboxControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
                      getter_AddRefs(nodeInfo));
 
   // create button which drops the list down
-  NS_NewHTMLElement(getter_AddRefs(mButtonContent), nodeInfo, PR_FALSE);
+  NS_NewHTMLElement(getter_AddRefs(mButtonContent), nodeInfo);
   if (!mButtonContent)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -1119,11 +1098,11 @@ nsComboboxDisplayFrame::Reflow(nsPresContext*           aPresContext,
                                nsReflowStatus&          aStatus)
 {
   nsHTMLReflowState state(aReflowState);
-  if (state.ComputedHeight() == NS_INTRINSICSIZE) {
+  if (state.mComputedHeight == NS_INTRINSICSIZE) {
     // Note that the only way we can have a computed height here is if the
     // combobox had a specified height.  If it didn't, size based on what our
     // rows look like, for lack of anything better.
-    state.SetComputedHeight(mComboBox->mListControlFrame->GetHeightOfARow());
+    state.mComputedHeight = mComboBox->mListControlFrame->GetHeightOfARow();
   }
   nscoord computedWidth = mComboBox->mDisplayWidth -
     state.mComputedBorderPadding.LeftRight(); 
@@ -1253,7 +1232,7 @@ nsComboboxControlFrame::Destroy()
 nsIFrame*
 nsComboboxControlFrame::GetFirstChild(nsIAtom* aListName) const
 {
-  if (nsGkAtoms::selectPopupList == aListName) {
+  if (nsGkAtoms::popupList == aListName) {
     return mPopupFrames.FirstChild();
   }
   return nsAreaFrame::GetFirstChild(aListName);
@@ -1264,7 +1243,7 @@ nsComboboxControlFrame::SetInitialChildList(nsIAtom*        aListName,
                                             nsIFrame*       aChildList)
 {
   nsresult rv = NS_OK;
-  if (nsGkAtoms::selectPopupList == aListName) {
+  if (nsGkAtoms::popupList == aListName) {
     mPopupFrames.SetFrames(aChildList);
   } else {
     rv = nsAreaFrame::SetInitialChildList(aListName, aChildList);
@@ -1282,8 +1261,6 @@ nsComboboxControlFrame::SetInitialChildList(nsIAtom*        aListName,
   return rv;
 }
 
-#define NS_COMBO_FRAME_POPUP_LIST_INDEX   (NS_BLOCK_LIST_COUNT)
-
 nsIAtom*
 nsComboboxControlFrame::GetAdditionalChildListName(PRInt32 aIndex) const
 {
@@ -1291,12 +1268,12 @@ nsComboboxControlFrame::GetAdditionalChildListName(PRInt32 aIndex) const
    // This is necessary because we don't want the listbox to be included in the layout
    // of the combox's children because it would take up space, when it is suppose to
    // be floating above the display.
-  if (aIndex < NS_BLOCK_LIST_COUNT) {
+  if (aIndex <= NS_BLOCK_FRAME_ABSOLUTE_LIST_INDEX) {
     return nsAreaFrame::GetAdditionalChildListName(aIndex);
   }
   
   if (NS_COMBO_FRAME_POPUP_LIST_INDEX == aIndex) {
-    return nsGkAtoms::selectPopupList;
+    return nsGkAtoms::popupList;
   }
   return nsnull;
 }
@@ -1305,11 +1282,8 @@ nsComboboxControlFrame::GetAdditionalChildListName(PRInt32 aIndex) const
   //nsIRollupListener
 //----------------------------------------------------------------------
 NS_IMETHODIMP 
-nsComboboxControlFrame::Rollup(nsIContent** aLastRolledUp)
+nsComboboxControlFrame::Rollup()
 {
-  if (aLastRolledUp)
-    *aLastRolledUp = nsnull;
-
   if (mDroppedDown) {
     nsWeakFrame weakFrame(this);
     mListControlFrame->AboutToRollup(); // might destroy us
@@ -1399,13 +1373,7 @@ nsComboboxControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 void nsComboboxControlFrame::PaintFocus(nsIRenderingContext& aRenderingContext,
-                                        nsPoint aPt)
-{
-  /* Do we need to do anything? */
-  if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::disabled) ||
-      mFocused != this)
-    return;
-
+                                        nsPoint aPt) {
   aRenderingContext.PushState();
   nsRect clipRect = mDisplayFrame->GetRect() + aPt;
   aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
@@ -1416,12 +1384,16 @@ void nsComboboxControlFrame::PaintFocus(nsIRenderingContext& aRenderingContext,
 
   /////////////////////
   // draw focus
-
-  aRenderingContext.SetLineStyle(nsLineStyle_kDotted);
-  aRenderingContext.SetColor(GetStyleColor()->mColor);
-
+  // XXX This is only temporary
+  if (!mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::disabled) &&
+      mFocused == this) {
+    aRenderingContext.SetLineStyle(nsLineStyle_kDotted);
+    aRenderingContext.SetColor(GetStyleColor()->mColor);
+  } else {
+    aRenderingContext.SetColor(GetStyleBackground()->mBackgroundColor);
+    aRenderingContext.SetLineStyle(nsLineStyle_kSolid);
+  }
   //aRenderingContext.DrawRect(clipRect);
-
   nscoord onePixel = nsPresContext::CSSPixelsToAppUnits(1);
   clipRect.width -= onePixel;
   clipRect.height -= onePixel;

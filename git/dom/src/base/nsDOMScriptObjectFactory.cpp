@@ -212,10 +212,9 @@ nsDOMScriptObjectFactory::GetIDForScriptType(const nsAString &aLanguageName,
 
 NS_IMETHODIMP
 nsDOMScriptObjectFactory::NewScriptGlobalObject(PRBool aIsChrome,
-                                                PRBool aIsModalContentWindow,
                                                 nsIScriptGlobalObject **aGlobal)
 {
-  return NS_NewScriptGlobalObject(aIsChrome, aIsModalContentWindow, aGlobal);
+  return NS_NewScriptGlobalObject(aIsChrome, aGlobal);
 }
 
 NS_IMETHODIMP_(nsISupports *)
@@ -227,11 +226,12 @@ nsDOMScriptObjectFactory::GetClassInfoInstance(nsDOMClassInfoID aID)
 NS_IMETHODIMP_(nsISupports *)
 nsDOMScriptObjectFactory::GetExternalClassInfoInstance(const nsAString& aName)
 {
-  nsScriptNameSpaceManager *nameSpaceManager = nsJSRuntime::GetNameSpaceManager();
-  NS_ENSURE_TRUE(nameSpaceManager, nsnull);
+  extern nsScriptNameSpaceManager *gNameSpaceManager;
+
+  NS_ENSURE_TRUE(gNameSpaceManager, nsnull);
 
   const nsGlobalNameStruct *globalStruct;
-  nameSpaceManager->LookupName(aName, &globalStruct);
+  gNameSpaceManager->LookupName(aName, &globalStruct);
   if (globalStruct) {
     if (globalStruct->mType == nsGlobalNameStruct::eTypeExternalClassInfoCreator) {
       nsresult rv;
@@ -241,7 +241,7 @@ nsDOMScriptObjectFactory::GetExternalClassInfoInstance(const nsAString& aName)
       rv = creator->RegisterDOMCI(NS_ConvertUTF16toUTF8(aName).get(), this);
       NS_ENSURE_SUCCESS(rv, nsnull);
 
-      rv = nameSpaceManager->LookupName(aName, &globalStruct);
+      rv = gNameSpaceManager->LookupName(aName, &globalStruct);
       NS_ENSURE_TRUE(NS_SUCCEEDED(rv) && globalStruct, nsnull);
 
       NS_ASSERTION(globalStruct->mType == nsGlobalNameStruct::eTypeExternalClassInfo,
@@ -350,8 +350,6 @@ nsDOMScriptObjectFactory::GetException(nsresult result,
       return NS_NewXPathException(result, aDefaultException, _retval);
     case NS_ERROR_MODULE_XPCONNECT:
       return CreateXPConnectException(result, aDefaultException, _retval);
-    case NS_ERROR_MODULE_DOM_FILE:
-      return NS_NewFileException(result, aDefaultException, _retval);
     default:
       return NS_NewDOMException(result, aDefaultException, _retval);
   }
@@ -366,16 +364,17 @@ nsDOMScriptObjectFactory::RegisterDOMClassInfo(const char *aName,
 					       PRBool aHasClassInterface,
 					       const nsCID *aConstructorCID)
 {
-  nsScriptNameSpaceManager *nameSpaceManager = nsJSRuntime::GetNameSpaceManager();
-  NS_ENSURE_TRUE(nameSpaceManager, NS_ERROR_NOT_INITIALIZED);
+  extern nsScriptNameSpaceManager *gNameSpaceManager;
 
-  return nameSpaceManager->RegisterDOMCIData(aName,
-                                             aConstructorFptr,
-                                             aProtoChainInterface,
-                                             aInterfaces,
-                                             aScriptableFlags,
-                                             aHasClassInterface,
-                                             aConstructorCID);
+  NS_ENSURE_TRUE(gNameSpaceManager, NS_ERROR_NOT_INITIALIZED);
+
+  return gNameSpaceManager->RegisterDOMCIData(aName,
+                                              aConstructorFptr,
+                                              aProtoChainInterface,
+                                              aInterfaces,
+                                              aScriptableFlags,
+                                              aHasClassInterface,
+                                              aConstructorCID);
 }
 
 /* static */ nsresult

@@ -40,7 +40,6 @@
 #include "nsILocalFile.h"
 #include "nsAppRunner.h"
 #include "nsCRTGlue.h"
-#include "nsAutoPtr.h"
 
 void
 SetAllocatedString(const char *&str, const char *newvalue)
@@ -78,7 +77,6 @@ ScopedAppData::ScopedAppData(const nsXREAppData* aAppData)
   SetAllocatedString(this->buildID, aAppData->buildID);
   SetAllocatedString(this->ID, aAppData->ID);
   SetAllocatedString(this->copyright, aAppData->copyright);
-  SetAllocatedString(this->profile, aAppData->profile);
   SetStrongPtr(this->directory, aAppData->directory);
   this->flags = aAppData->flags;
 
@@ -101,7 +99,6 @@ ScopedAppData::~ScopedAppData()
   SetAllocatedString(this->buildID, nsnull);
   SetAllocatedString(this->ID, nsnull);
   SetAllocatedString(this->copyright, nsnull);
-  SetAllocatedString(this->profile, nsnull);
 
   NS_IF_RELEASE(this->directory);
 
@@ -117,27 +114,19 @@ XRE_CreateAppData(nsILocalFile* aINIFile, nsXREAppData **aAppData)
 {
   NS_ENSURE_ARG(aINIFile && aAppData);
 
-  nsAutoPtr<ScopedAppData> data(new ScopedAppData());
+  nsXREAppData *data = new ScopedAppData();
   if (!data)
     return NS_ERROR_OUT_OF_MEMORY;
 
   nsresult rv = XRE_ParseAppData(aINIFile, data);
-  if (NS_FAILED(rv))
-    return rv;
-
-  if (!data->directory) {
-    nsCOMPtr<nsIFile> appDir;
-    rv = aINIFile->GetParent(getter_AddRefs(appDir));
-    if (NS_FAILED(rv))
-      return rv;
-
-    rv = CallQueryInterface(appDir, &data->directory);
-    if (NS_FAILED(rv))
-      return rv;
+  if (NS_FAILED(rv)) {
+    delete data;
+  }
+  else {
+    *aAppData = data;
   }
 
-  *aAppData = data.forget();
-  return NS_OK;
+  return rv;
 }
 
 struct ReadString {
@@ -210,7 +199,6 @@ XRE_ParseAppData(nsILocalFile* aINIFile, nsXREAppData *aAppData)
     { "App", "BuildID",   &aAppData->buildID },
     { "App", "ID",        &aAppData->ID },
     { "App", "Copyright", &aAppData->copyright },
-    { "App", "Profile",   &aAppData->profile },
     { nsnull }
   };
   ReadStrings(parser, strings);

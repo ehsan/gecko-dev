@@ -71,6 +71,9 @@ PRBool NS_SVGEnabled();
 #define kXULNameSpaceURI "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
 #define kSVGNameSpaceURI "http://www.w3.org/2000/svg"
 #define kXMLEventsNameSpaceURI "http://www.w3.org/2001/xml-events"
+#define kXHTML2UnofficialNameSpaceURI "http://www.w3.org/TR/xhtml2" // Will eventually change
+#define kWAIRolesNameSpaceURI "http://www.w3.org/2005/01/wai-rdf/GUIRoleTaxonomy#"
+#define kWAIPropertiesNameSpaceURI "http://www.w3.org/2005/07/aaa"
 
 class nsNameSpaceKey : public PLDHashEntryHdr
 {
@@ -159,6 +162,10 @@ nsresult NameSpaceManagerImpl::Init()
   REGISTER_NAMESPACE(kXULNameSpaceURI, kNameSpaceID_XUL);
   REGISTER_NAMESPACE(kSVGNameSpaceURI, kNameSpaceID_SVG);
   REGISTER_NAMESPACE(kXMLEventsNameSpaceURI, kNameSpaceID_XMLEvents);
+  REGISTER_NAMESPACE(kXHTML2UnofficialNameSpaceURI,
+                     kNameSpaceID_XHTML2_Unofficial);
+  REGISTER_NAMESPACE(kWAIRolesNameSpaceURI, kNameSpaceID_WAIRoles);
+  REGISTER_NAMESPACE(kWAIPropertiesNameSpaceURI, kNameSpaceID_WAIProperties);
 
 #undef REGISTER_NAMESPACE
 
@@ -226,10 +233,10 @@ NameSpaceManagerImpl::GetNameSpaceID(const nsAString& aURI)
 
 nsresult
 NS_NewElement(nsIContent** aResult, PRInt32 aElementType,
-              nsINodeInfo* aNodeInfo, PRBool aFromParser)
+              nsINodeInfo* aNodeInfo)
 {
   if (aElementType == kNameSpaceID_XHTML) {
-    return NS_NewHTMLElement(aResult, aNodeInfo, aFromParser);
+    return NS_NewHTMLElement(aResult, aNodeInfo);
   }
 #ifdef MOZ_XUL
   if (aElementType == kNameSpaceID_XUL) {

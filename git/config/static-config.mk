@@ -69,7 +69,6 @@ STATIC_EXTRA_LIBS	+= \
 		$(PNG_LIBS) \
 		$(JPEG_LIBS) \
 		$(ZLIB_LIBS) \
-		$(LCMS_LIBS) \
 		$(NULL)
 
 ifdef MOZ_PSM
@@ -84,16 +83,26 @@ STATIC_EXTRA_LIBS	+= \
 		$(NULL)
 endif
 
+ifndef MOZ_ENABLE_CAIRO_GFX
+ifdef MOZ_SVG
 STATIC_EXTRA_LIBS	+= $(MOZ_CAIRO_LIBS)
+else # not MOZ_SVG
+ifdef MOZ_ENABLE_CANVAS # not SVG, but yes on canvas
+STATIC_EXTRA_LIBS	+= $(MOZ_CAIRO_LIBS)
+endif
+endif
+endif
 
 ifdef MOZ_ENABLE_GTK2
 STATIC_EXTRA_LIBS	+= $(XLDFLAGS) $(XT_LIBS) -lgthread-2.0
-STATIC_EXTRA_LIBS	+= $(MOZ_XFT_LIBS)
-STATIC_EXTRA_LIBS	+= $(MOZ_PANGO_LIBS)
 endif
 
-ifdef MOZ_STORAGE
-STATIC_EXTRA_LIBS	+= $(SQLITE_LIBS)
+ifdef MOZ_ENABLE_XFT
+STATIC_EXTRA_LIBS	+= $(MOZ_XFT_LIBS)
+endif
+
+ifdef MOZ_ENABLE_PANGO
+STATIC_EXTRA_LIBS	+= $(MOZ_PANGO_LIBS)
 endif
 
 ifdef MOZ_ENABLE_STARTUP_NOTIFICATION
@@ -114,7 +123,9 @@ STATIC_EXTRA_LIBS += $(call EXPAND_LIBNAME,comctl32 comdlg32 uuid shell32 ole32 
 ifdef GNU_CC
 STATIC_EXTRA_LIBS += $(call EXPAND_LIBNAME,winmm wsock32 gdi32)
 endif
+ifdef MOZ_ENABLE_CAIRO_GFX
 STATIC_EXTRA_LIBS += $(call EXPAND_LIBNAME, usp10)
+endif
 endif
 
 ifeq ($(OS_ARCH),AIX)

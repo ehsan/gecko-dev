@@ -175,19 +175,21 @@ inline nsCSSQuotes* QuotesAtCursor(const char *aCursor) {
 static PRBool
 ShouldIgnoreColors(nsRuleData *aRuleData)
 {
+    nsPresContext *presContext = aRuleData->mPresContext;
     return aRuleData->mLevel != nsStyleSet::eAgentSheet &&
            aRuleData->mLevel != nsStyleSet::eUserSheet &&
-           !aRuleData->mPresContext->UseDocumentColors();
+           !presContext->GetCachedBoolPref(kPresContext_UseDocumentColors) &&
+           !presContext->IsChrome();
 }
 
 nsresult
 nsCSSCompressedDataBlock::MapRuleInfoInto(nsRuleData *aRuleData) const
 {
-    // If we have no data for these structs, then return immediately.
+    // If we have no data for this struct, then return immediately.
     // This optimization should make us return most of the time, so we
     // have to worry much less (although still some) about the speed of
     // the rest of the function.
-    if (!(aRuleData->mSIDs & mStyleBits))
+    if (!(nsCachedStyleData::GetBitForSID(aRuleData->mSID) & mStyleBits))
         return NS_OK;
 
     const char* cursor = Block();
@@ -196,8 +198,7 @@ nsCSSCompressedDataBlock::MapRuleInfoInto(nsRuleData *aRuleData) const
         nsCSSProperty iProp = PropertyAtCursor(cursor);
         NS_ASSERTION(0 <= iProp && iProp < eCSSProperty_COUNT_no_shorthands,
                      "out of range");
-        if (nsCachedStyleData::GetBitForSID(nsCSSProps::kSIDTable[iProp]) &
-            aRuleData->mSIDs) {
+        if (nsCSSProps::kSIDTable[iProp] == aRuleData->mSID) {
             void *prop =
                 nsCSSExpandedDataBlock::RuleDataPropertyAt(aRuleData, iProp);
             switch (nsCSSProps::kTypeTable[iProp]) {
@@ -220,13 +221,9 @@ nsCSSCompressedDataBlock::MapRuleInfoInto(nsRuleData *aRuleData) const
                                  iProp == eCSSProperty_background_color ||
                                  iProp == eCSSProperty_background_image ||
                                  iProp == eCSSProperty_border_top_color ||
-                                 iProp == eCSSProperty_border_right_color_value ||
-                                 iProp == eCSSProperty_border_right_color_ltr_source ||
-                                 iProp == eCSSProperty_border_right_color_rtl_source ||
+                                 iProp == eCSSProperty_border_right_color ||
                                  iProp == eCSSProperty_border_bottom_color ||
-                                 iProp == eCSSProperty_border_left_color_value ||
-                                 iProp == eCSSProperty_border_left_color_ltr_source ||
-                                 iProp == eCSSProperty_border_left_color_rtl_source ||
+                                 iProp == eCSSProperty_border_left_color ||
                                  iProp == eCSSProperty_outline_color) {
                             if (ShouldIgnoreColors(aRuleData)) {
                                 if (iProp == eCSSProperty_background_color) {
@@ -618,42 +615,23 @@ nsCSSExpandedDataBlock::DoExpand(nsCSSCompressedDataBlock *aBlock,
         switch (nsCSSProps::kTypeTable[iProp]) {
             case eCSSType_Value: {
                 const nsCSSValue* val = ValueAtCursor(cursor);
-                nsCSSValue* dest = static_cast<nsCSSValue*>(prop);
                 NS_ASSERTION(val->GetUnit() != eCSSUnit_Null, "oops");
-                NS_ASSERTION(dest->GetUnit() == eCSSUnit_Null,
-                             "expanding into non-empty block");
-#ifdef NS_BUILD_REFCNT_LOGGING
-                dest->~nsCSSValue();
-#endif
-                memcpy(dest, val, sizeof(nsCSSValue));
+                memcpy(prop, val, sizeof(nsCSSValue));
                 cursor += CDBValueStorage_advance;
             } break;
 
             case eCSSType_Rect: {
                 const nsCSSRect* val = RectAtCursor(cursor);
-                nsCSSRect* dest = static_cast<nsCSSRect*>(prop);
                 NS_ASSERTION(val->HasValue(), "oops");
-                NS_ASSERTION(!dest->HasValue(),
-                             "expanding into non-empty block");
-#ifdef NS_BUILD_REFCNT_LOGGING
-                dest->~nsCSSRect();
-#endif
-                memcpy(dest, val, sizeof(nsCSSRect));
+                memcpy(prop, val, sizeof(nsCSSRect));
                 cursor += CDBRectStorage_advance;
             } break;
 
             case eCSSType_ValuePair: {
                 const nsCSSValuePair* val = ValuePairAtCursor(cursor);
-                nsCSSValuePair* dest = static_cast<nsCSSValuePair*>(prop);
                 NS_ASSERTION(val->mXValue.GetUnit() != eCSSUnit_Null ||
                              val->mYValue.GetUnit() != eCSSUnit_Null, "oops");
-                NS_ASSERTION(dest->mXValue.GetUnit() == eCSSUnit_Null &&
-                             dest->mYValue.GetUnit() == eCSSUnit_Null,
-                             "expanding into non-empty block");
-#ifdef NS_BUILD_REFCNT_LOGGING
-                dest->~nsCSSValuePair();
-#endif
-                memcpy(dest, val, sizeof(nsCSSValuePair));
+                memcpy(prop, val, sizeof(nsCSSValuePair));
                 cursor += CDBValuePairStorage_advance;
             } break;
 
@@ -661,10 +639,8 @@ nsCSSExpandedDataBlock::DoExpand(nsCSSCompressedDataBlock *aBlock,
             case eCSSType_CounterData:
             case eCSSType_Quotes: {
                 void* val = PointerAtCursor(cursor);
-                void** dest = static_cast<void**>(prop);
                 NS_ASSERTION(val, "oops");
-                NS_ASSERTION(!*dest, "expanding into non-empty block");
-                *dest = val;
+                *static_cast<void**>(prop) = val;
                 cursor += CDBPointerStorage_advance;
             } break;
         }

@@ -49,7 +49,7 @@
 #include "nsITimer.h"
 #include "nsIReflowCallback.h"
 #include "nsILookAndFeel.h"
-#include "nsTArray.h"
+#include "nsValueArray.h"
 #include "nsTreeStyleCache.h"
 #include "nsTreeColumns.h"
 #include "nsTreeImageListener.h"
@@ -94,7 +94,6 @@ public:
 
   // nsIReflowCallback
   virtual PRBool ReflowFinished();
-  virtual void ReflowCallbackCanceled();
 
   // nsICSSPseudoComparator
   NS_IMETHOD PseudoMatches(nsIAtom* aTag, nsCSSSelector* aSelector, PRBool* aResult);
@@ -121,17 +120,13 @@ public:
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
 
-  NS_IMETHOD DidSetStyleContext();
-
   friend nsIFrame* NS_NewTreeBodyFrame(nsIPresShell* aPresShell);
-  friend class nsTreeColumn;
 
   struct ScrollParts {
     nsIScrollbarFrame* mVScrollbar;
     nsIContent*        mVScrollbarContent;
     nsIScrollbarFrame* mHScrollbar;
     nsIContent*        mHScrollbarContent;
-    nsIFrame*          mColumnsFrame;
     nsIScrollableView* mColumnsScrollableView;
   };
 
@@ -413,36 +408,6 @@ protected:
   void PostScrollEvent();
   void FireScrollEvent();
 
-#ifdef ACCESSIBILITY
-  /**
-   * Fires 'treeRowCountChanged' event asynchronously. The event supports
-   * nsIDOMDataContainerEvent interface that is used to expose the following
-   * information structures.
-   *
-   * @param aIndex  the row index rows are added/removed from
-   * @param aCount  the number of added/removed rows (the sign points to
-   *                an operation, plus - addition, minus - removing)
-   */
-  void FireRowCountChangedEvent(PRInt32 aIndex, PRInt32 aCount);
-
-  /**
-   * Fires 'treeInvalidated' event asynchronously. The event supports
-   * nsIDOMDataContainerEvent interface that is used to expose the information
-   * structures described by method arguments.
-   *
-   * @param aStartRow  the start index of invalidated rows, -1 means that
-   *                   columns have been invalidated only
-   * @param aEndRow    the end index of invalidated rows, -1 means that columns
-   *                   have been invalidated only
-   * @param aStartCol  the start invalidated column, nsnull means that only rows
-   *                   have been invalidated
-   * @param aEndCol    the end invalidated column, nsnull means that rows have
-   *                   been invalidated only
-   */
-  void FireInvalidateEvent(PRInt32 aStartRow, PRInt32 aEndRow,
-                           nsITreeColumn *aStartCol, nsITreeColumn *aEndCol);
-#endif
-
 protected: // Data Members
   // The cached box object parent.
   nsCOMPtr<nsITreeBoxObject> mTreeBoxObject;
@@ -477,9 +442,6 @@ protected: // Data Members
   // Our desired horizontal width (the width for which we actually have tree
   // columns).
   nscoord mHorzWidth;
-  // The amount by which to adjust the width of the last cell.
-  // This depends on whether or not the columnpicker and scrollbars are present.
-  nscoord mAdjustWidth;
 
   // Cached heights and indent info.
   nsRect mInnerBox;
@@ -506,12 +468,10 @@ protected: // Data Members
   // Cached row count.
   PRInt32 mRowCount;
 
-  // The row the mouse is hovering over.
-  PRInt32 mMouseOverRow;
-
   class Slots {
     public:
-      Slots() {
+      Slots()
+        : mValueArray(~PRInt32(0)) {
       }
 
       ~Slots() {
@@ -542,8 +502,8 @@ protected: // Data Members
       // Timer for opening/closing spring loaded folders or scrolling the tree.
       nsCOMPtr<nsITimer>       mTimer;
 
-      // An array used to keep track of all spring loaded folders.
-      nsTArray<PRInt32>        mArray;
+      // A value array used to keep track of all spring loaded folders.
+      nsValueArray             mValueArray;
   };
 
   Slots* mSlots;

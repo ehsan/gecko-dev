@@ -36,19 +36,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/* For documentation of the accessibility architecture,
+/* For documentation of the accessibility architecture, 
  * see http://lxr.mozilla.org/seamonkey/source/accessible/accessible-docs.html
  */
 
 #ifndef _nsAccessNodeWrap_H_
 #define _nsAccessNodeWrap_H_
-
-// Avoid warning C4509:
-// nonstandard extension used: 'nsAccessibleWrap::[methodname]' 
-// uses SEH and 'xpAccessible' has destructor
-// At this point we're catching a crash which is of much greater
-// importance than the missing dereference for the nsCOMPtr<>
-#pragma warning( disable : 4509 )
 
 #include "nsCOMPtr.h"
 #include "nsIAccessible.h"
@@ -60,29 +53,19 @@
 #include "nsAccessNode.h"
 #include "OLEIDL.H"
 #include "OLEACC.H"
-#include <winuser.h>
-#ifndef WINABLEAPI
-#include <winable.h>
-#endif
+#include "winable.h"
 #undef ERROR /// Otherwise we can't include nsIDOMNSEvent.h if we include this
-#ifdef MOZ_CRASHREPORTER
-#include "nsICrashReporter.h"
-#endif
 
 typedef LRESULT (STDAPICALLTYPE *LPFNNOTIFYWINEVENT)(DWORD event,HWND hwnd,LONG idObjectType,LONG idObject);
 typedef LRESULT (STDAPICALLTYPE *LPFNGETGUITHREADINFO)(DWORD idThread, GUITHREADINFO* pgui);
 
 class nsAccessNodeWrap :  public nsAccessNode,
                           public nsIWinAccessNode,
-                          public ISimpleDOMNode,
-                          public IServiceProvider
+                          public ISimpleDOMNode
 {
   public:
     NS_DECL_ISUPPORTS_INHERITED
     NS_DECL_NSIWINACCESSNODE
-
-  public: // IServiceProvider
-    STDMETHODIMP QueryService(REFGUID guidService, REFIID riid, void** ppv);
 
   public: // construction, destruction
     nsAccessNodeWrap(nsIDOMNode *, nsIWeakReference* aShell);
@@ -156,8 +139,6 @@ class nsAccessNodeWrap :  public nsAccessNode,
     static LPFNNOTIFYWINEVENT gmNotifyWinEvent;
     static LPFNGETGUITHREADINFO gmGetGUIThreadInfo;
 
-    static int FilterA11yExceptions(unsigned int aCode, EXCEPTION_POINTERS *aExceptionInfo);
-
   protected:
     void GetAccessibleFor(nsIDOMNode *node, nsIAccessible **newAcc);
     ISimpleDOMNode* MakeAccessNode(nsIDOMNode *node);
@@ -170,11 +151,6 @@ class nsAccessNodeWrap :  public nsAccessNode,
      */
     static nsIAccessibleTextChangeEvent *gTextEvent;
 };
-
-/**
- * Converts nsresult to HRESULT.
- */
-HRESULT GetHRESULT(nsresult aResult);
 
 #endif
 

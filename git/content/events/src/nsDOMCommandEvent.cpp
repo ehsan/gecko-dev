@@ -51,14 +51,6 @@ nsDOMCommandEvent::nsDOMCommandEvent(nsPresContext* aPresContext,
   }
 }
 
-nsDOMCommandEvent::~nsDOMCommandEvent()
-{
-  if (mEventIsInternal && mEvent->eventStructType == NS_COMMAND_EVENT) {
-    delete static_cast<nsCommandEvent*>(mEvent);
-    mEvent = nsnull;
-  }
-}
-
 NS_INTERFACE_MAP_BEGIN(nsDOMCommandEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCommandEvent)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(CommandEvent)

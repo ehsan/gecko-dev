@@ -59,10 +59,7 @@ public:
   /* called when the observer needs to paint. This paints the entire
    * frame subtree rooted at the view, including frame subtrees from
    * subdocuments.
-   * @param aRenderingContext rendering context to paint to; the origin
-   * of the view is painted at (0,0) in the rendering context's current
-   * transform. For best results this should transform to pixel-aligned
-   * coordinates.
+   * @param aRenderingContext rendering context to paint to
    * @param aDirtyRegion the region to be painted, in the coordinates of aRootView
    * @return error status
    */

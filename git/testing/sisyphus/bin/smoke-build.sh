@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/usr/local/bin/bash -e
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
 #
@@ -36,11 +36,13 @@
 #
 # ***** END LICENSE BLOCK *****
 
-source $TEST_DIR/bin/library.sh
+TEST_DIR=${TEST_DIR:-/work/mozilla/mozilla.com/test.mozilla.com/www}
+TEST_BIN=${TEST_BIN:-$TEST_DIR/bin}
+source ${TEST_BIN}/library.sh
 
 if [[ -z "$1" ]]; then
-    echo smoke-build.sh directorypattern
-    exit 1
+  echo smoke-build.sh directorypattern
+  exit 2
 fi
 
 for filepath in $@; do
@@ -59,10 +61,8 @@ for filepath in $@; do
 
     echo $product $branch
 
-    if ! install-build.sh  -p "$product" -b "$branch" -x "/tmp/$product-$branch" \
-	-f "$filepath"; then
-	error "installing build $product $branch into /tmp/$product-$branch" $LINENO
-    fi
+    install-build.sh  -p "$product" -b "$branch" -x "/tmp/$product-$branch" \
+	-f "$filepath"
 
     if [[ "$product" == "thunderbird" ]]; then
 	template="-L ${TEST_DIR}/profiles/imap"
@@ -70,26 +70,20 @@ for filepath in $@; do
 	unset template
     fi
 
-    if ! create-profile.sh -p "$product" -b "$branch" \
+    create-profile.sh -p "$product" -b "$branch" \
 	-x "/tmp/$product-$branch" \
 	-D "/tmp/$product-$branch-profile" -N "$product-$branch-profile" \
 	-U ${TEST_DIR}/prefs/test-user.js \
-	$template; then
-	error "creating profile $product-$branch-profile at /tmp/$product-$branch" $LINENO
-    fi
+	$template
 
-    if ! install-extensions.sh -p "$product" -b "$branch" \
+    install-extensions.sh -p "$product" -b "$branch" \
 	-x "/tmp/$product-$branch" \
 	-N "$product-$branch-profile" \
-	-E ${TEST_DIR}/xpi; then
-        error "installing extensions from ${TEST_DIR}/xpi" $LINENO
-    fi
+	-E ${TEST_DIR}/xpi
 
-    if ! check-spider.sh -p "$product" -b "$branch" \
+    check-spider.sh -p "$product" -b "$branch" \
 	-x "/tmp/$product-$branch" \
-	-N "$product-$branch-profile"; then
-        error "check-spider.sh failed." $LINENO
-    fi
+	-N "$product-$branch-profile"
 
     uninstall-build.sh  -p "$product" -b "$branch" -x "/tmp/$product-$branch"
 
