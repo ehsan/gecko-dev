@@ -11,9 +11,6 @@
 #include "pixman.h"
 
 namespace mozilla {
-
-using namespace gfx;
-
 namespace image {
 
 FrameBlender::FrameBlender(FrameSequence* aSequenceToUse /* = nullptr */)
@@ -261,8 +258,8 @@ FrameBlender::DoBlend(nsIntRect* aDirtyRect,
   // Create the Compositing Frame
   if (!mAnim->compositingFrame) {
     mAnim->compositingFrame.SetFrame(new imgFrame());
-    nsresult rv =
-      mAnim->compositingFrame->InitForDecoder(mSize, SurfaceFormat::B8G8R8A8);
+    nsresult rv = mAnim->compositingFrame->Init(0, 0, mSize.width, mSize.height,
+                                                gfx::SurfaceFormat::B8G8R8A8);
     if (NS_FAILED(rv)) {
       mAnim->compositingFrame.SetFrame(nullptr);
       return false;
@@ -391,9 +388,8 @@ FrameBlender::DoBlend(nsIntRect* aDirtyRect,
     // overwrite.
     if (!mAnim->compositingPrevFrame) {
       mAnim->compositingPrevFrame.SetFrame(new imgFrame());
-      nsresult rv =
-        mAnim->compositingPrevFrame->InitForDecoder(mSize,
-                                                    SurfaceFormat::B8G8R8A8);
+      nsresult rv = mAnim->compositingPrevFrame->Init(0, 0, mSize.width, mSize.height,
+                                                      gfx::SurfaceFormat::B8G8R8A8);
       if (NS_FAILED(rv)) {
         mAnim->compositingPrevFrame.SetFrame(nullptr);
         return false;

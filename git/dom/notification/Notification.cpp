@@ -81,8 +81,6 @@ public:
       return rv.ErrorCode();
     }
 
-    notification->SetStoredState(true);
-
     JSAutoCompartment ac(aCx, mGlobal);
     JS::Rooted<JSObject*> element(aCx, notification->WrapObject(aCx));
     NS_ENSURE_TRUE(element, NS_ERROR_FAILURE);
@@ -371,18 +369,6 @@ NotificationObserver::Observe(nsISupports* aSubject, const char* aTopic,
     }
     mNotification->DispatchTrustedEvent(NS_LITERAL_STRING("click"));
   } else if (!strcmp("alertfinished", aTopic)) {
-    nsCOMPtr<nsINotificationStorage> notificationStorage =
-      do_GetService(NS_NOTIFICATION_STORAGE_CONTRACTID);
-    if (notificationStorage && mNotification->IsStored()) {
-      nsString origin;
-      nsresult rv = Notification::GetOrigin(mNotification->GetOwner(), origin);
-      if (NS_SUCCEEDED(rv)) {
-        nsString id;
-        mNotification->GetID(id);
-        notificationStorage->Delete(origin, id);
-      }
-      mNotification->SetStoredState(false);
-    }
     mNotification->mIsClosed = true;
     mNotification->DispatchTrustedEvent(NS_LITERAL_STRING("close"));
   } else if (!strcmp("alertshow", aTopic)) {
@@ -398,7 +384,7 @@ Notification::Notification(const nsAString& aID, const nsAString& aTitle, const 
                            nsPIDOMWindow* aWindow)
   : DOMEventTargetHelper(aWindow),
     mID(aID), mTitle(aTitle), mBody(aBody), mDir(aDir), mLang(aLang),
-    mTag(aTag), mIconUrl(aIconUrl), mIsClosed(false), mIsStored(false)
+    mTag(aTag), mIconUrl(aIconUrl), mIsClosed(false)
 {
   nsAutoString alertName;
   DebugOnly<nsresult> rv = GetOrigin(GetOwner(), alertName);
@@ -488,8 +474,6 @@ Notification::Constructor(const GlobalObject& aGlobal,
   if (aRv.Failed()) {
     return nullptr;
   }
-
-  notification->SetStoredState(true);
 
   return notification.forget();
 }
@@ -797,7 +781,7 @@ Notification::Close()
 void
 Notification::CloseInternal()
 {
-  if (mIsStored) {
+  if (!mIsClosed) {
     // Don't bail out if notification storage fails, since we still
     // want to send the close event through the alert service.
     nsCOMPtr<nsINotificationStorage> notificationStorage =
@@ -809,9 +793,7 @@ Notification::CloseInternal()
         notificationStorage->Delete(origin, mID);
       }
     }
-    SetStoredState(false);
-  }
-  if (!mIsClosed) {
+
     nsCOMPtr<nsIAlertsService> alertService =
       do_GetService(NS_ALERTSERVICE_CONTRACTID);
     if (alertService) {

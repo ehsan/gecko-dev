@@ -261,7 +261,6 @@ public:
     ID3D10Device1 *GetD3D10Device() { return mD2DDevice ? cairo_d2d_device_get_device(mD2DDevice) : nullptr; }
 #endif
     ID3D11Device *GetD3D11Device();
-    ID3D11Device *GetD3D11ContentDevice();
 
     mozilla::layers::ReadbackManagerD3D11* GetReadbackManager();
 
@@ -275,7 +274,6 @@ protected:
 
 private:
     void Init();
-    void InitD3D11Devices();
     IDXGIAdapter1 *GetDXGIAdapter();
 
     bool mUseDirectWrite;
@@ -293,7 +291,6 @@ private:
     mozilla::RefPtr<IDXGIAdapter1> mAdapter;
     nsRefPtr<mozilla::layers::DeviceManagerD3D9> mDeviceManager;
     mozilla::RefPtr<ID3D11Device> mD3D11Device;
-    mozilla::RefPtr<ID3D11Device> mD3D11ContentDevice;
     bool mD3D11DeviceInitialized;
     mozilla::RefPtr<mozilla::layers::ReadbackManagerD3D11> mD3D11ReadbackManager;
 

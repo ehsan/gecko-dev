@@ -706,9 +706,6 @@ GetObjectParentMaybeScope(JSObject *obj);
 JS_FRIEND_API(JSObject *)
 GetGlobalForObjectCrossCompartment(JSObject *obj);
 
-JS_FRIEND_API(JSObject *)
-GetPrototypeNoProxy(JSObject *obj);
-
 // Sidestep the activeContext checking implicitly performed in
 // JS_SetPendingException.
 JS_FRIEND_API(void)

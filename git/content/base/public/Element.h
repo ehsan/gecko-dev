@@ -646,8 +646,6 @@ public:
   }
   bool HasAttributeNS(const nsAString& aNamespaceURI,
                       const nsAString& aLocalName) const;
-  Element* Closest(const nsAString& aSelector,
-                   ErrorResult& aResult);
   bool Matches(const nsAString& aSelector,
                ErrorResult& aError);
   already_AddRefed<nsIHTMLCollection>

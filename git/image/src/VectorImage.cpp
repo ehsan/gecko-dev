@@ -11,7 +11,6 @@
 #include "gfxPlatform.h"
 #include "gfxUtils.h"
 #include "imgDecoderObserver.h"
-#include "imgFrame.h"
 #include "mozilla/AutoRestore.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/SVGSVGElement.h"
@@ -843,30 +842,27 @@ VectorImage::Draw(gfxContext* aContext,
                               aSVGContext, animTime, aFlags);
 
   if (aFlags & FLAG_BYPASS_SURFACE_CACHE) {
-    CreateSurfaceAndShow(params);
+    CreateDrawableAndShow(params);
     return NS_OK;
   }
 
-  DrawableFrameRef frameRef =
+  nsRefPtr<gfxDrawable> drawable =
     SurfaceCache::Lookup(ImageKey(this),
                          SurfaceKey(params.size, aSVGContext,
                                     animTime, aFlags));
 
   // Draw.
-  if (frameRef) {
-    RefPtr<SourceSurface> surface = frameRef->GetSurface();
-    nsRefPtr<gfxDrawable> svgDrawable =
-      new gfxSurfaceDrawable(surface, ThebesIntSize(frameRef->GetSize()));
-    Show(svgDrawable, params);
+  if (drawable) {
+    Show(drawable, params);
   } else {
-    CreateSurfaceAndShow(params);
+    CreateDrawableAndShow(params);
   }
 
   return NS_OK;
 }
 
 void
-VectorImage::CreateSurfaceAndShow(const SVGDrawingParameters& aParams)
+VectorImage::CreateDrawableAndShow(const SVGDrawingParameters& aParams)
 {
   mSVGDocumentWrapper->UpdateViewportBounds(aParams.viewportSize);
   mSVGDocumentWrapper->FlushImageTransformInvalidation();
@@ -889,32 +885,38 @@ VectorImage::CreateSurfaceAndShow(const SVGDrawingParameters& aParams)
   if (bypassCache)
     return Show(svgDrawable, aParams);
 
-  // Try to create an imgFrame, initializing the surface it contains by drawing
-  // our gfxDrawable into it. (We use FILTER_NEAREST since we never scale here.)
-  nsRefPtr<imgFrame> frame = new imgFrame;
-  nsresult rv =
-    frame->InitWithDrawable(svgDrawable, ThebesIntSize(aParams.size),
-                            SurfaceFormat::B8G8R8A8,
-                            GraphicsFilter::FILTER_NEAREST, aParams.flags);
+  // Try to create an offscreen surface.
+  RefPtr<gfx::DrawTarget> target =
+    gfxPlatform::GetPlatform()->
+      CreateOffscreenContentDrawTarget(aParams.size,
+                                       gfx::SurfaceFormat::B8G8R8A8);
 
-  // If we couldn't create the frame, it was probably because it would end
+  // If we couldn't create the draw target, it was probably because it would end
   // up way too big. Generally it also wouldn't fit in the cache, but the prefs
   // could be set such that the cache isn't the limiting factor.
-  if (NS_FAILED(rv))
+  if (!target)
     return Show(svgDrawable, aParams);
 
-  // Take a strong reference to the frame's surface and make sure it hasn't
-  // already been purged by the operating system.
-  RefPtr<SourceSurface> surface = frame->GetSurface();
-  if (!surface)
-    return Show(svgDrawable, aParams);
+  nsRefPtr<gfxContext> ctx = new gfxContext(target);
 
-  // Attempt to cache the frame.
-  SurfaceCache::Insert(frame, ImageKey(this),
+  // Actually draw. (We use FILTER_NEAREST since we never scale here.)
+  nsIntRect imageRect(ThebesIntRect(aParams.imageRect));
+  gfxUtils::DrawPixelSnapped(ctx, svgDrawable,
+                             ThebesIntSize(aParams.size),
+                             ImageRegion::Create(imageRect),
+                             SurfaceFormat::B8G8R8A8,
+                             GraphicsFilter::FILTER_NEAREST, aParams.flags);
+
+  RefPtr<SourceSurface> surface = target->Snapshot();
+
+  // Attempt to cache the resulting surface.
+  SurfaceCache::Insert(surface, ImageKey(this),
                        SurfaceKey(aParams.size, aParams.svgContext,
                                   aParams.animationTime, aParams.flags));
 
-  // Draw.
+  // Draw. Note that if SurfaceCache::Insert failed for whatever reason,
+  // then |target| is all that is keeping the pixel data alive, so we have
+  // to draw before returning from this function.
   nsRefPtr<gfxDrawable> drawable =
     new gfxSurfaceDrawable(surface, ThebesIntSize(aParams.size));
   Show(drawable, aParams);

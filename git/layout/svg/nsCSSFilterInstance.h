@@ -35,16 +35,14 @@ public:
    * @param aFilter The CSS filter from the style system. This class stores
    *   aFilter by reference, so callers should avoid modifying or deleting
    *   aFilter during the lifetime of nsCSSFilterInstance.
-   * @param aShadowFallbackColor The color that should be used for
-   *   drop-shadow() filters that don't specify a shadow color.
-   * @param aTargetBBoxInFilterSpace The frame of element being filtered, in
+   * @param mTargetBBoxInFilterSpace The frame of element being filtered, in
    *   filter space.
    * @param aFrameSpaceInCSSPxToFilterSpaceTransform The transformation from
    *   the filtered element's frame space in CSS pixels to filter space.
    */
   nsCSSFilterInstance(const nsStyleFilter& aFilter,
-                      nscolor aShadowFallbackColor,
-                      const nsIntRect& aTargetBBoxInFilterSpace,
+                      nsIFrame *aTargetFrame,
+                      const nsIntRect& mTargetBBoxInFilterSpace,
                       const gfxMatrix& aFrameSpaceInCSSPxToFilterSpaceTransform);
 
   /**
@@ -114,10 +112,9 @@ private:
   const nsStyleFilter& mFilter;
 
   /**
-   * The color that should be used for drop-shadow() filters that don't
-   * specify a shadow color.
+   * The frame for the element that is currently being filtered.
    */
-  nscolor mShadowFallbackColor;
+  nsIFrame* mTargetFrame;
 
   /**
    * The bounding box of the element being filtered, in filter space. Used for

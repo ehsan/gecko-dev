@@ -596,6 +596,13 @@ WrapperFactory::WaiveXrayAndWrap(JSContext *cx, MutableHandleObject argObj)
     return true;
 }
 
+bool
+WrapperFactory::XrayWrapperNotShadowing(JSObject *wrapper, jsid id)
+{
+    ResolvingId *rid = ResolvingId::getResolvingIdFromWrapper(wrapper);
+    return rid->isXrayShadowing(id);
+}
+
 /*
  * Calls to JS_TransplantObject* should go through these helpers here so that
  * waivers get fixed up properly.

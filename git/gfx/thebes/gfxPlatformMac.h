@@ -64,10 +64,6 @@ public:
                                         int32_t aRunScript,
                                         nsTArray<const char*>& aFontList);
 
-    virtual bool CanRenderContentToDataSurface() const MOZ_OVERRIDE {
-      return true;
-    }
-
     bool UseAcceleratedCanvas();
 
     virtual bool UseTiling() MOZ_OVERRIDE;

@@ -163,11 +163,9 @@ public:
                                          const uint32_t& aEnd,
                                          const uint32_t& aNewEnd,
                                          const bool& aCausedByComposition) MOZ_OVERRIDE;
-    virtual bool RecvNotifyIMESelectedCompositionRect(
-                   const uint32_t& aOffset,
-                   const InfallibleTArray<nsIntRect>& aRects,
-                   const uint32_t& aCaretOffset,
-                   const nsIntRect& aCaretRect) MOZ_OVERRIDE;
+    virtual bool RecvNotifyIMESelectedCompositionRect(const uint32_t& aOffset,
+                                                      const nsIntRect& aRect,
+                                                      const nsIntRect& aCaretRect) MOZ_OVERRIDE;
     virtual bool RecvNotifyIMESelection(const uint32_t& aSeqno,
                                         const uint32_t& aAnchor,
                                         const uint32_t& aFocus,
@@ -378,8 +376,7 @@ protected:
     uint32_t mIMESeqno;
 
     uint32_t mIMECompositionRectOffset;
-    InfallibleTArray<nsIntRect> mIMECompositionRects;
-    uint32_t mIMECaretOffset;
+    nsIntRect mIMECompositionRect;
     nsIntRect mIMECaretRect;
 
     // The number of event series we're currently capturing.

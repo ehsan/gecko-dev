@@ -70,20 +70,18 @@ class nsSVGFilterInstance
   typedef mozilla::gfx::IntRect IntRect;
   typedef mozilla::gfx::SourceSurface SourceSurface;
   typedef mozilla::gfx::FilterPrimitiveDescription FilterPrimitiveDescription;
-  typedef mozilla::dom::UserSpaceMetrics UserSpaceMetrics;
 
 public:
   /**
    * @param aFilter The SVG filter reference from the style system. This class
    *   stores aFilter by reference, so callers should avoid modifying or
    *   deleting aFilter during the lifetime of nsSVGFilterInstance.
-   * @param aTargetContent The filtered element.
+   * @param aTargetFrame The frame of the filtered element under consideration.
    * @param aTargetBBox The SVG bbox to use for the target frame, computed by
    *   the caller. The caller may decide to override the actual SVG bbox.
    */
   nsSVGFilterInstance(const nsStyleFilter& aFilter,
-                      nsIContent* aTargetContent,
-                      const UserSpaceMetrics& aMetrics,
+                      nsIFrame *aTargetFrame,
                       const gfxRect& aTargetBBox,
                       const gfxSize& aUserSpaceToFilterSpaceScale,
                       const gfxSize& aFilterSpaceToUserSpaceScale);
@@ -210,14 +208,9 @@ private:
   const nsStyleFilter& mFilter;
 
   /**
-   * The filtered element.
+   * The frame for the element that is currently being filtered.
    */
-  nsIContent* mTargetContent;
-
-  /**
-   * The SVG user space metrics that SVG lengths are resolved against.
-   */
-  const UserSpaceMetrics& mMetrics;
+  nsIFrame* mTargetFrame;
 
   /**
    * The filter element referenced by mTargetFrame's element.

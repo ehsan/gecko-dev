@@ -61,7 +61,6 @@
 #include "nsThreadManager.h"
 #endif
 
-#include "Principal.h"
 #include "ServiceWorker.h"
 #include "SharedWorker.h"
 #include "WorkerPrivate.h"
@@ -853,7 +852,6 @@ public:
                               WORKER_DEFAULT_NURSERY_SIZE),
     mWorkerPrivate(aWorkerPrivate)
   {
-    JS_InitDestroyPrincipalsCallback(Runtime(), DestroyWorkerPrincipals);
   }
 
   ~WorkerJSRuntime()

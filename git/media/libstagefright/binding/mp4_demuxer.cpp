@@ -102,17 +102,13 @@ MP4Demuxer::Init()
 
     if (!mPrivate->mAudio.get() && !strncmp(mimeType, "audio/", 6)) {
       mPrivate->mAudio = e->getTrack(i);
-      if (mPrivate->mAudio->start() != OK) {
-        return false;
-      }
+      mPrivate->mAudio->start();
       mAudioConfig.Update(metaData, mimeType);
       mPrivate->mIndexes.AppendElement(new Index(
         mPrivate->mAudio->exportIndex(), mSource, mAudioConfig.mTrackId));
     } else if (!mPrivate->mVideo.get() && !strncmp(mimeType, "video/", 6)) {
       mPrivate->mVideo = e->getTrack(i);
-      if (mPrivate->mVideo->start() != OK) {
-        return false;
-      }
+      mPrivate->mVideo->start();
       mVideoConfig.Update(metaData, mimeType);
       mPrivate->mIndexes.AppendElement(new Index(
         mPrivate->mVideo->exportIndex(), mSource, mVideoConfig.mTrackId));

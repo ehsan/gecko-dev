@@ -233,8 +233,7 @@ let DebuggerView = {
       showAnnotationRuler: true,
       gutters: gutters,
       extraKeys: extraKeys,
-      contextMenu: "sourceEditorContextMenu",
-      enableCodeFolding: false
+      contextMenu: "sourceEditorContextMenu"
     });
 
     this.editor.appendTo(document.getElementById("editor")).then(() => {
