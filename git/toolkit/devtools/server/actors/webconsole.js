@@ -1065,7 +1065,6 @@ function NetworkEventActor(aNetworkEvent, aWebConsoleActor)
   this.conn = this.parent.conn;
 
   this._startedDateTime = aNetworkEvent.startedDateTime;
-  this._isXHR = aNetworkEvent.isXHR;
 
   this._request = {
     method: aNetworkEvent.method,
@@ -1109,7 +1108,6 @@ NetworkEventActor.prototype =
       startedDateTime: this._startedDateTime,
       url: this._request.url,
       method: this._request.method,
-      isXHR: this._isXHR
     };
   },
 

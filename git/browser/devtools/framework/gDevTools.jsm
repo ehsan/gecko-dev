@@ -440,35 +440,18 @@ let gDevToolsBrowser = {
 
       let amp = doc.getElementById("appmenu_webDeveloper_popup");
       if (amp) {
-        let ref;
+        let ref = (prevDef != null) ?
+            doc.getElementById("appmenuitem_" + prevDef.id).nextSibling :
+            doc.getElementById("appmenu_devtools_separator");
 
-        if (prevDef != null) {
-          let menuitem = doc.getElementById("appmenuitem_" + prevDef.id);
-          ref = menuitem && menuitem.nextSibling ? menuitem.nextSibling : null;
-        } else {
-          ref = doc.getElementById("appmenu_devtools_separator");
-        }
-
-        if (ref) {
-          amp.insertBefore(elements.appmenuitem, ref);
-        }
+        amp.insertBefore(elements.appmenuitem, ref);
       }
 
       let mp = doc.getElementById("menuWebDeveloperPopup");
-      if (mp) {
-        let ref;
-
-        if (prevDef != null) {
-          let menuitem = doc.getElementById("menuitem_" + prevDef.id);
-          ref = menuitem && menuitem.nextSibling ? menuitem.nextSibling : null;
-        } else {
-          ref = doc.getElementById("menu_devtools_separator");
-        }
-
-        if (ref) {
-          mp.insertBefore(elements.menuitem, ref);
-        }
-      }
+      let ref = (prevDef != null) ?
+          doc.getElementById("menuitem_" + prevDef.id).nextSibling :
+          doc.getElementById("menu_devtools_separator");
+      mp.insertBefore(elements.menuitem, ref);
     }
   },
 

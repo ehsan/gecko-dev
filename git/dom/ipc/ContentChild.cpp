@@ -251,7 +251,7 @@ void SystemMessageHandledObserver::Init()
         mozilla::services::GetObserverService();
 
     if (os) {
-        os->AddObserver(this, "handle-system-messages-done",
+        os->AddObserver(this, "SystemMessageManager:HandleMessageDone",
                         /* ownsWeak */ false);
     }
 }

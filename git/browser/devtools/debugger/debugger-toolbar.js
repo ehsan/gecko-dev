@@ -1247,7 +1247,7 @@ FilterView.prototype = {
    */
   _doVariablesFocus: function() {
     DebuggerView.showInstrumentsPane();
-    DebuggerView.Variables.focusFirstVisibleItem();
+    DebuggerView.Variables.focusFirstVisibleNode();
   },
 
   _searchbox: null,
@@ -1362,7 +1362,7 @@ create({ constructor: FilteredSourcesView, proto: ResultsPanelContainer.prototyp
   onSelect: function(e) {
     let locationItem = this.getItemForElement(e.target);
     if (locationItem) {
-      DebuggerView.updateEditor(locationItem.attachment.fullValue, 0);
+      DebuggerView.Sources.selectedValue = locationItem.attachment.fullValue;
     }
   }
 });

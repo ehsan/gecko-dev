@@ -220,7 +220,7 @@ BluetoothServiceChildProcess::UpdateSdpRecords(const nsAString& aDeviceAddress,
                                                BluetoothProfileManagerBase* aManager)
 {
   MOZ_NOT_REACHED("This should never be called!");
-  return false;
+  return NS_ERROR_FAILURE;
 }
 
 bool
