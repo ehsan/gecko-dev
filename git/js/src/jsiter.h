@@ -43,7 +43,6 @@
 /*
  * JavaScript iterators.
  */
-#include "jscntxt.h"
 #include "jsprvtd.h"
 #include "jspubtd.h"
 #include "jsversion.h"

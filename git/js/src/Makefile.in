@@ -254,9 +254,7 @@ INSTALLED_HEADERS = \
 		$(NULL)
 
 ifdef ENABLE_TRACEJIT
-VPATH		+= \
-		$(srcdir)/tracejit \
-		$(srcdir)/nanojit \
+VPATH		+= $(srcdir)/nanojit
 
 INSTALLED_HEADERS += \
 		jsbuiltins.h    \
@@ -265,18 +263,15 @@ INSTALLED_HEADERS += \
 		CodeAlloc.h     \
 		Containers.h    \
 		LIR.h		\
-		LIRopcode.tbl \
 		avmplus.h	\
 		Fragmento.h	\
 		Native.h	\
 		NativeCommon.h	\
 		Native$(NANOJIT_ARCH).h \
-		njconfig.h      \
-		njcpudetect.h   \
+		njconfig.h  \
 		RegAlloc.h	\
 		nanojit.h	\
 		VMPI.h		\
-		Writer.h	\
 		$(NULL)
 
 CPPSRCS += \
@@ -291,9 +286,8 @@ CPPSRCS += \
 		RegAlloc.cpp   \
 		avmplus.cpp    \
 		Native$(NANOJIT_ARCH).cpp \
-		jsbuiltins.cpp \
+		jsbuiltins.cpp         \
 		VMPI.cpp       \
-		Writer.cpp     \
 		$(NULL)
 
 ifdef WINCE
