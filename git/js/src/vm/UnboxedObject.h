@@ -28,12 +28,6 @@ UnboxedTypeSize(JSValueType type)
     }
 }
 
-static inline bool
-UnboxedTypeNeedsPreBarrier(JSValueType type)
-{
-    return type == JSVAL_TYPE_STRING || type == JSVAL_TYPE_OBJECT;
-}
-
 // Class describing the layout of an UnboxedPlainObject.
 class UnboxedLayout
 {

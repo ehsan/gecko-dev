@@ -1177,16 +1177,8 @@ CanAttachNativeGetProp(typename GetPropCache::Context cx, const GetPropCache &ca
     // of turn. We don't mind doing this even when purity isn't required, because we
     // only miss out on shape hashification, which is only a temporary perf cost.
     // The limits were arbitrarily set, anyways.
-    JSObject *baseHolder = nullptr;
-    if (!LookupPropertyPure(cx, obj, NameToId(name), &baseHolder, shape.address()))
+    if (!LookupPropertyPure(cx, obj, NameToId(name), holder.address(), shape.address()))
         return GetPropertyIC::CanAttachNone;
-
-    MOZ_ASSERT(!holder);
-    if (baseHolder) {
-        if (!baseHolder->isNative())
-            return GetPropertyIC::CanAttachNone;
-        holder.set(&baseHolder->as<NativeObject>());
-    }
 
     RootedScript script(cx);
     jsbytecode *pc;
@@ -2653,7 +2645,7 @@ IsPropertyAddInlineable(NativeObject *obj, HandleId id, ConstantOrRegister val, 
 
 static SetPropertyIC::NativeSetPropCacheability
 CanAttachNativeSetProp(JSContext *cx, HandleObject obj, HandleId id, ConstantOrRegister val,
-                       bool needsTypeBarrier, MutableHandleObject holder,
+                       bool needsTypeBarrier, MutableHandleNativeObject holder,
                        MutableHandleShape shape, bool *checkTypeset)
 {
     if (!obj->isNative())
@@ -2731,7 +2723,7 @@ SetPropertyIC::update(JSContext *cx, size_t cacheIndex, HandleObject obj,
         }
 
         RootedShape shape(cx);
-        RootedObject holder(cx);
+        RootedNativeObject holder(cx);
         bool checkTypeset;
         canCache = CanAttachNativeSetProp(cx, obj, id, cache.value(), cache.needsTypeBarrier(),
                                           &holder, &shape, &checkTypeset);

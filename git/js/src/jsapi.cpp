@@ -2032,12 +2032,12 @@ JS_FireOnNewGlobalObject(JSContext *cx, JS::HandleObject global)
 }
 
 JS_PUBLIC_API(JSObject *)
-JS_NewObject(JSContext *cx, const JSClass *jsclasp, HandleObject parent)
+JS_NewObject(JSContext *cx, const JSClass *jsclasp, HandleObject proto, HandleObject parent)
 {
     MOZ_ASSERT(!cx->runtime()->isAtomsCompartment(cx->compartment()));
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    assertSameCompartment(cx, parent);
+    assertSameCompartment(cx, proto, parent);
 
     const Class *clasp = Valueify(jsclasp);
     if (!clasp)
@@ -2046,7 +2046,7 @@ JS_NewObject(JSContext *cx, const JSClass *jsclasp, HandleObject parent)
     MOZ_ASSERT(clasp != &JSFunction::class_);
     MOZ_ASSERT(!(clasp->flags & JSCLASS_IS_GLOBAL));
 
-    JSObject *obj = NewObjectWithClassProto(cx, clasp, nullptr, parent);
+    JSObject *obj = NewObjectWithClassProto(cx, clasp, proto, parent);
     MOZ_ASSERT_IF(obj, obj->getParent());
     return obj;
 }
@@ -2066,7 +2066,10 @@ JS_NewObjectWithGivenProto(JSContext *cx, const JSClass *jsclasp, HandleObject p
     MOZ_ASSERT(clasp != &JSFunction::class_);
     MOZ_ASSERT(!(clasp->flags & JSCLASS_IS_GLOBAL));
 
-    return NewObjectWithGivenProto(cx, clasp, proto, parent);
+    JSObject *obj = NewObjectWithGivenProto(cx, clasp, proto, parent);
+    if (obj)
+        MarkTypeObjectUnknownProperties(cx, obj->type());
+    return obj;
 }
 
 JS_PUBLIC_API(JSObject *)

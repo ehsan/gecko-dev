@@ -1495,9 +1495,8 @@ template<> struct RootKind<BaseShape *> : SpecificRootKind<BaseShape *, THING_RO
 // properties of non-native objects, and dense elements for native objects.
 // Use separate APIs for these two cases.
 
-template <AllowGC allowGC>
 static inline void
-MarkNonNativePropertyFound(typename MaybeRooted<Shape*, allowGC>::MutableHandleType propp)
+MarkNonNativePropertyFound(MutableHandleShape propp)
 {
     propp.set(reinterpret_cast<Shape*>(1));
 }

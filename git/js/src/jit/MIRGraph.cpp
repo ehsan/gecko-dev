@@ -39,7 +39,6 @@ MIRGenerator::MIRGenerator(CompileCompartment *compartment, const JitCompileOpti
     modifiesFrameArguments_(false),
     instrumentedProfiling_(false),
     instrumentedProfilingIsCached_(false),
-    nurseryObjects_(*alloc),
     options(options)
 { }
 
