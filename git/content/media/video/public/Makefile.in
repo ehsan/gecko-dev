@@ -34,18 +34,38 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH		= ../..
+DEPTH		= ../../../..
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-ifdef MOZ_MEDIA
-DIRS 		= \
-		video \
+MODULE		= content
+
+EXPORTS		= \
+		nsMediaDecoder.h \
+		nsMediaStream.h \
+		nsMediaCache.h \
+		$(NULL)
+
+ifdef MOZ_SYDNEYAUDIO
+EXPORTS		+= \
+		nsAudioStream.h \
+		$(NULL)
+endif
+
+ifdef MOZ_OGG
+EXPORTS		+= \
+		nsChannelReader.h \
+		nsOggDecoder.h \
+		$(NULL)
+endif
+
+ifdef MOZ_WAVE
+EXPORTS		+= \
+		nsWaveDecoder.h \
 		$(NULL)
 endif
 
 include $(topsrcdir)/config/rules.mk
-

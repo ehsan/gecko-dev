@@ -1053,7 +1053,10 @@ fi # MOZ_COMPONENTLIB
 if [ "$MOZ_MEDIA" ]; then
  add_makefiles "
    content/media/Makefile
-   content/media/test/Makefile
+   content/media/video/Makefile
+   content/media/video/public/Makefile
+   content/media/video/src/Makefile
+   content/media/video/test/Makefile
  "
 fi
 
@@ -1065,13 +1068,6 @@ if [ "$MOZ_OGG" ]; then
    $MAKEFILES_libogg
    $MAKEFILES_libfishsound
    $MAKEFILES_liboggplay
-   content/media/ogg/Makefile
- "
-fi
-
-if [ "$MOZ_WAVE" ]; then
- add_makefiles "
-   content/media/wave/Makefile
  "
 fi
 
