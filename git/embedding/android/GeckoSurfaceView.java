@@ -212,8 +212,6 @@ class GeckoSurfaceView
             GeckoApp.mAppContext.mProgressDialog.dismiss();
             GeckoApp.mAppContext.mProgressDialog = null;
         }
-        if (buffer != mSoftwareBuffer)
-            return;
         Canvas c = getHolder().lockCanvas();
         if (c == null)
             return;

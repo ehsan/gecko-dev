@@ -2016,8 +2016,6 @@ public:
 
   NS_DISPLAY_DECL_NAME("MathMLCharForeground", TYPE_MATHML_CHAR_FOREGROUND)
 
-  virtual PRBool HasText() { return PR_TRUE; }
-
 private:
   nsMathMLChar* mChar;
   PRPackedBool  mIsSelected;

@@ -771,7 +771,7 @@ toolbar[mode="icons"] #zoom-in-button {
 
 #identity-box:-moz-focusring {
   box-shadow: 0 0 2px 1px -moz-mac-focusring inset,
-              0 0 2px 2px -moz-mac-focusring;
+              0 0 3px 2px -moz-mac-focusring;
 }
 
 #identity-box {
@@ -1916,7 +1916,8 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 }
 
 /* Popup Bounding Box */
-#identity-popup {
+#identity-popup,
+#notification-popup {
   -moz-appearance: none;
   -moz-window-shadow: none;
   background-color: transparent;
@@ -1937,8 +1938,8 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 
 #notification-popup {
   color: #fff;
-  margin-left: -16px;
-  margin-right: -16px;
+  margin-top: -1px;
+  margin-left: -27px;
 }
 
 #notification-popup-box {

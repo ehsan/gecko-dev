@@ -110,7 +110,7 @@ public:
   NS_IMETHOD SaveState();
   PRBool RestoreState(nsPresState* aState);
 
-  virtual void FieldSetDisabledChanged(PRInt32 aStates, PRBool aNotify);
+  virtual void FieldSetDisabledChanged(PRInt32 aStates);
 
   PRInt32 IntrinsicState() const;
 
@@ -709,7 +709,7 @@ nsHTMLButtonElement::IntrinsicState() const
     state |= NS_EVENT_STATE_MOZ_SUBMITINVALID;
   }
 
-  return state;
+  return state | NS_EVENT_STATE_OPTIONAL;
 }
 
 // nsIConstraintValidation
@@ -738,11 +738,11 @@ nsHTMLButtonElement::UpdateBarredFromConstraintValidation()
 }
 
 void
-nsHTMLButtonElement::FieldSetDisabledChanged(PRInt32 aStates, PRBool aNotify)
+nsHTMLButtonElement::FieldSetDisabledChanged(PRInt32 aStates)
 {
   UpdateBarredFromConstraintValidation();
 
   aStates |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
-  nsGenericHTMLFormElement::FieldSetDisabledChanged(aStates, aNotify);
+  nsGenericHTMLFormElement::FieldSetDisabledChanged(aStates);
 }
 

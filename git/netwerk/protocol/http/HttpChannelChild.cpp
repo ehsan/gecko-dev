@@ -54,6 +54,33 @@
 namespace mozilla {
 namespace net {
 
+class ChildChannelEvent
+{
+ public:
+  ChildChannelEvent() { MOZ_COUNT_CTOR(Callback); }
+  virtual ~ChildChannelEvent() { MOZ_COUNT_DTOR(Callback); }
+  virtual void Run() = 0;
+};
+
+// Ensures any incoming IPDL msgs are queued during its lifetime, and flushes
+// the queue when it goes out of scope.
+class AutoEventEnqueuer 
+{
+public:
+  AutoEventEnqueuer(HttpChannelChild* channel) : mChannel(channel) 
+  {
+    mChannel->BeginEventQueueing();
+  }
+  ~AutoEventEnqueuer() 
+  { 
+    mChannel->EndEventQueueing();
+    mChannel->FlushEventQueue(); 
+  }
+private:
+    HttpChannelChild *mChannel;
+};
+
+
 //-----------------------------------------------------------------------------
 // HttpChannelChild
 //-----------------------------------------------------------------------------
@@ -66,6 +93,7 @@ HttpChannelChild::HttpChannelChild()
   , mSuspendCount(0)
   , mIPCOpen(false)
   , mKeptAlive(false)
+  , mQueuePhase(PHASE_UNQUEUED)
 {
   LOG(("Creating HttpChannelChild @%x\n", this));
 }
@@ -178,7 +206,7 @@ HttpChannelChild::FlushEventQueue()
     mQueuePhase = PHASE_UNQUEUED;
 }
 
-class StartRequestEvent : public ChannelEvent
+class StartRequestEvent : public ChildChannelEvent
 {
  public:
   StartRequestEvent(HttpChannelChild* child,
@@ -292,7 +320,7 @@ HttpChannelChild::OnStartRequest(const nsHttpResponseHead& responseHead,
     Cancel(rv);
 }
 
-class DataAvailableEvent : public ChannelEvent
+class DataAvailableEvent : public ChildChannelEvent
 {
  public:
   DataAvailableEvent(HttpChannelChild* child,
@@ -360,7 +388,7 @@ HttpChannelChild::OnDataAvailable(const nsCString& data,
   }
 }
 
-class StopRequestEvent : public ChannelEvent
+class StopRequestEvent : public ChildChannelEvent
 {
  public:
   StopRequestEvent(HttpChannelChild* child,
@@ -422,7 +450,7 @@ HttpChannelChild::OnStopRequest(const nsresult& statusCode)
   }
 }
 
-class ProgressEvent : public ChannelEvent
+class ProgressEvent : public ChildChannelEvent
 {
  public:
   ProgressEvent(HttpChannelChild* child,
@@ -477,7 +505,7 @@ HttpChannelChild::OnProgress(const PRUint64& progress,
   }
 }
 
-class StatusEvent : public ChannelEvent
+class StatusEvent : public ChildChannelEvent
 {
  public:
   StatusEvent(HttpChannelChild* child,
@@ -529,7 +557,7 @@ HttpChannelChild::OnStatus(const nsresult& status,
   }
 }
 
-class CancelEvent : public ChannelEvent
+class CancelEvent : public ChildChannelEvent
 {
  public:
   CancelEvent(HttpChannelChild* child, const nsresult& status)
@@ -580,33 +608,7 @@ HttpChannelChild::OnCancel(const nsresult& status)
     PHttpChannelChild::Send__delete__(this);
 }
 
-class DeleteSelfEvent : public ChannelEvent
-{
- public:
-  DeleteSelfEvent(HttpChannelChild* child) : mChild(child) {}
-  void Run() { mChild->DeleteSelf(); }
- private:
-  HttpChannelChild* mChild;
-};
-
-bool
-HttpChannelChild::RecvDeleteSelf()
-{
-  if (ShouldEnqueue()) {
-    EnqueueEvent(new DeleteSelfEvent(this));
-  } else {
-    DeleteSelf();
-  }
-  return true;
-}
-
-void
-HttpChannelChild::DeleteSelf()
-{
-  Send__delete__(this);
-}
-
-class Redirect1Event : public ChannelEvent
+class Redirect1Event : public ChildChannelEvent
 {
  public:
   Redirect1Event(HttpChannelChild* child,
@@ -662,8 +664,9 @@ HttpChannelChild::Redirect1Begin(PHttpChannelChild* newChannel,
     newHttpChannelChild->HttpBaseChannel::Init(uri, mCaps,
                                                mConnectionInfo->ProxyInfo());
   if (NS_FAILED(rv)) {
-    // Veto redirect.  nsHttpChannel decides to cancel or continue. 
-    SendRedirect2Verify(rv, newHttpChannelChild->mRequestHeaders);
+    // Cancel the channel and veto the redirect.
+    Cancel(rv);
+    SendRedirect2Result(rv, mRedirectChannelChild->mRequestHeaders);
     return;
   }
 
@@ -674,8 +677,9 @@ HttpChannelChild::Redirect1Begin(PHttpChannelChild* newChannel,
   PRBool preserveMethod = (mResponseHead->Status() == 307);
   rv = SetupReplacementChannel(uri, newHttpChannelChild, preserveMethod);
   if (NS_FAILED(rv)) {
-    // Veto redirect.  nsHttpChannel decides to cancel or continue.
-    SendRedirect2Verify(rv, newHttpChannelChild->mRequestHeaders);
+    // Cancel the channel and veto the redirect.
+    Cancel(rv);
+    SendRedirect2Result(rv, mRedirectChannelChild->mRequestHeaders);
     return;
   }
 
@@ -688,7 +692,7 @@ HttpChannelChild::Redirect1Begin(PHttpChannelChild* newChannel,
     OnRedirectVerifyCallback(rv);
 }
 
-class Redirect3Event : public ChannelEvent
+class Redirect3Event : public ChildChannelEvent
 {
  public:
   Redirect3Event(HttpChannelChild* child) : mChild(child) {}
@@ -721,10 +725,7 @@ HttpChannelChild::Redirect3Complete()
   rv = mRedirectChannelChild->CompleteRedirectSetup(mListener, 
                                                     mListenerContext);
   if (NS_FAILED(rv))
-    NS_WARNING("CompleteRedirectSetup failed, HttpChannelChild already open?");
-
-  // Release ref to new channel.
-  mRedirectChannelChild = nsnull;
+    Cancel(rv);
 }
 
 nsresult
@@ -736,12 +737,8 @@ HttpChannelChild::CompleteRedirectSetup(nsIStreamListener *listener,
   NS_ENSURE_TRUE(!mIsPending, NS_ERROR_IN_PROGRESS);
   NS_ENSURE_TRUE(!mWasOpened, NS_ERROR_ALREADY_OPENED);
 
-  /*
-   * No need to check for cancel: we don't get here if nsHttpChannel canceled
-   * before AsyncOpen(); if it's canceled after that, OnStart/Stop will just
-   * get called with error code as usual.  So just setup mListener and make the
-   * channel reflect AsyncOpen'ed state.
-   */
+  // notify "http-on-modify-request" observers
+  gHttpHandler->OnModifyRequest(this);
 
   mIsPending = PR_TRUE;
   mWasOpened = PR_TRUE;
@@ -770,12 +767,7 @@ HttpChannelChild::OnRedirectVerifyCallback(nsresult result)
   // Must not be called until after redirect observers called.
   mRedirectChannelChild->SetOriginalURI(mRedirectOriginalURI);
 
-  // After we verify redirect, nsHttpChannel may hit the network: must give
-  // "http-on-modify-request" observers the chance to cancel before that.
-  if (NS_SUCCEEDED(result))
-    gHttpHandler->OnModifyRequest(mRedirectChannelChild);
-
-  return SendRedirect2Verify(result, mRedirectChannelChild->mRequestHeaders);
+  return SendRedirect2Result(result, mRedirectChannelChild->mRequestHeaders);
 }
 
 //-----------------------------------------------------------------------------
