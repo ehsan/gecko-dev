@@ -31,8 +31,6 @@ public:
 
 private:
     virtual bool ValidateAttribPointerType(bool integerMode, GLenum type, GLsizei* alignment, const char* info) MOZ_OVERRIDE;
-    virtual bool ValidateBufferTarget(GLenum target, const char* info) MOZ_OVERRIDE;
-    virtual bool ValidateBufferIndexedTarget(GLenum target, const char* info) MOZ_OVERRIDE;
 };
 
 } // namespace mozilla

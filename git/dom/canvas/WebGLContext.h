@@ -80,7 +80,6 @@ class WebGLSampler;
 class WebGLShader;
 class WebGLShaderPrecisionFormat;
 class WebGLTexture;
-class WebGLTransformFeedback;
 class WebGLUniformLocation;
 class WebGLVertexArray;
 struct WebGLVertexAttribData;
@@ -882,16 +881,19 @@ public:
     void DeleteBuffer(WebGLBuffer* buf);
     bool IsBuffer(WebGLBuffer* buf);
 
-protected:
-    // bound buffer state
+private:
+    // ARRAY_BUFFER slot
     WebGLRefPtr<WebGLBuffer> mBoundArrayBuffer;
+
+    // TRANSFORM_FEEDBACK_BUFFER slot
     WebGLRefPtr<WebGLBuffer> mBoundTransformFeedbackBuffer;
 
-    UniquePtr<WebGLRefPtr<WebGLBuffer>[]> mBoundTransformFeedbackBuffers;
-
-    WebGLRefPtr<WebGLBuffer>* GetBufferSlotByTarget(GLenum target);
+    // these two functions emit INVALID_ENUM for invalid `target`.
+    WebGLRefPtr<WebGLBuffer>* GetBufferSlotByTarget(GLenum target,
+                                                    const char* info);
     WebGLRefPtr<WebGLBuffer>* GetBufferSlotByTargetIndexed(GLenum target,
-                                                           GLuint index);
+                                                           GLuint index,
+                                                           const char* info);
     bool ValidateBufferUsageEnum(GLenum target, const char* info);
 
 // -----------------------------------------------------------------------------
@@ -1112,7 +1114,7 @@ protected:
     int32_t mGLMaxVertexUniformVectors;
     int32_t mGLMaxColorAttachments;
     int32_t mGLMaxDrawBuffers;
-    GLuint  mGLMaxTransformFeedbackSeparateAttribs;
+    uint32_t mGLMaxTransformFeedbackSeparateAttribs;
 
 public:
     GLuint MaxVertexAttribs() const {
@@ -1337,8 +1339,6 @@ private:
     // -------------------------------------------------------------------------
     // Context customization points
     virtual bool ValidateAttribPointerType(bool integerMode, GLenum type, GLsizei* alignment, const char* info) = 0;
-    virtual bool ValidateBufferTarget(GLenum target, const char* info) = 0;
-    virtual bool ValidateBufferIndexedTarget(GLenum target, const char* info) = 0;
 
 protected:
     int32_t MaxTextureSizeForTarget(TexTarget target) const {
@@ -1380,7 +1380,6 @@ protected:
 
     WebGLRefPtr<WebGLFramebuffer> mBoundFramebuffer;
     WebGLRefPtr<WebGLRenderbuffer> mBoundRenderbuffer;
-    WebGLRefPtr<WebGLTransformFeedback> mBoundTransformFeedback;
     WebGLRefPtr<WebGLVertexArray> mBoundVertexArray;
 
     LinkedList<WebGLTexture> mTextures;
@@ -1394,10 +1393,8 @@ protected:
 
     // TODO(djg): Does this need a rethink? Should it be WebGL2Context?
     LinkedList<WebGLSampler> mSamplers;
-    LinkedList<WebGLTransformFeedback> mTransformFeedbacks;
 
     WebGLRefPtr<WebGLVertexArray> mDefaultVertexArray;
-    WebGLRefPtr<WebGLTransformFeedback> mDefaultTransformFeedback;
 
     // PixelStore parameters
     uint32_t mPixelStorePackAlignment;
@@ -1521,7 +1518,6 @@ public:
     friend class WebGLBuffer;
     friend class WebGLSampler;
     friend class WebGLShader;
-    friend class WebGLTransformFeedback;
     friend class WebGLUniformLocation;
     friend class WebGLVertexArray;
     friend class WebGLVertexArrayFake;

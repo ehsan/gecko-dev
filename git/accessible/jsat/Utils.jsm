@@ -464,10 +464,9 @@ this.Utils = { // jshint ignore:line
         typeof aDetails === 'string' ? { eventType : aDetails } : aDetails)
     };
     let window = this.win;
-    let shell = window.shell || window.content.shell;
-    if (shell) {
+    if (window.shell) {
       // On B2G device.
-      shell.sendChromeEvent(details);
+      window.shell.sendChromeEvent(details);
     } else {
       // Dispatch custom event to have support for desktop and screen reader
       // emulator add-on.

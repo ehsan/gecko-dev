@@ -2441,7 +2441,7 @@ var gCSSProperties = {
     inherited: true,
     type: CSS_TYPE_LONGHAND,
     initial_values: [ "show" ],
-    other_values: [ "hide" ],
+    other_values: [ "hide", "-moz-show-background" ],
     invalid_values: []
   },
   "float": {

@@ -181,8 +181,7 @@ void MediaOmxReader::Shutdown()
     NS_NewRunnableMethod(this, &MediaOmxReader::CancelProcessCachedData);
   NS_DispatchToMainThread(cancelEvent);
 
-  MediaDecoderReader::Shutdown();
-
+  ReleaseMediaResources();
   nsCOMPtr<nsIRunnable> event =
     NS_NewRunnableMethod(this, &MediaOmxReader::ReleaseDecoder);
   NS_DispatchToMainThread(event);
