@@ -609,8 +609,7 @@ void
 nsSVGUtils::InvalidateBounds(nsIFrame *aFrame, bool aDuringUpdate,
                              const nsRect *aBoundsSubArea, PRUint32 aFlags)
 {
-  NS_ABORT_IF_FALSE(aFrame->IsFrameOfType(nsIFrame::eSVG) &&
-                    !(aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG),
+  NS_ABORT_IF_FALSE(aFrame->IsFrameOfType(nsIFrame::eSVG),
                     "Passed bad frame!");
 
   NS_ASSERTION(aDuringUpdate == OuterSVGIsCallingUpdateBounds(aFrame),
@@ -700,12 +699,6 @@ nsSVGUtils::InvalidateBounds(nsIFrame *aFrame, bool aDuringUpdate,
     }
     invalidArea += aFrame->GetPosition();
     aFrame = aFrame->GetParent();
-  }
-
-  if (!aFrame) {
-    // We seem to be able to get here, even though SVG frames are never created
-    // without an ancestor nsSVGOuterSVGFrame. See bug 767996.
-    return;
   }
 
   NS_ASSERTION(aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG,

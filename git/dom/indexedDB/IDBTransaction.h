@@ -13,7 +13,6 @@
 #include "mozIStorageStatement.h"
 #include "mozIStorageFunction.h"
 #include "nsIIDBTransaction.h"
-#include "nsIDOMDOMError.h"
 #include "nsIRunnable.h"
 
 #include "nsAutoPtr.h"
@@ -31,7 +30,6 @@ BEGIN_INDEXEDDB_NAMESPACE
 
 class AsyncConnectionHelper;
 class CommitHelper;
-class IDBRequest;
 class IndexedDBDatabaseChild;
 class IndexedDBTransactionChild;
 class IndexedDBTransactionParent;
@@ -188,9 +186,6 @@ public:
   AbortWithCode(nsresult aAbortCode);
 
   nsresult
-  Abort(IDBRequest* aRequest);
-
-  nsresult
   GetAbortCode() const
   {
     return mAbortCode;
@@ -212,7 +207,6 @@ private:
 
   nsRefPtr<IDBDatabase> mDatabase;
   nsRefPtr<DatabaseInfo> mDatabaseInfo;
-  nsCOMPtr<nsIDOMDOMError> mError;
   nsTArray<nsString> mObjectStoreNames;
   ReadyState mReadyState;
   Mode mMode;

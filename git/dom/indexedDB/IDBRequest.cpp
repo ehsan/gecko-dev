@@ -274,7 +274,8 @@ IDBRequest::GetError(nsIDOMDOMError** aError)
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   if (!mHaveResultOrErrorCode) {
-    return NS_ERROR_DOM_INVALID_STATE_ERR;
+    // XXX Need a real error code here.
+    return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
   }
 
   NS_IF_ADDREF(*aError = mError);
