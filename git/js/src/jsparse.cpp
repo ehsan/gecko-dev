@@ -4109,10 +4109,12 @@ RebindLets(JSParseNode *pn, JSTreeContext *tc)
                 ForgetUse(pn);
 
                 JSAtomListElement *ale = tc->decls.lookup(pn->pn_atom);
-                while ((ale = ALE_NEXT(ale)) != NULL) {
-                    if (ALE_ATOM(ale) == pn->pn_atom) {
-                        LinkUseToDef(pn, ALE_DEFN(ale), tc);
-                        return true;
+                if (ale) {
+                    while ((ale = ALE_NEXT(ale)) != NULL) {
+                        if (ALE_ATOM(ale) == pn->pn_atom) {
+                            LinkUseToDef(pn, ALE_DEFN(ale), tc);
+                            return true;
+                        }
                     }
                 }
 
@@ -6405,9 +6407,15 @@ GeneratorExpr(JSParseNode *pn, JSParseNode *kid, JSTreeContext *tc)
         if (!funbox)
             return NULL;
 
-        gentc.flags |= TCF_FUN_IS_GENERATOR | TCF_GENEXP_LAMBDA;
-        if (tc->flags & TCF_HAS_SHARPS)
-            gentc.flags |= TCF_HAS_SHARPS;
+        /*
+         * We assume conservatively that any deoptimization flag in tc->flags
+         * besides TCF_FUN_PARAM_ARGUMENTS can come from the kid. So we
+         * propagate these flags into genfn. For code simplicity we also do
+         * not detect if the flags were only set in the kid and could be
+         * removed from tc->flags.
+         */
+        gentc.flags |= TCF_FUN_IS_GENERATOR | TCF_GENEXP_LAMBDA |
+                       (tc->flags & (TCF_FUN_FLAGS & ~TCF_FUN_PARAM_ARGUMENTS));
         funbox->tcflags |= gentc.flags;
         genfn->pn_funbox = funbox;
         genfn->pn_blockid = gentc.bodyid;

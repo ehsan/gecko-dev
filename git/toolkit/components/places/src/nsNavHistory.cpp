@@ -4505,14 +4505,14 @@ nsNavHistory::RemovePagesInternal(const nsCString& aPlaceIdsQueryString)
       "DELETE FROM moz_places_view WHERE id IN ("
         "SELECT h.id FROM moz_places_temp h "
         "WHERE h.id IN ( ") + aPlaceIdsQueryString + NS_LITERAL_CSTRING(") "
-          "AND SUBSTR(h.url, 0, 6) <> 'place:' "
+          "AND SUBSTR(h.url, 1, 6) <> 'place:' "
           "AND NOT EXISTS "
             "(SELECT b.id FROM moz_bookmarks b WHERE b.fk = h.id LIMIT 1) "
         "UNION ALL "
         "SELECT h.id FROM moz_places h "
         "WHERE h.id NOT IN (SELECT id FROM moz_places_temp) "
           "AND h.id IN ( ") + aPlaceIdsQueryString + NS_LITERAL_CSTRING(") "
-          "AND SUBSTR(h.url, 0, 6) <> 'place:' "
+          "AND SUBSTR(h.url, 1, 6) <> 'place:' "
           "AND NOT EXISTS "
             "(SELECT b.id FROM moz_bookmarks b WHERE b.fk = h.id LIMIT 1) "
     ")"));
@@ -4576,10 +4576,15 @@ nsNavHistory::RemovePage(nsIURI *aURI)
 {
   NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
 
+  // Before we remove, we have to notify our observers!
+  ENUMERATE_WEAKARRAY(mObservers, nsINavHistoryObserver,
+                      OnBeforeDeleteURI(aURI))
+
   nsIURI** URIs = &aURI;
   nsresult rv = RemovePages(URIs, 1, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
-  // call observers here for the removed url
+
+  // Notify our observers that the URI has been removed.
   ENUMERATE_WEAKARRAY(mObservers, nsINavHistoryObserver, OnDeleteURI(aURI))
   return NS_OK;
 }
@@ -5877,7 +5882,7 @@ nsNavHistory::QueryToSelectClause(nsNavHistoryQuery* aQuery, // const
   // make it use the index.
   if (NS_SUCCEEDED(aQuery->GetHasUri(&hasIt)) && hasIt) {
     if (aQuery->UriIsPrefix())
-      clause.Condition("SUBSTR(h.url, 0, LENGTH(").Param(":uri").Str(")) =")
+      clause.Condition("SUBSTR(h.url, 1, LENGTH(").Param(":uri").Str(")) =")
             .Param(":uri");
     else
       clause.Condition("h.url =").Param(":uri");
