@@ -889,20 +889,15 @@ WebGLContext::CopyTexImage2D(WebGLenum target,
     if (!tex)
         return ErrorInvalidOperation("copyTexImage2D: no texture bound to this target");
 
+    const WebGLTexture::ImageInfo& imageInfo = tex->ImageInfoAt(level, WebGLTexture::FaceForTarget(target));
+
     // copyTexImage2D only generates textures with type = UNSIGNED_BYTE
     GLenum type = LOCAL_GL_UNSIGNED_BYTE;
 
-    // check if the memory size of this texture may change with this call
-    bool sizeMayChange = true;
-    size_t face = WebGLTexture::FaceForTarget(target);
-    if (tex->HasImageInfoAt(level, face)) {
-        const WebGLTexture::ImageInfo& imageInfo = tex->ImageInfoAt(level, face);
-
-        sizeMayChange = width != imageInfo.mWidth ||
-                        height != imageInfo.mHeight ||
-                        internalformat != imageInfo.mFormat ||
-                        type != imageInfo.mType;
-    }
+    bool sizeMayChange = width != imageInfo.mWidth ||
+                         height != imageInfo.mHeight ||
+                         internalformat != imageInfo.mFormat ||
+                         type != imageInfo.mType;
 
     if (sizeMayChange) {
         UpdateWebGLErrorAndClearGLError();
@@ -963,7 +958,7 @@ WebGLContext::CopyTexSubImage2D(WebGLenum target,
 
     WebGLint face = WebGLTexture::FaceForTarget(target);
     if (!tex->HasImageInfoAt(level, face))
-        return ErrorInvalidOperation("copyTexSubImage2D: no texture image previously defined for this level and face");
+        return ErrorInvalidOperation("copyTexSubImage2D: to texture image previously defined for this level and face");
 
     WebGLsizei texWidth = tex->ImageInfoAt(level, face).mWidth;
     WebGLsizei texHeight = tex->ImageInfoAt(level, face).mHeight;
@@ -1279,23 +1274,15 @@ WebGLContext::WhatDoesVertexAttrib0Need()
                                                         : VertexAttrib0Status::EmulatedUninitializedArray;
 }
 
-bool
+void
 WebGLContext::DoFakeVertexAttrib0(WebGLuint vertexCount)
 {
     int whatDoesAttrib0Need = WhatDoesVertexAttrib0Need();
 
     if (whatDoesAttrib0Need == VertexAttrib0Status::Default)
-        return true;
+        return;
 
-    CheckedUint32 checked_dataSize = CheckedUint32(vertexCount) * 4 * sizeof(WebGLfloat);
-    
-    if (!checked_dataSize.valid()) {
-        ErrorOutOfMemory("Integer overflow trying to construct a fake vertex attrib 0 array for a draw-operation "
-                         "with %d vertices. Try reducing the number of vertices.", vertexCount);
-        return false;
-    }
-    
-    WebGLuint dataSize = checked_dataSize.value();
+    WebGLuint dataSize = sizeof(WebGLfloat) * 4 * vertexCount;
 
     if (!mFakeVertexAttrib0BufferObject) {
         gl->fGenBuffers(1, &mFakeVertexAttrib0BufferObject);
@@ -1324,8 +1311,7 @@ WebGLContext::DoFakeVertexAttrib0(WebGLuint vertexCount)
 
         gl->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mFakeVertexAttrib0BufferObject);
 
-        GLenum error = LOCAL_GL_NO_ERROR;
-        UpdateWebGLErrorAndClearGLError();
+        WebGLuint dataSize = sizeof(WebGLfloat) * 4 * vertexCount;
 
         if (mFakeVertexAttrib0BufferStatus == VertexAttrib0Status::EmulatedInitializedArray) {
             nsAutoArrayPtr<WebGLfloat> array(new WebGLfloat[4 * vertexCount]);
@@ -1339,22 +1325,12 @@ WebGLContext::DoFakeVertexAttrib0(WebGLuint vertexCount)
         } else {
             gl->fBufferData(LOCAL_GL_ARRAY_BUFFER, dataSize, nsnull, LOCAL_GL_DYNAMIC_DRAW);
         }
-        UpdateWebGLErrorAndClearGLError(&error);
-        
-        gl->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mBoundArrayBuffer ? mBoundArrayBuffer->GLName() : 0);
 
-        // note that we do this error checking and early return AFTER having restored the buffer binding above
-        if (error) {
-            ErrorOutOfMemory("Ran out of memory trying to construct a fake vertex attrib 0 array for a draw-operation "
-                             "with %d vertices. Try reducing the number of vertices.", vertexCount);
-            return false;
-        }
+        gl->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mBoundArrayBuffer ? mBoundArrayBuffer->GLName() : 0);
     }
 
     gl->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mFakeVertexAttrib0BufferObject);
     gl->fVertexAttribPointer(0, 4, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, 0);
-    
-    return true;
 }
 
 void
@@ -1507,8 +1483,7 @@ WebGLContext::DrawArrays(GLenum mode, WebGLint first, WebGLsizei count)
     }
 
     BindFakeBlackTextures();
-    if (!DoFakeVertexAttrib0(checked_firstPlusCount.value()))
-        return NS_OK;
+    DoFakeVertexAttrib0(checked_firstPlusCount.value());
 
     gl->fDrawArrays(mode, first, count);
 
@@ -1614,8 +1589,7 @@ WebGLContext::DrawElements(WebGLenum mode, WebGLsizei count, WebGLenum type, Web
     }
 
     BindFakeBlackTextures();
-    if (!DoFakeVertexAttrib0(checked_maxIndexPlusOne.value()))
-        return NS_OK;
+    DoFakeVertexAttrib0(checked_maxIndexPlusOne.value());
 
     gl->fDrawElements(mode, count, type, (GLvoid*) (byteOffset));
 
@@ -4298,18 +4272,11 @@ GLenum WebGLContext::CheckedTexImage2D(GLenum target,
 {
     WebGLTexture *tex = activeBoundTextureForTarget(target);
     NS_ABORT_IF_FALSE(tex != nsnull, "no texture bound");
-
-    bool sizeMayChange = true;
-    size_t face = WebGLTexture::FaceForTarget(target);
-    
-    if (tex->HasImageInfoAt(level, face)) {
-        const WebGLTexture::ImageInfo& imageInfo = tex->ImageInfoAt(level, face);
-        sizeMayChange = width != imageInfo.mWidth ||
-                        height != imageInfo.mHeight ||
-                        format != imageInfo.mFormat ||
-                        type != imageInfo.mType;
-    }
-    
+    const WebGLTexture::ImageInfo& imageInfo = tex->ImageInfoAt(level, WebGLTexture::FaceForTarget(target));
+    bool sizeMayChange = width != imageInfo.mWidth ||
+                         height != imageInfo.mHeight ||
+                         format != imageInfo.mFormat ||
+                         type != imageInfo.mType;
     if (sizeMayChange) {
         UpdateWebGLErrorAndClearGLError();
         gl->fTexImage2D(target, level, internalFormat, width, height, border, format, type, data);
@@ -4607,10 +4574,6 @@ WebGLContext::TexSubImage2D_base(WebGLenum target, WebGLint level,
         return ErrorInvalidOperation("texSubImage2D: no texture is bound to this target");
 
     size_t face = WebGLTexture::FaceForTarget(target);
-    
-    if (!tex->HasImageInfoAt(level, face))
-        return ErrorInvalidOperation("texSubImage2D: no texture image previously defined for this level and face");
-    
     const WebGLTexture::ImageInfo &imageInfo = tex->ImageInfoAt(level, face);
     if (!CanvasUtils::CheckSaneSubrectSize(xoffset, yoffset, width, height, imageInfo.mWidth, imageInfo.mHeight))
         return ErrorInvalidValue("texSubImage2D: subtexture rectangle out of bounds");
