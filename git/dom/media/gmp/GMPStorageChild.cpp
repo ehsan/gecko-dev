@@ -7,27 +7,6 @@
 #include "GMPChild.h"
 #include "gmp-storage.h"
 
-#define ON_GMP_THREAD() (mPlugin->GMPMessageLoop() == MessageLoop::current())
-
-#define CALL_ON_GMP_THREAD(_func, ...) \
-  do { \
-    if (ON_GMP_THREAD()) { \
-      _func(__VA_ARGS__); \
-    } else { \
-      mPlugin->GMPMessageLoop()->PostTask( \
-        FROM_HERE, NewRunnableMethod(this, &GMPStorageChild::_func, ##__VA_ARGS__) \
-      ); \
-    } \
-  } while(false)
-
-static nsTArray<uint8_t>
-ToArray(const uint8_t* aData, uint32_t aDataSize)
-{
-  nsTArray<uint8_t> data;
-  data.AppendElements(aData, aDataSize);
-  return mozilla::Move(data);
-}
-
 namespace mozilla {
 namespace gmp {
 
@@ -37,24 +16,32 @@ GMPRecordImpl::GMPRecordImpl(GMPStorageChild* aOwner,
   : mName(aName)
   , mClient(aClient)
   , mOwner(aOwner)
+  , mIsClosed(true)
 {
 }
 
 GMPErr
 GMPRecordImpl::Open()
 {
+  if (!mIsClosed) {
+    return GMPRecordInUse;
+  }
   return mOwner->Open(this);
 }
 
 void
 GMPRecordImpl::OpenComplete(GMPErr aStatus)
 {
+  mIsClosed = false;
   mClient->OpenComplete(aStatus);
 }
 
 GMPErr
 GMPRecordImpl::Read()
 {
+  if (mIsClosed) {
+    return GMPClosedErr;
+  }
   return mOwner->Read(this);
 }
 
@@ -69,6 +56,9 @@ GMPRecordImpl::ReadComplete(GMPErr aStatus,
 GMPErr
 GMPRecordImpl::Write(const uint8_t* aData, uint32_t aDataSize)
 {
+  if (mIsClosed) {
+    return GMPClosedErr;
+  }
   return mOwner->Write(this, aData, aDataSize);
 }
 
@@ -82,18 +72,31 @@ GMPErr
 GMPRecordImpl::Close()
 {
   nsRefPtr<GMPRecordImpl> kungfuDeathGrip(this);
+
+  if (!mIsClosed) {
+    // Delete the storage child's reference to us.
+    mOwner->Close(this);
+    // Owner should callback MarkClosed().
+    MOZ_ASSERT(mIsClosed);
+  }
+
   // Delete our self reference.
   Release();
-  mOwner->Close(this->Name());
+
   return GMPNoErr;
 }
 
+void
+GMPRecordImpl::MarkClosed()
+{
+  mIsClosed = true;
+}
+
 GMPStorageChild::GMPStorageChild(GMPChild* aPlugin)
-  : mMonitor("GMPStorageChild")
-  , mPlugin(aPlugin)
+  : mPlugin(aPlugin)
   , mShutdown(false)
 {
-  MOZ_ASSERT(ON_GMP_THREAD());
+  MOZ_ASSERT(mPlugin->GMPMessageLoop() == MessageLoop::current());
 }
 
 GMPErr
@@ -101,13 +104,14 @@ GMPStorageChild::CreateRecord(const nsCString& aRecordName,
                               GMPRecord** aOutRecord,
                               GMPRecordClient* aClient)
 {
-  MonitorAutoLock lock(mMonitor);
-
+  if (mPlugin->GMPMessageLoop() != MessageLoop::current()) {
+    NS_WARNING("GMP used GMPStorage on non-main thread.");
+    return GMPGenericErr;
+  }
   if (mShutdown) {
     NS_WARNING("GMPStorage used after it's been shutdown!");
     return GMPClosedErr;
   }
-
   MOZ_ASSERT(aRecordName.Length() && aOutRecord);
   nsRefPtr<GMPRecordImpl> record(new GMPRecordImpl(this, aRecordName, aClient));
   mRecords.Put(aRecordName, record); // Addrefs
@@ -120,59 +124,39 @@ GMPStorageChild::CreateRecord(const nsCString& aRecordName,
   return GMPNoErr;
 }
 
-bool
-GMPStorageChild::HasRecord(const nsCString& aRecordName)
-{
-  mMonitor.AssertCurrentThreadOwns();
-  return mRecords.Contains(aRecordName);
-}
-
-already_AddRefed<GMPRecordImpl>
-GMPStorageChild::GetRecord(const nsCString& aRecordName)
-{
-  MonitorAutoLock lock(mMonitor);
-  nsRefPtr<GMPRecordImpl> record;
-  mRecords.Get(aRecordName, getter_AddRefs(record));
-  return record.forget();
-}
-
 GMPErr
 GMPStorageChild::Open(GMPRecordImpl* aRecord)
 {
-  MonitorAutoLock lock(mMonitor);
-
+  if (mPlugin->GMPMessageLoop() != MessageLoop::current()) {
+    NS_WARNING("GMP used GMPStorage on non-main thread.");
+    return GMPGenericErr;
+  }
   if (mShutdown) {
     NS_WARNING("GMPStorage used after it's been shutdown!");
     return GMPClosedErr;
   }
-
-  if (!HasRecord(aRecord->Name())) {
-    // Trying to re-open a record that has already been closed.
+  if (!SendOpen(aRecord->Name())) {
+    Close(aRecord);
     return GMPClosedErr;
   }
-
-  CALL_ON_GMP_THREAD(SendOpen, aRecord->Name());
-
   return GMPNoErr;
 }
 
 GMPErr
 GMPStorageChild::Read(GMPRecordImpl* aRecord)
 {
-  MonitorAutoLock lock(mMonitor);
-
+  if (mPlugin->GMPMessageLoop() != MessageLoop::current()) {
+    NS_WARNING("GMP used GMPStorage on non-main thread.");
+    return GMPGenericErr;
+  }
   if (mShutdown) {
     NS_WARNING("GMPStorage used after it's been shutdown!");
     return GMPClosedErr;
   }
-
-  if (!HasRecord(aRecord->Name())) {
-    // Record not opened.
+  if (!SendRead(aRecord->Name())) {
+    Close(aRecord);
     return GMPClosedErr;
   }
-
-  CALL_ON_GMP_THREAD(SendRead, aRecord->Name());
-
   return GMPNoErr;
 }
 
@@ -181,61 +165,65 @@ GMPStorageChild::Write(GMPRecordImpl* aRecord,
                        const uint8_t* aData,
                        uint32_t aDataSize)
 {
-  if (aDataSize > GMP_MAX_RECORD_SIZE) {
-    return GMPQuotaExceededErr;
+  if (mPlugin->GMPMessageLoop() != MessageLoop::current()) {
+    NS_WARNING("GMP used GMPStorage on non-main thread.");
+    return GMPGenericErr;
   }
-
-  MonitorAutoLock lock(mMonitor);
-
   if (mShutdown) {
     NS_WARNING("GMPStorage used after it's been shutdown!");
     return GMPClosedErr;
   }
-
-  if (!HasRecord(aRecord->Name())) {
-    // Record not opened.
+  if (aDataSize > GMP_MAX_RECORD_SIZE) {
+    return GMPQuotaExceededErr;
+  }
+  nsTArray<uint8_t> data;
+  data.AppendElements(aData, aDataSize);
+  if (!SendWrite(aRecord->Name(), data)) {
+    Close(aRecord);
     return GMPClosedErr;
   }
-
-  CALL_ON_GMP_THREAD(SendWrite, aRecord->Name(), ToArray(aData, aDataSize));
-
   return GMPNoErr;
 }
 
 GMPErr
-GMPStorageChild::Close(const nsCString& aRecordName)
+GMPStorageChild::Close(GMPRecordImpl* aRecord)
 {
-  MonitorAutoLock lock(mMonitor);
-
-  if (!HasRecord(aRecordName)) {
+  if (mPlugin->GMPMessageLoop() != MessageLoop::current()) {
+    NS_WARNING("GMP used GMPStorage on non-main thread.");
+    return GMPGenericErr;
+  }
+  if (!mRecords.Contains(aRecord->Name())) {
     // Already closed.
     return GMPClosedErr;
   }
 
-  mRecords.Remove(aRecordName);
-
-  if (!mShutdown) {
-    CALL_ON_GMP_THREAD(SendClose, aRecordName);
+  GMPErr rv = GMPNoErr;
+  if (!mShutdown && !SendClose(aRecord->Name())) {
+    rv = GMPGenericErr;
   }
 
-  return GMPNoErr;
+  aRecord->MarkClosed();
+  mRecords.Remove(aRecord->Name());
+
+  return rv;
 }
 
 bool
 GMPStorageChild::RecvOpenComplete(const nsCString& aRecordName,
                                   const GMPErr& aStatus)
 {
-  // We don't need a lock to read |mShutdown| since it is only changed in
-  // the GMP thread.
   if (mShutdown) {
     return true;
   }
-  nsRefPtr<GMPRecordImpl> record = GetRecord(aRecordName);
-  if (!record) {
+  nsRefPtr<GMPRecordImpl> record;
+  if (!mRecords.Get(aRecordName, getter_AddRefs(record)) || !record) {
     // Not fatal.
     return true;
   }
   record->OpenComplete(aStatus);
+  if (GMP_FAILED(aStatus)) {
+    Close(record);
+  }
   return true;
 }
 
@@ -247,12 +235,17 @@ GMPStorageChild::RecvReadComplete(const nsCString& aRecordName,
   if (mShutdown) {
     return true;
   }
-  nsRefPtr<GMPRecordImpl> record = GetRecord(aRecordName);
-  if (!record) {
+  nsRefPtr<GMPRecordImpl> record;
+  if (!mRecords.Get(aRecordName, getter_AddRefs(record)) || !record) {
     // Not fatal.
     return true;
   }
-  record->ReadComplete(aStatus, aBytes.Elements(), aBytes.Length());
+  record->ReadComplete(aStatus,
+                       aBytes.Elements(),
+                       aBytes.Length());
+  if (GMP_FAILED(aStatus)) {
+    Close(record);
+  }
   return true;
 }
 
@@ -263,12 +256,15 @@ GMPStorageChild::RecvWriteComplete(const nsCString& aRecordName,
   if (mShutdown) {
     return true;
   }
-  nsRefPtr<GMPRecordImpl> record = GetRecord(aRecordName);
-  if (!record) {
+  nsRefPtr<GMPRecordImpl> record;
+  if (!mRecords.Get(aRecordName, getter_AddRefs(record)) || !record) {
     // Not fatal.
     return true;
   }
   record->WriteComplete(aStatus);
+  if (GMP_FAILED(aStatus)) {
+    Close(record);
+  }
   return true;
 }
 
@@ -276,18 +272,19 @@ GMPErr
 GMPStorageChild::EnumerateRecords(RecvGMPRecordIteratorPtr aRecvIteratorFunc,
                                   void* aUserArg)
 {
-  MonitorAutoLock lock(mMonitor);
-
+  if (mPlugin->GMPMessageLoop() != MessageLoop::current()) {
+    MOZ_ASSERT(false, "GMP used GMPStorage on non-main thread.");
+    return GMPGenericErr;
+  }
   if (mShutdown) {
     NS_WARNING("GMPStorage used after it's been shutdown!");
     return GMPClosedErr;
   }
-
+  if (!SendGetRecordNames()) {
+    return GMPGenericErr;
+  }
   MOZ_ASSERT(aRecvIteratorFunc);
   mPendingRecordIterators.push(RecordIteratorContext(aRecvIteratorFunc, aUserArg));
-
-  CALL_ON_GMP_THREAD(SendGetRecordNames);
-
   return GMPNoErr;
 }
 
@@ -333,22 +330,17 @@ bool
 GMPStorageChild::RecvRecordNames(const InfallibleTArray<nsCString>& aRecordNames,
                                  const GMPErr& aStatus)
 {
-  RecordIteratorContext ctx;
-  {
-    MonitorAutoLock lock(mMonitor);
-    if (mShutdown || mPendingRecordIterators.empty()) {
-      return true;
-    }
-    ctx = mPendingRecordIterators.front();
-    mPendingRecordIterators.pop();
+  if (mShutdown || mPendingRecordIterators.empty()) {
+    return true;
   }
+  RecordIteratorContext ctx = mPendingRecordIterators.front();
+  mPendingRecordIterators.pop();
 
   if (GMP_FAILED(aStatus)) {
     ctx.mFunc(nullptr, ctx.mUserArg, aStatus);
   } else {
     ctx.mFunc(new GMPRecordIteratorImpl(aRecordNames), ctx.mUserArg, GMPNoErr);
   }
-
   return true;
 }
 
@@ -358,7 +350,6 @@ GMPStorageChild::RecvShutdown()
   // Block any new storage requests, and thus any messages back to the
   // parent. We don't delete any objects here, as that may invalidate
   // GMPRecord pointers held by the GMP.
-  MonitorAutoLock lock(mMonitor);
   mShutdown = true;
   while (!mPendingRecordIterators.empty()) {
     mPendingRecordIterators.pop();
@@ -368,7 +359,3 @@ GMPStorageChild::RecvShutdown()
 
 } // namespace gmp
 } // namespace mozilla
-
-// avoid redefined macro in unified build
-#undef ON_GMP_THREAD
-#undef CALL_ON_GMP_THREAD
