@@ -73,7 +73,7 @@ function testEmptyGroupItem(contentWindow) {
   //
     
   // create empty group item
-  let emptyGroupItem = createEmptyGroupItem(contentWindow, 253, 335, 100);
+  let emptyGroupItem = createEmptyGroupItem(contentWindow, 253, 335, 100, true);
   ok(emptyGroupItem.isEmpty(), "This group is empty");
 
   is(contentWindow.GroupItems.groupItems.length, ++groupItemCount,

@@ -45,17 +45,12 @@
 #include "jsproxy.h"
 #include "jsscope.h"
 #include "jstracer.h"
-#include "jswrapper.h"
 #include "assembler/wtf/Platform.h"
 #include "methodjit/MethodJIT.h"
 #include "methodjit/PolyIC.h"
 #include "methodjit/MonoIC.h"
 
 #include "jsgcinlines.h"
-
-#if ENABLE_YARR_JIT
-#include "assembler/jit/ExecutableAllocator.h"
-#endif
 
 using namespace js;
 using namespace js::gc;
@@ -71,7 +66,7 @@ JSCompartment::JSCompartment(JSRuntime *rt)
 #ifdef JS_METHODJIT
     jaegerCompartment(NULL),
 #endif
-    propertyTree(thisForCtor()),
+    propertyTree(this),
     debugMode(rt->debugMode),
 #if ENABLE_YARR_JIT
     regExpAllocator(NULL),
@@ -155,12 +150,10 @@ JSCompartment::init()
         return false;
 #endif
 
-    if (!backEdgeTable.init())
-        return false;
-
 #ifdef JS_METHODJIT
-    if (!(jaegerCompartment = js_new<mjit::JaegerCompartment>()))
+    if (!(jaegerCompartment = js_new<mjit::JaegerCompartment>())) {
         return false;
+    }
     return jaegerCompartment->Initialize();
 #else
     return true;
@@ -175,13 +168,6 @@ JSCompartment::arenaListsAreEmpty()
            return false;
   }
   return true;
-}
-
-static bool
-IsCrossCompartmentWrapper(JSObject *wrapper)
-{
-    return wrapper->isWrapper() &&
-           !!(JSWrapper::wrapperHandler(wrapper)->flags() & JSWrapper::CROSS_COMPARTMENT);
 }
 
 bool
@@ -284,16 +270,8 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
     /* If we already have a wrapper for this value, use it. */
     if (WrapperMap::Ptr p = crossCompartmentWrappers.lookup(*vp)) {
         *vp = p->value;
-        if (vp->isObject()) {
-            JSObject *obj = &vp->toObject();
-            JS_ASSERT(IsCrossCompartmentWrapper(obj));
-            if (obj->getParent() != global) {
-                do {
-                    obj->setParent(global);
-                    obj = obj->getProto();
-                } while (obj && IsCrossCompartmentWrapper(obj));
-            }
-        }
+        if (vp->isObject())
+            vp->toObject().setParent(global);
         return true;
     }
 
@@ -389,16 +367,6 @@ JSCompartment::wrap(JSContext *cx, PropertyOp *propp)
 }
 
 bool
-JSCompartment::wrap(JSContext *cx, StrictPropertyOp *propp)
-{
-    Value v = CastAsObjectJsval(*propp);
-    if (!wrap(cx, &v))
-        return false;
-    *propp = CastAsStrictPropertyOp(v.toObjectOrNull());
-    return true;
-}
-
-bool
 JSCompartment::wrap(JSContext *cx, PropertyDescriptor *desc)
 {
     return wrap(cx, &desc->obj) &&
@@ -463,12 +431,12 @@ JSCompartment::mark(JSTracer *trc)
 {
     if (IS_GC_MARKING_TRACER(trc)) {
         JSRuntime *rt = trc->context->runtime;
-
-        if (rt->gcCurrentCompartment && rt->gcCurrentCompartment != this)
+        if (rt->gcCurrentCompartment != NULL && rt->gcCurrentCompartment != this)
             return;
-
+        
         if (marked)
             return;
+        
         marked = true;
     }
 
@@ -591,25 +559,3 @@ JSCompartment::allocMathCache(JSContext *cx)
         js_ReportOutOfMemory(cx);
     return mathCache;
 }
-
-size_t
-JSCompartment::backEdgeCount(jsbytecode *pc) const
-{
-    if (BackEdgeMap::Ptr p = backEdgeTable.lookup(pc))
-        return p->value;
-
-    return 0;
-}
-
-size_t
-JSCompartment::incBackEdgeCount(jsbytecode *pc)
-{
-    if (BackEdgeMap::AddPtr p = backEdgeTable.lookupForAdd(pc)) {
-        p->value++;
-        return p->value;
-    } else {
-        backEdgeTable.add(p, pc, 1);
-        return 1;
-    }
-}
-

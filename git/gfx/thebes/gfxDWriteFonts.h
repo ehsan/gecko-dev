@@ -112,7 +112,6 @@ protected:
     PRPackedBool mNeedsOblique;
     PRPackedBool mNeedsBold;
     PRPackedBool mUseSubpixelPositions;
-    PRPackedBool mAllowManualShowGlyphs;
 };
 
 #endif

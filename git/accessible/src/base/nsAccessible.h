@@ -359,8 +359,6 @@ public:
   //////////////////////////////////////////////////////////////////////////////
   // Downcasting
 
-  inline bool IsApplication() const { return mFlags & eApplicationAccessible; }
-
   inline bool IsHyperText() const { return mFlags & eHyperTextAccessible; }
   nsHyperTextAccessible* AsHyperText();
 
@@ -507,9 +505,8 @@ protected:
    * @note keep these flags in sync with ChildrenFlags
    */
   enum AccessibleTypes {
-    eApplicationAccessible = 1 << 2,
-    eHyperTextAccessible = 1 << 3,
-    eTextLeafAccessible = 1 << 4
+    eHyperTextAccessible = 1 << 2,
+    eTextLeafAccessible = 1 << 3
   };
 
   //////////////////////////////////////////////////////////////////////////////

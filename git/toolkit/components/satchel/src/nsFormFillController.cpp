@@ -632,30 +632,6 @@ nsFormFillController::StartSearch(const nsAString &aSearchString, const nsAStrin
   return NS_OK;
 }
 
-class UpdateSearchResultRunnable : public nsRunnable
-{
-public:
-  UpdateSearchResultRunnable(nsIAutoCompleteObserver* aObserver,
-                             nsIAutoCompleteSearch* aSearch,
-                             nsIAutoCompleteResult* aResult)
-    : mObserver(aObserver)
-    , mSearch(aSearch)
-    , mResult(aResult)
-  {}
-
-  NS_IMETHOD Run() {
-    NS_ASSERTION(mObserver, "You shouldn't call this runnable with a null observer!");
-
-    mObserver->OnUpdateSearchResult(mSearch, mResult);
-    return NS_OK;
-  }
-
-private:
-  nsCOMPtr<nsIAutoCompleteObserver> mObserver;
-  nsCOMPtr<nsIAutoCompleteSearch> mSearch;
-  nsCOMPtr<nsIAutoCompleteResult> mResult;
-};
-
 void nsFormFillController::RevalidateDataList()
 {
   nsresult rv;
@@ -668,10 +644,7 @@ void nsFormFillController::RevalidateDataList()
                                                  mLastSearchString,
                                                  mFocusedInput,
                                                  getter_AddRefs(result));
-
-  nsCOMPtr<nsIRunnable> event =
-    new UpdateSearchResultRunnable(mLastListener, this, result);
-  NS_DispatchToCurrentThread(event);
+  mLastListener->OnUpdateSearchResult(this, result);
 }
 
 NS_IMETHODIMP

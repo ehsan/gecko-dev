@@ -443,7 +443,7 @@ PlacesViewBase.prototype = {
     elt.setAttribute("scheme", PlacesUIUtils.guessUrlSchemeForUI(aURIString));
   },
 
-  nodeIconChanged: function PVB_nodeIconChanged(aPlacesNode) {
+  nodeIconChanged: function PT_nodeIconChanged(aPlacesNode) {
     let elt = aPlacesNode._DOMElement;
     if (!elt)
       throw "aPlacesNode must have _DOMElement set";
@@ -466,8 +466,9 @@ PlacesViewBase.prototype = {
 
   nodeAnnotationChanged:
   function PVB_nodeAnnotationChanged(aPlacesNode, aAnno) {
-    // All livemarks have a feedURI, so use it as our indicator.
-    if (aAnno == "livemark/feedURI") {
+    // Ensure the changed annotation is a livemark one.
+    if (/^livemark\//.test(aAnno) &&
+        PlacesUtils.nodeIsLivemarkContainer(aPlacesNode)) {
       let elt = aPlacesNode._DOMElement;
       if (!elt)
         throw "aPlacesNode must have _DOMElement set";
@@ -482,7 +483,7 @@ PlacesViewBase.prototype = {
   },
 
   nodeTitleChanged:
-  function PVB_nodeTitleChanged(aPlacesNode, aNewTitle) {
+  function PM_nodeTitleChanged(aPlacesNode, aNewTitle) {
     let elt = aPlacesNode._DOMElement;
     if (!elt)
       throw "aPlacesNode must have _DOMElement set";
@@ -538,7 +539,7 @@ PlacesViewBase.prototype = {
   },
 
   nodeReplaced:
-  function PVB_nodeReplaced(aParentPlacesNode, aOldPlacesNode, aNewPlacesNode, aIndex) {
+  function PBV_nodeReplaced(aParentPlacesNode, aOldPlacesNode, aNewPlacesNode, aIndex) {
     let parentElt = aParentPlacesNode._DOMElement;
     if (!parentElt)
       throw "aParentPlacesNode node must have _DOMElement set";
@@ -1141,32 +1142,6 @@ PlacesToolbar.prototype = {
     }
 
     PlacesViewBase.prototype.nodeMoved.apply(this, arguments);
-  },
-
-  nodeAnnotationChanged:
-  function PT_nodeAnnotationChanged(aPlacesNode, aAnno) {
-    let elt = aPlacesNode._DOMElement;
-    if (!elt)
-      throw "aPlacesNode must have _DOMElement set";
-
-    if (elt == this._rootElt)
-      return;
-
-    // We're notified for the menupopup, not the containing toolbarbutton.
-    if (elt.localName == "menupopup")
-      elt = elt.parentNode;
-
-    if (elt.parentNode == this._rootElt) {
-      // Node is on the toolbar.
-
-      // All livemarks have a feedURI, so use it as our indicator.
-      if (aAnno == "livemark/feedURI") {
-        elt.setAttribute("livemark", true);
-      }
-      return;
-    }
-
-    PlacesViewBase.prototype.nodeAnnotationChanged.apply(this, arguments);
   },
 
   nodeTitleChanged: function PT_nodeTitleChanged(aPlacesNode, aNewTitle) {

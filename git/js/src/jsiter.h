@@ -63,8 +63,7 @@
  * For cacheable native iterators, whether the iterator is currently active.
  * Not serialized by XDR.
  */
-#define JSITER_ACTIVE       0x1000
-#define JSITER_UNREUSABLE   0x2000
+#define JSITER_ACTIVE     0x1000
 
 namespace js {
 

@@ -1,4 +1,3 @@
-// |jit-test| mjitalways;debug
 setDebug(true);
 
 this.__defineGetter__("someProperty", function () { evalInFrame(1, "x = 'success'"); });

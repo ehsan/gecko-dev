@@ -228,7 +228,11 @@
 #endif
 
 #include "mozilla/FunctionTimer.h"
-#include "nsCrashOnException.h"
+
+#ifdef MOZ_CRASHREPORTER
+#include "nsICrashReporter.h"
+#endif
+
 #include "nsIXULRuntime.h"
 
 using namespace mozilla::widget;
@@ -250,7 +254,6 @@ using namespace mozilla::layers;
  *
  **************************************************************/
 
-PRBool          nsWindow::sDropShadowEnabled      = PR_TRUE;
 PRUint32        nsWindow::sInstanceCount          = 0;
 PRBool          nsWindow::sSwitchKeyboardLayout   = PR_FALSE;
 BOOL            nsWindow::sIsOleInitialized       = FALSE;
@@ -430,7 +433,6 @@ nsWindow::nsWindow() : nsBaseWidget()
   mOldExStyle           = 0;
   mPainting             = 0;
   mLastKeyboardLayout   = 0;
-  mAssumeWheelIsZoomUntil = 0;
   mBlurSuppressLevel    = 0;
   mIMEContext.mStatus   = nsIWidget::IME_STATUS_ENABLED;
 #ifdef MOZ_XUL
@@ -1046,19 +1048,6 @@ BOOL nsWindow::SetNSWindowPtr(HWND aWnd, nsWindow * ptr)
   }
 }
 
-static BOOL CALLBACK AddMonitor(HMONITOR, HDC, LPRECT, LPARAM aParam)
-{
-  (*(PRInt32*)aParam)++;
-  return TRUE;
-}
-
-PRInt32 nsWindow::GetMonitorCount()
-{
-  PRInt32 monitorCount = 0;
-  EnumDisplayMonitors(NULL, NULL, AddMonitor, (LPARAM)&monitorCount);
-  return monitorCount;
-}
-
 /**************************************************************
  *
  * SECTION: nsIWidget::SetParent, nsIWidget::GetParent
@@ -1225,29 +1214,6 @@ NS_METHOD nsWindow::Show(PRBool bState)
   }
 #endif
 
-  if (mWindowType == eWindowType_popup) {
-    // See bug 603793. When we try to draw D3D10 windows with a drop shadow
-    // without the DWM on a secondary monitor, windows fails to composite
-    // our windows correctly. We therefor switch off the drop shadow for
-    // pop-up windows when the DWM is disabled and two monitors are
-    // connected.
-    if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() ==
-        gfxWindowsPlatform::RENDER_DIRECT2D &&
-        GetMonitorCount() > 1 &&
-        !nsUXThemeData::CheckForCompositor())
-    {
-      if (sDropShadowEnabled) {
-        ::SetClassLongA(mWnd, GCL_STYLE, 0);
-        sDropShadowEnabled = PR_FALSE;
-      }
-    } else {
-      if (!sDropShadowEnabled) {
-        ::SetClassLongA(mWnd, GCL_STYLE, CS_DROPSHADOW);
-        sDropShadowEnabled = PR_TRUE;
-      }
-    }
-  }
-
 #ifdef NS_FUNCTION_TIMER
   static bool firstShow = true;
   if (firstShow &&
@@ -1260,19 +1226,10 @@ NS_METHOD nsWindow::Show(PRBool bState)
   }
 #endif
 
-  PRBool syncInvalidate = PR_FALSE;
-
   PRBool wasVisible = mIsVisible;
   // Set the status now so that anyone asking during ShowWindow or
   // SetWindowPos would get the correct answer.
   mIsVisible = bState;
-
-  // We may have cached an out of date visible state. This can happen
-  // when session restore sets the full screen mode.
-  if (mIsVisible)
-    mOldStyle |= WS_VISIBLE;
-  else
-    mOldStyle &= ~WS_VISIBLE;
 
   if (!mIsVisible && wasVisible) {
       ClearCachedResources();
@@ -1281,9 +1238,6 @@ NS_METHOD nsWindow::Show(PRBool bState)
   if (mWnd) {
     if (bState) {
       if (!wasVisible && mWindowType == eWindowType_toplevel) {
-        // speed up the initial paint after show for
-        // top level windows:
-        syncInvalidate = PR_TRUE;
         switch (mSizeMode) {
 #ifdef WINCE
           case nsSizeMode_Fullscreen:
@@ -1368,7 +1322,7 @@ NS_METHOD nsWindow::Show(PRBool bState)
   
 #ifdef MOZ_XUL
   if (!wasVisible && bState)
-    Invalidate(syncInvalidate);
+    Invalidate(PR_FALSE);
 #endif
 
   return NS_OK;
@@ -3945,9 +3899,12 @@ void nsWindow::DispatchPendingEvents()
     --recursionBlocker;
   }
 
-  // Quickly check to see if there are any
-  // paint events pending.
-  if (::GetQueueStatus(QS_PAINT)) {
+  // Quickly check to see if there are any paint events pending,
+  // but only dispatch them if it has been long enough since the
+  // last paint completed.
+  if (::GetQueueStatus(QS_PAINT) && 
+      (mLastPaintEndTime.IsNull() ||
+       (TimeStamp::Now() - mLastPaintEndTime).ToMilliseconds() >= 50)) {
     // Find the top level window.
     HWND topWnd = GetTopLevelHWND(mWnd);
 
@@ -4515,6 +4472,19 @@ nsWindow::IPCWindowProcHandler(UINT& msg, WPARAM& wParam, LPARAM& lParam)
  *
  **************************************************************/
 
+#ifdef _MSC_VER
+static int ReportException(EXCEPTION_POINTERS *aExceptionInfo)
+{
+#ifdef MOZ_CRASHREPORTER
+  nsCOMPtr<nsICrashReporter> cr =
+    do_GetService("@mozilla.org/toolkit/crash-reporter;1");
+  if (cr)
+    cr->WriteMinidumpForException(aExceptionInfo);
+#endif
+  return EXCEPTION_EXECUTE_HANDLER;
+}
+#endif
+
 static PRBool
 DisplaySystemMenu(HWND hWnd, nsSizeMode sizeMode, PRBool isRtl, PRInt32 x, PRInt32 y)
 {
@@ -4557,7 +4527,16 @@ DisplaySystemMenu(HWND hWnd, nsSizeMode sizeMode, PRBool isRtl, PRInt32 x, PRInt
 // and http://msdn.microsoft.com/en-us/library/ms633573%28VS.85%29.aspx
 LRESULT CALLBACK nsWindow::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-  return mozilla::CallWindowProcCrashProtected(WindowProcInternal, hWnd, msg, wParam, lParam);
+#ifdef _MSC_VER
+  __try {
+    return WindowProcInternal(hWnd, msg, wParam, lParam);
+  }
+  __except(ReportException(GetExceptionInformation())) {
+    ::TerminateProcess(::GetCurrentProcess(), 253);
+  }
+#else
+  return WindowProcInternal(hWnd, msg, wParam, lParam);
+#endif
 }
 
 LRESULT CALLBACK nsWindow::WindowProcInternal(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -4685,9 +4664,9 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
   // We also take the chance to reset mAssumeWheelIsZoomUntil if we simply have
   // passed that time.
   if (mAssumeWheelIsZoomUntil) {
-    LONG msgTime = ::GetMessageTime();
-    if ((mAssumeWheelIsZoomUntil >= 0x3fffffffu && DWORD(msgTime) < 0x40000000u) ||
-        (mAssumeWheelIsZoomUntil < DWORD(msgTime))) {
+    DWORD msgTime = ::GetMessageTime();
+    if (mAssumeWheelIsZoomUntil >= 0x80000000 && msgTime < 0x8000000 ||
+        mAssumeWheelIsZoomUntil < msgTime) {
       mAssumeWheelIsZoomUntil = 0;
     }
   }
@@ -6272,8 +6251,6 @@ void nsWindow::OnWindowPosChanged(WINDOWPOS *wp, PRBool& result)
       event.mSizeMode = (mFullscreenMode ? nsSizeMode_Fullscreen : nsSizeMode_Maximized);
     else if (pl.showCmd == SW_SHOWMINIMIZED)
       event.mSizeMode = nsSizeMode_Minimized;
-    else if (mFullscreenMode)
-      event.mSizeMode = nsSizeMode_Fullscreen;
     else
       event.mSizeMode = nsSizeMode_Normal;
 
@@ -6442,8 +6419,6 @@ void nsWindow::OnWindowPosChanging(LPWINDOWPOS& info)
       sizeMode = (mFullscreenMode ? nsSizeMode_Fullscreen : nsSizeMode_Maximized);
     else if (pl.showCmd == SW_SHOWMINIMIZED)
       sizeMode = nsSizeMode_Minimized;
-    else if (mFullscreenMode)
-      sizeMode = nsSizeMode_Fullscreen;
     else
       sizeMode = nsSizeMode_Normal;
 
@@ -6754,8 +6729,7 @@ PRBool nsWindow::OnMouseWheel(UINT msg, WPARAM wParam, LPARAM lParam, PRBool& ge
   // mis-ordered WM_KEYDOWN/WM_MOUSEWHEEL messages.  (See the comment in
   // OnKeyUp.)
   PRBool isControl;
-  if (mAssumeWheelIsZoomUntil &&
-      static_cast<DWORD>(::GetMessageTime()) < mAssumeWheelIsZoomUntil) {
+  if (mAssumeWheelIsZoomUntil && ::GetMessageTime() < mAssumeWheelIsZoomUntil) {
     isControl = PR_TRUE;
   } else {
     isControl = IS_VK_DOWN(NS_VK_CONTROL);
@@ -7234,10 +7208,7 @@ LRESULT nsWindow::OnKeyUp(const MSG &aMsg,
     // assume that any WM_MOUSEWHEEL message with a timestamp before that
     // time is one that should be processed as if the Control key was down.
     if (virtualKeyCode == VK_CONTROL && aMsg.time == 10) {
-      // We look only at the bottom 31 bits of the system tick count since
-      // GetMessageTime returns a LONG, which is signed, so we want values
-      // that are more easily comparable.
-      mAssumeWheelIsZoomUntil = ::GetTickCount() & 0x7FFFFFFF;
+      mAssumeWheelIsZoomUntil = ::GetTickCount();
     }
   }
 
@@ -7757,7 +7728,7 @@ HWND nsWindow::FindOurWindowAtPoint(const POINT& aPoint)
   return info.mOutHWND;
 }
 
-typedef DWORD (*GetProcessImageFileNameProc)(HANDLE, LPWSTR, DWORD);
+typedef DWORD (*GetProcessImageFileNameProc)(HANDLE, LPTSTR, DWORD);
 
 // Determine whether the given HWND is the handle for the Elantech helper
 // window.  The helper window cannot be distinguished based on its
@@ -7765,7 +7736,7 @@ typedef DWORD (*GetProcessImageFileNameProc)(HANDLE, LPWSTR, DWORD);
 // ETDCtrl.exe.
 static PRBool IsElantechHelperWindow(HWND aHWND)
 {
-  static HMODULE hPSAPI = ::LoadLibraryW(L"psapi.dll");
+  static HMODULE hPSAPI = ::LoadLibrary(L"psapi.dll");
   static GetProcessImageFileNameProc pGetProcessImageFileName =
     reinterpret_cast<GetProcessImageFileNameProc>(::GetProcAddress(hPSAPI, "GetProcessImageFileNameW"));
 
@@ -7783,11 +7754,12 @@ static PRBool IsElantechHelperWindow(HWND aHWND)
 
   HANDLE hProcess = ::OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid);
   if (hProcess) {
-    PRUnichar path[256] = {L'\0'};
-    if (pGetProcessImageFileName(hProcess, path, NS_ARRAY_LENGTH(path))) {
-      int pathLength = lstrlenW(path);
+    PRUnichar path[256];
+    if (pGetProcessImageFileName(hProcess, path, sizeof path)) {
+      path[255] = 0;
+      int pathLength = lstrlen(path);
       if (pathLength >= filenameSuffixLength) {
-        if (lstrcmpiW(path + pathLength - filenameSuffixLength, filenameSuffix) == 0) {
+        if (lstrcmpi(path + pathLength - filenameSuffixLength, filenameSuffix) == 0) {
           result = PR_TRUE;
         }
       }
@@ -9149,7 +9121,7 @@ GetRegistryKey(HKEY aRoot, PRUnichar* aKeyName, PRUnichar* aValueName, PRUnichar
   if (result != ERROR_SUCCESS || type != REG_SZ)
     return PR_FALSE;
   if (aBuffer)
-    aBuffer[aBufferLength / sizeof(*aBuffer) - 1] = 0;
+    aBuffer[aBufferLength - 1] = 0;
   return PR_TRUE;
 }
 

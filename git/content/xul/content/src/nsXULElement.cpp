@@ -375,15 +375,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULElement,
                                                   nsStyledElement)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mPrototype,
                                                     nsXULPrototypeElement)
-    {
-        nsXULSlots* slots = static_cast<nsXULSlots*>(tmp->GetExistingSlots());
-        if (slots) {
-            NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mFrameLoader");
-            nsISupports *frameLoader =
-                static_cast<nsIFrameLoader*>(slots->mFrameLoader);
-            cb.NoteXPCOMChild(frameLoader);
-        }
-    }
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsXULElement, nsStyledElement)
@@ -2448,7 +2439,8 @@ nsXULElement::SetDrawsInTitlebar(PRBool aState)
 {
     nsIWidget* mainWidget = GetWindowWidget();
     if (mainWidget) {
-        nsContentUtils::AddScriptRunner(new SetDrawInTitleBarEvent(mainWidget, aState));
+        nsCOMPtr<nsIRunnable> event = new SetDrawInTitleBarEvent(mainWidget, aState);
+        NS_DispatchToCurrentThread(event);
     }
 }
 

@@ -360,6 +360,14 @@ Chunk::releaseArena(Arena<T> *arena)
         info.age = 0;
 }
 
+bool
+Chunk::expire()
+{
+    if (!unused())
+        return false;
+    return info.age++ > MaxAge;
+}
+
 JSRuntime *
 Chunk::getRuntime()
 {
@@ -448,22 +456,16 @@ PickChunk(JSRuntime *rt)
 static void
 ExpireGCChunks(JSRuntime *rt)
 {
-    static const size_t MaxAge = 3;
-
     /* Remove unused chunks. */
     AutoLockGC lock(rt);
 
-    rt->gcChunksWaitingToExpire = 0;
     for (GCChunkSet::Enum e(rt->gcChunkSet); !e.empty(); e.popFront()) {
         Chunk *chunk = e.front();
         JS_ASSERT(chunk->info.runtime == rt);
-        if (chunk->unused()) {
-            if (chunk->info.age++ > MaxAge) {
-                e.removeFront();
-                ReleaseGCChunk(rt, chunk);
-                continue;
-            }
-            rt->gcChunksWaitingToExpire++;
+        if (chunk->expire()) {
+            e.removeFront();
+            ReleaseGCChunk(rt, chunk);
+            continue;
         }
     }
 }
@@ -503,7 +505,7 @@ IsAboutToBeFinalized(JSContext *cx, void *thing)
 }
 
 JS_FRIEND_API(bool)
-js_GCThingIsMarked(void *thing, uintN color = BLACK)
+js_GCThingIsMarked(void *thing, uint32 color = BLACK)
 {
     JS_ASSERT(thing);
     AssertValidColor(thing, color);
@@ -1036,8 +1038,8 @@ JSRuntime::setGCLastBytes(size_t lastBytes)
     float trigger1 = float(lastBytes) * float(gcTriggerFactor) / 100.0f;
     float trigger2 = float(Max(lastBytes, GC_ARENA_ALLOCATION_TRIGGER)) *
                      GC_HEAP_GROWTH_FACTOR;
-    float maxtrigger = Max(trigger1, trigger2);
-    gcTriggerBytes = (float(gcMaxBytes) < maxtrigger) ? gcMaxBytes : size_t(maxtrigger);
+    float maxtriger = Max(trigger1, trigger2);
+    gcTriggerBytes = (float(gcMaxBytes) < maxtriger) ? gcMaxBytes : size_t(maxtriger);
 }
 
 void
@@ -1049,8 +1051,8 @@ JSCompartment::setGCLastBytes(size_t lastBytes)
     float trigger1 = float(lastBytes) * float(rt->gcTriggerFactor) / 100.0f;
     float trigger2 = float(Max(lastBytes, GC_ARENA_ALLOCATION_TRIGGER)) *
                      GC_HEAP_GROWTH_FACTOR;
-    float maxtrigger = Max(trigger1, trigger2);
-    gcTriggerBytes = (float(rt->gcMaxBytes) < maxtrigger) ? rt->gcMaxBytes : size_t(maxtrigger);
+    float maxtriger = Max(trigger1, trigger2);
+    gcTriggerBytes = (float(rt->gcMaxBytes) < maxtriger) ? rt->gcMaxBytes : size_t(maxtriger);
 }
 
 void
@@ -1599,12 +1601,6 @@ AutoGCRooter::trace(JSTracer *trc)
         return;
       }
 
-      case SHAPEVECTOR: {
-        Vector<const Shape *, 8> &vector = static_cast<js::AutoShapeVector *>(this)->vector;
-        MarkShapeRange(trc, vector.length(), vector.begin(), "js::AutoShapeVector.vector");
-        return;
-      }
-
       case BINDINGS: {
         static_cast<js::AutoBindingsRooter *>(this)->bindings.trace(trc);
         return;
@@ -1828,12 +1824,12 @@ MaybeGC(JSContext *cx)
 
     JSCompartment *comp = cx->compartment;
     if (rt->gcIsNeeded) {
-        js_GC(cx, (comp == rt->gcTriggerCompartment) ? comp : NULL, GC_NORMAL);
+        js_GC(cx, comp == rt->gcTriggerCompartment ? comp : NULL, GC_NORMAL);
         return;
     }
 
     if (comp->gcBytes > 8192 && comp->gcBytes >= 3 * (comp->gcTriggerBytes / 4))
-        js_GC(cx, (rt->gcMode == JSGC_MODE_COMPARTMENT) ? comp : NULL, GC_NORMAL);
+        js_GC(cx, comp, GC_NORMAL);
 }
 
 } /* namespace js */
@@ -1848,7 +1844,7 @@ js_DestroyScriptsToGC(JSContext *cx, JSCompartment *comp)
         while ((script = *listp) != NULL) {
             *listp = script->u.nextToGC;
             script->u.nextToGC = NULL;
-            js_DestroyCachedScript(cx, script);
+            js_DestroyScriptFromGC(cx, script);
         }
     }
 }
@@ -2189,12 +2185,9 @@ SweepCompartments(JSContext *cx, JSGCInvocationKind gckind)
     while (read < end) {
         JSCompartment *compartment = *read++;
 
-        /*
-         * Unmarked compartments containing marked objects don't get deleted,
-         * except when LAST_CONTEXT GC is performed.
-         */
-        if ((!compartment->isMarked() && compartment->arenaListsAreEmpty()) ||
-            gckind == GC_LAST_CONTEXT)
+        /* Unmarked compartments containing marked objects don't get deleted, except LAST_CONTEXT GC is performed. */
+        if ((!compartment->isMarked() && compartment->arenaListsAreEmpty())
+            || gckind == GC_LAST_CONTEXT)
         {
             JS_ASSERT(compartment->freeLists.isEmpty());
             if (callback)
@@ -2271,7 +2264,6 @@ MarkAndSweepCompartment(JSContext *cx, JSCompartment *comp, JSGCInvocationKind g
     JS_ASSERT(gckind != GC_LAST_CONTEXT);
     JS_ASSERT(comp != rt->atomsCompartment);
     JS_ASSERT(!comp->isMarked());
-    JS_ASSERT(comp->rt->gcMode == JSGC_MODE_COMPARTMENT);
 
     /*
      * Mark phase.
@@ -2359,16 +2351,13 @@ MarkAndSweepCompartment(JSContext *cx, JSCompartment *comp, JSGCInvocationKind g
     comp->finalizeStringArenaLists(cx);
     TIMESTAMP(sweepStringEnd);
 
-    /*
-     * Unmark all shapes. Even a per-compartment GC can mark shapes in other
-     * compartments, and we need to clear these bits. See bug 635873. This will
-     * be fixed in bug 569422.
-     */
+#ifdef DEBUG
+    /* Make sure that we didn't mark a Shape in another compartment. */
     for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c)
-        (*c)->propertyTree.unmarkShapes(cx);
+        JS_ASSERT_IF(*c != comp, (*c)->propertyTree.checkShapesAllUnmarked(cx));
 
     PropertyTree::dumpShapes(cx);
-    TIMESTAMP(sweepShapeEnd);
+#endif
 
     /*
      * Destroy arenas after we finished the sweeping so finalizers can safely
@@ -2488,7 +2477,6 @@ MarkAndSweep(JSContext *cx, JSGCInvocationKind gckind GCTIMER_PARAM)
         (*c)->propertyTree.sweepShapes(cx);
 
     PropertyTree::dumpShapes(cx);
-    TIMESTAMP(sweepShapeEnd);
 
     SweepCompartments(cx, gckind);
 
@@ -2728,7 +2716,7 @@ GCUntilDone(JSContext *cx, JSCompartment *comp, JSGCInvocationKind gckind  GCTIM
      * NULL to look for violations.
      */
     SwitchToCompartment(cx, (JSCompartment *)NULL);
-
+    
     JS_ASSERT(!rt->gcCurrentCompartment);
     rt->gcCurrentCompartment = comp;
 

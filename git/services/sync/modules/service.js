@@ -54,13 +54,12 @@ const CLUSTER_BACKOFF = 5 * 60 * 1000; // 5 minutes
 // How long a key to generate from an old passphrase.
 const PBKDF2_KEY_BYTES = 16;
 
-const LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S";
-
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://services-sync/record.js");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/engines/clients.js");
+Cu.import("resource://services-sync/ext/Sync.js");
 Cu.import("resource://services-sync/ext/Preferences.js");
 Cu.import("resource://services-sync/identity.js");
 Cu.import("resource://services-sync/log4moz.js");
@@ -434,12 +433,9 @@ WeaveSvc.prototype = {
     }
 
     // Send an event now that Weave service is ready.  We don't do this
-    // synchronously so that observers can import this module before
-    // registering an observer.
-    Utils.delay(function() {
-      Status.ready = true;
-      Svc.Obs.notify("weave:service:ready");
-    }, 0);
+    // synchronously so that observers will definitely have access to the
+    // 'Weave' namespace.
+    Utils.delay(function() Svc.Obs.notify("weave:service:ready"), 0);
   },
 
   _checkSetup: function WeaveSvc__checkSetup() {
@@ -1662,8 +1658,7 @@ WeaveSvc.prototype = {
   },
   
   sync: function sync() {
-    let dateStr = new Date().toLocaleFormat(LOG_DATE_FORMAT);
-    this._log.info("Starting sync at " + dateStr);
+    this._log.debug("In wrapping sync().");
     this._catch(function () {
       // Make sure we're logged in.
       if (this._shouldLogin()) {
@@ -1810,9 +1805,7 @@ WeaveSvc.prototype = {
         Svc.Prefs.set("lastSync", new Date().toString());
         Status.sync = SYNC_SUCCEEDED;
         let syncTime = ((Date.now() - syncStartTime) / 1000).toFixed(2);
-        let dateStr = new Date().toLocaleFormat(LOG_DATE_FORMAT);
-        this._log.info("Sync completed successfully at " + dateStr
-                       + " after " + syncTime + " secs.");
+        this._log.info("Sync completed successfully in " + syncTime + " secs.");
       }
     } finally {
       this._syncError = false;

@@ -249,58 +249,10 @@ PluginPRLibrary::AsyncSetWindow(NPP instance, NPWindow* window)
 nsresult
 PluginPRLibrary::GetSurface(NPP instance, gfxASurface** aSurface)
 {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-nsresult
-PluginPRLibrary::GetImage(NPP instance, ImageContainer* aContainer, Image** aImage)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-nsresult
-PluginPRLibrary::GetImageSize(NPP instance, nsIntSize* aSize)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-#if defined(XP_MACOSX)
-nsresult
-PluginPRLibrary::IsRemoteDrawingCoreAnimation(NPP instance, PRBool *aDrawing)
-{
   nsNPAPIPluginInstance* inst = (nsNPAPIPluginInstance*)instance->ndata;
   NS_ENSURE_TRUE(inst, NS_ERROR_NULL_POINTER);
-  *aDrawing = PR_FALSE; 
+  *aSurface = nsnull;
   return NS_OK;
-}
-#endif
-
-nsresult
-PluginPRLibrary::SetBackgroundUnknown(NPP instance)
-{
-  nsNPAPIPluginInstance* inst = (nsNPAPIPluginInstance*)instance->ndata;
-  NS_ENSURE_TRUE(inst, NS_ERROR_NULL_POINTER);
-  NS_ERROR("Unexpected use of async APIs for in-process plugin.");
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-nsresult
-PluginPRLibrary::BeginUpdateBackground(NPP instance,
-                                       const nsIntRect&, gfxContext** aCtx)
-{
-  nsNPAPIPluginInstance* inst = (nsNPAPIPluginInstance*)instance->ndata;
-  NS_ENSURE_TRUE(inst, NS_ERROR_NULL_POINTER);
-  NS_ERROR("Unexpected use of async APIs for in-process plugin.");
-  *aCtx = nsnull;
-  return NS_OK;
-}
-
-nsresult
-PluginPRLibrary::EndUpdateBackground(NPP instance,
-                                     gfxContext*, const nsIntRect&)
-{
-  NS_RUNTIMEABORT("This should never be called");
-  return NS_ERROR_NOT_AVAILABLE;
 }
 
 } // namespace mozilla

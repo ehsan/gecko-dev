@@ -38,8 +38,6 @@
 #include "ContainerLayerD3D9.h"
 #include "gfxUtils.h"
 #include "nsRect.h"
-#include "ThebesLayerD3D9.h"
-#include "ReadbackProcessor.h"
 
 namespace mozilla {
 namespace layers {
@@ -181,9 +179,6 @@ ContainerLayerD3D9::RenderLayer()
 
   device()->GetScissorRect(&containerClipRect);
 
-  ReadbackProcessor readback;
-  readback.BuildUpdates(this);
-
   nsIntRect visibleRect = mVisibleRegion.GetBounds();
   PRBool useIntermediate = UseIntermediateSurface();
 
@@ -324,11 +319,7 @@ ContainerLayerD3D9::RenderLayer()
       device()->SetScissorRect(&r);
     }
 
-    if (layerToRender->GetLayer()->GetType() == TYPE_THEBES) {
-      static_cast<ThebesLayerD3D9*>(layerToRender)->RenderThebesLayer(&readback);
-    } else {
-      layerToRender->RenderLayer();
-    }
+    layerToRender->RenderLayer();
 
     if (clipRect && !useIntermediate) {
       // In this situation we've set a new scissor rect and we will continue

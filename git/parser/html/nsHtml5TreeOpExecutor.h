@@ -345,7 +345,7 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
 
     void Start();
 
-    void NeedsCharsetSwitchTo(const char* aEncoding, PRInt32 aSource);
+    void NeedsCharsetSwitchTo(const char* aEncoding);
     
     PRBool IsComplete() {
       return !mParser;

@@ -376,32 +376,10 @@ PRBool WebGLContext::ValidateTexFormatAndType(WebGLenum format, WebGLenum type,
     }
 }
 
-PRBool WebGLContext::ValidateAttribIndex(WebGLuint index, const char *info)
-{
-    if (index > mAttribBuffers.Length()) {
-        if (index == WebGLuint(-1)) {
-             ErrorInvalidValue("%s: index -1 is invalid. That probably comes from a getAttribLication() call, "
-                               "where this return value -1 means that the passed name didn't correspond to an active attribute in "
-                               "the specified program.", info);
-        } else {
-             ErrorInvalidValue("%s: index %d is out of range", info, index);
-        }
-        return PR_FALSE;
-    } else {
-        return PR_TRUE;
-    }
-}
-
 PRBool
 WebGLContext::InitAndValidateGL()
 {
     if (!gl) return PR_FALSE;
-
-    GLenum error = gl->fGetError();
-    if (error != LOCAL_GL_NO_ERROR) {
-        LogMessage("GL error 0x%x occurred during OpenGL context initialization, before WebGL initialization!", error);
-        return PR_FALSE;
-    }
 
     mActiveTexture = 0;
     mSynthesizedGLError = LOCAL_GL_NO_ERROR;
@@ -462,7 +440,7 @@ WebGLContext::InitAndValidateGL()
     gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_IMAGE_UNITS, (GLint*) &mGLMaxTextureImageUnits);
     gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, (GLint*) &mGLMaxVertexTextureImageUnits);
 
-    if (gl->HasES2Compatibility()) {
+    if (gl->IsGLES2()) {
         gl->fGetIntegerv(LOCAL_GL_MAX_FRAGMENT_UNIFORM_VECTORS, (GLint*) &mGLMaxFragmentUniformVectors);
         gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_UNIFORM_VECTORS, (GLint*) &mGLMaxVertexUniformVectors);
         gl->fGetIntegerv(LOCAL_GL_MAX_VARYING_VECTORS, (GLint*) &mGLMaxVaryingVectors);
@@ -471,37 +449,8 @@ WebGLContext::InitAndValidateGL()
         mGLMaxFragmentUniformVectors /= 4;
         gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_UNIFORM_COMPONENTS, (GLint*) &mGLMaxVertexUniformVectors);
         mGLMaxVertexUniformVectors /= 4;
-
-        // we are now going to try to read GL_MAX_VERTEX_OUTPUT_COMPONENTS and GL_MAX_FRAGMENT_INPUT_COMPONENTS,
-        // however these constants only entered the OpenGL standard at OpenGL 3.2. So we will try reading,
-        // and check OpenGL error for INVALID_ENUM.
-
-        // before we start, we check that no error already occurred, to prevent hiding it in our subsequent error handling
-        error = gl->fGetError();
-        if (error != LOCAL_GL_NO_ERROR) {
-            LogMessage("GL error 0x%x occurred during WebGL context initialization!", error);
-            return PR_FALSE;
-        }
-
-        // On the public_webgl list, "problematic GetParameter pnames" thread, the following formula was given:
-        //   mGLMaxVaryingVectors = min (GL_MAX_VERTEX_OUTPUT_COMPONENTS, GL_MAX_FRAGMENT_INPUT_COMPONENTS) / 4
-        GLint maxVertexOutputComponents,
-              minFragmentInputComponents;
-        gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_OUTPUT_COMPONENTS, &maxVertexOutputComponents);
-        gl->fGetIntegerv(LOCAL_GL_MAX_FRAGMENT_INPUT_COMPONENTS, &minFragmentInputComponents);
-
-        error = gl->fGetError();
-        switch (error) {
-            case LOCAL_GL_NO_ERROR:
-                mGLMaxVaryingVectors = PR_MIN(maxVertexOutputComponents, minFragmentInputComponents) / 4;
-                break;
-            case LOCAL_GL_INVALID_ENUM:
-                mGLMaxVaryingVectors = 16; // = 64/4, 64 is the min value for maxVertexOutputComponents in OpenGL 3.2 spec
-                break;
-            default:
-                LogMessage("GL error 0x%x occurred during WebGL context initialization!", error);
-                return PR_FALSE;
-        }
+        gl->fGetIntegerv(LOCAL_GL_MAX_VARYING_FLOATS, (GLint*) &mGLMaxVaryingVectors);
+        mGLMaxVaryingVectors /= 4;
     }
 
 #if 0
@@ -569,7 +518,7 @@ WebGLContext::InitAndValidateGL()
 
     // notice that the point of calling GetError here is not only to check for error,
     // it is also to reset the error flag so that a subsequent WebGL getError call will give the correct result.
-    error = gl->fGetError();
+    GLenum error = gl->fGetError();
     if (error != LOCAL_GL_NO_ERROR) {
         LogMessage("GL error 0x%x occurred during WebGL context initialization!", error);
         return PR_FALSE;

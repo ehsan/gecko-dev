@@ -58,7 +58,6 @@
 #include "nsThreadUtils.h"
 #include "nsAutoPtr.h"
 #include "nsTWeakRef.h"
-#include "nsCrashOnException.h"
 
 #define NP_POPUP_API_VERSION 16
 
@@ -225,7 +224,7 @@ NS_IMETHODIMP nsDelayedPopupsEnabledEvent::Run()
 /**
  *   New plugin window procedure
  */
-static LRESULT CALLBACK PluginWndProcInternal(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+static LRESULT CALLBACK PluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
   nsPluginNativeWindowWin * win = (nsPluginNativeWindowWin *)::GetProp(hWnd, NS_PLUGIN_WINDOW_PROPERTY_ASSOCIATION);
   if (!win)
@@ -381,11 +380,6 @@ static LRESULT CALLBACK PluginWndProcInternal(HWND hWnd, UINT msg, WPARAM wParam
   }
 
   return res;
-}
-
-static LRESULT CALLBACK PluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
-{
-  return mozilla::CallWindowProcCrashProtected(PluginWndProcInternal, hWnd, msg, wParam, lParam);
 }
 
 /*

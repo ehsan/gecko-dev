@@ -665,7 +665,7 @@ str_enumerate(JSContext *cx, JSObject *obj)
         if (!str1)
             return JS_FALSE;
         if (!obj->defineProperty(cx, INT_TO_JSID(i), StringValue(str1),
-                                 PropertyStub, StrictPropertyStub,
+                                 PropertyStub, PropertyStub,
                                  STRING_ELEMENT_ATTRS)) {
             return JS_FALSE;
         }
@@ -703,10 +703,10 @@ Class js_StringClass = {
     js_String_str,
     JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_NEW_RESOLVE |
     JSCLASS_HAS_CACHED_PROTO(JSProto_String),
-    PropertyStub,         /* addProperty */
-    PropertyStub,         /* delProperty */
+    PropertyStub,   /* addProperty */
+    PropertyStub,   /* delProperty */
     str_getProperty,
-    StrictPropertyStub,   /* setProperty */
+    PropertyStub,   /* setProperty */
     str_enumerate,
     (JSResolveOp)str_resolve,
     ConvertStub
@@ -781,7 +781,6 @@ str_toSource(JSContext *cx, uintN argc, Value *vp)
     char buf[16];
     size_t j = JS_snprintf(buf, sizeof buf, "(new String(");
 
-    JS::Anchor<JSString *> anchor(str);
     size_t k = str->length();
     const jschar *s = str->getChars(cx);
     if (!s)

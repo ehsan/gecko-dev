@@ -36,9 +36,6 @@
         </targetApplication>
       </versionRange>
     </emItem>
-    <emItem id="ShopperReports@ShopperReports.com">
-      <versionRange minVersion="3.1.22.0" maxVersion="3.1.22.0"/>
-    </emItem>
     <emItem id="support@daemon-tools.cc">
       <versionRange minVersion=" " maxVersion="1.0.0.5"/>
     </emItem>
@@ -121,14 +118,6 @@
     <match name="name" exp="[0-6]\.0\.[01]\d{2}\.\d+"/>
     <match name="filename" exp="npdeploytk.dll"/>
     <versionRange severity="1">
-    </versionRange>
-  </pluginItem>
-  <pluginItem>
-    <match name="filename" exp="[Nn][Pp][Jj][Pp][Ii]1[56]0_[0-9]+\.[Dd][Ll][Ll]"/>
-    <versionRange>
-      <targetApplication id="{ec8030f7-c20a-464f-9b0e-13a3a9e97384}">
-        <versionRange minVersion="3.6a1pre" maxVersion="*"/>
-      </targetApplication>
     </versionRange>
   </pluginItem>
 </pluginItems>

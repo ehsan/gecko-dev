@@ -650,8 +650,7 @@ function optionsClear() {
     if (optionName &&
         optionName != "methodjit" &&
         optionName != "tracejit" &&
-        optionName != "jitprofiling" &&
-        optionName != "methodjit_always")
+        optionName != "jitprofiling")
     {
       options(optionName);
     }

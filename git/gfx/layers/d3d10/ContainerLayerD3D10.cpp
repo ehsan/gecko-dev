@@ -40,9 +40,6 @@
 #include "gfxUtils.h"
 #include "nsRect.h"
 
-#include "ThebesLayerD3D10.h"
-#include "ReadbackProcessor.h"
-
 namespace mozilla {
 namespace layers {
 
@@ -405,16 +402,9 @@ ContainerLayerD3D10::Validate()
         (mParent && mParent->SupportsComponentAlphaChildren());
   }
 
-  ReadbackProcessor readback;
-  readback.BuildUpdates(this);
-
   Layer *layer = GetFirstChild();
   while (layer) {
-    if (layer->GetType() == TYPE_THEBES) {
-      static_cast<ThebesLayerD3D10*>(layer)->Validate(&readback);
-    } else {
-      static_cast<LayerD3D10*>(layer->ImplData())->Validate();
-    }
+    static_cast<LayerD3D10*>(layer->ImplData())->Validate();
     layer = layer->GetNextSibling();
   }
 }

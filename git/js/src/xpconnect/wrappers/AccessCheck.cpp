@@ -93,9 +93,7 @@ AccessCheck::isLocationObjectSameOrigin(JSContext *cx, JSObject *wrapper)
         JS_ASSERT(obj->getClass()->ext.innerObject);
     }
     OBJ_TO_INNER_OBJECT(cx, obj);
-    return obj &&
-           (isSameOrigin(wrapper->compartment(), obj->compartment()) ||
-            documentDomainMakesSameOrigin(cx, obj));
+    return obj && isSameOrigin(wrapper->compartment(), obj->compartment());
 }
 
 bool

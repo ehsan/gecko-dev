@@ -635,43 +635,9 @@ BookmarksStore.prototype = {
     return false;
   },
 
-  // Turn a record's nsINavBookmarksService constant and other attributes into
-  // a granular type for comparison.
-  _recordType: function _recordType(itemId) {
-    let bms  = this._bms;
-    let type = bms.getItemType(itemId);
-
-    switch (type) {
-      case bms.TYPE_FOLDER:
-        if (this._ls.isLivemark(itemId))
-          return "livemark";
-        return "folder";
-
-      case bms.TYPE_BOOKMARK:
-        if (this._ms && this._ms.hasMicrosummary(itemId))
-          return "microsummary";
-        let bmkUri = bms.getBookmarkURI(itemId).spec;
-        if (bmkUri.search(/^place:/) == 0)
-          return "query";
-        return "bookmark";
-
-      case bms.TYPE_SEPARATOR:
-        return "separator";
-
-      default:
-        return null;
-    }
-  },
-
   create: function BStore_create(record) {
-    // Default to unfiled if we don't have the parent yet.
-    
-    // Valid parent IDs are all positive integers. Other values -- undefined,
-    // null, -1 -- all compare false for > 0, so this catches them all. We
-    // don't just use <= without the !, because undefined and null compare
-    // false for that, too!
-    if (!(record._parent > 0)) {
-      this._log.debug("Parent is " + record._parent + "; reparenting to unfiled.");
+    // Default to unfiled if we don't have the parent yet
+    if (!record._parent) {
       record._parent = kSpecialIds.unfiled;
     }
 
@@ -729,27 +695,14 @@ BookmarksStore.prototype = {
       break;
     case "livemark":
       let siteURI = null;
-      if (!record.feedUri) {
-        this._log.debug("No feed URI: skipping livemark record " + record.id);
-        return;
-      }
-      if (this._ls.isLivemark(record._parent)) {
-        this._log.debug("Invalid parent: skipping livemark record " + record.id);
-        return;
-      }
-
       if (record.siteUri != null)
         siteURI = Utils.makeURI(record.siteUri);
 
-      // Use createLivemarkFolderOnly, not createLivemark, to avoid it
-      // automatically updating during a sync.
-      newId = this._ls.createLivemarkFolderOnly(record._parent, record.title,
-                                                siteURI,
-                                                Utils.makeURI(record.feedUri),
-                                                Svc.Bookmark.DEFAULT_INDEX);
-      this._log.debug("Created livemark " + newId + " under " + record._parent +
-                      " as " + record.title + ", " + record.siteUri + ", " + 
-                      record.feedUri + ", GUID " + record.id);
+      newId = this._ls.createLivemark(record._parent, record.title, siteURI,
+                                      Utils.makeURI(record.feedUri),
+                                      Svc.Bookmark.DEFAULT_INDEX);
+      this._log.debug(["created livemark", newId, "under", record._parent, "as",
+                       record.title, record.siteUri, record.feedUri].join(" "));
       break;
     case "separator":
       newId = this._bms.insertSeparator(record._parent,
@@ -769,23 +722,26 @@ BookmarksStore.prototype = {
     this._setGUID(newId, record.id);
   },
 
-  // Factored out of `remove` to avoid redundant DB queries when the Places ID
-  // is already known.
-  removeById: function removeById(itemId, guid) {
-    let type = this._bms.getItemType(itemId);
+  remove: function BStore_remove(record) {
+    let itemId = this.idForGUID(record.id);
+    if (itemId <= 0) {
+      this._log.debug("Item " + record.id + " already removed");
+      return;
+    }
+    var type = this._bms.getItemType(itemId);
 
     switch (type) {
     case this._bms.TYPE_BOOKMARK:
-      this._log.debug("  -> removing bookmark " + guid);
+      this._log.debug("  -> removing bookmark " + record.id);
       this._ts.untagURI(this._bms.getBookmarkURI(itemId), null);
       this._bms.removeItem(itemId);
       break;
     case this._bms.TYPE_FOLDER:
-      this._log.debug("  -> removing folder " + guid);
+      this._log.debug("  -> removing folder " + record.id);
       Svc.Bookmark.removeItem(itemId);
       break;
     case this._bms.TYPE_SEPARATOR:
-      this._log.debug("  -> removing separator " + guid);
+      this._log.debug("  -> removing separator " + record.id);
       this._bms.removeItem(itemId);
       break;
     default:
@@ -794,39 +750,11 @@ BookmarksStore.prototype = {
     }
   },
 
-  remove: function BStore_remove(record) {
-    let itemId = this.idForGUID(record.id);
-    if (itemId <= 0) {
-      this._log.debug("Item " + record.id + " already removed");
-      return;
-    }
-    this.removeById(itemId, record.id);
-  },
-
   update: function BStore_update(record) {
     let itemId = this.idForGUID(record.id);
 
     if (itemId <= 0) {
       this._log.debug("Skipping update for unknown item: " + record.id);
-      return;
-    }
-
-    // Two items are the same type if they have the same ItemType in Places,
-    // and also share some key characteristics (e.g., both being livemarks).
-    // We figure this out by examining the item to find the equivalent granular
-    // (string) type.
-    // If they're not the same type, we can't just update attributes. Delete
-    // then recreate the record instead.
-    let localItemType    = this._recordType(itemId);
-    let remoteRecordType = record.type;
-    this._log.trace("Local type: " + localItemType + ". " +
-                    "Remote type: " + remoteRecordType + ".");
-
-    if (localItemType != remoteRecordType) {
-      this._log.debug("Local record and remote record differ in type. " +
-                      "Deleting and recreating.");
-      this.removeById(itemId, record.id);
-      this.create(record);
       return;
     }
 
@@ -897,7 +825,6 @@ BookmarksStore.prototype = {
       // Reorder children according to the GUID list. Gracefully deal
       // with missing items, e.g. locally deleted.
       let delta = 0;
-      let parent = null;
       for (let idx = 0; idx < children.length; idx++) {
         let itemid = this.idForGUID(children[idx]);
         if (itemid == -1) {
@@ -906,12 +833,7 @@ BookmarksStore.prototype = {
           continue;
         }
         try {
-          // This code path could be optimized by caching the parent earlier.
-          // Doing so should take in count any edge case due to reparenting
-          // or parent invalidations though.
-          if (!parent)
-            parent = Svc.Bookmark.getFolderIdForItem(itemid);
-          Svc.Bookmark.moveItem(itemid, parent, idx - delta);
+          Svc.Bookmark.setItemIndex(itemid, idx - delta);
         } catch (ex) {
           this._log.debug("Could not move item " + children[idx] + ": " + ex);
         }
@@ -1330,8 +1252,7 @@ BookmarksStore.prototype = {
     stmt.params.guid = guid.toString();
 
     let results = Utils.queryAsync(stmt, ["item_id"]);
-    this._log.trace("Rows matching GUID " + guid + ": " +
-                    results.map(function(x) x.item_id));
+    this._log.trace("Rows matching GUID " + guid + ": " + results.length);
     
     // Here's the one we care about: the first.
     let result = results[0];
@@ -1397,7 +1318,7 @@ BookmarksStore.prototype = {
       node.containerOpen = true;
 
       // Remember all the children GUIDs and recursively get more
-      for (let i = 0; i < node.childCount; i++) {
+      for (var i = 0; i < node.childCount; i++) {
         let child = node.getChild(i);
         items[this.GUIDForId(child.itemId)] = true;
         this._getChildren(child, items);
@@ -1522,11 +1443,6 @@ BookmarksTracker.prototype = {
     Ci.nsISupportsWeakReference
   ]),
 
-  _idForGUID: function _idForGUID(item_id) {
-    // Isn't indirection fun...
-    return Engines.get("bookmarks")._store.idForGUID(item_id);
-  },
-
   _GUIDForId: function _GUIDForId(item_id) {
     // Isn't indirection fun...
     return Engines.get("bookmarks")._store.GUIDForId(item_id);
@@ -1539,7 +1455,7 @@ BookmarksTracker.prototype = {
    *        Places internal id of the bookmark to upload
    */
   _addId: function BMT__addId(itemId) {
-    if (this.addChangedID(this._GUIDForId(itemId)))
+    if (this.addChangedID(this._GUIDForId(itemId, true)))
       this._upScore();
   },
 
@@ -1567,7 +1483,7 @@ BookmarksTracker.prototype = {
 
     // Make sure to remove items that have the exclude annotation
     if (Svc.Annos.itemHasAnnotation(itemId, "places/excludeFromBackup")) {
-      this.removeChangedID(this._GUIDForId(itemId));
+      this.removeChangedID(this._GUIDForId(itemId, true));
       return true;
     }
 
@@ -1646,16 +1562,6 @@ BookmarksTracker.prototype = {
     if (this._ignore(itemId))
       return;
 
-    // Allocate a new GUID if necessary.
-    // We only want to do it if there's a dupe, so use idForGUID to achieve that.
-    if (isAnno && (property == GUID_ANNO)) {
-      this._log.trace("onItemChanged for " + GUID_ANNO +
-                      ": probably needs a new one.");
-      this._idForGUID(this._GUIDForId(itemId));
-      this._addId(itemId);
-      return;
-    }
-
     // ignore annotations except for the ones that we sync
     let annos = ["bookmarkProperties/description",
       "bookmarkProperties/loadInSidebar", "bookmarks/staticTitle",
@@ -1669,7 +1575,7 @@ BookmarksTracker.prototype = {
 
     this._log.trace("onItemChanged: " + itemId +
                     (", " + property + (isAnno? " (anno)" : "")) +
-                    (value ? (" = \"" + value + "\"") : ""));
+                    (value? (" = \"" + value + "\"") : ""));
     this._addId(itemId);
   },
 

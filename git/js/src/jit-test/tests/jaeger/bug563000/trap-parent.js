@@ -1,4 +1,3 @@
-// |jit-test| debug
 setDebug(true);
 x = "notset";
 function child() {

@@ -46,7 +46,6 @@
 #include "nsIStreamLoader.h"
 #include "nsIURI.h"
 #include "nsIChannel.h"
-#include "nsITimer.h"
 #include "gfxUserFontSet.h"
 #include "nsHashKeys.h"
 #include "nsTHashtable.h"
@@ -106,10 +105,6 @@ public:
 
   void DropChannel() { mChannel = nsnull; }
 
-  void StartedLoading(nsIStreamLoader *aStreamLoader);
-
-  static void LoadTimerCallback(nsITimer *aTimer, void *aClosure);
-
   static nsresult CheckLoadAllowed(nsIPrincipal* aSourcePrincipal,
                                    nsIURI* aTargetURI,
                                    nsISupports* aContext);
@@ -119,9 +114,6 @@ private:
   nsCOMPtr<nsIURI>        mFontURI;
   nsRefPtr<nsUserFontSet> mFontSet;
   nsCOMPtr<nsIChannel>    mChannel;
-  nsCOMPtr<nsITimer>      mLoadTimer;
-
-  nsIStreamLoader        *mStreamLoader;
 };
 
 #endif /* !defined(nsFontFaceLoader_h_) */

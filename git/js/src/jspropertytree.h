@@ -111,7 +111,7 @@ class PropertyTree
     PropertyTree();
     
   public:
-    enum { MAX_HEIGHT = 128 };
+    enum { MAX_HEIGHT = 64 };
 
     PropertyTree(JSCompartment *comp)
         : compartment(comp), freeList(NULL)
@@ -128,7 +128,7 @@ class PropertyTree
 
     void orphanChildren(js::Shape *shape);
     void sweepShapes(JSContext *cx);
-    void unmarkShapes(JSContext *cx);
+    bool checkShapesAllUnmarked(JSContext *cx);
 
     static void dumpShapes(JSContext *cx);
 #ifdef DEBUG

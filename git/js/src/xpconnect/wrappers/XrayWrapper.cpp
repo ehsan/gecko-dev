@@ -99,7 +99,7 @@ static JSBool
 holder_get(JSContext *cx, JSObject *holder, jsid id, jsval *vp);
 
 static JSBool
-holder_set(JSContext *cx, JSObject *holder, jsid id, JSBool strict, jsval *vp);
+holder_set(JSContext *cx, JSObject *holder, jsid id, jsval *vp);
 
 namespace XrayUtils {
 
@@ -192,7 +192,7 @@ holder_get(JSContext *cx, JSObject *wrapper, jsid id, jsval *vp)
             return false;
         JSBool retval = true;
         nsresult rv = wn->GetScriptableCallback()->GetProperty(wn, cx, wrapper, id, vp, &retval);
-        if (NS_FAILED(rv) || !retval) {
+        if (NS_FAILED(rv)) {
             if (retval)
                 XPCThrower::Throw(rv, cx);
             return false;
@@ -202,7 +202,7 @@ holder_get(JSContext *cx, JSObject *wrapper, jsid id, jsval *vp)
 }
 
 static JSBool
-holder_set(JSContext *cx, JSObject *wrapper, jsid id, JSBool strict, jsval *vp)
+holder_set(JSContext *cx, JSObject *wrapper, jsid id, jsval *vp)
 {
     NS_ASSERTION(wrapper->isProxy(), "bad this object in set");
     JSObject *holder = GetHolder(wrapper);
@@ -219,7 +219,7 @@ holder_set(JSContext *cx, JSObject *wrapper, jsid id, JSBool strict, jsval *vp)
             return false;
         JSBool retval = true;
         nsresult rv = wn->GetScriptableCallback()->SetProperty(wn, cx, wrapper, id, vp, &retval);
-        if (NS_FAILED(rv) || !retval) {
+        if (NS_FAILED(rv)) {
             if (retval)
                 XPCThrower::Throw(rv, cx);
             return false;
@@ -296,8 +296,7 @@ ResolveNativeProperty(JSContext *cx, JSObject *wrapper, JSObject *holder, jsid i
         // don't have one, we have to avoid calling the scriptable helper's
         // GetProperty method for this property, so stub out the getter and
         // setter here explicitly.
-        desc->getter = JS_PropertyStub;
-        desc->setter = JS_StrictPropertyStub;
+        desc->getter = desc->setter = JS_PropertyStub;
     }
 
     if (!JS_WrapValue(cx, &desc->value) || !JS_WrapValue(cx, &fval))
@@ -306,7 +305,7 @@ ResolveNativeProperty(JSContext *cx, JSObject *wrapper, JSObject *holder, jsid i
     if (desc->attrs & JSPROP_GETTER)
         desc->getter = CastAsJSPropertyOp(JSVAL_TO_OBJECT(fval));
     if (desc->attrs & JSPROP_SETTER)
-        desc->setter = CastAsJSStrictPropertyOp(JSVAL_TO_OBJECT(fval));
+        desc->setter = desc->getter;
 
     // Define the property.
     return JS_DefinePropertyById(cx, holder, id, desc->value,
@@ -439,38 +438,27 @@ XrayWrapper<Base>::resolveOwnProperty(JSContext *cx, JSObject *wrapper, jsid id,
         return true;
     }
 
-    desc->obj = NULL;
-
-    uintN flags = (set ? JSRESOLVE_ASSIGNING : 0) | JSRESOLVE_QUALIFIED;
     JSObject *holder = GetHolder(wrapper);
     JSObject *expando = GetExpandoObject(holder);
-
-    // Check for expando properties first.
-    if (expando && !JS_GetPropertyDescriptorById(cx, expando, id, flags, desc)) {
-        return false;
-    }
-    if (desc->obj) {
-        // Pretend the property lives on the wrapper.
-        desc->obj = wrapper;
-        return true;
-    }
-
-    JSBool hasProp;
-    if (!JS_HasPropertyById(cx, holder, id, &hasProp)) {
-        return false;
-    }
-    if (!hasProp) {
-        JSObject *wnObject = GetWrappedNativeObjectFromHolder(cx, holder);
-        XPCWrappedNative *wn = GetWrappedNative(wnObject);
-
-        // Run the resolve hook of the wrapped native.
-        if (!NATIVE_HAS_FLAG(wn, WantNewResolve)) {
-            desc->obj = nsnull;
-            return true;
+    if (expando) {
+        if (!JS_GetPropertyDescriptorById(cx, expando, id,
+                                          (set ? JSRESOLVE_ASSIGNING : 0) | JSRESOLVE_QUALIFIED,
+                                          desc)) {
+            return false;
         }
 
+        if (desc->obj)
+            return true;
+    }
+
+    JSObject *wnObject = GetWrappedNativeObjectFromHolder(cx, holder);
+    XPCWrappedNative *wn = GetWrappedNative(wnObject);
+
+    // Run the resolve hook of the wrapped native.
+    if (NATIVE_HAS_FLAG(wn, WantNewResolve)) {
         JSBool retval = true;
         JSObject *pobj = NULL;
+        uintN flags = (set ? JSRESOLVE_ASSIGNING : 0) | JSRESOLVE_QUALIFIED;
         nsresult rv = wn->GetScriptableInfo()->GetCallback()->NewResolve(wn, cx, wrapper, id,
                                                                          flags, &pobj, &retval);
         if (NS_FAILED(rv)) {
@@ -479,23 +467,20 @@ XrayWrapper<Base>::resolveOwnProperty(JSContext *cx, JSObject *wrapper, jsid id,
             return false;
         }
 
-        if (!pobj) {
-            desc->obj = nsnull;
+        if (pobj) {
+#ifdef DEBUG
+            JSBool hasProp;
+            NS_ASSERTION(JS_HasPropertyById(cx, holder, id, &hasProp) &&
+                         hasProp, "id got defined somewhere else?");
+#endif
+            if (!JS_GetPropertyDescriptorById(cx, holder, id, flags, desc))
+                return false;
+            desc->obj = wrapper;
             return true;
         }
-
-#ifdef DEBUG
-        NS_ASSERTION(JS_HasPropertyById(cx, holder, id, &hasProp) &&
-                     hasProp, "id got defined somewhere else?");
-#endif
     }
 
-    if (!JS_GetPropertyDescriptorById(cx, holder, id, flags, desc))
-        return false;
-
-    // Pretend we found the property on the wrapper, not the holder.
-    desc->obj = wrapper;
-
+    desc->obj = nsnull;
     return true;
 }
 
@@ -536,8 +521,7 @@ XrayWrapper<Base>::getPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid 
                 return false;
         }
 
-        if (desc->obj)
-            desc->obj = wrapper;
+        desc->obj = wrapper;
         return cx->compartment->wrap(cx, desc_in);
     }
 
@@ -784,12 +768,12 @@ XrayWrapper<Base>::get(JSContext *cx, JSObject *wrapper, JSObject *receiver, jsi
 template <typename Base>
 bool
 XrayWrapper<Base>::set(JSContext *cx, JSObject *wrapper, JSObject *receiver, jsid id,
-                       bool strict, js::Value *vp)
+                       js::Value *vp)
 {
     // Skip our Base if it isn't already JSProxyHandler.
     // NB: None of the functions we call are prepared for the receiver not
     // being the wrapper, so ignore the receiver here.
-    return JSProxyHandler::set(cx, wrapper, wrapper, id, strict, vp);
+    return JSProxyHandler::set(cx, wrapper, wrapper, id, vp);
 }
 
 template <typename Base>

@@ -183,9 +183,6 @@ WebGLContext::BindAttribLocation(nsIWebGLProgram *pobj, WebGLuint location, cons
     if (name.IsEmpty())
         return ErrorInvalidValue("BindAttribLocation: name can't be null or empty");
 
-    if (!ValidateAttribIndex(location, "bindAttribLocation"))
-        return NS_OK;
-
     MakeContextCurrent();
 
     gl->fBindAttribLocation(progname, location, NS_LossyConvertUTF16toASCII(name).get());
@@ -214,7 +211,6 @@ WebGLContext::BindBuffer(WebGLenum target, nsIWebGLBuffer *bobj)
         if ((buf->Target() != LOCAL_GL_NONE) && (target != buf->Target()))
             return ErrorInvalidOperation("BindBuffer: buffer already bound to a different target");
         buf->SetTarget(target);
-        buf->SetHasEverBeenBound(PR_TRUE);
     }
 
     MakeContextCurrent();
@@ -243,7 +239,6 @@ WebGLContext::BindFramebuffer(WebGLenum target, nsIWebGLFramebuffer *fbobj)
         gl->fBindFramebuffer(target, gl->GetOffscreenFBO());
     } else {
         gl->fBindFramebuffer(target, framebuffername);
-        wfb->SetHasEverBeenBound(PR_TRUE);
     }
 
     mBoundFramebuffer = wfb;
@@ -263,9 +258,6 @@ WebGLContext::BindRenderbuffer(WebGLenum target, nsIWebGLRenderbuffer *rbobj)
 
     if (!GetConcreteObjectAndGLName("bindRenderBuffer", rbobj, &wrb, &renderbuffername, &isNull))
         return NS_OK;
-
-    if (!isNull)
-        wrb->SetHasEverBeenBound(PR_TRUE);
 
     MakeContextCurrent();
 
@@ -401,8 +393,7 @@ WebGLContext::BufferData_size(WebGLenum target, WebGLsizei size, WebGLenum usage
     MakeContextCurrent();
 
     boundBuffer->SetByteLength(size);
-    if (!boundBuffer->ZeroDataIfElementArray())
-        return ErrorOutOfMemory("bufferData: out of memory");
+    boundBuffer->ZeroDataIfElementArray();
     boundBuffer->InvalidateCachedMaxElements();
 
     gl->fBufferData(target, size, 0, usage);
@@ -432,8 +423,7 @@ WebGLContext::BufferData_buf(WebGLenum target, js::ArrayBuffer *wb, WebGLenum us
     MakeContextCurrent();
 
     boundBuffer->SetByteLength(wb->byteLength);
-    if (!boundBuffer->CopyDataIfElementArray(wb->data))
-        return ErrorOutOfMemory("bufferData: out of memory");
+    boundBuffer->CopyDataIfElementArray(wb->data);
     boundBuffer->InvalidateCachedMaxElements();
 
     gl->fBufferData(target, wb->byteLength, wb->data, usage);
@@ -463,8 +453,7 @@ WebGLContext::BufferData_array(WebGLenum target, js::TypedArray *wa, WebGLenum u
     MakeContextCurrent();
 
     boundBuffer->SetByteLength(wa->byteLength);
-    if (!boundBuffer->CopyDataIfElementArray(wa->data))
-        return ErrorOutOfMemory("bufferData: out of memory");
+    boundBuffer->CopyDataIfElementArray(wa->data);
     boundBuffer->InvalidateCachedMaxElements();
 
     gl->fBufferData(target, wa->byteLength, wa->data, usage);
@@ -496,9 +485,6 @@ WebGLContext::BufferSubData_buf(GLenum target, WebGLsizei byteOffset, js::ArrayB
     } else {
         return ErrorInvalidEnumInfo("bufferSubData: target", target);
     }
-
-    if (byteOffset < 0)
-        return ErrorInvalidValue("bufferSubData: negative offset");
 
     if (!boundBuffer)
         return ErrorInvalidOperation("BufferData: no buffer bound!");
@@ -533,9 +519,6 @@ WebGLContext::BufferSubData_array(WebGLenum target, WebGLsizei byteOffset, js::T
     } else {
         return ErrorInvalidEnumInfo("bufferSubData: target", target);
     }
-
-    if (byteOffset < 0)
-        return ErrorInvalidValue("bufferSubData: negative offset");
 
     if (!boundBuffer)
         return ErrorInvalidOperation("BufferData: no buffer bound!");
@@ -662,7 +645,7 @@ WebGLContext::CopyTexSubImage2D_base(WebGLenum target,
         // Hopefully calloc will just mmap zero pages here.
         void *tempZeroData = calloc(1, bytesNeeded);
         if (!tempZeroData)
-            return ErrorOutOfMemory("%s: could not allocate %d bytes (for zero fill)", info, bytesNeeded);
+            return SynthesizeGLError(LOCAL_GL_OUT_OF_MEMORY, "%s: could not allocate %d bytes (for zero fill)", info, bytesNeeded);
 
         // now initialize the texture as black
 
@@ -743,10 +726,6 @@ WebGLContext::CopyTexImage2D(WebGLenum target,
     if (level < 0)
         return ErrorInvalidValue("copyTexImage2D: level may not be negative");
 
-    WebGLsizei maxTextureSize = MaxTextureSizeForTarget(target);
-    if (!(maxTextureSize >> level))
-        return ErrorInvalidValue("copyTexImage2D: 2^level exceeds maximum texture size");
-
     if (level >= 1) {
         if (!(is_pot_assuming_nonnegative(width) &&
               is_pot_assuming_nonnegative(height)))
@@ -800,10 +779,6 @@ WebGLContext::CopyTexSubImage2D(WebGLenum target,
     if (level < 0)
         return ErrorInvalidValue("copyTexSubImage2D: level may not be negative");
 
-    WebGLsizei maxTextureSize = MaxTextureSizeForTarget(target);
-    if (!(maxTextureSize >> level))
-        return ErrorInvalidValue("copyTexSubImage2D: 2^level exceeds maximum texture size");
-
     if (width < 0 || height < 0)
         return ErrorInvalidValue("copyTexSubImage2D: width and height may not be negative");
 
@@ -814,12 +789,8 @@ WebGLContext::CopyTexSubImage2D(WebGLenum target,
     if (!tex)
         return ErrorInvalidOperation("copyTexSubImage2D: no texture bound to this target");
 
-    WebGLint face = WebGLTexture::FaceForTarget(target);
-    if (!tex->HasImageInfoAt(level, face))
-        return ErrorInvalidOperation("copyTexSubImage2D: to texture image previously defined for this level and face");
-
-    WebGLsizei texWidth = tex->ImageInfoAt(level, face).mWidth;
-    WebGLsizei texHeight = tex->ImageInfoAt(level, face).mHeight;
+    WebGLsizei texWidth = tex->ImageInfoAt(level,0).mWidth;
+    WebGLsizei texHeight = tex->ImageInfoAt(level,0).mHeight;
 
     if (xoffset + width > texWidth || xoffset + width < 0)
       return ErrorInvalidValue("copyTexSubImage2D: xoffset+width is too large");
@@ -827,7 +798,7 @@ WebGLContext::CopyTexSubImage2D(WebGLenum target,
     if (yoffset + height > texHeight || yoffset + height < 0)
       return ErrorInvalidValue("copyTexSubImage2D: yoffset+height is too large");
 
-    WebGLenum format = tex->ImageInfoAt(level, face).mFormat;
+    WebGLenum format = tex->ImageInfoAt(level,0).mFormat;
     PRBool texFormatRequiresAlpha = format == LOCAL_GL_RGBA ||
                                     format == LOCAL_GL_ALPHA ||
                                     format == LOCAL_GL_LUMINANCE_ALPHA;
@@ -1090,8 +1061,8 @@ WebGLContext::DepthRange(WebGLfloat zNear, WebGLfloat zFar)
 NS_IMETHODIMP
 WebGLContext::DisableVertexAttribArray(WebGLuint index)
 {
-    if (!ValidateAttribIndex(index, "disableVertexAttribArray"))
-        return NS_OK;
+    if (index > mAttribBuffers.Length())
+        return ErrorInvalidValue("DisableVertexAttribArray: index out of range");
 
     MakeContextCurrent();
 
@@ -1103,91 +1074,46 @@ WebGLContext::DisableVertexAttribArray(WebGLuint index)
     return NS_OK;
 }
 
-int
-WebGLContext::WhatDoesVertexAttrib0Need()
+PRBool
+WebGLContext::NeedFakeVertexAttrib0()
 {
-  // here we may assume that mCurrentProgram != null
-
-    // work around Mac OSX crash, see bug 631420
-#ifdef XP_MACOSX
-    if (mAttribBuffers[0].enabled &&
-        !mCurrentProgram->IsAttribInUse(0))
-        return VertexAttrib0Status::EmulatedUninitializedArray;
-#endif
-
-    return (gl->IsGLES2() || mAttribBuffers[0].enabled) ? VertexAttrib0Status::Default
-         : mCurrentProgram->IsAttribInUse(0)            ? VertexAttrib0Status::EmulatedInitializedArray
-                                                        : VertexAttrib0Status::EmulatedUninitializedArray;
+    return !gl->IsGLES2() &&
+           !mAttribBuffers[0].enabled;
 }
 
 void
 WebGLContext::DoFakeVertexAttrib0(WebGLuint vertexCount)
 {
-    int whatDoesAttrib0Need = WhatDoesVertexAttrib0Need();
-
-    if (whatDoesAttrib0Need == VertexAttrib0Status::Default)
+    if (!NeedFakeVertexAttrib0())
         return;
 
-    WebGLuint dataSize = sizeof(WebGLfloat) * 4 * vertexCount;
+    mFakeVertexAttrib0Array = new WebGLfloat[4 * vertexCount];
 
-    if (!mFakeVertexAttrib0BufferObject) {
-        gl->fGenBuffers(1, &mFakeVertexAttrib0BufferObject);
+    for(size_t i = 0; i < vertexCount; ++i) {
+        mFakeVertexAttrib0Array[4 * i + 0] = mVertexAttrib0Vector[0];
+        mFakeVertexAttrib0Array[4 * i + 1] = mVertexAttrib0Vector[1];
+        mFakeVertexAttrib0Array[4 * i + 2] = mVertexAttrib0Vector[2];
+        mFakeVertexAttrib0Array[4 * i + 3] = mVertexAttrib0Vector[3];
     }
 
-    // if the VBO status is already exactly what we need, or if the only difference is that it's initialized and
-    // we don't need it to be, then consider it OK
-    PRBool vertexAttrib0BufferStatusOK =
-        mFakeVertexAttrib0BufferStatus == whatDoesAttrib0Need ||
-        (mFakeVertexAttrib0BufferStatus == VertexAttrib0Status::EmulatedInitializedArray &&
-         whatDoesAttrib0Need == VertexAttrib0Status::EmulatedUninitializedArray);
-
-    if (!vertexAttrib0BufferStatusOK ||
-        mFakeVertexAttrib0BufferObjectSize < dataSize ||
-        mFakeVertexAttrib0BufferObjectVector[0] != mVertexAttrib0Vector[0] ||
-        mFakeVertexAttrib0BufferObjectVector[1] != mVertexAttrib0Vector[1] ||
-        mFakeVertexAttrib0BufferObjectVector[2] != mVertexAttrib0Vector[2] ||
-        mFakeVertexAttrib0BufferObjectVector[3] != mVertexAttrib0Vector[3])
-    {
-        mFakeVertexAttrib0BufferStatus = whatDoesAttrib0Need;
-        mFakeVertexAttrib0BufferObjectSize = dataSize;
-        mFakeVertexAttrib0BufferObjectVector[0] = mVertexAttrib0Vector[0];
-        mFakeVertexAttrib0BufferObjectVector[1] = mVertexAttrib0Vector[1];
-        mFakeVertexAttrib0BufferObjectVector[2] = mVertexAttrib0Vector[2];
-        mFakeVertexAttrib0BufferObjectVector[3] = mVertexAttrib0Vector[3];
-
-        gl->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mFakeVertexAttrib0BufferObject);
-
-        WebGLuint dataSize = sizeof(WebGLfloat) * 4 * vertexCount;
-
-        if (mFakeVertexAttrib0BufferStatus == VertexAttrib0Status::EmulatedInitializedArray) {
-            nsAutoArrayPtr<WebGLfloat> array(new WebGLfloat[4 * vertexCount]);
-            for(size_t i = 0; i < vertexCount; ++i) {
-                array[4 * i + 0] = mVertexAttrib0Vector[0];
-                array[4 * i + 1] = mVertexAttrib0Vector[1];
-                array[4 * i + 2] = mVertexAttrib0Vector[2];
-                array[4 * i + 3] = mVertexAttrib0Vector[3];
-            }
-            gl->fBufferData(LOCAL_GL_ARRAY_BUFFER, dataSize, array, LOCAL_GL_DYNAMIC_DRAW);
-        } else {
-            gl->fBufferData(LOCAL_GL_ARRAY_BUFFER, dataSize, nsnull, LOCAL_GL_DYNAMIC_DRAW);
-        }
-
-        gl->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mBoundArrayBuffer ? mBoundArrayBuffer->GLName() : 0);
-    }
-
-    gl->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mFakeVertexAttrib0BufferObject);
-    gl->fVertexAttribPointer(0, 4, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, 0);
+    gl->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
+    gl->fVertexAttribPointer(0, 4, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, mFakeVertexAttrib0Array);
 }
 
 void
 WebGLContext::UndoFakeVertexAttrib0()
 {
-    int whatDoesAttrib0Need = WhatDoesVertexAttrib0Need();
-
-    if (whatDoesAttrib0Need == VertexAttrib0Status::Default)
+    if (!NeedFakeVertexAttrib0())
         return;
 
-    gl->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mAttribBuffers[0].buf ? mAttribBuffers[0].buf->GLName() : 0);
+    mFakeVertexAttrib0Array = nsnull;
+
+    // first set the bound buffer as needed for subsequent gl->fVertexAttribPointer call.
+    // since in DoFakeVertexAttrib0() we called bindBuffer on buffer zero, we only need to do that if
+    // we have a nonzero buffer binding for this attrib.
+    if (mAttribBuffers[0].buf)
+        gl->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mAttribBuffers[0].buf->GLName());
+
     gl->fVertexAttribPointer(0,
                              mAttribBuffers[0].size,
                              mAttribBuffers[0].type,
@@ -1195,6 +1121,7 @@ WebGLContext::UndoFakeVertexAttrib0()
                              mAttribBuffers[0].stride,
                              (const GLvoid *) mAttribBuffers[0].byteOffset);
 
+    // now restore the bound buffer to its state before we did this whole draw call business
     gl->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mBoundArrayBuffer ? mBoundArrayBuffer->GLName() : 0);
 }
 
@@ -1455,8 +1382,8 @@ NS_IMETHODIMP WebGLContext::Disable(WebGLenum cap)
 NS_IMETHODIMP
 WebGLContext::EnableVertexAttribArray(WebGLuint index)
 {
-    if (!ValidateAttribIndex(index, "enableVertexAttribArray"))
-        return NS_OK;
+    if (index > mAttribBuffers.Length())
+        return ErrorInvalidValue("EnableVertexAttribArray: index out of range");
 
     MakeContextCurrent();
 
@@ -1740,6 +1667,9 @@ WebGLContext::GetParameter(PRUint32 pname, nsIVariant **retval)
         case LOCAL_GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS:
         case LOCAL_GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS:
         case LOCAL_GL_MAX_TEXTURE_IMAGE_UNITS:
+        case LOCAL_GL_MAX_FRAGMENT_UNIFORM_COMPONENTS:
+        case LOCAL_GL_MAX_FRAGMENT_UNIFORM_VECTORS:
+        case LOCAL_GL_MAX_VERTEX_UNIFORM_VECTORS:
         case LOCAL_GL_MAX_RENDERBUFFER_SIZE:
         case LOCAL_GL_RED_BITS:
         case LOCAL_GL_GREEN_BITS:
@@ -1754,16 +1684,21 @@ WebGLContext::GetParameter(PRUint32 pname, nsIVariant **retval)
         }
             break;
 
-        case LOCAL_GL_MAX_VERTEX_UNIFORM_VECTORS:
-            wrval->SetAsInt32(mGLMaxVertexUniformVectors);
-            break;
-
-        case LOCAL_GL_MAX_FRAGMENT_UNIFORM_VECTORS:
-            wrval->SetAsInt32(mGLMaxFragmentUniformVectors);
-            break;
-
         case LOCAL_GL_MAX_VARYING_VECTORS:
-            wrval->SetAsInt32(mGLMaxVaryingVectors);
+        {
+            if (gl->IsGLES2()) {
+                GLint i = 0;
+                gl->fGetIntegerv(pname, &i);
+                wrval->SetAsInt32(i);
+            } else {
+                // since this pname is absent from desktop OpenGL, we have to implement it by hand.
+                // The formula below comes from the public_webgl list, "problematic GetParameter pnames" thread
+                GLint i = 0, j = 0;
+                gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_OUTPUT_COMPONENTS, &i);
+                gl->fGetIntegerv(LOCAL_GL_MAX_FRAGMENT_INPUT_COMPONENTS, &j);
+                wrval->SetAsInt32(PR_MIN(i,j)/4);
+            }
+        }
             break;
 
         case LOCAL_GL_NUM_COMPRESSED_TEXTURE_FORMATS:
@@ -2515,8 +2450,8 @@ WebGLContext::GetVertexAttrib(WebGLuint index, WebGLenum pname, nsIVariant **ret
 {
     *retval = nsnull;
 
-    if (!ValidateAttribIndex(index, "getVertexAttrib"))
-        return NS_OK;
+    if (index >= mAttribBuffers.Length())
+        return ErrorInvalidValue("getVertexAttrib: invalid index");
 
     nsCOMPtr<nsIWritableVariant> wrval = do_CreateInstance("@mozilla.org/variant;1");
     NS_ENSURE_TRUE(wrval, NS_ERROR_FAILURE);
@@ -2582,8 +2517,8 @@ WebGLContext::GetVertexAttribOffset(WebGLuint index, WebGLenum pname, WebGLuint 
 {
     *retval = 0;
 
-    if (!ValidateAttribIndex(index, "getVertexAttribOffset"))
-        return NS_OK;
+    if (index >= mAttribBuffers.Length())
+        return ErrorInvalidValue("getVertexAttribOffset: invalid index");
 
     if (pname != LOCAL_GL_VERTEX_ATTRIB_ARRAY_POINTER)
         return ErrorInvalidEnum("getVertexAttribOffset: bad parameter");
@@ -2602,14 +2537,11 @@ NS_IMETHODIMP
 WebGLContext::IsBuffer(nsIWebGLBuffer *bobj, WebGLboolean *retval)
 {
     PRBool isDeleted;
-    WebGLuint buffername;
-    WebGLBuffer *buffer;
-    PRBool ok = GetConcreteObjectAndGLName("isBuffer", bobj, &buffer, &buffername, nsnull, &isDeleted) && 
-                !isDeleted &&
-                buffer->HasEverBeenBound();
+    WebGLuint obj;
+    PRBool ok = GetGLName<WebGLBuffer>("isBuffer", bobj, &obj, 0, &isDeleted) && !isDeleted;
     if (ok) {
         MakeContextCurrent();
-        ok = gl->fIsBuffer(buffername);
+        ok = gl->fIsBuffer(obj);
     }
 
     *retval = ok;
@@ -2620,14 +2552,11 @@ NS_IMETHODIMP
 WebGLContext::IsFramebuffer(nsIWebGLFramebuffer *fbobj, WebGLboolean *retval)
 {
     PRBool isDeleted;
-    WebGLuint fbname;
-    WebGLFramebuffer *fb;
-    PRBool ok = GetConcreteObjectAndGLName("isFramebuffer", fbobj, &fb, &fbname, nsnull, &isDeleted) &&
-                !isDeleted &&
-                fb->HasEverBeenBound();
+    WebGLuint obj;
+    PRBool ok = GetGLName<WebGLFramebuffer>("isFramebuffer", fbobj, &obj, 0, &isDeleted) && !isDeleted;
     if (ok) {
         MakeContextCurrent();
-        ok = gl->fIsFramebuffer(fbname);
+        ok = gl->fIsFramebuffer(obj);
     }
 
     *retval = ok;
@@ -2639,10 +2568,18 @@ WebGLContext::IsProgram(nsIWebGLProgram *pobj, WebGLboolean *retval)
 {
     PRBool isDeleted;
     WebGLProgram *prog = nsnull;
-    PRBool ok = GetConcreteObject("isProgram", pobj, &prog, nsnull, &isDeleted, PR_FALSE) &&
-                !isDeleted;
+    PRBool ok = GetConcreteObject("isProgram", pobj, &prog, 0, &isDeleted, PR_FALSE);
+    if (!ok) {
+        *retval = PR_FALSE;
+        return NS_OK;
+    }
 
-    *retval = ok;
+    if (isDeleted) {
+        *retval = PR_FALSE;
+    } else {
+        *retval = PR_TRUE;
+    }
+
     return NS_OK;
 }
 
@@ -2650,14 +2587,11 @@ NS_IMETHODIMP
 WebGLContext::IsRenderbuffer(nsIWebGLRenderbuffer *rbobj, WebGLboolean *retval)
 {
     PRBool isDeleted;
-    WebGLuint rbname;
-    WebGLRenderbuffer *rb;
-    PRBool ok = GetConcreteObjectAndGLName("isRenderBuffer", rbobj, &rb, &rbname, nsnull, &isDeleted) &&
-                !isDeleted &&
-                rb->HasEverBeenBound();
+    WebGLuint obj;
+    PRBool ok = GetGLName<WebGLRenderbuffer>("isRenderBuffer", rbobj, &obj, 0, &isDeleted) && !isDeleted;
     if (ok) {
         MakeContextCurrent();
-        ok = gl->fIsRenderbuffer(rbname);
+        ok = gl->fIsRenderbuffer(obj);
     }
 
     *retval = ok;
@@ -2669,10 +2603,18 @@ WebGLContext::IsShader(nsIWebGLShader *sobj, WebGLboolean *retval)
 {
     PRBool isDeleted;
     WebGLShader *shader = nsnull;
-    PRBool ok = GetConcreteObject("isShader", sobj, &shader, nsnull, &isDeleted, PR_FALSE) &&
-                !isDeleted;
+    PRBool ok = GetConcreteObject("isShader", sobj, &shader, 0, &isDeleted, PR_FALSE);
+    if (!ok) {
+        *retval = PR_FALSE;
+        return NS_OK;
+    }
 
-    *retval = ok;
+    if (isDeleted) {
+        *retval = PR_FALSE;
+    } else {
+        *retval = PR_TRUE;
+    }
+
     return NS_OK;
 }
 
@@ -2680,14 +2622,11 @@ NS_IMETHODIMP
 WebGLContext::IsTexture(nsIWebGLTexture *tobj, WebGLboolean *retval)
 {
     PRBool isDeleted;
-    WebGLuint texname;
-    WebGLTexture *tex;
-    PRBool ok = GetConcreteObjectAndGLName("isTexture", tobj, &tex, &texname, nsnull, &isDeleted) &&
-                !isDeleted &&
-                tex->HasEverBeenBound();
+    WebGLuint obj;
+    PRBool ok = GetGLName<WebGLTexture>("isTexture", tobj, &obj, 0, &isDeleted) && !isDeleted;
     if (ok) {
         MakeContextCurrent();
-        ok = gl->fIsTexture(texname);
+        ok = gl->fIsTexture(obj);
     }
 
     *retval = ok;
@@ -3876,8 +3815,8 @@ WebGLContext::VertexAttribPointer(WebGLuint index, WebGLint size, WebGLenum type
     // requiredAlignment should always be a power of two.
     WebGLsizei requiredAlignmentMask = requiredAlignment - 1;
 
-    if (!ValidateAttribIndex(index, "vertexAttribPointer"))
-        return NS_OK;
+    if (index >= mAttribBuffers.Length())
+        return ErrorInvalidValue("VertexAttribPointer: index out of range - %d >= %d", index, mAttribBuffers.Length());
 
     if (size < 1 || size > 4)
         return ErrorInvalidValue("VertexAttribPointer: invalid element size");
@@ -3966,12 +3905,12 @@ WebGLContext::TexImage2D_base(WebGLenum target, WebGLint level, WebGLenum intern
     if (format != internalformat)
         return ErrorInvalidOperation("texImage2D: format does not match internalformat");
 
-    WebGLsizei maxTextureSize = MaxTextureSizeForTarget(target);
+    WebGLsizei maxTextureSize = target == LOCAL_GL_TEXTURE_2D ? mGLMaxTextureSize : mGLMaxCubeMapTextureSize;
 
     if (level < 0)
         return ErrorInvalidValue("texImage2D: level must be >= 0");
 
-    if (!(maxTextureSize >> level))
+    if ((1 << level) > maxTextureSize)
         return ErrorInvalidValue("texImage2D: 2^level exceeds maximum texture size");
 
     if (width < 0 || height < 0)
@@ -4054,7 +3993,7 @@ WebGLContext::TexImage2D_base(WebGLenum target, WebGLint level, WebGLenum intern
         // Hopefully calloc will just mmap zero pages here.
         void *tempZeroData = calloc(1, bytesNeeded);
         if (!tempZeroData)
-            return ErrorOutOfMemory("texImage2D: could not allocate %d bytes (for zero fill)", bytesNeeded);
+            return SynthesizeGLError(LOCAL_GL_OUT_OF_MEMORY, "texImage2D: could not allocate %d bytes (for zero fill)", bytesNeeded);
 
         gl->fTexImage2D(target, level, internalformat, width, height, border, format, type, tempZeroData);
 
@@ -4149,12 +4088,12 @@ WebGLContext::TexSubImage2D_base(WebGLenum target, WebGLint level,
             return ErrorInvalidEnumInfo("texSubImage2D: target", target);
     }
 
-    WebGLsizei maxTextureSize = MaxTextureSizeForTarget(target);
+    WebGLsizei maxTextureSize = target == LOCAL_GL_TEXTURE_2D ? mGLMaxTextureSize : mGLMaxCubeMapTextureSize;
 
     if (level < 0)
         return ErrorInvalidValue("texSubImage2D: level must be >= 0");
 
-    if (!(maxTextureSize >> level))
+    if ((1 << level) > maxTextureSize)
         return ErrorInvalidValue("texSubImage2D: 2^level exceeds maximum texture size");
 
     if (width < 0 || height < 0)
