@@ -196,10 +196,8 @@ WeaveSvc.prototype = {
 
   get userPath() { return ID.get('WeaveID').username; },
 
-  get currentUser() {
-    if (this._loggedIn)
-      return this.username;
-    return null;
+  get isLoggedIn() {
+    return this._loggedIn;
   },
 
   get enabled() {
@@ -499,19 +497,36 @@ WeaveSvc.prototype = {
 
   // These are global (for all engines)
 
-  login: function WeaveSync_login(onComplete, password, passphrase) {
-    this._localLock(this._notify("login", this._login,
-                                 password, passphrase)).async(this, onComplete);
+  verifyLogin: function WeaveSync_verifyLogin(username, password) {
+    this._localLock(this._notify("verify-login", this._verifyLogin, username, password)).async(this, null);
   },
-  _login: function WeaveSync__login(password, passphrase) {
+
+  _verifyLogin: function WeaveSync__verifyLogin(username, password) {
+    let self = yield;
+    this._log.debug("Verifying login for user " + username);
+
+    DAV.baseURL = Utils.prefs.getCharPref("serverURL");
+    DAV.defaultPrefix = "user/" + username;
+
+    DAV.checkLogin.async(DAV, self.cb, username, password);
+    let resultMsg = yield;
+
+    // If we got an error message, throw it. [need to throw to cause the
+    // _notify() wrapper to generate an error notification for observers].
+    if (resultMsg) {
+      this._log.debug("Login verification: " + resultMsg);
+      throw resultMsg;
+    }
+
+  },
+
+  login: function WeaveSync_login(onComplete) {
+    this._localLock(this._notify("login", this._login)).async(this, onComplete);
+  },
+  _login: function WeaveSync__login() {
     let self = yield;
 
-    // cache password & passphrase
-    // if null, we'll try to get them from the pw manager below
-    ID.get('WeaveID').setTempPassword(password);
-    ID.get('WeaveCryptoID').setTempPassword(passphrase);
-
-    this._log.debug("Logging in");
+    this._log.debug("Logging in user " + this.username);
 
     if (!this.username)
       throw "No username set, login failed";
@@ -520,21 +535,6 @@ WeaveSvc.prototype = {
 
     DAV.baseURL = Utils.prefs.getCharPref("serverURL");
     DAV.defaultPrefix = "user/" + this.userPath;
-
-    DAV.checkLogin.async(DAV, self.cb, this.username, this.password);
-    let success = yield;
-    if (!success) {
-      try {
-        // FIXME: This code may not be needed any more, due to the way
-        // that the server is expected to create the user dir for us.
-        this._checkUserDir.async(this, self.cb);
-        yield;
-      } catch (e) { /* FIXME: tmp workaround for services.m.c */ }
-      DAV.checkLogin.async(DAV, self.cb, this.username, this.password);
-      let success = yield;
-      if (!success)
-        throw "Login failed";
-    }
 
     this._log.info("Using server URL: " + DAV.baseURL + DAV.defaultPrefix);
 
@@ -754,15 +754,45 @@ WeaveSvc.prototype = {
   _shareData: function WeaveSync__shareData(dataType,
 					    guid,
 					    username) {
-    dump( "in _shareData...\n" );
     let self = yield;
-    if (!Engines.get(dataType).enabled) {
+    let ret;
+    if (Engines.get(dataType).enabled) {
+      Engines.get(dataType).share(self.cb, guid, username);
+      ret = yield;
+    } else {
       this._log.warn( "Can't share disabled data type: " + dataType );
-      return;
+      ret = false;
     }
-    Engines.get(dataType).share(self.cb, guid, username);
-    let ret = yield;
+    self.done(ret);
+  },
+
+  /* LONGTERM TODO this is almost duplicated code, maybe just have
+   * one function where we pass in true to share and false to stop
+   * sharing. */
+  stopSharingData: function WeaveSync_stopSharingData(dataType,
+                                                      onComplete,
+                                                      guid,
+                                                      username) {
+    let messageName = "stop-sharing-" + dataType;
+    this._lock(this._notify(messageName,
+			    this._stopSharingData,
+			    dataType,
+			    guid,
+			    username)).async(this, onComplete);
+  },
+
+  _stopSharingData: function WeaveSync__stopSharingData(dataType,
+                                                        onComplete,
+                                                        guid,
+                                                        username) {
+    let self = yield;
+    let ret;
+    if (Engines.get(dataType).enabled) {
+      Engines.get(dataType).stopSharing(self.cb, guid, username);
+      ret = yield;
+    } else {
+      ret = false;
+    }
     self.done(ret);
   }
-
 };

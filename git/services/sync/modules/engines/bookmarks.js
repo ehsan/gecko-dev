@@ -48,6 +48,9 @@ const SERVER_PATH_ANNO = "weave/shared-server-path";
 // Standard names for shared files on the server
 const KEYRING_FILE_NAME = "keyring";
 const SHARED_BOOKMARK_FILE_NAME = "shared_bookmarks";
+// Information for the folder that contains all incoming shares
+const INCOMING_SHARE_ROOT_ANNO = "weave/mounted-shares-folder";
+const INCOMING_SHARE_ROOT_NAME = "Shared Folders";
 
 Cu.import("resource://weave/log4moz.js");
 Cu.import("resource://weave/dav.js");
@@ -59,44 +62,14 @@ Cu.import("resource://weave/syncCores.js");
 Cu.import("resource://weave/stores.js");
 Cu.import("resource://weave/trackers.js");
 Cu.import("resource://weave/identity.js");
-
-/* LONGTERM TODO: when we start working on the ability to share other types
-of data besides bookmarks, the xmppClient instance should be moved to hang
-off of Weave.Service instead of hanging off the BookmarksEngine.  But for
-now this is the easiest place to deal with it. */
 Cu.import("resource://weave/xmpp/xmppClient.js");
 
 Function.prototype.async = Async.sugar;
 
-function BookmarksEngine(pbeId) {
-  this._init(pbeId);
+function BookmarksSharingManager(engine) {
+  this._init(engine);
 }
-BookmarksEngine.prototype = {
-  get name() { return "bookmarks"; },
-  get logName() { return "BmkEngine"; },
-  get serverPrefix() { return "user-data/bookmarks/"; },
-
-  __core: null,
-  get _core() {
-    if (!this.__core)
-      this.__core = new BookmarksSyncCore();
-    return this.__core;
-  },
-
-  __store: null,
-  get _store() {
-    if (!this.__store)
-      this.__store = new BookmarksStore();
-    return this.__store;
-  },
-
-  __tracker: null,
-  get _tracker() {
-    if (!this.__tracker)
-      this.__tracker = new BookmarksTracker();
-    return this.__tracker;
-  },
-
+BookmarksSharingManager.prototype = {
   __annoSvc: null,
   get _annoSvc() {
     if (!this.__anoSvc)
@@ -105,15 +78,16 @@ BookmarksEngine.prototype = {
     return this.__annoSvc;
   },
 
-  _init: function BmkEngine__init( pbeId ) {
-    this.__proto__.__proto__._init.call( this, pbeId );
+  _init: function SharingManager__init(engine) {
+    this._engine = engine;
+    this._log = Log4Moz.Service.getLogger("Bookmark Share");
     if ( Utils.prefs.getBoolPref( "xmpp.enabled" ) ) {
       dump( "Starting XMPP client for bookmark engine..." );
       this._startXmppClient.async(this);
     }
   },
 
-  _startXmppClient: function BmkEngine__startXmppClient() {
+  _startXmppClient: function BmkSharing__startXmppClient() {
     // To be called asynchronously.
     let self = yield;
 
@@ -136,7 +110,7 @@ BookmarksEngine.prototype = {
                                        clientPassword,
 				       transport,
                                        auth );
-    let bmkEngine = this;
+    let bmkSharing = this;
     let messageHandler = {
       handle: function ( messageText, from ) {
         /* The callback function for incoming xmpp messages.
@@ -158,9 +132,9 @@ BookmarksEngine.prototype = {
 	let serverPath = words[1];
 	let directoryName = words.slice(2).join(" ");
         if ( commandWord == "share" ) {
-	  bmkEngine._incomingShareOffer(from, serverPath, folderName);
+	  bmkSharing._incomingShareOffer(from, serverPath, folderName);
 	} else if ( commandWord == "stop" ) {
-	  bmkEngine._incomingShareWithdrawn(from, serverPath, folderName);
+	  bmkSharing._incomingShareWithdrawn(from, serverPath, folderName);
 	}
       }
     };
@@ -176,7 +150,7 @@ BookmarksEngine.prototype = {
     self.done();
   },
 
-  _incomingShareOffer: function BmkEngine__incomingShareOffer(user,
+  _incomingShareOffer: function BmkSharing__incomingShareOffer(user,
                                                               serverPath,
                                                               folderName) {
     /* Called when we receive an offer from another user to share a
@@ -190,37 +164,21 @@ BookmarksEngine.prototype = {
        But since we don't have notification in place yet, I'm going to skip
        right ahead to creating the incoming share.
     */
-    dump( "I was offered the directory " + dir + " from user " + dir );
-    _createIncomingShare( user, serverPath, folderName );
+    this._log.info("User " + user + " offered to share folder " + folderName);
+    this._createIncomingShare(user, serverPath, folderName);
   },
 
-  _incomingShareWithdrawn: function BmkEngine__incomingShareStop(user,
+  _incomingShareWithdrawn: function BmkSharing__incomingShareStop(user,
                                                                  serverPath,
                                                                  folderName) {
     /* Called when we receive a message telling us that a user who has
        already shared a directory with us has chosen to stop sharing
        the directory.
-
-       TODO Find the incomingShare in our bookmark tree that corresponds
-       to the shared directory, and delete it; add a notification to
-       the queue telling us what has happened.
     */
+    this._log.info("User " + user + " stopped sharing folder " + folderName);
+    this._stopIncomingShare(user, serverPath, folderName);
   },
-
-  _sync: function BmkEngine__sync() {
-    /* After syncing, also call syncMounts to get the
-       incoming shared bookmark folder contents. */
-    let self = yield;
-    this.__proto__.__proto__._sync.async(this, self.cb );
-    yield;
-    this.updateAllOutgoingShares(self.cb);
-    yield;
-    this.updateAllIncomingShares(self.cb);
-    yield;
-    self.done();
-  },
-
-  _share: function BmkEngine__share( selectedFolder, username ) {
+  _share: function BmkSharing__share( selectedFolder, username ) {
     // Return true if success, false if failure.
     let ret = false;
     let self = yield;
@@ -261,13 +219,43 @@ BookmarksEngine.prototype = {
 
     this._log.info("Shared " + folderName +" with " + username);
     ret = true;
+    self.done( ret );
+  },
+
+  _stopSharing: function BmkSharing__stopSharing( selectedFolder, username ) {
+    let self = yield;
+    let folderName = selectedFolder.getAttribute( "label" );
+    let serverPath = this._annoSvc.getItemAnnotation(folderNode,
+                                                     SERVER_PATH_ANNO);
+
+    /* LONGTERM TODO: when we move to being able to share one folder with
+     * multiple people, this needs to be modified so we can stop sharing with
+     * one person but keep sharing with others.
+     */
+
+    // Stop the outgoing share:
+    this._stopOutgoingShare.async( this, self.cb, selectedFolder);
+    yield;
+
+    // Send message to the share-ee, so they can stop their incoming share:
+    if ( this._xmppClient ) {
+      if ( this._xmppClient._connectionStatus == this._xmppClient.CONNECTED ) {
+	let msgText = "stop " + serverPath + " " + folderName;
+	this._log.debug( "Sending XMPP message: " + msgText );
+	this._xmppClient.sendMessage( username, msgText );
+      } else {
+	this._log.warn( "No XMPP connection for share notification." );
+      }
+    }
+
+    this._log.info("Stopped sharing " + folderName + "with " + username);
     self.done( true );
   },
 
-  updateAllIncomingShares: function BmkEngine_updateAllIncoming(onComplete) {
+  updateAllIncomingShares: function BmkSharing_updateAllIncoming(onComplete) {
     this._updateAllIncomingShares.async(this, onComplete);
   },
-  _updateAllIncomingShares: function BmkEngine__updateAllIncoming() {
+  _updateAllIncomingShares: function BmkSharing__updateAllIncoming() {
     /* For every bookmark folder in my tree that has the annotation
        marking it as an incoming shared folder, pull down its latest
        contents from its owner's account on the server.  (This is
@@ -276,7 +264,7 @@ BookmarksEngine.prototype = {
        to the folder contents are simply wiped out by the latest
        server contents.) */
     let self = yield;
-    let mounts = this._store.findIncomingShares();
+    let mounts = this._engine._store.findIncomingShares();
 
     for (let i = 0; i < mounts.length; i++) {
       try {
@@ -289,10 +277,10 @@ BookmarksEngine.prototype = {
     }
   },
 
-  updateAllOutgoingShares: function BmkEngine_updateAllOutgoing(onComplete) {
+  updateAllOutgoingShares: function BmkSharing_updateAllOutgoing(onComplete) {
     this._updateAllOutgoingShares.async(this, onComplete);
   },
-  _updateAllOutgoingShares: function BmkEngine__updateAllOutgoing() {
+  _updateAllOutgoingShares: function BmkSharing__updateAllOutgoing() {
     let self = yield;
     let shares = this._annoSvc.getItemsWithAnnotation(OUTGOING_SHARED_ANNO,
                                                       {});
@@ -306,7 +294,7 @@ BookmarksEngine.prototype = {
     self.done();
   },
 
-  _createOutgoingShare: function BmkEngine__createOutgoing(folder, username) {
+  _createOutgoingShare: function BmkSharing__createOutgoing(folder, username) {
     /* To be called asynchronously.  Folder is a node indicating the bookmark
        folder that is being shared; username is a string indicating the user
        that it is to be shared with.  This function creates the directory and
@@ -374,7 +362,8 @@ BookmarksEngine.prototype = {
     keys.ring[username]   = encryptedForYou;
 
     let keyringFile = new Resource( serverPath + "/" + KEYRING_FILE_NAME );
-    keyringFile.put( self.cb, this._json.encode( keys ) );
+    let jsonService = Cc["@mozilla.org/dom/json;1"].createInstance(Ci.nsIJSON);
+    keyringFile.put( self.cb, jsonService.encode( keys ) );
     yield;
 
     // Call Atul's js api for setting htaccess:
@@ -386,7 +375,7 @@ BookmarksEngine.prototype = {
     self.done( serverPath );
   },
 
-  _updateOutgoingShare: function BmkEngine__updateOutgoing(folderNode) {
+  _updateOutgoingShare: function BmkSharing__updateOutgoing(folderNode) {
     /* Puts all the bookmark data from the specified bookmark folder,
        encrypted, onto the shared directory on the server (replacing
        anything that was already there).
@@ -398,6 +387,8 @@ BookmarksEngine.prototype = {
     // directory:
     let serverPath = this._annoSvc.getItemAnnotation(folderNode,
                                                      SERVER_PATH_ANNO);
+    // TODO the above can throw an exception if the expected anotation isn't
+    // there.
     // From that directory, get the keyring file, and from it, the symmetric
     // key that we'll use to encrypt.
     let keyringFile = new Resource(serverPath + "/" + KEYRING_FILE_NAME);
@@ -411,7 +402,7 @@ BookmarksEngine.prototype = {
     let bulkIV = keys.bulkIV;
 
     // Get the json-wrapped contents of everything in the folder:
-    let json = this._store._wrapMount( folderNode, myUserName );
+    let json = this._engine._store._wrapMount( folderNode, myUserName );
     /* TODO what does wrapMount do with this username?  Should I be passing
        in my own or that of the person I share with? */
 
@@ -420,7 +411,7 @@ BookmarksEngine.prototype = {
     let tmpIdentity = {
                         realm   : "temp ID",
                         bulkKey : bulkKey,
-                        bulkIV  : bulkIV 
+                        bulkIV  : bulkIV
                       };
     Crypto.encryptData.async( Crypto, self.cb, json, tmpIdentity );
     let cyphertext = yield;
@@ -429,16 +420,15 @@ BookmarksEngine.prototype = {
     self.done();
   },
 
-  _stopOutgoingShare: function BmkEngine__stopOutgoingShare(folderNode) {
+  _stopOutgoingShare: function BmkSharing__stopOutgoingShare(folderNode) {
     /* Stops sharing the specified folder.  Deletes its data from the
        server, deletes the annotations that mark it as shared, and sends
        a message to the shar-ee to let them know it's been withdrawn. */
-    // TODO: currently not called from anywhere.
     let self = yield;
     let serverPath = this._annoSvc.getItemAnnotation( folderNode,
                                                       SERVER_PATH_ANNO );
     let username = this._annoSvc.getItemAnnotation( folderNode,
-                                                    OUTGOING_SHARE_ANNO );
+                                                    OUTGOING_SHARED_ANNO );
 
     // Delete the share from the server:
     let keyringFile = new Resource(serverPath + "/" + KEYRING_FILE_NAME);
@@ -457,25 +447,13 @@ BookmarksEngine.prototype = {
                                     0,
                                     this._annoSvc.EXPIRE_NEVER);
     this._annoSvc.setItemAnnotation(folderNode,
-                                    OUTGOING_SHARE_ANNO,
+                                    OUTGOING_SHARED_ANNO,
                                     "",
                                     0,
                                     this._annoSvc.EXPIRE_NEVER);
     // TODO is there a way to remove the annotations entirely rather than
     // setting it to an empty string??
-
-    // Send the message to the share-ee:
-    if ( this._xmppClient ) {
-      if ( this._xmppClient._connectionStatus == this._xmppClient.CONNECTED ) {
- 	let folderName = folderNode.getAttribute( "label" );
-	let msgText = "stop " + serverPath + " " + folderName;
-	this._log.debug( "Sending XMPP message: " + msgText );
-	this._xmppClient.sendMessage( username, msgText );
-      } else {
-	this._log.warn( "No XMPP connection for share notification." );
-      }
-    }
-
+    self.done();
   },
 
   _createIncomingShare: function BookmarkEngine__createShare(user,
@@ -495,15 +473,16 @@ BookmarksEngine.prototype = {
     /* Get the toolbar "Shared Folders" folder (identified by its annotation).
        If it doesn't already exist, create it: */
     let root;
-    let a = this._annoSvc.getItemsWithAnnotation("weave/mounted-shares-folder",
+    let a = this._annoSvc.getItemsWithAnnotation(INCOMING_SHARE_ROOT_ANNO,
                                                  {});
     if (a.length == 1)
       root = a[0];
     if (!root) {
-      root = bms.createFolder(bms.toolbarFolder, "Shared Folders",
+      root = bms.createFolder(bms.toolbarFolder,
+			      INCOMING_SHARE_ROOT_NAME,
                               bms.DEFAULT_INDEX);
       this._annoSvc.setItemAnnotation(root,
-                                      "weave/mounted-shares-folder",
+                                      INCOMING_SHARE_ROOT_ANNO,
                                       true,
                                       0,
                                       this._annoSvc.EXPIRE_NEVER);
@@ -513,9 +492,9 @@ BookmarksEngine.prototype = {
        share offer.  Unless a folder with these exact annotations already
        exists, in which case do nothing. */
     let itemExists = false;
-    a = this._annoSvc.getItemsWithAnnotation("weave/mounted-share-id", {});
+    a = this._annoSvc.getItemsWithAnnotation(INCOMING_SHARED_ANNO, {});
     for (let i = 0; i < a.length; i++) {
-      let creator = this._annoSvc.getItemAnnotation(a[i], OUTGOING_SHARED_ANNO);
+      let creator = this._annoSvc.getItemAnnotation(a[i], INCOMING_SHARED_ANNO);
       let path = this._annoSvc.getItemAnnotation(a[i], SERVER_PATH_ANNO);
       if ( creator == user && path == serverPath ) {
         itemExists = true;
@@ -524,17 +503,9 @@ BookmarksEngine.prototype = {
     }
     if (!itemExists) {
       let newId = bms.createFolder(root, title, bms.DEFAULT_INDEX);
-      /* TODO: weave/mounted-share-id is kind of redundant now, but it's
-	 treated specially by the sync code.
-	 If i change it here, i have to change it there as well. */
-      this._annoSvc.setItemAnnotation(newId,
-                                      "weave/mounted-share-id",
-                                      id,
-                                      0,
-                                      this._annoSvc.EXPIRE_NEVER);
       // Keep track of who shared this folder with us...
       this._annoSvc.setItemAnnotation(newId,
-                                      OUTGOING_SHARED_ANNO,
+                                      INCOMING_SHARED_ANNO,
                                       user,
                                       0,
                                       this._annoSvc.EXPIRE_NEVER);
@@ -547,7 +518,7 @@ BookmarksEngine.prototype = {
     }
   },
 
-  _updateIncomingShare: function BmkEngine__updateIncomingShare(mountData) {
+  _updateIncomingShare: function BmkSharing__updateIncomingShare(mountData) {
     /* Pull down bookmarks from the server for a single incoming
        shared folder, obliterating whatever was in that folder before.
 
@@ -594,16 +565,90 @@ BookmarksEngine.prototype = {
     /* Create diff between the json from server and the current contents;
        then apply the diff. */
     this._log.trace("Got bookmarks from " + user + ", comparing with local copy");
-    this._core.detectUpdates(self.cb, mountData.snapshot, snap.data);
+    this._engine._core.detectUpdates(self.cb, mountData.snapshot, snap.data);
     let diff = yield;
 
     // FIXME: should make sure all GUIDs here live under the mountpoint
     this._log.trace("Applying changes to folder from " + user);
-    this._store.applyCommands.async(this._store, self.cb, diff);
+    this._engine._store.applyCommands.async(this._engine._store, self.cb, diff);
     yield;
 
     this._log.trace("Shared folder from " + user + " successfully synced!");
+  },
+
+  _stopIncomingShare: function BmkSharing__stopIncomingShare(user,
+                                                            serverPath,
+                                                            folderName)
+  {
+  /* Delete the incoming share folder.  Since the update of incoming folders
+   * is triggered when the engine spots a folder with a certain annotation on
+   * it, just getting rid of this folder is all we need to do.
+   */
+    let bms = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
+              getService(Ci.nsINavBookmarksService);
+
+    let a = this._annoSvc.getItemsWithAnnotation(OUTGOING_SHARED_ANNO, {});
+    for (let i = 0; i < a.length; i++) {
+      let creator = this._annoSvc.getItemAnnotation(a[i], OUTGOING_SHARED_ANNO);
+      let path = this._annoSvc.getItemAnnotation(a[i], SERVER_PATH_ANNO);
+      if ( creator == user && path == serverPath ) {
+        bms.removeFolder( a[i]);
+      }
+    }
   }
+}
+
+
+
+function BookmarksEngine(pbeId) {
+  this._init(pbeId);
+}
+BookmarksEngine.prototype = {
+  get name() { return "bookmarks"; },
+  get logName() { return "BmkEngine"; },
+  get serverPrefix() { return "user-data/bookmarks/"; },
+
+  __core: null,
+  get _core() {
+    if (!this.__core)
+      this.__core = new BookmarksSyncCore();
+    return this.__core;
+  },
+
+  __store: null,
+  get _store() {
+    if (!this.__store)
+      this.__store = new BookmarksStore();
+    return this.__store;
+  },
+
+  __tracker: null,
+  get _tracker() {
+    if (!this.__tracker)
+      this.__tracker = new BookmarksTracker();
+    return this.__tracker;
+  },
+
+  __sharing: null,
+  get _sharing() {
+    if (!this.__sharing)
+      this.__sharing = new BookmarksSharingManager(this);
+    return this.__sharing;
+  },
+
+  _sync: function BmkEngine__sync() {
+    /* After syncing the regular bookmark folder contents,
+     * also update both the incoming and outgoing shared folders. */
+    let self = yield;
+    this.__proto__.__proto__._sync.async(this, self.cb );
+    yield;
+    this._sharing.updateAllOutgoingShares(self.cb);
+    yield;
+    this._sharing.updateAllIncomingShares(self.cb);
+    yield;
+    self.done();
+  }
+
 };
 BookmarksEngine.prototype.__proto__ = new Engine();
 
@@ -818,6 +863,20 @@ BookmarksStore.prototype = {
       newId = this._bms.createFolder(parentId,
                                      command.data.title,
                                      command.data.index);
+      // If folder is an outgoing share, put the annotations on it:
+      if ( command.data.outgoingSharedAnno != undefined ) {
+	this._ans.setItemAnnotation(newId,
+				    OUTGOING_SHARED_ANNO,
+                                    command.data.outgoingSharedAnno,
+				    0,
+				    this._ans.EXPIRE_NEVER);
+	this._ans.setItemAnnotation(newId,
+				    SERVER_PATH_ANNO,
+                                    command.data.serverPathAnno,
+				    0,
+				    this._ans.EXPIRE_NEVER);
+
+      }
       break;
     case "livemark":
       this._log.debug(" -> creating livemark \"" + command.data.title + "\"");
@@ -827,17 +886,24 @@ BookmarksStore.prototype = {
                                       Utils.makeURI(command.data.feedURI),
                                       command.data.index);
       break;
-    case "mounted-share":
-    // TODO this is to create the shared-items folder on another machine
-    // to duplicate the one that's on the first machine; we don't need that
-    // anymore.  OR is it to create the folder on the sharee's computer?
-      this._log.debug(" -> creating share mountpoint \"" + command.data.title + "\"");
+    case "incoming-share":
+      /* even though incoming shares are folders according to the
+       * bookmarkService, _wrap() wraps them as type=incoming-share, so we
+       * handle them separately, like so: */
+      this._log.debug(" -> creating incoming-share \"" + command.data.title + "\"");
       newId = this._bms.createFolder(parentId,
                                      command.data.title,
                                      command.data.index);
-
-      this._ans.setItemAnnotation(newId, "weave/mounted-share-id",
-                                  command.data.mountId, 0, this._ans.EXPIRE_NEVER);
+      this._ans.setItemAnnotation(newId,
+				  INCOMING_SHARED_ANNO,
+                                  command.data.incomingSharedAnno,
+				  0,
+				  this._ans.EXPIRE_NEVER);
+      this._ans.setItemAnnotation(newId,
+				  SERVER_PATH_ANNO,
+                                  command.data.serverPathAnno,
+				  0,
+				  this._ans.EXPIRE_NEVER);
       break;
     case "separator":
       this._log.debug(" -> creating separator");
@@ -960,6 +1026,21 @@ BookmarksStore.prototype = {
       case "feedURI":
         this._ls.setFeedURI(itemId, Utils.makeURI(command.data.feedURI));
         break;
+      case "outgoingSharedAnno":
+	this._ans.setItemAnnotation(itemId, OUTGOING_SHARED_ANNO,
+				    command.data.outgoingSharedAnno, 0,
+				    this._ans.EXPIRE_NEVER);
+	break;
+      case "incomingSharedAnno":
+	this._ans.setItemAnnotation(itemId, INCOMING_SHARED_ANNO,
+				    command.data.incomingSharedAnno, 0,
+				    this._ans.EXPIRE_NEVER);
+	break;
+      case "serverPathAnno":
+	this._ans.setItemAnnotation(itemId, SERVER_PATH_ANNO,
+				    command.data.serverPathAnno, 0,
+				    this._ans.EXPIRE_NEVER);
+	break;
       default:
         this._log.warn("Can't change item property: " + key);
         break;
@@ -992,20 +1073,29 @@ BookmarksStore.prototype = {
         let feedURI = this._ls.getFeedURI(node.itemId);
         item.siteURI = siteURI? siteURI.spec : "";
         item.feedURI = feedURI? feedURI.spec : "";
-
-      } else if (this._ans.itemHasAnnotation(node.itemId,
-                                             "weave/mounted-share-id")) {
-	/* TODO this is for wrapping the special shared folder created by
-	   the old-style share command. */
-        item.type = "mounted-share";
-        item.title = node.title;
-        item.mountId = this._ans.getItemAnnotation(node.itemId,
-                                                   "weave/mounted-share-id");
-
+      } else if (this._ans.itemHasAnnotation(node.itemId, INCOMING_SHARED_ANNO)){
+	/* When there's an incoming share, we just sync the folder itself
+	 and the values of its annotations: NOT any of its contents.  So
+	 we'll wrap it as type=incoming-share, not as a "folder". */
+	item.type = "incoming-share";
+	item.title = node.title;
+        item.serverPathAnno = this._ans.getItemAnnotation(node.itemId,
+                                                      SERVER_PATH_ANNO);
+	item.incomingSharedAnno = this._ans.getItemAnnotation(node.itemId,
+                                                      INCOMING_SHARED_ANNO);
       } else {
         item.type = "folder";
         node.QueryInterface(Ci.nsINavHistoryQueryResultNode);
         node.containerOpen = true;
+	// If folder is an outgoing share, wrap its annotations:
+	if (this._ans.itemHasAnnotation(node.itemId, OUTGOING_SHARED_ANNO)) {
+
+	  item.serverPathAnno = this._ans.getItemAnnotation(node.itemId,
+                                                      SERVER_PATH_ANNO);
+	  item.outgoingSharedAnno = this._ans.getItemAnnotation(node.itemId,
+                                                      OUTGOING_SHARED_ANNO);
+	}
+
         for (var i = 0; i < node.childCount; i++) {
           this.__wrap(node.getChild(i), items, GUID, i);
         }
@@ -1088,7 +1178,7 @@ BookmarksStore.prototype = {
     // remove any share mountpoints
     for (let guid in ret.snapshot) {
       // TODO decide what to do with this...
-      if (ret.snapshot[guid].type == "mounted-share")
+      if (ret.snapshot[guid].type == "incoming-share")
         delete ret.snapshot[guid];
     }
 
