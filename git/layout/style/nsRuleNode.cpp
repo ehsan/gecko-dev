@@ -970,6 +970,26 @@ CheckColorCallback(const nsRuleDataStruct& aData,
   return aResult;
 }
 
+static nsRuleNode::RuleDetail
+CheckTextCallback(const nsRuleDataStruct& aData,
+                  nsRuleNode::RuleDetail aResult)
+{
+  const nsRuleDataText& textData =
+    static_cast<const nsRuleDataText&>(aData);
+
+  if (textData.mTextAlign.GetUnit() == eCSSUnit_Enumerated &&
+      textData.mTextAlign.GetIntValue() ==
+        NS_STYLE_TEXT_ALIGN_MOZ_CENTER_OR_INHERIT) {
+    // Promote reset to mixed since we have something that depends on
+    // the parent.
+    if (aResult == nsRuleNode::eRulePartialReset)
+      aResult = nsRuleNode::eRulePartialMixed;
+    else if (aResult == nsRuleNode::eRuleFullReset)
+      aResult = nsRuleNode::eRuleFullMixed;
+  }
+
+  return aResult;
+}
 
 // for nsCSSPropList.h, so we get information on things in the style
 // structs but not nsCSS*
@@ -2917,7 +2937,7 @@ nsRuleNode::ComputeFontData(void* aStartStruct,
 already_AddRefed<nsCSSShadowArray>
 nsRuleNode::GetShadowData(nsCSSValueList* aList,
                           nsStyleContext* aContext,
-                          PRBool aUsesSpread,
+                          PRBool aIsBoxShadow,
                           PRBool& canStoreInRuleTree)
 {
   PRUint32 arrayLength = 0;
@@ -2961,7 +2981,7 @@ nsRuleNode::GetShadowData(nsCSSValueList* aList,
     }
 
     // Find the spread radius
-    if (aUsesSpread && arr->Item(3).GetUnit() != eCSSUnit_Null) {
+    if (aIsBoxShadow && arr->Item(3).GetUnit() != eCSSUnit_Null) {
       unitOK = SetCoord(arr->Item(3), tempCoord, nsStyleCoord(),
                         SETCOORD_LENGTH, aContext, mPresContext,
                         canStoreInRuleTree);
@@ -2977,6 +2997,14 @@ nsRuleNode::GetShadowData(nsCSSValueList* aList,
       unitOK = SetColor(arr->Item(4), 0, mPresContext, aContext, item->mColor,
                         canStoreInRuleTree);
       NS_ASSERTION(unitOK, "unexpected unit");
+    }
+
+    if (aIsBoxShadow && arr->Item(5).GetUnit() == eCSSUnit_Enumerated) {
+      NS_ASSERTION(arr->Item(5).GetIntValue() == NS_STYLE_BOX_SHADOW_INSET,
+                   "invalid keyword type for box shadow");
+      item->mInset = PR_TRUE;
+    } else {
+      item->mInset = PR_FALSE;
     }
   }
 
@@ -3059,6 +3087,13 @@ nsRuleNode::ComputeTextData(void* aStartStruct,
   // text-align: enum, string, inherit, initial
   if (eCSSUnit_String == textData.mTextAlign.GetUnit()) {
     NS_NOTYETIMPLEMENTED("align string");
+  } else if (eCSSUnit_Enumerated == textData.mTextAlign.GetUnit() &&
+             NS_STYLE_TEXT_ALIGN_MOZ_CENTER_OR_INHERIT ==
+               textData.mTextAlign.GetIntValue()) {
+    canStoreInRuleTree = PR_FALSE;
+    PRUint8 parentAlign = parentText->mTextAlign;
+    text->mTextAlign = (NS_STYLE_TEXT_ALIGN_DEFAULT == parentAlign) ?
+      NS_STYLE_TEXT_ALIGN_CENTER : parentAlign;
   } else
     SetDiscrete(textData.mTextAlign, text->mTextAlign, canStoreInRuleTree,
                 SETDSC_ENUMERATED, parentText->mTextAlign,

@@ -332,6 +332,7 @@ const PRInt32 nsNavHistory::kAutoCompleteBehaviorTyped = 1 << 5;
 static const char* gQuitApplicationMessage = "quit-application";
 static const char* gXpcomShutdown = "xpcom-shutdown";
 static const char* gAutoCompleteFeedback = "autocomplete-will-enter-text";
+static const char* gIdleDaily = "idle-daily";
 
 // annotation names
 const char nsNavHistory::kAnnotationPreviousEncoding[] = "history/encoding";
@@ -523,6 +524,7 @@ nsNavHistory::Init()
   observerService->AddObserver(this, gQuitApplicationMessage, PR_FALSE);
   observerService->AddObserver(this, gXpcomShutdown, PR_FALSE);
   observerService->AddObserver(this, gAutoCompleteFeedback, PR_FALSE);
+  observerService->AddObserver(this, gIdleDaily, PR_FALSE);
   observerService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_FALSE);
   // In case we've either imported or done a migration from a pre-frecency
   // build, we will calculate the first cutoff period's frecencies once the rest
@@ -910,9 +912,6 @@ nsNavHistory::InitializeIdleTimer()
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRInt32 idleTimerTimeout = EXPIRE_IDLE_TIME_IN_MSECS;
-  if (mFrecencyUpdateIdleTime)
-    idleTimerTimeout = PR_MIN(idleTimerTimeout, mFrecencyUpdateIdleTime);
-
   rv = mIdleTimer->InitWithFuncCallback(IdleTimerCallback, this,
                                         idleTimerTimeout,
                                         nsITimer::TYPE_REPEATING_SLACK);
@@ -2044,22 +2043,22 @@ nsNavHistory::LoadPrefs(PRBool aInitializing)
   nsXPIDLCString prefStr;
   mPrefBranch->GetCharPref(PREF_AUTOCOMPLETE_RESTRICT_HISTORY,
                            getter_Copies(prefStr));
-  mAutoCompleteRestrictHistory = NS_ConvertUTF8toUTF16(prefStr);
+  CopyUTF8toUTF16(prefStr, mAutoCompleteRestrictHistory);
   mPrefBranch->GetCharPref(PREF_AUTOCOMPLETE_RESTRICT_BOOKMARK,
                            getter_Copies(prefStr));
-  mAutoCompleteRestrictBookmark = NS_ConvertUTF8toUTF16(prefStr);
+  CopyUTF8toUTF16(prefStr, mAutoCompleteRestrictBookmark);
   mPrefBranch->GetCharPref(PREF_AUTOCOMPLETE_RESTRICT_TAG,
                            getter_Copies(prefStr));
-  mAutoCompleteRestrictTag = NS_ConvertUTF8toUTF16(prefStr);
+  CopyUTF8toUTF16(prefStr, mAutoCompleteRestrictTag);
   mPrefBranch->GetCharPref(PREF_AUTOCOMPLETE_MATCH_TITLE,
                            getter_Copies(prefStr));
-  mAutoCompleteMatchTitle = NS_ConvertUTF8toUTF16(prefStr);
+  CopyUTF8toUTF16(prefStr, mAutoCompleteMatchTitle);
   mPrefBranch->GetCharPref(PREF_AUTOCOMPLETE_MATCH_URL,
                            getter_Copies(prefStr));
-  mAutoCompleteMatchUrl = NS_ConvertUTF8toUTF16(prefStr);
+  CopyUTF8toUTF16(prefStr, mAutoCompleteMatchUrl);
   mPrefBranch->GetCharPref(PREF_AUTOCOMPLETE_RESTRICT_TYPED,
                            getter_Copies(prefStr));
-  mAutoCompleteRestrictTyped = NS_ConvertUTF8toUTF16(prefStr);
+  CopyUTF8toUTF16(prefStr, mAutoCompleteRestrictTyped);
 
   // Clear out the search on any pref change to invalidate cached search
   mCurrentSearchString = EmptyString();
@@ -4455,7 +4454,7 @@ nsNavHistory::RemovePagesFromHost(const nsACString& aHost, PRBool aEntireDomain)
   TitleForDomain(EmptyCString(), localFiles);
   nsAutoString host16;
   if (!aHost.Equals(localFiles))
-    host16 = NS_ConvertUTF8toUTF16(aHost);
+    CopyUTF8toUTF16(aHost, host16);
 
   // nsISupports version of the host string for passing to observers
   nsCOMPtr<nsISupportsString> hostSupports(do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID, &rv));
@@ -5203,12 +5202,6 @@ nsNavHistory::OnIdle()
   rv = idleService->GetIdleTime(&idleTime);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // If we've been idle for more than mFrecencyUpdateIdleTime
-  // recalculate some frecency values. A value of zero indicates that
-  // frecency recalculation on idle is disabled.
-  if (mFrecencyUpdateIdleTime && idleTime > mFrecencyUpdateIdleTime)
-    (void)RecalculateFrecencies(mNumCalculateFrecencyOnIdle, PR_TRUE);
-
   // If we've been idle for more than EXPIRE_IDLE_TIME_IN_MSECS
   // keep the expiration engine chugging along.
   // Note: This is done prior to a possible vacuum, to optimize space reduction
@@ -5302,6 +5295,26 @@ nsNavHistory::CommitPendingChanges()
     CommitLazyMessages();
   #endif
 
+  // Immediately serve topics we generated, this way they won't try to access
+  // the database after CommitPendingChanges has been called.
+  nsCOMPtr<nsIObserverService> os =
+    do_GetService("@mozilla.org/observer-service;1");
+  NS_ENSURE_TRUE(os, NS_ERROR_FAILURE);
+  nsCOMPtr<nsISimpleEnumerator> e;
+  nsresult rv = os->EnumerateObservers(PLACES_INIT_COMPLETE_EVENT_TOPIC,
+                                       getter_AddRefs(e));
+  if (NS_SUCCEEDED(rv) && e) {
+    nsCOMPtr<nsIObserver> observer;
+    PRBool loop = PR_TRUE;
+    while(NS_SUCCEEDED(e->HasMoreElements(&loop)) && loop)
+    {
+      e->GetNext(getter_AddRefs(observer));
+      rv = observer->Observe(observer,
+                             PLACES_INIT_COMPLETE_EVENT_TOPIC,
+                             nsnull);
+    }
+  }
+
   return NS_OK;
 }
 
@@ -5342,6 +5355,7 @@ nsNavHistory::Observe(nsISupports *aSubject, const char *aTopic,
       do_GetService("@mozilla.org/observer-service;1", &rv);
     NS_ENSURE_SUCCESS(rv, rv);
     observerService->RemoveObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC);
+    observerService->RemoveObserver(this, gIdleDaily);
     observerService->RemoveObserver(this, gAutoCompleteFeedback);
     observerService->RemoveObserver(this, gXpcomShutdown);
     observerService->RemoveObserver(this, gQuitApplicationMessage);
@@ -5388,6 +5402,11 @@ nsNavHistory::Observe(nsISupports *aSubject, const char *aTopic,
     if (oldDaysMin != mExpireDaysMin || oldDaysMax != mExpireDaysMax ||
         oldVisits != mExpireSites)
       mExpire.OnExpirationChanged();
+  }
+  else if (strcmp(aTopic, gIdleDaily) == 0) {
+    // Recalculate some frecency values (zero time means don't recalculate)
+    if (mFrecencyUpdateIdleTime)
+      (void)RecalculateFrecencies(mNumCalculateFrecencyOnIdle, PR_TRUE);
   }
   else if (strcmp(aTopic, NS_PRIVATE_BROWSING_SWITCH_TOPIC) == 0) {
     if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_ENTER).Equals(aData)) {
@@ -6809,7 +6828,7 @@ GetReversedHostname(nsIURI* aURI, nsAString& aRevHost)
   }
 
   // can't do reversing in UTF8, better use 16-bit chars
-  nsAutoString forward = NS_ConvertUTF8toUTF16(forward8);
+  NS_ConvertUTF8toUTF16 forward(forward8);
   GetReversedHostname(forward, aRevHost);
   return NS_OK;
 }
@@ -6952,7 +6971,7 @@ GenerateTitleFromURI(nsIURI* aURI, nsAString& aTitle)
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }
-  aTitle = NS_ConvertUTF8toUTF16(name);
+  CopyUTF8toUTF16(name, aTitle);
   return NS_OK;
 }
 

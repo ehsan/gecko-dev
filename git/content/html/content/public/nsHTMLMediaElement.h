@@ -111,11 +111,6 @@ public:
   // when the video playback has ended.
   void PlaybackEnded();
 
-  // Called by the decoder object, on the main thread, when
-  // approximately enough of the resource has been loaded to play
-  // through without pausing for buffering.
-  void CanPlayThrough();
-
   // Called by the video decoder object, on the main thread,
   // when the resource has started seeking.
   void SeekStarted();
@@ -133,6 +128,22 @@ public:
   nsresult DispatchProgressEvent(const nsAString& aName);
   nsresult DispatchAsyncSimpleEvent(const nsAString& aName);
   nsresult DispatchAsyncProgressEvent(const nsAString& aName);
+
+  // Called by the decoder when some data has been downloaded or
+  // buffering/seeking has ended. aNextFrameAvailable is true when
+  // the data for the next frame is available. This method will
+  // decide whether to set the ready state to HAVE_CURRENT_DATA,
+  // HAVE_FUTURE_DATA or HAVE_ENOUGH_DATA.
+  enum NextFrameStatus {
+    // The next frame of audio/video is available
+    NEXT_FRAME_AVAILABLE,
+    // The next frame of audio/video is unavailable because the decoder
+    // is paused while it buffers up data
+    NEXT_FRAME_UNAVAILABLE_BUFFERING,
+    // The next frame of audio/video is unavailable for some other reasons
+    NEXT_FRAME_UNAVAILABLE
+  };
+  void UpdateReadyStateForData(NextFrameStatus aNextFrame);
 
   // Use this method to change the mReadyState member, so required
   // events can be fired.
@@ -270,8 +281,8 @@ protected:
   // to ensure that the playstate doesn't change when the user goes Forward/Back
   // from the bfcache.
   PRPackedBool mPausedBeforeFreeze;
-
-  // True if playback was requested before a decoder was available to begin
-  // playback with.
-  PRPackedBool mPlayRequested;
+  
+  // PR_TRUE if we've reported a "waiting" event since the last
+  // readyState change to HAVE_CURRENT_DATA.
+  PRPackedBool mWaitingFired;
 };

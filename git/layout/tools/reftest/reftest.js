@@ -59,6 +59,9 @@ const NS_XREAPPINFO_CONTRACTID =
 
 const LOAD_FAILURE_TIMEOUT = 10000; // ms
 
+// "<!--CLEAR-->"
+const BLANK_URL_FOR_CLEARING = "data:text/html,%3C%21%2D%2DCLEAR%2D%2D%3E";
+
 var gBrowser;
 var gCanvas1, gCanvas2;
 // gCurrentCanvas is non-null between InitCurrentCanvasWithSnapshot and the next
@@ -89,7 +92,7 @@ var gTestResults = {
 var gTotalTests = 0;
 var gState;
 var gCurrentURL;
-var gFailureTimeout;
+var gFailureTimeout = null;
 var gFailureReason;
 var gServer;
 var gCount = 0;
@@ -111,7 +114,8 @@ const EXPECTED_DEATH = 3;  // test must be skipped to avoid e.g. crash/hang
 const EXPECTED_LOAD = 4; // test without a reference (just test that it does
                          // not assert, crash, hang, or leak)
 
-const HTTP_SERVER_PORT = 4444;
+var HTTP_SERVER_PORT = 4444;
+const HTTP_SERVER_PORTS_TO_TRY = 50;
 
 var gRecycledCanvases = new Array();
 
@@ -151,14 +155,32 @@ function OnRefTestLoad()
 
     gIOService = CC[IO_SERVICE_CONTRACTID].getService(CI.nsIIOService);
     gDebug = CC[DEBUG_CONTRACTID].getService(CI.nsIDebug2);
+    gServer = CC["@mozilla.org/server/jshttp;1"].
+                  createInstance(CI.nsIHttpServer);
 
     try {
-        ReadTopManifest(window.arguments[0]);
-        BuildUseCounts();
         if (gServer) {
             gServer.registerContentType("sjs", "sjs");
-            gServer.start(HTTP_SERVER_PORT);
+            // We want to try different ports in case the port we want
+            // is being used.
+            var tries = HTTP_SERVER_PORTS_TO_TRY;
+            var succeeded = false;
+            do {
+                try {
+                    gServer.start(HTTP_SERVER_PORT);
+                    succeeded = true;
+                } catch (ex) {
+                    gServer.stop();
+                    ++HTTP_SERVER_PORT;
+                    if (--tries == 0) {
+                        throw ex;
+                    }
+                }
+            } while (!succeeded);
         }
+        // Need to read the manifest once we have the final HTTP_SERVER_PORT.
+        ReadTopManifest(window.arguments[0]);
+        BuildUseCounts();
         gTotalTests = gURLs.length;
         gURICanvases = {};
         StartCurrentTest();
@@ -390,10 +412,6 @@ function BuildUseCounts()
 
 function ServeFiles(manifestURL, depth, directory, files)
 {
-    if (!gServer)
-        gServer = CC["@mozilla.org/server/jshttp;1"].
-                      createInstance(CI.nsIHttpServer);
-
     // Allow serving a tree that's an ancestor of the directory containing
     // the files so that they can use resources in ../ (etc.).
     var dirPath = "/";
@@ -453,6 +471,11 @@ function StartCurrentTest()
 function StartCurrentURI(aState)
 {
     gCurrentTestStartTime = Date.now();
+    if (gFailureTimeout != null) {
+        dump("REFTEST TEST-UNEXPECTED-FAIL | " + 
+             "| program error managing timeouts\n");
+        ++gTestResults.Exception;
+    }
     gFailureTimeout = setTimeout(LoadFailed, LOAD_FAILURE_TIMEOUT);
     gFailureReason = "timed out waiting for onload to fire";
 
@@ -522,7 +545,8 @@ function OnDocumentLoad(event)
         // Ignore load events for subframes.
         return;
         
-    if (gClearingForAssertionCheck) {
+    if (gClearingForAssertionCheck &&
+        gBrowser.contentDocument.location.href == BLANK_URL_FOR_CLEARING) {
         DoAssertionCheck();
         return;
     }
@@ -772,6 +796,7 @@ function DocumentLoaded()
 
     clearTimeout(gFailureTimeout);
     gFailureReason = null;
+    gFailureTimeout = null;
 
     if (gURLs[0].expected == EXPECTED_LOAD) {
         ++gTestResults.LoadOnly;
@@ -873,6 +898,7 @@ function DocumentLoaded()
 
 function LoadFailed()
 {
+    gFailureTimeout = null;
     ++gTestResults.FailedLoad;
     dump("REFTEST TEST-UNEXPECTED-FAIL | " +
          gURLs[0]["url" + gState].spec + " | " + gFailureReason + "\n");
@@ -881,10 +907,10 @@ function LoadFailed()
 
 function FinishTestItem()
 {
-    // Replace document with about:blank in case there are
+    // Replace document with BLANK_URL_FOR_CLEARING in case there are
     // assertions when unloading.
     gClearingForAssertionCheck = true;
-    gBrowser.loadURI("about:blank");
+    gBrowser.loadURI(BLANK_URL_FOR_CLEARING);
 }
 
 function DoAssertionCheck()

@@ -887,10 +887,10 @@ nsLayoutUtils::CombineBreakType(PRUint8 aOrigBreakType,
 }
 
 PRBool
-nsLayoutUtils::IsInitialContainingBlock(nsIFrame* aFrame)
+nsLayoutUtils::IsRootElementFrame(nsIFrame* aFrame)
 {
   return aFrame ==
-    aFrame->PresContext()->PresShell()->FrameConstructor()->GetInitialContainingBlock();
+    aFrame->PresContext()->PresShell()->FrameConstructor()->GetRootElementFrame();
 }
 
 #ifdef DEBUG
@@ -3056,6 +3056,15 @@ nsLayoutUtils::GetFrameTransparency(nsIFrame* aFrame) {
 
   if (aFrame->GetStyleDisplay()->mAppearance == NS_THEME_WIN_GLASS)
     return eTransparencyGlass;
+
+  // We need an uninitialized window to be treated as opaque because
+  // doing otherwise breaks window display effects on some platforms,
+  // specifically Vista. (bug 450322)
+  if (aFrame->GetType() == nsGkAtoms::viewportFrame &&
+      !aFrame->GetFirstChild(nsnull)) {
+    return eTransparencyOpaque;
+  }
+
   PRBool isCanvas;
   const nsStyleBackground* bg;
   if (!nsCSSRendering::FindBackground(aFrame->PresContext(), aFrame, &bg, &isCanvas))

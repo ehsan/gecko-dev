@@ -953,20 +953,28 @@ BuildTextRunsScanner::FindBoundaries(nsIFrame* aFrame, FindBoundaryState* aState
  * 
  * @param aForFrameLine the line containing aForFrame; if null, we'll figure
  * out the line (slowly)
- * @param aBlockFrame the block containing aForFrame; if null, we'll figure
- * out the block (slowly)
+ * @param aLineContainer the line container containing aForFrame; if null,
+ * we'll walk the ancestors to find it.  It's required to be non-null when
+ * aForFrameLine is non-null.
  */
 static void
 BuildTextRuns(gfxContext* aContext, nsTextFrame* aForFrame,
-              nsIFrame* aLineContainer, const nsLineList::iterator* aForFrameLine)
+              nsIFrame* aLineContainer,
+              const nsLineList::iterator* aForFrameLine)
 {
-  NS_ASSERTION(aForFrame || (aForFrameLine && aLineContainer),
-               "One of aForFrame or aForFrameLine+aLineContainer must be set!");
+  NS_ASSERTION(aForFrame || aLineContainer,
+               "One of aForFrame or aLineContainer must be set!");
+  NS_ASSERTION(!aForFrameLine || aLineContainer,
+               "line but no line container");
   
-  if (!aLineContainer || !aForFrameLine) {
+  if (!aLineContainer) {
     aLineContainer = FindLineContainer(aForFrame);
   } else {
-    NS_ASSERTION(!aForFrame || aLineContainer == FindLineContainer(aForFrame), "Wrong line container hint");
+    NS_ASSERTION(!aForFrame ||
+                 (aLineContainer == FindLineContainer(aForFrame) ||
+                  (aLineContainer->GetType() == nsGkAtoms::letterFrame &&
+                   aLineContainer->GetStyleDisplay()->IsFloating())),
+                 "Wrong line container hint");
   }
 
   nsPresContext* presContext = aLineContainer->PresContext();
@@ -1463,14 +1471,15 @@ GetHyphenTextRun(gfxTextRun* aTextRun, gfxContext* aContext, nsTextFrame* aTextF
   gfxFontGroup* fontGroup = aTextRun->GetFontGroup();
   PRUint32 flags = gfxFontGroup::TEXT_IS_PERSISTENT;
 
+  // only use U+2010 if it is supported by the first font in the group;
+  // it's better to use ASCII '-' from the primary font than to fall back to U+2010
+  // from some other, possibly poorly-matching face
   static const PRUnichar unicodeHyphen = 0x2010;
-  gfxTextRun* textRun =
-    gfxTextRunCache::MakeTextRun(&unicodeHyphen, 1, fontGroup, ctx,
-                                 aTextRun->GetAppUnitsPerDevUnit(), flags);
-  if (textRun && textRun->CountMissingGlyphs() == 0)
-    return textRun;
-
-  gfxTextRunCache::ReleaseTextRun(textRun);
+  gfxFont *font = fontGroup->GetFontAt(0);
+  if (font && font->HasCharacter(unicodeHyphen)) {
+    return gfxTextRunCache::MakeTextRun(&unicodeHyphen, 1, fontGroup, ctx,
+                                        aTextRun->GetAppUnitsPerDevUnit(), flags);
+  }
 
   static const PRUint8 dash = '-';
   return gfxTextRunCache::MakeTextRun(&dash, 1, fontGroup, ctx,
@@ -5368,7 +5377,7 @@ nsTextFrame::AddInlineMinWidthForFlow(nsIRenderingContext *aRenderingContext,
   PRUint32 flowEndInTextRun;
   gfxContext* ctx = aRenderingContext->ThebesContext();
   gfxSkipCharsIterator iter =
-    EnsureTextRun(ctx, nsnull, aData->line, &flowEndInTextRun);
+    EnsureTextRun(ctx, aData->lineContainer, aData->line, &flowEndInTextRun);
   if (!mTextRun)
     return;
 
@@ -5470,6 +5479,15 @@ nsTextFrame::AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
     // Except in OOM situations, lastTextRun will only be null for the first
     // text frame.
     if (f == this || f->mTextRun != lastTextRun) {
+      nsIFrame* lc;
+      if (aData->lineContainer &&
+          aData->lineContainer != (lc = FindLineContainer(f))) {
+        NS_ASSERTION(f != this, "wrong InlineMinWidthData container"
+                                " for first continuation");
+        aData->line = nsnull;
+        aData->lineContainer = lc;
+      }
+
       // This will process all the text frames that share the same textrun as f.
       f->AddInlineMinWidthForFlow(aRenderingContext, aData);
       lastTextRun = f->mTextRun;
@@ -5486,7 +5504,7 @@ nsTextFrame::AddInlinePrefWidthForFlow(nsIRenderingContext *aRenderingContext,
   PRUint32 flowEndInTextRun;
   gfxContext* ctx = aRenderingContext->ThebesContext();
   gfxSkipCharsIterator iter =
-    EnsureTextRun(ctx, nsnull, aData->line, &flowEndInTextRun);
+    EnsureTextRun(ctx, aData->lineContainer, aData->line, &flowEndInTextRun);
   if (!mTextRun)
     return;
 
@@ -5585,6 +5603,15 @@ nsTextFrame::AddInlinePrefWidth(nsIRenderingContext *aRenderingContext,
     // Except in OOM situations, lastTextRun will only be null for the first
     // text frame.
     if (f == this || f->mTextRun != lastTextRun) {
+      nsIFrame* lc;
+      if (aData->lineContainer &&
+          aData->lineContainer != (lc = FindLineContainer(f))) {
+        NS_ASSERTION(f != this, "wrong InlinePrefWidthData container"
+                                " for first continuation");
+        aData->line = nsnull;
+        aData->lineContainer = lc;
+      }
+
       // This will process all the text frames that share the same textrun as f.
       f->AddInlinePrefWidthForFlow(aRenderingContext, aData);
       lastTextRun = f->mTextRun;
