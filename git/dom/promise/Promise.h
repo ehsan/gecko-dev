@@ -62,7 +62,6 @@ class Promise : public nsISupports,
                 public SupportsWeakPtr<Promise>
 {
   friend class NativePromiseCallback;
-  friend class PromiseCallbackTask;
   friend class PromiseResolverTask;
   friend class PromiseTask;
   friend class PromiseReportRejectFeature;
@@ -292,7 +291,8 @@ private:
   JSCallbackThenableRejecter(JSContext *aCx, unsigned aArgc, JS::Value *aVp);
 
   static JSObject*
-  CreateFunction(JSContext* aCx, Promise* aPromise, int32_t aTask);
+  CreateFunction(JSContext* aCx, JSObject* aParent, Promise* aPromise,
+                int32_t aTask);
 
   static JSObject*
   CreateThenableFunction(JSContext* aCx, Promise* aPromise, uint32_t aTask);

@@ -13,6 +13,3 @@ JAR_MANIFESTS += ['jar.mn']
 EXTRA_PP_JS_MODULES += [
     'PlacesUIUtils.jsm',
 ]
-
-with Files('**'):
-    BUG_COMPONENT = ('Firefox', 'Bookmarks & History')

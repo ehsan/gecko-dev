@@ -229,16 +229,8 @@ const WorkerSandbox = Class({
         timeEnd: genPropDesc('timeEnd'),
         profile: genPropDesc('profile'),
         profileEnd: genPropDesc('profileEnd'),
-        exception: genPropDesc('exception'),
-        assert: genPropDesc('assert'),
-        count: genPropDesc('count'),
-        table: genPropDesc('table'),
-        clear: genPropDesc('clear'),
-        dirxml: genPropDesc('dirxml'),
-        markTimeline: genPropDesc('markTimeline'),
-        timeline: genPropDesc('timeline'),
-        timelineEnd: genPropDesc('timelineEnd'),
-        timeStamp: genPropDesc('timeStamp'),
+       __noSuchMethod__: { enumerable: true, configurable: true, writable: true,
+                            value: function() {} }
       };
 
       Object.defineProperties(con, properties);

@@ -95,11 +95,7 @@ function allowedPlatformForMedia() {
 }
 
 var ShumwayBootstrapUtils = {
-  isRegistered: false,
-
   register: function () {
-    this.isRegistered = true;
-
     // Register the components.
     converterFactory.register(ShumwayStreamConverter);
     overlayConverterFactory.register(ShumwayStreamOverlayConverter);
@@ -121,8 +117,6 @@ var ShumwayBootstrapUtils = {
   },
 
   unregister: function () {
-    this.isRegistered = false;
-
     // Remove the contract/component.
     converterFactory.unregister();
     overlayConverterFactory.unregister();

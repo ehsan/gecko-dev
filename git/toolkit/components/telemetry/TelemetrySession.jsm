@@ -1542,6 +1542,7 @@ let Impl = {
      }
 
     // This handles 2) and 3).
+    this._delayedInitTask.disarm();
     return this._delayedInitTask.finalize().then(cleanup);
    },
 

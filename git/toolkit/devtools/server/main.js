@@ -965,13 +965,8 @@ var DebuggerServer = {
     if (aForwardingPrefix) {
       connID = aForwardingPrefix + "/";
     } else {
-      // Multiple servers can be started at the same time, and when that's the
-      // case, they are loaded in separate devtools loaders.
-      // So, use the current loader ID to prefix the connection ID and make it
-      // unique.
-      connID = "server" + loader.id + ".conn" + this._nextConnID++ + '.';
+      connID = "conn" + this._nextConnID++ + '.';
     }
-
     let conn = new DebuggerServerConnection(connID, aTransport);
     this._connections[connID] = conn;
 

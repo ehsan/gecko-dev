@@ -253,8 +253,6 @@ SrcdirProvider.prototype = {
   }
 };
 
-var gNextLoaderID = 0;
-
 /**
  * The main devtools API.
  * In addition to a few loader-related details, this object will also include all
@@ -279,14 +277,6 @@ DevToolsLoader.prototype = {
   },
 
   _provider: null,
-
-  get id() {
-    if (this._id) {
-      return this._id;
-    } else {
-      return this._id = ++gNextLoaderID;
-    }
-  },
 
   /**
    * A dummy version of require, in case a provider hasn't been chosen yet when
@@ -387,8 +377,7 @@ DevToolsLoader.prototype = {
         lazyGetter: this.lazyGetter,
         lazyImporter: this.lazyImporter,
         lazyServiceGetter: this.lazyServiceGetter,
-        lazyRequireGetter: this.lazyRequireGetter,
-        id: this.id
+        lazyRequireGetter: this.lazyRequireGetter
       },
     };
     // Lazy define console in order to load Console.jsm only when it is used

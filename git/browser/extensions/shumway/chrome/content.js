@@ -15,7 +15,8 @@
  */
 
 Components.utils.import('resource://gre/modules/Services.jsm');
-Components.utils.import('chrome://shumway/content/ShumwayCom.jsm');
+Components.utils.import('chrome://shumway/content/SpecialInflate.jsm');
+Components.utils.import('chrome://shumway/content/RtmpUtils.jsm');
 
 var externalInterfaceWrapper = {
   callback: function (call) {
@@ -31,14 +32,17 @@ var externalInterfaceWrapper = {
 // control messages between unprivileged content and ShumwayStreamConverter.
 var shumwayComAdapter;
 
-function sendMessage(action, data, sync) {
+function sendMessage(action, data, sync, callbackCookie) {
   var detail = {action: action, data: data, sync: sync};
+  if (callbackCookie !== undefined) {
+    detail.callback = true;
+    detail.cookie = callbackCookie;
+  }
   if (!sync) {
     sendAsyncMessage('Shumway:message', detail);
     return;
   }
-  var result = String(sendSyncMessage('Shumway:message', detail));
-  result = result == 'undefined' ? undefined : JSON.parse(result);
+  var result = sendSyncMessage('Shumway:message', detail);
   return Components.utils.cloneInto(result, content);
 }
 
@@ -47,17 +51,38 @@ function enableDebug() {
 }
 
 addMessageListener('Shumway:init', function (message) {
-  var environment = message.data;
-
   sendAsyncMessage('Shumway:running', {}, {
     externalInterface: externalInterfaceWrapper
   });
 
-  shumwayComAdapter = ShumwayCom.createAdapter(content, {
-    sendMessage: sendMessage,
-    enableDebug: enableDebug,
-    getEnvironment: function () { return environment; }
+  // Exposing ShumwayCom object/adapter to the unprivileged content -- setting
+  // up Xray wrappers.
+  shumwayComAdapter = Components.utils.createObjectIn(content, {defineAs: 'ShumwayCom'});
+  Components.utils.exportFunction(sendMessage, shumwayComAdapter, {defineAs: 'sendMessage'});
+  Components.utils.exportFunction(enableDebug, shumwayComAdapter, {defineAs: 'enableDebug'});
+  Object.defineProperties(shumwayComAdapter, {
+    onLoadFileCallback: { value: null, writable: true },
+    onExternalCallback: { value: null, writable: true },
+    onMessageCallback: { value: null, writable: true }
   });
+  Components.utils.makeObjectPropsNormal(shumwayComAdapter);
+
+  // Exposing createSpecialInflate function for DEFLATE stream decoding using
+  // Gecko API.
+  if (SpecialInflateUtils.isSpecialInflateEnabled) {
+    Components.utils.exportFunction(function () {
+      return SpecialInflateUtils.createWrappedSpecialInflate(content);
+    }, content, {defineAs: 'createSpecialInflate'});
+  }
+
+  if (RtmpUtils.isRtmpEnabled) {
+    Components.utils.exportFunction(function (params) {
+      return RtmpUtils.createSocket(content, params);
+    }, content, {defineAs: 'createRtmpSocket'});
+    Components.utils.exportFunction(function () {
+      return RtmpUtils.createXHR(content);
+    }, content, {defineAs: 'createRtmpXHR'});
+  }
 
   content.wrappedJSObject.runViewer();
 });
@@ -67,4 +92,12 @@ addMessageListener('Shumway:loadFile', function (message) {
     return;
   }
   shumwayComAdapter.onLoadFileCallback(Components.utils.cloneInto(message.data, content));
+});
+
+addMessageListener('Shumway:messageCallback', function (message) {
+  if (!shumwayComAdapter.onMessageCallback) {
+    return;
+  }
+  shumwayComAdapter.onMessageCallback(message.data.cookie,
+    Components.utils.cloneInto(message.data.response, content));
 });
