@@ -144,10 +144,8 @@ BadCertHandler.prototype = {
 
   // nsIChannelEventSink
   asyncOnChannelRedirect: function(oldChannel, newChannel, flags, callback) {
-    if (this.allowNonBuiltInCerts) {
-      callback.onRedirectVerifyCallback(Components.results.NS_OK);
+    if (this.allowNonBuiltInCerts)
       return;
-    }
 
     // make sure the certificate of the old channel checks out before we follow
     // a redirect from it.  See bug 340198.
@@ -156,7 +154,7 @@ BadCertHandler.prototype = {
       checkCert(oldChannel);
     
     callback.onRedirectVerifyCallback(Components.results.NS_OK);
-  },
+    },
 
   // Suppress any certificate errors
   notifyCertProblem: function(socketInfo, status, targetSite) {
