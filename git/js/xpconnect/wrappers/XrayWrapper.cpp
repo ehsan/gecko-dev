@@ -417,7 +417,7 @@ XrayTraits::attachExpandoObject(JSContext *cx, HandleObject target,
 
     // Create the expando object. We parent it directly to the target object.
     RootedObject expandoObject(cx, JS_NewObjectWithGivenProto(cx, &ExpandoObjectClass,
-                                                              nullptr, target));
+                                                              JS::NullPtr(), target));
     if (!expandoObject)
         return nullptr;
 
@@ -823,7 +823,7 @@ XrayTraits::resolveOwnProperty(JSContext *cx, Wrapper &jsWrapper,
         if (key != JSProto_Null) {
             MOZ_ASSERT(key < JSProto_LIMIT);
             RootedObject constructor(cx);
-            if (!JS_GetClassObject(cx, target, key, constructor.address()))
+            if (!JS_GetClassObject(cx, target, key, &constructor))
                 return false;
             MOZ_ASSERT(constructor);
             desc.value().set(ObjectValue(*constructor));
@@ -988,8 +988,8 @@ XPCWrappedNativeXrayTraits::enumerateNames(JSContext *cx, HandleObject wrapper, 
 JSObject *
 XPCWrappedNativeXrayTraits::createHolder(JSContext *cx, JSObject *wrapper)
 {
-    JSObject *global = JS_GetGlobalForObject(cx, wrapper);
-    JSObject *holder = JS_NewObjectWithGivenProto(cx, &HolderClass, nullptr,
+    RootedObject global(cx, JS_GetGlobalForObject(cx, wrapper));
+    JSObject *holder = JS_NewObjectWithGivenProto(cx, &HolderClass, JS::NullPtr(),
                                                   global);
     if (!holder)
         return nullptr;
@@ -1174,8 +1174,8 @@ DOMXrayTraits::preserveWrapper(JSObject *target)
 JSObject*
 DOMXrayTraits::createHolder(JSContext *cx, JSObject *wrapper)
 {
-    return JS_NewObjectWithGivenProto(cx, nullptr, nullptr,
-                                      JS_GetGlobalForObject(cx, wrapper));
+    RootedObject global(cx, JS_GetGlobalForObject(cx, wrapper));
+    return JS_NewObjectWithGivenProto(cx, nullptr, JS::NullPtr(), global);
 }
 
 template <typename Base, typename Traits>
