@@ -874,7 +874,7 @@ NetworkManager.prototype = {
       try {
         let file = new FileUtils.File(KERNEL_NETWORK_ENTRY + "/" +
                                       this.possibleInterface[i]);
-        if (file.exists()) {
+        if (file.IsDirectory()) {
           return this.possibleInterface[i];
         }
       } catch (e) {

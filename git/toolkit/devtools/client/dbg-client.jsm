@@ -175,7 +175,6 @@ const UnsolicitedNotifications = {
   "eventNotification": "eventNotification",
   "fileActivity": "fileActivity",
   "lastPrivateContextExited": "lastPrivateContextExited",
-  "logMessage": "logMessage",
   "networkEvent": "networkEvent",
   "networkEventUpdate": "networkEventUpdate",
   "newGlobal": "newGlobal",
