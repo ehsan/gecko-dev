@@ -60,7 +60,9 @@ void
 AudioNodeStream::SetStreamTimeParameterImpl(uint32_t aIndex, MediaStream* aRelativeToStream,
                                             double aStreamTime)
 {
-  TrackTicks ticks = TicksFromDestinationTime(aRelativeToStream, aStreamTime);
+  TrackTicks ticks =
+      WebAudioUtils::ConvertDestinationStreamTimeToSourceStreamTime(
+          aStreamTime, this, aRelativeToStream);
   mEngine->SetStreamTimeParameter(aIndex, ticks);
 }
 
@@ -513,38 +515,6 @@ AudioNodeStream::FinishOutput()
                                 track->GetSegment()->GetDuration(),
                                 MediaStreamListener::TRACK_EVENT_ENDED, emptySegment);
   }
-}
-
-TrackTicks
-AudioNodeStream::TicksFromDestinationTime(MediaStream* aDestination,
-                                          double aSeconds)
-{
-  MOZ_ASSERT(aDestination->AsAudioNodeStream() &&
-             aDestination->AsAudioNodeStream()->SampleRate() == SampleRate());
-
-  double destinationSeconds = std::max(0.0, aSeconds);
-  StreamTime streamTime = SecondsToMediaTime(destinationSeconds);
-  // MediaTime does not have the resolution of double
-  double offset = destinationSeconds - MediaTimeToSeconds(streamTime);
-
-  GraphTime graphTime = aDestination->StreamTimeToGraphTime(streamTime);
-  StreamTime thisStreamTime = GraphTimeToStreamTimeOptimistic(graphTime);
-  double thisSeconds = MediaTimeToSeconds(thisStreamTime) + offset;
-  MOZ_ASSERT(thisSeconds >= 0.0);
-  // Round to nearest
-  TrackTicks ticks = thisSeconds * SampleRate() + 0.5;
-  return ticks;
-}
-
-double
-AudioNodeStream::DestinationTimeFromTicks(AudioNodeStream* aDestination,
-                                          TrackTicks aPosition)
-{
-  MOZ_ASSERT(SampleRate() == aDestination->SampleRate());
-  StreamTime sourceTime = TicksToTimeRoundDown(SampleRate(), aPosition);
-  GraphTime graphTime = StreamTimeToGraphTime(sourceTime);
-  StreamTime destinationTime = aDestination->GraphTimeToStreamTimeOptimistic(graphTime);
-  return MediaTimeToSeconds(destinationTime);
 }
 
 }
