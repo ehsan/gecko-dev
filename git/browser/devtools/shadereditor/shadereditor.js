@@ -542,7 +542,7 @@ let ShadersEditorsView = {
 
     let tooltip = node._markerErrorsTooltip = new Tooltip(document);
     tooltip.defaultOffsetX = GUTTER_ERROR_PANEL_OFFSET_X;
-    tooltip.setTextContent(messages);
+    tooltip.setTextContent.apply(tooltip, messages);
     tooltip.startTogglingOnHover(node, () => true, GUTTER_ERROR_PANEL_DELAY);
   },
 

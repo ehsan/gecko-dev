@@ -136,7 +136,6 @@ ToolbarView.prototype = {
   _onResumePressed: function() {
     if (DebuggerController.activeThread.paused) {
       let warn = DebuggerController._ensureResumptionOrder;
-      DebuggerController.StackFrames.currentFrameDepth = -1;
       DebuggerController.activeThread.resume(warn);
     } else {
       DebuggerController.activeThread.interrupt();
@@ -148,7 +147,6 @@ ToolbarView.prototype = {
    */
   _onStepOverPressed: function() {
     if (DebuggerController.activeThread.paused) {
-      DebuggerController.StackFrames.currentFrameDepth = -1;
       DebuggerController.activeThread.stepOver();
     }
   },
@@ -158,7 +156,6 @@ ToolbarView.prototype = {
    */
   _onStepInPressed: function() {
     if (DebuggerController.activeThread.paused) {
-      DebuggerController.StackFrames.currentFrameDepth = -1;
       DebuggerController.activeThread.stepIn();
     }
   },
@@ -168,7 +165,6 @@ ToolbarView.prototype = {
    */
   _onStepOutPressed: function() {
     if (DebuggerController.activeThread.paused) {
-      DebuggerController.StackFrames.currentFrameDepth = -1;
       DebuggerController.activeThread.stepOut();
     }
   },
@@ -479,17 +475,6 @@ StackFramesView.prototype = Heritage.extend(WidgetMethods, {
    */
   set selectedDepth(aDepth) {
     this.selectedItem = aItem => aItem.attachment.depth == aDepth;
-  },
-
-  /**
-   * Gets the currently selected stack frame's depth in this container.
-   * This will essentially be the opposite of |selectedIndex|, which deals
-   * with the position in the view, where the last item added is actually
-   * the bottommost, not topmost.
-   * @return number
-   */
-  get selectedDepth() {
-    return this.selectedItem.attachment.depth;
   },
 
   /**
@@ -1399,8 +1384,8 @@ FilteredFunctionsView.prototype = Heritage.extend(ResultsPanelContainer.prototyp
     }
 
     for (let [location, contents] of aSources) {
-      let parsedSource = DebuggerController.Parser.get(contents, location);
-      let sourceResults = parsedSource.getNamedFunctionDefinitions(aToken);
+      let parserMethods = DebuggerController.Parser.get(location, contents);
+      let sourceResults = parserMethods.getNamedFunctionDefinitions(aToken);
 
       for (let scriptResult of sourceResults) {
         for (let parseResult of scriptResult.parseResults) {

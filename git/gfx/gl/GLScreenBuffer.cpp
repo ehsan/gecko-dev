@@ -17,7 +17,6 @@
 #ifdef XP_MACOSX
 #include "SharedSurfaceIO.h"
 #endif
-#include "ScopedGLHelpers.h"
 
 using namespace mozilla::gfx;
 

@@ -359,8 +359,6 @@ MediaStreamGraphImpl::UpdateCurrentTime()
   }
 
   nsTArray<MediaStream*> streamsReadyToFinish;
-  nsAutoTArray<bool,800> streamHasOutput;
-  streamHasOutput.SetLength(mStreams.Length());
   for (uint32_t i = 0; i < mStreams.Length(); ++i) {
     MediaStream* stream = mStreams[i];
 
@@ -389,7 +387,12 @@ MediaStreamGraphImpl::UpdateCurrentTime()
     // AdvanceTimeVaryingValuesToCurrentTime can rely on the value of mBlocked.
     stream->mBlocked.AdvanceCurrentTime(nextCurrentTime);
 
-    streamHasOutput[i] = blockedTime < nextCurrentTime - prevCurrentTime;
+    if (blockedTime < nextCurrentTime - prevCurrentTime) {
+      for (uint32_t i = 0; i < stream->mListeners.Length(); ++i) {
+        MediaStreamListener* l = stream->mListeners[i];
+        l->NotifyOutput(this);
+      }
+    }
 
     if (stream->mFinished && !stream->mNotifiedFinished) {
       streamsReadyToFinish.AppendElement(stream);
@@ -401,18 +404,7 @@ MediaStreamGraphImpl::UpdateCurrentTime()
 
   mCurrentTime = nextCurrentTime;
 
-  // Do these after setting mCurrentTime so that StreamTimeToGraphTime works properly.
-  for (uint32_t i = 0; i < streamHasOutput.Length(); ++i) {
-    if (!streamHasOutput[i]) {
-      continue;
-    }
-    MediaStream* stream = mStreams[i];
-    for (uint32_t j = 0; j < stream->mListeners.Length(); ++j) {
-      MediaStreamListener* l = stream->mListeners[j];
-      l->NotifyOutput(this, mCurrentTime);
-    }
-  }
-
+  // Do this after setting mCurrentTime so that StreamTimeToGraphTime works properly.
   for (uint32_t i = 0; i < streamsReadyToFinish.Length(); ++i) {
     MediaStream* stream = streamsReadyToFinish[i];
     if (StreamTimeToGraphTime(stream, stream->GetBufferEnd()) <= mCurrentTime) {

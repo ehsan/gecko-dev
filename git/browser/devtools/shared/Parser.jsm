@@ -13,27 +13,26 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this,
   "Reflect", "resource://gre/modules/reflect.jsm");
 
-this.EXPORTED_SYMBOLS = ["Parser", "ParserHelpers", "SyntaxTreeVisitor"];
+this.EXPORTED_SYMBOLS = ["Parser"];
 
 /**
  * A JS parser using the reflection API.
  */
 this.Parser = function Parser() {
   this._cache = new Map();
-  this.errors = [];
 };
 
 Parser.prototype = {
   /**
    * Gets a collection of parser methods for a specified source.
    *
-   * @param string aSource
-   *        The source text content.
    * @param string aUrl [optional]
    *        The source url. The AST nodes will be cached, so you can use this
    *        identifier to avoid parsing the whole source again.
+   * @param string aSource
+   *        The source text content.
    */
-  get: function(aSource, aUrl = "") {
+  get: function(aUrl, aSource) {
     // Try to use the cached AST nodes, to avoid useless parsing operations.
     if (this._cache.has(aUrl)) {
       return this._cache.get(aUrl);
@@ -64,7 +63,6 @@ Parser.prototype = {
         let length = aSource.length;
         syntaxTrees.push(new SyntaxTree(nodes, aUrl, length));
       } catch (e) {
-        this.errors.push(e);
         log(aUrl, e);
       }
     }
@@ -78,21 +76,13 @@ Parser.prototype = {
           let length = script.length;
           syntaxTrees.push(new SyntaxTree(nodes, aUrl, length, offset));
         } catch (e) {
-          this.errors.push(e);
           log(aUrl, e);
         }
       }
     }
 
     let pool = new SyntaxTreesPool(syntaxTrees);
-
-    // Cache the syntax trees pool by the specified url. This is entirely
-    // optional, but it's strongly encouraged to cache ASTs because
-    // generating them can be costly with big/complex sources.
-    if (aUrl) {
-      this._cache.set(aUrl, pool);
-    }
-
+    this._cache.set(aUrl, pool);
     return pool;
   },
 
@@ -113,8 +103,7 @@ Parser.prototype = {
     this._cache.delete(aUrl);
   },
 
-  _cache: null,
-  errors: null
+  _cache: null
 };
 
 /**
@@ -130,13 +119,6 @@ function SyntaxTreesPool(aSyntaxTrees) {
 
 SyntaxTreesPool.prototype = {
   /**
-   * @see SyntaxTree.prototype.getIdentifierAt
-   */
-  getIdentifierAt: function(aLine, aColumn) {
-    return this._first(this._call("getIdentifierAt", aLine, aColumn));
-  },
-
-  /**
    * @see SyntaxTree.prototype.getNamedFunctionDefinitions
    */
   getNamedFunctionDefinitions: function(aSubstring) {
@@ -144,41 +126,21 @@ SyntaxTreesPool.prototype = {
   },
 
   /**
-   * Gets the total number of scripts in the parent source.
-   * @return number
-   */
-  get scriptCount() {
-    return this._trees.length;
-  },
-
-  /**
-   * Finds the start and length of the script containing the specified offset
+   * Finds the offset and length of the script containing the specified offset
    * relative to its parent source.
    *
    * @param number aOffset
    *        The offset relative to the parent source.
-   * @return object
+   * @return array
    *         The offset and length relative to the enclosing script.
    */
   getScriptInfo: function(aOffset) {
     for (let { offset, length } of this._trees) {
       if (offset <= aOffset &&  offset + length >= aOffset) {
-        return { start: offset, length: length };
+        return [offset, length];
       }
     }
-    return { start: -1, length: -1 };
-  },
-
-  /**
-   * Gets the first script results from a source results set.
-   * If no results are found, null is returned.
-   *
-   * @return array
-   *         A collection of parse results for the first script in a source.
-   */
-  _first: function(aSourceResults) {
-    let scriptResult = aSourceResults.filter(e => !!e.parseResults)[0];
-    return scriptResult ? scriptResult.parseResults : null;
+    return [-1, -1];
   },
 
   /**
@@ -191,9 +153,9 @@ SyntaxTreesPool.prototype = {
    * @return array
    *         The results given by all known syntax trees.
    */
-  _call: function(aFunction, ...aParams) {
+  _call: function(aFunction, aParams) {
     let results = [];
-    let requestId = aFunction + aParams.toSource(); // Cache all the things!
+    let requestId = aFunction + aParams; // Cache all the things!
 
     if (this._cache.has(requestId)) {
       return this._cache.get(requestId);
@@ -204,7 +166,7 @@ SyntaxTreesPool.prototype = {
           sourceUrl: syntaxTree.url,
           scriptLength: syntaxTree.length,
           scriptOffset: syntaxTree.offset,
-          parseResults: syntaxTree[aFunction].apply(syntaxTree, aParams)
+          parseResults: syntaxTree[aFunction](aParams)
         });
       } catch (e) {
         // Can't guarantee that the tree traversal logic is forever perfect :)
@@ -242,58 +204,6 @@ function SyntaxTree(aNodes, aUrl, aLength, aOffset = 0) {
 
 SyntaxTree.prototype = {
   /**
-   * Gets the identifier at the specified location.
-   *
-   * @param number aLine
-   *        The line in the source.
-   * @param number aColumn
-   *        The column in the source.
-   * @return object
-   *         An object containing identifier information as { name, location,
-   *         evalString } properties, or null if nothing is found.
-   */
-  getIdentifierAt: function(aLine, aColumn) {
-    let info = null;
-
-    SyntaxTreeVisitor.walk(this.AST, {
-      /**
-       * Callback invoked for each identifier node.
-       * @param Node aNode
-       */
-      onIdentifier: function(aNode) {
-        if (ParserHelpers.nodeContainsPoint(aNode, aLine, aColumn)) {
-          info = {
-            name: aNode.name,
-            location: ParserHelpers.getNodeLocation(aNode),
-            evalString: ParserHelpers.getIdentifierEvalString(aNode)
-          };
-
-          // Abruptly halt walking the syntax tree.
-          SyntaxTreeVisitor.break = true;
-        }
-      },
-
-      /**
-       * Callback invoked for each literal node.
-       * @param Node aNode
-       */
-      onLiteral: function(aNode) {
-        this.onIdentifier(aNode);
-      },
-
-      /**
-       * Callback invoked for each 'this' node.
-       * @param Node aNode
-       */
-      onThisExpression: function(aNode) {
-        this.onIdentifier(aNode);
-      }
-    });
-
-    return info;
-  },
-
-  /**
    * Searches for all function definitions (declarations and expressions)
    * whose names (or inferred names) contain a string.
    *
@@ -318,7 +228,7 @@ SyntaxTree.prototype = {
         if (functionName.toLowerCase().contains(lowerCaseToken)) {
           store.push({
             functionName: functionName,
-            functionLocation: ParserHelpers.getNodeLocation(aNode)
+            functionLocation: aNode.loc
           });
         }
       },
@@ -330,7 +240,7 @@ SyntaxTree.prototype = {
       onFunctionExpression: function(aNode) {
         // Function expressions don't necessarily have a name.
         let functionName = aNode.id ? aNode.id.name : "";
-        let functionLocation = ParserHelpers.getNodeLocation(aNode);
+        let functionLocation = aNode.loc || null;
 
         // Infer the function's name from an enclosing syntax tree node.
         let inferredInfo = ParserHelpers.inferFunctionExpressionInfo(aNode);
@@ -395,56 +305,6 @@ SyntaxTree.prototype = {
  */
 let ParserHelpers = {
   /**
-   * Gets the location information for a node. Not all nodes have a
-   * location property directly attached, or the location information
-   * is incorrect, in which cases it's accessible via the parent.
-   *
-   * @param Node aNode
-   *        The node who's location needs to be retrieved.
-   * @return object
-   *         An object containing { line, column } information.
-   */
-  getNodeLocation: function(aNode) {
-    if (aNode.type != "Identifier") {
-      return aNode.loc;
-    }
-    // Work around the fact that some identifier nodes don't have the
-    // correct location attached.
-    let { loc: parentLocation, type: parentType } = aNode._parent;
-    let { loc: nodeLocation } = aNode;
-    if (!nodeLocation) {
-      if (parentType == "FunctionDeclaration" ||
-          parentType == "FunctionExpression") {
-        // e.g. "function foo() {}" or "{ bar: function foo() {} }"
-        // The location is unavailable for the identifier node "foo".
-        let loc = JSON.parse(JSON.stringify(parentLocation));
-        loc.end.line = loc.start.line;
-        loc.end.column = loc.start.column + aNode.name.length;
-        return loc;
-    }
-      if (parentType == "MemberExpression") {
-        // e.g. "foo.bar"
-        // The location is unavailable for the identifier node "bar".
-        let loc = JSON.parse(JSON.stringify(parentLocation));
-        loc.start.line = loc.end.line;
-        loc.start.column = loc.end.column - aNode.name.length;
-        return loc;
-      }
-    } else {
-      if (parentType == "VariableDeclarator") {
-        // e.g. "let foo = 42"
-        // The location incorrectly spans across the whole variable declaration,
-        // not just the identifier node "foo".
-        let loc = JSON.parse(JSON.stringify(nodeLocation));
-        loc.end.line = loc.start.line;
-        loc.end.column = loc.start.column + aNode.name.length;
-        return loc;
-      }
-    }
-    return aNode.loc;
-  },
-
-  /**
    * Checks if a node's bounds contains a specified line.
    *
    * @param Node aNode
@@ -454,9 +314,12 @@ let ParserHelpers = {
    * @return boolean
    *         True if the line and column is contained in the node's bounds.
    */
-  nodeContainsLine: function(aNode, aLine) {
-    let { start: s, end: e } = this.getNodeLocation(aNode);
-    return s.line <= aLine && e.line >= aLine;
+  isWithinLines: function(aNode, aLine) {
+    // Not all nodes have location information attached.
+    if (!aNode.loc) {
+      return this.isWithinLines(aNode._parent, aLine);
+    }
+    return aNode.loc.start.line <= aLine && aNode.loc.end.line >= aLine;
   },
 
   /**
@@ -471,10 +334,13 @@ let ParserHelpers = {
    * @return boolean
    *         True if the line and column is contained in the node's bounds.
    */
-  nodeContainsPoint: function(aNode, aLine, aColumn) {
-    let { start: s, end: e } = this.getNodeLocation(aNode);
-    return s.line == aLine && e.line == aLine &&
-           s.column <= aColumn && e.column >= aColumn;
+  isWithinBounds: function(aNode, aLine, aColumn) {
+    // Not all nodes have location information attached.
+    if (!aNode.loc) {
+      return this.isWithinBounds(aNode._parent, aLine, aColumn);
+    }
+    return aNode.loc.start.line == aLine && aNode.loc.end.line == aLine &&
+           aNode.loc.start.column <= aColumn && aNode.loc.end.column >= aColumn;
   },
 
   /**
@@ -498,7 +364,7 @@ let ParserHelpers = {
       return {
         name: parent.id.name,
         chain: null,
-        loc: this.getNodeLocation(parent.id)
+        loc: parent.loc
       };
     }
 
@@ -506,12 +372,12 @@ let ParserHelpers = {
     // e.g. foo = function(){} or foo.bar = function(){}, in which case it is
     // possible to infer the assignee name ("foo" and "bar" respectively).
     if (parent.type == "AssignmentExpression") {
-      let propertyChain = this._getMemberExpressionPropertyChain(parent.left);
+      let propertyChain = this.getMemberExpressionPropertyChain(parent.left);
       let propertyLeaf = propertyChain.pop();
       return {
         name: propertyLeaf,
         chain: propertyChain,
-        loc: this.getNodeLocation(parent.left)
+        loc: parent.left.loc
       };
     }
 
@@ -519,13 +385,13 @@ let ParserHelpers = {
     // e.g. { foo: function(){} }, then it is possible to infer the name
     // from the corresponding property.
     if (parent.type == "ObjectExpression") {
-      let propertyKey = this._getObjectExpressionPropertyKeyForValue(aNode);
-      let propertyChain = this._getObjectExpressionPropertyChain(parent);
+      let propertyKey = this.getObjectExpressionPropertyKeyForValue(aNode);
+      let propertyChain = this.getObjectExpressionPropertyChain(parent);
       let propertyLeaf = propertyKey.name;
       return {
         name: propertyLeaf,
         chain: propertyChain,
-        loc: this.getNodeLocation(propertyKey)
+        loc: propertyKey.loc
       };
     }
 
@@ -541,9 +407,6 @@ let ParserHelpers = {
    * Gets the name of an object expression's property to which a specified
    * value is assigned.
    *
-   * Used for inferring function expression information and retrieving
-   * an identifier evaluation string.
-   *
    * For example, if aNode represents the "bar" identifier in a hypothetical
    * "{ foo: bar }" object expression, the returned node is the "foo" identifier.
    *
@@ -552,7 +415,7 @@ let ParserHelpers = {
    * @return object
    *         The key identifier node in the object expression.
    */
-  _getObjectExpressionPropertyKeyForValue: function(aNode) {
+  getObjectExpressionPropertyKeyForValue: function(aNode) {
     let parent = aNode._parent;
     if (parent.type != "ObjectExpression") {
       return null;
@@ -568,9 +431,6 @@ let ParserHelpers = {
    * Gets an object expression's property chain to its parent
    * variable declarator or assignment expression, if available.
    *
-   * Used for inferring function expression information and retrieving
-   * an identifier evaluation string.
-   *
    * For example, if aNode represents the "baz: {}" object expression in a
    * hypothetical "foo = { bar: { baz: {} } }" assignment expression, the
    * returned chain is ["foo", "bar", "baz"].
@@ -582,11 +442,11 @@ let ParserHelpers = {
    * @return array
    *         The chain to the parent variable declarator, as strings.
    */
-  _getObjectExpressionPropertyChain: function(aNode, aStore = []) {
+  getObjectExpressionPropertyChain: function(aNode, aStore = []) {
     switch (aNode.type) {
       case "ObjectExpression":
-        this._getObjectExpressionPropertyChain(aNode._parent, aStore);
-        let propertyKey = this._getObjectExpressionPropertyKeyForValue(aNode);
+        this.getObjectExpressionPropertyChain(aNode._parent, aStore);
+        let propertyKey = this.getObjectExpressionPropertyKeyForValue(aNode);
         if (propertyKey) {
           aStore.push(propertyKey.name);
         }
@@ -599,14 +459,14 @@ let ParserHelpers = {
       // commonly used when defining an object's prototype methods; e.g:
       // "Foo.prototype = { ... }".
       case "AssignmentExpression":
-        this._getMemberExpressionPropertyChain(aNode.left, aStore);
+        this.getMemberExpressionPropertyChain(aNode.left, aStore);
         break;
       // Additionally handle stuff like "foo = bar.baz({ ... })", because it's
       // commonly used in prototype-based inheritance in many libraries; e.g:
       // "Foo = Bar.extend({ ... })".
       case "NewExpression":
       case "CallExpression":
-        this._getObjectExpressionPropertyChain(aNode._parent, aStore);
+        this.getObjectExpressionPropertyChain(aNode._parent, aStore);
         break;
     }
     return aStore;
@@ -614,9 +474,6 @@ let ParserHelpers = {
 
   /**
    * Gets a member expression's property chain.
-   *
-   * Used for inferring function expression information and retrieving
-   * an identifier evaluation string.
    *
    * For example, if aNode represents a hypothetical "foo.bar.baz"
    * member expression, the returned chain ["foo", "bar", "baz"].
@@ -630,65 +487,22 @@ let ParserHelpers = {
    * @return array
    *         The full member chain, as strings.
    */
-  _getMemberExpressionPropertyChain: function(aNode, aStore = []) {
+  getMemberExpressionPropertyChain: function(aNode, aStore = []) {
     switch (aNode.type) {
       case "MemberExpression":
-        this._getMemberExpressionPropertyChain(aNode.object, aStore);
-        this._getMemberExpressionPropertyChain(aNode.property, aStore);
+        this.getMemberExpressionPropertyChain(aNode.object, aStore);
+        this.getMemberExpressionPropertyChain(aNode.property, aStore);
         break;
       case "ThisExpression":
-        aStore.push("this");
+        // Such expressions may appear in an assignee chain, for example
+        // "this.foo.bar = baz", however it seems better to ignore such nodes
+        // and limit the chain to ["foo", "bar"].
         break;
       case "Identifier":
         aStore.push(aNode.name);
         break;
     }
     return aStore;
-  },
-
-  /**
-   * Returns an evaluation string which can be used to obtain the
-   * current value for the respective identifier.
-   *
-   * @param Node aNode
-   *        The leaf node (e.g. Identifier, Literal) to begin the scan from.
-   * @return string
-   *         The corresponding evaluation string, or empty string if
-   *         the specified leaf node can't be used.
-   */
-  getIdentifierEvalString: function(aNode) {
-    switch (aNode._parent.type) {
-      case "ObjectExpression":
-        // If the identifier is the actual property value, it can be used
-        // directly as an evaluation string. Otherwise, construct the property
-        // access chain, since the value might have changed.
-        if (!this._getObjectExpressionPropertyKeyForValue(aNode)) {
-          let propertyChain = this._getObjectExpressionPropertyChain(aNode._parent);
-          let propertyLeaf = aNode.name;
-          return [...propertyChain, propertyLeaf].join(".");
-        }
-        break;
-      case "MemberExpression":
-        // Make sure this is a property identifier, not the parent object.
-        if (aNode._parent.property == aNode) {
-          return this._getMemberExpressionPropertyChain(aNode._parent).join(".");
-        }
-        break;
-    }
-    switch (aNode.type) {
-      case "ThisExpression":
-        return "this";
-      case "Identifier":
-        return aNode.name;
-      case "Literal":
-        if (typeof aNode.value == "string") {
-          return "\"" + aNode.value + "\"";
-        } else {
-          return aNode.value + "";
-        }
-      default:
-        return "";
-    }
   }
 };
 
@@ -713,24 +527,7 @@ let SyntaxTreeVisitor = {
    *        types of noes (e.g: onFunctionDeclaration, onBlockStatement etc.).
    */
   walk: function(aTree, aCallbacks) {
-    this.break = false;
     this[aTree.type](aTree, aCallbacks);
-  },
-
-  /**
-   * Filters all the nodes in this syntax tree based on a predicate.
-   *
-   * @param object aTree
-   *        The AST nodes generated by the reflection API
-   * @param function aPredicate
-   *        The predicate ran on each node.
-   * @return array
-   *         An array of nodes validating the predicate.
-   */
-  filter: function(aTree, aPredicate) {
-    let store = [];
-    this.walk(aTree, { onNode: e => { if (aPredicate(e)) store.push(e); } });
-    return store;
   },
 
   /**
@@ -2324,4 +2121,4 @@ function log(aStr, aEx) {
   dump(msg + "\n");
 };
 
-XPCOMUtils.defineLazyGetter(Parser, "reflectionAPI", () => Reflect);
+XPCOMUtils.defineLazyGetter(Parser, "reflectionAPI", function() Reflect);

@@ -14,8 +14,6 @@
 class nsPresContext;
 
 namespace mozilla {
-class WidgetEvent;
-class WidgetGUIEvent;
 namespace dom {
 class HTMLInputElement;
 }
@@ -31,8 +29,6 @@ class nsNumberControlFrame MOZ_FINAL : public nsContainerFrame
   NS_NewNumberControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   typedef mozilla::dom::HTMLInputElement HTMLInputElement;
-  typedef mozilla::WidgetEvent WidgetEvent;
-  typedef mozilla::WidgetGUIEvent WidgetGUIEvent;
 
   nsNumberControlFrame(nsStyleContext* aContext);
 
@@ -89,21 +85,6 @@ public:
   }
 
   HTMLInputElement* GetAnonTextControl();
-
-  enum SpinButtonEnum {
-    eSpinButtonNone,
-    eSpinButtonUp,
-    eSpinButtonDown
-  };
-
-  /**
-   * Returns one of the SpinButtonEnum values to depending on whether the
-   * pointer event is over the spin-up button, the spin-down button, or
-   * neither.
-   */
-  int32_t GetSpinButtonForPointerEvent(WidgetGUIEvent* aEvent) const;
-
-  void HandleFocusEvent(WidgetEvent* aEvent);
 
 private:
 
