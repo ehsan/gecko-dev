@@ -128,7 +128,7 @@ typedef mjit::Compiler::ActiveFrame ActiveFrame;
 bool
 Probes::JITWatcher::CollectNativeRegions(RegionVector &regions,
                                          JSRuntime *rt,
-                                         mjit::JITChunk *jit,
+                                         mjit::JITScript *jit,
                                          mjit::JSActiveFrame *outerFrame,
                                          mjit::JSActiveFrame **inlineFrames)
 {

@@ -569,8 +569,7 @@ ContextStack::ensureOnTop(JSContext *cx, MaybeReportError report, uintN nvars,
     if (FrameRegs *regs = cx->maybeRegs()) {
         JSFunction *fun = NULL;
         if (JSInlinedSite *site = regs->inlined()) {
-            mjit::JITChunk *chunk = regs->fp()->jit()->chunk(regs->pc);
-            fun = chunk->inlineFrames()[site->inlineIndex].fun;
+            fun = regs->fp()->jit()->inlineFrames()[site->inlineIndex].fun;
         } else {
             StackFrame *fp = regs->fp();
             if (fp->isFunctionFrame()) {

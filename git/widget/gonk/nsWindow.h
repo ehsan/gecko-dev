@@ -98,7 +98,9 @@ public:
     NS_IMETHOD IsEnabled(bool *aState);
     NS_IMETHOD SetFocus(bool aRaise = false);
     NS_IMETHOD ConfigureChildren(const nsTArray<nsIWidget::Configuration>&);
-    NS_IMETHOD Invalidate(const nsIntRect &aRect);
+    NS_IMETHOD Invalidate(const nsIntRect &aRect,
+                          bool aIsSynchronous);
+    NS_IMETHOD Update();
     virtual void* GetNativeData(PRUint32 aDataType);
     NS_IMETHOD SetTitle(const nsAString& aTitle)
     {

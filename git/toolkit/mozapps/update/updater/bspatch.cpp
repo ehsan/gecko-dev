@@ -96,7 +96,7 @@ MBS_ApplyPatch(const MBSPatchHeader *header, FILE* patchFile,
                                                header->difflen +
                                                header->extralen);
   if (!buf)
-    return BSPATCH_MEM_ERROR;
+    return MEM_ERROR;
 
   int rv = OK;
 

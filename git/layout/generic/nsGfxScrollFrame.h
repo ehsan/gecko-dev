@@ -245,9 +245,6 @@ public:
   bool IsLTR() const;
   bool IsScrollbarOnRight() const;
   bool IsScrollingActive() const { return mScrollingActive || ShouldBuildLayer(); }
-
-  bool UpdateOverflow();
-
   // adjust the scrollbar rectangle aRect to account for any visible resizer.
   // aHasResizer specifies if there is a content resizer, however this method
   // will also check if a widget resizer is present as well.
@@ -388,7 +385,7 @@ public:
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
   NS_IMETHOD GetPadding(nsMargin& aPadding);
-  virtual bool IsCollapsed();
+  virtual bool IsCollapsed(nsBoxLayoutState& aBoxLayoutState);
   
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -499,9 +496,6 @@ public:
   }
   virtual bool IsScrollingActive() {
     return mInner.IsScrollingActive();
-  }
-  virtual bool UpdateOverflow() {
-    return mInner.UpdateOverflow();
   }
 
   // nsIStatefulFrame
@@ -737,9 +731,6 @@ public:
   }
   virtual bool IsScrollingActive() {
     return mInner.IsScrollingActive();
-  }
-  virtual bool UpdateOverflow() {
-    return mInner.UpdateOverflow();
   }
 
   // nsIStatefulFrame

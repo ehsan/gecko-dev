@@ -242,23 +242,20 @@ struct AutoEnterTypeInference
  */
 struct AutoEnterCompilation
 {
-    RecompileInfo &info;
+    JSContext *cx;
+    JSScript *script;
 
-    AutoEnterCompilation(JSContext *cx, JSScript *script, bool constructing, unsigned chunkIndex)
-        : info(cx->compartment->types.compiledInfo)
+    AutoEnterCompilation(JSContext *cx, JSScript *script)
+        : cx(cx), script(script)
     {
-        JS_ASSERT(!info.script);
-        info.script = script;
-        info.constructing = constructing;
-        info.chunkIndex = chunkIndex;
+        JS_ASSERT(!cx->compartment->types.compiledScript);
+        cx->compartment->types.compiledScript = script;
     }
 
     ~AutoEnterCompilation()
     {
-        JS_ASSERT(info.script);
-        info.script = NULL;
-        info.constructing = false;
-        info.chunkIndex = 0;
+        JS_ASSERT(cx->compartment->types.compiledScript == script);
+        cx->compartment->types.compiledScript = NULL;
     }
 };
 

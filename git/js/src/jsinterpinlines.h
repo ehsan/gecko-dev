@@ -383,16 +383,8 @@ NameOperation(JSContext *cx, jsbytecode *pc, Value *vp)
 {
     JSObject *obj = cx->stack.currentScriptedScopeChain();
 
-    /*
-     * Skip along the scope chain to the enclosing global object. This is
-     * used for GNAME opcodes where the bytecode emitter has determined a
-     * name access must be on the global. It also insulates us from bugs
-     * in the emitter: type inference will assume that GNAME opcodes are
-     * accessing the global object, and the inferred behavior should match
-     * the actual behavior even if the id could be found on the scope chain
-     * before the global object.
-     */
-    if (js_CodeSpec[*pc].format & JOF_GNAME)
+    bool global = js_CodeSpec[*pc].format & JOF_GNAME;
+    if (global)
         obj = &obj->global();
 
     PropertyCacheEntry *entry;
@@ -409,7 +401,7 @@ NameOperation(JSContext *cx, jsbytecode *pc, Value *vp)
     jsid id = ATOM_TO_JSID(name);
 
     JSProperty *prop;
-    if (!FindPropertyHelper(cx, name, true, obj, &obj, &obj2, &prop))
+    if (!FindPropertyHelper(cx, name, true, global, &obj, &obj2, &prop))
         return false;
     if (!prop) {
         /* Kludge to allow (typeof foo == "undefined") tests. */

@@ -455,7 +455,30 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
      * Here the GC lock is still held after js_InitContextThreadAndLockGC took it and
      * the GC is not running on another thread.
      */
-    bool first = JS_CLIST_IS_EMPTY(&rt->contextList);
+    bool first;
+    for (;;) {
+        if (rt->state == JSRTS_UP) {
+            JS_ASSERT(!JS_CLIST_IS_EMPTY(&rt->contextList));
+            first = false;
+            break;
+        }
+        if (rt->state == JSRTS_DOWN) {
+            JS_ASSERT(JS_CLIST_IS_EMPTY(&rt->contextList));
+            first = true;
+            rt->state = JSRTS_LAUNCHING;
+            break;
+        }
+        JS_WAIT_CONDVAR(rt->stateChange, JS_NO_TIMEOUT);
+
+        /*
+         * During the above wait after we are notified about the state change
+         * but before we wake up, another thread could enter the GC from
+         * js_DestroyContext, bug 478336. So we must wait here to ensure that
+         * when we exit the loop with the first flag set to true, that GC is
+         * finished.
+         */
+        js_WaitForGC(rt);
+    }
     JS_APPEND_LINK(&cx->link, &rt->contextList);
     JS_UNLOCK_GC(rt);
 
@@ -484,6 +507,10 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
             js_DestroyContext(cx, JSDCM_NEW_FAILED);
             return NULL;
         }
+
+        AutoLockGC lock(rt);
+        rt->state = JSRTS_UP;
+        JS_NOTIFY_ALL_CONDVAR(rt->stateChange);
     }
 
     JSContextCallback cxCallback = rt->cxCallback;
@@ -502,6 +529,7 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
     JS_AbortIfWrongThread(rt);
 
     JSContextCallback cxCallback;
+    JSBool last;
 
     JS_ASSERT(!cx->enumerators);
 
@@ -537,6 +565,7 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
     }
 
     JS_LOCK_GC(rt);
+    JS_ASSERT(rt->state == JSRTS_UP || rt->state == JSRTS_LAUNCHING);
 #ifdef JS_THREADSAFE
     /*
      * Typically we are called outside a request, so ensure that the GC is not
@@ -546,7 +575,9 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
         js_WaitForGC(rt);
 #endif
     JS_REMOVE_LINK(&cx->link);
-    bool last = !rt->hasContexts();
+    last = (rt->contextList.next == &rt->contextList);
+    if (last)
+        rt->state = JSRTS_LANDING;
     if (last || mode == JSDCM_FORCE_GC || mode == JSDCM_MAYBE_GC
 #ifdef JS_THREADSAFE
         || cx->outstandingRequests != 0
@@ -564,7 +595,12 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
             /*
              * If this thread is not in a request already, begin one now so
              * that we wait for any racing GC started on a not-last context to
-             * finish, before we plow ahead and unpin atoms.
+             * finish, before we plow ahead and unpin atoms. Note that even
+             * though we begin a request here if necessary, we end all
+             * thread's requests before forcing a final GC. This lets any
+             * not-last context destruction racing in another thread try to
+             * force or maybe run the GC, but by that point, rt->state will
+             * not be JSRTS_UP, and that GC attempt will return early.
              */
             if (cx->thread()->data.requestDepth == 0)
                 JS_BeginRequest(cx);
@@ -590,16 +626,24 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
         }
 
 #ifdef JS_THREADSAFE
-        /* Destroying a context implicitly calls JS_EndRequest(). */
+        /*
+         * Destroying a context implicitly calls JS_EndRequest().  Also, we must
+         * end our request here in case we are "last" -- in that event, another
+         * js_DestroyContext that was not last might be waiting in the GC for our
+         * request to end.  We'll let it run below, just before we do the truly
+         * final GC and then free atom state.
+         */
         while (cx->outstandingRequests != 0)
             JS_EndRequest(cx);
 #endif
 
         if (last) {
-            js_GC(cx, NULL, GC_NORMAL, gcstats::LASTCONTEXT);
+            js_GC(cx, NULL, GC_LAST_CONTEXT, gcstats::LASTCONTEXT);
 
             /* Take the runtime down, now that it has no contexts or atoms. */
             JS_LOCK_GC(rt);
+            rt->state = JSRTS_DOWN;
+            JS_NOTIFY_ALL_CONDVAR(rt->stateChange);
         } else {
             if (mode == JSDCM_FORCE_GC)
                 js_GC(cx, NULL, GC_NORMAL, gcstats::DESTROYCONTEXT);

@@ -1718,18 +1718,7 @@ nsObjectFrame::PaintPlugin(nsDisplayListBuilder* aBuilder,
       PresContext()->AppUnitsToGfxUnits(aDirtyRect);
     gfxContext* ctx = aRenderingContext.ThebesContext();
 
-    gfx3DMatrix matrix3d = nsLayoutUtils::GetTransformToAncestor(this, nsnull);
-
-    gfxMatrix matrix2d;
-    if (!matrix3d.Is2D(&matrix2d))
-      return;
-
-    // The matrix includes the frame's position, so we need to transform
-    // from 0,0 to get the correct coordinates.
-    frameGfxRect.MoveTo(0, 0);
-    matrix2d.NudgeToIntegers();
-
-    mInstanceOwner->Paint(ctx, matrix2d.Transform(frameGfxRect), dirtyGfxRect);
+    mInstanceOwner->Paint(ctx, frameGfxRect, dirtyGfxRect);
     return;
   }
 #endif

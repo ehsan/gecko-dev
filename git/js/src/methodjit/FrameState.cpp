@@ -355,7 +355,8 @@ FrameState::bestEvictReg(uint32_t mask, bool includePinned) const
          * Evict variables which are only live in future loop iterations, and are
          * not carried around the loop in a register.
          */
-        if (lifetime->loopTail && (!loop || !loop->carriesLoopReg(fe))) {
+        JS_ASSERT_IF(lifetime->loopTail, loop);
+        if (lifetime->loopTail && !loop->carriesLoopReg(fe)) {
             JaegerSpew(JSpew_Regalloc, "result: %s (%s) only live in later iterations\n",
                        entryName(fe), reg.name());
             return reg;
@@ -578,12 +579,9 @@ FrameState::computeAllocation(jsbytecode *target)
     if (!alloc)
         return NULL;
 
-    /*
-     * State must be synced at exception and switch targets, at traps and when
-     * crossing between compilation chunks.
-     */
-    if (a->analysis->getCode(target).safePoint ||
-        (!a->parent && !cc.bytecodeInChunk(target))) {
+    if (a->analysis->getCode(target).exceptionEntry || a->analysis->getCode(target).switchTarget ||
+        a->script->hasBreakpointsAt(target)) {
+        /* State must be synced at exception and switch targets, and at traps. */
 #ifdef DEBUG
         if (IsJaegerSpewChannelActive(JSpew_Regalloc)) {
             JaegerSpew(JSpew_Regalloc, "allocation at %u:", unsigned(target - a->script->code));

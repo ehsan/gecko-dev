@@ -36,13 +36,10 @@ var windowListener = {
                 let win = enumerator.getNext().QueryInterface(Components.interfaces.nsIDOMWindow);
                 setDefaultPrefs();
                 Components.utils.import("chrome://reftest/content/reftest.jsm");
-                win.addEventListener("pageshow", function() {
-                    win.removeEventListener("pageshow", arguments.callee); 
-                    // We add a setTimeout here because windows.innerWidth/Height are not set yet;
-                    win.setTimeout(function () {OnRefTestLoad(win);}, 0);
-                });
+                win.addEventListener("UIReady", function() {OnRefTestLoad(win);});
                 break;
             }
+
         }, false);
    },
    onCloseWindow: function(aWindow){ },

@@ -60,7 +60,7 @@ JS_SetGrayGCRootsTracer(JSRuntime *rt, JSTraceDataOp traceOp, void *data)
 JS_FRIEND_API(JSString *)
 JS_GetAnonymousString(JSRuntime *rt)
 {
-    JS_ASSERT(rt->hasContexts());
+    JS_ASSERT(rt->state == JSRTS_UP);
     return rt->atomState.anonymousAtom;
 }
 

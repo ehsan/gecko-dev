@@ -337,51 +337,14 @@ class Compiler : public BaseCompiler
         size_t offsetIndex;
     };
 
-    struct JumpTableEdge {
-        uint32_t source;
-        uint32_t target;
-    };
-
-    struct ChunkJumpTableEdge {
-        JumpTableEdge edge;
-        void **jumpTableEntry;
-    };
-
     struct LoopEntry {
         uint32_t pcOffset;
         Label label;
     };
 
-    /*
-     * Information about the current type of an argument or local in the
-     * script. The known type tag of these types is cached when possible to
-     * avoid generating duplicate dependency constraints.
-     */
-    class VarType {
+    struct VarType {
         JSValueType type;
         types::TypeSet *types;
-
-      public:
-        void setTypes(types::TypeSet *types) {
-            this->types = types;
-            this->type = JSVAL_TYPE_MISSING;
-        }
-
-        types::TypeSet *getTypes() { return types; }
-
-        JSValueType getTypeTag(JSContext *cx) {
-            if (type == JSVAL_TYPE_MISSING)
-                type = types ? types->getKnownTypeTag(cx) : JSVAL_TYPE_UNKNOWN;
-            return type;
-        }
-    };
-
-    struct OutgoingChunkEdge {
-        uint32_t source;
-        uint32_t target;
-
-        Jump fastJump;
-        MaybeJump slowJump;
     };
 
     struct SlotType
@@ -392,9 +355,7 @@ class Compiler : public BaseCompiler
     };
 
     JSScript *outerScript;
-    unsigned chunkIndex;
     bool isConstructing;
-    ChunkDescriptor &outerChunk;
 
     /* SSA information for the outer script and all frames we will be inlining. */
     analyze::CrossScriptSSA ssa;
@@ -467,9 +428,8 @@ private:
     js::Vector<uint32_t> fixedIntToDoubleEntries;
     js::Vector<uint32_t> fixedDoubleToAnyEntries;
     js::Vector<JumpTable, 16> jumpTables;
-    js::Vector<JumpTableEdge, 16> jumpTableEdges;
+    js::Vector<uint32_t, 16> jumpTableOffsets;
     js::Vector<LoopEntry, 16> loopEntries;
-    js::Vector<OutgoingChunkEdge, 16> chunkEdges;
     StubCompiler stubcc;
     Label invokeLabel;
     Label arityLabel;
@@ -492,7 +452,7 @@ private:
 
     friend class CompilerAllocPolicy;
   public:
-    Compiler(JSContext *cx, JSScript *outerScript, unsigned chunkIndex, bool isConstructing);
+    Compiler(JSContext *cx, JSScript *outerScript, bool isConstructing);
     ~Compiler();
 
     CompileStatus compile();
@@ -515,15 +475,6 @@ private:
         while (scan && scan->parent != outer)
             scan = static_cast<ActiveFrame *>(scan->parent);
         return scan->parentPC;
-    }
-
-    JITScript *outerJIT() {
-        return outerScript->getJIT(isConstructing);
-    }
-
-    bool bytecodeInChunk(jsbytecode *pc) {
-        return (unsigned(pc - outerScript->code) >= outerChunk.begin)
-            && (unsigned(pc - outerScript->code) < outerChunk.end);
     }
 
     jsbytecode *inlinePC() { return PC; }
@@ -549,11 +500,11 @@ private:
     }
 
   private:
-    CompileStatus performCompilation();
+    CompileStatus performCompilation(JITScript **jitp);
     CompileStatus generatePrologue();
     CompileStatus generateMethod();
     CompileStatus generateEpilogue();
-    CompileStatus finishThisUp();
+    CompileStatus finishThisUp(JITScript **jitp);
     CompileStatus pushActiveFrame(JSScript *script, uint32_t argc);
     void popActiveFrame();
     void updatePCCounters(jsbytecode *pc, Label *start, bool *updated);
@@ -640,12 +591,9 @@ private:
     void tryConvertInteger(FrameEntry *fe, Uses uses);
 
     /* Opcode handlers. */
-    bool jumpAndRun(Jump j, jsbytecode *target,
-                    Jump *slow = NULL, bool *trampoline = NULL,
-                    bool fallthrough = false);
+    bool jumpAndRun(Jump j, jsbytecode *target, Jump *slow = NULL, bool *trampoline = NULL);
     bool startLoop(jsbytecode *head, Jump entry, jsbytecode *entryTarget);
     bool finishLoop(jsbytecode *head);
-    inline bool shouldStartLoop(jsbytecode *head);
     void jsop_bindname(PropertyName *name);
     void jsop_setglobal(uint32_t index);
     void jsop_getprop_slow(PropertyName *name, bool forPrototype = false);

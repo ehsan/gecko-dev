@@ -920,6 +920,13 @@ CalculateContainingBlockSizeForAbsolutes(const nsHTMLReflowState& aReflowState,
   return cbSize;
 }
 
+static inline bool IsClippingChildren(nsIFrame* aFrame,
+                                        const nsHTMLReflowState& aReflowState)
+{
+  return aReflowState.mStyleDisplay->mOverflowX == NS_STYLE_OVERFLOW_CLIP ||
+    nsFrame::ApplyPaginatedOverflowClipping(aFrame);
+}
+
 NS_IMETHODIMP
 nsBlockFrame::Reflow(nsPresContext*           aPresContext,
                      nsHTMLReflowMetrics&     aMetrics,
@@ -951,7 +958,7 @@ nsBlockFrame::Reflow(nsPresContext*           aPresContext,
   // make sure our kids fit too.
   if (aReflowState.availableHeight != NS_UNCONSTRAINEDSIZE &&
       aReflowState.ComputedHeight() != NS_AUTOHEIGHT &&
-      ApplyOverflowClipping(this, aReflowState.mStyleDisplay)) {
+      IsClippingChildren(this, aReflowState)) {
     nsMargin heightExtras = aReflowState.mComputedBorderPadding;
     if (GetSkipSides() & NS_SIDE_TOP) {
       heightExtras.top = 0;
@@ -1115,9 +1122,7 @@ nsBlockFrame::Reflow(nsPresContext*           aPresContext,
   // Compute our final size
   nscoord bottomEdgeOfChildren;
   ComputeFinalSize(*reflowState, state, aMetrics, &bottomEdgeOfChildren);
-  nsRect areaBounds = nsRect(0, 0, aMetrics.width, aMetrics.height);
-  ComputeOverflowAreas(areaBounds, reflowState->mStyleDisplay,
-                       bottomEdgeOfChildren, aMetrics.mOverflowAreas);
+  ComputeOverflowAreas(*reflowState, aMetrics, bottomEdgeOfChildren);
   // Factor overflow container child bounds into the overflow area
   aMetrics.mOverflowAreas.UnionWith(ocBounds);
   // Factor pushed float child bounds into the overflow area
@@ -1447,16 +1452,17 @@ nsBlockFrame::ComputeFinalSize(const nsHTMLReflowState& aReflowState,
 }
 
 void
-nsBlockFrame::ComputeOverflowAreas(const nsRect&         aBounds,
-                                   const nsStyleDisplay* aDisplay,
-                                   nscoord               aBottomEdgeOfChildren,
-                                   nsOverflowAreas&      aOverflowAreas)
+nsBlockFrame::ComputeOverflowAreas(const nsHTMLReflowState& aReflowState,
+                                   nsHTMLReflowMetrics&     aMetrics,
+                                   nscoord                  aBottomEdgeOfChildren)
 {
   // Compute the overflow areas of our children
   // XXX_perf: This can be done incrementally.  It is currently one of
   // the things that makes incremental reflow O(N^2).
-  nsOverflowAreas areas(aBounds, aBounds);
-  if (!ApplyOverflowClipping(this, aDisplay)) {
+  nsRect bounds(0, 0, aMetrics.width, aMetrics.height);
+  nsOverflowAreas areas(bounds, bounds);
+
+  if (!IsClippingChildren(this, aReflowState)) {
     for (line_iterator line = begin_lines(), line_end = end_lines();
          line != line_end;
          ++line) {
@@ -1488,31 +1494,7 @@ nsBlockFrame::ComputeOverflowAreas(const nsRect&         aBounds,
   printf(": ca=%d,%d,%d,%d\n", area.x, area.y, area.width, area.height);
 #endif
 
-  aOverflowAreas = areas;
-}
-
-bool
-nsBlockFrame::UpdateOverflow()
-{
-  // We need to update the overflow areas of lines manually, as they
-  // get cached and re-used otherwise. Lines aren't exposed as normal
-  // frame children, so calling UnionChildOverflow alone will end up
-  // using the old cached values.
-  for (line_iterator line = begin_lines(), line_end = end_lines();
-       line != line_end;
-       ++line) {
-    nsOverflowAreas lineAreas;
-
-    PRInt32 n = line->GetChildCount();
-    for (nsIFrame* lineFrame = line->mFirstChild;
-         n > 0; lineFrame = lineFrame->GetNextSibling(), --n) {
-      ConsiderChildOverflow(lineAreas, lineFrame);
-    }
-
-    line->SetOverflowAreas(lineAreas);
-  }
-
-  return nsBlockFrameSuper::UpdateOverflow();
+  aMetrics.mOverflowAreas = areas;
 }
 
 nsresult

@@ -1095,10 +1095,9 @@ fun_getProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp)
          * to recover its callee object.
          */
         JSInlinedSite *inlined;
-        jsbytecode *prevpc = fp->prev()->pcQuadratic(cx->stack, fp, &inlined);
+        fp->prev()->pcQuadratic(cx->stack, fp, &inlined);
         if (inlined) {
-            mjit::JITChunk *chunk = fp->prev()->jit()->chunk(prevpc);
-            JSFunction *fun = chunk->inlineFrames()[inlined->inlineIndex].fun;
+            JSFunction *fun = fp->prev()->jit()->inlineFrames()[inlined->inlineIndex].fun;
             fun->script()->uninlineable = true;
             MarkTypeObjectFlags(cx, fun, OBJECT_FLAG_UNINLINEABLE);
         }
@@ -1608,7 +1607,7 @@ js_fun_call(JSContext *cx, uintN argc, Value *vp)
     /* Push fval, thisv, and the args. */
     args.calleev() = fval;
     args.thisv() = thisv;
-    PodCopy(args.array(), argv, argc);
+    memcpy(args.array(), argv, argc * sizeof *argv);
 
     bool ok = Invoke(cx, args);
     *vp = args.rval();
@@ -1782,7 +1781,7 @@ CallOrConstructBoundFunction(JSContext *cx, uintN argc, Value *vp)
     /* 15.3.4.5.1, 15.3.4.5.2 step 4. */
     for (uintN i = 0; i < argslen; i++)
         args[i] = fun->getBoundFunctionArgument(i);
-    PodCopy(args.array() + argslen, vp + 2, argc);
+    memcpy(args.array() + argslen, vp + 2, argc * sizeof(Value));
 
     /* 15.3.4.5.1, 15.3.4.5.2 step 5. */
     args.calleev().setObject(*target);

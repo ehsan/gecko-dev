@@ -128,11 +128,7 @@ class PICStubCompiler : public BaseCompiler
     }
 
     LookupStatus disable(JSContext *cx, const char *reason) {
-        return pic.disable(f, reason, stub);
-    }
-
-    LookupStatus disable(VMFrame &f, const char *reason) {
-        return pic.disable(f, reason, stub);
+        return pic.disable(cx, reason, stub);
     }
 
     bool hadGC() {
@@ -224,7 +220,7 @@ class SetPropCompiler : public PICStubCompiler
         JS_ASSERT(!pic.inlinePathPatched);
         JaegerSpew(JSpew_PICs, "patch setprop inline at %p\n", pic.fastPathStart.executableAddress());
 
-        Repatcher repatcher(f.chunk());
+        Repatcher repatcher(f.jit());
         SetPropLabels &labels = pic.setPropLabels();
 
         int32_t offset;
@@ -263,7 +259,7 @@ class SetPropCompiler : public PICStubCompiler
 
     void patchPreviousToHere(CodeLocationLabel cs)
     {
-        Repatcher repatcher(pic.lastCodeBlock(f.chunk()));
+        Repatcher repatcher(pic.lastCodeBlock(f.jit()));
         CodeLocationLabel label = pic.lastPathStart();
 
         // Patch either the inline fast path or a generated stub. The stub
@@ -441,14 +437,14 @@ class SetPropCompiler : public PICStubCompiler
             pic.secondShapeGuard = 0;
         }
 
-        pic.updatePCCounters(f, masm);
+        pic.updatePCCounters(cx, masm);
 
         PICLinker buffer(masm, pic);
         if (!buffer.init(cx))
             return error();
 
-        if (!buffer.verifyRange(pic.lastCodeBlock(f.chunk())) ||
-            !buffer.verifyRange(f.chunk())) {
+        if (!buffer.verifyRange(pic.lastCodeBlock(f.jit())) ||
+            !buffer.verifyRange(f.jit())) {
             return disable("code memory is out of range");
         }
 
@@ -743,10 +739,8 @@ struct GetPropHelper {
   public:
     LookupStatus bind() {
         RecompilationMonitor monitor(cx);
-        JSObject *scopeChain = cx->stack.currentScriptedScopeChain();
-        if (js_CodeSpec[*f.pc()].format & JOF_GNAME)
-            scopeChain = &scopeChain->global();
-        if (!FindProperty(cx, name, scopeChain, &obj, &holder, &prop))
+        bool global = (js_CodeSpec[*f.pc()].format & JOF_GNAME);
+        if (!FindProperty(cx, name, global, &obj, &holder, &prop))
             return ic.error(cx);
         if (monitor.recompiled())
             return Lookup_Uncacheable;
@@ -763,7 +757,7 @@ struct GetPropHelper {
     LookupStatus lookup() {
         JSObject *aobj = js_GetProtoIfDenseArray(obj);
         if (!aobj->isNative())
-            return ic.disable(f, "non-native");
+            return ic.disable(cx, "non-native");
 
         RecompilationMonitor monitor(cx);
         if (!aobj->lookupProperty(cx, name, &holder, &prop))
@@ -772,9 +766,9 @@ struct GetPropHelper {
             return Lookup_Uncacheable;
 
         if (!prop)
-            return ic.disable(f, "lookup failed");
+            return ic.disable(cx, "lookup failed");
         if (!IsCacheableProtoChain(obj, holder))
-            return ic.disable(f, "non-native holder");
+            return ic.disable(cx, "non-native holder");
         shape = (const Shape *)prop;
         return Lookup_Cacheable;
     }
@@ -783,14 +777,14 @@ struct GetPropHelper {
         if (!shape->hasDefaultGetter()) {
             if (shape->isMethod()) {
                 if (JSOp(*f.pc()) != JSOP_CALLPROP)
-                    return ic.disable(f, "method valued shape");
+                    return ic.disable(cx, "method valued shape");
             } else {
                 if (shape->hasGetterValue())
-                    return ic.disable(f, "getter value shape");
+                    return ic.disable(cx, "getter value shape");
                 if (shape->hasSlot() && holder != obj)
-                    return ic.disable(f, "slotful getter hook through prototype");
+                    return ic.disable(cx, "slotful getter hook through prototype");
                 if (!ic.canCallHook)
-                    return ic.disable(f, "can't call getter hook");
+                    return ic.disable(cx, "can't call getter hook");
                 if (f.regs.inlined()) {
                     /*
                      * As with native stubs, getter hook stubs can't be
@@ -804,7 +798,7 @@ struct GetPropHelper {
                 }
             }
         } else if (!shape->hasSlot()) {
-            return ic.disable(f, "no slot");
+            return ic.disable(cx, "no slot");
         }
 
         return Lookup_Cacheable;
@@ -871,14 +865,14 @@ class GetPropCompiler : public PICStubCompiler
         masm.move(ImmType(JSVAL_TYPE_INT32), pic.shapeReg);
         Jump done = masm.jump();
 
-        pic.updatePCCounters(f, masm);
+        pic.updatePCCounters(cx, masm);
 
         PICLinker buffer(masm, pic);
         if (!buffer.init(cx))
             return error();
 
-        if (!buffer.verifyRange(pic.lastCodeBlock(f.chunk())) ||
-            !buffer.verifyRange(f.chunk())) {
+        if (!buffer.verifyRange(pic.lastCodeBlock(f.jit())) ||
+            !buffer.verifyRange(f.jit())) {
             return disable("code memory is out of range");
         }
 
@@ -912,14 +906,14 @@ class GetPropCompiler : public PICStubCompiler
         masm.move(ImmType(JSVAL_TYPE_INT32), pic.shapeReg);
         Jump done = masm.jump();
 
-        pic.updatePCCounters(f, masm);
+        pic.updatePCCounters(cx, masm);
 
         PICLinker buffer(masm, pic);
         if (!buffer.init(cx))
             return error();
 
-        if (!buffer.verifyRange(pic.lastCodeBlock(f.chunk())) ||
-            !buffer.verifyRange(f.chunk())) {
+        if (!buffer.verifyRange(pic.lastCodeBlock(f.jit())) ||
+            !buffer.verifyRange(f.jit())) {
             return disable("code memory is out of range");
         }
 
@@ -950,14 +944,14 @@ class GetPropCompiler : public PICStubCompiler
         masm.move(ImmType(JSVAL_TYPE_INT32), pic.shapeReg);
         Jump done = masm.jump();
 
-        pic.updatePCCounters(f, masm);
+        pic.updatePCCounters(cx, masm);
 
         PICLinker buffer(masm, pic);
         if (!buffer.init(cx))
             return error();
 
-        if (!buffer.verifyRange(pic.lastCodeBlock(f.chunk())) ||
-            !buffer.verifyRange(f.chunk())) {
+        if (!buffer.verifyRange(pic.lastCodeBlock(f.jit())) ||
+            !buffer.verifyRange(f.jit())) {
             return disable("code memory is out of range");
         }
 
@@ -1020,14 +1014,14 @@ class GetPropCompiler : public PICStubCompiler
 
         Jump done = masm.jump();
 
-        pic.updatePCCounters(f, masm);
+        pic.updatePCCounters(cx, masm);
 
         PICLinker buffer(masm, pic);
         if (!buffer.init(cx))
             return error();
 
-        if (!buffer.verifyRange(pic.lastCodeBlock(f.chunk())) ||
-            !buffer.verifyRange(f.chunk())) {
+        if (!buffer.verifyRange(pic.lastCodeBlock(f.jit())) ||
+            !buffer.verifyRange(f.jit())) {
             return disable("code memory is out of range");
         }
 
@@ -1041,7 +1035,7 @@ class GetPropCompiler : public PICStubCompiler
 
         /* Patch the type check to jump here. */
         if (pic.hasTypeCheck()) {
-            Repatcher repatcher(f.chunk());
+            Repatcher repatcher(f.jit());
             repatcher.relink(pic.getPropLabels().getInlineTypeJump(pic.fastPathStart), cs);
         }
 
@@ -1063,14 +1057,14 @@ class GetPropCompiler : public PICStubCompiler
         masm.move(ImmType(JSVAL_TYPE_INT32), pic.shapeReg);
         Jump done = masm.jump();
 
-        pic.updatePCCounters(f, masm);
+        pic.updatePCCounters(cx, masm);
 
         PICLinker buffer(masm, pic);
         if (!buffer.init(cx))
             return error();
 
-        if (!buffer.verifyRange(pic.lastCodeBlock(f.chunk())) ||
-            !buffer.verifyRange(f.chunk())) {
+        if (!buffer.verifyRange(pic.lastCodeBlock(f.jit())) ||
+            !buffer.verifyRange(f.jit())) {
             return disable("code memory is out of range");
         }
 
@@ -1082,7 +1076,7 @@ class GetPropCompiler : public PICStubCompiler
                    start.executableAddress());
 
         if (pic.hasTypeCheck()) {
-            Repatcher repatcher(f.chunk());
+            Repatcher repatcher(f.jit());
             repatcher.relink(pic.getPropLabels().getInlineTypeJump(pic.fastPathStart), start);
         }
 
@@ -1094,7 +1088,7 @@ class GetPropCompiler : public PICStubCompiler
     LookupStatus patchInline(JSObject *holder, const Shape *shape)
     {
         spew("patch", "inline");
-        Repatcher repatcher(f.chunk());
+        Repatcher repatcher(f.jit());
         GetPropLabels &labels = pic.getPropLabels();
 
         int32_t offset;
@@ -1196,12 +1190,12 @@ class GetPropCompiler : public PICStubCompiler
         NativeStubLinker::FinalJump done;
         if (!NativeStubEpilogue(f, masm, &done, 0, vpOffset, pic.shapeReg, pic.objReg))
             return;
-        NativeStubLinker linker(masm, f.chunk(), f.regs.pc, done);
+        NativeStubLinker linker(masm, f.jit(), f.regs.pc, done);
         if (!linker.init(f.cx))
             THROW();
 
-        if (!linker.verifyRange(pic.lastCodeBlock(f.chunk())) ||
-            !linker.verifyRange(f.chunk())) {
+        if (!linker.verifyRange(pic.lastCodeBlock(f.jit())) ||
+            !linker.verifyRange(f.jit())) {
             disable("code memory is out of range");
             return;
         }
@@ -1283,14 +1277,14 @@ class GetPropCompiler : public PICStubCompiler
         masm.loadObjProp(holder, holderReg, shape, pic.shapeReg, pic.objReg);
         Jump done = masm.jump();
 
-        pic.updatePCCounters(f, masm);
+        pic.updatePCCounters(cx, masm);
 
         PICLinker buffer(masm, pic);
         if (!buffer.init(cx))
             return error();
 
-        if (!buffer.verifyRange(pic.lastCodeBlock(f.chunk())) ||
-            !buffer.verifyRange(f.chunk())) {
+        if (!buffer.verifyRange(pic.lastCodeBlock(f.jit())) ||
+            !buffer.verifyRange(f.jit())) {
             return disable("code memory is out of range");
         }
 
@@ -1326,7 +1320,7 @@ class GetPropCompiler : public PICStubCompiler
 
     void patchPreviousToHere(CodeLocationLabel cs)
     {
-        Repatcher repatcher(pic.lastCodeBlock(f.chunk()));
+        Repatcher repatcher(pic.lastCodeBlock(f.jit()));
         CodeLocationLabel label = pic.lastPathStart();
 
         // Patch either the inline fast path or a generated stub. The stub
@@ -1382,7 +1376,7 @@ class ScopeNameCompiler : public PICStubCompiler
     void patchPreviousToHere(CodeLocationLabel cs)
     {
         ScopeNameLabels &       labels = pic.scopeNameLabels();
-        Repatcher               repatcher(pic.lastCodeBlock(f.chunk()));
+        Repatcher               repatcher(pic.lastCodeBlock(f.jit()));
         CodeLocationLabel       start = pic.lastPathStart();
         JSC::CodeLocationJump   jump;
 
@@ -1498,14 +1492,14 @@ class ScopeNameCompiler : public PICStubCompiler
         Label failLabel = masm.label();
         Jump failJump = masm.jump();
 
-        pic.updatePCCounters(f, masm);
+        pic.updatePCCounters(cx, masm);
 
         PICLinker buffer(masm, pic);
         if (!buffer.init(cx))
             return error();
 
-        if (!buffer.verifyRange(pic.lastCodeBlock(f.chunk())) ||
-            !buffer.verifyRange(f.chunk())) {
+        if (!buffer.verifyRange(pic.lastCodeBlock(f.jit())) ||
+            !buffer.verifyRange(f.jit())) {
             return disable("code memory is out of range");
         }
 
@@ -1610,14 +1604,14 @@ class ScopeNameCompiler : public PICStubCompiler
         Label failLabel = masm.label();
         Jump failJump = masm.jump();
 
-        pic.updatePCCounters(f, masm);
+        pic.updatePCCounters(cx, masm);
 
         PICLinker buffer(masm, pic);
         if (!buffer.init(cx))
             return error();
 
-        if (!buffer.verifyRange(pic.lastCodeBlock(f.chunk())) ||
-            !buffer.verifyRange(f.chunk())) {
+        if (!buffer.verifyRange(pic.lastCodeBlock(f.jit())) ||
+            !buffer.verifyRange(f.jit())) {
             return disable("code memory is out of range");
         }
 
@@ -1741,7 +1735,7 @@ class BindNameCompiler : public PICStubCompiler
     void patchPreviousToHere(CodeLocationLabel cs)
     {
         BindNameLabels &labels = pic.bindNameLabels();
-        Repatcher repatcher(pic.lastCodeBlock(f.chunk()));
+        Repatcher repatcher(pic.lastCodeBlock(f.jit()));
         JSC::CodeLocationJump jump;
 
         /* Patch either the inline fast path or a generated stub. */
@@ -1791,14 +1785,14 @@ class BindNameCompiler : public PICStubCompiler
         Label failLabel = masm.label();
         Jump failJump = masm.jump();
 
-        pic.updatePCCounters(f, masm);
+        pic.updatePCCounters(cx, masm);
 
         PICLinker buffer(masm, pic);
         if (!buffer.init(cx))
             return error();
 
-        if (!buffer.verifyRange(pic.lastCodeBlock(f.chunk())) ||
-            !buffer.verifyRange(f.chunk())) {
+        if (!buffer.verifyRange(pic.lastCodeBlock(f.jit())) ||
+            !buffer.verifyRange(f.jit())) {
             return disable("code memory is out of range");
         }
 
@@ -2067,15 +2061,13 @@ BaseIC::spew(JSContext *cx, const char *event, const char *message)
 }
 
 /* Total length of scripts preceding a frame. */
-inline uint32_t frameCountersOffset(VMFrame &f)
+inline uint32_t frameCountersOffset(JSContext *cx)
 {
-    JSContext *cx = f.cx;
-
     uint32_t offset = 0;
     if (cx->regs().inlined()) {
         offset += cx->fp()->script()->length;
         uint32_t index = cx->regs().inlined()->inlineIndex;
-        InlineFrame *frames = f.chunk()->inlineFrames();
+        InlineFrame *frames = cx->fp()->jit()->inlineFrames();
         for (unsigned i = 0; i < index; i++)
             offset += frames[i].fun->script()->length;
     }
@@ -2088,25 +2080,27 @@ inline uint32_t frameCountersOffset(VMFrame &f)
 }
 
 LookupStatus
-BaseIC::disable(VMFrame &f, const char *reason, void *stub)
+BaseIC::disable(JSContext *cx, const char *reason, void *stub)
 {
-    if (f.chunk()->pcLengths) {
-        uint32_t offset = frameCountersOffset(f);
-        f.chunk()->pcLengths[offset].picsLength = 0;
+    JITScript *jit = cx->fp()->jit();
+    if (jit->pcLengths) {
+        uint32_t offset = frameCountersOffset(cx);
+        jit->pcLengths[offset].picsLength = 0;
     }
 
-    spew(f.cx, "disabled", reason);
-    Repatcher repatcher(f.chunk());
+    spew(cx, "disabled", reason);
+    Repatcher repatcher(jit);
     repatcher.relink(slowPathCall, FunctionPtr(stub));
     return Lookup_Uncacheable;
 }
 
 void
-BaseIC::updatePCCounters(VMFrame &f, Assembler &masm)
+BaseIC::updatePCCounters(JSContext *cx, Assembler &masm)
 {
-    if (f.chunk()->pcLengths) {
-        uint32_t offset = frameCountersOffset(f);
-        f.chunk()->pcLengths[offset].picsLength += masm.size();
+    JITScript *jit = cx->fp()->jit();
+    if (jit->pcLengths) {
+        uint32_t offset = frameCountersOffset(cx);
+        jit->pcLengths[offset].picsLength += masm.size();
     }
 }
 
@@ -2141,11 +2135,11 @@ GetElementIC::shouldUpdate(JSContext *cx)
 }
 
 LookupStatus
-GetElementIC::disable(VMFrame &f, const char *reason)
+GetElementIC::disable(JSContext *cx, const char *reason)
 {
     slowCallPatched = true;
     void *stub = JS_FUNC_TO_DATA_PTR(void *, DisabledGetElem);
-    BaseIC::disable(f, reason, stub);
+    BaseIC::disable(cx, reason, stub);
     return Lookup_Uncacheable;
 }
 
@@ -2188,7 +2182,7 @@ GetElementIC::attachGetProp(VMFrame &f, JSObject *obj, const Value &v, PropertyN
     // the value read will go through a type barrier afterwards. TI only
     // accounts for integer-valued properties accessed by GETELEM/CALLELEM.
     if (cx->typeInferenceEnabled() && !forcedTypeBarrier)
-        return disable(f, "string element access may not have type barrier");
+        return disable(cx, "string element access may not have type barrier");
 
     Assembler masm;
 
@@ -2254,16 +2248,16 @@ GetElementIC::attachGetProp(VMFrame &f, JSObject *obj, const Value &v, PropertyN
 
     Jump done = masm.jump();
 
-    updatePCCounters(f, masm);
+    updatePCCounters(cx, masm);
 
     PICLinker buffer(masm, *this);
     if (!buffer.init(cx))
         return error(cx);
 
     if (hasLastStringStub && !buffer.verifyRange(lastStringStub))
-        return disable(f, "code memory is out of range");
-    if (!buffer.verifyRange(f.chunk()))
-        return disable(f, "code memory is out of range");
+        return disable(cx, "code memory is out of range");
+    if (!buffer.verifyRange(cx->fp()->jit()))
+        return disable(cx, "code memory is out of range");
 
     // Patch all guards.
     buffer.maybeLink(atomIdGuard, slowPathStart);
@@ -2285,7 +2279,7 @@ GetElementIC::attachGetProp(VMFrame &f, JSObject *obj, const Value &v, PropertyN
 
     // Update the inline guards, if needed.
     if (shouldPatchInlineTypeGuard() || shouldPatchUnconditionalShapeGuard()) {
-        Repatcher repatcher(f.chunk());
+        Repatcher repatcher(cx->fp()->jit());
 
         if (shouldPatchInlineTypeGuard()) {
             // A type guard is present in the inline path, and this is the
@@ -2344,7 +2338,7 @@ GetElementIC::attachGetProp(VMFrame &f, JSObject *obj, const Value &v, PropertyN
     stubsGenerated++;
 
     if (stubsGenerated == MAX_GETELEM_IC_STUBS)
-        disable(f, "max stubs reached");
+        disable(cx, "max stubs reached");
 
     // Finally, fetch the value to avoid redoing the property lookup.
     *vp = holder->getSlot(shape->slot());
@@ -2358,10 +2352,10 @@ GetElementIC::attachArguments(VMFrame &f, JSObject *obj, const Value &v, jsid id
     JSContext *cx = f.cx;
 
     if (!v.isInt32())
-        return disable(f, "arguments object with non-integer key");
+        return disable(cx, "arguments object with non-integer key");
 
     if (op == JSOP_CALLELEM)
-        return disable(f, "arguments object with call");
+        return disable(cx, "arguments object with call");
 
     JS_ASSERT(hasInlineTypeGuard() || idRemat.knownType() == JSVAL_TYPE_INT32);
 
@@ -2463,15 +2457,15 @@ GetElementIC::attachArguments(VMFrame &f, JSObject *obj, const Value &v, jsid id
 
     masm.jump(loadFromStack);
 
-    updatePCCounters(f, masm);
+    updatePCCounters(cx, masm);
 
     PICLinker buffer(masm, *this);
 
     if (!buffer.init(cx))
         return error(cx);
 
-    if (!buffer.verifyRange(f.chunk()))
-        return disable(f, "code memory is out of range");
+    if (!buffer.verifyRange(cx->fp()->jit()))
+        return disable(cx, "code memory is out of range");
 
     buffer.link(shapeGuard, slowPathStart);
     buffer.link(overridden, slowPathStart);
@@ -2484,7 +2478,7 @@ GetElementIC::attachArguments(VMFrame &f, JSObject *obj, const Value &v, jsid id
 
     JaegerSpew(JSpew_PICs, "generated getelem arguments stub at %p\n", cs.executableAddress());
 
-    Repatcher repatcher(f.chunk());
+    Repatcher repatcher(cx->fp()->jit());
     repatcher.relink(fastPathStart.jumpAtOffset(inlineShapeGuard), cs);
 
     JS_ASSERT(!shouldPatchUnconditionalShapeGuard());
@@ -2494,9 +2488,9 @@ GetElementIC::attachArguments(VMFrame &f, JSObject *obj, const Value &v, jsid id
     stubsGenerated++;
 
     if (stubsGenerated == MAX_GETELEM_IC_STUBS)
-        disable(f, "max stubs reached");
+        disable(cx, "max stubs reached");
 
-    disable(f, "generated arguments stub");
+    disable(cx, "generated arguments stub");
 
     if (!obj->getGeneric(cx, id, vp))
         return Lookup_Error;
@@ -2511,10 +2505,10 @@ GetElementIC::attachTypedArray(VMFrame &f, JSObject *obj, const Value &v, jsid i
     JSContext *cx = f.cx;
 
     if (!v.isInt32())
-        return disable(f, "typed array with string key");
+        return disable(cx, "typed array with string key");
 
     if (op == JSOP_CALLELEM)
-        return disable(f, "typed array with call");
+        return disable(cx, "typed array with call");
 
     // The fast-path guarantees that after the dense shape guard, the type is
     // known to be int32, either via type inference or the inline type check.
@@ -2548,7 +2542,7 @@ GetElementIC::attachTypedArray(VMFrame &f, JSObject *obj, const Value &v, jsid i
          TypedArray::getType(tarray) == js::TypedArray::TYPE_FLOAT64 ||
          TypedArray::getType(tarray) == js::TypedArray::TYPE_UINT32))
     {
-        return disable(f, "fpu not supported");
+        return disable(cx, "fpu not supported");
     }
 
     MaybeRegisterID tempReg;
@@ -2556,14 +2550,14 @@ GetElementIC::attachTypedArray(VMFrame &f, JSObject *obj, const Value &v, jsid i
 
     Jump done = masm.jump();
 
-    updatePCCounters(f, masm);
+    updatePCCounters(cx, masm);
 
     PICLinker buffer(masm, *this);
     if (!buffer.init(cx))
         return error(cx);
 
-    if (!buffer.verifyRange(f.chunk()))
-        return disable(f, "code memory is out of range");
+    if (!buffer.verifyRange(cx->fp()->jit()))
+        return disable(cx, "code memory is out of range");
 
     buffer.link(shapeGuard, slowPathStart);
     buffer.link(outOfBounds, slowPathStart);
@@ -2577,7 +2571,7 @@ GetElementIC::attachTypedArray(VMFrame &f, JSObject *obj, const Value &v, jsid i
     JS_ASSERT(!shouldPatchUnconditionalShapeGuard());
     JS_ASSERT(!inlineShapeGuardPatched);
 
-    Repatcher repatcher(f.chunk());
+    Repatcher repatcher(cx->fp()->jit());
     repatcher.relink(fastPathStart.jumpAtOffset(inlineShapeGuard), cs);
     inlineShapeGuardPatched = true;
 
@@ -2586,9 +2580,9 @@ GetElementIC::attachTypedArray(VMFrame &f, JSObject *obj, const Value &v, jsid i
     // In the future, it might make sense to attach multiple typed array stubs.
     // For simplicitly, they are currently monomorphic.
     if (stubsGenerated == MAX_GETELEM_IC_STUBS)
-        disable(f, "max stubs reached");
+        disable(cx, "max stubs reached");
 
-    disable(f, "generated typed array stub");
+    disable(cx, "generated typed array stub");
 
     // Fetch the value as expected of Lookup_Cacheable for GetElement.
     if (!obj->getGeneric(cx, id, vp))
@@ -2628,7 +2622,7 @@ GetElementIC::update(VMFrame &f, JSObject *obj, const Value &v, jsid id, Value *
         return attachTypedArray(f, obj, v, id, vp);
 #endif
 
-    return disable(f, "unhandled object and key type");
+    return disable(f.cx, "unhandled object and key type");
 }
 
 void JS_FASTCALL
@@ -2638,7 +2632,7 @@ ic::GetElement(VMFrame &f, ic::GetElementIC *ic)
 
     // Right now, we don't optimize for strings or lazy arguments.
     if (!f.regs.sp[-2].isObject()) {
-        ic->disable(f, "non-object");
+        ic->disable(cx, "non-object");
         stubs::GetElem(f);
         return;
     }
@@ -2682,11 +2676,11 @@ ic::GetElement(VMFrame &f, ic::GetElementIC *ic)
     (FunctionTemplateConditional(s, f<true>, f<false>))
 
 LookupStatus
-SetElementIC::disable(VMFrame &f, const char *reason)
+SetElementIC::disable(JSContext *cx, const char *reason)
 {
     slowCallPatched = true;
     VoidStub stub = APPLY_STRICTNESS(stubs::SetElem, strictMode);
-    BaseIC::disable(f, reason, JS_FUNC_TO_DATA_PTR(void *, stub));
+    BaseIC::disable(cx, reason, JS_FUNC_TO_DATA_PTR(void *, stub));
     return Lookup_Uncacheable;
 }
 
@@ -2719,14 +2713,14 @@ SetElementIC::attachHoleStub(VMFrame &f, JSObject *obj, int32_t keyval)
     JSContext *cx = f.cx;
 
     if (keyval < 0)
-        return disable(f, "negative key index");
+        return disable(cx, "negative key index");
 
     // We may have failed a capacity check instead of a dense array check.
     // However we should still build the IC in this case, since it could
     // be in a loop that is filling in the array.
 
     if (js_PrototypeHasIndexedProperties(cx, obj))
-        return disable(f, "prototype has indexed properties");
+        return disable(cx, "prototype has indexed properties");
 
     Assembler masm;
 
@@ -2742,7 +2736,7 @@ SetElementIC::attachHoleStub(VMFrame &f, JSObject *obj, int32_t keyval)
     //  2) We only have to test the shape, rather than INDEXED.
     for (JSObject *pobj = obj->getProto(); pobj; pobj = pobj->getProto()) {
         if (!pobj->isNative())
-            return disable(f, "non-native array prototype");
+            return disable(cx, "non-native array prototype");
         masm.move(ImmPtr(pobj), objReg);
         Jump j = masm.guardShape(objReg, pobj);
         if (!fails.append(j))
@@ -2795,8 +2789,8 @@ SetElementIC::attachHoleStub(VMFrame &f, JSObject *obj, int32_t keyval)
     if (!execPool)
         return error(cx);
 
-    if (!buffer.verifyRange(f.chunk()))
-        return disable(f, "code memory is out of range");
+    if (!buffer.verifyRange(cx->fp()->jit()))
+        return disable(cx, "code memory is out of range");
 
     // Patch all guards.
     for (size_t i = 0; i < fails.length(); i++)
@@ -2806,11 +2800,11 @@ SetElementIC::attachHoleStub(VMFrame &f, JSObject *obj, int32_t keyval)
     CodeLocationLabel cs = buffer.finalize(f);
     JaegerSpew(JSpew_PICs, "generated dense array hole stub at %p\n", cs.executableAddress());
 
-    Repatcher repatcher(f.chunk());
+    Repatcher repatcher(cx->fp()->jit());
     repatcher.relink(fastPathStart.jumpAtOffset(inlineHoleGuard), cs);
     inlineHoleGuardPatched = true;
 
-    disable(f, "generated dense array hole stub");
+    disable(cx, "generated dense array hole stub");
 
     return Lookup_Cacheable;
 }
@@ -2847,7 +2841,7 @@ SetElementIC::attachTypedArray(VMFrame &f, JSObject *obj, int32_t key)
         (TypedArray::getType(tarray) == js::TypedArray::TYPE_FLOAT32 ||
          TypedArray::getType(tarray) == js::TypedArray::TYPE_FLOAT64))
     {
-        return disable(f, "fpu not supported");
+        return disable(cx, "fpu not supported");
     }
 
     int shift = js::TypedArray::slotWidth(obj);
@@ -2884,8 +2878,8 @@ SetElementIC::attachTypedArray(VMFrame &f, JSObject *obj, int32_t key)
     if (!execPool)
         return error(cx);
 
-    if (!buffer.verifyRange(f.chunk()))
-        return disable(f, "code memory is out of range");
+    if (!buffer.verifyRange(cx->fp()->jit()))
+        return disable(cx, "code memory is out of range");
 
     // Note that the out-of-bounds path simply does nothing.
     buffer.link(shapeGuard, slowPathStart);
@@ -2896,7 +2890,7 @@ SetElementIC::attachTypedArray(VMFrame &f, JSObject *obj, int32_t key)
     CodeLocationLabel cs = buffer.finalizeCodeAddendum();
     JaegerSpew(JSpew_PICs, "generated setelem typed array stub at %p\n", cs.executableAddress());
 
-    Repatcher repatcher(f.chunk());
+    Repatcher repatcher(cx->fp()->jit());
     repatcher.relink(fastPathStart.jumpAtOffset(inlineShapeGuard), cs);
     inlineShapeGuardPatched = true;
 
@@ -2905,9 +2899,9 @@ SetElementIC::attachTypedArray(VMFrame &f, JSObject *obj, int32_t key)
     // In the future, it might make sense to attach multiple typed array stubs.
     // For simplicitly, they are currently monomorphic.
     if (stubsGenerated == MAX_GETELEM_IC_STUBS)
-        disable(f, "max stubs reached");
+        disable(cx, "max stubs reached");
 
-    disable(f, "generated typed array stub");
+    disable(cx, "generated typed array stub");
 
     return Lookup_Cacheable;
 }
@@ -2917,9 +2911,9 @@ LookupStatus
 SetElementIC::update(VMFrame &f, const Value &objval, const Value &idval)
 {
     if (!objval.isObject())
-        return disable(f, "primitive lval");
+        return disable(f.cx, "primitive lval");
     if (!idval.isInt32())
-        return disable(f, "non-int32 key");
+        return disable(f.cx, "non-int32_t key");
 
     JSObject *obj = &objval.toObject();
     int32_t key = idval.toInt32();
@@ -2933,7 +2927,7 @@ SetElementIC::update(VMFrame &f, const Value &objval, const Value &idval)
         return attachTypedArray(f, obj, key);
 #endif
 
-    return disable(f, "unsupported object type");
+    return disable(f.cx, "unsupported object type");
 }
 
 bool
