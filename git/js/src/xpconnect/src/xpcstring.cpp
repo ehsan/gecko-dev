@@ -78,10 +78,14 @@ XPCStringConvert::ShutdownDOMStringFinalizer()
 jsval
 XPCStringConvert::ReadableToJSVal(JSContext *cx,
                                   const nsAString &readable,
-                                  nsStringBuffer** sharedBuffer)
+                                  PRBool dontAddrefShared,
+                                  PRBool* sharedBuffer)
 {
     JSString *str;
-    *sharedBuffer = nsnull;
+    if (sharedBuffer)
+    {
+        *sharedBuffer = PR_FALSE;
+    }
 
     PRUint32 length = readable.Length();
 
@@ -110,7 +114,14 @@ XPCStringConvert::ReadableToJSVal(JSContext *cx,
 
         if (str)
         {
-            *sharedBuffer = buf;
+            if (sharedBuffer)
+            {
+                *sharedBuffer = PR_TRUE;
+            }
+            if (!dontAddrefShared)
+            {
+                buf->AddRef();
+            }
         }
     }
     else

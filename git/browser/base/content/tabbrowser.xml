@@ -1097,8 +1097,7 @@
             // doesn't go well together with the width transition. So we skip the
             // transition in that case.
             if (aSkipAnimation ||
-                this.tabContainer.getAttribute("overflow") == "true" ||
-                !Services.prefs.getBoolPref("browser.tabs.animate")) {
+                this.tabContainer.getAttribute("overflow") == "true") {
               t.setAttribute("fadein", "true");
               setTimeout(function (tabContainer) {
                 tabContainer._handleNewTab(t);
@@ -1301,10 +1300,9 @@
       </method>
 
       <method name="removeCurrentTab">
-        <parameter name="aParams"/>
         <body>
           <![CDATA[
-            this.removeTab(this.mCurrentTab, aParams);
+            this.removeTab(this.mCurrentTab);
           ]]>
         </body>
       </method>
@@ -1315,36 +1313,9 @@
 
       <method name="removeTab">
         <parameter name="aTab"/>
-        <parameter name="aParams"/>
         <body>
           <![CDATA[
-            var isLastTab = (this.tabs.length - this._removingTabs.length == 1);
-            if (aParams)
-              var animate = aParams.animate;
-
-            if (!this._beginRemoveTab(aTab, false, null, true))
-              return;
-
-            /* Don't animate if:
-                - the caller didn't opt in
-                - this is the last tab in the window
-                - this is a pinned tab
-                - a bunch of other tabs are already closing (arbitrary threshold)
-                - the fadein attribute hasn't been set yet
-                - browser.tabs.animate is false   */
-
-            if (!animate ||
-                isLastTab ||
-                aTab.pinned ||
-                this._removingTabs.length > 3 ||
-                aTab.getAttribute("fadein") != "true" ||
-                !Services.prefs.getBoolPref("browser.tabs.animate")) {
-              this._endRemoveTab(aTab);
-              return;
-            }
-
-            this._blurTab(aTab);
-            aTab.removeAttribute("fadein");
+            this._endRemoveTab(this._beginRemoveTab(aTab, false, null, true));
           ]]>
         </body>
       </method>
@@ -1355,6 +1326,7 @@
         false
       </field>
 
+      <!-- Returns everything that _endRemoveTab needs in an array. -->
       <method name="_beginRemoveTab">
         <parameter name="aTab"/>
         <parameter name="aTabWillBeMoved"/>
@@ -1363,14 +1335,14 @@
         <body>
           <![CDATA[
             if (this._removingTabs.indexOf(aTab) > -1 || this._windowIsClosing)
-              return false;
+              return null;
 
             var browser = this.getBrowserForTab(aTab);
 
             if (!aTabWillBeMoved) {
               let ds = browser.docShell;
               if (ds && ds.contentViewer && !ds.contentViewer.permitUnload())
-                return false;
+                return null;
             }
 
             var closeWindow = false;
@@ -1424,26 +1396,18 @@
                 tab.owner = null;
             });
 
-            aTab._endRemoveArgs = [closeWindow, newTab];
-            return true;
+            return [aTab, closeWindow, newTab];
           ]]>
         </body>
       </method>
 
       <method name="_endRemoveTab">
-        <parameter name="aTab"/>
+        <parameter name="args"/>
         <body>
           <![CDATA[
-            if (!aTab || !aTab._endRemoveArgs)
+            if (!args)
               return;
-
-            var [aCloseWindow, aNewTab] = aTab._endRemoveArgs;
-            aTab._endRemoveArgs = null;
-
-            if (this._windowIsClosing) {
-              aCloseWindow = false;
-              aNewTab = false;
-            }
+            var [aTab, aCloseWindow, aNewTab] = args;
 
             this._lastRelatedTab = null;
 
@@ -1459,7 +1423,7 @@
             if (aCloseWindow) {
               this._windowIsClosing = true;
               while (this._removingTabs.length)
-                this._endRemoveTab(this._removingTabs[0]);
+                this._endRemoveTab([this._removingTabs[0], false]);
             } else if (!this._windowIsClosing) {
               if (aNewTab)
                 focusAndSelectUrlBar();
@@ -1585,13 +1549,13 @@
         <body>
           <![CDATA[
             // That's gBrowser for the other window, not the tab's browser!
-            var remoteBrowser = aOtherTab.ownerDocument.defaultView.gBrowser;
+            var remoteBrowser =
+              aOtherTab.ownerDocument.defaultView.getBrowser();
 
             // First, start teardown of the other browser.  Make sure to not
             // fire the beforeunload event in the process.  Close the other
             // window if this was its last tab.
-            if (!remoteBrowser._beginRemoveTab(aOtherTab, true, true))
-              return;
+            var endRemoveArgs = remoteBrowser._beginRemoveTab(aOtherTab, true, true);
 
             // Unhook our progress listener
             var ourIndex = aOurTab._tPos;
@@ -1618,7 +1582,7 @@
             ourBrowser.swapDocShells(aOtherTab.linkedBrowser);
 
             // Finish tearing down the tab that's going away.
-            remoteBrowser._endRemoveTab(aOtherTab);
+            remoteBrowser._endRemoveTab(endRemoveArgs);
 
             // Restore the progress listener
             tabListener = this.mTabProgressListener(aOurTab, ourBrowser,
@@ -2197,7 +2161,7 @@
           if (aEvent.ctrlKey && !aEvent.shiftKey && !aEvent.metaKey &&
               aEvent.keyCode == KeyEvent.DOM_VK_F4 &&
               this.mTabBox.handleCtrlPageUpDown) {
-            this.removeCurrentTab({animate: true});
+            this.removeCurrentTab();
             aEvent.stopPropagation();
             aEvent.preventDefault();
           }
@@ -2399,10 +2363,6 @@
 
          var tabs = document.getBindingParent(this);
          tabs.removeAttribute("overflow");
-
-         tabs.tabbrowser._removingTabs.forEach(tabs.tabbrowser._endRemoveTab,
-                                               tabs.tabbrowser);
-
          tabs._positionPinnedTabs();
       ]]></handler>
       <handler event="overflow"><![CDATA[
@@ -2786,15 +2746,8 @@
       <handler event="TabSelect" action="this._handleTabSelect();"/>
 
       <handler event="transitionend"><![CDATA[
-        if (event.propertyName != "max-width")
-          return;
-
-        var tab = event.target;
-
-        if (tab.getAttribute("fadein") == "true")
-          this._handleNewTab(tab);
-        else if (this.tabbrowser._removingTabs.indexOf(tab) > -1)
-          this.tabbrowser._endRemoveTab(tab);
+        if (event.propertyName == "max-width")
+          this._handleNewTab(event.target);
       ]]></handler>
 
       <handler event="dblclick"><![CDATA[
@@ -2810,7 +2763,7 @@
 
         if (event.target.localName == "tab") {
           if (this.childNodes.length > 1 || !this._closeWindowWithLastTab)
-            this.tabbrowser.removeTab(event.target, {animate: true});
+            this.tabbrowser.removeTab(event.target);
         } else if (event.originalTarget.localName == "box") {
           BrowserOpenTab();
         } else {
@@ -2992,15 +2945,6 @@
             // move the dropped tab
             if (newIndex > draggedTab._tPos)
               newIndex--;
-
-            if (draggedTab.pinned) {
-              if (newIndex >= this.tabbrowser._numPinnedTabs)
-                this.tabbrowser.unpinTab(draggedTab);
-            } else {
-              if (newIndex <= this.tabbrowser._numPinnedTabs - 1)
-                this.tabbrowser.pinTab(draggedTab);
-            }
-
             this.tabbrowser.moveTabTo(draggedTab, newIndex);
           }
         } else if (draggedTab) {
@@ -3136,7 +3080,7 @@
         // Reset the "ignored click" flag
         this._ignoredClick = false;
 
-        tabContainer.tabbrowser.removeTab(bindingParent, {animate: true});
+        tabContainer.tabbrowser.removeTab(bindingParent);
         tabContainer._blockDblClick = true;
 
         /* XXXmano hack (see bug 343628):

@@ -680,18 +680,25 @@ nsLayoutUtils::GetScrollableFrameFor(nsIFrame *aScrolledFrame)
 
 nsIFrame*
 nsLayoutUtils::GetActiveScrolledRootFor(nsIFrame* aFrame,
-                                        nsIFrame* aStopAtAncestor)
+                                        nsIFrame* aStopAtAncestor,
+                                        nsPoint* aOffset)
 {
+  nsPoint offset(0,0);
   nsIFrame* f = aFrame;
   while (f != aStopAtAncestor) {
     NS_ASSERTION(!IsPopup(f), "Should have stopped before popup");
-    nsIFrame* parent = GetCrossDocParentFrame(f);
+    nsPoint extraOffset(0,0);
+    nsIFrame* parent = GetCrossDocParentFrame(f, &extraOffset);
     if (!parent)
       break;
     nsIScrollableFrame* sf = do_QueryFrame(parent);
     if (sf && sf->IsScrollingActive() && sf->GetScrolledFrame() == f)
       break;
+    offset += f->GetPosition() + extraOffset;
     f = parent;
+  }
+  if (aOffset) {
+    *aOffset = offset;
   }
   return f;
 }
@@ -1212,20 +1219,11 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
                           const nsRegion& aDirtyRegion, nscolor aBackstop,
                           PRUint32 aFlags)
 {
-#ifdef DEBUG
-  if (aFlags & PAINT_WIDGET_LAYERS) {
-    nsIView* view = aFrame->GetView();
-    NS_ASSERTION(view && view->GetWidget() && GetDisplayRootFrame(aFrame) == aFrame,
-      "PAINT_WIDGET_LAYERS should only be used on a display root that has a widget");
-  }
-#endif
-
   nsPresContext* presContext = aFrame->PresContext();
   nsIPresShell* presShell = presContext->PresShell();
 
   nsRegion visibleRegion;
-  if ((aFlags & PAINT_WIDGET_LAYERS) &&
-      !(aFlags & PAINT_IGNORE_VIEWPORT_SCROLLING)) {
+  if (aFlags & PAINT_WIDGET_LAYERS) {
     // This layer tree will be reused, so we'll need to calculate it
     // for the whole visible area of the window
     visibleRegion = aFrame->GetOverflowRectRelativeToSelf();
@@ -1278,10 +1276,7 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
 
   rv = aFrame->BuildDisplayListForStackingContext(&builder, dirtyRect, &list);
 
-  nsIAtom* frameType = aFrame->GetType();
-  if (NS_SUCCEEDED(rv) && frameType == nsGkAtoms::pageContentFrame) {
-    NS_ASSERTION(!(aFlags & PAINT_WIDGET_LAYERS),
-      "shouldn't be painting with widget layers for page content frames");
+  if (NS_SUCCEEDED(rv) && aFrame->GetType() == nsGkAtoms::pageContentFrame) {
     // We may need to paint out-of-flow frames whose placeholders are
     // on other pages. Add those pages to our display list. Note that
     // out-of-flow frames can't be placed after their placeholders so
@@ -1299,20 +1294,17 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
     }
   }
 
-  // If we're going to display something different from what we'd normally
-  // paint in a window then we will flush out any retained layer trees before
-  // *and after* we draw.
-  PRBool willFlushLayers = aFlags & (PAINT_IGNORE_SUPPRESSION |
-                                     PAINT_IGNORE_VIEWPORT_SCROLLING |
-                                     PAINT_HIDE_CARET);
-
+  nsIAtom* frameType = aFrame->GetType();
   // For the viewport frame in print preview/page layout we want to paint
   // the grey background behind the page, not the canvas color.
-  if (frameType == nsGkAtoms::viewportFrame && 
-      nsLayoutUtils::NeedsPrintPreviewBackground(presContext)) {
+  if (frameType == nsGkAtoms::viewportFrame &&
+      presContext->IsRootPaginatedDocument() &&
+      (presContext->Type() == nsPresContext::eContext_PrintPreview ||
+       presContext->Type() == nsPresContext::eContext_PageLayout)) {
     nsRect bounds = nsRect(builder.ToReferenceFrame(aFrame),
                            aFrame->GetSize());
-    rv = presShell->AddPrintPreviewBackgroundItem(builder, list, aFrame, bounds);
+    rv = list.AppendNewToBottom(new (&builder) nsDisplaySolidColor(
+           aFrame, bounds, NS_RGB(115, 115, 115)));
   } else if (frameType != nsGkAtoms::pageFrame) {
     // For printing, this function is first called on an nsPageFrame, which
     // creates a display list with a PageContent item. The PageContent item's
@@ -1325,22 +1317,6 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
     // can monkey with the contents if necessary.
     rv = presShell->AddCanvasBackgroundColorItem(
            builder, list, aFrame, canvasArea, aBackstop);
-
-    // If the passed in backstop color makes us draw something different from
-    // normal, we need to flush layers.
-    if ((aFlags & PAINT_WIDGET_LAYERS) && !willFlushLayers) {
-      nsIView* view = aFrame->GetView();
-      if (view) {
-        nscolor backstop = presShell->ComputeBackstopColor(view);
-        // The PresShell's canvas background color doesn't get updated until
-        // EnterPresShell, so this check has to be done after that.
-        nscolor canvasColor = presShell->GetCanvasBackground();
-        if (NS_ComposeColors(aBackstop, canvasColor) !=
-            NS_ComposeColors(backstop, canvasColor)) {
-          willFlushLayers = PR_TRUE;
-        }
-      }
-    }
   }
 
   builder.LeavePresShell(aFrame, dirtyRect);
@@ -1371,7 +1347,9 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
     nsIntRegion visibleWindowRegion(visibleRegion.ToOutsidePixels(pixelRatio));
     nsIntRegion dirtyWindowRegion(aDirtyRegion.ToOutsidePixels(pixelRatio));
 
-    if (willFlushLayers) {
+    if (aFlags & (PAINT_IGNORE_SUPPRESSION |
+                  PAINT_IGNORE_VIEWPORT_SCROLLING |
+                  PAINT_HIDE_CARET)) {
       // We're going to display something different from what we'd normally
       // paint in a window, so make sure we flush out any retained layer
       // trees before *and after* we draw
