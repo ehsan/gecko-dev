@@ -44,8 +44,8 @@ ResultCode CreateAltWindowStation(HWINSTA* winsta) {
 
   // Create the window station using NULL for the name to ask the os to
   // generate it.
-  *winsta = ::CreateWindowStationW(
-      NULL, 0, GENERIC_READ | WINSTA_CREATEDESKTOP, &attributes);
+  // TODO(nsylvain): don't ask for WINSTA_ALL_ACCESS if we don't need to.
+  *winsta = ::CreateWindowStationW(NULL, 0, WINSTA_ALL_ACCESS, &attributes);
   LocalFree(attributes.lpSecurityDescriptor);
 
   if (*winsta)
@@ -84,12 +84,8 @@ ResultCode CreateAltDesktop(HWINSTA winsta, HDESK* desktop) {
   }
 
   // Create the destkop.
-  *desktop = ::CreateDesktop(desktop_name.c_str(),
-                             NULL,
-                             NULL,
-                             0,
-                             DESKTOP_CREATEWINDOW | DESKTOP_READOBJECTS |
-                                 READ_CONTROL | WRITE_DAC | WRITE_OWNER,
+  // TODO(nsylvain): don't ask for GENERIC_ALL if we don't need to.
+  *desktop = ::CreateDesktop(desktop_name.c_str(), NULL, NULL, 0, GENERIC_ALL,
                              &attributes);
   ::LocalFree(attributes.lpSecurityDescriptor);
 

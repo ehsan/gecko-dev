@@ -138,8 +138,8 @@ struct BASE_EXPORT AsserterBase {
 };
 
 struct BASE_EXPORT DCheckAsserter : public AsserterBase {
-  ~DCheckAsserter() override {}
-  void warn() override;
+  virtual ~DCheckAsserter() {}
+  virtual void warn() OVERRIDE;
 };
 
 class BASE_EXPORT ThreadCollisionWarner {

@@ -208,8 +208,9 @@ LangRuleTable_MatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
   return entry->mRule->mLang == *lang;
 }
 
-static void
-LangRuleTable_InitEntry(PLDHashEntryHdr *hdr, const void *key)
+static bool
+LangRuleTable_InitEntry(PLDHashTable *table, PLDHashEntryHdr *hdr,
+                        const void *key)
 {
   const nsString *lang = static_cast<const nsString*>(key);
 
@@ -217,6 +218,8 @@ LangRuleTable_InitEntry(PLDHashEntryHdr *hdr, const void *key)
 
   // Create the unique rule for this language
   entry->mRule = new nsHTMLStyleSheet::LangRule(*lang);
+
+  return true;
 }
 
 static const PLDHashTableOps LangRuleTable_Ops = {

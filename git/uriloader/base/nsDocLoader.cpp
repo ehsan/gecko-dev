@@ -64,12 +64,14 @@ void GetURIStringFromRequest(nsIRequest* request, nsACString &name)
 
 
 
-void
-nsDocLoader::RequestInfoHashInitEntry(PLDHashEntryHdr* entry,
+bool
+nsDocLoader::RequestInfoHashInitEntry(PLDHashTable* table,
+                                      PLDHashEntryHdr* entry,
                                       const void* key)
 {
   // Initialize the entry with placement new
   new (entry) nsRequestInfo(key);
+  return true;
 }
 
 void

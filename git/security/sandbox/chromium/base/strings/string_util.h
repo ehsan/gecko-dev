@@ -245,32 +245,9 @@ BASE_EXPORT bool ContainsOnlyChars(const StringPiece16& input,
 // to have the maximum 'discriminating' power from other encodings. If
 // there's a use case for just checking the structural validity, we have to
 // add a new function for that.
-//
-// IsStringASCII assumes the input is likely all ASCII, and does not leave early
-// if it is not the case.
 BASE_EXPORT bool IsStringUTF8(const std::string& str);
 BASE_EXPORT bool IsStringASCII(const StringPiece& str);
-BASE_EXPORT bool IsStringASCII(const StringPiece16& str);
-// A convenience adaptor for WebStrings, as they don't convert into
-// StringPieces directly.
 BASE_EXPORT bool IsStringASCII(const string16& str);
-#if defined(WCHAR_T_IS_UTF32)
-BASE_EXPORT bool IsStringASCII(const std::wstring& str);
-#endif
-
-// Converts the elements of the given string.  This version uses a pointer to
-// clearly differentiate it from the non-pointer variant.
-template <class str> inline void StringToLowerASCII(str* s) {
-  for (typename str::iterator i = s->begin(); i != s->end(); ++i)
-    *i = ToLowerASCII(*i);
-}
-
-template <class str> inline str StringToLowerASCII(const str& s) {
-  // for std::string and std::wstring
-  str output(s);
-  StringToLowerASCII(&output);
-  return output;
-}
 
 }  // namespace base
 
@@ -281,6 +258,20 @@ template <class str> inline str StringToLowerASCII(const str& s) {
 #else
 #error Define string operations appropriately for your platform
 #endif
+
+// Converts the elements of the given string.  This version uses a pointer to
+// clearly differentiate it from the non-pointer variant.
+template <class str> inline void StringToLowerASCII(str* s) {
+  for (typename str::iterator i = s->begin(); i != s->end(); ++i)
+    *i = base::ToLowerASCII(*i);
+}
+
+template <class str> inline str StringToLowerASCII(const str& s) {
+  // for std::string and std::wstring
+  str output(s);
+  StringToLowerASCII(&output);
+  return output;
+}
 
 // Converts the elements of the given string.  This version uses a pointer to
 // clearly differentiate it from the non-pointer variant.
@@ -361,14 +352,14 @@ inline bool IsHexDigit(Char c) {
 }
 
 template <typename Char>
-inline char HexDigitToInt(Char c) {
+inline Char HexDigitToInt(Char c) {
   DCHECK(IsHexDigit(c));
   if (c >= '0' && c <= '9')
-    return static_cast<char>(c - '0');
+    return c - '0';
   if (c >= 'A' && c <= 'F')
-    return static_cast<char>(c - 'A' + 10);
+    return c - 'A' + 10;
   if (c >= 'a' && c <= 'f')
-    return static_cast<char>(c - 'a' + 10);
+    return c - 'a' + 10;
   return 0;
 }
 

@@ -30,9 +30,7 @@ add_task(function*() {
 
   let chooseItem = list.firstChild.querySelector(".choose-app-item");
   let dialogLoadedPromise = promiseLoadSubDialog("chrome://global/content/appPicker.xul");
-  let cmdEvent = win.document.createEvent("xulcommandevent");
-  cmdEvent.initCommandEvent("command", true, true, win, 0, false, false, false, false, null);
-  chooseItem.dispatchEvent(cmdEvent);
+  chooseItem.click();
 
   let dialog = yield dialogLoadedPromise;
   info("Dialog loaded");
@@ -59,9 +57,7 @@ add_task(function*() {
   dialogLoadedPromise = promiseLoadSubDialog("chrome://browser/content/preferences/applicationManager.xul");
 
   let manageItem = list.firstChild.querySelector(".manage-app-item");
-  cmdEvent = win.document.createEvent("xulcommandevent");
-  cmdEvent.initCommandEvent("command", true, true, win, 0, false, false, false, false, null);
-  manageItem.dispatchEvent(cmdEvent);
+  manageItem.click();
 
   dialog = yield dialogLoadedPromise;
   info("Dialog loaded the second time");

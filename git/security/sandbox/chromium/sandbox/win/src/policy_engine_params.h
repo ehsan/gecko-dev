@@ -61,17 +61,17 @@ class ParameterSet {
   ParameterSet() : real_type_(INVALID_TYPE), address_(NULL) {}
 
   // Retrieve the stored parameter. If the type does not match ulong fail.
-  bool Get(uint32* destination) const {
-    if (real_type_ != UINT32_TYPE) {
+  bool Get(unsigned long* destination) const {
+    if (ULONG_TYPE != real_type_) {
       return false;
     }
-    *destination = Void2TypePointerCopy<uint32>();
+    *destination = Void2TypePointerCopy<unsigned long>();
     return true;
   }
 
   // Retrieve the stored parameter. If the type does not match void* fail.
   bool Get(const void** destination) const {
-    if (real_type_ != VOIDPTR_TYPE) {
+    if (VOIDPTR_TYPE != real_type_) {
       return false;
     }
     *destination = Void2TypePointerCopy<void*>();
@@ -80,7 +80,7 @@ class ParameterSet {
 
   // Retrieve the stored parameter. If the type does not match wchar_t* fail.
   bool Get(const wchar_t** destination) const {
-    if (real_type_ != WCHAR_TYPE) {
+    if (WCHAR_TYPE != real_type_) {
       return false;
     }
     *destination = Void2TypePointerCopy<const wchar_t*>();
@@ -89,7 +89,7 @@ class ParameterSet {
 
   // False if the parameter is not properly initialized.
   bool IsValid() const {
-    return real_type_ != INVALID_TYPE;
+    return INVALID_TYPE != real_type_;
   }
 
  protected:
@@ -154,10 +154,10 @@ class ParameterSetEx<wchar_t const*> : public ParameterSet {
 
 
 template<>
-class ParameterSetEx<uint32> : public ParameterSet {
+class ParameterSetEx<unsigned long> : public ParameterSet {
  public:
   ParameterSetEx(const void* address)
-      : ParameterSet(UINT32_TYPE, address) {}
+      : ParameterSet(ULONG_TYPE, address) {}
 };
 
 template<>

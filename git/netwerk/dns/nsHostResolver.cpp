@@ -459,12 +459,14 @@ HostDB_ClearEntry(PLDHashTable *table,
     NS_RELEASE(he->rec);
 }
 
-static void
-HostDB_InitEntry(PLDHashEntryHdr *entry,
+static bool
+HostDB_InitEntry(PLDHashTable *table,
+                 PLDHashEntryHdr *entry,
                  const void *key)
 {
     nsHostDBEnt *he = static_cast<nsHostDBEnt *>(entry);
     nsHostRecord::Create(static_cast<const nsHostKey *>(key), &he->rec);
+    return true;
 }
 
 static const PLDHashTableOps gHostDB_ops =

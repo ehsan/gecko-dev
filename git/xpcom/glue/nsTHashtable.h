@@ -335,7 +335,8 @@ protected:
 
   static void s_ClearEntry(PLDHashTable* aTable, PLDHashEntryHdr* aEntry);
 
-  static void s_InitEntry(PLDHashEntryHdr* aEntry, const void* aKey);
+  static bool s_InitEntry(PLDHashTable* aTable, PLDHashEntryHdr* aEntry,
+                          const void* aKey);
 
   /**
    * passed internally during enumeration.  Allocated on the stack.
@@ -485,11 +486,13 @@ nsTHashtable<EntryType>::s_ClearEntry(PLDHashTable* aTable,
 }
 
 template<class EntryType>
-void
-nsTHashtable<EntryType>::s_InitEntry(PLDHashEntryHdr* aEntry,
+bool
+nsTHashtable<EntryType>::s_InitEntry(PLDHashTable* aTable,
+                                     PLDHashEntryHdr* aEntry,
                                      const void* aKey)
 {
   new (aEntry) EntryType(reinterpret_cast<KeyTypePointer>(aKey));
+  return true;
 }
 
 template<class EntryType>

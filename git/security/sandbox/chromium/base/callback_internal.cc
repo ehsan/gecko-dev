@@ -9,6 +9,10 @@
 namespace base {
 namespace internal {
 
+bool CallbackBase::is_null() const {
+  return bind_state_.get() == NULL;
+}
+
 void CallbackBase::Reset() {
   polymorphic_invoke_ = NULL;
   // NULL the bind_state_ last, since it may be holding the last ref to whatever

@@ -77,9 +77,12 @@ bool FileSystemPolicy::GenerateRules(const wchar_t* name,
       NOTREACHED();
       return false;
     }
-
-    mod_name = FixNTPrefixForMatch(mod_name);
-    name = mod_name.c_str();
+    if (0 != mod_name.compare(0, kNTPrefixLen, kNTPrefix)) {
+      // TODO(nsylvain): Find a better way to do name resolution. Right now we
+      // take the name and we expand it.
+      mod_name.insert(0, L"\\/?/?\\");
+      name = mod_name.c_str();
+    }
   }
 
   EvalResult result = ASK_BROKER;
@@ -378,28 +381,6 @@ bool PreProcessName(const base::string16& path, base::string16* new_path) {
 
   // We can't process reparsed file.
   return !reparsed;
-}
-
-base::string16 FixNTPrefixForMatch(const base::string16& name) {
-  base::string16 mod_name = name;
-
-  // NT prefix escaped for rule matcher
-  const wchar_t kNTPrefixEscaped[] = L"\\/?/?\\";
-  const int kNTPrefixEscapedLen = arraysize(kNTPrefixEscaped) - 1;
-
-  if (0 != mod_name.compare(0, kNTPrefixLen, kNTPrefix)) {
-    if (0 != mod_name.compare(0, kNTPrefixEscapedLen, kNTPrefixEscaped)) {
-      // TODO(nsylvain): Find a better way to do name resolution. Right now we
-      // take the name and we expand it.
-      mod_name.insert(0, kNTPrefixEscaped);
-    }
-  } else {
-    // Start of name matches NT prefix, replace with escaped format
-    // Fixes bug: 334882
-    mod_name.replace(0, kNTPrefixLen, kNTPrefixEscaped);
-  }
-
-  return mod_name;
 }
 
 }  // namespace sandbox

@@ -4,10 +4,6 @@
 
 #include "sandbox/win/src/resolver.h"
 
-// For placement new. This file must not depend on the CRT at runtime, but
-// placement operator new is inline.
-#include <new>
-
 #include "sandbox/win/src/sandbox_nt_util.h"
 
 namespace {
@@ -66,7 +62,7 @@ bool ResolverThunk::SetInternalThunk(void* storage, size_t storage_bytes,
   if (storage_bytes < sizeof(InternalThunk))
     return false;
 
-  InternalThunk* thunk = new(storage) InternalThunk;
+  InternalThunk* thunk = new(storage, NT_PLACE) InternalThunk;
 
 #pragma warning(push)
 #pragma warning(disable: 4311)

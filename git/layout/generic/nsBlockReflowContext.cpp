@@ -228,7 +228,7 @@ nsBlockReflowContext::ReflowBlock(const LogicalRect&  aSpace,
 {
   mFrame = aFrameRS.frame;
   mWritingMode = aState.mReflowState.GetWritingMode();
-  mContainerWidth = aState.ContainerWidth();
+  mContainerWidth = aState.mContainerWidth;
   mSpace = aSpace;
 
   if (!aIsAdjacentWithBStart) {

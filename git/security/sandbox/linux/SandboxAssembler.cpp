@@ -9,10 +9,12 @@
 #include <errno.h>
 #include <utility>
 
-#include "sandbox/linux/bpf_dsl/dump_bpf.h"
-#include "sandbox/linux/bpf_dsl/trap_registry.h"
 #include "sandbox/linux/seccomp-bpf/codegen.h"
 #include "sandbox/linux/seccomp-bpf/linux_seccomp.h"
+
+// Currently included only for struct arch_seccomp_data; newer
+// chromiums define it in sandbox/linux/bpf_dsl/trap_registry.h
+#include "sandbox/linux/seccomp-bpf/sandbox_bpf.h"
 
 namespace mozilla {
 
@@ -49,7 +51,7 @@ SandboxAssemblerImpl::Compile(std::vector<sock_filter>* aProgram, bool aPrint)
 
   mCode.Compile(prog, aProgram);
   if (aPrint) {
-    sandbox::bpf_dsl::DumpBPF::PrintProgram(*aProgram);
+    mCode.PrintProgram(*aProgram);
   }
 }
 

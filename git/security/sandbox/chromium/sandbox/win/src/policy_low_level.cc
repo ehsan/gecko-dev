@@ -274,10 +274,8 @@ bool PolicyRule::AddStringMatch(RuleType rule_type, int16 parameter,
   return true;
 }
 
-bool PolicyRule::AddNumberMatch(RuleType rule_type,
-                                int16 parameter,
-                                uint32 number,
-                                RuleOp comparison_op) {
+bool PolicyRule::AddNumberMatch(RuleType rule_type, int16 parameter,
+                                unsigned long number, RuleOp comparison_op) {
   if (done_) {
     // Do not allow to add more rules after generating the action opcode.
     return false;
@@ -289,8 +287,7 @@ bool PolicyRule::AddNumberMatch(RuleType rule_type,
       return false;
     }
   } else if (AND == comparison_op) {
-    if (NULL == opcode_factory_->MakeOpNumberAndMatch(parameter, number,
-                                                      opts)) {
+    if (NULL == opcode_factory_->MakeOpUlongAndMatch(parameter, number, opts)) {
       return false;
     }
   }

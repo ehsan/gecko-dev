@@ -78,14 +78,16 @@ RequestHashClearEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
     e->~RequestMapEntry();
 }
 
-static void
-RequestHashInitEntry(PLDHashEntryHdr *entry, const void *key)
+static bool
+RequestHashInitEntry(PLDHashTable *table, PLDHashEntryHdr *entry,
+                     const void *key)
 {
     const nsIRequest *const_request = static_cast<const nsIRequest *>(key);
     nsIRequest *request = const_cast<nsIRequest *>(const_request);
 
     // Initialize the entry with placement new
     new (entry) RequestMapEntry(request);
+    return true;
 }
 
 

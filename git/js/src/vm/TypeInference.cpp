@@ -2171,14 +2171,13 @@ TemporaryTypeSet::maybeEmulatesUndefined(CompilerConstraintList *constraints)
     return false;
 }
 
-bool
-TemporaryTypeSet::getCommonPrototype(CompilerConstraintList *constraints, JSObject **proto)
+JSObject *
+TemporaryTypeSet::getCommonPrototype(CompilerConstraintList *constraints)
 {
     if (unknownObject())
-        return false;
+        return nullptr;
 
-    *proto = nullptr;
-    bool isFirst = true;
+    JSObject *proto = nullptr;
     unsigned count = getObjectCount();
 
     for (unsigned i = 0; i < count; i++) {
@@ -2187,27 +2186,27 @@ TemporaryTypeSet::getCommonPrototype(CompilerConstraintList *constraints, JSObje
             continue;
 
         if (key->unknownProperties())
-            return false;
+            return nullptr;
 
         TaggedProto nproto = key->proto();
-        if (isFirst) {
-            if (nproto.isLazy())
-                return false;
-            *proto = nproto.toObjectOrNull();
-            isFirst = false;
+        if (proto) {
+            if (nproto != TaggedProto(proto))
+                return nullptr;
         } else {
-            if (nproto != TaggedProto(*proto))
-                return false;
+            if (!nproto.isObject())
+                return nullptr;
+            proto = nproto.toObject();
         }
     }
 
     // Guard against mutating __proto__.
     for (unsigned i = 0; i < count; i++) {
-        if (ObjectKey *key = getObject(i))
+        ObjectKey *key = getObject(i);
+        if (key)
             JS_ALWAYS_TRUE(key->hasStableClassAndProto(constraints));
     }
 
-    return true;
+    return proto;
 }
 
 bool
@@ -2282,12 +2281,9 @@ js::TypeCanHaveExtraIndexedProperties(CompilerConstraintList *constraints,
     if (types->hasObjectFlags(constraints, OBJECT_FLAG_SPARSE_INDEXES))
         return true;
 
-    JSObject *proto;
-    if (!types->getCommonPrototype(constraints, &proto))
-        return true;
-
+    JSObject *proto = types->getCommonPrototype(constraints);
     if (!proto)
-        return false;
+        return true;
 
     return PrototypeHasIndexedProperty(constraints, proto);
 }

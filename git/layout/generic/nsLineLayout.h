@@ -56,7 +56,7 @@ public:
                        bool aImpactedByFloats,
                        bool aIsTopOfPage,
                        mozilla::WritingMode aWritingMode,
-                       const nsSize& aContainerSize);
+                       nscoord aContainerWidth);
 
   void EndLineReflow();
 
@@ -549,11 +549,11 @@ protected:
 
   // The container width to use when converting between logical and
   // physical coordinates for frames in this span. For the root span
-  // this is the width of the block cached in mContainerSize.width; for
+  // this is the width of the block cached in mContainerWidth; for
   // child spans it's the width of the root span
   nscoord ContainerWidthForSpan(PerSpanData* aPSD) {
     return (aPSD == mRootSpan)
-      ? ContainerWidth()
+      ? mContainerWidth
       : aPSD->mFrame->mBounds.Width(mRootSpan->mWritingMode);
   }
 
@@ -588,10 +588,8 @@ protected:
   // frame, if any
   nscoord mTrimmableISize;
 
-  // Physical size. Use only for physical <-> logical coordinate conversion.
-  nsSize mContainerSize;
-  nscoord ContainerWidth() const { return mContainerSize.width; }
-  nscoord ContainerHeight() const { return mContainerSize.height; }
+  // Physical width. Use only for physical <-> logical coordinate conversion.
+  nscoord mContainerWidth;
 
   bool mFirstLetterStyleOK      : 1;
   bool mIsTopOfPage             : 1;

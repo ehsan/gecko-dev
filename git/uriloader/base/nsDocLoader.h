@@ -246,7 +246,8 @@ protected:
         nsAutoPtr<nsStatusInfo> mLastStatus;
     };
 
-    static void RequestInfoHashInitEntry(PLDHashEntryHdr* entry, const void* key);
+    static bool RequestInfoHashInitEntry(PLDHashTable* table, PLDHashEntryHdr* entry,
+                                         const void* key);
     static void RequestInfoHashClearEntry(PLDHashTable* table, PLDHashEntryHdr* entry);
 
     // IMPORTANT: The ownership implicit in the following member

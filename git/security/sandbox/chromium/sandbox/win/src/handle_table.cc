@@ -66,7 +66,7 @@ HandleTable::HandleTable() {
 
 HandleTable::Iterator HandleTable::HandlesForProcess(ULONG process_id) const {
   SYSTEM_HANDLE_INFORMATION key;
-  key.ProcessId = static_cast<USHORT>(process_id);
+  key.ProcessId = process_id;
 
   const SYSTEM_HANDLE_INFORMATION* start = handle_info()->Information;
   const SYSTEM_HANDLE_INFORMATION* finish =

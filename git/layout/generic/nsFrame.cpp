@@ -5180,7 +5180,6 @@ nsIFrame::SchedulePaint(PaintType aType)
 Layer*
 nsIFrame::InvalidateLayer(uint32_t aDisplayItemKey,
                           const nsIntRect* aDamageRect,
-                          const nsRect* aFrameDamageRect,
                           uint32_t aFlags /* = 0 */)
 {
   NS_ASSERTION(aDisplayItemKey > 0, "Need a key");
@@ -5194,11 +5193,11 @@ nsIFrame::InvalidateLayer(uint32_t aDisplayItemKey,
     return layer;
   }
 
-  if (!layer) {
-    if (aFrameDamageRect && aFrameDamageRect->IsEmpty()) {
-      return nullptr;
-    }
+  if (aDamageRect && aDamageRect->IsEmpty()) {
+    return layer;
+  }
 
+  if (!layer) {
     // Plugins can transition from not rendering anything to rendering,
     // and still only call this. So always invalidate, with specifying
     // the display item type just in case.
@@ -5207,23 +5206,13 @@ nsIFrame::InvalidateLayer(uint32_t aDisplayItemKey,
     // screen because sometimes we don't have any retainned data
     // for remote type displayitem and thus Repaint event is not
     // triggered. So, always invalidate here as well.
-    uint32_t displayItemKey = aDisplayItemKey;
     if (aDisplayItemKey == nsDisplayItem::TYPE_PLUGIN ||
         aDisplayItemKey == nsDisplayItem::TYPE_REMOTE) {
-      displayItemKey = 0;
-    }
-
-    if (aFrameDamageRect) {
-      InvalidateFrameWithRect(*aFrameDamageRect, displayItemKey);
+      InvalidateFrame();
     } else {
-      InvalidateFrame(displayItemKey);
+      InvalidateFrame(aDisplayItemKey);
     }
-
     return nullptr;
-  }
-
-  if (aDamageRect && aDamageRect->IsEmpty()) {
-    return layer;
   }
 
   if (aDamageRect) {

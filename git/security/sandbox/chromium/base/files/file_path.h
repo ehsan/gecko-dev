@@ -107,6 +107,7 @@
 #include <vector>
 
 #include "base/base_export.h"
+#include "base/compiler_specific.h"
 #include "base/containers/hash_tables.h"
 #include "base/strings/string16.h"
 #include "base/strings/string_piece.h"  // For implicit conversions.
@@ -452,6 +453,7 @@ BASE_EXPORT extern void PrintTo(const base::FilePath& path, std::ostream* out);
 // Provide a hash function so that hash_sets and maps can contain FilePath
 // objects.
 namespace BASE_HASH_NAMESPACE {
+#if defined(COMPILER_GCC)
 
 template<>
 struct hash<base::FilePath> {
@@ -459,6 +461,14 @@ struct hash<base::FilePath> {
     return hash<base::FilePath::StringType>()(f.value());
   }
 };
+
+#elif defined(COMPILER_MSVC)
+
+inline size_t hash_value(const base::FilePath& f) {
+  return hash_value(f.value());
+}
+
+#endif  // COMPILER
 
 }  // namespace BASE_HASH_NAMESPACE
 

@@ -1060,15 +1060,9 @@ WebConsoleActor.prototype =
    */
   evalWithDebugger: function WCA_evalWithDebugger(aString, aOptions = {})
   {
-    let trimmedString = aString.trim();
     // The help function needs to be easy to guess, so we make the () optional.
-    if (trimmedString == "help" || trimmedString == "?") {
+    if (aString.trim() == "help" || aString.trim() == "?") {
       aString = "help()";
-    }
-
-    // Add easter egg for console.mihai().
-    if (trimmedString == "console.mihai()" || trimmedString == "console.mihai();") {
-      aString = "\"http://incompleteness.me/blog/2015/02/09/console-dot-mihai/\"";
     }
 
     // Find the Debugger.Frame of the given FrameActor.

@@ -124,6 +124,7 @@ NTSTATUS ProcessPolicy::OpenThreadAction(const ClientInfo& client_info,
     if (!::DuplicateHandle(::GetCurrentProcess(), local_handle,
                            client_info.process, handle, 0, FALSE,
                            DUPLICATE_CLOSE_SOURCE | DUPLICATE_SAME_ACCESS)) {
+      ::CloseHandle(local_handle);
       return STATUS_ACCESS_DENIED;
     }
   }
@@ -155,6 +156,7 @@ NTSTATUS ProcessPolicy::OpenProcessAction(const ClientInfo& client_info,
     if (!::DuplicateHandle(::GetCurrentProcess(), local_handle,
                            client_info.process, handle, 0, FALSE,
                            DUPLICATE_CLOSE_SOURCE | DUPLICATE_SAME_ACCESS)) {
+      ::CloseHandle(local_handle);
       return STATUS_ACCESS_DENIED;
     }
   }
@@ -180,6 +182,7 @@ NTSTATUS ProcessPolicy::OpenProcessTokenAction(const ClientInfo& client_info,
     if (!::DuplicateHandle(::GetCurrentProcess(), local_handle,
                            client_info.process, handle, 0, FALSE,
                            DUPLICATE_CLOSE_SOURCE | DUPLICATE_SAME_ACCESS)) {
+      ::CloseHandle(local_handle);
       return STATUS_ACCESS_DENIED;
     }
   }
@@ -205,6 +208,7 @@ NTSTATUS ProcessPolicy::OpenProcessTokenExAction(const ClientInfo& client_info,
     if (!::DuplicateHandle(::GetCurrentProcess(), local_handle,
                            client_info.process, handle, 0, FALSE,
                            DUPLICATE_CLOSE_SOURCE | DUPLICATE_SAME_ACCESS)) {
+      ::CloseHandle(local_handle);
       return STATUS_ACCESS_DENIED;
     }
   }

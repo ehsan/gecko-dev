@@ -17,7 +17,7 @@
 namespace sandbox {
 
 ResultCode ProxyCreateEvent(LPCWSTR name,
-                            uint32 initial_state,
+                            BOOL initial_state,
                             EVENT_TYPE event_type,
                             void* ipc_memory,
                             CrossCallReturn* answer) {
@@ -34,7 +34,7 @@ ResultCode ProxyCreateEvent(LPCWSTR name,
 }
 
 ResultCode ProxyOpenEvent(LPCWSTR name,
-                          uint32 desired_access,
+                          ACCESS_MASK desired_access,
                           void* ipc_memory,
                           CrossCallReturn* answer) {
   CountedParameterSet<OpenEventParams> params;

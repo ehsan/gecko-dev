@@ -4,22 +4,6 @@
 /**
  * Test if filtering items in the network table works correctly with new requests.
  */
-const BASIC_REQUESTS = [
-  { url: "sjs_content-type-test-server.sjs?fmt=html&res=undefined" },
-  { url: "sjs_content-type-test-server.sjs?fmt=css" },
-  { url: "sjs_content-type-test-server.sjs?fmt=js" },
-];
-
-const REQUESTS_WITH_MEDIA = BASIC_REQUESTS.concat([
-  { url: "sjs_content-type-test-server.sjs?fmt=font" },
-  { url: "sjs_content-type-test-server.sjs?fmt=image" },
-  { url: "sjs_content-type-test-server.sjs?fmt=audio" },
-  { url: "sjs_content-type-test-server.sjs?fmt=video" },
-]);
-
-const REQUESTS_WITH_MEDIA_AND_FLASH = REQUESTS_WITH_MEDIA.concat([
-  { url: "sjs_content-type-test-server.sjs?fmt=flash" },
-]);
 
 function test() {
   initNetMonitor(FILTERING_URL).then(([aTab, aDebuggee, aMonitor]) => {
@@ -53,7 +37,7 @@ function test() {
         })
         .then(() => {
           info("Performing more requests.");
-          performRequestsInContent(REQUESTS_WITH_MEDIA_AND_FLASH);
+          aDebuggee.performRequests('{ "getMedia": true, "getFlash": true }');
           return waitForNetworkEvents(aMonitor, 8);
         })
         .then(() => {
@@ -63,7 +47,7 @@ function test() {
         })
         .then(() => {
           info("Performing more requests.");
-          performRequestsInContent(REQUESTS_WITH_MEDIA_AND_FLASH);
+          aDebuggee.performRequests('{ "getMedia": true, "getFlash": true }');
           return waitForNetworkEvents(aMonitor, 8);
         })
         .then(() => {
@@ -185,7 +169,6 @@ function test() {
       return promise.resolve(null);
     }
 
-    loadCommonFrameScript();
-    performRequestsInContent(REQUESTS_WITH_MEDIA_AND_FLASH);
+    aDebuggee.performRequests('{ "getMedia": true, "getFlash": true }');
   });
 }
