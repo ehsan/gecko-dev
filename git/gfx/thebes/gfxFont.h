@@ -214,7 +214,6 @@ public:
         mIsLocalUserFont(false), mStandardFace(aIsStandardFace),
         mSymbolFont(false),
         mIgnoreGDEF(false),
-        mIgnoreGSUB(false),
         mWeight(500), mStretch(NS_FONT_STRETCH_NORMAL),
 #ifdef MOZ_GRAPHITE
         mCheckedForGraphiteTables(false),
@@ -248,7 +247,6 @@ public:
     bool IsItalic() const { return mItalic; }
     bool IsBold() const { return mWeight >= 600; } // bold == weights 600 and above
     bool IgnoreGDEF() const { return mIgnoreGDEF; }
-    bool IgnoreGSUB() const { return mIgnoreGSUB; }
 
     virtual bool IsSymbolFont();
 
@@ -332,7 +330,6 @@ public:
     bool             mStandardFace : 1;
     bool             mSymbolFont  : 1;
     bool             mIgnoreGDEF  : 1;
-    bool             mIgnoreGSUB  : 1;
 
     PRUint16         mWeight;
     PRInt16          mStretch;
@@ -367,7 +364,6 @@ protected:
         mStandardFace(false),
         mSymbolFont(false),
         mIgnoreGDEF(false),
-        mIgnoreGSUB(false),
         mWeight(500), mStretch(NS_FONT_STRETCH_NORMAL),
 #ifdef MOZ_GRAPHITE
         mCheckedForGraphiteTables(false),
