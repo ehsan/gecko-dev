@@ -2758,9 +2758,10 @@ CSS_PROP_TEXTRESET(
     unicode-bidi,
     unicode_bidi,
     UnicodeBidi,
-    CSS_PROPERTY_PARSE_VALUE,
+    CSS_PROPERTY_PARSE_VALUE |
+        CSS_PROPERTY_VALUE_PARSER_FUNCTION,
     "",
-    VARIANT_HK,
+    0,
     kUnicodeBidiKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)

@@ -88,7 +88,7 @@ bdo, bdo[dir] {
   unicode-bidi: bidi-override;
 }
 bdo[dir="auto"] {
-  unicode-bidi: -moz-isolate-override;
+  unicode-bidi: bidi-override -moz-isolate;
 }
 textarea[dir="auto"], pre[dir="auto"] { unicode-bidi: -moz-plaintext; }
 
