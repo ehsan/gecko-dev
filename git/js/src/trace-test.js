@@ -1301,6 +1301,30 @@ function testNativeMax() {
 testNativeMax.expected = "NaN,4,false";
 test(testNativeMax);
 
+function testFloatArrayIndex() {
+    var a = [];
+    for (var i = 0; i < 10; ++i) {
+	a[3] = 5;
+	a[3.5] = 7;
+    }
+    return a[3] + "," + a[3.5];
+}
+testFloatArrayIndex.expected = "5,7";
+test(testFloatArrayIndex);
+
+function testStrict() {
+    var n = 10, a = [];
+    for (var i = 0; i < 10; ++i) {
+	a[0] = (n === 10);
+	a[1] = (n !== 10);
+	a[2] = (n === null);
+	a[3] = (n == null);
+    }
+    return a.join(",");
+}
+testStrict.expected = "true,false,false,false";
+test(testStrict);
+
 /* Keep these at the end so that we can see the summary after the trace-debug spew. */
 print("\npassed:", passes.length && passes.join(","));
 print("\nFAILED:", fails.length && fails.join(","));

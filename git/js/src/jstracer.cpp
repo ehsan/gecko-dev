@@ -595,6 +595,27 @@ public:
             if (s0->isCall() && s0->fid() == F_UnboxDouble) 
                 return callArgN(s0, 0);
             break;
+          case F_Any_getelem:
+            JS_ASSERT(s0->isQuad());
+            if (isPromote(s0)) {
+                LIns* args2[] = { demote(out, s0), args[1], args[2] };
+                return out->insCall(F_Any_getelem_int, args2);
+            }
+            break;
+          case F_Any_setelem:
+            JS_ASSERT(args[1]->isQuad());
+            if (isPromote(args[1])) {
+                LIns* args2[] = { s0, demote(out, args[1]), args[2], args[3] };
+                return out->insCall(F_Any_setelem_int, args2);
+            }
+            break;
+          case F_dmod: 
+            JS_ASSERT(s0->isQuad() && args[1]->isQuad());
+            if (s0->isconstq() && s0->constvalq() && isPromote(args[1])) {
+                LIns* args2[] = { demote(out, s0), demote(out, args[1]) };
+                return out->ins1(LIR_i2f, out->insCall(F_imod, args2));
+            }
+            break;
         }
         return out->insCall(fid, args);
     }
@@ -3024,62 +3045,79 @@ TraceRecorder::cmp(LOpcode op, int flags)
             return false;
         }
     } else if (isNumber(l) || isNumber(r)) {
-        jsval tmp[2] = {l, r};
-        JSAutoTempValueRooter tvr(cx, 2, tmp);
+        // CMP_STRICT is only set for JSOP_STRICTEQ and JSOP_STRICTNE, which correspond to the
+        // === and !== operators. negate is true for !== and false for ===. The strict equality
+        // operators produce false if the types of the operands differ, i.e. if only one of 
+        // them is a number. 
+        if ((flags & CMP_STRICT) && isNumber(l) != isNumber(r)) {
+            x = INS_CONST(negate);
+            cond = negate;
+        } else {
+            jsval tmp[2] = {l, r};
+            JSAutoTempValueRooter tvr(cx, 2, tmp);
 
-        // TODO: coerce non-numbers to numbers if it's not string-on-string above
-        jsdouble lnum;
-        jsdouble rnum;
-        LIns* args[] = { l_ins, cx_ins };
-        if (JSVAL_IS_STRING(l)) {
-            l_ins = lir->insCall(F_StringToNumber, args);
-        } else if (JSVAL_TAG(l) == JSVAL_BOOLEAN) {
-            /*
-             * What I really want here is for undefined to be type-specialized
-             * differently from real booleans.  Failing that, I want to be able
-             * to cmov on quads.  Failing that, I want to have small forward
-             * branched.  Failing that, I want to be able to ins_choose on quads
-             * without cmov.  Failing that, eat flaming builtin!
-             */
-            l_ins = lir->insCall(F_BooleanToNumber, args);
-        } else if (!isNumber(l)) {
-            ABORT_TRACE("unsupported LHS type for cmp vs number");
-        }
-        lnum = js_ValueToNumber(cx, &tmp[0]);
+            // TODO: coerce non-numbers to numbers if it's not string-on-string above
+            jsdouble lnum;
+            jsdouble rnum;
+            LIns* args[] = { l_ins, cx_ins };
+            if (l == JSVAL_NULL) {
+                jsdpun u;
+                u.d = js_NaN;
+                l_ins = lir->insImmq(u.u64);
+            } else if (JSVAL_IS_STRING(l)) {
+                l_ins = lir->insCall(F_StringToNumber, args);
+            } else if (JSVAL_TAG(l) == JSVAL_BOOLEAN) {
+                /*
+                 * What I really want here is for undefined to be type-specialized
+                 * differently from real booleans.  Failing that, I want to be able
+                 * to cmov on quads.  Failing that, I want to have small forward
+                 * branched.  Failing that, I want to be able to ins_choose on quads
+                 * without cmov.  Failing that, eat flaming builtin!
+                 */
+                l_ins = lir->insCall(F_BooleanToNumber, args);
+            } else if (!isNumber(l)) {
+                ABORT_TRACE("unsupported LHS type for cmp vs number");
+            }
+            lnum = js_ValueToNumber(cx, &tmp[0]);
 
-        args[0] = r_ins;
-        args[1] = cx_ins;
-        if (JSVAL_IS_STRING(r)) {
-            r_ins = lir->insCall(F_StringToNumber, args);
-        } else if (JSVAL_TAG(r) == JSVAL_BOOLEAN) {
-            // See above for the sob story.
-            r_ins = lir->insCall(F_BooleanToNumber, args);
-        } else if (!isNumber(r)) {
-            ABORT_TRACE("unsupported RHS type for cmp vs number");
-        }
-        rnum = js_ValueToNumber(cx, &tmp[1]);
+            args[0] = r_ins;
+            args[1] = cx_ins;
+            if (r == JSVAL_NULL) {
+                jsdpun u;
+                u.d = js_NaN;
+                r_ins = lir->insImmq(u.u64);
+            } else if (JSVAL_IS_STRING(r)) {
+                r_ins = lir->insCall(F_StringToNumber, args);
+            } else if (JSVAL_TAG(r) == JSVAL_BOOLEAN) {
+                // See above for the sob story.
+                r_ins = lir->insCall(F_BooleanToNumber, args);
+            } else if (!isNumber(r)) {
+                ABORT_TRACE("unsupported RHS type for cmp vs number");
+            }
+            rnum = js_ValueToNumber(cx, &tmp[1]);
 
-        x = lir->ins2(op, l_ins, r_ins);
+            x = lir->ins2(op, l_ins, r_ins);
 
-        if (negate)
-            x = lir->ins_eq0(x);
-        switch (op) {
-          case LIR_flt:
-            cond = lnum < rnum;
-            break;
-          case LIR_fgt:
-            cond = lnum > rnum;
-            break;
-          case LIR_fle:
-            cond = lnum <= rnum;
-            break;
-          case LIR_fge:
-            cond = lnum >= rnum;
-            break;
-          default:
-            JS_ASSERT(op == LIR_feq);
-            cond = (lnum == rnum) ^ negate;
-            break;
+            if (negate)
+                x = lir->ins_eq0(x);
+            switch (op) {
+            case LIR_flt:
+                cond = lnum < rnum;
+                break;
+            case LIR_fgt:
+                cond = lnum > rnum;
+                break;
+            case LIR_fle:
+                cond = lnum <= rnum;
+                break;
+            case LIR_fge:
+                cond = lnum >= rnum;
+                break;
+            default:
+                JS_ASSERT(op == LIR_feq);
+                cond = (lnum == rnum) ^ negate;
+                break;
+            }
         }
     } else if (JSVAL_IS_BOOLEAN(l) && JSVAL_IS_BOOLEAN(r)) {
         x = lir->ins2(op, lir->ins1(LIR_i2f, get(&l)), lir->ins1(LIR_i2f, get(&r)));
@@ -3112,7 +3150,7 @@ TraceRecorder::cmp(LOpcode op, int flags)
     }
 
     /* Don't guard if the same path is always taken. */
-    if (!(isAnyConst(r_ins) && isAnyConst(l_ins))) {
+    if (!isAnyConst(x)) {
         if (flags & CMP_CASE) {
             guard(cond, x, BRANCH_EXIT);
             return true;
@@ -3157,7 +3195,7 @@ TraceRecorder::equal(int flags)
             x = lir->ins_eq0(x);
 
         /* Don't guard if the same path is always taken. */
-        if (!(isAnyConst(r_ins) && isAnyConst(l_ins))) {
+        if (!isAnyConst(x)) {
             if (flags & CMP_CASE) {
                 guard(cond, x, BRANCH_EXIT);
                 return true;
@@ -3187,7 +3225,7 @@ TraceRecorder::equal(int flags)
             x = lir->ins_eq0(x);
 
         /* Don't guard if the same path is always taken. */
-        if (!(isAnyConst(r_ins) && isAnyConst(l_ins))) {
+        if (!isAnyConst(x)) {
             if (flags & CMP_CASE) {
                 guard(cond, x, BRANCH_EXIT);
                 return true;
@@ -4475,20 +4513,29 @@ TraceRecorder::record_JSOP_GETELEM()
         return true;
     }
 
-    if (!JSVAL_IS_PRIMITIVE(l) && JSVAL_IS_STRING(r)) {
+    if (!JSVAL_IS_PRIMITIVE(l) &&
+        (JSVAL_IS_STRING(r) || 
+         (isNumber(r) && (!JSVAL_IS_INT(r) || !OBJ_IS_DENSE_ARRAY(cx, JSVAL_TO_OBJECT(l)))))) {
         jsval v;
         jsid id;
+        uint32 fid;
 
-        if (!js_ValueToStringId(cx, r, &id))
-            return false;
-        r = ID_TO_VALUE(id);
+        if (JSVAL_IS_STRING(r)) {
+            if (!js_ValueToStringId(cx, r, &id))
+                return false;
+            r = ID_TO_VALUE(id);
+            fid = F_Any_getprop;
+        } else {
+            if (!js_IndexToId(cx, JSVAL_TO_INT(r), &id))
+                return false;
+            fid = F_Any_getelem;
+        }
         if (!OBJ_GET_PROPERTY(cx, JSVAL_TO_OBJECT(l), id, &v))
             return false;
 
         LIns* args[] = { get(&r), get(&l), cx_ins };
-        LIns* v_ins = lir->insCall(F_Any_getelem, args);
-        guard(false, lir->ins2(LIR_eq, v_ins, INS_CONST(JSVAL_ERROR_COOKIE)),
-              MISMATCH_EXIT);
+        LIns* v_ins = lir->insCall(fid, args);
+        guard(false, lir->ins2(LIR_eq, v_ins, INS_CONST(JSVAL_ERROR_COOKIE)), MISMATCH_EXIT);
         if (!unbox_jsval(v, v_ins))
             ABORT_TRACE("JSOP_GETELEM");
         set(&l, v_ins);
@@ -4517,23 +4564,20 @@ TraceRecorder::record_JSOP_SETELEM()
     JSObject* obj = JSVAL_TO_OBJECT(l);
     LIns* obj_ins = get(&l);
 
-    if (JSVAL_IS_STRING(r)) {
+    if (JSVAL_IS_STRING(r) || 
+        (isNumber(r) && (!JSVAL_IS_INT(r) || !guardDenseArray(obj, obj_ins)))) {
         LIns* v_ins = get(&v);
         LIns* unboxed_v_ins = v_ins;
         if (!box_jsval(v, v_ins))
             ABORT_TRACE("boxing string-indexed JSOP_SETELEM value");
         LIns* args[] = { v_ins, get(&r), get(&l), cx_ins };
-        LIns* ok_ins = lir->insCall(F_Any_setelem, args);
+        LIns* ok_ins = lir->insCall(JSVAL_IS_STRING(r) ? F_Any_setprop : F_Any_setelem, args);
         guard(false, lir->ins_eq0(ok_ins), MISMATCH_EXIT);
         set(&l, unboxed_v_ins);
         return true;
     }
     if (!JSVAL_IS_INT(r))
         ABORT_TRACE("non-string, non-int JSOP_SETELEM index");
-
-    /* make sure the object is actually a dense array */
-    if (!guardDenseArray(obj, obj_ins))
-        ABORT_TRACE("not a dense array");
 
     /* check that the index is within bounds */
     LIns* idx_ins = f2i(get(&r));
@@ -4732,6 +4776,9 @@ TraceRecorder::record_JSOP_CALL()
         { js_str_charAt,               F_String_getelem,       "TC",  "i",    FAIL_NULL },
         { js_str_charCodeAt,           F_String_p_charCodeAt,  "T",   "i",    FAIL_NEG },
         { js_str_concat,               F_String_p_concat_1int, "TC",  "i",    FAIL_NULL },
+        { js_str_concat,               F_ConcatStrings,        "TC",  "s",    FAIL_NULL },
+        { js_str_concat,               F_String_p_concat_2str, "TC",  "ss",   FAIL_NULL },
+        { js_str_concat,               F_String_p_concat_3str, "TC",  "sss",  FAIL_NULL },
         { js_str_fromCharCode,         F_String_fromCharCode,  "C",   "i",    FAIL_NULL },
         { js_str_match,                F_String_p_match,       "PTC", "r",    FAIL_VOID },
         { js_str_replace,              F_String_p_replace_str, "TC",  "sr",   FAIL_NULL },
@@ -5251,13 +5298,13 @@ TraceRecorder::record_JSOP_LOOKUPSWITCH()
 bool
 TraceRecorder::record_JSOP_STRICTEQ()
 {
-    return equal();
+    return equal(CMP_STRICT);
 }
 
 bool
 TraceRecorder::record_JSOP_STRICTNE()
 {
-    return equal(CMP_NEGATE);
+    return equal(CMP_STRICT | CMP_NEGATE);
 }
 
 bool
