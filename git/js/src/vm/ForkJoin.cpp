@@ -1477,7 +1477,7 @@ ForkJoinShared::executeFromWorker(ThreadPoolWorker *worker, uintptr_t stackLimit
     }
     TlsPerThreadData.set(&thisThread);
 
-#if defined(JS_ARM_SIMULATOR) || defined(JS_MIPS_SIMULATOR)
+#ifdef JS_ARM_SIMULATOR
     stackLimit = Simulator::StackLimit();
 #endif
 

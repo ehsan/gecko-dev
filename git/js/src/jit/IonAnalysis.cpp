@@ -2147,10 +2147,14 @@ AnalyzePoppedThis(JSContext *cx, types::TypeObject *type,
         JS_ASSERT(!baseobj->inDictionaryMode());
 
         Vector<MResumePoint *> callerResumePoints(cx);
-        for (MResumePoint *rp = ins->block()->callerResumePoint();
+        MBasicBlock *block = ins->block();
+        for (MResumePoint *rp = block->callerResumePoint();
              rp;
-             rp = rp->block()->callerResumePoint())
+             block = rp->block(), rp = block->callerResumePoint())
         {
+            JSScript *script = rp->block()->info().script();
+            if (!types::AddClearDefiniteFunctionUsesInScript(cx, type, script, block->info().script()))
+                return true;
             if (!callerResumePoints.append(rp))
                 return false;
         }
@@ -2369,24 +2373,7 @@ jit::AnalyzeNewScriptProperties(JSContext *cx, JSFunction *fun,
             return false;
         }
         if (!handled)
-            break;
-    }
-
-    if (baseobj->slotSpan() != 0) {
-        // We found some definite properties, but their correctness is still
-        // contingent on the correct frames being inlined. Add constraints to
-        // invalidate the definite properties if additional functions could be
-        // called at the inline frame sites.
-        Vector<MBasicBlock *> exitBlocks(cx);
-        for (MBasicBlockIterator block(graph.begin()); block != graph.end(); block++) {
-            if (MResumePoint *rp = block->callerResumePoint()) {
-                if (block->numPredecessors() == 1 && block->getPredecessor(0) == rp->block()) {
-                    JSScript *script = rp->block()->info().script();
-                    if (!types::AddClearDefiniteFunctionUsesInScript(cx, type, script, block->info().script()))
-                        return false;
-                }
-            }
-        }
+            return true;
     }
 
     return true;

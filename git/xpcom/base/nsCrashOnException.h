@@ -14,9 +14,8 @@ namespace mozilla {
 
 // Call a given window procedure, and catch any Win32 exceptions raised from it,
 // and report them as crashes.
-XPCOM_API(LRESULT) CallWindowProcCrashProtected(WNDPROC aWndProc, HWND aHWnd,
-                                                UINT aMsg, WPARAM aWParam,
-                                                LPARAM aLParam);
+XPCOM_API(LRESULT) CallWindowProcCrashProtected(WNDPROC wndProc, HWND hWnd, UINT msg,
+                                                WPARAM wParam, LPARAM lParam);
 
 }
 

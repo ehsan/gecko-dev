@@ -10,15 +10,14 @@
 
 NS_IMPL_ISUPPORTS(nsMacUtilsImpl, nsIMacUtils)
 
-nsresult
-nsMacUtilsImpl::GetArchString(nsAString& aArchString)
+nsresult nsMacUtilsImpl::GetArchString(nsAString& archString)
 {
   if (!mBinaryArchs.IsEmpty()) {
-    aArchString.Assign(mBinaryArchs);
+    archString.Assign(mBinaryArchs);
     return NS_OK;
   }
 
-  aArchString.Truncate();
+  archString.Truncate();
 
   bool foundPPC = false,
        foundX86 = false,
@@ -45,15 +44,14 @@ nsMacUtilsImpl::GetArchString(nsAString& aArchString)
       return NS_ERROR_FAILURE;
     }
 
-    if (archInt == kCFBundleExecutableArchitecturePPC) {
+    if (archInt == kCFBundleExecutableArchitecturePPC)
       foundPPC = true;
-    } else if (archInt == kCFBundleExecutableArchitectureI386) {
+    else if (archInt == kCFBundleExecutableArchitectureI386)
       foundX86 = true;
-    } else if (archInt == kCFBundleExecutableArchitecturePPC64) {
+    else if (archInt == kCFBundleExecutableArchitecturePPC64)
       foundPPC64 = true;
-    } else if (archInt == kCFBundleExecutableArchitectureX86_64) {
+    else if (archInt == kCFBundleExecutableArchitectureX86_64)
       foundX86_64 = true;
-    }
   }
 
   ::CFRelease(archList);
@@ -85,24 +83,21 @@ nsMacUtilsImpl::GetArchString(nsAString& aArchString)
     mBinaryArchs.Append(NS_LITERAL_STRING("x86_64"));
   }
 
-  aArchString.Assign(mBinaryArchs);
+  archString.Assign(mBinaryArchs);
 
-  return (aArchString.IsEmpty() ? NS_ERROR_FAILURE : NS_OK);
+  return (archString.IsEmpty() ? NS_ERROR_FAILURE : NS_OK);
 }
 
-NS_IMETHODIMP
-nsMacUtilsImpl::GetIsUniversalBinary(bool* aIsUniversalBinary)
+NS_IMETHODIMP nsMacUtilsImpl::GetIsUniversalBinary(bool *aIsUniversalBinary)
 {
-  if (NS_WARN_IF(!aIsUniversalBinary)) {
+  if (NS_WARN_IF(!aIsUniversalBinary))
     return NS_ERROR_INVALID_ARG;
-  }
   *aIsUniversalBinary = false;
 
   nsAutoString archString;
   nsresult rv = GetArchString(archString);
-  if (NS_FAILED(rv)) {
+  if (NS_FAILED(rv))
     return rv;
-  }
 
   // The delimiter char in the arch string is '-', so if that character
   // is in the string we know we have multiple architectures.
@@ -111,16 +106,14 @@ nsMacUtilsImpl::GetIsUniversalBinary(bool* aIsUniversalBinary)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsMacUtilsImpl::GetArchitecturesInBinary(nsAString& aArchString)
+NS_IMETHODIMP nsMacUtilsImpl::GetArchitecturesInBinary(nsAString& archString)
 {
-  return GetArchString(aArchString);
+  return GetArchString(archString);
 }
 
 /* readonly attribute boolean isTranslated; */
 // True when running under binary translation (Rosetta).
-NS_IMETHODIMP
-nsMacUtilsImpl::GetIsTranslated(bool* aIsTranslated)
+NS_IMETHODIMP nsMacUtilsImpl::GetIsTranslated(bool *aIsTranslated)
 {
 #ifdef __ppc__
   static bool    sInitialized = false;

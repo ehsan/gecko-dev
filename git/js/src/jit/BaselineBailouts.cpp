@@ -10,7 +10,6 @@
 #include "jit/BaselineJIT.h"
 #include "jit/CompileInfo.h"
 #include "jit/IonSpewer.h"
-#include "jit/mips/Simulator-mips.h"
 #include "jit/Recover.h"
 #include "jit/RematerializedFrame.h"
 
@@ -1446,7 +1445,7 @@ jit::BailoutIonToBaseline(JSContext *cx, JitActivation *activation, IonBailoutIt
     bool overRecursed = false;
     BaselineBailoutInfo *info = builder.info();
     uint8_t *newsp = info->incomingStack - (info->copyStackTop - info->copyStackBottom);
-#if defined(JS_ARM_SIMULATOR) || defined(JS_MIPS_SIMULATOR)
+#ifdef JS_ARM_SIMULATOR
     if (Simulator::Current()->overRecursed(uintptr_t(newsp)))
         overRecursed = true;
 #else
