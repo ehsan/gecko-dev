@@ -69,8 +69,6 @@ let webConsoleDefinition = {
   icon: "chrome://browser/skin/devtools/webconsole-tool-icon.png",
   url: "chrome://browser/content/devtools/webconsole.xul",
   label: l10n("ToolboxWebconsole.label", webConsoleStrings),
-  tooltip: l10n("ToolboxWebconsole.tooltip", webConsoleStrings),
-
   isTargetSupported: function(target) {
     return true;
   },
@@ -90,7 +88,6 @@ let debuggerDefinition = {
   icon: "chrome://browser/skin/devtools/tools-icons-small.png",
   url: "chrome://browser/content/debugger.xul",
   label: l10n("ToolboxDebugger.label", debuggerStrings),
-  tooltip: l10n("ToolboxDebugger.tooltip", debuggerStrings),
 
   isTargetSupported: function(target) {
     return true;
@@ -111,7 +108,6 @@ let inspectorDefinition = {
   icon: "chrome://browser/skin/devtools/tools-icons-small.png",
   url: "chrome://browser/content/devtools/inspector/inspector.xul",
   label: l10n("inspector.label", inspectorStrings),
-  tooltip: l10n("inspector.tooltip", inspectorStrings),
 
   isTargetSupported: function(target) {
     return !target.isRemote;
@@ -131,7 +127,6 @@ let styleEditorDefinition = {
   modifiers: "shift",
   label: l10n("ToolboxStyleEditor.label", styleEditorStrings),
   url: "chrome://browser/content/styleeditor.xul",
-  tooltip: l10n("ToolboxStyleEditor.tooltip", styleEditorStrings),
 
   isTargetSupported: function(target) {
     return !target.isRemote && !target.isChrome;
@@ -149,7 +144,6 @@ let profilerDefinition = {
   icon: "chrome://browser/skin/devtools/tools-icons-small.png",
   url: "chrome://browser/content/profiler.xul",
   label: l10n("profiler.label", profilerStrings),
-  tooltip: l10n("profiler.tooltip", profilerStrings),
 
   isTargetSupported: function (target) {
     if (target.isRemote || target.isChrome) {

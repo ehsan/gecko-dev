@@ -158,6 +158,9 @@ function ResponsiveUI(aWindow, aTab)
   this.buildUI();
   this.checkMenus();
 
+  let target = TargetFactory.forTab(this.tab);
+  this.toolboxWasOpen = !!gDevTools.getToolbox(target);
+
   try {
     if (Services.prefs.getBoolPref("devtools.responsiveUI.rotate")) {
       this.rotate();
@@ -236,9 +239,17 @@ ResponsiveUI.prototype = {
     if (aEvent.keyCode == this.mainWindow.KeyEvent.DOM_VK_ESCAPE &&
         this.mainWindow.gBrowser.selectedBrowser == this.browser) {
 
-      aEvent.preventDefault();
-      aEvent.stopPropagation();
-      this.close();
+      // If the toolbox wasn't open at first but is open now,
+      // we don't want to close the Responsive Mode on Escape.
+      // We let the toolbox close first.
+
+      let target = TargetFactory.forTab(this.tab);
+      let isToolboxOpen =  !!gDevTools.getToolbox(target);
+      if (this.toolboxWasOpen || !isToolboxOpen) {
+        aEvent.preventDefault();
+        aEvent.stopPropagation();
+        this.close();
+      }
     }
   },
 

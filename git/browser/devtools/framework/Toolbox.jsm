@@ -16,17 +16,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "Hosts",
                                   "resource:///modules/devtools/ToolboxHosts.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "CommandUtils",
                                   "resource:///modules/devtools/DeveloperToolbar.jsm");
-XPCOMUtils.defineLazyGetter(this, "toolboxStrings", function() {
-  let bundle = Services.strings.createBundle("chrome://browser/locale/devtools/toolbox.properties");
-  let l10n = function(name) {
-    try {
-      return bundle.GetStringFromName(name);
-    } catch (ex) {
-      Services.console.logStringMessage("Error reading '" + name + "'");
-    }
-  };
-  return l10n;
-});
 
 // DO NOT put Require.jsm or gcli.jsm into lazy getters as this breaks the
 // requisition import a few lines down.
@@ -296,8 +285,6 @@ Toolbox.prototype = {
       let button = this.doc.createElement("toolbarbutton");
       button.id = "toolbox-dock-" + position;
       button.className = "toolbox-dock-button";
-      button.setAttribute("tooltiptext", toolboxStrings("toolboxDockButtons." +
-                                                        position + ".tooltip"));
       button.addEventListener("command", function(position) {
         this.switchHost(position);
       }.bind(this, position));
@@ -361,7 +348,6 @@ Toolbox.prototype = {
     radio.className = "toolbox-tab devtools-tab";
     radio.id = "toolbox-tab-" + id;
     radio.setAttribute("toolid", id);
-    radio.setAttribute("tooltiptext", toolDefinition.tooltip);
 
     let ordinal = (typeof toolDefinition.ordinal == "number") ?
                   toolDefinition.ordinal : MAX_ORDINAL;

@@ -7,7 +7,6 @@
 #define nsChromeRegistryChrome_h
 
 #include "nsChromeRegistry.h"
-#include "nsVoidArray.h"
 
 namespace mozilla {
 namespace dom {

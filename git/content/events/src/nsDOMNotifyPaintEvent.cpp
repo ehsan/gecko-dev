@@ -92,26 +92,24 @@ nsDOMNotifyPaintEvent::GetClientRects(nsIDOMClientRectList** aResult)
 NS_IMETHODIMP
 nsDOMNotifyPaintEvent::GetPaintRequests(nsIDOMPaintRequestList** aResult)
 {
-  nsRefPtr<nsPaintRequestList> requests = PaintRequests();
-  requests.forget(aResult);
-  return NS_OK;
-}
-
-already_AddRefed<nsPaintRequestList>
-nsDOMNotifyPaintEvent::PaintRequests()
-{
-  nsDOMEvent* parent = this;
-  nsRefPtr<nsPaintRequestList> requests = new nsPaintRequestList(parent);
+  nsRefPtr<nsPaintRequestList> requests =
+    new nsPaintRequestList(static_cast<nsDOMEvent*>(this));
+  if (!requests)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   if (nsContentUtils::IsCallerChrome()) {
     for (uint32_t i = 0; i < mInvalidateRequests.Length(); ++i) {
-      nsRefPtr<nsPaintRequest> r = new nsPaintRequest(parent);
+      nsRefPtr<nsPaintRequest> r = new nsPaintRequest();
+      if (!r)
+        return NS_ERROR_OUT_OF_MEMORY;
+ 
       r->SetRequest(mInvalidateRequests[i]);
       requests->Append(r);
     }
   }
 
-  return requests.forget();
+  requests.forget(aResult);
+  return NS_OK;
 }
 
 NS_IMETHODIMP_(void)

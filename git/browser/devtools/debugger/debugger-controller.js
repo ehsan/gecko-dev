@@ -11,7 +11,6 @@ const Cu = Components.utils;
 
 const DBG_STRINGS_URI = "chrome://browser/locale/devtools/debugger.properties";
 const NEW_SCRIPT_DISPLAY_DELAY = 200; // ms
-const FETCH_SOURCE_RESPONSE_DELAY = 50; // ms
 const FRAME_STEP_CLEAR_DELAY = 100; // ms
 const CALL_STACK_PAGE_SIZE = 25; // frames
 
@@ -1167,7 +1166,6 @@ SourceScripts.prototype = {
 
     DebuggerView.Sources.push(label, url, {
       forced: aOptions.forced,
-      tooltip: url,
       attachment: aSource
     });
   },
@@ -1179,29 +1177,18 @@ SourceScripts.prototype = {
    *        The source object coming from the active thread.
    * @param function aCallback
    *        Function called after the source text has been loaded.
-   * @param function aOnTimeout
-   *        Function called when the source text takes too long to fetch.
    */
-  getText: function SS_getText(aSource, aCallback, aOnTimeout) {
+  getText: function SS_getText(aSource, aCallback) {
     // If already loaded, return the source text immediately.
     if (aSource.loaded) {
       aCallback(aSource.url, aSource.text);
       return;
     }
 
-    // If the source text takes too long to fetch, invoke a timeout to
-    // avoid blocking any operations.
-    if (aOnTimeout) {
-      var fetchTimeout = window.setTimeout(aOnTimeout, FETCH_SOURCE_RESPONSE_DELAY);
-    }
-
     // Get the source text from the active thread.
     this.activeThread.source(aSource.source).source(function(aResponse) {
-      window.clearTimeout(fetchTimeout);
-
       if (aResponse.error) {
-        Cu.reportError("Error loading " + aSource.url + "\n" + aResponse.error);
-        aCallback(aSource.url, "");
+        Cu.reportError("Error loading " + aUrl);
         return;
       }
       aSource.loaded = true;
@@ -1622,6 +1609,7 @@ let Prefs = {
   }
 };
 
+Prefs.map("Int", "height", "devtools.debugger.ui.height");
 Prefs.map("Int", "windowX", "devtools.debugger.ui.win-x");
 Prefs.map("Int", "windowY", "devtools.debugger.ui.win-y");
 Prefs.map("Int", "windowWidth", "devtools.debugger.ui.win-width");
