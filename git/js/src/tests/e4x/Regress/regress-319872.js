@@ -41,7 +41,7 @@ gTestfile = 'regress-319872.js';
 var BUGNUMBER = 319872;
 var summary = 'Do not Crash in jsxml.c';
 var actual = 'No Crash';
-var expect = /(No Crash|InternalError: script stack space quota is exhausted|InternalError: allocation size overflow)/;
+var expect = 'No Crash';
 
 printBugNumber(BUGNUMBER);
 START(summary);
@@ -71,7 +71,8 @@ try
 }
 catch(ex)
 {
+  expect = 'InternalError: script stack space quota is exhausted';
   actual = ex + '';
   print(actual);
 }
-reportMatch(expect, actual, summary);
+TEST(1, expect, actual);

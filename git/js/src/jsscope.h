@@ -672,6 +672,10 @@ JSScope::extend(JSContext *cx, JSScopeProperty *sprop)
 /*
  * Property read barrier for deferred cloning of compiler-created function
  * objects optimized as typically non-escaping, ad-hoc methods in obj.
+ *
+ * Called only from JSScopeProperty::get when sprop->isMethod(), or JIT-
+ * equivalent code. sprop->isMethod() implies that scope->hasMethodBarrier()
+ * for the scope containing that sprop.
  */
 inline bool
 JSScope::methodReadBarrier(JSContext *cx, JSScopeProperty *sprop, jsval *vp)
@@ -680,6 +684,7 @@ JSScope::methodReadBarrier(JSContext *cx, JSScopeProperty *sprop, jsval *vp)
     JS_ASSERT(has(sprop));
     JS_ASSERT(sprop->isMethod());
     JS_ASSERT(sprop->methodValue() == *vp);
+
     JS_ASSERT(object->getClass() == &js_ObjectClass);
 
     JSObject *funobj = JSVAL_TO_OBJECT(*vp);

@@ -1391,7 +1391,7 @@ fun_enumerate(JSContext *cx, JSObject *obj)
     JSProperty *prop;
 
     prototypeId = ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom);
-    if (js_LookupPropertyWithFlags(cx, obj, prototypeId, JSRESOLVE_QUALIFIED, &pobj, &prop) < 0)
+    if (!obj->lookupProperty(cx, prototypeId, &pobj, &prop))
         return JS_FALSE;
     if (prop)
         pobj->dropProperty(cx, prop);
