@@ -565,9 +565,9 @@ Assembler::as_bal(BOffImm16 off)
 }
 
 InstImm
-Assembler::getBranchCode(JumpOrCall jumpOrCall)
+Assembler::getBranchCode(bool isCall)
 {
-    if (jumpOrCall == BranchIsCall)
+    if (isCall)
         return InstImm(op_regimm, zero, rt_bgezal, BOffImm16(0));
 
     return InstImm(op_beq, zero, zero, BOffImm16(0));
@@ -608,10 +608,10 @@ Assembler::getBranchCode(Register s, Condition c)
 }
 
 InstImm
-Assembler::getBranchCode(FloatTestKind testKind, FPConditionBit fcc)
+Assembler::getBranchCode(bool testTrue, FPConditionBit fcc)
 {
     JS_ASSERT(!(fcc && FccMask));
-    uint32_t rtField = ((testKind == TestForTrue ? 1 : 0) | (fcc << FccShift)) << RTShift;
+    uint32_t rtField = ((testTrue ? 1 : 0) | (fcc << FccShift)) << RTShift;
 
     return InstImm(op_cop1, rs_bc1, rtField, BOffImm16(0));
 }
@@ -1172,61 +1172,100 @@ Assembler::as_sqrtd(FloatRegister fd, FloatRegister fs)
 
 // FP compare instructions
 BufferOffset
-Assembler::as_cf(FloatFormat fmt, FloatRegister fs, FloatRegister ft, FPConditionBit fcc)
+Assembler::as_cfs(FloatRegister fs, FloatRegister ft, FPConditionBit fcc)
 {
-    RSField rs = fmt == DoubleFloat ? rs_d : rs_s;
-    return writeInst(InstReg(op_cop1, rs, ft, fs, fcc << FccShift, ff_c_f_fmt).encode());
+    return writeInst(InstReg(op_cop1, rs_s, ft, fs, fcc << FccShift, ff_c_f_fmt).encode());
 }
 
 BufferOffset
-Assembler::as_cun(FloatFormat fmt, FloatRegister fs, FloatRegister ft, FPConditionBit fcc)
+Assembler::as_cuns(FloatRegister fs, FloatRegister ft, FPConditionBit fcc)
 {
-    RSField rs = fmt == DoubleFloat ? rs_d : rs_s;
-    return writeInst(InstReg(op_cop1, rs, ft, fs, fcc << FccShift, ff_c_un_fmt).encode());
+    return writeInst(InstReg(op_cop1, rs_s, ft, fs, fcc << FccShift, ff_c_un_fmt).encode());
 }
 
 BufferOffset
-Assembler::as_ceq(FloatFormat fmt, FloatRegister fs, FloatRegister ft, FPConditionBit fcc)
+Assembler::as_ceqs(FloatRegister fs, FloatRegister ft, FPConditionBit fcc)
 {
-    RSField rs = fmt == DoubleFloat ? rs_d : rs_s;
-    return writeInst(InstReg(op_cop1, rs, ft, fs, fcc << FccShift, ff_c_eq_fmt).encode());
+    return writeInst(InstReg(op_cop1, rs_s, ft, fs, fcc << FccShift, ff_c_eq_fmt).encode());
 }
 
 BufferOffset
-Assembler::as_cueq(FloatFormat fmt, FloatRegister fs, FloatRegister ft, FPConditionBit fcc)
+Assembler::as_cueqs(FloatRegister fs, FloatRegister ft, FPConditionBit fcc)
 {
-    RSField rs = fmt == DoubleFloat ? rs_d : rs_s;
-    return writeInst(InstReg(op_cop1, rs, ft, fs, fcc << FccShift, ff_c_ueq_fmt).encode());
+    return writeInst(InstReg(op_cop1, rs_s, ft, fs, fcc << FccShift, ff_c_ueq_fmt).encode());
 }
 
 BufferOffset
-Assembler::as_colt(FloatFormat fmt, FloatRegister fs, FloatRegister ft, FPConditionBit fcc)
+Assembler::as_colts(FloatRegister fs, FloatRegister ft, FPConditionBit fcc)
 {
-    RSField rs = fmt == DoubleFloat ? rs_d : rs_s;
-    return writeInst(InstReg(op_cop1, rs, ft, fs, fcc << FccShift, ff_c_olt_fmt).encode());
+    return writeInst(InstReg(op_cop1, rs_s, ft, fs, fcc << FccShift, ff_c_olt_fmt).encode());
 }
 
 BufferOffset
-Assembler::as_cult(FloatFormat fmt, FloatRegister fs, FloatRegister ft, FPConditionBit fcc)
+Assembler::as_cults(FloatRegister fs, FloatRegister ft, FPConditionBit fcc)
 {
-    RSField rs = fmt == DoubleFloat ? rs_d : rs_s;
-    return writeInst(InstReg(op_cop1, rs, ft, fs, fcc << FccShift, ff_c_ult_fmt).encode());
+    return writeInst(InstReg(op_cop1, rs_s, ft, fs, fcc << FccShift, ff_c_ult_fmt).encode());
 }
 
 BufferOffset
-Assembler::as_cole(FloatFormat fmt, FloatRegister fs, FloatRegister ft, FPConditionBit fcc)
+Assembler::as_coles(FloatRegister fs, FloatRegister ft, FPConditionBit fcc)
 {
-    RSField rs = fmt == DoubleFloat ? rs_d : rs_s;
-    return writeInst(InstReg(op_cop1, rs, ft, fs, fcc << FccShift, ff_c_ole_fmt).encode());
+    return writeInst(InstReg(op_cop1, rs_s, ft, fs, fcc << FccShift, ff_c_ole_fmt).encode());
 }
 
 BufferOffset
-Assembler::as_cule(FloatFormat fmt, FloatRegister fs, FloatRegister ft, FPConditionBit fcc)
+Assembler::as_cules(FloatRegister fs, FloatRegister ft, FPConditionBit fcc)
 {
-    RSField rs = fmt == DoubleFloat ? rs_d : rs_s;
-    return writeInst(InstReg(op_cop1, rs, ft, fs, fcc << FccShift, ff_c_ule_fmt).encode());
+    return writeInst(InstReg(op_cop1, rs_s, ft, fs, fcc << FccShift, ff_c_ule_fmt).encode());
 }
 
+BufferOffset
+Assembler::as_cfd(FloatRegister fs, FloatRegister ft, FPConditionBit fcc)
+{
+    return writeInst(InstReg(op_cop1, rs_d, ft, fs, fcc << FccShift, ff_c_f_fmt).encode());
+}
+
+BufferOffset
+Assembler::as_cund(FloatRegister fs, FloatRegister ft, FPConditionBit fcc)
+{
+    return writeInst(InstReg(op_cop1, rs_d, ft, fs, fcc << FccShift, ff_c_un_fmt).encode());
+}
+
+BufferOffset
+Assembler::as_ceqd(FloatRegister fs, FloatRegister ft, FPConditionBit fcc)
+{
+    return writeInst(InstReg(op_cop1, rs_d, ft, fs, fcc << FccShift, ff_c_eq_fmt).encode());
+}
+
+BufferOffset
+Assembler::as_cueqd(FloatRegister fs, FloatRegister ft, FPConditionBit fcc)
+{
+    return writeInst(InstReg(op_cop1, rs_d, ft, fs, fcc << FccShift, ff_c_ueq_fmt).encode());
+}
+
+BufferOffset
+Assembler::as_coltd(FloatRegister fs, FloatRegister ft, FPConditionBit fcc)
+{
+    return writeInst(InstReg(op_cop1, rs_d, ft, fs, fcc << FccShift, ff_c_olt_fmt).encode());
+}
+
+BufferOffset
+Assembler::as_cultd(FloatRegister fs, FloatRegister ft, FPConditionBit fcc)
+{
+    return writeInst(InstReg(op_cop1, rs_d, ft, fs, fcc << FccShift, ff_c_ult_fmt).encode());
+}
+
+BufferOffset
+Assembler::as_coled(FloatRegister fs, FloatRegister ft, FPConditionBit fcc)
+{
+    return writeInst(InstReg(op_cop1, rs_d, ft, fs, fcc << FccShift, ff_c_ole_fmt).encode());
+}
+
+BufferOffset
+Assembler::as_culed(FloatRegister fs, FloatRegister ft, FPConditionBit fcc)
+{
+    return writeInst(InstReg(op_cop1, rs_d, ft, fs, fcc << FccShift, ff_c_ule_fmt).encode());
+}
 
 void
 Assembler::bind(Label *label, BufferOffset boff)

@@ -46,13 +46,18 @@ char*
 xpc_PrintJSStack(JSContext* cx, bool showArgs, bool showLocals,
                  bool showThisProps)
 {
-    JS::AutoSaveExceptionState state(cx);
+    char* buf;
+    JSExceptionState *state = JS_SaveExceptionState(cx);
+    if (!state)
+        DebugDump("%s", "Call to a debug function modifying state!\n");
 
-    char *buf = JS::FormatStackDump(cx, nullptr, showArgs, showLocals, showThisProps);
+    JS_ClearPendingException(cx);
+
+    buf = JS::FormatStackDump(cx, nullptr, showArgs, showLocals, showThisProps);
     if (!buf)
         DebugDump("%s", "Failed to format JavaScript stack for dump\n");
 
-    state.restore();
+    JS_RestoreExceptionState(cx, state);
     return buf;
 }
 
@@ -94,7 +99,7 @@ xpc_DumpEvalInJSStackFrame(JSContext* cx, uint32_t frameno, const char* text)
         return false;
     }
 
-    JS::AutoSaveExceptionState exceptionState(cx);
+    JSExceptionState* exceptionState = JS_SaveExceptionState(cx);
     JSErrorReporter older = JS_SetErrorReporter(cx, xpcDumpEvalErrorReporter);
 
     JS::RootedValue rval(cx);
@@ -104,12 +109,10 @@ xpc_DumpEvalInJSStackFrame(JSContext* cx, uint32_t frameno, const char* text)
         nullptr != (str = ToString(cx, rval)) &&
         bytes.encodeLatin1(cx, str)) {
         DebugDump("%s\n", bytes.ptr());
-    } else {
+    } else
         DebugDump("%s", "eval failed!\n");
-    }
-
     JS_SetErrorReporter(cx, older);
-    exceptionState.restore();
+    JS_RestoreExceptionState(cx, exceptionState);
     return true;
 }
 

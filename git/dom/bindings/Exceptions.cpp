@@ -260,8 +260,8 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(StackDescriptionOwner)
   JS::StackDescription* desc = tmp->mDescription;
   if (tmp->mDescription) {
     for (size_t i = 0; i < desc->nframes; ++i) {
-      NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mDescription->frames[i].markedLocation1());
-      NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mDescription->frames[i].markedLocation2());
+      NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mDescription->frames[i].script());
+      NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mDescription->frames[i].fun());
     }
   }
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
@@ -377,8 +377,13 @@ NS_IMETHODIMP JSStackFrame::GetFilename(nsACString& aFilename)
 {
   if (!mFilenameInitialized) {
     JS::FrameDescription& desc = mStackDescription->FrameAt(mIndex);
-    if (const char *filename = desc.filename()) {
-      mFilename.Assign(filename);
+    if (desc.script()) {
+      ThreadsafeAutoSafeJSContext cx;
+      JSAutoCompartment ac(cx, desc.script());
+      const char* filename = JS_GetScriptFilename(cx, desc.script());
+      if (filename) {
+        mFilename.Assign(filename);
+      }
     }
     mFilenameInitialized = true;
   }
@@ -398,8 +403,14 @@ NS_IMETHODIMP JSStackFrame::GetName(nsACString& aFunction)
 {
   if (!mFunnameInitialized) {
     JS::FrameDescription& desc = mStackDescription->FrameAt(mIndex);
-    if (JSFlatString *name = desc.funDisplayName()) {
-      CopyUTF16toUTF8(JS_GetFlatStringChars(name), mFunname);
+    if (desc.fun() && desc.script()) {
+      ThreadsafeAutoSafeJSContext cx;
+      JSAutoCompartment ac(cx, desc.script());
+      JS::Rooted<JSFunction*> fun(cx, desc.fun());
+      JS::Rooted<JSString*> funid(cx, JS_GetFunctionDisplayId(fun));
+      if (funid) {
+        CopyUTF16toUTF8(JS_GetStringCharsZ(cx, funid), mFunname);
+      }
     }
     mFunnameInitialized = true;
   }

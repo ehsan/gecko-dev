@@ -57,8 +57,6 @@ public:
 
   virtual ~CanvasClient() {}
 
-  virtual void Clear() {};
-
   virtual void Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer) = 0;
 
   virtual void Updated() { }
@@ -80,11 +78,6 @@ public:
   TextureInfo GetTextureInfo() const
   {
     return TextureInfo(COMPOSITABLE_IMAGE);
-  }
-
-  virtual void Clear() MOZ_OVERRIDE
-  {
-    mBuffer = nullptr;
   }
 
   virtual void Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer) MOZ_OVERRIDE;
@@ -118,11 +111,6 @@ public:
   TextureInfo GetTextureInfo() const
   {
     return TextureInfo(COMPOSITABLE_IMAGE);
-  }
-
-  virtual void Clear() MOZ_OVERRIDE
-  {
-    mBuffer = nullptr;
   }
 
   virtual void Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer) MOZ_OVERRIDE;

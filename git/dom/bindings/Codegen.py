@@ -299,8 +299,7 @@ def UseHolderForUnforgeable(descriptor):
             descriptor.proxy and
             any(m for m in descriptor.interface.members if m.isAttr() and m.isUnforgeable()))
 
-def CallOnUnforgeableHolder(descriptor, code, isXrayCheck=None,
-                            useSharedRoot=False):
+def CallOnUnforgeableHolder(descriptor, code, isXrayCheck=None):
     """
     Generate the code to execute the code in "code" on an unforgeable holder if
     needed. code should be a string containing the code to execute. If it
@@ -310,10 +309,6 @@ def CallOnUnforgeableHolder(descriptor, code, isXrayCheck=None,
     If isXrayCheck is not None it should be a string that contains a statement
     returning whether proxy is an Xray. If isXrayCheck is None the generated
     code won't try to unwrap Xrays.
-
-    If useSharedRoot is true, we will use an existing
-    JS::Rooted<JSObject*> sharedRoot for storing our unforgeable holder instead
-    of declaring a new Rooted.
     """
     code = string.Template(code).substitute({ "holder": "unforgeableHolder" })
     if not isXrayCheck is None:
@@ -332,16 +327,11 @@ def CallOnUnforgeableHolder(descriptor, code, isXrayCheck=None,
 {
   JSObject* global = js::GetGlobalForObjectCrossCompartment(proxy);"""
 
-    if useSharedRoot:
-        holderDecl = "JS::Rooted<JSObject*>& unforgeableHolder(sharedRoot)"
-    else:
-        holderDecl = "JS::Rooted<JSObject*> unforgeableHolder(cx)"
     return (pre + """
-  %s;
-  unforgeableHolder = GetUnforgeableHolder(global, prototypes::id::%s);
+  JS::Rooted<JSObject*> unforgeableHolder(cx, GetUnforgeableHolder(global, prototypes::id::%s));
 """ + CGIndenter(CGGeneric(code)).define() + """
 }
-""") % (holderDecl, descriptor.name)
+""") % descriptor.name
 
 class CGPrototypeJSClass(CGThing):
     def __init__(self, descriptor, properties):
@@ -4788,9 +4778,21 @@ def getRetvalDeclarationForType(returnType, descriptorProvider,
         name = returnType.unroll().identifier.name
         return CGGeneric("nsRefPtr<%s>" % name), False, None, None
     if returnType.isAny():
-        return CGGeneric("JS::Value"), False, None, None
+        result = CGGeneric("JS::Value")
+        if isMember:
+            resultArgs = None
+        else:
+            result = CGTemplatedType("JS::Rooted", result)
+            resultArgs = "cx"
+        return result, False, None, resultArgs
     if returnType.isObject() or returnType.isSpiderMonkeyInterface():
-        return CGGeneric("JSObject*"), False, None, None
+        result = CGGeneric("JSObject*")
+        if isMember:
+            resultArgs = None
+        else:
+            result = CGTemplatedType("JS::Rooted", result)
+            resultArgs = "cx"
+        return result, False, None, resultArgs
     if returnType.isSequence():
         nullable = returnType.nullable()
         if nullable:
@@ -8541,7 +8543,6 @@ class CGDOMJSProxyHandler_get(ClassMethod):
         ClassMethod.__init__(self, "get", "bool", args)
         self.descriptor = descriptor
     def getBody(self):
-        getUnforgeableOrExpando = "JS::Rooted<JSObject*> sharedRoot(cx);\n"
         if UseHolderForUnforgeable(self.descriptor):
             hasUnforgeable = (
                 "bool hasUnforgeable;\n"
@@ -8551,23 +8552,21 @@ class CGDOMJSProxyHandler_get(ClassMethod):
                  "if (hasUnforgeable) {\n"
                  "  return JS_ForwardGetPropertyTo(cx, ${holder}, id, proxy, vp);\n"
                  "}")
-            getUnforgeableOrExpando += CallOnUnforgeableHolder(self.descriptor,
-                                                               hasUnforgeable,
-                                                               useSharedRoot=True)
-        getUnforgeableOrExpando += """{ // Scope for expando
-  JS::Rooted<JSObject*>& expando(sharedRoot);
-  expando = DOMProxyHandler::GetExpandoObject(proxy);
-  if (expando) {
-    bool hasProp;
-    if (!JS_HasPropertyById(cx, expando, id, &hasProp)) {
-      return false;
-    }
+            getUnforgeableOrExpando = CallOnUnforgeableHolder(self.descriptor,
+                                                              hasUnforgeable)
+        else:
+            getUnforgeableOrExpando = ""
+        getUnforgeableOrExpando += """JS::Rooted<JSObject*> expando(cx, DOMProxyHandler::GetExpandoObject(proxy));
+if (expando) {
+  bool hasProp;
+  if (!JS_HasPropertyById(cx, expando, id, &hasProp)) {
+    return false;
+  }
 
-    if (hasProp) {
-      // Forward the get to the expando object, but our receiver is whatever our
-      // receiver is.
-      return JS_ForwardGetPropertyTo(cx, expando, id, receiver, vp);
-    }
+  if (hasProp) {
+    // Forward the get to the expando object, but our receiver is whatever our
+    // receiver is.
+    return JS_ForwardGetPropertyTo(cx, expando, id, receiver, vp);
   }
 }"""
 

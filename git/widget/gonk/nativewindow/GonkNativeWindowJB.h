@@ -24,7 +24,7 @@
 #include <utils/threads.h>
 
 #include "CameraCommon.h"
-#include "GonkConsumerBaseJB.h"
+#include "GonkConsumerBase.h"
 #include "GrallocImages.h"
 #include "mozilla/layers/ImageBridgeChild.h"
 #include "mozilla/layers/LayersSurfaces.h"

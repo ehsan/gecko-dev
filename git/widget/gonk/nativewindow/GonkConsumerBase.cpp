@@ -27,7 +27,7 @@
 #include <utils/Log.h>
 #include <utils/String8.h>
 
-#include "GonkConsumerBaseKK.h"
+#include "GonkConsumerBase.h"
 
 // Macros for including the GonkConsumerBase name in log messages
 #define CB_LOGV(...) __android_log_print(ANDROID_LOG_VERBOSE, LOG_TAG, __VA_ARGS__)
@@ -44,9 +44,9 @@ static int32_t createProcessUniqueId() {
     return android_atomic_inc(&globalCounter);
 }
 
-GonkConsumerBase::GonkConsumerBase(const sp<GonkBufferQueue>& bufferQueue, bool controlledByApp) :
+GonkConsumerBase::GonkConsumerBase(const sp<GonkBufferQueue>& bufferQueue) :
         mAbandoned(false),
-        mConsumer(bufferQueue) {
+        mBufferQueue(bufferQueue) {
     // Choose a name using the PID and a process-unique ID.
     mName = String8::format("unnamed-%d-%d", getpid(), createProcessUniqueId());
 
@@ -54,15 +54,17 @@ GonkConsumerBase::GonkConsumerBase(const sp<GonkBufferQueue>& bufferQueue, bool 
     // reference once the ctor ends, as that would cause the refcount of 'this'
     // dropping to 0 at the end of the ctor.  Since all we need is a wp<...>
     // that's what we create.
-    wp<ConsumerListener> listener = static_cast<ConsumerListener*>(this);
-    sp<IConsumerListener> proxy = new GonkBufferQueue::ProxyConsumerListener(listener);
+    wp<GonkBufferQueue::ConsumerListener> listener;
+    sp<GonkBufferQueue::ConsumerListener> proxy;
+    listener = static_cast<GonkBufferQueue::ConsumerListener*>(this);
+    proxy = new GonkBufferQueue::ProxyConsumerListener(listener);
 
-    status_t err = mConsumer->consumerConnect(proxy, controlledByApp);
+    status_t err = mBufferQueue->consumerConnect(proxy);
     if (err != NO_ERROR) {
         CB_LOGE("GonkConsumerBase: error connecting to GonkBufferQueue: %s (%d)",
                 strerror(-err), err);
     } else {
-        mConsumer->setConsumerName(mName);
+        mBufferQueue->setConsumerName(mName);
     }
 }
 
@@ -86,13 +88,12 @@ void GonkConsumerBase::freeBufferLocked(int slotIndex) {
     CB_LOGV("freeBufferLocked: slotIndex=%d", slotIndex);
     mSlots[slotIndex].mGraphicBuffer = 0;
     mSlots[slotIndex].mFence = Fence::NO_FENCE;
-    mSlots[slotIndex].mFrameNumber = 0;
 }
 
 // Used for refactoring, should not be in final interface
 sp<GonkBufferQueue> GonkConsumerBase::getBufferQueue() const {
     Mutex::Autolock lock(mMutex);
-    return mConsumer;
+    return mBufferQueue;
 }
 
 void GonkConsumerBase::onFrameAvailable() {
@@ -101,7 +102,11 @@ void GonkConsumerBase::onFrameAvailable() {
     sp<FrameAvailableListener> listener;
     { // scope for the lock
         Mutex::Autolock lock(mMutex);
+#if ANDROID_VERSION == 17
+        listener = mFrameAvailableListener;
+#else
         listener = mFrameAvailableListener.promote();
+#endif
     }
 
     if (listener != NULL) {
@@ -121,7 +126,7 @@ void GonkConsumerBase::onBuffersReleased() {
     }
 
     uint32_t mask = 0;
-    mConsumer->getReleasedBuffers(&mask);
+    mBufferQueue->getReleasedBuffers(&mask);
     for (int i = 0; i < GonkBufferQueue::NUM_BUFFER_SLOTS; i++) {
         if (mask & (1 << i)) {
             freeBufferLocked(i);
@@ -144,38 +149,45 @@ void GonkConsumerBase::abandonLocked() {
     for (int i =0; i < GonkBufferQueue::NUM_BUFFER_SLOTS; i++) {
         freeBufferLocked(i);
     }
-    // disconnect from the BufferQueue
-    mConsumer->consumerDisconnect();
-    mConsumer.clear();
+    // disconnect from the GonkBufferQueue
+    mBufferQueue->consumerDisconnect();
+    mBufferQueue.clear();
 }
 
 void GonkConsumerBase::setFrameAvailableListener(
+#if ANDROID_VERSION == 17
+        const sp<FrameAvailableListener>& listener) {
+#else
         const wp<FrameAvailableListener>& listener) {
+#endif
     CB_LOGV("setFrameAvailableListener");
     Mutex::Autolock lock(mMutex);
     mFrameAvailableListener = listener;
 }
 
 void GonkConsumerBase::dump(String8& result) const {
-    dump(result, "");
+    char buffer[1024];
+    dump(result, "", buffer, 1024);
 }
 
-void GonkConsumerBase::dump(String8& result, const char* prefix) const {
+void GonkConsumerBase::dump(String8& result, const char* prefix,
+        char* buffer, size_t size) const {
     Mutex::Autolock _l(mMutex);
-    dumpLocked(result, prefix);
+    dumpLocked(result, prefix, buffer, size);
 }
 
-void GonkConsumerBase::dumpLocked(String8& result, const char* prefix) const {
-    result.appendFormat("%smAbandoned=%d\n", prefix, int(mAbandoned));
+void GonkConsumerBase::dumpLocked(String8& result, const char* prefix,
+        char* buffer, size_t SIZE) const {
+    snprintf(buffer, SIZE, "%smAbandoned=%d\n", prefix, int(mAbandoned));
+    result.append(buffer);
 
     if (!mAbandoned) {
-        mConsumer->dump(result, prefix);
+        mBufferQueue->dump(result, prefix, buffer, SIZE);
     }
 }
 
-status_t GonkConsumerBase::acquireBufferLocked(IGonkGraphicBufferConsumer::BufferItem *item,
-        nsecs_t presentWhen) {
-    status_t err = mConsumer->acquireBuffer(item, presentWhen);
+status_t GonkConsumerBase::acquireBufferLocked(GonkBufferQueue::BufferItem *item) {
+    status_t err = mBufferQueue->acquireBuffer(item);
     if (err != NO_ERROR) {
         return err;
     }
@@ -184,7 +196,6 @@ status_t GonkConsumerBase::acquireBufferLocked(IGonkGraphicBufferConsumer::Buffe
         mSlots[item->mBuf].mGraphicBuffer = item->mGraphicBuffer;
     }
 
-    mSlots[item->mBuf].mFrameNumber = item->mFrameNumber;
     mSlots[item->mBuf].mFence = item->mFence;
 
     CB_LOGV("acquireBufferLocked: -> slot=%d", item->mBuf);
@@ -192,21 +203,13 @@ status_t GonkConsumerBase::acquireBufferLocked(IGonkGraphicBufferConsumer::Buffe
     return OK;
 }
 
-status_t GonkConsumerBase::addReleaseFence(int slot,
-        const sp<GraphicBuffer> graphicBuffer, const sp<Fence>& fence) {
+status_t GonkConsumerBase::addReleaseFence(int slot, const sp<Fence>& fence) {
     Mutex::Autolock lock(mMutex);
-    return addReleaseFenceLocked(slot, graphicBuffer, fence);
+    return addReleaseFenceLocked(slot, fence);
 }
 
-status_t GonkConsumerBase::addReleaseFenceLocked(int slot,
-        const sp<GraphicBuffer> graphicBuffer, const sp<Fence>& fence) {
+status_t GonkConsumerBase::addReleaseFenceLocked(int slot, const sp<Fence>& fence) {
     CB_LOGV("addReleaseFenceLocked: slot=%d", slot);
-
-    // If consumer no longer tracks this graphicBuffer, we can safely
-    // drop this fence, as it will never be received by the producer.
-    if (!stillTracking(slot, graphicBuffer)) {
-        return OK;
-    }
 
     if (!mSlots[slot].mFence.get()) {
         mSlots[slot].mFence = fence;
@@ -227,17 +230,9 @@ status_t GonkConsumerBase::addReleaseFenceLocked(int slot,
     return OK;
 }
 
-status_t GonkConsumerBase::releaseBufferLocked(int slot, const sp<GraphicBuffer> graphicBuffer) {
-    // If consumer no longer tracks this graphicBuffer (we received a new
-    // buffer on the same slot), the buffer producer is definitely no longer
-    // tracking it.
-    if (!stillTracking(slot, graphicBuffer)) {
-        return OK;
-    }
-
-    CB_LOGV("releaseBufferLocked: slot=%d/%llu",
-            slot, mSlots[slot].mFrameNumber);
-    status_t err = mConsumer->releaseBuffer(slot, mSlots[slot].mFrameNumber, mSlots[slot].mFence);
+status_t GonkConsumerBase::releaseBufferLocked(int slot) {
+    CB_LOGV("releaseBufferLocked: slot=%d", slot);
+    status_t err = mBufferQueue->releaseBuffer(slot, mSlots[slot].mFence);
     if (err == GonkBufferQueue::STALE_BUFFER_SLOT) {
         freeBufferLocked(slot);
     }
@@ -245,15 +240,6 @@ status_t GonkConsumerBase::releaseBufferLocked(int slot, const sp<GraphicBuffer>
     mSlots[slot].mFence = Fence::NO_FENCE;
 
     return err;
-}
-
-bool GonkConsumerBase::stillTracking(int slot,
-        const sp<GraphicBuffer> graphicBuffer) {
-    if (slot < 0 || slot >= GonkBufferQueue::NUM_BUFFER_SLOTS) {
-        return false;
-    }
-    return (mSlots[slot].mGraphicBuffer != NULL &&
-            mSlots[slot].mGraphicBuffer->handle == graphicBuffer->handle);
 }
 
 } // namespace android

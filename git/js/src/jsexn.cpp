@@ -188,22 +188,23 @@ struct SuppressErrorsGuard
 {
     JSContext *cx;
     JSErrorReporter prevReporter;
-    JS::AutoSaveExceptionState prevState;
+    JSExceptionState *prevState;
 
     SuppressErrorsGuard(JSContext *cx)
       : cx(cx),
         prevReporter(JS_SetErrorReporter(cx, nullptr)),
-        prevState(cx)
+        prevState(JS_SaveExceptionState(cx))
     {}
 
     ~SuppressErrorsGuard()
     {
+        JS_RestoreExceptionState(cx, prevState);
         JS_SetErrorReporter(cx, prevReporter);
     }
 };
 
-JSString *
-js::ComputeStackString(JSContext *cx)
+static JSString *
+ComputeStackString(JSContext *cx)
 {
     StringBuffer sb(cx);
 

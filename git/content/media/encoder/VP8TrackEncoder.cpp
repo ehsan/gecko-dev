@@ -53,11 +53,9 @@ VP8TrackEncoder::~VP8TrackEncoder()
 }
 
 nsresult
-VP8TrackEncoder::Init(int32_t aWidth, int32_t aHeight, int32_t aDisplayWidth,
-                      int32_t aDisplayHeight,TrackRate aTrackRate)
+VP8TrackEncoder::Init(int32_t aWidth, int32_t aHeight, TrackRate aTrackRate)
 {
-  if (aWidth < 1 || aHeight < 1 || aDisplayWidth < 1 || aDisplayHeight < 1
-      || aTrackRate <= 0) {
+  if (aWidth < 1 || aHeight < 1 || aTrackRate <= 0) {
     return NS_ERROR_FAILURE;
   }
 
@@ -68,8 +66,6 @@ VP8TrackEncoder::Init(int32_t aWidth, int32_t aHeight, int32_t aDisplayWidth,
   mEncodedFrameDuration = mTrackRate / mEncodedFrameRate;
   mFrameWidth = aWidth;
   mFrameHeight = aHeight;
-  mDisplayWidth = aDisplayWidth;
-  mDisplayHeight = aDisplayHeight;
 
   // Encoder configuration structure.
   vpx_codec_enc_cfg_t config;
@@ -157,8 +153,6 @@ VP8TrackEncoder::GetMetadata()
   nsRefPtr<VP8Metadata> meta = new VP8Metadata();
   meta->mWidth = mFrameWidth;
   meta->mHeight = mFrameHeight;
-  meta->mDisplayWidth = mDisplayWidth;
-  meta->mDisplayHeight = mDisplayHeight;
   meta->mEncodedFrameRate = mEncodedFrameRate;
 
   return meta.forget();
