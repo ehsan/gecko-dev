@@ -164,8 +164,8 @@ interface MozIcc : EventTarget
    *
    * @return a DOMRequest.
    *         The request's result will be an object containing
-   *         information about the specified lock's status.
-   *         e.g. {enabled: true}.
+   *         information about the specified lock's status,
+   *         e.g. {lockType: "pin", enabled: true}.
    */
   [Throws]
   DOMRequest getCardLock(DOMString lockType);
@@ -248,19 +248,19 @@ interface MozIcc : EventTarget
    *      control key (NCK1).
    *
    *   unlockCardLock({lockType: "nck1Puk",
-   *                   puk: "..."});
+   *                   pin: "..."});
    *
    * (13) Network type 2 PUK depersonalization. Unlocking the Network type 2
    *      control key (NCK2).
    *
    *   unlockCardLock({lockType: "nck2Puk",
-   *                   puk: "..."});
+   *                   pin: "..."});
    *
    * (14) HRPD network PUK depersonalization. Unlocking the HRPD network control
    *      key (HNCK).
    *
    *   unlockCardLock({lockType: "hnckPuk",
-   *                   puk: "..."});
+   *                   pin: "..."});
    *
    * (15) Corporate PUK depersonalization. Unlocking the corporate control key
    *      (CCK).
@@ -287,9 +287,25 @@ interface MozIcc : EventTarget
    *                   puk: "..."});
    *
    * @return a DOMRequest.
-   *         The request's error will be an object containing the number of
-   *         remaining retries
-   *         @see IccCardLockError.
+   *         The request's result will be an object containing
+   *         information about the unlock operation.
+   *
+   * Examples:
+   *
+   * (1) Unlocking failed:
+   *
+   *     {
+   *       lockType:   "pin",
+   *       success:    false,
+   *       retryCount: 2
+   *     }
+   *
+   * (2) Unlocking succeeded:
+   *
+   *     {
+   *       lockType:  "pin",
+   *       success:   true
+   *     }
    */
   [Throws]
   DOMRequest unlockCardLock(any info);
@@ -325,9 +341,25 @@ interface MozIcc : EventTarget
    *                newPin: "..."});
    *
    * @return a DOMRequest.
-   *         The request's error will be an object containing the number of
-   *         remaining retries.
-   *         @see IccCardLockError.
+   *         The request's result will be an object containing
+   *         information about the operation.
+   *
+   * Examples:
+   *
+   * (1) Enabling/Disabling card lock failed or change card lock failed.
+   *
+   *     {
+   *       lockType: "pin",
+   *       success: false,
+   *       retryCount: 2
+   *     }
+   *
+   * (2) Enabling/Disabling card lock succeed or change card lock succeed.
+   *
+   *     {
+   *       lockType: "pin",
+   *       success: true
+   *     }
    */
   [Throws]
   DOMRequest setCardLock(any info);
@@ -340,9 +372,9 @@ interface MozIcc : EventTarget
    *        the PUK lock.
    *
    * @return a DOMRequest.
-   *         The request's result will be an object containing the number of
-   *         remaining retries.
-   *         e.g. {retryCount: 3}.
+   *         If the lock type is "pin", or "puk", the request's result will be
+   *         an object containing the number of retries for the specified
+   *         lock. For any other lock type, the result is undefined.
    */
   [Throws]
   DOMRequest getCardLockRetryCount(DOMString lockType);
