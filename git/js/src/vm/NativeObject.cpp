@@ -1362,8 +1362,7 @@ PurgeScopeChainHelper(ExclusiveContext *cx, HandleObject objArg, HandleId id)
     if (JSID_IS_INT(id))
         return true;
 
-    if (!PurgeProtoChain(cx, obj->getProto(), id))
-        return false;
+    PurgeProtoChain(cx, obj->getProto(), id);
 
     /*
      * We must purge the scope chain only for Call objects as they are the only
@@ -1388,9 +1387,9 @@ PurgeScopeChainHelper(ExclusiveContext *cx, HandleObject objArg, HandleId id)
  * (i.e., obj has ever been on a prototype or parent chain).
  */
 static inline bool
-PurgeScopeChain(ExclusiveContext *cx, HandleObject obj, HandleId id)
+PurgeScopeChain(ExclusiveContext *cx, JS::HandleObject obj, JS::HandleId id)
 {
-    if (obj->isDelegate() && obj->isNative())
+    if (obj->isDelegate())
         return PurgeScopeChainHelper(cx, obj, id);
     return true;
 }

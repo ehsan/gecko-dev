@@ -500,7 +500,7 @@ AsmJSHandleExecutionInterrupt()
 {
     AsmJSActivation *act = PerThreadData::innermostAsmJSActivation();
     act->module().setInterrupted(true);
-    bool ret = CheckForInterrupt(act->cx());
+    bool ret = HandleExecutionInterrupt(act->cx());
     act->module().setInterrupted(false);
     return ret;
 }
@@ -673,8 +673,8 @@ AddressOf(AsmJSImmKind kind, ExclusiveContext *cx)
     switch (kind) {
       case AsmJSImm_Runtime:
         return cx->runtimeAddressForJit();
-      case AsmJSImm_RuntimeInterruptUint32:
-        return cx->runtimeAddressOfInterruptUint32();
+      case AsmJSImm_RuntimeInterrupt:
+        return cx->runtimeAddressOfInterrupt();
       case AsmJSImm_StackLimit:
         return cx->stackLimitAddressForJitCode(StackForUntrustedScript);
       case AsmJSImm_ReportOverRecursed:
@@ -2134,7 +2134,7 @@ struct ScopedCacheEntryOpenedForWrite
     }
 };
 
-JS::AsmJSCacheResult
+bool
 js::StoreAsmJSModuleInCache(AsmJSParser &parser,
                             const AsmJSModule &module,
                             ExclusiveContext *cx)
@@ -2144,15 +2144,15 @@ js::StoreAsmJSModuleInCache(AsmJSParser &parser,
     // that can't be serialized. (This is separate from normal profiling and
     // requires an addon to activate).
     if (module.numFunctionCounts())
-        return JS::AsmJSCache_Disabled_JitInspector;
+        return false;
 
     MachineId machineId;
     if (!machineId.extractCurrentState(cx))
-        return JS::AsmJSCache_InternalError;
+        return false;
 
     ModuleCharsForStore moduleChars;
     if (!moduleChars.init(parser))
-        return JS::AsmJSCache_InternalError;
+        return false;
 
     size_t serializedSize = machineId.serializedSize() +
                             moduleChars.serializedSize() +
@@ -2160,17 +2160,17 @@ js::StoreAsmJSModuleInCache(AsmJSParser &parser,
 
     JS::OpenAsmJSCacheEntryForWriteOp open = cx->asmJSCacheOps().openEntryForWrite;
     if (!open)
-        return JS::AsmJSCache_Disabled_Internal;
+        return false;
 
     const char16_t *begin = parser.tokenStream.rawBase() + ModuleChars::beginOffset(parser);
     const char16_t *end = parser.tokenStream.rawBase() + ModuleChars::endOffset(parser);
     bool installed = parser.options().installedFile;
 
     ScopedCacheEntryOpenedForWrite entry(cx, serializedSize);
-    JS::AsmJSCacheResult openResult =
-        open(cx->global(), installed, begin, end, serializedSize, &entry.memory, &entry.handle);
-    if (openResult != JS::AsmJSCache_Success)
-        return openResult;
+    if (!open(cx->global(), installed, begin, end, entry.serializedSize,
+              &entry.memory, &entry.handle)) {
+        return false;
+    }
 
     uint8_t *cursor = entry.memory;
     cursor = machineId.serialize(cursor);
@@ -2178,7 +2178,7 @@ js::StoreAsmJSModuleInCache(AsmJSParser &parser,
     cursor = module.serialize(cursor);
 
     MOZ_ASSERT(cursor == entry.memory + serializedSize);
-    return JS::AsmJSCache_Success;
+    return true;
 }
 
 struct ScopedCacheEntryOpenedForRead

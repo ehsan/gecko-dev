@@ -166,8 +166,7 @@ MediaSource::Duration()
   if (mReadyState == MediaSourceReadyState::Closed) {
     return UnspecifiedNaN<double>();
   }
-  MOZ_ASSERT(mDecoder);
-  return mDecoder->GetMediaSourceDuration();
+  return mDuration;
 }
 
 void
@@ -184,7 +183,7 @@ MediaSource::SetDuration(double aDuration, ErrorResult& aRv)
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
-  mDecoder->SetMediaSourceDuration(aDuration);
+  DurationChange(aDuration, aRv);
 }
 
 already_AddRefed<SourceBuffer>
@@ -272,7 +271,7 @@ MediaSource::EndOfStream(const Optional<MediaSourceEndOfStreamError>& aError, Er
   mSourceBuffers->Ended();
   mDecoder->Ended();
   if (!aError.WasPassed()) {
-    mDecoder->SetMediaSourceDuration(mSourceBuffers->GetHighestBufferedEndTime());
+    DurationChange(mSourceBuffers->GetHighestBufferedEndTime(), aRv);
     if (aRv.Failed()) {
       return;
     }
@@ -337,6 +336,7 @@ MediaSource::Detach()
   mDecoder = nullptr;
   mFirstSourceBufferInitialized = false;
   SetReadyState(MediaSourceReadyState::Closed);
+  mDuration = UnspecifiedNaN<double>();
   if (mActiveSourceBuffers) {
     mActiveSourceBuffers->Clear();
   }
@@ -345,8 +345,50 @@ MediaSource::Detach()
   }
 }
 
+void
+MediaSource::GetBuffered(TimeRanges* aBuffered)
+{
+  MOZ_ASSERT(aBuffered->Length() == 0);
+  if (mActiveSourceBuffers->IsEmpty()) {
+    return;
+  }
+
+  double highestEndTime = 0;
+
+  nsTArray<nsRefPtr<TimeRanges>> activeRanges;
+  for (uint32_t i = 0; i < mActiveSourceBuffers->Length(); ++i) {
+    bool found;
+    SourceBuffer* sourceBuffer = mActiveSourceBuffers->IndexedGetter(i, found);
+
+    ErrorResult dummy;
+    *activeRanges.AppendElement() = sourceBuffer->GetBuffered(dummy);
+
+    highestEndTime = std::max(highestEndTime, activeRanges.LastElement()->GetEndTime());
+  }
+
+  TimeRanges* intersectionRanges = aBuffered;
+  intersectionRanges->Add(0, highestEndTime);
+
+  for (uint32_t i = 0; i < activeRanges.Length(); ++i) {
+    TimeRanges* sourceRanges = activeRanges[i];
+
+    if (mReadyState == MediaSourceReadyState::Ended) {
+      // Set the end time on the last range to highestEndTime by adding a
+      // new range spanning the current end time to highestEndTime, which
+      // Normalize() will then merge with the old last range.
+      sourceRanges->Add(sourceRanges->GetEndTime(), highestEndTime);
+      sourceRanges->Normalize();
+    }
+
+    intersectionRanges->Intersection(sourceRanges);
+  }
+
+  MSE_DEBUG("MediaSource(%p)::GetBuffered ranges=%s", this, DumpTimeRanges(intersectionRanges).get());
+}
+
 MediaSource::MediaSource(nsPIDOMWindow* aWindow)
   : DOMEventTargetHelper(aWindow)
+  , mDuration(UnspecifiedNaN<double>())
   , mDecoder(nullptr)
   , mPrincipal(nullptr)
   , mReadyState(MediaSourceReadyState::Closed)
@@ -415,19 +457,23 @@ MediaSource::QueueAsyncSimpleEvent(const char* aName)
 }
 
 void
-MediaSource::DurationChange(double aOldDuration, double aNewDuration)
+MediaSource::DurationChange(double aNewDuration, ErrorResult& aRv)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MSE_DEBUG("MediaSource(%p)::DurationChange(aNewDuration=%f)", this, aNewDuration);
-
-  if (aNewDuration < aOldDuration) {
-    ErrorResult rv;
-    mSourceBuffers->Remove(aNewDuration, aOldDuration, rv);
-    if (rv.Failed()) {
+  if (mDuration == aNewDuration) {
+    return;
+  }
+  double oldDuration = mDuration;
+  mDuration = aNewDuration;
+  if (aNewDuration < oldDuration) {
+    mSourceBuffers->Remove(aNewDuration, oldDuration, aRv);
+    if (aRv.Failed()) {
       return;
     }
   }
   // TODO: If partial audio frames/text cues exist, clamp duration based on mSourceBuffers.
+  // TODO: Update media element's duration and run element's duration change algorithm.
 }
 
 void

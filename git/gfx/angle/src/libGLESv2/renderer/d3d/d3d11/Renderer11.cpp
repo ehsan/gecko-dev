@@ -38,7 +38,6 @@
 #include "libGLESv2/renderer/d3d/d3d11/Buffer11.h"
 
 #include "libEGL/Display.h"
-#include "libEGL/Surface.h"
 
 #include "common/utilities.h"
 
@@ -2170,12 +2169,11 @@ void Renderer11::setOneTimeRenderTarget(ID3D11RenderTargetView *renderTargetView
     }
 }
 
-RenderTarget *Renderer11::createRenderTarget(egl::Surface *eglSurface, bool depth)
+RenderTarget *Renderer11::createRenderTarget(SwapChain *swapChain, bool depth)
 {
-    SwapChain *swapChain = eglSurface->getSwapChain();
     SwapChain11 *swapChain11 = SwapChain11::makeSwapChain11(swapChain);
-
     RenderTarget11 *renderTarget = NULL;
+
     if (depth)
     {
         // Note: depth stencil may be NULL for 0 sized surfaces
@@ -2190,8 +2188,7 @@ RenderTarget *Renderer11::createRenderTarget(egl::Surface *eglSurface, bool dept
         renderTarget = new RenderTarget11(this, swapChain11->getRenderTarget(),
                                           swapChain11->getOffscreenTexture(),
                                           swapChain11->getRenderTargetShaderResource(),
-                                          swapChain11->getWidth(), swapChain11->getHeight(), 1,
-                                          eglSurface->getFormat());
+                                          swapChain11->getWidth(), swapChain11->getHeight(), 1);
     }
     return renderTarget;
 }

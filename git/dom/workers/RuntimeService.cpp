@@ -734,7 +734,7 @@ AsmJSCacheOpenEntryForRead(JS::Handle<JSObject*> aGlobal,
                                       aHandle);
 }
 
-static JS::AsmJSCacheResult
+static bool
 AsmJSCacheOpenEntryForWrite(JS::Handle<JSObject*> aGlobal,
                             bool aInstalled,
                             const char16_t* aBegin,
@@ -745,7 +745,7 @@ AsmJSCacheOpenEntryForWrite(JS::Handle<JSObject*> aGlobal,
 {
   nsIPrincipal* principal = GetPrincipalForAsmJSCacheOp();
   if (!principal) {
-    return JS::AsmJSCache_InternalError;
+    return false;
   }
 
   return asmjscache::OpenEntryForWrite(principal, aInstalled, aBegin, aEnd,
