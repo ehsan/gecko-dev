@@ -272,7 +272,7 @@ See <http://mochikit.com/doc/html/MochiKit/Logging.html> for details on the logg
       mochitest.vmwareHelperPath = os.path.join(
         options.utilityPath, VMWARE_RECORDING_HELPER_BASENAME + ".dll")
       if not os.path.exists(mochitest.vmwareHelperPath):
-        self.error("%s not found, cannot automate VMware recording." %
+        self.error("%s not found, cannot automate VMWare recording." %
                    mochitest.vmwareHelperPath)
 
     return options
@@ -504,34 +504,34 @@ class Mochitest(object):
     os.remove(manifest)
     shutil.rmtree(options.profilePath)
 
-  def startVMwareRecording(self, options):
+  def startVMWareRecording(self, options):
     """ starts recording inside VMware VM using the recording helper dll """
     assert(self.automation.IS_WIN32)
     from ctypes import cdll
     self.vmwareHelper = cdll.LoadLibrary(self.vmwareHelperPath)
     if self.vmwareHelper is None:
       self.automation.log.warning("WARNING | runtests.py | Failed to load "
-                                  "VMware recording helper")
+                                  "VMWare recording helper")
       return
-    self.automation.log.info("INFO | runtests.py | Starting VMware recording.")
+    self.automation.log.info("INFO | runtests.py | Starting VMWare recording.")
     try:
       self.vmwareHelper.StartRecording()
     except Exception, e:
       self.automation.log.warning("WARNING | runtests.py | Failed to start "
-                                  "VMware recording: (%s)" % str(e))
+                                  "VMWare recording: (%s)" % str(e))
       self.vmwareHelper = None
 
-  def stopVMwareRecording(self):
+  def stopVMWareRecording(self):
     """ stops recording inside VMware VM using the recording helper dll """
     assert(self.automation.IS_WIN32)
     if self.vmwareHelper is not None:
-      self.automation.log.info("INFO | runtests.py | Stopping VMware "
+      self.automation.log.info("INFO | runtests.py | Stopping VMWare "
                                "recording.")
       try:
         self.vmwareHelper.StopRecording()
       except Exception, e:
         self.automation.log.warning("WARNING | runtests.py | Failed to stop "
-                                    "VMware recording: (%s)" % str(e))
+                                    "VMWare recording: (%s)" % str(e))
       self.vmwareHelper = None
 
   def runTests(self, options):
@@ -570,7 +570,7 @@ class Mochitest(object):
       timeout = 330.0 # default JS harness timeout is 300 seconds
 
     if options.vmwareRecording:
-      self.startVMwareRecording(options);
+      self.startVMWareRecording(options);
 
     self.automation.log.info("INFO | runtests.py | Running tests: start.\n")
     status = self.automation.runApp(testURL, browserEnv, options.app,
@@ -584,7 +584,7 @@ class Mochitest(object):
                                 timeout = timeout)
 
     if options.vmwareRecording:
-      self.stopVMwareRecording();
+      self.stopVMWareRecording();
 
     self.stopWebServer(options)
     processLeakLog(self.leak_report_file, options.leakThreshold)
