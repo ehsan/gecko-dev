@@ -51,7 +51,6 @@ import org.mozilla.gecko.gfx.PlaceholderLayerClient;
 import org.mozilla.gecko.gfx.RectUtils;
 import org.mozilla.gecko.gfx.SurfaceTextureLayer;
 import org.mozilla.gecko.gfx.ViewportMetrics;
-import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
 import org.mozilla.gecko.Tab.HistoryEntry;
 
 import java.io.*;
@@ -137,7 +136,7 @@ abstract public class GeckoApp
 
     public static BrowserToolbar mBrowserToolbar;
     public static DoorHangerPopup mDoorHangerPopup;
-    public static AutoCompletePopup mAutoCompletePopup;
+    public static FormAssistPopup mFormAssistPopup;
     public Favicons mFavicons;
 
     private Geocoder mGeocoder;
@@ -433,7 +432,7 @@ abstract public class GeckoApp
         MenuItem saveAsPDF = aMenu.findItem(R.id.save_as_pdf);
         MenuItem charEncoding = aMenu.findItem(R.id.char_encoding);
 
-        if (tab == null) {
+        if (tab == null || tab.getURL() == null) {
             bookmark.setEnabled(false);
             forward.setEnabled(false);
             share.setEnabled(false);
@@ -456,9 +455,8 @@ abstract public class GeckoApp
 
         // Disable share menuitem for about:, chrome: and file: URIs
         String scheme = Uri.parse(tab.getURL()).getScheme();
-        boolean enabled = scheme != null && !(scheme.equals("about") || scheme.equals("chrome") ||
-                                              scheme.equals("file"));
-        share.setEnabled(enabled);
+        share.setEnabled(!(scheme.equals("about") || scheme.equals("chrome") ||
+                           scheme.equals("file")));
 
         // Disable save as PDF for about:home and xul pages
         saveAsPDF.setEnabled(!(tab.getURL().equals("about:home") ||
@@ -501,8 +499,12 @@ abstract public class GeckoApp
             case R.id.share:
                 tab = Tabs.getInstance().getSelectedTab();
                 if (tab != null) {
-                  GeckoAppShell.openUriExternal(tab.getURL(), "text/plain", "", "",
-                                                Intent.ACTION_SEND, tab.getTitle());
+                    String url = tab.getURL();
+                    if (url == null)
+                        return false;
+
+                    GeckoAppShell.openUriExternal(url, "text/plain", "", "",
+                                                  Intent.ACTION_SEND, tab.getTitle());
                 }
                 return true;
             case R.id.reload:
@@ -975,27 +977,6 @@ abstract public class GeckoApp
                 mDOMFullScreen = true;
             } else if (event.equals("DOMFullScreen:Stop")) {
                 mDOMFullScreen = false;
-            } else if (event.equals("FormAssist:AutoComplete")) {
-                final JSONArray suggestions = message.getJSONArray("suggestions");
-                if (suggestions.length() == 0) {
-                    mMainHandler.post(new Runnable() {
-                        public void run() {
-                            mAutoCompletePopup.hide();
-                        }
-                    });
-                } else {
-                    final JSONArray rect = message.getJSONArray("rect");
-                    final double zoom = message.getDouble("zoom");
-                    mMainHandler.post(new Runnable() {
-                        public void run() {
-                            // Don't show autocomplete popup when using fullscreen VKB
-                            InputMethodManager imm =
-                                (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-                            if (!imm.isFullscreenMode())
-                                mAutoCompletePopup.show(suggestions, rect, zoom);
-                        }
-                    });
-                }
             } else if (event.equals("Permissions:Data")) {
                 String host = message.getString("host");
                 JSONArray permissions = message.getJSONArray("permissions");
@@ -1107,7 +1088,7 @@ abstract public class GeckoApp
         }
 
         public void run() {
-            mAutoCompletePopup.hide();
+            mFormAssistPopup.hide();
             if (mShow) {
                 if (mAboutHomeContent == null) {
                     mAboutHomeContent = (AboutHomeContent) findViewById(R.id.abouthome_content);
@@ -1376,12 +1357,12 @@ abstract public class GeckoApp
                 if (tab == null)
                     return;
 
-                ImmutableViewportMetrics targetViewport = mLayerController.getViewportMetrics();
-                ImmutableViewportMetrics pluginViewport;
+                ViewportMetrics targetViewport = mLayerController.getViewportMetrics();
+                ViewportMetrics pluginViewport;
                 
                 try {
                     JSONObject viewportObject = new JSONObject(metadata);
-                    pluginViewport = new ImmutableViewportMetrics(new ViewportMetrics(viewportObject));
+                    pluginViewport = new ViewportMetrics(viewportObject);
                 } catch (JSONException e) {
                     Log.e(LOGTAG, "Bad viewport metadata: ", e);
                     return;
@@ -1571,7 +1552,7 @@ abstract public class GeckoApp
     }
 
     public void repositionPluginViews(Tab tab, boolean setVisible) {
-        ImmutableViewportMetrics targetViewport = mLayerController.getViewportMetrics();
+        ViewportMetrics targetViewport = mLayerController.getViewportMetrics();
 
         if (targetViewport == null)
             return;
@@ -1754,7 +1735,7 @@ abstract public class GeckoApp
         mPluginContainer = (AbsoluteLayout) findViewById(R.id.plugin_container);
 
         mDoorHangerPopup = new DoorHangerPopup(this);
-        mAutoCompletePopup = (AutoCompletePopup) findViewById(R.id.autocomplete_popup);
+        mFormAssistPopup = (FormAssistPopup) findViewById(R.id.form_assist_popup);
 
         Log.w(LOGTAG, "zerdatime " + SystemClock.uptimeMillis() + " - UI almost up");
 
@@ -1794,7 +1775,6 @@ abstract public class GeckoApp
         GeckoAppShell.registerGeckoEventListener("DOMFullScreen:Stop", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("ToggleChrome:Hide", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("ToggleChrome:Show", GeckoApp.mAppContext);
-        GeckoAppShell.registerGeckoEventListener("FormAssist:AutoComplete", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("Permissions:Data", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("Downloads:Done", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("CharEncoding:Data", GeckoApp.mAppContext);
@@ -2167,7 +2147,6 @@ abstract public class GeckoApp
         GeckoAppShell.unregisterGeckoEventListener("Toast:Show", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("ToggleChrome:Hide", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("ToggleChrome:Show", GeckoApp.mAppContext);
-        GeckoAppShell.unregisterGeckoEventListener("FormAssist:AutoComplete", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("Permissions:Data", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("Downloads:Done", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("CharEncoding:Data", GeckoApp.mAppContext);
@@ -2208,7 +2187,7 @@ abstract public class GeckoApp
 
         if (mOrientation != newConfig.orientation) {
             mOrientation = newConfig.orientation;
-            mAutoCompletePopup.hide();
+            mFormAssistPopup.hide();
             refreshActionBar();
         }
     }
@@ -2380,10 +2359,6 @@ abstract public class GeckoApp
 
     @Override
     public boolean onSearchRequested() {
-        return showAwesomebar(AwesomeBar.Type.ADD);
-    }
- 
-    public boolean onEditRequested() {
         return showAwesomebar(AwesomeBar.Type.EDIT);
     }
 
@@ -2730,20 +2705,20 @@ class PluginLayoutParams extends AbsoluteLayout.LayoutParams
     private int mOriginalY;
     private int mOriginalWidth;
     private int mOriginalHeight;
-    private ImmutableViewportMetrics mOriginalViewport;
+    private ViewportMetrics mOriginalViewport;
     private float mLastResolution;
 
-    public PluginLayoutParams(int aX, int aY, int aWidth, int aHeight, ImmutableViewportMetrics aViewport) {
+    public PluginLayoutParams(int aX, int aY, int aWidth, int aHeight, ViewportMetrics aViewport) {
         super(aWidth, aHeight, aX, aY);
 
-        Log.i(LOGTAG, "Creating plugin at " + aX + ", " + aY + ", " + aWidth + "x" + aHeight + ", (" + (aViewport.zoomFactor * 100) + "%)");
+        Log.i(LOGTAG, "Creating plugin at " + aX + ", " + aY + ", " + aWidth + "x" + aHeight + ", (" + (aViewport.getZoomFactor() * 100) + "%)");
 
         mOriginalX = aX;
         mOriginalY = aY;
         mOriginalWidth = aWidth;
         mOriginalHeight = aHeight;
         mOriginalViewport = aViewport;
-        mLastResolution = aViewport.zoomFactor;
+        mLastResolution = aViewport.getZoomFactor();
 
         clampToMaxSize();
     }
@@ -2760,7 +2735,7 @@ class PluginLayoutParams extends AbsoluteLayout.LayoutParams
         }
     }
 
-    public void reset(int aX, int aY, int aWidth, int aHeight, ImmutableViewportMetrics aViewport) {
+    public void reset(int aX, int aY, int aWidth, int aHeight, ViewportMetrics aViewport) {
         PointF origin = aViewport.getOrigin();
 
         x = mOriginalX = aX + (int)origin.x;
@@ -2768,7 +2743,7 @@ class PluginLayoutParams extends AbsoluteLayout.LayoutParams
         width = mOriginalWidth = aWidth;
         height = mOriginalHeight = aHeight;
         mOriginalViewport = aViewport;
-        mLastResolution = aViewport.zoomFactor;
+        mLastResolution = aViewport.getZoomFactor();
 
         clampToMaxSize();
     }
@@ -2786,14 +2761,14 @@ class PluginLayoutParams extends AbsoluteLayout.LayoutParams
         }
     }
 
-    public void reposition(ImmutableViewportMetrics viewport) {
+    public void reposition(ViewportMetrics viewport) {
         PointF targetOrigin = viewport.getOrigin();
         PointF originalOrigin = mOriginalViewport.getOrigin();
 
         Point offset = new Point(Math.round(originalOrigin.x - targetOrigin.x),
                                  Math.round(originalOrigin.y - targetOrigin.y));
 
-        reposition(offset, viewport.zoomFactor);
+        reposition(offset, viewport.getZoomFactor());
     }
 
     public float getLastResolution() {
