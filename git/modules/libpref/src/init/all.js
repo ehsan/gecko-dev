@@ -1639,7 +1639,7 @@ pref("signed.applets.codebase_principal_support", false);
 pref("security.checkloaduri", true);
 pref("security.xpconnect.plugin.unrestricted", true);
 // security-sensitive dialogs should delay button enabling. In milliseconds.
-pref("security.dialog_enable_delay", 2000);
+pref("security.dialog_enable_delay", 1000);
 pref("security.notification_enable_delay", 500);
 
 pref("security.csp.enable", true);
@@ -4010,6 +4010,8 @@ pref("print.postscript.print_command", "lpr ${MOZ_PRINTER_NAME:+-P\"$MOZ_PRINTER
 pref("ui.panel.default_level_parent", true);
 
 pref("mousewheel.system_scroll_override_on_root_content.enabled", false);
+
+pref("ui.key.menuAccessKeyFocuses", true);
 
 # XP_UNIX
 #endif
