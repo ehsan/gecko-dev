@@ -14,11 +14,6 @@
 #endif
 #ifdef MOZ_OPUS
 #include "OpusTrackEncoder.h"
-
-#endif
-
-#ifdef MOZ_VORBIS
-#include "VorbisTrackEncoder.h"
 #endif
 #ifdef MOZ_WEBM_ENCODER
 #include "VorbisTrackEncoder.h"

@@ -165,9 +165,6 @@ const PanelUI = {
 
   handleEvent: function(aEvent) {
     switch (aEvent.type) {
-      case "command":
-        this.onCommandHandler(aEvent);
-        break;
       case "popupshowing":
         // Fall through
       case "popupshown":
@@ -411,11 +408,11 @@ const PanelUI = {
     }
     items.appendChild(fragment);
 
-    this.addEventListener("command", PanelUI);
+    this.addEventListener("command", PanelUI.onCommandHandler);
   },
 
   _onHelpViewHide: function(aEvent) {
-    this.removeEventListener("command", PanelUI);
+    this.removeEventListener("command", PanelUI.onCommandHandler);
   }
 };
 

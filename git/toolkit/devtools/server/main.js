@@ -341,17 +341,24 @@ var DebuggerServer = {
   /**
    * Install Firefox-specific actors.
    */
-  addBrowserActors: function(aWindowType = "navigator:browser", restrictPrivileges = false) {
-    this.chromeWindowType = aWindowType;
+  addBrowserActors: function(aWindowType) {
+    this.chromeWindowType = aWindowType ? aWindowType : "navigator:browser";
     this.addActors("resource://gre/modules/devtools/server/actors/webbrowser.js");
-
-    if (!restrictPrivileges) {
-      this.addTabActors();
-      this.addGlobalActor(this.ChromeDebuggerActor, "chromeDebugger");
-    }
+    this.addActors("resource://gre/modules/devtools/server/actors/script.js");
+    this.addGlobalActor(this.ChromeDebuggerActor, "chromeDebugger");
+    this.addActors("resource://gre/modules/devtools/server/actors/webconsole.js");
+    this.addActors("resource://gre/modules/devtools/server/actors/gcli.js");
+    if ("nsIProfiler" in Ci)
+      this.addActors("resource://gre/modules/devtools/server/actors/profiler.js");
 
     this.addActors("resource://gre/modules/devtools/server/actors/webapps.js");
+    this.registerModule("devtools/server/actors/inspector");
+    this.registerModule("devtools/server/actors/webgl");
+    this.registerModule("devtools/server/actors/tracer");
     this.registerModule("devtools/server/actors/device");
+    this.registerModule("devtools/server/actors/stylesheets");
+    this.registerModule("devtools/server/actors/styleeditor");
+    this.registerModule("devtools/server/actors/memory");
   },
 
   /**
@@ -363,28 +370,19 @@ var DebuggerServer = {
     // but childtab.js hasn't been loaded yet.
     if (!("BrowserTabActor" in this)) {
       this.addActors("resource://gre/modules/devtools/server/actors/webbrowser.js");
-      this.addTabActors();
+      this.addActors("resource://gre/modules/devtools/server/actors/script.js");
+      this.addActors("resource://gre/modules/devtools/server/actors/webconsole.js");
+      this.addActors("resource://gre/modules/devtools/server/actors/gcli.js");
+      this.registerModule("devtools/server/actors/inspector");
+      this.registerModule("devtools/server/actors/webgl");
+      this.registerModule("devtools/server/actors/stylesheets");
+      this.registerModule("devtools/server/actors/styleeditor");
+      this.registerModule("devtools/server/actors/tracer");
+      this.registerModule("devtools/server/actors/memory");
     }
     if (!("ContentAppActor" in DebuggerServer)) {
       this.addActors("resource://gre/modules/devtools/server/actors/childtab.js");
     }
-  },
-
-  /**
-   * Install tab actors.
-   */
-  addTabActors: function() {
-    this.addActors("resource://gre/modules/devtools/server/actors/script.js");
-    this.addActors("resource://gre/modules/devtools/server/actors/webconsole.js");
-    this.addActors("resource://gre/modules/devtools/server/actors/gcli.js");
-    this.registerModule("devtools/server/actors/inspector");
-    this.registerModule("devtools/server/actors/webgl");
-    this.registerModule("devtools/server/actors/stylesheets");
-    this.registerModule("devtools/server/actors/styleeditor");
-    this.registerModule("devtools/server/actors/tracer");
-    this.registerModule("devtools/server/actors/memory");
-    if ("nsIProfiler" in Ci)
-      this.addActors("resource://gre/modules/devtools/server/actors/profiler.js");
   },
 
   /**
