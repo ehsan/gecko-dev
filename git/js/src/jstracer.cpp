@@ -94,7 +94,7 @@ template <typename T> struct Tracker<T>::Page*
 Tracker<T>::addPage(const void* v) {
     jsuword base = getPageBase(v);
     struct Tracker::Page* p = (struct Tracker::Page*)
-        GC::Alloc(sizeof(struct Tracker::Page) + (NJ_PAGE_SIZE >> 2) * sizeof(T));
+        GC::Alloc(sizeof(*p) - sizeof(p->map) + (NJ_PAGE_SIZE >> 2) * sizeof(T));
     p->base = base;
     p->next = pagelist;
     pagelist = p;
@@ -435,8 +435,8 @@ TraceRecorder::TraceRecorder(JSContext* cx, Fragmento* fragmento, Fragment* _fra
     if (fragment->vmprivate == NULL) {
         /* generate the entry map and stash it in the trace */
         unsigned entryNativeFrameSlots = nativeFrameSlots(entryFrame, entryRegs);
-        LIns* data = lir_buf_writer->skip(sizeof(VMFragmentInfo) +
-                entryNativeFrameSlots * sizeof(char));
+        LIns* data = lir_buf_writer->skip(sizeof(*fragmentInfo) -
+                sizeof(fragmentInfo->typeMap) + entryNativeFrameSlots * sizeof(char));
         fragmentInfo = (VMFragmentInfo*)data->payload();
         fragmentInfo->entryNativeFrameSlots = entryNativeFrameSlots;
         fragmentInfo->nativeStackBase = (entryNativeFrameSlots -
@@ -668,9 +668,8 @@ box_jsval(JSContext* cx, jsval& v, uint8 t, double* slot)
         if (JSDOUBLE_IS_INT(d, i))
             goto store_int;
       store_double:
-        /* GC is not allowed to hit as we come out of the native frame. We have to teach
-           the GC how to scan native frames to avoid this race condition. */
-        JS_ASSERT(cx->doubleFreeList != NULL);
+        /* Its safe to trigger the GC here since we rooted all strings/objects and all the
+           doubles we already processed. */
         return js_NewDoubleInRootedValue(cx, d, &v);
       case JSVAL_STRING:
         v = STRING_TO_JSVAL(*(JSString**)slot);
@@ -688,13 +687,15 @@ box_jsval(JSContext* cx, jsval& v, uint8 t, double* slot)
 /* Attempt to unbox the given JS frame into a native frame, checking along the way that the
    supplied typemap holds. */
 static bool
-unbox(JSStackFrame* entryFrame, JSStackFrame* currentFrame, uint8* m, double* native)
+unbox(JSStackFrame* entryFrame, JSStackFrame* currentFrame, uint8* map, double* native)
 {
     verbose_only(printf("unbox native@%p ", native);)
+    double* np = native;
+    uint8* mp = map;
     FORALL_SLOTS_IN_PENDING_FRAMES(entryFrame, currentFrame,
-        if (vp && !unbox_jsval(*vp, *m, native))
+        if (vp && !unbox_jsval(*vp, *mp, np))
             return false;
-        ++m; ++native
+        ++mp; ++np;
     );
     verbose_only(printf("\n");)
     return true;
@@ -703,13 +704,26 @@ unbox(JSStackFrame* entryFrame, JSStackFrame* currentFrame, uint8* m, double* na
 /* Box the given native frame into a JS frame. This only fails due to a hard error
    (out of memory for example). */
 static bool
-box(JSContext* cx, JSStackFrame* entryFrame, JSStackFrame* currentFrame, uint8* m, double* native)
+box(JSContext* cx, JSStackFrame* entryFrame, JSStackFrame* currentFrame, uint8* map, double* native)
 {
     verbose_only(printf("box native@%p ", native);)
+    double* np = native;
+    uint8* mp = map;
+    /* Root all string and object references first (we don't need to call the GC for this). */
     FORALL_SLOTS_IN_PENDING_FRAMES(entryFrame, currentFrame,
-        if (vp && !box_jsval(cx, *vp, *m, native))
+        if (vp && (*mp == JSVAL_STRING || *mp == JSVAL_OBJECT) && !box_jsval(cx, *vp, *mp, np))
             return false;
-        ++m; ++native
+        ++mp; ++np
+    );
+    /* Now do this again but this time for all values (properly quicker than actually checking
+       the type and excluding strings and objects). The GC might kick in when we store doubles,
+       but everything is rooted now (all strings/objects and all doubles we already boxed). */
+    np = native;
+    mp = map;
+    FORALL_SLOTS_IN_PENDING_FRAMES(entryFrame, currentFrame,
+        if (vp && !box_jsval(cx, *vp, *mp, np))
+            return false;
+        ++mp; ++np
     );
     verbose_only(printf("\n");)
     return true;
@@ -1251,9 +1265,9 @@ TraceRecorder::cmp(LOpcode op, bool negate)
         /* The interpreter fuses comparisons and the following branch,
            so we have to do that here as well. */
         if (cx->fp->regs->pc[1] == ::JSOP_IFEQ)
-            guard(!cond, x);
-        else if (cx->fp->regs->pc[1] == ::JSOP_IFNE)
             guard(cond, x);
+        else if (cx->fp->regs->pc[1] == ::JSOP_IFNE)
+            guard(!cond, x);
         /* We update the stack after the guard. This is safe since
            the guard bails out at the comparison and the interpreter
            will this re-execute the comparison. This way the
@@ -1554,7 +1568,7 @@ bool TraceRecorder::JSOP_RETURN()
 }
 bool TraceRecorder::JSOP_GOTO()
 {
-    return false;
+    return true;
 }
 bool TraceRecorder::JSOP_IFEQ()
 {
