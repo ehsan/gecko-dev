@@ -41,11 +41,8 @@ class SharedRGBImage : public Image
 {
 public:
   SharedRGBImage(ImageClient* aCompositable);
-
-protected:
   ~SharedRGBImage();
 
-public:
   virtual ISharedImage* AsSharedImage() MOZ_OVERRIDE { return this; }
 
   virtual TextureClient* GetTextureClient(CompositableClient* aClient) MOZ_OVERRIDE;

@@ -4,6 +4,7 @@
 
 package org.mozilla.search;
 
+import android.net.Uri;
 import android.os.Bundle;
 import android.support.v4.app.FragmentActivity;
 import android.view.View;
@@ -32,6 +33,7 @@ public class MainActivity extends FragmentActivity implements AcceptsSearchQuery
     protected void onCreate(Bundle stateBundle) {
         super.onCreate(stateBundle);
         setContentView(R.layout.search_activity_main);
+        startPresearch();
     }
 
     @Override
@@ -39,13 +41,6 @@ public class MainActivity extends FragmentActivity implements AcceptsSearchQuery
         startPostsearch();
         ((PostSearchFragment) getSupportFragmentManager().findFragmentById(R.id.postsearch))
                 .startSearch(s);
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        // When the app launches, make sure we're in presearch *always*
-        startPresearch();
     }
 
     private void startPresearch() {

@@ -1034,6 +1034,9 @@ IonBuilder::inlineMathImul(CallInfo &callInfo)
 IonBuilder::InliningStatus
 IonBuilder::inlineMathFRound(CallInfo &callInfo)
 {
+    if (!LIRGenerator::allowFloat32Optimizations())
+        return InliningStatus_NotInlined;
+
     if (callInfo.argc() != 1 || callInfo.constructing())
         return InliningStatus_NotInlined;
 

@@ -325,10 +325,12 @@ nsLayoutUtils::HasCurrentAnimations(nsIContent* aContent,
   if (!aContent->MayHaveAnimations())
     return false;
 
+  TimeStamp now = aPresContext->RefreshDriver()->MostRecentRefresh();
+
   ElementAnimationCollection* collection =
     static_cast<ElementAnimationCollection*>(
       aContent->GetProperty(aAnimationProperty));
-  return (collection && collection->HasCurrentAnimations());
+  return (collection && collection->HasCurrentAnimationsAt(now));
 }
 
 static gfxSize

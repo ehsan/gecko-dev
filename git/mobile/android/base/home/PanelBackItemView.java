@@ -33,10 +33,10 @@ class PanelBackItemView extends LinearLayout {
         if (TextUtils.isEmpty(backImageUrl)) {
             image.setImageResource(R.drawable.folder_up);
         } else {
-            ImageLoader.with(getContext())
-                       .load(backImageUrl)
-                       .placeholder(R.drawable.folder_up)
-                       .into(image);
+            Picasso.with(getContext())
+                   .load(backImageUrl)
+                   .placeholder(R.drawable.folder_up)
+                   .into(image);
         }
     }
 

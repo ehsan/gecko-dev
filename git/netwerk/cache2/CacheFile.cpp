@@ -41,7 +41,6 @@ public:
     MOZ_COUNT_CTOR(NotifyCacheFileListenerEvent);
   }
 
-protected:
   ~NotifyCacheFileListenerEvent()
   {
     LOG(("NotifyCacheFileListenerEvent::~NotifyCacheFileListenerEvent() "
@@ -49,7 +48,6 @@ protected:
     MOZ_COUNT_DTOR(NotifyCacheFileListenerEvent);
   }
 
-public:
   NS_IMETHOD Run()
   {
     LOG(("NotifyCacheFileListenerEvent::Run() [this=%p]", this));
@@ -80,7 +78,6 @@ public:
     MOZ_COUNT_CTOR(NotifyChunkListenerEvent);
   }
 
-protected:
   ~NotifyChunkListenerEvent()
   {
     LOG(("NotifyChunkListenerEvent::~NotifyChunkListenerEvent() [this=%p]",
@@ -88,7 +85,6 @@ protected:
     MOZ_COUNT_DTOR(NotifyChunkListenerEvent);
   }
 
-public:
   NS_IMETHOD Run()
   {
     LOG(("NotifyChunkListenerEvent::Run() [this=%p]", this));

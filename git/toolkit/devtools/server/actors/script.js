@@ -2051,14 +2051,14 @@ ThreadActor.prototype = {
    */
   createProtocolCompletionValue: function (aCompletion) {
     let protoValue = {};
-    if (aCompletion == null) {
-      protoValue.terminated = true;
-    } else if ("return" in aCompletion) {
+    if ("return" in aCompletion) {
       protoValue.return = this.createValueGrip(aCompletion.return);
+    } else if ("yield" in aCompletion) {
+      protoValue.return = this.createValueGrip(aCompletion.yield);
     } else if ("throw" in aCompletion) {
       protoValue.throw = this.createValueGrip(aCompletion.throw);
     } else {
-      protoValue.return = this.createValueGrip(aCompletion.yield);
+      protoValue.terminated = true;
     }
     return protoValue;
   },

@@ -26,9 +26,6 @@ public:
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
-
-protected:
-  ~ImageAccessibleWrap() {}
 };
 
 } // namespace a11y

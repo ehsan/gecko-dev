@@ -9,16 +9,6 @@
 
 #include "nsAttrValue.h"
 
-struct MiscContainer;
-
-namespace mozilla {
-template<>
-struct HasDangerousPublicDestructor<MiscContainer>
-{
-  static const bool value = true;
-};
-}
-
 struct MiscContainer
 {
   typedef nsAttrValue::ValueType ValueType;
@@ -102,6 +92,7 @@ struct MiscContainer
   void Cache();
   void Evict();
 };
+
 
 /**
  * Implementation of inline methods

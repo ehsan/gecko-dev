@@ -357,12 +357,6 @@ pref("media.navigator.enabled", true);
 #endif
 #endif
 
-// do not enable screensharing before addressing security concerns: Bug 1035577
-// do not enable screensharing before implementing app/window sharing: Bug 1036653
-// do not enable screensharing before source constraints are finalized: Bug 1033885
-// do not enable screensharing before UX is ready: Bug 1035577
-pref("media.getusermedia.screensharing.enabled", false);
-
 // TextTrack support
 pref("media.webvtt.enabled", true);
 pref("media.webvtt.regions.enabled", false);
@@ -434,10 +428,6 @@ pref("gfx.hidpi.enabled", 2);
 // Whether to enable LayerScope tool and default listening port
 pref("gfx.layerscope.enabled", false);
 pref("gfx.layerscope.port", 23456);
-
-// Log severe performance warnings to the error console and profiles.
-// This should be use to quickly find which slow paths are used by test cases.
-pref("gfx.perf-warnings.enabled", false);
 
 // 0 = Off, 1 = Full, 2 = Tagged Images Only.
 // See eCMSMode in gfx/thebes/gfxPlatform.h
@@ -900,12 +890,6 @@ pref("javascript.options.mem.gc_dynamic_heap_growth", true);
 pref("javascript.options.mem.gc_dynamic_mark_slice", true);
 pref("javascript.options.mem.gc_allocation_threshold_mb", 30);
 pref("javascript.options.mem.gc_decommit_threshold_mb", 32);
-#ifdef JSGC_GENERATIONAL
-pref("javascript.options.mem.gc_min_empty_chunk_count", 1);
-#else
-pref("javascript.options.mem.gc_min_empty_chunk_count", 0);
-#endif
-pref("javascript.options.mem.gc_max_empty_chunk_count", 30);
 
 pref("javascript.options.showInConsole", false);
 

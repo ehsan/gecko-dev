@@ -79,8 +79,9 @@ public:
   void UpdateStyleAndEvents(mozilla::ElementAnimationCollection* aEA,
                             mozilla::TimeStamp aRefreshTime,
                             mozilla::EnsureStyleRuleFlags aFlags);
-  void GetEventsForCurrentTime(mozilla::ElementAnimationCollection* aEA,
-                               EventArray &aEventsToDispatch);
+  void GetEventsAt(mozilla::ElementAnimationCollection* aEA,
+                   mozilla::TimeStamp aRefreshTime,
+                   EventArray &aEventsToDispatch);
 
   // nsIStyleRuleProcessor (parts)
   virtual void RulesMatching(ElementRuleProcessorData* aData) MOZ_OVERRIDE;
@@ -150,7 +151,6 @@ protected:
 
 private:
   void BuildAnimations(nsStyleContext* aStyleContext,
-                       mozilla::dom::AnimationTimeline* aTimeline,
                        mozilla::ElementAnimationPtrArray& aAnimations);
   bool BuildSegment(InfallibleTArray<mozilla::AnimationPropertySegment>&
                       aSegments,

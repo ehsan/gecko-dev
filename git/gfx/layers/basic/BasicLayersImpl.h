@@ -55,14 +55,11 @@ public:
   {
     MOZ_COUNT_CTOR(BasicReadbackLayer);
   }
-
-protected:
   virtual ~BasicReadbackLayer()
   {
     MOZ_COUNT_DTOR(BasicReadbackLayer);
   }
 
-public:
   virtual void SetVisibleRegion(const nsIntRegion& aRegion)
   {
     NS_ASSERTION(BasicManager()->InConstruction(),

@@ -13,13 +13,8 @@
 # Support usage outside of config/rules.mk
 ifndef INCLUDED_DEBUGMAKE_MK #{
 
-define CR
-
-
-endef
-
 define shell_quote
-'$(subst $(CR),\$(CR),$(subst ','\'',$(1)))'
+'$(subst ','\'',$(1))'
 endef
 
 echo-variable-%:

@@ -205,8 +205,7 @@ describe("loop.shared.views", function() {
         initSession: sandbox.stub().returns(fakeSession)
       };
       model = new sharedModels.ConversationModel(fakeSessionData, {
-        sdk: fakeSDK,
-        pendingCallTimeout: 1000
+        sdk: fakeSDK
       });
     });
 

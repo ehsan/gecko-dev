@@ -10,25 +10,15 @@ function h(a=b, b=43) {
     function b() { return 42; }
 }
 var res = h();
-assertEq(res[0], undefined);
-assertEq(res[1](), 42);
+assertEq(res[0], res[1]);
+assertEq(res[0](), 42);
 function i(b=FAIL) {
     function b() {}
 }
-assertThrowsInstanceOf(i, ReferenceError);
+i();
 i(42);
 function j(a=(b=42), b=8) {
     return b;
-    function b() { return 43; }
+    function b() {}
 }
-assertEq(j()(), 43);
-function k(a=(b=42), b=8) {
-    return b;
-    function a() { return 43; }
-}
-assertEq(k(), 42);
-function l(a=8, b=a) {
-    return b;
-    function a() { return 42; }
-}
-assertEq(l(), 8);
+assertEq(j(), 42);

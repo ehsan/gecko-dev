@@ -27,7 +27,6 @@
 #include "webrtc/video_engine/overuse_frame_detector.h"
 #include "webrtc/video_engine/vie_defines.h"
 #include "webrtc/video_engine/vie_encoder.h"
-#include "webrtc/video_engine/desktop_capture_impl.h"
 
 namespace webrtc {
 
@@ -62,8 +61,7 @@ ViECapturer::ViECapturer(int capture_id,
       observer_(NULL),
       overuse_detector_(new OveruseFrameDetector(Clock::GetRealTimeClock(),
                                                  kNormalUseStdDevMs,
-                                                 kOveruseStdDevMs)),
-      config_(config) {
+                                                 kOveruseStdDevMs)) {
   WEBRTC_TRACE(kTraceMemory, kTraceVideo, ViEId(engine_id, capture_id),
                "ViECapturer::ViECapturer(capture_id: %d, engine_id: %d)",
                capture_id, engine_id);
@@ -168,30 +166,12 @@ ViECapturer* ViECapturer::CreateViECapture(
 int32_t ViECapturer::Init(const char* device_unique_idUTF8,
                           uint32_t device_unique_idUTF8Length) {
   assert(capture_module_ == NULL);
-  CaptureDeviceType type = config_.Get<CaptureDeviceInfo>().type;
-
-  if(type != CaptureDeviceType::Camera) {
-#if !defined(ANDROID)
-    switch (type) {
-      case CaptureDeviceType::Screen:
-        capture_module_ = DesktopCaptureImpl::Create(
-            ViEModuleId(engine_id_, capture_id_), device_unique_idUTF8, false);
-        break;
-      case CaptureDeviceType::Application:
-        capture_module_ = DesktopCaptureImpl::Create(
-            ViEModuleId(engine_id_, capture_id_), device_unique_idUTF8, true);
-        break;
-      default:
-        // all other non-camera types are not supported
-        return -1;
-    }
-#endif
-  } else if (device_unique_idUTF8 == NULL) {
+  if (device_unique_idUTF8 == NULL) {
     capture_module_  = VideoCaptureFactory::Create(
-      ViEModuleId(engine_id_, capture_id_), external_capture_module_);
+        ViEModuleId(engine_id_, capture_id_), external_capture_module_);
   } else {
     capture_module_ = VideoCaptureFactory::Create(
-      ViEModuleId(engine_id_, capture_id_), device_unique_idUTF8);
+        ViEModuleId(engine_id_, capture_id_), device_unique_idUTF8);
   }
   if (!capture_module_) {
     return -1;

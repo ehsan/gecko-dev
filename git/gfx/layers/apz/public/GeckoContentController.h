@@ -68,8 +68,7 @@ public:
    * relative to the current scroll offset. HandleLongTapUp will always be
    * preceeded by HandleLongTap. However not all calls to HandleLongTap will
    * be followed by a HandleLongTapUp (for example, if the user drags
-   * around between the long-tap and lifting their finger, or if content
-   * notifies the APZ that the long-tap event was prevent-defaulted).
+   * around between the long-tap and lifting their finger).
    */
   virtual void HandleLongTapUp(const CSSPoint& aPoint,
                                int32_t aModifiers,

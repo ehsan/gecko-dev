@@ -181,7 +181,7 @@ public class Distribution {
         }
     }
 
-    private static Distribution init(final Distribution distribution) {
+    private static void init(final Distribution distribution) {
         // Read/write preferences and files on the background thread.
         ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
@@ -192,8 +192,6 @@ public class Distribution {
                 }
             }
         });
-
-        return distribution;
     }
 
     /**
@@ -203,8 +201,8 @@ public class Distribution {
      * @param packagePath where to look for the distribution directory.
      */
     @RobocopTarget
-    public static Distribution init(final Context context, final String packagePath, final String prefsPath) {
-        return init(new Distribution(context, packagePath, prefsPath));
+    public static void init(final Context context, final String packagePath, final String prefsPath) {
+        init(new Distribution(context, packagePath, prefsPath));
     }
 
     /**
@@ -212,8 +210,8 @@ public class Distribution {
      * package path. Reuses the existing Distribution if one exists.
      */
     @RobocopTarget
-    public static Distribution init(final Context context) {
-        return init(Distribution.getInstance(context));
+    public static void init(final Context context) {
+        Distribution.init(Distribution.getInstance(context));
     }
 
     /**

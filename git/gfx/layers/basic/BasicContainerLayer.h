@@ -26,10 +26,8 @@ public:
     MOZ_COUNT_CTOR(BasicContainerLayer);
     mSupportsComponentAlphaChildren = true;
   }
-protected:
   virtual ~BasicContainerLayer();
 
-public:
   virtual void SetVisibleRegion(const nsIntRegion& aRegion)
   {
     NS_ASSERTION(BasicManager()->InConstruction(),

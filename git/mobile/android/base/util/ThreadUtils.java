@@ -129,10 +129,6 @@ public final class ThreadUtils {
         assertOnThread(sGeckoThread, AssertBehavior.THROW);
     }
 
-    public static void assertNotOnGeckoThread() {
-        assertNotOnThread(sGeckoThread, AssertBehavior.THROW);
-    }
-
     public static void assertOnBackgroundThread() {
         assertOnThread(getBackgroundThread(), AssertBehavior.THROW);
     }

@@ -84,12 +84,6 @@ NS_IMETHODIMP AppCacheStorage::AsyncOpenURI(nsIURI *aURI,
   return NS_OK;
 }
 
-NS_IMETHODIMP AppCacheStorage::OpenTruncate(nsIURI *aURI, const nsACString & aIdExtension,
-                                            nsICacheEntry **aCacheEntry)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
 NS_IMETHODIMP AppCacheStorage::Exists(nsIURI *aURI, const nsACString & aIdExtension,
                                       bool *aResult)
 {

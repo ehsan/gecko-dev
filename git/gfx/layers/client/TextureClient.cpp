@@ -25,7 +25,6 @@
 #ifdef XP_WIN
 #include "mozilla/layers/TextureD3D9.h"
 #include "mozilla/layers/TextureD3D11.h"
-#include "mozilla/layers/TextureDIB.h"
 #include "gfxWindowsPlatform.h"
 #include "gfx2DGlue.h"
 #endif
@@ -264,16 +263,12 @@ CreateTextureClientForDrawing(ISurfaceAllocator* aAllocator,
       aSizeHint.width <= maxTextureSize &&
       aSizeHint.height <= maxTextureSize &&
       !(aTextureFlags & TextureFlags::ALLOC_FALLBACK)) {
-    if (gfxWindowsPlatform::GetPlatform()->GetD3D9Device()) {
+    if (!gfxWindowsPlatform::GetPlatform()->GetD3D9Device()) {
+      result = new DIBTextureClientD3D9(aFormat, aTextureFlags);
+    } else {
       result = new CairoTextureClientD3D9(aFormat, aTextureFlags);
     }
   }
-
-  if (!result && aFormat == SurfaceFormat::B8G8R8X8 &&
-      aAllocator->IsSameProcess()) {
-    result = new DIBTextureClient(aFormat, aTextureFlags);
-  }
-
 #endif
 
 #ifdef MOZ_X11

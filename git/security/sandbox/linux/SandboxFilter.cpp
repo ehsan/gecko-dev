@@ -16,7 +16,6 @@
 #include <errno.h>
 #include <unistd.h>
 #include <linux/net.h>
-#include <linux/ipc.h>
 
 namespace mozilla {
 
@@ -87,14 +86,6 @@ SandboxFilterImpl::Build() {
 #define SOCKETCALL(name, NAME) SYSCALL(name)
 #endif
 
-  // i386 multiplexes all the SysV-IPC-related interfaces into a single
-  // syscall.
-#if SYSCALL_EXISTS(ipc)
-#define SYSVIPCCALL(name, NAME) SYSCALL_WITH_ARG(ipc, 0, NAME)
-#else
-#define SYSVIPCCALL(name, NAME) SYSCALL(name)
-#endif
-
   /* Most used system calls should be at the top of the whitelist
    * for performance reasons. The whitelist BPF filter exits after
    * processing any ALLOW_SYSCALL macro.
@@ -125,9 +116,12 @@ SandboxFilterImpl::Build() {
   Allow(SYSCALL(mmap));
 #endif
 
+  /* B2G specific high-frequency syscalls */
+#ifdef MOZ_WIDGET_GONK
   Allow(SYSCALL(clock_gettime));
   Allow(SYSCALL(epoll_wait));
   Allow(SYSCALL(gettimeofday));
+#endif
   Allow(SYSCALL(read));
   Allow(SYSCALL(write));
   // 32-bit lseek is used, at least on Android, to implement ANSI fseek.
@@ -218,6 +212,8 @@ SandboxFilterImpl::Build() {
   // with Android KitKat abort(); see bug 1004832.
   Allow(SYSCALL_WITH_ARG(tgkill, 0, uint32_t(getpid())));
 
+  /* B2G specific low-frequency syscalls */
+#ifdef MOZ_WIDGET_GONK
   Allow(SOCKETCALL(sendto, SENDTO));
   Allow(SOCKETCALL(recvfrom, RECVFROM));
   Allow(SYSCALL_LARGEFILE(getdents, getdents64));
@@ -226,6 +222,7 @@ SandboxFilterImpl::Build() {
   Allow(SYSCALL(sched_getscheduler));
   Allow(SYSCALL(sched_setscheduler));
   Allow(SYSCALL(sigaltstack));
+#endif
 
   /* Always last and always OK calls */
   /* Architecture-specific very infrequently used syscalls */
@@ -244,22 +241,18 @@ SandboxFilterImpl::Build() {
   /* restart_syscall is called internally, generally when debugging */
   Allow(SYSCALL(restart_syscall));
 
-  /* linux desktop is not as performance critical as mobile */
+  /* linux desktop is not as performance critical as B2G */
   /* we can place desktop syscalls at the end */
-#ifndef ANDROID
+#ifndef MOZ_WIDGET_GONK
   Allow(SYSCALL(stat));
   Allow(SYSCALL(getdents));
   Allow(SYSCALL(lstat));
-#if SYSCALL_EXISTS(mmap2)
-  Allow(SYSCALL(mmap2));
-#else
   Allow(SYSCALL(mmap));
-#endif
   Allow(SYSCALL(openat));
   Allow(SYSCALL(fcntl));
   Allow(SYSCALL(fstat));
   Allow(SYSCALL(readlink));
-  Allow(SOCKETCALL(getsockname, GETSOCKNAME));
+  Allow(SYSCALL(getsockname));
   Allow(SYSCALL(getuid));
   Allow(SYSCALL(geteuid));
   Allow(SYSCALL(mkdir));
@@ -268,13 +261,9 @@ SandboxFilterImpl::Build() {
   Allow(SYSCALL(pread64));
   Allow(SYSCALL(statfs));
   Allow(SYSCALL(pipe));
-#if SYSCALL_EXISTS(ugetrlimit)
-  Allow(SYSCALL(ugetrlimit));
-#else
   Allow(SYSCALL(getrlimit));
-#endif
-  Allow(SOCKETCALL(shutdown, SHUTDOWN));
-  Allow(SOCKETCALL(getpeername, GETPEERNAME));
+  Allow(SYSCALL(shutdown));
+  Allow(SYSCALL(getpeername));
   Allow(SYSCALL(eventfd2));
   Allow(SYSCALL(clock_getres));
   Allow(SYSCALL(sysinfo));
@@ -285,38 +274,32 @@ SandboxFilterImpl::Build() {
   Allow(SYSCALL(getegid));
   Allow(SYSCALL(inotify_init1));
   Allow(SYSCALL(wait4));
-  Allow(SYSVIPCCALL(shmctl, SHMCTL));
+  Allow(SYSCALL(shmctl));
   Allow(SYSCALL(set_robust_list));
   Allow(SYSCALL(rmdir));
-  Allow(SOCKETCALL(recvfrom, RECVFROM));
-  Allow(SYSVIPCCALL(shmdt, SHMDT));
+  Allow(SYSCALL(recvfrom));
+  Allow(SYSCALL(shmdt));
   Allow(SYSCALL(pipe2));
-  Allow(SOCKETCALL(setsockopt, SETSOCKOPT));
-  Allow(SYSVIPCCALL(shmat, SHMAT));
+  Allow(SYSCALL(setsockopt));
+  Allow(SYSCALL(shmat));
   Allow(SYSCALL(set_tid_address));
   Allow(SYSCALL(inotify_add_watch));
   Allow(SYSCALL(rt_sigprocmask));
-  Allow(SYSVIPCCALL(shmget, SHMGET));
+  Allow(SYSCALL(shmget));
   Allow(SYSCALL(getgid));
-#if SYSCALL_EXISTS(utimes)
-  Allow(SYSCALL(utimes));
-#else
   Allow(SYSCALL(utime));
-#endif
-#if SYSCALL_EXISTS(arch_prctl)
   Allow(SYSCALL(arch_prctl));
-#endif
   Allow(SYSCALL(sched_getaffinity));
   /* We should remove all of the following in the future (possibly even more) */
-  Allow(SOCKETCALL(socket, SOCKET));
+  Allow(SYSCALL(socket));
   Allow(SYSCALL(chmod));
   Allow(SYSCALL(execve));
   Allow(SYSCALL(rename));
   Allow(SYSCALL(symlink));
-  Allow(SOCKETCALL(connect, CONNECT));
+  Allow(SYSCALL(connect));
   Allow(SYSCALL(quotactl));
   Allow(SYSCALL(kill));
-  Allow(SOCKETCALL(sendto, SENDTO));
+  Allow(SYSCALL(sendto));
 #endif
 
   /* nsSystemInfo uses uname (and we cache an instance, so */

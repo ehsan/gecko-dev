@@ -43,13 +43,11 @@ public:
     MOZ_COUNT_CTOR(PromiseTask);
   }
 
-protected:
   ~PromiseTask()
   {
     MOZ_COUNT_DTOR(PromiseTask);
   }
 
-public:
   NS_IMETHOD Run()
   {
     mPromise->mTaskPending = false;
@@ -72,13 +70,11 @@ public:
     MOZ_COUNT_CTOR(WorkerPromiseTask);
   }
 
-protected:
   ~WorkerPromiseTask()
   {
     MOZ_COUNT_DTOR(WorkerPromiseTask);
   }
 
-public:
   bool
   WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   {

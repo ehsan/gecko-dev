@@ -77,6 +77,7 @@ class nsWindow : public nsWindowBase
   typedef mozilla::widget::MSGResult MSGResult;
 public:
   nsWindow();
+  virtual ~nsWindow();
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -289,7 +290,6 @@ public:
   virtual bool ShouldUseOffMainThreadCompositing();
 
 protected:
-  virtual ~nsWindow();
 
   virtual void WindowUsesOMTC() MOZ_OVERRIDE;
 

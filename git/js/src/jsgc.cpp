@@ -238,6 +238,18 @@ static const uint64_t GC_IDLE_FULL_SPAN = 20 * 1000 * 1000;
 /* Increase the IGC marking slice time if we are in highFrequencyGC mode. */
 static const int IGC_MARK_SLICE_MULTIPLIER = 2;
 
+#ifdef JSGC_GENERATIONAL
+static const unsigned MIN_EMPTY_CHUNK_COUNT = 1;
+#else
+static const unsigned MIN_EMPTY_CHUNK_COUNT = 0;
+#endif
+
+#if defined(ANDROID) || defined(MOZ_B2G)
+static const unsigned MAX_EMPTY_CHUNK_COUNT = 2;
+#else
+static const unsigned MAX_EMPTY_CHUNK_COUNT = 30;
+#endif
+
 const AllocKind gc::slotsToThingKind[] = {
     /* 0 */  FINALIZE_OBJECT0,  FINALIZE_OBJECT2,  FINALIZE_OBJECT2,  FINALIZE_OBJECT4,
     /* 4 */  FINALIZE_OBJECT4,  FINALIZE_OBJECT8,  FINALIZE_OBJECT8,  FINALIZE_OBJECT8,
@@ -683,15 +695,14 @@ GCRuntime::expireChunkPool(bool shrinkBuffers, bool releaseAll)
      * without emptying the list, the older chunks will stay at the tail
      * and are more likely to reach the max age.
      */
-    JS_ASSERT(maxEmptyChunkCount >= minEmptyChunkCount);
     Chunk *freeList = nullptr;
     unsigned freeChunkCount = 0;
     for (ChunkPool::Enum e(chunkPool); !e.empty(); ) {
         Chunk *chunk = e.front();
         JS_ASSERT(chunk->unused());
         JS_ASSERT(!chunkSet.has(chunk));
-        if (releaseAll || freeChunkCount >= maxEmptyChunkCount ||
-            (freeChunkCount >= minEmptyChunkCount &&
+        if (releaseAll || freeChunkCount >= MAX_EMPTY_CHUNK_COUNT ||
+            (freeChunkCount >= MIN_EMPTY_CHUNK_COUNT &&
              (shrinkBuffers || chunk->info.age == MAX_EMPTY_CHUNK_AGE)))
         {
             e.removeAndPopFront();
@@ -705,8 +716,7 @@ GCRuntime::expireChunkPool(bool shrinkBuffers, bool releaseAll)
             e.popFront();
         }
     }
-    JS_ASSERT(chunkPool.getEmptyCount() <= maxEmptyChunkCount);
-    JS_ASSERT_IF(shrinkBuffers, chunkPool.getEmptyCount() <= minEmptyChunkCount);
+    JS_ASSERT_IF(shrinkBuffers, chunkPool.getEmptyCount() <= MIN_EMPTY_CHUNK_COUNT);
     JS_ASSERT_IF(releaseAll, chunkPool.getEmptyCount() == 0);
     return freeList;
 }
@@ -1022,7 +1032,7 @@ GCRuntime::wantBackgroundAllocation() const
      * of them.
      */
     return helperState.canBackgroundAllocate() &&
-           chunkPool.getEmptyCount() < minEmptyChunkCount &&
+           chunkPool.getEmptyCount() < MIN_EMPTY_CHUNK_COUNT &&
            chunkSet.count() >= 4;
 }
 
@@ -1127,8 +1137,6 @@ GCRuntime::GCRuntime(JSRuntime *rt) :
     dynamicHeapGrowth(false),
     dynamicMarkSlice(false),
     decommitThreshold(32 * 1024 * 1024),
-    minEmptyChunkCount(1),
-    maxEmptyChunkCount(30),
     cleanUpEverything(false),
     grayBitsValid(false),
     isNeeded(0),
@@ -1448,16 +1456,6 @@ GCRuntime::setParameter(JSGCParamKey key, uint32_t value)
       case JSGC_DECOMMIT_THRESHOLD:
         decommitThreshold = value * 1024 * 1024;
         break;
-      case JSGC_MIN_EMPTY_CHUNK_COUNT:
-        minEmptyChunkCount = value;
-        if (minEmptyChunkCount > maxEmptyChunkCount)
-            maxEmptyChunkCount = minEmptyChunkCount;
-        break;
-      case JSGC_MAX_EMPTY_CHUNK_COUNT:
-        maxEmptyChunkCount = value;
-        if (minEmptyChunkCount > maxEmptyChunkCount)
-            minEmptyChunkCount = maxEmptyChunkCount;
-        break;
       default:
         JS_ASSERT(key == JSGC_MODE);
         mode = JSGCMode(value);
@@ -1506,10 +1504,6 @@ GCRuntime::getParameter(JSGCParamKey key)
         return dynamicMarkSlice;
       case JSGC_ALLOCATION_THRESHOLD:
         return allocThreshold / 1024 / 1024;
-      case JSGC_MIN_EMPTY_CHUNK_COUNT:
-        return minEmptyChunkCount;
-      case JSGC_MAX_EMPTY_CHUNK_COUNT:
-        return maxEmptyChunkCount;
       default:
         JS_ASSERT(key == JSGC_NUMBER);
         return uint32_t(number);
@@ -3045,7 +3039,6 @@ PurgeRuntime(JSRuntime *rt)
     rt->nativeIterCache.purge();
     rt->uncompressedSourceCache.purge();
     rt->evalCache.clear();
-    rt->regExpTestCache.purge();
 
     if (!rt->hasActiveCompilations())
         rt->parseMapPool().purgeAll();
@@ -3849,7 +3842,7 @@ GCRuntime::getNextZoneGroup()
         for (GCZoneGroupIter zone(rt); !zone.done(); zone.next()) {
             JS_ASSERT(!zone->gcNextGraphComponent);
             JS_ASSERT(zone->isGCMarking());
-            zone->setNeedsBarrier(false, Zone::UpdateJit);
+            zone->setNeedsBarrier(false, Zone::UpdateIon);
             zone->setGCState(Zone::NoGC);
             zone->gcGrayRoots.clearAndFree();
         }
@@ -4664,7 +4657,7 @@ GCRuntime::resetIncrementalGC(const char *reason)
 
         for (GCZonesIter zone(rt); !zone.done(); zone.next()) {
             JS_ASSERT(zone->isGCMarking());
-            zone->setNeedsBarrier(false, Zone::UpdateJit);
+            zone->setNeedsBarrier(false, Zone::UpdateIon);
             zone->setGCState(Zone::NoGC);
         }
         rt->setNeedsBarrier(false);
@@ -4745,7 +4738,7 @@ AutoGCSlice::AutoGCSlice(JSRuntime *rt)
          */
         if (zone->isGCMarking()) {
             JS_ASSERT(zone->needsBarrier());
-            zone->setNeedsBarrier(false, Zone::DontUpdateJit);
+            zone->setNeedsBarrier(false, Zone::DontUpdateIon);
         } else {
             JS_ASSERT(!zone->needsBarrier());
         }
@@ -4760,11 +4753,11 @@ AutoGCSlice::~AutoGCSlice()
     bool haveBarriers = false;
     for (ZonesIter zone(runtime, WithAtoms); !zone.done(); zone.next()) {
         if (zone->isGCMarking()) {
-            zone->setNeedsBarrier(true, Zone::UpdateJit);
+            zone->setNeedsBarrier(true, Zone::UpdateIon);
             zone->allocator.arenas.prepareForIncrementalGC(runtime);
             haveBarriers = true;
         } else {
-            zone->setNeedsBarrier(false, Zone::UpdateJit);
+            zone->setNeedsBarrier(false, Zone::UpdateIon);
         }
     }
     runtime->setNeedsBarrier(haveBarriers);
@@ -4971,33 +4964,6 @@ GCRuntime::budgetIncrementalGC(int64_t *budget)
         resetIncrementalGC("zone change");
 }
 
-namespace {
-
-#ifdef JSGC_GENERATIONAL
-class AutoDisableStoreBuffer
-{
-    StoreBuffer &sb;
-    bool prior;
-
-  public:
-    explicit AutoDisableStoreBuffer(GCRuntime *gc) : sb(gc->storeBuffer) {
-        prior = sb.isEnabled();
-        sb.disable();
-    }
-    ~AutoDisableStoreBuffer() {
-        if (prior)
-            sb.enable();
-    }
-};
-#else
-struct AutoDisableStoreBuffer
-{
-    AutoDisableStoreBuffer(GCRuntime *gc) {}
-};
-#endif
-
-} /* anonymous namespace */
-
 /*
  * Run one GC "cycle" (either a slice of incremental GC or an entire
  * non-incremental GC. We disable inlining to ensure that the bottom of the
@@ -5011,14 +4977,6 @@ MOZ_NEVER_INLINE bool
 GCRuntime::gcCycle(bool incremental, int64_t budget, JSGCInvocationKind gckind,
                    JS::gcreason::Reason reason)
 {
-    minorGC(reason);
-
-    /*
-     * Marking can trigger many incidental post barriers, some of them for
-     * objects which are not going to be live after the GC.
-     */
-    AutoDisableStoreBuffer adsb(this);
-
     AutoTraceSession session(rt, MajorCollecting);
 
     isNeeded = false;
@@ -5115,28 +5073,32 @@ ShouldCleanUpEverything(JS::gcreason::Reason reason, JSGCInvocationKind gckind)
            gckind == GC_SHRINK;
 }
 
-gcstats::ZoneGCStats
-GCRuntime::scanZonesBeforeGC()
+namespace {
+
+#ifdef JSGC_GENERATIONAL
+class AutoDisableStoreBuffer
 {
-    gcstats::ZoneGCStats zoneStats;
-    for (ZonesIter zone(rt, WithAtoms); !zone.done(); zone.next()) {
-        if (mode == JSGC_MODE_GLOBAL)
-            zone->scheduleGC();
+    StoreBuffer &sb;
+    bool prior;
 
-        /* This is a heuristic to avoid resets. */
-        if (incrementalState != NO_INCREMENTAL && zone->needsBarrier())
-            zone->scheduleGC();
-
-        zoneStats.zoneCount++;
-        if (zone->isGCScheduled())
-            zoneStats.collectedCount++;
+  public:
+    explicit AutoDisableStoreBuffer(GCRuntime *gc) : sb(gc->storeBuffer) {
+        prior = sb.isEnabled();
+        sb.disable();
     }
+    ~AutoDisableStoreBuffer() {
+        if (prior)
+            sb.enable();
+    }
+};
+#else
+struct AutoDisableStoreBuffer
+{
+    AutoDisableStoreBuffer(GCRuntime *gc) {}
+};
+#endif
 
-    for (CompartmentsIter c(rt, WithAtoms); !c.done(); c.next())
-        zoneStats.compartmentCount++;
-
-    return zoneStats;
-}
+} /* anonymous namespace */
 
 void
 GCRuntime::collect(bool incremental, int64_t budget, JSGCInvocationKind gckind,
@@ -5173,12 +5135,39 @@ GCRuntime::collect(bool incremental, int64_t budget, JSGCInvocationKind gckind,
 
     recordNativeStackTop();
 
-    gcstats::AutoGCSlice agc(stats, scanZonesBeforeGC(), reason);
+    int zoneCount = 0;
+    int compartmentCount = 0;
+    int collectedCount = 0;
+    for (ZonesIter zone(rt, WithAtoms); !zone.done(); zone.next()) {
+        if (mode == JSGC_MODE_GLOBAL)
+            zone->scheduleGC();
+
+        /* This is a heuristic to avoid resets. */
+        if (incrementalState != NO_INCREMENTAL && zone->needsBarrier())
+            zone->scheduleGC();
+
+        zoneCount++;
+        if (zone->isGCScheduled())
+            collectedCount++;
+    }
+
+    for (CompartmentsIter c(rt, WithAtoms); !c.done(); c.next())
+        compartmentCount++;
 
     cleanUpEverything = ShouldCleanUpEverything(reason, gckind);
 
     bool repeat = false;
     do {
+        minorGC(reason);
+
+        /*
+         * Marking can trigger many incidental post barriers, some of them for
+         * objects which are not going to be live after the GC.
+         */
+        AutoDisableStoreBuffer adsb(this);
+
+        gcstats::AutoGCSlice agc(stats, collectedCount, zoneCount, compartmentCount, reason);
+
         /*
          * Let the API user decide to defer a GC if it wants to (unless this
          * is the last context). Invoke the callback regardless.

@@ -44,11 +44,8 @@ public:
   {
     MOZ_COUNT_CTOR(ClientCanvasLayer);
   }
-
-protected:
   virtual ~ClientCanvasLayer();
 
-public:
   virtual void SetVisibleRegion(const nsIntRegion& aRegion)
   {
     NS_ASSERTION(ClientManager()->InConstruction(),

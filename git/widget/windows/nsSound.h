@@ -19,6 +19,7 @@ class nsSound : public nsISound,
 {
 public: 
   nsSound();
+  virtual ~nsSound();
   void ShutdownOldPlayerThread();
 
   NS_DECL_ISUPPORTS
@@ -26,7 +27,6 @@ public:
   NS_DECL_NSISTREAMLOADEROBSERVER
 
 private:
-  virtual ~nsSound();
   void PurgeLastSound();
 
 private:

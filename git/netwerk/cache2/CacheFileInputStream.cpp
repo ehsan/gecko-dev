@@ -49,6 +49,7 @@ CacheFileInputStream::CacheFileInputStream(CacheFile *aFile)
   , mStatus(NS_OK)
   , mWaitingForUpdate(false)
   , mListeningForChunk(-1)
+  , mInReadSegments(false)
   , mCallbackFlags(0)
 {
   LOG(("CacheFileInputStream::CacheFileInputStream() [this=%p]", this));
@@ -73,6 +74,7 @@ NS_IMETHODIMP
 CacheFileInputStream::Available(uint64_t *_retval)
 {
   CacheFileAutoLock lock(mFile);
+  MOZ_ASSERT(!mInReadSegments);
 
   if (mClosed) {
     LOG(("CacheFileInputStream::Available() - Stream is closed. [this=%p, "
@@ -114,6 +116,7 @@ CacheFileInputStream::ReadSegments(nsWriteSegmentFun aWriter, void *aClosure,
                                    uint32_t aCount, uint32_t *_retval)
 {
   CacheFileAutoLock lock(mFile);
+  MOZ_ASSERT(!mInReadSegments);
 
   LOG(("CacheFileInputStream::ReadSegments() [this=%p, count=%d]",
        this, aCount));
@@ -161,8 +164,24 @@ CacheFileInputStream::ReadSegments(nsWriteSegmentFun aWriter, void *aClosure,
     } else if (canRead > 0) {
       uint32_t toRead = std::min(static_cast<uint32_t>(canRead), aCount);
 
+      // We need to release the lock to avoid lock re-entering unless the
+      // caller is Read() method.
+#ifdef DEBUG
+      int64_t oldPos = mPos;
+#endif
+      mInReadSegments = true;
+      if (aWriter != (nsWriteSegmentFun)NS_CopySegmentToBuffer) {
+        lock.Unlock();
+      }
       uint32_t read;
       rv = aWriter(this, aClosure, buf, *_retval, toRead, &read);
+      if (aWriter != (nsWriteSegmentFun)NS_CopySegmentToBuffer) {
+        lock.Lock();
+      }
+      mInReadSegments = false;
+#ifdef DEBUG
+      MOZ_ASSERT(oldPos == mPos);
+#endif
 
       if (NS_SUCCEEDED(rv)) {
         MOZ_ASSERT(read <= toRead,
@@ -224,6 +243,8 @@ CacheFileInputStream::CloseWithStatusLocked(nsresult aStatus)
   LOG(("CacheFileInputStream::CloseWithStatusLocked() [this=%p, "
        "aStatus=0x%08x]", this, aStatus));
 
+  MOZ_ASSERT(!mInReadSegments);
+
   if (mClosed) {
     MOZ_ASSERT(!mCallback);
     return NS_OK;
@@ -250,6 +271,7 @@ CacheFileInputStream::AsyncWait(nsIInputStreamCallback *aCallback,
                                 nsIEventTarget *aEventTarget)
 {
   CacheFileAutoLock lock(mFile);
+  MOZ_ASSERT(!mInReadSegments);
 
   LOG(("CacheFileInputStream::AsyncWait() [this=%p, callback=%p, flags=%d, "
        "requestedCount=%d, eventTarget=%p]", this, aCallback, aFlags,
@@ -284,6 +306,7 @@ NS_IMETHODIMP
 CacheFileInputStream::Seek(int32_t whence, int64_t offset)
 {
   CacheFileAutoLock lock(mFile);
+  MOZ_ASSERT(!mInReadSegments);
 
   LOG(("CacheFileInputStream::Seek() [this=%p, whence=%d, offset=%lld]",
        this, whence, offset));
@@ -318,6 +341,7 @@ NS_IMETHODIMP
 CacheFileInputStream::Tell(int64_t *_retval)
 {
   CacheFileAutoLock lock(mFile);
+  MOZ_ASSERT(!mInReadSegments);
 
   if (mClosed) {
     LOG(("CacheFileInputStream::Tell() - Stream is closed. [this=%p]", this));
@@ -357,6 +381,7 @@ CacheFileInputStream::OnChunkAvailable(nsresult aResult, uint32_t aChunkIdx,
                                        CacheFileChunk *aChunk)
 {
   CacheFileAutoLock lock(mFile);
+  MOZ_ASSERT(!mInReadSegments);
 
   LOG(("CacheFileInputStream::OnChunkAvailable() [this=%p, result=0x%08x, "
        "idx=%d, chunk=%p]", this, aResult, aChunkIdx, aChunk));
@@ -407,6 +432,7 @@ nsresult
 CacheFileInputStream::OnChunkUpdated(CacheFileChunk *aChunk)
 {
   CacheFileAutoLock lock(mFile);
+  MOZ_ASSERT(!mInReadSegments);
 
   LOG(("CacheFileInputStream::OnChunkUpdated() [this=%p, idx=%d]",
        this, aChunk->Index()));

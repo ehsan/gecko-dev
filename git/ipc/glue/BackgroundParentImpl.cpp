@@ -33,16 +33,14 @@ class TestParent MOZ_FINAL : public mozilla::ipc::PBackgroundTestParent
 
   TestParent()
   {
-    MOZ_COUNT_CTOR(TestParent);
+    MOZ_COUNT_CTOR(mozilla::ipc::BackgroundTestParent);
   }
 
-protected:
   ~TestParent()
   {
-    MOZ_COUNT_DTOR(TestParent);
+    MOZ_COUNT_DTOR(mozilla::ipc::BackgroundTestParent);
   }
 
-public:
   virtual void
   ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
 };

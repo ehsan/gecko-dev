@@ -380,13 +380,8 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
         JSString *str = static_cast<JSString *>(thing);
 
         JS::StringInfo info;
-        if (str->hasLatin1Chars()) {
-            info.gcHeapLatin1 = thingSize;
-            info.mallocHeapLatin1 = str->sizeOfExcludingThis(rtStats->mallocSizeOf_);
-        } else {
-            info.gcHeapTwoByte = thingSize;
-            info.mallocHeapTwoByte = str->sizeOfExcludingThis(rtStats->mallocSizeOf_);
-        }
+        info.gcHeap = thingSize;
+        info.mallocHeap = str->sizeOfExcludingThis(rtStats->mallocSizeOf_);
         info.numCopies = 1;
 
         zStats->stringInfo.add(info);

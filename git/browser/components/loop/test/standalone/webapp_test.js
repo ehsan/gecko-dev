@@ -23,12 +23,10 @@ describe("loop.webapp", function() {
       error: sandbox.spy(),
       errorL10n: sandbox.spy(),
     };
-    loop.config.pendingCallTimeout = 1000;
   });
 
   afterEach(function() {
     sandbox.restore();
-    delete loop.config.pendingCallTimeout;
   });
 
   describe("#init", function() {
@@ -71,10 +69,7 @@ describe("loop.webapp", function() {
     var router, conversation;
 
     beforeEach(function() {
-      conversation = new sharedModels.ConversationModel({}, {
-        sdk: {},
-        pendingCallTimeout: 1000
-      });
+      conversation = new sharedModels.ConversationModel({}, {sdk: {}});
       router = new loop.webapp.WebappRouter({
         conversation: conversation,
         notifier: notifier
@@ -258,9 +253,7 @@ describe("loop.webapp", function() {
     var conversation;
 
     beforeEach(function() {
-      conversation = new sharedModels.ConversationModel({}, {
-        sdk: {},
-        pendingCallTimeout: 1000});
+      conversation = new sharedModels.ConversationModel({}, {sdk: {}});
     });
 
     describe("#initialize", function() {
@@ -275,10 +268,7 @@ describe("loop.webapp", function() {
       var conversation, initiate, view, fakeSubmitEvent;
 
       beforeEach(function() {
-        conversation = new sharedModels.ConversationModel({}, {
-          sdk: {},
-          pendingCallTimeout: 1000
-        });
+        conversation = new sharedModels.ConversationModel({}, {sdk: {}});
         view = new loop.webapp.ConversationFormView({
           model: conversation,
           notifier: notifier
@@ -317,10 +307,7 @@ describe("loop.webapp", function() {
       beforeEach(function() {
         conversation = new sharedModels.ConversationModel({
           loopToken: "fake"
-        }, {
-          sdk: {},
-          pendingCallTimeout: 1000
-        });
+        }, {sdk: {}});
         view = new loop.webapp.ConversationFormView({
           model: conversation,
           notifier: notifier

@@ -39,14 +39,12 @@ public:
     MOZ_COUNT_CTOR(RemoveTextureFromCompositableTracker);
   }
 
-protected:
   ~RemoveTextureFromCompositableTracker()
   {
     MOZ_COUNT_DTOR(RemoveTextureFromCompositableTracker);
     ReleaseTextureClient();
   }
 
-public:
   virtual void Complete() MOZ_OVERRIDE
   {
     ReleaseTextureClient();

@@ -45,15 +45,12 @@ GetUserMediaLog()
 namespace mozilla {
 
 MediaEngineWebRTC::MediaEngineWebRTC(MediaEnginePrefs &aPrefs)
-    : mMutex("mozilla::MediaEngineWebRTC")
-    , mScreenEngine(nullptr)
-    , mAppEngine(nullptr)
-    , mVideoEngine(nullptr)
-    , mVoiceEngine(nullptr)
-    , mVideoEngineInit(false)
-    , mAudioEngineInit(false)
-    , mScreenEngineInit(false)
-    , mAppEngineInit(false)
+  : mMutex("mozilla::MediaEngineWebRTC")
+  , mVideoEngine(nullptr)
+  , mVoiceEngine(nullptr)
+  , mVideoEngineInit(false)
+  , mAudioEngineInit(false)
+  , mHasTabVideoSource(false)
 {
 #ifndef MOZ_B2G_CAMERA
   nsCOMPtr<nsIComponentRegistrar> compMgr;
@@ -72,17 +69,10 @@ MediaEngineWebRTC::MediaEngineWebRTC(MediaEnginePrefs &aPrefs)
 }
 
 void
-MediaEngineWebRTC::EnumerateVideoDevices(dom::MediaSourceEnum aMediaSource,
-                                         nsTArray<nsRefPtr<MediaEngineVideoSource> >* aVSources)
+MediaEngineWebRTC::EnumerateVideoDevices(nsTArray<nsRefPtr<MediaEngineVideoSource> >* aVSources)
 {
-  // We spawn threads to handle gUM runnables, so we must protect the member vars
+#ifdef MOZ_B2G_CAMERA
   MutexAutoLock lock(mMutex);
-
- #ifdef MOZ_B2G_CAMERA
-  if (aMediaSource != dom::MediaSourceEnum::Camera) {
-    // only supports camera sources
-    return;
-  }
 
   /**
    * We still enumerate every time, in case a new device was plugged in since
@@ -112,7 +102,7 @@ MediaEngineWebRTC::EnumerateVideoDevices(dom::MediaSourceEnum aMediaSource,
       // We've already seen this device, just append.
       aVSources->AppendElement(vSource.get());
     } else {
-      vSource = new MediaEngineWebRTCVideoSource(i, aMediaSource);
+      vSource = new MediaEngineWebRTCVideoSource(i);
       mVideoSources.Put(uuid, vSource); // Hashtable takes ownership.
       aVSources->AppendElement(vSource);
     }
@@ -122,9 +112,9 @@ MediaEngineWebRTC::EnumerateVideoDevices(dom::MediaSourceEnum aMediaSource,
 #else
   ScopedCustomReleasePtr<webrtc::ViEBase> ptrViEBase;
   ScopedCustomReleasePtr<webrtc::ViECapture> ptrViECapture;
-  webrtc::Config configSet;
-  webrtc::VideoEngine *videoEngine = nullptr;
-  bool *videoEngineInit = nullptr;
+
+  // We spawn threads to handle gUM runnables, so we must protect the member vars
+  MutexAutoLock lock(mMutex);
 
 #ifdef MOZ_WIDGET_ANDROID
   // get the JVM
@@ -135,53 +125,25 @@ MediaEngineWebRTC::EnumerateVideoDevices(dom::MediaSourceEnum aMediaSource,
     return;
   }
 #endif
-
-  switch (aMediaSource) {
-    case dom::MediaSourceEnum::Application:
-      mAppEngineConfig.Set<webrtc::CaptureDeviceInfo>(
-          new webrtc::CaptureDeviceInfo(webrtc::CaptureDeviceType::Application));
-      if (!mAppEngine) {
-        if (!(mAppEngine = webrtc::VideoEngine::Create(mAppEngineConfig))) {
-          return;
-        }
-      }
-      videoEngine = mAppEngine;
-      videoEngineInit = &mAppEngineInit;
-      break;
-    case dom::MediaSourceEnum::Screen:
-      mScreenEngineConfig.Set<webrtc::CaptureDeviceInfo>(
-          new webrtc::CaptureDeviceInfo(webrtc::CaptureDeviceType::Screen));
-      if (!mScreenEngine) {
-        if (!(mScreenEngine = webrtc::VideoEngine::Create(mScreenEngineConfig))) {
-          return;
-        }
-      }
-      videoEngine = mScreenEngine;
-      videoEngineInit = &mScreenEngineInit;
-      break;
-    case dom::MediaSourceEnum::Camera:
-      // fall through
-    default:
-      if (!mVideoEngine) {
-        if (!(mVideoEngine = webrtc::VideoEngine::Create())) {
-          return;
-        }
-      }
-      videoEngine = mVideoEngine;
-      videoEngineInit = &mVideoEngineInit;
-      break;
+  if (!mVideoEngine) {
+    if (!(mVideoEngine = webrtc::VideoEngine::Create())) {
+      return;
+    }
   }
 
-  ptrViEBase = webrtc::ViEBase::GetInterface(videoEngine);
+  ptrViEBase = webrtc::ViEBase::GetInterface(mVideoEngine);
   if (!ptrViEBase) {
     return;
   }
-  if (ptrViEBase->Init() < 0) {
-    return;
-  }
-  *videoEngineInit = true;
 
-  ptrViECapture = webrtc::ViECapture::GetInterface(videoEngine);
+  if (!mVideoEngineInit) {
+    if (ptrViEBase->Init() < 0) {
+      return;
+    }
+    mVideoEngineInit = true;
+  }
+
+  ptrViECapture = webrtc::ViECapture::GetInterface(mVideoEngine);
   if (!ptrViECapture) {
     return;
   }
@@ -245,7 +207,7 @@ MediaEngineWebRTC::EnumerateVideoDevices(dom::MediaSourceEnum aMediaSource,
       // We've already seen this device, just append.
       aVSources->AppendElement(vSource.get());
     } else {
-      vSource = new MediaEngineWebRTCVideoSource(videoEngine, i, aMediaSource);
+      vSource = new MediaEngineWebRTCVideoSource(mVideoEngine, i);
       mVideoSources.Put(uuid, vSource); // Hashtable takes ownership.
       aVSources->AppendElement(vSource);
     }
@@ -259,8 +221,7 @@ MediaEngineWebRTC::EnumerateVideoDevices(dom::MediaSourceEnum aMediaSource,
 }
 
 void
-MediaEngineWebRTC::EnumerateAudioDevices(dom::MediaSourceEnum aMediaSource,
-                                         nsTArray<nsRefPtr<MediaEngineAudioSource> >* aASources)
+MediaEngineWebRTC::EnumerateAudioDevices(nsTArray<nsRefPtr<MediaEngineAudioSource> >* aASources)
 {
   ScopedCustomReleasePtr<webrtc::VoEBase> ptrVoEBase;
   ScopedCustomReleasePtr<webrtc::VoEHardware> ptrVoEHw;
@@ -362,13 +323,6 @@ MediaEngineWebRTC::Shutdown()
     webrtc::VideoEngine::Delete(mVideoEngine);
   }
 
-  if (mScreenEngine) {
-    webrtc::VideoEngine::Delete(mScreenEngine);
-  }
-  if (mAppEngine) {
-    webrtc::VideoEngine::Delete(mAppEngine);
-  }
-
   if (mVoiceEngine) {
     mAudioSources.Clear();
     mVoiceEngine->SetTraceCallback(nullptr);
@@ -377,8 +331,6 @@ MediaEngineWebRTC::Shutdown()
 
   mVideoEngine = nullptr;
   mVoiceEngine = nullptr;
-  mScreenEngine = nullptr;
-  mAppEngine = nullptr;
 
   if (mThread) {
     mThread->Shutdown();

@@ -491,7 +491,6 @@ nsresult
 nsOfflineCacheUpdateService::FindUpdate(nsIURI *aManifestURI,
                                         uint32_t aAppID,
                                         bool aInBrowser,
-                                        nsIFile *aCustomProfileDir,
                                         nsOfflineCacheUpdate **aUpdate)
 {
     nsresult rv;
@@ -519,7 +518,7 @@ nsOfflineCacheUpdateService::FindUpdate(nsIURI *aManifestURI,
             continue;
         }
 
-        if (update->IsForGroupID(groupID) && update->IsForProfile(aCustomProfileDir)) {
+        if (update->IsForGroupID(groupID)) {
             update.swap(*aUpdate);
             return NS_OK;
         }

@@ -28,10 +28,8 @@ class ContainerLayerComposite : public ContainerLayer,
 public:
   ContainerLayerComposite(LayerManagerComposite *aManager);
 
-protected:
   ~ContainerLayerComposite();
 
-public:
   // LayerComposite Implementation
   virtual Layer* GetLayer() MOZ_OVERRIDE { return this; }
 
@@ -65,11 +63,8 @@ class RefLayerComposite : public RefLayer,
                               const nsIntRect& aClipRect);
 public:
   RefLayerComposite(LayerManagerComposite *aManager);
-
-protected:
   ~RefLayerComposite();
 
-public:
   /** LayerOGL implementation */
   Layer* GetLayer() MOZ_OVERRIDE { return this; }
 

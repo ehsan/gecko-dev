@@ -374,9 +374,12 @@ AddAnimationsForProperty(nsIFrame* aFrame, nsCSSProperty aProperty,
                          ElementAnimationPtrArray& aAnimations,
                          Layer* aLayer, AnimationData& aData,
                          bool aPending) {
+  mozilla::TimeStamp currentTime =
+    aFrame->PresContext()->RefreshDriver()->MostRecentRefresh();
   for (uint32_t animIdx = 0; animIdx < aAnimations.Length(); animIdx++) {
     mozilla::ElementAnimation* anim = aAnimations[animIdx];
-    if (!(anim->HasAnimationOfProperty(aProperty) && anim->IsRunning())) {
+    if (!(anim->HasAnimationOfProperty(aProperty) &&
+          anim->IsRunningAt(currentTime))) {
       continue;
     }
     AddAnimationForProperty(aFrame, aProperty, anim, aLayer, aData, aPending);

@@ -166,10 +166,8 @@ public:
   CompositorOGL(nsIWidget *aWidget, int aSurfaceWidth = -1, int aSurfaceHeight = -1,
                 bool aUseExternalSurfaceSize = false);
 
-protected:
   virtual ~CompositorOGL();
 
-public:
   virtual TemporaryRef<DataTextureSource>
   CreateDataTextureSource(TextureFlags aFlags = TextureFlags::NO_FLAGS) MOZ_OVERRIDE;
 

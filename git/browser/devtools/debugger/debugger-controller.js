@@ -860,7 +860,11 @@ StackFrames.prototype = {
     this.activeThread.addOneTimeListener("paused", (aEvent, aPacket) => {
       let { type, frameFinished } = aPacket.why;
       if (type == "clientEvaluated") {
-        deferred.resolve(frameFinished);
+        if (!("terminated" in frameFinished)) {
+          deferred.resolve(frameFinished);
+        } else {
+          deferred.reject(new Error("The execution was abruptly terminated."));
+        }
       } else {
         deferred.reject(new Error("Active thread paused unexpectedly."));
       }
@@ -971,11 +975,10 @@ StackFrames.prototype = {
     yield this.evaluate(watchExpressions, evaluationOptions);
     this._currentFrameDescription = FRAME_TYPE.NORMAL;
 
-    // If an error was thrown during the evaluation of the watch expressions
-    // or the evaluation was terminated from the slow script dialog, then at
-    // least one expression evaluation could not be performed. So remove the
-    // most recent watch expression and try again.
-    if (this._currentEvaluation.throw || this._currentEvaluation.terminated) {
+    // If an error was thrown during the evaluation of the watch expressions,
+    // then at least one expression evaluation could not be performed. So
+    // remove the most recent watch expression and try again.
+    if (this._currentEvaluation.throw) {
       DebuggerView.WatchExpressions.removeAt(0);
       yield DebuggerController.StackFrames.syncWatchExpressions();
     }
@@ -1235,9 +1238,9 @@ SourceScripts.prototype = {
     const item = DebuggerView.Sources.getItemByValue(url);
     if (item) {
       if (isBlackBoxed) {
-        item.prebuiltNode.classList.add("black-boxed");
+        item.target.classList.add("black-boxed");
       } else {
-        item.prebuiltNode.classList.remove("black-boxed");
+        item.target.classList.remove("black-boxed");
       }
     }
     DebuggerView.Sources.updateToolbarButtonsState();

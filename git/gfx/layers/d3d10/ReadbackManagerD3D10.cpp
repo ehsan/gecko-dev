@@ -39,7 +39,6 @@ struct ReadbackTask {
 // destroyed by the main thread.
 class ReadbackResultWriter MOZ_FINAL : public nsIRunnable
 {
-  ~ReadbackResultWriter() {}
   NS_DECL_THREADSAFE_ISUPPORTS
 public:
   ReadbackResultWriter(ReadbackTask *aTask) : mTask(aTask) {}

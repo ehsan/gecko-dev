@@ -122,8 +122,6 @@ public class GeckoApplication extends Application
         FilePicker.init(getApplicationContext());
         GeckoLoader.loadMozGlue();
         HomePanelsManager.getInstance().init(getApplicationContext());
-        // This getInstance call will force initializatino of the NotificationHelper, but does nothing with the result
-        NotificationHelper.getInstance(getApplicationContext()).init();
         super.onCreate();
     }
 

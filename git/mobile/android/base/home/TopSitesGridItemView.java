@@ -6,24 +6,15 @@
 package org.mozilla.gecko.home;
 
 import com.squareup.picasso.Picasso;
-import com.squareup.picasso.Callback;
 
 import org.mozilla.gecko.db.BrowserContract.TopSites;
-import org.mozilla.gecko.db.URLMetadata;
 import org.mozilla.gecko.favicons.Favicons;
-import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.R;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.UiAsyncTask;
 
 import android.content.Context;
-import android.content.ContentResolver;
 import android.graphics.Bitmap;
-import android.graphics.drawable.BitmapDrawable;
-import android.support.v4.content.AsyncTaskLoader;
 import android.text.TextUtils;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.widget.ImageView;
 import android.widget.ImageView.ScaleType;
@@ -45,7 +36,6 @@ public class TopSitesGridItemView extends RelativeLayout {
     private static final ScaleType SCALE_TYPE_FAVICON   = ScaleType.CENTER;
     private static final ScaleType SCALE_TYPE_RESOURCE  = ScaleType.CENTER;
     private static final ScaleType SCALE_TYPE_THUMBNAIL = ScaleType.CENTER_CROP;
-    private static final ScaleType SCALE_TYPE_URL       = ScaleType.CENTER_INSIDE;
 
     // Child views.
     private final TextView mTitleView;
@@ -149,7 +139,7 @@ public class TopSitesGridItemView extends RelativeLayout {
         updateType(TopSites.TYPE_BLANK);
         updateTitleView();
         setLoadId(Favicons.NOT_LOADING);
-        ImageLoader.with(getContext()).cancelRequest(mThumbnailView);
+        Picasso.with(getContext()).cancelRequest(mThumbnailView);
         displayThumbnail(R.drawable.top_site_add);
 
     }
@@ -165,7 +155,7 @@ public class TopSitesGridItemView extends RelativeLayout {
      *
      * Returns true if any fields changed.
      */
-    public boolean updateState(final String title, final String url, final int type, final TopSitesPanel.ThumbnailInfo thumbnail) {
+    public boolean updateState(final String title, final String url, final int type, final Bitmap thumbnail) {
         boolean changed = false;
         if (mUrl == null || !mUrl.equals(url)) {
             mUrl = url;
@@ -178,11 +168,7 @@ public class TopSitesGridItemView extends RelativeLayout {
         }
 
         if (thumbnail != null) {
-            if (thumbnail.imageUrl != null) {
-                displayThumbnail(thumbnail.imageUrl, thumbnail.bgColor);
-            } else if (thumbnail.bitmap != null) {
-                displayThumbnail(thumbnail.bitmap);
-            }
+            displayThumbnail(thumbnail);
         } else if (changed) {
             // Because we'll have a new favicon or thumbnail arriving shortly, and
             // we need to not reject it because we already had a thumbnail.
@@ -192,7 +178,7 @@ public class TopSitesGridItemView extends RelativeLayout {
         if (changed) {
             updateTitleView();
             setLoadId(Favicons.NOT_LOADING);
-            ImageLoader.with(getContext()).cancelRequest(mThumbnailView);
+            Picasso.with(getContext()).cancelRequest(mThumbnailView);
         }
 
         if (updateType(type)) {
@@ -233,7 +219,7 @@ public class TopSitesGridItemView extends RelativeLayout {
         }
         mThumbnailSet = true;
         Favicons.cancelFaviconLoad(mLoadId);
-        ImageLoader.with(getContext()).cancelRequest(mThumbnailView);
+        Picasso.with(getContext()).cancelRequest(mThumbnailView);
 
         mThumbnailView.setScaleType(SCALE_TYPE_THUMBNAIL);
         mThumbnailView.setImageBitmap(thumbnail);
@@ -246,16 +232,16 @@ public class TopSitesGridItemView extends RelativeLayout {
      * @param imageUrl URL of the image to show.
      * @param bgColor background color to use in the view.
      */
-    public void displayThumbnail(final String imageUrl, final int bgColor) {
-        mThumbnailView.setScaleType(SCALE_TYPE_URL);
+    public void displayThumbnail(String imageUrl, int bgColor) {
+        mThumbnailView.setScaleType(SCALE_TYPE_RESOURCE);
         mThumbnailView.setBackgroundColor(bgColor);
         mThumbnailSet = true;
 
-        ImageLoader.with(getContext())
-                   .load(imageUrl)
-                   .noFade()
-                   .error(R.drawable.favicon)
-                   .into(mThumbnailView);
+        Picasso.with(getContext())
+               .load(imageUrl)
+               .noFade()
+               .error(R.drawable.favicon)
+               .into(mThumbnailView);
     }
 
     public void displayFavicon(Bitmap favicon, String faviconURL, int expectedLoadId) {

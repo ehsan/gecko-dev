@@ -586,8 +586,9 @@ private:
     bool mTriedBrowserInit;
     ScreenOrientation mOrientation;
     bool mUpdateHitRegion;
-    bool mPendingTouchPreventedResponse;
-    ScrollableLayerGuid mPendingTouchPreventedGuid;
+    bool mContextMenuHandled;
+    bool mLongTapEventHandled;
+    bool mWaitingTouchListeners;
     void FireSingleTapEvent(LayoutDevicePoint aPoint);
 
     bool mIgnoreKeyPressEvent;

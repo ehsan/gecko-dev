@@ -220,23 +220,18 @@ DrawTargetCG::CreateSourceSurfaceFromData(unsigned char *aData,
 static CGImageRef
 GetRetainedImageFromSourceSurface(SourceSurface *aSurface)
 {
-  switch(aSurface->GetType()) {
-    case SurfaceType::COREGRAPHICS_IMAGE:
-      return CGImageRetain(static_cast<SourceSurfaceCG*>(aSurface)->GetImage());
+  if (aSurface->GetType() == SurfaceType::COREGRAPHICS_IMAGE)
+    return CGImageRetain(static_cast<SourceSurfaceCG*>(aSurface)->GetImage());
+  else if (aSurface->GetType() == SurfaceType::COREGRAPHICS_CGCONTEXT)
+    return CGImageRetain(static_cast<SourceSurfaceCGContext*>(aSurface)->GetImage());
 
-    case SurfaceType::COREGRAPHICS_CGCONTEXT:
-      return CGImageRetain(static_cast<SourceSurfaceCGContext*>(aSurface)->GetImage());
-
-    default:
-    {
-      RefPtr<DataSourceSurface> data = aSurface->GetDataSurface();
-      if (!data) {
-        MOZ_CRASH("unsupported source surface");
-      }
-      return CreateCGImage(nullptr, data->GetData(), data->GetSize(),
-                           data->Stride(), data->GetFormat());
-    }
+  if (aSurface->GetType() == SurfaceType::DATA) {
+    DataSourceSurface* dataSource = static_cast<DataSourceSurface*>(aSurface);
+    return CreateCGImage(nullptr, dataSource->GetData(), dataSource->GetSize(),
+                         dataSource->Stride(), dataSource->GetFormat());
   }
+
+  MOZ_CRASH("unsupported source surface");
 }
 
 TemporaryRef<SourceSurface>

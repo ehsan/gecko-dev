@@ -96,10 +96,7 @@ describe("loop.conversation", function() {
     var conversation;
 
     beforeEach(function() {
-      conversation = new loop.shared.models.ConversationModel({}, {
-        sdk: {},
-        pendingCallTimeout: 1000
-      });
+      conversation = new loop.shared.models.ConversationModel({}, {sdk: {}});
       sandbox.stub(conversation, "initiate");
     });
 
@@ -288,10 +285,7 @@ describe("loop.conversation", function() {
     var conversation, view;
 
     beforeEach(function() {
-      conversation = new loop.shared.models.ConversationModel({}, {
-        sdk: {},
-        pendingCallTimeout: 1000
-      });
+      conversation = new loop.shared.models.ConversationModel({}, {sdk: {}});
       view = new loop.conversation.IncomingCallView({model: conversation});
     });
 

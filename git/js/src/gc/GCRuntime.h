@@ -367,7 +367,6 @@ class GCRuntime
     void requestInterrupt(JS::gcreason::Reason reason);
     bool gcCycle(bool incremental, int64_t budget, JSGCInvocationKind gckind,
                  JS::gcreason::Reason reason);
-    gcstats::ZoneGCStats scanZonesBeforeGC();
     void budgetIncrementalGC(int64_t *budget);
     void resetIncrementalGC(const char *reason);
     void incrementalCollectSlice(int64_t budget, JS::gcreason::Reason reason,
@@ -480,8 +479,6 @@ class GCRuntime
     bool                  dynamicHeapGrowth;
     bool                  dynamicMarkSlice;
     uint64_t              decommitThreshold;
-    unsigned              minEmptyChunkCount;
-    unsigned              maxEmptyChunkCount;
 
     /* During shutdown, the GC needs to clean up every possible object. */
     bool                  cleanUpEverything;

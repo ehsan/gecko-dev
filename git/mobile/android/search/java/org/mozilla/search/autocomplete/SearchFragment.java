@@ -19,7 +19,6 @@ import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.AdapterView;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ListView;
@@ -31,6 +30,7 @@ import org.mozilla.search.R;
  * A fragment to handle autocomplete. Its interface with the outside
  * world should be very very limited.
  * <p/>
+ * TODO: Add clear button to search input
  * TODO: Add more search providers (other than the dictionary)
  */
 public class SearchFragment extends Fragment implements AdapterView.OnItemClickListener,
@@ -95,14 +95,6 @@ public class SearchFragment extends Fragment implements AdapterView.OnItemClickL
             }
         });
 
-        final Button clearButton = (Button) mainView.findViewById(R.id.clear_button);
-        clearButton.setOnClickListener(new View.OnClickListener(){
-            @Override
-            public void onClick(View v) {
-                searchBar.setText("");
-            }
-        });
-
         backdropFrame.setOnClickListener(new BackdropClickListener());
 
         autoCompleteAdapter = new AutoCompleteAdapter(getActivity(), this);
@@ -119,7 +111,11 @@ public class SearchFragment extends Fragment implements AdapterView.OnItemClickL
                 new AutoCompleteAgentManager(getActivity(), new MainUiHandler(autoCompleteAdapter));
 
         // This will hide the autocomplete box and background frame.
-        transitionToWaiting();
+        // Is there a case where we *shouldn't* hide this upfront?
+
+        // Uncomment show card stream first.
+        // transitionToWaiting();
+        transitionToRunning();
 
         // Attach listener for tapping on a suggestion.
         suggestionDropdown.setOnItemClickListener(new AdapterView.OnItemClickListener() {

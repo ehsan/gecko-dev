@@ -28,6 +28,14 @@
 
 namespace mozilla { namespace pkix { namespace der {
 
+// not inline
+Result
+Fail(PRErrorCode errorCode)
+{
+  PR_SetError(errorCode, 0);
+  return Failure;
+}
+
 namespace internal {
 
 // Too complicated to be inline
@@ -37,10 +45,8 @@ ExpectTagAndGetLength(Input& input, uint8_t expectedTag, uint16_t& length)
   PR_ASSERT((expectedTag & 0x1F) != 0x1F); // high tag number form not allowed
 
   uint8_t tag;
-  Result rv;
-  rv = input.Read(tag);
-  if (rv != Success) {
-    return rv;
+  if (input.Read(tag) != Success) {
+    return Failure;
   }
 
   if (tag != expectedTag) {
@@ -52,17 +58,15 @@ ExpectTagAndGetLength(Input& input, uint8_t expectedTag, uint16_t& length)
   // set, followed by N bytes, where N is encoded in the lowest 7 bits of
   // the first byte.
   uint8_t length1;
-  rv = input.Read(length1);
-  if (rv != Success) {
-    return rv;
+  if (input.Read(length1) != Success) {
+    return Failure;
   }
   if (!(length1 & 0x80)) {
     length = length1;
   } else if (length1 == 0x81) {
     uint8_t length2;
-    rv = input.Read(length2);
-    if (rv != Success) {
-      return rv;
+    if (input.Read(length2) != Success) {
+      return Failure;
     }
     if (length2 < 128) {
       // Not shortest possible encoding
@@ -70,9 +74,8 @@ ExpectTagAndGetLength(Input& input, uint8_t expectedTag, uint16_t& length)
     }
     length = length2;
   } else if (length1 == 0x82) {
-    rv = input.Read(length);
-    if (rv != Success) {
-      return rv;
+    if (input.Read(length) != Success) {
+      return Failure;
     }
     if (length < 256) {
       // Not shortest possible encoding
@@ -239,24 +242,20 @@ AlgorithmIdentifier(OidValueParser oidValueParser, Input& input,
                     /*out*/ Algorithm& algorithm)
 {
   Input value;
-  Result rv = ExpectTagAndGetValue(input, SEQUENCE, value);
-  if (rv != Success) {
-    return rv;
+  if (ExpectTagAndGetValue(input, SEQUENCE, value) != Success) {
+    return Failure;
   }
 
   Input algorithmID;
-  rv = ExpectTagAndGetValue(value, der::OIDTag, algorithmID);
-  if (rv != Success) {
-    return rv;
+  if (ExpectTagAndGetValue(value, der::OIDTag, algorithmID) != Success) {
+    return Failure;
   }
-  rv = oidValueParser(algorithmID, algorithm);
-  if (rv != Success) {
-    return rv;
+  if (oidValueParser(algorithmID, algorithm) != Success) {
+    return Failure;
   }
 
-  rv = OptionalNull(value);
-  if (rv != Success) {
-    return rv;
+  if (OptionalNull(value) != Success) {
+    return Failure;
   }
 
   return End(value);
@@ -283,25 +282,21 @@ SignedData(Input& input, /*out*/ Input& tbs,
 {
   Input::Mark mark(input.GetMark());
 
-  Result rv;
-  rv = ExpectTagAndGetValue(input, SEQUENCE, tbs);
-  if (rv != Success) {
-    return rv;
+  if (ExpectTagAndGetValue(input, SEQUENCE, tbs) != Success) {
+    return Failure;
   }
 
-  rv = input.GetSECItem(siBuffer, mark, signedData.data);
-  if (rv != Success) {
-    return rv;
+  if (input.GetSECItem(siBuffer, mark, signedData.data) != Success) {
+    return Failure;
   }
 
-  rv = SignatureAlgorithmIdentifier(input, signedData.algorithm);
-  if (rv != Success) {
-    return rv;
+  if (SignatureAlgorithmIdentifier(input, signedData.algorithm) != Success) {
+    return Failure;
   }
 
-  rv = ExpectTagAndGetValue(input, BIT_STRING, signedData.signature);
-  if (rv != Success) {
-    return rv;
+  if (ExpectTagAndGetValue(input, BIT_STRING, signedData.signature)
+        != Success) {
+    return Failure;
   }
   if (signedData.signature.len == 0) {
     return Fail(SEC_ERROR_BAD_SIGNATURE);
@@ -340,14 +335,12 @@ static inline Result
 ReadTwoDigits(Input& input, int minValue, int maxValue, /*out*/ int& value)
 {
   int hi;
-  Result rv = ReadDigit(input, hi);
-  if (rv != Success) {
-    return rv;
+  if (ReadDigit(input, hi) != Success) {
+    return Failure;
   }
   int lo;
-  rv = ReadDigit(input, lo);
-  if (rv != Success) {
-    return rv;
+  if (ReadDigit(input, lo) != Success) {
+    return Failure;
   }
   value = (hi * 10) + lo;
   if (value < minValue || value > maxValue) {
@@ -378,26 +371,22 @@ TimeChoice(Input& tagged, uint8_t expectedTag, /*out*/ PRTime& time)
   int days;
 
   Input input;
-  Result rv = ExpectTagAndGetValue(tagged, expectedTag, input);
-  if (rv != Success) {
-    return rv;
+  if (ExpectTagAndGetValue(tagged, expectedTag, input) != Success) {
+    return Failure;
   }
 
   int yearHi;
   int yearLo;
   if (expectedTag == GENERALIZED_TIME) {
-    rv = ReadTwoDigits(input, 0, 99, yearHi);
-    if (rv != Success) {
-      return rv;
+    if (ReadTwoDigits(input, 0, 99, yearHi) != Success) {
+      return Failure;
     }
-    rv = ReadTwoDigits(input, 0, 99, yearLo);
-    if (rv != Success) {
-      return rv;
+    if (ReadTwoDigits(input, 0, 99, yearLo) != Success) {
+      return Failure;
     }
   } else if (expectedTag == UTCTime) {
-    rv = ReadTwoDigits(input, 0, 99, yearLo);
-    if (rv != Success) {
-      return rv;
+    if (ReadTwoDigits(input, 0, 99, yearLo) != Success) {
+      return Failure;
     }
     yearHi = yearLo >= 50 ? 19 : 20;
   } else {
@@ -420,9 +409,8 @@ TimeChoice(Input& tagged, uint8_t expectedTag, /*out*/ PRTime& time)
   }
 
   int month;
-  rv = ReadTwoDigits(input, 1, 12, month);
-  if (rv != Success) {
-    return rv;
+  if (ReadTwoDigits(input, 1, 12, month) != Success) {
+    return Failure;
   }
   int daysInMonth;
   static const int jan = 31;
@@ -470,26 +458,22 @@ TimeChoice(Input& tagged, uint8_t expectedTag, /*out*/ PRTime& time)
   }
 
   int dayOfMonth;
-  rv = ReadTwoDigits(input, 1, daysInMonth, dayOfMonth);
-  if (rv != Success) {
-    return rv;
+  if (ReadTwoDigits(input, 1, daysInMonth, dayOfMonth) != Success) {
+    return Failure;
   }
   days += dayOfMonth - 1;
 
   int hours;
-  rv = ReadTwoDigits(input, 0, 23, hours);
-  if (rv != Success) {
-    return rv;
+  if (ReadTwoDigits(input, 0, 23, hours) != Success) {
+    return Failure;
   }
   int minutes;
-  rv = ReadTwoDigits(input, 0, 59, minutes);
-  if (rv != Success) {
-    return rv;
+  if (ReadTwoDigits(input, 0, 59, minutes) != Success) {
+    return Failure;
   }
   int seconds;
-  rv = ReadTwoDigits(input, 0, 59, seconds);
-  if (rv != Success) {
-    return rv;
+  if (ReadTwoDigits(input, 0, 59, seconds) != Success) {
+    return Failure;
   }
 
   uint8_t b;
