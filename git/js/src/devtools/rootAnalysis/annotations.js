@@ -65,7 +65,6 @@ var ignoreCallees = {
     "JSRuntime.destroyPrincipals" : true,
     "nsISupports.AddRef" : true,
     "nsISupports.Release" : true, // makes me a bit nervous; this is a bug but can happen
-    "nsIGlobalObject.GetGlobalJSObject" : true, // virtual but no implementation can GC
     "nsAXPCNativeCallContext.GetJSContext" : true,
     "js::jit::MDefinition.op" : true, // macro generated virtuals just return a constant
     "js::jit::MDefinition.opName" : true, // macro generated virtuals just return a constant

@@ -367,20 +367,6 @@ File.prototype = {
   },
 
   /**
-   * Set the last access and modification date of the file.
-   * The time stamp resolution is 1 second at best, but might be worse
-   * depending on the platform.
-   *
-   * @return {promise}
-   * @rejects {TypeError}
-   * @rejects {OS.File.Error}
-   */
-  setDates: function setDates(accessDate, modificationDate) {
-    return Scheduler.post("File_prototype_setDates",
-                          [this._fdmsg, accessDate, modificationDate], this);
-  },
-
-  /**
    * Read a number of bytes from the file and into a buffer.
    *
    * @param {Typed array | C pointer} buffer This buffer will be
@@ -499,22 +485,6 @@ File.prototype = {
   setPosition: function setPosition(pos, whence) {
     return Scheduler.post("File_prototype_setPosition",
       [this._fdmsg, pos, whence]);
-  },
-
-  /**
-   * Flushes the file's buffers and causes all buffered data
-   * to be written.
-   * Disk flushes are very expensive and therefore should be used carefully,
-   * sparingly and only in scenarios where it is vital that data survives
-   * system crashes. Even though the function will be executed off the
-   * main-thread, it might still affect the overall performance of any running
-   * application.
-   *
-   * @return {promise}
-   */
-  flush: function flush() {
-    return Scheduler.post("File_prototype_flush",
-      [this._fdmsg]);
   }
 };
 
@@ -576,22 +546,6 @@ File.stat = function stat(path) {
   return Scheduler.post(
     "stat", [Type.path.toMsg(path)],
     path).then(File.Info.fromMsg);
-};
-
-
-/**
- * Set the last access and modification date of the file.
- * The time stamp resolution is 1 second at best, but might be worse
- * depending on the platform.
- *
- * @return {promise}
- * @rejects {TypeError}
- * @rejects {OS.File.Error}
- */
-File.setDates = function setDates(path, accessDate, modificationDate) {
-  return Scheduler.post("setDates",
-                        [Type.path.toMsg(path), accessDate, modificationDate],
-                        this);
 };
 
 /**

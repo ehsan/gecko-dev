@@ -134,9 +134,8 @@ namespace {
 
 const uint32_t kNoIndex = uint32_t(-1);
 
-const JS::ContextOptions kRequiredJSContextOptions =
-  JS::ContextOptions().setDontReportUncaught(true)
-                      .setNoScriptRval(true);
+const uint32_t kRequiredJSContextOptions =
+  JSOPTION_DONT_REPORT_UNCAUGHT | JSOPTION_NO_SCRIPT_RVAL;
 
 uint32_t gMaxWorkersPerDomain = MAX_WORKERS_PER_DOMAIN;
 
@@ -295,43 +294,43 @@ LoadJSContextOptions(const char* aPrefName, void* /* aClosure */)
 #endif
 
   // Common options.
-  JS::ContextOptions commonOptions = kRequiredJSContextOptions;
+  uint32_t commonOptions = kRequiredJSContextOptions;
   if (GetWorkerPref<bool>(NS_LITERAL_CSTRING("strict"))) {
-    commonOptions.setExtraWarnings(true);
+    commonOptions |= JSOPTION_EXTRA_WARNINGS;
   }
   if (GetWorkerPref<bool>(NS_LITERAL_CSTRING("werror"))) {
-    commonOptions.setWerror(true);
+    commonOptions |= JSOPTION_WERROR;
   }
   if (GetWorkerPref<bool>(NS_LITERAL_CSTRING("asmjs"))) {
-    commonOptions.setAsmJS(true);
+    commonOptions |= JSOPTION_ASMJS;
   }
 
   // Content options.
-  JS::ContextOptions contentOptions = commonOptions;
+  uint32_t contentOptions = commonOptions;
   if (GetWorkerPref<bool>(NS_LITERAL_CSTRING("baselinejit.content"))) {
-    contentOptions.setBaseline(true);
+    contentOptions |= JSOPTION_BASELINE;
   }
   if (GetWorkerPref<bool>(NS_LITERAL_CSTRING("ion.content"))) {
-    contentOptions.setIon(true);
+    contentOptions |= JSOPTION_ION;
   }
   if (GetWorkerPref<bool>(NS_LITERAL_CSTRING("typeinference.content"))) {
-    contentOptions.setTypeInference(true);
+    contentOptions |= JSOPTION_TYPE_INFERENCE;
   }
 
   // Chrome options.
-  JS::ContextOptions chromeOptions = commonOptions;
+  uint32_t chromeOptions = commonOptions;
   if (GetWorkerPref<bool>(NS_LITERAL_CSTRING("baselinejit.chrome"))) {
-    chromeOptions.setBaseline(true);
+    chromeOptions |= JSOPTION_BASELINE;
   }
   if (GetWorkerPref<bool>(NS_LITERAL_CSTRING("ion.chrome"))) {
-    chromeOptions.setIon(true);
+    chromeOptions |= JSOPTION_ION;
   }
   if (GetWorkerPref<bool>(NS_LITERAL_CSTRING("typeinference.chrome"))) {
-    chromeOptions.setTypeInference(true);
+    chromeOptions |= JSOPTION_TYPE_INFERENCE;
   }
 #ifdef DEBUG
   if (GetWorkerPref<bool>(NS_LITERAL_CSTRING("strict.debug"))) {
-    chromeOptions.setExtraWarnings(true);
+    chromeOptions |= JSOPTION_EXTRA_WARNINGS;
   }
 #endif
 
@@ -772,6 +771,13 @@ CreateJSContextForWorker(WorkerPrivate* aWorkerPrivate, JSRuntime* aRuntime)
   JSSettings settings;
   aWorkerPrivate->CopyJSSettings(settings);
 
+  NS_ASSERTION((settings.chrome.options & kRequiredJSContextOptions) ==
+               kRequiredJSContextOptions,
+               "Somehow we lost our required chrome options!");
+  NS_ASSERTION((settings.content.options & kRequiredJSContextOptions) ==
+               kRequiredJSContextOptions,
+               "Somehow we lost our required content options!");
+
   JSSettings::JSGCSettingsArray& gcSettings = settings.gcSettings;
 
   // This is the real place where we set the max memory for the runtime.
@@ -787,7 +793,7 @@ CreateJSContextForWorker(WorkerPrivate* aWorkerPrivate, JSRuntime* aRuntime)
 
   // Security policy:
   static JSSecurityCallbacks securityCallbacks = {
-    nullptr,
+    NULL,
     ContentSecurityPolicyAllows
   };
   JS_SetSecurityCallbacks(aRuntime, &securityCallbacks);
@@ -815,9 +821,9 @@ CreateJSContextForWorker(WorkerPrivate* aWorkerPrivate, JSRuntime* aRuntime)
 
   js::SetCTypesActivityCallback(aRuntime, CTypesActivityCallback);
 
-  JS::ContextOptionsRef(workerCx) = aWorkerPrivate->IsChromeWorker()
-                                  ? settings.chrome.options
-                                  : settings.content.options;
+  JS_SetOptions(workerCx,
+                aWorkerPrivate->IsChromeWorker() ? settings.chrome.options :
+                                                   settings.content.options);
 
   JS_SetJitHardening(aRuntime, settings.jitHardening);
 

@@ -4,6 +4,7 @@
 
 SUPPRESS_DEFAULT_RULES := 1
 STANDALONE_MAKEFILE := 1
+NO_MAKEFILE_RULE := 1
 
 include $(topsrcdir)/config/rules.mk
 

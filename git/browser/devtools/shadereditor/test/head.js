@@ -135,7 +135,7 @@ function once(aTarget, aEventName, aUseCapture = false) {
 
 function waitForFrame(aDebuggee) {
   let deferred = promise.defer();
-  aDebuggee.requestAnimationFrame(deferred.resolve);
+  aDebuggee.mozRequestAnimationFrame(deferred.resolve);
   return deferred.promise;
 }
 
@@ -201,7 +201,7 @@ function navigate(aTarget, aUrl) {
 
 function reload(aTarget) {
   let navigated = once(aTarget, "navigate");
-  executeSoon(() => aTarget.client.activeTab.reload());
+  aTarget.client.activeTab.reload();
   return navigated;
 }
 

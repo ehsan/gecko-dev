@@ -35,7 +35,8 @@ HttpDataUsage.prototype = {
 
     _isIdleObserver: false,
     _locked : false,
-    _idle_timeout : 15,
+    _do_telemetry : false,
+    _idle_timeout : 60 * 3,
     _quanta : 86400000, // per day
 
     _logtime : new Date(),
@@ -73,21 +74,22 @@ HttpDataUsage.prototype = {
         if (this._dataUsage == null)
             return;
 
-        Services.obs.addObserver(this, "quit-application", false);
         idleService.addIdleObserver(this, this._idle_timeout);
         this._isIdleObserver = true;
     },
     
     shutdown: function shutdown() {
-        if (this._isIdleObserver) {
+        if (this._isIdleObserver)
             idleService.removeIdleObserver(this, this._idle_timeout);
-            Services.obs.removeObserver(this, "quit-application");
-        }
         this._isIdleObserver = false;
     },
 
     sUpdateStats2: function sUpdateStats2(stream, result) {
         gDataUsage.updateStats2(stream, result);
+    },
+
+    sGatherTelemetry2: function sGatherTelemetry2(stream, result) {
+        gDataUsage.gatherTelemetry2(stream, result);
     },
 
     readCounters: function readCounters(stream, result) {
@@ -111,6 +113,7 @@ HttpDataUsage.prototype = {
         this._dataUsage.resetHttpDataUsage();
     },
 
+    // writeCounters also releases the lock
     writeCounters: function writeCounters() {
         var dataout = this._logtime.getTime().toString() + "," +
             this._ethernetRead.toString() + "," +
@@ -129,15 +132,17 @@ HttpDataUsage.prototype = {
 
     updateStats2: function updateStats2(stream, result) {
         this.readCounters(stream, result);
-        this.submitTelemetry();
+        this.writeCounters();
     },
 
-    submitTelemetry: function submitTelemetry() {
+    gatherTelemetry2: function gatherTelemetry2(stream, result) {
+        this.readCounters(stream, result);
+
         var now = new Date();
         var elapsed = now.getTime() - this._logtime.getTime();
-        // make sure we have at least 1 day of data.. if not just write new data out
+        // make sure we have at least 1 day of data
         if (elapsed < this._quanta) {
-            this.writeCounters();
+            this.finishedWriting();
             return;
         }
 
@@ -166,13 +171,16 @@ HttpDataUsage.prototype = {
             this._cellWritten -= cOutPerQuanta;
         }
         this._logtime = new Date(now.getTime() - elapsed);
-
-        // need to write back the decremented counters
+        
         this.writeCounters();
     },
 
     finishedWriting : function finishedWriting() {
-        this._locked = false; // all done
+        this._locked = false;
+        if (this._do_telemetry) {
+            this._do_telemetry = false;
+            this.gatherTelemetry();
+        }
     },
 
     updateStats: function updateStats() {
@@ -183,20 +191,32 @@ HttpDataUsage.prototype = {
         NetUtil.asyncFetch(this._dataFile, this.sUpdateStats2);
     },
 
+    gatherTelemetry: function gatherTelemetry() {
+        if (this._locked)
+            return; // oh well, maybe next time
+        this._locked = true;
+
+        NetUtil.asyncFetch(this._dataFile, this.sGatherTelemetry2);
+    },
+
     observe: function (aSubject, aTopic, aData) {
         switch (aTopic) {
         case "profile-after-change":
             this.setup();
             break;
+        case "gather-telemetry":
+            this._do_telemetry = true;
+            this.updateStats();
+            break;
         case "idle":
             this.updateStats();
             break;
-        case "quit-application":
-            this.updateStats();
+        case "profile-change-net-teardown":
             this.shutdown();
             break;
         }
     },
+
 };
 
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory([HttpDataUsage]);

@@ -365,7 +365,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(HTMLTableAccessible, Accessible,
                              nsIAccessibleTable)
 
 ////////////////////////////////////////////////////////////////////////////////
-// HTMLTableAccessible: Accessible
+//nsAccessNode
 
 void
 HTMLTableAccessible::Shutdown()
@@ -373,6 +373,10 @@ HTMLTableAccessible::Shutdown()
   mTable = nullptr;
   AccessibleWrap::Shutdown();
 }
+
+
+////////////////////////////////////////////////////////////////////////////////
+// HTMLTableAccessible: Accessible implementation
 
 void
 HTMLTableAccessible::CacheChildren()

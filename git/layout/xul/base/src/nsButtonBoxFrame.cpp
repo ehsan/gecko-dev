@@ -16,7 +16,6 @@
 #include "nsDisplayList.h"
 #include "nsContentUtils.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/MouseEvents.h"
 #include "mozilla/TextEvents.h"
 
 using namespace mozilla;
@@ -109,13 +108,11 @@ nsButtonBoxFrame::HandleEvent(nsPresContext* aPresContext,
       break;
     }
 
-    case NS_MOUSE_CLICK: {
-      WidgetMouseEvent* mouseEvent = aEvent->AsMouseEvent();
-      if (mouseEvent->IsLeftClickEvent()) {
-        MouseClicked(aPresContext, mouseEvent);
+    case NS_MOUSE_CLICK:
+      if (aEvent->IsLeftClickEvent()) {
+        MouseClicked(aPresContext, aEvent);
       }
       break;
-    }
   }
 
   return nsBoxFrame::HandleEvent(aPresContext, aEvent, aEventStatus);

@@ -8,8 +8,8 @@
  */
 
 enum RTCStatsType {
-  "inboundrtp",
-  "outboundrtp"
+  "inbound-rtp",
+  "outbound-rtp"
 };
 
 dictionary RTCStats {
@@ -21,7 +21,6 @@ dictionary RTCStats {
 dictionary RTCRTPStreamStats : RTCStats {
   DOMString ssrc;
   DOMString remoteId;
-  boolean isRemote;
   DOMString mediaTrackId;
   DOMString transportId;
   DOMString codecId;
@@ -29,13 +28,13 @@ dictionary RTCRTPStreamStats : RTCStats {
 
 dictionary RTCInboundRTPStreamStats : RTCRTPStreamStats {
   unsigned long packetsReceived;
-  unsigned long long bytesReceived;
-  double jitter;
+  unsigned long bytesReceived;
+  float jitter;
 };
 
 dictionary RTCOutboundRTPStreamStats : RTCRTPStreamStats {
   unsigned long packetsSent;
-  unsigned long long bytesSent;
+  unsigned long bytesSent;
 };
 
 dictionary RTCMediaStreamTrackStats : RTCStats {
@@ -45,11 +44,11 @@ dictionary RTCMediaStreamTrackStats : RTCStats {
   unsigned long audioLevel;       // Only for audio, the rest are only for video
   unsigned long frameWidth;
   unsigned long frameHeight;
-  double framesPerSecond;         // The nominal FPS value
+  unsigned long framesPerSecond;  // The nominal FPS value
   unsigned long framesSent;
   unsigned long framesReceived;   // Only for remoteSource=true
   unsigned long framesDecoded;
-  unsigned long first;
+  long first;
 };
 
 dictionary RTCMediaStreamStats : RTCStats {
@@ -72,8 +71,8 @@ dictionary RTCIceComponentStats : RTCStats {
 
 enum RTCStatsIceCandidateType {
   "host",
-  "serverreflexive",
-  "peerreflexive",
+  "server-reflexive",
+  "peer-reflexive",
   "relayed"
 };
 
@@ -92,7 +91,7 @@ dictionary RTCCodecStats : RTCStats {
   DOMString parameters;            // From SDP description line
 };
 
-callback RTCStatsReportCallback = void (RTCStatsReport obj);
+callback RTCStatsReportCallback = void (object value, DOMString key, RTCStatsReport obj);
 
 // This is the internal representation of the report in this implementation
 // to be received from c++

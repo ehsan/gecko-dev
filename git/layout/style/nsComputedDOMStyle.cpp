@@ -2760,38 +2760,23 @@ nsComputedDOMStyle::DoGetVerticalAlign()
 }
 
 CSSValue*
-nsComputedDOMStyle::CreateTextAlignValue(uint8_t aAlign, bool aAlignTrue,
-                                         const int32_t aTable[])
-{
-  nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
-  val->SetIdent(nsCSSProps::ValueToKeywordEnum(aAlign, aTable));
-  if (!aAlignTrue) {
-    return val;
-  }
-
-  nsROCSSPrimitiveValue* first = new nsROCSSPrimitiveValue;
-  first->SetIdent(eCSSKeyword_true);
-
-  nsDOMCSSValueList* valueList = GetROCSSValueList(false);
-  valueList->AppendCSSValue(first);
-  valueList->AppendCSSValue(val);
-  return valueList;
-}
-
-CSSValue*
 nsComputedDOMStyle::DoGetTextAlign()
 {
-  const nsStyleText* style = StyleText();
-  return CreateTextAlignValue(style->mTextAlign, style->mTextAlignTrue,
-                              nsCSSProps::kTextAlignKTable);
+  nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
+  val->SetIdent(
+    nsCSSProps::ValueToKeywordEnum(StyleText()->mTextAlign,
+                                   nsCSSProps::kTextAlignKTable));
+  return val;
 }
 
 CSSValue*
 nsComputedDOMStyle::DoGetTextAlignLast()
 {
-  const nsStyleText* style = StyleText();
-  return CreateTextAlignValue(style->mTextAlignLast, style->mTextAlignLastTrue,
-                              nsCSSProps::kTextAlignLastKTable);
+  nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
+  val->SetIdent(
+    nsCSSProps::ValueToKeywordEnum(StyleText()->mTextAlignLast,
+                                   nsCSSProps::kTextAlignLastKTable));
+  return val;
 }
 
 CSSValue*

@@ -39,8 +39,8 @@ public:
   static JSObject*
   InitClass(JSContext* aCx, JSObject* aObj)
   {
-    return JS_InitClass(aCx, aObj, nullptr, &sClass, Construct, 0,
-                        sProperties, sFunctions, nullptr, nullptr);
+    return JS_InitClass(aCx, aObj, NULL, &sClass, Construct, 0, sProperties,
+                        sFunctions, NULL, NULL);
   }
 
   static JSObject*
@@ -48,7 +48,7 @@ public:
   {
     JS_ASSERT(SameCOMIdentity(static_cast<nsISupports*>(aBlob), aBlob));
 
-    JSObject* obj = JS_NewObject(aCx, &sClass, nullptr, nullptr);
+    JSObject* obj = JS_NewObject(aCx, &sClass, NULL, NULL);
     if (obj) {
       JS_SetPrivate(obj, aBlob);
       NS_ADDREF(aBlob);
@@ -68,10 +68,10 @@ private:
       return blob;
     }
 
-    JS_ReportErrorNumber(aCx, js_GetErrorMessage, nullptr,
+    JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL,
                          JSMSG_INCOMPATIBLE_PROTO, sClass.name, aFunctionName,
                          JS_GetClass(aObj)->name);
-    return nullptr;
+    return NULL;
   }
 
   static nsIDOMBlob*
@@ -240,7 +240,7 @@ public:
   InitClass(JSContext* aCx, JSObject* aObj, JSObject* aParentProto)
   {
     return JS_InitClass(aCx, aObj, aParentProto, &sClass, Construct, 0,
-                        sProperties, nullptr, nullptr, nullptr);
+                        sProperties, NULL, NULL, NULL);
   }
 
   static JSObject*
@@ -248,7 +248,7 @@ public:
   {
     JS_ASSERT(SameCOMIdentity(static_cast<nsISupports*>(aFile), aFile));
 
-    JSObject* obj = JS_NewObject(aCx, &sClass, nullptr, nullptr);
+    JSObject* obj = JS_NewObject(aCx, &sClass, NULL, NULL);
     if (obj) {
       JS_SetPrivate(obj, aFile);
       NS_ADDREF(aFile);
@@ -268,7 +268,7 @@ public:
         return file;
       }
     }
-    return nullptr;
+    return NULL;
   }
 
   static const JSClass*
@@ -286,17 +286,16 @@ private:
       return file;
     }
 
-    JS_ReportErrorNumber(aCx, js_GetErrorMessage, nullptr,
+    JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL,
                          JSMSG_INCOMPATIBLE_PROTO, sClass.name, aFunctionName,
                          JS_GetClass(aObj)->name);
-    return nullptr;
+    return NULL;
   }
 
   static bool
   Construct(JSContext* aCx, unsigned aArgc, jsval* aVp)
   {
-    JS_ReportErrorNumber(aCx, js_GetErrorMessage, nullptr,
-                         JSMSG_WRONG_CONSTRUCTOR,
+    JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL, JSMSG_WRONG_CONSTRUCTOR,
                          sClass.name);
     return false;
   }
@@ -455,7 +454,7 @@ Blob::GetPrivate(JSObject* aObj)
       return blob;
     }
   }
-  return nullptr;
+  return NULL;
 }
 
 } // anonymous namespace

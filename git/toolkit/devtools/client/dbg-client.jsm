@@ -971,7 +971,7 @@ TabClient.prototype = {
   }, {
     after: function (aResponse) {
       if (this.activeTab === this._client._tabClients[this.actor]) {
-        this.activeTab = undefined;
+        delete this.activeTab;
       }
       delete this._client._tabClients[this.actor];
       return aResponse;
@@ -1123,6 +1123,9 @@ ThreadClient.prototype = {
       // further requests that should only be sent in the paused state.
       this._state = "resuming";
 
+      if (!aPacket.resumeLimit) {
+        delete aPacket.resumeLimit;
+      }
       if (this._pauseOnExceptions) {
         aPacket.pauseOnExceptions = this._pauseOnExceptions;
       }
@@ -1299,7 +1302,7 @@ ThreadClient.prototype = {
   }, {
     after: function (aResponse) {
       if (this.activeThread === this._client._threadClients[this.actor]) {
-        this.activeThread = null;
+        delete this.activeThread;
       }
       delete this._client._threadClients[this.actor];
       return aResponse;

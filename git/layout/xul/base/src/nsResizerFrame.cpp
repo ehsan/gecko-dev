@@ -283,13 +283,13 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
   }
   break;
 
-  case NS_MOUSE_CLICK: {
-    WidgetMouseEvent* mouseEvent = aEvent->AsMouseEvent();
-    if (mouseEvent->IsLeftClickEvent()) {
-      MouseClicked(aPresContext, mouseEvent);
+  case NS_MOUSE_CLICK:
+    if (aEvent->IsLeftClickEvent())
+    {
+      MouseClicked(aPresContext, aEvent);
     }
     break;
-  }
+
   case NS_MOUSE_DOUBLECLICK:
     if (aEvent->AsMouseEvent()->button == WidgetMouseEvent::eLeftButton) {
       nsCOMPtr<nsIBaseWindow> window;
@@ -536,7 +536,7 @@ nsResizerFrame::GetDirection()
 
 void
 nsResizerFrame::MouseClicked(nsPresContext* aPresContext,
-                             WidgetMouseEvent* aEvent)
+                             WidgetGUIEvent *aEvent)
 {
   // Execute the oncommand event handler.
   nsContentUtils::DispatchXULCommand(mContent,

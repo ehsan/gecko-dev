@@ -57,8 +57,10 @@ public:
   // nsIAccessibleApplication
   NS_DECL_NSIACCESSIBLEAPPLICATION
 
-  // Accessible
+  // nsAccessNode
   virtual void Shutdown();
+
+  // Accessible
   virtual already_AddRefed<nsIPersistentProperties> NativeAttributes() MOZ_OVERRIDE;
   virtual GroupPos GroupPosition();
   virtual ENameValueFlag Name(nsString& aName);

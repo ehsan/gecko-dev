@@ -703,15 +703,14 @@ nsViewManager::DispatchEvent(WidgetGUIEvent *aEvent,
 {
   PROFILER_LABEL("event", "nsViewManager::DispatchEvent");
 
-  WidgetMouseEvent* mouseEvent = aEvent->AsMouseEvent();
-  if ((mouseEvent &&
+  if ((aEvent->HasMouseEventMessage() &&
        // Ignore mouse events that we synthesize.
-       mouseEvent->reason == WidgetMouseEvent::eReal &&
+       aEvent->AsMouseEvent()->reason == WidgetMouseEvent::eReal &&
        // Ignore mouse exit and enter (we'll get moves if the user
        // is really moving the mouse) since we get them when we
        // create and destroy widgets.
-       mouseEvent->message != NS_MOUSE_EXIT &&
-       mouseEvent->message != NS_MOUSE_ENTER) ||
+       aEvent->message != NS_MOUSE_EXIT &&
+       aEvent->message != NS_MOUSE_ENTER) ||
       aEvent->HasKeyEventMessage() ||
       aEvent->HasIMEEventMessage() ||
       aEvent->message == NS_PLUGIN_INPUT_EVENT) {

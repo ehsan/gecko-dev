@@ -122,7 +122,7 @@ CrashReporterParent::GenerateCrashReport(Toplevel* t,
                                          const AnnotationTable* processNotes)
 {
   nsCOMPtr<nsIFile> crashDump;
-  if (t->TakeMinidump(getter_AddRefs(crashDump), nullptr) &&
+  if (t->TakeMinidump(getter_AddRefs(crashDump), NULL) &&
       CrashReporter::GetIDFromMinidump(crashDump, mChildDumpID)) {
     return GenerateChildData(processNotes);
   }

@@ -16,7 +16,7 @@
 namespace js {
 
 namespace jit {
-class JitCompartment;
+class IonCompartment;
 }
 
 namespace gc {
@@ -405,12 +405,12 @@ struct JSCompartment
 
 #ifdef JS_ION
   private:
-    js::jit::JitCompartment *jitCompartment_;
+    js::jit::IonCompartment *ionCompartment_;
 
   public:
-    bool ensureJitCompartmentExists(JSContext *cx);
-    js::jit::JitCompartment *jitCompartment() {
-        return jitCompartment_;
+    bool ensureIonCompartmentExists(JSContext *cx);
+    js::jit::IonCompartment *ionCompartment() {
+        return ionCompartment_;
     }
 #endif
 };

@@ -6,6 +6,7 @@
 
 #include "builtin/ParallelArray.h"
 
+#include "jsapi.h"
 #include "jsobj.h"
 
 #include "vm/GlobalObject.h"

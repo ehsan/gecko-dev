@@ -96,8 +96,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "gSettingsService",
 // command always succeeds and we do a string/boolean check for the
 // expected results).
 var WifiManager = (function() {
-  var manager = {};
-
   function getStartupPrefs() {
     return {
       sdkVersion: parseInt(libcutils.property_get("ro.build.version.sdk"), 10),
@@ -111,17 +109,26 @@ var WifiManager = (function() {
   let {sdkVersion, unloadDriverEnabled, schedScanRecovery, driverDelay, ifname} = getStartupPrefs();
 
   let wifiListener = {
-    onWaitEvent: function(event, iface) {
-      if (manager.ifname === iface && handleEvent(event)) {
-        waitForEvent(iface);
+    onWaitEvent: function(event) {
+      if (handleEvent(event)) {
+        waitForEvent();
       }
     },
 
-    onCommand: function(event, iface) {
-      onmessageresult(event, iface);
+    onCommand: function(event) {
+      onmessageresult(event);
     }
   }
 
+  let wifiService = Cc["@mozilla.org/wifi/service;1"];
+  if (wifiService) {
+    wifiService = wifiService.getService(Ci.nsIWifiProxyService);
+    wifiService.start(wifiListener);
+  } else {
+    debug("No wifi service component available!");
+  }
+
+  var manager = {};
   manager.ifname = ifname;
   // Emulator build runs to here.
   // The debug() should only be used after WifiManager.
@@ -131,16 +138,7 @@ var WifiManager = (function() {
   manager.schedScanRecovery = schedScanRecovery;
   manager.driverDelay = driverDelay ? parseInt(driverDelay, 10) : DRIVER_READY_WAIT;
 
-  let wifiService = Cc["@mozilla.org/wifi/service;1"];
-  if (wifiService) {
-    wifiService = wifiService.getService(Ci.nsIWifiProxyService);
-    let interfaces = [manager.ifname];
-    wifiService.start(wifiListener, interfaces, interfaces.length);
-  } else {
-    debug("No wifi service component available!");
-  }
-
-  var wifiCommand = WifiCommand(controlMessage, manager.ifname);
+  var wifiCommand = WifiCommand(controlMessage);
   var netUtil = WifiNetUtil(controlMessage);
 
   // Callbacks to invoke when a reply arrives from the wifi service.
@@ -150,13 +148,12 @@ var WifiManager = (function() {
   function controlMessage(obj, callback) {
     var id = idgen++;
     obj.id = id;
-    if (callback) {
+    if (callback)
       controlCallbacks[id] = callback;
-    }
-    wifiService.sendCommand(obj, obj.iface);
+    wifiService.sendCommand(obj);
   }
 
-  let onmessageresult = function(data, iface) {
+  let onmessageresult = function(data) {
     var id = data.id;
     var callback = controlCallbacks[id];
     if (callback) {
@@ -168,8 +165,8 @@ var WifiManager = (function() {
   // Polling the status worker
   var recvErrors = 0;
 
-  function waitForEvent(iface) {
-    wifiService.waitForEvent(iface);
+  function waitForEvent() {
+    wifiService.waitForEvent();
   }
 
   // Commands to the control worker.
@@ -758,7 +755,7 @@ var WifiManager = (function() {
   }
 
   function didConnectSupplicant(callback) {
-    waitForEvent(manager.ifname);
+    waitForEvent();
 
     // Load up the supplicant state.
     getDebugEnabled(function(ok) {

@@ -568,10 +568,6 @@ pref("dom.disable_window_showModalDialog", true);
 pref("dom.experimental_forms", true);
 pref("dom.forms.number", true);
 
-// Don't enable <input type=color> yet as we don't have a color picker
-// implemented for b2g (bug 875751)
-pref("dom.forms.color", false);
-
 // Turns on gralloc-based direct texturing for Gonk
 pref("gfx.gralloc.enabled", false);
 
@@ -732,7 +728,6 @@ pref("font.size.inflation.disabledInMasterProcess", true);
 pref("memory.free_dirty_pages", true);
 
 pref("layout.imagevisibility.enabled", false);
-pref("layout.imagevisibility.enabled_for_browser_elements_only", true);
 pref("layout.imagevisibility.numscrollportwidths", 1);
 pref("layout.imagevisibility.numscrollportheights", 1);
 

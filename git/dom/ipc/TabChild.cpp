@@ -1261,7 +1261,7 @@ TabChild::RecvLoadURL(const nsCString& uri)
     nsresult rv = mWebNav->LoadURI(NS_ConvertUTF8toUTF16(uri).get(),
                                    nsIWebNavigation::LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP |
                                    nsIWebNavigation::LOAD_FLAGS_DISALLOW_INHERIT_OWNER,
-                                   nullptr, nullptr, nullptr);
+                                   NULL, NULL, NULL);
     if (NS_FAILED(rv)) {
         NS_WARNING("mWebNav->LoadURI failed. Eating exception, what else can I do?");
     }
@@ -1541,49 +1541,36 @@ TabChild::ProcessUpdateFrame(const FrameMetrics& aFrameMetrics)
     CSSRect cssCompositedRect = aFrameMetrics.CalculateCompositedRectInCssPixels();
     // The BrowserElementScrolling helper must know about these updated metrics
     // for other functions it performs, such as double tap handling.
-    // Note, %f must not be used because it is locale specific!
     nsCString data;
-    data.AppendPrintf("{ \"x\" : %d", NS_lround(aFrameMetrics.mScrollOffset.x));
-    data.AppendPrintf(", \"y\" : %d", NS_lround(aFrameMetrics.mScrollOffset.y));
-    data.AppendLiteral(", \"viewport\" : ");
-        data.AppendLiteral("{ \"width\" : ");
-        data.AppendFloat(aFrameMetrics.mViewport.width);
-        data.AppendLiteral(", \"height\" : ");
-        data.AppendFloat(aFrameMetrics.mViewport.height);
-        data.AppendLiteral(" }");
-    data.AppendLiteral(", \"displayPort\" : ");
-        data.AppendLiteral("{ \"x\" : ");
-        data.AppendFloat(aFrameMetrics.mDisplayPort.x);
-        data.AppendLiteral(", \"y\" : ");
-        data.AppendFloat(aFrameMetrics.mDisplayPort.y);
-        data.AppendLiteral(", \"width\" : ");
-        data.AppendFloat(aFrameMetrics.mDisplayPort.width);
-        data.AppendLiteral(", \"height\" : ");
-        data.AppendFloat(aFrameMetrics.mDisplayPort.height);
-        data.AppendLiteral(" }");
-    data.AppendLiteral(", \"compositionBounds\" : ");
-        data.AppendPrintf("{ \"x\" : %d", aFrameMetrics.mCompositionBounds.x);
-        data.AppendPrintf(", \"y\" : %d", aFrameMetrics.mCompositionBounds.y);
-        data.AppendPrintf(", \"width\" : %d", aFrameMetrics.mCompositionBounds.width);
-        data.AppendPrintf(", \"height\" : %d", aFrameMetrics.mCompositionBounds.height);
-        data.AppendLiteral(" }");
-    data.AppendLiteral(", \"cssPageRect\" : ");
-        data.AppendLiteral("{ \"x\" : ");
-        data.AppendFloat(aFrameMetrics.mScrollableRect.x);
-        data.AppendLiteral(", \"y\" : ");
-        data.AppendFloat(aFrameMetrics.mScrollableRect.y);
-        data.AppendLiteral(", \"width\" : ");
-        data.AppendFloat(aFrameMetrics.mScrollableRect.width);
-        data.AppendLiteral(", \"height\" : ");
-        data.AppendFloat(aFrameMetrics.mScrollableRect.height);
-        data.AppendLiteral(" }");
-    data.AppendLiteral(", \"cssCompositedRect\" : ");
-        data.AppendLiteral("{ \"width\" : ");
-        data.AppendFloat(cssCompositedRect.width);
-        data.AppendLiteral(", \"height\" : ");
-        data.AppendFloat(cssCompositedRect.height);
-        data.AppendLiteral(" }");
-    data.AppendLiteral(" }");
+    data += nsPrintfCString("{ \"x\" : %d", NS_lround(aFrameMetrics.mScrollOffset.x));
+    data += nsPrintfCString(", \"y\" : %d", NS_lround(aFrameMetrics.mScrollOffset.y));
+    data += nsPrintfCString(", \"viewport\" : ");
+        data += nsPrintfCString("{ \"width\" : %f", aFrameMetrics.mViewport.width);
+        data += nsPrintfCString(", \"height\" : %f", aFrameMetrics.mViewport.height);
+        data += nsPrintfCString(" }");
+    data += nsPrintfCString(", \"displayPort\" : ");
+        data += nsPrintfCString("{ \"x\" : %f", aFrameMetrics.mDisplayPort.x);
+        data += nsPrintfCString(", \"y\" : %f", aFrameMetrics.mDisplayPort.y);
+        data += nsPrintfCString(", \"width\" : %f", aFrameMetrics.mDisplayPort.width);
+        data += nsPrintfCString(", \"height\" : %f", aFrameMetrics.mDisplayPort.height);
+        data += nsPrintfCString(" }");
+    data += nsPrintfCString(", \"compositionBounds\" : ");
+        data += nsPrintfCString("{ \"x\" : %d", aFrameMetrics.mCompositionBounds.x);
+        data += nsPrintfCString(", \"y\" : %d", aFrameMetrics.mCompositionBounds.y);
+        data += nsPrintfCString(", \"width\" : %d", aFrameMetrics.mCompositionBounds.width);
+        data += nsPrintfCString(", \"height\" : %d", aFrameMetrics.mCompositionBounds.height);
+        data += nsPrintfCString(" }");
+    data += nsPrintfCString(", \"cssPageRect\" : ");
+        data += nsPrintfCString("{ \"x\" : %f", aFrameMetrics.mScrollableRect.x);
+        data += nsPrintfCString(", \"y\" : %f", aFrameMetrics.mScrollableRect.y);
+        data += nsPrintfCString(", \"width\" : %f", aFrameMetrics.mScrollableRect.width);
+        data += nsPrintfCString(", \"height\" : %f", aFrameMetrics.mScrollableRect.height);
+        data += nsPrintfCString(" }");
+    data += nsPrintfCString(", \"cssCompositedRect\" : ");
+            data += nsPrintfCString("{ \"width\" : %f", cssCompositedRect.width);
+            data += nsPrintfCString(", \"height\" : %f", cssCompositedRect.height);
+            data += nsPrintfCString(" }");
+    data += nsPrintfCString(" }");
 
     DispatchMessageManagerMessage(NS_LITERAL_STRING("Viewport:Change"), data);
 
@@ -1703,7 +1690,7 @@ TabChild::DispatchSynthesizedMouseEvent(uint32_t aMsg, uint64_t aTime,
   MOZ_ASSERT(aMsg == NS_MOUSE_MOVE || aMsg == NS_MOUSE_BUTTON_DOWN ||
              aMsg == NS_MOUSE_BUTTON_UP);
 
-  WidgetMouseEvent event(true, aMsg, nullptr,
+  WidgetMouseEvent event(true, aMsg, NULL,
                          WidgetMouseEvent::eReal, WidgetMouseEvent::eNormal);
   event.refPoint = LayoutDeviceIntPoint(aRefPoint.x, aRefPoint.y);
   event.time = aTime;
@@ -2003,8 +1990,7 @@ TabChild::DeallocPContentDialogChild(PContentDialogChild* aDialog)
 }
 
 PContentPermissionRequestChild*
-TabChild::AllocPContentPermissionRequestChild(const InfallibleTArray<PermissionRequest>& aRequests,
-                                              const IPC::Principal& aPrincipal)
+TabChild::AllocPContentPermissionRequestChild(const nsCString& aType, const nsCString& aAccess, const IPC::Principal&)
 {
   NS_RUNTIMEABORT("unused");
   return nullptr;
@@ -2387,7 +2373,7 @@ TabChild::AllocPIndexedDBChild(
                             const nsCString& aASCIIOrigin, bool* /* aAllowed */)
 {
   NS_NOTREACHED("Should never get here!");
-  return nullptr;
+  return NULL;
 }
 
 bool

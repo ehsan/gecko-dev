@@ -19,7 +19,7 @@
 
 #include "gc/Marking.h"
 #ifdef JS_ION
-#include "jit/JitCompartment.h"
+#include "jit/IonCompartment.h"
 #endif
 #include "js/RootingAPI.h"
 #include "vm/StopIterationObject.h"
@@ -68,7 +68,7 @@ JSCompartment::JSCompartment(Zone *zone, const JS::CompartmentOptions &options =
     enumerators(nullptr),
     compartmentStats(nullptr)
 #ifdef JS_ION
-    , jitCompartment_(nullptr)
+    , ionCompartment_(nullptr)
 #endif
 {
     runtime_->numCompartments++;
@@ -77,7 +77,7 @@ JSCompartment::JSCompartment(Zone *zone, const JS::CompartmentOptions &options =
 JSCompartment::~JSCompartment()
 {
 #ifdef JS_ION
-    js_delete(jitCompartment_);
+    js_delete(ionCompartment_);
 #endif
 
     js_delete(watchpointMap);
@@ -120,59 +120,59 @@ JSCompartment::init(JSContext *cx)
 }
 
 #ifdef JS_ION
-jit::JitRuntime *
-JSRuntime::createJitRuntime(JSContext *cx)
+jit::IonRuntime *
+JSRuntime::createIonRuntime(JSContext *cx)
 {
     // The runtime will only be created on its owning thread, but reads of a
-    // runtime's jitRuntime() can occur when another thread is triggering an
+    // runtime's ionRuntime() can occur when another thread is triggering an
     // operation callback.
     AutoLockForOperationCallback lock(this);
 
-    JS_ASSERT(!jitRuntime_);
+    JS_ASSERT(!ionRuntime_);
 
-    jitRuntime_ = cx->new_<jit::JitRuntime>();
+    ionRuntime_ = cx->new_<jit::IonRuntime>();
 
-    if (!jitRuntime_)
+    if (!ionRuntime_)
         return nullptr;
 
-    if (!jitRuntime_->initialize(cx)) {
-        js_delete(jitRuntime_);
-        jitRuntime_ = nullptr;
+    if (!ionRuntime_->initialize(cx)) {
+        js_delete(ionRuntime_);
+        ionRuntime_ = nullptr;
 
         AutoLockForExclusiveAccess atomsLock(cx);
 
         JSCompartment *comp = cx->runtime()->atomsCompartment();
-        if (comp->jitCompartment_) {
-            js_delete(comp->jitCompartment_);
-            comp->jitCompartment_ = nullptr;
+        if (comp->ionCompartment_) {
+            js_delete(comp->ionCompartment_);
+            comp->ionCompartment_ = nullptr;
         }
 
         return nullptr;
     }
 
-    return jitRuntime_;
+    return ionRuntime_;
 }
 
 bool
-JSCompartment::ensureJitCompartmentExists(JSContext *cx)
+JSCompartment::ensureIonCompartmentExists(JSContext *cx)
 {
     using namespace js::jit;
-    if (jitCompartment_)
+    if (ionCompartment_)
         return true;
 
-    JitRuntime *jitRuntime = cx->runtime()->getJitRuntime(cx);
-    if (!jitRuntime)
+    IonRuntime *ionRuntime = cx->runtime()->getIonRuntime(cx);
+    if (!ionRuntime)
         return false;
 
     /* Set the compartment early, so linking works. */
-    jitCompartment_ = cx->new_<JitCompartment>(jitRuntime);
+    ionCompartment_ = cx->new_<IonCompartment>(ionRuntime);
 
-    if (!jitCompartment_)
+    if (!ionCompartment_)
         return false;
 
-    if (!jitCompartment_->initialize(cx)) {
-        js_delete(jitCompartment_);
-        jitCompartment_ = nullptr;
+    if (!ionCompartment_->initialize(cx)) {
+        js_delete(ionCompartment_);
+        ionCompartment_ = nullptr;
         return false;
     }
 
@@ -488,8 +488,8 @@ JSCompartment::mark(JSTracer *trc)
     JS_ASSERT(!trc->runtime->isHeapMinorCollecting());
 
 #ifdef JS_ION
-    if (jitCompartment_)
-        jitCompartment_->mark(trc, this);
+    if (ionCompartment_)
+        ionCompartment_->mark(trc, this);
 #endif
 
     /*
@@ -525,8 +525,8 @@ JSCompartment::sweep(FreeOp *fop, bool releaseTypes)
             global_ = nullptr;
 
 #ifdef JS_ION
-        if (jitCompartment_)
-            jitCompartment_->sweep(fop);
+        if (ionCompartment_)
+            ionCompartment_->sweep(fop);
 #endif
 
         /*
@@ -607,7 +607,7 @@ JSCompartment::clearTables()
     JS_ASSERT(crossCompartmentWrappers.empty());
     JS_ASSERT_IF(callsiteClones.initialized(), callsiteClones.empty());
 #ifdef JS_ION
-    JS_ASSERT(!jitCompartment_);
+    JS_ASSERT(!ionCompartment_);
 #endif
     JS_ASSERT(!debugScopes);
     JS_ASSERT(!gcWeakMapList);
@@ -897,9 +897,9 @@ JSCompartment::addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf,
     *regexpCompartment += regExps.sizeOfExcludingThis(mallocSizeOf);
     *debuggeesSet += debuggees.sizeOfExcludingThis(mallocSizeOf);
 #ifdef JS_ION
-    if (jitCompartment()) {
+    if (ionCompartment()) {
         *baselineStubsOptimized +=
-            jitCompartment()->optimizedStubSpace()->sizeOfExcludingThis(mallocSizeOf);
+            ionCompartment()->optimizedStubSpace()->sizeOfExcludingThis(mallocSizeOf);
     }
 #endif
 }

@@ -7,7 +7,6 @@
 #include <stdio.h>
 
 #include "GStreamerLoader.h"
-#include "mozilla/NullPtr.h"
 
 #define LIBGSTREAMER 0
 #define LIBGSTAPP 1

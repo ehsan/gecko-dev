@@ -1303,11 +1303,6 @@ class MTest
     bool operandMightEmulateUndefined() const {
         return operandMightEmulateUndefined_;
     }
-#ifdef DEBUG
-    bool isConsistentFloat32Use() const {
-        return true;
-    }
-#endif
 };
 
 // Returns from this function to the previous caller.
@@ -3748,7 +3743,7 @@ class MMathFunction
     bool isFloat32Commutative() const {
         return function_ == Log || function_ == Sin || function_ == Cos
                || function_ == Exp || function_ == Tan || function_ == ATan
-               || function_ == ASin || function_ == ACos || function_ == Floor;
+               || function_ == ASin || function_ == ACos;
     }
     void trySpecializeFloat32();
 };
@@ -7595,14 +7590,13 @@ class MStringLength
 // Inlined version of Math.floor().
 class MFloor
   : public MUnaryInstruction,
-    public FloatingPointPolicy<0>
+    public DoublePolicy<0>
 {
   public:
     MFloor(MDefinition *num)
       : MUnaryInstruction(num)
     {
         setResultType(MIRType_Int32);
-        setPolicyType(MIRType_Double);
         setMovable();
     }
 
@@ -7617,15 +7611,6 @@ class MFloor
     TypePolicy *typePolicy() {
         return this;
     }
-    bool isFloat32Commutative() const {
-        return true;
-    }
-    void trySpecializeFloat32();
-#ifdef DEBUG
-    bool isConsistentFloat32Use() const {
-        return true;
-    }
-#endif
 };
 
 // Inlined version of Math.round().

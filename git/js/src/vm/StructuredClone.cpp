@@ -713,7 +713,7 @@ JSStructuredCloneWriter::parseTransferable()
 
         JSObject* tObj = CheckedUnwrap(&v.toObject());
         if (!tObj) {
-            JS_ReportErrorNumber(context(), js_GetErrorMessage, nullptr, JSMSG_UNWRAP_DENIED);
+            JS_ReportErrorNumber(context(), js_GetErrorMessage, NULL, JSMSG_UNWRAP_DENIED);
             return false;
         }
         if (!tObj->is<ArrayBufferObject>()) {
@@ -723,7 +723,7 @@ JSStructuredCloneWriter::parseTransferable()
 
         // No duplicates allowed
         if (std::find(transferableObjects.begin(), transferableObjects.end(), tObj) != transferableObjects.end()) {
-            JS_ReportErrorNumber(context(), js_GetErrorMessage, nullptr, JSMSG_SC_DUP_TRANSFERABLE);
+            JS_ReportErrorNumber(context(), js_GetErrorMessage, NULL, JSMSG_SC_DUP_TRANSFERABLE);
             return false;
         }
 
@@ -740,7 +740,7 @@ JSStructuredCloneWriter::reportErrorTransferable()
     if (callbacks && callbacks->reportError)
         return callbacks->reportError(context(), JS_SCERR_TRANSFERABLE);
     else
-        JS_ReportErrorNumber(context(), js_GetErrorMessage, nullptr, JSMSG_SC_NOT_TRANSFERABLE);
+        JS_ReportErrorNumber(context(), js_GetErrorMessage, NULL, JSMSG_SC_NOT_TRANSFERABLE);
 }
 
 bool
@@ -962,7 +962,7 @@ JSStructuredCloneWriter::writeTransferMap()
         // Emit a placeholder pointer. We will steal the data and neuter the
         // transferable later.
         if (!out.writePair(SCTAG_TRANSFER_MAP_ENTRY, SCTAG_TM_UNFILLED) ||
-            !out.writePtr(nullptr) ||
+            !out.writePtr(NULL) ||
             !out.write(0))
         {
             return false;
@@ -991,10 +991,9 @@ JSStructuredCloneWriter::transferOwnership()
          !tr.empty();
          tr.popFront())
     {
-        RootedObject obj(context(), tr.front());
         void *content;
         uint8_t *data;
-        if (!JS_StealArrayBufferContents(context(), obj, &content, &data))
+        if (!JS_StealArrayBufferContents(context(), tr.front(), &content, &data))
             return false; // Destructor will clean up the already-transferred data
 
         MOZ_ASSERT(uint32_t(LittleEndian::readUint64(point) >> 32) == SCTAG_TRANSFER_MAP_ENTRY);
@@ -1631,17 +1630,13 @@ JS_StructuredClone(JSContext *cx, JS::HandleValue value, JS::MutableHandleValue 
 
     JSAutoStructuredCloneBuffer buf;
     {
-        // If we use Maybe<AutoCompartment> here, G++ can't tell that the
-        // destructor is only called when Maybe::construct was called, and
-        // we get warnings about using uninitialized variables.
+        mozilla::Maybe<AutoCompartment> ac;
         if (value.isObject()) {
-            AutoCompartment ac(cx, &value.toObject());
-            if (!buf.write(cx, value, callbacks, closure))
-                return false;
-        } else {
-            if (!buf.write(cx, value, callbacks, closure))
-                return false;
+            ac.construct(cx, &value.toObject());
         }
+
+        if (!buf.write(cx, value, callbacks, closure))
+            return false;
     }
 
     return buf.read(cx, vp, callbacks, closure);

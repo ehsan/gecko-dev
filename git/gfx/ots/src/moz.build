@@ -54,5 +54,3 @@ LIBRARY_NAME = 'mozots'
 
 MSVC_ENABLE_PGO = True
 
-if CONFIG['OS_TARGET'] == 'WINNT':
-    NO_VISIBILITY_FLAGS = True

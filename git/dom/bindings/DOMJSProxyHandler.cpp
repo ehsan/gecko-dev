@@ -13,6 +13,7 @@
 #include "XPCWrapper.h"
 #include "WrapperFactory.h"
 #include "nsDOMClassInfo.h"
+#include "nsGlobalWindow.h"
 #include "nsWrapperCacheInlines.h"
 #include "mozilla/dom/BindingUtils.h"
 
@@ -154,8 +155,7 @@ bool
 DOMProxyHandler::preventExtensions(JSContext *cx, JS::Handle<JSObject*> proxy)
 {
   // Throw a TypeError, per WebIDL.
-  JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
-                       JSMSG_CANT_CHANGE_EXTENSIBILITY);
+  JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CANT_CHANGE_EXTENSIBILITY);
   return false;
 }
 
@@ -193,7 +193,7 @@ DOMProxyHandler::defineProperty(JSContext* cx, JS::Handle<JSObject*> proxy, JS::
     return JS_ReportErrorFlagsAndNumber(cx,
                                         JSREPORT_WARNING | JSREPORT_STRICT |
                                         JSREPORT_STRICT_MODE_ERROR,
-                                        js_GetErrorMessage, nullptr,
+                                        js_GetErrorMessage, NULL,
                                         JSMSG_GETTER_ONLY);
   }
 

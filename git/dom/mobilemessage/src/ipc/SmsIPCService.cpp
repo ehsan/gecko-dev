@@ -6,6 +6,7 @@
 #include "mozilla/dom/ContentChild.h"
 #include "SmsIPCService.h"
 #include "nsXULAppAPI.h"
+#include "jsapi.h"
 #include "mozilla/dom/mobilemessage/SmsChild.h"
 #include "SmsMessage.h"
 #include "SmsFilter.h"

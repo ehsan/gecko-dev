@@ -25,7 +25,6 @@ var SelectionHandler = {
     addMessageListener("Browser:SelectionSwitchMode", this);
     addMessageListener("Browser:RepositionInfoRequest", this);
     addMessageListener("Browser:SelectionHandlerPing", this);
-    addMessageListener("Browser:ResetLastPos", this);
   },
 
   shutdown: function shutdown() {
@@ -45,7 +44,6 @@ var SelectionHandler = {
     removeMessageListener("Browser:SelectionSwitchMode", this);
     removeMessageListener("Browser:RepositionInfoRequest", this);
     removeMessageListener("Browser:SelectionHandlerPing", this);
-    removeMessageListener("Browser:ResetLastPos", this);
   },
 
   sendAsync: function sendAsync(aMsg, aJson) {
@@ -544,10 +542,6 @@ var SelectionHandler = {
 
       case "Browser:SelectionHandlerPing":
         this._onPing(json.id);
-        break;
-
-      case "Browser:ResetLastPos":
-        this._onClickCoords(json.xPos, json.yPos);
         break;
     }
   },

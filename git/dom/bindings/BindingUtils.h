@@ -1032,7 +1032,7 @@ inline bool
 WrapObject(JSContext* cx, JS::Handle<JSObject*> scope, T* p,
            JS::MutableHandle<JS::Value> rval)
 {
-  return WrapObject(cx, scope, p, nullptr, rval);
+  return WrapObject(cx, scope, p, NULL, rval);
 }
 
 // Helper to make it possible to wrap directly out of an nsCOMPtr
@@ -1050,7 +1050,7 @@ inline bool
 WrapObject(JSContext* cx, JS::Handle<JSObject*> scope, const nsCOMPtr<T>& p,
            JS::MutableHandle<JS::Value> rval)
 {
-  return WrapObject(cx, scope, p, nullptr, rval);
+  return WrapObject(cx, scope, p, NULL, rval);
 }
 
 // Helper to make it possible to wrap directly out of an nsRefPtr
@@ -1068,7 +1068,7 @@ inline bool
 WrapObject(JSContext* cx, JS::Handle<JSObject*> scope, const nsRefPtr<T>& p,
            JS::MutableHandle<JS::Value> rval)
 {
-  return WrapObject(cx, scope, p, nullptr, rval);
+  return WrapObject(cx, scope, p, NULL, rval);
 }
 
 // Specialization to make it easy to use WrapObject in codegen.

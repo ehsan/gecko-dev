@@ -3,7 +3,6 @@ import os
 import posixpath
 import re
 import shutil
-import signal
 import subprocess
 import tempfile
 import time
@@ -199,7 +198,6 @@ class B2GRunner(RemoteRunner):
             msg = "%s with no output" % msg
 
         self.log.testFail(msg % (self.last_test, timeout))
-        self.dm.killProcess("/system/b2g/b2g", sig=signal.SIGABRT)
         self.check_for_crashes()
 
     def _reboot_device(self):

@@ -271,10 +271,6 @@ if (this.Components) {
      return exports.OS.File.Info.toMsg(
        exports.OS.File.stat(Type.path.fromMsg(path)));
    },
-   setDates: function setDates(path, accessDate, modificationDate) {
-     return exports.OS.File.setDates(Type.path.fromMsg(path), accessDate,
-                                     modificationDate);
-   },
    getCurrentDirectory: function getCurrentDirectory() {
      return exports.OS.Shared.Type.path.toMsg(File.getCurrentDirectory());
    },
@@ -372,12 +368,6 @@ if (this.Components) {
          return exports.OS.File.Info.toMsg(this.stat());
        });
    },
-   File_prototype_setDates: function setDates(fd, accessTime, modificationTime) {
-     return withFile(fd,
-       function do_setDates() {
-         return this.setDates(accessTime, modificationTime);
-       });
-   },
    File_prototype_read: function read(fd, nbytes, options) {
      return withFile(fd,
        function do_read() {
@@ -416,12 +406,6 @@ if (this.Components) {
      return withFile(fd,
        function do_getPosition() {
          return this.getPosition();
-       });
-   },
-   File_prototype_flush: function flush(fd) {
-     return withFile(fd,
-       function do_flush() {
-         return this.flush();
        });
    },
    // Methods of OS.File.DirectoryIterator

@@ -23,7 +23,6 @@ nsDOMKeyboardEvent::nsDOMKeyboardEvent(mozilla::dom::EventTarget* aOwner,
   else {
     mEventIsInternal = true;
     mEvent->time = PR_Now();
-    mEvent->AsKeyboardEvent()->mKeyNameIndex = KEY_NAME_INDEX_USE_STRING;
   }
 }
 
@@ -103,7 +102,9 @@ nsDOMKeyboardEvent::GetModifierState(const nsAString& aKey,
 NS_IMETHODIMP
 nsDOMKeyboardEvent::GetKey(nsAString& aKeyName)
 {
-  mEvent->AsKeyboardEvent()->GetDOMKeyName(aKeyName);
+  if (!mEventIsInternal) {
+    mEvent->AsKeyboardEvent()->GetDOMKeyName(aKeyName);
+  }
   return NS_OK;
 }
 
