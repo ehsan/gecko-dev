@@ -55,7 +55,9 @@
 #include "nsFloatManager.h"
 #include "nsStyleContext.h"
 #include "nsPresContext.h"
-#include "nsRenderingContext.h"
+#include "nsIFontMetrics.h"
+#include "nsIThebesFontMetrics.h"
+#include "nsIRenderingContext.h"
 #include "nsGkAtoms.h"
 #include "nsPlaceholderFrame.h"
 #include "nsIDocument.h"
@@ -1559,9 +1561,10 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
 
   // Get the parent frame's font for all of the frames in this span
   nsStyleContext* styleContext = spanFrame->GetStyleContext();
-  nsRenderingContext* rc = mBlockReflowState->rendContext;
+  nsIRenderingContext* rc = mBlockReflowState->rendContext;
   nsLayoutUtils::SetFontFromStyle(mBlockReflowState->rendContext, styleContext);
-  nsFontMetrics* fm = rc->FontMetrics();
+  nsCOMPtr<nsIFontMetrics> fm;
+  rc->GetFontMetrics(*getter_AddRefs(fm));
 
   PRBool preMode = mStyleText->WhiteSpaceIsSignificant();
 
@@ -1810,7 +1813,8 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
           // of the parent's box. This is identical to the baseline
           // alignment except for the addition of the subscript
           // offset to the baseline Y.
-          nscoord parentSubscript = fm->SubscriptOffset();
+          nscoord parentSubscript;
+          fm->GetSubscriptOffset(parentSubscript);
           nscoord revisedBaselineY = baselineY + parentSubscript;
           pfd->mBounds.y = revisedBaselineY - pfd->mAscent;
           pfd->mVerticalAlign = VALIGN_OTHER;
@@ -1823,7 +1827,8 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
           // of the parent's box. This is identical to the baseline
           // alignment except for the subtraction of the superscript
           // offset to the baseline Y.
-          nscoord parentSuperscript = fm->SuperscriptOffset();
+          nscoord parentSuperscript;
+          fm->GetSuperscriptOffset(parentSuperscript);
           nscoord revisedBaselineY = baselineY - parentSuperscript;
           pfd->mBounds.y = revisedBaselineY - pfd->mAscent;
           pfd->mVerticalAlign = VALIGN_OTHER;
@@ -1864,7 +1869,8 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
         {
           // Align the midpoint of the frame with 1/2 the parents
           // x-height above the baseline.
-          nscoord parentXHeight = fm->XHeight();
+          nscoord parentXHeight;
+          fm->GetXHeight(parentXHeight);
           if (frameSpan) {
             pfd->mBounds.y = baselineY -
               (parentXHeight + pfd->mBounds.height)/2;
@@ -1881,7 +1887,8 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
         {
           // The top of the logical box is aligned with the top of
           // the parent element's text.
-          nscoord parentAscent = fm->MaxAscent();
+          nscoord parentAscent;
+          fm->GetMaxAscent(parentAscent);
           if (frameSpan) {
             pfd->mBounds.y = baselineY - parentAscent -
               pfd->mBorderPadding.top + frameSpan->mTopLeading;
@@ -1897,7 +1904,8 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
         {
           // The bottom of the logical box is aligned with the
           // bottom of the parent elements text.
-          nscoord parentDescent = fm->MaxDescent();
+          nscoord parentDescent;
+          fm->GetMaxDescent(parentDescent);
           if (frameSpan) {
             pfd->mBounds.y = baselineY + parentDescent -
               pfd->mBounds.height + pfd->mBorderPadding.bottom -

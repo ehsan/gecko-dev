@@ -62,7 +62,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // The nsITheme interface.
-  NS_IMETHOD DrawWidgetBackground(nsRenderingContext* aContext,
+  NS_IMETHOD DrawWidgetBackground(nsIRenderingContext* aContext,
                                   nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
                                   const nsRect& aRect,
@@ -73,7 +73,7 @@ public:
                              PRUint8 aWidgetType,
                              nsIntMargin* aResult);
 
-  NS_IMETHOD GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* aFrame,
+  NS_IMETHOD GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
                                   nsIntSize* aResult,
                                   PRBool* aIsOverridable);
@@ -105,11 +105,17 @@ public:
 private:
 
   inline nsresult DrawWidgetBackground(QPainter *qPainter,
-                                       nsRenderingContext* aContext,
+                                       nsIRenderingContext* aContext,
                                        nsIFrame* aFrame,
                                        PRUint8 aWidgetType,
                                        const nsRect& aRect,
                                        const nsRect& aClipRect);
+
+  inline PRInt32 GetAppUnitsPerDevPixel(nsIRenderingContext* aContext){
+    nsCOMPtr<nsIDeviceContext> dctx = nsnull;
+    aContext->GetDeviceContext(*getter_AddRefs(dctx));
+    return dctx->AppUnitsPerDevPixel();
+  }
 
   void InitButtonStyle(PRUint8 widgetType,
                        nsIFrame* aFrame,

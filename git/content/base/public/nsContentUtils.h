@@ -746,6 +746,20 @@ public:
   }
 
   /**
+   * Convenience method to create a new nodeinfo that differs only by prefix
+   * from aNodeInfo.
+   */
+  static nsresult PrefixChanged(nsINodeInfo *aNodeInfo, nsIAtom *aPrefix,
+                                nsINodeInfo** aResult)
+  {
+    nsNodeInfoManager *niMgr = aNodeInfo->NodeInfoManager();
+
+    *aResult = niMgr->GetNodeInfo(aNodeInfo->NameAtom(), aPrefix,
+                                  aNodeInfo->NamespaceID()).get();
+    return *aResult ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  /**
    * Returns the appropriate event argument names for the specified
    * namespace and event name.  Added because we need to switch between
    * SVG's "evt" and the rest of the world's "event", and because onerror
@@ -989,15 +1003,6 @@ public:
    * @param aName the event name to look up
    */
   static PRUint32 GetEventId(nsIAtom* aName);
-
-  /**
-   * Return the category for the event with the given name. The name is the
-   * event name *without* the 'on' prefix. Returns NS_EVENT if the event
-   * is not known to be in any particular category.
-   *
-   * @param aName the event name to look up
-   */
-  static PRUint32 GetEventCategory(const nsAString& aName);
 
   /**
    * Return the event id and atom for the event with the given name.

@@ -538,7 +538,7 @@ nsXPConnect::ToParticipant(void *p)
 }
 
 NS_IMETHODIMP
-nsXPConnect::Root(void *p)
+nsXPConnect::RootAndUnlinkJSObjects(void *p)
 {
     return NS_OK;
 }
@@ -864,15 +864,17 @@ nsXPConnect::GetOutstandingRequests(JSContext* cx)
 class JSContextParticipant : public nsCycleCollectionParticipant
 {
 public:
-    NS_IMETHOD Root(void *n)
-    {
-        return NS_OK;
-    }
-    NS_IMETHOD Unlink(void *n)
+    NS_IMETHOD RootAndUnlinkJSObjects(void *n)
     {
         JSContext *cx = static_cast<JSContext*>(n);
         NS_ASSERTION(cx->globalObject, "global object NULL before unlinking");
         cx->globalObject = nsnull;
+        return NS_OK;
+    }
+    NS_IMETHOD Unlink(void *n)
+    {
+        // We must not unlink a JSContext because Root/Unroot don't ensure that
+        // the pointer is still valid.
         return NS_OK;
     }
     NS_IMETHOD Unroot(void *n)
@@ -2038,6 +2040,9 @@ NS_IMETHODIMP
 nsXPConnect::CreateSandbox(JSContext *cx, nsIPrincipal *principal,
                            nsIXPConnectJSObjectHolder **_retval)
 {
+#ifdef XPCONNECT_STANDALONE
+    return NS_ERROR_NOT_AVAILABLE;
+#else /* XPCONNECT_STANDALONE */
     XPCCallContext ccx(NATIVE_CALLER, cx);
     if(!ccx.IsValid())
         return UnexpectedFailure(NS_ERROR_FAILURE);
@@ -2059,6 +2064,7 @@ nsXPConnect::CreateSandbox(JSContext *cx, nsIPrincipal *principal,
     }
 
     return rv;
+#endif /* XPCONNECT_STANDALONE */
 }
 
 NS_IMETHODIMP
@@ -2066,6 +2072,9 @@ nsXPConnect::EvalInSandboxObject(const nsAString& source, JSContext *cx,
                                  nsIXPConnectJSObjectHolder *sandbox,
                                  PRBool returnStringOnly, jsval *rval)
 {
+#ifdef XPCONNECT_STANDALONE
+    return NS_ERROR_NOT_AVAILABLE;
+#else /* XPCONNECT_STANDALONE */
     if (!sandbox)
         return NS_ERROR_INVALID_ARG;
 
@@ -2076,6 +2085,7 @@ nsXPConnect::EvalInSandboxObject(const nsAString& source, JSContext *cx,
     return xpc_EvalInSandbox(cx, obj, source,
                              NS_ConvertUTF16toUTF8(source).get(), 1,
                              JSVERSION_DEFAULT, returnStringOnly, rval);
+#endif /* XPCONNECT_STANDALONE */
 }
 
 /* void GetXPCWrappedNativeJSClassInfo(out JSEqualityOp equality); */
@@ -2350,6 +2360,23 @@ nsXPConnect::JSToVariant(JSContext* ctx, const jsval &value, nsIVariant** _retva
     return NS_OK;
 }
 
+/* void flagSystemFilenamePrefix (in string filenamePrefix,
+ *                                in PRBool aWantNativeWrappers); */
+NS_IMETHODIMP 
+nsXPConnect::FlagSystemFilenamePrefix(const char *aFilenamePrefix,
+                                      PRBool aWantNativeWrappers)
+{
+    NS_PRECONDITION(aFilenamePrefix, "bad param");
+
+    JSRuntime* rt = GetRuntime()->GetJSRuntime();;
+    uint32 flags = JSFILENAME_SYSTEM;
+    if(aWantNativeWrappers)
+        flags |= JSFILENAME_PROTECTED;
+    if(!JS_FlagScriptFilenamePrefix(rt, aFilenamePrefix, flags))
+        return NS_ERROR_OUT_OF_MEMORY;
+    return NS_OK;
+}
+
 NS_IMETHODIMP
 nsXPConnect::OnProcessNextEvent(nsIThreadInternal *aThread, PRBool aMayWait,
                                 PRUint32 aRecursionDepth)
@@ -2428,6 +2455,7 @@ NS_IMETHODIMP
 nsXPConnect::GetBackstagePass(nsIXPCScriptable **bsp)
 {
     if(!mBackstagePass) {
+#ifndef XPCONNECT_STANDALONE
         nsCOMPtr<nsIPrincipal> sysprin;
         nsCOMPtr<nsIScriptSecurityManager> secman =
             do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID);
@@ -2437,6 +2465,9 @@ nsXPConnect::GetBackstagePass(nsIXPCScriptable **bsp)
             return NS_ERROR_NOT_AVAILABLE;
 
         mBackstagePass = new BackstagePass(sysprin);
+#else
+        mBackstagePass = new BackstagePass();
+#endif
         if(!mBackstagePass)
             return NS_ERROR_OUT_OF_MEMORY;
     }

@@ -40,6 +40,7 @@
 #include "nsTableRowFrame.h"
 #include "nsTableFrame.h"
 #include "nsTableCellFrame.h"
+#include "nsIRenderingContext.h"
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
@@ -177,14 +178,14 @@ public:
 #endif
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx);
+                     nsIRenderingContext* aCtx);
 
   NS_DISPLAY_DECL_NAME("TableRowGroupBackground", TYPE_TABLE_ROW_GROUP_BACKGROUND)
 };
 
 void
 nsDisplayTableRowGroupBackground::Paint(nsDisplayListBuilder* aBuilder,
-                                        nsRenderingContext* aCtx) {
+                                        nsIRenderingContext* aCtx) {
   nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(mFrame);
 
   TableBackgroundPainter painter(tableFrame,

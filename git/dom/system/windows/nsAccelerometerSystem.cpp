@@ -39,6 +39,8 @@
 #include "nsIServiceManager.h"
 #include "windows.h"
 
+#if !defined(WINCE) && !defined(WINCE_WINDOWS_MOBILE) // normal windows.
+
 ////////////////////////////
 // ThinkPad
 ////////////////////////////
@@ -119,6 +121,8 @@ ThinkPadSensor::GetValues(double *x, double *y, double *z)
   *z = 1.0;
 }
 
+#endif
+
 nsAccelerometerSystem::nsAccelerometerSystem(){}
 nsAccelerometerSystem::~nsAccelerometerSystem(){}
 
@@ -141,9 +145,13 @@ void nsAccelerometerSystem::Startup()
 
   PRBool started = PR_FALSE;
 
+#if !defined(WINCE) && !defined(WINCE_WINDOWS_MOBILE) // normal windows.
+
   mSensor = new ThinkPadSensor();
   if (mSensor)
     started = mSensor->Startup();
+
+#endif
 
   if (!started)
     return;

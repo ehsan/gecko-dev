@@ -185,10 +185,15 @@ let TestPilotSetup = {
     return this.__obs;
   },
 
-  _isBetaChannel: function TPS__isBetaChannel() {
-    // Beta and aurora channels use feedback interface; nightly and release channels don't.
-    let channel = this._prefs.getValue(UPDATE_CHANNEL_PREF, "");
-    return (channel == "beta") || (channel == "betatest") || (channel == "aurora");
+  _isFfx4BetaVersion: function TPS__isFfx4BetaVersion() {
+    let result = Cc["@mozilla.org/xpcom/version-comparator;1"]
+                   .getService(Ci.nsIVersionComparator)
+                   .compare("3.7a1pre", this._application.version);
+    if (result < 0) {
+      return true;
+    } else {
+      return false;
+    }
   },
 
   _setPrefDefaultsForVersion: function TPS__setPrefDefaultsForVersion() {
@@ -200,7 +205,7 @@ let TestPilotSetup = {
     let prefBranch = ps.getDefaultBranch("");
     /* note we're setting default values, not current values -- these
      * get overridden by any user set values. */
-    if (this._isBetaChannel()) {
+    if (this._isFfx4BetaVersion()) {
       prefBranch.setBoolPref(POPUP_SHOW_ON_NEW, true);
       prefBranch.setIntPref(POPUP_CHECK_INTERVAL, 600000);
     } else {
@@ -257,7 +262,7 @@ let TestPilotSetup = {
         let currVersion = self._prefs.getValue(VERSION_PREF, "firstrun");
 
         if (currVersion != self.version) {
-          if(!self._isBetaChannel()) {
+          if(!self._isFfx4BetaVersion()) {
             self._prefs.setValue(VERSION_PREF, self.version);
             let browser = self._getFrontBrowserWindow().getBrowser();
             let url = self._prefs.getValue(FIRST_RUN_PREF, "");
@@ -381,7 +386,7 @@ let TestPilotSetup = {
     let popup = doc.getElementById("pilot-notification-popup");
 
     let anchor;
-    if (this._isBetaChannel()) {
+    if (this._isFfx4BetaVersion()) {
       /* If we're in the Ffx4Beta version, popups come down from feedback
        * button, but if we're in the standalone extension version, they
        * come up from status bar icon. */

@@ -2292,7 +2292,9 @@ static void
 NPObjectMember_Trace(JSTracer *trc, JSObject *obj)
 {
   NPObjectMemberPrivate *memberPrivate =
-    (NPObjectMemberPrivate *)::JS_GetPrivate(trc->context, obj);
+    (NPObjectMemberPrivate *)::JS_GetInstancePrivate(trc->context, obj,
+                                                     &sNPObjectMemberClass,
+                                                     nsnull);
   if (!memberPrivate)
     return;
 

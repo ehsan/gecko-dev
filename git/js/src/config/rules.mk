@@ -361,11 +361,6 @@ ifeq (,$(filter-out WINNT WINCE,$(HOST_OS_ARCH)))
 HOST_PDBFILE=$(basename $(@F)).pdb
 endif
 
-# Don't build SIMPLE_PROGRAMS during the MOZ_PROFILE_GENERATE pass
-ifdef MOZ_PROFILE_GENERATE
-SIMPLE_PROGRAMS :=
-endif
-
 ifndef TARGETS
 TARGETS			= $(LIBRARY) $(SHARED_LIBRARY) $(PROGRAM) $(SIMPLE_PROGRAMS) $(HOST_LIBRARY) $(HOST_PROGRAM) $(HOST_SIMPLE_PROGRAMS) $(JAVA_LIBRARY)
 endif
@@ -992,7 +987,6 @@ endif
 else # !WINNT || GNU_CC
 ifeq ($(CPP_PROG_LINK),1)
 	$(EXPAND_CCC) -o $@ $(CXXFLAGS) $(WRAP_MALLOC_CFLAGS) $(PROGOBJS) $(RESFILE) $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(LIBS_DIR) $(LIBS) $(OS_LIBS) $(EXTRA_LIBS) $(BIN_FLAGS) $(WRAP_MALLOC_LIB) $(EXE_DEF_FILE)
-	@$(call CHECK_STDCXX,$@)
 else # ! CPP_PROG_LINK
 	$(EXPAND_CC) -o $@ $(CFLAGS) $(PROGOBJS) $(RESFILE) $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(LIBS_DIR) $(LIBS) $(OS_LIBS) $(EXTRA_LIBS) $(BIN_FLAGS) $(EXE_DEF_FILE)
 endif # CPP_PROG_LINK
@@ -1058,7 +1052,6 @@ endif	# MSVC with manifest tool
 else
 ifeq ($(CPP_PROG_LINK),1)
 	$(EXPAND_CCC) $(WRAP_MALLOC_CFLAGS) $(CXXFLAGS) -o $@ $< $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(LIBS_DIR) $(LIBS) $(OS_LIBS) $(EXTRA_LIBS) $(WRAP_MALLOC_LIB) $(BIN_FLAGS)
-	@$(call CHECK_STDCXX,$@)
 else
 	$(EXPAND_CC) $(WRAP_MALLOC_CFLAGS) $(CFLAGS) $(OUTOPTION)$@ $< $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(LIBS_DIR) $(LIBS) $(OS_LIBS) $(EXTRA_LIBS) $(WRAP_MALLOC_LIB) $(BIN_FLAGS)
 endif # CPP_PROG_LINK
@@ -1179,7 +1172,6 @@ endif
 else # ! DTRACE_LIB_DEPENDENT
 	$(EXPAND_MKSHLIB) $(SHLIB_LDSTARTFILE) $(OBJS) $(DTRACE_PROBE_OBJ) $(LOBJS) $(SUB_SHLOBJS) $(RESFILE) $(LDFLAGS) $(SHARED_LIBRARY_LIBS) $(EXTRA_DSO_LDOPTS) $(OS_LIBS) $(EXTRA_LIBS) $(DEF_FILE) $(SHLIB_LDENDFILE)
 endif # DTRACE_LIB_DEPENDENT
-	@$(call CHECK_STDCXX,$@)
 
 ifeq (_WINNT,$(GNU_CC)_$(OS_ARCH))
 ifdef MSMANIFEST_TOOL
@@ -1461,6 +1453,13 @@ endif
 ################################################################################
 # Copy each element of EXPORTS to $(DIST)/include
 
+ifdef MOZ_JAVAXPCOM
+ifneq ($(XPIDLSRCS),)
+$(JAVA_DIST_DIR)::
+	$(NSINSTALL) -D $@
+endif
+endif
+
 ifneq ($(XPI_NAME),)
 $(FINAL_TARGET):
 	$(NSINSTALL) -D $@
@@ -1578,7 +1577,7 @@ $(XPIDL_GEN_DIR)/%.xpt: %.idl $(XPIDL_COMPILE) $(XPIDL_GEN_DIR)/.done
 
 # no need to link together if XPIDLSRCS contains only XPIDL_MODULE
 ifneq ($(XPIDL_MODULE).idl,$(strip $(XPIDLSRCS)))
-$(XPIDL_GEN_DIR)/$(XPIDL_MODULE).xpt: $(patsubst %.idl,$(XPIDL_GEN_DIR)/%.xpt,$(XPIDLSRCS)) $(GLOBAL_DEPS)
+$(XPIDL_GEN_DIR)/$(XPIDL_MODULE).xpt: $(patsubst %.idl,$(XPIDL_GEN_DIR)/%.xpt,$(XPIDLSRCS)) $(GLOBAL_DEPS) $(XPIDL_LINK)
 	$(XPIDL_LINK) $(XPIDL_GEN_DIR)/$(XPIDL_MODULE).xpt $(patsubst %.idl,$(XPIDL_GEN_DIR)/%.xpt,$(XPIDLSRCS))
 endif # XPIDL_MODULE.xpt != XPIDLSRCS
 
@@ -1632,6 +1631,46 @@ endif
 	$(LOOP_OVER_PARALLEL_DIRS)
 	$(LOOP_OVER_DIRS)
 	$(LOOP_OVER_TOOL_DIRS)
+
+ifdef MOZ_JAVAXPCOM
+ifneq ($(XPIDLSRCS),)
+
+JAVA_XPIDLSRCS = $(XPIDLSRCS)
+
+# A single IDL file can contain multiple interfaces, which result in multiple
+# Java interface files.  So use hidden dependency files.
+JAVADEPFILES = $(addprefix $(JAVA_GEN_DIR)/.,$(JAVA_XPIDLSRCS:.idl=.java.pp))
+
+$(JAVA_GEN_DIR):
+	$(NSINSTALL) -D $@
+GARBAGE_DIRS += $(JAVA_GEN_DIR)
+
+# generate .java files into _javagen/[package name dirs]
+_JAVA_GEN_DIR = $(JAVA_GEN_DIR)/$(JAVA_IFACES_PKG_NAME)
+$(_JAVA_GEN_DIR):
+	$(NSINSTALL) -D $@
+
+$(JAVA_GEN_DIR)/.%.java.pp: %.idl $(XPIDL_COMPILE) $(_JAVA_GEN_DIR)
+	$(REPORT_BUILD)
+	$(ELOG) $(XPIDL_COMPILE) -m java -w $(XPIDL_FLAGS) -I$(srcdir) -I$(IDL_DIR) -o $(_JAVA_GEN_DIR)/$* $(_VPATH_SRCS)
+	@$(TOUCH) $@
+
+# "Install" generated Java interfaces.  We segregate them based on the XPI_NAME.
+# If XPI_NAME is not set, install into the "default" directory.
+ifneq ($(XPI_NAME),)
+JAVA_INSTALL_DIR = $(JAVA_DIST_DIR)/$(XPI_NAME)
+else
+JAVA_INSTALL_DIR = $(JAVA_DIST_DIR)/default
+endif
+
+$(JAVA_INSTALL_DIR):
+	$(NSINSTALL) -D $@
+
+export:: $(JAVA_DIST_DIR) $(JAVADEPFILES) $(JAVA_INSTALL_DIR)
+	(cd $(JAVA_GEN_DIR) && tar $(TAR_CREATE_FLAGS) - .) | (cd $(JAVA_INSTALL_DIR) && tar -xf -)
+
+endif # XPIDLSRCS
+endif # MOZ_JAVAXPCOM
 
 ################################################################################
 # Copy each element of EXTRA_COMPONENTS to $(FINAL_TARGET)/components
@@ -1709,7 +1748,7 @@ endif
 
 endif # SDK_LIBRARY
 
-ifneq (,$(strip $(SDK_BINARY)))
+ifneq (,$(SDK_BINARY))
 $(SDK_BIN_DIR)::
 	$(NSINSTALL) -D $@
 

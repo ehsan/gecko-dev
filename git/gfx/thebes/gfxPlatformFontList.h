@@ -93,7 +93,7 @@ public:
 
     void ClearPrefFonts() { mPrefFonts.Clear(); }
 
-    virtual void GetFontFamilyList(nsTArray<nsRefPtr<gfxFontFamily> >& aFamilyArray);
+    void GetFontFamilyList(nsTArray<nsRefPtr<gfxFontFamily> >& aFamilyArray);
 
     gfxFontEntry* FindFontForChar(const PRUint32 aCh, gfxFont *aPrevFont);
 

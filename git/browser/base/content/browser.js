@@ -3296,15 +3296,16 @@ const BrowserSearch = {
         win.BrowserSearch.webSearch();
       } else {
         // If there are no open browser windows, open a new one
-        function observer(subject, topic, data) {
-          if (subject == win) {
-            BrowserSearch.webSearch();
-            Services.obs.removeObserver(observer, "browser-delayed-startup-finished");
-          }
+
+        // This needs to be in a timeout so that we don't end up refocused
+        // in the url bar
+        function webSearchCallback() {
+          setTimeout(BrowserSearch.webSearch, 0);
         }
+
         win = window.openDialog("chrome://browser/content/", "_blank",
                                 "chrome,all,dialog=no", "about:blank");
-        Services.obs.addObserver(observer, "browser-delayed-startup-finished", false); 
+        win.addEventListener("load", webSearchCallback, false);
       }
       return;
     }
@@ -4033,19 +4034,16 @@ var FullScreen = {
     // controls on nav bar.
     var fullscreenflex = document.getElementById("fullscreenflex");
     var fullscreenctls = document.getElementById("window-controls");
-    var navbar = document.getElementById("nav-bar");
-    var ctlsOnTabbar = window.toolbar.visible &&
-                       (navbar.collapsed ||
-                          (TabsOnTop.enabled &&
-                           !gPrefService.getBoolPref("browser.tabs.autoHide")));
-    if (fullscreenctls.parentNode == navbar && ctlsOnTabbar) {
+    var ctlsOnTabbar = TabsOnTop.enabled &&
+                       !gPrefService.getBoolPref("browser.tabs.autoHide");
+    if (fullscreenctls.parentNode.id == "nav-bar" && ctlsOnTabbar) {
       document.getElementById("TabsToolbar").appendChild(fullscreenctls);
       // we don't need this space in tabs-on-top mode, so prevent it from 
       // being shown
       fullscreenflex.removeAttribute("fullscreencontrol");
     }
     else if (fullscreenctls.parentNode.id == "TabsToolbar" && !ctlsOnTabbar) {
-      navbar.appendChild(fullscreenctls);
+      document.getElementById("nav-bar").appendChild(fullscreenctls);
       fullscreenflex.setAttribute("fullscreencontrol", "true");
     }
 

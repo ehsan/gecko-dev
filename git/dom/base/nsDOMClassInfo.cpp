@@ -202,6 +202,7 @@
 // Tranformiix
 #include "nsIDOMXPathEvaluator.h"
 #include "nsIXSLTProcessor.h"
+#include "nsIXSLTProcessorObsolete.h"
 #include "nsIXSLTProcessorPrivate.h"
 
 #include "nsIDOMLSProgressEvent.h"
@@ -245,9 +246,6 @@
 #include "nsIDOMNotifyAudioAvailableEvent.h"
 #include "nsIDOMScrollAreaEvent.h"
 #include "nsIDOMTransitionEvent.h"
-#ifdef MOZ_CSS_ANIMATIONS
-#include "nsIDOMAnimationEvent.h"
-#endif
 #include "nsIDOMNSDocumentStyle.h"
 #include "nsIDOMDocumentRange.h"
 #include "nsIDOMDocumentTraversal.h"
@@ -329,10 +327,6 @@
 #include "nsIDOMCSSMediaRule.h"
 #include "nsIDOMCSSFontFaceRule.h"
 #include "nsIDOMCSSMozDocumentRule.h"
-#ifdef MOZ_CSS_ANIMATIONS
-#include "nsIDOMMozCSSKeyframeRule.h"
-#include "nsIDOMMozCSSKeyframesRule.h"
-#endif
 #include "nsIDOMCSSPrimitiveValue.h"
 #include "nsIDOMCSSStyleRule.h"
 #include "nsIDOMCSSStyleSheet.h"
@@ -526,7 +520,6 @@ static const char kDOMStringBundleURL[] =
   nsIXPCScriptable::WANT_ADDPROPERTY |                                        \
   nsIXPCScriptable::WANT_FINALIZE |                                           \
   nsIXPCScriptable::WANT_EQUALITY |                                           \
-  nsIXPCScriptable::WANT_ENUMERATE |                                          \
   nsIXPCScriptable::DONT_ENUM_QUERY_INTERFACE |                               \
   nsIXPCScriptable::WANT_OUTER_OBJECT)
 
@@ -1444,10 +1437,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(TransitionEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-#ifdef MOZ_CSS_ANIMATIONS
-  NS_DEFINE_CLASSINFO_DATA(AnimationEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-#endif
   NS_DEFINE_CLASSINFO_DATA(ContentFrameMessageManager, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
@@ -1492,13 +1481,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
 
   NS_DEFINE_CLASSINFO_DATA(EventException, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-
-#ifdef MOZ_CSS_ANIMATIONS
-  NS_DEFINE_CLASSINFO_DATA(MozCSSKeyframeRule, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(MozCSSKeyframesRule, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-#endif
 };
 
 // Objects that should be constructable through |new Name();|
@@ -1537,7 +1519,6 @@ static const nsConstructorFuncMapData kConstructorFuncMap[] =
 {
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(Worker, nsDOMWorker::NewWorker)
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(ChromeWorker, nsDOMWorker::NewChromeWorker)
-  NS_DEFINE_CONSTRUCTOR_FUNC_DATA(File, nsDOMFile::NewFile)
 };
 
 nsIXPConnect *nsDOMClassInfo::sXPConnect = nsnull;
@@ -1761,101 +1742,6 @@ IdToString(JSContext *cx, jsid id)
   return JS_ValueToString(cx, idval);
 }
 
-static inline nsresult
-WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
-           nsWrapperCache *cache, const nsIID* aIID, jsval *vp,
-           nsIXPConnectJSObjectHolder** aHolder, PRBool aAllowWrapping)
-{
-  if (!native) {
-    NS_ASSERTION(!aHolder || !*aHolder, "*aHolder should be null!");
-
-    *vp = JSVAL_NULL;
-
-    return NS_OK;
-  }
-
-  JSObject *wrapper = xpc_FastGetCachedWrapper(cache, scope, vp);
-  if (wrapper) {
-    return NS_OK;
-  }
-
-  return nsDOMClassInfo::XPConnect()->WrapNativeToJSVal(cx, scope, native,
-                                                        cache, aIID,
-                                                        aAllowWrapping, vp,
-                                                        aHolder);
-}
-
-static inline nsresult
-WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
-           const nsIID* aIID, PRBool aAllowWrapping, jsval *vp,
-           // If non-null aHolder will keep the jsval alive
-           // while there's a ref to it
-           nsIXPConnectJSObjectHolder** aHolder = nsnull)
-{
-  return WrapNative(cx, scope, native, nsnull, aIID, vp, aHolder,
-                    aAllowWrapping);
-}
-
-// Same as the WrapNative above, but use these if aIID is nsISupports' IID.
-static inline nsresult
-WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
-           PRBool aAllowWrapping, jsval *vp,
-           // If non-null aHolder will keep the jsval alive
-           // while there's a ref to it
-           nsIXPConnectJSObjectHolder** aHolder = nsnull)
-{
-  return WrapNative(cx, scope, native, nsnull, nsnull, vp, aHolder,
-                    aAllowWrapping);
-}
-
-static inline nsresult
-WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
-           nsWrapperCache *cache, PRBool aAllowWrapping, jsval *vp,
-           // If non-null aHolder will keep the jsval alive
-           // while there's a ref to it
-           nsIXPConnectJSObjectHolder** aHolder = nsnull)
-{
-  return WrapNative(cx, scope, native, cache, nsnull, vp, aHolder,
-                    aAllowWrapping);
-}
-
-// Used for cases where PreCreate needs to wrap the native parent, and the
-// native parent is likely to have been wrapped already.  |native| must
-// implement nsWrapperCache, and nativeWrapperCache must be |native|'s
-// nsWrapperCache.
-static inline nsresult
-WrapNativeParent(JSContext *cx, JSObject *scope, nsISupports *native,
-                                        nsWrapperCache *nativeWrapperCache,
-                                        JSObject **parentObj)
-{
-  // In the common case, |native| is a wrapper cache with an existing wrapper
-#ifdef DEBUG
-  nsWrapperCache* cache = nsnull;
-  CallQueryInterface(native, &cache);
-  NS_PRECONDITION(nativeWrapperCache &&
-                  cache == nativeWrapperCache, "What happened here?");
-#endif
-  
-  JSObject* obj = nativeWrapperCache->GetWrapper();
-  if (obj) {
-#ifdef DEBUG
-    jsval debugVal;
-    nsresult rv = WrapNative(cx, scope, native, nativeWrapperCache, PR_FALSE,
-                             &debugVal);
-    NS_ASSERTION(NS_SUCCEEDED(rv) && JSVAL_TO_OBJECT(debugVal) == obj,
-                 "Unexpected object in nsWrapperCache");
-#endif
-    *parentObj = obj;
-    return NS_OK;
-  }
-
-  jsval v;
-  nsresult rv = WrapNative(cx, scope, native, nativeWrapperCache, PR_FALSE, &v);
-  NS_ENSURE_SUCCESS(rv, rv);
-  *parentObj = JSVAL_TO_OBJECT(v);
-  return NS_OK;
-}
-
 // static
 
 nsISupports *
@@ -2018,9 +1904,9 @@ CreateExceptionFromResult(JSContext *cx, nsresult aResult)
 
   jsval jv;
   nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-  rv = WrapNative(cx, ::JS_GetGlobalObject(cx), exception,
-                  &NS_GET_IID(nsIException), PR_FALSE, &jv,
-                  getter_AddRefs(holder));
+  rv = nsDOMClassInfo::WrapNative(cx, ::JS_GetGlobalObject(cx), exception,
+                                  &NS_GET_IID(nsIException), PR_FALSE, &jv,
+                                  getter_AddRefs(holder));
   if (NS_FAILED(rv) || JSVAL_IS_NULL(jv)) {
     return NS_ERROR_FAILURE;
   }
@@ -2234,6 +2120,41 @@ nsDOMClassInfo::RegisterExternalClasses()
   }
 
   return nameSpaceManager->RegisterExternalInterfaces(PR_TRUE);
+}
+
+// static
+inline nsresult
+nsDOMClassInfo::WrapNativeParent(JSContext *cx, JSObject *scope,
+                                 nsISupports *native,
+                                 nsWrapperCache *nativeWrapperCache,
+                                 JSObject **parentObj)
+{
+  // In the common case, |native| is a wrapper cache with an existing wrapper
+#ifdef DEBUG
+  nsWrapperCache* cache = nsnull;
+  CallQueryInterface(native, &cache);
+  NS_PRECONDITION(nativeWrapperCache &&
+                  cache == nativeWrapperCache, "What happened here?");
+#endif
+  
+  JSObject* obj = nativeWrapperCache->GetWrapper();
+  if (obj) {
+#ifdef DEBUG
+    jsval debugVal;
+    nsresult rv = WrapNative(cx, scope, native, nativeWrapperCache, PR_FALSE,
+                             &debugVal);
+    NS_ASSERTION(NS_SUCCEEDED(rv) && JSVAL_TO_OBJECT(debugVal) == obj,
+                 "Unexpected object in nsWrapperCache");
+#endif
+    *parentObj = obj;
+    return NS_OK;
+  }
+
+  jsval v;
+  nsresult rv = WrapNative(cx, scope, native, nativeWrapperCache, PR_FALSE, &v);
+  NS_ENSURE_SUCCESS(rv, rv);
+  *parentObj = JSVAL_TO_OBJECT(v);
+  return NS_OK;
 }
 
 #define _DOM_CLASSINFO_MAP_BEGIN(_class, _ifptr, _has_class_if)               \
@@ -3797,6 +3718,7 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(XSLTProcessor, nsIXSLTProcessor)
     DOM_CLASSINFO_MAP_ENTRY(nsIXSLTProcessor)
+    DOM_CLASSINFO_MAP_ENTRY(nsIXSLTProcessorObsolete) // XXX DEPRECATED
     DOM_CLASSINFO_MAP_ENTRY(nsIXSLTProcessorPrivate)
   DOM_CLASSINFO_MAP_END
 
@@ -3910,12 +3832,10 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(Blob, nsIDOMBlob)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMBlob)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMBlob_MOZILLA_2_0_BRANCH)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(File, nsIDOMFile)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMBlob)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMBlob_MOZILLA_2_0_BRANCH)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMFile)
   DOM_CLASSINFO_MAP_END
 
@@ -4137,13 +4057,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
-#ifdef MOZ_CSS_ANIMATIONS
-  DOM_CLASSINFO_MAP_BEGIN(AnimationEvent, nsIDOMAnimationEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMAnimationEvent)
-    DOM_CLASSINFO_EVENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-#endif
-
   DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(ContentFrameMessageManager, nsIContentFrameMessageManager)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
@@ -4240,16 +4153,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIException)
   DOM_CLASSINFO_MAP_END
 
-#ifdef MOZ_CSS_ANIMATIONS
-  DOM_CLASSINFO_MAP_BEGIN(MozCSSKeyframeRule, nsIDOMMozCSSKeyframeRule)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMMozCSSKeyframeRule)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(MozCSSKeyframesRule, nsIDOMMozCSSKeyframesRule)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMMozCSSKeyframesRule)
-  DOM_CLASSINFO_MAP_END
-#endif
-
 #ifdef NS_DEBUG
   {
     PRUint32 i = NS_ARRAY_LENGTH(sClassInfoData);
@@ -4337,6 +4240,31 @@ nsDOMClassInfo::GetArrayIndexFromId(JSContext *cx, jsid id, PRBool *aIsNumber)
   }
 
   return i;
+}
+
+// static
+nsresult
+nsDOMClassInfo::WrapNative(JSContext *cx, JSObject *scope,
+                           nsISupports *native, nsWrapperCache *cache,
+                           const nsIID* aIID, jsval *vp,
+                           nsIXPConnectJSObjectHolder** aHolder,
+                           PRBool aAllowWrapping)
+{
+  if (!native) {
+    NS_ASSERTION(!aHolder || !*aHolder, "*aHolder should be null!");
+
+    *vp = JSVAL_NULL;
+
+    return NS_OK;
+  }
+
+  JSObject *wrapper = xpc_FastGetCachedWrapper(cache, scope, vp);
+  if (wrapper) {
+    return NS_OK;
+  }
+
+  return sXPConnect->WrapNativeToJSVal(cx, scope, native, cache, aIID,
+                                       aAllowWrapping, vp, aHolder);
 }
 
 NS_IMETHODIMP
@@ -5479,17 +5407,6 @@ nsWindowSH::SetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   return nsEventReceiverSH::SetProperty(wrapper, cx, obj, id, vp, _retval);
 }
 
-NS_IMETHODIMP
-nsWindowSH::Enumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                      JSObject *obj, PRBool *_retval)
-{
-  if (!ObjectIsNativeWrapper(cx, obj)) {
-    *_retval = JS_EnumerateStandardClasses(cx, obj);
-  }
-
-  return NS_OK;
-}
-
 static const char*
 FindConstructorContractID(const nsDOMClassInfoData *aDOMClassInfoData)
 {
@@ -5587,7 +5504,9 @@ BaseStubConstructor(nsIWeakReference* aWeakOwner,
     return rv;
   }
 
-  return WrapNative(cx, obj, native, PR_TRUE, rval);
+  rv = nsDOMGenericSH::WrapNative(cx, obj, native, PR_TRUE, rval);
+
+  return rv;
 }
 
 static nsresult
@@ -6160,8 +6079,9 @@ ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
   nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
   jsval v;
 
-  rv = WrapNative(cx, obj, constructor, &NS_GET_IID(nsIDOMDOMConstructor),
-                  PR_FALSE, &v, getter_AddRefs(holder));
+  rv = nsDOMClassInfo::WrapNative(cx, obj, constructor,
+                                  &NS_GET_IID(nsIDOMDOMConstructor),
+                                  PR_FALSE, &v, getter_AddRefs(holder));
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (install) {
@@ -7077,7 +6997,7 @@ nsWindowSH::Finalize(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   nsCOMPtr<nsIScriptGlobalObject> sgo(do_QueryWrappedNative(wrapper));
   NS_ENSURE_TRUE(sgo, NS_ERROR_UNEXPECTED);
 
-  sgo->OnFinalize(obj);
+  sgo->OnFinalize(nsIProgrammingLanguage::JAVASCRIPT, obj);
 
   return NS_OK;
 }
@@ -8758,9 +8678,10 @@ nsHTMLDocumentSH::GetDocumentAllNodeList(JSContext *cx, JSObject *obj,
     }
 
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-    rv |= WrapNative(cx, JS_GetGlobalForScopeChain(cx),
-                     static_cast<nsINodeList*>(list), list, PR_FALSE,
-                     &collection, getter_AddRefs(holder));
+    rv |= nsDOMClassInfo::WrapNative(cx, JS_GetGlobalForScopeChain(cx),
+                                     static_cast<nsINodeList*>(list),
+                                     list, PR_FALSE, &collection,
+                                     getter_AddRefs(holder));
 
     list.forget(nodeList);
 
@@ -9132,9 +9053,10 @@ nsHTMLDocumentSH::DocumentAllTagsNewResolve(JSContext *cx, JSObject *obj,
     if (tags) {
       jsval v;
       nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-      nsresult rv = WrapNative(cx, JS_GetGlobalForScopeChain(cx),
-                               static_cast<nsINodeList*>(tags), tags, PR_TRUE,
-                               &v, getter_AddRefs(holder));
+      nsresult rv = nsDOMClassInfo::WrapNative(cx, JS_GetGlobalForScopeChain(cx),
+                                               static_cast<nsINodeList*>(tags),
+                                               tags, PR_TRUE, &v,
+                                               getter_AddRefs(holder));
       if (NS_FAILED(rv)) {
         nsDOMClassInfo::ThrowJSException(cx, rv);
 

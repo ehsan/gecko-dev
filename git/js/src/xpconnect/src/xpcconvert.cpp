@@ -507,24 +507,6 @@ XPCConvert::NativeData2JS(XPCLazyCallContext& lccx, jsval* d, const void* s,
 
 /***************************************************************************/
 
-#ifdef DEBUG
-static bool
-CheckJSCharInCharRange(jschar c)
-{
-    if(ILLEGAL_RANGE(c))
-    {
-        /* U+0080/U+0100 - U+FFFF data lost. */
-        static const size_t MSG_BUF_SIZE = 64;
-        char msg[MSG_BUF_SIZE];
-        JS_snprintf(msg, MSG_BUF_SIZE, "jschar out of char range; high bits of data lost: 0x%x", c);
-        NS_WARNING(msg);
-        return false;
-    }
-
-    return true;
-}
-#endif
-
 // static
 JSBool
 XPCConvert::JSData2Native(XPCCallContext& ccx, void* d, jsval s,
@@ -634,9 +616,7 @@ XPCConvert::JSData2Native(XPCCallContext& ccx, void* d, jsval s,
                 return JS_FALSE;
             }
             jschar ch = length ? chars[0] : 0;
-#ifdef DEBUG
-            CheckJSCharInCharRange(ch);
-#endif
+            NS_ASSERTION(!ILLEGAL_RANGE(ch), "U+0080/U+0100 - U+FFFF data lost");
             *((char*)d) = char(ch);
             break;
         }
@@ -854,9 +834,10 @@ XPCConvert::JSData2Native(XPCCallContext& ccx, void* d, jsval s,
                 const jschar* t;
                 PRInt32 i=0;
                 for(t=chars; (i< len) && legalRange ; i++,t++) {
-                    if(!CheckJSCharInCharRange(*t))
-                        break;
+                  if(ILLEGAL_RANGE(*t))
+                      legalRange = PR_FALSE;
                 }
+                NS_ASSERTION(legalRange,"U+0080/U+0100 - U+FFFF data lost");
             }
 #endif // DEBUG
             size_t length = JS_GetStringEncodingLength(cx, str);
@@ -1659,13 +1640,10 @@ XPCConvert::JSValToXPCException(XPCCallContext& ccx,
             JSBool found;
 
             // heuristic to see if it might be usable as an xpcexception
-            if(!JS_GetPropertyAttributes(cx, obj, "message", &ignored, &found))
-               return NS_ERROR_FAILURE;
-
-            if(found && !JS_GetPropertyAttributes(cx, obj, "result", &ignored, &found))
-                return NS_ERROR_FAILURE;
-
-            if(found)
+            if(JS_GetPropertyAttributes(cx, obj, "message", &ignored, &found) &&
+               found &&
+               JS_GetPropertyAttributes(cx, obj, "result", &ignored, &found) &&
+               found)
             {
                 // lets try to build a wrapper around the JSObject
                 nsXPCWrappedJS* jswrapper;
@@ -1675,8 +1653,8 @@ XPCConvert::JSValToXPCException(XPCCallContext& ccx,
                                                  nsnull, &jswrapper);
                 if(NS_FAILED(rv))
                     return rv;
-
-                *exceptn = static_cast<nsIException *>(jswrapper->GetXPTCStub());
+                *exceptn = reinterpret_cast<nsIException*>
+                           (jswrapper);
                 return NS_OK;
             }
 

@@ -51,7 +51,7 @@ struct nsIntSize;
 struct nsFont;
 struct nsIntMargin;
 class nsPresContext;
-class nsRenderingContext;
+class nsIRenderingContext;
 class nsIDeviceContext;
 class nsIFrame;
 class nsIContent;
@@ -95,7 +95,7 @@ public:
    * @param aRect the rectangle defining the area occupied by the widget
    * @param aDirtyRect the rectangle that needs to be drawn
    */
-  NS_IMETHOD DrawWidgetBackground(nsRenderingContext* aContext,
+  NS_IMETHOD DrawWidgetBackground(nsIRenderingContext* aContext,
                                   nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
                                   const nsRect& aRect,
@@ -150,7 +150,7 @@ public:
    * minimum size; if false, this size is the only valid size for the
    * widget.
    */
-  NS_IMETHOD GetMinimumWidgetSize(nsRenderingContext* aContext,
+  NS_IMETHOD GetMinimumWidgetSize(nsIRenderingContext* aContext,
                                   nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
                                   nsIntSize* aResult,

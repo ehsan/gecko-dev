@@ -44,7 +44,7 @@
 
 #include "gfxFont.h"
 #include "gfxUserFontSet.h"
-#include "nsFontMetrics.h"
+#include "nsIThebesFontMetrics.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // Constants and structures
@@ -532,12 +532,13 @@ nsFontWeightTextAttr::GetFontWeight(nsIFrame *aFrame)
 
   gfxUserFontSet *fs = aFrame->PresContext()->GetUserFontSet();
 
-  nsRefPtr<nsFontMetrics> fm;
+  nsCOMPtr<nsIFontMetrics> fm;
   aFrame->PresContext()->DeviceContext()->
     GetMetricsFor(styleFont->mFont, aFrame->GetStyleVisibility()->mLanguage,
                   fs, *getter_AddRefs(fm));
 
-  gfxFontGroup *fontGroup = fm->GetThebesFontGroup();
+  nsCOMPtr<nsIThebesFontMetrics> tfm = do_QueryInterface(fm);
+  gfxFontGroup *fontGroup = tfm->GetThebesFontGroup();
   gfxFont *font = fontGroup->GetFontAt(0);
 
   // When there doesn't exist a bold font in the family and so the rendering of

@@ -89,8 +89,10 @@
 #include <unistd.h>
 #endif
 
+#ifndef XPCONNECT_STANDALONE
 #include "nsIScriptSecurityManager.h"
 #include "nsIPrincipal.h"
+#endif
 
 // all this crap is needed to do the interactive shell stuff
 #include <stdlib.h>
@@ -157,7 +159,7 @@ nsAutoString *gWorkingDirectory = nsnull;
 static JSBool
 GetLocationProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
 {
-#if !defined(XP_WIN) && !defined(XP_UNIX)
+#if (!defined(XP_WIN) && !defined(XP_UNIX)) || defined(WINCE)
     //XXX: your platform should really implement this
     return JS_FALSE;
 #else
@@ -1316,27 +1318,37 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
 /***************************************************************************/
 
 class FullTrustSecMan
+#ifndef XPCONNECT_STANDALONE
   : public nsIScriptSecurityManager
+#else
+  : public nsIXPCSecurityManager
+#endif
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIXPCSECURITYMANAGER
+#ifndef XPCONNECT_STANDALONE
   NS_DECL_NSISCRIPTSECURITYMANAGER
+#endif
 
   FullTrustSecMan();
   virtual ~FullTrustSecMan();
 
+#ifndef XPCONNECT_STANDALONE
   void SetSystemPrincipal(nsIPrincipal *aPrincipal) {
     mSystemPrincipal = aPrincipal;
   }
 
 private:
   nsCOMPtr<nsIPrincipal> mSystemPrincipal;
+#endif
 };
 
 NS_INTERFACE_MAP_BEGIN(FullTrustSecMan)
   NS_INTERFACE_MAP_ENTRY(nsIXPCSecurityManager)
+#ifndef XPCONNECT_STANDALONE
   NS_INTERFACE_MAP_ENTRY(nsIScriptSecurityManager)
+#endif
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIXPCSecurityManager)
 NS_INTERFACE_MAP_END
 
@@ -1345,7 +1357,9 @@ NS_IMPL_RELEASE(FullTrustSecMan)
 
 FullTrustSecMan::FullTrustSecMan()
 {
+#ifndef XPCONNECT_STANDALONE
   mSystemPrincipal = nsnull;
+#endif
 }
 
 FullTrustSecMan::~FullTrustSecMan()
@@ -1372,6 +1386,7 @@ FullTrustSecMan::CanGetService(JSContext * aJSContext, const nsCID & aCID)
     return NS_OK;
 }
 
+#ifndef XPCONNECT_STANDALONE
 /* void CanAccess (in PRUint32 aAction, in nsIXPCNativeCallContext aCallContext, in JSContextPtr aJSContext, in JSObjectPtr aJSObject, in nsISupports aObj, in nsIClassInfo aClassInfo, in jsval aName, inout voidPtr aPolicy); */
 NS_IMETHODIMP
 FullTrustSecMan::CanAccess(PRUint32 aAction,
@@ -1615,6 +1630,8 @@ FullTrustSecMan::GetCxSubjectPrincipalAndFrame(JSContext *cx, JSStackFrame **fp)
     return mSystemPrincipal;
 }
 
+#endif
+
 /***************************************************************************/
 
 // #define TEST_InitClassesWithNewWrappedGlobal
@@ -1718,7 +1735,7 @@ ContextCallback(JSContext *cx, uintN contextOp)
 static bool
 GetCurrentWorkingDirectory(nsAString& workingDirectory)
 {
-#if !defined(XP_WIN) && !defined(XP_UNIX)
+#if (!defined(XP_WIN) && !defined(XP_UNIX)) || defined(WINCE)
     //XXX: your platform should really implement this
     return false;
 #elif XP_WIN
@@ -1753,9 +1770,19 @@ GetCurrentWorkingDirectory(nsAString& workingDirectory)
     return true;
 }
 
+#ifdef WINCE
+#include "nsWindowsWMain.cpp"
+#endif
+
 int
+#ifndef WINCE
 main(int argc, char **argv, char **envp)
 {
+#else
+main(int argc, char **argv)
+{
+	char **envp = 0;
+#endif
 #ifdef XP_MACOSX
     InitAutoreleasePool();
 #endif
@@ -1863,6 +1890,7 @@ main(int argc, char **argv, char **envp)
         nsRefPtr<FullTrustSecMan> secman = new FullTrustSecMan();
         xpc->SetSecurityManagerForJSContext(cx, secman, 0xFFFF);
 
+#ifndef XPCONNECT_STANDALONE
         nsCOMPtr<nsIPrincipal> systemprincipal;
 
         // Fetch the system principal and store it away in a global, to use for
@@ -1888,6 +1916,7 @@ main(int argc, char **argv, char **envp)
                 fprintf(gErrFile, "+++ Failed to get ScriptSecurityManager service, running without principals");
             }
         }
+#endif
 
 #ifdef TEST_TranslateThis
         nsCOMPtr<nsIXPCFunctionThisTranslator>

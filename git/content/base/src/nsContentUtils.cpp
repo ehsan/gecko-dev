@@ -688,12 +688,6 @@ nsContentUtils::InitializeEventTable() {
     { nsGkAtoms::onMozTouchUp,                  NS_MOZTOUCH_UP, EventNameType_None, NS_MOZTOUCH_EVENT },
 
     { nsGkAtoms::ontransitionend,               NS_TRANSITION_END, EventNameType_None, NS_TRANSITION_EVENT }
-#ifdef MOZ_CSS_ANIMATIONS
-    ,
-    { nsGkAtoms::onanimationstart,              NS_ANIMATION_START, EventNameType_None, NS_ANIMATION_EVENT },
-    { nsGkAtoms::onanimationend,                NS_ANIMATION_END, EventNameType_None, NS_ANIMATION_EVENT },
-    { nsGkAtoms::onanimationiteration,          NS_ANIMATION_ITERATION, EventNameType_None, NS_ANIMATION_EVENT }
-#endif
   };
 
   sAtomEventTable = new nsDataHashtable<nsISupportsHashKey, EventNameMapping>;
@@ -3332,17 +3326,6 @@ nsContentUtils::GetEventId(nsIAtom* aName)
   return NS_USER_DEFINED_EVENT;
 }
 
-// static
-PRUint32
-nsContentUtils::GetEventCategory(const nsAString& aName)
-{
-  EventNameMapping mapping;
-  if (sStringEventTable->Get(aName, &mapping))
-    return mapping.mStructType;
-
-  return NS_EVENT;
-}
-
 nsIAtom*
 nsContentUtils::GetEventIdAndAtom(const nsAString& aName,
                                   PRUint32 aEventStruct,
@@ -4721,22 +4704,21 @@ nsContentUtils::RemoveScriptBlocker()
 
   PRUint32 firstBlocker = sRunnersCountAtFirstBlocker;
   PRUint32 lastBlocker = (PRUint32)sBlockedScriptRunners->Count();
-  PRUint32 originalFirstBlocker = firstBlocker;
-  PRUint32 blockersCount = lastBlocker - firstBlocker;
   sRunnersCountAtFirstBlocker = 0;
   NS_ASSERTION(firstBlocker <= lastBlocker,
                "bad sRunnersCountAtFirstBlocker");
 
   while (firstBlocker < lastBlocker) {
     nsCOMPtr<nsIRunnable> runnable = (*sBlockedScriptRunners)[firstBlocker];
-    ++firstBlocker;
+    sBlockedScriptRunners->RemoveObjectAt(firstBlocker);
+    --lastBlocker;
 
     runnable->Run();
-    NS_ASSERTION(sRunnersCountAtFirstBlocker == 0,
+    NS_ASSERTION(lastBlocker == (PRUint32)sBlockedScriptRunners->Count() &&
+                 sRunnersCountAtFirstBlocker == 0,
                  "Bad count");
     NS_ASSERTION(!sScriptBlockerCount, "This is really bad");
   }
-  sBlockedScriptRunners->RemoveObjectsAt(originalFirstBlocker, blockersCount);
 }
 
 /* static */
@@ -6532,3 +6514,21 @@ nsIContentUtils2::CheckSameOrigin(nsIChannel *aOldChannel, nsIChannel *aNewChann
 {
   return nsContentUtils::CheckSameOrigin(aOldChannel, aNewChannel);
 }
+
+#ifndef MOZ_ENABLE_LIBXUL
+
+NS_IMPL_ISUPPORTS1(nsIContentUtils_MOZILLA_2_0_BRANCH, nsIContentUtils_MOZILLA_2_0_BRANCH)
+
+nsresult
+nsIContentUtils_MOZILLA_2_0_BRANCH::DispatchTrustedEvent(nsIDocument* aDoc,
+                                                         nsISupports* aTarget,
+                                                         const nsAString& aEventName,
+                                                         PRBool aCanBubble,
+                                                         PRBool aCancelable,
+                                                         PRBool *aDefaultAction)
+{
+  return nsContentUtils::DispatchTrustedEvent(aDoc, aTarget, aEventName,
+                                              aCanBubble, aCancelable, aDefaultAction);
+}
+
+#endif

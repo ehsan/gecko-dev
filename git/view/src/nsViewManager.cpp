@@ -302,7 +302,7 @@ void nsViewManager::DoSetWindowDimensions(nscoord aWidth, nscoord aHeight)
   nsRect newDim(0, 0, aWidth, aHeight);
   mRootView->GetDimensions(oldDim);
   // We care about resizes even when one dimension is already zero.
-  if (!oldDim.IsEqualEdges(newDim)) {
+  if (!oldDim.IsExactEqual(newDim)) {
     // Don't resize the widget. It is already being set elsewhere.
     mRootView->SetDimensions(newDim, PR_TRUE, PR_FALSE);
     if (mObserver)
@@ -441,11 +441,20 @@ void nsViewManager::RenderViews(nsView *aView, nsIWidget *aWidget,
                                 PRBool aPaintDefaultBackground,
                                 PRBool aWillSendDidPaint)
 {
-  NS_ASSERTION(GetDisplayRootFor(aView) == aView,
-               "Widgets that we paint must all be display roots");
+  nsView* displayRoot = GetDisplayRootFor(aView);
+  // Make sure we call Paint from the view manager that owns displayRoot.
+  // (Bug 485275)
+  nsViewManager* displayRootVM = displayRoot->GetViewManager();
+  if (displayRootVM && displayRootVM != this) {
+    displayRootVM->
+      RenderViews(aView, aWidget, aRegion, aIntRegion, aPaintDefaultBackground,
+                  aWillSendDidPaint);
+    return;
+  }
 
   if (mObserver) {
-    mObserver->Paint(aView, aWidget, aRegion, aIntRegion,
+    nsRegion region = ConvertRegionBetweenViews(aRegion, aView, displayRoot);
+    mObserver->Paint(displayRoot, aView, aWidget, region, aIntRegion,
                      aPaintDefaultBackground, aWillSendDidPaint);
     if (!gFirstPaintTimestamp)
       gFirstPaintTimestamp = PR_Now();
@@ -1352,7 +1361,7 @@ NS_IMETHODIMP nsViewManager::ResizeView(nsIView *aView, const nsRect &aRect, PRB
   nsRect oldDimensions;
 
   view->GetDimensions(oldDimensions);
-  if (!oldDimensions.IsEqualEdges(aRect)) {
+  if (!oldDimensions.IsExactEqual(aRect)) {
     // resize the view.
     // Prevent Invalidation of hidden views 
     if (view->GetVisibility() == nsViewVisibility_kHide) {  

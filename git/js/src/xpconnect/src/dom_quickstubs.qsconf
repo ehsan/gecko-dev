@@ -108,6 +108,7 @@ members = [
     'nsIDOMDocument.createTextNode',
     'nsIDOMDocument.documentURI',
     'nsIDOMDocument.adoptNode',
+    'nsIDOMDocument.renameNode',
     'nsIDOMElement.removeAttributeNS',
     'nsIDOMElement.removeAttribute',
     'nsIDOMElement.getAttribute',
@@ -329,6 +330,8 @@ members = [
     'nsIDOMHTMLCanvasElement.height',
     'nsIDOMHTMLCanvasElement.getContext',
     'nsIDOMHTMLCanvasElement.toDataURL',
+    'nsIDOMNSHTMLDocument.width',
+    'nsIDOMNSHTMLDocument.height',
     'nsIDOMNSHTMLDocument.domain',
     'nsIDOMNSHTMLDocument.getSelection',
     'nsIDOMNSHTMLDocument.designMode',
@@ -531,7 +534,7 @@ customReturnInterfaces = [
     ]
 
 nsIDOMNode_GetChildNodes_customMethodCallCode = """
-    nsChildContentList* result = static_cast<nsChildContentList*>(self->GetChildNodesList());
+    nsIDOMNodeList* result = self->GetChildNodesList();
     rv = result ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 """
 

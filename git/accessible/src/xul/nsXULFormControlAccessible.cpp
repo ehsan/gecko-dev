@@ -45,7 +45,6 @@
 #include "nsCoreUtils.h"
 #include "nsDocAccessible.h"
 #include "nsRelUtils.h"
-#include "States.h"
 
 // NOTE: alphabetically ordered
 #include "nsHTMLFormControlAccessible.h"
@@ -110,6 +109,21 @@ nsXULButtonAccessible::DoAction(PRUint8 aIndex)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// nsXULButtonAccessible: nsAccessNode
+
+PRBool
+nsXULButtonAccessible::Init()
+{
+  if (!nsAccessibleWrap::Init())
+    return PR_FALSE;
+
+  if (ContainsMenu())
+    nsCoreUtils::GeneratePopupTree(mContent);
+
+  return PR_TRUE;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // nsXULButtonAccessible: nsAccessible
 
 PRUint32
@@ -118,22 +132,23 @@ nsXULButtonAccessible::NativeRole()
   return nsIAccessibleRole::ROLE_PUSHBUTTON;
 }
 
-PRUint64
-nsXULButtonAccessible::NativeState()
+nsresult
+nsXULButtonAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
   // Possible states: focused, focusable, unavailable(disabled).
 
   // get focus and disable status from base class
-  PRUint64 state = nsAccessible::NativeState();
+  nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   PRBool disabled = PR_FALSE;
   nsCOMPtr<nsIDOMXULControlElement> xulFormElement(do_QueryInterface(mContent));
   if (xulFormElement) {
     xulFormElement->GetDisabled(&disabled);
     if (disabled)
-      state |= states::UNAVAILABLE;
+      *aState |= nsIAccessibleStates::STATE_UNAVAILABLE;
     else 
-      state |= states::FOCUSABLE;
+      *aState |= nsIAccessibleStates::STATE_FOCUSABLE;
   }
 
   // Buttons can be checked -- they simply appear pressed in rather than checked
@@ -142,27 +157,27 @@ nsXULButtonAccessible::NativeState()
     nsAutoString type;
     xulButtonElement->GetType(type);
     if (type.EqualsLiteral("checkbox") || type.EqualsLiteral("radio")) {
-      state |= states::CHECKABLE;
+      *aState |= nsIAccessibleStates::STATE_CHECKABLE;
       PRBool checked = PR_FALSE;
       PRInt32 checkState = 0;
       xulButtonElement->GetChecked(&checked);
       if (checked) {
-        state |= states::PRESSED;
+        *aState |= nsIAccessibleStates::STATE_PRESSED;
         xulButtonElement->GetCheckState(&checkState);
         if (checkState == nsIDOMXULButtonElement::CHECKSTATE_MIXED) { 
-          state |= states::MIXED;
+          *aState |= nsIAccessibleStates::STATE_MIXED;
         }
       }
     }
   }
 
   if (ContainsMenu())
-    state |= states::HASPOPUP;
+    *aState |= nsIAccessibleStates::STATE_HASPOPUP;
 
   if (mContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::_default))
-    state |= states::DEFAULT;
+    *aState |= nsIAccessibleStates::STATE_DEFAULT;
 
-  return state;
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -312,10 +327,26 @@ nsXULDropmarkerAccessible::NativeRole()
   return nsIAccessibleRole::ROLE_PUSHBUTTON;
 }
 
-PRUint64
-nsXULDropmarkerAccessible::NativeState()
+nsresult
+nsXULDropmarkerAccessible::GetStateInternal(PRUint32 *aState,
+                                            PRUint32 *aExtraState)
 {
-  return DropmarkerOpen(PR_FALSE) ? states::PRESSED : 0;
+  *aState = 0;
+
+  if (IsDefunct()) {
+    if (aExtraState)
+      *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
+
+    return NS_OK_DEFUNCT_OBJECT;
+  }
+
+  if (aExtraState)
+    *aExtraState = 0;
+
+  if (DropmarkerOpen(PR_FALSE))
+    *aState = nsIAccessibleStates::STATE_PRESSED;
+
+  return NS_OK;
 }
 
                       
@@ -348,8 +379,11 @@ NS_IMETHODIMP nsXULCheckboxAccessible::GetActionName(PRUint8 aIndex, nsAString& 
 {
   if (aIndex == eAction_Click) {
     // check or uncheck
+    PRUint32 state;
+    nsresult rv = GetStateInternal(&state, nsnull);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-    if (NativeState() & states::CHECKED)
+    if (state & nsIAccessibleStates::STATE_CHECKED)
       aName.AssignLiteral("uncheck");
     else
       aName.AssignLiteral("check");
@@ -372,14 +406,18 @@ nsXULCheckboxAccessible::DoAction(PRUint8 aIndex)
   return NS_OK;
 }
 
-PRUint64
-nsXULCheckboxAccessible::NativeState()
+/**
+  * Possible states: focused, focusable, unavailable(disabled), checked
+  */
+nsresult
+nsXULCheckboxAccessible::GetStateInternal(PRUint32 *aState,
+                                          PRUint32 *aExtraState)
 {
-  // Possible states: focused, focusable, unavailable(disabled), checked
   // Get focus and disable status from base class
-  PRUint64 state = nsFormControlAccessible::NativeState();
+  nsresult rv = nsFormControlAccessible::GetStateInternal(aState, aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
   
-  state |= states::CHECKABLE;
+  *aState |= nsIAccessibleStates::STATE_CHECKABLE;
   
   // Determine Checked state
   nsCOMPtr<nsIDOMXULCheckboxElement> xulCheckboxElement =
@@ -388,15 +426,15 @@ nsXULCheckboxAccessible::NativeState()
     PRBool checked = PR_FALSE;
     xulCheckboxElement->GetChecked(&checked);
     if (checked) {
-      state |= states::CHECKED;
+      *aState |= nsIAccessibleStates::STATE_CHECKED;
       PRInt32 checkState = 0;
       xulCheckboxElement->GetCheckState(&checkState);
       if (checkState == nsIDOMXULCheckboxElement::CHECKSTATE_MIXED)
-        state |= states::MIXED;
+        *aState |= nsIAccessibleStates::STATE_MIXED;
     }
   }
 
-  return state;
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -607,12 +645,14 @@ nsXULRadioButtonAccessible::
 }
 
 /** We are Focusable and can be Checked and focused */
-PRUint64
-nsXULRadioButtonAccessible::NativeState()
+nsresult
+nsXULRadioButtonAccessible::GetStateInternal(PRUint32 *aState,
+                                             PRUint32 *aExtraState)
 {
-  PRUint64 state = nsFormControlAccessible::NativeState();
+  nsresult rv = nsFormControlAccessible::GetStateInternal(aState, aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
-  state |= states::CHECKABLE;
+  *aState |= nsIAccessibleStates::STATE_CHECKABLE;
   
   PRBool selected = PR_FALSE;   // Radio buttons can be selected
 
@@ -621,11 +661,11 @@ nsXULRadioButtonAccessible::NativeState()
   if (radioButton) {
     radioButton->GetSelected(&selected);
     if (selected) {
-      state |= states::CHECKED;
+      *aState |= nsIAccessibleStates::STATE_CHECKED;
     }
   }
 
-  return state;
+  return NS_OK;
 }
 
 void
@@ -662,13 +702,20 @@ nsXULRadioGroupAccessible::NativeRole()
   return nsIAccessibleRole::ROLE_GROUPING;
 }
 
-PRUint64
-nsXULRadioGroupAccessible::NativeState()
+nsresult
+nsXULRadioGroupAccessible::GetStateInternal(PRUint32 *aState,
+                                            PRUint32 *aExtraState)
 {
+  nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+
   // The radio group is not focusable. Sometimes the focus controller will
   // report that it is focused. That means that the actual selected radio button
   // should be considered focused.
-  return nsAccessible::NativeState() & ~(states::FOCUSABLE | states::FOCUSED);
+  *aState &= ~(nsIAccessibleStates::STATE_FOCUSABLE |
+               nsIAccessibleStates::STATE_FOCUSED);
+
+  return NS_OK;
 }
 
                       
@@ -793,10 +840,23 @@ nsXULToolbarSeparatorAccessible::NativeRole()
   return nsIAccessibleRole::ROLE_SEPARATOR;
 }
 
-PRUint64
-nsXULToolbarSeparatorAccessible::NativeState()
+nsresult
+nsXULToolbarSeparatorAccessible::GetStateInternal(PRUint32 *aState,
+                                                  PRUint32 *aExtraState)
 {
-  return 0;
+  *aState = 0;  // no special state flags for toolbar separator
+
+  if (IsDefunct()) {
+    if (aExtraState)
+      *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
+
+    return NS_OK_DEFUNCT_OBJECT;
+  }
+
+  if (aExtraState)
+    *aExtraState = 0;
+
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -816,9 +876,11 @@ NS_IMPL_ISUPPORTS_INHERITED3(nsXULTextFieldAccessible, nsAccessible, nsHyperText
 
 NS_IMETHODIMP nsXULTextFieldAccessible::GetValue(nsAString& aValue)
 {
-  PRUint64 state = NativeState();
+  PRUint32 state;
+  nsresult rv = GetStateInternal(&state, nsnull);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  if (state & states::PROTECTED)    // Don't return password text!
+  if (state & nsIAccessibleStates::STATE_PROTECTED)    // Don't return password text!
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIDOMXULTextBoxElement> textBox(do_QueryInterface(mContent));
@@ -832,34 +894,41 @@ NS_IMETHODIMP nsXULTextFieldAccessible::GetValue(nsAString& aValue)
   return NS_ERROR_FAILURE;
 }
 
-void
-nsXULTextFieldAccessible::ApplyARIAState(PRUint64* aState)
+nsresult
+nsXULTextFieldAccessible::GetARIAState(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  nsHyperTextAccessibleWrap::ApplyARIAState(aState);
+  nsresult rv = nsHyperTextAccessibleWrap::GetARIAState(aState, aExtraState);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  nsStateMapEntry::MapToStates(mContent, aState, eARIAAutoComplete);
+  nsStateMapEntry::MapToStates(mContent, aState, aExtraState, eARIAAutoComplete);
 
+  return NS_OK;
 }
 
-PRUint64
-nsXULTextFieldAccessible::NativeState()
+nsresult
+nsXULTextFieldAccessible::GetStateInternal(PRUint32 *aState,
+                                           PRUint32 *aExtraState)
 {
-  PRUint64 state = nsHyperTextAccessibleWrap::NativeState();
+  nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
+                                                            aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIContent> inputField(GetInputField());
-  NS_ENSURE_TRUE(inputField, state);
+  NS_ENSURE_TRUE(inputField, NS_ERROR_FAILURE);
 
-  // Create a temporary accessible from the HTML text field to get
-  // the accessible state from. Doesn't add to cache into document cache.
-  nsRefPtr<nsHTMLTextFieldAccessible> tempAccessible =
+  // Create a temporary accessible from the HTML text field
+  // to get the accessible state from. Doesn't add to cache
+  // because Init() is not called.
+  nsHTMLTextFieldAccessible* tempAccessible =
     new nsHTMLTextFieldAccessible(inputField, mWeakShell);
   if (!tempAccessible)
-    return state;
-
-  state |= tempAccessible->NativeState();
+    return NS_ERROR_OUT_OF_MEMORY;
+  nsCOMPtr<nsIAccessible> kungFuDeathGrip = tempAccessible;
+  rv = tempAccessible->GetStateInternal(aState, nsnull);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (gLastFocusedNode == mContent)
-    state |= states::FOCUSED;
+    *aState |= nsIAccessibleStates::STATE_FOCUSED;
 
   nsCOMPtr<nsIDOMXULMenuListElement> menuList(do_QueryInterface(mContent));
   if (menuList) {
@@ -867,11 +936,35 @@ nsXULTextFieldAccessible::NativeState()
     if (!mContent->AttrValueIs(kNameSpaceID_None,
                                nsAccessibilityAtoms::editable,
                                nsAccessibilityAtoms::_true, eIgnoreCase)) {
-      state |= states::READONLY;
+      *aState |= nsIAccessibleStates::STATE_READONLY;
+    }
+  }
+  else {
+    // <xul:textbox>
+    if (mContent->AttrValueIs(kNameSpaceID_None, nsAccessibilityAtoms::type,
+                              nsAccessibilityAtoms::password, eIgnoreCase)) {
+      *aState |= nsIAccessibleStates::STATE_PROTECTED;
+    }
+    if (mContent->AttrValueIs(kNameSpaceID_None, nsAccessibilityAtoms::readonly,
+                              nsAccessibilityAtoms::_true, eIgnoreCase)) {
+      *aState |= nsIAccessibleStates::STATE_READONLY;
     }
   }
 
-  return state;
+  if (!aExtraState)
+    return NS_OK;
+
+  PRBool isMultiLine = mContent->HasAttr(kNameSpaceID_None,
+                                         nsAccessibilityAtoms::multiline);
+
+  if (isMultiLine) {
+    *aExtraState |= nsIAccessibleStates::EXT_STATE_MULTI_LINE;
+  }
+  else {
+    *aExtraState |= nsIAccessibleStates::EXT_STATE_SINGLE_LINE;
+  }
+
+  return NS_OK;
 }
 
 PRUint32

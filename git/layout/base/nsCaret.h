@@ -48,7 +48,7 @@
 #include "nsWeakPtr.h"
 #include "nsFrameSelection.h"
 
-class nsRenderingContext;
+class nsIRenderingContext;
 class nsDisplayListBuilder;
 
 //-----------------------------------------------------------------------------
@@ -170,7 +170,7 @@ class nsCaret : public nsISelectionListener
      *  Actually paint the caret onto the given rendering context.
      */
     void      PaintCaret(nsDisplayListBuilder *aBuilder,
-                         nsRenderingContext *aCtx,
+                         nsIRenderingContext *aCtx,
                          nsIFrame *aForFrame,
                          const nsPoint &aOffset);
     /**

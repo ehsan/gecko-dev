@@ -82,13 +82,11 @@ struct SelectionState {
 
 class RestoreSelectionState : public nsRunnable {
 public:
-  RestoreSelectionState(nsTextEditorState *aState, nsTextControlFrame *aFrame,
-                        PRInt32 aStart, PRInt32 aEnd)
+  RestoreSelectionState(nsTextControlFrame *aFrame, PRInt32 aStart, PRInt32 aEnd)
     : mFrame(aFrame),
       mWeakFrame(aFrame),
       mStart(aStart),
-      mEnd(aEnd),
-      mTextEditorState(aState)
+      mEnd(aEnd)
   {
   }
 
@@ -98,7 +96,6 @@ public:
       // need to block script to avoid nested PrepareEditor calls (bug 642800).
       nsAutoScriptBlocker scriptBlocker;
       mFrame->SetSelectionRange(mStart, mEnd);
-      mTextEditorState->HideSelectionIfBlurred();
     }
     return NS_OK;
   }
@@ -108,7 +105,6 @@ private:
   nsWeakFrame mWeakFrame;
   PRInt32 mStart;
   PRInt32 mEnd;
-  nsTextEditorState* mTextEditorState;
 };
 
 /*static*/
@@ -224,8 +220,8 @@ private:
   nsWeakPtr mPresShellWeak;
 };
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsTextInputSelectionImpl)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsTextInputSelectionImpl)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsTextInputSelectionImpl, nsISelectionController)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsTextInputSelectionImpl, nsISelectionController)
 NS_INTERFACE_TABLE_HEAD(nsTextInputSelectionImpl)
   NS_INTERFACE_TABLE3(nsTextInputSelectionImpl,
                       nsISelectionController,
@@ -901,8 +897,10 @@ nsTextInputListener::EditAction()
   }
 
   // Fire input event
+  nsCOMPtr<nsIEditor_MOZILLA_2_0_BRANCH> editor20 = do_QueryInterface(editor);
+  NS_ASSERTION(editor20, "Something is very wrong!");
   PRBool trusted = PR_FALSE;
-  editor->GetLastKeypressEventTrusted(&trusted);
+  editor20->GetLastKeypressEventTrusted(&trusted);
   frame->FireOnInput(trusted);
 
   // mFrame may be dead after this, but we don't need to check for it, because
@@ -1389,7 +1387,7 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
 
   // Restore our selection after being bound to a new frame
   if (mSelState) {
-    nsContentUtils::AddScriptRunner(new RestoreSelectionState(this, mBoundFrame, mSelState->mStart, mSelState->mEnd));
+    nsContentUtils::AddScriptRunner(new RestoreSelectionState(mBoundFrame, mSelState->mStart, mSelState->mEnd));
     mSelState = nsnull;
   }
 
@@ -2013,16 +2011,6 @@ nsTextEditorState::SetPlaceholderClass(PRBool aVisible,
 
   placeholderDiv->SetAttr(kNameSpaceID_None, nsGkAtoms::_class,
                           classValue, aNotify);
-}
-
-void
-nsTextEditorState::HideSelectionIfBlurred()
-{
-  NS_ABORT_IF_FALSE(mSelCon, "Should have a selection controller if we have a frame!");
-  nsCOMPtr<nsIContent> content = do_QueryInterface(mTextCtrlElement);
-  if (!nsContentUtils::IsFocusedContent(content)) {
-    mSelCon->SetDisplaySelection(nsISelectionController::SELECTION_HIDDEN);
-  }
 }
 
 NS_IMPL_ISUPPORTS1(nsAnonDivObserver, nsIMutationObserver)

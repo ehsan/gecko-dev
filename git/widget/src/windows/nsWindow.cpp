@@ -136,7 +136,7 @@
 #include "nsIClipboard.h"
 #include "nsIMM32Handler.h"
 #include "nsILocalFile.h"
-#include "nsFontMetrics.h"
+#include "nsIFontMetrics.h"
 #include "nsIFontEnumerator.h"
 #include "nsIDeviceContext.h"
 #include "nsILookAndFeel.h"
@@ -355,6 +355,9 @@ PRBool          gDisableNativeTheme               = PR_FALSE;
 static PRBool   gWindowsVisible                   = PR_FALSE;
 
 static NS_DEFINE_CID(kCClipboardCID, NS_CLIPBOARD_CID);
+#ifdef WINCE_WINDOWS_MOBILE
+static NS_DEFINE_CID(kRegionCID, NS_REGION_CID);
+#endif
 
 // General purpose user32.dll hook object
 static WindowsDllInterceptor sUser32Intercept;
@@ -1537,7 +1540,7 @@ NS_METHOD nsWindow::Move(PRInt32 aX, PRInt32 aY)
     if (mWindowType == eWindowType_plugin &&
         (!mLayerManager || mLayerManager->GetBackendType() == LayerManager::LAYERS_D3D9) &&
         mClipRects &&
-        (mClipRectCount != 1 || !mClipRects[0].IsEqualInterior(nsIntRect(0, 0, mBounds.width, mBounds.height)))) {
+        (mClipRectCount != 1 || mClipRects[0] != nsIntRect(0, 0, mBounds.width, mBounds.height))) {
       flags |= SWP_NOCOPYBITS;
     }
     VERIFY(::SetWindowPos(mWnd, NULL, aX, aY, 0, 0, flags));
@@ -2903,8 +2906,7 @@ nsWindow::MakeFullScreen(PRBool aFullScreen)
   UpdateNonClientMargins();
 
   PRBool visible = mIsVisible;
-  if (mOldSizeMode == nsSizeMode_Normal)
-    Show(PR_FALSE);
+  Show(PR_FALSE);
   
   // Will call hide chrome, reposition window. Note this will
   // also cache dimensions for restoration, so it should only

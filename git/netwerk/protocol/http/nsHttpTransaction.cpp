@@ -318,18 +318,6 @@ nsHttpTransaction::TakeResponseHead()
     return head;
 }
 
-void
-nsHttpTransaction::SetSSLConnectFailed()
-{
-    mSSLConnectFailed = PR_TRUE;
-}
-
-nsHttpRequestHead *
-nsHttpTransaction::RequestHead()
-{
-    return mRequestHead;
-}
-
 //----------------------------------------------------------------------------
 // nsHttpTransaction::nsAHttpTransaction
 //----------------------------------------------------------------------------
@@ -351,15 +339,14 @@ nsHttpTransaction::GetSecurityCallbacks(nsIInterfaceRequestor **cb,
 }
 
 void
-nsHttpTransaction::OnTransportStatus(nsITransport* transport,
-                                     nsresult status, PRUint64 progress)
+nsHttpTransaction::OnTransportStatus(nsresult status, PRUint64 progress)
 {
     LOG(("nsHttpTransaction::OnSocketStatus [this=%x status=%x progress=%llu]\n",
         this, status, progress));
 
     if (!mTransportSink)
         return;
-
+    
     NS_ASSERTION(PR_GetCurrentThread() == gSocketThread, "wrong thread");
 
     // Need to do this before the STATUS_RECEIVING_FROM check below, to make
@@ -411,7 +398,7 @@ nsHttpTransaction::OnTransportStatus(nsITransport* transport,
         progressMax = 0;
     }
 
-    mTransportSink->OnTransportStatus(transport, status, progress, progressMax);
+    mTransportSink->OnTransportStatus(nsnull, status, progress, progressMax);
 }
 
 PRBool

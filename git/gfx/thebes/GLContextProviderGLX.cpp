@@ -595,7 +595,7 @@ public:
         mGLContext->fActiveTexture(aTextureUnit);
         mGLContext->fBindTexture(LOCAL_GL_TEXTURE_2D, Texture());
         sGLXLibrary.BindTexImage(mPixmap);
-        mGLContext->fActiveTexture(LOCAL_GL_TEXTURE0);
+        mGLContext->fActiveTexture(LOCAL_GL_TEXTURE);
     }
 
     virtual void ReleaseTexture()
@@ -609,7 +609,7 @@ public:
         return mUpdateSurface.get();
     }
 
-    virtual PRBool InUpdate() const { return mInUpdate; }
+    virtual PRBool InUpdate() const { return !mInUpdate; }
 
 private:
    TextureImageGLX(GLuint aTexture,

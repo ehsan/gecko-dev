@@ -40,7 +40,7 @@
 #include "nsMathUtils.h"
 #include <math.h>
 
-namespace mozilla {
+using namespace mozilla;
 
 /*static*/ SVGPointListSMILType SVGPointListSMILType::sSingleton;
 
@@ -225,5 +225,3 @@ SVGPointListSMILType::Interpolate(const nsSMILValue& aStartVal,
   }
   return NS_OK;
 }
-
-} // namespace mozilla

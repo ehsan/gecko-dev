@@ -114,6 +114,7 @@ public:
     // attributes
     PRUint8                Caps()           { return mCaps; }
     nsHttpConnectionInfo  *ConnectionInfo() { return mConnInfo; }
+    nsHttpRequestHead     *RequestHead()    { return mRequestHead; }
     nsHttpResponseHead    *ResponseHead()   { return mHaveAllHeaders ? mResponseHead : nsnull; }
     nsISupports           *SecurityInfo()   { return mSecurityInfo; }
 
@@ -128,6 +129,7 @@ public:
     // Called to find out if the transaction generated a complete response.
     PRBool ResponseIsComplete() { return mResponseIsComplete; }
 
+    void   SetSSLConnectFailed() { mSSLConnectFailed = PR_TRUE; }
     PRBool    SSLConnectFailed() { return mSSLConnectFailed; }
 
     // These methods may only be used by the connection manager.

@@ -43,7 +43,6 @@
 #include "nsIPresShell.h"
 #include "nsIFrame.h"
 #include "nsReadableUtils.h"
-#include "nsRenderingContext.h"
 
 #include "prprf.h"
 
@@ -159,7 +158,7 @@ inFlasher::DrawElementOutline(nsIDOMElement* aElement)
     nsPoint offset;
     nsIWidget* widget = frame->GetNearestWidget(offset);
     if (widget) {
-      nsRefPtr<nsRenderingContext> rcontext;
+      nsCOMPtr<nsIRenderingContext> rcontext;
       frame->PresContext()->DeviceContext()->
         CreateRenderingContext(widget, *getter_AddRefs(rcontext));
       if (rcontext) {
@@ -208,7 +207,7 @@ inFlasher::ScrollElementIntoView(nsIDOMElement *aElement)
 
 void
 inFlasher::DrawOutline(nscoord aX, nscoord aY, nscoord aWidth, nscoord aHeight,
-                       nsRenderingContext* aRenderContext,
+                       nsIRenderingContext* aRenderContext,
                        PRBool aDrawBegin, PRBool aDrawEnd)
 {
   aRenderContext->SetColor(mColor);
@@ -226,7 +225,7 @@ inFlasher::DrawOutline(nscoord aX, nscoord aY, nscoord aWidth, nscoord aHeight,
 void
 inFlasher::DrawLine(nscoord aX, nscoord aY, nscoord aLength,
                     PRBool aDir, PRBool aBounds,
-                    nsRenderingContext* aRenderContext)
+                    nsIRenderingContext* aRenderContext)
 {
   nscoord thickTwips = nsPresContext::CSSPixelsToAppUnits(mThickness);
   if (aDir) { // horizontal

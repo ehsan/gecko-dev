@@ -70,7 +70,7 @@ xpc_OkToHandOutWrapper(nsWrapperCache *cache)
 NS_IMPL_CYCLE_COLLECTION_CLASS(XPCWrappedNative)
 
 NS_IMETHODIMP
-NS_CYCLE_COLLECTION_CLASSNAME(XPCWrappedNative)::Unlink(void *p)
+NS_CYCLE_COLLECTION_CLASSNAME(XPCWrappedNative)::RootAndUnlinkJSObjects(void *p)
 {
     XPCWrappedNative *tmp = static_cast<XPCWrappedNative*>(p);
     tmp->ExpireWrapper();
@@ -135,7 +135,6 @@ NS_CYCLE_COLLECTION_CLASSNAME(XPCWrappedNative)::Traverse(void *p,
         // on our wiki at http://wiki.mozilla.org/XPConnect_object_wrapping 
 
         JSObject *obj = tmp->GetFlatJSObjectPreserveColor();
-        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mFlatJSObject");
         cb.NoteScriptChild(nsIProgrammingLanguage::JAVASCRIPT, obj);
     }
 
@@ -148,7 +147,6 @@ NS_CYCLE_COLLECTION_CLASSNAME(XPCWrappedNative)::Traverse(void *p,
     rt->GetCompartmentMap().EnumerateRead(TraverseExpandoObjects, &closure);
 
     // XPCWrappedNative keeps its native object alive.
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mIdentity");
     cb.NoteXPCOMChild(tmp->GetIdentityObject());
 
     tmp->NoteTearoffs(cb);
@@ -173,7 +171,6 @@ XPCWrappedNative::NoteTearoffs(nsCycleCollectionTraversalCallback& cb)
             JSObject* jso = to->GetJSObject();
             if(!jso)
             {
-                NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "tearoff's mNative");
                 cb.NoteXPCOMChild(to->GetNative());
             }
         }
@@ -932,12 +929,6 @@ XPCWrappedNative::~XPCWrappedNative()
 {
     DEBUG_TrackDeleteWrapper(this);
 
-    Destroy();
-}
-
-void
-XPCWrappedNative::Destroy()
-{
     XPCWrappedNativeProto* proto = GetProto();
 
     if(mScriptableInfo &&
@@ -945,7 +936,6 @@ XPCWrappedNative::Destroy()
         (proto && proto->GetScriptableInfo() != mScriptableInfo)))
     {
         delete mScriptableInfo;
-        mScriptableInfo = nsnull;
     }
 
     XPCWrappedNativeScope *scope = GetScope();
@@ -966,11 +956,7 @@ XPCWrappedNative::Destroy()
         XPCJSRuntime* rt = GetRuntime();
         if(rt && rt->GetDoingFinalization())
         {
-            if(rt->DeferredRelease(mIdentity))
-            {
-                mIdentity = nsnull;
-            }
-            else
+            if(!rt->DeferredRelease(mIdentity))
             {
                 NS_WARNING("Failed to append object for deferred release.");
                 // XXX do we really want to do this???
@@ -982,8 +968,6 @@ XPCWrappedNative::Destroy()
             NS_RELEASE(mIdentity);
         }
     }
-
-    mMaybeScope = nsnull;
 }
 
 // This is factored out so that it can be called publicly 
@@ -1290,8 +1274,7 @@ NS_IMPL_THREADSAFE_RELEASE(XPCWrappedNative)
  *
  *  - The wrapper has a pointer to the nsISupports 'view' of the wrapped native
  *    object i.e... mIdentity. This is held until the wrapper's refcount goes
- *    to zero and the wrapper is released, or until an expired wrapper (i.e.,
- *    one unlinked by the cycle collector) has had its JS object finalized.
+ *    to zero and the wrapper is released.
  *
  *  - The wrapper also has 'tearoffs'. It has one tearoff for each interface
  *    that is actually used on the native object. 'Used' means we have either
@@ -1386,6 +1369,23 @@ XPCWrappedNative::FlatJSObjectFinalized(JSContext *cx)
         }
     }
 
+    if(IsWrapperExpired())
+    {
+        GetScope()->GetWrappedNativeMap()->Remove(this);
+
+        XPCWrappedNativeProto* proto = GetProto();
+
+        if(mScriptableInfo &&
+           (!HasProto() ||
+            (proto && proto->GetScriptableInfo() != mScriptableInfo)))
+        {
+            delete mScriptableInfo;
+            mScriptableInfo = nsnull;
+        }
+
+        mMaybeScope = nsnull;
+    }
+
     nsWrapperCache *cache = nsnull;
     CallQueryInterface(mIdentity, &cache);
     if(cache)
@@ -1400,11 +1400,6 @@ XPCWrappedNative::FlatJSObjectFinalized(JSContext *cx)
     NS_ASSERTION(*(int*)mIdentity != 0xdddddddd, "bad pointer!");
     NS_ASSERTION(*(int*)mIdentity != 0,          "bad pointer!");
 #endif
-
-    if(IsWrapperExpired())
-    {
-        Destroy();
-    }
 
     // Note that it's not safe to touch mNativeWrapper here since it's
     // likely that it has already been finalized.
@@ -3172,6 +3167,7 @@ NS_IMETHODIMP XPCWrappedNative::GetJSObjectPrototype(JSObject * *aJSObjectProtot
     return NS_OK;
 }
 
+#ifndef XPCONNECT_STANDALONE
 nsIPrincipal*
 XPCWrappedNative::GetObjectPrincipal() const
 {
@@ -3183,6 +3179,7 @@ XPCWrappedNative::GetObjectPrincipal() const
 #endif
     return principal;
 }
+#endif
 
 /* readonly attribute nsIXPConnect XPConnect; */
 NS_IMETHODIMP XPCWrappedNative::GetXPConnect(nsIXPConnect * *aXPConnect)

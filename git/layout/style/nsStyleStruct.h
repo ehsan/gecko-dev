@@ -802,14 +802,14 @@ struct nsStyleBorder {
   {
     nscoord roundedWidth =
       NS_ROUND_BORDER_TO_PIXELS(aBorderWidth, mTwipsPerPixel);
-    mBorder.Side(aSide) = roundedWidth;
+    mBorder.side(aSide) = roundedWidth;
     if (HasVisibleStyle(aSide))
-      mComputedBorder.Side(aSide) = roundedWidth;
+      mComputedBorder.side(aSide) = roundedWidth;
   }
 
   void SetBorderImageWidthOverride(mozilla::css::Side aSide, nscoord aBorderWidth)
   {
-    mBorderImageWidth.Side(aSide) =
+    mBorderImageWidth.side(aSide) =
       NS_ROUND_BORDER_TO_PIXELS(aBorderWidth, mTwipsPerPixel);
   }
 
@@ -834,7 +834,7 @@ struct nsStyleBorder {
   // value is rounded to the nearest device pixel by NS_ROUND_BORDER_TO_PIXELS.
   nscoord GetActualBorderWidth(mozilla::css::Side aSide) const
   {
-    return GetActualBorder().Side(aSide);
+    return GetActualBorder().side(aSide);
   }
 
   PRUint8 GetBorderStyle(mozilla::css::Side aSide) const
@@ -848,8 +848,8 @@ struct nsStyleBorder {
     NS_ASSERTION(aSide <= NS_SIDE_LEFT, "bad side");
     mBorderStyle[aSide] &= ~BORDER_STYLE_MASK;
     mBorderStyle[aSide] |= (aStyle & BORDER_STYLE_MASK);
-    mComputedBorder.Side(aSide) =
-      (HasVisibleStyle(aSide) ? mBorder.Side(aSide) : 0);
+    mComputedBorder.side(aSide) =
+      (HasVisibleStyle(aSide) ? mBorder.side(aSide) : 0);
   }
 
   // Defined in nsStyleStructInlines.h
@@ -1309,8 +1309,6 @@ struct nsStyleVisibility {
 };
 
 struct nsTimingFunction {
-  enum Type { Function, StepStart, StepEnd };
-
   explicit nsTimingFunction(PRInt32 aTimingFunctionType
                               = NS_STYLE_TRANSITION_TIMING_FUNCTION_EASE)
   {
@@ -1318,60 +1316,26 @@ struct nsTimingFunction {
   }
 
   nsTimingFunction(float x1, float y1, float x2, float y2)
-    : mType(Function)
+    : mX1(x1)
+    , mY1(y1)
+    , mX2(x2)
+    , mY2(y2)
+  {}
+
+  float mX1;
+  float mY1;
+  float mX2;
+  float mY2;
+
+  PRBool operator==(const nsTimingFunction& aOther) const
   {
-    mFunc.mX1 = x1;
-    mFunc.mY1 = y1;
-    mFunc.mX2 = x2;
-    mFunc.mY2 = y2;
+    return !(*this != aOther);
   }
 
-  nsTimingFunction(Type aType, PRUint32 aSteps)
-    : mType(aType)
+  PRBool operator!=(const nsTimingFunction& aOther) const
   {
-    NS_ABORT_IF_FALSE(mType == StepStart || mType == StepEnd, "wrong type");
-    mSteps = aSteps;
-  }
-
-  nsTimingFunction(const nsTimingFunction& aOther)
-    : mType(aOther.mType)
-  {
-    if (mType == Function) {
-      mFunc.mX1 = aOther.mFunc.mX1;
-      mFunc.mY1 = aOther.mFunc.mY1;
-      mFunc.mX2 = aOther.mFunc.mX2;
-      mFunc.mY2 = aOther.mFunc.mY2;
-    } else {
-      mSteps = aOther.mSteps;
-    }
-  }
-
-  Type mType;
-  union {
-    struct {
-      float mX1;
-      float mY1;
-      float mX2;
-      float mY2;
-    } mFunc;
-    PRUint32 mSteps;
-  };
-
-  bool operator==(const nsTimingFunction& aOther) const
-  {
-    if (mType != aOther.mType) {
-      return false;
-    }
-    if (mType == Function) {
-      return mFunc.mX1 == aOther.mFunc.mX1 && mFunc.mY1 == aOther.mFunc.mY1 &&
-             mFunc.mX2 == aOther.mFunc.mX2 && mFunc.mY2 == aOther.mFunc.mY2;
-    }
-    return mSteps == aOther.mSteps;
-  }
-
-  bool operator!=(const nsTimingFunction& aOther) const
-  {
-    return !(*this == aOther);
+    return mX1 != aOther.mX1 || mY1 != aOther.mY1 ||
+           mX2 != aOther.mX2 || mY2 != aOther.mY2;
   }
 
 private:
@@ -1386,6 +1350,7 @@ struct nsTransition {
 
   // Delay and Duration are in milliseconds
 
+  nsTimingFunction& GetTimingFunction() { return mTimingFunction; }
   const nsTimingFunction& GetTimingFunction() const { return mTimingFunction; }
   float GetDelay() const { return mDelay; }
   float GetDuration() const { return mDuration; }
@@ -1416,47 +1381,6 @@ private:
   nsCOMPtr<nsIAtom> mUnknownProperty; // used when mProperty is
                                       // eCSSProperty_UNKNOWN
 };
-
-#ifdef MOZ_CSS_ANIMATIONS
-struct nsAnimation {
-  nsAnimation() { /* leaves uninitialized; see also SetInitialValues */ }
-  explicit nsAnimation(const nsAnimation& aCopy);
-
-  void SetInitialValues();
-
-  // Delay and Duration are in milliseconds
-
-  const nsTimingFunction& GetTimingFunction() const { return mTimingFunction; }
-  float GetDelay() const { return mDelay; }
-  float GetDuration() const { return mDuration; }
-  const nsString& GetName() const { return mName; }
-  PRUint8 GetDirection() const { return mDirection; }
-  PRUint8 GetFillMode() const { return mFillMode; }
-  PRUint8 GetPlayState() const { return mPlayState; }
-  float GetIterationCount() const { return mIterationCount; }
-
-  void SetTimingFunction(const nsTimingFunction& aTimingFunction)
-    { mTimingFunction = aTimingFunction; }
-  void SetDelay(float aDelay) { mDelay = aDelay; }
-  void SetDuration(float aDuration) { mDuration = aDuration; }
-  void SetName(const nsSubstring& aName) { mName = aName; }
-  void SetDirection(PRUint8 aDirection) { mDirection = aDirection; }
-  void SetFillMode(PRUint8 aFillMode) { mFillMode = aFillMode; }
-  void SetPlayState(PRUint8 aPlayState) { mPlayState = aPlayState; }
-  void SetIterationCount(float aIterationCount)
-    { mIterationCount = aIterationCount; }
-
-private:
-  nsTimingFunction mTimingFunction;
-  float mDuration;
-  float mDelay;
-  nsString mName; // empty string for 'none'
-  PRUint8 mDirection;
-  PRUint8 mFillMode;
-  PRUint8 mPlayState;
-  float mIterationCount; // NS_IEEEPositiveInfinity() means infinite
-};
-#endif
 
 struct nsStyleDisplay {
   nsStyleDisplay();
@@ -1512,20 +1436,6 @@ struct nsStyleDisplay {
            mTransitionDurationCount,
            mTransitionDelayCount,
            mTransitionPropertyCount;
-
-#ifdef MOZ_CSS_ANIMATIONS
-  nsAutoTArray<nsAnimation, 1> mAnimations; // [reset]
-  // The number of elements in mAnimations that are not from repeating
-  // a list due to another property being longer.
-  PRUint32 mAnimationTimingFunctionCount,
-           mAnimationDurationCount,
-           mAnimationDelayCount,
-           mAnimationNameCount,
-           mAnimationDirectionCount,
-           mAnimationFillModeCount,
-           mAnimationPlayStateCount,
-           mAnimationIterationCountCount;
-#endif
 
   PRBool IsBlockInside() const {
     return NS_STYLE_DISPLAY_BLOCK == mDisplay ||

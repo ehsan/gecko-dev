@@ -85,8 +85,8 @@ public:
   NS_IMETHOD Init(nsIContent* aContent,
                   nsIFrame* aParent,
                   nsIFrame* aPrevInFlow);
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
   NS_IMETHOD Reflow(nsPresContext* aPresContext,
                     nsHTMLReflowMetrics& aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
@@ -139,7 +139,11 @@ public:
    */
   void StopPluginInternal(PRBool aDelayedStop);
 
-  NS_IMETHOD GetCursor(const nsPoint& aPoint, nsIFrame::Cursor& aCursor);
+  /* fail on any requests to get a cursor from us because plugins set their own! see bug 118877 */
+  NS_IMETHOD GetCursor(const nsPoint& aPoint, nsIFrame::Cursor& aCursor) 
+  {
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
 
   // Compute the desired position of the plugin's widget, on the assumption
   // that it is not visible (clipped out or covered by opaque content).
@@ -248,12 +252,12 @@ protected:
   nsIntPoint GetWindowOriginInPixels(PRBool aWindowless);
 
   static void PaintPrintPlugin(nsIFrame* aFrame,
-                               nsRenderingContext* aRenderingContext,
+                               nsIRenderingContext* aRenderingContext,
                                const nsRect& aDirtyRect, nsPoint aPt);
-  void PrintPlugin(nsRenderingContext& aRenderingContext,
+  void PrintPlugin(nsIRenderingContext& aRenderingContext,
                    const nsRect& aDirtyRect);
   void PaintPlugin(nsDisplayListBuilder* aBuilder,
-                   nsRenderingContext& aRenderingContext,
+                   nsIRenderingContext& aRenderingContext,
                    const nsRect& aDirtyRect, const nsRect& aPluginRect);
 
   /**
@@ -336,7 +340,7 @@ public:
   virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
                                    PRBool* aForceTransparentSurface = nsnull);
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx);
+                     nsIRenderingContext* aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
                                    const nsRect& aAllowVisibleRegionExpansion,

@@ -1243,9 +1243,8 @@ gfxFont::Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
          * in more than GLYPH_BUFFER_SIZE glyphs.  Do this before we
          * flush, since that'll blow away the num_glyphs.
          */
-        gfxFontTestStore::CurrentStore()->AddItem(GetName(),
-                                                  glyphs.mGlyphBuffer,
-                                                  glyphs.mNumGlyphs);
+        gfxFontTestStore::CurrentStore()->AddItem(GetUniqueName(),
+                                                  glyphs.mGlyphBuffer, glyphs.mNumGlyphs);
     }
 
     // draw any remaining glyphs
@@ -1360,9 +1359,9 @@ gfxFont::Measure(gfxTextRun *aTextRun,
                             advance, metrics.mBoundingBox.Height());
                     }
                     if (isRTL) {
-                        glyphRect -= gfxPoint(advance, 0);
+                        glyphRect.pos.x -= advance;
                     }
-                    glyphRect += gfxPoint(x, 0);
+                    glyphRect.pos.x += x;
                     metrics.mBoundingBox = metrics.mBoundingBox.Union(glyphRect);
                 }
             }
@@ -1389,9 +1388,9 @@ gfxFont::Measure(gfxTextRun *aTextRun,
                             advance, metrics.mAscent + metrics.mDescent);
                     }
                     if (isRTL) {
-                        glyphRect -= gfxPoint(advance, 0);
+                        glyphRect.pos.x -= advance;
                     }
-                    glyphRect += gfxPoint(x, 0);
+                    glyphRect.pos.x += x;
                     metrics.mBoundingBox = metrics.mBoundingBox.Union(glyphRect);
                     x += direction*advance;
                 }
@@ -1414,7 +1413,7 @@ gfxFont::Measure(gfxTextRun *aTextRun,
         metrics.mBoundingBox = metrics.mBoundingBox.Union(fontBox);
     }
     if (isRTL) {
-        metrics.mBoundingBox -= gfxPoint(x, 0);
+        metrics.mBoundingBox.pos.x -= x;
     }
 
     metrics.mAdvanceWidth = x*direction;
@@ -1527,7 +1526,8 @@ gfxFont::InitTextRun(gfxContext *aContext,
     PRBool ok = PR_FALSE;
 
     if (mHarfBuzzShaper && !aPreferPlatformShaping) {
-        if (gfxPlatform::GetPlatform()->UseHarfBuzzForScript(aRunScript)) {
+        if (gfxPlatform::GetPlatform()->UseHarfBuzzLevel() >=
+            gfxUnicodeProperties::ScriptShapingLevel(aRunScript)) {
             ok = mHarfBuzzShaper->InitTextRun(aContext, aTextRun, aString,
                                               aRunStart, aRunLength,
                                               aRunScript);
@@ -1943,10 +1943,10 @@ gfxGlyphExtents::SetTightGlyphExtents(PRUint32 aGlyphID, const gfxRect& aExtents
     HashEntry *entry = mTightGlyphExtents.PutEntry(aGlyphID);
     if (!entry)
         return;
-    entry->x = aExtentsAppUnits.X();
-    entry->y = aExtentsAppUnits.Y();
-    entry->width = aExtentsAppUnits.Width();
-    entry->height = aExtentsAppUnits.Height();
+    entry->x = aExtentsAppUnits.pos.x;
+    entry->y = aExtentsAppUnits.pos.y;
+    entry->width = aExtentsAppUnits.size.width;
+    entry->height = aExtentsAppUnits.size.height;
 }
 
 gfxFontGroup::gfxFontGroup(const nsAString& aFamilies, const gfxFontStyle *aStyle, gfxUserFontSet *aUserFontSet)
@@ -3624,12 +3624,12 @@ gfxTextRun::AccumulatePartialLigatureMetrics(gfxFont *aFont,
     // Where we are going to start "drawing" relative to our left baseline origin
     gfxFloat origin = IsRightToLeft() ? metrics.mAdvanceWidth - data.mPartAdvance : 0;
     ClipPartialLigature(this, &bboxLeft, &bboxRight, origin, &data);
-    metrics.mBoundingBox.x = bboxLeft;
-    metrics.mBoundingBox.width = bboxRight - bboxLeft;
+    metrics.mBoundingBox.pos.x = bboxLeft;
+    metrics.mBoundingBox.size.width = bboxRight - bboxLeft;
 
     // mBoundingBox is now relative to the left baseline origin for the entire
     // ligature. Shift it left.
-    metrics.mBoundingBox.x -=
+    metrics.mBoundingBox.pos.x -=
         IsRightToLeft() ? metrics.mAdvanceWidth - (data.mPartAdvance + data.mPartWidth)
             : data.mPartAdvance;    
     metrics.mAdvanceWidth = data.mPartWidth;

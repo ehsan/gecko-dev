@@ -59,7 +59,6 @@
 #include "nsIMenuFrame.h"
 #include "prlink.h"
 #include "nsIDOMHTMLInputElement.h"
-#include "nsRenderingContext.h"
 #include "nsWidgetAtoms.h"
 #include "mozilla/Services.h"
 
@@ -757,7 +756,7 @@ nsNativeThemeGTK::GetExtraSizeForWidget(nsIFrame* aFrame, PRUint8 aWidgetType,
 }
 
 NS_IMETHODIMP
-nsNativeThemeGTK::DrawWidgetBackground(nsRenderingContext* aContext,
+nsNativeThemeGTK::DrawWidgetBackground(nsIRenderingContext* aContext,
                                        nsIFrame* aFrame,
                                        PRUint8 aWidgetType,
                                        const nsRect& aRect,
@@ -788,7 +787,7 @@ nsNativeThemeGTK::DrawWidgetBackground(nsRenderingContext* aContext,
   }
 
   // Translate the dirty rect so that it is wrt the widget top-left.
-  dirtyRect.MoveBy(-rect.TopLeft());
+  dirtyRect.MoveBy(-rect.pos);
   // Round out the dirty rect to gdk pixels to ensure that gtk draws
   // enough pixels for interpolation to device pixels.
   dirtyRect.RoundOut();
@@ -837,7 +836,7 @@ nsNativeThemeGTK::DrawWidgetBackground(nsRenderingContext* aContext,
     // Rects are in device coords.
     ctx->IdentityMatrix(); 
   }
-  ctx->Translate(rect.TopLeft() + gfxPoint(drawingRect.x, drawingRect.y));
+  ctx->Translate(rect.pos + gfxPoint(drawingRect.x, drawingRect.y));
 
   NS_ASSERTION(!IsWidgetTypeDisabled(mDisabledWidgetTypes, aWidgetType),
                "Trying to render an unsafe widget!");
@@ -980,7 +979,7 @@ nsNativeThemeGTK::GetWidgetOverflow(nsIDeviceContext* aContext,
 }
 
 NS_IMETHODIMP
-nsNativeThemeGTK::GetMinimumWidgetSize(nsRenderingContext* aContext,
+nsNativeThemeGTK::GetMinimumWidgetSize(nsIRenderingContext* aContext,
                                        nsIFrame* aFrame, PRUint8 aWidgetType,
                                        nsIntSize* aResult, PRBool* aIsOverridable)
 {
@@ -1136,9 +1135,12 @@ nsNativeThemeGTK::GetMinimumWidgetSize(nsRenderingContext* aContext,
   case NS_THEME_TREEVIEW_HEADER_CELL:
     {
       // Just include our border, and let the box code augment the size.
+
+      nsCOMPtr<nsIDeviceContext> dc;
+      aContext->GetDeviceContext(*getter_AddRefs(dc));
+
       nsIntMargin border;
-      nsNativeThemeGTK::GetWidgetBorder(aContext->DeviceContext(),
-                                        aFrame, aWidgetType, &border);
+      nsNativeThemeGTK::GetWidgetBorder(dc, aFrame, aWidgetType, &border);
       aResult->width = border.left + border.right;
       aResult->height = border.top + border.bottom;
     }

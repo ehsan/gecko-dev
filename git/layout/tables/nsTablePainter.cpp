@@ -161,7 +161,7 @@ TableBackgroundPainter::TableBackgroundData::Destroy(nsPresContext* aPresContext
 void
 TableBackgroundPainter::TableBackgroundData::Clear()
 {
-  mRect.SetEmpty();
+  mRect.Empty();
   mFrame = nsnull;
   mBorder = nsnull;
   mVisible = PR_FALSE;
@@ -221,7 +221,7 @@ TableBackgroundPainter::TableBackgroundData::SetBCBorder(nsMargin& aBorder,
   }
 
   NS_FOR_CSS_SIDES(side) {
-    mSynthBorder->SetBorderWidth(side, aBorder.Side(side));
+    mSynthBorder->SetBorderWidth(side, aBorder.side(side));
   }
   
   mBorder = mSynthBorder;
@@ -231,7 +231,7 @@ TableBackgroundPainter::TableBackgroundData::SetBCBorder(nsMargin& aBorder,
 TableBackgroundPainter::TableBackgroundPainter(nsTableFrame*        aTableFrame,
                                                Origin               aOrigin,
                                                nsPresContext*       aPresContext,
-                                               nsRenderingContext& aRenderingContext,
+                                               nsIRenderingContext& aRenderingContext,
                                                const nsRect&        aDirtyRect,
                                                const nsPoint&       aRenderPt,
                                                PRUint32             aBGPaintFlags)

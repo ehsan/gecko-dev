@@ -37,6 +37,7 @@
 
 #include "nsGfxButtonControlFrame.h"
 #include "nsWidgetsCID.h"
+#include "nsIFontMetrics.h"
 #include "nsFormControlFrame.h"
 #include "nsIFormControl.h"
 #include "nsINameSpaceManager.h"

@@ -342,8 +342,8 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsEventListenerManager)
    NS_INTERFACE_MAP_ENTRY(nsIDOM3EventTarget)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsEventListenerManager)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsEventListenerManager)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsEventListenerManager, nsIEventListenerManager)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsEventListenerManager, nsIEventListenerManager)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsEventListenerManager)
   PRUint32 count = tmp->mListeners.Length();
@@ -697,6 +697,8 @@ nsEventListenerManager::AddScriptEventListener(nsISupports *aObject,
     return NS_ERROR_FAILURE;
   }
 
+  nsresult rv;
+
   nsCOMPtr<nsINode> node(do_QueryInterface(aObject));
 
   nsCOMPtr<nsIDocument> doc;
@@ -732,7 +734,6 @@ nsEventListenerManager::AddScriptEventListener(nsISupports *aObject,
     return NS_OK;
   }
 
-  nsresult rv = NS_OK;
   // return early preventing the event listener from being added
   // 'doc' is fetched above
   if (doc) {

@@ -66,9 +66,6 @@
 #include "nsStyleSet.h"
 #include "nsCSSStyleSheet.h" // XXX for UA sheet loading hack, can this go away please?
 #include "nsIDOMCSSStyleSheet.h"  // for Pref-related rule management (bugs 22963,20760,31816)
-#ifdef MOZ_CSS_ANIMATIONS
-#include "nsAnimationManager.h"
-#endif
 #include "nsINameSpaceManager.h"  // for Pref-related rule management (bugs 22963,20760,31816)
 #include "nsIServiceManager.h"
 #include "nsFrame.h"
@@ -139,10 +136,10 @@
 #include "nsDisplayList.h"
 #include "nsIRegion.h"
 #include "nsRegion.h"
-#include "nsRenderingContext.h"
 
 #ifdef MOZ_REFLOW_PERF
-#include "nsFontMetrics.h"
+#include "nsIRenderingContext.h"
+#include "nsIFontMetrics.h"
 #endif
 
 #include "nsIReflowCallback.h"
@@ -407,9 +404,7 @@ public:
   void Add(const char * aName, nsIFrame * aFrame);
   ReflowCounter * LookUp(const char * aName);
 
-  void PaintCount(const char *aName, nsRenderingContext* aRenderingContext,
-                  nsPresContext *aPresContext, nsIFrame *aFrame,
-                  const nsPoint &aOffset, PRUint32 aColor);
+  void PaintCount(const char * aName, nsIRenderingContext* aRenderingContext, nsPresContext* aPresContext, nsIFrame * aFrame, PRUint32 aColor);
 
   FILE * GetOutFile() { return mFD; }
 
@@ -775,7 +770,7 @@ public:
   virtual NS_HIDDEN_(void) CancelReflowCallback(nsIReflowCallback* aCallback);
 
   virtual NS_HIDDEN_(void) ClearFrameRefs(nsIFrame* aFrame);
-  virtual NS_HIDDEN_(already_AddRefed<nsRenderingContext>) GetReferenceRenderingContext();
+  virtual NS_HIDDEN_(already_AddRefed<nsIRenderingContext>) GetReferenceRenderingContext();
   virtual NS_HIDDEN_(nsresult) GoToAnchor(const nsAString& aAnchorName, PRBool aScroll);
   virtual NS_HIDDEN_(nsresult) ScrollToAnchor();
 
@@ -848,7 +843,8 @@ public:
 
   //nsIViewObserver interface
 
-  NS_IMETHOD Paint(nsIView* aViewToPaint,
+  NS_IMETHOD Paint(nsIView* aDisplayRoot,
+                   nsIView* aViewToPaint,
                    nsIWidget* aWidget,
                    const nsRegion& aDirtyRegion,
                    const nsIntRegion& aIntDirtyRegion,
@@ -932,10 +928,9 @@ public:
   virtual NS_HIDDEN_(void) DumpReflows();
   virtual NS_HIDDEN_(void) CountReflows(const char * aName, nsIFrame * aFrame);
   virtual NS_HIDDEN_(void) PaintCount(const char * aName,
-                                      nsRenderingContext* aRenderingContext,
+                                      nsIRenderingContext* aRenderingContext,
                                       nsPresContext* aPresContext,
                                       nsIFrame * aFrame,
-                                      const nsPoint& aOffset,
                                       PRUint32 aColor);
   virtual NS_HIDDEN_(void) SetPaintFrameCount(PRBool aOn);
   virtual PRBool IsPaintingFrameCounts();
@@ -1411,6 +1406,15 @@ public:
     return PL_DHASH_NEXT;
   }
 
+  static PLDHashOperator LiveShellBidiSizeEnumerator(PresShellPtrKey *aEntry,
+                                                     void *userArg)
+  {
+    PresShell *aShell = static_cast<PresShell*>(aEntry->GetKey());
+    PRUint32 *val = (PRUint32*)userArg;
+    *val += aShell->mPresContext->GetBidiMemoryUsed();
+    return PL_DHASH_NEXT;
+  }
+
   static PRUint32
   EstimateShellsMemory(nsTHashtable<PresShellPtrKey>::Enumerator aEnumerator)
   {
@@ -1422,6 +1426,10 @@ public:
                                   
   static PRInt64 SizeOfLayoutMemoryReporter(void *) {
     return EstimateShellsMemory(LiveShellSizeEnumerator);
+  }
+
+  static PRInt64 SizeOfBidiMemoryReporter(void *) {
+    return EstimateShellsMemory(LiveShellBidiSizeEnumerator);
   }
 
 protected:
@@ -1639,6 +1647,12 @@ NS_MEMORY_REPORTER_IMPLEMENT(LayoutPresShell,
                              PresShell::SizeOfLayoutMemoryReporter,
                              nsnull)
 
+NS_MEMORY_REPORTER_IMPLEMENT(LayoutBidi,
+                             "layout/bidi",
+                             "Memory in use by layout Bidi processor.",
+                             PresShell::SizeOfBidiMemoryReporter,
+                             nsnull)
+
 PresShell::PresShell()
 {
   mSelection = nsnull;
@@ -1666,6 +1680,7 @@ PresShell::PresShell()
   static bool registeredReporter = false;
   if (!registeredReporter) {
     NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(LayoutPresShell));
+    NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(LayoutBidi));
     registeredReporter = true;
   }
 
@@ -3754,13 +3769,13 @@ PresShell::ClearFrameRefs(nsIFrame* aFrame)
   }
 }
 
-already_AddRefed<nsRenderingContext>
+already_AddRefed<nsIRenderingContext>
 PresShell::GetReferenceRenderingContext()
 {
   NS_TIME_FUNCTION_MIN(1.0);
 
   nsIDeviceContext* devCtx = mPresContext->DeviceContext();
-  nsRefPtr<nsRenderingContext> rc;
+  nsRefPtr<nsIRenderingContext> rc;
   if (mPresContext->IsScreen()) {
     devCtx->CreateRenderingContextInstance(*getter_AddRefs(rc));
     if (rc) {
@@ -4026,7 +4041,7 @@ AccumulateFrameBounds(nsIFrame* aContainerFrame,
     // We can't use nsRect::UnionRect since it drops empty rects on
     // the floor, and we need to include them.  (Thus we need
     // aHaveRect to know when to drop the initial value on the floor.)
-    aRect.UnionRectEdges(aRect, frameBounds);
+    aRect.UnionRectIncludeEmpty(aRect, frameBounds);
   } else {
     aHaveRect = PR_TRUE;
     aRect = frameBounds;
@@ -4775,14 +4790,6 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
       mFrameConstructor->ProcessPendingRestyles();
     }
 
-#ifdef MOZ_CSS_ANIMATIONS
-    // Dispatch any 'animationstart' events those (or earlier) restyles
-    // queued up.
-    if (!mIsDestroying) {
-      mPresContext->AnimationManager()->DispatchEvents();
-    }
-#endif
-
     // Process whatever XBL constructors those restyles queued up.  This
     // ensures that onload doesn't fire too early and that we won't do extra
     // reflows after those constructors run.
@@ -4790,13 +4797,12 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
       mDocument->BindingManager()->ProcessAttachedQueue();
     }
 
-    // Now those constructors or events might have posted restyle
-    // events.  At the same time, we still need up-to-date style data.
-    // In particular, reflow depends on style being completely up to
-    // date.  If it's not, then style context reparenting, which can
-    // happen during reflow, might suddenly pick up the new rules and
-    // we'll end up with frames whose style doesn't match the frame
-    // type.
+    // Now those constructors might have posted restyle events.  At the same
+    // time, we still need up-to-date style data.  In particular, reflow
+    // depends on style being completely up to date.  If it's not, then style
+    // context reparenting, which can happen during reflow, might suddenly pick
+    // up the new rules and we'll end up with frames whose style doesn't match
+    // the frame type.
     if (!mIsDestroying) {
       nsAutoScriptBlocker scriptBlocker;
       mFrameConstructor->CreateNeededFrames();
@@ -5100,9 +5106,6 @@ nsIPresShell::ReconstructStyleDataInternal()
 
   if (mPresContext) {
     mPresContext->RebuildUserFontSet();
-#ifdef MOZ_CSS_ANIMATIONS
-    mPresContext->AnimationManager()->KeyframesListIsDirty();
-#endif
   }
 
   Element* root = mDocument->GetRootElement();
@@ -5284,7 +5287,7 @@ PresShell::RenderDocument(const nsRect& aRect, PRUint32 aFlags,
 
   AutoSaveRestoreRenderingState _(this);
 
-  nsRefPtr<nsRenderingContext> rc;
+  nsCOMPtr<nsIRenderingContext> rc;
   devCtx->CreateRenderingContextInstance(*getter_AddRefs(rc));
   rc->Init(devCtx, aThebesContext);
 
@@ -5609,7 +5612,7 @@ PresShell::PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
   context.Rectangle(gfxRect(0, 0, pixelArea.width, pixelArea.height));
   context.Fill();
 
-  nsRefPtr<nsRenderingContext> rc;
+  nsCOMPtr<nsIRenderingContext> rc;
   deviceContext->CreateRenderingContextInstance(*getter_AddRefs(rc));
   rc->Init(deviceContext, surface);
 
@@ -5618,14 +5621,14 @@ PresShell::PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
     nsIntRegion region =
       aRegion->ToAppUnits(nsPresContext::AppUnitsPerCSSPixel())
         .ToOutsidePixels(pc->AppUnitsPerDevPixel());
-    rc->SetClip(region);
+    rc->SetClipRegion(region, nsClipCombine_kReplace);
   }
 
   if (resize)
     rc->Scale(scale, scale);
 
   // translate so that points are relative to the surface area
-  rc->Translate(-aArea.TopLeft());
+  rc->Translate(-aArea.x, -aArea.y);
 
   // temporarily hide the selection so that text is drawn normally. If a
   // selection is being rendered, use that, otherwise use the presshell's
@@ -5647,8 +5650,8 @@ PresShell::PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
     RangePaintInfo* rangeInfo = (*aItems)[i];
     // the display lists paint relative to the offset from the reference
     // frame, so translate the rendering context
-    nsRenderingContext::AutoPushTranslation
-      translate(rc, rangeInfo->mRootOffset);
+    nsIRenderingContext::AutoPushTranslation
+      translate(rc, rangeInfo->mRootOffset.x, rangeInfo->mRootOffset.y);
 
     aArea.MoveBy(-rangeInfo->mRootOffset.x, -rangeInfo->mRootOffset.y);
     nsRegion visible(aArea);
@@ -5874,6 +5877,9 @@ nscolor PresShell::ComputeBackstopColor(nsIView* aDisplayRoot)
 }
 
 struct PaintParams {
+  nsIFrame* mFrame;
+  nsPoint mOffsetToWidget;
+  const nsRegion* mDirtyRegion;
   nscolor mBackgroundColor;
 };
 
@@ -5951,16 +5957,33 @@ static void DrawThebesLayer(ThebesLayer* aLayer,
                             void* aCallbackData)
 {
   PaintParams* params = static_cast<PaintParams*>(aCallbackData);
-  aContext->NewPath();
-  aContext->SetColor(gfxRGBA(params->mBackgroundColor));
-  nsIntRect dirtyRect = aRegionToDraw.GetBounds();
-  aContext->Rectangle(
-    gfxRect(dirtyRect.x, dirtyRect.y, dirtyRect.width, dirtyRect.height));
-  aContext->Fill();
+  nsIFrame* frame = params->mFrame;
+  if (frame) {
+    // We're drawing into a child window.
+    nsIDeviceContext* devCtx = frame->PresContext()->DeviceContext();
+    nsCOMPtr<nsIRenderingContext> rc;
+    nsresult rv = devCtx->CreateRenderingContextInstance(*getter_AddRefs(rc));
+    if (NS_SUCCEEDED(rv)) {
+      rc->Init(devCtx, aContext);
+      nsIRenderingContext::AutoPushTranslation
+        push(rc, params->mOffsetToWidget.x, params->mOffsetToWidget.y);
+      nsLayoutUtils::PaintFrame(rc, frame, *params->mDirtyRegion,
+                                params->mBackgroundColor,
+                                nsLayoutUtils::PAINT_WIDGET_LAYERS);
+    }
+  } else {
+    aContext->NewPath();
+    aContext->SetColor(gfxRGBA(params->mBackgroundColor));
+    nsIntRect dirtyRect = aRegionToDraw.GetBounds();
+    aContext->Rectangle(
+      gfxRect(dirtyRect.x, dirtyRect.y, dirtyRect.width, dirtyRect.height));
+    aContext->Fill();
+  }
 }
 
 NS_IMETHODIMP
-PresShell::Paint(nsIView*           aViewToPaint,
+PresShell::Paint(nsIView*           aDisplayRoot,
+                 nsIView*           aViewToPaint,
                  nsIWidget*         aWidgetToPaint,
                  const nsRegion&    aDirtyRegion,
                  const nsIntRegion& aIntDirtyRegion,
@@ -5979,6 +6002,7 @@ PresShell::Paint(nsIView*           aViewToPaint,
 #endif
 
   NS_ASSERTION(!mIsDestroying, "painting a destroyed PresShell");
+  NS_ASSERTION(aDisplayRoot, "null view");
   NS_ASSERTION(aViewToPaint, "null view");
   NS_ASSERTION(aWidgetToPaint, "Can't paint without a widget");
 
@@ -5986,7 +6010,7 @@ PresShell::Paint(nsIView*           aViewToPaint,
   AUTO_LAYOUT_PHASE_ENTRY_POINT(presContext, Paint);
 
   nsIFrame* frame = aPaintDefaultBackground
-      ? nsnull : static_cast<nsIFrame*>(aViewToPaint->GetClientData());
+      ? nsnull : static_cast<nsIFrame*>(aDisplayRoot->GetClientData());
 
   bool isRetainingManager;
   LayerManager* layerManager =
@@ -6017,9 +6041,9 @@ PresShell::Paint(nsIView*           aViewToPaint,
     frame->ClearPresShellsFromLastPaint();
   }
 
-  nscolor bgcolor = ComputeBackstopColor(aViewToPaint);
+  nscolor bgcolor = ComputeBackstopColor(aDisplayRoot);
 
-  if (frame) {
+  if (frame && aViewToPaint == aDisplayRoot) {
     // Defer invalidates that are triggered during painting, and discard
     // invalidates of areas that are already being repainted.
     // The layer system can trigger invalidates during painting
@@ -6039,15 +6063,30 @@ PresShell::Paint(nsIView*           aViewToPaint,
     return NS_OK;
   }
 
+  if (frame) {
+    // Defer invalidates that are triggered during painting, and discard
+    // invalidates of areas that are already being repainted.
+    frame->BeginDeferringInvalidatesForDisplayRoot(aDirtyRegion);
+  }
+
   nsRefPtr<ThebesLayer> root = layerManager->CreateThebesLayer();
   if (root) {
     root->SetVisibleRegion(aIntDirtyRegion);
     layerManager->SetRoot(root);
   }
-  bgcolor = NS_ComposeColors(bgcolor, mCanvasBackgroundColor);
-  PaintParams params = { bgcolor };
+  if (!frame) {
+    bgcolor = NS_ComposeColors(bgcolor, mCanvasBackgroundColor);
+  }
+  PaintParams params =
+    { frame,
+      aDisplayRoot->GetOffsetToWidget(aWidgetToPaint),
+      &aDirtyRegion,
+      bgcolor };
   layerManager->EndTransaction(DrawThebesLayer, &params);
 
+  if (frame) {
+    frame->EndDeferringInvalidatesForDisplayRoot();
+  }
   presContext->NotifyDidPaintForSubtree();
   return NS_OK;
 }
@@ -7641,7 +7680,7 @@ PresShell::DoReflow(nsIFrame* target, PRBool aInterruptible)
 
   nsIFrame* rootFrame = FrameManager()->GetRootFrame();
 
-  nsRefPtr<nsRenderingContext> rcx = GetReferenceRenderingContext();
+  nsCOMPtr<nsIRenderingContext> rcx = GetReferenceRenderingContext();
   if (!rcx) {
     NS_NOTREACHED("CreateRenderingContext failure");
     return PR_FALSE;
@@ -7723,13 +7762,13 @@ PresShell::DoReflow(nsIFrame* target, PRBool aInterruptible)
                 desiredSize.height == size.height),
                "non-root frame's desired size changed during an "
                "incremental reflow");
-  NS_ASSERTION(desiredSize.VisualOverflow().IsEqualInterior(
+  NS_ASSERTION(desiredSize.VisualOverflow() ==
                  nsRect(nsPoint(0, 0),
-                        nsSize(desiredSize.width, desiredSize.height))),
+                        nsSize(desiredSize.width, desiredSize.height)),
                "reflow roots must not have visible overflow");
-  NS_ASSERTION(desiredSize.ScrollableOverflow().IsEqualEdges(
+  NS_ASSERTION(desiredSize.ScrollableOverflow() ==
                  nsRect(nsPoint(0, 0),
-                        nsSize(desiredSize.width, desiredSize.height))),
+                        nsSize(desiredSize.width, desiredSize.height)),
                "reflow roots must not have scrollable overflow");
   NS_ASSERTION(status == NS_FRAME_COMPLETE,
                "reflow roots should never split");
@@ -8193,7 +8232,7 @@ CompareTrees(nsPresContext* aFirstPresContext, nsIFrame* aFirstFrame,
       }
       else if (nsnull != k1) {
         // Verify that the frames are the same size
-        if (!k1->GetRect().IsEqualInterior(k2->GetRect())) {
+        if (k1->GetRect() != k2->GetRect()) {
           ok = PR_FALSE;
           LogVerifyMessage(k1, k2, "(frame rects)", k1->GetRect(), k2->GetRect());
         }
@@ -8210,7 +8249,7 @@ CompareTrees(nsPresContext* aFirstPresContext, nsIFrame* aFirstFrame,
           LogVerifyMessage(k1, k2, "child views are not matched\n");
         }
         else if (nsnull != v1) {
-          if (!v1->GetBounds().IsEqualInterior(v2->GetBounds())) {
+          if (v1->GetBounds() != v2->GetBounds()) {
             LogVerifyMessage(k1, k2, "(view rects)", v1->GetBounds(), v2->GetBounds());
           }
 
@@ -8224,7 +8263,7 @@ CompareTrees(nsPresContext* aFirstPresContext, nsIFrame* aFirstFrame,
           else if (nsnull != w1) {
             w1->GetBounds(r1);
             w2->GetBounds(r2);
-            if (!r1.IsEqualEdges(r2)) {
+            if (r1 != r2) {
               LogVerifyMessage(k1, k2, "(widget rects)", r1, r2);
             }
           }
@@ -8593,15 +8632,13 @@ PresShell::CountReflows(const char * aName, nsIFrame * aFrame)
 //-------------------------------------------------------------
 void
 PresShell::PaintCount(const char * aName,
-                      nsRenderingContext* aRenderingContext,
+                      nsIRenderingContext* aRenderingContext,
                       nsPresContext* aPresContext,
                       nsIFrame * aFrame,
-                      const nsPoint& aOffset,
                       PRUint32 aColor)
 {
   if (mReflowCountMgr) {
-    mReflowCountMgr->PaintCount(aName, aRenderingContext, aPresContext,
-                                aFrame, aOffset, aColor);
+    mReflowCountMgr->PaintCount(aName, aRenderingContext, aPresContext, aFrame, aColor);
   }
 }
 
@@ -8784,35 +8821,34 @@ void ReflowCountMgr::Add(const char * aName, nsIFrame * aFrame)
 }
 
 //------------------------------------------------------------------
-void ReflowCountMgr::PaintCount(const char*     aName,
-                                nsRenderingContext* aRenderingContext,
-                                nsPresContext*  aPresContext,
-                                nsIFrame*       aFrame,
-                                const nsPoint&  aOffset,
+void ReflowCountMgr::PaintCount(const char *    aName, 
+                                nsIRenderingContext* aRenderingContext, 
+                                nsPresContext* aPresContext, 
+                                nsIFrame*       aFrame, 
                                 PRUint32        aColor)
 {
-  if (mPaintFrameByFrameCounts &&
-      nsnull != mIndiFrameCounts &&
+  if (mPaintFrameByFrameCounts && 
+      nsnull != mIndiFrameCounts && 
       aFrame != nsnull) {
     char * key = new char[16];
     sprintf(key, "%p", (void*)aFrame);
-    IndiReflowCounter * counter =
-      (IndiReflowCounter *)PL_HashTableLookup(mIndiFrameCounts, key);
+    IndiReflowCounter * counter = (IndiReflowCounter *)PL_HashTableLookup(mIndiFrameCounts, key);
     if (counter != nsnull && counter->mName.EqualsASCII(aName)) {
       aRenderingContext->PushState();
-      aRenderingContext->Translate(aOffset);
       nsFont font("Times", NS_FONT_STYLE_NORMAL, NS_FONT_VARIANT_NORMAL,
                   NS_FONT_WEIGHT_NORMAL, NS_FONT_STRETCH_NORMAL, 0,
                   nsPresContext::CSSPixelsToAppUnits(11));
 
-      nsRefPtr<nsFontMetrics> fm = aPresContext->GetMetricsFor(font);
+      nsCOMPtr<nsIFontMetrics> fm = aPresContext->GetMetricsFor(font);
       aRenderingContext->SetFont(fm);
       char buf[16];
       sprintf(buf, "%d", counter->mCount);
-      nscoord x = 0, y = fm->MaxAscent();
-      nscoord width, height = fm->MaxHeight();
+      nscoord x = 0, y;
+      nscoord width, height;
       aRenderingContext->SetTextRunRTL(PR_FALSE);
       aRenderingContext->GetWidth((char*)buf, width);
+      fm->GetHeight(height);
+      fm->GetMaxAscent(y);
 
       PRUint32 color;
       PRUint32 color2;

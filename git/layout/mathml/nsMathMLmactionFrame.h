@@ -72,7 +72,7 @@ public:
                               const nsDisplayListSet& aLists);
 
   virtual nsresult
-  Place(nsRenderingContext& aRenderingContext,
+  Place(nsIRenderingContext& aRenderingContext,
         PRBool               aPlaceOrigin,
         nsHTMLReflowMetrics& aDesiredSize);
 

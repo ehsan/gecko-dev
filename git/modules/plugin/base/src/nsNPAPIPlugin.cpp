@@ -329,7 +329,6 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
   // Blacklist Flash 10.0 or lower since it may try to negotiate Carbon/Quickdraw
   // which are not supported out of process. Also blacklist Flash 10.1 if this
   // machine has an Intel GMA9XX GPU because Flash will negotiate Quickdraw graphics.
-  // Never blacklist Flash >= 10.2.
   if (aPluginTag->mFileName.EqualsIgnoreCase("flash player.plugin")) {
     // If the first '.' is before position 2 or the version 
     // starts with 10.0 then we are dealing with Flash 10 or less.
@@ -342,9 +341,12 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
       if (versionPrefix.EqualsASCII("10.0")) {
         return PR_FALSE;
       }
-      if (versionPrefix.EqualsASCII("10.1") && GMA9XXGraphics()) {
-        return PR_FALSE;
-      }
+    }
+
+    // At this point we have Flash 10.1+ but now we also need to blacklist
+    // if the machine has a Intel GMA9XX GPU.
+    if (GMA9XXGraphics()) {
+      return PR_FALSE;
     }
   }
 #endif
@@ -617,14 +619,13 @@ MakeNewNPAPIStreamInternal(NPP npp, const char *relativeURL, const char *target,
   switch (type) {
   case eNPPStreamTypeInternal_Get:
     {
-      if (NS_FAILED(pluginHost->GetURL(inst, relativeURL, target, listener,
-                                       NULL, NULL, false)))
+      if (NS_FAILED(pluginHost->GetURL(inst, relativeURL, target, listener)))
         return NPERR_GENERIC_ERROR;
       break;
     }
   case eNPPStreamTypeInternal_Post:
     {
-      if (NS_FAILED(pluginHost->PostURL(inst, relativeURL, len, buf, file, target, listener, NULL, NULL, false, 0, NULL)))
+      if (NS_FAILED(pluginHost->PostURL(inst, relativeURL, len, buf, file, target, listener)))
         return NPERR_GENERIC_ERROR;
       break;
     }
@@ -909,16 +910,12 @@ OnShutdown()
 
 AsyncCallbackAutoLock::AsyncCallbackAutoLock()
 {
-  if (sPluginThreadAsyncCallLock) {
-    sPluginThreadAsyncCallLock->Lock();
-  }
+  sPluginThreadAsyncCallLock->Lock();
 }
 
 AsyncCallbackAutoLock::~AsyncCallbackAutoLock()
 {
-  if (sPluginThreadAsyncCallLock) {
-    sPluginThreadAsyncCallLock->Unlock();
-  }
+  sPluginThreadAsyncCallLock->Unlock();
 }
 
 
@@ -2365,11 +2362,6 @@ _setvalue(NPP npp, NPPVariable variable, void *result)
     case NPPVpluginWantsAllNetworkStreams: {
       PRBool bWantsAllNetworkStreams = (result != nsnull);
       return inst->SetWantsAllNetworkStreams(bWantsAllNetworkStreams);
-    }
-
-    case NPPVpluginUsesDOMForCursorBool: {
-      PRBool useDOMForCursor = (result != nsnull);
-      return inst->SetUsesDOMForCursor(useDOMForCursor);
     }
 
 #ifdef XP_MACOSX

@@ -41,7 +41,7 @@
 
 #include <windows.h>
 #include "nsNativeThemeWin.h"
-#include "nsRenderingContext.h"
+#include "nsIRenderingContext.h"
 #include "nsIDeviceContext.h"
 #include "nsRect.h"
 #include "nsSize.h"
@@ -1197,7 +1197,7 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
 }
 
 NS_IMETHODIMP
-nsNativeThemeWin::DrawWidgetBackground(nsRenderingContext* aContext,
+nsNativeThemeWin::DrawWidgetBackground(nsIRenderingContext* aContext,
                                        nsIFrame* aFrame,
                                        PRUint8 aWidgetType,
                                        const nsRect& aRect,
@@ -1246,7 +1246,9 @@ nsNativeThemeWin::DrawWidgetBackground(nsRenderingContext* aContext,
   if (NS_FAILED(rv))
     return rv;
 
-  gfxFloat p2a = gfxFloat(aContext->AppUnitsPerDevPixel());
+  nsCOMPtr<nsIDeviceContext> dc;
+  aContext->GetDeviceContext(*getter_AddRefs(dc));
+  gfxFloat p2a = gfxFloat(dc->AppUnitsPerDevPixel());
   RECT widgetRect;
   RECT clipRect;
   gfxRect tr(aRect.x, aRect.y, aRect.width, aRect.height),
@@ -1259,13 +1261,13 @@ nsNativeThemeWin::DrawWidgetBackground(nsRenderingContext* aContext,
   if (aWidgetType == NS_THEME_DROPDOWN_BUTTON &&
       part == CBP_DROPMARKER_VISTA && IsHTMLContent(aFrame))
   {
-    tr.y -= 1.0;
-    tr.width += 1.0;
-    tr.height += 2.0;
+    tr.pos.y -= 1.0;
+    tr.size.width += 1.0;
+    tr.size.height += 2.0;
 
-    dr.y -= 1.0;
-    dr.width += 1.0;
-    dr.height += 2.0;
+    dr.pos.y -= 1.0;
+    dr.size.width += 1.0;
+    dr.size.height += 2.0;
   }
 
   nsRefPtr<gfxContext> ctx = aContext->ThebesContext();
@@ -1544,12 +1546,12 @@ RENDER_AGAIN:
     // are because we might have drawn something above them (like a background-image).
     ctx->Save();
     ctx->ResetClip();
-    ctx->Translate(dr.TopLeft());
+    ctx->Translate(dr.pos);
 
     // Create a rounded rectangle to follow the buttons' look.
-    gfxRect buttonbox1(0.0, 0.0, dr.Width(), dr.Height() - 2.0);
-    gfxRect buttonbox2(1.0, dr.Height() - 2.0, dr.Width() - 1.0, 1.0);
-    gfxRect buttonbox3(2.0, dr.Height() - 1.0, dr.Width() - 3.0, 1.0);
+    gfxRect buttonbox1(0.0, 0.0, dr.size.width, dr.size.height - 2.0);
+    gfxRect buttonbox2(1.0, dr.size.height - 2.0, dr.size.width - 1.0, 1.0);
+    gfxRect buttonbox3(2.0, dr.size.height - 1.0, dr.size.width - 3.0, 1.0);
 
     gfxContext::GraphicsOperator currentOp = ctx->CurrentOperator();
     ctx->SetOperator(gfxContext::OPERATOR_CLEAR);
@@ -1846,7 +1848,7 @@ nsNativeThemeWin::GetWidgetOverflow(nsIDeviceContext* aContext,
 }
 
 NS_IMETHODIMP
-nsNativeThemeWin::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* aFrame,
+nsNativeThemeWin::GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                        PRUint8 aWidgetType,
                                        nsIntSize* aResult, PRBool* aIsOverridable)
 {
@@ -2426,7 +2428,7 @@ nsNativeThemeWin::ClassicGetWidgetBorder(nsIDeviceContext* aContext,
 }
 
 nsresult
-nsNativeThemeWin::ClassicGetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* aFrame,
+nsNativeThemeWin::ClassicGetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                        PRUint8 aWidgetType,
                                        nsIntSize* aResult, PRBool* aIsOverridable)
 {
@@ -3100,7 +3102,7 @@ void nsNativeThemeWin::DrawCheckedRect(HDC hdc, const RECT& rc, PRInt32 fore, PR
   }
 }
 
-nsresult nsNativeThemeWin::ClassicDrawWidgetBackground(nsRenderingContext* aContext,
+nsresult nsNativeThemeWin::ClassicDrawWidgetBackground(nsIRenderingContext* aContext,
                                   nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
                                   const nsRect& aRect,
@@ -3113,7 +3115,9 @@ nsresult nsNativeThemeWin::ClassicDrawWidgetBackground(nsRenderingContext* aCont
   if (NS_FAILED(rv))
     return rv;
 
-  gfxFloat p2a = gfxFloat(aContext->AppUnitsPerDevPixel());
+  nsCOMPtr<nsIDeviceContext> dc;
+  aContext->GetDeviceContext(*getter_AddRefs(dc));
+  gfxFloat p2a = gfxFloat(dc->AppUnitsPerDevPixel());
   RECT widgetRect;
   gfxRect tr(aRect.x, aRect.y, aRect.width, aRect.height),
           dr(aDirtyRect.x, aDirtyRect.y, aDirtyRect.width, aDirtyRect.height);

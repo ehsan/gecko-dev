@@ -54,7 +54,7 @@ using mozilla::unused;
 #include "nsIObserverService.h"
 
 #include "nsIDeviceContext.h"
-#include "nsRenderingContext.h"
+#include "nsIRenderingContext.h"
 #include "nsIDOMSimpleGestureEvent.h"
 
 #include "nsWidgetAtoms.h"

@@ -101,8 +101,10 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsFrameMessageManager)
                                      mChrome && !mIsProcessManager)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsFrameMessageManager)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsFrameMessageManager)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsFrameMessageManager,
+                                          nsIContentFrameMessageManager)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsFrameMessageManager,
+                                           nsIContentFrameMessageManager)
 
 NS_IMETHODIMP
 nsFrameMessageManager::AddMessageListener(const nsAString& aMessage,
@@ -253,11 +255,13 @@ nsFrameMessageManager::SendSyncMessage()
           continue;
 
         jsval ret = JSVAL_VOID;
-        if (!JS_ParseJSON(ctx, (jschar*)retval[i].get(),
-                          (uint32)retval[i].Length(), &ret)) {
-          return NS_ERROR_UNEXPECTED;
+        JSONParser* parser = JS_BeginJSONParse(ctx, &ret);
+        JSBool ok = JS_ConsumeJSONText(ctx, parser, (jschar*)retval[i].get(),
+                                       (uint32)retval[i].Length());
+        ok = JS_FinishJSONParse(ctx, parser, JSVAL_NULL) && ok;
+        if (ok) {
+          NS_ENSURE_TRUE(JS_SetElement(ctx, dataArray, i, &ret), NS_ERROR_OUT_OF_MEMORY);
         }
-        NS_ENSURE_TRUE(JS_SetElement(ctx, dataArray, i, &ret), NS_ERROR_OUT_OF_MEMORY);
       }
 
       jsval* retvalPtr;
@@ -378,9 +382,15 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
 
         jsval json = JSVAL_NULL;
         if (!aJSON.IsEmpty()) {
-          if (!JS_ParseJSON(ctx, (jschar*)nsString(aJSON).get(),
-                            (uint32)aJSON.Length(), &json)) {
-            json = JSVAL_NULL;
+          JSONParser* parser = JS_BeginJSONParse(ctx, &json);
+          if (parser) {
+            JSBool ok = JS_ConsumeJSONText(ctx, parser,
+                                           (jschar*)nsString(aJSON).get(),
+                                           (uint32)aJSON.Length());
+            ok = JS_FinishJSONParse(ctx, parser, JSVAL_NULL) && ok;
+            if (!ok) {
+              json = JSVAL_NULL;
+            }
           }
         }
         JSString* jsMessage =
@@ -659,6 +669,7 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
       if (global) {
         JSPrincipals* jsprin = nsnull;
         mPrincipal->GetJSPrincipals(mCx, &jsprin);
+        nsContentUtils::XPConnect()->FlagSystemFilenamePrefix(url.get(), PR_TRUE);
 
         uint32 oldopts = JS_GetOptions(mCx);
         JS_SetOptions(mCx, oldopts | JSOPTION_NO_SCRIPT_RVAL);

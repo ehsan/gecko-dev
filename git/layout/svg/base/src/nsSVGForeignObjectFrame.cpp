@@ -208,7 +208,7 @@ nsSVGForeignObjectFrame::PaintSVG(nsSVGRenderState *aContext,
   gfxMatrix matrixForChildren = GetCanvasTMForChildren();
   gfxMatrix matrix = GetCanvasTM();
 
-  nsRenderingContext *ctx = aContext->GetRenderingContext(this);
+  nsIRenderingContext *ctx = aContext->GetRenderingContext(this);
 
   if (!ctx || matrixForChildren.IsSingular()) {
     NS_WARNING("Can't render foreignObject element!");
@@ -581,7 +581,7 @@ nsSVGForeignObjectFrame::DoReflow()
   nsSize availableSpace(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
   nsIPresShell* presShell = presContext->PresShell();
   NS_ASSERTION(presShell, "null presShell");
-  nsRefPtr<nsRenderingContext> renderingContext =
+  nsCOMPtr<nsIRenderingContext> renderingContext =
     presShell->GetReferenceRenderingContext();
   if (!renderingContext)
     return;

@@ -170,3 +170,8 @@ function test() {
   // Restore state
   ss.setBrowserState(JSON.stringify(state));
 }
+
+// Helper function to create a random value
+function r() {
+  return "" + Date.now() + Math.random();
+}

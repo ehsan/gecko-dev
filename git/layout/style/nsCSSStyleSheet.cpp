@@ -97,6 +97,8 @@ protected:
   virtual ~CSSRuleListImpl();
 
   nsCSSStyleSheet*  mStyleSheet;
+public:
+  PRBool              mRulesAccessed;
 };
 
 CSSRuleListImpl::CSSRuleListImpl(nsCSSStyleSheet *aStyleSheet)
@@ -104,6 +106,7 @@ CSSRuleListImpl::CSSRuleListImpl(nsCSSStyleSheet *aStyleSheet)
   // Not reference counted to avoid circular references.
   // The style sheet will tell us when its going away.
   mStyleSheet = aStyleSheet;
+  mRulesAccessed = PR_FALSE;
 }
 
 CSSRuleListImpl::~CSSRuleListImpl()
@@ -152,6 +155,7 @@ CSSRuleListImpl::GetItemAt(PRUint32 aIndex, nsresult* aResult)
 
       result = mStyleSheet->GetStyleRuleAt(aIndex, *getter_AddRefs(rule));
       if (rule) {
+        mRulesAccessed = PR_TRUE; // signal to never share rules again
         return rule->GetDOMRuleWeak(aResult);
       }
       if (result == NS_ERROR_ILLEGAL_VALUE) {
@@ -1018,14 +1022,15 @@ nsCSSStyleSheet::nsCSSStyleSheet(const nsCSSStyleSheet& aCopy,
     mDocument(aDocumentToUse),
     mOwningNode(aOwningNodeToUse),
     mDisabled(aCopy.mDisabled),
-    mDirty(aCopy.mDirty),
+    mDirty(PR_FALSE),
     mInner(aCopy.mInner),
     mRuleProcessors(nsnull)
 {
 
   mInner->AddSheet(this);
 
-  if (mDirty) { // CSSOM's been there, force full copy now
+  if (aCopy.mRuleCollection && 
+      aCopy.mRuleCollection->mRulesAccessed) {  // CSSOM's been there, force full copy now
     NS_ASSERTION(mInner->mComplete, "Why have rules been accessed on an incomplete sheet?");
     // FIXME: handle failure?
     EnsureUniqueInner();
@@ -1427,8 +1432,6 @@ nsCSSStyleSheet::StyleSheetCount() const
 nsCSSStyleSheet::EnsureUniqueInnerResult
 nsCSSStyleSheet::EnsureUniqueInner()
 {
-  mDirty = PR_TRUE;
-
   NS_ABORT_IF_FALSE(mInner->mSheets.Length() != 0,
                     "unexpected number of outers");
   if (mInner->mSheets.Length() == 1) {
@@ -1561,9 +1564,8 @@ nsCSSStyleSheet::WillDirty()
 void
 nsCSSStyleSheet::DidDirty()
 {
-  NS_ABORT_IF_FALSE(!mInner->mComplete || mDirty,
-                    "caller must have called WillDirty()");
   ClearRuleCascades();
+  mDirty = PR_TRUE;
 }
 
 nsresult

@@ -308,7 +308,7 @@ nsStackLayout::Layout(nsIBox* aBox, nsBoxLayoutState& aState)
         childRect.height = 0;
 
       nsRect oldRect(child->GetRect());
-      PRBool sizeChanged = !oldRect.IsEqualEdges(childRect);
+      PRBool sizeChanged = !oldRect.IsExactEqual(childRect);
 
       // only lay out dirty children or children whose sizes have changed
       if (sizeChanged || NS_SUBTREE_DIRTY(child)) {
@@ -388,7 +388,7 @@ nsStackLayout::Layout(nsIBox* aBox, nsBoxLayoutState& aState)
             }
           }
 
-          if (!childRectNoMargin.IsEqualInterior(oldRect))
+          if (childRectNoMargin != oldRect)
           {
             // redraw the new and old positions if the 
             // child moved or resized.

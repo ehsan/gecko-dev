@@ -205,6 +205,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsEditor)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsEditor)
+ NS_INTERFACE_MAP_ENTRY(nsIEditor_MOZILLA_2_0_BRANCH)
  NS_INTERFACE_MAP_ENTRY(nsIPhonetic)
  NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
  NS_INTERFACE_MAP_ENTRY(nsIEditorIMESupport)
@@ -212,8 +213,8 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsEditor)
  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIEditor)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsEditor)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsEditor)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsEditor, nsIEditor)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsEditor, nsIEditor)
 
 #ifdef XP_MAC
 #pragma mark -
@@ -1144,6 +1145,7 @@ nsEditor::GetDocumentModified(PRBool *outDocModified)
 NS_IMETHODIMP
 nsEditor::GetDocumentCharacterSet(nsACString &characterSet)
 {
+  nsresult rv = NS_OK;
   nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
   NS_ENSURE_TRUE(doc, NS_ERROR_UNEXPECTED);
 
@@ -1154,6 +1156,7 @@ nsEditor::GetDocumentCharacterSet(nsACString &characterSet)
 NS_IMETHODIMP
 nsEditor::SetDocumentCharacterSet(const nsACString& characterSet)
 {
+  nsresult rv = NS_OK;
   nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
   NS_ENSURE_TRUE(doc, NS_ERROR_UNEXPECTED);
 

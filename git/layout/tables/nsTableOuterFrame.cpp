@@ -40,6 +40,7 @@
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
+#include "nsIRenderingContext.h"
 #include "nsCSSRendering.h"
 #include "nsIContent.h"
 #include "prinrval.h"
@@ -90,7 +91,7 @@ nsTableOuterFrame::GetBaseline() const
 }
 
 /* virtual */ nsSize
-nsTableCaptionFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
+nsTableCaptionFrame::ComputeAutoSize(nsIRenderingContext *aRenderingContext,
                                      nsSize aCBSize, nscoord aAvailableWidth,
                                      nsSize aMargin, nsSize aBorder,
                                      nsSize aPadding, PRBool aShrinkWrap)
@@ -493,7 +494,7 @@ GetContainingBlockSize(const nsHTMLReflowState& aOuterRS)
 }
 
 /* virtual */ nscoord
-nsTableOuterFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nsTableOuterFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord width = nsLayoutUtils::IntrinsicForContainer(aRenderingContext,
                     mInnerTableFrame, nsLayoutUtils::MIN_WIDTH);
@@ -514,7 +515,7 @@ nsTableOuterFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-nsTableOuterFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+nsTableOuterFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord maxWidth;
   DISPLAY_PREF_WIDTH(this, maxWidth);
@@ -562,7 +563,7 @@ nsTableOuterFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 // aMarginResult is non-null, fill it with the part of the margin-width
 // that was contributed by the margin.
 static nscoord
-ChildShrinkWrapWidth(nsRenderingContext *aRenderingContext,
+ChildShrinkWrapWidth(nsIRenderingContext *aRenderingContext,
                      nsIFrame *aChildFrame,
                      nsSize aCBSize, nscoord aAvailableWidth,
                      nscoord *aMarginResult = nsnull)
@@ -587,7 +588,7 @@ ChildShrinkWrapWidth(nsRenderingContext *aRenderingContext,
 }
 
 /* virtual */ nsSize
-nsTableOuterFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
+nsTableOuterFrame::ComputeAutoSize(nsIRenderingContext *aRenderingContext,
                                    nsSize aCBSize, nscoord aAvailableWidth,
                                    nsSize aMargin, nsSize aBorder,
                                    nsSize aPadding, PRBool aShrinkWrap)

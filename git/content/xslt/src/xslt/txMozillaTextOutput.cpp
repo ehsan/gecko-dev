@@ -58,10 +58,13 @@
 
 using namespace mozilla::dom;
 
-txMozillaTextOutput::txMozillaTextOutput(nsITransformObserver* aObserver)
+txMozillaTextOutput::txMozillaTextOutput(nsIDOMDocument* aSourceDocument,
+                                         nsIDOMDocument* aResultDocument,
+                                         nsITransformObserver* aObserver)
 {
     MOZ_COUNT_CTOR(txMozillaTextOutput);
     mObserver = do_GetWeakReference(aObserver);
+    createResultDocument(aSourceDocument, aResultDocument);
 }
 
 txMozillaTextOutput::txMozillaTextOutput(nsIDOMDocumentFragment* aDest)
@@ -150,8 +153,11 @@ txMozillaTextOutput::startDocument()
 }
 
 nsresult
-txMozillaTextOutput::createResultDocument(nsIDOMDocument* aSourceDocument)
+txMozillaTextOutput::createResultDocument(nsIDOMDocument* aSourceDocument,
+                                          nsIDOMDocument* aResultDocument)
 {
+    nsresult rv = NS_OK;
+
     /*
      * Create an XHTML document to hold the text.
      *
@@ -168,16 +174,21 @@ txMozillaTextOutput::createResultDocument(nsIDOMDocument* aSourceDocument)
      * <transformiix:result> * The text comes here * </transformiix:result>
      */
 
-    // Create the document
-    nsresult rv = NS_NewXMLDocument(getter_AddRefs(mDocument));
-    NS_ENSURE_SUCCESS(rv, rv);
-    nsCOMPtr<nsIDocument> source = do_QueryInterface(aSourceDocument);
-    NS_ENSURE_STATE(source);
-    PRBool hasHadScriptObject = PR_FALSE;
-    nsIScriptGlobalObject* sgo =
-      source->GetScriptHandlingObject(hasHadScriptObject);
-    NS_ENSURE_STATE(sgo || !hasHadScriptObject);
-    mDocument->SetScriptHandlingObject(sgo);
+    if (!aResultDocument) {
+        // Create the document
+        rv = NS_NewXMLDocument(getter_AddRefs(mDocument));
+        NS_ENSURE_SUCCESS(rv, rv);
+        nsCOMPtr<nsIDocument> source = do_QueryInterface(aSourceDocument);
+        NS_ENSURE_STATE(source);
+        PRBool hasHadScriptObject = PR_FALSE;
+        nsIScriptGlobalObject* sgo =
+          source->GetScriptHandlingObject(hasHadScriptObject);
+        NS_ENSURE_STATE(sgo || !hasHadScriptObject);
+        mDocument->SetScriptHandlingObject(sgo);
+    }
+    else {
+        mDocument = do_QueryInterface(aResultDocument);
+    }
 
     NS_ASSERTION(mDocument, "Need document");
 
@@ -209,7 +220,9 @@ txMozillaTextOutput::createResultDocument(nsIDOMDocument* aSourceDocument)
 
     // When transforming into a non-displayed document (i.e. when there is no
     // observer) we only create a transformiix:result root element.
-    if (!observer) {
+    // Don't do this when called through nsIXSLTProcessorObsolete (i.e. when
+    // aResultDocument is set) for compability reasons
+    if (!aResultDocument && !observer) {
         PRInt32 namespaceID;
         rv = nsContentUtils::NameSpaceManager()->
             RegisterNameSpace(NS_LITERAL_STRING(kTXNameSpaceURI), namespaceID);

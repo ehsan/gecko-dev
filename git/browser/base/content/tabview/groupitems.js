@@ -1147,9 +1147,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       let $icon = iQ(icon);
       if ($icon.data("xulTab") == event.target) {
         $icon.attr("src", Utils.defaultFaviconURL);
-        return false;
       }
-      return true;
     });
   },
 
@@ -1195,42 +1193,15 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     iQ(".appTabIcon", this.$appTabTray).each(function(icon) {
       let $icon = iQ(icon);
       if ($icon.data("xulTab") != xulTab)
-        return true;
+        return;
         
       $icon.remove();
-      return false;
     });
     
     // adjust the tray
     this.adjustAppTabTray(true);
 
     xulTab.removeEventListener("error", this._onAppTabError, false);
-  },
-
-  // ----------
-  // Arranges the given xul:tab as an app tab in the group's apptab tray
-  arrangeAppTab: function GroupItem_arrangeAppTab(xulTab) {
-    let self = this;
-
-    let elements = iQ(".appTabIcon", this.$appTabTray);
-    let length = elements.length;
-
-    elements.each(function(icon) {
-      let $icon = iQ(icon);
-      if ($icon.data("xulTab") != xulTab)
-        return true;
-
-      let targetIndex = xulTab._tPos;
-
-      $icon.remove();
-      if (targetIndex < (length - 1))
-        self.$appTabTray[0].insertBefore(
-          icon,
-        iQ(".appTabIcon:nth-child(" + (targetIndex + 1) + ")", self.$appTabTray)[0]);
-      else
-        $icon.appendTo(self.$appTabTray);
-      return false;
-    });
   },
 
   // ----------
@@ -1452,8 +1423,6 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       }
     });
 
-    self._isStacked = true;
-
     let angleAccum = 0;
     children.forEach(function GroupItem__stackArrange_apply(child, index) {
       child.setZ(zIndex);
@@ -1466,6 +1435,8 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       child.setHidden(false);
       angleAccum += angleDelta;
     });
+
+    self._isStacked = true;
   },
   
   // ----------
@@ -1672,12 +1643,13 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
     // Create new tab and zoom in on it after a double click
     container.mousedown(function(e) {
-      if (!Utils.isLeftClick(e) || self.$titlebar[0] == e.target || 
-          self.$titlebar.contains(e.target)) {
-        self._lastClick = 0;
-        self._lastClickPositions = null;
+      if (!Utils.isLeftClick(e))
         return;
-      }
+
+      // clicking in the title bar shouldn't create new tabs
+      if (self.$titlebar[0] == e.target || self.$titlebar.contains(e.target))
+        return;
+
       if (Date.now() - self._lastClick <= UI.DBLCLICK_INTERVAL &&
           (self._lastClickPositions.x - UI.DBLCLICK_OFFSET) <= e.clientX &&
           (self._lastClickPositions.x + UI.DBLCLICK_OFFSET) >= e.clientX &&
@@ -1791,12 +1763,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
     this.resizeOptions.minWidth = GroupItems.minGroupWidth;
     this.resizeOptions.minHeight = GroupItems.minGroupHeight;
-
-    let start = this.resizeOptions.start;
-    this.resizeOptions.start = function (event) {
-      start.call(self, event);
-      self._unfreezeItemSize();
-    }
+    this.resizeOptions.start = function () self._unfreezeItemSize();
 
     if (value) {
       immediately ? this.$resizer.show() : this.$resizer.fadeIn();
@@ -2041,11 +2008,10 @@ let GroupItems = {
       iQ(".appTabIcon", groupItem.$appTabTray).each(function(icon) {
         let $icon = iQ(icon);
         if ($icon.data("xulTab") != xulTab)
-          return true;
+          return;
 
         if (iconUrl != $icon.attr("src"))
           $icon.attr("src", iconUrl);
-        return false;
       });
     });
   },  
@@ -2068,15 +2034,6 @@ let GroupItems = {
       groupItem.removeAppTab(xulTab);
     });
     this.updateGroupCloseButtons();
-  },
-
-  // ----------
-  // Function: arrangeAppTab
-  // Arranges the given xul:tab as an app tab from app tab tray in all groups
-  arrangeAppTab: function GroupItems_arrangeAppTab(xulTab) {
-    this.groupItems.forEach(function(groupItem) {
-      groupItem.arrangeAppTab(xulTab);
-    });
   },
 
   // ----------

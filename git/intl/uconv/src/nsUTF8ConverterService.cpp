@@ -41,6 +41,7 @@
 #include "nsICharsetConverterManager.h"
 #include "nsReadableUtils.h"
 #include "nsIServiceManager.h"
+#include "nsUConvDll.h"
 #include "prmem.h"
 #include "nsUTF8ConverterService.h"
 #include "nsEscape.h"

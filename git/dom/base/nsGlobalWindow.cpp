@@ -517,12 +517,6 @@ nsDummyJavaPluginOwner::GetWindow(NPWindow *&aWindow)
 }
 
 NS_IMETHODIMP
-nsDummyJavaPluginOwner::SetWindow()
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
 nsDummyJavaPluginOwner::GetMode(PRInt32 *aMode)
 {
   // This is wrong, but there's no better alternative.
@@ -1346,8 +1340,9 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsGlobalWindow)
 NS_INTERFACE_MAP_END
 
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsGlobalWindow)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsGlobalWindow)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsGlobalWindow, nsIScriptGlobalObject)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsGlobalWindow,
+                                           nsIScriptGlobalObject)
 
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGlobalWindow)
@@ -1395,8 +1390,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGlobalWindow)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindow)
-  nsGlobalWindow::CleanupCachedXBLHandlers(tmp);
-
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mContext)
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mControllers)
@@ -1453,6 +1446,10 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsGlobalWindow)
     tmp->mCachedXBLPrototypeHandlers.EnumerateRead(TraceXBLHandlers, &data);
   }
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
+
+NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsGlobalWindow)
+  nsGlobalWindow::CleanupCachedXBLHandlers(tmp);
+NS_IMPL_CYCLE_COLLECTION_ROOT_END
 
 //*****************************************************************************
 // nsGlobalWindow::nsIScriptGlobalObject
@@ -2760,10 +2757,13 @@ nsGlobalWindow::DispatchDOMEvent(nsEvent* aEvent,
 }
 
 void
-nsGlobalWindow::OnFinalize(JSObject* aObject)
+nsGlobalWindow::OnFinalize(PRUint32 aLangID, void *aObject)
 {
+  NS_ASSERTION(aLangID == nsIProgrammingLanguage::JAVASCRIPT,
+               "We don't support this language ID");
+
   if (aObject == mJSObject) {
-    mJSObject = NULL;
+    mJSObject = nsnull;
   }
 }
 
@@ -5119,9 +5119,9 @@ nsGlobalWindow::Print()
         printSettingsService->GetNewPrintSettings(getter_AddRefs(printSettings));
       }
 
-      nsCOMPtr<nsIDOMWindow> callerWin = EnterModalState();
+      EnterModalState();
       webBrowserPrint->Print(printSettings, nsnull);
-      LeaveModalState(callerWin);
+      LeaveModalState(nsnull);
 
       PRBool savePrintSettings =
         nsContentUtils::GetBoolPref("print.save_print_settings", PR_FALSE);
@@ -6480,6 +6480,8 @@ nsGlobalWindow::LeaveModalState(nsIDOMWindow *aCallerWin)
     }
   }
 
+  JSContext *cx = nsContentUtils::GetCurrentJSContext();
+
   if (aCallerWin) {
     nsCOMPtr<nsIScriptGlobalObject> sgo(do_QueryInterface(aCallerWin));
     nsIScriptContext *scx = sgo->GetContext();
@@ -6831,7 +6833,7 @@ nsGlobalWindow::ShowModalDialog(const nsAString& aURI, nsIVariant *aArgs,
 
   options.AppendLiteral(",scrollbars=1,centerscreen=1,resizable=0");
 
-  nsCOMPtr<nsIDOMWindow> callerWin = EnterModalState();
+  EnterModalState();
   nsresult rv = OpenInternal(aURI, EmptyString(), options,
                              PR_FALSE,          // aDialog
                              PR_TRUE,           // aContentModal
@@ -6841,7 +6843,7 @@ nsGlobalWindow::ShowModalDialog(const nsAString& aURI, nsIVariant *aArgs,
                              GetPrincipal(),    // aCalleePrincipal
                              nsnull,            // aJSCallerContext
                              getter_AddRefs(dlgWin));
-  LeaveModalState(callerWin);
+  LeaveModalState(nsnull);
 
   NS_ENSURE_SUCCESS(rv, rv);
   
@@ -10706,6 +10708,12 @@ nsNavigator::GetProductSub(nsAString& aProductSub)
   }
 
   return rv;
+}
+
+NS_IMETHODIMP
+nsNavigator::GetSecurityPolicy(nsAString& aSecurityPolicy)
+{
+  return NS_OK;
 }
 
 NS_IMETHODIMP

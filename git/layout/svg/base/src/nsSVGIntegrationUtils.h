@@ -47,7 +47,7 @@
 class nsIFrame;
 class nsDisplayListBuilder;
 class nsDisplayList;
-class nsRenderingContext;
+class nsIRenderingContext;
 
 /***** Integration of SVG effects with regular frame painting *****/
 
@@ -99,7 +99,7 @@ public:
    * in aCtx's coordinate system
    */
   static void
-  PaintFramesWithEffects(nsRenderingContext* aCtx,
+  PaintFramesWithEffects(nsIRenderingContext* aCtx,
                          nsIFrame* aEffectsFrame, const nsRect& aDirtyRect,
                          nsDisplayListBuilder* aBuilder,
                          nsDisplayList* aInnerList);
@@ -140,7 +140,7 @@ public:
    * patterns this would be the whole target frame fill area.
    */
   static void
-  DrawPaintServer(nsRenderingContext* aRenderingContext,
+  DrawPaintServer(nsIRenderingContext* aRenderingContext,
                   nsIFrame*            aTarget,
                   nsIFrame*            aPaintServer,
                   gfxPattern::GraphicsFilter aFilter,
