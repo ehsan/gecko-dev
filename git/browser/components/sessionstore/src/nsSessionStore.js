@@ -116,7 +116,7 @@ const CAPABILITIES = [
 // These keys are for internal use only - they shouldn't be part of the JSON
 // that gets saved to disk nor part of the strings returned by the API.
 const INTERNAL_KEYS = ["_tabStillLoading", "_hosts", "_formDataSaved",
-                       "_shouldRestore", "_host", "_scheme"];
+                       "_shouldRestore"];
 
 // These are tab events that we listen to.
 const TAB_EVENTS = ["TabOpen", "TabClose", "TabSelect", "TabShow", "TabHide",
@@ -185,7 +185,7 @@ SessionStoreService.prototype = {
 
   // xul:tab attributes to (re)store (extensions might want to hook in here);
   // the favicon is always saved for the about:sessionrestore page
-  xulAttributes: {"image": true},
+  xulAttributes: ["image"],
 
   // set default load state
   _loadState: STATE_STOPPED,
@@ -498,7 +498,6 @@ SessionStoreService.prototype = {
       // quit-application notification so the browser is about to exit.
       if (this._loadState == STATE_QUITTING)
         return;
-      this._lastSessionState = null;
       let openWindows = {};
       this._forEachBrowserWindow(function(aWindow) {
         Array.forEach(aWindow.gBrowser.tabs, function(aTab) {
@@ -640,16 +639,15 @@ SessionStoreService.prototype = {
         let quitting = aSubject.data;
         if (quitting) {
           // save the backed up state with session set to stopped,
-          // otherwise resuming next time would look like a crash.
-          // Whether we restore the session upon resume will be determined by the
-          // usual startup prefs, so we will have the same behavior regardless of
-          // whether the browser was closed while in normal or private browsing mode.
+          // otherwise resuming next time would look like a crash
           if ("_stateBackup" in this) {
             var oState = this._stateBackup;
             oState.session = { state: STATE_STOPPED_STR };
 
             this._saveStateObject(oState);
           }
+          // make sure to restore the non-private session upon resuming
+          this._prefBranch.setBoolPref("sessionstore.resume_session_once", true);
         }
         else
           this._inPrivateBrowsing = false;
@@ -1428,10 +1426,10 @@ SessionStoreService.prototype = {
   },
 
   persistTabAttribute: function sss_persistTabAttribute(aName) {
-    if (aName in this.xulAttributes)
+    if (this.xulAttributes.indexOf(aName) != -1)
       return; // this attribute is already being tracked
     
-    this.xulAttributes[aName] = true;
+    this.xulAttributes.push(aName);
     this.saveStateDelayed();
   },
 
@@ -1738,10 +1736,12 @@ SessionStoreService.prototype = {
     else if (tabData.disallow)
       delete tabData.disallow;
     
-    tabData.attributes = {};
-    for (let name in this.xulAttributes) {
-      if (aTab.hasAttribute(name))
-        tabData.attributes[name] = aTab.getAttribute(name);
+    if (this.xulAttributes.length > 0) {
+      tabData.attributes = {};
+      Array.forEach(aTab.attributes, function(aAttr) {
+        if (this.xulAttributes.indexOf(aAttr.name) > -1)
+          tabData.attributes[aAttr.name] = aAttr.value;
+      }, this);
     }
     
     if (aTab.__SS_extdata)
@@ -1770,15 +1770,7 @@ SessionStoreService.prototype = {
   _serializeHistoryEntry:
     function sss_serializeHistoryEntry(aEntry, aFullData, aIsPinned) {
     var entry = { url: aEntry.URI.spec };
-
-    try {
-      entry._host = aEntry.URI.host;
-      entry._scheme = aEntry.URI.scheme;
-    }
-    catch (ex) {
-      // We just won't attempt to get cookies for this entry.
-    }
-
+    
     if (aEntry.title && aEntry.title != entry.url) {
       entry.title = aEntry.title;
     }
@@ -1913,15 +1905,7 @@ SessionStoreService.prototype = {
     let hasContent = false;
 
     for (let i = 0; i < aHistory.count; i++) {
-      let uri;
-      try {
-        uri = aHistory.getEntryAtIndex(i, false).URI;
-      }
-      catch (ex) {
-        // Chances are that this is getEntryAtIndex throwing, as seen in bug 669196.
-        // We've already asserted in _collectTabData, so we won't show that again.
-        continue;
-      }
+      let uri = aHistory.getEntryAtIndex(i, false).URI;
       // sessionStorage is saved per origin (cf. nsDocShell::GetSessionStorageForURI)
       let domain = uri.spec;
       try {
@@ -2194,20 +2178,21 @@ SessionStoreService.prototype = {
    */
   _extractHostsForCookies:
     function sss__extractHostsForCookies(aEntry, aHosts, aCheckPrivacy, aIsPinned) {
+    let match;
 
-    // _host and _scheme may not be set (for about: urls for example), in which
-    // case testing _scheme will be sufficient.
-    if (/https?/.test(aEntry._scheme) && !aHosts[aEntry._host] &&
-        (!aCheckPrivacy ||
-         this._checkPrivacyLevel(aEntry._scheme == "https", aIsPinned))) {
-      // By setting this to true or false, we can determine when looking at
-      // the host in _updateCookies if we should check for privacy.
-      aHosts[aEntry._host] = aIsPinned;
+    if ((match = /^https?:\/\/(?:[^@\/\s]+@)?([\w.-]+)/.exec(aEntry.url)) != null) {
+      if (!aHosts[match[1]] &&
+          (!aCheckPrivacy ||
+           this._checkPrivacyLevel(this._getURIFromString(aEntry.url).schemeIs("https"),
+                                   aIsPinned))) {
+        // By setting this to true or false, we can determine when looking at
+        // the host in _updateCookies if we should check for privacy.
+        aHosts[match[1]] = aIsPinned;
+      }
     }
-    else if (aEntry._scheme == "file") {
-      aHosts[aEntry._host] = true;
+    else if ((match = /^file:\/\/([^\/]*)/.exec(aEntry.url)) != null) {
+      aHosts[match[1]] = true;
     }
-
     if (aEntry.children) {
       aEntry.children.forEach(function(entry) {
         this._extractHostsForCookies(entry, aHosts, aCheckPrivacy, aIsPinned);
@@ -2756,9 +2741,6 @@ SessionStoreService.prototype = {
       else
         tabbrowser.showTab(tab);
 
-      for (let name in tabData.attributes)
-        this.xulAttributes[name] = true;
-
       tabData._tabStillLoading = true;
 
       // keep the data around to prevent dataloss in case
@@ -2874,8 +2856,9 @@ SessionStoreService.prototype = {
     CAPABILITIES.forEach(function(aCapability) {
       browser.docShell["allow" + aCapability] = disallow.indexOf(aCapability) == -1;
     });
-    for (let name in this.xulAttributes)
-      tab.removeAttribute(name);
+    Array.filter(tab.attributes, function(aAttr) {
+      return (_this.xulAttributes.indexOf(aAttr.name) > -1);
+    }).forEach(tab.removeAttribute, tab);
     for (let name in tabData.attributes)
       tab.setAttribute(name, tabData.attributes[name]);
     

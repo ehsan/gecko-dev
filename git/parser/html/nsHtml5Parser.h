@@ -207,7 +207,20 @@ class nsHtml5Parser : public nsAHtml5FragmentParser, // inherits nsIParser
      * Don't call. For interface backwards compat only.
      */
     NS_IMETHOD ParseFragment(const nsAString& aSourceBuffer,
-                             nsTArray<nsString>& aTagStack);
+                             void* aKey,
+                             nsTArray<nsString>& aTagStack,
+                             PRBool aXMLMode,
+                             const nsACString& aContentType,
+                             nsDTDMode aMode = eDTDMode_autodetect);
+
+    /**
+     * Don't call. For interface backwards compat only.
+     */
+    NS_IMETHOD ParseFragment(const nsAString& aSourceBuffer,
+                             nsIContent* aTargetNode,
+                             nsIAtom* aContextLocalName,
+                             PRInt32 aContextNamespace,
+                             PRBool aQuirks);
 
     /**
      * Don't call. For interface compat only.

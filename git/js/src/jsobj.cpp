@@ -80,7 +80,6 @@
 #include "jstracer.h"
 #include "jsdbgapi.h"
 #include "json.h"
-#include "jswatchpoint.h"
 #include "jswrapper.h"
 
 #include "jsinterpinlines.h"
@@ -2931,7 +2930,7 @@ js_CreateThisFromTrace(JSContext *cx, JSObject *ctor, uintN protoSlot)
 
     JSObject *parent = ctor->getParent();
     JSObject *proto;
-    const Value &protov = ctor->getSlot(protoSlot);
+    const Value &protov = ctor->getSlotRef(protoSlot);
     if (protov.isObject()) {
         proto = &protov.toObject();
     } else {
@@ -3258,7 +3257,7 @@ js_PutBlockObject(JSContext *cx, JSBool normalUnwind)
     if (normalUnwind) {
         uintN slot = JSSLOT_BLOCK_FIRST_FREE_SLOT;
         depth += fp->numFixed();
-        obj->copySlots(slot, fp->slots() + depth, count);
+        memcpy(obj->getSlots() + slot, fp->slots() + depth, count * sizeof(Value));
     }
 
     /* We must clear the private slot even with errors. */
@@ -3334,18 +3333,6 @@ JSObject::defineBlockVariable(JSContext *cx, jsid id, intN index)
     return shape;
 }
 
-JSBool
-JSObject::nonNativeSetProperty(JSContext *cx, jsid id, js::Value *vp, JSBool strict)
-{
-    if (JS_UNLIKELY(watched())) {
-        id = js_CheckForStringIndex(id);
-        WatchpointMap *wpmap = cx->compartment->watchpointMap;
-        if (wpmap && !wpmap->triggerWatchpoint(cx, this, id, vp))
-            return false;
-    }
-    return getOps()->setProperty(cx, this, id, vp, strict);
-}
-
 static size_t
 GetObjectSize(JSObject *obj)
 {
@@ -3396,38 +3383,20 @@ CopySlots(JSContext *cx, JSObject *from, JSObject *to)
         return false;
 
     size_t n = 0;
-    if (from->isWrapper() &&
-        (JSWrapper::wrapperHandler(from)->flags() & JSWrapper::CROSS_COMPARTMENT)) {
-        to->setSlot(0, from->getSlot(0));
-        to->setSlot(1, from->getSlot(1));
+    if (to->isWrapper() &&
+        (JSWrapper::wrapperHandler(to)->flags() & JSWrapper::CROSS_COMPARTMENT)) {
+        to->slots[0] = from->slots[0];
+        to->slots[1] = from->slots[1];
         n = 2;
     }
 
     for (; n < nslots; ++n) {
-        Value v = from->getSlot(n);
+        Value v = from->slots[n];
         if (!cx->compartment->wrap(cx, &v))
             return false;
-        to->setSlot(n, v);
+        to->slots[n] = v;
     }
     return true;
-}
-
-static void
-CheckProxy(JSObject *obj)
-{
-    if (!obj->isProxy())
-        return;
-
-    JSProxyHandler *handler = obj->getProxyHandler();
-    if (handler->isCrossCompartment())
-        return;
-
-    Value priv = obj->getProxyPrivate();
-    if (!priv.isObject())
-        return;
-
-    if (priv.toObject().compartment() != obj->compartment())
-        JS_Assert("compartment mismatch in proxy object", __FILE__, __LINE__);
 }
 
 JSObject *
@@ -3466,9 +3435,6 @@ JSObject::clone(JSContext *cx, JSObject *proto, JSObject *parent)
         if (!CopySlots(cx, this, clone))
             return NULL;
     }
-
-    CheckProxy(clone);
-
     return clone;
 }
 
@@ -3505,9 +3471,9 @@ TradeGuts(JSObject *a, JSObject *b)
 
         /* Fixup pointers for inline slots on the objects. */
         if (aInline)
-            b->setSlotsPtr(b->fixedSlots());
+            b->slots = b->fixedSlots();
         if (bInline)
-            a->setSlotsPtr(a->fixedSlots());
+            a->slots = a->fixedSlots();
     } else {
         /*
          * If the objects are of differing sizes, then we only copy over the
@@ -3580,11 +3546,6 @@ JSObject::swap(JSContext *cx, JSObject *other)
     }
     TradeGuts(this, otherClone);
     TradeGuts(other, thisClone);
-
-    CheckProxy(this);
-    CheckProxy(other);
-    CheckProxy(thisClone);
-    CheckProxy(otherClone);
 
     return true;
 }
@@ -3826,7 +3787,7 @@ DefineConstructorAndPrototype(JSContext *cx, JSObject *obj, JSProtoKey key, JSAt
      * semantics for null-protoProto, and use createBlankPrototype.)
      */
     JSObject *proto = NewObject<WithProto::Class>(cx, clasp, protoProto, obj);
-    if (!proto || !proto->getEmptyShape(cx, proto->getClass(), gc::FINALIZE_OBJECT0))
+    if (!proto || !proto->getEmptyShape(cx, proto->clasp, gc::FINALIZE_OBJECT0))
         return NULL;
 
     proto->syncSpecialEquality();
@@ -4104,7 +4065,7 @@ JSObject::ensureInstanceReservedSlots(JSContext *cx, size_t nreserved)
     JS_ASSERT_IF(isNative(),
                  isBlock() || isCall() || (isFunction() && isBoundFunction()));
 
-    uintN nslots = JSSLOT_FREE(getClass()) + nreserved;
+    uintN nslots = JSSLOT_FREE(clasp) + nreserved;
     return nslots <= numSlots() || allocSlots(cx, nslots);
 }
 
@@ -4358,15 +4319,14 @@ bool
 JSObject::allocSlot(JSContext *cx, uint32 *slotp)
 {
     uint32 slot = slotSpan();
-    JS_ASSERT(slot >= JSSLOT_FREE(getClass()));
+    JS_ASSERT(slot >= JSSLOT_FREE(clasp));
 
     /*
      * If this object is in dictionary mode and it has a property table, try to
      * pull a free slot from the property table's slot-number freelist.
      */
     if (inDictionaryMode() && lastProp->hasTable()) {
-        PropertyTable *table = lastProp->getTable();
-        uint32 last = table->freelist;
+        uint32 &last = lastProp->getTable()->freelist;
         if (last != SHAPE_INVALID_SLOT) {
 #ifdef DEBUG
             JS_ASSERT(last < slot);
@@ -4376,9 +4336,9 @@ JSObject::allocSlot(JSContext *cx, uint32 *slotp)
 
             *slotp = last;
 
-            const Value &vref = getSlot(last);
-            table->freelist = vref.toPrivateUint32();
-            setSlot(last, UndefinedValue());
+            Value &vref = getSlotRef(last);
+            last = vref.toPrivateUint32();
+            vref.setUndefined();
             return true;
         }
     }
@@ -4398,6 +4358,7 @@ JSObject::freeSlot(JSContext *cx, uint32 slot)
     uint32 limit = slotSpan();
     JS_ASSERT(slot < limit);
 
+    Value &vref = getSlotRef(slot);
     if (inDictionaryMode() && lastProp->hasTable()) {
         uint32 &last = lastProp->getTable()->freelist;
 
@@ -4410,15 +4371,85 @@ JSObject::freeSlot(JSContext *cx, uint32 slot)
          * the dictionary property table's freelist. We want to let the last
          * slot be freed by shrinking the dslots vector; see js_TraceObject.
          */
-        if (JSSLOT_FREE(getClass()) <= slot && slot + 1 < limit) {
+        if (JSSLOT_FREE(clasp) <= slot && slot + 1 < limit) {
             JS_ASSERT_IF(last != SHAPE_INVALID_SLOT, last < slotSpan());
-            setSlot(slot, PrivateUint32Value(last));
+            vref.setPrivateUint32(last);
             last = slot;
             return true;
         }
     }
-    setSlot(slot, UndefinedValue());
+    vref.setUndefined();
     return false;
+}
+
+/* JSBOXEDWORD_INT_MAX as a string */
+#define JSBOXEDWORD_INT_MAX_STRING "1073741823"
+
+/*
+ * Convert string indexes that convert to int jsvals as ints to save memory.
+ * Care must be taken to use this macro every time a property name is used, or
+ * else double-sets, incorrect property cache misses, or other mistakes could
+ * occur.
+ */
+jsid
+js_CheckForStringIndex(jsid id)
+{
+    if (!JSID_IS_ATOM(id))
+        return id;
+
+    JSAtom *atom = JSID_TO_ATOM(id);
+    const jschar *s = atom->chars();
+    jschar ch = *s;
+
+    JSBool negative = (ch == '-');
+    if (negative)
+        ch = *++s;
+
+    if (!JS7_ISDEC(ch))
+        return id;
+
+    size_t n = atom->length() - negative;
+    if (n > sizeof(JSBOXEDWORD_INT_MAX_STRING) - 1)
+        return id;
+
+    const jschar *cp = s;
+    const jschar *end = s + n;
+
+    jsuint index = JS7_UNDEC(*cp++);
+    jsuint oldIndex = 0;
+    jsuint c = 0;
+
+    if (index != 0) {
+        while (JS7_ISDEC(*cp)) {
+            oldIndex = index;
+            c = JS7_UNDEC(*cp);
+            index = 10 * index + c;
+            cp++;
+        }
+    }
+
+    /*
+     * Non-integer indexes can't be represented as integers.  Also, distinguish
+     * index "-0" from "0", because JSBOXEDWORD_INT cannot.
+     */
+    if (cp != end || (negative && index == 0))
+        return id;
+
+    if (negative) {
+        if (oldIndex < -(JSID_INT_MIN / 10) ||
+            (oldIndex == -(JSID_INT_MIN / 10) && c <= (-JSID_INT_MIN % 10)))
+        {
+            id = INT_TO_JSID(-jsint(index));
+        }
+    } else {
+        if (oldIndex < JSID_INT_MAX / 10 ||
+            (oldIndex == JSID_INT_MAX / 10 && c <= (JSID_INT_MAX % 10)))
+        {
+            id = INT_TO_JSID(jsint(index));
+        }
+    }
+
+    return id;
 }
 
 static JSBool
@@ -5411,16 +5442,6 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
     /* Convert string indices to integers if appropriate. */
     id = js_CheckForStringIndex(id);
 
-    if (JS_UNLIKELY(obj->watched())) {
-        /* Fire watchpoints, if any. */
-        WatchpointMap *wpmap = cx->compartment->watchpointMap;
-        if (wpmap && !wpmap->triggerWatchpoint(cx, obj, id, vp))
-            return false;
-
-        /* A watchpoint handler may set *vp to a non-function value. */
-        defineHow &= ~DNP_SET_METHOD;
-    }
-
     if (!LookupPropertyWithFlags(cx, obj, id, cx->resolveFlags, &pobj, &prop))
         return false;
     if (prop) {
@@ -5643,6 +5664,12 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
 }
 
 JSBool
+js_SetProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp, JSBool strict)
+{
+    return js_SetPropertyHelper(cx, obj, id, 0, vp, strict);
+}
+
+JSBool
 js_GetAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
 {
     JSProperty *prop;
@@ -5713,8 +5740,6 @@ js_DeleteProperty(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool str
 
     if (!CallJSPropertyOp(cx, obj->getClass()->delProperty, obj, SHAPE_USERID(shape), rval))
         return false;
-    if (rval->isFalse())
-        return true;
 
     if (obj->containsSlot(shape->slot)) {
         const Value &v = obj->nativeGetSlot(shape->slot);
@@ -6509,6 +6534,8 @@ DumpProperty(JSObject *obj, const Shape &shape)
 
     if (shape.hasSetterValue())
         fprintf(stderr, "setterValue=%p ", (void *) shape.setterObject());
+    else if (shape.setterOp() == js_watch_set)
+        fprintf(stderr, "setterOp=js_watch_set ");
     else if (!shape.hasDefaultSetter())
         fprintf(stderr, "setterOp=%p ", JS_FUNC_TO_DATA_PTR(void *, shape.setterOp()));
 

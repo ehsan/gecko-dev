@@ -1004,9 +1004,6 @@ let UI = {
 #ifdef XP_UNIX
       "redo",
 #endif
-#ifdef XP_MACOSX
-      "fullScreen",
-#endif
       "closeWindow", "tabview", "undoCloseTab", "undoCloseWindow",
       "privatebrowsing"
     ].forEach(function(key) {

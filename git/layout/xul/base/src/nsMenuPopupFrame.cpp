@@ -114,7 +114,6 @@ nsMenuPopupFrame::nsMenuPopupFrame(nsIPresShell* aShell, nsStyleContext* aContex
   mPopupState(ePopupClosed),
   mPopupAlignment(POPUPALIGNMENT_NONE),
   mPopupAnchor(POPUPALIGNMENT_NONE),
-  mConsumeRollupEvent(nsIPopupBoxObject::ROLLUP_DEFAULT),
   mFlipBoth(PR_FALSE),
   mIsOpenChanged(PR_FALSE),
   mIsContextMenu(PR_FALSE),
@@ -122,6 +121,7 @@ nsMenuPopupFrame::nsMenuPopupFrame(nsIPresShell* aShell, nsStyleContext* aContex
   mGeneratedChildren(PR_FALSE),
   mMenuCanOverlapOSBar(PR_FALSE),
   mShouldAutoPosition(PR_TRUE),
+  mConsumeRollupEvent(nsIPopupBoxObject::ROLLUP_DEFAULT),
   mInContentShell(PR_TRUE),
   mIsMenuLocked(PR_FALSE),
   mHFlip(PR_FALSE),
@@ -148,7 +148,7 @@ nsMenuPopupFrame::Init(nsIContent*      aContent,
 
   // lookup if we're allowed to overlap the OS bar (menubar/taskbar) from the
   // look&feel object
-  PRInt32 tempBool;
+  PRBool tempBool;
   presContext->LookAndFeel()->
     GetMetric(nsILookAndFeel::eMetric_MenusCanOverlapOSBar, tempBool);
   mMenuCanOverlapOSBar = tempBool;
@@ -1163,8 +1163,10 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame, PRBool aIsMove)
 
   nsDeviceContext* devContext = presContext->DeviceContext();
   nscoord offsetForContextMenu = 0;
-
-  if (IsAnchored()) {
+  // if mScreenXPos and mScreenYPos are -1, then we are anchored. If they
+  // have other values, then the popup appears unanchored at that screen
+  // coordinate.
+  if (mScreenXPos == -1 && mScreenYPos == -1) {
     // if we are anchored, there are certain things we don't want to do when
     // repositioning the popup to fit on the screen, such as end up positioned
     // over the anchor, for instance a popup appearing over the menu label.

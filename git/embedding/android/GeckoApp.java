@@ -83,7 +83,6 @@ abstract public class GeckoApp
     enum LaunchState {PreLaunch, Launching, WaitButton,
                       Launched, GeckoRunning, GeckoExiting};
     private static LaunchState sLaunchState = LaunchState.PreLaunch;
-    private static boolean sTryCatchAttached = false;
 
 
     static boolean checkLaunchState(LaunchState checkState) {
@@ -189,23 +188,18 @@ abstract public class GeckoApp
         mAppContext = this;
         mMainHandler = new Handler();
 
-        if (!sTryCatchAttached) {
-            sTryCatchAttached = true;
-            mMainHandler.post(new Runnable() {
-                public void run() {
-                    try {
-                        Looper.loop();
-                    } catch (Exception e) {
-                        Log.e("GeckoApp", "top level exception", e);
-                        StringWriter sw = new StringWriter();
-                        e.printStackTrace(new PrintWriter(sw));
-                        GeckoAppShell.reportJavaCrash(sw.toString());
-                    }
-                    // resetting this is kinda pointless, but oh well
-                    sTryCatchAttached = false;
+        mMainHandler.post(new Runnable() {
+            public void run() {
+                try {
+                    Looper.loop();
+                } catch (Exception e) {
+                    Log.e("GeckoApp", "top level exception", e);
+                    StringWriter sw = new StringWriter();
+                    e.printStackTrace(new PrintWriter(sw));
+                    GeckoAppShell.reportJavaCrash(sw.toString());
                 }
-            });
-        }
+            }
+        });
 
         SharedPreferences settings = getPreferences(Activity.MODE_PRIVATE);
         String localeCode = settings.getString(getPackageName() + ".locale", "");
@@ -393,17 +387,14 @@ abstract public class GeckoApp
         // etc., and generally mark the profile as 'clean', and then
         // dirty it again if we get an onResume.
 
-
         GeckoAppShell.sendEventToGecko(new GeckoEvent(GeckoEvent.ACTIVITY_STOPPING));
         super.onStop();
-        GeckoAppShell.putChildInBackground();
     }
 
     @Override
     public void onRestart()
     {
         Log.i("GeckoApp", "restart");
-        GeckoAppShell.putChildInForeground();
         super.onRestart();
     }
 
@@ -671,7 +662,7 @@ abstract public class GeckoApp
         intent.setType(aMimeType);
         GeckoApp.this.
             startActivityForResult(
-                Intent.createChooser(intent, getString(R.string.choose_file)),
+                Intent.createChooser(intent,"choose a file"),
                 FILE_PICKER_REQUEST);
         String filePickerResult = "";
         try {

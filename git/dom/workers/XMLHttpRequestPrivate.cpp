@@ -60,8 +60,11 @@
 #include "RuntimeService.h"
 #include "XMLHttpRequest.h"
 
-BEGIN_WORKERS_NAMESPACE
-namespace xhr {
+USING_WORKERS_NAMESPACE
+
+using mozilla::dom::workers::xhr::XMLHttpRequestPrivate;
+using mozilla::dom::workers::xhr::Proxy;
+using mozilla::dom::workers::exceptions::ThrowDOMExceptionForCode;
 
 class Proxy : public nsIDOMEventListener
 {
@@ -184,15 +187,6 @@ public:
            mSyncEventResponseSyncQueueKey == PR_UINT32_MAX;
   }
 };
-
-} // namespace xhr
-END_WORKERS_NAMESPACE
-
-USING_WORKERS_NAMESPACE
-
-using mozilla::dom::workers::xhr::XMLHttpRequestPrivate;
-using mozilla::dom::workers::xhr::Proxy;
-using mozilla::dom::workers::exceptions::ThrowDOMExceptionForCode;
 
 namespace {
 
@@ -955,7 +949,7 @@ public:
       intN error = 0;
 
       jsval body;
-      if (mBody.read(cx, &body)) {
+      if (mBody.read(&body, cx)) {
         if (NS_FAILED(xpc->JSValToVariant(cx, &body,
                                           getter_AddRefs(variant)))) {
           error = INVALID_STATE_ERR;
@@ -965,7 +959,7 @@ public:
         error = DATA_CLONE_ERR;
       }
 
-      mBody.clear();
+      mBody.clear(cx);
 
       if (error) {
         return error;

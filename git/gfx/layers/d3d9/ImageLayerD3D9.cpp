@@ -397,7 +397,6 @@ ImageLayerD3D9::RenderLayer()
 
 PlanarYCbCrImageD3D9::PlanarYCbCrImageD3D9()
   : PlanarYCbCrImage(static_cast<ImageD3D9*>(this))
-  , mBufferSize(0)
   , mHasData(PR_FALSE)
 {
 }
@@ -405,7 +404,8 @@ PlanarYCbCrImageD3D9::PlanarYCbCrImageD3D9()
 void
 PlanarYCbCrImageD3D9::SetData(const PlanarYCbCrImage::Data &aData)
 {
-  mBuffer = CopyData(mData, mSize, mBufferSize, aData);
+  PRUint32 dummy;
+  mBuffer = CopyData(mData, mSize, dummy, aData);
 
   mHasData = PR_TRUE;
 }

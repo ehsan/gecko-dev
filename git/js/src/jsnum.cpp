@@ -51,9 +51,6 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "mozilla/RangedPtr.h"
-
 #include "jstypes.h"
 #include "jsstdint.h"
 #include "jsutil.h"
@@ -83,7 +80,6 @@
 #include "vm/String-inl.h"
 
 using namespace js;
-using namespace mozilla;
 
 #ifndef JS_HAVE_STDINT_H /* Native support is innocent until proven guilty. */
 
@@ -365,7 +361,7 @@ ParseIntStringHelper(JSContext *cx, const jschar *ws, const jschar *end, int may
     JS_ASSERT(maybeRadix == 0 || (2 <= maybeRadix && maybeRadix <= 36));
     JS_ASSERT(ws <= end);
 
-    const jschar *s = SkipSpace(ws, end);
+    const jschar *s = js_SkipWhiteSpace(ws, end);
     JS_ASSERT(ws <= s);
     JS_ASSERT(s <= end);
 
@@ -1268,41 +1264,6 @@ NumberToString(JSContext *cx, jsdouble d)
     return NULL;
 }
 
-JSFixedString *
-IndexToString(JSContext *cx, uint32 u)
-{
-    if (JSAtom::hasUintStatic(u))
-        return &JSAtom::uintStatic(u);
-
-    JSCompartment *c = cx->compartment;
-    if (JSFixedString *str = c->dtoaCache.lookup(10, u))
-        return str;
-
-    JSShortString *str = js_NewGCShortString(cx);
-    if (!str)
-        return NULL;
-
-    /* +1, since MAX_LENGTH does not count the null char. */
-    JS_STATIC_ASSERT(JSShortString::MAX_LENGTH + 1 >= sizeof("4294967295"));
-
-    jschar *storage = str->inlineStorageBeforeInit();
-    size_t length = JSShortString::MAX_SHORT_LENGTH;
-    const RangedPtr<jschar> end(storage + length, storage, length + 1);
-    RangedPtr<jschar> cp = end;
-    *cp = '\0';
-
-    do {
-        jsuint newu = u / 10, digit = u % 10;
-        *--cp = '0' + digit;
-        u = newu;
-    } while (u > 0);
-
-    str->initAtOffsetInBuffer(cp.get(), end - cp);
-
-    c->dtoaCache.cache(10, u, str);
-    return str;
-}
-
 bool JS_FASTCALL
 NumberValueToStringBuffer(JSContext *cx, const Value &v, StringBuffer &sb)
 {
@@ -1489,14 +1450,15 @@ JSBool
 js_strtod(JSContext *cx, const jschar *s, const jschar *send,
           const jschar **ep, jsdouble *dp)
 {
-    size_t i;
+    const jschar *s1;
+    size_t length, i;
     char cbuf[32];
     char *cstr, *istr, *estr;
     JSBool negative;
     jsdouble d;
 
-    const jschar *s1 = SkipSpace(s, send);
-    size_t length = send - s1;
+    s1 = js_SkipWhiteSpace(s, send);
+    length = send - s1;
 
     /* Use cbuf to avoid malloc */
     if (length >= sizeof cbuf) {

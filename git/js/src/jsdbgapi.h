@@ -23,7 +23,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Nick Fitzgerald <nfitzgerald@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -53,9 +52,6 @@ JS_BEGIN_EXTERN_C
 extern JS_PUBLIC_API(JSCrossCompartmentCall *)
 JS_EnterCrossCompartmentCallScript(JSContext *cx, JSScript *target);
 
-extern JS_PUBLIC_API(JSCrossCompartmentCall *)
-JS_EnterCrossCompartmentCallStackFrame(JSContext *cx, JSStackFrame *target);
-
 #ifdef __cplusplus
 JS_END_EXTERN_C
 
@@ -63,7 +59,6 @@ namespace JS {
 
 class JS_PUBLIC_API(AutoEnterScriptCompartment)
 {
-  protected:
     JSCrossCompartmentCall *call;
 
   public:
@@ -77,12 +72,6 @@ class JS_PUBLIC_API(AutoEnterScriptCompartment)
         if (call && call != reinterpret_cast<JSCrossCompartmentCall*>(1))
             JS_LeaveCrossCompartmentCall(call);
     }
-};
-
-class JS_PUBLIC_API(AutoEnterFrameCompartment) : public AutoEnterScriptCompartment
-{
-  public:
-    bool enter(JSContext *cx, JSStackFrame *target);
 };
 
 } /* namespace JS */
@@ -189,6 +178,33 @@ JS_ClearWatchPointsForObject(JSContext *cx, JSObject *obj);
 
 extern JS_PUBLIC_API(JSBool)
 JS_ClearAllWatchPoints(JSContext *cx);
+
+#ifdef JS_HAS_OBJ_WATCHPOINT
+/*
+ * Hide these non-API function prototypes by testing whether the internal
+ * header file "jsversion.h" has been included.
+ */
+extern JSBool
+js_TraceWatchPoints(JSTracer *trc);
+
+extern void
+js_SweepWatchPoints(JSContext *cx);
+
+#ifdef __cplusplus
+
+extern JSBool
+js_watch_set(JSContext *cx, JSObject *obj, jsid id, JSBool strict, js::Value *vp);
+
+namespace js {
+
+bool
+IsWatchedProperty(JSContext *cx, const Shape *shape);
+
+}
+
+#endif
+
+#endif /* JS_HAS_OBJ_WATCHPOINT */
 
 /************************************************************************/
 
@@ -349,9 +365,6 @@ JS_GetValidFrameCalleeObject(JSContext *cx, JSStackFrame *fp, jsval *vp);
 
 extern JS_PUBLIC_API(const char *)
 JS_GetScriptFilename(JSContext *cx, JSScript *script);
-
-extern JS_PUBLIC_API(const jschar *)
-JS_GetScriptSourceMap(JSContext *cx, JSScript *script);
 
 extern JS_PUBLIC_API(uintN)
 JS_GetScriptBaseLineNumber(JSContext *cx, JSScript *script);

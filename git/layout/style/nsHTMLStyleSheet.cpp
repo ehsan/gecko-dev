@@ -311,11 +311,6 @@ nsHTMLStyleSheet::MediumFeaturesChanged(nsPresContext* aPresContext)
   return PR_FALSE;
 }
 
-/* virtual */ PRInt64
-nsHTMLStyleSheet::SizeOf() const
-{
-  return 0; // nsHTMLStyleSheets are charged to the DOM, not layout
-}
 
 /* virtual */ void
 nsHTMLStyleSheet::RulesMatching(PseudoElementRuleProcessorData* aData)
@@ -551,7 +546,7 @@ GetHashEntryAttributesSize(PLDHashTable* aTable, PLDHashEntryHdr* aEntry,
 }
 
 PRInt64
-nsHTMLStyleSheet::DOMSizeOf() const
+nsHTMLStyleSheet::SizeOf() const
 {
   PRInt64 size = sizeof(*this);
 

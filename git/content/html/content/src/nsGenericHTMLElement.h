@@ -135,8 +135,6 @@ public:
   nsresult GetOffsetParent(nsIDOMElement** aOffsetParent);
   virtual nsresult GetInnerHTML(nsAString& aInnerHTML);
   virtual nsresult SetInnerHTML(const nsAString& aInnerHTML);
-  virtual nsresult InsertAdjacentHTML(const nsAString& aPosition,
-                                      const nsAString& aText);
   nsresult ScrollIntoView(PRBool aTop, PRUint8 optional_argc);
   // Declare Focus(), Blur(), GetTabIndex(), SetTabIndex(), GetHidden(),
   // SetHidden(), GetSpellcheck(), SetSpellcheck(), and GetDraggable() such that
@@ -154,7 +152,6 @@ public:
   NS_IMETHOD SetDraggable(PRBool aDraggable);
   NS_IMETHOD GetAccessKey(nsAString &aAccessKey);
   NS_IMETHOD SetAccessKey(const nsAString& aAccessKey);
-  NS_IMETHOD GetAccessKeyLabel(nsAString& aLabel);
   nsresult GetContentEditable(nsAString& aContentEditable);
   nsresult GetIsContentEditable(PRBool* aContentEditable);
   nsresult SetContentEditable(const nsAString &aContentEditable);
@@ -573,18 +570,6 @@ protected:
   }
 
 private:
-  /**
-   * Fire mutation events for changes caused by parsing directly into a
-   * context node.
-   *
-   * @param aDoc the document of the node
-   * @param aDest the destination node that got stuff appended to it
-   * @param aOldChildCount the number of children the node had before parsing
-   */
-  void FireMutationEventsForDirectParsing(nsIDocument* aDoc,
-                                          nsIContent* aDest,
-                                          PRInt32 aOldChildCount);
-
   void RegUnRegAccessKey(PRBool aDoReg);
 
 protected:
@@ -598,8 +583,10 @@ protected:
   virtual nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                                 const nsAString* aValue, PRBool aNotify);
 
-  virtual nsEventListenerManager*
-    GetEventListenerManagerForAttr(PRBool* aDefer);
+  virtual nsresult
+    GetEventListenerManagerForAttr(nsEventListenerManager** aManager,
+                                   nsISupports** aTarget,
+                                   PRBool* aDefer);
 
   virtual const nsAttrName* InternalGetExistingAttrNameFromQName(const nsAString& aStr) const;
 
@@ -1486,7 +1473,6 @@ protected:
   NS_SCRIPTABLE NS_IMETHOD SetClassName(const nsAString & aClassName) { return _to SetClassName(aClassName); } \
   NS_SCRIPTABLE NS_IMETHOD GetAccessKey(nsAString & aAccessKey) { return _to GetAccessKey(aAccessKey); } \
   NS_SCRIPTABLE NS_IMETHOD SetAccessKey(const nsAString & aAccessKey) { return _to SetAccessKey(aAccessKey); } \
-  NS_SCRIPTABLE NS_IMETHOD GetAccessKeyLabel(nsAString & aLabel) { return _to GetAccessKeyLabel(aLabel); } \
   NS_SCRIPTABLE NS_IMETHOD Blur(void) { return _to Blur(); }
 
 /**

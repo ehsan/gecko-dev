@@ -784,8 +784,10 @@ protected:
    * Hook to allow subclasses to produce a different nsEventListenerManager if
    * needed for attachment of attribute-defined handlers
    */
-  virtual nsEventListenerManager*
-    GetEventListenerManagerForAttr(PRBool* aDefer);
+  virtual nsresult
+    GetEventListenerManagerForAttr(nsEventListenerManager** aManager,
+                                   nsISupports** aTarget,
+                                   PRBool* aDefer);
 
   /**
    * Copy attributes and state to another element

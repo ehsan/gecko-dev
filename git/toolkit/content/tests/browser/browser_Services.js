@@ -73,5 +73,4 @@ function checkServices() {
   checkService("eTLD", Ci.nsIEffectiveTLDService);
   checkService("cookies", Ci.nsICookieManager2);
   checkService("logins", Ci.nsILoginManager);
-  checkService("telemetry", Ci.nsITelemetry);
 }

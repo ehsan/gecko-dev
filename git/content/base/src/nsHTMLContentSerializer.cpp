@@ -73,7 +73,6 @@
 #include "nsIEditor.h"
 #include "nsIHTMLEditor.h"
 #include "mozilla/dom/Element.h"
-#include "nsParserConstants.h"
 
 using namespace mozilla::dom;
 

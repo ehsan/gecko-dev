@@ -200,7 +200,7 @@ AttachSetGlobalNameStub(VMFrame &f, ic::SetGlobalNameIC *ic, JSObject *obj, cons
      * Load obj->slots. If ic->objConst, then this clobbers objReg, because
      * ic->objReg == ic->shapeReg.
      */
-    masm.loadPtr(Address(ic->objReg, JSObject::offsetOfSlots()), ic->shapeReg);
+    masm.loadPtr(Address(ic->objReg, offsetof(JSObject, slots)), ic->shapeReg);
 
     /* Test if overwriting a function-tagged slot. */
     Address slot(ic->shapeReg, sizeof(Value) * shape->slot);
@@ -213,7 +213,7 @@ AttachSetGlobalNameStub(VMFrame &f, ic::SetGlobalNameIC *ic, JSObject *obj, cons
     /* Restore shapeReg to obj->slots, since we clobbered it. */
     if (ic->objConst)
         masm.move(ImmPtr(obj), ic->objReg);
-    masm.loadPtr(Address(ic->objReg, JSObject::offsetOfSlots()), ic->shapeReg);
+    masm.loadPtr(Address(ic->objReg, offsetof(JSObject, slots)), ic->shapeReg);
 
     /* If the object test fails, shapeReg is still obj->slots. */
     isNotObject.linkTo(masm.label(), &masm);
@@ -269,10 +269,9 @@ UpdateSetGlobalName(VMFrame &f, ic::SetGlobalNameIC *ic, JSObject *obj, const Sh
     if (shape->isMethod() ||
         !shape->hasDefaultSetter() ||
         !shape->writable() ||
-        !shape->hasSlot() ||
-        obj->watched())
+        !shape->hasSlot())
     {
-        /* Disable the IC for weird shape attributes and watchpoints. */
+        /* Disable the IC for weird shape attributes. */
         PatchSetFallback(f, ic);
         return Lookup_Uncacheable;
     }
@@ -1097,13 +1096,8 @@ ic::SplatApplyArgs(VMFrame &f)
                     THROWV(false);
 
                 /* Step 6. */
-                if (length > StackSpace::ARGS_LENGTH_MAX) {
-                    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                                         JSMSG_TOO_MANY_FUN_APPLY_ARGS);
-                    THROWV(false);
-                }
+                n = Min(length, StackSpace::ARGS_LENGTH_MAX);
 
-                n = length;
                 if (!BumpStack(f, n))
                     THROWV(false);
 
@@ -1157,22 +1151,18 @@ ic::SplatApplyArgs(VMFrame &f)
     JS_ASSERT(!JS_ON_TRACE(cx));
 
     /* Step 6. */
-    if (length > StackSpace::ARGS_LENGTH_MAX) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                             JSMSG_TOO_MANY_FUN_APPLY_ARGS);
-        THROWV(false);
-    }
+    uintN n = uintN(JS_MIN(length, StackSpace::ARGS_LENGTH_MAX));
 
-    intN delta = length - 1;
+    intN delta = n - 1;
     if (delta > 0 && !BumpStack(f, delta))
         THROWV(false);
     f.regs.sp += delta;
 
     /* Steps 7-8. */
-    if (!GetElements(cx, aobj, length, f.regs.sp - length))
+    if (!GetElements(cx, aobj, n, f.regs.sp - n))
         THROWV(false);
 
-    f.u.call.dynamicArgc = length;
+    f.u.call.dynamicArgc = n;
     return true;
 }
 

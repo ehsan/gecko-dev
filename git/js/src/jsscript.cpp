@@ -23,7 +23,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Nick Fitzgerald <nfitzgerald@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -1191,8 +1190,6 @@ JSScript::NewScriptFromCG(JSContext *cx, JSCodeGenerator *cg)
     if (script->principals)
         JSPRINCIPALS_HOLD(cx, script->principals);
 
-    script->sourceMap = (jschar *) cg->parser->tokenStream.releaseSourceMap();
-
     if (!js_FinishTakingSrcNotes(cx, cg, script->notes()))
         goto bad;
     if (cg->ntrynotes != 0)
@@ -1404,9 +1401,6 @@ DestroyScript(JSContext *cx, JSScript *script, JSObject *owner)
     JS_REMOVE_LINK(&script->links);
 
     script->pcCounters.destroy(cx);
-
-    if (script->sourceMap)
-        cx->free_(script->sourceMap);
 
     memset(script, JS_FREE_PATTERN, script->totalSize());
     cx->free_(script);

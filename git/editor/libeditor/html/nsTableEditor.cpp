@@ -2677,7 +2677,7 @@ nsHTMLEditor::GetTableLayoutObject(nsIDOMElement* aTable, nsITableLayout **table
 }
 
 //Return actual number of cells (a cell with colspan > 1 counts as just 1)
-PRInt32 nsHTMLEditor::GetNumberOfCellsInRow(nsIDOMElement* aTable, PRInt32 rowIndex)
+PRBool nsHTMLEditor::GetNumberOfCellsInRow(nsIDOMElement* aTable, PRInt32 rowIndex)
 {
   PRInt32 cellCount = 0;
   nsCOMPtr<nsIDOMElement> cell;
@@ -2689,7 +2689,7 @@ PRInt32 nsHTMLEditor::GetNumberOfCellsInRow(nsIDOMElement* aTable, PRInt32 rowIn
     res = GetCellDataAt(aTable, rowIndex, colIndex, getter_AddRefs(cell),
                         &startRowIndex, &startColIndex, &rowSpan, &colSpan, 
                         &actualRowSpan, &actualColSpan, &isSelected);
-    NS_ENSURE_SUCCESS(res, 0);
+    NS_ENSURE_SUCCESS(res, res);
     if (cell)
     {
       // Only count cells that start in row we are working with

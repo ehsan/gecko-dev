@@ -38,6 +38,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#define __STDC_LIMIT_MACROS
+
 /*
  * JS shell.
  */
@@ -1890,9 +1892,8 @@ SrcNotes(JSContext *cx, JSScript *script, Sprinter *sp)
             Sprint(sp, " function %u (%s)", index, !!bytes ? bytes.ptr() : "N/A");
             break;
           }
-          case SRC_SWITCH: {
-            JSOp op = js_GetOpcode(cx, script, script->code + offset);
-            if (op == JSOP_GOTO || op == JSOP_GOTOX)
+          case SRC_SWITCH:
+            if (js_GetOpcode(cx, script, script->code + offset) == JSOP_GOTO)
                 break;
             Sprint(sp, " length %u", uintN(js_GetSrcNoteOffset(sn, 0)));
             caseOff = (uintN) js_GetSrcNoteOffset(sn, 1);
@@ -1901,7 +1902,6 @@ SrcNotes(JSContext *cx, JSScript *script, Sprinter *sp)
             UpdateSwitchTableBounds(cx, script, offset,
                                     &switchTableStart, &switchTableEnd);
             break;
-          }
           case SRC_CATCH:
             delta = (uintN) js_GetSrcNoteOffset(sn, 0);
             if (delta) {
@@ -4790,7 +4790,7 @@ Help(JSContext *cx, uintN argc, jsval *vp)
     fprintf(gOutFile, "%s\n", JS_GetImplementationVersion());
     if (argc == 0) {
         fputs(shell_help_header, gOutFile);
-        for (i = 0; i < JS_ARRAY_LENGTH(shell_help_messages); ++i)
+        for (i = 0; shell_functions[i].name; i++)
             fprintf(gOutFile, "%s\n", shell_help_messages[i]);
     } else {
         did_header = 0;
@@ -4807,16 +4807,11 @@ Help(JSContext *cx, uintN argc, jsval *vp)
                 str = NULL;
             }
             if (str) {
-                JSAutoByteString funcName(cx, str);
-                if (!funcName)
+                JSFlatString *flatStr = JS_FlattenString(cx, str);
+                if (!flatStr)
                     return JS_FALSE;
-                for (j = 0; j < JS_ARRAY_LENGTH(shell_help_messages); ++j) {
-                    /* Help messages are required to be formatted "functionName(..." */
-                    const char *msg = shell_help_messages[j];
-                    const char *p = strchr(msg, '(');
-                    JS_ASSERT(p);
-
-                    if (strncmp(funcName.ptr(), msg, p - msg) == 0) {
+                for (j = 0; shell_functions[j].name; j++) {
+                    if (JS_FlatStringEqualsAscii(flatStr, shell_functions[j].name)) {
                         if (!did_header) {
                             did_header = 1;
                             fputs(shell_help_header, gOutFile);
@@ -5153,7 +5148,7 @@ its_convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp)
 {
     if (its_noisy)
         fprintf(gOutFile, "converting it to %s type\n", JS_GetTypeName(cx, type));
-    return JS_ConvertStub(cx, obj, type, vp);
+    return JS_TRUE;
 }
 
 static void

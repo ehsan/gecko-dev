@@ -1056,7 +1056,7 @@ private:
 class TextInputHandler : public IMEInputHandler
 {
 public:
-  static NSUInteger sLastModifierState;
+  static PRBool sLastModifierState;
 
   static CFArrayRef CreateAllKeyboardLayoutList();
   static void DebugPrintAllKeyboardLayouts();

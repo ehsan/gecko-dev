@@ -545,10 +545,10 @@ IsXMLName(const jschar *cp, size_t n)
     jschar c;
 
     rv = JS_FALSE;
-    if (n != 0 && unicode::IsXMLNamespaceStart(*cp)) {
+    if (n != 0 && JS_ISXMLNSSTART(*cp)) {
         while (--n != 0) {
             c = *++cp;
-            if (!unicode::IsXMLNamespacePart(c))
+            if (!JS_ISXMLNS(c))
                 return rv;
         }
         rv = JS_TRUE;
@@ -1134,20 +1134,14 @@ static JSPropertySpec xml_static_props[] = {
 #define IS_XMLNS(str)                                                         \
     (str->length() == 5 && IS_XMLNS_CHARS(str->chars()))
 
-static inline bool
-IS_XML_CHARS(const jschar *chars)
-{
-    return (chars[0] == 'x' || chars[0] == 'X') &&
-           (chars[1] == 'm' || chars[1] == 'M') &&
-           (chars[2] == 'l' || chars[2] == 'L');
-}
+#define IS_XML_CHARS(chars)                                                   \
+    (JS_TOLOWER((chars)[0]) == 'x' &&                                         \
+     JS_TOLOWER((chars)[1]) == 'm' &&                                         \
+     JS_TOLOWER((chars)[2]) == 'l')
 
-static inline bool
-HAS_NS_AFTER_XML(const jschar *chars)
-{
-    return (chars[3] == 'n' || chars[3] == 'N') &&
-           (chars[4] == 's' || chars[4] == 'S');
-}
+#define HAS_NS_AFTER_XML(chars)                                               \
+    (JS_TOLOWER((chars)[3]) == 'n' &&                                         \
+     JS_TOLOWER((chars)[4]) == 's')
 
 #define IS_XMLNS_CHARS(chars)                                                 \
     (IS_XML_CHARS(chars) && HAS_NS_AFTER_XML(chars))
@@ -1269,12 +1263,12 @@ ChompXMLWhitespace(JSContext *cx, JSString *str)
 
     for (cp = start, end = cp + length; cp < end; cp++) {
         c = *cp;
-        if (!unicode::IsXMLSpace(c))
+        if (!JS_ISXMLSPACE(c))
             break;
     }
     while (end > cp) {
         c = end[-1];
-        if (!unicode::IsXMLSpace(c))
+        if (!JS_ISXMLSPACE(c))
             break;
         --end;
     }
@@ -4158,7 +4152,7 @@ PutProperty(JSContext *cx, JSObject *obj, jsid id, JSBool strict, jsval *vp)
         if (!nameqn)
             goto bad;
         if (!JSID_IS_VOID(funid)) {
-            ok = js_SetPropertyHelper(cx, obj, funid, 0, Valueify(vp), false);
+            ok = js_SetProperty(cx, obj, funid, Valueify(vp), false);
             goto out;
         }
         nameobj = nameqn;

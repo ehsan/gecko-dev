@@ -123,8 +123,7 @@ private:
                       PRBool followSymlinks, PRBool move);
     nsresult CopySingleFile(nsIFile *source, nsIFile* dest,
                             const nsAString &newName,
-                            PRBool followSymlinks, PRBool move,
-                            PRBool skipNtfsAclReset = PR_FALSE);
+                            PRBool followSymlinks, PRBool move);
 
     nsresult SetModDate(PRInt64 aLastModifiedTime, const PRUnichar *filePath);
     nsresult HasFileAttribute(DWORD fileAttrib, PRBool *_retval);

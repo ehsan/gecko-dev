@@ -39,7 +39,6 @@
 
 include protocol PPluginIdentifier;
 include protocol PPluginInstance;
-include protocol PPluginScriptableObject;
 
 include "npapi.h";
 include "mozilla/plugins/PluginMessageUtils.h";
@@ -154,9 +153,6 @@ parent:
   async PushCursor(NSCursorInfo cursorInfo);
   async PopCursor();
   sync GetNativeCursorsSupported() returns (bool supported);
-
-  sync NPN_SetException(nullable PPluginScriptableObject actor,
-                        nsCString message);
 };
 
 } // namespace plugins

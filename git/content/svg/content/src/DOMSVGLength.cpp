@@ -42,7 +42,6 @@
 #include "nsSVGElement.h"
 #include "nsIDOMSVGLength.h"
 #include "nsDOMError.h"
-#include "nsMathUtils.h"
 
 // See the architecture comment in DOMSVGAnimatedLengthList.h.
 
@@ -130,7 +129,7 @@ DOMSVGLength::GetValue(float* aValue)
 #endif
   if (HasOwner()) {
     *aValue = InternalItem().GetValueInUserUnits(Element(), Axis());
-    if (NS_finite(*aValue)) {
+    if (NS_FloatIsFinite(*aValue)) {
       return NS_OK;
     }
   } else if (mUnit == nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER ||

@@ -484,7 +484,7 @@ PRBool nsWebMReader::DecodeAudioPacket(nestegg_packet* aPacket, PRInt64 aOffset)
     VorbisPCMValue** pcm = 0;
     PRInt32 samples = 0;
     while ((samples = vorbis_synthesis_pcmout(&mVorbisDsp, &pcm)) > 0) {
-      nsAutoArrayPtr<SoundDataValue> buffer(new SoundDataValue[samples * mChannels]);
+      SoundDataValue* buffer = new SoundDataValue[samples * mChannels];
       for (PRUint32 j = 0; j < mChannels; ++j) {
         VorbisPCMValue* channel = pcm[j];
         for (PRUint32 i = 0; i < PRUint32(samples); ++i) {
@@ -505,12 +505,13 @@ PRBool nsWebMReader::DecodeAudioPacket(nestegg_packet* aPacket, PRInt64 aOffset)
       
       PRInt64 time = tstamp_usecs + total_duration;
       total_samples += samples;
-      mAudioQueue.Push(new SoundData(aOffset,
-                                     time,
-                                     duration,
-                                     samples,
-                                     buffer.forget(),
-                                     mChannels));
+      SoundData* s = new SoundData(aOffset,
+                                   time,
+                                   duration,
+                                   samples,
+                                   buffer,
+                                   mChannels);
+      mAudioQueue.Push(s);
       mAudioSamples += samples;
       if (vorbis_synthesis_read(&mVorbisDsp, samples) != 0) {
         return PR_FALSE;

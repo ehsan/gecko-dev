@@ -253,7 +253,7 @@ protected:
   NS_IMETHOD AttributeChanged(PRInt32 aNameSpaceID,
                               nsIAtom* aAttribute,
                               PRInt32 aModType);
-  virtual ~nsMenuFrame() { };
+  virtual ~nsMenuFrame();
 
   PRBool SizeToPopup(nsBoxLayoutState& aState, nsSize& aSize);
 
@@ -289,6 +289,14 @@ protected:
   nsRefPtr<nsXULMenuCommandEvent> mDelayedMenuCommandEvent;
 
   nsString mGroupName;
+  
+  //we load some display strings from platformKeys.properties only once
+  static nsrefcnt gRefCnt; 
+  static nsString *gShiftText;
+  static nsString *gControlText;
+  static nsString *gMetaText;
+  static nsString *gAltText;
+  static nsString *gModifierSeparator;
 
 }; // class nsMenuFrame
 

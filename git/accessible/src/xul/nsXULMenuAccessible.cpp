@@ -61,7 +61,7 @@
 #include "mozilla/dom/Element.h"
 
 using namespace mozilla;
-using namespace mozilla::a11y;
+
 
 static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 
@@ -332,8 +332,8 @@ nsXULMenuitemAccessible::NativeState()
 
     // Is collapsed?
     PRBool isCollapsed = PR_FALSE;
-    nsAccessible* parent = Parent();
-    if (parent && parent->State() & states::INVISIBLE)
+    nsAccessible* parentAcc = GetParent();
+    if (parentAcc->State() & states::INVISIBLE)
       isCollapsed = PR_TRUE;
 
     if (isSelected) {
@@ -342,12 +342,11 @@ nsXULMenuitemAccessible::NativeState()
       // Selected and collapsed?
       if (isCollapsed) {
         // Set selected option offscreen/invisible according to combobox state
-        nsAccessible* grandParent = parent->Parent();
-        if (!grandParent)
-          return state;
-        NS_ASSERTION(grandParent->Role() == nsIAccessibleRole::ROLE_COMBOBOX,
+        nsAccessible* grandParentAcc = parentAcc->GetParent();
+        NS_ENSURE_TRUE(grandParentAcc, state);
+        NS_ASSERTION(grandParentAcc->Role() == nsIAccessibleRole::ROLE_COMBOBOX,
                      "grandparent of combobox listitem is not combobox");
-        PRUint64 grandParentState = grandParent->State();
+        PRUint64 grandParentState = grandParentAcc->State();
         state &= ~(states::OFFSCREEN | states::INVISIBLE);
         state |= (grandParentState & states::OFFSCREEN) |
                  (grandParentState & states::INVISIBLE) |
@@ -405,7 +404,7 @@ nsXULMenuitemAccessible::AccessKey() const
 
   PRUint32 modifierKey = 0;
 
-  nsAccessible* parentAcc = Parent();
+  nsAccessible* parentAcc = GetParent();
   if (parentAcc) {
     if (parentAcc->NativeRole() == nsIAccessibleRole::ROLE_MENUBAR) {
       // If top level menu item, add Alt+ or whatever modifier text to string
@@ -640,9 +639,8 @@ nsXULMenupopupAccessible::NativeState()
   PRBool isActive = mContent->HasAttr(kNameSpaceID_None,
                                       nsAccessibilityAtoms::menuactive);
   if (!isActive) {
-    nsAccessible* parent = Parent();
-    if (!parent)
-      return state;
+    nsAccessible* parent(GetParent());
+    NS_ENSURE_TRUE(parent, state);
 
     nsIContent *parentContent = parnet->GetContent();
     NS_ENSURE_TRUE(parentContent, state);
@@ -687,7 +685,7 @@ nsXULMenupopupAccessible::NativeRole()
 
     if (role == nsIAccessibleRole::ROLE_PUSHBUTTON) {
       // Some widgets like the search bar have several popups, owned by buttons.
-      nsAccessible* grandParent = mParent->Parent();
+      nsAccessible* grandParent = mParent->GetParent();
       if (grandParent &&
           grandParent->Role() == nsIAccessibleRole::ROLE_AUTOCOMPLETE)
         return nsIAccessibleRole::ROLE_COMBOBOX_LIST;

@@ -40,7 +40,7 @@
 #define _nsAccessible_H_
 
 #include "nsAccessNodeWrap.h"
-#include "mozilla/a11y/States.h"
+#include "States.h"
 
 #include "nsIAccessible.h"
 #include "nsIAccessibleHyperLink.h"
@@ -218,11 +218,6 @@ public:
                                      EWhichChildAtPoint aWhichChild);
 
   /**
-   * Return the focused child if any.
-   */
-  virtual nsAccessible* FocusedChild();
-
-  /**
    * Return calculated group level based on accessible hierarchy.
    */
   virtual PRInt32 GetLevelInternal();
@@ -284,7 +279,7 @@ public:
   /**
    * Return parent accessible.
    */
-  nsAccessible* Parent() const { return mParent; }
+  nsAccessible* GetParent() const { return mParent; }
 
   /**
    * Return child accessible at the given index.
@@ -312,20 +307,12 @@ public:
   PRBool HasChildren() { return !!GetChildAt(0); }
 
   /**
-   * Return first/last/next/previous sibling of the accessible.
+   * Return next/previous sibling of the accessible.
    */
   inline nsAccessible* NextSibling() const
     {  return GetSiblingAtOffset(1); }
   inline nsAccessible* PrevSibling() const
     { return GetSiblingAtOffset(-1); }
-  inline nsAccessible* FirstChild()
-    { return GetChildCount() != 0 ? GetChildAt(0) : nsnull; }
-  inline nsAccessible* LastChild()
-  {
-    PRUint32 childCount = GetChildCount();
-    return childCount != 0 ? GetChildAt(childCount - 1) : nsnull;
-  }
-
 
   /**
    * Return embedded accessible children count.
@@ -458,7 +445,7 @@ public:
     // Perhaps we can get information about invalid links from the cache
     // In the mean time authors can use role="link" aria-invalid="true"
     // to force it for links they internally know to be invalid
-    return (0 == (State() & mozilla::a11y::states::INVALID));
+    return (0 == (State() & states::INVALID));
   }
 
   /**

@@ -110,6 +110,49 @@ NS_IMPL_ISUPPORTS2(nsAppShellService,
                    nsIAppShellService,
                    nsIObserver)
 
+nsresult 
+nsAppShellService::SetXPConnectSafeContext()
+{
+  nsresult rv;
+
+  nsCOMPtr<nsIThreadJSContextStack> cxstack =
+    do_GetService("@mozilla.org/js/xpc/ContextStack;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIDOMWindow> junk;
+  JSContext *cx;
+  rv = GetHiddenWindowAndJSContext(getter_AddRefs(junk), &cx);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return cxstack->SetSafeJSContext(cx);
+}  
+
+nsresult nsAppShellService::ClearXPConnectSafeContext()
+{
+  nsresult rv;
+
+  nsCOMPtr<nsIThreadJSContextStack> cxstack =
+    do_GetService("@mozilla.org/js/xpc/ContextStack;1", &rv);
+  if (NS_FAILED(rv)) {
+    NS_ERROR("XPConnect ContextStack gone before XPCOM shutdown?");
+    return rv;
+  }
+
+  nsCOMPtr<nsIDOMWindow> junk;
+  JSContext *cx;
+  rv = GetHiddenWindowAndJSContext(getter_AddRefs(junk), &cx);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  JSContext *safe_cx;
+  rv = cxstack->GetSafeJSContext(&safe_cx);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (cx == safe_cx)
+    rv = cxstack->SetSafeJSContext(nsnull);
+
+  return rv;
+}
+
 NS_IMETHODIMP
 nsAppShellService::CreateHiddenWindow(nsIAppShell* aAppShell)
 {
@@ -139,6 +182,12 @@ nsAppShellService::CreateHiddenWindow(nsIAppShell* aAppShell)
 
   mHiddenWindow.swap(newWindow);
 
+  // Set XPConnect's fallback JSContext (used for JS Components)
+  // to the DOM JSContext for this thread, so that DOM-to-XPConnect
+  // conversions get the JSContext private magic they need to
+  // succeed.
+  SetXPConnectSafeContext();
+
   // RegisterTopLevelWindow(newWindow); -- Mac only
 
   return NS_OK;
@@ -148,6 +197,7 @@ NS_IMETHODIMP
 nsAppShellService::DestroyHiddenWindow()
 {
   if (mHiddenWindow) {
+    ClearXPConnectSafeContext();
     mHiddenWindow->Destroy();
 
     mHiddenWindow = nsnull;
@@ -572,6 +622,7 @@ nsAppShellService::Observe(nsISupports* aSubject, const char *aTopic,
   } else if (!strcmp(aTopic, "xpcom-shutdown")) {
     mXPCOMShuttingDown = PR_TRUE;
     if (mHiddenWindow) {
+      ClearXPConnectSafeContext();
       mHiddenWindow->Destroy();
     }
   } else {

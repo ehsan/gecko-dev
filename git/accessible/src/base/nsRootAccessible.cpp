@@ -86,7 +86,6 @@
 #endif
 
 using namespace mozilla;
-using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsISupports
@@ -700,14 +699,14 @@ nsRootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
         // is active.
         return;
       } else {
-        nsAccessible* container = accessible->Parent();
-        if (!container)
+        nsAccessible *containerAccessible = accessible->GetParent();
+        if (!containerAccessible)
           return;
         // It is not top level menuitem
         // Only fire focus event if it is not inside collapsed popup
         // and not a listitem of a combo box
-        if (container->State() & states::COLLAPSED) {
-          nsAccessible* containerParent = container->Parent();
+        if (containerAccessible->State() & states::COLLAPSED) {
+          nsAccessible *containerParent = containerAccessible->GetParent();
           if (!containerParent)
             return;
           if (containerParent->Role() != nsIAccessibleRole::ROLE_COMBOBOX) {
@@ -797,7 +796,7 @@ nsRootAccessible::GetContentDocShell(nsIDocShellTreeItem *aStart)
     // If ancestor chain of accessibles is not completely visible,
     // don't use this one. This happens for example if it's inside
     // a background tab (tabbed browsing)
-    nsAccessible* parent = accDoc->Parent();
+    nsAccessible *parent = accDoc->GetParent();
     while (parent) {
       if (parent->State() & states::INVISIBLE)
         return nsnull;
@@ -805,7 +804,7 @@ nsRootAccessible::GetContentDocShell(nsIDocShellTreeItem *aStart)
       if (parent == this)
         break; // Don't check past original root accessible we started with
 
-      parent = parent->Parent();
+      parent = parent->GetParent();
     }
 
     NS_ADDREF(aStart);
@@ -879,7 +878,7 @@ nsRootAccessible::HandlePopupShownEvent(nsAccessible* aAccessible)
 
   if (role == nsIAccessibleRole::ROLE_COMBOBOX_LIST) {
     // Fire expanded state change event for comboboxes and autocompeletes.
-    nsAccessible* combobox = aAccessible->Parent();
+    nsAccessible* combobox = aAccessible->GetParent();
     if (!combobox)
       return;
 
@@ -915,7 +914,7 @@ nsRootAccessible::HandlePopupHidingEvent(nsINode* aNode,
       aAccessible->Role() != nsIAccessibleRole::ROLE_COMBOBOX_LIST)
     return;
 
-  nsAccessible* combobox = aAccessible->Parent();
+  nsAccessible* combobox = aAccessible->GetParent();
   if (!combobox)
     return;
 

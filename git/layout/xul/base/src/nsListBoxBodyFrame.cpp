@@ -107,7 +107,7 @@ public:
   PRBool IsRunning();
 
   nsCOMPtr<nsITimer> mRepeatTimer;
-  PRInt32 mDelta;
+  PRBool mDelta;
   nsListBoxBodyFrame* mOuter;
 }; 
 

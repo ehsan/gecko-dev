@@ -51,13 +51,3 @@ addMessageListener("WebNavigation:LoadURI", function (message) {
 
   webNavigation.loadURI(message.json.uri, flags, null, null, null);
 });
-
-addMessageListener("Browser:HideSessionRestoreButton", function (message) {
-  // Hide session restore button on about:home
-  let doc = content.document;
-  let container;
-  if (doc.documentURI.toLowerCase() == "about:home" &&
-      (container = doc.getElementById("sessionRestoreContainer"))){
-    container.hidden = true;
-  }
-});

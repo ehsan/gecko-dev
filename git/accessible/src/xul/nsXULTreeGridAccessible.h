@@ -143,6 +143,7 @@ public:
                                            nsLeafAccessible)
 
   // nsIAccessible
+  NS_IMETHOD GetFocusedChild(nsIAccessible **aFocusedChild);
 
   NS_IMETHOD GetName(nsAString& aName);
   NS_IMETHOD GetBounds(PRInt32 *aX, PRInt32 *aY,
@@ -161,7 +162,6 @@ public:
   virtual bool IsPrimaryForNode() const;
 
   // nsAccessible
-  virtual nsAccessible* FocusedChild();
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
   virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();

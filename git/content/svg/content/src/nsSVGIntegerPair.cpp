@@ -38,7 +38,6 @@
 #include "nsSVGUtils.h"
 #include "nsCharSeparatedTokenizer.h"
 #include "nsDOMError.h"
-#include "nsMathUtils.h"
 #ifdef MOZ_SMIL
 #include "nsSMILValue.h"
 #include "SVGIntegerPairSMILType.h"
@@ -82,7 +81,7 @@ ParseIntegerOptionalInteger(const nsAString& aValue,
 
     char *end;
     aValues[i] = strtol(token, &end, 10);
-    if (*end != '\0' || !NS_finite(aValues[i])) {
+    if (*end != '\0' || !NS_FloatIsFinite(aValues[i])) {
       return NS_ERROR_DOM_SYNTAX_ERR; // parse error
     }
   }

@@ -247,7 +247,7 @@ nsIURIFixup *nsDocShell::sURIFixup = 0;
 // True means we validate window targets to prevent frameset
 // spoofing. Initialize this to a non-bolean value so we know to check
 // the pref on the creation of the first docshell.
-static PRUint32 gValidateOrigin = 0xffffffff;
+static PRBool gValidateOrigin = (PRBool)0xffffffff;
 
 // Hint for native dispatch of events on how long to delay after 
 // all documents have loaded in milliseconds before favoring normal
@@ -4504,7 +4504,7 @@ nsDocShell::Create()
     mAllowSubframes =
         Preferences::GetBool("browser.frames.enabled", mAllowSubframes);
 
-    if (gValidateOrigin == 0xffffffff) {
+    if (gValidateOrigin == (PRBool)0xffffffff) {
         // Check pref to see if we should prevent frameset spoofing
         gValidateOrigin =
             Preferences::GetBool("browser.frame.validate_origin", PR_TRUE);
@@ -9351,14 +9351,12 @@ nsDocShell::ScrollToAnchor(nsACString & aCurHash, nsACString & aNewHash,
         // position will be restored by the caller, based on positions
         // stored in session history.
         if (aLoadType == LOAD_HISTORY || aLoadType == LOAD_RELOAD_NORMAL)
-            return NS_OK;
-        // An empty anchor. Scroll to the top of the page.  Ignore the
-        // return value; failure to scroll here (e.g. if there is no
-        // root scrollframe) is not grounds for canceling the load!
-        SetCurScrollPosEx(0, 0);
+            return rv;
+        //An empty anchor. Scroll to the top of the page.
+        rv = SetCurScrollPosEx(0, 0);
     }
 
-    return NS_OK;
+    return rv;
 }
 
 void

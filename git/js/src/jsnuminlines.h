@@ -40,10 +40,7 @@
 #ifndef jsnuminlines_h___
 #define jsnuminlines_h___
 
-#include "vm/Unicode.h"
-
-#include "jsstrinlines.h"
-
+#include "jsstr.h"
 
 namespace js {
 
@@ -74,7 +71,7 @@ StringToNumberType(JSContext *cx, JSString *str, T *result)
             *result = NumberTraits<T>::toSelfType(T(c - '0'));
             return true;
         }
-        if (unicode::IsSpace(c)) {
+        if (JS_ISSPACE(c)) {
             *result = NumberTraits<T>::toSelfType(T(0));
             return true;
         }
@@ -82,15 +79,17 @@ StringToNumberType(JSContext *cx, JSString *str, T *result)
         return true;
     }
 
+    const jschar *bp = chars;
     const jschar *end = chars + length;
-    const jschar *bp = SkipSpace(chars, end);
+    bp = js_SkipWhiteSpace(bp, end);
 
     /* ECMA doesn't allow signed hex numbers (bug 273467). */
     if (end - bp >= 2 && bp[0] == '0' && (bp[1] == 'x' || bp[1] == 'X')) {
         /* Looks like a hex number. */
         const jschar *endptr;
         double d;
-        if (!GetPrefixInteger(cx, bp + 2, end, 16, &endptr, &d) || SkipSpace(endptr, end) != end) {
+        if (!GetPrefixInteger(cx, bp + 2, end, 16, &endptr, &d) ||
+            js_SkipWhiteSpace(endptr, end) != end) {
             *result = NumberTraits<T>::NaN();
             return true;
         }
@@ -107,7 +106,7 @@ StringToNumberType(JSContext *cx, JSString *str, T *result)
      */
     const jschar *ep;
     double d;
-    if (!js_strtod(cx, bp, end, &ep, &d) || SkipSpace(ep, end) != end) {
+    if (!js_strtod(cx, bp, end, &ep, &d) || js_SkipWhiteSpace(ep, end) != end) {
         *result = NumberTraits<T>::NaN();
         return true;
     }

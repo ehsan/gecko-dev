@@ -2054,7 +2054,7 @@ nsRange::CreateContextualFragment(const nsAString& aFragment,
 {
   if (mIsPositioned) {
     return nsContentUtils::CreateContextualFragment(mStartParent, aFragment,
-                                                    PR_FALSE, aReturn);
+                                                    PR_TRUE, aReturn);
   }
   return NS_ERROR_FAILURE;
 }

@@ -1067,6 +1067,7 @@ nsPluginHost::InstantiateEmbeddedPlugin(const char *aMimeType, nsIURI* aURL,
     return rv;
 
   if (instance) {
+    instance->Start();
     aOwner->CreateWidget();
 
     // If we've got a native window, the let the plugin know about it.
@@ -1125,6 +1126,7 @@ nsresult nsPluginHost::InstantiateFullPagePlugin(const char *aMimeType,
     aOwner->GetWindow(win);
 
     if (win && instance) {
+      instance->Start();
       aOwner->CreateWidget();
 
       // If we've got a native window, the let the plugin know about it.

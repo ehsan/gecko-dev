@@ -286,13 +286,10 @@ function runTests(tests)
   runNextTest();
 }
 
-var timerArray = [];
-
 function Timer(delay, cb) {
   this.cb = cb;
   var timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
   timer.initWithCallback(this, delay, timer.TYPE_ONE_SHOT);
-  timerArray.push(timer);
 }
 
 Timer.prototype = {

@@ -49,9 +49,6 @@
 #include "nsIPrefService.h"
 #include "nsDOMDeviceMotionEvent.h"
 
-static const nsTPtrArray<nsIDOMWindow>::index_type NoIndex =
-    nsTPtrArray<nsIDOMWindow>::NoIndex;
-
 class nsDeviceMotionData : public nsIDeviceMotionData
 {
 public:
@@ -174,7 +171,7 @@ nsDeviceMotion::TimeoutHandler(nsITimer *aTimer, void *aClosure)
 
 NS_IMETHODIMP nsDeviceMotion::AddListener(nsIDeviceMotionListener *aListener)
 {
-  if (mListeners.IndexOf(aListener) != -1)
+  if (mListeners.IndexOf(aListener) >= 0)
     return NS_OK; // already exists
 
   if (mStarted == PR_FALSE) {
@@ -188,7 +185,7 @@ NS_IMETHODIMP nsDeviceMotion::AddListener(nsIDeviceMotionListener *aListener)
 
 NS_IMETHODIMP nsDeviceMotion::RemoveListener(nsIDeviceMotionListener *aListener)
 {
-  if (mListeners.IndexOf(aListener) == -1)
+  if (mListeners.IndexOf(aListener) < 0)
     return NS_OK; // doesn't exist
 
   mListeners.RemoveObject(aListener);
@@ -202,16 +199,12 @@ NS_IMETHODIMP nsDeviceMotion::AddWindowListener(nsIDOMWindow *aWindow)
     mStarted = PR_TRUE;
     Startup();
   }
-  if (mWindowListeners.IndexOf(aWindow) == NoIndex)
-    mWindowListeners.AppendElement(aWindow);
+  mWindowListeners.AppendElement(aWindow);
   return NS_OK;
 }
 
 NS_IMETHODIMP nsDeviceMotion::RemoveWindowListener(nsIDOMWindow *aWindow)
 {
-  if (mWindowListeners.IndexOf(aWindow) != NoIndex)
-    return NS_OK;
-
   mWindowListeners.RemoveElement(aWindow);
   StartDisconnectTimer();
   return NS_OK;

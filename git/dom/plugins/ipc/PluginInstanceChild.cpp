@@ -60,7 +60,6 @@ using mozilla::gfx::SharedDIBSurface;
 #include "gfxAlphaRecovery.h"
 
 #include "mozilla/ipc/SyncChannel.h"
-#include "mozilla/AutoRestore.h"
 
 using mozilla::ipc::ProcessChild;
 using namespace mozilla::plugins;
@@ -1289,6 +1288,10 @@ PluginInstanceChild::PluginWindowProcInternal(HWND hWnd,
     if ((InSendMessageEx(NULL)&(ISMEX_REPLIED|ISMEX_SEND)) == ISMEX_SEND) {
         switch(message) {
             case WM_KILLFOCUS:
+            case WM_MOUSEHWHEEL:
+            case WM_MOUSEWHEEL:
+            case WM_HSCROLL:
+            case WM_VSCROLL:
             ReplyMessage(0);
             break;
         }
@@ -1474,6 +1477,12 @@ PluginInstanceChild::SetWindowLongWHook(HWND hWnd,
 void
 PluginInstanceChild::HookSetWindowLongPtr()
 {
+#ifdef _WIN64
+    // XXX WindowsDllInterceptor doesn't support hooks
+    // in 64-bit builds, disabling this code for now.
+    return;
+#endif
+
     if (!(GetQuirks() & PluginModuleChild::QUIRK_FLASH_HOOK_SETLONGPTR))
         return;
 
@@ -1538,8 +1547,14 @@ PluginInstanceChild::TrackPopupHookProc(HMENU hMenu,
   // can act on the menu item selected.
   bool isRetCmdCall = (uFlags & TPM_RETURNCMD);
 
+  // A little trick scrounged from chromium's code - set the focus
+  // to our surrogate parent so keyboard nav events go to the menu. 
+  HWND focusHwnd = SetFocus(surrogateHwnd);
   DWORD res = sUser32TrackPopupMenuStub(hMenu, uFlags|TPM_RETURNCMD, x, y,
                                         nReserved, surrogateHwnd, prcRect);
+  if (IsWindow(focusHwnd)) {
+      SetFocus(focusHwnd);
+  }
 
   if (!isRetCmdCall && res) {
       SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(res, 0), 0);
@@ -1605,8 +1620,6 @@ PluginInstanceChild::WinlessHandleEvent(NPEvent& event)
     // Events that might generate nested event dispatch loops need
     // special handling during delivery.
     int16_t handled;
-    
-    HWND focusHwnd = NULL;
 
     // TrackPopupMenu will fail if the parent window is not associated with
     // our ui thread. So we hook TrackPopupMenu so we can hand in a surrogate
@@ -1615,22 +1628,11 @@ PluginInstanceChild::WinlessHandleEvent(NPEvent& event)
           (event.event == WM_RBUTTONDOWN || // flash
            event.event == WM_RBUTTONUP)) {  // silverlight
       sWinlessPopupSurrogateHWND = mWinlessPopupSurrogateHWND;
-      
-      // A little trick scrounged from chromium's code - set the focus
-      // to our surrogate parent so keyboard nav events go to the menu. 
-      focusHwnd = SetFocus(mWinlessPopupSurrogateHWND);
     }
-
-    MessageLoop* loop = MessageLoop::current();
-    AutoRestore<bool> modalLoop(loop->os_modal_loop());
 
     handled = mPluginIface->event(&mData, reinterpret_cast<void*>(&event));
 
     sWinlessPopupSurrogateHWND = NULL;
-
-    if (IsWindow(focusHwnd)) {
-      SetFocus(focusHwnd);
-    }
 
     return handled;
 }
