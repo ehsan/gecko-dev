@@ -151,7 +151,7 @@ addMessageListener("cleanup", function () {
   });
 });
 
-let FramesMock = {
+let AppFramesMock = {
   list: function () {
     return Frames;
   },
@@ -159,4 +159,4 @@ let FramesMock = {
   removeObserver: function () {}
 };
 
-require("devtools/server/actors/webapps").setFramesMock(FramesMock);
+require("devtools/server/actors/webapps").setAppFramesMock(AppFramesMock);

@@ -5183,6 +5183,8 @@ nsComputedDOMStyle::CreatePrimitiveValueForClipPath(
 
   if (aStyleBasicShape &&
       aStyleBasicShape->GetShapeType() == nsStyleBasicShape::Type::ePolygon) {
+    nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
+
     // Shape function name and opening parenthesis.
     nsAutoString shapeFunctionString;
     AppendASCIItoUTF16(nsCSSKeywords::GetStringValue(eCSSKeyword_polygon),
@@ -5207,10 +5209,11 @@ nsComputedDOMStyle::CreatePrimitiveValueForClipPath(
       shapeFunctionString.Append(coordString);
     }
     shapeFunctionString.Append(')');
-    nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
     val->SetString(shapeFunctionString);
     valueList->AppendCSSValue(val);
   }
+
+  nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
 
   if (aSizingBox == NS_STYLE_CLIP_SHAPE_SIZING_NOBOX) {
     return valueList;
@@ -5221,7 +5224,6 @@ nsComputedDOMStyle::CreatePrimitiveValueForClipPath(
     nsCSSProps::ValueToKeyword(aSizingBox,
                                nsCSSProps::kClipShapeSizingKTable),
                                boxString);
-  nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
   val->SetString(boxString);
   valueList->AppendCSSValue(val);
 

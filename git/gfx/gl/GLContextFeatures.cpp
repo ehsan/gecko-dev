@@ -545,8 +545,9 @@ static const FeatureInfo sFeatureInfoArr[] = {
         "transform_feedback2",
         400, // OpenGL version
         300, // OpenGL ES version
-        GLContext::ARB_transform_feedback2,
+        GLContext::Extension_None,
         {
+            GLContext::ARB_transform_feedback2,
             GLContext::NV_transform_feedback2,
             GLContext::Extensions_End
         }

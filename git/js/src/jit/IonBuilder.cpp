@@ -4454,9 +4454,7 @@ IonBuilder::makeInliningDecision(JSFunction *target, CallInfo &callInfo)
             !targetScript->baselineScript()->ionCompiledOrInlined() &&
             info().executionMode() != DefinitePropertiesAnalysis)
         {
-            JitSpew(JitSpew_Inlining, "Cannot inline %s:%u: callee is insufficiently hot.",
-                    targetScript->filename(), targetScript->lineno());
-            return InliningDecision_WarmUpCountTooLow;
+            return DontInline(targetScript, "Vetoed: callee is insufficiently hot.");
         }
     }
 
@@ -4491,7 +4489,6 @@ IonBuilder::selectInliningTargets(ObjectVector &targets, CallInfo &callInfo, Boo
           case InliningDecision_Error:
             return false;
           case InliningDecision_DontInline:
-          case InliningDecision_WarmUpCountTooLow:
             inlineable = false;
             break;
           case InliningDecision_Inline:
@@ -4667,8 +4664,6 @@ IonBuilder::inlineCallsite(ObjectVector &targets, ObjectVector &originals,
             return InliningStatus_Error;
           case InliningDecision_DontInline:
             return InliningStatus_NotInlined;
-          case InliningDecision_WarmUpCountTooLow:
-            return InliningStatus_WarmUpCountTooLow;
           case InliningDecision_Inline:
             break;
         }
@@ -5283,7 +5278,6 @@ IonBuilder::jsop_funcall(uint32_t argc)
           case InliningDecision_Error:
             return false;
           case InliningDecision_DontInline:
-          case InliningDecision_WarmUpCountTooLow:
             break;
           case InliningDecision_Inline:
             if (target->isInterpreted())
@@ -5424,7 +5418,6 @@ IonBuilder::jsop_funapplyarguments(uint32_t argc)
       case InliningDecision_Error:
         return false;
       case InliningDecision_DontInline:
-      case InliningDecision_WarmUpCountTooLow:
         break;
       case InliningDecision_Inline:
         if (target->isInterpreted())
@@ -5494,14 +5487,6 @@ IonBuilder::jsop_call(uint32_t argc, bool constructing)
     JSFunction *target = nullptr;
     if (targets.length() == 1)
         target = &targets[0]->as<JSFunction>();
-
-    if (target && status == InliningStatus_WarmUpCountTooLow) {
-        MRecompileCheck *check =
-            MRecompileCheck::New(alloc(), target->nonLazyScript(),
-                                 optimizationInfo().inliningRecompileThreshold(),
-                                 MRecompileCheck::RecompileCheck_Inlining);
-        current->add(check);
-    }
 
     return makeCall(target, callInfo, hasClones);
 }
@@ -6519,9 +6504,7 @@ IonBuilder::insertRecompileCheck()
     OptimizationLevel nextLevel = js_IonOptimizations.nextLevel(curLevel);
     const OptimizationInfo *info = js_IonOptimizations.get(nextLevel);
     uint32_t warmUpThreshold = info->compilerWarmUpThreshold(topBuilder->script());
-    MRecompileCheck *check = MRecompileCheck::New(alloc(), topBuilder->script(), warmUpThreshold,
-                                MRecompileCheck::RecompileCheck_OptimizationLevel);
-    current->add(check);
+    current->add(MRecompileCheck::New(alloc(), topBuilder->script(), warmUpThreshold));
 }
 
 JSObject *
@@ -9442,7 +9425,6 @@ IonBuilder::getPropTryCommonGetter(bool *emitted, MDefinition *obj, PropertyName
         switch (status) {
           case InliningStatus_Error:
             return false;
-          case InliningStatus_WarmUpCountTooLow:
           case InliningStatus_NotInlined:
             break;
           case InliningStatus_Inlined:
@@ -9459,7 +9441,6 @@ IonBuilder::getPropTryCommonGetter(bool *emitted, MDefinition *obj, PropertyName
           case InliningDecision_Error:
             return false;
           case InliningDecision_DontInline:
-          case InliningDecision_WarmUpCountTooLow:
             break;
           case InliningDecision_Inline:
             inlineable = true;
@@ -9884,7 +9865,6 @@ IonBuilder::setPropTryCommonSetter(bool *emitted, MDefinition *obj,
           case InliningDecision_Error:
             return false;
           case InliningDecision_DontInline:
-          case InliningDecision_WarmUpCountTooLow:
             break;
           case InliningDecision_Inline:
             if (!inlineScriptedCall(callInfo, commonSetter))

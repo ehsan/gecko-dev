@@ -445,18 +445,16 @@ MediaEngineGonkVideoSource::OnTakePictureComplete(uint8_t* aData, uint32_t aLeng
                          uint8_t* aData,
                          uint32_t aLength,
                          const nsAString& aMimeType)
-      : mPhotoDataLength(aLength)
     {
       mCallbacks.SwapElements(aCallbacks);
-      mPhotoData = (uint8_t*) moz_malloc(aLength);
-      memcpy(mPhotoData, aData, mPhotoDataLength);
+      mPhoto.AppendElements(aData, aLength);
       mMimeType = aMimeType;
     }
 
     NS_IMETHOD Run()
     {
       nsRefPtr<dom::File> blob =
-        dom::File::CreateMemoryFile(nullptr, mPhotoData, mPhotoDataLength, mMimeType);
+        dom::File::CreateMemoryFile(nullptr, mPhoto.Elements(), mPhoto.Length(), mMimeType);
       uint32_t callbackCounts = mCallbacks.Length();
       for (uint8_t i = 0; i < callbackCounts; i++) {
         nsRefPtr<dom::File> tempBlob = blob;
@@ -468,9 +466,8 @@ MediaEngineGonkVideoSource::OnTakePictureComplete(uint8_t* aData, uint32_t aLeng
     }
 
     nsTArray<nsRefPtr<PhotoCallback>> mCallbacks;
-    uint8_t* mPhotoData;
+    nsTArray<uint8_t> mPhoto;
     nsString mMimeType;
-    uint32_t mPhotoDataLength;
   };
 
   // All elements in mPhotoCallbacks will be swapped in GenerateBlobRunnable
